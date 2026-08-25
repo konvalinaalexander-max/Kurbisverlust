@@ -382,3 +382,54 @@ Abgebrochene Arbeiten aus `v_auftrag_masse` zu nehmen genügt nicht:
 `v_verdunstung_messung` und `v_wiegung_kennzahl` lesen `verdunstung_wiegung`
 direkt und brauchten einen eigenen Filter. Ohne ihn hätte eine abgebrochene
 Arbeit die Verdunstungsrate weiter beeinflusst.
+
+## Tempo: die Auswertung lief in Supabases Zeitlimit (0015)
+
+Beim Öffnen der Auswertung brach Supabase ab:
+`canceling statement due to statement timeout`. Gemessen an der Demo-Saison:
+
+| Ansicht | vorher | nachher |
+|---|--:|--:|
+| `v_hochrechnung` | 2 553 ms | 77 ms |
+| `v_verlust_ranking` | 2 441 ms | 72 ms |
+| `v_marge_buch` | 3 895 ms | 98 ms |
+| alle zwölf zusammen | > 9 000 ms | ~500 ms |
+
+Supabase bricht nach 8 Sekunden ab, und das Dashboard holt ein Dutzend
+Ansichten gleichzeitig.
+
+Zwei Ursachen, beide dieselbe Sorte Fehler — **etwas Teures wurde pro Zeile
+statt einmal gerechnet**:
+
+1. `schimmelanteil()` sieht wie eine billige Nachschlagefunktion aus, fragt
+   intern aber die ganze Kette `v_schimmel_kurve → v_schimmel_beobachtung →
+   v_auftrag_masse` ab. In der Select-Liste von `v_kaskade` bedeutete das
+   60 Aufrufe à 16 ms — mit der vollständigen Kette hinter jedem. Die Kurve
+   liegt jetzt einmal in einer materialisierten CTE und wird angejoint.
+
+2. `v_auftrag_palette_masse` holte Chargen- und Datumsmittel über seitliche
+   Unterabfragen: für jede der 286 gezählten Paletten neu, inklusive einer
+   Aggregation über alle 535 Eingangspaletten. Jetzt werden diese Mittel
+   einmal gebildet und normal angejoint.
+
+Dieselbe Falle steckt in jeder Funktion, die intern eine View abfragt: Sie
+sieht am Aufrufort billig aus und ist es nicht.
+
+### Nachgewiesen, dass sich die Zahlen nicht geändert haben
+
+Eine Optimierung, die Ergebnisse verändert, ist ein Fehler. Verdunstung,
+Massenbilanz und Marge-Buch kamen auf dieselben Werte. Nur der Schimmel wich
+ab — 24.0 t gegen 18.8 t. Die Gegenprobe (Plausibilitäts-Schwelle kurz zurück
+auf 90 %) ergab wieder exakt 24.0 t: Die Differenz stammt aus der
+Schwellenänderung in 0014, nicht aus dem Umbau.
+
+Nebenbei zeigt das, wofür die Plausibilitätsprüfung da ist: **Ein einziger
+vertippter Wert** (4500 statt 450 kg) hatte die Schimmel-Schätzung der ganzen
+Saison um 28 % aufgebläht.
+
+### Tempo-Prüfung im Testlauf
+
+Stufe 5 von `supabase/test/run.sh` lädt die Demo-Saison, misst alle zwölf
+Dashboard-Ansichten und schlägt über 3 Sekunden fehl — großzügig gegenüber
+langsamer CI-Hardware, aber weit unter den 8 Sekunden, bei denen Supabase
+abbricht.

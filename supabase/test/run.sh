@@ -73,7 +73,33 @@ VERWAIST="$(psql "$URL" -qtA -c "select (select count(*) from verdunstung_wiegun
 echo "   nichts Verwaistes zurückgeblieben"
 
 echo
-echo "── 5. setup.sql gegen die Migrationen abgleichen ─────────────"
+echo "── 5. Tempo der Auswertung ───────────────────────────────────"
+# Supabase bricht Abfragen nach 8 Sekunden ab. Das Dashboard holt ein Dutzend
+# Ansichten gleichzeitig — einmal lagen sie zusammen über 9 Sekunden, weil eine
+# Funktion pro Zeile die halbe Auswertung neu rechnete. Diese Stufe fängt es ab,
+# bevor es wieder jemandem beim Klicken um die Ohren fliegt.
+# Das Betriebsleiter-Konto steht bereits aus Stufe 4
+psql "$URL" -v ON_ERROR_STOP=1 -qtA -c "$(cat "$HIER/../demo_daten.sql")" >/dev/null
+psql "$URL" -q -c "analyze" >/dev/null
+
+GESAMT=0
+for V in v_hochrechnung v_massenbilanz v_datenlage v_marge_buch v_plausibilitaet \
+         v_wiegung_kennzahl v_kaliber_verteilung v_schimmel_kurve_anzeige \
+         v_koeff_verdunstung v_koeff_ausschuss v_koeff_nebenkanal v_koeff_ueberfuellung; do
+  MS="$(psql "$URL" -qtA -c "\timing on" -c "select count(*) from $V" 2>&1 \
+        | grep -oE 'Time: [0-9.]+ ms' | grep -oE '[0-9.]+')"
+  GESAMT="$(echo "$GESAMT + $MS" | bc)"
+done
+echo "   alle zwölf Dashboard-Ansichten: ${GESAMT} ms"
+# 3 Sekunden: grosszügig gegenüber langsamer CI-Hardware, aber weit unter den
+# 8 Sekunden, bei denen Supabase abbricht.
+if [ "$(echo "$GESAMT > 3000" | bc)" = "1" ]; then
+  echo "   FEHLER: zu langsam — auf Supabase droht der Abbruch"; exit 1
+fi
+psql "$URL" -q -c "$(cat "$HIER/../demo_daten_entfernen.sql")" >/dev/null
+
+echo
+echo "── 6. setup.sql gegen die Migrationen abgleichen ─────────────"
 VORHER="$(cat "$HIER/../setup.sql")"
 "$HIER/../setup_bauen.sh" >/dev/null
 if [ "$VORHER" != "$(cat "$HIER/../setup.sql")" ]; then
