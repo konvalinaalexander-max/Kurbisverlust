@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { fehlerText, stammdaten } from '../lib/db'
-import { datum, kg, zahl } from '../lib/format'
-import { Hinweis, Karte, Lade, Marke } from '../components/Bausteine'
+import { einstellung, fehlerText, stammdaten } from '../lib/db'
+import { importErkennen, type ImportBericht } from '../lib/import'
+import { datum, kg, tonnen, zahl } from '../lib/format'
+import { Hinweis, Karte, Kennzahl, Lade, Marke } from '../components/Bausteine'
 import type { Charge, Gebinde, Profil, SorteKaliber } from '../lib/typen'
 
 export default function Stammdaten() {
@@ -105,143 +106,148 @@ function GebindeTara() {
 /* ------------------------------------------------------------------ */
 /* Paletten aus dem Erntejournal übernehmen                            */
 /* ------------------------------------------------------------------ */
-interface ImportZeile {
-  charge_nr: number; eingangsdatum: string; brutto_kg: number
-  kisten: number | null; gebindeart: string | null; extern_id: string
-}
-
-const SPALTEN: Record<string, string[]> = {
-  charge_nr: ['charge', 'chargennummer', 'charge_nr', 'chargennr'],
-  eingangsdatum: ['datum', 'eingangsdatum', 'eingang'],
-  brutto_kg: ['brutto', 'bruttogewicht', 'brutto_kg', 'gewicht'],
-  kisten: ['kisten', 'kistenzahl', 'anzahl kisten'],
-  gebindeart: ['gebinde', 'gebindeart', 'art'],
-}
-
 function PalettenImport() {
   const [text, setText] = useState('')
-  const [zeilen, setZeilen] = useState<ImportZeile[]>([])
-  const [probleme, setProbleme] = useState<string[]>([])
+  const [csvUrl, setCsvUrl] = useState('')
+  const [bericht, setBericht] = useState<ImportBericht | null>(null)
   const [meldung, setMeldung] = useState<string | null>(null)
   const [fehler, setFehler] = useState<string | null>(null)
   const [laeuft, setLaeuft] = useState(false)
+  const [holt, setHolt] = useState(false)
 
-  async function pruefen() {
+  useEffect(() => {
+    void einstellung<string>('journal_csv_url', '').then(setCsvUrl)
+  }, [])
+
+  async function pruefen(roh: string) {
     setFehler(null); setMeldung(null)
     try {
       const { chargen } = await stammdaten()
-      const bekannt = new Set(chargen.map(c => c.nr))
-      const rohZeilen = text.trim().split(/\r?\n/).filter(z => z.trim() !== '')
-      if (rohZeilen.length < 2) { setFehler('Bitte Kopfzeile und mindestens eine Datenzeile einfügen.'); return }
-
-      const trenner = rohZeilen[0].includes('\t') ? '\t' : ';'
-      const kopf = rohZeilen[0].split(trenner).map(s => s.trim().toLowerCase())
-      const spalte = (feld: string) => kopf.findIndex(k => SPALTEN[feld].some(n => k === n || k.includes(n)))
-
-      const idx = Object.fromEntries(Object.keys(SPALTEN).map(f => [f, spalte(f)]))
-      const fehlend = ['charge_nr', 'eingangsdatum', 'brutto_kg'].filter(f => idx[f] === -1)
-      if (fehlend.length) {
-        setFehler(`Diese Spalten fehlen: ${fehlend.join(', ')}. Gefunden: ${kopf.join(', ')}`)
-        return
+      const b = importErkennen(roh, chargen)
+      setBericht(b)
+      if (b.paletten.length === 0 && b.probleme.length === 0) {
+        setFehler('Keine Datenzeilen erkannt. Ist der richtige Bereich kopiert?')
       }
-
-      const neu: ImportZeile[] = []
-      const meldungen: string[] = []
-      const gesehen = new Map<string, number>()
-
-      rohZeilen.slice(1).forEach((zeile, n) => {
-        const f = zeile.split(trenner).map(s => s.trim())
-        const nr = Number(f[idx.charge_nr])
-        if (!bekannt.has(nr)) { meldungen.push(`Zeile ${n + 2}: Charge ${f[idx.charge_nr]} unbekannt`); return }
-        const d = datumLesen(f[idx.eingangsdatum])
-        if (!d) { meldungen.push(`Zeile ${n + 2}: Datum „${f[idx.eingangsdatum]}" nicht lesbar`); return }
-        const brutto = Number(f[idx.brutto_kg].replace(',', '.'))
-        if (!Number.isFinite(brutto) || brutto <= 0) {
-          meldungen.push(`Zeile ${n + 2}: Bruttogewicht „${f[idx.brutto_kg]}" nicht lesbar`); return
-        }
-        const kisten = idx.kisten >= 0 && f[idx.kisten] ? Number(f[idx.kisten]) : null
-        const gebinde = idx.gebindeart >= 0 && f[idx.gebindeart] ? f[idx.gebindeart] : null
-
-        // Stabiler Schlüssel aus dem Zeileninhalt: derselbe Import zweimal
-        // laufen zu lassen legt keine Dubletten an. Zwei wirklich gleiche
-        // Paletten unterscheidet der Zähler am Ende.
-        const kern = [nr, d, brutto, kisten ?? '', gebinde ?? ''].join('|')
-        const lauf = (gesehen.get(kern) ?? 0) + 1
-        gesehen.set(kern, lauf)
-
-        neu.push({ charge_nr: nr, eingangsdatum: d, brutto_kg: brutto,
-                   kisten, gebindeart: gebinde, extern_id: `${kern}#${lauf}` })
-      })
-
-      setZeilen(neu)
-      setProbleme(meldungen)
     } catch (f) { setFehler(fehlerText(f)) }
   }
 
+  async function vomSheetHolen() {
+    if (!csvUrl.trim()) { setFehler('Bitte zuerst die veröffentlichte CSV-Adresse eintragen.'); return }
+    setHolt(true); setFehler(null); setMeldung(null)
+    try {
+      const antwort = await fetch(csvUrl.trim(), { redirect: 'follow' })
+      if (!antwort.ok) throw new Error(`Das Sheet antwortete mit ${antwort.status}. `
+        + 'Ist die Tabelle „Im Web veröffentlicht" (als CSV)?')
+      const csv = await antwort.text()
+      if (/^\s*</.test(csv)) throw new Error('Die Adresse liefert eine Webseite statt CSV. '
+        + 'Bitte die Veröffentlichungs-Adresse mit „output=csv" verwenden, nicht die normale Sheet-URL.')
+      // Adresse merken, damit sie beim nächsten Mal schon dasteht
+      await supabase.from('einstellung').upsert(
+        { schluessel: 'journal_csv_url', wert: csvUrl.trim(), bemerkung:
+          'Veröffentlichte CSV-Adresse des Erntejournal-Tabs „Ertragsjournal".' },
+        { onConflict: 'schluessel' })
+      await pruefen(csv)
+    } catch (f) {
+      // Der häufigste Stolperstein ist eine Blockade durch den Browser (CORS),
+      // wenn die falsche Adresse verwendet wird.
+      const t = fehlerText(f)
+      setFehler(/failed to fetch/i.test(t)
+        ? 'Das Sheet ließ sich nicht laden. Meist liegt es an der Adresse: Sie muss die '
+          + '„Im Web veröffentlichen"-Adresse sein (endet auf output=csv), nicht die normale '
+          + 'Bearbeitungs-Adresse des Sheets.'
+        : t)
+    } finally { setHolt(false) }
+  }
+
   async function importieren() {
+    if (!bericht) return
     setLaeuft(true); setFehler(null)
     try {
-      // Gebindearten anlegen, damit der Fremdschlüssel greift. Die Tara bleibt
-      // bewusst leer — geraten wird sie nicht.
-      const arten = [...new Set(zeilen.map(z => z.gebindeart).filter(Boolean))] as string[]
+      // Gebindearten anlegen, falls eine im Journal steht, die es noch nicht gibt.
+      // Die Tara ist über Migration 0010 bereits gesetzt; hier nichts überschreiben.
+      const arten = [...new Set(bericht.paletten.map(z => z.gebindeart).filter(Boolean))] as string[]
       if (arten.length) {
         const { error } = await supabase.from('gebinde')
           .upsert(arten.map(art => ({ art })), { onConflict: 'art', ignoreDuplicates: true })
         if (error) throw error
       }
-      for (let i = 0; i < zeilen.length; i += 500) {
+      for (let i = 0; i < bericht.paletten.length; i += 500) {
         const { error } = await supabase.from('palette')
-          .upsert(zeilen.slice(i, i + 500), { onConflict: 'extern_id' })
+          .upsert(bericht.paletten.slice(i, i + 500), { onConflict: 'extern_id' })
         if (error) throw error
       }
-      setMeldung(`${zeilen.length} Paletten übernommen.`)
-      setZeilen([]); setText('')
+      setMeldung(`${bericht.paletten.length} Paletten übernommen.`)
+      setBericht(null); setText('')
       void stammdaten(true)
     } catch (f) { setFehler(fehlerText(f)) } finally { setLaeuft(false) }
   }
 
-  const ohneGebinde = zeilen.filter(z => !z.gebindeart).length
+  const ohneGebinde = bericht?.paletten.filter(z => !z.gebindeart).length ?? 0
+  const bruttoSumme = bericht?.paletten.reduce((s, z) => s + z.brutto_kg, 0) ?? 0
 
   return (
-    <Karte titel="Paletten aus dem Erntejournal">
-      <Hinweis>
-        Im Google Sheet den Bereich samt Kopfzeile markieren, kopieren und hier
-        einfügen. Erkannt werden Spalten wie <em>Charge, Datum, Brutto, Kisten,
-        Gebinde</em>. Derselbe Import mehrfach ausgeführt legt keine Dubletten an.
-      </Hinweis>
+    <>
+      <Karte titel="Direkt aus dem Google Sheet holen">
+        <Hinweis>
+          Einmal im Erntejournal-Sheet einrichten: <em>Datei → Freigeben → Im Web
+          veröffentlichen</em>, dort den Tab <strong>Ertragsjournal</strong> und das
+          Format <strong>CSV</strong> wählen. Die entstehende Adresse (endet auf
+          <code>output=csv</code>) hier einfügen — danach genügt ein Knopfdruck.
+        </Hinweis>
+        <div className="feld">
+          <label htmlFor="csv">Veröffentlichte CSV-Adresse des Tabs „Ertragsjournal"</label>
+          <input id="csv" value={csvUrl} onChange={e => setCsvUrl(e.target.value)}
+                 placeholder="https://docs.google.com/spreadsheets/d/e/…/pub?gid=…&single=true&output=csv" />
+        </div>
+        <button className="haupt" onClick={vomSheetHolen} disabled={holt || !csvUrl.trim()}>
+          {holt ? 'Hole …' : 'Jetzt vom Sheet holen'}
+        </button>
+      </Karte>
 
-      <div className="feld">
-        <label htmlFor="einfuegen">Eingefügte Zeilen</label>
-        <textarea id="einfuegen" rows={8} value={text} onChange={e => setText(e.target.value)}
-                  placeholder={'Charge\tDatum\tBrutto\tKisten\tGebinde\n1613\t01.09.2026\t950\t40\tHolzkiste'} />
-      </div>
-      <button onClick={pruefen} disabled={!text.trim()}>Prüfen</button>
+      <Karte titel="Oder von Hand einfügen">
+        <p className="leise">
+          Im Sheet den Bereich samt Kopfzeile markieren, kopieren und hier einfügen.
+          Erkannt werden Datum, Schlag, Sorte, Brutto, Kisten, Gebinde — die Charge
+          ergibt sich aus Schlag + Sorte.
+        </p>
+        <div className="feld">
+          <label htmlFor="einfuegen">Eingefügte Zeilen</label>
+          <textarea id="einfuegen" rows={6} value={text} onChange={e => setText(e.target.value)}
+                    placeholder={'Datum\tPerson\tSchlag\tSorte\tGewicht brutto [kg]\tAnzahl Gebinde\tGebindeart'} />
+        </div>
+        <button onClick={() => pruefen(text)} disabled={!text.trim()}>Prüfen</button>
+      </Karte>
 
       {fehler && <Hinweis art="warnung">{fehler}</Hinweis>}
       {meldung && <Hinweis art="gut">{meldung}</Hinweis>}
 
-      {probleme.length > 0 && (
+      {bericht && bericht.probleme.length > 0 && (
         <Hinweis art="warnung">
-          <strong>{probleme.length} Zeilen übersprungen</strong>
+          <strong>{bericht.probleme.length} Zeilen übersprungen</strong>
           <ul style={{ margin: '.4rem 0 0', paddingLeft: '1.2rem' }}>
-            {probleme.slice(0, 10).map((p, i) => <li key={i}>{p}</li>)}
+            {bericht.probleme.slice(0, 12).map((p, i) => <li key={i}>{p}</li>)}
+            {bericht.probleme.length > 12 && <li>… und {bericht.probleme.length - 12} weitere</li>}
           </ul>
+          <p className="leise" style={{ margin: '.4rem 0 0' }}>
+            Meist ein Schlag oder eine Sorte, die anders geschrieben ist als in der
+            Chargen-Liste. Die Schreibweise muss zeichengenau übereinstimmen.
+          </p>
         </Hinweis>
       )}
 
-      {zeilen.length > 0 && (
-        <>
-          <p style={{ marginTop: '1rem' }}>
-            <strong>{zeilen.length} Paletten bereit</strong> ·
-            {' '}{kg(zeilen.reduce((s, z) => s + z.brutto_kg, 0), 0)} brutto
-            {ohneGebinde > 0 && ` · ${ohneGebinde} ohne Gebindeart`}
+      {bericht && bericht.paletten.length > 0 && (
+        <Karte titel={`${bericht.paletten.length} Paletten bereit`}>
+          <p>
+            <strong>{kg(bruttoSumme, 0)} brutto</strong> · Zuordnung über
+            {' '}{bericht.quelle === 'chargennummer' ? 'Chargennummer' : 'Schlag + Sorte'}
+            {ohneGebinde > 0 && ` · ${ohneGebinde} ohne Gebindeart (gelten als G2)`}
           </p>
           <div className="rollbar">
             <table>
               <thead><tr><th>Charge</th><th>Datum</th><th className="zahl">Brutto</th>
                 <th className="zahl">Kisten</th><th>Gebinde</th></tr></thead>
               <tbody>
-                {zeilen.slice(0, 10).map((z, i) => (
+                {bericht.paletten.slice(0, 12).map((z, i) => (
                   <tr key={i}>
                     <td>{z.charge_nr}</td><td>{datum(z.eingangsdatum)}</td>
                     <td className="zahl">{kg(z.brutto_kg, 1)}</td>
@@ -251,25 +257,21 @@ function PalettenImport() {
               </tbody>
             </table>
           </div>
+          {bericht.paletten.length > 12 && (
+            <p className="leise">… und {bericht.paletten.length - 12} weitere.</p>
+          )}
           <button className="haupt" style={{ width: '100%', marginTop: '.75rem' }}
                   onClick={importieren} disabled={laeuft}>
-            {laeuft ? 'Läuft …' : `${zeilen.length} Paletten übernehmen`}
+            {laeuft ? 'Läuft …' : `${bericht.paletten.length} Paletten übernehmen`}
           </button>
-        </>
+          <p className="leise" style={{ marginTop: '.5rem' }}>
+            Schon vorhandene Paletten werden nicht doppelt angelegt — du kannst
+            jederzeit die aktualisierte Tabelle erneut holen.
+          </p>
+        </Karte>
       )}
-    </Karte>
+    </>
   )
-}
-
-/** Akzeptiert 01.09.2026, 2026-09-01 und 1.9.26. */
-function datumLesen(roh: string): string | null {
-  const t = roh.trim()
-  if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return t
-  const m = t.match(/^(\d{1,2})[.\/](\d{1,2})[.\/](\d{2,4})$/)
-  if (!m) return null
-  const jahr = m[3].length === 2 ? 2000 + Number(m[3]) : Number(m[3])
-  const p = (n: string) => n.padStart(2, '0')
-  return `${jahr}-${p(m[2])}-${p(m[1])}`
 }
 
 /* ------------------------------------------------------------------ */
@@ -290,7 +292,25 @@ function Chargen() {
       setZahlen(map)
     })()
   }, [])
+  const gesamtPaletten = Object.values(zahlen).reduce((s, z) => s + z.n, 0)
+  const gesamtKg = Object.values(zahlen).reduce((s, z) => s + (z.kg ?? 0), 0)
+  const mitDaten = Object.values(zahlen).filter(z => z.n > 0).length
+
   return (
+    <>
+      <Karte titel="Ernte bisher erfasst">
+        <div className="spalten">
+          <Kennzahl titel="Netto insgesamt" wert={tonnen(gesamtKg)}
+                    unter="aus dem Erntejournal übernommen" />
+          <Kennzahl titel="Paletten" wert={zahl(gesamtPaletten)} />
+          <Kennzahl titel="Chargen mit Ware" wert={`${mitDaten} von ${chargen.length}`} />
+        </div>
+        <p className="leise" style={{ marginBottom: 0 }}>
+          Das ist die bisher eingelagerte Menge — sie wächst mit jedem Import aus
+          dem Google Sheet. Die genaue Verlust-Auswertung steht im Dashboard.
+        </p>
+      </Karte>
+
     <Karte titel={`Chargen (${chargen.length})`}>
       <p className="leise">
         Die Chargennummer ist der Join-Schlüssel des ganzen Systems — sie kommt
@@ -312,6 +332,7 @@ function Chargen() {
         </table>
       </div>
     </Karte>
+    </>
   )
 }
 

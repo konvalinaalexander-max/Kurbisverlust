@@ -146,3 +146,36 @@ ist es NULL, und genau das ist der vorgesehene Weg für den ersten Admin.
 Alle Auswerte-Views laufen als Aufrufer, damit die Row-Level-Security der
 zugrunde liegenden Tabellen weiter gilt und eine View kein Umweg an ihr vorbei
 wird.
+
+## Anbindung an das Erntejournal (Google Sheet)
+
+### Charge über Schlag + Sorte, keine Chargennummer im Sheet
+
+Spec §0/§13 sah vor, die Wareneingang-App um eine Chargennummer-Spalte zu
+ergänzen. Das Integrations-Handbuch der bestehenden App zeigt aber: Das Journal
+führt Schlag und Sorte sauber und schreibgeschützt (beides kommt aus der
+Anbauplanung, keine Freitexteingabe). Da die Charge genau `Schlag × Sorte` ist
+(Registry §7), lässt sich die Chargennummer daraus eindeutig nachschlagen — die
+Spalte im fremden Sheet ist unnötig, und der einzige geplante Eingriff in die
+andere App entfällt. Eine vorhandene Chargennummer-Spalte hat trotzdem Vorrang.
+
+Zeilen, deren Schlag/Sorte nicht in der Registry stehen, werden gemeldet statt
+verschluckt — dasselbe Signal wie der Kontrollwert „Nicht zugeordnet" im Sheet.
+
+### Tara-Werte aus der App übernommen, nicht geraten
+
+Palettengewicht (25 kg) und die Kisten-Tara (G2 1,5 · IFCO 6410/6416/6424) sind
+im Code der Erntejournal-App fest hinterlegt und werden hier per Migration 0010
+gesetzt. Das erspart das Nachwiegen und garantiert, dass unser berechnetes Netto
+mit Spalte I des Journals übereinstimmt. „Leer = G2" ist dort Konvention und wird
+beim Import genauso aufgelöst.
+
+### Lesen per veröffentlichter CSV, nicht per Service-Account im Browser
+
+Die Erntejournal-App spricht das Sheet über einen Google-Service-Account an —
+serverseitig auf Vercel. Ein solcher Schlüssel ist geheim und darf nicht in eine
+reine Browser-App. Deshalb liest diese App das Sheet über dessen „Im Web
+veröffentlichen"-CSV (keine Zugangsdaten, direkt aus dem Browser ladbar). Wer die
+Daten strikt privat halten will, kann stattdessen den bestehenden Service-Account
+der anderen App über einen kleinen Lese-Endpunkt anzapfen — bewusst nicht der
+Standardweg, weil er beide Projekte koppelt.

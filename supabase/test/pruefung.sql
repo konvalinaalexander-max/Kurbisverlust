@@ -59,6 +59,14 @@ begin
   assert (select klasse from klassiere('Unbekannt', 900)) = 'unklassiert','Unbekannte Sorte = unklassiert';
   assert (select klasse from klassiere('Butterkin', 550)) = 'kaliber',    'Butterkin hat ein schmales erstes Band 500–600';
 
+  -- ---- Tara aus dem Erntejournal ist vorbelegt (Migration 0010) -------
+  assert (select tara_kg_pro_kiste from gebinde where art = 'G2') = 1.500,
+    'G2-Tara muss 1.5 kg sein (aus dem Erntejournal)';
+  assert (select tara_kg_palette from gebinde where art = 'G2') = 25.000,
+    'Palettengewicht muss 25 kg sein';
+  assert (select tara_kg_pro_kiste from gebinde where art = 'IFCO 6424') = 2.000,
+    'IFCO-6424-Tara falsch';
+
   raise notice 'OK  Stammdaten, Netto, Klassierung';
 end $$;
 

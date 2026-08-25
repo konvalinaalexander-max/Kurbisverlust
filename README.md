@@ -473,38 +473,55 @@ CSV-Upload und Stammdaten bleiben dir vorbehalten.
 
 *Stammdaten → Paletten-Import*
 
-Öffne das Google Sheet der Wareneingang-App, markiere die Kopfzeile **und** die
-Datenzeilen, kopiere sie und füge sie in das große Feld ein. Dann **Prüfen**
-klicken. Du siehst eine Vorschau und die Meldung, wie viele Paletten erkannt
-wurden. Erst dann **übernehmen**.
+Zwei Wege — der erste ist der bequeme:
 
-Erkannt werden Spalten mit Namen wie *Charge, Datum, Brutto, Kisten, Gebinde*.
-Zeilen mit unbekannter Chargennummer oder unlesbarem Datum werden übersprungen
-und einzeln aufgelistet — nichts verschwindet stillschweigend.
+**A) Direkt aus dem Google Sheet (empfohlen).** Einmalig im Erntejournal-Sheet:
+*Datei → Freigeben → Im Web veröffentlichen*, dort den Tab **Ertragsjournal** und
+das Format **CSV** wählen und die entstehende Adresse (endet auf `output=csv`)
+kopieren. Diese Adresse in der App unter *Stammdaten → Paletten-Import* einfügen.
+Ab dann genügt **Jetzt vom Sheet holen** — die App liest den aktuellen Stand,
+zeigt eine Vorschau und übernimmt ihn. Die Adresse wird gemerkt.
 
-> **Voraussetzung:** Das Sheet braucht eine Spalte mit der **Chargennummer**.
-> Das ist der einzige Eingriff in die bestehende Erntejournal-App. Ohne sie
-> lässt sich keine Palette zuordnen.
+**B) Von Hand einfügen.** Im Sheet den Bereich samt Kopfzeile markieren, kopieren,
+in das Feld einfügen, **Prüfen**, **übernehmen**. Für den Fall, dass du das Sheet
+nicht veröffentlichen willst.
 
-Denselben Import später nochmal auszuführen legt keine doppelten Paletten an —
-du kannst also jederzeit die aktualisierte Tabelle einfügen.
+Beide Wege verstehen das Erntejournal so, wie es ist: Die **Charge ergibt sich
+aus Schlag + Sorte** (eine eigene Chargennummer-Spalte im Sheet ist nicht nötig).
+Datum, Brutto, Kisten und Gebindeart werden automatisch erkannt; eine leere
+Gebindeart gilt als „G2". Zeilen, deren Schlag/Sorte nicht zur Chargen-Liste
+passt, werden einzeln aufgelistet statt stillschweigend verschluckt — das ist
+derselbe Hinweis wie der Kontrollwert im Sheet. Denselben Import mehrfach
+auszuführen legt keine doppelten Paletten an (die App nutzt die Paletten-ID aus
+dem Sheet).
 
-## 2. Leergewichte eintragen
+Wie viel Ernte bisher zusammengekommen ist, zeigt danach *Stammdaten → Chargen*
+ganz oben als Gesamtzahl.
+
+> **Kurz zur Veröffentlichung:** „Im Web veröffentlichen" macht genau diesen einen
+> Tab über eine nicht erratbare Adresse lesbar — nicht dein ganzes Google-Konto,
+> nicht das Bearbeiten. Für interne Erntedaten ist das der einfachste Weg. Wer es
+> ganz privat will, nimmt Weg B oder sagt mir Bescheid, dann binde ich es über
+> deinen bestehenden Google-Zugang der Erntejournal-App an.
+
+## 2. Leergewichte prüfen (meist nichts zu tun)
 
 *Stammdaten → Gebinde & Tara*
 
-Die Gebindearten sind beim Import automatisch entstanden. Trage für jede das
-Leergewicht **je Kiste** und **je Palette** ein.
+Die Leergewichte sind bereits eingetragen — genau die Werte aus der
+Erntejournal-App: Palette 25 kg, Kiste G2 1,5 kg, die IFCO-Kisten 1,36 / 1,68 /
+2,0 kg. Daraus rechnet die App das Netto:
 
-**Das ist nicht optional.** Netto = Brutto − Kisten × Kisten-Tara − Paletten-Tara.
-Fehlt ein Tara-Wert, hat die Palette kein Nettogewicht und fällt aus der
-gesamten Auswertung heraus. Eine unbekannte Tara als 0 zu behandeln wäre
-schlimmer: Dann wären die Eingangsmengen zu hoch und alle Verluste in Prozent
-zu niedrig. Lieber einmal eine leere Kiste und eine leere Palette wiegen.
+```
+Netto = Brutto − 25 (Palette) − Kisten × Tara(Gebindeart)
+```
 
-Solange irgendwo Tara fehlt, warnt das Dashboard sichtbar darüber.
+Du musst hier nur dann etwas tun, wenn eine **neue, unbekannte Gebindeart** aus
+dem Journal auftaucht — dann steht sie ohne Tara da und ist mit „Tara fehlt"
+markiert. Solange irgendwo Tara fehlt, warnt das Dashboard sichtbar, weil die
+betroffenen Paletten sonst aus der Auswertung fielen.
 
-## 3. Einen echten Auftrag mitlaufen lassen
+## 3. Einen echten Auftrag mitlaufen lassen## 3. Einen echten Auftrag mitlaufen lassen
 
 *Aufträge → Neuen Auftrag eröffnen*
 
