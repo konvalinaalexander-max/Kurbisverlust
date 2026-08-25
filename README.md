@@ -206,36 +206,75 @@ Der Schalter bleibt nach dem Neuladen der Seite grau.
 
 ## Schritt 5 — Die zwei Zugangswerte abholen
 
-Die App muss wissen, welche Datenbank sie ansprechen soll. Dafür brauchst du
-zwei Textbausteine.
+Die App muss zwei Dinge wissen: **wo** deine Datenbank steht und **womit** sie
+sich melden darf. Die beiden Werte stehen leider auf **zwei verschiedenen
+Seiten** — das ist die Stelle, an der man sucht.
 
-**Was du machst**
+### 5a — Der Schlüssel
 
 1. Ganz unten links in der Symbolleiste auf das **Zahnrad** klicken
    (*Project Settings*).
-2. Im Menü links auf **API** klicken. *In neueren Versionen heißt der Punkt
-   **API Keys**.*
-3. Kopiere dir diese zwei Werte in einen Notizzettel:
+2. Im Menü links unter *CONFIGURATION* auf **API Keys**.
+3. Du siehst die Überschrift **API Keys** und darunter zwei Reiter:
+   `Publishable and secret API keys` und `Legacy anon, service_role API keys`.
+   Bleib auf dem ersten (er ist bereits ausgewählt).
+4. Etwas weiter unten steht der Abschnitt **Publishable key** mit einer Zeile
+   namens `default`. Rechts vom Schlüssel — er beginnt mit `sb_publishable_` —
+   ist ein kleines **Kopier-Symbol** (zwei übereinanderliegende Rechtecke).
+   Klick darauf und sichere den Wert in deinem Notizzettel.
 
-   | Was | Wo es steht | Sieht aus wie |
-   |---|---|---|
-   | **Project URL** | Oben unter „Project URL" | `https://abcdefgh.supabase.co` |
-   | **Der öffentliche Schlüssel** | Unter „Project API keys" die Zeile mit der Beschriftung `anon` `public` | sehr langer Text, beginnt mit `eyJ…` |
+   Das ist `VITE_SUPABASE_ANON_KEY`.
 
-   Neben jedem Wert ist ein kleines Kopier-Symbol — das ist zuverlässiger als
-   von Hand markieren.
+> **Finger weg vom Abschnitt darunter.** „Secret keys" (beginnt mit
+> `sb_secret_`) umgeht sämtliche Zugriffsregeln und gehört niemals in eine
+> Webseite. Die App erkennt das inzwischen und verweigert den Start mit einer
+> deutlichen Meldung — verlass dich aber lieber nicht darauf.
+>
+> Direkt darunter steht in Supabase übrigens „Publishable keys can be safely
+> shared publicly" — genau deshalb ist der richtige Schlüssel unbedenklich.
 
-   *Wenn dein Projekt statt `anon` `public` nur einen **Publishable key**
-   anbietet* (beginnt mit `sb_publishable_…`): Nimm den. Er tut dasselbe.
-   Finger weg vom **service_role** beziehungsweise **secret key** — der gehört
-   nie in eine Webseite.
+*Zeigt deine Seite gar keine Reiter, sondern eine Liste „Project API keys"?*
+Dann hat dein Projekt die ältere Oberfläche. Nimm dort die Zeile mit der
+Beschriftung `anon` `public`. Sie funktioniert genauso.
 
-> **Ist es schlimm, wenn jemand diesen Schlüssel sieht?** Nein. Er ist dafür
-> gemacht, im Browser zu stehen. Wer etwas sehen oder ändern darf, entscheidet
-> allein die Zugriffsregelung in der Datenbank, die in Schritt 3 mit eingerichtet
-> wurde. Ohne Login kommt man an gar nichts.
+### 5b — Die Project URL
 
----
+Auf der Seite mit den API Keys steht sie **nicht**. Zwei Wege:
+
+**Der schnelle Weg — aus der Adresszeile deines Browsers.**
+Dort steht gerade etwas wie:
+
+```
+supabase.com/dashboard/project/qaryvviqdjnxrukpgdn/settings/api-keys
+                               └────── das ist deine Projekt-Kennung ──────┘
+```
+
+Nimm das Stück zwischen `/project/` und dem nächsten `/` und baue daraus:
+
+```
+https://DEINE-KENNUNG.supabase.co
+```
+
+Für die Kennung oben wäre das `https://qaryvviqdjnxrukpgdn.supabase.co`.
+
+**Der offizielle Weg.** Im selben Menü links, weiter unten unter *INTEGRATIONS*,
+auf **Data API** klicken. Dort steht ganz oben **Project URL** mit einem
+Kopier-Symbol daneben.
+
+Das ist `VITE_SUPABASE_URL`.
+
+> **Nicht die Adresszeile als Ganzes kopieren.** `https://supabase.com/dashboard/…`
+> ist die Adresse der *Verwaltungsseite*, nicht deiner Datenbank. Auch das
+> erkennt die App inzwischen und sagt es dir.
+
+### Am Ende hast du
+
+```
+VITE_SUPABASE_URL       https://qaryvviqdjnxrukpgdn.supabase.co
+VITE_SUPABASE_ANON_KEY  sb_publishable_Fj_FAZG…            (viel länger)
+```
+
+Beide brauchst du gleich in Schritt 6.
 
 ## Schritt 6 — App veröffentlichen
 
@@ -418,6 +457,7 @@ einen Auftrag, landet sie in der **Warteschlange** statt geraten zu werden.
 | „Potentially destructive operation" | Supabase warnt bei Skripten mit `drop`/`alter` | **Run this query** klicken. In einem neuen Projekt ist nichts zu zerstören. |
 | Nach **Run** passiert nichts | Skript läuft noch | 10–20 Sekunden warten. Der Knopf zeigt solange einen Ladekreis. |
 | `syntax error at or near ""` | Beim Kopieren wurde nur ein Teil erwischt | Schritt 3a wiederholen, diesmal über **Raw** + Strg+A + Strg+C. |
+| App zeigt „Die Zugangsdaten stimmen nicht" | Die App prüft die zwei Werte beim Start und sagt im Text, welcher davon nicht passt | Meldung lesen, Schritt 5 wiederholen, bei Cloudflare korrigieren — **und danach neu bauen** (siehe Zeile unten) |
 | App zeigt „Noch nicht mit Supabase verbunden" | Die zwei Werte aus Schritt 5 fehlen bei Cloudflare oder sind vertippt | Cloudflare → dein Projekt → *Settings* → *Environment variables* prüfen. **Danach zwingend neu bauen:** Reiter *Deployments* → beim obersten Eintrag rechts das Menü **⋯** → **Retry deployment**. Ohne neuen Build ändert sich nichts. |
 | Anmeldung: „Email not confirmed" | Schritt 4 fehlt | Schritt 4 nachholen, dann erneut anmelden. |
 | Anmeldung: „Invalid login credentials" | Falsches Passwort — oder das Konto gibt es noch nicht | Unten auf **Neues Konto anlegen** wechseln. |

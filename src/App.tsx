@@ -1,6 +1,6 @@
 import { NavLink, Navigate, Route, Routes } from 'react-router-dom'
 import { useAuth } from './auth/AuthProvider'
-import { istKonfiguriert } from './lib/supabase'
+import { istKonfiguriert, konfigurationsProblem } from './lib/supabase'
 import { Hinweis, Lade } from './components/Bausteine'
 import Anmelden from './pages/Anmelden'
 import Auftraege from './pages/Auftraege'
@@ -12,6 +12,23 @@ import Stammdaten from './pages/Stammdaten'
 
 export default function App() {
   const { session, profil, laedt, istAdmin, abmelden } = useAuth()
+
+  if (konfigurationsProblem) {
+    return (
+      <div className="huelle" style={{ paddingTop: '2rem' }}>
+        <h1>Kürbis-Verlust</h1>
+        <Hinweis art="warnung">
+          <p><strong>Die Zugangsdaten stimmen nicht.</strong></p>
+          <p style={{ marginBottom: 0 }}>{konfigurationsProblem}</p>
+        </Hinweis>
+        <p className="leise">
+          Zu ändern bei Cloudflare unter Settings → Environment variables.
+          Danach unter Deployments beim obersten Eintrag über das Menü ⋯ auf
+          „Retry deployment" — ohne neuen Build ändert sich nichts.
+        </p>
+      </div>
+    )
+  }
 
   if (!istKonfiguriert) {
     return (
