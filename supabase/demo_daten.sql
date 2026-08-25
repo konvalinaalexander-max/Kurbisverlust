@@ -20,6 +20,29 @@
 -- ~3 % Ausschuss, ~1.5 % Nebenkanal, ~0.3 kg Überfüllung je Kiste.
 -- =====================================================================
 
+-- ---------- Wer gilt als Erfasser? ---------------------------------------
+-- Im SQL-Editor gibt es keinen Login, also liefert auth.uid() dort NULL — und
+-- alle Erfasser-Spalten sind NOT NULL. Deshalb wird hier für die Dauer dieses
+-- Skripts ein Benutzer vorgegeben: der Betriebsleiter, sonst der erste
+-- vorhandene. Die Einstellung gilt nur innerhalb dieser Transaktion.
+do $$
+declare v_wer uuid;
+begin
+  select id into v_wer from profil where rolle = 'admin' order by erstellt_ts limit 1;
+  if v_wer is null then
+    select id into v_wer from profil order by erstellt_ts limit 1;
+  end if;
+  if v_wer is null then
+    raise exception E'Es gibt noch kein Benutzerkonto.\n'
+      'Lege zuerst in der App dein Betriebsleiter-Konto an (README, Schritt 7) '
+      'und führe diese Datei danach nochmal aus.';
+  end if;
+  -- Beide Schreibweisen setzen: Supabase liest je nach Version die eine oder
+  -- die andere, und auth.uid() muss hier einen Wert liefern.
+  perform set_config('request.jwt.claim.sub', v_wer::text, true);
+  perform set_config('request.jwt.claims', json_build_object('sub', v_wer)::text, true);
+end $$;
+
 do $$
 declare
   v_chargen int[] := array[1613, 1614, 1616, 1606, 1611, 1626, 1630, 1635, 1647, 1650];

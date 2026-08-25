@@ -547,10 +547,36 @@ einen Auftrag, landet sie in der **Warteschlange** statt geraten zu werden.
 
 ---
 
+## Vorher ausprobieren: eine erfundene Saison
+
+Bevor die erste echte Palette gezählt ist, zeigt die Auswertung nichts — man
+kann also nicht beurteilen, was am Ende herauskommt. Dafür gibt es Demo-Daten:
+eine vollständige, erfundene Saison zum Durchklicken.
+
+**Voraussetzung:** Dein Betriebsleiter-Konto muss existieren (Schritt 7).
+
+1. [`supabase/demo_daten.sql`](supabase/demo_daten.sql) öffnen → **Copy raw file**
+   → Supabase → **SQL Editor** → einfügen → **Run**.
+2. In der App unter **Auswertung** durchklicken.
+
+Du bekommst rund 460 t Eingang, 535 Paletten in 10 Chargen, 22 Arbeiten und
+drei Sortierläufe — dazu absichtlich eine abgebrochene Arbeit und einen
+Zahlendreher, damit auch die Sonderfälle einmal sichtbar sind.
+
+**Wenn die echten Daten kommen:**
+[`supabase/demo_daten_entfernen.sql`](supabase/demo_daten_entfernen.sql) genauso
+einspielen. Es verschwindet restlos alles Erfundene, echte Daten bleiben
+unberührt.
+
+Was jede Ansicht bedeutet, steht in [`docs/DATENFLUSS.md`](docs/DATENFLUSS.md).
+
+---
+
 # Wenn etwas klemmt
 
 | Was du siehst | Was los ist | Was hilft |
 |---|---|---|
+| Demo: „Es gibt noch kein Benutzerkonto" | Die Demo-Daten brauchen jemanden als Erfasser | Erst Schritt 7 (Betriebsleiter-Konto anlegen), dann nochmal |
 | „Das Setup wurde bereits eingespielt" | Du hast Schritt 3 zweimal ausgeführt | Nichts. Es ist nichts passiert. Weiter mit Schritt 4. |
 | „Potentially destructive operation" | Supabase warnt bei Skripten mit `drop`/`alter` | **Run this query** klicken. In einem neuen Projekt ist nichts zu zerstören. |
 | Nach **Run** passiert nichts | Skript läuft noch | 10–20 Sekunden warten. Der Knopf zeigt solange einen Ladekreis. |

@@ -50,7 +50,30 @@ VERBLIEBEN="$(psql "$URL" -qtA -c 'select count(*) from charge')"
 echo "   Daten unversehrt ($VERBLIEBEN Chargen)"
 
 echo
-echo "── 4. setup.sql gegen die Migrationen abgleichen ─────────────"
+echo "── 4. Demo-Daten, genau wie im SQL-Editor (ohne Login!) ──────"
+# Kein set_config hier: Der Supabase-SQL-Editor hat keinen angemeldeten
+# Benutzer, auth.uid() ist dort NULL. Ein Test, der vorher heimlich einen
+# Login setzt, prüft etwas anderes als die Wirklichkeit.
+psql "$URL" -v ON_ERROR_STOP=1 -q -c "
+  insert into auth.users (id, email, raw_user_meta_data)
+  values ('11111111-1111-1111-1111-111111111111', 'chef@hof.test', '{\"name\":\"Chef\"}');
+  update profil set rolle = 'admin' where id = '11111111-1111-1111-1111-111111111111';"
+DEMO="$(psql "$URL" -v ON_ERROR_STOP=1 -qtA -c "$(cat "$HIER/../demo_daten.sql")")"
+echo "   $DEMO"
+case "$DEMO" in
+  *Demo-Saison\ steht*) ;;
+  *) echo "   FEHLER: Demo-Daten liessen sich nicht laden"; exit 1 ;;
+esac
+UEBRIG="$(psql "$URL" -v ON_ERROR_STOP=1 -qtA -c "$(cat "$HIER/../demo_daten_entfernen.sql")")"
+echo "   $UEBRIG"
+VERWAIST="$(psql "$URL" -qtA -c "select (select count(*) from verdunstung_wiegung)
+  + (select count(*) from ausgang_wiegung) + (select count(*) from sortier_gewicht)
+  + (select count(*) from schimmel_messung)")"
+[ "$VERWAIST" = "0" ] || { echo "   FEHLER: $VERWAIST verwaiste Zeilen nach dem Entfernen"; exit 1; }
+echo "   nichts Verwaistes zurückgeblieben"
+
+echo
+echo "── 5. setup.sql gegen die Migrationen abgleichen ─────────────"
 VORHER="$(cat "$HIER/../setup.sql")"
 "$HIER/../setup_bauen.sh" >/dev/null
 if [ "$VORHER" != "$(cat "$HIER/../setup.sql")" ]; then
