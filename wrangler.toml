@@ -1,0 +1,15 @@
+# Sagt Cloudflare, wie aus dem gebauten Ordner "dist" eine Webseite wird.
+# Cloudflare führt beim Deploy "npx wrangler deploy" aus und liest diese Datei.
+#
+# Es gibt hier absichtlich keinen Programm-Code (kein "main"): Die App ist eine
+# reine Browser-Anwendung. Cloudflare liefert die Dateien aus "dist" direkt aus.
+
+name = "kurbisverlust"
+compatibility_date = "2024-11-01"
+
+[assets]
+directory = "./dist"
+# Client-seitiges Routing: Ruft jemand /dashboard direkt auf oder lädt die Seite
+# neu, gibt es keine Datei dieses Namens. Statt eines 404 kommt index.html, und
+# die App zeigt drinnen die richtige Seite an. (Ersetzt public/_redirects.)
+not_found_handling = "single-page-application"

@@ -8,7 +8,7 @@ Ziel ist das **Rangieren der Ursachen**, keine kg-genaue Bilanz. Jede Zahl im
 Dashboard lässt sich aufklappen und zeigt, aus welchen Stichproben, welchem
 Koeffizienten und welcher Formel sie entstanden ist.
 
-Kosten: **€0** auf den Gratis-Stufen von Supabase und Cloudflare Pages.
+Kosten: **€0** auf den Gratis-Stufen von Supabase und Cloudflare.
 
 ---
 
@@ -278,66 +278,91 @@ Beide brauchst du gleich in Schritt 6.
 
 ## Schritt 6 — App veröffentlichen
 
-Cloudflare Pages macht aus dem Code eine Webseite, die auf jedem Handy läuft.
-Auch das ist gratis.
+Cloudflare macht aus dem Code eine Webseite, die auf jedem Handy läuft. Gratis.
+
+> **Warum sieht mein Bildschirm anders aus als in älteren Anleitungen?**
+> Cloudflare hat „Pages" und „Workers" zusammengelegt. Es gibt keine getrennte
+> „Pages"-Seite mehr — alles läuft jetzt über **Workers**. Das Projekt ist
+> darauf eingestellt (die Datei `wrangler.toml` sagt Cloudflare, was zu tun
+> ist), du musst also nichts suchen. Folge einfach den Feldern unten.
 
 **Was du machst**
 
 1. Gehe auf https://dash.cloudflare.com und lege ein Konto an oder melde dich an.
-2. In der linken Leiste auf **Workers & Pages** klicken. *Neuerdings heißt der
-   Bereich manchmal nur **Compute** oder **Workers**.*
-3. Knopf **Create application** → oben auf den Reiter **Pages** wechseln →
-   **Connect to Git**.
-4. **Connect GitHub** klicken, den Zugriff mit **Authorize** bestätigen. Wenn
-   GitHub fragt, für welche Repositories: `Kurbisverlust` auswählen genügt.
-5. In der Liste `Kurbisverlust` auswählen → **Begin setup**.
-6. Jetzt kommt die Seite **Set up builds and deployments**. Trage ein:
+2. In der linken Leiste auf **Workers & Pages** klicken (manchmal nur
+   **Compute** oder **Workers**).
+3. **Create application** → **Import a repository** (oder **Connect to Git**).
+4. Falls GitHub noch nicht verbunden ist: **Connect GitHub**, mit **Authorize**
+   bestätigen, bei der Repository-Frage `Kurbisverlust` freigeben.
+5. In der Liste `konvalinaalexander-max/Kurbisverlust` auswählen.
 
-   | Feld | Wert |
-   |---|---|
-   | Project name | `kuerbis-verlust` |
-   | Production branch | `main` |
-   | Framework preset | **Vite** (aus der Auswahlliste) |
-   | Build command | `npm run build` |
-   | Build output directory | `dist` |
+6. Jetzt kommt die Seite **Set up your application**. Genau die auf deinem
+   Screenshot. Trage ein bzw. lass stehen:
 
-   Sobald du bei *Framework preset* **Vite** wählst, füllen sich die beiden
-   Felder darunter meist von selbst richtig aus. Trotzdem kurz prüfen.
+   | Feld | Wert | |
+   |---|---|---|
+   | Project name | `kurbisverlust` | so lassen — muss genau so heißen |
+   | Build command | `npm run build` | eintragen (steht als „Optional", wird aber gebraucht) |
+   | Deploy command | `npx wrangler deploy` | **so lassen**, nichts ändern |
+   | Builds for non-production branches | angehakt lassen | gibt Vorschau-Builds |
 
-7. **Wichtig, sonst startet die App nicht:** Klappe
-   **Environment variables (advanced)** auf und lege mit **Add variable**
-   zwei Einträge an:
+   Kein „Framework preset", kein „Build output directory", kein
+   „Production branch" — die gibt es auf dieser Seite nicht mehr. Alles, was
+   dort früher stand, erledigt jetzt `wrangler.toml`.
+
+7. **Die zwei Werte aus Schritt 5 eintragen — sonst startet die App nicht.**
+
+   Suche auf derselben Seite den Abschnitt **Variables and Secrets** (oder
+   **Build variables**). Er kann etwas weiter unten stehen — nach unten scrollen.
+   Lege mit **Add** zwei Einträge an, beide vom Typ **Text** (nicht „Secret"):
 
    | Variable name | Value |
    |---|---|
    | `VITE_SUPABASE_URL` | die Project URL aus Schritt 5 |
-   | `VITE_SUPABASE_ANON_KEY` | der lange Schlüssel aus Schritt 5 |
+   | `VITE_SUPABASE_ANON_KEY` | der `sb_publishable_…`-Schlüssel aus Schritt 5 |
 
-   Achte darauf, dass die Namen exakt so geschrieben sind — Großbuchstaben und
-   Unterstriche. Beim Einfügen des Schlüssels darf kein Leerzeichen und kein
-   Zeilenumbruch mitkommen.
+   Die Namen exakt so — Großbuchstaben und Unterstriche. Beim Einfügen des
+   Schlüssels darf kein Leerzeichen und kein Zeilenumbruch mitkommen.
 
-8. **Save and Deploy**.
+   > **Findest du den Abschnitt hier nicht?** Kein Problem, dann kommen die zwei
+   > Werte gleich nach dem ersten Deploy dazu — siehe den Kasten „Falls die
+   > Variablen erst nachträglich gehen" unter dieser Anleitung.
+
+8. Unten rechts auf **Deploy** klicken.
 
 **Was du siehst**
 
 Eine schwarze Konsole, durch die Text läuft: `Cloning repository…`,
-`Installing dependencies…`, `Building application…`. Das dauert **ein bis drei
-Minuten**.
+`Installing dependencies…`, `Building…`, am Ende `Uploaded` und `Deployed`.
+Das dauert **ein bis drei Minuten**.
 
 **Woran du merkst, dass es geklappt hat**
 
-Es erscheint **Success! Your project is deployed** und darunter eine Adresse wie
-`https://kuerbis-verlust.pages.dev`. Öffne sie.
+Es erscheint eine Erfolgsmeldung mit einer Adresse wie
+`https://kurbisverlust.<etwas>.workers.dev`. Öffne sie.
 
 Du siehst den Anmeldebildschirm mit dem Kürbis und den Feldern für E-Mail und
 Passwort.
 
-Steht dort stattdessen **„Noch nicht mit Supabase verbunden"**, fehlen die zwei
-Werte aus Punkt 7 oder sie sind vertippt — siehe [Wenn etwas
-klemmt](#wenn-etwas-klemmt).
+- Steht dort **„Noch nicht mit Supabase verbunden"**, fehlen die zwei Werte aus
+  Punkt 7.
+- Steht dort **„Die Zugangsdaten stimmen nicht"**, ist einer der beiden Werte
+  vertippt oder verwechselt — die Meldung sagt, welcher.
 
----
+In beiden Fällen hilft der Kasten direkt hier drunter.
+
+> **Falls die Variablen erst nachträglich gehen**
+>
+> Wenn du die zwei Werte in Schritt 7 nicht eintragen konntest, oder die App
+> „Noch nicht mit Supabase verbunden" zeigt:
+>
+> 1. Im Cloudflare-Dashboard links auf **Workers & Pages** → dein Projekt
+>    `kurbisverlust` anklicken.
+> 2. Reiter **Settings** → **Variables and Secrets** (oder **Build**).
+> 3. Die zwei Variablen aus Punkt 7 als **Text** anlegen und speichern.
+> 4. **Jetzt zwingend neu bauen:** Reiter **Deployments** → beim obersten
+>    Eintrag rechts das Menü **⋯** → **Retry deployment**. Ohne neuen Build
+>    ändert sich nichts, weil die Werte beim Bauen fest in die Seite kommen.
 
 ## Schritt 7 — Dein Konto und die Betriebsleiter-Rolle
 
@@ -466,7 +491,7 @@ einen Auftrag, landet sie in der **Warteschlange** statt geraten zu werden.
 | Dashboard: „Noch keine auswertbaren Daten" | Keine Paletten importiert oder überall Tara fehlend | Teil 2, Punkte 1 und 2. |
 | Dashboard warnt „Fehlende Tara" | Für manche Gebinde fehlt das Leergewicht | *Stammdaten → Gebinde & Tara* ausfüllen. |
 | Supabase: „Project is paused" | Gratis-Projekte pausieren nach 7 Tagen ohne Nutzung | Grüner Knopf **Restore project**, ein bis zwei Minuten warten. Während der Saison passiert das durch die normale Nutzung nicht. |
-| Cloudflare-Build schlägt fehl | Meist ein falsches Feld in Schritt 6 | In der Konsole nach der ersten roten Zeile suchen. Build command muss `npm run build`, Output directory `dist` sein. |
+| Cloudflare-Build schlägt fehl | Meist das Build command falsch oder leer | In der Konsole nach der ersten roten Zeile suchen. Build command muss `npm run build`, Deploy command `npx wrangler deploy` sein. |
 
 Kommst du nicht weiter: Fehlermeldung wörtlich notieren, dazu welcher Schritt.
 Das genügt fast immer zur Klärung.
