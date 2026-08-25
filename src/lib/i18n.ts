@@ -112,6 +112,14 @@ const de = {
   fehler: 'Fehler',
   ganzeZahl: 'Bitte ganze Kilo eintragen.',
   zugangGesperrt: 'Der Zugang ist noch nicht freigeschaltet. Bitte dem Chef Bescheid geben.',
+  fertigePalette: 'Fertige Palette',
+  gewicht: 'Gewicht (kg)',
+  zuViel: 'zu viel',
+  arbeitAbbrechen: 'Arbeit abbrechen',
+  wirklichAbbrechen: 'Wirklich abbrechen? Diese Arbeit zählt dann nicht mehr.',
+  jaAbbrechen: 'Ja, abbrechen',
+  abgebrochen: 'abgebrochen',
+
 }
 
 export type TextId = keyof typeof de
@@ -179,6 +187,14 @@ const en: Woerterbuch = {
   fehler: 'Error',
   ganzeZahl: 'Please enter whole kilos.',
   zugangGesperrt: 'Access is not enabled yet. Please tell the manager.',
+  fertigePalette: 'Finished pallet',
+  gewicht: 'Weight (kg)',
+  zuViel: 'too much',
+  arbeitAbbrechen: 'Cancel work',
+  wirklichAbbrechen: 'Really cancel? This work will no longer count.',
+  jaAbbrechen: 'Yes, cancel',
+  abgebrochen: 'cancelled',
+
 }
 
 const hu: Woerterbuch = {
@@ -243,6 +259,14 @@ const hu: Woerterbuch = {
   fehler: 'Hiba',
   ganzeZahl: 'Kérlek egész kilót írj be.',
   zugangGesperrt: 'A hozzáférés még nincs engedélyezve. Szólj a vezetőnek.',
+  fertigePalette: 'Kész raklap',
+  gewicht: 'Súly (kg)',
+  zuViel: 'többlet',
+  arbeitAbbrechen: 'Munka megszakítása',
+  wirklichAbbrechen: 'Biztosan megszakítod? Ez a munka nem fog számítani.',
+  jaAbbrechen: 'Igen, megszakítom',
+  abgebrochen: 'megszakítva',
+
 }
 
 const ro: Woerterbuch = {
@@ -307,6 +331,14 @@ const ro: Woerterbuch = {
   fehler: 'Eroare',
   ganzeZahl: 'Te rog scrie kilograme întregi.',
   zugangGesperrt: 'Accesul nu este activat încă. Anunță șeful.',
+  fertigePalette: 'Palet gata',
+  gewicht: 'Greutate (kg)',
+  zuViel: 'în plus',
+  arbeitAbbrechen: 'Anulează lucrarea',
+  wirklichAbbrechen: 'Sigur anulezi? Această lucrare nu va mai conta.',
+  jaAbbrechen: 'Da, anulează',
+  abgebrochen: 'anulat',
+
 }
 
 const pl: Woerterbuch = {
@@ -371,6 +403,14 @@ const pl: Woerterbuch = {
   fehler: 'Błąd',
   ganzeZahl: 'Wpisz pełne kilogramy.',
   zugangGesperrt: 'Dostęp nie jest jeszcze włączony. Powiedz kierownikowi.',
+  fertigePalette: 'Gotowa paleta',
+  gewicht: 'Waga (kg)',
+  zuViel: 'za dużo',
+  arbeitAbbrechen: 'Przerwij pracę',
+  wirklichAbbrechen: 'Na pewno przerwać? Ta praca nie będzie się liczyć.',
+  jaAbbrechen: 'Tak, przerwij',
+  abgebrochen: 'przerwane',
+
 }
 
 const pt: Woerterbuch = {
@@ -435,6 +475,14 @@ const pt: Woerterbuch = {
   fehler: 'Erro',
   ganzeZahl: 'Escreve quilos inteiros.',
   zugangGesperrt: 'O acesso ainda não está ativado. Avisa o gestor.',
+  fertigePalette: 'Palete pronta',
+  gewicht: 'Peso (kg)',
+  zuViel: 'a mais',
+  arbeitAbbrechen: 'Cancelar trabalho',
+  wirklichAbbrechen: 'Cancelar mesmo? Este trabalho deixa de contar.',
+  jaAbbrechen: 'Sim, cancelar',
+  abgebrochen: 'cancelado',
+
 }
 
 export const WOERTERBUCH: Record<Sprache, Woerterbuch> = { de, en, hu, ro, pl, pt }

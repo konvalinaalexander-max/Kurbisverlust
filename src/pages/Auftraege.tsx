@@ -30,8 +30,11 @@ export default function Auftraege() {
   }
   useEffect(() => { void laden() }, [])
 
-  const offen = auftraege.filter(a => a.status === 'offen')
-  const fertig = auftraege.filter(a => a.status === 'abgeschlossen')
+  // Abgebrochene Arbeiten sind Fehlgriffe — sie gehören nicht in die Liste
+  // des Arbeiters. Für den Betriebsleiter bleiben sie in der Datenbank.
+  const gueltig = auftraege.filter(a => a.abgebrochen_ts === null)
+  const offen = gueltig.filter(a => a.status === 'offen')
+  const fertig = gueltig.filter(a => a.status === 'abgeschlossen')
   const charge = (nr: number) => chargen.find(c => c.nr === nr)
 
   if (laedt) return <Lade />

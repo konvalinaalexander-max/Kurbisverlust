@@ -3,13 +3,13 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../auth/AuthProvider'
 import { useSprache } from '../sprache/SprachProvider'
-import { chargeText, fehlerText, stammdaten } from '../lib/db'
+import { chargeText, einstellung, fehlerText, stammdaten } from '../lib/db'
 import { taetigkeitVon } from '../lib/taetigkeit'
 import { Hinweis, Karte, Lade, Marke } from '../components/Bausteine'
 import type { TextId } from '../lib/i18n'
 import type { Auftrag, Charge, Gebinde } from '../lib/typen'
 
-type Reiter = 'paletten' | 'faule' | 'ausschuss' | 'abschluss'
+type Reiter = 'paletten' | 'faule' | 'ausschuss' | 'ausgang' | 'abschluss'
 
 export default function AuftragDetail() {
   const { id } = useParams()
@@ -65,11 +65,15 @@ export default function AuftragDetail() {
   const hatPaletten = auftrag.station !== 'waschen'
   const mitWiegen = auftrag.station === 'waschen_sortieren'
   const hatAusschuss = auftrag.weg === 'hand'
+  // Gewaschen wird in neue Paletten gepackt — dort lässt sich nachwiegen,
+  // wie viel Kürbis wirklich je Kiste ausgeliefert wird.
+  const hatAusgang = auftrag.station === 'waschen' || auftrag.station === 'waschen_sortieren'
 
   const reiterListe: [Reiter, TextId][] = [
     ...(hatPaletten ? [['paletten', 'paletten'] as [Reiter, TextId]] : []),
     ['faule', 'faule'],
     ...(hatAusschuss ? [['ausschuss', 'kleinGross'] as [Reiter, TextId]] : []),
+    ...(hatAusgang ? [['ausgang', 'fertigePalette'] as [Reiter, TextId]] : []),
     ['abschluss', 'abschluss'],
   ]
   const aktiverReiter = reiterListe.some(([r]) => r === reiter) ? reiter : reiterListe[0][0]
@@ -123,6 +127,7 @@ export default function AuftragDetail() {
                 titel={t('faule')} mitTeilgewicht />
       )}
       {aktiverReiter === 'ausschuss' && <Ausschuss auftrag={auftrag} gesperrt={gesperrt} />}
+      {aktiverReiter === 'ausgang' && <FertigePalette auftrag={auftrag} gesperrt={gesperrt} />}
       {aktiverReiter === 'abschluss' && (
         <Abschluss auftrag={auftrag} neuLaden={laden} zurueck={() => navigate('/auftraege')} />
       )}
@@ -451,11 +456,142 @@ function Ausschuss({ auftrag, gesperrt }: { auftrag: Auftrag; gesperrt: boolean 
 }
 
 /* ------------------------------------------------------------------ */
+/* Fertige Palette nach dem Waschen                                    */
+/* ------------------------------------------------------------------ */
+/**
+ * Nach dem Waschen wird in neue Paletten gepackt. Die eine Zahl, die zählt:
+ * wie viel Kürbis liegt wirklich in einer Kiste?
+ *
+ *   x = (Brutto − Palettentara − Kisten × Kistentara) / Kisten
+ *
+ * Bezahlt wird ein Fixpreis ab 8 kg je Kiste. Alles darüber ist verschenkte
+ * Ware — kein Verlust, sondern Marge.
+ */
+function FertigePalette({ auftrag, gesperrt }: { auftrag: Auftrag; gesperrt: boolean }) {
+  const { t } = useSprache()
+  const [gebinde, setGebinde] = useState<Gebinde[]>([])
+  const [soll, setSoll] = useState(8)
+  const [brutto, setBrutto] = useState('')
+  const [kisten, setKisten] = useState('')
+  const [art, setArt] = useState('')
+  const [proKiste, setProKiste] = useState('')
+  const [zeilen, setZeilen] = useState<{ id: number; kg_pro_kiste: number | null
+    ueberfuellung_je_kiste: number | null; kisten: number }[]>([])
+  const [fehler, setFehler] = useState<string | null>(null)
+
+  const laden = useCallback(async () => {
+    const [s, k] = await Promise.all([
+      stammdaten(),
+      supabase.from('v_ausgang_kennzahl')
+        .select('id, kg_pro_kiste, ueberfuellung_je_kiste, kisten')
+        .eq('auftrag_id', auftrag.id).order('ts'),
+    ])
+    setGebinde(s.gebinde)
+    setArt(a => a || s.gebinde[0]?.art || '')
+    setZeilen((k.data ?? []) as typeof zeilen)
+    setSoll(await einstellung<number>('soll_kg_pro_kiste', 8))
+  }, [auftrag.id])
+  useEffect(() => { void laden() }, [laden])
+
+  const tara = gebinde.find(g => g.art === art)
+  const n = Number(kisten)
+  const b = Number(brutto)
+  // Dieselbe Rechnung wie in v_ausgang_kennzahl — hier nur, damit der Arbeiter
+  // das Ergebnis sofort sieht. Gespeichert werden die Rohwerte, gerechnet wird
+  // in der Datenbank.
+  const netto = n > 0 && b > 0 && tara?.tara_kg_pro_kiste != null
+    ? b - n * tara.tara_kg_pro_kiste - (tara.tara_kg_palette ?? 0)
+    : null
+  const x = netto !== null && netto > 0 ? netto / n : null
+
+  async function speichern() {
+    if (!(n > 0 && b > 0 && art)) return
+    const { error } = await supabase.from('ausgang_wiegung').insert({
+      auftrag_id: auftrag.id, charge_nr: auftrag.charge_nr,
+      brutto_kg: b, kisten: n, gebindeart: art,
+      kuerbisse_pro_kiste: proKiste === '' ? null : Number(proKiste),
+    })
+    if (error) { setFehler(fehlerText(error)); return }
+    setBrutto(''); setKisten(''); setProKiste(''); setFehler(null)
+    void laden()
+  }
+
+  return (
+    <Karte titel={t('fertigePalette')}>
+      <div className="feld">
+        <label htmlFor="a-brutto">{t('gewicht')}</label>
+        <input id="a-brutto" type="number" inputMode="decimal" step="0.1" min={0}
+               value={brutto} disabled={gesperrt} onChange={e => setBrutto(e.target.value)}
+               style={{ fontSize: '1.2rem' }} />
+      </div>
+      <div className="reihe">
+        <div className="feld" style={{ flex: 1 }}>
+          <label htmlFor="a-kisten">{t('anzahlKisten')}</label>
+          <input id="a-kisten" type="number" inputMode="numeric" min={1}
+                 value={kisten} disabled={gesperrt} onChange={e => setKisten(e.target.value)} />
+        </div>
+        <div className="feld" style={{ flex: 1 }}>
+          <label htmlFor="a-art">{t('kistenart')}</label>
+          <select id="a-art" value={art} disabled={gesperrt}
+                  onChange={e => setArt(e.target.value)}>
+            {gebinde.map(g => <option key={g.art} value={g.art}>{g.art}</option>)}
+          </select>
+        </div>
+      </div>
+      <div className="feld">
+        <label htmlFor="a-pro">{t('kuerbisseProKiste')} ({t('freiwillig')})</label>
+        <input id="a-pro" type="number" inputMode="numeric" min={1}
+               value={proKiste} disabled={gesperrt} onChange={e => setProKiste(e.target.value)} />
+      </div>
+
+      {x !== null && (
+        <p style={{ fontSize: '1.15rem', margin: '0 0 .75rem' }}>
+          <strong>{x.toFixed(2)} kg</strong> {t('jeKiste')}
+          {x > soll && (
+            <span style={{ color: 'var(--rot)' }}> · +{(x - soll).toFixed(2)} kg {t('zuViel')}</span>
+          )}
+          {proKiste !== '' && Number(proKiste) > 0 && netto !== null && (
+            <> · <strong>{(netto / (n * Number(proKiste))).toFixed(2)} kg</strong> {t('proKuerbis')}</>
+          )}
+        </p>
+      )}
+
+      <button className="haupt" style={{ width: '100%', minHeight: 54 }}
+              onClick={speichern} disabled={gesperrt || x === null}>{t('eintragen')}</button>
+      {fehler && <Hinweis art="warnung">{fehler}</Hinweis>}
+
+      {zeilen.length > 0 && (
+        <>
+          <p style={{ marginTop: '1rem' }}>
+            <strong>{t('bisher')}: {zeilen.length}</strong>
+          </p>
+          <table>
+            <tbody>
+              {zeilen.map(z => (
+                <tr key={z.id}>
+                  <td>{z.kisten} × {t('kistenart').toLowerCase()}</td>
+                  <td className="zahl">{z.kg_pro_kiste?.toFixed(2) ?? '—'} kg</td>
+                  <td className="zahl" style={{ color: 'var(--rot)' }}>
+                    {z.ueberfuellung_je_kiste != null && z.ueberfuellung_je_kiste > 0
+                      ? `+${z.ueberfuellung_je_kiste.toFixed(2)}` : ''}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
+    </Karte>
+  )
+}
+
+/* ------------------------------------------------------------------ */
 function Abschluss({ auftrag, neuLaden, zurueck }: {
   auftrag: Auftrag; neuLaden: () => Promise<void>; zurueck: () => void
 }) {
   const { t, gebietsschema } = useSprache()
   const [sicher, setSicher] = useState(false)
+  const [abbruchSicher, setAbbruchSicher] = useState(false)
   const [durchsatz, setDurchsatz] = useState(auftrag.durchsatz_kg?.toString() ?? '')
   const [fehler, setFehler] = useState<string | null>(null)
   const [laeuft, setLaeuft] = useState(false)
@@ -470,6 +606,19 @@ function Abschluss({ auftrag, neuLaden, zurueck }: {
       durchsatz_kg: durchsatz === '' ? null : Number(durchsatz),
       status: 'abgeschlossen', ende_ts: new Date().toISOString(),
     }).eq('id', auftrag.id)
+    setLaeuft(false)
+    if (error) { setFehler(fehlerText(error)); return }
+    await neuLaden()
+    zurueck()
+  }
+
+  // Abbrechen löscht nicht: Die erfassten Zeilen bleiben als Spur stehen,
+  // zählen aber in keiner Auswertung mehr mit. Endgültig löschen kann später
+  // der Betriebsleiter.
+  async function abbrechen() {
+    setLaeuft(true)
+    const { error } = await supabase.rpc('auftrag_abbrechen',
+      { p_auftrag_id: auftrag.id, p_grund: null })
     setLaeuft(false)
     if (error) { setFehler(fehlerText(error)); return }
     await neuLaden()
@@ -509,6 +658,22 @@ function Abschluss({ auftrag, neuLaden, zurueck }: {
           <button onClick={() => setSicher(false)}>{t('abbrechen')}</button>
         </div>
       )}
+
+      <div style={{ marginTop: '2rem', borderTop: '1px solid var(--rand)', paddingTop: '1rem' }}>
+        {!abbruchSicher ? (
+          <button className="gefahr" style={{ width: '100%' }}
+                  onClick={() => setAbbruchSicher(true)}>{t('arbeitAbbrechen')}</button>
+        ) : (
+          <>
+            <p className="leise">{t('wirklichAbbrechen')}</p>
+            <div className="reihe">
+              <button className="gefahr" style={{ flex: 1, minHeight: 54 }}
+                      onClick={abbrechen} disabled={laeuft}>{t('jaAbbrechen')}</button>
+              <button onClick={() => setAbbruchSicher(false)}>{t('abbrechen')}</button>
+            </div>
+          </>
+        )}
+      </div>
     </Karte>
   )
 }

@@ -361,6 +361,111 @@ end $$;
 delete from auftrag where id = 960;
 
 -- =====================================================================
+-- Fertige Palette: wie viel Kürbis liegt wirklich in einer Kiste? (0013)
+-- =====================================================================
+insert into auftrag (id, weg, station, charge_nr, start_ts)
+values (970, 'hand', 'waschen_sortieren', 1613, timestamptz '2026-11-17 08:00+01');
+
+-- Dein Rechenbeispiel: 32 Kisten G2 (je 1.5 kg), Palette 25 kg.
+-- Soll wäre 32 × 8 = 256 kg Kürbis → Brutto 25 + 48 + 256 = 329 kg.
+-- Gewogen werden 340 kg → 11 kg mehr → x = 267/32 = 8.34 kg je Kiste.
+insert into ausgang_wiegung (auftrag_id, charge_nr, brutto_kg, kisten, gebindeart,
+                             kuerbisse_pro_kiste)
+values (970, 1613, 340.00, 32, 'G2', 4);
+
+do $$
+declare v numeric; v_n int;
+begin
+  select netto_kg into v from v_ausgang_kennzahl where auftrag_id = 970;
+  assert v = 267.00, format('Netto erwartet 340 − 25 − 32·1.5 = 267, ist %s', v);
+
+  select kg_pro_kiste into v from v_ausgang_kennzahl where auftrag_id = 970;
+  assert abs(v - 267.0 / 32) < 0.001, format('x erwartet 8.344, ist %s', v);
+
+  select ueberfuellung_je_kiste into v from v_ausgang_kennzahl where auftrag_id = 970;
+  assert abs(v - (267.0 / 32 - 8)) < 0.001,
+    format('Überschuss je Kiste erwartet 0.344, ist %s', v);
+
+  select ueberfuellung_kg into v from v_ausgang_kennzahl where auftrag_id = 970;
+  assert v = 11.00, format('Überschuss gesamt erwartet 11 kg, ist %s', v);
+
+  -- 4 Kürbisse je Kiste → 267 / (32·4) = 2.086 kg je Kürbis
+  select kg_pro_kuerbis into v from v_ausgang_kennzahl where auftrag_id = 970;
+  assert abs(v - 267.0 / 128) < 0.001, format('kg je Kürbis erwartet 2.086, ist %s', v);
+
+  -- Der Überschuss landet im Marge-Buch, nicht im Verlust-Buch
+  select kg_pro_kiste into v from v_koeff_ueberfuellung;
+  assert abs(v - 11.0 / 32) < 0.001,
+    format('Überfüllungs-Koeffizient erwartet 0.344 kg je Kiste, ist %s', v);
+  assert not exists (select 1 from v_hochrechnung
+                      where buch = 'verlust' and strom ilike '%%berfüllung%%'),
+    'Überfüllung darf niemals als Verlust gezählt werden';
+
+  raise notice 'OK  Fertige Palette (x je Kiste, Überschuss geht ins Marge-Buch)';
+end $$;
+
+-- =====================================================================
+-- Abbrechen: Zeilen bleiben als Spur, zählen aber nirgends mehr (0013)
+-- =====================================================================
+do $$
+declare v_vorher numeric; v_nachher numeric; v_n int; v_status text;
+begin
+  -- Eine Arbeit mit Messungen, die anschliessend verworfen wird
+  insert into auftrag (id, weg, station, charge_nr, start_ts)
+  values (980, 'hand', 'waschen_sortieren', 1613, timestamptz '2026-11-18 08:00+01');
+  insert into auftrag_palette (auftrag_id) select 980 from generate_series(1, 3);
+  insert into schimmel_messung (auftrag_id, kg) values (980, 40);
+  insert into verdunstung_wiegung (auftrag_id, charge_nr, eingangsdatum,
+         brutto_damals_kg, brutto_jetzt_kg, kisten, gebindeart, wiege_ts)
+  values (980, 1613, date '2026-09-01', 950, 900, 40, 'G2',
+          timestamptz '2026-11-18 08:00+01');
+
+  assert (select count(*) from v_auftrag_masse where auftrag_id = 980) = 1,
+    'Die laufende Arbeit muss in der Auswertung sein';
+  assert (select verwendbar from v_verdunstung_messung where auftrag_id = 980),
+    'Die Wägung muss zunächst zählen';
+
+  perform auftrag_abbrechen(980, 'Falsche Charge gewählt');
+
+  -- Verschwindet überall aus der Rechnung …
+  assert (select count(*) from v_auftrag_masse where auftrag_id = 980) = 0,
+    'Eine abgebrochene Arbeit darf nicht mehr in v_auftrag_masse stehen';
+  assert not (select verwendbar from v_verdunstung_messung where auftrag_id = 980),
+    'Die Wägung einer abgebrochenen Arbeit darf die Verdunstungsrate nicht beeinflussen';
+  assert (select count(*) from v_wiegung_kennzahl where auftrag_id = 980) = 0,
+    'Abgebrochene Wägungen gehören nicht in die Kennzahlen';
+  assert (select count(*) from v_schimmel_beobachtung where auftrag_id = 980) = 0,
+    'Abgebrochener Schimmel darf nicht in die Kurve';
+
+  -- … die Zeilen bleiben aber als Spur stehen
+  assert (select count(*) from auftrag_palette where auftrag_id = 980) = 3,
+    'Die Erfassungen sollen als Spur erhalten bleiben';
+  assert (select abbruch_grund from auftrag where id = 980) = 'Falsche Charge gewählt',
+    'Der Grund muss festgehalten werden';
+
+  raise notice 'OK  Abbrechen (aus der Rechnung raus, als Spur erhalten)';
+end $$;
+
+-- Endgültig löschen räumt auch die Tabellen mit "on delete set null" auf
+do $$
+declare v_n int;
+begin
+  perform auftrag_endgueltig_loeschen(980);
+
+  assert (select count(*) from auftrag where id = 980) = 0, 'Auftrag muss weg sein';
+  assert (select count(*) from auftrag_palette where auftrag_id = 980) = 0,
+    'Gezählte Paletten müssen mitgelöscht werden (cascade)';
+  -- Der eigentliche Punkt: ohne Aufräumen bliebe diese Zeile verwaist zurück
+  -- (auftrag_id würde nur auf NULL gesetzt) und zählte weiter mit.
+  select count(*) into v_n from verdunstung_wiegung
+   where auftrag_id is null and eingangsdatum = date '2026-09-01'
+     and brutto_jetzt_kg = 900;
+  assert v_n = 0, 'Beim Löschen darf keine verwaiste Wägung zurückbleiben';
+
+  raise notice 'OK  Endgültig löschen (keine verwaisten Wägungen)';
+end $$;
+
+-- =====================================================================
 -- Plausibilität: ein vertippter Wert darf die Rechnung nicht umwerfen (0011)
 -- =====================================================================
 do $$

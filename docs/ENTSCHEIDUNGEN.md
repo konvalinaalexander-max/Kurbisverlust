@@ -318,3 +318,67 @@ Erfassung gehört fachlich eher zur Abpackung als zur Verarbeitung.
 Tabelle und Auswertung bleiben unangetastet — nur die Erfassung im
 Arbeiter-UI ist weg. Solange niemand misst, bleibt diese eine Zeile im
 Marge-Buch leer; alles andere rechnet unverändert.
+
+## Die fertige Palette (0013)
+
+Nach dem Waschen wird in **neue** Paletten gepackt — die Ware landet nicht
+wieder in derselben. Deshalb gab es dort bisher gar nichts zu erfassen, obwohl
+genau hier die interessanteste Frage der Hand-Linie steckt:
+
+```
+Soll:  Palette + 32 Kisten × Tara + 32 × 8 kg
+Ist:   Palette + 32 Kisten × Tara + 32 × x     →  x = ?
+
+x = (Brutto − Palettentara − Kisten × Kistentara) / Kisten
+```
+
+Bezahlt wird ein Fixpreis je Kiste ab 8 kg. Jedes Kilo über x = 8 ist
+verschenkte Ware und gehört ins **Marge-Buch**, nie ins Verlust-Buch — die Ware
+ist verkauft, nur nicht bezahlt. Ein Test prüft genau das.
+
+Das ist dieselbe Größe, die der frühere Reiter „Kisten" messen sollte. Er
+scheiterte daran, dass niemand verstand, was da gemessen wird: Er fragte nach
+einem Sammelgewicht mehrerer Kisten, ohne Bezug zu etwas, das am Band steht.
+Die fertige Palette dagegen steht da, hat eine ablesbare Kistenzahl und kommt
+auf die Waage.
+
+`ausgang_wiegung` hält die Rohwerte (Brutto, Kisten, Gebindeart), nicht das
+Ergebnis. `v_ausgang_kennzahl` rechnet daraus x, den Überschuss je Kiste und —
+wenn die Kürbisse je Kiste erfasst wurden — das Gewicht eines einzelnen
+Kürbisses. Die Soll-Grenze steht als Einstellung (`soll_kg_pro_kiste`), nicht
+als Zahl im Code.
+
+`v_koeff_ueberfuellung` liest beide Quellen: die neuen Palettenwägungen und
+ältere `marge_messung`-Zeilen. So verliert kein bereits erfasster Wert seine
+Wirkung.
+
+## Arbeiten abbrechen (0013)
+
+Eine Arbeit wird mit der falschen Charge eröffnet, ein Handy fällt aus. Bisher
+liess sich so ein Auftrag nicht loswerden — er zählte für immer mit.
+
+**Abbrechen löscht nicht.** `auftrag.abgebrochen_ts` markiert die Arbeit; die
+erfassten Zeilen bleiben als Spur stehen, zählen aber in keiner Auswertung mehr
+mit. Aus der Liste des Arbeiters verschwindet sie, dem Betriebsleiter bleibt sie
+sichtbar. Eine zugeordnete Sortier-CSV wandert zurück in die Warteschlange,
+sonst hinge sie an einer Arbeit, die nicht mehr gilt.
+
+### Warum nicht einfach löschen
+
+`verdunstung_wiegung` und `sortier_lauf` hängen mit `on delete set null` am
+Auftrag. Ein blosses `delete from auftrag` hätte deren Zeilen **verwaist**
+zurückgelassen: Die Wägungen zählten weiter in die Verdunstungsrate — die
+wichtigste Koeffizientenquelle überhaupt —, ohne dass irgendwo stünde, wozu sie
+gehörten. Genau die Sorte Phantom-Daten, nach der im Durchgang zuvor gesucht
+wurde.
+
+`auftrag_endgueltig_loeschen()` (nur Betriebsleiter) räumt deshalb zuerst diese
+beiden Tabellen auf und löscht dann den Auftrag. Ein Test weist nach, dass
+danach keine verwaiste Wägung übrig bleibt.
+
+### Filter an jeder Stelle
+
+Abgebrochene Arbeiten aus `v_auftrag_masse` zu nehmen genügt nicht:
+`v_verdunstung_messung` und `v_wiegung_kennzahl` lesen `verdunstung_wiegung`
+direkt und brauchten einen eigenen Filter. Ohne ihn hätte eine abgebrochene
+Arbeit die Verdunstungsrate weiter beeinflusst.

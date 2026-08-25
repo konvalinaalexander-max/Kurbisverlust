@@ -2,17 +2,19 @@ import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { einstellung, fehlerText, stammdaten } from '../lib/db'
 import { importErkennen, type ImportBericht } from '../lib/import'
-import { datum, kg, tonnen, zahl } from '../lib/format'
+import { STATION_NAME, datum, kg, tonnen, zahl, zeitpunkt } from '../lib/format'
 import { Hinweis, Karte, Kennzahl, Lade, Marke } from '../components/Bausteine'
 import type { Charge, Gebinde, Profil, SorteKaliber } from '../lib/typen'
 
 export default function Stammdaten() {
-  const [teil, setTeil] = useState<'gebinde' | 'paletten' | 'chargen' | 'kaliber' | 'benutzer' | 'einstellungen'>('gebinde')
+  const [teil, setTeil] = useState<'gebinde' | 'paletten' | 'chargen' | 'kaliber'
+    | 'abgebrochen' | 'benutzer' | 'einstellungen'>('gebinde')
   const teile: [typeof teil, string][] = [
     ['gebinde', 'Gebinde & Tara'],
     ['paletten', 'Paletten-Import'],
     ['chargen', 'Chargen'],
     ['kaliber', 'Kaliber'],
+    ['abgebrochen', 'Abgebrochene Arbeiten'],
     ['benutzer', 'Benutzer'],
     ['einstellungen', 'Einstellungen'],
   ]
@@ -30,6 +32,7 @@ export default function Stammdaten() {
       {teil === 'paletten' && <PalettenImport />}
       {teil === 'chargen' && <Chargen />}
       {teil === 'kaliber' && <Kaliber />}
+      {teil === 'abgebrochen' && <Abgebrochene />}
       {teil === 'benutzer' && <Benutzer />}
       {teil === 'einstellungen' && <Einstellungen />}
     </>
@@ -367,6 +370,73 @@ function Kaliber() {
         Danach <code>select lauf_neu_klassieren(id) from sortier_lauf</code> ausführen,
         damit bereits eingelesene Läufe neu klassiert werden.
       </p>
+    </Karte>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/* Abgebrochene Arbeiten aufräumen                                     */
+/* ------------------------------------------------------------------ */
+function Abgebrochene() {
+  const [zeilen, setZeilen] = useState<{ id: number; charge_nr: number; weg: string
+    station: string; start_ts: string; abgebrochen_ts: string; abbruch_grund: string | null }[]>([])
+  const [fehler, setFehler] = useState<string | null>(null)
+  const [sicher, setSicher] = useState<number | null>(null)
+
+  const laden = useCallback(async () => {
+    const { data, error } = await supabase.from('auftrag')
+      .select('id, charge_nr, weg, station, start_ts, abgebrochen_ts, abbruch_grund')
+      .not('abgebrochen_ts', 'is', null).order('abgebrochen_ts', { ascending: false })
+    if (error) setFehler(fehlerText(error)); else setZeilen((data ?? []) as typeof zeilen)
+  }, [])
+  useEffect(() => { void laden() }, [laden])
+
+  async function loeschen(id: number) {
+    const { error } = await supabase.rpc('auftrag_endgueltig_loeschen', { p_auftrag_id: id })
+    setSicher(null)
+    if (error) setFehler(fehlerText(error)); else void laden()
+  }
+
+  return (
+    <Karte titel={`Abgebrochene Arbeiten (${zeilen.length})`}>
+      <Hinweis>
+        Ein Arbeiter kann eine laufende Arbeit abbrechen — etwa wenn die falsche
+        Charge gewählt wurde. Die erfassten Zeilen bleiben dann als Spur stehen,
+        zählen aber in <strong>keiner</strong> Auswertung mehr mit.
+        <p style={{ margin: '.4rem 0 0' }}>
+          Endgültiges Löschen räumt zusätzlich die Palettenwägungen weg, die sonst
+          verwaist zurückblieben und weiter in die Verdunstungsrate zählten. Eine
+          zugeordnete Sortier-CSV wandert zurück in die Warteschlange.
+        </p>
+      </Hinweis>
+      {fehler && <Hinweis art="warnung">{fehler}</Hinweis>}
+      {zeilen.length === 0 && <p className="leise">Nichts abgebrochen.</p>}
+      {zeilen.map(z => (
+        <div key={z.id} style={{ borderBottom: '1px solid var(--rand)', padding: '.75rem 0' }}>
+          <div className="reihe">
+            <strong>Charge {z.charge_nr}</strong>
+            <Marke art="warnung">abgebrochen</Marke>
+            <span className="leise" style={{ marginLeft: 'auto' }}>
+              {zeitpunkt(z.abgebrochen_ts)}
+            </span>
+          </div>
+          <p className="leise" style={{ margin: '.2rem 0' }}>
+            {STATION_NAME[z.station] ?? z.station} · gestartet {zeitpunkt(z.start_ts)}
+            {z.abbruch_grund && ` · ${z.abbruch_grund}`}
+          </p>
+          {sicher === z.id ? (
+            <div className="reihe">
+              <button className="gefahr" onClick={() => loeschen(z.id)}>
+                Ja, endgültig löschen
+              </button>
+              <button onClick={() => setSicher(null)}>Doch nicht</button>
+            </div>
+          ) : (
+            <button className="gefahr" style={{ minHeight: 34, padding: '.3rem .7rem' }}
+                    onClick={() => setSicher(z.id)}>Endgültig löschen</button>
+          )}
+        </div>
+      ))}
     </Karte>
   )
 }

@@ -20,6 +20,7 @@ export interface Auftrag {
   start_ts: string; ende_ts: string | null
   geplante_paletten: number | null; status: AuftragStatus
   eroeffnet_von: string; durchsatz_kg: number | null; bemerkung: string | null
+  abgebrochen_ts: string | null; abbruch_grund: string | null
 }
 
 export interface SortierLauf {
