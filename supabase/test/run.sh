@@ -29,7 +29,7 @@ psql "$URL" -v ON_ERROR_STOP=1 -f "$HIER/pruefung.sql"
 echo
 echo "── 2. setup.sql als ein Query (wie der Supabase-Editor) ──────"
 zuruecksetzen
-AUSGABE="$(psql "$URL" -v ON_ERROR_STOP=1 -qtA -c "$(cat "$HIER/../setup.sql")")"
+AUSGABE="$(psql "$URL" -v ON_ERROR_STOP=1 -qtA -1 -f "$HIER/../setup.sql" | tail -1)"
 echo "   $AUSGABE"
 case "$AUSGABE" in
   Fertig.*Chargen*) ;;
@@ -38,7 +38,7 @@ esac
 
 echo
 echo "── 3. setup.sql ein zweites Mal ──────────────────────────────"
-if ZWEITE="$(psql "$URL" -v ON_ERROR_STOP=1 -qtA -c "$(cat "$HIER/../setup.sql")" 2>&1)"; then
+if ZWEITE="$(psql "$URL" -v ON_ERROR_STOP=1 -qtA -1 -f "$HIER/../setup.sql" 2>&1)"; then
   echo "   FEHLER: der zweite Durchlauf hätte abbrechen müssen"; exit 1
 fi
 case "$ZWEITE" in
@@ -58,13 +58,13 @@ psql "$URL" -v ON_ERROR_STOP=1 -q -c "
   insert into auth.users (id, email, raw_user_meta_data)
   values ('11111111-1111-1111-1111-111111111111', 'chef@hof.test', '{\"name\":\"Chef\"}');
   update profil set rolle = 'admin' where id = '11111111-1111-1111-1111-111111111111';"
-DEMO="$(psql "$URL" -v ON_ERROR_STOP=1 -qtA -c "$(cat "$HIER/../demo_daten.sql")")"
+DEMO="$(psql "$URL" -v ON_ERROR_STOP=1 -qtA -1 -f "$HIER/../demo_daten.sql" | tail -1)"
 echo "   $DEMO"
 case "$DEMO" in
   *Demo-Saison\ steht*) ;;
   *) echo "   FEHLER: Demo-Daten liessen sich nicht laden"; exit 1 ;;
 esac
-UEBRIG="$(psql "$URL" -v ON_ERROR_STOP=1 -qtA -c "$(cat "$HIER/../demo_daten_entfernen.sql")")"
+UEBRIG="$(psql "$URL" -v ON_ERROR_STOP=1 -qtA -1 -f "$HIER/../demo_daten_entfernen.sql" | tail -1)"
 echo "   $UEBRIG"
 VERWAIST="$(psql "$URL" -qtA -c "select (select count(*) from verdunstung_wiegung)
   + (select count(*) from ausgang_wiegung) + (select count(*) from sortier_gewicht)
@@ -79,7 +79,8 @@ echo "── 5. Tempo der Auswertung ──────────────�
 # Funktion pro Zeile die halbe Auswertung neu rechnete. Diese Stufe fängt es ab,
 # bevor es wieder jemandem beim Klicken um die Ohren fliegt.
 # Das Betriebsleiter-Konto steht bereits aus Stufe 4
-psql "$URL" -v ON_ERROR_STOP=1 -qtA -c "$(cat "$HIER/../demo_daten.sql")" >/dev/null
+psql "$URL" -v ON_ERROR_STOP=1 -qtA -1 -f "$HIER/../demo_daten.sql" >/dev/null
+psql "$URL" -q -c "select auswertung_aktualisieren()" >/dev/null
 psql "$URL" -q -c "analyze" >/dev/null
 
 GESAMT=0
@@ -96,10 +97,44 @@ echo "   alle zwölf Dashboard-Ansichten: ${GESAMT} ms"
 if [ "$(echo "$GESAMT > 3000" | bc)" = "1" ]; then
   echo "   FEHLER: zu langsam — auf Supabase droht der Abbruch"; exit 1
 fi
-psql "$URL" -q -c "$(cat "$HIER/../demo_daten_entfernen.sql")" >/dev/null
+psql "$URL" -q -1 -f "$HIER/../demo_daten_entfernen.sql" >/dev/null
 
 echo
-echo "── 6. setup.sql gegen die Migrationen abgleichen ─────────────"
+echo "── 6. Lasttest: dreifache Saisongrösse ───────────────────────"
+# Die Demo-Saison ist zu klein, um Tempo zu beurteilen. Hier wird deutlich mehr
+# erzeugt, als je anfallen sollte — wenn das zügig läuft, läuft auch die echte
+# Saison. Ohne diese Stufe würde die Zusage "skaliert" mit der Zeit verrotten.
+zuruecksetzen
+psql "$URL" -v ON_ERROR_STOP=1 -q -1 -f "$HIER/../setup.sql" >/dev/null
+psql "$URL" -v ON_ERROR_STOP=1 -q -c "
+  insert into auth.users (id, email, raw_user_meta_data)
+  values ('11111111-1111-1111-1111-111111111111', 'chef@hof.test', '{\"name\":\"Chef\"}');
+  update profil set rolle = 'admin' where id = '11111111-1111-1111-1111-111111111111';"
+psql "$URL" -v ON_ERROR_STOP=1 -qtA -f "$HIER/last.sql" | tail -1 | sed 's/^/   /'
+
+RECHNEN="$(psql "$URL" -qtA -c "select auswertung_aktualisieren()" >/dev/null; \
+           psql "$URL" -qtA -c "select dauer_ms from auswertung_stand")"
+echo "   Auswertung neu rechnen: ${RECHNEN} ms"
+
+GESAMT=0
+for V in v_hochrechnung v_massenbilanz v_datenlage v_marge_buch v_plausibilitaet \
+         v_wiegung_kennzahl v_kaliber_verteilung v_schimmel_kurve_anzeige \
+         v_koeff_verdunstung v_koeff_ausschuss v_koeff_nebenkanal v_koeff_ueberfuellung; do
+  MS="$(psql "$URL" -qtA -c "\timing on" -c "select count(*) from $V" 2>&1 \
+        | grep -oE 'Time: [0-9.]+ ms' | grep -oE '[0-9.]+')"
+  GESAMT="$(echo "$GESAMT + $MS" | bc)"
+done
+echo "   Dashboard bei voller Last: ${GESAMT} ms"
+# Grosszügig gegenüber langsamer CI-Hardware, weit unter Supabases 8 Sekunden.
+if [ "$(echo "$GESAMT > 2000" | bc)" = "1" ]; then
+  echo "   FEHLER: Dashboard zu langsam bei voller Last"; exit 1
+fi
+if [ "$RECHNEN" -gt 5000 ]; then
+  echo "   FEHLER: Neuberechnen zu langsam"; exit 1
+fi
+
+echo
+echo "── 7. setup.sql gegen die Migrationen abgleichen ─────────────"
 VORHER="$(cat "$HIER/../setup.sql")"
 "$HIER/../setup_bauen.sh" >/dev/null
 if [ "$VORHER" != "$(cat "$HIER/../setup.sql")" ]; then

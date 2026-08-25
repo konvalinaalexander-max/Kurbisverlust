@@ -433,3 +433,79 @@ Stufe 5 von `supabase/test/run.sh` lädt die Demo-Saison, misst alle zwölf
 Dashboard-Ansichten und schlägt über 3 Sekunden fehl — großzügig gegenüber
 langsamer CI-Hardware, aber weit unter den 8 Sekunden, bei denen Supabase
 abbricht.
+
+## Die Auswertung wird gespeichert, nicht bei jedem Hinschauen gerechnet (0016)
+
+Nach 0015 lief die Auswertung mit der Demo-Saison in einer halben Sekunde —
+aber ein Lasttest mit **5 040 Paletten, 840 Arbeiten und 255 300
+Gewichtsstufen** (rund das Dreifache einer echten Saison) brauchte wieder
+4.1 Sekunden. Auf Supabases geteilter CPU wäre das ein Abbruch, und mit jeder
+weiteren Palette würde es schlimmer.
+
+Das Feilen an einzelnen Abfragen war ein Verschieben des Symptoms. Die Ursache
+liegt in der Bauart: Die Auswertung ist ein tiefer Baum, der bei jedem Lesen
+von den Rohdaten aufwärts neu gerechnet wurde. `v_kaskade` steckt in drei
+Dashboard-Ansichten — und wurde dreimal gerechnet.
+
+Eine Saisonauswertung ist aber keine Live-Anzeige. Sie darf ein paar Minuten
+alt sein. Vier teure Knoten liegen deshalb jetzt als materialisierte Ansichten
+gespeichert:
+
+| gespeichert | verdichtet |
+|---|---|
+| `mv_sortier_lauf_masse` | 255 300 Gewichtsstufen → 300 Zeilen |
+| `mv_auftrag_masse` | 12 600 Palettenzählungen → 840 Zeilen |
+| `mv_kaskade` | die Hochrechnung selbst |
+| `mv_kaliber_verteilung` | wächst mit jeder CSV |
+
+**Gemessen am Lasttest:**
+
+| | vorher | nachher |
+|---|--:|--:|
+| Dashboard (zwölf Ansichten) | 4 120 ms | **203 ms** |
+| Auswertung neu rechnen | — | 797 ms |
+
+Entscheidend ist nicht der Faktor 20, sondern dass die Lesezeit jetzt von der
+**Ergebnisgröße** abhängt statt von der Datenmenge. Zehnmal so viele Paletten
+verlängern das Neuberechnen, nicht das Anschauen.
+
+### Die gewohnten Namen bleiben
+
+`v_sortier_lauf_masse`, `v_auftrag_masse`, `v_kaskade` und
+`v_kaliber_verteilung` gibt es weiterhin — sie zeigen jetzt auf die
+gespeicherten Daten. Damit sehen App, SQL-Editor und Prüfabfragen dasselbe;
+es gibt weiterhin genau eine Wahrheit.
+
+Kein `drop … cascade` nötig: Die Wrapper haben exakt dieselben Spalten und
+Typen, also genügte ein Ersetzen — die gesamte Auswertung darüber blieb stehen.
+
+### Was man dafür in Kauf nimmt
+
+Nach einer Erfassung ist die Auswertung erst nach dem nächsten Rechnen aktuell.
+Das ist sichtbar gemacht statt versteckt:
+
+- `auswertung_stand` hält fest, wann zuletzt gerechnet wurde und wann zuletzt
+  etwas erfasst wurde. Die Erfassungstabellen melden das selbst per Trigger —
+  auf Anweisungsebene, damit ein Import mit 500 Paletten einen Aufruf auslöst
+  und nicht 500.
+- Das Dashboard zeigt den Stand und rechnet beim Öffnen selbst nach, wenn seit
+  der letzten Rechnung etwas erfasst wurde. Unter einer Sekunde, also
+  unmerklich. Dazu ein Knopf zum Erzwingen.
+
+Die Prüfabfragen rechnen an denselben Stellen nach — sonst würden sie den Stand
+von vorhin prüfen.
+
+### Braucht es eine bezahlte Stufe?
+
+Nein. Der Engpass war nie die Rechenleistung, sondern die Bauart. Bei
+dreifacher Saisongröße liegt das Dashboard bei 203 ms und das Neuberechnen bei
+0.8 s — auf einer Gratis-Instanz mit deutlich langsamerer CPU also
+komfortabel innerhalb der 8-Sekunden-Grenze. Der Speicherbedarf (~250 000
+Zeilen Sortiergewichte) liegt weit unter den 500 MB der Gratis-Stufe.
+
+### Abgesichert
+
+Stufe 6 von `supabase/test/run.sh` erzeugt den Lasttest, rechnet die Auswertung
+und misst. Über 2 Sekunden fürs Dashboard oder 5 Sekunden fürs Neuberechnen
+schlägt der Lauf fehl. Ohne diese Stufe würde die Zusage „skaliert" mit der
+Zeit verrotten.

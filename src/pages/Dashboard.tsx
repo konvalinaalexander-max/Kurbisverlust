@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { fehlerText } from '../lib/db'
-import { datum, kg, prozent, tonnen, zahl } from '../lib/format'
+import { datum, kg, prozent, tonnen, zahl, zeitpunkt } from '../lib/format'
 import { Balken, Hinweis, Karte, Kennzahl, Lade, Marke, Rechenweg } from '../components/Bausteine'
 import type { Datenlage, Hochrechnung, Massenbilanz } from '../lib/typen'
 
@@ -36,6 +36,8 @@ export default function Dashboard() {
   const [marge, setMarge] = useState<{ posten: string; kg: number | null; kg_unten: number | null
     kg_oben: number | null; erlaeuterung: string }[]>([])
   const [laedt, setLaedt] = useState(true)
+  const [rechnet, setRechnet] = useState(false)
+  const [stand, setStand] = useState<string | null>(null)
   const [fehler, setFehler] = useState<string | null>(null)
 
   const [ebene, setEbene] = useState<Ebene>(1)
@@ -43,7 +45,37 @@ export default function Dashboard() {
   const [schlag, setSchlag] = useState('')
   const [minLagertage, setMinLagertage] = useState('')
 
-  useEffect(() => {
+  /**
+   * Die Auswertung liegt gespeichert vor (Migration 0016) statt bei jedem
+   * Hinschauen neu gerechnet zu werden — sonst bricht Supabase ab, sobald
+   * genug Daten da sind. Wurde seit der letzten Rechnung etwas erfasst, wird
+   * hier einmal nachgerechnet; das dauert unter einer Sekunde.
+   */
+  const laden = useCallback(async (erzwingen = false) => {
+    setLaedt(true)
+    try {
+      const { data: st } = await supabase.from('auswertung_stand')
+        .select('berechnet_ts, geaendert_ts').maybeSingle()
+      const veraltet = !st?.berechnet_ts
+        || new Date(st.geaendert_ts) > new Date(st.berechnet_ts)
+      if (veraltet || erzwingen) {
+        setRechnet(true)
+        const { error } = await supabase.rpc('auswertung_aktualisieren')
+        setRechnet(false)
+        if (error) throw error
+      }
+      const { data: st2 } = await supabase.from('auswertung_stand')
+        .select('berechnet_ts').maybeSingle()
+      setStand(st2?.berechnet_ts ?? null)
+      await datenLaden()
+    } catch (f) {
+      setFehler(fehlerText(f))
+    } finally { setLaedt(false) }
+  }, [])
+
+  useEffect(() => { void laden() }, [laden])
+
+  const datenLaden = async () => {
     void (async () => {
       try {
         const [h, b, d, m, pl, wk, kv, sk, kfv, kfa, kfn, kfu] = await Promise.all([
@@ -97,9 +129,9 @@ export default function Dashboard() {
         ])
       } catch (f) {
         setFehler(fehlerText(f))
-      } finally { setLaedt(false) }
+      }
     })()
-  }, [])
+  }
 
   const sorten = useMemo(() => [...new Set(zeilen.map(z => z.sorte))].sort(), [zeilen])
   const schlaege = useMemo(() => [...new Set(zeilen.map(z => z.schlag))].sort(), [zeilen])
@@ -145,7 +177,7 @@ export default function Dashboard() {
   const verlustGesamt = verluste.reduce((s, v) => s + v.mittel, 0)
   const maximum = Math.max(...verluste.map(v => Math.max(v.mittel, v.oben)), 1)
 
-  if (laedt) return <Lade text="Auswertung wird gerechnet …" />
+  if (laedt) return <Lade text={rechnet ? 'Auswertung wird gerechnet …' : 'Lädt …'} />
   if (fehler) return <Hinweis art="warnung">{fehler}</Hinweis>
   if (zeilen.length === 0) {
     return (
@@ -158,7 +190,14 @@ export default function Dashboard() {
 
   return (
     <>
-      <div className="reihe" style={{ marginTop: '1rem' }}>
+      <p className="leise" style={{ marginTop: '1rem', marginBottom: '.5rem' }}>
+        Stand: {stand ? zeitpunkt(stand) : '—'}
+        {' · '}
+        <button style={{ minHeight: 28, padding: '.1rem .5rem' }}
+                onClick={() => void laden(true)}>neu rechnen</button>
+      </p>
+
+      <div className="reihe">
         {([1, 2, 3] as Ebene[]).map(e => (
           <button key={e} className={ebene === e ? 'haupt' : ''} style={{ flex: 1 }}
                   onClick={() => setEbene(e)}>

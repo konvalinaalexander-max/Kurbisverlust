@@ -102,6 +102,10 @@ select csv_lauf_speichern(
   '[[300,200],[400,300],[600,2000],[900,3000],[1400,2000],[1900,500],[2100,161]]'::jsonb
 );
 
+-- Die Auswertung liegt seit 0016 gespeichert vor: nach jeder Erfassung
+-- einmal neu rechnen, sonst prüft man den Stand von vorhin.
+select auswertung_aktualisieren() \gset stand_
+
 do $$
 declare v numeric; v_int int; v_status text; v_lauf bigint;
 begin
@@ -295,6 +299,10 @@ begin
   raise notice 'OK  Kaskade, Bereiche, Ranking, Bilanz';
 end $$;
 
+-- Die Auswertung liegt seit 0016 gespeichert vor: nach jeder Erfassung
+-- einmal neu rechnen, sonst prüft man den Stand von vorhin.
+select auswertung_aktualisieren() \gset stand_
+
 -- =====================================================================
 -- Wiegen beim Zählen: gewogene Palette schlägt jede Schätzung (0012)
 -- =====================================================================
@@ -363,6 +371,10 @@ end $$;
 
 delete from auftrag where id = 960;
 
+-- Die Auswertung liegt seit 0016 gespeichert vor: nach jeder Erfassung
+-- einmal neu rechnen, sonst prüft man den Stand von vorhin.
+select auswertung_aktualisieren() \gset stand_
+
 -- =====================================================================
 -- Fertige Palette: wie viel Kürbis liegt wirklich in einer Kiste? (0013)
 -- =====================================================================
@@ -422,6 +434,7 @@ begin
          brutto_damals_kg, brutto_jetzt_kg, kisten, gebindeart, wiege_ts)
   values (980, 1613, date '2026-09-01', 950, 900, 40, 'G2',
           timestamptz '2026-11-18 08:00+01');
+  perform auswertung_aktualisieren();
 
   assert (select count(*) from v_auftrag_masse where auftrag_id = 980) = 1,
     'Die laufende Arbeit muss in der Auswertung sein';
@@ -429,6 +442,7 @@ begin
     'Die Wägung muss zunächst zählen';
 
   perform auftrag_abbrechen(980, 'Falsche Charge gewählt');
+  perform auswertung_aktualisieren();
 
   -- Verschwindet überall aus der Rechnung …
   assert (select count(*) from v_auftrag_masse where auftrag_id = 980) = 0,
@@ -468,6 +482,10 @@ begin
   raise notice 'OK  Endgültig löschen (keine verwaisten Wägungen)';
 end $$;
 
+-- Die Auswertung liegt seit 0016 gespeichert vor: nach jeder Erfassung
+-- einmal neu rechnen, sonst prüft man den Stand von vorhin.
+select auswertung_aktualisieren() \gset stand_
+
 -- =====================================================================
 -- Plausibilität: ein vertippter Wert darf die Rechnung nicht umwerfen (0011)
 -- =====================================================================
@@ -482,6 +500,7 @@ begin
   insert into auftrag_palette (auftrag_id, palette_id)
   select 950, id from palette where charge_nr = 1614;
   insert into schimmel_messung (auftrag_id, kg) values (950, 99000);
+  perform auswertung_aktualisieren();
 
   assert not (select plausibel from v_schimmel_beobachtung where auftrag_id = 950),
     'Ein Schimmelanteil weit über 100 % muss als unplausibel erkannt werden';
@@ -502,6 +521,7 @@ begin
   -- Auch als marge_messung(nebenkanal) erfasste Mengen dürfen nicht spurlos
   -- verschwinden — keine Auswertung liest sie.
   insert into marge_messung (auftrag_id, art, wert) values (950, 'nebenkanal', 42);
+  perform auswertung_aktualisieren();
   assert exists (select 1 from v_plausibilitaet
                   where auftrag_id = 950 and art = 'Nicht ausgewertet'),
     'Nicht ausgewertete Erfassungen müssen gemeldet werden';
