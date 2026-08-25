@@ -51,7 +51,7 @@ cat <<'FUSS'
 -- =====================================================================
 -- Rückmeldung im Ergebnisfenster
 -- =====================================================================
-select format('Fertig. %s Chargen und %s Sorten angelegt, %s Tabellen und %s Auswertungen erstellt. Weiter im README bei Schritt 3.',
+select format('Fertig. %s Chargen und %s Sorten angelegt, %s Tabellen und %s Auswertungen erstellt. Weiter im README bei Schritt 4.',
               (select count(*) from charge),
               (select count(*) from sorte_kaliber),
               (select count(*) from pg_tables where schemaname = 'public'),

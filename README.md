@@ -21,7 +21,7 @@ Du brauchst nur einen Browser. Nichts installieren, nichts programmieren.
 
 | Schritt | Worum es geht | Dauer |
 |---|---|---|
-| 1 | Code nach `main` bringen | 2 Min |
+| 1 | Kurz zur Orientierung (nichts zu tun) | 1 Min |
 | 2 | Supabase-Konto und Projekt anlegen | 10 Min (meist Warten) |
 | 3 | Datenbank einrichten — **eine Datei, ein Klick** | 3 Min |
 | 4 | Bestätigungs-E-Mails abschalten | 2 Min |
@@ -35,35 +35,24 @@ mit den Fehlermeldungen, die wirklich vorkommen.
 
 ---
 
-## Schritt 1 — Code nach `main` bringen
+## Schritt 1 — Kurz zur Orientierung (nichts zu tun)
 
-Der fertige Code liegt gerade auf dem Branch `claude/new-session-vrnnyo`.
-Cloudflare baut in Schritt 6 standardmäßig von `main`, deshalb zuerst
-zusammenführen.
+Der fertige Code liegt bereits bei GitHub, auf **einem** Branch namens
+`claude/new-session-vrnnyo`. Dieser Branch ist zugleich der **Standard-Branch**
+des Projekts — das heißt: GitHub und Cloudflare nehmen ihn von selbst. Du musst
+**nichts** zusammenführen, nichts umbenennen, keinen zweiten Branch anlegen.
 
-**Was du machst**
+Merke dir nur den Namen `claude/new-session-vrnnyo`. Er taucht später ein paarmal
+auf, und dann weißt du: Das ist einfach „mein Projekt".
 
-1. Gehe auf https://github.com/konvalinaalexander-max/Kurbisverlust
-2. Oben erscheint meist ein gelber Balken mit dem Branchnamen und einem grünen
-   Knopf **Compare & pull request**. Klicke darauf.
-   *Kein Balken zu sehen?* Dann oben auf den Reiter **Pull requests** →
-   **New pull request** → bei *compare* den Branch `claude/new-session-vrnnyo`
-   auswählen.
-3. Grüner Knopf **Create pull request**.
-4. Auf der nächsten Seite grüner Knopf **Merge pull request** → **Confirm merge**.
-
-**Woran du merkst, dass es geklappt hat**
-
-Auf der Startseite des Repositories steht oben links `main`, und du siehst die
-Ordner `src`, `supabase`, `docs`.
-
-> Du kannst diesen Schritt überspringen und stattdessen in Schritt 6 bei
-> Cloudflare den Production-Branch von Hand auf `claude/new-session-vrnnyo`
-> setzen. Der Weg über `main` ist aber der einfachere.
+> Falls du in einer früheren Fassung dieser Anleitung schon versucht hast, etwas
+> nach `main` zu bringen, und daran gescheitert bist: Das war mein Fehler in der
+> Anleitung, nicht deiner. Es gibt kein `main` und es braucht auch keins. Alles
+> liegt auf dem einen Branch. Weiter mit Schritt 2.
 
 ---
 
-## Schritt 2 — Supabase-Projekt anlegen
+## Schritt 2 — Supabase-Projekt anlegen## Schritt 2 — Supabase-Projekt anlegen
 
 Supabase ist die Datenbank. Das Gratis-Konto reicht vollkommen.
 
@@ -113,10 +102,10 @@ man falsch machen kann.
 ### 3a — Die Datei kopieren
 
 1. Öffne im Browser:
-   **https://github.com/konvalinaalexander-max/Kurbisverlust/blob/main/supabase/setup.sql**
+   **https://github.com/konvalinaalexander-max/Kurbisverlust/blob/claude/new-session-vrnnyo/supabase/setup.sql**
 
-   *(Falls du Schritt 1 übersprungen hast, ersetze `main` in dieser Adresse
-   durch `claude/new-session-vrnnyo`.)*
+   *(Am einfachsten ist der Weg über die Knöpfe unten — dann musst du diese
+   lange Adresse gar nicht abtippen.)*
 
 2. Über dem grauen Textblock ist rechts eine Reihe kleiner Symbole. Klicke auf
    das Symbol **Copy raw file** — zwei übereinanderliegende Rechtecke. Wenn du
@@ -160,7 +149,7 @@ genau dieser Zeile:
 
 ```
 Fertig. 42 Chargen und 11 Sorten angelegt, 15 Tabellen und 23 Auswertungen
-erstellt. Weiter im README bei Schritt 3.
+erstellt. Weiter im README bei Schritt 4.
 ```
 
 Wenn du das siehst, ist die komplette Datenbank fertig: Tabellen, Zugriffsrechte,
