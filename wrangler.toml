@@ -11,5 +11,7 @@ compatibility_date = "2024-11-01"
 directory = "./dist"
 # Client-seitiges Routing: Ruft jemand /dashboard direkt auf oder lädt die Seite
 # neu, gibt es keine Datei dieses Namens. Statt eines 404 kommt index.html, und
-# die App zeigt drinnen die richtige Seite an. (Ersetzt public/_redirects.)
+# die App zeigt drinnen die richtige Seite an. Das übernimmt Cloudflare hier
+# direkt — eine eigene _redirects-Datei ist weder nötig noch erlaubt (sie
+# würde als Endlosschleife abgelehnt).
 not_found_handling = "single-page-application"
