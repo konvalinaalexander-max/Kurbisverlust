@@ -127,6 +127,12 @@ insert into storage.buckets (id, name, public)
 values ('rohdaten', 'rohdaten', false)
 on conflict (id) do nothing;
 
+-- storage.objects gehört Supabase und überlebt ein Zurücksetzen des
+-- public-Schemas. Deshalb hier erst aufräumen, sonst scheitert ein erneutes
+-- Setup an einer Policy, die noch von vorhin herumliegt.
+drop policy if exists rohdaten_lesen     on storage.objects;
+drop policy if exists rohdaten_schreiben on storage.objects;
+
 create policy rohdaten_lesen on storage.objects for select to authenticated
   using (bucket_id = 'rohdaten');
 create policy rohdaten_schreiben on storage.objects for insert to authenticated

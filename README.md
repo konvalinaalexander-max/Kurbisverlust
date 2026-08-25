@@ -4,92 +4,475 @@ Internes Werkzeug für einen landwirtschaftlichen Betrieb: Es findet heraus,
 **wo** im Lager und in der Verarbeitung Kürbis-Masse verloren geht und **welche
 Ursache dominiert** — aus bewusst lückenhaften, punktuellen Messungen.
 
-Das Ziel ist das **Rangieren der Ursachen**, nicht eine kg-genaue Bilanz. Jede
-Zahl im Dashboard lässt sich aufklappen und zeigt, aus welchen Stichproben,
-welchem Koeffizienten und welcher Formel sie entstanden ist.
+Ziel ist das **Rangieren der Ursachen**, keine kg-genaue Bilanz. Jede Zahl im
+Dashboard lässt sich aufklappen und zeigt, aus welchen Stichproben, welchem
+Koeffizienten und welcher Formel sie entstanden ist.
 
-Die vollständige fachliche Spezifikation liegt in [`docs/SPEC.md`](docs/SPEC.md),
-die Begründung der Modellentscheidungen in [`docs/ENTSCHEIDUNGEN.md`](docs/ENTSCHEIDUNGEN.md).
+Kosten: **€0** auf den Gratis-Stufen von Supabase und Cloudflare Pages.
+
+---
+
+# Teil 1 — Einrichtung
+
+Einmalig, danach nie wieder. Rechne mit **30 bis 45 Minuten**, davon sind zehn
+reines Warten.
+
+Du brauchst nur einen Browser. Nichts installieren, nichts programmieren.
+
+| Schritt | Worum es geht | Dauer |
+|---|---|---|
+| 1 | Code nach `main` bringen | 2 Min |
+| 2 | Supabase-Konto und Projekt anlegen | 10 Min (meist Warten) |
+| 3 | Datenbank einrichten — **eine Datei, ein Klick** | 3 Min |
+| 4 | Bestätigungs-E-Mails abschalten | 2 Min |
+| 5 | Die zwei Zugangswerte abholen | 2 Min |
+| 6 | App auf Cloudflare veröffentlichen | 10 Min |
+| 7 | Erstes Konto anlegen und dich zum Betriebsleiter machen | 5 Min |
+
+Wenn irgendwo etwas anders aussieht als hier beschrieben: die Anbieter ändern
+ihre Oberflächen ständig. Am Ende steht [**Wenn etwas klemmt**](#wenn-etwas-klemmt)
+mit den Fehlermeldungen, die wirklich vorkommen.
+
+---
+
+## Schritt 1 — Code nach `main` bringen
+
+Der fertige Code liegt gerade auf dem Branch `claude/new-session-vrnnyo`.
+Cloudflare baut in Schritt 6 standardmäßig von `main`, deshalb zuerst
+zusammenführen.
+
+**Was du machst**
+
+1. Gehe auf https://github.com/konvalinaalexander-max/Kurbisverlust
+2. Oben erscheint meist ein gelber Balken mit dem Branchnamen und einem grünen
+   Knopf **Compare & pull request**. Klicke darauf.
+   *Kein Balken zu sehen?* Dann oben auf den Reiter **Pull requests** →
+   **New pull request** → bei *compare* den Branch `claude/new-session-vrnnyo`
+   auswählen.
+3. Grüner Knopf **Create pull request**.
+4. Auf der nächsten Seite grüner Knopf **Merge pull request** → **Confirm merge**.
+
+**Woran du merkst, dass es geklappt hat**
+
+Auf der Startseite des Repositories steht oben links `main`, und du siehst die
+Ordner `src`, `supabase`, `docs`.
+
+> Du kannst diesen Schritt überspringen und stattdessen in Schritt 6 bei
+> Cloudflare den Production-Branch von Hand auf `claude/new-session-vrnnyo`
+> setzen. Der Weg über `main` ist aber der einfachere.
+
+---
+
+## Schritt 2 — Supabase-Projekt anlegen
+
+Supabase ist die Datenbank. Das Gratis-Konto reicht vollkommen.
+
+**Was du machst**
+
+1. Gehe auf https://supabase.com und klicke oben rechts auf
+   **Start your project**.
+2. Melde dich mit **GitHub** an (dasselbe Konto wie eben) und bestätige die
+   Zugriffsfrage mit **Authorize**.
+3. Falls Supabase nach einer **Organization** fragt:
+   - *Name*: irgendetwas, zum Beispiel `Hof`
+   - *Type*: `Personal`
+   - *Plan*: **Free**
+   - → **Create organization**
+4. Jetzt kommt **Create a new project**. Trage ein:
+
+   | Feld | Was hinein gehört |
+   |---|---|
+   | Project name | `kuerbis-verlust` |
+   | Database Password | Auf **Generate a password** klicken |
+   | Region | **Central EU (Frankfurt)** — damit die Daten in Europa liegen |
+   | Pricing Plan | **Free** |
+
+5. **Das Datenbank-Passwort jetzt kopieren und irgendwo sichern.** Supabase
+   zeigt es kein zweites Mal. Für den Alltag brauchst du es nicht, aber wenn du
+   es je brauchst, brauchst du es wirklich.
+6. **Create new project** klicken.
+
+**Was du siehst**
+
+Ein Wartebildschirm mit „Setting up project…" und kreisenden Punkten. Das
+dauert **ein bis drei Minuten**. Lass den Tab offen.
+
+**Woran du merkst, dass es geklappt hat**
+
+Der Wartebildschirm verschwindet und du landest auf der Projekt-Übersicht.
+Links am Rand ist eine schmale Leiste mit Symbolen.
+
+---
+
+## Schritt 3 — Datenbank einrichten
+
+**Das ist der Schritt, um den es geht: eine einzige Datei, einmal einfügen,
+einmal auf Run.** Nicht acht Dateien. Nichts hochladen. Keine Reihenfolge, die
+man falsch machen kann.
+
+### 3a — Die Datei kopieren
+
+1. Öffne im Browser:
+   **https://github.com/konvalinaalexander-max/Kurbisverlust/blob/main/supabase/setup.sql**
+
+   *(Falls du Schritt 1 übersprungen hast, ersetze `main` in dieser Adresse
+   durch `claude/new-session-vrnnyo`.)*
+
+2. Über dem grauen Textblock ist rechts eine Reihe kleiner Symbole. Klicke auf
+   das Symbol **Copy raw file** — zwei übereinanderliegende Rechtecke. Wenn du
+   mit der Maus darüber fährst, erscheint der Text „Copy raw file".
+
+   Kurz blitzt ein Häkchen auf. Damit liegen jetzt rund 1 400 Zeilen SQL in der
+   Zwischenablage — der ganze Inhalt, nicht nur der sichtbare Ausschnitt.
+
+   *Symbol nicht gefunden?* Klicke stattdessen auf den Knopf **Raw**. Es öffnet
+   sich eine reine Textseite. Dort **Strg+A** (alles markieren), dann **Strg+C**
+   (kopieren). Auf dem Mac ⌘+A und ⌘+C.
+
+### 3b — Im SQL-Editor einfügen und ausführen
+
+3. Zurück zum Supabase-Tab.
+4. Klicke in der linken Symbolleiste auf **SQL Editor**. Das Symbol sieht aus
+   wie ein Blatt Papier mit `>_` darauf und liegt im oberen Drittel. Wenn du mit
+   der Maus über die Symbole fährst, erscheinen die Namen.
+5. Du siehst eine große, fast leere Fläche mit einem blinkenden Cursor —
+   darüber steht meist „New query". Klicke einmal hinein.
+6. **Strg+V** (Mac: ⌘+V). Die Fläche füllt sich mit sehr viel Text, der mit
+   `-- =====` beginnt. Das ist richtig so.
+7. Klicke unten rechts auf den grünen Knopf **Run**. (Oder **Strg+Enter**.)
+
+### 3c — Die Rückfrage bestätigen
+
+**Wahrscheinlich erscheint jetzt ein Fenster** mit „Potentially destructive
+operation" oder „Are you sure you want to run this query?".
+
+Das ist normal und harmlos: Das Skript legt Sicherheitsregeln neu an, und
+Supabase warnt bei jedem Skript, das solche Befehle enthält. In einem frisch
+angelegten Projekt gibt es nichts, was kaputtgehen könnte.
+
+→ Klicke auf **Run this query** beziehungsweise **I understand, run this query**.
+Falls ein Kästchen zum Ankreuzen dabei ist, kreuze es an.
+
+**Woran du merkst, dass es geklappt hat**
+
+Unten im Ergebnisfenster erscheint eine Tabelle mit einer Spalte `ergebnis` und
+genau dieser Zeile:
+
+```
+Fertig. 42 Chargen und 11 Sorten angelegt, 15 Tabellen und 23 Auswertungen
+erstellt. Weiter im README bei Schritt 3.
+```
+
+Wenn du das siehst, ist die komplette Datenbank fertig: Tabellen, Zugriffsrechte,
+alle 42 Chargen der Saison, alle Kaliber-Grenzen und die gesamte Auswertung.
+
+Es dauert ein paar Sekunden. Es kommt **keine** Erfolgsmeldung als Popup — nur
+diese Zeile unten.
+
+> **Zweimal geklickt?** Kein Problem. Dann steht dort in Rot „Das Setup wurde
+> bereits eingespielt — es ist nichts zu tun." Es ist wirklich nichts passiert:
+> Das ganze Skript läuft als ein Block, und der bricht ab, bevor irgendetwas
+> geändert wird. Einfach weitermachen.
+
+---
+
+## Schritt 4 — Bestätigungs-E-Mails abschalten
+
+Ohne diesen Schritt verlangt Supabase bei jeder Anmeldung eine Bestätigungsmail.
+Die kommt bei Gratis-Projekten oft gar nicht oder landet im Spam — und dann
+kommt niemand in die App. Für ein internes Werkzeug mit einer Handvoll bekannter
+Leute schaltest du das besser ab.
+
+**Was du machst**
+
+1. Linke Symbolleiste → **Authentication** (Symbol: eine Person).
+2. Es öffnet sich ein zweites Menü. Klicke dort auf **Sign In / Providers**.
+   *Bei älteren Versionen heißt der Punkt einfach **Providers**.*
+3. In der Liste steht ganz oben **Email**. Klicke darauf, damit sich der Bereich
+   aufklappt.
+4. Suche den Schalter **Confirm email** und stelle ihn auf **aus** (der Schalter
+   wird grau statt grün).
+5. Klicke auf **Save**.
+
+**Woran du merkst, dass es geklappt hat**
+
+Der Schalter bleibt nach dem Neuladen der Seite grau.
+
+> Lieber mit Bestätigungsmail? Dann lass den Schalter an. Rechne aber damit,
+> dass die Mail bei Gratis-Projekten stark verzögert oder gar nicht ankommt —
+> Supabase begrenzt das auf wenige Mails pro Stunde.
+
+---
+
+## Schritt 5 — Die zwei Zugangswerte abholen
+
+Die App muss wissen, welche Datenbank sie ansprechen soll. Dafür brauchst du
+zwei Textbausteine.
+
+**Was du machst**
+
+1. Ganz unten links in der Symbolleiste auf das **Zahnrad** klicken
+   (*Project Settings*).
+2. Im Menü links auf **API** klicken. *In neueren Versionen heißt der Punkt
+   **API Keys**.*
+3. Kopiere dir diese zwei Werte in einen Notizzettel:
+
+   | Was | Wo es steht | Sieht aus wie |
+   |---|---|---|
+   | **Project URL** | Oben unter „Project URL" | `https://abcdefgh.supabase.co` |
+   | **Der öffentliche Schlüssel** | Unter „Project API keys" die Zeile mit der Beschriftung `anon` `public` | sehr langer Text, beginnt mit `eyJ…` |
+
+   Neben jedem Wert ist ein kleines Kopier-Symbol — das ist zuverlässiger als
+   von Hand markieren.
+
+   *Wenn dein Projekt statt `anon` `public` nur einen **Publishable key**
+   anbietet* (beginnt mit `sb_publishable_…`): Nimm den. Er tut dasselbe.
+   Finger weg vom **service_role** beziehungsweise **secret key** — der gehört
+   nie in eine Webseite.
+
+> **Ist es schlimm, wenn jemand diesen Schlüssel sieht?** Nein. Er ist dafür
+> gemacht, im Browser zu stehen. Wer etwas sehen oder ändern darf, entscheidet
+> allein die Zugriffsregelung in der Datenbank, die in Schritt 3 mit eingerichtet
+> wurde. Ohne Login kommt man an gar nichts.
+
+---
+
+## Schritt 6 — App veröffentlichen
+
+Cloudflare Pages macht aus dem Code eine Webseite, die auf jedem Handy läuft.
+Auch das ist gratis.
+
+**Was du machst**
+
+1. Gehe auf https://dash.cloudflare.com und lege ein Konto an oder melde dich an.
+2. In der linken Leiste auf **Workers & Pages** klicken. *Neuerdings heißt der
+   Bereich manchmal nur **Compute** oder **Workers**.*
+3. Knopf **Create application** → oben auf den Reiter **Pages** wechseln →
+   **Connect to Git**.
+4. **Connect GitHub** klicken, den Zugriff mit **Authorize** bestätigen. Wenn
+   GitHub fragt, für welche Repositories: `Kurbisverlust` auswählen genügt.
+5. In der Liste `Kurbisverlust` auswählen → **Begin setup**.
+6. Jetzt kommt die Seite **Set up builds and deployments**. Trage ein:
+
+   | Feld | Wert |
+   |---|---|
+   | Project name | `kuerbis-verlust` |
+   | Production branch | `main` |
+   | Framework preset | **Vite** (aus der Auswahlliste) |
+   | Build command | `npm run build` |
+   | Build output directory | `dist` |
+
+   Sobald du bei *Framework preset* **Vite** wählst, füllen sich die beiden
+   Felder darunter meist von selbst richtig aus. Trotzdem kurz prüfen.
+
+7. **Wichtig, sonst startet die App nicht:** Klappe
+   **Environment variables (advanced)** auf und lege mit **Add variable**
+   zwei Einträge an:
+
+   | Variable name | Value |
+   |---|---|
+   | `VITE_SUPABASE_URL` | die Project URL aus Schritt 5 |
+   | `VITE_SUPABASE_ANON_KEY` | der lange Schlüssel aus Schritt 5 |
+
+   Achte darauf, dass die Namen exakt so geschrieben sind — Großbuchstaben und
+   Unterstriche. Beim Einfügen des Schlüssels darf kein Leerzeichen und kein
+   Zeilenumbruch mitkommen.
+
+8. **Save and Deploy**.
+
+**Was du siehst**
+
+Eine schwarze Konsole, durch die Text läuft: `Cloning repository…`,
+`Installing dependencies…`, `Building application…`. Das dauert **ein bis drei
+Minuten**.
+
+**Woran du merkst, dass es geklappt hat**
+
+Es erscheint **Success! Your project is deployed** und darunter eine Adresse wie
+`https://kuerbis-verlust.pages.dev`. Öffne sie.
+
+Du siehst den Anmeldebildschirm mit dem Kürbis und den Feldern für E-Mail und
+Passwort.
+
+Steht dort stattdessen **„Noch nicht mit Supabase verbunden"**, fehlen die zwei
+Werte aus Punkt 7 oder sie sind vertippt — siehe [Wenn etwas
+klemmt](#wenn-etwas-klemmt).
+
+---
+
+## Schritt 7 — Dein Konto und die Betriebsleiter-Rolle
+
+Jedes neue Konto ist zunächst *Arbeiter*. Der erste Betriebsleiter muss einmal
+von Hand ernannt werden — danach vergibst du alle weiteren Rollen bequem in der
+App.
+
+**Was du machst**
+
+1. Auf der Adresse aus Schritt 6 unten auf **Neues Konto anlegen** klicken.
+2. Namen, deine E-Mail-Adresse und ein Passwort eintragen (mindestens 6 Zeichen)
+   → **Konto anlegen**.
+3. Du bist angemeldet und siehst die Auftragsliste. Oben rechts steht dein Name.
+   Noch **ohne** den Zusatz „Betriebsleiter" — das ändern wir jetzt.
+4. Zurück zum Supabase-Tab → linke Symbolleiste → **SQL Editor**.
+5. Falls noch das alte Skript im Feld steht: **Strg+A**, dann **Entf** — es ist
+   längst ausgeführt und wird nicht mehr gebraucht.
+6. Folgendes einfügen, **die E-Mail-Adresse durch deine ersetzen**, dann **Run**:
+
+   ```sql
+   update profil set rolle = 'admin'
+    where id = (select id from auth.users where email = 'deine@adresse.ch');
+
+   select name, rolle from profil;
+   ```
+
+   Die zweite Zeile zeigt dir gleich das Ergebnis — deshalb beides zusammen
+   einfügen.
+
+7. Im Ergebnisfenster erscheint eine Tabelle mit allen Konten. In deiner Zeile
+   muss unter `rolle` jetzt **admin** stehen.
+
+   Steht dort noch `arbeiter`, stimmt die E-Mail-Adresse nicht mit der überein,
+   mit der du dich registriert hast — die Tabelle zeigt dir die Namen, mit denen
+   die Konten angelegt wurden. Adresse korrigieren und nochmal **Run**.
+
+**Woran du merkst, dass es geklappt hat**
+
+Zurück im App-Tab die Seite neu laden (**F5**). Oben rechts steht jetzt dein
+Name **· Betriebsleiter**, und in der Menüleiste sind drei Punkte dazugekommen:
+**Sortier-CSV**, **Warteschlange** und **Stammdaten**.
+
+**Damit ist die Einrichtung fertig.** Alles Weitere geht in der App.
+
+---
+
+# Teil 2 — Die ersten echten Daten
+
+Die App ist jetzt leer. Drei Dinge in dieser Reihenfolge, dann rechnet sie.
+
+## 1. Paletten aus dem Erntejournal übernehmen
+
+*Stammdaten → Paletten-Import*
+
+Öffne das Google Sheet der Wareneingang-App, markiere die Kopfzeile **und** die
+Datenzeilen, kopiere sie und füge sie in das große Feld ein. Dann **Prüfen**
+klicken. Du siehst eine Vorschau und die Meldung, wie viele Paletten erkannt
+wurden. Erst dann **übernehmen**.
+
+Erkannt werden Spalten mit Namen wie *Charge, Datum, Brutto, Kisten, Gebinde*.
+Zeilen mit unbekannter Chargennummer oder unlesbarem Datum werden übersprungen
+und einzeln aufgelistet — nichts verschwindet stillschweigend.
+
+> **Voraussetzung:** Das Sheet braucht eine Spalte mit der **Chargennummer**.
+> Das ist der einzige Eingriff in die bestehende Erntejournal-App. Ohne sie
+> lässt sich keine Palette zuordnen.
+
+Denselben Import später nochmal auszuführen legt keine doppelten Paletten an —
+du kannst also jederzeit die aktualisierte Tabelle einfügen.
+
+## 2. Leergewichte eintragen
+
+*Stammdaten → Gebinde & Tara*
+
+Die Gebindearten sind beim Import automatisch entstanden. Trage für jede das
+Leergewicht **je Kiste** und **je Palette** ein.
+
+**Das ist nicht optional.** Netto = Brutto − Kisten × Kisten-Tara − Paletten-Tara.
+Fehlt ein Tara-Wert, hat die Palette kein Nettogewicht und fällt aus der
+gesamten Auswertung heraus. Eine unbekannte Tara als 0 zu behandeln wäre
+schlimmer: Dann wären die Eingangsmengen zu hoch und alle Verluste in Prozent
+zu niedrig. Lieber einmal eine leere Kiste und eine leere Palette wiegen.
+
+Solange irgendwo Tara fehlt, warnt das Dashboard sichtbar darüber.
+
+## 3. Einen echten Auftrag mitlaufen lassen
+
+*Aufträge → Neuen Auftrag eröffnen*
+
+Weg und Charge wählen — die Startzeit setzt der Server, nicht das Handy. Wer
+sonst noch mitarbeitet, öffnet denselben Auftrag und klickt **Beitreten**.
+
+Dann während der Arbeit:
+
+- **Paletten** — jede Palette einmal antippen. Das ist die einzige Pflichtangabe.
+  Das Eingangsdatum vom Zettel ist freiwillig, macht die Lagerdauer aber genau.
+- **Faule** — am Ende den vollen Palox wiegen, Kilo eintragen. Ist die Box
+  zwischendurch voll: Teilgewicht erfassen und weitermachen.
+- **Palette wiegen** — freiwillig, aber die wertvollste Messung überhaupt.
+  Eine Palette beim Herausholen aus dem Lager wiegen, vor dem Wasserbecken.
+- Auf Weg 2 zusätzlich **Gross / klein** und **Überfüllung**.
+
+Am Schluss *Abschluss* → **Auftrag abschließen?** → **Sicher?**
+
+Sortier-CSVs lädt der Betriebsleiter unter *Sortier-CSV* hoch. Vor dem Einlesen
+siehst du den Reinigungs-Trichter — „11 370 gelesen → −5 Overflow → −10 unter
+100 g → −2 183 Dubletten → 9 172 Kürbisse". Läuft die Datei nicht eindeutig auf
+einen Auftrag, landet sie in der **Warteschlange** statt geraten zu werden.
+
+---
+
+# Wenn etwas klemmt
+
+| Was du siehst | Was los ist | Was hilft |
+|---|---|---|
+| „Das Setup wurde bereits eingespielt" | Du hast Schritt 3 zweimal ausgeführt | Nichts. Es ist nichts passiert. Weiter mit Schritt 4. |
+| „Potentially destructive operation" | Supabase warnt bei Skripten mit `drop`/`alter` | **Run this query** klicken. In einem neuen Projekt ist nichts zu zerstören. |
+| Nach **Run** passiert nichts | Skript läuft noch | 10–20 Sekunden warten. Der Knopf zeigt solange einen Ladekreis. |
+| `syntax error at or near ""` | Beim Kopieren wurde nur ein Teil erwischt | Schritt 3a wiederholen, diesmal über **Raw** + Strg+A + Strg+C. |
+| App zeigt „Noch nicht mit Supabase verbunden" | Die zwei Werte aus Schritt 5 fehlen bei Cloudflare oder sind vertippt | Cloudflare → dein Projekt → *Settings* → *Environment variables* prüfen. **Danach zwingend neu bauen:** Reiter *Deployments* → beim obersten Eintrag rechts das Menü **⋯** → **Retry deployment**. Ohne neuen Build ändert sich nichts. |
+| Anmeldung: „Email not confirmed" | Schritt 4 fehlt | Schritt 4 nachholen, dann erneut anmelden. |
+| Anmeldung: „Invalid login credentials" | Falsches Passwort — oder das Konto gibt es noch nicht | Unten auf **Neues Konto anlegen** wechseln. |
+| „Dafür fehlt die Berechtigung" | Du bist noch Arbeiter, nicht Betriebsleiter | Schritt 7 nachholen, dann F5. |
+| Menü zeigt kein „Stammdaten" | Dasselbe | Schritt 7 nachholen, dann F5. |
+| Dashboard: „Noch keine auswertbaren Daten" | Keine Paletten importiert oder überall Tara fehlend | Teil 2, Punkte 1 und 2. |
+| Dashboard warnt „Fehlende Tara" | Für manche Gebinde fehlt das Leergewicht | *Stammdaten → Gebinde & Tara* ausfüllen. |
+| Supabase: „Project is paused" | Gratis-Projekte pausieren nach 7 Tagen ohne Nutzung | Grüner Knopf **Restore project**, ein bis zwei Minuten warten. Während der Saison passiert das durch die normale Nutzung nicht. |
+| Cloudflare-Build schlägt fehl | Meist ein falsches Feld in Schritt 6 | In der Konsole nach der ersten roten Zeile suchen. Build command muss `npm run build`, Output directory `dist` sein. |
+
+Kommst du nicht weiter: Fehlermeldung wörtlich notieren, dazu welcher Schritt.
+Das genügt fast immer zur Klärung.
+
+---
+
+# Teil 3 — Für die Technik
 
 ## Was gebaut ist
 
 | Teil | Ort | Zustand |
 |---|---|---|
-| Datenbankschema, Rollen, Stammdaten | `supabase/migrations/0001`–`0003` | fertig, gegen Postgres 16 getestet |
-| Reinigung, Klassierung, CSV-Zuordnung | `supabase/migrations/0004`, `src/lib/csv.ts` | fertig, mit Tests |
-| Auswertung und Hochrechnung | `supabase/migrations/0005`–`0007` | fertig, Massenbilanz schließt im Test auf 0.1 % |
-| App: Auftrags-Flow, CSV-Upload, Warteschlange, Dashboard | `src/` | fertig |
-| Supabase-Projekt anlegen · Cloudflare-Pages-Deploy | — | **macht der Nutzer**, siehe unten |
+| Datenbankschema, Rollen, Stammdaten | `supabase/migrations/0001`–`0003` | gegen Postgres 16 getestet |
+| Reinigung, Klassierung, CSV-Zuordnung | `supabase/migrations/0004`, `src/lib/csv.ts` | mit Tests |
+| Auswertung und Hochrechnung | `supabase/migrations/0005`–`0007` | Massenbilanz schließt im Test auf 0.1 % |
+| App | `src/` | fertig |
 
-Kosten: **€0** auf den Gratis-Stufen von Supabase und Cloudflare Pages.
+`supabase/setup.sql` ist die Zusammenfassung aller Migrationen zu einer Datei —
+das, was in Schritt 3 eingefügt wird. Sie wird von `supabase/setup_bauen.sh`
+erzeugt; nach jeder Änderung an `supabase/migrations/` neu bauen. Der Testlauf
+schlägt fehl, wenn beides auseinanderdriftet.
 
-## Einrichtung
-
-### 1. Supabase-Projekt anlegen (einmalig, gratis)
-
-1. Auf [supabase.com](https://supabase.com) ein Konto anlegen und ein neues
-   Projekt erstellen.
-2. Als Region **Central EU (Frankfurt)** wählen — dann liegen die Daten in Europa.
-3. Das Datenbank-Passwort notieren.
-
-> Gratis-Projekte pausieren nach 7 Tagen ohne Nutzung und werden mit einem Klick
-> wieder geweckt. Während der Saison hält die wöchentliche Nutzung sie wach.
-
-### 2. Schema einspielen
-
-Im Supabase-Dashboard unter **SQL Editor** die Dateien aus `supabase/migrations/`
-**der Reihe nach** einfügen und ausführen — `0001`, dann `0002`, und so weiter
-bis `0008`. Jede Datei ist für sich vollständig.
-
-Danach steht das Schema samt Charge-Registry und Kaliber-Grenzen der Saison.
-
-### 3. Den ersten Betriebsleiter ernennen
-
-Zuerst in der App ein Konto anlegen (Schritt 4). Neue Konten sind immer
-*Arbeiter*. Dann im **SQL Editor**:
-
-```sql
-update profil set rolle = 'admin' where id = (
-  select id from auth.users where email = 'chef@example.com'
-);
-```
-
-Alle weiteren Rollen vergibt der Betriebsleiter danach in der App unter
-*Stammdaten → Benutzer*.
-
-### 4. App lokal starten
+## Lokal entwickeln
 
 ```bash
 npm install
-cp .env.example .env.local     # URL und anon key aus Project Settings → API
+cp .env.example .env.local     # die zwei Werte aus Schritt 5 eintragen
 npm run dev
 ```
 
-### 5. Auf Cloudflare Pages veröffentlichen (gratis)
+## Tests
 
-1. [dash.cloudflare.com](https://dash.cloudflare.com) → **Workers & Pages** →
-   *Create* → *Pages* → *Connect to Git* → dieses Repository wählen.
-2. Build-Einstellungen:
-   - Framework preset: **Vite**
-   - Build command: `npm run build`
-   - Build output directory: `dist`
-3. Unter *Settings → Environment variables* dieselben zwei Werte eintragen:
-   `VITE_SUPABASE_URL` und `VITE_SUPABASE_ANON_KEY`.
-4. *Save and Deploy*.
+```bash
+npm test                    # Reinigung und Dateinamen-Parser, ohne Datenbank
+./supabase/test/run.sh      # Schema, Logik, Views und Zugriffsrechte
+```
 
-Der `anon key` darf öffentlich sein — was ein Angemeldeter sehen und ändern
-darf, entscheidet ausschließlich die Row-Level-Security in der Datenbank.
+`run.sh` prüft vier Dinge: dass die Migrationen einzeln durchlaufen und die
+Fachlogik stimmt; dass `setup.sql` als ein einziger Query durchgeht, so wie der
+Supabase-Editor ihn sendet; dass ein zweiter Durchlauf sauber abbricht, ohne
+Daten anzufassen; und dass `setup.sql` zu den Migrationen passt.
 
-### 6. Erster echter Durchlauf
-
-1. *Stammdaten → Paletten-Import*: den Bereich aus dem Erntejournal-Sheet
-   kopieren und einfügen. **Voraussetzung:** das Sheet braucht eine Spalte mit
-   der Chargennummer — das ist der einzige Eingriff in die bestehende App.
-2. *Stammdaten → Gebinde*: die Leergewichte eintragen. **Ohne Tara kein Netto**,
-   und ohne Netto rechnet die Auswertung diese Paletten gar nicht mit.
-3. Einen echten Auftrag eröffnen, Paletten zählen, einen Palox Faule wiegen.
-4. Eine Sortier-CSV hochladen und prüfen, ob sie automatisch am richtigen
-   Auftrag landet.
+Ohne Argument erwartet es einen lokalen Cluster auf Port 55432, sonst eine
+Verbindungs-URL. `supabase/test/stub_supabase.sql` bildet dafür die Teile von
+Supabase nach, die es lokal nicht gibt (`auth.users`, `auth.uid()`, `storage`) —
+in das echte Projekt wird diese Datei **nicht** eingespielt.
 
 ## Wie gerechnet wird
 
@@ -113,44 +496,29 @@ Eingang ──Verdunstung──> M1 ──Schimmel──> M2 ──Ausschuss/Neb
   beziehungsweise den Handmessungen auf Weg 2.
 
 Koeffizienten kommen je Sorte, solange die eigene Stichprobe trägt (n ≥ 3),
-sonst aus allen Sorten zusammen. Welcher Fall gilt, steht in jeder Zahl.
+sonst aus allen Sorten zusammen. Welcher Fall gilt, steht an jeder Zahl.
 
 **Zwei Bücher, nie vermischt:** Buch A ist der physische Verlust
 (Verdunstung + Schimmel + Ausschuss zu klein), Buch B die verschenkte Marge
 (Nebenkanal-Überschuss + Überfüllung der 8-kg-Kisten).
 
 Die Probe aufs Exempel ist die **Massenbilanz**: Das Modell sagt voraus, wie
-viel Masse am Sortierband ankommen müsste, die CSV hat sie gewogen. Liegen
-beide nah beieinander, stimmen die Koeffizienten.
+viel Masse am Sortierband ankommen müsste, die CSV hat sie gewogen. Liegen beide
+nah beieinander, stimmen die Koeffizienten.
 
-## Tests
-
-```bash
-npm test                    # Reinigung und Dateinamen-Parser (Node, keine DB nötig)
-./supabase/test/run.sh      # Schema, Logik, Views und RLS gegen ein echtes Postgres
-```
-
-`run.sh` legt Schema und Stammdaten in einer Testdatenbank an, füttert sie mit
-einem stimmigen Mini-Datensatz und prüft unter anderem, dass die Massenbilanz
-sich schließt und dass ein Arbeiter messen, aber nicht verwalten darf. Ohne
-Argument erwartet es einen lokalen Cluster auf Port 55432; sonst eine
-Verbindungs-URL übergeben.
-
-`supabase/test/stub_supabase.sql` bildet nur für diesen lokalen Test die Teile
-von Supabase nach (`auth.users`, `auth.uid()`, `storage`). In das echte Projekt
-wird diese Datei **nicht** eingespielt.
+Fachliche Spezifikation: [`docs/SPEC.md`](docs/SPEC.md).
+Begründung der Modellentscheidungen: [`docs/ENTSCHEIDUNGEN.md`](docs/ENTSCHEIDUNGEN.md).
 
 ## Was noch offen ist
 
 - **Warenausgang wird nicht erfasst.** Die Massenbilanz vergleicht deshalb
-  Modell gegen Sortier-CSV, nicht Eingang gegen Verkauf. Für die volle Bilanz
-  aus Spec §9 fehlen die Verkaufsmengen.
+  Modell gegen Sortier-CSV, nicht Eingang gegen Verkauf.
 - **Preise fehlen** (pro Stück je Kaliber, pro Kiste). Buch B rechnet in
   Kilogramm, nicht in Franken.
-- **Ground-Truth für die Dubletten-Regel** steht aus: einmal eine Palette
-  von Hand zählen und mit `n_gueltig` vergleichen. Die Regel lässt sich beim
-  Upload abschalten, der Unterschied ist damit direkt sichtbar.
-- **Weg 1, Waschen:** dort sind die Original-Paletten in Kaliber-Kisten
+- **Ground-Truth für die Dubletten-Regel** steht aus: einmal eine Palette von
+  Hand zählen und mit `n_gueltig` vergleichen. Die Regel lässt sich beim Upload
+  abschalten, der Unterschied ist damit direkt sichtbar.
+- **Weg 1, Waschen:** Dort sind die Original-Paletten in Kaliber-Kisten
   aufgelöst, es gibt keine Palettenzahl mehr. Damit der dort ausgelesene
   Schimmel einen Nenner hat, muss beim Abschluss die verarbeitete Menge in kg
   eingetragen werden.

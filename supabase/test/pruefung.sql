@@ -326,4 +326,4 @@ begin
   raise notice 'OK  Row Level Security (Arbeiter darf messen, nicht verwalten)';
 end $$;
 
-select '——— alle Prüfungen bestanden ———' as ergebnis;
+select '——— Fachlogik geprüft ———' as ergebnis;
