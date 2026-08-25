@@ -250,3 +250,71 @@ gäbe es dafür keine Erfassung.
 
 Erklärender Text steht ausschließlich im Betriebsleiter-Bereich — dort ist er
 nötig, weil dort Entscheidungen getroffen werden.
+
+## Wiegen gehört ans Zählen (0012)
+
+Es ist dieselbe Person, die die Paletten zählt und sie wiegt. Ein eigener
+Reiter „Wiegen" bedeutete: zählen, Reiter wechseln, die eben gezählte Palette
+in einer Liste wiederfinden, wiegen, zurückwechseln. In der Halle passiert das
+nicht — die Messung unterbleibt.
+
+Jetzt fragt die App bei jeder gezählten Palette einmal: wiegen oder nur zählen?
+Wer nicht wiegt, ist mit einem zweiten Tipp durch.
+
+### Keine Palettenliste mehr
+
+Die Palette wurde bisher aus einer Liste gesucht. Bei hunderten Paletten je
+Charge, von denen viele auf das Kilo gleich schwer sind, ist das weder
+bedienbar noch verwechslungssicher. Der Arbeiter tippt stattdessen ab, was auf
+dem Zettel steht: Eingangsdatum und Eingangsgewicht. Das aktuelle Datum kennt
+die App selbst.
+
+Die Felder dafür gab es in `verdunstung_wiegung` bereits; `palette_id` bleibt
+schlicht leer.
+
+### Nebeneffekt: die Masse wird genauer statt geschätzt
+
+`auftrag_palette.wiegung_id` verbindet Zählung und Wägung. Eine gewogene
+Palette bringt ihr Eingangsgewicht damit **exakt** mit — die Fallback-Leiter in
+`v_auftrag_palette_masse` hat eine neue oberste Stufe (`gewogen`), vor
+Datums- und Chargenmittel. Damit verbessert jede Wägung nicht nur die
+Verdunstungsrate, sondern auch die Bezugsmasse für Schimmel und Ausschuss.
+
+Ohne die Verbindung wären Zählung und Wägung zwei unverbundene Zeilen über
+dieselbe Palette gewesen — genau die Art von Phantom-Verknüpfung, nach der im
+Durchgang zuvor gesucht wurde.
+
+### Was an welcher Station anfällt
+
+| Station | Paletten | Wiegen | Faule | Klein/gross | Menge |
+|---|---|---|---|---|---|
+| Sortieren (Maschine) | zählen | nein | ja | — | — |
+| Waschen (Maschine) | — | — | ja | — | ja |
+| Waschen + Sortieren (Hand) | zählen | Frage bei jeder | ja | ja | — |
+
+Beim Sortieren an der Maschine wird nie gewogen — die Frage erscheint dort gar
+nicht. Beim Waschen gibt es keine Paletten mehr (die Ware liegt in
+Kaliber-Kisten), deshalb entfällt der Zähler; die verarbeitete Menge wird beim
+Abschluss erfasst, damit der dort ausgelesene Schimmel einen Nenner hat.
+
+### Durchschnittsgewicht eines Kürbisses
+
+Aus einer gewogenen Palette folgt „kg je Kiste". Für das Gewicht eines
+*einzelnen* Kürbisses fehlt eine Angabe, die nur der Arbeiter machen kann:
+wie viele Kürbisse in einer Kiste liegen. Das Feld ist freiwillig
+(`verdunstung_wiegung.kuerbisse_pro_kiste`); ohne Eintrag bleibt die Spalte
+leer statt einen erfundenen Wert zu zeigen. `v_wiegung_kennzahl` führt beides.
+
+Auf der Maschinen-Linie liefert die Sortier-CSV jedes Einzelgewicht ohnehin —
+diese Angabe schließt die Lücke für die Hand-Linie.
+
+### Entfernt: „Kisten" (Überfüllung)
+
+Der Reiter maß den Überschuss der 8-kg-Kisten: Bezahlt wird ein Fixpreis ab
+8 kg, real wiegen sie 8.1–8.5 kg, und die Differenz ist verschenkte Ware
+(Spec §2, Buch B). Für den Arbeiter war unklar, was da gemessen wird, und die
+Erfassung gehört fachlich eher zur Abpackung als zur Verarbeitung.
+
+Tabelle und Auswertung bleiben unangetastet — nur die Erfassung im
+Arbeiter-UI ist weg. Solange niemand misst, bleibt diese eine Zeile im
+Marge-Buch leer; alles andere rechnet unverändert.

@@ -7,9 +7,9 @@ import { chargeText, fehlerText, stammdaten } from '../lib/db'
 import { taetigkeitVon } from '../lib/taetigkeit'
 import { Hinweis, Karte, Lade, Marke } from '../components/Bausteine'
 import type { TextId } from '../lib/i18n'
-import type { Auftrag, Charge } from '../lib/typen'
+import type { Auftrag, Charge, Gebinde } from '../lib/typen'
 
-type Reiter = 'paletten' | 'faule' | 'ausschuss' | 'wiegen' | 'marge' | 'abschluss'
+type Reiter = 'paletten' | 'faule' | 'ausschuss' | 'abschluss'
 
 export default function AuftragDetail() {
   const { id } = useParams()
@@ -52,19 +52,27 @@ export default function AuftragDetail() {
   if (fehler) return <Hinweis art="warnung">{fehler}</Hinweis>
   if (!auftrag) return <Hinweis art="warnung">{t('fehler')}</Hinweis>
 
-  const istWeg2 = auftrag.weg === 'hand'
-  const binDabei = teilnehmer.some(t => t.profil_id === session?.user.id)
-  const gesperrt = auftrag.status === 'abgeschlossen'
   const taet = taetigkeitVon(auftrag.weg, auftrag.station)
+  const binDabei = teilnehmer.some(x => x.profil_id === session?.user.id)
+  const gesperrt = auftrag.status === 'abgeschlossen'
+
+  // Was an dieser Station überhaupt anfällt:
+  //  · Beim Sortieren an der Maschine werden Paletten gezählt, aber nie gewogen.
+  //  · Beim Waschen gibt es keine Paletten mehr — die Ware liegt längst in
+  //    Kaliber-Kisten. Dort wird nur der ausgelesene Schimmel erfasst.
+  //  · Auf der Hand-Linie wird gezählt und, wenn es sich ergibt, gewogen;
+  //    dort fällt auch der Ausschuss nach Augenmaß an.
+  const hatPaletten = auftrag.station !== 'waschen'
+  const mitWiegen = auftrag.station === 'waschen_sortieren'
+  const hatAusschuss = auftrag.weg === 'hand'
 
   const reiterListe: [Reiter, TextId][] = [
-    ['paletten', 'paletten'],
+    ...(hatPaletten ? [['paletten', 'paletten'] as [Reiter, TextId]] : []),
     ['faule', 'faule'],
-    ...(istWeg2 ? [['ausschuss', 'kleinGross'] as [Reiter, TextId]] : []),
-    ['wiegen', 'wiegen'],
-    ...(istWeg2 ? [['marge', 'kisten'] as [Reiter, TextId]] : []),
+    ...(hatAusschuss ? [['ausschuss', 'kleinGross'] as [Reiter, TextId]] : []),
     ['abschluss', 'abschluss'],
   ]
+  const aktiverReiter = reiterListe.some(([r]) => r === reiter) ? reiter : reiterListe[0][0]
 
   return (
     <>
@@ -95,48 +103,55 @@ export default function AuftragDetail() {
         )}
       </Karte>
 
-      <nav className="navleiste" style={{ position: 'static', borderRadius: 'var(--radius)',
-                                          border: '1px solid var(--rand)' }}>
-        {reiterListe.map(([r, id]) => (
-          <a key={r} href="#" className={reiter === r ? 'aktiv' : ''}
-             onClick={e => { e.preventDefault(); setReiter(r) }}>{t(id)}</a>
-        ))}
-      </nav>
+      {reiterListe.length > 1 && (
+        <nav className="navleiste" style={{ position: 'static', borderRadius: 'var(--radius)',
+                                            border: '1px solid var(--rand)' }}>
+          {reiterListe.map(([r, id]) => (
+            <a key={r} href="#" className={aktiverReiter === r ? 'aktiv' : ''}
+               onClick={e => { e.preventDefault(); setReiter(r) }}>{t(id)}</a>
+          ))}
+        </nav>
+      )}
 
       {gesperrt && <Hinweis>{t('gesperrt')}</Hinweis>}
 
-      {reiter === 'paletten' && <Paletten auftrag={auftrag} gesperrt={gesperrt} />}
-      {reiter === 'faule' && (
+      {aktiverReiter === 'paletten' && (
+        <Paletten auftrag={auftrag} gesperrt={gesperrt} mitWiegen={mitWiegen} />
+      )}
+      {aktiverReiter === 'faule' && (
         <Mengen auftrag={auftrag} gesperrt={gesperrt} tabelle="schimmel_messung"
                 titel={t('faule')} mitTeilgewicht />
       )}
-      {reiter === 'ausschuss' && <Ausschuss auftrag={auftrag} gesperrt={gesperrt} />}
-      {reiter === 'wiegen' && <Wiegen auftrag={auftrag} gesperrt={gesperrt} />}
-      {reiter === 'marge' && <Ueberfuellung auftrag={auftrag} gesperrt={gesperrt} />}
-      {reiter === 'abschluss' && (
+      {aktiverReiter === 'ausschuss' && <Ausschuss auftrag={auftrag} gesperrt={gesperrt} />}
+      {aktiverReiter === 'abschluss' && (
         <Abschluss auftrag={auftrag} neuLaden={laden} zurueck={() => navigate('/auftraege')} />
       )}
     </>
   )
 }
 
-/* ---------- Paletten zählen ---------- */
-function Paletten({ auftrag, gesperrt }: { auftrag: Auftrag; gesperrt: boolean }) {
+/* ------------------------------------------------------------------ */
+/* Paletten zählen — und dabei gleich fragen, ob gewogen wurde         */
+/* ------------------------------------------------------------------ */
+function Paletten({ auftrag, gesperrt, mitWiegen }: {
+  auftrag: Auftrag; gesperrt: boolean; mitWiegen: boolean
+}) {
   const { t } = useSprache()
-  const [zeilen, setZeilen] = useState<{ id: number; eingangsdatum: string | null }[]>([])
+  const [zeilen, setZeilen] = useState<{ id: number; wiegung_id: number | null }[]>([])
   const [zettelDatum, setZettelDatum] = useState('')
+  const [frageOffen, setFrageOffen] = useState(false)
   const [fehler, setFehler] = useState<string | null>(null)
   const [laeuft, setLaeuft] = useState(false)
 
   const laden = useCallback(async () => {
     const { data, error } = await supabase.from('auftrag_palette')
-      .select('id, eingangsdatum').eq('auftrag_id', auftrag.id).order('ts')
+      .select('id, wiegung_id').eq('auftrag_id', auftrag.id).order('ts')
     if (error) setFehler(fehlerText(error)); else setZeilen(data as typeof zeilen)
   }, [auftrag.id])
   useEffect(() => { void laden() }, [laden])
 
-  async function hinzu() {
-    setLaeuft(true)
+  async function nurZaehlen() {
+    setLaeuft(true); setFrageOffen(false)
     const { error } = await supabase.from('auftrag_palette')
       .insert({ auftrag_id: auftrag.id, eingangsdatum: zettelDatum || null })
     setLaeuft(false)
@@ -146,28 +161,194 @@ function Paletten({ auftrag, gesperrt }: { auftrag: Auftrag; gesperrt: boolean }
   async function zurueck() {
     const letzte = zeilen[zeilen.length - 1]
     if (!letzte) return
+    // Die Wägung hängt an der Palette und muss mit verschwinden, sonst bliebe
+    // eine Messung ohne die Palette zurück, zu der sie gehört.
+    if (letzte.wiegung_id) {
+      await supabase.from('verdunstung_wiegung').delete().eq('id', letzte.wiegung_id)
+    }
     const { error } = await supabase.from('auftrag_palette').delete().eq('id', letzte.id)
     if (error) setFehler(fehlerText(error)); else void laden()
   }
 
+  const gewogen = zeilen.filter(z => z.wiegung_id !== null).length
+
   return (
-    <Karte titel={t('paletten')}>
-      <div className="zaehler">
-        <button onClick={zurueck} disabled={gesperrt || zeilen.length === 0} aria-label="−">−</button>
-        <span className="stand">{zeilen.length}</span>
-        <button className="haupt" onClick={hinzu} disabled={gesperrt || laeuft} aria-label="+">+</button>
-      </div>
-      <div className="feld" style={{ marginBottom: 0 }}>
-        <label htmlFor="zettel">{t('datumZettel')}</label>
-        <input id="zettel" type="date" value={zettelDatum} disabled={gesperrt}
-               onChange={e => setZettelDatum(e.target.value)} />
-      </div>
-      {fehler && <Hinweis art="warnung">{fehler}</Hinweis>}
-    </Karte>
+    <>
+      <Karte titel={t('paletten')}>
+        <div className="zaehler">
+          <button onClick={zurueck} disabled={gesperrt || zeilen.length === 0} aria-label="−">−</button>
+          <span className="stand">{zeilen.length}</span>
+          <button className="haupt" aria-label="+" disabled={gesperrt || laeuft}
+                  onClick={() => (mitWiegen ? setFrageOffen(true) : void nurZaehlen())}>+</button>
+        </div>
+        <div className="feld" style={{ marginBottom: 0 }}>
+          <label htmlFor="zettel">{t('datumZettel')}</label>
+          <input id="zettel" type="date" value={zettelDatum} disabled={gesperrt}
+                 onChange={e => setZettelDatum(e.target.value)} />
+        </div>
+        {gewogen > 0 && (
+          <p className="leise" style={{ marginTop: '.6rem', marginBottom: 0 }}>
+            {gewogen} × {t('gewogen')}
+          </p>
+        )}
+        {fehler && <Hinweis art="warnung">{fehler}</Hinweis>}
+      </Karte>
+
+      {frageOffen && (
+        <WiegeDialog auftrag={auftrag} zettelDatum={zettelDatum}
+                     nurZaehlen={nurZaehlen}
+                     abbrechen={() => setFrageOffen(false)}
+                     fertig={() => { setFrageOffen(false); void laden() }} />
+      )}
+    </>
   )
 }
 
-/* ---------- Kilo-Erfassung (Faule, zu klein, zu gross) ---------- */
+/**
+ * Die Frage beim Zählen. Zuerst nur die Entscheidung — wer nicht wiegt, ist
+ * mit einem Tipp fertig. Erst danach die Felder.
+ *
+ * Die Palette wird nicht aus einer Liste gesucht: Bei hunderten Paletten, von
+ * denen viele gleich schwer sind, wäre das nicht bedienbar. Der Arbeiter tippt
+ * ab, was auf dem Zettel steht.
+ */
+function WiegeDialog({ auftrag, zettelDatum, nurZaehlen, abbrechen, fertig }: {
+  auftrag: Auftrag; zettelDatum: string
+  nurZaehlen: () => Promise<void>; abbrechen: () => void; fertig: () => void
+}) {
+  const { t } = useSprache()
+  const [wiegen, setWiegen] = useState(false)
+  const [gebinde, setGebinde] = useState<Gebinde[]>([])
+  const [datum, setDatum] = useState(zettelDatum)
+  const [damals, setDamals] = useState('')
+  const [jetzt, setJetzt] = useState('')
+  const [kisten, setKisten] = useState('')
+  const [art, setArt] = useState('')
+  const [proKiste, setProKiste] = useState('')
+  const [schimmel, setSchimmel] = useState(false)
+  const [fehler, setFehler] = useState<string | null>(null)
+  const [laeuft, setLaeuft] = useState(false)
+
+  useEffect(() => {
+    void stammdaten().then(s => {
+      setGebinde(s.gebinde)
+      setArt(a => a || s.gebinde[0]?.art || '')
+    })
+  }, [])
+
+  const vollstaendig = datum !== '' && damals !== '' && jetzt !== '' && kisten !== '' && art !== ''
+
+  async function speichern() {
+    if (!vollstaendig) return
+    setLaeuft(true); setFehler(null)
+    // Erst die Wägung, dann die Palette mit dem Verweis darauf — so gibt es
+    // nie eine gezählte Palette, die auf eine Wägung zeigt, die es nicht gibt.
+    const { data, error } = await supabase.from('verdunstung_wiegung').insert({
+      auftrag_id: auftrag.id, charge_nr: auftrag.charge_nr,
+      eingangsdatum: datum,
+      brutto_damals_kg: Number(damals),
+      brutto_jetzt_kg: Number(jetzt),
+      kisten: Number(kisten),
+      gebindeart: art,
+      kuerbisse_pro_kiste: proKiste === '' ? null : Number(proKiste),
+      sichtbar_schimmel: schimmel,
+    }).select('id').single()
+    if (error) { setLaeuft(false); setFehler(fehlerText(error)); return }
+
+    const { error: f2 } = await supabase.from('auftrag_palette').insert({
+      auftrag_id: auftrag.id, eingangsdatum: datum,
+      wiegung_id: (data as { id: number }).id,
+    })
+    setLaeuft(false)
+    if (f2) { setFehler(fehlerText(f2)); return }
+    fertig()
+  }
+
+  const tara = gebinde.find(g => g.art === art)
+  const netto = kisten !== '' && jetzt !== '' && tara?.tara_kg_pro_kiste != null
+    ? Number(jetzt) - Number(kisten) * tara.tara_kg_pro_kiste - (tara.tara_kg_palette ?? 0)
+    : null
+
+  return (
+    <div className="dialog-hinter" onClick={abbrechen}>
+      <div className="dialog" onClick={e => e.stopPropagation()}>
+        {!wiegen ? (
+          <>
+            <h2 style={{ marginTop: 0, textAlign: 'center' }}>{t('palettenWiegenFrage')}</h2>
+            <div style={{ display: 'grid', gap: '.6rem' }}>
+              <button className="haupt gross" onClick={() => setWiegen(true)}>{t('jaWiegen')}</button>
+              <button className="gross" onClick={() => void nurZaehlen()}>{t('nurZaehlen')}</button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="feld">
+              <label htmlFor="w-datum">{t('eingangsdatum')}</label>
+              <input id="w-datum" type="date" value={datum} onChange={e => setDatum(e.target.value)} />
+            </div>
+            <div className="feld">
+              <label htmlFor="w-damals">{t('eingangsgewicht')}</label>
+              <input id="w-damals" type="number" inputMode="decimal" step="0.1" min={0}
+                     value={damals} onChange={e => setDamals(e.target.value)}
+                     style={{ fontSize: '1.2rem' }} />
+            </div>
+            <div className="feld">
+              <label htmlFor="w-jetzt">{t('gewichtJetzt')}</label>
+              <input id="w-jetzt" type="number" inputMode="decimal" step="0.1" min={0}
+                     value={jetzt} onChange={e => setJetzt(e.target.value)}
+                     style={{ fontSize: '1.2rem' }} />
+            </div>
+            <div className="reihe">
+              <div className="feld" style={{ flex: 1 }}>
+                <label htmlFor="w-kisten">{t('anzahlKisten')}</label>
+                <input id="w-kisten" type="number" inputMode="numeric" min={1}
+                       value={kisten} onChange={e => setKisten(e.target.value)} />
+              </div>
+              <div className="feld" style={{ flex: 1 }}>
+                <label htmlFor="w-art">{t('kistenart')}</label>
+                <select id="w-art" value={art} onChange={e => setArt(e.target.value)}>
+                  {gebinde.map(g => <option key={g.art} value={g.art}>{g.art}</option>)}
+                </select>
+              </div>
+            </div>
+            <div className="feld">
+              <label htmlFor="w-pro">{t('kuerbisseProKiste')} ({t('freiwillig')})</label>
+              <input id="w-pro" type="number" inputMode="numeric" min={1}
+                     value={proKiste} onChange={e => setProKiste(e.target.value)} />
+            </div>
+
+            {netto !== null && netto > 0 && (
+              <p style={{ margin: '0 0 .6rem' }}>
+                <strong>{(netto / Number(kisten)).toFixed(2)} kg</strong> {t('jeKiste')}
+                {proKiste !== '' && Number(proKiste) > 0 && (
+                  <> · <strong>{(netto / (Number(kisten) * Number(proKiste))).toFixed(2)} kg</strong>
+                    {' '}{t('proKuerbis')}</>
+                )}
+              </p>
+            )}
+
+            <label style={{ display: 'flex', gap: '.5rem', alignItems: 'center', marginBottom: '.75rem' }}>
+              <input type="checkbox" checked={schimmel} onChange={e => setSchimmel(e.target.checked)}
+                     style={{ width: 22, height: 22, minHeight: 0 }} />
+              {t('faulesSichtbar')}
+            </label>
+
+            {fehler && <Hinweis art="warnung">{fehler}</Hinweis>}
+            <div className="reihe">
+              <button className="haupt" style={{ flex: 1, minHeight: 54 }}
+                      onClick={speichern} disabled={laeuft || !vollstaendig}>{t('eintragen')}</button>
+              <button onClick={abbrechen}>{t('abbrechen')}</button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/* Kilo-Erfassung (Faule, zu klein, zu gross)                          */
+/* ------------------------------------------------------------------ */
 function Mengen({ auftrag, gesperrt, tabelle, titel, zusatz, filter, mitTeilgewicht }: {
   auftrag: Auftrag; gesperrt: boolean; tabelle: string; titel: string
   zusatz?: Record<string, unknown>; filter?: Record<string, string>; mitTeilgewicht?: boolean
@@ -269,154 +450,7 @@ function Ausschuss({ auftrag, gesperrt }: { auftrag: Auftrag; gesperrt: boolean 
   )
 }
 
-/* ---------- Palette wiegen ---------- */
-interface PaletteZeile {
-  id: number; eingangsdatum: string; brutto_kg: number
-  kisten: number | null; gebindeart: string | null
-}
-
-function Wiegen({ auftrag, gesperrt }: { auftrag: Auftrag; gesperrt: boolean }) {
-  const { t, gebietsschema } = useSprache()
-  const [paletten, setPaletten] = useState<PaletteZeile[]>([])
-  const [palettenId, setPalettenId] = useState<number | ''>('')
-  const [jetzt, setJetzt] = useState('')
-  const [schimmel, setSchimmel] = useState(false)
-  const [anzahl, setAnzahl] = useState(0)
-  const [fehler, setFehler] = useState<string | null>(null)
-
-  const laden = useCallback(async () => {
-    const [p, w] = await Promise.all([
-      supabase.from('palette').select('id, eingangsdatum, brutto_kg, kisten, gebindeart')
-        .eq('charge_nr', auftrag.charge_nr).order('eingangsdatum'),
-      supabase.from('verdunstung_wiegung').select('id').eq('auftrag_id', auftrag.id),
-    ])
-    setPaletten((p.data ?? []) as PaletteZeile[])
-    setAnzahl((w.data ?? []).length)
-  }, [auftrag.id, auftrag.charge_nr])
-  useEffect(() => { void laden() }, [laden])
-
-  const gewaehlt = paletten.find(p => p.id === palettenId)
-
-  async function speichern() {
-    if (!gewaehlt || jetzt === '') return
-    const { error } = await supabase.from('verdunstung_wiegung').insert({
-      auftrag_id: auftrag.id, charge_nr: auftrag.charge_nr, palette_id: gewaehlt.id,
-      eingangsdatum: gewaehlt.eingangsdatum, brutto_damals_kg: gewaehlt.brutto_kg,
-      brutto_jetzt_kg: Number(jetzt), kisten: gewaehlt.kisten,
-      gebindeart: gewaehlt.gebindeart, sichtbar_schimmel: schimmel,
-    })
-    if (error) { setFehler(fehlerText(error)); return }
-    setJetzt(''); setPalettenId(''); setSchimmel(false); setFehler(null)
-    void laden()
-  }
-
-  if (paletten.length === 0) {
-    return <Karte titel={t('wiegen')}><p className="leise">{t('keinePaletten')}</p></Karte>
-  }
-
-  return (
-    <Karte titel={t('wiegen')}>
-      <div className="feld">
-        <label htmlFor="pal">{t('welchePalette')}</label>
-        <select id="pal" value={palettenId} disabled={gesperrt}
-                onChange={e => setPalettenId(e.target.value === '' ? '' : Number(e.target.value))}>
-          <option value="">— {t('waehlen')} —</option>
-          {paletten.map(p => (
-            <option key={p.id} value={p.id}>
-              {new Date(p.eingangsdatum).toLocaleDateString(gebietsschema)} · {p.brutto_kg} kg
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div className="reihe" style={{ alignItems: 'flex-end' }}>
-        <div className="feld" style={{ flex: 1, marginBottom: 0 }}>
-          <label htmlFor="jetzt">{t('gewichtJetzt')}</label>
-          <input id="jetzt" type="number" inputMode="decimal" step="0.1" min={0}
-                 value={jetzt} disabled={gesperrt || !gewaehlt}
-                 onChange={e => setJetzt(e.target.value)} style={{ fontSize: '1.2rem' }} />
-        </div>
-        <button className="haupt" style={{ minHeight: 54 }} onClick={speichern}
-                disabled={gesperrt || !gewaehlt || jetzt === ''}>{t('eintragen')}</button>
-      </div>
-
-      <label style={{ display: 'flex', gap: '.5rem', alignItems: 'center', marginTop: '.6rem' }}>
-        <input type="checkbox" checked={schimmel} disabled={gesperrt}
-               onChange={e => setSchimmel(e.target.checked)} style={{ width: 22, height: 22, minHeight: 0 }} />
-        {t('faulesSichtbar')}
-      </label>
-
-      {fehler && <Hinweis art="warnung">{fehler}</Hinweis>}
-      {anzahl > 0 && <p style={{ marginTop: '1rem' }}><strong>{t('bisher')}: {anzahl}</strong></p>}
-    </Karte>
-  )
-}
-
-/* ---------- Kisten wiegen (Überfüllung) ---------- */
-function Ueberfuellung({ auftrag, gesperrt }: { auftrag: Auftrag; gesperrt: boolean }) {
-  const { t } = useSprache()
-  const [kisten, setKisten] = useState('')
-  const [gewicht, setGewicht] = useState('')
-  const [zeilen, setZeilen] = useState<{ id: number; wert: number; n_kisten: number | null }[]>([])
-  const [fehler, setFehler] = useState<string | null>(null)
-
-  const laden = useCallback(async () => {
-    const { data } = await supabase.from('marge_messung').select('id, wert, n_kisten')
-      .eq('auftrag_id', auftrag.id).eq('art', 'ueberfuellung').order('ts')
-    setZeilen((data ?? []) as typeof zeilen)
-  }, [auftrag.id])
-  useEffect(() => { void laden() }, [laden])
-
-  const n = Number(kisten)
-  const g = Number(gewicht)
-  // Bezahlt wird ein Fixpreis ab 8 kg je Kiste; alles darüber ist verschenkt.
-  const ueberschuss = n > 0 && g > 0 ? g - n * 8 : null
-
-  async function speichern() {
-    if (ueberschuss === null) return
-    const { error } = await supabase.from('marge_messung').insert({
-      auftrag_id: auftrag.id, art: 'ueberfuellung', wert: ueberschuss, n_kisten: n,
-    })
-    if (error) { setFehler(fehlerText(error)); return }
-    setKisten(''); setGewicht(''); setFehler(null); void laden()
-  }
-
-  const summe = zeilen.reduce((s, z) => s + z.wert, 0)
-  const kistenGesamt = zeilen.reduce((s, z) => s + (z.n_kisten ?? 0), 0)
-
-  return (
-    <Karte titel={t('kisten')}>
-      <div className="reihe" style={{ alignItems: 'flex-end' }}>
-        <div className="feld" style={{ flex: 1, marginBottom: 0 }}>
-          <label htmlFor="nk">{t('anzahlKisten')}</label>
-          <input id="nk" type="number" inputMode="numeric" min={1} value={kisten}
-                 disabled={gesperrt} onChange={e => setKisten(e.target.value)} />
-        </div>
-        <div className="feld" style={{ flex: 1, marginBottom: 0 }}>
-          <label htmlFor="gw">{t('gewichtZusammen')}</label>
-          <input id="gw" type="number" inputMode="decimal" step="0.1" min={0} value={gewicht}
-                 disabled={gesperrt} onChange={e => setGewicht(e.target.value)} />
-        </div>
-      </div>
-      {ueberschuss !== null && n > 0 && (
-        <p style={{ marginTop: '.6rem', fontSize: '1.1rem' }}>
-          <strong>{(g / n).toFixed(2)} kg</strong> {t('jeKiste')}
-        </p>
-      )}
-      <button className="haupt" style={{ width: '100%', marginTop: '.5rem', minHeight: 54 }}
-              onClick={speichern} disabled={gesperrt || ueberschuss === null}>{t('eintragen')}</button>
-      {fehler && <Hinweis art="warnung">{fehler}</Hinweis>}
-      {kistenGesamt > 0 && (
-        <p style={{ marginTop: '1rem' }}>
-          <strong>{t('bisher')}: {kistenGesamt} {t('kisten').toLowerCase()}</strong>
-          {' · '}{(summe / kistenGesamt).toFixed(2)} kg {t('jeKiste')}
-        </p>
-      )}
-    </Karte>
-  )
-}
-
-/* ---------- Abschluss ---------- */
+/* ------------------------------------------------------------------ */
 function Abschluss({ auftrag, neuLaden, zurueck }: {
   auftrag: Auftrag; neuLaden: () => Promise<void>; zurueck: () => void
 }) {
@@ -426,10 +460,9 @@ function Abschluss({ auftrag, neuLaden, zurueck }: {
   const [fehler, setFehler] = useState<string | null>(null)
   const [laeuft, setLaeuft] = useState(false)
 
-  // Beim Waschen auf der Maschinen-Linie sind die Original-Paletten längst in
-  // Kaliber-Kisten aufgelöst; ohne Mengenangabe hätte der dort ausgelesene
-  // Schimmel keinen Nenner.
-  const brauchtDurchsatz = auftrag.weg === 'maschine' && auftrag.station === 'waschen'
+  // Beim Waschen sind die Original-Paletten längst in Kaliber-Kisten aufgelöst;
+  // ohne Mengenangabe hätte der dort ausgelesene Schimmel keinen Nenner.
+  const brauchtDurchsatz = auftrag.station === 'waschen'
 
   async function abschliessen() {
     setLaeuft(true)

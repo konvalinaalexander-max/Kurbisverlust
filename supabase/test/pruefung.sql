@@ -293,6 +293,74 @@ begin
 end $$;
 
 -- =====================================================================
+-- Wiegen beim Zählen: gewogene Palette schlägt jede Schätzung (0012)
+-- =====================================================================
+insert into auftrag (id, weg, station, charge_nr, start_ts)
+values (960, 'hand', 'waschen_sortieren', 1613, timestamptz '2026-11-16 08:00+01');
+
+-- Nur gezählt, ohne jede Angabe
+insert into auftrag_palette (auftrag_id) values (960);
+
+-- Dieselbe Arbeit, aber diese Palette wurde gewogen:
+-- 950 kg brutto beim Eingang, 40 Kisten G2 → Netto damals 950 − 40·1.5 − 25 = 865
+with w as (
+  insert into verdunstung_wiegung (auftrag_id, charge_nr, eingangsdatum,
+         brutto_damals_kg, brutto_jetzt_kg, kisten, gebindeart, kuerbisse_pro_kiste, wiege_ts)
+  values (960, 1613, date '2026-09-01', 950.00, 908.00, 40, 'G2', 6,
+          timestamptz '2026-11-16 08:00+01')
+  returning id
+)
+insert into auftrag_palette (auftrag_id, eingangsdatum, wiegung_id)
+select 960, date '2026-09-01', id from w;
+
+do $$
+declare v numeric; v_quelle text;
+begin
+  -- Ohne Angaben bleibt nur die Schätzung über das Chargenmittel
+  select masse_quelle into v_quelle from v_auftrag_palette_masse
+   where auftrag_id = 960 and netto_kg is not null
+     and id = (select min(id) from auftrag_palette where auftrag_id = 960);
+  assert v_quelle = 'charge-mittel',
+    format('Nur gezählt muss geschätzt werden, ist %s', v_quelle);
+
+  -- Die gewogene Palette bringt ihr Eingangsgewicht exakt mit
+  select m.netto_kg, m.masse_quelle into v, v_quelle
+    from v_auftrag_palette_masse m
+    join auftrag_palette ap on ap.id = m.id
+   where ap.auftrag_id = 960 and ap.wiegung_id is not null;
+  assert v_quelle = 'gewogen',
+    format('Eine gewogene Palette muss als „gewogen" gelten, ist %s', v_quelle);
+  assert v = 865.00, format('Netto der gewogenen Palette erwartet 865, ist %s', v);
+
+  -- Kennzahlen: netto jetzt = 908 − 40·1.5 − 25 = 823 kg
+  select kg_pro_kiste into v from v_wiegung_kennzahl where auftrag_id = 960;
+  assert abs(v - 823.0 / 40) < 0.01, format('kg je Kiste erwartet ~20.6, ist %s', v);
+  select kg_pro_kuerbis into v from v_wiegung_kennzahl where auftrag_id = 960;
+  assert abs(v - 823.0 / 240) < 0.01, format('kg je Kürbis erwartet ~3.43, ist %s', v);
+  select verlust_kg into v from v_wiegung_kennzahl where auftrag_id = 960;
+  assert v = 42.00, format('Gewichtsverlust erwartet 42 kg, ist %s', v);
+  select lagertage into v from v_wiegung_kennzahl where auftrag_id = 960;
+  assert v = 76, format('Lagertage erwartet 76, sind %s', v);
+
+  -- Die Wägung zählt auch als Verdunstungsmessung, ohne dass eine Palette
+  -- aus der Liste gesucht werden musste
+  assert (select count(*) from v_verdunstung_messung
+           where auftrag_id = 960 and verwendbar) = 1,
+    'Die Wägung muss als verwendbare Verdunstungsmessung ankommen';
+
+  -- Ohne Kürbiszahl bleibt das Durchschnittsgewicht leer statt falsch
+  update verdunstung_wiegung set kuerbisse_pro_kiste = null where auftrag_id = 960;
+  assert (select kg_pro_kuerbis from v_wiegung_kennzahl where auftrag_id = 960) is null,
+    'Ohne Kürbisse je Kiste darf kein Durchschnitt je Kürbis erscheinen';
+  assert (select kg_pro_kiste from v_wiegung_kennzahl where auftrag_id = 960) is not null,
+    'kg je Kiste muss trotzdem da sein';
+
+  raise notice 'OK  Wiegen beim Zählen (gewogen schlägt geschätzt, Kennzahlen stimmen)';
+end $$;
+
+delete from auftrag where id = 960;
+
+-- =====================================================================
 -- Plausibilität: ein vertippter Wert darf die Rechnung nicht umwerfen (0011)
 -- =====================================================================
 do $$

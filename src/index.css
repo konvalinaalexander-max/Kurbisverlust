@@ -195,3 +195,20 @@ details.rechenweg dd { margin: 0; font-variant-numeric: tabular-nums; }
   background: rgb(255 255 255 / 15%); border: none; color: #fff;
   font-size: 1.15rem; padding: .2rem .45rem; min-height: 34px; border-radius: 8px;
 }
+
+/* ---------- Dialog (Wiegen-Frage beim Zählen) ---------- */
+.dialog-hinter {
+  position: fixed; inset: 0; z-index: 50;
+  background: rgb(20 14 10 / 55%);
+  display: flex; align-items: flex-end; justify-content: center;
+  padding: 0;
+}
+@media (min-width: 560px) { .dialog-hinter { align-items: center; padding: 1rem; } }
+.dialog {
+  background: var(--flaeche); border: 1px solid var(--rand);
+  border-radius: var(--radius) var(--radius) 0 0;
+  padding: 1.25rem; width: 100%; max-width: 480px;
+  max-height: 92vh; overflow-y: auto;
+  box-shadow: 0 -4px 24px rgb(0 0 0 / 20%);
+}
+@media (min-width: 560px) { .dialog { border-radius: var(--radius); } }

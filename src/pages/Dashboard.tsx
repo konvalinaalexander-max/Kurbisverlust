@@ -24,6 +24,10 @@ export default function Dashboard() {
   const [lage, setLage] = useState<Datenlage[]>([])
   const [befunde, setBefunde] = useState<{ art: string; charge_nr: number; sorte: string
     befund: string; rat: string }[]>([])
+  const [wiegungen, setWiegungen] = useState<{ id: number; charge_nr: number; sorte: string
+    lagertage: number; netto_damals_kg: number | null; netto_jetzt_kg: number | null
+    kg_pro_kiste: number | null; kg_pro_kuerbis: number | null; verlust_kg: number | null
+    sichtbar_schimmel: boolean }[]>([])
   const [marge, setMarge] = useState<{ posten: string; kg: number | null; kg_unten: number | null
     kg_oben: number | null; erlaeuterung: string }[]>([])
   const [laedt, setLaedt] = useState(true)
@@ -37,12 +41,13 @@ export default function Dashboard() {
   useEffect(() => {
     void (async () => {
       try {
-        const [h, b, d, m, pl] = await Promise.all([
+        const [h, b, d, m, pl, wk] = await Promise.all([
           supabase.from('v_hochrechnung').select('*'),
           supabase.from('v_massenbilanz').select('*'),
           supabase.from('v_datenlage').select('*'),
           supabase.from('v_marge_buch').select('*'),
           supabase.from('v_plausibilitaet').select('*'),
+          supabase.from('v_wiegung_kennzahl').select('*').order('wiege_ts', { ascending: false }),
         ])
         if (h.error) throw h.error
         setZeilen((h.data ?? []) as Hochrechnung[])
@@ -50,6 +55,7 @@ export default function Dashboard() {
         setLage((d.data ?? []) as Datenlage[])
         setMarge((m.data ?? []) as typeof marge)
         setBefunde((pl.data ?? []) as typeof befunde)
+        setWiegungen((wk.data ?? []) as typeof wiegungen)
       } catch (f) {
         setFehler(fehlerText(f))
       } finally { setLaedt(false) }
@@ -221,7 +227,7 @@ export default function Dashboard() {
       )}
 
       {ebene === 3 && (
-        <Rohdaten zeilen={gefiltert} bilanz={bilanz} lage={lage} />
+        <Rohdaten zeilen={gefiltert} bilanz={bilanz} lage={lage} wiegungen={wiegungen} />
       )}
     </>
   )
@@ -291,8 +297,12 @@ function Ueberblick({ verluste, eingang, verlustGesamt, maximum }: {
   )
 }
 
-function Rohdaten({ zeilen, bilanz, lage }: {
+function Rohdaten({ zeilen, bilanz, lage, wiegungen }: {
   zeilen: Hochrechnung[]; bilanz: Massenbilanz[]; lage: Datenlage[]
+  wiegungen: { id: number; charge_nr: number; sorte: string; lagertage: number
+    netto_damals_kg: number | null; netto_jetzt_kg: number | null
+    kg_pro_kiste: number | null; kg_pro_kuerbis: number | null
+    verlust_kg: number | null; sichtbar_schimmel: boolean }[]
 }) {
   const mittel = zeilen.filter(z => z.szenario === 'mittel' && z.buch !== 'bilanz')
   const taraLuecken = lage.filter(l => l.n_paletten > 0 && l.n_paletten_mit_netto < l.n_paletten)
@@ -364,6 +374,47 @@ function Rohdaten({ zeilen, bilanz, lage }: {
           </table>
         </div>
       </Karte>
+
+      {wiegungen.length > 0 && (
+        <Karte titel={`Gewogene Paletten (${wiegungen.length})`}>
+          <p className="leise">
+            Beim Zählen mitgewogen. „kg je Kiste" und — wo die Kürbisse je Kiste
+            erfasst wurden — das Durchschnittsgewicht eines einzelnen Kürbisses.
+            Auf der Hand-Linie gibt es dafür sonst keine Quelle, weil es dort
+            keine Sortier-CSV gibt.
+          </p>
+          <div className="rollbar">
+            <table>
+              <thead>
+                <tr>
+                  <th>Charge</th><th className="zahl">Lagertage</th>
+                  <th className="zahl">Netto damals</th><th className="zahl">Netto jetzt</th>
+                  <th className="zahl">Verlust</th><th className="zahl">kg/Kiste</th>
+                  <th className="zahl">kg/Kürbis</th>
+                </tr>
+              </thead>
+              <tbody>
+                {wiegungen.slice(0, 40).map(w => (
+                  <tr key={w.id}>
+                    <td>{w.charge_nr} · {w.sorte}{w.sichtbar_schimmel ? ' ⚠' : ''}</td>
+                    <td className="zahl">{zahl(w.lagertage)}</td>
+                    <td className="zahl">{kg(w.netto_damals_kg, 1)}</td>
+                    <td className="zahl">{kg(w.netto_jetzt_kg, 1)}</td>
+                    <td className="zahl">{kg(w.verlust_kg, 1)}</td>
+                    <td className="zahl">{w.kg_pro_kiste?.toFixed(2) ?? '—'}</td>
+                    <td className="zahl">{w.kg_pro_kuerbis?.toFixed(2) ?? '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="leise" style={{ marginTop: '.5rem' }}>
+            ⚠ = sichtbar Faules auf der Palette. Diese Wägungen zählen bewusst
+            nicht in die Verdunstungsrate, sonst würde Fäulnis als Wasserverlust
+            verbucht.
+          </p>
+        </Karte>
+      )}
 
       <Karte titel="Wo fehlen Messungen?">
         <p className="leise">
