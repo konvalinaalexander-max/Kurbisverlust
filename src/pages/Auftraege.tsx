@@ -1,18 +1,14 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { useSprache } from '../sprache/SprachProvider'
 import { chargeText, fehlerText, stammdaten } from '../lib/db'
-import { STATION_NAME, WEG_NAME, zeitpunkt } from '../lib/format'
+import { TAETIGKEITEN, taetigkeitVon } from '../lib/taetigkeit'
 import { Hinweis, Karte, Lade, Marke } from '../components/Bausteine'
-import type { Auftrag, Charge, Station, Weg } from '../lib/typen'
-
-/** Welche Stationen es auf welchem Weg gibt (Spec §3). */
-const STATIONEN: Record<Weg, Station[]> = {
-  maschine: ['sortieren', 'waschen'],
-  hand: ['waschen_sortieren'],
-}
+import type { Auftrag, Charge } from '../lib/typen'
 
 export default function Auftraege() {
+  const { t, gebietsschema } = useSprache()
   const [auftraege, setAuftraege] = useState<Auftrag[]>([])
   const [chargen, setChargen] = useState<Charge[]>([])
   const [laedt, setLaedt] = useState(true)
@@ -30,11 +26,7 @@ export default function Auftraege() {
       setChargen(chargen)
       setAuftraege((data ?? []) as Auftrag[])
       setFehler(null)
-    } catch (f) {
-      setFehler(fehlerText(f))
-    } finally {
-      setLaedt(false)
-    }
+    } catch (f) { setFehler(fehlerText(f)) } finally { setLaedt(false) }
   }
   useEffect(() => { void laden() }, [])
 
@@ -44,6 +36,25 @@ export default function Auftraege() {
 
   if (laedt) return <Lade />
 
+  function Zeile({ auftrag }: { auftrag: Auftrag }) {
+    const taet = taetigkeitVon(auftrag.weg, auftrag.station)
+    const zeit = new Date(auftrag.start_ts)
+      .toLocaleString(gebietsschema, { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+    return (
+      <Link to={`/auftraege/${auftrag.id}`}
+            style={{ display: 'block', textDecoration: 'none', color: 'inherit',
+                     padding: '.85rem 0', borderBottom: '1px solid var(--rand)' }}>
+        <div className="reihe">
+          <strong style={{ fontSize: '1.05rem' }}>{taet ? t(taet.text) : ''}</strong>
+          <Marke art={auftrag.status === 'offen' ? 'offen' : 'fertig'}>
+            {auftrag.status === 'offen' ? t('laeuft') : t('fertig')}
+          </Marke>
+        </div>
+        <div className="leise">{chargeText(charge(auftrag.charge_nr))} · {zeit}</div>
+      </Link>
+    )
+  }
+
   return (
     <>
       {fehler && <Hinweis art="warnung">{fehler}</Hinweis>}
@@ -51,7 +62,7 @@ export default function Auftraege() {
       {!neuOffen && (
         <button className="haupt gross" style={{ width: '100%', marginTop: '1rem' }}
                 onClick={() => setNeuOffen(true)}>
-          + Neuen Auftrag eröffnen
+          + {t('neuerAuftrag')}
         </button>
       )}
       {neuOffen && (
@@ -60,113 +71,85 @@ export default function Auftraege() {
                       abbrechen={() => setNeuOffen(false)} />
       )}
 
-      <Karte titel={`Laufende Aufträge (${offen.length})`}>
+      <Karte>
         {offen.length === 0
-          ? <p className="leise">Gerade läuft kein Auftrag.</p>
-          : offen.map(a => <AuftragZeile key={a.id} auftrag={a} charge={charge(a.charge_nr)} />)}
+          ? <p className="leise" style={{ margin: 0 }}>{t('keinAuftrag')}</p>
+          : offen.map(a => <Zeile key={a.id} auftrag={a} />)}
       </Karte>
 
       {fertig.length > 0 && (
-        <Karte titel="Zuletzt abgeschlossen">
-          {fertig.slice(0, 12).map(a => <AuftragZeile key={a.id} auftrag={a} charge={charge(a.charge_nr)} />)}
+        <Karte titel={t('zuletztFertig')}>
+          {fertig.slice(0, 8).map(a => <Zeile key={a.id} auftrag={a} />)}
         </Karte>
       )}
     </>
   )
 }
 
-function AuftragZeile({ auftrag, charge }: { auftrag: Auftrag; charge?: Charge }) {
-  return (
-    <Link to={`/auftraege/${auftrag.id}`}
-          style={{ display: 'block', textDecoration: 'none', color: 'inherit',
-                   padding: '.7rem 0', borderBottom: '1px solid var(--rand)' }}>
-      <div className="reihe">
-        <strong>{chargeText(charge)}</strong>
-        <Marke art={auftrag.status === 'offen' ? 'offen' : 'fertig'}>
-          {auftrag.status === 'offen' ? 'läuft' : 'fertig'}
-        </Marke>
-      </div>
-      <div className="leise">
-        {WEG_NAME[auftrag.weg]} · {STATION_NAME[auftrag.station]} · seit {zeitpunkt(auftrag.start_ts)}
-      </div>
-    </Link>
-  )
-}
-
 function NeuerAuftrag({ chargen, fertig, abbrechen }: {
   chargen: Charge[]; fertig: () => void; abbrechen: () => void
 }) {
-  const [weg, setWeg] = useState<Weg>('hand')
-  const [station, setStation] = useState<Station>('waschen_sortieren')
+  const { t } = useSprache()
+  const [taetigkeit, setTaetigkeit] = useState<string | null>(null)
   const [chargeNr, setChargeNr] = useState<number | ''>('')
-  const [paletten, setPaletten] = useState('')
   const [fehler, setFehler] = useState<string | null>(null)
   const [laeuft, setLaeuft] = useState(false)
 
-  function wegWechseln(neu: Weg) {
-    setWeg(neu)
-    setStation(STATIONEN[neu][0])
-  }
+  const gewaehlt = TAETIGKEITEN.find(a => a.id === taetigkeit)
 
-  async function anlegen(e: FormEvent) {
-    e.preventDefault()
-    if (chargeNr === '') return
+  async function anlegen() {
+    if (!gewaehlt || chargeNr === '') return
     setLaeuft(true); setFehler(null)
-    // Die Startzeit setzt die Datenbank (Spec §10): das Handy des Arbeiters
-    // ist keine verlässliche Uhr, und an ihr hängt die CSV-Zuordnung.
-    const { error } = await supabase.from('auftrag').insert({
-      weg, station, charge_nr: chargeNr,
-      geplante_paletten: paletten === '' ? null : Number(paletten),
-    })
+    // Startzeit setzt der Server (Spec §10) — das Handy ist keine verlässliche
+    // Uhr, und an der Startzeit hängt die Zuordnung der Sortier-CSVs.
+    const { data, error } = await supabase.from('auftrag')
+      .insert({ weg: gewaehlt.weg, station: gewaehlt.station, charge_nr: chargeNr })
+      .select('id').single()
+    if (error) { setLaeuft(false); setFehler(fehlerText(error)); return }
+
+    // Wer die Arbeit eröffnet, ist selbstverständlich dabei — sonst stünde beim
+    // eigenen Auftrag „noch niemand" und ein Knopf zum Mitmachen.
+    await supabase.from('auftrag_teilnehmer').insert({ auftrag_id: (data as { id: number }).id })
     setLaeuft(false)
-    if (error) setFehler(fehlerText(error)); else fertig()
+    fertig()
   }
 
   return (
-    <Karte titel="Neuen Auftrag eröffnen">
-      <form onSubmit={anlegen}>
-        <div className="feld">
-          <label>Weg</label>
-          <div className="reihe">
-            {(['hand', 'maschine'] as Weg[]).map(w => (
-              <button key={w} type="button" className={weg === w ? 'haupt' : ''}
-                      style={{ flex: 1 }} onClick={() => wegWechseln(w)}>
-                {WEG_NAME[w]}
-              </button>
-            ))}
-          </div>
+    <Karte>
+      <div className="feld">
+        <label>{t('wasMachstDu')}</label>
+        <div style={{ display: 'grid', gap: '.5rem' }}>
+          {TAETIGKEITEN.map(a => (
+            <button key={a.id} type="button"
+                    className={taetigkeit === a.id ? 'haupt' : ''}
+                    style={{ minHeight: 58, fontSize: '1.05rem', justifyContent: 'flex-start' }}
+                    onClick={() => setTaetigkeit(a.id)}>
+              <span style={{ fontSize: '1.4rem', marginRight: '.6rem' }}>{a.zeichen}</span>
+              {t(a.text)}
+            </button>
+          ))}
         </div>
+      </div>
 
+      {taetigkeit && (
         <div className="feld">
-          <label htmlFor="station">Station</label>
-          <select id="station" value={station} onChange={e => setStation(e.target.value as Station)}>
-            {STATIONEN[weg].map(s => <option key={s} value={s}>{STATION_NAME[s]}</option>)}
-          </select>
-        </div>
-
-        <div className="feld">
-          <label htmlFor="charge">Charge</label>
-          <select id="charge" value={chargeNr} required
+          <label htmlFor="charge">{t('charge')}</label>
+          <select id="charge" value={chargeNr} style={{ fontSize: '1.05rem' }}
                   onChange={e => setChargeNr(e.target.value === '' ? '' : Number(e.target.value))}>
-            <option value="">— wählen —</option>
+            <option value="">— {t('waehlen')} —</option>
             {chargen.map(c => <option key={c.nr} value={c.nr}>{chargeText(c)}</option>)}
           </select>
         </div>
+      )}
 
-        <div className="feld">
-          <label htmlFor="gepl">Geplante Paletten (optional)</label>
-          <input id="gepl" type="number" inputMode="numeric" min={0} value={paletten}
-                 onChange={e => setPaletten(e.target.value)} />
-        </div>
-
-        {fehler && <Hinweis art="warnung">{fehler}</Hinweis>}
-        <div className="reihe" style={{ marginTop: '.5rem' }}>
-          <button className="haupt" style={{ flex: 1 }} disabled={laeuft || chargeNr === ''}>
-            Auftrag eröffnen
-          </button>
-          <button type="button" onClick={abbrechen}>Abbrechen</button>
-        </div>
-      </form>
+      {fehler && <Hinweis art="warnung">{fehler}</Hinweis>}
+      <div className="reihe" style={{ marginTop: '.5rem' }}>
+        <button className="haupt" style={{ flex: 1, minHeight: 54 }}
+                onClick={anlegen} disabled={laeuft || !taetigkeit || chargeNr === ''}>
+          {t('starten')}
+        </button>
+        <button type="button" onClick={abbrechen}>{t('abbrechen')}</button>
+      </div>
     </Karte>
   )
 }

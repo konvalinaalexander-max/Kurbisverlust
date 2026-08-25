@@ -1,22 +1,19 @@
 import { useState, type FormEvent } from 'react'
 import { supabase } from '../lib/supabase'
+import { useSprache } from '../sprache/SprachProvider'
 import { Hinweis } from '../components/Bausteine'
 
 const NAME_SCHLUESSEL = 'arbeiter_name'
 
 /**
- * Startseite ohne Anmeldung. Zwei Wege, bewusst unterschiedlich gewichtet:
- *
- *  - Arbeiter (der Normalfall): Name eintippen, „Los geht's" — fertig. Dahinter
- *    steckt eine anonyme Supabase-Anmeldung, die niemand als solche bemerkt.
- *    Kein Konto, keine Mail, kein Passwort. Genau das, was per QR-Code aufgehängt
- *    wird.
- *  - Betriebsleiter: kleiner Link unten, echtes Login mit Mail und Passwort.
+ * Startseite. Für den Arbeiter genau ein Feld und ein Knopf — mehr nicht.
+ * Der Betriebsleiter-Login liegt klein darunter.
  */
 export default function Anmelden() {
+  const { t } = useSprache()
   return (
     <div className="huelle" style={{ maxWidth: 460, paddingTop: '2.5rem' }}>
-      <h1 style={{ fontSize: '1.8rem' }}>🎃 Kürbis-Verlust</h1>
+      <h1 style={{ fontSize: '1.7rem', textAlign: 'center' }}>🎃 {t('appName')}</h1>
       <ArbeiterStart />
       <BetriebsleiterLogin />
     </div>
@@ -24,6 +21,7 @@ export default function Anmelden() {
 }
 
 function ArbeiterStart() {
+  const { t } = useSprache()
   const [name, setName] = useState(() => {
     try { return localStorage.getItem(NAME_SCHLUESSEL) ?? '' } catch { return '' }
   })
@@ -40,36 +38,24 @@ function ArbeiterStart() {
     const { error } = await supabase.auth.signInAnonymously({ options: { data: { name: sauber } } })
     if (error) {
       setLaeuft(false)
-      // Der häufigste Fall: der Betriebsleiter hat die anonyme Anmeldung in
-      // Supabase noch nicht freigeschaltet. Das ist eine Einrichtungssache,
-      // kein Fehler des Arbeiters — entsprechend formulieren.
-      if (/anonymous|disabled|not enabled/i.test(error.message)) {
-        setFehler('Der direkte Zugang ist noch nicht freigeschaltet. Bitte dem '
-          + 'Betriebsleiter Bescheid geben: In Supabase unter Authentication → '
-          + 'Sign In / Providers muss „Anonymous sign-ins" eingeschaltet werden '
-          + '(siehe README).')
-      } else {
-        setFehler(error.message)
-      }
+      setFehler(/anonymous|disabled|not enabled/i.test(error.message)
+        ? t('zugangGesperrt') : error.message)
     }
-    // Erfolg: der AuthProvider bemerkt die neue Sitzung und zeigt die App.
   }
 
   return (
     <section className="karte" style={{ padding: '1.5rem' }}>
-      <h2 style={{ marginTop: 0 }}>Ich arbeite mit</h2>
-      <p className="leise">Nur deinen Namen eintippen — kein Passwort nötig.</p>
       <form onSubmit={los}>
         <div className="feld">
-          <label htmlFor="name">Dein Name</label>
+          <label htmlFor="name">{t('deinName')}</label>
           <input id="name" value={name} onChange={e => setName(e.target.value)}
-                 autoComplete="off" autoFocus placeholder="z. B. Hans"
-                 style={{ fontSize: '1.15rem' }} />
+                 autoComplete="off" autoFocus placeholder={t('namePlatzhalter')}
+                 style={{ fontSize: '1.2rem' }} />
         </div>
         {fehler && <Hinweis art="warnung">{fehler}</Hinweis>}
         <button className="haupt gross" style={{ width: '100%' }}
                 disabled={laeuft || !name.trim()}>
-          {laeuft ? 'Einen Moment …' : "Los geht's"}
+          {laeuft ? t('moment') : t('losGehts')}
         </button>
       </form>
     </section>
@@ -77,6 +63,7 @@ function ArbeiterStart() {
 }
 
 function BetriebsleiterLogin() {
+  const { t } = useSprache()
   const [offen, setOffen] = useState(false)
   const [modus, setModus] = useState<'anmelden' | 'registrieren'>('anmelden')
   const [email, setEmail] = useState('')
@@ -103,17 +90,16 @@ function BetriebsleiterLogin() {
       }
     } catch (f) {
       setFehler((f as Error).message)
-    } finally {
-      setLaeuft(false)
-    }
+    } finally { setLaeuft(false) }
   }
 
   if (!offen) {
     return (
       <p style={{ textAlign: 'center', marginTop: '1.5rem' }}>
-        <button style={{ background: 'none', border: 'none', color: 'var(--blau)' }}
+        <button style={{ background: 'none', border: 'none', color: 'var(--text-leise)',
+                         fontWeight: 400, fontSize: '.9rem' }}
                 onClick={() => setOffen(true)}>
-          Betriebsleiter-Login
+          {t('leiterLogin')}
         </button>
       </p>
     )
@@ -121,7 +107,7 @@ function BetriebsleiterLogin() {
 
   return (
     <section className="karte">
-      <h2 style={{ marginTop: 0 }}>Betriebsleiter</h2>
+      <h2 style={{ marginTop: 0 }}>{t('leiterLogin')}</h2>
       <form onSubmit={absenden}>
         {modus === 'registrieren' && (
           <div className="feld">
@@ -141,12 +127,10 @@ function BetriebsleiterLogin() {
                  required minLength={6}
                  autoComplete={modus === 'anmelden' ? 'current-password' : 'new-password'} />
         </div>
-
         {fehler && <Hinweis art="warnung">{fehler}</Hinweis>}
         {meldung && <Hinweis art="gut">{meldung}</Hinweis>}
-
         <button className="haupt" style={{ width: '100%', marginTop: '.5rem' }} disabled={laeuft}>
-          {laeuft ? 'Einen Moment …' : modus === 'anmelden' ? 'Anmelden' : 'Konto anlegen'}
+          {laeuft ? '…' : modus === 'anmelden' ? 'Anmelden' : 'Konto anlegen'}
         </button>
         <button type="button" style={{ width: '100%', marginTop: '.5rem', background: 'none', border: 'none' }}
                 onClick={() => { setModus(modus === 'anmelden' ? 'registrieren' : 'anmelden'); setFehler(null) }}>

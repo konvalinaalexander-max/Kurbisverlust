@@ -1,6 +1,8 @@
 import { NavLink, Navigate, Route, Routes } from 'react-router-dom'
 import { useAuth } from './auth/AuthProvider'
+import { SprachAuswahl, useSprache } from './sprache/SprachProvider'
 import { istKonfiguriert, konfigurationsProblem } from './lib/supabase'
+import { SPRACHEN } from './lib/i18n'
 import { Hinweis, Lade } from './components/Bausteine'
 import Anmelden from './pages/Anmelden'
 import Auftraege from './pages/Auftraege'
@@ -12,7 +14,8 @@ import Stammdaten from './pages/Stammdaten'
 import Zugang from './pages/Zugang'
 
 export default function App() {
-  const { session, profil, laedt, istAdmin, istAnonym, abmelden } = useAuth()
+  const { session, profil, laedt, istAdmin, abmelden } = useAuth()
+  const { t, sprache, abfrageOffen, abfrageOeffnen } = useSprache()
 
   if (konfigurationsProblem) {
     return (
@@ -37,50 +40,49 @@ export default function App() {
         <h1>Kürbis-Verlust</h1>
         <Hinweis art="warnung">
           <p><strong>Noch nicht mit Supabase verbunden.</strong></p>
-          <p>
-            Lege <code>.env.local</code> nach dem Muster von <code>.env.example</code> an und
-            trage <code>VITE_SUPABASE_URL</code> und <code>VITE_SUPABASE_ANON_KEY</code> ein.
-            Die Werte stehen im Supabase-Dashboard unter <em>Project Settings → API</em>.
-          </p>
           <p style={{ marginBottom: 0 }}>
-            Beim Hosting auf Cloudflare gehören dieselben zwei Werte in die
-            Umgebungsvariablen des Projekts.
+            <code>VITE_SUPABASE_URL</code> und <code>VITE_SUPABASE_ANON_KEY</code> fehlen —
+            lokal in <code>.env.local</code>, bei Cloudflare unter Environment variables.
           </p>
         </Hinweis>
       </div>
     )
   }
 
+  // Die Sprachfrage steht vor allem anderen: Wer die App nicht lesen kann,
+  // kommt auch am Anmeldebildschirm nicht weiter.
+  if (abfrageOffen) return <SprachAuswahl />
+
   if (laedt) return <Lade />
   if (!session) return <Anmelden />
+
+  const aktuelleFlagge = SPRACHEN.find(s => s.code === sprache)?.flagge ?? '🌐'
 
   return (
     <>
       <header className="kopf kein-druck">
-        <span className="marke">🎃 Kürbis-Verlust</span>
-        <span className="wer">
-          {profil?.name ?? 'Gast'}
-          {istAdmin ? ' · Betriebsleiter' : istAnonym ? ' · Gerät' : ''}
-        </span>
-        <button onClick={abmelden} style={{ minHeight: 34, padding: '.3rem .7rem' }}>Abmelden</button>
+        <span className="marke">🎃 {t('appName')}</span>
+        <span className="wer">{profil?.name ?? ''}</span>
+        <button className="flagge-knopf" onClick={abfrageOeffnen} aria-label="Sprache">
+          {aktuelleFlagge}
+        </button>
+        <button onClick={abmelden} style={{ minHeight: 34, padding: '.3rem .7rem' }}>
+          {t('abmelden')}
+        </button>
       </header>
 
-      <nav className="navleiste kein-druck">
-        <NavLink to="/auftraege" className={({ isActive }) => (isActive ? 'aktiv' : '')}>Aufträge</NavLink>
-        {istAdmin && <NavLink to="/dashboard" className={({ isActive }) => (isActive ? 'aktiv' : '')}>Auswertung</NavLink>}
-        {istAdmin && <NavLink to="/csv" className={({ isActive }) => (isActive ? 'aktiv' : '')}>Sortier-CSV</NavLink>}
-        {istAdmin && <NavLink to="/warteschlange" className={({ isActive }) => (isActive ? 'aktiv' : '')}>Warteschlange</NavLink>}
-        {istAdmin && <NavLink to="/stammdaten" className={({ isActive }) => (isActive ? 'aktiv' : '')}>Stammdaten</NavLink>}
-        {istAdmin && <NavLink to="/zugang" className={({ isActive }) => (isActive ? 'aktiv' : '')}>QR-Zugang</NavLink>}
-      </nav>
+      {istAdmin && (
+        <nav className="navleiste kein-druck">
+          <NavLink to="/auftraege" className={({ isActive }) => (isActive ? 'aktiv' : '')}>Arbeiten</NavLink>
+          <NavLink to="/dashboard" className={({ isActive }) => (isActive ? 'aktiv' : '')}>Auswertung</NavLink>
+          <NavLink to="/csv" className={({ isActive }) => (isActive ? 'aktiv' : '')}>Sortier-CSV</NavLink>
+          <NavLink to="/warteschlange" className={({ isActive }) => (isActive ? 'aktiv' : '')}>Warteschlange</NavLink>
+          <NavLink to="/stammdaten" className={({ isActive }) => (isActive ? 'aktiv' : '')}>Stammdaten</NavLink>
+          <NavLink to="/zugang" className={({ isActive }) => (isActive ? 'aktiv' : '')}>QR-Zugang</NavLink>
+        </nav>
+      )}
 
       <main className="huelle">
-        {!profil && (
-          <Hinweis art="warnung">
-            Für diesen Zugang gibt es noch kein Profil. Bitte neu laden; hält es an,
-            dem Betriebsleiter Bescheid geben.
-          </Hinweis>
-        )}
         <Routes>
           <Route path="/" element={<Navigate to="/auftraege" replace />} />
           <Route path="/auftraege" element={<Auftraege />} />
@@ -90,7 +92,7 @@ export default function App() {
           <Route path="/warteschlange" element={istAdmin ? <Warteschlange /> : <NurAdmin />} />
           <Route path="/stammdaten" element={istAdmin ? <Stammdaten /> : <NurAdmin />} />
           <Route path="/zugang" element={istAdmin ? <Zugang /> : <NurAdmin />} />
-          <Route path="*" element={<Hinweis>Diese Seite gibt es nicht.</Hinweis>} />
+          <Route path="*" element={<Navigate to="/auftraege" replace />} />
         </Routes>
       </main>
     </>
@@ -98,5 +100,6 @@ export default function App() {
 }
 
 function NurAdmin() {
-  return <Hinweis art="warnung">Dieser Bereich ist dem Betriebsleiter vorbehalten.</Hinweis>
+  const { t } = useSprache()
+  return <Hinweis art="warnung">{t('keineBerechtigung')}</Hinweis>
 }

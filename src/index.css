@@ -178,3 +178,20 @@ details.rechenweg dd { margin: 0; font-variant-numeric: tabular-nums; }
   .druckbereich { border: none; box-shadow: none; margin: 0; }
   .hinweis { display: none; }
 }
+
+/* ---------- Sprachauswahl ---------- */
+.flaggen {
+  display: grid; grid-template-columns: 1fr 1fr; gap: .75rem;
+}
+.flagge {
+  display: flex; flex-direction: column; align-items: center; gap: .35rem;
+  padding: 1.1rem .5rem; min-height: 104px;
+  background: var(--flaeche); border: 1px solid var(--rand); border-radius: var(--radius);
+}
+.flagge:active { background: var(--flaeche-2); }
+.flagge-bild { font-size: 2.6rem; line-height: 1; }
+.flagge-name { font-size: .95rem; font-weight: 600; }
+.flagge-knopf {
+  background: rgb(255 255 255 / 15%); border: none; color: #fff;
+  font-size: 1.15rem; padding: .2rem .45rem; min-height: 34px; border-radius: 8px;
+}

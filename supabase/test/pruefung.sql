@@ -293,6 +293,50 @@ begin
 end $$;
 
 -- =====================================================================
+-- Plausibilität: ein vertippter Wert darf die Rechnung nicht umwerfen (0011)
+-- =====================================================================
+do $$
+declare v numeric; v_n int;
+begin
+  -- 5000 kg Schimmel auf einer Charge mit 8650 kg Eingang: physisch möglich?
+  -- Nein — die Charge ist zu diesem Zeitpunkt längst kleiner. Vor dem Fix
+  -- erzeugte so ein Tippfehler negative „verkaufsfähige" Masse.
+  insert into auftrag (id, weg, station, charge_nr, start_ts)
+  values (950, 'hand', 'waschen_sortieren', 1614, timestamptz '2026-11-20 08:00+01');
+  insert into auftrag_palette (auftrag_id, palette_id)
+  select 950, id from palette where charge_nr = 1614;
+  insert into schimmel_messung (auftrag_id, kg) values (950, 99000);
+
+  assert not (select plausibel from v_schimmel_beobachtung where auftrag_id = 950),
+    'Ein Schimmelanteil weit über 100 % muss als unplausibel erkannt werden';
+
+  -- Der Unsinn darf nicht in die Kurve und nicht in die Kaskade gelangen
+  assert schimmelanteil(200) <= 1, 'schimmelanteil() darf nie über 1 liegen';
+  assert not exists (select 1 from v_kaskade where m2 < 0),
+    'Keine negative Masse nach dem Schimmel-Schritt';
+  assert not exists (select 1 from v_kaskade where verkaufsfaehig_kg < -0.01),
+    'Keine negative verkaufsfähige Masse';
+  assert not exists (select 1 from v_hochrechnung where kg < -0.01),
+    'Kein Strom darf negativ werden';
+
+  -- Aber: der Befund muss dem Betriebsleiter gemeldet werden
+  select count(*) into v_n from v_plausibilitaet where auftrag_id = 950;
+  assert v_n >= 1, 'Die unplausible Messung muss in v_plausibilitaet auftauchen';
+
+  -- Auch als marge_messung(nebenkanal) erfasste Mengen dürfen nicht spurlos
+  -- verschwinden — keine Auswertung liest sie.
+  insert into marge_messung (auftrag_id, art, wert) values (950, 'nebenkanal', 42);
+  assert exists (select 1 from v_plausibilitaet
+                  where auftrag_id = 950 and art = 'Nicht ausgewertet'),
+    'Nicht ausgewertete Erfassungen müssen gemeldet werden';
+
+  delete from marge_messung where auftrag_id = 950;
+  delete from schimmel_messung where auftrag_id = 950;
+  delete from auftrag where id = 950;
+  raise notice 'OK  Plausibilität (Tippfehler bricht die Rechnung nicht, wird gemeldet)';
+end $$;
+
+-- =====================================================================
 -- Anonyme Arbeiter (QR-Code-Anmeldung, Migration 0009)
 -- =====================================================================
 do $$

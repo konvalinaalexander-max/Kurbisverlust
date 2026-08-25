@@ -22,6 +22,8 @@ export default function Dashboard() {
   const [zeilen, setZeilen] = useState<Hochrechnung[]>([])
   const [bilanz, setBilanz] = useState<Massenbilanz[]>([])
   const [lage, setLage] = useState<Datenlage[]>([])
+  const [befunde, setBefunde] = useState<{ art: string; charge_nr: number; sorte: string
+    befund: string; rat: string }[]>([])
   const [marge, setMarge] = useState<{ posten: string; kg: number | null; kg_unten: number | null
     kg_oben: number | null; erlaeuterung: string }[]>([])
   const [laedt, setLaedt] = useState(true)
@@ -35,17 +37,19 @@ export default function Dashboard() {
   useEffect(() => {
     void (async () => {
       try {
-        const [h, b, d, m] = await Promise.all([
+        const [h, b, d, m, pl] = await Promise.all([
           supabase.from('v_hochrechnung').select('*'),
           supabase.from('v_massenbilanz').select('*'),
           supabase.from('v_datenlage').select('*'),
           supabase.from('v_marge_buch').select('*'),
+          supabase.from('v_plausibilitaet').select('*'),
         ])
         if (h.error) throw h.error
         setZeilen((h.data ?? []) as Hochrechnung[])
         setBilanz((b.data ?? []) as Massenbilanz[])
         setLage((d.data ?? []) as Datenlage[])
         setMarge((m.data ?? []) as typeof marge)
+        setBefunde((pl.data ?? []) as typeof befunde)
       } catch (f) {
         setFehler(fehlerText(f))
       } finally { setLaedt(false) }
@@ -127,6 +131,24 @@ export default function Dashboard() {
             zurücksetzen
           </button>
         </p>
+      )}
+
+      {befunde.length > 0 && (
+        <Hinweis art="warnung">
+          <strong>{befunde.length} Messung{befunde.length === 1 ? '' : 'en'} sieht nicht richtig aus</strong>
+          <p style={{ margin: '.4rem 0' }}>
+            Diese Werte fließen bewusst <em>nicht</em> in die Rechnung ein — sie würden sie
+            verfälschen. Fast immer ist es ein Tippfehler, der sich korrigieren lässt.
+          </p>
+          <ul style={{ margin: 0, paddingLeft: '1.2rem' }}>
+            {befunde.slice(0, 8).map((b, i) => (
+              <li key={i} style={{ marginBottom: '.3rem' }}>
+                <strong>Charge {b.charge_nr} · {b.sorte}</strong> — {b.befund}
+                <br /><span className="leise">{b.rat}</span>
+              </li>
+            ))}
+          </ul>
+        </Hinweis>
       )}
 
       {ebene === 1 && (

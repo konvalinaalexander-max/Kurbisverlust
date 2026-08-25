@@ -179,3 +179,74 @@ veröffentlichen"-CSV (keine Zugangsdaten, direkt aus dem Browser ladbar). Wer d
 Daten strikt privat halten will, kann stattdessen den bestehenden Service-Account
 der anderen App über einen kleinen Lese-Endpunkt anzapfen — bewusst nicht der
 Standardweg, weil er beide Projekte koppelt.
+
+## Befunde aus dem Code-Durchgang
+
+### Ein Tippfehler konnte die ganze Rechnung umwerfen (behoben, 0011)
+
+Gefunden durch gezieltes Einspeisen unplausibler Werte: 5000 kg Schimmel auf
+einer 865-kg-Palette ergaben 578 % Schimmelanteil. Der Wert lief ungebremst
+durch die Kaskade — `m2 = m1 · (1 − f)` mit f = 5.78 — und erzeugte **−4135 kg
+„verkaufsfähige" Masse** und 5000 kg Verlust bei 865 kg Eingang. Das Ranking
+zeigte Schimmel als überwältigende Hauptursache.
+
+Drei Stellen waren ungeschützt: die Schimmelkurve (`anteil_mono` ohne Deckel),
+`schimmelanteil()` (gab den Rohwert zurück) und die Bezugsmasse des Weg-2-
+Ausschusses (konnte negativ werden, wenn der Schimmelwert die Masse überstieg).
+
+Jetzt bleiben alle Anteile in [0, 1] und Bezugsmassen bei ≥ 0. Wichtiger noch:
+Unplausible Messungen werden **nicht still verworfen**, sondern in
+`v_plausibilitaet` mit Diagnose aufgelistet und im Dashboard ganz oben gezeigt.
+Eine Zahl, die die Auswertung ausschließt, ist fast immer ein korrigierbarer
+Tippfehler — sie kommentarlos zu ignorieren wäre die schlechtere Wahl.
+
+Schwelle: über 90 % Massenanteil. Real nicht zu erwarten, praktisch immer ein
+Zahlendreher.
+
+### `profil.aktiv` war wirkungslos (behoben, 0011)
+
+Die Spalte existierte, aber keine Erfassungs-Policy fragte sie ab — eine
+deaktivierte Person konnte weiter Messungen schreiben. Die Insert-Policies
+prüfen jetzt `ist_aktiv()`.
+
+### Der Eröffner einer Arbeit stand nicht in der Teilnehmerliste (behoben)
+
+Wer einen Auftrag eröffnete, wurde nicht in `auftrag_teilnehmer` eingetragen.
+Folge: „Dabei: noch niemand" und ein Knopf zum Mitmachen bei der eigenen Arbeit.
+Die App trägt den Eröffner jetzt direkt mit ein.
+
+### Erfasst, aber nicht ausgewertet — bewusst geprüft
+
+- `marge_messung.art = 'nebenkanal'`: Der Enum-Wert existiert, aber die
+  Nebenkanal-Mengen kommen aus der Sortier-CSV bzw. aus
+  `ausschuss_messung('zu_gross')`. Eine hier erfasste Zeile würde spurlos
+  verschwinden — sie taucht deshalb in `v_plausibilitaet` als „Nicht
+  ausgewertet" auf. Die App schreibt sie nie.
+- `auftrag.geplante_paletten` und `schimmel_messung.teilgewicht` fließen
+  absichtlich nicht in die Rechnung: Ersteres ist eine Planungsangabe,
+  Letzteres nur ein Vermerk, dass weitergewogen wurde (die Kilos summieren
+  sich ohnehin korrekt).
+- `auftrag_palette.palette_id` setzt die App nicht — der Arbeiter zählt
+  Paletten, er sucht keine Datensätze heraus. Die Massenzuordnung läuft über
+  die Fallback-Leiter (Datum → Chargenmittel), deren Genauigkeitsstufe in
+  `masse_quelle` sichtbar bleibt.
+
+## Oberfläche: zwei Zielgruppen, zwei Tonlagen
+
+Die Arbeiter-Oberfläche ist auf das Nötigste reduziert und in sechs Sprachen
+verfügbar (Deutsch, Englisch, Ungarisch, Rumänisch, Polnisch, Portugiesisch).
+Beim ersten Öffnen an einem Tag erscheinen die Flaggen — die Handys werden
+weitergereicht, und was gestern eingestellt war, sagt nichts darüber, wer das
+Gerät heute in der Hand hat.
+
+Fachbegriffe sind dort verschwunden: Statt „Weg 1 / Weg 2" wählt der Arbeiter
+**Sortieren**, **Waschen** oder **Waschen + Sortieren** — das ist, was er tut.
+Die Zuordnung auf `weg`/`station` passiert an einer Stelle (`src/lib/taetigkeit.ts`).
+
+Nur „Sortieren" und „Waschen + Sortieren" anzubieten wäre zu wenig gewesen:
+Das Waschen auf der Maschinen-Linie ist ein eigener Arbeitsgang, und genau dort
+wird der zeitversetzte zweite Schimmel gemessen (Spec §3). Ohne diese Auswahl
+gäbe es dafür keine Erfassung.
+
+Erklärender Text steht ausschließlich im Betriebsleiter-Bereich — dort ist er
+nötig, weil dort Entscheidungen getroffen werden.
