@@ -9,9 +9,10 @@ import CsvUpload from './pages/CsvUpload'
 import Warteschlange from './pages/Warteschlange'
 import Dashboard from './pages/Dashboard'
 import Stammdaten from './pages/Stammdaten'
+import Zugang from './pages/Zugang'
 
 export default function App() {
-  const { session, profil, laedt, istAdmin, abmelden } = useAuth()
+  const { session, profil, laedt, istAdmin, istAnonym, abmelden } = useAuth()
 
   if (konfigurationsProblem) {
     return (
@@ -42,7 +43,7 @@ export default function App() {
             Die Werte stehen im Supabase-Dashboard unter <em>Project Settings → API</em>.
           </p>
           <p style={{ marginBottom: 0 }}>
-            Beim Hosting auf Cloudflare Pages gehören dieselben zwei Werte in die
+            Beim Hosting auf Cloudflare gehören dieselben zwei Werte in die
             Umgebungsvariablen des Projekts.
           </p>
         </Hinweis>
@@ -55,37 +56,40 @@ export default function App() {
 
   return (
     <>
-      <header className="kopf">
+      <header className="kopf kein-druck">
         <span className="marke">🎃 Kürbis-Verlust</span>
         <span className="wer">
-          {profil?.name ?? session.user.email}
-          {istAdmin && ' · Betriebsleiter'}
+          {profil?.name ?? 'Gast'}
+          {istAdmin ? ' · Betriebsleiter' : istAnonym ? ' · Gerät' : ''}
         </span>
         <button onClick={abmelden} style={{ minHeight: 34, padding: '.3rem .7rem' }}>Abmelden</button>
       </header>
 
-      <nav className="navleiste">
+      <nav className="navleiste kein-druck">
         <NavLink to="/auftraege" className={({ isActive }) => (isActive ? 'aktiv' : '')}>Aufträge</NavLink>
-        <NavLink to="/dashboard" className={({ isActive }) => (isActive ? 'aktiv' : '')}>Auswertung</NavLink>
+        {istAdmin && <NavLink to="/dashboard" className={({ isActive }) => (isActive ? 'aktiv' : '')}>Auswertung</NavLink>}
         {istAdmin && <NavLink to="/csv" className={({ isActive }) => (isActive ? 'aktiv' : '')}>Sortier-CSV</NavLink>}
         {istAdmin && <NavLink to="/warteschlange" className={({ isActive }) => (isActive ? 'aktiv' : '')}>Warteschlange</NavLink>}
         {istAdmin && <NavLink to="/stammdaten" className={({ isActive }) => (isActive ? 'aktiv' : '')}>Stammdaten</NavLink>}
+        {istAdmin && <NavLink to="/zugang" className={({ isActive }) => (isActive ? 'aktiv' : '')}>QR-Zugang</NavLink>}
       </nav>
 
       <main className="huelle">
         {!profil && (
           <Hinweis art="warnung">
-            Für diesen Login gibt es noch kein Profil. Der Betriebsleiter muss ihn freischalten.
+            Für diesen Zugang gibt es noch kein Profil. Bitte neu laden; hält es an,
+            dem Betriebsleiter Bescheid geben.
           </Hinweis>
         )}
         <Routes>
           <Route path="/" element={<Navigate to="/auftraege" replace />} />
           <Route path="/auftraege" element={<Auftraege />} />
           <Route path="/auftraege/:id" element={<AuftragDetail />} />
-          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/dashboard" element={istAdmin ? <Dashboard /> : <NurAdmin />} />
           <Route path="/csv" element={istAdmin ? <CsvUpload /> : <NurAdmin />} />
           <Route path="/warteschlange" element={istAdmin ? <Warteschlange /> : <NurAdmin />} />
           <Route path="/stammdaten" element={istAdmin ? <Stammdaten /> : <NurAdmin />} />
+          <Route path="/zugang" element={istAdmin ? <Zugang /> : <NurAdmin />} />
           <Route path="*" element={<Hinweis>Diese Seite gibt es nicht.</Hinweis>} />
         </Routes>
       </main>

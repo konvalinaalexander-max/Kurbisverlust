@@ -167,3 +167,14 @@ details.rechenweg dd { margin: 0; font-variant-numeric: tabular-nums; }
 .zaehler button { width: 68px; height: 68px; font-size: 1.8rem; border-radius: 50%; }
 
 .lade { padding: 2rem; text-align: center; color: var(--text-leise); }
+
+/* ---------- Drucken (QR-Zugang aufhängen) ---------- */
+.nur-druck { display: none; }
+@media print {
+  .kein-druck, .kopf, .navleiste { display: none !important; }
+  .nur-druck { display: block; }
+  body { background: #fff; color: #000; }
+  .huelle { max-width: 100%; padding: 0; }
+  .druckbereich { border: none; box-shadow: none; margin: 0; }
+  .hinweis { display: none; }
+}

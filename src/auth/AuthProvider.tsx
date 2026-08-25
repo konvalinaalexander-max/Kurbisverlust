@@ -8,18 +8,25 @@ interface AuthWert {
   profil: Profil | null
   laedt: boolean
   istAdmin: boolean
+  istAnonym: boolean
+  neuLaden: () => Promise<void>
   abmelden: () => Promise<void>
 }
 
 const Kontext = createContext<AuthWert>({
-  session: null, profil: null, laedt: true, istAdmin: false,
-  abmelden: async () => {},
+  session: null, profil: null, laedt: true, istAdmin: false, istAnonym: false,
+  neuLaden: async () => {}, abmelden: async () => {},
 })
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [profil, setProfil] = useState<Profil | null>(null)
   const [laedt, setLaedt] = useState(true)
+
+  async function profilLaden(id: string) {
+    const { data } = await supabase.from('profil').select('*').eq('id', id).maybeSingle()
+    setProfil(data as Profil | null)
+  }
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -36,18 +43,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!session) return
     let abgebrochen = false
-    supabase.from('profil').select('*').eq('id', session.user.id).maybeSingle()
-      .then(({ data }) => {
-        if (abgebrochen) return
-        setProfil(data as Profil | null)
-        setLaedt(false)
-      })
+    profilLaden(session.user.id).finally(() => { if (!abgebrochen) setLaedt(false) })
     return () => { abgebrochen = true }
   }, [session])
 
   const wert: AuthWert = {
     session, profil, laedt,
     istAdmin: profil?.rolle === 'admin',
+    istAnonym: profil?.anonym ?? session?.user.is_anonymous ?? false,
+    neuLaden: async () => { if (session) await profilLaden(session.user.id) },
     abmelden: async () => { await supabase.auth.signOut() },
   }
   return <Kontext.Provider value={wert}>{children}</Kontext.Provider>

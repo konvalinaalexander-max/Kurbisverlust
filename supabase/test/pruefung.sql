@@ -285,6 +285,33 @@ begin
 end $$;
 
 -- =====================================================================
+-- Anonyme Arbeiter (QR-Code-Anmeldung, Migration 0009)
+-- =====================================================================
+do $$
+declare v_name text; v_anonym boolean;
+begin
+  -- Arbeiter ohne Konto: keine E-Mail, Name aus den Metadaten
+  insert into auth.users (id, email, raw_user_meta_data)
+  values ('33333333-3333-3333-3333-333333333333', null, '{"name":"Hans im Feld"}');
+  select name, anonym into v_name, v_anonym from profil
+   where id = '33333333-3333-3333-3333-333333333333';
+  assert v_name = 'Hans im Feld', format('Name der anonymen Anmeldung falsch: %s', v_name);
+  assert v_anonym, 'Ein Nutzer ohne E-Mail muss als anonym markiert sein';
+
+  -- Ganz ohne Namen darf die Anmeldung nicht scheitern → Rückfall auf "Gast"
+  insert into auth.users (id, email, raw_user_meta_data)
+  values ('44444444-4444-4444-4444-444444444444', null, '{}');
+  select name into v_name from profil where id = '44444444-4444-4444-4444-444444444444';
+  assert v_name = 'Gast', format('Namensloser Nutzer muss "Gast" heißen, ist %s', v_name);
+
+  -- Der Betriebsleiter mit E-Mail bleibt nicht-anonym
+  assert not (select anonym from profil where id = '11111111-1111-1111-1111-111111111111'),
+    'Ein Konto mit E-Mail darf nicht als anonym gelten';
+
+  raise notice 'OK  Anonyme Arbeiter (Name, Gast-Rückfall, anonym-Kennzeichen)';
+end $$;
+
+-- =====================================================================
 -- Row Level Security aus Sicht eines Arbeiters
 -- =====================================================================
 do $$

@@ -6,7 +6,7 @@ export type Zuordnung = 'auto' | 'manuell' | 'offen' | 'mehrdeutig'
 export type AusschussArt = 'zu_klein' | 'zu_gross'
 export type MargeArt = 'nebenkanal' | 'ueberfuellung'
 
-export interface Profil { id: string; name: string; rolle: Rolle; aktiv: boolean }
+export interface Profil { id: string; name: string; rolle: Rolle; aktiv: boolean; anonym: boolean }
 export interface Charge { nr: number; schlag: string; sorte: string; saison: number }
 export interface SorteKaliber {
   sorte: string; verlust_unter: number; kaliber_baender: [number, number][]; kanal_ab: number

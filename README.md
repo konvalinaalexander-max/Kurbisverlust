@@ -25,6 +25,8 @@ Du brauchst nur einen Browser. Nichts installieren, nichts programmieren.
 | 2 | Supabase-Konto und Projekt anlegen | 10 Min (meist Warten) |
 | 3 | Datenbank einrichten — **eine Datei, ein Klick** | 3 Min |
 | 4 | Bestätigungs-E-Mails abschalten | 2 Min |
+| 4b | Direkten QR-Zugang für Arbeiter freischalten | 2 Min |
+| 4c | Kleine Zugang-Ergänzung einspielen (nur bei altem Setup) | 2 Min |
 | 5 | Die zwei Zugangswerte abholen | 2 Min |
 | 6 | App auf Cloudflare veröffentlichen | 10 Min |
 | 7 | Erstes Konto anlegen und dich zum Betriebsleiter machen | 5 Min |
@@ -193,6 +195,57 @@ Der Schalter bleibt nach dem Neuladen der Seite grau.
 
 ---
 
+## Schritt 4b — Direkten Zugang für Arbeiter freischalten
+
+Damit die Arbeiter **ohne Konto** per QR-Code hereinkommen (nur Name eintippen,
+kein Passwort), muss in Supabase ein Schalter an.
+
+**Was du machst**
+
+1. Linke Symbolleiste → **Authentication**.
+2. **Sign In / Providers** (bei älteren Versionen **Providers**).
+3. Etwas weiter unten steht **Anonymous sign-ins** (oder „Allow anonymous
+   sign-ins"). Auf **an** stellen (Schalter wird grün).
+4. **Save**, falls ein Speichern-Knopf erscheint.
+
+**Woran du merkst, dass es geklappt hat**
+
+Der Schalter bleibt nach dem Neuladen grün. (Vergessen ist kein Drama — falls
+ein Arbeiter später „Der direkte Zugang ist noch nicht freigeschaltet" sieht,
+holst du genau diesen Schalter nach.)
+
+> **Kurz zur Sicherheit:** Anonymer Zugang heißt, wer die Adresse deiner App
+> kennt, kann Daten eintragen. Die Adresse ist nicht geheim, aber auch nicht zu
+> erraten. Für ein internes Hof-Werkzeug ist das der richtige Kompromiss —
+> lieber ein Arbeiter zu viel als eine Messung, die aus Bequemlichkeit gar nicht
+> gemacht wird. Ans Dashboard, an den CSV-Upload und an die Stammdaten kommt
+> weiterhin nur der Betriebsleiter mit seinem Login.
+
+---
+
+## Schritt 4c — Die Ergänzung für den direkten Zugang einspielen
+
+Diese eine kleine Ergänzung sorgt dafür, dass ein Arbeiter ohne Mail sauber
+angelegt wird. (Nur nötig, wenn du das Setup aus Schritt 3 vor dieser Version
+eingespielt hast. Bei einem frischen Setup ist sie schon enthalten — dann
+meldet sich der SQL-Editor mit „column already exists" o. Ä., das ist harmlos.)
+
+**Was du machst** — genau wie Schritt 3, nur mit einer anderen, viel kürzeren
+Datei:
+
+1. Öffne
+   **https://github.com/konvalinaalexander-max/Kurbisverlust/blob/claude/new-session-vrnnyo/supabase/migrations/0009_anonyme_arbeiter.sql**
+2. Über dem Text rechts auf **Copy raw file** (oder **Raw** → Strg+A → Strg+C).
+3. Supabase → **SQL Editor** → das alte Skript mit Strg+A, Entf löschen →
+   einfügen → **Run**.
+4. Kommt eine Rückfrage „Potentially destructive operation": **Run this query**.
+
+**Woran du merkst, dass es geklappt hat**
+
+Unten steht „Success. No rows returned" — das genügt hier. Fertig.
+
+---
+
 ## Schritt 5 — Die zwei Zugangswerte abholen
 
 Die App muss zwei Dinge wissen: **wo** deine Datenbank steht und **womit** sie
@@ -355,13 +408,14 @@ In beiden Fällen hilft der Kasten direkt hier drunter.
 
 ## Schritt 7 — Dein Konto und die Betriebsleiter-Rolle
 
-Jedes neue Konto ist zunächst *Arbeiter*. Der erste Betriebsleiter muss einmal
-von Hand ernannt werden — danach vergibst du alle weiteren Rollen bequem in der
-App.
+Du legst dir als Betriebsleiter ein richtiges Konto an (die Arbeiter brauchen
+keins). Dieses erste Konto muss einmal von Hand zum Betriebsleiter ernannt
+werden — danach vergibst du alle weiteren Rollen bequem in der App.
 
 **Was du machst**
 
-1. Auf der Adresse aus Schritt 6 unten auf **Neues Konto anlegen** klicken.
+1. Auf der Adresse aus Schritt 6 unten auf **Betriebsleiter-Login** klicken,
+   dann auf **Neues Betriebsleiter-Konto anlegen**.
 2. Namen, deine E-Mail-Adresse und ein Passwort eintragen (mindestens 6 Zeichen)
    → **Konto anlegen**.
 3. Du bist angemeldet und siehst die Auftragsliste. Oben rechts steht dein Name.
@@ -401,6 +455,19 @@ Name **· Betriebsleiter**, und in der Menüleiste sind drei Punkte dazugekommen
 # Teil 2 — Die ersten echten Daten
 
 Die App ist jetzt leer. Drei Dinge in dieser Reihenfolge, dann rechnet sie.
+
+## 0. Den QR-Zugang für die Arbeiter aufhängen
+
+*Als Betriebsleiter anmelden → Menü **QR-Zugang***
+
+Dort ist ein QR-Code. **QR-Code drucken** und in der Halle aufhängen. Die
+Arbeiter scannen ihn mit der normalen Handy-Kamera, tippen einmal ihren Namen —
+und sind sofort drin, ohne Konto und ohne Passwort. Jedes Handy merkt sich das,
+beim nächsten Mal geht es direkt weiter.
+
+Der eingetippte Name steht bei jeder Erfassung dabei, damit nachvollziehbar
+bleibt, wer was gemessen hat. Arbeiter sehen nur die Aufträge; Dashboard,
+CSV-Upload und Stammdaten bleiben dir vorbehalten.
 
 ## 1. Paletten aus dem Erntejournal übernehmen
 
@@ -475,6 +542,7 @@ einen Auftrag, landet sie in der **Warteschlange** statt geraten zu werden.
 | App zeigt „Noch nicht mit Supabase verbunden" | Die zwei Werte aus Schritt 5 fehlen bei Cloudflare oder sind vertippt | Cloudflare → dein Projekt → *Settings* → *Environment variables* prüfen. **Danach zwingend neu bauen:** Reiter *Deployments* → beim obersten Eintrag rechts das Menü **⋯** → **Retry deployment**. Ohne neuen Build ändert sich nichts. |
 | Anmeldung: „Email not confirmed" | Schritt 4 fehlt | Schritt 4 nachholen, dann erneut anmelden. |
 | Anmeldung: „Invalid login credentials" | Falsches Passwort — oder das Konto gibt es noch nicht | Unten auf **Neues Konto anlegen** wechseln. |
+| Arbeiter sieht „Der direkte Zugang ist noch nicht freigeschaltet" | Schritt 4b fehlt | In Supabase Authentication → Sign In / Providers → Anonymous sign-ins einschalten |
 | „Dafür fehlt die Berechtigung" | Du bist noch Arbeiter, nicht Betriebsleiter | Schritt 7 nachholen, dann F5. |
 | Menü zeigt kein „Stammdaten" | Dasselbe | Schritt 7 nachholen, dann F5. |
 | Dashboard: „Noch keine auswertbaren Daten" | Keine Paletten importiert oder überall Tara fehlend | Teil 2, Punkte 1 und 2. |
