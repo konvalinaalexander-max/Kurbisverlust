@@ -87,6 +87,14 @@ select 900, id from v_palette where charge_nr = 1613;
 
 insert into schimmel_messung (auftrag_id, kg) values (900, 60);
 
+-- --- Und der zweite Abschnitt: Waschen, 40 Tage nach dem Sortieren -------
+-- Weg 1 ist erst nach dem Waschen zu Ende (Spec §3). Ohne diesen Schritt gilt
+-- die Charge zu Recht als noch im Haus — sortierte Ware steht in
+-- Kaliber-Kisten in derselben Halle und altert weiter.
+insert into auftrag (id, weg, station, charge_nr, start_ts, ende_ts, status, durchsatz_kg)
+values (903, 'maschine', 'waschen', 1613, timestamptz '2026-12-25 08:00+01',
+        timestamptz '2026-12-25 15:00+01', 'abgeschlossen', 8200);
+
 -- --- Verdunstungswägung: dieselbe Palette, 75 Tage später ---------------
 insert into verdunstung_wiegung (charge_nr, palette_id, eingangsdatum, brutto_damals_kg,
                                  brutto_jetzt_kg, kisten, gebindeart, wiege_ts)
@@ -252,12 +260,16 @@ begin
   end loop;
 
   -- ---- Beide Portionen kommen vor: beobachtet und projiziert ---------
+  -- 1613 ist sortiert *und* gewaschen, also den ganzen Weg 1 durch. Erst
+  -- damit gilt sie als draussen — vor 0024 reichte dafür das Sortieren, und
+  -- die Ware verdunstete in der Rechnung nicht mehr weiter, obwohl sie noch
+  -- wochenlang in der Halle stand.
   assert (select count(*) from v_hochrechnung
            where charge_nr = 1613 and portion = 'ausgelagert') > 0,
     'Die vollständig verarbeitete Charge muss als beobachtet erscheinen';
-  assert (select count(*) from v_hochrechnung
-           where charge_nr = 1613 and portion = 'lager') = 0,
-    'Eine vollständig verarbeitete Charge hat keinen Lagerbestand mehr';
+  assert (select alter_ausgelagert from v_hochrechnung_basis where charge_nr = 1613)
+       > (select lagertage from v_auftrag_masse where auftrag_id = 900),
+    'Das Endalter muss beim Waschen liegen, nicht beim Sortieren';
   assert (select count(*) from v_hochrechnung
            where charge_nr = 1614 and portion = 'lager') > 0,
     'Die noch eingelagerte Charge muss projiziert werden';
@@ -766,5 +778,139 @@ begin
 end $$;
 
 select '——— Statistik geprüft ———' as ergebnis;
+
+
+-- =========================================================================
+-- Ablauf: Weg 1 hat zwei Lagerabschnitte. Das war der grösste Fehler der
+-- Überarbeitung von 0024–0026 — geprüft wird hier nicht das Ergebnis der
+-- Simulation, sondern die Eigenschaften, aus denen es folgt.
+-- =========================================================================
+
+do $$
+declare v_sort record; v_wasch bigint; v_punkte int; v_lager numeric; v_wartet numeric;
+begin
+  perform set_config('request.jwt.claim.sub','11111111-1111-1111-1111-111111111111', true);
+  select auftrag_id, charge_nr, start_ts, eingang_netto_kg into v_sort
+    from v_auftrag_masse where station = 'sortieren' order by auftrag_id limit 1;
+  if v_sort.auftrag_id is null then
+    raise notice 'ÜBERSPRUNGEN  Weg 1 (kein Sortier-Auftrag in der Fixtur)';
+    return;
+  end if;
+
+  select lager_kg into v_lager from v_hochrechnung_basis where charge_nr = v_sort.charge_nr;
+
+  -- Ein Waschgang, 60 Tage nach dem Sortieren, mit Schimmel #2.
+  insert into auftrag (weg, station, charge_nr, start_ts, ende_ts, status,
+                       durchsatz_kg, bemerkung)
+  values ('maschine', 'waschen', v_sort.charge_nr,
+          v_sort.start_ts + interval '60 days',
+          v_sort.start_ts + interval '60 days 7 hours', 'abgeschlossen',
+          v_sort.eingang_netto_kg * 0.9, 'PRUEFUNG')
+  returning id into v_wasch;
+  insert into schimmel_messung (auftrag_id, kg, palox_stand_kg)
+  values (v_wasch, 120, 120);
+
+  perform auswertung_aktualisieren();
+
+  -- Ohne Paletten zu zählen muss die Lagerdauer trotzdem bekannt sein, sonst
+  -- fällt Schimmel #2 aus dem Modell — genau das ist vor 0024 passiert.
+  assert (select lagertage from v_auftrag_masse where auftrag_id = v_wasch) is not null,
+    'Ein Wasch-Auftrag hat keine Lagerdauer — Schimmel #2 fällt aus der Auswertung';
+  assert (select lagertage from v_auftrag_masse where auftrag_id = v_wasch)
+       > (select lagertage from v_auftrag_masse where auftrag_id = v_sort.auftrag_id),
+    'Beim Waschen muss die Ware älter sein als beim Sortieren';
+
+  select count(*) into v_punkte from v_schimmel_punkte where auftrag_id = v_wasch;
+  assert v_punkte = 1, format('Schimmel #2 erzeugt %s Punkte statt 1', v_punkte);
+
+  -- Der Waschen-Punkt ist ein kumulativer Anteil: er muss mindestens so gross
+  -- sein wie der der Charge beim Sortieren.
+  assert (select anteil from v_schimmel_punkte where auftrag_id = v_wasch)
+       >= coalesce((select anteil from v_schimmel_punkte
+                     where auftrag_id = v_sort.auftrag_id), 0) - 1e-9,
+    'Der kumulative Anteil beim Waschen liegt unter dem beim Sortieren';
+
+  -- Sortierte, aber noch nicht gewaschene Ware bleibt Bestand.
+  select wartet_kg into v_wartet from v_hochrechnung_basis where charge_nr = v_sort.charge_nr;
+  assert v_wartet >= 0, 'Wartende Menge darf nicht negativ sein';
+  assert (select lager_kg from v_hochrechnung_basis where charge_nr = v_sort.charge_nr)
+       >= v_wartet - 1e-6,
+    'Was aufs Waschen wartet, muss im Bestand enthalten sein';
+
+  raise notice 'OK  Weg 1 zweistufig (Schimmel #2 kommt an, Wartendes bleibt Bestand)';
+end $$;
+
+do $$
+declare v_diff numeric;
+begin
+  -- 0027: Der Arbeiter trägt den Waagenstand ein, die Differenz rechnet die
+  -- Software. Ein steigender Stand ergibt die Differenz, ein fallender heisst
+  -- geleert — und darf nie eine negative Menge buchen.
+  assert (select count(*) from v_palox_stand where differenz < 0) = 0,
+    'Eine Palox-Differenz ist negativ — der Stand wurde falsch verrechnet';
+  assert palox_letzter_stand() is not null,
+    'Der letzte Waagenstand ist nicht abrufbar — die Eingabemaske kann nicht rechnen';
+  raise notice 'OK  Palox-Waage (ablesen statt kopfrechnen)';
+end $$;
+
+do $$
+declare v record; v_vorher numeric; v_nachher numeric;
+begin
+  -- 0028/0029: Der Warenausgang schliesst die Bilanz. Ohne Lieferungen muss
+  -- die Ansicht das sagen, statt eine Lücke auszuweisen, die nichts bedeutet.
+  select * into v from v_saisonbilanz;
+  assert v.n_lieferungen = 0, 'Die Fixtur sollte noch keine Lieferungen haben';
+  assert v.befund like '%Kein Warenausgang%',
+    'Ohne Lieferungen muss die Bilanz sagen, dass sie nichts prüfen kann';
+  v_vorher := v.ausgang_kg;
+
+  -- Eine Lieferung in Kilo
+  insert into lieferung (datum, sorte, kg, ziel)
+  values (current_date, 'Tiana', 5000, 'verkauf');
+  -- Eine in Kisten — muss über das gemessene Kilo je Kiste umgerechnet werden
+  insert into lieferung (datum, sorte, kisten, ziel)
+  values (current_date, 'Tiana', 100, 'verkauf');
+
+  select * into v from v_saisonbilanz;
+  assert v.n_lieferungen = 2, 'Beide Lieferungen müssen in der Bilanz stehen';
+  assert v.ausgang_kg > v_vorher + 4999,
+    format('Der Ausgang ist nur um %s kg gewachsen', round(v.ausgang_kg - v_vorher));
+
+  -- Kilo-Angaben sind gewogen, Kistenangaben hochgerechnet — und das muss
+  -- dranstehen, sonst sieht eine Umrechnung aus wie eine Messung.
+  assert (select masse_quelle from v_lieferung_masse where kg is not null limit 1) = 'gewogen',
+    'Eine Kilo-Angabe darf nicht als hochgerechnet gelten';
+  assert (select masse_fehler_kg from v_lieferung_masse where kg is not null limit 1) = 0,
+    'Eine gewogene Lieferung hat keinen Umrechnungsfehler';
+
+  -- Ziel entscheidet über das Buch: Kompost ist Verlust, Tierfutter nicht.
+  assert (select buch from ausgang_ziel where code = 'kompost') = 'verlust',
+    'Kompost gehört ins Verlust-Buch';
+  assert (select buch from ausgang_ziel where code = 'tierfutter') = 'marge',
+    'Tierfutter ist kein physischer Verlust — es hat einen anderen Kanal';
+
+  delete from lieferung;
+  raise notice 'OK  Warenausgang (Kilo und Kisten, Ziel bestimmt das Buch)';
+end $$;
+
+do $$
+declare v_versatz numeric;
+begin
+  -- 0032: Der Selektionszuschlag darf nur feuern, wenn es Lagerkontrollen gibt
+  -- und der Unterschied grösser ist als sein eigenes Rauschen. Sonst würde
+  -- jeder Bereich grundlos aufgeblasen.
+  select selektions_versatz into v_versatz from v_schimmel_modell;
+  assert v_versatz is null,
+    'Ohne Lagerkontrollen darf es keinen Selektionszuschlag geben';
+  assert (select befund from v_selektionsverdacht) like '%nicht prüfbar%',
+    'Ohne Lagerkontrollen muss das Dashboard sagen, dass Selektion nicht prüfbar ist';
+
+  -- Und die Grenzen bleiben in der richtigen Reihenfolge, mit wie ohne Zuschlag.
+  assert not exists (select 1 from v_verlust_ranking where kg_unten > kg or kg > kg_oben),
+    'Der Selektionszuschlag hat die Grenzen verdreht';
+  raise notice 'OK  Selektionszuschlag (feuert nur mit Beleg)';
+end $$;
+
+select '——— Ablauf geprüft ———' as ergebnis;
 
 select '——— Fachlogik geprüft ———' as ergebnis;

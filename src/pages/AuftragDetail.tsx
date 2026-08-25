@@ -123,8 +123,7 @@ export default function AuftragDetail() {
         <Paletten auftrag={auftrag} gesperrt={gesperrt} mitWiegen={mitWiegen} />
       )}
       {aktiverReiter === 'faule' && (
-        <Mengen auftrag={auftrag} gesperrt={gesperrt} tabelle="schimmel_messung"
-                titel={t('faule')} mitTeilgewicht />
+        <Palox auftrag={auftrag} gesperrt={gesperrt} />
       )}
       {aktiverReiter === 'ausschuss' && <Ausschuss auftrag={auftrag} gesperrt={gesperrt} />}
       {aktiverReiter === 'ausgang' && <FertigePalette auftrag={auftrag} gesperrt={gesperrt} />}
@@ -367,6 +366,94 @@ function WiegeDialog({ auftrag, zettelDatum, nurZaehlen, abbrechen, fertig }: {
 /* ------------------------------------------------------------------ */
 /* Kilo-Erfassung (Faule, zu klein, zu gross)                          */
 /* ------------------------------------------------------------------ */
+
+/**
+ * Faules wiegen. Der Palox steht auf einer Waage und läuft über mehrere
+ * Arbeiten weiter — der Arbeiter soll ablesen, was draufsteht, und nicht im
+ * Kopf die Differenz zum letzten Mal bilden. Die Software zieht ab und zeigt
+ * ihm das Ergebnis, bevor er speichert.
+ */
+function Palox({ auftrag, gesperrt }: { auftrag: Auftrag; gesperrt: boolean }) {
+  const { t, gebietsschema } = useSprache()
+  const [zeilen, setZeilen] = useState<{ id: number; kg: number; ts: string }[]>([])
+  const [vorher, setVorher] = useState<number | null>(null)
+  const [stand, setStand] = useState('')
+  const [fehler, setFehler] = useState<string | null>(null)
+
+  const laden = useCallback(async () => {
+    const [z, v] = await Promise.all([
+      supabase.from('schimmel_messung').select('*').eq('auftrag_id', auftrag.id).order('ts'),
+      supabase.rpc('palox_letzter_stand'),
+    ])
+    if (z.error) setFehler(fehlerText(z.error)); else setZeilen(z.data as typeof zeilen)
+    setVorher(typeof v.data === 'number' ? v.data : null)
+  }, [auftrag.id])
+  useEffect(() => { void laden() }, [laden])
+
+  const n = stand === '' ? null : Number(stand)
+  // Fällt der Stand, wurde der Palox zwischendurch geleert — dann ist der
+  // neue Stand selbst die Menge.
+  const geleert = n !== null && vorher !== null && n < vorher
+  const menge = n === null ? null
+    : vorher === null || geleert ? n : n - vorher
+
+  async function speichern() {
+    if (menge === null || menge < 0) return
+    const { error } = await supabase.from('schimmel_messung').insert({
+      auftrag_id: auftrag.id, kg: Math.round(menge), palox_stand_kg: n,
+    })
+    if (error) { setFehler(fehlerText(error)); return }
+    setStand(''); setFehler(null); void laden()
+  }
+
+  const summe = zeilen.reduce((s, z) => s + z.kg, 0)
+
+  return (
+    <Karte titel={t('faule')}>
+      <div className="reihe" style={{ alignItems: 'flex-end' }}>
+        <div className="feld" style={{ flex: 1, marginBottom: 0 }}>
+          <label htmlFor="palox">{t('waageZeigt')}</label>
+          <input id="palox" type="number" inputMode="decimal" min={0} step="0.5"
+                 value={stand} disabled={gesperrt} onChange={e => setStand(e.target.value)}
+                 style={{ fontSize: '1.4rem' }} />
+        </div>
+        <button className="haupt" style={{ minHeight: 54 }}
+                onClick={speichern} disabled={gesperrt || menge === null || menge < 0}>
+          {t('eintragen')}
+        </button>
+      </div>
+
+      {menge !== null && (
+        <p style={{ margin: '.6rem 0 0', fontSize: '1.1rem' }}>
+          <strong>{Math.round(menge)} kg</strong>
+          {vorher !== null && !geleert && <> ({n} − {vorher})</>}
+          {geleert && <> — {t('paloxGeleert')}</>}
+        </p>
+      )}
+      {fehler && <Hinweis art="warnung">{fehler}</Hinweis>}
+
+      {zeilen.length > 0 && (
+        <>
+          <p style={{ marginTop: '1rem' }}><strong>{t('bisher')}: {summe} kg</strong></p>
+          <table>
+            <tbody>
+              {zeilen.map(z => (
+                <tr key={z.id}>
+                  <td>{z.kg} kg</td>
+                  <td className="leise">
+                    {new Date(z.ts).toLocaleTimeString(gebietsschema,
+                      { hour: '2-digit', minute: '2-digit' })}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
+    </Karte>
+  )
+}
+
 function Mengen({ auftrag, gesperrt, tabelle, titel, zusatz, filter, mitTeilgewicht }: {
   auftrag: Auftrag; gesperrt: boolean; tabelle: string; titel: string
   zusatz?: Record<string, unknown>; filter?: Record<string, string>; mitTeilgewicht?: boolean

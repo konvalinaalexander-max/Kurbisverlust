@@ -67,12 +67,16 @@ with gewaehlt as (
   returning id, charge_nr, eingangsdatum, brutto_kg
 )
 insert into sim.palette_wahr (lauf, palette_id, charge_nr, sorte, eingangsdatum,
-       netto_eingang_kg, r_wahr, anfaelligkeit)
+       netto_eingang_kg, r_wahr, weg, anfaelligkeit)
 select :lauf, e.id, e.charge_nr, c.sorte, e.eingangsdatum,
        e.brutto_kg - 38 * 1.5 - 25,
        -- Wahre Verdunstung: je Sorte etwas anders, dazu Streuung je Palette
        (select r_basis from sim.parameter where lauf = :lauf)
          * (0.7 + (e.charge_nr % 7) * 0.1) * (0.85 + random() * 0.3),
+       -- Rund die Hälfte der Chargen läuft über die Maschine. Weg 1 hat zwei
+       -- Lagerabschnitte: sortieren, dann liegt die Ware in Kaliber-Kisten,
+       -- Wochen später waschen. Weg 2 geht in einem Schritt raus.
+       case when e.charge_nr % 2 = 1 then 'maschine' else 'hand' end,
        -- Schimmelneigung: die meisten Paletten normal, einige deutlich anfälliger
        case when random() < 0.15 then 1.8 + random() else 0.6 + random() * 0.7 end
   from erzeugt e join charge c on c.nr = e.charge_nr;
@@ -101,11 +105,30 @@ update sim.palette_wahr w
   ) r
  where w.lauf = :lauf and w.palette_id = r.palette_id;
 
+-- ---------- Weg 1: der zweite Abschnitt -----------------------------------
+-- Sortierte Ware liegt 30 bis 90 Tage in Kaliber-Kisten, bevor sie gewaschen
+-- wird. Sie verdunstet und verdirbt in dieser Zeit weiter — genau das hat das
+-- Modell vor 0024 nicht gesehen. Was bis zum Stichtag nicht gewaschen ist,
+-- steht am Stichtag noch da.
+update sim.palette_wahr w
+   set gewaschen_am = case
+         when w.eingangsdatum is null then null
+         when (w.verarbeitet_am + (30 + random() * 60)::int) <= date '2027-03-31'
+           then w.verarbeitet_am + (30 + random() * 60)::int
+         else null end
+ where w.lauf = :lauf and w.weg = 'maschine' and w.verarbeitet_am is not null;
+
 -- ---------- Die wahren Saisonsummen ---------------------------------------
 -- Stichtag: 31.03.2027, wie in den Einstellungen.
 with stand as (
   select w.*,
-         coalesce(w.verarbeitet_am, date '2027-03-31') - w.eingangsdatum as tage,
+         -- Das Alter läuft bis zum *letzten* Schritt. Auf Weg 1 ist das das
+         -- Waschen, nicht das Sortieren; was noch wartet, altert bis zum
+         -- Stichtag weiter.
+         case when w.weg = 'maschine'
+              then coalesce(w.gewaschen_am, date '2027-03-31')
+              else coalesce(w.verarbeitet_am, date '2027-03-31') end
+           - w.eingangsdatum                                          as tage,
          p.schimmel_lambda, p.schimmel_k, p.anteil_klein, p.anteil_gross
     from sim.palette_wahr w
     cross join sim.parameter p

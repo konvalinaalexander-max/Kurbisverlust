@@ -19,7 +19,7 @@ end $$;
 
 -- ---------- Arbeiten: Paletten desselben Tages und derselben Charge --------
 with gruppen as (
-  select charge_nr, verarbeitet_am,
+  select charge_nr, verarbeitet_am, w.weg,
          count(*) as n_paletten,
          sum(netto_eingang_kg) as netto_eingang,
          sum(netto_eingang_kg * power(1 - r_wahr, verarbeitet_am - eingangsdatum)) as m1,
@@ -28,16 +28,14 @@ with gruppen as (
                                  p.schimmel_k, w.anfaelligkeit)) as schimmel
     from sim.palette_wahr w cross join sim.parameter p
    where w.lauf = :lauf and p.lauf = :lauf and w.verarbeitet_am is not null
-   group by charge_nr, verarbeitet_am
+   group by charge_nr, verarbeitet_am, w.weg
 ), neu as (
   insert into auftrag (weg, station, charge_nr, start_ts, ende_ts, status, bemerkung)
-  select case when (charge_nr + extract(day from verarbeitet_am)::int) % 2 = 0
-              then 'hand' else 'maschine' end::verarbeitungsweg,
-         case when (charge_nr + extract(day from verarbeitet_am)::int) % 2 = 0
-              then 'waschen_sortieren' else 'sortieren' end::station,
-         charge_nr, verarbeitet_am::timestamptz + interval '8 hours',
-         verarbeitet_am::timestamptz + interval '15 hours', 'abgeschlossen', 'SIM'
-    from gruppen
+  select g.weg::verarbeitungsweg,
+         case when g.weg = 'hand' then 'waschen_sortieren' else 'sortieren' end::station,
+         g.charge_nr, g.verarbeitet_am::timestamptz + interval '8 hours',
+         g.verarbeitet_am::timestamptz + interval '15 hours', 'abgeschlossen', 'SIM'
+    from gruppen g
   returning id, charge_nr, start_ts, weg, station
 )
 insert into sim.auftrag_wahr (lauf, auftrag_id, charge_nr, verarbeitet_am,
@@ -133,6 +131,57 @@ update sortier_lauf l
   from (select lauf_id, sum(anzahl) as n from sortier_gewicht group by lauf_id) s
  where s.lauf_id = l.id and l.datei_name like format('SIM-%s-%%', :lauf);
 
+-- ---------- Weg 1, zweiter Abschnitt: Waschen -----------------------------
+-- Wochen nach dem Sortieren geht die Ware aus den Kaliber-Kisten ans
+-- Waschbecken. Dort wird nochmals Faules aussortiert — Spec §3 nennt das
+-- „Schimmel #2, zeitaufgelöst". Erfasst wird kein Palettenzählen (die
+-- Original-Paletten gibt es nicht mehr), sondern der Durchsatz in Kilo.
+with gruppen as (
+  select w.charge_nr, w.gewaschen_am,
+         -- Masse nach Verdunstung bis zum Waschen bzw. bis zum Sortieren
+         sum(w.netto_eingang_kg * power(1 - w.r_wahr, w.gewaschen_am - w.eingangsdatum))
+                                                                          as m_waschen,
+         sum(w.netto_eingang_kg * power(1 - w.r_wahr, w.gewaschen_am - w.eingangsdatum)
+             * sim.schimmel_wahr(w.gewaschen_am - w.eingangsdatum,
+                                 p.schimmel_lambda, p.schimmel_k, w.anfaelligkeit))
+                                                                          as schimmel_gesamt,
+         sum(w.netto_eingang_kg * power(1 - w.r_wahr, w.verarbeitet_am - w.eingangsdatum)
+             * sim.schimmel_wahr(w.verarbeitet_am - w.eingangsdatum,
+                                 p.schimmel_lambda, p.schimmel_k, w.anfaelligkeit))
+                                                                          as schimmel_beim_sortieren,
+         p.anteil_klein, p.anteil_gross
+    from sim.palette_wahr w cross join sim.parameter p
+   where w.lauf = :lauf and p.lauf = :lauf
+     and w.weg = 'maschine' and w.gewaschen_am is not null
+   group by w.charge_nr, w.gewaschen_am, p.anteil_klein, p.anteil_gross
+), neu as (
+  insert into auftrag (weg, station, charge_nr, start_ts, ende_ts, status,
+                       durchsatz_kg, bemerkung)
+  select 'maschine', 'waschen', g.charge_nr,
+         g.gewaschen_am::timestamptz + interval '8 hours',
+         g.gewaschen_am::timestamptz + interval '15 hours', 'abgeschlossen',
+         -- Was tatsächlich durchs Becken läuft: nach Verdunstung, nach allem
+         -- Schimmel, ohne den beim Sortieren entnommenen Ausschuss.
+         round((g.m_waschen - g.schimmel_gesamt)
+               * (1 - g.anteil_klein - g.anteil_gross))::numeric(12,2),
+         'SIM'
+    from gruppen g
+  returning id, charge_nr, start_ts
+)
+insert into schimmel_messung (auftrag_id, kg)
+select n.id,
+       -- Der Ausschuss ist beim Sortieren entnommen worden; was im zweiten
+       -- Abschnitt verdirbt, verdirbt in der *verbliebenen* Masse. Ohne diesen
+       -- Faktor wäre der Palox am Waschbecken relativ zum Durchsatz zu voll
+       -- und das Modell würde die Kurve zu hoch anpassen (gemessen: +8.8 %).
+       greatest(round((g.schimmel_gesamt - g.schimmel_beim_sortieren)
+                      * (1 - g.anteil_klein - g.anteil_gross)
+                      * (0.95 + random() * 0.1))::int, 0)
+  from neu n
+  join gruppen g on g.charge_nr = n.charge_nr and g.gewaschen_am = n.start_ts::date
+ where (g.schimmel_gesamt - g.schimmel_beim_sortieren)
+       * (1 - g.anteil_klein - g.anteil_gross) >= 1;
+
 -- ---------- Lagerkontrollen: zufällig gegriffene Paletten ------------------
 -- Der Gegenentwurf zur Verarbeitungsmessung: Diese Paletten werden *nicht*
 -- danach ausgewählt, wie sie aussehen. Genau darum können sie die
@@ -155,15 +204,26 @@ select w.charge_nr, w.eingangsdatum,
        true, 'SIM-LAGER'
   from (
     select w.*,
-           -- Zu einem zufälligen Zeitpunkt zwischen Einlagerung und heute
-           -- bzw. Verarbeitung nachgesehen
-           (w.eingangsdatum + (20 + random() *
-              (coalesce(w.verarbeitet_am, date '2027-03-31') - w.eingangsdatum - 20))::int)
-             as kontroll_datum,
+           -- So läuft es wirklich: Jemand geht an einem Tag in die Halle und
+           -- macht auf, was dort *noch steht*. Eine Palette, die längst
+           -- verarbeitet ist, kann man nicht mehr kontrollieren — und eine,
+           -- die noch lange liegen bleibt, kann man mehrfach antreffen.
+           -- Frühere Fassungen zogen den Kontrolltag zwischen Einlagerung und
+           -- Verarbeitung: Bei „Schlechtes zuerst" wurden dadurch ausgerechnet
+           -- die anfälligen Paletten früh kontrolliert, und die Kontrollen
+           -- verschoben die Kurve, statt sie zu korrigieren.
+           t.tag as kontroll_datum,
            row_number() over (order by random()) as rang
-      from sim.palette_wahr w where w.lauf = :lauf
+      from generate_series(1, 12) g(monat)
+      cross join lateral (
+        select date '2026-09-15' + ((g.monat - 1) * 15) as tag
+      ) t
+      join sim.palette_wahr w
+        on w.lauf = :lauf
+       and w.eingangsdatum + 20 <= t.tag
+       and (w.verarbeitet_am is null or w.verarbeitet_am > t.tag)
+       and t.tag <= date '2027-03-31'
   ) w
   cross join sim.parameter p
  where p.lauf = :lauf
-   and w.rang <= coalesce((select n_lagerkontrollen from sim.parameter where lauf = :lauf), 0)
-   and w.kontroll_datum > w.eingangsdatum + 20;
+   and w.rang <= coalesce((select n_lagerkontrollen from sim.parameter where lauf = :lauf), 0);

@@ -1,0 +1,136 @@
+# Was auf dem Betrieb wirklich passiert
+
+Diese Datei beschreibt den Ablauf, **unabhängig davon, was gemessen wird**.
+Sie ist der Massstab, an dem sich Datenmodell und Oberflächen messen lassen
+müssen. Wo das Modell etwas annimmt, das niemand geprüft hat, steht es als
+Annahme da — unmarkierte Annahmen sind der Anfang jedes stillen Fehlers.
+
+## Der Weg eines Kürbisses
+
+```
+Feld (Schlag)
+   │  geerntet, gestaffelt über Tage und Wochen
+   ▼
+Wareneingang ──────────── Palette: Charge, Datum, Brutto, Kisten, Gebinde
+   │                      (Erntejournal-App, eigenes Repo)
+   ▼
+┌─ LAGER ─────────────── eine Halle, gleiche Bedingungen für alle
+│      │
+│      ├── Weg 2 (Hand) ──── Waschen + Sortieren in einem Schritt ──► raus
+│      │
+│      └── Weg 1 (Maschine) ─ Sortieren ─┐
+│                                        │
+└────────────────────────────────────────┘   zurück in dieselbe Halle,
+       Kaliber-Kisten, Wochen bis Monate     die Original-Palette gibt es nicht mehr
+                    │
+                    ▼
+              Waschen ──► raus
+```
+
+Der entscheidende Punkt, den das Modell bis 0024 nicht kannte: **Weg 1 hat
+zwei Lagerabschnitte.** Zwischen Sortieren und Waschen steht die Ware wieder in
+derselben Halle — in Kaliber-Kisten statt auf der Original-Palette, aber am
+selben Ort, unter denselben Bedingungen, und sie verdunstet und verdirbt
+weiter. Der Betrieb bestätigt: **alles, was sortiert wurde, wird später
+gewaschen.**
+
+## Wo Masse verschwindet, und wer es merkt
+
+| Stelle | Was passiert | Wird es erfasst? |
+|---|---|---|
+| Lager, laufend | Wasserverlust | über gelegentliche Palettenwägungen |
+| Lager, laufend | Kürbisse verderben | erst beim Verarbeiten sichtbar |
+| Vor dem Sortierband | Faules aussortiert → Palox | ja, Palox-Waage |
+| Sortierband | zu klein → weg, zu gross → anderer Kanal | ja, aus der CSV |
+| Zweiter Lagerabschnitt | Wasserverlust und Verderb gehen weiter | seit 0024 |
+| Vor dem Waschbecken | Faules nochmals aussortiert (**Schimmel #2**) | seit 0024 |
+| Kisten füllen | 8-kg-Kisten wiegen real 8.1–8.5 kg | ja, fertige Paletten |
+| Warenausgang | Ware verlässt den Betrieb | seit 0028 |
+
+## Die Behälter, und wann Identität verloren geht
+
+- **Palette** — die Erfassungseinheit beim Wareneingang. Eine Palette gehört zu
+  genau einer Charge und hat ihr eigenes Eingangsdatum.
+- **Kaliber-Kiste** — entsteht beim Sortieren. Ab hier **löst sich die Palette
+  auf**: Die Kürbisse einer Palette landen je nach Gewicht in verschiedenen
+  Kisten, und eine Kiste sammelt aus vielen Paletten. Die Charge bleibt bekannt,
+  das Eingangsdatum der einzelnen Palette nicht mehr.
+- **Palox** — der Sammelbehälter für Faules. Er steht auf einer Waage und läuft
+  über mehrere Arbeiten weiter; der Zuwachs zwischen zwei Ablesungen ist die
+  Menge einer Arbeit.
+
+**Annahme, ungeprüft:** Beim Waschen wird die Charge des Waschgangs der Charge
+des Sortierlaufs gleichgesetzt, und welcher Sortierlauf zu welchem Waschgang
+gehört, wird über die Reihenfolge geschlossen (was vorher sortiert wurde, kann
+vorher gewaschen worden sein). Ein ausdrücklicher Verweis vom Waschgang auf den
+Sortierlauf wird nirgends erfasst. In der Simulation kostet diese Annäherung
+rund 2 % beim Schimmel — genug, um sie zu nennen, zu wenig, um dem Arbeiter
+ein Feld mehr zuzumuten.
+
+## Wer entscheidet, was als nächstes drankommt
+
+Das ist keine Nebensache, sondern die grösste verbliebene Fehlerquelle. Wird
+verarbeitet, was schlecht aussieht, dann werden anfällige Paletten früh
+gemessen und robuste spät — der gemessene Verderbsverlauf wird flacher als der
+wahre, und die Hochrechnung auf lange Lagerdauern zu niedrig.
+
+Aus Verarbeitungsmessungen allein lässt sich das nicht heilen: Alter und
+Anfälligkeit sind durch die Reihenfolge vermengt. Was hilft, ist eine Messung,
+deren Auswahl nicht am Zustand hängt — gelegentlich eine **zufällig gegriffene
+Palette im Lager** aufmachen und notieren, wie viel faul ist. Details und
+Wirkung: `docs/STATISTIK_BEFUND.md`.
+
+## Was den Betrieb sonst noch verlässt
+
+Neben dem Verkauf gibt es Wege, auf denen Ware ohne Lieferschein geht:
+Hofladen, Tierfutter, Kompost, Eigenbedarf. Jeder davon ist Masse, die aus der
+Bilanz verschwindet — und **fehlende Masse sieht in einer Bilanz immer aus wie
+Verlust**. Seit 0028 hat jede Lieferung ein Ziel, und das Ziel entscheidet, in
+welches Buch sie fällt: Kompost ist echter Verlust, Tierfutter ist ein anderer
+Kanal, Hofladen ist Verkauf.
+
+**Offen:** Welche dieser Wege es auf dem Betrieb tatsächlich gibt und wie viel
+darüber geht, ist noch nicht beantwortet. Die Ziele sind angelegt und lassen
+sich in `ausgang_ziel` ergänzen, ohne dass etwas umgebaut werden muss.
+
+## Was wir vom Warenausgang brauchen — und was nicht
+
+**Nicht** die Gewichte einzelner Paletten. Die kennt der Betrieb gar nicht, und
+für das Ziel — Ursachen rangieren — braucht es sie auch nicht.
+
+Genug ist, was ohnehin auf dem Lieferschein steht, weil danach verrechnet wird:
+**Datum, Sorte, und entweder Kilo oder Kistenzahl.** Kisten werden über das
+gemessene Kilo je Kiste umgerechnet, und die zusätzliche Unsicherheit steht je
+Zeile dabei, statt verschwiegen zu werden.
+
+Selbst eine grobe Monatssumme je Sorte wäre ein grosser Gewinn: Erst mit dem
+Ausgang hört der Restbestand auf, eine reine Projektion zu sein, und die Lücke
+in der Bilanz wird zur einzigen Zahl, die misst, was das Modell **nicht** sieht.
+
+**Offen:** In welcher Einheit der Lieferschein die Menge führt. Die Maske nimmt
+beides, die Antwort ändert nichts am Aufbau — nur daran, wie genau die Bilanz
+schliesst.
+
+## Was zwischen zwei Saisons passiert
+
+Der Stichtag steht in den Einstellungen (`saison_ende`). Bis dahin wird alles
+projiziert, was noch im Haus ist. Was danach mit Restbeständen geschieht, ist
+im Modell nicht abgebildet — es kennt nur „bis zum Stichtag gelagert".
+
+**Offen und bisher nicht gefragt:** Ob Restbestände in die neue Saison
+übernommen werden, und ob sie dann noch derselben Charge zugerechnet bleiben.
+
+## Annahmen, die im Modell stecken
+
+Jede einzelne ist eine Stelle, an der die Rechnung von der Wirklichkeit
+abweichen kann, ohne dass es jemand merkt.
+
+| Annahme | Warum sie drinsteht | Was passiert, wenn sie nicht stimmt |
+|---|---|---|
+| Alle Paletten einer Charge liegen unter gleichen Bedingungen | eine Halle (Spec §1) | Streuung zwischen Lagerplätzen landet im Fehler, nicht im Modell |
+| Die Verdunstungsrate ist über die Zeit konstant | eine Wägung je Palette gibt keinen Verlauf her | früher Wasserverlust wird unter-, später überschätzt |
+| Alles Sortierte wird später gewaschen | vom Betrieb bestätigt | Ware, die ungewaschen rausgeht, altert in der Rechnung zu lange |
+| Der Palox gehört zu der Arbeit, an deren Ende er abgelesen wird | Waage, Differenzbildung | sammelt er über Arbeiten hinweg unbemerkt, sitzt Schimmel am falschen Alter |
+| Ein Waschgang gehört zu den Sortierläufen derselben Charge davor | kein erfasster Verweis | bei stark gemischten Chargen wandert Schimmel #2 ans falsche Alter |
+| Die Dubletten-Regel entfernt Maschinen-Doppel, keine echten Kürbisse | Nachbar-Gleichheit 12–28 % gegen < 0.2 % Zufall | alle CSV-gestützten Massen sind entsprechend daneben |
+| Kaliber-Grenzen gelten über die ganze Saison | Stammdaten | Umstellungen mitten in der Saison verfälschen den Ausschussanteil |

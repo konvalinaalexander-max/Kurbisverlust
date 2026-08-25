@@ -382,3 +382,177 @@ Palettenwägungen machen die Verdunstung genauer, an der Reihenfolge von Platz 2
 und 3 ändern sie nichts. Wer die auseinanderhalten will, braucht
 Lagerkontrollen (Schimmel) und mehr Sortier-CSVs (Ausschuss) — nicht mehr
 Wägungen.
+
+---
+
+# Zweite Runde: der Ablauf, nicht die Statistik
+
+Die erste Runde hat die Rechnung in Ordnung gebracht. Die zweite hat gefragt,
+ob das Gerechnete überhaupt zu dem passt, was auf dem Betrieb passiert. Das
+Prozessbild steht in `docs/ABLAUF.md`.
+
+## Der grösste Fehler war kein Rechenfehler
+
+**Weg 1 hat zwei Lagerabschnitte, das Modell kannte nur einen.** Spec §3
+beschreibt Lager → Sortieren → **Lager** → Waschen. Zwischen den beiden
+Schritten liegen Wochen; die Ware steht in Kaliber-Kisten wieder in derselben
+Halle und verdunstet und verdirbt weiter. Im Modell endete die Uhr beim
+Sortieren.
+
+Zwei Folgen, beide am laufenden System nachgewiesen:
+
+**Schimmel #2 verschwand spurlos.** Spec §3 nennt die zweite Aussortierung vor
+dem Waschbecken ausdrücklich „zeitaufgelöst". Der Arbeiter trug sie ein, die
+Datenbank speicherte sie, und das Modell warf sie weg — ein Wasch-Auftrag mit
+900 kg Schimmel erzeugte **null** Zeilen in der Auswertung. Grund: Die
+Lagerdauer kam aus den gezählten Paletten, und beim Waschen gibt es keine zu
+zählen, weil die Original-Paletten sich beim Sortieren auflösen.
+
+**Die Demo-Saison enthielt keinen einzigen Waschgang.** Der ganze zweite
+Abschnitt war nie durchgespielt worden — nicht in der Demo, nicht in den Tests,
+nicht in der Simulation. Der Simulations-Harness erzeugt ihn jetzt.
+
+Gemessen an einer Simulation, die den zweistufigen Ablauf erzeugt (25 Saisons):
+
+| | vor 0024 | nach 0024–0031 |
+|---|---|---|
+| Verdunstung | −15.3 %, Überdeckung 64 % | **+1.2 %, 100 %** |
+| Schimmel/Fäulnis | −22.9 %, 8 % | **+2.1 %, 96 %** |
+| Ausschuss zu klein | +2.3 %, 40 % | **−0.2 %, 100 %** |
+
+Der Weg dorthin ging über zwei falsche Abzweigungen, die beide der Messung
+auffielen:
+
+* Den Palox am Waschbecken als Gesamtwert zu lesen statt als Zuwachs:
+  −16.4 %. Er enthält nur, was **seit dem Sortieren** dazugekommen ist.
+* Ihn über Kilo zu ergänzen: +15.3 %. Der Durchsatz am Waschbecken ist schon
+  um Verdunstung, Schimmel und Ausschuss vermindert und taugt nicht als
+  Bezugsmasse. Richtig ist die bedingte Überlebensrate:
+  `1 − F(t₂) = (1 − F(t₁))·(1 − g)` mit `g = Schimmel₂/(Durchsatz + Schimmel₂)`.
+
+Eine dritte Abzweigung habe ich gebaut und wieder entfernt: Waschgänge den
+Sortierläufen nach dem Prinzip „was zuerst sortiert wurde, wird zuerst
+gewaschen" zuzuordnen, statt über alle Sortierläufe davor zu mitteln. Es klingt
+richtiger und ist es vermutlich auch — aber gemessen hat es dort, wo es helfen
+sollte, nichts gebracht und anderswo geschadet (Saisonende: +2.2 % → +7.5 %,
+Überdeckung 100 % → 50 %). Eine Verbesserung, die man nicht messen kann, ist
+keine.
+
+## Die Selektionsverzerrung lässt sich nicht wegrechnen — nur aufdecken
+
+In der Simulation, mitten in der Saison, „Schlechtes zuerst verarbeitet":
+
+| | mittlere Anfälligkeit |
+|---|---|
+| verarbeitete Paletten | **1.52** |
+| noch im Lager stehende | **0.80** |
+
+Fast Faktor zwei. Das Modell lernt an der einen Hälfte und rechnet damit die
+andere hoch: **+13.6 % Verzerrung, Überdeckung 20 %**.
+
+Ich habe versucht, das zu korrigieren, und es hat nicht funktioniert:
+
+| | Verzerrung Schimmel |
+|---|---|
+| ohne Lagerkontrollen, ohne Korrektur | +13.3 % |
+| mit Lagerkontrollen, ohne Korrektur | +14.3 % |
+| mit Lagerkontrollen **und** Niveau-Korrektur | −15.2 % |
+
+Der Versatz dreht das Vorzeichen, ohne den Betrag zu verkleinern. Der Grund ist
+lehrreich: Die Selektion verbiegt nicht die **Höhe** der Kurve, sondern ihre
+**Steigung** — anfällige Paletten werden früh gemessen, robuste spät, und die
+angepasste Steigung k fiel von wahren 1.6 auf 1.14. Einen falschen Anstieg
+repariert kein Niveau-Versatz. Die Korrektur ist deshalb wieder entfernt worden.
+
+Auch der naheliegende Gedanke, die Lagerkontrollen stärker zu gewichten, trägt
+nicht: Die Anpassung gewichtet mit der Masse hinter jeder Messung, und eine
+Lagerkontrolle steht für 800 kg gegen 20 t je Verarbeitungsauftrag. Zwei Dutzend
+Kontrollen sind damit unter einem Prozent des Gewichts.
+
+**Was stattdessen geschieht:** Der gemessene Unterschied zwischen beiden Quellen
+geht in den *Bereich* ein, nicht in den Wert. Bereinigt um sein eigenes
+Rauschen, damit er nur feuert, wenn er belegt ist.
+
+| Lage | Verzerrung | Bereichsbreite | Überdeckung |
+|---|---|---|---|
+| mit Selektion, 24 Kontrollen | +13.7 % | 98 % | **100 %** |
+| ohne Selektion, 24 Kontrollen | +3.9 % | 23 % | 90 % |
+
+Damit ist die Rolle der Lagerkontrollen eine andere, als ich in der ersten Runde
+geschrieben habe: **Sie reparieren die Zahl nicht — sie decken auf, dass man ihr
+nicht trauen darf.** Ohne sie steht dieselbe falsche Zahl da, nur mit einem
+engen Bereich und ohne Warnung. Das ist der schlechtere Zustand.
+
+## Was jetzt zusätzlich erfasst wird
+
+**Der Palox-Stand statt der Differenz.** Der Palox steht auf einer Waage und
+läuft über mehrere Arbeiten. Der Arbeiter sollte bisher selbst abziehen, was
+letztes Mal draufstand — Kopfrechnen an der Maschine, und ein Fehler ist
+hinterher nicht mehr erkennbar. Jetzt trägt er den Stand ein, die Software zieht
+ab und zeigt ihm das Ergebnis. Beide Zahlen bleiben erhalten: der Stand als
+Beleg, die Differenz als Messwert. Fällt der Stand, war der Palox zwischendurch
+leer — das erkennt die Software und sagt es, statt eine negative Menge zu buchen.
+
+**Der Warenausgang.** Spec §9 sieht die Gegenprobe „Eingang = Verlust + Ausgang
++ Restbestand" vor; gebaut war sie nie. Ohne sie ist der Restbestand eine
+Hochrechnung, die niemand nachgezählt hat. Es genügt, was auf dem Lieferschein
+steht: Datum, Sorte, und entweder Kilo oder Kistenzahl — Palettengewichte kennt
+der Betrieb gar nicht und braucht es auch nicht. Kisten werden über das
+gemessene Kilo je Kiste umgerechnet, mit ausgewiesener Unsicherheit je Zeile.
+
+Jede Lieferung hat ein **Ziel**, und das Ziel entscheidet über das Buch: Kompost
+ist echter Verlust, Tierfutter ein anderer Kanal, Hofladen ist Verkauf. Ohne
+diese Unterscheidung verschwindet Masse aus der Bilanz — und fehlende Masse
+sieht in einer Bilanz immer aus wie Verlust.
+
+## Fehlende Tara und Doppelzählung, nachgemessen
+
+Nicht neu gefunden, aber jetzt beziffert: An einer Charge mit 44 Paletten, bei
+der 4 keine Gebindeart haben, war die Eingangsmasse **10 % zu klein** — und
+damit jede Verlustquote 10 % zu gross. Wird jetzt innerhalb der Charge
+hochgerechnet, mit `eingang_netto_gemessen_kg` als Beleg daneben.
+
+## Wo das Modell nach der zweiten Runde steht
+
+`./supabase/test/simulation/matrix.sh 20`, in der zweistufigen Welt (Weg 1 mit
+beiden Lagerabschnitten). Ein Bereich, der 95 % heissen soll, muss in rund 95 %
+der Saisons treffen.
+
+| Lage | Strom | Verzerrung | Bereich | Überdeckung |
+|---|---|---|---|---|
+| Saisonende, 25 % im Lager | Schimmel | +2.2 % | 17 % | 100 % |
+| | Verdunstung | −0.8 % | 51 % | 95 % |
+| | Ausschuss | 0.0 % | 7 % | 100 % |
+| Mitten in der Saison, 50 % im Lager | Schimmel | +1.9 % | 24 % | 95 % |
+| | Verdunstung | −1.3 % | 39 % | 95 % |
+| Saisonende, Schlechtes zuerst | Schimmel | +4.0 % | 18 % | 100 % |
+| **Mitten in der Saison, Schlechtes zuerst** | **Schimmel** | **+11.0 %** | 22 % | **35 %** |
+| dieselbe Lage, 12 Lagerkontrollen | Schimmel | +11.2 % | 83 % | **100 %** |
+| dieselbe Lage, 24 Lagerkontrollen | Schimmel | +11.7 % | 104 % | **100 %** |
+| Knappe Stichprobe: 4 Wägungen | Verdunstung | +4.4 % | 82 % | 80 % |
+| | Schimmel | +1.4 % | 32 % | 95 % |
+
+Die vierte Zeile ist der ehrliche Rest: Wird stark nach Aussehen ausgewählt und
+liegt gleichzeitig die halbe Ernte noch im Lager, ist der Schimmel um rund 11 %
+zu hoch — und ohne Lagerkontrollen weiss niemand davon. Die beiden Zeilen
+darunter zeigen, was die Kontrollen leisten: Die Zahl bleibt dieselbe, aber der
+Bereich sagt endlich, dass sie unsicher ist.
+
+Die letzte Zeile ist die andere Grenze: Mit vier Palettenwägungen für eine ganze
+Saison wird der Verdunstungsbereich 82 % breit, und selbst dann trifft er nur in
+80 % der Fälle. Verdunstung ist der grösste Posten — ein Dutzend Wägungen über
+verschiedene Chargen sind das Minimum, unter dem die Zahl nichts mehr taugt.
+
+## Ehrliche Grenzen, Stand jetzt
+
+| Grösse | Status |
+|---|---|
+| Verdunstung, Ausschuss, Nebenkanal | belastbar, Bereiche halten |
+| Schimmel bei zufälliger Verarbeitungsreihenfolge | belastbar |
+| **Schimmel, wenn nach Aussehen ausgewählt wird** | **rund 10 % zu hoch; mit Lagerkontrollen sagt es der Bereich, ohne sie merkt es niemand** |
+| Verdunstung mit weniger als ~10 Wägungen | Bereich über 80 % breit, Überdeckung fällt unter 90 % |
+| Zeitlicher Verlauf der Verdunstungsrate | nicht schätzbar; angenommen wird eine konstante Tagesrate |
+| Restbestand im Lager | Projektion; mit erfasstem Warenausgang wird die Lücke prüfbar |
+| Massenbilanz gegen die CSV | prüft die Koeffizienten am Tag des Sortierens, nicht die Verluste |
+| Zuordnung Waschgang → Sortierlauf | über die Charge und die Reihenfolge geschlossen, nicht erfasst |
+| Dubletten-Regel | unbelegt bis zur Handzählung einer Palette |

@@ -21,6 +21,7 @@ delete from sortier_gewicht
 delete from sortier_lauf where datei_name like 'DEMO-%';
 
 -- Der Rest hängt mit "on delete cascade" am Auftrag
+delete from lieferung where bemerkung = 'DEMO';
 delete from auftrag where bemerkung = 'DEMO';
 
 delete from palette where extern_id like 'demo-%';

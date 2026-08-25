@@ -39,6 +39,8 @@ create table if not exists sim.palette_wahr (
   netto_eingang_kg  numeric,
   r_wahr            numeric,        -- Verdunstung dieser Palette je Tag
   verarbeitet_am    date,           -- NULL = liegt am Stichtag noch im Lager
+  weg               text,           -- 'maschine' = Weg 1 (zwei Abschnitte), 'hand' = Weg 2
+  gewaschen_am      date,           -- Weg 1: wann sie den zweiten Abschnitt verlässt
   anfaelligkeit     numeric,        -- Schimmelneigung, 1.0 = Durchschnitt
   primary key (lauf, palette_id)
 );

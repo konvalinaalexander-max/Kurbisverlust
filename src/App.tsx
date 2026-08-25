@@ -10,6 +10,7 @@ import AuftragDetail from './pages/AuftragDetail'
 import CsvUpload from './pages/CsvUpload'
 import Warteschlange from './pages/Warteschlange'
 import Dashboard from './pages/Dashboard'
+import Lieferungen from './pages/Lieferungen'
 import Stammdaten from './pages/Stammdaten'
 import Zugang from './pages/Zugang'
 
@@ -77,6 +78,7 @@ export default function App() {
           <NavLink to="/dashboard" className={({ isActive }) => (isActive ? 'aktiv' : '')}>Auswertung</NavLink>
           <NavLink to="/csv" className={({ isActive }) => (isActive ? 'aktiv' : '')}>Sortier-CSV</NavLink>
           <NavLink to="/warteschlange" className={({ isActive }) => (isActive ? 'aktiv' : '')}>Warteschlange</NavLink>
+          <NavLink to="/lieferungen" className={({ isActive }) => (isActive ? 'aktiv' : '')}>Warenausgang</NavLink>
           <NavLink to="/stammdaten" className={({ isActive }) => (isActive ? 'aktiv' : '')}>Stammdaten</NavLink>
           <NavLink to="/zugang" className={({ isActive }) => (isActive ? 'aktiv' : '')}>QR-Zugang</NavLink>
         </nav>
@@ -90,6 +92,7 @@ export default function App() {
           <Route path="/dashboard" element={istAdmin ? <Dashboard /> : <NurAdmin />} />
           <Route path="/csv" element={istAdmin ? <CsvUpload /> : <NurAdmin />} />
           <Route path="/warteschlange" element={istAdmin ? <Warteschlange /> : <NurAdmin />} />
+          <Route path="/lieferungen" element={istAdmin ? <Lieferungen /> : <NurAdmin />} />
           <Route path="/stammdaten" element={istAdmin ? <Stammdaten /> : <NurAdmin />} />
           <Route path="/zugang" element={istAdmin ? <Zugang /> : <NurAdmin />} />
           <Route path="*" element={<Navigate to="/auftraege" replace />} />

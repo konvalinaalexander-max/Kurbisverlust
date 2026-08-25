@@ -3,6 +3,8 @@ import { supabase } from '../lib/supabase'
 import { fehlerText } from '../lib/db'
 import { datum, kg, prozent, tonnen, zahl, zeitpunkt } from '../lib/format'
 import { Balken, Hinweis, Karte, Kennzahl, Lade, Marke, Rechenweg } from '../components/Bausteine'
+import { Bilanzzeile, Kaskadenbild } from '../components/Kaskadenbild'
+import type { Kaskadenstrom } from '../components/Kaskadenbild'
 import type { Datenlage, Hochrechnung, Massenbilanz, Ranking } from '../lib/typen'
 
 type Ebene = 1 | 2 | 3
@@ -12,6 +14,31 @@ interface Modell {
   n: number; c_chargen: number; t_min: number; t_max: number
   k: number | null; lambda: number | null; smearing: number | null
   brauchbar: boolean
+}
+
+/** v_schimmel_punkte — jede einzelne Messung, aus der die Kurve entsteht. */
+interface Schimmelpunkt {
+  charge_nr: number; sorte: string; lagertage: number
+  schimmel_kg: number; basis_jetzt_kg: number
+  anteil: number | null; plausibel: boolean; quelle: string
+}
+
+/** v_hochrechnung_basis — Bestand je Charge, inklusive der sortierten Ware,
+ *  die auf das Waschen wartet (Weg 1, zweiter Lagerabschnitt). */
+interface Bestand {
+  charge_nr: number; sorte: string; schlag: string
+  eingang_kg: number; lager_kg: number; wartet_kg: number
+  sortiert_kg: number; gewaschen_kg: number
+  alter_lager: number; ueberzaehlung_kg: number
+}
+
+/** v_saisonbilanz — die Gegenprobe: Eingang = Verlust + Ausgang + Restbestand. */
+interface Saisonbilanz {
+  eingang_kg: number; verlust_modell_kg: number; ausgang_kg: number
+  verkauf_kg: number; marge_kg: number; entsorgt_kg: number
+  restbestand_modell_kg: number; im_lager_kg: number; wartet_kg: number
+  luecke_kg: number; luecke_anteil: number | null
+  ausgang_deckung: number | null; n_lieferungen: number; befund: string
 }
 
 /** v_selektionsverdacht — sagen zufällig gegriffene und nach Aussehen
@@ -49,6 +76,9 @@ export default function Dashboard() {
   const [koeff, setKoeff] = useState<{ was: string; wert: string; n: number; basis: string }[]>([])
   const [modell, setModell] = useState<Modell | null>(null)
   const [selektion, setSelektion] = useState<Selektion | null>(null)
+  const [bilanzSaison, setBilanzSaison] = useState<Saisonbilanz | null>(null)
+  const [punkte, setPunkte] = useState<Schimmelpunkt[]>([])
+  const [basis, setBasis] = useState<Bestand[]>([])
   const [wiegungen, setWiegungen] = useState<{ id: number; charge_nr: number; sorte: string
     lagertage: number; netto_damals_kg: number | null; netto_jetzt_kg: number | null
     kg_pro_kiste: number | null; kg_pro_kuerbis: number | null; verlust_kg: number | null
@@ -115,7 +145,7 @@ export default function Dashboard() {
   const datenLaden = async () => {
     void (async () => {
       try {
-        const [h, b, d, m, pl, wk, kv, sk, kfv, kfa, kfn, kfu, mo, sel] = await Promise.all([
+        const [h, b, d, m, pl, wk, kv, sk, kfv, kfa, kfn, kfu, mo, sel, sb, pk, hb] = await Promise.all([
           supabase.from('v_hochrechnung').select('*'),
           supabase.from('v_massenbilanz').select('*'),
           supabase.from('v_datenlage').select('*'),
@@ -130,6 +160,9 @@ export default function Dashboard() {
           supabase.from('v_koeff_ueberfuellung').select('*'),
           supabase.from('v_schimmel_modell').select('*').maybeSingle(),
           supabase.from('v_selektionsverdacht').select('*').maybeSingle(),
+          supabase.from('v_saisonbilanz').select('*').maybeSingle(),
+          supabase.from('v_schimmel_punkte').select('*'),
+          supabase.from('v_hochrechnung_basis').select('*'),
         ])
         if (h.error) throw h.error
         setZeilen((h.data ?? []) as Hochrechnung[])
@@ -142,6 +175,9 @@ export default function Dashboard() {
         setKurve((sk.data ?? []) as typeof kurve)
         setModell((mo.data ?? null) as Modell | null)
         setSelektion((sel.data ?? null) as Selektion | null)
+        setBilanzSaison((sb.data ?? null) as Saisonbilanz | null)
+        setPunkte((pk.data ?? []) as Schimmelpunkt[])
+        setBasis((hb.data ?? []) as Bestand[])
 
         // Die vier Koeffizienten in einer Tabelle: das Innenleben der Rechnung.
         type K = { sorte?: string; mittel?: number | null; n: number; basis?: string
@@ -286,7 +322,7 @@ export default function Dashboard() {
 
       {ebene === 1 && (
         <Ueberblick verluste={verluste} eingang={eingang} verlustGesamt={verlustGesamt}
-                    maximum={maximum} />
+                    maximum={maximum} bilanz={bilanzSaison} stroeme={stroeme} />
       )}
 
       {ebene === 2 && (
@@ -333,6 +369,8 @@ export default function Dashboard() {
             ))}
           </Karte>
 
+          <WartetAufsWaschen bestand={basis} />
+
           <Karte titel="Buch B — verschenkte Marge">
             <p className="leise">
               Kein Verlust: die Ware ist verkauft oder verkäuflich, nur nicht zum
@@ -356,9 +394,116 @@ export default function Dashboard() {
       {ebene === 3 && (
         <Rohdaten zeilen={gefiltert} bilanz={bilanz} lage={lage} wiegungen={wiegungen}
                   kaliber={kaliber} kurve={kurve} koeff={koeff}
-                  modell={modell} selektion={selektion} />
+                  modell={modell} selektion={selektion} punkte={punkte} />
       )}
     </>
+  )
+}
+
+
+/**
+ * Weg 1 hat zwei Lagerabschnitte: Nach dem Sortieren steht die Ware in
+ * Kaliber-Kisten wieder in der Halle, bis sie gewaschen wird — und verdunstet
+ * und verdirbt dabei weiter. Das ist keine Statistik, sondern eine
+ * Arbeitsanweisung: Was hier oben steht, gehört als nächstes ans Waschbecken.
+ */
+function WartetAufsWaschen({ bestand }: { bestand: Bestand[] }) {
+  const wartend = bestand.filter(b => b.wartet_kg > 0)
+    .sort((a, b) => b.wartet_kg - a.wartet_kg)
+  const summe = wartend.reduce((s, b) => s + b.wartet_kg, 0)
+  if (wartend.length === 0) return null
+  return (
+    <Karte titel="Sortiert — wartet aufs Waschen">
+      <p className="leise">
+        Diese Ware ist durchs Sortierband, steht aber noch in Kaliber-Kisten in
+        der Halle. Sie altert weiter: Je länger sie liegt, desto mehr Verdunstung
+        und Schimmel. Oben steht, was am längsten wartet.
+      </p>
+      <div className="spalten">
+        <Kennzahl titel="Wartet insgesamt" wert={tonnen(summe)}
+                  unter={`${wartend.length} Chargen`} />
+      </div>
+      <div className="rollbar">
+        <table>
+          <thead><tr><th>Charge</th><th>Sorte</th><th className="zahl">sortiert</th>
+            <th className="zahl">gewaschen</th><th className="zahl">wartet</th>
+            <th className="zahl">Lagertage</th></tr></thead>
+          <tbody>
+            {wartend.slice(0, 15).map(b => (
+              <tr key={b.charge_nr}>
+                <td>{b.charge_nr}</td>
+                <td>{b.sorte}</td>
+                <td className="zahl">{kg(b.sortiert_kg, 0)}</td>
+                <td className="zahl">{kg(b.gewaschen_kg, 0)}</td>
+                <td className="zahl"><strong>{kg(b.wartet_kg, 0)}</strong></td>
+                <td className="zahl">{Math.round(b.alter_lager)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </Karte>
+  )
+}
+
+/**
+ * Woher die Schimmelkurve kommt. Nicht die Kurve — die Punkte, aus denen sie
+ * angepasst wurde, mit ihrer Herkunft. Wer nachvollziehen will, warum das
+ * Modell sagt, was es sagt, fängt hier an.
+ */
+function Herkunft({ punkte }: { punkte: Schimmelpunkt[] }) {
+  if (punkte.length === 0) return null
+  const brauchbar = punkte.filter(p => p.plausibel && p.anteil !== null && p.anteil > 0)
+  const verworfen = punkte.length - brauchbar.length
+  const klassen = [
+    { name: 'aus der Verarbeitung', quelle: 'verarbeitung',
+      erklaerung: 'Der Palox am Band oder am Waschbecken. Welche Palette wann '
+                + 'drankommt, hängt oft davon ab, wie sie aussieht — diese Punkte '
+                + 'sind deshalb nicht zufällig ausgewählt.' },
+    { name: 'zufällig gegriffene Lagerpaletten', quelle: 'lager',
+      erklaerung: 'Beim Wiegen aufgemacht und nachgesehen. Die einzigen Punkte, '
+                + 'deren Palette nicht nach ihrem Aussehen ausgewählt wurde.' },
+  ]
+  return (
+    <Karte titel="Woher die Schimmelkurve kommt">
+      <p className="leise">
+        Jeder Punkt ist eine tatsächliche Wägung. Die Kurve ist nichts weiter als
+        die Linie, die am besten durch diese Punkte passt — je weniger Punkte bei
+        langen Lagerdauern, desto unsicherer wird alles rechts davon.
+      </p>
+      {klassen.map(k => {
+        const eigene = brauchbar.filter(p => p.quelle === k.quelle)
+        if (eigene.length === 0) {
+          return (
+            <p key={k.quelle} className="leise" style={{ marginBottom: '.8rem' }}>
+              <strong>{k.name}:</strong> keine. {k.erklaerung}
+            </p>
+          )
+        }
+        const tage = eigene.map(p => p.lagertage)
+        return (
+          <div key={k.quelle} style={{ marginBottom: '1rem' }}>
+            <div className="reihe">
+              <strong>{k.name}</strong>
+              <span style={{ marginLeft: 'auto' }}>
+                {eigene.length} Punkte · {Math.round(Math.min(...tage))}–
+                {Math.round(Math.max(...tage))} Lagertage
+              </span>
+            </div>
+            <p className="leise" style={{ margin: '.2rem 0 0', fontSize: '.82rem' }}>
+              {k.erklaerung}
+            </p>
+          </div>
+        )
+      })}
+      {verworfen > 0 && (
+        <Hinweis art="info">
+          {verworfen} Messungen sind nicht eingeflossen, weil der daraus folgende
+          Anteil unplausibel war — meist ein Zahlendreher. Sie stehen unter
+          „Auffälligkeiten“ und lassen sich dort korrigieren.
+        </Hinweis>
+      )}
+    </Karte>
   )
 }
 
@@ -382,11 +527,23 @@ function rechenweg(v: StromSumme, eingang: number): [string, React.ReactNode][] 
   ]
 }
 
-function Ueberblick({ verluste, eingang, verlustGesamt, maximum }: {
+function Ueberblick({ verluste, eingang, verlustGesamt, maximum, bilanz, stroeme }: {
   verluste: StromSumme[]; eingang: number; verlustGesamt: number; maximum: number
+  bilanz: Saisonbilanz | null; stroeme: StromSumme[]
 }) {
   const haupt = verluste[0]
   const duenn = verluste.filter(v => (v.koeffN ?? 0) < 3)
+
+  // Für die Grafik: alle Ströme, die Masse abzweigen — Verlust wie Marge.
+  // Der Nebenkanal ist kein Verlust, aber er verlässt den Hauptkanal, und ohne
+  // ihn stimmt die Breite des Restbalkens nicht.
+  const kaskade: Kaskadenstrom[] = stroeme
+    .filter(s => s.buch === 'verlust' || s.buch === 'marge')
+    .sort((a, b) => b.mittel - a.mittel)
+    .map(s => ({ name: s.strom, kg: s.mittel, unten: s.unten, oben: s.oben,
+                 buch: s.buch as 'verlust' | 'marge', bereichBekannt: s.bereichBekannt,
+                 extrapoliert: s.extrapoliert }))
+  const verkaufsfaehigKg = Math.max(eingang - kaskade.reduce((a, s) => a + s.kg, 0), 0)
 
   // Zwei Ströme, deren Bereiche sich überschneiden, lassen sich mit dieser
   // Datengrundlage nicht auseinanderhalten. In der Simulation gab es keinen
@@ -416,6 +573,41 @@ function Ueberblick({ verluste, eingang, verlustGesamt, maximum }: {
           </Hinweis>
         )}
       </Karte>
+
+      <Karte titel="Wo bleibt die Masse?">
+        <Kaskadenbild eingang={eingang} verkaufsfaehig={verkaufsfaehigKg}
+                      stroeme={kaskade} />
+      </Karte>
+
+      {bilanz && (
+        <Karte titel="Geht die Rechnung auf?">
+          <p className="leise">
+            Die einzige Gegenprobe, die es gibt: Was eingelagert wurde, muss als
+            Verlust, als Ausgang oder als Bestand wieder auftauchen. Was übrig
+            bleibt, ist das, was das Modell nicht sieht.
+          </p>
+          <Bilanzzeile titel="Wareneingang" kg={bilanz.eingang_kg} eingang={bilanz.eingang_kg}
+                       farbe="#7a7a7a" erklaerung="Netto ab Zettel, Tara abgezogen" />
+          <Bilanzzeile titel="Verlust (Modell)" kg={bilanz.verlust_modell_kg}
+                       eingang={bilanz.eingang_kg} farbe="#b5651d"
+                       erklaerung="Verdunstung, Schimmel und Ausschuss zusammen" />
+          <Bilanzzeile titel="Ausgeliefert" kg={bilanz.ausgang_kg} eingang={bilanz.eingang_kg}
+                       farbe="#4a8c4a"
+                       erklaerung={bilanz.n_lieferungen === 0
+                         ? 'noch keine Lieferung erfasst'
+                         : `${bilanz.n_lieferungen} Lieferungen erfasst`} />
+          <Bilanzzeile titel="Noch im Haus (Modell)" kg={bilanz.restbestand_modell_kg}
+                       eingang={bilanz.eingang_kg} farbe="#7aa6c2"
+                       erklaerung={`davon ${tonnen(bilanz.wartet_kg)} sortiert und wartet aufs Waschen`} />
+          <Bilanzzeile titel="Lücke" kg={Math.abs(bilanz.luecke_kg)} eingang={bilanz.eingang_kg}
+                       farbe="#c94f4f"
+                       erklaerung={`${prozent(bilanz.luecke_anteil)} des Eingangs`} />
+          <Hinweis art={bilanz.n_lieferungen === 0 ? 'warnung'
+                        : Math.abs(bilanz.luecke_anteil ?? 1) < 0.05 ? 'gut' : 'info'}>
+            {bilanz.befund}
+          </Hinweis>
+        </Karte>
+      )}
 
       <Karte titel="Ursachen, rangiert">
         <p className="leise">
@@ -450,7 +642,7 @@ function Ueberblick({ verluste, eingang, verlustGesamt, maximum }: {
 }
 
 function Rohdaten({ zeilen, bilanz, lage, wiegungen, kaliber, kurve, koeff,
-                   modell, selektion }: {
+                   modell, selektion, punkte }: {
   zeilen: Hochrechnung[]; bilanz: Massenbilanz[]; lage: Datenlage[]
   wiegungen: { id: number; charge_nr: number; sorte: string; lagertage: number
     netto_damals_kg: number | null; netto_jetzt_kg: number | null
@@ -462,6 +654,7 @@ function Rohdaten({ zeilen, bilanz, lage, wiegungen, kaliber, kurve, koeff,
     verwendet: number | null; erlaeuterung: string }[]
   koeff: { was: string; wert: string; n: number; basis: string }[]
   modell: Modell | null; selektion: Selektion | null
+  punkte: Schimmelpunkt[]
 }) {
   // Seit 0019 gibt es je Charge und Portion nur noch eine Zeile je Strom —
   // die drei Szenarien sind durch die Fehlerfortpflanzung ersetzt.
@@ -660,6 +853,8 @@ function Rohdaten({ zeilen, bilanz, lage, wiegungen, kaliber, kurve, koeff,
           )}
         </Karte>
       )}
+
+      <Herkunft punkte={punkte} />
 
       {kurve.length > 0 && (
         <Karte titel="Schimmelkurve">

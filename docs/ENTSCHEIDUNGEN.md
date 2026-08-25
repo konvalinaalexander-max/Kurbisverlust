@@ -151,6 +151,90 @@ Paletten, bei der 4 keine Gebindeart haben, waren das **10 %**. `eingang_netto_k
 rechnet deshalb auf alle Paletten der Charge hoch; `eingang_netto_gemessen_kg`
 hält daneben fest, was wirklich gewogen wurde, und das Dashboard warnt sichtbar.
 
+### Weg 1 endet beim Waschen, nicht beim Sortieren
+
+Spec §3 beschreibt Weg 1 als Lager → Sortieren → **Lager** → Waschen. Das
+Modell hat den zweiten Lagerabschnitt lange nicht gekannt: Sortierte Ware galt
+als aus dem Haus, ihr Alter blieb beim Sortiertag stehen. Tatsächlich steht sie
+in Kaliber-Kisten wieder in derselben Halle und verdunstet und verdirbt weiter.
+
+Nachgemessen an einer Simulation, die den zweistufigen Ablauf erzeugt:
+
+| | vorher | nachher |
+|---|---|---|
+| Verdunstung | −15.3 %, Überdeckung 64 % | +1.2 %, 100 % |
+| Schimmel/Fäulnis | −22.9 %, 8 % | +2.1 %, 96 % |
+| Ausschuss zu klein | +2.3 %, 40 % | −0.2 %, 100 % |
+
+Aus dem Lager ist seither, was den *letzten* Schritt hinter sich hat. Was
+sortiert ist und auf das Waschen wartet, bleibt Bestand und altert weiter.
+
+Der zweite Abschnitt wird bewusst **nicht** als eigene Kaskadenstufe gerechnet:
+Verdunstung und Schimmel sind kumulativ, es genügt also, das Endalter
+einzusetzen. Der Ausschuss wird dadurch auf die etwas kleinere Masse am Ende
+bezogen statt auf die beim Sortieren — ein Fehler in der Grössenordnung 0.1 %
+des Stroms, gegen den sich eine zweite Stufe nicht lohnt.
+
+### Der Palox am Waschbecken misst einen Zuwachs, keinen Gesamtwert
+
+Auf Weg 1 wird zweimal Faules aussortiert. Im Palox am Waschbecken liegt aber
+nur, was **seit dem Sortieren** dazugekommen ist — der erste Teil ist längst
+entsorgt. Die Kurve F(t) ist dagegen kumulativ. Wer den zweiten Palox direkt
+als F(t₂) liest, setzt einen deutlich zu kleinen Wert ein, und zwar bei den
+längsten Lagerdauern, wo die Kurve am steilsten ist.
+
+Umgerechnet wird über Anteile, nicht über Kilo:
+
+```
+g = Schimmel₂ / (Durchsatz + Schimmel₂)      Anteil der Überlebenden, die es nicht schafften
+1 − F(t₂) = (1 − F(t₁)) · (1 − g)
+```
+
+Der naheliegende Weg — den ersten Betrag in Kilo dazurechnen — geht schief,
+weil der Durchsatz am Waschbecken schon um Verdunstung, Schimmel und Ausschuss
+vermindert ist und als Bezugsmasse nicht taugt. Gemessen hat dieser Ansatz
++15.3 % Verzerrung ergeben, genauso falsch wie vorher, nur andersherum.
+
+F(t₁) zählt dabei nur Sortierläufe, die **vor** diesem Waschgang lagen. Ohne
+diese Einschränkung fliesst der Zustand später sortierter, älterer Ware in
+frühe Waschgänge ein: +7.5 % auf den Waschen-Punkten.
+
+### Der Arbeiter liest ab, die Software rechnet
+
+Der Palox steht auf einer Waage und läuft über mehrere Arbeiten weiter. Bisher
+sollte der Arbeiter selbst die Differenz zum letzten Mal bilden. Das ist genau
+die Sorte Schwierigkeit, an der Erfassung scheitert — und ein Rechenfehler ist
+hinterher nicht mehr erkennbar, weil die Differenz aussieht wie jede andere Zahl.
+
+Jetzt trägt er ein, was auf der Waage steht. Beide Zahlen bleiben erhalten: der
+Stand als Beleg, die Differenz als Messwert. Fällt der Stand, wurde der Palox
+zwischendurch geleert — die Software erkennt das und sagt es, statt eine
+negative Menge zu buchen.
+
+### Der Warenausgang braucht keine Palettengewichte
+
+Spec §9 sieht die Gegenprobe „Eingang = Verlust + Ausgang + Restbestand" vor;
+gebaut war sie nie. Der Betrieb kennt die Gewichte einzelner Paletten beim
+Ausgang nicht — und braucht sie auch nicht zu kennen. Es genügt, was ohnehin
+auf dem Lieferschein steht: Datum, Sorte, und entweder Kilo oder Kistenzahl.
+
+Kisten werden über das gemessene Kilo je Kiste umgerechnet; `masse_fehler_kg`
+weist aus, wie unsicher diese Umrechnung ist, statt sie zu verschweigen.
+
+Jede Lieferung hat ein **Ziel**, und das Ziel entscheidet über das Buch:
+Kompost ist echter Verlust, Tierfutter ein anderer Kanal, Hofladen ist Verkauf.
+Ohne diese Unterscheidung verschwindet Masse aus der Bilanz — und fehlende
+Masse sieht in einer Bilanz immer aus wie Verlust.
+
+### Die Massenbilanz vergleicht denselben Zeitpunkt
+
+`v_massenbilanz` stellt das Modell neben die Sortier-CSV. Seit die Kaskade auf
+Weg 1 erst beim Waschen endet, hätte sie die Masse vom Ende des zweiten
+Abschnitts mit einer Wägung vom Anfang verglichen — in der Prüffixtur 40 Tage
+Unterschied und 8.2 % Abweichung, die niemandes Fehler war ausser dieser
+Gegenüberstellung. Verglichen wird jetzt gegen die Vorhersage **für den Tag am
+Band**.
+
 ## Umsetzung
 
 ### Klassiert wird in der Datenbank, gereinigt im Browser

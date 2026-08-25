@@ -169,6 +169,79 @@ begin
   raise notice 'Demo: Wareneingang und Verarbeitung angelegt';
 end $$;
 
+-- ---------- Weg 1, zweiter Abschnitt: Waschen ----------------------------
+-- Spec §3: Lager → Sortieren → **Lager** → Waschen. Zwischen den beiden
+-- Schritten liegen Wochen, in denen die Ware in Kaliber-Kisten weiter
+-- verdunstet und verdirbt. Ohne diese Aufträge sieht der Betriebsleiter den
+-- zweiten Lagerabschnitt nie — und die Demo zeigt eine Welt, die es so nicht
+-- gibt.
+do $$
+declare v record; v_neu bigint; v_i int := 0;
+begin
+  -- v_auftrag_masse ist eine gespeicherte Ansicht. Innerhalb dieser einen
+  -- Transaktion kennt sie die eben angelegten Aufträge noch nicht — ohne
+  -- Neuberechnung liefe die Schleife ins Leere und die Demo wäre still
+  -- unvollständig.
+  perform auswertung_aktualisieren();
+  for v in
+    select a.id, a.charge_nr, a.start_ts, m.eingang_netto_kg
+      from auftrag a
+      join v_auftrag_masse m on m.auftrag_id = a.id
+     where a.bemerkung = 'DEMO' and a.station = 'sortieren'
+       and m.eingang_netto_kg is not null
+     order by a.id
+  loop
+    v_i := v_i + 1;
+    -- Zwei Drittel sind inzwischen gewaschen, der Rest wartet noch.
+    exit when v_i > 6;
+    insert into auftrag (weg, station, charge_nr, start_ts, ende_ts, status,
+                         durchsatz_kg, bemerkung)
+    values ('maschine', 'waschen', v.charge_nr,
+            v.start_ts + (35 + v_i * 7) * interval '1 day',
+            v.start_ts + (35 + v_i * 7) * interval '1 day' + interval '7 hours',
+            'abgeschlossen',
+            round(v.eingang_netto_kg * 0.90, 2), 'DEMO')
+    returning id into v_neu;
+
+    -- Schimmel #2: was seit dem Sortieren dazugekommen ist. Der Palox steht
+    -- auf der Waage, deshalb Stand und Differenz.
+    insert into schimmel_messung (auftrag_id, kg, palox_stand_kg)
+    values (v_neu, round(v.eingang_netto_kg * 0.004)::int,
+            round(v.eingang_netto_kg * 0.004, 1));
+  end loop;
+  raise notice 'Demo: zweiter Lagerabschnitt (Waschen) angelegt';
+end $$;
+
+-- ---------- Warenausgang -------------------------------------------------
+-- Ohne ihn ist der Restbestand eine Hochrechnung, die niemand nachgezählt hat,
+-- und die Bilanz kann nichts prüfen (Spec §9).
+do $$
+declare v record; v_i int := 0;
+begin
+  perform auswertung_aktualisieren();
+  for v in
+    select b.charge_nr, b.sorte, b.ausgelagert_kg
+      from v_hochrechnung_basis b
+     where b.ausgelagert_kg > 0 order by b.ausgelagert_kg desc
+  loop
+    v_i := v_i + 1;
+    -- Der grösste Teil geht als Verkauf raus, in Kilo wie auf dem Lieferschein.
+    insert into lieferung (datum, charge_nr, sorte, kg, ziel, kunde, bemerkung)
+    values (current_date - (v_i * 5), v.charge_nr, v.sorte,
+            round(v.ausgelagert_kg * 0.80, 2), 'verkauf',
+            case when v_i % 2 = 0 then 'Grosshandel Zürich' else 'Genossenschaft' end,
+            'DEMO');
+    -- Ein kleiner Teil in Kisten — damit die Umrechnung sichtbar wird.
+    if v_i % 3 = 0 then
+      insert into lieferung (datum, sorte, kisten, ziel, kunde, bemerkung)
+      values (current_date - (v_i * 5) + 1, v.sorte,
+              greatest(round(v.ausgelagert_kg * 0.05 / 8)::int, 1), 'verkauf',
+              'Hofladen Wetzikon', 'DEMO');
+    end if;
+  end loop;
+  raise notice 'Demo: Warenausgang angelegt';
+end $$;
+
 -- ---------- Sortier-CSVs für drei Maschinen-Läufe ------------------------
 -- Histogramm statt Einzelzeilen (so speichert die App es auch). Die Verteilung
 -- ist grob glockenförmig um 900 g, mit Ausläufern unter der Sorten-Grenze und
