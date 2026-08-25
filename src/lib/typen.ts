@@ -31,22 +31,30 @@ export interface SortierLauf {
   gelesen_ts: string
 }
 
-/** Eine Zeile aus v_hochrechnung — ein Strom einer Charge in einem Szenario. */
+/** Eine Zeile aus v_hochrechnung — ein Strom einer Charge in einer Portion.
+ *  Die drei Szenarien gibt es seit 0019 nicht mehr: Bereiche entstehen aus
+ *  Fehlerfortpflanzung, nicht daraus, alle Koeffizienten gleichzeitig an ihre
+ *  Grenze zu setzen. */
 export interface Hochrechnung {
   charge_nr: number; sorte: string; schlag: string
-  szenario: 'unten' | 'mittel' | 'oben'
   portion: 'ausgelagert' | 'lager'
   alter_tage: number; eingang_kg: number; portion_kg: number
+  f_extrapoliert: boolean
   strom: string; buch: 'verlust' | 'marge' | 'bilanz'
   kg: number | null; basis_kg: number | null
   koeffizient: number | null; koeff_n: number | null; koeff_basis: string | null
   formel: string
 }
 
+/** Eine Zeile aus verlust_ranking() — ein Strom mit fortgepflanztem Bereich.
+ *  Der Bereich lässt sich nicht durch Summieren gefilterter Zeilen gewinnen,
+ *  deshalb rechnet ihn die Datenbank auch für die gefilterte Ansicht. */
 export interface Ranking {
-  strom: string; buch: string
+  strom: string; buch: 'verlust' | 'marge' | 'bilanz'
   kg: number | null; kg_unten: number | null; kg_oben: number | null
-  kg_beobachtet: number | null; kg_projiziert: number | null; koeff_n_min: number | null
+  kg_beobachtet: number | null; kg_projiziert: number | null
+  kg_extrapoliert: number | null
+  koeff_n_min: number | null; streuung_kg: number | null; df: number | null
 }
 
 export interface Massenbilanz {

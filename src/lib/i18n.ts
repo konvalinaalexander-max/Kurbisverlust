@@ -77,6 +77,7 @@ const de = {
   // Wiegen
   gewichtJetzt: 'Gewicht jetzt (kg)',
   faulesSichtbar: 'Faules sichtbar',
+  wievielFaul: 'Davon faul (kg)',
 
   // Kisten
   anzahlKisten: 'Anzahl Kisten',
@@ -162,6 +163,7 @@ const en: Woerterbuch = {
   zuGross: 'Too big',
   gewichtJetzt: 'Weight now (kg)',
   faulesSichtbar: 'Rotten ones visible',
+  wievielFaul: 'Of that, rotten (kg)',
   anzahlKisten: 'Number of boxes',
   jeKiste: 'per box',
   mengeVerarbeitet: 'Amount processed (kg)',
@@ -234,6 +236,7 @@ const hu: Woerterbuch = {
   zuGross: 'Túl nagy',
   gewichtJetzt: 'Súly most (kg)',
   faulesSichtbar: 'Látható romlott',
+  wievielFaul: 'Ebből romlott (kg)',
   anzahlKisten: 'Ládák száma',
   jeKiste: 'ládánként',
   mengeVerarbeitet: 'Feldolgozott mennyiség (kg)',
@@ -306,6 +309,7 @@ const ro: Woerterbuch = {
   zuGross: 'Prea mari',
   gewichtJetzt: 'Greutate acum (kg)',
   faulesSichtbar: 'Se văd stricate',
+  wievielFaul: 'Din care stricate (kg)',
   anzahlKisten: 'Număr de lăzi',
   jeKiste: 'pe ladă',
   mengeVerarbeitet: 'Cantitate procesată (kg)',
@@ -378,6 +382,7 @@ const pl: Woerterbuch = {
   zuGross: 'Za duże',
   gewichtJetzt: 'Waga teraz (kg)',
   faulesSichtbar: 'Widać zgniłe',
+  wievielFaul: 'W tym zgniłe (kg)',
   anzahlKisten: 'Liczba skrzynek',
   jeKiste: 'na skrzynkę',
   mengeVerarbeitet: 'Przerobiona ilość (kg)',
@@ -450,6 +455,7 @@ const pt: Woerterbuch = {
   zuGross: 'Grandes demais',
   gewichtJetzt: 'Peso agora (kg)',
   faulesSichtbar: 'Podres à vista',
+  wievielFaul: 'Destes, podres (kg)',
   anzahlKisten: 'Número de caixas',
   jeKiste: 'por caixa',
   mengeVerarbeitet: 'Quantidade processada (kg)',

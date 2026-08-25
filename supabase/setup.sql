@@ -2715,6 +2715,1746 @@ select auswertung_aktualisieren();
 
 
 -- =====================================================================
+-- aus 0017_schimmelmodell.sql
+-- =====================================================================
+
+-- =====================================================================
+-- 0017 — Die Schimmelkurve als Verderbsmodell statt als Treppe
+--
+-- Gemessen mit dem Simulations-Harness (supabase/test/simulation): Saisons
+-- mit selbst gesetzter Wahrheit (λ = 1.07e-5, k = 1.6) durchlaufen die
+-- Pipeline, danach steht fest, wie weit sie danebenlag (Verzerrung) und wie
+-- oft der ausgewiesene Bereich den wahren Wert enthielt (Überdeckung). Ein
+-- Bereich, der 95 % heissen soll, muss in rund 95 % der Saisons treffen.
+--
+--   Lage                              Verzerrung   Überdeckung
+--   Saisonende, 25 % im Lager            −6.2 %        70 %
+--   mitten in der Saison, 50 % im Lager  −46.3 %         0 %
+--
+-- Drei Ursachen, alle nachgewiesen, alle hier behoben.
+--
+-- ---------- 1. Flach fortschreiben ist keine Projektion -------------------
+-- Für Lagerdauern ohne Messung schrieb v_schimmel_kurve den letzten
+-- bekannten Wert fort. Derselbe Datenstand, Wahrheit daneben gestellt:
+--
+--   Lagertage   Wahrheit   Treppenfunktion   Modell (dieses hier)
+--        30       0.25 %        0.23 %             0.25 %
+--        90       1.42 %        1.19 %             1.52 %
+--       150       3.19 %        2.03 %             3.48 %
+--       210       5.41 %        2.03 %             5.97 %
+--                               ↑ flach ab 120 Tagen
+--
+-- Und genau dort liegt die Masse: mitten in der Saison 341.8 t Lagerbestand
+-- mit 167–201 Tagen Alter — jenseits der längsten je gemessenen Lagerdauer
+-- (113 Tage). Die Treppe gab dieser Hälfte der Ernte den Schimmelanteil kurz
+-- gelagerter Ware. Spec §9 verlangt ausdrücklich, rechts-zensierte Ware zu
+-- projizieren; flach fortschreiben ist keine Projektion, sondern eine
+-- Weigerung.
+--
+-- Statt dessen ein Verlaufsmodell:  F(t) = 1 − exp(−λ · t^k)
+--
+-- Die übliche Weibull-Form für Verderbsprozesse; k > 1 heisst, die Rate
+-- steigt mit der Lagerdauer — genau das beobachtet man bei Kürbissen.
+-- Logarithmiert wird daraus eine Gerade,
+--
+--   ln(−ln(1 − F)) = ln λ + k · ln t
+--
+-- also eine gewichtete lineare Regression, die Postgres selbst rechnet.
+-- Gewichtet mit der Masse hinter der Messung: 20 t wiegen schwerer als 800 kg.
+--
+-- ---------- 2. Rücktransformation aus dem Log-Raum ------------------------
+-- exp() des Mittelwerts im Log-Raum ergibt den *geometrischen* Mittelwert,
+-- nicht den arithmetischen. Wo die Anfälligkeit der Paletten streut, ist das
+-- systematisch zu wenig. Nachgemessen:
+--
+--   Duans Smearing-Faktor  S = Σ w·exp(Residuum) / Σ w = 1.0781
+--   Normal-Näherung        exp(σ²/2)                   = 1.0714
+--
+-- Beide sagen dasselbe, die Log-Residuen sind also brauchbar normal. +7.8 %
+-- gegen die verbliebenen −6.1 % Verzerrung: das ist der fehlende Betrag.
+-- Genommen wird Duan, weil er ohne Verteilungsannahme auskommt.
+--
+-- ---------- 3. 339 Messungen sind nicht 339 -------------------------------
+-- Die Beobachtungen liegen in 12 Chargen. Innerhalb einer Charge sind sie
+-- ähnlich — gleicher Schlag, gleiche Ernte, gleiches Lager —, zwischen
+-- Chargen nicht. Wer sie als unabhängig zählt, rechnet sich die Sicherheit
+-- schön. An denselben Daten:
+--
+--                           naiv    chargen-robust   Faktor
+--   Standardfehler von k   0.0016        0.0509        31×
+--   Standardfehler Achse   0.0202        0.0241       1.2×
+--
+-- Die Steigung ist der springende Punkt, denn sie bestimmt genau das, was
+-- jenseits des gemessenen Bereichs passiert. 31× zu klein heisst: dort, wo
+-- der Bereich am meisten gebraucht wird, war er um mehr als eine
+-- Grössenordnung zu eng.
+--
+-- Ersetzt durch den chargen-robusten Sandwich-Schätzer: die gewichteten
+-- Residuen werden je Charge aufsummiert, und die Streuung *dieser Summen*
+-- ist der Fehler. Dazu die t-Verteilung mit C−1 Freiheitsgraden statt 1.96 —
+-- bei zwölf Gruppen ist die Normalverteilung eine Behauptung, keine Näherung.
+-- =====================================================================
+
+-- ---------- t-Quantil, zweiseitig 95 % ------------------------------------
+-- Postgres bringt keine t-Verteilung mit. Tabelle für kleine Freiheitsgrade,
+-- darüber die Normalverteilung — ab df ≈ 30 ist der Unterschied unter 5 %.
+create or replace function t_quantil_95(p_df int)
+returns numeric language sql immutable as $$
+  select case
+    when p_df is null or p_df < 1 then 12.706
+    when p_df >= 30 then 1.960
+    else (array[12.706, 4.303, 3.182, 2.776, 2.571, 2.447, 2.365, 2.306,
+                2.262, 2.228, 2.201, 2.179, 2.160, 2.145, 2.131, 2.120,
+                2.110, 2.101, 2.093, 2.086, 2.080, 2.074, 2.069, 2.064,
+                2.060, 2.056, 2.052, 2.048, 2.045])[p_df]
+  end::numeric;
+$$;
+
+comment on function t_quantil_95(int) is
+  'Zweiseitiges 95-%-Quantil der t-Verteilung. Bei wenigen unabhängigen '
+  'Gruppen ist 1.96 zu optimistisch.';
+
+-- ---------- Das angepasste Modell -----------------------------------------
+-- mv_kaskade hängt daran und muss vorher weichen; es wird unten neu gebaut.
+drop materialized view if exists mv_kaskade cascade;
+drop view if exists v_schimmel_kurve_anzeige;
+drop view if exists v_schimmel_modell;
+
+create view v_schimmel_modell with (security_invoker = true) as
+with beob as (
+  -- Einzelbeobachtungen statt Altersklassen: mehr Information, und die
+  -- Klassengrenzen verfälschen den Verlauf nicht.
+  select b.charge_nr,
+         b.lagertage::numeric                   as t,
+         b.anteil::numeric                      as f,
+         b.basis_jetzt_kg::numeric              as gewicht
+    from v_schimmel_beobachtung b
+   where b.plausibel and b.anteil > 0 and b.anteil < 1 and b.lagertage > 0
+), punkte as (
+  select charge_nr, ln(t) as x, ln(-ln(1 - f)) as y, gewicht as w, t from beob
+), summen as (
+  select count(*)::int as n, count(distinct charge_nr)::int as c_chargen,
+         min(t) as t_min, max(t) as t_max,
+         sum(w) as sw, sum(w * x) as swx, sum(w * y) as swy,
+         sum(w * x * x) as swxx, sum(w * x * y) as swxy
+    from punkte
+), fit as (
+  select s.*,
+         case when s.sw * s.swxx - s.swx * s.swx <> 0
+              then (s.sw * s.swxy - s.swx * s.swy)
+                   / (s.sw * s.swxx - s.swx * s.swx) end              as k,
+         s.swx / nullif(s.sw, 0)                                      as x_mittel
+    from summen s
+), mit_achse as (
+  select f.*, case when f.k is not null then (f.swy - f.k * f.swx) / f.sw end as ln_lambda
+    from fit f
+), rest as (
+  select m.*,
+         -- Zentriert um x_mittel sind Achse und Steigung getrennt schätzbar.
+         (select sum(p.w * power(p.x - m.x_mittel, 2)) from punkte p)              as sxx,
+         (select sum(p.w * power(p.y - (m.ln_lambda + m.k * p.x), 2)) from punkte p) as sse,
+         (select sum(p.w * exp(p.y - (m.ln_lambda + m.k * p.x))) / nullif(sum(p.w), 0)
+            from punkte p)                                                        as smearing
+    from mit_achse m
+), gruppen as (
+  -- Je Charge die gewichteten Residuen aufsummieren; die Streuung dieser
+  -- Chargensummen ist der Fehler, nicht die der Einzelpunkte.
+  select r.*, g.saa, g.skk, g.sak
+    from rest r
+    cross join lateral (
+      select sum(power(c.ga, 2)) as saa, sum(power(c.gk, 2)) as skk,
+             sum(c.ga * c.gk)    as sak
+        from (select p.charge_nr,
+                     sum(p.w * (p.y - (r.ln_lambda + r.k * p.x)))                      as ga,
+                     sum(p.w * (p.x - r.x_mittel) * (p.y - (r.ln_lambda + r.k * p.x))) as gk
+                from punkte p group by p.charge_nr) c
+    ) g
+)
+select n, c_chargen, t_min, t_max, k, ln_lambda, exp(ln_lambda) as lambda,
+       x_mittel, sxx, smearing,
+       -- Das ist, was tatsächlich gerechnet wird: Fit plus Smearing
+       ln_lambda + ln(greatest(smearing, 0.01))                      as ln_lambda_korrigiert,
+       case when n > 2 then sse / (n - 2) * n / nullif(sw, 0) end    as sigma2,
+       -- Sandwich-Varianzen, mit der üblichen Korrektur für wenige Gruppen
+       case when c_chargen > 1
+            then saa / power(sw, 2) * c_chargen::numeric / (c_chargen - 1) end  as var_achse,
+       case when c_chargen > 1 and sxx <> 0
+            then skk / power(sxx, 2) * c_chargen::numeric / (c_chargen - 1) end as var_k,
+       case when c_chargen > 1 and sxx <> 0
+            then sak / (sw * sxx) * c_chargen::numeric / (c_chargen - 1) end    as kov_achse_k,
+       t_quantil_95(c_chargen - 1)                                              as t_faktor,
+       -- Brauchbar heisst auch: genug *unabhängige* Gruppen. Mit ein oder
+       -- zwei Chargen lässt sich der Fehler nicht schätzen, und ein Modell
+       -- ohne belastbare Fehlerangabe ist hier schlimmer als die Treppe.
+       (n >= 3 and c_chargen >= 3 and k is not null and k > 0
+        and t_max > t_min * 1.5)                                                as brauchbar
+  from gruppen;
+
+comment on view v_schimmel_modell is
+  'Verderbsmodell F(t) = 1 − exp(−λ·S·t^k), S = Duan-Smearing. Der Fehler ist '
+  'chargen-robust: Messungen aus derselben Charge sind keine unabhängigen '
+  'Beobachtungen. brauchbar = false heisst: zu wenige Chargen oder zu '
+  'ähnliche Lagerdauern — es gilt die Treppenfunktion.';
+
+-- ---------- Schimmelanteil bei gegebener Lagerdauer -----------------------
+-- Für Anzeige und Einzelabfragen. Die Kaskade rechnet die Formel inline,
+-- weil ein Funktionsaufruf je Zeile 2 441 ms gekostet hat (siehe 0015).
+create or replace function schimmelanteil(p_lagertage numeric, p_szenario text default 'mittel')
+returns numeric language sql stable as $$
+  with m as (select * from v_schimmel_modell),
+  u as (select m.*, ln(greatest(p_lagertage, 1)) - m.x_mittel as u from m)
+  select coalesce(
+    (select least(greatest(1 - exp(-exp(least(greatest(
+       u.ln_lambda_korrigiert + u.k * ln(greatest(p_lagertage, 1))
+       + case p_szenario when 'unten' then -1 when 'oben' then 1 else 0 end
+         * u.t_faktor * sqrt(greatest(
+             u.var_achse + power(u.u, 2) * u.var_k + 2 * u.u * u.kov_achse_k, 0))
+       , -40), 3))), 0), 1)
+       from u where u.brauchbar and u.var_achse is not null),
+    -- Rückfall: die Treppenfunktion, solange das Modell nicht trägt
+    (select least(greatest(coalesce(
+       case p_szenario when 'unten' then coalesce(k.unten, k.anteil_mono)
+                       when 'oben'  then coalesce(k.oben,  k.anteil_mono)
+                       else k.anteil_mono end, 0), 0), 1)
+       from v_schimmel_kurve k
+      where k.von <= p_lagertage and k.n > 0
+      order by k.von desc limit 1),
+    0)::numeric;
+$$;
+
+-- ---------- Die Kaskade, jetzt mit dem Modell -----------------------------
+-- Rumpf wie in 0016; neu ist allein, wie f zustande kommt: das Modell wird
+-- einmal als CTE materialisiert und die Formel inline gerechnet — eine
+-- ln/exp-Rechnung je Zeile statt einer Abfrage je Zeile.
+create materialized view mv_kaskade as
+with sz(szenario) as (values ('unten'), ('mittel'), ('oben')),
+modell as materialized (
+  select * from v_schimmel_modell
+),
+kurve as materialized (
+  -- Rückfall für die Zeit, in der noch zu wenig gemessen wurde, um ein
+  -- Modell anzupassen — am Saisonanfang ist das der Normalfall.
+  select von, anteil_mono, unten, oben, n from v_schimmel_kurve where n > 0
+),
+koeff as (
+  select b.*, sz.szenario,
+         least(greatest(case sz.szenario when 'unten' then kv.unten
+                                         when 'oben'  then kv.oben
+                                         else kv.mittel end, 0), 0.05) as r,
+         kv.n as r_n, kv.basis as r_basis,
+         least(greatest(case sz.szenario when 'unten' then ka.unten
+                                         when 'oben'  then ka.oben
+                                         else ka.mittel end, 0), 1) as a_klein,
+         ka.n as klein_n, ka.basis as klein_basis,
+         least(greatest(case sz.szenario when 'unten' then kn.unten
+                                         when 'oben'  then kn.oben
+                                         else kn.mittel end, 0), 1) as a_gross,
+         kn.n as gross_n, kn.basis as gross_basis
+    from v_hochrechnung_basis b
+    cross join sz
+    left join v_koeff_verdunstung kv on kv.sorte = b.sorte
+    left join v_koeff_ausschuss   ka on ka.sorte = b.sorte
+    left join v_koeff_nebenkanal  kn on kn.sorte = b.sorte
+),
+koeff_norm as (
+  select k.*, k.a_klein / n.f as a_klein_n, k.a_gross / n.f as a_gross_n
+    from koeff k
+    cross join lateral (select greatest(coalesce(k.a_klein, 0) + coalesce(k.a_gross, 0), 1) as f) n
+),
+teile as (
+  select k.*, t.portion, t.m0, t.alter_tage,
+         case when m.brauchbar and m.var_achse is not null then
+           least(greatest(1 - exp(-exp(least(greatest(
+             m.ln_lambda_korrigiert + m.k * ln(greatest(t.alter_tage, 1))
+             + case k.szenario when 'unten' then -1 when 'oben' then 1 else 0 end
+               * m.t_faktor * e.se
+             , -40), 3))), 0), 1)
+         else
+           least(greatest(coalesce(
+             case k.szenario when 'unten' then coalesce(s.unten, s.anteil_mono)
+                             when 'oben'  then coalesce(s.oben,  s.anteil_mono)
+                             else s.anteil_mono end, 0), 0), 1)
+         end                                                          as f,
+         case when m.brauchbar and m.var_achse is not null then m.c_chargen else s.n end as f_n,
+         -- Wird hier über den gemessenen Bereich hinaus gerechnet? Das gehört
+         -- ins Dashboard, nicht in eine Fussnote.
+         (m.brauchbar and m.var_achse is not null and t.alter_tage > m.t_max) as f_extrapoliert
+    from koeff_norm k
+    cross join modell m
+    cross join lateral (values
+        ('ausgelagert', k.ausgelagert_kg, coalesce(k.alter_ausgelagert, 0)),
+        ('lager',       k.lager_kg,       greatest(k.alter_lager, 0))
+      ) as t(portion, m0, alter_tage)
+    -- Vorhersagefehler an dieser Lagerdauer: wächst mit dem Abstand vom
+    -- Schwerpunkt der Messungen. Beim Lagerbestand, der länger liegt als
+    -- alles je Verarbeitete, wird der Bereich dadurch von selbst breiter —
+    -- statt eine Sicherheit vorzutäuschen, die es nicht gibt.
+    cross join lateral (
+      select sqrt(greatest(coalesce(m.var_achse, 0)
+             + power(ln(greatest(t.alter_tage, 1)) - coalesce(m.x_mittel, 0), 2)
+               * coalesce(m.var_k, 0)
+             + 2 * (ln(greatest(t.alter_tage, 1)) - coalesce(m.x_mittel, 0))
+               * coalesce(m.kov_achse_k, 0), 0)) as se) e
+    left join lateral (
+        select c.anteil_mono, c.unten, c.oben, c.n from kurve c
+         where c.von <= t.alter_tage order by c.von desc limit 1
+       ) s on true
+   where t.m0 > 0
+),
+kaskade as (
+  select t.*,
+         (t.m0 * power(1 - t.r, t.alter_tage))::numeric              as m1,
+         (t.m0 * power(1 - t.r, t.alter_tage) * (1 - t.f))::numeric  as m2
+    from teile t
+)
+select k.*,
+       k.m0 - k.m1                                    as verdunstung_kg,
+       k.m1 - k.m2                                    as schimmel_kg,
+       k.m2 * k.a_klein_n                             as klein_kg,
+       k.m2 * k.a_gross_n                             as nebenkanal_kg,
+       k.m2 * (1 - k.a_klein_n - k.a_gross_n)         as verkaufsfaehig_kg
+  from kaskade k;
+
+create unique index if not exists mv_kaskade_pk on mv_kaskade (charge_nr, szenario, portion);
+create index if not exists mv_kaskade_charge on mv_kaskade (charge_nr);
+
+create or replace view v_kaskade with (security_invoker = true) as
+select * from mv_kaskade;
+
+-- ---------- Die abhängigen Ansichten wieder aufbauen ----------------------
+-- Sie hingen an v_kaskade und fielen mit dem cascade-Drop mit. Rumpf wie in
+-- 0015; neu ist allein, dass durchgereicht wird, ob hochgerechnet wurde.
+create view v_hochrechnung with (security_invoker = true) as
+select k.charge_nr, k.sorte, k.schlag, k.szenario, k.portion, k.alter_tage,
+       k.eingang_kg, k.m0::numeric(14,2) as portion_kg, k.f_extrapoliert,
+       s.strom, s.buch,
+       s.kg::numeric(14,2)          as kg,
+       s.basis_kg::numeric(14,2)    as basis_kg,
+       s.koeffizient::numeric(12,6) as koeffizient,
+       s.koeff_n, s.koeff_basis, s.formel
+  from v_kaskade k
+  cross join lateral (values
+    ('Verdunstung',      'verlust', k.verdunstung_kg, k.m0, k.r,       k.r_n,     k.r_basis,
+     'Masse × (1 − (1−r)^Lagertage), r = Tagesrate aus den Palettenwägungen'),
+    ('Schimmel/Fäulnis', 'verlust', k.schimmel_kg,    k.m1, k.f,       k.f_n,
+     'Verderbsmodell F(t) = 1 − exp(−λ·t^k), angepasst an alle Schimmelmessungen',
+     'Masse nach Verdunstung × Schimmelanteil bei dieser Lagerdauer'),
+    ('Ausschuss zu klein','verlust', k.klein_kg,      k.m2, k.a_klein_n, k.klein_n, k.klein_basis,
+     'Masse nach Schimmel × Massenanteil unter der Sorten-Grenze'),
+    ('Nebenkanal zu gross','marge',  k.nebenkanal_kg, k.m2, k.a_gross_n, k.gross_n, k.gross_basis,
+     'Masse nach Schimmel × Massenanteil ab 2000 g — kein Verlust, anderer Kanal'),
+    ('Verkaufsfähig',    'bilanz',  k.verkaufsfaehig_kg, k.m2, null::numeric, null::int, null::text,
+     'Rest der Kaskade')
+  ) as s(strom, buch, kg, basis_kg, koeffizient, koeff_n, koeff_basis, formel);
+
+create view v_verlust_ranking with (security_invoker = true) as
+select strom, buch,
+       sum(kg) filter (where szenario = 'mittel') as kg,
+       sum(kg) filter (where szenario = 'unten')  as kg_unten,
+       sum(kg) filter (where szenario = 'oben')   as kg_oben,
+       sum(kg) filter (where szenario = 'mittel' and portion = 'ausgelagert') as kg_beobachtet,
+       sum(kg) filter (where szenario = 'mittel' and portion = 'lager')       as kg_projiziert,
+       -- Wie viel des Ergebnisses steht jenseits der längsten gemessenen
+       -- Lagerdauer? Eine Zahl, die zu 80 % auf Hochrechnung beruht, darf
+       -- nicht aussehen wie eine gemessene.
+       sum(kg) filter (where szenario = 'mittel' and f_extrapoliert)          as kg_extrapoliert,
+       min(koeff_n)                                                          as koeff_n_min
+  from v_hochrechnung
+ where buch = 'verlust'
+ group by strom, buch
+ order by 3 desc nulls last;
+
+create view v_marge_buch with (security_invoker = true) as
+with hr as materialized (
+  select charge_nr, strom, buch, szenario, kg from v_hochrechnung
+), kisten as materialized (
+  select sum(h.kg * b.weg2_anteil) / 8.0 as anzahl
+    from hr h
+    join v_hochrechnung_basis b on b.charge_nr = h.charge_nr
+   where h.strom = 'Verkaufsfähig' and h.szenario = 'mittel'
+)
+select 'Nebenkanal zu gross'::text as posten,
+       sum(kg) filter (where szenario = 'mittel') as kg,
+       sum(kg) filter (where szenario = 'unten')  as kg_unten,
+       sum(kg) filter (where szenario = 'oben')   as kg_oben,
+       'Ware über 2000 g geht in einen anderen Verkaufskanal'::text as erlaeuterung
+  from hr where buch = 'marge'
+union all
+select 'Überfüllung der Kisten',
+       (u.kg_pro_kiste * v.anzahl)::numeric(14,2),
+       (u.unten * v.anzahl)::numeric(14,2),
+       (u.oben  * v.anzahl)::numeric(14,2),
+       format('%s Wägungen, im Schnitt %s kg Überschuss je Kiste, hochgerechnet auf %s Kisten',
+              u.n, round(u.kg_pro_kiste, 3), round(v.anzahl))
+  from v_koeff_ueberfuellung u cross join kisten v
+ where u.n > 0;
+
+create view v_massenbilanz with (security_invoker = true) as
+with modell as materialized (
+  select charge_nr,
+         sum(m2) filter (where portion = 'ausgelagert') as modell_kg,
+         sum(verkaufsfaehig_kg) filter (where portion = 'lager') as restbestand_kg
+    from v_kaskade where szenario = 'mittel' group by charge_nr
+), csv_anteil as materialized (
+  select am.charge_nr,
+         coalesce(sum(am.eingang_netto_kg) filter (
+             where exists (select 1 from sortier_lauf l where l.auftrag_id = am.auftrag_id))
+           / nullif(sum(am.eingang_netto_kg), 0), 0) as anteil_mit_csv
+    from v_auftrag_masse am
+   where am.station in ('sortieren', 'waschen_sortieren')
+     and am.eingang_netto_kg is not null
+   group by am.charge_nr
+), gemessen as materialized (
+  select charge_nr, sum(masse_kg) as gemessen_kg from v_sortier_lauf_masse group by charge_nr
+)
+select b.charge_nr, b.sorte, b.schlag,
+       b.eingang_kg, b.ausgelagert_kg, b.lager_kg, b.n_paletten,
+       b.alter_ausgelagert, b.alter_lager, b.stichtag,
+       (m.modell_kg * q.anteil_mit_csv)::numeric(14,2)      as modell_am_band_kg,
+       c.gemessen_kg                                        as csv_gemessen_kg,
+       (c.gemessen_kg - m.modell_kg * q.anteil_mit_csv)::numeric(14,2) as abweichung_kg,
+       case when m.modell_kg * q.anteil_mit_csv > 0
+            then ((c.gemessen_kg - m.modell_kg * q.anteil_mit_csv)
+                  / (m.modell_kg * q.anteil_mit_csv))::numeric(10,4) end as abweichung_anteil,
+       m.restbestand_kg::numeric(14,2)                      as restbestand_kg
+  from v_hochrechnung_basis b
+  left join modell m     on m.charge_nr = b.charge_nr
+  left join csv_anteil q on q.charge_nr = b.charge_nr
+  left join gemessen c   on c.charge_nr = b.charge_nr;
+
+comment on view v_massenbilanz is
+  'abweichung_anteil nahe 0 heißt: die Koeffizienten treffen die Realität. '
+  'Systematisch positiv → Verluste überschätzt, negativ → unterschätzt. '
+  'Nur aussagekräftig für Chargen mit Sortier-CSV.';
+
+-- ---------- Anzeige: was das Modell tut und woher es kommt ----------------
+drop view if exists v_schimmel_kurve_anzeige;
+create view v_schimmel_kurve_anzeige with (security_invoker = true) as
+select k.von, k.bis,
+       case when k.bis > 9999 then k.von || '+ Tage'
+            else k.von || '–' || k.bis || ' Tage' end       as altersklasse,
+       k.n                                                  as messungen,
+       (k.anteil)::numeric(10,4)                            as gemessen,
+       -- Was tatsächlich gerechnet wird: das Modell an der Klassenmitte
+       (schimmelanteil((k.von + least(k.bis, k.von + 60)) / 2.0))::numeric(10,4) as verwendet,
+       (schimmelanteil((k.von + least(k.bis, k.von + 60)) / 2.0, 'unten'))::numeric(10,4) as unten,
+       (schimmelanteil((k.von + least(k.bis, k.von + 60)) / 2.0, 'oben'))::numeric(10,4)  as oben,
+       case when not (select brauchbar from v_schimmel_modell)
+                 then 'Modell noch nicht anpassbar — es gilt die Treppenfunktion'
+            when k.von > (select t_max from v_schimmel_modell)
+                 then 'über die längste gemessene Lagerdauer hinaus — hochgerechnet, '
+                      || 'daher der breitere Bereich'
+            when k.n = 0 then 'keine eigene Messung — aus dem Verlauf interpoliert'
+            else 'durch Messungen dieser Altersklasse gestützt' end as erlaeuterung
+  from v_schimmel_kurve k
+ order by k.von;
+
+grant execute on function t_quantil_95(int) to authenticated;
+grant select on v_schimmel_modell, v_schimmel_kurve_anzeige, v_kaskade,
+               v_hochrechnung, v_verlust_ranking, v_marge_buch,
+               v_massenbilanz to authenticated;
+
+
+-- =====================================================================
+-- aus 0018_koeffizienten_gepoolt.sql
+-- =====================================================================
+
+-- =====================================================================
+-- 0018 — Koeffizienten massegewichtet, chargen-robust und teilgebündelt
+--
+-- Nach 0017 trifft der Schimmel. Was übrig bleibt, misst der Harness so
+-- (25 Saisons, 50 % im Lager):
+--
+--   Ausschuss zu klein   Verzerrung −0.1 %   Bereich 0.8 % breit   Überdeckung 44 %
+--
+-- Der Punktwert stimmt, der Bereich ist eine Behauptung. Vier Gründe, alle
+-- im Code nachweisbar, alle hier behoben.
+--
+-- ---------- 1. Gewichteter Mittelwert, ungewichtete Streuung --------------
+-- v_koeff_ausschuss bildete den Mittelwert massegewichtet
+--   sum(anteil * basis_kg) / sum(basis_kg)
+-- die Streuung daneben aber ungewichtet
+--   stddev_samp(anteil)
+-- Das sind zwei verschiedene Grössen; die zweite beschreibt die erste nicht.
+--
+-- ---------- 2. n zählt Messungen, nicht unabhängige Gruppen ---------------
+-- Auf dem Testbestand:
+--
+--   Sorte        Messungen   Chargen
+--   Kaori Kuri       51         2
+--   Tiana            36         1
+--   Fictor           35         1
+--
+-- Mit n = 51 in mittel ± 1.96·sd/√n kommt ein Bereich von 0.8 % Breite
+-- heraus. Tatsächlich stammen die 51 Messungen aus zwei Chargen — gleicher
+-- Schlag, gleiche Ernte, gleiche Sortiereinstellung. Sie sind keine 51
+-- unabhängigen Ziehungen. Bei Tiana ist es *eine* Charge: daraus lässt sich
+-- die Streuung zwischen Chargen gar nicht schätzen.
+--
+-- ---------- 3. Verdunstung war massenungewichtet --------------------------
+-- v_verdunstung_stichprobe nahm avg(rate_pro_tag): eine 400-kg-Palette zählte
+-- so viel wie eine 900-kg-Palette, obwohl sie halb so viel Masse vertritt.
+--
+-- ---------- 4. Harte Schwelle statt Teilbündelung -------------------------
+-- „eigene Sorte ab n ≥ 3, sonst global" springt: bei n = 2 gilt der globale
+-- Wert voll, bei n = 3 der eigene voll — obwohl sich zwischen den beiden
+-- Fällen fast nichts geändert hat. Ersetzt durch empirisches Bayes: der
+-- Sortenwert wird mit dem Gewicht
+--
+--   B = τ² / (τ² + Fehler²)
+--
+-- zum Gesamtwert gezogen, wobei τ² die geschätzte echte Streuung zwischen
+-- den Sorten ist. Viele verlässliche eigene Messungen → B nahe 1, der eigene
+-- Wert zählt. Wenige oder aus nur einer Charge → B nahe 0, der Gesamtwert
+-- trägt. Kein Sprung, und keine Sorte behauptet mehr Sicherheit als sie hat.
+--
+-- Alle drei Koeffizienten sind derselbe Schätzer — ein massegewichteter
+-- Anteil — und werden deshalb hier einmal gemeinsam gerechnet statt dreimal
+-- fast gleich.
+-- =====================================================================
+
+-- ---------- Die Rohbeobachtungen -----------------------------------------
+-- Zwei getrennte Quellen, und zwar zwingend: v_ausschuss_beobachtung rechnet
+-- die Basismasse der Handmessungen um die Verdunstung herunter und liest dazu
+-- v_koeff_verdunstung. Läge alles in einer Ansicht, hinge der
+-- Verdunstungskoeffizient über den Umweg an sich selbst — Postgres bricht das
+-- mit „infinite recursion in rules" ab, und zu Recht.
+create or replace view v_koeff_roh_verdunstung with (security_invoker = true) as
+-- Tagesrate je gewogener Palette, gewichtet mit der Masse, die sie vertritt.
+select 'verdunstung'::text as art, m.sorte, m.charge_nr,
+       m.rate_pro_tag::numeric as anteil, m.netto_jetzt_kg::numeric as gewicht
+  from v_verdunstung_messung m
+ where m.verwendbar and m.netto_jetzt_kg > 0;
+
+create or replace view v_koeff_roh_kaliber with (security_invoker = true) as
+-- Massenanteil je Sortierlauf bzw. Handmessung, gewichtet mit der sortierten
+-- Masse. Beide Kaliber-Koeffizienten stammen aus derselben Beobachtung.
+select 'ausschuss'::text as art, b.sorte, b.charge_nr,
+       b.klein_kg / b.basis_kg as anteil, b.basis_kg as gewicht
+  from v_ausschuss_beobachtung b
+ where b.plausibel and b.basis_kg > 0 and b.klein_kg is not null
+union all
+select 'nebenkanal', b.sorte, b.charge_nr,
+       b.gross_kg / b.basis_kg, b.basis_kg
+  from v_ausschuss_beobachtung b
+ where b.plausibel and b.basis_kg > 0 and b.gross_kg is not null;
+
+comment on view v_koeff_roh_kaliber is
+  'Koeffizienten-Rohwerte in einheitlicher Form: Anteil, die Masse, die er '
+  'vertritt, und die Charge, aus der er stammt.';
+
+-- Derselbe Schätzer zweimal — er kann nicht über beide Quellen laufen, ohne
+-- den Zyklus oben wieder aufzumachen. Änderungen gehören in beide.
+
+-- ---------- Schätzer: Verdunstung ----------
+create or replace view v_koeff_verdunstung_geschaetzt with (security_invoker = true) as
+with roh as materialized (
+  select art, sorte, charge_nr, anteil, gewicht from v_koeff_roh_verdunstung
+   where anteil is not null and gewicht > 0
+),
+je_charge as (
+  -- Ein Durchgang. Alles Weitere braucht nur noch diese Summen je Charge:
+  -- Σw·Anteil und Σw. Frühere Fassungen scannten die Beobachtungen einmal je
+  -- Sorte und brauchten 3.2 s allein für v_koeff_ausschuss.
+  select art, sorte, charge_nr,
+         sum(gewicht)          as sw_c,
+         sum(anteil * gewicht) as swa_c,
+         count(*)              as n_c
+    from roh group by art, sorte, charge_nr
+),
+ebene as (
+  -- Sortenebene und Gesamtebene (sorte = NULL) in einem Durchgang
+  select art, sorte, sum(sw_c) as sw, sum(swa_c) as swa,
+         sum(n_c)::int as n, count(distinct charge_nr)::int as c_chargen
+    from je_charge
+   group by grouping sets ((art, sorte), (art))
+),
+mittelwert as (
+  select e.*, e.swa / nullif(e.sw, 0) as mittel from ebene e
+),
+varianz as (
+  -- Chargen-robuste Varianz des massegewichteten Anteils. Die gewichtete
+  -- Abweichungssumme einer Charge ist Σw·Anteil − Mittel·Σw, also direkt aus
+  -- den Chargensummen zu haben. Die Streuung *dieser Summen* ist der Fehler;
+  -- mit einer einzigen Charge gibt es nichts zu streuen und sie bleibt NULL.
+  select m.*, v.varianz
+    from mittelwert m
+    cross join lateral (
+      select case when m.c_chargen > 1 and m.sw > 0
+                  then sum(power(j.swa_c - m.mittel * j.sw_c, 2)) / power(m.sw, 2)
+                       * m.c_chargen::numeric / (m.c_chargen - 1) end as varianz
+        from je_charge j
+       where j.art = m.art and (m.sorte is null or j.sorte = m.sorte)
+    ) v
+),
+gesamt as (
+  select art, mittel, varianz, c_chargen, n, sw from varianz where sorte is null
+),
+tau as (
+  -- τ²: wie stark sich die Sorten *wirklich* unterscheiden. Die beobachtete
+  -- Streuung der Sortenmittel enthält auch den eigenen Schätzfehler; der wird
+  -- abgezogen (Momentenschätzer). Bleibt nichts übrig, unterscheiden sich die
+  -- Sorten nicht nachweisbar und es wird voll gebündelt.
+  select v.art,
+         greatest(
+           sum(v.sw * power(v.mittel - g.mittel, 2)) / nullif(sum(v.sw), 0)
+           - coalesce(avg(v.varianz), 0), 0) as tau2
+    from varianz v join gesamt g on g.art = v.art
+   where v.sorte is not null
+   group by v.art
+),
+gitter as (
+  -- Jede Sorte des Stammdatensatzes bekommt eine Zeile, auch die ungemessene.
+  -- Sonst fiele sie ganz heraus und ihr Koeffizient stünde auf 0 — also „kein
+  -- Verlust", was schlicht falsch ist.
+  select a.art, sk.sorte from (select distinct art from roh) a cross join sorte_kaliber sk
+  union all
+  select art, null::text from (select distinct art from roh) a
+)
+select gi.art, gi.sorte, coalesce(v.n, 0) as n, coalesce(v.c_chargen, 0) as c_chargen,
+       v.mittel                                            as mittel_roh,
+       v.varianz                                           as varianz_roh,
+       g.mittel                                            as mittel_gesamt,
+       t.tau2,
+       -- Bündelungsgewicht: 0 = ganz der Gesamtwert, 1 = ganz der eigene
+       b.gewicht                                           as b,
+       -- coalesce, weil eine Sorte ohne eigene Messung kein v.mittel hat;
+       -- b ist dann 0 und es bleibt genau der Gesamtwert stehen.
+       (b.gewicht * coalesce(v.mittel, g.mittel)
+        + (1 - b.gewicht) * g.mittel)                      as mittel,
+       -- Fehler des gebündelten Werts: der eigene, um B geschrumpft, plus
+       -- der Rest-Anteil am Fehler des Gesamtwerts.
+       (b.gewicht * coalesce(v.varianz, 0)
+        + power(1 - b.gewicht, 2) * coalesce(g.varianz, 0)) as varianz,
+       -- Freiheitsgrade: so viele unabhängige Chargen, wie tatsächlich
+       -- eingehen — zwischen der eigenen Zahl und der des Gesamtwerts.
+       greatest(round(b.gewicht * coalesce(v.c_chargen, 0)
+                      + (1 - b.gewicht) * g.c_chargen)::int - 1, 1) as df,
+       g.n                                                 as n_gesamt,
+       -- Für die Fehlerfortpflanzung: der eigene, unabhängige Anteil am
+       -- Fehler und das Gewicht, mit dem der (allen Sorten gemeinsame)
+       -- Gesamtwert eingeht. Die beiden dürfen nicht wie unabhängige Fehler
+       -- addiert werden — der Gesamtwert ist derselbe für jede Sorte.
+       power(b.gewicht, 2) * coalesce(v.varianz, 0)        as varianz_eigen,
+       (1 - b.gewicht)                                     as gewicht_gesamt,
+       coalesce(g.varianz, 0)                              as varianz_gesamt
+  from gitter gi
+  join gesamt g on g.art = gi.art
+  left join varianz v on v.art = gi.art and v.sorte is not distinct from gi.sorte
+  left join tau t on t.art = gi.art
+  cross join lateral (
+    select case when gi.sorte is null then 1.0
+                when v.varianz is null or v.mittel is null
+                     or coalesce(t.tau2, 0) = 0 then 0.0
+                else t.tau2 / (t.tau2 + v.varianz) end as gewicht
+  ) b;
+
+-- ---------- Schätzer: Ausschuss zu klein und Nebenkanal zu gross ----------
+create or replace view v_koeff_kaliber_geschaetzt with (security_invoker = true) as
+with roh as materialized (
+  select art, sorte, charge_nr, anteil, gewicht from v_koeff_roh_kaliber
+   where anteil is not null and gewicht > 0
+),
+je_charge as (
+  -- Ein Durchgang. Alles Weitere braucht nur noch diese Summen je Charge:
+  -- Σw·Anteil und Σw. Frühere Fassungen scannten die Beobachtungen einmal je
+  -- Sorte und brauchten 3.2 s allein für v_koeff_ausschuss.
+  select art, sorte, charge_nr,
+         sum(gewicht)          as sw_c,
+         sum(anteil * gewicht) as swa_c,
+         count(*)              as n_c
+    from roh group by art, sorte, charge_nr
+),
+ebene as (
+  -- Sortenebene und Gesamtebene (sorte = NULL) in einem Durchgang
+  select art, sorte, sum(sw_c) as sw, sum(swa_c) as swa,
+         sum(n_c)::int as n, count(distinct charge_nr)::int as c_chargen
+    from je_charge
+   group by grouping sets ((art, sorte), (art))
+),
+mittelwert as (
+  select e.*, e.swa / nullif(e.sw, 0) as mittel from ebene e
+),
+varianz as (
+  -- Chargen-robuste Varianz des massegewichteten Anteils. Die gewichtete
+  -- Abweichungssumme einer Charge ist Σw·Anteil − Mittel·Σw, also direkt aus
+  -- den Chargensummen zu haben. Die Streuung *dieser Summen* ist der Fehler;
+  -- mit einer einzigen Charge gibt es nichts zu streuen und sie bleibt NULL.
+  select m.*, v.varianz
+    from mittelwert m
+    cross join lateral (
+      select case when m.c_chargen > 1 and m.sw > 0
+                  then sum(power(j.swa_c - m.mittel * j.sw_c, 2)) / power(m.sw, 2)
+                       * m.c_chargen::numeric / (m.c_chargen - 1) end as varianz
+        from je_charge j
+       where j.art = m.art and (m.sorte is null or j.sorte = m.sorte)
+    ) v
+),
+gesamt as (
+  select art, mittel, varianz, c_chargen, n, sw from varianz where sorte is null
+),
+tau as (
+  -- τ²: wie stark sich die Sorten *wirklich* unterscheiden. Die beobachtete
+  -- Streuung der Sortenmittel enthält auch den eigenen Schätzfehler; der wird
+  -- abgezogen (Momentenschätzer). Bleibt nichts übrig, unterscheiden sich die
+  -- Sorten nicht nachweisbar und es wird voll gebündelt.
+  select v.art,
+         greatest(
+           sum(v.sw * power(v.mittel - g.mittel, 2)) / nullif(sum(v.sw), 0)
+           - coalesce(avg(v.varianz), 0), 0) as tau2
+    from varianz v join gesamt g on g.art = v.art
+   where v.sorte is not null
+   group by v.art
+),
+gitter as (
+  -- Jede Sorte des Stammdatensatzes bekommt eine Zeile, auch die ungemessene.
+  -- Sonst fiele sie ganz heraus und ihr Koeffizient stünde auf 0 — also „kein
+  -- Verlust", was schlicht falsch ist.
+  select a.art, sk.sorte from (select distinct art from roh) a cross join sorte_kaliber sk
+  union all
+  select art, null::text from (select distinct art from roh) a
+)
+select gi.art, gi.sorte, coalesce(v.n, 0) as n, coalesce(v.c_chargen, 0) as c_chargen,
+       v.mittel                                            as mittel_roh,
+       v.varianz                                           as varianz_roh,
+       g.mittel                                            as mittel_gesamt,
+       t.tau2,
+       -- Bündelungsgewicht: 0 = ganz der Gesamtwert, 1 = ganz der eigene
+       b.gewicht                                           as b,
+       -- coalesce, weil eine Sorte ohne eigene Messung kein v.mittel hat;
+       -- b ist dann 0 und es bleibt genau der Gesamtwert stehen.
+       (b.gewicht * coalesce(v.mittel, g.mittel)
+        + (1 - b.gewicht) * g.mittel)                      as mittel,
+       -- Fehler des gebündelten Werts: der eigene, um B geschrumpft, plus
+       -- der Rest-Anteil am Fehler des Gesamtwerts.
+       (b.gewicht * coalesce(v.varianz, 0)
+        + power(1 - b.gewicht, 2) * coalesce(g.varianz, 0)) as varianz,
+       -- Freiheitsgrade: so viele unabhängige Chargen, wie tatsächlich
+       -- eingehen — zwischen der eigenen Zahl und der des Gesamtwerts.
+       greatest(round(b.gewicht * coalesce(v.c_chargen, 0)
+                      + (1 - b.gewicht) * g.c_chargen)::int - 1, 1) as df,
+       g.n                                                 as n_gesamt,
+       -- Für die Fehlerfortpflanzung: der eigene, unabhängige Anteil am
+       -- Fehler und das Gewicht, mit dem der (allen Sorten gemeinsame)
+       -- Gesamtwert eingeht. Die beiden dürfen nicht wie unabhängige Fehler
+       -- addiert werden — der Gesamtwert ist derselbe für jede Sorte.
+       power(b.gewicht, 2) * coalesce(v.varianz, 0)        as varianz_eigen,
+       (1 - b.gewicht)                                     as gewicht_gesamt,
+       coalesce(g.varianz, 0)                              as varianz_gesamt
+  from gitter gi
+  join gesamt g on g.art = gi.art
+  left join varianz v on v.art = gi.art and v.sorte is not distinct from gi.sorte
+  left join tau t on t.art = gi.art
+  cross join lateral (
+    select case when gi.sorte is null then 1.0
+                when v.varianz is null or v.mittel is null
+                     or coalesce(t.tau2, 0) = 0 then 0.0
+                else t.tau2 / (t.tau2 + v.varianz) end as gewicht
+  ) b;
+
+comment on view v_koeff_kaliber_geschaetzt is
+  'Massegewichteter Anteil je Sorte, chargen-robust gefehlert und per '
+  'empirischem Bayes zum Gesamtwert gezogen. b = 1 heisst: die Sorte trägt '
+  'sich selbst, b = 0: es gilt der Gesamtwert.';
+
+-- ---------- Die drei benannten Koeffizienten ------------------------------
+-- Gleiche Spalten wie bisher, damit Kaskade und Dashboard unverändert lesen.
+create or replace view v_koeff_verdunstung with (security_invoker = true) as
+select sk.sorte,
+       coalesce(k.mittel, 0)::numeric                                  as mittel,
+       -- Ist die Varianz 0, gab es nichts zu streuen (eine einzige Charge).
+       -- Dann steht der Punktwert dreimal da — das ist ehrlicher als ein
+       -- erfundener Bereich, und basis/n sagen, warum.
+       (case when coalesce(k.varianz, 0) = 0 then coalesce(k.mittel, 0)
+             else greatest(k.mittel - k.t * sqrt(k.varianz), 0)
+        end)::double precision                                         as unten,
+       (case when coalesce(k.varianz, 0) = 0 then coalesce(k.mittel, 0)
+             else k.mittel + k.t * sqrt(k.varianz)
+        end)::double precision                                         as oben,
+       coalesce(k.n, 0)                                                as n,
+       case when coalesce(k.n_gesamt, 0) = 0 then 'keine Wiegung vorhanden'
+            when k.b >= 0.67        then 'Wiegungen dieser Sorte'
+            when k.b >= 0.33        then 'Wiegungen dieser Sorte, zum Gesamtwert gezogen'
+            else 'Wiegungen aller Sorten (zu wenige eigene Chargen)' end as basis
+  from sorte_kaliber sk
+  left join lateral (
+    select g.*, t_quantil_95(g.df) as t
+      from v_koeff_verdunstung_geschaetzt g
+     where g.art = 'verdunstung' and g.sorte is not distinct from sk.sorte
+  ) k on true;
+
+create or replace view v_koeff_ausschuss with (security_invoker = true) as
+select sk.sorte,
+       coalesce(k.mittel, 0)::numeric                                       as mittel,
+       (case when coalesce(k.varianz, 0) = 0 then coalesce(k.mittel, 0)
+             else greatest(k.mittel - k.t * sqrt(k.varianz), 0)
+        end)::double precision                                              as unten,
+       (case when coalesce(k.varianz, 0) = 0 then coalesce(k.mittel, 0)
+             else least(k.mittel + k.t * sqrt(k.varianz), 1)
+        end)::double precision                                              as oben,
+       coalesce(k.n, 0)                                                     as n,
+       case when coalesce(k.n_gesamt, 0) = 0 then 'keine Messung vorhanden'
+            when k.b >= 0.67     then 'Sortierläufe/Handmessungen dieser Sorte'
+            when k.b >= 0.33     then 'eigene Messungen, zum Gesamtwert gezogen'
+            else 'alle Sorten (zu wenige eigene Chargen)' end               as basis
+  from sorte_kaliber sk
+  left join lateral (
+    select g.*, t_quantil_95(g.df) as t
+      from v_koeff_kaliber_geschaetzt g
+     where g.art = 'ausschuss' and g.sorte is not distinct from sk.sorte
+  ) k on true;
+
+create or replace view v_koeff_nebenkanal with (security_invoker = true) as
+select sk.sorte,
+       coalesce(k.mittel, 0)::numeric                                       as mittel,
+       (case when coalesce(k.varianz, 0) = 0 then coalesce(k.mittel, 0)
+             else greatest(k.mittel - k.t * sqrt(k.varianz), 0)
+        end)::double precision                                              as unten,
+       (case when coalesce(k.varianz, 0) = 0 then coalesce(k.mittel, 0)
+             else least(k.mittel + k.t * sqrt(k.varianz), 1)
+        end)::double precision                                              as oben,
+       coalesce(k.n, 0)                                                     as n,
+       case when coalesce(k.n_gesamt, 0) = 0 then 'keine Messung vorhanden'
+            when k.b >= 0.67     then 'Sortierläufe/Handmessungen dieser Sorte'
+            when k.b >= 0.33     then 'eigene Messungen, zum Gesamtwert gezogen'
+            else 'alle Sorten (zu wenige eigene Chargen)' end               as basis
+  from sorte_kaliber sk
+  left join lateral (
+    select g.*, t_quantil_95(g.df) as t
+      from v_koeff_kaliber_geschaetzt g
+     where g.art = 'nebenkanal' and g.sorte is not distinct from sk.sorte
+  ) k on true;
+
+grant select on v_koeff_roh_verdunstung, v_koeff_roh_kaliber,
+               v_koeff_verdunstung_geschaetzt, v_koeff_kaliber_geschaetzt to authenticated;
+
+-- ---------- Unsicherheit aller Koeffizienten an einer Stelle --------------
+-- Wird nur von der Fehlerfortpflanzung gelesen, nie von den Koeffizienten
+-- selbst — sonst wäre der Zyklus von oben wieder da.
+create or replace view v_koeff_unsicherheit with (security_invoker = true) as
+select art, sorte, b, varianz_eigen, gewicht_gesamt, varianz_gesamt, df
+  from v_koeff_verdunstung_geschaetzt
+union all
+select art, sorte, b, varianz_eigen, gewicht_gesamt, varianz_gesamt, df
+  from v_koeff_kaliber_geschaetzt;
+
+comment on view v_koeff_unsicherheit is
+  'Je Koeffizient und Sorte: der eigene Fehleranteil, das Gewicht auf dem '
+  'gemeinsamen Gesamtwert und dessen Fehler. Getrennt, weil der Gesamtwert '
+  'für alle Sorten derselbe ist und seine Fehler sich nicht wegmitteln.';
+
+grant select on v_koeff_unsicherheit to authenticated;
+
+
+-- =====================================================================
+-- aus 0019_fehlerfortpflanzung.sql
+-- =====================================================================
+
+-- =====================================================================
+-- 0019 — Ein Bereich, der wirklich ein Bereich ist
+--
+-- Bisher wurden drei Szenarien gerechnet: „unten" setzte *alle* Koeffizienten
+-- gleichzeitig an ihre untere Grenze, „oben" alle an die obere. Das
+-- unterstellt, dass sich alle Messfehler im Gleichtakt bewegen — und für
+-- Ströme weiter unten in der Kaskade stimmt nicht einmal die Richtung.
+--
+-- Der Harness zeigt es unmissverständlich (25 Saisons, 50 % im Lager):
+--
+--   Ausschuss zu klein   Bereichsbreite −2.3 %   Überdeckung 0 %
+--
+-- Eine *negative* Breite: kg_unten lag über kg_oben. Der Grund ist zwingend.
+-- Weniger Verdunstung und weniger Schimmel heisst mehr Masse, die überhaupt
+-- bis zum Sortierband kommt. Im Szenario „unten" sind r und f klein, also ist
+-- die Masse gross — und der Ausschuss daraus grösser als im Szenario „oben".
+-- Die Grenzen tauschen die Plätze. Das war nie ein Konfidenzintervall; es sah
+-- nur aus wie eins.
+--
+-- ---------- Statt dessen: Fehlerfortpflanzung ----------------------------
+-- Für jeden Strom wird ausgerechnet, wie stark er auf jeden Koeffizienten
+-- reagiert (die Ableitung), und die Fehler werden entsprechend ihrer
+-- tatsächlichen Abhängigkeit zusammengesetzt:
+--
+--   m1 = m0·(1−r)^t        D := ∂m1/∂r = −m0·t·(1−r)^(t−1)
+--   m2 = m1·(1−f)
+--
+--   Verdunstung   V = m0−m1     ∂V/∂r = −D
+--   Schimmel      S = m1·f      ∂S/∂r = D·f          ∂S/∂f = m1
+--   Ausschuss     K = m2·a      ∂K/∂r = D·(1−f)·a    ∂K/∂f = −m1·a   ∂K/∂a = m2
+--
+-- Damit wandert der Fehler von r automatisch in Schimmel und Ausschuss
+-- weiter, statt dort als unabhängig behandelt zu werden.
+--
+-- Zusammengesetzt wird nach der wahren Korrelationsstruktur:
+--
+--   * Der Schimmelkoeffizient stammt aus *einem* Modell mit zwei Parametern
+--     (Achse A, Steigung k). Über alle Chargen hinweg ist es derselbe Fehler,
+--     nicht 42 unabhängige. Also werden erst die Ableitungen summiert und
+--     dann einmal mit der 2×2-Kovarianz des Modells multipliziert.
+--   * r und die Kaliber-Anteile sind je Sorte geschätzt, aber alle Sorten
+--     hängen über die Bündelung am selben Gesamtwert. Der eigene Anteil geht
+--     quadratisch ein (unabhängig), der gemeinsame linear (identisch).
+--
+-- Das Ergebnis ist ein Bereich, dessen Grenzen in der richtigen Reihenfolge
+-- stehen und der aussagt, was er behauptet.
+--
+-- Nebeneffekt: mv_kaskade hat nur noch ein Drittel der Zeilen, weil die drei
+-- Szenarien wegfallen. Das Neuberechnen wird entsprechend schneller.
+-- =====================================================================
+
+drop materialized view if exists mv_kaskade cascade;
+
+create materialized view mv_kaskade as
+with modell as materialized (
+  select * from v_schimmel_modell
+),
+kurve as materialized (
+  select von, anteil_mono, n from v_schimmel_kurve where n > 0
+),
+koeff as (
+  select b.*,
+         least(greatest(coalesce(kv.mittel, 0), 0), 0.05) as r,
+         kv.n as r_n, kv.basis as r_basis,
+         least(greatest(coalesce(ka.mittel, 0), 0), 1)    as a_klein,
+         ka.n as klein_n, ka.basis as klein_basis,
+         least(greatest(coalesce(kn.mittel, 0), 0), 1)    as a_gross,
+         kn.n as gross_n, kn.basis as gross_basis
+    from v_hochrechnung_basis b
+    left join v_koeff_verdunstung kv on kv.sorte = b.sorte
+    left join v_koeff_ausschuss   ka on ka.sorte = b.sorte
+    left join v_koeff_nebenkanal  kn on kn.sorte = b.sorte
+),
+koeff_norm as (
+  -- Zusammen dürfen die beiden Kaliber-Anteile nicht über 1 liegen. Der Fall
+  -- tritt nur bei widersprüchlichen Messungen auf; die Ableitungen unten
+  -- rechnen mit dem unnormierten Koeffizienten, was dann geringfügig zu
+  -- gross ist — auf der sicheren Seite.
+  select k.*, k.a_klein / n.f as a_klein_n, k.a_gross / n.f as a_gross_n
+    from koeff k
+    cross join lateral (select greatest(coalesce(k.a_klein, 0) + coalesce(k.a_gross, 0), 1) as f) n
+),
+teile as (
+  select k.*, t.portion, t.m0, t.alter_tage,
+         -- η = ln λ + k·ln t, zentriert um den Schwerpunkt der Messungen
+         ln(greatest(t.alter_tage, 1)) - coalesce(m.x_mittel, 0)        as u,
+         case when m.brauchbar then
+           m.ln_lambda_korrigiert + m.k * ln(greatest(t.alter_tage, 1))
+         end                                                            as eta,
+         m.brauchbar                                                    as modell_gilt,
+         (m.brauchbar and t.alter_tage > m.t_max)                       as f_extrapoliert,
+         case when m.brauchbar then m.c_chargen else s.n end            as f_n,
+         s.anteil_mono                                                  as f_treppe
+    from koeff_norm k
+    cross join modell m
+    cross join lateral (values
+        ('ausgelagert', k.ausgelagert_kg, coalesce(k.alter_ausgelagert, 0)),
+        ('lager',       k.lager_kg,       greatest(k.alter_lager, 0))
+      ) as t(portion, m0, alter_tage)
+    left join lateral (
+        select c.anteil_mono, c.n from kurve c
+         where c.von <= t.alter_tage order by c.von desc limit 1
+       ) s on true
+   where t.m0 > 0
+),
+mit_f as (
+  select t.*,
+         case when t.modell_gilt
+              then least(greatest(1 - exp(-exp(least(greatest(t.eta, -40), 3))), 0), 1)
+              else least(greatest(coalesce(t.f_treppe, 0), 0), 1) end   as f
+    from teile t
+),
+kaskade as (
+  select t.*,
+         (t.m0 * power(1 - t.r, t.alter_tage))                          as m1,
+         -- ∂m1/∂r, negativ: mehr Verdunstungsrate → weniger Masse
+         (-t.m0 * t.alter_tage * power(1 - t.r, greatest(t.alter_tage - 1, 0))) as d_m1_r,
+         -- ∂f/∂η = (1−f)·e^η. Ohne Modell ist die Treppe eine Konstante,
+         -- also keine Ableitung — dann steht der Fehler auf 0 und n sagt,
+         -- dass es keine Aussage ist.
+         case when t.modell_gilt
+              then (1 - t.f) * exp(least(greatest(t.eta, -40), 3))
+              else 0 end                                                as d_f_eta
+    from mit_f t
+)
+select k.charge_nr, k.sorte, k.schlag, k.portion, k.alter_tage, k.eingang_kg,
+       k.m0, k.m1, (k.m1 * (1 - k.f)) as m2,
+       k.r, k.f, k.a_klein_n, k.a_gross_n,
+       k.u, k.d_m1_r, k.d_f_eta, k.modell_gilt, k.f_extrapoliert,
+       k.r_n, k.r_basis, k.klein_n, k.klein_basis, k.gross_n, k.gross_basis, k.f_n,
+       (k.m0 - k.m1)                                          as verdunstung_kg,
+       (k.m1 * k.f)                                           as schimmel_kg,
+       (k.m1 * (1 - k.f) * k.a_klein_n)                       as klein_kg,
+       (k.m1 * (1 - k.f) * k.a_gross_n)                       as nebenkanal_kg,
+       (k.m1 * (1 - k.f) * (1 - k.a_klein_n - k.a_gross_n))   as verkaufsfaehig_kg
+  from kaskade k;
+
+create unique index if not exists mv_kaskade_pk on mv_kaskade (charge_nr, portion);
+create index if not exists mv_kaskade_charge on mv_kaskade (charge_nr);
+
+create or replace view v_kaskade with (security_invoker = true) as
+select * from mv_kaskade;
+
+-- ---------- Die Ströme mit ihren Ableitungen ------------------------------
+create view v_hochrechnung with (security_invoker = true) as
+select k.charge_nr, k.sorte, k.schlag, k.portion, k.alter_tage,
+       k.eingang_kg, k.m0::numeric(14,2) as portion_kg, k.f_extrapoliert, k.u,
+       s.strom, s.buch,
+       s.kg::numeric(14,2)          as kg,
+       s.basis_kg::numeric(14,2)    as basis_kg,
+       s.koeffizient::numeric(12,6) as koeffizient,
+       s.koeff_n, s.koeff_basis, s.formel,
+       -- Empfindlichkeit dieses Stroms gegenüber jedem Koeffizienten
+       s.d_r                        as d_r,
+       s.d_f * k.d_f_eta            as d_eta,
+       s.d_a                        as d_a,
+       s.koeff_art                  as koeff_art
+  from v_kaskade k
+  cross join lateral (values
+    ('Verdunstung', 'verlust', k.m0 - k.m1, k.m0, k.r, k.r_n, k.r_basis,
+     'Masse × (1 − (1−r)^Lagertage), r = Tagesrate aus den Palettenwägungen',
+     -k.d_m1_r, 0::numeric, 0::numeric, null::text),
+    ('Schimmel/Fäulnis', 'verlust', k.m1 * k.f, k.m1, k.f, k.f_n,
+     'Verderbsmodell F(t) = 1 − exp(−λ·t^k), angepasst an alle Schimmelmessungen',
+     'Masse nach Verdunstung × Schimmelanteil bei dieser Lagerdauer',
+     k.d_m1_r * k.f, k.m1, 0::numeric, null::text),
+    ('Ausschuss zu klein', 'verlust', k.m1 * (1 - k.f) * k.a_klein_n, k.m2,
+     k.a_klein_n, k.klein_n, k.klein_basis,
+     'Masse nach Schimmel × Massenanteil unter der Sorten-Grenze',
+     k.d_m1_r * (1 - k.f) * k.a_klein_n, -k.m1 * k.a_klein_n, k.m2, 'ausschuss'),
+    ('Nebenkanal zu gross', 'marge', k.m1 * (1 - k.f) * k.a_gross_n, k.m2,
+     k.a_gross_n, k.gross_n, k.gross_basis,
+     'Masse nach Schimmel × Massenanteil ab 2000 g — kein Verlust, anderer Kanal',
+     k.d_m1_r * (1 - k.f) * k.a_gross_n, -k.m1 * k.a_gross_n, k.m2, 'nebenkanal'),
+    ('Verkaufsfähig', 'bilanz', k.verkaufsfaehig_kg, k.m2, null::numeric, null::int,
+     null::text, 'Rest der Kaskade', 0::numeric, 0::numeric, 0::numeric, null::text)
+  ) as s(strom, buch, kg, basis_kg, koeffizient, koeff_n, koeff_basis, formel,
+         d_r, d_f, d_a, koeff_art);
+
+-- ---------- Die Zusammenfassung mit fortgepflanztem Fehler ----------------
+create view v_verlust_ranking with (security_invoker = true) as
+with zeilen as materialized (
+  select * from v_hochrechnung where buch in ('verlust', 'marge')
+),
+-- Je Strom und Sorte die Ableitungen aufsummieren. Innerhalb einer Sorte ist
+-- es derselbe geschätzte Koeffizient, die Ableitungen addieren sich also.
+je_sorte as (
+  select z.strom, z.buch, z.sorte, max(z.koeff_art) as koeff_art,
+         sum(z.d_r) as g_r, sum(z.d_a) as g_a
+    from zeilen z group by z.strom, z.buch, z.sorte
+),
+-- Der Schimmelkoeffizient ist *ein* Modell für alle Sorten und Chargen.
+je_strom_modell as (
+  select z.strom, z.buch,
+         sum(z.d_eta)       as g_achse,
+         sum(z.d_eta * z.u) as g_steigung
+    from zeilen z group by z.strom, z.buch
+),
+varianz_r as (
+  -- Eigener Anteil quadratisch (unabhängig je Sorte), gemeinsamer Anteil
+  -- linear (für alle Sorten derselbe Gesamtwert).
+  select s.strom, s.buch,
+         sum(power(s.g_r, 2) * coalesce(u.varianz_eigen, 0))
+           + power(sum(s.g_r * coalesce(u.gewicht_gesamt, 1)), 2)
+             * max(coalesce(u.varianz_gesamt, 0))               as varianz,
+         min(coalesce(u.df, 1))                                 as df
+    from je_sorte s
+    left join v_koeff_unsicherheit u
+           on u.art = 'verdunstung' and u.sorte is not distinct from s.sorte
+   group by s.strom, s.buch
+),
+varianz_a as (
+  select s.strom, s.buch,
+         sum(power(s.g_a, 2) * coalesce(u.varianz_eigen, 0))
+           + power(sum(s.g_a * coalesce(u.gewicht_gesamt, 1)), 2)
+             * max(coalesce(u.varianz_gesamt, 0))               as varianz,
+         min(coalesce(u.df, 1))                                 as df
+    from je_sorte s
+    left join v_koeff_unsicherheit u
+           on u.art = s.koeff_art and u.sorte is not distinct from s.sorte
+   where s.koeff_art is not null
+   group by s.strom, s.buch
+),
+varianz_f as (
+  -- Quadratische Form mit der 2×2-Kovarianz des Verderbsmodells
+  select m.strom, m.buch,
+         power(m.g_achse, 2) * coalesce(sm.var_achse, 0)
+         + 2 * m.g_achse * m.g_steigung * coalesce(sm.kov_achse_k, 0)
+         + power(m.g_steigung, 2) * coalesce(sm.var_k, 0)       as varianz,
+         coalesce(sm.c_chargen - 1, 1)                          as df
+    from je_strom_modell m cross join v_schimmel_modell sm
+),
+summe as (
+  select z.strom, z.buch,
+         sum(z.kg)                                                as kg,
+         sum(z.kg) filter (where z.portion = 'ausgelagert')       as kg_beobachtet,
+         sum(z.kg) filter (where z.portion = 'lager')             as kg_projiziert,
+         sum(z.kg) filter (where z.f_extrapoliert)                as kg_extrapoliert,
+         min(z.koeff_n)                                           as koeff_n_min
+    from zeilen z group by z.strom, z.buch
+)
+select s.strom, s.buch, s.kg,
+       greatest(s.kg - g.t * g.streuung, 0)::numeric(14,2)   as kg_unten,
+       (s.kg + g.t * g.streuung)::numeric(14,2)              as kg_oben,
+       s.kg_beobachtet, s.kg_projiziert, s.kg_extrapoliert, s.koeff_n_min,
+       g.streuung::numeric(14,2)                             as streuung_kg,
+       g.df                                                  as df
+  from summe s
+  left join varianz_r vr on vr.strom = s.strom and vr.buch = s.buch
+  left join varianz_a va on va.strom = s.strom and va.buch = s.buch
+  left join varianz_f vf on vf.strom = s.strom and vf.buch = s.buch
+  cross join lateral (
+    select sqrt(greatest(coalesce(vr.varianz, 0) + coalesce(va.varianz, 0)
+                         + coalesce(vf.varianz, 0), 0))       as streuung,
+           least(coalesce(vr.df, 999), coalesce(va.df, 999),
+                 coalesce(vf.df, 999))                        as df
+  ) g0
+  cross join lateral (select g0.streuung, g0.df, t_quantil_95(g0.df) as t) g
+ order by s.kg desc nulls last;
+
+comment on view v_verlust_ranking is
+  'kg_unten/kg_oben sind ein fortgepflanztes 95-%-Intervall: die '
+  'Empfindlichkeit jedes Stroms gegenüber jedem Koeffizienten mal dessen '
+  'Fehler, zusammengesetzt nach der tatsächlichen Korrelation. Nicht drei '
+  'Szenarien — die standen bei nachgelagerten Strömen in der falschen '
+  'Reihenfolge.';
+
+-- ---------- Marge-Buch ----------------------------------------------------
+create view v_marge_buch with (security_invoker = true) as
+with kisten as materialized (
+  select sum(k.verkaufsfaehig_kg * b.weg2_anteil) / 8.0 as anzahl
+    from v_kaskade k join v_hochrechnung_basis b on b.charge_nr = k.charge_nr
+)
+select r.strom as posten, r.kg, r.kg_unten::numeric as kg_unten,
+       r.kg_oben::numeric as kg_oben,
+       'Ware über 2000 g geht in einen anderen Verkaufskanal'::text as erlaeuterung
+  from v_verlust_ranking r where r.buch = 'marge'
+union all
+select 'Überfüllung der Kisten',
+       (u.kg_pro_kiste * v.anzahl)::numeric(14,2),
+       (u.unten * v.anzahl)::numeric(14,2),
+       (u.oben  * v.anzahl)::numeric(14,2),
+       format('%s Wägungen, im Schnitt %s kg Überschuss je Kiste, hochgerechnet auf %s Kisten',
+              u.n, round(u.kg_pro_kiste, 3), round(v.anzahl))
+  from v_koeff_ueberfuellung u cross join kisten v
+ where u.n > 0;
+
+-- ---------- Massenbilanz --------------------------------------------------
+create view v_massenbilanz with (security_invoker = true) as
+with modell as materialized (
+  select charge_nr,
+         sum(m2) filter (where portion = 'ausgelagert') as modell_kg,
+         sum(verkaufsfaehig_kg) filter (where portion = 'lager') as restbestand_kg
+    from v_kaskade group by charge_nr
+), csv_anteil as materialized (
+  select am.charge_nr,
+         coalesce(sum(am.eingang_netto_kg) filter (
+             where exists (select 1 from sortier_lauf l where l.auftrag_id = am.auftrag_id))
+           / nullif(sum(am.eingang_netto_kg), 0), 0) as anteil_mit_csv
+    from v_auftrag_masse am
+   where am.station in ('sortieren', 'waschen_sortieren')
+     and am.eingang_netto_kg is not null
+   group by am.charge_nr
+), gemessen as materialized (
+  select charge_nr, sum(masse_kg) as gemessen_kg from v_sortier_lauf_masse group by charge_nr
+)
+select b.charge_nr, b.sorte, b.schlag,
+       b.eingang_kg, b.ausgelagert_kg, b.lager_kg, b.n_paletten,
+       b.alter_ausgelagert, b.alter_lager, b.stichtag,
+       (m.modell_kg * q.anteil_mit_csv)::numeric(14,2)      as modell_am_band_kg,
+       c.gemessen_kg                                        as csv_gemessen_kg,
+       (c.gemessen_kg - m.modell_kg * q.anteil_mit_csv)::numeric(14,2) as abweichung_kg,
+       case when m.modell_kg * q.anteil_mit_csv > 0
+            then ((c.gemessen_kg - m.modell_kg * q.anteil_mit_csv)
+                  / (m.modell_kg * q.anteil_mit_csv))::numeric(10,4) end as abweichung_anteil,
+       m.restbestand_kg::numeric(14,2)                      as restbestand_kg
+  from v_hochrechnung_basis b
+  left join modell m     on m.charge_nr = b.charge_nr
+  left join csv_anteil q on q.charge_nr = b.charge_nr
+  left join gemessen c   on c.charge_nr = b.charge_nr;
+
+comment on view v_massenbilanz is
+  'abweichung_anteil nahe 0 heißt: die Koeffizienten treffen die Realität. '
+  'Systematisch positiv → Verluste überschätzt, negativ → unterschätzt. '
+  'Nur aussagekräftig für Chargen mit Sortier-CSV.';
+
+grant select on v_kaskade, v_hochrechnung, v_verlust_ranking,
+               v_marge_buch, v_massenbilanz to authenticated;
+
+
+-- =====================================================================
+-- aus 0020_lagerkontrolle.sql
+-- =====================================================================
+
+-- =====================================================================
+-- 0020 — Die eine Messung, die das Modell wirklich braucht
+--
+-- Nach 0017–0019 trifft die Auswertung in fast allen Lagen. Ein Fall bleibt,
+-- und es ist der realistischste (25 Saisons, 50 % im Lager, „Schlechtes
+-- zuerst" verarbeitet):
+--
+--   Schimmel/Fäulnis   Verzerrung −13.0 %   Überdeckung 8 %
+--
+-- Das ist die Selektionsverzerrung aus Punkt 7 der Überprüfung, und sie ist
+-- strukturell: Wer schlecht aussieht, kommt zuerst dran. Anfällige Paletten
+-- werden also bei *kurzer* Lagerdauer gemessen, robuste erst spät. Der
+-- gemessene Verlauf wird dadurch flacher als der wahre — und je weiter
+-- extrapoliert wird, desto stärker schlägt das durch.
+--
+-- Aus Schimmelmessungen an verarbeiteter Ware allein ist das nicht zu
+-- beheben: Alter und Anfälligkeit sind durch die Verarbeitungsreihenfolge
+-- vermengt, und keine Statistik trennt, was die Daten nicht trennen. Was hilft,
+-- ist eine Messung, deren Auswahl *nicht* am Zustand hängt:
+--
+--   Ab und zu eine zufällig gegriffene Palette im Lager aufmachen und
+--   notieren, wie viel davon faul ist.
+--
+-- Dafür braucht es keinen neuen Bildschirm. Paletten werden ohnehin
+-- gelegentlich gewogen; die Wägung bekommt ein zusätzliches Feld „davon
+-- faul (kg)". Ein Wert mehr auf einer Maske, die es schon gibt.
+--
+-- Diese Punkte gehen mit demselben Gewicht in dieselbe Regression wie die
+-- Messungen aus der Verarbeitung — nur sind sie nicht danach ausgewählt, wie
+-- die Palette aussah.
+-- =====================================================================
+
+alter table verdunstung_wiegung
+  add column if not exists faul_kg numeric(8,2)
+    check (faul_kg is null or faul_kg >= 0);
+
+comment on column verdunstung_wiegung.faul_kg is
+  'Wie viel der gewogenen Palette faul ist. Freiwillig — aber der einzige '
+  'Schimmelwert, dessen Palette nicht danach ausgewählt wurde, wie sie aussah.';
+
+-- ---------- Alle Schimmelpunkte, egal woher --------------------------------
+create or replace view v_schimmel_punkte with (security_invoker = true) as
+-- Aus der Verarbeitung: Summe je Arbeit, bezogen auf die Masse nach Verdunstung
+select b.charge_nr, b.sorte, b.schlag, b.lagertage, b.schimmel_kg,
+       b.basis_jetzt_kg, b.anteil, b.plausibel,
+       'verarbeitung'::text as quelle, b.auftrag_id
+  from v_schimmel_beobachtung b
+union all
+-- Aus dem Lager: eine gewogene Palette, bei der jemand nachgesehen hat
+select w.charge_nr, w.sorte, w.schlag, w.lagertage,
+       v.faul_kg, w.netto_jetzt_kg,
+       v.faul_kg / nullif(w.netto_jetzt_kg, 0),
+       anteil_plausibel(v.faul_kg / nullif(w.netto_jetzt_kg, 0)),
+       'lager', null::bigint
+  from v_verdunstung_messung w
+  join verdunstung_wiegung v on v.id = w.id
+ where v.faul_kg is not null and v.gemessen
+   and w.netto_jetzt_kg > 0 and w.lagertage > 0;
+
+comment on view v_schimmel_punkte is
+  'Alle Schimmelbeobachtungen. quelle = lager heisst: die Palette wurde nicht '
+  'danach ausgewählt, wie sie aussah — nur diese Punkte sind frei von der '
+  'Selektionsverzerrung der Verarbeitungsreihenfolge.';
+
+-- ---------- Modell und Treppe lesen jetzt beide Quellen -------------------
+create or replace view v_schimmel_modell with (security_invoker = true) as
+with beob as (
+  select b.charge_nr,
+         b.lagertage::numeric                   as t,
+         b.anteil::numeric                      as f,
+         b.basis_jetzt_kg::numeric              as gewicht
+    from v_schimmel_punkte b
+   where b.plausibel and b.anteil > 0 and b.anteil < 1 and b.lagertage > 0
+), punkte as (
+  select charge_nr, ln(t) as x, ln(-ln(1 - f)) as y, gewicht as w, t from beob
+), summen as (
+  select count(*)::int as n, count(distinct charge_nr)::int as c_chargen,
+         min(t) as t_min, max(t) as t_max,
+         sum(w) as sw, sum(w * x) as swx, sum(w * y) as swy,
+         sum(w * x * x) as swxx, sum(w * x * y) as swxy
+    from punkte
+), fit as (
+  select s.*,
+         case when s.sw * s.swxx - s.swx * s.swx <> 0
+              then (s.sw * s.swxy - s.swx * s.swy)
+                   / (s.sw * s.swxx - s.swx * s.swx) end              as k,
+         s.swx / nullif(s.sw, 0)                                      as x_mittel
+    from summen s
+), mit_achse as (
+  select f.*, case when f.k is not null then (f.swy - f.k * f.swx) / f.sw end as ln_lambda
+    from fit f
+), rest as (
+  select m.*,
+         (select sum(p.w * power(p.x - m.x_mittel, 2)) from punkte p)              as sxx,
+         (select sum(p.w * power(p.y - (m.ln_lambda + m.k * p.x), 2)) from punkte p) as sse,
+         (select sum(p.w * exp(p.y - (m.ln_lambda + m.k * p.x))) / nullif(sum(p.w), 0)
+            from punkte p)                                                        as smearing
+    from mit_achse m
+), gruppen as (
+  select r.*, g.saa, g.skk, g.sak
+    from rest r
+    cross join lateral (
+      select sum(power(c.ga, 2)) as saa, sum(power(c.gk, 2)) as skk,
+             sum(c.ga * c.gk)    as sak
+        from (select p.charge_nr,
+                     sum(p.w * (p.y - (r.ln_lambda + r.k * p.x)))                      as ga,
+                     sum(p.w * (p.x - r.x_mittel) * (p.y - (r.ln_lambda + r.k * p.x))) as gk
+                from punkte p group by p.charge_nr) c
+    ) g
+)
+select n, c_chargen, t_min, t_max, k, ln_lambda, exp(ln_lambda) as lambda,
+       x_mittel, sxx, smearing,
+       ln_lambda + ln(greatest(smearing, 0.01))                      as ln_lambda_korrigiert,
+       case when n > 2 then sse / (n - 2) * n / nullif(sw, 0) end    as sigma2,
+       case when c_chargen > 1
+            then saa / power(sw, 2) * c_chargen::numeric / (c_chargen - 1) end  as var_achse,
+       case when c_chargen > 1 and sxx <> 0
+            then skk / power(sxx, 2) * c_chargen::numeric / (c_chargen - 1) end as var_k,
+       case when c_chargen > 1 and sxx <> 0
+            then sak / (sw * sxx) * c_chargen::numeric / (c_chargen - 1) end    as kov_achse_k,
+       t_quantil_95(c_chargen - 1)                                              as t_faktor,
+       (n >= 3 and c_chargen >= 3 and k is not null and k > 0
+        and t_max > t_min * 1.5)                                                as brauchbar
+  from gruppen;
+
+create or replace view v_schimmel_kurve with (security_invoker = true) as
+with klassen(von, bis) as (
+  values (0,14), (15,30), (31,60), (61,90), (91,120), (121,180), (181,100000)
+), je_klasse as (
+  select k.von, k.bis,
+         count(b.anteil)::int as n,
+         sum(b.schimmel_kg) / nullif(sum(b.basis_jetzt_kg), 0) as anteil,
+         stddev_samp(b.anteil) as sd
+    from klassen k
+    left join v_schimmel_punkte b
+           on b.lagertage >= k.von and b.lagertage <= k.bis
+          and b.anteil is not null and b.plausibel
+   group by k.von, k.bis
+)
+select von, bis, n, anteil, sd,
+       least(greatest(max(anteil) over (order by von
+             rows between unbounded preceding and current row), 0), 1) as anteil_mono,
+       case when n >= 2 then greatest(anteil - 1.96 * sd / sqrt(n), 0) end as unten,
+       case when n >= 2 then least(anteil + 1.96 * sd / sqrt(n), 1) end   as oben
+  from je_klasse;
+
+-- ---------- Wie stark verzerrt die Verarbeitungsreihenfolge? --------------
+-- Der naheliegende Test — hängen die Abweichungen vom Verlauf mit der
+-- Verarbeitungsreihenfolge zusammen? — funktioniert nicht: innerhalb einer
+-- Charge *ist* die Reihenfolge die Lagerdauer, und die steckt schon im
+-- Modell. Die Regression hat den Zusammenhang bereits aufgebraucht.
+--
+-- Was wirklich trägt, ist der Vergleich der beiden Quellen. Lagerkontrollen
+-- werden zufällig gegriffen, Verarbeitungsmessungen nach Aussehen sortiert.
+-- Sagen beide dasselbe, gibt es keine Selektion. Liegen die Lagerkontrollen
+-- systematisch höher, wurde nach Zustand ausgewählt und der aus der
+-- Verarbeitung geschätzte Verlauf ist zu flach.
+create or replace view v_selektionsverdacht with (security_invoker = true) as
+with rest as (
+  select p.quelle, p.basis_jetzt_kg::numeric as w,
+         ln(-ln(1 - p.anteil::numeric)) - (m.ln_lambda + m.k * ln(p.lagertage::numeric)) as e
+    from v_schimmel_punkte p cross join v_schimmel_modell m
+   where m.brauchbar and p.plausibel
+     and p.anteil > 0 and p.anteil < 1 and p.lagertage > 0
+), je_quelle as (
+  select quelle, count(*)::int as n, sum(w * e) / nullif(sum(w), 0) as mittel
+    from rest group by quelle
+)
+select (select n from je_quelle where quelle = 'verarbeitung')      as n_verarbeitung,
+       (select n from je_quelle where quelle = 'lager')             as n_lager,
+       (select mittel from je_quelle where quelle = 'verarbeitung') as rest_verarbeitung,
+       (select mittel from je_quelle where quelle = 'lager')        as rest_lager,
+       -- Der Unterschied im Log-Raum; exp() davon ist der Faktor, um den
+       -- die zufällig gegriffene Ware fauler ist als die ausgewählte.
+       (select mittel from je_quelle where quelle = 'lager')
+         - (select mittel from je_quelle where quelle = 'verarbeitung') as unterschied,
+       case
+         when (select n from je_quelle where quelle = 'lager') is null
+           then 'keine Lagerkontrollen — Selektion nicht prüfbar'
+         when (select n from je_quelle where quelle = 'lager') < 5
+           then 'zu wenige Lagerkontrollen für eine Aussage'
+         when abs((select mittel from je_quelle where quelle = 'lager')
+                  - (select mittel from je_quelle where quelle = 'verarbeitung')) > 0.2
+           then 'verarbeitete und zufällig gegriffene Paletten sagen Verschiedenes — '
+                || 'es wird nach Aussehen ausgewählt. Bei gleichem Alter sind die '
+                || 'verarbeiteten fauler, dafür bleibt am Ende die robustere Ware '
+                || 'liegen: der Verlauf wird zu flach und die Hochrechnung auf lange '
+                || 'Lagerdauern zu niedrig. Mehr Lagerkontrollen beheben das.'
+         else 'beide Quellen sagen dasselbe — kein Hinweis auf Selektion'
+       end                                                          as befund;
+
+comment on view v_selektionsverdacht is
+  'Vergleicht zufällig gegriffene Lagerkontrollen mit den nach Aussehen '
+  'ausgewählten Verarbeitungsmessungen. Ohne Lagerkontrollen ist die '
+  'Selektionsverzerrung grundsätzlich nicht prüfbar.';
+
+grant select on v_schimmel_punkte, v_selektionsverdacht to authenticated;
+
+
+-- =====================================================================
+-- aus 0021_fehlende_tara_und_ueberzaehlung.sql
+-- =====================================================================
+
+-- =====================================================================
+-- 0021 — Zwei stille Verzerrungen der Eingangsmasse
+--
+-- ---------- 1. Fehlende Tara macht die Charge kleiner ---------------------
+-- v_palette rechnet netto = brutto − Kisten·Tara − Palettentara. Fehlt die
+-- Gebindeart, ist die Tara NULL, also auch netto — und sum() überspringt NULL
+-- stillschweigend. Die Charge wird dadurch leichter, als sie ist, und jeder
+-- Verlust in Prozent der Charge entsprechend grösser.
+--
+-- Nachgemessen an einer Charge mit 44 Paletten, bei der 4 keine Gebindeart
+-- haben (9 % der Paletten):
+--
+--   so gerechnet    34 494 kg
+--   hochgerechnet   37 943 kg
+--   Fehlbetrag        10.0 %
+--
+-- Zehn Prozent auf der Bezugsgrösse verschieben jede Verlustquote um zehn
+-- Prozent — mehr, als die meisten Unterschiede, die hier rangiert werden
+-- sollen. In der Oberfläche wurde bisher gewarnt, die Zahl selbst blieb falsch.
+--
+-- Behoben durch Hochrechnung innerhalb der Charge: Paletten ohne bekannte
+-- Tara bekommen das mittlere Nettogewicht der übrigen Paletten derselben
+-- Charge. Sie stehen im selben Lager und stammen von derselben Ernte; das ist
+-- die naheliegendste Annahme, die man treffen kann — und allemal besser als
+-- so zu tun, als gäbe es sie nicht.
+--
+-- ---------- 2. Mehr ausgelagert als eingelagert --------------------------
+-- lager_kg = greatest(eingang − ausgelagert, 0). Übersteigt die ausgelagerte
+-- Masse die eingelagerte — weil eine Charge mehrfach über das Band lief und
+-- Paletten doppelt gezählt wurden, oder weil oben Tara fehlte —, wird der
+-- Rest still auf 0 gesetzt und niemand erfährt davon. Der Betrag, um den
+-- gekappt wurde, wird jetzt mitgeführt: er ist die einzige Spur, die eine
+-- Doppelzählung im System hinterlässt.
+-- =====================================================================
+
+create or replace view v_charge_rueckgrat with (security_invoker = true) as
+select c.nr as charge_nr, c.schlag, c.sorte, c.saison,
+       count(p.id)                                     as n_paletten,
+       count(p.netto_kg)                               as n_paletten_mit_netto,
+       -- Auf alle Paletten der Charge hochgerechnet, nicht nur auf die mit
+       -- bekannter Tara. Sind alle bekannt, ändert sich nichts.
+       (sum(p.netto_kg) / nullif(count(p.netto_kg), 0) * count(p.id))
+                                                       as eingang_netto_kg,
+       sum(p.brutto_kg)                                as eingang_brutto_kg,
+       min(p.eingangsdatum)                            as erster_eingang,
+       max(p.eingangsdatum)                            as letzter_eingang,
+       '2000-01-01'::date + (sum((p.eingangsdatum - '2000-01-01'::date)::numeric
+              * coalesce(p.netto_kg, 1)) / nullif(sum(coalesce(p.netto_kg, 1)), 0))::int
+                                                       as eingangsdatum_mittel,
+       sum(p.netto_kg)                                 as eingang_netto_gemessen_kg
+  from charge c
+  left join v_palette p on p.charge_nr = c.nr
+ group by c.nr, c.schlag, c.sorte, c.saison;
+
+comment on view v_charge_rueckgrat is
+  'eingang_netto_kg ist auf alle Paletten der Charge hochgerechnet; '
+  'eingang_netto_gemessen_kg ist die Summe der Paletten mit bekannter Tara. '
+  'Weichen die beiden ab, fehlt bei n_paletten − n_paletten_mit_netto '
+  'Paletten die Gebindeart.';
+
+create or replace view v_hochrechnung_basis with (security_invoker = true) as
+with stichtag as (
+  select greatest((select (wert #>> '{}')::date from einstellung
+                    where schluessel = 'saison_ende'), current_date) as bis
+), ausgang as (
+  select charge_nr,
+         sum(eingang_netto_kg) as kg,
+         sum(eingang_netto_kg * lagertage) / nullif(sum(eingang_netto_kg), 0) as lagertage,
+         sum(eingang_netto_kg) filter (where weg = 'hand') as kg_hand
+    from v_auftrag_masse
+   where station in ('sortieren', 'waschen_sortieren') and eingang_netto_kg is not null
+   group by charge_nr
+)
+select r.charge_nr, r.schlag, r.sorte,
+       r.eingang_netto_kg as eingang_kg,
+       r.n_paletten,
+       r.eingangsdatum_mittel,
+       coalesce(a.kg, 0)                                            as ausgelagert_kg,
+       a.lagertage                                                  as alter_ausgelagert,
+       greatest(r.eingang_netto_kg - coalesce(a.kg, 0), 0)          as lager_kg,
+       (s.bis - r.eingangsdatum_mittel)::numeric                    as alter_lager,
+       (current_date - r.eingangsdatum_mittel)::numeric             as alter_lager_heute,
+       coalesce(a.kg_hand / nullif(a.kg, 0), 0)                     as weg2_anteil,
+       s.bis                                                        as stichtag,
+       r.n_paletten_mit_netto,
+       -- Wie viel musste weggekappt werden, damit der Lagerbestand nicht
+       -- negativ wird? Grösser als 0 heisst: es wurde mehr ausgelagert als je
+       -- eingelagert — Paletten doppelt gezählt oder Tara fehlt.
+       greatest(coalesce(a.kg, 0) - r.eingang_netto_kg, 0)          as ueberzaehlung_kg
+  from v_charge_rueckgrat r
+  cross join stichtag s
+  left join ausgang a on a.charge_nr = r.charge_nr
+ where r.eingang_netto_kg is not null;
+
+comment on view v_hochrechnung_basis is
+  'ueberzaehlung_kg > 0 heisst: es wurde mehr Masse ausgelagert als je '
+  'eingelagert. Der Lagerbestand wird dann auf 0 gekappt — die Zahl hier ist '
+  'die einzige Spur, die eine Doppelzählung hinterlässt.';
+
+grant select on v_charge_rueckgrat, v_hochrechnung_basis to authenticated;
+
+
+-- =====================================================================
+-- aus 0022_pruefbare_annahmen.sql
+-- =====================================================================
+
+-- =====================================================================
+-- 0022 — Zwei Annahmen prüfbar machen, statt sie zu glauben
+--
+-- ---------- 1. Die Dubletten-Regel ---------------------------------------
+-- Regel 3 der CSV-Reinigung verwirft jeden Wert, der gleich seinem direkten
+-- Vorgänger ist — 12–28 % aller Zeilen. Begründet ist das damit, dass zwei
+-- echte Kürbisse nacheinander nur mit verschwindender Wahrscheinlichkeit
+-- exakt gleich viel wiegen. Diese Wahrscheinlichkeit lässt sich aus der
+-- Gewichtsverteilung selbst ausrechnen: Für unabhängige Ziehungen ist sie
+-- Σ pᵢ², die Summe der quadrierten Anteile je Gewichtsstufe.
+--
+-- Damit wird prüfbar, was die Regel fälschlich entfernt: Von den verworfenen
+-- Zeilen sind höchstens Σpᵢ² / Nachbar_gleich_Anteil echte Gleichheiten.
+-- Die Ansicht rechnet beides aus den tatsächlich eingelesenen Dateien.
+--
+-- ---------- 2. Stratifizierung nach Schlag -------------------------------
+-- Spec §9 nennt Sorte, Schlag und Lagerdauer. Gebaut ist nur Sorte. Ob der
+-- Schlag eigenständig etwas beiträgt, entscheidet nicht die Meinung, sondern
+-- die Frage, ob die Unterschiede zwischen Schlägen grösser sind als das, was
+-- blosses Stichprobenrauschen erzeugt. Genau das rechnet v_schlag_effekt —
+-- dieselbe Momentenschätzung wie bei der Sorten-Bündelung.
+--
+-- Anzumerken: In diesen Daten ist jede Charge genau eine Kombination aus
+-- Schlag und Sorte (42 Chargen, 42 Kombinationen). Der Schlag ist damit in
+-- der Charge verschachtelt, und die chargen-robuste Fehlerrechnung aus 0017
+-- und 0018 hat die Streuung zwischen Schlägen bereits im Bereich drin. Eine
+-- eigene Schlag-Stratifizierung würde die Punktschätzung ändern, nicht die
+-- Ehrlichkeit des Bereichs — sie lohnt sich nur, wenn tau2_schlag deutlich
+-- über 0 liegt.
+-- =====================================================================
+
+create or replace view v_dubletten_pruefung with (security_invoker = true) as
+with anteile as (
+  -- Gewichtsverteilung über alle eingelesenen Dateien
+  select gewicht_g, sum(anzahl)::numeric as n from sortier_gewicht group by gewicht_g
+), gesamt as (
+  select sum(n) as n_gesamt, sum(power(n, 2)) as summe_quadrate,
+         count(*)::int as n_stufen from anteile
+), laeufe as (
+  select sum(n_dubletten)::numeric as verworfen, sum(n_roh)::numeric as roh
+    from sortier_lauf where n_roh > 0
+)
+select g.n_gesamt::bigint                                            as kuerbisse,
+       l.roh::bigint                                                 as zeilen_roh,
+       l.verworfen::bigint                                           as zeilen_verworfen,
+       (l.verworfen / nullif(l.roh, 0))                              as anteil_verworfen,
+       -- Σpᵢ²: wie oft zwei unabhängig gezogene Kürbisse gleich viel wiegen
+       (g.summe_quadrate / nullif(power(g.n_gesamt, 2), 0))           as zufalls_gleichheit,
+       -- Wie viel der verworfenen Zeilen war vermutlich echt?
+       (g.summe_quadrate / nullif(power(g.n_gesamt, 2), 0))
+         / nullif(l.verworfen / nullif(l.roh, 0), 0)                  as anteil_faelschlich,
+       case
+         when l.roh is null or l.roh = 0 then 'keine CSV eingelesen'
+         -- Testdaten haben oft nur eine Handvoll Gewichte; Σpᵢ² ist dann
+         -- gross, ohne dass das über echte Kürbisse etwas aussagt.
+         when g.n_stufen < 50
+           then format('nur %s verschiedene Gewichte — das sind keine echten '
+                       || 'Messdaten, die Prüfung sagt hier nichts', g.n_stufen)
+         when (g.summe_quadrate / nullif(power(g.n_gesamt, 2), 0))
+              / nullif(l.verworfen / nullif(l.roh, 0), 0) < 0.05
+           then 'Regel trägt: die verworfenen Gleichheiten sind weit häufiger, '
+                || 'als Zufall sie erzeugen könnte'
+         else 'Vorsicht: der Zufall erklärt einen erheblichen Teil der '
+              || 'verworfenen Zeilen — die Regel gehört an einer handgezählten '
+              || 'Palette überprüft (Spec §13)'
+       end                                                            as befund,
+       g.n_stufen                                                     as gewichtsstufen
+  from gesamt g cross join laeufe l;
+
+comment on view v_dubletten_pruefung is
+  'Prüft die Dubletten-Regel gegen die Gewichtsverteilung selbst. '
+  'anteil_faelschlich ist der Anteil der verworfenen Zeilen, der auch bei '
+  'echten, unabhängigen Kürbissen aufgetreten wäre.';
+
+create or replace view v_schlag_effekt with (security_invoker = true) as
+with punkte as (
+  select p.schlag, p.charge_nr, p.basis_jetzt_kg::numeric as w,
+         ln(-ln(1 - p.anteil::numeric)) - (m.ln_lambda + m.k * ln(p.lagertage::numeric)) as e
+    from v_schimmel_punkte p cross join v_schimmel_modell m
+   where m.brauchbar and p.plausibel and p.anteil > 0 and p.anteil < 1 and p.lagertage > 0
+), je_schlag as (
+  select schlag, count(*)::int as n, count(distinct charge_nr)::int as c,
+         sum(w) as sw, sum(w * e) / nullif(sum(w), 0) as mittel
+    from punkte group by schlag
+), streuung as (
+  select count(*)::int                                                  as n_schlaege,
+         sum(sw * power(mittel, 2)) / nullif(sum(sw), 0)                as beobachtet,
+         -- Was blosses Rauschen erzeugen würde: die mittlere Varianz der
+         -- Schlagmittel bei zufälliger Zuordnung
+         (select sum(w * power(e, 2)) / nullif(sum(w), 0) from punkte)
+           / nullif(avg(n), 0)                                          as erwartet_durch_zufall
+    from je_schlag where n >= 2
+)
+select n_schlaege, beobachtet, erwartet_durch_zufall,
+       greatest(beobachtet - erwartet_durch_zufall, 0)                  as tau2_schlag,
+       case
+         when n_schlaege is null or n_schlaege < 3
+           then 'zu wenige Schläge mit Messungen'
+         when greatest(beobachtet - erwartet_durch_zufall, 0) <= 0
+           then 'die Unterschiede zwischen Schlägen sind nicht grösser als '
+                || 'Stichprobenrauschen — eine eigene Schlag-Schätzung brächte nichts'
+         when beobachtet > 2 * erwartet_durch_zufall
+           then 'die Schläge unterscheiden sich deutlich — eine eigene '
+                || 'Schlag-Stratifizierung wäre begründet'
+         else 'schwacher Hinweis auf Schlag-Unterschiede, für eine eigene '
+              || 'Schätzung reicht es noch nicht'
+       end                                                              as befund
+  from streuung;
+
+comment on view v_schlag_effekt is
+  'Entscheidet an den Daten, ob eine Stratifizierung nach Schlag begründet '
+  'ist. Bis tau2_schlag deutlich über 0 liegt, steckt die Streuung zwischen '
+  'Schlägen bereits in der chargen-robusten Fehlerrechnung.';
+
+grant select on v_dubletten_pruefung, v_schlag_effekt to authenticated;
+
+
+-- =====================================================================
+-- aus 0023_ranking_mit_filter.sql
+-- =====================================================================
+
+-- =====================================================================
+-- 0023 — Das Ranking auch gefiltert richtig rechnen
+--
+-- Das Dashboard lässt nach Sorte, Schlag und Mindest-Lagerdauer filtern und
+-- summierte die Ströme dafür bisher selbst im Browser. Solange der Bereich
+-- aus drei Szenarien bestand, ging das: drei Summen, fertig. Seit 0019 ist
+-- der Bereich eine fortgepflanzte Streuung — Summieren führt dabei zum
+-- falschen Ergebnis, weil sich Fehler nicht addieren, sondern je nach
+-- Korrelation quadratisch oder linear zusammensetzen.
+--
+-- Die Statistik ein zweites Mal in TypeScript zu schreiben wäre die sicherste
+-- Art, die beiden auseinanderlaufen zu lassen. Statt dessen wandert der Filter
+-- dorthin, wo gerechnet wird. Die Kaskade hat je Charge und Portion eine
+-- Zeile — ein paar Dutzend —, das kostet nichts.
+-- =====================================================================
+
+drop view if exists v_marge_buch;
+drop view if exists v_verlust_ranking;
+
+create or replace function verlust_ranking(
+  p_sorte          text    default null,
+  p_schlag         text    default null,
+  p_min_lagertage  numeric default null)
+returns table (
+  strom text, buch text, kg numeric, kg_unten numeric, kg_oben numeric,
+  kg_beobachtet numeric, kg_projiziert numeric, kg_extrapoliert numeric,
+  koeff_n_min int, streuung_kg numeric, df int)
+language sql stable as $$
+with zeilen as materialized (
+  select * from v_hochrechnung
+   where buch in ('verlust', 'marge')
+     and (p_sorte is null or sorte = p_sorte)
+     and (p_schlag is null or schlag = p_schlag)
+     and (p_min_lagertage is null or alter_tage >= p_min_lagertage)
+),
+je_sorte as (
+  select z.strom, z.buch, z.sorte, max(z.koeff_art) as koeff_art,
+         sum(z.d_r) as g_r, sum(z.d_a) as g_a
+    from zeilen z group by z.strom, z.buch, z.sorte
+),
+je_strom_modell as (
+  select z.strom, z.buch,
+         sum(z.d_eta)       as g_achse,
+         sum(z.d_eta * z.u) as g_steigung
+    from zeilen z group by z.strom, z.buch
+),
+varianz_r as (
+  select s.strom, s.buch,
+         sum(power(s.g_r, 2) * coalesce(u.varianz_eigen, 0))
+           + power(sum(s.g_r * coalesce(u.gewicht_gesamt, 1)), 2)
+             * max(coalesce(u.varianz_gesamt, 0))               as varianz,
+         min(coalesce(u.df, 1))                                 as df
+    from je_sorte s
+    left join v_koeff_unsicherheit u
+           on u.art = 'verdunstung' and u.sorte is not distinct from s.sorte
+   group by s.strom, s.buch
+),
+varianz_a as (
+  select s.strom, s.buch,
+         sum(power(s.g_a, 2) * coalesce(u.varianz_eigen, 0))
+           + power(sum(s.g_a * coalesce(u.gewicht_gesamt, 1)), 2)
+             * max(coalesce(u.varianz_gesamt, 0))               as varianz,
+         min(coalesce(u.df, 1))                                 as df
+    from je_sorte s
+    left join v_koeff_unsicherheit u
+           on u.art = s.koeff_art and u.sorte is not distinct from s.sorte
+   where s.koeff_art is not null
+   group by s.strom, s.buch
+),
+varianz_f as (
+  select m.strom, m.buch,
+         power(m.g_achse, 2) * coalesce(sm.var_achse, 0)
+         + 2 * m.g_achse * m.g_steigung * coalesce(sm.kov_achse_k, 0)
+         + power(m.g_steigung, 2) * coalesce(sm.var_k, 0)       as varianz,
+         coalesce(sm.c_chargen - 1, 1)                          as df
+    from je_strom_modell m cross join v_schimmel_modell sm
+),
+summe as (
+  select z.strom, z.buch,
+         sum(z.kg)                                                as kg,
+         sum(z.kg) filter (where z.portion = 'ausgelagert')       as kg_beobachtet,
+         sum(z.kg) filter (where z.portion = 'lager')             as kg_projiziert,
+         sum(z.kg) filter (where z.f_extrapoliert)                as kg_extrapoliert,
+         min(z.koeff_n)                                           as koeff_n_min
+    from zeilen z group by z.strom, z.buch
+)
+select s.strom, s.buch, s.kg,
+       greatest(s.kg - g.t * g.streuung, 0)::numeric(14,2),
+       (s.kg + g.t * g.streuung)::numeric(14,2),
+       s.kg_beobachtet, s.kg_projiziert, s.kg_extrapoliert, s.koeff_n_min,
+       g.streuung::numeric(14,2), g.df
+  from summe s
+  left join varianz_r vr on vr.strom = s.strom and vr.buch = s.buch
+  left join varianz_a va on va.strom = s.strom and va.buch = s.buch
+  left join varianz_f vf on vf.strom = s.strom and vf.buch = s.buch
+  cross join lateral (
+    select sqrt(greatest(coalesce(vr.varianz, 0) + coalesce(va.varianz, 0)
+                         + coalesce(vf.varianz, 0), 0))       as streuung,
+           least(coalesce(vr.df, 999), coalesce(va.df, 999),
+                 coalesce(vf.df, 999))                        as df
+  ) g0
+  cross join lateral (select g0.streuung, g0.df, t_quantil_95(g0.df) as t) g
+ order by s.kg desc nulls last;
+$$;
+
+comment on function verlust_ranking(text, text, numeric) is
+  'Die Ströme mit fortgepflanztem 95-%-Bereich, wahlweise auf Sorte, Schlag '
+  'oder Mindest-Lagerdauer eingeschränkt. Der Bereich lässt sich nicht durch '
+  'Summieren gefilterter Zeilen gewinnen — deshalb gehört der Filter hierher.';
+
+create view v_verlust_ranking with (security_invoker = true) as
+select * from verlust_ranking();
+
+comment on view v_verlust_ranking is
+  'kg_unten/kg_oben sind ein fortgepflanztes 95-%-Intervall: die '
+  'Empfindlichkeit jedes Stroms gegenüber jedem Koeffizienten mal dessen '
+  'Fehler, zusammengesetzt nach der tatsächlichen Korrelation.';
+
+create view v_marge_buch with (security_invoker = true) as
+with kisten as materialized (
+  select sum(k.verkaufsfaehig_kg * b.weg2_anteil) / 8.0 as anzahl
+    from v_kaskade k join v_hochrechnung_basis b on b.charge_nr = k.charge_nr
+)
+select r.strom as posten, r.kg, r.kg_unten, r.kg_oben,
+       'Ware über 2000 g geht in einen anderen Verkaufskanal'::text as erlaeuterung
+  from v_verlust_ranking r where r.buch = 'marge'
+union all
+select 'Überfüllung der Kisten',
+       (u.kg_pro_kiste * v.anzahl)::numeric(14,2),
+       (u.unten * v.anzahl)::numeric(14,2),
+       (u.oben  * v.anzahl)::numeric(14,2),
+       format('%s Wägungen, im Schnitt %s kg Überschuss je Kiste, hochgerechnet auf %s Kisten',
+              u.n, round(u.kg_pro_kiste, 3), round(v.anzahl))
+  from v_koeff_ueberfuellung u cross join kisten v
+ where u.n > 0;
+
+grant execute on function verlust_ranking(text, text, numeric) to authenticated;
+grant select on v_verlust_ranking, v_marge_buch to authenticated;
+
+
+-- =====================================================================
 -- Rückmeldung im Ergebnisfenster
 -- =====================================================================
 select format('Fertig. %s Chargen und %s Sorten angelegt, %s Tabellen und %s Auswertungen erstellt. Weiter im README bei Schritt 4.',

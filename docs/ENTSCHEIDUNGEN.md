@@ -86,30 +86,70 @@ Test prüft das für jede Charge und jede Portion.
 
 ### Kein Bereich ist besser als ein erfundener
 
-Bei `n = 1` gibt es keine Streuung. Dann gilt der Punktwert für alle drei
-Szenarien und `koeff_n` sagt, worauf er beruht; das Dashboard markiert solche
-Zahlen als *dünne Datenlage*.
+Gibt es nichts zu streuen — eine einzige Charge —, steht der Punktwert dreimal
+da und `koeff_n` sagt, worauf er beruht; das Dashboard markiert solche Zahlen
+als *dünne Datenlage*.
 
 Der naheliegende Ausdruck `greatest(mittel − 1.96·sd/√n, 0)` ist hier eine
 Falle: `greatest` ignoriert NULL und liefert `0`. Aus „unbekannt" würde ein
 Bereich von 0 bis 1 — eine erfundene Spanne, die aussieht wie eine gemessene.
 
-### Obergrenzen werden proportional gedeckelt
+### Der Bereich entsteht aus Fehlerfortpflanzung, nicht aus drei Szenarien
 
-Im oberen Szenario können die Obergrenzen von *zu klein* und *zu gross*
-zusammen über 100 % liegen. Beide werden dann proportional herunterskaliert:
-Das erhält ihr Verhältnis und lässt keine negative Restmasse entstehen.
+Bis 0019 wurde die Kaskade dreimal gerechnet: einmal mit allen Koeffizienten an
+der unteren Grenze, einmal in der Mitte, einmal oben. Das unterstellt, dass sich
+alle Messfehler im Gleichtakt bewegen — und für Ströme weiter unten in der
+Kaskade stimmte nicht einmal die Richtung. Weniger Verdunstung und weniger
+Schimmel heisst *mehr* Masse, die bis zum Sortierband kommt, also mehr
+Ausschuss: `kg_unten` lag dort über `kg_oben`.
 
-### Unbekannte Tara bleibt NULL, niemals 0
+Statt dessen wird je Strom die Ableitung nach jedem Koeffizienten mitgeführt und
+der Fehler nach der tatsächlichen Korrelation zusammengesetzt. Der Fehler der
+Verdunstungsrate wandert dabei von selbst in Schimmel und Ausschuss weiter.
+
+Der Bereich lässt sich damit **nicht mehr durch Summieren gefilterter Zeilen
+gewinnen** — deshalb rechnet `verlust_ranking(sorte, schlag, min_lagertage)` die
+gefilterte Ansicht in der Datenbank, statt sie im Browser aufzusummieren. Die
+Statistik ein zweites Mal in TypeScript zu schreiben wäre die sicherste Art,
+beide auseinanderlaufen zu lassen.
+
+Nachweis und Zahlen: `docs/STATISTIK_BEFUND.md`.
+
+### Chargen zählen, nicht Messungen
+
+51 Sortierläufe aus zwei Chargen sind nicht 51 unabhängige Beobachtungen —
+gleicher Schlag, gleiche Ernte, gleiche Sortiereinstellung. Der Fehler wird
+deshalb chargen-robust geschätzt: die gewichteten Residuen werden je Charge
+aufsummiert, und die Streuung *dieser Summen* ist der Fehler. An denselben Daten
+war der naive Standardfehler der Verderbskurven-Steigung 31-fach zu klein.
+
+Dazu die t-Verteilung mit C−1 Freiheitsgraden statt 1.96: Bei zwölf Gruppen ist
+die Normalverteilung eine Behauptung, keine Näherung.
+
+### Sorten werden zum Gesamtwert gezogen, statt umzuschalten
+
+„eigene Sorte ab n ≥ 3, sonst global" sprang. Jetzt zieht empirisches Bayes den
+Sortenwert mit dem Gewicht B = τ²/(τ² + Fehler²) zum Gesamtwert. Viele
+verlässliche eigene Messungen → der eigene Wert zählt; wenige oder aus nur einer
+Charge → der Gesamtwert trägt.
+
+Wichtig dabei: Jede Sorte des Stammdatensatzes bekommt eine Zeile, auch die nie
+gemessene. Fällt sie heraus, steht ihr Koeffizient auf 0 — also „kein Verlust",
+was schlicht falsch ist. Beim Umbau ist genau das passiert und hat in der
+Simulation 37 % der Verdunstung verschluckt; `pruefung.sql` prüft es jetzt.
+
+### Unbekannte Tara bleibt NULL, niemals 0 — wird aber hochgerechnet
 
 Fehlt das Leergewicht eines Gebindes, bleibt das Netto der Palette NULL. Eine
 unbekannte Tara als 0 zu behandeln würde die Eingangsmasse systematisch zu hoch
 ansetzen und damit *jeden* Verlust in Prozent zu niedrig. „Leer ≠ 0" (Spec §8)
 gilt auch für Stammdaten.
 
-Weil `sum()` NULL-Werte überspringt, würde eine solche Lücke sonst still
-untergehen. `v_charge_rueckgrat` führt deshalb `n_paletten` und
-`n_paletten_mit_netto` getrennt, und das Dashboard warnt sichtbar.
+Weil `sum()` NULL-Werte überspringt, ging eine solche Lücke aber in die andere
+Richtung: Die Charge wurde leichter, als sie ist. An einer Charge mit 44
+Paletten, bei der 4 keine Gebindeart haben, waren das **10 %**. `eingang_netto_kg`
+rechnet deshalb auf alle Paletten der Charge hoch; `eingang_netto_gemessen_kg`
+hält daneben fest, was wirklich gewogen wurde, und das Dashboard warnt sichtbar.
 
 ## Umsetzung
 

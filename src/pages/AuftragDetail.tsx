@@ -231,6 +231,7 @@ function WiegeDialog({ auftrag, zettelDatum, nurZaehlen, abbrechen, fertig }: {
   const [art, setArt] = useState('')
   const [proKiste, setProKiste] = useState('')
   const [schimmel, setSchimmel] = useState(false)
+  const [faul, setFaul] = useState('')
   const [fehler, setFehler] = useState<string | null>(null)
   const [laeuft, setLaeuft] = useState(false)
 
@@ -257,6 +258,10 @@ function WiegeDialog({ auftrag, zettelDatum, nurZaehlen, abbrechen, fertig }: {
       gebindeart: art,
       kuerbisse_pro_kiste: proKiste === '' ? null : Number(proKiste),
       sichtbar_schimmel: schimmel,
+      // Der einzige Schimmelwert, dessen Palette nicht danach ausgewählt
+      // wurde, wie sie aussieht — und damit der einzige, der die Kurve
+      // gegen die Verarbeitungsreihenfolge absichert.
+      faul_kg: schimmel && faul !== '' ? Number(faul) : null,
     }).select('id').single()
     if (error) { setLaeuft(false); setFehler(fehlerText(error)); return }
 
@@ -337,6 +342,14 @@ function WiegeDialog({ auftrag, zettelDatum, nurZaehlen, abbrechen, fertig }: {
                      style={{ width: 22, height: 22, minHeight: 0 }} />
               {t('faulesSichtbar')}
             </label>
+
+            {schimmel && (
+              <div className="feld">
+                <label htmlFor="w-faul">{t('wievielFaul')} ({t('freiwillig')})</label>
+                <input id="w-faul" type="number" inputMode="decimal" step="0.5" min={0}
+                       value={faul} onChange={e => setFaul(e.target.value)} />
+              </div>
+            )}
 
             {fehler && <Hinweis art="warnung">{fehler}</Hinweis>}
             <div className="reihe">

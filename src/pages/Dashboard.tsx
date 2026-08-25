@@ -3,23 +3,41 @@ import { supabase } from '../lib/supabase'
 import { fehlerText } from '../lib/db'
 import { datum, kg, prozent, tonnen, zahl, zeitpunkt } from '../lib/format'
 import { Balken, Hinweis, Karte, Kennzahl, Lade, Marke, Rechenweg } from '../components/Bausteine'
-import type { Datenlage, Hochrechnung, Massenbilanz } from '../lib/typen'
+import type { Datenlage, Hochrechnung, Massenbilanz, Ranking } from '../lib/typen'
 
 type Ebene = 1 | 2 | 3
+
+/** v_schimmel_modell — das angepasste Verderbsmodell F(t) = 1 − exp(−λ·t^k). */
+interface Modell {
+  n: number; c_chargen: number; t_min: number; t_max: number
+  k: number | null; lambda: number | null; smearing: number | null
+  brauchbar: boolean
+}
+
+/** v_selektionsverdacht — sagen zufällig gegriffene und nach Aussehen
+ *  ausgewählte Paletten dasselbe? */
+interface Selektion {
+  n_verarbeitung: number | null; n_lager: number | null
+  unterschied: number | null; befund: string
+}
 
 interface StromSumme {
   strom: string
   buch: string
   mittel: number; unten: number; oben: number
-  beobachtet: number; projiziert: number
+  beobachtet: number; projiziert: number; extrapoliert: number
   basis: number
   koeffN: number | null
   koeffBasis: string | null
   formel: string
+  /** false, solange die Datenbank für diesen Filter noch keinen Bereich
+   *  geliefert hat. Ein Bereich aus summierten Zeilen wäre falsch. */
+  bereichBekannt: boolean
 }
 
 export default function Dashboard() {
   const [zeilen, setZeilen] = useState<Hochrechnung[]>([])
+  const [ranking, setRanking] = useState<Ranking[]>([])
   const [bilanz, setBilanz] = useState<Massenbilanz[]>([])
   const [lage, setLage] = useState<Datenlage[]>([])
   const [befunde, setBefunde] = useState<{ art: string; charge_nr: number; sorte: string
@@ -29,6 +47,8 @@ export default function Dashboard() {
   const [kurve, setKurve] = useState<{ altersklasse: string; messungen: number
     gemessen: number | null; verwendet: number | null; erlaeuterung: string }[]>([])
   const [koeff, setKoeff] = useState<{ was: string; wert: string; n: number; basis: string }[]>([])
+  const [modell, setModell] = useState<Modell | null>(null)
+  const [selektion, setSelektion] = useState<Selektion | null>(null)
   const [wiegungen, setWiegungen] = useState<{ id: number; charge_nr: number; sorte: string
     lagertage: number; netto_damals_kg: number | null; netto_jetzt_kg: number | null
     kg_pro_kiste: number | null; kg_pro_kuerbis: number | null; verlust_kg: number | null
@@ -75,10 +95,27 @@ export default function Dashboard() {
 
   useEffect(() => { void laden() }, [laden])
 
+  /** Der Bereich je Strom kommt aus der Datenbank, weil er sich nicht aus
+   *  gefilterten Zeilen summieren lässt (Fehlerfortpflanzung, nicht Addition).
+   *  Deshalb bei jeder Filteränderung neu holen — es sind ein paar Dutzend
+   *  Zeilen, die Rechnung läuft auf gespeicherten Ansichten. */
+  useEffect(() => {
+    let verworfen = false
+    void (async () => {
+      const { data, error } = await supabase.rpc('verlust_ranking', {
+        p_sorte: sorte || null,
+        p_schlag: schlag || null,
+        p_min_lagertage: minLagertage ? Number(minLagertage) : null,
+      })
+      if (!verworfen && !error) setRanking((data ?? []) as Ranking[])
+    })()
+    return () => { verworfen = true }
+  }, [sorte, schlag, minLagertage, stand])
+
   const datenLaden = async () => {
     void (async () => {
       try {
-        const [h, b, d, m, pl, wk, kv, sk, kfv, kfa, kfn, kfu] = await Promise.all([
+        const [h, b, d, m, pl, wk, kv, sk, kfv, kfa, kfn, kfu, mo, sel] = await Promise.all([
           supabase.from('v_hochrechnung').select('*'),
           supabase.from('v_massenbilanz').select('*'),
           supabase.from('v_datenlage').select('*'),
@@ -91,6 +128,8 @@ export default function Dashboard() {
           supabase.from('v_koeff_ausschuss').select('*'),
           supabase.from('v_koeff_nebenkanal').select('*'),
           supabase.from('v_koeff_ueberfuellung').select('*'),
+          supabase.from('v_schimmel_modell').select('*').maybeSingle(),
+          supabase.from('v_selektionsverdacht').select('*').maybeSingle(),
         ])
         if (h.error) throw h.error
         setZeilen((h.data ?? []) as Hochrechnung[])
@@ -101,6 +140,8 @@ export default function Dashboard() {
         setWiegungen((wk.data ?? []) as typeof wiegungen)
         setKaliber((kv.data ?? []) as typeof kaliber)
         setKurve((sk.data ?? []) as typeof kurve)
+        setModell((mo.data ?? null) as Modell | null)
+        setSelektion((sel.data ?? null) as Selektion | null)
 
         // Die vier Koeffizienten in einer Tabelle: das Innenleben der Rechnung.
         type K = { sorte?: string; mittel?: number | null; n: number; basis?: string
@@ -141,8 +182,10 @@ export default function Dashboard() {
     && (!schlag || z.schlag === schlag)
     && (!minLagertage || z.alter_tage >= Number(minLagertage))), [zeilen, sorte, schlag, minLagertage])
 
-  /** Summiert die Langform je Strom auf — dieselbe Rechnung wie v_verlust_ranking,
-      nur mit den hier gesetzten Filtern. */
+  /** Summiert die Langform je Strom auf. Die Kilos lassen sich addieren, der
+      Bereich nicht: Fehler setzen sich je nach Korrelation quadratisch oder
+      linear zusammen, nie durch Summieren. Den Bereich rechnet deshalb
+      verlust_ranking() in der Datenbank — mit denselben Filtern. */
   const stroeme = useMemo<StromSumme[]>(() => {
     const map = new Map<string, StromSumme>()
     for (const z of gefiltert) {
@@ -150,21 +193,27 @@ export default function Dashboard() {
       let s = map.get(z.strom)
       if (!s) {
         s = { strom: z.strom, buch: z.buch, mittel: 0, unten: 0, oben: 0,
-              beobachtet: 0, projiziert: 0, basis: 0,
-              koeffN: z.koeff_n, koeffBasis: z.koeff_basis, formel: z.formel }
+              beobachtet: 0, projiziert: 0, extrapoliert: 0, basis: 0,
+              koeffN: z.koeff_n, koeffBasis: z.koeff_basis, formel: z.formel,
+              bereichBekannt: false }
         map.set(z.strom, s)
       }
-      if (z.szenario === 'mittel') {
-        s.mittel += z.kg
-        s.basis += z.basis_kg ?? 0
-        if (z.portion === 'ausgelagert') s.beobachtet += z.kg; else s.projiziert += z.kg
-        // Die kleinste Stichprobe bestimmt, wie belastbar die Zahl ist.
-        if (z.koeff_n !== null) s.koeffN = s.koeffN === null ? z.koeff_n : Math.min(s.koeffN, z.koeff_n)
-      } else if (z.szenario === 'unten') s.unten += z.kg
-      else s.oben += z.kg
+      s.mittel += z.kg
+      s.basis += z.basis_kg ?? 0
+      if (z.portion === 'ausgelagert') s.beobachtet += z.kg; else s.projiziert += z.kg
+      if (z.f_extrapoliert) s.extrapoliert += z.kg
+      // Die kleinste Stichprobe bestimmt, wie belastbar die Zahl ist.
+      if (z.koeff_n !== null) s.koeffN = s.koeffN === null ? z.koeff_n : Math.min(s.koeffN, z.koeff_n)
+    }
+    for (const r of ranking) {
+      const s = map.get(r.strom)
+      if (!s || r.kg_unten === null || r.kg_oben === null) continue
+      s.unten = r.kg_unten
+      s.oben = r.kg_oben
+      s.bereichBekannt = true
     }
     return [...map.values()]
-  }, [gefiltert])
+  }, [gefiltert, ranking])
 
   const verluste = stroeme.filter(s => s.buch === 'verlust').sort((a, b) => b.mittel - a.mittel)
   const eingang = useMemo(() => {
@@ -306,7 +355,8 @@ export default function Dashboard() {
 
       {ebene === 3 && (
         <Rohdaten zeilen={gefiltert} bilanz={bilanz} lage={lage} wiegungen={wiegungen}
-                  kaliber={kaliber} kurve={kurve} koeff={koeff} />
+                  kaliber={kaliber} kurve={kurve} koeff={koeff}
+                  modell={modell} selektion={selektion} />
       )}
     </>
   )
@@ -320,9 +370,15 @@ function rechenweg(v: StromSumme, eingang: number): [string, React.ReactNode][] 
       ? `${v.koeffBasis}${v.koeffN !== null ? ` · ${v.koeffN} Messungen` : ''}`
       : '—'],
     ['Ergebnis', `${kg(v.mittel, 0)} (${prozent(eingang > 0 ? v.mittel / eingang : null)} der Eingangsmasse)`],
-    ['Bereich', `${kg(v.unten, 0)} – ${kg(v.oben, 0)}`],
+    ['Bereich', v.bereichBekannt
+      ? `${kg(v.unten, 0)} – ${kg(v.oben, 0)} (95 %, aus den Messfehlern fortgepflanzt)`
+      : 'wird gerechnet …'],
     ['Davon beobachtet', kg(v.beobachtet, 0)],
     ['Davon projiziert', `${kg(v.projiziert, 0)} — Ware, die noch im Lager liegt`],
+    ['Davon hochgerechnet', v.extrapoliert > 0
+      ? `${kg(v.extrapoliert, 0)} — liegt länger als die längste gemessene Lagerdauer, `
+        + 'der Verlauf ist dorthin verlängert'
+      : 'nichts — alle Lagerdauern sind durch Messungen abgedeckt'],
   ]
 }
 
@@ -331,6 +387,16 @@ function Ueberblick({ verluste, eingang, verlustGesamt, maximum }: {
 }) {
   const haupt = verluste[0]
   const duenn = verluste.filter(v => (v.koeffN ?? 0) < 3)
+
+  // Zwei Ströme, deren Bereiche sich überschneiden, lassen sich mit dieser
+  // Datengrundlage nicht auseinanderhalten. In der Simulation gab es keinen
+  // Fall, in dem die Rangfolge kippte, ohne dass die Bereiche es anzeigten —
+  // deshalb steht es hier, statt es der Balkenlänge zu überlassen.
+  const ununterscheidbar = verluste
+    .slice(0, -1)
+    .map((v, i) => [v, verluste[i + 1]] as const)
+    .filter(([a, b]) => a.bereichBekannt && b.bereichBekannt && a.unten <= b.oben)
+    .map(([a, b]) => `${a.strom} und ${b.strom}`)
 
   return (
     <>
@@ -342,6 +408,13 @@ function Ueberblick({ verluste, eingang, verlustGesamt, maximum }: {
           <Kennzahl titel="Hauptursache" wert={haupt?.strom ?? '—'}
                     unter={haupt ? `${prozent(verlustGesamt > 0 ? haupt.mittel / verlustGesamt : null)} des Verlusts` : ''} />
         </div>
+        {ununterscheidbar.length > 0 && (
+          <Hinweis art="info">
+            Nicht auseinanderzuhalten: {ununterscheidbar.join(', ')}. Die Bereiche
+            überschneiden sich — welcher davon größer ist, geben die Messungen
+            nicht her. Die Reihenfolge der Balken ist dort Zufall.
+          </Hinweis>
+        )}
       </Karte>
 
       <Karte titel="Ursachen, rangiert">
@@ -376,7 +449,8 @@ function Ueberblick({ verluste, eingang, verlustGesamt, maximum }: {
   )
 }
 
-function Rohdaten({ zeilen, bilanz, lage, wiegungen, kaliber, kurve, koeff }: {
+function Rohdaten({ zeilen, bilanz, lage, wiegungen, kaliber, kurve, koeff,
+                   modell, selektion }: {
   zeilen: Hochrechnung[]; bilanz: Massenbilanz[]; lage: Datenlage[]
   wiegungen: { id: number; charge_nr: number; sorte: string; lagertage: number
     netto_damals_kg: number | null; netto_jetzt_kg: number | null
@@ -387,13 +461,17 @@ function Rohdaten({ zeilen, bilanz, lage, wiegungen, kaliber, kurve, koeff }: {
   kurve: { altersklasse: string; messungen: number; gemessen: number | null
     verwendet: number | null; erlaeuterung: string }[]
   koeff: { was: string; wert: string; n: number; basis: string }[]
+  modell: Modell | null; selektion: Selektion | null
 }) {
-  const mittel = zeilen.filter(z => z.szenario === 'mittel' && z.buch !== 'bilanz')
+  // Seit 0019 gibt es je Charge und Portion nur noch eine Zeile je Strom —
+  // die drei Szenarien sind durch die Fehlerfortpflanzung ersetzt.
+  const mittel = zeilen.filter(z => z.buch !== 'bilanz')
   const taraLuecken = lage.filter(l => l.n_paletten > 0 && l.n_paletten_mit_netto < l.n_paletten)
 
   function exportieren() {
     const kopf = ['charge_nr', 'sorte', 'schlag', 'portion', 'alter_tage', 'strom', 'buch',
-                  'kg', 'basis_kg', 'koeffizient', 'koeff_n', 'koeff_basis', 'formel']
+                  'kg', 'basis_kg', 'koeffizient', 'koeff_n', 'koeff_basis',
+                  'f_extrapoliert', 'formel']
     const zeilenText = mittel.map(z => kopf.map(k => {
       const w = (z as unknown as Record<string, unknown>)[k]
       const s = w === null || w === undefined ? '' : String(w)
@@ -525,6 +603,63 @@ function Rohdaten({ zeilen, bilanz, lage, wiegungen, kaliber, kurve, koeff }: {
           </table>
         </div>
       </Karte>
+
+      {modell && (
+        <Karte titel="Das Verderbsmodell — und was es nicht weiß">
+          <p className="leise">
+            Der Schimmelverlauf wird nicht Altersklasse für Altersklasse
+            abgelesen, sondern als Kurve an alle Messungen angepasst:
+            F(t) = 1 − exp(−λ·t<sup>k</sup>). Nur so lässt sich sagen, was mit
+            Ware passiert, die länger liegt als alles bisher Verarbeitete — und
+            das ist mitten in der Saison die halbe Ernte.
+          </p>
+          {!modell.brauchbar ? (
+            <Hinweis art="warnung">
+              Für eine Kurve reicht es noch nicht — nötig sind Schimmelmessungen
+              aus mindestens drei Chargen über deutlich verschiedene Lagerdauern.
+              Solange gilt der zuletzt gemessene Wert. Ware, die länger liegt als
+              die längste Messung, wird damit zu günstig gerechnet.
+            </Hinweis>
+          ) : (
+            <div className="rollbar">
+              <table>
+                <tbody>
+                  <tr><td>Form der Kurve (k)</td>
+                      <td className="zahl"><strong>{modell.k?.toFixed(2)}</strong></td>
+                      <td className="leise">über 1 heißt: die Verderbrate steigt mit
+                          der Lagerdauer</td></tr>
+                  <tr><td>Gemessener Bereich</td>
+                      <td className="zahl"><strong>{Math.round(modell.t_min)}–
+                          {Math.round(modell.t_max)} Tage</strong></td>
+                      <td className="leise">darüber hinaus wird gerechnet, nicht
+                          gemessen — der Bereich wird dort von selbst breiter</td></tr>
+                  <tr><td>Messungen</td>
+                      <td className="zahl"><strong>{modell.n}</strong></td>
+                      <td className="leise">aus {modell.c_chargen} Chargen — und die
+                          Chargen zählen, nicht die Messungen: was aus derselben
+                          Charge kommt, ist sich ähnlich</td></tr>
+                  <tr><td>Rückrechnung (Smearing)</td>
+                      <td className="zahl"><strong>×{modell.smearing?.toFixed(3)}</strong></td>
+                      <td className="leise">gleicht aus, dass die Anpassung im
+                          Logarithmus rechnet und sonst systematisch zu tief landet</td></tr>
+                </tbody>
+              </table>
+            </div>
+          )}
+          {selektion && (
+            <Hinweis art={(selektion.n_lager ?? 0) < 5 ? 'warnung' : 'info'}>
+              <strong>Auswahl der gemessenen Paletten:</strong> {selektion.befund}
+              {(selektion.n_lager ?? 0) < 5 && (
+                <> Wer schlecht aussieht, kommt zuerst dran — dadurch wird der
+                  Verlauf flacher gemessen, als er ist. Dagegen hilft nur eine
+                  Handvoll zufällig gegriffener Lagerpaletten je Saison: beim
+                  Wiegen „Faules sichtbar" ankreuzen und die Kilo eintragen.
+                  Zwei Paletten im Monat genügen.</>
+              )}
+            </Hinweis>
+          )}
+        </Karte>
+      )}
 
       {kurve.length > 0 && (
         <Karte titel="Schimmelkurve">

@@ -238,10 +238,10 @@ begin
 
   -- ---- Die Ströme müssen jede Portion vollständig aufteilen ----------
   for v_kaskade in
-      select distinct charge_nr, portion from v_hochrechnung where szenario = 'mittel'
+      select distinct charge_nr, portion from v_hochrechnung
   loop
     select sum(kg), max(portion_kg) into v_summe, v from v_hochrechnung
-     where szenario = 'mittel' and charge_nr = v_kaskade.charge_nr
+     where charge_nr = v_kaskade.charge_nr
        and portion = v_kaskade.portion;
     -- Toleranz 50 g: Die fünf Ströme werden einzeln auf 10 g gerundet
     -- ausgegeben, ihre Summe kann also um wenige Rundungsschritte abweichen.
@@ -274,17 +274,17 @@ begin
     'Die noch lagernde Charge muss bis zum Stichtag älter werden';
 
   -- ---- Bereiche: unten ≤ mittel ≤ oben -------------------------------
+  -- Seit 0019 steht der Bereich nicht mehr aus drei Szenarien, sondern aus
+  -- der Fehlerfortpflanzung. Genau daran war der alte Aufbau gescheitert:
+  -- bei nachgelagerten Strömen lag „unten" über „oben".
   assert not exists (
-    select 1 from (
-      select strom, sum(kg) filter (where szenario='unten')  u,
-                    sum(kg) filter (where szenario='mittel') m,
-                    sum(kg) filter (where szenario='oben')   o
-        from v_hochrechnung where buch = 'verlust' group by strom) t
-     where u > m + 0.01 or m > o + 0.01),
+    select 1 from v_verlust_ranking
+     where kg_unten > kg + 0.01 or kg > kg_oben + 0.01),
     'Der untere Bereich muss unter dem mittleren liegen und dieser unter dem oberen';
 
   -- ---- Ranking und Bilanz liefern etwas ------------------------------
-  assert (select count(*) from v_verlust_ranking) = 3, 'Drei Verlustströme erwartet';
+  assert (select count(*) from v_verlust_ranking where buch = 'verlust') = 3,
+    'Drei Verlustströme erwartet';
   assert (select kg from v_verlust_ranking order by kg desc nulls last limit 1) > 0,
     'Der Hauptverlust muss beziffert sein';
   -- Der eigentliche Test der ganzen Kette: das Modell sagt die Masse am
@@ -600,5 +600,171 @@ begin
   reset role;
   raise notice 'OK  Row Level Security (Arbeiter darf messen, nicht verwalten)';
 end $$;
+
+
+-- =========================================================================
+-- Fixtur für die Modellprüfung: Ohne Messungen aus mehreren Chargen über
+-- verschiedene Lagerdauern lässt sich kein Verlauf anpassen — dann greift
+-- (richtigerweise) die Treppenfunktion und die Prüfungen unten liefen ins
+-- Leere. Hier werden drei Chargen mit je fünf Arbeiten über 30–210 Tage
+-- angelegt, deren Schimmelmengen einem bekannten Verlauf folgen:
+--   F(t) = 1 − exp(−1.07e-5 · t^1.6)
+-- Das ist dieselbe Form, die das Modell annimmt. Geprüft wird damit nicht,
+-- ob die Annahme stimmt (das misst der Simulations-Harness), sondern ob die
+-- Anpassung sie zurückgewinnt und richtig fehlerbehaftet.
+-- =========================================================================
+insert into palette (charge_nr, eingangsdatum, brutto_kg, kisten, gebindeart)
+select c.nr, date '2026-09-01', 865 + 38 * 1.5 + 25, 38, 'G2'
+  from (values (1603), (1604), (1606)) c(nr)
+ cross join generate_series(1, 30);
+
+insert into auftrag (id, weg, station, charge_nr, start_ts, ende_ts, status)
+select 2000 + row_number() over (order by c.nr, t.tage),
+       'maschine', 'sortieren', c.nr,
+       (date '2026-09-01' + t.tage)::timestamptz + interval '8 hours',
+       (date '2026-09-01' + t.tage)::timestamptz + interval '15 hours',
+       'abgeschlossen'
+  from (values (1603), (1604), (1606)) c(nr)
+ cross join (values (30), (75), (120), (165), (210)) t(tage);
+
+-- Eine Zeile je gezählter Palette; sechs Paletten je Arbeit.
+insert into auftrag_palette (auftrag_id, eingangsdatum)
+select a.id, date '2026-09-01'
+  from auftrag a cross join generate_series(1, 6)
+ where a.id between 2001 and 2015;
+
+-- Schimmelmenge nach dem bekannten Verlauf, bezogen auf die Masse nach
+-- Verdunstung. Ohne Rauschen: der Test prüft die Rechnung, nicht die Streuung.
+insert into schimmel_messung (auftrag_id, kg)
+select a.id,
+       round(6 * 865 * power(1 - 0.0006, t.tage)
+             * (1 - exp(-0.0000107 * power(t.tage, 1.6))))
+  from auftrag a
+  cross join lateral (select (a.start_ts::date - date '2026-09-01') as tage) t
+ where a.id between 2001 and 2015;
+
+-- Die Auswertung liest gespeicherte Ansichten; ohne Neuberechnung sieht sie
+-- von der Fixtur nichts.
+select auswertung_aktualisieren();
+
+-- =========================================================================
+-- Statistik: was die Überprüfung von 0017–0022 nachgewiesen hat, bleibt
+-- nachgewiesen. Diese Blöcke prüfen keine Zahlen aus der Simulation, sondern
+-- die Eigenschaften, aus denen sie folgen — die halten auch auf echten Daten.
+-- =========================================================================
+
+do $$
+declare v_f30 numeric; v_f90 numeric; v_f200 numeric;
+        v_brauchbar boolean; v_smearing numeric;
+begin
+  select brauchbar, smearing into v_brauchbar, v_smearing from v_schimmel_modell;
+  assert v_brauchbar, 'Das Verderbsmodell lässt sich mit den Testdaten nicht anpassen';
+
+  -- Der Kern von 0017: der Verlauf steigt über die längste gemessene
+  -- Lagerdauer hinaus weiter. Die alte Treppenfunktion lief hier flach —
+  -- das war die −46-%-Verzerrung bei halb vollem Lager.
+  v_f30  := schimmelanteil(30);
+  v_f90  := schimmelanteil(90);
+  v_f200 := schimmelanteil(200);
+  assert v_f30 < v_f90 and v_f90 < v_f200,
+         format('Schimmelverlauf steigt nicht: 30 T = %s, 90 T = %s, 200 T = %s',
+                v_f30, v_f90, v_f200);
+  assert v_f200 > v_f90 * 1.2,
+         format('Bei 200 Tagen kaum mehr Schimmel als bei 90 — wird wieder flach '
+                || 'fortgeschrieben? (%s vs. %s)', v_f200, v_f90);
+
+  -- Duan-Smearing: Rücktransformation aus dem Log-Raum. Unter 1 wäre falsch
+  -- herum, über 2 wäre kein Korrekturfaktor mehr, sondern ein Symptom.
+  assert v_smearing >= 1.0 and v_smearing < 2.0,
+         format('Smearing-Faktor unplausibel: %s', v_smearing);
+
+  -- Der Bereich muss dort breiter werden, wo extrapoliert wird.
+  assert (schimmelanteil(200, 'oben') - schimmelanteil(200, 'unten'))
+       > (schimmelanteil(60, 'oben') - schimmelanteil(60, 'unten')),
+         'Der Bereich wird beim Hochrechnen nicht breiter — die Unsicherheit '
+         || 'der Extrapolation fehlt';
+
+  raise notice 'OK  Verderbsmodell (steigt, korrigiert zurück, wird unsicherer)';
+end $$;
+
+do $$
+declare v_n int; v_c int;
+begin
+  -- 0017/0018: Messungen aus derselben Charge sind keine unabhängigen
+  -- Beobachtungen. Wenn c_chargen wieder gleich n wäre, zählte jemand
+  -- Messungen statt Gruppen — das war der 31-fach zu kleine Fehler.
+  select n, c_chargen into v_n, v_c from v_schimmel_modell;
+  assert v_c <= v_n, 'Mehr Chargen als Messungen — das kann nicht sein';
+  assert v_c >= 3, format('Nur %s Chargen im Modell — der Fehler ist so nicht '
+                          || 'schätzbar', v_c);
+
+  -- Die Freiheitsgrade folgen den Chargen, nicht den Messungen.
+  assert (select t_faktor from v_schimmel_modell) = t_quantil_95(v_c - 1),
+         'Der t-Faktor passt nicht zur Zahl der Chargen';
+  raise notice 'OK  Fehler folgt den Chargen, nicht der Zahl der Messungen';
+end $$;
+
+do $$
+declare r record;
+begin
+  perform auswertung_aktualisieren();
+
+  -- 0019: Der Befund, der die drei Szenarien erledigt hat. Bei nachgelagerten
+  -- Strömen stand kg_unten über kg_oben, weil „unten" alle Koeffizienten
+  -- gleichzeitig senkte und damit die Masse *erhöhte*, aus der sie rechnen.
+  for r in select strom, kg, kg_unten, kg_oben from v_verlust_ranking loop
+    assert r.kg_unten <= r.kg, format('%s: Untergrenze %s über dem Wert %s',
+                                      r.strom, r.kg_unten, r.kg);
+    assert r.kg_oben >= r.kg,  format('%s: Obergrenze %s unter dem Wert %s',
+                                      r.strom, r.kg_oben, r.kg);
+  end loop;
+
+  -- Und der Fehler muss überhaupt ankommen: ein Strom ohne jede Streuung
+  -- wäre eine Zahl ohne Aussage.
+  assert (select count(*) from v_verlust_ranking where coalesce(streuung_kg, 0) > 0) >= 2,
+         'Kein einziger Strom hat eine Streuung — die Fortpflanzung greift nicht';
+  raise notice 'OK  Fortgepflanzter Bereich (Grenzen in der richtigen Reihenfolge)';
+end $$;
+
+do $$
+declare v_ohne numeric; v_mit numeric;
+begin
+  -- 0018: Eine Sorte ohne eigene Messung bekommt den Gesamtwert, nicht 0.
+  -- Der Fehler hat in der Simulation 37 % der Verdunstung verschluckt.
+  assert not exists (select 1 from v_koeff_verdunstung
+                      where mittel = 0 and basis <> 'keine Wiegung vorhanden'),
+         'Eine Sorte mit Messungen hat den Koeffizienten 0 — Bündelung greift nicht';
+  assert not exists (select 1 from v_koeff_ausschuss
+                      where mittel = 0 and basis <> 'keine Messung vorhanden'),
+         'Eine Sorte mit Messungen hat Ausschuss 0 — Bündelung greift nicht';
+
+  -- Der gebündelte Wert liegt immer zwischen eigenem und gemeinsamem Wert.
+  assert not exists (
+    select 1 from v_koeff_kaliber_geschaetzt
+     where mittel_roh is not null and mittel_gesamt is not null
+       and (mittel > greatest(mittel_roh, mittel_gesamt) + 1e-9
+         or mittel < least(mittel_roh, mittel_gesamt) - 1e-9)),
+    'Ein gebündelter Koeffizient liegt ausserhalb von eigenem und Gesamtwert';
+  raise notice 'OK  Teilbündelung (kein Sprung, keine Sorte auf 0)';
+end $$;
+
+do $$
+declare v_eingang numeric; v_gemessen numeric; v_n int; v_n_netto int;
+begin
+  -- 0021: Fehlende Tara darf die Charge nicht kleiner machen.
+  select eingang_netto_kg, eingang_netto_gemessen_kg, n_paletten, n_paletten_mit_netto
+    into v_eingang, v_gemessen, v_n, v_n_netto
+    from v_charge_rueckgrat where eingang_netto_kg is not null
+   order by charge_nr limit 1;
+  assert v_eingang >= v_gemessen - 1e-6,
+         'Die hochgerechnete Eingangsmasse liegt unter der gemessenen';
+  if v_n = v_n_netto then
+    assert abs(v_eingang - v_gemessen) < 1e-6,
+           'Ohne fehlende Tara darf die Hochrechnung nichts ändern';
+  end if;
+  raise notice 'OK  Fehlende Tara wird hochgerechnet statt verschluckt';
+end $$;
+
+select '——— Statistik geprüft ———' as ergebnis;
 
 select '——— Fachlogik geprüft ———' as ergebnis;
