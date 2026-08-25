@@ -239,7 +239,10 @@ begin
     select sum(kg), max(portion_kg) into v_summe, v from v_hochrechnung
      where szenario = 'mittel' and charge_nr = v_kaskade.charge_nr
        and portion = v_kaskade.portion;
-    assert abs(v_summe - v) < 0.01,
+    -- Toleranz 50 g: Die fünf Ströme werden einzeln auf 10 g gerundet
+    -- ausgegeben, ihre Summe kann also um wenige Rundungsschritte abweichen.
+    -- Alles darüber wäre ein echter Rechenfehler.
+    assert abs(v_summe - v) < 0.05,
       format('Charge %s / %s: Ströme (%s kg) teilen die Portion (%s kg) nicht auf',
              v_kaskade.charge_nr, v_kaskade.portion, round(v_summe, 2), round(v, 2));
   end loop;

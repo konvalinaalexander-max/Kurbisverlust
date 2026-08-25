@@ -24,6 +24,11 @@ export default function Dashboard() {
   const [lage, setLage] = useState<Datenlage[]>([])
   const [befunde, setBefunde] = useState<{ art: string; charge_nr: number; sorte: string
     befund: string; rat: string }[]>([])
+  const [kaliber, setKaliber] = useState<{ charge_nr: number; sorte: string; klasse: string
+    band_von: number | null; band_bis: number | null; n_kuerbis: number; masse_kg: number }[]>([])
+  const [kurve, setKurve] = useState<{ altersklasse: string; messungen: number
+    gemessen: number | null; verwendet: number | null; erlaeuterung: string }[]>([])
+  const [koeff, setKoeff] = useState<{ was: string; wert: string; n: number; basis: string }[]>([])
   const [wiegungen, setWiegungen] = useState<{ id: number; charge_nr: number; sorte: string
     lagertage: number; netto_damals_kg: number | null; netto_jetzt_kg: number | null
     kg_pro_kiste: number | null; kg_pro_kuerbis: number | null; verlust_kg: number | null
@@ -41,13 +46,19 @@ export default function Dashboard() {
   useEffect(() => {
     void (async () => {
       try {
-        const [h, b, d, m, pl, wk] = await Promise.all([
+        const [h, b, d, m, pl, wk, kv, sk, kfv, kfa, kfn, kfu] = await Promise.all([
           supabase.from('v_hochrechnung').select('*'),
           supabase.from('v_massenbilanz').select('*'),
           supabase.from('v_datenlage').select('*'),
           supabase.from('v_marge_buch').select('*'),
           supabase.from('v_plausibilitaet').select('*'),
           supabase.from('v_wiegung_kennzahl').select('*').order('wiege_ts', { ascending: false }),
+          supabase.from('v_kaliber_verteilung').select('*'),
+          supabase.from('v_schimmel_kurve_anzeige').select('*'),
+          supabase.from('v_koeff_verdunstung').select('*'),
+          supabase.from('v_koeff_ausschuss').select('*'),
+          supabase.from('v_koeff_nebenkanal').select('*'),
+          supabase.from('v_koeff_ueberfuellung').select('*'),
         ])
         if (h.error) throw h.error
         setZeilen((h.data ?? []) as Hochrechnung[])
@@ -56,6 +67,34 @@ export default function Dashboard() {
         setMarge((m.data ?? []) as typeof marge)
         setBefunde((pl.data ?? []) as typeof befunde)
         setWiegungen((wk.data ?? []) as typeof wiegungen)
+        setKaliber((kv.data ?? []) as typeof kaliber)
+        setKurve((sk.data ?? []) as typeof kurve)
+
+        // Die vier Koeffizienten in einer Tabelle: das Innenleben der Rechnung.
+        type K = { sorte?: string; mittel?: number | null; n: number; basis?: string
+                   kg_pro_kiste?: number | null }
+        const mittelwert = (rohe: K[]) => {
+          const gute = rohe.filter(r => r.mittel !== null && r.mittel !== undefined)
+          if (!gute.length) return null
+          return gute.reduce((a, r) => a + (r.mittel ?? 0), 0) / gute.length
+        }
+        const bestBasis = (rohe: K[]) =>
+          rohe.find(r => r.basis?.includes('dieser Sorte'))?.basis
+          ?? rohe.find(r => r.basis && !r.basis.startsWith('keine'))?.basis ?? '—'
+        const maxN = (rohe: K[]) => rohe.reduce((a, r) => Math.max(a, r.n ?? 0), 0)
+
+        const kv2 = (kfv.data ?? []) as K[], ka = (kfa.data ?? []) as K[]
+        const kn = (kfn.data ?? []) as K[], ku = ((kfu.data ?? []) as K[])[0]
+        setKoeff([
+          { was: 'Verdunstung je Tag', n: maxN(kv2), basis: bestBasis(kv2),
+            wert: mittelwert(kv2) === null ? '—' : `${(mittelwert(kv2)! * 100).toFixed(4)} %` },
+          { was: 'Ausschuss zu klein', n: maxN(ka), basis: bestBasis(ka),
+            wert: mittelwert(ka) === null ? '—' : `${(mittelwert(ka)! * 100).toFixed(2)} %` },
+          { was: 'Nebenkanal zu gross', n: maxN(kn), basis: bestBasis(kn),
+            wert: mittelwert(kn) === null ? '—' : `${(mittelwert(kn)! * 100).toFixed(2)} %` },
+          { was: 'Überfüllung je Kiste', n: ku?.n ?? 0, basis: 'gewogene Ausgangspaletten',
+            wert: ku?.kg_pro_kiste == null ? '—' : `${ku.kg_pro_kiste.toFixed(3)} kg` },
+        ])
       } catch (f) {
         setFehler(fehlerText(f))
       } finally { setLaedt(false) }
@@ -227,7 +266,8 @@ export default function Dashboard() {
       )}
 
       {ebene === 3 && (
-        <Rohdaten zeilen={gefiltert} bilanz={bilanz} lage={lage} wiegungen={wiegungen} />
+        <Rohdaten zeilen={gefiltert} bilanz={bilanz} lage={lage} wiegungen={wiegungen}
+                  kaliber={kaliber} kurve={kurve} koeff={koeff} />
       )}
     </>
   )
@@ -297,12 +337,17 @@ function Ueberblick({ verluste, eingang, verlustGesamt, maximum }: {
   )
 }
 
-function Rohdaten({ zeilen, bilanz, lage, wiegungen }: {
+function Rohdaten({ zeilen, bilanz, lage, wiegungen, kaliber, kurve, koeff }: {
   zeilen: Hochrechnung[]; bilanz: Massenbilanz[]; lage: Datenlage[]
   wiegungen: { id: number; charge_nr: number; sorte: string; lagertage: number
     netto_damals_kg: number | null; netto_jetzt_kg: number | null
     kg_pro_kiste: number | null; kg_pro_kuerbis: number | null
     verlust_kg: number | null; sichtbar_schimmel: boolean }[]
+  kaliber: { charge_nr: number; sorte: string; klasse: string; band_von: number | null
+    band_bis: number | null; n_kuerbis: number; masse_kg: number }[]
+  kurve: { altersklasse: string; messungen: number; gemessen: number | null
+    verwendet: number | null; erlaeuterung: string }[]
+  koeff: { was: string; wert: string; n: number; basis: string }[]
 }) {
   const mittel = zeilen.filter(z => z.szenario === 'mittel' && z.buch !== 'bilanz')
   const taraLuecken = lage.filter(l => l.n_paletten > 0 && l.n_paletten_mit_netto < l.n_paletten)
@@ -416,6 +461,62 @@ function Rohdaten({ zeilen, bilanz, lage, wiegungen }: {
         </Karte>
       )}
 
+      <Karte titel="Die vier Koeffizienten">
+        <p className="leise">
+          Das Innenleben der Hochrechnung. Jede Zahl im Dashboard entsteht als
+          <em> Koeffizient × bekannte Größe</em>. Stimmt ein Koeffizient nicht,
+          stimmt alles darüber nicht — hier steht, worauf er beruht.
+        </p>
+        <div className="rollbar">
+          <table>
+            <thead><tr><th>Koeffizient</th><th className="zahl">Wert</th>
+              <th className="zahl">Messungen</th><th>Herkunft</th></tr></thead>
+            <tbody>
+              {koeff.map(k => (
+                <tr key={k.was}>
+                  <td>{k.was}</td>
+                  <td className="zahl"><strong>{k.wert}</strong></td>
+                  <td className="zahl">
+                    {k.n > 0 ? k.n : <Marke art="warnung">keine</Marke>}
+                  </td>
+                  <td className="leise">{k.basis}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Karte>
+
+      {kurve.length > 0 && (
+        <Karte titel="Schimmelkurve">
+          <p className="leise">
+            Wie viel Masse bis zu einer bestimmten Lagerdauer verdorben ist —
+            kumulativ. „Verwendet" kann über „Gemessen" liegen: Verdorbene Ware
+            wird nicht wieder gesund, deshalb darf die Kurve nicht fallen.
+          </p>
+          <div className="rollbar">
+            <table>
+              <thead><tr><th>Lagerdauer</th><th className="zahl">Messungen</th>
+                <th className="zahl">Gemessen</th><th className="zahl">Verwendet</th>
+                <th>Warum</th></tr></thead>
+              <tbody>
+                {kurve.map(k => (
+                  <tr key={k.altersklasse}>
+                    <td>{k.altersklasse}</td>
+                    <td className="zahl">{k.messungen || '—'}</td>
+                    <td className="zahl">{prozent(k.gemessen, 2)}</td>
+                    <td className="zahl"><strong>{prozent(k.verwendet, 2)}</strong></td>
+                    <td className="leise" style={{ fontSize: '.8rem' }}>{k.erlaeuterung}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Karte>
+      )}
+
+      {kaliber.length > 0 && <Kaliber zeilen={kaliber} />}
+
       <Karte titel="Wo fehlen Messungen?">
         <p className="leise">
           Nach Eingangsmasse sortiert: die größten Chargen ohne Stichprobe kosten
@@ -491,5 +592,75 @@ function Rohdaten({ zeilen, bilanz, lage, wiegungen }: {
         </p>
       </Karte>
     </>
+  )
+}
+
+/**
+ * Die Kaliber-Verteilung aus den Sortier-CSVs. Auf der Maschinen-Linie wird je
+ * Stück innerhalb eines Kalibers bezahlt, das Gewicht ist egal — wer weiß, wie
+ * sich eine Sorte über die Bänder verteilt, kann ein engeres Band liefern
+ * (Spec §3). Das ist die einzige Auswertung hier, die nicht von Verlusten
+ * handelt, sondern vom Erlös.
+ */
+function Kaliber({ zeilen }: {
+  zeilen: { charge_nr: number; sorte: string; klasse: string; band_von: number | null
+    band_bis: number | null; n_kuerbis: number; masse_kg: number }[]
+}) {
+  const [sorte, setSorte] = useState('')
+  const sorten = [...new Set(zeilen.map(z => z.sorte))].sort()
+  const gezeigt = sorte ? sorten.filter(s => s === sorte) : sorten
+
+  return (
+    <Karte titel="Kaliber-Verteilung"
+           aktion={
+             <select value={sorte} onChange={e => setSorte(e.target.value)}
+                     style={{ width: 'auto', minHeight: 36 }}>
+               <option value="">alle Sorten</option>
+               {sorten.map(s => <option key={s}>{s}</option>)}
+             </select>
+           }>
+      <p className="leise">
+        Wie sich die sortierten Kürbisse über die Kaliber verteilen. Bezahlt wird
+        je Stück innerhalb eines Kalibers — wer weiß, wo eine Sorte liegt, kann
+        ein engeres Band liefern.
+      </p>
+      {gezeigt.map(s => {
+        const eigene = zeilen.filter(z => z.sorte === s)
+        const gesamt = eigene.reduce((a, z) => a + z.n_kuerbis, 0)
+        const maximum = Math.max(...eigene.map(z => z.n_kuerbis), 1)
+        const sortiert = [...eigene].sort((a, b) => (a.band_von ?? -1) - (b.band_von ?? -1))
+        return (
+          <div key={s} style={{ marginBottom: '1.5rem' }}>
+            <div className="reihe">
+              <strong>{s}</strong>
+              <span className="leise" style={{ marginLeft: 'auto' }}>
+                {zahl(gesamt)} Kürbisse
+              </span>
+            </div>
+            {sortiert.map((z, i) => {
+              const name = z.klasse === 'verlust_klein' ? 'zu klein (Verlust)'
+                : z.klasse === 'nebenkanal' ? 'ab 2000 g (anderer Kanal)'
+                : `${z.band_von}–${z.band_bis} g`
+              const farbe = z.klasse === 'verlust_klein' ? 'var(--rot)'
+                : z.klasse === 'nebenkanal' ? 'var(--blau)' : 'var(--kuerbis)'
+              return (
+                <div key={i} style={{ marginTop: '.4rem' }}>
+                  <div className="reihe" style={{ fontSize: '.85rem' }}>
+                    <span>{name}</span>
+                    <span className="leise" style={{ marginLeft: 'auto' }}>
+                      {zahl(z.n_kuerbis)} · {prozent(gesamt > 0 ? z.n_kuerbis / gesamt : null)}
+                    </span>
+                  </div>
+                  <div className="balken-spur" style={{ height: 18 }}>
+                    <div className="balken-fuellung"
+                         style={{ width: `${(z.n_kuerbis / maximum) * 100}%`, background: farbe }} />
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )
+      })}
+    </Karte>
   )
 }
