@@ -11,7 +11,8 @@
 -- =====================================================================
 
 delete from verdunstung_wiegung
- where auftrag_id in (select id from auftrag where bemerkung = 'DEMO');
+ where auftrag_id in (select id from auftrag where bemerkung = 'DEMO')
+    or bemerkung = 'DEMO-KONTROLLE';
 
 delete from ausgang_wiegung
  where auftrag_id in (select id from auftrag where bemerkung = 'DEMO');

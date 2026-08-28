@@ -106,15 +106,24 @@ update sim.palette_wahr w
  where w.lauf = :lauf and w.palette_id = r.palette_id;
 
 -- ---------- Weg 1: der zweite Abschnitt -----------------------------------
--- Sortierte Ware liegt 30 bis 90 Tage in Kaliber-Kisten, bevor sie gewaschen
--- wird. Sie verdunstet und verdirbt in dieser Zeit weiter — genau das hat das
--- Modell vor 0024 nicht gesehen. Was bis zum Stichtag nicht gewaschen ist,
--- steht am Stichtag noch da.
+-- Sortierte Ware liegt in Kaliber-Kisten, bis sie gewaschen wird, und
+-- verdunstet und verdirbt in dieser Zeit weiter — genau das hat das Modell
+-- vor 0024 nicht gesehen. Was bis zum Stichtag nicht gewaschen ist, steht am
+-- Stichtag noch da.
+--
+-- Der Betrieb hat ausdrücklich klargestellt: Es gibt KEIN First-in-first-out.
+-- Aus dem Zwischenlager wird ziemlich zufällig entnommen. Das heisst präzise:
+-- An jedem Waschtag hat jede Kiste im Pool dieselbe Chance, dranzukommen —
+-- egal, wann sie hineinkam. Ein Prozess ohne Gedächtnis, also ist die
+-- Wartezeit exponentialverteilt (Mittel hier 60 Tage, plus 14 Tage
+-- Mindestaufenthalt). Frühere Fassungen mit fester Wartespanne prüften eine
+-- geordnetere Welt, als es sie gibt: Bei gleichverteilter Wartezeit folgt
+-- die Waschreihenfolge weiter lose der Sortierreihenfolge.
 update sim.palette_wahr w
    set gewaschen_am = case
          when w.eingangsdatum is null then null
-         when (w.verarbeitet_am + (30 + random() * 60)::int) <= date '2027-03-31'
-           then w.verarbeitet_am + (30 + random() * 60)::int
+         when (w.verarbeitet_am + 14 + (-ln(random()) * 60)::int) <= date '2027-03-31'
+           then w.verarbeitet_am + 14 + (-ln(random()) * 60)::int
          else null end
  where w.lauf = :lauf and w.weg = 'maschine' and w.verarbeitet_am is not null;
 

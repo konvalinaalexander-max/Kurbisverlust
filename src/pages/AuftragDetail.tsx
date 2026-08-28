@@ -377,33 +377,48 @@ function Palox({ auftrag, gesperrt }: { auftrag: Auftrag; gesperrt: boolean }) {
   const { t, gebietsschema } = useSprache()
   const [zeilen, setZeilen] = useState<{ id: number; kg: number; ts: string }[]>([])
   const [vorher, setVorher] = useState<number | null>(null)
+  const [nPaletten, setNPaletten] = useState(0)
   const [stand, setStand] = useState('')
+  const [leerGemeldet, setLeerGemeldet] = useState(false)
   const [fehler, setFehler] = useState<string | null>(null)
 
   const laden = useCallback(async () => {
-    const [z, v] = await Promise.all([
+    const [z, v, ap] = await Promise.all([
       supabase.from('schimmel_messung').select('*').eq('auftrag_id', auftrag.id).order('ts'),
-      supabase.rpc('palox_letzter_stand'),
+      // Der Stand gilt je Station: Sortierband, Waschbecken und Hand-Linie
+      // haben je einen eigenen Palox auf eigener Waage.
+      supabase.rpc('palox_letzter_stand', { p_station: auftrag.station }),
+      supabase.from('auftrag_palette').select('id', { count: 'exact', head: true })
+        .eq('auftrag_id', auftrag.id),
     ])
     if (z.error) setFehler(fehlerText(z.error)); else setZeilen(z.data as typeof zeilen)
     setVorher(typeof v.data === 'number' ? v.data : null)
-  }, [auftrag.id])
+    setNPaletten(ap.count ?? 0)
+  }, [auftrag.id, auftrag.station])
   useEffect(() => { void laden() }, [laden])
 
   const n = stand === '' ? null : Number(stand)
   // Fällt der Stand, wurde der Palox zwischendurch geleert — dann ist der
-  // neue Stand selbst die Menge.
-  const geleert = n !== null && vorher !== null && n < vorher
+  // neue Stand selbst die Menge. Wurde er geleert und danach ÜBER den alten
+  // Stand befüllt, sieht die Zahlenreihe harmlos aus: dafür ist das Häkchen.
+  const geleert = leerGemeldet || (n !== null && vorher !== null && n < vorher)
   const menge = n === null ? null
     : vorher === null || geleert ? n : n - vorher
+
+  // Die Prüfgrösse des Betriebs: kg Faules je gezählter Palette. Deutlich zu
+  // viel heisst meist, dass eine Ablesung vergessen ging und die Menge zweier
+  // Arbeiten auf dieser landet. Warnen, nicht sperren.
+  const jePalette = menge !== null && nPaletten > 0 ? menge / nPaletten : null
+  const verdaechtig = jePalette !== null && jePalette > 120
 
   async function speichern() {
     if (menge === null || menge < 0) return
     const { error } = await supabase.from('schimmel_messung').insert({
       auftrag_id: auftrag.id, kg: Math.round(menge), palox_stand_kg: n,
+      palox_geleert: leerGemeldet,
     })
     if (error) { setFehler(fehlerText(error)); return }
-    setStand(''); setFehler(null); void laden()
+    setStand(''); setLeerGemeldet(false); setFehler(null); void laden()
   }
 
   const summe = zeilen.reduce((s, z) => s + z.kg, 0)
@@ -423,13 +438,24 @@ function Palox({ auftrag, gesperrt }: { auftrag: Auftrag; gesperrt: boolean }) {
         </button>
       </div>
 
+      <label style={{ display: 'flex', gap: '.5rem', alignItems: 'center', marginTop: '.6rem' }}>
+        <input type="checkbox" checked={leerGemeldet} disabled={gesperrt}
+               onChange={e => setLeerGemeldet(e.target.checked)}
+               style={{ width: 22, height: 22, minHeight: 0 }} />
+        {t('paloxWarLeer')}
+      </label>
+
       {menge !== null && (
         <p style={{ margin: '.6rem 0 0', fontSize: '1.1rem' }}>
           <strong>{Math.round(menge)} kg</strong>
           {vorher !== null && !geleert && <> ({n} − {vorher})</>}
-          {geleert && <> — {t('paloxGeleert')}</>}
+          {geleert && !leerGemeldet && <> — {t('paloxGeleert')}</>}
+          {jePalette !== null && (
+            <span className="leise"> · {Math.round(jePalette)} {t('kgJePalette')}</span>
+          )}
         </p>
       )}
+      {verdaechtig && <Hinweis art="warnung">{t('vielJePalette')}</Hinweis>}
       {fehler && <Hinweis art="warnung">{fehler}</Hinweis>}
 
       {zeilen.length > 0 && (

@@ -5832,6 +5832,177 @@ grant execute on function verlust_ranking(text, text, numeric) to authenticated;
 
 
 -- =====================================================================
+-- aus 0032_palox_je_station.sql
+-- =====================================================================
+
+-- =====================================================================
+-- 0032 — Der Palox-Stand gehört zur Station, nicht zum Betrieb
+--
+-- Der Palox mit dem Faulen steht auf einer Waage; der Arbeiter liest den
+-- Stand ab, die Software bildet die Differenz zum letzten Mal (0027). Der
+-- Betrieb hat zwei Dinge klargestellt, die diese Rechnung bisher übersah:
+--
+-- 1. „Das letzte Mal" war global. Sortierband, Waschbecken und Hand-Linie
+--    sind aber verschiedene Arbeitsplätze mit je eigenem Sammelbehälter —
+--    niemand trägt einen Palox samt Waage durch die Halle. Liefen zwei
+--    Linien gleichzeitig, verzahnten sich ihre Ablesungen und jede Differenz
+--    war falsch. Der Stand wird jetzt je Station geführt.
+--
+--    (Annahme dahinter, in docs/ABLAUF.md vermerkt: je Station genau ein
+--    Palox. Sollten zwei Teams an derselben Station parallel arbeiten,
+--    bräuchte es eine Behälter-Kennung — das wäre ein Feld mehr für den
+--    Arbeiter und wird erst gebaut, wenn der Betrieb sagt, dass es vorkommt.)
+--
+-- 2. Zwischen zwei Ablesungen kann der Palox geleert worden sein. Fällt der
+--    Stand, merkt die Software das selbst. Wird er aber geleert und danach
+--    ÜBER den alten Stand hinaus neu befüllt, sieht die Zahlenreihe harmlos
+--    aus und die Differenz unterschlägt still die entsorgte Menge. Dagegen
+--    hilft nur der Arbeiter: ein Kennzeichen „war zwischendurch leer", das
+--    die Rechnung auf den vollen Stand umstellt. Das Kennzeichen wird
+--    gespeichert, damit jede Menge nachrechenbar bleibt.
+--
+-- Was der Betrieb ausserdem angeregt hat — die Palettenzahl der Arbeit als
+-- Prüfgrösse — passiert in der Eingabemaske: Sie zeigt die Differenz sofort
+-- als „kg je Palette" und warnt, wenn das unplausibel gross wird. Meist
+-- heisst das: eine Ablesung wurde vergessen, und die Menge zweier Arbeiten
+-- ist auf einer gelandet.
+-- =====================================================================
+
+alter table schimmel_messung
+  add column if not exists palox_geleert boolean not null default false;
+
+comment on column schimmel_messung.palox_geleert is
+  'Der Arbeiter hat den Palox seit der letzten Ablesung geleert. Dann ist der '
+  'neue Stand selbst die Menge — auch wenn er über dem alten liegt.';
+
+-- ---------- Der letzte Stand, je Station ----------------------------------
+drop function if exists palox_letzter_stand();
+
+create or replace function palox_letzter_stand(p_station station)
+returns numeric language sql stable as $$
+  select s.palox_stand_kg
+    from schimmel_messung s
+    join auftrag a on a.id = s.auftrag_id
+   where s.palox_stand_kg is not null and s.gemessen
+     and a.station = p_station
+   order by s.ts desc, s.id desc limit 1;
+$$;
+
+comment on function palox_letzter_stand(station) is
+  'Was zuletzt auf der Palox-Waage DIESER Station stand. Die Eingabemaske '
+  'zieht das vom neuen Stand ab, damit niemand im Kopf rechnen muss.';
+
+-- ---------- Die Ablesungen der Reihe nach, je Station ---------------------
+create or replace view v_palox_stand with (security_invoker = true) as
+select s.id, s.auftrag_id, s.ts, s.palox_stand_kg, s.kg,
+       lag(s.palox_stand_kg) over w                                as vorher,
+       case
+         when s.palox_geleert then s.palox_stand_kg
+         when lag(s.palox_stand_kg) over w is null then s.palox_stand_kg
+         when s.palox_stand_kg < lag(s.palox_stand_kg) over w then s.palox_stand_kg
+         else s.palox_stand_kg - lag(s.palox_stand_kg) over w
+       end                                                          as differenz,
+       (s.palox_geleert
+        or (lag(s.palox_stand_kg) over w is not null
+            and s.palox_stand_kg < lag(s.palox_stand_kg) over w))   as zwischendurch_geleert,
+       a.station
+  from schimmel_messung s
+  join auftrag a on a.id = s.auftrag_id
+ where s.palox_stand_kg is not null and s.gemessen
+window w as (partition by a.station order by s.ts, s.id)
+ order by a.station, s.ts, s.id;
+
+comment on view v_palox_stand is
+  'Die Waagenstände je Station der Reihe nach, mit der jeweils daraus '
+  'folgenden Menge. zwischendurch_geleert: der Stand ist gefallen oder der '
+  'Arbeiter hat das Leeren gemeldet — dann gilt der neue Stand als Menge.';
+
+grant execute on function palox_letzter_stand(station) to authenticated;
+grant select on v_palox_stand to authenticated;
+
+
+-- =====================================================================
+-- aus 0033_naechste_charge.sql
+-- =====================================================================
+
+-- =====================================================================
+-- 0033 — Welche Charge sollte als nächstes verarbeitet werden?
+--
+-- Die Frage stellt sich der Betriebsleiter jede Woche, und die Daten geben
+-- sie her: Für jede Charge mit Bestand lässt sich beziffern, was zwei
+-- weitere Wochen Liegenlassen voraussichtlich kosten — Verdunstung nach der
+-- Sortenrate, Verderb nach dem angepassten Verlaufsmodell. Die Reihenfolge
+-- dieser Zahlen ist die Antwort.
+--
+-- Zwei Ehrlichkeiten gehören dazu:
+--
+-- * Der Verderbszuwachs ist bedingt gerechnet — auf die Ware, die bis heute
+--   durchgehalten hat: (F(t+14) − F(t)) / (1 − F(t)). Ohne die Bedingung
+--   würde bereits verdorbene Masse ein zweites Mal verderben.
+-- * Wo das Alter der Charge jenseits der längsten gemessenen Lagerdauer
+--   liegt, ist die Zahl hochgerechnet, nicht gemessen — die Spalte
+--   hochgerechnet sagt es, und das Dashboard zeigt es an.
+--
+-- Das Verlaufsmodell wird einmal je Abfrage gerechnet (materialisierte CTE),
+-- nicht einmal je Charge — sonst stünden hier 40 Regressionen je Aufruf.
+-- =====================================================================
+
+create or replace view v_naechste_charge with (security_invoker = true) as
+with modell as materialized (
+  select * from v_schimmel_modell
+),
+bestand as (
+  select b.charge_nr, b.sorte, b.schlag, b.lager_kg,
+         -- Nie negativ: eine Demo- oder Testsaison kann in der Zukunft
+         -- liegen, und ein negatives Alter ergäbe negative Verluste.
+         greatest(b.alter_lager_heute, 0)                      as alter_tage,
+         least(greatest(coalesce(kv.mittel, 0), 0), 0.05)      as r
+    from v_hochrechnung_basis b
+    left join v_koeff_verdunstung kv on kv.sorte = b.sorte
+   where b.lager_kg > 0
+),
+mit_f as (
+  select b.*,
+         -- Masse heute: Eingang der liegenden Ware, um die Verdunstung bis
+         -- heute vermindert.
+         b.lager_kg * power(1 - b.r, greatest(b.alter_tage, 0)) as masse_jetzt_kg,
+         case when m.brauchbar then least(greatest(
+           1 - exp(-exp(least(greatest(
+             m.ln_lambda_korrigiert + m.k * ln(greatest(b.alter_tage, 1))
+           , -40), 3))), 0), 0.99) end                          as f_jetzt,
+         case when m.brauchbar then least(greatest(
+           1 - exp(-exp(least(greatest(
+             m.ln_lambda_korrigiert + m.k * ln(greatest(b.alter_tage + 14, 1))
+           , -40), 3))), 0), 0.99) end                          as f_dann,
+         (m.brauchbar and b.alter_tage > m.t_max)               as hochgerechnet,
+         m.brauchbar                                            as modell_gilt
+    from bestand b cross join modell m
+)
+select charge_nr, sorte, schlag,
+       lager_kg::numeric(14,2),
+       round(alter_tage)::int                                   as alter_tage,
+       masse_jetzt_kg::numeric(14,2),
+       (masse_jetzt_kg * (1 - power(1 - r, 14)))::numeric(12,1) as verdunstung_14_kg,
+       (case when modell_gilt
+             then masse_jetzt_kg * (f_dann - f_jetzt) / nullif(1 - f_jetzt, 0)
+             else null end)::numeric(12,1)                      as schimmel_14_kg,
+       (masse_jetzt_kg * (1 - power(1 - r, 14))
+        + coalesce(masse_jetzt_kg * (f_dann - f_jetzt) / nullif(1 - f_jetzt, 0), 0)
+       )::numeric(12,1)                                         as verlust_14_kg,
+       hochgerechnet, modell_gilt
+  from mit_f
+ order by verlust_14_kg desc nulls last;
+
+comment on view v_naechste_charge is
+  'Was kostet es, jede Charge zwei weitere Wochen liegen zu lassen? Die '
+  'Reihenfolge beantwortet, was als nächstes verarbeitet gehört. '
+  'schimmel_14_kg ist NULL, solange das Verlaufsmodell nicht trägt — dann '
+  'steht die Antwort nur auf der Verdunstung.';
+
+grant select on v_naechste_charge to authenticated;
+
+
+-- =====================================================================
 -- Rückmeldung im Ergebnisfenster
 -- =====================================================================
 select format('Fertig. %s Chargen und %s Sorten angelegt, %s Tabellen und %s Auswertungen erstellt. Weiter im README bei Schritt 4.',

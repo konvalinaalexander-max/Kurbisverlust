@@ -32,6 +32,20 @@ interface Bestand {
   alter_lager: number; ueberzaehlung_kg: number
 }
 
+/** v_naechste_charge — was zwei weitere Wochen Liegenlassen kosten. */
+interface NaechsteCharge {
+  charge_nr: number; sorte: string; schlag: string
+  lager_kg: number; alter_tage: number; masse_jetzt_kg: number
+  verdunstung_14_kg: number | null; schimmel_14_kg: number | null
+  verlust_14_kg: number | null; hochgerechnet: boolean; modell_gilt: boolean
+}
+
+/** Ein Sorten-Koeffizient mit Bereich, für den Sortenvergleich. */
+interface SortenK {
+  sorte: string; mittel: number | null; unten: number | null; oben: number | null
+  n: number; basis: string
+}
+
 /** v_saisonbilanz — die Gegenprobe: Eingang = Verlust + Ausgang + Restbestand. */
 interface Saisonbilanz {
   eingang_kg: number; verlust_modell_kg: number; ausgang_kg: number
@@ -79,6 +93,9 @@ export default function Dashboard() {
   const [bilanzSaison, setBilanzSaison] = useState<Saisonbilanz | null>(null)
   const [punkte, setPunkte] = useState<Schimmelpunkt[]>([])
   const [basis, setBasis] = useState<Bestand[]>([])
+  const [naechste, setNaechste] = useState<NaechsteCharge[]>([])
+  const [sortenKoeff, setSortenKoeff] = useState<{ verdunstung: SortenK[]; ausschuss: SortenK[] }>(
+    { verdunstung: [], ausschuss: [] })
   const [wiegungen, setWiegungen] = useState<{ id: number; charge_nr: number; sorte: string
     lagertage: number; netto_damals_kg: number | null; netto_jetzt_kg: number | null
     kg_pro_kiste: number | null; kg_pro_kuerbis: number | null; verlust_kg: number | null
@@ -145,7 +162,7 @@ export default function Dashboard() {
   const datenLaden = async () => {
     void (async () => {
       try {
-        const [h, b, d, m, pl, wk, kv, sk, kfv, kfa, kfn, kfu, mo, sel, sb, pk, hb] = await Promise.all([
+        const [h, b, d, m, pl, wk, kv, sk, kfv, kfa, kfn, kfu, mo, sel, sb, pk, hb, nc] = await Promise.all([
           supabase.from('v_hochrechnung').select('*'),
           supabase.from('v_massenbilanz').select('*'),
           supabase.from('v_datenlage').select('*'),
@@ -163,6 +180,7 @@ export default function Dashboard() {
           supabase.from('v_saisonbilanz').select('*').maybeSingle(),
           supabase.from('v_schimmel_punkte').select('*'),
           supabase.from('v_hochrechnung_basis').select('*'),
+          supabase.from('v_naechste_charge').select('*'),
         ])
         if (h.error) throw h.error
         setZeilen((h.data ?? []) as Hochrechnung[])
@@ -178,6 +196,11 @@ export default function Dashboard() {
         setBilanzSaison((sb.data ?? null) as Saisonbilanz | null)
         setPunkte((pk.data ?? []) as Schimmelpunkt[])
         setBasis((hb.data ?? []) as Bestand[])
+        setNaechste((nc.data ?? []) as NaechsteCharge[])
+        setSortenKoeff({
+          verdunstung: (kfv.data ?? []) as SortenK[],
+          ausschuss: (kfa.data ?? []) as SortenK[],
+        })
 
         // Die vier Koeffizienten in einer Tabelle: das Innenleben der Rechnung.
         type K = { sorte?: string; mittel?: number | null; n: number; basis?: string
@@ -322,7 +345,8 @@ export default function Dashboard() {
 
       {ebene === 1 && (
         <Ueberblick verluste={verluste} eingang={eingang} verlustGesamt={verlustGesamt}
-                    maximum={maximum} bilanz={bilanzSaison} stroeme={stroeme} />
+                    maximum={maximum} bilanz={bilanzSaison} stroeme={stroeme}
+                    naechste={naechste} />
       )}
 
       {ebene === 2 && (
@@ -369,6 +393,8 @@ export default function Dashboard() {
             ))}
           </Karte>
 
+          <Sortenvergleich koeff={sortenKoeff} />
+
           <WartetAufsWaschen bestand={basis} />
 
           <Karte titel="Buch B — verschenkte Marge">
@@ -407,6 +433,103 @@ export default function Dashboard() {
  * und verdirbt dabei weiter. Das ist keine Statistik, sondern eine
  * Arbeitsanweisung: Was hier oben steht, gehört als nächstes ans Waschbecken.
  */
+
+/**
+ * Welche Charge sollte als nächstes verarbeitet werden? Für jede liegende
+ * Charge steht hier, was zwei weitere Wochen Liegenlassen voraussichtlich
+ * kosten — die Reihenfolge ist die Antwort. Bewusst auf der Übersicht: Das
+ * ist die eine Zahl, aus der eine Handlung folgt.
+ */
+function NaechsteChargen({ zeilen }: { zeilen: NaechsteCharge[] }) {
+  const mitVerlust = zeilen.filter(z => (z.verlust_14_kg ?? 0) > 0).slice(0, 5)
+  if (mitVerlust.length === 0) return null
+  const summe = zeilen.reduce((a, z) => a + (z.verlust_14_kg ?? 0), 0)
+  return (
+    <Karte titel="Was kostet Warten?">
+      <p className="leise">
+        Voraussichtlicher Verlust, wenn die Charge zwei weitere Wochen liegen
+        bleibt — Verdunstung nach der Sortenrate, Verderb nach dem Verlaufsmodell.
+        Oben steht, was zuerst ans Band gehört.
+      </p>
+      <div className="rollbar">
+        <table>
+          <thead><tr><th>Charge</th><th>Sorte</th><th className="zahl">liegt seit</th>
+            <th className="zahl">Bestand</th><th className="zahl">Verlust in 14 Tagen</th></tr></thead>
+          <tbody>
+            {mitVerlust.map(z => (
+              <tr key={z.charge_nr}>
+                <td>{z.charge_nr}</td>
+                <td>{z.sorte}</td>
+                <td className="zahl">{z.alter_tage} Tagen</td>
+                <td className="zahl">{kg(z.masse_jetzt_kg, 0)}</td>
+                <td className="zahl">
+                  <strong>{kg(z.verlust_14_kg ?? 0, 0)}</strong>
+                  {z.hochgerechnet && <span className="leise"> ~</span>}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="leise" style={{ marginBottom: 0 }}>
+        Alle liegenden Chargen zusammen: <strong>{kg(summe, 0)}</strong> in zwei Wochen.
+        {mitVerlust.some(z => z.hochgerechnet) &&
+          ' ~ heisst: älter als die längste gemessene Lagerdauer, der Verderb ist hochgerechnet.'}
+        {!mitVerlust[0]?.modell_gilt &&
+          ' Das Verderbsmodell trägt noch nicht — die Zahlen zeigen nur die Verdunstung.'}
+      </p>
+    </Karte>
+  )
+}
+
+/**
+ * Welche Sorte hält sich am besten? Die Sorten-Koeffizienten nebeneinander,
+ * mit Bereich und Stichprobe — gebündelte Werte (Gesamtwert statt eigener
+ * Messung) stehen leise, damit niemand eine Sorte an Zahlen misst, die gar
+ * nicht von ihr stammen.
+ */
+function Sortenvergleich({ koeff }: { koeff: { verdunstung: SortenK[]; ausschuss: SortenK[] } }) {
+  const eigene = (k: SortenK) => k.basis?.includes('dieser Sorte')
+  const zeilen = koeff.verdunstung
+    .filter(k => k.n > 0)
+    .map(k => ({
+      sorte: k.sorte, v: k, a: koeff.ausschuss.find(x => x.sorte === k.sorte),
+    }))
+    .sort((x, y) => (x.v.mittel ?? 0) - (y.v.mittel ?? 0))
+  if (zeilen.length < 2) return null
+  return (
+    <Karte titel="Sorten im Vergleich">
+      <p className="leise">
+        Nach Verdunstungsrate sortiert — oben hält am besten. Grau: für diese
+        Sorte gibt es zu wenige eigene Messungen, es gilt der Gesamtwert.
+      </p>
+      <div className="rollbar">
+        <table>
+          <thead><tr><th>Sorte</th><th className="zahl">Verdunstung je Tag</th>
+            <th className="zahl">Ausschuss zu klein</th><th className="zahl">Messungen</th></tr></thead>
+          <tbody>
+            {zeilen.map(z => (
+              <tr key={z.sorte} className={eigene(z.v) ? '' : 'leise'}>
+                <td>{z.sorte}</td>
+                <td className="zahl">
+                  {z.v.mittel == null ? '—' : `${(z.v.mittel * 100).toFixed(3)} %`}
+                  {z.v.unten != null && z.v.oben != null && z.v.oben > z.v.unten && (
+                    <span className="leise"> ({(z.v.unten * 100).toFixed(3)}–{(z.v.oben * 100).toFixed(3)})</span>
+                  )}
+                </td>
+                <td className="zahl">
+                  {z.a?.mittel == null ? '—' : `${(z.a.mittel * 100).toFixed(1)} %`}
+                </td>
+                <td className="zahl">{z.v.n}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </Karte>
+  )
+}
+
 function WartetAufsWaschen({ bestand }: { bestand: Bestand[] }) {
   const wartend = bestand.filter(b => b.wartet_kg > 0)
     .sort((a, b) => b.wartet_kg - a.wartet_kg)
@@ -527,9 +650,10 @@ function rechenweg(v: StromSumme, eingang: number): [string, React.ReactNode][] 
   ]
 }
 
-function Ueberblick({ verluste, eingang, verlustGesamt, maximum, bilanz, stroeme }: {
+function Ueberblick({ verluste, eingang, verlustGesamt, maximum, bilanz, stroeme,
+                     naechste }: {
   verluste: StromSumme[]; eingang: number; verlustGesamt: number; maximum: number
-  bilanz: Saisonbilanz | null; stroeme: StromSumme[]
+  bilanz: Saisonbilanz | null; stroeme: StromSumme[]; naechste: NaechsteCharge[]
 }) {
   const haupt = verluste[0]
   const duenn = verluste.filter(v => (v.koeffN ?? 0) < 3)
@@ -578,6 +702,8 @@ function Ueberblick({ verluste, eingang, verlustGesamt, maximum, bilanz, stroeme
         <Kaskadenbild eingang={eingang} verkaufsfaehig={verkaufsfaehigKg}
                       stroeme={kaskade} />
       </Karte>
+
+      <NaechsteChargen zeilen={naechste} />
 
       {bilanz && (
         <Karte titel="Geht die Rechnung auf?">

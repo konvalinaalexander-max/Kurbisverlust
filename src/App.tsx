@@ -10,6 +10,7 @@ import AuftragDetail from './pages/AuftragDetail'
 import CsvUpload from './pages/CsvUpload'
 import Warteschlange from './pages/Warteschlange'
 import Dashboard from './pages/Dashboard'
+import Kontrolle from './pages/Kontrolle'
 import Lieferungen from './pages/Lieferungen'
 import Stammdaten from './pages/Stammdaten'
 import Zugang from './pages/Zugang'
@@ -89,6 +90,7 @@ export default function App() {
           <Route path="/" element={<Navigate to="/auftraege" replace />} />
           <Route path="/auftraege" element={<Auftraege />} />
           <Route path="/auftraege/:id" element={<AuftragDetail />} />
+          <Route path="/kontrolle" element={<Kontrolle />} />
           <Route path="/dashboard" element={istAdmin ? <Dashboard /> : <NurAdmin />} />
           <Route path="/csv" element={istAdmin ? <CsvUpload /> : <NurAdmin />} />
           <Route path="/warteschlange" element={istAdmin ? <Warteschlange /> : <NurAdmin />} />

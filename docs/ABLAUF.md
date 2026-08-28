@@ -57,7 +57,15 @@ gewaschen.**
   das Eingangsdatum der einzelnen Palette nicht mehr.
 - **Palox** — der Sammelbehälter für Faules. Er steht auf einer Waage und läuft
   über mehrere Arbeiten weiter; der Zuwachs zwischen zwei Ablesungen ist die
-  Menge einer Arbeit.
+  Menge einer Arbeit. Der Stand wird **je Station** geführt — Sortierband,
+  Waschbecken und Hand-Linie sind verschiedene Arbeitsplätze mit je eigenem
+  Behälter. Wird der Palox geleert und wieder befüllt, meldet es der Arbeiter
+  mit einem Häkchen; als Prüfgrösse zeigt die Maske die Menge je gezählter
+  Palette und warnt, wenn sie unplausibel gross wird (meist: eine Ablesung
+  wurde vergessen).
+
+  **Annahme, ungeprüft:** je Station genau ein Palox. Arbeiten zwei Teams an
+  derselben Station parallel, bräuchte es eine Behälter-Kennung.
 
 **Annahme, ungeprüft:** Beim Waschen wird die Charge des Waschgangs der Charge
 des Sortierlaufs gleichgesetzt, und welcher Sortierlauf zu welchem Waschgang
@@ -66,6 +74,17 @@ vorher gewaschen worden sein). Ein ausdrücklicher Verweis vom Waschgang auf den
 Sortierlauf wird nirgends erfasst. In der Simulation kostet diese Annäherung
 rund 2 % beim Schimmel — genug, um sie zu nennen, zu wenig, um dem Arbeiter
 ein Feld mehr zuzumuten.
+
+## Wie die Ware das Zwischenlager verlässt
+
+Der Betrieb hat klargestellt: **kein First-in-first-out.** Aus den
+Kaliber-Kisten wird ziemlich zufällig entnommen — an jedem Waschtag hat jede
+Kiste im Pool dieselbe Chance. Ein Prozess ohne Gedächtnis; der
+Simulations-Harness bildet ihn seit dieser Runde mit exponentialverteilten
+Wartezeiten ab. Unter genau dieser Entnahme ist der Mittelwert über die
+vorherigen Sortierläufe einer Charge der richtige Erwartungswert für den
+Zustand der gewaschenen Ware — nachgemessen, nicht nur argumentiert
+(`docs/STATISTIK_BEFUND.md`).
 
 ## Wer entscheidet, was als nächstes drankommt
 
@@ -77,8 +96,11 @@ wahre, und die Hochrechnung auf lange Lagerdauern zu niedrig.
 Aus Verarbeitungsmessungen allein lässt sich das nicht heilen: Alter und
 Anfälligkeit sind durch die Reihenfolge vermengt. Was hilft, ist eine Messung,
 deren Auswahl nicht am Zustand hängt — gelegentlich eine **zufällig gegriffene
-Palette im Lager** aufmachen und notieren, wie viel faul ist. Details und
-Wirkung: `docs/STATISTIK_BEFUND.md`.
+Palette im Lager** aufmachen und notieren, wie viel faul ist. Dafür gibt es
+seit dieser Runde einen eigenen Einstieg auf dem Startbildschirm des
+Arbeiters („Palette kontrollieren"), ohne laufende Arbeit. „Davon faul" ist
+dort Pflicht, und 0 ist eine echte Antwort — ein leeres Feld wäre „nicht
+nachgesehen". Details und Wirkung: `docs/STATISTIK_BEFUND.md`.
 
 ## Was den Betrieb sonst noch verlässt
 

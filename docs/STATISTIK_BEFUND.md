@@ -556,3 +556,65 @@ verschiedene Chargen sind das Minimum, unter dem die Zahl nichts mehr taugt.
 | Massenbilanz gegen die CSV | prüft die Koeffizienten am Tag des Sortierens, nicht die Verluste |
 | Zuordnung Waschgang → Sortierlauf | über die Charge und die Reihenfolge geschlossen, nicht erfasst |
 | Dubletten-Regel | unbelegt bis zur Handzählung einer Palette |
+
+---
+
+# Dritte Runde: die Entnahme ist gedächtnislos
+
+Der Betrieb hat die Frage nach der Reihenfolge beantwortet: Aus dem
+Zwischenlager (sortierte Ware in Kaliber-Kisten) wird **ziemlich zufällig**
+entnommen, kein First-in-first-out. Präzise heisst „ziemlich zufällig": An
+jedem Waschtag hat jede Kiste im Pool dieselbe Chance — ein Prozess ohne
+Gedächtnis, also **exponentialverteilte Wartezeiten**. Der Harness simulierte
+bis dahin feste Wartespannen (30–90 Tage), bei denen die Waschreihenfolge der
+Sortierreihenfolge lose folgt (Rangkorrelation 0.64) — eine geordnetere Welt,
+als es sie gibt.
+
+Nach dem Umbau auf gedächtnislose Entnahme (Mittel 60 Tage Wartezeit) wurde
+die komplette Matrix neu gefahren, 20 Saisons je Bahn:
+
+| Bahn | Strom | Verzerrung | Überdeckung |
+|---|---|---|---|
+| Saisonende, 25 % im Lager | Schimmel | −2.4 % | 90 % |
+| Mitten in der Saison, 50 % | Schimmel | −0.8 % | 95 % |
+| Saisonende, Schlechtes zuerst | Schimmel | −1.9 % | 100 % |
+| Mitten, Schlechtes zuerst | Schimmel | +8.8 % | 95 % |
+| … mit 12 Lagerkontrollen | Schimmel | +8.7 % | 100 % (Bereich 97 %) |
+| … mit 24 Lagerkontrollen | Schimmel | +8.8 % | 100 % (Bereich 113 %) |
+| Nur 4 Palettenwägungen | Schimmel | −1.1 % | 100 % |
+| Nur 4 Palettenwägungen | Verdunstung | −1.3 % | 95 % (Bereich 99 %) |
+
+Zwei Schlüsse:
+
+**Die Zuordnung Waschgang → Sortierläufe hält.** Der Mittelwert über alle
+vorherigen Sortierläufe der Charge (eingeführt, nachdem FIFO messbar
+geschadet hatte) ist unter zufälliger Entnahme auch theoretisch der richtige
+Erwartungswert — und die Messung bestätigt es: In allen Bahnen ohne Selektion
+liegt der Schimmel innerhalb von ±2.4 % bei 90–100 % Überdeckung.
+
+**Die Selektionsverzerrung wird unter zufälliger Entnahme milder, bleibt aber
+das eine ungelöste Problem.** +8.8 % statt +11 %; die Überdeckung ohne
+Kontrollen rettet sich auf 95 %, weil die zufällige Entnahme die Bereiche von
+selbst verbreitert. Die Rolle der Lagerkontrollen bleibt unverändert: Sie
+korrigieren die Zahl nicht, sie machen die Unsicherheit sichtbar.
+
+## Ausserdem in dieser Runde
+
+**Palox je Station** (0032): Der „letzte Stand" war global — liefen zwei
+Linien gleichzeitig, verzahnten sich ihre Ablesungen und jede Differenz war
+falsch. Jetzt je Station, mit Geleert-Häkchen (deckt den Fall „geleert und
+über den alten Stand hinaus neu befüllt" ab, den keine Zahlenreihe sehen
+kann) und der vom Betrieb angeregten Prüfgrösse kg je gezählter Palette.
+
+**Lagerkontrolle hat einen Bildschirm**: Die statistisch wertvollste Messung
+im System war erfassbar, aber nur die Datenbank kannte sie — kein Bildschirm
+führte hin. Jetzt direkt auf dem Startbildschirm des Arbeiters, ohne
+laufende Arbeit. „Davon faul" ist Pflicht und 0 eine echte Antwort.
+
+**Bekannte Konservativität, dokumentiert statt versteckt:** In den Vergleich
+der Quellen (v_selektionsverdacht, Selektionszuschlag) gehen nur Kontrollen
+mit faul > 0 ein — der Log-Raum kennt keine Null. Kontrollen ohne Faules
+fehlen dem Vergleich, wodurch die Lager-Seite eher zu hoch erscheint und der
+Zuschlag eher zu früh feuert. Die Fehlerrichtung ist die sichere: Der Bereich
+wird höchstens zu breit, nie zu schmal. Die gemessenen 90–100 % Überdeckung
+enthalten diesen Effekt bereits.

@@ -235,6 +235,37 @@ Unterschied und 8.2 % Abweichung, die niemandes Fehler war ausser dieser
 Gegenüberstellung. Verglichen wird jetzt gegen die Vorhersage **für den Tag am
 Band**.
 
+### Zufällige Entnahme heisst gedächtnislos
+
+Der Betrieb hat klargestellt, dass sortierte Ware das Zwischenlager **nicht**
+in der Reihenfolge verlässt, in der sie hineinkam — es wird ziemlich zufällig
+entnommen. Präzise heisst das: An jedem Waschtag hat jede Kiste im Pool
+dieselbe Chance, dranzukommen. Ein Prozess ohne Gedächtnis, also
+exponentialverteilte Wartezeiten. Der Harness simulierte vorher feste
+Wartespannen (30–90 Tage) und prüfte damit eine geordnetere Welt, als es sie
+gibt.
+
+Unter der gedächtnislosen Entnahme wurde die Zuordnungsfrage neu gemessen —
+welcher Sortierlauf-Zustand gehört zu einem Waschgang? Der Mittelwert über
+alle vorherigen Sortierläufe der Charge (eingeführt in 0025, nachdem FIFO
+messbar geschadet hatte) hält: Schimmel-Verzerrung −2.4 % bis −0.8 % in den
+Zufallsbahnen, Überdeckung 90–100 %. Er ist unter zufälliger Entnahme auch
+theoretisch der richtige Erwartungswert — die Messung bestätigt es.
+
+### Der Palox-Stand gilt je Station
+
+Sortierband, Waschbecken und Hand-Linie sind verschiedene Arbeitsplätze mit
+je eigenem Sammelbehälter auf eigener Waage — niemand trägt einen Palox durch
+die Halle. Der „letzte Stand" war bis 0032 global: Liefen zwei Linien
+gleichzeitig, verzahnten sich ihre Ablesungen und jede Differenz war falsch.
+
+Dazu zwei Dinge aus der Praxis: Ein **Geleert-Häkchen** deckt den Fall ab, in
+dem der Palox geleert und über den alten Stand hinaus neu befüllt wurde — die
+Zahlenreihe sieht dann harmlos aus und nur der Arbeiter weiss es. Und die vom
+Betrieb angeregte **Prüfgrösse Palettenzahl**: Die Maske zeigt die Menge je
+gezählter Palette und warnt ab 120 kg — meist heisst das, eine Ablesung wurde
+vergessen und die Menge zweier Arbeiten liegt auf einer.
+
 ## Umsetzung
 
 ### Klassiert wird in der Datenbank, gereinigt im Browser

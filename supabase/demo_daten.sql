@@ -115,8 +115,15 @@ begin
                offset (v_lauf - 1) * 15 limit v_n_pal) p;
 
       -- Wie viel Masse hat dieser Lauf bewegt, und wie alt war sie?
-      select eingang_netto_kg, lagertage into v_masse, v_tage
-        from v_auftrag_masse where auftrag_id = v_auftrag;
+      -- Direkt aus der Palettenzuordnung gerechnet, nicht aus v_auftrag_masse:
+      -- die ist seit 0016 eine gespeicherte Ansicht und mitten im Anlegen noch
+      -- leer. Der frühere Leseversuch dort traf NULL, und das stille
+      -- »continue« übersprang sämtliche Messungen der Demo — deshalb zeigte
+      -- die Auswertung 0.0 t Verdunstung und ein Modell aus sechs Punkten.
+      select sum(m.netto_kg),
+             sum((v_start::date - m.eingangsdatum) * m.netto_kg) / nullif(sum(m.netto_kg), 0)
+        into v_masse, v_tage
+        from v_auftrag_palette_masse m where m.auftrag_id = v_auftrag;
       if v_masse is null or v_tage is null then continue; end if;
 
       -- ---------- Schimmel: wächst mit der Lagerdauer ----------
@@ -142,7 +149,11 @@ begin
                brutto_damals_kg, brutto_jetzt_kg, kisten, gebindeart,
                kuerbisse_pro_kiste, wiege_ts)
         values (v_auftrag, v_charge, v_datum, v_brutto,
-                round((v_netto * power(1 - v_rate, v_start::date - v_datum)
+                -- Mit Streuung je Wägung (±20 % auf die Rate): echte Paletten
+                -- verdunsten verschieden schnell, und ein Demo-Bereich von
+                -- ±0.1 % lehrte den Betriebsleiter eine falsche Sicherheit.
+                round((v_netto * power(1 - v_rate * (0.8 + random() * 0.4),
+                                       v_start::date - v_datum)
                        + v_kisten * 1.5 + 25)::numeric, 1),
                 v_kisten, v_art, 4 + (v_i % 3), v_start)
         returning id into v_wiegung;
@@ -210,6 +221,41 @@ begin
             round(v.eingang_netto_kg * 0.004, 1));
   end loop;
   raise notice 'Demo: zweiter Lagerabschnitt (Waschen) angelegt';
+end $$;
+
+-- ---------- Lagerkontrollen ----------------------------------------------
+-- Ein paar zufällig gegriffene Paletten, wie sie der neue Bildschirm
+-- „Palette kontrollieren" erfasst: ohne Arbeit, mit Pflichtfeld „davon faul".
+-- Damit zeigt die Demo auch den Selektionsvergleich mit echtem Befund.
+do $$
+declare v record; v_i int := 0; v_netto numeric; v_tage int; v_faul numeric;
+        v_kontrolltag date;
+begin
+  for v in
+    select p.charge_nr, p.eingangsdatum, p.brutto_kg, p.kisten, p.gebindeart
+      from palette p order by p.id offset 40
+  loop
+    v_i := v_i + 1;
+    exit when v_i > 8;
+    -- Der Kontrolltag muss IN der Demo-Saison liegen (Sep 2026 – Mär 2027),
+    -- nicht am heutigen Datum: die Demo spielt in der Zukunft, und
+    -- current_date ergäbe negative Lagertage.
+    v_kontrolltag := date '2027-02-20' - (v_i * 9);
+    v_netto := v.brutto_kg - v.kisten * 1.5 - 25;
+    v_tage  := greatest(v_kontrolltag - v.eingangsdatum, 1);
+    -- Faulanteil grob nach Alter, zwei Kontrollen ohne Befund (0 ist eine
+    -- echte Antwort, kein leeres Feld)
+    v_faul  := case when v_i % 4 = 0 then 0
+                    else round(v_netto * least(v_tage, 200) * 0.00018, 1) end;
+    insert into verdunstung_wiegung (charge_nr, eingangsdatum, brutto_damals_kg,
+           brutto_jetzt_kg, kisten, gebindeart, wiege_ts, faul_kg,
+           sichtbar_schimmel, bemerkung)
+    values (v.charge_nr, v.eingangsdatum, v.brutto_kg,
+            round((v_netto * power(0.9994, v_tage) + v.kisten * 1.5 + 25)::numeric, 1),
+            v.kisten, v.gebindeart,
+            v_kontrolltag, v_faul, v_faul > 0, 'DEMO-KONTROLLE');
+  end loop;
+  raise notice 'Demo: Lagerkontrollen angelegt';
 end $$;
 
 -- ---------- Warenausgang -------------------------------------------------

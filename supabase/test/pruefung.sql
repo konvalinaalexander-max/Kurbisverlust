@@ -841,16 +841,59 @@ begin
 end $$;
 
 do $$
-declare v_diff numeric;
+declare v_hand bigint; v_diff numeric;
 begin
-  -- 0027: Der Arbeiter trägt den Waagenstand ein, die Differenz rechnet die
-  -- Software. Ein steigender Stand ergibt die Differenz, ein fallender heisst
-  -- geleert — und darf nie eine negative Menge buchen.
+  -- 0027/0032: Der Arbeiter trägt den Waagenstand ein, die Differenz rechnet
+  -- die Software — und zwar je Station: Sortierband, Waschbecken und
+  -- Hand-Linie haben je einen eigenen Palox auf eigener Waage. Vor 0032 war
+  -- der Stand global; liefen zwei Linien gleichzeitig, verzahnten sich ihre
+  -- Ablesungen und jede Differenz war falsch.
   assert (select count(*) from v_palox_stand where differenz < 0) = 0,
     'Eine Palox-Differenz ist negativ — der Stand wurde falsch verrechnet';
-  assert palox_letzter_stand() is not null,
+  assert palox_letzter_stand('waschen') is not null,
     'Der letzte Waagenstand ist nicht abrufbar — die Eingabemaske kann nicht rechnen';
-  raise notice 'OK  Palox-Waage (ablesen statt kopfrechnen)';
+
+  -- Eine Ablesung auf der Hand-Linie darf den Stand der Wasch-Station nicht
+  -- verschieben: 30 kg auf der Hand-Waage sind keine Differenz zu 120 kg auf
+  -- der Wasch-Waage.
+  insert into auftrag (id, weg, station, charge_nr, start_ts, ende_ts, status)
+  values (2100, 'hand', 'waschen_sortieren', 1613,
+          now() - interval '2 hours', now(), 'abgeschlossen');
+  insert into schimmel_messung (auftrag_id, kg, palox_stand_kg)
+  values (2100, 30, 30);
+  assert palox_letzter_stand('waschen') = 120,
+    'Der Hand-Palox hat den Stand der Wasch-Station verschoben — je Station!';
+  assert (select differenz from v_palox_stand where auftrag_id = 2100) = 30,
+    'Die erste Ablesung einer Station muss selbst die Menge sein';
+
+  -- Geleert und über den alten Stand hinaus neu befüllt: die Zahlenreihe
+  -- sieht harmlos aus (30 → 45), nur das Häkchen des Arbeiters weiss es.
+  insert into schimmel_messung (auftrag_id, kg, palox_stand_kg, palox_geleert)
+  values (2100, 45, 45, true);
+  select differenz into v_diff from v_palox_stand
+   where auftrag_id = 2100 order by ts desc, id desc limit 1;
+  assert v_diff = 45,
+    format('Nach dem Leeren gilt der volle Stand als Menge, nicht die Differenz (%s)', v_diff);
+
+  raise notice 'OK  Palox-Waage (je Station, Leeren gemeldet, ablesen statt kopfrechnen)';
+end $$;
+
+do $$
+declare v_zeile record;
+begin
+  -- 0033: Was kostet Warten? Für jede liegende Charge der voraussichtliche
+  -- Verlust zweier weiterer Wochen. Die Grössen müssen zusammenpassen:
+  -- nie negativ, Summe = Teile, und ohne tragfähiges Modell ehrlich NULL.
+  assert not exists (select 1 from v_naechste_charge
+                      where verdunstung_14_kg < 0 or schimmel_14_kg < 0),
+    'Ein projizierter Verlust ist negativ';
+  assert not exists (select 1 from v_naechste_charge
+                      where abs(coalesce(verdunstung_14_kg,0) + coalesce(schimmel_14_kg,0)
+                                - verlust_14_kg) > 0.5),
+    'Die Verlustsumme entspricht nicht ihren Teilen';
+  assert not exists (select 1 from v_naechste_charge where masse_jetzt_kg > lager_kg + 0.01),
+    'Die heutige Masse liegt über dem Eingang — Verdunstung rückwärts?';
+  raise notice 'OK  Was kostet Warten (nie negativ, Summe stimmt, ehrlich bei dünnem Modell)';
 end $$;
 
 do $$

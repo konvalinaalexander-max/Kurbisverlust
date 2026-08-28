@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useSprache } from '../sprache/SprachProvider'
 import { chargeText, fehlerText, stammdaten } from '../lib/db'
@@ -9,6 +9,7 @@ import type { Auftrag, Charge } from '../lib/typen'
 
 export default function Auftraege() {
   const { t, gebietsschema } = useSprache()
+  const navigate = useNavigate()
   const [auftraege, setAuftraege] = useState<Auftrag[]>([])
   const [chargen, setChargen] = useState<Charge[]>([])
   const [laedt, setLaedt] = useState(true)
@@ -63,10 +64,19 @@ export default function Auftraege() {
       {fehler && <Hinweis art="warnung">{fehler}</Hinweis>}
 
       {!neuOffen && (
-        <button className="haupt gross" style={{ width: '100%', marginTop: '1rem' }}
-                onClick={() => setNeuOffen(true)}>
-          + {t('neuerAuftrag')}
-        </button>
+        <>
+          <button className="haupt gross" style={{ width: '100%', marginTop: '1rem' }}
+                  onClick={() => setNeuOffen(true)}>
+            + {t('neuerAuftrag')}
+          </button>
+          {/* Lagerkontrolle: ohne Arbeit eine zufällig gegriffene Palette
+              wiegen und nachsehen. Bewusst direkt auf dem Startbildschirm —
+              eine Messung, die einen Umweg braucht, findet nicht statt. */}
+          <button className="gross" style={{ width: '100%', marginTop: '.6rem' }}
+                  onClick={() => navigate('/kontrolle')}>
+            🔍 {t('kontrolle')}
+          </button>
+        </>
       )}
       {neuOffen && (
         <NeuerAuftrag chargen={chargen}
