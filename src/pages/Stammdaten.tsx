@@ -23,8 +23,7 @@ export default function Stammdaten() {
   return (
     <>
       <h1>Stammdaten</h1>
-      <nav className="navleiste" style={{ position: 'static', borderRadius: 'var(--radius)',
-                                          border: '1px solid var(--rand)' }}>
+      <nav className="navleiste unter">
         {teile.map(([t, name]) => (
           <a key={t} href="#" className={teil === t ? 'aktiv' : ''}
              onClick={e => { e.preventDefault(); setTeil(t) }}>{name}</a>

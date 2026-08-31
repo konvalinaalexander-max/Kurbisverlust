@@ -305,16 +305,18 @@ export default function Dashboard() {
 
   return (
     <>
-      <p className="leise" style={{ marginTop: '1rem', marginBottom: '.5rem' }}>
-        Stand: {stand ? zeitpunkt(stand) : '—'}
-        {' · '}
-        <button style={{ minHeight: 28, padding: '.1rem .5rem' }}
-                onClick={() => void laden(true)}>neu rechnen</button>
-      </p>
+      <div className="reihe" style={{ marginTop: '1.25rem' }}>
+        <h1 style={{ margin: 0 }}>Auswertung</h1>
+        <span className="leise" style={{ marginLeft: 'auto' }}>
+          Stand {stand ? zeitpunkt(stand) : '—'}
+        </span>
+        <button className="klein" onClick={() => void laden(true)}>Neu rechnen</button>
+      </div>
 
-      <div className="reihe">
+      <div className="umschalter" role="tablist">
         {([1, 2, 3] as Ebene[]).map(e => (
-          <button key={e} className={ebene === e ? 'haupt' : ''} style={{ flex: 1 }}
+          <button key={e} role="tab" aria-selected={ebene === e}
+                  className={ebene === e ? 'aktiv' : ''}
                   onClick={() => setEbene(e)}>
             {['Überblick', 'Aufschlüsselung', 'Rohdaten'][e - 1]}
           </button>
@@ -325,7 +327,7 @@ export default function Dashboard() {
         <p className="leise" style={{ marginTop: '.5rem' }}>
           Gefiltert: {[sorte, schlag, minLagertage && `ab ${minLagertage} Lagertagen`]
             .filter(Boolean).join(' · ')}
-          {' '}<button style={{ minHeight: 28, padding: '.1rem .5rem' }}
+          {' '}<button className="klein"
                        onClick={() => { setSorte(''); setSchlag(''); setMinLagertage('') }}>
             zurücksetzen
           </button>
@@ -584,7 +586,10 @@ function WartetAufsWaschen({ bestand }: { bestand: Bestand[] }) {
 function Herkunft({ punkte }: { punkte: Schimmelpunkt[] }) {
   if (punkte.length === 0) return null
   const brauchbar = punkte.filter(p => p.plausibel && p.anteil !== null && p.anteil > 0)
-  const verworfen = punkte.length - brauchbar.length
+  // Nur was an der Plausibilitätsprüfung scheiterte, ist "verworfen" — eine
+  // plausible Nullmessung fließt bloß nicht in die (logarithmische) Anpassung
+  // ein und wäre hier falsch als Zahlendreher gemeldet.
+  const verworfen = punkte.filter(p => !p.plausibel).length
   const klassen = [
     { name: 'aus der Verarbeitung', quelle: 'verarbeitung',
       erklaerung: 'Der Palox am Band oder am Waschbecken. Welche Palette wann '
@@ -720,20 +725,20 @@ function Ueberblick({ verluste, eingang, verlustGesamt, maximum, bilanz, stroeme
             bleibt, ist das, was das Modell nicht sieht.
           </p>
           <Bilanzzeile titel="Wareneingang" kg={bilanz.eingang_kg} eingang={bilanz.eingang_kg}
-                       farbe="#7a7a7a" erklaerung="Netto ab Zettel, Tara abgezogen" />
+                       farbe="var(--strom-nebenkanal)" erklaerung="Netto ab Zettel, Tara abgezogen" />
           <Bilanzzeile titel="Verlust (Modell)" kg={bilanz.verlust_modell_kg}
-                       eingang={bilanz.eingang_kg} farbe="#b5651d"
+                       eingang={bilanz.eingang_kg} farbe="var(--strom-schimmel)"
                        erklaerung="Verdunstung, Schimmel und Ausschuss zusammen" />
           <Bilanzzeile titel="Ausgeliefert" kg={bilanz.ausgang_kg} eingang={bilanz.eingang_kg}
-                       farbe="#4a8c4a"
+                       farbe="var(--strom-rest)"
                        erklaerung={bilanz.n_lieferungen === 0
                          ? 'noch keine Lieferung erfasst'
                          : `${bilanz.n_lieferungen} Lieferungen erfasst`} />
           <Bilanzzeile titel="Noch im Haus (Modell)" kg={bilanz.restbestand_modell_kg}
-                       eingang={bilanz.eingang_kg} farbe="#7aa6c2"
+                       eingang={bilanz.eingang_kg} farbe="var(--strom-verdunstung)"
                        erklaerung={`davon ${tonnen(bilanz.wartet_kg)} sortiert und wartet aufs Waschen`} />
           <Bilanzzeile titel="Lücke" kg={Math.abs(bilanz.luecke_kg)} eingang={bilanz.eingang_kg}
-                       farbe="#c94f4f"
+                       farbe="var(--rot)"
                        erklaerung={`${prozent(bilanz.luecke_anteil)} des Eingangs`} />
           <Hinweis art={bilanz.n_lieferungen === 0 ? 'warnung'
                         : Math.abs(bilanz.luecke_anteil ?? 1) < 0.05 ? 'gut' : 'info'}>
@@ -1144,7 +1149,7 @@ function Kaliber({ zeilen }: {
                 : z.klasse === 'nebenkanal' ? 'ab 2000 g (anderer Kanal)'
                 : `${z.band_von}–${z.band_bis} g`
               const farbe = z.klasse === 'verlust_klein' ? 'var(--rot)'
-                : z.klasse === 'nebenkanal' ? 'var(--blau)' : 'var(--kuerbis)'
+                : z.klasse === 'nebenkanal' ? 'var(--strom-nebenkanal)' : 'var(--kuerbis)'
               return (
                 <div key={i} style={{ marginTop: '.4rem' }}>
                   <div className="reihe" style={{ fontSize: '.85rem' }}>

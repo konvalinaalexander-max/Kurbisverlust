@@ -148,9 +148,8 @@ export default function CsvUpload() {
                    onChange={e => parameterAendern({ ...parameter, min_gramm: Number(e.target.value) })} />
           </div>
         </div>
-        <label style={{ display: 'flex', gap: '.5rem', alignItems: 'center' }}>
+        <label className="ankreuzen">
           <input type="checkbox" checked={parameter.dubletten_zusammenfassen}
-                 style={{ width: 22, height: 22, minHeight: 0 }}
                  onChange={e => parameterAendern({ ...parameter, dubletten_zusammenfassen: e.target.checked })} />
           Direkte Dubletten zusammenfassen (Doppel-Trigger der Maschine)
         </label>

@@ -5,16 +5,21 @@ export function Lade({ text = 'Lädt …' }: { text?: string }) {
 }
 
 export function Hinweis({ art = 'info', children }: { art?: 'info' | 'warnung' | 'gut'; children: ReactNode }) {
-  return <div className={`hinweis ${art === 'info' ? '' : art}`}>{children}</div>
+  return (
+    <div className={`hinweis ${art === 'info' ? '' : art}`}
+         role={art === 'warnung' ? 'alert' : undefined}>
+      {children}
+    </div>
+  )
 }
 
 export function Karte({ titel, aktion, children }: { titel?: ReactNode; aktion?: ReactNode; children: ReactNode }) {
   return (
     <section className="karte">
       {(titel || aktion) && (
-        <div className="reihe" style={{ marginBottom: '.75rem' }}>
-          {titel && <h2 style={{ margin: 0 }}>{titel}</h2>}
-          {aktion && <div style={{ marginLeft: 'auto' }}>{aktion}</div>}
+        <div className="karte-kopf">
+          {titel && <h2>{titel}</h2>}
+          {aktion && <div className="aktion">{aktion}</div>}
         </div>
       )}
       {children}
@@ -24,11 +29,24 @@ export function Karte({ titel, aktion, children }: { titel?: ReactNode; aktion?:
 
 export function Kennzahl({ titel, wert, unter }: { titel: string; wert: ReactNode; unter?: ReactNode }) {
   return (
-    <div>
-      <div className="leise">{titel}</div>
+    <div className="kennzahl">
+      <div className="titel">{titel}</div>
       <div className="gross-zahl">{wert}</div>
-      {unter && <div className="leise">{unter}</div>}
+      {unter && <div className="unter">{unter}</div>}
     </div>
+  )
+}
+
+/** Ein Ankreuzfeld mit Text — überall gleich gebaut, 44 px hoch, Handschuh-tauglich. */
+export function Ankreuzen({ wert, setzen, gesperrt, children }: {
+  wert: boolean; setzen: (w: boolean) => void; gesperrt?: boolean; children: ReactNode
+}) {
+  return (
+    <label className="ankreuzen">
+      <input type="checkbox" checked={wert} disabled={gesperrt}
+             onChange={e => setzen(e.target.checked)} />
+      {children}
+    </label>
   )
 }
 

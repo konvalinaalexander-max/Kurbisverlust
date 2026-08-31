@@ -108,8 +108,7 @@ export default function AuftragDetail() {
       </Karte>
 
       {reiterListe.length > 1 && (
-        <nav className="navleiste" style={{ position: 'static', borderRadius: 'var(--radius)',
-                                            border: '1px solid var(--rand)' }}>
+        <nav className="navleiste unter">
           {reiterListe.map(([r, id]) => (
             <a key={r} href="#" className={aktiverReiter === r ? 'aktiv' : ''}
                onClick={e => { e.preventDefault(); setReiter(r) }}>{t(id)}</a>
@@ -336,9 +335,8 @@ function WiegeDialog({ auftrag, zettelDatum, nurZaehlen, abbrechen, fertig }: {
               </p>
             )}
 
-            <label style={{ display: 'flex', gap: '.5rem', alignItems: 'center', marginBottom: '.75rem' }}>
-              <input type="checkbox" checked={schimmel} onChange={e => setSchimmel(e.target.checked)}
-                     style={{ width: 22, height: 22, minHeight: 0 }} />
+            <label className="ankreuzen" style={{ marginBottom: '.5rem' }}>
+              <input type="checkbox" checked={schimmel} onChange={e => setSchimmel(e.target.checked)} />
               {t('faulesSichtbar')}
             </label>
 
@@ -438,10 +436,9 @@ function Palox({ auftrag, gesperrt }: { auftrag: Auftrag; gesperrt: boolean }) {
         </button>
       </div>
 
-      <label style={{ display: 'flex', gap: '.5rem', alignItems: 'center', marginTop: '.6rem' }}>
+      <label className="ankreuzen">
         <input type="checkbox" checked={leerGemeldet} disabled={gesperrt}
-               onChange={e => setLeerGemeldet(e.target.checked)}
-               style={{ width: 22, height: 22, minHeight: 0 }} />
+               onChange={e => setLeerGemeldet(e.target.checked)} />
         {t('paloxWarLeer')}
       </label>
 
@@ -527,9 +524,9 @@ function Mengen({ auftrag, gesperrt, tabelle, titel, zusatz, filter, mitTeilgewi
                 onClick={speichern} disabled={gesperrt || wert === ''}>{t('eintragen')}</button>
       </div>
       {mitTeilgewicht && (
-        <label style={{ display: 'flex', gap: '.5rem', alignItems: 'center', marginTop: '.6rem' }}>
+        <label className="ankreuzen">
           <input type="checkbox" checked={teil} disabled={gesperrt}
-                 onChange={e => setTeil(e.target.checked)} style={{ width: 22, height: 22, minHeight: 0 }} />
+                 onChange={e => setTeil(e.target.checked)} />
           {t('boxWarVoll')}
         </label>
       )}
@@ -546,8 +543,7 @@ function Mengen({ auftrag, gesperrt, tabelle, titel, zusatz, filter, mitTeilgewi
                         { hour: '2-digit', minute: '2-digit' })}</td>
                   <td className="zahl">{z.kg} kg</td>
                   <td style={{ textAlign: 'right' }}>
-                    <button className="gefahr" style={{ minHeight: 32, padding: '.2rem .5rem' }}
-                            disabled={gesperrt}
+                    <button className="gefahr klein" disabled={gesperrt}
                             onClick={async () => {
                               const { error } = await supabase.from(tabelle).delete().eq('id', z.id)
                               if (error) setFehler(fehlerText(error)); else void laden()
@@ -695,7 +691,7 @@ function FertigePalette({ auftrag, gesperrt }: { auftrag: Auftrag; gesperrt: boo
             <tbody>
               {zeilen.map(z => (
                 <tr key={z.id}>
-                  <td>{z.kisten} × {t('kistenart').toLowerCase()}</td>
+                  <td>{z.kisten} {t('kisten')}</td>
                   <td className="zahl">{z.kg_pro_kiste?.toFixed(2) ?? '—'} kg</td>
                   <td className="zahl" style={{ color: 'var(--rot)' }}>
                     {z.ueberfuellung_je_kiste != null && z.ueberfuellung_je_kiste > 0

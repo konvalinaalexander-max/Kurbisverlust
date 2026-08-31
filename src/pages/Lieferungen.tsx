@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { fehlerText } from '../lib/db'
+import { datum as datumText, kg as kgText, zahl } from '../lib/format'
 import { Hinweis, Karte, Kennzahl, Lade } from '../components/Bausteine'
 
 /**
@@ -184,11 +185,11 @@ export default function Lieferungen() {
               <tbody>
                 {zeilen.map(z => (
                   <tr key={z.id}>
-                    <td>{z.datum}</td>
+                    <td>{datumText(z.datum)}</td>
                     <td>{z.sorte ?? '—'}</td>
                     <td>{z.charge_nr ?? '—'}</td>
                     <td className="zahl">
-                      {z.kg !== null ? `${z.kg} kg` : `${z.kisten} Kisten`}
+                      {z.kg !== null ? kgText(z.kg, 0) : `${zahl(z.kisten)} Kisten`}
                     </td>
                     <td className="zahl">
                       {z.masse_kg === null ? '—' : `${Math.round(z.masse_kg)} kg`}
@@ -199,8 +200,9 @@ export default function Lieferungen() {
                     </td>
                     <td>{z.ziel_name}</td>
                     <td>{z.kunde ?? ''}</td>
-                    <td>
-                      <button onClick={() => entfernen(z.id)}>×</button>
+                    <td style={{ textAlign: 'right' }}>
+                      <button className="gefahr klein" aria-label="Lieferung entfernen"
+                              onClick={() => entfernen(z.id)}>✕</button>
                     </td>
                   </tr>
                 ))}

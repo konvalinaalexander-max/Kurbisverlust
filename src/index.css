@@ -1,150 +1,319 @@
-/* Bedient wird das hier zum großen Teil auf dem Handy, in einer Lagerhalle,
-   oft mit Handschuhen. Große Flächen, hoher Kontrast, wenig Zierrat. */
+/* =========================================================================
+   Das Erscheinungsbild — eine Betriebssoftware, kein Bastelprojekt.
+
+   Zwei Nutzergruppen, zwei Anforderungen:
+   · Der Arbeiter bedient die App auf dem Handy, in der Halle, oft mit
+     Handschuhen. Für ihn zählen große Flächen, große Schrift, hoher
+     Kontrast — alle Bedienelemente halten 44 px Mindesthöhe.
+   · Der Betriebsleiter sitzt am Rechner vor Tabellen und Diagrammen. Für
+     ihn zählt ruhige, dichte, präzise Darstellung.
+
+   Grundsätze:
+   · Farbe ist Bedeutung. Das Kürbis-Orange ist der eine Akzent (Hauptaktion,
+     aktiver Reiter); Grün/Rot/Blau/Gelb sind Zustände. Alles andere bleibt
+     neutral — eine Seite voller Farben wirkt wie ein Spielzeug.
+   · Zahlen stehen immer in Tabellenziffern (gleiche Breite je Ziffer),
+     sonst tanzen Spalten beim Vergleichen.
+   · Dunkelmodus folgt dem System und ist gleichwertig gepflegt.
+   ========================================================================= */
 
 :root {
-  --grund: #fdfaf6;
+  /* Grundflächen: kühles, neutrales Grau — Papier, nicht Packpapier. */
+  --grund: #f4f5f7;
   --flaeche: #ffffff;
-  --flaeche-2: #f4efe8;
-  --rand: #e0d6c8;
-  --text: #2b2118;
-  --text-leise: #6f6154;
-  --kuerbis: #c25e12;
-  --kuerbis-dunkel: #96450a;
-  --gruen: #3f7d3f;
-  --rot: #a8322a;
-  --blau: #2b5c8a;
+  --flaeche-2: #f1f3f5;
+  --rand: #dde1e6;
+  --rand-leise: #e9ecef;
+  --text: #1c2126;
+  --text-leise: #5f6b76;
+
+  /* Der Akzent: Kürbis, aber gedeckt — Signal, nicht Dekoration. */
+  --kuerbis: #c2530f;
+  --kuerbis-dunkel: #9c400a;
+  --kuerbis-flaeche: #fdf0e6;
+
+  /* Zustände */
+  --gruen: #2e7d43;
+  --gruen-flaeche: #e9f4ec;
+  --rot: #b3362c;
+  --rot-flaeche: #faeceb;
+  --blau: #2f5e94;
+  --blau-flaeche: #eaf1f8;
+  --gelb: #9c6d1e;
+  --gelb-flaeche: #faf3e4;
+
+  /* Die Ströme im Kaskadenbild — überall dieselben Farben je Ursache. */
+  --strom-verdunstung: #5b8db8;
+  --strom-schimmel: #b06428;
+  --strom-ausschuss: #c2a23b;
+  --strom-nebenkanal: #8b93a0;
+  --strom-rest: #4a8c5c;
+
   --radius: 10px;
-  --schatten: 0 1px 2px rgb(43 33 24 / 8%), 0 4px 12px rgb(43 33 24 / 5%);
+  --radius-klein: 7px;
+  --schatten: 0 1px 2px rgb(28 33 38 / 5%);
+  --schatten-dialog: 0 12px 40px rgb(28 33 38 / 22%);
+  --kopf-hoehe: 52px;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --grund: #1a1512;
-    --flaeche: #241d18;
-    --flaeche-2: #2f2620;
-    --rand: #423630;
-    --text: #f2e9df;
-    --text-leise: #a8988a;
-    --kuerbis: #f08b33;
-    --kuerbis-dunkel: #f5a45c;
-    --gruen: #6db56d;
-    --rot: #e07268;
-    --blau: #6ba3d6;
-    --schatten: 0 1px 2px rgb(0 0 0 / 30%), 0 4px 12px rgb(0 0 0 / 20%);
+    --grund: #14171a;
+    --flaeche: #1d2126;
+    --flaeche-2: #262b31;
+    --rand: #363d45;
+    --rand-leise: #2b3138;
+    --text: #e8ebee;
+    --text-leise: #99a3ad;
+
+    --kuerbis: #e5732a;
+    --kuerbis-dunkel: #f0894a;
+    --kuerbis-flaeche: #33261c;
+
+    --gruen: #66b07c;
+    --gruen-flaeche: #1e2f24;
+    --rot: #db7268;
+    --rot-flaeche: #33211f;
+    --blau: #7aa4d1;
+    --blau-flaeche: #1e2836;
+    --gelb: #cfa457;
+    --gelb-flaeche: #2f2818;
+
+    --strom-verdunstung: #6f9dc4;
+    --strom-schimmel: #c47a3e;
+    --strom-ausschuss: #cbb057;
+    --strom-nebenkanal: #7e8794;
+    --strom-rest: #5da173;
+
+    --schatten: 0 1px 2px rgb(0 0 0 / 30%);
+    --schatten-dialog: 0 12px 40px rgb(0 0 0 / 55%);
   }
 }
 
 * { box-sizing: border-box; }
 
+html { scrollbar-gutter: stable; }
+
 body {
   margin: 0;
   background: var(--grund);
   color: var(--text);
-  font: 16px/1.5 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-family: 'Inter Variable', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-size: 15.5px;
+  line-height: 1.55;
   -webkit-text-size-adjust: 100%;
+  font-feature-settings: 'cv05' 1;   /* offenes l — besser lesbar */
 }
 
-h1, h2, h3 { line-height: 1.25; margin: 0 0 .5rem; font-weight: 650; }
-h1 { font-size: 1.4rem; }
-h2 { font-size: 1.15rem; }
-h3 { font-size: 1rem; }
+h1, h2, h3 { line-height: 1.25; margin: 0 0 .5rem; font-weight: 620; letter-spacing: -.011em; }
+h1 { font-size: 1.35rem; margin-top: 1.25rem; }
+h2 { font-size: 1.02rem; }
+h3 { font-size: .95rem; }
 p { margin: 0 0 .75rem; }
 a { color: var(--blau); }
+code { font-size: .88em; background: var(--flaeche-2); padding: .1em .35em; border-radius: 5px; }
 
-/* ---------- Rahmen ---------- */
-.huelle { max-width: 900px; margin: 0 auto; padding: 0 1rem 5rem; }
+.zahl, .gross-zahl, td, th, input[type='number'] { font-variant-numeric: tabular-nums; }
+
+/* ---------- Rahmen: Kopfleiste, Navigation, Inhalt ----------------------- */
+.huelle { max-width: 1040px; margin: 0 auto; padding: 0 1.25rem 5rem; }
+.huelle.eng { max-width: 560px; }
+@media (max-width: 640px) { .huelle { padding: 0 .8rem 5rem; } }
 
 .kopf {
   position: sticky; top: 0; z-index: 10;
-  background: var(--kuerbis-dunkel); color: #fff;
-  padding: .6rem 1rem;
-  display: flex; align-items: center; gap: .75rem;
+  height: var(--kopf-hoehe);
+  background: var(--flaeche);
+  border-bottom: 1px solid var(--rand);
+  padding: 0 1.25rem;
+  display: flex; align-items: center; gap: .6rem;
 }
-@media (prefers-color-scheme: dark) { .kopf { background: #3a2416; } }
-.kopf .marke { font-weight: 700; letter-spacing: .01em; }
-.kopf .wer { margin-left: auto; font-size: .85rem; opacity: .9; }
-.kopf button { background: rgb(255 255 255 / 15%); color: #fff; border-color: transparent; }
+@media (max-width: 640px) { .kopf { padding: 0 .8rem; } }
+.kopf .marke {
+  font-weight: 650; letter-spacing: -.01em; font-size: 1.02rem;
+  display: inline-flex; align-items: center; gap: .5rem; white-space: nowrap;
+  min-width: 0; overflow: hidden;
+}
+.kopf .marke .name { overflow: hidden; text-overflow: ellipsis; }
+.kopf .marke .zeichen {
+  width: 28px; height: 28px; border-radius: 8px; flex: none;
+  background: var(--kuerbis); color: #fff;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 16px;
+}
+.kopf .wer {
+  margin-left: auto; font-size: .85rem; color: var(--text-leise);
+  white-space: nowrap; flex: none; max-width: 9rem; overflow: hidden; text-overflow: ellipsis;
+}
+.kopf button {
+  min-height: 34px; padding: .25rem .6rem; font-size: .85rem;
+  background: transparent; border-color: transparent; color: var(--text-leise);
+  flex: none;
+}
+.kopf button:hover:not(:disabled) { background: var(--flaeche-2); border-color: transparent; color: var(--text); }
 
+/* Reiter-Navigation: eine Linie, der aktive Reiter trägt den Akzent.
+   Auf schmalen Bildschirmen wagrecht rollbar, ohne sichtbaren Rollbalken. */
 .navleiste {
-  display: flex; gap: .25rem; overflow-x: auto; padding: .5rem 1rem;
+  display: flex; gap: .25rem;
   background: var(--flaeche); border-bottom: 1px solid var(--rand);
-  position: sticky; top: 46px; z-index: 9;
+  padding: 0 1rem;
+  position: sticky; top: var(--kopf-hoehe); z-index: 9;
+  overflow-x: auto; scrollbar-width: none;
 }
+.navleiste::-webkit-scrollbar { display: none; }
+@media (max-width: 640px) { .navleiste { padding: 0 .5rem; } }
 .navleiste a {
-  padding: .5rem .8rem; border-radius: 999px; text-decoration: none;
-  color: var(--text-leise); white-space: nowrap; font-size: .92rem;
+  padding: .6rem .65rem calc(.6rem - 2px); border-bottom: 2px solid transparent;
+  text-decoration: none; color: var(--text-leise); white-space: nowrap;
+  font-size: .88rem; font-weight: 520;
+  display: inline-flex; align-items: center; gap: .4rem;
 }
-.navleiste a.aktiv { background: var(--kuerbis); color: #fff; font-weight: 600; }
+.navleiste a:hover { color: var(--text); }
+.navleiste a.aktiv { color: var(--kuerbis); border-bottom-color: var(--kuerbis); font-weight: 620; }
+.navleiste a svg { flex: none; opacity: .75; }
+.navleiste a.aktiv svg { opacity: 1; }
 
-/* ---------- Bausteine ---------- */
+/* Unternavigation (Reiter innerhalb einer Seite): ruhige Pillen. */
+.navleiste.unter {
+  position: static; border: 1px solid var(--rand); border-radius: var(--radius);
+  margin: 1rem 0; padding: .3rem; gap: .2rem;
+}
+.navleiste.unter a { border-bottom: none; border-radius: var(--radius-klein); padding: .45rem .7rem; }
+.navleiste.unter a.aktiv { background: var(--kuerbis-flaeche); color: var(--kuerbis); }
+
+/* ---------- Karten -------------------------------------------------------- */
 .karte {
   background: var(--flaeche); border: 1px solid var(--rand);
-  border-radius: var(--radius); padding: 1rem; margin: 1rem 0;
+  border-radius: var(--radius); padding: 1.1rem 1.15rem; margin: 1rem 0;
   box-shadow: var(--schatten);
 }
+@media (max-width: 640px) { .karte { padding: .95rem .9rem; } }
 .karte > :last-child { margin-bottom: 0; }
+.karte-kopf { display: flex; align-items: center; gap: .6rem; margin-bottom: .8rem; }
+.karte-kopf h2 { margin: 0; }
+.karte-kopf .aktion { margin-left: auto; flex: none; }
 
 .reihe { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; }
 .reihe.rechts { justify-content: flex-end; }
 .spalten { display: grid; gap: .75rem; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
 
-button, .knopf {
-  font: inherit; font-weight: 600; cursor: pointer;
-  padding: .7rem 1.1rem; min-height: 44px;
-  border: 1px solid var(--rand); border-radius: var(--radius);
-  background: var(--flaeche-2); color: var(--text);
-  text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: .4rem;
+/* Kennzahlen-Kachel: Beschriftung oben, große Zahl, Erläuterung darunter. */
+.kennzahl { min-width: 0; }
+.kennzahl .titel {
+  font-size: .72rem; font-weight: 600; letter-spacing: .05em; text-transform: uppercase;
+  color: var(--text-leise); margin-bottom: .15rem;
 }
-button:hover:not(:disabled), .knopf:hover { border-color: var(--kuerbis); }
-button:disabled { opacity: .5; cursor: not-allowed; }
-button.haupt, .knopf.haupt { background: var(--kuerbis); color: #fff; border-color: transparent; }
-button.gefahr { color: var(--rot); }
-button.gross { min-height: 64px; font-size: 1.15rem; flex: 1; }
+.gross-zahl { font-size: 1.65rem; font-weight: 650; line-height: 1.15; letter-spacing: -.015em; }
+.kennzahl .unter { font-size: .82rem; color: var(--text-leise); margin-top: .1rem; }
+
+/* ---------- Bedienelemente ------------------------------------------------ */
+button, .knopf {
+  font: inherit; font-weight: 560; cursor: pointer;
+  padding: .55rem 1rem; min-height: 44px;
+  border: 1px solid var(--rand); border-radius: var(--radius-klein);
+  background: var(--flaeche); color: var(--text);
+  text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: .4rem;
+  transition: background .1s, border-color .1s;
+}
+button:hover:not(:disabled), .knopf:hover { background: var(--flaeche-2); }
+button:focus-visible, .knopf:focus-visible, a:focus-visible {
+  outline: 2px solid var(--kuerbis); outline-offset: 2px;
+}
+button:disabled { opacity: .45; cursor: not-allowed; }
+button.haupt, .knopf.haupt {
+  background: var(--kuerbis); color: #fff; border-color: var(--kuerbis);
+}
+button.haupt:hover:not(:disabled), .knopf.haupt:hover { background: var(--kuerbis-dunkel); border-color: var(--kuerbis-dunkel); }
+button.gefahr { color: var(--rot); border-color: color-mix(in srgb, var(--rot) 35%, var(--rand)); }
+button.gefahr:hover:not(:disabled) { background: var(--rot-flaeche); }
+button.gross { min-height: 60px; font-size: 1.08rem; }
+button.klein { min-height: 32px; padding: .15rem .6rem; font-size: .84rem; }
+button.blank { background: none; border-color: transparent; }
+button.blank:hover:not(:disabled) { background: var(--flaeche-2); }
+
+/* Der Umschalter (Überblick / Aufschlüsselung / Rohdaten): ein Rahmen,
+   gleich breite Segmente — ein Bedienelement, nicht drei Knöpfe. */
+.umschalter {
+  display: flex; background: var(--flaeche); border: 1px solid var(--rand);
+  border-radius: var(--radius-klein); padding: 3px; gap: 3px; margin: .75rem 0;
+}
+.umschalter button {
+  flex: 1; min-height: 38px; border: none; background: none;
+  color: var(--text-leise); font-weight: 560; font-size: .9rem; padding: .3rem .5rem;
+}
+.umschalter button.aktiv { background: var(--kuerbis); color: #fff; }
+.umschalter button:not(.aktiv):hover { background: var(--flaeche-2); color: var(--text); }
 
 input, select, textarea {
-  font: inherit; padding: .65rem .7rem; min-height: 44px; width: 100%;
-  border: 1px solid var(--rand); border-radius: var(--radius);
+  font: inherit; padding: .55rem .7rem; min-height: 44px; width: 100%;
+  border: 1px solid var(--rand); border-radius: var(--radius-klein);
   background: var(--flaeche); color: var(--text);
 }
-input:focus, select:focus, textarea:focus { outline: 2px solid var(--kuerbis); outline-offset: -1px; }
-label { display: block; font-size: .85rem; color: var(--text-leise); margin-bottom: .25rem; font-weight: 600; }
-.feld { margin-bottom: .75rem; }
+input::placeholder, textarea::placeholder { color: var(--text-leise); opacity: .7; }
+input:focus, select:focus, textarea:focus {
+  outline: none; border-color: var(--kuerbis);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--kuerbis) 18%, transparent);
+}
+input:disabled, select:disabled { background: var(--flaeche-2); color: var(--text-leise); }
+label { display: block; font-size: .82rem; color: var(--text-leise); margin-bottom: .3rem; font-weight: 560; }
+.feld { margin-bottom: .8rem; min-width: 0; }
+input[type='checkbox'] { width: 21px; height: 21px; min-height: 0; accent-color: var(--kuerbis); flex: none; }
+label.ankreuzen {
+  display: flex; gap: .55rem; align-items: center;
+  font-size: .95rem; color: var(--text); font-weight: 480; margin: 0;
+  min-height: 44px; cursor: pointer;
+}
 
-table { width: 100%; border-collapse: collapse; font-size: .9rem; }
-th, td { text-align: left; padding: .5rem .4rem; border-bottom: 1px solid var(--rand); }
-th { color: var(--text-leise); font-size: .78rem; text-transform: uppercase; letter-spacing: .03em; }
-td.zahl, th.zahl { text-align: right; font-variant-numeric: tabular-nums; }
-.rollbar { overflow-x: auto; }
+/* ---------- Tabellen ------------------------------------------------------ */
+table { width: 100%; border-collapse: collapse; font-size: .88rem; }
+th, td { text-align: left; padding: .5rem .55rem; border-bottom: 1px solid var(--rand-leise); }
+th {
+  color: var(--text-leise); font-size: .7rem; font-weight: 620;
+  text-transform: uppercase; letter-spacing: .05em; white-space: nowrap;
+}
+tbody tr:hover { background: color-mix(in srgb, var(--flaeche-2) 55%, transparent); }
+tbody tr:last-child td { border-bottom: none; }
+td.zahl, th.zahl { text-align: right; }
+.rollbar { overflow-x: auto; margin: 0 -.25rem; padding: 0 .25rem; }
 
+/* ---------- Marken und Hinweise ------------------------------------------ */
 .marke-klein {
-  display: inline-block; padding: .15rem .5rem; border-radius: 999px;
-  font-size: .75rem; font-weight: 700; background: var(--flaeche-2); color: var(--text-leise);
+  display: inline-flex; align-items: center; gap: .35rem;
+  padding: .1rem .55rem; border-radius: 999px;
+  font-size: .74rem; font-weight: 620; white-space: nowrap;
+  background: var(--flaeche-2); color: var(--text-leise);
+  border: 1px solid var(--rand-leise);
 }
-.marke-klein.offen { background: #fde9d2; color: #8a4b0d; }
-.marke-klein.fertig { background: #dcecdc; color: #2f5f2f; }
-.marke-klein.warnung { background: #fbe0dd; color: #8f2b23; }
-@media (prefers-color-scheme: dark) {
-  .marke-klein.offen { background: #4a3316; color: #f5c185; }
-  .marke-klein.fertig { background: #23401f; color: #a5d3a5; }
-  .marke-klein.warnung { background: #4a231f; color: #efa79f; }
+.marke-klein::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.marke-klein.offen { background: var(--blau-flaeche); color: var(--blau); border-color: transparent; }
+.marke-klein.fertig { background: var(--gruen-flaeche); color: var(--gruen); border-color: transparent; }
+.marke-klein.warnung { background: var(--rot-flaeche); color: var(--rot); border-color: transparent; }
+
+.leise { color: var(--text-leise); font-size: .86rem; }
+
+.hinweis {
+  padding: .75rem .95rem; border-radius: var(--radius-klein);
+  background: var(--blau-flaeche); font-size: .89rem;
+  border: 1px solid color-mix(in srgb, var(--blau) 22%, transparent);
+  margin: .75rem 0;
 }
+.hinweis.warnung { background: var(--rot-flaeche); border-color: color-mix(in srgb, var(--rot) 25%, transparent); }
+.hinweis.gut { background: var(--gruen-flaeche); border-color: color-mix(in srgb, var(--gruen) 25%, transparent); }
+.hinweis > :last-child { margin-bottom: 0; }
 
-.leise { color: var(--text-leise); font-size: .88rem; }
-.gross-zahl { font-size: 1.8rem; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.1; }
-.hinweis { padding: .75rem 1rem; border-radius: var(--radius); border-left: 4px solid var(--blau);
-           background: var(--flaeche-2); font-size: .9rem; }
-.hinweis.warnung { border-left-color: var(--rot); }
-.hinweis.gut { border-left-color: var(--gruen); }
-
-/* ---------- Balken fürs Dashboard ---------- */
+/* ---------- Balken (Verlust-Ränge, Kaliber) ------------------------------- */
 .balken-zeile { display: grid; grid-template-columns: 1fr; gap: .3rem; margin-bottom: 1rem; }
-.balken-spur { position: relative; height: 26px; background: var(--flaeche-2); border-radius: 4px; }
-.balken-fuellung { position: absolute; inset: 0 auto 0 0; background: var(--kuerbis); border-radius: 4px; }
-.balken-fuellung.projiziert {
-  background: repeating-linear-gradient(45deg, var(--kuerbis) 0 6px, transparent 6px 12px), var(--kuerbis);
-  opacity: .55;
+.balken-spur {
+  position: relative; height: 22px;
+  background: var(--flaeche-2); border-radius: 5px; overflow: hidden;
 }
-.balken-bereich { position: absolute; top: 50%; height: 2px; background: var(--text); opacity: .55; }
+.balken-fuellung { position: absolute; inset: 0 auto 0 0; background: var(--kuerbis); border-radius: 5px 0 0 5px; }
+.balken-fuellung.projiziert {
+  background: repeating-linear-gradient(45deg, var(--kuerbis) 0 5px, transparent 5px 10px), var(--kuerbis);
+  opacity: .45;
+}
+.balken-bereich { position: absolute; top: 50%; height: 2px; background: var(--text); opacity: .6; }
 .balken-bereich::before, .balken-bereich::after {
   content: ''; position: absolute; top: -4px; width: 2px; height: 10px; background: var(--text);
 }
@@ -152,23 +321,42 @@ td.zahl, th.zahl { text-align: right; font-variant-numeric: tabular-nums; }
 .balken-bereich::after { right: 0; }
 
 details.rechenweg { margin-top: .5rem; border-top: 1px dashed var(--rand); padding-top: .5rem; }
-details.rechenweg summary { cursor: pointer; font-size: .85rem; color: var(--blau); font-weight: 600; }
-details.rechenweg dl { display: grid; grid-template-columns: auto 1fr; gap: .25rem .75rem;
-                       font-size: .85rem; margin: .6rem 0 0; }
-details.rechenweg dt { color: var(--text-leise); }
+details.rechenweg summary { cursor: pointer; font-size: .84rem; color: var(--blau); font-weight: 560; }
+details.rechenweg dl {
+  display: grid; grid-template-columns: auto 1fr; gap: .3rem .9rem;
+  font-size: .84rem; margin: .6rem 0 0;
+}
+details.rechenweg dt { color: var(--text-leise); white-space: nowrap; }
 details.rechenweg dd { margin: 0; font-variant-numeric: tabular-nums; }
 
-.trichter { font-variant-numeric: tabular-nums; font-size: .9rem;
-            background: var(--flaeche-2); padding: .6rem .8rem; border-radius: var(--radius); }
+.trichter {
+  font-variant-numeric: tabular-nums; font-size: .86rem;
+  background: var(--flaeche-2); padding: .6rem .8rem; border-radius: var(--radius-klein);
+  overflow-x: auto; white-space: nowrap;
+}
 
-.zaehler { display: flex; align-items: center; gap: 1rem; justify-content: center; margin: 1rem 0; }
-.zaehler .stand { font-size: 3rem; font-weight: 700; min-width: 3ch; text-align: center;
-                  font-variant-numeric: tabular-nums; }
-.zaehler button { width: 68px; height: 68px; font-size: 1.8rem; border-radius: 50%; }
+/* ---------- Der Zähler (Paletten zählen) ---------------------------------- */
+.zaehler { display: flex; align-items: center; gap: 1.25rem; justify-content: center; margin: 1.25rem 0; }
+.zaehler .stand {
+  font-size: 3.2rem; font-weight: 650; min-width: 3ch; text-align: center;
+  font-variant-numeric: tabular-nums; letter-spacing: -.02em;
+}
+.zaehler button { width: 64px; height: 64px; font-size: 1.7rem; border-radius: 50%; flex: none; }
 
-.lade { padding: 2rem; text-align: center; color: var(--text-leise); }
+.lade { padding: 3rem 1rem; text-align: center; color: var(--text-leise); }
+.lade::before {
+  content: ''; display: block; width: 22px; height: 22px; margin: 0 auto .6rem;
+  border: 2px solid var(--rand); border-top-color: var(--kuerbis); border-radius: 50%;
+  animation: drehen .8s linear infinite;
+}
+@keyframes drehen { to { transform: rotate(360deg); } }
 
-/* ---------- Drucken (QR-Zugang aufhängen) ---------- */
+/* Leerer Zustand: gross, freundlich, mit dem nächsten Schritt. */
+.leer {
+  text-align: center; padding: 1.5rem 1rem; color: var(--text-leise);
+}
+
+/* ---------- Drucken (QR-Zugang aufhängen) --------------------------------- */
 .nur-druck { display: none; }
 @media print {
   .kein-druck, .kopf, .navleiste { display: none !important; }
@@ -179,27 +367,21 @@ details.rechenweg dd { margin: 0; font-variant-numeric: tabular-nums; }
   .hinweis { display: none; }
 }
 
-/* ---------- Sprachauswahl ---------- */
-.flaggen {
-  display: grid; grid-template-columns: 1fr 1fr; gap: .75rem;
-}
+/* ---------- Sprachauswahl ------------------------------------------------- */
+.flaggen { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
 .flagge {
   display: flex; flex-direction: column; align-items: center; gap: .35rem;
   padding: 1.1rem .5rem; min-height: 104px;
   background: var(--flaeche); border: 1px solid var(--rand); border-radius: var(--radius);
 }
 .flagge:active { background: var(--flaeche-2); }
-.flagge-bild { font-size: 2.6rem; line-height: 1; }
-.flagge-name { font-size: .95rem; font-weight: 600; }
-.flagge-knopf {
-  background: rgb(255 255 255 / 15%); border: none; color: #fff;
-  font-size: 1.15rem; padding: .2rem .45rem; min-height: 34px; border-radius: 8px;
-}
+.flagge-bild { font-size: 2.5rem; line-height: 1; }
+.flagge-name { font-size: .95rem; font-weight: 560; }
 
-/* ---------- Dialog (Wiegen-Frage beim Zählen) ---------- */
+/* ---------- Dialog (Wiegen-Frage beim Zählen) ----------------------------- */
 .dialog-hinter {
   position: fixed; inset: 0; z-index: 50;
-  background: rgb(20 14 10 / 55%);
+  background: rgb(15 18 22 / 55%);
   display: flex; align-items: flex-end; justify-content: center;
   padding: 0;
 }
@@ -208,7 +390,7 @@ details.rechenweg dd { margin: 0; font-variant-numeric: tabular-nums; }
   background: var(--flaeche); border: 1px solid var(--rand);
   border-radius: var(--radius) var(--radius) 0 0;
   padding: 1.25rem; width: 100%; max-width: 480px;
-  max-height: 92vh; overflow-y: auto;
-  box-shadow: 0 -4px 24px rgb(0 0 0 / 20%);
+  max-height: 92dvh; overflow-y: auto;
+  box-shadow: var(--schatten-dialog);
 }
 @media (min-width: 560px) { .dialog { border-radius: var(--radius); } }

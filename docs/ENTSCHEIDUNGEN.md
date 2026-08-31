@@ -778,3 +778,59 @@ Damit das nicht wieder einreisst, verlangt `pruefung.sql` jetzt zweierlei:
 dass **keine** Funktion in `public` für PUBLIC ausführbar ist, und dass
 **jede** für `authenticated` erreichbar ist. Wer künftig eine Funktion ohne
 eigenen `grant` anlegt, merkt es beim nächsten Testlauf statt nie.
+
+---
+
+## Das Erscheinungsbild: Betriebssoftware, nicht Bastelprojekt
+
+### Ausgangslage
+
+Die Oberfläche war funktional, sah aber danach aus, was sie war: gewachsen.
+Beige Flächen, orange Pillen, Emojis in der Navigation, jede dritte Angabe
+per Inline-Stil formatiert. Dazu handfeste Fehler, die nie jemand gesehen
+hat, weil kein Test einen Bildschirm ansieht: Im Kaskadenbild stand
+`var(--rahmen)` — eine CSS-Variable, die es nie gab; der Ersatzwert griff,
+nur eben im Dunkelmodus mit demselben Hellgrau wie im Hellen. Die
+Beschriftung der Grafik war oben und unten abgeschnitten. Jede Handy-Seite
+lief 2 px über die Bildschirmbreite. Und der Warenausgang stürzte beim
+Formatieren des Datums ab, weil eine State-Variable namens `datum` die
+gleichnamige Formatierungsfunktion verdeckte.
+
+### Der Prüfstand kam vor dem Umbau
+
+`pruefstand/bildschirme.mjs` rendert jede Seite der App in einem echten
+Browser — Handy und Desktop, hell und dunkel, 88 Screenshots — und meldet
+Konsolenfehler und wagrechtes Überlaufen. Supabase läuft dabei nicht:
+Playwright fängt jede Anfrage ab und antwortet aus JSON-Abzügen, die
+`pruefstand/daten_dumpen.sh` aus der lokalen Demo-Datenbank zieht. Die App
+sieht echte Datenformen und echte Zahlen, nur ohne Netz. Erst dieser
+Prüfstand hat die vier Fehler oben sichtbar gemacht — „npm run build läuft
+durch" hätte keinen davon gefunden.
+
+### Die Gestaltungsentscheidungen
+
+- **Eine Akzentfarbe.** Das Kürbis-Orange bleibt die Identität, wird aber
+  Signal statt Anstrich: Hauptaktion, aktiver Reiter, sonst nichts. Flächen
+  sind neutrales Grau, Karten weiss mit feinem Rand. Grün/Rot/Blau/Gelb
+  sind Zustände, die Strom-Farben der Auswertung (Verdunstung, Schimmel,
+  Ausschuss, Nebenkanal) sind überall dieselben — als Variablen, damit der
+  Dunkelmodus mitzieht.
+- **Inter, mitgebaut.** Die Schrift kommt als npm-Paket in den Build statt
+  von einem CDN — in der Halle ist das Netz wackelig. Zahlen stehen überall
+  in Tabellenziffern, sonst tanzen Spalten beim Vergleichen.
+- **Navigation wie Werkzeug.** Kopfleiste weiss mit Marken-Kachel,
+  darunter Reiter mit Unterstreichung und kleinen Strichzeichen — von Hand
+  als einfache Geometrie, keine Icon-Bibliothek. Die Ebenen-Wahl im
+  Dashboard ist ein Segment-Umschalter, kein Knopf-Trio.
+- **Zwei Nutzergruppen, zwei Dichten.** Arbeiter-Seiten bleiben schmal
+  (560 px), gross und berührungstauglich — 44 px Mindesthöhe überall.
+  Betriebsleiter-Seiten werden breiter (1040 px) und dichter: Kennzahlen
+  als Kacheln, Tabellen mit ruhigen Linien und Zeilen-Hover.
+- **Das Kaskadenbild neu vermessen.** Alle Y-Koordinaten leiten sich jetzt
+  aus benannten Höhen ab, die Abzweigungen schliessen bündig an, das
+  abgezweigte Stück ist oben im Eingangs-Band markiert, und die
+  Restmenge trägt ihre Beschriftung im Balken.
+
+Was bewusst gleich blieb: jede Karte, jede Zahl, jeder Text und jeder
+Rechenweg. Der Umbau ist Erscheinung und Fehlerbehebung — kein einziger
+Datenbank-Aufruf hat sich geändert.

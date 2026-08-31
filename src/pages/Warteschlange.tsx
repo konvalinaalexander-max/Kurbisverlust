@@ -91,8 +91,7 @@ export default function Warteschlange() {
                           {abstand(a) === null ? '—' : `${abstand(a)!.toFixed(1)} h`}
                         </td>
                         <td style={{ textAlign: 'right' }}>
-                          <button onClick={() => zuordnen(l.id, a.id)}
-                                  style={{ minHeight: 34, padding: '.3rem .7rem' }}>
+                          <button className="klein" onClick={() => zuordnen(l.id, a.id)}>
                             zuordnen
                           </button>
                         </td>

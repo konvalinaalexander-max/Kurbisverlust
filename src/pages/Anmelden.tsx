@@ -12,8 +12,16 @@ const NAME_SCHLUESSEL = 'arbeiter_name'
 export default function Anmelden() {
   const { t } = useSprache()
   return (
-    <div className="huelle" style={{ maxWidth: 460, paddingTop: '2.5rem' }}>
-      <h1 style={{ fontSize: '1.7rem', textAlign: 'center' }}>🎃 {t('appName')}</h1>
+    <div className="huelle" style={{ maxWidth: 440, paddingTop: '3rem' }}>
+      <h1 style={{ fontSize: '1.45rem', textAlign: 'center', display: 'flex',
+                   alignItems: 'center', justifyContent: 'center', gap: '.6rem',
+                   marginBottom: '1.25rem' }}>
+        <span aria-hidden="true"
+              style={{ width: 40, height: 40, borderRadius: 12, background: 'var(--kuerbis)',
+                       color: '#fff', display: 'inline-flex', alignItems: 'center',
+                       justifyContent: 'center', fontSize: 22 }}>🎃</span>
+        {t('appName')}
+      </h1>
       <ArbeiterStart />
       <BetriebsleiterLogin />
     </div>
@@ -96,8 +104,7 @@ function BetriebsleiterLogin() {
   if (!offen) {
     return (
       <p style={{ textAlign: 'center', marginTop: '1.5rem' }}>
-        <button style={{ background: 'none', border: 'none', color: 'var(--text-leise)',
-                         fontWeight: 400, fontSize: '.9rem' }}
+        <button className="blank" style={{ color: 'var(--text-leise)', fontWeight: 480, fontSize: '.9rem' }}
                 onClick={() => setOffen(true)}>
           {t('leiterLogin')}
         </button>
@@ -132,7 +139,7 @@ function BetriebsleiterLogin() {
         <button className="haupt" style={{ width: '100%', marginTop: '.5rem' }} disabled={laeuft}>
           {laeuft ? '…' : modus === 'anmelden' ? 'Anmelden' : 'Konto anlegen'}
         </button>
-        <button type="button" style={{ width: '100%', marginTop: '.5rem', background: 'none', border: 'none' }}
+        <button type="button" className="blank" style={{ width: '100%', marginTop: '.5rem' }}
                 onClick={() => { setModus(modus === 'anmelden' ? 'registrieren' : 'anmelden'); setFehler(null) }}>
           {modus === 'anmelden' ? 'Neues Betriebsleiter-Konto anlegen' : 'Ich habe schon ein Konto'}
         </button>

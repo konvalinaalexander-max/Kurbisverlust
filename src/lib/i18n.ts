@@ -87,6 +87,8 @@ const de = {
 
   // Kisten
   anzahlKisten: 'Anzahl Kisten',
+  kisten: 'Kisten',
+  gespeichert: 'gespeichert',
   jeKiste: 'je Kiste',
 
   // Abschluss
@@ -177,6 +179,8 @@ const en: Woerterbuch = {
   kgJePalette: 'kg per pallet',
   vielJePalette: 'A lot per pallet — is the reading right? Maybe one was missed.',
   anzahlKisten: 'Number of boxes',
+  kisten: 'boxes',
+  gespeichert: 'saved',
   jeKiste: 'per box',
   mengeVerarbeitet: 'Amount processed (kg)',
   arbeitFertig: 'Work finished?',
@@ -256,6 +260,8 @@ const hu: Woerterbuch = {
   kgJePalette: 'kg raklaponként',
   vielJePalette: 'Nagyon sok raklaponként — helyes az érték? Talán kimaradt egy leolvasás.',
   anzahlKisten: 'Ládák száma',
+  kisten: 'láda',
+  gespeichert: 'elmentve',
   jeKiste: 'ládánként',
   mengeVerarbeitet: 'Feldolgozott mennyiség (kg)',
   arbeitFertig: 'Kész a munka?',
@@ -335,6 +341,8 @@ const ro: Woerterbuch = {
   kgJePalette: 'kg pe palet',
   vielJePalette: 'Foarte mult pe palet — e corectă valoarea? Poate lipsește o citire.',
   anzahlKisten: 'Număr de lăzi',
+  kisten: 'lăzi',
+  gespeichert: 'salvat',
   jeKiste: 'pe ladă',
   mengeVerarbeitet: 'Cantitate procesată (kg)',
   arbeitFertig: 'Lucrarea e gata?',
@@ -414,6 +422,8 @@ const pl: Woerterbuch = {
   kgJePalette: 'kg na paletę',
   vielJePalette: 'Bardzo dużo na paletę — czy odczyt się zgadza? Może jednego brakuje.',
   anzahlKisten: 'Liczba skrzynek',
+  kisten: 'skrzynek',
+  gespeichert: 'zapisano',
   jeKiste: 'na skrzynkę',
   mengeVerarbeitet: 'Przerobiona ilość (kg)',
   arbeitFertig: 'Praca skończona?',
@@ -493,6 +503,8 @@ const pt: Woerterbuch = {
   kgJePalette: 'kg por palete',
   vielJePalette: 'Muito por palete — o valor está certo? Talvez falte uma leitura.',
   anzahlKisten: 'Número de caixas',
+  kisten: 'caixas',
+  gespeichert: 'guardado',
   jeKiste: 'por caixa',
   mengeVerarbeitet: 'Quantidade processada (kg)',
   arbeitFertig: 'Trabalho terminado?',

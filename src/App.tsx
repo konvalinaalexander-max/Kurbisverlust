@@ -1,4 +1,6 @@
+import type { ReactNode } from 'react'
 import { NavLink, Navigate, Route, Routes } from 'react-router-dom'
+import { ZAusgang, ZBalken, ZEinlesen, ZListe, ZQr, ZRegler, ZUhr } from './components/Zeichen'
 import { useAuth } from './auth/AuthProvider'
 import { SprachAuswahl, useSprache } from './sprache/SprachProvider'
 import { istKonfiguriert, konfigurationsProblem } from './lib/supabase'
@@ -60,32 +62,40 @@ export default function App() {
 
   const aktuelleFlagge = SPRACHEN.find(s => s.code === sprache)?.flagge ?? '🌐'
 
+  const reiter: [string, string, () => ReactNode][] = [
+    ['/auftraege', 'Arbeiten', ZListe],
+    ['/dashboard', 'Auswertung', ZBalken],
+    ['/csv', 'Sortier-CSV', ZEinlesen],
+    ['/warteschlange', 'Warteschlange', ZUhr],
+    ['/lieferungen', 'Warenausgang', ZAusgang],
+    ['/stammdaten', 'Stammdaten', ZRegler],
+    ['/zugang', 'QR-Zugang', ZQr],
+  ]
+
   return (
     <>
       <header className="kopf kein-druck">
-        <span className="marke">🎃 {t('appName')}</span>
+        <span className="marke">
+          <span className="zeichen" aria-hidden="true">🎃</span>
+          <span className="name">{t('appName')}</span>
+        </span>
         <span className="wer">{profil?.name ?? ''}</span>
-        <button className="flagge-knopf" onClick={abfrageOeffnen} aria-label="Sprache">
-          {aktuelleFlagge}
-        </button>
-        <button onClick={abmelden} style={{ minHeight: 34, padding: '.3rem .7rem' }}>
-          {t('abmelden')}
-        </button>
+        <button onClick={abfrageOeffnen} aria-label="Sprache">{aktuelleFlagge}</button>
+        <button onClick={abmelden}>{t('abmelden')}</button>
       </header>
 
       {istAdmin && (
         <nav className="navleiste kein-druck">
-          <NavLink to="/auftraege" className={({ isActive }) => (isActive ? 'aktiv' : '')}>Arbeiten</NavLink>
-          <NavLink to="/dashboard" className={({ isActive }) => (isActive ? 'aktiv' : '')}>Auswertung</NavLink>
-          <NavLink to="/csv" className={({ isActive }) => (isActive ? 'aktiv' : '')}>Sortier-CSV</NavLink>
-          <NavLink to="/warteschlange" className={({ isActive }) => (isActive ? 'aktiv' : '')}>Warteschlange</NavLink>
-          <NavLink to="/lieferungen" className={({ isActive }) => (isActive ? 'aktiv' : '')}>Warenausgang</NavLink>
-          <NavLink to="/stammdaten" className={({ isActive }) => (isActive ? 'aktiv' : '')}>Stammdaten</NavLink>
-          <NavLink to="/zugang" className={({ isActive }) => (isActive ? 'aktiv' : '')}>QR-Zugang</NavLink>
+          {reiter.map(([pfad, name, Zeichen]) => (
+            <NavLink key={pfad} to={pfad}
+                     className={({ isActive }) => (isActive ? 'aktiv' : '')}>
+              <Zeichen />{name}
+            </NavLink>
+          ))}
         </nav>
       )}
 
-      <main className="huelle">
+      <main className={istAdmin ? 'huelle' : 'huelle eng'}>
         <Routes>
           <Route path="/" element={<Navigate to="/auftraege" replace />} />
           <Route path="/auftraege" element={<Auftraege />} />

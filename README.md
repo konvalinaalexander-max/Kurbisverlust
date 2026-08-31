@@ -619,6 +619,12 @@ npm run dev
 ```bash
 npm test                    # Reinigung und Dateinamen-Parser, ohne Datenbank
 ./supabase/test/run.sh      # Schema, Logik, Views und Zugriffsrechte
+
+# Bildschirm-Prüfstand: rendert jede Seite im echten Browser (Handy/Desktop,
+# hell/dunkel) mit Daten aus der Demo-Saison und meldet Konsolenfehler und
+# Seiten, die wagrecht überlaufen. Vorher einmal die Daten-Abzüge ziehen:
+./pruefstand/daten_dumpen.sh   # braucht die lokale Demo-Datenbank
+node pruefstand/bildschirme.mjs
 ```
 
 `run.sh` prüft: dass die Migrationen einzeln durchlaufen und die Fachlogik

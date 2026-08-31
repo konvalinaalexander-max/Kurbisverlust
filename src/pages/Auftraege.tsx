@@ -46,15 +46,19 @@ export default function Auftraege() {
       .toLocaleString(gebietsschema, { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
     return (
       <Link to={`/auftraege/${auftrag.id}`}
-            style={{ display: 'block', textDecoration: 'none', color: 'inherit',
-                     padding: '.85rem 0', borderBottom: '1px solid var(--rand)' }}>
-        <div className="reihe">
-          <strong style={{ fontSize: '1.05rem' }}>{taet ? t(taet.text) : ''}</strong>
-          <Marke art={auftrag.status === 'offen' ? 'offen' : 'fertig'}>
-            {auftrag.status === 'offen' ? t('laeuft') : t('fertig')}
-          </Marke>
+            style={{ display: 'flex', alignItems: 'center', gap: '.6rem',
+                     textDecoration: 'none', color: 'inherit',
+                     padding: '.85rem 0', borderBottom: '1px solid var(--rand-leise)' }}>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div className="reihe">
+            <strong style={{ fontSize: '1.02rem' }}>{taet ? t(taet.text) : ''}</strong>
+            <Marke art={auftrag.status === 'offen' ? 'offen' : 'fertig'}>
+              {auftrag.status === 'offen' ? t('laeuft') : t('fertig')}
+            </Marke>
+          </div>
+          <div className="leise">{chargeText(charge(auftrag.charge_nr))} · {zeit}</div>
         </div>
-        <div className="leise">{chargeText(charge(auftrag.charge_nr))} · {zeit}</div>
+        <span aria-hidden="true" style={{ color: 'var(--text-leise)', fontSize: '1.2rem' }}>›</span>
       </Link>
     )
   }

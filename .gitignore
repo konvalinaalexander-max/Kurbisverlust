@@ -7,3 +7,7 @@ dist
 
 # TypeScript-Build-Info
 *.tsbuildinfo
+
+# Bildschirm-Prüfstand: Screenshots und Daten-Abzüge sind erzeugt
+pruefstand/bilder/
+pruefstand/daten/

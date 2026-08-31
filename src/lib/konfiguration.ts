@@ -21,7 +21,10 @@ export function konfigurationPruefen(
       + 'Reiter „Legacy", den Schlüssel mit der Beschriftung anon public. '
       + 'Anschließend den geheimen Schlüssel in Supabase neu erzeugen.'
   }
-  if (!/^https:\/\/[^/]+\.supabase\.(co|in)\/?$/.test(url)) {
+  // localhost ist echt: die Supabase-CLI läuft lokal auf http://127.0.0.1:54321,
+  // und der Bildschirm-Prüfstand spielt Supabase selbst. Beides kein Tippfehler.
+  const lokal = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?\/?$/.test(url)
+  if (!lokal && !/^https:\/\/[^/]+\.supabase\.(co|in)\/?$/.test(url)) {
     return `Die Project URL sieht nicht richtig aus: „${url}". Erwartet wird `
       + 'etwas wie https://abcdefgh.supabase.co — ohne weiteren Pfad dahinter. '
       + 'Du findest sie in Supabase unter Settings → Data API.'

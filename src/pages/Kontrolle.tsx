@@ -76,7 +76,7 @@ export default function Kontrolle() {
   return (
     <>
       <h1>{t('kontrolle')}</h1>
-      {gespeichert > 0 && <Hinweis art="gut">✓ {gespeichert}</Hinweis>}
+      {gespeichert > 0 && <Hinweis art="gut">✓ {gespeichert} {t('gespeichert')}</Hinweis>}
 
       <Karte>
         <div className="feld">
