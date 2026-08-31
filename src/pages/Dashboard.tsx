@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { fehlerText } from '../lib/db'
+import DemoDaten from '../components/DemoDaten'
 import { datum, kg, prozent, tonnen, zahl, zeitpunkt } from '../lib/format'
 import { Balken, Hinweis, Karte, Kennzahl, Lade, Marke, Rechenweg } from '../components/Bausteine'
 import { Bilanzzeile, Kaskadenbild } from '../components/Kaskadenbild'
@@ -289,10 +290,16 @@ export default function Dashboard() {
   if (fehler) return <Hinweis art="warnung">{fehler}</Hinweis>
   if (zeilen.length === 0) {
     return (
-      <Hinweis>
-        Noch keine auswertbaren Daten. Dafür braucht es mindestens Eingangspaletten
-        mit hinterlegter Tara — siehe Stammdaten.
-      </Hinweis>
+      <>
+        <Hinweis>
+          Noch keine auswertbaren Daten. Dafür braucht es mindestens Eingangspaletten
+          mit hinterlegter Tara — siehe Stammdaten.
+        </Hinweis>
+        {/* Ein leeres Dashboard sagt nichts darüber, ob das Werkzeug taugt.
+            Deshalb steht der Weg zur Demo-Saison genau hier, wo die Leere
+            auffällt, und nicht nur drei Klicks weiter in den Stammdaten. */}
+        <DemoDaten kompakt nachAenderung={() => void laden(true)} />
+      </>
     )
   }
 

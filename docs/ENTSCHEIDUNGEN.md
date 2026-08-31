@@ -730,3 +730,51 @@ Zwischen Datenbank und App sitzt PostgREST und merkt sich, welche Funktionen
 es gibt. Am Ende von `setup.sql` steht deshalb `notify pgrst, 'reload schema'`
 — sonst kann die App eine gerade angelegte Funktion noch eine Weile für nicht
 vorhanden halten und dieselbe Meldung zeigen wie vorher, obwohl alles da ist.
+
+---
+
+## Die Demo-Saison gehört in die App, nicht in eine Datei
+
+Ein leeres Dashboard sagt nichts darüber, ob das Werkzeug taugt. Die
+erfundene Saison gab es zwar schon, aber nur als SQL-Datei: auf GitHub
+suchen, Rohtext kopieren, im SQL-Editor des Datenbank-Anbieters einfügen,
+Run — und zum Aufräumen dasselbe nochmal mit einer zweiten Datei. Das ist
+ein Umweg über ein Werkzeug, das mit der App nichts zu tun hat. Niemand
+macht ihn zweimal freiwillig, und wer die App zum ersten Mal öffnet, macht
+ihn gar nicht.
+
+Jetzt sind es zwei Funktionen, `demo_daten_laden()` und
+`demo_daten_entfernen()`, und zwei Knöpfe: unter Stammdaten → Demo-Daten,
+und — solange noch gar nichts erfasst ist — direkt auf der leeren
+Auswertung, dort wo die Leere auffällt.
+
+Die Saison selbst steht **nur noch an einer Stelle**, in
+`0034_demo_knopf.sql`. Die beiden SQL-Dateien rufen ab jetzt bloss die
+Funktionen auf. Zwei Fassungen derselben erfundenen Saison hätten
+zwangsläufig auseinandergelebt, und das wäre lange niemandem aufgefallen.
+
+### Was dabei auffiel: PUBLIC durfte alles
+
+Die neuen Funktionen laufen als `security definer`, also mit den Rechten des
+Eigentümers und an den Zeilenregeln vorbei. Anders geht es nicht — die Demo
+datiert Arbeiten zurück, legt abgeschlossene Aufträge an und erfasst
+Messungen im Namen anderer. Das Tor davor ist die Prüfung auf den
+Betriebsleiter.
+
+Beim Nachmessen zeigte sich, dass das Tor offenstand: Postgres gibt jeder
+neu angelegten Funktion automatisch der Rolle PUBLIC das Ausführungsrecht,
+und ein `grant execute … to authenticated` nimmt das nicht zurück, es kommt
+nur obendrauf. `demo_daten_laden()` liess sich als `anon` aufrufen, also
+ohne jede Anmeldung.
+
+Bei den übrigen Funktionen war dieselbe offene Tür folgenlos — sie laufen
+mit den Rechten des Aufrufers, und `anon` hat auf keine einzige Tabelle
+Zugriff. Trotzdem ist sie jetzt für alle zu (`0035_nur_angemeldete.sql`).
+Dass Auslöser weiterhin feuern, obwohl PUBLIC das Ausführen entzogen ist,
+ist nachgemessen und nicht vermutet: Postgres prüft dieses Recht beim
+Anlegen des Auslösers, nicht bei jedem Schreibvorgang.
+
+Damit das nicht wieder einreisst, verlangt `pruefung.sql` jetzt zweierlei:
+dass **keine** Funktion in `public` für PUBLIC ausführbar ist, und dass
+**jede** für `authenticated` erreichbar ist. Wer künftig eine Funktion ohne
+eigenen `grant` anlegt, merkt es beim nächsten Testlauf statt nie.

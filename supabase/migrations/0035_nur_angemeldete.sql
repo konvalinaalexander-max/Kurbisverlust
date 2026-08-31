@@ -1,0 +1,33 @@
+-- =====================================================================
+-- 0035 — Funktionen nur für Angemeldete
+--
+-- WAS HIER SCHIEFLIEF
+--
+-- Postgres gibt bei jeder neu angelegten Funktion automatisch der Rolle
+-- PUBLIC das Ausführungsrecht. Ein `grant execute … to authenticated`
+-- nimmt das nicht zurück — es kommt nur obendrauf. Alle Funktionen des
+-- Projekts standen damit auch `anon` offen, also jedem, der die Adresse der
+-- API kennt und gar nicht angemeldet ist.
+--
+-- Bei den meisten Funktionen war das folgenlos: Sie laufen mit den Rechten
+-- des Aufrufers, und `anon` hat auf keine einzige Tabelle Zugriff. Bei den
+-- wenigen "security definer"-Funktionen ist es das nicht — die laufen mit
+-- den Rechten des Eigentümers und damit an allen Zeilenregeln vorbei. Beim
+-- Bau des Demo-Knopfes fiel es auf: `demo_daten_laden()` liess sich als
+-- `anon` aufrufen und hätte 535 erfundene Paletten in die Datenbank eines
+-- fremden Betriebs schreiben können.
+--
+-- Das Tor bleibt, wo es hingehört: Wer etwas darf, entscheiden die
+-- Zeilenregeln und die Prüfung auf den Betriebsleiter. Aber ein
+-- Nichtangemeldeter soll gar nicht erst anklopfen können.
+--
+-- Trigger sind davon nicht betroffen: Ob eine Auslöser-Funktion feuert,
+-- prüft Postgres beim Anlegen des Auslösers, nicht bei jedem Schreibvorgang.
+-- Das ist nachgemessen, nicht vermutet (siehe pruefung.sql).
+--
+-- Für neue Funktionen gilt ab jetzt: eigener `grant execute … to
+-- authenticated`. Vergisst das jemand, schlägt die Prüfung fehl — dort wird
+-- verlangt, dass keine Funktion in `public` für PUBLIC ausführbar ist.
+-- =====================================================================
+
+revoke execute on all functions in schema public from public;

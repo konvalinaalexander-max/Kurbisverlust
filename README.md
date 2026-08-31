@@ -540,18 +540,24 @@ eine vollständige, erfundene Saison zum Durchklicken.
 
 **Voraussetzung:** Dein Betriebsleiter-Konto muss existieren (Schritt 7).
 
-1. [`supabase/demo_daten.sql`](supabase/demo_daten.sql) öffnen → **Copy raw file**
-   → Supabase → **SQL Editor** → einfügen → **Run**.
-2. In der App unter **Auswertung** durchklicken.
+**In der App, ein Klick:** Melde dich als Betriebsleiter an und geh auf
+**Stammdaten → Demo-Daten → „Demo-Saison laden"**. Solange noch gar nichts da
+ist, steht derselbe Knopf auch gleich auf der leeren **Auswertung** — dort, wo
+die Leere auffällt. Nach ein paar Sekunden ist jeder Bildschirm gefüllt.
 
-Du bekommst rund 460 t Eingang, 535 Paletten in 10 Chargen, 22 Arbeiten und
+Du bekommst rund 460 t Eingang, 535 Paletten in 10 Chargen, 28 Arbeiten und
 drei Sortierläufe — dazu absichtlich eine abgebrochene Arbeit und einen
 Zahlendreher, damit auch die Sonderfälle einmal sichtbar sind.
 
-**Wenn die echten Daten kommen:**
-[`supabase/demo_daten_entfernen.sql`](supabase/demo_daten_entfernen.sql) genauso
-einspielen. Es verschwindet restlos alles Erfundene, echte Daten bleiben
-unberührt.
+**Wenn die echten Daten kommen:** derselbe Bildschirm, Knopf **„Demo-Daten
+entfernen"**. Es verschwindet restlos alles Erfundene, echte Daten bleiben
+unberührt — erkannt wird die Demo an ihren Markierungen (Arbeiten mit dem
+Vermerk `DEMO`, Paletten mit `demo-…`, Sortierdateien `DEMO-…`).
+
+*Lieber im SQL-Editor?* Geht auch:
+[`supabase/demo_daten.sql`](supabase/demo_daten.sql) und
+[`supabase/demo_daten_entfernen.sql`](supabase/demo_daten_entfernen.sql)
+einspielen wie in Schritt 3. Dieselben Funktionen, dieselbe Saison.
 
 Was jede Ansicht bedeutet, steht in [`docs/DATENFLUSS.md`](docs/DATENFLUSS.md).
 

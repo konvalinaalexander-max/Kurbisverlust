@@ -4,11 +4,12 @@ import { einstellung, fehlerText, stammdaten } from '../lib/db'
 import { importErkennen, type ImportBericht } from '../lib/import'
 import { STATION_NAME, datum, kg, tonnen, zahl, zeitpunkt } from '../lib/format'
 import { Hinweis, Karte, Kennzahl, Lade, Marke } from '../components/Bausteine'
+import DemoDaten from '../components/DemoDaten'
 import type { Charge, Gebinde, Profil, SorteKaliber } from '../lib/typen'
 
 export default function Stammdaten() {
   const [teil, setTeil] = useState<'gebinde' | 'paletten' | 'chargen' | 'kaliber'
-    | 'abgebrochen' | 'benutzer' | 'einstellungen'>('gebinde')
+    | 'abgebrochen' | 'benutzer' | 'einstellungen' | 'demo'>('gebinde')
   const teile: [typeof teil, string][] = [
     ['gebinde', 'Gebinde & Tara'],
     ['paletten', 'Paletten-Import'],
@@ -17,6 +18,7 @@ export default function Stammdaten() {
     ['abgebrochen', 'Abgebrochene Arbeiten'],
     ['benutzer', 'Benutzer'],
     ['einstellungen', 'Einstellungen'],
+    ['demo', 'Demo-Daten'],
   ]
   return (
     <>
@@ -35,6 +37,7 @@ export default function Stammdaten() {
       {teil === 'abgebrochen' && <Abgebrochene />}
       {teil === 'benutzer' && <Benutzer />}
       {teil === 'einstellungen' && <Einstellungen />}
+      {teil === 'demo' && <DemoDaten />}
     </>
   )
 }

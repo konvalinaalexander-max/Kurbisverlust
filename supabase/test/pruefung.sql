@@ -956,4 +956,49 @@ end $$;
 
 select '——— Ablauf geprüft ———' as ergebnis;
 
+do $$
+declare v_offen text;
+begin
+  -- 0035: Postgres gibt jeder neuen Funktion automatisch PUBLIC das
+  -- Ausführungsrecht, und ein `grant … to authenticated` nimmt das nicht
+  -- zurück. Bei den "security definer"-Funktionen, die an den Zeilenregeln
+  -- vorbeilaufen, ist das eine offene Tür für Nichtangemeldete — genau so
+  -- liess sich demo_daten_laden() einmal als anon aufrufen. Diese Prüfung
+  -- hält die Tür zu, auch für Funktionen, die es heute noch gar nicht gibt.
+  select string_agg(p.proname, ', ' order by p.proname) into v_offen
+    from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'public' and p.prokind in ('f', 'p')
+     and coalesce(p.proacl::text, '{=X/}') like '%{=X/%';
+  assert v_offen is null,
+    'Diese Funktionen stehen jedem offen, auch ohne Anmeldung: ' || coalesce(v_offen, '');
+
+  -- Und der Weg herum: Was die App ruft, muss für Angemeldete erreichbar sein.
+  select string_agg(p.proname, ', ' order by p.proname) into v_offen
+    from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'public' and p.prokind = 'f'
+     and coalesce(p.proacl::text, '') not like '%authenticated=X%';
+  assert v_offen is null,
+    'Diese Funktionen kann kein Angemeldeter aufrufen: ' || coalesce(v_offen, '');
+
+  raise notice 'OK  Funktionsrechte (nichts steht Nichtangemeldeten offen)';
+end $$;
+
+do $$
+declare v_meldung text;
+begin
+  -- 0034: Der Demo-Knopf. Ein Arbeiter darf ihn nicht drücken.
+  perform set_config('request.jwt.claim.sub',
+                     (select id::text from profil where rolle = 'arbeiter' limit 1), true);
+  begin
+    perform demo_daten_laden();
+    assert false, 'Ein Arbeiter darf die Demo-Saison nicht laden können';
+  exception when others then
+    get stacked diagnostics v_meldung = message_text;
+    assert v_meldung like '%Betriebsleiter%',
+      'Die Absage an den Arbeiter muss sagen, woran es liegt: ' || v_meldung;
+  end;
+  perform set_config('request.jwt.claim.sub', '', true);
+  raise notice 'OK  Demo-Knopf (nur der Betriebsleiter)';
+end $$;
+
 select '——— Fachlogik geprüft ———' as ergebnis;
