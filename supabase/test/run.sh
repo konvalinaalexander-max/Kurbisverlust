@@ -3,7 +3,8 @@
 #   1. Migrationen einzeln einspielen und die Fachlogik durchrechnen
 #   2. setup.sql so einspielen, wie der Supabase-SQL-Editor es sendet
 #      (alles als ein Query, also eine Transaktion)
-#   3. setup.sql ein zweites Mal — muss freundlich abbrechen, nichts ändern
+#   3. setup.sql ein zweites Mal — muss durchlaufen und dieselbe DB hinterlassen
+#  3b. Aktualisierung: alter Stand mit Daten, dann die heutige setup.sql drüber
 #   4. setup.sql gegen die Migrationen abgleichen (kein Auseinanderdriften)
 #
 #   ./supabase/test/run.sh 'postgresql://…'   (Default: lokaler Cluster)
@@ -36,18 +37,75 @@ case "$AUSGABE" in
   *) echo "   FEHLER: setup.sql meldet keinen Erfolg"; exit 1 ;;
 esac
 
+FRISCH="$(mktemp)"
+psql "$URL" -v ON_ERROR_STOP=1 -f "$HIER/fingerabdruck.sql" > "$FRISCH"
+echo "   Fingerabdruck der frischen Datenbank: $(wc -l < "$FRISCH") Objekte"
+
 echo
 echo "── 3. setup.sql ein zweites Mal ──────────────────────────────"
-if ZWEITE="$(psql "$URL" -v ON_ERROR_STOP=1 -qtA -1 -f "$HIER/../setup.sql" 2>&1)"; then
-  echo "   FEHLER: der zweite Durchlauf hätte abbrechen müssen"; exit 1
+# Früher musste der zweite Durchlauf abbrechen. Das war bequem und falsch:
+# eine einmal eingerichtete Datenbank konnte damit nie wieder etwas Neues
+# bekommen, und ein Betrieb lief monatelang auf einem Stand, den die App
+# längst überholt hatte. Jetzt gilt das Gegenteil — der zweite Durchlauf
+# muss gelingen und dieselbe Datenbank hinterlassen.
+if ! ZWEITE="$(psql "$URL" -v ON_ERROR_STOP=1 -qtA -1 -f "$HIER/../setup.sql" 2>&1)"; then
+  echo "   FEHLER: der zweite Durchlauf ist gescheitert:"
+  echo "$ZWEITE" | grep -iE 'error|fehler' | head -10; exit 1
 fi
-case "$ZWEITE" in
-  *"bereits eingespielt"*) echo "   bricht freundlich ab, wie vorgesehen" ;;
-  *) echo "   FEHLER: unerwartete Meldung:"; echo "$ZWEITE"; exit 1 ;;
-esac
+echo "   $(echo "$ZWEITE" | tail -1)"
 VERBLIEBEN="$(psql "$URL" -qtA -c 'select count(*) from charge')"
 [ "$VERBLIEBEN" = "42" ] || { echo "   FEHLER: Daten beschädigt ($VERBLIEBEN Chargen)"; exit 1; }
-echo "   Daten unversehrt ($VERBLIEBEN Chargen)"
+psql "$URL" -v ON_ERROR_STOP=1 -f "$HIER/fingerabdruck.sql" > "$FRISCH.zwei"
+diff -q "$FRISCH" "$FRISCH.zwei" >/dev/null \
+  || { echo "   FEHLER: das Schema hat sich beim zweiten Durchlauf verändert:";
+       diff "$FRISCH" "$FRISCH.zwei" | head -20; exit 1; }
+echo "   läuft durch, Daten unversehrt ($VERBLIEBEN Chargen), Schema unverändert"
+
+echo
+echo "── 3b. Aktualisierung von einem alten Stand ──────────────────"
+# Der Fall, der das Ganze nötig gemacht hat: Auf dem Hof lief eine Datenbank,
+# die vor 0016 eingerichtet worden war. Die App rief auswertung_aktualisieren()
+# — eine Funktion, die es dort nie gegeben hatte. Diese Stufe spielt genau das
+# nach: alter Stand, echte Daten drin, dann die heutige setup.sql drüber.
+zuruecksetzen
+for n in 0000 0001 0002 0003 0004 0005 0006 0007 0008 0009 0010 0011 0012 0013 0014 0015; do
+  psql "$URL" -v ON_ERROR_STOP=1 -q -f "$HIER"/../migrations/${n}_*.sql
+done
+psql "$URL" -v ON_ERROR_STOP=1 -q -c "
+  insert into auth.users (id, email, raw_user_meta_data)
+  values ('11111111-1111-1111-1111-111111111111', 'chef@hof.test', '{\"name\":\"Chef\"}');
+  update profil set rolle = 'admin' where id = '11111111-1111-1111-1111-111111111111';
+  insert into palette (charge_nr, eingangsdatum, kisten, brutto_kg, gebindeart)
+  values (1598, '2026-10-01', 30, 900, 'G2'), (1599, '2026-10-02', 20, 600, 'G2');
+  update einstellung set wert = '9'::jsonb where schluessel = 'soll_kg_pro_kiste';"
+if ! ALT="$(psql "$URL" -v ON_ERROR_STOP=1 -qtA -1 -f "$HIER/../setup.sql" 2>&1)"; then
+  echo "   FEHLER: die Aktualisierung ist gescheitert:"
+  echo "$ALT" | grep -iE 'error|fehler' | head -10; exit 1
+fi
+echo "   $(echo "$ALT" | tail -1)"
+
+# a) Die Daten müssen da sein — auch die von Hand geänderte Einstellung.
+PAL="$(psql "$URL" -qtA -c 'select count(*) from palette')"
+SOLL="$(psql "$URL" -qtA -c "select wert::text from einstellung where schluessel = 'soll_kg_pro_kiste'")"
+[ "$PAL" = "2" ] || { echo "   FEHLER: Paletten verloren ($PAL statt 2)"; exit 1; }
+[ "$SOLL" = "9" ] || { echo "   FEHLER: eigene Einstellung überschrieben ($SOLL statt 9)"; exit 1; }
+
+# b) Genau die Funktion, deren Fehlen den Fehler ausgelöst hat, muss rufbar sein.
+psql "$URL" -v ON_ERROR_STOP=1 -qtA -c 'select auswertung_aktualisieren()' >/dev/null \
+  || { echo "   FEHLER: auswertung_aktualisieren() fehlt weiterhin"; exit 1; }
+
+# c) Und das Schema muss Objekt für Objekt dem einer Neueinrichtung gleichen.
+#    Das ist die eigentliche Zusage: "aktualisiert" heisst nicht "läuft durch",
+#    sondern "nicht zu unterscheiden von frisch eingerichtet".
+psql "$URL" -v ON_ERROR_STOP=1 -f "$HIER/fingerabdruck.sql" > "$FRISCH.alt"
+diff -q "$FRISCH" "$FRISCH.alt" >/dev/null \
+  || { echo "   FEHLER: die aktualisierte Datenbank weicht von einer frischen ab:";
+       diff "$FRISCH" "$FRISCH.alt" | head -20; exit 1; }
+echo "   Daten erhalten, Auswertung rufbar, Schema wie frisch eingerichtet"
+rm -f "$FRISCH" "$FRISCH.zwei" "$FRISCH.alt"
+
+zuruecksetzen
+psql "$URL" -v ON_ERROR_STOP=1 -q -1 -f "$HIER/../setup.sql" >/dev/null
 
 echo
 echo "── 4. Demo-Daten, genau wie im SQL-Editor (ohne Login!) ──────"

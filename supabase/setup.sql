@@ -7,24 +7,134 @@
 -- SO WIRD SIE BENUTZT
 --   1. Diese Datei komplett markieren und kopieren (Strg+A, Strg+C).
 --   2. Im Supabase-Dashboard links auf "SQL Editor".
---   3. In das große leere Feld einfügen (Strg+V).
+--   3. In das grosse leere Feld einfügen (Strg+V).
 --   4. Unten rechts auf "Run" klicken.
--- Das war alles. Kein zweiter Durchlauf, keine weitere Datei.
+-- Das war alles. Keine weitere Datei.
+--
+-- DIESELBE DATEI AKTUALISIERT AUCH
+--
+-- Sie richtet nicht nur ein, sie bringt eine bestehende Datenbank ebenso
+-- auf den neuesten Stand — gleiche Datei, gleiche vier Handgriffe. Die
+-- Daten bleiben dabei stehen; erneuert wird nur, was die Datenbank aus
+-- ihnen ausrechnet. Alles läuft in einer Transaktion, es gibt also kein
+-- halb Aktualisiertes: entweder ganz durch, oder alles wie vorher.
 --
 -- Unten im Ergebnisfenster muss danach eine Zeile stehen, die mit
 -- "Fertig." beginnt und die Anzahl Chargen und Sorten nennt.
 -- =====================================================================
 
--- Schutz vor dem versehentlichen zweiten Durchlauf: Das gesamte Skript
--- läuft in einer Transaktion, ein Abbruch hier ändert also gar nichts.
-do $$
-begin
-  if to_regclass('public.charge') is not null then
-    raise exception E'Das Setup wurde bereits eingespielt — es ist nichts zu tun.\n'
-      'Es hat sich nichts geändert. Weiter geht es im README bei Schritt 3.';
-  end if;
-end $$;
 
+-- =====================================================================
+-- aus 0000_aktualisierung.sql
+-- =====================================================================
+
+-- =====================================================================
+-- 0000 — Vorbereitung: Platz machen für eine Aktualisierung
+-- Kürbis-Verlust-Tracking
+--
+-- WOZU DAS DA IST
+--
+-- setup.sql ist die ganze Geschichte der Datenbank hintereinander. Auf einer
+-- leeren Datenbank läuft sie glatt durch. Auf einer, die schon einen älteren
+-- Stand trägt, nicht: `create view` stolpert über die Ansicht, die es schon
+-- gibt, `create policy` über die Regel gleichen Namens. Früher stand deshalb
+-- am Anfang eine Sperre, die den zweiten Durchlauf abgewiesen hat — mit der
+-- Folge, dass eine einmal eingerichtete Datenbank nie wieder etwas Neues
+-- bekommen hat. Ein Betrieb konnte monatelang auf einem alten Stand laufen
+-- und hat es erst gemerkt, wenn die App eine Funktion suchte, die es dort
+-- nie gegeben hat.
+--
+-- Statt abzuweisen, wird hier aufgeräumt: alles, was die Datenbank nur
+-- *ausrechnet*, fliegt raus — Ansichten, Funktionen, Zugriffsregeln,
+-- Auslöser. Danach sieht die Datenbank für den Rest von setup.sql aus wie
+-- eine frische, und das Skript baut das Rechenwerk vollständig neu auf.
+--
+-- WAS DABEI NICHT ANGEFASST WIRD
+--
+-- Tabellen und ihr Inhalt. Jede Messung, jede Palette, jeder Auftrag bleibt
+-- unberührt: gelöscht wird ausschliesslich, was sich aus diesen Daten wieder
+-- herstellen lässt. Und weil das gesamte Skript in einer Transaktion läuft,
+-- gibt es kein Dazwischen — entweder die Aktualisierung geht ganz durch,
+-- oder die Datenbank steht unverändert da wie vorher.
+--
+-- Auf einer leeren Datenbank tut diese Datei nichts.
+-- =====================================================================
+
+do $$
+declare
+  z record;
+begin
+  -- Kein Kürbis-Schema vorhanden? Dann ist das eine Neueinrichtung und es
+  -- gibt nichts wegzuräumen.
+  if to_regclass('public.charge') is null then
+    return;
+  end if;
+
+  raise notice 'Bestehende Datenbank erkannt — das Rechenwerk wird erneuert, die Daten bleiben.';
+
+  -- 1. Zugriffsregeln. Zuerst, weil sie auf Funktionen wie ist_admin()
+  --    zeigen; solange sie stehen, lässt sich die Funktion nicht löschen.
+  for z in
+    select p.polname, c.relname
+      from pg_policy p
+      join pg_class c on c.oid = p.polrelid
+      join pg_namespace n on n.oid = c.relnamespace
+     where n.nspname = 'public'
+  loop
+    execute format('drop policy if exists %I on public.%I', z.polname, z.relname);
+  end loop;
+
+  -- 2. Auslöser auf den eigenen Tabellen und der eine auf auth.users, der
+  --    neuen Anmeldungen ein Profil gibt.
+  for z in
+    select t.tgname, c.relname, n.nspname
+      from pg_trigger t
+      join pg_class c on c.oid = t.tgrelid
+      join pg_namespace n on n.oid = c.relnamespace
+     where not t.tgisinternal
+       and (n.nspname = 'public'
+            or (n.nspname = 'auth' and t.tgname = 'on_auth_user_created'))
+  loop
+    execute format('drop trigger if exists %I on %I.%I', z.tgname, z.nspname, z.relname);
+  end loop;
+
+  -- 3. Gespeicherte Auswertungen und Ansichten. Erst die gespeicherten
+  --    (relkind 'm'), dann die berechneten — `cascade` räumt mit, was
+  --    aufeinander aufbaut, und setup.sql baut die Kette danach neu.
+  --    Das Namensmuster v_ / mv_ ist die Konvention des Projekts; was
+  --    jemand von Hand daneben angelegt hat, bleibt stehen.
+  for z in
+    select c.relname, c.relkind
+      from pg_class c
+      join pg_namespace n on n.oid = c.relnamespace
+     where n.nspname = 'public'
+       and c.relkind in ('v', 'm')
+       and c.relname ~ '^m?v_'
+     order by case c.relkind when 'm' then 0 else 1 end
+  loop
+    if z.relkind = 'm' then
+      execute format('drop materialized view if exists public.%I cascade', z.relname);
+    else
+      execute format('drop view if exists public.%I cascade', z.relname);
+    end if;
+  end loop;
+
+  -- 4. Funktionen. Zum Schluss, wenn niemand mehr auf sie zeigt. Auch die
+  --    Signatur muss weg und nicht nur der Name: 0032 hat aus
+  --    palox_letzter_stand() eines mit Argument gemacht, und zwei
+  --    Funktionen gleichen Namens verwirren PostgREST.
+  for z in
+    select p.oid::regprocedure::text as sig, p.prokind
+      from pg_proc p
+      join pg_namespace n on n.oid = p.pronamespace
+     where n.nspname = 'public'
+       and p.prokind in ('f', 'p')
+  loop
+    execute format('drop %s if exists %s cascade',
+                   case z.prokind when 'p' then 'procedure' else 'function' end,
+                   z.sig);
+  end loop;
+end $$;
 
 
 -- =====================================================================
@@ -42,17 +152,40 @@ end $$;
 -- =====================================================================
 
 -- ---------- Typen ----------------------------------------------------
-create type rolle            as enum ('admin', 'arbeiter');
-create type verarbeitungsweg as enum ('maschine', 'hand');           -- Weg 1 / Weg 2
-create type station          as enum ('sortieren', 'waschen', 'waschen_sortieren');
-create type auftrag_status   as enum ('offen', 'abgeschlossen');
-create type kuerbis_klasse   as enum ('verlust_klein', 'kaliber', 'nebenkanal', 'unklassiert');
-create type marge_art        as enum ('nebenkanal', 'ueberfuellung');
-create type ausschuss_art    as enum ('zu_klein', 'zu_gross');
-create type zuordnung_status as enum ('auto', 'manuell', 'offen', 'mehrdeutig');
+-- `create type` kennt kein "if not exists". Dieser Block ist das Ersatz-
+-- stück: Auf einer bestehenden Datenbank sind die Typen längst da und
+-- werden übersprungen, statt die Aktualisierung abzubrechen. Wegwerfen
+-- und neu anlegen geht nicht — an den Typen hängen die Tabellenspalten.
+do $$
+begin
+  if to_regtype('rolle') is null then
+    create type rolle as enum ('admin', 'arbeiter');
+  end if;
+  if to_regtype('verarbeitungsweg') is null then
+    create type verarbeitungsweg as enum ('maschine', 'hand');   -- Weg 1 / Weg 2
+  end if;
+  if to_regtype('station') is null then
+    create type station as enum ('sortieren', 'waschen', 'waschen_sortieren');
+  end if;
+  if to_regtype('auftrag_status') is null then
+    create type auftrag_status as enum ('offen', 'abgeschlossen');
+  end if;
+  if to_regtype('kuerbis_klasse') is null then
+    create type kuerbis_klasse as enum ('verlust_klein', 'kaliber', 'nebenkanal', 'unklassiert');
+  end if;
+  if to_regtype('marge_art') is null then
+    create type marge_art as enum ('nebenkanal', 'ueberfuellung');
+  end if;
+  if to_regtype('ausschuss_art') is null then
+    create type ausschuss_art as enum ('zu_klein', 'zu_gross');
+  end if;
+  if to_regtype('zuordnung_status') is null then
+    create type zuordnung_status as enum ('auto', 'manuell', 'offen', 'mehrdeutig');
+  end if;
+end $$;
 
 -- ---------- Benutzer & Rollen ----------------------------------------
-create table profil (
+create table if not exists profil (
   id         uuid primary key references auth.users(id) on delete cascade,
   name       text not null,
   rolle      rolle not null default 'arbeiter',
@@ -72,12 +205,15 @@ begin
   return new;
 end $$;
 
+-- Beim Aktualisieren steht der Auslöser schon; ohne das Wegräumen hier
+-- scheitert das Anlegen.
+drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.handle_new_user();
 
 -- ---------- Stammdaten -----------------------------------------------
-create table gebinde (
+create table if not exists gebinde (
   art               text primary key,
   tara_kg_pro_kiste numeric(6,3),          -- NULL = unbekannt, nicht 0
   tara_kg_palette   numeric(6,3),
@@ -86,7 +222,7 @@ create table gebinde (
 comment on column gebinde.tara_kg_pro_kiste is
   'Leergewicht einer Kiste. NULL bedeutet "nicht erfasst" — Netto bleibt dann NULL statt falsch zu sein.';
 
-create table sorte_kaliber (
+create table if not exists sorte_kaliber (
   sorte           text primary key,
   verlust_unter   int  not null,           -- < diesem Gewicht = Verlust (weggeworfen)
   kaliber_baender jsonb not null,          -- [[300,800],[800,2000]] — Konvention [untere, obere)
@@ -96,7 +232,7 @@ create table sorte_kaliber (
 comment on table sorte_kaliber is
   'Kaliber-Grenzen in Gramm. Die Anzahl Bänder variiert je Sorte (2–4) und ist bewusst nicht fix.';
 
-create table charge (
+create table if not exists charge (
   nr     int primary key,                  -- undurchsichtige ID, nicht fortlaufend
   schlag text not null,
   sorte  text not null references sorte_kaliber(sorte) on update cascade,
@@ -107,7 +243,7 @@ comment on table charge is
   'Charge = Schlag × Sorte. Die Chargennummer ist der Join-Schlüssel des gesamten Systems.';
 
 -- ---------- Wareneingang (Import aus der Journal-App) ------------------
-create table palette (
+create table if not exists palette (
   id            bigserial primary key,
   charge_nr     int  not null references charge(nr),
   eingangsdatum date not null,
@@ -121,10 +257,10 @@ create table palette (
 comment on column palette.extern_id is
   'Stabile ID der Sheet-Zeile. Verhindert Doppel-Import; ein erneuter Import aktualisiert dieselbe Zeile.';
 
-create index on palette (charge_nr, eingangsdatum);
+create index if not exists palette_charge_nr_eingangsdatum_idx on palette (charge_nr, eingangsdatum);
 
 -- ---------- Auftrag ---------------------------------------------------
-create table auftrag (
+create table if not exists auftrag (
   id                bigserial primary key,
   weg               verarbeitungsweg not null,
   station           station not null,
@@ -143,21 +279,21 @@ comment on column auftrag.durchsatz_kg is
   'auf Weg 1: dort sind die Original-Paletten längst in Kaliber-Kisten aufgelöst, es gibt '
   'also keine Palettenzahl mehr — ohne diese Angabe hat der dort gemessene Schimmel #2 '
   'keinen Nenner. Leer lassen, wenn Paletten gezählt wurden.';
-create index on auftrag (charge_nr, start_ts);
-create index on auftrag (status, start_ts desc);
+create index if not exists auftrag_charge_nr_start_ts_idx on auftrag (charge_nr, start_ts);
+create index if not exists auftrag_status_start_ts_idx on auftrag (status, start_ts desc);
 
-create table auftrag_teilnehmer (
+create table if not exists auftrag_teilnehmer (
   id             bigserial primary key,
   auftrag_id     bigint not null references auftrag(id) on delete cascade,
   profil_id      uuid   not null default auth.uid() references profil(id),
   beigetreten_ts timestamptz not null default now(),
   verlassen_ts   timestamptz
 );
-create unique index auftrag_teilnehmer_aktiv
+create unique index if not exists auftrag_teilnehmer_aktiv
   on auftrag_teilnehmer (auftrag_id, profil_id) where verlassen_ts is null;
 
 -- Paletten zählen: eine Zeile je gezählter Palette (Spec §10 — Pflichtfeld).
-create table auftrag_palette (
+create table if not exists auftrag_palette (
   id            bigserial primary key,
   auftrag_id    bigint not null references auftrag(id) on delete cascade,
   palette_id    bigint references palette(id),   -- falls die konkrete Palette bekannt ist
@@ -165,11 +301,11 @@ create table auftrag_palette (
   erfasser      uuid not null default auth.uid() references profil(id),
   ts            timestamptz not null default now()
 );
-create index on auftrag_palette (auftrag_id);
+create index if not exists auftrag_palette_auftrag_id_idx on auftrag_palette (auftrag_id);
 
 -- ---------- Messungen --------------------------------------------------
 -- Schimmel/Fäulnis: klein genug, um direkt gewogen zu werden (Spec §9).
-create table schimmel_messung (
+create table if not exists schimmel_messung (
   id          bigserial primary key,
   auftrag_id  bigint not null references auftrag(id) on delete cascade,
   kg          int not null check (kg >= 0),      -- ganzzahlig (Spec §10)
@@ -179,10 +315,10 @@ create table schimmel_messung (
   ts          timestamptz not null default now(),
   bemerkung   text
 );
-create index on schimmel_messung (auftrag_id);
+create index if not exists schimmel_messung_auftrag_id_idx on schimmel_messung (auftrag_id);
 
 -- Ausschuss zu klein / zu gross nach Auge (nur Weg 2 — Weg 1 kommt aus der CSV).
-create table ausschuss_messung (
+create table if not exists ausschuss_messung (
   id         bigserial primary key,
   auftrag_id bigint not null references auftrag(id) on delete cascade,
   art        ausschuss_art not null,
@@ -192,10 +328,10 @@ create table ausschuss_messung (
   ts         timestamptz not null default now(),
   bemerkung  text
 );
-create index on ausschuss_messung (auftrag_id, art);
+create index if not exists ausschuss_messung_auftrag_id_art_idx on ausschuss_messung (auftrag_id, art);
 
 -- Verdunstung: bester Messpunkt ist Weg 2 beim Herausholen aus dem Lager (Spec §3).
-create table verdunstung_wiegung (
+create table if not exists verdunstung_wiegung (
   id                bigserial primary key,
   auftrag_id        bigint references auftrag(id) on delete set null,
   charge_nr         int  not null references charge(nr),
@@ -212,10 +348,10 @@ create table verdunstung_wiegung (
   ts                timestamptz not null default now(),
   bemerkung         text
 );
-create index on verdunstung_wiegung (charge_nr, eingangsdatum);
+create index if not exists verdunstung_wiegung_charge_nr_eingangsdatum_idx on verdunstung_wiegung (charge_nr, eingangsdatum);
 
 -- Buch B: verschenkte Marge (Spec §2) — niemals mit dem Verlust-Buch mischen.
-create table marge_messung (
+create table if not exists marge_messung (
   id         bigserial primary key,
   auftrag_id bigint not null references auftrag(id) on delete cascade,
   art        marge_art not null,
@@ -227,10 +363,10 @@ create table marge_messung (
   ts         timestamptz not null default now(),
   bemerkung  text
 );
-create index on marge_messung (auftrag_id, art);
+create index if not exists marge_messung_auftrag_id_art_idx on marge_messung (auftrag_id, art);
 
 -- ---------- Sortier-CSV -------------------------------------------------
-create table sortier_lauf (
+create table if not exists sortier_lauf (
   id                bigserial primary key,
   charge_nr         int references charge(nr),
   datei_name        text not null,
@@ -249,15 +385,15 @@ create table sortier_lauf (
   hochgeladen_von   uuid not null default auth.uid() references profil(id),
   gelesen_ts        timestamptz not null default now()
 );
-create index on sortier_lauf (charge_nr, datei_zeit);
-create index on sortier_lauf (zuordnung) where zuordnung in ('offen', 'mehrdeutig');
+create index if not exists sortier_lauf_charge_nr_datei_zeit_idx on sortier_lauf (charge_nr, datei_zeit);
+create index if not exists sortier_lauf_zuordnung_idx on sortier_lauf (zuordnung) where zuordnung in ('offen', 'mehrdeutig');
 
 -- Bereinigte Einzelgewichte, lauflängenkodiert (gewicht_g → anzahl).
 -- Verlustfrei gegenüber "eine Zeile je Kürbis": die Reihenfolge wird nach der
 -- Dubletten-Reinigung nicht mehr gebraucht, das Gewicht hat 2-g-Auflösung.
 -- Spart auf der Supabase-Gratis-Stufe rund 90 % Speicher. v_sortier_kuerbis
 -- expandiert die Zeilen wieder, falls doch pro Kürbis gerechnet werden soll.
-create table sortier_gewicht (
+create table if not exists sortier_gewicht (
   lauf_id     bigint not null references sortier_lauf(id) on delete cascade,
   gewicht_g   int    not null,
   anzahl      int    not null check (anzahl > 0),
@@ -265,10 +401,10 @@ create table sortier_gewicht (
   kaliber_idx int,                     -- Index im Bänder-Array, NULL außerhalb der Kaliber
   primary key (lauf_id, gewicht_g)
 );
-create index on sortier_gewicht (lauf_id, klasse);
+create index if not exists sortier_gewicht_lauf_id_klasse_idx on sortier_gewicht (lauf_id, klasse);
 
 -- ---------- Einstellungen ------------------------------------------------
-create table einstellung (
+create table if not exists einstellung (
   schluessel text primary key,
   wert       jsonb not null,
   bemerkung  text
@@ -344,6 +480,7 @@ begin
   return new;
 end $$;
 
+drop trigger if exists profil_rolle_schuetzen on profil;
 create trigger profil_rolle_schuetzen
   before update on profil
   for each row execute function public.rolle_schuetzen();
@@ -5244,6 +5381,7 @@ create policy lieferung_loeschen on lieferung for delete to authenticated
 create policy ausgang_ziel_lesen on ausgang_ziel for select to authenticated using (true);
 alter table ausgang_ziel enable row level security;
 
+drop trigger if exists lieferung_veraltet on lieferung;
 create trigger lieferung_veraltet after insert or update or delete on lieferung
   for each statement execute function auswertung_veraltet();
 
@@ -6003,9 +6141,21 @@ grant select on v_naechste_charge to authenticated;
 
 
 -- =====================================================================
+-- Der App sagen, dass es etwas Neues gibt
+-- =====================================================================
+-- Zwischen der Datenbank und der App sitzt PostgREST. Es merkt sich, welche
+-- Tabellen und Funktionen es gibt, und schaut nicht bei jeder Anfrage neu
+-- nach. Ohne diesen Anstoss kann die App nach einer Aktualisierung noch eine
+-- Weile behaupten, eine gerade angelegte Funktion gebe es nicht — genau die
+-- Meldung "Could not find the function ... in the schema cache". Der Anstoss
+-- wird beim Abschluss der Transaktion zugestellt, also erst, wenn wirklich
+-- alles durchgelaufen ist.
+notify pgrst, 'reload schema';
+
+-- =====================================================================
 -- Rückmeldung im Ergebnisfenster
 -- =====================================================================
-select format('Fertig. %s Chargen und %s Sorten angelegt, %s Tabellen und %s Auswertungen erstellt. Weiter im README bei Schritt 4.',
+select format('Fertig. Die Datenbank steht: %s Chargen, %s Sorten, %s Tabellen, %s Auswertungen. Weiter im README bei Schritt 4.',
               (select count(*) from charge),
               (select count(*) from sorte_kaliber),
               (select count(*) from pg_tables where schemaname = 'public'),

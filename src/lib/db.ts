@@ -39,5 +39,16 @@ export function fehlerText(fehler: unknown): string {
     return 'Dafür fehlt die Berechtigung — das darf nur der Betriebsleiter.'
   }
   if (f.code === '23505') return 'Dieser Eintrag existiert bereits.'
+  // PGRST202: Die App ruft etwas, das die Datenbank nicht kennt. Im Betrieb
+  // heisst das fast immer dasselbe — die Datenbank wurde eingerichtet, als es
+  // das noch nicht gab, und ist seither nicht aktualisiert worden. Die rohe
+  // Meldung ("Could not find the function … in the schema cache") sagt einem
+  // Betriebsleiter nichts; sie hat einmal für Ratlosigkeit gesorgt, obwohl der
+  // Weg heraus drei Klicks lang ist.
+  if (f.code === 'PGRST202' || f.message?.includes('schema cache')) {
+    return 'Die Datenbank ist älter als die App und kennt einen Teil der Auswertung noch nicht. '
+      + 'Das behebt Schritt 3 im README: setup.sql nochmal im Supabase-SQL-Editor ausführen — '
+      + 'dieselbe Datei wie beim Einrichten, die Daten bleiben dabei stehen. Danach hier F5.'
+  }
   return f.message ?? 'Unbekannter Fehler'
 }

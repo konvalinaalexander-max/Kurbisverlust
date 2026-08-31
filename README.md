@@ -23,10 +23,9 @@ Du brauchst nur einen Browser. Nichts installieren, nichts programmieren.
 |---|---|---|
 | 1 | Kurz zur Orientierung (nichts zu tun) | 1 Min |
 | 2 | Supabase-Konto und Projekt anlegen | 10 Min (meist Warten) |
-| 3 | Datenbank einrichten — **eine Datei, ein Klick** | 3 Min |
+| 3 | Datenbank einrichten — **eine Datei, ein Klick**; später auch das Aktualisieren | 3 Min |
 | 4 | Bestätigungs-E-Mails abschalten | 2 Min |
 | 4b | Direkten QR-Zugang für Arbeiter freischalten | 2 Min |
-| 4c | Kleine Zugang-Ergänzung einspielen (nur bei altem Setup) | 2 Min |
 | 5 | Die zwei Zugangswerte abholen | 2 Min |
 | 6 | App auf Cloudflare veröffentlichen | 10 Min |
 | 7 | Erstes Konto anlegen und dich zum Betriebsleiter machen | 5 Min |
@@ -95,11 +94,19 @@ Links am Rand ist eine schmale Leiste mit Symbolen.
 
 ---
 
-## Schritt 3 — Datenbank einrichten
+## Schritt 3 — Datenbank einrichten (und später: aktualisieren)
 
 **Das ist der Schritt, um den es geht: eine einzige Datei, einmal einfügen,
 einmal auf Run.** Nicht acht Dateien. Nichts hochladen. Keine Reihenfolge, die
 man falsch machen kann.
+
+> **Dieser Schritt ist auch der Aktualisierungs-Schritt.** Wenn am Projekt etwas
+> weiterentwickelt wurde und die App plötzlich etwas vermisst, machst du genau
+> dasselbe noch einmal: Datei kopieren, einfügen, Run. `setup.sql` erkennt eine
+> bestehende Datenbank und erneuert nur das Rechenwerk — **deine Daten bleiben
+> stehen**, jede Palette, jede Wiegung, jede eigene Einstellung. Weil alles als
+> ein Block läuft, gibt es kein halb Aktualisiertes: entweder ganz durch, oder
+> alles wie vorher. Du darfst das so oft machen, wie du willst.
 
 ### 3a — Die Datei kopieren
 
@@ -113,7 +120,7 @@ man falsch machen kann.
    das Symbol **Copy raw file** — zwei übereinanderliegende Rechtecke. Wenn du
    mit der Maus darüber fährst, erscheint der Text „Copy raw file".
 
-   Kurz blitzt ein Häkchen auf. Damit liegen jetzt rund 1 400 Zeilen SQL in der
+   Kurz blitzt ein Häkchen auf. Damit liegen jetzt rund 6 000 Zeilen SQL in der
    Zwischenablage — der ganze Inhalt, nicht nur der sichtbare Ausschnitt.
 
    *Symbol nicht gefunden?* Klicke stattdessen auf den Knopf **Raw**. Es öffnet
@@ -150,8 +157,8 @@ Unten im Ergebnisfenster erscheint eine Tabelle mit einer Spalte `ergebnis` und
 genau dieser Zeile:
 
 ```
-Fertig. 42 Chargen und 11 Sorten angelegt, 15 Tabellen und 23 Auswertungen
-erstellt. Weiter im README bei Schritt 4.
+Fertig. Die Datenbank steht: 42 Chargen, 11 Sorten, 19 Tabellen,
+41 Auswertungen. Weiter im README bei Schritt 4.
 ```
 
 Wenn du das siehst, ist die komplette Datenbank fertig: Tabellen, Zugriffsrechte,
@@ -160,10 +167,10 @@ alle 42 Chargen der Saison, alle Kaliber-Grenzen und die gesamte Auswertung.
 Es dauert ein paar Sekunden. Es kommt **keine** Erfolgsmeldung als Popup — nur
 diese Zeile unten.
 
-> **Zweimal geklickt?** Kein Problem. Dann steht dort in Rot „Das Setup wurde
-> bereits eingespielt — es ist nichts zu tun." Es ist wirklich nichts passiert:
-> Das ganze Skript läuft als ein Block, und der bricht ab, bevor irgendetwas
-> geändert wird. Einfach weitermachen.
+> **Zweimal geklickt?** Kein Problem, und auch kein Schaden. Beim zweiten Mal
+> erneuert das Skript nur die Auswertungen und lässt die Daten in Ruhe; bei
+> einer frisch eingerichteten Datenbank gibt es dabei schlicht nichts zu tun.
+> Am Ende steht wieder dieselbe „Fertig."-Zeile. Einfach weitermachen.
 
 ---
 
@@ -223,28 +230,6 @@ holst du genau diesen Schalter nach.)
 
 ---
 
-## Schritt 4c — Die Ergänzung für den direkten Zugang einspielen
-
-Diese eine kleine Ergänzung sorgt dafür, dass ein Arbeiter ohne Mail sauber
-angelegt wird. (Nur nötig, wenn du das Setup aus Schritt 3 vor dieser Version
-eingespielt hast. Bei einem frischen Setup ist sie schon enthalten — dann
-meldet sich der SQL-Editor mit „column already exists" o. Ä., das ist harmlos.)
-
-**Was du machst** — genau wie Schritt 3, nur mit einer anderen, viel kürzeren
-Datei:
-
-1. Öffne
-   **https://github.com/konvalinaalexander-max/Kurbisverlust/blob/claude/new-session-vrnnyo/supabase/migrations/0009_anonyme_arbeiter.sql**
-2. Über dem Text rechts auf **Copy raw file** (oder **Raw** → Strg+A → Strg+C).
-3. Supabase → **SQL Editor** → das alte Skript mit Strg+A, Entf löschen →
-   einfügen → **Run**.
-4. Kommt eine Rückfrage „Potentially destructive operation": **Run this query**.
-
-**Woran du merkst, dass es geklappt hat**
-
-Unten steht „Success. No rows returned" — das genügt hier. Fertig.
-
----
 
 ## Schritt 5 — Die zwei Zugangswerte abholen
 
@@ -577,7 +562,8 @@ Was jede Ansicht bedeutet, steht in [`docs/DATENFLUSS.md`](docs/DATENFLUSS.md).
 | Was du siehst | Was los ist | Was hilft |
 |---|---|---|
 | Demo: „Es gibt noch kein Benutzerkonto" | Die Demo-Daten brauchen jemanden als Erfasser | Erst Schritt 7 (Betriebsleiter-Konto anlegen), dann nochmal |
-| „Das Setup wurde bereits eingespielt" | Du hast Schritt 3 zweimal ausgeführt | Nichts. Es ist nichts passiert. Weiter mit Schritt 4. |
+| **„Could not find the function public.… in the schema cache"** | Die App ruft etwas, das es in deiner Datenbank nicht gibt: Sie wurde eingerichtet, als es das noch nicht gab, und ist seither nicht aktualisiert worden | **Schritt 3 nochmal ausführen** — dieselbe Datei, dieselben Handgriffe. Deine Daten bleiben. Danach in der App einmal F5. |
+| Auswertung bleibt leer, obwohl Daten da sind | Die gespeicherte Auswertung ist noch nicht gerechnet | In der App oben auf **Neu rechnen**. Bleibt es leer: Schritt 3 nochmal ausführen. |
 | „Potentially destructive operation" | Supabase warnt bei Skripten mit `drop`/`alter` | **Run this query** klicken. In einem neuen Projekt ist nichts zu zerstören. |
 | Nach **Run** passiert nichts | Skript läuft noch | 10–20 Sekunden warten. Der Knopf zeigt solange einen Ladekreis. |
 | `syntax error at or near ""` | Beim Kopieren wurde nur ein Teil erwischt | Schritt 3a wiederholen, diesmal über **Raw** + Strg+A + Strg+C. |
@@ -629,10 +615,18 @@ npm test                    # Reinigung und Dateinamen-Parser, ohne Datenbank
 ./supabase/test/run.sh      # Schema, Logik, Views und Zugriffsrechte
 ```
 
-`run.sh` prüft vier Dinge: dass die Migrationen einzeln durchlaufen und die
-Fachlogik stimmt; dass `setup.sql` als ein einziger Query durchgeht, so wie der
-Supabase-Editor ihn sendet; dass ein zweiter Durchlauf sauber abbricht, ohne
-Daten anzufassen; und dass `setup.sql` zu den Migrationen passt.
+`run.sh` prüft: dass die Migrationen einzeln durchlaufen und die Fachlogik
+stimmt; dass `setup.sql` als ein einziger Query durchgeht, so wie der
+Supabase-Editor ihn sendet; dass ein zweiter Durchlauf gelingt, ohne Daten
+anzufassen; dass eine alte Datenbank sich aktualisieren lässt und danach
+**Objekt für Objekt** einer frisch eingerichteten gleicht; und dass `setup.sql`
+zu den Migrationen passt.
+
+Der Objekt-für-Objekt-Vergleich läuft über `supabase/test/fingerabdruck.sql`:
+jede Spalte, Ansicht, Funktion, Regel und Bedingung als sortierte Textliste,
+zweimal gezogen und mit `diff` verglichen. „Die Aktualisierung ist ohne Fehler
+durchgelaufen" ist nämlich keine Zusage — die Zusage ist, dass hinterher
+dasselbe dasteht.
 
 Ohne Argument erwartet es einen lokalen Cluster auf Port 55432, sonst eine
 Verbindungs-URL. `supabase/test/stub_supabase.sql` bildet dafür die Teile von

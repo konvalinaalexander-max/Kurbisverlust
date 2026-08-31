@@ -63,6 +63,7 @@ begin
   return new;
 end $$;
 
+drop trigger if exists profil_rolle_schuetzen on profil;
 create trigger profil_rolle_schuetzen
   before update on profil
   for each row execute function public.rolle_schuetzen();

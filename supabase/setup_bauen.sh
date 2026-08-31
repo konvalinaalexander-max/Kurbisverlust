@@ -18,24 +18,21 @@ cat <<'KOPF'
 -- SO WIRD SIE BENUTZT
 --   1. Diese Datei komplett markieren und kopieren (Strg+A, Strg+C).
 --   2. Im Supabase-Dashboard links auf "SQL Editor".
---   3. In das große leere Feld einfügen (Strg+V).
+--   3. In das grosse leere Feld einfügen (Strg+V).
 --   4. Unten rechts auf "Run" klicken.
--- Das war alles. Kein zweiter Durchlauf, keine weitere Datei.
+-- Das war alles. Keine weitere Datei.
+--
+-- DIESELBE DATEI AKTUALISIERT AUCH
+--
+-- Sie richtet nicht nur ein, sie bringt eine bestehende Datenbank ebenso
+-- auf den neuesten Stand — gleiche Datei, gleiche vier Handgriffe. Die
+-- Daten bleiben dabei stehen; erneuert wird nur, was die Datenbank aus
+-- ihnen ausrechnet. Alles läuft in einer Transaktion, es gibt also kein
+-- halb Aktualisiertes: entweder ganz durch, oder alles wie vorher.
 --
 -- Unten im Ergebnisfenster muss danach eine Zeile stehen, die mit
 -- "Fertig." beginnt und die Anzahl Chargen und Sorten nennt.
 -- =====================================================================
-
--- Schutz vor dem versehentlichen zweiten Durchlauf: Das gesamte Skript
--- läuft in einer Transaktion, ein Abbruch hier ändert also gar nichts.
-do $$
-begin
-  if to_regclass('public.charge') is not null then
-    raise exception E'Das Setup wurde bereits eingespielt — es ist nichts zu tun.\n'
-      'Es hat sich nichts geändert. Weiter geht es im README bei Schritt 3.';
-  end if;
-end $$;
-
 KOPF
 
 for f in "$HIER"/migrations/*.sql; do
@@ -49,9 +46,21 @@ cat <<'FUSS'
 
 
 -- =====================================================================
+-- Der App sagen, dass es etwas Neues gibt
+-- =====================================================================
+-- Zwischen der Datenbank und der App sitzt PostgREST. Es merkt sich, welche
+-- Tabellen und Funktionen es gibt, und schaut nicht bei jeder Anfrage neu
+-- nach. Ohne diesen Anstoss kann die App nach einer Aktualisierung noch eine
+-- Weile behaupten, eine gerade angelegte Funktion gebe es nicht — genau die
+-- Meldung "Could not find the function ... in the schema cache". Der Anstoss
+-- wird beim Abschluss der Transaktion zugestellt, also erst, wenn wirklich
+-- alles durchgelaufen ist.
+notify pgrst, 'reload schema';
+
+-- =====================================================================
 -- Rückmeldung im Ergebnisfenster
 -- =====================================================================
-select format('Fertig. %s Chargen und %s Sorten angelegt, %s Tabellen und %s Auswertungen erstellt. Weiter im README bei Schritt 4.',
+select format('Fertig. Die Datenbank steht: %s Chargen, %s Sorten, %s Tabellen, %s Auswertungen. Weiter im README bei Schritt 4.',
               (select count(*) from charge),
               (select count(*) from sorte_kaliber),
               (select count(*) from pg_tables where schemaname = 'public'),

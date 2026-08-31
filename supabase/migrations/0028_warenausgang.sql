@@ -82,6 +82,7 @@ create policy lieferung_loeschen on lieferung for delete to authenticated
 create policy ausgang_ziel_lesen on ausgang_ziel for select to authenticated using (true);
 alter table ausgang_ziel enable row level security;
 
+drop trigger if exists lieferung_veraltet on lieferung;
 create trigger lieferung_veraltet after insert or update or delete on lieferung
   for each statement execute function auswertung_veraltet();
 

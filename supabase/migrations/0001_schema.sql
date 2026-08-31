@@ -9,17 +9,40 @@
 -- =====================================================================
 
 -- ---------- Typen ----------------------------------------------------
-create type rolle            as enum ('admin', 'arbeiter');
-create type verarbeitungsweg as enum ('maschine', 'hand');           -- Weg 1 / Weg 2
-create type station          as enum ('sortieren', 'waschen', 'waschen_sortieren');
-create type auftrag_status   as enum ('offen', 'abgeschlossen');
-create type kuerbis_klasse   as enum ('verlust_klein', 'kaliber', 'nebenkanal', 'unklassiert');
-create type marge_art        as enum ('nebenkanal', 'ueberfuellung');
-create type ausschuss_art    as enum ('zu_klein', 'zu_gross');
-create type zuordnung_status as enum ('auto', 'manuell', 'offen', 'mehrdeutig');
+-- `create type` kennt kein "if not exists". Dieser Block ist das Ersatz-
+-- stück: Auf einer bestehenden Datenbank sind die Typen längst da und
+-- werden übersprungen, statt die Aktualisierung abzubrechen. Wegwerfen
+-- und neu anlegen geht nicht — an den Typen hängen die Tabellenspalten.
+do $$
+begin
+  if to_regtype('rolle') is null then
+    create type rolle as enum ('admin', 'arbeiter');
+  end if;
+  if to_regtype('verarbeitungsweg') is null then
+    create type verarbeitungsweg as enum ('maschine', 'hand');   -- Weg 1 / Weg 2
+  end if;
+  if to_regtype('station') is null then
+    create type station as enum ('sortieren', 'waschen', 'waschen_sortieren');
+  end if;
+  if to_regtype('auftrag_status') is null then
+    create type auftrag_status as enum ('offen', 'abgeschlossen');
+  end if;
+  if to_regtype('kuerbis_klasse') is null then
+    create type kuerbis_klasse as enum ('verlust_klein', 'kaliber', 'nebenkanal', 'unklassiert');
+  end if;
+  if to_regtype('marge_art') is null then
+    create type marge_art as enum ('nebenkanal', 'ueberfuellung');
+  end if;
+  if to_regtype('ausschuss_art') is null then
+    create type ausschuss_art as enum ('zu_klein', 'zu_gross');
+  end if;
+  if to_regtype('zuordnung_status') is null then
+    create type zuordnung_status as enum ('auto', 'manuell', 'offen', 'mehrdeutig');
+  end if;
+end $$;
 
 -- ---------- Benutzer & Rollen ----------------------------------------
-create table profil (
+create table if not exists profil (
   id         uuid primary key references auth.users(id) on delete cascade,
   name       text not null,
   rolle      rolle not null default 'arbeiter',
@@ -39,12 +62,15 @@ begin
   return new;
 end $$;
 
+-- Beim Aktualisieren steht der Auslöser schon; ohne das Wegräumen hier
+-- scheitert das Anlegen.
+drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.handle_new_user();
 
 -- ---------- Stammdaten -----------------------------------------------
-create table gebinde (
+create table if not exists gebinde (
   art               text primary key,
   tara_kg_pro_kiste numeric(6,3),          -- NULL = unbekannt, nicht 0
   tara_kg_palette   numeric(6,3),
@@ -53,7 +79,7 @@ create table gebinde (
 comment on column gebinde.tara_kg_pro_kiste is
   'Leergewicht einer Kiste. NULL bedeutet "nicht erfasst" — Netto bleibt dann NULL statt falsch zu sein.';
 
-create table sorte_kaliber (
+create table if not exists sorte_kaliber (
   sorte           text primary key,
   verlust_unter   int  not null,           -- < diesem Gewicht = Verlust (weggeworfen)
   kaliber_baender jsonb not null,          -- [[300,800],[800,2000]] — Konvention [untere, obere)
@@ -63,7 +89,7 @@ create table sorte_kaliber (
 comment on table sorte_kaliber is
   'Kaliber-Grenzen in Gramm. Die Anzahl Bänder variiert je Sorte (2–4) und ist bewusst nicht fix.';
 
-create table charge (
+create table if not exists charge (
   nr     int primary key,                  -- undurchsichtige ID, nicht fortlaufend
   schlag text not null,
   sorte  text not null references sorte_kaliber(sorte) on update cascade,
@@ -74,7 +100,7 @@ comment on table charge is
   'Charge = Schlag × Sorte. Die Chargennummer ist der Join-Schlüssel des gesamten Systems.';
 
 -- ---------- Wareneingang (Import aus der Journal-App) ------------------
-create table palette (
+create table if not exists palette (
   id            bigserial primary key,
   charge_nr     int  not null references charge(nr),
   eingangsdatum date not null,
@@ -88,10 +114,10 @@ create table palette (
 comment on column palette.extern_id is
   'Stabile ID der Sheet-Zeile. Verhindert Doppel-Import; ein erneuter Import aktualisiert dieselbe Zeile.';
 
-create index on palette (charge_nr, eingangsdatum);
+create index if not exists palette_charge_nr_eingangsdatum_idx on palette (charge_nr, eingangsdatum);
 
 -- ---------- Auftrag ---------------------------------------------------
-create table auftrag (
+create table if not exists auftrag (
   id                bigserial primary key,
   weg               verarbeitungsweg not null,
   station           station not null,
@@ -110,21 +136,21 @@ comment on column auftrag.durchsatz_kg is
   'auf Weg 1: dort sind die Original-Paletten längst in Kaliber-Kisten aufgelöst, es gibt '
   'also keine Palettenzahl mehr — ohne diese Angabe hat der dort gemessene Schimmel #2 '
   'keinen Nenner. Leer lassen, wenn Paletten gezählt wurden.';
-create index on auftrag (charge_nr, start_ts);
-create index on auftrag (status, start_ts desc);
+create index if not exists auftrag_charge_nr_start_ts_idx on auftrag (charge_nr, start_ts);
+create index if not exists auftrag_status_start_ts_idx on auftrag (status, start_ts desc);
 
-create table auftrag_teilnehmer (
+create table if not exists auftrag_teilnehmer (
   id             bigserial primary key,
   auftrag_id     bigint not null references auftrag(id) on delete cascade,
   profil_id      uuid   not null default auth.uid() references profil(id),
   beigetreten_ts timestamptz not null default now(),
   verlassen_ts   timestamptz
 );
-create unique index auftrag_teilnehmer_aktiv
+create unique index if not exists auftrag_teilnehmer_aktiv
   on auftrag_teilnehmer (auftrag_id, profil_id) where verlassen_ts is null;
 
 -- Paletten zählen: eine Zeile je gezählter Palette (Spec §10 — Pflichtfeld).
-create table auftrag_palette (
+create table if not exists auftrag_palette (
   id            bigserial primary key,
   auftrag_id    bigint not null references auftrag(id) on delete cascade,
   palette_id    bigint references palette(id),   -- falls die konkrete Palette bekannt ist
@@ -132,11 +158,11 @@ create table auftrag_palette (
   erfasser      uuid not null default auth.uid() references profil(id),
   ts            timestamptz not null default now()
 );
-create index on auftrag_palette (auftrag_id);
+create index if not exists auftrag_palette_auftrag_id_idx on auftrag_palette (auftrag_id);
 
 -- ---------- Messungen --------------------------------------------------
 -- Schimmel/Fäulnis: klein genug, um direkt gewogen zu werden (Spec §9).
-create table schimmel_messung (
+create table if not exists schimmel_messung (
   id          bigserial primary key,
   auftrag_id  bigint not null references auftrag(id) on delete cascade,
   kg          int not null check (kg >= 0),      -- ganzzahlig (Spec §10)
@@ -146,10 +172,10 @@ create table schimmel_messung (
   ts          timestamptz not null default now(),
   bemerkung   text
 );
-create index on schimmel_messung (auftrag_id);
+create index if not exists schimmel_messung_auftrag_id_idx on schimmel_messung (auftrag_id);
 
 -- Ausschuss zu klein / zu gross nach Auge (nur Weg 2 — Weg 1 kommt aus der CSV).
-create table ausschuss_messung (
+create table if not exists ausschuss_messung (
   id         bigserial primary key,
   auftrag_id bigint not null references auftrag(id) on delete cascade,
   art        ausschuss_art not null,
@@ -159,10 +185,10 @@ create table ausschuss_messung (
   ts         timestamptz not null default now(),
   bemerkung  text
 );
-create index on ausschuss_messung (auftrag_id, art);
+create index if not exists ausschuss_messung_auftrag_id_art_idx on ausschuss_messung (auftrag_id, art);
 
 -- Verdunstung: bester Messpunkt ist Weg 2 beim Herausholen aus dem Lager (Spec §3).
-create table verdunstung_wiegung (
+create table if not exists verdunstung_wiegung (
   id                bigserial primary key,
   auftrag_id        bigint references auftrag(id) on delete set null,
   charge_nr         int  not null references charge(nr),
@@ -179,10 +205,10 @@ create table verdunstung_wiegung (
   ts                timestamptz not null default now(),
   bemerkung         text
 );
-create index on verdunstung_wiegung (charge_nr, eingangsdatum);
+create index if not exists verdunstung_wiegung_charge_nr_eingangsdatum_idx on verdunstung_wiegung (charge_nr, eingangsdatum);
 
 -- Buch B: verschenkte Marge (Spec §2) — niemals mit dem Verlust-Buch mischen.
-create table marge_messung (
+create table if not exists marge_messung (
   id         bigserial primary key,
   auftrag_id bigint not null references auftrag(id) on delete cascade,
   art        marge_art not null,
@@ -194,10 +220,10 @@ create table marge_messung (
   ts         timestamptz not null default now(),
   bemerkung  text
 );
-create index on marge_messung (auftrag_id, art);
+create index if not exists marge_messung_auftrag_id_art_idx on marge_messung (auftrag_id, art);
 
 -- ---------- Sortier-CSV -------------------------------------------------
-create table sortier_lauf (
+create table if not exists sortier_lauf (
   id                bigserial primary key,
   charge_nr         int references charge(nr),
   datei_name        text not null,
@@ -216,15 +242,15 @@ create table sortier_lauf (
   hochgeladen_von   uuid not null default auth.uid() references profil(id),
   gelesen_ts        timestamptz not null default now()
 );
-create index on sortier_lauf (charge_nr, datei_zeit);
-create index on sortier_lauf (zuordnung) where zuordnung in ('offen', 'mehrdeutig');
+create index if not exists sortier_lauf_charge_nr_datei_zeit_idx on sortier_lauf (charge_nr, datei_zeit);
+create index if not exists sortier_lauf_zuordnung_idx on sortier_lauf (zuordnung) where zuordnung in ('offen', 'mehrdeutig');
 
 -- Bereinigte Einzelgewichte, lauflängenkodiert (gewicht_g → anzahl).
 -- Verlustfrei gegenüber "eine Zeile je Kürbis": die Reihenfolge wird nach der
 -- Dubletten-Reinigung nicht mehr gebraucht, das Gewicht hat 2-g-Auflösung.
 -- Spart auf der Supabase-Gratis-Stufe rund 90 % Speicher. v_sortier_kuerbis
 -- expandiert die Zeilen wieder, falls doch pro Kürbis gerechnet werden soll.
-create table sortier_gewicht (
+create table if not exists sortier_gewicht (
   lauf_id     bigint not null references sortier_lauf(id) on delete cascade,
   gewicht_g   int    not null,
   anzahl      int    not null check (anzahl > 0),
@@ -232,10 +258,10 @@ create table sortier_gewicht (
   kaliber_idx int,                     -- Index im Bänder-Array, NULL außerhalb der Kaliber
   primary key (lauf_id, gewicht_g)
 );
-create index on sortier_gewicht (lauf_id, klasse);
+create index if not exists sortier_gewicht_lauf_id_klasse_idx on sortier_gewicht (lauf_id, klasse);
 
 -- ---------- Einstellungen ------------------------------------------------
-create table einstellung (
+create table if not exists einstellung (
   schluessel text primary key,
   wert       jsonb not null,
   bemerkung  text

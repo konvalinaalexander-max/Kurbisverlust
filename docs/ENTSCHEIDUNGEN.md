@@ -664,3 +664,69 @@ Stufe 6 von `supabase/test/run.sh` erzeugt den Lasttest, rechnet die Auswertung
 und misst. Über 2 Sekunden fürs Dashboard oder 5 Sekunden fürs Neuberechnen
 schlägt der Lauf fehl. Ohne diese Stufe würde die Zusage „skaliert" mit der
 Zeit verrotten.
+
+---
+
+## Dieselbe Datei richtet ein und aktualisiert
+
+### Das Problem
+
+`setup.sql` begann mit einer Sperre: Existiert die Tabelle `charge` schon,
+bricht das Skript ab — „Das Setup wurde bereits eingespielt". Gedacht war das
+als Schutz vor dem versehentlichen zweiten Klick.
+
+Der Schutz war eine Sackgasse. Eine einmal eingerichtete Datenbank konnte nie
+wieder etwas Neues bekommen. Auf dem Hof lief eine Datenbank, die vor
+Migration 0016 eingerichtet worden war; alles danach — das gespeicherte
+Rechnen, das Schimmelmodell, die Fehlerfortpflanzung, der Warenausgang — ist
+dort nie angekommen. Gemerkt hat es niemand, bis die App auf „Auswertung"
+klickte und Supabase antwortete: *Could not find the function
+public.auswertung_aktualisieren without parameters in the schema cache.*
+
+Das ist die unangenehme Sorte Fehler: Er entsteht durch etwas, das gar nicht
+passiert ist, und zeigt sich Monate später an einer ganz anderen Stelle.
+
+### Die Entscheidung
+
+Keine zweite Datei, kein Versionszähler, keine Migrations-Werkzeugkette.
+Stattdessen läuft dieselbe `setup.sql` auf jeder Datenbank durch, egal auf
+welchem Stand sie ist. `0000_aktualisierung.sql` räumt vorweg alles weg, was
+sich ohnehin nur ausrechnet — Ansichten, gespeicherte Auswertungen,
+Funktionen, Zugriffsregeln, Auslöser. Danach sieht die Datenbank für den Rest
+des Skripts aus wie eine frische, und die Migrationen bauen das Rechenwerk
+vollständig neu auf. Tabellen und ihr Inhalt werden nicht angefasst; die
+Definitionen sind so geschrieben, dass sie eine schon vorhandene Tabelle,
+einen schon vorhandenen Typ, einen schon vorhandenen Index einfach stehen
+lassen.
+
+Weil alles in einer Transaktion läuft, gibt es kein halb Aktualisiertes:
+entweder ganz durch, oder die Datenbank steht unverändert da wie vorher.
+
+### Warum die Sperre nicht bloss gelockert wurde
+
+Naheliegend wäre gewesen, die Migrationen der Reihe nach nachzuspielen und
+schon Vorhandenes zu überspringen. Der Versuch scheitert an den
+Abhängigkeiten: Auf einer bestehenden Datenbank existieren an einer Stelle
+mitten in der Historie mehr Ansichten als bei einer Neueinrichtung, und ein
+`drop … cascade` reisst dann Dinge mit, die kein späterer Schritt wieder
+aufbaut. Wegräumen und komplett neu bauen hat diese Stelle nicht.
+
+### Abgesichert
+
+Stufe 3 von `supabase/test/run.sh` lässt `setup.sql` ein zweites Mal laufen,
+Stufe 3b richtet eine Datenbank auf dem Stand von 0015 ein, legt Daten und
+eine von Hand geänderte Einstellung hinein und spielt dann die heutige
+`setup.sql` darüber. Geprüft wird dreierlei: dass die Daten noch da sind, dass
+`auswertung_aktualisieren()` rufbar ist — genau die Funktion aus der
+Fehlermeldung — und dass das Schema **Objekt für Objekt** dem einer
+Neueinrichtung gleicht. Letzteres über `supabase/test/fingerabdruck.sql`:
+1412 Spalten, Ansichten, Funktionen, Indizes, Regeln, Auslöser, Bedingungen
+und Rechte als sortierte Liste, zweimal gezogen, mit `diff` verglichen. „Ist
+ohne Fehler durchgelaufen" wäre keine Zusage gewesen.
+
+### Und der Schema-Cache
+
+Zwischen Datenbank und App sitzt PostgREST und merkt sich, welche Funktionen
+es gibt. Am Ende von `setup.sql` steht deshalb `notify pgrst, 'reload schema'`
+— sonst kann die App eine gerade angelegte Funktion noch eine Weile für nicht
+vorhanden halten und dieselbe Meldung zeigen wie vorher, obwohl alles da ist.
