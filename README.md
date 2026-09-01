@@ -561,6 +561,12 @@ einspielen wie in Schritt 3. Dieselben Funktionen, dieselbe Saison.
 
 Was jede Ansicht bedeutet, steht in [`docs/DATENFLUSS.md`](docs/DATENFLUSS.md).
 
+**Das ganze Vorhaben auf 17 Seiten:**
+[`docs/Kuerbis-Verlust-Tracking.pdf`](docs/Kuerbis-Verlust-Tracking.pdf) — der Betriebsablauf,
+wie er verstanden wird; jeder Messpunkt mit Absicht und Folge; und die Mathematik dahinter,
+samt dem, was sie nicht kann. Neu gebaut mit `node docs/erklaerung_bauen.mjs` aus
+`docs/erklaerung.html`.
+
 ---
 
 # Wenn etwas klemmt

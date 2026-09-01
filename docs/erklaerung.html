@@ -1,0 +1,1037 @@
+<!doctype html>
+<html lang="de"><head><meta charset="utf-8">
+<title>Kürbis-Verlust-Tracking — Prozess, Datenerhebung, Mathematik</title>
+<style>
+@font-face{font-family:'Inter';src:url(data:font/woff2;base64,INTER_BASE64) format('woff2');
+  font-weight:100 900;font-style:normal;font-display:block}
+
+@page{size:A4;margin:16mm 15mm 17mm}
+*{box-sizing:border-box}
+html{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+body{margin:0;font-family:'Charter','Bitstream Charter','DejaVu Serif',Georgia,serif;
+  font-size:9.4pt;line-height:1.40;color:#1a1a1a;hyphens:auto}
+
+h1,h2,h3,h4,.sans{font-family:'Inter','Liberation Sans',sans-serif;font-weight:600;
+  letter-spacing:-.012em;hyphens:none}
+
+/* Teil-Trenner */
+.teil{break-before:page;padding-top:2mm}
+.teil-nr{font-family:'Inter',sans-serif;font-size:8.5pt;font-weight:700;letter-spacing:.16em;
+  text-transform:uppercase;color:#b0530f}
+h1{font-size:17pt;margin:.5mm 0 1mm;line-height:1.15;color:#111}
+.teil-vor{font-size:9.8pt;color:#444;margin:0 0 4mm;max-width:140mm;font-style:italic}
+
+h2{font-size:11.2pt;margin:5mm 0 1.2mm;padding-bottom:.8mm;border-bottom:.9pt solid #b0530f;
+  break-after:avoid}
+h3{font-size:9.9pt;margin:3.6mm 0 .8mm;color:#222;break-after:avoid}
+h4{font-size:9.2pt;margin:2.6mm 0 .4mm;color:#333;break-after:avoid}
+p{margin:0 0 1.8mm;text-align:justify}
+h2+p,h3+p,h4+p{margin-top:0}
+ul,ol{margin:0 0 2mm;padding-left:5mm}
+li{margin-bottom:.8mm;text-align:justify}
+strong{font-weight:600}
+em{font-style:italic}
+code,.mono{font-family:'DejaVu Sans Mono',monospace;font-size:8.6pt;
+  background:#f2f2ef;padding:.3mm 1mm;border-radius:1mm}
+
+/* Formeln */
+.formel{font-family:'DejaVu Sans Mono',monospace;font-size:8.3pt;line-height:1.5;
+  background:#f7f6f3;border-left:2.2pt solid #b0530f;padding:2mm 3.5mm;margin:2mm 0 2.4mm;
+  break-inside:avoid;white-space:pre-wrap}
+.formel .k{color:#666}
+
+/* Kästen */
+.kasten{border:.7pt solid #d5d0c6;background:#faf9f6;padding:2.2mm 3mm;margin:2.4mm 0;
+  break-inside:avoid;font-size:8.9pt}
+.kasten.warn{border-color:#c9a99a;background:#fdf4f1}
+.kasten.offen{border-color:#c2b28a;background:#fdfaef}
+.kasten .titel{font-family:'Inter',sans-serif;font-weight:700;font-size:8.2pt;
+  letter-spacing:.09em;text-transform:uppercase;color:#8a6a2a;margin-bottom:1.2mm}
+.kasten.warn .titel{color:#9c4030}
+.kasten p:last-child,.kasten ul:last-child{margin-bottom:0}
+
+/* Tabellen */
+table{width:100%;border-collapse:collapse;font-size:8.3pt;margin:2mm 0 2.8mm;
+  font-family:'Inter',sans-serif;font-weight:400}
+thead{display:table-header-group}
+tr{break-inside:avoid}
+th{text-align:left;font-weight:700;font-size:7.6pt;letter-spacing:.05em;text-transform:uppercase;
+  color:#555;border-bottom:.9pt solid #999;padding:1.1mm 1.5mm .8mm;vertical-align:bottom}
+td{padding:1mm 1.5mm;border-bottom:.4pt solid #ddd;vertical-align:top}
+td.z,th.z{text-align:right;font-variant-numeric:tabular-nums}
+tr.summe td{font-weight:700;border-top:.7pt solid #999}
+.tab-titel{font-family:'Inter',sans-serif;font-size:8.4pt;font-weight:600;color:#555;
+  margin:3.5mm 0 -1mm}
+
+.leise{color:#666}
+.klein{font-size:8.3pt}
+figure{margin:2.4mm 0 3mm;break-inside:avoid}
+figcaption{font-family:'Inter',sans-serif;font-size:8.2pt;color:#666;margin-top:1.5mm;
+  text-align:center}
+
+/* Titelseite */
+.titelseite{height:258mm;display:flex;flex-direction:column;justify-content:center}
+.titelseite .obertitel{font-family:'Inter',sans-serif;font-size:9pt;font-weight:700;
+  letter-spacing:.2em;text-transform:uppercase;color:#b0530f;margin-bottom:3mm}
+.titelseite h1{font-size:27pt;line-height:1.1;margin:0 0 4mm;max-width:150mm}
+.titelseite .untertitel{font-size:12.5pt;color:#444;max-width:140mm;margin-bottom:9mm;
+  line-height:1.45}
+.titelseite .linie{border-top:1.4pt solid #b0530f;width:38mm;margin-bottom:6mm}
+.inhalt{font-family:'Inter',sans-serif;font-size:9.4pt;margin-top:4mm}
+.inhalt .zeile{display:flex;gap:3mm;padding:1.6mm 0;border-bottom:.4pt solid #e2e0da}
+.inhalt .nr{color:#b0530f;font-weight:700;width:12mm;flex:none}
+.inhalt .txt{flex:1}
+.inhalt .txt .u{display:block;color:#666;font-size:8.4pt;font-weight:400;margin-top:.4mm}
+</style></head><body>
+
+<div class="titelseite">
+  <div class="obertitel">Kürbis-Verlust-Tracking</div>
+  <h1>Wie ich den Betrieb verstehe, was ich messen will, und wie gerechnet wird</h1>
+  <div class="untertitel">Eine vollständige Offenlegung des Modells hinter dem Werkzeug —
+    damit widersprochen werden kann, wo es falsch liegt.</div>
+  <div class="linie"></div>
+
+  <p style="max-width:150mm">Dieses Dokument beschreibt das gesamte Vorhaben in drei Teilen: den
+  <strong>Betriebsablauf</strong>, wie ich ihn heute verstehe; die <strong>Datenerhebung</strong> —
+  was an welcher Stelle erfasst wird und mit welcher Absicht; und die <strong>Mathematik</strong>,
+  mit der aus wenigen Stichproben ein Gesamtbild wird.</p>
+
+  <p style="max-width:150mm">Es ist bewusst so geschrieben, dass ein Fachmann jede Annahme
+  angreifen kann. Wo ich etwas <em>weiss</em>, steht es als Tatsache. Wo ich etwas
+  <em>annehme</em>, steht es als Annahme, mit der Folge, wenn sie nicht stimmt. Wo ich
+  <em>nichts</em> weiss, steht eine Frage.</p>
+
+  <div class="inhalt">
+    <div class="zeile"><span class="nr">Teil 1</span><span class="txt">Der Prozess
+      <span class="u">Der Weg des Kürbisses vom Feld zum Lastwagen · wo Masse verschwindet ·
+      was ich nicht weiss</span></span></div>
+    <div class="zeile"><span class="nr">Teil 2</span><span class="txt">Die Datenerhebung
+      <span class="u">Rückgrat und Koeffizienten · jeder Messpunkt einzeln, mit Absicht und
+      Folge · was ich bewusst nicht messe</span></span></div>
+    <div class="zeile"><span class="nr">Teil 3</span><span class="txt">Die Mathematik
+      <span class="u">Die Massenkaskade · das Verderbsmodell · Bündelung, Unsicherheit,
+      Fehlerfortpflanzung · wie ich prüfe, ob es stimmt</span></span></div>
+  </div>
+
+  <p class="klein leise" style="margin-top:9mm">Stand: Saison 2026. Das Werkzeug läuft auf
+  Supabase und Cloudflare zu Kosten von null. Alle hier genannten Zahlen aus Simulationen sind
+  mit <code>supabase/test/simulation/matrix.sh</code> reproduzierbar.</p>
+</div>
+
+<div class="teil">
+<div class="teil-nr">Teil 1</div>
+<h1>Der Prozess</h1>
+<p class="teil-vor">Was auf dem Betrieb passiert — unabhängig davon, was gemessen wird. Das ist
+der Massstab, an dem sich alles Weitere messen lassen muss: Rechnet das Modell etwas, das es
+so gar nicht gibt, hilft die beste Statistik nichts.</p>
+
+<h2>1.1 Worum es geht</h2>
+<p>Der Betrieb erntet, lagert und verarbeitet Speisekürbisse in der Grössenordnung von
+mehreren hundert Tonnen je Saison. Zwischen Ernte im Spätsommer und dem letzten Verkauf im
+Frühjahr liegen bis zu sieben Monate Lagerung. In dieser Zeit geht Masse verloren — und die
+Frage, die das Werkzeug beantworten soll, ist <strong>nicht</strong> „wie viel", sondern
+<strong>„wo, und welche Ursache ist die grösste"</strong>.</p>
+<p>Das ist eine bewusste Einschränkung. Eine kilogenaue Bilanz bräuchte lückenlose Wägungen an
+jeder Station; die gibt es nicht und wird es nie geben, weil sie den Betrieb lahmlegen würde.
+Eine <em>Rangfolge</em> der Ursachen dagegen lässt sich aus wenigen, gut gelegten Stichproben
+hochrechnen. Und eine Rangfolge genügt, um zu handeln: Wer weiss, dass Verdunstung dreimal so
+viel kostet wie Ausschuss, weiss auch, wo er zuerst ansetzt.</p>
+
+<h2>1.2 Der Weg eines Kürbisses</h2>
+<figure>
+<svg viewBox="0 0 700 300" style="width:100%;height:auto" role="img"
+     aria-label="Der Weg des Kürbisses">
+  <defs>
+    <marker id="p" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6"
+            orient="auto"><path d="M0 0 10 5 0 10z" fill="#555"/></marker>
+    <marker id="pr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6"
+            orient="auto"><path d="M0 0 10 5 0 10z" fill="#b0530f"/></marker>
+  </defs>
+  <style>
+    .b{fill:#fff;stroke:#333;stroke-width:1.4}
+    .lager{fill:#eef2f6;stroke:#5b8db8;stroke-width:1.4}
+    .t{font-family:Inter,sans-serif;font-size:12px;fill:#111;font-weight:600}
+    .ts{font-family:Inter,sans-serif;font-size:10px;fill:#555}
+    .tv{font-family:Inter,sans-serif;font-size:9.5px;fill:#b0530f;font-weight:600}
+    .l{stroke:#555;stroke-width:1.4;fill:none;marker-end:url(#p)}
+    .lv{stroke:#b0530f;stroke-width:1.4;fill:none;marker-end:url(#pr);stroke-dasharray:3 2}
+  </style>
+
+  <rect class="b" x="8" y="14" width="92" height="34" rx="4"/>
+  <text class="t" x="54" y="30" text-anchor="middle">Feld</text>
+  <text class="ts" x="54" y="43" text-anchor="middle">Schlag × Sorte</text>
+
+  <path class="l" d="M100 31 H132"/>
+  <rect class="b" x="136" y="14" width="104" height="34" rx="4"/>
+  <text class="t" x="188" y="30" text-anchor="middle">Wareneingang</text>
+  <text class="ts" x="188" y="43" text-anchor="middle">Palette wiegen</text>
+
+  <path class="l" d="M240 31 H272"/>
+  <rect class="lager" x="276" y="10" width="120" height="42" rx="4"/>
+  <text class="t" x="336" y="28" text-anchor="middle">Lager — Halle</text>
+  <text class="ts" x="336" y="42" text-anchor="middle">Wochen bis Monate</text>
+
+  <!-- Weg 2 -->
+  <path class="l" d="M396 24 H432 Q444 24 444 36 V84"/>
+  <text class="ts" x="452" y="40" font-weight="600" fill="#333">Weg 2 — Hand</text>
+  <rect class="b" x="360" y="88" width="168" height="34" rx="4"/>
+  <text class="t" x="444" y="104" text-anchor="middle">Waschen + Sortieren</text>
+  <text class="ts" x="444" y="117" text-anchor="middle">in einem Schritt</text>
+
+  <!-- Weg 1 -->
+  <path class="l" d="M336 52 V80"/>
+  <text class="ts" x="196" y="76" font-weight="600" fill="#333">Weg 1 — Maschine</text>
+  <rect class="b" x="264" y="84" width="80" height="34" rx="4"/>
+  <text class="t" x="304" y="100" text-anchor="middle">Sortieren</text>
+  <text class="ts" x="304" y="113" text-anchor="middle">Maschine, CSV</text>
+
+  <path class="l" d="M264 101 H196 Q184 101 184 113 V132"/>
+  <rect class="lager" x="96" y="136" width="176" height="42" rx="4"/>
+  <text class="t" x="184" y="154" text-anchor="middle">Lager — dieselbe Halle</text>
+  <text class="ts" x="184" y="168" text-anchor="middle">Kaliber-Kisten, Wochen bis Monate</text>
+
+  <path class="l" d="M272 157 H312 Q324 157 324 169 V196"/>
+  <rect class="b" x="264" y="200" width="120" height="34" rx="4"/>
+  <text class="t" x="324" y="216" text-anchor="middle">Waschen</text>
+  <text class="ts" x="324" y="229" text-anchor="middle">Schimmel #2</text>
+
+  <path class="l" d="M384 217 H464"/>
+  <path class="l" d="M528 105 H560 Q572 105 572 117 V196 Q572 208 560 208 H472 Q464 208 464 214"/>
+  <rect class="b" x="468" y="200" width="128" height="34" rx="4"/>
+  <text class="t" x="532" y="216" text-anchor="middle">Warenausgang</text>
+  <text class="ts" x="532" y="229" text-anchor="middle">Lieferschein</text>
+
+  <!-- Verlustabzweigungen -->
+  <path class="lv" d="M336 52 H640 V90"/>
+  <text class="tv" x="696" y="56" text-anchor="end">Verdunstung</text>
+  <text class="tv" x="696" y="68" text-anchor="end">laufend, unsichtbar</text>
+  <path class="lv" d="M304 118 V132 H60 V150"/>
+  <text class="tv" x="14" y="196">Faules → Palox</text>
+  <text class="tv" x="14" y="208">zu klein → weg</text>
+  <text class="tv" x="14" y="220">zu gross → Kanal</text>
+  <path class="lv" d="M444 122 V150 H660"/>
+  <text class="tv" x="696" y="146" text-anchor="end">Faules, klein, gross</text>
+  <path class="lv" d="M324 234 V254 H236"/>
+  <text class="tv" x="132" y="258">Faules → Palox</text>
+</svg>
+<figcaption>Zwei Wege durch den Betrieb. Gestrichelt: wo Masse den Hauptstrom verlässt.
+Der entscheidende Punkt ist der linke untere Kasten — <strong>Weg 1 hat zwei
+Lagerabschnitte</strong>.</figcaption>
+</figure>
+
+<h2>1.3 Die Begriffe, mit denen ich arbeite</h2>
+<table>
+<tr><th style="width:26mm">Begriff</th><th>Was er bedeutet</th></tr>
+<tr><td><strong>Schlag</strong></td><td>Feld oder Anbaufläche. In der Erntejournal-App heisst es
+  ebenso.</td></tr>
+<tr><td><strong>Sorte</strong></td><td>Kürbissorte — Tiana, Kaori Kuri, Orangita und acht weitere.
+  Jede Sorte hat eigene Kaliber-Grenzen.</td></tr>
+<tr><td><strong>Charge</strong></td><td>Die Kombination <em>Schlag × Sorte</em>, mit einer
+  undurchsichtigen Nummer (1598, 1613, …). Der Verbindungsschlüssel des ganzen Systems: Er ist
+  immun gegen Schreibweisen und Leerzeichen. Eine Charge wird gestaffelt über Tage und Wochen
+  geerntet.</td></tr>
+<tr><td><strong>Palette</strong></td><td>Die Erfassungseinheit beim Wareneingang. Eine Palette
+  gehört zu genau einer Charge und hat ihr <em>eigenes</em> Eingangsdatum — das ist wichtig, weil
+  die Lagerdauer daran hängt und nicht an der Charge.</td></tr>
+<tr><td><strong>Auftrag</strong></td><td>Ein Verarbeitungslauf an einer Station, mit
+  Server-Zeitstempel. Ein Arbeiter eröffnet ihn, andere treten bei.</td></tr>
+<tr><td><strong>Palox</strong></td><td>Der Sammelbehälter für Faules, auf einer Waage. Er läuft
+  über mehrere Arbeiten weiter — der <em>Zuwachs</em> zwischen zwei Ablesungen ist die Menge einer
+  Arbeit.</td></tr>
+<tr><td><strong>Kaliber-Kiste</strong></td><td>Entsteht beim Sortieren. Ab hier löst sich die
+  Palette auf.</td></tr>
+</table>
+
+<h2>1.4 Weg 1 — der Maschinen-Weg</h2>
+<p>Ware kommt aus der Halle ans Sortierband. <strong>Vor</strong> dem Band wird von Hand
+aussortiert, was faul ist; es landet im Palox. Die Maschine wiegt danach
+<em>jeden einzelnen Kürbis</em> und schreibt eine CSV-Datei — eine Zahl je Zeile, Gewicht in
+Gramm, mit 2-Gramm-Auflösung. Bei jedem Chargenwechsel beginnt eine neue Datei, deren Name
+Charge, Tag und Uhrzeit trägt.</p>
+<p>Anhand des Gewichts fällt jeder Kürbis in eine von drei Klassen: <em>unter</em> der
+Sorten-Verlustgrenze (weggeworfen), <em>innerhalb</em> eines Kaliber-Bandes (Hauptkanal), oder
+<em>über</em> 2000 g (Nebenkanal, ein anderer Abnehmer). Bezahlt wird auf diesem Weg
+<strong>pro Stück innerhalb eines Kalibers</strong> — das Gewicht ist dem Abnehmer egal, solange
+es ins Band passt.</p>
+<p>Danach liegt die Ware in Kaliber-Kisten und geht <strong>zurück in dieselbe Halle</strong>.
+Dort steht sie Wochen bis Monate, bis sie gewaschen wird. Vor dem Waschbecken wird
+<em>nochmals</em> Faules aussortiert — das ist die Messung, die ich Schimmel&nbsp;#2 nenne.</p>
+
+<div class="kasten warn">
+<div class="titel">Der grösste Fehler, den das Modell je hatte</div>
+<p>Dieser zweite Lagerabschnitt fehlte im Modell vollständig. Die Uhr blieb beim Sortiertag
+stehen, und Schimmel&nbsp;#2 verschwand spurlos: Ein Wasch-Auftrag mit 900&nbsp;kg
+erfasstem Schimmel erzeugte <strong>null</strong> Zeilen in der Auswertung — weil die Lagerdauer
+aus gezählten Paletten kam und es beim Waschen keine Paletten mehr zu zählen gibt. In der
+Simulation lag die Verdunstung dadurch 15&nbsp;% zu tief, der Schimmel 23&nbsp;%. Behoben; siehe
+Abschnitt&nbsp;3.6.</p>
+</div>
+
+<h2>1.5 Weg 2 — der Hand-Weg</h2>
+<p>Hier passiert alles in einem Schritt: Die Palette kommt aus dem Lager, wird gewaschen und
+dabei von Hand sortiert. Faules geht in den Palox, zu Kleines und zu Grosses werden nach Augenmass
+aussortiert. Bezahlt wird <strong>pro Kiste ab 8&nbsp;kg</strong> — ein Fixpreis, und alles, was
+über 8&nbsp;kg in der Kiste liegt, ist verschenkte Ware.</p>
+<p>Weg 2 ist zugleich der <strong>beste Messpunkt für die Verdunstung</strong>: Die Palette wird
+ohnehin aus dem Lager geholt, sie existiert noch als Palette, und sie hat eine bekannte
+Lagerdauer. Ein Gang auf die Waage, und man hat einen Punkt auf der Verdunstungskurve.</p>
+<p>Beide Wege können gleichzeitig laufen, und dieselbe Charge kann teils über Weg 1 und teils
+über Weg 2 gehen.</p>
+
+<h2>1.6 Die Behälter — und wo die Identität verloren geht</h2>
+<p>Das ist der subtilste Teil des ganzen Prozesses, und er bestimmt, was überhaupt messbar ist.</p>
+<p>Am Wareneingang ist die Welt einfach: <strong>eine Palette, eine Charge, ein Datum.</strong>
+Solange die Ware auf ihrer Palette liegt, weiss man von jedem Kilo, woher es kommt und wie lange
+es liegt.</p>
+<p>Beim Sortieren zerfällt das. Die Kürbisse einer Palette landen je nach Gewicht in
+<em>verschiedenen</em> Kaliber-Kisten, und eine Kaliber-Kiste sammelt aus <em>vielen</em>
+Paletten. Die Charge bleibt bekannt — sie steht in der CSV —, aber das Eingangsdatum der
+einzelnen Palette ist weg. Ab hier kennt das Modell nur noch ein <em>massegewichtetes mittleres
+Eingangsdatum</em> je Charge.</p>
+
+<div class="kasten offen">
+<div class="titel">Offene Frage, und sie ist die wichtigste von allen</div>
+<p>Die Datenbank erzwingt heute <code>auftrag.charge_nr not null</code> — <strong>genau eine
+Charge je Arbeitsgang</strong>. Aller Schimmel eines Waschgangs hängt an dieser einen Charge und
+bekommt deren Lagerdauer.</p>
+<p>Wenn ein Arbeitsgang aber in Wirklichkeit durch einen <em>Kundenauftrag</em> definiert ist —
+„drei Paletten Tiana, Kaliber 2, bis Donnerstag" — dann wird die Ware aus mehreren Chargen
+derselben Sorte zusammengesucht, und die Charge ist ein Nebenprodukt, oft mehrere gleichzeitig.
+Dann stehen genau die Punkte, auf denen das Verderbsmodell angepasst wird, am
+<strong>falschen Alter</strong>.</p>
+<p>Wie schlimm das ist, hängt daran, wie weit die gemischten Chargen im Eingangsdatum
+auseinanderliegen. Tage: unkritisch. Monate: die Kurve ist nicht mehr zu retten. Diese Frage ist
+unbeantwortet, und bis sie beantwortet ist, weiss ich nicht, ob das Modell an dieser Stelle
+trägt.</p>
+</div>
+
+<h2>1.7 Wo Masse verschwindet</h2>
+<table>
+<tr><th style="width:38mm">Stelle</th><th>Was passiert</th><th style="width:34mm">Erfasst?</th></tr>
+<tr><td>Lager, laufend</td><td>Wasserverlust — der Kürbis wird leichter, bleibt aber
+  verkäuflich</td><td>über gelegentliche Palettenwägungen</td></tr>
+<tr><td>Lager, laufend</td><td>Kürbisse verderben ganz</td><td>erst beim Verarbeiten
+  sichtbar</td></tr>
+<tr><td>Vor dem Sortierband</td><td>Faules wird von Hand aussortiert</td><td>ja, Palox auf der
+  Waage</td></tr>
+<tr><td>Am Sortierband</td><td>zu klein → weggeworfen; zu gross → anderer Kanal</td><td>ja, aus
+  der CSV je Kürbis</td></tr>
+<tr><td>Zweiter Lagerabschnitt</td><td>Verdunstung und Verderb laufen weiter</td><td>ja, über das
+  Endalter</td></tr>
+<tr><td>Vor dem Waschbecken</td><td>Faules nochmals aussortiert (Schimmel #2)</td><td>ja,
+  Palox</td></tr>
+<tr><td>Beim Kisten füllen</td><td>8-kg-Kisten wiegen real 8.1–8.5 kg</td><td>ja, fertige
+  Paletten wiegen</td></tr>
+<tr><td>Warenausgang</td><td>Ware verlässt den Betrieb</td><td>ja, seit dem Warenausgangs-Modul
+  </td></tr>
+<tr><td class="leise">Feld, vor der Ernte</td><td class="leise">aussortiert, was gar nicht erst
+  mitkommt</td><td class="leise">nein — unbekannt, ob es das gibt</td></tr>
+<tr><td class="leise">Erde am Kürbis</td><td class="leise">gewaschen wird erst am Schluss; das
+  Eingangs-Brutto enthält Feld-Erde</td><td class="leise">nein — Grössenordnung
+  unbekannt</td></tr>
+</table>
+
+<h2>1.8 Die fünf Ströme und die zwei Bücher</h2>
+<p>Nicht jede Masse, die den Hauptstrom verlässt, ist ein Verlust. Diese Unterscheidung ist
+für die Rangfolge entscheidend, und sie wird konsequent durchgehalten.</p>
+<table>
+<tr><th style="width:36mm">Strom</th><th style="width:26mm">Art</th><th>Bedeutung</th></tr>
+<tr><td><strong>Verdunstung</strong></td><td>Buch A — Verlust</td><td>Wasser. Die Ware bleibt
+  verkäuflich, nur leichter. Auf der Kisten-Linie kostet das sofort, auf der Stück-Linie erst,
+  wenn ein Kürbis ins nächsttiefere Kaliber rutscht.</td></tr>
+<tr><td><strong>Schimmel / Fäulnis</strong></td><td>Buch A — Verlust</td><td>Ganze Kürbisse
+  verderben. Totalverlust.</td></tr>
+<tr><td><strong>Ausschuss zu klein</strong></td><td>Buch A — Verlust</td><td>Unter der
+  Sorten-Grenze, wird weggeworfen. <em>Sofern</em> er wirklich weggeworfen wird — geht er an
+  Tiere, gehört er nicht hierher.</td></tr>
+<tr><td><strong>Nebenkanal zu gross</strong></td><td>Buch B — kein Verlust</td><td>Über 2000 g,
+  geht an einen anderen Abnehmer. Wird getrennt ausgewiesen.</td></tr>
+<tr><td><strong>Überfüllung</strong></td><td>Buch B — Marge</td><td>8.3 kg in einer Kiste, für
+  die 8 kg bezahlt werden. Verschenkte Ware, kein physischer Verlust.</td></tr>
+</table>
+<p>Die beiden Bücher werden <strong>nie</strong> vermischt. Wer sie zusammenzählt, bekommt eine
+Zahl, die weder ein Verlust noch ein Ertragsproblem ist, und kann mit ihr nichts anfangen.</p>
+
+<h2>1.9 Wie die Ware das Lager verlässt</h2>
+<p>Der Betrieb hat klargestellt: <strong>kein First-in-first-out.</strong> Aus dem Zwischenlager
+wird ziemlich zufällig entnommen — an jedem Waschtag hat jede Kiste im Pool dieselbe Chance.</p>
+<p>Das klingt nach einer Nebensächlichkeit und ist es nicht. „Jeden Tag dieselbe Chance"
+ist die mathematische Signatur eines <em>gedächtnislosen</em> Prozesses, und daraus folgt, dass
+die Wartezeit im Zwischenlager exponentialverteilt ist. Genau unter dieser Annahme ist der
+Mittelwert über alle vorherigen Sortierläufe einer Charge der richtige Erwartungswert für den
+Zustand der gewaschenen Ware — was ich nicht nur argumentiert, sondern in der Simulation
+nachgemessen habe (Abschnitt 3.6).</p>
+
+<h2>1.10 Was ich nicht weiss</h2>
+<p>Die ehrliche Liste. Jeder Punkt ist eine Stelle, an der das Modell heute etwas glaubt.</p>
+<table>
+<tr><th style="width:52mm">Annahme im Modell</th><th>Was passiert, wenn sie nicht stimmt</th></tr>
+<tr><td>Ein Arbeitsgang gehört zu genau einer Charge</td><td>Der gemessene Schimmel sitzt am
+  falschen Alter; die Verderbskurve verzieht sich</td></tr>
+<tr><td>Alle Paletten einer Charge liegen unter gleichen Bedingungen</td><td>Streuung zwischen
+  Lagerplätzen landet im Fehler statt im Modell</td></tr>
+<tr><td>Die Verdunstungsrate ist über die Saison konstant</td><td>Früher Wasserverlust wird
+  unter-, später überschätzt — besonders wenn die Halle dem Wetter folgt</td></tr>
+<tr><td>Alles Sortierte wird später gewaschen</td><td>Ware, die ungewaschen rausgeht, altert in
+  der Rechnung zu lange</td></tr>
+<tr><td>Der Palox gehört zu der Arbeit, an deren Ende er abgelesen wird</td><td>Sammelt er
+  unbemerkt über mehrere Arbeiten, sitzt der ganze Betrag am falschen Alter</td></tr>
+<tr><td>Ein Waschgang gehört zu den Sortierläufen derselben Charge davor</td><td>Bei stark
+  gemischten Chargen wandert Schimmel #2 ans falsche Alter</td></tr>
+<tr><td>Die Dubletten-Regel entfernt Maschinen-Doppel, keine echten Kürbisse</td><td>Alle
+  CSV-gestützten Massen sind um denselben Faktor daneben</td></tr>
+<tr><td>Kaliber-Grenzen gelten über die ganze Saison</td><td>Eine Umstellung mitten in der Saison
+  verfälscht den Ausschussanteil</td></tr>
+<tr><td>Das Eingangs-Brutto ist der Kürbis</td><td>Feld-Erde, die beim Waschen abgeht, sieht in
+  jeder Bilanz aus wie Verlust</td></tr>
+</table>
+<p>Fünfzig Fragen an den Betrieb, die genau diese Punkte klären sollen, stehen in
+<code>docs/FRAGEN.md</code>. Solange sie offen sind, gilt: Das Modell rechnet sauber — aber
+möglicherweise über einer Wirklichkeit, die anders aussieht.</p>
+</div>
+
+<div class="teil">
+<div class="teil-nr">Teil 2</div>
+<h1>Die Datenerhebung</h1>
+<p class="teil-vor">Was an welcher Stelle erfasst wird, von wem, und vor allem: mit welcher
+Absicht. Jeder Messpunkt kostet einen Arbeiter Zeit, den es ohnehin eilig hat. Also muss jeder
+Messpunkt sagen können, welche Frage er beantwortet — und was fehlt, wenn er ausfällt.</p>
+
+<h2>2.1 Der Grundgedanke: Rückgrat und Koeffizienten</h2>
+<p>Die ganze Erhebungsstrategie steht auf einer einzigen Unterscheidung.</p>
+<p><strong>Das Rückgrat</strong> ist alles, was für <em>jede</em> Charge bekannt ist, weil es
+ohnehin anfällt: Eingangsgewicht, Eingangsdaten, Schlag, Sorte, Palettenzahl, und wo vorhanden
+die Sortier-CSV. Das Rückgrat ist vollständig. Es kostet keine zusätzliche Arbeit, weil es aus
+dem Erntejournal und der Maschine kommt.</p>
+<p><strong>Die Koeffizienten</strong> sind das, was nur an Stichproben messbar ist: wie viel
+Prozent je Tag verdunstet, welcher Anteil bei welcher Lagerdauer verdorben ist, wie viel
+Ausschuss anfällt. Sie sind lückenhaft und werden es bleiben.</p>
+<div class="formel">Verlust = Koeffizient  ×  bekannte Grösse
+           <span class="k">(Stichprobe)      (Rückgrat, vollständig)</span></div>
+<p>Diese Trennung ist der Grund, warum lückenhaftes Messen überhaupt genügt. Ich muss nicht
+jede Palette wiegen — ich muss den <em>Koeffizienten</em> gut genug schätzen und ihn dann auf
+eine Grösse anwenden, die ich vollständig kenne. Zwölf Palettenwägungen über die Saison sagen
+mir die Verdunstungsrate; die Eingangsmasse aller 42 Chargen kenne ich sowieso. Das Produkt ist
+die Verdunstung der ganzen Ernte.</p>
+<p>Daraus folgt auch, <em>wo</em> Messungen wertvoll sind: Sie müssen nicht repräsentativ für die
+Masse sein, sondern die Koeffizienten <strong>trennen</strong>. Eine Wägung nach 20 Tagen und
+eine nach 150 Tagen sagen zusammen mehr als zwanzig Wägungen nach 60 Tagen.</p>
+
+<h2>2.2 Die Messpunkte im Einzelnen</h2>
+
+<h3>Wareneingang — das Rückgrat</h3>
+<table>
+<tr><td style="width:24mm"><strong>Was</strong></td><td>Je Palette: Charge, Eingangsdatum,
+  Bruttogewicht, Kistenzahl, Gebindeart</td></tr>
+<tr><td><strong>Wer, wann</strong></td><td>Fällt in der bestehenden Erntejournal-App an; wird
+  als CSV oder direkt aus dem Google Sheet übernommen</td></tr>
+<tr><td><strong>Absicht</strong></td><td>Ohne diese Zahl gibt es keine Bezugsgrösse. Jeder
+  Prozentsatz im ganzen Werkzeug bezieht sich auf sie.</td></tr>
+<tr><td><strong>Ohne sie</strong></td><td>Die Charge existiert nicht. Sie taucht in keiner
+  Auswertung auf.</td></tr>
+</table>
+<p>Das Netto entsteht als <span class="mono">Brutto − Kisten × Kistentara − Palettentara</span>.
+Die Tara je Gebindeart wird einmal hinterlegt. Fehlt sie, bleibt das Netto <em>leer</em> — nicht
+null. Der Unterschied ist gross: An einer Charge mit 44 Paletten, von denen 4 keine Gebindeart
+hatten, war die Eingangsmasse <strong>10 % zu klein</strong> und damit jede Verlustquote 10 %
+zu gross. Heute wird innerhalb der Charge hochgerechnet, und das gemessene Netto steht als
+Beleg daneben.</p>
+
+<h3>Paletten zählen — beim Verarbeiten</h3>
+<table>
+<tr><td style="width:24mm"><strong>Was</strong></td><td>Ein Zähler: Plus für jede Palette, die
+  angefasst wird. Optional das Datum vom Zettel.</td></tr>
+<tr><td><strong>Wer, wann</strong></td><td>Der Arbeiter, während der Arbeit. Ein Tipp je
+  Palette.</td></tr>
+<tr><td><strong>Absicht</strong></td><td>Zwei Dinge auf einmal: <em>wie viel</em> Masse durch
+  diese Arbeit lief (über die Paletten), und <em>wie alt</em> sie war (über die Eingangsdaten).
+  Ohne das Alter ist jede Schimmelmessung wertlos — sie wäre eine Zahl ohne Zeitachse.</td></tr>
+<tr><td><strong>Ohne sie</strong></td><td>Die Arbeit hat keine Bezugsmasse. Der Palox-Inhalt
+  lässt sich in keinen Anteil umrechnen.</td></tr>
+</table>
+<p>Die Palettenzahl ist <strong>Pflicht</strong>, das Wiegen freiwillig. Das ist eine bewusste
+Rangfolge: Ein Zähler ist ein Tipp, eine Wägung ist ein Gang zur Waage.</p>
+
+<h3>Palette wiegen — der Verdunstungs-Messpunkt</h3>
+<table>
+<tr><td style="width:24mm"><strong>Was</strong></td><td>Eingangsdatum, Gewicht damals (vom
+  Zettel), Gewicht jetzt, Kistenzahl, Kistenart. Freiwillig: Kürbisse je Kiste.</td></tr>
+<tr><td><strong>Wer, wann</strong></td><td>Der Arbeiter beim Herausholen aus dem Lager,
+  bevorzugt auf Weg 2 — dort existiert die Palette noch als Palette.</td></tr>
+<tr><td><strong>Absicht</strong></td><td>Die Verdunstungsrate. Aus <em>einem</em> Paar
+  (Gewicht damals, Gewicht jetzt) bei bekannter Lagerdauer folgt eine Tagesrate.</td></tr>
+<tr><td><strong>Ohne sie</strong></td><td>Verdunstung ist der grösste Einzelposten. Unter etwa
+  zehn Wägungen wird ihr Unsicherheitsbereich über 80 % breit und trifft nur noch in 80 % der
+  Fälle — die Zahl taugt dann nichts mehr.</td></tr>
+</table>
+<p>Die Maske fragt <em>nicht</em>, welche Palette es ist. Bei hunderten Paletten, von denen viele
+gleich schwer sind, wäre eine Auswahlliste unbedienbar. Der Arbeiter tippt ab, was auf dem Zettel
+steht — und die App rechnet ihm sofort das Kilo je Kiste aus, damit er sieht, ob er sich
+vertippt hat.</p>
+<p>Ein Ankreuzfeld <em>„Faules sichtbar"</em> gehört dazu. Wägungen mit sichtbarer Fäulnis
+zählen bewusst <strong>nicht</strong> in die Verdunstungsrate — sonst würde Fäulnis als
+Wasserverlust verbucht und derselbe Verlust doppelt gezählt.</p>
+
+<h3>Der Palox — Schimmel, direkt gemessen</h3>
+<table>
+<tr><td style="width:24mm"><strong>Was</strong></td><td>Der <em>Stand</em> auf der Palox-Waage.
+  Nicht die Differenz.</td></tr>
+<tr><td><strong>Wer, wann</strong></td><td>Der Arbeiter am Ende der Arbeit, je Station.</td></tr>
+<tr><td><strong>Absicht</strong></td><td>Der einzige Strom, der <strong>direkt gewogen</strong>
+  wird statt aus einer Differenz zweier grosser Zahlen zu entstehen.</td></tr>
+<tr><td><strong>Ohne ihn</strong></td><td>Das Verderbsmodell hat keine Datenpunkte. Es gäbe
+  keine Schimmelkurve.</td></tr>
+</table>
+<p>Dass der <em>Stand</em> erfasst wird und nicht die Menge, ist eine der bewusstesten
+Entscheidungen im ganzen System. Der Palox läuft über mehrere Arbeiten weiter. Früher sollte der
+Arbeiter selbst abziehen, was letztes Mal draufstand — Kopfrechnen an der Maschine, und ein
+Fehler ist hinterher nicht mehr erkennbar. Jetzt trägt er ab, was die Waage zeigt; die Software
+zieht ab und zeigt ihm das Ergebnis, <em>bevor</em> er speichert. Beide Zahlen bleiben erhalten:
+der Stand als Beleg, die Differenz als Messwert.</p>
+<p>Drei Dinge sind darum herumgebaut, jedes gegen einen konkreten Fehler:</p>
+<ul>
+<li><strong>Je Station getrennt.</strong> Sortierband, Waschbecken und Hand-Linie haben eigene
+  Behälter. Solange der „letzte Stand" global war, verzahnten sich bei zwei parallelen Linien die
+  Ablesungen, und <em>jede</em> Differenz war falsch.</li>
+<li><strong>Ein Häkchen „Palox wurde geleert".</strong> Fällt der Stand, erkennt die Software das
+  Leeren selbst. Wurde aber geleert <em>und</em> über den alten Stand hinaus neu befüllt, sieht
+  die Zahlenreihe harmlos aus — das kann keine Rechnung sehen, nur ein Mensch.</li>
+<li><strong>Eine Prüfgrösse: Kilo je gezählter Palette.</strong> Wird sie unplausibel gross,
+  wurde meist eine Ablesung vergessen und die Menge zweier Arbeiten landet auf einer. Die App
+  warnt, sperrt aber nicht.</li>
+</ul>
+
+<h3>Die Sortier-CSV — Ausschuss, Nebenkanal, Kaliber</h3>
+<table>
+<tr><td style="width:24mm"><strong>Was</strong></td><td>Eine Datei je Sortierlauf, eine Zahl je
+  Zeile: das Gewicht eines Kürbisses in Gramm.</td></tr>
+<tr><td><strong>Wer, wann</strong></td><td>Die Maschine erzeugt sie; der Betriebsleiter lädt sie
+  hoch.</td></tr>
+<tr><td><strong>Absicht</strong></td><td>Der Ausschussanteil und der Nebenkanal-Anteil ergeben
+  sich direkt aus der Gewichtsverteilung — kein Schätzen nötig. Dazu die Kaliber-Verteilung, die
+  einzige Auswertung, die nicht von Verlusten handelt, sondern vom Erlös.</td></tr>
+<tr><td><strong>Ohne sie</strong></td><td>Ausschuss und Nebenkanal müssten nach Augenmass
+  geschätzt werden, wie auf Weg 2.</td></tr>
+</table>
+<p>Die Rohdatei wird <strong>unverändert</strong> gespeichert. Die Reinigung ist eine eigene,
+sichtbare, umstellbare Schicht darüber — drei Regeln, jede mit einem Grund:</p>
+<ul>
+<li><strong>Werte ab 60 000</strong> sind ein 16-Bit-Unterlauf und in Wahrheit negativ
+  (−2 bis −130 g): Leerband-Rauschen.</li>
+<li><strong>Werte unter 100 g</strong> sind kein Kürbis, sondern ein Bruchstück.</li>
+<li><strong>Direkt aufeinanderfolgende gleiche Werte</strong> sind ein Doppel-Trigger der
+  Maschine. Das ist die einzige Regel, die echte Kürbisse verwerfen <em>könnte</em>: Sie entfernt
+  12–28 % aller Zeilen. Der Beleg ist statistisch — bei unabhängigen Kürbissen wäre die
+  Wahrscheinlichkeit zweier gleicher Nachbarn unter 0.2 %, gemessen sind es 12–28 %, ohne
+  Grössenkorrelation und nur als Paare oder Dreier. Endgültig belegt ist sie erst, wenn einmal
+  eine Palette von Hand nachgezählt wird.</li>
+</ul>
+<p>Die App zeigt den Trichter offen an: <span class="mono">11 370 gelesen → −5 Overflow →
+−11 zu klein → −3 204 Dubletten → 8 161 Kürbisse</span>. Wer der Regel misstraut, kann sie
+umstellen und sieht sofort, was sich ändert.</p>
+<p>Die Zuordnung zum Arbeitsgang läuft über Charge und Zeit. Ist sie eindeutig, geschieht sie
+automatisch; ist sie es nicht, landet die Datei in einer <strong>Warteschlange</strong> und
+wartet auf eine Entscheidung. Sie wird nie geraten.</p>
+
+<h3>Ausschuss von Hand (Weg 2)</h3>
+<p>Auf der Hand-Linie gibt es keine Maschine, die wiegt. „Zu klein" und „zu gross" werden nach
+Augenmass aussortiert und in Kilo erfasst. Das ist die ungenaueste Messung im System, und sie
+wird auch so behandelt: Sie geht mit ihrer eigenen Streuung in den Unsicherheitsbereich ein.</p>
+
+<h3>Die fertige Palette — Überfüllung</h3>
+<table>
+<tr><td style="width:24mm"><strong>Was</strong></td><td>Bruttogewicht der gepackten Palette,
+  Kistenzahl, Kistenart</td></tr>
+<tr><td><strong>Absicht</strong></td><td>Die eine Zahl, die zählt:
+  <span class="mono">(Brutto − Taras) / Kisten</span> = wie viel Kürbis wirklich in einer Kiste
+  liegt. Alles über 8 kg ist verschenkte Ware.</td></tr>
+</table>
+<p>Der Arbeiter sieht das Ergebnis sofort, mit dem Zuschlag in Rot. Gespeichert werden die
+Rohwerte; gerechnet wird in der Datenbank — dieselbe Formel, ein Ort.</p>
+
+<h3>Die Lagerkontrolle — die wertvollste Messung im System</h3>
+<table>
+<tr><td style="width:24mm"><strong>Was</strong></td><td>Eine <em>zufällig gegriffene</em> Palette
+  im Lager: wiegen, aufmachen, nachsehen, wie viel faul ist.</td></tr>
+<tr><td><strong>Wer, wann</strong></td><td>Der Arbeiter, ohne laufende Arbeit — eigener Einstieg
+  auf dem Startbildschirm. Zwei Paletten im Monat genügen.</td></tr>
+<tr><td><strong>Absicht</strong></td><td>Sie ist die einzige Schimmelmessung, deren Palette
+  <strong>nicht danach ausgewählt wurde, wie sie aussieht.</strong></td></tr>
+</table>
+<p>Warum das so viel wert ist, gehört eigentlich in Teil 3, aber es ist zugleich der beste
+Grund, eine Messung überhaupt einzuführen, also hier in einem Satz: Wenn verarbeitet wird, was
+schlecht aussieht, werden anfällige Paletten früh gemessen und robuste spät — und der gemessene
+Verderbsverlauf wird flacher als der wahre. Alter und Anfälligkeit sind dann durch die
+Reihenfolge vermengt, und <em>keine Statistik trennt, was die Daten nicht trennen</em>. Nur eine
+Messung, deren Auswahl nicht am Zustand hängt, kann das aufdecken.</p>
+<div class="kasten">
+<div class="titel">Warum „davon faul" hier Pflicht ist und 0 eine echte Antwort</div>
+<p>Eine zufällig gegriffene Palette ohne Faules ist genauso eine Messung wie eine mit. Ein
+<em>leeres</em> Feld dagegen heisst „nicht nachgesehen". Der Unterschied zwischen „null Kilo
+faul" und „nicht nachgeschaut" ist der Unterschied zwischen einer Messung und keiner — deshalb
+ist das Feld hier Pflicht, während dasselbe Feld beim gewöhnlichen Wiegen freiwillig bleibt.</p>
+</div>
+
+<h3>Der Warenausgang — die Gegenprobe</h3>
+<table>
+<tr><td style="width:24mm"><strong>Was</strong></td><td>Datum, Sorte, und <em>entweder</em> Kilo
+  <em>oder</em> Kistenzahl. Dazu ein Ziel.</td></tr>
+<tr><td><strong>Absicht</strong></td><td>Erst mit dem Ausgang hört der Restbestand auf, eine
+  reine Projektion zu sein. Die Lücke in der Bilanz wird zur einzigen Zahl, die misst, was das
+  Modell <em>nicht</em> sieht.</td></tr>
+</table>
+<p>Bewusst genügsam: Palettengewichte am Ausgang kennt der Betrieb gar nicht, und für eine
+Rangfolge braucht es sie nicht. Was auf dem Lieferschein steht, genügt — danach wird ohnehin
+verrechnet. Kisten werden über das gemessene Kilo je Kiste umgerechnet, und die zusätzliche
+Unsicherheit steht je Zeile dabei, statt verschwiegen zu werden.</p>
+<p>Jede Lieferung hat ein <strong>Ziel</strong>, und das Ziel entscheidet über das Buch:
+Kompost ist echter Verlust, Tierfutter ein anderer Kanal, Hofladen ist Verkauf. Ohne diese
+Unterscheidung verschwindet Masse aus der Bilanz — und <em>fehlende Masse sieht in einer Bilanz
+immer aus wie Verlust</em>.</p>
+
+<h2>2.3 Prinzipien, die überall gelten</h2>
+<table>
+<tr><th style="width:40mm">Prinzip</th><th>Warum</th></tr>
+<tr><td><strong>Leer ≠ 0</strong></td><td>Eine fehlende Messung ist NULL oder gar keine Zeile,
+  niemals eine Null. Eine Null ist eine Aussage über die Welt; eine Lücke ist keine. Wer beides
+  verwechselt, rechnet mit erfundenen Nullen.</td></tr>
+<tr><td><strong>Rohdaten sind unveränderlich</strong></td><td>Die CSV wird gespeichert, wie sie
+  kam. Reinigung und Klassierung sind reproduzierbar und jederzeit neu ausführbar. Wer die
+  Kaliber-Grenzen ändert, kann alle Läufe neu klassieren, ohne etwas zu verlieren.</td></tr>
+<tr><td><strong>Die Zeit kommt vom Server</strong></td><td>Ein Handy in der Halle ist keine
+  verlässliche Uhr, und an der Startzeit hängt die Zuordnung der Sortier-CSVs.</td></tr>
+<tr><td><strong>Abbrechen statt löschen</strong></td><td>Eine falsch eröffnete Arbeit wird
+  abgebrochen: Die Zeilen bleiben als Spur stehen, zählen aber in keiner Auswertung mehr mit.
+  Endgültig löschen kann nur der Betriebsleiter — und dann werden auch die Palettenwägungen
+  mit weggeräumt, die sonst verwaist zurückblieben und weiter in die Verdunstungsrate
+  zählten.</td></tr>
+<tr><td><strong>Pflicht ist, was ein Tipp ist</strong></td><td>Palettenzahl: Pflicht. Wiegen:
+  freiwillig. Eine Messung, die im Arbeitsablauf nicht vorkommt, findet nicht statt — und dann
+  rechnet das Werkzeug elegant mit nichts.</td></tr>
+<tr><td><strong>Jede Zeile trägt, wer und wann</strong></td><td>Nicht zur Kontrolle von
+  Personen, sondern weil eine Messreihe ohne Herkunft nicht prüfbar ist.</td></tr>
+</table>
+
+<h2>2.4 Was ich bewusst <em>nicht</em> erfasse</h2>
+<ul>
+<li><strong>Palettengewichte am Warenausgang.</strong> Kennt der Betrieb nicht, und für eine
+  Rangfolge braucht es sie nicht.</li>
+<li><strong>Welche konkrete Palette gewogen wurde.</strong> Eine Auswahlliste über hunderte
+  gleich schwere Paletten wäre unbedienbar. Zettel abtippen genügt.</li>
+<li><strong>Einzelne Kürbisse ausserhalb der CSV.</strong> Was die Maschine nicht wiegt, wird
+  in Kilo erfasst, nicht in Stück.</li>
+<li><strong>Ein Verweis vom Waschgang auf den konkreten Sortierlauf.</strong> Er wäre statistisch
+  wertvoll, kostet aber ein Feld mehr am Waschbecken. Der Verzicht kostet in der Simulation rund
+  2 % beim Schimmel — genug, um es zu nennen, zu wenig, um es dem Arbeiter zuzumuten.</li>
+</ul>
+
+<h2>2.5 Wo der Aufwand am meisten bringt</h2>
+<p>Das ist nicht Meinung, sondern gemessen. In der Simulation wurde jede Messart einzeln
+variiert und beobachtet, was mit Verzerrung und Bereichsbreite passiert.</p>
+<table>
+<tr><th>Wenn Du eine Sache mehr machst</th><th>bringt es</th></tr>
+<tr><td><strong>Zwei Lagerkontrollen im Monat</strong></td><td>Die einzige Massnahme gegen die
+  Selektionsverzerrung. Ohne sie steht eine womöglich um 9 % zu hohe Schimmelzahl da, mit engem
+  Bereich und ohne Warnung — der schlechtere Zustand.</td></tr>
+<tr><td><strong>Ein Dutzend Palettenwägungen über die Saison</strong></td><td>Das Minimum, unter
+  dem die Verdunstung — der grösste Posten — nichts mehr taugt. Mit vier Wägungen wird ihr
+  Bereich 82 % breit.</td></tr>
+<tr><td><strong>Wägungen über <em>verschiedene</em> Chargen streuen</strong></td><td>Mehr als
+  ihre Anzahl zu erhöhen. Der Fehler wird chargen-robust gerechnet: 36 Messungen aus
+  <em>einer</em> Charge sind statistisch fast eine Messung.</td></tr>
+<tr><td><strong>Warenausgang erfassen</strong></td><td>Macht aus einer Projektion eine prüfbare
+  Bilanz. Ohne ihn gibt es keine unabhängige Kontrolle des Gesamtergebnisses.</td></tr>
+<tr><td class="leise">Noch mehr Palettenwägungen</td><td class="leise">Macht die Verdunstung
+  genauer, ändert aber nichts an der Reihenfolge von Platz 2 und 3.</td></tr>
+</table>
+</div>
+
+<div class="teil">
+<div class="teil-nr">Teil 3</div>
+<h1>Die Mathematik</h1>
+<p class="teil-vor">Wie aus einer Handvoll Stichproben ein Gesamtbild wird — und wie ich
+verhindere, dass dabei eine Zahl entsteht, die sicherer aussieht, als sie ist. Jeder Schritt
+hier ist eine Entscheidung, die auch anders hätte fallen können; ich schreibe jeweils dazu,
+warum sie so gefallen ist.</p>
+
+<h2>3.1 Die Grundgleichung</h2>
+<p>Alles im Werkzeug ist eine Anwendung derselben Form:</p>
+<div class="formel">Verlust = Koeffizient × bekannte Grösse</div>
+<p>Der Koeffizient kommt aus einer Stichprobe, die bekannte Grösse aus dem Rückgrat. Damit
+zerfällt das Problem in zwei getrennte Teilaufgaben: <em>den Koeffizienten gut schätzen</em>
+(Statistik) und <em>ihn richtig anwenden</em> (Buchhaltung). Beide sind für sich prüfbar.</p>
+<p>Der Preis dieser Aufteilung: Der Koeffizient muss für die ganze Menge gelten, auf die er
+angewandt wird. Deshalb wird nach Sorte stratifiziert (Sorten unterscheiden sich real), nicht
+aber nach Schlag (der ist in der Charge verschachtelt und steckt bereits im Fehler).</p>
+
+<h2>3.2 Die Massenkaskade</h2>
+<p>Die Ströme greifen nacheinander auf dieselbe Masse zu, und zwar in der Reihenfolge, in der
+sie physisch passieren. Das ist keine Formalität: Wer Ausschuss auf die Eingangsmasse bezieht
+statt auf die Masse, die nach Verdunstung und Schimmel <em>übrig</em> ist, rechnet ihn zu gross.</p>
+<div class="formel">m₀  Eingangsmasse (netto, ab Zettel)
+m₁ = m₀·(1−r)^t              <span class="k">nach Verdunstung</span>
+V  = m₀ − m₁                 <span class="k">Verdunstung</span>
+S  = m₁·f(t)                 <span class="k">Schimmel</span>
+m₂ = m₁ − S = m₁·(1−f)       <span class="k">was ans Band kommt</span>
+K  = m₂·a                    <span class="k">Ausschuss zu klein</span>
+N  = m₂·n                    <span class="k">Nebenkanal (kein Verlust)</span>
+verkaufsfähig = m₂ − K − N</div>
+<p>Für Ware, die noch im Lager liegt, wird bis zum Stichtag der Saison projiziert. Der Teil, der
+bereits verarbeitet ist, wird bis zum Verarbeitungstag gerechnet. Beide werden im Dashboard
+<strong>getrennt ausgewiesen</strong> — „beobachtet" gegen „projiziert" —, weil der Unterschied
+zwischen „das haben wir gesehen" und „das rechnen wir hoch" nicht verschwinden darf.</p>
+
+<h2>3.3 Verdunstung: warum multiplikativ</h2>
+<div class="formel">netto(t) = netto₀ · (1 − r)^t        <span class="k">r = Tagesrate, t = Lagertage</span></div>
+<p>Die naheliegende Alternative wäre linear: <span class="mono">netto₀ − r·t</span>. Zwei Gründe
+dagegen. Erstens die Physik: Verdunstung entweicht aus dem, was noch da ist — ein Kürbis, der
+schon 10 % verloren hat, verliert am nächsten Tag 10 % weniger absolut. Ein konstanter
+<em>Anteil</em> je Tag ist das natürliche Modell erster Ordnung. Zweitens die Grenze: Linear
+wird die Masse nach genügend Tagen negativ. Über sieben Monate Lagerung ist das kein
+theoretisches Problem.</p>
+<p>Geschätzt wird <em>r</em> aus Palettenwägungen: aus jedem Paar (Gewicht damals, Gewicht jetzt)
+bei bekannter Lagerdauer folgt eine Tagesrate. Gemittelt wird <strong>massegewichtet</strong> —
+eine 900-kg-Palette sagt mehr über die Rate als eine 400-kg-Palette.</p>
+<div class="kasten warn">
+<div class="titel">Bekannte Grenze, nicht behoben</div>
+<p>Real ist der Wasserverlust am Anfang höher als später. Das Modell nimmt eine über die Saison
+konstante Tagesrate an. Der Grund ist keine Bequemlichkeit, sondern Datenmangel: Jede Wägung
+liefert <em>einen</em> Punkt zu <em>einem</em> Zeitpunkt. Mit einer Handvoll solcher Punkte lässt
+sich kein zeitlicher Verlauf der Rate schätzen — dazu bräuchte es dieselbe Palette mehrfach
+gewogen. Solange das nicht geschieht, wird früher Verlust unterschätzt und später
+überschätzt.</p>
+</div>
+
+<h2>3.4 Schimmel: ein Verderbsmodell statt einer Tabelle</h2>
+<p>Hier lag der grösste Fehler, den das Modell je hatte, und er ist lehrreich genug, um ihn
+auszuschreiben.</p>
+<p>Ursprünglich war der Schimmelanteil eine <strong>Treppenfunktion</strong>: Für Lagerdauern
+mit Messungen der gemessene Wert, für Lagerdauern ohne Messung der letzte bekannte Wert
+fortgeschrieben. Das klingt vorsichtig und ist katastrophal. Denn genau dort, wo keine Messungen
+sind — bei langen Lagerdauern —, liegt mitten in der Saison die <em>Masse</em>.</p>
+<table>
+<tr><th class="z">Lagertage</th><th class="z">Wahrheit</th><th class="z">Treppenfunktion</th>
+  <th class="z">Modell heute</th></tr>
+<tr><td class="z">30</td><td class="z">0.25 %</td><td class="z">0.23 %</td><td class="z">0.25 %</td></tr>
+<tr><td class="z">90</td><td class="z">1.42 %</td><td class="z">1.19 %</td><td class="z">1.52 %</td></tr>
+<tr><td class="z">150</td><td class="z">3.19 %</td><td class="z"><strong>2.03 %</strong></td><td class="z">3.48 %</td></tr>
+<tr><td class="z">210</td><td class="z">5.41 %</td><td class="z"><strong>2.03 %</strong></td><td class="z">5.97 %</td></tr>
+</table>
+<p>Ab 120 Tagen lief die Treppe flach — und dort standen 341.8 t Lagerbestand mit 167–201 Tagen
+Alter, jenseits der längsten je gemessenen Lagerdauer von 113 Tagen. <em>Die halbe Ernte bekam
+den Schimmelanteil kurz gelagerter Ware.</em> Flach fortschreiben war keine Projektion, sondern
+eine Weigerung, zu projizieren.</p>
+<p>An seine Stelle trat ein parametrisches Verderbsmodell in Weibull-Form:</p>
+<div class="formel">F(t) = 1 − exp(−λ · t^k)     <span class="k">Anteil verdorbener Masse nach t Tagen</span></div>
+<p>Warum diese Form? Sie hat genau die Eigenschaften, die ein Verderbsprozess braucht: Sie
+startet bei 0, steigt monoton, nähert sich 1 und wird nie grösser. Der Parameter <em>k</em>
+sagt, ob die Verderbrate mit der Zeit <strong>steigt</strong> (k &gt; 1, was zu erwarten ist:
+angegriffene Kürbisse stecken Nachbarn an, Zellwände werden schwächer) oder konstant bleibt
+(k = 1). Und sie hat nur zwei Parameter — bei einer Handvoll Chargen ist alles Komplexere
+Selbstbetrug.</p>
+<div class="kasten">
+<div class="titel">Warum nicht Kaplan-Meier oder Turnbull?</div>
+<p>Beide Verfahren sind der Standard für zensierte Verlaufsdaten, und beide brauchen den
+Zeitpunkt, zu dem eine <em>einzelne Einheit</em> ausfällt. Erfasst wird hier aber ein
+<em>Massenanteil je Arbeit</em> — intervallzensierte aggregierte Mengen ohne Einzelverläufe.
+Eine parametrische Anpassung an genau diese Anteile nutzt die vorhandene Information
+vollständig; eine Survival-Schätzung hätte schlicht keine Datengrundlage.</p>
+</div>
+
+<h2>3.5 Wie die Kurve angepasst wird</h2>
+<p>Die Weibull-Form lässt sich zweimal logarithmieren und wird dadurch linear:</p>
+<div class="formel">F = 1 − exp(−λ·t^k)
+⟺   ln(−ln(1 − F)) = ln λ + k · ln t
+       └── y ──┘     └a┘   └k┘ └x┘</div>
+<p>Damit wird aus der Anpassung einer Kurve eine <strong>gewichtete lineare Regression</strong> —
+in reinem SQL rechenbar, in Millisekunden, und für den Betriebsleiter Zeile für Zeile
+nachlesbar. Das ist kein Schönheitsargument: Das ganze Werkzeug soll widersprechbar sein, und
+eine Formel, die man lesen kann, ist widersprechbar.</p>
+<p>Gewichtet wird mit der <strong>Masse hinter jeder Messung</strong>. Ein Schimmelwert aus einer
+Arbeit über 20 t wiegt mehr als einer aus einer Arbeit über 800 kg — er ist schlicht präziser.</p>
+<h4>Der Rücktransformations-Fehler und Duans Smearing</h4>
+<p>Eine Regression im Logarithmus schätzt den Mittelwert <em>der Logarithmen</em>. Zurücktransformiert
+mit <span class="mono">exp()</span> ergibt das den Median, nicht den Mittelwert — und weil die
+Exponentialfunktion konvex ist, liegt der systematisch <strong>zu tief</strong>. Bei
+schiefverteilten Grössen wie Schimmelanteilen ist das kein Randeffekt.</p>
+<p>Korrigiert wird mit <strong>Duans Smearing-Faktor</strong>: dem Mittelwert der
+exponierten Residuen. Er wird an denselben Daten geschätzt, mit denen die Kurve angepasst wurde,
+und multiplikativ angewandt. Im Dashboard steht er sichtbar dabei (<span class="mono">×1.0xx</span>)
+— eine Korrektur, die man nicht sieht, ist eine Korrektur, der man nicht widersprechen kann.</p>
+
+<h2>3.6 Der zweite Lagerabschnitt: bedingte Überlebensrate</h2>
+<p>Beim Waschen wird nochmals Faules aussortiert. Das ist nicht dieselbe Messung wie beim
+Sortieren, sondern eine <em>zusätzliche</em>: Diese Ware hat den ersten Abschnitt bereits
+überlebt.</p>
+<p>Ich habe hier zwei Abzweigungen gebaut und beide wieder entfernt, weil die Messung sie
+widerlegte:</p>
+<table>
+<tr><th>Ansatz</th><th class="z">Verzerrung</th><th>Warum falsch</th></tr>
+<tr><td>Palox am Waschbecken als Gesamtwert lesen</td><td class="z">−16.4 %</td><td>Er enthält
+  nur, was <em>seit</em> dem Sortieren dazukam</td></tr>
+<tr><td>Über Kilo ergänzen</td><td class="z">+15.3 %</td><td>Der Durchsatz am Waschbecken ist
+  schon um Verdunstung, Schimmel und Ausschuss vermindert — er taugt nicht als
+  Bezugsmasse</td></tr>
+<tr><td><strong>Bedingte Überlebensrate</strong></td><td class="z"><strong>+2.1 %</strong></td>
+  <td>rechnet auf der richtigen Grundgesamtheit</td></tr>
+</table>
+<div class="formel">1 − F(t₂) = (1 − F(t₁)) · (1 − g)      mit  g = S₂ / (Durchsatz + S₂)</div>
+<p>In Worten: Der Anteil, der bis zum Waschtag <em>überlebt</em> hat, ist das Produkt aus
+„hat den ersten Abschnitt überlebt" und „hat den zweiten überlebt". Und <em>g</em> — der
+Verderbsanteil des zweiten Abschnitts — bezieht sich richtigerweise auf das, was am
+Waschbecken ankam plus dem, was dort aussortiert wurde. Damit steht Schimmel #2 als Punkt bei
+einer deutlich längeren Lagerdauer in der Kurve. Genau diese Punkte fehlten dem Modell am
+rechten Rand, wo es am unsichersten ist.</p>
+<p>Für die Lagerdauer erbt ein Waschgang das massegewichtete Eingangsdatum der Sortierläufe
+derselben Charge davor — denn beim Waschen gibt es keine Paletten mehr zu zählen. Unter
+gedächtnisloser Entnahme (Abschnitt 1.9) ist der Mittelwert über <em>alle</em> vorherigen
+Sortierläufe der theoretisch richtige Erwartungswert. Nachgemessen: In allen Simulationsbahnen
+ohne Selektion liegt der Schimmel damit innerhalb von ±2.4 % bei 90–100 % Überdeckung.</p>
+
+<h2>3.7 Ausschuss und Nebenkanal: direkt abgelesen</h2>
+<p>Diese beiden brauchen kein Modell. Die Sortiermaschine wiegt jeden Kürbis; der Anteil unter
+der Sorten-Verlustgrenze und der Anteil über 2000 g stehen direkt in der Gewichtsverteilung.
+Die Unsicherheit kommt allein aus der Frage, wie repräsentativ die sortierten Läufe für die
+ganze Charge sind — nicht aus der Messung selbst.</p>
+<p>Auf Weg 2 gibt es keine Maschine. Dort wird nach Augenmass sortiert und in Kilo erfasst, mit
+entsprechend breiterem Bereich.</p>
+
+<h2>3.8 Die Bündelung: wenn eine Sorte zu wenige eigene Messungen hat</h2>
+<p>Für Tiana gibt es 36 Messungen, für eine andere Sorte zwei. Nimmt man für beide den eigenen
+Wert, ist der zweite Zufall. Nimmt man für beide den Gesamtwert, verschenkt man beim ersten
+Information.</p>
+<p>Die frühere Lösung war eine harte Schwelle: „eigene Sorte ab n ≥ 3, sonst global". Sie
+sprang — bei n = 2 galt der globale Wert voll, bei n = 3 der eigene voll. Ein Sprung an einer
+willkürlichen Stelle.</p>
+<p>An ihre Stelle trat <strong>empirisches Bayes</strong> — eine gleitende Mischung:</p>
+<div class="formel">Koeffizient = B · eigener Wert + (1 − B) · Gesamtwert
+
+               τ²                τ²  = Streuung ZWISCHEN den Sorten
+B  =  ───────────────────        σ²  = Messfehler DIESER Sorte
+         τ²  +  σ²</div>
+<p>Die Logik ist zwingend, sobald man sie einmal sieht: Ist der eigene Wert präzise (σ² klein),
+geht B gegen 1 und der eigene Wert zählt. Ist er unpräzise (σ² gross), geht B gegen 0 und der
+Gesamtwert trägt. Und unterscheiden sich die Sorten real kaum (τ² klein), zählt der Gesamtwert
+auch dann, wenn eigene Messungen da wären — zu Recht. Kein Sprung, keine willkürliche Grenze.</p>
+<div class="kasten warn">
+<div class="titel">Ein Fehler, den erst die Simulation gefunden hat</div>
+<p>Beim Umbau fielen Sorten <em>ohne jede</em> Messung aus der Schätzung heraus und bekamen den
+Koeffizienten <strong>0</strong> — also „kein Verlust". In der Simulation verschluckte das
+37 % der gesamten Verdunstung. Heute bekommt jede Sorte des Stammdatensatzes eine Zeile, und
+eine Prüfung im Testlauf hält das fest. Das ist genau die Sorte Fehler, die im Betrieb nie
+auffällt: Die Zahl sieht plausibel aus, sie ist nur zu klein.</p>
+</div>
+
+<h2>3.9 Die Unsicherheit: warum √n hier lügt</h2>
+<p>Der Standardfehler wurde ursprünglich als <span class="mono">sd/√n</span> gerechnet, mit n =
+Zahl der Messungen. Das setzt voraus, dass die Messungen <em>unabhängig</em> sind. Sind sie
+nicht: Zwanzig Wägungen aus derselben Charge stammen vom selben Feld, derselben Sorte, derselben
+Erntewoche, demselben Lagerplatz. Sie sagen fast dasselbe.</p>
+<table>
+<tr><th></th><th class="z">naiv (√n)</th><th class="z">chargen-robust</th><th class="z">Faktor</th></tr>
+<tr><td>Standardfehler der Steigung k</td><td class="z">0.0016</td><td class="z">0.0509</td>
+  <td class="z"><strong>31×</strong></td></tr>
+<tr><td>Standardfehler der Achse</td><td class="z">0.0202</td><td class="z">0.0241</td>
+  <td class="z">1.2×</td></tr>
+</table>
+<p>Ein Faktor 31 — und zwar ausgerechnet bei der <em>Steigung</em>, also bei dem Parameter, der
+bestimmt, was jenseits des gemessenen Bereichs passiert. Bei den Sorten-Koeffizienten war es
+ebenso krass: Für Tiana kamen 36 Messungen aus <strong>einer</strong> Charge. Mit n = 36 ergab
+sich ein Bereich von 0.8 % Breite. Aus einer einzigen Charge lässt sich die Streuung
+<em>zwischen</em> Chargen aber überhaupt nicht schätzen.</p>
+<p>Gerechnet wird deshalb mit einem <strong>chargen-robusten Sandwich-Schätzer</strong>: Die
+gewichteten Residuen werden je Charge aufsummiert, und die Streuung <em>dieser Summen</em> ist
+der Fehler. Damit zählen effektiv die Chargen, nicht die Messungen.</p>
+<p>Und statt des Normalquantils 1.96 wird die <strong>t-Verteilung mit C−1 Freiheitsgraden</strong>
+verwendet (C = Zahl der Chargen). Bei zwölf Gruppen ist die Normalverteilung eine Behauptung,
+keine Näherung — der Unterschied zwischen 1.96 und 2.20 ist genau die Ehrlichkeit, um die es
+geht.</p>
+
+<h2>3.10 Fehlerfortpflanzung durch die Kaskade</h2>
+<p>Wie kommt aus der Unsicherheit der Koeffizienten die Unsicherheit der Ergebnisse?</p>
+<p>Der frühere Ansatz waren drei Szenarien: „unten", „mittel", „oben", indem alle Koeffizienten
+gleichzeitig an ihre Grenzen gesetzt wurden. Das ist kein Konfidenzintervall, und für Ströme
+weiter unten in der Kaskade stimmte nicht einmal die <em>Richtung</em>: Weniger Verdunstung und
+weniger Schimmel heisst <strong>mehr</strong> Masse, die überhaupt bis ans Sortierband kommt —
+also <em>mehr</em> Ausschuss, nicht weniger.</p>
+<table>
+<tr><th>Ausschuss zu klein</th><th class="z">Bereichsbreite</th><th class="z">Überdeckung</th></tr>
+<tr><td>drei Szenarien</td><td class="z"><strong>−2.3 %</strong></td><td class="z">0 %</td></tr>
+<tr><td>Fehlerfortpflanzung (heute)</td><td class="z">+5.3 %</td><td class="z">100 %</td></tr>
+</table>
+<p>Eine <em>negative</em> Bereichsbreite: die Untergrenze lag über der Obergrenze. Deutlicher
+kann ein Verfahren sich nicht selbst widerlegen.</p>
+<p>Heute wird analytisch fortgepflanzt. Für jeden Strom werden die Ableitungen nach jedem
+Koeffizienten mitgeführt:</p>
+<div class="formel">D := ∂m₁/∂r = −m₀·t·(1−r)^(t−1)
+
+∂V/∂r = −D
+∂S/∂r = D·f            ∂S/∂f = m₁
+∂K/∂r = D·(1−f)·a      ∂K/∂f = −m₁·a      ∂K/∂a = m₂</div>
+<p>Damit wandert der Fehler von <em>r</em> automatisch in Schimmel und Ausschuss weiter — die
+Korrelation zwischen den Strömen entsteht von selbst, statt behauptet zu werden.</p>
+<p>Zusammengesetzt wird nach der tatsächlichen Korrelationsstruktur: Der Schimmelkoeffizient
+stammt aus <em>einem</em> Modell für alle Chargen, also werden erst die Ableitungen summiert und
+dann einmal mit der 2×2-Kovarianzmatrix von (ln λ, k) multipliziert. Die Sorten-Koeffizienten
+gehen mit ihrem eigenen Anteil quadratisch und mit dem gemeinsamen Gesamtwert linear ein.</p>
+<p>Nebeneffekt, der die Entscheidung mitgetragen hat: Ohne die Szenario-Dimension hat die
+gespeicherte Kaskade nur noch ein Drittel der Zeilen. Das Neuberechnen fiel von 827 ms auf
+226 ms — und Supabase bricht Abfragen nach 8 Sekunden ab.</p>
+
+<h2>3.11 Die Selektionsverzerrung: das eine ungelöste Problem</h2>
+<p>Wenn verarbeitet wird, was schlecht aussieht, werden anfällige Paletten früh gemessen und
+robuste spät. In der Simulation, mitten in der Saison:</p>
+<table>
+<tr><th></th><th class="z">mittlere Anfälligkeit</th></tr>
+<tr><td>verarbeitete Paletten</td><td class="z"><strong>1.52</strong></td></tr>
+<tr><td>noch im Lager stehende</td><td class="z"><strong>0.80</strong></td></tr>
+</table>
+<p>Fast Faktor zwei. Das Modell lernt an der einen Hälfte und rechnet damit die andere hoch.</p>
+<p>Ich habe versucht, das herauszurechnen, und es hat nicht funktioniert:</p>
+<table>
+<tr><th></th><th class="z">Verzerrung Schimmel</th></tr>
+<tr><td>ohne Lagerkontrollen, ohne Korrektur</td><td class="z">+13.3 %</td></tr>
+<tr><td>mit Lagerkontrollen, ohne Korrektur</td><td class="z">+14.3 %</td></tr>
+<tr><td>mit Lagerkontrollen <strong>und</strong> Niveau-Korrektur</td><td class="z">−15.2 %</td></tr>
+</table>
+<p>Der Versatz dreht das Vorzeichen, ohne den Betrag zu verkleinern. Der Grund ist lehrreich:
+<strong>Die Selektion verbiegt nicht die Höhe der Kurve, sondern ihre Steigung.</strong> Die
+angepasste Steigung k fiel von wahren 1.6 auf 1.14. Einen falschen Anstieg repariert kein
+Niveau-Versatz. Die Korrektur wurde wieder entfernt.</p>
+<p>Auch der naheliegende Gedanke, Lagerkontrollen stärker zu gewichten, trägt nicht: Die
+Anpassung gewichtet mit der Masse hinter jeder Messung, und eine Lagerkontrolle steht für
+800 kg gegen 20 t je Verarbeitungsauftrag. Zwei Dutzend Kontrollen sind unter einem Prozent des
+Gewichts.</p>
+<div class="kasten">
+<div class="titel">Was stattdessen geschieht</div>
+<p>Der gemessene Unterschied zwischen beiden Quellen — Verarbeitung gegen zufällig gegriffene
+Lagerpaletten — geht in den <strong>Bereich</strong> ein, nicht in den Wert. Bereinigt um sein
+eigenes Rauschen, damit er nur feuert, wenn er belegt ist.</p>
+<table style="margin-bottom:0">
+<tr><th>Lage</th><th class="z">Verzerrung</th><th class="z">Bereichsbreite</th>
+  <th class="z">Überdeckung</th></tr>
+<tr><td>mit Selektion, 24 Kontrollen</td><td class="z">+13.7 %</td><td class="z">98 %</td>
+  <td class="z"><strong>100 %</strong></td></tr>
+<tr><td>ohne Selektion, 24 Kontrollen</td><td class="z">+3.9 %</td><td class="z">23 %</td>
+  <td class="z">90 %</td></tr>
+</table>
+</div>
+<p>Damit ist die Rolle der Lagerkontrollen eine andere, als sie zunächst gedacht war:
+<strong>Sie reparieren die Zahl nicht — sie decken auf, dass man ihr nicht trauen darf.</strong>
+Ohne sie steht dieselbe falsche Zahl da, nur mit engem Bereich und ohne Warnung. Das ist der
+schlechtere Zustand.</p>
+
+<h2>3.12 Die Gegenproben</h2>
+<p>Zwei unabhängige Kontrollen, und ich bin genau darüber, was jede kann und was nicht.</p>
+<h4>Die Massenbilanz gegen die Sortier-CSV</h4>
+<p>Das Modell sagt voraus, wie viel Masse am Sortierband ankommen müsste; die CSV hat sie
+gewogen. Was das zeigt: ob die Koeffizienten die Masse treffen, die tatsächlich über das Band
+lief. Was es <strong>nicht</strong> zeigt: ob die Verluste stimmen — die CSV wiegt, was
+<em>ankommt</em>, nicht was verschwand. Und nichts über Chargen ohne CSV.</p>
+<h4>Die Saisonbilanz</h4>
+<div class="formel">Eingang  =  Verlust  +  Ausgang  +  Restbestand  +  Lücke</div>
+<p>Die Lücke ist die einzige Zahl im ganzen Werkzeug, die misst, was das Modell <em>nicht sieht</em>.
+Sie ist deshalb keine Fehlermeldung, sondern die wertvollste Zahl der Bilanz: nicht erfasste
+Abgänge, Erde, im Feld Aussortiertes, systematische Unterschätzung — alles landet dort. Eine
+kleine Lücke ist ein starkes Argument dafür, dass das Bild stimmt.</p>
+
+<h2>3.13 Woher ich weiss, dass es stimmt</h2>
+<p>Ein Modell an den eigenen Daten zu prüfen, beweist nichts — es ist an ihnen angepasst worden.
+Deshalb gibt es einen <strong>Simulations-Prüfstand</strong>: Er erzeugt ganze Saisons, deren
+wahre Koeffizienten ich selbst gesetzt habe. Paletten unterscheiden sich in ihrer Anfälligkeit,
+die Verarbeitungsreihenfolge kann am Zustand hängen, die Entnahme ist gedächtnislos. Das Modell
+sieht davon nur, was ein Arbeiter erfasst hätte.</p>
+<p>Zwei Grössen werden gemessen:</p>
+<ul>
+<li><strong>Verzerrung</strong> — liegt die Schätzung systematisch daneben?</li>
+<li><strong>Überdeckung</strong> — enthält der ausgewiesene 95-%-Bereich den wahren Wert
+  tatsächlich in 95 % der Saisons? Das ist der schärfere Test: Ein Bereich, der 95 % heisst und
+  in 8 % der Fälle trifft, ist schlimmer als gar kein Bereich.</li>
+</ul>
+<p class="tab-titel">Stand nach der letzten Runde, 20 Saisons je Bahn</p>
+<table>
+<tr><th>Lage</th><th>Strom</th><th class="z">Verzerrung</th><th class="z">Überdeckung</th></tr>
+<tr><td>Saisonende, 25 % im Lager</td><td>Schimmel</td><td class="z">−2.4 %</td><td class="z">90 %</td></tr>
+<tr><td>Mitten in der Saison, 50 %</td><td>Schimmel</td><td class="z">−0.8 %</td><td class="z">95 %</td></tr>
+<tr><td>Saisonende, Schlechtes zuerst</td><td>Schimmel</td><td class="z">−1.9 %</td><td class="z">100 %</td></tr>
+<tr><td><strong>Mitten, Schlechtes zuerst</strong></td><td>Schimmel</td><td class="z"><strong>+8.8 %</strong></td><td class="z">95 %</td></tr>
+<tr><td>… mit 24 Lagerkontrollen</td><td>Schimmel</td><td class="z">+8.8 %</td><td class="z">100 %</td></tr>
+<tr><td>Nur 4 Palettenwägungen</td><td>Verdunstung</td><td class="z">−1.3 %</td><td class="z">95 %</td></tr>
+</table>
+<p>Zum Vergleich der Ausgangszustand, mit dem die Überprüfung begann: mitten in der Saison
+<strong>−46.3 % Verzerrung bei 0 % Überdeckung</strong>. Der Bereich enthielt den wahren Wert in
+<em>keiner einzigen</em> von 25 Saisons.</p>
+<h4>Die eigentliche Frage: bricht die Rangfolge?</h4>
+<p>Das Ziel ist Rangieren, nicht Bilanzieren. Also wird genau das gemessen:</p>
+<table>
+<tr><th>Lage</th><th class="z">Hauptursache getroffen</th><th class="z">Rangfolge ganz richtig</th></tr>
+<tr><td>Mitten in der Saison, 12 Wägungen</td><td class="z">100 %</td><td class="z">100 %</td></tr>
+<tr><td>Dieselbe Lage, nur 2 Wägungen</td><td class="z">100 %</td><td class="z">100 %</td></tr>
+<tr><td><strong>Mitten, zufällige Reihenfolge</strong></td><td class="z">100 %</td><td class="z"><strong>76 %</strong></td></tr>
+</table>
+<p>Die letzte Zeile ist der ehrliche Teil. Dort liegen Schimmel und Ausschuss <strong>3 %
+auseinander</strong>, und in einem Viertel der Saisons vertauscht die Auswertung sie. Das ist
+kein Modellfehler — zwei Grössen mit 3 % Unterschied lassen sich mit dieser Datengrundlage nicht
+trennen. Entscheidend ist, ob die Auswertung das <em>zeigt</em>:</p>
+<table>
+<tr><th></th><th class="z">Läufe</th></tr>
+<tr><td>Rangfolge vertauscht</td><td class="z">6</td></tr>
+<tr><td>Bereiche überlappen sich</td><td class="z">25</td></tr>
+<tr><td><strong>vertauscht <em>und</em> Bereiche überlappen</strong></td><td class="z"><strong>6 von 6</strong></td></tr>
+</table>
+<p>Es gab keinen einzigen Fall, in dem zwei Ströme vertauscht wurden, ohne dass die Bereiche es
+angezeigt hätten. Deshalb schreibt das Dashboard ausdrücklich hin, wenn zwei benachbarte Ströme
+nicht auseinanderzuhalten sind — wer nur auf die Balkenlänge schaut, liest sonst einen
+Unterschied, den es nicht gibt.</p>
+
+<h2>3.14 Was ich gebaut und wieder verworfen habe</h2>
+<p>Drei Ansätze, die plausibel klangen und an der Messung scheiterten. Sie stehen hier, weil ein
+Modell auch daran zu beurteilen ist, was es <em>nicht</em> tut.</p>
+<table>
+<tr><th style="width:44mm">Ansatz</th><th>Warum verworfen</th></tr>
+<tr><td><strong>FIFO-Zuordnung</strong><br><span class="klein leise">Waschgänge den Sortierläufen
+  nach „zuerst sortiert, zuerst gewaschen" zuordnen</span></td><td>Klingt richtiger und ist es
+  vermutlich auch — hat aber dort, wo es helfen sollte, nichts gebracht und anderswo geschadet
+  (Saisonende: +2.2 % → +7.5 %, Überdeckung 100 % → 50 %). <em>Eine Verbesserung, die man nicht
+  messen kann, ist keine.</em> Später bestätigte der Betrieb ohnehin: es gibt kein
+  FIFO.</td></tr>
+<tr><td><strong>Niveau-Korrektur der Selektion</strong></td><td>Dreht das Vorzeichen der
+  Verzerrung, ohne den Betrag zu verkleinern (+13.3 % → −15.2 %). Die Selektion verbiegt die
+  Steigung, nicht die Höhe.</td></tr>
+<tr><td><strong>Palox am Waschbecken über Kilo ergänzen</strong></td><td>+15.3 % Verzerrung. Der
+  Durchsatz dort ist bereits vermindert und taugt nicht als Bezugsmasse.</td></tr>
+</table>
+
+<h2>3.15 Ehrliche Grenzen</h2>
+<table>
+<tr><th style="width:56mm">Grösse</th><th>Status</th></tr>
+<tr><td>Verdunstung, Ausschuss, Nebenkanal</td><td>belastbar — die Bereiche halten, was sie
+  versprechen</td></tr>
+<tr><td>Schimmel bei zufälliger Verarbeitungsreihenfolge</td><td>belastbar</td></tr>
+<tr><td><strong>Schimmel, wenn nach Aussehen ausgewählt wird</strong></td><td><strong>rund 9 %
+  zu hoch. Mit Lagerkontrollen sagt es der Bereich; ohne sie merkt es niemand.</strong></td></tr>
+<tr><td>Verdunstung mit weniger als ~10 Wägungen</td><td>Bereich über 80 % breit, Überdeckung
+  fällt unter 90 %</td></tr>
+<tr><td>Zeitlicher Verlauf der Verdunstungsrate</td><td>nicht schätzbar; angenommen wird eine
+  konstante Tagesrate</td></tr>
+<tr><td>Restbestand im Lager</td><td>Projektion, kein Inventar — niemand hat nachgezählt</td></tr>
+<tr><td>Massenbilanz gegen die CSV</td><td>prüft die Koeffizienten am Tag des Sortierens, nicht
+  die Verluste</td></tr>
+<tr><td>Zuordnung Waschgang → Sortierlauf</td><td>über Charge und Reihenfolge geschlossen, nicht
+  erfasst</td></tr>
+<tr><td>Dubletten-Regel</td><td>unbelegt, bis einmal eine Palette von Hand nachgezählt wird</td></tr>
+<tr><td><strong>Ein Arbeitsgang = eine Charge</strong></td><td><strong>unbestätigt. Wird beim
+  Waschen gemischt, sitzen die Kurvenpunkte am falschen Alter — siehe 1.6.</strong></td></tr>
+</table>
+
+<div class="kasten" style="margin-top:6mm">
+<div class="titel">Der Grundsatz hinter allem</div>
+<p>Wo die Überdeckung 100 % statt 95 % beträgt, sind die Bereiche eher zu breit als zu eng. Das
+ist die richtige Seite, um danebenzuliegen: Die Rangfolge der Ursachen bleibt stabil, und
+niemand hält eine Zahl für sicherer, als sie ist. Jede Zahl im Dashboard lässt sich aufklappen
+und zeigt, aus welchen Stichproben, welchem Koeffizienten und welcher Formel sie entstanden ist
+— nicht aus Transparenz-Romantik, sondern weil ein Werkzeug, dem man nicht widersprechen kann,
+im Zweifel ignoriert wird.</p>
+</div>
+</div>
+</body></html>
