@@ -1,5 +1,10 @@
 # Was ich vom Betrieb wissen muss
 
+> **Stand 1. September:** Der Betrieb hat einen grossen Teil beantwortet. Was bestätigt ist,
+> steht jetzt als Tatsache in `ABLAUF.md`; die zwanzig Fragen, die daraus noch offen sind,
+> stehen gebündelt in **`docs/Offene-Fragen.pdf`**. Diese Datei hier bleibt als vollständige
+> Liste bestehen — beantwortete Punkte sind unten mit ✓ markiert.
+
 Jede Frage hier ist eine Stelle, an der die Software heute etwas **annimmt**.
 Solange die Annahme unbestätigt ist, kann die Rechnung danebenliegen, ohne
 dass es jemand merkt — und das Ziel des ganzen Werkzeugs ist, die Ursachen zu
@@ -101,6 +106,9 @@ Staplerwaage, Bodenwaage — oder ist das Brutto gerechnet (Kisten × Erfahrungs
 *Warum:* Das Eingangsgewicht ist das Rückgrat der ganzen Rechnung. Ist es
 selbst geschätzt, muss der Bereich um **alles** breiter werden.
 
+> **Antwort (teilweise):** Auf dem Maschinen-Weg werden Paletten **nie** gewogen — weder vor
+> noch nach der Maschine. Verdunstung ist damit nur über Weg 2 und die Lagerkontrolle
+> messbar. Ob am Wareneingang selbst gewogen wird, ist weiterhin offen.
 > Antwort:
 
 **10. Wird schon im Feld oder beim Einlagern aussortiert?**
@@ -157,6 +165,8 @@ Auch wenn zwei Chargen derselben Sorte direkt hintereinander laufen?
 *Warum:* Die Zuordnung CSV → Auftrag hängt daran. Eine Datei über zwei Chargen
 vermengt zwei Eingangsmassen und zwei Lagerdauern in einem Histogramm.
 
+> **Erledigt anders:** Das Datum der CSV ist nicht nötig — die Chargennummer genügt. Siehe
+> `ABLAUF.md`, Abschnitt „Braucht die Sortier-CSV ein Datum?".
 > Antwort:
 
 **16. Wie viele Paletten laufen typisch in einem Sortierlauf, und wie lange dauert er?**
@@ -180,6 +190,9 @@ Sorte, Kaliber, Charge, Datum?
 die Charge (oder auch nur das Sortierdatum) drauf, ist die Zuordnung beim
 Waschen eine Ablesung statt einer Schätzung.
 
+> **Antwort:** ✓ Der Betrieb kann das **Sortierdatum** draufschreiben lassen. Beim Waschen
+> wird danach gefragt, mit der Möglichkeit zu überspringen. Was sonst schon draufsteht, ist
+> noch offen (Frage 16 im neuen Bündel).
 > Antwort:
 
 ---
@@ -248,6 +261,9 @@ statt — und dann rechnet das Werkzeug elegant mit nichts. Und arbeiten zwei
 Teams parallel an derselben Station, stimmt die Palox-Differenzrechnung nicht
 mehr (jede Ablesung zieht die andere ab).
 
+> **Teilantwort:** Die Palox-Ablesung übernimmt, wer den Auftrag eröffnet, und wer ihn
+> abschliesst. Wie viele Gruppen gleichzeitig an einer Station arbeiten, ist weiterhin
+> offen — und entscheidet, ob eine Behälter-Kennung nötig wird.
 > Antwort:
 
 ---
@@ -466,6 +482,8 @@ Hand-Linie wird **pro Kiste ab 8 kg** bezahlt — dort kostet Verdunstung sofort
 Schimmel kostet dagegen immer den ganzen Kürbis. Mit Deinen Preisen kann ich
 beide Rangfolgen nebeneinander zeigen; ohne sie bleibt es bei Kilo.
 
+> **Teilantwort:** Die 8-kg-Kiste gilt nur für **eine** Sorte; andere werden nach Kategorien
+> sortiert. Die Preisfrage selbst bleibt offen.
 > Antwort:
 
 **50. Die 8-kg-Kiste: gibt es eine geforderte Mindestmenge mit Toleranz?**

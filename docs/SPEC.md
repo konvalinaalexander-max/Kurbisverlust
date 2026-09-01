@@ -23,7 +23,8 @@ wo möglich Gratis-Stufen nutzen, keine unnötigen Hosting-Kosten.
 
 ## 1. Fachbegriffe
 
-- **Schlag** = Feld/Anbaufläche (in der Journal-App „Schlag", hier teils „Standort" genannt — dasselbe).
+- **Schlag** = die benannte Herkunft, meist Ort und Bewirtschafter („Illnau Bruno“,
+  „Slowgrow Uster“). **Nicht** einfach „Feld“ — vom Betrieb ausdrücklich richtiggestellt.
 - **Sorte** = Kürbissorte (z. B. Kaori Kuri, Tiana).
 - **Charge** = Kombination **Schlag × Sorte**, eindeutig identifiziert durch eine **Chargennummer**.
   Eine Charge wird **gestaffelt** über Tage/Wochen geerntet und eingelagert.

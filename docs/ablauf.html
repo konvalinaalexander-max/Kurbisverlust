@@ -1,0 +1,509 @@
+<!doctype html>
+<html lang="de"><head><meta charset="utf-8">
+<title>Der Ablauf im Betrieb — und was die App daraus macht</title>
+<!--STIL-->
+<style>
+h1{font-size:15.5pt;margin:0 0 1.5mm}
+.dokkopf{border-bottom:1.4pt solid #b0530f;padding-bottom:3mm;margin-bottom:4mm}
+.dokkopf .ober{font-family:'Inter',sans-serif;font-size:8pt;font-weight:700;letter-spacing:.18em;
+  text-transform:uppercase;color:#b0530f;margin-bottom:1.5mm}
+h2{break-before:auto}
+.station{border-left:2.6pt solid #b0530f;padding-left:4mm;margin:3.5mm 0 4mm}
+.app{break-inside:avoid}
+.station>h3{margin-top:0;font-size:10.4pt}
+.station .physisch{font-style:italic;color:#444;margin-bottom:2mm}
+.app{background:#f7f6f3;border:.5pt solid #e0dcd2;padding:2mm 3mm;margin:2mm 0;font-size:8.8pt}
+.app dt{font-family:'Inter',sans-serif;font-weight:700;font-size:7.6pt;letter-spacing:.07em;
+  text-transform:uppercase;color:#8a6a2a;margin-top:1.6mm}
+.app dt:first-child{margin-top:0}
+.app dd{margin:.3mm 0 0}
+.app ul{margin:.4mm 0 0;padding-left:4.5mm}
+.opt{display:inline-block;font-family:'Inter',sans-serif;font-size:7pt;font-weight:700;
+  letter-spacing:.05em;text-transform:uppercase;padding:.2mm 1.2mm;border-radius:1mm;
+  vertical-align:.3mm;margin-right:1mm}
+.opt.pflicht{background:#f6e2de;color:#9c4030}
+.opt.frei{background:#e6ecf3;color:#3a5f8a}
+.opt.neu{background:#e7f0e8;color:#2e6b3f}
+.daraus{font-size:9pt;margin-top:1.5mm}
+.daraus b{color:#8a4a10}
+</style></head><body>
+
+<div class="dokkopf">
+  <div class="ober">Kürbis-Verlust-Tracking</div>
+  <h1>Der Ablauf im Betrieb — und was die App daraus macht</h1>
+  <p style="margin:0;color:#444">Ein Durchgang vom Wareneingang bis zum Lastwagen: was physisch
+  passiert, was die App an dieser Stelle fragt, was davon <strong>Pflicht</strong> ist und was
+  <strong>freiwillig</strong> — und was sie mit der Antwort anfängt. Stand nach der
+  Betriebsrückmeldung vom 1. September; alles hier Neue ist als
+  <span class="opt neu">neu</span> markiert.</p>
+</div>
+
+<h2>Die Ausgangslage: die Saison läuft bereits</h2>
+<p>Das Werkzeug kommt mitten hinein. Ein Teil der Ernte steht schon in der Halle, ein Teil ist
+schon verarbeitet und ausgeliefert — <em>ohne</em> dass die App etwas davon mitbekommen hat. Wer
+das ignoriert, bekommt eine Bilanz, in der die halbe Ernte spurlos verschwunden ist, und das
+Werkzeug meldet einen Riesenverlust, den es nie gab.</p>
+<p>Deshalb bekommt die App einen <strong>Erfassungsbeginn</strong> <span class="opt neu">neu</span>
+— ein Datum in den Einstellungen. Ab diesem Tag ist die Erfassung vollständig; davor gilt sie als
+lückenhaft, und die App rechnet dort nichts als Verlust.</p>
+<table>
+<tr><th style="width:44mm">Was die App braucht</th><th>Wozu</th></tr>
+<tr><td>Ein Datum: <em>ab wann wird erfasst</em></td><td>Trennt „unbekannt" von „gemessen". Die
+  Bilanz weist alles davor als eigenen Posten <em>„vor Erfassungsbeginn abgegangen"</em> aus,
+  statt es als Verlust zu buchen.</td></tr>
+<tr><td>Je Charge grob: <em>wie viel ist schon raus</em><br><span class="klein leise">Schätzung
+  genügt, oder aus den Lieferscheinen</span></td><td>Damit der Restbestand stimmt. Ohne diese
+  Angabe hält die App Ware für eingelagert, die längst weg ist — und rechnet ihr weiter
+  Verdunstung und Schimmel an.</td></tr>
+</table>
+<div class="kasten">
+<div class="titel">Die gute Nachricht</div>
+<p>Die <em>Koeffizienten</em> — Verdunstung je Tag, Verderb je Lagerdauer, Ausschussanteil —
+lernt die App aus Messungen ab heute, und sie gelten rückwirkend genauso: Ein Kürbis weiss
+nicht, wann die App installiert wurde. Für die Ware, die <strong>noch liegt</strong>, ist die
+Hochrechnung damit vom ersten Tag an brauchbar. Unvollständig bleibt nur die Gesamtbilanz über
+die ganze Saison — und die ist ohnehin die Gegenprobe, nicht das Ziel.</p>
+</div>
+
+<h2>Der Weg, und wo die App ihn berührt</h2>
+<figure>
+<svg viewBox="0 0 700 236" style="width:100%;height:auto" role="img" aria-label="Ablauf mit App-Punkten">
+ <defs><marker id="p" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6"
+   orient="auto"><path d="M0 0 10 5 0 10z" fill="#555"/></marker></defs>
+ <style>
+  .b{fill:#fff;stroke:#333;stroke-width:1.3}.lg{fill:#eef2f6;stroke:#5b8db8;stroke-width:1.3}
+  .fx{fill:#fdf0e6;stroke:#b0530f;stroke-width:1.3}
+  .t{font-family:Inter,sans-serif;font-size:11px;fill:#111;font-weight:600}
+  .ts{font-family:Inter,sans-serif;font-size:9px;fill:#555}
+  .ta{font-family:Inter,sans-serif;font-size:8.5px;fill:#b0530f}
+  .l{stroke:#555;stroke-width:1.3;fill:none;marker-end:url(#p)}
+ </style>
+ <rect class="b" x="6" y="10" width="88" height="30" rx="4"/>
+ <text class="t" x="50" y="25" text-anchor="middle">Wareneingang</text>
+ <text class="ts" x="50" y="36" text-anchor="middle">Journal-App</text>
+ <text class="ta" x="50" y="52" text-anchor="middle">Rückgrat: Charge,</text>
+ <text class="ta" x="50" y="62" text-anchor="middle">Datum, Brutto</text>
+
+ <path class="l" d="M94 25 H124"/>
+ <rect class="lg" x="128" y="10" width="80" height="30" rx="4"/>
+ <text class="t" x="168" y="25" text-anchor="middle">Lager</text>
+ <text class="ts" x="168" y="36" text-anchor="middle">eine Halle</text>
+ <text class="ta" x="168" y="52" text-anchor="middle">Lagerkontrolle</text>
+ <text class="ta" x="168" y="62" text-anchor="middle">(freiwillig)</text>
+
+ <path class="l" d="M208 18 H240 Q252 18 252 30 V44"/>
+ <rect class="b" x="212" y="48" width="80" height="30" rx="4"/>
+ <text class="t" x="252" y="63" text-anchor="middle">Sortieren</text>
+ <text class="ts" x="252" y="74" text-anchor="middle">Weg 1, Maschine</text>
+ <path class="l" d="M252 78 V96"/>
+ <rect class="lg" x="196" y="100" width="112" height="30" rx="4"/>
+ <text class="t" x="252" y="114" text-anchor="middle">Zwischenlager</text>
+ <text class="ts" x="252" y="125" text-anchor="middle">Kaliber-Kisten</text>
+ <path class="l" d="M252 130 V148"/>
+ <rect class="b" x="212" y="152" width="80" height="30" rx="4"/>
+ <text class="t" x="252" y="171" text-anchor="middle">Waschen</text>
+
+ <path class="l" d="M208 32 H340 Q352 32 352 44 V60"/>
+ <rect class="b" x="316" y="64" width="118" height="30" rx="4"/>
+ <text class="t" x="375" y="79" text-anchor="middle">Waschen + Sortieren</text>
+ <text class="ts" x="375" y="90" text-anchor="middle">Weg 2, Hand</text>
+
+ <path class="l" d="M292 167 H460 Q472 167 472 155 V126"/>
+ <path class="l" d="M434 79 H460 Q472 79 472 91 V110"/>
+ <rect class="fx" x="416" y="114" width="112" height="34" rx="4"/>
+ <text class="t" x="472" y="130" text-anchor="middle">Fax</text>
+ <text class="ts" x="472" y="141" text-anchor="middle">1–2 Tage, dann abpacken</text>
+ <text class="ta" x="472" y="160" text-anchor="middle">Schäden vom Waschen</text>
+
+ <path class="l" d="M528 131 H562"/>
+ <rect class="b" x="566" y="116" width="90" height="30" rx="4"/>
+ <text class="t" x="611" y="131" text-anchor="middle">Warenausgang</text>
+ <text class="ts" x="611" y="142" text-anchor="middle">Lieferschein</text>
+
+ <text class="ta" x="590" y="26">An jeder Station:</text>
+ <text class="ta" x="590" y="37">Palox-Stand vorher</text>
+ <text class="ta" x="590" y="48">und nachher</text>
+</svg>
+<figcaption>Orange: wo die App etwas erfährt. „Fax" ist der neu hinzugekommene
+Arbeitsschritt.</figcaption>
+</figure>
+
+<h2>Station für Station</h2>
+
+<div class="station">
+<h3>1 · Wareneingang</h3>
+<p class="physisch">Die Palette kommt vom Schlag, wird im Erntejournal erfasst und in die Halle
+gestellt. Gewaschen wird hier nichts — die Erde bleibt bis ganz zum Schluss dran.</p>
+<div class="app">
+<dl><dt>Die App fragt hier nichts</dt>
+<dd>Sie holt sich die Paletten aus dem Erntejournal — Charge, Eingangsdatum, Bruttogewicht,
+Kistenzahl, Gebindeart. Ein Knopfdruck unter Stammdaten, oder direkt aus dem Google Sheet.</dd>
+<dt>Einmalig nötig</dt>
+<dd>Das Leergewicht je Gebindeart. Ohne Tara kein Netto — und eine Palette ohne Netto zählt in
+keiner Auswertung mit. <span class="opt pflicht">Pflicht</span> einmal, dann nie wieder.</dd></dl>
+</div>
+<p class="daraus"><b>Was daraus wird:</b> Das Rückgrat. Jeder Prozentsatz im ganzen Werkzeug
+bezieht sich auf diese Masse. Die Charge ist <em>Schlag × Sorte</em> — also die benannte
+Herkunft (etwa „Illnau Bruno") mal die Sorte, mit einer festen Nummer aus dem Journal.</p>
+</div>
+
+<div class="station">
+<h3>2 · Lager — und die eine freiwillige Messung</h3>
+<p class="physisch">Die Paletten stehen in einer Halle. Nichts passiert, ausser dass Wasser
+entweicht und einzelne Kürbisse verderben.</p>
+<div class="app">
+<dl><dt><span class="opt frei">freiwillig</span> Palette kontrollieren</dt>
+<dd>Eigener Knopf auf dem Startbildschirm, ohne laufende Arbeit: eine <em>zufällig gegriffene</em>
+Palette wiegen, aufmachen, nachsehen. Charge, Eingangsdatum, Gewicht damals und jetzt, Kisten,
+Gebinde — und <strong>wie viel davon faul ist</strong>. Zwei Paletten im Monat genügen.</dd></dl>
+</div>
+<p class="daraus"><b>Was daraus wird:</b> Die statistisch wertvollste Messung im ganzen System —
+die einzige, deren Palette <em>nicht danach ausgewählt wurde, wie sie aussieht</em>. Sie
+korrigiert die Schimmelzahl nicht, aber sie deckt auf, wenn man ihr nicht trauen darf. Ohne sie
+steht dieselbe Zahl da, nur mit engem Bereich und ohne Warnung — das ist der schlechtere
+Zustand. <b>Fehlt sie:</b> Die App sagt ausdrücklich „nicht prüfbar", statt Sicherheit
+vorzutäuschen.</p>
+</div>
+
+<div class="station">
+<h3>3 · Weg 1 — Sortieren an der Maschine</h3>
+<p class="physisch">Paletten kommen aus der Halle. <strong>Vor</strong> dem Band wird von Hand
+aussortiert, was faul ist — in den Palox. Dann läuft alles über die Waage der Sortiermaschine,
+und die Kürbisse fallen nach Gewicht in Kaliber-Kisten, die zurück in dieselbe Halle gehen.
+<strong>Paletten werden auf diesem Weg nie gewogen</strong> — weder vorher noch nachher.</p>
+<div class="app">
+<dl>
+<dt>Beim Starten</dt>
+<dd><ul>
+<li><span class="opt pflicht">Pflicht</span> <strong>Chargennummer eintippen</strong>
+  <span class="opt neu">neu</span> — vier Ziffern statt Auswahl aus 42 Zeilen; die App prüft
+  sofort gegen die bekannte Liste und zeigt Schlag und Sorte zur Bestätigung.</li>
+<li><span class="opt pflicht">Pflicht</span> <strong>Palox-Stand ablesen</strong>
+  <span class="opt neu">neu</span> — was die Waage <em>jetzt</em> zeigt, bevor es losgeht.</li>
+</ul></dd>
+<dt>Während der Arbeit — mehr passiert nicht</dt>
+<dd><span class="opt pflicht">Pflicht</span> Paletten zählen, und je Palette das
+<strong>Eingangsdatum vom Zettel</strong> <span class="opt neu">neu bisher freiwillig</span>.</dd>
+<dt>Beim Abschliessen</dt>
+<dd><ul>
+<li><span class="opt pflicht">Pflicht</span> Palox-Stand nochmals ablesen.</li>
+<li><span class="opt pflicht">Pflicht</span> <strong>„War alles aus einer Charge?"</strong>
+  <span class="opt neu">neu</span> — Ja / Nein. Bei Nein die Nachfrage: „War es wenigstens
+  dieselbe Sorte?"</li>
+</ul></dd></dl>
+</div>
+<p class="daraus"><b>Was daraus wird:</b> Der Palox-Zuwachs (Ende minus Anfang) ist der Schimmel
+dieser Arbeit — <em>direkt gewogen</em>, nicht als Differenz zweier grosser Zahlen. Die
+gezählten Paletten liefern zweierlei: die Masse dahinter (aus dem Journal) und die
+<strong>Altersverteilung</strong>. Beides zusammen ergibt einen Punkt auf der Verderbskurve.
+<b>Bei „Nein, mehrere Chargen":</b> Die Messung fliesst nicht ins Zeitmodell ein — das Alter
+wäre geraten. Sie zählt aber weiter in der Massenbilanz, und wenn es dieselbe Sorte war, in den
+Sorten-Vergleich.</p>
+</div>
+
+<div class="station">
+<h3>4 · Die Sortier-CSV — und was der Betriebsleiter daraus erfährt</h3>
+<p class="physisch">Die Maschine wiegt jeden einzelnen Kürbis und schreibt eine Datei: eine Zahl
+je Zeile, Gewicht in Gramm.</p>
+<div class="app">
+<dl><dt>Der Betriebsleiter lädt die Dateien hoch</dt>
+<dd>Die Rohdatei wird unverändert gespeichert. Die Reinigung (Leerband-Rauschen, Bruchstücke,
+Doppel-Trigger der Maschine) ist eine sichtbare, umstellbare Schicht darüber und zeigt den
+Trichter offen: <span class="mono">11 370 gelesen → −5 → −11 → −3 204 → 8 161 Kürbisse</span>.</dd>
+<dt><span class="opt frei">freiwillig</span> Datum der Datei</dt>
+<dd>Wenn der Dateiname es hergibt, liest die App es; sonst nimmt sie den Zeitstempel der Datei;
+sonst geht es auch ohne. <strong>Nur die Chargennummer ist wirklich nötig</strong> — siehe
+Kasten unten.</dd></dl>
+</div>
+<p class="daraus"><b>Was daraus wird:</b> Der Ausschussanteil („zu klein") und der
+Nebenkanal-Anteil („zu gross") stehen direkt in der Gewichtsverteilung — nichts zu schätzen.
+Und die Verteilung selbst wird zur eigenen Auswertung:</p>
+
+<h4 style="margin-left:0">Die Gewichtsverteilung — eine neue Ansicht <span class="opt neu">neu</span></h4>
+<p style="font-size:9.2pt">Bisher zeigte die App nur, wie viel Prozent in welches Kaliber fällt.
+Das ist grob: Ob eine Sorte <em>knapp</em> über der unteren Grenze liegt oder mittig im Band,
+sieht man nicht — und genau das entscheidet, ob sich ein engeres Band anbieten lässt.</p>
+<figure style="margin:2mm 0 2.5mm">
+<svg viewBox="0 0 700 132" style="width:100%;height:auto" role="img"
+     aria-label="Beispiel Gewichtsverteilung in 50-Gramm-Balken">
+ <style>.ax{stroke:#999;stroke-width:.8}.gr{stroke:#b0530f;stroke-width:1;stroke-dasharray:3 2}
+   .lb{font-family:Inter,sans-serif;font-size:8px;fill:#666}
+   .lg{font-family:Inter,sans-serif;font-size:8px;fill:#b0530f;font-weight:600}</style>
+ <g>
+  <rect x="42" y="96" width="11" height="6" fill="#b3362c"/>
+  <rect x="54" y="90" width="11" height="12" fill="#b3362c"/>
+  <rect x="66" y="80" width="11" height="22" fill="#b3362c"/>
+  <rect x="78" y="66" width="11" height="36" fill="#c2530f"/>
+  <rect x="90" y="50" width="11" height="52" fill="#c2530f"/>
+  <rect x="102" y="36" width="11" height="66" fill="#c2530f"/>
+  <rect x="114" y="26" width="11" height="76" fill="#c2530f"/>
+  <rect x="126" y="20" width="11" height="82" fill="#c2530f"/>
+  <rect x="138" y="22" width="11" height="80" fill="#c2530f"/>
+  <rect x="150" y="30" width="11" height="72" fill="#c2530f"/>
+  <rect x="162" y="42" width="11" height="60" fill="#c2530f"/>
+  <rect x="174" y="55" width="11" height="47" fill="#c2530f"/>
+  <rect x="186" y="64" width="11" height="38" fill="#c2530f"/>
+  <rect x="198" y="70" width="11" height="32" fill="#c2530f"/>
+  <rect x="210" y="76" width="11" height="26" fill="#c2530f"/>
+  <rect x="222" y="82" width="11" height="20" fill="#c2530f"/>
+  <rect x="234" y="88" width="11" height="14" fill="#c2530f"/>
+  <rect x="246" y="93" width="11" height="9" fill="#8b93a0"/>
+  <rect x="258" y="97" width="11" height="5" fill="#8b93a0"/>
+  <rect x="270" y="99" width="11" height="3" fill="#8b93a0"/>
+  <path class="ax" d="M40 102 H290"/>
+  <path class="gr" d="M77 14 V106"/><text class="lg" x="79" y="12">Verlustgrenze 500 g</text>
+  <path class="gr" d="M245 14 V106"/><text class="lg" x="243" y="12" text-anchor="end">Nebenkanal ab 2000 g</text>
+  <text class="lb" x="40" y="114">300 g</text><text class="lb" x="285" y="114" text-anchor="end">2200 g</text>
+  <text class="lb" x="165" y="127" text-anchor="middle">Tiana · Schlag „Slowgrow Uster" · 8 161 Kürbisse</text>
+ </g>
+ <g transform="translate(360,0)">
+  <rect x="42" y="86" width="11" height="16" fill="#b3362c"/>
+  <rect x="54" y="74" width="11" height="28" fill="#b3362c"/>
+  <rect x="66" y="60" width="11" height="42" fill="#b3362c"/>
+  <rect x="78" y="44" width="11" height="58" fill="#5b8db8"/>
+  <rect x="90" y="32" width="11" height="70" fill="#5b8db8"/>
+  <rect x="102" y="28" width="11" height="74" fill="#5b8db8"/>
+  <rect x="114" y="34" width="11" height="68" fill="#5b8db8"/>
+  <rect x="126" y="46" width="11" height="56" fill="#5b8db8"/>
+  <rect x="138" y="58" width="11" height="44" fill="#5b8db8"/>
+  <rect x="150" y="66" width="11" height="36" fill="#5b8db8"/>
+  <rect x="162" y="70" width="11" height="32" fill="#5b8db8"/>
+  <rect x="174" y="72" width="11" height="30" fill="#5b8db8"/>
+  <rect x="186" y="70" width="11" height="32" fill="#5b8db8"/>
+  <rect x="198" y="64" width="11" height="38" fill="#5b8db8"/>
+  <rect x="210" y="56" width="11" height="46" fill="#5b8db8"/>
+  <rect x="222" y="70" width="11" height="32" fill="#5b8db8"/>
+  <rect x="234" y="84" width="11" height="18" fill="#5b8db8"/>
+  <rect x="246" y="92" width="11" height="10" fill="#8b93a0"/>
+  <rect x="258" y="96" width="11" height="6" fill="#8b93a0"/>
+  <rect x="270" y="99" width="11" height="3" fill="#8b93a0"/>
+  <path class="ax" d="M40 102 H290"/>
+  <path class="gr" d="M77 14 V106"/><path class="gr" d="M245 14 V106"/>
+  <text class="lb" x="40" y="114">300 g</text><text class="lb" x="285" y="114" text-anchor="end">2200 g</text>
+  <text class="lb" x="165" y="127" text-anchor="middle">Dieselbe Sorte · Schlag „Agasul Rüegg" · 6 940 Kürbisse</text>
+ </g>
+</svg>
+<figcaption>Dieselbe Sorte, zwei Schläge. Links eine schmale Glocke mitten im Band — links
+sitzt die Ware, wo sie hingehört. Rechts eine breite, zweigipflige Verteilung mit deutlich mehr
+Ausschuss unter der Verlustgrenze. Das ist eine Aussage über den Anbau, nicht über das
+Lager.</figcaption>
+</figure>
+<p class="daraus" style="margin-top:0"><b>Was die Ansicht können soll:</b> Balken in wählbarer
+Breite (25 / 50 / 100 g), die Kaliber-Grenzen als Linien darübergelegt, und zwei oder mehr
+Verteilungen nebeneinander zum Vergleich — nach <strong>Sorte</strong>, nach
+<strong>Schlag</strong>, nach <strong>Charge</strong>. Dazu die Kennzahlen darunter: Mittelwert,
+Median, Streuung, Anteil je Kaliber. Damit lassen sich Fragen beantworten, die heute niemand
+beantworten kann: Liefert dieser Schlag ein engeres Band als jener? Ist die Verteilung
+glockenförmig oder zweigipflig — also eine Sorte oder in Wahrheit zwei Wuchsformen? Und wo liegt
+der Schwerpunkt <em>relativ</em> zu den Grenzen, also: Würde eine Grenze zehn Gramm weiter unten
+den Ausschuss halbieren?</p>
+
+<div class="kasten offen">
+<div class="titel">Deine Frage: Braucht die CSV überhaupt ein Datum?</div>
+<p><strong>Kurz: nein, nötig ist nur die Chargennummer.</strong> Zwanzig Dateien, alle nur
+„1640" benannt, sind brauchbar — und zwar für alles, was der Betriebsleiter aus der
+Gewichtsverteilung erfahren will, und für einen Ausschussanteil über die Saison.</p>
+<p>Was das Datum <em>zusätzlich</em> bringt, in aller Ehrlichkeit: Erstens eine Gegenprobe — die
+App weiss aus den gezählten Paletten, wie viel Masse an dem Tag ans Band gekommen sein müsste,
+und die CSV hat sie gewogen. Weichen beide ab, stimmt etwas nicht, und man erfährt es. Zweitens
+eine Zeitachse für den Ausschuss: Kürbisse werden mit der Lagerdauer leichter, also rutschen mit
+der Zeit mehr unter die Verlustgrenze. Ob das messbar geschieht, lässt sich nur mit Datum
+sagen.</p>
+<p><strong>Was ich vorschlage:</strong> niemand tippt ein Datum. Die App nimmt, was sie kriegt —
+aus dem Dateinamen, sonst aus dem Zeitstempel der Datei — und wenn beides fehlt, verarbeitet
+sie die Datei trotzdem und schreibt „ohne Datum" dazu. <em>Wichtig dabei:</em> Wenn zwanzig
+Dateien am Saisonende auf einmal kopiert werden, ist der Zeitstempel das Kopierdatum und damit
+wertlos. Wer den Nutzen mitnehmen will, kopiert die Dateien gelegentlich statt einmal.</p>
+</div>
+</div>
+
+<div class="station">
+<h3>5 · Zwischenlager — und das Datum auf der Kiste <span class="opt neu">neu</span></h3>
+<p class="physisch">Die Kaliber-Kisten stehen wieder in derselben Halle, Wochen bis Monate, und
+altern weiter. Die Original-Palette gibt es nicht mehr; ihr Eingangsdatum ist verloren.</p>
+<div class="app">
+<dl><dt>Neue Abmachung im Betrieb, kein App-Schritt</dt>
+<dd>Die Mitarbeiter schreiben beim Sortieren das <strong>Sortierdatum auf die Kiste</strong>.</dd>
+<dt><span class="opt frei">freiwillig</span> Beim Waschen wird danach gefragt</dt>
+<dd>„Steht ein Sortierdatum auf den Kisten?" — wenn ja, eintragen; wenn die Beschriftung fehlt
+oder verloren ging, überspringen.</dd></dl>
+</div>
+<p class="daraus"><b>Was daraus wird:</b> Das ist die billigste denkbare Verbesserung am ganzen
+System. Heute <em>schätzt</em> die App, wie lange die Ware im Zwischenlager stand — sie schliesst
+es aus der Reihenfolge der Sortierläufe. Mit dem Datum auf der Kiste wird daraus eine
+<strong>Ablesung</strong>, und die Frage „wie viele sind in dieser Zeit nochmals faul geworden"
+bekommt eine saubere Antwort. <b>Fehlt es:</b> Die App fällt auf die bisherige Schätzung zurück
+und weist den Bereich entsprechend breiter aus.</p>
+</div>
+
+<div class="station">
+<h3>6 · Weg 1 — Waschen &nbsp;·&nbsp; Weg 2 — Waschen und Sortieren</h3>
+<p class="physisch">Auf Weg 1 kommen die Kaliber-Kisten aus dem Zwischenlager ans Waschbecken;
+davor wird nochmals Faules aussortiert. Auf Weg 2 kommt die Palette direkt aus der Halle und
+wird gewaschen und von Hand sortiert. Beide Wege enden am selben Ort.</p>
+<div class="app">
+<dl>
+<dt>Beim Starten</dt>
+<dd><ul>
+<li><span class="opt pflicht">Pflicht</span> Chargennummer eintippen, Palox-Stand ablesen.</li>
+<li><span class="opt pflicht">Pflicht</span> <strong>Sortierschema bestätigen</strong>
+  <span class="opt neu">neu</span> — die App zeigt, was für diese Sorte hinterlegt ist, und
+  fragt „stimmt das heute?". Bei Nein lassen sich die Kategorien auf der Stelle ändern:
+  umbenennen, Grenzen verschieben, eine hinzufügen oder weglassen. Was eingestellt wurde, lässt
+  sich als neue Vorgabe für die Sorte speichern.</li>
+</ul></dd>
+<dt>Während der Arbeit</dt>
+<dd><ul>
+<li><span class="opt pflicht">Pflicht</span> Zählen, mit Eingangsdatum je Palette.</li>
+<li><span class="opt frei">freiwillig</span> <em>Nur Weg 2:</em> gelegentlich eine Palette
+  wiegen — Gewicht damals vom Zettel, Gewicht jetzt, Kistenzahl, Gebindeart.</li>
+</ul></dd>
+<dt>Beim Abschliessen — hier passiert das meiste <span class="opt neu">neu</span></dt>
+<dd>Ein geführter Ablauf statt verstreuter Felder; jeder Schritt lässt sich überspringen:
+<ul>
+<li>Palox-Endstand ablesen.</li>
+<li>„War alles aus einer Charge?" — bei Nein: „War es wenigstens dieselbe Sorte?"</li>
+<li><strong>Ausschuss wiegen</strong> <span class="opt neu">neu</span>, je Kategorie des
+  Sortierschemas: „Steht es auf einer Palette?" → wie viele Kisten, welches Gebinde, welches
+  Gewicht. Statt einer Kilo-Schätzung nach Augenmass eine richtige Wägung.</li>
+<li><em>Nur Weg 1 Waschen:</em> Sortierdatum von den Kisten.</li>
+<li><em>Nur Weg 2:</em> Wenn keine Palette gewogen wurde — „Hast du noch Zeit für eine?"
+  Mit einem klaren Weg an der Frage vorbei.</li>
+</ul></dd></dl>
+</div>
+<p class="daraus"><b>Was daraus wird:</b> Weg 2 ist die <strong>einzige</strong> Quelle für die
+Verdunstungsrate — auf Weg 1 wird nie eine Palette gewogen. Deshalb hängt der grösste
+Einzelposten der ganzen Auswertung an einer Handvoll freiwilliger Wägungen auf einer der beiden
+Linien. Der gewogene Ausschuss ersetzt die bisherige Schätzung nach Augenmass und macht den
+zugehörigen Unsicherheitsbereich deutlich enger.</p>
+<div class="kasten">
+<div class="titel">Eine Charge, aber viele Eingangsdaten — was die App damit macht</div>
+<p>Auch wenn alles aus einer Charge stammt, sind die Paletten an verschiedenen Tagen
+eingelagert worden. Der Palox enthält dann Faules aus Ware, die 60, 90 und 140 Tage gelegen hat
+— <em>ein</em> Messwert über <em>viele</em> Alter.</p>
+<p>Die App rechnet deshalb nicht mit dem Durchschnittsalter. Sie nimmt die
+<strong>tatsächliche Altersverteilung</strong> der gezählten Paletten und vergleicht den
+gemessenen Anteil mit dem, was das Modell über genau diese Verteilung erwarten würde. Der
+Unterschied ist keine Spitzfindigkeit: Weil der Verderb mit der Zeit beschleunigt, ist der
+Mittelwert der Verderbsanteile <em>grösser</em> als der Verderbsanteil beim Durchschnittsalter.
+Wer mit dem Durchschnittsalter rechnet, unterschätzt systematisch — genau deshalb ist das
+Eingangsdatum beim Zählen jetzt Pflicht.</p>
+</div>
+</div>
+
+<div class="station">
+<h3>7 · Fax — der Arbeitsschritt, den das Modell noch nicht kannte <span class="opt neu">neu</span></h3>
+<p class="physisch">Nach dem Waschen — egal über welchen Weg — steht die Ware nochmals ein bis
+zwei Tage. In dieser Zeit gehen viele Kürbisse kaputt, weil der Waschvorgang grob ist. Beim
+Abpacken für die Bestellungen wird deshalb <strong>nochmals Faules aussortiert</strong>; zu
+klein und zu gross spielen hier keine Rolle mehr.</p>
+<div class="app">
+<dl><dt>Eigener Auftragstyp</dt>
+<dd><ul>
+<li>Beim Starten: Palox-Stand ablesen. Welche Sorte, welche Charge — soweit bekannt.</li>
+<li>Beim Abschliessen: Palox-Endstand; wie viel wurde abgepackt (Kisten oder Kilo); wohin.</li>
+</ul></dd></dl>
+</div>
+<p class="daraus"><b>Was daraus wird — und das ist der springende Punkt:</b> Dieser Schimmel
+kommt <em>nicht</em> von der Lagerdauer, sondern von der mechanischen Beanspruchung beim
+Waschen. Er fliesst deshalb <strong>nicht</strong> in die Verderbskurve ein — sonst würde er sie
+verbiegen und die Lagerung schlechter aussehen lassen, als sie ist. Er bekommt einen
+<strong>eigenen Strom</strong> im Ranking: <em>Schäden nach dem Waschen</em>, bezogen auf die
+gewaschene Menge statt auf die Zeit.</p>
+<p class="daraus">Das ist nicht nur sauberer, es ist auch praktisch nützlich: Gegen Lagerverderb
+hilft schneller verarbeiten, gegen Waschschäden hilft sanfter waschen oder kürzer stehen lassen.
+Zwei verschiedene Massnahmen — und solange beides in einem Balken steckt, weiss niemand, welche
+davon etwas bringt.</p>
+</div>
+
+<div class="station">
+<h3>8 · Warenausgang</h3>
+<p class="physisch">Was den Betrieb verlässt, mit Lieferschein. Daneben gibt es Wege ohne:
+Hofladen, Tierfutter, Eigenbedarf, Kompost.</p>
+<div class="app">
+<dl><dt><span class="opt frei">freiwillig, aber wertvoll</span> Lieferung eintragen</dt>
+<dd>Datum, Sorte, und <em>entweder</em> Kilo <em>oder</em> Kistenzahl — mehr steht auf keinem
+Lieferschein. Dazu ein Ziel, das über das Buch entscheidet: Kompost ist echter Verlust,
+Tierfutter ein anderer Kanal, Hofladen ist Verkauf.</dd></dl>
+</div>
+<p class="daraus"><b>Was daraus wird:</b> Erst mit dem Ausgang hört der Restbestand auf, eine
+reine Hochrechnung zu sein. Die Lücke in der Bilanz wird dann zur einzigen Zahl, die misst, was
+das Modell <strong>nicht</strong> sieht. <b>Fehlt er:</b> Die Rangfolge der Ursachen steht
+trotzdem — nur die Gegenprobe fehlt.</p>
+</div>
+
+<h2>Was wann gefragt wird — die ganze Erfassung auf einen Blick</h2>
+<table>
+<tr><th style="width:30mm">Wann</th><th>Was</th><th style="width:20mm">Status</th>
+  <th style="width:52mm">Wenn es fehlt</th></tr>
+<tr><td rowspan="3"><strong>Beim Starten</strong></td><td>Chargennummer eintippen</td>
+  <td>Pflicht</td><td>ohne Charge kein Bezug — geht nicht</td></tr>
+<tr><td>Palox-Stand ablesen</td><td>Pflicht</td><td>der Schimmel dieser Arbeit lässt sich nicht
+  von dem der vorigen trennen</td></tr>
+<tr><td>Sortierschema bestätigen</td><td>Pflicht</td><td>Ausschuss landet in den falschen
+  Kategorien</td></tr>
+<tr><td rowspan="3"><strong>Während der Arbeit</strong></td><td>Paletten zählen</td>
+  <td>Pflicht</td><td>die Arbeit hat keine Bezugsmasse; der Palox-Inhalt wird zu keinem
+  Anteil</td></tr>
+<tr><td>Eingangsdatum je Palette</td><td>Pflicht</td><td>der Schimmel sitzt an keinem Alter —
+  die Verderbskurve bekommt keinen Punkt</td></tr>
+<tr><td>Palette wiegen <span class="klein leise">(nur Weg 2)</span></td><td>freiwillig</td>
+  <td>die Verdunstungsrate — der grösste Posten — beruht auf weniger Messungen und wird
+  unsicherer</td></tr>
+<tr><td rowspan="6"><strong>Beim Abschliessen</strong></td><td>Palox-Endstand</td><td>Pflicht</td>
+  <td>siehe oben</td></tr>
+<tr><td>„Alles aus einer Charge?"</td><td>Pflicht</td><td>die App weiss nicht, ob sie der
+  Zuordnung trauen darf, und traut ihr im Zweifel zu viel</td></tr>
+<tr><td>Ausschuss wiegen, je Kategorie</td><td>freiwillig</td><td>der Ausschussanteil bleibt eine
+  Schätzung nach Augenmass, mit breitem Bereich</td></tr>
+<tr><td>Sortierdatum der Kisten <span class="klein leise">(Weg 1, Waschen)</span></td>
+  <td>freiwillig</td><td>die zweite Lagerdauer wird geschätzt statt gemessen</td></tr>
+<tr><td>Durchsatz <span class="klein leise">(Weg 1, Waschen)</span></td><td>Pflicht</td>
+  <td>ohne Menge hat der ausgelesene Schimmel keinen Nenner</td></tr>
+<tr><td>Wohin die Ware geht <span class="klein leise">(Fax)</span></td><td>freiwillig</td>
+  <td>die Massenbilanz bleibt offen</td></tr>
+</table>
+<p>Der Grundsatz dahinter: <strong>Während der Arbeit wird nur gezählt.</strong> Alles, was
+Nachdenken, Wiegen oder eine Waage braucht, kommt beim Abschliessen — als geführter Ablauf, bei
+dem jeder Schritt einen klaren Weg vorbei hat. Eine Messung, die im Arbeitsablauf nicht
+vorkommt, findet nicht statt; und ein Werkzeug, das den Abschluss blockiert, wird umgangen.</p>
+
+<h2>Was die App aus allem macht</h2>
+<table>
+<tr><th style="width:46mm">Aus dieser Erfassung …</th><th>… entsteht diese Aussage</th></tr>
+<tr><td>Wareneingang aus dem Journal</td><td>Die Bezugsmasse jeder Charge. Alles andere ist ein
+  Prozentsatz davon.</td></tr>
+<tr><td>Palettenwägungen (Weg 2, Lagerkontrolle)</td><td><strong>Verdunstung:</strong> eine
+  Tagesrate je Sorte, angewandt auf die Lagerdauer jeder Charge.</td></tr>
+<tr><td>Palox-Zuwachs + Altersverteilung der gezählten Paletten</td><td><strong>Verderb:</strong>
+  eine Kurve, wie viel Prozent nach wie vielen Tagen verdorben ist — auch für Lagerdauern, die
+  noch niemand erlebt hat.</td></tr>
+<tr><td>Palox beim Fax</td><td><strong>Schäden nach dem Waschen</strong> — eigener Strom, nicht
+  in der Zeitkurve.</td></tr>
+<tr><td>Sortier-CSV</td><td><strong>Ausschuss und Nebenkanal</strong> direkt abgelesen, plus die
+  <strong>Gewichtsverteilung</strong> je Sorte und Schlag.</td></tr>
+<tr><td>Gewogener Ausschuss (Weg 2)</td><td>Dasselbe für die Hand-Linie, wo es keine Maschine
+  gibt, die wiegt.</td></tr>
+<tr><td>Fertige Paletten und Lieferungen</td><td><strong>Verschenkte Marge</strong> (zu volle
+  Kisten) und die <strong>Gegenprobe</strong>: Eingang = Verlust + Ausgang + Bestand +
+  Lücke.</td></tr>
+<tr><td>Zufällig gegriffene Lagerpaletten</td><td>Die <strong>Warnung</strong>, wenn die
+  Verarbeitungsreihenfolge das Bild verzerrt.</td></tr>
+</table>
+<p>Am Ende steht eine <strong>Rangfolge der Ursachen</strong> mit Unsicherheitsbereichen, und
+jede Zahl darin lässt sich aufklappen: aus welchen Stichproben, mit welchem Koeffizienten, nach
+welcher Formel. Wo zwei Ursachen sich nicht auseinanderhalten lassen, schreibt die App es hin,
+statt es der Balkenlänge zu überlassen.</p>
+
+<div class="kasten warn">
+<div class="titel">Was ich noch nicht weiss</div>
+<p>Zwei Punkte aus Deiner Rückmeldung bleiben offen und stehen im zweiten Dokument als Fragen:
+<strong>ob beim Waschen Chargen gemischt werden</strong> (die Nachfrage beim Abschliessen deckt
+es künftig auf — aber wie oft es vorkommt, entscheidet, ob ein Feld genügt oder das Datenmodell
+umgebaut gehört), und <strong>warum nach dem blossen Waschen die fertige Palette gewogen werden
+soll</strong>. Meine ehrliche Antwort auf die zweite: Für die Marge bringt es auf Weg 1 nichts,
+dort wird je Stück bezahlt. Es bringt nur Masse für die Bilanz — und die kommt beim Fax ohnehin
+sauberer heraus, weil die Ware dort erst wirklich rausgeht. <em>Ich würde die Frage nach dem
+Waschen streichen und stattdessen beim Fax fragen.</em></p>
+</div>
+</body></html>

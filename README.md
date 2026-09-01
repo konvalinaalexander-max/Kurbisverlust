@@ -561,11 +561,16 @@ einspielen wie in Schritt 3. Dieselben Funktionen, dieselbe Saison.
 
 Was jede Ansicht bedeutet, steht in [`docs/DATENFLUSS.md`](docs/DATENFLUSS.md).
 
-**Das ganze Vorhaben auf 17 Seiten:**
-[`docs/Kuerbis-Verlust-Tracking.pdf`](docs/Kuerbis-Verlust-Tracking.pdf) — der Betriebsablauf,
-wie er verstanden wird; jeder Messpunkt mit Absicht und Folge; und die Mathematik dahinter,
-samt dem, was sie nicht kann. Neu gebaut mit `node docs/erklaerung_bauen.mjs` aus
-`docs/erklaerung.html`.
+### Die Dokumente zum Projekt
+
+| Datei | Worum es geht |
+|---|---|
+| [`docs/Ablauf-Betrieb-und-App.pdf`](docs/Ablauf-Betrieb-und-App.pdf) | **Der Einstieg.** Station für Station: was physisch passiert, was die App fragt, was Pflicht und was freiwillig ist — und was sie mit der Antwort anfängt. |
+| [`docs/Offene-Fragen.pdf`](docs/Offene-Fragen.pdf) | Was noch zu klären ist, geordnet danach, was es freigibt. |
+| [`docs/Kuerbis-Verlust-Tracking.pdf`](docs/Kuerbis-Verlust-Tracking.pdf) | Die vollständige Offenlegung inklusive der Mathematik: Massenkaskade, Verderbsmodell, Unsicherheit. |
+
+Alle drei entstehen aus HTML-Quellen im selben Ordner:
+`node docs/dokument_bauen.mjs <quelle> <Ausgabename>`.
 
 ---
 

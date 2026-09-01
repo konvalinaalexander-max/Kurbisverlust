@@ -5,6 +5,76 @@ Sie ist der Massstab, an dem sich Datenmodell und Oberflächen messen lassen
 müssen. Wo das Modell etwas annimmt, das niemand geprüft hat, steht es als
 Annahme da — unmarkierte Annahmen sind der Anfang jedes stillen Fehlers.
 
+## Was der Betrieb bestätigt hat (1. September)
+
+Diese Punkte sind keine Annahmen mehr.
+
+| Punkt | Stand |
+|---|---|
+| Charge = **Schlag × Sorte** | bestätigt; Schlag ist die benannte Herkunft, nicht „Feld" |
+| **Die Saison läuft bereits** | Ein Teil der Ernte liegt schon, ein Teil ist schon ausgeliefert — ohne App-Erfassung. Es braucht einen **Erfassungsbeginn** und je Charge eine grobe Angabe, was vorher schon rausging. |
+| Weg 1: Paletten werden **nie** gewogen | bestätigt, über den ganzen Weg nicht. Verdunstung ist damit **nur** auf Weg 2 und über die Lagerkontrolle messbar. |
+| Vor dem Sortierband wird Faules aussortiert | bestätigt |
+| Eingangsdatum beim Zählen | soll **immer Pflicht** sein, auf beiden Wegen — damit der Palox-Inhalt einem Alter zugeordnet werden kann |
+| Chargennummer **eintippen** statt aus einer Liste wählen | gewünscht, geht schneller |
+| **Sortierdatum auf die Kaliber-Kiste schreiben** | machbar, der Betrieb spricht mit den Mitarbeitern. Beim Waschen wird danach gefragt, mit der Möglichkeit zu überspringen. |
+| Die 8-kg-Kiste gilt **nur für eine Sorte** | Andere Sorten werden nach Kategorien sortiert (zu klein / Bänder / zu gross). Das Schema gehört je Sorte hinterlegt und beim Auftragsstart bestätigt, mit der Möglichkeit, es vor Ort zu ändern. |
+| Ausschuss soll **gewogen** werden | auf Palette stellen, Kistenzahl und Gewicht erfassen — statt Schätzung nach Augenmass |
+| Fast alles gehört **an den Abschluss** | Während der Arbeit nur zählen (und gelegentlich wiegen); alles andere als geführter Ablauf beim Abschliessen |
+
+### Der Palox: Stand bei Beginn **und** bei Abschluss
+
+Vom Betrieb vorgeschlagen und deutlich besser als die bisherige Kette: Wer den Auftrag
+eröffnet, liest den Palox-Stand ab; wer ihn abschliesst, ebenso. Die Differenz ist die Menge
+**dieser** Arbeit — ohne Abhängigkeit von der Ablesung der vorigen. Ein vergessenes Ablesen
+verdirbt dann nur eine Arbeit statt einer ganzen Kette.
+
+**Voraussetzung, noch ungeprüft:** dass zwischen beiden Ablesungen niemand anders in denselben
+Behälter wirft. Laufen zwei Gruppen parallel an einer Station, bräuchte es eine
+Behälter-Kennung.
+
+### „War alles aus einer Charge?"
+
+Beim Abschliessen wird gefragt. Bei **Nein** fliesst die Messung nicht ins Verderbsmodell ein —
+das Alter wäre geraten. Sie zählt weiter in der Massenbilanz, und die Nachfrage „war es
+wenigstens dieselbe Sorte?" hält fest, was sich noch verwerten lässt.
+
+Auch bei **Ja** enthält der Palox Faules aus Paletten verschiedener Eingangsdaten. Die App
+rechnet deshalb nicht mit dem Durchschnittsalter, sondern vergleicht den gemessenen Anteil mit
+dem, was das Modell über die **tatsächliche Altersverteilung** der gezählten Paletten erwarten
+würde. Weil der Verderb mit der Zeit beschleunigt, ist beides nicht dasselbe: Wer mit dem
+Durchschnittsalter rechnet, unterschätzt systematisch.
+
+### „Fax" — ein Arbeitsschritt, den das Modell nicht kannte
+
+Nach dem Waschen steht die Ware nochmals ein bis zwei Tage, dann wird für die Bestellungen
+abgepackt. Dabei wird **nochmals Faules aussortiert** — zu klein und zu gross spielen dort keine
+Rolle mehr.
+
+Entscheidend: Dieser Schimmel kommt **nicht von der Lagerdauer**, sondern von der mechanischen
+Beanspruchung beim Waschen. Er darf deshalb nicht in die Verderbskurve einfliessen, sondern
+bekommt einen eigenen Strom — *Schäden nach dem Waschen*, bezogen auf die gewaschene Menge statt
+auf die Zeit. Die Massnahme dagegen ist eine andere (sanfter waschen, kürzer stehen lassen), und
+solange beides in einem Balken steckt, weiss niemand, welche hilft.
+
+### Was der Betriebsleiter aus der Sortier-CSV erfahren will
+
+Nicht nur den Kaliber-Anteil, sondern die **Gewichtsverteilung**: Balken in wählbarer Breite
+(25/50/100 g), die Kaliber-Grenzen darübergelegt, mehrere Verteilungen nebeneinander — nach
+Sorte, nach **Schlag**, nach Charge. Damit lässt sich sehen, ob eine Verteilung glockenförmig
+oder zweigipflig ist, wo ihr Schwerpunkt relativ zu den Grenzen liegt, und ob sich Schläge
+unterscheiden. Das ist eine Aussage über den Anbau, nicht über das Lager.
+
+### Braucht die Sortier-CSV ein Datum?
+
+Nötig ist **nur die Chargennummer**. Ohne Datum funktionieren die Gewichtsverteilung und ein
+Ausschussanteil über die Saison. Das Datum bringt zusätzlich zweierlei: eine Gegenprobe
+(gezählte gegen gewogene Masse desselben Tages) und eine Zeitachse für den Ausschuss — Kürbisse
+werden mit der Lagerdauer leichter, also rutschen mit der Zeit mehr unter die Verlustgrenze.
+Niemand soll ein Datum tippen: Die App nimmt den Dateinamen, sonst den Zeitstempel der Datei,
+sonst geht es auch ohne. *Achtung:* Werden zwanzig Dateien am Saisonende auf einmal kopiert, ist
+der Zeitstempel das Kopierdatum und wertlos.
+
 ## Der Weg eines Kürbisses
 
 ```

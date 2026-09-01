@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="de"><head><meta charset="utf-8">
+<title>Was noch zu klären ist</title>
+<!--STIL-->
+<style>
+h1{font-size:15.5pt;margin:0 0 1.5mm}
+.dokkopf{border-bottom:1.4pt solid #b0530f;padding-bottom:3mm;margin-bottom:4mm}
+.dokkopf .ober{font-family:'Inter',sans-serif;font-size:8pt;font-weight:700;letter-spacing:.18em;
+  text-transform:uppercase;color:#b0530f;margin-bottom:1.5mm}
+.f{margin:0 0 3.4mm;padding-left:9mm;position:relative;break-inside:avoid}
+.f .nr{position:absolute;left:0;top:.2mm;font-family:'Inter',sans-serif;font-weight:700;
+  font-size:10.5pt;color:#b0530f;width:7mm;text-align:right}
+.f .frage{font-family:'Inter',sans-serif;font-weight:600;font-size:10pt;margin:0 0 .8mm;
+  line-height:1.32}
+.f .warum{margin:0;font-size:9.2pt}
+.f .warum b{color:#8a4a10}
+.f .zusatz{font-size:8.8pt;color:#555;font-style:italic;margin:.5mm 0 .8mm}
+.marke{display:inline-block;font-family:'Inter',sans-serif;font-size:6.9pt;font-weight:700;
+  letter-spacing:.05em;text-transform:uppercase;padding:.2mm 1.2mm;border-radius:1mm;
+  vertical-align:.5mm;margin-left:1.5mm}
+.marke.blockt{background:#f6e2de;color:#9c4030}
+.marke.kippt{background:#faf0dc;color:#8a6a2a}
+.marke.alt{background:#eceef0;color:#5f6b76}
+h2{margin-top:6mm}
+h2 .zusatz{font-family:'Charter','Bitstream Charter',serif;font-weight:400;font-size:9pt;
+  font-style:italic;color:#666;display:block;margin-top:.6mm;letter-spacing:0}
+</style></head><body>
+
+<div class="dokkopf">
+  <div class="ober">Kürbis-Verlust-Tracking</div>
+  <h1>Was noch zu klären ist</h1>
+  <p style="margin:0;color:#444">Zwanzig Fragen, nach dem geordnet, was sie freigeben. Deine
+  letzte Rückmeldung hat viel beantwortet und dabei Neues aufgeworfen — beides steht hier
+  zusammen. <span class="marke blockt">blockt</span> heisst: solange das offen ist, kann ich an
+  dieser Stelle nicht bauen. <span class="marke kippt">kippt</span> heisst: die Antwort kann die
+  Rangfolge der Ursachen umdrehen. <span class="marke alt">offen seit letztem Mal</span> sind
+  Fragen aus der ersten Runde, die noch keine Antwort haben.</p>
+</div>
+
+<h2>A · Damit ich weiterbauen kann
+  <span class="zusatz">Diese sechs stehen zwischen mir und dem nächsten Programmierschritt.</span></h2>
+
+<div class="f"><span class="nr">1</span>
+<p class="frage">Ab welchem Datum ist die Erfassung vollständig — und wie viel ist je Charge
+schon draussen?<span class="marke blockt">blockt</span></p>
+<p class="zusatz">Ein Datum genügt. Für das „schon draussen" reicht eine grobe Schätzung je
+Charge, oder die Summe aus den Lieferscheinen, oder auch nur „diese acht Chargen sind ganz
+weg".</p>
+<p class="warum"><b>Warum:</b> Die App hält sonst Ware für eingelagert, die längst verkauft ist,
+und rechnet ihr weiter Verdunstung und Schimmel an. In der Bilanz taucht der ganze schon
+gelieferte Teil als Verlust auf. Ohne diese Angabe ist jede Bestandszahl falsch — und mit ihr
+ist die Auswertung ab dem ersten Tag brauchbar.</p></div>
+
+<div class="f"><span class="nr">2</span>
+<p class="frage">Welches Sortierschema gilt je Sorte?<span class="marke blockt">blockt</span></p>
+<p class="zusatz">Für jede der elf Sorten: „Kiste ab 8 kg" — oder Kategorien, und wenn ja,
+welche Grenzen? Eine Liste auf einem Zettel genügt vollkommen.</p>
+<p class="warum"><b>Warum:</b> Die App soll das Schema beim Auftragsstart anzeigen und
+bestätigen lassen. Dafür muss etwas hinterlegt sein. Bisher steht überall pauschal „ab 8 kg",
+und Du hast gesagt, das gilt nur für eine Sorte. Ohne die Liste kann ich die Maske bauen, aber
+sie startet leer — und dann tippt der Arbeiter jedes Mal alles neu.</p></div>
+
+<div class="f"><span class="nr">3</span>
+<p class="frage">Wie viele Paloxe stehen je Station, und arbeiten je zwei Gruppen gleichzeitig
+am selben Platz?<span class="marke blockt">blockt</span><span class="marke alt">offen seit letztem Mal</span></p>
+<p class="warum"><b>Warum:</b> Deine Idee mit dem Ablesen bei Beginn und bei Abschluss ist
+deutlich besser als die bisherige Kette — sie macht jede Arbeit für sich rechenbar. Sie hat aber
+genau eine Voraussetzung: dass zwischen Deinem Anfangs- und Deinem Endstand niemand anders
+etwas in denselben Behälter geworfen hat. Laufen zwei Gruppen parallel an einer Station,
+verzahnen sich die Ablesungen und beide Mengen sind falsch. Dann bräuchte es eine
+Behälter-Kennung — machbar, aber ich muss wissen, ob es nötig ist.</p></div>
+
+<div class="f"><span class="nr">4</span>
+<p class="frage">Was landet im Palox — nur Faules, oder auch Erde, Blätter, kaputte Kisten,
+zu Kleines?<span class="marke kippt">kippt</span><span class="marke alt">offen seit letztem Mal</span></p>
+<p class="warum"><b>Warum:</b> Alles, was mit hineinfällt, verbucht die App heute als Schimmel.
+Landen die zu Kleinen dort mit drin, wird Ausschuss als Fäulnis gezählt — beide Ströme sind
+falsch, der eine zu gross, der andere zu klein, und das sind genau die zwei, die im Ranking
+nahe beieinanderliegen.</p></div>
+
+<div class="f"><span class="nr">5</span>
+<p class="frage">Wie wird der Ausschuss gesammelt — auf einer eigenen Palette, die über mehrere
+Aufträge weiterläuft?<span class="marke blockt">blockt</span></p>
+<p class="warum"><b>Warum:</b> Du willst „zu klein" und „zu gross" am Ende wiegen statt
+schätzen — richtig so. Aber wenn dieselbe Ausschuss-Palette über zwei Tage und drei Aufträge
+weiterwächst, ist ihr Gewicht am Ende nicht die Menge <em>dieser</em> Arbeit. Dann bräuchte sie
+dieselbe Behandlung wie der Palox: Stand bei Beginn, Stand bei Abschluss. Wird sie dagegen je
+Auftrag frisch angefangen, genügt eine einzige Wägung am Schluss.</p></div>
+
+<div class="f"><span class="nr">6</span>
+<p class="frage">Zeigt die Palox-Waage brutto oder netto — und ist es immer derselbe
+Behälter?<span class="marke blockt">blockt</span><span class="marke alt">offen seit letztem Mal</span></p>
+<p class="warum"><b>Warum:</b> Bei einer Differenz aus zwei Ablesungen kürzt sich ein festes
+Leergewicht weg — dann ist es egal. Wird der Behälter aber zwischendurch gegen einen anderen
+getauscht, springt die Differenz um dessen Eigengewicht, und niemand sieht es der Zahl an.</p></div>
+
+<h2>B · Was das Modell trägt
+  <span class="zusatz">Hier rechnet die App heute etwas, das sie nicht überprüfen kann.</span></h2>
+
+<div class="f"><span class="nr">7</span>
+<p class="frage">Wie oft kommt es vor, dass ein Waschgang Ware aus mehreren Chargen
+zieht?<span class="marke kippt">kippt</span><span class="marke alt">offen seit letztem Mal</span></p>
+<p class="zusatz">Ein Gefühl genügt: bei jedem zweiten Auftrag, bei jedem zehnten, praktisch
+nie?</p>
+<p class="warum"><b>Warum:</b> Die Nachfrage beim Abschliessen deckt es künftig auf — aber sie
+sagt nur, ob es passiert ist, nicht wie oft. Bei „praktisch nie" genügt das Feld, und die
+seltenen Fälle fallen aus dem Modell. Bei „jedem zweiten" verliere ich damit die Hälfte aller
+Schimmelmessungen, und dann muss die Datenbank stattdessen mehrere Chargen mit Mengenanteil je
+Auftrag führen können. Das ist ein Umbau, kein Feld.</p></div>
+
+<div class="f"><span class="nr">8</span>
+<p class="frage">Wie viel Erde hängt am Kürbis, wenn er ins Lager kommt?
+<span class="marke kippt">kippt</span><span class="marke alt">offen seit letztem Mal</span></p>
+<p class="zusatz">Ein Gefühl genügt — unter 1 %? Gegen 5 %? Oder einmal eine Palette vor und
+nach dem Waschen wiegen.</p>
+<p class="warum"><b>Warum:</b> Gewaschen wird erst ganz am Schluss. Das Eingangsgewicht enthält
+also Feld-Erde, das Ausgangsgewicht nicht. Diese Differenz ist Masse, die zwischen Eingang und
+Ausgang verschwindet, ohne ein Verlust zu sein — und sie sieht in jeder Bilanz aus wie einer.
+Schlimmer: Fällt die Erde im Lager langsam ab, misst die Palettenwägung teils Erde statt Wasser,
+und die Verdunstungsrate ist zu hoch. Verdunstung steht heute auf Platz eins.</p></div>
+
+<div class="f"><span class="nr">9</span>
+<p class="frage">Was passiert physisch mit den zu Kleinen und den zu Grossen?
+<span class="marke kippt">kippt</span><span class="marke alt">offen seit letztem Mal</span></p>
+<p class="warum"><b>Warum:</b> Die App verbucht „zu klein" als Totalverlust und „zu gross" als
+anderen Kanal. Gehen die Kleinen an Tiere oder in den Hofladen, sind sie kein Verlust — dann
+schrumpft ein ganzer Balken im Ranking auf null. Landen die Grossen in Wahrheit auf dem
+Kompost, fehlt umgekehrt ein Verlust.</p></div>
+
+<div class="f"><span class="nr">10</span>
+<p class="frage">Ist die Halle geheizt oder temperiert — oder folgt sie dem Wetter?
+<span class="marke kippt">kippt</span><span class="marke alt">offen seit letztem Mal</span></p>
+<p class="warum"><b>Warum:</b> Das Modell nimmt eine über die ganze Saison konstante
+Verdunstungsrate an. Von September bis März ist das kaum richtig, wenn die Halle mit dem Wetter
+mitgeht — dann wird die frühe Verdunstung unterschätzt und die späte überschätzt, und beides
+zusammen verzerrt die Hochrechnung auf die Ware, die am längsten liegt.</p></div>
+
+<div class="f"><span class="nr">11</span>
+<p class="frage">Stehen die Paletten gestapelt — und kommt man an jede heran?
+<span class="marke alt">offen seit letztem Mal</span></p>
+<p class="warum"><b>Warum:</b> Das Modell rechnet mit zufälliger Entnahme: jede Palette hat
+jeden Tag dieselbe Chance. Sind sie zwei oder drei hoch gestapelt, nimmt man in Wahrheit oben
+zuerst — also das Zuletzt-Eingelagerte. Dann werden systematisch junge Paletten gemessen und
+alte nie, und die Verderbskurve wird flacher gemessen, als sie ist.</p></div>
+
+<div class="f"><span class="nr">12</span>
+<p class="frage">Ist das Datum auf dem Zettel der Erntetag oder der Einlagerungstag — und liegen
+dazwischen je Tage?<span class="marke alt">offen seit letztem Mal</span></p>
+<p class="warum"><b>Warum:</b> An diesem Datum hängt jede Lagerdauer, und die Lagerdauer ist die
+Achse, auf der die ganze Verderbskurve steht. Steht die Ware vorher schon Tage auf einem
+Anhänger, fängt die Uhr systematisch zu spät an.</p></div>
+
+<div class="f"><span class="nr">13</span>
+<p class="frage">Wird schon im Feld oder beim Einlagern aussortiert?
+<span class="marke alt">offen seit letztem Mal</span></p>
+<p class="warum"><b>Warum:</b> Was nie in die Halle kommt, steht in keinem Eingang. Dieser
+Verlust ist heute vollständig unsichtbar — und er könnte grösser sein als manches, was mit viel
+Aufwand gemessen wird.</p></div>
+
+<h2>C · Der neue Arbeitsschritt und die Kisten
+  <span class="zusatz">Fragen, die erst durch Deine letzte Rückmeldung entstanden sind.</span></h2>
+
+<div class="f"><span class="nr">14</span>
+<p class="frage">Ist „Fax" immer ein eigener Arbeitsgang — oder geht es manchmal direkt vom
+Waschbecken in die Bestellkiste?</p>
+<p class="warum"><b>Warum:</b> Die ein bis zwei Tage Stehzeit sind der Grund, warum dort
+nochmals Faules anfällt. Wird an manchen Tagen durchgearbeitet, ist der Schaden dort kleiner —
+und wenn die App das nicht auseinanderhält, mischt sie zwei verschiedene Dinge in einen
+Koeffizienten. Falls die Stehzeit stark schwankt, sollte die App sie beim Fax abfragen.</p></div>
+
+<div class="f"><span class="nr">15</span>
+<p class="frage">Wird beim Fax nach Charge gearbeitet — oder nur nach Bestellung?</p>
+<p class="warum"><b>Warum:</b> Für den Waschschaden brauche ich keine Charge, nur die
+gewaschene Menge und die Zeit dazwischen — das funktioniert auch ohne. Wenn die Charge aber
+bekannt ist, kann die App zusätzlich sagen, <em>welche</em> Sorte das Waschen schlecht
+verträgt. Das wäre eine Aussage, die es sonst nirgends gibt. Ich frage danach nur, wenn es
+ohne Aufwand geht.</p></div>
+
+<div class="f"><span class="nr">16</span>
+<p class="frage">Was steht heute schon auf einer Kaliber-Kiste?</p>
+<p class="zusatz">Sorte, Kaliber, Charge, Datum — oder gar nichts?</p>
+<p class="warum"><b>Warum:</b> Du hast angeboten, das Sortierdatum draufschreiben zu lassen —
+das ist die billigste Verbesserung am ganzen System. Steht ohnehin schon etwas drauf, kommt das
+Datum einfach dazu. Steht die <em>Charge</em> drauf, löst sich nebenbei Frage 7: Dann weiss der
+Arbeiter beim Waschen genau, was er vor sich hat, statt es zu schätzen.</p></div>
+
+<div class="f"><span class="nr">17</span>
+<p class="frage">Bleiben Kaliber-Kisten chargenrein, oder wird eine angefangene Kiste später mit
+einer anderen Charge vollgemacht?<span class="marke alt">offen seit letztem Mal</span></p>
+<p class="warum"><b>Warum:</b> Wird vollgemacht, ist die Charge schon im Zwischenlager verloren
+— noch bevor überhaupt gewaschen wird. Dann hilft auch das Datum auf der Kiste nur halb, und
+die Antwort auf Frage 7 ist automatisch „ja, ständig".</p></div>
+
+<h2>D · Wozu das Ganze
+  <span class="zusatz">Diese vier entscheiden, wo Genauigkeit sich lohnt und wo nicht.</span></h2>
+
+<div class="f"><span class="nr">18</span>
+<p class="frage">Soll die Rangfolge in Kilo oder in Franken sein?
+<span class="marke kippt">kippt</span><span class="marke alt">offen seit letztem Mal</span></p>
+<p class="warum"><b>Warum:</b> In Kilo gewinnt heute die Verdunstung. In Franken kann es kippen:
+Wo pro Stück je Kaliber bezahlt wird, kostet ein leichterer Kürbis erst dann etwas, wenn er ins
+nächsttiefere Band rutscht. Wo pro Kiste ab einem Mindestgewicht bezahlt wird, kostet
+Verdunstung sofort. Schimmel kostet dagegen immer den ganzen Kürbis. Mit Deinen Preisen zeige
+ich beide Rangfolgen nebeneinander — ohne sie bleibt es bei Kilo, und das ist möglicherweise die
+falsche Frage.</p></div>
+
+<div class="f"><span class="nr">19</span>
+<p class="frage">Was würdest Du ändern, wenn Verdunstung gewinnt? Was bei Schimmel? Was bei
+Waschschaden?<span class="marke alt">offen seit letztem Mal</span></p>
+<p class="warum"><b>Warum:</b> Führen zwei Ursachen zur selben Massnahme, muss ich sie gar nicht
+auseinanderhalten — dafür andere umso schärfer. Das Dashboard sagt Dir heute an manchen Stellen
+„diese beiden lassen sich nicht trennen". Ob das schlimm ist, hängt allein an dieser Antwort.
+Und der neue Strom „Schäden nach dem Waschen" ist deshalb interessant, weil er als einziger eine
+Massnahme hat, die sofort umsetzbar ist.</p></div>
+
+<div class="f"><span class="nr">20</span>
+<p class="frage">Welche Abgänge gibt es neben dem Lieferschein-Verkauf, und wie gross sind sie
+ungefähr?<span class="marke alt">offen seit letztem Mal</span></p>
+<p class="zusatz">Hofladen, Tierfutter, Eigenbedarf, Kompost, Geschenke. Grobe Monatssummen
+genügen.</p>
+<p class="warum"><b>Warum:</b> Was den Betrieb ohne Erfassung verlässt, sieht in der Bilanz aus
+wie Verlust. Bei einer Lücke von fünf Prozent ist der Unterschied zwischen „das Modell
+unterschätzt etwas" und „da geht Ware raus, die niemand aufschreibt" nicht erkennbar — und die
+beiden Antworten führen zu völlig verschiedenen Massnahmen.</p></div>
+
+<div class="kasten">
+<div class="titel">Was ich ohne Antworten trotzdem baue</div>
+<p>Nichts hier blockiert die Arbeit vollständig. Für die sechs mit <span class="marke blockt"
+>blockt</span> baue ich die Masken mit vernünftigen Vorgaben und lasse sie änderbar — dann
+kostet eine späte Antwort nur eine Korrektur in den Stammdaten statt eines Umbaus. Für die mit
+<span class="marke kippt">kippt</span> rechnet die App weiter wie bisher, schreibt die Annahme
+aber sichtbar dazu, damit niemand eine Zahl für sicherer hält, als sie ist.</p>
+<p>Die einzige, bei der ich wirklich warten würde, ist <strong>Nummer 7</strong>. Ob ein
+Arbeitsgang zu einer Charge gehört oder zu mehreren, entscheidet über die Form der Datenbank —
+und das im Nachhinein umzubauen, während schon Daten drinstehen, ist die eine Änderung, die
+teuer wird.</p>
+</div>
+</body></html>
