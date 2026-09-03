@@ -253,6 +253,41 @@ await schritt('Abschluss: eine Charge, Ausschuss von dieser Arbeit → fertig', 
   await warteAuf('auftrag', 'PATCH')
 })
 
+// ---------- Zweiter Durchlauf: Sortieren an der Maschine (AB-01, AB-06) ----
+// Der andere Pfad: Sortierart wählen, Chargennummer eintippen, Paletten mit
+// Datum zählen, Palox ablesen, abschliessen. Keine Ausschuss-Fragen (Maschine).
+let sortierId = null
+await schritt('Sortieren: Charge 1613 eingetippt, Kaliber gewählt', async () => {
+  await seite.goto('http://localhost:5198/auftraege', { waitUntil: 'networkidle' })
+  await seite.getByRole('button', { name: /Neue Arbeit/ }).click()
+  await seite.getByRole('button', { name: /^[^ ]+ Sortieren$/ }).click()
+  await seite.locator('#charge').fill('1613')                 // AB-06: eintippen
+  await seite.getByRole('button', { name: 'Kaliber (nach Grösse)' }).click()  // AB-01
+  await seite.getByRole('button', { name: 'Starten' }).click()
+  await warteAuf('auftrag', 'POST', 2)
+  const posts = protokoll.filter(p => p.tabelle === 'auftrag' && p.methode === 'POST')
+  sortierId = posts[posts.length - 1].zeilen[0].id
+  await warteAuf('auftrag_teilnehmer', 'POST', 2)
+})
+
+await seite.goto(`http://localhost:5198/auftraege/${sortierId}`, { waitUntil: 'networkidle' })
+
+await schritt('Sortieren: eine Palette zählen, Palox ablesen, abschliessen', async () => {
+  await seite.locator('#zettel').fill('2026-09-05')
+  // Ohne Wiegen zählt „+" direkt (keine Frage wie bei Waschen + Sortieren).
+  await seite.getByRole('button', { name: '+', exact: true }).click()
+  await warteAuf('auftrag_palette', 'POST', 3)
+  await seite.getByRole('link', { name: 'Faule' }).click()
+  await seite.locator('#palox').fill('60')                    // erste Ablesung: 60 − 45 = 15
+  await seite.getByRole('button', { name: 'Eintragen' }).click()
+  await warteAuf('schimmel_messung', 'POST', 2)
+  await seite.getByRole('link', { name: 'Fertig', exact: true }).click()
+  await seite.getByRole('button', { name: 'Ja, alles aus einer Charge' }).click()
+  await seite.getByRole('button', { name: /Arbeit fertig/ }).click()
+  await seite.getByRole('button', { name: /Ja, fertig/ }).click()
+  await warteAuf('auftrag', 'PATCH', 2)
+})
+
 await browser.close(); await vite.close()
 if (konsole.length) { console.log('  Konsolenfehler:'); for (const k of konsole) console.log('   ', k) }
 writeFileSync(join(HIER, 'kette_erfasst.json'), JSON.stringify(protokoll, null, 2))

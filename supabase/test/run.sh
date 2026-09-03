@@ -192,6 +192,16 @@ if [ "$RECHNEN" -gt 5000 ]; then
 fi
 
 echo
+echo "── 6b. Lückenscanner: keine Lücke zwischen Maske und Auswertung ─"
+# Fängt genau die Art Fehler, die diese Runde ausgelöst hat: eine Spalte, die
+# die Datenbank erwartet und keine Maske schreibt (AB-02, AB-07), oder eine
+# ausgewertete Tabelle, die niemand füllt. Braucht das Schema, darum hier — die
+# Demo ist gerade entfernt, das genügt (geprüft wird das Schema, nicht Daten).
+zuruecksetzen
+psql "$URL" -v ON_ERROR_STOP=1 -q -1 -f "$HIER/../setup.sql" >/dev/null
+"$HIER/../../pruefstand/luecken.sh" "$URL" | sed 's/^/   /'
+
+echo
 echo "── 7. setup.sql gegen die Migrationen abgleichen ─────────────"
 VORHER="$(cat "$HIER/../setup.sql")"
 "$HIER/../setup_bauen.sh" >/dev/null

@@ -645,6 +645,10 @@ node pruefstand/bildschirme.mjs
 # Postgres einspielen und prüfen, dass jeder Wert in der Auswertung ankommt.
 node pruefstand/kette.mjs && ./pruefstand/kette_pruefen.sh 'postgresql://…'
 
+# Lückenscanner: keine Spalte, die die Datenbank erwartet und keine Maske
+# schreibt — und keine ausgewertete Tabelle, die niemand füllt (Teil von run.sh)
+./pruefstand/luecken.sh 'postgresql://…'
+
 # Statistik: erfundene Saisons mit bekannter Wahrheit, misst Verzerrung und
 # Überdeckung je Strom (siehe docs/STATISTIK_BEFUND.md)
 ./supabase/test/simulation/matrix.sh 25

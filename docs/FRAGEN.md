@@ -530,3 +530,13 @@ Fehler — dann ist nicht die Überfüllung das Problem, sondern die Streuung be
 Füllen. Das ist eine andere Massnahme.
 
 > Antwort:
+
+---
+
+**Aufräum-Notiz (technisch, kein Betriebsthema):** Die Tabelle `marge_messung`
+war der frühere Kanal für von Hand eingetippte Marge-Posten. Seit die
+Überfüllung aus `ausgang_wiegung` und der Nebenkanal aus der CSV kommt (3. Sept),
+schreibt keine Maske sie mehr; die Überfüllungs-Ansicht liest sie noch als leere
+Vereinigung. Der Lückenscanner kennt sie als dokumentierte Ausnahme. Das
+ersatzlose Entfernen der Lese-Stellen gehört in eine Modellrunde, nicht in die
+Erfassung.
