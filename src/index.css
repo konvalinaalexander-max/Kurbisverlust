@@ -187,6 +187,20 @@ code { font-size: .88em; background: var(--flaeche-2); padding: .1em .35em; bord
 .navleiste.unter a { border-bottom: none; border-radius: var(--radius-klein); padding: .45rem .7rem; }
 .navleiste.unter a.aktiv { background: var(--kuerbis-flaeche); color: var(--kuerbis); }
 
+/* Sortierschemata: je Sorte × Käufer ein Block, je Fassung eine Zeile mit
+   Datum und Regel. Auf dem Handy rutscht das Datum über die Regel. */
+.fassungen { display: grid; gap: .6rem; }
+.fassungen .gruppe {
+  border: 1px solid var(--rand); border-radius: var(--radius-klein); padding: .6rem .8rem;
+}
+.fassungen .kopf { display: flex; gap: .5rem; align-items: baseline; margin-bottom: .35rem; }
+.fassungen .fassung {
+  display: grid; grid-template-columns: 7rem 1fr; gap: .15rem .6rem; padding: .2rem 0;
+  border-top: 1px solid var(--rand);
+}
+.fassungen .kopf + .fassung { border-top: none; }
+@media (max-width: 480px) { .fassungen .fassung { grid-template-columns: 1fr; } }
+
 /* ---------- Karten -------------------------------------------------------- */
 .karte {
   background: var(--flaeche); border: 1px solid var(--rand);

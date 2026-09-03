@@ -1305,5 +1305,16 @@ Was nach dem Abwerfen noch fehlte, war Feinschliff, kein Modell:
   der Verderbskurve zu trennen".
 - **CSV-Import:** ein Knopf im Stil der App statt des browsereigenen
   „Choose Files".
+- **Sortierschemata als Liste, nicht als Tabelle:** Vier Spalten quetschten
+  die Regel auf dem Handy in eine schmale Spalte und schnitten sie ab. Jetzt
+  je Sorte × Käufer ein Block, je Fassung eine Zeile mit Datum und Regel.
+- **„Liegt seit" statt „Lagertage"** in „Sortiert — wartet aufs Waschen":
+  Die Spalte zeigte das Alter bis zum Stichtag (`alter_lager`, die Grösse der
+  Hochrechnung) — neben einer Tabelle, die „liegt seit 203 Tagen" bis heute
+  sagte. Eine Zustandstabelle zeigt das Alter bis heute (`alter_lager_heute`);
+  die Hochrechnung rechnet unverändert bis zum Stichtag.
 - **Prüfstand in sechs Sprachen:** `SPRACHE=hu node pruefstand/bildschirme.mjs`
-  rendert die Arbeiter-Masken in der Sprache mit den längsten Wörtern.
+  rendert die Arbeiter-Masken in der Sprache mit den längsten Wörtern. Die
+  Klickwege nennen Reiter und Knöpfe über ihren Text-Schlüssel und holen das
+  Wort aus dem Wörterbuch der App — vorher standen deutsche Wörter im
+  Prüfstand, und in jeder anderen Sprache lief er ins Leere.

@@ -825,3 +825,39 @@ hat das Modell nicht verschoben — sie hat dafür gesorgt, dass die Zahlen, die
 das Modell braucht, in der Halle auch erfasst werden und dass keine Spalte
 zwischen Maske und Auswertung nur auf einer Seite existiert (Lückenscanner in
 `run.sh`).
+
+---
+
+# Sechste Runde: Ballast abwerfen, nichts am Modell
+
+Der Abschluss-Durchgang (`docs/archiv/PROMPT_ABSCHLUSS.md`) hat Sichten und
+eine Tabelle entfernt, die niemand las (0048), und die Oberfläche fertig
+geschliffen — am Modell wurde nichts angefasst. Der Nachweis ist wieder die
+Matrix, 25 Saisons je Bahn, dieselben neun Bahnen. „Vorher" ist der Lauf der
+fünften Runde; der Harness ist nicht gesät, Unterschiede sind Streuung.
+
+| Bahn | Strom | vorher (5. Runde) | nachher (0048) |
+|---|---|---|---|
+| Saisonende, 25 % | Schimmel | −2.4 % / 96 % | −2.3 % / 88 % |
+| Saisonmitte, 50 % | Schimmel | −1.7 % / 92 % | −1.5 % / 96 % |
+| Saisonende, Schlechtes zuerst | Schimmel | −3.5 % / 88 % | −3.8 % / 88 % |
+| Saisonmitte, Schlechtes zuerst | Schimmel | +8.4 % / 88 % | +8.3 % / 92 % |
+| 12 Lagerkontrollen | Schimmel | +8.7 % / 100 % | +8.9 % / 96 % |
+| 24 Lagerkontrollen | Schimmel | +8.1 % / 100 % | +8.8 % / 96 % |
+| Nur 4 Palettenwägungen | Schimmel | −1.2 % / 100 % | −1.8 % / 100 % |
+| Saisonmitte, 2 % Sockel | Schimmel | +22.5 % / 56 % | +17.9 % / 56 % |
+| | Sockel gesetzt | 56 % | 56 % |
+| Saisonende, 2 % Sockel | Schimmel | +44.2 % | +44.4 % / 8 % |
+
+Verdunstung, Zu klein und Nebenkanal liegen in jeder Bahn innerhalb von ±2 %
+(einzige Ausnahme wie immer die Verdunstung bei nur vier Wägungen, +4.3 %) bei
+92–100 % Überdeckung; in den Bahnen ohne Sockel und ohne Selektion setzt das
+Modell in keiner der 75 Saisons einen Sockel. Die +17.9 % gegen +22.5 % zur
+Saisonmitte mit Sockel sind die Streuung der Bahn, in der der Sockel in jeder
+zweiten Saison gesetzt wird — dieselbe Bahn schwankte schon zwischen vierter
+und fünfter Runde um fünf Punkte.
+
+Was diese Runde an der Statistik geändert hat, ist nur die Darstellung: Setzt
+der F-Test den Sockel auf 0, sagt das Dashboard „nicht belegt" und nennt
+Nachweis und Schwelle, statt „0.0 t" zu zeigen — eine Zahl, die wie eine
+Messung aussah und keine war.

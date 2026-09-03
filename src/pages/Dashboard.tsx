@@ -33,7 +33,9 @@ interface Bestand {
   charge_nr: number; sorte: string; schlag: string
   eingang_kg: number; lager_kg: number; wartet_kg: number
   sortiert_kg: number; gewaschen_kg: number
-  alter_lager: number; ueberzaehlung_kg: number
+  /** alter_lager: bis zum Stichtag (für die Hochrechnung); alter_lager_heute:
+   *  bis heute — das, was „liegt seit" in der Halle bedeutet. */
+  alter_lager: number; alter_lager_heute: number; ueberzaehlung_kg: number
 }
 
 /** v_naechste_charge — was zwei weitere Wochen Liegenlassen kosten. */
@@ -612,7 +614,7 @@ function WartetAufsWaschen({ bestand }: { bestand: Bestand[] }) {
         <table>
           <thead><tr><th>Charge</th><th>Sorte</th><th className="zahl">sortiert</th>
             <th className="zahl">gewaschen</th><th className="zahl">wartet</th>
-            <th className="zahl">Lagertage</th></tr></thead>
+            <th className="zahl">Liegt seit</th></tr></thead>
           <tbody>
             {wartend.slice(0, 15).map(b => (
               <tr key={b.charge_nr}>
@@ -621,7 +623,7 @@ function WartetAufsWaschen({ bestand }: { bestand: Bestand[] }) {
                 <td className="zahl">{kg(b.sortiert_kg, 0)}</td>
                 <td className="zahl">{kg(b.gewaschen_kg, 0)}</td>
                 <td className="zahl"><strong>{kg(b.wartet_kg, 0)}</strong></td>
-                <td className="zahl">{Math.round(b.alter_lager)}</td>
+                <td className="zahl">{Math.round(b.alter_lager_heute)}</td>
               </tr>
             ))}
           </tbody>

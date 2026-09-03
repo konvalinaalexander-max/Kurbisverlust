@@ -457,20 +457,27 @@ function Kaliber() {
         </p>
         {fehler && <Hinweis art="warnung">{fehler}</Hinweis>}
         {meldung && <Hinweis art="gut">{meldung}</Hinweis>}
-        <div className="rollbar">
-          <table>
-            <thead><tr><th>Sorte</th><th>Käufer</th><th>gilt ab</th><th>Regel</th></tr></thead>
-            <tbody>
-              {[...gruppen.values()].map(fassungen => fassungen.map((z, i) => (
-                <tr key={z.id} className={i === 0 ? '' : 'leise'}>
-                  <td>{i === 0 ? z.sorte : ''}</td>
-                  <td>{i === 0 ? kaeuferName(z.kaeufer) : ''}</td>
-                  <td>{z.gilt_ab <= '2000-01-01' ? 'seit immer' : datum(z.gilt_ab)}</td>
-                  <td>{schemaText(z)}{z.bemerkung ? <span className="leise"> — {z.bemerkung}</span> : null}</td>
-                </tr>
-              )))}
-            </tbody>
-          </table>
+        {/* Je Sorte × Käufer ein Block, je Fassung eine Zeile. Eine Tabelle mit
+            vier Spalten quetschte die Regel auf dem Handy in eine schmale Spalte
+            und schnitt sie ab. */}
+        <div className="fassungen">
+          {[...gruppen.values()].map(fassungen => (
+            <div key={`${fassungen[0].sorte}|${fassungen[0].kaeufer ?? ''}`} className="gruppe">
+              <div className="kopf">
+                <strong>{fassungen[0].sorte}</strong>
+                <span className="leise">{kaeuferName(fassungen[0].kaeufer)}</span>
+              </div>
+              {fassungen.map((z, i) => (
+                <div key={z.id} className={`fassung${i === 0 ? '' : ' leise'}`}>
+                  <span>{z.gilt_ab <= '2000-01-01' ? 'seit immer' : `ab ${datum(z.gilt_ab)}`}</span>
+                  <span>
+                    {schemaText(z)}
+                    {z.bemerkung ? <span className="leise"> — {z.bemerkung}</span> : null}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ))}
         </div>
       </Karte>
 

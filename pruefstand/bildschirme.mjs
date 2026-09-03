@@ -29,6 +29,11 @@ const NUR = process.argv[2] ?? ''
 // längsten Wörter — was dort in den Rahmen passt, passt überall.
 //   SPRACHE=hu node pruefstand/bildschirme.mjs auftrag
 const SPRACHE = process.env.SPRACHE ?? 'de'
+// Die Klickwege der Arbeiter-Masken nennen Reiter und Knöpfe über ihren
+// Text-Schlüssel, nicht über das deutsche Wort — sonst liefe der Prüfstand in
+// jeder anderen Sprache ins Leere. Das Wörterbuch kommt aus der App selbst,
+// über den Vite-Server, sobald er steht (unten).
+let T = id => id
 
 const fixture = name => {
   try { return JSON.parse(readFileSync(join(DATEN, `${name}.json`), 'utf8')) }
@@ -128,21 +133,21 @@ const BILDSCHIRME = [
   { name: 'anmelden', wer: null, pfad: '/' },
   { name: 'auftraege', wer: 'arbeiter', pfad: '/auftraege' },
   { name: 'auftrag-neu', wer: 'arbeiter', pfad: '/auftraege',
-    tun: async p => { await p.getByRole('button', { name: /Neue Arbeit/ }).click() } },
+    tun: async p => { await p.getByRole('button', { name: T('neuerAuftrag') }).click() } },
   { name: 'auftrag-detail', wer: 'arbeiter', pfad: '/auftraege/OFFEN' },
   { name: 'auftrag-wiegen', wer: 'arbeiter', pfad: '/auftraege/OFFEN',
     tun: async p => {
       // Ohne Datum vom Zettel bleibt der Zähler gesperrt (0041).
       await p.locator('#zettel').fill('2026-09-01')
       await p.getByRole('button', { name: '+', exact: true }).click()
-      await p.getByRole('button', { name: /wiegen/i }).first().click()
+      await p.getByRole('button', { name: T('jaWiegen'), exact: true }).first().click()
     } },
   { name: 'auftrag-kisten', wer: 'arbeiter', pfad: '/auftraege/OFFENKISTEN',
-    tun: async p => { await p.getByRole('link', { name: 'Kisten' }).click() } },
+    tun: async p => { await p.getByRole('link', { name: T('kaliberKisten'), exact: true }).click() } },
   { name: 'auftrag-faule', wer: 'arbeiter', pfad: '/auftraege/OFFEN',
-    tun: async p => { await p.getByRole('link', { name: 'Faule' }).click() } },
+    tun: async p => { await p.getByRole('link', { name: T('faule'), exact: true }).click() } },
   { name: 'auftrag-abschluss', wer: 'arbeiter', pfad: '/auftraege/OFFEN',
-    tun: async p => { await p.getByRole('link', { name: 'Fertig', exact: true }).click() } },
+    tun: async p => { await p.getByRole('link', { name: T('abschluss'), exact: true }).click() } },
   { name: 'kontrolle', wer: 'arbeiter', pfad: '/kontrolle' },
   { name: 'dashboard-1', wer: 'admin', pfad: '/dashboard' },
   { name: 'dashboard-2', wer: 'admin', pfad: '/dashboard',
@@ -181,6 +186,8 @@ const vite = await createServer({
   logLevel: 'silent',
 })
 await vite.listen()
+const { WOERTERBUCH } = await vite.ssrLoadModule('/src/lib/i18n.ts')
+T = id => WOERTERBUCH[SPRACHE]?.[id] ?? WOERTERBUCH.de[id]
 
 // Die offene Arbeit hat die höchste Auftrags-ID im Fixture.
 const auftraege = fixture('auftrag') ?? []
@@ -241,10 +248,10 @@ for (const geraet of GERAETE) {
           await seite.goto(`http://localhost:5199${pfad}`, { waitUntil: 'networkidle' })
         }
       } else if (schirm.wer === 'arbeiter') {
-        const feld = seite.getByLabel('Dein Name')
+        const feld = seite.getByLabel(T('deinName'))
         if (await feld.isVisible().catch(() => false)) {
           await feld.fill('Tomasz')
-          await seite.getByRole('button', { name: /Los geht/ }).click()
+          await seite.getByRole('button', { name: T('losGehts') }).click()
           await seite.waitForLoadState('networkidle')
           await seite.goto(`http://localhost:5199${pfad}`, { waitUntil: 'networkidle' })
         }
