@@ -1,9 +1,16 @@
 # Was ich vom Betrieb wissen muss
 
-> **Stand 1. September:** Der Betrieb hat einen grossen Teil beantwortet. Was bestätigt ist,
-> steht jetzt als Tatsache in `ABLAUF.md`; die zwanzig Fragen, die daraus noch offen sind,
-> stehen gebündelt in **`docs/Offene-Fragen.pdf`**. Diese Datei hier bleibt als vollständige
-> Liste bestehen — beantwortete Punkte sind unten mit ✓ markiert.
+> **Stand 2. September — das meiste ist beantwortet.**
+> Die Antworten stehen als Tatsachen in **`docs/ABLAUF.md`**, nicht mehr hier. Diese Datei
+> bleibt als vollständige Liste der einmal gestellten Fragen bestehen.
+>
+> **Noch offen:** die Preise (für eine Rangfolge in Franken statt in Kilo), welche Massnahme
+> aus welchem Ergebnis folgen würde, die übrigen Abgänge neben dem Lieferschein-Verkauf, und
+> die Perigon-Vorlage für den Warenausgangs-Import.
+>
+> **Neu aufgeworfen:** Der Palox enthält nicht nur Faules, sondern auch Erde, Blätter und
+> optisch Ausgeschiedenes (Hagelnarben, Schnittfehler). Was das für die Rechnung bedeutet,
+> steht in `ABLAUF.md` unter „Die Antworten vom 2. September".
 
 Jede Frage hier ist eine Stelle, an der die Software heute etwas **annimmt**.
 Solange die Annahme unbestätigt ist, kann die Rechnung danebenliegen, ohne

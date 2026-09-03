@@ -5,6 +5,94 @@ Sie ist der Massstab, an dem sich Datenmodell und Oberflächen messen lassen
 müssen. Wo das Modell etwas annimmt, das niemand geprüft hat, steht es als
 Annahme da — unmarkierte Annahmen sind der Anfang jedes stillen Fehlers.
 
+## Die Antworten vom 2. September — und was sie am Modell ändern
+
+### Drei Antworten ändern die Rechnung, nicht nur die Maske
+
+**1. Der Palox ist kein Schimmel-Behälter, sondern ein Kompost-Behälter.**
+Darin landen: Faules, Erde, Blätter — und **optisch Ausgeschiedenes**: Hagelnarben, falsch
+geschnittene Stiele. Das Letztere ist nicht faul und hat mit der Lagerung **nichts zu tun**; es
+kommt so vom Feld und wäre am ersten Lagertag genauso da wie am hundertsten.
+
+Bisher hat das Modell den ganzen Palox-Inhalt als zeitabhängigen Verderb gelesen und die
+Verderbskurve daran angepasst. Das ist falsch: Ein zeitunabhängiger Sockel verzieht die Kurve,
+und zwar systematisch nach oben bei kurzen Lagerdauern — also genau dort, wo die Steigung
+entschieden wird.
+
+*Was daraus folgt:* Der gemessene Anteil ist nicht `F(t)`, sondern
+
+```
+Anteil(t) = a₀ + (1 − a₀) · F(t)
+```
+
+mit `a₀` als **Grundaussortierung** — Erde, Hagelnarben, Schnittfehler, alles, was nicht von der
+Zeit kommt. `a₀` ist aus den Daten schätzbar, sobald Messungen über verschieden lange
+Lagerdauern vorliegen: Bei kurzen Lagerdauern geht `F(t)` gegen null, der beobachtete Anteil
+also gegen `a₀`.
+
+Im Dashboard wird die Grundaussortierung als **eigener Balken** ausgewiesen und **nicht** zum
+Lagerverlust gezählt. Der Betrieb hat ausdrücklich gesagt: Es interessiert, was *während der
+Lagerung* passiert. Genau deshalb muss der Rest heraus — nicht um ihn zu verschweigen, sondern
+damit er den Lagerverlust nicht aufbläht.
+
+**2. Zu Kleine gehen an die Tiere.** Damit sind sie **kein physischer Verlust**, sondern ein
+anderer Kanal — genau wie die zu Grossen. Beide wandern aus Buch A (Verlust) in Buch B und
+werden zusammen ausgewiesen. Das verschiebt einen ganzen Balken im Ranking.
+
+**3. Das Sortierschema hängt am Käufer, nicht an der Sorte.** Coop will es anders als Migros,
+und dieselbe Sorte läuft je nach Bestellung mit „Kiste ab x kg" oder mit Kaliberbändern. Die
+Kaliber-Grenzen sind damit **keine Eigenschaft der Sorte** mehr, sondern eine Eigenschaft von
+*(Sorte × Käufer)* zu einem Zeitpunkt — und die Klassierung einer Sortier-CSV muss die Grenzen
+verwenden, die **damals galten**. Siehe `docs/Datenarchitektur.pdf`.
+
+### Was sonst bestätigt wurde
+
+| Frage | Antwort | Folge |
+|---|---|---|
+| Palox je Station | Einer beim Sortieren, einer beim Waschen; an jeder Station läuft **nur ein Auftrag gleichzeitig** | Keine Behälter-Kennung nötig. Ablesen bei Beginn und Abschluss trägt. |
+| Palox-Waage | zeigt **brutto**, immer derselbe Behälter, **45 kg** Leergewicht | Als Einstellung hinterlegt. Bei der Differenz kürzt es sich weg; nach dem Leeren wird es gebraucht. Hinweis in der Maske: *Gewicht direkt von der Waage ablesen.* |
+| Ausschuss-Paletten | sollen je Auftrag **neu** angefangen werden | Beim Start die Frage „Sind die Paletten für zu gross und zu klein leer?", beim Eintragen „Alles von diesem Auftrag?" |
+| Chargen mischen beim Waschen | **selten, aber kommt vor** | Ein Feld genügt; die seltenen Fälle fallen aus dem Zeitmodell. Kein Umbau des Datenmodells. |
+| Erde am Kürbis | **wenig** | Keine eigene Korrektur nötig. Sie landet ohnehin im Palox und steckt damit in `a₀`. |
+| Halle | **temperiert, mit Klimacomputer** | Die konstante Tagesrate ist damit deutlich besser begründet als befürchtet. Klimadaten könnten später eine temperaturabhängige Rate tragen. |
+| Paletten im Lager | **gestapelt, nicht an jede kommt man ran** | Siehe Kasten unten — das trifft die Lagerkontrolle. |
+| Datum auf dem Zettel | **Einlagerungsdatum, fast immer gleich Erntedatum** | Die Uhr startet richtig. |
+| Im Feld aussortiert | ja — **interessiert aber nicht** | Bestätigt den Zuschnitt: gefragt ist, wohin der Kürbis **im Lager** verschwindet. |
+| Fax | immer eigener Arbeitsgang, nach Bestellung; tagsüber wird provisorisch vorgewaschen | Eigener Auftragstyp. Auch hier die Frage „alles aus einer Charge?" |
+| Rückverfolgbarkeit | **muss garantiert sein** | Deshalb ist eine Bestellung fast immer aus einer Charge — das ist der Grund, warum das Mischen selten ist. |
+| Zettel an der Kaliber-Kiste | **die Charge steht drauf**, derselbe Zettel wird weitergegeben | Die grösste Sorge ist erledigt: Beim Waschen ist die Charge bekannt, nicht geraten. Das Sortierdatum kommt einfach auf denselben Zettel. |
+| Kaliber-Kisten chargenrein | **eher ja** — wird nicht mit anderer Charge vollgemacht | Die Charge überlebt das Zwischenlager. |
+
+### Das gestapelte Lager trifft die wertvollste Messung
+
+Die Paletten stehen gestapelt, und man kommt **nicht** an jede heran. Damit ist die Entnahme
+aus dem Hauptlager nicht zufällig, sondern folgt der Erreichbarkeit — und die hängt daran, wann
+eine Palette hingestellt wurde.
+
+Für das Zwischenlager (Kaliber-Kisten) hatte der Betrieb zufällige Entnahme bestätigt; das
+bleibt. Für das Hauptlager gilt es nicht.
+
+Die Folge trifft ausgerechnet die Lagerkontrolle: „Nimm irgendeine Palette" ist nicht
+durchführbar, wenn man an die meisten gar nicht herankommt. Was bleibt, ist das Ehrliche:
+**eine zufällige unter den heute erreichbaren** — und die App hält fest, dass es so war. Damit
+ist die Messung nicht mehr frei von Auswahl, aber ihre Auswahl ist wenigstens *bekannt* und
+nicht am Zustand der Ware orientiert. Das ist immer noch weit besser als jede
+Verarbeitungsmessung.
+
+Besser wäre: beim Umstapeln oder beim Öffnen eines Stapels eine Palette aus der **Mitte oder
+unten** greifen. Das kostet nichts extra, weil der Stapel ohnehin offen ist.
+
+### Warenausgang aus Perigon
+
+Die Bestellungen laufen über Perigon, und dort ist je Lieferung wahrscheinlich die Charge
+vermerkt. Wenn der Zugang kommt, lässt sich der ganze bisherige Saisonverlauf nachliefern und
+danach laufend einspeisen.
+
+Damit erledigt sich der Erfassungsbeginn zum grossen Teil von selbst: Was vor der App
+rausging, steht in Perigon. Die App braucht dafür einen **Import für Fremddateien**, der die
+Rohdatei unverändert ablegt, sie an einer Prüfsumme wiedererkennt und einen erneuten Import
+derselben Datei folgenlos macht. Siehe `docs/Datenarchitektur.pdf`.
+
 ## Was der Betrieb bestätigt hat (1. September)
 
 Diese Punkte sind keine Annahmen mehr.

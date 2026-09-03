@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="de"><head><meta charset="utf-8">
+<title>Wie die Daten gespeichert werden</title>
+<!--STIL-->
+<style>
+h1{font-size:15.5pt;margin:0 0 1.5mm}
+.dokkopf{border-bottom:1.4pt solid #b0530f;padding-bottom:3mm;margin-bottom:4mm}
+.dokkopf .ober{font-family:'Inter',sans-serif;font-size:8pt;font-weight:700;letter-spacing:.18em;
+  text-transform:uppercase;color:#b0530f;margin-bottom:1.5mm}
+h2{margin-top:5.5mm}
+.regel{border-left:2.6pt solid #b0530f;padding-left:4mm;margin:3.5mm 0 4mm}
+.regel>h3{margin-top:0;font-size:10.4pt}
+.gegen{display:grid;grid-template-columns:1fr 1fr;gap:3mm;margin:2.5mm 0 3mm;break-inside:avoid}
+.gegen>div{border:.6pt solid #ddd;padding:2mm 2.6mm;font-size:8.7pt}
+.gegen .schlecht{border-color:#d8b5ad;background:#fdf5f3}
+.gegen .gut{border-color:#b5cbb9;background:#f2f8f3}
+.gegen .kopf{font-family:'Inter',sans-serif;font-weight:700;font-size:7.5pt;letter-spacing:.07em;
+  text-transform:uppercase;margin-bottom:1.2mm}
+.gegen .schlecht .kopf{color:#9c4030}
+.gegen .gut .kopf{color:#2e6b3f}
+.gegen p{margin:0 0 1.2mm}
+.gegen p:last-child{margin-bottom:0}
+.gegen .mono{display:block;background:#fff;border:.4pt solid #e2e2e2;padding:1.2mm 1.6mm;
+  margin:1mm 0;font-size:7.8pt;line-height:1.35}
+.neu{display:inline-block;font-family:'Inter',sans-serif;font-size:6.9pt;font-weight:700;
+  letter-spacing:.05em;text-transform:uppercase;padding:.2mm 1.2mm;border-radius:1mm;
+  background:#e7f0e8;color:#2e6b3f;vertical-align:.5mm;margin-left:1mm}
+.neu.aend{background:#faf0dc;color:#8a6a2a}
+.neu.bleibt{background:#eceef0;color:#5f6b76}
+</style></head><body>
+
+<div class="dokkopf">
+  <div class="ober">Kürbis-Verlust-Tracking</div>
+  <h1>Wie die Daten gespeichert werden</h1>
+  <p style="margin:0;color:#444">Damit die Analyse in drei Jahren komplett anders aussehen darf,
+  ohne dass ein einziger Messwert dabei verloren geht. Dieses Dokument beantwortet die Frage,
+  welche Datenstruktur zur Lage passt — und begründet jede Entscheidung an einem Fall, der sonst
+  schiefgeht.</p>
+</div>
+
+<h2>Der eine Grundsatz, aus dem alles folgt</h2>
+<p style="font-size:11.5pt;font-family:'Inter',sans-serif;font-weight:600;color:#b0530f;
+   margin:2mm 0 2.5mm">Gespeichert wird, was <em>beobachtet</em> wurde — nie, was daraus
+   <em>gefolgert</em> wurde.</p>
+<p>Jede Folgerung steckt voller Annahmen: eine Tara, eine Kaliber-Grenze, eine Reinigungsregel,
+ein Modell. Wer die Folgerung speichert, friert diese Annahmen mit ein — und wenn sich eine
+davon als falsch herausstellt, ist der Messwert verloren. Wer die Beobachtung speichert, kann
+sie in zehn Jahren mit einer völlig anderen Rechnung neu auswerten.</p>
+<p>Das klingt selbstverständlich und ist es nicht. Es ist verführerisch, „34 kg Schimmel" zu
+speichern, weil genau das gebraucht wird. Aber 34 kg ist bereits ein Ergebnis: Waage-Endstand
+minus Waage-Anfangsstand, minus Behälter-Tara, unter der Annahme, dass niemand zwischendurch
+geleert hat. Vier Annahmen in einer Zahl.</p>
+
+<div class="gegen">
+<div class="schlecht"><div class="kopf">Gefolgert — verloren</div>
+<p>Der Palox als eine Zahl:</p>
+<span class="mono">schimmel_messung
+  kg = 34</span>
+<p>Stellt sich später heraus, dass die Behälter-Tara 45 kg statt 40 kg ist, lässt sich diese
+Zeile nicht mehr korrigieren — der Rohwert existiert nicht mehr.</p></div>
+<div class="gut"><div class="kopf">Beobachtet — reparierbar</div>
+<p>Der Palox als zwei Ablesungen:</p>
+<span class="mono">palox_ablesung
+  art = 'beginn', brutto = 112
+  art = 'ende',   brutto = 146</span>
+<p>Die 34 kg entstehen erst beim Auswerten. Ändert sich eine Annahme, ändert sich die Ableitung
+— die Beobachtung bleibt, wie sie war.</p></div>
+</div>
+
+<p><strong>Der Prüfsatz für jede neue Spalte:</strong> <em>Könnte jemand diese Zeile in fünf
+Jahren mit einer völlig anderen Rechnung neu auswerten?</em> Lautet die Antwort nein, fehlt
+etwas.</p>
+
+<h2>Die drei Schichten</h2>
+<figure>
+<svg viewBox="0 0 700 168" style="width:100%;height:auto" role="img" aria-label="Drei Schichten">
+ <style>.k{font-family:Inter,sans-serif;font-size:11.5px;font-weight:600;fill:#111}
+  .s{font-family:Inter,sans-serif;font-size:9px;fill:#555}
+  .n{font-family:Inter,sans-serif;font-size:8.5px;fill:#777}</style>
+ <rect x="4" y="6" width="692" height="44" rx="4" fill="#f2f8f3" stroke="#7ba888" stroke-width="1.2"/>
+ <text class="k" x="16" y="24">1 · Beobachtung</text>
+ <text class="s" x="16" y="38">Was jemand gesehen, gewogen, gezählt oder geantwortet hat. Wird nie geändert, nie gelöscht.</text>
+ <text class="n" x="688" y="24" text-anchor="end">unantastbar</text>
+ <text class="n" x="688" y="38" text-anchor="end">wächst nur an</text>
+
+ <rect x="4" y="58" width="692" height="44" rx="4" fill="#fdf6ee" stroke="#c9a06a" stroke-width="1.2"/>
+ <text class="k" x="16" y="76">2 · Kontext</text>
+ <text class="s" x="16" y="90">Taras, Kaliber-Grenzen, Sortierschemata, Reinigungsregeln — jeweils mit dem Zeitraum, in dem sie galten.</text>
+ <text class="n" x="688" y="76" text-anchor="end">datiert</text>
+ <text class="n" x="688" y="90" text-anchor="end">nie überschrieben</text>
+
+ <rect x="4" y="110" width="692" height="44" rx="4" fill="#f3f6fa" stroke="#7f9dc0" stroke-width="1.2"/>
+ <text class="k" x="16" y="128">3 · Ableitung</text>
+ <text class="s" x="16" y="142">Netto, Koeffizienten, Kurven, Kaskade, Ranking. Alles Ansichten und gespeicherte Auswertungen.</text>
+ <text class="n" x="688" y="128" text-anchor="end">jederzeit wegwerfbar</text>
+ <text class="n" x="688" y="142" text-anchor="end">aus 1 + 2 neu gebaut</text>
+</svg>
+<figcaption>Schicht 3 muss sich vollständig löschen und aus 1 und 2 neu erzeugen lassen. Genau
+das kann <code>setup.sql</code> heute schon — und diese Eigenschaft ist der eigentliche Schutz
+gegen eine Analyse, die sich ändert.</figcaption>
+</figure>
+<p>Wird die Analyse eines Tages ganz anders — ein anderes Verderbsmodell, eine andere Kaskade,
+eine ökonomische statt einer Massen-Rechnung —, dann fällt Schicht 3 weg und wird neu gebaut.
+Schicht 1 und 2 bleiben unberührt. Das ist der ganze Trick, und alles Weitere in diesem
+Dokument dient nur dazu, ihn wirklich zu halten.</p>
+
+<h2>Vier Regeln, die den Trick tragen</h2>
+
+<div class="regel">
+<h3>1 · Kontext muss datiert sein — sonst ändert eine Korrektur die Vergangenheit</h3>
+<p>Das ist der unauffälligste und gefährlichste Fehler. Stammdaten werden bearbeitet, weil sie
+falsch waren — und damit ändert sich <em>rückwirkend</em> jede Auswertung, die je darauf
+beruhte, ohne dass es jemandem auffällt.</p>
+<p>Ein Fall aus Deinen Antworten: Das <strong>Sortierschema hängt am Käufer</strong>, nicht an
+der Sorte. Coop will Kaliberbänder, Migros will Kisten ab acht Kilo, und beim nächsten Auftrag
+ist es wieder anders. Die Kaliber-Grenzen sind damit keine Eigenschaft der Sorte mehr. Werden
+sie trotzdem als ein Wert je Sorte gespeichert und beim nächsten Auftrag überschrieben, dann
+wird die Sortier-CSV vom Oktober plötzlich mit den Grenzen vom Januar klassiert — und der
+gemessene Ausschussanteil ändert sich, ohne dass ein einziger Kürbis anders gewogen wurde.</p>
+<p><strong>Die Regel:</strong> Jede Stammdaten-Zeile bekommt <code>gilt_ab</code>. Geändert
+wird nie eine Zeile, sondern es kommt eine neue dazu. Jede Beobachtung trägt ihren Zeitstempel
+und findet darüber den Kontext, der damals galt.</p>
+<p>Das betrifft konkret: <strong>Gebinde-Tara</strong> (ändert jedes Netto rückwirkend),
+<strong>Kaliber-Grenzen und Sortierschemata</strong>, die <strong>Palox-Tara</strong> von 45 kg,
+und die <strong>Reinigungsregeln</strong> der CSV — die sind übrigens schon heute je Lauf
+gespeichert, und das war richtig.</p>
+</div>
+
+<div class="regel">
+<h3>2 · Antworten sind Messwerte</h3>
+<p>„War alles aus einer Charge?" ist keine Bedienlogik, sondern eine <strong>Aussage über die
+Verlässlichkeit einer anderen Messung</strong> — und damit selbst ein Datum. Dasselbe gilt für
+„Sind die Ausschuss-Paletten leer?", „War es wenigstens dieselbe Sorte?", „Stand ein
+Sortierdatum auf den Kisten?".</p>
+<p>Diese Fragen werden sich ändern; es kommen neue dazu und alte fallen weg. Für jede eine
+Spalte anzulegen, hiesse mitten in der Saison die Datenbank umbauen. Deshalb bekommen sie eine
+eigene Tabelle mit Schlüssel und Wert:</p>
+<div class="formel">auftrag_angabe(auftrag_id, schluessel, wert, ts, erfasser)
+  ('eine_charge', false) · ('gleiche_sorte', true) · ('sortierdatum', '2026-10-14')</div>
+<p><em>Bewusste Grenze:</em> Diese Bauform ist nur für Antworten gedacht — für Dinge, über die
+nicht gerechnet und nicht verknüpft wird. Alles, was in einer Summe oder einer Verknüpfung
+landet, bleibt eine richtige Spalte in einer richtigen Tabelle. Ein Datenmodell, in dem
+<em>alles</em> Schlüssel und Wert ist, kann am Ende gar nichts mehr prüfen.</p>
+</div>
+
+<div class="regel">
+<h3>3 · Fremddaten kommen roh herein und werden nie überschrieben</h3>
+<p>Vier Quellen liefern von aussen: das <strong>Erntejournal</strong> (Wareneingang), die
+<strong>Sortiermaschine</strong> (CSV), künftig <strong>Perigon</strong> (Warenausgang) und
+vielleicht der <strong>Klimacomputer</strong>. Für alle gilt dasselbe Muster:</p>
+<div class="formel">import_datei(id, quelle, datei_name, roh_ablage, pruefsumme,
+              zeitraum_von, zeitraum_bis, eingelesen_ts, eingelesen_von)</div>
+<p>Die Rohdatei wird unverändert abgelegt, die daraus gelesenen Zeilen zeigen auf ihre
+Herkunftsdatei. Drei Eigenschaften fallen dabei ab, und alle drei brauchst Du für den
+Perigon-Plan:</p>
+<ul>
+<li><strong>Zweimal einlesen schadet nicht.</strong> Die Prüfsumme erkennt dieselbe Datei
+wieder. Wer unsicher ist, ob ein Export schon drin war, lädt ihn einfach nochmal.</li>
+<li><strong>Nachliefern und laufend einspeisen ist dasselbe.</strong> Ob der ganze bisherige
+Saisonverlauf auf einmal kommt oder jede Woche ein Stück, ändert am Ablauf nichts.</li>
+<li><strong>Ein korrigierter Export ersetzt den alten, ohne ihn zu löschen.</strong> Die neue
+Datei kommt dazu, die Zeilen der alten werden als überholt markiert. Was einmal drin war, bleibt
+nachvollziehbar — und wenn die Korrektur selbst falsch war, ist der Weg zurück offen.</li>
+</ul>
+<p>Für Perigon heisst das konkret: <em>Schick mir die Vorlage, und ich baue den Import so, dass
+Du die Datei nur noch hochlädst.</em> Was die App aus den Spalten macht, ist dann Schicht 3 und
+jederzeit änderbar — die Datei selbst liegt unangetastet daneben.</p>
+</div>
+
+<div class="regel">
+<h3>4 · Jede Zeile weiss, woher sie kommt</h3>
+<p>In zwei Jahren wird jemand auf einen unplausiblen Wert stossen und fragen, wo der herkommt.
+Ohne Herkunft ist das eine Sackgasse.</p>
+<p>Deshalb trägt jede Beobachtung: <strong>wer</strong> (Profil), <strong>wann</strong>
+(Serverzeit, nicht die Uhr des Handys), <strong>auf welchem Weg</strong> (App, Import oder
+direkt per SQL) und <strong>mit welcher Programmfassung</strong>. Das Letzte klingt übertrieben
+und ist es nicht: Wenn eine Maske drei Wochen lang einen Rechenfehler hatte, ist die
+Programmfassung die einzige Möglichkeit, hinterher genau die betroffenen Zeilen zu finden.</p>
+</div>
+
+<h2>Was das für die Tabellen bedeutet</h2>
+<p>Konkret, aus Deinen Antworten abgeleitet.</p>
+<table>
+<tr><th style="width:44mm">Tabelle</th><th>Was sich ändert und warum</th></tr>
+<tr><td><code>palox_ablesung</code><span class="neu">neu</span></td><td>Ersetzt die gespeicherte
+  Menge durch die einzelnen Ablesungen: Auftrag, Station, Zeitpunkt, Art (Beginn / Ende /
+  zwischendurch), <strong>Bruttogewicht ab Waage</strong>. Die Menge entsteht beim Auswerten.
+  Ein zwischenzeitliches Leeren ist damit eine dritte Ablesung, kein Sonderfall.</td></tr>
+<tr><td><code>ausschuss_wiegung</code><span class="neu">neu</span></td><td>Statt einer
+  geschätzten Kilozahl: Kategorie, Kistenzahl, Gebindeart, Bruttogewicht — dieselbe Bauform wie
+  bei den Paletten. Das Netto ist Ableitung.</td></tr>
+<tr><td><code>kaeufer</code><span class="neu">neu</span></td><td>Coop, Migros und was sonst
+  dazukommt. Die Arbeiter legen neue selbst an; das ist kein Stammdaten-Pflegefall, sondern Teil
+  der Erfassung.</td></tr>
+<tr><td><code>sortierschema</code> + <code>schema_kategorie</code><span class="neu">neu</span></td>
+  <td>Je (Sorte × Käufer) und mit <code>gilt_ab</code>. Entweder eine Mindestmenge je Kiste oder
+  eine Liste von Kategorien mit Grenzen. Ein Auftrag hält fest, <em>welche</em> Fassung er
+  verwendet hat — damit die Klassierung reproduzierbar bleibt, auch wenn beim nächsten Mal
+  anders sortiert wird.</td></tr>
+<tr><td><code>gebinde</code><span class="neu aend">geändert</span></td><td>Tara bekommt
+  <code>gilt_ab</code>. Eine korrigierte Tara verändert sonst rückwirkend jedes Netto der
+  Saison.</td></tr>
+<tr><td><code>auftrag_angabe</code><span class="neu">neu</span></td><td>Die Antworten aus dem
+  Abschluss-Ablauf, als Schlüssel und Wert.</td></tr>
+<tr><td><code>import_datei</code><span class="neu">neu</span></td><td>Herkunft für alles von
+  aussen: Journal, Sortiermaschine, Perigon, Klimacomputer.</td></tr>
+<tr><td><code>klima_messung</code><span class="neu">neu, optional</span></td><td>Zeitpunkt,
+  Temperatur, Feuchte. Braucht heute niemand — aber wenn die Daten ohnehin da sind, kostet das
+  Ablegen nichts, und später lässt sich damit eine temperaturabhängige Verdunstungsrate prüfen.
+  Genau dafür ist Schicht 1 da: aufheben, was man noch nicht auswerten kann.</td></tr>
+<tr><td><code>auftrag.art</code><span class="neu aend">geändert</span></td><td>Der neue
+  Arbeitsgang <em>Fax</em> kommt dazu.</td></tr>
+<tr><td><code>einstellung</code><span class="neu aend">geändert</span></td><td>Erfassungsbeginn,
+  Palox-Tara (45 kg).</td></tr>
+</table>
+
+<h2>Was bewusst bleibt, wie es ist</h2>
+<table>
+<tr><th style="width:44mm">Was</th><th>Warum es schon richtig ist</th></tr>
+<tr><td>Die CSV wird roh gespeichert<span class="neu bleibt">bleibt</span></td><td>Reinigung und
+  Klassierung sind eine eigene Schicht darüber, jederzeit neu ausführbar. Das ist genau das
+  Muster, das dieses Dokument für alles andere fordert — es war hier schon da.</td></tr>
+<tr><td>Die Auswertung sind Ansichten<span class="neu bleibt">bleibt</span></td><td>Kein
+  Zwischenspeicher, den jemand von Hand pflegen müsste. Die gespeicherten Auswertungen sind nur
+  Beschleunigung und werden auf Knopfdruck neu gerechnet.</td></tr>
+<tr><td>Abbrechen statt löschen<span class="neu bleibt">bleibt</span></td><td>Eine abgebrochene
+  Arbeit verschwindet aus jeder Rechnung, aber nicht aus der Datenbank. Gelöscht ist ein
+  Merkmal, keine Abwesenheit.</td></tr>
+<tr><td>Die Chargennummer als Schlüssel<span class="neu bleibt">bleibt</span></td><td>Eine
+  undurchsichtige Nummer aus dem Journal, immun gegen Schreibweisen und Leerzeichen. Sie
+  verbindet vier Systeme miteinander.</td></tr>
+<tr><td>Leer ist nicht null<span class="neu bleibt">bleibt</span></td><td>Eine fehlende Messung
+  ist eine Lücke, keine Null. Wer beides verwechselt, rechnet mit erfundenen Nullen — und merkt
+  es nie.</td></tr>
+</table>
+
+<h2>Die Ausstiegsklausel</h2>
+<p>Der härteste Test für „sauber gespeichert" ist nicht, ob die eigene App damit umgehen kann,
+sondern ob <strong>jemand anders</strong> es kann — ohne diese App, ohne diese Datenbank,
+ohne mich.</p>
+<p>Deshalb gehört ein vollständiger Export dazu: je Beobachtungstabelle eine Datei, dazu alle
+Rohdateien und eine Beschreibung, was jede Spalte bedeutet. Wer in fünf Jahren mit einem anderen
+Werkzeug neu rechnen will, braucht genau das und sonst nichts. Solange dieser Export existiert
+und vollständig ist, ist das Projekt nicht an seine eigene Software gefesselt.</p>
+<div class="kasten">
+<div class="titel">Der Satz, an dem sich alles messen lässt</div>
+<p>Wenn morgen jemand käme und sagte: <em>„Euer Verderbsmodell ist Unsinn, ich rechne das ganz
+anders"</em> — dann müsste er dafür <strong>keine einzige neue Messung</strong> brauchen. Er
+bekäme den Export, würfe Schicht 3 weg und baute seine eigene. Alles, was auf dem Hof je
+beobachtet wurde, stünde ihm vollständig zur Verfügung.</p>
+<p>Diesen Satz kann das Projekt heute schon fast halten. Was noch fehlt, steht in der Tabelle
+oben — und es ist überschaubar.</p>
+</div>
+
+<h2>In welcher Reihenfolge</h2>
+<table>
+<tr><th style="width:10mm"></th><th>Was</th><th style="width:52mm">Warum jetzt</th></tr>
+<tr><td class="z"><strong>1</strong></td><td>Palox als Ablesungen, Ausschuss als Wägung,
+  Antworten als Daten</td><td>Betrifft jede Erfassung ab sofort. Was hier heute falsch gespeichert
+  wird, ist später nicht mehr zu retten.</td></tr>
+<tr><td class="z"><strong>2</strong></td><td>Sortierschema je Käufer, mit Gültigkeit — samt der
+  Maske, in der die Arbeiter es selbst eintragen</td><td>Ohne das werden Kaliber-Grenzen
+  überschrieben und ändern rückwirkend die Vergangenheit.</td></tr>
+<tr><td class="z"><strong>3</strong></td><td>Import für Fremddateien, Erfassungsbeginn</td>
+  <td>Sobald die Perigon-Vorlage da ist. Vorher lässt sich der Import nicht sinnvoll bauen.</td></tr>
+<tr><td class="z"><strong>4</strong></td><td>Grundaussortierung vom Lagerverderb trennen; zu
+  Kleine zum anderen Kanal</td><td>Ändert die Rechnung, nicht die Erfassung — geht also auch
+  später, ohne dass Daten verloren gehen. Genau dafür ist die Schichtung da.</td></tr>
+<tr><td class="z"><strong>5</strong></td><td>Export, Klimadaten</td><td>Wertvoll, aber nichts
+  hängt daran fest.</td></tr>
+</table>
+<p>Die Reihenfolge folgt einem einzigen Kriterium: <strong>Was verliert Daten, wenn es fehlt?</strong>
+Die Punkte 1 bis 3 tun das — jede Erfassung, die heute in der falschen Form abgelegt wird, ist
+verloren. Punkt 4 und 5 ändern nur, wie gerechnet wird, und das lässt sich jederzeit
+nachholen.</p>
+</body></html>

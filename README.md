@@ -566,7 +566,8 @@ Was jede Ansicht bedeutet, steht in [`docs/DATENFLUSS.md`](docs/DATENFLUSS.md).
 | Datei | Worum es geht |
 |---|---|
 | [`docs/Ablauf-Betrieb-und-App.pdf`](docs/Ablauf-Betrieb-und-App.pdf) | **Der Einstieg.** Station für Station: was physisch passiert, was die App fragt, was Pflicht und was freiwillig ist — und was sie mit der Antwort anfängt. |
-| [`docs/Offene-Fragen.pdf`](docs/Offene-Fragen.pdf) | Was noch zu klären ist, geordnet danach, was es freigibt. |
+| [`docs/Datenarchitektur.pdf`](docs/Datenarchitektur.pdf) | **Wie die Daten gespeichert werden** — damit die Analyse später komplett anders aussehen darf, ohne dass ein Messwert verloren geht. |
+| [`docs/Offene-Fragen.pdf`](docs/Offene-Fragen.pdf) | Was noch zu klären ist, geordnet danach, was es freigibt. Der Grossteil ist inzwischen beantwortet — siehe `docs/ABLAUF.md`. |
 | [`docs/Kuerbis-Verlust-Tracking.pdf`](docs/Kuerbis-Verlust-Tracking.pdf) | Die vollständige Offenlegung inklusive der Mathematik: Massenkaskade, Verderbsmodell, Unsicherheit. |
 
 Alle drei entstehen aus HTML-Quellen im selben Ordner:
