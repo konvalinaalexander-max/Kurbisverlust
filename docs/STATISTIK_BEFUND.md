@@ -618,3 +618,77 @@ fehlen dem Vergleich, wodurch die Lager-Seite eher zu hoch erscheint und der
 Zuschlag eher zu früh feuert. Die Fehlerrichtung ist die sichere: Der Bereich
 wird höchstens zu breit, nie zu schmal. Die gemessenen 90–100 % Überdeckung
 enthalten diesen Effekt bereits.
+
+---
+
+# Vierte Runde: der Sockel im Palox, und was das Modell davon sehen kann
+
+Der Betrieb hat den Palox als Kompost-Behälter beschrieben: rund 2 % der
+Masse darin haben nie gefault (Erde, Hagelnarben, Schnittfehler). Der Harness
+bildet das seither ab (`anteil_sockel`, sechstes Argument von `lauf.sh`; die
+Wahrheit führt den Strom „Nicht lagerbedingt"), und die Matrix hat zwei neue
+Bahnen mit 2 % Sockel. Ausserdem stehen zu Kleine seit dieser Runde in
+Buch B als „Zu klein (Tierfutter)"; die Rangfolge im Harness zählt sie
+weiter mit, nur der Name ist neu.
+
+## Was ein Sockel mit dem Modell ohne Sockel macht
+
+25 Saisons, Saisonmitte, 2 % Sockel, Modell aus der dritten Runde:
+
+| Strom | Verzerrung | Bereich | Überdeckung |
+|---|---|---|---|
+| **Schimmel/Fäulnis** | **+40.5 %** | 14 % | **0 %** |
+| Verdunstung | +1.0 % | 44 % | 100 % |
+| Ausschuss, Nebenkanal | ≤ 0.5 % | | 100 % |
+
+Der Sockel sitzt bei kurzen Lagerdauern, wo die Kurve flach ist; die
+Anpassung macht daraus eine flachere Kurve mit höherem Fuss, und die
+Hochrechnung auf lange Lagerdauern trägt beides mit. Der Bereich ist dabei
+schmal und liegt in keiner einzigen Saison richtig.
+
+## Zwei Regeln für den Sockel, gemessen
+
+Das Modell schätzt `a₀` in `Anteil(t) = a₀ + (1 − a₀)·F(t)` über ein Gitter
+mit (0037). Die Frage war, wann es den Sockel setzen darf. Beide Kandidaten
+wurden über dieselben Bahnen gefahren, je 25 Saisons, 12 Palettenwägungen:
+
+| Bahn | Regel | Nicht lagerbedingt | Schimmel: Verzerrung | Überdeckung |
+|---|---|---|---|---|
+| Saisonmitte, 2 % Sockel | 1-%-Band | −3.4 %, 72 % | **0.0 %** | 100 % |
+| | F-Test | −48.9 %, 76 % | +19.7 % | 48 % |
+| Saisonende, 2 % Sockel | F-Test | −96.0 %, 84 % | +46.1 % | 8 % |
+| Saisonende, Selektion, kein Sockel | 1-%-Band | **3826 kg erfunden**, 80 % | **−13.3 %** | **12 %** |
+| | F-Test | 563 kg erfunden, 100 % | −3.7 % | 88 % |
+| Saisonmitte, Selektion, kein Sockel | 1-%-Band | 3008 kg erfunden, 20 % | +7.7 % | 76 % |
+| | F-Test | 628 kg erfunden | +8.6 % | 84 % |
+| Saisonmitte, kein Sockel, keine Selektion | F-Test | 0 kg erfunden | −1.3 % | 96 % |
+
+Das 1-%-Band (der kleinste Sockel, dessen Fehler höchstens 1 % über dem
+besten liegt) trifft die Sockel-Bahn genau und erfindet unter Selektion
+3–4 t Grundaussortierung, weil „Schlechtes zuerst verarbeitet" bei kurzen
+Lagerdauern genauso aussieht wie ein Sockel. Der F-Test (das Modell ohne
+Sockel muss nachweisbar schlechter passen, Freiheitsgrade nach Chargen)
+erfindet fast nichts und halbiert die Verzerrung in der Sockel-Bahn zur
+Saisonmitte; am Saisonende sieht er den Sockel nicht.
+
+Ob eine Schwelle dazwischen beides könnte, sagt die Verteilung des
+Nachweises, also des Verhältnisses „Fehler ohne Sockel / bester Fehler":
+
+| Bahn | Median | Quartile | Sockel gesetzt |
+|---|---|---|---|
+| Saisonmitte, 2 % Sockel | 1.58 | 1.49–1.68 | 52 % |
+| Saisonende, 2 % Sockel | 1.36 | 1.31–1.44 | 4 % |
+| Saisonende, Selektion, kein Sockel | 1.32 | 1.25–1.48 | 12 % |
+| Schwelle bei 12 Chargen | 1.57 | | |
+
+Ein echter Sockel am Saisonende und eine Selektion ohne Sockel sind im
+Fehlermass dieselbe Verteilung. Keine Schwelle trennt sie; jede Schwelle
+entscheidet nur, in welcher Bahn die Zahl danebenliegt. Gewählt ist der
+F-Test, die Seite, die nichts erfindet (Begründung in `ENTSCHEIDUNGEN.md`).
+Die Grenze bleibt und steht in `ABLAUF.md`: Bei echtem Sockel ist der
+Schimmel zur Saisonmitte noch +20 %, am Saisonende +46 % zu hoch, in jeder
+Bahn mit Bereich, der das nicht abdeckt. Auseinanderhalten können das nur
+Lagerkontrollen (sie tragen keinen Sockel) oder eine direkte Angabe beim
+Leeren des Palox (`FRAGEN.md`, Frage 5).
+
+## Die Matrix nach der vierten Runde

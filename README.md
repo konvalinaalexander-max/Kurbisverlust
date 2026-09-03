@@ -637,14 +637,33 @@ npm test                    # Reinigung und Dateinamen-Parser, ohne Datenbank
 # Seiten, die wagrecht überlaufen. Vorher einmal die Daten-Abzüge ziehen:
 ./pruefstand/daten_dumpen.sh   # braucht die lokale Demo-Datenbank
 node pruefstand/bildschirme.mjs
+
+# Die Kette in beide Richtungen: eine komplette Arbeit über die Masken der
+# App erfassen (neue Arbeit mit Käufer, zählen, wiegen, Palox, zu klein/gross,
+# Abschluss mit Fragen), jede Schreibanfrage mitschneiden, dann in eine echte
+# Postgres einspielen und prüfen, dass jeder Wert in der Auswertung ankommt.
+node pruefstand/kette.mjs && ./pruefstand/kette_pruefen.sh 'postgresql://…'
+
+# Statistik: erfundene Saisons mit bekannter Wahrheit, misst Verzerrung und
+# Überdeckung je Strom (siehe docs/STATISTIK_BEFUND.md)
+./supabase/test/simulation/matrix.sh 25
 ```
 
 `run.sh` prüft: dass die Migrationen einzeln durchlaufen und die Fachlogik
 stimmt; dass `setup.sql` als ein einziger Query durchgeht, so wie der
 Supabase-Editor ihn sendet; dass ein zweiter Durchlauf gelingt, ohne Daten
 anzufassen; dass eine alte Datenbank sich aktualisieren lässt und danach
-**Objekt für Objekt** einer frisch eingerichteten gleicht; und dass `setup.sql`
-zu den Migrationen passt.
+**Objekt für Objekt** einer frisch eingerichteten gleicht; dass die Auswertung
+auch bei dreifacher Saisongrösse unter Supabases Zeitlimit bleibt; und dass
+`setup.sql` zu den Migrationen passt.
+
+Die Fachlogik-Prüfung (`supabase/test/pruefung.sql`) stellt dabei auch die
+Kette gegen die Rohtabellen: jedes erfasste Kilo Faules steht entweder als
+Punkt im Verderbsmodell oder als Befund unter „Auffälligkeiten" — ein drittes
+Schicksal gibt es nicht; ein Koeffizient ohne einzige Messung ist NULL, nicht
+0; der Restbestand ist die Masse nach Verdunstung und Verderb; ein Sockel im
+Palox wird wiedergefunden, ein erfundener nicht; eine Sortier-CSV bleibt nach
+der Fassung klassiert, die für ihren Auftrag galt.
 
 Der Objekt-für-Objekt-Vergleich läuft über `supabase/test/fingerabdruck.sql`:
 jede Spalte, Ansicht, Funktion, Regel und Bedingung als sortierte Textliste,
@@ -668,22 +687,31 @@ Auf beide läuft dieselbe Massenkaskade, jeder Anteil bezogen auf die Masse, die
 in seinen Schritt hineingeht:
 
 ```
-Eingang ──Verdunstung──> M1 ──Schimmel──> M2 ──Ausschuss/Nebenkanal──> verkaufsfähig
+Eingang ──Verdunstung──> M1 ──Sockel a₀──> ──Schimmel F(t)──> M2 ──zu klein / zu gross──> verkaufsfähig
 ```
 
 - **Verdunstung** multiplikativ: `netto_jetzt = netto_damals · (1−r)^Lagertage`.
   So kann die Hochrechnung auch über Monate nie mehr verbrauchen, als da ist.
-- **Schimmel** als kumulative Kurve über die Lagerdauer, isoton geglättet —
-  was verdorben ist, wird nicht wieder gesund.
-- **Ausschuss und Nebenkanal** als Massenanteile aus der Sortier-CSV
-  beziehungsweise den Handmessungen auf Weg 2.
+- **Sockel a₀** — was im Palox landet, ohne je gefault zu haben: Erde,
+  Hagelnarben, Schnittfehler. Zeitunabhängig, aus den Messungen geschätzt und
+  vom Verderb getrennt, damit er die Kurve nicht aufbläht. Nur, wenn die Daten
+  ihn belegen — sonst 0.
+- **Schimmel** als Verderbsmodell `F(t) = 1 − exp(−λ·t^k)` über die Lagerdauer,
+  an alle Messungen angepasst, chargen-robust gefehlert.
+- **Zu klein und zu gross** als Massenanteile aus der Sortier-CSV
+  beziehungsweise den Handmessungen auf Weg 2 — nach der Sortierfassung, die
+  für den Auftrag galt (Käufer und Datum).
 
-Koeffizienten kommen je Sorte, solange die eigene Stichprobe trägt (n ≥ 3),
-sonst aus allen Sorten zusammen. Welcher Fall gilt, steht an jeder Zahl.
+Koeffizienten kommen je Sorte und werden nach Datenlage zum Gesamtwert
+gezogen (empirisches Bayes). Welcher Fall gilt, steht an jeder Zahl. Ein
+Koeffizient ohne einzige Messung ist **unbekannt**, nicht null — das Dashboard
+sagt dann „nicht gemessen".
 
-**Zwei Bücher, nie vermischt:** Buch A ist der physische Verlust
-(Verdunstung + Schimmel + Ausschuss zu klein), Buch B die verschenkte Marge
-(Nebenkanal-Überschuss + Überfüllung der 8-kg-Kisten).
+**Drei Bücher, nie vermischt:** Buch A ist der Lagerverlust (Verdunstung +
+Schimmel), Buch B der andere Kanal und die verschenkte Marge (zu klein an die
+Tiere, zu gross in den Nebenkanal, Überfüllung der Kisten), und die
+Grundaussortierung vom Feld steht für sich: physisch weg, aber kein
+Lagerverlust.
 
 Die Probe aufs Exempel ist die **Massenbilanz**: Das Modell sagt voraus, wie
 viel Masse am Sortierband ankommen müsste, die CSV hat sie gewogen. Liegen beide
@@ -694,8 +722,8 @@ Begründung der Modellentscheidungen: [`docs/ENTSCHEIDUNGEN.md`](docs/ENTSCHEIDU
 
 ## Was noch offen ist
 
-- **Warenausgang wird nicht erfasst.** Die Massenbilanz vergleicht deshalb
-  Modell gegen Sortier-CSV, nicht Eingang gegen Verkauf.
+- **Warenausgang** wird von Hand erfasst (Lieferschein: Datum, Sorte, Kilo
+  oder Kisten). Der Import aus Perigon wartet auf die Vorlage der Datei.
 - **Preise fehlen** (pro Stück je Kaliber, pro Kiste). Buch B rechnet in
   Kilogramm, nicht in Franken.
 - **Ground-Truth für die Dubletten-Regel** steht aus: einmal eine Palette von
@@ -704,4 +732,17 @@ Begründung der Modellentscheidungen: [`docs/ENTSCHEIDUNGEN.md`](docs/ENTSCHEIDU
 - **Weg 1, Waschen:** Dort sind die Original-Paletten in Kaliber-Kisten
   aufgelöst, es gibt keine Palettenzahl mehr. Damit der dort ausgelesene
   Schimmel einen Nenner hat, muss beim Abschluss die verarbeitete Menge in kg
-  eingetragen werden.
+  eingetragen werden — der Betrieb hat gesagt, dass auf Weg 1 nie gewogen wird;
+  wie diese Menge zustande kommen soll, ist die wichtigste offene Frage
+  (`docs/FRAGEN.md`). Ohne sie meldet die Auswertung die Messung als „ohne
+  Nenner".
+- **Überfüllung:** Die Hochrechnung auf Kisten nimmt an, dass alle Weg-2-Ware
+  in Kisten mit dem Soll aus den Einstellungen geht. Der Betrieb hat gesagt,
+  die 8-kg-Kiste gilt nur für eine Sorte — welche, ist offen.
+- **Der Sockel im Palox** wird aus dem Zeitverlauf geschätzt, und das reicht
+  nicht: Die Simulation sieht einen echten Sockel von 2 % in der Saisonmitte
+  in jeder zweiten Saison, am Saisonende fast nie — dort sieht er genauso aus
+  wie „Schlechtes zuerst verarbeitet". Bleibt er unerkannt, ist der Schimmel um
+  20–46 % zu hoch (`docs/STATISTIK_BEFUND.md`, vierte Runde). Eine Angabe beim
+  Leeren des Palox, wie viel davon nicht faul war, wäre die Messung, die das
+  entscheidet (`docs/FRAGEN.md`, Frage 5).

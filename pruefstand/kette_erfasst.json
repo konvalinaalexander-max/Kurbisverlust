@@ -1,0 +1,195 @@
+[
+  {
+    "methode": "POST",
+    "tabelle": "kaeufer",
+    "prefer": "resolution=ignore-duplicates",
+    "filter": {
+      "on_conflict": "code"
+    },
+    "zeilen": [
+      {
+        "id": 90001,
+        "ts": "2026-09-03T11:20:47.189Z",
+        "code": "coop",
+        "name": "Coop"
+      }
+    ]
+  },
+  {
+    "methode": "POST",
+    "tabelle": "auftrag",
+    "prefer": "return=representation",
+    "filter": {
+      "select": "id"
+    },
+    "zeilen": [
+      {
+        "id": 90002,
+        "ts": "2026-09-03T11:20:47.213Z",
+        "weg": "hand",
+        "station": "waschen_sortieren",
+        "charge_nr": 1613,
+        "kaeufer": "coop"
+      }
+    ]
+  },
+  {
+    "methode": "POST",
+    "tabelle": "auftrag_teilnehmer",
+    "prefer": "",
+    "filter": {},
+    "zeilen": [
+      {
+        "id": 90003,
+        "ts": "2026-09-03T11:20:47.220Z",
+        "auftrag_id": 90002
+      }
+    ]
+  },
+  {
+    "methode": "POST",
+    "tabelle": "auftrag_palette",
+    "prefer": "",
+    "filter": {},
+    "zeilen": [
+      {
+        "id": 90004,
+        "ts": "2026-09-03T11:20:48.259Z",
+        "auftrag_id": 90002,
+        "eingangsdatum": "2026-09-01"
+      }
+    ]
+  },
+  {
+    "methode": "POST",
+    "tabelle": "auftrag_palette",
+    "prefer": "",
+    "filter": {},
+    "zeilen": [
+      {
+        "id": 90005,
+        "ts": "2026-09-03T11:20:48.345Z",
+        "auftrag_id": 90002,
+        "eingangsdatum": "2026-09-01"
+      }
+    ]
+  },
+  {
+    "methode": "POST",
+    "tabelle": "verdunstung_wiegung",
+    "prefer": "return=representation",
+    "filter": {
+      "select": "id"
+    },
+    "zeilen": [
+      {
+        "id": 90006,
+        "ts": "2026-09-03T11:20:48.560Z",
+        "auftrag_id": 90002,
+        "charge_nr": 1613,
+        "eingangsdatum": "2026-09-01",
+        "brutto_damals_kg": 950,
+        "brutto_jetzt_kg": 900,
+        "kisten": 40,
+        "gebindeart": "G2",
+        "kuerbisse_pro_kiste": 6,
+        "sichtbar_schimmel": false,
+        "faul_kg": null
+      }
+    ]
+  },
+  {
+    "methode": "POST",
+    "tabelle": "auftrag_palette",
+    "prefer": "",
+    "filter": {},
+    "zeilen": [
+      {
+        "id": 90007,
+        "ts": "2026-09-03T11:20:48.569Z",
+        "auftrag_id": 90002,
+        "eingangsdatum": "2026-09-01",
+        "wiegung_id": 90006
+      }
+    ]
+  },
+  {
+    "methode": "POST",
+    "tabelle": "schimmel_messung",
+    "prefer": "",
+    "filter": {},
+    "zeilen": [
+      {
+        "id": 90008,
+        "ts": "2026-09-03T11:20:48.758Z",
+        "auftrag_id": 90002,
+        "kg": 120,
+        "palox_stand_kg": 165,
+        "palox_geleert": false
+      }
+    ]
+  },
+  {
+    "methode": "POST",
+    "tabelle": "ausschuss_messung",
+    "prefer": "",
+    "filter": {},
+    "zeilen": [
+      {
+        "id": 90009,
+        "ts": "2026-09-03T11:20:48.858Z",
+        "auftrag_id": 90002,
+        "kg": 30,
+        "art": "zu_klein"
+      }
+    ]
+  },
+  {
+    "methode": "POST",
+    "tabelle": "ausschuss_messung",
+    "prefer": "",
+    "filter": {},
+    "zeilen": [
+      {
+        "id": 90010,
+        "ts": "2026-09-03T11:20:48.973Z",
+        "auftrag_id": 90002,
+        "kg": 15,
+        "art": "zu_gross"
+      }
+    ]
+  },
+  {
+    "methode": "POST",
+    "tabelle": "auftrag_angabe",
+    "prefer": "",
+    "filter": {
+      "columns": "\"auftrag_id\",\"schluessel\",\"wert\""
+    },
+    "zeilen": [
+      {
+        "id": 90011,
+        "ts": "2026-09-03T11:20:49.141Z",
+        "auftrag_id": 90002,
+        "schluessel": "eine_charge",
+        "wert": "true"
+      }
+    ]
+  },
+  {
+    "methode": "PATCH",
+    "tabelle": "auftrag",
+    "prefer": "",
+    "filter": {
+      "id": "eq.90002"
+    },
+    "zeilen": [
+      {
+        "id": 90012,
+        "ts": "2026-09-03T11:20:49.150Z",
+        "durchsatz_kg": null,
+        "status": "abgeschlossen"
+      }
+    ]
+  }
+]

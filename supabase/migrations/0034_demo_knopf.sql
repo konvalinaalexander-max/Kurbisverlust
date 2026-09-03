@@ -82,6 +82,15 @@ begin
     v_schimmel numeric;
     v_anteil  numeric;
   begin
+    -- ---------- Käufer und ein abweichendes Sortierschema -------------------
+    -- Coop und Migros gibt es auf dem Betrieb; Coop will Tiana enger sortiert.
+    insert into kaeufer (code, name) values ('coop', 'Coop'), ('migros', 'Migros')
+    on conflict (code) do nothing;
+    insert into sortierschema (sorte, kaeufer, gilt_ab, art, soll_kg_pro_kiste, bemerkung)
+    select 'Tiana', 'coop', date '2026-10-01', 'kiste', 8,
+           'DEMO — Coop nimmt Tiana in der 8-kg-Kiste'
+     where not exists (select 1 from sortierschema where sorte = 'Tiana' and kaeufer = 'coop');
+
     -- ---------- Wareneingang: 10 Chargen, gestaffelt eingelagert ----------
     foreach v_charge in array v_chargen loop
       v_i := array_position(v_chargen, v_charge);
@@ -201,7 +210,7 @@ begin
   -- verdunstet und verdirbt. Ohne diese Aufträge sieht der Betriebsleiter den
   -- zweiten Lagerabschnitt nie — und die Demo zeigt eine Welt, die es so nicht
   -- gibt.
-  declare v record; v_neu bigint; v_i int := 0;
+  declare v record; v_neu bigint; v_i int := 0; v_stand numeric := palox_tara_kg();
   begin
     -- v_auftrag_masse ist eine gespeicherte Ansicht. Innerhalb dieser einen
     -- Transaktion kennt sie die eben angelegten Aufträge noch nicht — ohne
@@ -229,10 +238,13 @@ begin
       returning id into v_neu;
 
       -- Schimmel #2: was seit dem Sortieren dazugekommen ist. Der Palox steht
-      -- auf der Waage, deshalb Stand und Differenz.
-      insert into schimmel_messung (auftrag_id, kg, palox_stand_kg)
-      values (v_neu, round(v.eingang_netto_kg * 0.004)::int,
-              round(v.eingang_netto_kg * 0.004, 1));
+      -- auf der Waage und läuft über die Arbeiten weiter; die Waage zeigt
+      -- brutto (Behälter 45 kg). Gespeichert wird der Stand, die Menge ist
+      -- Ableitung — nach dem dritten Waschgang wird der Palox geleert.
+      v_stand := case when v_i = 4 then palox_tara_kg() else v_stand end
+                 + round(v.eingang_netto_kg * 0.004, 1);
+      insert into schimmel_messung (auftrag_id, kg, palox_stand_kg, palox_geleert)
+      values (v_neu, round(v.eingang_netto_kg * 0.004)::int, v_stand, v_i = 4);
     end loop;
     raise notice 'Demo: zweiter Lagerabschnitt (Waschen) angelegt';
   end;
@@ -378,7 +390,16 @@ begin
      order by eingangsdatum limit 6;
     insert into schimmel_messung (auftrag_id, kg) values (v_auftrag, 4500);
 
-    raise notice 'Demo: Sonderfälle angelegt (abgebrochen, Zahlendreher)';
+    -- (3) Eine laufende Arbeit von heute, mit drei gezählten Paletten: damit
+    --     die Arbeiter-Masken in der Demo nicht leer sind und sich anfassen lassen.
+    insert into auftrag (weg, station, charge_nr, start_ts, status, kaeufer, bemerkung)
+    values ('hand', 'waschen_sortieren', 1650, now() - interval '2 hours', 'offen', 'coop', 'DEMO')
+    returning id into v_auftrag;
+    insert into auftrag_palette (auftrag_id, eingangsdatum)
+    select v_auftrag, eingangsdatum from palette where charge_nr = 1650
+     order by eingangsdatum limit 3;
+
+    raise notice 'Demo: Sonderfälle angelegt (abgebrochen, Zahlendreher, laufende Arbeit)';
   end;
   return (
   select format('Demo-Saison steht: %s Paletten in %s Chargen, %s Arbeiten, %s Sortierläufe. '
@@ -423,6 +444,10 @@ begin
   delete from auftrag where bemerkung = 'DEMO';
 
   delete from palette where extern_id like 'demo-%';
+  delete from sortierschema where bemerkung like 'DEMO%';
+  delete from kaeufer k where code in ('coop', 'migros')
+     and not exists (select 1 from auftrag a where a.kaeufer = k.code)
+     and not exists (select 1 from sortierschema s where s.kaeufer = k.code);
 
   perform auswertung_aktualisieren();
   return (

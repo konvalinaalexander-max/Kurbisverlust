@@ -8,9 +8,35 @@
 > aus welchem Ergebnis folgen würde, die übrigen Abgänge neben dem Lieferschein-Verkauf, und
 > die Perigon-Vorlage für den Warenausgangs-Import.
 >
-> **Neu aufgeworfen:** Der Palox enthält nicht nur Faules, sondern auch Erde, Blätter und
-> optisch Ausgeschiedenes (Hagelnarben, Schnittfehler). Was das für die Rechnung bedeutet,
-> steht in `ABLAUF.md` unter „Die Antworten vom 2. September".
+> **Aus der Prüfung vom 3. September — vier Fragen, die direkt an der Rechnung hängen:**
+>
+> 1. **Wie kommt die verarbeitete Menge am Waschbecken (Weg 1) zustande?** Der Betrieb
+>    hat gesagt, auf Weg 1 werde nie gewogen. Ohne diese Zahl hat der Schimmel, der beim
+>    Waschen aussortiert wird, keinen Nenner — die Auswertung meldet ihn dann als „ohne
+>    Nenner" und rechnet ihn nirgends ein. Möglich wären: Kaliber-Kisten zählen (dann
+>    braucht es einmal ein Kistengewicht je Sorte), oder die Menge aus dem Lieferschein
+>    des Tages. Welche Angabe ist am Waschbecken realistisch?
+> 2. **Für welche Sorte gilt die 8-kg-Kiste?** Die Überfüllung wird heute auf alle
+>    Weg-2-Ware hochgerechnet. Gilt die Kiste nur für eine Sorte, ist das zu viel.
+> 3. **Zeigt die Palox-Waage wirklich brutto, und wiegt der Behälter 45 kg?** Beides ist
+>    jetzt so hinterlegt (Einstellung `palox_tara_kg`). Zeigt sie netto, gehört die
+>    Einstellung auf 0 — sonst fehlen bei jeder ersten Ablesung 45 kg.
+> 4. **Welche Paletten kommen zuerst dran — die zuletzt eingelagerten (oben, vorne)?**
+>    Das Alter des Bestands wird jetzt aus den noch liegenden Paletten gebildet; das
+>    stimmt nur, wenn beim Zählen das Datum vom Zettel eingetragen wird. Ist das
+>    Pflichtfeld in der Halle durchsetzbar?
+> 5. **Lässt sich beim Leeren des Palox trennen, was faul war und was nicht?** Erde,
+>    Hagelnarben und Schnittfehler sind sichtbar etwas anderes als Fäulnis. Eine grobe
+>    Angabe je Leeren („davon nicht faul: etwa ein Zehntel") wäre eine Messung. Ohne sie
+>    muss die Auswertung den Sockel aus dem Zeitverlauf schätzen — und das gelingt nur
+>    in der Saisonmitte in jeder zweiten Saison, am Saisonende fast nie, weil ein Sockel
+>    dort genauso aussieht wie „Schlechtes zuerst verarbeitet" (Messung in
+>    `STATISTIK_BEFUND.md`, vierte Runde).
+>
+> **Was der Palox enthält** (Erde, Blätter, Hagelnarben, Schnittfehler) ist seit dieser
+> Prüfung im Modell: als Sockel, den die Auswertung aus den Messungen schätzt und nur
+> dann setzt, wenn die Messungen ihn belegen — siehe `ABLAUF.md` und
+> `STATISTIK_BEFUND.md`.
 
 Jede Frage hier ist eine Stelle, an der die Software heute etwas **annimmt**.
 Solange die Annahme unbestätigt ist, kann die Rechnung danebenliegen, ohne

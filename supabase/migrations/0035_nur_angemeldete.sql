@@ -31,3 +31,9 @@
 -- =====================================================================
 
 revoke execute on all functions in schema public from public;
+
+-- Und für alles, was danach noch angelegt wird: Ohne diese Zeile bekäme jede
+-- Funktion aus einer späteren Migration wieder das Standardrecht für PUBLIC —
+-- die Prüfung würde es finden, aber erst beim nächsten Testlauf, nicht beim
+-- Anlegen. Gilt für die Rolle, die setup.sql einspielt.
+alter default privileges in schema public revoke execute on functions from public;

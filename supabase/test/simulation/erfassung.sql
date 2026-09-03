@@ -23,9 +23,14 @@ with gruppen as (
          count(*) as n_paletten,
          sum(netto_eingang_kg) as netto_eingang,
          sum(netto_eingang_kg * power(1 - r_wahr, verarbeitet_am - eingangsdatum)) as m1,
+         -- Faules: nur im Teil, der nicht ohnehin als Sockel aussortiert wird
          sum(netto_eingang_kg * power(1 - r_wahr, verarbeitet_am - eingangsdatum)
+             * (1 - p.anteil_sockel)
              * sim.schimmel_wahr(verarbeitet_am - eingangsdatum, p.schimmel_lambda,
-                                 p.schimmel_k, w.anfaelligkeit)) as schimmel
+                                 p.schimmel_k, w.anfaelligkeit)) as schimmel,
+         -- Erde, Hagel, Schnitt: zeitunabhängig, landet im selben Palox
+         sum(netto_eingang_kg * power(1 - r_wahr, verarbeitet_am - eingangsdatum)
+             * p.anteil_sockel) as sockel
     from sim.palette_wahr w cross join sim.parameter p
    where w.lauf = :lauf and p.lauf = :lauf and w.verarbeitet_am is not null
    group by charge_nr, verarbeitet_am, w.weg
@@ -39,9 +44,9 @@ with gruppen as (
   returning id, charge_nr, start_ts, weg, station
 )
 insert into sim.auftrag_wahr (lauf, auftrag_id, charge_nr, verarbeitet_am,
-       n_paletten, netto_eingang, m1, schimmel)
+       n_paletten, netto_eingang, m1, schimmel, sockel)
 select :lauf, n.id, n.charge_nr, g.verarbeitet_am, g.n_paletten,
-       g.netto_eingang, g.m1, g.schimmel
+       g.netto_eingang, g.m1, g.schimmel, g.sockel
   from neu n join gruppen g
     on g.charge_nr = n.charge_nr and g.verarbeitet_am = n.start_ts::date;
 
@@ -53,11 +58,12 @@ select a.auftrag_id, w.eingangsdatum
     on w.lauf = a.lauf and w.charge_nr = a.charge_nr and w.verarbeitet_am = a.verarbeitet_am
  where a.lauf = :lauf;
 
--- ---------- Faule wiegen: Summe je Arbeit, auf Kilo gerundet ---------------
--- Mit etwas Wägefehler, wie an einer Palox-Waage.
+-- ---------- Den Palox wiegen: Faules plus Sockel, auf Kilo gerundet ---------
+-- Mit etwas Wägefehler, wie an einer Palox-Waage. Der Arbeiter sieht einen
+-- Behälter, nicht zwei — Erde und Hagelnarben liegen beim Faulen.
 insert into schimmel_messung (auftrag_id, kg)
-select auftrag_id, greatest(round(schimmel * (0.95 + random() * 0.1))::int, 0)
-  from sim.auftrag_wahr where lauf = :lauf and schimmel >= 1;
+select auftrag_id, greatest(round((schimmel + sockel) * (0.95 + random() * 0.1))::int, 0)
+  from sim.auftrag_wahr where lauf = :lauf and schimmel + sockel >= 1;
 
 -- ---------- Palettenwägungen: nur eine Handvoll je Saison ------------------
 -- Das ist die knappste Stichprobe im ganzen System und trägt die
@@ -82,7 +88,7 @@ select a.auftrag_id, w.charge_nr, w.eingangsdatum,
 -- ---------- Ausschuss: auf der Hand-Linie nach Augenmass -------------------
 insert into ausschuss_messung (auftrag_id, art, kg)
 select a.auftrag_id, v.art::ausschuss_art,
-       greatest(round((a.m1 - a.schimmel) * v.anteil * (0.9 + random() * 0.2))::int, 0)
+       greatest(round((a.m1 - a.schimmel - a.sockel) * v.anteil * (0.9 + random() * 0.2))::int, 0)
   from sim.auftrag_wahr a
   join auftrag t on t.id = a.auftrag_id
   cross join lateral (values
@@ -111,7 +117,7 @@ select a.charge_nr, format('SIM-%s-%s', :lauf, a.auftrag_id),
 -- damit sich prüfen lässt, ob die Auswertung sie zurückgewinnt.
 insert into sortier_gewicht (lauf_id, gewicht_g, anzahl, klasse, kaliber_idx)
 select l.id, h.gewicht,
-       greatest(round((a.m1 - a.schimmel) * h.anteil * 1000 / h.gewicht)::int, 1),
+       greatest(round((a.m1 - a.schimmel - a.sockel) * h.anteil * 1000 / h.gewicht)::int, 1),
        k.klasse, k.kaliber_idx
   from sortier_lauf l
   join sim.auftrag_wahr a on a.auftrag_id = l.auftrag_id and a.lauf = :lauf
@@ -149,11 +155,11 @@ with gruppen as (
              * sim.schimmel_wahr(w.verarbeitet_am - w.eingangsdatum,
                                  p.schimmel_lambda, p.schimmel_k, w.anfaelligkeit))
                                                                           as schimmel_beim_sortieren,
-         p.anteil_klein, p.anteil_gross
+         p.anteil_klein, p.anteil_gross, p.anteil_sockel
     from sim.palette_wahr w cross join sim.parameter p
    where w.lauf = :lauf and p.lauf = :lauf
      and w.weg = 'maschine' and w.gewaschen_am is not null
-   group by w.charge_nr, w.gewaschen_am, p.anteil_klein, p.anteil_gross
+   group by w.charge_nr, w.gewaschen_am, p.anteil_klein, p.anteil_gross, p.anteil_sockel
 ), neu as (
   insert into auftrag (weg, station, charge_nr, start_ts, ende_ts, status,
                        durchsatz_kg, bemerkung)
@@ -161,8 +167,9 @@ with gruppen as (
          g.gewaschen_am::timestamptz + interval '8 hours',
          g.gewaschen_am::timestamptz + interval '15 hours', 'abgeschlossen',
          -- Was tatsächlich durchs Becken läuft: nach Verdunstung, nach allem
-         -- Schimmel, ohne den beim Sortieren entnommenen Ausschuss.
-         round((g.m_waschen - g.schimmel_gesamt)
+         -- Schimmel, ohne den beim Sortieren entnommenen Ausschuss und ohne
+         -- den Sockel, der beim Sortieren mit im Palox landete.
+         round((g.m_waschen - g.schimmel_gesamt) * (1 - g.anteil_sockel)
                * (1 - g.anteil_klein - g.anteil_gross))::numeric(12,2),
          'SIM'
     from gruppen g
@@ -174,13 +181,16 @@ select n.id,
        -- Abschnitt verdirbt, verdirbt in der *verbliebenen* Masse. Ohne diesen
        -- Faktor wäre der Palox am Waschbecken relativ zum Durchsatz zu voll
        -- und das Modell würde die Kurve zu hoch anpassen (gemessen: +8.8 %).
+       -- Am Waschbecken gibt es keinen Sockel mehr: Erde und Hagelnarben sind
+       -- beim Sortieren aussortiert worden.
        greatest(round((g.schimmel_gesamt - g.schimmel_beim_sortieren)
+                      * (1 - g.anteil_sockel)
                       * (1 - g.anteil_klein - g.anteil_gross)
                       * (0.95 + random() * 0.1))::int, 0)
   from neu n
   join gruppen g on g.charge_nr = n.charge_nr and g.gewaschen_am = n.start_ts::date
  where (g.schimmel_gesamt - g.schimmel_beim_sortieren)
-       * (1 - g.anteil_klein - g.anteil_gross) >= 1;
+       * (1 - g.anteil_sockel) * (1 - g.anteil_klein - g.anteil_gross) >= 1;
 
 -- ---------- Lagerkontrollen: zufällig gegriffene Paletten ------------------
 -- Der Gegenentwurf zur Verarbeitungsmessung: Diese Paletten werden *nicht*

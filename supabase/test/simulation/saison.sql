@@ -36,17 +36,20 @@ delete from sim.schaetzung   where lauf = :lauf;
 
 insert into sim.parameter (lauf, r_basis, schimmel_lambda, schimmel_k,
                            anteil_klein, anteil_gross, selektion, n_wiegungen,
-                           n_lagerkontrollen)
+                           n_lagerkontrollen, anteil_sockel)
 -- λ so gewählt, dass nach 200 Lagertagen rund 5 % verdorben sind —
 -- die Grössenordnung, um die es auf dem Betrieb geht.
+-- anteil_sockel: was ausser Faulem im Palox landet — Erde, Hagelnarben,
+-- Schnittfehler. Kommt so vom Feld und hat mit der Lagerdauer nichts zu tun.
 values (:lauf, 0.00060, 0.0000107, 1.6, 0.030, 0.015, :selektion, :n_wiegungen,
-        :n_lagerkontrollen)
+        :n_lagerkontrollen, :anteil_sockel)
 on conflict (lauf) do update set
   r_basis = excluded.r_basis, schimmel_lambda = excluded.schimmel_lambda,
   schimmel_k = excluded.schimmel_k, anteil_klein = excluded.anteil_klein,
   anteil_gross = excluded.anteil_gross, selektion = excluded.selektion,
   n_wiegungen = excluded.n_wiegungen,
-  n_lagerkontrollen = excluded.n_lagerkontrollen;
+  n_lagerkontrollen = excluded.n_lagerkontrollen,
+  anteil_sockel = excluded.anteil_sockel;
 
 -- ---------- Wareneingang ---------------------------------------------------
 -- 12 Chargen, je 40–80 Paletten, gestaffelt über sechs Wochen eingelagert.
@@ -138,7 +141,8 @@ with stand as (
               then coalesce(w.gewaschen_am, date '2027-03-31')
               else coalesce(w.verarbeitet_am, date '2027-03-31') end
            - w.eingangsdatum                                          as tage,
-         p.schimmel_lambda, p.schimmel_k, p.anteil_klein, p.anteil_gross
+         p.schimmel_lambda, p.schimmel_k, p.anteil_klein, p.anteil_gross,
+         p.anteil_sockel
     from sim.palette_wahr w
     cross join sim.parameter p
    where w.lauf = :lauf and p.lauf = :lauf
@@ -149,13 +153,18 @@ with stand as (
                            s.anfaelligkeit)                            as f
     from stand s
 )
+-- Der Sockel (Erde, Hagel, Schnitt) wird vor dem Band aussortiert und landet
+-- im selben Palox wie das Faule. Er ist da, egal wie lange gelagert wurde:
+-- ein Anteil der Masse nach Verdunstung. Faul wird davon unabhängig der
+-- Rest — Sockel und Verderb überlappen nicht.
 insert into sim.wahrheit (lauf, groesse, wert)
 select :lauf, g.groesse, g.wert from (
   select 'Eingang' as groesse, sum(netto_eingang_kg) as wert from kaskade
   union all select 'Verdunstung', sum(netto_eingang_kg - m1) from kaskade
-  union all select 'Schimmel/Fäulnis', sum(m1 * f) from kaskade
-  union all select 'Ausschuss zu klein', sum(m1 * (1 - f) * anteil_klein) from kaskade
-  union all select 'Nebenkanal zu gross', sum(m1 * (1 - f) * anteil_gross) from kaskade
+  union all select 'Nicht lagerbedingt', sum(m1 * anteil_sockel) from kaskade
+  union all select 'Schimmel/Fäulnis', sum(m1 * (1 - anteil_sockel) * f) from kaskade
+  union all select 'Zu klein (Tierfutter)', sum(m1 * (1 - anteil_sockel) * (1 - f) * anteil_klein) from kaskade
+  union all select 'Nebenkanal zu gross', sum(m1 * (1 - anteil_sockel) * (1 - f) * anteil_gross) from kaskade
   union all select 'r_wahr_mittel',
             sum(r_wahr * netto_eingang_kg) / sum(netto_eingang_kg) from kaskade
 ) g;

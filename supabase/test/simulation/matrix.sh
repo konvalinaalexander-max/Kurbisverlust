@@ -34,7 +34,7 @@ psql "$URL" -v ON_ERROR_STOP=1 -q -f "$HIER/aufbau.sql" >/dev/null 2>&1
 lage() {
   echo
   echo "═══ $1 ═══"
-  "$HIER/lauf.sh" "$N" "$2" "$3" "$4" "$5" 2>&1 | tail -n +3
+  "$HIER/lauf.sh" "$N" "$2" "$3" "$4" "$5" "${6:-0}" 2>&1 | tail -n +3
 }
 
 lage "Saisonende, 25 % im Lager"                       0.25 0 12 0
@@ -44,3 +44,8 @@ lage "Mitten in der Saison, Schlechtes zuerst"         0.50 1 12 0
 lage "Wie zuvor, aber 12 Lagerkontrollen je Saison"    0.50 1 12 12
 lage "Wie zuvor, aber 24 Lagerkontrollen je Saison"    0.50 1 12 24
 lage "Knappe Stichprobe: nur 4 Palettenwägungen"       0.50 0 4  0
+# Der Palox ist ein Kompost-Behälter: 2 % der Masse landen darin, ohne je
+# gefault zu haben (Erde, Hagelnarben, Schnittfehler) — vom Betrieb am
+# 2. September so beschrieben.
+lage "Mitten in der Saison, 2 % Sockel im Palox"      0.50 0 12 0 0.02
+lage "Saisonende, 2 % Sockel im Palox"                 0.25 0 12 0 0.02

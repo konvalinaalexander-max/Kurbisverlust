@@ -7,6 +7,13 @@ Annahme da — unmarkierte Annahmen sind der Anfang jedes stillen Fehlers.
 
 ## Die Antworten vom 2. September — und was sie am Modell ändern
 
+> **Stand 3. September:** Die drei Punkte unten sind umgesetzt (Migrationen 0036–0039):
+> der Sockel im Palox wird geschätzt und getrennt ausgewiesen, zu Kleine stehen in Buch B,
+> das Sortierschema hängt datiert an Sorte × Käufer. Dazu: die Palox-Tara (45 kg) als
+> Einstellung, die Abschlussfragen als Daten (`auftrag_angabe`), und das Alter des
+> Bestands aus den noch liegenden Paletten. Was das gemessen gebracht hat, steht in
+> `STATISTIK_BEFUND.md` (vierte Runde).
+
 ### Drei Antworten ändern die Rechnung, nicht nur die Maske
 
 **1. Der Palox ist kein Schimmel-Behälter, sondern ein Kompost-Behälter.**
@@ -34,6 +41,19 @@ Im Dashboard wird die Grundaussortierung als **eigener Balken** ausgewiesen und 
 Lagerverlust gezählt. Der Betrieb hat ausdrücklich gesagt: Es interessiert, was *während der
 Lagerung* passiert. Genau deshalb muss der Rest heraus — nicht um ihn zu verschweigen, sondern
 damit er den Lagerverlust nicht aufbläht.
+
+*Gemessen (Simulation, 2 % Sockel, 12 Palettenwägungen je Saison):* Ohne diese Trennung lag
+der Schimmel um **40 % zu hoch**, bei 0 % Überdeckung. Mit ihr ist er in der Saisonmitte noch
+**20 % zu hoch** (Überdeckung 48 %) — der Test belegt den Sockel dort in jeder zweiten Saison.
+Am Saisonende belegt er ihn fast nie (4 %), und der Schimmel bleibt dort **46 % zu hoch**. Die
+Grenze der Sache: Wird Schlechtes zuerst verarbeitet, sehen die frühen Messungen genauso aus wie
+ein Sockel, und im Fehlermass sind beide nicht zu unterscheiden. Eine Regel, die den Sockel bei
+jeder kleinen Verbesserung setzt, träfe ihn in der Sockel-Lage genau (0 % Verzerrung), erfände
+aber unter Selektion 3–4 t Grundaussortierung und drückte den Schimmel dort um 13 %. Deshalb
+setzt die Auswertung den Sockel nur, wenn die Daten ihn nach einem Test belegen; sonst steht er
+auf 0, und der Bereich sagt, wie gross er sein könnte. Was beides auseinanderhält, ist die
+Lagerkontrolle (zufällig gegriffene Palette, nur Faules gezählt) — oder eine direkte Messung
+beim Leeren des Palox (Frage in FRAGEN.md).
 
 **2. Zu Kleine gehen an die Tiere.** Damit sind sie **kein physischer Verlust**, sondern ein
 anderer Kanal — genau wie die zu Grossen. Beide wandern aus Buch A (Verlust) in Buch B und
@@ -128,10 +148,12 @@ das Alter wäre geraten. Sie zählt weiter in der Massenbilanz, und die Nachfrag
 wenigstens dieselbe Sorte?" hält fest, was sich noch verwerten lässt.
 
 Auch bei **Ja** enthält der Palox Faules aus Paletten verschiedener Eingangsdaten. Die App
-rechnet deshalb nicht mit dem Durchschnittsalter, sondern vergleicht den gemessenen Anteil mit
-dem, was das Modell über die **tatsächliche Altersverteilung** der gezählten Paletten erwarten
-würde. Weil der Verderb mit der Zeit beschleunigt, ist beides nicht dasselbe: Wer mit dem
-Durchschnittsalter rechnet, unterschätzt systematisch.
+rechnet mit dem massegewichteten Durchschnittsalter der gezählten Paletten. Weil der Verderb
+mit der Zeit beschleunigt, ist das nicht ganz dasselbe wie die tatsächliche Altersverteilung
+— bei einer Charge, die über drei Wochen eingelagert wurde und nach hundert Tagen
+verarbeitet wird, liegt der Unterschied unter 0.2 % des Schimmels. Die Simulation enthält
+diese Streuung und misst sie mit; ein Umbau lohnt sich nicht. (Eine frühere Fassung dieses
+Texts behauptete, die App rechne mit der Verteilung. Das war nicht so.)
 
 ### „Fax" — ein Arbeitsschritt, den das Modell nicht kannte
 
@@ -313,4 +335,11 @@ abweichen kann, ohne dass es jemand merkt.
 | Der Palox gehört zu der Arbeit, an deren Ende er abgelesen wird | Waage, Differenzbildung | sammelt er über Arbeiten hinweg unbemerkt, sitzt Schimmel am falschen Alter |
 | Ein Waschgang gehört zu den Sortierläufen derselben Charge davor | kein erfasster Verweis | bei stark gemischten Chargen wandert Schimmel #2 ans falsche Alter |
 | Die Dubletten-Regel entfernt Maschinen-Doppel, keine echten Kürbisse | Nachbar-Gleichheit 12–28 % gegen < 0.2 % Zufall | alle CSV-gestützten Massen sind entsprechend daneben |
-| Kaliber-Grenzen gelten über die ganze Saison | Stammdaten | Umstellungen mitten in der Saison verfälschen den Ausschussanteil |
+| Die Palox-Waage zeigt brutto, der Behälter wiegt 45 kg | Betrieb, 2. September; Einstellung `palox_tara_kg` | zeigt sie netto, fehlen bei jeder ersten Ablesung und nach jedem Leeren 45 kg — die Einstellung gehört dann auf 0 |
+| Der Sockel im Palox (Erde, Hagel, Schnitt) gilt für alle Verarbeitungsmessungen gleich, nicht für Lagerkontrollen und nicht am Waschbecken | beim Sortieren wird Optisches aussortiert, beim Waschen nur noch Faules | fällt am Waschbecken nochmals Optisches heraus, wird der Sockel unterschätzt |
+| Der Sockel ist zeitunabhängig | so beschrieben: kommt vom Feld | wächst er mit der Lagerdauer (Erde trocknet ab, Narben faulen an), steckt er zum Teil doch in der Kurve |
+| Wird nach Aussehen ausgewählt, sieht das aus wie ein Sockel | Simulation: 3–4 t erfundener Sockel bei Selektion ohne Test | der Test hält ihn zurück, sieht aber einen echten Sockel nur in der Saisonmitte in jeder zweiten Saison (Schimmel dann +20 %) und am Saisonende fast nie (+46 %) — Lagerkontrollen oder eine Angabe beim Leeren entscheiden |
+| Alle Weg-2-Ware geht in Kisten mit dem Soll aus den Einstellungen | Überfüllung wird darauf hochgerechnet | gilt die 8-kg-Kiste nur für eine Sorte, ist die Überfüllung zu hoch |
+| Das Alter des Bestands folgt den Paletten, die noch nicht gezählt wurden | Eingangsdatum ist Pflichtfeld beim Zählen | fehlt das Datum, gilt wieder das Chargenmittel — und das liegt bei „Jüngstes zuerst" zu jung |
+| Die Fassung des Sortierschemas beim Auftragsstart ist die, die beim Sortieren galt | am Auftrag festgehalten | wird die Fassung während der Arbeit gewechselt, klassiert die CSV nach der alten |
+| Die Antwort „alles aus einer Charge" stimmt | Abschlussfrage, Pflicht | eine falsche Antwort setzt einen gemischten Punkt ins Zeitmodell — kein Schutz ausser der Frage selbst |

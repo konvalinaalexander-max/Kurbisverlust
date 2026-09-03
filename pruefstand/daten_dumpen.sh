@@ -19,7 +19,7 @@ for R in v_hochrechnung v_massenbilanz v_datenlage v_marge_buch v_plausibilitaet
          v_koeff_ausschuss v_koeff_nebenkanal v_koeff_ueberfuellung \
          v_schimmel_modell v_selektionsverdacht v_saisonbilanz v_schimmel_punkte \
          v_hochrechnung_basis v_naechste_charge auswertung_stand \
-         charge sorte_kaliber gebinde einstellung ausgang_ziel \
+         charge sorte_kaliber gebinde einstellung ausgang_ziel kaeufer sortierschema \
          v_lieferung_masse v_ausgang_kennzahl profil palette \
          auftrag auftrag_palette schimmel_messung ausschuss_messung \
          sortier_lauf v_charge_rueckgrat; do

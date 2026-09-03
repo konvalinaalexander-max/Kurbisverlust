@@ -834,3 +834,187 @@ durch" hätte keinen davon gefunden.
 Was bewusst gleich blieb: jede Karte, jede Zahl, jeder Text und jeder
 Rechenweg. Der Umbau ist Erscheinung und Fehlerbehebung — kein einziger
 Datenbank-Aufruf hat sich geändert.
+
+---
+
+# Vierte Prüfrunde (3. September): die Kette in beide Richtungen
+
+Die Prüfung nach `docs/PROMPT_PRUEFUNG.md` ging jede Zahl im Dashboard
+rückwärts bis zur Rohzeile und jede Maske vorwärts bis zum Balken. Was dabei
+entschieden wurde, steht hier; die Messungen dahinter in
+`STATISTIK_BEFUND.md`, die Annahmen in `ABLAUF.md`.
+
+## Die Kette rückwärts: sechs Befunde zwischen Waage und Balken (0036)
+
+Alle sechs am laufenden System nachgemessen, alle in `0036_kette.sql`
+behoben, alle seither in `pruefung.sql` festgehalten:
+
+1. **Ohne Wägung stand die Verdunstung auf 0 kg, mit Bereich 0–0.** Der
+   Koeffizient war `coalesce(mittel, 0)`. Eine Zahl, die aussieht wie
+   gemessen und das Gegenteil sagt. Jetzt bleibt ein Koeffizient ohne
+   Messung NULL, der Strom ist NULL, das Ranking sagt „nicht gemessen", und
+   die Kennzahl heisst „Lagerverlust mindestens", solange ein Strom fehlt.
+   Die Regel „Leer ist nicht null" galt für Tara und Messwerte; für die
+   Koeffizienten galt sie nicht.
+2. **Messungen ohne Nenner verschwanden spurlos.** 80 kg Schimmel an einem
+   Auftrag ohne gezählte Paletten und 112 kg an einem Waschgang ohne
+   verarbeitete Menge erzeugten keinen Punkt im Modell, und nichts meldete
+   es. `v_plausibilitaet` führt sie jetzt als „Ohne Nenner" mit dem Rat, was
+   nachzutragen ist. `pruefung.sql` verlangt seither, dass jedes erfasste
+   Kilo Faules entweder angekommen oder gemeldet ist: Σ erfasst = angekommen
+   + gemeldet.
+3. **Die Palox-Waage zeigt brutto, der Behälter wiegt 45 kg.** Nach dem
+   Leeren und bei der ersten Ablesung galt der volle Stand als Menge, samt
+   Behälter: jedes Leeren buchte 45 kg Schimmel. Die Tara ist jetzt eine
+   Einstellung (`palox_tara_kg`), und die Menge wird aus den Ständen
+   abgeleitet (`v_schimmel_menge`), nicht aus dem Kilo-Wert, den die App
+   damals gebildet hat. Der Stand bleibt, wie er abgelesen wurde; ändert sich
+   die Tara, ändert sich die Menge mit.
+4. **Der Lagerbestand bekam das Alter der ganzen Charge.** Wird zuerst
+   verarbeitet, was zuletzt kam, sind die übrigen Paletten die ältesten. In
+   der Demo lagen sie drei bis sechs Tage neben dem Chargenmittel, bei
+   k = 1.6 rund 4.5 % Verderb. Das Alter kommt jetzt aus den *nicht
+   gezählten* Paletten, deren Eingangsdaten bekannt sind.
+5. **Der Restbestand war zu klein, die Lücke zu gross.** Er rechnete „zu
+   klein" und „zu gross" schon heraus, obwohl beides noch physisch im Lager
+   liegt. In der Demo fehlten 12.5 t; die Lücke der Massenbilanz fiel von
+   4.8 % auf 2.1 %, als der Restbestand die Masse nach Verdunstung und
+   Verderb wurde.
+6. **Die Kistenzahl der Überfüllung war fest verdrahtet** (8.0), die
+   Kennzahl je Palette las die Einstellung. Bei 9 kg ergab das −15 t
+   „Überschuss" aus Kisten, die es nie gab. Beides liest jetzt dieselbe
+   Einstellung.
+
+Nebenbefund, ohne Wirkung auf Zahlen: Postgres gibt jeder neuen Funktion das
+Ausführungsrecht für PUBLIC. `palox_tara_kg()` war so anonym aufrufbar, und
+`pruefung.sql` hat es gemeldet. `0035` setzt seither die Vorgabe für alle
+künftigen Funktionen um (`alter default privileges … revoke execute … from
+public`), statt es bei jeder Funktion einzeln zu hoffen.
+
+## Die Kette vorwärts: die Masken werden gefahren, nicht gelesen
+
+Der Bildschirm-Prüfstand rendert Seiten; er beweist nicht, dass ein
+eingegebener Wert im Balken ankommt. Deshalb `pruefstand/kette.mjs`: Ein
+echter Browser erfasst über die Masken eine komplette Arbeit (neue Arbeit
+mit Käufer, Paletten zählen und eine wiegen, Palox ablesen, zu klein und zu
+gross, Abschluss mit den Fragen). Jede Schreibanfrage an Supabase wird
+mitgeschnitten. `pruefstand/kette_pruefen.sh` spielt genau diese Anfragen
+in eine echte Postgres ein und prüft, ob jeder Wert in der Auswertung steht.
+
+Das fängt, was der Bildschirm-Prüfstand nicht fangen kann: Der Prüfstand
+nimmt jedes POST entgegen, Postgres nicht. Der erste Lauf fand genau so
+einen Fall: Die App schickte beim Abschluss `ende_ts` von der Uhr des
+Telefons. Geht die vor oder nach, verletzt das die Regel `ende_nach_start`,
+und der Abschluss scheitert, ohne dass der Bildschirm es je gezeigt hätte.
+Das Ende setzt jetzt der Server (Auslöser `auftrag_ende_setzen`), die App
+schickt nur noch den Status. Beide Prüfstände laufen in `run.sh`.
+
+## Der Palox-Sockel: geschätzt, ausgewiesen, nur gesetzt, wenn belegt (0037)
+
+Der Betrieb hat den Palox als Kompost-Behälter beschrieben: Neben Faulem
+landen darin Erde, Hagelnarben, Schnittfehler, rund 2 % der Masse, die nie
+gefault hat. Das Modell las alles als zeitabhängigen Verderb. Was das kostet,
+sagt die Simulation (25 Saisons, Saisonmitte, 2 % Sockel, Modell ohne
+Sockel): Schimmel **+40 %**, Überdeckung **0 %**.
+
+### Die Entscheidung: der Sockel ist ein Parameter mit Nachweispflicht
+
+Der gemessene Anteil ist `a₀ + (1 − a₀)·F(t)`. `a₀` wird über ein Gitter
+(0–10 %, Schritt 0.25 %) mitgeschätzt: Für jeden Kandidaten werden die
+Verarbeitungspunkte bereinigt, die Weibull-Gerade angepasst und der Fehler im
+Anteilsraum über alle Punkte gebildet. Lagerkontrollen tragen keinen Sockel
+(wer eine Palette aufmacht, zählt Faules, keine Erde); die Waschen-Punkte
+tragen ihn in derselben Form.
+
+Die eigentliche Entscheidung ist die Regel, wann der Sockel gilt. Zwei Regeln
+wurden gemessen, je 25 Saisons, 12 Palettenwägungen:
+
+| Regel | Sockel-Lage, Saisonmitte | Selektion, Saisonende | Selektion, Saisonmitte |
+|---|---|---|---|
+| ohne Sockel (vorher) | Schimmel +40.5 %, 0 % | −2.0 %, 100 % | +8.7 %, 96 % |
+| kleinster Sockel im 1-%-Band | **0.0 %, 100 %** | −13.3 %, 12 %, **3.8 t Sockel erfunden** | +7.7 %, 76 %, 3.0 t erfunden |
+| nur wenn F-Test belegt | +19.7 %, 48 % | −3.7 %, 88 %, 0.6 t erfunden | +8.6 %, 84 %, 0.6 t erfunden |
+
+Die lockere Regel trifft in der Sockel-Lage genau, erfindet aber unter
+Selektion Tonnen von Grundaussortierung, die es nicht gibt, und drückt den
+Schimmel um 13 %. Die strenge Regel (das Modell ohne Sockel muss nach einem
+F-Test mit Freiheitsgraden nach Chargen nachweisbar schlechter passen)
+halbiert die Verzerrung in der Sockel-Lage und erfindet fast nichts. Gewählt
+ist die strenge.
+
+Warum keine Schwelle dazwischen: Das Verhältnis „Fehler ohne Sockel / bester
+Fehler" liegt bei echtem Sockel am Saisonende (Median 1.36) genauso wie bei
+Selektion ohne Sockel (1.32); nur in der Saisonmitte hebt sich der echte
+Sockel ab (1.58, Schwelle 1.57). Keine Schwelle trennt die beiden Lagen, sie
+verschiebt nur, wo die Zahl danebenliegt. Gewählt ist die Seite, die nichts
+erfindet: Wo der Sockel nicht belegt ist, steht er auf 0, und der Bereich
+(Profil über dieselbe Schwelle) sagt, wie gross er sein könnte. Die
+Überdeckung dieses Bereichs liegt bei 76–84 %; die Verzerrung des
+Schimmel-Balkens bei echtem Sockel am Saisonende bleibt bei rund +46 %,
+unverändert gegenüber vorher. Das steht so in `ABLAUF.md` und als Frage 5 in
+`FRAGEN.md`: Eine Angabe beim Leeren des Palox, wie viel davon nicht faul war,
+wäre die Messung, die das Schätzen erübrigt.
+
+### Zwei bewusste Vereinfachungen
+
+- **Keine Kovarianz zwischen a₀ und (λ, k).** Der Sockel geht als eigener
+  globaler Parameter mit eigener Varianz in die Fehlerfortpflanzung
+  (∂G/∂a₀ = M1, ∂S/∂a₀ = −M1·F); dass ein anderes a₀ auch ein anderes λ und
+  k ergäbe, wird nicht mitgeführt. Die gemessenen Überdeckungen enthalten
+  diese Vereinfachung bereits.
+- **Das Gitter macht das Modell rund vierzigmal so teuer.** Im Lasttest
+  brauchte das Dashboard damit 72.9 s, über dem 8-s-Limit von Supabase.
+  Das Modell wird deshalb als `mv_schimmel_modell` gespeichert und in der
+  Kette von `auswertung_aktualisieren()` vor der Kaskade aufgefrischt; das
+  Dashboard braucht wieder 0.2–0.5 s. Wer die Kurve anschaut, sieht den
+  Stand der letzten Aktualisierung, wie bei allen anderen Kennzahlen seit
+  0016.
+
+## Zu Kleine sind ein Kanal, kein Verlust (0037)
+
+Zu Kleine gehen an die Tiere. Damit sind sie kein physischer Verlust,
+sondern ein anderer Kanal wie die zu Grossen, und wandern aus Buch A (Verlust)
+nach Buch B (anderer Kanal / Marge), als „Zu klein (Tierfutter)". Das
+verschiebt einen ganzen Balken: Die Hauptursache wird nur noch zwischen
+Verdunstung und Schimmel entschieden. Dazu kommt ein drittes Buch, `feld`,
+für die Grundaussortierung: physisch weg, aber nicht während der Lagerung
+entstanden. Die Kennzahl „Lagerverlust" umfasst nur Buch A; die
+Saisonbilanz weist beide getrennt aus.
+
+## Das Sortierschema hängt am Käufer und am Datum (0038)
+
+Coop will es anders als Migros, und dieselbe Sorte läuft je nach Bestellung
+mit Kaliberbändern oder mit „Kiste ab x kg". Die Grenzen standen als ein
+Wert je Sorte; wer sie änderte, klassierte rückwirkend jede je eingelesene
+CSV neu, und der gemessene Ausschussanteil änderte sich, ohne dass ein Kürbis
+anders gewogen wurde.
+
+Jetzt gibt es `sortierschema` mit einer Fassung je (Sorte × Käufer) und
+`gilt_ab`. Eine Fassung wird nie geändert, es kommt eine neue dazu. Jeder
+Auftrag und jeder Sortierlauf hält fest, mit welcher Fassung gearbeitet
+wurde; die Klassierung liest diese Fassung, nicht „die aktuelle". Käufer
+legen die Arbeiter selbst an, beim Eröffnen der Arbeit, das ist Erfassung
+und kein Stammdaten-Pflegefall. `sorte_kaliber` bleibt die Sortenliste;
+ihre Grenzen sind nur noch der Ausgangswert für die erste Standard-Fassung.
+
+Dabei fiel ein Fehler auf, der seit `0004` schlief: `lauf_neu_klassieren`
+verwies in einem `update … from` auf die Zieltabelle unter ihrem Alias, was
+Postgres ablehnt. Die Funktion war nie ausgeführt worden, kein Test rief sie.
+Der neue Sortierschema-Test tut es (Käufer bekommt ab Dezember 700 g, der
+Dezember-Lauf wird neu klassiert, der November-Lauf bleibt), und die
+Funktion ist umgeschrieben.
+
+## Antworten sind Messwerte (0039)
+
+Beim Abschliessen wird der Arbeiter gefragt: „War alles aus einer Charge?"
+Das ist keine Bedienlogik, sondern eine Aussage über die Verlässlichkeit
+einer anderen Messung: Bei Nein weiss niemand, wie alt die Ware im Palox war.
+Die Antworten stehen jetzt in `auftrag_angabe` als Schlüssel und Wert, nie
+überschrieben, es gilt die letzte. Bei „nein" bekommt die Messung die Quelle
+`verarbeitung_gemischt`: Sie zählt in der Massenbilanz (Masse ist Masse),
+aber nicht im Verderbsmodell (kein verlässliches Alter). Vorher wurde die
+Frage gestellt und die Antwort verworfen.
+
+Bewusst nur für Angaben, über die nicht gerechnet und nicht verknüpft wird
+(docs/Datenarchitektur, Regel 2). Wer eine neue Frage einbaut, braucht keine
+neue Spalte; wer über eine Antwort rechnen will, braucht eine.

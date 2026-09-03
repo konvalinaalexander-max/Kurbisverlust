@@ -5,7 +5,7 @@ import { importErkennen, type ImportBericht } from '../lib/import'
 import { STATION_NAME, datum, kg, tonnen, zahl, zeitpunkt } from '../lib/format'
 import { Hinweis, Karte, Kennzahl, Lade, Marke } from '../components/Bausteine'
 import DemoDaten from '../components/DemoDaten'
-import type { Charge, Gebinde, Profil, SorteKaliber } from '../lib/typen'
+import type { Charge, Gebinde, Kaeufer, Profil, Sortierschema } from '../lib/typen'
 
 export default function Stammdaten() {
   const [teil, setTeil] = useState<'gebinde' | 'paletten' | 'chargen' | 'kaliber'
@@ -14,7 +14,7 @@ export default function Stammdaten() {
     ['gebinde', 'Gebinde & Tara'],
     ['paletten', 'Paletten-Import'],
     ['chargen', 'Chargen'],
-    ['kaliber', 'Kaliber'],
+    ['kaliber', 'Sortierschemata'],
     ['abgebrochen', 'Abgebrochene Arbeiten'],
     ['benutzer', 'Benutzer'],
     ['einstellungen', 'Einstellungen'],
@@ -342,37 +342,220 @@ function Chargen() {
 }
 
 /* ------------------------------------------------------------------ */
+/* Sortierschemata: je Sorte und Käufer, datiert, nie überschrieben     */
+/* ------------------------------------------------------------------ */
+/**
+ * Das Sortierschema hängt am Käufer, nicht an der Sorte (Betrieb, 2. Sept.):
+ * Coop will Kaliberbänder, Migros will Kisten ab acht Kilo, und beim nächsten
+ * Auftrag ist es wieder anders. Jede Fassung trägt ein gilt_ab; geändert wird
+ * nie eine Zeile, es kommt eine neue dazu. Sonst würde die Sortier-CSV vom
+ * Oktober mit den Grenzen vom Januar klassiert — und der gemessene Anteil
+ * änderte sich, ohne dass ein Kürbis anders gewogen wurde.
+ */
 function Kaliber() {
-  const [zeilen, setZeilen] = useState<SorteKaliber[]>([])
-  useEffect(() => { void stammdaten().then(s => setZeilen(s.kaliber)) }, [])
+  const [zeilen, setZeilen] = useState<Sortierschema[]>([])
+  const [kaeufer, setKaeufer] = useState<Kaeufer[]>([])
+  const [sorten, setSorten] = useState<string[]>([])
+  const [fehler, setFehler] = useState<string | null>(null)
+  const [meldung, setMeldung] = useState<string | null>(null)
+
+  // Neue Fassung
+  const [fSorte, setFSorte] = useState('')
+  const [fKaeufer, setFKaeufer] = useState('')
+  const [fGiltAb, setFGiltAb] = useState(new Date().toISOString().slice(0, 10))
+  const [fArt, setFArt] = useState<'kaliber' | 'kiste'>('kaliber')
+  const [fVerlust, setFVerlust] = useState('')
+  const [fBaender, setFBaender] = useState('')
+  const [fKanal, setFKanal] = useState('2000')
+  const [fSoll, setFSoll] = useState('8')
+  const [fBemerkung, setFBemerkung] = useState('')
+  // Neuer Käufer
+  const [kName, setKName] = useState('')
+
+  const laden = useCallback(async () => {
+    const [sc, k, st] = await Promise.all([
+      supabase.from('sortierschema').select('*').order('sorte').order('kaeufer').order('gilt_ab', { ascending: false }),
+      supabase.from('kaeufer').select('*').order('name'),
+      stammdaten(),
+    ])
+    if (sc.error) setFehler(fehlerText(sc.error))
+    setZeilen((sc.data ?? []) as Sortierschema[])
+    setKaeufer((k.data ?? []) as Kaeufer[])
+    setSorten(st.kaliber.map(x => x.sorte))
+  }, [])
+  useEffect(() => { void laden() }, [laden])
+
+  /** „600–1100 · 1100–1600" oder „600-1100, 1100-1600" → [[600,1100],[1100,1600]] */
+  function baenderLesen(text: string): [number, number][] | null {
+    const teile = text.split(/[·,;\n]+/).map(x => x.trim()).filter(Boolean)
+    const erg: [number, number][] = []
+    for (const t of teile) {
+      const m = t.match(/^(\d+)\s*[-–]\s*(\d+)$/)
+      if (!m) return null
+      erg.push([Number(m[1]), Number(m[2])])
+    }
+    return erg.length ? erg : null
+  }
+
+  async function fassungAnlegen() {
+    setFehler(null); setMeldung(null)
+    if (!fSorte) { setFehler('Sorte fehlt.'); return }
+    const zeile: Record<string, unknown> = {
+      sorte: fSorte, kaeufer: fKaeufer || null, gilt_ab: fGiltAb, art: fArt,
+      bemerkung: fBemerkung.trim() || null,
+    }
+    if (fArt === 'kaliber') {
+      const b = baenderLesen(fBaender)
+      if (!b || fVerlust === '' || fKanal === '') {
+        setFehler('Für Kaliberbänder braucht es Verlust-Grenze, Bänder (z. B. 600–1100 · 1100–1600) und Nebenkanal-Grenze.')
+        return
+      }
+      Object.assign(zeile, { verlust_unter: Number(fVerlust), kaliber_baender: b, kanal_ab: Number(fKanal) })
+    } else {
+      if (fSoll === '') { setFehler('Soll je Kiste fehlt.'); return }
+      Object.assign(zeile, { soll_kg_pro_kiste: Number(fSoll) })
+    }
+    const { error } = await supabase.from('sortierschema').insert(zeile)
+    if (error) { setFehler(fehlerText(error)); return }
+    setMeldung(`Neue Fassung für ${fSorte}${fKaeufer ? ` / ${fKaeufer}` : ''} ab ${datum(fGiltAb)} angelegt.`)
+    setFBaender(''); setFVerlust(''); setFBemerkung('')
+    void laden()
+  }
+
+  async function kaeuferAnlegen() {
+    const name = kName.trim()
+    if (!name) return
+    const code = name.toLowerCase().replace(/[^a-z0-9äöü]+/g, '-').replace(/(^-|-$)/g, '')
+    const { error } = await supabase.from('kaeufer').insert({ code, name })
+    if (error) setFehler(fehlerText(error)); else { setKName(''); void laden() }
+  }
+
+  const kaeuferName = (code: string | null) =>
+    code === null ? 'Standard' : (kaeufer.find(k => k.code === code)?.name ?? code)
+  const schemaText = (z: Sortierschema) =>
+    z.art === 'kiste'
+      ? `Kiste ab ${z.soll_kg_pro_kiste} kg`
+      : `< ${zahl(z.verlust_unter)} g zu klein · ${(z.kaliber_baender ?? []).map(([a, b]) => `${a}–${b}`).join(' · ')} · ≥ ${zahl(z.kanal_ab)} g zu gross`
+
+  // Je (Sorte × Käufer) die aktuell gültige Fassung oben, ältere darunter.
+  const gruppen = new Map<string, Sortierschema[]>()
+  for (const z of zeilen) {
+    const k = `${z.sorte}|${z.kaeufer ?? ''}`
+    gruppen.set(k, [...(gruppen.get(k) ?? []), z])
+  }
+
   return (
-    <Karte titel="Sorten-Kaliber-Grenzen">
-      <p className="leise">
-        Gramm, Konvention [untere, obere). Unter der Verlust-Grenze wird weggeworfen,
-        ab der Nebenkanal-Grenze geht die Ware in einen anderen Verkaufskanal.
-      </p>
-      <div className="rollbar">
-        <table>
-          <thead><tr><th>Sorte</th><th className="zahl">Verlust unter</th>
-            <th>Kaliber-Bänder</th><th className="zahl">Nebenkanal ab</th></tr></thead>
-          <tbody>
-            {zeilen.map(k => (
-              <tr key={k.sorte}>
-                <td>{k.sorte}</td>
-                <td className="zahl">{zahl(k.verlust_unter)} g</td>
-                <td>{k.kaliber_baender.map(([a, b]) => `${a}–${b}`).join(' · ')}</td>
-                <td className="zahl">{zahl(k.kanal_ab)} g</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <p className="leise" style={{ marginTop: '.75rem' }}>
-        Zum Ändern der Grenzen: Supabase → Table Editor → <code>sorte_kaliber</code>.
-        Danach <code>select lauf_neu_klassieren(id) from sortier_lauf</code> ausführen,
-        damit bereits eingelesene Läufe neu klassiert werden.
-      </p>
-    </Karte>
+    <>
+      <Karte titel="Sortierschemata">
+        <p className="leise">
+          Was zu klein, was Kaliber und was zu gross ist, hängt am Käufer — und
+          gilt ab einem Datum. Eine Fassung wird nie geändert: Es kommt eine neue
+          dazu, damit jede alte Sortier-CSV nach den Regeln klassiert bleibt, die
+          an ihrem Tag galten. Jeder Auftrag merkt sich seine Fassung.
+        </p>
+        {fehler && <Hinweis art="warnung">{fehler}</Hinweis>}
+        {meldung && <Hinweis art="gut">{meldung}</Hinweis>}
+        <div className="rollbar">
+          <table>
+            <thead><tr><th>Sorte</th><th>Käufer</th><th>gilt ab</th><th>Regel</th></tr></thead>
+            <tbody>
+              {[...gruppen.values()].map(fassungen => fassungen.map((z, i) => (
+                <tr key={z.id} className={i === 0 ? '' : 'leise'}>
+                  <td>{i === 0 ? z.sorte : ''}</td>
+                  <td>{i === 0 ? kaeuferName(z.kaeufer) : ''}</td>
+                  <td>{z.gilt_ab <= '2000-01-01' ? 'seit immer' : datum(z.gilt_ab)}</td>
+                  <td>{schemaText(z)}{z.bemerkung ? <span className="leise"> — {z.bemerkung}</span> : null}</td>
+                </tr>
+              )))}
+            </tbody>
+          </table>
+        </div>
+      </Karte>
+
+      <Karte titel="Neue Fassung anlegen">
+        <div className="spalten">
+          <div className="feld">
+            <label htmlFor="f-sorte">Sorte</label>
+            <select id="f-sorte" value={fSorte} onChange={e => setFSorte(e.target.value)}>
+              <option value="">— wählen —</option>
+              {sorten.map(x => <option key={x}>{x}</option>)}
+            </select>
+          </div>
+          <div className="feld">
+            <label htmlFor="f-kaeufer">Käufer</label>
+            <select id="f-kaeufer" value={fKaeufer} onChange={e => setFKaeufer(e.target.value)}>
+              <option value="">Standard (ohne bestimmten Käufer)</option>
+              {kaeufer.map(k => <option key={k.code} value={k.code}>{k.name}</option>)}
+            </select>
+          </div>
+          <div className="feld">
+            <label htmlFor="f-ab">gilt ab</label>
+            <input id="f-ab" type="date" value={fGiltAb} onChange={e => setFGiltAb(e.target.value)} />
+          </div>
+          <div className="feld">
+            <label htmlFor="f-art">Art</label>
+            <select id="f-art" value={fArt} onChange={e => setFArt(e.target.value as 'kaliber' | 'kiste')}>
+              <option value="kaliber">Kaliberbänder (Gramm)</option>
+              <option value="kiste">Kiste ab x kg</option>
+            </select>
+          </div>
+        </div>
+        {fArt === 'kaliber' ? (
+          <div className="spalten">
+            <div className="feld">
+              <label htmlFor="f-verlust">zu klein unter (g)</label>
+              <input id="f-verlust" type="number" min={0} value={fVerlust}
+                     onChange={e => setFVerlust(e.target.value)} />
+            </div>
+            <div className="feld">
+              <label htmlFor="f-baender">Bänder (z. B. 600–1100 · 1100–1600 · 1600–2000)</label>
+              <input id="f-baender" value={fBaender} onChange={e => setFBaender(e.target.value)} />
+            </div>
+            <div className="feld">
+              <label htmlFor="f-kanal">zu gross ab (g)</label>
+              <input id="f-kanal" type="number" min={0} value={fKanal}
+                     onChange={e => setFKanal(e.target.value)} />
+            </div>
+          </div>
+        ) : (
+          <div className="feld">
+            <label htmlFor="f-soll">Soll je Kiste (kg)</label>
+            <input id="f-soll" type="number" step="0.1" min={0} value={fSoll}
+                   onChange={e => setFSoll(e.target.value)} />
+          </div>
+        )}
+        <div className="feld">
+          <label htmlFor="f-bem">Bemerkung <span className="leise">(freiwillig)</span></label>
+          <input id="f-bem" value={fBemerkung} onChange={e => setFBemerkung(e.target.value)} />
+        </div>
+        <button className="haupt" onClick={fassungAnlegen}>Fassung anlegen</button>
+        <p className="leise" style={{ marginTop: '.5rem' }}>
+          Bereits eingelesene Läufe bleiben nach ihrer alten Fassung klassiert. Soll
+          ein Lauf nach einer anderen Fassung gerechnet werden, ordne ihn unter
+          „Warteschlange" einem Auftrag mit dem passenden Käufer zu.
+        </p>
+      </Karte>
+
+      <Karte titel={`Käufer (${kaeufer.length})`}>
+        <p className="leise">
+          Die Arbeiter können beim Starten einer Arbeit selbst einen neuen Käufer
+          anlegen — hier stehen alle, mit denen je gearbeitet wurde.
+        </p>
+        <div className="reihe" style={{ alignItems: 'flex-end' }}>
+          <div className="feld" style={{ flex: 1, marginBottom: 0 }}>
+            <label htmlFor="k-name">Neuer Käufer</label>
+            <input id="k-name" value={kName} onChange={e => setKName(e.target.value)}
+                   placeholder="z. B. Coop" />
+          </div>
+          <button onClick={kaeuferAnlegen} disabled={!kName.trim()}>Anlegen</button>
+        </div>
+        {kaeufer.length > 0 && (
+          <p style={{ marginTop: '.75rem', marginBottom: 0 }}>
+            {kaeufer.map(k => k.name).join(' · ')}
+          </p>
+        )}
+      </Karte>
+    </>
   )
 }
 

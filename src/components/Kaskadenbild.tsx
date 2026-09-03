@@ -19,7 +19,7 @@ export interface Kaskadenstrom {
   kg: number
   unten: number
   oben: number
-  buch: 'verlust' | 'marge' | 'bilanz'
+  buch: 'verlust' | 'feld' | 'marge' | 'bilanz'
   bereichBekannt: boolean
   extrapoliert: number
 }
@@ -31,7 +31,8 @@ export interface Kaskadenstrom {
 const FARBEN: Record<string, string> = {
   Verdunstung: 'var(--strom-verdunstung)',
   'Schimmel/Fäulnis': 'var(--strom-schimmel)',
-  'Ausschuss zu klein': 'var(--strom-ausschuss)',
+  'Nicht lagerbedingt': 'var(--strom-feld)',
+  'Zu klein (Tierfutter)': 'var(--strom-ausschuss)',
   'Nebenkanal zu gross': 'var(--strom-nebenkanal)',
 }
 

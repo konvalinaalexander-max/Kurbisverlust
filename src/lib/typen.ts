@@ -21,6 +21,19 @@ export interface Auftrag {
   geplante_paletten: number | null; status: AuftragStatus
   eroeffnet_von: string; durchsatz_kg: number | null; bemerkung: string | null
   abgebrochen_ts: string | null; abbruch_grund: string | null
+  /** Für welchen Käufer sortiert wird — bestimmt das Sortierschema. */
+  kaeufer: string | null; sortierschema_id: number | null
+}
+
+export interface Kaeufer { code: string; name: string; aktiv: boolean }
+
+/** Eine datierte Fassung der Sortierregeln je Sorte und Käufer. Nie ändern —
+ *  eine neue Fassung mit späterem gilt_ab anlegen. */
+export interface Sortierschema {
+  id: number; sorte: string; kaeufer: string | null; gilt_ab: string
+  art: 'kaliber' | 'kiste'
+  verlust_unter: number | null; kaliber_baender: [number, number][] | null; kanal_ab: number | null
+  soll_kg_pro_kiste: number | null; bemerkung: string | null
 }
 
 export interface SortierLauf {
@@ -40,17 +53,20 @@ export interface Hochrechnung {
   portion: 'ausgelagert' | 'lager'
   alter_tage: number; eingang_kg: number; portion_kg: number
   f_extrapoliert: boolean
-  strom: string; buch: 'verlust' | 'marge' | 'bilanz'
+  strom: string; buch: 'verlust' | 'feld' | 'marge' | 'bilanz'
   kg: number | null; basis_kg: number | null
   koeffizient: number | null; koeff_n: number | null; koeff_basis: string | null
   formel: string
+  /** false: der Koeffizient hinter diesem Strom wurde nie gemessen — kg ist
+   *  dann NULL, nicht 0. Leer ist nicht null. */
+  koeff_bekannt: boolean
 }
 
 /** Eine Zeile aus verlust_ranking() — ein Strom mit fortgepflanztem Bereich.
  *  Der Bereich lässt sich nicht durch Summieren gefilterter Zeilen gewinnen,
  *  deshalb rechnet ihn die Datenbank auch für die gefilterte Ansicht. */
 export interface Ranking {
-  strom: string; buch: 'verlust' | 'marge' | 'bilanz'
+  strom: string; buch: 'verlust' | 'feld' | 'marge' | 'bilanz'
   kg: number | null; kg_unten: number | null; kg_oben: number | null
   kg_beobachtet: number | null; kg_projiziert: number | null
   kg_extrapoliert: number | null

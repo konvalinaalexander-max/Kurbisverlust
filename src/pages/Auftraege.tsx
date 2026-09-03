@@ -5,7 +5,7 @@ import { useSprache } from '../sprache/SprachProvider'
 import { chargeText, fehlerText, stammdaten } from '../lib/db'
 import { TAETIGKEITEN, taetigkeitVon } from '../lib/taetigkeit'
 import { Hinweis, Karte, Lade, Marke } from '../components/Bausteine'
-import type { Auftrag, Charge } from '../lib/typen'
+import type { Auftrag, Charge, Kaeufer } from '../lib/typen'
 
 export default function Auftraege() {
   const { t, gebietsschema } = useSprache()
@@ -109,18 +109,44 @@ function NeuerAuftrag({ chargen, fertig, abbrechen }: {
   const { t } = useSprache()
   const [taetigkeit, setTaetigkeit] = useState<string | null>(null)
   const [chargeNr, setChargeNr] = useState<number | ''>('')
+  const [kaeufer, setKaeufer] = useState<Kaeufer[]>([])
+  const [kaeuferCode, setKaeuferCode] = useState('')
+  const [neuerKaeufer, setNeuerKaeufer] = useState('')
   const [fehler, setFehler] = useState<string | null>(null)
   const [laeuft, setLaeuft] = useState(false)
 
+  useEffect(() => {
+    void supabase.from('kaeufer').select('*').eq('aktiv', true).order('name')
+      .then(({ data }) => setKaeufer((data ?? []) as Kaeufer[]))
+  }, [])
+
   const gewaehlt = TAETIGKEITEN.find(a => a.id === taetigkeit)
+  // Der Käufer bestimmt das Sortierschema (Coop will es anders als Migros).
+  // Beim Sortieren und auf der Hand-Linie ist er die eine Angabe, die das
+  // Modell braucht, um die CSV nach den Regeln zu klassieren, die an diesem
+  // Tag galten. Beim Waschen ist längst sortiert — dort fragt die Maske nicht.
+  const fragtKaeufer = gewaehlt?.station !== 'waschen'
 
   async function anlegen() {
     if (!gewaehlt || chargeNr === '') return
     setLaeuft(true); setFehler(null)
+    let code: string | null = kaeuferCode || null
+    if (kaeuferCode === '__neu__') {
+      const name = neuerKaeufer.trim()
+      if (!name) { setLaeuft(false); setFehler(t('kaeuferName')); return }
+      // Ein Käufer, den es noch nicht gibt, wird angelegt — Teil der Erfassung,
+      // kein Stammdaten-Pflegefall. Der Code ist der Name, klein und ohne Leerzeichen.
+      code = name.toLowerCase().replace(/[^a-z0-9äöü]+/g, '-').replace(/(^-|-$)/g, '')
+      const { error } = await supabase.from('kaeufer')
+        .upsert({ code, name }, { onConflict: 'code', ignoreDuplicates: true })
+      if (error) { setLaeuft(false); setFehler(fehlerText(error)); return }
+    }
     // Startzeit setzt der Server (Spec §10) — das Handy ist keine verlässliche
-    // Uhr, und an der Startzeit hängt die Zuordnung der Sortier-CSVs.
+    // Uhr, und an der Startzeit hängt die Zuordnung der Sortier-CSVs. Das
+    // Sortierschema hält die Datenbank beim Anlegen fest (Auslöser).
     const { data, error } = await supabase.from('auftrag')
-      .insert({ weg: gewaehlt.weg, station: gewaehlt.station, charge_nr: chargeNr })
+      .insert({ weg: gewaehlt.weg, station: gewaehlt.station, charge_nr: chargeNr,
+                kaeufer: fragtKaeufer ? code : null })
       .select('id').single()
     if (error) { setLaeuft(false); setFehler(fehlerText(error)); return }
 
@@ -156,6 +182,22 @@ function NeuerAuftrag({ chargen, fertig, abbrechen }: {
             <option value="">— {t('waehlen')} —</option>
             {chargen.map(c => <option key={c.nr} value={c.nr}>{chargeText(c)}</option>)}
           </select>
+        </div>
+      )}
+
+      {taetigkeit && chargeNr !== '' && fragtKaeufer && (
+        <div className="feld">
+          <label htmlFor="kaeufer">{t('kaeufer')}</label>
+          <select id="kaeufer" value={kaeuferCode} style={{ fontSize: '1.05rem' }}
+                  onChange={e => setKaeuferCode(e.target.value)}>
+            <option value="">— {t('ohneKaeufer')} —</option>
+            {kaeufer.map(k => <option key={k.code} value={k.code}>{k.name}</option>)}
+            <option value="__neu__">{t('kaeuferNeu')}</option>
+          </select>
+          {kaeuferCode === '__neu__' && (
+            <input style={{ marginTop: '.5rem' }} placeholder={t('kaeuferName')}
+                   value={neuerKaeufer} onChange={e => setNeuerKaeufer(e.target.value)} />
+          )}
         </div>
       )}
 

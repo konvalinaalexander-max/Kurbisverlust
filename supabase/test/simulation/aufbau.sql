@@ -25,8 +25,10 @@ create table if not exists sim.parameter (
   selektion         numeric,   -- 0 = zufällige Auswahl, 1 = Schlechtes zuerst
   n_wiegungen       int,       -- wie viele Palettenwägungen die ganze Saison
   n_lagerkontrollen int default 0, -- wie viele zufällig gegriffene Lagerpaletten
+  anteil_sockel     numeric default 0, -- nicht lagerbedingt im Palox: Erde, Hagel, Schnitt
   bemerkung         text
 );
+alter table sim.parameter add column if not exists anteil_sockel numeric default 0;
 
 -- Die wahren Einzelheiten jeder Palette dieser Runde. Das Modell sieht davon
 -- nichts — nur die daraus abgeleiteten Erfassungen.
@@ -80,8 +82,10 @@ create table if not exists sim.auftrag_wahr (
   netto_eingang  numeric,
   m1             numeric,   -- Masse nach Verdunstung
   schimmel       numeric,   -- wahrer Schimmel dieser Arbeit
+  sockel         numeric default 0,  -- nicht lagerbedingt im Palox (Erde, Hagel)
   primary key (lauf, auftrag_id)
 );
+alter table sim.auftrag_wahr add column if not exists sockel numeric default 0;
 
 -- Ein Erfasser, damit die Aufträge einen Urheber haben. Ohne den lief der
 -- Harness nur zufällig — auf einem frisch aufgesetzten Schema gab es keinen

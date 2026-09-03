@@ -248,6 +248,11 @@ begin
   for v_kaskade in
       select distinct charge_nr, portion from v_hochrechnung
   loop
+    -- Ein unbekannter Strom (kein Koeffizient gemessen) ist NULL und fehlt in
+    -- der Summe — dann ist die Aufteilung nicht prüfbar, und das ist richtig so.
+    if exists (select 1 from v_hochrechnung
+                where charge_nr = v_kaskade.charge_nr and portion = v_kaskade.portion
+                  and not koeff_bekannt) then continue; end if;
     select sum(kg), max(portion_kg) into v_summe, v from v_hochrechnung
      where charge_nr = v_kaskade.charge_nr
        and portion = v_kaskade.portion;
@@ -295,8 +300,17 @@ begin
     'Der untere Bereich muss unter dem mittleren liegen und dieser unter dem oberen';
 
   -- ---- Ranking und Bilanz liefern etwas ------------------------------
-  assert (select count(*) from v_verlust_ranking where buch = 'verlust') = 3,
-    'Drei Verlustströme erwartet';
+  -- 0037: Buch A ist der Lagerverlust — Verdunstung und Schimmel. Zu klein
+  -- geht an die Tiere und steht mit zu gross in Buch B; die Grundaussortierung
+  -- hat ihr eigenes Buch, weil sie physisch weg, aber kein Lagerverlust ist.
+  assert (select count(*) from v_verlust_ranking where buch = 'verlust') = 2,
+    'Zwei Lagerverlust-Ströme erwartet (Verdunstung, Schimmel)';
+  assert (select buch from v_verlust_ranking where strom = 'Zu klein (Tierfutter)') = 'marge',
+    'Zu klein geht an die Tiere und gehört in Buch B, nicht in den Verlust';
+  assert (select buch from v_verlust_ranking where strom = 'Nicht lagerbedingt') = 'feld',
+    'Die Grundaussortierung braucht ihr eigenes Buch';
+  assert exists (select 1 from v_marge_buch where posten = 'Zu klein (Tierfutter)'),
+    'Zu klein muss im Marge-Buch stehen';
   assert (select kg from v_verlust_ranking order by kg desc nulls last limit 1) > 0,
     'Der Hauptverlust muss beziffert sein';
   -- Der eigentliche Test der ganzen Kette: das Modell sagt die Masse am
@@ -699,6 +713,57 @@ begin
   raise notice 'OK  Verderbsmodell (steigt, korrigiert zurück, wird unsicherer)';
 end $$;
 
+-- 0037: Die Grundaussortierung. Die Fixtur oben ist reiner Verderb — der
+-- Sockel muss dann null sein. Dann bekommt jede Messung 2 % der Bezugsmasse
+-- dazu (Erde, Hagelnarben), und das Modell muss genau das wiederfinden, ohne
+-- dass sich die Kurve darunter verbiegt.
+do $$
+declare v_sockel numeric; v_k numeric; v_k_vorher numeric; v_f200 numeric; v_f200_vorher numeric;
+begin
+  select sockel, k into v_sockel, v_k_vorher from v_schimmel_modell;
+  assert v_sockel = 0,
+    format('Reiner Verderb, aber der Sockel ist %s — die Anpassung erfindet einen', v_sockel);
+  v_f200_vorher := schimmelanteil(200);
+
+  -- Nur die Modell-Fixtur (2001–2015) zählt für diesen Block: Die übrigen
+  -- Messungen der Prüfdaten folgen keinem Verlauf und würden den Vergleich
+  -- verwässern. Ein Sockel gilt im Betrieb für jede Verarbeitungsmessung —
+  -- also muss er hier für alle Punkte gelten, nicht für einen Teil.
+  update schimmel_messung set gemessen = false
+   where auftrag_id not between 2001 and 2015;
+  -- 2 % Sockel obendrauf, bezogen auf die Masse nach Verdunstung
+  update schimmel_messung s
+     set kg = s.kg + round(b.basis_jetzt_kg * 0.02)
+    from v_schimmel_beobachtung b
+   where b.auftrag_id = s.auftrag_id and s.auftrag_id between 2001 and 2015;
+  perform auswertung_aktualisieren();
+
+  select sockel, k into v_sockel, v_k from v_schimmel_modell;
+  assert abs(v_sockel - 0.02) <= 0.0026,
+    format('Sockel von 2 %% eingebaut, geschätzt %s', v_sockel);
+  assert abs(v_k - v_k_vorher) < 0.15,
+    format('Der Sockel verbiegt die Steigung: k %s vorher, %s nachher', v_k_vorher, v_k);
+  v_f200 := schimmelanteil(200);
+  assert abs(v_f200 - v_f200_vorher) / v_f200_vorher < 0.15,
+    format('F(200) mit Sockel %s, ohne %s — der Sockel steckt noch in der Kurve',
+           v_f200, v_f200_vorher);
+  assert (select kg from v_verlust_ranking where strom = 'Nicht lagerbedingt') > 0,
+    'Die Grundaussortierung muss als eigener Strom beziffert sein';
+  assert (select sockel_oben from v_schimmel_modell) >= v_sockel
+     and (select sockel_unten from v_schimmel_modell) <= v_sockel,
+    'Der Sockel-Bereich muss den Sockel enthalten';
+
+  -- zurück auf reinen Verderb, und die übrigen Messungen wieder an
+  update schimmel_messung s
+     set kg = round(6 * 865 * power(1 - 0.0006, t.tage)
+                    * (1 - exp(-0.0000107 * power(t.tage, 1.6))))
+    from auftrag a cross join lateral (select (a.start_ts::date - date '2026-09-01') as tage) t
+   where a.id = s.auftrag_id and s.auftrag_id between 2001 and 2015;
+  update schimmel_messung set gemessen = true where auftrag_id not between 2001 and 2015;
+  perform auswertung_aktualisieren();
+  raise notice 'OK  Grundaussortierung (null bei reinem Verderb, 2 %% wiedergefunden, Kurve bleibt)';
+end $$;
+
 do $$
 declare v_n int; v_c int;
 begin
@@ -807,8 +872,10 @@ begin
           v_sort.start_ts + interval '60 days 7 hours', 'abgeschlossen',
           v_sort.eingang_netto_kg * 0.9, 'PRUEFUNG')
   returning id into v_wasch;
+  -- Die Waage zeigt brutto: 165 auf der Anzeige sind 120 kg Faules bei 45 kg
+  -- Behälter. Gespeichert wird der Stand; die Menge leitet die Auswertung ab.
   insert into schimmel_messung (auftrag_id, kg, palox_stand_kg)
-  values (v_wasch, 120, 120);
+  values (v_wasch, 120, 165);
 
   perform auswertung_aktualisieren();
 
@@ -852,6 +919,14 @@ begin
     'Eine Palox-Differenz ist negativ — der Stand wurde falsch verrechnet';
   assert palox_letzter_stand('waschen') is not null,
     'Der letzte Waagenstand ist nicht abrufbar — die Eingabemaske kann nicht rechnen';
+  -- 0036: Die erste Ablesung einer Station enthält den Behälter. 165 brutto
+  -- bei 45 kg Tara sind 120 kg Faules — und genau das muss im Modell ankommen,
+  -- nicht 165.
+  assert (select differenz from v_palox_stand where auftrag_id = (select id from auftrag where bemerkung = 'PRUEFUNG' and station = 'waschen')) = 120,
+    format('Erste Ablesung: erwartet 165 − 45 = 120, ist %s',
+           (select differenz from v_palox_stand where auftrag_id = (select id from auftrag where bemerkung = 'PRUEFUNG' and station = 'waschen')));
+  assert (select kg from v_schimmel_menge where auftrag_id = (select id from auftrag where bemerkung = 'PRUEFUNG' and station = 'waschen')) = 120,
+    'Die Schimmelmenge muss aus dem Stand abgeleitet sein (mit Tara)';
 
   -- Eine Ablesung auf der Hand-Linie darf den Stand der Wasch-Station nicht
   -- verschieben: 30 kg auf der Hand-Waage sind keine Differenz zu 120 kg auf
@@ -860,20 +935,27 @@ begin
   values (2100, 'hand', 'waschen_sortieren', 1613,
           now() - interval '2 hours', now(), 'abgeschlossen');
   insert into schimmel_messung (auftrag_id, kg, palox_stand_kg)
-  values (2100, 30, 30);
-  assert palox_letzter_stand('waschen') = 120,
+  values (2100, 30, 75);
+  assert palox_letzter_stand('waschen') = 165,
     'Der Hand-Palox hat den Stand der Wasch-Station verschoben — je Station!';
   assert (select differenz from v_palox_stand where auftrag_id = 2100) = 30,
-    'Die erste Ablesung einer Station muss selbst die Menge sein';
+    'Die erste Ablesung einer Station muss selbst die Menge sein — ohne Behälter';
 
   -- Geleert und über den alten Stand hinaus neu befüllt: die Zahlenreihe
-  -- sieht harmlos aus (30 → 45), nur das Häkchen des Arbeiters weiss es.
+  -- sieht harmlos aus (75 → 90), nur das Häkchen des Arbeiters weiss es.
   insert into schimmel_messung (auftrag_id, kg, palox_stand_kg, palox_geleert)
-  values (2100, 45, 45, true);
+  values (2100, 45, 90, true);
   select differenz into v_diff from v_palox_stand
    where auftrag_id = 2100 order by ts desc, id desc limit 1;
   assert v_diff = 45,
-    format('Nach dem Leeren gilt der volle Stand als Menge, nicht die Differenz (%s)', v_diff);
+    format('Nach dem Leeren gilt der Stand ohne Behälter als Menge, nicht die Differenz (%s)', v_diff);
+
+  -- Ein Stand unter dem Leergewicht ist unmöglich und gehört gemeldet.
+  insert into schimmel_messung (auftrag_id, kg, palox_stand_kg)
+  values (2100, 0, 20);
+  assert exists (select 1 from v_plausibilitaet where art = 'Palox' and auftrag_id = 2100),
+    'Ein Waagenstand unter der Palox-Tara muss in v_plausibilitaet erscheinen';
+  delete from schimmel_messung where auftrag_id = 2100 and palox_stand_kg = 20;
 
   raise notice 'OK  Palox-Waage (je Station, Leeren gemeldet, ablesen statt kopfrechnen)';
 end $$;
@@ -955,6 +1037,223 @@ begin
 end $$;
 
 select '——— Ablauf geprüft ———' as ergebnis;
+
+-- =========================================================================
+-- Die Kette (0036): Was erfasst wird, kommt an — und was fehlt, ist unbekannt.
+-- Diese Prüfungen stellen Dashboard-Ansichten gegen die Rohtabellen. Jede
+-- davon entspricht einem Befund, der vorher durch alle Tests lief.
+-- =========================================================================
+do $$
+declare v_erfasst numeric; v_angekommen numeric; v_gemeldet numeric; v_n int;
+        v_rest numeric; v_m2 numeric; v_vorher numeric; v_nachher numeric;
+begin
+  perform set_config('request.jwt.claim.sub','11111111-1111-1111-1111-111111111111', true);
+  perform auswertung_aktualisieren();
+
+  -- (a) Jedes Kilo Faules, das erfasst und nicht abgebrochen ist, steht
+  --     entweder als Punkt im Verderbsmodell oder als Befund in der
+  --     Plausibilität. Ein drittes Schicksal darf es nicht geben.
+  select coalesce(sum(m.kg), 0) into v_erfasst
+    from v_schimmel_menge m join auftrag a on a.id = m.auftrag_id
+   where a.abgebrochen_ts is null;
+  select coalesce(sum(schimmel_kg), 0) into v_angekommen
+    from v_schimmel_punkte where quelle = 'verarbeitung';
+  select coalesce(sum(m.kg), 0) into v_gemeldet
+    from v_plausibilitaet p join v_schimmel_menge m on m.auftrag_id = p.auftrag_id
+   where p.art = 'Ohne Nenner';
+  assert abs(v_erfasst - v_angekommen - v_gemeldet) < 0.5,
+    format('Schimmel: %s kg erfasst, %s kg im Modell, %s kg gemeldet — %s kg verschwinden spurlos',
+           round(v_erfasst), round(v_angekommen), round(v_gemeldet),
+           round(v_erfasst - v_angekommen - v_gemeldet));
+
+  -- (b) Ein Auftrag mit Faulem, aber ohne Nenner, wird gemeldet.
+  insert into auftrag (id, weg, station, charge_nr, start_ts, ende_ts, status)
+  values (2200, 'hand', 'waschen_sortieren', 1614, now() - interval '3 hours', now() - interval '1 hour',
+          'abgeschlossen');
+  insert into schimmel_messung (auftrag_id, kg) values (2200, 77);
+  perform auswertung_aktualisieren();
+  assert exists (select 1 from v_plausibilitaet where art = 'Ohne Nenner' and auftrag_id = 2200),
+    'Faules ohne gezählte Paletten muss als „Ohne Nenner" gemeldet werden';
+  assert not exists (select 1 from v_schimmel_punkte where auftrag_id = 2200),
+    'Eine Messung ohne Nenner darf keinen Punkt im Modell erzeugen';
+  delete from auftrag where id = 2200;
+  perform auswertung_aktualisieren();
+
+  -- (c) Der Restbestand ist die Masse nach Verdunstung und Verderb — ohne die
+  --     Aufteilung in zu klein und zu gross, die erst beim Verarbeiten kommt.
+  select restbestand_modell_kg into v_rest from v_saisonbilanz;
+  select sum(m2) into v_m2 from v_kaskade where portion = 'lager';
+  assert abs(v_rest - v_m2) < 0.5,
+    format('Restbestand %s kg, m2 im Lager %s kg — die Aufteilung wurde zu früh abgezogen',
+           round(v_rest), round(v_m2));
+
+  -- (d) Die Kistenzahl der Überfüllung folgt der Einstellung, nicht einer
+  --     Zahl im Code. Bei doppeltem Soll halbiert sich die Kistenzahl.
+  select kg into v_vorher from v_marge_buch where posten like '%berf%';
+  update einstellung set wert = '16'::jsonb where schluessel = 'soll_kg_pro_kiste';
+  select kg into v_nachher from v_marge_buch where posten like '%berf%';
+  update einstellung set wert = '8'::jsonb where schluessel = 'soll_kg_pro_kiste';
+  if v_vorher is not null and v_vorher <> 0 then
+    -- Der Überschuss je Kiste ändert sich mit dem Soll (weniger über 16 als
+    -- über 8) — geprüft wird nur, dass sich überhaupt etwas ändert und die
+    -- Richtung stimmt.
+    assert v_nachher < v_vorher,
+      format('Überfüllung reagiert nicht auf die Einstellung (%s → %s)', v_vorher, v_nachher);
+  end if;
+
+  raise notice 'OK  Kette: erfasst = angekommen + gemeldet, Restbestand = m2, Einstellung greift';
+end $$;
+
+-- Ein Koeffizient ohne einzige Messung ist unbekannt, nicht 0. Geprüft an
+-- einer leeren Kopie: ohne Wägungen muss die Verdunstung NULL sein.
+do $$
+declare v_kg numeric; v_n int;
+begin
+  -- Alle Wägungen vorübergehend „ungemessen" — dann gibt es keine Rate.
+  update verdunstung_wiegung set gemessen = false;
+  perform auswertung_aktualisieren();
+  select kg into v_kg from v_verlust_ranking where strom = 'Verdunstung';
+  assert v_kg is null,
+    format('Ohne einzige Wägung muss die Verdunstung unbekannt (NULL) sein, ist %s', v_kg);
+  assert (select kg_unten from v_verlust_ranking where strom = 'Verdunstung') is null,
+    'Ein unbekannter Strom darf keinen Bereich vortäuschen';
+  assert (select count(*) from v_hochrechnung where strom = 'Verdunstung' and koeff_bekannt) = 0,
+    'koeff_bekannt muss ohne Wägung überall false sein';
+  -- Die Masse läuft trotzdem weiter — Schimmel bleibt beziffert.
+  assert (select kg from v_verlust_ranking where strom = 'Schimmel/Fäulnis') is not null,
+    'Ohne Verdunstung darf der Schimmel nicht mit verschwinden';
+  assert (select befund from v_saisonbilanz) like '%noch nicht gemessen%',
+    'Die Bilanz muss sagen, dass ein Strom fehlt';
+  update verdunstung_wiegung set gemessen = true;
+  perform auswertung_aktualisieren();
+  assert (select kg from v_verlust_ranking where strom = 'Verdunstung') is not null,
+    'Mit Wägungen muss die Verdunstung wieder da sein';
+  raise notice 'OK  Leer ist nicht null: ohne Messung ist der Koeffizient unbekannt';
+end $$;
+
+select '——— Kette geprüft ———' as ergebnis;
+
+-- =========================================================================
+-- 0038: Das Sortierschema hängt am Käufer, mit Gültigkeit. Eine CSV wird nach
+-- der Fassung klassiert, die für ihren Auftrag galt — nicht nach der von heute.
+-- =========================================================================
+do $$
+declare v_lauf bigint; v_alt int; v_neu int; v_schema bigint; v_auftrag bigint;
+        v_standard bigint;
+begin
+  perform set_config('request.jwt.claim.sub','11111111-1111-1111-1111-111111111111', true);
+  -- Der Ausgangswert je Sorte ist die Standard-Fassung
+  v_standard := sortierschema_fuer('Tiana', null, current_date);
+  assert v_standard is not null, 'Jede Sorte braucht eine Standard-Fassung';
+  assert (select verlust_unter from sortierschema where id = v_standard) = 500,
+    'Die Standard-Fassung für Tiana muss aus sorte_kaliber stammen (500 g)';
+
+  -- Ein Käufer mit strengerer Grenze, gültig ab dem 1. Dezember
+  insert into kaeufer (code, name) values ('coop', 'Coop') on conflict do nothing;
+  insert into sortierschema (sorte, kaeufer, gilt_ab, art, verlust_unter, kaliber_baender, kanal_ab)
+  values ('Tiana', 'coop', date '2026-12-01', 'kaliber', 700,
+          '[[700,1300],[1300,2000]]'::jsonb, 2000)
+  returning id into v_schema;
+
+  -- Vor dem 1. Dezember gilt für Coop noch der Standard
+  assert sortierschema_fuer('Tiana', 'coop', date '2026-11-15') = v_standard,
+    'Vor gilt_ab muss die Standard-Fassung gelten';
+  assert sortierschema_fuer('Tiana', 'coop', date '2026-12-15') = v_schema,
+    'Ab gilt_ab muss die Käufer-Fassung gelten';
+  assert sortierschema_fuer('Tiana', 'migros', date '2026-12-15') = v_standard,
+    'Ein Käufer ohne eigene Fassung bekommt den Standard';
+
+  -- Ein Sortier-Auftrag für Coop im Dezember hält seine Fassung fest
+  insert into auftrag (weg, station, charge_nr, start_ts, ende_ts, status, kaeufer)
+  values ('maschine', 'sortieren', 1613, timestamptz '2026-12-10 08:00+01',
+          timestamptz '2026-12-10 15:00+01', 'abgeschlossen', 'coop')
+  returning id into v_auftrag;
+  assert (select sortierschema_id from auftrag where id = v_auftrag) = v_schema,
+    'Der Auftrag muss die Fassung seines Käufers festhalten';
+
+  -- Die CSV dazu: 600 g ist für Coop zu klein, für den Standard Kaliber
+  select csv_lauf_speichern(1613, '1613-10-12-09-00', null, 'pruefsumme-coop',
+           timestamptz '2026-12-10 09:00+01', 'dateiname',
+           '{"overflow_ab":60000,"min_gramm":100,"dubletten_zusammenfassen":true}'::jsonb,
+           100, 0, 0, 0, '[[600,50],[900,50]]'::jsonb) into v_lauf;
+  assert (select sortierschema_id from sortier_lauf where id = v_lauf) = v_schema,
+    'Der Lauf muss nach der Fassung seines Auftrags klassiert sein';
+  select sum(anzahl) into v_neu from sortier_gewicht
+   where lauf_id = v_lauf and klasse = 'verlust_klein';
+  assert v_neu = 50, format('Nach der Coop-Fassung sind 600 g zu klein — %s statt 50', v_neu);
+
+  -- Der alte Lauf vom November bleibt nach dem Standard klassiert: 600 g Kaliber
+  select sum(anzahl) into v_alt from sortier_gewicht g
+    join sortier_lauf l on l.id = g.lauf_id
+   where l.roh_pruefsumme = 'pruefsumme-1' and g.gewicht_g = 600 and g.klasse = 'kaliber';
+  assert v_alt = 2000, 'Der Lauf vom November darf nicht rückwirkend nach Coop klassiert werden';
+
+  -- Von Hand einem Auftrag ohne Käufer zugeordnet → Standard, neu klassiert
+  perform auftrag_manuell_zuordnen(v_lauf, 900);
+  select sum(anzahl) into v_neu from sortier_gewicht
+   where lauf_id = v_lauf and klasse = 'verlust_klein';
+  assert v_neu is null or v_neu = 0,
+    format('Nach der Umhängung auf den Standard sind 600 g Kaliber — noch %s zu klein', v_neu);
+
+  -- Kisten-Fassung: das Stückgewicht spielt keine Rolle
+  insert into sortierschema (sorte, kaeufer, gilt_ab, art, soll_kg_pro_kiste)
+  values ('Tiana', 'coop', date '2027-01-01', 'kiste', 8.0);
+  assert (select klasse from klassiere(sortierschema_fuer('Tiana', 'coop', date '2027-01-05'), 300))
+         = 'kaliber', 'In einer Kisten-Fassung ist alles Hauptkanal';
+
+  -- Aufräumen: die Fixtur der übrigen Prüfungen bleibt, wie sie war
+  delete from sortier_lauf where id = v_lauf;
+  delete from auftrag where id = v_auftrag;
+  delete from sortierschema where kaeufer = 'coop';
+  delete from kaeufer where code = 'coop';
+  perform auswertung_aktualisieren();
+  raise notice 'OK  Sortierschema je Käufer (datiert, am Auftrag festgehalten, nicht rückwirkend)';
+end $$;
+
+select '——— Sortierschema geprüft ———' as ergebnis;
+
+-- =========================================================================
+-- 0039: Antworten sind Messwerte. „Nicht alles aus einer Charge" nimmt die
+-- Messung aus dem Zeitmodell, nicht aus der Bilanz.
+-- =========================================================================
+do $$
+declare v_auftrag bigint; v_n_vorher int; v_n_nachher int;
+begin
+  perform set_config('request.jwt.claim.sub','11111111-1111-1111-1111-111111111111', true);
+  select n into v_n_vorher from v_schimmel_modell;
+
+  -- Ein Auftrag mit Schimmel, dessen Ware aus mehreren Chargen kam
+  insert into auftrag (id, weg, station, charge_nr, start_ts, ende_ts, status)
+  values (2300, 'hand', 'waschen_sortieren', 1613, timestamptz '2026-12-20 08:00+01',
+          timestamptz '2026-12-20 15:00+01', 'abgeschlossen');
+  insert into auftrag_palette (auftrag_id, eingangsdatum)
+  select 2300, date '2026-09-01' from generate_series(1, 4);
+  insert into schimmel_messung (auftrag_id, kg) values (2300, 40);
+  insert into auftrag_angabe (auftrag_id, schluessel, wert) values (2300, 'eine_charge', 'false');
+  insert into auftrag_angabe (auftrag_id, schluessel, wert) values (2300, 'gleiche_sorte', 'true');
+  perform auswertung_aktualisieren();
+
+  assert (select quelle from v_schimmel_punkte where auftrag_id = 2300) = 'verarbeitung_gemischt',
+    'Eine gemischte Arbeit muss als verarbeitung_gemischt markiert sein';
+  select n into v_n_nachher from v_schimmel_modell;
+  assert v_n_nachher = v_n_vorher,
+    format('Der gemischte Punkt darf nicht ins Zeitmodell (%s → %s Punkte)', v_n_vorher, v_n_nachher);
+  -- In der Bilanz zählt die Masse weiter
+  assert (select eingang_netto_kg from v_auftrag_masse where auftrag_id = 2300) > 0,
+    'Die Masse der gemischten Arbeit muss in der Bilanz bleiben';
+  -- Die letzte Antwort gilt
+  insert into auftrag_angabe (auftrag_id, schluessel, wert) values (2300, 'eine_charge', 'true');
+  assert (select wert from v_auftrag_angabe where auftrag_id = 2300 and schluessel = 'eine_charge') = 'true',
+    'Es muss die letzte Antwort je Schlüssel gelten';
+  assert (select count(*) from auftrag_angabe where auftrag_id = 2300 and schluessel = 'eine_charge') = 2,
+    'Antworten werden nie überschrieben';
+
+  delete from auftrag where id = 2300;
+  perform auswertung_aktualisieren();
+  raise notice 'OK  Antworten sind Messwerte (gemischt = nicht im Zeitmodell, letzte Antwort gilt)';
+end $$;
+
+select '——— Angaben geprüft ———' as ergebnis;
 
 do $$
 declare v_offen text;

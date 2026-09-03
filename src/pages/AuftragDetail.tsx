@@ -378,30 +378,38 @@ function Palox({ auftrag, gesperrt }: { auftrag: Auftrag; gesperrt: boolean }) {
   const [nPaletten, setNPaletten] = useState(0)
   const [stand, setStand] = useState('')
   const [leerGemeldet, setLeerGemeldet] = useState(false)
+  const [tara, setTara] = useState(0)
   const [fehler, setFehler] = useState<string | null>(null)
 
   const laden = useCallback(async () => {
-    const [z, v, ap] = await Promise.all([
+    const [z, v, ap, t] = await Promise.all([
       supabase.from('schimmel_messung').select('*').eq('auftrag_id', auftrag.id).order('ts'),
       // Der Stand gilt je Station: Sortierband, Waschbecken und Hand-Linie
       // haben je einen eigenen Palox auf eigener Waage.
       supabase.rpc('palox_letzter_stand', { p_station: auftrag.station }),
       supabase.from('auftrag_palette').select('id', { count: 'exact', head: true })
         .eq('auftrag_id', auftrag.id),
+      // Die Waage zeigt brutto: Behälter plus Inhalt. Bei der Differenz
+      // zweier Stände kürzt sich der Behälter weg; ist der Stand selbst die
+      // Menge (erste Ablesung, geleert), muss er heraus.
+      einstellung<number>('palox_tara_kg', 0),
     ])
     if (z.error) setFehler(fehlerText(z.error)); else setZeilen(z.data as typeof zeilen)
     setVorher(typeof v.data === 'number' ? v.data : null)
     setNPaletten(ap.count ?? 0)
+    setTara(Number(t) || 0)
   }, [auftrag.id, auftrag.station])
   useEffect(() => { void laden() }, [laden])
 
   const n = stand === '' ? null : Number(stand)
   // Fällt der Stand, wurde der Palox zwischendurch geleert — dann ist der
-  // neue Stand selbst die Menge. Wurde er geleert und danach ÜBER den alten
-  // Stand befüllt, sieht die Zahlenreihe harmlos aus: dafür ist das Häkchen.
+  // neue Stand (ohne Behälter) selbst die Menge. Wurde er geleert und danach
+  // ÜBER den alten Stand befüllt, sieht die Zahlenreihe harmlos aus: dafür
+  // ist das Häkchen. Dieselbe Rechnung wie v_palox_stand in der Datenbank —
+  // hier nur, damit der Arbeiter sieht, was er gleich speichert.
   const geleert = leerGemeldet || (n !== null && vorher !== null && n < vorher)
   const menge = n === null ? null
-    : vorher === null || geleert ? n : n - vorher
+    : vorher === null || geleert ? n - tara : n - vorher
 
   // Die Prüfgrösse des Betriebs: kg Faules je gezählter Palette. Deutlich zu
   // viel heisst meist, dass eine Ablesung vergessen ging und die Menge zweier
@@ -444,8 +452,9 @@ function Palox({ auftrag, gesperrt }: { auftrag: Auftrag; gesperrt: boolean }) {
 
       {menge !== null && (
         <p style={{ margin: '.6rem 0 0', fontSize: '1.1rem' }}>
-          <strong>{Math.round(menge)} kg</strong>
+          <strong>{Math.round(Math.max(menge, 0))} kg</strong>
           {vorher !== null && !geleert && <> ({n} − {vorher})</>}
+          {(vorher === null || geleert) && tara > 0 && <> ({n} − {tara})</>}
           {geleert && !leerGemeldet && <> — {t('paloxGeleert')}</>}
           {jePalette !== null && (
             <span className="leise"> · {Math.round(jePalette)} {t('kgJePalette')}</span>
@@ -715,6 +724,9 @@ function Abschluss({ auftrag, neuLaden, zurueck }: {
   const [sicher, setSicher] = useState(false)
   const [abbruchSicher, setAbbruchSicher] = useState(false)
   const [durchsatz, setDurchsatz] = useState(auftrag.durchsatz_kg?.toString() ?? '')
+  const [eineCharge, setEineCharge] = useState<boolean | null>(null)
+  const [gleicheSorte, setGleicheSorte] = useState<boolean | null>(null)
+  const [sortierdatum, setSortierdatum] = useState('')
   const [fehler, setFehler] = useState<string | null>(null)
   const [laeuft, setLaeuft] = useState(false)
 
@@ -722,11 +734,33 @@ function Abschluss({ auftrag, neuLaden, zurueck }: {
   // ohne Mengenangabe hätte der dort ausgelesene Schimmel keinen Nenner.
   const brauchtDurchsatz = auftrag.station === 'waschen'
 
+  // Antworten sind Messwerte (docs/Datenarchitektur, Regel 2): „War alles aus
+  // einer Charge?" sagt, ob das Alter der Ware im Palox bekannt ist. Bei Nein
+  // bleibt die Messung dem Verderbsmodell fern und zählt nur in der Bilanz.
+  // Beantwortet werden muss es — eine leere Antwort wäre „nicht gefragt".
+  const fragen: { schluessel: string; wert: string }[] = []
+  if (eineCharge !== null) fragen.push({ schluessel: 'eine_charge', wert: String(eineCharge) })
+  if (eineCharge === false && gleicheSorte !== null) {
+    fragen.push({ schluessel: 'gleiche_sorte', wert: String(gleicheSorte) })
+  }
+  if (auftrag.station === 'waschen' && sortierdatum !== '') {
+    fragen.push({ schluessel: 'sortierdatum', wert: sortierdatum })
+  }
+  const beantwortet = eineCharge !== null && (eineCharge || gleicheSorte !== null)
+
   async function abschliessen() {
     setLaeuft(true)
+    if (fragen.length) {
+      const { error: f0 } = await supabase.from('auftrag_angabe')
+        .insert(fragen.map(f => ({ auftrag_id: auftrag.id, ...f })))
+      if (f0) { setLaeuft(false); setFehler(fehlerText(f0)); return }
+    }
+    // Das Ende setzt der Server (Auslöser in 0039): Die Uhr des Handys ist
+    // keine verlässliche Zeit, und stand sie hinter der Startzeit, liess sich
+    // die Arbeit nicht abschliessen.
     const { error } = await supabase.from('auftrag').update({
       durchsatz_kg: durchsatz === '' ? null : Number(durchsatz),
-      status: 'abgeschlossen', ende_ts: new Date().toISOString(),
+      status: 'abgeschlossen',
     }).eq('id', auftrag.id)
     setLaeuft(false)
     if (error) { setFehler(fehlerText(error)); return }
@@ -768,9 +802,41 @@ function Abschluss({ auftrag, neuLaden, zurueck }: {
                  onChange={e => setDurchsatz(e.target.value)} style={{ fontSize: '1.2rem' }} />
         </div>
       )}
+      <div className="feld">
+        <label>{t('eineChargeFrage')}</label>
+        <div className="reihe">
+          <button type="button" className={eineCharge === true ? 'haupt' : ''}
+                  style={{ flex: 1, minHeight: 50 }}
+                  onClick={() => setEineCharge(true)}>{t('eineChargeJa')}</button>
+          <button type="button" className={eineCharge === false ? 'haupt' : ''}
+                  style={{ flex: 1, minHeight: 50 }}
+                  onClick={() => setEineCharge(false)}>{t('eineChargeNein')}</button>
+        </div>
+      </div>
+      {eineCharge === false && (
+        <div className="feld">
+          <label>{t('gleicheSorteFrage')}</label>
+          <div className="reihe">
+            <button type="button" className={gleicheSorte === true ? 'haupt' : ''}
+                    style={{ flex: 1, minHeight: 50 }}
+                    onClick={() => setGleicheSorte(true)}>{t('gleicheSorteJa')}</button>
+            <button type="button" className={gleicheSorte === false ? 'haupt' : ''}
+                    style={{ flex: 1, minHeight: 50 }}
+                    onClick={() => setGleicheSorte(false)}>{t('gleicheSorteNein')}</button>
+          </div>
+        </div>
+      )}
+      {auftrag.station === 'waschen' && (
+        <div className="feld">
+          <label htmlFor="sd">{t('sortierdatumKiste')} ({t('freiwillig')})</label>
+          <input id="sd" type="date" value={sortierdatum}
+                 onChange={e => setSortierdatum(e.target.value)} />
+        </div>
+      )}
       {fehler && <Hinweis art="warnung">{fehler}</Hinweis>}
       {!sicher ? (
-        <button className="haupt gross" style={{ width: '100%' }} onClick={() => setSicher(true)}>
+        <button className="haupt gross" style={{ width: '100%' }} onClick={() => setSicher(true)}
+                disabled={!beantwortet}>
           {t('arbeitFertig')}
         </button>
       ) : (

@@ -3,9 +3,9 @@
 Eine Landkarte des ganzen Systems: welche Zahl erfasst wird, was daraus
 gerechnet wird, und wo sie beim Betriebsleiter wieder auftaucht.
 
-Zum Ausprobieren: `supabase/demo_daten.sql` legt eine erfundene, aber
-stimmige Saison an (461 t Eingang, 10 Chargen, 22 Arbeiten).
-`supabase/demo_daten_entfernen.sql` räumt sie restlos wieder weg.
+Zum Ausprobieren: der Knopf „Demo-Daten" unter Stammdaten (oder auf der
+leeren Auswertung) legt eine erfundene, aber stimmige Saison an (461 t
+Eingang, 10 Chargen, 29 Arbeiten) und räumt sie restlos wieder weg.
 
 ---
 
@@ -26,22 +26,28 @@ Das ist das *Rückgrat*: für jede Charge sicher bekannt, ohne dass jemand messe
 
 | Erfassung | Wo | Felder |
 |---|---|---|
-| Palette zählen | Sortieren, Waschen + Sortieren | Anzahl, optional Datum vom Zettel |
+| Neue Arbeit | Start | Tätigkeit, Charge, Käufer (bestimmt das Sortierschema; neue Käufer legt der Arbeiter selbst an) |
+| Palette zählen | Sortieren, Waschen + Sortieren | Anzahl, Datum vom Zettel |
 | Palette wiegen | Waschen + Sortieren (Frage bei jedem Zählen) | Eingangsdatum, Eingangsgewicht, Gewicht jetzt, Kisten, Kistenart, optional Kürbisse je Kiste |
-| Faule | überall | kg (ganzzahlig) |
+| Palette kontrollieren | ohne Arbeit, vom Startbildschirm | wie Wiegen, dazu Pflichtfeld „davon faul" (0 ist eine Antwort) |
+| Faule | überall | Stand der Palox-Waage (brutto); die Menge leitet die Datenbank ab, mit Behälter-Tara aus den Einstellungen; Häkchen „war zwischendurch leer" |
 | Zu klein / zu gross | Waschen + Sortieren | kg |
 | Fertige Palette | Waschen, Waschen + Sortieren | Gewicht, Kisten, Kistenart, optional Kürbisse je Kiste |
-| Verarbeitete Menge | Waschen | kg (beim Abschluss) |
+| Abschluss | überall | „War alles aus einer Charge?", bei Nein „wenigstens dieselbe Sorte?"; beim Waschen: Sortierdatum von der Kiste; verarbeitete Menge (Waschen) |
 
-Dazu automatisch: wer, wann, welche Charge, welche Station — Startzeit vom
-Server, nicht vom Handy.
+Dazu automatisch: wer, wann, welche Charge, welche Station, welche Fassung des
+Sortierschemas — Start- und Endzeit vom Server, nicht vom Handy. Die
+Antworten aus dem Abschluss sind Messwerte (`auftrag_angabe`): „nicht alles
+aus einer Charge" nimmt die Messung aus dem Zeitmodell, nicht aus der Bilanz.
 
 ### Vom Betriebsleiter
 
 | Erfassung | Ergebnis |
 |---|---|
-| Sortier-CSV hochladen | Einzelgewicht jedes Kürbisses, gereinigt und klassiert |
-| Gebinde-Tara | macht aus Brutto ein Netto |
+| Sortier-CSV hochladen | Einzelgewicht jedes Kürbisses, gereinigt und nach der Fassung des Auftrags klassiert |
+| Sortierschemata | je Sorte und Käufer, datiert — nie überschrieben, nur neue Fassungen |
+| Gebinde-Tara, Palox-Tara | machen aus Brutto ein Netto |
+| Warenausgang | Lieferschein: Datum, Sorte, Kilo oder Kisten, Ziel |
 | Stichtag der Hochrechnung | wie weit die Projektion reicht |
 
 ---
@@ -54,13 +60,15 @@ Rückgrat. Jeder trägt seine Unsicherheit und seine Herkunft mit.
 | Koeffizient | Aus welcher Messung | Formel |
 |---|---|---|
 | **Verdunstung** je Tag | Palettenwägungen | `r = 1 − (netto_jetzt / netto_damals)^(1/Lagertage)` |
-| **Schimmel** je Lagerdauer | Faule ÷ Masse am Verarbeitungstag | kumulative Kurve über Altersklassen |
-| **Ausschuss zu klein** | Sortier-CSV (Massenanteil unter der Sortengrenze) oder Handmessung | Anteil an der Masse am Band |
-| **Nebenkanal zu gross** | Sortier-CSV (ab 2000 g) oder Handmessung | Anteil an der Masse am Band |
-| **Überfüllung** je Kiste | fertige Palette | `(Brutto − Palette − Kisten × Tara) / Kisten − 8 kg` |
+| **Sockel a₀** (nicht lagerbedingt) | dieselben Palox-Messungen, über verschieden lange Lagerdauern | `Anteil(t) = a₀ + (1 − a₀)·F(t)`; nur gesetzt, wenn die Daten ihn belegen |
+| **Schimmel** F(t) | Faule ÷ Masse am Verarbeitungstag, Lagerkontrollen | `F(t) = 1 − exp(−λ·t^k)`, chargen-robust gefehlert |
+| **Zu klein** | Sortier-CSV (unter der Grenze der Fassung) oder Handmessung | Anteil an der Masse am Band |
+| **Zu gross** | Sortier-CSV (ab der Grenze der Fassung) oder Handmessung | Anteil an der Masse am Band |
+| **Überfüllung** je Kiste | fertige Palette | `(Brutto − Palette − Kisten × Tara) / Kisten − Soll`, Soll aus der Fassung oder der Einstellung |
 
-Je Sorte, sobald die eigene Stichprobe trägt (n ≥ 3), sonst aus allen Sorten
-zusammen. Welcher Fall gilt, steht an jeder Zahl.
+Je Sorte, zum Gesamtwert gezogen, soweit die eigene Stichprobe nicht trägt
+(empirisches Bayes). Welcher Fall gilt, steht an jeder Zahl. Ohne einzige
+Messung ist ein Koeffizient unbekannt — nicht null.
 
 ### Die Massenkaskade
 
@@ -69,14 +77,16 @@ Lagerdauer beobachtet) und **im Lager** (rechts-zensiert, bis zum Stichtag
 projiziert). Auf beide läuft dieselbe Rechnung:
 
 ```
-Eingang ──Verdunstung──▶ M1 ──Schimmel──▶ M2 ──Ausschuss/Nebenkanal──▶ verkaufsfähig
+Eingang ──Verdunstung──▶ M1 ──Sockel──▶ ──Schimmel──▶ M2 ──zu klein / zu gross──▶ verkaufsfähig
 ```
 
 Jeder Anteil bezieht sich auf die Masse, die in *seinen* Schritt hineingeht —
 nur so addieren sich die Ströme genau zur Portion, ohne Basen zu vermischen.
 
-Jede Zahl entsteht dreimal: mit dem unteren, dem mittleren und dem oberen Wert
-des Koeffizienten. Daraus wird der ausgewiesene Bereich.
+Der Bereich entsteht aus Fehlerfortpflanzung: für jeden Strom die
+Empfindlichkeit gegenüber jedem Koeffizienten, zusammengesetzt nach der
+tatsächlichen Korrelation. Das Alter der noch liegenden Ware kommt aus den
+Paletten, die noch da sind — nicht aus dem Mittel der ganzen Charge.
 
 ---
 
@@ -92,16 +102,22 @@ Beruht ein Strom auf weniger als drei Messungen, steht **dünne Datenlage**
 daneben und darunter ein Kasten: *diese Rangfolge kann sich noch drehen.*
 
 Ganz oben, falls vorhanden: unplausible Messungen mit Diagnose
-(*„4500 kg Schimmel auf 5144 kg Ware — das wären 87 %"*). Sie zählen nicht mit,
-verschwinden aber nicht.
+(*„4500 kg Schimmel auf 5144 kg Ware — das wären 87 %"*), Messungen ohne
+Nenner (*„80 kg Faules erfasst, aber keine Palette gezählt"*), Wägungen ohne
+verwertbare Tara. Sie zählen nicht mit, verschwinden aber nicht — und sagen,
+was nachzutragen ist. Ein Strom ohne einzige Messung steht als „nicht
+gemessen" da, nicht als 0.
 
 ### Ebene 2 — Aufschlüsselung
 
 Filter nach Sorte, Schlag und Lagerdauer. Dann:
 
-- **Buch A — physischer Verlust:** Verdunstung, Schimmel, Ausschuss zu klein.
-- **Buch B — verschenkte Marge:** Nebenkanal, Überfüllung. Kein Verlust, die
-  Ware ist verkauft — nur nicht zum besten Preis. Wird nie mit Buch A vermischt.
+- **Buch A — Lagerverlust:** Verdunstung, Schimmel.
+- **Nicht lagerbedingt:** die Grundaussortierung vom Feld (Erde, Hagelnarben,
+  Schnittfehler). Physisch weg, aber kein Lagerverlust — steht für sich.
+- **Buch B — anderer Kanal, verschenkte Marge:** zu klein (an die Tiere), zu
+  gross (Nebenkanal), Überfüllung. Die Ware verlässt den Betrieb — nur nicht
+  zum besten Preis. Wird nie mit Buch A vermischt.
 
 An jedem Strom ein aufklappbarer **Rechenweg**: Formel, Bezugsmasse,
 Koeffizient samt Herkunft, Ergebnis, Bereich, beobachtet gegen projiziert.
@@ -142,9 +158,13 @@ In der Demo-Saison: −4.5 %, −1.2 %, +3.8 %.
 
 ## 5. Was das System nicht weiß
 
-- **Warenausgang** wird nicht erfasst. Die Bilanz vergleicht deshalb Modell
-  gegen CSV, nicht Eingang gegen Verkauf.
+- **Warenausgang** wird von Hand erfasst; der Import aus Perigon wartet auf
+  die Vorlage. Die Saisonbilanz (Eingang = Verlust + Ausgang + Bestand) sagt,
+  wie weit der Ausgang gedeckt ist, bevor sie eine Lücke ausweist.
 - **Preise** fehlen. Buch B rechnet in Kilogramm, nicht in Franken.
 - **Restbestand am Stichtag** ist eine Projektion, kein Inventar.
-- Bei **einer einzigen Messung** gibt es keinen Bereich — dann steht der
-  Punktwert dreimal da, und `koeff_n` sagt warum.
+- Bei **einer einzigen Charge** gibt es keinen Bereich — dann steht der
+  Punktwert allein da, und `koeff_n` sagt warum.
+- **Die verarbeitete Menge am Waschbecken (Weg 1)** ist die einzige Zahl, die
+  ein Arbeiter schätzen statt ablesen muss. Fehlt sie, meldet die Auswertung
+  die Schimmelmessung als „ohne Nenner".

@@ -75,6 +75,9 @@ interface StromSumme {
   /** false, solange die Datenbank für diesen Filter noch keinen Bereich
    *  geliefert hat. Ein Bereich aus summierten Zeilen wäre falsch. */
   bereichBekannt: boolean
+  /** false: der Koeffizient hinter dem Strom wurde nie gemessen. Dann ist
+   *  der Strom unbekannt — nicht 0 — und wird so angezeigt. */
+  bekannt: boolean
 }
 
 export default function Dashboard() {
@@ -221,7 +224,7 @@ export default function Dashboard() {
         setKoeff([
           { was: 'Verdunstung je Tag', n: maxN(kv2), basis: bestBasis(kv2),
             wert: mittelwert(kv2) === null ? '—' : `${(mittelwert(kv2)! * 100).toFixed(4)} %` },
-          { was: 'Ausschuss zu klein', n: maxN(ka), basis: bestBasis(ka),
+          { was: 'Zu klein (Tierfutter)', n: maxN(ka), basis: bestBasis(ka),
             wert: mittelwert(ka) === null ? '—' : `${(mittelwert(ka)! * 100).toFixed(2)} %` },
           { was: 'Nebenkanal zu gross', n: maxN(kn), basis: bestBasis(kn),
             wert: mittelwert(kn) === null ? '—' : `${(mittelwert(kn)! * 100).toFixed(2)} %` },
@@ -249,15 +252,18 @@ export default function Dashboard() {
   const stroeme = useMemo<StromSumme[]>(() => {
     const map = new Map<string, StromSumme>()
     for (const z of gefiltert) {
-      if (z.kg === null) continue
       let s = map.get(z.strom)
       if (!s) {
         s = { strom: z.strom, buch: z.buch, mittel: 0, unten: 0, oben: 0,
               beobachtet: 0, projiziert: 0, extrapoliert: 0, basis: 0,
               koeffN: z.koeff_n, koeffBasis: z.koeff_basis, formel: z.formel,
-              bereichBekannt: false }
+              bereichBekannt: false, bekannt: true }
         map.set(z.strom, s)
       }
+      // Ein Strom ohne Koeffizient bleibt in der Liste — als „nicht gemessen",
+      // nicht als 0 kg. Vorher fiel er einfach weg, und wer die Liste las,
+      // hielt die fehlende Zeile für „kein Verlust".
+      if (z.koeff_bekannt === false || z.kg === null) { s.bekannt = false; continue }
       s.mittel += z.kg
       s.basis += z.basis_kg ?? 0
       if (z.portion === 'ausgelagert') s.beobachtet += z.kg; else s.projiziert += z.kg
@@ -275,7 +281,9 @@ export default function Dashboard() {
     return [...map.values()]
   }, [gefiltert, ranking])
 
-  const verluste = stroeme.filter(s => s.buch === 'verlust').sort((a, b) => b.mittel - a.mittel)
+  // Bekannte Ströme nach Grösse, unbekannte ans Ende — sie haben keine Grösse.
+  const verluste = stroeme.filter(s => s.buch === 'verlust')
+    .sort((a, b) => Number(b.bekannt) - Number(a.bekannt) || b.mittel - a.mittel)
   const eingang = useMemo(() => {
     // je Charge nur einmal zählen, egal über wie viele Zeilen sie verteilt ist
     const proCharge = new Map<number, number>()
@@ -283,7 +291,8 @@ export default function Dashboard() {
     return [...proCharge.values()].reduce((a, b) => a + b, 0)
   }, [gefiltert])
 
-  const verlustGesamt = verluste.reduce((s, v) => s + v.mittel, 0)
+  const feld = stroeme.find(s => s.buch === 'feld')
+  const verlustGesamt = verluste.filter(v => v.bekannt).reduce((s, v) => s + v.mittel, 0)
   const maximum = Math.max(...verluste.map(v => Math.max(v.mittel, v.oben)), 1)
 
   if (laedt) return <Lade text={rechnet ? 'Auswertung wird gerechnet …' : 'Lädt …'} />
@@ -384,32 +393,60 @@ export default function Dashboard() {
             </div>
           </Karte>
 
-          <Karte titel="Buch A — physischer Verlust">
+          <Karte titel="Buch A — Lagerverlust">
             {verluste.map(v => (
               <div key={v.strom} style={{ marginBottom: '1.25rem' }}>
                 <div className="reihe">
                   <strong>{v.strom}</strong>
-                  <span style={{ marginLeft: 'auto' }}>{tonnen(v.mittel)}</span>
+                  {!v.bekannt && <Marke art="warnung">nicht gemessen</Marke>}
+                  <span style={{ marginLeft: 'auto' }}>{v.bekannt ? tonnen(v.mittel) : '—'}</span>
                 </div>
-                <Balken wert={v.mittel} unten={v.unten} oben={v.oben}
+                <Balken wert={v.bekannt ? v.mittel : null} unten={v.unten} oben={v.oben}
                         maximum={maximum} beobachtet={v.beobachtet} />
                 <p className="leise" style={{ margin: '.25rem 0 0' }}>
-                  {tonnen(v.beobachtet)} beobachtet · {tonnen(v.projiziert)} projiziert ·
-                  {' '}Bereich {tonnen(v.unten)} – {tonnen(v.oben)}
+                  {v.bekannt
+                    ? <>{tonnen(v.beobachtet)} beobachtet · {tonnen(v.projiziert)} projiziert ·
+                        {' '}Bereich {tonnen(v.unten)} – {tonnen(v.oben)}</>
+                    : <>{v.koeffBasis ?? 'keine Messung'} — der Strom ist unbekannt, nicht null.
+                        Die Rechnung läuft weiter, als würde hier nichts abgezogen.</>}
                 </p>
                 <Rechenweg zeilen={rechenweg(v, eingang)} />
               </div>
             ))}
           </Karte>
 
+          {feld && (
+            <Karte titel="Nicht lagerbedingt — vom Feld mitgebracht">
+              <p className="leise">
+                Erde, Blätter, Hagelnarben, Schnittfehler: landet im selben Palox wie das
+                Faule, hat mit der Lagerung aber nichts zu tun. Das Modell trennt es als
+                Sockel ab — der Anteil, der bei Lagerdauer null schon aussortiert würde —,
+                damit er die Verderbskurve nicht aufbläht. Kein Lagerverlust, aber physisch weg.
+              </p>
+              <div className="reihe">
+                <strong>{feld.strom}</strong>
+                {!feld.bekannt && <Marke art="warnung">noch nicht schätzbar</Marke>}
+                <span style={{ marginLeft: 'auto' }}>{feld.bekannt ? tonnen(feld.mittel) : '—'}</span>
+              </div>
+              {feld.bekannt && (
+                <p className="leise" style={{ margin: '.25rem 0 0' }}>
+                  Bereich {tonnen(feld.unten)} – {tonnen(feld.oben)} ·
+                  {' '}{prozent(eingang > 0 ? feld.mittel / eingang : null)} des Eingangs
+                </p>
+              )}
+              <Rechenweg zeilen={rechenweg(feld, eingang)} />
+            </Karte>
+          )}
+
           <Sortenvergleich koeff={sortenKoeff} />
 
           <WartetAufsWaschen bestand={basis} />
 
-          <Karte titel="Buch B — verschenkte Marge">
+          <Karte titel="Buch B — anderer Kanal, verschenkte Marge">
             <p className="leise">
-              Kein Verlust: die Ware ist verkauft oder verkäuflich, nur nicht zum
-              besten Preis. Wird nie mit Buch A vermischt.
+              Kein Lagerverlust: die Ware verlässt den Betrieb, nur nicht zum besten
+              Preis — zu Kleine an die Tiere, zu Grosse in einen anderen Kanal,
+              Überfüllung als Geschenk an den Kunden. Wird nie mit Buch A vermischt.
             </p>
             {marge.length === 0
               ? <p className="leise">Noch nichts gemessen.</p>
@@ -515,7 +552,7 @@ function Sortenvergleich({ koeff }: { koeff: { verdunstung: SortenK[]; ausschuss
       <div className="rollbar">
         <table>
           <thead><tr><th>Sorte</th><th className="zahl">Verdunstung je Tag</th>
-            <th className="zahl">Ausschuss zu klein</th><th className="zahl">Messungen</th></tr></thead>
+            <th className="zahl">Zu klein</th><th className="zahl">Messungen</th></tr></thead>
           <tbody>
             {zeilen.map(z => (
               <tr key={z.sorte} className={eigene(z.v) ? '' : 'leise'}>
@@ -598,6 +635,10 @@ function Herkunft({ punkte }: { punkte: Schimmelpunkt[] }) {
     { name: 'zufällig gegriffene Lagerpaletten', quelle: 'lager',
       erklaerung: 'Beim Wiegen aufgemacht und nachgesehen. Die einzigen Punkte, '
                 + 'deren Palette nicht nach ihrem Aussehen ausgewählt wurde.' },
+    { name: 'aus gemischten Chargen — nicht in der Kurve', quelle: 'verarbeitung_gemischt',
+      erklaerung: 'Beim Abschluss wurde „nicht alles aus einer Charge" gesagt. Das Alter '
+                + 'der Ware ist dann geraten; die Menge zählt in der Bilanz, aber nicht '
+                + 'im Verlauf.' },
   ]
   return (
     <Karte titel="Woher die Schimmelkurve kommt">
@@ -649,7 +690,9 @@ function rechenweg(v: StromSumme, eingang: number): [string, React.ReactNode][] 
     ['Koeffizient', v.koeffBasis
       ? `${v.koeffBasis}${v.koeffN !== null ? ` · ${v.koeffN} Messungen` : ''}`
       : '—'],
-    ['Ergebnis', `${kg(v.mittel, 0)} (${prozent(eingang > 0 ? v.mittel / eingang : null)} der Eingangsmasse)`],
+    ['Ergebnis', v.bekannt
+      ? `${kg(v.mittel, 0)} (${prozent(eingang > 0 ? v.mittel / eingang : null)} der Eingangsmasse)`
+      : 'nicht gemessen — der Koeffizient hat keine einzige Messung'],
     ['Bereich', v.bereichBekannt
       ? `${kg(v.unten, 0)} – ${kg(v.oben, 0)} (95 %, aus den Messfehlern fortgepflanzt)`
       : 'wird gerechnet …'],
@@ -667,17 +710,21 @@ function Ueberblick({ verluste, eingang, verlustGesamt, maximum, bilanz, stroeme
   verluste: StromSumme[]; eingang: number; verlustGesamt: number; maximum: number
   bilanz: Saisonbilanz | null; stroeme: StromSumme[]; naechste: NaechsteCharge[]
 }) {
-  const haupt = verluste[0]
-  const duenn = verluste.filter(v => (v.koeffN ?? 0) < 3)
+  const haupt = verluste.find(v => v.bekannt)
+  const abzweigend = (s: StromSumme) => s.buch === 'verlust' || s.buch === 'marge' || s.buch === 'feld'
+  const unbekannt = stroeme.filter(s => !s.bekannt && abzweigend(s))
+  const duenn = verluste.filter(v => v.bekannt && (v.koeffN ?? 0) < 3)
+  const feld = stroeme.find(s => s.buch === 'feld')
 
-  // Für die Grafik: alle Ströme, die Masse abzweigen — Verlust wie Marge.
-  // Der Nebenkanal ist kein Verlust, aber er verlässt den Hauptkanal, und ohne
-  // ihn stimmt die Breite des Restbalkens nicht.
+  // Für die Grafik: alle Ströme, die Masse abzweigen — Lagerverlust, anderer
+  // Kanal und Grundaussortierung. Der Nebenkanal ist kein Verlust, aber er
+  // verlässt den Hauptkanal, und ohne ihn stimmt die Breite des Restbalkens
+  // nicht. Unbekannte Ströme haben keine Breite; sie stehen darunter als Satz.
   const kaskade: Kaskadenstrom[] = stroeme
-    .filter(s => s.buch === 'verlust' || s.buch === 'marge')
+    .filter(s => s.bekannt && abzweigend(s))
     .sort((a, b) => b.mittel - a.mittel)
     .map(s => ({ name: s.strom, kg: s.mittel, unten: s.unten, oben: s.oben,
-                 buch: s.buch as 'verlust' | 'marge', bereichBekannt: s.bereichBekannt,
+                 buch: s.buch as 'verlust' | 'feld' | 'marge', bereichBekannt: s.bereichBekannt,
                  extrapoliert: s.extrapoliert }))
   const verkaufsfaehigKg = Math.max(eingang - kaskade.reduce((a, s) => a + s.kg, 0), 0)
 
@@ -696,11 +743,27 @@ function Ueberblick({ verluste, eingang, verlustGesamt, maximum, bilanz, stroeme
       <Karte>
         <div className="spalten">
           <Kennzahl titel="Eingang" wert={tonnen(eingang)} unter="Netto ab Wareneingang" />
-          <Kennzahl titel="Verlust gesamt" wert={tonnen(verlustGesamt)}
+          <Kennzahl titel={unbekannt.length ? 'Lagerverlust mindestens' : 'Lagerverlust'}
+                    wert={tonnen(verlustGesamt)}
                     unter={prozent(eingang > 0 ? verlustGesamt / eingang : null)} />
           <Kennzahl titel="Hauptursache" wert={haupt?.strom ?? '—'}
                     unter={haupt ? `${prozent(verlustGesamt > 0 ? haupt.mittel / verlustGesamt : null)} des Verlusts` : ''} />
         </div>
+        {feld?.bekannt && feld.mittel > 0 && (
+          <p className="leise" style={{ margin: '.5rem 0 0' }}>
+            Dazu <strong>{tonnen(feld.mittel)}</strong> nicht lagerbedingt — Erde, Hagelnarben,
+            Schnittfehler, die so vom Feld kommen und im Palox landen. Physisch weg,
+            aber kein Lagerverlust; deshalb steht es nicht in der Rangfolge.
+          </p>
+        )}
+        {unbekannt.length > 0 && (
+          <Hinweis art="warnung">
+            <strong>Nicht gemessen: {unbekannt.map(s => s.strom).join(', ')}.</strong>
+            {' '}Dafür gibt es noch keine einzige Messung. Der Strom ist unbekannt — nicht null —
+            und fehlt in „Verlust mindestens" und in der Grafik. Unter „Rohdaten" steht,
+            welche Messung ihn liefert.
+          </Hinweis>
+        )}
         {ununterscheidbar.length > 0 && (
           <Hinweis art="info">
             Nicht auseinanderzuhalten: {ununterscheidbar.join(', ')}. Die Bereiche
@@ -726,9 +789,9 @@ function Ueberblick({ verluste, eingang, verlustGesamt, maximum, bilanz, stroeme
           </p>
           <Bilanzzeile titel="Wareneingang" kg={bilanz.eingang_kg} eingang={bilanz.eingang_kg}
                        farbe="var(--strom-nebenkanal)" erklaerung="Netto ab Zettel, Tara abgezogen" />
-          <Bilanzzeile titel="Verlust (Modell)" kg={bilanz.verlust_modell_kg}
+          <Bilanzzeile titel="Physisch weg (Modell)" kg={bilanz.verlust_modell_kg}
                        eingang={bilanz.eingang_kg} farbe="var(--strom-schimmel)"
-                       erklaerung="Verdunstung, Schimmel und Ausschuss zusammen" />
+                       erklaerung="Verdunstung und Schimmel, dazu die Grundaussortierung vom Feld" />
           <Bilanzzeile titel="Ausgeliefert" kg={bilanz.ausgang_kg} eingang={bilanz.eingang_kg}
                        farbe="var(--strom-rest)"
                        erklaerung={bilanz.n_lieferungen === 0
@@ -756,10 +819,11 @@ function Ueberblick({ verluste, eingang, verlustGesamt, maximum, bilanz, stroeme
           <div key={v.strom} className="balken-zeile">
             <div className="reihe">
               <strong>{v.strom}</strong>
-              {(v.koeffN ?? 0) < 3 && <Marke art="warnung">dünne Datenlage</Marke>}
-              <span style={{ marginLeft: 'auto' }}>{tonnen(v.mittel)}</span>
+              {!v.bekannt && <Marke art="warnung">nicht gemessen</Marke>}
+              {v.bekannt && (v.koeffN ?? 0) < 3 && <Marke art="warnung">dünne Datenlage</Marke>}
+              <span style={{ marginLeft: 'auto' }}>{v.bekannt ? tonnen(v.mittel) : '—'}</span>
             </div>
-            <Balken wert={v.mittel} unten={v.unten} oben={v.oben}
+            <Balken wert={v.bekannt ? v.mittel : null} unten={v.unten} oben={v.oben}
                     maximum={maximum} beobachtet={v.beobachtet} />
           </div>
         ))}
@@ -1145,7 +1209,7 @@ function Kaliber({ zeilen }: {
               </span>
             </div>
             {sortiert.map((z, i) => {
-              const name = z.klasse === 'verlust_klein' ? 'zu klein (Verlust)'
+              const name = z.klasse === 'verlust_klein' ? 'zu klein (Tierfutter)'
                 : z.klasse === 'nebenkanal' ? 'ab 2000 g (anderer Kanal)'
                 : `${z.band_von}–${z.band_bis} g`
               const farbe = z.klasse === 'verlust_klein' ? 'var(--rot)'
