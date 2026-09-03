@@ -75,7 +75,17 @@ async function restAntwort(route) {
     return route.fulfill({ status: 204, body: '' })
   }
 
-  const alle = [...(fixture(name) ?? []), ...(eingefuegt[name] ?? [])]
+  // Die App liest Angaben über die Sicht v_auftrag_angabe, schreibt aber in
+  // die Tabelle auftrag_angabe. Damit die Kette den frisch geschriebenen Wert
+  // sofort wiedersieht, spiegeln wir die Einfügungen (jüngste je Schlüssel).
+  let extra = eingefuegt[name] ?? []
+  if (name === 'v_auftrag_angabe') {
+    const roh = eingefuegt['auftrag_angabe'] ?? []
+    const letzte = new Map()
+    for (const z of roh) letzte.set(`${z.auftrag_id}|${z.schluessel}`, z)
+    extra = [...extra, ...letzte.values()]
+  }
+  const alle = [...(fixture(name) ?? []), ...extra]
   const erg = filtern(alle, url.searchParams)
   if (methode === 'HEAD') {
     return route.fulfill({ status: 200, headers: {
@@ -172,6 +182,11 @@ await schritt('Neue Arbeit: Waschen + Sortieren, Charge 1613, neuer Käufer Coop
 
 await seite.goto(`http://localhost:5198/auftraege/${auftragId}`, { waitUntil: 'networkidle' })
 
+await schritt('AB-05: Ausschuss-Paletten sind leer (Startfrage)', async () => {
+  await seite.getByRole('button', { name: 'Ja', exact: true }).click()
+  await warteAuf('auftrag_angabe', 'POST', 1)
+})
+
 await schritt('Zwei Paletten nur zählen, mit Datum vom Zettel', async () => {
   await seite.locator('#zettel').fill('2026-09-01')
   for (let i = 0; i < 2; i++) {
@@ -228,12 +243,14 @@ await schritt('Zu klein wiegen (Brutto 100, 4 Kisten G2 → netto), zu gross sch
   await warteAuf('ausschuss_messung', 'POST', 2)
 })
 
-await schritt('Abschluss: alles aus einer Charge → fertig', async () => {
+await schritt('Abschluss: eine Charge, Ausschuss von dieser Arbeit → fertig', async () => {
   await seite.getByRole('link', { name: 'Fertig', exact: true }).click()
   await seite.getByRole('button', { name: 'Ja, alles aus einer Charge' }).click()
+  // AB-05: die zweite Ausschuss-Frage im Abschluss
+  await seite.getByRole('button', { name: 'Ja', exact: true }).click()
   await seite.getByRole('button', { name: /Arbeit fertig/ }).click()
   await seite.getByRole('button', { name: /Ja, fertig/ }).click()
-  await warteAuf('auftrag_angabe'); await warteAuf('auftrag', 'PATCH')
+  await warteAuf('auftrag', 'PATCH')
 })
 
 await browser.close(); await vite.close()

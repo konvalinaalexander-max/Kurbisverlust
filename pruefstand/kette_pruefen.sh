@@ -122,9 +122,13 @@ begin
   assert (select mittel from v_koeff_ausschuss where sorte = 'Tiana') > 0,
     'Der Ausschuss-Koeffizient ist nicht beziffert';
 
-  -- Die Antwort
+  -- Die Antworten (AB-05: beide Ausschuss-Fragen)
   assert (select wert from v_auftrag_angabe where auftrag_id = a and schluessel = 'eine_charge') = 'true',
     'Die Antwort „alles aus einer Charge" ist nicht angekommen';
+  assert (select wert from v_auftrag_angabe where auftrag_id = a and schluessel = 'ausschuss_leer') = 'true',
+    'Die Startfrage „Ausschuss-Paletten leer?" ist nicht angekommen';
+  assert (select wert from v_auftrag_angabe where auftrag_id = a and schluessel = 'ausschuss_von_auftrag') = 'true',
+    'Die Frage „Ausschuss von dieser Arbeit?" ist nicht angekommen';
 
   -- Nichts blieb ohne Nenner, nichts wurde als unplausibel aussortiert
   assert not exists (select 1 from v_plausibilitaet where auftrag_id = a),

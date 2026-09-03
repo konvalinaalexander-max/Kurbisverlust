@@ -29,18 +29,25 @@ export default function AuftragDetail() {
   // Ablesungen dieser Arbeit, um zu Beginn hinzuführen und den Abschluss zu
   // sperren, solange keine da ist.
   const [nPalox, setNPalox] = useState<number | null>(null)
+  // AB-05: Angaben zu den Ausschuss-Paletten (leer zu Beginn? alles von dieser
+  // Arbeit?). Beides sind Messwerte über die Verlässlichkeit des Ausschusses.
+  const [angaben, setAngaben] = useState<Record<string, string>>({})
 
   const laden = useCallback(async () => {
     try {
-      const [{ chargen }, a, tn, sm] = await Promise.all([
+      const [{ chargen }, a, tn, sm, an] = await Promise.all([
         stammdaten(),
         supabase.from('auftrag').select('*').eq('id', auftragId).maybeSingle(),
         supabase.from('auftrag_teilnehmer').select('profil_id, profil(name)')
           .eq('auftrag_id', auftragId).is('verlassen_ts', null),
-        supabase.from('schimmel_messung').select('id').eq('auftrag_id', auftragId),
+        supabase.from('schimmel_messung').select('id', { count: 'exact', head: false })
+          .eq('auftrag_id', auftragId),
+        supabase.from('v_auftrag_angabe').select('schluessel, wert').eq('auftrag_id', auftragId),
       ])
       if (a.error) throw a.error
-      setNPalox((sm.data ?? []).length)
+      setNPalox(((sm.data ?? []) as unknown[]).length)
+      const av = (an.data ?? []) as { schluessel: string; wert: string }[]
+      setAngaben(Object.fromEntries(av.map(x => [x.schluessel, x.wert])))
       const auf = a.data as Auftrag | null
       setAuftrag(auf)
       setCharge(chargen.find(c => c.nr === auf?.charge_nr))
@@ -62,6 +69,11 @@ export default function AuftragDetail() {
   const taet = taetigkeitVon(auftrag.weg, auftrag.station)
   const binDabei = teilnehmer.some(x => x.profil_id === session?.user.id)
   const gesperrt = auftrag.status === 'abgeschlossen'
+  async function angabeSetzen(schluessel: string, wert: string) {
+    const { error } = await supabase.from('auftrag_angabe')
+      .insert({ auftrag_id: auftragId, schluessel, wert })
+    if (error) setFehler(fehlerText(error)); else void laden()
+  }
 
   // Was an dieser Station überhaupt anfällt:
   //  · Beim Sortieren an der Maschine werden Paletten gezählt, aber nie gewogen.
@@ -138,6 +150,18 @@ export default function AuftragDetail() {
         </Hinweis>
       )}
 
+      {!gesperrt && hatAusschuss && angaben['ausschuss_leer'] === undefined && (
+        <Karte titel={t('ausschussLeerFrage')}>
+          <p className="leise" style={{ marginTop: 0 }}>{t('ausschussLeerWarum')}</p>
+          <div className="reihe">
+            <button className="haupt" style={{ flex: 1, minHeight: 50 }}
+                    onClick={() => void angabeSetzen('ausschuss_leer', 'true')}>{t('ja')}</button>
+            <button style={{ flex: 1, minHeight: 50 }}
+                    onClick={() => void angabeSetzen('ausschuss_leer', 'false')}>{t('nein')}</button>
+          </div>
+        </Karte>
+      )}
+
       {aktiverReiter === 'paletten' && (
         <Paletten auftrag={auftrag} gesperrt={gesperrt} mitWiegen={mitWiegen} />
       )}
@@ -149,7 +173,8 @@ export default function AuftragDetail() {
       {aktiverReiter === 'ausgang' && <FertigePalette auftrag={auftrag} gesperrt={gesperrt} />}
       {aktiverReiter === 'abschluss' && (
         <Abschluss auftrag={auftrag} neuLaden={laden} zurueck={() => navigate('/auftraege')}
-                   paloxGelesen={(nPalox ?? 0) > 0} zumPalox={() => setReiter('faule')} />
+                   paloxGelesen={(nPalox ?? 0) > 0} zumPalox={() => setReiter('faule')}
+                   hatAusschuss={hatAusschuss} angaben={angaben} />
       )}
     </>
   )
@@ -868,9 +893,10 @@ function FertigePalette({ auftrag, gesperrt }: { auftrag: Auftrag; gesperrt: boo
 }
 
 /* ------------------------------------------------------------------ */
-function Abschluss({ auftrag, neuLaden, zurueck, paloxGelesen, zumPalox }: {
+function Abschluss({ auftrag, neuLaden, zurueck, paloxGelesen, zumPalox, hatAusschuss, angaben }: {
   auftrag: Auftrag; neuLaden: () => Promise<void>; zurueck: () => void
   paloxGelesen: boolean; zumPalox: () => void
+  hatAusschuss: boolean; angaben: Record<string, string>
 }) {
   const { t, gebietsschema } = useSprache()
   const [sicher, setSicher] = useState(false)
@@ -879,6 +905,7 @@ function Abschluss({ auftrag, neuLaden, zurueck, paloxGelesen, zumPalox }: {
   const [eineCharge, setEineCharge] = useState<boolean | null>(null)
   const [gleicheSorte, setGleicheSorte] = useState<boolean | null>(null)
   const [sortierdatum, setSortierdatum] = useState('')
+  const [ausschussVonAuftrag, setAusschussVonAuftrag] = useState<boolean | null>(null)
   const [fehler, setFehler] = useState<string | null>(null)
   const [laeuft, setLaeuft] = useState(false)
 
@@ -898,9 +925,17 @@ function Abschluss({ auftrag, neuLaden, zurueck, paloxGelesen, zumPalox }: {
   if (auftrag.station === 'waschen' && sortierdatum !== '') {
     fragen.push({ schluessel: 'sortierdatum', wert: sortierdatum })
   }
+  // AB-05: Beim Ausschuss die zweite Frage — gehört alles zu dieser Arbeit?
+  if (hatAusschuss && ausschussVonAuftrag !== null) {
+    fragen.push({ schluessel: 'ausschuss_von_auftrag', wert: String(ausschussVonAuftrag) })
+  }
   const beantwortet = eineCharge !== null && (eineCharge || gleicheSorte !== null)
   // AB-02: Ohne Palox-Ablesung (Beginn/Abschluss) kein Abschluss.
-  const fertigMoeglich = beantwortet && paloxGelesen
+  // Für Hand-Arbeiten müssen beide Ausschuss-Fragen beantwortet sein: zu
+  // Beginn „leer?" (in der Startkarte), am Ende „alles von dieser Arbeit?".
+  const ausschussKlar = !hatAusschuss
+    || (angaben['ausschuss_leer'] !== undefined && ausschussVonAuftrag !== null)
+  const fertigMoeglich = beantwortet && paloxGelesen && ausschussKlar
 
   async function abschliessen() {
     setLaeuft(true)
@@ -986,6 +1021,22 @@ function Abschluss({ auftrag, neuLaden, zurueck, paloxGelesen, zumPalox }: {
           <input id="sd" type="date" value={sortierdatum}
                  onChange={e => setSortierdatum(e.target.value)} />
         </div>
+      )}
+      {hatAusschuss && (
+        <div className="feld">
+          <label>{t('ausschussVonAuftragFrage')}</label>
+          <div className="reihe">
+            <button type="button" className={ausschussVonAuftrag === true ? 'haupt' : ''}
+                    style={{ flex: 1, minHeight: 50 }}
+                    onClick={() => setAusschussVonAuftrag(true)}>{t('ja')}</button>
+            <button type="button" className={ausschussVonAuftrag === false ? 'haupt' : ''}
+                    style={{ flex: 1, minHeight: 50 }}
+                    onClick={() => setAusschussVonAuftrag(false)}>{t('nein')}</button>
+          </div>
+        </div>
+      )}
+      {hatAusschuss && angaben['ausschuss_leer'] === undefined && (
+        <Hinweis art="warnung">{t('ausschussLeerOffen')}</Hinweis>
       )}
       {!paloxGelesen && (
         <Hinweis art="warnung">
