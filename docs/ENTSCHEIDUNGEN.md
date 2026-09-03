@@ -949,9 +949,11 @@ Sockel ab (1.58, Schwelle 1.57). Keine Schwelle trennt die beiden Lagen, sie
 verschiebt nur, wo die Zahl danebenliegt. Gewählt ist die Seite, die nichts
 erfindet: Wo der Sockel nicht belegt ist, steht er auf 0, und der Bereich
 (Profil über dieselbe Schwelle) sagt, wie gross er sein könnte. Die
-Überdeckung dieses Bereichs liegt bei 76–84 %; die Verzerrung des
-Schimmel-Balkens bei echtem Sockel am Saisonende bleibt bei rund +46 %,
-unverändert gegenüber vorher. Das steht so in `ABLAUF.md` und als Frage 5 in
+Überdeckung dieses Bereichs liegt bei 68–84 %; die Verzerrung des
+Schimmel-Balkens bei echtem Sockel am Saisonende bleibt bei rund +46–48 %,
+unverändert gegenüber vorher (vollständige Matrix in `STATISTIK_BEFUND.md`:
+Saisonmitte +22.7 % bei 44 % Überdeckung, Saisonende +48.3 % bei 0 %). Das
+steht so in `ABLAUF.md` und als Frage 5 in
 `FRAGEN.md`: Eine Angabe beim Leeren des Palox, wie viel davon nicht faul war,
 wäre die Messung, die das Schätzen erübrigt.
 

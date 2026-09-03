@@ -741,8 +741,8 @@ Begründung der Modellentscheidungen: [`docs/ENTSCHEIDUNGEN.md`](docs/ENTSCHEIDU
   die 8-kg-Kiste gilt nur für eine Sorte — welche, ist offen.
 - **Der Sockel im Palox** wird aus dem Zeitverlauf geschätzt, und das reicht
   nicht: Die Simulation sieht einen echten Sockel von 2 % in der Saisonmitte
-  in jeder zweiten Saison, am Saisonende fast nie — dort sieht er genauso aus
+  in knapp jeder zweiten Saison, am Saisonende nie — dort sieht er genauso aus
   wie „Schlechtes zuerst verarbeitet". Bleibt er unerkannt, ist der Schimmel um
-  20–46 % zu hoch (`docs/STATISTIK_BEFUND.md`, vierte Runde). Eine Angabe beim
+  23–48 % zu hoch (`docs/STATISTIK_BEFUND.md`, vierte Runde). Eine Angabe beim
   Leeren des Palox, wie viel davon nicht faul war, wäre die Messung, die das
   entscheidet (`docs/FRAGEN.md`, Frage 5).

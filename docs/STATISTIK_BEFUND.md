@@ -692,3 +692,64 @@ Lagerkontrollen (sie tragen keinen Sockel) oder eine direkte Angabe beim
 Leeren des Palox (`FRAGEN.md`, Frage 5).
 
 ## Die Matrix nach der vierten Runde
+
+`./supabase/test/simulation/matrix.sh 25`, neun Bahnen, F-Test-Regel. „Vorher"
+ist die Basislinie vom Morgen desselben Tages (Modell der dritten Runde,
+gleiche Bahnen, 25 Saisons); für die beiden Sockel-Bahnen ist „vorher" der
+Lauf des alten Modells von oben bzw. das Modell selbst, denn wo der Sockel in
+keiner Saison gesetzt wird, rechnet es exakt wie vorher.
+
+| Bahn | Strom | vorher | nachher | Überdeckung vorher → nachher |
+|---|---|---|---|---|
+| Saisonende, 25 % im Lager | Schimmel | −2.4 % | −2.4 % | 92 → 96 % |
+| | Verdunstung | +2.5 % | +0.4 % | 96 → 100 % |
+| Saisonmitte, 50 % im Lager | Schimmel | −1.4 % | −1.5 % | 100 → 100 % |
+| Saisonende, Schlechtes zuerst | Schimmel | −2.0 % | −3.5 % | 100 → 88 % |
+| | Nicht lagerbedingt | | 502 kg (Wahrheit 0) | 92 % |
+| Saisonmitte, Schlechtes zuerst | Schimmel | +8.7 % | +8.4 % | 96 → 84 % |
+| | Nicht lagerbedingt | | 503 kg (Wahrheit 0) | 84 % |
+| … mit 12 Lagerkontrollen | Schimmel | +8.8 % | +8.7 % | 100 → 92 % |
+| … mit 24 Lagerkontrollen | Schimmel | +9.0 % | +8.1 % | 100 → 100 % |
+| Nur 4 Palettenwägungen | Schimmel | −1.5 % | −1.2 % | 100 → 100 % |
+| | Verdunstung | −0.1 % | −0.6 % | 100 → 100 % |
+| **Saisonmitte, 2 % Sockel** | **Schimmel** | **+40.5 %** | **+22.7 %** | **0 → 44 %** |
+| | Nicht lagerbedingt | nicht ausgewiesen | −57.6 % | 68 % |
+| **Saisonende, 2 % Sockel** | **Schimmel** | +48.3 % | **+48.3 %** | **0 → 0 %** |
+| | Nicht lagerbedingt | nicht ausgewiesen | −100 % (nie gesetzt) | 76 % |
+
+Zu Kleine, Nebenkanal und Verdunstung liegen in jeder Bahn innerhalb von
+±2 % bei 96–100 % Überdeckung; die Hauptursache wird in allen 225 Saisons
+richtig genannt. Was sich gegenüber vorher geändert hat:
+
+- **In den Bahnen ohne Sockel und ohne Selektion erfindet das Modell nichts**
+  (0 kg in 75 Saisons), und der Schimmel steht, wo er stand.
+- **Unter Selektion kostet der Sockel Überdeckung**, nicht Verzerrung: Das
+  Modell setzt in 12–24 % der Saisons einen Sockel von durchschnittlich
+  0.5–0.8 t, der Schimmel bleibt bei +8 % wie zuvor, aber der Bereich trifft
+  in 84–92 % statt 96–100 %. Die Selektionsverzerrung selbst ist unverändert
+  das eine ungelöste Problem aus der zweiten Runde.
+- **Bei echtem Sockel zur Saisonmitte halbiert sich der Fehler** (+40 % →
+  +23 %), der Bereich trifft in 44 % statt in keiner Saison. Der Sockel wird
+  in 44 % der Saisons gesetzt.
+- **Bei echtem Sockel am Saisonende ändert sich nichts.** Der Nachweis
+  bleibt in allen 25 Saisons unter der Schwelle (Maximum 1.56 bei Schwelle
+  1.57), der Schimmel ist +48 % zu hoch, und kein Bereich enthält die
+  Wahrheit. Der Bereich der Grundaussortierung reicht in 76 % der Saisons
+  bis zur Wahrheit hinauf — die einzige Spur, die das Dashboard davon zeigt.
+
+Die Einzelläufe der Regel-Tabelle oben und diese Matrix sind unabhängige
+Ziehungen (der Harness ist nicht gesät). Sie unterscheiden sich um einige
+Punkte, etwa 52 % gegen 44 % gesetzter Sockel zur Saisonmitte, +46 % gegen
++48 % am Saisonende; das ist die Streuung von 25 Saisons, kein Unterschied
+im Modell.
+
+## Ehrliche Grenzen nach der vierten Runde
+
+| Grösse | Status |
+|---|---|
+| Verdunstung, Zu klein, Nebenkanal | belastbar, Bereiche halten |
+| Schimmel ohne Sockel, zufällige Reihenfolge | belastbar |
+| Schimmel bei Selektion | rund +8 %, wie seit der zweiten Runde; Lagerkontrollen machen es sichtbar |
+| **Schimmel bei echtem Sockel im Palox** | **Saisonmitte +23 %, Saisonende +48 %; der Sockel wird nur zur Saisonmitte und nur in knapp jeder zweiten Saison erkannt** |
+| Grundaussortierung als Zahl | nur belastbar, wenn gesetzt; sonst 0 mit Bereich nach oben |
+| Koeffizient ohne einzige Messung | NULL, sichtbar als „nicht gemessen" (seit 0036) |

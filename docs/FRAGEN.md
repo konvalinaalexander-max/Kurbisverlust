@@ -29,7 +29,7 @@
 >    Hagelnarben und Schnittfehler sind sichtbar etwas anderes als Fäulnis. Eine grobe
 >    Angabe je Leeren („davon nicht faul: etwa ein Zehntel") wäre eine Messung. Ohne sie
 >    muss die Auswertung den Sockel aus dem Zeitverlauf schätzen — und das gelingt nur
->    in der Saisonmitte in jeder zweiten Saison, am Saisonende fast nie, weil ein Sockel
+>    in der Saisonmitte in knapp jeder zweiten Saison, am Saisonende nie, weil ein Sockel
 >    dort genauso aussieht wie „Schlechtes zuerst verarbeitet" (Messung in
 >    `STATISTIK_BEFUND.md`, vierte Runde).
 >

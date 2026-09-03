@@ -44,8 +44,8 @@ damit er den Lagerverlust nicht aufbläht.
 
 *Gemessen (Simulation, 2 % Sockel, 12 Palettenwägungen je Saison):* Ohne diese Trennung lag
 der Schimmel um **40 % zu hoch**, bei 0 % Überdeckung. Mit ihr ist er in der Saisonmitte noch
-**20 % zu hoch** (Überdeckung 48 %) — der Test belegt den Sockel dort in jeder zweiten Saison.
-Am Saisonende belegt er ihn fast nie (4 %), und der Schimmel bleibt dort **46 % zu hoch**. Die
+**23 % zu hoch** (Überdeckung 44 %) — der Test belegt den Sockel dort in knapp jeder zweiten
+Saison. Am Saisonende belegt er ihn nie, und der Schimmel bleibt dort **48 % zu hoch**. Die
 Grenze der Sache: Wird Schlechtes zuerst verarbeitet, sehen die frühen Messungen genauso aus wie
 ein Sockel, und im Fehlermass sind beide nicht zu unterscheiden. Eine Regel, die den Sockel bei
 jeder kleinen Verbesserung setzt, träfe ihn in der Sockel-Lage genau (0 % Verzerrung), erfände
@@ -338,7 +338,7 @@ abweichen kann, ohne dass es jemand merkt.
 | Die Palox-Waage zeigt brutto, der Behälter wiegt 45 kg | Betrieb, 2. September; Einstellung `palox_tara_kg` | zeigt sie netto, fehlen bei jeder ersten Ablesung und nach jedem Leeren 45 kg — die Einstellung gehört dann auf 0 |
 | Der Sockel im Palox (Erde, Hagel, Schnitt) gilt für alle Verarbeitungsmessungen gleich, nicht für Lagerkontrollen und nicht am Waschbecken | beim Sortieren wird Optisches aussortiert, beim Waschen nur noch Faules | fällt am Waschbecken nochmals Optisches heraus, wird der Sockel unterschätzt |
 | Der Sockel ist zeitunabhängig | so beschrieben: kommt vom Feld | wächst er mit der Lagerdauer (Erde trocknet ab, Narben faulen an), steckt er zum Teil doch in der Kurve |
-| Wird nach Aussehen ausgewählt, sieht das aus wie ein Sockel | Simulation: 3–4 t erfundener Sockel bei Selektion ohne Test | der Test hält ihn zurück, sieht aber einen echten Sockel nur in der Saisonmitte in jeder zweiten Saison (Schimmel dann +20 %) und am Saisonende fast nie (+46 %) — Lagerkontrollen oder eine Angabe beim Leeren entscheiden |
+| Wird nach Aussehen ausgewählt, sieht das aus wie ein Sockel | Simulation: 3–4 t erfundener Sockel bei Selektion ohne Test | der Test hält ihn zurück, sieht aber einen echten Sockel nur in der Saisonmitte in knapp jeder zweiten Saison (Schimmel dann +23 %) und am Saisonende nie (+48 %) — Lagerkontrollen oder eine Angabe beim Leeren entscheiden |
 | Alle Weg-2-Ware geht in Kisten mit dem Soll aus den Einstellungen | Überfüllung wird darauf hochgerechnet | gilt die 8-kg-Kiste nur für eine Sorte, ist die Überfüllung zu hoch |
 | Das Alter des Bestands folgt den Paletten, die noch nicht gezählt wurden | Eingangsdatum ist Pflichtfeld beim Zählen | fehlt das Datum, gilt wieder das Chargenmittel — und das liegt bei „Jüngstes zuerst" zu jung |
 | Die Fassung des Sortierschemas beim Auftragsstart ist die, die beim Sortieren galt | am Auftrag festgehalten | wird die Fassung während der Arbeit gewechselt, klassiert die CSV nach der alten |
