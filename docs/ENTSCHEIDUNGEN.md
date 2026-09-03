@@ -1138,3 +1138,44 @@ es genau dann, wenn es sonst niemand kennt.
 Angelegt ist sie als `not valid`: Neue Zeilen brauchen ein Datum, bestehende
 behalten ihre Lücke. Sie nachträglich zu füllen hiesse, eine Beobachtung zu
 erfinden, die niemand gemacht hat.
+
+## Funktionen dürfen sich nicht auf den Suchpfad verlassen (0042)
+
+Beim ersten Einrichten in Supabase brach `setup.sql` ab:
+
+```
+ERROR: relation "einstellung" does not exist
+QUERY: select coalesce((select (wert #>> '{}')::numeric from einstellung …
+CONTEXT: SQL function "palox_tara_kg" during inlining
+```
+
+Die Tabelle stand zweihundert Bildschirmseiten weiter oben in derselben Datei.
+Lokal lief dieselbe Datei auf einer frischen Datenbank fehlerfrei durch — und
+zwar in jedem Testlauf seit Monaten.
+
+Der Grund ist eine Eigenheit von Postgres. Der Rumpf einer SQL-Funktion ist
+Text. Beim Planen einer Abfrage setzt Postgres ihn ein und löst die Namen darin
+**in diesem Moment** auf, mit dem Suchpfad der aufrufenden Sitzung. Der Verweis
+einer Ansicht auf die Funktion steht dagegen als feste Kennung — die Ansicht
+findet die Funktion also immer, und erst der Rumpf fällt auf die Nase. `psql`
+hat `public` im Suchpfad, der SQL-Editor des Anbieters nicht.
+
+Zwei Antworten, je nach Kosten der Funktion:
+
+- **Wo je Zeile eingesetzt wird** (`palox_tara_kg` in `v_palox_stand`,
+  `klassiere` je Gewichtsstufe, `schimmelanteil` in den Kaskaden-Ansichten):
+  Tabellen **und Typen** stehen jetzt mit `public.` davor. Das Einsetzen bleibt
+  erlaubt, das Tempo also auch. Dass auch die Typen dazugehören, hat der
+  Prüflauf gezeigt: `'unklassiert'::kuerbis_klasse` scheiterte an derselben
+  Stelle.
+- **Alle übrigen** bekommen einen festen Suchpfad (`alter function … set
+  search_path = public`). Das verhindert das Einsetzen — bei einer Funktion,
+  die einmal je Abfrage läuft, kein Verlust, und es macht sie unabhängig davon,
+  wer sie aufruft. Die Regel gilt als Schleife über alles, was noch keinen Pfad
+  hat, damit sie auch für künftige Funktionen greift.
+
+Der Prüflauf fährt seither die ganze Kaskade einmal mit leerem Suchpfad durch —
+alle sieben gespeicherten Auswertungen neu gerechnet, alle Kennzahlen abgefragt.
+Wäre diese Prüfung früher dagewesen, hätte der Fehler den Betrieb nie erreicht.
+Das ist die eigentliche Lehre: Der Testlauf lief unter genau den Bedingungen,
+unter denen die Software nie laufen würde.

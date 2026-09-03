@@ -580,6 +580,7 @@ Alle drei entstehen aus HTML-Quellen im selben Ordner:
 | Was du siehst | Was los ist | Was hilft |
 |---|---|---|
 | Demo: „Es gibt noch kein Benutzerkonto" | Die Demo-Daten brauchen jemanden als Erfasser | Erst Schritt 7 (Betriebsleiter-Konto anlegen), dann nochmal |
+| **„relation \"einstellung\" does not exist" beim Ausführen von `setup.sql`** | Ein Fehler in der Datei, behoben am 3. September: Eine Funktion nannte eine Tabelle ohne Schema davor, und der SQL-Editor arbeitet ohne voreingestellten Suchpfad | **Die Datei neu holen** (Schritt 3a) und noch einmal einfügen. Die aktuelle Fassung nennt überall das Schema. |
 | **„Could not find the function public.… in the schema cache"** | Die App ruft etwas, das es in deiner Datenbank nicht gibt: Sie wurde eingerichtet, als es das noch nicht gab, und ist seither nicht aktualisiert worden | **Schritt 3 nochmal ausführen** — dieselbe Datei, dieselben Handgriffe. Deine Daten bleiben. Danach in der App einmal F5. |
 | Auswertung bleibt leer, obwohl Daten da sind | Die gespeicherte Auswertung ist noch nicht gerechnet | In der App oben auf **Neu rechnen**. Bleibt es leer: Schritt 3 nochmal ausführen. |
 | „Potentially destructive operation" | Supabase warnt bei Skripten mit `drop`/`alter` | **Run this query** klicken. In einem neuen Projekt ist nichts zu zerstören. |

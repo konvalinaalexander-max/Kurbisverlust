@@ -53,7 +53,7 @@ comment on view v_palox_stand is
 -- ---------- Der letzte Stand, für die Eingabemaske ------------------------
 create or replace function palox_letzter_stand()
 returns numeric language sql stable as $$
-  select palox_stand_kg from schimmel_messung
+  select palox_stand_kg from public.schimmel_messung
    where palox_stand_kg is not null and gemessen
    order by ts desc, id desc limit 1;
 $$;

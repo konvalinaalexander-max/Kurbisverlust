@@ -1403,4 +1403,49 @@ end $$;
 
 select '——— Kistenrechnung geprüft ———' as ergebnis;
 
+-- =========================================================================
+-- 0042: Die Auswertung muss auch dann rechnen, wenn der Suchpfad leer ist.
+-- Genau daran ist setup.sql im SQL-Editor von Supabase gescheitert: Beim
+-- Einsetzen einer SQL-Funktion löst Postgres die Namen im Rumpf mit dem
+-- Suchpfad der Sitzung auf, und der war dort ohne public.
+-- =========================================================================
+do $$
+declare v numeric; v_n int;
+begin
+  perform set_config('search_path', '', true);
+
+  -- Die Funktionen, die je Zeile eingesetzt werden
+  select public.palox_tara_kg() into v;
+  assert v is not null, 'palox_tara_kg() muss ohne Suchpfad rechnen';
+  select public.schimmelanteil(100) into v;
+  assert v is not null, 'schimmelanteil() muss ohne Suchpfad rechnen';
+  select public.sockel_anteil() into v;
+  assert v is not null, 'sockel_anteil() muss ohne Suchpfad rechnen';
+  select public.schimmel_n(100) into v_n;
+  assert v_n is not null, 'schimmel_n() muss ohne Suchpfad rechnen';
+  perform public.klassiere((select id from public.sortierschema limit 1), 800);
+  perform public.sortierschema_fuer((select sorte from public.charge limit 1), null, current_date);
+
+  -- Und die ganze Kaskade, so wie setup.sql sie aufbaut
+  refresh materialized view public.mv_sortier_lauf_masse;
+  refresh materialized view public.mv_kaliber_verteilung;
+  refresh materialized view public.mv_sortier_eingang;
+  refresh materialized view public.mv_auftrag_masse;
+  refresh materialized view public.mv_schimmel_punkte;
+  refresh materialized view public.mv_schimmel_modell;
+  refresh materialized view public.mv_kaskade;
+
+  select count(*) into v_n from public.v_verlust_ranking;
+  assert v_n > 0, 'Das Ranking muss auch ohne Suchpfad Zeilen liefern';
+  select count(*) into v_n from public.v_palox_stand;
+  select count(*) into v_n from public.v_plausibilitaet;
+  select count(*) into v_n from public.v_marge_buch;
+  select count(*) into v_n from public.v_saisonbilanz;
+
+  perform set_config('search_path', 'public', true);
+  raise notice 'OK  Suchpfad (Funktionen und Kaskade rechnen auch mit leerem search_path)';
+end $$;
+
+select '——— Suchpfad geprüft ———' as ergebnis;
+
 select '——— Fachlogik geprüft ———' as ergebnis;

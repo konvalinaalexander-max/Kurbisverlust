@@ -672,7 +672,7 @@ on conflict (nr) do update
 create or replace function klassiere(p_sorte text, p_gewicht_g int)
 returns table (klasse kuerbis_klasse, kaliber_idx int)
 language sql stable as $$
-  with k as (select * from sorte_kaliber where sorte = p_sorte),
+  with k as (select * from public.sorte_kaliber where sorte = p_sorte),
        band as (
          select (ord - 1)::int as idx
          from k, jsonb_array_elements(k.kaliber_baender) with ordinality as b(grenzen, ord)
@@ -681,11 +681,11 @@ language sql stable as $$
          order by ord limit 1
        )
   select case
-           when (select count(*) from k) = 0            then 'unklassiert'::kuerbis_klasse
-           when p_gewicht_g <  (select verlust_unter from k) then 'verlust_klein'::kuerbis_klasse
-           when p_gewicht_g >= (select kanal_ab       from k) then 'nebenkanal'::kuerbis_klasse
-           when (select count(*) from band) = 1          then 'kaliber'::kuerbis_klasse
-           else 'unklassiert'::kuerbis_klasse
+           when (select count(*) from k) = 0            then 'unklassiert'::public.kuerbis_klasse
+           when p_gewicht_g <  (select verlust_unter from k) then 'verlust_klein'::public.kuerbis_klasse
+           when p_gewicht_g >= (select kanal_ab       from k) then 'nebenkanal'::public.kuerbis_klasse
+           when (select count(*) from band) = 1          then 'kaliber'::public.kuerbis_klasse
+           else 'unklassiert'::public.kuerbis_klasse
          end,
          (select idx from band);
 $$;
@@ -1243,7 +1243,7 @@ select n, kg_pro_kiste, sd,
 -- Lagerdauer? Gehört in den aufklappbaren Rechenweg auf Ebene 3.
 create or replace function schimmel_n(p_lagertage numeric)
 returns int language sql stable as $$
-  select coalesce((select k.n from v_schimmel_kurve k
+  select coalesce((select k.n from public.v_schimmel_kurve k
                     where k.von <= p_lagertage and k.n > 0
                     order by k.von desc limit 1), 0);
 $$;
@@ -3038,7 +3038,7 @@ comment on view v_schimmel_modell is
 -- weil ein Funktionsaufruf je Zeile 2 441 ms gekostet hat (siehe 0015).
 create or replace function schimmelanteil(p_lagertage numeric, p_szenario text default 'mittel')
 returns numeric language sql stable as $$
-  with m as (select * from v_schimmel_modell),
+  with m as (select * from public.v_schimmel_modell),
   u as (select m.*, ln(greatest(p_lagertage, 1)) - m.x_mittel as u from m)
   select coalesce(
     (select least(greatest(1 - exp(-exp(least(greatest(
@@ -3053,7 +3053,7 @@ returns numeric language sql stable as $$
        case p_szenario when 'unten' then coalesce(k.unten, k.anteil_mono)
                        when 'oben'  then coalesce(k.oben,  k.anteil_mono)
                        else k.anteil_mono end, 0), 0), 1)
-       from v_schimmel_kurve k
+       from public.v_schimmel_kurve k
       where k.von <= p_lagertage and k.n > 0
       order by k.von desc limit 1),
     0)::numeric;
@@ -5280,7 +5280,7 @@ comment on view v_palox_stand is
 -- ---------- Der letzte Stand, für die Eingabemaske ------------------------
 create or replace function palox_letzter_stand()
 returns numeric language sql stable as $$
-  select palox_stand_kg from schimmel_messung
+  select palox_stand_kg from public.schimmel_messung
    where palox_stand_kg is not null and gemessen
    order by ts desc, id desc limit 1;
 $$;
@@ -6019,8 +6019,8 @@ drop function if exists palox_letzter_stand();
 create or replace function palox_letzter_stand(p_station station)
 returns numeric language sql stable as $$
   select s.palox_stand_kg
-    from schimmel_messung s
-    join auftrag a on a.id = s.auftrag_id
+    from public.schimmel_messung s
+    join public.auftrag a on a.id = s.auftrag_id
    where s.palox_stand_kg is not null and s.gemessen
      and a.station = p_station
    order by s.ts desc, s.id desc limit 1;
@@ -6790,7 +6790,7 @@ on conflict (schluessel) do nothing;
 
 create or replace function palox_tara_kg()
 returns numeric language sql stable as $$
-  select coalesce((select (wert #>> '{}')::numeric from einstellung
+  select coalesce((select (wert #>> '{}')::numeric from public.einstellung
                     where schluessel = 'palox_tara_kg'), 0);
 $$;
 revoke execute on function palox_tara_kg() from public;
@@ -7939,7 +7939,7 @@ grant execute on function auswertung_aktualisieren() to authenticated;
 -- Der Sockel als Zahl, für Ansichten, die ihn brauchen.
 create or replace function sockel_anteil()
 returns numeric language sql stable as $$
-  select coalesce((select case when brauchbar then sockel else 0 end from v_schimmel_modell), 0);
+  select coalesce((select case when brauchbar then sockel else 0 end from public.v_schimmel_modell), 0);
 $$;
 revoke execute on function sockel_anteil() from public;
 grant execute on function sockel_anteil() to authenticated;
@@ -7947,7 +7947,7 @@ grant execute on function sockel_anteil() to authenticated;
 -- schimmelanteil() liefert F(t) — reinen Verderb, ohne Sockel.
 create or replace function schimmelanteil(p_lagertage numeric, p_szenario text default 'mittel')
 returns numeric language sql stable as $$
-  with m as (select * from v_schimmel_modell),
+  with m as (select * from public.v_schimmel_modell),
   u as (select m.*, ln(greatest(p_lagertage, 1)) - m.x_mittel as u from m)
   select coalesce(
     (select least(greatest(1 - exp(-exp(least(greatest(
@@ -7961,7 +7961,7 @@ returns numeric language sql stable as $$
        case p_szenario when 'unten' then coalesce(k.unten, k.anteil_mono)
                        when 'oben'  then coalesce(k.oben,  k.anteil_mono)
                        else k.anteil_mono end, 0), 0), 1)
-       from v_schimmel_kurve k
+       from public.v_schimmel_kurve k
       where k.von <= p_lagertage and k.n > 0
       order by k.von desc limit 1),
     0)::numeric;
@@ -8618,15 +8618,15 @@ create or replace function sortierschema_fuer(p_sorte text, p_kaeufer text, p_da
 returns bigint language sql stable as $$
   select coalesce(
     -- die Fassung dieses Käufers, die am Stichtag galt
-    (select id from sortierschema
+    (select id from public.sortierschema
       where sorte = p_sorte and kaeufer is not distinct from p_kaeufer and gilt_ab <= p_datum
       order by gilt_ab desc limit 1),
     -- sonst die Standard-Fassung
-    (select id from sortierschema
+    (select id from public.sortierschema
       where sorte = p_sorte and kaeufer is null and gilt_ab <= p_datum
       order by gilt_ab desc limit 1),
     -- sonst irgendeine Standard-Fassung (Datum vor jeder Fassung)
-    (select id from sortierschema
+    (select id from public.sortierschema
       where sorte = p_sorte and kaeufer is null
       order by gilt_ab limit 1));
 $$;
@@ -8638,7 +8638,7 @@ comment on function sortierschema_fuer is
 create or replace function klassiere(p_schema_id bigint, p_gewicht_g int)
 returns table (klasse kuerbis_klasse, kaliber_idx int)
 language sql stable as $$
-  with k as (select * from sortierschema where id = p_schema_id),
+  with k as (select * from public.sortierschema where id = p_schema_id),
        band as (
          select (ord - 1)::int as idx
          from k, jsonb_array_elements(k.kaliber_baender) with ordinality as b(grenzen, ord)
@@ -8648,15 +8648,15 @@ language sql stable as $$
          order by ord limit 1
        )
   select case
-           when (select count(*) from k) = 0                 then 'unklassiert'::kuerbis_klasse
+           when (select count(*) from k) = 0                 then 'unklassiert'::public.kuerbis_klasse
            -- Kiste ab x kg: das Stückgewicht spielt keine Rolle, alles ist
            -- Hauptkanal. Zu klein und zu gross werden dort nach Augenmass
            -- erfasst, nicht aus der CSV.
-           when (select art from k) = 'kiste'                then 'kaliber'::kuerbis_klasse
-           when p_gewicht_g <  (select verlust_unter from k) then 'verlust_klein'::kuerbis_klasse
-           when p_gewicht_g >= (select kanal_ab       from k) then 'nebenkanal'::kuerbis_klasse
-           when (select count(*) from band) = 1               then 'kaliber'::kuerbis_klasse
-           else 'unklassiert'::kuerbis_klasse
+           when (select art from k) = 'kiste'                then 'kaliber'::public.kuerbis_klasse
+           when p_gewicht_g <  (select verlust_unter from k) then 'verlust_klein'::public.kuerbis_klasse
+           when p_gewicht_g >= (select kanal_ab       from k) then 'nebenkanal'::public.kuerbis_klasse
+           when (select count(*) from band) = 1               then 'kaliber'::public.kuerbis_klasse
+           else 'unklassiert'::public.kuerbis_klasse
          end,
          (select idx from band);
 $$;
@@ -8666,7 +8666,7 @@ $$;
 create or replace function klassiere(p_sorte text, p_gewicht_g int)
 returns table (klasse kuerbis_klasse, kaliber_idx int)
 language sql stable as $$
-  select * from klassiere(sortierschema_fuer(p_sorte, null, current_date), p_gewicht_g);
+  select * from public.klassiere(public.sortierschema_fuer(p_sorte, null, current_date), p_gewicht_g);
 $$;
 
 -- ---------- Auftrag und Sortierlauf halten ihre Fassung fest ---------------
@@ -9526,6 +9526,71 @@ begin
    where id = 1;
 
   return now();
+end $$;
+
+
+-- =====================================================================
+-- aus 0042_suchpfad.sql
+-- =====================================================================
+
+-- =====================================================================
+-- 0042 — Funktionen dürfen sich nicht auf den Suchpfad verlassen
+--
+-- Beim Einrichten in Supabase brach setup.sql ab:
+--
+--   ERROR: relation "einstellung" does not exist
+--   QUERY: select coalesce((select (wert #>> '{}')::numeric from einstellung …
+--   CONTEXT: SQL function "palox_tara_kg" during inlining
+--
+-- Der Grund ist eine Eigenheit von Postgres, die man leicht übersieht. Der
+-- Rumpf einer SQL-Funktion ist Text. Beim Planen einer Abfrage setzt Postgres
+-- ihn ein („inlining") und löst die Namen darin **in diesem Moment** auf, mit
+-- dem Suchpfad der aufrufenden Sitzung. In einer Ansicht steht der Verweis auf
+-- die Funktion dagegen als feste Kennung — die Ansicht findet die Funktion
+-- also immer, und erst der Rumpf fällt auf die Nase.
+--
+-- Läuft das Skript in einer Sitzung, deren Suchpfad `public` nicht enthält —
+-- und der SQL-Editor mancher Anbieter tut genau das —, dann kennt der Rumpf
+-- die Tabelle nicht, obwohl sie zwei Bildschirmseiten weiter oben angelegt
+-- wurde. Lokal fiel das nie auf, weil psql `public` im Pfad hat.
+--
+-- Zwei Antworten darauf, je nachdem, was die Funktion kostet:
+--
+--   * Wo die Funktion je Zeile eingesetzt wird (palox_tara_kg in v_palox_stand,
+--     klassiere je Gewichtsstufe, schimmelanteil in den Kaskaden-Ansichten),
+--     stehen die Tabellen jetzt mit `public.` davor. Das Einsetzen bleibt
+--     erlaubt, das Tempo also auch.
+--   * Alle übrigen bekommen einen festen Suchpfad. Das verhindert das
+--     Einsetzen — bei einer Funktion, die einmal je Abfrage läuft, ist das
+--     kein Verlust, und es macht sie ein für alle Mal unabhängig davon, wer
+--     sie aufruft.
+--
+-- Der Prüflauf fährt seither die ganze Kaskade einmal mit leerem Suchpfad
+-- durch. Wäre das früher dagewesen, hätte der Fehler den Betrieb nie erreicht.
+-- =====================================================================
+
+do $$
+declare z record;
+begin
+  for z in
+    select p.oid::regprocedure::text as sig, p.prokind
+      from pg_proc p
+      join pg_namespace n on n.oid = p.pronamespace
+     where n.nspname = 'public'
+       and p.prokind in ('f', 'p')
+       -- Schon gesetzt? Dann nichts zu tun.
+       and (p.proconfig is null
+            or not exists (select 1 from unnest(p.proconfig) c where c like 'search\_path=%'))
+       -- Diese sollen eingesetzt werden dürfen: ihre Rümpfe nennen die
+       -- Tabellen ausdrücklich mit Schema, oder sie fassen gar keine an.
+       and p.proname not in ('palox_tara_kg', 'palox_letzter_stand', 'klassiere',
+                             'schimmelanteil', 'schimmel_n', 'sockel_anteil',
+                             'sortierschema_fuer', 't_quantil_95',
+                             'anteil_plausibel', 'korrekturfenster')
+  loop
+    execute format('alter %s %s set search_path = public',
+                   case z.prokind when 'p' then 'procedure' else 'function' end, z.sig);
+  end loop;
 end $$;
 
 

@@ -87,7 +87,7 @@ on conflict (schluessel) do nothing;
 
 create or replace function palox_tara_kg()
 returns numeric language sql stable as $$
-  select coalesce((select (wert #>> '{}')::numeric from einstellung
+  select coalesce((select (wert #>> '{}')::numeric from public.einstellung
                     where schluessel = 'palox_tara_kg'), 0);
 $$;
 revoke execute on function palox_tara_kg() from public;

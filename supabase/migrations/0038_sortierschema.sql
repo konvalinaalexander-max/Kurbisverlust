@@ -90,15 +90,15 @@ create or replace function sortierschema_fuer(p_sorte text, p_kaeufer text, p_da
 returns bigint language sql stable as $$
   select coalesce(
     -- die Fassung dieses Käufers, die am Stichtag galt
-    (select id from sortierschema
+    (select id from public.sortierschema
       where sorte = p_sorte and kaeufer is not distinct from p_kaeufer and gilt_ab <= p_datum
       order by gilt_ab desc limit 1),
     -- sonst die Standard-Fassung
-    (select id from sortierschema
+    (select id from public.sortierschema
       where sorte = p_sorte and kaeufer is null and gilt_ab <= p_datum
       order by gilt_ab desc limit 1),
     -- sonst irgendeine Standard-Fassung (Datum vor jeder Fassung)
-    (select id from sortierschema
+    (select id from public.sortierschema
       where sorte = p_sorte and kaeufer is null
       order by gilt_ab limit 1));
 $$;
@@ -110,7 +110,7 @@ comment on function sortierschema_fuer is
 create or replace function klassiere(p_schema_id bigint, p_gewicht_g int)
 returns table (klasse kuerbis_klasse, kaliber_idx int)
 language sql stable as $$
-  with k as (select * from sortierschema where id = p_schema_id),
+  with k as (select * from public.sortierschema where id = p_schema_id),
        band as (
          select (ord - 1)::int as idx
          from k, jsonb_array_elements(k.kaliber_baender) with ordinality as b(grenzen, ord)
@@ -120,15 +120,15 @@ language sql stable as $$
          order by ord limit 1
        )
   select case
-           when (select count(*) from k) = 0                 then 'unklassiert'::kuerbis_klasse
+           when (select count(*) from k) = 0                 then 'unklassiert'::public.kuerbis_klasse
            -- Kiste ab x kg: das Stückgewicht spielt keine Rolle, alles ist
            -- Hauptkanal. Zu klein und zu gross werden dort nach Augenmass
            -- erfasst, nicht aus der CSV.
-           when (select art from k) = 'kiste'                then 'kaliber'::kuerbis_klasse
-           when p_gewicht_g <  (select verlust_unter from k) then 'verlust_klein'::kuerbis_klasse
-           when p_gewicht_g >= (select kanal_ab       from k) then 'nebenkanal'::kuerbis_klasse
-           when (select count(*) from band) = 1               then 'kaliber'::kuerbis_klasse
-           else 'unklassiert'::kuerbis_klasse
+           when (select art from k) = 'kiste'                then 'kaliber'::public.kuerbis_klasse
+           when p_gewicht_g <  (select verlust_unter from k) then 'verlust_klein'::public.kuerbis_klasse
+           when p_gewicht_g >= (select kanal_ab       from k) then 'nebenkanal'::public.kuerbis_klasse
+           when (select count(*) from band) = 1               then 'kaliber'::public.kuerbis_klasse
+           else 'unklassiert'::public.kuerbis_klasse
          end,
          (select idx from band);
 $$;
@@ -138,7 +138,7 @@ $$;
 create or replace function klassiere(p_sorte text, p_gewicht_g int)
 returns table (klasse kuerbis_klasse, kaliber_idx int)
 language sql stable as $$
-  select * from klassiere(sortierschema_fuer(p_sorte, null, current_date), p_gewicht_g);
+  select * from public.klassiere(public.sortierschema_fuer(p_sorte, null, current_date), p_gewicht_g);
 $$;
 
 -- ---------- Auftrag und Sortierlauf halten ihre Fassung fest ---------------

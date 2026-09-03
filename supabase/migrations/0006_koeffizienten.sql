@@ -268,7 +268,7 @@ select n, kg_pro_kiste, sd,
 -- Lagerdauer? Gehört in den aufklappbaren Rechenweg auf Ebene 3.
 create or replace function schimmel_n(p_lagertage numeric)
 returns int language sql stable as $$
-  select coalesce((select k.n from v_schimmel_kurve k
+  select coalesce((select k.n from public.v_schimmel_kurve k
                     where k.von <= p_lagertage and k.n > 0
                     order by k.von desc limit 1), 0);
 $$;

@@ -44,8 +44,8 @@ drop function if exists palox_letzter_stand();
 create or replace function palox_letzter_stand(p_station station)
 returns numeric language sql stable as $$
   select s.palox_stand_kg
-    from schimmel_messung s
-    join auftrag a on a.id = s.auftrag_id
+    from public.schimmel_messung s
+    join public.auftrag a on a.id = s.auftrag_id
    where s.palox_stand_kg is not null and s.gemessen
      and a.station = p_station
    order by s.ts desc, s.id desc limit 1;

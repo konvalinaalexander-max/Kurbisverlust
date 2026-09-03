@@ -304,7 +304,7 @@ grant execute on function auswertung_aktualisieren() to authenticated;
 -- Der Sockel als Zahl, für Ansichten, die ihn brauchen.
 create or replace function sockel_anteil()
 returns numeric language sql stable as $$
-  select coalesce((select case when brauchbar then sockel else 0 end from v_schimmel_modell), 0);
+  select coalesce((select case when brauchbar then sockel else 0 end from public.v_schimmel_modell), 0);
 $$;
 revoke execute on function sockel_anteil() from public;
 grant execute on function sockel_anteil() to authenticated;
@@ -312,7 +312,7 @@ grant execute on function sockel_anteil() to authenticated;
 -- schimmelanteil() liefert F(t) — reinen Verderb, ohne Sockel.
 create or replace function schimmelanteil(p_lagertage numeric, p_szenario text default 'mittel')
 returns numeric language sql stable as $$
-  with m as (select * from v_schimmel_modell),
+  with m as (select * from public.v_schimmel_modell),
   u as (select m.*, ln(greatest(p_lagertage, 1)) - m.x_mittel as u from m)
   select coalesce(
     (select least(greatest(1 - exp(-exp(least(greatest(
@@ -326,7 +326,7 @@ returns numeric language sql stable as $$
        case p_szenario when 'unten' then coalesce(k.unten, k.anteil_mono)
                        when 'oben'  then coalesce(k.oben,  k.anteil_mono)
                        else k.anteil_mono end, 0), 0), 1)
-       from v_schimmel_kurve k
+       from public.v_schimmel_kurve k
       where k.von <= p_lagertage and k.n > 0
       order by k.von desc limit 1),
     0)::numeric;

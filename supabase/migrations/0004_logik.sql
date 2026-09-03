@@ -11,7 +11,7 @@
 create or replace function klassiere(p_sorte text, p_gewicht_g int)
 returns table (klasse kuerbis_klasse, kaliber_idx int)
 language sql stable as $$
-  with k as (select * from sorte_kaliber where sorte = p_sorte),
+  with k as (select * from public.sorte_kaliber where sorte = p_sorte),
        band as (
          select (ord - 1)::int as idx
          from k, jsonb_array_elements(k.kaliber_baender) with ordinality as b(grenzen, ord)
@@ -20,11 +20,11 @@ language sql stable as $$
          order by ord limit 1
        )
   select case
-           when (select count(*) from k) = 0            then 'unklassiert'::kuerbis_klasse
-           when p_gewicht_g <  (select verlust_unter from k) then 'verlust_klein'::kuerbis_klasse
-           when p_gewicht_g >= (select kanal_ab       from k) then 'nebenkanal'::kuerbis_klasse
-           when (select count(*) from band) = 1          then 'kaliber'::kuerbis_klasse
-           else 'unklassiert'::kuerbis_klasse
+           when (select count(*) from k) = 0            then 'unklassiert'::public.kuerbis_klasse
+           when p_gewicht_g <  (select verlust_unter from k) then 'verlust_klein'::public.kuerbis_klasse
+           when p_gewicht_g >= (select kanal_ab       from k) then 'nebenkanal'::public.kuerbis_klasse
+           when (select count(*) from band) = 1          then 'kaliber'::public.kuerbis_klasse
+           else 'unklassiert'::public.kuerbis_klasse
          end,
          (select idx from band);
 $$;
