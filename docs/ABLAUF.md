@@ -116,6 +116,11 @@ rausging, steht in Perigon. Die App braucht dafür einen **Import für Fremddate
 Rohdatei unverändert ablegt, sie an einer Prüfsumme wiedererkennt und einen erneuten Import
 derselben Datei folgenlos macht. Siehe `docs/Datenarchitektur.pdf`.
 
+> **Stand 3. September:** Die hier bestätigten Ablauf-Punkte sind seit dieser
+> Runde in der App umgesetzt und mit Tests belegt — jede Zeile mit ihrer
+> Kennung in `docs/ABMACHUNGEN.md`. Der Lückenscanner in `run.sh` hält die
+> Erfassung und die Auswertung ab jetzt deckungsgleich.
+
 ## Was der Betrieb bestätigt hat (1. September)
 
 Diese Punkte sind keine Annahmen mehr.

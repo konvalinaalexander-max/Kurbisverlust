@@ -1179,3 +1179,71 @@ alle sieben gespeicherten Auswertungen neu gerechnet, alle Kennzahlen abgefragt.
 Wäre diese Prüfung früher dagewesen, hätte der Fehler den Betrieb nie erreicht.
 Das ist die eigentliche Lehre: Der Testlauf lief unter genau den Bedingungen,
 unter denen die Software nie laufen würde.
+
+---
+
+# Fünfte Runde (3. September): den vereinbarten Ablauf wirklich bauen
+
+Eine Durchsicht zeigte, dass eine Reihe am 1. und 2. September bestätigter
+Absprachen zwar in `docs/ABLAUF.md` stand, aber nie in die Masken gekommen war.
+Die Dokumente waren zum Protokoll der Absicht geworden, die App dahinter
+zurückgeblieben. Diese Runde schliesst die Lücke — und baut das, was sie nicht
+wieder aufkommen lässt. Jede Absprache trägt jetzt eine Kennung und ihren Test
+(`docs/ABMACHUNGEN.md`).
+
+## Der eigentliche Fund: die Prüfstände fragten nicht, was besprochen war
+
+Die Prüfstände testeten, ob die App richtig **rechnet**, nicht ob sie das
+**fragt**, was der Betrieb festgelegt hat. Deshalb fiel die Palox-Ablesung
+(AB-02) niemandem beim Prüfen auf: Die Rechnung dahinter war korrekt, nur
+verlangte keine Maske die Ablesung. Die Antwort darauf ist der Lückenscanner
+(`pruefstand/luecken.sh`, Teil von `run.sh`), der in beide Richtungen prüft,
+dass zwischen Erfassung und Auswertung nichts nur auf einer Seite existiert.
+
+## Die Absprachen und die Entscheidungen dahinter
+
+- **AB-01 Sortierart je Arbeit.** Bisher hing „Kiste ab x kg" oder „Kaliber" an
+  (Sorte × Käufer × Datum), und ein Index liess nur eine Fassung je Stichtag
+  zu. Der Betrieb macht aber beides. Der Index umfasst jetzt die Art, beide
+  Fassungen dürfen nebeneinander stehen, und der Arbeiter wählt beim Eröffnen.
+  Kehrseite, vorher falsch: Nach Kaliber gibt es kein Sollgewicht je Kiste und
+  damit keine Überfüllung — die rechnete die Auswertung trotzdem, weil sie ohne
+  Kisten-Fassung auf die globale Einstellung zurückfiel und jede Wägung
+  mitzählte (leer als null). Jetzt zählt sie nur Masse aus Kisten-Arbeiten.
+- **AB-02 Palox bei Beginn und Abschluss.** Ein Start-Hinweis führt zur
+  Ablesung, der Abschluss ist gesperrt, bis abgelesen wurde. Darauf ruht die
+  ganze Palox-Rechnung; ohne Ablesung landete der Schimmel zweier Arbeiten auf
+  einer.
+- **AB-03 Ausschuss wiegen.** Brutto, Kisten und Gebinde erfasst, das Netto vom
+  Auslöser abgeleitet — dieselbe Regel wie beim Palox (gespeichert wird der
+  Waagenstand). Die Schätzung bleibt für Notfälle, zählt als Messwert weiter;
+  unterschieden wird sie am fehlenden Brutto, nicht am `gemessen`-Flag (das
+  hätte sie aus der Rechnung genommen). Ein Prüf-View meldet, wenn eine
+  nachträglich geänderte Tara ein gespeichertes Netto überholt.
+- **AB-04/05 Geführter Abschluss.** Die zwei Ausschuss-Paletten-Fragen (leer zu
+  Beginn, alles von dieser Arbeit) sind Angaben wie „alles aus einer Charge".
+  Der Abschluss verlangt sie zusammen mit der Palox-Ablesung — die eine Stelle,
+  an der Vollständigkeit erzwingbar ist.
+- **AB-06 Chargennummer eintippen** (mit Vorschlagsliste), unbekannte Nummer
+  blockiert das Starten statt sie still anzulegen.
+- **AB-07 Erfassungsbeginn.** Die Saison lief schon, als die App kam. Der
+  Vorab-Ausgang je Charge (`charge_vorlauf`) geht als bekannter Ausgang in die
+  Massenbilanz, damit die Lücke nicht den späten Start als fehlende Masse
+  ausweist.
+- **AB-08 Fax** als eigene Tätigkeit, fachlich ein Waschgang (Station
+  unverändert, damit die Kaskade nicht angefasst wird), über `ist_fax`
+  getrennt.
+- **AB-09 Lagerkontrolle:** die Auswahlart der Palette wird festgehalten
+  (zufällig erreichbar / Mitte-unten / gezielt). Das gestapelte Lager macht
+  „nimm irgendeine" unmöglich; die ehrliche Vorgabe ist „zufällig unter den
+  erreichbaren", und gezielte Kontrollen lassen sich später aus der
+  Selektionsprüfung ausnehmen.
+- **AB-10 Waagen-Hinweis** in der Palox-Maske: direkt ablesen, nicht umrechnen.
+
+## Warum das Modell unverändert bleibt
+
+Diese Runde ändert die Erfassung, nicht das Modell. Die Simulationsmatrix
+(25 Saisons je Bahn, vorher/nachher) belegt es: Verzerrung und Überdeckung der
+Ströme bleiben stehen. Die Massenkaskade, das Verderbsmodell und der Sockel aus
+der vierten Runde sind nicht angetastet — Fax bleibt ein Waschgang, die
+Sortierart wählt nur, nach welcher gespeicherten Fassung klassiert wird.
