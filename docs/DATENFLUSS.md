@@ -26,19 +26,27 @@ Das ist das *Rückgrat*: für jede Charge sicher bekannt, ohne dass jemand messe
 
 | Erfassung | Wo | Felder |
 |---|---|---|
-| Neue Arbeit | Start | Tätigkeit, Charge, Käufer (bestimmt das Sortierschema; neue Käufer legt der Arbeiter selbst an) |
-| Palette zählen | Sortieren, Waschen + Sortieren | Anzahl, Datum vom Zettel |
+| Neue Arbeit | Start | Tätigkeit, Charge, Käufer (bestimmt das Sortierschema; neue Käufer legt der Arbeiter selbst an); beim Waschen ausserdem: welches Kaliber gewaschen wird |
+| Palette zählen | Sortieren, Waschen + Sortieren | Anzahl, Datum vom Zettel (**Pflicht**) |
+| Kisten zählen | Sortieren (gefüllte, je Kaliber), Waschen (geleerte, Kaliber der Arbeit) | Anzahl |
 | Palette wiegen | Waschen + Sortieren (Frage bei jedem Zählen) | Eingangsdatum, Eingangsgewicht, Gewicht jetzt, Kisten, Kistenart, optional Kürbisse je Kiste |
 | Palette kontrollieren | ohne Arbeit, vom Startbildschirm | wie Wiegen, dazu Pflichtfeld „davon faul" (0 ist eine Antwort) |
 | Faule | überall | Stand der Palox-Waage (brutto); die Menge leitet die Datenbank ab, mit Behälter-Tara aus den Einstellungen; Häkchen „war zwischendurch leer" |
 | Zu klein / zu gross | Waschen + Sortieren | kg |
 | Fertige Palette | Waschen, Waschen + Sortieren | Gewicht, Kisten, Kistenart, optional Kürbisse je Kiste |
-| Abschluss | überall | „War alles aus einer Charge?", bei Nein „wenigstens dieselbe Sorte?"; beim Waschen: Sortierdatum von der Kiste; verarbeitete Menge (Waschen) |
+| Abschluss | überall | „War alles aus einer Charge?", bei Nein „wenigstens dieselbe Sorte?"; beim Waschen: Sortierdatum von der Kiste; verarbeitete Menge nur, wenn sie ausnahmsweise bekannt ist — sonst rechnet sie sich aus den gezählten Kisten |
 
 Dazu automatisch: wer, wann, welche Charge, welche Station, welche Fassung des
 Sortierschemas — Start- und Endzeit vom Server, nicht vom Handy. Die
 Antworten aus dem Abschluss sind Messwerte (`auftrag_angabe`): „nicht alles
 aus einer Charge" nimmt die Messung aus dem Zeitmodell, nicht aus der Bilanz.
+
+Die Masse einer Arbeit hat drei Quellen, in dieser Reihenfolge: **gewogene
+Paletten**, **eingetippter Durchsatz**, **gezählte Kisten mal gemessenem
+Kistengewicht**. Was eine Kaliber-Kiste wiegt, wird nicht geschätzt, sondern am
+Sortieren gemessen: dort steht die Masse je Kaliber in der CSV und die
+gefüllten Kisten werden gezählt. Ohne diese Messung bleibt die Menge am
+Waschbecken unbekannt — nicht null.
 
 ### Vom Betriebsleiter
 

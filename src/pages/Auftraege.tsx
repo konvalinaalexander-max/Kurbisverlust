@@ -5,7 +5,7 @@ import { useSprache } from '../sprache/SprachProvider'
 import { chargeText, fehlerText, stammdaten } from '../lib/db'
 import { TAETIGKEITEN, taetigkeitVon } from '../lib/taetigkeit'
 import { Hinweis, Karte, Lade, Marke } from '../components/Bausteine'
-import type { Auftrag, Charge, Kaeufer } from '../lib/typen'
+import type { Auftrag, Charge, Kaeufer, Sortierschema } from '../lib/typen'
 
 export default function Auftraege() {
   const { t, gebietsschema } = useSprache()
@@ -112,12 +112,16 @@ function NeuerAuftrag({ chargen, fertig, abbrechen }: {
   const [kaeufer, setKaeufer] = useState<Kaeufer[]>([])
   const [kaeuferCode, setKaeuferCode] = useState('')
   const [neuerKaeufer, setNeuerKaeufer] = useState('')
+  const [schemata, setSchemata] = useState<Sortierschema[]>([])
+  const [kaliberIdx, setKaliberIdx] = useState<number | ''>('')
   const [fehler, setFehler] = useState<string | null>(null)
   const [laeuft, setLaeuft] = useState(false)
 
   useEffect(() => {
     void supabase.from('kaeufer').select('*').eq('aktiv', true).order('name')
       .then(({ data }) => setKaeufer((data ?? []) as Kaeufer[]))
+    void supabase.from('sortierschema').select('*').order('gilt_ab', { ascending: false })
+      .then(({ data }) => setSchemata((data ?? []) as Sortierschema[]))
   }, [])
 
   const gewaehlt = TAETIGKEITEN.find(a => a.id === taetigkeit)
@@ -126,6 +130,16 @@ function NeuerAuftrag({ chargen, fertig, abbrechen }: {
   // Modell braucht, um die CSV nach den Regeln zu klassieren, die an diesem
   // Tag galten. Beim Waschen ist längst sortiert — dort fragt die Maske nicht.
   const fragtKaeufer = gewaehlt?.station !== 'waschen'
+
+  // Beim Waschen liegt die Ware in Kaliber-Kisten, nicht auf Paletten. Damit
+  // die verarbeitete Menge überhaupt bestimmbar wird, muss feststehen, welches
+  // Kaliber gewaschen wird — das trägt ein, wer die Arbeit eröffnet. Die Bänder
+  // stammen aus der zuletzt gültigen Fassung der Sorte; nach welcher Fassung
+  // wirklich sortiert wurde, hält die Datenbank beim Anlegen fest.
+  const fragtKaliber = gewaehlt?.station === 'waschen'
+  const sorte = chargen.find(c => c.nr === chargeNr)?.sorte
+  const baender = schemata.find(x => x.sorte === sorte && x.art === 'kaliber'
+                                     && x.kaliber_baender !== null)?.kaliber_baender ?? []
 
   async function anlegen() {
     if (!gewaehlt || chargeNr === '') return
@@ -146,7 +160,8 @@ function NeuerAuftrag({ chargen, fertig, abbrechen }: {
     // Sortierschema hält die Datenbank beim Anlegen fest (Auslöser).
     const { data, error } = await supabase.from('auftrag')
       .insert({ weg: gewaehlt.weg, station: gewaehlt.station, charge_nr: chargeNr,
-                kaeufer: fragtKaeufer ? code : null })
+                kaeufer: fragtKaeufer ? code : null,
+                kaliber_idx: fragtKaliber && kaliberIdx !== '' ? kaliberIdx : null })
       .select('id').single()
     if (error) { setLaeuft(false); setFehler(fehlerText(error)); return }
 
@@ -198,6 +213,22 @@ function NeuerAuftrag({ chargen, fertig, abbrechen }: {
             <input style={{ marginTop: '.5rem' }} placeholder={t('kaeuferName')}
                    value={neuerKaeufer} onChange={e => setNeuerKaeufer(e.target.value)} />
           )}
+        </div>
+      )}
+
+      {taetigkeit && chargeNr !== '' && fragtKaliber && (
+        <div className="feld">
+          <label htmlFor="kaliber">{t('welchesKaliber')}</label>
+          <select id="kaliber" value={kaliberIdx} style={{ fontSize: '1.05rem' }}
+                  onChange={e => setKaliberIdx(e.target.value === '' ? '' : Number(e.target.value))}>
+            <option value="">— {t('waehlen')} —</option>
+            {baender.map(([von, bis], i) => (
+              <option key={i} value={i}>{t('kaliber')} {i + 1} ({von}–{bis} g)</option>
+            ))}
+          </select>
+          <p className="leise" style={{ marginTop: '.4rem', marginBottom: 0 }}>
+            {t('welchesKaliberWarum')}
+          </p>
         </div>
       )}
 

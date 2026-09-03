@@ -336,7 +336,7 @@ insert into auftrag (id, weg, station, charge_nr, start_ts)
 values (960, 'hand', 'waschen_sortieren', 1613, timestamptz '2026-11-16 08:00+01');
 
 -- Nur gezählt, ohne jede Angabe
-insert into auftrag_palette (auftrag_id) values (960);
+insert into auftrag_palette (auftrag_id, eingangsdatum) values (960, date '2026-09-10');
 
 -- Dieselbe Arbeit, aber diese Palette wurde gewogen:
 -- 950 kg brutto beim Eingang, 40 Kisten G2 → Netto damals 950 − 40·1.5 − 25 = 865
@@ -454,7 +454,8 @@ begin
   -- Eine Arbeit mit Messungen, die anschliessend verworfen wird
   insert into auftrag (id, weg, station, charge_nr, start_ts)
   values (980, 'hand', 'waschen_sortieren', 1613, timestamptz '2026-11-18 08:00+01');
-  insert into auftrag_palette (auftrag_id) select 980 from generate_series(1, 3);
+  insert into auftrag_palette (auftrag_id, eingangsdatum)
+  select 980, date '2026-09-10' from generate_series(1, 3);
   insert into schimmel_messung (auftrag_id, kg) values (980, 40);
   insert into verdunstung_wiegung (auftrag_id, charge_nr, eingangsdatum,
          brutto_damals_kg, brutto_jetzt_kg, kisten, gebindeart, wiege_ts)
@@ -1317,5 +1318,89 @@ begin
   perform set_config('request.jwt.claim.sub', '', true);
   raise notice 'OK  Demo-Knopf (nur der Betriebsleiter)';
 end $$;
+
+-- =========================================================================
+-- 0041: Am Waschbecken zählen Kisten. Das Kistengewicht wird am Sortieren
+-- gemessen, nicht geschätzt; ohne Messung bleibt die Masse unbekannt.
+-- =========================================================================
+do $$
+declare v_sort bigint; v_wasch bigint; v_lauf bigint; v_kg numeric; v_quelle text;
+        v_koeff numeric; v_n int; v_fehler boolean;
+begin
+  perform set_config('request.jwt.claim.sub','11111111-1111-1111-1111-111111111111', true);
+
+  -- Eine Sortierarbeit mit CSV: 2000 Kürbisse à 1200 g in Kaliberband 0 = 2400 kg
+  insert into auftrag (id, weg, station, charge_nr, start_ts, ende_ts, status)
+  values (2400, 'maschine', 'sortieren', 1613, timestamptz '2026-11-02 08:00+01',
+          timestamptz '2026-11-02 15:00+01', 'abgeschlossen') returning id into v_sort;
+  insert into auftrag_palette (auftrag_id, eingangsdatum)
+  select 2400, date '2026-09-01' from generate_series(1, 8);
+  select csv_lauf_speichern(1613, 'SIM-KISTE.csv', null, 'pruefsumme-kiste', null, null,
+         '{"overflow_ab":60000,"min_gramm":100,"dubletten_zusammenfassen":false}'::jsonb,
+         2000, 0, 0, 0, '[[1200,2000]]'::jsonb) into v_lauf;
+  perform auftrag_manuell_zuordnen(v_lauf, 2400);
+
+  -- Der Arbeiter hat 60 Kisten gefüllt → 40 kg je Kiste
+  insert into auftrag_gebinde (auftrag_id, kaliber_idx, anzahl)
+  select 2400, g.kaliber_idx, 60 from sortier_gewicht g
+   where g.lauf_id = v_lauf and g.klasse = 'kaliber' limit 1;
+  perform auswertung_aktualisieren();
+
+  select kg_je_gebinde, n into v_koeff, v_n from v_koeff_gebinde
+   where sorte = (select sorte from charge where nr = 1613);
+  assert v_koeff is not null, 'Ohne gemessenes Kistengewicht gibt es keine Kistenrechnung';
+  assert abs(v_koeff - 40) < 0.5,
+    format('2400 kg auf 60 Kisten sind 40 kg je Kiste, gemessen wurden %s', v_koeff);
+  assert v_n = 1, format('Eine Messung erwartet, %s gezählt', v_n);
+
+  -- Ein Waschgang derselben Sorte, 10 Kisten desselben Kalibers → 400 kg
+  insert into auftrag (id, weg, station, charge_nr, start_ts, ende_ts, status, kaliber_idx)
+  values (2401, 'maschine', 'waschen', 1613, timestamptz '2027-01-15 08:00+01',
+          timestamptz '2027-01-15 15:00+01', 'abgeschlossen',
+          (select kaliber_idx from auftrag_gebinde where auftrag_id = 2400))
+  returning id into v_wasch;
+  insert into auftrag_gebinde (auftrag_id, kaliber_idx, anzahl)
+  values (2401, (select kaliber_idx from auftrag_gebinde where auftrag_id = 2400), 10);
+  perform auswertung_aktualisieren();
+
+  select eingang_netto_kg, masse_quelle into v_kg, v_quelle
+    from v_auftrag_masse where auftrag_id = 2401;
+  assert v_quelle = 'gebinde',
+    format('Die Masse muss aus den Kisten kommen, kommt aber aus %s', v_quelle);
+  assert abs(v_kg - 400) < 5, format('10 Kisten à 40 kg sind 400 kg, gerechnet wurden %s', v_kg);
+
+  -- Und damit hat der Schimmel am Waschbecken einen Nenner
+  insert into schimmel_messung (auftrag_id, kg) values (2401, 20);
+  perform auswertung_aktualisieren();
+  assert exists (select 1 from v_schimmel_punkte where auftrag_id = 2401),
+    'Mit gezählten Kisten muss der Waschgang einen Punkt im Verderbsmodell ergeben';
+  assert not exists (select 1 from v_plausibilitaet
+                      where art = 'Ohne Nenner' and auftrag_id = 2401),
+    'Ein Waschgang mit gezählten Kisten steht nicht mehr ohne Nenner da';
+
+  -- Ein Kaliber ohne Messung bleibt unbekannt, nicht null
+  insert into auftrag (id, weg, station, charge_nr, start_ts, status, kaliber_idx)
+  values (2402, 'maschine', 'waschen', 1613, timestamptz '2027-01-16 08:00+01', 'offen', 7);
+  insert into auftrag_gebinde (auftrag_id, kaliber_idx, anzahl) values (2402, 7, 12);
+  assert (select kg from v_auftrag_gebinde_masse where auftrag_id = 2402) is null,
+    'Ohne gemessenes Kistengewicht muss die Masse NULL sein, nicht 0';
+  assert exists (select 1 from v_plausibilitaet where art = 'Kistengewicht' and auftrag_id = 2402),
+    'Gezählte Kisten ohne Kistengewicht müssen als Auffälligkeit erscheinen';
+
+  -- Das Datum vom Zettel ist Pflicht (0041)
+  v_fehler := false;
+  begin
+    insert into auftrag_palette (auftrag_id, eingangsdatum) values (2400, null);  -- ohne Palette, ohne Wägung
+  exception when check_violation then v_fehler := true;
+  end;
+  assert v_fehler, 'Eine Palettenzählung ohne Datum darf nicht mehr angenommen werden';
+
+  delete from auftrag where id in (2400, 2401, 2402);
+  delete from sortier_lauf where id = v_lauf;
+  perform auswertung_aktualisieren();
+  raise notice 'OK  Kisten am Waschbecken (Gewicht gemessen, ohne Messung unbekannt, Datum Pflicht)';
+end $$;
+
+select '——— Kistenrechnung geprüft ———' as ergebnis;
 
 select '——— Fachlogik geprüft ———' as ergebnis;

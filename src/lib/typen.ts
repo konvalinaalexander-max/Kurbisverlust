@@ -23,6 +23,15 @@ export interface Auftrag {
   abgebrochen_ts: string | null; abbruch_grund: string | null
   /** Für welchen Käufer sortiert wird — bestimmt das Sortierschema. */
   kaeufer: string | null; sortierschema_id: number | null
+  /** Beim Waschen: welches Kaliberband gewaschen wird (Index in kaliber_baender).
+   *  Trägt ein, wer die Arbeit eröffnet; daran hängt die verarbeitete Menge. */
+  kaliber_idx: number | null
+}
+
+/** Gezählte Kaliber-Kisten je Arbeit und Kaliber. Beim Sortieren die
+ *  gefüllten, beim Waschen die geleerten. */
+export interface AuftragGebinde {
+  id: number; auftrag_id: number; kaliber_idx: number; anzahl: number
 }
 
 export interface Kaeufer { code: string; name: string; aktiv: boolean }

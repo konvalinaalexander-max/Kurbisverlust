@@ -128,9 +128,13 @@ const BILDSCHIRME = [
   { name: 'auftrag-detail', wer: 'arbeiter', pfad: '/auftraege/OFFEN' },
   { name: 'auftrag-wiegen', wer: 'arbeiter', pfad: '/auftraege/OFFEN',
     tun: async p => {
+      // Ohne Datum vom Zettel bleibt der Zähler gesperrt (0041).
+      await p.locator('#zettel').fill('2026-09-01')
       await p.getByRole('button', { name: '+', exact: true }).click()
       await p.getByRole('button', { name: /wiegen/i }).first().click()
     } },
+  { name: 'auftrag-kisten', wer: 'arbeiter', pfad: '/auftraege/OFFENKISTEN',
+    tun: async p => { await p.getByRole('link', { name: 'Kisten' }).click() } },
   { name: 'auftrag-faule', wer: 'arbeiter', pfad: '/auftraege/OFFEN',
     tun: async p => { await p.getByRole('link', { name: 'Faule' }).click() } },
   { name: 'auftrag-abschluss', wer: 'arbeiter', pfad: '/auftraege/OFFEN',
@@ -178,6 +182,10 @@ await vite.listen()
 const auftraege = fixture('auftrag') ?? []
 const offene = auftraege.filter(a => a.status === 'offen' && !a.abgebrochen_ts)
 const OFFEN_ID = offene.length ? Math.max(...offene.map(a => a.id)) : 1
+// Die Kisten-Maske gibt es nur dort, wo es Kaliber-Kisten gibt — auf der
+// Hand-Linie (waschen_sortieren) geht die Ware direkt raus.
+const mitKisten = offene.filter(a => a.station !== 'waschen_sortieren')
+const OFFEN_KISTEN_ID = mitKisten.length ? Math.max(...mitKisten.map(a => a.id)) : OFFEN_ID
 
 mkdirSync(BILDER, { recursive: true })
 // In der Entwicklungsumgebung liegt ein fertiges Chromium unter /opt — dessen
@@ -213,7 +221,8 @@ for (const geraet of GERAETE) {
         if (wer) localStorage.setItem('pruefstand_wer', wer)
       }, { wer: schirm.wer, frisch: schirm.frisch ?? false })
 
-      const pfad = schirm.pfad.replace('OFFEN', String(OFFEN_ID))
+      const pfad = schirm.pfad.replace('OFFENKISTEN', String(OFFEN_KISTEN_ID))
+                              .replace('OFFEN', String(OFFEN_ID))
       await seite.goto(`http://localhost:5199${pfad}`, { waitUntil: 'networkidle' })
 
       // Anmelden, falls die Seite jemanden braucht und der Login-Schirm steht

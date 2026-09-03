@@ -339,6 +339,8 @@ abweichen kann, ohne dass es jemand merkt.
 | Ein Waschgang gehört zu den Sortierläufen derselben Charge davor | kein erfasster Verweis | bei stark gemischten Chargen wandert Schimmel #2 ans falsche Alter |
 | Die Dubletten-Regel entfernt Maschinen-Doppel, keine echten Kürbisse | Nachbar-Gleichheit 12–28 % gegen < 0.2 % Zufall | alle CSV-gestützten Massen sind entsprechend daneben |
 | Die Palox-Waage zeigt brutto, der Behälter wiegt 45 kg | Betrieb, 2. September; Einstellung `palox_tara_kg` | zeigt sie netto, fehlen bei jeder ersten Ablesung und nach jedem Leeren 45 kg — die Einstellung gehört dann auf 0 |
+| Eine beim Sortieren gefüllte Kaliber-Kiste kommt als dieselbe Kiste ans Waschbecken | daran hängt das gemessene Kistengewicht | wird umgepackt oder zusammengeschüttet, ist die Menge am Waschbecken falsch |
+| Alle Kisten eines Kalibers wiegen ungefähr gleich viel | sie werden gleich gefüllt | die Streuung steht im Bereich; systematisch unterschiedlich gefüllte Kisten verschieben die Menge |
 | Das Kistenmass einer Sorte gilt für alle ihre Käufer | im Warenausgang steht nicht, welche Kiste zu welchem Käufer ging | haben zwei Käufer verschiedene Kistenmasse, ist die Überfüllung für den einen zu hoch, für den anderen zu tief |
 | Der Sockel im Palox (Erde, Hagel, Schnitt) gilt für alle Verarbeitungsmessungen gleich, nicht für Lagerkontrollen und nicht am Waschbecken | beim Sortieren wird Optisches aussortiert, beim Waschen nur noch Faules | fällt am Waschbecken nochmals Optisches heraus, wird der Sockel unterschätzt |
 | Der Sockel ist zeitunabhängig | so beschrieben: kommt vom Feld | wächst er mit der Lagerdauer (Erde trocknet ab, Narben faulen an), steckt er zum Teil doch in der Kurve |

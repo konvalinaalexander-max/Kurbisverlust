@@ -7,9 +7,9 @@ import { chargeText, einstellung, fehlerText, stammdaten } from '../lib/db'
 import { taetigkeitVon } from '../lib/taetigkeit'
 import { Hinweis, Karte, Lade, Marke } from '../components/Bausteine'
 import type { TextId } from '../lib/i18n'
-import type { Auftrag, Charge, Gebinde } from '../lib/typen'
+import type { Auftrag, AuftragGebinde, Charge, Gebinde } from '../lib/typen'
 
-type Reiter = 'paletten' | 'faule' | 'ausschuss' | 'ausgang' | 'abschluss'
+type Reiter = 'paletten' | 'kisten' | 'faule' | 'ausschuss' | 'ausgang' | 'abschluss'
 
 export default function AuftragDetail() {
   const { id } = useParams()
@@ -63,6 +63,11 @@ export default function AuftragDetail() {
   //  · Auf der Hand-Linie wird gezählt und, wenn es sich ergibt, gewogen;
   //    dort fällt auch der Ausschuss nach Augenmaß an.
   const hatPaletten = auftrag.station !== 'waschen'
+  // Kisten: Beim Waschen sind sie die einzige Mengenangabe, die es dort gibt.
+  // Beim Sortieren werden sie gezählt, damit überhaupt bekannt wird, was eine
+  // Kiste wiegt — die Masse je Kaliber steht in der CSV, die Kistenzahl nicht.
+  // Auf der Hand-Linie gibt es keine Kaliber-Kisten; dort geht die Ware direkt raus.
+  const hatKisten = auftrag.station !== 'waschen_sortieren'
   const mitWiegen = auftrag.station === 'waschen_sortieren'
   const hatAusschuss = auftrag.weg === 'hand'
   // Gewaschen wird in neue Paletten gepackt — dort lässt sich nachwiegen,
@@ -71,6 +76,7 @@ export default function AuftragDetail() {
 
   const reiterListe: [Reiter, TextId][] = [
     ...(hatPaletten ? [['paletten', 'paletten'] as [Reiter, TextId]] : []),
+    ...(hatKisten ? [['kisten', 'kaliberKisten'] as [Reiter, TextId]] : []),
     ['faule', 'faule'],
     ...(hatAusschuss ? [['ausschuss', 'kleinGross'] as [Reiter, TextId]] : []),
     ...(hatAusgang ? [['ausgang', 'fertigePalette'] as [Reiter, TextId]] : []),
@@ -121,6 +127,7 @@ export default function AuftragDetail() {
       {aktiverReiter === 'paletten' && (
         <Paletten auftrag={auftrag} gesperrt={gesperrt} mitWiegen={mitWiegen} />
       )}
+      {aktiverReiter === 'kisten' && <Kisten auftrag={auftrag} gesperrt={gesperrt} />}
       {aktiverReiter === 'faule' && (
         <Palox auftrag={auftrag} gesperrt={gesperrt} />
       )}
@@ -156,7 +163,7 @@ function Paletten({ auftrag, gesperrt, mitWiegen }: {
   async function nurZaehlen() {
     setLaeuft(true); setFrageOffen(false)
     const { error } = await supabase.from('auftrag_palette')
-      .insert({ auftrag_id: auftrag.id, eingangsdatum: zettelDatum || null })
+      .insert({ auftrag_id: auftrag.id, eingangsdatum: zettelDatum })
     setLaeuft(false)
     if (error) setFehler(fehlerText(error)); else void laden()
   }
@@ -181,13 +188,18 @@ function Paletten({ auftrag, gesperrt, mitWiegen }: {
         <div className="zaehler">
           <button onClick={zurueck} disabled={gesperrt || zeilen.length === 0} aria-label="−">−</button>
           <span className="stand">{zeilen.length}</span>
-          <button className="haupt" aria-label="+" disabled={gesperrt || laeuft}
+          <button className="haupt" aria-label="+" disabled={gesperrt || laeuft || zettelDatum === ''}
                   onClick={() => (mitWiegen ? setFrageOffen(true) : void nurZaehlen())}>+</button>
         </div>
         <div className="feld" style={{ marginBottom: 0 }}>
           <label htmlFor="zettel">{t('datumZettel')}</label>
           <input id="zettel" type="date" value={zettelDatum} disabled={gesperrt}
                  onChange={e => setZettelDatum(e.target.value)} />
+          {zettelDatum === '' && !gesperrt && (
+            <p className="leise" style={{ marginTop: '.4rem', marginBottom: 0 }}>
+              {t('datumZettelPflicht')}
+            </p>
+          )}
         </div>
         {gewogen > 0 && (
           <p className="leise" style={{ marginTop: '.6rem', marginBottom: 0 }}>
@@ -371,6 +383,83 @@ function WiegeDialog({ auftrag, zettelDatum, nurZaehlen, abbrechen, fertig }: {
  * Kopf die Differenz zum letzten Mal bilden. Die Software zieht ab und zeigt
  * ihm das Ergebnis, bevor er speichert.
  */
+/** Kisten zählen. Beim Waschen für das eine Kaliber, das die Arbeit wäscht;
+ *  beim Sortieren je Kaliberband, denn dort entsteht die Messung, aus der das
+ *  Kistengewicht überhaupt bekannt wird. Gespeichert wird die Zahl — was eine
+ *  Kiste wiegt, rechnet die Datenbank aus CSV-Masse und Zählung. */
+function Kisten({ auftrag, gesperrt }: { auftrag: Auftrag; gesperrt: boolean }) {
+  const { t } = useSprache()
+  const [zeilen, setZeilen] = useState<AuftragGebinde[]>([])
+  const [baender, setBaender] = useState<[number, number][]>([])
+  const [fehler, setFehler] = useState<string | null>(null)
+  const [laeuft, setLaeuft] = useState(false)
+
+  const laden = useCallback(async () => {
+    const { data, error } = await supabase.from('auftrag_gebinde')
+      .select('*').eq('auftrag_id', auftrag.id).order('kaliber_idx')
+    if (error) setFehler(fehlerText(error)); else setZeilen((data ?? []) as AuftragGebinde[])
+  }, [auftrag.id])
+
+  useEffect(() => { void laden() }, [laden])
+  useEffect(() => {
+    if (auftrag.sortierschema_id === null) return
+    void supabase.from('sortierschema').select('kaliber_baender')
+      .eq('id', auftrag.sortierschema_id).single()
+      .then(({ data }) => setBaender(((data as { kaliber_baender: [number, number][] } | null)
+                                      ?.kaliber_baender) ?? []))
+  }, [auftrag.sortierschema_id])
+
+  async function setzen(idx: number, wert: number) {
+    if (wert < 0) return
+    setLaeuft(true)
+    const { error } = await supabase.from('auftrag_gebinde')
+      .upsert({ auftrag_id: auftrag.id, kaliber_idx: idx, anzahl: wert },
+              { onConflict: 'auftrag_id,kaliber_idx' })
+    setLaeuft(false)
+    if (error) setFehler(fehlerText(error)); else void laden()
+  }
+
+  const anzahlVon = (idx: number) => zeilen.find(z => z.kaliber_idx === idx)?.anzahl ?? 0
+  // Beim Waschen zählt nur das Kaliber der Arbeit; beim Sortieren alle Bänder.
+  const indizes = auftrag.station === 'waschen'
+    ? (auftrag.kaliber_idx === null ? [] : [auftrag.kaliber_idx])
+    : baender.map((_, i) => i)
+
+  return (
+    <Karte titel={t('kaliberKisten')}>
+      <p className="leise" style={{ marginTop: 0 }}>
+        {auftrag.station === 'waschen' ? t('kistenWaschenWarum') : t('kistenSortierenWarum')}
+      </p>
+
+      {auftrag.station === 'waschen' && auftrag.kaliber_idx === null && (
+        <Hinweis art="warnung">{t('kistenOhneKaliber')}</Hinweis>
+      )}
+
+      {indizes.map(i => (
+        <div key={i} style={{ marginBottom: '.9rem' }}>
+          <label>
+            {t('kaliber')} {i + 1}
+            {baender[i] && <span className="leise"> ({baender[i][0]}–{baender[i][1]} g)</span>}
+          </label>
+          <div className="zaehler">
+            <button onClick={() => void setzen(i, anzahlVon(i) - 1)}
+                    disabled={gesperrt || laeuft || anzahlVon(i) === 0} aria-label="−">−</button>
+            <span className="stand">{anzahlVon(i)}</span>
+            <button className="haupt" aria-label="+" disabled={gesperrt || laeuft}
+                    onClick={() => void setzen(i, anzahlVon(i) + 1)}>+</button>
+          </div>
+        </div>
+      ))}
+
+      {indizes.length === 0 && auftrag.kaliber_idx !== null && (
+        <Hinweis>{t('kistenKeineBaender')}</Hinweis>
+      )}
+      {fehler && <Hinweis art="warnung">{fehler}</Hinweis>}
+    </Karte>
+  )
+}
+
+
 function Palox({ auftrag, gesperrt }: { auftrag: Auftrag; gesperrt: boolean }) {
   const { t, gebietsschema } = useSprache()
   const [zeilen, setZeilen] = useState<{ id: number; kg: number; ts: string }[]>([])

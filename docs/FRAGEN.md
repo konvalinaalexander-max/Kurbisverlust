@@ -10,21 +10,25 @@
 >
 > **Aus der Prüfung vom 3. September — vier Fragen, die direkt an der Rechnung hängen:**
 >
-> 1. **Wie kommt die verarbeitete Menge am Waschbecken (Weg 1) zustande?** Der Betrieb
->    hat gesagt, auf Weg 1 werde nie gewogen. Ohne diese Zahl hat der Schimmel, der beim
->    Waschen aussortiert wird, keinen Nenner — die Auswertung meldet ihn dann als „ohne
->    Nenner" und rechnet ihn nirgends ein. Möglich wären: Kaliber-Kisten zählen (dann
->    braucht es einmal ein Kistengewicht je Sorte), oder die Menge aus dem Lieferschein
->    des Tages. Welche Angabe ist am Waschbecken realistisch?
+> 1. **~~Wie kommt die verarbeitete Menge am Waschbecken (Weg 1) zustande?~~ Beantwortet
+>    am 3. September:** Es werden Kisten gezählt. Wer die Arbeit eröffnet, trägt das
+>    Kaliber ein; wer an der Station steht, zählt die Kisten und das Datum. Das
+>    Kistengewicht wird nicht gewogen, sondern beim Sortieren gemessen — dort ist die
+>    Masse je Kaliber aus der CSV bekannt und die gefüllten Kisten werden mitgezählt.
+>    Offen bleibt daran nur die Umsetzung in der Halle: Zählt beim Sortieren jemand
+>    zuverlässig mit? Ohne diese Zählung bleibt die Menge am Waschbecken unbekannt.
 > 2. **Für welche Sorte gilt die 8-kg-Kiste?** Die Überfüllung wird heute auf alle
 >    Weg-2-Ware hochgerechnet. Gilt die Kiste nur für eine Sorte, ist das zu viel.
-> 3. **Zeigt die Palox-Waage wirklich brutto, und wiegt der Behälter 45 kg?** Beides ist
->    jetzt so hinterlegt (Einstellung `palox_tara_kg`). Zeigt sie netto, gehört die
->    Einstellung auf 0 — sonst fehlen bei jeder ersten Ablesung 45 kg.
-> 4. **Welche Paletten kommen zuerst dran — die zuletzt eingelagerten (oben, vorne)?**
->    Das Alter des Bestands wird jetzt aus den noch liegenden Paletten gebildet; das
->    stimmt nur, wenn beim Zählen das Datum vom Zettel eingetragen wird. Ist das
->    Pflichtfeld in der Halle durchsetzbar?
+> 3. **~~Zeigt die Palox-Waage brutto, und wiegt der Behälter 45 kg?~~ Beantwortet am
+>    3. September: ja, brutto, 45 kg.** Der Arbeiter tippt den Stand ein, wie er ihn
+>    sieht; die Tara zieht die App im Hintergrund ab, und zwar nur dort, wo der Stand
+>    selbst die Menge ist. Die 45 kg stehen als Einstellung `palox_tara_kg` und lassen
+>    sich ohne Programmieren ändern.
+> 4. **~~Ist das Datum vom Zettel in der Halle durchsetzbar?~~ Beantwortet am
+>    3. September: ja, es ist Pflicht.** Ohne Datum nimmt der Zähler keine Palette mehr
+>    an, und die Datenbank weist die Zeile ab. Entbehrlich ist es nur dort, wo das Datum
+>    ohnehin feststeht (erkannte Palette, Wägung). Offen bleibt die andere Hälfte der
+>    Frage: Kommen wirklich die zuletzt eingelagerten Paletten zuerst dran?
 > 5. **Lässt sich beim Leeren des Palox trennen, was faul war und was nicht?** Erde,
 >    Hagelnarben und Schnittfehler sind sichtbar etwas anderes als Fäulnis. Eine grobe
 >    Angabe je Leeren („davon nicht faul: etwa ein Zehntel") wäre eine Messung. Ohne sie

@@ -663,7 +663,9 @@ Punkt im Verderbsmodell oder als Befund unter „Auffälligkeiten" — ein dritt
 Schicksal gibt es nicht; ein Koeffizient ohne einzige Messung ist NULL, nicht
 0; der Restbestand ist die Masse nach Verdunstung und Verderb; ein Sockel im
 Palox wird wiedergefunden, ein erfundener nicht; eine Sortier-CSV bleibt nach
-der Fassung klassiert, die für ihren Auftrag galt.
+der Fassung klassiert, die für ihren Auftrag galt; und die Menge am
+Waschbecken folgt aus gezählten Kisten mal gemessenem Kistengewicht, solange
+dieses Gewicht je gemessen wurde — sonst bleibt sie unbekannt.
 
 Der Objekt-für-Objekt-Vergleich läuft über `supabase/test/fingerabdruck.sql`:
 jede Spalte, Ansicht, Funktion, Regel und Bedingung als sortierte Textliste,
@@ -730,12 +732,12 @@ Begründung der Modellentscheidungen: [`docs/ENTSCHEIDUNGEN.md`](docs/ENTSCHEIDU
   Hand zählen und mit `n_gueltig` vergleichen. Die Regel lässt sich beim Upload
   abschalten, der Unterschied ist damit direkt sichtbar.
 - **Weg 1, Waschen:** Dort sind die Original-Paletten in Kaliber-Kisten
-  aufgelöst, es gibt keine Palettenzahl mehr. Damit der dort ausgelesene
-  Schimmel einen Nenner hat, muss beim Abschluss die verarbeitete Menge in kg
-  eingetragen werden — der Betrieb hat gesagt, dass auf Weg 1 nie gewogen wird;
-  wie diese Menge zustande kommen soll, ist die wichtigste offene Frage
-  (`docs/FRAGEN.md`). Ohne sie meldet die Auswertung die Messung als „ohne
-  Nenner".
+  aufgelöst, es gibt keine Palettenzahl mehr. Seit 0041 zählt der Arbeiter
+  stattdessen die Kisten, und was eine Kiste wiegt, misst die Auswertung am
+  Sortieren: dort ist die Masse je Kaliber aus der CSV bekannt, und die
+  gefüllten Kisten werden ebenfalls gezählt. Gewogen wird nirgends. Solange für
+  ein Kaliber noch nie mitgezählt wurde, bleibt die Menge unbekannt (nicht 0),
+  und die Auffälligkeiten sagen, was fehlt.
 - **Überfüllung:** Die Hochrechnung auf Kisten nimmt an, dass alle Weg-2-Ware
   in Kisten mit dem Soll aus den Einstellungen geht. Der Betrieb hat gesagt,
   die 8-kg-Kiste gilt nur für eine Sorte — welche, ist offen. Die Rechnung nimmt

@@ -1064,3 +1064,77 @@ selbstsicher falschen Zahl wird eine offen unsichere. Zwölf Kontrollen je
 Saison reichen dafür; vierundzwanzig bringen nichts dazu. Diese Empfehlung
 steht als Zahl in `STATISTIK_BEFUND.md`, damit sie nicht als Bauchgefühl
 weitergereicht wird.
+
+## Am Waschbecken zählen Kisten, und das Kistengewicht wird gemessen (0041)
+
+Am Waschbecken kannte die Auswertung die verarbeitete Menge nicht. Der Arbeiter
+trägt dort ein, wie viel Faules er aussortiert hat — ohne Gesamtmenge ist das
+wertlos: „3 kg schlecht" sagt nichts, solange offen ist, ob sie aus 100 kg oder
+aus 1000 kg kamen. Bisher gab es nur ein Feld für kg von Hand, und der Betrieb
+hat klargestellt, dass auf Weg 1 nie gewogen wird.
+
+Dass es dort keine Paletten mehr gibt, ist keine Erfassungslücke, sondern
+Physik: Beim Sortieren löst sich die Palette auf. Die Kürbisse verteilen sich
+nach Grösse auf Kaliber-Kisten — aus einer Palette werden fünf Kisten, und in
+einer Kiste liegt Ware aus mehreren Paletten. Wochen später kommt das ans
+Waschbecken. Die Einheit, die es dort gibt, ist die Kiste.
+
+### Die Entscheidung: zählen an beiden Enden, wiegen nirgends
+
+- **Wer die Arbeit eröffnet, trägt das Kaliber ein.** Eine Angabe je Arbeit
+  statt eine je Kiste, und sie kommt von der Person mit dem besten Überblick
+  (so vom Betrieb vorgegeben).
+- **Wer an der Station steht, zählt.** Beim Waschen die geleerten Kisten, beim
+  Sortieren die gefüllten — je Kaliberband.
+- **Das Kistengewicht wird nicht geschätzt und nicht gewogen, sondern
+  gerechnet.** Beim Sortieren ist die Masse je Kaliber aus der CSV bekannt (die
+  Maschine wiegt jeden Kürbis). Masse je Kaliber geteilt durch gezählte Kisten
+  ergibt kg je Kiste, mit Streuung über die Läufe und damit mit einem Bereich —
+  ein gemessener Koeffizient wie die anderen auch.
+
+Damit bleibt die Architekturregel gewahrt: Gespeichert wird die Zählung, das
+Kistengewicht ist Ableitung. Ändert sich die Messgrundlage, ändert sich die
+Masse mit; die gezählte Zahl bleibt, wie sie gezählt wurde. Kein Wiegen, keine
+zusätzliche Waage, keine Schätzung.
+
+Die Masse einer Arbeit hat jetzt drei Quellen in dieser Reihenfolge: gewogene
+Paletten, eingetippter Durchsatz, gezählte Kisten mal Kistengewicht.
+`masse_quelle` sagt, welche es war. Fehlt für ein Kaliber noch jede Messung,
+bleibt die Masse **NULL, nicht 0** — der Waschgang steht weiter unter
+„Auffälligkeiten", jetzt aber mit dem konkreten Rat, beim nächsten Sortierlauf
+mitzuzählen; das Kistengewicht gilt dann rückwirkend für alle Waschgänge dieser
+Sorte.
+
+### Was dabei technisch zu beachten war
+
+`mv_kaliber_verteilung` stand am Ende der Aktualisierungskette, weil sie ein
+Blatt war, das niemand weiterlas. Jetzt hängt das Kistengewicht daran und damit
+die Masse am Waschbecken, die Punkte des Verderbsmodells und die Kaskade. Sie
+steht deshalb ganz vorne; ihre eigenen Quellen sind reine Tabellen.
+
+Die abgeleitete Masse kommt bewusst nicht in `mv_auftrag_masse`, sondern eine
+Ebene darüber in `v_auftrag_masse` — die gespeicherte Ansicht hätte sonst samt
+allem, was auf ihr steht, neu gebaut werden müssen.
+
+### Annahme, die mitgeht
+
+Eine Kiste, die beim Sortieren gefüllt wurde, kommt als dieselbe Kiste ans
+Waschbecken. Wird zwischendurch umgepackt oder zusammengeschüttet, stimmt das
+Kistengewicht nicht mehr. Das steht in `ABLAUF.md` unter den Annahmen und hängt
+an Frage 13 in `FRAGEN.md`.
+
+## Das Datum vom Palettenzettel ist Pflicht (0041)
+
+Es war freiwillig. Fehlt es, rechnet die Auswertung das Alter des
+Lagerbestands mit dem Mittel der ganzen Charge — in der Demo drei bis sechs
+Tage daneben, bei k = 1.6 rund 4.5 % Verderb (Befund 4 aus 0036). Der Betrieb
+hat entschieden: „zwing sie."
+
+Die Bedingung in der Datenbank ist bewusst weicher als „nie leer": Ein Datum
+ist entbehrlich, wenn es ohnehin feststeht — bei einer erkannten Palette oder
+einer Wägung steht es dort, und die Auswertung nimmt es von dort. Verlangt wird
+es genau dann, wenn es sonst niemand kennt.
+
+Angelegt ist sie als `not valid`: Neue Zeilen brauchen ein Datum, bestehende
+behalten ihre Lücke. Sie nachträglich zu füllen hiesse, eine Beobachtung zu
+erfinden, die niemand gemacht hat.

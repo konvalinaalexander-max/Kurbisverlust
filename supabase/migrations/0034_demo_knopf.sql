@@ -246,6 +246,15 @@ begin
       insert into schimmel_messung (auftrag_id, kg, palox_stand_kg, palox_geleert)
       values (v_neu, round(v.eingang_netto_kg * 0.004)::int, v_stand, v_i = 4);
     end loop;
+
+    -- Ein laufender Waschgang, damit die Kisten-Maske etwas zu zeigen hat.
+    insert into auftrag (weg, station, charge_nr, start_ts, status, kaliber_idx, bemerkung)
+    select 'maschine', 'waschen', a.charge_nr, now() - interval '2 hours', 'offen', 0, 'DEMO'
+      from auftrag a where a.bemerkung = 'DEMO' and a.station = 'sortieren'
+     order by a.id desc limit 1
+    returning id into v_neu;
+    insert into auftrag_gebinde (auftrag_id, kaliber_idx, anzahl) values (v_neu, 0, 6);
+
     raise notice 'Demo: zweiter Lagerabschnitt (Waschen) angelegt';
   end;
 
@@ -365,7 +374,39 @@ begin
         (v_n * 1.28)::int, 4, 9, (v_n * 0.27)::int,
         v_hist);
     end loop;
-    raise notice 'Demo: Sortier-CSVs eingelesen';
+
+    -- Kisten zählen (0041). Erst hier, denn die Masse je Kaliber steht in der
+    -- CSV, die gerade eingelesen wurde. Beim Sortieren zählt der Arbeiter die
+    -- gefüllten Kaliber-Kisten; aus beidem folgt, was eine Kiste wiegt — in
+    -- der Demo rund 40 kg.
+    insert into auftrag_gebinde (auftrag_id, kaliber_idx, anzahl)
+    select l.auftrag_id, g.kaliber_idx,
+           greatest(round(sum(g.anzahl::bigint * g.gewicht_g) / 1000.0 / 40.0)::int, 1)
+      from sortier_lauf l
+      join sortier_gewicht g on g.lauf_id = l.id
+      join auftrag a on a.id = l.auftrag_id
+     where a.bemerkung = 'DEMO' and a.station = 'sortieren' and g.klasse = 'kaliber'
+       and g.kaliber_idx is not null
+     group by l.auftrag_id, g.kaliber_idx
+    on conflict (auftrag_id, kaliber_idx) do nothing;
+
+    -- Und ein abgeschlossener Waschgang, der seine Menge nicht eingetippt
+    -- bekommt, sondern aus gezählten Kisten rechnet — der Weg, den der Betrieb
+    -- ab jetzt geht. Der Schimmel bezieht sich dann auf die kleinere Menge
+    -- eines einzelnen Kalibers.
+    for v_r in
+      select a.id from auftrag a
+       where a.bemerkung = 'DEMO' and a.station = 'waschen'
+         and a.status = 'abgeschlossen'
+       order by a.id desc limit 1
+    loop
+      update auftrag set durchsatz_kg = null, kaliber_idx = 0 where id = v_r.id;
+      insert into auftrag_gebinde (auftrag_id, kaliber_idx, anzahl) values (v_r.id, 0, 22)
+      on conflict (auftrag_id, kaliber_idx) do nothing;
+      update schimmel_messung set kg = 4 where auftrag_id = v_r.id;
+    end loop;
+
+    raise notice 'Demo: Sortier-CSVs eingelesen und Kisten gezählt';
   end;
 
   -- ---------- Zwei Sonderfälle, damit man sie einmal gesehen hat -----------
@@ -376,7 +417,8 @@ begin
     insert into auftrag (weg, station, charge_nr, start_ts, bemerkung)
     values ('hand', 'waschen_sortieren', v_charge, timestamptz '2026-11-03 09:00+01', 'DEMO')
     returning id into v_auftrag;
-    insert into auftrag_palette (auftrag_id) select v_auftrag from generate_series(1, 4);
+    insert into auftrag_palette (auftrag_id, eingangsdatum)
+    select v_auftrag, date '2026-09-20' from generate_series(1, 4);
     perform auftrag_abbrechen(v_auftrag, 'Falsche Charge gewählt');
 
     -- (2) Ein Zahlendreher: 4500 statt 450 kg Schimmel. Die Rechnung bleibt
