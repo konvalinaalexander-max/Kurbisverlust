@@ -173,7 +173,7 @@ undurchsichtige ID behandeln. Aktuelle Saison:
 - **sortier_kuerbis**(lauf_id FK, gewicht_g, klasse) — pro Kürbis (bereinigt); Roh separat referenziert
 - **schimmel_messung**(auftrag_id, kg, ts, erfasser)
 - **verdunstung_wiegung**(palette/charge, eingangsdatum, brutto_damals, brutto_jetzt, kisten, wiege_ts, sichtbar_schimmel bool)
-- **marge_messung**(auftrag_id, art [nebenkanal|ueberfuellung], wert, ts)
+- ~~**marge_messung**(auftrag_id, art [nebenkanal|ueberfuellung], wert, ts)~~ — entfernt in 0048: Überfüllung kommt aus den Wägungen fertiger Paletten (`ausgang_wiegung`), der Nebenkanal aus der Sortier-CSV
 
 Jede Messzeile: `gemessen bool`, `erfasser`, `ts`. **Leer ≠ 0.** Rohdaten immutable; Reinigung/Klassierung reproduzierbar.
 

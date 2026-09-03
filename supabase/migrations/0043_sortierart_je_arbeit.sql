@@ -52,10 +52,8 @@ insert into sortierschema (sorte, kaeufer, gilt_ab, art, soll_kg_pro_kiste, beme
 select sk.sorte, null, date '2000-01-01', 'kiste',
        coalesce((select (wert #>> '{}')::numeric from public.einstellung
                   where schluessel = 'soll_kg_pro_kiste'), 8),
-       'Beim Einrichten aus der Einstellung soll_kg_pro_kiste übernommen — '
-       'derselbe Wert, mit dem die Auswertung schon vorher gerechnet hat. '
-       'Sobald der Betrieb das echte Sollgewicht je Sorte kennt, gehört eine '
-       'neue Fassung angelegt, nicht diese geändert.'
+       'Standard beim Einrichten — Sollgewicht aus der Einstellung. '
+       'Echtes Sollgewicht je Sorte: neue Fassung anlegen, nicht diese ändern.'
   from sorte_kaliber sk
  where not exists (select 1 from sortierschema s
                     where s.sorte = sk.sorte and s.kaeufer is null and s.art = 'kiste');

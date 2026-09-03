@@ -180,6 +180,9 @@ code { font-size: .88em; background: var(--flaeche-2); padding: .1em .35em; bord
 .navleiste.unter {
   position: static; border: 1px solid var(--rand); border-radius: var(--radius);
   margin: 1rem 0; padding: .3rem; gap: .2rem;
+  /* Reiter brechen um statt abzuschneiden — „Fertige Pale…" war ein Reiter,
+     den man auf dem Handy nicht lesen konnte. */
+  flex-wrap: wrap; overflow: visible;
 }
 .navleiste.unter a { border-bottom: none; border-radius: var(--radius-klein); padding: .45rem .7rem; }
 .navleiste.unter a.aktiv { background: var(--kuerbis-flaeche); color: var(--kuerbis); }

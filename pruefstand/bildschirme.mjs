@@ -25,6 +25,10 @@ const HIER = dirname(fileURLToPath(import.meta.url))
 const DATEN = join(HIER, 'daten')
 const BILDER = join(HIER, 'bilder')
 const NUR = process.argv[2] ?? ''
+// Sprache der Arbeiter-Oberfläche. Ungarisch und Portugiesisch haben die
+// längsten Wörter — was dort in den Rahmen passt, passt überall.
+//   SPRACHE=hu node pruefstand/bildschirme.mjs auftrag
+const SPRACHE = process.env.SPRACHE ?? 'de'
 
 const fixture = name => {
   try { return JSON.parse(readFileSync(join(DATEN, `${name}.json`), 'utf8')) }
@@ -214,12 +218,12 @@ for (const geraet of GERAETE) {
       await seite.route('**/storage/v1/**', r => r.fulfill({ json: {} }))
 
       // Sprache + Anmeldung vorbereiten, bevor die App lädt
-      await seite.addInitScript(({ wer, frisch }) => {
+      await seite.addInitScript(({ wer, frisch, sprache }) => {
         if (frisch) { localStorage.clear(); return }
-        localStorage.setItem('sprache', 'de')
+        localStorage.setItem('sprache', sprache)
         localStorage.setItem('sprache_tag', new Date().toISOString().slice(0, 10))
         if (wer) localStorage.setItem('pruefstand_wer', wer)
-      }, { wer: schirm.wer, frisch: schirm.frisch ?? false })
+      }, { wer: schirm.wer, frisch: schirm.frisch ?? false, sprache: SPRACHE })
 
       const pfad = schirm.pfad.replace('OFFENKISTEN', String(OFFEN_KISTEN_ID))
                               .replace('OFFEN', String(OFFEN_ID))
@@ -250,7 +254,7 @@ for (const geraet of GERAETE) {
       await seite.waitForLoadState('networkidle').catch(() => {})
       await seite.waitForTimeout(250)
 
-      const datei = join(BILDER, `${schirm.name}--${geraet.name}-${thema}.png`)
+      const datei = join(BILDER, `${schirm.name}--${geraet.name}-${thema}${SPRACHE === 'de' ? '' : `-${SPRACHE}`}.png`)
       await seite.screenshot({ path: datei, fullPage: true })
 
       // Wagerechtes Überlaufen der ganzen Seite ist immer ein Fehler.

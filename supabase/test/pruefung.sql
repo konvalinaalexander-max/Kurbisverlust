@@ -129,12 +129,14 @@ begin
   select masse_klein_kg into v from v_sortier_lauf_masse where lauf_id = v_lauf;
   assert v = 180.00, format('Masse zu klein erwartet 180 kg (200·0.3 + 300·0.4), ist %s', v);
 
-  -- ---- Histogramm und Einzelzeilen müssen dasselbe sagen -------------
-  select count(*)::int into v_int from v_sortier_kuerbis where lauf_id = v_lauf;
-  assert v_int = 8161, format('v_sortier_kuerbis muss 8161 Zeilen liefern, liefert %s', v_int);
-  select sum(gewicht_g) / 1000.0 into v from v_sortier_kuerbis where lauf_id = v_lauf;
+  -- ---- Histogramm und Einzelkürbisse müssen dasselbe sagen -----------
+  -- Die Lauflängen-Kodierung ist verlustfrei: sum(anzahl) ist die Zahl der
+  -- Kürbisse, sum(anzahl·gewicht) ihre Masse (bis 0048 über v_sortier_kuerbis).
+  select sum(anzahl)::int into v_int from sortier_gewicht where lauf_id = v_lauf;
+  assert v_int = 8161, format('Histogramm muss 8161 Kürbisse zählen, zählt %s', v_int);
+  select sum(anzahl * gewicht_g) / 1000.0 into v from sortier_gewicht where lauf_id = v_lauf;
   assert v = (select masse_kg from v_sortier_lauf_masse where lauf_id = v_lauf),
-    'Expandierte Zeilen und Histogramm ergeben verschiedene Massen';
+    'Histogramm und Laufmasse ergeben verschiedene Massen';
 
   -- ---- Automatische Zuordnung zum Auftrag ----------------------------
   select zuordnung::text into v_status from sortier_lauf where id = v_lauf;
@@ -548,15 +550,6 @@ begin
   select count(*) into v_n from v_plausibilitaet where auftrag_id = 950;
   assert v_n >= 1, 'Die unplausible Messung muss in v_plausibilitaet auftauchen';
 
-  -- Auch als marge_messung(nebenkanal) erfasste Mengen dürfen nicht spurlos
-  -- verschwinden — keine Auswertung liest sie.
-  insert into marge_messung (auftrag_id, art, wert) values (950, 'nebenkanal', 42);
-  perform auswertung_aktualisieren();
-  assert exists (select 1 from v_plausibilitaet
-                  where auftrag_id = 950 and art = 'Nicht ausgewertet'),
-    'Nicht ausgewertete Erfassungen müssen gemeldet werden';
-
-  delete from marge_messung where auftrag_id = 950;
   delete from schimmel_messung where auftrag_id = 950;
   delete from auftrag where id = 950;
   raise notice 'OK  Plausibilität (Tippfehler bricht die Rechnung nicht, wird gemeldet)';
@@ -1424,8 +1417,6 @@ begin
   assert v is not null, 'schimmelanteil() muss ohne Suchpfad rechnen';
   select public.sockel_anteil() into v;
   assert v is not null, 'sockel_anteil() muss ohne Suchpfad rechnen';
-  select public.schimmel_n(100) into v_n;
-  assert v_n is not null, 'schimmel_n() muss ohne Suchpfad rechnen';
   perform public.klassiere((select id from public.sortierschema limit 1), 800);
   perform public.sortierschema_fuer((select sorte from public.charge limit 1), null, current_date);
 
@@ -1524,7 +1515,7 @@ select '——— AB-01 Sortierart geprüft ———' as ergebnis;
 -- =========================================================================
 -- AB-03: Ausschuss wird gewogen (Brutto, Kisten, Gebinde), das Netto rechnet
 -- der Auslöser. Die Schätzung bleibt möglich und zählt weiter. Ändert sich
--- eine Tara nachträglich, meldet es v_ausschuss_pruef.
+-- eine Tara nachträglich, meldet es v_plausibilitaet als „Ausschuss-Tara".
 -- =========================================================================
 do $$
 declare v_a bigint; v_kg int; v_gem boolean; v_n int;
@@ -1548,10 +1539,13 @@ begin
   assert (select count(*) from ausschuss_messung where auftrag_id = v_a and gemessen) = 2,
     'Beide, gewogen und geschätzt, zählen als Messwert';
 
-  -- Tara nachträglich ändern → das alte Netto passt nicht mehr, v_ausschuss_pruef meldet.
+  -- Tara nachträglich ändern → das alte Netto passt nicht mehr, die
+  -- Auffälligkeiten melden es dort, wo der Betriebsleiter hinschaut.
+  select count(*) into v_n from v_plausibilitaet where auftrag_id = v_a and art = 'Ausschuss-Tara';
+  assert v_n = 0, format('Bei unveränderter Tara darf kein Befund stehen, sind %s', v_n);
   update gebinde set tara_kg_pro_kiste = 2.0 where art = 'G2';
-  select count(*) into v_n from v_ausschuss_pruef where auftrag_id = v_a;
-  assert v_n = 1, format('Nach Tara-Änderung muss genau ein Prüf-Befund stehen, sind %s', v_n);
+  select count(*) into v_n from v_plausibilitaet where auftrag_id = v_a and art = 'Ausschuss-Tara';
+  assert v_n = 1, format('Nach Tara-Änderung muss genau ein Befund stehen, sind %s', v_n);
   update gebinde set tara_kg_pro_kiste = 1.5 where art = 'G2';
 
   delete from auftrag where id = v_a;
@@ -1560,6 +1554,35 @@ begin
 end $$;
 
 select '——— AB-03 Ausschuss geprüft ———' as ergebnis;
+
+-- =========================================================================
+-- 0048: Der Ballast ist weg, und die Überfüllung rechnet nur noch aus den
+-- fertigen Paletten. Der Wächter für eine gefüllte marge_messung wird in
+-- run.sh Stufe 3b am alten Stand geprüft — hier gibt es die Tabelle nicht mehr.
+-- =========================================================================
+do $$
+declare v_n int;
+begin
+  select count(*) into v_n
+    from pg_class c join pg_namespace n on n.oid = c.relnamespace
+   where n.nspname = 'public'
+     and c.relname in ('marge_messung', 'v_ausschuss_pruef', 'v_auftrag_sortierart',
+                       'v_dubletten_pruefung', 'v_schlag_effekt', 'v_sortier_kuerbis',
+                       'v_verdunstung_stichprobe');
+  assert v_n = 0, format('%s Objekte aus 0048 stehen noch', v_n);
+  assert not exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+                      where n.nspname = 'public' and p.proname = 'schimmel_n'),
+    'schimmel_n() steht noch';
+  assert not exists (select 1 from pg_type t join pg_namespace n on n.oid = t.typnamespace
+                      where n.nspname = 'public' and t.typname = 'marge_art'),
+    'Typ marge_art steht noch';
+  -- Die Auffälligkeiten kennen den alten Zweig nicht mehr, den neuen schon
+  assert not exists (select 1 from v_plausibilitaet where art = 'Nicht ausgewertet'),
+    'Der Zweig „Nicht ausgewertet" müsste weg sein';
+  raise notice 'OK  0048 Ballast weg (Tabelle, Typ, sechs Sichten, eine Funktion)';
+end $$;
+
+select '——— 0048 Ballast geprüft ———' as ergebnis;
 
 -- =========================================================================
 -- AB-07/08/09: Erfassungsbeginn (Vorlauf senkt die Lücke), Fax als eigener

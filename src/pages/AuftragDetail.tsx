@@ -143,7 +143,9 @@ export default function AuftragDetail() {
 
       {gesperrt && <Hinweis>{t('gesperrt')}</Hinweis>}
 
-      {!gesperrt && nPalox === 0 && aktiverReiter !== 'faule' && (
+      {/* Der Abschluss-Reiter hat seinen eigenen Palox-Hinweis (AB-02) —
+          zweimal dasselbe untereinander liest niemand. */}
+      {!gesperrt && nPalox === 0 && aktiverReiter !== 'faule' && aktiverReiter !== 'abschluss' && (
         <Hinweis art="warnung">
           {t('paloxZuBeginn')}{' '}
           <a href="#" onClick={e => { e.preventDefault(); setReiter('faule') }}>{t('jetztAblesen')}</a>
@@ -1034,9 +1036,6 @@ function Abschluss({ auftrag, neuLaden, zurueck, paloxGelesen, zumPalox, hatAuss
                     onClick={() => setAusschussVonAuftrag(false)}>{t('nein')}</button>
           </div>
         </div>
-      )}
-      {hatAusschuss && angaben['ausschuss_leer'] === undefined && (
-        <Hinweis art="warnung">{t('ausschussLeerOffen')}</Hinweis>
       )}
       {!paloxGelesen && (
         <Hinweis art="warnung">

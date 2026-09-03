@@ -25,12 +25,8 @@ SRC="$HIER/../src"
 TABELLEN=(auftrag auftrag_palette auftrag_gebinde schimmel_messung
           ausschuss_messung verdunstung_wiegung ausgang_wiegung
           auftrag_angabe charge_vorlauf kaeufer sortierschema)
-# Nicht dabei: marge_messung — ein Alt-Kanal für von Hand eingetippte
-# Marge-Posten. Seit AB-03 kommt die Überfüllung aus ausgang_wiegung und der
-# Nebenkanal aus der CSV; keine Arbeiter-Maske schreibt marge_messung mehr. Die
-# Überfüllungs-Ansicht liest sie noch (als leere Vereinigung, ohne Wirkung).
-# Das Aufräumen gehört in eine Modellrunde, nicht in die Erfassung — vermerkt
-# in FRAGEN.md.
+# marge_messung, der Alt-Kanal für von Hand eingetippte Marge-Posten, ist
+# seit 0048 weg: Überfüllung kommt aus ausgang_wiegung, Nebenkanal aus der CSV.
 
 # Spalten, die kein Mensch tippt: Schlüssel, Zeitstempel, Erfasser, abgeleitete
 # Grössen, Vorgaben. Je Eintrag eine Begründung, damit die Liste ehrlich bleibt.

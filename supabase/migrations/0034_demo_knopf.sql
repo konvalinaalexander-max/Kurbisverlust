@@ -24,6 +24,13 @@
 
 create or replace function demo_daten_laden()
 returns text language plpgsql security definer set search_path = public as $fn$
+declare
+  -- Die Demo spielt relativ zu heute: Einlagerung vor rund acht Monaten, die
+  -- letzten Waschgänge vor wenigen Tagen. Feste Daten (September 2026) liessen
+  -- die Saison altern — ein Jahr später stand überall „liegt seit 0 Tagen",
+  -- weil die Ware erst in der Zukunft eingelagert worden wäre. Alle Abstände
+  -- zwischen den Daten bleiben gleich, also auch jedes Modellergebnis.
+  v_anker date := current_date - 240;
 begin
   -- Aus der App darf das nur der Betriebsleiter. Im SQL-Editor gibt es keinen
   -- Login (auth.uid() ist NULL) — wer dort sitzt, hat ohnehin vollen Zugriff
@@ -87,7 +94,7 @@ begin
     insert into kaeufer (code, name) values ('coop', 'Coop'), ('migros', 'Migros')
     on conflict (code) do nothing;
     insert into sortierschema (sorte, kaeufer, gilt_ab, art, soll_kg_pro_kiste, bemerkung)
-    select 'Tiana', 'coop', date '2026-10-01', 'kiste', 8,
+    select 'Tiana', 'coop', v_anker + 30, 'kiste', 8,
            'DEMO — Coop nimmt Tiana in der 8-kg-Kiste'
      where not exists (select 1 from sortierschema where sorte = 'Tiana' and kaeufer = 'coop');
 
@@ -97,7 +104,7 @@ begin
       v_n_pal := 30 + (v_i * 13) % 40;               -- 30 bis 69 Paletten
       for v_p in 1 .. v_n_pal loop
         -- Einlagerung über zwei bis drei Wochen verteilt
-        v_datum  := date '2026-09-01' + ((v_i - 1) * 5) + (v_p * 17) % 18;
+        v_datum  := v_anker + ((v_i - 1) * 5) + (v_p * 17) % 18;
         v_brutto := 900 + ((v_i * 7 + v_p * 11) % 90);
         v_kisten := 36 + (v_p % 5);
         v_art    := case when (v_i + v_p) % 7 = 0 then 'IFCO 6416' else 'G2' end;
@@ -114,7 +121,7 @@ begin
       for v_lauf in 1 .. 2 loop
         -- Erster Lauf früh, zweiter deutlich später — so entstehen kurze und
         -- lange Lagerdauern und die Schimmelkurve bekommt mehrere Stützstellen.
-        v_start := (date '2026-10-15' + ((v_i - 1) * 6) + (v_lauf - 1) * 55)::timestamptz
+        v_start := (v_anker + 44 + ((v_i - 1) * 6) + (v_lauf - 1) * 55)::timestamptz
                    + interval '8 hours';
 
         -- Ungerade Chargen über die Maschine, gerade von Hand — beide Wege belegt
@@ -271,10 +278,10 @@ begin
     loop
       v_i := v_i + 1;
       exit when v_i > 8;
-      -- Der Kontrolltag muss IN der Demo-Saison liegen (Sep 2026 – Mär 2027),
-      -- nicht am heutigen Datum: die Demo spielt in der Zukunft, und
-      -- current_date ergäbe negative Lagertage.
-      v_kontrolltag := date '2027-02-20' - (v_i * 9);
+      -- Der Kontrolltag liegt mitten in der Saison, nach der Einlagerung und
+      -- vor den letzten Waschgängen — nicht am heutigen Datum, damit die
+      -- Lagertage der Kontrollen dieselben bleiben wie die der Arbeiten.
+      v_kontrolltag := v_anker + 172 - (v_i * 9);
       v_netto := v.brutto_kg - v.kisten * 1.5 - 25;
       v_tage  := greatest(v_kontrolltag - v.eingangsdatum, 1);
       -- Faulanteil grob nach Alter, zwei Kontrollen ohne Befund (0 ist eine
@@ -415,17 +422,17 @@ begin
     -- (1) Eine abgebrochene Arbeit: taucht in keiner Auswertung auf,
     --     ist aber unter Stammdaten → Abgebrochene Arbeiten sichtbar.
     insert into auftrag (weg, station, charge_nr, start_ts, bemerkung)
-    values ('hand', 'waschen_sortieren', v_charge, timestamptz '2026-11-03 09:00+01', 'DEMO')
+    values ('hand', 'waschen_sortieren', v_charge, (v_anker + 63)::timestamptz + interval '9 hours', 'DEMO')
     returning id into v_auftrag;
     insert into auftrag_palette (auftrag_id, eingangsdatum)
-    select v_auftrag, date '2026-09-20' from generate_series(1, 4);
+    select v_auftrag, v_anker + 19 from generate_series(1, 4);
     perform auftrag_abbrechen(v_auftrag, 'Falsche Charge gewählt');
 
     -- (2) Ein Zahlendreher: 4500 statt 450 kg Schimmel. Die Rechnung bleibt
     --     davon unberührt; das Dashboard meldet den Fund ganz oben.
     insert into auftrag (weg, station, charge_nr, start_ts, ende_ts, status, bemerkung)
-    values ('hand', 'waschen_sortieren', v_charge, timestamptz '2026-11-10 08:00+01',
-            timestamptz '2026-11-10 15:00+01', 'abgeschlossen', 'DEMO')
+    values ('hand', 'waschen_sortieren', v_charge, (v_anker + 70)::timestamptz + interval '8 hours',
+            (v_anker + 70)::timestamptz + interval '15 hours', 'abgeschlossen', 'DEMO')
     returning id into v_auftrag;
     insert into auftrag_palette (auftrag_id, eingangsdatum)
     select v_auftrag, eingangsdatum from palette where charge_nr = v_charge

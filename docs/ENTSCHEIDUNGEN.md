@@ -16,8 +16,9 @@ An einer realistischen Datei mit 11 370 Zeilen: 821 Histogrammzeilen statt
 9 172 Einzelzeilen — **91 % weniger**, bei rund 200 Läufen je Saison der
 Unterschied zwischen bequem und knapp auf der 500-MB-Gratis-Stufe.
 
-`v_sortier_kuerbis` expandiert die Zeilen per `generate_series` wieder, falls
-doch einmal pro Kürbis gerechnet werden soll.
+Wer doch einmal pro Kürbis rechnen will, expandiert die Zeilen mit
+`cross join generate_series(1, anzahl)` — die Sicht `v_sortier_kuerbis`, die das
+vorhielt, las niemand und fiel in 0048.
 
 ### Rohwerte nur als Datei, nicht in der Datenbank
 
@@ -372,11 +373,12 @@ Die App trägt den Eröffner jetzt direkt mit ein.
 
 ### Erfasst, aber nicht ausgewertet — bewusst geprüft
 
-- `marge_messung.art = 'nebenkanal'`: Der Enum-Wert existiert, aber die
+- `marge_messung.art = 'nebenkanal'`: Der Enum-Wert existierte, aber die
   Nebenkanal-Mengen kommen aus der Sortier-CSV bzw. aus
-  `ausschuss_messung('zu_gross')`. Eine hier erfasste Zeile würde spurlos
-  verschwinden — sie taucht deshalb in `v_plausibilitaet` als „Nicht
-  ausgewertet" auf. Die App schreibt sie nie.
+  `ausschuss_messung('zu_gross')`. Eine hier erfasste Zeile wäre spurlos
+  verschwunden — sie tauchte deshalb in `v_plausibilitaet` als „Nicht
+  ausgewertet" auf. Die App schrieb sie nie; seit 0048 gibt es die Tabelle
+  nicht mehr.
 - `auftrag.geplante_paletten` und `schimmel_messung.teilgewicht` fließen
   absichtlich nicht in die Rechnung: Ersteres ist eine Planungsangabe,
   Letzteres nur ein Vermerk, dass weitergewogen wurde (die Kilos summieren
@@ -503,9 +505,10 @@ wenn die Kürbisse je Kiste erfasst wurden — das Gewicht eines einzelnen
 Kürbisses. Die Soll-Grenze steht als Einstellung (`soll_kg_pro_kiste`), nicht
 als Zahl im Code.
 
-`v_koeff_ueberfuellung` liest beide Quellen: die neuen Palettenwägungen und
-ältere `marge_messung`-Zeilen. So verliert kein bereits erfasster Wert seine
-Wirkung.
+`v_koeff_ueberfuellung` las zunächst beide Quellen: die neuen Palettenwägungen
+und ältere `marge_messung`-Zeilen, damit kein bereits erfasster Wert seine
+Wirkung verlor. Seit 0048 liest sie nur noch die Wägungen — der Alt-Kanal ist
+weg, und die Migration bricht ab, falls er doch Zeilen hält.
 
 ## Arbeiten abbrechen (0013)
 
@@ -839,7 +842,7 @@ Datenbank-Aufruf hat sich geändert.
 
 # Vierte Prüfrunde (3. September): die Kette in beide Richtungen
 
-Die Prüfung nach `docs/PROMPT_PRUEFUNG.md` ging jede Zahl im Dashboard
+Die Prüfung nach `docs/archiv/PROMPT_PRUEFUNG.md` ging jede Zahl im Dashboard
 rückwärts bis zur Rohzeile und jede Maske vorwärts bis zum Balken. Was dabei
 entschieden wurde, steht hier; die Messungen dahinter in
 `STATISTIK_BEFUND.md`, die Annahmen in `ABLAUF.md`.
@@ -1247,3 +1250,60 @@ Diese Runde ändert die Erfassung, nicht das Modell. Die Simulationsmatrix
 Ströme bleiben stehen. Die Massenkaskade, das Verderbsmodell und der Sockel aus
 der vierten Runde sind nicht angetastet — Fax bleibt ein Waschgang, die
 Sortierart wählt nur, nach welcher gespeicherten Fassung klassiert wird.
+
+## Ballast abwerfen (0048)
+
+Der Durchgang aus der Vogelperspektive (`docs/archiv/PROMPT_ABSCHLUSS.md`)
+fragte zuerst, was zu viel ist. Massstab: Ein Objekt, das kein Bildschirm liest,
+keine Ansicht braucht und höchstens ein Test anfasst, kostet bei jeder Änderung
+Pflege und erklärt niemandem etwas. Wegwerfen ist eine Änderung wie jede andere
+— erst belegen, dann entfernen, dann prüfen, dass alles grün bleibt.
+
+**Belegt** wurde je Objekt dreifach: `pg_depend` kennt keinen Leser, kein
+Funktionsrumpf nennt es (`pg_proc.prosrc`), `src/` greift nicht darauf zu.
+
+| Objekt | Herkunft | Warum weg | Was bleibt |
+|---|---|---|---|
+| `marge_messung` (+ Typ `marge_art`) | 0001 | Alt-Kanal für von Hand eingetippte Marge-Posten. Die App schrieb ihn nur in den ersten Stunden des 25. August (10b8a3f → a1a6cd5). Überfüllung kommt aus `ausgang_wiegung`, Nebenkanal aus der CSV. | Ein Wächter: hält die Tabelle Zeilen, bricht `setup.sql` mit Anleitung ab — nichts Gemessenes verschwindet still. Geprüft in run.sh Stufe 3b am alten Stand. |
+| `v_verdunstung_stichprobe` | 0006 | Seit 0018 (gepoolte Koeffizienten) ohne Leser. | — |
+| `v_sortier_kuerbis` | 0005 | Expansion des Histogramms je Kürbis; nur ein Test las sie. | Der Test rechnet direkt mit `sum(anzahl)` und `sum(anzahl·gewicht)` — der Beleg, dass die Kodierung verlustfrei ist, bleibt. |
+| `v_dubletten_pruefung`, `v_schlag_effekt` | 0022, 0026, 0037 | Prüfbare Annahmen, die drei Migrationen mitpflegen mussten und nie jemand las. | Der Befund steht in `STATISTIK_BEFUND.md`; die Abfragen stehen in Git. |
+| `v_auftrag_sortierart` | 0043 | Nie angebunden. | — |
+| `v_ausschuss_pruef` | 0044 | Die Prüfung war richtig, der Ort falsch: eine eigene Sicht, die kein Bildschirm las. | Zeile „Ausschuss-Tara" in `v_plausibilitaet`, wo der Betriebsleiter sie sieht. Test AB-03 prüft beides: kein Befund bei unveränderter Tara, genau einer nach der Änderung. |
+| `schimmel_n(numeric)` | 0006 | Für den alten Rechenweg; seit 0036 nennt ihn keine Ansicht. | — |
+| sechs `docs/PROMPT_*.md` | — | Arbeitsaufträge vergangener Runden im Hauptordner. | `docs/archiv/` — Geschichte, nicht Anleitung. |
+| Bemerkung der Kisten-Standardfassungen | 0043 | Vier Zeilen, die auf dem Handy die ganze Karte füllten. | Ein Satz; 0048 kürzt auch bereits angelegte Zeilen (eine Notiz, kein Messwert). |
+
+**Bewusst behalten:** `schimmel_messung.teilgewicht` und `auftrag.geplante_paletten`
+können auf dem Betrieb Daten halten und kosten nichts; der Zweig „Nicht
+ausgewertet" in den Auffälligkeiten fiel dagegen mit der Tabelle, die er
+meldete.
+
+## Der Abschluss-Durchgang: fertig bauen, nicht umbauen
+
+Was nach dem Abwerfen noch fehlte, war Feinschliff, kein Modell:
+
+- **Reiter brechen um** statt abzuschneiden (`.navleiste.unter`): „Fertige
+  Pale…" auf dem Handy und „Erfassungsbegin" auf dem Desktop waren nicht lesbar.
+- **Ein Hinweis je Sache:** Der Abschluss-Reiter hat seinen eigenen
+  Palox-Hinweis (AB-02); der allgemeine darüber blendet sich dort aus. Die
+  Warnung „Frage nach den leeren Paletten offen" im Abschluss entfiel — die
+  Frage selbst steht mit ihren Knöpfen direkt darüber. Der Schlüssel
+  `ausschussLeerOffen` ging in allen sechs Sprachen mit.
+- **Eine Charge, ein Feld:** `ChargeFeld` ist der Baustein für „neue Arbeit"
+  und „Lagerkontrolle" (AB-06). Die Kontrolle hatte noch eine Auswahlliste —
+  dieselbe Frage sah an zwei Orten verschieden aus.
+- **Die Demo altert nicht mehr:** Feste Daten (September 2026) hiessen ein
+  Jahr später „liegt seit 0 Tagen", weil die Ware erst in der Zukunft
+  eingelagert worden wäre. 0034 rechnet jetzt von `current_date − 240` aus;
+  alle Abstände und damit jedes Modellergebnis bleiben gleich.
+- **„Nicht belegt" statt „0.0 t":** Setzt der F-Test den Sockel a₀ auf 0,
+  zeigte die Kaskade eine Zeile „Nicht lagerbedingt · 0.0 t (0.0 %)" — eine
+  Zahl, die wie eine Messung aussah. Der Wasserfall lässt Ströme ohne Masse
+  weg; die Karte sagt mit `sockel_nachweis` und `sockel_schwelle`, warum a₀
+  auf 0 steht: nicht „kein Feldanteil", sondern „mit diesen Daten nicht von
+  der Verderbskurve zu trennen".
+- **CSV-Import:** ein Knopf im Stil der App statt des browsereigenen
+  „Choose Files".
+- **Prüfstand in sechs Sprachen:** `SPRACHE=hu node pruefstand/bildschirme.mjs`
+  rendert die Arbeiter-Masken in der Sprache mit den längsten Wörtern.

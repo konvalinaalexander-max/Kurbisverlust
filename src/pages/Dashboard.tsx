@@ -15,6 +15,9 @@ interface Modell {
   n: number; c_chargen: number; t_min: number; t_max: number
   k: number | null; lambda: number | null; smearing: number | null
   brauchbar: boolean
+  /** Sockel a₀ und sein Nachweis: Fehler ohne Sockel ÷ bester Fehler mit
+   *  Sockel, gegen die Schwelle des F-Tests. Unter der Schwelle bleibt a₀ = 0. */
+  sockel: number | null; sockel_nachweis: number | null; sockel_schwelle: number | null
 }
 
 /** v_schimmel_punkte — jede einzelne Messung, aus der die Kurve entsteht. */
@@ -426,12 +429,25 @@ export default function Dashboard() {
               <div className="reihe">
                 <strong>{feld.strom}</strong>
                 {!feld.bekannt && <Marke art="warnung">noch nicht schätzbar</Marke>}
-                <span style={{ marginLeft: 'auto' }}>{feld.bekannt ? tonnen(feld.mittel) : '—'}</span>
+                {feld.bekannt && feld.mittel <= 0 && <Marke art="offen">nicht belegt</Marke>}
+                <span style={{ marginLeft: 'auto' }}>
+                  {feld.bekannt && feld.mittel > 0 ? tonnen(feld.mittel) : '—'}
+                </span>
               </div>
-              {feld.bekannt && (
+              {feld.bekannt && feld.mittel > 0 && (
                 <p className="leise" style={{ margin: '.25rem 0 0' }}>
                   Bereich {tonnen(feld.unten)} – {tonnen(feld.oben)} ·
                   {' '}{prozent(eingang > 0 ? feld.mittel / eingang : null)} des Eingangs
+                </p>
+              )}
+              {feld.bekannt && feld.mittel <= 0 && (
+                <p className="leise" style={{ margin: '.25rem 0 0' }}>
+                  Die Messungen verlangen keinen Sockel: Der Fehler ohne Sockel ist
+                  {' '}{modell?.sockel_nachweis != null ? `×${modell.sockel_nachweis.toFixed(3)}` : '—'} des
+                  besten Fehlers mit Sockel, die Schwelle liegt bei
+                  {' '}{modell?.sockel_schwelle != null ? `×${modell.sockel_schwelle.toFixed(3)}` : '—'}.
+                  Darum steht a₀ auf 0 — nicht „kein Feldanteil", sondern „mit diesen
+                  Daten nicht von der Verderbskurve zu trennen".
                 </p>
               )}
               <Rechenweg zeilen={rechenweg(feld, eingang)} />
@@ -721,7 +737,7 @@ function Ueberblick({ verluste, eingang, verlustGesamt, maximum, bilanz, stroeme
   // verlässt den Hauptkanal, und ohne ihn stimmt die Breite des Restbalkens
   // nicht. Unbekannte Ströme haben keine Breite; sie stehen darunter als Satz.
   const kaskade: Kaskadenstrom[] = stroeme
-    .filter(s => s.bekannt && abzweigend(s))
+    .filter(s => s.bekannt && abzweigend(s) && s.mittel > 0)
     .sort((a, b) => b.mittel - a.mittel)
     .map(s => ({ name: s.strom, kg: s.mittel, unten: s.unten, oben: s.oben,
                  buch: s.buch as 'verlust' | 'feld' | 'marge', bereichBekannt: s.bereichBekannt,

@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useSprache } from '../sprache/SprachProvider'
-import { chargeText, fehlerText, stammdaten } from '../lib/db'
+import { fehlerText, stammdaten } from '../lib/db'
 import { Hinweis, Karte } from '../components/Bausteine'
+import { ChargeFeld } from '../components/ChargeFeld'
 import type { Charge, Gebinde } from '../lib/typen'
 
 /**
@@ -46,7 +47,8 @@ export default function Kontrolle() {
     })
   }, [])
 
-  const vollstaendig = chargeNr !== '' && datum !== '' && damals !== ''
+  const vollstaendig = chargeNr !== '' && chargen.some(c => c.nr === chargeNr)
+    && datum !== '' && damals !== ''
     && jetzt !== '' && kisten !== '' && art !== '' && faul !== ''
 
   async function speichern() {
@@ -82,14 +84,7 @@ export default function Kontrolle() {
       {gespeichert > 0 && <Hinweis art="gut">✓ {gespeichert} {t('gespeichert')}</Hinweis>}
 
       <Karte>
-        <div className="feld">
-          <label htmlFor="k-charge">{t('charge')}</label>
-          <select id="k-charge" value={chargeNr}
-                  onChange={e => setChargeNr(e.target.value === '' ? '' : Number(e.target.value))}>
-            <option value="">{t('waehlen')}</option>
-            {chargen.map(c => <option key={c.nr} value={c.nr}>{chargeText(c)}</option>)}
-          </select>
-        </div>
+        <ChargeFeld id="k-charge" chargen={chargen} wert={chargeNr} setzen={setChargeNr} />
         <div className="feld">
           <label htmlFor="k-datum">{t('datumZettel')}</label>
           <input id="k-datum" type="date" value={datum} onChange={e => setDatum(e.target.value)} />

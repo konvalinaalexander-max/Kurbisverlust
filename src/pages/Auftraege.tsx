@@ -5,6 +5,7 @@ import { useSprache } from '../sprache/SprachProvider'
 import { chargeText, fehlerText, stammdaten } from '../lib/db'
 import { TAETIGKEITEN, taetigkeitVon } from '../lib/taetigkeit'
 import { Hinweis, Karte, Lade, Marke } from '../components/Bausteine'
+import { ChargeFeld } from '../components/ChargeFeld'
 import type { Auftrag, Charge, Kaeufer, Sortierschema } from '../lib/typen'
 
 export default function Auftraege() {
@@ -219,30 +220,7 @@ function NeuerAuftrag({ chargen, fertig, abbrechen }: {
       </div>
 
       {taetigkeit && (
-        <div className="feld">
-          <label htmlFor="charge">{t('charge')}</label>
-          {/* AB-06: eintippen statt aus einer Liste wählen — geht schneller.
-              Die bekannten Chargen stehen als Vorschlag dahinter; getippt wird
-              die Nummer. Eine unbekannte Nummer wird sichtbar gemeldet, nicht
-              still angelegt. */}
-          <input id="charge" type="number" inputMode="numeric" list="chargenliste"
-                 value={chargeNr} style={{ fontSize: '1.2rem' }}
-                 placeholder={t('chargeTippen')}
-                 onChange={e => setChargeNr(e.target.value === '' ? '' : Number(e.target.value))} />
-          <datalist id="chargenliste">
-            {chargen.map(c => <option key={c.nr} value={c.nr}>{chargeText(c)}</option>)}
-          </datalist>
-          {chargeNr !== '' && !chargen.some(c => c.nr === chargeNr) && (
-            <p className="leise" style={{ marginTop: '.3rem', marginBottom: 0, color: 'var(--rot)' }}>
-              {t('chargeUnbekannt')}
-            </p>
-          )}
-          {chargeNr !== '' && chargen.some(c => c.nr === chargeNr) && (
-            <p className="leise" style={{ marginTop: '.3rem', marginBottom: 0 }}>
-              {chargeText(chargen.find(c => c.nr === chargeNr))}
-            </p>
-          )}
-        </div>
+        <ChargeFeld id="charge" chargen={chargen} wert={chargeNr} setzen={setChargeNr} />
       )}
 
       {taetigkeit && chargeNr !== '' && fragtKaeufer && (

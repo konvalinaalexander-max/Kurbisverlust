@@ -581,6 +581,7 @@ Alle drei entstehen aus HTML-Quellen im selben Ordner:
 |---|---|---|
 | Demo: „Es gibt noch kein Benutzerkonto" | Die Demo-Daten brauchen jemanden als Erfasser | Erst Schritt 7 (Betriebsleiter-Konto anlegen), dann nochmal |
 | **„relation \"einstellung\" does not exist" beim Ausführen von `setup.sql`** | Ein Fehler in der Datei, behoben am 3. September: Eine Funktion nannte eine Tabelle ohne Schema davor, und der SQL-Editor arbeitet ohne voreingestellten Suchpfad | **Die Datei neu holen** (Schritt 3a) und noch einmal einfügen. Die aktuelle Fassung nennt überall das Schema. |
+| **„marge_messung enthält … Zeile(n) — die Einrichtung bricht hier ab"** beim Ausführen von `setup.sql` | Ein Alt-Kanal, den die App seit dem 25. August nicht mehr schreibt und seit dem 3. September nicht mehr liest, hält in deiner Datenbank noch Zeilen. Die Datei löscht nichts, was jemand gemessen hat, ohne dass du es gesehen hast | Im SQL-Editor `select * from marge_messung;` ansehen, bei Bedarf als CSV sichern, dann `delete from marge_messung;` — und `setup.sql` noch einmal ausführen |
 | **„Could not find the function public.… in the schema cache"** | Die App ruft etwas, das es in deiner Datenbank nicht gibt: Sie wurde eingerichtet, als es das noch nicht gab, und ist seither nicht aktualisiert worden | **Schritt 3 nochmal ausführen** — dieselbe Datei, dieselben Handgriffe. Deine Daten bleiben. Danach in der App einmal F5. |
 | Auswertung bleibt leer, obwohl Daten da sind | Die gespeicherte Auswertung ist noch nicht gerechnet | In der App oben auf **Neu rechnen**. Bleibt es leer: Schritt 3 nochmal ausführen. |
 | „Potentially destructive operation" | Supabase warnt bei Skripten mit `drop`/`alter` | **Run this query** klicken. In einem neuen Projekt ist nichts zu zerstören. |
@@ -638,6 +639,7 @@ npm test                    # Reinigung und Dateinamen-Parser, ohne Datenbank
 # Seiten, die wagrecht überlaufen. Vorher einmal die Daten-Abzüge ziehen:
 ./pruefstand/daten_dumpen.sh   # braucht die lokale Demo-Datenbank
 node pruefstand/bildschirme.mjs
+SPRACHE=hu node pruefstand/bildschirme.mjs auftrag   # Arbeiter-Masken in der Sprache mit den längsten Wörtern
 
 # Die Kette in beide Richtungen: eine komplette Arbeit über die Masken der
 # App erfassen (neue Arbeit mit Käufer, zählen, wiegen, Palox, zu klein/gross,

@@ -1,6 +1,6 @@
 # Statistische Überprüfung — Befunde und was daraus wurde
 
-Diese Datei hält fest, was die Überprüfung nach `docs/PROMPT_STATISTIK_REVIEW.md`
+Diese Datei hält fest, was die Überprüfung nach `docs/archiv/PROMPT_STATISTIK_REVIEW.md`
 ergeben hat: je Verdachtspunkt ein Befund, die Rechnung oder Simulation dahinter,
 und was geändert wurde. Sortiert nach Auswirkung auf das Ergebnis, nicht nach
 statistischer Eleganz.
@@ -216,6 +216,10 @@ verschiedene Gewichte — daran lässt sich nichts messen. Die Ansicht sagt das
 auch so. Die Prüfung an einer handgezählten Palette (Spec §13) steht weiter aus
 und bleibt der einzige harte Beleg.
 
+*Nachtrag 0048:* Die Sicht las in einem Jahr niemand; sie fiel als Ballast. Die
+Abfrage steht in `0022_pruefbare_annahmen.sql` (Git) und lässt sich im
+SQL-Editor jederzeit gegen echte Dateien laufen lassen.
+
 ### Punkt 13 — Stratifizierung nach Schlag: unentscheidbar mit simulierten Daten
 
 Jede Charge ist genau eine Kombination aus Schlag und Sorte (42 Chargen, 42
@@ -224,12 +228,16 @@ chargen-robuste Fehlerrechnung hat die Streuung zwischen Schlägen bereits im
 Bereich drin. Eine eigene Schlag-Schätzung würde die *Punktschätzung* ändern,
 nicht die Ehrlichkeit des Bereichs.
 
-Ob sie sich lohnt, entscheidet `v_schlag_effekt` an den Daten: dieselbe
+Ob sie sich lohnt, entschied `v_schlag_effekt` an den Daten: dieselbe
 Momentenschätzung wie bei der Sorten-Bündelung, angewandt auf Schläge. In der
 Simulation hat der Schlag per Konstruktion keinen Effekt, dort misst der Test
-nur meinen Generator. Auf echten Daten ist er aussagekräftig.
+nur meinen Generator. Auf echten Daten wäre er aussagekräftig.
 
-→ `0022_pruefbare_annahmen.sql`
+→ `0022_pruefbare_annahmen.sql`, letzte Fassung in `0037_grundaussortierung.sql`
+
+*Nachtrag 0048:* Drei Migrationen mussten die Sicht mitpflegen, gelesen hat sie
+niemand — sie fiel als Ballast. Wird die Frage mit echten Daten gestellt, ist
+die Abfrage in Git und braucht ein Modell, das `brauchbar` ist.
 
 ### Punkt 15 — der Schimmel-Palox über mehrere Arbeiten: bestätigt, nicht behoben
 

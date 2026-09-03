@@ -78,6 +78,22 @@ psql "$URL" -v ON_ERROR_STOP=1 -q -c "
   insert into palette (charge_nr, eingangsdatum, kisten, brutto_kg, gebindeart)
   values (1598, '2026-10-01', 30, 900, 'G2'), (1599, '2026-10-02', 20, 600, 'G2');
   update einstellung set wert = '9'::jsonb where schluessel = 'soll_kg_pro_kiste';"
+# Der Wächter aus 0048: Hält der alte Stand noch Zeilen im Alt-Kanal
+# marge_messung, darf die Aktualisierung sie nicht still wegwerfen — sie muss
+# abbrechen und sagen, was zu tun ist. Erst mit leerer Tabelle geht es weiter.
+psql "$URL" -v ON_ERROR_STOP=1 -q -c "
+  insert into auftrag (weg, station, charge_nr, eroeffnet_von)
+  values ('hand', 'waschen_sortieren', 1598, '11111111-1111-1111-1111-111111111111');
+  insert into marge_messung (auftrag_id, art, wert, n_kisten, erfasser)
+  select id, 'ueberfuellung', 12, 30, '11111111-1111-1111-1111-111111111111' from auftrag;"
+if WAECHTER="$(psql "$URL" -v ON_ERROR_STOP=1 -qtA -1 -f "$HIER/../setup.sql" 2>&1)"; then
+  echo "   FEHLER: setup.sql lief über eine gefüllte marge_messung hinweg"; exit 1
+fi
+echo "$WAECHTER" | grep -q 'marge_messung enthält 1 Zeile' \
+  || { echo "   FEHLER: der Abbruch nennt nicht den Grund:"; echo "$WAECHTER" | head -5; exit 1; }
+echo "   gefüllte marge_messung: Aktualisierung bricht ab und sagt, was zu tun ist"
+psql "$URL" -v ON_ERROR_STOP=1 -q -c "delete from auftrag;"
+
 if ! ALT="$(psql "$URL" -v ON_ERROR_STOP=1 -qtA -1 -f "$HIER/../setup.sql" 2>&1)"; then
   echo "   FEHLER: die Aktualisierung ist gescheitert:"
   echo "$ALT" | grep -iE 'error|fehler' | head -10; exit 1

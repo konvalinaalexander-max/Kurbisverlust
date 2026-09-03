@@ -156,8 +156,16 @@ export default function CsvUpload() {
       </Karte>
 
       <Karte titel="Dateien">
-        <input type="file" accept=".csv,text/csv,text/plain" multiple
-               onChange={e => { void dateienWaehlen(e.target.files); e.target.value = '' }} />
+        {/* Der Browser-eigene Dateiknopf sieht in jedem Browser anders aus und
+            passt in keinen. Ein Etikett im Knopf-Stil, das Feld selbst unsichtbar. */}
+        <label className="knopf haupt">
+          Dateien wählen …
+          <input type="file" accept=".csv,text/csv,text/plain" multiple hidden
+                 onChange={e => { void dateienWaehlen(e.target.files); e.target.value = '' }} />
+        </label>
+        <p className="leise" style={{ margin: '.6rem 0 0' }}>
+          Mehrere Dateien auf einmal sind möglich; jede wird einzeln geprüft.
+        </p>
         {fehler && <Hinweis art="warnung">{fehler}</Hinweis>}
       </Karte>
 
