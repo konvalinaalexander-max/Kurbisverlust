@@ -161,6 +161,8 @@ await schritt('Neue Arbeit: Waschen + Sortieren, Charge 1613, neuer Käufer Coop
   await seite.locator('#charge').selectOption('1613')
   await seite.locator('#kaeufer').selectOption('__neu__')
   await seite.getByPlaceholder('Name des Käufers').fill('Coop')
+  // AB-01: Waschen + Sortieren fragt jetzt, wie sortiert wird.
+  await seite.getByRole('button', { name: 'Kiste ab x kg' }).click()
   await seite.getByRole('button', { name: 'Starten' }).click()
   await warteAuf('auftrag'); await warteAuf('auftrag_teilnehmer')
   const a = protokoll.find(p => p.tabelle === 'auftrag' && p.methode === 'POST')
@@ -190,6 +192,15 @@ await schritt('Eine Palette wiegen: 950 → 900 kg, 40 Kisten G2, 6 je Kiste', a
   await seite.locator('#w-pro').fill('6')
   await seite.getByRole('button', { name: 'Eintragen' }).click()
   await warteAuf('verdunstung_wiegung'); await warteAuf('auftrag_palette', 'POST', 3)
+})
+
+await schritt('AB-02: ohne Palox-Ablesung ist der Abschluss gesperrt', async () => {
+  await seite.getByRole('link', { name: 'Fertig', exact: true }).click()
+  await seite.getByRole('button', { name: 'Ja, alles aus einer Charge' }).click()
+  const fertig = seite.getByRole('button', { name: /Arbeit fertig/ })
+  if (!(await fertig.isDisabled())) throw new Error('Abschluss trotz fehlender Palox-Ablesung möglich')
+  // zurück zur Faule-Maske für die eigentliche Ablesung
+  await seite.getByRole('link', { name: 'Faule' }).click()
 })
 
 await schritt('Palox: Waage zeigt 165 (Tara 45 → 120 kg)', async () => {

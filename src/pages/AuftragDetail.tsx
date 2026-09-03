@@ -24,16 +24,23 @@ export default function AuftragDetail() {
   const [reiter, setReiter] = useState<Reiter>('paletten')
   const [fehler, setFehler] = useState<string | null>(null)
   const [laedt, setLaedt] = useState(true)
+  // AB-02: Der Palox wird zu Beginn und beim Abschluss abgelesen. Ohne
+  // Ablesung landet der Schimmel zweier Arbeiten auf einer. Wir zählen die
+  // Ablesungen dieser Arbeit, um zu Beginn hinzuführen und den Abschluss zu
+  // sperren, solange keine da ist.
+  const [nPalox, setNPalox] = useState<number | null>(null)
 
   const laden = useCallback(async () => {
     try {
-      const [{ chargen }, a, tn] = await Promise.all([
+      const [{ chargen }, a, tn, sm] = await Promise.all([
         stammdaten(),
         supabase.from('auftrag').select('*').eq('id', auftragId).maybeSingle(),
         supabase.from('auftrag_teilnehmer').select('profil_id, profil(name)')
           .eq('auftrag_id', auftragId).is('verlassen_ts', null),
+        supabase.from('schimmel_messung').select('id').eq('auftrag_id', auftragId),
       ])
       if (a.error) throw a.error
+      setNPalox((sm.data ?? []).length)
       const auf = a.data as Auftrag | null
       setAuftrag(auf)
       setCharge(chargen.find(c => c.nr === auf?.charge_nr))
@@ -124,17 +131,25 @@ export default function AuftragDetail() {
 
       {gesperrt && <Hinweis>{t('gesperrt')}</Hinweis>}
 
+      {!gesperrt && nPalox === 0 && aktiverReiter !== 'faule' && (
+        <Hinweis art="warnung">
+          {t('paloxZuBeginn')}{' '}
+          <a href="#" onClick={e => { e.preventDefault(); setReiter('faule') }}>{t('jetztAblesen')}</a>
+        </Hinweis>
+      )}
+
       {aktiverReiter === 'paletten' && (
         <Paletten auftrag={auftrag} gesperrt={gesperrt} mitWiegen={mitWiegen} />
       )}
       {aktiverReiter === 'kisten' && <Kisten auftrag={auftrag} gesperrt={gesperrt} />}
       {aktiverReiter === 'faule' && (
-        <Palox auftrag={auftrag} gesperrt={gesperrt} />
+        <Palox auftrag={auftrag} gesperrt={gesperrt} neuLaden={laden} />
       )}
       {aktiverReiter === 'ausschuss' && <Ausschuss auftrag={auftrag} gesperrt={gesperrt} />}
       {aktiverReiter === 'ausgang' && <FertigePalette auftrag={auftrag} gesperrt={gesperrt} />}
       {aktiverReiter === 'abschluss' && (
-        <Abschluss auftrag={auftrag} neuLaden={laden} zurueck={() => navigate('/auftraege')} />
+        <Abschluss auftrag={auftrag} neuLaden={laden} zurueck={() => navigate('/auftraege')}
+                   paloxGelesen={(nPalox ?? 0) > 0} zumPalox={() => setReiter('faule')} />
       )}
     </>
   )
@@ -460,7 +475,7 @@ function Kisten({ auftrag, gesperrt }: { auftrag: Auftrag; gesperrt: boolean }) 
 }
 
 
-function Palox({ auftrag, gesperrt }: { auftrag: Auftrag; gesperrt: boolean }) {
+function Palox({ auftrag, gesperrt, neuLaden }: { auftrag: Auftrag; gesperrt: boolean; neuLaden?: () => Promise<void> }) {
   const { t, gebietsschema } = useSprache()
   const [zeilen, setZeilen] = useState<{ id: number; kg: number; ts: string }[]>([])
   const [vorher, setVorher] = useState<number | null>(null)
@@ -513,7 +528,7 @@ function Palox({ auftrag, gesperrt }: { auftrag: Auftrag; gesperrt: boolean }) {
       palox_geleert: leerGemeldet,
     })
     if (error) { setFehler(fehlerText(error)); return }
-    setStand(''); setLeerGemeldet(false); setFehler(null); void laden()
+    setStand(''); setLeerGemeldet(false); setFehler(null); void laden(); void neuLaden?.()
   }
 
   const summe = zeilen.reduce((s, z) => s + z.kg, 0)
@@ -526,6 +541,7 @@ function Palox({ auftrag, gesperrt }: { auftrag: Auftrag; gesperrt: boolean }) {
           <input id="palox" type="number" inputMode="decimal" min={0} step="0.5"
                  value={stand} disabled={gesperrt} onChange={e => setStand(e.target.value)}
                  style={{ fontSize: '1.4rem' }} />
+          <p className="leise" style={{ margin: '.3rem 0 0' }}>{t('waageAblesenHinweis')}</p>
         </div>
         <button className="haupt" style={{ minHeight: 54 }}
                 onClick={speichern} disabled={gesperrt || menge === null || menge < 0}>
@@ -806,8 +822,9 @@ function FertigePalette({ auftrag, gesperrt }: { auftrag: Auftrag; gesperrt: boo
 }
 
 /* ------------------------------------------------------------------ */
-function Abschluss({ auftrag, neuLaden, zurueck }: {
+function Abschluss({ auftrag, neuLaden, zurueck, paloxGelesen, zumPalox }: {
   auftrag: Auftrag; neuLaden: () => Promise<void>; zurueck: () => void
+  paloxGelesen: boolean; zumPalox: () => void
 }) {
   const { t, gebietsschema } = useSprache()
   const [sicher, setSicher] = useState(false)
@@ -836,6 +853,8 @@ function Abschluss({ auftrag, neuLaden, zurueck }: {
     fragen.push({ schluessel: 'sortierdatum', wert: sortierdatum })
   }
   const beantwortet = eineCharge !== null && (eineCharge || gleicheSorte !== null)
+  // AB-02: Ohne Palox-Ablesung (Beginn/Abschluss) kein Abschluss.
+  const fertigMoeglich = beantwortet && paloxGelesen
 
   async function abschliessen() {
     setLaeuft(true)
@@ -922,10 +941,16 @@ function Abschluss({ auftrag, neuLaden, zurueck }: {
                  onChange={e => setSortierdatum(e.target.value)} />
         </div>
       )}
+      {!paloxGelesen && (
+        <Hinweis art="warnung">
+          {t('paloxVorAbschluss')}{' '}
+          <a href="#" onClick={e => { e.preventDefault(); zumPalox() }}>{t('jetztAblesen')}</a>
+        </Hinweis>
+      )}
       {fehler && <Hinweis art="warnung">{fehler}</Hinweis>}
       {!sicher ? (
         <button className="haupt gross" style={{ width: '100%' }} onClick={() => setSicher(true)}
-                disabled={!beantwortet}>
+                disabled={!fertigMoeglich}>
           {t('arbeitFertig')}
         </button>
       ) : (
