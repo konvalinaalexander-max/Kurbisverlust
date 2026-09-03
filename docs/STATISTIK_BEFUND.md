@@ -791,3 +791,29 @@ geschätzt werden muss.
 | Grundaussortierung als Zahl | nur belastbar, wenn gesetzt; sonst 0 mit Bereich nach oben |
 | Lagerkontrollen gegen den Sockel | machen den Bereich ehrlich (0 → 100 % Überdeckung), erkennen den Sockel aber nicht; 12 je Saison genügen |
 | Koeffizient ohne einzige Messung | NULL, sichtbar als „nicht gemessen" (seit 0036) |
+
+---
+
+# Fünfte Runde: die Erfassung, nicht das Modell
+
+Diese Runde hat die Masken an die Absprachen des Betriebs angeglichen
+(`ABMACHUNGEN.md`), das Modell aber nicht angefasst. Der Nachweis dafür ist die
+Simulationsmatrix vorher/nachher, je 25 Saisons über dieselben neun Bahnen. Der
+Harness ist nicht gesät, die beiden Läufe sind also unabhängige Ziehungen; wo
+sie sich unterscheiden, ist es Streuung, kein Modellunterschied.
+
+| Bahn | Strom | vorher | nachher |
+|---|---|---|---|
+| Saisonende, 25 % | Schimmel | −2.4 % / 96 % | −2.4 % / 96 % |
+| Saisonmitte, 50 % | Schimmel | −1.3 % / 100 % | −1.7 % / 92 % |
+| Saisonmitte, Schlechtes zuerst | Schimmel | +8.1 % / 92 % | +8.4 % / 88 % |
+| 12 Lagerkontrollen | Schimmel | +8.5 % / 92 % | +8.7 % / 100 % |
+| Saisonmitte, 2 % Sockel | Schimmel | +22.9 % / 44 % | +22.5 % / 56 % |
+| Saisonende, 2 % Sockel | Schimmel | +44.4 % / 8 % | +44.2 % / 8 % |
+| alle Bahnen | Zu klein, Nebenkanal | ≤ 0.5 % / 100 % | ≤ 0.5 % / 100 % |
+
+Verzerrung und Überdeckung bleiben in jeder Bahn stehen. Die Erfassungsrunde
+hat das Modell nicht verschoben — sie hat dafür gesorgt, dass die Zahlen, die
+das Modell braucht, in der Halle auch erfasst werden und dass keine Spalte
+zwischen Maske und Auswertung nur auf einer Seite existiert (Lückenscanner in
+`run.sh`).
