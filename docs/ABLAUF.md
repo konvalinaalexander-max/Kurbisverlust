@@ -53,7 +53,10 @@ aber unter Selektion 3–4 t Grundaussortierung und drückte den Schimmel dort u
 setzt die Auswertung den Sockel nur, wenn die Daten ihn nach einem Test belegen; sonst steht er
 auf 0, und der Bereich sagt, wie gross er sein könnte. Was beides auseinanderhält, ist die
 Lagerkontrolle (zufällig gegriffene Palette, nur Faules gezählt) — oder eine direkte Messung
-beim Leeren des Palox (Frage in FRAGEN.md).
+beim Leeren des Palox (Frage in FRAGEN.md). Nachgemessen ist auch, was die Lagerkontrolle dabei
+wirklich leistet: Sie **erkennt** den Sockel nicht (der Anteil erkannter Saisons ändert sich
+nicht), aber sie macht den Bereich ehrlich — er enthält die Wahrheit dann in 96–100 % statt in
+0–44 % der Saisons. Zwölf Kontrollen je Saison genügen dafür, vierundzwanzig bringen nichts dazu.
 
 **2. Zu Kleine gehen an die Tiere.** Damit sind sie **kein physischer Verlust**, sondern ein
 anderer Kanal — genau wie die zu Grossen. Beide wandern aus Buch A (Verlust) in Buch B und
@@ -336,6 +339,7 @@ abweichen kann, ohne dass es jemand merkt.
 | Ein Waschgang gehört zu den Sortierläufen derselben Charge davor | kein erfasster Verweis | bei stark gemischten Chargen wandert Schimmel #2 ans falsche Alter |
 | Die Dubletten-Regel entfernt Maschinen-Doppel, keine echten Kürbisse | Nachbar-Gleichheit 12–28 % gegen < 0.2 % Zufall | alle CSV-gestützten Massen sind entsprechend daneben |
 | Die Palox-Waage zeigt brutto, der Behälter wiegt 45 kg | Betrieb, 2. September; Einstellung `palox_tara_kg` | zeigt sie netto, fehlen bei jeder ersten Ablesung und nach jedem Leeren 45 kg — die Einstellung gehört dann auf 0 |
+| Das Kistenmass einer Sorte gilt für alle ihre Käufer | im Warenausgang steht nicht, welche Kiste zu welchem Käufer ging | haben zwei Käufer verschiedene Kistenmasse, ist die Überfüllung für den einen zu hoch, für den anderen zu tief |
 | Der Sockel im Palox (Erde, Hagel, Schnitt) gilt für alle Verarbeitungsmessungen gleich, nicht für Lagerkontrollen und nicht am Waschbecken | beim Sortieren wird Optisches aussortiert, beim Waschen nur noch Faules | fällt am Waschbecken nochmals Optisches heraus, wird der Sockel unterschätzt |
 | Der Sockel ist zeitunabhängig | so beschrieben: kommt vom Feld | wächst er mit der Lagerdauer (Erde trocknet ab, Narben faulen an), steckt er zum Teil doch in der Kurve |
 | Wird nach Aussehen ausgewählt, sieht das aus wie ein Sockel | Simulation: 3–4 t erfundener Sockel bei Selektion ohne Test | der Test hält ihn zurück, sieht aber einen echten Sockel nur in der Saisonmitte in knapp jeder zweiten Saison (Schimmel dann +23 %) und am Saisonende nie (+48 %) — Lagerkontrollen oder eine Angabe beim Leeren entscheiden |

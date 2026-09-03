@@ -738,11 +738,16 @@ Begründung der Modellentscheidungen: [`docs/ENTSCHEIDUNGEN.md`](docs/ENTSCHEIDU
   Nenner".
 - **Überfüllung:** Die Hochrechnung auf Kisten nimmt an, dass alle Weg-2-Ware
   in Kisten mit dem Soll aus den Einstellungen geht. Der Betrieb hat gesagt,
-  die 8-kg-Kiste gilt nur für eine Sorte — welche, ist offen.
+  die 8-kg-Kiste gilt nur für eine Sorte — welche, ist offen. Die Rechnung nimmt
+  das Kistenmass seit 0040 je Sorte aus dem Sortierschema, sobald dort eine
+  Kisten-Fassung steht; bis dahin aus der Einstellung. Der Rechenweg sagt, für
+  wie viele Chargen schon ein Schema gilt.
 - **Der Sockel im Palox** wird aus dem Zeitverlauf geschätzt, und das reicht
   nicht: Die Simulation sieht einen echten Sockel von 2 % in der Saisonmitte
   in knapp jeder zweiten Saison, am Saisonende nie — dort sieht er genauso aus
   wie „Schlechtes zuerst verarbeitet". Bleibt er unerkannt, ist der Schimmel um
   23–48 % zu hoch (`docs/STATISTIK_BEFUND.md`, vierte Runde). Eine Angabe beim
   Leeren des Palox, wie viel davon nicht faul war, wäre die Messung, die das
-  entscheidet (`docs/FRAGEN.md`, Frage 5).
+  entscheidet (`docs/FRAGEN.md`, Frage 5). Lagerkontrollen ersetzen sie nicht —
+  nachgemessen: Sie erkennen den Sockel nicht, machen aber den ausgewiesenen
+  Bereich ehrlich (Überdeckung 0 → 100 %). Zwölf je Saison genügen dafür.

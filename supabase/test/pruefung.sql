@@ -1045,7 +1045,7 @@ select '——— Ablauf geprüft ———' as ergebnis;
 -- =========================================================================
 do $$
 declare v_erfasst numeric; v_angekommen numeric; v_gemeldet numeric; v_n int;
-        v_rest numeric; v_m2 numeric; v_vorher numeric; v_nachher numeric;
+        v_rest numeric; v_m2 numeric; v_vorher numeric; v_nachher numeric; v_sorte text; v_text text;
 begin
   perform set_config('request.jwt.claim.sub','11111111-1111-1111-1111-111111111111', true);
   perform auswertung_aktualisieren();
@@ -1101,7 +1101,25 @@ begin
       format('Überfüllung reagiert nicht auf die Einstellung (%s → %s)', v_vorher, v_nachher);
   end if;
 
-  raise notice 'OK  Kette: erfasst = angekommen + gemeldet, Restbestand = m2, Einstellung greift';
+  -- (e) Und das Kistenmass der Sorte schlägt die Einstellung (0040). Eine
+  --     Kisten-Fassung mit doppeltem Soll für eine Sorte muss die Kistenzahl
+  --     drücken, und der Rechenweg muss sagen, dass sie aus dem Schema kam.
+  select sorte into v_sorte from v_kaskade where verkaufsfaehig_kg > 0 limit 1;
+  if v_sorte is not null then
+    select kg into v_vorher from v_marge_buch where posten like '%berf%';
+    insert into sortierschema (sorte, kaeufer, gilt_ab, art, soll_kg_pro_kiste, bemerkung)
+      values (v_sorte, null, current_date - 1, 'kiste', 16, 'PRUEFUNG');
+    select kg, erlaeuterung into v_nachher, v_text from v_marge_buch where posten like '%berf%';
+    delete from sortierschema where bemerkung = 'PRUEFUNG';
+    if v_vorher is not null and v_vorher <> 0 then
+      assert v_nachher < v_vorher,
+        format('Kistenmass der Sorte greift nicht (%s → %s)', v_vorher, v_nachher);
+      assert v_text not like '%: 0 von %',
+        format('Rechenweg meldet keine Charge aus dem Schema: %s', v_text);
+    end if;
+  end if;
+
+  raise notice 'OK  Kette: erfasst = angekommen + gemeldet, Restbestand = m2, Einstellung und Kistenmass greifen';
 end $$;
 
 -- Ein Koeffizient ohne einzige Messung ist unbekannt, nicht 0. Geprüft an

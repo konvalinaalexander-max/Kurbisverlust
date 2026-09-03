@@ -743,6 +743,43 @@ Punkte, etwa 52 % gegen 44 % gesetzter Sockel zur Saisonmitte, +46 % gegen
 +48 % am Saisonende; das ist die Streuung von 25 Saisons, kein Unterschied
 im Modell.
 
+## Können Lagerkontrollen die fehlende Messung ersetzen?
+
+Der Betrieb hat am 3. September gesagt, beim Leeren des Palox zu trennen, was
+faul war und was nicht, sei schwierig. Die Lagerkontrolle wäre der naheliegende
+Ersatz: Wer eine Palette im Lager aufmacht, zählt Faules und sieht keine Erde —
+diese Messung trägt den Sockel nicht und liefert `F(t)` direkt. Gemessen wurde,
+ob sie den Sockel damit auch aufdeckt: dieselben Bahnen mit 2 % echtem Sockel,
+einmal ohne, einmal mit 12 und mit 24 Kontrollen je Saison.
+
+| Bahn | Kontrollen | Sockel erkannt | Schimmel | Bereichsbreite | Überdeckung |
+|---|---|---|---|---|---|
+| Saisonmitte, 2 % Sockel | 0 | 44 % | +22.7 % | 16 % | 44 % |
+| | 12 | 44 % | +24.4 % | 112 % | **96 %** |
+| Saisonende, 2 % Sockel | 0 | 0 % | +48.3 % | 16 % | 0 % |
+| | 12 | 0 % | +49.6 % | 178 % | **100 %** |
+| | 24 | 4 % | +48.1 % | 176 % | **100 %** |
+
+**Nein, sie ersetzen sie nicht.** Der Anteil der Saisons, in denen der Sockel
+erkannt wird, ändert sich durch Kontrollen nicht (44 % bleibt 44 %, 0 % bleibt
+0 %), und der Schimmel bleibt gleich weit daneben. Kontrollen sehen zwar `F(t)`
+ohne Sockel, aber sie messen auch nicht dieselbe Ware: Sie greifen eine Palette
+im Lager, die Verarbeitungspunkte kommen vom Band. Der Widerspruch zwischen
+beiden Quellen wird dem Modell als zusätzliche Streuung angerechnet, nicht als
+Sockel.
+
+**Was sie leisten, ist trotzdem viel:** Der Bereich wird von 16 % auf 112–178 %
+breit, und er enthält die Wahrheit in 96–100 % statt in 0–44 % der Saisons. Aus
+einer selbstsicher falschen Zahl wird eine offen unsichere. Das ist dasselbe
+Muster wie bei der Selektionsverzerrung aus der zweiten Runde: Kontrollen
+korrigieren die Zahl nicht, sie machen die Unsicherheit sichtbar. Zwölf
+Kontrollen je Saison reichen dafür; vierundzwanzig bringen nichts dazu.
+
+**Was die Zahl selbst richtig macht, bleibt die direkte Messung**: einmal beim
+Leeren des Palox aussortieren und wiegen, was nicht faul ist. Ein einziger
+solcher Wert je Saison legt `a₀` fest, ohne dass er aus dem Zeitverlauf
+geschätzt werden muss.
+
 ## Ehrliche Grenzen nach der vierten Runde
 
 | Grösse | Status |
@@ -752,4 +789,5 @@ im Modell.
 | Schimmel bei Selektion | rund +8 %, wie seit der zweiten Runde; Lagerkontrollen machen es sichtbar |
 | **Schimmel bei echtem Sockel im Palox** | **Saisonmitte +23 %, Saisonende +48 %; der Sockel wird nur zur Saisonmitte und nur in knapp jeder zweiten Saison erkannt** |
 | Grundaussortierung als Zahl | nur belastbar, wenn gesetzt; sonst 0 mit Bereich nach oben |
+| Lagerkontrollen gegen den Sockel | machen den Bereich ehrlich (0 → 100 % Überdeckung), erkennen den Sockel aber nicht; 12 je Saison genügen |
 | Koeffizient ohne einzige Messung | NULL, sichtbar als „nicht gemessen" (seit 0036) |

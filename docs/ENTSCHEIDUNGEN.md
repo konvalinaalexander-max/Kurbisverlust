@@ -1020,3 +1020,47 @@ Frage gestellt und die Antwort verworfen.
 Bewusst nur für Angaben, über die nicht gerechnet und nicht verknüpft wird
 (docs/Datenarchitektur, Regel 2). Wer eine neue Frage einbaut, braucht keine
 neue Spalte; wer über eine Antwort rechnen will, braucht eine.
+
+## Das Kistenmass kommt von der Sorte, nicht aus einer Einstellung (0040)
+
+Seit 0038 gehört das Kistenmass zu (Sorte × Käufer) mit Gültigkeitsdatum, und
+die Ausgangs-Kennzahl liest es dort. Die Überfüllung im Marge-Buch tat es
+nicht: Sie teilte die ganze Weg-2-Masse durch die eine Einstellung
+`soll_kg_pro_kiste`, gleichgültig um welche Sorte es ging.
+
+Der Betrieb hat am 3. September gesagt, für welche Sorte die 8-kg-Kiste gilt,
+lasse sich erst sagen, wenn einmal alles gewaschen und erfasst ist. Das ist
+eine Antwort, die aus den Daten kommen wird — also muss die Rechnung sie von
+dort nehmen können, statt auf eine gepflegte Zahl in den Einstellungen zu
+warten. Jede Charge bringt ab jetzt ihr eigenes Kistenmass mit, aus der zuletzt
+gültigen Kisten-Fassung ihrer Sorte.
+
+Zwei Entscheidungen dabei:
+
+- **Ohne Fassung gilt weiter die Einstellung.** Sonst fiele die Überfüllung auf
+  null, sobald jemand die erste Fassung anlegt, und niemand wüsste warum. Der
+  Rechenweg sagt stattdessen, wie viele Chargen aus einem Schema gerechnet
+  wurden: Solange dort „0 von 42" steht, ist die Zahl so grob wie zuvor.
+- **Je Sorte eine Fassung, nicht je Käufer.** Welchem Käufer eine bestimmte
+  Kiste zugutekam, steht im Warenausgang nicht. Genommen wird die zuletzt
+  gültige Fassung, Standard vor käuferspezifisch. Haben zwei Käufer derselben
+  Sorte verschiedene Kistenmasse, ist das eine Näherung — sie steht als Annahme
+  in `ABLAUF.md`.
+
+## Lagerkontrollen ersetzen die fehlende Sockel-Messung nicht (gemessen)
+
+Auf die Frage, ob sich beim Leeren des Palox trennen lässt, was faul war,
+antwortete der Betrieb: schwierig. Die Lagerkontrolle wäre der naheliegende
+Ersatz, denn sie trägt den Sockel nicht. Gemessen (2 % echter Sockel, 12 und
+24 Kontrollen je Saison) ändert sie den Anteil der Saisons, in denen der Sockel
+erkannt wird, jedoch nicht: 44 % bleibt 44 %, 0 % bleibt 0 %. Der Grund ist,
+dass Kontrollen nicht dieselbe Ware messen wie die Verarbeitungspunkte — der
+Widerspruch zwischen beiden Quellen wird als Streuung verbucht, nicht als
+Sockel.
+
+Was sie leisten, ist der Bereich: Er wird von 16 % auf 112–178 % breit und
+enthält die Wahrheit in 96–100 % statt in 0–44 % der Saisons. Aus einer
+selbstsicher falschen Zahl wird eine offen unsichere. Zwölf Kontrollen je
+Saison reichen dafür; vierundzwanzig bringen nichts dazu. Diese Empfehlung
+steht als Zahl in `STATISTIK_BEFUND.md`, damit sie nicht als Bauchgefühl
+weitergereicht wird.
