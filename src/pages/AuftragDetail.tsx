@@ -591,91 +591,57 @@ function Palox({ auftrag, gesperrt, neuLaden }: { auftrag: Auftrag; gesperrt: bo
   )
 }
 
-function Mengen({ auftrag, gesperrt, tabelle, titel, zusatz, filter, mitTeilgewicht }: {
-  auftrag: Auftrag; gesperrt: boolean; tabelle: string; titel: string
-  zusatz?: Record<string, unknown>; filter?: Record<string, string>; mitTeilgewicht?: boolean
-}) {
+function Ausschuss({ auftrag, gesperrt }: { auftrag: Auftrag; gesperrt: boolean }) {
   const { t, gebietsschema } = useSprache()
-  const [zeilen, setZeilen] = useState<{ id: number; kg: number; ts: string; teilgewicht?: boolean }[]>([])
-  const [wert, setWert] = useState('')
-  const [teil, setTeil] = useState(false)
+  const [art, setArt] = useState<'zu_klein' | 'zu_gross'>('zu_klein')
+  const [modus, setModus] = useState<'wiegen' | 'schaetzen'>('wiegen')
+  const [gebinde, setGebinde] = useState<Gebinde[]>([])
+  const [brutto, setBrutto] = useState('')
+  const [kisten, setKisten] = useState('')
+  const [gart, setGart] = useState('')
+  const [schaetzung, setSchaetzung] = useState('')
+  const [zeilen, setZeilen] = useState<{ id: number; kg: number; ts: string
+    gemessen: boolean; brutto_kg: number | null; kisten: number | null }[]>([])
   const [fehler, setFehler] = useState<string | null>(null)
-  const filterSchluessel = JSON.stringify(filter ?? {})
 
   const laden = useCallback(async () => {
-    let abfrage = supabase.from(tabelle).select('*').eq('auftrag_id', auftrag.id).order('ts')
-    for (const [k, v] of Object.entries(JSON.parse(filterSchluessel) as Record<string, string>)) {
-      abfrage = abfrage.eq(k, v)
-    }
-    const { data, error } = await abfrage
-    if (error) setFehler(fehlerText(error)); else setZeilen(data as typeof zeilen)
-  }, [auftrag.id, tabelle, filterSchluessel])
+    const [s, r] = await Promise.all([
+      stammdaten(),
+      supabase.from('ausschuss_messung')
+        .select('id, kg, ts, gemessen, brutto_kg, kisten')
+        .eq('auftrag_id', auftrag.id).eq('art', art).order('ts'),
+    ])
+    setGebinde(s.gebinde)
+    setGart(a => a || s.gebinde[0]?.art || '')
+    setZeilen((r.data ?? []) as typeof zeilen)
+  }, [auftrag.id, art])
   useEffect(() => { void laden() }, [laden])
 
+  const tara = gebinde.find(g => g.art === gart)
+  const n = Number(kisten); const b = Number(brutto)
+  // Dieselbe Rechnung wie der Auslöser ausschuss_netto_setzen — hier nur zur
+  // Vorschau. Gespeichert werden Brutto und Kisten, gerechnet wird das Netto.
+  const netto = b > 0 && tara?.tara_kg_pro_kiste != null
+    ? Math.max(Math.round(b - n * tara.tara_kg_pro_kiste - (tara.tara_kg_palette ?? 0)), 0)
+    : null
+
   async function speichern() {
-    const n = Number(wert)
-    if (!Number.isInteger(n) || n < 0) { setFehler(t('ganzeZahl')); return }
-    const { error } = await supabase.from(tabelle).insert({
-      auftrag_id: auftrag.id, kg: n, ...(zusatz ?? {}),
-      ...(mitTeilgewicht ? { teilgewicht: teil } : {}),
-    })
+    let zeile: Record<string, unknown>
+    if (modus === 'wiegen') {
+      if (!(b > 0 && n > 0 && gart)) return
+      zeile = { auftrag_id: auftrag.id, art, brutto_kg: b, kisten: n, gebindeart: gart }
+    } else {
+      const k = Number(schaetzung)
+      if (!Number.isInteger(k) || k < 0) { setFehler(t('ganzeZahl')); return }
+      zeile = { auftrag_id: auftrag.id, art, kg: k }
+    }
+    const { error } = await supabase.from('ausschuss_messung').insert(zeile)
     if (error) { setFehler(fehlerText(error)); return }
-    setWert(''); setTeil(false); setFehler(null); void laden()
+    setBrutto(''); setKisten(''); setSchaetzung(''); setFehler(null); void laden()
   }
 
   const summe = zeilen.reduce((s, z) => s + z.kg, 0)
 
-  return (
-    <Karte titel={titel}>
-      <div className="reihe" style={{ alignItems: 'flex-end' }}>
-        <div className="feld" style={{ flex: 1, marginBottom: 0 }}>
-          <label htmlFor={`kg-${tabelle}`}>{t('kilo')}</label>
-          <input id={`kg-${tabelle}`} type="number" inputMode="numeric" min={0} step={1}
-                 value={wert} disabled={gesperrt} onChange={e => setWert(e.target.value)}
-                 style={{ fontSize: '1.2rem' }} />
-        </div>
-        <button className="haupt" style={{ minHeight: 54 }}
-                onClick={speichern} disabled={gesperrt || wert === ''}>{t('eintragen')}</button>
-      </div>
-      {mitTeilgewicht && (
-        <label className="ankreuzen">
-          <input type="checkbox" checked={teil} disabled={gesperrt}
-                 onChange={e => setTeil(e.target.checked)} />
-          {t('boxWarVoll')}
-        </label>
-      )}
-      {fehler && <Hinweis art="warnung">{fehler}</Hinweis>}
-
-      {zeilen.length > 0 && (
-        <>
-          <p style={{ marginTop: '1rem' }}><strong>{t('bisher')}: {summe} kg</strong></p>
-          <table>
-            <tbody>
-              {zeilen.map(z => (
-                <tr key={z.id}>
-                  <td>{new Date(z.ts).toLocaleTimeString(gebietsschema,
-                        { hour: '2-digit', minute: '2-digit' })}</td>
-                  <td className="zahl">{z.kg} kg</td>
-                  <td style={{ textAlign: 'right' }}>
-                    <button className="gefahr klein" disabled={gesperrt}
-                            onClick={async () => {
-                              const { error } = await supabase.from(tabelle).delete().eq('id', z.id)
-                              if (error) setFehler(fehlerText(error)); else void laden()
-                            }}>✕</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </>
-      )}
-    </Karte>
-  )
-}
-
-function Ausschuss({ auftrag, gesperrt }: { auftrag: Auftrag; gesperrt: boolean }) {
-  const { t } = useSprache()
-  const [art, setArt] = useState<'zu_klein' | 'zu_gross'>('zu_klein')
   return (
     <>
       <div className="reihe" style={{ marginTop: '1rem' }}>
@@ -684,9 +650,89 @@ function Ausschuss({ auftrag, gesperrt }: { auftrag: Auftrag; gesperrt: boolean 
         <button className={art === 'zu_gross' ? 'haupt' : ''} style={{ flex: 1, minHeight: 54 }}
                 onClick={() => setArt('zu_gross')}>{t('zuGross')}</button>
       </div>
-      <Mengen key={art} auftrag={auftrag} gesperrt={gesperrt} tabelle="ausschuss_messung"
-              titel={art === 'zu_klein' ? t('zuKlein') : t('zuGross')}
-              zusatz={{ art }} filter={{ art }} />
+      <Karte titel={art === 'zu_klein' ? t('zuKlein') : t('zuGross')}>
+        <div className="reihe" style={{ marginBottom: '.75rem' }}>
+          <button className={modus === 'wiegen' ? 'haupt' : ''} style={{ flex: 1 }}
+                  onClick={() => setModus('wiegen')}>{t('ausschussWiegen')}</button>
+          <button className={modus === 'schaetzen' ? 'haupt' : ''} style={{ flex: 1 }}
+                  onClick={() => setModus('schaetzen')}>{t('ausschussSchaetzen')}</button>
+        </div>
+
+        {modus === 'wiegen' ? (
+          <>
+            <div className="feld">
+              <label htmlFor="aus-brutto">{t('gewicht')}</label>
+              <input id="aus-brutto" type="number" inputMode="decimal" step="0.1" min={0}
+                     value={brutto} disabled={gesperrt} onChange={e => setBrutto(e.target.value)}
+                     style={{ fontSize: '1.2rem' }} />
+            </div>
+            <div className="reihe">
+              <div className="feld" style={{ flex: 1 }}>
+                <label htmlFor="aus-kisten">{t('anzahlKisten')}</label>
+                <input id="aus-kisten" type="number" inputMode="numeric" min={1} value={kisten}
+                       disabled={gesperrt} onChange={e => setKisten(e.target.value)} />
+              </div>
+              <div className="feld" style={{ flex: 1 }}>
+                <label htmlFor="aus-art">{t('kistenart')}</label>
+                <select id="aus-art" value={gart} disabled={gesperrt}
+                        onChange={e => setGart(e.target.value)}>
+                  {gebinde.map(g => <option key={g.art} value={g.art}>{g.art}</option>)}
+                </select>
+              </div>
+            </div>
+            {netto !== null && (
+              <p style={{ fontSize: '1.15rem', margin: '0 0 .75rem' }}>
+                <strong>{netto} kg</strong> {t('netto')}
+              </p>
+            )}
+            <button className="haupt" style={{ width: '100%', minHeight: 54 }}
+                    onClick={speichern} disabled={gesperrt || netto === null || n < 1}>
+              {t('eintragen')}
+            </button>
+          </>
+        ) : (
+          <>
+            <div className="reihe" style={{ alignItems: 'flex-end' }}>
+              <div className="feld" style={{ flex: 1, marginBottom: 0 }}>
+                <label htmlFor="aus-schaetz">{t('kilo')}</label>
+                <input id="aus-schaetz" type="number" inputMode="numeric" min={0} step={1}
+                       value={schaetzung} disabled={gesperrt}
+                       onChange={e => setSchaetzung(e.target.value)} style={{ fontSize: '1.2rem' }} />
+              </div>
+              <button className="haupt" style={{ minHeight: 54 }} onClick={speichern}
+                      disabled={gesperrt || schaetzung === ''}>{t('eintragen')}</button>
+            </div>
+            <p className="leise" style={{ marginTop: '.4rem' }}>{t('ausschussSchaetzenHinweis')}</p>
+          </>
+        )}
+        {fehler && <Hinweis art="warnung">{fehler}</Hinweis>}
+
+        {zeilen.length > 0 && (
+          <>
+            <p style={{ marginTop: '1rem' }}><strong>{t('bisher')}: {summe} kg</strong></p>
+            <table>
+              <tbody>
+                {zeilen.map(z => (
+                  <tr key={z.id}>
+                    <td>{new Date(z.ts).toLocaleTimeString(gebietsschema,
+                          { hour: '2-digit', minute: '2-digit' })}</td>
+                    <td className="zahl">{z.kg} kg</td>
+                    <td>{z.brutto_kg === null ? t('geschaetzt') : t('gewogen')}</td>
+                    <td style={{ textAlign: 'right' }}>
+                      <button className="gefahr klein" disabled={gesperrt}
+                              onClick={async () => {
+                                const { error } = await supabase.from('ausschuss_messung')
+                                  .delete().eq('id', z.id)
+                                if (error) setFehler(fehlerText(error)); else void laden()
+                              }}>✕</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </>
+        )}
+      </Karte>
     </>
   )
 }

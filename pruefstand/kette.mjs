@@ -212,13 +212,18 @@ await schritt('Palox: Waage zeigt 165 (Tara 45 → 120 kg)', async () => {
   await warteAuf('schimmel_messung')
 })
 
-await schritt('Zu klein 30 kg, zu gross 15 kg', async () => {
+await schritt('Zu klein wiegen (Brutto 100, 4 Kisten G2 → netto), zu gross schätzen 15 kg', async () => {
   await seite.getByRole('link', { name: 'Klein / gross' }).click()
-  await seite.locator('#kg-ausschuss_messung').fill('30')
+  // Wiegen: Brutto und Kisten, das Netto rechnet die Datenbank.
+  await seite.locator('#aus-brutto').fill('100')
+  await seite.locator('#aus-kisten').fill('4')
+  await seite.locator('#aus-art').selectOption('G2')
   await seite.getByRole('button', { name: 'Eintragen' }).click()
   await warteAuf('ausschuss_messung', 'POST', 1)
+  // Zu gross: Schätzung, wenn nicht gewogen werden kann.
   await seite.getByRole('button', { name: 'Zu gross' }).click()
-  await seite.locator('#kg-ausschuss_messung').fill('15')
+  await seite.getByRole('button', { name: 'Schätzen', exact: true }).click()
+  await seite.locator('#aus-schaetz').fill('15')
   await seite.getByRole('button', { name: 'Eintragen' }).click()
   await warteAuf('ausschuss_messung', 'POST', 2)
 })

@@ -110,9 +110,15 @@ begin
   assert (select eingang_netto_kg from v_auftrag_masse where auftrag_id = a) = 3 * 865,
     'Die Bezugsmasse der drei Paletten stimmt nicht (3 × 865)';
 
-  -- Zu klein und zu gross
+  -- Zu klein wurde gewogen (Brutto 100, 4 Kisten G2: 100 − 4·1.5 − 25 = 69),
+  -- zu gross geschätzt (15). Das Netto rechnet der Auslöser.
   select klein_kg, gross_kg into v, v_txt from v_ausschuss_beobachtung where auftrag_id = a;
-  assert v = 30 and v_txt::numeric = 15, format('Ausschuss erwartet 30/15, ist %s/%s', v, v_txt);
+  assert v = 69 and v_txt::numeric = 15, format('Ausschuss erwartet 69/15, ist %s/%s', v, v_txt);
+  -- Gewogen hat ein Brutto, geschätzt nicht; beide zählen als Messwert.
+  assert (select brutto_kg from ausschuss_messung where auftrag_id = a and art = 'zu_klein') = 100,
+    'Der gewogene Ausschuss muss sein Brutto behalten';
+  assert (select brutto_kg from ausschuss_messung where auftrag_id = a and art = 'zu_gross') is null,
+    'Der geschätzte Ausschuss hat kein Brutto';
   assert (select mittel from v_koeff_ausschuss where sorte = 'Tiana') > 0,
     'Der Ausschuss-Koeffizient ist nicht beziffert';
 

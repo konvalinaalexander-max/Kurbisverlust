@@ -1521,6 +1521,47 @@ end $$;
 
 select '——— AB-01 Sortierart geprüft ———' as ergebnis;
 
+-- =========================================================================
+-- AB-03: Ausschuss wird gewogen (Brutto, Kisten, Gebinde), das Netto rechnet
+-- der Auslöser. Die Schätzung bleibt möglich und zählt weiter. Ändert sich
+-- eine Tara nachträglich, meldet es v_ausschuss_pruef.
+-- =========================================================================
+do $$
+declare v_a bigint; v_kg int; v_gem boolean; v_n int;
+begin
+  perform set_config('request.jwt.claim.sub','11111111-1111-1111-1111-111111111111', true);
+  insert into auftrag (weg, station, charge_nr, start_ts, eroeffnet_von)
+    select 'hand', 'waschen_sortieren', c.nr, now(), '11111111-1111-1111-1111-111111111111'
+      from charge c limit 1
+    returning id into v_a;
+
+  -- Gewogen: Brutto 100, 4 Kisten G2 (1.5 + Palette 25) → 100 − 6 − 25 = 69.
+  insert into ausschuss_messung (auftrag_id, art, brutto_kg, kisten, gebindeart)
+    values (v_a, 'zu_klein', 100, 4, 'G2') returning kg, gemessen into v_kg, v_gem;
+  assert v_kg = 69, format('Gewogenes Netto erwartet 69, ist %s', v_kg);
+  assert v_gem, 'Gewogener Ausschuss ist gemessen';
+
+  -- Geschätzt: kg direkt, kein Brutto — zählt trotzdem.
+  insert into ausschuss_messung (auftrag_id, art, kg) values (v_a, 'zu_gross', 15);
+  assert (select kg from ausschuss_messung where auftrag_id = v_a and art = 'zu_gross') = 15,
+    'Die Schätzung muss stehen bleiben';
+  assert (select count(*) from ausschuss_messung where auftrag_id = v_a and gemessen) = 2,
+    'Beide, gewogen und geschätzt, zählen als Messwert';
+
+  -- Tara nachträglich ändern → das alte Netto passt nicht mehr, v_ausschuss_pruef meldet.
+  update gebinde set tara_kg_pro_kiste = 2.0 where art = 'G2';
+  select count(*) into v_n from v_ausschuss_pruef where auftrag_id = v_a;
+  assert v_n = 1, format('Nach Tara-Änderung muss genau ein Prüf-Befund stehen, sind %s', v_n);
+  update gebinde set tara_kg_pro_kiste = 1.5 where art = 'G2';
+
+  delete from auftrag where id = v_a;
+  perform auswertung_aktualisieren();
+  raise notice 'OK  AB-03 Ausschuss wiegen (Netto abgeleitet, Schätzung zählt, Tara-Prüfung)';
+end $$;
+
+select '——— AB-03 Ausschuss geprüft ———' as ergebnis;
+
+
 select '——— Suchpfad geprüft ———' as ergebnis;
 
 select '——— Fachlogik geprüft ———' as ergebnis;
