@@ -33,6 +33,7 @@ export default function Kontrolle() {
   const [kisten, setKisten] = useState('')
   const [art, setArt] = useState('')
   const [faul, setFaul] = useState('')
+  const [auswahl, setAuswahl] = useState('erreichbar_zufaellig')
   const [fehler, setFehler] = useState<string | null>(null)
   const [laeuft, setLaeuft] = useState(false)
   const [gespeichert, setGespeichert] = useState(0)
@@ -60,11 +61,13 @@ export default function Kontrolle() {
       gebindeart: art,
       faul_kg: Number(faul),
       sichtbar_schimmel: Number(faul) > 0,
+      auswahl,
     })
     setLaeuft(false)
     if (error) { setFehler(fehlerText(error)); return }
     // Maske leeren für die nächste Palette; die Zählung zeigt, dass es ankam.
     setChargeNr(''); setDatum(''); setDamals(''); setJetzt(''); setKisten(''); setFaul('')
+    setAuswahl('erreichbar_zufaellig')
     setGespeichert(g => g + 1)
   }
 
@@ -121,6 +124,14 @@ export default function Kontrolle() {
           <input id="k-faul" type="number" inputMode="decimal" step="0.5" min={0}
                  value={faul} onChange={e => setFaul(e.target.value)}
                  style={{ fontSize: '1.2rem' }} />
+        </div>
+        <div className="feld">
+          <label htmlFor="k-auswahl">{t('wieGegriffen')}</label>
+          <select id="k-auswahl" value={auswahl} onChange={e => setAuswahl(e.target.value)}>
+            <option value="erreichbar_zufaellig">{t('auswahlErreichbar')}</option>
+            <option value="mitte_unten">{t('auswahlMitteUnten')}</option>
+            <option value="gezielt">{t('auswahlGezielt')}</option>
+          </select>
         </div>
 
         {netto !== null && netto > 0 && (

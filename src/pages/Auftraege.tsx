@@ -41,7 +41,7 @@ export default function Auftraege() {
   if (laedt) return <Lade />
 
   function Zeile({ auftrag }: { auftrag: Auftrag }) {
-    const taet = taetigkeitVon(auftrag.weg, auftrag.station)
+    const taet = taetigkeitVon(auftrag.weg, auftrag.station, auftrag.ist_fax)
     const zeit = new Date(auftrag.start_ts)
       .toLocaleString(gebietsschema, { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
     return (
@@ -185,6 +185,7 @@ function NeuerAuftrag({ chargen, fertig, abbrechen }: {
     // Sortierschema hält die Datenbank beim Anlegen fest (Auslöser).
     const { data, error } = await supabase.from('auftrag')
       .insert({ weg: gewaehlt.weg, station: gewaehlt.station, charge_nr: chargeNr,
+                ist_fax: gewaehlt.fax ?? false,
                 kaeufer: fragtKaeufer ? code : null,
                 kaliber_idx: fragtKaliber && kaliberIdx !== '' ? kaliberIdx : null,
                 // Die Fassung wird gewählt, nicht geraten. Ist keine da, setzt
@@ -220,11 +221,27 @@ function NeuerAuftrag({ chargen, fertig, abbrechen }: {
       {taetigkeit && (
         <div className="feld">
           <label htmlFor="charge">{t('charge')}</label>
-          <select id="charge" value={chargeNr} style={{ fontSize: '1.05rem' }}
-                  onChange={e => setChargeNr(e.target.value === '' ? '' : Number(e.target.value))}>
-            <option value="">— {t('waehlen')} —</option>
+          {/* AB-06: eintippen statt aus einer Liste wählen — geht schneller.
+              Die bekannten Chargen stehen als Vorschlag dahinter; getippt wird
+              die Nummer. Eine unbekannte Nummer wird sichtbar gemeldet, nicht
+              still angelegt. */}
+          <input id="charge" type="number" inputMode="numeric" list="chargenliste"
+                 value={chargeNr} style={{ fontSize: '1.2rem' }}
+                 placeholder={t('chargeTippen')}
+                 onChange={e => setChargeNr(e.target.value === '' ? '' : Number(e.target.value))} />
+          <datalist id="chargenliste">
             {chargen.map(c => <option key={c.nr} value={c.nr}>{chargeText(c)}</option>)}
-          </select>
+          </datalist>
+          {chargeNr !== '' && !chargen.some(c => c.nr === chargeNr) && (
+            <p className="leise" style={{ marginTop: '.3rem', marginBottom: 0, color: 'var(--rot)' }}>
+              {t('chargeUnbekannt')}
+            </p>
+          )}
+          {chargeNr !== '' && chargen.some(c => c.nr === chargeNr) && (
+            <p className="leise" style={{ marginTop: '.3rem', marginBottom: 0 }}>
+              {chargeText(chargen.find(c => c.nr === chargeNr))}
+            </p>
+          )}
         </div>
       )}
 
@@ -296,6 +313,7 @@ function NeuerAuftrag({ chargen, fertig, abbrechen }: {
         <button className="haupt" style={{ flex: 1, minHeight: 54 }}
                 onClick={anlegen}
                 disabled={laeuft || !taetigkeit || chargeNr === ''
+                          || !chargen.some(c => c.nr === chargeNr)
                           || (fragtArt && art === null)}>
           {t('starten')}
         </button>

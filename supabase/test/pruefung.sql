@@ -1561,6 +1561,66 @@ end $$;
 
 select '——— AB-03 Ausschuss geprüft ———' as ergebnis;
 
+-- =========================================================================
+-- AB-07/08/09: Erfassungsbeginn (Vorlauf senkt die Lücke), Fax als eigener
+-- Auftragstyp, und die Auswahlart der Lagerkontrolle.
+-- =========================================================================
+do $$
+declare v_luecke1 numeric; v_luecke2 numeric; v_vorlauf numeric; v_ausgang1 numeric; v_ausgang2 numeric;
+        v_charge int; v_a bigint; v_fehler boolean;
+begin
+  perform set_config('request.jwt.claim.sub','11111111-1111-1111-1111-111111111111', true);
+  select charge_nr into v_charge from v_hochrechnung_basis
+   where eingang_kg > 0 order by eingang_kg desc limit 1;
+
+  -- AB-07: Vorlauf zum Ausgang, Lücke sinkt um denselben Betrag.
+  select luecke_kg, ausgang_kg into v_luecke1, v_ausgang1 from v_saisonbilanz;
+  insert into charge_vorlauf (charge_nr, ausgang_vor_app_kg) values (v_charge, 1000)
+    on conflict (charge_nr) do update set ausgang_vor_app_kg = 1000;
+  select luecke_kg, ausgang_kg, vorlauf_kg into v_luecke2, v_ausgang2, v_vorlauf from v_saisonbilanz;
+  assert v_vorlauf = 1000, format('Vorlauf erwartet 1000, ist %s', v_vorlauf);
+  assert abs((v_ausgang2 - v_ausgang1) - 1000) < 1,
+    format('Der Vorlauf muss den Ausgang um 1000 heben (%s → %s)', v_ausgang1, v_ausgang2);
+  assert abs((v_luecke1 - v_luecke2) - 1000) < 1,
+    format('Der Vorlauf muss die Lücke um 1000 senken (%s → %s)', v_luecke1, v_luecke2);
+  delete from charge_vorlauf where charge_nr = v_charge;
+
+  -- AB-08: Fax ist eine eigene Arbeit, fachlich ein Waschgang.
+  insert into auftrag (weg, station, charge_nr, start_ts, eroeffnet_von, ist_fax)
+    values ('maschine', 'waschen', v_charge, now(),
+            '11111111-1111-1111-1111-111111111111', true)
+    returning id into v_a;
+  assert (select ist_fax from auftrag where id = v_a),
+    'Die Fax-Markierung muss gespeichert sein';
+  assert (select station from auftrag where id = v_a) = 'waschen',
+    'Fax bleibt fachlich ein Waschgang';
+  delete from auftrag where id = v_a;
+
+  -- AB-09: Die Auswahlart der Lagerkontrolle wird gehalten, Unsinn abgelehnt.
+  insert into verdunstung_wiegung (charge_nr, eingangsdatum, brutto_damals_kg,
+                                   brutto_jetzt_kg, kisten, gebindeart, faul_kg,
+                                   sichtbar_schimmel, auswahl)
+    values (v_charge, current_date - 60, 900, 850, 40, 'G2', 3, true, 'mitte_unten')
+    returning id into v_a;
+  assert (select auswahl from verdunstung_wiegung where id = v_a) = 'mitte_unten',
+    'Die Auswahlart muss gespeichert sein';
+  delete from verdunstung_wiegung where id = v_a;
+  v_fehler := false;
+  begin
+    insert into verdunstung_wiegung (charge_nr, eingangsdatum, brutto_damals_kg,
+                                     brutto_jetzt_kg, kisten, gebindeart, auswahl)
+      values (v_charge, current_date - 60, 900, 850, 40, 'G2', 'unsinn');
+  exception when check_violation then v_fehler := true;
+  end;
+  assert v_fehler, 'Eine unbekannte Auswahlart muss abgelehnt werden';
+
+  perform auswertung_aktualisieren();
+  raise notice 'OK  AB-07/08/09 (Vorlauf senkt Lücke, Fax markiert, Auswahlart gehalten)';
+end $$;
+
+select '——— AB-07/08/09 geprüft ———' as ergebnis;
+
+
 
 select '——— Suchpfad geprüft ———' as ergebnis;
 

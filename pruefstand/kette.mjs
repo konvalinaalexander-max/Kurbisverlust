@@ -168,7 +168,7 @@ let auftragId = null
 await schritt('Neue Arbeit: Waschen + Sortieren, Charge 1613, neuer Käufer Coop', async () => {
   await seite.getByRole('button', { name: /Neue Arbeit/ }).click()
   await seite.getByRole('button', { name: 'Waschen + Sortieren' }).click()
-  await seite.locator('#charge').selectOption('1613')
+  await seite.locator('#charge').fill('1613')
   await seite.locator('#kaeufer').selectOption('__neu__')
   await seite.getByPlaceholder('Name des Käufers').fill('Coop')
   // AB-01: Waschen + Sortieren fragt jetzt, wie sortiert wird.

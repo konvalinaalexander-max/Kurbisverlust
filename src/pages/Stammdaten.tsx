@@ -9,7 +9,7 @@ import type { Charge, Gebinde, Kaeufer, Profil, Sortierschema } from '../lib/typ
 
 export default function Stammdaten() {
   const [teil, setTeil] = useState<'gebinde' | 'paletten' | 'chargen' | 'kaliber'
-    | 'abgebrochen' | 'benutzer' | 'einstellungen' | 'demo'>('gebinde')
+    | 'abgebrochen' | 'benutzer' | 'einstellungen' | 'vorlauf' | 'demo'>('gebinde')
   const teile: [typeof teil, string][] = [
     ['gebinde', 'Gebinde & Tara'],
     ['paletten', 'Paletten-Import'],
@@ -18,6 +18,7 @@ export default function Stammdaten() {
     ['abgebrochen', 'Abgebrochene Arbeiten'],
     ['benutzer', 'Benutzer'],
     ['einstellungen', 'Einstellungen'],
+    ['vorlauf', 'Erfassungsbeginn'],
     ['demo', 'Demo-Daten'],
   ]
   return (
@@ -36,6 +37,7 @@ export default function Stammdaten() {
       {teil === 'abgebrochen' && <Abgebrochene />}
       {teil === 'benutzer' && <Benutzer />}
       {teil === 'einstellungen' && <Einstellungen />}
+      {teil === 'vorlauf' && <Vorlauf />}
       {teil === 'demo' && <DemoDaten />}
     </>
   )
@@ -708,6 +710,92 @@ function Einstellungen() {
           </div>
         </div>
       ))}
+    </Karte>
+  )
+}
+
+
+/* ------------------------------------------------------------------ */
+/* Erfassungsbeginn: was vor der App schon rausging (AB-07)            */
+/* ------------------------------------------------------------------ */
+function Vorlauf() {
+  const [chargen, setChargen] = useState<Charge[]>([])
+  const [beginn, setBeginn] = useState('')
+  const [werte, setWerte] = useState<Record<number, string>>({})
+  const [fehler, setFehler] = useState<string | null>(null)
+  const [gespeichert, setGespeichert] = useState<number | 'beginn' | null>(null)
+
+  const laden = useCallback(async () => {
+    const [s, b, v] = await Promise.all([
+      stammdaten(),
+      einstellung<string | null>('erfassungsbeginn', null),
+      supabase.from('charge_vorlauf').select('charge_nr, ausgang_vor_app_kg'),
+    ])
+    setChargen(s.chargen)
+    setBeginn(b ?? '')
+    const map: Record<number, string> = {}
+    for (const r of (v.data ?? []) as { charge_nr: number; ausgang_vor_app_kg: number }[]) {
+      map[r.charge_nr] = String(r.ausgang_vor_app_kg)
+    }
+    setWerte(map)
+  }, [])
+  useEffect(() => { void laden() }, [laden])
+
+  async function beginnSpeichern() {
+    const { error } = await supabase.from('einstellung')
+      .update({ wert: beginn || null }).eq('schluessel', 'erfassungsbeginn')
+    if (error) setFehler(fehlerText(error))
+    else { setGespeichert('beginn'); setTimeout(() => setGespeichert(null), 2000) }
+  }
+
+  async function vorlaufSpeichern(nr: number) {
+    const kg = werte[nr]
+    if (kg === undefined || kg === '') {
+      await supabase.from('charge_vorlauf').delete().eq('charge_nr', nr)
+    } else {
+      const { error } = await supabase.from('charge_vorlauf')
+        .upsert({ charge_nr: nr, ausgang_vor_app_kg: Number(kg) }, { onConflict: 'charge_nr' })
+      if (error) { setFehler(fehlerText(error)); return }
+    }
+    setGespeichert(nr); setTimeout(() => setGespeichert(null), 2000)
+  }
+
+  return (
+    <Karte titel="Erfassungsbeginn">
+      <p className="leise" style={{ marginTop: 0 }}>
+        Die Saison lief schon, als die App kam. Trage ein, ab wann die App
+        mitzählt und wie viel je Charge davor schon ausgeliefert war — sonst
+        weist die Bilanz den späten Start als fehlende Masse aus.
+      </p>
+      <div className="reihe" style={{ alignItems: 'flex-end', marginBottom: '1rem' }}>
+        <div className="feld" style={{ flex: 1, marginBottom: 0 }}>
+          <label htmlFor="v-beginn">Erfassungsbeginn</label>
+          <input id="v-beginn" type="date" value={beginn}
+                 onChange={e => setBeginn(e.target.value)} />
+        </div>
+        <button className="haupt" onClick={beginnSpeichern}>Speichern</button>
+        {gespeichert === 'beginn' && <Marke art="fertig">gespeichert</Marke>}
+      </div>
+      {fehler && <Hinweis art="warnung">{fehler}</Hinweis>}
+      <table>
+        <thead><tr><th>Charge</th><th>Vorher ausgeliefert (kg)</th><th></th></tr></thead>
+        <tbody>
+          {chargen.map(c => (
+            <tr key={c.nr}>
+              <td>{c.nr} · {c.sorte}</td>
+              <td>
+                <input type="number" inputMode="decimal" min={0} style={{ width: '8rem' }}
+                       value={werte[c.nr] ?? ''}
+                       onChange={e => setWerte(w => ({ ...w, [c.nr]: e.target.value }))} />
+              </td>
+              <td style={{ textAlign: 'right' }}>
+                <button className="klein" onClick={() => void vorlaufSpeichern(c.nr)}>Speichern</button>
+                {gespeichert === c.nr && <Marke art="fertig">ok</Marke>}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </Karte>
   )
 }

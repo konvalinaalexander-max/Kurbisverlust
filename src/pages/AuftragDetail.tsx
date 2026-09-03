@@ -66,7 +66,7 @@ export default function AuftragDetail() {
   if (fehler) return <Hinweis art="warnung">{fehler}</Hinweis>
   if (!auftrag) return <Hinweis art="warnung">{t('fehler')}</Hinweis>
 
-  const taet = taetigkeitVon(auftrag.weg, auftrag.station)
+  const taet = taetigkeitVon(auftrag.weg, auftrag.station, auftrag.ist_fax)
   const binDabei = teilnehmer.some(x => x.profil_id === session?.user.id)
   const gesperrt = auftrag.status === 'abgeschlossen'
   async function angabeSetzen(schluessel: string, wert: string) {
