@@ -56,11 +56,14 @@ test('jede Sprache hat ein Zahlen-/Datumsformat', () => {
   }
 })
 
-test('die drei Tätigkeiten decken alle Weg-Station-Paare ab', () => {
-  assert.equal(TAETIGKEITEN.length, 3)
+test('die Tätigkeiten decken alle Weg-Station-Paare ab (Fax teilt sich Waschen)', () => {
+  assert.equal(TAETIGKEITEN.length, 4)
   assert.equal(taetigkeitVon('maschine', 'sortieren')?.id, 'sortieren')
   assert.equal(taetigkeitVon('maschine', 'waschen')?.id, 'waschen')
   assert.equal(taetigkeitVon('hand', 'waschen_sortieren')?.id, 'waschen_sortieren')
+  // Fax teilt Weg und Station mit dem Waschgang; die Markierung entscheidet.
+  assert.equal(taetigkeitVon('maschine', 'waschen', true)?.id, 'fax')
+  assert.equal(taetigkeitVon('maschine', 'waschen', false)?.id, 'waschen')
 })
 
 test('jede Tätigkeit hat einen übersetzten Namen in allen Sprachen', () => {
