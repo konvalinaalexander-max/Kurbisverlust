@@ -404,8 +404,11 @@ select auswertung_aktualisieren() \gset stand_
 -- =====================================================================
 -- Fertige Palette: wie viel Kürbis liegt wirklich in einer Kiste? (0013)
 -- =====================================================================
-insert into auftrag (id, weg, station, charge_nr, start_ts)
-values (970, 'hand', 'waschen_sortieren', 1613, timestamptz '2026-11-17 08:00+01');
+-- Diese Arbeit läuft als „Kiste ab 8 kg" (Soll 8) — nur dann gibt es
+-- überhaupt eine Überfüllung. Die Standard-Kisten-Fassung der Sorte trägt 8 kg.
+insert into auftrag (id, weg, station, charge_nr, start_ts, sortierschema_id)
+values (970, 'hand', 'waschen_sortieren', 1613, timestamptz '2026-11-17 08:00+01',
+        sortierschema_fuer((select sorte from charge where nr = 1613), null, current_date, 'kiste'));
 
 -- Dein Rechenbeispiel: 32 Kisten G2 (je 1.5 kg), Palette 25 kg.
 -- Soll wäre 32 × 8 = 256 kg Kürbis → Brutto 25 + 48 + 256 = 329 kg.
@@ -1217,7 +1220,7 @@ begin
   -- Kisten-Fassung: das Stückgewicht spielt keine Rolle
   insert into sortierschema (sorte, kaeufer, gilt_ab, art, soll_kg_pro_kiste)
   values ('Tiana', 'coop', date '2027-01-01', 'kiste', 8.0);
-  assert (select klasse from klassiere(sortierschema_fuer('Tiana', 'coop', date '2027-01-05'), 300))
+  assert (select klasse from klassiere(sortierschema_fuer('Tiana', 'coop', date '2027-01-05', 'kiste'), 300))
          = 'kaliber', 'In einer Kisten-Fassung ist alles Hauptkanal';
 
   -- Aufräumen: die Fixtur der übrigen Prüfungen bleibt, wie sie war
@@ -1445,6 +1448,78 @@ begin
   perform set_config('search_path', 'public', true);
   raise notice 'OK  Suchpfad (Funktionen und Kaskade rechnen auch mit leerem search_path)';
 end $$;
+
+-- =========================================================================
+-- AB-01: Wie sortiert wird, wählt die Arbeit beim Eröffnen — nicht die
+-- Stammdaten. Beide Arten dürfen für dieselbe Sorte nebeneinander stehen,
+-- die CSV wird nach der gewählten Art klassiert, und nach Kaliber gibt es
+-- keine Überfüllung.
+-- =========================================================================
+do $$
+declare v_sorte text; v_kaeufer text := 'ab01kaeufer';
+        v_a_kiste bigint; v_a_kaliber bigint;
+        v_s_kiste bigint; v_s_kaliber bigint;
+        v_lauf bigint; v_klein int; v_kaliber int;
+begin
+  perform set_config('request.jwt.claim.sub','11111111-1111-1111-1111-111111111111', true);
+  select sorte into v_sorte from sorte_kaliber limit 1;
+
+  -- Beide Fassungen nebeneinander: früher verbot das der Eindeutigkeits-Index.
+  insert into kaeufer (code, name) values (v_kaeufer, 'AB01') on conflict do nothing;
+  insert into sortierschema (sorte, kaeufer, gilt_ab, art, soll_kg_pro_kiste, bemerkung)
+    values (v_sorte, v_kaeufer, current_date - 1, 'kiste', 9, 'PRUEFUNG')
+    returning id into v_s_kiste;
+  insert into sortierschema (sorte, kaeufer, gilt_ab, art, verlust_unter,
+                             kaliber_baender, kanal_ab, bemerkung)
+    values (v_sorte, v_kaeufer, current_date - 1, 'kaliber', 700,
+            '[[700,1100],[1100,1600]]'::jsonb, 1600, 'PRUEFUNG')
+    returning id into v_s_kaliber;
+
+  assert sortierschema_fuer(v_sorte, v_kaeufer, current_date, 'kiste') = v_s_kiste,
+    'Die Kisten-Fassung muss für die Art kiste gewählt werden';
+  assert sortierschema_fuer(v_sorte, v_kaeufer, current_date, 'kaliber') = v_s_kaliber,
+    'Die Kaliber-Fassung muss für die Art kaliber gewählt werden';
+
+  -- Eine Sortierarbeit mit der Kaliber-Fassung. 600 g < 700 → zu klein.
+  insert into auftrag (weg, station, charge_nr, start_ts, kaeufer, sortierschema_id)
+    select 'maschine', 'sortieren', c.nr, now(), v_kaeufer, v_s_kaliber
+      from charge c where c.sorte = v_sorte limit 1
+    returning id into v_a_kaliber;
+  select csv_lauf_speichern((select charge_nr from auftrag where id = v_a_kaliber),
+         'AB01-KALIBER.csv', null, 'ab01-kaliber', null, null,
+         '{"overflow_ab":60000,"min_gramm":100,"dubletten_zusammenfassen":false}'::jsonb,
+         100, 0, 0, 0, '[[600,100],[900,100]]'::jsonb) into v_lauf;
+  perform auftrag_manuell_zuordnen(v_lauf, v_a_kaliber);
+  select sum(anzahl) into v_klein from sortier_gewicht
+   where lauf_id = v_lauf and klasse = 'verlust_klein';
+  assert v_klein = 100, format('Kaliber-Fassung: 600 g sind zu klein — %s statt 100', v_klein);
+
+  -- Dieselbe Charge, dieselbe CSV, aber als Kiste eröffnet: kein zu klein.
+  insert into auftrag (weg, station, charge_nr, start_ts, kaeufer, sortierschema_id)
+    select 'maschine', 'sortieren', c.nr, now(), v_kaeufer, v_s_kiste
+      from charge c where c.sorte = v_sorte limit 1
+    returning id into v_a_kiste;
+  select csv_lauf_speichern((select charge_nr from auftrag where id = v_a_kiste),
+         'AB01-KISTE.csv', null, 'ab01-kiste', null, null,
+         '{"overflow_ab":60000,"min_gramm":100,"dubletten_zusammenfassen":false}'::jsonb,
+         100, 0, 0, 0, '[[600,100],[900,100]]'::jsonb) into v_lauf;
+  perform auftrag_manuell_zuordnen(v_lauf, v_a_kiste);
+  select coalesce(sum(anzahl), 0) into v_klein from sortier_gewicht
+   where lauf_id = v_lauf and klasse = 'verlust_klein';
+  select sum(anzahl) into v_kaliber from sortier_gewicht
+   where lauf_id = v_lauf and klasse = 'kaliber';
+  assert v_klein = 0, format('Kisten-Fassung: nichts ist zu klein — %s als zu klein', v_klein);
+  assert v_kaliber = 200, format('Kisten-Fassung: alles ist Hauptkanal — %s statt 200', v_kaliber);
+
+  delete from sortier_lauf where roh_pruefsumme in ('ab01-kaliber', 'ab01-kiste');
+  delete from auftrag where id in (v_a_kiste, v_a_kaliber);
+  delete from sortierschema where bemerkung = 'PRUEFUNG';
+  delete from kaeufer where code = v_kaeufer;
+  perform auswertung_aktualisieren();
+  raise notice 'OK  AB-01 Sortierart je Arbeit (beide Fassungen, CSV folgt der Wahl, Kaliber ohne Überfüllung)';
+end $$;
+
+select '——— AB-01 Sortierart geprüft ———' as ergebnis;
 
 select '——— Suchpfad geprüft ———' as ergebnis;
 

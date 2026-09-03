@@ -114,6 +114,7 @@ function NeuerAuftrag({ chargen, fertig, abbrechen }: {
   const [neuerKaeufer, setNeuerKaeufer] = useState('')
   const [schemata, setSchemata] = useState<Sortierschema[]>([])
   const [kaliberIdx, setKaliberIdx] = useState<number | ''>('')
+  const [art, setArt] = useState<'kaliber' | 'kiste' | null>(null)
   const [fehler, setFehler] = useState<string | null>(null)
   const [laeuft, setLaeuft] = useState(false)
 
@@ -138,8 +139,32 @@ function NeuerAuftrag({ chargen, fertig, abbrechen }: {
   // wirklich sortiert wurde, hält die Datenbank beim Anlegen fest.
   const fragtKaliber = gewaehlt?.station === 'waschen'
   const sorte = chargen.find(c => c.nr === chargeNr)?.sorte
-  const baender = schemata.find(x => x.sorte === sorte && x.art === 'kaliber'
-                                     && x.kaliber_baender !== null)?.kaliber_baender ?? []
+
+  // Wie sortiert wird, entscheidet die Arbeit, nicht die Stammdaten: Auf der
+  // Hand-Linie kommt die Ware aus der Trommel aufs Band, und die Arbeiter
+  // sortieren nach der Regel, die hier festgelegt wird. An der Sortiermaschine
+  // gilt die hinterlegte Fassung — bestätigt wird sie trotzdem, damit niemand
+  // eine Woche lang nach Regeln erfasst, die an dem Tag nicht galten.
+  const fragtArt = gewaehlt?.station === 'sortieren'
+                || gewaehlt?.station === 'waschen_sortieren'
+
+  // Die Fassung, die für Sorte, Käufer und Art heute gilt: die des Käufers,
+  // sonst der Standard. Dieselbe Reihenfolge wie sortierschema_fuer() in der
+  // Datenbank — hier nur, damit der Arbeiter sieht, was er bestätigt.
+  const heute = new Date().toISOString().slice(0, 10)
+  function fassung(fuerArt: 'kaliber' | 'kiste'): Sortierschema | undefined {
+    const passend = schemata.filter(x => x.sorte === sorte && x.art === fuerArt
+                                         && x.gilt_ab <= heute)
+    return passend.find(x => x.kaeufer === (kaeuferCode || null))
+        ?? passend.find(x => x.kaeufer === null)
+        ?? schemata.find(x => x.sorte === sorte && x.art === fuerArt)
+  }
+  const fassungKaliber = fassung('kaliber')
+  const fassungKiste = fassung('kiste')
+  const gewaehlteFassung = art === null ? undefined
+                         : art === 'kiste' ? fassungKiste : fassungKaliber
+
+  const baender = fassungKaliber?.kaliber_baender ?? []
 
   async function anlegen() {
     if (!gewaehlt || chargeNr === '') return
@@ -161,7 +186,10 @@ function NeuerAuftrag({ chargen, fertig, abbrechen }: {
     const { data, error } = await supabase.from('auftrag')
       .insert({ weg: gewaehlt.weg, station: gewaehlt.station, charge_nr: chargeNr,
                 kaeufer: fragtKaeufer ? code : null,
-                kaliber_idx: fragtKaliber && kaliberIdx !== '' ? kaliberIdx : null })
+                kaliber_idx: fragtKaliber && kaliberIdx !== '' ? kaliberIdx : null,
+                // Die Fassung wird gewählt, nicht geraten. Ist keine da, setzt
+                // sie der Auslöser in der Datenbank wie bisher.
+                sortierschema_id: fragtArt ? (gewaehlteFassung?.id ?? null) : null })
       .select('id').single()
     if (error) { setLaeuft(false); setFehler(fehlerText(error)); return }
 
@@ -204,7 +232,7 @@ function NeuerAuftrag({ chargen, fertig, abbrechen }: {
         <div className="feld">
           <label htmlFor="kaeufer">{t('kaeufer')}</label>
           <select id="kaeufer" value={kaeuferCode} style={{ fontSize: '1.05rem' }}
-                  onChange={e => setKaeuferCode(e.target.value)}>
+                  onChange={e => { setKaeuferCode(e.target.value); setArt(null) }}>
             <option value="">— {t('ohneKaeufer')} —</option>
             {kaeufer.map(k => <option key={k.code} value={k.code}>{k.name}</option>)}
             <option value="__neu__">{t('kaeuferNeu')}</option>
@@ -212,6 +240,37 @@ function NeuerAuftrag({ chargen, fertig, abbrechen }: {
           {kaeuferCode === '__neu__' && (
             <input style={{ marginTop: '.5rem' }} placeholder={t('kaeuferName')}
                    value={neuerKaeufer} onChange={e => setNeuerKaeufer(e.target.value)} />
+          )}
+        </div>
+      )}
+
+      {taetigkeit && chargeNr !== '' && fragtArt && (
+        <div className="feld">
+          <label>{t('wieSortiert')}</label>
+          <div style={{ display: 'grid', gap: '.5rem' }}>
+            <button type="button" className={art === 'kiste' ? 'haupt' : ''}
+                    style={{ minHeight: 58, justifyContent: 'flex-start', textAlign: 'left' }}
+                    onClick={() => setArt('kiste')}>
+              {t('artKiste')}
+              {fassungKiste?.soll_kg_pro_kiste != null &&
+                <span className="leise"> · {fassungKiste.soll_kg_pro_kiste} kg {t('jeKiste')}</span>}
+            </button>
+            <button type="button" className={art === 'kaliber' ? 'haupt' : ''}
+                    style={{ minHeight: 58, justifyContent: 'flex-start', textAlign: 'left' }}
+                    onClick={() => setArt('kaliber')}>
+              {t('artKaliber')}
+              {baender.length > 0 &&
+                <span className="leise"> · {baender.length} {t('baender')}</span>}
+            </button>
+          </div>
+          {gewaehlteFassung && (
+            <p className="leise" style={{ marginTop: '.4rem', marginBottom: 0 }}>
+              {t('fassungVom')} {gewaehlteFassung.gilt_ab}
+              {gewaehlteFassung.kaeufer === null && ` (${t('standard')})`}
+            </p>
+          )}
+          {art !== null && !gewaehlteFassung && (
+            <Hinweis art="warnung">{t('keineFassung')}</Hinweis>
           )}
         </div>
       )}
@@ -235,7 +294,9 @@ function NeuerAuftrag({ chargen, fertig, abbrechen }: {
       {fehler && <Hinweis art="warnung">{fehler}</Hinweis>}
       <div className="reihe" style={{ marginTop: '.5rem' }}>
         <button className="haupt" style={{ flex: 1, minHeight: 54 }}
-                onClick={anlegen} disabled={laeuft || !taetigkeit || chargeNr === ''}>
+                onClick={anlegen}
+                disabled={laeuft || !taetigkeit || chargeNr === ''
+                          || (fragtArt && art === null)}>
           {t('starten')}
         </button>
         <button type="button" onClick={abbrechen}>{t('abbrechen')}</button>
