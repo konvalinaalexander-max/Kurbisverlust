@@ -1,21 +1,21 @@
 import type { ReactNode } from 'react'
-import { NavLink, Navigate, Route, Routes } from 'react-router-dom'
-import { ZAusgang, ZBalken, ZEinlesen, ZListe, ZQr, ZRegler, ZUhr } from './components/Zeichen'
+import { NavLink, Navigate, Route, Routes, useParams } from 'react-router-dom'
+import { ZBalken, ZListe, ZLupe, ZRegler, ZUhr } from './components/Zeichen'
 import { useAuth } from './auth/AuthProvider'
 import { SprachAuswahl, useSprache } from './sprache/SprachProvider'
 import { istKonfiguriert, konfigurationsProblem } from './lib/supabase'
 import { SPRACHEN } from './lib/i18n'
 import { Hinweis, Lade } from './components/Bausteine'
 import Anmelden from './pages/Anmelden'
-import Auftraege from './pages/Auftraege'
-import AuftragDetail from './pages/AuftragDetail'
-import CsvUpload from './pages/CsvUpload'
-import Warteschlange from './pages/Warteschlange'
-import Dashboard from './pages/Dashboard'
+import Start from './pages/Start'
+import NeueArbeit from './pages/NeueArbeit'
+import Arbeit from './pages/Arbeit'
 import Kontrolle from './pages/Kontrolle'
-import Lieferungen from './pages/Lieferungen'
-import Stammdaten from './pages/Stammdaten'
-import Zugang from './pages/Zugang'
+import Ueberblick from './pages/Ueberblick'
+import Ursachen from './pages/Ursachen'
+import Chargen from './pages/Chargen'
+import Messungen from './pages/Messungen'
+import Betrieb from './pages/Betrieb'
 
 export default function App() {
   const { session, profil, laedt, istAdmin, abmelden } = useAuth()
@@ -62,23 +62,22 @@ export default function App() {
 
   const aktuelleFlagge = SPRACHEN.find(s => s.code === sprache)?.flagge ?? '🌐'
 
+  // Fünf Reiter, je mit einem Satz, was er beantwortet (docs/UI-KONZEPT.md).
   const reiter: [string, string, () => ReactNode][] = [
-    ['/auftraege', 'Arbeiten', ZListe],
-    ['/dashboard', 'Auswertung', ZBalken],
-    ['/csv', 'Sortier-CSV', ZEinlesen],
-    ['/warteschlange', 'Warteschlange', ZUhr],
-    ['/lieferungen', 'Warenausgang', ZAusgang],
-    ['/stammdaten', 'Stammdaten', ZRegler],
-    ['/zugang', 'QR-Zugang', ZQr],
+    ['/dashboard', 'Überblick', ZBalken],
+    ['/ursachen', 'Ursachen', ZLupe],
+    ['/chargen', 'Chargen', ZListe],
+    ['/messungen', 'Messungen', ZRegler],
+    ['/betrieb', 'Betrieb', ZUhr],
   ]
 
   return (
     <>
       <header className="kopf kein-druck">
-        <span className="marke">
+        <NavLink to="/" className="marke" style={{ textDecoration: 'none', color: 'inherit' }}>
           <span className="zeichen" aria-hidden="true">🎃</span>
           <span className="name">{t('appName')}</span>
-        </span>
+        </NavLink>
         <span className="wer">{profil?.name ?? ''}</span>
         <button onClick={abfrageOeffnen} aria-label="Sprache">{aktuelleFlagge}</button>
         <button onClick={abmelden}>{t('abmelden')}</button>
@@ -97,21 +96,35 @@ export default function App() {
 
       <main className={istAdmin ? 'huelle' : 'huelle eng'}>
         <Routes>
-          <Route path="/" element={<Navigate to="/auftraege" replace />} />
-          <Route path="/auftraege" element={<Auftraege />} />
-          <Route path="/auftraege/:id" element={<AuftragDetail />} />
+          <Route path="/" element={<Start />} />
+          <Route path="/start" element={<Start />} />
+          <Route path="/neu" element={<NeueArbeit />} />
+          <Route path="/arbeit/:id" element={<Arbeit />} />
+          {/* Alte Adressen (QR-Codes, Lesezeichen) laufen weiter */}
+          <Route path="/auftraege" element={<Navigate to="/" replace />} />
+          <Route path="/auftraege/:id" element={<AlteArbeit />} />
           <Route path="/kontrolle" element={<Kontrolle />} />
-          <Route path="/dashboard" element={istAdmin ? <Dashboard /> : <NurAdmin />} />
-          <Route path="/csv" element={istAdmin ? <CsvUpload /> : <NurAdmin />} />
-          <Route path="/warteschlange" element={istAdmin ? <Warteschlange /> : <NurAdmin />} />
-          <Route path="/lieferungen" element={istAdmin ? <Lieferungen /> : <NurAdmin />} />
-          <Route path="/stammdaten" element={istAdmin ? <Stammdaten /> : <NurAdmin />} />
-          <Route path="/zugang" element={istAdmin ? <Zugang /> : <NurAdmin />} />
-          <Route path="*" element={<Navigate to="/auftraege" replace />} />
+          <Route path="/dashboard" element={istAdmin ? <Ueberblick /> : <NurAdmin />} />
+          <Route path="/ursachen" element={istAdmin ? <Ursachen /> : <NurAdmin />} />
+          <Route path="/chargen" element={istAdmin ? <Chargen /> : <NurAdmin />} />
+          <Route path="/messungen" element={istAdmin ? <Messungen /> : <NurAdmin />} />
+          <Route path="/betrieb/:teil?" element={istAdmin ? <Betrieb /> : <NurAdmin />} />
+          {/* Alte Adressen laufen weiter */}
+          <Route path="/csv" element={<Navigate to="/betrieb/csv" replace />} />
+          <Route path="/warteschlange" element={<Navigate to="/betrieb/warteschlange" replace />} />
+          <Route path="/lieferungen" element={<Navigate to="/betrieb/lieferungen" replace />} />
+          <Route path="/stammdaten" element={<Navigate to="/betrieb/stammdaten" replace />} />
+          <Route path="/zugang" element={<Navigate to="/betrieb/zugang" replace />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>
     </>
   )
+}
+
+function AlteArbeit() {
+  const { id } = useParams()
+  return <Navigate to={`/arbeit/${id}`} replace />
 }
 
 function NurAdmin() {

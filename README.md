@@ -53,7 +53,7 @@ auf, und dann weißt du: Das ist einfach „mein Projekt".
 
 ---
 
-## Schritt 2 — Supabase-Projekt anlegen## Schritt 2 — Supabase-Projekt anlegen
+## Schritt 2 — Supabase-Projekt anlegen
 
 Supabase ist die Datenbank. Das Gratis-Konto reicht vollkommen.
 
@@ -403,7 +403,7 @@ werden — danach vergibst du alle weiteren Rollen bequem in der App.
    dann auf **Neues Betriebsleiter-Konto anlegen**.
 2. Namen, deine E-Mail-Adresse und ein Passwort eintragen (mindestens 6 Zeichen)
    → **Konto anlegen**.
-3. Du bist angemeldet und siehst die Auftragsliste. Oben rechts steht dein Name.
+3. Du bist angemeldet und siehst die Startseite der Arbeiter. Oben rechts steht dein Name.
    Noch **ohne** den Zusatz „Betriebsleiter" — das ändern wir jetzt.
 4. Zurück zum Supabase-Tab → linke Symbolleiste → **SQL Editor**.
 5. Falls noch das alte Skript im Feld steht: **Strg+A**, dann **Entf** — es ist
@@ -456,14 +456,14 @@ CSV-Upload und Stammdaten bleiben dir vorbehalten.
 
 ## 1. Paletten aus dem Erntejournal übernehmen
 
-*Stammdaten → Paletten-Import*
+*Betrieb → Stammdaten → Paletten-Import*
 
 Zwei Wege — der erste ist der bequeme:
 
 **A) Direkt aus dem Google Sheet (empfohlen).** Einmalig im Erntejournal-Sheet:
 *Datei → Freigeben → Im Web veröffentlichen*, dort den Tab **Ertragsjournal** und
 das Format **CSV** wählen und die entstehende Adresse (endet auf `output=csv`)
-kopieren. Diese Adresse in der App unter *Stammdaten → Paletten-Import* einfügen.
+kopieren. Diese Adresse in der App unter *Betrieb → Stammdaten → Paletten-Import* einfügen.
 Ab dann genügt **Jetzt vom Sheet holen** — die App liest den aktuellen Stand,
 zeigt eine Vorschau und übernimmt ihn. Die Adresse wird gemerkt.
 
@@ -480,7 +480,7 @@ derselbe Hinweis wie der Kontrollwert im Sheet. Denselben Import mehrfach
 auszuführen legt keine doppelten Paletten an (die App nutzt die Paletten-ID aus
 dem Sheet).
 
-Wie viel Ernte bisher zusammengekommen ist, zeigt danach *Stammdaten → Chargen*
+Wie viel Ernte bisher zusammengekommen ist, zeigt danach *Betrieb → Stammdaten → Chargen*
 ganz oben als Gesamtzahl.
 
 > **Kurz zur Veröffentlichung:** „Im Web veröffentlichen" macht genau diesen einen
@@ -491,7 +491,7 @@ ganz oben als Gesamtzahl.
 
 ## 2. Leergewichte prüfen (meist nichts zu tun)
 
-*Stammdaten → Gebinde & Tara*
+*Betrieb → Stammdaten → Gebinde & Tara*
 
 Die Leergewichte sind bereits eingetragen — genau die Werte aus der
 Erntejournal-App: Palette 25 kg, Kiste G2 1,5 kg, die IFCO-Kisten 1,36 / 1,68 /
@@ -506,24 +506,32 @@ dem Journal auftaucht — dann steht sie ohne Tara da und ist mit „Tara fehlt"
 markiert. Solange irgendwo Tara fehlt, warnt das Dashboard sichtbar, weil die
 betroffenen Paletten sonst aus der Auswertung fielen.
 
-## 3. Einen echten Auftrag mitlaufen lassen## 3. Einen echten Auftrag mitlaufen lassen
+## 3. Eine echte Arbeit mitlaufen lassen
 
-*Aufträge → Neuen Auftrag eröffnen*
+Die App in der Halle kennt zwei Rollen, ohne Konten (`docs/UI-KONZEPT.md`):
 
-Weg und Charge wählen — die Startzeit setzt der Server, nicht das Handy. Wer
-sonst noch mitarbeitet, öffnet denselben Auftrag und klickt **Beitreten**.
+**Der Vorarbeiter** tippt auf der Startseite **Neue Arbeit starten** und geht
+durch den Assistenten — eine Frage je Bildschirm: Was macht ihr? · Welche
+Charge? (eintippen) · Für wen? · Wie sortiert ihr? (Kiste ab x kg / Kaliber)
+oder Welches Kaliber? · Alles richtig? → **Starten**. Als erstes liest er den
+Palox ab (die Zahl auf der Waage abtippen). Danach sieht er die **Checkliste**:
+Palox zu Beginn · Ausschuss-Paletten leer? · Zählen · Zu klein / zu gross
+wiegen · Fertige Palette wiegen · Arbeit abschliessen. Jeder Punkt zeigt, ob er
+erledigt ist.
 
-Dann während der Arbeit:
+**Die Zähler** tippen auf der Startseite die Arbeit an → **Mitmachen** und
+sehen genau einen Zähler: Datum vom Zettel (bleibt für die nächste Palette
+stehen), **+ 1 Palette**, **Rückgängig**. Auf der Hand-Linie dazu ein kleiner
+Knopf **Palette wiegen** — die wertvollste Messung überhaupt. Beim Sortieren
+und Waschen zählen sie stattdessen die Kisten je Kaliber.
 
-- **Paletten** — jede Palette einmal antippen. Das ist die einzige Pflichtangabe.
-  Das Eingangsdatum vom Zettel ist freiwillig, macht die Lagerdauer aber genau.
-- **Faule** — am Ende den vollen Palox wiegen, Kilo eintragen. Ist die Box
-  zwischendurch voll: Teilgewicht erfassen und weitermachen.
-- **Palette wiegen** — freiwillig, aber die wertvollste Messung überhaupt.
-  Eine Palette beim Herausholen aus dem Lager wiegen, vor dem Wasserbecken.
-- Auf Weg 2 zusätzlich **Gross / klein** und **Überfüllung**.
+**Der Abschluss** ist ein Assistent: Palox jetzt ablesen · Ausschuss — alles
+von dieser Arbeit? · War alles aus einer Charge? · (Waschen: Menge) ·
+Zusammenfassung → **Ja, fertig**. Was fehlt, steht als Satz am Knopf.
 
-Am Schluss *Abschluss* → **Auftrag abschließen?** → **Sicher?**
+Fällt das Handy des Vorarbeiters aus, holt **Ich führe diese Arbeit** die
+Checkliste auf jedes andere Handy. **Palette kontrollieren** auf der Startseite
+ist die Lagerkontrolle ohne laufende Arbeit.
 
 Sortier-CSVs lädt der Betriebsleiter unter *Sortier-CSV* hoch. Vor dem Einlesen
 siehst du den Reinigungs-Trichter — „11 370 gelesen → −5 Overflow → −10 unter
@@ -541,9 +549,9 @@ eine vollständige, erfundene Saison zum Durchklicken.
 **Voraussetzung:** Dein Betriebsleiter-Konto muss existieren (Schritt 7).
 
 **In der App, ein Klick:** Melde dich als Betriebsleiter an und geh auf
-**Stammdaten → Demo-Daten → „Demo-Saison laden"**. Solange noch gar nichts da
-ist, steht derselbe Knopf auch gleich auf der leeren **Auswertung** — dort, wo
-die Leere auffällt. Nach ein paar Sekunden ist jeder Bildschirm gefüllt.
+**Betrieb → Stammdaten → Demo-Daten → „Demo-Saison laden"**. Solange noch gar
+nichts da ist, steht derselbe Knopf auch gleich auf dem leeren **Überblick** —
+dort, wo die Leere auffällt. Nach ein paar Sekunden ist jeder Bildschirm gefüllt.
 
 Du bekommst rund 460 t Eingang, 535 Paletten in 10 Chargen, 28 Arbeiten und
 drei Sortierläufe — dazu absichtlich eine abgebrochene Arbeit und einen
@@ -594,8 +602,8 @@ Alle drei entstehen aus HTML-Quellen im selben Ordner:
 | Arbeiter sieht „Der direkte Zugang ist noch nicht freigeschaltet" | Schritt 4b fehlt | In Supabase Authentication → Sign In / Providers → Anonymous sign-ins einschalten |
 | „Dafür fehlt die Berechtigung" | Du bist noch Arbeiter, nicht Betriebsleiter | Schritt 7 nachholen, dann F5. |
 | Menü zeigt kein „Stammdaten" | Dasselbe | Schritt 7 nachholen, dann F5. |
-| Dashboard: „Noch keine auswertbaren Daten" | Keine Paletten importiert oder überall Tara fehlend | Teil 2, Punkte 1 und 2. |
-| Dashboard warnt „Fehlende Tara" | Für manche Gebinde fehlt das Leergewicht | *Stammdaten → Gebinde & Tara* ausfüllen. |
+| Überblick: „Noch keine auswertbaren Daten" | Keine Paletten importiert oder überall Tara fehlend | Teil 2, Punkte 1 und 2. |
+| Messungen warnt „Fehlende Tara" | Für manche Gebinde fehlt das Leergewicht | *Betrieb → Stammdaten → Gebinde & Tara* ausfüllen. |
 | Supabase: „Project is paused" | Gratis-Projekte pausieren nach 7 Tagen ohne Nutzung | Grüner Knopf **Restore project**, ein bis zwei Minuten warten. Während der Saison passiert das durch die normale Nutzung nicht. |
 | Cloudflare-Build schlägt fehl | Meist das Build command falsch oder leer | In der Konsole nach der ersten roten Zeile suchen. Build command muss `npm run build`, Deploy command `npx wrangler deploy` sein. |
 
@@ -613,7 +621,9 @@ Das genügt fast immer zur Klärung.
 | Datenbankschema, Rollen, Stammdaten | `supabase/migrations/0001`–`0003` | gegen Postgres 16 getestet |
 | Reinigung, Klassierung, CSV-Zuordnung | `supabase/migrations/0004`, `src/lib/csv.ts` | mit Tests |
 | Auswertung und Hochrechnung | `supabase/migrations/0005`–`0007` | Massenbilanz schließt im Test auf 0.1 % |
-| App | `src/` | fertig |
+| Kennzahlen aus den neuen Erfassungspunkten | `supabase/migrations/0049` | Gewichtsverteilung, Reihenfolge, Durchsatz, Überfüllung je Käufer, Datenqualität, Saisonverlauf |
+| Arbeiter-App: Start, Assistent, Zähler, Checkliste, Abschluss | `src/pages/Start.tsx`, `NeueArbeit.tsx`, `Arbeit.tsx`, `src/arbeit/` | Kette über die echten Masken in `pruefstand/kette.mjs` |
+| Betriebsleiter: Überblick · Ursachen · Chargen · Messungen · Betrieb | `src/pages/Ueberblick.tsx` … `Betrieb.tsx`, `src/auswertung/` | Diagramme in `src/components/Diagramm.tsx` |
 
 `supabase/setup.sql` ist die Zusammenfassung aller Migrationen zu einer Datei —
 das, was in Schritt 3 eingefügt wird. Sie wird von `supabase/setup_bauen.sh`
@@ -639,7 +649,7 @@ npm test                    # Reinigung und Dateinamen-Parser, ohne Datenbank
 # Seiten, die wagrecht überlaufen. Vorher einmal die Daten-Abzüge ziehen:
 ./pruefstand/daten_dumpen.sh   # braucht die lokale Demo-Datenbank
 node pruefstand/bildschirme.mjs
-SPRACHE=hu node pruefstand/bildschirme.mjs auftrag   # Arbeiter-Masken in der Sprache mit den längsten Wörtern
+SPRACHE=hu node pruefstand/bildschirme.mjs arbeit    # Arbeiter-Masken in der Sprache mit den längsten Wörtern
 
 # Die Kette in beide Richtungen: eine komplette Arbeit über die Masken der
 # App erfassen (neue Arbeit mit Käufer, zählen, wiegen, Palox, zu klein/gross,

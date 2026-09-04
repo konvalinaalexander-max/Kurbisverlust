@@ -131,46 +131,60 @@ async function authAntwort(route, wer) {
 const BILDSCHIRME = [
   { name: 'sprache', wer: null, pfad: '/', frisch: true },
   { name: 'anmelden', wer: null, pfad: '/' },
-  { name: 'auftraege', wer: 'arbeiter', pfad: '/auftraege' },
-  { name: 'auftrag-neu', wer: 'arbeiter', pfad: '/auftraege',
-    tun: async p => { await p.getByRole('button', { name: T('neuerAuftrag') }).click() } },
-  { name: 'auftrag-detail', wer: 'arbeiter', pfad: '/auftraege/OFFEN' },
-  { name: 'auftrag-wiegen', wer: 'arbeiter', pfad: '/auftraege/OFFEN',
+  { name: 'start', wer: 'arbeiter', pfad: '/' },
+  // Der Assistent des Vorarbeiters, Schritt für Schritt
+  { name: 'neu-was', wer: 'arbeiter', pfad: '/neu' },
+  { name: 'neu-charge', wer: 'arbeiter', pfad: '/neu',
+    tun: async p => { await p.locator('#taet-waschen_sortieren').click(); await p.locator('#charge').fill('1613') } },
+  { name: 'neu-art', wer: 'arbeiter', pfad: '/neu',
     tun: async p => {
-      // Ohne Datum vom Zettel bleibt der Zähler gesperrt (0041).
-      await p.locator('#zettel').fill('2026-09-01')
-      await p.getByRole('button', { name: '+', exact: true }).click()
-      await p.getByRole('button', { name: T('jaWiegen'), exact: true }).first().click()
+      await p.locator('#taet-waschen_sortieren').click(); await p.locator('#charge').fill('1613')
+      await p.getByRole('button', { name: T('weiter') }).click(); await p.locator('#kaeufer-keiner').click()
     } },
-  { name: 'auftrag-kisten', wer: 'arbeiter', pfad: '/auftraege/OFFENKISTEN',
-    tun: async p => { await p.getByRole('link', { name: T('kaliberKisten'), exact: true }).click() } },
-  { name: 'auftrag-faule', wer: 'arbeiter', pfad: '/auftraege/OFFEN',
-    tun: async p => { await p.getByRole('link', { name: T('faule'), exact: true }).click() } },
-  { name: 'auftrag-abschluss', wer: 'arbeiter', pfad: '/auftraege/OFFEN',
-    tun: async p => { await p.getByRole('link', { name: T('abschluss'), exact: true }).click() } },
+  { name: 'neu-pruefen', wer: 'arbeiter', pfad: '/neu',
+    tun: async p => {
+      await p.locator('#taet-waschen_sortieren').click(); await p.locator('#charge').fill('1613')
+      await p.getByRole('button', { name: T('weiter') }).click(); await p.locator('#kaeufer-keiner').click()
+      await p.locator('#art-kiste').click()
+    } },
+  // Die Arbeit: der Zähler sieht den Zähler, der Vorarbeiter die Checkliste
+  { name: 'arbeit-zaehler', wer: 'arbeiter', pfad: '/arbeit/OFFEN' },
+  { name: 'arbeit-wiegen', wer: 'arbeiter', pfad: '/arbeit/OFFEN',
+    tun: async p => { await p.locator('#zettel').fill('2026-09-01'); await p.locator('#zum-wiegen').click() } },
+  { name: 'arbeit-kisten', wer: 'arbeiter', pfad: '/arbeit/OFFENKISTEN' },
+  { name: 'arbeit-liste', wer: 'arbeiter', pfad: '/arbeit/OFFEN',
+    tun: async p => { await p.getByRole('button', { name: T('ichFuehre') }).click() } },
+  { name: 'arbeit-palox', wer: 'arbeiter', pfad: '/arbeit/OFFEN',
+    tun: async p => { await p.getByRole('button', { name: T('ichFuehre') }).click(); await p.locator('#check-palox').click() } },
+  { name: 'arbeit-ausschuss', wer: 'arbeiter', pfad: '/arbeit/OFFEN',
+    tun: async p => { await p.getByRole('button', { name: T('ichFuehre') }).click(); await p.locator('#check-ausschuss').click() } },
+  { name: 'arbeit-abschluss', wer: 'arbeiter', pfad: '/arbeit/OFFEN',
+    tun: async p => { await p.getByRole('button', { name: T('ichFuehre') }).click(); await p.locator('#check-abschluss').click() } },
+  { name: 'arbeit-abschluss-pruefen', wer: 'arbeiter', pfad: '/arbeit/OFFEN',
+    tun: async p => {
+      await p.getByRole('button', { name: T('ichFuehre') }).click(); await p.locator('#check-abschluss').click()
+      await p.locator('#palox').fill('165'); await p.locator('#palox-eintragen').click()
+      await p.locator('#ausschuss-von-ja').click()
+      if (await p.locator('#ausschuss-leer-ja').count()) await p.locator('#ausschuss-leer-ja').click()
+      await p.getByRole('button', { name: T('weiter') }).click()
+      await p.locator('#charge-ja').click(); await p.getByRole('button', { name: T('weiter') }).click()
+    } },
   { name: 'kontrolle', wer: 'arbeiter', pfad: '/kontrolle' },
-  { name: 'dashboard-1', wer: 'admin', pfad: '/dashboard' },
-  { name: 'dashboard-2', wer: 'admin', pfad: '/dashboard',
-    tun: async p => { await p.getByRole('tab', { name: 'Aufschlüsselung' }).click() } },
-  { name: 'dashboard-3', wer: 'admin', pfad: '/dashboard',
-    tun: async p => { await p.getByRole('tab', { name: 'Rohdaten' }).click() } },
-  { name: 'csv', wer: 'admin', pfad: '/csv' },
-  { name: 'warteschlange', wer: 'admin', pfad: '/warteschlange' },
-  { name: 'lieferungen', wer: 'admin', pfad: '/lieferungen' },
-  { name: 'stammdaten-gebinde', wer: 'admin', pfad: '/stammdaten' },
-  { name: 'stammdaten-import', wer: 'admin', pfad: '/stammdaten',
-    tun: async p => { await p.getByRole('link', { name: 'Paletten-Import' }).click() } },
-  { name: 'stammdaten-chargen', wer: 'admin', pfad: '/stammdaten',
-    tun: async p => { await p.getByRole('link', { name: 'Chargen' }).click() } },
-  { name: 'stammdaten-schemata', wer: 'admin', pfad: '/stammdaten',
+  // Betriebsleiter: fünf Reiter
+  { name: 'ueberblick', wer: 'admin', pfad: '/dashboard' },
+  { name: 'ursachen', wer: 'admin', pfad: '/ursachen' },
+  { name: 'chargen', wer: 'admin', pfad: '/chargen' },
+  { name: 'chargen-offen', wer: 'admin', pfad: '/chargen',
+    tun: async p => { await p.locator('tbody tr').first().click() } },
+  { name: 'messungen', wer: 'admin', pfad: '/messungen' },
+  { name: 'betrieb-arbeiten', wer: 'admin', pfad: '/betrieb/arbeiten' },
+  { name: 'betrieb-lieferungen', wer: 'admin', pfad: '/betrieb/lieferungen' },
+  { name: 'betrieb-csv', wer: 'admin', pfad: '/betrieb/csv' },
+  { name: 'betrieb-warteschlange', wer: 'admin', pfad: '/betrieb/warteschlange' },
+  { name: 'betrieb-stammdaten', wer: 'admin', pfad: '/betrieb/stammdaten' },
+  { name: 'betrieb-schemata', wer: 'admin', pfad: '/betrieb/stammdaten',
     tun: async p => { await p.getByRole('link', { name: 'Sortierschemata' }).click() } },
-  { name: 'stammdaten-abgebrochen', wer: 'admin', pfad: '/stammdaten',
-    tun: async p => { await p.getByRole('link', { name: 'Abgebrochene Arbeiten' }).click() } },
-  { name: 'stammdaten-benutzer', wer: 'admin', pfad: '/stammdaten',
-    tun: async p => { await p.getByRole('link', { name: 'Benutzer' }).click() } },
-  { name: 'stammdaten-demo', wer: 'admin', pfad: '/stammdaten',
-    tun: async p => { await p.getByRole('link', { name: 'Demo-Daten' }).click() } },
-  { name: 'zugang', wer: 'admin', pfad: '/zugang' },
+  { name: 'betrieb-zugang', wer: 'admin', pfad: '/betrieb/zugang' },
 ]
 
 const GERAETE = [

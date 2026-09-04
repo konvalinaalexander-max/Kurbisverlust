@@ -80,7 +80,11 @@ export default function Kontrolle() {
 
   return (
     <>
-      <h1>{t('kontrolle')}</h1>
+      <div className="schritt-kopf">
+        <button type="button" className="zurueck" onClick={() => navigate('/')}>‹ {t('zurueck')}</button>
+      </div>
+      <h1 className="frage">{t('kontrolle')}</h1>
+      <p className="leise frage-warum">{t('kontrolleWarum')}</p>
       {gespeichert > 0 && <Hinweis art="gut">✓ {gespeichert} {t('gespeichert')}</Hinweis>}
 
       <Karte>
@@ -137,7 +141,7 @@ export default function Kontrolle() {
         <div className="reihe">
           <button className="haupt" style={{ flex: 1, minHeight: 54 }}
                   onClick={speichern} disabled={laeuft || !vollstaendig}>{t('eintragen')}</button>
-          <button onClick={() => navigate('/auftraege')}>{t('fertig')}</button>
+          <button onClick={() => navigate('/')}>{t('uebersicht')}</button>
         </div>
       </Karte>
     </>

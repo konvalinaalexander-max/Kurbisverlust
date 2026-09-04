@@ -17,6 +17,8 @@ dump() {
 for R in v_hochrechnung v_massenbilanz v_datenlage v_marge_buch v_plausibilitaet \
          v_kaliber_verteilung v_schimmel_kurve_anzeige v_koeff_verdunstung \
          v_koeff_ausschuss v_koeff_nebenkanal v_koeff_ueberfuellung \
+         v_gewichtsverteilung v_verarbeitung_alter v_durchsatz v_ueberfuellung_kaeufer \
+         v_datenqualitaet v_saisonverlauf v_palox_stand v_koeff_gebinde v_lieferung_masse v_auftrag_masse \
          v_schimmel_modell v_selektionsverdacht v_saisonbilanz v_schimmel_punkte \
          v_hochrechnung_basis v_naechste_charge auswertung_stand \
          charge sorte_kaliber gebinde einstellung ausgang_ziel kaeufer sortierschema \

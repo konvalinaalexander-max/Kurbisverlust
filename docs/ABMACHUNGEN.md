@@ -13,16 +13,16 @@ der CI (`.github/workflows/pruefung.yml`).
 | Kennung | Absprache | Quelle | Beweis |
 |---|---|---|---|
 | AB-01 | Beim Auftragsstart wird bestätigt, wie sortiert wird (Kiste ab x kg / Kaliber), vor Ort änderbar. Beide Arten dürfen je Sorte nebeneinander stehen. Nach Kaliber gibt es keine Überfüllung. | 1. Sept | `pruefung.sql` „AB-01 Sortierart geprüft"; `kette.mjs` (Art beim Eröffnen) |
-| AB-02 | Der Palox wird bei Beginn und Abschluss abgelesen. Ohne Ablesung kein Abschluss. | 2. Sept | `pruefung.sql` „Palox …"; `kette.mjs` „ohne Palox-Ablesung ist der Abschluss gesperrt" |
+| AB-02 | Der Palox wird bei Beginn und Abschluss abgelesen. Ohne Ablesung kein Abschluss. | 2. Sept | `pruefung.sql` „Palox …"; `kette.mjs` „ohne Ablesung kommt der Abschluss nicht an der Palox-Frage vorbei" — der Abschluss-Assistent beginnt mit der Ablesung |
 | AB-03 | Der Ausschuss wird gewogen (Brutto, Kisten, Gebinde), Netto abgeleitet; Schätzung bleibt für Notfälle möglich. | 1. Sept | `pruefung.sql` „AB-03 Ausschuss geprüft"; `kette.mjs` (zu klein gewogen, zu gross geschätzt) |
-| AB-04 | Was man vergessen kann, gehört an den Abschluss; der Abschluss erzwingt die Vollständigkeit. | 1. Sept | `kette.mjs` (Abschluss gesperrt ohne Palox/Angaben); `pruefung.sql` (Angaben) |
-| AB-05 | Zwei Ausschuss-Paletten-Fragen: „leer zu Beginn?" (Start) und „alles von dieser Arbeit?" (Abschluss). | 2. Sept | `kette_pruefen.sh` (beide Angaben kommen an); `kette.mjs` (Startfrage, Abschlussfrage) |
-| AB-06 | Die Chargennummer wird eingetippt, nicht aus einer Liste gewählt. | 1. Sept | `kette.mjs` (`#charge` als Eingabefeld); unbekannte Nummer blockiert das Starten |
+| AB-04 | Was man vergessen kann, gehört an den Abschluss; der Abschluss erzwingt die Vollständigkeit. | 1. Sept | `kette.mjs` „Geführter Abschluss" (Assistent: Palox, Ausschuss, Charge, Zusammenfassung mit „Fehlt noch"); `pruefung.sql` (Angaben) |
+| AB-05 | Zwei Ausschuss-Paletten-Fragen: „leer zu Beginn?" (Start) und „alles von dieser Arbeit?" (Abschluss). | 2. Sept | `kette_pruefen.sh` (beide Angaben kommen an); `kette.mjs` (Startfrage in der Checkliste, Abschlussfrage im Assistenten; eine vergessene Startfrage holt der Abschluss nach) |
+| AB-06 | Die Chargennummer wird eingetippt, nicht aus einer Liste gewählt. | 1. Sept | `kette.mjs` (`#charge` im Assistenten, Schritt „Welche Charge?"); unbekannte Nummer blockiert „Weiter" |
 | AB-07 | Erfassungsbeginn und Vorab-Ausgang je Charge; die Bilanz zählt den Vorlauf zum Ausgang. | 1. Sept | `pruefung.sql` „AB-07/08/09" (Vorlauf senkt Lücke um denselben Betrag) |
 | AB-08 | Fax ist ein eigener Auftragstyp (fachlich ein Waschgang). | 2. Sept | `pruefung.sql` „AB-07/08/09" (ist_fax); `i18n.test.ts` (vierte Tätigkeit) |
 | AB-09 | Die Lagerkontrolle hält fest, wie die Palette gegriffen wurde (zufällig erreichbar / Mitte-unten / gezielt). | 2. Sept | `pruefung.sql` „AB-07/08/09" (Auswahlart gehalten, Unsinn abgelehnt) |
-| AB-10 | Hinweis in der Palox-Maske: Gewicht direkt von der Waage ablesen. | 2. Sept | im Frontend (`waageAblesenHinweis`); Bildschirm-Prüfstand rendert die Maske ohne Fehler |
-| AB-11 | Das Datum vom Palettenzettel ist Pflicht (Voraussetzung des Alters). | 1. Sept | `pruefung.sql` (Palette ohne Datum abgewiesen); `kette.mjs` (Zähler ohne Datum gesperrt) |
+| AB-10 | Hinweis in der Palox-Maske: Gewicht direkt von der Waage ablesen. | 2. Sept | im Frontend (`PaloxMaske`, `waageAblesenHinweis`); Bildschirm-Prüfstand `arbeit-palox` |
+| AB-11 | Das Datum vom Palettenzettel ist Pflicht (Voraussetzung des Alters). | 1. Sept | `pruefung.sql` (Palette ohne Datum abgewiesen); `kette.mjs` (Zähler: „+" ohne Datum gesperrt; das Datum bleibt für die nächste Palette stehen) |
 | AB-12 | Am Waschbecken werden Kisten gezählt; das Kistengewicht wird am Sortieren gemessen. | 3. Sept | `pruefung.sql` „Kisten am Waschbecken"; `v_koeff_gebinde` |
 
 Noch offen (in `FRAGEN.md`, keine App-Änderung ohne Antwort):

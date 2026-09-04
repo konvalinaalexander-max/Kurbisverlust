@@ -1648,3 +1648,72 @@ select '——— AB-07/08/09 geprüft ———' as ergebnis;
 select '——— Suchpfad geprüft ———' as ergebnis;
 
 select '——— Fachlogik geprüft ———' as ergebnis;
+
+-- =========================================================================
+-- 0049: Kennzahlen für den Betriebsleiter. Jede Sicht muss laufen, und wo
+-- sich ein Wert vorhersagen lässt, wird er vorhergesagt.
+-- =========================================================================
+do $$
+declare v numeric; v2 numeric; v_n int; v_a bigint; v_b bigint; v_charge int;
+begin
+  perform set_config('request.jwt.claim.sub','11111111-1111-1111-1111-111111111111', true);
+
+  -- Gewichtsverteilung: verlustfrei gegenüber dem Histogramm
+  select sum(n) into v from v_gewichtsverteilung;
+  select sum(g.anzahl) into v2 from sortier_gewicht g join sortier_lauf l on l.id = g.lauf_id
+    left join auftrag a on a.id = l.auftrag_id
+   where l.charge_nr is not null and (a.id is null or a.abgebrochen_ts is null);
+  assert coalesce(v, 0) = coalesce(v2, 0), format('Gewichtsverteilung %s ≠ Histogramm %s', v, v2);
+
+  -- Alter der verarbeiteten Ware: zwei Paletten, 10 und 20 Tage alt → 15
+  select nr into v_charge from charge order by nr limit 1;
+  insert into auftrag (weg, station, charge_nr, start_ts, eroeffnet_von)
+    values ('maschine', 'sortieren', v_charge, now(), '11111111-1111-1111-1111-111111111111')
+    returning id into v_a;
+  insert into auftrag_palette (auftrag_id, eingangsdatum)
+    values (v_a, current_date - 10), (v_a, current_date - 20);
+  select alter_verarbeitet into v from v_verarbeitung_alter where auftrag_id = v_a;
+  assert v = 15.0, format('Alter der verarbeiteten Ware erwartet 15, ist %s', v);
+  select alter_charge into v2 from v_verarbeitung_alter where auftrag_id = v_a;
+  assert (select differenz from v_verarbeitung_alter where auftrag_id = v_a)
+         is not distinct from (case when v2 is null then null else (v - v2)::numeric(10,1) end),
+    'differenz muss alter_verarbeitet − alter_charge sein';
+
+  -- Durchsatz: 400 kg in zwei Stunden → 200 kg/h
+  insert into auftrag (weg, station, charge_nr, start_ts, ende_ts, status, durchsatz_kg, eroeffnet_von)
+    values ('maschine', 'waschen', v_charge, now() - interval '2 hours', now(), 'abgeschlossen', 400,
+            '11111111-1111-1111-1111-111111111111')
+    returning id into v_b;
+  perform auswertung_aktualisieren();
+  select kg_pro_h into v from v_durchsatz where auftrag_id = v_b;
+  assert v between 195 and 205, format('Durchsatz erwartet ~200 kg/h, ist %s', v);
+  assert (select dauer_h from v_durchsatz where auftrag_id = v_b) between 1.9 and 2.1, 'Dauer nicht 2 h';
+
+  -- Überfüllung je Käufer: dieselbe Summe wie die Einzelwägungen
+  select coalesce(sum(ueberfuellung_kg), 0) into v from v_ueberfuellung_kaeufer;
+  select coalesce(sum(x.ueberfuellung_kg), 0) into v2 from v_ausgang_kennzahl x
+    join auftrag a on a.id = x.auftrag_id
+   where x.ueberfuellung_je_kiste is not null and a.abgebrochen_ts is null;
+  assert abs(v - v2) < 0.5, format('Überfüllung je Käufer %s ≠ Einzelwägungen %s', v, v2);
+
+  -- Datenqualität: eine Zeile, Zähler in sich stimmig
+  select count(*) into v_n from v_datenqualitaet;
+  assert v_n = 1, 'v_datenqualitaet muss genau eine Zeile liefern';
+  assert (select paletten_mit_datum <= paletten_gezaehlt from v_datenqualitaet), 'mehr datierte als gezählte Paletten';
+  assert (select arbeiten_mit_zwei_ablesungen <= arbeiten_mit_ablesung from v_datenqualitaet), 'Ablesungszähler unstimmig';
+  assert (select arbeiten_mit_ablesung <= arbeiten_fertig from v_datenqualitaet), 'mehr Ablesungen als Arbeiten';
+  assert (select lagerkontrollen_zufaellig <= lagerkontrollen from v_datenqualitaet), 'Kontrollzähler unstimmig';
+
+  -- Saisonverlauf: die letzte Woche kumuliert alles, die Wochen steigen streng
+  select max(eingang_kumuliert_kg) into v from v_saisonverlauf;
+  select coalesce(sum(netto_kg), 0) into v2 from v_palette where netto_kg is not null and eingangsdatum is not null;
+  assert abs(coalesce(v, 0) - v2) < 1, format('Saisonverlauf kumuliert %s ≠ Eingang %s', v, v2);
+  assert not exists (select 1 from (select woche, lag(woche) over (order by woche) as vor from v_saisonverlauf) w
+                      where w.vor is not null and w.woche <= w.vor), 'Wochen nicht streng steigend';
+
+  delete from auftrag where id in (v_a, v_b);
+  perform auswertung_aktualisieren();
+  raise notice 'OK  0049 Kennzahlen (Gewichtsverteilung, Alter, Durchsatz, Überfüllung je Käufer, Datenqualität, Saisonverlauf)';
+end $$;
+
+select '——— 0049 Kennzahlen geprüft ———' as ergebnis;

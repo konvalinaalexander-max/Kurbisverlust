@@ -1318,3 +1318,70 @@ Was nach dem Abwerfen noch fehlte, war Feinschliff, kein Modell:
   Klickwege nennen Reiter und Knöpfe über ihren Text-Schlüssel und holen das
   Wort aus dem Wörterbuch der App — vorher standen deutsche Wörter im
   Prüfstand, und in jeder anderen Sprache lief er ins Leere.
+
+## Zwei Apps in einer: Zähler, Vorarbeiter, Betriebsleiter (UI-Umbau, 0049)
+
+Der Betrieb wollte zweierlei: eine Arbeiter-App, die niemanden verwirrt, und
+eine Betriebsleiter-Seite, die erklärt statt auflistet. Das Konzept mit den
+Leitlinien und Quellen steht in `docs/UI-KONZEPT.md`; hier die Entscheidungen.
+
+### Die Rolle hängt an der Arbeit, nicht an der Person
+
+Wer eine Arbeit eröffnet, ist ihr Vorarbeiter; wer beitritt, ist Zähler.
+Konten, Rollenverwaltung, Passwörter — nichts davon. Der Vorarbeiter sieht
+eine Checkliste (Palox zu Beginn · Ausschuss-Paletten leer? · Zählen ·
+Ausschuss wiegen · Fertige Palette · Abschliessen), der Zähler sieht einen
+Zähler. Fällt das Handy des Vorarbeiters aus, holt ein Tipp die
+Vorarbeiter-Ansicht auf jedes andere. Die Rolle wird nicht gespeichert: Sie
+ist keine Messung, und nichts in der Auswertung hängt daran.
+
+### Ein Bildschirm, eine Frage
+
+Das Eröffnen und das Abschliessen sind Assistenten nach den NN/g-Regeln:
+feste Reihenfolge, Schrittanzeige, nur die Fragen, die für die Tätigkeit
+gelten, am Ende eine Zusammenfassung. Der Abschluss-Assistent *beginnt* mit der
+Palox-Ablesung — so ist AB-02 nicht mehr ein Hinweis, den man übersehen kann,
+sondern der erste Schritt, an dem man nicht vorbeikommt. Wer die Startfrage
+nach den leeren Ausschuss-Paletten vergessen hat, bekommt sie im Abschluss
+nachgestellt (AB-04: der Abschluss erzwingt die Vollständigkeit).
+
+### Rückgängig statt Nachfrage
+
+„+" zählt sofort, „Rückgängig" nimmt die letzte Palette zurück. Die frühere
+Frage „wiegen oder nur zählen?" bei jedem Tipp ist weg; Wiegen ist ein eigener,
+kleinerer Knopf. Das Datum vom Zettel bleibt für die nächste Palette stehen —
+die kommen zu Dutzenden mit demselben Datum, und jedes Neueintippen war eine
+Gelegenheit für einen Fehler.
+
+### Der Betriebsleiter bekommt fünf Fragen statt drei Ebenen
+
+Überblick (wie viel, woran, was tun) · Ursachen (warum, wie sicher) · Chargen
+(wo steht welche) · Messungen (was weiss die Auswertung nicht) · Betrieb
+(was läuft, Grundlagen). Jeder Reiter trägt seinen Satz oben. Die frühere
+Aufteilung in „Überblick / Aufschlüsselung / Rohdaten" hatte keinen Ort, an
+dem man eine Charge nachschlagen konnte, und die Rohdaten waren ein Ort für
+alles, was sonst nirgends hinpasste.
+
+### Was aus den neuen Erfassungspunkten wurde (0049)
+
+Sechs Sichten, kein Modell: Gewichtsverteilung aus der CSV (vom Betrieb seit
+dem 2. September gewünscht), Alter der verarbeiteten Ware gegen die Charge
+(wird das Älteste zuerst verarbeitet — die Fehlerquelle, die keine Rechnung
+wegbekommt), Durchsatz je Arbeit, Überfüllung je Käufer, Datenqualität als
+Zähler je Absprache, Eingang und Ausgang über die Saison. Alle sechs lesen nur
+Tabellen, die die Masken schon füllen; der Lückenscanner blieb still, die
+achtzehn Dashboard-Ansichten brauchen zusammen rund 300 ms.
+
+### Diagramme von Hand, Farben geprüft
+
+Kurven und Punkte sind SVG ohne Bibliothek; jedes Diagramm hat Hover, Legende
+ab zwei Reihen und eine Tabelle. Die sechs Strom-Farben wurden mit einem
+Palettenprüfer (Farbfehlsichtigkeit, Kontrast) neu gesetzt — die alten lagen
+für Rot-Grün-Schwäche zu nah beieinander. Drei der neuen liegen im Hellmodus
+unter 3:1 Kontrast; deshalb trägt jeder Strom überall seinen Namen als Text.
+
+### Die Demo läuft auf der Hand-Linie nach „Kiste ab x kg"
+
+Sonst hätte die Demo keine Überfüllung gezeigt: Nach Kaliber gibt es kein
+Sollgewicht (AB-01), und die Hand-Linie füllt 8-kg-Kisten. Reine
+Demo-Änderung in 0034.

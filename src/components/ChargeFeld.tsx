@@ -12,16 +12,19 @@ import type { Charge } from '../lib/typen'
  * Arbeit und Lagerkontrolle. Vorher hatte die Kontrolle noch eine Liste, und
  * dieselbe Frage sah an zwei Orten verschieden aus.
  */
-export function ChargeFeld({ id, chargen, wert, setzen }: {
+export function ChargeFeld({ id, chargen, wert, setzen, ohneLabel = false }: {
   id: string; chargen: Charge[]; wert: number | ''; setzen: (nr: number | '') => void
+  /** Im Assistenten steht die Frage schon als Überschrift. */
+  ohneLabel?: boolean
 }) {
   const { t } = useSprache()
   const bekannt = wert !== '' && chargen.some(c => c.nr === wert)
   return (
     <div className="feld">
-      <label htmlFor={id}>{t('charge')}</label>
+      {!ohneLabel && <label htmlFor={id}>{t('charge')}</label>}
       <input id={id} type="number" inputMode="numeric" list={`${id}-liste`}
-             value={wert} style={{ fontSize: '1.2rem' }}
+             aria-label={ohneLabel ? t('charge') : undefined}
+             value={wert} style={{ fontSize: ohneLabel ? '1.5rem' : '1.2rem' }} autoFocus={ohneLabel}
              placeholder={t('chargeTippen')}
              onChange={e => setzen(e.target.value === '' ? '' : Number(e.target.value))} />
       <datalist id={`${id}-liste`}>

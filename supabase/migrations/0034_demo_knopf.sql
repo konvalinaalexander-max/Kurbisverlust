@@ -131,9 +131,14 @@ begin
                   v_start + interval '6 hours', 'abgeschlossen', 'DEMO')
           returning id into v_auftrag;
         else
-          insert into auftrag (weg, station, charge_nr, start_ts, ende_ts, status, bemerkung)
+          -- Die Hand-Linie füllt 8-kg-Kisten: die Arbeit läuft nach „Kiste ab
+          -- x kg" (AB-01), sonst gäbe es in der Demo keine Überfüllung.
+          insert into auftrag (weg, station, charge_nr, start_ts, ende_ts, status, bemerkung,
+                               sortierschema_id)
           values ('hand', 'waschen_sortieren', v_charge, v_start,
-                  v_start + interval '7 hours', 'abgeschlossen', 'DEMO')
+                  v_start + interval '7 hours', 'abgeschlossen', 'DEMO',
+                  sortierschema_fuer((select sorte from charge where nr = v_charge), null,
+                                     v_start::date, 'kiste'))
           returning id into v_auftrag;
         end if;
 
@@ -192,11 +197,17 @@ begin
           update auftrag_palette set wiegung_id = v_wiegung, eingangsdatum = v_datum
            where id = (select min(id) from auftrag_palette where auftrag_id = v_auftrag);
 
-          -- ---------- Ausschuss nach Augenmass ----------
+          -- ---------- Ausschuss gewogen (AB-03) ----------
+          -- Brutto und Kisten G2; das Netto rechnet der Auslöser und trifft
+          -- die Menge aufs Kilo (Tara 1.5 je Kiste, 25 je Palette).
           v_klein := round(v_masse * 0.030);
           v_gross := round(v_masse * 0.015);
-          insert into ausschuss_messung (auftrag_id, art, kg)
-          values (v_auftrag, 'zu_klein', v_klein::int), (v_auftrag, 'zu_gross', v_gross::int);
+          v_kisten := greatest(ceil(v_klein / 20.0), 1)::int;
+          insert into ausschuss_messung (auftrag_id, art, brutto_kg, kisten, gebindeart)
+          values (v_auftrag, 'zu_klein', v_klein + v_kisten * 1.5 + 25, v_kisten, 'G2');
+          v_kisten := greatest(ceil(v_gross / 20.0), 1)::int;
+          insert into ausschuss_messung (auftrag_id, art, brutto_kg, kisten, gebindeart)
+          values (v_auftrag, 'zu_gross', v_gross + v_kisten * 1.5 + 25, v_kisten, 'G2');
 
           -- ---------- Fertige Palette: 8.2 bis 8.4 kg je Kiste ----------
           insert into ausgang_wiegung (auftrag_id, charge_nr, brutto_kg, kisten,
@@ -209,6 +220,34 @@ begin
     end loop;
 
     raise notice 'Demo: Wareneingang und Verarbeitung angelegt';
+  end;
+
+  -- ---------- Palox-Ablesungen je Arbeit (AB-02) ---------------------------
+  -- Die Demo erfasst, wie es abgemacht ist: je Arbeit eine Ablesung zu Beginn
+  -- („Stand unverändert") und eine am Ende. Der Stand läuft je Station über
+  -- die Arbeiten weiter und wird geleert, wenn er sonst überliefe. Die Menge
+  -- bleibt dieselbe — gespeichert wird der Stand, die Menge folgt daraus.
+  declare v record; v_stand numeric := 0; v_station text := ''; v_geleert boolean;
+  begin
+    for v in
+      select s.id, s.auftrag_id, s.kg, a.station::text as station, a.start_ts
+        from schimmel_messung s
+        join auftrag a on a.id = s.auftrag_id
+       where a.bemerkung = 'DEMO' and a.station in ('sortieren', 'waschen_sortieren')
+         and s.palox_stand_kg is null
+       order by a.station, a.start_ts, s.id
+    loop
+      if v.station <> v_station then v_station := v.station; v_stand := palox_tara_kg(); end if;
+      insert into schimmel_messung (auftrag_id, kg, palox_stand_kg, palox_geleert, ts)
+      values (v.auftrag_id, 0, v_stand, false, v.start_ts + interval '10 minutes');
+      v_geleert := v_stand + v.kg > 800;
+      if v_geleert then v_stand := palox_tara_kg(); end if;
+      v_stand := v_stand + v.kg;
+      update schimmel_messung
+         set palox_stand_kg = v_stand, palox_geleert = v_geleert, ts = v.start_ts + interval '5 hours'
+       where id = v.id;
+    end loop;
+    raise notice 'Demo: Palox-Ablesungen je Arbeit nachgetragen';
   end;
 
   -- ---------- Weg 1, zweiter Abschnitt: Waschen ----------------------------
@@ -248,6 +287,10 @@ begin
       -- auf der Waage und läuft über die Arbeiten weiter; die Waage zeigt
       -- brutto (Behälter 45 kg). Gespeichert wird der Stand, die Menge ist
       -- Ableitung — nach dem dritten Waschgang wird der Palox geleert.
+      -- Ablesung zu Beginn (Stand unverändert) …
+      insert into schimmel_messung (auftrag_id, kg, palox_stand_kg, palox_geleert)
+      values (v_neu, 0, v_stand, false);
+      -- … und am Ende (AB-02)
       v_stand := case when v_i = 4 then palox_tara_kg() else v_stand end
                  + round(v.eingang_netto_kg * 0.004, 1);
       insert into schimmel_messung (auftrag_id, kg, palox_stand_kg, palox_geleert)
@@ -450,6 +493,15 @@ begin
 
     raise notice 'Demo: Sonderfälle angelegt (abgebrochen, Zahlendreher, laufende Arbeit)';
   end;
+
+  -- ---------- Abschlussfragen (AB-04, AB-05): Antworten sind Messwerte -------
+  insert into auftrag_angabe (auftrag_id, schluessel, wert)
+  select a.id, 'eine_charge', 'true' from auftrag a
+   where a.bemerkung = 'DEMO' and a.status = 'abgeschlossen';
+  insert into auftrag_angabe (auftrag_id, schluessel, wert)
+  select a.id, x.schluessel, 'true'
+    from auftrag a cross join (values ('ausschuss_leer'), ('ausschuss_von_auftrag')) x(schluessel)
+   where a.bemerkung = 'DEMO' and a.status = 'abgeschlossen' and a.weg = 'hand';
   return (
   select format('Demo-Saison steht: %s Paletten in %s Chargen, %s Arbeiten, %s Sortierläufe. '
                   || 'Eingang %s t. Jetzt in der App unter Auswertung anschauen.',

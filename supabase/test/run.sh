@@ -160,12 +160,14 @@ psql "$URL" -q -c "analyze" >/dev/null
 GESAMT=0
 for V in v_hochrechnung v_massenbilanz v_datenlage v_marge_buch v_plausibilitaet \
          v_wiegung_kennzahl v_kaliber_verteilung v_schimmel_kurve_anzeige \
-         v_koeff_verdunstung v_koeff_ausschuss v_koeff_nebenkanal v_koeff_ueberfuellung; do
+         v_koeff_verdunstung v_koeff_ausschuss v_koeff_nebenkanal v_koeff_ueberfuellung \
+         v_gewichtsverteilung v_verarbeitung_alter v_durchsatz v_ueberfuellung_kaeufer \
+         v_datenqualitaet v_saisonverlauf; do
   MS="$(psql "$URL" -qtA -c "\timing on" -c "select count(*) from $V" 2>&1 \
         | grep -oE 'Time: [0-9.]+ ms' | grep -oE '[0-9.]+')"
   GESAMT="$(echo "$GESAMT + $MS" | bc)"
 done
-echo "   alle zwölf Dashboard-Ansichten: ${GESAMT} ms"
+echo "   alle achtzehn Dashboard-Ansichten: ${GESAMT} ms"
 # 3 Sekunden: grosszügig gegenüber langsamer CI-Hardware, aber weit unter den
 # 8 Sekunden, bei denen Supabase abbricht.
 if [ "$(echo "$GESAMT > 3000" | bc)" = "1" ]; then
@@ -193,7 +195,9 @@ echo "   Auswertung neu rechnen: ${RECHNEN} ms"
 GESAMT=0
 for V in v_hochrechnung v_massenbilanz v_datenlage v_marge_buch v_plausibilitaet \
          v_wiegung_kennzahl v_kaliber_verteilung v_schimmel_kurve_anzeige \
-         v_koeff_verdunstung v_koeff_ausschuss v_koeff_nebenkanal v_koeff_ueberfuellung; do
+         v_koeff_verdunstung v_koeff_ausschuss v_koeff_nebenkanal v_koeff_ueberfuellung \
+         v_gewichtsverteilung v_verarbeitung_alter v_durchsatz v_ueberfuellung_kaeufer \
+         v_datenqualitaet v_saisonverlauf; do
   MS="$(psql "$URL" -qtA -c "\timing on" -c "select count(*) from $V" 2>&1 \
         | grep -oE 'Time: [0-9.]+ ms' | grep -oE '[0-9.]+')"
   GESAMT="$(echo "$GESAMT + $MS" | bc)"

@@ -24,17 +24,22 @@ Das ist das *Rückgrat*: für jede Charge sicher bekannt, ohne dass jemand messe
 
 ### Vom Arbeiter — je Arbeit
 
-| Erfassung | Wo | Felder |
+Zwei Rollen, keine Konten (`UI-KONZEPT.md`): Wer eine Arbeit eröffnet, ist ihr
+**Vorarbeiter** und sieht die Checkliste; wer beitritt, ist **Zähler** und sieht
+einen Zähler.
+
+| Erfassung | Wer, wo | Felder |
 |---|---|---|
-| Neue Arbeit | Start | Tätigkeit, Charge, Käufer (bestimmt das Sortierschema; neue Käufer legt der Arbeiter selbst an); beim Waschen ausserdem: welches Kaliber gewaschen wird |
-| Palette zählen | Sortieren, Waschen + Sortieren | Anzahl, Datum vom Zettel (**Pflicht**) |
-| Kisten zählen | Sortieren (gefüllte, je Kaliber), Waschen (geleerte, Kaliber der Arbeit) | Anzahl |
-| Palette wiegen | Waschen + Sortieren (Frage bei jedem Zählen) | Eingangsdatum, Eingangsgewicht, Gewicht jetzt, Kisten, Kistenart, optional Kürbisse je Kiste |
-| Palette kontrollieren | ohne Arbeit, vom Startbildschirm | wie Wiegen, dazu Pflichtfeld „davon faul" (0 ist eine Antwort) |
-| Faule | überall | Stand der Palox-Waage (brutto); die Menge leitet die Datenbank ab, mit Behälter-Tara aus den Einstellungen; Häkchen „war zwischendurch leer" |
-| Zu klein / zu gross | Waschen + Sortieren | kg |
-| Fertige Palette | Waschen, Waschen + Sortieren | Gewicht, Kisten, Kistenart, optional Kürbisse je Kiste |
-| Abschluss | überall | „War alles aus einer Charge?", bei Nein „wenigstens dieselbe Sorte?"; beim Waschen: Sortierdatum von der Kiste; verarbeitete Menge nur, wenn sie ausnahmsweise bekannt ist — sonst rechnet sie sich aus den gezählten Kisten |
+| Neue Arbeit | Vorarbeiter, Assistent (eine Frage je Bildschirm) | Tätigkeit, Charge (eingetippt), Käufer (bestimmt das Sortierschema; neue Käufer legt er selbst an), Sortierart (Kiste ab x kg / Kaliber, AB-01); beim Waschen: welches Kaliber gewaschen wird |
+| Palox ablesen | Vorarbeiter, direkt nach dem Start und im Abschluss-Assistenten (AB-02) | Stand der Palox-Waage (brutto); die Menge leitet die Datenbank ab, mit Behälter-Tara aus den Einstellungen; Häkchen „Palox wurde geleert"; im Abschluss auch „Stand unverändert" (= 0 kg dazu) |
+| Ausschuss-Paletten leer? | Vorarbeiter, Checkliste (AB-05) | Ja / Nein — eine vergessene Antwort holt der Abschluss nach |
+| Palette zählen | Zähler: Sortieren, Waschen + Sortieren | „+ 1 Palette" mit Datum vom Zettel (**Pflicht**, bleibt für die nächste Palette stehen), „Rückgängig" |
+| Kisten zählen | Zähler: Sortieren (gefüllte, je Kaliber), Waschen (geleerte, Kaliber der Arbeit) | Anzahl |
+| Palette wiegen | Zähler, Waschen + Sortieren (eigener Knopf) | Eingangsdatum, Eingangsgewicht, Gewicht jetzt, Kisten, Kistenart, optional Kürbisse je Kiste, Faules sichtbar |
+| Palette kontrollieren | ohne Arbeit, vom Startbildschirm | wie Wiegen, dazu Pflichtfeld „davon faul" (0 ist eine Antwort) und wie die Palette gegriffen wurde (AB-09) |
+| Zu klein / zu gross | Vorarbeiter, Waschen + Sortieren (AB-03) | gewogen: Brutto, Kisten, Kistenart (Netto rechnet die Datenbank); geschätzt nur als Notweg, sichtbar als solcher |
+| Fertige Palette | Vorarbeiter, Waschen, Waschen + Sortieren | Gewicht, Kisten, Kistenart, optional Kürbisse je Kiste |
+| Abschluss | Vorarbeiter, Assistent (AB-04) | Palox jetzt ablesen · Ausschuss: alles von dieser Arbeit? · „War alles aus einer Charge?", bei Nein „wenigstens dieselbe Sorte?" · beim Waschen: Sortierdatum von der Kiste, verarbeitete Menge nur, wenn keine Kisten gezählt wurden · Zusammenfassung mit „Fehlt noch" |
 
 Dazu automatisch: wer, wann, welche Charge, welche Station, welche Fassung des
 Sortierschemas — Start- und Endzeit vom Server, nicht vom Handy. Die
@@ -100,47 +105,57 @@ Paletten, die noch da sind — nicht aus dem Mittel der ganzen Charge.
 
 ## 3. Wie es beim Betriebsleiter ankommt
 
-### Ebene 1 — Überblick
+Fünf Reiter, je mit einem Satz darüber, was er beantwortet.
 
-Eingang, Verlust gesamt, Hauptursache. Darunter die Ursachen als Balken,
-absteigend sortiert. Voller Balken = beobachtet, schraffiert = hochgerechnet,
-Strich darüber = Unsicherheitsbereich.
+### Überblick — wie viel, woran, was tun?
 
-Beruht ein Strom auf weniger als drei Messungen, steht **dünne Datenlage**
-daneben und darunter ein Kasten: *diese Rangfolge kann sich noch drehen.*
+Eingang, Lagerverlust (mit Anteil), Hauptursache, noch im Haus, ausgeliefert.
+Darunter die Massenkaskade, „Was jetzt zu tun ist" (Absprachen, die der
+Auswertung fehlen — etwa Arbeiten ohne Palox-Ablesung), „Was kostet Warten?"
+(welche Charge zuerst), die ersten Auffälligkeiten, die Saison im Verlauf
+(Eingang und Ausgang kumuliert), die Bilanz und die Ursachen als Balken.
+Ein Strom ohne einzige Messung steht als „nicht gemessen" da, nicht als 0.
 
-Ganz oben, falls vorhanden: unplausible Messungen mit Diagnose
-(*„4500 kg Schimmel auf 5144 kg Ware — das wären 87 %"*), Messungen ohne
-Nenner (*„80 kg Faules erfasst, aber keine Palette gezählt"*), Wägungen ohne
-verwertbare Tara. Sie zählen nicht mit, verschwinden aber nicht — und sagen,
-was nachzutragen ist. Ein Strom ohne einzige Messung steht als „nicht
-gemessen" da, nicht als 0.
-
-### Ebene 2 — Aufschlüsselung
+### Ursachen — warum, und wie sicher?
 
 Filter nach Sorte, Schlag und Lagerdauer. Dann:
 
-- **Buch A — Lagerverlust:** Verdunstung, Schimmel.
-- **Nicht lagerbedingt:** die Grundaussortierung vom Feld (Erde, Hagelnarben,
-  Schnittfehler). Physisch weg, aber kein Lagerverlust — steht für sich.
-- **Buch B — anderer Kanal, verschenkte Marge:** zu klein (an die Tiere), zu
-  gross (Nebenkanal), Überfüllung. Die Ware verlässt den Betrieb — nur nicht
-  zum besten Preis. Wird nie mit Buch A vermischt.
+- **Buch A — Lagerverlust:** Verdunstung, Schimmel, je mit Balken, Bereich und
+  aufklappbarem **Rechenweg** (Formel, Bezugsmasse, Koeffizient samt Herkunft,
+  Ergebnis, Bereich, beobachtet gegen projiziert).
+- **Verderb mit der Lagerdauer:** die Messpunkte nach Herkunft (Palox,
+  Lagerkontrolle) und die verwendete Kurve mit Bereich.
+- **Nicht lagerbedingt:** der Sockel vom Feld — oder warum er nicht belegt ist.
+- **Verdunstung:** jede gewogene Palette als Rate je Tag; Sorten im Vergleich.
+- **Buch B — anderer Kanal, verschenkte Marge:** zu klein, zu gross,
+  Überfüllung — und die Überfüllung je Käufer und Sorte.
+- **Kaliber-Verteilung** und die **Gewichtsverteilung** aus der Sortier-CSV
+  mit den Kalibergrenzen, nach Sorte, Schlag oder Charge, in 25/50/100 g.
 
-An jedem Strom ein aufklappbarer **Rechenweg**: Formel, Bezugsmasse,
-Koeffizient samt Herkunft, Ergebnis, Bereich, beobachtet gegen projiziert.
+### Chargen — wo steht welche?
 
-### Ebene 3 — hinter die Blackbox
+Eine Zeile je Charge: Eingang, im Lager (liegt seit), wartet aufs Waschen,
+verarbeitet, Verlust in 14 Tagen, Messungen, Modell gegen CSV. Aufgeklappt:
+die Arbeiten (mit Alter der verarbeiteten Ware) und Lieferungen der Charge.
+
+### Messungen — was weiss die Auswertung nicht?
 
 | Ansicht | Beantwortet |
 |---|---|
-| **Die vier Koeffizienten** | Worauf beruht die Rechnung? Wert, Anzahl Messungen, Herkunft |
-| **Schimmelkurve** | Je Altersklasse: gemessen, verwendet, und *warum* sie abweichen |
-| **Kaliber-Verteilung** | Wie verteilt sich eine Sorte über die Bänder? (Erlös, nicht Verlust) |
-| **Massenbilanz** | Trifft das Modell die Wirklichkeit? Modell am Band gegen gewogene CSV |
+| **Wie vollständig wird erfasst?** | Je Absprache (AB-…) ein Balken: datierte Paletten, Palox-Ablesungen, Abschlussfragen, gewogener Ausschuss, zugeordnete CSVs, gezählte Kisten, Lagerkontrollen |
+| **Auffälligkeiten** | Messungen, die nicht in die Rechnung eingehen, mit Rat und Sprung zur Arbeit |
+| **Wo fehlen Messungen** | Grösste Chargen ohne Stichprobe — dort bringt Messen am meisten |
+| **Wird das Älteste zuerst verarbeitet?** | Alter der verarbeiteten Paletten gegen die Charge, je Arbeit |
+| **Durchsatz je Arbeit** | Dauer, Masse, Kilo je Stunde, je Station |
+| **Die vier Koeffizienten**, **Kistengewicht je Kaliber** | Worauf beruht die Rechnung? Wert, Anzahl Messungen, Herkunft |
+| **Das Verderbsmodell** | k, gemessener Bereich, Sockel mit Nachweis, Selektionsverdacht, Herkunft der Punkte |
+| **Massenbilanz je Charge** | Trifft das Modell die Wirklichkeit? Modell am Band gegen gewogene CSV, mit CSV-Export |
 | **Gewogene Paletten** | Netto damals/jetzt, Verlust, kg je Kiste, kg je Kürbis |
-| **Wo fehlen Messungen** | Größte Chargen ohne Stichprobe — dort bringt Messen am meisten |
-| **Hochrechnung je Charge** | Jede Zeile einzeln, mit CSV-Export |
+
+### Betrieb — was läuft, und die Grundlagen
+
+Arbeiten (alle, mit Durchsatz), Warenausgang, Sortier-CSV, Warteschlange,
+Stammdaten, Zugang.
 
 Dazu jederzeit der direkte Weg: Supabase → Table Editor / SQL. Alle
 Ausgabespalten sind `numeric`, `select round(kg,1) from v_verlust_ranking`

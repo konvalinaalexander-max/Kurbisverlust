@@ -156,7 +156,7 @@ const schritt = async (name, fn) => {
   }
 }
 
-await seite.goto('http://localhost:5198/auftraege', { waitUntil: 'networkidle' })
+await seite.goto('http://localhost:5198/', { waitUntil: 'networkidle' })
 const feld = seite.getByLabel('Dein Name')
 if (await feld.isVisible().catch(() => false)) {
   await feld.fill('Tomasz')
@@ -164,15 +164,17 @@ if (await feld.isVisible().catch(() => false)) {
   await seite.waitForLoadState('networkidle')
 }
 
+// ---------- Erster Durchlauf: Waschen + Sortieren (Vorarbeiter) -------------
 let auftragId = null
-await schritt('Neue Arbeit: Waschen + Sortieren, Charge 1613, neuer Käufer Coop', async () => {
+await schritt('Assistent: Waschen + Sortieren, Charge 1613, neuer Käufer Coop, Kiste ab x kg', async () => {
   await seite.getByRole('button', { name: /Neue Arbeit/ }).click()
-  await seite.getByRole('button', { name: 'Waschen + Sortieren' }).click()
-  await seite.locator('#charge').fill('1613')
-  await seite.locator('#kaeufer').selectOption('__neu__')
-  await seite.getByPlaceholder('Name des Käufers').fill('Coop')
-  // AB-01: Waschen + Sortieren fragt jetzt, wie sortiert wird.
-  await seite.getByRole('button', { name: 'Kiste ab x kg' }).click()
+  await seite.locator('#taet-waschen_sortieren').click()
+  await seite.locator('#charge').fill('1613')                 // AB-06: eintippen
+  await seite.getByRole('button', { name: 'Weiter' }).click()
+  await seite.locator('#kaeufer-neu').click()
+  await seite.locator('#kaeufer-name').fill('Coop')
+  await seite.getByRole('button', { name: 'Weiter' }).click()
+  await seite.locator('#art-kiste').click()                   // AB-01
   await seite.getByRole('button', { name: 'Starten' }).click()
   await warteAuf('auftrag'); await warteAuf('auftrag_teilnehmer')
   const a = protokoll.find(p => p.tabelle === 'auftrag' && p.methode === 'POST')
@@ -180,25 +182,37 @@ await schritt('Neue Arbeit: Waschen + Sortieren, Charge 1613, neuer Käufer Coop
   auftragId = a.zeilen[0].id
 })
 
-await seite.goto(`http://localhost:5198/auftraege/${auftragId}`, { waitUntil: 'networkidle' })
+await schritt('Nach dem Start steht der Palox als erstes — „Später" führt zur Checkliste', async () => {
+  await seite.locator('#palox').waitFor()
+  await seite.locator('#palox-spaeter').click()
+  await seite.locator('#check-abschluss').waitFor()
+})
 
-await schritt('AB-05: Ausschuss-Paletten sind leer (Startfrage)', async () => {
-  await seite.getByRole('button', { name: 'Ja', exact: true }).click()
+await schritt('AB-02: ohne Ablesung kommt der Abschluss nicht an der Palox-Frage vorbei', async () => {
+  await seite.locator('#check-abschluss').click()
+  await seite.locator('#palox').waitFor()
+  if (await seite.locator('#palox-unveraendert').count() > 0) throw new Error('„Stand unverändert" ohne Ablesung')
+  if (await seite.getByRole('button', { name: 'Weiter' }).count() > 0) throw new Error('„Weiter" ohne Ablesung')
+  await seite.getByRole('button', { name: /Zurück/ }).click()
+  await seite.locator('#check-abschluss').waitFor()
+})
+
+await schritt('AB-05: Ausschuss-Paletten sind leer (Startfrage in der Checkliste)', async () => {
+  await seite.locator('#leer-ja').click()
   await warteAuf('auftrag_angabe', 'POST', 1)
 })
 
-await schritt('Zwei Paletten nur zählen, mit Datum vom Zettel', async () => {
+await schritt('Zähler: zwei Paletten mit Datum vom Zettel, „+" zählt sofort', async () => {
+  await seite.locator('#check-zaehlen').click()
   await seite.locator('#zettel').fill('2026-09-01')
   for (let i = 0; i < 2; i++) {
-    await seite.getByRole('button', { name: '+', exact: true }).click()
-    await seite.getByRole('button', { name: 'Nur zählen' }).click()
+    await seite.locator('#zaehlen-plus').click()
     await warteAuf('auftrag_palette', 'POST', i + 1)
   }
 })
 
 await schritt('Eine Palette wiegen: 950 → 900 kg, 40 Kisten G2, 6 je Kiste', async () => {
-  await seite.getByRole('button', { name: '+', exact: true }).click()
-  await seite.getByRole('button', { name: /wiegen/i }).first().click()
+  await seite.locator('#zum-wiegen').click()
   await seite.locator('#w-datum').fill('2026-09-01')
   await seite.locator('#w-damals').fill('950')
   await seite.locator('#w-jetzt').fill('900')
@@ -209,60 +223,57 @@ await schritt('Eine Palette wiegen: 950 → 900 kg, 40 Kisten G2, 6 je Kiste', a
   await warteAuf('verdunstung_wiegung'); await warteAuf('auftrag_palette', 'POST', 3)
 })
 
-await schritt('AB-02: ohne Palox-Ablesung ist der Abschluss gesperrt', async () => {
-  await seite.getByRole('link', { name: 'Fertig', exact: true }).click()
-  await seite.getByRole('button', { name: 'Ja, alles aus einer Charge' }).click()
-  const fertig = seite.getByRole('button', { name: /Arbeit fertig/ })
-  if (!(await fertig.isDisabled())) throw new Error('Abschluss trotz fehlender Palox-Ablesung möglich')
-  // zurück zur Faule-Maske für die eigentliche Ablesung
-  await seite.getByRole('link', { name: 'Faule' }).click()
-})
-
-await schritt('Palox: Waage zeigt 165 (Tara 45 → 120 kg)', async () => {
-  await seite.getByRole('link', { name: 'Faule' }).click()
+await schritt('Palox zu Beginn: Waage zeigt 165 (Tara 45 → 120 kg)', async () => {
+  await seite.getByRole('button', { name: /Was zu tun ist/ }).click()
+  await seite.locator('#check-palox').click()
   await seite.locator('#palox').fill('165')
   const vorschau = await seite.locator('text=/\\d+ kg/').first().textContent()
   if (!/120 kg/.test(vorschau ?? '')) throw new Error(`Vorschau zeigt „${vorschau}" statt 120 kg`)
-  await seite.getByRole('button', { name: 'Eintragen' }).click()
+  await seite.locator('#palox-eintragen').click()
   await warteAuf('schimmel_messung')
+  await seite.locator('#check-abschluss').waitFor()
 })
 
 await schritt('Zu klein wiegen (Brutto 100, 4 Kisten G2 → netto), zu gross schätzen 15 kg', async () => {
-  await seite.getByRole('link', { name: 'Klein / gross' }).click()
-  // Wiegen: Brutto und Kisten, das Netto rechnet die Datenbank.
+  await seite.locator('#check-ausschuss').click()
   await seite.locator('#aus-brutto').fill('100')
   await seite.locator('#aus-kisten').fill('4')
   await seite.locator('#aus-art').selectOption('G2')
   await seite.getByRole('button', { name: 'Eintragen' }).click()
   await warteAuf('ausschuss_messung', 'POST', 1)
-  // Zu gross: Schätzung, wenn nicht gewogen werden kann.
-  await seite.getByRole('button', { name: 'Zu gross' }).click()
+  await seite.getByRole('tab', { name: 'Zu gross' }).click()
   await seite.getByRole('button', { name: 'Schätzen', exact: true }).click()
   await seite.locator('#aus-schaetz').fill('15')
   await seite.getByRole('button', { name: 'Eintragen' }).click()
   await warteAuf('ausschuss_messung', 'POST', 2)
+  await seite.getByRole('button', { name: /Zurück/ }).click()
 })
 
-await schritt('Abschluss: eine Charge, Ausschuss von dieser Arbeit → fertig', async () => {
-  await seite.getByRole('link', { name: 'Fertig', exact: true }).click()
-  await seite.getByRole('button', { name: 'Ja, alles aus einer Charge' }).click()
-  // AB-05: die zweite Ausschuss-Frage im Abschluss
-  await seite.getByRole('button', { name: 'Ja', exact: true }).click()
-  await seite.getByRole('button', { name: /Arbeit fertig/ }).click()
-  await seite.getByRole('button', { name: /Ja, fertig/ }).click()
+await schritt('Geführter Abschluss: Palox am Ende, Ausschuss von dieser Arbeit, eine Charge → fertig', async () => {
+  await seite.locator('#check-abschluss').click()
+  await seite.locator('#palox-unveraendert').click()            // AB-02: Ablesung am Ende (0 kg dazu)
+  await warteAuf('schimmel_messung', 'POST', 2)
+  await seite.locator('#ausschuss-von-ja').click()              // AB-05: zweite Frage
+  await seite.getByRole('button', { name: 'Weiter' }).click()
+  await seite.locator('#charge-ja').click()
+  await seite.getByRole('button', { name: 'Weiter' }).click()
+  await seite.locator('#arbeit-fertig').click()
+  await seite.locator('#ja-fertig').click()
   await warteAuf('auftrag', 'PATCH')
 })
 
 // ---------- Zweiter Durchlauf: Sortieren an der Maschine (AB-01, AB-06) ----
-// Der andere Pfad: Sortierart wählen, Chargennummer eintippen, Paletten mit
-// Datum zählen, Palox ablesen, abschliessen. Keine Ausschuss-Fragen (Maschine).
+// Der andere Pfad: Sortierart wählen, Chargennummer eintippen, Palox direkt
+// nach dem Start, Paletten mit Datum zählen, abschliessen. Keine Ausschuss-Fragen.
 let sortierId = null
-await schritt('Sortieren: Charge 1613 eingetippt, Kaliber gewählt', async () => {
-  await seite.goto('http://localhost:5198/auftraege', { waitUntil: 'networkidle' })
+await schritt('Assistent: Sortieren, Charge 1613 eingetippt, kein Käufer, Kaliber gewählt', async () => {
+  await seite.goto('http://localhost:5198/', { waitUntil: 'networkidle' })
   await seite.getByRole('button', { name: /Neue Arbeit/ }).click()
-  await seite.getByRole('button', { name: /^[^ ]+ Sortieren$/ }).click()
-  await seite.locator('#charge').fill('1613')                 // AB-06: eintippen
-  await seite.getByRole('button', { name: 'Kaliber (nach Grösse)' }).click()  // AB-01
+  await seite.locator('#taet-sortieren').click()
+  await seite.locator('#charge').fill('1613')
+  await seite.getByRole('button', { name: 'Weiter' }).click()
+  await seite.locator('#kaeufer-keiner').click()
+  await seite.locator('#art-kaliber').click()                 // AB-01
   await seite.getByRole('button', { name: 'Starten' }).click()
   await warteAuf('auftrag', 'POST', 2)
   const posts = protokoll.filter(p => p.tabelle === 'auftrag' && p.methode === 'POST')
@@ -270,21 +281,22 @@ await schritt('Sortieren: Charge 1613 eingetippt, Kaliber gewählt', async () =>
   await warteAuf('auftrag_teilnehmer', 'POST', 2)
 })
 
-await seite.goto(`http://localhost:5198/auftraege/${sortierId}`, { waitUntil: 'networkidle' })
-
-await schritt('Sortieren: eine Palette zählen, Palox ablesen, abschliessen', async () => {
-  await seite.locator('#zettel').fill('2026-09-05')
-  // Ohne Wiegen zählt „+" direkt (keine Frage wie bei Waschen + Sortieren).
-  await seite.getByRole('button', { name: '+', exact: true }).click()
-  await warteAuf('auftrag_palette', 'POST', 3)
-  await seite.getByRole('link', { name: 'Faule' }).click()
+await schritt('Sortieren: Palox direkt nach dem Start (60 → 15 kg), eine Palette, abschliessen', async () => {
   await seite.locator('#palox').fill('60')                    // erste Ablesung: 60 − 45 = 15
-  await seite.getByRole('button', { name: 'Eintragen' }).click()
-  await warteAuf('schimmel_messung', 'POST', 2)
-  await seite.getByRole('link', { name: 'Fertig', exact: true }).click()
-  await seite.getByRole('button', { name: 'Ja, alles aus einer Charge' }).click()
-  await seite.getByRole('button', { name: /Arbeit fertig/ }).click()
-  await seite.getByRole('button', { name: /Ja, fertig/ }).click()
+  await seite.locator('#palox-eintragen').click()
+  await warteAuf('schimmel_messung', 'POST', 3)
+  await seite.locator('#check-zaehlen').click()
+  await seite.locator('#zettel').fill('2026-09-05')
+  await seite.locator('#zaehlen-plus').click()                // ohne Wiegen zählt „+" direkt
+  await warteAuf('auftrag_palette', 'POST', 4)
+  await seite.getByRole('button', { name: /Was zu tun ist/ }).click()
+  await seite.locator('#check-abschluss').click()
+  await seite.locator('#palox-unveraendert').click()
+  await warteAuf('schimmel_messung', 'POST', 4)
+  await seite.locator('#charge-ja').click()
+  await seite.getByRole('button', { name: 'Weiter' }).click()
+  await seite.locator('#arbeit-fertig').click()
+  await seite.locator('#ja-fertig').click()
   await warteAuf('auftrag', 'PATCH', 2)
 })
 
