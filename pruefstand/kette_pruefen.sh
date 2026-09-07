@@ -205,5 +205,26 @@ begin
     'Die Fax-Arbeit taucht in der Plausibilität auf';
   raise notice 'OK  Fax: Kisten gezählt, Faules gewogen, eigener Strom, kein Waschgang';
 end $$;
+
+-- ---------- Der Wasch-Durchlauf mit eigenem Kaliber (0054) -----------------
+do $$
+declare a record;
+begin
+  select * into a from auftrag where station = 'waschen' and not ist_fax order by id desc limit 1;
+  assert a.id is not null, 'Die Wasch-Arbeit ist nicht angekommen';
+  assert a.kaliber_von_g = 700 and a.kaliber_bis_g = 900 and a.kaliber_idx is null,
+    format('Eigenes Kaliber 700–900 erwartet, angekommen %s–%s (Index %s)', a.kaliber_von_g, a.kaliber_bis_g, a.kaliber_idx);
+  assert (select anzahl from auftrag_gebinde where auftrag_id = a.id and kaliber_idx = -2) = 3,
+    'Drei Kisten zum eigenen Kaliber (Index −2) erwartet';
+  assert a.status = 'abgeschlossen', 'Der Abschluss der Wasch-Arbeit ist nicht angekommen';
+  assert not exists (select 1 from v_plausibilitaet where auftrag_id = a.id and art = 'Kaliber fehlt'),
+    'Ein eigenes Kaliber gilt als Kaliber — „Kaliber fehlt" darf nicht auffallen';
+  assert exists (select 1 from v_plausibilitaet where auftrag_id = a.id and art = 'Kistengewicht'
+                    and befund like '%eigenen Kaliber 700–900 g%'),
+    'Das Kistengewicht zum eigenen Kaliber ist unbekannt — das muss die Plausibilität sagen';
+  assert (select eingang_netto_kg from v_auftrag_masse where auftrag_id = a.id) is null,
+    'Ohne Kistengewicht darf die Arbeit keine Masse behaupten';
+  raise notice 'OK  Waschen: eigenes Kaliber 700–900 g, drei Kisten, Kistengewicht ehrlich unbekannt';
+end $$;
 SQL
 echo "——— Kette in beide Richtungen geprüft ———"

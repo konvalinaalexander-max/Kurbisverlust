@@ -392,7 +392,7 @@ export interface Lieferung {
  */
 export function lieferungenBauen(
   zeilen: AusgangZeile[],
-  chargeVon: (extern: string) => number | null,
+  chargeVon: (extern: string, zeile: AusgangZeile) => number | null,
   sorteVon: (z: AusgangZeile) => string | null,
 ): { lieferungen: Lieferung[]; ruecknahmen: Lieferung[] } {
   const proPos = new Map<string, AusgangZeile[]>()
@@ -409,7 +409,7 @@ export function lieferungenBauen(
     if (gesamt < 0) {
       zurueck.push({
         extern_id: `${erste.quelle}:${erste.pos_id}:rueckgabe`,
-        datum: erste.datum, charge_nr: erste.charge_extern ? chargeVon(erste.charge_extern) : null,
+        datum: erste.datum, charge_nr: erste.charge_extern ? chargeVon(erste.charge_extern, erste) : null,
         sorte: sorteVon(erste), kg: runden(-gesamt),
         gebindeart: erste.gebindeart, kunde: erste.kunde,
         bemerkung: 'Rücknahme (negative Menge in der Datei)',
@@ -422,7 +422,8 @@ export function lieferungenBauen(
       const kg = runden(Math.min(z.kg_charge, Math.max(gesamt - zugeordnet, 0)))
       if (kg <= 0) continue
       zugeordnet = runden(zugeordnet + kg)
-      const nr = chargeVon(z.charge_extern)
+      // Die Zeile geht mit: bei einer doppelten Perigon-Nummer entscheidet ihr Artikel.
+      const nr = chargeVon(z.charge_extern, z)
       out.push({
         extern_id: `${z.quelle}:${z.pos_id}:${z.charge_extern}:${z.lauf_nr}`,
         datum: z.datum, charge_nr: nr, sorte: sorteVon(z), kg,

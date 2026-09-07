@@ -22,6 +22,7 @@ for R in v_hochrechnung v_massenbilanz v_datenlage v_marge_buch v_plausibilitaet
          v_schimmel_modell v_selektionsverdacht v_saisonbilanz v_schimmel_punkte \
          v_hochrechnung_basis v_naechste_charge auswertung_stand \
          v_charge_kohorte v_kohorte_anteil v_fax_beobachtung v_ausschuss_beobachtung v_koeff_fax \
+         ausgang_quelle ausgang_artikel v_ausgang_lage v_ausgang_artikel_vorschlag v_lieferung_masse \
          charge sorte_kaliber gebinde einstellung ausgang_ziel kaeufer sortierschema \
          v_lieferung_masse v_ausgang_kennzahl profil palette \
          auftrag auftrag_palette auftrag_gebinde schimmel_messung ausschuss_messung \

@@ -159,6 +159,20 @@ const BILDSCHIRME = [
       await p.locator('#taet-fax').click(); await p.locator('#charge').fill('1613')
       await p.getByRole('button', { name: T('weiter') }).click(); await p.locator('#kaeufer-keiner').click()
     } },
+  // Waschen (0054): die Bänder der Sorte wählen — oder ein eigenes Kaliber tippen
+  { name: 'neu-kaliber', wer: 'arbeiter', pfad: '/neu',
+    tun: async p => {
+      await p.locator('#taet-waschen').click(); await p.locator('#charge').fill('1613')
+      await p.getByRole('button', { name: T('weiter') }).click()
+      await p.locator('#kaliber-0').waitFor()
+    } },
+  { name: 'neu-kaliber-eigen', wer: 'arbeiter', pfad: '/neu',
+    tun: async p => {
+      await p.locator('#taet-waschen').click(); await p.locator('#charge').fill('1613')
+      await p.getByRole('button', { name: T('weiter') }).click()
+      await p.locator('#kaliber-eigen').click()
+      await p.locator('#kaliber-von').fill('700'); await p.locator('#kaliber-bis').fill('900')
+    } },
   { name: 'neu-pruefen', wer: 'arbeiter', pfad: '/neu',
     tun: async p => {
       await p.locator('#taet-waschen_sortieren').click(); await p.locator('#charge').fill('1613')
@@ -187,6 +201,18 @@ const BILDSCHIRME = [
       await p.getByRole('button', { name: T('weiter') }).click()
       await p.locator('#charge-ja').click(); await p.getByRole('button', { name: T('weiter') }).click()
     } },
+  // Waschen (0054): die Bänder der Sorte zur Wahl, oder ein eigenes Kaliber
+  { name: 'neu-kaliber', wer: 'arbeiter', pfad: '/neu',
+    tun: async p => {
+      await p.locator('#taet-waschen').click(); await p.locator('#charge').fill('1613')
+      await p.getByRole('button', { name: T('weiter') }).click(); await p.locator('#kaliber-0').waitFor()
+    } },
+  { name: 'neu-kaliber-eigen', wer: 'arbeiter', pfad: '/neu',
+    tun: async p => {
+      await p.locator('#taet-waschen').click(); await p.locator('#charge').fill('1613')
+      await p.getByRole('button', { name: T('weiter') }).click(); await p.locator('#kaliber-eigen').click()
+      await p.locator('#kaliber-von').fill('700'); await p.locator('#kaliber-bis').fill('900')
+    } },
   // Fax (0051): Kisten zählen mit „+ 1 Palette", Faules wiegen
   { name: 'arbeit-fax-liste', wer: 'arbeiter', pfad: '/arbeit/OFFENFAX',
     tun: async p => { await p.getByRole('button', { name: T('ichFuehre') }).click() } },
@@ -203,6 +229,12 @@ const BILDSCHIRME = [
   { name: 'messungen', wer: 'admin', pfad: '/messungen' },
   { name: 'betrieb-arbeiten', wer: 'admin', pfad: '/betrieb/arbeiten' },
   { name: 'betrieb-lieferungen', wer: 'admin', pfad: '/betrieb/lieferungen' },
+  // Warenausgang einlesen (0055): die Probedatei wählen, Befund und Abgleich lesen
+  { name: 'betrieb-import', wer: 'admin', pfad: '/betrieb/lieferungen',
+    tun: async p => {
+      await p.locator('#ausgang-dateien input[type=file]').setInputFiles('test/daten/warenausgang-probe.xlsx')
+      await p.getByText('Bis wo hat es die Daten schon?').waitFor()
+    } },
   { name: 'betrieb-csv', wer: 'admin', pfad: '/betrieb/csv' },
   { name: 'betrieb-warteschlange', wer: 'admin', pfad: '/betrieb/warteschlange' },
   { name: 'betrieb-stammdaten', wer: 'admin', pfad: '/betrieb/stammdaten' },

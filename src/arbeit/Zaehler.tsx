@@ -77,16 +77,20 @@ export function Zaehler({ d, gesperrt, neuLaden, melden, zumWiegen }: {
   const indizes: number[] = p.istFax
     ? (d.fassung?.art === 'kiste' || d.baender.length === 0 ? [-1] : d.baender.map((_, i) => i))
     : d.auftrag.station === 'waschen'
-      ? (d.auftrag.kaliber_idx === null ? [] : [d.auftrag.kaliber_idx])
+      ? (d.auftrag.kaliber_idx !== null ? [d.auftrag.kaliber_idx]
+         : d.auftrag.kaliber_von_g !== null ? [-2] : [])
       : d.baender.map((_, i) => i)
   const gewogen = d.paletten.filter(z => z.wiegung_id !== null).length
   const kistenGesamt = d.gebinde.reduce((s, g) => s + g.anzahl, 0)
   const erklaerung = p.istFax
     ? t('kistenFaxWarum').replace('{n}', String(d.kistenProPalette))
     : d.auftrag.station === 'waschen' ? t('kistenWaschenWarum') : t('kistenSortierenWarum')
-  const bandName = (i: number) => i < 0
+  const bandName = (i: number) => i === -2
+    ? `${t('kisteEigenesKaliber')} · ${d.auftrag.kaliber_von_g}–${d.auftrag.kaliber_bis_g} g`
+    : i < 0
     ? `${t('kisteOhneKaliber')}${d.fassung?.soll_kg_pro_kiste ? ` · ${d.fassung.soll_kg_pro_kiste} kg` : ''}`
     : `${t('kaliber')} ${i + 1}`
+  const idVon = (i: number) => i === -2 ? 'eigen' : i < 0 ? 'soll' : String(i)
 
   return (
     <>
@@ -139,7 +143,7 @@ export function Zaehler({ d, gesperrt, neuLaden, melden, zumWiegen }: {
               <div className="einheit">{t('kistenGemacht')}</div>
             </div>
           )}
-          {!p.istFax && d.auftrag.station === 'waschen' && d.auftrag.kaliber_idx === null && (
+          {!p.istFax && d.auftrag.station === 'waschen' && d.auftrag.kaliber_idx === null && d.auftrag.kaliber_von_g === null && (
             <Hinweis art="warnung">{t('kistenOhneKaliber')}</Hinweis>
           )}
           {indizes.map(i => (
@@ -149,11 +153,11 @@ export function Zaehler({ d, gesperrt, neuLaden, melden, zumWiegen }: {
                 <button onClick={() => void kistenSetzen(i, anzahlVon(i) - 1)} aria-label="−"
                         disabled={gesperrt || laeuft || anzahlVon(i) === 0}>−</button>
                 <span className="stand">{anzahlVon(i)}</span>
-                <button className="haupt" aria-label="+" id={`kiste-plus-${i < 0 ? 'soll' : i}`} disabled={gesperrt || laeuft}
+                <button className="haupt" aria-label="+" id={`kiste-plus-${idVon(i)}`} disabled={gesperrt || laeuft}
                         onClick={() => void kistenSetzen(i, anzahlVon(i) + 1)}>+</button>
               </div>
               {p.istFax && (
-                <button id={`palette-plus-${i < 0 ? 'soll' : i}`} style={{ width: '100%', marginTop: '.4rem', minHeight: 48 }}
+                <button id={`palette-plus-${idVon(i)}`} style={{ width: '100%', marginTop: '.4rem', minHeight: 48 }}
                         disabled={gesperrt || laeuft}
                         onClick={() => void kistenSetzen(i, anzahlVon(i) + d.kistenProPalette)}>
                   {t('plusPalette')} <span className="leise">({d.kistenProPalette} {t('kisten')})</span>

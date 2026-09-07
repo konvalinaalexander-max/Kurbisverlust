@@ -519,6 +519,25 @@ dem Journal auftaucht — dann steht sie ohne Tara da und ist mit „Tara fehlt"
 markiert. Solange irgendwo Tara fehlt, warnt das Dashboard sichtbar, weil die
 betroffenen Paletten sonst aus der Auswertung fielen.
 
+## 2b. Den Warenausgang einlesen
+
+Aus dem Perigon die Auswertung **„Abgleich Rückverfolgbarkeit"** ziehen, je
+Firma eine Datei, als Excel. In der App: **Betrieb → Warenausgang →
+„Excel-Dateien wählen"**, beide auf einmal. Die App liest jede Datei im
+Browser, sagt, was drinsteht (Zeilen, Kürbiszeilen, Zeitraum, Masse), und
+vergleicht mit dem, was sie von dieser Firma schon hat: neu, geändert,
+unverändert, verschwunden. Erst der Knopf **„Übernehmen"** schreibt.
+
+Beim ersten Mal fragt sie je Artikel, ob es Kürbis ist und welche Sorte —
+einmal rund fünfzig Artikel, danach nur noch bei neuen. Gezählt wird ab dem
+1. Juli 2026; Journal L (interne Umbuchung) bleibt draussen; sechsstellige
+Chargennummern der zweiten Firma werden über die Planungsdatei aufgelöst.
+Dieselbe Datei nochmals hochladen ist erlaubt und ändert nichts — die App
+erkennt sie an der Prüfsumme.
+
+Ab dann steht im Überblick „Ausgeliefert" als gemessene Zahl, und „Noch im
+Haus" lässt sich beziffern.
+
 ## 3. Eine echte Arbeit mitlaufen lassen
 
 Die App in der Halle kennt zwei Rollen, ohne Konten (`docs/UI-KONZEPT.md`):

@@ -70,6 +70,8 @@ export interface Wiegung {
 }
 export interface Kurve { altersklasse: string; von: number; bis: number; messungen: number; gemessen: number | null; verwendet: number | null; unten: number | null; oben: number | null; erlaeuterung: string }
 export interface Kaliberzeile { charge_nr: number; sorte: string; klasse: string; band_von: number | null; band_bis: number | null; n_kuerbis: number; masse_kg: number }
+/** Eine Lieferung, so weit die Auswertung sie braucht (v_lieferung_masse). */
+export interface LieferungKurz { charge_nr: number | null; sorte: string | null; datum: string; masse_kg: number | null; buch: string; ziel_name: string }
 export interface Marge { posten: string; kg: number | null; kg_unten: number | null; kg_oben: number | null; erlaeuterung: string }
 export interface Gewichtsstufe { sorte: string; schlag: string; charge_nr: number; stufe_g: number; n: number }
 export interface VerarbeitungAlter {
@@ -113,7 +115,7 @@ export interface Auswertung {
   punkte: Schimmelpunkt[]
   bestand: Bestand[]
   naechste: NaechsteCharge[]
-  sorten: { verdunstung: SortenK[]; ausschuss: SortenK[] }
+  sorten: { verdunstung: SortenK[]; ausschuss: SortenK[]; nebenkanal: SortenK[] }
   wiegungen: Wiegung[]
   marge: Marge[]
   gewichte: Gewichtsstufe[]
@@ -127,6 +129,8 @@ export interface Auswertung {
   kohorten: Kohorte[]
   fax: FaxBeobachtung[]
   ausschuss: AusschussBeobachtung[]
+  /** Runde E: der Warenausgang je Charge — die zweite vollständige Zahl neben dem Eingang. */
+  lieferungen: LieferungKurz[]
 }
 
 let stand: Auswertung | null = null
@@ -152,7 +156,7 @@ async function alles(): Promise<Auswertung> {
     const r = await supabase.from(name).select('*').maybeSingle()
     return (r.data ?? null) as T | null
   }
-  const [h, b, d, pl, kv, sk, mo, sel, sb, pk, hb, nc, kfv, kfa, kfn, kfu, wk, mg, gw, va, ds, uk, dq, sv, kg, ss, ko, fx, ab] = await Promise.all([
+  const [h, b, d, pl, kv, sk, mo, sel, sb, pk, hb, nc, kfv, kfa, kfn, kfu, wk, mg, gw, va, ds, uk, dq, sv, kg, ss, ko, fx, ab, lf] = await Promise.all([
     q<Hochrechnung>('v_hochrechnung'), q<Massenbilanz>('v_massenbilanz'), q<Datenlage>('v_datenlage'),
     q<Befund>('v_plausibilitaet'), q<Kaliberzeile>('v_kaliber_verteilung'), q<Kurve>('v_schimmel_kurve_anzeige'),
     eins<Modell>('v_schimmel_modell'), eins<Selektion>('v_selektionsverdacht'), eins<Saisonbilanz>('v_saisonbilanz'),
@@ -166,6 +170,7 @@ async function alles(): Promise<Auswertung> {
     q<KoeffGebinde>('v_koeff_gebinde'), q<Schema>('sortierschema', ['gilt_ab', false]),
     q<Kohorte>('v_charge_kohorte', ['eingangsdatum', true]), q<FaxBeobachtung>('v_fax_beobachtung', ['start_ts', false]),
     q<AusschussBeobachtung>('v_ausschuss_beobachtung'),
+    q<LieferungKurz>('v_lieferung_masse', ['datum', true]),
   ])
 
   type K = { mittel?: number | null; n: number; basis?: string }
@@ -184,9 +189,9 @@ async function alles(): Promise<Auswertung> {
     stand: st2?.berechnet_ts ?? null,
     hochrechnung: h, bilanz: b, lage: d, befunde: pl, kaliber: kv, kurve: sk, koeff,
     modell: mo, selektion: sel, saison: sb, punkte: pk, bestand: hb, naechste: nc,
-    sorten: { verdunstung: kfv, ausschuss: kfa }, wiegungen: wk, marge: mg,
+    sorten: { verdunstung: kfv, ausschuss: kfa, nebenkanal: kfn }, wiegungen: wk, marge: mg,
     gewichte: gw, verarbeitung: va, durchsatz: ds, ueberfuellung: uk, qualitaet: dq, saisonverlauf: sv,
-    gebinde: kg, schemata: ss, kohorten: ko, fax: fx, ausschuss: ab,
+    gebinde: kg, schemata: ss, kohorten: ko, fax: fx, ausschuss: ab, lieferungen: lf,
   }
 }
 
@@ -300,4 +305,61 @@ export function alterSpanne(von: number | null | undefined, bis: number | null |
     return a === b ? `${a} Tagen` : `${a}–${b} Tagen`
   }
   return mittel != null ? `${Math.round(mittel)} Tagen` : '—'
+}
+
+
+/* ---------- Kaliber je Sorte (Runde E) ------------------------------------- */
+
+export interface Kaliberklasse { name: string; klasse: string; von: number | null; bis: number | null; n: number; kg: number }
+export interface KaliberSorte {
+  sorte: string
+  /** Die Bänder dieser Gruppe, lesbar („600–1100 · 1100–1600 · 1600–2000"). */
+  baender: string
+  /** Die Sorte wurde nach mehr als einer Bänder-Fassung sortiert — dann gibt es mehrere Gruppen. */
+  mehrere: boolean
+  n: number; kg: number; klassen: Kaliberklasse[]
+}
+
+/**
+ * Die Kaliber-Verteilung je Sorte, über alle Chargen gebündelt — die Sicht
+ * liefert je Charge eine Zeile je Band, und wer die ungebündelt zeigt, sieht
+ * viermal „600–1100 g" untereinander. Gebündelt wird je Sorte und je
+ * Bänder-Fassung: Wurde eine Sorte einmal nach 600/1100/1600 und einmal nach
+ * 600/1000/1400 sortiert (ein Käufer will engere Bänder), stünden die Bänder
+ * sonst ineinander verschränkt. Reihenfolge: zu klein, die Bänder
+ * aufsteigend, zu gross.
+ */
+export function kaliberJeSorte(zeilen: Kaliberzeile[]): KaliberSorte[] {
+  // Die Bänder-Fassung einer Charge: ihre Kaliberbänder, aufsteigend
+  const proCharge = new Map<number, Kaliberzeile[]>()
+  for (const z of zeilen) proCharge.set(z.charge_nr, [...(proCharge.get(z.charge_nr) ?? []), z])
+  const fassung = new Map<number, string>()
+  for (const [nr, rows] of proCharge) {
+    const b = [...new Set(rows.filter(r => r.klasse === 'kaliber' && r.band_von !== null).map(r => `${r.band_von}–${r.band_bis}`))]
+      .sort((x, y) => Number(x.split('–')[0]) - Number(y.split('–')[0]))
+    fassung.set(nr, b.join(' · '))
+  }
+  const gruppen = new Map<string, { sorte: string; baender: string; klassen: Map<string, Kaliberklasse> }>()
+  for (const z of zeilen) {
+    const baender = fassung.get(z.charge_nr) ?? ''
+    const key = `${z.sorte}|${baender}`
+    let g = gruppen.get(key)
+    if (!g) { g = { sorte: z.sorte, baender, klassen: new Map() }; gruppen.set(key, g) }
+    const schluessel = z.klasse === 'kaliber' ? `k|${z.band_von}|${z.band_bis}` : z.klasse
+    let k = g.klassen.get(schluessel)
+    if (!k) {
+      k = { klasse: z.klasse, von: z.band_von, bis: z.band_bis, n: 0, kg: 0,
+            name: z.klasse === 'verlust_klein' ? 'zu klein' : z.klasse === 'nebenkanal' ? 'zu gross' : `${z.band_von}–${z.band_bis} g` }
+      g.klassen.set(schluessel, k)
+    }
+    k.n += z.n_kuerbis; k.kg += z.masse_kg
+  }
+  const rang = (k: Kaliberklasse) => k.klasse === 'verlust_klein' ? -1 : k.klasse === 'nebenkanal' ? 1e9 : (k.von ?? 0)
+  const proSorte = new Map<string, number>()
+  for (const g of gruppen.values()) proSorte.set(g.sorte, (proSorte.get(g.sorte) ?? 0) + 1)
+  return [...gruppen.values()].map(g => {
+    const liste = [...g.klassen.values()].sort((a, b) => rang(a) - rang(b))
+    return { sorte: g.sorte, baender: g.baender, mehrere: (proSorte.get(g.sorte) ?? 0) > 1, klassen: liste,
+             n: liste.reduce((s, k) => s + k.n, 0), kg: liste.reduce((s, k) => s + k.kg, 0) }
+  }).sort((a, b) => b.n - a.n)
 }

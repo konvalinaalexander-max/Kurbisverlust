@@ -2,7 +2,7 @@ import { datum, kg, prozent, zahl } from '../lib/format'
 import { Hinweis, Karte, Lade, Marke } from '../components/Bausteine'
 import { Diagramm } from '../components/Diagramm'
 import { useAuswertung, type Datenqualitaet } from '../auswertung/daten'
-import { Auffaelligkeiten, Herkunft, Reiterkopf } from '../auswertung/Karten'
+import { Auffaelligkeiten, Bilanz, Herkunft, Reiterkopf } from '../auswertung/Karten'
 import { STATION_NAME } from '../lib/format'
 
 const TAG = 86400000
@@ -55,6 +55,8 @@ export default function Messungen() {
           ))}</tbody>
         </table></div>
       </Karte>
+
+      {daten.saison && <Bilanz bilanz={daten.saison} />}
 
       <Karte titel="Wird das Älteste zuerst verarbeitet?">
         <p className="leise">Je Arbeit: das Alter der gezählten Paletten gegen das mittlere Alter der Charge an dem Tag. Über null heisst: älter als der Durchschnitt verarbeitet. Wer nach Aussehen auswählt, misst den Verderb zu flach — das ist die Fehlerquelle, die keine Rechnung wegbekommt.</p>

@@ -30,6 +30,8 @@ export interface Auftrag {
   /** Beim Waschen: welches Kaliberband gewaschen wird (Index in kaliber_baender).
    *  Trägt ein, wer die Arbeit eröffnet; daran hängt die verarbeitete Menge. */
   kaliber_idx: number | null
+  /** Eigenes Kaliber beim Waschen (0054), wenn das Etikett keines der Bänder nennt. */
+  kaliber_von_g: number | null; kaliber_bis_g: number | null
   /** Fax-Arbeit: eigener Waschgang nach Bestellung (AB-08). */
   ist_fax: boolean
 }

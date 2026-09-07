@@ -400,6 +400,48 @@ await schritt('Fax-Abschluss: Faules, Kisten, eine Charge → fertig — ohne Ki
   await warteAuf('auftrag', 'PATCH', 3)
 })
 
+// ---------- Vierter Durchlauf: Waschen mit eigenem Kaliber (0054) ----------
+// Das Etikett nennt ein Band, das die Fassung nicht kennt: 700–900 g. Der
+// Vorarbeiter tippt es ein; die Kisten dazu zählen unter „Eigenes Kaliber".
+await schritt('Assistent: Waschen, Charge 1613, Bänder der Sorte zur Wahl, eigenes Kaliber 700–900 g', async () => {
+  await seite.goto('http://localhost:5198/', { waitUntil: 'networkidle' })
+  await seite.getByRole('button', { name: /Neue Arbeit/ }).click()
+  await seite.locator('#taet-waschen').click()
+  await seite.locator('#charge').fill('1613')
+  await seite.getByRole('button', { name: 'Weiter' }).click()
+  await seite.locator('#kaliber-0').waitFor()            // die Bänder der Sorte stehen zur Wahl
+  await seite.locator('#kaliber-eigen').click()
+  await seite.locator('#kaliber-von').fill('700')
+  await seite.locator('#kaliber-bis').fill('900')
+  await seite.getByRole('button', { name: 'Weiter' }).click()
+  await seite.getByRole('button', { name: 'Starten' }).click()
+  await warteAuf('auftrag', 'POST', 4)
+  await warteAuf('auftrag_teilnehmer', 'POST', 4)
+})
+
+await schritt('Waschen: Palox zu Beginn, drei Kisten zum eigenen Kaliber, abschliessen', async () => {
+  await seite.locator('#palox').fill('60')
+  await seite.locator('#palox-eintragen').click()
+  await warteAuf('schimmel_messung', 'POST', 6)
+  await seite.locator('#check-zaehlen').click()
+  await seite.locator('#kiste-plus-eigen').click()
+  await warteAuf('auftrag_gebinde', 'POST', 4)
+  await seite.locator('#kiste-plus-eigen').click()
+  await warteAuf('auftrag_gebinde', 'POST', 5)
+  await seite.locator('#kiste-plus-eigen').click()
+  await warteAuf('auftrag_gebinde', 'POST', 6)
+  await seite.getByRole('button', { name: /Was zu tun ist/ }).click()
+  await seite.locator('#check-abschluss').click()
+  await seite.locator('#palox-unveraendert').click()
+  await warteAuf('schimmel_messung', 'POST', 7)
+  await seite.getByRole('button', { name: 'Weiter' }).click()   // Kisten: drei gezählt
+  await seite.locator('#charge-ja').click()
+  await seite.getByRole('button', { name: 'Weiter' }).click()
+  await seite.locator('#arbeit-fertig').click()
+  await seite.locator('#ja-fertig').click()
+  await warteAuf('auftrag', 'PATCH', 4)
+})
+
 await browser.close(); await vite.close()
 if (konsole.length) { console.log('  Konsolenfehler:'); for (const k of konsole) console.log('   ', k) }
 writeFileSync(join(HIER, 'kette_erfasst.json'), JSON.stringify(protokoll, null, 2))

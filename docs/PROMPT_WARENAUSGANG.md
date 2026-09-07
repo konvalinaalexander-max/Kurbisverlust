@@ -1,5 +1,11 @@
 # Auftrag: den Warenausgang-Import fertig bauen
 
+> **Erledigt am 7. September 2026** (Runde E): Bildschirm unter Betrieb →
+> Warenausgang (`src/betrieb/AusgangImport.tsx`), Übernahme in einem Aufruf
+> (`ausgang_uebernehmen`, Migration 0055), Prüfungen in `pruefung.sql` Block
+> 0055 und im Bildschirm-Prüfstand (`betrieb-import`). Der Text darunter ist
+> die Übergabe, wie sie war — die Entscheidungen darin gelten weiter.
+
 Du übernimmst eine vorbereitete Arbeit. Lies zuerst
 [`docs/WARENAUSGANG_BEFUND.md`](WARENAUSGANG_BEFUND.md) — dort steht, was in den
 Dateien des Betriebs tatsächlich drinsteht, an den echten Dateien gemessen.

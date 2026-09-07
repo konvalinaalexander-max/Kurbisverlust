@@ -2146,3 +2146,197 @@ begin
 end $$;
 
 select '——— 0052 Demo-Saison geprüft ———' as ergebnis;
+
+
+-- =========================================================================
+-- 0055: Warenausgang übernehmen — ein Aufruf, und jedes Kilo kommt genau
+-- einmal an. Zweimal dieselbe Datei ändert nichts; eine korrigierte Zeile
+-- wird als Änderung erkannt; was keiner Charge und keiner Sorte zuzuordnen
+-- ist, wird zurückgemeldet statt still weggelassen.
+-- =========================================================================
+do $$
+declare v_charge int; v_sorte text; v_erg jsonb; v_n int; v_zeilen jsonb; v_lief jsonb;
+        v_meldung text;
+begin
+  perform set_config('request.jwt.claim.sub','11111111-1111-1111-1111-111111111111', true);
+  select nr, sorte into v_charge, v_sorte from charge order by nr limit 1;
+
+  v_zeilen := jsonb_build_array(
+    jsonb_build_object('pos_id', 7001, 'charge_extern', v_charge::text, 'lauf_nr', 1, 'fingerabdruck', 'a1',
+                       'datum', (current_date - 2)::text, 'journal', 'A', 'kunde', 'Grosshandel',
+                       'artikel_id', 'kuerbbu', 'artikel', 'Bio Kürbis Butternut', 'einheit', 'Stk.',
+                       'menge', 100, 'gewicht_je_artikel', 1.5, 'batch_menge', 60,
+                       'kg_position', 150, 'kg_charge', 90),
+    jsonb_build_object('pos_id', 7001, 'charge_extern', '', 'lauf_nr', 1, 'fingerabdruck', 'a2',
+                       'datum', (current_date - 2)::text, 'journal', 'A', 'kunde', 'Grosshandel',
+                       'artikel_id', 'kuerbbu', 'artikel', 'Bio Kürbis Butternut', 'einheit', 'Stk.',
+                       'menge', 100, 'gewicht_je_artikel', 1.5, 'batch_menge', 0,
+                       'kg_position', 150, 'kg_charge', 0));
+  v_lief := jsonb_build_array(
+    jsonb_build_object('extern_id', 'uebn:7001:' || v_charge || ':1', 'datum', (current_date - 2)::text,
+                       'charge_nr', v_charge, 'sorte', v_sorte, 'kg', 90, 'gebindeart', 'Unbekanntes Gebinde',
+                       'kunde', 'Grosshandel', 'bemerkung', ''),
+    jsonb_build_object('extern_id', 'uebn:7001:rest', 'datum', (current_date - 2)::text,
+                       'charge_nr', null, 'sorte', v_sorte, 'kg', 60, 'gebindeart', null,
+                       'kunde', 'Grosshandel', 'bemerkung', 'ohne Chargenbezug'),
+    jsonb_build_object('extern_id', 'uebn:7002:rest', 'datum', (current_date - 1)::text,
+                       'charge_nr', null, 'sorte', null, 'kg', 40, 'gebindeart', null,
+                       'kunde', 'Hofladen', 'bemerkung', 'ohne Chargenbezug'));
+
+  v_erg := ausgang_uebernehmen('uebn', 'Übernahme-Prüfung',
+    jsonb_build_object('dateiname', 'uebn.xlsx', 'pruefsumme', 'sha-uebn-1', 'n_zeilen', 2, 'n_kuerbis', 2,
+                       'n_neu', 2, 'n_geaendert', 0, 'n_unveraendert', 0,
+                       'von_datum', (current_date - 2)::text, 'bis_datum', (current_date - 2)::text),
+    v_zeilen, v_lief);
+  assert (v_erg ->> 'zeilen_neu')::int = 2, 'Zwei Rohzeilen müssen neu sein: ' || v_erg::text;
+  assert (v_erg ->> 'lieferungen_neu')::int = 2, 'Zwei Lieferungen müssen neu sein: ' || v_erg::text;
+  assert jsonb_array_length(v_erg -> 'uebergangen') = 1
+     and (v_erg -> 'uebergangen' -> 0 ->> 'extern_id') = 'uebn:7002:rest',
+    'Die Lieferung ohne Charge und Sorte muss zurückgemeldet werden: ' || v_erg::text;
+  assert exists (select 1 from ausgang_quelle where code = 'uebn'), 'Die Quelle wird angelegt';
+  -- Das unbekannte Gebinde bricht nichts: es steht in der Bemerkung.
+  assert (select bemerkung from lieferung l join lieferung_import i on i.lieferung_id = l.id
+           where i.extern_id = 'uebn:7001:' || v_charge || ':1') like '%Gebinde laut Datei%',
+    'Ein Gebinde, das die Stammdaten nicht kennen, gehört in die Bemerkung';
+  select count(*) into v_n from v_ausgang_pruef where quelle = 'uebn';
+  assert v_n = 0, format('Die Probe muss aufgehen: %s Positionen weichen ab', v_n);
+
+  -- Dieselbe Datei nochmals: nichts Neues, nichts doppelt.
+  v_erg := ausgang_uebernehmen('uebn', 'Übernahme-Prüfung',
+    jsonb_build_object('dateiname', 'uebn.xlsx', 'pruefsumme', 'sha-uebn-1'), v_zeilen, v_lief);
+  assert (v_erg ->> 'zeilen_neu')::int = 0 and (v_erg ->> 'zeilen_geaendert')::int = 2,
+    'Beim zweiten Mal ist nichts neu: ' || v_erg::text;
+  assert (v_erg ->> 'lieferungen_neu')::int = 0 and (v_erg ->> 'lieferungen_aktualisiert')::int = 2,
+    'Beim zweiten Mal wird aktualisiert, nicht angelegt: ' || v_erg::text;
+  assert (select count(*) from lieferung_import where quelle = 'uebn') = 2, 'Keine doppelte Lieferung';
+  assert (select count(*) from ausgang_zeile where quelle = 'uebn' and geaendert_ts is not null) = 0,
+    'Ein gleicher Fingerabdruck ist keine Änderung';
+
+  -- Im Perigon korrigiert: anderer Fingerabdruck, andere Masse.
+  v_zeilen := jsonb_set(v_zeilen, '{0,fingerabdruck}', '"a1-neu"');
+  v_lief := jsonb_set(v_lief, '{0,kg}', '95');
+  v_erg := ausgang_uebernehmen('uebn', 'Übernahme-Prüfung',
+    jsonb_build_object('dateiname', 'uebn.xlsx', 'pruefsumme', 'sha-uebn-2'), v_zeilen, v_lief);
+  assert (select count(*) from ausgang_zeile where quelle = 'uebn' and geaendert_ts is not null) = 1,
+    'Die korrigierte Zeile muss als geändert markiert sein';
+  assert (select l.kg from lieferung l join lieferung_import i on i.lieferung_id = l.id
+           where i.extern_id = 'uebn:7001:' || v_charge || ':1') = 95,
+    'Die Lieferung muss die korrigierte Masse tragen';
+  assert (select count(*) from ausgang_datei where quelle = 'uebn') = 2, 'Zwei verschiedene Dateien, zwei Einträge';
+
+  -- Ein Arbeiter darf das nicht.
+  perform set_config('request.jwt.claim.sub',
+                     (select id::text from profil where rolle = 'arbeiter' limit 1), true);
+  begin
+    perform ausgang_uebernehmen('uebn', 'x', '{}'::jsonb, '[]'::jsonb, '[]'::jsonb);
+    assert false, 'Ein Arbeiter darf den Warenausgang nicht übernehmen';
+  exception when others then
+    get stacked diagnostics v_meldung = message_text;
+    assert v_meldung like '%Betriebsleiter%', 'Die Absage muss sagen, woran es liegt: ' || v_meldung;
+  end;
+  perform set_config('request.jwt.claim.sub','11111111-1111-1111-1111-111111111111', true);
+
+  -- Aufräumen, damit die Bilanz-Prüfungen weiter unten nicht verschoben sind
+  delete from lieferung where id in (select lieferung_id from lieferung_import where quelle = 'uebn');
+  delete from ausgang_zeile where quelle = 'uebn';
+  delete from ausgang_datei where quelle = 'uebn';
+  delete from ausgang_quelle where code = 'uebn';
+  perform set_config('request.jwt.claim.sub', '', true);
+  raise notice 'OK  0055 Warenausgang übernehmen: einmal, zweimal, korrigiert, zurückgemeldet, nur der Betriebsleiter';
+end $$;
+
+select '——— 0055 Übernahme geprüft ———' as ergebnis;
+
+
+-- =========================================================================
+-- 0054: Ein eigenes Kaliber am Waschen. Nennt das Etikett ein Band, das die
+-- Fassung nicht kennt, tippt der Vorarbeiter es ein. Trifft es die Grenzen
+-- eines beim Sortieren gezählten Bands, hat es dessen Kistengewicht; sonst
+-- bleibt die Masse unbekannt — und die Plausibilität sagt es, ohne die Arbeit
+-- als „ohne Kaliber" zu schelten. Die Prüfung baut sich ihren Sortierlauf
+-- selbst: 500 Kürbisse à 1200 g, 20 Kisten gezählt → 30 kg je Kiste.
+-- =========================================================================
+do $$
+declare v_lauf bigint; v_idx int; v_von int; v_bis int; v_koeff numeric; v_kg numeric; v_quelle text;
+        v_vorher int; v_nachher int;
+begin
+  perform set_config('request.jwt.claim.sub','11111111-1111-1111-1111-111111111111', true);
+
+  insert into auftrag (id, weg, station, charge_nr, start_ts, ende_ts, status)
+  values (2405, 'maschine', 'sortieren', 1613, timestamptz '2027-01-10 08:00+01',
+          timestamptz '2027-01-10 15:00+01', 'abgeschlossen');
+  insert into auftrag_palette (auftrag_id, eingangsdatum)
+  select 2405, date '2026-09-01' from generate_series(1, 2);
+  select csv_lauf_speichern(1613, 'SIM-0054.csv', null, 'pruefsumme-0054', null, null,
+         '{"overflow_ab":60000,"min_gramm":100,"dubletten_zusammenfassen":false}'::jsonb,
+         500, 0, 0, 0, '[[1200,500]]'::jsonb) into v_lauf;
+  perform auftrag_manuell_zuordnen(v_lauf, 2405);
+  insert into auftrag_gebinde (auftrag_id, kaliber_idx, anzahl)
+  select 2405, g.kaliber_idx, 20 from sortier_gewicht g
+   where g.lauf_id = v_lauf and g.klasse = 'kaliber' limit 1;
+  select kaliber_idx into v_idx from auftrag_gebinde where auftrag_id = 2405;
+  -- Die Grenzen dieses Bands in der Fassung, nach der der Lauf klassiert wurde
+  select (s.kaliber_baender -> v_idx ->> 0)::int, (s.kaliber_baender -> v_idx ->> 1)::int
+    into v_von, v_bis
+    from sortier_lauf l join sortierschema s on s.id = l.sortierschema_id where l.id = v_lauf;
+  assert v_von is not null and v_von <= 1200 and v_bis > 1200,
+    format('Das Band zu 1200 g muss 1200 einschliessen, ist %s–%s', v_von, v_bis);
+  perform auswertung_aktualisieren();
+  select kg_je_gebinde into v_koeff from v_koeff_gebinde where sorte = 'Tiana' and kaliber_idx = v_idx;
+  assert v_koeff is not null and abs(v_koeff - 30) < 0.5,
+    format('500 × 1.2 kg auf 20 Kisten sind 30 kg je Kiste, gemessen %s', v_koeff);
+
+  -- Nur von ohne bis, oder Band und eigenes Kaliber zugleich: geht nicht.
+  begin
+    insert into auftrag (id, weg, station, charge_nr, start_ts, status, kaliber_von_g)
+    values (2410, 'maschine', 'waschen', 1613, now(), 'offen', 800);
+    assert false, 'Ein eigenes Kaliber braucht beide Grenzen';
+  exception when check_violation then null;
+  end;
+  begin
+    insert into auftrag (id, weg, station, charge_nr, start_ts, status, kaliber_idx, kaliber_von_g, kaliber_bis_g)
+    values (2410, 'maschine', 'waschen', 1613, now(), 'offen', 0, 800, 1300);
+    assert false, 'Band und eigenes Kaliber schliessen sich aus';
+  exception when check_violation then null;
+  end;
+
+  select wasch_arbeiten_mit_kisten into v_vorher from v_datenqualitaet;
+
+  -- Eigenes Kaliber mit den Grenzen des gezählten Bands: 5 Kisten × 30 kg
+  insert into auftrag (id, weg, station, charge_nr, start_ts, ende_ts, status, kaliber_von_g, kaliber_bis_g)
+  values (2403, 'maschine', 'waschen', 1613, timestamptz '2027-01-17 08:00+01',
+          timestamptz '2027-01-17 12:00+01', 'abgeschlossen', v_von, v_bis);
+  insert into auftrag_gebinde (auftrag_id, kaliber_idx, anzahl) values (2403, -2, 5);
+  -- Eigenes Kaliber, das nie gezählt wurde: 2 Kisten, Masse unbekannt
+  insert into auftrag (id, weg, station, charge_nr, start_ts, status, kaliber_von_g, kaliber_bis_g)
+  values (2404, 'maschine', 'waschen', 1613, timestamptz '2027-01-18 08:00+01', 'offen', 700, 900);
+  insert into auftrag_gebinde (auftrag_id, kaliber_idx, anzahl) values (2404, -2, 2);
+  perform auswertung_aktualisieren();
+
+  select eingang_netto_kg, masse_quelle into v_kg, v_quelle from v_auftrag_masse where auftrag_id = 2403;
+  assert v_quelle = 'gebinde' and abs(v_kg - 5 * v_koeff) < 0.5,
+    format('5 Kisten zum eigenen Kaliber %s–%s sind 5 × %s kg, gerechnet %s (%s)', v_von, v_bis, v_koeff, v_kg, v_quelle);
+  assert (select kg from v_auftrag_gebinde_masse where auftrag_id = 2404) is null,
+    'Ein nie gezähltes Band hat kein Kistengewicht — NULL, nicht 0';
+  assert not exists (select 1 from v_plausibilitaet where art = 'Kaliber fehlt' and auftrag_id in (2403, 2404)),
+    'Ein eigenes Kaliber ist ein Kaliber — kein „Kaliber fehlt"';
+  assert exists (select 1 from v_plausibilitaet where art = 'Kistengewicht' and auftrag_id = 2404
+                    and befund like '%eigenen Kaliber 700–900 g%'),
+    'Das unbekannte Kistengewicht zum eigenen Kaliber muss als Auffälligkeit erscheinen';
+  assert not exists (select 1 from v_plausibilitaet where art = 'Kistengewicht' and auftrag_id = 2403),
+    'Mit gefundenem Kistengewicht gibt es nichts zu bemängeln';
+
+  select wasch_arbeiten_mit_kisten into v_nachher from v_datenqualitaet;
+  assert v_nachher = v_vorher + 1,
+    format('Die Datenqualität muss die fertige Wasch-Arbeit mit eigenem Kaliber zählen: %s → %s', v_vorher, v_nachher);
+
+  -- Aufräumen
+  delete from sortier_gewicht where lauf_id = v_lauf;
+  delete from sortier_lauf where id = v_lauf;
+  delete from auftrag where id in (2403, 2404, 2405);
+  perform auswertung_aktualisieren();
+  perform set_config('request.jwt.claim.sub', '', true);
+  raise notice 'OK  0054 Eigenes Kaliber: Grenzen erkannt, Kistengewicht gefunden oder ehrlich unbekannt';
+end $$;
+
+select '——— 0054 Eigenes Kaliber geprüft ———' as ergebnis;

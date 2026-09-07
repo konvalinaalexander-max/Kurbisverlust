@@ -3,6 +3,8 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { chargeText, fehlerText, stammdaten } from '../lib/db'
 import { taetigkeitVon } from '../lib/taetigkeit'
+import { tempoJeTaetigkeit } from '../auswertung/tempo'
+import type { Durchsatz } from '../auswertung/daten'
 import { WOERTERBUCH } from '../lib/i18n'
 import { kg, zahl, zeitpunkt } from '../lib/format'
 import { Hinweis, Karte, Lade, Marke } from '../components/Bausteine'
@@ -51,7 +53,6 @@ export default function Betrieb() {
   )
 }
 
-interface Durchsatz { auftrag_id: number; dauer_h: number; masse_kg: number | null; kg_pro_h: number | null; n_teilnehmer: number; n_paletten: number }
 
 function Arbeiten() {
   const [auftraege, setAuftraege] = useState<Auftrag[]>([])
@@ -66,7 +67,7 @@ function Arbeiten() {
         const [{ chargen }, a, d] = await Promise.all([
           stammdaten(),
           supabase.from('auftrag').select('*').order('start_ts', { ascending: false }).limit(200),
-          supabase.from('v_durchsatz').select('auftrag_id, dauer_h, masse_kg, kg_pro_h, n_teilnehmer, n_paletten'),
+          supabase.from('v_durchsatz').select('*'),
         ])
         if (a.error) throw a.error
         setChargen(chargen); setAuftraege((a.data ?? []) as Auftrag[])
@@ -78,8 +79,29 @@ function Arbeiten() {
   const gezeigt = auftraege.filter(a => filter === 'alle' ? true
     : filter === 'abgebrochen' ? a.abgebrochen_ts !== null
     : a.abgebrochen_ts === null && a.status === (filter === 'offen' ? 'offen' : 'abgeschlossen'))
+  const tempo = tempoJeTaetigkeit([...durchsatz.values()])
   if (laedt) return <Lade />
   return (
+    <>
+    {tempo.length > 0 && (
+      <Karte titel="Arbeit und Tempo">
+        <p className="leise">Je Tätigkeit: wie viele Arbeiten, wie lange sie dauerten, wie viel Masse je Stunde und je Person und Stunde durchging — aus Start und Ende jeder abgeschlossenen Arbeit und der Masse, die sie bewegt hat. Arbeiten ohne bekannte Masse zählen bei der Dauer, nicht beim Tempo.</p>
+        <div className="rollbar"><table>
+          <thead><tr><th>Tätigkeit</th><th className="zahl">Arbeiten</th><th className="zahl">Stunden</th><th className="zahl">Dauer (Median)</th><th className="zahl">Masse</th><th className="zahl">kg je Stunde</th><th className="zahl">kg je Person und Stunde</th></tr></thead>
+          <tbody>{tempo.map(z => (
+            <tr key={z.name}>
+              <td>{z.zeichen} {z.name}</td>
+              <td className="zahl">{z.n}</td>
+              <td className="zahl">{z.stunden.toFixed(1)} h</td>
+              <td className="zahl">{z.median.toFixed(1)} h</td>
+              <td className="zahl">{z.masse > 0 ? kg(z.masse, 0) : <span className="leise">—</span>}</td>
+              <td className="zahl">{z.kgProH !== null ? <strong>{zahl(z.kgProH)}</strong> : <span className="leise">—</span>}</td>
+              <td className="zahl">{z.kgProPersonH !== null ? zahl(z.kgProPersonH) : <span className="leise">—</span>}</td>
+            </tr>
+          ))}</tbody>
+        </table></div>
+      </Karte>
+    )}
     <Karte>
       {fehler && <Hinweis art="warnung">{fehler}</Hinweis>}
       <div className="reihe" style={{ marginBottom: '.5rem' }}>
@@ -115,5 +137,6 @@ function Arbeiten() {
         </table></div>
       )}
     </Karte>
+    </>
   )
 }

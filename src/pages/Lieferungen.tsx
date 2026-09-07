@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { fehlerText } from '../lib/db'
 import { datum as datumText, kg as kgText, zahl } from '../lib/format'
 import { Hinweis, Karte, Kennzahl, Lade } from '../components/Bausteine'
+import AusgangImport from '../betrieb/AusgangImport'
 
 /**
  * Warenausgang erfassen. Spec §9 sieht die Gegenprobe „Eingang = Verlust +
@@ -90,12 +91,15 @@ export default function Lieferungen() {
     <>
       <h1>Warenausgang</h1>
       <p className="leise">
-        Was den Betrieb verlassen hat. Erst damit lässt sich prüfen, ob die
-        Verlustrechnung aufgeht — vorher ist der Restbestand nur eine
-        Hochrechnung. Es genügt, was auf dem Lieferschein steht.
+        Was den Betrieb verlassen hat — neben dem Wareneingang die einzige Zahl,
+        die vollständig ist. Der Weg dorthin ist die Excel-Auswertung aus dem
+        Perigon; von Hand eintragen bleibt für das, was dort nicht steht
+        (Hofladen, Tierfutter, Kompost).
       </p>
 
-      <Karte titel="Lieferung eintragen">
+      <AusgangImport nachUebernahme={() => void laden()} />
+
+      <Karte titel="Lieferung von Hand eintragen">
         <div className="spalten">
           <div className="feld">
             <label htmlFor="l-datum">Datum</label>

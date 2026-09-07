@@ -345,6 +345,14 @@ td.zahl, th.zahl { text-align: right; }
 .balken-bereich::before { left: 0; }
 .balken-bereich::after { right: 0; }
 
+/* Gestapelte Balken (Runde E): eine Zeile je Gruppe, die Ursachen als Farbsegmente. */
+.stapel-zeile { margin-bottom: .6rem; border-radius: 6px; padding: .15rem .25rem; }
+.stapel-zeile.klickbar { cursor: pointer; }
+.stapel-zeile.klickbar:hover, .stapel-zeile.klickbar:focus-visible { background: var(--flaeche-2); outline: none; }
+.stapel-spur { display: flex; height: 18px; border-radius: 5px; overflow: hidden; background: var(--flaeche-2); min-width: 6px; margin-top: .2rem; }
+.stapel-teil { min-width: 1px; }
+.kaliber-spur { display: flex; height: 22px; border-radius: 5px; overflow: hidden; background: var(--flaeche-2); margin-top: .25rem; }
+
 details.rechenweg { margin-top: .5rem; border-top: 1px dashed var(--rand); padding-top: .5rem; }
 details.rechenweg summary { cursor: pointer; font-size: .84rem; color: var(--blau); font-weight: 560; }
 details.rechenweg dl {

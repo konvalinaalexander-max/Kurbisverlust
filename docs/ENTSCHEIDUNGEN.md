@@ -1572,3 +1572,102 @@ sie die Rolle nicht ändern (fremde Datenbank, engere Rechte), sagt sie es
 als Hinweis und lässt die Einrichtung weiterlaufen — alles andere
 funktioniert auch mit acht Sekunden.
 
+## Nur behaupten, was man wissen kann (Runde E: 0054, 0055, Überblick und Ursachen neu)
+
+Der Betriebsleiter hat drei Dinge gesagt, die zusammengehören. Erstens: Die
+Erfassung in der Halle ist punktuell — vielleicht werden in einer Saison nur
+fünfzehn Waschgänge dokumentiert. Zweitens: Der Überblick soll drei bis fünf
+Dinge zeigen, logisch, verständlich, relevant — und nichts vorhersagen, was
+sich nicht vorhersagen lässt. Drittens: Die Ursachen sollen in die Tiefe
+gehen, je Charge, aber ohne Ratschläge für die Saison.
+
+### Was daraus folgt
+
+Vollständig sind genau zwei Listen: der Wareneingang (jede Palette im
+Erntejournal) und der Warenausgang (jede Lieferung auf einem Lieferschein).
+Alles aus den Arbeiten ist Stichprobe. Aus Stichproben kommen Raten —
+Verdunstung je Tag, Faules je Lagertag, zu klein je Band, Faules je Fax —
+und Raten lassen sich auf die vollständige Eingangsmasse hochrechnen. Was
+sich aus Stichproben *nicht* ergibt, sind Mengen: wie viel schon sortiert,
+gewaschen, „wartet aufs Waschen". Diese Zahlen standen im Überblick und in
+den Ursachen, als wären sie gezählt. Sie sind weg.
+
+„Noch im Haus" ist deshalb neu gerechnet: Eingang (gemessen) minus
+Ausgeliefert (gemessen) minus Verlust und anderer Kanal (Modell) — je
+Charge, und daraus je Sorte, Schlag oder Charge. Ohne eingelesenen
+Warenausgang steht dort ein Strich, keine Zahl.
+
+Gestrichen sind: „Was kostet Warten" (eine Vorhersage je Charge, deren
+Paletten an verschiedenen Tagen kamen und in unbekannter Reihenfolge gehen —
+das lässt sich nicht sagen), „Was jetzt zu tun ist" (Erfassungslücken
+gehören zu Messungen), die Liste aller Fax-Arbeiten (was nützt sie? Die Rate
+je Sorte und je Charge sagt mehr), „Arbeit und Tempo" (nach Betrieb →
+Arbeiten, wo die Arbeiten stehen) und die Bilanz (nach Messungen, weil sie
+das Modell prüft). Geblieben sind im Überblick vier Zahlen, die Hauptursachen
+gesamt oder je Gruppe, der Bestand je Gruppe, die Kaliber je Sorte und die
+Saison im Verlauf.
+
+### Der Warenausgang ist jetzt einlesbar
+
+Der Bildschirm fehlte noch ganz, obwohl Leser, Regeln und Schema standen
+(`PROMPT_WARENAUSGANG.md`). Jetzt: Betrieb → Warenausgang → „Excel-Dateien
+wählen". Der Browser liest die Datei, zeigt Befund und Abgleich (neu,
+geändert, unverändert, verschwunden), lässt unbestätigte Artikel klären und
+übernimmt dann in einem Aufruf (`ausgang_uebernehmen`, 0055): Datei,
+Rohzeilen, Lieferungen. Zeile für Zeile über die API wären es für eine
+Datei des Betriebs tausende Aufrufe gewesen. Die beiden echten Dateien vom
+7. September liest der Leser in unter einer halben Sekunde, Kopf erkannt,
+keine Zeile übersprungen.
+
+Die Funktion löscht nichts („verschwunden" wird gezeigt, nicht getilgt),
+rät keine Sorte (eine Lieferung ohne Charge und ohne bestätigte Sorte kommt
+mit Grund zurück) und setzt bei einem geänderten Fingerabdruck
+`geaendert_ts`, damit eine im Perigon korrigierte Zeile eine Korrektur
+bleibt und keine zweite Lieferung wird.
+
+### Das Kaliber am Waschbecken
+
+Die Bänder je Sorte stehen seit 0003 in den Stammdaten — aus der
+Spezifikation §6, die der Betrieb geliefert hat. Sechs der elf Sorten haben
+dort dieselben drei Bänder (600–1100–1600–2000); das ist die Vorgabe, kein
+Versehen, und die Maske sagt jetzt, woher die Bänder kommen. Neu kann der
+Vorarbeiter ein eigenes Band eingeben (0054), wenn das Etikett etwas anderes
+nennt. Das Kistengewicht dazu findet die Auswertung nur, wenn beim Sortieren
+je ein Band mit genau diesen Grenzen gezählt wurde; sonst bleibt die Masse
+unbekannt, und die Plausibilität sagt es — statt einer geratenen Zahl.
+
+### Die Kaliber-Verteilung war je Charge statt je Sorte
+
+Die Sicht liefert je Charge eine Zeile je Band; die Karte zeigte sie
+ungebündelt — für Amoro viermal „600–1100 g" untereinander. Jetzt bündelt
+`kaliberJeSorte()` über alle Chargen, in der Reihenfolge zu klein, Bänder
+aufsteigend, zu gross; im Überblick als ein Balken je Sorte.
+
+### Die Verdunstung als kumulierter Verlust
+
+Die Rate je Tag als Punktwolke war nicht lesbar. Jetzt steht je gewogener
+Palette, wie viel Prozent ihres Eingangsgewichts sie bis zum Wiegen verloren
+hat, über der Lagerdauer — und die gestrichelte Linie ist, was die
+Auswertung für die Sorte rechnet (1 − (1 − r)^t). Liegen die Punkte um sie
+herum, trägt die Rate; liegen sie systematisch daneben, stimmt sie nicht.
+Dazu je Sorte: Rate je Tag, Verlust nach hundert Tagen, Bereich, Anzahl.
+
+### Was der Lasttest fand
+
+Die erste Fassung der Kistenmasse-Sicht (0054) suchte das Gewicht zum
+eigenen Band mit einem LATERAL-Verbund über `v_koeff_gebinde` — und die
+ist selbst eine Aggregation über alle Sortiergewichte. Postgres rechnete
+sie damit je Kistenzeile neu: die achtzehn Dashboard-Sichten brauchten bei
+dreifacher Saisongrösse 26 Sekunden statt einer, `v_marge_buch` allein
+11. Genau dafür steht der Lasttest in `run.sh`. Jetzt wird das eigene Band
+über eine kleine Tabelle der Bandgrenzen auf seinen Index abgebildet, und
+die Kistengewichte werden wie in 0041 einmal gerechnet und verbunden:
+0.2 Sekunden.
+
+### Was der Typprüfer nicht prüfte
+
+`npx tsc --noEmit -p .` war ein Nichts: die `tsconfig.json` des Projekts
+hat keine Dateien, nur Verweise. Geprüft wurde in Wahrheit nur durch
+`npm run build` (`tsc -b`). Der echte Aufruf ist
+`npx tsc -p tsconfig.app.json --noEmit`; er steht jetzt in der README.
+

@@ -54,6 +54,8 @@ export default function NeueArbeit() {
   const [neuerKaeufer, setNeuerKaeufer] = useState('')
   const [art, setArt] = useState<'kaliber' | 'kiste' | null>(null)
   const [kaliberIdx, setKaliberIdx] = useState<number | null>(null)
+  // 0054: ein eigenes Kaliber, wenn das Etikett keines der Bänder nennt
+  const [eigenes, setEigenes] = useState<{ von: string; bis: string } | null>(null)
   const [grenzen, setGrenzen] = useState<number[] | null>(null)          // null = noch „wie zuletzt"
   const [soll, setSoll] = useState<string | null>(null)                   // null = noch „wie zuletzt"
   const [pos, setPos] = useState(0)
@@ -177,7 +179,9 @@ export default function NeueArbeit() {
       .insert({ weg: gewaehlt.weg, station: gewaehlt.station, charge_nr: chargeNr,
                 ist_fax: istFax,
                 kaeufer: fragtKaeufer ? code : null,
-                kaliber_idx: fragtKaliber ? kaliberIdx : null,
+                kaliber_idx: fragtKaliber && eigenes === null ? kaliberIdx : null,
+                kaliber_von_g: fragtKaliber && eigenes !== null ? Number(eigenes.von) : null,
+                kaliber_bis_g: fragtKaliber && eigenes !== null ? Number(eigenes.bis) : null,
                 sortierschema_id: schemaId })
       .select('id').single()
     if (error) { setLaeuft(false); setFehler(fehlerText(error)); return }
@@ -338,15 +342,44 @@ export default function NeueArbeit() {
   }
 
   if (aktuell === 'kaliber') {
+    const eigenOk = eigenes !== null && eigenes.von !== '' && eigenes.bis !== ''
+      && Number(eigenes.von) >= 0 && Number(eigenes.bis) > Number(eigenes.von)
     return (
-      <Schritt nummer={n} von={von} frage={t('welchesKaliber')} warum={t('welchesKaliberWarum')} zurueck={zurueck}>
+      <Schritt nummer={n} von={von} frage={t('welchesKaliber')} warum={t('welchesKaliberWarum')} zurueck={zurueck}
+               weiter={eigenes !== null ? weiter : undefined} weiterMoeglich={eigenOk}>
+        {zuletztBaender.length > 0 && (
+          <p className="leise" style={{ margin: '0 0 .5rem' }}>
+            {fassungLauf ? t('kaliberQuelleLauf') : `${t('kaliberQuelleSorte')} · ${sorte ?? ''}`}
+          </p>
+        )}
         <div className="wahl">
           {zuletztBaender.map(([a, b], i) => (
             <Wahl key={i} id={`kaliber-${i}`} name={`${t('kaliber')} ${i + 1}`} erkl={`${a}–${b} g`}
-                  gewaehlt={kaliberIdx === i} onClick={() => { setKaliberIdx(i); weiter() }} />
+                  gewaehlt={eigenes === null && kaliberIdx === i}
+                  onClick={() => { setEigenes(null); setKaliberIdx(i); weiter() }} />
           ))}
+          <Wahl id="kaliber-eigen" bild="✏️" name={t('anderesKaliber')} erkl={t('anderesKaliberErkl')}
+                gewaehlt={eigenes !== null}
+                onClick={() => { setKaliberIdx(null); setEigenes(e => e ?? { von: '', bis: '' }) }} />
         </div>
-        {zuletztBaender.length === 0 && <Hinweis art="warnung">{t('kistenKeineBaender')}</Hinweis>}
+        {eigenes !== null && (
+          <div className="karte">
+            <div className="reihe" style={{ alignItems: 'end' }}>
+              <div className="feld" style={{ flex: 1, margin: 0 }}>
+                <label htmlFor="kaliber-von">{t('kaliberVon')}</label>
+                <input id="kaliber-von" type="number" inputMode="numeric" min={0} step={10} value={eigenes.von}
+                       onChange={e => setEigenes({ ...eigenes, von: e.target.value })} style={{ fontSize: '1.15rem' }} />
+              </div>
+              <div className="feld" style={{ flex: 1, margin: 0 }}>
+                <label htmlFor="kaliber-bis">{t('kaliberBis')}</label>
+                <input id="kaliber-bis" type="number" inputMode="numeric" min={0} step={10} value={eigenes.bis}
+                       onChange={e => setEigenes({ ...eigenes, bis: e.target.value })} style={{ fontSize: '1.15rem' }} />
+              </div>
+            </div>
+            <p className="leise" style={{ margin: '.5rem 0 0' }}>{t('kaliberEigenHinweis')}</p>
+          </div>
+        )}
+        {zuletztBaender.length === 0 && eigenes === null && <Hinweis art="warnung">{t('kistenKeineBaender')}</Hinweis>}
       </Schritt>
     )
   }
@@ -387,7 +420,8 @@ export default function NeueArbeit() {
           )}
           {fragtKaliber && (
             <><dt>{t('kaliber')}</dt>
-              <dd>{kaliberIdx === null ? '—' : `${kaliberIdx + 1} (${zuletztBaender[kaliberIdx]?.[0]}–${zuletztBaender[kaliberIdx]?.[1]} g)`}</dd></>
+              <dd>{eigenes !== null ? `${eigenes.von}–${eigenes.bis} g · ${t('anderesKaliber')}`
+                : kaliberIdx === null ? '—' : `${kaliberIdx + 1} (${zuletztBaender[kaliberIdx]?.[0]}–${zuletztBaender[kaliberIdx]?.[1]} g)`}</dd></>
           )}
         </dl>
       </div>

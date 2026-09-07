@@ -79,11 +79,12 @@ Fünf Reiter, je mit einem Satz darüber, was er beantwortet:
 
 | Reiter | Beantwortet | Woraus |
 |---|---|---|
-| **Überblick** | Wie viel verliere ich, woran, und was tue ich als nächstes? | Kennzahlen, Kaskade, Bilanz, nächste Chargen, Auffälligkeiten |
-| **Ursachen** | Warum? Wie sicher ist das? | Je Strom Balken mit Bereich und Rechenweg; Verderbskurve mit Messpunkten; Verdunstung; Sorten; Sockel; Buch B; Kaliber und Gewichtsverteilung |
+| **Überblick** | Was kam herein, was ging hinaus, was ist verloren — und woran? | Vier Zahlen (Eingang und Ausgang gemessen, Verlust und Bestand Modell); Hauptursachen gesamt oder je Sorte, Schlag, Charge (gestapelte Balken, Tonnen oder Anteil, Klick öffnet die Gruppe); Noch im Haus je Gruppe mit „liegt seit"; Kaliber je Sorte; Saison im Verlauf. Keine Vorhersagen, keine Ratschläge — was nicht gewusst werden kann, steht nicht da (AB-18) |
+| **Ursachen** | Vier Ursachen, jede in der Tiefe: je Sorte, je Charge, die Messungen dahinter | Verderb (Kurve, Punkte, je Charge gemessen gegen Modell); Verdunstung (kumulierter Verlust über der Lagerdauer, Sortenlinie, Raten je Sorte); Sortierung (zu klein, zu gross, Kaliber, Gewichtsverteilung, Überfüllung); Faul beim Abpacken (Rate je Sorte und Charge). Filter Sorte und Schlag, auch aus dem Überblick heraus |
 | **Chargen** | Wo steht welche Charge? | Eingang, im Lager, sortiert, ausgeliefert, „liegt seit" als Spanne (kein FIFO), Verlust; Aufklappen zeigt die Eingangstage (gekommen, gezählt, noch da), die Arbeiten und Lieferungen der Charge |
 | **Messungen** | Was weiss die Auswertung — und was nicht? | Datenqualität, fehlende Messungen, Lagerkontrollen, Koeffizienten, Modell |
-| **Betrieb** | Was ist heute los, und wie pflege ich die Grundlagen? | Arbeiten, Warenausgang, Sortier-CSV, Stammdaten, Zugang |
+| **Betrieb** | Was ist heute los, und wie pflege ich die Grundlagen? | Arbeiten (mit „Arbeit und Tempo" je Tätigkeit), Warenausgang (Excel einlesen, Lieferungen), Sortier-CSV, Stammdaten, Zugang |
+| **Messungen** (dazu) | Geht die Rechnung auf? | Die Bilanz Eingang = Verlust + Ausgang + Bestand steht hier, weil sie das Modell prüft, nicht den Betrieb |
 
 Jede Zahl trägt ihren Rechenweg; jede Grafik ihre Messpunkte. Was nicht
 gemessen ist, steht als „nicht gemessen", nie als 0.
@@ -103,3 +104,5 @@ gemessen ist, steht als „nicht gemessen", nie als 0.
 | 0039 | Start und Ende je Arbeit | Durchsatz je Arbeit und Station; im Überblick „Arbeit und Tempo" je Tätigkeit |
 | 0051 | Fax: Kisten gezählt, Faules gewogen | Strom „Faul beim Abpacken" mit Koeffizient je Sorte; der dritte Lagerabschnitt in der Bilanz |
 | 0051 | Zetteldatum je gezählter Palette, je Eingangstag verrechnet | Bestand und Alter je Eingangstag statt eines Mittels; Zetteldaten ohne Palette fallen auf |
+| 0054 | Eigenes Kaliber am Waschbecken (von–bis), wenn das Etikett keines der Bänder nennt | Kisten zum eigenen Band zählen; Kistengewicht über die Bandgrenzen gefunden oder ehrlich unbekannt |
+| 0055 | Warenausgang aus dem Perigon-Excel: Datei, Rohzeilen, Lieferungen in einem Aufruf | Ausgeliefert je Charge (gemessen); damit „Noch im Haus" = Eingang − Ausgang − Modell; Bilanz gegen echte Zahlen |
