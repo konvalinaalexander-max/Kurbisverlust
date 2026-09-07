@@ -1553,3 +1553,22 @@ nicht mehr selbst; die App ruft `auswertung_aktualisieren()` gleich danach
 als eigenen Aufruf, die SQL-Dateien tun dasselbe in derselben Abfrage
 (LATERAL erzwingt die Reihenfolge). Zwei kurze Aufrufe statt eines langen.
 
+Das reichte nicht. Auf einer kleinen Instanz brach schon das Neurechnen
+allein ab („canceling statement due to statement timeout"). Also die
+Einstellung selbst, in `0053_zeitlimit.sql`: `authenticated` bekommt 30
+Sekunden statt acht. Das ist keine Tariffrage — die Limits hängen an der
+Rolle und sind im Gratis-Tarif genauso änderbar. `anon` bleibt bei drei
+Sekunden: Wer nicht angemeldet ist, rechnet hier nichts, und ein knappes
+Limit ist dort eine Sicherung.
+
+Warum 30 und nicht mehr: Supabase lässt für Client-Abfragen höchstens 60
+Sekunden zu, und eine halbe Minute ist die Grenze dessen, was vor dem
+Bildschirm noch als „es rechnet" durchgeht. Wird die Rechnung länger, ist
+nicht das Limit das Problem, sondern die Rechnung. Die Prüfung „Auswertung
+bei dreifacher Saisongrösse" in `run.sh` bewacht genau das.
+
+Die Migration ist vorsichtig: Steht das Limit schon, tut sie nichts. Darf
+sie die Rolle nicht ändern (fremde Datenbank, engere Rechte), sagt sie es
+als Hinweis und lässt die Einrichtung weiterlaufen — alles andere
+funktioniert auch mit acht Sekunden.
+

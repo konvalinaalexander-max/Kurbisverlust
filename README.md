@@ -172,6 +172,19 @@ diese Zeile unten.
 > einer frisch eingerichteten Datenbank gibt es dabei schlicht nichts zu tun.
 > Am Ende steht wieder dieselbe „Fertig."-Zeile. Einfach weitermachen.
 
+> **Was dabei noch eingestellt wird:** Supabase gibt jeder Abfrage über die
+> API ein Zeitlimit, für Angemeldete acht Sekunden. Das reicht für alles in
+> der Halle, aber nicht fürs Neurechnen der Auswertung — das geht in einem
+> Zug über die ganze Saison und wird mit jeder Charge länger. `setup.sql`
+> setzt das Limit deshalb auf 30 Sekunden hoch. Das kostet nichts und hängt
+> an keinem Tarif; es ist eine Einstellung an der Rolle `authenticated`.
+> Wer nicht angemeldet ist, bleibt beim knappen Standard.
+>
+> Steht in der Ergebnisliste eine Zeile „Zeitlimit liess sich nicht setzen",
+> fehlte die Berechtigung. Dann einmal von Hand im SQL-Editor:
+> `alter role authenticated set statement_timeout = '30s';` und danach
+> `notify pgrst, 'reload config';`
+
 ---
 
 ## Schritt 4 — Bestätigungs-E-Mails abschalten

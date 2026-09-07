@@ -1357,6 +1357,27 @@ begin
 end $$;
 
 -- =========================================================================
+-- 0053: Das Zeitlimit. Supabase gibt einer Abfrage über die API acht
+-- Sekunden; auswertung_aktualisieren() rechnet die ganze Saison neu und
+-- braucht mehr. Die Einrichtung setzt das Limit für Angemeldete hoch —
+-- diese Prüfung hält fest, dass sie es tut, und dass anon knapp bleibt.
+-- =========================================================================
+do $$
+declare v_gesetzt text[];
+begin
+  select coalesce(rolconfig, '{}') into v_gesetzt from pg_roles where rolname = 'authenticated';
+  assert 'statement_timeout=30s' = any(v_gesetzt),
+    'Angemeldete brauchen mehr als acht Sekunden, sonst bricht das Neurechnen ab. Gesetzt ist: '
+    || coalesce(array_to_string(v_gesetzt, ', '), '(nichts)');
+
+  select coalesce(rolconfig, '{}') into v_gesetzt from pg_roles where rolname = 'anon';
+  assert not exists (select 1 from unnest(v_gesetzt) g where g like 'statement_timeout=%'),
+    'anon bleibt beim knappen Standard — wer nicht angemeldet ist, rechnet hier nichts';
+
+  raise notice 'OK  Zeitlimit: 30 s für Angemeldete, anon unverändert';
+end $$;
+
+-- =========================================================================
 -- 0041: Am Waschbecken zählen Kisten. Das Kistengewicht wird am Sortieren
 -- gemessen, nicht geschätzt; ohne Messung bleibt die Masse unbekannt.
 -- =========================================================================
