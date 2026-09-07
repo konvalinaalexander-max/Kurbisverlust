@@ -21,7 +21,7 @@ export default function DemoDaten({ kompakt = false, nachAenderung }: {
   nachAenderung?: () => void
 }) {
   const [geladen, setGeladen] = useState<boolean | null>(null)
-  const [laeuft, setLaeuft] = useState<'laden' | 'entfernen' | 'neu' | null>(null)
+  const [laeuft, setLaeuft] = useState<'laden' | 'entfernen' | 'neu' | 'rechnen' | null>(null)
   const [meldung, setMeldung] = useState<string | null>(null)
   const [fehler, setFehler] = useState<string | null>(null)
   const [sicher, setSicher] = useState(false)
@@ -45,9 +45,18 @@ export default function DemoDaten({ kompakt = false, nachAenderung }: {
     }
     const { data, error } = await supabase.rpc(
       was === 'entfernen' ? 'demo_daten_entfernen' : 'demo_daten_laden')
+    if (error) { setLaeuft(null); setFehler(fehlerText(error)); await stand(); return }
+    // Die Auswertung rechnet die Funktion nicht selbst — ein API-Aufruf hat bei
+    // Supabase acht Sekunden, und das Rechnen ist der teuerste Teil. Darum
+    // hier als eigener Aufruf, sonst stünde die Auswertung als veraltet da.
+    setLaeuft('rechnen')
+    const rechnen = await supabase.rpc('auswertung_aktualisieren')
     setLaeuft(null)
-    if (error) { setFehler(fehlerText(error)); await stand(); return }
-    setMeldung(data as string)
+    if (rechnen.error) {
+      setFehler(`${data as string} — aber die Auswertung liess sich nicht neu rechnen: ${fehlerText(rechnen.error)}. Oben rechts „Neu rechnen" drücken.`)
+    } else {
+      setMeldung(data as string)
+    }
     await stand()
     nachAenderung?.()
   }
@@ -78,7 +87,7 @@ export default function DemoDaten({ kompakt = false, nachAenderung }: {
           </p>
           <button className="haupt" disabled={laeuft !== null}
                   onClick={() => void rufen('laden')}>
-            {laeuft === 'laden' ? 'Saison wird angelegt …' : 'Demo-Saison laden'}
+            {laeuft === 'laden' ? 'Saison wird angelegt …' : laeuft === 'rechnen' ? 'Auswertung wird gerechnet …' : 'Demo-Saison laden'}
           </button>
         </>
       )}
@@ -98,7 +107,7 @@ export default function DemoDaten({ kompakt = false, nachAenderung }: {
           <button className="haupt" disabled={laeuft !== null}
                   style={{ marginBottom: '.75rem' }}
                   onClick={() => void rufen('neu')}>
-            {laeuft === 'neu' ? 'Saison wird neu angelegt …' : 'Demo-Saison neu laden'}
+            {laeuft === 'neu' ? 'Saison wird neu angelegt …' : laeuft === 'rechnen' ? 'Auswertung wird gerechnet …' : 'Demo-Saison neu laden'}
           </button>
           <p className="leise">
             Bevor die echten Daten kommen: hier entfernen. Gelöscht wird nur, was
@@ -109,7 +118,7 @@ export default function DemoDaten({ kompakt = false, nachAenderung }: {
             <div className="reihe">
               <button className="gefahr" disabled={laeuft !== null}
                       onClick={() => void rufen('entfernen')}>
-                {laeuft === 'entfernen' ? 'Wird entfernt …' : 'Ja, Demo-Daten löschen'}
+                {laeuft === 'entfernen' ? 'Wird entfernt …' : laeuft === 'rechnen' ? 'Auswertung wird gerechnet …' : 'Ja, Demo-Daten löschen'}
               </button>
               <button onClick={() => setSicher(false)}>Doch nicht</button>
             </div>

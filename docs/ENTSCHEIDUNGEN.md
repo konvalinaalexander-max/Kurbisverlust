@@ -1533,3 +1533,23 @@ tragen die Markierung nicht und bleiben beim Entfernen stehen. Ein Name im
 Stammdatenregister ohne Daten daran ist harmlos; ihn auf Verdacht zu
 löschen wäre es nicht.
 
+### Zwei Sicherungen von Supabase, die der Prüfstand nicht hat
+
+Der erste Versuch auf dem echten Supabase brach ab: „UPDATE requires a
+WHERE clause". Supabase lässt die API-Verbindung mit der Erweiterung
+`safeupdate` laufen, die jedes UPDATE und DELETE ohne WHERE abweist — auch
+in einer Funktion, auch auf einer Hilfstabelle. Die Demo hatte genau eines
+(die Sorteneigenschaften auf der Hilfstabelle der Chargen). Der lokale
+Prüfstand kennt die Erweiterung nicht, darum kam es durch. Jetzt liest eine
+Wache in `pruefung.sql` jeden Funktionsrumpf und verlangt bei jedem
+UPDATE/DELETE ein WHERE auf oberster Ebene; gegen den alten Stand schlägt
+sie an, mit der Korrektur nicht.
+
+Die zweite Sicherung ist die Zeit: ein API-Aufruf hat acht Sekunden. Die
+Demo braucht hier 0.6 s für die Daten und 1.25 s für das Neurechnen der
+Auswertung — auf einer kleinen Supabase-Instanz ein Mehrfaches davon. Darum
+rechnen `demo_daten_laden()` und `demo_daten_entfernen()` die Auswertung
+nicht mehr selbst; die App ruft `auswertung_aktualisieren()` gleich danach
+als eigenen Aufruf, die SQL-Dateien tun dasselbe in derselben Abfrage
+(LATERAL erzwingt die Reihenfolge). Zwei kurze Aufrufe statt eines langen.
+

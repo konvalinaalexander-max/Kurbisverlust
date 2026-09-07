@@ -12365,6 +12365,9 @@ begin
   -- Butternut von Hand, alles andere über die Maschine. Sorteneigenschaften
   -- so, wie sie im Betrieb beobachtet werden: Hokkaido verdunstet schneller,
   -- Butternut hält länger, Mandarin ist klein.
+  -- Mit WHERE, obwohl jede Zeile gemeint ist: Supabase lässt die API-Verbindung
+  -- mit der Sicherung safeupdate laufen, die ein UPDATE ohne Bedingung abweist —
+  -- auch in einer Funktion, auch auf einer Hilfstabelle.
   update demo_charge set
     weg    = case when sorte in ('Tiana', 'Mieluna') then 'hand' else 'maschine' end,
     r      = case sorte when 'Tiana' then 0.00045 when 'Mieluna' then 0.00050 when 'Butterkin' then 0.00060
@@ -12383,7 +12386,8 @@ begin
     sd     = case sorte when 'Orangita' then 170 when 'Tiana' then 420 when 'Lekor' then 420 else 320 end,
     kg_kiste = case sorte when 'Orangita' then 10.8 when 'Tiana' then 12.4 when 'Mieluna' then 12.0
                           when 'Butterkin' then 11.8 else 11.4 end,
-    kaeufer = case nr % 4 when 0 then 'coop' when 1 then 'migros' when 2 then 'rathgeb' else 'biopartner' end;
+    kaeufer = case nr % 4 when 0 then 'coop' when 1 then 'migros' when 2 then 'rathgeb' else 'biopartner' end
+   where sorte is not null;
   -- Demeter-Ware geht an Coop und Migros, Knospe an Rathgeb und Bio Partner —
   -- so steht es in der Verkaufsplanung.
   update demo_charge d set kaeufer = case when d.nr % 2 = 0 then 'coop' else 'migros' end
@@ -12897,8 +12901,12 @@ begin
   on conflict do nothing;
 
   drop table if exists demo_charge; drop table if exists demo_pal; drop table if exists demo_lauf;
-  perform auswertung_aktualisieren();
 
+  -- Die Auswertung wird hier absichtlich nicht neu gerechnet: Supabase gibt
+  -- einem API-Aufruf acht Sekunden, und das Rechnen ist der teuerste Teil.
+  -- Die App ruft auswertung_aktualisieren() gleich danach als eigenen
+  -- Aufruf; demo_daten.sql tut dasselbe. Bis dahin steht die Auswertung als
+  -- veraltet da — die Auslöser an den Tabellen haben das schon vermerkt.
   return (
     select format('Demo-Saison steht: %s Paletten in %s Chargen, %s Arbeiten (davon %s Fax), %s Sortierläufe, %s Lieferungen. '
                   || 'Eingang %s t. Jetzt in der App unter Überblick anschauen.',
@@ -12949,7 +12957,7 @@ begin
      and not exists (select 1 from auftrag a where a.kaeufer = k.code)
      and not exists (select 1 from sortierschema s where s.kaeufer = k.code);
 
-  perform auswertung_aktualisieren();
+  -- Kein Neurechnen hier — siehe demo_daten_laden(): eigener Aufruf danach.
   return (
     select format('Demo-Daten entfernt. Übrig: %s Paletten, %s Arbeiten, %s Sortierläufe.',
                   (select count(*) from palette),

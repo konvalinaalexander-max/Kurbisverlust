@@ -1307,6 +1307,38 @@ begin
 end $$;
 
 do $$
+declare v_fn record; v_stueck text; v_kern text; v_treffer text := '';
+begin
+  -- Supabase lässt die API-Verbindung mit der Sicherung „safeupdate" laufen:
+  -- Ein UPDATE oder DELETE ohne WHERE wird abgewiesen — auch in einer
+  -- Funktion, auch auf einer Hilfstabelle. Der Prüfstand hier hat diese
+  -- Sicherung nicht; darum liest diese Wache jeden Funktionsrumpf und
+  -- verlangt bei jedem UPDATE/DELETE ein WHERE auf oberster Ebene
+  -- (Unterabfragen in Klammern zählen nicht — safeupdate zählt sie auch nicht).
+  for v_fn in
+    select p.proname, p.prosrc
+      from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+     where n.nspname = 'public' and p.prokind = 'f'
+  loop
+    foreach v_stueck in array regexp_split_to_array(regexp_replace(v_fn.prosrc, '--[^\n]*', '', 'g'), ';')
+    loop
+      if v_stueck ~* '^\s*(update|delete\s+from)\s+\w+' then
+        v_kern := v_stueck;
+        while v_kern ~ '\([^()]*\)' loop
+          v_kern := regexp_replace(v_kern, '\([^()]*\)', '', 'g');
+        end loop;
+        if v_kern !~* '\mwhere\M' then
+          v_treffer := v_treffer || format('%s: „%s…"  ', v_fn.proname, left(regexp_replace(btrim(v_stueck), '\s+', ' ', 'g'), 50));
+        end if;
+      end if;
+    end loop;
+  end loop;
+  assert v_treffer = '',
+    'UPDATE/DELETE ohne WHERE — Supabase weist das über die API ab (safeupdate): ' || v_treffer;
+  raise notice 'OK  safeupdate-Wache: jedes UPDATE/DELETE in Funktionen hat ein WHERE';
+end $$;
+
+do $$
 declare v_meldung text;
 begin
   -- 0034: Der Demo-Knopf. Ein Arbeiter darf ihn nicht drücken.
