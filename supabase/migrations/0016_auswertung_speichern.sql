@@ -91,7 +91,7 @@ select l.id as lauf_id, l.charge_nr, c.sorte, c.schlag, l.auftrag_id,
   join charge c on c.nr = l.charge_nr
   join sortier_gewicht g on g.lauf_id = l.id
  group by l.id, l.charge_nr, c.sorte, c.schlag, l.auftrag_id, l.datei_name,
-          l.datei_zeit, l.zuordnung;
+          l.datei_zeit, l.zuordnung with no data;
 
 create unique index if not exists mv_sortier_lauf_masse_pk on mv_sortier_lauf_masse (lauf_id);
 create index if not exists mv_sortier_lauf_masse_charge on mv_sortier_lauf_masse (charge_nr);
@@ -115,7 +115,7 @@ select a.id as auftrag_id, a.charge_nr, c.sorte, c.schlag, a.weg, a.station,
   left join v_auftrag_palette_masse m on m.auftrag_id = a.id
  where a.abgebrochen_ts is null
  group by a.id, a.charge_nr, c.sorte, c.schlag, a.weg, a.station,
-          a.start_ts, a.ende_ts, a.status, a.durchsatz_kg;
+          a.start_ts, a.ende_ts, a.status, a.durchsatz_kg with no data;
 
 create unique index if not exists mv_auftrag_masse_pk on mv_auftrag_masse (auftrag_id);
 create index if not exists mv_auftrag_masse_charge on mv_auftrag_masse (charge_nr);
@@ -188,7 +188,7 @@ select k.*,
        k.m2 * k.a_klein_n                             as klein_kg,
        k.m2 * k.a_gross_n                             as nebenkanal_kg,
        k.m2 * (1 - k.a_klein_n - k.a_gross_n)         as verkaufsfaehig_kg
-  from kaskade k;
+  from kaskade k with no data;
 
 create unique index if not exists mv_kaskade_pk on mv_kaskade (charge_nr, szenario, portion);
 create index if not exists mv_kaskade_charge on mv_kaskade (charge_nr);
@@ -208,7 +208,7 @@ select l.charge_nr, c.sorte, g.klasse, g.kaliber_idx,
   join sortier_lauf l on l.id = g.lauf_id
   join charge c on c.nr = l.charge_nr
   join sorte_kaliber s on s.sorte = c.sorte
- group by l.charge_nr, c.sorte, g.klasse, g.kaliber_idx, s.kaliber_baender;
+ group by l.charge_nr, c.sorte, g.klasse, g.kaliber_idx, s.kaliber_baender with no data;
 
 create unique index if not exists mv_kaliber_pk
   on mv_kaliber_verteilung (charge_nr, klasse, coalesce(kaliber_idx, -1));
@@ -244,5 +244,7 @@ grant execute on function auswertung_aktualisieren() to authenticated;
 grant select on mv_sortier_lauf_masse, mv_auftrag_masse, mv_kaskade,
                 mv_kaliber_verteilung to authenticated;
 
--- Beim Einspielen einmal füllen, damit das Dashboard sofort etwas zeigt.
-select auswertung_aktualisieren();
+-- Gefüllt wird hier nicht (0056): setup.sql rechnet die gespeicherten
+-- Auswertungen einmal am Ende mit den heutigen Formeln, nicht in jeder
+-- Zwischenfassung auf den echten Daten. Die Ansichten oben sind deshalb
+-- ohne Inhalt angelegt (with no data).

@@ -292,7 +292,7 @@ select l.charge_nr, c.sorte, g.klasse, g.kaliber_idx,
   left join sortierschema s on s.id = l.sortierschema_id
  group by l.charge_nr, c.sorte, g.klasse, g.kaliber_idx,
           (s.kaliber_baender -> g.kaliber_idx ->> 0)::int,
-          (s.kaliber_baender -> g.kaliber_idx ->> 1)::int;
+          (s.kaliber_baender -> g.kaliber_idx ->> 1)::int with no data;
 
 create unique index if not exists mv_kaliber_pk
   on mv_kaliber_verteilung (charge_nr, klasse, coalesce(kaliber_idx, -1), coalesce(band_von, -1));

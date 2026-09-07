@@ -26,7 +26,7 @@ select a.charge_nr,
   from auftrag a
   join v_auftrag_palette_masse m on m.auftrag_id = a.id
  where a.station = 'sortieren' and a.abgebrochen_ts is null
- group by a.charge_nr;
+ group by a.charge_nr with no data;
 
 create unique index if not exists mv_sortier_eingang_pk on mv_sortier_eingang (charge_nr);
 
@@ -50,7 +50,7 @@ select m.auftrag_id, m.charge_nr, m.sorte, m.schlag, m.weg, m.station,
 
 -- ---------- Die Schimmelpunkte speichern ----------------------------------
 create materialized view if not exists mv_schimmel_punkte as
-select * from v_schimmel_punkte;
+select * from v_schimmel_punkte with no data;
 
 create index if not exists mv_schimmel_punkte_charge on mv_schimmel_punkte (charge_nr);
 create index if not exists mv_schimmel_punkte_quelle on mv_schimmel_punkte (quelle);

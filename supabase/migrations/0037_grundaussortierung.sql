@@ -263,7 +263,7 @@ select n, c_chargen, t_min, t_max, k, ln_lambda, exp(ln_lambda) as lambda,
   from gruppen;
 
 create materialized view mv_schimmel_modell as
-select * from v_schimmel_modell_rechnen;
+select * from v_schimmel_modell_rechnen with no data;
 
 create view v_schimmel_modell with (security_invoker = true) as
 select * from mv_schimmel_modell;
@@ -565,7 +565,7 @@ select k.charge_nr, k.sorte, k.schlag, k.portion, k.alter_tage, k.eingang_kg,
        (k.m1 * (1 - k.a0) * (1 - k.f) * k.a_klein_n)                     as klein_kg,
        (k.m1 * (1 - k.a0) * (1 - k.f) * k.a_gross_n)                     as nebenkanal_kg,
        (k.m1 * (1 - k.a0) * (1 - k.f) * (1 - k.a_klein_n - k.a_gross_n)) as verkaufsfaehig_kg
-  from kaskade k;
+  from kaskade k with no data;
 
 create unique index if not exists mv_kaskade_pk on mv_kaskade (charge_nr, portion);
 create index if not exists mv_kaskade_charge on mv_kaskade (charge_nr);

@@ -157,12 +157,22 @@ Unten im Ergebnisfenster erscheint eine Tabelle mit einer Spalte `ergebnis` und
 genau dieser Zeile:
 
 ```
-Fertig. Die Datenbank steht: 42 Chargen, 11 Sorten, 19 Tabellen,
-41 Auswertungen. Weiter im README bei Schritt 4.
+Fertig. Die Datenbank steht: 42 Chargen, 11 Sorten, 28 Tabellen,
+56 Auswertungen. Auswertung berechnet. Weiter im README bei Schritt 4.
 ```
 
 Wenn du das siehst, ist die komplette Datenbank fertig: Tabellen, Zugriffsrechte,
 alle 42 Chargen der Saison, alle Kaliber-Grenzen und die gesamte Auswertung.
+Die Zahlen dürfen abweichen; wichtig sind „Fertig." und „Auswertung berechnet."
+
+> **Steht dort „Auswertung NICHT berechnet (…)"?** Dann ist die Datenbank
+> trotzdem aktualisiert — nur das Durchrechnen der Saison ist an einer
+> Messung gescheitert, die in der Klammer genannt wird. Die App versucht es
+> beim nächsten Öffnen erneut; unter Messungen → Auffälligkeiten steht, was
+> zu prüfen ist. Seit 0056 rechnet `setup.sql` die Auswertung nur noch
+> einmal, ganz am Ende, mit den heutigen Formeln — vorher konnte eine alte
+> Zwischenfassung einer Formel an den echten Daten scheitern und damit die
+> ganze Aktualisierung blockieren.
 
 Es dauert ein paar Sekunden. Es kommt **keine** Erfolgsmeldung als Popup — nur
 diese Zeile unten.

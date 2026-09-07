@@ -1671,3 +1671,69 @@ hat keine Dateien, nur Verweise. Geprüft wurde in Wahrheit nur durch
 `npm run build` (`tsc -b`). Der echte Aufruf ist
 `npx tsc -p tsconfig.app.json --noEmit`; er steht jetzt in der README.
 
+
+## Eine Palette wird im Lager nicht schwerer (Runde F: 0056, setup.sql ohne Zwischenrechnung)
+
+Am 7. September stand der Überblick auf dem Hof mit „numeric field
+overflow — a field with precision 12, scale 2 must round to an absolute
+value less than 10^10", und `setup.sql` brach mit derselben Meldung ab.
+Nachgestellt auf der Demo: drei Wägungen, bei denen die Palette beim
+Nachwiegen *mehr* wog als beim Eingang (420 → 1180 kg brutto nach zwei
+Tagen), drücken die gepoolte Verdunstungsrate auf −0.2 je Tag. Die Basis
+für den Schimmelanteil ist Eingang × (1 − Rate)^Lagertage; mit 1.2^170
+wird aus 700 kg eine Zahl mit 16 Stellen, und `numeric(12,2)` hält zehn.
+
+### Was daraus folgt
+
+Verdunstung nimmt Masse, sie gibt keine. Eine Palette, die schwerer
+geworden ist, ist keine Beobachtung über Verdunstung, sondern über die
+Erfassung: falsche Gebindeart (Tara), falsche Kistenzahl oder ein
+Zahlendreher. Drei Dinge sind deshalb geändert (0056, AB-20):
+
+1. `v_verdunstung_messung.verwendbar` verlangt, dass das Netto jetzt
+   höchstens 1 % über dem Netto beim Eingang liegt. Das eine Prozent ist
+   die Toleranz zwischen zwei Waagen — die Palette wurde beim Eingang oft
+   auf einer anderen gewogen als beim Nachwiegen. Darüber ist es kein
+   Rauschen mehr. Die Wägung bleibt gespeichert (gelöscht wird nichts,
+   was Daten trägt) und steht unter Auffälligkeiten: „sie wiegt jetzt
+   760 kg mehr als beim Eingang, und im Lager wird keine Palette
+   schwerer", mit dem Rat, Gebindeart, Kistenzahl und beide Gewichte zu
+   prüfen.
+2. `v_koeff_verdunstung` gibt nie eine negative Rate aus. Kleine Zunahmen
+   innerhalb der Toleranz bleiben Messungen (die Einzelrate steht, wie
+   sie gemessen wurde), drücken das Mittel aber höchstens auf 0 — „keine
+   messbare Verdunstung". NULL bleibt NULL: ohne Wägung ist die Rate
+   unbekannt, nicht null.
+3. `v_schimmel_beobachtung` rechnet die Basis mit derselben gedeckelten
+   Rate wie Kaskade und Bestand (0 … 5 % je Tag, seit 0030 beziehungsweise
+   0051) und mit Lagertagen ≥ 0. Ein Eingangsdatum in der Zukunft
+   (Tippfehler) kann so nichts mehr sprengen; die Basis ist höchstens der
+   Eingang, und das prüft `pruefung.sql`.
+
+### Warum setup.sql trotzdem abbrach — und jetzt nicht mehr
+
+Die Korrektur allein hätte den Hof nicht erreicht. `setup.sql` ist die
+ganze Geschichte der Datenbank hintereinander; auf einer bestehenden
+Datenbank räumt 0000 das Rechenwerk weg und die Datei baut es neu auf.
+Dabei wurden die gespeicherten Auswertungen (`mv_…`) an der Stelle
+gefüllt, an der ihre Migration sie anlegt — mit der Formel *dieser*
+Migration auf den *echten* Daten. Die Fassung von 0016 kannte die
+Deckelung nicht und lief über, lange bevor die Datei bei 0056 ankam. Ein
+längst korrigierter Rechenfehler blockierte so jede Aktualisierung.
+
+Deshalb legen alle Migrationen ihre gespeicherten Auswertungen jetzt ohne
+Inhalt an (`create materialized view … with no data`), und die frühe
+Füllung in 0016 ist weg. Gerechnet wird einmal, am Ende von `setup.sql`,
+mit den heutigen Formeln — in einem Block, der einen Fehler abfängt: die
+Datenbank ist dann trotzdem aktualisiert, die Fertig-Zeile sagt
+„Auswertung NICHT berechnet (…)" mit dem Grund, und die App rechnet beim
+nächsten Öffnen erneut. `run.sh` verlangt in jeder Stufe, die setup.sql
+einspielt, das „Auswertung berechnet." in der Fertig-Zeile; die neue
+Stufe 4b spielt den Fall vom 7. September nach (Demo, drei schwerere
+Paletten, Aktualisierung, Dashboard-Sichten, drei Auffälligkeiten).
+
+Das ist eine Änderung an alten Migrationen — hier bewusst: Die einzige
+Art, wie sie je ausgeführt werden, ist als Teil von `setup.sql`, und
+`with no data` ändert am Ergebnis nichts, nur daran, *wann* gerechnet
+wird. Stufe 3b (alter Stand mit Daten, dann die heutige Datei) und der
+Aufstiegstest (alte Demo bis 0050, dann 0051 ff.) laufen unverändert.

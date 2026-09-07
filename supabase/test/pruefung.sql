@@ -2340,3 +2340,69 @@ begin
 end $$;
 
 select '——— 0054 Eigenes Kaliber geprüft ———' as ergebnis;
+
+-- =====================================================================
+-- 0056 — Eine Palette wird im Lager nicht schwerer
+-- =====================================================================
+-- Der Fall vom 7. September: drei Wägungen, bei denen die Palette mehr wog
+-- als beim Eingang, drückten die gepoolte Rate auf −0.2 je Tag; die Basis
+-- für den Schimmelanteil lief über (numeric field overflow) — im Überblick
+-- und in der Aktualisierung. Hier nachgestellt: die Wägungen zählen nicht,
+-- stehen mit Grund in der Plausibilität, die Rate bleibt ≥ 0, und alles
+-- rechnet durch.
+do $$
+declare v_n0 int; v_n int; v numeric;
+begin
+  select count(*) into v_n0 from v_schimmel_beobachtung;
+  assert v_n0 > 0, 'Ohne Schimmelbeobachtung prüft dieser Block nichts';
+
+  insert into verdunstung_wiegung (charge_nr, eingangsdatum, brutto_damals_kg, brutto_jetzt_kg,
+                                   kisten, gebindeart, sichtbar_schimmel, gemessen, wiege_ts, bemerkung, erfasser)
+  select 1613, date '2026-09-01', 420, 1180, 34, 'Holzkiste', false, true,
+         timestamptz '2026-09-03 08:00+02', 'PRUEF-0056', '11111111-1111-1111-1111-111111111111'
+    from generate_series(1, 3);
+
+  select count(*) into v_n
+    from v_verdunstung_messung m join verdunstung_wiegung w on w.id = m.id
+   where w.bemerkung = 'PRUEF-0056' and m.verwendbar;
+  assert v_n = 0, format('Eine Palette, die schwerer wurde, darf nicht in die Rate zählen (%s tun es)', v_n);
+
+  select count(*) into v_n from v_plausibilitaet
+   where art = 'Wägung' and befund like '%mehr als beim Eingang%' and rat like '%Gebindeart%';
+  assert v_n = 3, format('Jede schwerere Palette muss als Auffälligkeit mit Grund und Rat stehen (%s von 3)', v_n);
+
+  assert not exists (select 1 from v_koeff_verdunstung where mittel < 0 or unten < 0 or oben < 0),
+    'Die Verdunstungsrate darf nie negativ sein';
+
+  -- Die Regression selbst: das hier brach mit „numeric field overflow" ab.
+  perform auswertung_aktualisieren();
+  perform count(*) from v_saisonbilanz;
+  perform count(*) from v_plausibilitaet;
+  perform count(*) from v_schimmel_punkte;
+  assert not exists (select 1 from v_schimmel_beobachtung where basis_jetzt_kg > eingang_kg + 0.01),
+    'Die Basis für den Schimmelanteil kann nie über dem Eingang liegen';
+  assert (select count(*) from v_schimmel_beobachtung) = v_n0,
+    'Die schwereren Paletten dürfen keine Schimmelbeobachtung verändern';
+
+  -- Eine kleine Zunahme (Toleranz zwischen zwei Waagen) bleibt eine Messung;
+  -- das Mittel sinkt dadurch höchstens auf 0, nie darunter.
+  insert into verdunstung_wiegung (charge_nr, eingangsdatum, brutto_damals_kg, brutto_jetzt_kg,
+                                   kisten, gebindeart, sichtbar_schimmel, gemessen, wiege_ts, bemerkung, erfasser)
+  values (1613, date '2026-09-01', 420, 422, 34, 'Holzkiste', false, true,
+          timestamptz '2026-09-03 08:00+02', 'PRUEF-0056-leicht', '11111111-1111-1111-1111-111111111111');
+  assert (select m.verwendbar from v_verdunstung_messung m join verdunstung_wiegung w on w.id = m.id
+           where w.bemerkung = 'PRUEF-0056-leicht'),
+    'Eine Zunahme innerhalb von 1 % ist Waagenrauschen und bleibt verwendbar';
+  assert (select m.rate_pro_tag from v_verdunstung_messung m join verdunstung_wiegung w on w.id = m.id
+           where w.bemerkung = 'PRUEF-0056-leicht') < 0,
+    'Die Einzelrate bleibt, was gemessen wurde — auch wenn sie unter 0 liegt';
+  select min(mittel) into v from v_koeff_verdunstung;
+  assert v >= 0, format('Das Mittel darf durch Waagenrauschen nicht unter 0 fallen (%s)', v);
+
+  -- Aufräumen
+  delete from verdunstung_wiegung where bemerkung like 'PRUEF-0056%';
+  perform auswertung_aktualisieren();
+  raise notice 'OK  0056 Schwerere Palette: nicht verwendbar, mit Grund gemeldet, Rate ≥ 0, alles rechnet durch';
+end $$;
+
+select '——— 0056 Schwerere Palette geprüft ———' as ergebnis;

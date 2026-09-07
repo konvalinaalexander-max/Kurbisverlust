@@ -58,13 +58,36 @@ cat <<'FUSS'
 notify pgrst, 'reload schema';
 
 -- =====================================================================
+-- Die Auswertung einmal rechnen — hier, und nur hier
+-- =====================================================================
+-- Die gespeicherten Auswertungen (mv_…) werden oben ohne Inhalt angelegt.
+-- setup.sql ist die ganze Geschichte der Datenbank; jede Zwischenfassung
+-- einer Formel auf den echten Daten auszurechnen hiesse, dass ein längst
+-- korrigierter Rechenfehler eine Aktualisierung für immer blockiert. Genau
+-- das ist am 7. September passiert (numeric field overflow, 0056): die
+-- Korrektur stand am Ende der Datei, der Abbruch kam in der Mitte.
+-- Gerechnet wird deshalb einmal, mit den heutigen Formeln. Geht das schief,
+-- ist die Datenbank trotzdem aktualisiert: die Fertig-Zeile sagt es, und
+-- die App rechnet beim nächsten Öffnen erneut.
+do $$
+begin
+  perform auswertung_aktualisieren();
+  perform set_config('kuerbis.auswertung', 'Auswertung berechnet.', false);
+exception when others then
+  perform set_config('kuerbis.auswertung',
+    format('Auswertung NICHT berechnet (%s) — die App versucht es beim nächsten Öffnen erneut; unter Messungen → Auffälligkeiten nachsehen.', sqlerrm),
+    false);
+end $$;
+
+-- =====================================================================
 -- Rückmeldung im Ergebnisfenster
 -- =====================================================================
-select format('Fertig. Die Datenbank steht: %s Chargen, %s Sorten, %s Tabellen, %s Auswertungen. Weiter im README bei Schritt 4.',
+select format('Fertig. Die Datenbank steht: %s Chargen, %s Sorten, %s Tabellen, %s Auswertungen. %s Weiter im README bei Schritt 4.',
               (select count(*) from charge),
               (select count(*) from sorte_kaliber),
               (select count(*) from pg_tables where schemaname = 'public'),
-              (select count(*) from pg_views  where schemaname = 'public')) as ergebnis;
+              (select count(*) from pg_views  where schemaname = 'public'),
+              coalesce(nullif(current_setting('kuerbis.auswertung', true), ''), 'Auswertung nicht gerechnet.')) as ergebnis;
 FUSS
 } > "$ZIEL"
 

@@ -36,6 +36,8 @@ case "$AUSGABE" in
   Fertig.*Chargen*) ;;
   *) echo "   FEHLER: setup.sql meldet keinen Erfolg"; exit 1 ;;
 esac
+echo "$AUSGABE" | grep -q 'Auswertung berechnet' \
+  || { echo "   FEHLER: die Auswertung wurde am Ende nicht berechnet"; exit 1; }
 
 FRISCH="$(mktemp)"
 psql "$URL" -v ON_ERROR_STOP=1 -f "$HIER/fingerabdruck.sql" > "$FRISCH"
@@ -53,6 +55,8 @@ if ! ZWEITE="$(psql "$URL" -v ON_ERROR_STOP=1 -qtA -1 -f "$HIER/../setup.sql" 2>
   echo "$ZWEITE" | grep -iE 'error|fehler' | head -10; exit 1
 fi
 echo "   $(echo "$ZWEITE" | tail -1)"
+echo "$ZWEITE" | tail -1 | grep -q 'Auswertung berechnet' \
+  || { echo "   FEHLER: die Auswertung wurde am Ende nicht berechnet"; exit 1; }
 VERBLIEBEN="$(psql "$URL" -qtA -c 'select count(*) from charge')"
 [ "$VERBLIEBEN" = "42" ] || { echo "   FEHLER: Daten beschädigt ($VERBLIEBEN Chargen)"; exit 1; }
 psql "$URL" -v ON_ERROR_STOP=1 -f "$HIER/fingerabdruck.sql" > "$FRISCH.zwei"
@@ -99,6 +103,8 @@ if ! ALT="$(psql "$URL" -v ON_ERROR_STOP=1 -qtA -1 -f "$HIER/../setup.sql" 2>&1)
   echo "$ALT" | grep -iE 'error|fehler' | head -10; exit 1
 fi
 echo "   $(echo "$ALT" | tail -1)"
+echo "$ALT" | tail -1 | grep -q 'Auswertung berechnet' \
+  || { echo "   FEHLER: die Auswertung wurde am Ende nicht berechnet"; exit 1; }
 
 # a) Die Daten müssen da sein — auch die von Hand geänderte Einstellung.
 PAL="$(psql "$URL" -qtA -c 'select count(*) from palette')"
@@ -145,6 +151,41 @@ VERWAIST="$(psql "$URL" -qtA -c "select (select count(*) from verdunstung_wiegun
   + (select count(*) from schimmel_messung)")"
 [ "$VERWAIST" = "0" ] || { echo "   FEHLER: $VERWAIST verwaiste Zeilen nach dem Entfernen"; exit 1; }
 echo "   nichts Verwaistes zurückgeblieben"
+
+echo
+echo "── 4b. Aktualisierung mit Paletten, die schwerer geworden sind ─"
+# Der Fall vom 7. September: Beim Nachwiegen wog eine Palette mehr als beim
+# Eingang (Tara, Kistenzahl, Zahlendreher). Die Rate daraus war negativ, die
+# Basis für den Schimmelanteil lief über (numeric field overflow) — im
+# Überblick, und in setup.sql selbst, weil die Zwischenfassungen der Formeln
+# auf den echten Daten rechneten. Beides darf nie wieder passieren: die
+# Aktualisierung muss durchlaufen, die Auswertung am Ende gerechnet sein,
+# und die drei Wägungen stehen mit Grund unter den Auffälligkeiten.
+psql "$URL" -v ON_ERROR_STOP=1 -qtA -1 -f "$HIER/../demo_daten.sql" >/dev/null
+psql "$URL" -v ON_ERROR_STOP=1 -q -c "
+  insert into verdunstung_wiegung (charge_nr, eingangsdatum, brutto_damals_kg, brutto_jetzt_kg,
+                                   kisten, gebindeart, sichtbar_schimmel, gemessen, wiege_ts, bemerkung, erfasser)
+  select charge_nr, eingangsdatum, 420, 1180, kisten, gebindeart, false, true, eingangsdatum + 2,
+         'PRUEF-0056', '11111111-1111-1111-1111-111111111111'
+    from verdunstung_wiegung order by id limit 3;"
+if ! SCHWER="$(psql "$URL" -v ON_ERROR_STOP=1 -qtA -1 -f "$HIER/../setup.sql" 2>&1)"; then
+  echo "   FEHLER: die Aktualisierung scheitert an einer schwereren Palette:"
+  echo "$SCHWER" | grep -iE 'error|fehler' | head -10; exit 1
+fi
+echo "$SCHWER" | tail -1 | grep -q 'Auswertung berechnet' \
+  || { echo "   FEHLER: die Auswertung wurde am Ende nicht berechnet: $(echo "$SCHWER" | tail -1)"; exit 1; }
+for V in v_saisonbilanz v_plausibilitaet v_schimmel_punkte v_hochrechnung v_koeff_verdunstung; do
+  psql "$URL" -v ON_ERROR_STOP=1 -qtA -c "select count(*) from $V" >/dev/null \
+    || { echo "   FEHLER: $V läuft mit den schwereren Paletten nicht"; exit 1; }
+done
+RATE="$(psql "$URL" -qtA -c "select min(mittel) from v_koeff_verdunstung")"
+[ -n "$RATE" ] && [ "$(echo "$RATE < 0" | bc)" = "0" ] \
+  || { echo "   FEHLER: die Verdunstungsrate ist negativ oder fehlt ($RATE)"; exit 1; }
+BEFUND="$(psql "$URL" -qtA -c "select count(*) from v_plausibilitaet where art = 'Wägung' and befund like '%mehr als beim Eingang%'")"
+[ "$BEFUND" = "3" ] || { echo "   FEHLER: $BEFUND statt 3 Auffälligkeiten „schwerer als beim Eingang\""; exit 1; }
+echo "   läuft durch, Rate ≥ 0 (kleinste $RATE), drei Auffälligkeiten nennen den Grund"
+psql "$URL" -q -c "delete from verdunstung_wiegung where bemerkung = 'PRUEF-0056'" >/dev/null
+psql "$URL" -q -1 -f "$HIER/../demo_daten_entfernen.sql" >/dev/null
 
 echo
 echo "── 5. Tempo der Auswertung ───────────────────────────────────"

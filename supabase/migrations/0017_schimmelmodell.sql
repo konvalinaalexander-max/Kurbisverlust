@@ -293,7 +293,7 @@ select k.*,
        k.m2 * k.a_klein_n                             as klein_kg,
        k.m2 * k.a_gross_n                             as nebenkanal_kg,
        k.m2 * (1 - k.a_klein_n - k.a_gross_n)         as verkaufsfaehig_kg
-  from kaskade k;
+  from kaskade k with no data;
 
 create unique index if not exists mv_kaskade_pk on mv_kaskade (charge_nr, szenario, portion);
 create index if not exists mv_kaskade_charge on mv_kaskade (charge_nr);
