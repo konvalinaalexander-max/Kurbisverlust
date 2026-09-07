@@ -1717,3 +1717,129 @@ begin
 end $$;
 
 select '——— 0049 Kennzahlen geprüft ———' as ergebnis;
+
+-- =========================================================================
+-- 0050: Warenausgang einlesen. Geprüft wird das, worauf es ankommt: dieselbe
+-- Datei zweimal ändert nichts, eine Position kommt genau einmal als Masse an,
+-- und ein Artikel gilt erst als Kürbis, wenn ihn jemand bestätigt hat.
+-- =========================================================================
+do $$
+declare v_datei bigint; v_n int; v_offen int; v_charge int; v_sorte text;
+        v_lief1 bigint; v_lief2 bigint;
+begin
+  perform set_config('request.jwt.claim.sub','11111111-1111-1111-1111-111111111111', true);
+  select nr, sorte into v_charge, v_sorte from charge order by nr limit 1;
+
+  insert into ausgang_quelle (code, name, dateiname_muster)
+    values ('pruef', 'Prüf-Mandant', 'pruef') on conflict (code) do nothing;
+  insert into ausgang_datei (quelle, dateiname, pruefsumme, n_zeilen, hochgeladen_von)
+    values ('pruef', 'pruef.xlsx', 'abc', 3, '11111111-1111-1111-1111-111111111111')
+    returning id into v_datei;
+
+  -- Eine Position, über zwei Chargen aufgeteilt: 240 kg gesamt, 150 + 90.
+  insert into ausgang_zeile (quelle, pos_id, charge_extern, lauf_nr, fingerabdruck, datei_id,
+                             datum, kunde, artikel_id, artikel, einheit, menge,
+                             gewicht_je_artikel, batch_menge, kg_position, kg_charge, erfasser)
+  values ('pruef', 5001, v_charge::text, 1, 'f1', v_datei, current_date - 5, 'Grosshandel',
+          'kuerbbu', 'Bio Kürbis Butternut', 'Stk.', 160, 1.5, 100, 240, 150,
+          '11111111-1111-1111-1111-111111111111'),
+         ('pruef', 5001, '199001', 1, 'f2', v_datei, current_date - 5, 'Grosshandel',
+          'kuerbbu', 'Bio Kürbis Butternut', 'Stk.', 160, 1.5, 60, 240, 90,
+          '11111111-1111-1111-1111-111111111111'),
+         ('pruef', 5002, '', 1, 'f3', v_datei, current_date - 4, 'Hofladen',
+          'karod', 'Bio-Karotten Demeter', 'kg', 500, 1, 0, 500, 0,
+          '11111111-1111-1111-1111-111111111111');
+
+  -- Derselbe Schlüssel ein zweites Mal muss abprallen — sonst stünde die
+  -- Lieferung nach jedem Hochladen erneut in der Bilanz.
+  begin
+    insert into ausgang_zeile (quelle, pos_id, charge_extern, lauf_nr, fingerabdruck,
+                               datum, kunde, artikel_id, artikel, kg_position, kg_charge, erfasser)
+    values ('pruef', 5001, v_charge::text, 1, 'f1', current_date, 'x', 'y', 'z', 1, 1,
+            '11111111-1111-1111-1111-111111111111');
+    assert false, 'Dieselbe Zeile darf nicht zweimal angelegt werden können';
+  exception when unique_violation then null;
+  end;
+
+  -- Dieselbe Datei nochmals: die Prüfsumme erkennt sie wieder.
+  begin
+    insert into ausgang_datei (quelle, dateiname, pruefsumme, hochgeladen_von)
+      values ('pruef', 'pruef-kopie.xlsx', 'abc', '11111111-1111-1111-1111-111111111111');
+    assert false, 'Dieselbe Datei darf nicht zweimal verarbeitet werden';
+  exception when unique_violation then null;
+  end;
+
+  -- Der Vorschlag kommt aus den Daten: die Sorte der Charge, die die Zeile nennt.
+  assert (select vorschlag_sorte from v_ausgang_artikel_vorschlag where artikel_id = 'kuerbbu') = v_sorte,
+    'Die vorgeschlagene Sorte muss aus der Charge stammen';
+  assert (select vorschlag_kuerbis from v_ausgang_artikel_vorschlag where artikel_id = 'kuerbbu'),
+    'Butternut ist ein Kürbisvorschlag';
+  assert not (select vorschlag_kuerbis from v_ausgang_artikel_vorschlag where artikel_id = 'karod'),
+    'Karotten sind kein Kürbis';
+  assert not (select bestaetigt from v_ausgang_artikel_vorschlag where artikel_id = 'kuerbbu'),
+    'Ohne Eintrag in ausgang_artikel gilt nichts als bestätigt';
+
+  -- Bestätigen schlägt den Vorschlag — in beide Richtungen.
+  insert into ausgang_artikel (artikel_id, artikel, ist_kuerbis, sorte, bestaetigt_von)
+    values ('kuerbbu', 'Bio Kürbis Butternut', true, v_sorte, '11111111-1111-1111-1111-111111111111');
+  assert (select bestaetigt from v_ausgang_artikel_vorschlag where artikel_id = 'kuerbbu'),
+    'Nach dem Bestätigen muss es bestätigt sein';
+
+  -- Übernahme: aus einer Position werden zwei Lieferungen, zusammen 240 kg.
+  insert into lieferung (datum, charge_nr, sorte, kg, ziel, kunde, erfasser)
+  values (current_date - 5, v_charge, v_sorte, 150, 'verkauf', 'Grosshandel',
+          '11111111-1111-1111-1111-111111111111')
+  returning id into v_lief1;
+  insert into lieferung (datum, charge_nr, sorte, kg, ziel, kunde, erfasser)
+  values (current_date - 5, null, v_sorte, 90, 'verkauf', 'Grosshandel',
+          '11111111-1111-1111-1111-111111111111')
+  returning id into v_lief2;
+  insert into lieferung_import (lieferung_id, quelle, extern_id) values
+    (v_lief1, 'pruef', 'pruef:5001:' || v_charge || ':1'),
+    (v_lief2, 'pruef', 'pruef:5001:199001:1');
+  select count(*) into v_n from v_ausgang_pruef where quelle = 'pruef';
+  assert v_n = 0, format('Die Probe muss aufgehen, %s Positionen weichen ab', v_n);
+  -- Die Karotten-Position hat keine Lieferung und darf trotzdem nicht auffallen.
+  assert not exists (select 1 from v_ausgang_pruef where pos_id = 5002),
+    'Was kein Kürbis ist, gehört nicht in die Probe';
+
+  -- Eine vergessene Kürbis-Position fällt mit ihrer vollen Masse auf.
+  insert into ausgang_zeile (quelle, pos_id, charge_extern, lauf_nr, fingerabdruck,
+                             datum, kunde, artikel_id, artikel, kg_position, kg_charge, erfasser)
+  values ('pruef', 5003, '', 1, 'f4', current_date - 3, 'Hofladen',
+          'kuerbbu', 'Bio Kürbis Butternut', 60, 0, '11111111-1111-1111-1111-111111111111');
+  select count(*) into v_n from v_ausgang_pruef where pos_id = 5003;
+  assert v_n = 1, 'Eine übergangene Kürbis-Position muss in der Probe stehen';
+  delete from ausgang_zeile where quelle = 'pruef' and pos_id = 5003;
+
+  -- Ein Kilo zu viel fällt auf.
+  update lieferung set kg = 200 where id = v_lief2;
+  select count(*) into v_n from v_ausgang_pruef where quelle = 'pruef';
+  assert v_n = 1, 'Eine zu hohe Übernahme muss die Probe reissen';
+  update lieferung set kg = 90 where id = v_lief2;
+
+  -- Dieselbe Importzeile nochmals: der Schlüssel verhindert die Doppelbuchung.
+  begin
+    insert into lieferung_import (lieferung_id, quelle, extern_id)
+      values (v_lief1, 'pruef', 'pruef:5001:199001:1');
+    assert false, 'Dieselbe extern_id darf es nur einmal geben';
+  exception when unique_violation then null;
+  end;
+
+  -- Von Hand erfasste Lieferungen bleiben unberührt: sie stehen nicht in der
+  -- Beitabelle und behalten ihre Zeile, was der Import auch tut.
+  assert (select count(*) from lieferung l
+           where not exists (select 1 from lieferung_import i where i.lieferung_id = l.id)) >= 0;
+
+  select zeilen, artikel_offen into v_n, v_offen from v_ausgang_lage where quelle = 'pruef';
+  assert v_n = 3, format('Die Lage muss drei Zeilen zeigen, zeigt %s', v_n);
+
+  delete from lieferung where id in (v_lief1, v_lief2);
+  delete from ausgang_zeile where quelle = 'pruef';
+  delete from ausgang_datei where quelle = 'pruef';
+  delete from ausgang_artikel where artikel_id = 'kuerbbu';
+  delete from ausgang_quelle where code = 'pruef';
+  raise notice 'OK  0050 Warenausgang-Import (Wiederholung folgenlos, Masse einmal, Zuordnung bestätigt)';
+end $$;
+
+select '——— 0050 Warenausgang geprüft ———' as ergebnis;

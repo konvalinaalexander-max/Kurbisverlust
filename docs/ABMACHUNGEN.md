@@ -29,7 +29,7 @@ Noch offen (in `FRAGEN.md`, keine App-Änderung ohne Antwort):
 
 | Kennung | Absprache / Frage | Stand |
 |---|---|---|
-| AB-13 | Import der Perigon-Warenausgangsdatei (Rohdatei ablegen, an Prüfsumme wiedererkennen, erneuter Import folgenlos). | wartet auf die Dateivorlage — der Betrieb liefert die Excel-Dateien nach |
+| AB-13 | Import der Perigon-Warenausgangsdatei (Rohdatei ablegen, an Prüfsumme wiedererkennen, erneuter Import folgenlos). | Dateien da (7. Sept), Regeln und Schema gebaut und geprüft: `test/warenausgang.test.ts`, `pruefung.sql` Block 0050. Offen ist der Bildschirm — siehe `docs/PROMPT_WARENAUSGANG.md` |
 | AB-14 | Direkte Messung beim Leeren des Palox (wie viel nicht faul). | offen; entscheidet, ob der Sockel am Saisonende erkennbar wird (`STATISTIK_BEFUND.md`) |
 
 ## Wie diese Datei ehrlich bleibt

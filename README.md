@@ -624,6 +624,7 @@ Das genügt fast immer zur Klärung.
 | Kennzahlen aus den neuen Erfassungspunkten | `supabase/migrations/0049` | Gewichtsverteilung, Reihenfolge, Durchsatz, Überfüllung je Käufer, Datenqualität, Saisonverlauf |
 | Arbeiter-App: Start, Assistent, Zähler, Checkliste, Abschluss | `src/pages/Start.tsx`, `NeueArbeit.tsx`, `Arbeit.tsx`, `src/arbeit/` | Kette über die echten Masken in `pruefstand/kette.mjs` |
 | Betriebsleiter: Überblick · Ursachen · Chargen · Messungen · Betrieb | `src/pages/Ueberblick.tsx` … `Betrieb.tsx`, `src/auswertung/` | Diagramme in `src/components/Diagramm.tsx` |
+| Warenausgang aus dem Warenwirtschaftssystem einlesen | `src/lib/xlsx.ts`, `src/lib/warenausgang.ts`, `supabase/migrations/0050` | Leser und Regeln geprüft (27 Tests, 396 096 Zellen gegen einen zweiten Leser); der Bildschirm fehlt noch — `docs/PROMPT_WARENAUSGANG.md` |
 
 `supabase/setup.sql` ist die Zusammenfassung aller Migrationen zu einer Datei —
 das, was in Schritt 3 eingefügt wird. Sie wird von `supabase/setup_bauen.sh`
@@ -736,6 +737,8 @@ Die Probe aufs Exempel ist die **Massenbilanz**: Das Modell sagt voraus, wie
 viel Masse am Sortierband ankommen müsste, die CSV hat sie gewogen. Liegen beide
 nah beieinander, stimmen die Koeffizienten.
 
+Was in den Warenausgangsdateien steht, gemessen an den echten Dateien:
+[`docs/WARENAUSGANG_BEFUND.md`](docs/WARENAUSGANG_BEFUND.md).
 Fachliche Spezifikation: [`docs/SPEC.md`](docs/SPEC.md).
 Begründung der Modellentscheidungen: [`docs/ENTSCHEIDUNGEN.md`](docs/ENTSCHEIDUNGEN.md).
 
