@@ -12282,6 +12282,15 @@ grant execute on function verlust_ranking(text, text, numeric) to authenticated;
 -- Tagen), damit sie nicht altert; die Kalenderdaten sind deshalb verschoben.
 -- =====================================================================
 
+-- Die Demo legt vier Käufer an (Coop, Migros, Rathgeb, Bio Partner). Beim
+-- Entfernen dürfen nur die wieder verschwinden, die sie selbst angelegt hat:
+-- Wer „coop" schon vor der Demo im Stammdatenregister hatte, behält ihn.
+-- Dieselbe Markierung wie überall sonst — DEMO in einer Bemerkung.
+alter table kaeufer add column if not exists bemerkung text;
+comment on column kaeufer.bemerkung is
+  'Freitext zum Käufer. ''DEMO'' markiert die von der Demo-Saison angelegten '
+  'Käufer, damit demo_daten_entfernen() nur diese wieder löscht.';
+
 create or replace function demo_daten_laden()
 returns text language plpgsql security definer set search_path = public as $fn$
 declare
@@ -12307,8 +12316,11 @@ begin
   perform set_config('request.jwt.claims', json_build_object('sub', v_wer)::text, true);
 
   -- ---------- Stammdaten der Demo ----------------------------------------
-  insert into kaeufer (code, name) values
-    ('coop', 'Coop'), ('migros', 'Migros'), ('rathgeb', 'Rathgeb'), ('biopartner', 'Bio Partner')
+  -- Bei Konflikt bleibt der bestehende Käufer, wie er ist — samt seiner
+  -- (leeren) Bemerkung. Genau daran erkennt das Entfernen ihn als echten.
+  insert into kaeufer (code, name, bemerkung) values
+    ('coop', 'Coop', 'DEMO'), ('migros', 'Migros', 'DEMO'),
+    ('rathgeb', 'Rathgeb', 'DEMO'), ('biopartner', 'Bio Partner', 'DEMO')
   on conflict (code) do nothing;
   -- Coop nimmt Butternut in der 8-kg-Kiste; Migros will Kaori Kuri enger.
   insert into sortierschema (sorte, kaeufer, gilt_ab, art, soll_kg_pro_kiste, bemerkung)
@@ -12930,7 +12942,10 @@ begin
   delete from charge_vorlauf where bemerkung like 'DEMO%';
   delete from palette where extern_id like 'demo-%';
   delete from sortierschema where bemerkung like 'DEMO%';
-  delete from kaeufer k where code in ('coop', 'migros', 'rathgeb', 'biopartner')
+  -- Nur die von der Demo angelegten Käufer, und auch die nur, wenn nichts
+  -- mehr an ihnen hängt. Ein Käufer, den der Betrieb selbst eingetragen hat,
+  -- bleibt — auch wenn er zufällig denselben Code trägt.
+  delete from kaeufer k where k.bemerkung = 'DEMO'
      and not exists (select 1 from auftrag a where a.kaeufer = k.code)
      and not exists (select 1 from sortierschema s where s.kaeufer = k.code);
 

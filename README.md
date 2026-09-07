@@ -583,6 +583,13 @@ verschoben. Zweimal laden gibt zweimal dieselbe Saison.
    durchgehen (Sortieren fragt die Kaliber, Fax zählt Kisten und wiegt
    Faules).
 
+**Steht dort nur „Demo-Daten entfernen"?** Dann liegt schon eine Demo in der
+Datenbank — die Karte bietet das Laden nur an, solange keine da ist. Nach einer
+Aktualisierung des Werkzeugs ist die Saison in aller Regel gewachsen; der Knopf
+**„Demo-Saison neu laden"** entfernt die alte und legt die neue an, in einem
+Schritt. (Zwei Demos nebeneinander gäbe es nie: die Mengen würden doppelt
+zählen.)
+
 **Wenn die echten Daten kommen:** derselbe Bildschirm, Knopf **„Demo-Daten
 entfernen"**. Es verschwindet restlos alles Erfundene, echte Daten bleiben
 unberührt — erkannt wird die Demo an ihren Markierungen (Arbeiten mit dem

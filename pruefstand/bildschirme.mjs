@@ -206,6 +206,9 @@ const BILDSCHIRME = [
   { name: 'betrieb-csv', wer: 'admin', pfad: '/betrieb/csv' },
   { name: 'betrieb-warteschlange', wer: 'admin', pfad: '/betrieb/warteschlange' },
   { name: 'betrieb-stammdaten', wer: 'admin', pfad: '/betrieb/stammdaten' },
+  // Die Demo-Karte im geladenen Zustand: neu laden und entfernen (0052).
+  { name: 'betrieb-demo', wer: 'admin', pfad: '/betrieb/stammdaten',
+    tun: async p => { await p.getByRole('link', { name: 'Demo-Daten' }).click() } },
   { name: 'betrieb-schemata', wer: 'admin', pfad: '/betrieb/stammdaten',
     tun: async p => { await p.getByRole('link', { name: 'Sortierschemata' }).click() } },
   { name: 'betrieb-zugang', wer: 'admin', pfad: '/betrieb/zugang' },

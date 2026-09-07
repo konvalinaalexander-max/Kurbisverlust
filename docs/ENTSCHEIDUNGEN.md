@@ -1514,3 +1514,22 @@ dem Fax-Auftrag lief:
   Chargen, die über die Hand-Linie gingen — die Sicht zählt dort nur die
   Maschine. Jetzt steht die Hand-Linie eigens, und die Maschine heisst so.
 
+### Wer schon eine Demo hat, sieht nur „entfernen"
+
+Die Demo-Karte bot das Laden nur an, solange keine Demo in der Datenbank
+lag. Wer das Werkzeug aktualisiert, hat aber die alte Saison noch drin und
+kam so nie an die neue. Jetzt steht dort **„Demo-Saison neu laden"**:
+entfernen und laden in einem Schritt. Zwei Demos nebeneinander gibt es
+weiterhin nicht — die Mengen würden doppelt zählen, und `demo_daten_laden()`
+weist einen zweiten Aufruf ab.
+
+Dabei kam ein Fehler heraus, den die neue Rundlauf-Prüfung fand (laden,
+entfernen, Zählstand muss wieder derselbe sein): Das Entfernen löschte die
+Käufer Coop, Migros, Rathgeb und Bio Partner, sobald nichts mehr an ihnen
+hing — auch dann, wenn der Betrieb sie selbst eingetragen hatte. Käufer
+tragen jetzt eine Bemerkung, und gelöscht wird nur, was `DEMO` trägt.
+Die Kehrseite ist gewollt: Käufer, welche die **alte** Demo angelegt hat,
+tragen die Markierung nicht und bleiben beim Entfernen stehen. Ein Name im
+Stammdatenregister ohne Daten daran ist harmlos; ihn auf Verdacht zu
+löschen wäre es nicht.
+

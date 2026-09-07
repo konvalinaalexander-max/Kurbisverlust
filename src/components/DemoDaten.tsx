@@ -21,7 +21,7 @@ export default function DemoDaten({ kompakt = false, nachAenderung }: {
   nachAenderung?: () => void
 }) {
   const [geladen, setGeladen] = useState<boolean | null>(null)
-  const [laeuft, setLaeuft] = useState<'laden' | 'entfernen' | null>(null)
+  const [laeuft, setLaeuft] = useState<'laden' | 'entfernen' | 'neu' | null>(null)
   const [meldung, setMeldung] = useState<string | null>(null)
   const [fehler, setFehler] = useState<string | null>(null)
   const [sicher, setSicher] = useState(false)
@@ -35,12 +35,18 @@ export default function DemoDaten({ kompakt = false, nachAenderung }: {
   }, [])
   useEffect(() => { void stand() }, [stand])
 
-  async function rufen(was: 'laden' | 'entfernen') {
+  /** Neu laden heisst: erst entfernen, dann laden. Zwei Aufrufe, ein Knopf —
+      denn eine zweite Demo neben der ersten wäre doppelt gezählte Ware. */
+  async function rufen(was: 'laden' | 'entfernen' | 'neu') {
     setLaeuft(was); setFehler(null); setMeldung(null); setSicher(false)
+    if (was === 'neu') {
+      const weg = await supabase.rpc('demo_daten_entfernen')
+      if (weg.error) { setLaeuft(null); setFehler(fehlerText(weg.error)); await stand(); return }
+    }
     const { data, error } = await supabase.rpc(
-      was === 'laden' ? 'demo_daten_laden' : 'demo_daten_entfernen')
+      was === 'entfernen' ? 'demo_daten_entfernen' : 'demo_daten_laden')
     setLaeuft(null)
-    if (error) { setFehler(fehlerText(error)); return }
+    if (error) { setFehler(fehlerText(error)); await stand(); return }
     setMeldung(data as string)
     await stand()
     nachAenderung?.()
@@ -83,6 +89,17 @@ export default function DemoDaten({ kompakt = false, nachAenderung }: {
             Die Demo-Saison ist geladen. Alles, was Du gerade siehst, ist erfunden —
             zum Anschauen und Ausprobieren gedacht, nicht zum Entscheiden.
           </p>
+          <p className="leise">
+            Nach einer Aktualisierung des Werkzeugs lohnt sich <strong>neu
+            laden</strong>: Die Demo wächst mit. Sie zeigt dann auch, was seither
+            dazugekommen ist — die alte Saison wird zuerst entfernt, damit nicht
+            zwei Demos nebeneinander stehen und die Mengen doppelt zählen.
+          </p>
+          <button className="haupt" disabled={laeuft !== null}
+                  style={{ marginBottom: '.75rem' }}
+                  onClick={() => void rufen('neu')}>
+            {laeuft === 'neu' ? 'Saison wird neu angelegt …' : 'Demo-Saison neu laden'}
+          </button>
           <p className="leise">
             Bevor die echten Daten kommen: hier entfernen. Gelöscht wird nur, was
             zur Demo gehört (Arbeiten mit dem Vermerk „DEMO", Paletten mit

@@ -2039,3 +2039,57 @@ begin
 end $$;
 
 select '——— 0051 Fax, Kohorten, Fassung geprüft ———' as ergebnis;
+
+-- =========================================================================
+-- 0052: Die Demo muss sich restlos entfernen lassen. Wer das Werkzeug
+-- aktualisiert, hat die alte Saison noch in der Datenbank; die Karte bietet
+-- dann „neu laden" an — entfernen, dann laden. Bleibt dabei auch nur eine
+-- Zeile zurück, zählt sie in jeder Auswertung mit, ohne dass jemand sie
+-- sieht. Darum: Zählstand vorher, Demo laden, entfernen, Zählstand wieder
+-- genau gleich.
+-- =========================================================================
+do $$
+declare
+  v_vorher jsonb; v_nachher jsonb; v_geladen jsonb; v_tabelle text; v_diff text := '';
+  v_tabellen text[] := array['palette', 'auftrag', 'auftrag_palette', 'auftrag_gebinde',
+    'auftrag_teilnehmer', 'auftrag_angabe', 'verdunstung_wiegung', 'schimmel_messung',
+    'ausschuss_messung', 'ausgang_wiegung', 'sortier_lauf', 'sortier_gewicht',
+    'lieferung', 'charge_vorlauf', 'sortierschema', 'kaeufer', 'ausgang_ziel'];
+  v_zahl bigint;
+begin
+  perform set_config('request.jwt.claim.sub',
+                     (select id::text from profil where rolle = 'admin' limit 1), true);
+
+  v_vorher := '{}'::jsonb;
+  foreach v_tabelle in array v_tabellen loop
+    execute format('select count(*) from %I', v_tabelle) into v_zahl;
+    v_vorher := v_vorher || jsonb_build_object(v_tabelle, v_zahl);
+  end loop;
+
+  perform demo_daten_laden();
+  v_geladen := '{}'::jsonb;
+  foreach v_tabelle in array v_tabellen loop
+    execute format('select count(*) from %I', v_tabelle) into v_zahl;
+    v_geladen := v_geladen || jsonb_build_object(v_tabelle, v_zahl);
+  end loop;
+  assert (v_geladen ->> 'palette')::bigint > (v_vorher ->> 'palette')::bigint + 500,
+    'Die Demo muss eine ganze Saison anlegen, nicht ein paar Zeilen';
+  assert (v_geladen ->> 'auftrag')::bigint > (v_vorher ->> 'auftrag')::bigint + 200,
+    'Die Demo muss die Arbeiten beider Wege anlegen';
+
+  perform demo_daten_entfernen();
+  foreach v_tabelle in array v_tabellen loop
+    execute format('select count(*) from %I', v_tabelle) into v_zahl;
+    if v_zahl <> (v_vorher ->> v_tabelle)::bigint then
+      v_diff := v_diff || format('%s: vorher %s, nachher %s. ',
+                                 v_tabelle, v_vorher ->> v_tabelle, v_zahl);
+    end if;
+  end loop;
+  assert v_diff = '', 'Nach dem Entfernen muss der Stand wieder derselbe sein — ' || v_diff;
+
+  perform set_config('request.jwt.claim.sub', '', true);
+  perform auswertung_aktualisieren();
+  raise notice 'OK  0052 Demo-Saison: laden und restlos wieder entfernen (der Weg beim Aktualisieren)';
+end $$;
+
+select '——— 0052 Demo-Saison geprüft ———' as ergebnis;
