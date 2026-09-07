@@ -1737,3 +1737,30 @@ Art, wie sie je ausgeführt werden, ist als Teil von `setup.sql`, und
 `with no data` ändert am Ergebnis nichts, nur daran, *wann* gerechnet
 wird. Stufe 3b (alter Stand mit Daten, dann die heutige Datei) und der
 Aufstiegstest (alte Demo bis 0050, dann 0051 ff.) laufen unverändert.
+
+### Nachtrag: Die Datenbank sagt, auf welchem Stand sie ist (0057)
+
+Nach 0056 kam vom Hof: „im Überblick ist weiterhin numeric overflow".
+Gefuzzt auf einer Kopie der Demo mit dem 0056-Stand — Eingangsdatum im
+Jahr 2027, Arbeit 400 Tage vor dem Eingang, Wägungen mit 85 % Verlust
+an einem Tag, 99 Millionen gezählte Kisten, Palette mit zehn Millionen
+Kilo (die Spalte lässt das gar nicht zu) — bringt keine Dashboard-Sicht
+mehr zum Überlaufen; nur eine erfundene Sortier-CSV-Zeile mit 10^13 Gramm
+tut es noch, und die schreibt kein Parser. Wahrscheinlichste Erklärung:
+Die App lief gegen eine Datenbank, die 0056 noch nicht hatte. Das kann
+die App bisher nicht wissen — sie ruft Sichten, und die antworten mit
+den Formeln, die dort stehen.
+
+Deshalb 0057: `schema_stand()` nennt die Nummer der jüngsten Migration;
+die Auswertung fragt sie als Erstes ab und vergleicht mit
+`SCHEMA_ERWARTET` in `src/lib/version.ts`. Bei Abweichung (oder wenn die
+Funktion fehlt, also vor 0057) steht im Klartext, dass Schritt 3 zu
+wiederholen ist. Jede Fehlermeldung aus einer Sicht trägt jetzt den
+Namen der Sicht („v_plausibilitaet: numeric field overflow"). Dazu
+`supabase/diagnose.sql` für den SQL-Editor: Stand, Neuberechnung, jede
+Sicht des Überblicks, und die Rohdaten, die Formeln sprengen können —
+als Tabelle, die sich kopieren lässt. Regel: jede Migration setzt
+`schema_stand()` auf ihre Nummer und zieht `SCHEMA_ERWARTET` nach;
+`run.sh` (Stufe 1) und `npm test` schlagen sonst an. Und
+`v_ausschuss_beobachtung` rechnet seine Basis jetzt ebenfalls mit der
+gedeckelten Rate — die letzte Sicht, die (1 − Rate)^Lagertage roh nahm.

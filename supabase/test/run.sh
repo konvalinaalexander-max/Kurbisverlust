@@ -25,6 +25,16 @@ for f in "$HIER"/../migrations/*.sql; do
   echo "   $(basename "$f")"
   psql "$URL" -v ON_ERROR_STOP=1 -q -f "$f"
 done
+# 0057: Datenbank und App müssen sich über den Stand einig sein — sonst sagt
+# die App „veraltet", obwohl gerade alles eingespielt wurde (oder umgekehrt).
+HOECHSTE="$(basename "$(ls "$HIER"/../migrations/*.sql | tail -1)" | cut -c1-4 | sed 's/^0*//')"
+STAND="$(psql "$URL" -qtA -c 'select schema_stand()')"
+[ "$STAND" = "$HOECHSTE" ] \
+  || { echo "   FEHLER: schema_stand() sagt $STAND, die höchste Migration ist $HOECHSTE — in der neuen Migration nachziehen"; exit 1; }
+ERWARTET="$(grep -oE 'SCHEMA_ERWARTET = [0-9]+' "$HIER/../../src/lib/version.ts" | grep -oE '[0-9]+')"
+[ "$ERWARTET" = "$HOECHSTE" ] \
+  || { echo "   FEHLER: src/lib/version.ts erwartet $ERWARTET, die höchste Migration ist $HOECHSTE"; exit 1; }
+echo "   Stand: Migration $HOECHSTE — Datenbank, App und Migrationen einig"
 psql "$URL" -v ON_ERROR_STOP=1 -f "$HIER/pruefung.sql"
 
 echo
@@ -178,7 +188,7 @@ for V in v_saisonbilanz v_plausibilitaet v_schimmel_punkte v_hochrechnung v_koef
   psql "$URL" -v ON_ERROR_STOP=1 -qtA -c "select count(*) from $V" >/dev/null \
     || { echo "   FEHLER: $V läuft mit den schwereren Paletten nicht"; exit 1; }
 done
-RATE="$(psql "$URL" -qtA -c "select min(mittel) from v_koeff_verdunstung")"
+RATE="$(psql "$URL" -qtA -c "select round(min(mittel), 6) from v_koeff_verdunstung")"
 [ -n "$RATE" ] && [ "$(echo "$RATE < 0" | bc)" = "0" ] \
   || { echo "   FEHLER: die Verdunstungsrate ist negativ oder fehlt ($RATE)"; exit 1; }
 BEFUND="$(psql "$URL" -qtA -c "select count(*) from v_plausibilitaet where art = 'Wägung' and befund like '%mehr als beim Eingang%'")"

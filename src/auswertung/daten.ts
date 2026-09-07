@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { fehlerText } from '../lib/db'
+import { SCHEMA_ERWARTET, datenbankVeraltet } from '../lib/version'
 import type { Datenlage, Hochrechnung, Massenbilanz, Ranking } from '../lib/typen'
 
 /* =========================================================================
@@ -138,6 +139,13 @@ let ladeVersprechen: Promise<Auswertung> | null = null
 const hoerer = new Set<() => void>()
 
 async function alles(): Promise<Auswertung> {
+  // 0057: Erst fragen, ob die Datenbank die Formeln hat, die diese App
+  // voraussetzt. Sonst scheitert die Auswertung an einem alten Stand mit
+  // einer rohen Meldung, aus der niemand den Weg heraus lesen kann.
+  const version = await supabase.rpc('schema_stand')
+  const schemaStand = typeof version.data === 'number' ? version.data : null
+  if (version.error || schemaStand === null || schemaStand < SCHEMA_ERWARTET) throw new Error(datenbankVeraltet(schemaStand))
+
   const { data: st } = await supabase.from('auswertung_stand').select('berechnet_ts, geaendert_ts').maybeSingle()
   const veraltet = !st?.berechnet_ts || new Date(st.geaendert_ts) > new Date(st.berechnet_ts)
   if (veraltet) {
@@ -149,11 +157,14 @@ async function alles(): Promise<Auswertung> {
     let s = supabase.from(name).select('*')
     if (order) s = s.order(order[0], { ascending: order[1] })
     const r = await s
-    if (r.error) throw r.error
+    // Die Sicht mit in die Meldung: „v_plausibilitaet: numeric field overflow"
+    // sagt, wo zu suchen ist — „numeric field overflow" allein nicht.
+    if (r.error) throw { ...r.error, message: `${name}: ${r.error.message}` }
     return (r.data ?? []) as T[]
   }
   const eins = async <T,>(name: string): Promise<T | null> => {
     const r = await supabase.from(name).select('*').maybeSingle()
+    if (r.error) throw { ...r.error, message: `${name}: ${r.error.message}` }
     return (r.data ?? null) as T | null
   }
   const [h, b, d, pl, kv, sk, mo, sel, sb, pk, hb, nc, kfv, kfa, kfn, kfu, wk, mg, gw, va, ds, uk, dq, sv, kg, ss, ko, fx, ab, lf] = await Promise.all([

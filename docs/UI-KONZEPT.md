@@ -107,3 +107,4 @@ gemessen ist, steht als „nicht gemessen", nie als 0.
 | 0054 | Eigenes Kaliber am Waschbecken (von–bis), wenn das Etikett keines der Bänder nennt | Kisten zum eigenen Band zählen; Kistengewicht über die Bandgrenzen gefunden oder ehrlich unbekannt |
 | 0055 | Warenausgang aus dem Perigon-Excel: Datei, Rohzeilen, Lieferungen in einem Aufruf | Ausgeliefert je Charge (gemessen); damit „Noch im Haus" = Eingang − Ausgang − Modell; Bilanz gegen echte Zahlen |
 | 0056 | Wägung, bei der die Palette schwerer wurde als beim Eingang (über 1 %) | Zählt nicht in die Verdunstungsrate; steht unter Auffälligkeiten mit Grund und Rat. Die Rate je Sorte ist nie negativ, die Basis für den Schimmelanteil nie über dem Eingang |
+| 0057 | Stand der Datenbank (`schema_stand()`) | Die App vergleicht ihn mit `SCHEMA_ERWARTET` und verlangt bei Abweichung `setup.sql` — statt an alten Formeln zu scheitern. `supabase/diagnose.sql` für den SQL-Editor |

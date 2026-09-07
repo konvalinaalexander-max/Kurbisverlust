@@ -22,6 +22,8 @@ import { fileURLToPath } from 'node:url'
 import { filtern } from './postgrest.mjs'
 
 const HIER = dirname(fileURLToPath(import.meta.url))
+// 0057: die Attrappe nennt denselben Stand, den die App erwartet
+const SCHEMA_STAND = Number(readFileSync(join(HIER, '..', 'src', 'lib', 'version.ts'), 'utf8').match(/SCHEMA_ERWARTET = (\d+)/)[1])
 const DATEN = join(HIER, 'daten')
 const fixture = name => {
   try { return JSON.parse(readFileSync(join(DATEN, `${name}.json`), 'utf8')) } catch { return null }
@@ -44,6 +46,7 @@ async function restAntwort(route) {
   if (name.startsWith('rpc/')) {
     const fn = name.slice(4)
     if (fn === 'auswertung_aktualisieren') return route.fulfill({ json: new Date().toISOString() })
+    if (fn === 'schema_stand') return route.fulfill({ json: SCHEMA_STAND })
     if (fn === 'palox_letzter_stand') {
       const body = JSON.parse(route.request().postData() ?? '{}')
       const staende = fixture('rpc_palox_letzter_stand') ?? {}
