@@ -81,7 +81,7 @@ verwenden, die **damals galten**. Siehe `docs/Datenarchitektur.pdf`.
 | Paletten im Lager | **gestapelt, nicht an jede kommt man ran** | Siehe Kasten unten — das trifft die Lagerkontrolle. |
 | Datum auf dem Zettel | **Einlagerungsdatum, fast immer gleich Erntedatum** | Die Uhr startet richtig. |
 | Im Feld aussortiert | ja — **interessiert aber nicht** | Bestätigt den Zuschnitt: gefragt ist, wohin der Kürbis **im Lager** verschwindet. |
-| Fax | immer eigener Arbeitsgang, nach Bestellung; tagsüber wird provisorisch vorgewaschen | Eigener Auftragstyp. Auch hier die Frage „alles aus einer Charge?" |
+| Fax | immer eigener Arbeitsgang, nach Bestellung — **kein Waschen**: Etiketten anbringen, dabei Faules aussortieren (7. Sept) | Eigene Tätigkeit ohne Palox: gemachte Kisten zählen („1 Palette = 32, dann + 10"), Faules kistenweise wiegen (0051). Auch hier die Frage „alles aus einer Charge?" |
 | Rückverfolgbarkeit | **muss garantiert sein** | Deshalb ist eine Bestellung fast immer aus einer Charge — das ist der Grund, warum das Mischen selten ist. |
 | Zettel an der Kaliber-Kiste | **die Charge steht drauf**, derselbe Zettel wird weitergegeben | Die grösste Sorge ist erledigt: Beim Waschen ist die Charge bekannt, nicht geraten. Das Sortierdatum kommt einfach auf denselben Zettel. |
 | Kaliber-Kisten chargenrein | **eher ja** — wird nicht mit anderer Charge vollgemacht | Die Charge überlebt das Zwischenlager. |
@@ -174,6 +174,14 @@ Beanspruchung beim Waschen. Er darf deshalb nicht in die Verderbskurve einfliess
 bekommt einen eigenen Strom — *Schäden nach dem Waschen*, bezogen auf die gewaschene Menge statt
 auf die Zeit. Die Massnahme dagegen ist eine andere (sanfter waschen, kürzer stehen lassen), und
 solange beides in einem Balken steckt, weiss niemand, welche hilft.
+
+*Stand 7. September (0051):* So ist es jetzt gebaut. Beim Fax wird nicht gewaschen — die App
+hatte es bis dahin als Waschgang geführt und die Fax-Masse als „gewaschen" gezählt, das Faule
+als Punkt der Verderbskurve. Jetzt zählt der Arbeiter die gemachten Kisten (je Kaliber oder
+nach Sollgewicht, mit „+ 1 Palette") und wiegt das Faule kistenweise (Brutto, Kistenart, mit
+oder ohne Palette; das Netto rechnet ein Auslöser). Daraus entsteht der Strom „Faul beim
+Abpacken (Fax)" mit eigenem Koeffizienten je Sorte, bezogen auf die verkaufsfähige Masse. Und
+die Bilanz kennt den dritten Lagerabschnitt: gewaschen, in Kisten, wartet auf eine Bestellung.
 
 ### Was der Betriebsleiter aus der Sortier-CSV erfahren will
 

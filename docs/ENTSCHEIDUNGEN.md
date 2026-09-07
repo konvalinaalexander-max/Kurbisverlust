@@ -1385,3 +1385,132 @@ unter 3:1 Kontrast; deshalb trägt jeder Strom überall seinen Namen als Text.
 Sonst hätte die Demo keine Überfüllung gezeigt: Nach Kaliber gibt es kein
 Sollgewicht (AB-01), und die Hand-Linie füllt 8-kg-Kisten. Reine
 Demo-Änderung in 0034.
+
+## Vier Fehler aus der Halle, und die Demo als Praxistest (0051, 0052)
+
+Der Betrieb hat am 7. September vier Dinge gesagt, die die App anders
+verstanden hatte. Alle vier stecken in 0051; die Demo in 0052 zeigt sie.
+
+### Fax ist kein Waschgang
+
+Beim Fax wird nicht gewaschen. Die gewaschene Ware steht in Kisten, bis eine
+Bestellung kommt; dann werden Etiketten angebracht, und dabei wird nochmals
+Faules aussortiert. Die App hatte Fax als Waschgang geführt (Station waschen,
+`ist_fax`) — und damit zweimal falsch gerechnet: die Fax-Masse zählte als
+*gewaschen* und schob die Charge ein zweites Mal aus dem Lager; das Faule ging
+als Punkt in die Verderbskurve, obwohl es vom Waschen und Stehen kommt, nicht
+von der Lagerdauer (ABLAUF.md wusste das seit dem 2. September).
+
+Jetzt: Kein neuer Enum-Wert — der wäre in der einen Transaktion von
+`setup.sql` nicht verwendbar —, sondern `ist_fax` ist überall ausgenommen, wo
+Waschen gerechnet wird. Der Arbeiter zählt die gemachten Kisten (je Kaliber
+oder nach Sollgewicht, Band −1; „+ 1 Palette" zählt die Einstellung
+`kisten_pro_palette`) und wiegt das Faule kistenweise: `schimmel_messung`
+trägt Brutto, Kisten, Gebinde, `mit_palette`; das Netto rechnet ein Auslöser,
+wie beim Ausschuss. „Nichts Faules" ist eine Messung mit 0 kg. Der Strom
+„Faul beim Abpacken (Fax)" hat einen Koeffizienten je Sorte
+(`v_koeff_fax`, derselbe Bündelungs-Schätzer wie zu klein und zu gross),
+bezogen auf die verkaufsfähige Masse, mit Fehlerfortpflanzung. Unbekannt —
+nicht 0 — bis die erste Fax-Arbeit Faules gewogen hat.
+
+Dazu kennt die Bilanz den dritten Lagerabschnitt: verkaufsfähig gewaschen
+minus durchs Fax gegangen ist „gewaschen, wartet auf Bestellung". Ohne
+Fax-Erfassung bleibt die Zeile leer und die Bilanz rechnet wie bisher — sonst
+liesse sich ein fehlender Ausgang nie mehr von wartender Ware unterscheiden.
+
+### Die Maschine kennt nur Bänder
+
+Die Frage „Kiste ab x kg oder Kaliber?" gibt es beim Sortieren nicht. Die
+Frage, die es gibt: *Welche* Bänder sind heute eingestellt? Der Assistent
+zeigt sie als Grenzen — zu klein unter, Band 1 bis, Band 2 bis, …, zu gross
+ab — mit „wie zuletzt: übernehmen" oder „anpassen". Lückenlos per Bauart;
+falsch kann nur die Reihenfolge sein, und das sagt die Maske. Von Hand
+ebenso: Kiste ab x kg (welches x) oder Kaliber (welche Bänder).
+
+Was bestätigt wird, ist die Fassung, nach der die Arbeit läuft; was geändert
+wird, wird eine neue Fassung ab heute (`sortierschema_festlegen`). Nichts
+Altes wird überschrieben — ausser die Fassung desselben Tages, denn zweimal
+am selben Tag ist dieselbe Einstellung. Die Funktion läuft in der Datenbank,
+damit `kette_pruefen.sh` sie mit denselben Argumenten ruft wie die App.
+
+### Es gibt kein FIFO
+
+Der Eingang einer Charge verteilt sich über Wochen, der Ausgang auch, und
+verarbeitet wird, was erreichbar ist. Gespeichert war das immer richtig
+(jede Palette mit Datum, jede Zählung mit Zetteldatum). Gerechnet wurde mit
+*einem* Alter je Charge. Jetzt führt `v_charge_kohorte` den Bestand je
+Eingangstag (Paletten des Tages minus gezählte Paletten mit diesem Datum),
+`mv_kaskade` rechnet den Lagerbestand je Kohorte mit ihrem Alter,
+`v_naechste_charge` ebenso, und „liegt seit" ist eine Spanne: 128–161 Tage,
+4 Eingangstage. Die Chargen-Seite zeigt je Eingangstag, was kam, was gezählt
+wurde, was liegt. Ein Zetteldatum ohne Palette fällt jetzt auf.
+
+Bei einer Kurve mit k ≈ 1.2–1.7 und Spannen von zwei bis vier Wochen macht
+das je Charge wenige Prozent des Verderbs aus — der eigentliche Gewinn ist,
+dass die Zahl auf dem Bildschirm nicht mehr etwas behauptet, das es nicht
+gibt.
+
+### Die sechsstellige Nummer ist unsere
+
+Die Planungsdatei des Betriebs führt je Schlag und Sorte beide Nummern: die
+vierstellige (Bioprodukte) und die sechsstellige aus dem Perigon der Firma AG.
+232 von 236 Kürbiszeilen der AG-Datei seit Juli 2026 tragen eine davon. Die
+Nummer steht jetzt an der Charge (`charge.perigon_nr`), der Import löst sie
+auf (`chargeAufloeser`); die eine doppelte Nummer (198976, Butterkin und
+Tiana in Rümlang) entscheidet der Artikel, sonst bleibt die Zeile ohne Bezug.
+
+### Was sonst noch klar wurde
+
+- Die Kilo-Frage am Ende des Waschens ist weg: Die Menge sind die gezählten
+  Kisten. Fehlen sie, sagt es der Abschluss, statt eine Zahl zu verlangen.
+- Diagramme: Der oberste Punkt sass auf der Rahmenlinie — die Achse hat jetzt
+  Luft darüber; liegen die Werte eng beieinander, zeigt sie den Bereich der
+  Werte statt der Null. Die Verdunstung zeigt eine Reihe je Sorte mit der
+  Sortenrate als Bezugslinie.
+- Die Gewichtsverteilung erklärt die Stufenbreite und nennt den Schwerpunkt.
+  Dass die Balken bei 25 g dünner wurden, lag an der alten Demo: acht
+  Gewichtsstufen. Die neue hat je Lauf rund 150.
+- Buch B ist aufgeschlüsselt: je Sorte (mit Kisten), je Charge, je Arbeit
+  (die Messung dahinter), Überfüllung je Käufer.
+- Der Überblick hat „Arbeit und Tempo": je Tätigkeit Arbeiten, Stunden,
+  Median der Dauer, kg je Stunde und je Personenstunde.
+
+### Die Demo als Praxistest (0052)
+
+Die alte Demo war eine Rechenübung. Die neue entsteht so, wie der Betrieb
+arbeitet: 36 Chargen der Anbauplanung 2026 in halber Menge, Ernte je Charge
+in ihrer Erntewoche an Werktagen, Sortierläufe abwechselnd vom jüngsten und
+vom ältesten Stapel, CSV mit rund 150 Gewichtsstufen und gezählten Kisten,
+Waschen je Kaliber Wochen später, Fax je Bestellung mit gewogenem Faulem,
+Lieferungen über Wochen verschränkt. Verderb nach einer Weibull-Kurve je
+Sorte, Verdunstung mit Streuung je Palette. Deterministisch.
+
+Zwei Dinge hat der Praxistest sofort gefunden: An einer Station läuft nur
+eine Arbeit zugleich — sonst verschränken sich die Palox-Ablesungen und die
+Differenzen werden falsch (die Demo serialisiert je Station). Und ohne
+Fax-Erfassung fehlte der Bilanz der dritte Lagerabschnitt: gewaschene Ware,
+die auf eine Bestellung wartet, war „Lücke". Beides steht oben.
+
+Was die Demo ehrlich zeigt: Das Verderbsmodell fittet über alle Sorten
+eine Kurve; später im Jahr liegt vor allem Butternut, das langsamer
+verdirbt — die gemeinsame Kurve wird flacher (k ≈ 1.2 bei erzeugten
+1.5–1.7). Die Wasch-Punkte tragen das ihre bei: ihr Sortier-Anteil ist das
+Mittel aller Sortierläufe der Charge. Das ist die Grenze aus
+`STATISTIK_BEFUND.md`, nicht ein Fehler der Demo.
+
+Drei Kleinigkeiten hat der Praxistest noch dazugelegt, als die Kette mit
+dem Fax-Auftrag lief:
+
+- **Der Kisten-Zähler verlor bei schnellem Doppeltipp einen Zähler.** Der
+  Knopf war wieder frei, bevor der neue Stand geladen war; der zweite Tipp
+  rechnete vom alten weiter (32 → 1 → 33). Jetzt bleibt der Zähler gesperrt,
+  bis der Stand da ist — Paletten zählen und Rückgängig gleich mit.
+- **Die Demo hängte die gewogene Palette an die falsche Zählzeile.** Die
+  Wägung gehörte zur ersten Palette der Arbeit, verknüpft war sie mit der
+  Zählzeile mit der kleinsten ID — das konnte ein anderer Eingangstag sein.
+  Die Kohortenrechnung zeigte dann „mehr gezählt als gekommen". Acht von 526
+  Verknüpfungen; die Demo verknüpft jetzt über das Zetteldatum.
+- **Die Chargen-Kopfzeile sagte „Sortiert / gewaschen 0 kg / 0 kg"** bei
+  Chargen, die über die Hand-Linie gingen — die Sicht zählt dort nur die
+  Maschine. Jetzt steht die Hand-Linie eigens, und die Maschine heisst so.
+

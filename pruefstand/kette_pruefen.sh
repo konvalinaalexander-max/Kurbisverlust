@@ -27,6 +27,7 @@ psql "$URL" -v ON_ERROR_STOP=1 -q -1 -f "$HIER/../supabase/setup.sql" >/dev/null
 psql "$URL" -v ON_ERROR_STOP=1 -q <<'SQL'
 insert into auth.users (id, email, raw_user_meta_data)
 values ('22222222-2222-2222-2222-222222222222', null, '{"name":"Tomasz"}');
+update profil set aktiv = true where id = '22222222-2222-2222-2222-222222222222';
 insert into palette (charge_nr, eingangsdatum, brutto_kg, kisten, gebindeart, extern_id)
 select 1613, date '2026-09-01' + (i % 4), 950, 40, 'G2', 'kette-' || i from generate_series(1, 12) i;
 SQL
@@ -48,6 +49,18 @@ const sql = q => execFileSync('psql', [url, '-v', 'ON_ERROR_STOP=1', '-qtA', '-c
   { encoding: 'utf8' }).trim()
 
 for (const p of protokoll) {
+  if (p.methode === 'RPC') {
+    // Die Fassung festlegen (0051): dieselben Argumente wie aus der App, die
+    // echte Funktion, und ihre Id wird wie eine Einfügung abgebildet.
+    const a = p.args ?? {}
+    const q = `select ${p.tabelle}(p_sorte => ${wert(a.p_sorte)}, p_kaeufer => ${wert(a.p_kaeufer ?? null)}, `
+      + `p_art => ${wert(a.p_art)}, p_baender => ${a.p_baender == null ? 'null' : wert(JSON.stringify(a.p_baender)) + '::jsonb'}, `
+      + `p_soll => ${a.p_soll == null ? 'null' : wert(a.p_soll)}, p_bemerkung => ${wert(a.p_bemerkung ?? null)})`
+    const erg = sql(q)
+    ids[p.zeilen[0].id] = Number(erg)
+    console.log(`   ${p.tabelle}: gerufen (Fassung ${erg})`)
+    continue
+  }
   for (const z of p.zeilen ?? [{}]) {
     const { id: fakeId, ts: _ts, ...felder } = z
     for (const k of Object.keys(felder)) {
@@ -55,9 +68,15 @@ for (const p of protokoll) {
     }
     if (p.methode === 'POST') {
       const spalten = Object.keys(felder)
+      // PostgREST-Upsert: ignore-duplicates → do nothing, merge-duplicates → do update
+      const schluessel = String(p.filter?.on_conflict ?? '').split(',').map(k => k.trim()).filter(Boolean)
+      const rest = spalten.filter(k => !schluessel.includes(k))
       const konflikt = /ignore-duplicates/.test(p.prefer ?? '')
-        ? ` on conflict (${p.filter.on_conflict}) do nothing` : ''
-      const ruecklauf = spalten.length && !konflikt ? ' returning id' : ''
+        ? ` on conflict (${schluessel.join(', ')}) do nothing`
+        : /merge-duplicates/.test(p.prefer ?? '') && schluessel.length
+          ? ` on conflict (${schluessel.join(', ')}) do update set ${rest.length ? rest.map(k => `${k} = excluded.${k}`).join(', ') : `${schluessel[0]} = excluded.${schluessel[0]}`}`
+          : ''
+      const ruecklauf = spalten.length && !/do nothing/.test(konflikt) ? ' returning id' : ''
       const q = `insert into ${p.tabelle} (${spalten.join(', ')}) values (${spalten.map(k => wert(felder[k])).join(', ')})${konflikt}${ruecklauf}`
       const erg = sql(q)
       if (ruecklauf && erg) ids[fakeId] = Number(erg)
@@ -73,7 +92,7 @@ for (const p of protokoll) {
 require('node:fs').writeFileSync('/tmp/kette_ids.json', JSON.stringify(ids))
 JS
 
-AUFTRAG="$(node -e "const m=require('/tmp/kette_ids.json'); console.log(m[90002])")"
+AUFTRAG="$(node -e "const m=require('/tmp/kette_ids.json'); console.log(m[90003])")"
 psql "$URL" -qtA -c "select auswertung_aktualisieren()" >/dev/null
 
 # Und jetzt rückwärts: kommt jeder Wert an?
@@ -134,6 +153,26 @@ begin
   assert not exists (select 1 from v_plausibilitaet where auftrag_id = a),
     'Die Arbeit taucht in der Plausibilität auf — etwas fehlt oder wirkt vertippt';
 
+  -- Die Fassung wurde beim Eröffnen festgelegt: „Kiste ab x kg", Soll 8 kg
+  assert (select art from sortierschema where id = (select sortierschema_id from auftrag where id = a)) = 'kiste',
+    'Die Hand-Arbeit lief als „Kiste ab x kg" — die Fassung muss das sagen';
+  -- Die fertige Palette (345 brutto, 32 G2: 345 − 48 − 25 = 272 → 8.5 kg je Kiste)
+  assert (select kg_pro_kiste from v_ausgang_kennzahl where auftrag_id = a) = 8.5,
+    'Die fertige Palette ergibt 8.5 kg je Kiste';
+  assert (select ueberfuellung_je_kiste from v_ausgang_kennzahl where auftrag_id = a) = 0.5,
+    'Überfüllung: 0.5 kg je Kiste über dem Soll von 8';
+  assert (select kg_je_gebinde from v_koeff_gebinde where sorte = 'Tiana' and kaliber_idx = -1) = 8.5,
+    'Aus der fertigen Palette folgt das Kistengewicht ohne Kaliber (0051)';
+
+  -- Die Sortier-Arbeit lief mit angepassten Bändern: zweite Grenze 900 statt 800,
+  -- als neue Fassung von heute — die alte blieb stehen.
+  assert exists (select 1 from auftrag x join sortierschema s on s.id = x.sortierschema_id
+                  where x.station = 'sortieren' and s.gilt_ab = current_date
+                    and (s.kaliber_baender -> 0 ->> 1)::int = 900),
+    'Die angepassten Bänder müssen als Fassung von heute an der Sortier-Arbeit hängen';
+  assert (select count(*) from sortierschema where sorte = 'Tiana' and art = 'kaliber') >= 2,
+    'Die alte Fassung darf nicht überschrieben worden sein';
+
   -- Und ganz oben: die Ströme sind beziffert, keiner unbekannt
   assert (select count(*) from v_verlust_ranking where kg is null and buch in ('verlust', 'marge')) = 0,
     'Ein Strom ist noch unbekannt, obwohl alles erfasst wurde';
@@ -141,6 +180,30 @@ begin
   assert (select kg from v_verlust_ranking where strom = 'Schimmel/Fäulnis') > 0, 'Schimmel nicht beziffert';
   assert (select kg from v_verlust_ranking where strom = 'Zu klein (Tierfutter)') > 0, 'Zu klein nicht beziffert';
   raise notice 'OK  Die Kette hält: jeder Wert aus den Masken kommt in der Auswertung an';
+end $$;
+
+-- ---------- Der Fax-Durchlauf (0051) ---------------------------------------
+do $$
+declare f record;
+begin
+  select * into f from v_fax_beobachtung
+   where auftrag_id = (select max(id) from auftrag where ist_fax);
+  assert f.auftrag_id is not null, 'Die Fax-Arbeit ist nicht angekommen';
+  assert f.status = 'abgeschlossen', 'Der Fax-Abschluss ist nicht angekommen';
+  assert f.kaeufer = 'coop', 'Der Käufer der Fax-Arbeit fehlt';
+  assert f.kisten = 34, format('34 Kisten gezählt (eine Palette + 2), angekommen %s', f.kisten);
+  assert f.masse_kg = 34 * 8.5, format('Fax-Masse 34 × 8.5 erwartet, ist %s', f.masse_kg);
+  assert f.faul_kg = 6, format('Faules 7.5 − 1.5 = 6 kg erwartet, ist %s', f.faul_kg);
+  assert f.faul_erfasst, 'Das Faule gilt nicht als erfasst';
+  assert (select gewaschen_kg from v_hochrechnung_basis where charge_nr = 1613) = 0,
+    'Fax zählt nicht als Waschen';
+  assert not exists (select 1 from v_schimmel_punkte where auftrag_id = f.auftrag_id),
+    'Fax-Faules darf kein Punkt der Verderbskurve sein';
+  assert (select kg from v_verlust_ranking where strom = 'Faul beim Abpacken (Fax)') > 0,
+    'Der Fax-Strom ist nicht beziffert';
+  assert not exists (select 1 from v_plausibilitaet where auftrag_id = f.auftrag_id),
+    'Die Fax-Arbeit taucht in der Plausibilität auf';
+  raise notice 'OK  Fax: Kisten gezählt, Faules gewogen, eigener Strom, kein Waschgang';
 end $$;
 SQL
 echo "——— Kette in beide Richtungen geprüft ———"

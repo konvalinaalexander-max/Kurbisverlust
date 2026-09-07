@@ -54,10 +54,16 @@ export default function DemoDaten({ kompakt = false, nachAenderung }: {
       {geladen === false && (
         <>
           <p>
-            Eine erfundene, aber realistische Saison: 535 Paletten aus zehn Chargen,
-            28 Arbeiten über beide Wege, drei Sortierläufe, Lagerkontrollen und
-            Warenausgang. Damit füllt sich jeder Bildschirm der App und man sieht,
-            was am Ende herauskommt — bevor die erste echte Palette gezählt ist.
+            Eine erfundene Saison, so gebaut, wie die Daten wirklich kommen: die 36
+            Chargen der Anbauplanung mit halber Menge (rund 320 t, 840 Paletten), die
+            Ernte je Charge über Tage und Wochen verteilt, gut 300 Arbeiten über beide
+            Wege — Sortieren mit Sortier-CSV und gezählten Kisten, Waschen je Kaliber,
+            Waschen + Sortieren von Hand mit gewogener Palette und gewogenem Ausschuss,
+            Fax mit gezählten Kisten und gewogenem Faulem — dazu Lagerkontrollen,
+            Lieferungen über Wochen verschränkt, und die Sonderfälle jeder Saison
+            (abgebrochene Arbeit, Zahlendreher, vergessene Ablesung, Zetteldatum ohne
+            Palette). Damit füllt sich jeder Bildschirm der App und man sieht, was am
+            Ende herauskommt — bevor die erste echte Palette gezählt ist.
           </p>
           <p className="leise">
             Alles Erfundene ist markiert und lässt sich mit einem Klick restlos

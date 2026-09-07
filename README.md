@@ -553,9 +553,35 @@ eine vollständige, erfundene Saison zum Durchklicken.
 nichts da ist, steht derselbe Knopf auch gleich auf dem leeren **Überblick** —
 dort, wo die Leere auffällt. Nach ein paar Sekunden ist jeder Bildschirm gefüllt.
 
-Du bekommst rund 460 t Eingang, 535 Paletten in 10 Chargen, 28 Arbeiten und
-drei Sortierläufe — dazu absichtlich eine abgebrochene Arbeit und einen
-Zahlendreher, damit auch die Sonderfälle einmal sichtbar sind.
+Du bekommst die Saison der Anbauplanung 2026 in halber Grösse: rund 320 t
+Eingang, 840 Paletten in 36 Chargen, gut 300 Arbeiten (Sortieren mit CSV und
+gezählten Kisten, Waschen je Kaliber, Waschen + Sortieren von Hand, 160 Fax
+mit gewogenem Faulem), 32 Sortierläufe, 24 Lagerkontrollen und knapp 190
+Lieferungen, verschränkt über Wochen. Kein FIFO: die Paletten einer Charge
+kommen über Tage bis Wochen herein und gehen in der Reihenfolge hinaus, in
+der man an sie herankommt. Dazu absichtlich die Sonderfälle jeder Saison —
+eine abgebrochene Arbeit, ein Zahlendreher, eine vergessene Palox-Ablesung,
+ein Waschgang ohne gezählte Kisten, eine CSV in der Warteschlange, ein
+Zetteldatum ohne Palette — und drei laufende Arbeiten von heute, damit die
+Arbeiter-Masken nicht leer sind. Die Demo spielt relativ zu heute (Ernte vor
+rund 200 Tagen) und altert deshalb nicht; die Kalenderdaten sind entsprechend
+verschoben. Zweimal laden gibt zweimal dieselbe Saison.
+
+**Schritt für Schritt, wenn du es zum ersten Mal machst:**
+
+1. `supabase/setup.sql` einmal im SQL-Editor ausführen (Schritt 3) — auch
+   wenn die Datenbank schon steht: dieselbe Datei bringt sie auf den
+   neuesten Stand, die Daten bleiben.
+2. In der App als Betriebsleiter anmelden.
+3. **Betrieb → Stammdaten → Demo-Daten → „Demo-Saison laden"** antippen.
+   Nach zwei bis vier Sekunden steht die Meldung „Demo-Saison steht: …".
+4. **Überblick** öffnen — die Auswertung rechnet beim ersten Aufruf einmal
+   durch (ein paar Sekunden), danach sind alle fünf Reiter gefüllt.
+5. Zum Anschauen der Arbeiter-Masken: auf einem Handy den QR-Code aus
+   **Betrieb → Zugang** öffnen, Namen eintippen, und eine der drei laufenden
+   Arbeiten antippen — oder „Neue Arbeit starten" und den Assistenten
+   durchgehen (Sortieren fragt die Kaliber, Fax zählt Kisten und wiegt
+   Faules).
 
 **Wenn die echten Daten kommen:** derselbe Bildschirm, Knopf **„Demo-Daten
 entfernen"**. Es verschwindet restlos alles Erfundene, echte Daten bleiben

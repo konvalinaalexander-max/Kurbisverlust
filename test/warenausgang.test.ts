@@ -6,7 +6,7 @@ import { dirname, join } from 'node:path'
 import { xlsxLesen, serieAlsDatum } from '../src/lib/xlsx.ts'
 import {
   kopfLesen, zeilenLesen, zeilenSchluessel, fingerabdruck, istKuerbis,
-  befund, abgleichen, lieferungenBauen, quelleVorschlag, schluessel,
+  befund, abgleichen, lieferungenBauen, quelleVorschlag, schluessel, chargeAufloeser,
 } from '../src/lib/warenausgang.ts'
 
 const HIER = dirname(fileURLToPath(import.meta.url))
@@ -270,4 +270,28 @@ test('schlägt eine Herkunft aus dem Dateinamen vor', () => {
 test('Kopfnamen werden ohne Schreibweise verglichen', () => {
   assert.equal(schluessel('AuftragsArtikelMengeSoll'), schluessel('auftragsartikelmengesoll'))
   assert.equal(schluessel('AufPosBatchQuantity Charge'), schluessel('aufposbatchquantitycharge'))
+})
+
+/* ---------- Die Perigon-Nummer (0051) ------------------------------------- */
+
+test('sechsstellige Perigon-Nummern werden über charge.perigon_nr aufgelöst', () => {
+  const chargen = [
+    { nr: 1613, sorte: 'Tiana', perigon_nr: 198923 },
+    { nr: 1649, sorte: 'Butterkin', perigon_nr: 198976 },
+    { nr: 1650, sorte: 'Tiana', perigon_nr: 198976 },
+    { nr: 1614, sorte: 'Kaori Kuri', perigon_nr: null },
+  ]
+  const artikel = (z: { artikel: string }) => (/butterkin/i.test(z.artikel) ? 'Butterkin' : /butternut/i.test(z.artikel) ? 'Tiana' : null)
+  const loese = chargeAufloeser(chargen, artikel)
+  assert.equal(loese('1613'), 1613, 'die eigene Nummer bleibt die eigene')
+  assert.equal(loese('198923'), 1613, 'die Perigon-Nummer führt zur eigenen Charge')
+  assert.equal(loese('Lot 198923'), 1613, 'Buchstaben um die Nummer stören nicht')
+  assert.equal(loese('1614'), 1614, 'auch ohne Perigon-Nummer')
+  assert.equal(loese('199999'), null, 'eine fremde Nummer bleibt ohne Bezug')
+  assert.equal(loese(''), null)
+  // Die doppelte Nummer: der Artikel entscheidet, sonst nichts.
+  assert.equal(loese('198976'), null, 'ohne Artikel ist die doppelte Nummer nicht zu entscheiden')
+  assert.equal(loese('198976', { artikel_id: 'kuerbk', artikel: 'Bio Kürbis Muscat/Butterkin Dem gross' }), 1649)
+  assert.equal(loese('198976', { artikel_id: 'kuerbu', artikel: 'Bio Kürbis Butternut Dem klein' }), 1650)
+  assert.equal(loese('198976', { artikel_id: 'div', artikel: 'Bio Kürbis Mix' }), null, 'passt der Artikel zu keiner, bleibt es offen')
 })

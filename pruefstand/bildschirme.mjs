@@ -141,11 +141,29 @@ const BILDSCHIRME = [
       await p.locator('#taet-waschen_sortieren').click(); await p.locator('#charge').fill('1613')
       await p.getByRole('button', { name: T('weiter') }).click(); await p.locator('#kaeufer-keiner').click()
     } },
-  { name: 'neu-pruefen', wer: 'arbeiter', pfad: '/neu',
+  // 0051: das Sollgewicht (Kiste) bzw. die Bänder (Kaliber) — wie zuletzt oder angepasst
+  { name: 'neu-soll', wer: 'arbeiter', pfad: '/neu',
     tun: async p => {
       await p.locator('#taet-waschen_sortieren').click(); await p.locator('#charge').fill('1613')
       await p.getByRole('button', { name: T('weiter') }).click(); await p.locator('#kaeufer-keiner').click()
       await p.locator('#art-kiste').click()
+    } },
+  { name: 'neu-baender', wer: 'arbeiter', pfad: '/neu',
+    tun: async p => {
+      await p.locator('#taet-sortieren').click(); await p.locator('#charge').fill('1613')
+      await p.getByRole('button', { name: T('weiter') }).click(); await p.locator('#kaeufer-keiner').click()
+      await p.locator('#baender-anpassen').click()
+    } },
+  { name: 'neu-fax', wer: 'arbeiter', pfad: '/neu',
+    tun: async p => {
+      await p.locator('#taet-fax').click(); await p.locator('#charge').fill('1613')
+      await p.getByRole('button', { name: T('weiter') }).click(); await p.locator('#kaeufer-keiner').click()
+    } },
+  { name: 'neu-pruefen', wer: 'arbeiter', pfad: '/neu',
+    tun: async p => {
+      await p.locator('#taet-waschen_sortieren').click(); await p.locator('#charge').fill('1613')
+      await p.getByRole('button', { name: T('weiter') }).click(); await p.locator('#kaeufer-keiner').click()
+      await p.locator('#art-kiste').click(); await p.getByRole('button', { name: T('weiter') }).click()
     } },
   // Die Arbeit: der Zähler sieht den Zähler, der Vorarbeiter die Checkliste
   { name: 'arbeit-zaehler', wer: 'arbeiter', pfad: '/arbeit/OFFEN' },
@@ -169,6 +187,12 @@ const BILDSCHIRME = [
       await p.getByRole('button', { name: T('weiter') }).click()
       await p.locator('#charge-ja').click(); await p.getByRole('button', { name: T('weiter') }).click()
     } },
+  // Fax (0051): Kisten zählen mit „+ 1 Palette", Faules wiegen
+  { name: 'arbeit-fax-liste', wer: 'arbeiter', pfad: '/arbeit/OFFENFAX',
+    tun: async p => { await p.getByRole('button', { name: T('ichFuehre') }).click() } },
+  { name: 'arbeit-fax-kisten', wer: 'arbeiter', pfad: '/arbeit/OFFENFAX' },
+  { name: 'arbeit-fax-faule', wer: 'arbeiter', pfad: '/arbeit/OFFENFAX',
+    tun: async p => { await p.getByRole('button', { name: T('ichFuehre') }).click(); await p.locator('#check-faule').click() } },
   { name: 'kontrolle', wer: 'arbeiter', pfad: '/kontrolle' },
   // Betriebsleiter: fünf Reiter
   { name: 'ueberblick', wer: 'admin', pfad: '/dashboard' },
@@ -203,14 +227,22 @@ await vite.listen()
 const { WOERTERBUCH } = await vite.ssrLoadModule('/src/lib/i18n.ts')
 T = id => WOERTERBUCH[SPRACHE]?.[id] ?? WOERTERBUCH.de[id]
 
-// Die offene Arbeit hat die höchste Auftrags-ID im Fixture.
+// Die offene Arbeit hat die höchste Auftrags-ID im Fixture — ohne Fax, denn
+// dort gibt es weder Palox noch Ausschuss (0051), die Klickwege würden fehlen.
 const auftraege = fixture('auftrag') ?? []
 const offene = auftraege.filter(a => a.status === 'offen' && !a.abgebrochen_ts)
-const OFFEN_ID = offene.length ? Math.max(...offene.map(a => a.id)) : 1
+// Die Hand-Linie (Waschen + Sortieren) hat alle Masken: Zettel, Wiegen, Palox,
+// Ausschuss — Waschen an der Maschine hat keine Paletten, Fax weder Palox noch Ausschuss.
+const ohneFax = offene.filter(a => !a.ist_fax)
+const hand = ohneFax.filter(a => a.station === 'waschen_sortieren')
+const OFFEN_ID = hand.length ? Math.max(...hand.map(a => a.id))
+  : ohneFax.length ? Math.max(...ohneFax.map(a => a.id)) : offene.length ? Math.max(...offene.map(a => a.id)) : 1
 // Die Kisten-Maske gibt es nur dort, wo es Kaliber-Kisten gibt — auf der
 // Hand-Linie (waschen_sortieren) geht die Ware direkt raus.
-const mitKisten = offene.filter(a => a.station !== 'waschen_sortieren')
+const mitKisten = offene.filter(a => a.station !== 'waschen_sortieren' && !a.ist_fax)
 const OFFEN_KISTEN_ID = mitKisten.length ? Math.max(...mitKisten.map(a => a.id)) : OFFEN_ID
+const faxOffen = offene.filter(a => a.ist_fax)
+const OFFEN_FAX_ID = faxOffen.length ? Math.max(...faxOffen.map(a => a.id)) : OFFEN_ID
 
 mkdirSync(BILDER, { recursive: true })
 // In der Entwicklungsumgebung liegt ein fertiges Chromium unter /opt — dessen
@@ -247,6 +279,7 @@ for (const geraet of GERAETE) {
       }, { wer: schirm.wer, frisch: schirm.frisch ?? false, sprache: SPRACHE })
 
       const pfad = schirm.pfad.replace('OFFENKISTEN', String(OFFEN_KISTEN_ID))
+                              .replace('OFFENFAX', String(OFFEN_FAX_ID))
                               .replace('OFFEN', String(OFFEN_ID))
       await seite.goto(`http://localhost:5199${pfad}`, { waitUntil: 'networkidle' })
 

@@ -9,9 +9,26 @@
     "zeilen": [
       {
         "id": 90001,
-        "ts": "2026-09-04T10:42:32.517Z",
+        "ts": "2026-09-07T11:14:10.701Z",
         "code": "coop",
         "name": "Coop"
+      }
+    ]
+  },
+  {
+    "methode": "RPC",
+    "tabelle": "sortierschema_festlegen",
+    "args": {
+      "p_sorte": "Tiana",
+      "p_kaeufer": "coop",
+      "p_art": "kiste",
+      "p_baender": null,
+      "p_soll": 8,
+      "p_bemerkung": null
+    },
+    "zeilen": [
+      {
+        "id": 90002
       }
     ]
   },
@@ -24,15 +41,15 @@
     },
     "zeilen": [
       {
-        "id": 90002,
-        "ts": "2026-09-04T10:42:32.527Z",
+        "id": 90003,
+        "ts": "2026-09-07T11:14:10.714Z",
         "weg": "hand",
         "station": "waschen_sortieren",
         "charge_nr": 1613,
         "ist_fax": false,
         "kaeufer": "coop",
         "kaliber_idx": null,
-        "sortierschema_id": 21
+        "sortierschema_id": 90002
       }
     ]
   },
@@ -43,9 +60,9 @@
     "filter": {},
     "zeilen": [
       {
-        "id": 90003,
-        "ts": "2026-09-04T10:42:32.531Z",
-        "auftrag_id": 90002
+        "id": 90004,
+        "ts": "2026-09-07T11:14:10.718Z",
+        "auftrag_id": 90003
       }
     ]
   },
@@ -56,9 +73,9 @@
     "filter": {},
     "zeilen": [
       {
-        "id": 90004,
-        "ts": "2026-09-04T10:42:32.798Z",
-        "auftrag_id": 90002,
+        "id": 90005,
+        "ts": "2026-09-07T11:14:11.033Z",
+        "auftrag_id": 90003,
         "schluessel": "ausschuss_leer",
         "wert": "true"
       }
@@ -71,9 +88,9 @@
     "filter": {},
     "zeilen": [
       {
-        "id": 90005,
-        "ts": "2026-09-04T10:42:32.899Z",
-        "auftrag_id": 90002,
+        "id": 90006,
+        "ts": "2026-09-07T11:14:11.185Z",
+        "auftrag_id": 90003,
         "eingangsdatum": "2026-09-01"
       }
     ]
@@ -85,9 +102,9 @@
     "filter": {},
     "zeilen": [
       {
-        "id": 90006,
-        "ts": "2026-09-04T10:42:32.932Z",
-        "auftrag_id": 90002,
+        "id": 90007,
+        "ts": "2026-09-07T11:14:11.233Z",
+        "auftrag_id": 90003,
         "eingangsdatum": "2026-09-01"
       }
     ]
@@ -101,9 +118,9 @@
     },
     "zeilen": [
       {
-        "id": 90007,
-        "ts": "2026-09-04T10:42:33.068Z",
-        "auftrag_id": 90002,
+        "id": 90008,
+        "ts": "2026-09-07T11:14:11.383Z",
+        "auftrag_id": 90003,
         "charge_nr": 1613,
         "eingangsdatum": "2026-09-01",
         "brutto_damals_kg": 950,
@@ -123,11 +140,11 @@
     "filter": {},
     "zeilen": [
       {
-        "id": 90008,
-        "ts": "2026-09-04T10:42:33.077Z",
-        "auftrag_id": 90002,
+        "id": 90009,
+        "ts": "2026-09-07T11:14:11.395Z",
+        "auftrag_id": 90003,
         "eingangsdatum": "2026-09-01",
-        "wiegung_id": 90007
+        "wiegung_id": 90008
       }
     ]
   },
@@ -138,9 +155,9 @@
     "filter": {},
     "zeilen": [
       {
-        "id": 90009,
-        "ts": "2026-09-04T10:42:33.333Z",
-        "auftrag_id": 90002,
+        "id": 90010,
+        "ts": "2026-09-07T11:14:11.666Z",
+        "auftrag_id": 90003,
         "kg": 120,
         "palox_stand_kg": 165,
         "palox_geleert": false
@@ -154,9 +171,9 @@
     "filter": {},
     "zeilen": [
       {
-        "id": 90010,
-        "ts": "2026-09-04T10:42:33.514Z",
-        "auftrag_id": 90002,
+        "id": 90011,
+        "ts": "2026-09-07T11:14:11.848Z",
+        "auftrag_id": 90003,
         "art": "zu_klein",
         "brutto_kg": 100,
         "kisten": 4,
@@ -171,11 +188,29 @@
     "filter": {},
     "zeilen": [
       {
-        "id": 90011,
-        "ts": "2026-09-04T10:42:33.649Z",
-        "auftrag_id": 90002,
+        "id": 90012,
+        "ts": "2026-09-07T11:14:11.981Z",
+        "auftrag_id": 90003,
         "art": "zu_gross",
         "kg": 15
+      }
+    ]
+  },
+  {
+    "methode": "POST",
+    "tabelle": "ausgang_wiegung",
+    "prefer": "",
+    "filter": {},
+    "zeilen": [
+      {
+        "id": 90013,
+        "ts": "2026-09-07T11:14:12.132Z",
+        "auftrag_id": 90003,
+        "charge_nr": 1613,
+        "brutto_kg": 345,
+        "kisten": 32,
+        "gebindeart": "G2",
+        "kuerbisse_pro_kiste": null
       }
     ]
   },
@@ -186,11 +221,11 @@
     "filter": {},
     "zeilen": [
       {
-        "id": 90012,
-        "ts": "2026-09-04T10:42:33.783Z",
-        "auftrag_id": 90002,
+        "id": 90014,
+        "ts": "2026-09-07T11:14:12.283Z",
+        "auftrag_id": 90003,
         "kg": 0,
-        "palox_stand_kg": null,
+        "palox_stand_kg": 45,
         "palox_geleert": false
       }
     ]
@@ -204,16 +239,16 @@
     },
     "zeilen": [
       {
-        "id": 90013,
-        "ts": "2026-09-04T10:42:34.048Z",
-        "auftrag_id": 90002,
+        "id": 90015,
+        "ts": "2026-09-07T11:14:12.582Z",
+        "auftrag_id": 90003,
         "schluessel": "ausschuss_von_auftrag",
         "wert": "true"
       },
       {
-        "id": 90014,
-        "ts": "2026-09-04T10:42:34.048Z",
-        "auftrag_id": 90002,
+        "id": 90016,
+        "ts": "2026-09-07T11:14:12.582Z",
+        "auftrag_id": 90003,
         "schluessel": "eine_charge",
         "wert": "true"
       }
@@ -224,14 +259,47 @@
     "tabelle": "auftrag",
     "prefer": "",
     "filter": {
-      "id": "eq.90002"
+      "id": "eq.90003"
     },
     "zeilen": [
       {
-        "id": 90015,
-        "ts": "2026-09-04T10:42:34.060Z",
-        "durchsatz_kg": null,
+        "id": 90017,
+        "ts": "2026-09-07T11:14:12.593Z",
         "status": "abgeschlossen"
+      }
+    ]
+  },
+  {
+    "methode": "RPC",
+    "tabelle": "sortierschema_festlegen",
+    "args": {
+      "p_sorte": "Tiana",
+      "p_kaeufer": null,
+      "p_art": "kaliber",
+      "p_baender": [
+        [
+          500,
+          900
+        ],
+        [
+          900,
+          1300
+        ],
+        [
+          1300,
+          1800
+        ],
+        [
+          1800,
+          2000
+        ]
+      ],
+      "p_soll": null,
+      "p_bemerkung": "Beim Eröffnen der Arbeit geändert"
+    },
+    "zeilen": [
+      {
+        "id": 90018
       }
     ]
   },
@@ -244,15 +312,15 @@
     },
     "zeilen": [
       {
-        "id": 90016,
-        "ts": "2026-09-04T10:42:35.150Z",
+        "id": 90019,
+        "ts": "2026-09-07T11:14:14.209Z",
         "weg": "maschine",
         "station": "sortieren",
         "charge_nr": 1613,
         "ist_fax": false,
         "kaeufer": null,
         "kaliber_idx": null,
-        "sortierschema_id": 10
+        "sortierschema_id": 90018
       }
     ]
   },
@@ -263,9 +331,9 @@
     "filter": {},
     "zeilen": [
       {
-        "id": 90017,
-        "ts": "2026-09-04T10:42:35.160Z",
-        "auftrag_id": 90016
+        "id": 90020,
+        "ts": "2026-09-07T11:14:14.213Z",
+        "auftrag_id": 90019
       }
     ]
   },
@@ -276,9 +344,9 @@
     "filter": {},
     "zeilen": [
       {
-        "id": 90018,
-        "ts": "2026-09-04T10:42:35.299Z",
-        "auftrag_id": 90016,
+        "id": 90021,
+        "ts": "2026-09-07T11:14:14.367Z",
+        "auftrag_id": 90019,
         "kg": 15,
         "palox_stand_kg": 60,
         "palox_geleert": false
@@ -292,9 +360,9 @@
     "filter": {},
     "zeilen": [
       {
-        "id": 90019,
-        "ts": "2026-09-04T10:42:35.465Z",
-        "auftrag_id": 90016,
+        "id": 90022,
+        "ts": "2026-09-07T11:14:14.551Z",
+        "auftrag_id": 90019,
         "eingangsdatum": "2026-09-05"
       }
     ]
@@ -306,11 +374,11 @@
     "filter": {},
     "zeilen": [
       {
-        "id": 90020,
-        "ts": "2026-09-04T10:42:35.583Z",
-        "auftrag_id": 90016,
+        "id": 90023,
+        "ts": "2026-09-07T11:14:14.698Z",
+        "auftrag_id": 90019,
         "kg": 0,
-        "palox_stand_kg": null,
+        "palox_stand_kg": 344,
         "palox_geleert": false
       }
     ]
@@ -324,9 +392,9 @@
     },
     "zeilen": [
       {
-        "id": 90021,
-        "ts": "2026-09-04T10:42:35.798Z",
-        "auftrag_id": 90016,
+        "id": 90024,
+        "ts": "2026-09-07T11:14:14.914Z",
+        "auftrag_id": 90019,
         "schluessel": "eine_charge",
         "wert": "true"
       }
@@ -337,13 +405,147 @@
     "tabelle": "auftrag",
     "prefer": "",
     "filter": {
-      "id": "eq.90016"
+      "id": "eq.90019"
     },
     "zeilen": [
       {
-        "id": 90022,
-        "ts": "2026-09-04T10:42:35.809Z",
-        "durchsatz_kg": null,
+        "id": 90025,
+        "ts": "2026-09-07T11:14:14.925Z",
+        "status": "abgeschlossen"
+      }
+    ]
+  },
+  {
+    "methode": "POST",
+    "tabelle": "auftrag",
+    "prefer": "return=representation",
+    "filter": {
+      "select": "id"
+    },
+    "zeilen": [
+      {
+        "id": 90026,
+        "ts": "2026-09-07T11:14:16.297Z",
+        "weg": "maschine",
+        "station": "waschen",
+        "charge_nr": 1613,
+        "ist_fax": true,
+        "kaeufer": "coop",
+        "kaliber_idx": null,
+        "sortierschema_id": 23
+      }
+    ]
+  },
+  {
+    "methode": "POST",
+    "tabelle": "auftrag_teilnehmer",
+    "prefer": "",
+    "filter": {},
+    "zeilen": [
+      {
+        "id": 90027,
+        "ts": "2026-09-07T11:14:16.308Z",
+        "auftrag_id": 90026
+      }
+    ]
+  },
+  {
+    "methode": "POST",
+    "tabelle": "auftrag_gebinde",
+    "prefer": "resolution=merge-duplicates",
+    "filter": {
+      "on_conflict": "auftrag_id,kaliber_idx"
+    },
+    "zeilen": [
+      {
+        "id": 90028,
+        "ts": "2026-09-07T11:14:16.497Z",
+        "auftrag_id": 90026,
+        "kaliber_idx": -1,
+        "anzahl": 32
+      }
+    ]
+  },
+  {
+    "methode": "POST",
+    "tabelle": "auftrag_gebinde",
+    "prefer": "resolution=merge-duplicates",
+    "filter": {
+      "on_conflict": "auftrag_id,kaliber_idx"
+    },
+    "zeilen": [
+      {
+        "id": 90028,
+        "ts": "2026-09-07T11:14:16.565Z",
+        "auftrag_id": 90026,
+        "kaliber_idx": -1,
+        "anzahl": 33
+      }
+    ]
+  },
+  {
+    "methode": "POST",
+    "tabelle": "auftrag_gebinde",
+    "prefer": "resolution=merge-duplicates",
+    "filter": {
+      "on_conflict": "auftrag_id,kaliber_idx"
+    },
+    "zeilen": [
+      {
+        "id": 90028,
+        "ts": "2026-09-07T11:14:16.631Z",
+        "auftrag_id": 90026,
+        "kaliber_idx": -1,
+        "anzahl": 34
+      }
+    ]
+  },
+  {
+    "methode": "POST",
+    "tabelle": "schimmel_messung",
+    "prefer": "",
+    "filter": {},
+    "zeilen": [
+      {
+        "id": 90031,
+        "ts": "2026-09-07T11:14:16.782Z",
+        "auftrag_id": 90026,
+        "kg": 6,
+        "brutto_kg": 7.5,
+        "kisten": 1,
+        "gebindeart": "G2",
+        "mit_palette": false
+      }
+    ]
+  },
+  {
+    "methode": "POST",
+    "tabelle": "auftrag_angabe",
+    "prefer": "",
+    "filter": {
+      "columns": "\"auftrag_id\",\"schluessel\",\"wert\""
+    },
+    "zeilen": [
+      {
+        "id": 90032,
+        "ts": "2026-09-07T11:14:17.097Z",
+        "auftrag_id": 90026,
+        "schluessel": "eine_charge",
+        "wert": "true"
+      }
+    ]
+  },
+  {
+    "methode": "PATCH",
+    "tabelle": "auftrag",
+    "prefer": "",
+    "filter": {
+      "id": "eq.90026"
+    },
+    "zeilen": [
+      {
+        "id": 90033,
+        "ts": "2026-09-07T11:14:17.108Z",
         "status": "abgeschlossen"
       }
     ]

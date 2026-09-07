@@ -861,3 +861,44 @@ Was diese Runde an der Statistik geändert hat, ist nur die Darstellung: Setzt
 der F-Test den Sockel auf 0, sagt das Dashboard „nicht belegt" und nennt
 Nachweis und Schwelle, statt „0.0 t" zu zeigen — eine Zahl, die wie eine
 Messung aussah und keine war.
+
+
+## Siebte Runde: kein FIFO, Fax als Strom, der dritte Lagerabschnitt
+
+**Das Alter des Bestands je Eingangstag.** Bis 0050 bekam der Lagerbestand
+einer Charge ein Alter — seit 0036 das massegewichtete Eingangsdatum der
+*übrigen* Paletten, also schon ohne FIFO-Annahme, aber als eine Zahl. Mit
+F(t) = 1 − exp(−(t/λ)^k) ist der Fehler des Mittels bei k > 1 nach Jensen
+negativ (das Mittel unterschätzt den Verderb). Bei Spannen von zwei bis vier
+Wochen um t = 150 und k = 1.5 sind das unter 1 % des Schimmels der Charge —
+klein, aber systematisch. Jetzt rechnet `mv_kaskade` je Kohorte
+(`v_kohorte_anteil`: Restpaletten je Eingangstag, massegewichtet), und die
+Anzeige sagt „128–161 Tage, 4 Eingangstage". Der Rest der Statistik bleibt:
+`verlust_ranking` summiert die Ableitungen über alle Zeilen, also auch über
+Kohorten; die Fehlerfortpflanzung ändert sich nicht.
+
+**Fax als eigener Koeffizient.** `a_fax` je Sorte, Rohwert je Fax-Arbeit:
+Faules / (Masse + Faules), Gewicht = Masse + Faules, derselbe Bündelungs-
+Schätzer wie zu klein und zu gross (`v_koeff_kaliber_geschaetzt`, art `fax`).
+In der Kaskade steht er *nach* zu klein und zu gross: verkaufsfähig =
+m2 · (1 − a_klein − a_gross) · (1 − a_fax). Ableitungen für die
+Fehlerfortpflanzung: ∂/∂r, ∂/∂η, ∂/∂a₀ wie bei den anderen Strömen, ∂/∂a_fax
+= m2 · (1 − a_klein − a_gross). Unbekannt (NULL), solange keine Fax-Arbeit
+Faules gewogen hat.
+
+**Was die Demo über das Modell sagt.** Die erzeugte Saison verdirbt mit
+k = 1.5 (Butternut) bis 1.9 (Mandarin) und λ = 450–800 Tage; das gemeinsame
+Modell findet k ≈ 1.2. Zwei Gründe, beide bekannt: (1) Eine Kurve für alle
+Sorten — später im Jahr liegt vor allem Butternut, das langsamer verdirbt,
+und die gemeinsame Kurve wird flacher. (2) Die Wasch-Punkte (0026) verwenden
+als Sortier-Anteil das Mittel aller Sortierläufe der Charge, nicht den Lauf,
+aus dem die Kisten stammen. Die Bilanz schliesst trotzdem auf unter 1 %,
+weil der beobachtete Teil aus den Ablesungen kommt und nur der Bestand
+projiziert wird. Ein Modell je Sorte bliebe der nächste Schritt — sobald
+je Sorte genug Chargen gemessen sind (heute 33 Chargen über 11 Sorten).
+
+**Der dritte Lagerabschnitt.** Gewaschene Ware wartet in Kisten auf eine
+Bestellung; die Bilanz sah sie als Lücke. Jetzt: verkaufsfähig gewaschen −
+durchs Fax gegangen = „gewaschen, wartet" — nur wenn Fax-Arbeiten erfasst
+sind. In der Demo 53 t von 323 t; ohne diese Zeile stand die Lücke bei 14 %,
+mit ihr bei −0.7 %.

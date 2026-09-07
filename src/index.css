@@ -52,6 +52,7 @@
   --strom-feld: #1baf7a;
   --strom-ausschuss: #eda100;
   --strom-nebenkanal: #e87ba4;
+  --strom-fax: #7c56d8;
   --strom-rest: #008300;
 
   --radius: 10px;
@@ -89,6 +90,7 @@
     --strom-feld: #199e70;
     --strom-ausschuss: #c98500;
     --strom-nebenkanal: #d55181;
+    --strom-fax: #9b7ce8;
     --strom-rest: #008300;
 
     --schatten: 0 1px 2px rgb(0 0 0 / 30%);

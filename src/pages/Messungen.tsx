@@ -175,6 +175,8 @@ function Qualitaet({ q }: { q: Datenqualitaet }) {
     { name: 'Sortier-CSV einer Arbeit zugeordnet', ab: '—', ist: q.sortierlaeufe_zugeordnet, von: q.sortierlaeufe, hinweis: 'unzugeordnet: Betrieb → Warteschlange' },
     { name: 'Kisten am Sortieren gezählt', ab: 'AB-12', ist: q.sortier_arbeiten_mit_kisten, von: q.sortier_arbeiten, hinweis: 'daraus entsteht das Kistengewicht' },
     { name: 'Kisten am Waschbecken gezählt (mit Kaliber)', ab: 'AB-12', ist: q.wasch_arbeiten_mit_kisten, von: q.wasch_arbeiten, hinweis: 'sonst hat der Schimmel am Waschbecken keinen Nenner' },
+    { name: 'Fax: Kisten gezählt', ab: '0051', ist: q.fax_arbeiten_mit_kisten, von: q.fax_arbeiten, hinweis: 'ohne Kisten hat das Faule beim Abpacken keinen Nenner' },
+    { name: 'Fax: Faules gewogen (auch „nichts Faules")', ab: '0051', ist: q.fax_arbeiten_mit_faulem, von: q.fax_arbeiten, hinweis: 'sonst bleibt der Fax-Strom unbekannt' },
   ]
   return (
     <Karte titel="Wie vollständig wird erfasst?">

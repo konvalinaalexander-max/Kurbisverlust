@@ -38,14 +38,38 @@ function schoen(min: number, max: number, n = 5): number[] {
   return ticks
 }
 
+/** Wie schoen(), aber der letzte Strich liegt *über* dem Maximum: ein Punkt am
+ *  oberen Rand sass sonst genau auf der Rahmenlinie und war nicht zu sehen. */
+function schoenMitLuft(min: number, max: number, n = 5): number[] {
+  const ticks = schoen(min, max, n)
+  if (ticks.length >= 2 && ticks[ticks.length - 1] <= max) {
+    ticks.push(Number((ticks[ticks.length - 1] + (ticks[1] - ticks[0])).toFixed(10)))
+  }
+  return ticks
+}
+
+/** Beschriftungen nahe beieinanderliegender Bezugslinien staffeln, damit
+ *  keine über der anderen steht: von unten nach oben mindestens 11 px Abstand. */
+function beschriftungenVersetzt<T extends { py: number }>(zeilen: T[]): (T & { ty: number })[] {
+  const sortiert = [...zeilen].sort((a, b) => b.py - a.py)
+  let letzte = Infinity
+  return sortiert.map(z => {
+    const ty = Math.min(z.py - 4, letzte - 11)
+    letzte = ty
+    return { ...z, ty }
+  })
+}
+
 export function Diagramm({ reihen, hoehe = 260, xFormat = String, yFormat = String, xTitel, yTitel,
-                           yVon, yBis, xVon, xBis, senkrechte = [], leer = 'keine Messung' }: {
+                           yVon, yBis, xVon, xBis, senkrechte = [], waagrechte = [], leer = 'keine Messung' }: {
   reihen: Reihe[]; hoehe?: number
   xFormat?: (x: number) => string; yFormat?: (y: number) => string
   xTitel?: string; yTitel?: string
   yVon?: number; yBis?: number; xVon?: number; xBis?: number
   /** Senkrechte Hilfslinien mit Beschriftung (etwa Kalibergrenzen). */
   senkrechte?: { x: number; text: string }[]
+  /** Waagrechte Bezugslinien (etwa der Mittelwert einer Sorte). */
+  waagrechte?: { y: number; text: string; farbe?: string }[]
   leer?: string
 }) {
   const [hover, setHover] = useState<{ reihe: Reihe; p: Punkt; px: number; py: number } | null>(null)
@@ -53,18 +77,27 @@ export function Diagramm({ reihen, hoehe = 260, xFormat = String, yFormat = Stri
   const alle = reihen.flatMap(r => r.punkte)
   const bandwerte = reihen.flatMap(r => r.band ?? [])
 
+  // Oben braucht die Achse Platz für den Titel — sonst stünde er über dem
+  // obersten Punkt.
+  const oben = yTitel ? O + 12 : O
   const { y0, sx, sy, xt, yt } = useMemo(() => {
     const xs = alle.map(p => p.x).concat(senkrechte.map(s => s.x))
-    const ys = alle.map(p => p.y).concat(bandwerte.flatMap(b => [b.unten, b.oben]))
+    const ys = alle.map(p => p.y).concat(bandwerte.flatMap(b => [b.unten, b.oben]), waagrechte.map(w => w.y))
     const x0 = xVon ?? Math.min(...xs), x1 = xBis ?? Math.max(...xs)
-    const y0 = yVon ?? Math.min(0, ...ys), y1 = yBis ?? Math.max(...ys)
-    const yt = schoen(y0, y1)
+    // Ohne Vorgabe beginnt die y-Achse bei 0 — ausser die Werte liegen so eng
+    // beieinander, dass sie an der Null zu einem Strich würden: dann zeigt
+    // die Achse den Bereich der Werte selbst (mit Luft), nicht die Null.
+    const yMinRoh = Math.min(...ys), yMaxRoh = Math.max(...ys)
+    const engBeisammen = yMinRoh > 0 && (yMaxRoh - yMinRoh) < yMaxRoh * 0.4
+    const y0 = yVon ?? (engBeisammen ? yMinRoh - (yMaxRoh - yMinRoh) * 0.25 : Math.min(0, yMinRoh))
+    const y1 = yBis ?? yMaxRoh
+    const yt = yBis === undefined ? schoenMitLuft(y0, y1) : schoen(y0, y1)
     const yMax = Math.max(y1, yt[yt.length - 1]), yMin = Math.min(y0, yt[0])
     const xt = schoen(x0, x1, 6).filter(t => t >= x0 && t <= x1)
     const sx = (x: number) => L + (x1 > x0 ? (x - x0) / (x1 - x0) : 0.5) * (B - L - R)
-    const sy = (y: number) => hoehe - U - (yMax > yMin ? (y - yMin) / (yMax - yMin) : 0.5) * (hoehe - O - U)
+    const sy = (y: number) => hoehe - U - (yMax > yMin ? (y - yMin) / (yMax - yMin) : 0.5) * (hoehe - oben - U)
     return { x0, x1, y0: yMin, y1: yMax, sx, sy, xt, yt }
-  }, [alle, bandwerte, senkrechte, xVon, xBis, yVon, yBis, hoehe])
+  }, [alle, bandwerte, senkrechte, waagrechte, xVon, xBis, yVon, yBis, hoehe, oben])
 
   if (alle.length === 0) return <p className="leise">{leer}</p>
 
@@ -109,8 +142,14 @@ export function Diagramm({ reihen, hoehe = 260, xFormat = String, yFormat = Stri
           {yTitel && <text x={L} y={10} fontSize="11" fill="var(--text-leise)">{yTitel}</text>}
           {senkrechte.map(s => (
             <g key={`s${s.x}`}>
-              <line x1={sx(s.x)} x2={sx(s.x)} y1={O} y2={hoehe - U} stroke="var(--text-leise)" strokeWidth="1" strokeDasharray="3 4" opacity=".7" />
-              <text x={sx(s.x) + 3} y={O + 10} fontSize="10" fill="var(--text-leise)">{s.text}</text>
+              <line x1={sx(s.x)} x2={sx(s.x)} y1={oben} y2={hoehe - U} stroke="var(--text-leise)" strokeWidth="1" strokeDasharray="3 4" opacity=".7" />
+              <text x={sx(s.x) + 3} y={oben + 10} fontSize="10" fill="var(--text-leise)">{s.text}</text>
+            </g>
+          ))}
+          {beschriftungenVersetzt(waagrechte.map(w => ({ ...w, py: sy(w.y) }))).map(w => (
+            <g key={`w${w.text}`}>
+              <line x1={L} x2={B - R} y1={w.py} y2={w.py} stroke={w.farbe ?? 'var(--text-leise)'} strokeWidth="1.5" strokeDasharray="6 4" opacity=".8" />
+              <text x={B - R - 3} y={w.ty} fontSize="10" textAnchor="end" fill={w.farbe ?? 'var(--text-leise)'}>{w.text}</text>
             </g>
           ))}
           {reihen.map(r => r.band && r.band.length > 1 && (
@@ -126,7 +165,7 @@ export function Diagramm({ reihen, hoehe = 260, xFormat = String, yFormat = Stri
           )))}
           {hover && (
             <g>
-              <line x1={hover.px} x2={hover.px} y1={O} y2={hoehe - U} stroke="var(--text)" strokeWidth="1" opacity=".35" />
+              <line x1={hover.px} x2={hover.px} y1={oben} y2={hoehe - U} stroke="var(--text)" strokeWidth="1" opacity=".35" />
               <circle cx={hover.px} cy={hover.py} r="6" fill="none" stroke={hover.reihe.farbe} strokeWidth="2" />
             </g>
           )}
@@ -175,7 +214,8 @@ export function Histogramm({ stufen, breite, grenzen = [], farbe = 'var(--kuerbi
   const nMax = Math.max(...stufen.map(s => s.n), 1)
   const gesamt = stufen.reduce((a, s) => a + s.n, 0)
   const sx = (x: number) => L + ((x - x0) / (x1 - x0)) * (B - L - R)
-  const sy = (n: number) => hoehe - U - (n / nMax) * (hoehe - O - U)
+  const oben = O + 12
+  const sy = (n: number) => hoehe - U - (n / nMax) * (hoehe - oben - U)
   const xt = schoen(x0, x1, 6).filter(t => t >= x0 && t <= x1)
   return (
     <div className="diagramm">
@@ -190,6 +230,8 @@ export function Histogramm({ stufen, breite, grenzen = [], farbe = 'var(--kuerbi
             </g>
           ))}
           {xt.map(t => <text key={t} x={sx(t)} y={hoehe - U + 16} fontSize="11" textAnchor="middle" fill="var(--text-leise)">{xFormat(t)}</text>)}
+          <text x={L} y={10} fontSize="11" fill="var(--text-leise)">Kürbisse je Stufe</text>
+          <text x={B - R} y={hoehe - 4} fontSize="11" textAnchor="end" fill="var(--text-leise)">Gramm je Kürbis</text>
           {stufen.map(s => (
             <rect key={s.x} x={sx(s.x) + 1} y={sy(s.n)} width={Math.max(sx(s.x + breite) - sx(s.x) - 2, 1)}
                   height={hoehe - U - sy(s.n)} rx="2" fill={farbe} opacity={hover && hover.x === s.x ? 1 : .8}
@@ -197,8 +239,8 @@ export function Histogramm({ stufen, breite, grenzen = [], farbe = 'var(--kuerbi
           ))}
           {grenzen.map(g => (
             <g key={g.x}>
-              <line x1={sx(g.x)} x2={sx(g.x)} y1={O} y2={hoehe - U} stroke="var(--text)" strokeWidth="1" strokeDasharray="3 4" opacity=".6" />
-              <text x={sx(g.x) + 3} y={O + 10} fontSize="10" fill="var(--text-leise)">{g.text}</text>
+              <line x1={sx(g.x)} x2={sx(g.x)} y1={oben} y2={hoehe - U} stroke="var(--text)" strokeWidth="1" strokeDasharray="3 4" opacity=".6" />
+              <text x={sx(g.x) + 3} y={oben + 10} fontSize="10" fill="var(--text-leise)">{g.text}</text>
             </g>
           ))}
           <line x1={L} x2={B - R} y1={hoehe - U} y2={hoehe - U} stroke="var(--rand)" />

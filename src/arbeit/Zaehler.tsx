@@ -14,7 +14,10 @@ const ZETTEL = (id: number) => `zettel_${id}`
  * nächste Palette stehen — die kommen zu Dutzenden mit demselben Datum. „+"
  * zählt sofort, „Rückgängig" nimmt die letzte zurück. Keine Nachfrage.
  *
- * Kisten: je Kaliberband ein Zähler (Sortieren: gefüllte, Waschen: geleerte).
+ * Kisten: je Kaliberband ein Zähler (Sortieren: gefüllte, Waschen: geleerte,
+ * Fax: gemachte — dort auch „+ 1 Palette", weil die Kisten palettenweise
+ * gezählt werden). Kisten nach Sollgewicht (von Hand gefüllt) haben kein
+ * Kaliber und laufen als Band −1.
  */
 export function Zaehler({ d, gesperrt, neuLaden, melden, zumWiegen }: {
   d: ArbeitDaten; gesperrt: boolean
@@ -39,9 +42,11 @@ export function Zaehler({ d, gesperrt, neuLaden, melden, zumWiegen }: {
     setLaeuft(true); setFehler(null)
     const { error } = await supabase.from('auftrag_palette')
       .insert({ auftrag_id: d.auftrag.id, eingangsdatum: zettel })
-    setLaeuft(false)
-    if (error) { setFehler(fehlerText(error)); return }
-    melden(t('paletteGezaehlt')); await neuLaden()
+    if (error) { setLaeuft(false); setFehler(fehlerText(error)); return }
+    melden(t('paletteGezaehlt'))
+    // Gesperrt bleiben, bis der neue Stand da ist — sonst zählt ein schneller
+    // zweiter Tipp vom alten Stand weiter und ein Stück geht verloren.
+    try { await neuLaden() } finally { setLaeuft(false) }
   }
 
   async function paletteZurueck() {
@@ -50,9 +55,9 @@ export function Zaehler({ d, gesperrt, neuLaden, melden, zumWiegen }: {
     setLaeuft(true)
     if (letzte.wiegung_id) await supabase.from('verdunstung_wiegung').delete().eq('id', letzte.wiegung_id)
     const { error } = await supabase.from('auftrag_palette').delete().eq('id', letzte.id)
-    setLaeuft(false)
-    if (error) { setFehler(fehlerText(error)); return }
-    melden(t('rueckgaengig')); await neuLaden()
+    if (error) { setLaeuft(false); setFehler(fehlerText(error)); return }
+    melden(t('rueckgaengig'))
+    try { await neuLaden() } finally { setLaeuft(false) }
   }
 
   async function kistenSetzen(idx: number, wert: number) {
@@ -60,16 +65,28 @@ export function Zaehler({ d, gesperrt, neuLaden, melden, zumWiegen }: {
     setLaeuft(true)
     const { error } = await supabase.from('auftrag_gebinde')
       .upsert({ auftrag_id: d.auftrag.id, kaliber_idx: idx, anzahl: wert }, { onConflict: 'auftrag_id,kaliber_idx' })
-    setLaeuft(false)
-    if (error) { setFehler(fehlerText(error)); return }
-    melden(t('gespeichert')); await neuLaden()
+    if (error) { setLaeuft(false); setFehler(fehlerText(error)); return }
+    melden(t('gespeichert'))
+    try { await neuLaden() } finally { setLaeuft(false) }
   }
 
   const anzahlVon = (idx: number) => d.gebinde.find(z => z.kaliber_idx === idx)?.anzahl ?? 0
-  const indizes = d.auftrag.station === 'waschen'
-    ? (d.auftrag.kaliber_idx === null ? [] : [d.auftrag.kaliber_idx])
-    : d.baender.map((_, i) => i)
+  // Welche Zähler es gibt: beim Waschen das eine Kaliber der Arbeit; beim
+  // Fax alle Bänder der Fassung oder — bei Kisten nach Sollgewicht — ein Zähler;
+  // beim Sortieren alle Bänder.
+  const indizes: number[] = p.istFax
+    ? (d.fassung?.art === 'kiste' || d.baender.length === 0 ? [-1] : d.baender.map((_, i) => i))
+    : d.auftrag.station === 'waschen'
+      ? (d.auftrag.kaliber_idx === null ? [] : [d.auftrag.kaliber_idx])
+      : d.baender.map((_, i) => i)
   const gewogen = d.paletten.filter(z => z.wiegung_id !== null).length
+  const kistenGesamt = d.gebinde.reduce((s, g) => s + g.anzahl, 0)
+  const erklaerung = p.istFax
+    ? t('kistenFaxWarum').replace('{n}', String(d.kistenProPalette))
+    : d.auftrag.station === 'waschen' ? t('kistenWaschenWarum') : t('kistenSortierenWarum')
+  const bandName = (i: number) => i < 0
+    ? `${t('kisteOhneKaliber')}${d.fassung?.soll_kg_pro_kiste ? ` · ${d.fassung.soll_kg_pro_kiste} kg` : ''}`
+    : `${t('kaliber')} ${i + 1}`
 
   return (
     <>
@@ -115,22 +132,33 @@ export function Zaehler({ d, gesperrt, neuLaden, melden, zumWiegen }: {
 
       {teil === 'kisten' && p.hatKisten && (
         <div className="karte">
-          <p className="leise" style={{ marginTop: 0 }}>
-            {d.auftrag.station === 'waschen' ? t('kistenWaschenWarum') : t('kistenSortierenWarum')}
-          </p>
-          {d.auftrag.station === 'waschen' && d.auftrag.kaliber_idx === null && (
+          <p className="leise" style={{ marginTop: 0 }}>{erklaerung}</p>
+          {p.istFax && (
+            <div className="zaehler-gross" style={{ marginBottom: '.5rem' }}>
+              <div className="stand">{kistenGesamt}</div>
+              <div className="einheit">{t('kistenGemacht')}</div>
+            </div>
+          )}
+          {!p.istFax && d.auftrag.station === 'waschen' && d.auftrag.kaliber_idx === null && (
             <Hinweis art="warnung">{t('kistenOhneKaliber')}</Hinweis>
           )}
           {indizes.map(i => (
             <div key={i} style={{ marginBottom: '1rem' }}>
-              <label>{t('kaliber')} {i + 1}{d.baender[i] && <span className="leise"> · {d.baender[i][0]}–{d.baender[i][1]} g</span>}</label>
+              <label>{bandName(i)}{i >= 0 && d.baender[i] && <span className="leise"> · {d.baender[i][0]}–{d.baender[i][1]} g</span>}</label>
               <div className="zaehler">
                 <button onClick={() => void kistenSetzen(i, anzahlVon(i) - 1)} aria-label="−"
                         disabled={gesperrt || laeuft || anzahlVon(i) === 0}>−</button>
                 <span className="stand">{anzahlVon(i)}</span>
-                <button className="haupt" aria-label="+" id={`kiste-plus-${i}`} disabled={gesperrt || laeuft}
+                <button className="haupt" aria-label="+" id={`kiste-plus-${i < 0 ? 'soll' : i}`} disabled={gesperrt || laeuft}
                         onClick={() => void kistenSetzen(i, anzahlVon(i) + 1)}>+</button>
               </div>
+              {p.istFax && (
+                <button id={`palette-plus-${i < 0 ? 'soll' : i}`} style={{ width: '100%', marginTop: '.4rem', minHeight: 48 }}
+                        disabled={gesperrt || laeuft}
+                        onClick={() => void kistenSetzen(i, anzahlVon(i) + d.kistenProPalette)}>
+                  {t('plusPalette')} <span className="leise">({d.kistenProPalette} {t('kisten')})</span>
+                </button>
+              )}
             </div>
           ))}
           {indizes.length === 0 && d.auftrag.kaliber_idx !== null && <Hinweis>{t('kistenKeineBaender')}</Hinweis>}

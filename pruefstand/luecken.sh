@@ -44,6 +44,7 @@ declare -A AUSNAHME=(
   [abgebrochen_ts]="vom Abbrechen gesetzt"
   [abbruch_grund]="über auftrag_abbrechen()"
   [geplante_paletten]="nicht mehr verwendet (Wiegen gehört ans Zählen, 0012)"
+  [durchsatz_kg]="nicht mehr getippt (0051): die Menge am Waschbecken und beim Fax sind die gezählten Kisten; alte Aufträge bleiben lesbar"
   [bemerkung]="frei, optional an mehreren Stellen"
   [gemessen]="Vorgabe true; false nur intern/Test"
   [kg]="beim Ausschuss und Palox abgeleitet aus Brutto bzw. Stand"

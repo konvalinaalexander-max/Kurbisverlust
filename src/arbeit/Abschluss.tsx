@@ -5,15 +5,20 @@ import { fehlerText } from '../lib/db'
 import { Hinweis } from '../components/Bausteine'
 import { Schritt, Wahl } from '../components/Schritte'
 import { PaloxMaske } from './PaloxMaske'
+import { FauleMaske } from './FauleMaske'
 import { stationsProfil, uhrzeit, type ArbeitDaten } from './daten'
 
-type SchrittId = 'palox' | 'ausschuss' | 'charge' | 'waschen' | 'pruefen'
+type SchrittId = 'palox' | 'faule' | 'ausschuss' | 'kisten' | 'charge' | 'pruefen'
 
 /**
  * Der geführte Abschluss (AB-02, AB-04, AB-05): Was man vergessen kann, wird
- * hier der Reihe nach gefragt — zuerst die Palox-Ablesung, dann die Fragen,
- * dann die Zusammenfassung. Der Knopf „Ja, fertig" kommt erst, wenn nichts
- * mehr fehlt; was fehlt, steht als Satz dabei.
+ * hier der Reihe nach gefragt — zuerst die Palox-Ablesung (beim Fax: das
+ * Faule wiegen), dann die Fragen, dann die Zusammenfassung. Der Knopf „Ja,
+ * fertig" kommt erst, wenn nichts mehr fehlt; was fehlt, steht als Satz dabei.
+ *
+ * Eine Menge in Kilo wird nirgends mehr eingetippt (0051): Am Waschbecken und
+ * beim Fax sind die gezählten Kisten die Menge — fehlen sie, fehlt die Menge,
+ * und das sagt der Abschluss.
  */
 export function Abschluss({ d, neuLaden, zurueck, fertig }: {
   d: ArbeitDaten; neuLaden: () => Promise<void>; zurueck: () => void; fertig: () => void
@@ -26,7 +31,6 @@ export function Abschluss({ d, neuLaden, zurueck, fertig }: {
   const [ausschussVon, setAusschussVon] = useState<boolean | null>(null)
   const [eineCharge, setEineCharge] = useState<boolean | null>(null)
   const [gleicheSorte, setGleicheSorte] = useState<boolean | null>(null)
-  const [durchsatz, setDurchsatz] = useState(d.auftrag.durchsatz_kg?.toString() ?? '')
   const [sortierdatum, setSortierdatum] = useState('')
   const [sicher, setSicher] = useState(false)
   const [abbruch, setAbbruch] = useState(false)
@@ -35,12 +39,13 @@ export function Abschluss({ d, neuLaden, zurueck, fertig }: {
 
   const kistenGezaehlt = d.gebinde.reduce((s, g) => s + g.anzahl, 0)
   const schritte = useMemo<SchrittId[]>(() => [
-    'palox',
+    ...(p.hatPalox ? ['palox' as const] : []),
+    ...(p.hatFaule ? ['faule' as const] : []),
     ...(p.hatAusschuss ? ['ausschuss' as const] : []),
+    ...(p.kistenPflicht ? ['kisten' as const] : []),
     'charge',
-    ...(d.auftrag.station === 'waschen' ? ['waschen' as const] : []),
     'pruefen',
-  ], [p.hatAusschuss, d.auftrag.station])
+  ], [p.hatPalox, p.hatFaule, p.hatAusschuss, p.kistenPflicht])
   const aktuell = schritte[Math.min(pos, schritte.length - 1)]
   const n = pos + 1, von = schritte.length
   const weiter = () => setPos(x => Math.min(x + 1, schritte.length - 1))
@@ -48,7 +53,9 @@ export function Abschluss({ d, neuLaden, zurueck, fertig }: {
 
   // Was noch fehlt — als Sätze, nicht als gesperrter Knopf ohne Grund.
   const fehlt: string[] = []
-  if (d.ablesungen.length === 0) fehlt.push(t('paloxVorAbschluss'))
+  if (p.hatPalox && d.ablesungen.length === 0) fehlt.push(t('paloxVorAbschluss'))
+  if (p.hatFaule && d.ablesungen.length === 0) fehlt.push(t('faulesFehlt'))
+  if (p.kistenPflicht && kistenGezaehlt === 0) fehlt.push(t('kistenFehlen'))
   if (p.hatAusschuss && ausschussLeer === null) fehlt.push(t('ausschussLeerFrage'))
   if (p.hatAusschuss && ausschussVon === null) fehlt.push(t('ausschussVonAuftragFrage'))
   if (eineCharge === null || (eineCharge === false && gleicheSorte === null)) fehlt.push(t('eineChargeFrage'))
@@ -63,16 +70,14 @@ export function Abschluss({ d, neuLaden, zurueck, fertig }: {
     if (p.hatAusschuss && ausschussVon !== null) angaben.push({ schluessel: 'ausschuss_von_auftrag', wert: String(ausschussVon) })
     if (eineCharge !== null) angaben.push({ schluessel: 'eine_charge', wert: String(eineCharge) })
     if (eineCharge === false && gleicheSorte !== null) angaben.push({ schluessel: 'gleiche_sorte', wert: String(gleicheSorte) })
-    if (d.auftrag.station === 'waschen' && sortierdatum !== '') angaben.push({ schluessel: 'sortierdatum', wert: sortierdatum })
+    if (p.kistenPflicht && !p.istFax && sortierdatum !== '') angaben.push({ schluessel: 'sortierdatum', wert: sortierdatum })
     if (angaben.length) {
       const { error } = await supabase.from('auftrag_angabe')
         .insert(angaben.map(a => ({ auftrag_id: d.auftrag.id, ...a })))
       if (error) { setLaeuft(false); setFehler(fehlerText(error)); return }
     }
     // Das Ende setzt der Server (Auslöser in 0039).
-    const { error } = await supabase.from('auftrag').update({
-      durchsatz_kg: durchsatz === '' ? null : Number(durchsatz), status: 'abgeschlossen',
-    }).eq('id', d.auftrag.id)
+    const { error } = await supabase.from('auftrag').update({ status: 'abgeschlossen' }).eq('id', d.auftrag.id)
     setLaeuft(false)
     if (error) { setFehler(fehlerText(error)); return }
     await neuLaden(); fertig()
@@ -94,6 +99,15 @@ export function Abschluss({ d, neuLaden, zurueck, fertig }: {
                zurueck={zurueckSchritt}>
         <PaloxMaske d={d} gesperrt={false} unveraendertErlaubt={d.ablesungen.length > 0}
                     gespeichert={async () => { await neuLaden(); weiter() }} />
+      </Schritt>
+    )
+  }
+
+  if (aktuell === 'faule') {
+    return (
+      <Schritt nummer={n} von={von} frage={t('faulesWiegen')} zurueck={zurueckSchritt}
+               weiter={d.ablesungen.length > 0 ? weiter : undefined}>
+        <FauleMaske d={d} gesperrt={false} melden={() => undefined} neuLaden={neuLaden} />
       </Schritt>
     )
   }
@@ -124,6 +138,26 @@ export function Abschluss({ d, neuLaden, zurueck, fertig }: {
     )
   }
 
+  if (aktuell === 'kisten') {
+    // Die Menge kommt aus den gezählten Kisten — hier wird nur nachgesehen,
+    // ob sie da sind. Beim Waschen dazu das Sortierdatum vom Zettel, freiwillig.
+    return (
+      <Schritt nummer={n} von={von} frage={p.istFax ? t('kistenGemacht') : t('kaliberKisten')}
+               warum={p.istFax ? undefined : t('sortierdatumWarum')} zurueck={zurueckSchritt}
+               weiter={kistenGezaehlt > 0 ? weiter : undefined}>
+        {kistenGezaehlt > 0
+          ? <Hinweis art="gut">{kistenGezaehlt} {t('kistenGezaehltGut')}</Hinweis>
+          : <Hinweis art="warnung">{t('kistenFehlen')}</Hinweis>}
+        {!p.istFax && (
+          <div className="feld">
+            <label htmlFor="sd">{t('sortierdatumKiste')} ({t('freiwillig')})</label>
+            <input id="sd" type="date" value={sortierdatum} onChange={e => setSortierdatum(e.target.value)} />
+          </div>
+        )}
+      </Schritt>
+    )
+  }
+
   if (aktuell === 'charge') {
     const ok = eineCharge === true || (eineCharge === false && gleicheSorte !== null)
     return (
@@ -147,26 +181,6 @@ export function Abschluss({ d, neuLaden, zurueck, fertig }: {
     )
   }
 
-  if (aktuell === 'waschen') {
-    return (
-      <Schritt nummer={n} von={von} frage={t('mengeVerarbeitet')} warum={t('mengeWarum')} zurueck={zurueckSchritt} weiter={weiter}>
-        {kistenGezaehlt > 0
-          ? <Hinweis art="gut">{kistenGezaehlt} {t('kisten')} — {t('mengeAusKisten')}</Hinweis>
-          : (
-            <div className="feld">
-              <label htmlFor="ds">{t('kilo')}</label>
-              <input id="ds" className="gross" type="number" inputMode="decimal" step="1" min={0} value={durchsatz}
-                     onChange={e => setDurchsatz(e.target.value)} />
-            </div>
-          )}
-        <div className="feld">
-          <label htmlFor="sd">{t('sortierdatumKiste')} ({t('freiwillig')})</label>
-          <input id="sd" type="date" value={sortierdatum} onChange={e => setSortierdatum(e.target.value)} />
-        </div>
-      </Schritt>
-    )
-  }
-
   // pruefen
   const klein = d.ausschuss.filter(z => z.art === 'zu_klein').reduce((s, z) => s + z.kg, 0)
   const gross = d.ausschuss.filter(z => z.art === 'zu_gross').reduce((s, z) => s + z.kg, 0)
@@ -175,8 +189,8 @@ export function Abschluss({ d, neuLaden, zurueck, fertig }: {
       <div className="karte">
         <dl className="zusammenfassung">
           {p.hatPaletten && <><dt>{t('paletten')}</dt><dd>{d.paletten.length}</dd></>}
-          {p.hatKisten && kistenGezaehlt > 0 && <><dt>{t('kaliberKisten')}</dt><dd>{kistenGezaehlt}</dd></>}
-          <dt>{t('faule')}</dt><dd>{d.ablesungen.reduce((s, z) => s + z.kg, 0)} kg · {d.ablesungen.length} {t('ablesungen')}</dd>
+          {p.hatKisten && kistenGezaehlt > 0 && <><dt>{p.istFax ? t('kistenGemacht') : t('kaliberKisten')}</dt><dd>{kistenGezaehlt}</dd></>}
+          <dt>{t('faule')}</dt><dd>{d.ablesungen.reduce((s, z) => s + z.kg, 0)} kg · {d.ablesungen.length} {p.istFax ? t('kisten') : t('ablesungen')}</dd>
           {p.hatAusschuss && <><dt>{t('kleinGross')}</dt><dd>{klein} kg / {gross} kg</dd></>}
           {p.hatAusgang && d.nAusgang > 0 && <><dt>{t('fertigePalette')}</dt><dd>{d.nAusgang}</dd></>}
           <dt>{t('eineChargeFrage')}</dt>

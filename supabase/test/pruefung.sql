@@ -247,17 +247,23 @@ begin
   end loop;
 
   -- ---- Die Ströme müssen jede Portion vollständig aufteilen ----------
+  -- Seit 0051 liegt der Bestand je Eingangstag (kohorte) — jede Kohorte ist
+  -- eine eigene Portion.
   for v_kaskade in
-      select distinct charge_nr, portion from v_hochrechnung
+      select distinct charge_nr, portion, kohorte from v_hochrechnung
   loop
     -- Ein unbekannter Strom (kein Koeffizient gemessen) ist NULL und fehlt in
     -- der Summe — dann ist die Aufteilung nicht prüfbar, und das ist richtig so.
+    -- (Der Fax-Strom ist hier noch unbekannt; die Aufteilung mit bekanntem
+    -- Fax prüft der Block 0051 unten.)
     if exists (select 1 from v_hochrechnung
                 where charge_nr = v_kaskade.charge_nr and portion = v_kaskade.portion
+                  and kohorte is not distinct from v_kaskade.kohorte
                   and not koeff_bekannt) then continue; end if;
     select sum(kg), max(portion_kg) into v_summe, v from v_hochrechnung
      where charge_nr = v_kaskade.charge_nr
-       and portion = v_kaskade.portion;
+       and portion = v_kaskade.portion
+       and kohorte is not distinct from v_kaskade.kohorte;
     -- Toleranz 50 g: Die fünf Ströme werden einzeln auf 10 g gerundet
     -- ausgegeben, ihre Summe kann also um wenige Rundungsschritte abweichen.
     -- Alles darüber wäre ein echter Rechenfehler.
@@ -305,8 +311,11 @@ begin
   -- 0037: Buch A ist der Lagerverlust — Verdunstung und Schimmel. Zu klein
   -- geht an die Tiere und steht mit zu gross in Buch B; die Grundaussortierung
   -- hat ihr eigenes Buch, weil sie physisch weg, aber kein Lagerverlust ist.
-  assert (select count(*) from v_verlust_ranking where buch = 'verlust') = 2,
-    'Zwei Lagerverlust-Ströme erwartet (Verdunstung, Schimmel)';
+  -- 0051: dazu das Faule beim Abpacken (Fax) — unbekannt, bis es gemessen ist.
+  assert (select count(*) from v_verlust_ranking where buch = 'verlust') = 3,
+    'Drei Lagerverlust-Ströme erwartet (Verdunstung, Schimmel, Fax)';
+  assert (select kg from v_verlust_ranking where strom = 'Faul beim Abpacken (Fax)') is null,
+    'Ohne Fax-Arbeit ist der Fax-Strom unbekannt — nicht 0';
   assert (select buch from v_verlust_ranking where strom = 'Zu klein (Tierfutter)') = 'marge',
     'Zu klein geht an die Tiere und gehört in Buch B, nicht in den Verlust';
   assert (select buch from v_verlust_ranking where strom = 'Nicht lagerbedingt') = 'feld',
@@ -786,7 +795,7 @@ begin
   -- 0019: Der Befund, der die drei Szenarien erledigt hat. Bei nachgelagerten
   -- Strömen stand kg_unten über kg_oben, weil „unten" alle Koeffizienten
   -- gleichzeitig senkte und damit die Masse *erhöhte*, aus der sie rechnen.
-  for r in select strom, kg, kg_unten, kg_oben from v_verlust_ranking loop
+  for r in select strom, kg, kg_unten, kg_oben from v_verlust_ranking where kg is not null loop
     assert r.kg_unten <= r.kg, format('%s: Untergrenze %s über dem Wert %s',
                                       r.strom, r.kg_unten, r.kg);
     assert r.kg_oben >= r.kg,  format('%s: Obergrenze %s unter dem Wert %s',
@@ -1843,3 +1852,190 @@ begin
 end $$;
 
 select '——— 0050 Warenausgang geprüft ———' as ergebnis;
+
+
+-- =========================================================================
+-- 0051: Fax ist kein Waschgang, Kaliber am Start, Bestand je Eingangstag
+-- (kein FIFO), Perigon-Nummer. Alles an einer eigenen Charge (1637, Amoro).
+-- =========================================================================
+do $$
+declare v_ws bigint; v_fax bigint; v numeric; v_n int; r record;
+        v_schema bigint; v_alt bigint; v_id2 bigint;
+        v_start timestamptz := (current_date - 30)::timestamptz + interval '8 hours';
+begin
+  perform set_config('request.jwt.claim.sub','11111111-1111-1111-1111-111111111111', true);
+  insert into kaeufer (code, name) values ('coop', 'Coop') on conflict do nothing;
+
+  -- ---- Die Perigon-Nummer steht an der Charge ------------------------
+  assert (select count(*) from charge where perigon_nr is not null) = 42,
+    'Alle 42 Chargen tragen eine Perigon-Nummer aus der Planungsdatei';
+  assert (select nr from charge where perigon_nr = 198923) = 1613, '198923 ist die Slowgrow-Tiana (1613)';
+  assert (select count(*) from charge where perigon_nr = 198976) = 2,
+    'Die doppelte Nummer 198976 bleibt an beiden Chargen — die Entscheidung trifft der Artikel';
+
+  -- ---- Bestand je Eingangstag: drei Tage à drei Paletten --------------
+  insert into palette (charge_nr, eingangsdatum, brutto_kg, kisten, gebindeart, extern_id)
+  select 1637, current_date - 60 + (i % 3), 950, 40, 'Holzkiste', 'k51-' || i
+    from generate_series(1, 9) i;
+  perform auswertung_aktualisieren();
+  assert (select count(*) from v_charge_kohorte where charge_nr = 1637) = 3, 'Drei Eingangstage erwartet';
+  assert (select sum(n_rest) from v_charge_kohorte where charge_nr = 1637) = 9, 'Ohne Arbeit liegt alles';
+
+  -- Eine Hand-Arbeit nimmt zwei Paletten vom *jüngsten* Tag — kein FIFO.
+  insert into auftrag (weg, station, charge_nr, start_ts, ende_ts, status, eroeffnet_von)
+  values ('hand', 'waschen_sortieren', 1637, v_start, v_start + interval '6 hours', 'abgeschlossen',
+          '11111111-1111-1111-1111-111111111111')
+  returning id into v_ws;
+  insert into auftrag_palette (auftrag_id, eingangsdatum)
+  select v_ws, current_date - 58 from generate_series(1, 2);
+  perform auswertung_aktualisieren();
+
+  assert (select n_rest from v_charge_kohorte where charge_nr = 1637 and eingangsdatum = current_date - 58) = 1,
+    'Vom jüngsten Tag bleibt eine Palette';
+  assert (select n_rest from v_charge_kohorte where charge_nr = 1637 and eingangsdatum = current_date - 60) = 3,
+    'Der älteste Tag bleibt unberührt — kein FIFO';
+  select count(*), sum(m0) into v_n, v from v_kaskade where charge_nr = 1637 and portion = 'lager';
+  assert v_n = 3, format('Der Lagerbestand muss in drei Kohorten stehen, steht in %s', v_n);
+  assert abs(v - (select lager_kg from v_hochrechnung_basis where charge_nr = 1637)) < 0.01,
+    'Die Kohorten teilen den Bestand vollständig auf';
+  assert (select count(distinct alter_tage) from v_kaskade where charge_nr = 1637 and portion = 'lager') = 3,
+    'Jede Kohorte rechnet mit ihrem eigenen Alter';
+  assert (select alter_lager_bis - alter_lager_von from v_hochrechnung_basis where charge_nr = 1637) = 2,
+    'Die Spanne der liegenden Paletten ist zwei Tage';
+  assert (select n_rest_paletten from v_hochrechnung_basis where charge_nr = 1637) = 7, 'Sieben Paletten liegen noch';
+  assert abs((select anteil from v_kohorte_anteil where charge_nr = 1637 and eingangsdatum = current_date - 60) - 3.0 / 7) < 0.001,
+    'Die älteste Kohorte trägt 3/7 des Bestands';
+  assert (select n_kohorten from v_naechste_charge where charge_nr = 1637) = 3, 'Was-kostet-Warten rechnet je Kohorte';
+  assert (select alter_bis - alter_von from v_naechste_charge where charge_nr = 1637) = 2, 'und zeigt die Spanne';
+
+  -- Ein Zetteldatum, zu dem keine Palette kam (Zahlendreher)
+  insert into auftrag_palette (auftrag_id, eingangsdatum) values (v_ws, current_date - 51);
+  assert exists (select 1 from v_plausibilitaet where art = 'Zetteldatum' and auftrag_id = v_ws),
+    'Ein Zetteldatum ohne Palette muss auffallen';
+  delete from auftrag_palette where auftrag_id = v_ws and eingangsdatum = current_date - 51;
+
+  -- ---- Fax: Kisten gezählt, Faules gewogen, eigener Strom --------------
+  -- Die Hand-Arbeit lief als „Kiste ab x kg"; eine fertige Palette wurde
+  -- gewogen: 32 Kisten à 8.5 kg → das Kistengewicht ohne Kaliber (−1).
+  update auftrag set sortierschema_id = sortierschema_fuer('Amoro', null, current_date, 'kiste') where id = v_ws;
+  insert into ausgang_wiegung (auftrag_id, charge_nr, brutto_kg, kisten, gebindeart)
+  values (v_ws, 1637, 32 * 8.5 + 32 * 1.5 + 25, 32, 'Holzkiste');
+  assert (select kg_je_gebinde from v_koeff_gebinde where sorte = 'Amoro' and kaliber_idx = -1) = 8.5,
+    'Das Kistengewicht ohne Kaliber kommt aus der gewogenen fertigen Palette';
+
+  insert into auftrag (weg, station, charge_nr, ist_fax, sortierschema_id, start_ts, ende_ts, status, eroeffnet_von)
+  values ('maschine', 'waschen', 1637, true, sortierschema_fuer('Amoro', null, current_date, 'kiste'),
+          v_start + interval '20 days', v_start + interval '20 days 3 hours', 'abgeschlossen',
+          '11111111-1111-1111-1111-111111111111')
+  returning id into v_fax;
+  insert into auftrag_gebinde (auftrag_id, kaliber_idx, anzahl) values (v_fax, -1, 40);
+  -- Eine Kiste auf der Tischwaage: 7.5 brutto, Holzkiste 1.5 → 6 kg
+  insert into schimmel_messung (auftrag_id, kg, brutto_kg, kisten, gebindeart)
+  values (v_fax, 0, 7.5, 1, 'Holzkiste');
+  -- Vier Kisten auf einer Palette: 100 − 4·1.5 − 25 = 69 kg
+  insert into schimmel_messung (auftrag_id, kg, brutto_kg, kisten, gebindeart, mit_palette)
+  values (v_fax, 0, 100, 4, 'Holzkiste', true);
+  assert (select kg from schimmel_messung where auftrag_id = v_fax and brutto_kg = 7.5) = 6,
+    'Netto der Einzelkiste: 7.5 − 1.5 = 6';
+  assert (select kg from schimmel_messung where auftrag_id = v_fax and brutto_kg = 100) = 69,
+    'Netto auf der Palette: 100 − 6 − 25 = 69';
+  begin
+    insert into schimmel_messung (auftrag_id, kg, brutto_kg, kisten, gebindeart, palox_stand_kg)
+    values (v_fax, 0, 7, 1, 'Holzkiste', 100);
+    assert false, 'Palox-Stand und Kistenwägung zugleich dürfen nicht durchgehen';
+  exception when raise_exception then null;
+  end;
+
+  perform auswertung_aktualisieren();
+  assert (select eingang_netto_kg from v_auftrag_masse where auftrag_id = v_fax) = 340,
+    'Die Fax-Masse ist 40 Kisten × 8.5 kg';
+  assert (select masse_quelle from v_auftrag_masse where auftrag_id = v_fax) = 'gebinde', 'Quelle: gezählte Kisten';
+  assert (select gewaschen_kg from v_hochrechnung_basis where charge_nr = 1637) = 0,
+    'Fax zählt nicht als gewaschen';
+  assert not exists (select 1 from v_schimmel_punkte where auftrag_id = v_fax),
+    'Fax-Faules ist kein Punkt der Verderbskurve';
+  select * into r from v_fax_beobachtung where auftrag_id = v_fax;
+  assert r.faul_kg = 75 and r.masse_kg = 340 and r.kisten = 40, 'Die Fax-Beobachtung stimmt nicht';
+  assert abs(r.anteil - 75.0 / 415) < 0.001, 'Anteil = Faules / (Masse + Faules)';
+  assert (select mittel from v_koeff_fax where sorte = 'Amoro') > 0, 'Der Fax-Koeffizient ist beziffert';
+  assert (select kg from v_verlust_ranking where strom = 'Faul beim Abpacken (Fax)') > 0,
+    'Der Fax-Strom ist jetzt beziffert';
+  assert (select kg_unten from v_verlust_ranking where strom = 'Faul beim Abpacken (Fax)') is not null,
+    'und hat einen Bereich';
+  assert (select fax_arbeiten from v_datenqualitaet) >= 1
+     and (select fax_arbeiten_mit_faulem from v_datenqualitaet) >= 1
+     and (select fax_arbeiten_mit_kisten from v_datenqualitaet) >= 1, 'Die Datenqualität zählt Fax getrennt';
+  assert (select wasch_arbeiten from v_datenqualitaet)
+       = (select count(*) from auftrag where station = 'waschen' and not ist_fax
+                                          and status = 'abgeschlossen' and abgebrochen_ts is null),
+    'Fax-Arbeiten zählen nicht als Waschgänge';
+
+  -- Mit bekanntem Fax teilen die Ströme jede Portion und Kohorte vollständig auf.
+  for r in select distinct charge_nr, portion, kohorte from v_hochrechnung loop
+    if exists (select 1 from v_hochrechnung
+                where charge_nr = r.charge_nr and portion = r.portion
+                  and kohorte is not distinct from r.kohorte and not koeff_bekannt) then continue; end if;
+    select sum(kg), max(portion_kg) into v, v_n from v_hochrechnung
+     where charge_nr = r.charge_nr and portion = r.portion and kohorte is not distinct from r.kohorte;
+    assert abs(v - (select max(portion_kg) from v_hochrechnung
+                     where charge_nr = r.charge_nr and portion = r.portion
+                       and kohorte is not distinct from r.kohorte)) < 0.05,
+      format('Charge %s / %s / %s: mit Fax teilen die Ströme die Portion nicht auf', r.charge_nr, r.portion, r.kohorte);
+  end loop;
+  assert not exists (select 1 from v_kaskade where verkaufsfaehig_kg < -0.01), 'Verkaufsfähig bleibt ≥ 0';
+  assert (select kg from v_hochrechnung where charge_nr = 1637 and portion = 'ausgelagert' and strom = 'Verkaufsfähig')
+       < (select basis_kg from v_hochrechnung where charge_nr = 1637 and portion = 'ausgelagert' and strom = 'Verkaufsfähig'),
+    'Das Faule beim Abpacken mindert die verkaufsfähige Masse';
+
+  -- Ein unplausibler Fax-Anteil (Tippfehler) fällt auf, ohne die Rechnung zu treffen
+  update schimmel_messung set brutto_kg = 900 where auftrag_id = v_fax and brutto_kg = 100;
+  perform auswertung_aktualisieren();
+  assert exists (select 1 from v_plausibilitaet where art = 'Fax' and auftrag_id = v_fax),
+    'Ein Fax mit 70 % Faulem ist ein Tippfehler und gehört in die Plausibilität';
+  assert not exists (select 1 from v_koeff_roh_kaliber where art = 'fax' and charge_nr = 1637),
+    'Der unplausible Wert fliesst nicht in den Koeffizienten';
+  update schimmel_messung set brutto_kg = 100 where auftrag_id = v_fax and brutto_kg = 900;
+
+  -- ---- Die Fassung beim Eröffnen festlegen ----------------------------
+  select sortierschema_fuer('Amoro', null, current_date, 'kaliber') into v_alt;
+  select sortierschema_festlegen('Amoro', null, 'kaliber', '[[600,1100],[1100,1600],[1600,2000]]'::jsonb) into v_schema;
+  assert v_schema = v_alt, 'Dieselben Bänder ergeben keine neue Fassung';
+  select sortierschema_festlegen('Amoro', 'coop', 'kaliber', '[[600,1000],[1000,1500],[1500,2000]]'::jsonb) into v_schema;
+  assert v_schema <> v_alt, 'Geänderte Bänder ergeben eine neue Fassung';
+  assert (select gilt_ab from sortierschema where id = v_schema) = current_date, 'Die neue Fassung gilt ab heute';
+  assert (select verlust_unter from sortierschema where id = v_schema) = 600
+     and (select kanal_ab from sortierschema where id = v_schema) = 2000,
+    'Zu klein und zu gross folgen aus dem ersten und letzten Band';
+  assert (select kaeufer from sortierschema where id = v_schema) = 'coop', 'Die Fassung hängt am Käufer';
+  select sortierschema_festlegen('Amoro', 'coop', 'kaliber', '[[600,1000],[1000,1400],[1400,2000]]'::jsonb) into v_id2;
+  assert v_id2 = v_schema, 'Zweimal am selben Tag ist dieselbe Fassung';
+  assert (select (kaliber_baender -> 1 ->> 1)::int from sortierschema where id = v_schema) = 1400,
+    'und trägt die letzte Einstellung des Tages';
+  begin
+    perform sortierschema_festlegen('Amoro', 'coop', 'kaliber', '[[600,1000],[1100,2000]]'::jsonb);
+    assert false, 'Lückenhafte Bänder müssen abgelehnt werden';
+  exception when raise_exception then null;
+  end;
+  begin
+    perform sortierschema_festlegen('Amoro', 'coop', 'kaliber', '[[600,1000],[1000,900]]'::jsonb);
+    assert false, 'Ein absteigendes Band muss abgelehnt werden';
+  exception when raise_exception then null;
+  end;
+  select sortierschema_festlegen('Amoro', 'coop', 'kiste', null, 8.5) into v_id2;
+  assert (select soll_kg_pro_kiste from sortierschema where id = v_id2) = 8.5
+     and (select art from sortierschema where id = v_id2) = 'kiste', 'Die Kisten-Fassung trägt das Soll';
+  begin
+    perform sortierschema_festlegen('Amoro', 'coop', 'kiste', null, 0);
+    assert false, 'Ohne Sollgewicht keine Kisten-Fassung';
+  exception when raise_exception then null;
+  end;
+
+  -- Aufräumen
+  delete from auftrag where id in (v_ws, v_fax);
+  delete from palette where extern_id like 'k51-%';
+  delete from sortierschema where sorte = 'Amoro' and kaeufer = 'coop' and gilt_ab = current_date;
+  perform auswertung_aktualisieren();
+  raise notice 'OK  0051 Fax (gewogen, eigener Strom, nicht gewaschen), Bestand je Eingangstag ohne FIFO, Fassung am Start, Perigon-Nummer';
+end $$;
+
+select '——— 0051 Fax, Kohorten, Fassung geprüft ———' as ergebnis;

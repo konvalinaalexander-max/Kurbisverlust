@@ -7,7 +7,11 @@ export type AusschussArt = 'zu_klein' | 'zu_gross'
 export type MargeArt = 'nebenkanal' | 'ueberfuellung'
 
 export interface Profil { id: string; name: string; rolle: Rolle; aktiv: boolean; anonym: boolean }
-export interface Charge { nr: number; schlag: string; sorte: string; saison: number }
+export interface Charge {
+  nr: number; schlag: string; sorte: string; saison: number
+  /** Dieselbe Ware im Perigon der Firma AG (sechsstellig, 0051). Nicht eindeutig. */
+  perigon_nr: number | null
+}
 export interface SorteKaliber {
   sorte: string; verlust_unter: number; kaliber_baender: [number, number][]; kanal_ab: number
 }
@@ -62,6 +66,8 @@ export interface SortierLauf {
 export interface Hochrechnung {
   charge_nr: number; sorte: string; schlag: string
   portion: 'ausgelagert' | 'lager'
+  /** Im Lager: der Eingangstag dieser Kohorte (0051). Sonst null. */
+  kohorte: string | null
   alter_tage: number; eingang_kg: number; portion_kg: number
   f_extrapoliert: boolean
   strom: string; buch: 'verlust' | 'feld' | 'marge' | 'bilanz'

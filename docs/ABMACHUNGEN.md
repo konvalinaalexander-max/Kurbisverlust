@@ -24,12 +24,15 @@ der CI (`.github/workflows/pruefung.yml`).
 | AB-10 | Hinweis in der Palox-Maske: Gewicht direkt von der Waage ablesen. | 2. Sept | im Frontend (`PaloxMaske`, `waageAblesenHinweis`); Bildschirm-Prüfstand `arbeit-palox` |
 | AB-11 | Das Datum vom Palettenzettel ist Pflicht (Voraussetzung des Alters). | 1. Sept | `pruefung.sql` (Palette ohne Datum abgewiesen); `kette.mjs` (Zähler: „+" ohne Datum gesperrt; das Datum bleibt für die nächste Palette stehen) |
 | AB-12 | Am Waschbecken werden Kisten gezählt; das Kistengewicht wird am Sortieren gemessen. | 3. Sept | `pruefung.sql` „Kisten am Waschbecken"; `v_koeff_gebinde` |
+| AB-15 | Fax ist kein Waschgang: Etikettieren und Abpacken nach Bestellung. Erfasst werden die gemachten Kisten (je Kaliber, „+ 1 Palette") und das Faule, kistenweise gewogen (Brutto, Kistenart, mit/ohne Palette). Kein Palox, kein zu klein/zu gross, keine Kilo-Frage. Das Faule ist ein eigener Strom („Faul beim Abpacken"), nicht Teil der Verderbskurve. | 7. Sept | `pruefung.sql` Block 0051 (Netto per Auslöser, nicht gewaschen, eigener Strom, kein Modellpunkt); `kette.mjs` dritter Durchlauf + `kette_pruefen.sh` |
+| AB-16 | Die Maschine sortiert immer nach Kaliber: Beim Eröffnen wird gefragt, *welche* Bänder heute eingestellt sind („wie zuletzt — übernehmen / anpassen"). Von Hand: Kiste ab x kg (welches x) oder Kaliber (welche Bänder). Eine Änderung ist eine neue, datierte Fassung; nichts wird überschrieben. | 7. Sept | `pruefung.sql` Block 0051 (`sortierschema_festlegen`: gleich → gleiche Fassung, anders → neue ab heute, lückenhaft → abgelehnt); `kette.mjs` (Bänder angepasst, Sollgewicht übernommen) |
+| AB-17 | Es gibt kein FIFO. Eingang und Ausgang einer Charge verteilen sich über Wochen; der Bestand wird je Eingangstag geführt (Paletten des Tages minus gezählte Paletten mit diesem Zetteldatum) und die Kaskade rechnet je Eingangstag mit seinem Alter. „Liegt seit" ist eine Spanne. | 7. Sept | `pruefung.sql` Block 0051 (drei Kohorten, jüngste zuerst verarbeitet, Summe = Bestand, Spanne, `v_naechste_charge` je Kohorte); `v_charge_kohorte` |
 
 Noch offen (in `FRAGEN.md`, keine App-Änderung ohne Antwort):
 
 | Kennung | Absprache / Frage | Stand |
 |---|---|---|
-| AB-13 | Import der Perigon-Warenausgangsdatei (Rohdatei ablegen, an Prüfsumme wiedererkennen, erneuter Import folgenlos). | Dateien da (7. Sept), Regeln und Schema gebaut und geprüft: `test/warenausgang.test.ts`, `pruefung.sql` Block 0050. Offen ist der Bildschirm — siehe `docs/PROMPT_WARENAUSGANG.md` |
+| AB-13 | Import der Perigon-Warenausgangsdatei (Rohdatei ablegen, an Prüfsumme wiedererkennen, erneuter Import folgenlos). | Dateien da (7. Sept), Regeln und Schema gebaut und geprüft: `test/warenausgang.test.ts`, `pruefung.sql` Block 0050. Die vier Fragen sind beantwortet (7. Sept, `WARENAUSGANG_BEFUND.md`): sechsstellige Nummern über `charge.perigon_nr`, nur ab Sommer 2026, beide Firmen sind eine Halle, interne Umbuchungen weglassen. Offen ist der Bildschirm — siehe `docs/PROMPT_WARENAUSGANG.md` |
 | AB-14 | Direkte Messung beim Leeren des Palox (wie viel nicht faul). | offen; entscheidet, ob der Sockel am Saisonende erkennbar wird (`STATISTIK_BEFUND.md`) |
 
 ## Wie diese Datei ehrlich bleibt

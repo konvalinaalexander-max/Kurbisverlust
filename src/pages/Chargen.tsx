@@ -5,7 +5,7 @@ import { taetigkeitVon } from '../lib/taetigkeit'
 import { WOERTERBUCH } from '../lib/i18n'
 import { datum, kg, prozent, zahl, zeitpunkt } from '../lib/format'
 import { Hinweis, Karte, Lade, Marke } from '../components/Bausteine'
-import { useAuswertung, type Auswertung } from '../auswertung/daten'
+import { alterSpanne, useAuswertung, type Auswertung } from '../auswertung/daten'
 import { Reiterkopf } from '../auswertung/Karten'
 import type { Auftrag } from '../lib/typen'
 
@@ -74,7 +74,7 @@ export default function Chargen() {
           </table>
         </div>
         <p className="leise" style={{ margin: '.5rem 0 0' }}>
-          Messungen: Palettenwägungen · Schimmel · CSV-Läufe. Modell ↔ CSV: Abweichung zwischen der Masse, die das Modell am Band erwartet, und der gewogenen. Eine Zeile antippen zeigt die Arbeiten und Lieferungen der Charge.
+          „Liegt seit" ist die Spanne der noch liegenden Paletten (jüngste bis älteste) — der Eingang einer Charge verteilt sich über Tage und Wochen, und verarbeitet wird, was erreichbar ist, nicht das Älteste. Messungen: Palettenwägungen · Schimmel · CSV-Läufe. Modell ↔ CSV: Abweichung zwischen der Masse, die das Modell am Band erwartet, und der gewogenen. Eine Zeile antippen zeigt Eingangstage, Arbeiten und Lieferungen der Charge.
         </p>
       </Karte>
     </>
@@ -92,7 +92,7 @@ function ChargenZeile({ z, offen, oeffnen, daten }: { z: Zeile; offen: boolean; 
         <td>{b.sorte}</td>
         <td className="zahl">{kg(b.eingang_kg, 0)}</td>
         <td className="zahl">{b.lager_kg > 0 ? kg(b.lager_kg, 0) : <span className="leise">—</span>}</td>
-        <td className="zahl">{b.lager_kg > 0 ? `${Math.round(b.alter_lager_heute)} d` : ''}</td>
+        <td className="zahl">{b.lager_kg > 0 ? alterSpanne(b.alter_lager_von, b.alter_lager_bis, b.alter_lager_heute).replace(' Tagen', ' d') : ''}</td>
         <td className="zahl">{b.wartet_kg > 0 ? kg(b.wartet_kg, 0) : <span className="leise">—</span>}</td>
         <td className="zahl">{kg(b.ausgelagert_kg, 0)}</td>
         <td className="zahl">{n?.verlust_14_kg != null && n.verlust_14_kg > 0 ? <strong>{kg(n.verlust_14_kg, 0)}</strong> : <span className="leise">—</span>}</td>
@@ -130,20 +130,43 @@ function ChargeDetail({ nr, z, daten }: { nr: number; z: Zeile; daten: Auswertun
   }, [nr])
   const befunde = daten.befunde.filter(x => x.charge_nr === nr)
   const alter = daten.verarbeitung.filter(x => x.charge_nr === nr)
+  const kohorten = daten.kohorten.filter(x => x.charge_nr === nr)
   const t = (id: keyof typeof WOERTERBUCH.de) => WOERTERBUCH.de[id]
   if (laedt) return <Lade />
+  const b = z.b
+  // Die Hand-Linie wäscht und sortiert in einem — in der Rückgrat-Sicht steht
+  // sie als hand_kg getrennt von der Maschine; hier aus den Arbeiten summiert.
+  const handKg = arbeiten.filter(a => a.station === 'waschen_sortieren' && !a.abgebrochen_ts)
+    .reduce((s, a) => s + (a.masse_kg ?? 0), 0)
   return (
     <div style={{ padding: '.5rem 0' }}>
       <div className="spalten" style={{ marginBottom: '.75rem' }}>
-        <div><div className="leise">Paletten</div><strong>{zahl(z.b.n_paletten)}</strong></div>
-        <div><div className="leise">Mittleres Eingangsdatum</div><strong>{datum(z.b.eingangsdatum_mittel)}</strong></div>
-        <div><div className="leise">Sortiert / gewaschen</div><strong>{kg(z.b.sortiert_kg, 0)} / {kg(z.b.gewaschen_kg, 0)}</strong></div>
+        <div><div className="leise">Paletten</div><strong>{zahl(b.n_paletten)}</strong>{(b.n_rest_paletten ?? 0) > 0 && <div className="leise">davon {b.n_rest_paletten} noch im Lager</div>}</div>
+        <div><div className="leise">Eingang</div><strong>{b.eingang_von && b.eingang_bis && b.eingang_von !== b.eingang_bis ? `${datum(b.eingang_von)} – ${datum(b.eingang_bis)}` : datum(b.eingang_von ?? b.eingangsdatum_mittel)}</strong>{(b.n_eingangstage ?? 0) > 1 && <div className="leise">{b.n_eingangstage} Eingangstage</div>}</div>
+        {handKg > 0 && <div><div className="leise">Hand-Linie (gewaschen + sortiert)</div><strong>{kg(handKg, 0)}</strong></div>}
+        {(b.sortiert_kg > 0 || handKg === 0) && <div><div className="leise">Maschine: sortiert / davon gewaschen</div><strong>{kg(b.sortiert_kg, 0)} / {kg(b.gewaschen_kg, 0)}</strong></div>}
         {z.m?.csv_gemessen_kg != null && <div><div className="leise">Modell am Band / CSV gewogen</div><strong>{kg(z.m.modell_am_band_kg, 0)} / {kg(z.m.csv_gemessen_kg, 0)}</strong></div>}
       </div>
+      {kohorten.length > 0 && (
+        <>
+          <h3>Eingangstage ({kohorten.length})</h3>
+          <p className="leise" style={{ margin: '0 0 .4rem' }}>Was an welchem Tag kam, was davon mit diesem Zetteldatum gezählt wurde und was noch liegt. Kein Zuerst-rein-zuerst-raus: die Rechnung nimmt für jeden Tag sein eigenes Alter.</p>
+          <div className="rollbar"><table>
+            <thead><tr><th>Eingangstag</th><th className="zahl">Alter</th><th className="zahl">gekommen</th><th className="zahl">verarbeitet</th><th className="zahl">noch da</th><th className="zahl">Bestand</th></tr></thead>
+            <tbody>{kohorten.map(k => (
+              <tr key={k.eingangsdatum} className={k.n_rest === 0 ? 'leise' : ''}>
+                <td>{datum(k.eingangsdatum)}</td><td className="zahl">{k.alter_heute} d</td>
+                <td className="zahl">{k.n_paletten}</td><td className="zahl">{k.n_verarbeitet}{k.n_verarbeitet > k.n_paletten && <> <Marke art="warnung">mehr gezählt als gekommen</Marke></>}</td>
+                <td className="zahl"><strong>{k.n_rest}</strong></td><td className="zahl">{k.rest_kg != null && k.rest_kg > 0 ? kg(k.rest_kg, 0) : <span className="leise">—</span>}</td>
+              </tr>
+            ))}</tbody>
+          </table></div>
+        </>
+      )}
       {befunde.length > 0 && (
         <Hinweis art="warnung">{befunde.map((b, i) => <div key={i}><strong>{b.art}:</strong> {b.befund} <span className="leise">— {b.rat}</span></div>)}</Hinweis>
       )}
-      <h3>Arbeiten ({arbeiten.length})</h3>
+      <h3 style={{ marginTop: '1rem' }}>Arbeiten ({arbeiten.length})</h3>
       {arbeiten.length === 0 ? <p className="leise">noch keine</p> : (
         <div className="rollbar"><table>
           <thead><tr><th>Start</th><th>Arbeit</th><th>Status</th><th className="zahl">Masse</th><th className="zahl">Alter verarbeitet</th><th></th></tr></thead>

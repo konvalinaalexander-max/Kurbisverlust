@@ -45,16 +45,25 @@ Gespeichert wird die Rolle nicht; sie ist keine Messung.
 1. **Start** — „Läuft gerade" mit den offenen Arbeiten, darunter zwei Knöpfe:
    *Neue Arbeit starten* und *Palette kontrollieren*.
 2. **Assistent** — je Schritt eine Frage: Was macht ihr? · Welche Charge? ·
-   Für wen? · Wie sortiert ihr? (oder: Welches Kaliber?) · Alles richtig?
+   Für wen? · dann je Tätigkeit (0051): Sortieren fragt *welche Kaliber*
+   (die Maschine kennt nur Bänder — „wie zuletzt: übernehmen / anpassen");
+   Waschen fragt *welches Kaliber*; Waschen + Sortieren fragt Kiste oder
+   Kaliber und dann das Sollgewicht bzw. die Bänder; Fax fragt, was für
+   Kisten es sind (Kaliber-Kisten oder nach Sollgewicht) · Alles richtig?
    Schritte, die für die Tätigkeit nicht gelten, gibt es nicht.
 3. **Als erstes: Palox ablesen** — die Ablesung steht direkt nach dem Start
    (AB-02). „Später" ist möglich, aber die Checkliste lässt den Punkt offen.
 4. **Checkliste** — jeder Punkt mit Zustand (erledigt / offen / freiwillig):
    Palox zu Beginn · Ausschuss-Paletten leer? · Zählen (mit Stand) ·
    Zu klein / zu gross wiegen · Fertige Palette wiegen · Arbeit abschliessen.
-5. **Abschluss-Assistent** — Palox jetzt ablesen · Ausschuss: alles von dieser
-   Arbeit? · Alles aus einer Charge? · (Waschen: Menge, Sortierdatum) ·
-   Zusammenfassung → *Ja, fertig*. Was fehlt, steht als Satz am Knopf.
+   Beim Fax (0051): kein Palox, kein Ausschuss — dafür *Faules wiegen*
+   (kistenweise, mit Kistenart) und *Kisten gemacht* (je Kaliber, „+ 1
+   Palette").
+5. **Abschluss-Assistent** — Palox jetzt ablesen (Fax: Faules wiegen) ·
+   Ausschuss: alles von dieser Arbeit? · (Waschen, Fax: sind Kisten gezählt?
+   Ohne Kisten keine Menge — eine Kilo-Zahl wird nirgends mehr getippt) ·
+   Alles aus einer Charge? · Zusammenfassung → *Ja, fertig*. Was fehlt,
+   steht als Satz am Knopf.
 
 ### Der Weg des Zählers
 
@@ -72,7 +81,7 @@ Fünf Reiter, je mit einem Satz darüber, was er beantwortet:
 |---|---|---|
 | **Überblick** | Wie viel verliere ich, woran, und was tue ich als nächstes? | Kennzahlen, Kaskade, Bilanz, nächste Chargen, Auffälligkeiten |
 | **Ursachen** | Warum? Wie sicher ist das? | Je Strom Balken mit Bereich und Rechenweg; Verderbskurve mit Messpunkten; Verdunstung; Sorten; Sockel; Buch B; Kaliber und Gewichtsverteilung |
-| **Chargen** | Wo steht welche Charge? | Eingang, im Lager, sortiert, ausgeliefert, Alter, Verlust; Aufklappen zeigt die Arbeiten und Messungen der Charge |
+| **Chargen** | Wo steht welche Charge? | Eingang, im Lager, sortiert, ausgeliefert, „liegt seit" als Spanne (kein FIFO), Verlust; Aufklappen zeigt die Eingangstage (gekommen, gezählt, noch da), die Arbeiten und Lieferungen der Charge |
 | **Messungen** | Was weiss die Auswertung — und was nicht? | Datenqualität, fehlende Messungen, Lagerkontrollen, Koeffizienten, Modell |
 | **Betrieb** | Was ist heute los, und wie pflege ich die Grundlagen? | Arbeiten, Warenausgang, Sortier-CSV, Stammdaten, Zugang |
 
@@ -91,4 +100,6 @@ gemessen ist, steht als „nicht gemessen", nie als 0.
 | 0036 | Palox-Stand je Ablesung | Ablesungen je Arbeit (fehlt eine, sitzt Schimmel am falschen Alter) |
 | 0001 | Sortier-CSV als Histogramm | Gewichtsverteilung je Sorte, Schlag, Charge mit Kalibergrenzen (vom Betrieb gewünscht, ABLAUF.md) |
 | 0028/0047 | Lieferungen, Vorlauf | Eingang und Ausgang über die Saison |
-| 0039 | Start und Ende je Arbeit | Durchsatz je Arbeit und Station |
+| 0039 | Start und Ende je Arbeit | Durchsatz je Arbeit und Station; im Überblick „Arbeit und Tempo" je Tätigkeit |
+| 0051 | Fax: Kisten gezählt, Faules gewogen | Strom „Faul beim Abpacken" mit Koeffizient je Sorte; der dritte Lagerabschnitt in der Bilanz |
+| 0051 | Zetteldatum je gezählter Palette, je Eingangstag verrechnet | Bestand und Alter je Eingangstag statt eines Mittels; Zetteldaten ohne Palette fallen auf |

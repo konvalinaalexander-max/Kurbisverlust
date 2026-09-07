@@ -34,6 +34,7 @@ const FARBEN: Record<string, string> = {
   'Nicht lagerbedingt': 'var(--strom-feld)',
   'Zu klein (Tierfutter)': 'var(--strom-ausschuss)',
   'Nebenkanal zu gross': 'var(--strom-nebenkanal)',
+  'Faul beim Abpacken (Fax)': 'var(--strom-fax)',
 }
 
 export function Kaskadenbild({ eingang, stroeme, verkaufsfaehig, hoehe = 300 }: {

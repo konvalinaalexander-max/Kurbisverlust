@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { kg, prozent, tonnen, zahl, zeitpunkt } from '../lib/format'
 import { Balken, Hinweis, Karte, Kennzahl, Marke } from '../components/Bausteine'
 import { Bilanzzeile } from '../components/Kaskadenbild'
-import type { Befund, Bestand, NaechsteCharge, Saisonbilanz, Schimmelpunkt, SortenK, StromSumme } from './daten'
+import { alterSpanne, type Befund, type Bestand, type NaechsteCharge, type Saisonbilanz, type Schimmelpunkt, type SortenK, type StromSumme } from './daten'
 
 /** Kopfzeile eines Reiters: Name, der eine Satz, wozu er da ist, Stand, Neu rechnen. */
 export function Reiterkopf({ titel, zweck, stand, neuRechnen, rechts }: {
@@ -80,7 +80,7 @@ export function NaechsteChargen({ zeilen, alle = false }: { zeilen: NaechsteChar
               <tr key={z.charge_nr}>
                 <td><Link to={`/chargen?charge=${z.charge_nr}`}>{z.charge_nr}</Link></td>
                 <td>{z.sorte}</td>
-                <td className="zahl">{z.alter_tage} Tagen</td>
+                <td className="zahl">{alterSpanne(z.alter_von, z.alter_bis, z.alter_tage)}{(z.n_kohorten ?? 0) > 1 && <span className="leise"> · {z.n_kohorten} Eingangstage</span>}</td>
                 <td className="zahl">{kg(z.masse_jetzt_kg, 0)}</td>
                 <td className="zahl"><strong>{kg(z.verlust_14_kg ?? 0, 0)}</strong>{z.hochgerechnet && <span className="leise"> ~</span>}</td>
               </tr>
@@ -90,6 +90,7 @@ export function NaechsteChargen({ zeilen, alle = false }: { zeilen: NaechsteChar
       </div>
       <p className="leise" style={{ marginBottom: 0 }}>
         Alle liegenden Chargen zusammen: <strong>{kg(summe, 0)}</strong> in zwei Wochen.
+        {' '}„Liegt seit" ist eine Spanne: Die Paletten einer Charge kamen an verschiedenen Tagen, und es gibt kein Zuerst-rein-zuerst-raus — gerechnet wird je Eingangstag.
         {mitVerlust.some(z => z.hochgerechnet) && ' ~ heisst: älter als die längste gemessene Lagerdauer, der Verderb ist hochgerechnet.'}
         {!mitVerlust[0]?.modell_gilt && ' Das Verderbsmodell trägt noch nicht — die Zahlen zeigen nur die Verdunstung.'}
       </p>
@@ -145,7 +146,7 @@ export function WartetAufsWaschen({ bestand }: { bestand: Bestand[] }) {
               <tr key={b.charge_nr}>
                 <td><Link to={`/chargen?charge=${b.charge_nr}`}>{b.charge_nr}</Link></td><td>{b.sorte}</td>
                 <td className="zahl">{kg(b.sortiert_kg, 0)}</td><td className="zahl">{kg(b.gewaschen_kg, 0)}</td>
-                <td className="zahl"><strong>{kg(b.wartet_kg, 0)}</strong></td><td className="zahl">{Math.round(b.alter_lager_heute)} Tagen</td>
+                <td className="zahl"><strong>{kg(b.wartet_kg, 0)}</strong></td><td className="zahl">{alterSpanne(b.alter_lager_von, b.alter_lager_bis, b.alter_lager_heute)}</td>
               </tr>
             ))}
           </tbody>
@@ -200,6 +201,10 @@ export function Bilanz({ bilanz }: { bilanz: Saisonbilanz }) {
                    erklaerung={bilanz.n_lieferungen === 0 ? 'noch keine Lieferung erfasst' : `${bilanz.n_lieferungen} Lieferungen erfasst${bilanz.vorlauf_kg > 0 ? `, dazu ${tonnen(bilanz.vorlauf_kg)} vor dem Erfassungsbeginn` : ''}`} />
       <Bilanzzeile titel="Noch im Haus (Modell)" kg={bilanz.restbestand_modell_kg} eingang={bilanz.eingang_kg} farbe="var(--strom-verdunstung)"
                    erklaerung={`davon ${tonnen(bilanz.wartet_kg)} sortiert und wartet aufs Waschen`} />
+      {bilanz.gewaschen_offen_kg != null && (
+        <Bilanzzeile titel="Gewaschen, wartet auf Bestellung (Modell)" kg={bilanz.gewaschen_offen_kg} eingang={bilanz.eingang_kg} farbe="var(--strom-fax)"
+                     erklaerung={`verkaufsfähig gewaschen minus ${tonnen(bilanz.fax_kg)} aus ${bilanz.n_fax} Fax-Arbeiten abgepackt`} />
+      )}
       <Bilanzzeile titel="Lücke" kg={Math.abs(bilanz.luecke_kg)} eingang={bilanz.eingang_kg} farbe="var(--rot)" erklaerung={`${prozent(bilanz.luecke_anteil)} des Eingangs`} />
       <Hinweis art={bilanz.n_lieferungen === 0 ? 'warnung' : Math.abs(bilanz.luecke_anteil ?? 1) < 0.05 ? 'gut' : 'info'}>{bilanz.befund}</Hinweis>
     </Karte>

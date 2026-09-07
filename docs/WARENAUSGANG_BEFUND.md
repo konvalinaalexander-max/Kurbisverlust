@@ -162,7 +162,28 @@ Datei liefert Kilo, nicht Brutto.
 andere `AuftragsArtikelMengeSoll`. Der Leser vergleicht deshalb ohne Gross- und
 Kleinschreibung.
 
-## Was der Betrieb noch entscheiden muss
+## Die Antworten des Betriebs (7. September)
+
+Alle vier Fragen sind beantwortet; die Planungsdatei hat die erste gleich
+mit erledigt.
+
+1. **Die sechsstelligen Nummern sind unsere Chargen.** Die Datei
+   „Kürbisplanung und Erträge 26", Blatt „2026 Flächeneint. ink Reprt.Da.",
+   führt je Schlag und Sorte beide Nummern: `Charge Bioprodukte` (vierstellig,
+   1598–1651) und `Charge BioBioAG` (sechsstellig, 198876–198976). Gegen die
+   AG-Datei geprüft: 232 von 236 Kürbiszeilen seit Juli 2026 tragen eine Nummer
+   aus dieser Liste, keine einzige unbekannte. Die Nummer steht jetzt an der
+   Charge (`charge.perigon_nr`, 0051), der Import löst sie über
+   `chargeAufloeser` auf. Eine Nummer ist doppelt (198976: 1649 Butterkin und
+   1650 Tiana, beide Rümlang Sauter) — dort entscheidet der Artikel
+   („Butterkin" ↔ „Butternut"), sonst bleibt die Zeile ohne Bezug.
+2. **Nur ab Sommer 2026.** Die Vorjahre werden nicht eingelesen.
+3. **Beide Firmen sind eine.** Buchhalterisch getrennt, aber dieselben Felder,
+   dieselbe Halle — alles, was in den Dateien steht, lag vorher bei uns.
+4. **Interne Umbuchungen weglassen.** Rund eine Tonne je Saison (Journal `L`,
+   Kunde „Imhof") — nicht relevant. Der Import überspringt Journal `L`.
+
+## Was der Betrieb noch entscheiden muss (beantwortet, zur Nachlese)
 
 1. **Die sechsstelligen Chargennummern.** Für die Firma, die an Coop und Migros
    liefert, gibt es keinen Bezug zu unseren Chargen. Drei Möglichkeiten:

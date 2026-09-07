@@ -7,6 +7,10 @@ import { Kaskadenbild, type Kaskadenstrom } from '../components/Kaskadenbild'
 import { Diagramm } from '../components/Diagramm'
 import { stroemeSummieren, useAuswertung, useRanking } from '../auswertung/daten'
 import { Auffaelligkeiten, Bilanz, NaechsteChargen, Reiterkopf, Stromliste } from '../auswertung/Karten'
+import { taetigkeitVon } from '../lib/taetigkeit'
+import { WOERTERBUCH } from '../lib/i18n'
+import { kg, zahl } from '../lib/format'
+import type { Durchsatz } from '../auswertung/daten'
 
 const TAG = 86400000
 
@@ -58,6 +62,7 @@ export default function Ueberblick() {
     if (q.sortierlaeufe - q.sortierlaeufe_zugeordnet > 0) luecken.push(`${q.sortierlaeufe - q.sortierlaeufe_zugeordnet} Sortier-CSVs keiner Arbeit zugeordnet`)
   }
   const verlauf = daten.saisonverlauf
+  const tempo = tempoJeTaetigkeit(daten.durchsatz)
 
   return (
     <>
@@ -103,6 +108,26 @@ export default function Ueberblick() {
       <NaechsteChargen zeilen={daten.naechste} />
       <Auffaelligkeiten befunde={daten.befunde} kurz />
 
+      {tempo.length > 0 && (
+        <Karte titel="Arbeit und Tempo" aktion={<Link to="/betrieb/arbeiten">jede Arbeit</Link>}>
+          <p className="leise">Je Tätigkeit: wie viele Arbeiten, wie lange sie dauerten, wie viel Masse je Stunde und je Person und Stunde durchging — aus Start und Ende jeder abgeschlossenen Arbeit und der Masse, die sie bewegt hat. Arbeiten ohne bekannte Masse zählen bei der Dauer, nicht beim Tempo.</p>
+          <div className="rollbar"><table>
+            <thead><tr><th>Tätigkeit</th><th className="zahl">Arbeiten</th><th className="zahl">Stunden</th><th className="zahl">Dauer (Median)</th><th className="zahl">Masse</th><th className="zahl">kg je Stunde</th><th className="zahl">kg je Person und Stunde</th></tr></thead>
+            <tbody>{tempo.map(z => (
+              <tr key={z.name}>
+                <td>{z.zeichen} {z.name}</td>
+                <td className="zahl">{z.n}</td>
+                <td className="zahl">{z.stunden.toFixed(1)} h</td>
+                <td className="zahl">{z.median.toFixed(1)} h</td>
+                <td className="zahl">{z.masse > 0 ? kg(z.masse, 0) : <span className="leise">—</span>}</td>
+                <td className="zahl">{z.kgProH !== null ? <strong>{zahl(z.kgProH)}</strong> : <span className="leise">—</span>}</td>
+                <td className="zahl">{z.kgProPersonH !== null ? zahl(z.kgProPersonH) : <span className="leise">—</span>}</td>
+              </tr>
+            ))}</tbody>
+          </table></div>
+        </Karte>
+      )}
+
       {verlauf.length > 1 && (
         <Karte titel="Die Saison im Verlauf">
           <p className="leise">Was kumuliert hereinkam und was hinausging. Der Abstand ist, was im Haus ist — vor Abzug des Verlusts, den das Modell darunter schätzt.</p>
@@ -129,4 +154,31 @@ export default function Ueberblick() {
       </Karte>
     </>
   )
+}
+
+interface Tempo { name: string; zeichen: string; n: number; stunden: number; median: number; masse: number; kgProH: number | null; kgProPersonH: number | null }
+
+/** Dauer und Durchsatz je Tätigkeit — Median statt Mittel, damit eine
+ *  vergessene, über Nacht offen gebliebene Arbeit den Wert nicht verzerrt. */
+function tempoJeTaetigkeit(zeilen: Durchsatz[]): Tempo[] {
+  const gruppen = new Map<string, Durchsatz[]>()
+  for (const d of zeilen) {
+    const k = `${d.weg}|${d.station}|${d.ist_fax}`
+    gruppen.set(k, [...(gruppen.get(k) ?? []), d])
+  }
+  const median = (xs: number[]) => { const s = [...xs].sort((a, b) => a - b); return s.length ? (s.length % 2 ? s[(s.length - 1) / 2] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2) : 0 }
+  return [...gruppen.entries()].map(([, ds]) => {
+    const d0 = ds[0]
+    const ta = taetigkeitVon(d0.weg as 'maschine' | 'hand', d0.station as 'sortieren' | 'waschen' | 'waschen_sortieren', d0.ist_fax)
+    const mitMasse = ds.filter(d => d.masse_kg !== null && d.dauer_h >= 0.25)
+    const stundenMitMasse = mitMasse.reduce((a, d) => a + d.dauer_h, 0)
+    const personStunden = mitMasse.reduce((a, d) => a + d.dauer_h * Math.max(d.n_teilnehmer, 1), 0)
+    const masse = mitMasse.reduce((a, d) => a + (d.masse_kg ?? 0), 0)
+    return {
+      name: ta ? WOERTERBUCH.de[ta.text] : d0.station, zeichen: ta?.zeichen ?? '',
+      n: ds.length, stunden: ds.reduce((a, d) => a + d.dauer_h, 0), median: median(ds.map(d => d.dauer_h)),
+      masse, kgProH: stundenMitMasse > 0 ? masse / stundenMitMasse : null,
+      kgProPersonH: personStunden > 0 ? masse / personStunden : null,
+    }
+  }).sort((a, b) => b.n - a.n)
 }

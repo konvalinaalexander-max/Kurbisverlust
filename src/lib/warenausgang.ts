@@ -453,3 +453,41 @@ export function quelleVorschlag(dateiname: string): string {
     .replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
     .slice(0, 40) || 'unbekannt'
 }
+
+/* ---------- Die Charge zu einer Chargennummer der Datei ------------------ */
+
+/** Was der Auflöser über eine Charge wissen muss (aus der Tabelle charge). */
+export interface ChargeKurz { nr: number; sorte: string; perigon_nr: number | null }
+
+/**
+ * Löst die Chargennummer einer Zeile auf: vierstellig ist die eigene Nummer,
+ * sechsstellig die Nummer derselben Ware im Perigon der anderen Firma
+ * (charge.perigon_nr, aus der Planungsdatei). Eine Perigon-Nummer kann an
+ * zwei Chargen stehen (198976: Butterkin und Tiana in Rümlang) — dann
+ * entscheidet die Sorte, die der Artikel nahelegt; ohne sie bleibt die Zeile
+ * ohne Chargenbezug, damit nichts geraten wird.
+ */
+export function chargeAufloeser(
+  chargen: ChargeKurz[], sorteVonArtikel: (z: { artikel_id: string; artikel: string }) => string | null = () => null,
+): (chargeExtern: string, zeile?: { artikel_id: string; artikel: string }) => number | null {
+  const eigene = new Map(chargen.map(c => [c.nr, c]))
+  const perigon = new Map<number, ChargeKurz[]>()
+  for (const c of chargen) {
+    if (c.perigon_nr === null) continue
+    perigon.set(c.perigon_nr, [...(perigon.get(c.perigon_nr) ?? []), c])
+  }
+  return (chargeExtern, zeile) => {
+    const ziffern = chargeExtern.replace(/\D/g, '')
+    if (!ziffern) return null
+    const n = Number(ziffern)
+    if (eigene.has(n)) return n
+    const treffer = perigon.get(n) ?? []
+    if (treffer.length === 1) return treffer[0].nr
+    if (treffer.length > 1 && zeile) {
+      const sorte = sorteVonArtikel(zeile)
+      const passend = treffer.filter(c => c.sorte === sorte)
+      if (passend.length === 1) return passend[0].nr
+    }
+    return null
+  }
+}

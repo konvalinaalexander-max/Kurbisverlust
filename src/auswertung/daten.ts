@@ -23,11 +23,33 @@ export interface Bestand {
   eingang_kg: number; lager_kg: number; wartet_kg: number; sortiert_kg: number; gewaschen_kg: number
   ausgelagert_kg: number; alter_lager: number; alter_lager_heute: number; ueberzaehlung_kg: number
   n_paletten: number; eingangsdatum_mittel: string | null
+  /** 0051: Eingang und Bestand als Spanne — es gibt kein FIFO. */
+  eingang_von: string | null; eingang_bis: string | null; n_eingangstage: number | null
+  rest_von: string | null; rest_bis: string | null; n_rest_paletten: number | null; n_rest_kohorten: number | null
+  alter_lager_von: number | null; alter_lager_bis: number | null
 }
 export interface NaechsteCharge {
   charge_nr: number; sorte: string; schlag: string; lager_kg: number; alter_tage: number
   masse_jetzt_kg: number; verdunstung_14_kg: number | null; schimmel_14_kg: number | null
   verlust_14_kg: number | null; hochgerechnet: boolean; modell_gilt: boolean
+  alter_von: number | null; alter_bis: number | null; n_kohorten: number | null
+}
+/** Je Charge und Eingangstag: gekommen, gezählt, noch da (v_charge_kohorte). */
+export interface Kohorte {
+  charge_nr: number; eingangsdatum: string; n_paletten: number; n_verarbeitet: number; n_rest: number
+  netto_je_palette: number | null; rest_kg: number | null; alter_heute: number
+}
+/** Je Fax-Arbeit: Kisten, Masse, gewogenes Faules (v_fax_beobachtung). */
+export interface FaxBeobachtung {
+  auftrag_id: number; charge_nr: number; sorte: string; schlag: string; kaeufer: string | null
+  start_ts: string; ende_ts: string | null; status: string
+  masse_kg: number | null; masse_quelle: string | null; kisten: number
+  faul_kg: number; faul_erfasst: boolean; anteil: number | null; plausibel: boolean
+}
+/** Je Sortierlauf oder Hand-Arbeit: Bezugsmasse, zu klein, zu gross (v_ausschuss_beobachtung). */
+export interface AusschussBeobachtung {
+  weg: string; charge_nr: number; sorte: string; auftrag_id: number | null
+  basis_kg: number; klein_kg: number | null; gross_kg: number | null; plausibel: boolean
 }
 export interface SortenK { sorte: string; mittel: number | null; unten: number | null; oben: number | null; n: number; basis: string }
 export interface Saisonbilanz {
@@ -36,6 +58,8 @@ export interface Saisonbilanz {
   restbestand_modell_kg: number; im_lager_kg: number; wartet_kg: number; vorlauf_kg: number
   luecke_kg: number; luecke_anteil: number | null; ausgang_deckung: number | null; n_lieferungen: number; befund: string
   lagerverlust_kg: number | null; feld_kg: number | null
+  /** 0051: durchs Fax gegangen, und gewaschen aber noch nicht abgepackt (null ohne Fax-Erfassung). */
+  fax_kg: number | null; n_fax: number | null; gewaschen_offen_kg: number | null
 }
 export interface Selektion { n_verarbeitung: number | null; n_lager: number | null; unterschied: number | null; befund: string }
 export interface Befund { art: string; auftrag_id: number | null; charge_nr: number; sorte: string; start_ts: string | null; befund: string; rat: string }
@@ -67,6 +91,7 @@ export interface Datenqualitaet {
   ausschuss_messungen: number; ausschuss_gewogen: number; lagerkontrollen: number; lagerkontrollen_zufaellig: number
   sortierlaeufe: number; sortierlaeufe_zugeordnet: number; sortier_arbeiten: number; sortier_arbeiten_mit_kisten: number
   wasch_arbeiten: number; wasch_arbeiten_mit_kisten: number
+  fax_arbeiten: number; fax_arbeiten_mit_kisten: number; fax_arbeiten_mit_faulem: number
 }
 export interface Saisonwoche { woche: string; eingang_kg: number; ausgang_kg: number; eingang_kumuliert_kg: number; ausgang_kumuliert_kg: number; vorlauf_kg: number }
 export interface KoeffGebinde { sorte: string; kaliber_idx: number; n: number; kg_je_gebinde: number; sd: number | null; unten: number | null; oben: number | null }
@@ -99,6 +124,9 @@ export interface Auswertung {
   saisonverlauf: Saisonwoche[]
   gebinde: KoeffGebinde[]
   schemata: Schema[]
+  kohorten: Kohorte[]
+  fax: FaxBeobachtung[]
+  ausschuss: AusschussBeobachtung[]
 }
 
 let stand: Auswertung | null = null
@@ -124,7 +152,7 @@ async function alles(): Promise<Auswertung> {
     const r = await supabase.from(name).select('*').maybeSingle()
     return (r.data ?? null) as T | null
   }
-  const [h, b, d, pl, kv, sk, mo, sel, sb, pk, hb, nc, kfv, kfa, kfn, kfu, wk, mg, gw, va, ds, uk, dq, sv, kg, ss] = await Promise.all([
+  const [h, b, d, pl, kv, sk, mo, sel, sb, pk, hb, nc, kfv, kfa, kfn, kfu, wk, mg, gw, va, ds, uk, dq, sv, kg, ss, ko, fx, ab] = await Promise.all([
     q<Hochrechnung>('v_hochrechnung'), q<Massenbilanz>('v_massenbilanz'), q<Datenlage>('v_datenlage'),
     q<Befund>('v_plausibilitaet'), q<Kaliberzeile>('v_kaliber_verteilung'), q<Kurve>('v_schimmel_kurve_anzeige'),
     eins<Modell>('v_schimmel_modell'), eins<Selektion>('v_selektionsverdacht'), eins<Saisonbilanz>('v_saisonbilanz'),
@@ -136,6 +164,8 @@ async function alles(): Promise<Auswertung> {
     q<Durchsatz>('v_durchsatz', ['start_ts', false]), q<UeberfuellungKaeufer>('v_ueberfuellung_kaeufer'),
     eins<Datenqualitaet>('v_datenqualitaet'), q<Saisonwoche>('v_saisonverlauf', ['woche', true]),
     q<KoeffGebinde>('v_koeff_gebinde'), q<Schema>('sortierschema', ['gilt_ab', false]),
+    q<Kohorte>('v_charge_kohorte', ['eingangsdatum', true]), q<FaxBeobachtung>('v_fax_beobachtung', ['start_ts', false]),
+    q<AusschussBeobachtung>('v_ausschuss_beobachtung'),
   ])
 
   type K = { mittel?: number | null; n: number; basis?: string }
@@ -156,7 +186,7 @@ async function alles(): Promise<Auswertung> {
     modell: mo, selektion: sel, saison: sb, punkte: pk, bestand: hb, naechste: nc,
     sorten: { verdunstung: kfv, ausschuss: kfa }, wiegungen: wk, marge: mg,
     gewichte: gw, verarbeitung: va, durchsatz: ds, ueberfuellung: uk, qualitaet: dq, saisonverlauf: sv,
-    gebinde: kg, schemata: ss,
+    gebinde: kg, schemata: ss, kohorten: ko, fax: fx, ausschuss: ab,
   }
 }
 
@@ -259,4 +289,15 @@ export const STROMFARBE: Record<string, string> = {
   'Nicht lagerbedingt': 'var(--strom-feld)',
   'Zu klein (Tierfutter)': 'var(--strom-ausschuss)',
   'Nebenkanal zu gross': 'var(--strom-nebenkanal)',
+  'Faul beim Abpacken (Fax)': 'var(--strom-fax)',
+}
+
+/** „liegt seit 128–161 Tagen" — die Spanne der noch liegenden Paletten, nie
+ *  nur ein Mittel: Eingang und Ausgang verteilen sich über Wochen (0051). */
+export function alterSpanne(von: number | null | undefined, bis: number | null | undefined, mittel?: number | null): string {
+  if (von != null && bis != null) {
+    const a = Math.round(Math.min(von, bis)), b = Math.round(Math.max(von, bis))
+    return a === b ? `${a} Tagen` : `${a}–${b} Tagen`
+  }
+  return mittel != null ? `${Math.round(mittel)} Tagen` : '—'
 }

@@ -28,7 +28,7 @@ sind … und dann halt erkennen bis wo hat es die daten schon und welche sind ne
 | **Regeln des Imports** | `src/lib/warenausgang.ts` | Kopf erkennen, Zeilen lesen, Kürbis erkennen, Masse rechnen, Schlüssel und Fingerabdruck, Abgleich, Lieferungen bauen. Reine Funktionen. |
 | **Tests** | `test/warenausgang.test.ts` | 27 Tests, alle grün (`npm test`). |
 | **Prüfdatei** | `test/daten/warenausgang-probe.xlsx` | Erfunden, gleiche Form, enthält jeden Fall, an dem der Import schon einmal falsch lag. Gebaut von `probe_bauen.py`. |
-| **Schema** | `supabase/migrations/0050_warenausgang_import.sql` | Quelle, Datei, Rohzeilen, Artikel-Zuordnung, `lieferung.quelle` und `lieferung.extern_id`, drei Sichten. |
+| **Schema** | `supabase/migrations/0050_warenausgang_import.sql`, `0051` | Quelle, Datei, Rohzeilen, Artikel-Zuordnung, Beitabelle `lieferung_import` (Quelle, `extern_id`), drei Sichten; seit 0051 `charge.perigon_nr` und der Artikelvorschlag über beide Nummern. |
 | **DB-Tests** | `supabase/test/pruefung.sql`, Block 0050 | Wiederholung folgenlos, Masse kommt einmal an, Zuordnung wird bestätigt statt geraten. |
 
 Zwei Fehler haben diese Prüfungen schon gefunden, beide der Art, die still
@@ -120,20 +120,23 @@ Ausgangszahlen. Zeig sie dort, wo sie hingehören:
 | Rücknahmen getrennt | `lieferung.kg` lässt nur positive Mengen zu, und eine zurückgegangene Palette ist trotzdem eine Bewegung. |
 | Der Browser rechnet, die Datenbank prüft nach | Eine Ableitung, ein Test. `v_ausgang_pruef` fängt, wenn beide auseinanderlaufen. |
 
-## Was der Betrieb noch entscheiden muss
+## Die vier Fragen sind beantwortet (7. September)
 
-Diese vier Fragen stehen ausführlich im Befund. Bau so, dass jede Antwort ohne
-Umbau möglich bleibt, und frag sie in der App nicht ab — sie gehören in ein
-Gespräch:
+Sie stehen mit Begründung im Befund. Für den Bildschirm heisst das:
 
-1. Was mit den sechsstelligen Perigon-Chargennummern geschehen soll (Vorschlag:
-   ohne Chargenbezug in die Bilanz).
-2. Ob der Import bis 2024 zurück einlesen soll (Vorschlag: ja, aber nur die
-   laufende Saison in die Bilanz).
-3. Ob alles in den Dateien vorher in unserer Halle lag — die eine Firma handelt
-   Kürbis von acht Produzenten.
-4. Wie interne Umbuchungen zwischen den zwei Firmen zählen (Vorschlag: eigenes
-   Ziel „intern", nicht als Verkauf).
+1. **Sechsstellige Nummern auflösen.** `charge.perigon_nr` (0051) hält die
+   Nummer der Firma AG; `chargeAufloeser(chargen, sorteVonArtikel)` in
+   `src/lib/warenausgang.ts` liefert die Funktion, die `lieferungenBauen` als
+   `chargeVon` braucht — lade die Chargen mit `nr, sorte, perigon_nr` und gib
+   als `sorteVonArtikel` den bestätigten oder vorgeschlagenen Artikel →
+   Sorte mit. Die eine doppelte Nummer wird so über den Artikel entschieden;
+   bleibt sie offen, zeig die Zeile als „ohne Chargenbezug" mit dem Grund.
+2. **Nur Zeilen ab dem 1. Juli 2026** übernehmen (Lieferdatum). Ältere Zeilen
+   zählen, aber werden weder gespeichert noch zu Lieferungen — im Befund als
+   „ausserhalb des Zeitraums" ausweisen.
+3. **Alles zählt.** Keine Produzenten-Filter: die eine Halle, die eine Bilanz.
+4. **Journal `L` überspringen** (interne Umbuchung, ~1 t je Saison) — im
+   Befund als eigene Zahl nennen, nicht übernehmen.
 
 ## Wie du prüfst, dass es hält
 
