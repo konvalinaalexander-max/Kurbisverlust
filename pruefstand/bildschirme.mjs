@@ -44,6 +44,12 @@ const fixture = name => {
 
 import { filtern, seite } from './postgrest.mjs'
 
+// Was ein Klickweg schreibt, liest die App gleich darauf wieder — der
+// Abschluss-Assistent lässt erst weiter, wenn die Messung da ist. Ohne
+// Gedächtnis bliebe er auf dem Schritt stehen. Je Bildschirm frisch (unten).
+let geschrieben = {}
+let naechsteId = 90001
+
 async function restAntwort(route) {
   const url = new URL(route.request().url())
   const name = url.pathname.replace(/^.*\/rest\/v1\//, '')
@@ -53,6 +59,11 @@ async function restAntwort(route) {
     const fn = name.slice(4)
     if (fn === 'auswertung_aktualisieren') {
       return route.fulfill({ json: new Date().toISOString() })
+    }
+    if (fn === 'auswertung_schritt') {
+      const body = JSON.parse(route.request().postData() ?? '{}')
+      const i = Number(body.p_schritt ?? 1)
+      return route.fulfill({ json: { schritt: i, schritte: 5, titel: ['Rohdaten', 'Arbeiten', 'Kaskade', 'Ergebnis', 'Befunde'][i - 1], dauer_ms: 1, fertig: i === 5 } })
     }
     if (fn === 'schema_stand') return route.fulfill({ json: SCHEMA_STAND })
     if (fn === 'palox_letzter_stand') {
@@ -66,22 +77,26 @@ async function restAntwort(route) {
     return route.fulfill({ json: daten ?? null })
   }
 
-  // Schreiben: die App liest danach ohnehin neu — Hauptsache kein Fehler.
+  // Schreiben: gemerkt, damit die App das Geschriebene wiederfindet.
   if (methode !== 'GET' && methode !== 'HEAD') {
     const body = route.request().postData()
     let echo = []
-    try { echo = JSON.parse(body ?? '[]') } catch { /* leer lassen */ }
-    if (!Array.isArray(echo)) echo = [{ id: 90001, ...echo }]
+    try { echo = JSON.parse(body ?? 'null') } catch { /* leer lassen */ }
+    if (echo === null) echo = []
+    if (!Array.isArray(echo)) echo = [echo]
+    echo = echo.map(z => ({ id: naechsteId++, ts: new Date().toISOString(), ...z }))
+    if (methode === 'POST') geschrieben[name] = [...(geschrieben[name] ?? []), ...echo]
     const einzeln = (route.request().headers()['accept'] ?? '').includes('pgrst.object')
     return route.fulfill({ status: 201, json: einzeln ? (echo[0] ?? {}) : echo })
   }
 
-  const zeilen = fixture(name)
-  if (zeilen === null) {
+  const fest = fixture(name)
+  const dazu = geschrieben[name] ?? []
+  if (fest === null && dazu.length === 0) {
     console.warn(`  ! kein Fixture für ${name} — leere Antwort`)
     return route.fulfill({ json: [] })
   }
-  const erg = seite(filtern(zeilen, url.searchParams), route.request().headers())
+  const erg = seite(filtern([...(fest ?? []), ...dazu], url.searchParams), route.request().headers())
 
   if (methode === 'HEAD') {
     return route.fulfill({ status: 200, headers: {
@@ -190,21 +205,33 @@ const BILDSCHIRME = [
   { name: 'arbeit-wiegen', wer: 'arbeiter', pfad: '/arbeit/OFFEN',
     tun: async p => { await p.locator('#zettel').fill('2026-09-01'); await p.locator('#zettel-brutto').fill('950'); await p.locator('#zum-wiegen').click() } },
   { name: 'arbeit-kisten', wer: 'arbeiter', pfad: '/arbeit/OFFENKISTEN' },
+  // Waschen (0061): Paletten aus dem Zwischenlager — Sortierdatum und Kisten je Palette
+  { name: 'arbeit-wasch-paletten', wer: 'arbeiter', pfad: '/arbeit/OFFENWASCHEN' },
   { name: 'arbeit-liste', wer: 'arbeiter', pfad: '/arbeit/OFFEN',
     tun: async p => { await p.getByRole('button', { name: T('ichFuehre') }).click() } },
   { name: 'arbeit-palox', wer: 'arbeiter', pfad: '/arbeit/OFFEN',
     tun: async p => { await p.getByRole('button', { name: T('ichFuehre') }).click(); await p.locator('#check-palox').click() } },
   { name: 'arbeit-ausgang', wer: 'arbeiter', pfad: '/arbeit/OFFEN',
     tun: async p => { await p.getByRole('button', { name: T('ichFuehre') }).click(); await p.locator('#check-ausgang').click() } },
+  // Zu klein / zu gross je Palette, am Ende der Waschstrasse mit Sortieren (0061)
+  { name: 'arbeit-ausschuss', wer: 'arbeiter', pfad: '/arbeit/OFFEN',
+    tun: async p => { await p.getByRole('button', { name: T('ichFuehre') }).click(); await p.locator('#check-ausschuss').click() } },
   { name: 'arbeit-abschluss', wer: 'arbeiter', pfad: '/arbeit/OFFEN',
     tun: async p => { await p.getByRole('button', { name: T('ichFuehre') }).click(); await p.locator('#check-abschluss').click() } },
   { name: 'arbeit-abschluss-pruefen', wer: 'arbeiter', pfad: '/arbeit/OFFEN',
     tun: async p => {
       await p.getByRole('button', { name: T('ichFuehre') }).click(); await p.locator('#check-abschluss').click()
       await p.locator('#palox').fill('165'); await p.locator('#palox-eintragen').click()
-      // Nach der Ablesung kommt die fertige Palette (wo das Kistensystem rechenbar ist) oder gleich die Chargenfrage
-      await p.locator('#a-brutto, #charge-ja').first().waitFor()
-      if (await p.locator('#a-brutto').count()) await p.getByRole('button', { name: T('keineGewogen') }).or(p.getByRole('button', { name: T('weiter') })).first().click()
+      // Danach je Station (0061): die Wiege-Erinnerung, zu klein / zu gross,
+      // die fertigen Paletten — und zuletzt die Chargenfrage. Jeder Schritt
+      // wird genommen, wie er kommt; keiner ist auf jeder Station da.
+      for (let i = 0; i < 5; i++) {
+        await p.locator('#aus-nichts, #charge-ja, .haupt-unten button').first().waitFor()
+        if (await p.locator('#charge-ja').count()) break
+        if (await p.locator('#aus-nichts').count()) { await p.locator('#aus-nichts').click(); await p.waitForTimeout(300) }
+        await p.locator('.haupt-unten button:not([disabled])').first().click()
+        await p.waitForTimeout(300)
+      }
       await p.locator('#charge-ja').click(); await p.getByRole('button', { name: T('weiter') }).click()
     } },
   // Fax (0051, 0060): Paletten als Gesamtzahl, Faules wiegen
@@ -214,6 +241,8 @@ const BILDSCHIRME = [
   { name: 'arbeit-fax-faule', wer: 'arbeiter', pfad: '/arbeit/OFFENFAX',
     tun: async p => { await p.getByRole('button', { name: T('ichFuehre') }).click(); await p.locator('#check-faule').click() } },
   { name: 'kontrolle', wer: 'arbeiter', pfad: '/kontrolle' },
+  // Die Korrektur (Runde H): der Betriebsleiter berichtigt die Messungen einer Arbeit
+  { name: 'arbeit-korrektur', wer: 'admin', pfad: '/arbeit/FERTIG?korrigieren=1' },
   // Betriebsleiter: fünf Reiter
   { name: 'ueberblick', wer: 'admin', pfad: '/dashboard' },
   { name: 'ueberblick-sorte', wer: 'admin', pfad: '/dashboard',
@@ -269,10 +298,17 @@ const ohneFax = offene.filter(a => !a.ist_fax)
 const hand = ohneFax.filter(a => a.station === 'waschen_sortieren')
 const OFFEN_ID = hand.length ? Math.max(...hand.map(a => a.id))
   : ohneFax.length ? Math.max(...ohneFax.map(a => a.id)) : offene.length ? Math.max(...offene.map(a => a.id)) : 1
-// Die Kisten-Maske gibt es nur dort, wo es Kaliber-Kisten gibt — an der
-// Waschstrasse mit Sortieren (waschen_sortieren) geht die Ware direkt raus.
-const mitKisten = offene.filter(a => a.station !== 'waschen_sortieren' && !a.ist_fax)
+// Die Kisten-Maske gibt es seit 0061 nur noch beim Sortieren: dort werden die
+// gefüllten Kaliber-Kisten gezählt. Beim Waschen sind es Paletten mit
+// Sortierdatum und Kistenzahl, an der Waschstrasse geht die Ware direkt raus.
+const mitKisten = offene.filter(a => a.station === 'sortieren' && !a.ist_fax)
 const OFFEN_KISTEN_ID = mitKisten.length ? Math.max(...mitKisten.map(a => a.id)) : OFFEN_ID
+// Waschen aus dem Zwischenlager: der Palettenzähler mit Sortierdatum (0061)
+const waschen = offene.filter(a => a.station === 'waschen' && !a.ist_fax)
+const OFFEN_WASCHEN_ID = waschen.length ? Math.max(...waschen.map(a => a.id)) : OFFEN_ID
+// Eine fertige Arbeit für die Korrektur-Ansicht des Betriebsleiters (Runde H)
+const fertige = auftraege.filter(a => a.status === 'abgeschlossen' && !a.abgebrochen_ts && !a.ist_fax)
+const FERTIG_ID = fertige.length ? Math.max(...fertige.map(a => a.id)) : OFFEN_ID
 const faxOffen = offene.filter(a => a.ist_fax)
 const OFFEN_FAX_ID = faxOffen.length ? Math.max(...faxOffen.map(a => a.id)) : OFFEN_ID
 
@@ -294,6 +330,7 @@ for (const geraet of GERAETE) {
         locale: 'de-CH',
       })
       const seite = await kontext.newPage()
+      geschrieben = {}          // jeder Bildschirm beginnt bei den Fixtures
       const meldungen = []
       seite.on('console', m => { if (m.type() === 'error') meldungen.push(m.text()) })
       seite.on('pageerror', f => meldungen.push(String(f)))
@@ -311,7 +348,9 @@ for (const geraet of GERAETE) {
       }, { wer: schirm.wer, frisch: schirm.frisch ?? false, sprache: SPRACHE })
 
       const pfad = schirm.pfad.replace('OFFENKISTEN', String(OFFEN_KISTEN_ID))
+                              .replace('OFFENWASCHEN', String(OFFEN_WASCHEN_ID))
                               .replace('OFFENFAX', String(OFFEN_FAX_ID))
+                              .replace('FERTIG', String(FERTIG_ID))
                               .replace('OFFEN', String(OFFEN_ID))
       await seite.goto(`http://localhost:5199${pfad}`, { waitUntil: 'networkidle' })
 

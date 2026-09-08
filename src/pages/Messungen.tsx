@@ -1,8 +1,8 @@
 import { datum, kg, prozent, zahl } from '../lib/format'
-import { Hinweis, Karte, Lade, Marke } from '../components/Bausteine'
-import { Diagramm } from '../components/Diagramm'
+import { Aufklapp, Hinweis, Karte, Marke } from '../components/Bausteine'
+import { Linien } from '../components/Diagramm'
 import { useAuswertung, type Datenqualitaet } from '../auswertung/daten'
-import { Auffaelligkeiten, Bilanz, Herkunft, Probleme, Reiterkopf } from '../auswertung/Karten'
+import { Auffaelligkeiten, Bilanz, Kurvenherkunft, Probleme, Rechnet, Reiterkopf } from '../auswertung/Karten'
 import { STATION_NAME } from '../lib/format'
 
 const TAG = 86400000
@@ -13,8 +13,8 @@ const TAG = 86400000
  * beruhen die Koeffizienten, und was das Modell nicht weiss.
  */
 export default function Messungen() {
-  const { daten, laedt, fehler, neuRechnen } = useAuswertung()
-  if (laedt && !daten) return <Lade text="Auswertung wird gerechnet …" />
+  const { daten, laedt, fehler, fortschritt, neuRechnen } = useAuswertung()
+  if (laedt && !daten) return <Rechnet fortschritt={fortschritt} />
   if (fehler) return <Hinweis art="warnung">{fehler}</Hinweis>
   if (!daten) return null
   const m = daten.modell
@@ -34,12 +34,12 @@ export default function Messungen() {
 
   return (
     <>
-      <Reiterkopf titel="Messungen" zweck="Was weiss die Auswertung — und was nicht? Vollständigkeit, Lücken, Auffälligkeiten, Koeffizienten, Modell."
-                  stand={daten.stand} neuRechnen={() => void neuRechnen()} />
+      <Reiterkopf titel="Messungen" zweck="Was weiss die Auswertung — und was nicht? Auffälligkeiten (hier zu korrigieren), Vollständigkeit, Lücken, Koeffizienten, Modell."
+                  stand={daten.stand} heute={daten.heute} neuRechnen={() => void neuRechnen()} />
       <Probleme liste={daten.probleme} />
 
-      {daten.qualitaet && <Qualitaet q={daten.qualitaet} />}
       <Auffaelligkeiten befunde={daten.befunde} />
+      {daten.qualitaet && <Qualitaet q={daten.qualitaet} />}
 
       {taraLuecken.length > 0 && (
         <Hinweis art="warnung"><strong>Fehlende Tara verzerrt alles darüber.</strong> Bei {taraLuecken.length} Chargen fehlt für einen Teil der Paletten das Leergewicht des Gebindes; diese Paletten zählen nicht in die Eingangsmasse. Unter Betrieb → Stammdaten → Gebinde nachtragen.</Hinweis>
@@ -61,7 +61,7 @@ export default function Messungen() {
 
       <Karte titel="Wird das Älteste zuerst verarbeitet?">
         <p className="leise">Je Arbeit: das Alter der gezählten Paletten gegen das mittlere Alter der Charge an dem Tag. Über null heisst: älter als der Durchschnitt verarbeitet. Wer nach Aussehen auswählt, misst den Verderb zu flach — das ist die Fehlerquelle, die keine Rechnung wegbekommt.</p>
-        <Diagramm reihen={[{ name: 'Arbeit', farbe: 'var(--strom-schimmel)',
+        <Linien reihen={[{ name: 'Arbeit', farbe: 'var(--strom-schimmel)',
                              punkte: alter.map(v => ({ x: Date.parse(v.tag) / TAG, y: v.differenz ?? 0, text: `Charge ${v.charge_nr} · ${STATION_NAME[v.station] ?? v.station} · ${v.n_paletten} Paletten` })) }]}
                   xFormat={d => datum(new Date(d * TAG)).slice(0, 5)} yFormat={y => `${y > 0 ? '+' : ''}${Math.round(y)} d`} xTitel="Tag" yTitel="Tage gegenüber dem Durchschnitt"
                   leer="noch keine Arbeit mit datierten Paletten" />
@@ -82,6 +82,7 @@ export default function Messungen() {
               return <div key={s}><div className="leise">{STATION_NAME[s] ?? s}</div><strong>{mittel === null ? '—' : `${Math.round(mittel)} kg/h`}</strong><div className="leise">{eigene.length} Arbeiten mit Masse</div></div>
             })}
           </div>
+          <Aufklapp titel={<>Die letzten Arbeiten <span className="leise">({Math.min(daten.durchsatz.length, 40)} von {daten.durchsatz.length})</span></>}>
           <div className="rollbar"><table>
             <thead><tr><th>Start</th><th>Arbeit</th><th>Charge</th><th className="zahl">Dauer</th><th className="zahl">Masse</th><th className="zahl">kg/h</th><th className="zahl">Leute</th></tr></thead>
             <tbody>{daten.durchsatz.slice(0, 40).map(d => (
@@ -90,6 +91,7 @@ export default function Messungen() {
                 <td className="zahl">{d.kg_pro_h != null ? zahl(d.kg_pro_h) : '—'}</td><td className="zahl">{d.n_teilnehmer}</td></tr>
             ))}</tbody>
           </table></div>
+          </Aufklapp>
         </Karte>
       )}
 
@@ -136,10 +138,11 @@ export default function Messungen() {
           )}
         </Karte>
       )}
-      <Herkunft punkte={daten.punkte} />
+      <Kurvenherkunft punkte={daten.punkte} />
 
       <Karte titel="Massenbilanz je Charge" aktion={<button onClick={exportieren}>CSV exportieren</button>}>
         <p className="leise">Die Probe aufs Exempel: das Modell sagt voraus, wie viel Masse am Sortierband ankommen müsste; die CSV hat sie gewogen.</p>
+        <Aufklapp titel={<>Je Charge <span className="leise">({daten.bilanz.filter(b => b.eingang_kg !== null).length} Chargen)</span></>}>
         <div className="rollbar"><table>
           <thead><tr><th>Charge</th><th className="zahl">Eingang</th><th className="zahl">ausgelagert</th><th className="zahl">im Lager</th><th className="zahl">Modell</th><th className="zahl">gewogen</th><th className="zahl">Abweichung</th></tr></thead>
           <tbody>{daten.bilanz.filter(b => b.eingang_kg !== null).map(b => (
@@ -148,11 +151,13 @@ export default function Messungen() {
               <td className="zahl">{b.abweichung_anteil === null ? '—' : <Marke art={Math.abs(b.abweichung_anteil) < 0.1 ? 'fertig' : 'warnung'}>{prozent(b.abweichung_anteil)}</Marke>}</td></tr>
           ))}</tbody>
         </table></div>
-        <p className="leise" style={{ margin: '.5rem 0 0' }}>Ware im Lager wird bis zum Stichtag <strong>{datum(daten.bilanz[0]?.stichtag)}</strong> projiziert (Betrieb → Stammdaten → Einstellungen).</p>
+        </Aufklapp>
+        <p className="leise" style={{ margin: '.5rem 0 0' }}>Die Ware im Lager ist bis heute, <strong>{datum(daten.heute)}</strong>, gealtert — nicht bis zum Saisonende. Die Prognose bis dahin steht nur im Verlauf des Überblicks.</p>
       </Karte>
 
       {daten.wiegungen.length > 0 && (
         <Karte titel={`Gewogene Paletten (${daten.wiegungen.length})`}>
+          <Aufklapp titel={<>Die letzten Wägungen <span className="leise">({Math.min(daten.wiegungen.length, 40)} von {daten.wiegungen.length})</span></>}>
           <div className="rollbar"><table>
             <thead><tr><th>Charge</th><th className="zahl">Lagertage</th><th className="zahl">Netto damals</th><th className="zahl">Netto jetzt</th><th className="zahl">Verlust</th><th className="zahl">kg/Kiste</th><th className="zahl">kg/Kürbis</th></tr></thead>
             <tbody>{daten.wiegungen.slice(0, 40).map(w => (
@@ -160,6 +165,7 @@ export default function Messungen() {
                 <td className="zahl">{kg(w.netto_jetzt_kg, 1)}</td><td className="zahl">{kg(w.verlust_kg, 1)}</td><td className="zahl">{w.kg_pro_kiste?.toFixed(2) ?? '—'}</td><td className="zahl">{w.kg_pro_kuerbis?.toFixed(2) ?? '—'}</td></tr>
             ))}</tbody>
           </table></div>
+          </Aufklapp>
           <p className="leise" style={{ marginTop: '.5rem' }}>⚠ = sichtbar Faules auf der Palette; zählt nicht in die Verdunstungsrate.</p>
         </Karte>
       )}
@@ -176,12 +182,12 @@ function Qualitaet({ q }: { q: Datenqualitaet }) {
     { name: 'Abschlussfrage „alles aus einer Charge?" beantwortet', ab: 'AB-04', ist: q.arbeiten_mit_antwort, von: q.arbeiten_fertig, hinweis: 'ohne Antwort ist das Alter geraten' },
     { name: 'Sortier-CSV einer Arbeit zugeordnet', ab: '—', ist: q.sortierlaeufe_zugeordnet, von: q.sortierlaeufe, hinweis: 'unzugeordnet: Betrieb → Warteschlange' },
     { name: 'Kisten am Sortieren gezählt', ab: 'AB-12', ist: q.sortier_arbeiten_mit_kisten, von: q.sortier_arbeiten, hinweis: 'daraus entsteht das Kistengewicht' },
-    { name: 'Kisten am Waschbecken gezählt (mit Kaliber)', ab: 'AB-12', ist: q.wasch_arbeiten_mit_kisten, von: q.wasch_arbeiten, hinweis: 'sonst hat der Schimmel am Waschbecken keinen Nenner' },
+    { name: 'Waschen: Paletten gezählt (Kisten und Sortierdatum, mit Kaliber)', ab: 'AB-31', ist: q.wasch_arbeiten_mit_kisten, von: q.wasch_arbeiten, hinweis: 'sonst hat das Faule am Waschbecken keinen Nenner' },
     { name: 'Fax: Paletten oder Kisten gezählt', ab: 'AB-24', ist: q.fax_arbeiten_mit_kisten, von: q.fax_arbeiten, hinweis: 'ohne Palettenzahl hat das Faule beim Abpacken keinen Nenner' },
     { name: 'Fax: Faules gewogen (auch „nichts Faules")', ab: '0051', ist: q.fax_arbeiten_mit_faulem, von: q.fax_arbeiten, hinweis: 'sonst bleibt der Fax-Strom unbekannt' },
     { name: 'Waschen + Sortieren: Gewicht vom Zettel bei gezählten Paletten', ab: 'AB-25', ist: q.ws_paletten_mit_zettelgewicht, von: q.ws_paletten_gezaehlt, hinweis: 'ohne Zettelgewicht hat der Palox keinen Nenner' },
     { name: 'Kistensystem nach dem Waschen beantwortet', ab: 'AB-26', ist: q.arbeiten_mit_kistensystem, von: q.arbeiten_nach_waschen, hinweis: 'sonst weiss die Auswertung nicht, ob eine Kiste rechenbar ist' },
-    { name: 'Waschen: Sortierdatum je Kiste (oder „kein Datum")', ab: 'AB-27', ist: q.wasch_kisten_mit_sortierdatum, von: q.wasch_kisten_gezaehlt, hinweis: 'das Datum auf der Kiste sagt, wie lange die Ware nach dem Sortieren stand' },
+    { name: 'Waschen: Sortierdatum je gezählter Palette', ab: 'AB-31', ist: q.wasch_kisten_mit_sortierdatum, von: q.wasch_kisten_gezaehlt, hinweis: 'das Datum auf dem Zettel sagt, wie lange die Ware nach dem Sortieren stand' },
   ]
   const unbekannt = q.arbeiten_mit_palox_unbekannt
   return (
@@ -203,7 +209,7 @@ function Qualitaet({ q }: { q: Datenqualitaet }) {
         )
       })}
       <p className="leise" style={{ margin: '.5rem 0 0' }}>
-        Lagerkontrollen: <strong>{q.lagerkontrollen}</strong>{q.lagerkontrollen > 0 && <>, davon {q.lagerkontrollen_zufaellig} zufällig unter den erreichbaren gegriffen (AB-09)</>}. Zwölf je Saison machen den Bereich des Sockels ehrlich.
+        Lagerkontrollen: <strong>{q.lagerkontrollen}</strong> gewogene Paletten — jede ist ein Punkt in der Verdunstungskurve; die App schlägt vor, wo eine Wägung am meisten bringt (Bestand × Tage seit der letzten Wägung).
         {unbekannt > 0 && <> Bei <strong>{unbekannt}</strong> Arbeiten fiel der Palox-Stand zwischendurch (geleert ohne Ablesung) — ihr Faules ist unbekannt und fehlt in der Kurve; die Arbeiten stehen unter Auffälligkeiten.</>}
       </p>
     </Karte>

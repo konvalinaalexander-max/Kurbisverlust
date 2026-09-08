@@ -62,12 +62,12 @@ declare -A AUSNAHME=(
   [n_dubletten]="CSV, gezählt" [n_gueltig]="CSV, gezählt"
   [gelesen_ts]="CSV, Zeitstempel"
   [datei_name]="CSV-Upload, aus der Datei"
-  [sichtbar_schimmel]="abgeleitet aus faul_kg > 0"
+  [sichtbar_schimmel]="seit 0061 nicht mehr gesetzt (war aus faul_kg abgeleitet); alte Wägungen behalten die Marke"
   [teilgewicht]="Alt-Spalte (war-die-Box-voll), von keiner heutigen Maske genutzt"
   [kaeufer]="seit 0060 nicht mehr gefragt — das Kistensystem steht an der Arbeit; alte Arbeiten behalten ihren Käufer"
   [palox_geleert]="seit 0060 kein Häkchen mehr: ein gefallener Stand heisst geleert, die Menge ist dann unbekannt"
-  [art]="ausschuss_messung (zu klein / zu gross) wird seit 0060 nicht mehr erfasst — der Anteil kommt aus der Sortier-CSV; sortierschema.art wählt die Datenbank aus dem Kistensystem"
-  [schaetzung]="ausschuss_messung, seit 0060 ohne Maske"
+  [faul_kg]="seit 0061 nicht mehr gefragt: beim Wiegen wird die Palette nicht ausgepackt — was faul ist, zählt der Palox (Arbeit) oder die Kiste (Fax)"
+  [auswahl]="seit 0061 nicht mehr gefragt: die Palette wird genommen, wie sie steht — wie sie gegriffen wurde, kann niemand beurteilen"
 )
 
 echo "── Lückenscanner ──────────────────────────────────────────────"

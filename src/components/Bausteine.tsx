@@ -37,43 +37,6 @@ export function Kennzahl({ titel, wert, unter }: { titel: string; wert: ReactNod
   )
 }
 
-/** Ein Ankreuzfeld mit Text — überall gleich gebaut, 44 px hoch, Handschuh-tauglich. */
-export function Ankreuzen({ wert, setzen, gesperrt, children }: {
-  wert: boolean; setzen: (w: boolean) => void; gesperrt?: boolean; children: ReactNode
-}) {
-  return (
-    <label className="ankreuzen">
-      <input type="checkbox" checked={wert} disabled={gesperrt}
-             onChange={e => setzen(e.target.checked)} />
-      {children}
-    </label>
-  )
-}
-
-/**
- * Ein Verlustbalken mit dem Unsicherheitsbereich als Fehlerbalken darüber.
- * Der schraffierte Teil ist projiziert, der volle beobachtet — der Unterschied
- * zwischen „das haben wir gesehen" und „das rechnen wir hoch" muss sichtbar
- * bleiben, sonst wird aus einer Schätzung stillschweigend eine Messung.
- */
-export function Balken({ wert, unten, oben, maximum, beobachtet }: {
-  wert: number | null; unten: number | null; oben: number | null
-  maximum: number; beobachtet?: number | null
-}) {
-  if (wert === null || maximum <= 0) return <div className="balken-spur" />
-  const p = (n: number) => `${Math.max(0, Math.min(100, (n / maximum) * 100))}%`
-  const beob = beobachtet ?? 0
-  return (
-    <div className="balken-spur">
-      <div className="balken-fuellung projiziert" style={{ width: p(wert) }} />
-      {beob > 0 && <div className="balken-fuellung" style={{ width: p(beob) }} />}
-      {unten !== null && oben !== null && oben > unten && (
-        <div className="balken-bereich"
-             style={{ left: p(unten), width: `calc(${p(oben)} - ${p(unten)})` }} />
-      )}
-    </div>
-  )
-}
 
 /**
  * Der aufklappbare Rechenweg (Spec §11, Ebene 3). Jede Zahl im Dashboard muss
@@ -97,4 +60,39 @@ export function Rechenweg({ zeilen }: { zeilen: [string, ReactNode][] }) {
 
 export function Marke({ art, children }: { art?: 'offen' | 'fertig' | 'warnung'; children: ReactNode }) {
   return <span className={`marke-klein ${art ?? ''}`}>{children}</span>
+}
+
+/**
+ * Die Herkunft einer Zahl, an jeder Zahl (Runde H): gemessen (aus einer
+ * vollständigen Liste: Erntejournal, Lieferscheine, Verkaufsdatei),
+ * gerechnet (aus Stichproben hochgerechnet, bis heute) oder Prognose (über
+ * heute hinaus). Wer das nicht sieht, hält eine Rechnung für eine Messung.
+ */
+export function Herkunft({ art, text }: { art: 'gemessen' | 'gerechnet' | 'prognose'; text?: string }) {
+  return <span className={`herkunft ${art}`} title={text ?? (art === 'gemessen' ? 'aus einer vollständigen Liste' : art === 'gerechnet' ? 'aus Stichproben hochgerechnet, bis heute' : 'über heute hinaus gerechnet')}>{art}</span>
+}
+
+/** Eine Zeile grosser Zahlen mit Titel und Untertitel — die Kopfzahlen einer Ursache. */
+export function Zahlen({ zeilen }: { zeilen: { titel: ReactNode; wert: ReactNode; unter?: ReactNode }[] }) {
+  return (
+    <div className="zahlenzeile">
+      {zeilen.map((z, i) => (
+        <div key={i}>
+          <div className="titel">{z.titel}</div>
+          <div className="wert">{z.wert}</div>
+          {z.unter && <div className="unter">{z.unter}</div>}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+/** Aufklappbar — eine lange Liste, die zu ist, bis man sie will. */
+export function Aufklapp({ titel, offen = false, children }: { titel: ReactNode; offen?: boolean; children: ReactNode }) {
+  return (
+    <details className="aufklapp" open={offen}>
+      <summary>{titel}</summary>
+      {children}
+    </details>
+  )
 }

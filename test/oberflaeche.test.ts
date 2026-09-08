@@ -21,17 +21,25 @@ test('„Buch A" und „Buch B" stehen in keiner Oberfläche und keinem Text', (
   assert.deepEqual(treffer, [])
 })
 
-test('keine Arbeiter-Maske schreibt mehr einen Käufer oder eine Ausschuss-Messung', () => {
+test('keine Arbeiter-Maske schreibt mehr einen Käufer; Ausschuss nur gewogen je Palette (0061)', () => {
   // Die Masken des Arbeiters: src/arbeit und die Arbeiter-Seiten. Der
   // Betriebsleiter darf alte Fassungen je Käufer weiter pflegen und lesen.
+  // Zu klein / zu gross schreibt genau eine Maske — die am Ende des Waschens
+  // + Sortierens, Palette für Palette mit Brutto (oder „nichts", 0 kg); eine
+  // geschätzte Kilozahl gibt es nirgends mehr.
   const masken = alle.filter(d => /\/src\/arbeit\//.test(d.p) || /\/src\/pages\/(Start|NeueArbeit|Arbeit|Kontrolle)\.tsx$/.test(d.p))
   const schreibt: string[] = []
   for (const d of masken) {
-    if (/from\('ausschuss_messung'\)\s*\.\s*(insert|upsert)/s.test(d.text)) schreibt.push(d.p.replace(SRC, 'src'))
+    if (/from\('ausschuss_messung'\)\s*\.\s*(insert|upsert)/s.test(d.text) && !/\/src\/arbeit\/AusschussMaske\.tsx$/.test(d.p)) schreibt.push(d.p.replace(SRC, 'src'))
     for (const m of d.text.matchAll(/\bkaeufer:\s*(\S+)/g)) {
       const wert = m[1].replace(/[,;)]+$/, '')
       if (wert !== 'null' && wert !== 'string') schreibt.push(`${d.p.replace(SRC, 'src')} (${m[0]})`)
     }
   }
   assert.deepEqual(schreibt, [])
+  const maske = alle.find(d => /\/src\/arbeit\/AusschussMaske\.tsx$/.test(d.p))
+  assert.ok(maske, 'AusschussMaske.tsx fehlt')
+  const inserts = [...maske.text.matchAll(/from\('ausschuss_messung'\)\.insert\(([^]*?)\)\s*$/gm)].map(m => m[1])
+  assert.ok(inserts.length >= 2, 'Die Maske schreibt gewogen und „nichts"')
+  for (const i of inserts) assert.ok(/brutto_kg: b/.test(i) || /kg: 0/.test(i), `Ausschuss ohne Brutto und nicht 0: ${i}`)
 })

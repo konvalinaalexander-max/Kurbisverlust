@@ -5,6 +5,24 @@ Sie ist der Massstab, an dem sich Datenmodell und Oberflächen messen lassen
 müssen. Wo das Modell etwas annimmt, das niemand geprüft hat, steht es als
 Annahme da — unmarkierte Annahmen sind der Anfang jedes stillen Fehlers.
 
+## Die Antworten vom 9. September — bis heute, und nur Gemessenes
+
+Die zweite Durchsicht galt der Auswertung und der Arbeiter-App. Der Satz,
+der sie ordnet: *„Behaupte nichts, was du nicht wissen kannst."* Was daraus
+folgt (umgesetzt in 0061, Beweise in `ABMACHUNGEN.md` AB-31 bis AB-38):
+
+| Was der Betrieb sagte | Was die App jetzt tut |
+|---|---|
+| Die Zahlen sollen sagen, wo wir **heute** stehen — nicht, wo wir am Saisonende stünden | Alles altert bis heute; „noch im Haus" ist Eingang − Ausgang − Verlust bis heute. Die Prognose steht getrennt, gestrichelt ab der Heute-Marke (AB-31) |
+| Die Auswertung darf nicht mehr abstürzen und nicht ewig laden | Die App liest nur gespeicherte Ergebnisse und rechnet auf Knopfdruck in fünf Schritten mit Fortschritt; ein Schritt, der scheitert, nennt sich beim Namen (AB-32) |
+| Beim Waschen stehen die Kaliber-Kisten auf **Paletten**; auf dem Zettel steht das Sortierdatum | Gezählt wird die Palette: Sortierdatum vom Zettel (oder keines) und Kisten darauf. Masse = Kisten × gemessenes Kistengewicht (AB-33) |
+| Beim Waschen + Sortieren immer Eingangsdatum und Eingangsgewicht; vorher drei Paletten wiegen | Beides Pflicht je Palette; die Erinnerung an drei Wägungen kommt beim Abschluss, hält ihn aber nicht auf (AB-34) |
+| Zu klein / zu gross am Ende, Palette für Palette | Eine eigene Maske am Ende des Waschens + Sortierens: Art, Gewicht, Kisten, Kistenart; „nichts" ist eine Messung mit 0 kg (AB-34) |
+| Am Ende drei fertige Paletten wiegen | Beim Waschen verlangt (oder so viele, wie die Arbeit hergibt), beim Waschen + Sortieren erinnert (AB-35) |
+| Bei der Kontrolle „davon faul" und „wie gegriffen" weglassen | Beide Fragen sind weg — die Palette wird gewogen, nicht ausgepackt. Vorgeschlagen wird, wo eine Wägung am meisten bringt (AB-36) |
+| Überfüllung: Käufer überall raus, verkaufte Kisten aus den Verkaufsdateien | Zwei Blöcke nach Kistensystem, nur aus Gemessenem; verschenkt nur, wo gewogen **und** verkauft (AB-37) |
+| Fehlermeldungen gehören nicht zu den Chargen, sondern dorthin, wo man sie beheben kann | Auffälligkeiten stehen unter Messungen, mit „korrigieren" direkt in die Messungen der Arbeit (AB-38) |
+
 ## Die Antworten vom 8. September — punktuell erfasst, vollständig gerechnet
 
 Der Betrieb hat die App Maske für Maske durchgesehen. Der Satz, der alles

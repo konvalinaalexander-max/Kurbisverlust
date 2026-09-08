@@ -6,10 +6,11 @@ import { Hinweis } from '../components/Bausteine'
 import { Schritt, Wahl } from '../components/Schritte'
 import { PaloxMaske } from './PaloxMaske'
 import { FauleMaske } from './FauleMaske'
+import { AusschussMaske } from './AusschussMaske'
 import { FertigePaletteMaske } from './FertigePaletteMaske'
-import { stationsProfil, uhrzeit, type ArbeitDaten } from './daten'
+import { fertigeSoll, stationsProfil, uhrzeit, type ArbeitDaten } from './daten'
 
-type SchrittId = 'palox' | 'faule' | 'paletten' | 'kisten' | 'ausgang' | 'charge' | 'pruefen'
+type SchrittId = 'palox' | 'faule' | 'wiegen' | 'ausschuss' | 'paletten' | 'wasch_paletten' | 'ausgang' | 'charge' | 'pruefen'
 
 /**
  * Der geführte Abschluss (AB-02, AB-04, AB-05): Was man vergessen kann, wird
@@ -17,10 +18,15 @@ type SchrittId = 'palox' | 'faule' | 'paletten' | 'kisten' | 'ausgang' | 'charge
  * Faule wiegen), dann die Fragen, dann die Zusammenfassung. Der Knopf „Ja,
  * fertig" kommt erst, wenn nichts mehr fehlt; was fehlt, steht als Satz dabei.
  *
- * 0060: Zu klein / zu gross wird nicht mehr gefragt (der Anteil kommt aus der
- * Sortier-CSV). Neu: die fertige Palette, wo das Kistensystem rechenbar ist;
- * beim Fax die Palettenzahl als Gesamtzahl und die Tage seit dem Waschen;
- * beim Waschen ist der Palox freiwillig.
+ * Runde H (0061), je Station:
+ *  Waschen + Sortieren  Erinnerung, wenn weniger als drei Eingangspaletten
+ *                       gewogen sind (abschliessen geht trotzdem); dann zu
+ *                       klein / zu gross Palette für Palette (Pflicht — oder
+ *                       „nichts"); fertige Paletten, mindestens drei erinnert
+ *  Waschen              die gezählten Kaliber-Paletten nachsehen (Pflicht);
+ *                       fertige Paletten: drei verlangt, oder so viele, wie die
+ *                       Arbeit hergibt
+ *  Fax                  Palettenzahl als Gesamtzahl, Tage seit dem Waschen
  */
 export function Abschluss({ d, neuLaden, zurueck, fertig }: {
   d: ArbeitDaten; neuLaden: () => Promise<void>; zurueck: () => void; fertig: () => void
@@ -38,29 +44,43 @@ export function Abschluss({ d, neuLaden, zurueck, fertig }: {
   const [laeuft, setLaeuft] = useState(false)
 
   const kistenGezaehlt = d.gebinde.reduce((s, g) => s + g.anzahl, 0)
+  const waschKisten = d.paletten.reduce((s, x) => s + (x.kisten ?? 0), 0)
+  const gewogen = d.paletten.filter(x => x.wiegung_id != null).length
   const palettenOk = Number(paletten) > 0
+  const soll = fertigeSoll(d)
+  const wiegenErinnern = p.wiegenSoll > 0 && gewogen < p.wiegenSoll
   const schritte = useMemo<SchrittId[]>(() => [
     ...(p.hatPalox ? ['palox' as const] : []),
     ...(p.hatFaule ? ['faule' as const] : []),
+    ...(wiegenErinnern ? ['wiegen' as const] : []),
+    ...(p.hatAusschuss ? ['ausschuss' as const] : []),
     ...(p.hatFaxPaletten ? ['paletten' as const] : []),
-    ...(p.kistenPflicht ? ['kisten' as const] : []),
+    ...(p.hatWaschPaletten ? ['wasch_paletten' as const] : []),
     ...(p.hatAusgang ? ['ausgang' as const] : []),
     'charge',
     'pruefen',
-  ], [p.hatPalox, p.hatFaule, p.hatFaxPaletten, p.kistenPflicht, p.hatAusgang])
+  ], [p.hatPalox, p.hatFaule, wiegenErinnern, p.hatAusschuss, p.hatFaxPaletten, p.hatWaschPaletten, p.hatAusgang])
   const aktuell = schritte[Math.min(pos, schritte.length - 1)]
   const n = pos + 1, von = schritte.length
   const weiter = () => setPos(x => Math.min(x + 1, schritte.length - 1))
   const zurueckSchritt = () => (pos === 0 ? zurueck() : setPos(x => x - 1))
+  const ersetzen = (text: string, werte: Record<string, number>) =>
+    Object.entries(werte).reduce((s, [k, v]) => s.replace(`{${k}}`, String(v)), text)
 
   // Was noch fehlt — als Sätze, nicht als gesperrter Knopf ohne Grund.
   const fehlt: string[] = []
   if (p.paloxPflicht && d.ablesungen.length === 0) fehlt.push(t('paloxVorAbschluss'))
   if (p.hatFaule && d.ablesungen.length === 0) fehlt.push(t('faulesFehlt'))
   if (p.hatFaxPaletten && !palettenOk) fehlt.push(t('palettenGesamt'))
-  if (p.kistenPflicht && kistenGezaehlt === 0) fehlt.push(t('kistenFehlen'))
+  if (p.hatWaschPaletten && waschKisten === 0) fehlt.push(t('palettenFehlen'))
+  if (p.hatAusschuss && d.ausschuss.length === 0) fehlt.push(t('ausschussFehlt'))
+  if (p.ausgangPflicht && d.nAusgang < soll) fehlt.push(ersetzen(t('fertigeFehlen'), { n: d.nAusgang, soll }))
   if (eineCharge === null || (eineCharge === false && gleicheSorte === null)) fehlt.push(t('eineChargeFrage'))
   const fertigMoeglich = fehlt.length === 0
+  // Erinnerungen: nicht Pflicht, aber gesagt (Runde H).
+  const erinnert: string[] = []
+  if (wiegenErinnern) erinnert.push(`${t('dreiWiegen')} ${ersetzen(t('nurGewogen'), { n: gewogen, soll: p.wiegenSoll })}`)
+  if (p.hatAusgang && !p.ausgangPflicht && d.nAusgang < soll) erinnert.push(`${t('dreiFertige')} ${ersetzen(t('nurGewogen'), { n: d.nAusgang, soll })}`)
 
   async function palettenSpeichern() {
     if (!palettenOk || laeuft) return
@@ -122,6 +142,27 @@ export function Abschluss({ d, neuLaden, zurueck, fertig }: {
     )
   }
 
+  if (aktuell === 'wiegen') {
+    // Waschen + Sortieren (Runde H): weniger als drei Eingangspaletten gewogen —
+    // gesagt, nicht erzwungen. Wiegen geht nur am Zähler, bevor die Palette in
+    // die Maschine kommt; hier bleibt nur die Erinnerung.
+    return (
+      <Schritt nummer={n} von={von} frage={t('dreiWiegen')} warum={t('dreiWiegenWarum')} zurueck={zurueckSchritt}
+               weiter={weiter} weiterText={t('trotzdemWeiter')}>
+        <Hinweis art="warnung">{ersetzen(t('nurGewogen'), { n: gewogen, soll: p.wiegenSoll })}</Hinweis>
+      </Schritt>
+    )
+  }
+
+  if (aktuell === 'ausschuss') {
+    return (
+      <Schritt nummer={n} von={von} frage={t('ausschussWiegenSchritt')} zurueck={zurueckSchritt}
+               weiter={d.ausschuss.length > 0 ? weiter : undefined}>
+        <AusschussMaske d={d} gesperrt={false} melden={() => undefined} neuLaden={neuLaden} />
+      </Schritt>
+    )
+  }
+
   if (aktuell === 'paletten') {
     // Fax (0060): die Palettenzahl als Gesamtzahl, dazu freiwillig die Tage seit dem Waschen
     return (
@@ -144,26 +185,31 @@ export function Abschluss({ d, neuLaden, zurueck, fertig }: {
     )
   }
 
-  if (aktuell === 'kisten') {
-    // Die Menge kommt aus den gezählten Kisten — hier wird nur nachgesehen,
-    // ob sie da sind, und mit welchem Sortierdatum.
-    const daten = [...new Set(d.gebinde.filter(g => g.anzahl > 0).map(g => g.datum_fehlt ? t('keinDatumKiste') : (g.sortierdatum ?? '—')))]
+  if (aktuell === 'wasch_paletten') {
+    // Waschen (0061): die Menge sind die gezählten Kaliber-Paletten — hier wird
+    // nur nachgesehen, ob sie da sind, mit welchen Sortierdaten.
+    const daten = [...new Set(d.paletten.filter(x => x.kisten != null).map(x => x.sortierdatum ?? t('keinSortierdatum')))]
     return (
-      <Schritt nummer={n} von={von} frage={t('kaliberKisten')} warum={t('sortierdatumErkl')} zurueck={zurueckSchritt}
-               weiter={kistenGezaehlt > 0 ? weiter : undefined}>
-        {kistenGezaehlt > 0
-          ? <Hinweis art="gut">{kistenGezaehlt} {t('kistenGezaehltGut')}{daten.length > 0 && <> · {t('sortierdatumKiste')}: {daten.join(', ')}</>}</Hinweis>
-          : <Hinweis art="warnung">{t('kistenFehlen')}</Hinweis>}
+      <Schritt nummer={n} von={von} frage={t('paletten')} warum={t('waschPalettenWarum')} zurueck={zurueckSchritt}
+               weiter={waschKisten > 0 ? weiter : undefined}>
+        {waschKisten > 0
+          ? <Hinweis art="gut">{ersetzen(t('palettenGezaehltGut'), { n: d.paletten.length, kisten: waschKisten })}{daten.length > 0 && <> · {t('sortierdatumZettel')}: {daten.join(', ')}</>}</Hinweis>
+          : <Hinweis art="warnung">{t('palettenFehlen')}</Hinweis>}
       </Schritt>
     )
   }
 
   if (aktuell === 'ausgang') {
-    // Fertige Palette (0060): gefragt, wo das Kistensystem rechenbar ist; freiwillig.
+    // Fertige Paletten (0060/0061): beim Waschen verlangt (drei, oder so viele,
+    // wie die Arbeit hergibt); beim Waschen + Sortieren erinnert.
+    const genug = d.nAusgang >= soll
     return (
       <Schritt nummer={n} von={von} frage={t('fertigePaletteSchritt')} warum={t('fertigePaletteWarum')} zurueck={zurueckSchritt}
-               weiter={weiter} weiterText={d.nAusgang > 0 ? t('weiter') : t('keineGewogen')}>
-        {d.nAusgang > 0 && <Hinweis art="gut">{d.nAusgang} {t('palettenGewogen')}</Hinweis>}
+               weiter={p.ausgangPflicht && !genug ? undefined : weiter}
+               weiterText={genug ? t('weiter') : d.nAusgang > 0 ? t('trotzdemWeiter') : t('keineGewogen')}>
+        {genug
+          ? <Hinweis art="gut">{d.nAusgang} {t('palettenGewogen')}</Hinweis>
+          : <Hinweis art={p.ausgangPflicht ? 'warnung' : 'info'}>{t('dreiFertige')} {ersetzen(t('nurGewogen'), { n: d.nAusgang, soll })}</Hinweis>}
         <FertigePaletteMaske d={d} gesperrt={false} melden={() => undefined} neuLaden={neuLaden} />
       </Schritt>
     )
@@ -193,20 +239,24 @@ export function Abschluss({ d, neuLaden, zurueck, fertig }: {
   }
 
   // pruefen
+  const ausschussSumme = (a: 'zu_klein' | 'zu_gross') => d.ausschuss.filter(z => z.art === a).reduce((s, z) => s + z.kg, 0)
   return (
     <Schritt nummer={n} von={von} frage={t('allesRichtig')} zurueck={zurueckSchritt}>
       <div className="karte">
         <dl className="zusammenfassung">
-          {p.hatPaletten && <><dt>{t('paletten')}</dt><dd>{d.paletten.length}</dd></>}
+          {p.hatPaletten && <><dt>{t('paletten')}</dt><dd>{d.paletten.length}{gewogen > 0 && <span className="leise"> · {gewogen} {t('gewogen')}</span>}</dd></>}
+          {p.hatWaschPaletten && <><dt>{t('paletten')}</dt><dd>{d.paletten.length} · {waschKisten} {t('kisten')}</dd></>}
           {p.hatFaxPaletten && <><dt>{t('palettenGesamt')}</dt><dd>{paletten || '—'}{tage !== '' && <span className="leise"> · {tage} {t('tageSeitWaschen')}</span>}</dd></>}
           {p.hatKisten && kistenGezaehlt > 0 && <><dt>{t('kaliberKisten')}</dt><dd>{kistenGezaehlt}</dd></>}
           <dt>{t('faule')}</dt><dd>{d.ablesungen.reduce((s, z) => s + z.kg, 0)} kg · {d.ablesungen.length} {p.istFax ? t('kisten') : t('ablesungen')}</dd>
+          {p.hatAusschuss && <><dt>{t('ausschussWiegenSchritt')}</dt><dd>{d.ausschuss.length > 0 ? `${t('zuKlein')} ${ausschussSumme('zu_klein')} kg · ${t('zuGross')} ${ausschussSumme('zu_gross')} kg` : '—'}</dd></>}
           {p.hatAusgang && <><dt>{t('fertigePalette')}</dt><dd>{d.nAusgang > 0 ? d.nAusgang : t('keineGewogen')}</dd></>}
           <dt>{t('eineChargeFrage')}</dt>
           <dd>{eineCharge === null ? '—' : eineCharge ? t('ja') : `${t('nein')}${gleicheSorte === null ? '' : gleicheSorte ? ` · ${t('gleicheSorteJa')}` : ` · ${t('gleicheSorteNein')}`}`}</dd>
         </dl>
       </div>
       {d.auftrag.station === 'sortieren' && <Hinweis art="info">{t('sortierdatumSchreiben')}</Hinweis>}
+      {erinnert.map(e => <Hinweis key={e} art="info">{e}</Hinweis>)}
       {fehlt.length > 0 && (
         <Hinweis art="warnung">
           <strong>{t('fehltNoch')}:</strong>

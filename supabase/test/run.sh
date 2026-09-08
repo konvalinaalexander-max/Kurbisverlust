@@ -203,22 +203,34 @@ echo "── 5. Tempo der Auswertung ──────────────�
 # Ansichten gleichzeitig — einmal lagen sie zusammen über 9 Sekunden, weil eine
 # Funktion pro Zeile die halbe Auswertung neu rechnete. Diese Stufe fängt es ab,
 # bevor es wieder jemandem beim Klicken um die Ohren fliegt.
+# Seit 0061 liest das Dashboard nur gespeicherte Ergebnisse (erg_*) — die Liste
+# kommt aus dem Frontend selbst, damit sie nicht auseinanderdriftet; gerechnet
+# wird in fünf Schritten, jeder muss für sich unter der Supabase-Grenze bleiben.
+ANSICHTEN="$(grep -ohE "\berg_[a-z_]+" "$HIER/../../src/auswertung/daten.ts" "$HIER/../../src/pages"/*.tsx | sort -u | tr '\n' ' ')"
+[ -n "$ANSICHTEN" ] || { echo "   FEHLER: keine erg_-Ansicht im Frontend gefunden"; exit 1; }
 # Das Betriebsleiter-Konto steht bereits aus Stufe 4
 psql "$URL" -v ON_ERROR_STOP=1 -qtA -1 -f "$HIER/../demo_daten.sql" >/dev/null
 psql "$URL" -q -c "select auswertung_aktualisieren()" >/dev/null
 psql "$URL" -q -c "analyze" >/dev/null
+schritte_pruefen() {
+  # jeder der fünf Schritte einzeln, mit seiner Dauer — keiner darf der
+  # 8-Sekunden-Grenze nahekommen (Grenze hier: 6 s, grosszügig für CI-Hardware)
+  local n ms
+  for n in 1 2 3 4 5; do
+    ms="$(psql "$URL" -qtA -c "select (auswertung_schritt($n) ->> 'dauer_ms')::int")"
+    printf '   Schritt %s: %s ms\n' "$n" "$ms"
+    if [ "$ms" -gt 6000 ]; then echo "   FEHLER: Schritt $n zu langsam — auf Supabase droht der Abbruch"; exit 1; fi
+  done
+}
+schritte_pruefen
 
 GESAMT=0
-for V in v_hochrechnung v_massenbilanz v_datenlage v_marge_buch v_plausibilitaet \
-         v_wiegung_kennzahl v_kaliber_verteilung v_schimmel_kurve_anzeige \
-         v_koeff_verdunstung v_koeff_ausschuss v_koeff_nebenkanal v_koeff_ueberfuellung \
-         v_gewichtsverteilung v_verarbeitung_alter v_durchsatz v_ueberfuellung_kaeufer \
-         v_datenqualitaet v_saisonverlauf; do
+for V in $ANSICHTEN; do
   MS="$(psql "$URL" -qtA -c "\timing on" -c "select count(*) from $V" 2>&1 \
         | grep -oE 'Time: [0-9.]+ ms' | grep -oE '[0-9.]+')"
   GESAMT="$(echo "$GESAMT + $MS" | bc)"
 done
-echo "   alle achtzehn Dashboard-Ansichten: ${GESAMT} ms"
+echo "   alle $(echo "$ANSICHTEN" | wc -w) gespeicherten Dashboard-Ansichten: ${GESAMT} ms"
 # 3 Sekunden: grosszügig gegenüber langsamer CI-Hardware, aber weit unter den
 # 8 Sekunden, bei denen Supabase abbricht.
 if [ "$(echo "$GESAMT > 3000" | bc)" = "1" ]; then
@@ -242,13 +254,10 @@ psql "$URL" -v ON_ERROR_STOP=1 -qtA -f "$HIER/last.sql" | tail -1 | sed 's/^/   
 RECHNEN="$(psql "$URL" -qtA -c "select auswertung_aktualisieren()" >/dev/null; \
            psql "$URL" -qtA -c "select dauer_ms from auswertung_stand")"
 echo "   Auswertung neu rechnen: ${RECHNEN} ms"
+schritte_pruefen
 
 GESAMT=0
-for V in v_hochrechnung v_massenbilanz v_datenlage v_marge_buch v_plausibilitaet \
-         v_wiegung_kennzahl v_kaliber_verteilung v_schimmel_kurve_anzeige \
-         v_koeff_verdunstung v_koeff_ausschuss v_koeff_nebenkanal v_koeff_ueberfuellung \
-         v_gewichtsverteilung v_verarbeitung_alter v_durchsatz v_ueberfuellung_kaeufer \
-         v_datenqualitaet v_saisonverlauf; do
+for V in $ANSICHTEN; do
   MS="$(psql "$URL" -qtA -c "\timing on" -c "select count(*) from $V" 2>&1 \
         | grep -oE 'Time: [0-9.]+ ms' | grep -oE '[0-9.]+')"
   GESAMT="$(echo "$GESAMT + $MS" | bc)"
@@ -258,8 +267,11 @@ echo "   Dashboard bei voller Last: ${GESAMT} ms"
 if [ "$(echo "$GESAMT > 2000" | bc)" = "1" ]; then
   echo "   FEHLER: Dashboard zu langsam bei voller Last"; exit 1
 fi
-if [ "$RECHNEN" -gt 5000 ]; then
-  echo "   FEHLER: Neuberechnen zu langsam"; exit 1
+# Die App ruft nie alles auf einmal — sie ruft die fünf Schritte nacheinander,
+# und die sind oben einzeln geprüft. Diese Summe ist der Regressionsmelder:
+# Sie darf wachsen, aber nicht davonlaufen (dreifache Saison, langsame CI).
+if [ "$RECHNEN" -gt 12000 ]; then
+  echo "   FEHLER: Neuberechnen im Ganzen zu langsam (${RECHNEN} ms) — ein Schritt ist entgleist"; exit 1
 fi
 
 echo

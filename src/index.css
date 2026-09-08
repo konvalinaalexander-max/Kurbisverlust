@@ -265,7 +265,7 @@ button.blank:hover:not(:disabled) { background: var(--flaeche-2); }
 }
 .umschalter button {
   flex: 1; min-height: 38px; border: none; background: none;
-  color: var(--text-leise); font-weight: 560; font-size: .9rem; padding: .3rem .5rem;
+  color: var(--text-leise); font-weight: 560; font-size: .9rem; padding: .3rem .6rem; white-space: nowrap;
 }
 .umschalter button.aktiv { background: var(--kuerbis); color: #fff; }
 .umschalter button:not(.aktiv):hover { background: var(--flaeche-2); color: var(--text); }
@@ -531,10 +531,98 @@ input.gross { font-size: 1.6rem; min-height: 60px; text-align: center; font-weig
 
 /* ---------- Diagramme (Betriebsleiter) ------------------------------------ */
 .diagramm { margin: .5rem 0; }
-.diagramm-tip {
-  font-size: .84rem; margin: .3rem 0; padding: .35rem .6rem; border-radius: var(--radius-klein);
-  background: var(--flaeche-2); display: inline-flex; align-items: center; gap: .4rem; flex-wrap: wrap;
-}
-.legende { display: flex; flex-wrap: wrap; gap: .4rem 1rem; font-size: .84rem; color: var(--text-leise); margin: .3rem 0; }
-.legende span, .diagramm-tip .chip { display: inline-flex; align-items: center; gap: .35rem; }
+.legende { display: flex; flex-wrap: wrap; gap: .2rem .6rem; font-size: .84rem; color: var(--text-leise); margin: .3rem 0; }
+.legende > span { display: inline-flex; align-items: center; gap: .35rem; }
 .chip { width: 10px; height: 10px; border-radius: 3px; display: inline-block; flex: none; }
+
+/* Der schwebende Hinweis: folgt dem Zeiger, zeigt alle Reihen an der Stelle. */
+.schweb {
+  position: absolute; z-index: 5; pointer-events: none;
+  background: var(--flaeche); border: 1px solid var(--rand); border-radius: var(--radius-klein);
+  box-shadow: var(--schatten-dialog); padding: .45rem .65rem; font-size: .82rem;
+  min-width: 150px; max-width: 300px; line-height: 1.4;
+}
+.schweb-kopf { font-weight: 620; margin-bottom: .25rem; }
+.schweb-zeile { display: grid; grid-template-columns: auto 1fr auto; gap: .1rem .55rem; align-items: center; }
+.schweb-zeile > span:first-child:not(.chip) { grid-column: 1 / span 2; }
+.schweb-zeile strong { font-variant-numeric: tabular-nums; text-align: right; }
+.diagramm-fuss { display: flex; flex-wrap: wrap; gap: .3rem 1rem; align-items: center; margin-top: .25rem; }
+.diagramm-werkzeuge { display: inline-flex; gap: .4rem; align-items: center; margin-left: auto; }
+.legende-knopf {
+  background: none; border: none; padding: .1rem .35rem; min-height: 0; font-size: .84rem; font-weight: 500;
+  color: var(--text-leise); gap: .35rem; cursor: pointer; border-radius: 5px;
+}
+.legende-knopf:hover { background: var(--flaeche-2); color: var(--text); }
+.legende-knopf.aus { opacity: .45; text-decoration: line-through; }
+
+/* Anteilsbalken: alle Zeilen gleich lang (100 % = Eingang), die Teile farbig. */
+.anteile { position: relative; }
+.anteil-zeile {
+  display: grid; grid-template-columns: minmax(130px, 1fr) minmax(160px, 3fr) 4.6rem;
+  gap: .25rem .7rem; align-items: center; padding: .3rem .3rem; border-radius: 6px;
+}
+@media (max-width: 560px) {
+  .anteil-zeile { grid-template-columns: 1fr 4.6rem; }
+  .anteil-name { grid-column: 1 / -1; }
+}
+.anteil-zeile.klickbar { cursor: pointer; }
+.anteil-zeile.klickbar:hover, .anteil-zeile.klickbar:focus-visible { background: var(--flaeche-2); outline: none; }
+.anteil-name { display: flex; flex-direction: column; min-width: 0; font-size: .88rem; line-height: 1.25; }
+.anteil-name .leise { font-size: .78rem; }
+.anteil-spur { display: flex; height: 20px; border-radius: 5px; overflow: hidden; background: var(--flaeche-2); }
+.anteil-teil { min-width: 1px; height: 100%; }
+.anteil-wert { text-align: right; font-variant-numeric: tabular-nums; font-weight: 620; font-size: .9rem; white-space: nowrap; }
+
+/* Aufklappen: lange Listen zu, bis man sie will. */
+details.aufklapp > summary {
+  cursor: pointer; list-style: none; display: flex; align-items: center; gap: .5rem;
+  font-weight: 560; padding: .45rem 0; font-size: .92rem;
+}
+details.aufklapp > summary::-webkit-details-marker { display: none; }
+details.aufklapp > summary::before {
+  content: '›'; display: inline-block; width: 1rem; text-align: center; color: var(--text-leise);
+  transition: transform .15s; font-size: 1.1rem; line-height: 1;
+}
+details.aufklapp[open] > summary::before { transform: rotate(90deg); }
+details.aufklapp > summary .leise { font-weight: 480; }
+
+/* Herkunft einer Zahl: gemessen, gerechnet, Prognose — steht an jeder Zahl. */
+.herkunft {
+  display: inline-block; font-size: .66rem; font-weight: 640; letter-spacing: .05em; text-transform: uppercase;
+  padding: .06rem .42rem; border-radius: 999px; background: var(--flaeche-2); color: var(--text-leise);
+  vertical-align: middle; white-space: nowrap;
+}
+.herkunft.gemessen { background: var(--gruen-flaeche); color: var(--gruen); }
+.herkunft.gerechnet { background: var(--blau-flaeche); color: var(--blau); }
+.herkunft.prognose { background: var(--gelb-flaeche); color: var(--gelb); }
+
+/* Die leise Filterleiste oben auf einer Seite. */
+.filterleiste { display: flex; flex-wrap: wrap; gap: .4rem .75rem; align-items: center; font-size: .86rem; color: var(--text-leise); margin: .4rem 0 .25rem; }
+.filterleiste select { width: auto; min-height: 34px; padding: .2rem 1.6rem .2rem .5rem; font-size: .86rem; }
+.filterleiste .aktiv-filter { background: var(--kuerbis-flaeche); color: var(--kuerbis); padding: .15rem .55rem; border-radius: 999px; font-weight: 600; }
+
+/* Kurztabelle: Kaliber in einer Zeile, darunter Prozent und Kilo. */
+/* Die Korrektur-Tabelle (Runde H): schmale Eingabefelder in jeder Zelle —
+   der Betriebsleiter berichtigt hier Messungen, nicht Prosa. */
+table.korrektur th, table.korrektur td { padding: .3rem .35rem; vertical-align: middle; }
+table.korrektur input, table.korrektur select {
+  width: 100%; min-height: 34px; padding: .2rem .35rem; font-size: .85rem; margin: 0;
+}
+
+table.kurz th, table.kurz td { padding: .3rem .5rem; text-align: center; }
+table.kurz th:first-child, table.kurz td:first-child { text-align: left; color: var(--text-leise); font-size: .78rem; text-transform: uppercase; letter-spacing: .04em; }
+
+/* Zahl mit Untertitel in einer Zeile — die Kopfzahlen der Ursachen. */
+.zahlenzeile { display: grid; gap: .6rem 1.2rem; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); margin: .4rem 0 .8rem; }
+.zahlenzeile .wert { font-size: 1.35rem; font-weight: 650; letter-spacing: -.01em; line-height: 1.15; font-variant-numeric: tabular-nums; }
+.zahlenzeile .titel { font-size: .74rem; color: var(--text-leise); text-transform: uppercase; letter-spacing: .05em; font-weight: 600; }
+.zahlenzeile .unter { font-size: .8rem; color: var(--text-leise); }
+
+/* Der Fortschritt beim Rechnen: fünf Schritte, der laufende hervorgehoben. */
+.rechnen { max-width: 420px; margin: 2rem auto; text-align: center; }
+.rechnen ol { list-style: none; padding: 0; margin: 1rem 0 0; display: grid; gap: .35rem; text-align: left; }
+.rechnen li { display: flex; gap: .6rem; align-items: center; padding: .35rem .6rem; border-radius: var(--radius-klein); color: var(--text-leise); font-size: .9rem; }
+.rechnen li.laeuft { background: var(--kuerbis-flaeche); color: var(--kuerbis); font-weight: 600; }
+.rechnen li.fertig { color: var(--gruen); }
+.rechnen li.fehler { background: var(--rot-flaeche); color: var(--rot); }
+.rechnen li .nr { width: 1.4rem; height: 1.4rem; border-radius: 50%; border: 1.5px solid currentColor; display: inline-flex; align-items: center; justify-content: center; font-size: .78rem; flex: none; }

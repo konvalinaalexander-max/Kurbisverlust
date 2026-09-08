@@ -19,6 +19,12 @@ URL="${URL:-postgresql://postgres@/postgres?host=/tmp&port=55432}"
 HIER="$(cd "$(dirname "$0")" && pwd)"
 
 echo "Simulation: $N Saisons · ${LAGER} im Lager · Selektion=$SELEKTION · $WIEGUNGEN Wiegungen · $KONTROLLEN Lagerkontrollen · Sockel=$SOCKEL"
+# Seit 0061 rechnet die Auswertung bis heute() (AB-31). Die simulierte Saison
+# endet am 31.03.2027 — ohne diesen Stichtag verglichen wir die Wahrheit einer
+# ganzen Saison mit dem Verlust bis zum echten Kalendertag und mässen nur, wie
+# weit das Jahr ist. Die Einstellung heute_test setzt das Heute der Datenbank.
+psql "$URL" -qtA -c "insert into einstellung (schluessel, wert) values ('heute_test', to_jsonb('2027-03-31'::text))
+                     on conflict (schluessel) do update set wert = excluded.wert" >/dev/null
 psql "$URL" -qtA -c "delete from sim.schaetzung; delete from sim.wahrheit;" >/dev/null
 
 for i in $(seq 1 "$N"); do

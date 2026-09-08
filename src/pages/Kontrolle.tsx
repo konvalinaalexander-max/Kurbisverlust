@@ -9,27 +9,23 @@ import { ChargeFeld } from '../components/ChargeFeld'
 import type { Charge, Gebinde } from '../lib/typen'
 
 interface Vorschlag {
-  charge_nr: number; sorte: string; schlag: string; lager_kg: number
-  alter_lager_von: number | null; alter_lager_bis: number | null; n_kontrollen: number; zuletzt: string | null
+  charge_nr: number; sorte: string; schlag: string; im_haus_heute_kg: number
+  alter_lager_von: number | null; alter_lager_bis: number | null
+  n_kontrollen: number; zuletzt: string | null; tage_seit_wiegung: number | null
 }
 
 /**
- * Lagerkontrolle: eine zufällig gegriffene Palette wiegen und nachsehen, wie
- * viel faul ist — ohne laufende Arbeit, direkt aus der Halle.
+ * Lagerkontrolle: eine Palette aus dem Lager wiegen — ohne laufende Arbeit,
+ * direkt aus der Halle. Sie ist eine Verdunstungsmessung: Zettel-Datum und
+ * Zettel-Gewicht gegen das Gewicht jetzt.
  *
- * Das ist die statistisch wertvollste Messung im ganzen System: die einzige,
- * deren Palette nicht danach ausgewählt wurde, wie sie aussieht. Nur sie kann
- * aufdecken, ob die Verarbeitungsreihenfolge die Schimmelkurve verzerrt
- * (docs/STATISTIK_BEFUND.md).
- *
- * 0060: Die App schlägt drei Chargen vor — die mit dem meisten Bestand und
- * den wenigsten Kontrollen —, der Arbeiter darf jede andere greifen. Gefragt
- * werden Eingangsdatum und Eingangsgewicht vom Zettel (ohne sie sagt die
- * Wägung nichts über die Verdunstung). Die Maske bleibt nach dem Speichern
- * für die nächste Palette stehen.
- *
- * „Davon faul" ist Pflicht, und 0 ist eine echte Antwort: Ein leeres Feld
- * dagegen wäre „nicht nachgesehen" — Leer ≠ 0.
+ * Runde H (0061): Die App schlägt die drei Chargen vor, bei denen eine Wägung
+ * am meisten bringt — viel Bestand, lange nicht gewogen —, der Arbeiter darf
+ * jede andere greifen. Nicht mehr gefragt wird „davon faul" und „wie
+ * gegriffen": Die Palette wird gewogen, nicht ausgepackt — was faul ist,
+ * sieht dabei niemand, und die Auswahl kann niemand beurteilen. Was die App
+ * nicht wissen kann, fragt sie nicht. Die Maske bleibt nach dem Speichern für
+ * die nächste Palette stehen.
  */
 export default function Kontrolle() {
   const { t } = useSprache()
@@ -45,11 +41,9 @@ export default function Kontrolle() {
   const [jetzt, setJetzt] = useState('')
   const [kisten, setKisten] = useState('')
   const [art, setArt] = useState('')
-  const [faul, setFaul] = useState('')
-  const [auswahl, setAuswahl] = useState('erreichbar_zufaellig')
   const [fehler, setFehler] = useState<string | null>(null)
   const [laeuft, setLaeuft] = useState(false)
-  const [gespeichert, setGespeichert] = useState<{ charge: number; netto: number | null; faul: number }[]>([])
+  const [gespeichert, setGespeichert] = useState<{ charge: number; netto: number | null }[]>([])
 
   useEffect(() => {
     void stammdaten().then(s => {
@@ -62,8 +56,12 @@ export default function Kontrolle() {
   }, [])
 
   const chargeBekannt = chargeNr !== '' && chargen.some(c => c.nr === chargeNr)
-  const vollstaendig = chargeBekannt && datum !== '' && damals !== ''
-    && jetzt !== '' && kisten !== '' && art !== '' && faul !== ''
+  const vollstaendig = chargeBekannt && datum !== '' && damals !== '' && jetzt !== '' && kisten !== '' && art !== ''
+
+  const tara = gebinde.find(g => g.art === art)
+  const netto = kisten !== '' && jetzt !== '' && tara?.tara_kg_pro_kiste != null
+    ? Number(jetzt) - Number(kisten) * tara.tara_kg_pro_kiste - (tara.tara_kg_palette ?? 0)
+    : null
 
   async function speichern() {
     if (!vollstaendig || laeuft) return
@@ -71,10 +69,9 @@ export default function Kontrolle() {
     // dieselbe Charge; nur, was je Palette anders ist, wird geleert. Und zwar
     // sofort, nicht erst nach der Antwort: wer schon die nächste Palette tippt,
     // während die erste noch unterwegs ist, verliert sie sonst an das späte Leeren.
-    const e = { datum, damals, jetzt, kisten, faul, auswahl, netto }
+    const e = { datum, damals, jetzt, kisten, netto }
     setLaeuft(true); setFehler(null)
-    setDatum(''); setDamals(''); setJetzt(''); setKisten(''); setFaul('')
-    setAuswahl('erreichbar_zufaellig')
+    setDatum(''); setDamals(''); setJetzt(''); setKisten('')
     const { error } = await supabase.from('verdunstung_wiegung').insert({
       charge_nr: chargeNr,
       eingangsdatum: e.datum,
@@ -82,27 +79,28 @@ export default function Kontrolle() {
       brutto_jetzt_kg: Number(e.jetzt),
       kisten: Number(e.kisten),
       gebindeart: art,
-      faul_kg: Number(e.faul),
-      sichtbar_schimmel: Number(e.faul) > 0,
-      auswahl: e.auswahl,
     })
     setLaeuft(false)
     if (error) {
       setFehler(fehlerText(error))
       // nichts verloren: die Eingabe steht wieder da, soweit nichts Neues getippt wurde
       setDatum(x => x || e.datum); setDamals(x => x || e.damals); setJetzt(x => x || e.jetzt)
-      setKisten(x => x || e.kisten); setFaul(x => x || e.faul); setAuswahl(e.auswahl)
+      setKisten(x => x || e.kisten)
       return
     }
-    setGespeichert(g => [...g, { charge: chargeNr as number, netto: e.netto, faul: Number(e.faul) }])
+    setGespeichert(g => [...g, { charge: chargeNr as number, netto: e.netto }])
   }
 
-  const tara = gebinde.find(g => g.art === art)
-  const netto = kisten !== '' && jetzt !== '' && tara?.tara_kg_pro_kiste != null
-    ? Number(jetzt) - Number(kisten) * tara.tara_kg_pro_kiste - (tara.tara_kg_palette ?? 0)
-    : null
-  const alter = (v: Vorschlag) => v.alter_lager_von != null && v.alter_lager_bis != null
-    ? (v.alter_lager_von === v.alter_lager_bis ? `${v.alter_lager_von}` : `${v.alter_lager_von}–${v.alter_lager_bis}`) + ` ${t('tage')}` : ''
+  const tonnen = (kg: number) => `${(Math.round(kg / 100) / 10).toLocaleString()} t`
+  const erklaerung = (v: Vorschlag) => [
+    `${tonnen(v.im_haus_heute_kg)} ${t('imLager')}`,
+    v.tage_seit_wiegung !== null
+      ? (v.n_kontrollen > 0 || v.zuletzt
+          ? t('nichtGewogenSeit').replace('{n}', String(v.tage_seit_wiegung))
+          : t('nochNieGewogen').replace('{n}', String(v.tage_seit_wiegung)))
+      : '',
+    v.n_kontrollen > 0 ? `${v.n_kontrollen} ${t('kontrollen')}` : t('nochKeineKontrolle'),
+  ].filter(Boolean).join(' · ')
 
   return (
     <>
@@ -112,7 +110,7 @@ export default function Kontrolle() {
       <h1 className="frage">{t('kontrolle')}</h1>
       <p className="leise frage-warum">{t('kontrolleWarum')}</p>
       {gespeichert.length > 0 && (
-        <Hinweis art="gut">✓ {gespeichert.length} {t('gespeichert')} · {gespeichert.map(g => `${g.charge}: ${g.netto !== null ? `${g.netto.toFixed(0)} kg` : '—'}, ${g.faul} kg ${t('faule').toLowerCase()}`).join(' · ')}</Hinweis>
+        <Hinweis art="gut">✓ {gespeichert.length} {t('gespeichert')} · {gespeichert.map(g => `${g.charge}: ${g.netto !== null ? `${g.netto.toFixed(0)} kg` : '—'}`).join(' · ')}</Hinweis>
       )}
 
       <Karte>
@@ -122,7 +120,7 @@ export default function Kontrolle() {
             <div className="wahl">
               {vorschlaege.map(v => (
                 <Wahl key={v.charge_nr} id={`vorschlag-${v.charge_nr}`} name={`${v.charge_nr} · ${v.sorte}`}
-                      erkl={`${Math.round(v.lager_kg / 1000 * 10) / 10} t ${t('imLager')}${alter(v) ? ` · ${t('liegtSeit')} ${alter(v)}` : ''} · ${v.n_kontrollen > 0 ? `${v.n_kontrollen} ${t('kontrollen')}` : t('nochKeineKontrolle')}`}
+                      erkl={erklaerung(v)}
                       gewaehlt={!andere && chargeNr === v.charge_nr}
                       onClick={() => { setAndere(false); setChargeNr(v.charge_nr) }} />
               ))}
@@ -164,23 +162,9 @@ export default function Kontrolle() {
             </select>
           </div>
         </div>
-        <div className="feld">
-          <label htmlFor="k-faul">{t('wievielFaul')}</label>
-          <input id="k-faul" type="number" inputMode="decimal" step="0.5" min={0}
-                 value={faul} onChange={e => setFaul(e.target.value)}
-                 style={{ fontSize: '1.2rem' }} />
-        </div>
-        <div className="feld">
-          <label htmlFor="k-auswahl">{t('wieGegriffen')}</label>
-          <select id="k-auswahl" value={auswahl} onChange={e => setAuswahl(e.target.value)}>
-            <option value="erreichbar_zufaellig">{t('auswahlErreichbar')}</option>
-            <option value="mitte_unten">{t('auswahlMitteUnten')}</option>
-            <option value="gezielt">{t('auswahlGezielt')}</option>
-          </select>
-        </div>
 
         {netto !== null && netto > 0 && (
-          <p style={{ margin: '0 0 .6rem' }}><strong>{netto.toFixed(1)} kg</strong></p>
+          <p style={{ margin: '0 0 .6rem' }}><strong>{netto.toFixed(1)} kg</strong> {t('netto')}</p>
         )}
 
         {fehler && <Hinweis art="warnung">{fehler}</Hinweis>}

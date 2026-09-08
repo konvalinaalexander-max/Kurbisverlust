@@ -158,7 +158,7 @@ genau dieser Zeile:
 
 ```
 Fertig. Die Datenbank steht: 42 Chargen, 11 Sorten, 28 Tabellen,
-56 Auswertungen. Auswertung berechnet. Weiter im README bei Schritt 4.
+62 Auswertungen. Auswertung berechnet. Weiter im README bei Schritt 4.
 ```
 
 Wenn du das siehst, ist die komplette Datenbank fertig: Tabellen, Zugriffsrechte,

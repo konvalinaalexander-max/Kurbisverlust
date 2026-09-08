@@ -406,9 +406,11 @@ begin
         returning id into v_neu;
         insert into auftrag_teilnehmer (auftrag_id, profil_id)
         select v_neu, id from profil order by erstellt_ts limit 2 on conflict do nothing;
-        -- 0060: das Sortierdatum steht auf der Kiste und wird mitgezählt
-        insert into auftrag_gebinde (auftrag_id, kaliber_idx, anzahl, sortierdatum)
-        values (v_neu, v_i - 1, v_kisten, l.start_ts::date);
+        -- 0061: beim Waschen werden Paletten gezählt — das Sortierdatum vom
+        -- Zettel und die Kisten je Palette (höchstens 32), so wie die Maske.
+        insert into auftrag_palette (auftrag_id, sortierdatum, kisten)
+        select v_neu, l.start_ts::date, least(32, v_kisten - (s - 1) * 32)
+          from generate_series(1, ceil(v_kisten / 32.0)::int) s;
         -- Schimmel #2: was seit dem Sortieren in der Kiste dazukam. Der Verderb
         -- geht in der Kiste weiter, nach derselben Kurve — bedingt auf das, was
         -- beim Sortieren noch gut war: (F(t_wasch) − F(t_sort)) / (1 − F(t_sort)).
@@ -421,7 +423,7 @@ begin
         insert into schimmel_messung (auftrag_id, kg, ts)
         values (v_neu, greatest(round(v_kg * v_anteil * (0.75 + 0.5 * v_zufall)), 1)::int, v_start + interval '3 hours');
         insert into auftrag_angabe (auftrag_id, schluessel, wert)
-        values (v_neu, 'eine_charge', 'true'), (v_neu, 'sortierdatum', l.start_ts::date::text);
+        values (v_neu, 'eine_charge', 'true');
         -- Fertige Palette nach Kaliber: kein Soll, nur das Kistengewicht
         insert into ausgang_wiegung (auftrag_id, charge_nr, brutto_kg, kisten, gebindeart, ts, kaliber_idx, kuerbisse_pro_kiste)
         values (v_neu, l.nr, round((32 * l.kg_je_kiste * (0.96 + 0.08 * v_zufall) + 32 * 1.5 + 25) * 2) / 2.0, 32, 'G2',
@@ -443,7 +445,15 @@ begin
   declare l record; v_i int; v_start timestamptz; v_neu bigint; v_zufall numeric; v_kisten int; v_rest int;
           v_teil int; v_masse numeric; v_faul numeric; v_n_faul int; v_j int; v_kaeufer text; v_kunde text;
           v_lief numeric; v_schema bigint;
+          -- 0061: die Verkaufsdatei zur Lieferung
+          v_pos int := 0; v_lief_id bigint; v_lief_datum date; v_einheit text; v_inhalt int;
+          v_gja numeric; v_menge numeric; v_stueck int; v_artikel text; v_artikel_id text;
   begin
+    -- Die Warenwirtschaft der Demo: jede Lieferung steht auch als Zeile einer
+    -- Verkaufsdatei da (Einheit, Gebindeinhalt, Kisten je Chargenzeile), so wie
+    -- sie der Import aus dem Perigon anlegt. Daraus die verkauften Kisten.
+    insert into ausgang_quelle (code, name, dateiname_muster, bemerkung)
+    values ('DEMO', 'Demo-Warenwirtschaft', 'demo', 'DEMO') on conflict (code) do nothing;
     for l in select * from demo_lauf order by start_ts loop
       for v_i in 1 .. coalesce(array_length(l.kisten, 1), 0) loop
         v_rest := l.kisten[v_i];
@@ -496,14 +506,39 @@ begin
               from generate_series(1, v_n_faul) s;
             select coalesce(sum(kg), 0) into v_faul from schimmel_messung where auftrag_id = v_neu;
           end if;
-          -- Die Lieferung: alles, was das Fax gemacht hat, minus das Faule —
-          -- in Kilo, wie auf dem Lieferschein; 1–7 Tage später.
-          v_lief := round(v_masse - v_faul, 1);
+          -- Die Lieferung, wie die Verkaufsdatei sie führt (0061): Kisten × Inhalt,
+          -- nominal — „Kiste ab 8 kg" steht mit 8 kg auf dem Lieferschein, die
+          -- Stück-Kiste mit Stück × Nenngewicht. Was die Kiste wirklich wiegt,
+          -- weiss nur die Waage (Überfüllung). 1–7 Tage nach dem Fax.
+          v_lief_datum := (v_start + make_interval(days => 1 + floor(v_zufall * 6)::int))::date;
           v_kunde := case v_kaeufer when 'coop' then 'Coop Verteilzentrale' when 'migros' then 'Migros Ostschweiz'
                                     when 'rathgeb' then 'Rathgeb Bio' else 'Bio Partner Schweiz' end;
+          v_pos := v_pos + 1;
+          if l.art = 'kiste' then
+            v_einheit := 'kg'; v_inhalt := 8; v_gja := 1;
+            v_artikel := 'Bio Kürbis ' || l.sorte || ' lose'; v_artikel_id := 'kürb' || lower(left(l.sorte, 3));
+          else
+            v_stueck := greatest(round(l.kg_je_kiste * 1000 / (select gramm from demo_charge where nr = l.nr))::int, 1);
+            v_einheit := 'Stk.'; v_inhalt := v_stueck;
+            v_gja := round((select gramm from demo_charge where nr = l.nr) / 1000.0, 2);
+            v_artikel := 'Bio Kürbis ' || l.sorte || ' Dem'; v_artikel_id := 'kürb' || lower(left(l.sorte, 3)) || 'd';
+          end if;
+          v_menge := v_teil * v_inhalt;
+          v_lief := round(v_menge * v_gja, 1);
+          insert into ausgang_artikel (artikel_id, artikel, ist_kuerbis, sorte, bemerkung)
+          values (v_artikel_id, v_artikel, true, l.sorte, 'DEMO') on conflict (artikel_id, artikel) do nothing;
+          insert into ausgang_zeile (quelle, pos_id, charge_extern, lauf_nr, fingerabdruck, datum, journal, auftragsnr,
+                                     kunde, artikel_id, artikel, einheit, menge, gewicht_je_artikel, batch_menge,
+                                     kg_position, kg_charge, gebindeart, gebinde_menge, gebinde_inhalt, batch_gebinde, produzent)
+          values ('DEMO', v_pos, l.nr::text, 1, 'demo-' || v_pos, v_lief_datum, 'Lieferschein', 'LS-' || (100000 + v_pos),
+                  v_kunde, v_artikel_id, v_artikel, v_einheit, v_menge, v_gja, v_menge,
+                  v_lief, v_lief, 'IFCO', v_teil, v_inhalt, v_teil, 'Demo-Hof')
+          on conflict (quelle, pos_id, charge_extern, lauf_nr) do nothing;
           insert into lieferung (datum, charge_nr, sorte, kg, kisten, gebindeart, ziel, kunde, bemerkung)
-          values ((v_start + make_interval(days => 1 + floor(v_zufall * 6)::int))::date, l.nr, l.sorte,
-                  v_lief, v_teil, 'G2', 'verkauf', v_kunde, 'DEMO');
+          values (v_lief_datum, l.nr, l.sorte, v_lief, v_teil, 'G2', 'verkauf', v_kunde, 'DEMO')
+          returning id into v_lief_id;
+          insert into lieferung_import (lieferung_id, quelle, extern_id)
+          values (v_lief_id, 'DEMO', format('DEMO:%s:%s:1', v_pos, l.nr));
           v_rest := v_rest - v_teil;
         end loop;
       end loop;
@@ -519,7 +554,8 @@ begin
     insert into lieferung (datum, sorte, kisten, ziel, kunde, bemerkung)
     select (v_anker + 40 + i * 11)::date, case when i % 2 = 0 then 'Tiana' else 'Kaori Kuri' end, 6 + i % 5, 'hofladen', 'Hofladen', 'DEMO'
       from generate_series(1, 10) i;
-    raise notice 'Demo: Fax und Lieferungen angelegt';
+    perform lieferung_import_zeilen_verbinden('DEMO');
+    raise notice 'Demo: Fax und Lieferungen angelegt (mit Verkaufsdatei)';
   end;
 
   -- ---------- 4b. An jeder Station läuft nur eine Arbeit zugleich -----------
@@ -582,9 +618,11 @@ begin
   end;
 
   -- ---------- 6. Lagerkontrollen --------------------------------------------
-  -- Zufällig gegriffene Paletten, wie sie der Bildschirm „Palette
-  -- kontrollieren" erfasst: mit „davon faul" und der Art der Auswahl.
-  declare p record; v_i int := 0; v_tag date; v_tage int; v_faul numeric; v_zufall numeric; d record;
+  -- Gegriffene Paletten, wie sie der Bildschirm „Palette kontrollieren"
+  -- erfasst: Eingangsdatum, Gewicht damals und jetzt, Kisten, Kistenart.
+  -- Seit 0061 ohne „davon faul" und ohne Auswahlart — die Kontrolle ist eine
+  -- Verdunstungsmessung, nichts weiter.
+  declare p record; v_i int := 0; v_tag date; v_tage int; v_zufall numeric; d record;
   begin
     for p in select * from demo_pal where not verarbeitet order by (hashtext('kontrolle-' || id)::bigint & 2147483647) loop
       v_i := v_i + 1;
@@ -594,15 +632,11 @@ begin
       v_tag := greatest(p.datum + 20, v_anker + 40 + v_i * 6);
       exit when v_tag >= current_date;
       v_tage := v_tag - p.datum;
-      v_faul := case when v_i % 3 = 0 then 0
-                     else round(p.netto * power(1 - d.r, v_tage) * (d.sockel + 1 - exp(-power(v_tage / d.lambda, d.k))) * (0.7 + 0.6 * v_zufall), 1) end;
       insert into verdunstung_wiegung (charge_nr, eingangsdatum, brutto_damals_kg, brutto_jetzt_kg, kisten, gebindeart,
-                                       wiege_ts, faul_kg, sichtbar_schimmel, auswahl, bemerkung)
+                                       wiege_ts, bemerkung)
       values (p.nr, p.datum, p.netto + p.kisten * 1.5 + 25,
               round((p.netto * power(1 - d.r * (0.8 + 0.4 * v_zufall), v_tage) + p.kisten * 1.5 + 25) * 2) / 2.0,
-              p.kisten, 'G2', v_tag::timestamptz + interval '10 hours', v_faul, v_faul > 0,
-              case v_i % 4 when 0 then 'gezielt' when 1 then 'mitte_unten' else 'erreichbar_zufaellig' end,
-              'DEMO-KONTROLLE');
+              p.kisten, 'G2', v_tag::timestamptz + interval '10 hours', 'DEMO-KONTROLLE');
     end loop;
     raise notice 'Demo: Lagerkontrollen angelegt';
   end;
@@ -751,7 +785,10 @@ begin
   delete from sortier_lauf where datei_name like 'DEMO-%';
 
   -- Der Rest hängt mit "on delete cascade" am Auftrag
-  delete from lieferung where bemerkung = 'DEMO';
+  delete from lieferung where bemerkung = 'DEMO';      -- lieferung_import kaskadiert
+  delete from ausgang_zeile where quelle = 'DEMO';
+  delete from ausgang_artikel where bemerkung = 'DEMO';
+  delete from ausgang_quelle where code = 'DEMO' and bemerkung = 'DEMO';
   delete from auftrag where bemerkung = 'DEMO';
   delete from charge_vorlauf where bemerkung like 'DEMO%';
   delete from palette where extern_id like 'demo-%';

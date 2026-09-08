@@ -33,8 +33,10 @@ Verwaltung:
   Kistensystem, liest den Palox ab, wiegt fertige Paletten und das Faule,
   beantwortet die Fragen und schliesst ab. Er sieht die **Checkliste**.
 - **Zähler** — wer einer Arbeit beitritt. Er sieht **einen Zähler** und sonst
-  nichts: Paletten mit Datum (und beim Waschen + Sortieren dem Gewicht) vom
-  Zettel, Kisten je Kaliber mit Sortierdatum, oder beim Fax die Palettenzahl.
+  nichts: Eingangspaletten mit Datum (und beim Waschen + Sortieren dem
+  Gewicht) vom Zettel, beim Waschen die Kaliber-Paletten mit Sortierdatum und
+  Kistenzahl, beim Sortieren die Kisten je Kaliber, beim Fax die
+  Palettenzahl.
 
 Die Rolle hängt an der Arbeit, nicht an der Person: Eröffner = Vorarbeiter,
 Beitretende = Zähler. Ein Tipp auf „Ich führe diese Arbeit" holt die
@@ -57,15 +59,23 @@ Gespeichert wird die Rolle nicht; sie ist keine Messung.
    freiwillig (AB-28). „Später" ist möglich, aber die Checkliste lässt den
    Punkt offen.
 4. **Checkliste** — jeder Punkt mit Zustand (erledigt / offen / freiwillig):
-   Palox zu Beginn · Zählen (mit Stand) · Fertige Palette wiegen (wo das
-   Kistensystem rechenbar ist) · Arbeit abschliessen. Beim Fax: kein Palox —
+   Palox zu Beginn · Zählen (mit Stand, beim Waschen + Sortieren mit der
+   Erinnerung an drei Wägungen) · Zu klein / zu gross wiegen (nur Waschen +
+   Sortieren, am Ende) · Fertige Paletten wiegen (wo das Kistensystem
+   rechenbar ist, mit „3 von 3") · Arbeit abschliessen. Beim Fax: kein Palox —
    dafür *Faules wiegen* (kistenweise, mit Kistenart) und *Paletten gesamt*.
-   Zu klein / zu gross wird nicht mehr gewogen (AB-26).
 5. **Abschluss-Assistent** — Palox jetzt ablesen (Fax: Faules wiegen) ·
-   (Fax: Paletten gesamt, Tage seit dem Waschen) · (Waschen: sind Kisten
-   gezählt? Ohne Kisten keine Menge — eine Kilo-Zahl wird nirgends getippt) ·
-   Fertige Palette gewogen? · Alles aus einer Charge? · Zusammenfassung →
-   *Ja, fertig*. Was fehlt, steht als Satz am Knopf.
+   (Waschen + Sortieren, wenn weniger als drei Eingangspaletten gewogen sind:
+   die Erinnerung, mit *Trotzdem weiter*) · (Waschen + Sortieren: zu klein /
+   zu gross Palette für Palette wiegen — oder „Nichts zu klein oder zu
+   gross") · (Fax: Paletten gesamt, Tage seit dem Waschen) · (Waschen: sind
+   Paletten gezählt? Ohne sie keine Menge — eine Kilo-Zahl wird nirgends
+   getippt) · Fertige Paletten: drei, beim Waschen verlangt, sonst erinnert ·
+   Alles aus einer Charge? · Zusammenfassung → *Ja, fertig*. Was fehlt, steht
+   als Satz am Knopf; was nur erinnert wird, als Hinweis daneben.
+6. **Korrigieren** — der Betriebsleiter (und nur er) erreicht von einer
+   Auffälligkeit aus die Messungen einer Arbeit: jede Zeile änderbar oder
+   löschbar. Geändert wird die Beobachtung, nicht das Abgeleitete (AB-38).
 
 ### Der Weg des Zählers
 
@@ -76,8 +86,14 @@ neu — Gewichte unterscheiden sich, das Datum nicht), „+" gross in
 Daumenreichweite, darunter „Rückgängig". Jede Speicherung bestätigt sich mit
 einem kurzen „✓ gespeichert". Beim Waschen + Sortieren steht ein zweiter,
 kleinerer Knopf „Palette wiegen" — das Zettelgewicht ist dort schon
-eingetragen. Beim Waschen trägt jede Kiste ihr **Sortierdatum** („kein
-Datum" ist eine Antwort); beim Fax zählt der Zähler die Paletten gesamt.
+eingetragen —, und darüber die Erinnerung „3 von 3 gewogen".
+
+Beim **Waschen** zählt der Zähler die Paletten aus dem Zwischenlager: oben
+das **Sortierdatum vom Zettel** („kein Datum" ist eine Antwort), darunter die
+**Kisten auf der Palette** (vorbelegt aus der Einstellung, änderbar, wenn
+eine nicht voll ist); der Stand zeigt Paletten und Kisten zusammen. Beim
+**Sortieren** zählt er die gefüllten Kisten je Kaliberband, beim **Fax** die
+Paletten gesamt.
 
 ## Die Betriebsleiter-Seite
 
@@ -85,10 +101,10 @@ Fünf Reiter, je mit einem Satz darüber, was er beantwortet:
 
 | Reiter | Beantwortet | Woraus |
 |---|---|---|
-| **Überblick** | Was kam herein, was ging hinaus, was ist verloren — und woran? | Vier Zahlen (Eingang und Ausgeliefert gemessen; Verlust und Noch im Haus gerechnet — das Ausgelagerte aus den Lieferungen, AB-23); „Woran fehlt die Ware?" gesamt oder je Sorte, Schlag, Charge (gestapelte Balken: Palox, Verdunstung, zu klein, zu gross, dazu die Überfüllung; Klick öffnet die Gruppe); „Was ist noch im Haus?" je Gruppe mit verkaufsfähigem Anteil und „liegt seit"; Kaliber je Sorte; Saison im Verlauf mit dem Abstand der Kurven. Keine Vorhersagen, keine Ratschläge — was nicht gewusst werden kann, steht nicht da (AB-18) |
-| **Ursachen** | Echter Verlust und kein echter Verlust, jede Ursache in der Tiefe: je Sorte, je Charge, die Messungen dahinter | *Echter Verlust:* Palox — Verderb im Lager (Kurve, Punkte, je Charge gemessen gegen Modell, das Faule je Charge) und Palox beim Abpacken (Fax, mit Tagen seit dem Waschen); Verdunstung (kumulierter Verlust über der Lagerdauer, Raten je Sorte). *Kein echter Verlust:* Sortierung (zu klein, zu gross, Kaliber, Gewichtsverteilung), Überfüllung aus den gewogenen fertigen Paletten, Stück-Kisten gegen die Erwartung aus der CSV. Nie „Buch A/B" (AB-30). Filter Sorte, Schlag und Charge, auch aus dem Überblick heraus |
-| **Chargen** | Wo steht welche Charge? | Eingang, ausgeliefert, im Haus (davon verkaufsfähig), „liegt seit" als Spanne (kein FIFO), Verlust, Messungen; Aufklappen zeigt die Eingangstage (Paletten, Eingang, in der App gezählt), die Arbeiten und Lieferungen der Charge |
-| **Messungen** | Was weiss die Auswertung — und was nicht? | Datenqualität, fehlende Messungen, Lagerkontrollen, Koeffizienten, Modell |
+| **Überblick** | Was kam herein, was ging hinaus, was ist **bis heute** verloren — und woran? | Vier Zahlen bis heute (Eingang und Ausgeliefert gemessen; Verlust bis heute und Noch im Haus gerechnet, AB-23, AB-31); der Verlauf mit drei Linien (Eingang, Ausgang, Verlust) und der Heute-Marke in der Mitte — ab dort gestrichelt die Prognose; „Woran fehlt die Ware?" je Gruppe als **100-%-Balken** mit Anteil und Tonnen beim Überfahren; „Was ist noch im Haus?" ausklappbar je Gruppe, mit verkaufsfähigem Anteil und „liegt seit"; die Kaliberverteilung als Glocke mit Kurztabelle. Keine Vorhersagen in Kennzahlen, keine Ratschläge (AB-18) |
+| **Ursachen** | Echter Verlust und kein echter Verlust, jede Ursache in der Tiefe: je Sorte, je Charge, die Messungen dahinter | Oben ein leiser Filter (Sorte, Charge), je Block **zuerst die Zahl**, dann die Kurve. *Echter Verlust:* Palox — „vermuteter Verderb aktuell noch im Lager: X kg (x %)" mit Kurve und Messpunkten; Verdunstung — vermutete Verdunstung des heutigen Lagers, Kurve mit Erwartungsband. *Kein echter Verlust:* Sortierung (Zahlen, Sortendurchschnitt gross, Chargentabelle beim Sortenfilter, Glocke ausklappbar); Fax als eine Zahl; Überfüllung als eigener Block, getrennt nach „Kiste ab x kg" (Soll, gemessen, zu viel, verkaufte Kisten, verschenkt nur wo gemessen) und „x Stück je Kaliber" (Durchschnittsgewicht, verkaufte Stück, keine Marge). Nie „Buch A/B" (AB-30, AB-37) |
+| **Chargen** | Wo steht welche Charge? | Eingang, ausgeliefert, im Haus (davon verkaufsfähig), „liegt seit" als Spanne (kein FIFO), Verlust bis heute, Messungen; Aufklappen zeigt in dieser Reihenfolge **Eingang → Ausgang → Arbeiten**. Auffälligkeiten stehen nicht hier, sondern unter Messungen, wo sie sich beheben lassen (AB-38) |
+| **Messungen** | Was weiss die Auswertung — und was nicht? | Auffälligkeiten (mit „korrigieren" direkt in die Messungen der Arbeit, AB-38), Datenqualität, fehlende Messungen, Lagerkontrollen, Koeffizienten, Modell |
 | **Betrieb** | Was ist heute los, und wie pflege ich die Grundlagen? | Arbeiten (mit „Arbeit und Tempo" je Tätigkeit), Warenausgang (Excel einlesen, Lieferungen), Sortier-CSV, Stammdaten, Zugang |
 | **Messungen** (dazu) | Geht die Rechnung auf? | Die Bilanz Eingang = Verlust + Ausgang + Bestand steht hier, weil sie das Modell prüft, nicht den Betrieb |
 
@@ -101,9 +117,11 @@ gemessen ist, steht als „nicht gemessen", nie als 0.
 |---|---|---|
 | 0041 | Kisten je Kaliber gezählt, am Sortieren und am Waschbecken | Kistengewicht je Kaliber (gemessen, mit Bereich) |
 | 0041 | Datum vom Zettel, Pflicht | Alter der verarbeiteten Ware gegen das Alter im Lager — wird das Älteste zuerst verarbeitet? |
-| 0043 | Sortierart je Arbeit, Käufer | Überfüllung je Käufer und Sorte |
-| 0044 | Ausschuss gewogen oder geschätzt | Anteil gewogener Messungen (Datenqualität) |
-| 0045 | Wie die Kontrollpalette gegriffen wurde | Lagerkontrollen nach Auswahlart |
+| 0043 | Sortierart je Arbeit | Überfüllung je Sorte und Kistensystem |
+| 0044 | Ausschuss gewogen (Brutto, Kisten, Kistenart) | Netto aus Brutto und Tara; Anteil gewogener Messungen (Datenqualität) |
+| 0061 | Beim Waschen: Palette mit Sortierdatum und Kistenzahl | Menge der Wasch-Arbeit ohne Kistenzählen; Zeit im Zwischenlager, massegewichtet (AB-33) |
+| 0061 | Zu klein / zu gross je Palette am Ende (Waschen + Sortieren) | Ausschussanteil dort, wo es keine Sortier-CSV gibt (AB-34) |
+| 0061 | Verkaufte Kisten je Lieferzeile (aus der Verkaufsdatei) | Verschenkte Marge nur, wo gewogen **und** verkauft (AB-37) |
 | 0036 | Palox-Stand je Ablesung | Ablesungen je Arbeit (fehlt eine, sitzt Schimmel am falschen Alter) |
 | 0001 | Sortier-CSV als Histogramm | Gewichtsverteilung je Sorte, Schlag, Charge mit Kalibergrenzen (vom Betrieb gewünscht, ABLAUF.md) |
 | 0028/0047 | Lieferungen, Vorlauf | Eingang und Ausgang über die Saison |

@@ -110,6 +110,14 @@ select csv_lauf_speichern(
   '[[300,200],[400,300],[600,2000],[900,3000],[1400,2000],[1900,500],[2100,161]]'::jsonb
 );
 
+-- 0061: „heute" ist eine Funktion. Der Prüfstand rechnet die Saison an ihrem
+-- Ende (heute_test = Saisonende): so bleiben die Erwartungen der älteren
+-- Blöcke gültig, die bis zum Stichtag altern. Der 0061-Block am Ende prüft
+-- die Semantik „bis heute" mit einem früheren Datum.
+insert into einstellung (schluessel, wert, bemerkung)
+values ('heute_test', '"2027-03-31"'::jsonb, 'Prüfstand: rechnet am Saisonende')
+on conflict (schluessel) do update set wert = excluded.wert;
+
 -- Die Auswertung liegt seit 0016 gespeichert vor: nach jeder Erfassung
 -- einmal neu rechnen, sonst prüft man den Stand von vorhin.
 select auswertung_aktualisieren() \gset stand_
@@ -1131,26 +1139,19 @@ begin
   -- (c) Der Restbestand ist die verkaufsfähige Masse im Lager (0060): nach
   --     Verdunstung, Verderb, zu klein, zu gross und Fax — so schliesst die
   --     Bilanz Eingang = Verlust + Kanal + verkauft + Rest.
-  select restbestand_modell_kg into v_rest from v_saisonbilanz;
+  select verkaufsfaehig_heute_kg into v_rest from v_saisonbilanz;
   select sum(verkaufsfaehig_kg) into v_m2 from v_kaskade where portion = 'lager';
   assert abs(v_rest - v_m2) < 0.5,
     format('Restbestand %s kg, verkaufsfähig im Lager %s kg — die Bilanz und die Kaskade widersprechen sich',
            round(v_rest), round(v_m2));
 
-  -- (d) 0060: Die Kistenzahl der Überfüllung folgt der *verkauften* Masse,
-  --     nicht einer Einstellung und nicht gezählten Arbeiten. Mehr verkauft,
-  --     mehr Kisten, mehr verschenkt.
-  select kg into v_vorher from v_marge_buch where posten like '%berf%';
-  insert into lieferung (datum, charge_nr, sorte, kg, ziel, bemerkung)
-  values (current_date, 1613, 'Tiana', 10000, 'verkauf', 'PRUEF-KETTE');
+  -- (d) 0061: Die Kistenzahl der Überfüllung kommt aus der Verkaufsdatei —
+  --     nicht aus einer Hochrechnung der verkauften Masse. Ohne Datei ist die
+  --     Überfüllung unbekannt, und die Erläuterung sagt es (der 0061-Block
+  --     prüft die Rechnung mit einer Datei).
   select kg, erlaeuterung into v_nachher, v_text from v_marge_buch where posten like '%berf%';
-  delete from lieferung where bemerkung = 'PRUEF-KETTE';
-  if v_vorher is not null and v_vorher <> 0 then
-    assert v_nachher > v_vorher,
-      format('Die Überfüllung muss mit der verkauften Masse wachsen (%s → %s)', v_vorher, v_nachher);
-    assert v_text like '%verkaufter Ware%',
-      format('Der Rechenweg muss die verkaufte Masse nennen: %s', v_text);
-  end if;
+  assert v_nachher is null and v_text like '%Verkaufsdatei%',
+    format('Ohne Verkaufsdatei darf die Überfüllung nichts behaupten: %s / %s', v_nachher, v_text);
 
   -- (e) 0060: Das Sollgewicht steht an der Arbeit (Kistensystem „Kiste ab
   --     x kg"). Ein höheres Soll an der Arbeit mit der gewogenen Palette
@@ -1527,15 +1528,8 @@ begin
   perform public.klassiere((select id from public.sortierschema limit 1), 800);
   perform public.sortierschema_fuer((select sorte from public.charge limit 1), null, current_date);
 
-  -- Und die ganze Kaskade, so wie setup.sql sie aufbaut
-  refresh materialized view public.mv_sortier_lauf_masse;
-  refresh materialized view public.mv_kaliber_verteilung;
-  refresh materialized view public.mv_sortier_eingang;
-  refresh materialized view public.mv_auftrag_masse;
-  refresh materialized view public.mv_schimmel_punkte;
-  refresh materialized view public.mv_schimmel_modell;
-  refresh materialized view public.mv_kaskade;
-  refresh materialized view public.mv_hochrechnung;
+  -- Und die ganze Kaskade, so wie setup.sql sie aufbaut (0061: in Schritten)
+  perform public.auswertung_aktualisieren();
 
   select count(*) into v_n from public.v_verlust_ranking;
   assert v_n > 0, 'Das Ranking muss auch ohne Suchpfad Zeilen liefern';
@@ -1698,23 +1692,30 @@ select '——— 0048 Ballast geprüft ———' as ergebnis;
 -- =========================================================================
 do $$
 declare v_luecke1 numeric; v_luecke2 numeric; v_vorlauf numeric; v_ausgang1 numeric; v_ausgang2 numeric;
-        v_charge int; v_a bigint; v_fehler boolean;
+        v_gel1 numeric; v_gel2 numeric; v_charge int; v_a bigint; v_fehler boolean;
 begin
   perform set_config('request.jwt.claim.sub','11111111-1111-1111-1111-111111111111', true);
   select charge_nr into v_charge from v_hochrechnung_basis
    where eingang_kg > 0 order by eingang_kg desc limit 1;
 
-  -- AB-07: Vorlauf zum Ausgang, Lücke sinkt um denselben Betrag.
-  select luecke_kg, ausgang_kg into v_luecke1, v_ausgang1 from v_saisonbilanz;
+  -- AB-07: Vorlauf zum Ausgang. Seit 0061 ist er eine Lieferung wie jede
+  -- andere: er hebt den Ausgang und das Gelieferte der Charge um denselben
+  -- Betrag; die Lücke (= Überzählung) bleibt, wie sie ist.
+  perform auswertung_aktualisieren();
+  select luecke_kg, ausgang_kg, geliefert_kg into v_luecke1, v_ausgang1, v_gel1 from v_saisonbilanz;
   insert into charge_vorlauf (charge_nr, ausgang_vor_app_kg) values (v_charge, 1000)
     on conflict (charge_nr) do update set ausgang_vor_app_kg = 1000;
-  select luecke_kg, ausgang_kg, vorlauf_kg into v_luecke2, v_ausgang2, v_vorlauf from v_saisonbilanz;
+  perform auswertung_aktualisieren();
+  select luecke_kg, ausgang_kg, vorlauf_kg, geliefert_kg into v_luecke2, v_ausgang2, v_vorlauf, v_gel2 from v_saisonbilanz;
   assert v_vorlauf = 1000, format('Vorlauf erwartet 1000, ist %s', v_vorlauf);
   assert abs((v_ausgang2 - v_ausgang1) - 1000) < 1,
     format('Der Vorlauf muss den Ausgang um 1000 heben (%s → %s)', v_ausgang1, v_ausgang2);
-  assert abs((v_luecke1 - v_luecke2) - 1000) < 1,
-    format('Der Vorlauf muss die Lücke um 1000 senken (%s → %s)', v_luecke1, v_luecke2);
+  assert abs((v_gel2 - v_gel1) - 1000) < 1,
+    format('Der Vorlauf muss das Gelieferte um 1000 heben (%s → %s)', v_gel1, v_gel2);
+  assert abs(v_luecke1 - v_luecke2) < 1,
+    format('Der Vorlauf darf die Lücke (= Überzählung) nicht bewegen (%s → %s)', v_luecke1, v_luecke2);
   delete from charge_vorlauf where charge_nr = v_charge;
+  perform auswertung_aktualisieren();
 
   -- AB-08: Fax ist eine eigene Arbeit, fachlich ein Waschgang.
   insert into auftrag (weg, station, charge_nr, start_ts, eroeffnet_von, ist_fax)
@@ -1797,12 +1798,14 @@ begin
   assert v between 195 and 205, format('Durchsatz erwartet ~200 kg/h, ist %s', v);
   assert (select dauer_h from v_durchsatz where auftrag_id = v_b) between 1.9 and 2.1, 'Dauer nicht 2 h';
 
-  -- Überfüllung je Käufer: dieselbe Summe wie die Einzelwägungen
-  select coalesce(sum(ueberfuellung_kg), 0) into v from v_ueberfuellung_kaeufer;
+  -- Überfüllung je Sorte (0061, kein Käufer mehr): der gewogene Überschuss
+  -- ist dieselbe Summe wie die Einzelwägungen
+  select coalesce(sum(zuviel_gewogen_kg), 0) into v from v_ueberfuellung_verkauf
+   where gruppe = 'sorte' and kistensystem = 'kiste_ab';
   select coalesce(sum(x.ueberfuellung_kg), 0) into v2 from v_ausgang_kennzahl x
     join auftrag a on a.id = x.auftrag_id
-   where x.ueberfuellung_je_kiste is not null and a.abgebrochen_ts is null;
-  assert abs(v - v2) < 0.5, format('Überfüllung je Käufer %s ≠ Einzelwägungen %s', v, v2);
+   where x.ueberfuellung_je_kiste is not null and a.abgebrochen_ts is null and x.kistensystem = 'kiste_ab';
+  assert abs(v - v2) < 0.5, format('Überfüllung je Sorte %s ≠ Einzelwägungen %s', v, v2);
 
   -- Datenqualität: eine Zeile, Zähler in sich stimmig
   select count(*) into v_n from v_datenqualitaet;
@@ -1810,18 +1813,19 @@ begin
   assert (select paletten_mit_datum <= paletten_gezaehlt from v_datenqualitaet), 'mehr datierte als gezählte Paletten';
   assert (select arbeiten_mit_zwei_ablesungen <= arbeiten_mit_ablesung from v_datenqualitaet), 'Ablesungszähler unstimmig';
   assert (select arbeiten_mit_ablesung <= arbeiten_fertig from v_datenqualitaet), 'mehr Ablesungen als Arbeiten';
-  assert (select lagerkontrollen_zufaellig <= lagerkontrollen from v_datenqualitaet), 'Kontrollzähler unstimmig';
+  assert (select lagerkontrollen >= 0 from v_datenqualitaet), 'Kontrollzähler unstimmig';
 
-  -- Saisonverlauf: die letzte Woche kumuliert alles, die Wochen steigen streng
-  select max(eingang_kumuliert_kg) into v from v_saisonverlauf;
+  -- Verlauf (0061, erg_verlauf): die letzte Woche kumuliert den ganzen
+  -- Eingang, die Wochen steigen streng
+  select max(eingang_kum_kg) into v from erg_verlauf where sorte is null;
   select coalesce(sum(netto_kg), 0) into v2 from v_palette where netto_kg is not null and eingangsdatum is not null;
-  assert abs(coalesce(v, 0) - v2) < 1, format('Saisonverlauf kumuliert %s ≠ Eingang %s', v, v2);
-  assert not exists (select 1 from (select woche, lag(woche) over (order by woche) as vor from v_saisonverlauf) w
+  assert abs(coalesce(v, 0) - v2) < 1, format('Verlauf kumuliert %s ≠ Eingang %s', v, v2);
+  assert not exists (select 1 from (select woche, lag(woche) over (order by woche) as vor from erg_verlauf where sorte is null) w
                       where w.vor is not null and w.woche <= w.vor), 'Wochen nicht streng steigend';
 
   delete from auftrag where id in (v_a, v_b);
   perform auswertung_aktualisieren();
-  raise notice 'OK  0049 Kennzahlen (Gewichtsverteilung, Alter, Durchsatz, Überfüllung je Käufer, Datenqualität, Saisonverlauf)';
+  raise notice 'OK  0049 Kennzahlen (Gewichtsverteilung, Alter, Durchsatz, Überfüllung je Sorte, Datenqualität, Verlauf)';
 end $$;
 
 select '——— 0049 Kennzahlen geprüft ———' as ergebnis;
@@ -2577,7 +2581,8 @@ begin
       'v_saisonbilanz','v_schimmel_punkte','v_hochrechnung_basis','v_naechste_charge',
       'v_koeff_verdunstung','v_koeff_ausschuss','v_koeff_nebenkanal','v_koeff_ueberfuellung',
       'v_wiegung_kennzahl','v_marge_buch','v_gewichtsverteilung','v_verarbeitung_alter',
-      'v_durchsatz','v_ueberfuellung_kaeufer','v_datenqualitaet','v_saisonverlauf','v_koeff_gebinde',
+      'v_durchsatz','v_datenqualitaet','v_koeff_gebinde',
+      'v_verkauf_lieferung','v_ueberfuellung_verkauf','v_verlust_je_gruppe','v_auftrag_wasch_paletten',
       'v_charge_kohorte','v_fax_beobachtung','v_ausschuss_beobachtung','v_lieferung_masse',
       'v_verlust_ranking','v_kaskade','v_auftrag_masse','v_schimmel_beobachtung',
       'v_ausgang_kennzahl','v_ausgang_lage','v_ausgang_pruef','v_kohorte_anteil','v_palox_stand',
@@ -2716,11 +2721,11 @@ begin
   delete from lieferung where bemerkung = 'PRUEF-0060';
 
   -- ---- Der Chargenfilter der Bereiche ------------------------------------
-  select kg into v from verlust_ranking(null, null, null, 1613) where strom = 'Verdunstung';
+  select kg into v from verlust_ranking(null, null, 1613) where strom = 'Verdunstung';
   select kg into v2 from verlust_ranking() where strom = 'Verdunstung';
   assert v is not null and v > 0 and v < v2,
     'verlust_ranking je Charge liefert einen Teil des Ganzen';
-  assert (select kg_unten from verlust_ranking(null, null, null, 1613) where strom = 'Verdunstung') is not null,
+  assert (select kg_unten from verlust_ranking(null, null, 1613) where strom = 'Verdunstung') is not null,
     'auch mit Bereich';
 
   -- ---- Palette kontrollieren: drei Vorschläge, bestandsstärkste zuerst ------
@@ -2742,3 +2747,215 @@ begin
 end $$;
 
 select '——— 0060 Punktuell erfasst geprüft ———' as ergebnis;
+
+-- =====================================================================
+-- 0061 — Alles bis heute, die Prognose getrennt, das Rechenwerk gespeichert
+-- =====================================================================
+-- Bis hierher rechnete der Prüfstand am Saisonende (heute_test). Jetzt ein
+-- früheres „heute" (15. Januar — nach der Lieferung der Fixtur vom 30.12.):
+-- die Ware im Haus altert bis dahin, der Verlauf teilt sich in gerechnet bis
+-- heute und Prognose danach.
+do $$
+declare v numeric; v2 numeric; v_n int; v_stand jsonb; v_txt text; r record; i int;
+        v_l1 bigint; v_l2 bigint; v_l3 bigint; v_w bigint; v_kg_je_kiste numeric; v_ok boolean;
+begin
+  perform set_config('request.jwt.claim.sub','11111111-1111-1111-1111-111111111111', true);
+
+  -- ---- heute() und stichtag() -------------------------------------------
+  assert heute() = date '2027-03-31', 'Der Prüfstand rechnet bis hier am Saisonende (heute_test)';
+  assert stichtag() = date '2027-03-31', 'Der Stichtag ist das Saisonende';
+  update einstellung set wert = '"2027-01-15"'::jsonb where schluessel = 'heute_test';
+  assert heute() = date '2027-01-15', 'heute() folgt der Einstellung heute_test';
+  assert stichtag() = date '2027-03-31', 'Der Horizont der Prognose bleibt das Saisonende';
+  perform auswertung_aktualisieren();
+
+  -- ---- Die Ware im Haus altert bis heute, nicht bis zum Saisonende --------
+  select alter_tage into v from v_hochrechnung where charge_nr = 1614 and portion = 'lager' order by alter_tage desc limit 1;
+  assert v between 125 and 130,
+    format('Die Ware im Haus (Eingang 10.9.) ist am 15.1. rund 127 Tage alt, nicht %s', v);
+  assert (select heute from v_hochrechnung_basis limit 1) = date '2027-01-15', 'Die Basis nennt ihr Heute';
+  assert (select stichtag from v_kaskade_basis limit 1) = date '2027-01-15', 'Die Kaskade altert bis heute';
+  -- Das Ausgelagerte altert bis zum Liefertag — was auf dem Lieferschein steht.
+  select alter_ausgelagert into v from v_hochrechnung_basis where charge_nr = 1613;
+  assert v between 116 and 120, format('Das Ausgelagerte altert bis zum Liefertag (~118), ist %s', v);
+
+  -- ---- Verlust bis heute: die Teile ergeben das Ganze ----------------------
+  assert not exists (select 1 from erg_charge
+                      where abs(verlust_heute_kg - (verdunstung_heute_kg + schimmel_heute_kg + sockel_heute_kg + fax_heute_kg)) > 0.05),
+    'Verlust bis heute = Verdunstung + Schimmel + nicht lagerbedingt + Fax am Abgepackten';
+  assert not exists (select 1 from erg_charge where verlust_heute_kg is null or im_haus_heute_kg is null),
+    'Verlust und Bestand bis heute sind nie NULL — auch für eine Charge ohne Lieferung';
+  assert abs((select sum(verlust_heute_kg) from erg_charge)
+             - (select sum(kg) from erg_verlust where gruppe = 'gesamt' and buch in ('verlust', 'feld'))) < 1,
+    'Charge und Ranking nennen denselben Verlust bis heute';
+  assert abs((select sum(eingang_kg - geliefert_kg - verlust_heute_kg - (kanal_heute_kg - kanal_im_haus_kg)
+                         - im_haus_heute_kg + ueberzaehlung_kg) from erg_charge)) < 1,
+    'Eingang = geliefert + Verlust bis heute + Kanal am Ausgelagerten + im Haus − Überzählung';
+  assert abs((select luecke_kg + ueberzaehlung_kg from v_saisonbilanz)) < 1,
+    'Die Lücke der Bilanz ist genau die Überzählung';
+  assert (select befund from v_saisonbilanz) like 'Bis heute (15.01.2027)%'
+      or (select befund from v_saisonbilanz) like '%noch nicht gemessen%'
+      or (select befund from v_saisonbilanz) like '%zu viel%',
+    format('Der Befund spricht von heute: %s', (select befund from v_saisonbilanz));
+  -- Fax an der Ware im Haus ist eine Erwartung, kein Verlust
+  assert (select coalesce(sum(fax_erwartet_kg), 0) from erg_charge) >= 0, 'fax_erwartet_kg lesbar';
+  assert not exists (select 1 from erg_verlust where strom = 'Faul beim Abpacken (Fax)' and kg_projiziert > 0.01),
+    'Fax hat keinen projizierten Anteil — an der Ware im Haus ist es Erwartung (kg_erwartet)';
+
+  -- ---- Der Verlauf: bis heute gerechnet, danach Prognose -------------------
+  assert (select count(*) from erg_verlauf where sorte is null and prognose) > 0,
+    'Vor dem Saisonende gibt es Prognosewochen';
+  assert not exists (select 1 from erg_verlauf where prognose and bis <= heute()), 'Prognose erst nach heute';
+  assert not exists (select 1 from erg_verlauf where not prognose and bis > heute()), 'Bis heute ist keine Prognose';
+  assert (select count(distinct eingang_kum_kg) from erg_verlauf where sorte is null and prognose) = 1,
+    'In der Prognose kommt nichts mehr herein';
+  assert not exists (select 1 from (select verlust_kum_kg, lag(verlust_kum_kg) over (order by woche) as vor
+                                      from erg_verlauf where sorte is null) w
+                      where w.vor > w.verlust_kum_kg + 0.01), 'Der Verlust kumuliert monoton';
+  assert not exists (select 1 from erg_verlauf where im_haus_kg < -0.01 or verlust_kum_kg < -0.01), 'Nie negativ';
+  select verlust_kum_kg into v from erg_verlauf where sorte is null and not prognose order by woche desc limit 1;
+  select sum(verlust_heute_kg) into v2 from erg_charge;
+  assert abs(v - v2) <= 0.06 * greatest(v2, 1) + 5,
+    format('Die letzte Woche bis heute trifft den Verlust der Chargen (%s vs %s, Wochenraster)', round(v), round(v2));
+  assert abs((select sum(eingang_kum_kg) from erg_verlauf where sorte is not null and woche = (select max(woche) from erg_verlauf))
+             - (select eingang_kum_kg from erg_verlauf where sorte is null and woche = (select max(woche) from erg_verlauf))) < 1,
+    'Die Sorten summieren sich zum Ganzen';
+
+  -- ---- verlust_ranking liest, rechnet nicht ---------------------------------
+  assert (select count(*) from verlust_ranking(null, null, 1613)) > 0, 'Charge';
+  assert (select count(*) from verlust_ranking('Tiana')) > 0, 'Sorte';
+  assert (select kg from verlust_ranking('Tiana') where strom = 'Verdunstung')
+       <= (select kg from verlust_ranking() where strom = 'Verdunstung') + 0.01, 'Die Sorte ist ein Teil des Ganzen';
+  assert exists (select 1 from erg_verlust where gruppe = 'schlag'), 'Auch je Schlag vorgerechnet';
+  assert (select count(*) from erg_verlust where gruppe = 'gesamt') = (select count(*) from v_verlust_ranking),
+    'v_verlust_ranking ist die Gesamtgruppe';
+
+  -- ---- Lagerkontrolle: Bestand × Tage seit der letzten Wägung --------------
+  assert (select count(*) from v_kontrolle_vorschlag) between 1 and 3, 'Höchstens drei Vorschläge';
+  assert (select min(informationswert) from v_kontrolle_vorschlag) > 0, 'Jeder Vorschlag hat einen Informationswert';
+  assert not exists (select 1 from v_kontrolle_vorschlag where im_haus_heute_kg <= 0), 'Nur, wo heute etwas liegt';
+
+  -- ---- Verkaufte Kisten aus der Verkaufsdatei --------------------------------
+  -- Drei Positionen: Kiste ab 8 kg (100 Kisten mit Charge), Stück (50 Kisten à
+  -- 12 Stück à 550 g mit Charge), Kiste ab 8 kg ohne Chargenbezug (20 Kisten).
+  insert into ausgang_quelle (code, name) values ('PRUEF', 'Prüfstand') on conflict (code) do nothing;
+  insert into ausgang_zeile (quelle, pos_id, charge_extern, lauf_nr, fingerabdruck, datum, artikel_id, artikel,
+                             einheit, menge, gewicht_je_artikel, batch_menge, kg_position, kg_charge,
+                             gebindeart, gebinde_menge, gebinde_inhalt, batch_gebinde)
+  values ('PRUEF', 1, '1613', 1, 'f1', date '2026-09-20', 'kürbtia',  'Bio Kürbis Tiana lose', 'kg',   800, 1,    800, 800, 800, 'IFCO', 100, 8,  100),
+         ('PRUEF', 2, '1613', 1, 'f2', date '2026-09-21', 'kürbtiad', 'Bio Kürbis Tiana Dem',  'Stk.', 600, 0.55, 600, 330, 330, 'IFCO', 50,  12, 50),
+         ('PRUEF', 3, '',     1, 'f3', date '2026-09-22', 'kürbtia',  'Bio Kürbis Tiana lose', 'kg',   160, 1,    0,   160, 0,   'IFCO', 20,  8,  null);
+  insert into lieferung (datum, charge_nr, sorte, kg, ziel, bemerkung)
+  values (date '2026-09-20', 1613, 'Tiana', 800, 'verkauf', 'PRUEF-0061') returning id into v_l1;
+  insert into lieferung (datum, charge_nr, sorte, kg, ziel, bemerkung)
+  values (date '2026-09-21', 1613, 'Tiana', 330, 'verkauf', 'PRUEF-0061') returning id into v_l2;
+  insert into lieferung (datum, charge_nr, sorte, kg, ziel, bemerkung)
+  values (date '2026-09-22', null, 'Tiana', 160, 'verkauf', 'PRUEF-0061') returning id into v_l3;
+  insert into lieferung_import (lieferung_id, quelle, extern_id)
+  values (v_l1, 'PRUEF', 'PRUEF:1:1613:1'), (v_l2, 'PRUEF', 'PRUEF:2:1613:1'), (v_l3, 'PRUEF', 'PRUEF:3:rest');
+  assert lieferung_import_zeilen_verbinden('PRUEF') = 3, 'Alle drei Lieferungen finden ihre Zeile';
+  assert (select kistensystem from v_verkauf_lieferung where lieferung_id = v_l1) = 'kiste_ab', 'kg × Inhalt 8 = Kiste ab 8 kg';
+  assert (select soll_kg_pro_kiste from v_verkauf_lieferung where lieferung_id = v_l1) = 8, 'Soll aus dem Gebindeinhalt';
+  assert (select kisten from v_verkauf_lieferung where lieferung_id = v_l1) = 100, 'Kisten aus der Chargenzeile';
+  assert (select kisten_quelle from v_verkauf_lieferung where lieferung_id = v_l1) = 'zeile', 'Quelle: die Zeile';
+  assert (select kistensystem from v_verkauf_lieferung where lieferung_id = v_l2) = 'stueck', 'Stk. × Inhalt 12 = Stück-Kiste';
+  assert (select stueck_je_kiste from v_verkauf_lieferung where lieferung_id = v_l2) = 12, '12 Stück je Kiste';
+  assert (select nenn_g from v_verkauf_lieferung where lieferung_id = v_l2) = 550, 'Nenngewicht 550 g';
+  assert (select stueck from v_verkauf_lieferung where lieferung_id = v_l2) = 600, '50 Kisten × 12 = 600 Stück';
+  assert (select kisten from v_verkauf_lieferung where lieferung_id = v_l3) = 20, 'Die Rest-Lieferung bekommt die Kisten der Position';
+  perform auswertung_aktualisieren();
+  select kisten_verkauft, n_lieferungen into v, v_n from erg_ueberfuellung
+   where gruppe = 'sorte' and sorte = 'Tiana' and kistensystem = 'kiste_ab' and soll_kg_pro_kiste = 8;
+  assert v = 120 and v_n = 2, format('Je Sorte: 120 Kisten „ab 8 kg" aus 2 Lieferungen, ist %s / %s', v, v_n);
+  assert (select kisten_verkauft from erg_ueberfuellung
+           where gruppe = 'charge' and charge_nr = 1613 and kistensystem = 'kiste_ab' and soll_kg_pro_kiste = 8) = 100,
+    'Je Charge nur die Chargenzeile (100 Kisten)';
+  select stueck_verkauft, nenn_g into v, v2 from erg_ueberfuellung
+   where gruppe = 'sorte' and sorte = 'Tiana' and kistensystem = 'stueck' and stueck_je_kiste = 12;
+  assert v = 600 and v2 = 550, format('Stück: 600 verkauft, Nenngewicht 550 g (ist %s / %s)', v, v2);
+  assert (select verschenkt_kg from erg_ueberfuellung
+           where gruppe = 'sorte' and sorte = 'Tiana' and kistensystem = 'stueck' and stueck_je_kiste = 12) is null,
+    'Stück-Kisten haben keine verschenkte Marge';
+  -- verschenkt: nur wo gewogen — der Überschuss je gewogener Kiste mal die verkauften Kisten
+  select n_wiegungen, zuviel_je_kiste, verschenkt_kg into v_n, v_kg_je_kiste, v from erg_ueberfuellung
+   where gruppe = 'sorte' and sorte = 'Tiana' and kistensystem = 'kiste_ab' and soll_kg_pro_kiste = 8;
+  if v_n > 0 then
+    assert abs(v - greatest(v_kg_je_kiste, 0) * 120) < 1,
+      format('verschenkt = Überschuss je Kiste × verkaufte Kisten (%s × 120 ≠ %s)', v_kg_je_kiste, v);
+    assert (select kg from v_marge_buch where posten like '%berf%') is not null, 'Die Marge nennt die Zahl';
+    assert (select erlaeuterung from v_marge_buch where posten like '%berf%') like '%Verkaufsdatei%',
+      'Die Erläuterung nennt die Verkaufsdatei als Quelle der Kisten';
+  else
+    assert v is null, 'Ohne Wägung wird nichts verschenkt behauptet';
+    assert (select erlaeuterung from v_marge_buch where posten like '%berf%') like '%keine fertige Palette%',
+      'Die Erläuterung sagt, dass nichts gewogen ist';
+  end if;
+  -- Aufräumen
+  delete from lieferung where bemerkung = 'PRUEF-0061';
+  delete from ausgang_zeile where quelle = 'PRUEF';
+  delete from ausgang_quelle where code = 'PRUEF';
+
+  -- ---- Waschen zählt Paletten: Sortierdatum und Kisten -----------------------
+  insert into auftrag (weg, station, charge_nr, start_ts, ende_ts, status, eroeffnet_von, kaliber_idx, kistensystem)
+  values ('maschine', 'waschen', 1613, timestamptz '2026-09-25 08:00+02', timestamptz '2026-09-25 12:00+02',
+          'abgeschlossen', '11111111-1111-1111-1111-111111111111', 1, 'kiste_ab')
+  returning id into v_w;
+  insert into auftrag_palette (auftrag_id, sortierdatum, kisten)
+  values (v_w, date '2026-09-15', 30), (v_w, date '2026-09-20', 30), (v_w, date '2026-09-20', 20);
+  assert (select n_paletten from v_auftrag_wasch_paletten where auftrag_id = v_w) = 3, 'Drei Paletten gezählt';
+  assert (select kisten from v_auftrag_wasch_paletten where auftrag_id = v_w) = 80, '80 Kisten';
+  select zwischenlager_tage into v from v_auftrag_wasch_paletten where auftrag_id = v_w;
+  assert abs(v - (30 * 10 + 50 * 5) / 80.0) < 0.1, format('Zwischenlager massegewichtet: 6.9 Tage, ist %s', v);
+  select kg_je_gebinde into v_kg_je_kiste from v_koeff_gebinde where sorte = 'Tiana' and kaliber_idx = 1;
+  select kg into v from v_auftrag_wasch_paletten where auftrag_id = v_w;
+  if v_kg_je_kiste is not null then
+    assert abs(v - 80 * v_kg_je_kiste) < 0.05, format('Masse = Kisten × Kistengewicht (%s ≠ 80 × %s)', v, v_kg_je_kiste);
+    perform auswertung_aktualisieren();
+    assert (select masse_quelle from v_auftrag_masse where auftrag_id = v_w) = 'wasch_paletten', 'Die Masse kommt aus den gezählten Paletten';
+    assert (select zwischenlager_tage from v_auftrag_masse where auftrag_id = v_w) is not null, 'Die Zeit im Zwischenlager steht dran';
+  else
+    assert v is null, 'Ohne gemessenes Kistengewicht keine Masse';
+  end if;
+  delete from auftrag where id = v_w;
+
+  -- ---- Die fünf Schritte ---------------------------------------------------
+  for i in 1..5 loop
+    v_stand := auswertung_schritt(i);
+    assert (v_stand ->> 'schritt')::int = i and (v_stand ->> 'schritte')::int = 5, 'Schritt zählt';
+    assert ((v_stand ->> 'fertig')::boolean) = (i = 5), 'Nur der letzte Schritt ist fertig';
+    assert (v_stand ->> 'dauer_ms')::int >= 0, 'Dauer gemessen';
+  end loop;
+  assert (select berechnet_ts from auswertung_stand where id = 1) > now() - interval '1 minute', 'Schritt 5 setzt den Stand';
+  begin
+    perform auswertung_schritt(6);
+    v_ok := false;
+  exception when others then
+    v_ok := true;
+  end;
+  assert v_ok, 'Einen sechsten Schritt gibt es nicht';
+  -- Nur rechnen, wenn veraltet
+  update auswertung_stand set geaendert_ts = berechnet_ts - interval '1 second' where id = 1;
+  assert auswertung_wenn_veraltet() = false, 'Nichts veraltet — nichts gerechnet';
+  update auswertung_stand set geaendert_ts = berechnet_ts + interval '1 second' where id = 1;
+  assert auswertung_wenn_veraltet() = true, 'Veraltet — gerechnet';
+  -- Jede gespeicherte Sicht ist gefüllt, lesbar und analysiert
+  for r in select c.relname, c.reltuples, m.ispopulated
+             from pg_class c join pg_matviews m on m.matviewname = c.relname
+            where m.schemaname = 'public' and c.relname like 'erg\_%'
+  loop
+    assert r.ispopulated, format('%s ist nicht gefüllt', r.relname);
+    execute format('select count(*) from (select * from %I) q', r.relname) into v_n;
+    assert r.reltuples >= 0, format('%s wurde nie analysiert (reltuples %s)', r.relname, r.reltuples);
+  end loop;
+  select count(*) into v_n from pg_matviews where schemaname = 'public' and matviewname like 'erg\_%';
+  assert v_n >= 30, format('Mindestens 30 gespeicherte Ergebnisse erwartet, %s gefunden', v_n);
+  assert schema_stand() = 61, 'Stand 61';
+
+  -- Zurück ans Saisonende
+  update einstellung set wert = '"2027-03-31"'::jsonb where schluessel = 'heute_test';
+  perform auswertung_aktualisieren();
+  perform set_config('request.jwt.claim.sub', '', true);
+  raise notice 'OK  0061 Bis heute: Alter, Verlustteile, Verlauf mit Prognose, Ranking gespeichert, Kontrolle, Verkaufsdatei, Wasch-Paletten, fünf Schritte';
+end $$;
+
+select '——— 0061 Bis heute geprüft ———' as ergebnis;

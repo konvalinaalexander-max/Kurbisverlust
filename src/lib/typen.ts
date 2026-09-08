@@ -3,8 +3,6 @@ export type Weg = 'maschine' | 'hand'
 export type Station = 'sortieren' | 'waschen' | 'waschen_sortieren'
 export type AuftragStatus = 'offen' | 'abgeschlossen'
 export type Zuordnung = 'auto' | 'manuell' | 'offen' | 'mehrdeutig'
-export type AusschussArt = 'zu_klein' | 'zu_gross'
-export type MargeArt = 'nebenkanal' | 'ueberfuellung'
 
 export interface Profil { id: string; name: string; rolle: Rolle; aktiv: boolean; anonym: boolean }
 export interface Charge {
@@ -91,17 +89,6 @@ export interface Hochrechnung {
   /** false: der Koeffizient hinter diesem Strom wurde nie gemessen — kg ist
    *  dann NULL, nicht 0. Leer ist nicht null. */
   koeff_bekannt: boolean
-}
-
-/** Eine Zeile aus verlust_ranking() — ein Strom mit fortgepflanztem Bereich.
- *  Der Bereich lässt sich nicht durch Summieren gefilterter Zeilen gewinnen,
- *  deshalb rechnet ihn die Datenbank auch für die gefilterte Ansicht. */
-export interface Ranking {
-  strom: string; buch: 'verlust' | 'feld' | 'marge' | 'bilanz'
-  kg: number | null; kg_unten: number | null; kg_oben: number | null
-  kg_beobachtet: number | null; kg_projiziert: number | null
-  kg_extrapoliert: number | null
-  koeff_n_min: number | null; streuung_kg: number | null; df: number | null
 }
 
 export interface Massenbilanz {

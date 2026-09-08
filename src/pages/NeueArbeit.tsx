@@ -374,6 +374,8 @@ export default function NeueArbeit() {
       </div>
       <p className="leise">{istFax ? t('dannFax') : station === 'waschen' ? t('paloxWaschenWarum') : t('dannPalox')}</p>
       {station === 'sortieren' && <Hinweis art="info">{t('sortierdatumSchreiben')}</Hinweis>}
+      {station === 'waschen_sortieren' && <Hinweis art="info">{t('dreiWiegenStart')}</Hinweis>}
+      {station === 'waschen' && !istFax && <Hinweis art="info">{t('dreiFertigeStart')}</Hinweis>}
       {fehler && <Hinweis art="warnung">{fehler}</Hinweis>}
     </Schritt>
   )

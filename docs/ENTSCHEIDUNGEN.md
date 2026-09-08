@@ -2067,3 +2067,156 @@ liegt damit wieder bei den früheren Werten.
   zu jung — „liegt seit" bleibt deshalb eine Spanne.
 - Die Palettenmasse je Kistensystem kommt aus wenigen Wägungen. Ihr Bereich
   steht an der Fax-Masse; ohne Wägung gibt es keine.
+
+## Bis heute, gespeichert, nur Gemessenes (Runde H: 0061)
+
+Die zweite Durchsicht galt der Auswertung selbst. Drei Vorwürfe, alle
+berechtigt: die Zahlen behaupten mehr, als sie wissen; das Dashboard lädt zu
+lange und stirbt manchmal ganz; und die Arbeiter-App fragt an mehreren
+Stellen nach Dingen, die niemand beobachten kann.
+
+### „Heute" ist ein Datum, kein Saisonende
+
+Die Kaskade rechnete bisher jede Portion bis zu ihrem Ende durch: liegende
+Ware bis zum Ende der Lagerung, Verlust also inklusive dessen, was erst noch
+kommt. Auf dem Überblick stand damit ein Verlust, den es noch gar nicht
+gibt, und ein Bestand, der um genau diesen Betrag zu klein war.
+
+0061 führt `heute()` ein — normalerweise `current_date`, im Test die
+Einstellung `heute_test`, damit Prüfungen ein festes Datum haben. Jede
+Portion altert bis `stichtag()`: ausgelagerte Ware bis zu ihrem Liefertag,
+liegende bis heute. Daraus:
+
+- `verlust_heute_kg` = Verdunstung + Schimmel + Sockel + Fax, alles bis heute;
+- `im_haus_heute_kg` = Eingang − Ausgang − Verlust bis heute;
+- was danach käme, steht nur im Verlauf, ab der Heute-Marke gestrichelt, und
+  fliesst in keine Kennzahl.
+
+Ein Sonderfall kostete einen halben Tag: Fax-Verlust an Ware, die noch im
+Lager liegt, ist **Erwartung, kein Verlust** — er steht als `fax_erwartet_kg`
+getrennt und zählt nicht in `verlust_heute_kg`. Ohne diese Trennung wurde die
+Ware doppelt abgezogen und die Saisonbilanz zeigte eine Lücke von 6.3 t, wo
+in Wahrheit eine Überzählung stand.
+
+### Die App rechnet nicht mehr beim Hinsehen
+
+Bisher waren die Dashboard-Zahlen Sichten: Jeder Seitenaufruf rechnete die
+halbe Auswertung neu, ein Dutzend Sichten gleichzeitig, und bei genügend
+Daten schlug Supabases 8-Sekunden-Grenze zu — sieben Sichten meldeten
+„statement timeout", die Seite zeigte eine halbe Auswertung.
+
+Jetzt gibt es zu jeder gelesenen Sicht eine gespeicherte Fassung (`erg_*`,
+materialisiert). Die App liest nur diese; sie rechnet nichts. Neu gerechnet
+wird auf Knopfdruck, in **fünf Schritten**, jeder ein eigener Aufruf mit
+eigener Verbindung und eigenem Zeitbudget:
+
+| Schritt | Was er erneuert | Demo | Dreifache Saison |
+|---|---|---|---|
+| 1 | Rohdaten (Wägungen, Gebinde, Ausgang, Lieferungen) | 0.1 s | 0.5 s |
+| 2 | Arbeiten (Massen, Fax, Ausschuss, Durchsatz) | 1.1 s | 1.7 s |
+| 3 | Kaskade (Kohorten, Ströme je Eingangstag) | 0.7 s | 1.3 s |
+| 4 | Ergebnis (Verlust, Verlauf, Chargen, Bilanz) | 1.2 s | 1.6 s |
+| 5 | Befunde (Plausibilität, Datenqualität) | 0.2 s | 0.2 s |
+
+Der Fortschritt steht auf dem Bildschirm; scheitert ein Schritt, nennt die
+App ihn beim Namen, und die übrigen Zahlen bleiben stehen. `run.sh` prüft
+jeden Schritt einzeln gegen eine Grenze von 6 Sekunden — die Liste der
+gelesenen Ansichten holt es aus dem Frontend-Quelltext, damit sie nicht
+auseinanderdriftet.
+
+Der Nebeneffekt ist die eigentliche Zahl: alle dreissig gelesenen Ansichten
+zusammen brauchen jetzt **25 Millisekunden** statt mehrerer Sekunden.
+
+### Was der Lasttest fand: eine Kurve, 113 000 mal gerechnet
+
+Bei dreifacher Saison brauchte Schritt 4 zunächst 5.7 Sekunden — nah an der
+Grenze, ab der Supabase abbricht. Schuld war eine einzige Sicht: der Verlauf
+je Woche. Er rechnet für jede Portion der Kaskade und jede Woche das
+Verderbsmodell F(t) aus; bei 1890 Portionen und 60 Wochen sind das 113 000
+Auswertungen, jede mit einer Suche in der Verderbskurve (Sortieren und
+Abschneiden je Zeile).
+
+F(t) hängt aber nur vom Alter in Tagen ab, von sonst nichts. Also wird es
+einmal je Tag gerechnet — rund 400 Zeilen — und angejoint. Der Verlauf fällt
+von 4.9 auf 0.65 Sekunden, Schritt 4 von 5.7 auf 1.6, und die Zahlen sind
+bis auf die letzte Nachkommastelle dieselben (geprüft an Summe des Bestands
+und des kumulierten Verlusts über alle 372 Zeilen).
+
+Das ist derselbe Fehlertyp wie der JIT-Fund in 0060: nicht eine falsche
+Formel, sondern eine richtige Formel an der falschen Stelle im Plan.
+
+### Und der zweite Fund: veraltete Statistik
+
+Derselbe Lasttest zeigte kurz darauf 33 Sekunden für Schritt 2 — bei
+denselben Daten, die er sonst in 1.1 schafft. Der Unterschied war nicht die
+Datenmenge, sondern der Zeitpunkt: unmittelbar nach einem grossen Import.
+Postgres schätzt Pläne aus Statistiken, die ein Hintergrundprozess pflegt;
+direkt nach dem Laden stehen dort noch die Zahlen von vorher, und der Planer
+wählt Verschachtelungen, die um Grössenordnungen danebenliegen.
+
+Genau dieser Fall trifft den Betrieb am ersten Tag: Daten einspielen, dann
+rechnen. Schritt 1 analysiert deshalb zuerst alle Rohtabellen des Schemas —
+auf der Demo 0.2 Sekunden — und rechnet erst danach. Die gespeicherten
+Sichten werden ohnehin nach jedem Erneuern analysiert.
+
+### Waschen zählt Paletten
+
+Beim Waschen aus dem Zwischenlager zählte die App bisher Kisten, je Kiste mit
+Sortierdatum. Der Betrieb: Die Kisten stehen auf Paletten, und der Zettel mit
+dem Sortierdatum hängt an der Palette. Also wird gezählt, was dort steht: die
+Palette, mit Sortierdatum vom Zettel und Kistenzahl darauf (Vorgabe aus der
+Einstellung, änderbar, wenn eine nicht voll ist). Die Masse ist Kisten ×
+gemessenes Kistengewicht des Kalibers; die Zeit im Zwischenlager kommt
+massegewichtet aus den Sortierdaten.
+
+Damit teilen sich zwei sehr verschiedene Dinge eine Tabelle: die
+Eingangspalette (Eingangsdatum, Zettelgewicht) und die Kaliber-Palette
+(Sortierdatum, Kisten). Die Sicht auf den Wareneingang schliesst Zeilen mit
+Kistenzahl aus — sonst hätte die Demo-Saison 119.5 t Eingang zu viel gehabt.
+
+### Was die App nicht mehr fragt
+
+Drei Fragen sind ersatzlos weg, weil ihre Antwort keine Beobachtung war:
+
+- **„Davon faul" bei der Lagerkontrolle.** Die Palette wird gewogen, nicht
+  ausgepackt. Was das kostet: Die Kontrolle ist kein Punkt der Schimmelkurve
+  mehr, nur noch der Verdunstungskurve. Die Kurve verliert die einzigen
+  Punkte, deren Palette nicht nach Aussehen gewählt wurde
+  (`STATISTIK_BEFUND.md`) — dafür steht in ihr nichts Erfundenes mehr.
+- **„Wie wurde die Palette gegriffen?"** Wer greift, weiss selten, ob er
+  zufällig greift; die Antwort war Selbsteinschätzung, nicht Beobachtung.
+- **„Faules sichtbar" beim Wiegen einer Eingangspalette.** Dieselbe Sache:
+  ein Blick auf die Aussenseite eines Stapels.
+
+Geblieben ist der **Palox beim Waschen**: gefragt, nicht Pflicht. Er ist
+die einzige Messung dieser Station, die Faules beziffert; verlangen kann man
+sie nicht, weil die Waschstrasse ihn mit dem Waschen + Sortieren teilt und
+nicht jede Arbeit ihn leert.
+
+### Überfüllung: nur, wo gewogen und verkauft
+
+Verschenkte Marge war bisher „Überschuss je Kiste × alle Kisten" — die Zahl
+der Kisten war geraten. Jetzt zählt der Import die verkauften Kisten aus den
+Verkaufsdateien mit (`AufPosBatchPackageQuantity`, sonst aus Menge und
+Kisteninhalt), und verschenkt wird nur beziffert, wo eine Wägung **und**
+verkaufte Kisten vorliegen. Ohne Datei oder ohne Wägung steht NULL, nicht 0.
+Der Käufer kommt nirgends mehr vor; getrennt wird nach Kistensystem: „Kiste
+ab x kg" hat eine Marge, „x Stück je Kiste" hat keine — dort sagt die
+Abweichung vom erwarteten Stückgewicht nur, wo im Band die Ware liegt.
+
+### Was offen bleibt (Runde H)
+
+- **Überfüllte Ware steht rechnerisch noch im Haus.** Sie verlässt den
+  Betrieb in verkauften Kisten, ohne bezahlt zu werden; die Bilanz kennt sie
+  nur als Marge, nicht als Abgang. Solange die Überfüllung klein gegen die
+  Liefermenge ist, verschiebt das den Bestand um wenig — sauber wäre es erst,
+  wenn die Lieferzeile das tatsächliche Kistengewicht trüge.
+- **In der Datei eines Käufers steht bei 225 Kilo-Zeilen `GewichtProArtikel`
+  auf 0** (zusammen 174.8 t). Der Import übergeht sie als „ohne Masse". Das
+  ist keine stille Lücke — die Datenlage weist sie aus —, aber es ist auch
+  keine Lösung; sie braucht eine Antwort vom Betrieb, welches Gewicht dort
+  gemeint ist.
+- Die Erinnerung an drei Wägungen und drei fertige Paletten ist bewusst
+  keine Sperre. Wer sie überspringt, verliert die Verdunstungsrate dieser
+  Arbeit und das Kistengewicht — sichtbar in der Datenqualität, nicht in
+  einer Blockade.

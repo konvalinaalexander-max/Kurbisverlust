@@ -8,15 +8,17 @@ import { taetigkeitVon } from '../lib/taetigkeit'
 import { fuehrungSetzen, istVorarbeiter } from '../lib/rolle'
 import { Hinweis, Lade, Marke } from '../components/Bausteine'
 import { Bestaetigt } from '../components/Schritte'
-import { arbeitLaden, stationsProfil, uhrzeit, type ArbeitDaten } from '../arbeit/daten'
+import { arbeitLaden, fertigeSoll, stationsProfil, uhrzeit, type ArbeitDaten } from '../arbeit/daten'
 import { Zaehler } from '../arbeit/Zaehler'
 import { PaloxMaske } from '../arbeit/PaloxMaske'
 import { FauleMaske } from '../arbeit/FauleMaske'
 import { WiegenMaske } from '../arbeit/WiegenMaske'
+import { AusschussMaske } from '../arbeit/AusschussMaske'
 import { FertigePaletteMaske } from '../arbeit/FertigePaletteMaske'
 import { Abschluss } from '../arbeit/Abschluss'
+import { Korrektur } from '../arbeit/Korrektur'
 
-type Ansicht = 'liste' | 'zaehler' | 'palox' | 'faule' | 'wiegen' | 'ausgang' | 'abschluss'
+type Ansicht = 'liste' | 'zaehler' | 'palox' | 'faule' | 'wiegen' | 'ausschuss' | 'ausgang' | 'abschluss' | 'korrektur'
 
 /**
  * Eine Arbeit, aus zwei Blickwinkeln:
@@ -25,15 +27,18 @@ type Ansicht = 'liste' | 'zaehler' | 'palox' | 'faule' | 'wiegen' | 'ausgang' | 
  *    und weiss jederzeit, was erledigt ist und was noch fehlt.
  * Beide können wechseln; die Rolle hängt an der Arbeit (docs/UI-KONZEPT.md).
  * Welche Punkte die Checkliste hat, sagt das Stationsprofil — beim Fax gibt
- * es keinen Palox, dafür „Faules wiegen" und die Palettenzahl (0051, 0060).
- * Zu klein / zu gross gibt es seit 0060 nirgends mehr.
+ * es keinen Palox, dafür „Faules wiegen" und die Palettenzahl (0051, 0060);
+ * beim Waschen + Sortieren am Ende zu klein / zu gross je Palette (0061).
+ *
+ * Der Betriebsleiter kommt mit „?korrigieren=1" von einer Auffälligkeit her
+ * und sieht die Messungen dieser Arbeit zum Berichtigen (Runde H).
  */
 export default function Arbeit() {
   const { id } = useParams()
   const auftragId = Number(id)
   const [suche] = useSearchParams()
   const navigate = useNavigate()
-  const { session } = useAuth()
+  const { session, istAdmin } = useAuth()
   const { t, gebietsschema } = useSprache()
 
   const [d, setD] = useState<ArbeitDaten | null>(null)
@@ -52,12 +57,13 @@ export default function Arbeit() {
       if (daten && fuehrt === null) {
         const f = istVorarbeiter(auftragId, daten.auftrag.eroeffnet_von, session?.user.id)
         setFuehrt(f)
-        // Frisch eröffnet: als erstes der Palox (AB-02) — wo er Pflicht ist.
         const p = stationsProfil(daten.auftrag)
-        setAnsicht(f ? (suche.get('neu') === '1' && p.paloxPflicht && daten.ablesungen.length === 0 ? 'palox' : 'liste') : 'zaehler')
+        if (istAdmin && suche.get('korrigieren') === '1') setAnsicht('korrektur')
+        // Frisch eröffnet: als erstes der Palox (AB-02) — wo er Pflicht ist.
+        else setAnsicht(f ? (suche.get('neu') === '1' && p.paloxPflicht && daten.ablesungen.length === 0 ? 'palox' : 'liste') : 'zaehler')
       }
     } catch (f) { setFehler(fehlerText(f)) } finally { setLaedt(false) }
-  }, [auftragId, session?.user.id, fuehrt, suche])
+  }, [auftragId, session?.user.id, fuehrt, suche, istAdmin])
   useEffect(() => { void laden() }, [laden])
 
   function melden(text: string) {
@@ -103,7 +109,18 @@ export default function Arbeit() {
   )
 
   const kistenGezaehlt = d.gebinde.reduce((s, g) => s + g.anzahl, 0)
+  const waschKisten = d.paletten.reduce((s, x) => s + (x.kisten ?? 0), 0)
+  const gewogen = d.paletten.filter(x => x.wiegung_id != null).length
   const faulSumme = d.ablesungen.reduce((s, z) => s + z.kg, 0)
+  const ausschussSumme = d.ausschuss.reduce((s, z) => s + z.kg, 0)
+  const soll = fertigeSoll(d)
+  const ersetzen = (text: string, werte: Record<string, number>) =>
+    Object.entries(werte).reduce((s, [k, v]) => s.replace(`{${k}}`, String(v)), text)
+
+  // Der Betriebsleiter berichtigt Messungen — auch an einer fertigen Arbeit.
+  if (ansicht === 'korrektur' && istAdmin) {
+    return <Korrektur d={d} neuLaden={laden} zurueck={() => (gesperrt ? navigate('/messungen') : setAnsicht(heim))} />
+  }
 
   // Fertige Arbeit: nur noch lesen.
   if (gesperrt) {
@@ -114,12 +131,18 @@ export default function Arbeit() {
           <dl className="zusammenfassung">
             <dt>{t('abgeschlossenAm')}</dt>
             <dd>{a.ende_ts ? new Date(a.ende_ts).toLocaleString(gebietsschema, { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—'}</dd>
-            {p.hatPaletten && <><dt>{t('paletten')}</dt><dd>{d.paletten.length}</dd></>}
+            {p.hatPaletten && <><dt>{t('paletten')}</dt><dd>{d.paletten.length}{gewogen > 0 && <span className="leise"> · {gewogen} {t('gewogen')}</span>}</dd></>}
+            {p.hatWaschPaletten && <><dt>{t('paletten')}</dt><dd>{d.paletten.length} · {waschKisten} {t('kisten')}</dd></>}
             {p.hatFaxPaletten && <><dt>{t('palettenGesamt')}</dt><dd>{a.paletten_gesamt ?? '—'}</dd></>}
             {p.hatKisten && kistenGezaehlt > 0 && <><dt>{t('kaliberKisten')}</dt><dd>{kistenGezaehlt}</dd></>}
             <dt>{t('faule')}</dt><dd>{faulSumme} kg</dd>
+            {p.hatAusschuss && <><dt>{t('ausschussWiegenSchritt')}</dt><dd>{d.ausschuss.length > 0 ? `${ausschussSumme} kg` : '—'}</dd></>}
+            {p.hatAusgang && <><dt>{t('fertigePalette')}</dt><dd>{d.nAusgang > 0 ? `${d.nAusgang} ${t('gewogen')}` : t('keineGewogen')}</dd></>}
           </dl>
         </div>
+        {istAdmin && (
+          <button id="zur-korrektur" style={{ width: '100%', marginBottom: '.6rem' }} onClick={() => setAnsicht('korrektur')}>{t('messungenKorrigieren')}</button>
+        )}
         <button style={{ width: '100%' }} onClick={() => navigate('/')}>‹ {t('uebersicht')}</button>
       </>
     )
@@ -155,6 +178,9 @@ export default function Arbeit() {
   }
   if (ansicht === 'faule') {
     return <>{maske(t('faulesWiegen'), <FauleMaske d={d} gesperrt={false} melden={melden} neuLaden={laden} />)}<Bestaetigt text={meldung} /></>
+  }
+  if (ansicht === 'ausschuss') {
+    return <>{maske(t('ausschussWiegenSchritt'), <AusschussMaske d={d} gesperrt={false} melden={melden} neuLaden={laden} />)}<Bestaetigt text={meldung} /></>
   }
   if (ansicht === 'ausgang') {
     return <>{maske(t('fertigePalette'), <FertigePaletteMaske d={d} gesperrt={false} melden={melden} neuLaden={laden} />)}<Bestaetigt text={meldung} /></>
@@ -194,10 +220,13 @@ export default function Arbeit() {
   // liste — die Checkliste des Vorarbeiters
   const erste = d.ablesungen[0]
   const zaehlStand = [
-    p.hatPaletten ? `${d.paletten.length} ${t('paletten')}` : '',
+    p.hatPaletten ? `${d.paletten.length} ${t('paletten')}${gewogen > 0 ? ` · ${gewogen} ${t('gewogen')}` : ''}` : '',
+    p.hatWaschPaletten ? `${d.paletten.length} ${t('paletten')} · ${waschKisten} ${t('kisten')}` : '',
     p.hatKisten ? `${kistenGezaehlt} ${t('kaliberKisten')}` : '',
     p.hatFaxPaletten ? `${a.paletten_gesamt ?? 0} ${t('paletten')}` : '',
   ].filter(Boolean).join(' · ')
+  const gezaehlt = d.paletten.length + kistenGezaehlt + (a.paletten_gesamt ?? 0) > 0
+  const wiegenErinnert = p.wiegenSoll > 0 && gewogen < p.wiegenSoll
   const Zustand = ({ art }: { art: 'getan' | 'offen' | 'frei' }) => (
     <span className={`zustand ${art}`} aria-hidden="true">{art === 'getan' ? '✓' : art === 'offen' ? '!' : '·'}</span>
   )
@@ -219,10 +248,10 @@ export default function Arbeit() {
         )}
 
         <button id="check-zaehlen" onClick={() => setAnsicht('zaehler')}>
-          <Zustand art={d.paletten.length + kistenGezaehlt + (a.paletten_gesamt ?? 0) > 0 ? 'getan' : 'offen'} />
+          <Zustand art={gezaehlt ? (wiegenErinnert ? 'frei' : 'getan') : 'offen'} />
           <span className="text">
             <span className="name">{t('zaehlen')}</span>
-            <span className="unter">{zaehlStand}</span>
+            <span className="unter">{zaehlStand}{wiegenErinnert && gezaehlt ? ` — ${t('dreiWiegen')}` : ''}</span>
           </span>
           <span className="pfeil">›</span>
         </button>
@@ -238,12 +267,23 @@ export default function Arbeit() {
           </button>
         )}
 
+        {p.hatAusschuss && (
+          <button id="check-ausschuss" onClick={() => setAnsicht('ausschuss')}>
+            <Zustand art={d.ausschuss.length > 0 ? 'getan' : 'frei'} />
+            <span className="text">
+              <span className="name">{t('ausschussWiegenSchritt')}</span>
+              <span className="unter">{d.ausschuss.length > 0 ? `${ausschussSumme} kg · ${d.ausschuss.length} ${t('paletten')}` : t('ausschussAmEnde')}</span>
+            </span>
+            <span className="pfeil">›</span>
+          </button>
+        )}
+
         {p.hatAusgang && (
           <button id="check-ausgang" onClick={() => setAnsicht('ausgang')}>
-            <Zustand art={d.nAusgang > 0 ? 'getan' : 'frei'} />
+            <Zustand art={d.nAusgang >= soll ? 'getan' : p.ausgangPflicht ? 'offen' : d.nAusgang > 0 ? 'getan' : 'frei'} />
             <span className="text">
               <span className="name">{t('fertigePaletteSchritt')}</span>
-              <span className="unter">{d.nAusgang > 0 ? `${d.nAusgang} ${t('gewogen')}` : t('fertigePaletteWarum')}</span>
+              <span className="unter">{d.nAusgang >= soll ? `${d.nAusgang} ${t('gewogen')}` : `${t('dreiFertige')} ${ersetzen(t('nurGewogen'), { n: d.nAusgang, soll })}`}</span>
             </span>
             <span className="pfeil">›</span>
           </button>
@@ -253,13 +293,14 @@ export default function Arbeit() {
           <span className="zustand" style={{ borderColor: 'rgb(255 255 255 / 60%)', color: '#fff' }} aria-hidden="true">›</span>
           <span className="text">
             <span className="name">{t('abschliessen')}</span>
-            <span className="unter" style={{ color: 'rgb(255 255 255 / 85%)' }}>{p.istFax ? t('dannFax') : t('abschlussErkl')}</span>
+            <span className="unter" style={{ color: 'rgb(255 255 255 / 85%)' }}>{p.istFax ? t('dannFax') : p.hatAusschuss ? t('abschlussErklWS') : t('abschlussErkl')}</span>
           </span>
         </button>
       </div>
 
       <p className="rolle-wechsel">
         <button className="blank" style={{ color: 'var(--text-leise)' }} onClick={() => rolleWechseln(false)}>{t('nurZaehlenAnsicht')}</button>
+        {istAdmin && <> · <button className="blank" style={{ color: 'var(--text-leise)' }} onClick={() => setAnsicht('korrektur')}>{t('messungenKorrigieren')}</button></>}
       </p>
       <Bestaetigt text={meldung} />
     </>

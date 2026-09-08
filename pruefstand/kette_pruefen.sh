@@ -136,10 +136,17 @@ begin
   assert (select eingang_netto_kg from v_auftrag_masse where auftrag_id = a) = 3 * 865,
     'Die Bezugsmasse der drei Paletten stimmt nicht (3 × 865: Zettel 950 − 40·1.5 − 25)';
 
-  -- Kein zu klein / zu gross mehr (0060): nichts gewogen, nichts gefragt
-  assert not exists (select 1 from ausschuss_messung where auftrag_id = a), 'Ausschuss wird nicht mehr erfasst';
+  -- Zu klein / zu gross je Palette am Ende (0061): 60 brutto, 4 G2 → 60 − 6 − 25 = 29 kg, gemessen
+  assert (select count(*) from ausschuss_messung where auftrag_id = a) = 1, 'Eine Ausschuss-Palette gewogen';
+  assert (select kg from ausschuss_messung where auftrag_id = a and art = 'zu_klein' and gemessen and brutto_kg = 60 and kisten = 4) = 29,
+    'Der Ausschuss-Auslöser rechnet das Netto aus Brutto und Tara (29 kg)';
+  assert (select klein_kg from v_ausschuss_beobachtung where auftrag_id = a and weg = 'hand') = 29,
+    'Der von Hand gewogene Ausschuss kommt nicht als Beobachtung an';
   assert not exists (select 1 from v_auftrag_angabe where auftrag_id = a and schluessel like 'ausschuss%'),
     'Die Ausschuss-Fragen gibt es nicht mehr';
+  -- Die Wägung ohne Faul-Frage (0061): faul_kg bleibt leer, die Wägung zählt trotzdem
+  assert (select faul_kg is null and not sichtbar_schimmel from verdunstung_wiegung where auftrag_id = a),
+    'Beim Wiegen wird nicht mehr nach Faulem gefragt';
   assert (select wert from v_auftrag_angabe where auftrag_id = a and schluessel = 'eine_charge') = 'true',
     'Die Antwort „alles aus einer Charge" ist nicht angekommen';
 
@@ -201,8 +208,16 @@ begin
     'Fax zählt nicht als Waschen';
   assert not exists (select 1 from v_schimmel_punkte where auftrag_id = f.auftrag_id),
     'Fax-Faules darf kein Punkt der Verderbskurve sein';
-  assert (select kg from v_verlust_ranking where strom = 'Faul beim Abpacken (Fax)') > 0,
-    'Der Fax-Strom ist nicht beziffert';
+  -- Seit 0061 wird das Fax-Faule am Liefertag gebucht (AB-31). In dieser Kette
+  -- gibt es keine Lieferung: Es steht also nichts als Verlust bis heute da,
+  -- sondern als Erwartung an der Ware, die noch liegt — und die gemessenen
+  -- 6 kg bestimmen den Koeffizienten dahinter.
+  assert (select kg from v_verlust_ranking where strom = 'Faul beim Abpacken (Fax)') is null,
+    'Ohne Lieferung darf Fax-Faules kein Verlust bis heute sein';
+  assert (select kg_erwartet from v_verlust_ranking where strom = 'Faul beim Abpacken (Fax)') > 0,
+    'Das erwartete Fax-Faule der liegenden Ware fehlt';
+  assert (select max(mittel) from v_koeff_fax) > 0,
+    'Die gemessenen 6 kg bestimmen den Fax-Koeffizienten nicht';
   assert not exists (select 1 from v_plausibilitaet where auftrag_id = f.auftrag_id),
     'Die Fax-Arbeit taucht in der Plausibilität auf';
   raise notice 'OK  Fax: Paletten gesamt, Faules gewogen, Tage seit dem Waschen, eigener Strom';
@@ -217,42 +232,56 @@ begin
   assert a.kaliber_von_g = 700 and a.kaliber_bis_g = 900 and a.kaliber_idx is null,
     format('Eigenes Kaliber 700–900 erwartet, angekommen %s–%s (Index %s)', a.kaliber_von_g, a.kaliber_bis_g, a.kaliber_idx);
   assert a.kistensystem = 'stueck' and a.stueck_je_kiste = 6, 'Stück-Kisten (6 je Kiste) nicht angekommen';
-  assert (select sum(anzahl) from auftrag_gebinde where auftrag_id = a.id and kaliber_idx = -2) = 4,
-    'Vier Kisten zum eigenen Kaliber (Index −2) erwartet';
-  assert (select anzahl from auftrag_gebinde where auftrag_id = a.id and sortierdatum = date '2026-11-15') = 3,
-    'Drei Kisten mit Sortierdatum 15.11.';
-  assert (select anzahl from auftrag_gebinde where auftrag_id = a.id and sortierdatum is null and datum_fehlt) = 1,
-    'Eine Kiste ohne Datum — als Antwort, nicht als Lücke';
-  assert (select anzahl from v_auftrag_gebinde_masse where auftrag_id = a.id) = 4,
-    'Die Kisten werden über die Sortierdaten summiert';
-  assert (select kaliber_idx from ausgang_wiegung where auftrag_id = a.id) = -2
-     and (select kuerbisse_pro_kiste from ausgang_wiegung where auftrag_id = a.id) = 6,
-    'Die fertige Palette trägt Kaliber und Stück je Kiste';
+  -- Kaliber-Paletten aus dem Zwischenlager (0061): drei mit je 32 Kisten, zwei datiert, eine ohne Datum
+  assert not exists (select 1 from auftrag_gebinde where auftrag_id = a.id), 'Beim Waschen werden keine Kisten je Kaliber mehr gezählt';
+  assert (select count(*) from auftrag_palette where auftrag_id = a.id and kisten is not null) = 3
+     and (select sum(kisten) from auftrag_palette where auftrag_id = a.id) = 96,
+    'Drei Paletten mit 96 Kisten erwartet';
+  assert (select count(*) from auftrag_palette where auftrag_id = a.id and sortierdatum = date '2026-09-03') = 2,
+    'Zwei Paletten mit Sortierdatum 3.9.';
+  assert (select count(*) from auftrag_palette where auftrag_id = a.id and sortierdatum is null and kisten = 32) = 1,
+    'Eine Palette ohne Datum — als Antwort, nicht als Lücke';
+  assert (select count(*) from auftrag_palette where auftrag_id = a.id and eingangsdatum is not null) = 0,
+    'Kaliber-Paletten haben kein Eingangsdatum';
+  assert (select n_paletten = 3 and kisten = 96 and n_mit_sortierdatum = 2 from v_auftrag_wasch_paletten where auftrag_id = a.id),
+    'Die Wasch-Paletten kommen nicht als Menge an';
+  assert (select zwischenlager_tage from v_auftrag_wasch_paletten where auftrag_id = a.id) = (current_date - date '2026-09-03'),
+    format('Die Tage im Zwischenlager sind %s statt %s', (select zwischenlager_tage from v_auftrag_wasch_paletten where auftrag_id = a.id), current_date - date '2026-09-03');
+  assert not exists (select 1 from v_auftrag_palette_masse where auftrag_id = a.id),
+    'Kaliber-Paletten dürfen nicht als Eingangspaletten zählen';
+  -- Drei fertige Paletten (verlangt beim Waschen, Runde H), je mit Kaliber und Stück je Kiste
+  assert (select count(*) from ausgang_wiegung where auftrag_id = a.id and kaliber_idx = -2 and kuerbisse_pro_kiste = 6) = 3,
+    'Drei fertige Paletten mit Kaliber und Stück je Kiste erwartet';
   assert not exists (select 1 from schimmel_messung where auftrag_id = a.id),
     'Der Palox war beim Waschen freiwillig und wurde nicht abgelesen';
   assert a.status = 'abgeschlossen', 'Der Abschluss der Wasch-Arbeit ist nicht angekommen — ohne Palox muss er gehen';
   assert not exists (select 1 from v_plausibilitaet where auftrag_id = a.id and art = 'Kaliber fehlt'),
     'Ein eigenes Kaliber gilt als Kaliber — „Kaliber fehlt" darf nicht auffallen';
   assert exists (select 1 from v_plausibilitaet where auftrag_id = a.id and art = 'Kistengewicht'
-                    and befund like '%eigenen Kaliber 700–900 g%'),
-    'Das Kistengewicht zum eigenen Kaliber ist unbekannt — das muss die Plausibilität sagen';
+                    and befund like '%700–900 g%' and befund like '%3 Paletten mit 96 Kisten%'),
+    'Das Kistengewicht zum eigenen Kaliber ist unbekannt — das muss die Plausibilität an den gezählten Paletten sagen';
   assert (select eingang_netto_kg from v_auftrag_masse where auftrag_id = a.id) is null,
     'Ohne Kistengewicht darf die Arbeit keine Masse behaupten';
-  raise notice 'OK  Waschen: eigenes Kaliber, Stück-Kisten, Sortierdatum je Kiste, Palox freiwillig';
+  raise notice 'OK  Waschen: eigenes Kaliber, Kaliber-Paletten mit Sortierdatum und Kisten, drei fertige Paletten, Palox freiwillig';
 end $$;
 
--- ---------- Die Lagerkontrolle (0060) -------------------------------------
+-- ---------- Die Lagerkontrolle (0061) -------------------------------------
+-- Ohne Faul-Frage und ohne „wie gegriffen": die Kontrolle ist eine
+-- Verdunstungsmessung — und nur das. Punkt der Schimmelkurve ist sie nicht
+-- mehr (das Faule sieht beim Wiegen niemand).
 do $$
 declare v_n int;
 begin
   select count(*) into v_n from verdunstung_wiegung
-   where auftrag_id is null and charge_nr = 1613 and faul_kg = 0 and auswahl = 'erreichbar_zufaellig'
+   where auftrag_id is null and charge_nr = 1613 and faul_kg is null and auswahl is null
      and brutto_damals_kg = 950 and brutto_jetzt_kg = 905 and eingangsdatum = date '2026-09-02';
-  assert v_n = 2, format('Zwei Kontrollen mit Zettel-Datum und -Gewicht erwartet, %s angekommen', v_n);
+  assert v_n = 2, format('Zwei Kontrollen mit Zettel-Datum und -Gewicht, ohne Faul und Auswahl erwartet, %s angekommen', v_n);
   assert (select lagerkontrollen from v_datenqualitaet) >= 2, 'Die Datenqualität zählt die Kontrollen';
-  assert (select count(*) from v_schimmel_punkte where quelle = 'lager') >= 2,
-    'Die Kontrollen sind Punkte der Kurve — mit 0 kg Faulem als echter Messung';
-  raise notice 'OK  Kontrolle: bleibt stehen, Zettel-Datum und -Gewicht, zwei Paletten';
+  assert (select count(*) from v_verdunstung_messung where auftrag_id is null and charge_nr = 1613 and verwendbar) = 2,
+    'Die Kontrollen sind Punkte der Verdunstungskurve';
+  assert not exists (select 1 from v_schimmel_punkte where quelle = 'lager'),
+    'Ohne Faul-Frage darf die Kontrolle kein Punkt der Schimmelkurve sein';
+  raise notice 'OK  Kontrolle: bleibt stehen, Zettel-Datum und -Gewicht, zwei Paletten, ohne Faul-Frage';
 end $$;
 SQL
 echo "——— Kette in beide Richtungen geprüft ———"

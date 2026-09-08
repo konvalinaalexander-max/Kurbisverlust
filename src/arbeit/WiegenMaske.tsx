@@ -12,6 +12,9 @@ import type { Gebinde } from '../lib/typen'
  * hunderten gleich schweren Paletten wäre die nicht bedienbar. Die Wägung
  * wird zuerst gespeichert, dann die Palette mit dem Verweis darauf. Beim
  * Sortieren und beim Waschen + Sortieren gleichermaßen (0060).
+ *
+ * Runde H: kein „Faules sichtbar" mehr — die Palette wird gewogen, nicht
+ * ausgepackt; was faul ist, zählt der Palox. Gefragt wird nur, was man sieht.
  */
 export function WiegenMaske({ d, zettelDatum, zettelBrutto = '', fertig }: {
   d: ArbeitDaten; zettelDatum: string; zettelBrutto?: string; fertig: () => Promise<void>
@@ -26,8 +29,6 @@ export function WiegenMaske({ d, zettelDatum, zettelBrutto = '', fertig }: {
   const [kisten, setKisten] = useState('')
   const [art, setArt] = useState('')
   const [proKiste, setProKiste] = useState('')
-  const [schimmel, setSchimmel] = useState(false)
-  const [faul, setFaul] = useState('')
   const [fehler, setFehler] = useState<string | null>(null)
   const [laeuft, setLaeuft] = useState(false)
 
@@ -48,8 +49,6 @@ export function WiegenMaske({ d, zettelDatum, zettelBrutto = '', fertig }: {
       brutto_damals_kg: Number(damals), brutto_jetzt_kg: Number(jetzt),
       kisten: Number(kisten), gebindeart: art,
       kuerbisse_pro_kiste: proKiste === '' ? null : Number(proKiste),
-      sichtbar_schimmel: schimmel,
-      faul_kg: schimmel && faul !== '' ? Number(faul) : null,
     }).select('id').single()
     if (error) { setLaeuft(false); setFehler(fehlerText(error)); return }
     const { error: f2 } = await supabase.from('auftrag_palette').insert({
@@ -102,17 +101,6 @@ export function WiegenMaske({ d, zettelDatum, zettelBrutto = '', fertig }: {
             <> · <strong>{(netto / (Number(kisten) * Number(proKiste))).toFixed(2)} kg</strong> {t('proKuerbis')}</>
           )}
         </p>
-      )}
-      <label className="ankreuzen" style={{ marginBottom: '.5rem' }}>
-        <input type="checkbox" checked={schimmel} onChange={e => setSchimmel(e.target.checked)} />
-        {t('faulesSichtbar')}
-      </label>
-      {schimmel && (
-        <div className="feld">
-          <label htmlFor="w-faul">{t('wievielFaul')} ({t('freiwillig')})</label>
-          <input id="w-faul" type="number" inputMode="decimal" step="0.5" min={0} value={faul}
-                 onChange={e => setFaul(e.target.value)} />
-        </div>
       )}
       {fehler && <Hinweis art="warnung">{fehler}</Hinweis>}
       <button className="haupt" style={{ width: '100%', minHeight: 60 }} onClick={() => void speichern()}

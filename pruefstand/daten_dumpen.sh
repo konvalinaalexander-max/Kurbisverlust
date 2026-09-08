@@ -13,24 +13,24 @@ dump() {
   psql "$U" -qtA -c "select coalesce(json_agg(t), '[]'::json) from ($2) t" > "$ZIEL/$1.json"
 }
 
-# Tabellen und Ansichten, die die App liest
-for R in v_hochrechnung v_massenbilanz v_datenlage v_marge_buch v_plausibilitaet \
-         v_kaliber_verteilung v_schimmel_kurve_anzeige v_koeff_verdunstung \
-         v_koeff_ausschuss v_koeff_nebenkanal v_koeff_ueberfuellung \
-         v_gewichtsverteilung v_verarbeitung_alter v_durchsatz v_ueberfuellung_kaeufer \
-         v_datenqualitaet v_saisonverlauf v_palox_stand v_koeff_gebinde v_lieferung_masse v_auftrag_masse \
-         v_schimmel_modell v_selektionsverdacht v_saisonbilanz v_schimmel_punkte \
-         v_hochrechnung_basis v_naechste_charge auswertung_stand \
-         v_charge_kohorte v_kohorte_anteil v_fax_beobachtung v_ausschuss_beobachtung v_koeff_fax \
-         ausgang_quelle ausgang_artikel v_ausgang_lage v_ausgang_artikel_vorschlag v_lieferung_masse \
+# Tabellen und Ansichten, die die App liest — seit 0061 die gespeicherten
+# Ergebnisse (erg_*), dazu die Tabellen und die wenigen Sichten der Masken.
+for R in v_hochrechnung erg_massenbilanz erg_datenlage erg_marge erg_plausibilitaet \
+         erg_kaliber erg_kurve erg_koeff_verdunstung erg_koeff_ausschuss erg_koeff_nebenkanal \
+         erg_koeff_ueberfuellung erg_gewichte erg_verarbeitung_alter erg_durchsatz erg_ueberfuellung \
+         erg_datenqualitaet erg_verlauf erg_verlust erg_gebinde erg_lieferung erg_modell erg_selektion \
+         erg_bilanz erg_punkte erg_charge erg_naechste_charge erg_kohorte erg_fax erg_ausschuss erg_ausgang \
+         v_palox_stand v_lieferung_masse v_auftrag_masse auswertung_stand v_kohorte_anteil v_koeff_fax \
+         ausgang_quelle ausgang_artikel v_ausgang_lage v_ausgang_artikel_vorschlag \
          charge sorte_kaliber gebinde einstellung ausgang_ziel kaeufer sortierschema \
-         v_lieferung_masse v_ausgang_kennzahl profil palette v_kontrolle_vorschlag v_lieferung_kohorte v_koeff_palette_netto \
-         ausgang_wiegung v_auftrag_angabe \
+         v_ausgang_kennzahl profil palette v_kontrolle_vorschlag v_lieferung_kohorte v_koeff_palette_netto \
+         ausgang_wiegung v_auftrag_angabe v_verkauf_lieferung v_auftrag_wasch_paletten \
          auftrag auftrag_palette auftrag_gebinde schimmel_messung ausschuss_messung \
+         verdunstung_wiegung ausgang_zeile \
          sortier_lauf v_charge_rueckgrat; do
   dump "$R" "select * from $R"
 done
-dump v_wiegung_kennzahl "select * from v_wiegung_kennzahl order by wiege_ts desc"
+dump erg_wiegung "select * from erg_wiegung order by wiege_ts desc"
 
 # Eingebettete Abfrage: auftrag_teilnehmer mit profil(name)
 dump auftrag_teilnehmer "select at.auftrag_id, at.profil_id, at.verlassen_ts,
@@ -38,8 +38,8 @@ dump auftrag_teilnehmer "select at.auftrag_id, at.profil_id, at.verlassen_ts,
   from auftrag_teilnehmer at join profil p on p.id = at.profil_id"
 
 # RPC-Antworten
-psql "$U" -qtA -c "select coalesce(json_agg(t), '[]'::json)
-  from (select * from verlust_ranking(null, null, null)) t" > "$ZIEL/rpc_verlust_ranking.json"
+psql "$U" -qtA -c "select json_build_object('schritt', 5, 'schritte', 5, 'titel', 'Befunde', 'dauer_ms', 0, 'fertig', true)" \
+  > "$ZIEL/rpc_auswertung_schritt.json"
 psql "$U" -qtA -c "select json_build_object(
   'sortieren',         palox_letzter_stand('sortieren'),
   'waschen',           palox_letzter_stand('waschen'),

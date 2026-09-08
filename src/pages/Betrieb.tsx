@@ -67,7 +67,7 @@ function Arbeiten() {
         const [{ chargen }, a, d] = await Promise.all([
           stammdaten(),
           supabase.from('auftrag').select('*').order('start_ts', { ascending: false }).limit(200),
-          supabase.from('v_durchsatz').select('*'),
+          supabase.from('erg_durchsatz').select('*'),
         ])
         if (a.error) throw a.error
         setChargen(chargen); setAuftraege((a.data ?? []) as Auftrag[])

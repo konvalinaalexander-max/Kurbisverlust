@@ -8,11 +8,17 @@ export interface Ablesung {
   brutto_kg: number | null; kisten: number | null; gebindeart: string | null; mit_palette: boolean
   bemerkung: string | null
 }
+/** Zu klein / zu gross, je Palette gewogen (Waschen + Sortieren, am Ende). */
 export interface AusschussZeile {
   id: number; art: 'zu_klein' | 'zu_gross'; kg: number; ts: string
-  gemessen: boolean; brutto_kg: number | null; kisten: number | null
+  gemessen: boolean; brutto_kg: number | null; kisten: number | null; gebindeart: string | null; bemerkung: string | null
 }
-export interface Palette { id: number; wiegung_id: number | null; eingangsdatum: string | null; brutto_zettel_kg: number | null }
+/** Eine gezählte Palette: am Eingang (Eingangsdatum, Zettelgewicht, Wägung) oder
+ *  beim Waschen die Kaliber-Palette aus dem Zwischenlager (Sortierdatum, Kisten). */
+export interface Palette {
+  id: number; wiegung_id: number | null; eingangsdatum: string | null; brutto_zettel_kg: number | null
+  sortierdatum: string | null; kisten: number | null
+}
 /** Die Fassung, nach der die Arbeit läuft (sortierschema). */
 export interface Fassung {
   id: number; art: 'kaliber' | 'kiste'; soll_kg_pro_kiste: number | null
@@ -43,13 +49,13 @@ export async function arbeitLaden(auftragId: number): Promise<ArbeitDaten | null
     supabase.from('auftrag').select('*').eq('id', auftragId).maybeSingle(),
     supabase.from('auftrag_teilnehmer').select('profil_id, profil(name)')
       .eq('auftrag_id', auftragId).is('verlassen_ts', null),
-    supabase.from('auftrag_palette').select('id, wiegung_id, eingangsdatum, brutto_zettel_kg')
+    supabase.from('auftrag_palette').select('id, wiegung_id, eingangsdatum, brutto_zettel_kg, sortierdatum, kisten')
       .eq('auftrag_id', auftragId).order('ts'),
     supabase.from('auftrag_gebinde').select('*').eq('auftrag_id', auftragId).order('kaliber_idx').order('sortierdatum'),
     supabase.from('schimmel_messung')
       .select('id, kg, ts, palox_stand_kg, brutto_kg, kisten, gebindeart, mit_palette, bemerkung')
       .eq('auftrag_id', auftragId).order('ts'),
-    supabase.from('ausschuss_messung').select('id, art, kg, ts, gemessen, brutto_kg, kisten')
+    supabase.from('ausschuss_messung').select('id, art, kg, ts, gemessen, brutto_kg, kisten, gebindeart, bemerkung')
       .eq('auftrag_id', auftragId).order('ts'),
     supabase.from('ausgang_wiegung').select('id').eq('auftrag_id', auftragId),
     supabase.from('v_auftrag_angabe').select('schluessel, wert').eq('auftrag_id', auftragId),
@@ -94,49 +100,74 @@ export async function arbeitLaden(auftragId: number): Promise<ArbeitDaten | null
   }
 }
 
+/** Wie viele fertige Paletten am Ende gewogen sein sollen — drei, und
+ *  nicht mehr, als die Arbeit überhaupt hergibt (Runde H). */
+export const FERTIGE_SOLL = 3
+/** Wie viele Eingangspaletten beim Waschen + Sortieren gewogen sein sollen. */
+export const WIEGEN_SOLL = 3
+
 /**
- * Was an dieser Station überhaupt anfällt (docs/ABLAUF.md, 0060).
+ * Was an dieser Station überhaupt anfällt (docs/ABLAUF.md, Runde H).
  *
  * Zwei Stationen: Sortiermaschine und Waschstrasse. „Waschen + Sortieren" ist
  * die Waschstrasse mit Sortieren von Hand am Band dahinter — derselbe Palox.
  *
- *  Sortieren            Paletten mit Datum, Kisten je Kaliber, Palox (Pflicht)
- *  Waschen + Sortieren  Paletten mit Datum und Gewicht vom Zettel, Palox (Pflicht),
- *                       fertige Palette, wenn das Kistensystem rechenbar ist
- *  Waschen              Kisten je Kaliber mit Sortierdatum, Palox freiwillig,
- *                       fertige Palette, wenn das Kistensystem rechenbar ist
+ *  Sortieren            Eingangspaletten mit Datum, Kisten je Kaliber, Palox (Pflicht)
+ *  Waschen + Sortieren  Eingangspaletten mit Datum und Gewicht vom Zettel (Pflicht),
+ *                       mindestens drei davon gewogen (erinnert), Palox (Pflicht),
+ *                       am Ende zu klein / zu gross je Palette gewogen und
+ *                       fertige Paletten (mindestens drei, erinnert)
+ *  Waschen              Kaliber-Paletten aus dem Zwischenlager: Sortierdatum vom
+ *                       Zettel und Kisten je Palette (Pflicht — die Menge), Palox
+ *                       gefragt, nicht Pflicht; am Ende fertige Paletten (verlangt)
  *  Fax                  Faules kistenweise gewogen, Paletten als Gesamtzahl
  *
- * Zu klein / zu gross wird nirgends mehr gefragt (0060): der Anteil kommt aus
- * der Sortier-CSV derselben Charge.
+ * Zu klein / zu gross am Band kommt aus der Sortier-CSV; von Hand (Waschen +
+ * Sortieren) wird es am Ende je Palette gewogen — dort gibt es keine CSV.
  */
 export function stationsProfil(a: Auftrag) {
   const fax = a.ist_fax
   const rechenbar = a.kistensystem === 'kiste_ab' || a.kistensystem === 'stueck'
+  const waschen = !fax && a.station === 'waschen'
   return {
     istFax: fax,
+    /** Eingangspaletten zählen (Sortieren, Waschen + Sortieren). */
     hatPaletten: !fax && a.station !== 'waschen',
     /** Beim Waschen + Sortieren steht das Eingangsgewicht auf dem Zettel — Pflicht je Palette. */
     zettelGewichtPflicht: a.station === 'waschen_sortieren',
-    hatKisten: !fax && a.station !== 'waschen_sortieren',
-    /** Ohne gezählte Kisten hat die Arbeit keine Menge (Waschen). */
-    kistenPflicht: !fax && a.station === 'waschen',
-    /** Beim Waschen steht das Sortierdatum auf der Kiste und wird mitgezählt. */
-    kistenMitDatum: !fax && a.station === 'waschen',
-    /** Eine Palette wiegen: überall, wo Paletten gezählt werden. */
+    /** Kaliber-Paletten aus dem Zwischenlager zählen: Sortierdatum und Kisten je Palette (Waschen). */
+    hatWaschPaletten: waschen,
+    /** Kisten je Kaliber zählen — nur noch beim Sortieren (die gefüllten). */
+    hatKisten: !fax && a.station === 'sortieren',
+    /** Eine Palette wiegen: wo Eingangspaletten gezählt werden. */
     mitWiegen: !fax && a.station !== 'waschen',
-    hatAusschuss: false,
+    /** Mindestens drei Eingangspaletten wiegen — bevor sie in die Waschmaschine kommen (erinnert, nicht erzwungen). */
+    wiegenSoll: a.station === 'waschen_sortieren' ? WIEGEN_SOLL : 0,
+    /** Zu klein / zu gross am Ende je Palette wiegen: nur von Hand (Waschen + Sortieren). */
+    hatAusschuss: a.station === 'waschen_sortieren',
     /** Fertige Palette wiegen — nur, wenn das Kistensystem rechenbar ist. */
     hatAusgang: !fax && a.station !== 'sortieren' && rechenbar,
+    /** Beim Waschen sind die fertigen Paletten die eine Messung am Ende: verlangt. */
+    ausgangPflicht: waschen && rechenbar,
     hatPalox: !fax,
     /** Am Sortierband und an der Waschstrasse mit Sortieren ist der Palox Pflicht;
-     *  beim Waschen aus Kisten freiwillig (der Nenner sind die gezählten Kisten). */
+     *  beim Waschen aus Kisten gefragt, nicht Pflicht (der Nenner sind die gezählten Paletten). */
     paloxPflicht: !fax && a.station !== 'waschen',
     hatFaule: fax,
     /** Fax: die Palettenzahl als Gesamtzahl am Ende. */
     hatFaxPaletten: fax,
     kistensystemRechenbar: rechenbar,
   }
+}
+
+/** Wie viele fertige Paletten diese Arbeit mindestens gewogen haben soll:
+ *  drei — oder weniger, wenn sie nicht mehr hergibt (Kisten ÷ Kisten je Palette). */
+export function fertigeSoll(d: ArbeitDaten): number {
+  const p = stationsProfil(d.auftrag)
+  if (!p.hatAusgang) return 0
+  const kisten = d.paletten.reduce((s, x) => s + (x.kisten ?? 0), 0)
+  if (p.hatWaschPaletten && kisten > 0) return Math.max(1, Math.min(FERTIGE_SOLL, Math.ceil(kisten / d.kistenProPalette)))
+  return FERTIGE_SOLL
 }
 
 export const uhrzeit = (ts: string, gebietsschema: string) =>
