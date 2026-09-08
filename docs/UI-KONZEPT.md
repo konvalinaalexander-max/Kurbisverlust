@@ -108,3 +108,4 @@ gemessen ist, steht als „nicht gemessen", nie als 0.
 | 0055 | Warenausgang aus dem Perigon-Excel: Datei, Rohzeilen, Lieferungen in einem Aufruf | Ausgeliefert je Charge (gemessen); damit „Noch im Haus" = Eingang − Ausgang − Modell; Bilanz gegen echte Zahlen |
 | 0056 | Wägung, bei der die Palette schwerer wurde als beim Eingang (über 1 %) | Zählt nicht in die Verdunstungsrate; steht unter Auffälligkeiten mit Grund und Rat. Die Rate je Sorte ist nie negativ, die Basis für den Schimmelanteil nie über dem Eingang |
 | 0057 | Stand der Datenbank (`schema_stand()`) | Die App vergleicht ihn mit `SCHEMA_ERWARTET` und verlangt bei Abweichung `setup.sql` — statt an alten Formeln zu scheitern. `supabase/diagnose.sql` für den SQL-Editor |
+| 0058 | Eine Zahl, die nicht in ihre Spalte passt | Wird unbekannt („—") statt die ganze Sicht abzubrechen. Anteile sind auf 0 … 1 geklammert, Massen nie negativ; die Bilanz nennt einen fehlenden Wareneingang beim Namen |

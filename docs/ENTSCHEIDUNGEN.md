@@ -1764,3 +1764,75 @@ als Tabelle, die sich kopieren lässt. Regel: jede Migration setzt
 `run.sh` (Stufe 1) und `npm test` schlagen sonst an. Und
 `v_ausschuss_beobachtung` rechnet seine Basis jetzt ebenfalls mit der
 gedeckelten Rate — die letzte Sicht, die (1 − Rate)^Lagertage roh nahm.
+
+## Eine Zahl darf nicht den ganzen Bildschirm kosten (0058)
+
+Nach 0056 und 0057 kam vom Hof zum dritten Mal „numeric field overflow" —
+jetzt mit Namen, weil 0057 den Sichtnamen in die Meldung schreibt:
+`v_hochrechnung`. Die Diagnose auf der Betriebsdatenbank zeigte: Stand
+0057, Verdunstungsrate sauber (0.000470 … 0.000475), Auswertung rechnet
+durch, aber `v_saisonbilanz` und `v_marge_buch` scheitern. Es waren also
+nicht mehr die Rohdaten, sondern die Sichten, die daraus Hochrechnung,
+Bereiche und Bilanz machen.
+
+### Der eigentliche Konstruktionsfehler
+
+Diese Sichten casten berechnete Grössen hart auf `numeric(14,2)`,
+`numeric(12,6)` oder `numeric(10,4)`. Ein solcher Cast ist eine
+*Behauptung* über den Wertebereich. Bei einer gespeicherten Spalte ist das
+richtig — dort ist er eine Zusage über die Daten. Bei einer berechneten
+Grösse ist er eine Wette: Trifft sie nicht zu, bricht nicht die eine Zahl
+weg, sondern **die ganze Sicht**. Der Betriebsleiter sieht dann einen
+leeren Bildschirm mit einer Meldung, die ihm nichts sagt, und kann nichts
+tun. Das ist die schlechteste aller Ausfallarten — und sie hat sich in
+drei Runden dreimal gezeigt, jedes Mal an einer anderen Stelle. Nicht die
+Stellen waren das Problem, sondern das Muster.
+
+Zwei Beispiele, beide realistisch:
+
+- `luecke_anteil` ist `(Eingang − Verlust − Ausgang − …) / Eingang`, hart
+  auf `numeric(10,4)`, also unter 10⁶. Ist der Warenausgang eingelesen und
+  der Wareneingang noch nicht (das Erntejournal ist ein eigener Import),
+  wird das Verhältnis beliebig gross — und die Bilanz bricht ab, statt zu
+  sagen, dass der Eingang fehlt.
+- `kg_unten` und `kg_oben` sind Wert ± t · Streuung. Die Streuung kommt aus
+  einer fortgepflanzten Varianz; bei wenigen Messpunkten kann sie sehr
+  gross werden. Der Mittelwert ist dann noch brauchbar, der Bereich nicht
+  — abbrechen darf deswegen nichts.
+
+### Was 0058 ändert
+
+`zahl(wert, stellen, grenze)` rundet wie bisher, gibt aber **NULL statt
+eines Fehlers**, wenn der Wert nicht in die Zielspalte passt. NULL heisst
+im ganzen Projekt „unbekannt", und genau das ist es: Die Zahl ist nicht
+ermittelbar. Die App zeigt dafür „—", der Rest des Bildschirms steht. Alle
+Casts in `v_hochrechnung`, `verlust_ranking()`, `v_saisonbilanz` und
+`v_marge_buch` laufen jetzt darüber — und zwar *alle*, nicht nur die, an
+denen es gerade geklemmt hat. Welcher Wert es auf dem Hof war, ist damit
+nicht mehr entscheidend.
+
+Dazu zwei inhaltliche Korrekturen, die keine Notbremsen sind, sondern
+Physik: Jeder Koeffizient in der Hochrechnung ist ein **Anteil** und wird
+auf 0 … 1 geklammert — bisher galt das für r, f, zu klein und zu gross,
+nicht aber für den Sockel a₀. Und jede Masse ist **nie negativ**. Ein
+Anteil über 1 oder eine negative Masse gibt es nicht; wo sie entstünden,
+ist die Rechnung ohnehin falsch, und die Klammerung macht sie wenigstens
+nicht unmöglich darstellbar.
+
+Schliesslich nennt die Bilanz den häufigsten Grund jetzt beim Namen: „Es
+ist weit mehr ausgeliefert als eingelagert. Fast immer fehlt der
+Wareneingang (Erntejournal noch nicht eingelesen) oder er deckt nur einen
+Teil der Saison ab." Das ist die Antwort, die der Betriebsleiter braucht —
+nicht eine Fehlermeldung über Zahlenformate.
+
+### Was die Diagnose falsch gemacht hat
+
+`supabase/diagnose.sql` prüfte jede Sicht mit `select count(*)`. Postgres
+wertet die Spaltenausdrücke dabei **gar nicht aus** — die Casts laufen nie.
+Deshalb meldete die Diagnose `v_hochrechnung` als lesbar, während die App
+genau an ihr scheiterte. Sie prüft jetzt mit `select *`, gibt zusätzlich
+`pg_exception_detail` aus (die Zeile, die sagt, welche Präzision überlief)
+und listet die Grössenordnungen, die einen Überlauf erklären: Ein- und
+Ausgang, die Extremwerte der Kaskade, die Modellvarianzen, die Ströme mit
+ihren Bereichen und das Sollgewicht je Kiste. Eine Diagnose, die eine
+falsche Entwarnung geben kann, ist schlimmer als keine.

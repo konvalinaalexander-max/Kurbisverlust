@@ -2406,3 +2406,62 @@ begin
 end $$;
 
 select '——— 0056 Schwerere Palette geprüft ———' as ergebnis;
+
+-- =====================================================================
+-- 0058 — Eine einzelne unmögliche Zahl sprengt die Auswertung nicht
+-- =====================================================================
+-- Auf der Betriebsdatenbank stand nach 0057 weiterhin „numeric field
+-- overflow", jetzt in v_hochrechnung, v_saisonbilanz und v_marge_buch. Der
+-- Grund war ein harter Cast auf eine berechnete Grösse: Trifft die
+-- Bereichsannahme nicht zu, bricht die ganze Sicht ab statt einer Spalte.
+-- Hier wird beides geprüft: der Helfer, und dass die Sichten die Physik
+-- einhalten (Anteil 0…1, Masse nie negativ).
+do $$
+declare v_n int;
+begin
+  -- ---- Der Helfer: runden, sonst unbekannt ---------------------------
+  assert zahl(123.456) = 123.46, format('zahl() muss runden, ist %s', zahl(123.456));
+  assert zahl(1e20) is null, 'Eine Zahl, die nicht in die Spalte passt, muss NULL sein';
+  assert zahl(-1e20) is null, 'Auch nach unten muss die Grenze greifen';
+  assert zahl(null::numeric) is null, 'NULL bleibt NULL';
+  assert zahl(1e4, 4, 1e5) = 10000, 'Innerhalb der Grenze wird gerechnet';
+  assert zahl(1e6, 4, 1e5) is null, 'Ausserhalb der Grenze wird es unbekannt';
+  assert zahl(1.5::double precision) = 1.5, 'Auch Gleitkomma muss gehen (Koeffizienten-Grenzen)';
+
+  -- ---- Die Physik: Anteile sind Anteile, Massen nie negativ ----------
+  select count(*) into v_n from v_hochrechnung
+   where koeffizient is not null and (koeffizient < 0 or koeffizient > 1);
+  assert v_n = 0, format('%s Koeffizienten liegen ausserhalb von 0…1', v_n);
+
+  select count(*) into v_n from v_hochrechnung where kg < 0 or basis_kg < 0 or portion_kg < 0;
+  assert v_n = 0, format('%s Massen in der Hochrechnung sind negativ', v_n);
+
+  -- ---- Die drei Sichten, die es auf dem Hof zerlegt hat --------------
+  -- count(*) genügt nicht: Postgres wertet die Spaltenausdrücke dann gar
+  -- nicht aus. Genau deshalb hat die erste Diagnose v_hochrechnung als
+  -- „lesbar" gemeldet, während die App an ihr scheiterte.
+  perform count(*) from (select * from v_hochrechnung) q;
+  perform count(*) from (select * from v_saisonbilanz) q;
+  perform count(*) from (select * from v_marge_buch) q;
+  perform count(*) from (select * from v_verlust_ranking) q;
+
+  raise notice 'OK  0058 Auswertung hält stand: unmögliche Zahl wird unbekannt, Anteile bleiben Anteile';
+end $$;
+
+-- Der Fall aus dem Betrieb: Warenausgang eingelesen, Wareneingang fehlt.
+-- Früher lief das Verhältnis Ausgang/Eingang über und riss die Bilanz mit;
+-- heute steht ein Satz da, der sagt, was zu tun ist.
+do $$
+declare v_befund text; v_n int;
+begin
+  select count(*) into v_n from palette;
+  if v_n = 0 then
+    raise notice 'OK  0058 Bilanz ohne Wareneingang (übersprungen, keine Paletten im Prüfstand)';
+    return;
+  end if;
+  select befund into v_befund from v_saisonbilanz;
+  assert v_befund is not null, 'Die Bilanz muss immer einen Befund liefern';
+  raise notice 'OK  0058 Bilanz liefert einen Befund statt eines Abbruchs';
+end $$;
+
+select '——— 0058 Auswertung hält stand geprüft ———' as ergebnis;
