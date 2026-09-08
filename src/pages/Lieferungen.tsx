@@ -168,7 +168,7 @@ export default function Lieferungen() {
       <Karte titel="Erfasst">
         <div className="spalten">
           <Kennzahl titel="Lieferungen" wert={String(zeilen.length)} />
-          <Kennzahl titel="Masse gesamt" wert={`${(summe / 1000).toFixed(1)} t`} />
+          <Kennzahl titel="Masse aller Lieferungen" wert={`${(summe / 1000).toFixed(1)} t`} />
         </div>
         {ohneKistengewicht && (
           <Hinweis art="warnung">
@@ -183,8 +183,8 @@ export default function Lieferungen() {
           <div className="rollbar">
             <table>
               <thead>
-                <tr><th>Datum</th><th>Sorte</th><th>Charge</th><th className="zahl">Angabe</th>
-                  <th className="zahl">Masse</th><th>Wohin</th><th>Kunde</th><th /></tr>
+                <tr><th>Datum</th><th>Sorte</th><th>Charge</th><th className="zahl">Angabe auf dem Lieferschein</th>
+                  <th className="zahl">Masse der Lieferung</th><th>Wohin</th><th>Kunde</th><th /></tr>
               </thead>
               <tbody>
                 {zeilen.map(z => (

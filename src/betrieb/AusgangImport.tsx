@@ -162,7 +162,7 @@ export default function AusgangImport({ nachUebernahme }: { nachUebernahme: () =
         {lage.length > 0 && (
           <div className="rollbar" style={{ marginBottom: '.75rem' }}>
             <table>
-              <thead><tr><th>Firma</th><th className="zahl">Zeilen</th><th>Zeitraum</th><th>Zuletzt geladen</th><th className="zahl">Lieferungen</th><th className="zahl">Masse</th><th className="zahl">Artikel offen</th></tr></thead>
+              <thead><tr><th>Firma</th><th className="zahl">Zeilen</th><th>Zeitraum</th><th>Zuletzt geladen</th><th className="zahl">Lieferungen</th><th className="zahl">Masse in der Datei</th><th className="zahl">Artikel offen</th></tr></thead>
               <tbody>{lage.map(l => (
                 <tr key={l.quelle}>
                   <td>{l.name}</td><td className="zahl">{zahl(l.zeilen)}</td>
@@ -303,7 +303,7 @@ function DateiKarte({ d, quellen, bekannt, bestaetigt, chargen, sorten, quelleSe
             <Kennzahl titel="Zeilen" wert={zahl(alle.length)} unter={<>{zahl(alle.length - imZeitraum.length)} vor dem {datum(ZEITRAUM_AB)}{intern > 0 && <> · {zahl(intern)} Journal {JOURNAL_INTERN}</>}</>} />
             <Kennzahl titel="Kürbiszeilen" wert={zahl(bf.kuerbiszeilen)} unter={`${zahl(bf.positionen)} Lieferscheinpositionen`} />
             <Kennzahl titel="Zeitraum" wert={bf.von ? `${datum(bf.von)} – ${datum(bf.bis)}` : '—'} unter="Lieferdatum" />
-            <Kennzahl titel="Masse" wert={tonnen(bf.kg_position)}
+            <Kennzahl titel="Masse in der Datei" wert={tonnen(bf.kg_position)}
                       unter={`${tonnen(gebaut.lieferungen.filter(l => l.charge_nr !== null).reduce((s, l) => s + l.kg, 0))} einer Charge zugeordnet · ${tonnen(gebaut.lieferungen.filter(l => l.charge_nr === null).reduce((s, l) => s + l.kg, 0))} ohne Chargenbezug`} />
           </div>
           {bf.chargen.length > 0 && (
@@ -336,7 +336,7 @@ function DateiKarte({ d, quellen, bekannt, bestaetigt, chargen, sorten, quelleSe
                 tragen. Bestätigt gilt, vorgeschlagen zählt vorläufig. Einmal je Artikel, danach nur bei neuen.
               </p>
               <div className="rollbar"><table>
-                <thead><tr><th>Artikel</th><th className="zahl">Zeilen</th><th className="zahl">Masse</th><th>Vorschlag</th><th>Sorte</th><th></th></tr></thead>
+                <thead><tr><th>Artikel</th><th className="zahl">Zeilen</th><th className="zahl">Masse des Artikels</th><th>Vorschlag</th><th>Sorte</th><th></th></tr></thead>
                 <tbody>{offen.map(a => {
                   const vs = vorschlagSorte.get(a.schluessel)
                   return (

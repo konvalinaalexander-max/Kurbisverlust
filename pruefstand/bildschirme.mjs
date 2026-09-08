@@ -2,11 +2,10 @@
  * Der Bildschirm-Prüfstand: rendert jede Seite der App in einem echten Browser
  * und legt Screenshots ab — mobil und Desktop, hell und dunkel.
  *
- * Es gibt kein laufendes Supabase dabei. Stattdessen fängt Playwright jede
- * Netzwerk-Anfrage an /rest/v1 und /auth/v1 ab und antwortet aus den
- * JSON-Dateien in pruefstand/daten/, die daten_dumpen.sh aus der lokalen
- * Demo-Datenbank gezogen hat. Die App sieht also echte Datenformen und echte
- * Zahlen — nur eben ohne Netz.
+ * Es gibt kein laufendes Supabase dabei: Die Attrappe (attrappe.mjs) antwortet
+ * aus den JSON-Dateien in pruefstand/daten/, die daten_dumpen.sh aus der
+ * lokalen Demo-Datenbank gezogen hat. Die App sieht also echte Datenformen und
+ * echte Zahlen — nur eben ohne Netz.
  *
  * Warum der Aufwand: "npm run build läuft durch" sagt nichts darüber, ob eine
  * Tabelle aus dem Rahmen läuft oder eine Zahl als NaN dasteht. Das sieht man
@@ -17,14 +16,12 @@
  */
 import { chromium } from 'playwright'
 import { createServer } from 'vite'
-import { readFileSync, mkdirSync } from 'node:fs'
+import { mkdirSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { CHROMIUM, authAntwort, fehlendeFixtures, fixture, restAntwort, vergessen } from './attrappe.mjs'
 
 const HIER = dirname(fileURLToPath(import.meta.url))
-// 0057: die Attrappe nennt denselben Stand, den die App erwartet
-const SCHEMA_STAND = Number(readFileSync(join(HIER, '..', 'src', 'lib', 'version.ts'), 'utf8').match(/SCHEMA_ERWARTET = (\d+)/)[1])
-const DATEN = join(HIER, 'daten')
 const BILDER = join(HIER, 'bilder')
 const NUR = process.argv[2] ?? ''
 // Sprache der Arbeiter-Oberfläche. Ungarisch und Portugiesisch haben die
@@ -36,112 +33,6 @@ const SPRACHE = process.env.SPRACHE ?? 'de'
 // jeder anderen Sprache ins Leere. Das Wörterbuch kommt aus der App selbst,
 // über den Vite-Server, sobald er steht (unten).
 let T = id => id
-
-const fixture = name => {
-  try { return JSON.parse(readFileSync(join(DATEN, `${name}.json`), 'utf8')) }
-  catch { return null }
-}
-
-import { filtern, seite } from './postgrest.mjs'
-
-// Was ein Klickweg schreibt, liest die App gleich darauf wieder — der
-// Abschluss-Assistent lässt erst weiter, wenn die Messung da ist. Ohne
-// Gedächtnis bliebe er auf dem Schritt stehen. Je Bildschirm frisch (unten).
-let geschrieben = {}
-let naechsteId = 90001
-
-async function restAntwort(route) {
-  const url = new URL(route.request().url())
-  const name = url.pathname.replace(/^.*\/rest\/v1\//, '')
-  const methode = route.request().method()
-
-  if (name.startsWith('rpc/')) {
-    const fn = name.slice(4)
-    if (fn === 'auswertung_aktualisieren') {
-      return route.fulfill({ json: new Date().toISOString() })
-    }
-    if (fn === 'auswertung_schritt') {
-      const body = JSON.parse(route.request().postData() ?? '{}')
-      const i = Number(body.p_schritt ?? 1)
-      return route.fulfill({ json: { schritt: i, schritte: 5, titel: ['Rohdaten', 'Arbeiten', 'Kaskade', 'Ergebnis', 'Befunde'][i - 1], dauer_ms: 1, fertig: i === 5 } })
-    }
-    if (fn === 'schema_stand') return route.fulfill({ json: SCHEMA_STAND })
-    if (fn === 'palox_letzter_stand') {
-      const body = JSON.parse(route.request().postData() ?? '{}')
-      const staende = fixture('rpc_palox_letzter_stand') ?? {}
-      return route.fulfill({ json: staende[body.p_station] ?? null })
-    }
-    if (fn === 'demo_daten_laden') return route.fulfill({ json: 'Demo-Saison steht.' })
-    if (fn === 'demo_daten_entfernen') return route.fulfill({ json: 'Demo-Daten entfernt.' })
-    const daten = fixture(`rpc_${fn}`)
-    return route.fulfill({ json: daten ?? null })
-  }
-
-  // Schreiben: gemerkt, damit die App das Geschriebene wiederfindet.
-  if (methode !== 'GET' && methode !== 'HEAD') {
-    const body = route.request().postData()
-    let echo = []
-    try { echo = JSON.parse(body ?? 'null') } catch { /* leer lassen */ }
-    if (echo === null) echo = []
-    if (!Array.isArray(echo)) echo = [echo]
-    echo = echo.map(z => ({ id: naechsteId++, ts: new Date().toISOString(), ...z }))
-    if (methode === 'POST') geschrieben[name] = [...(geschrieben[name] ?? []), ...echo]
-    const einzeln = (route.request().headers()['accept'] ?? '').includes('pgrst.object')
-    return route.fulfill({ status: 201, json: einzeln ? (echo[0] ?? {}) : echo })
-  }
-
-  const fest = fixture(name)
-  const dazu = geschrieben[name] ?? []
-  if (fest === null && dazu.length === 0) {
-    console.warn(`  ! kein Fixture für ${name} — leere Antwort`)
-    return route.fulfill({ json: [] })
-  }
-  const erg = seite(filtern([...(fest ?? []), ...dazu], url.searchParams), route.request().headers())
-
-  if (methode === 'HEAD') {
-    return route.fulfill({ status: 200, headers: {
-      'content-range': `0-${Math.max(erg.length - 1, 0)}/${erg.length}`,
-    }, body: '' })
-  }
-  const einzeln = (route.request().headers()['accept'] ?? '').includes('pgrst.object')
-  return route.fulfill({ json: einzeln ? (erg[0] ?? null) : erg })
-}
-
-/* ---------- Auth: eine ausgedachte, aber formal gültige Sitzung ---------- */
-const jwt = (rolle, id, name) => {
-  const teil = o => Buffer.from(JSON.stringify(o)).toString('base64url')
-  return `${teil({ alg: 'none' })}.${teil({
-    sub: id, role: 'authenticated', exp: Math.floor(Date.now() / 1000) + 86400,
-    user_metadata: { name },
-  })}.x`
-}
-const sitzung = (id, name, anonym) => ({
-  access_token: jwt('authenticated', id, name),
-  token_type: 'bearer', expires_in: 86400,
-  expires_at: Math.floor(Date.now() / 1000) + 86400,
-  refresh_token: 'pruefstand',
-  user: {
-    id, aud: 'authenticated', role: 'authenticated',
-    email: anonym ? undefined : 'chef@hof.test',
-    is_anonymous: anonym, user_metadata: { name },
-    app_metadata: {}, created_at: '2026-09-01T08:00:00Z',
-  },
-})
-const ADMIN = '11111111-1111-1111-1111-111111111111'
-const ARBEITER = '22222222-2222-2222-2222-222222222222'
-
-async function authAntwort(route, wer) {
-  const url = new URL(route.request().url())
-  const s = wer === 'arbeiter'
-    ? sitzung(ARBEITER, 'Tomasz', true)
-    : sitzung(ADMIN, 'Alexander', false)
-  if (url.pathname.endsWith('/token') || url.pathname.endsWith('/signup')) {
-    return route.fulfill({ json: s })
-  }
-  if (url.pathname.endsWith('/user')) return route.fulfill({ json: s.user })
-  if (url.pathname.endsWith('/logout')) return route.fulfill({ status: 204, body: '' })
-  return route.fulfill({ json: {} })
-}
 
 /* ---------- Die Bildschirm-Liste ----------------------------------------- */
 // Jeder Eintrag: Name, wer angemeldet ist, Pfad, und was vor dem Screenshot
@@ -246,7 +137,14 @@ const BILDSCHIRME = [
   // Betriebsleiter: fünf Reiter
   { name: 'ueberblick', wer: 'admin', pfad: '/dashboard' },
   { name: 'ueberblick-sorte', wer: 'admin', pfad: '/dashboard',
-    tun: async p => { await p.getByRole('tab', { name: 'je Sorte' }).first().click() } },
+    // Erst warten, bis die Karte samt Umschalter steht: Der Überblick lädt ein
+    // Dutzend Ansichten, und ein Klick auf einen noch nicht gezeichneten Reiter
+    // lief bisher ins Zeitlimit.
+    tun: async p => {
+      const reiter = p.getByRole('tab', { name: 'je Sorte' }).first()
+      await reiter.waitFor({ state: 'visible', timeout: 60000 })
+      await reiter.click()
+    } },
   { name: 'ursachen', wer: 'admin', pfad: '/ursachen' },
   { name: 'chargen', wer: 'admin', pfad: '/chargen' },
   { name: 'chargen-offen', wer: 'admin', pfad: '/chargen',
@@ -316,7 +214,7 @@ mkdirSync(BILDER, { recursive: true })
 // In der Entwicklungsumgebung liegt ein fertiges Chromium unter /opt — dessen
 // Version muss nicht zur Playwright-Version passen, für Screenshots genügt es.
 const browser = await chromium.launch({
-  executablePath: process.env.PRUEFSTAND_CHROMIUM ?? '/opt/pw-browsers/chromium',
+  executablePath: CHROMIUM,
 })
 let fehler = 0
 
@@ -330,7 +228,7 @@ for (const geraet of GERAETE) {
         locale: 'de-CH',
       })
       const seite = await kontext.newPage()
-      geschrieben = {}          // jeder Bildschirm beginnt bei den Fixtures
+      vergessen()               // jeder Bildschirm beginnt bei den Fixtures
       const meldungen = []
       seite.on('console', m => { if (m.type() === 'error') meldungen.push(m.text()) })
       seite.on('pageerror', f => meldungen.push(String(f)))
@@ -396,5 +294,6 @@ for (const geraet of GERAETE) {
 
 await browser.close()
 await vite.close()
+for (const t of fehlendeFixtures) console.warn(`  ! kein Fixture für ${t} — leere Antwort`)
 console.log(`Fertig: Screenshots in ${BILDER}${fehler ? ` — ${fehler} Seiten mit Konsolenfehlern` : ', keine Konsolenfehler'}`)
 process.exit(0)

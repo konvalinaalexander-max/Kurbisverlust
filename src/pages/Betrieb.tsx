@@ -87,7 +87,7 @@ function Arbeiten() {
       <Karte titel="Arbeit und Tempo">
         <p className="leise">Je Tätigkeit: wie viele Arbeiten, wie lange sie dauerten, wie viel Masse je Stunde und je Person und Stunde durchging — aus Start und Ende jeder abgeschlossenen Arbeit und der Masse, die sie bewegt hat. Arbeiten ohne bekannte Masse zählen bei der Dauer, nicht beim Tempo.</p>
         <div className="rollbar"><table>
-          <thead><tr><th>Tätigkeit</th><th className="zahl">Arbeiten</th><th className="zahl">Stunden</th><th className="zahl">Dauer (Median)</th><th className="zahl">Masse</th><th className="zahl">kg je Stunde</th><th className="zahl">kg je Person und Stunde</th></tr></thead>
+          <thead><tr><th>Tätigkeit</th><th className="zahl">Arbeiten</th><th className="zahl">Stunden</th><th className="zahl">Dauer (Median)</th><th className="zahl">Bewegte Masse</th><th className="zahl">kg je Stunde</th><th className="zahl">kg je Person und Stunde</th></tr></thead>
           <tbody>{tempo.map(z => (
             <tr key={z.name}>
               <td>{z.zeichen} {z.name}</td>
@@ -116,7 +116,7 @@ function Arbeiten() {
       </div>
       {gezeigt.length === 0 ? <p className="leise" style={{ margin: 0 }}>nichts</p> : (
         <div className="rollbar"><table>
-          <thead><tr><th>Start</th><th>Arbeit</th><th>Charge</th><th>Status</th><th className="zahl">Paletten</th><th className="zahl">Masse</th><th className="zahl">Dauer</th><th className="zahl">kg/h</th><th className="zahl">Leute</th><th></th></tr></thead>
+          <thead><tr><th>Start</th><th>Arbeit</th><th>Charge</th><th>Status</th><th className="zahl">Paletten</th><th className="zahl">Bewegte Masse</th><th className="zahl">Dauer</th><th className="zahl">kg/h</th><th className="zahl">Leute</th><th></th></tr></thead>
           <tbody>{gezeigt.map(a => {
             const ta = taetigkeitVon(a.weg, a.station, a.ist_fax); const d = durchsatz.get(a.id)
             return (

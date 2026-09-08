@@ -1,8 +1,10 @@
+import { useState } from 'react'
 import { datum, kg, prozent, zahl } from '../lib/format'
-import { Aufklapp, Hinweis, Karte, Marke } from '../components/Bausteine'
+import { Aufklapp, Herkunft, Hinweis, Karte, Marke } from '../components/Bausteine'
 import { Linien } from '../components/Diagramm'
-import { useAuswertung, type Datenqualitaet } from '../auswertung/daten'
+import { hochrechnungLaden, useAuswertung, type Datenqualitaet } from '../auswertung/daten'
 import { Auffaelligkeiten, Bilanz, Kurvenherkunft, Probleme, Rechnet, Reiterkopf } from '../auswertung/Karten'
+import { Kontrollkorrektur } from '../arbeit/Korrektur'
 import { STATION_NAME } from '../lib/format'
 
 const TAG = 86400000
@@ -14,6 +16,11 @@ const TAG = 86400000
  */
 export default function Messungen() {
   const { daten, laedt, fehler, fortschritt, neuRechnen } = useAuswertung()
+  // Vor jedem vorzeitigen Rückgeben: React zählt die Hooks je Render und
+  // verlangt dieselbe Reihenfolge. Stehen sie hinter einem `return`, laufen
+  // sie beim Ladebildschirm nicht mit — und der nächste Render bricht ab.
+  const [exportLaeuft, setExportLaeuft] = useState(false)
+  const [exportFehler, setExportFehler] = useState<string | null>(null)
   if (laedt && !daten) return <Rechnet fortschritt={fortschritt} />
   if (fehler) return <Hinweis art="warnung">{fehler}</Hinweis>
   if (!daten) return null
@@ -22,14 +29,26 @@ export default function Messungen() {
   const alter = daten.verarbeitung.filter(v => v.differenz !== null)
   const stationen = [...new Set(daten.durchsatz.map(d => d.station))]
 
-  function exportieren() {
-    const kopf = ['charge_nr', 'sorte', 'schlag', 'portion', 'alter_tage', 'strom', 'buch', 'kg', 'basis_kg', 'koeffizient', 'koeff_n', 'koeff_basis', 'f_extrapoliert', 'formel']
-    const zeilen = daten!.hochrechnung.filter(z => z.buch !== 'bilanz').map(z => kopf.map(k => {
-      const w = (z as unknown as Record<string, unknown>)[k]; const s = w == null ? '' : String(w)
-      return /[";\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
-    }).join(';'))
-    const blob = new Blob(['﻿' + [kopf.join(';'), ...zeilen].join('\n')], { type: 'text/csv;charset=utf-8' })
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'kuerbis-hochrechnung.csv'; a.click(); URL.revokeObjectURL(a.href)
+  // Die volle Hochrechnung wird erst hier geholt, beim Klick — sie ist einige
+  // Megabyte gross und wurde bis Runde I bei jedem Seitenwechsel mitgeladen,
+  // obwohl sie nur diese eine Datei füllt.
+  async function exportieren() {
+    if (exportLaeuft) return
+    setExportLaeuft(true); setExportFehler(null)
+    try {
+      const hochrechnung = await hochrechnungLaden()
+      const kopf = ['charge_nr', 'sorte', 'schlag', 'portion', 'alter_tage', 'strom', 'buch', 'kg', 'basis_kg', 'koeffizient', 'koeff_n', 'koeff_basis', 'f_extrapoliert', 'formel']
+      const zeilen = hochrechnung.filter(z => z.buch !== 'bilanz').map(z => kopf.map(k => {
+        const w = (z as unknown as Record<string, unknown>)[k]; const s = w == null ? '' : String(w)
+        return /[";\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
+      }).join(';'))
+      const blob = new Blob(['﻿' + [kopf.join(';'), ...zeilen].join('\n')], { type: 'text/csv;charset=utf-8' })
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'kuerbis-hochrechnung.csv'; a.click(); URL.revokeObjectURL(a.href)
+    } catch (f) {
+      setExportFehler(f instanceof Error ? f.message : 'Die Hochrechnung liess sich nicht holen.')
+    } finally {
+      setExportLaeuft(false)
+    }
   }
 
   return (
@@ -84,7 +103,7 @@ export default function Messungen() {
           </div>
           <Aufklapp titel={<>Die letzten Arbeiten <span className="leise">({Math.min(daten.durchsatz.length, 40)} von {daten.durchsatz.length})</span></>}>
           <div className="rollbar"><table>
-            <thead><tr><th>Start</th><th>Arbeit</th><th>Charge</th><th className="zahl">Dauer</th><th className="zahl">Masse</th><th className="zahl">kg/h</th><th className="zahl">Leute</th></tr></thead>
+            <thead><tr><th>Start</th><th>Arbeit</th><th>Charge</th><th className="zahl">Dauer</th><th className="zahl">Bewegte Masse</th><th className="zahl">kg/h</th><th className="zahl">Leute</th></tr></thead>
             <tbody>{daten.durchsatz.slice(0, 40).map(d => (
               <tr key={d.auftrag_id}><td>{datum(d.start_ts)}</td><td>{STATION_NAME[d.station] ?? d.station}{d.ist_fax ? ' (Fax)' : ''}</td><td>{d.charge_nr} · {d.sorte}</td>
                 <td className="zahl">{d.dauer_h.toFixed(1)} h</td><td className="zahl">{d.masse_kg != null ? kg(d.masse_kg, 0) : <span className="leise">unbekannt</span>}</td>
@@ -98,7 +117,7 @@ export default function Messungen() {
       <Karte titel="Die vier Koeffizienten">
         <p className="leise">Das Innenleben der Hochrechnung: Jede Zahl entsteht als <em>Koeffizient × bekannte Grösse</em>. Hier steht, worauf jeder beruht.</p>
         <div className="rollbar"><table>
-          <thead><tr><th>Koeffizient</th><th className="zahl">Wert</th><th className="zahl">Messungen</th><th>Herkunft</th></tr></thead>
+          <thead><tr><th>Koeffizient</th><th className="zahl">Gemessener Wert</th><th className="zahl">Messungen</th><th>Herkunft</th></tr></thead>
           <tbody>{daten.koeff.map(k => (
             <tr key={k.was}><td>{k.was}</td><td className="zahl"><strong>{k.wert}</strong></td><td className="zahl">{k.n > 0 ? k.n : <Marke art="warnung">keine</Marke>}</td><td className="leise">{k.basis}</td></tr>
           ))}</tbody>
@@ -140,11 +159,14 @@ export default function Messungen() {
       )}
       <Kurvenherkunft punkte={daten.punkte} />
 
-      <Karte titel="Massenbilanz je Charge" aktion={<button onClick={exportieren}>CSV exportieren</button>}>
-        <p className="leise">Die Probe aufs Exempel: das Modell sagt voraus, wie viel Masse am Sortierband ankommen müsste; die CSV hat sie gewogen.</p>
+      <Karte titel="Massenbilanz je Charge" aktion={<button onClick={() => void exportieren()} disabled={exportLaeuft}>{exportLaeuft ? 'holt die Hochrechnung …' : 'CSV exportieren'}</button>}>
+        {exportFehler && <Hinweis art="warnung">{exportFehler}</Hinweis>}
+        <p className="leise">Die Probe aufs Exempel: das Modell sagt voraus, wie viel Masse am Sortierband ankommen müsste; die CSV hat sie gewogen.
+          {' '}<strong>Eingang</strong> <Herkunft art="gemessen" /> und <strong>CSV gewogen</strong> <Herkunft art="gemessen" /> stehen so in den Listen;
+          {' '}<strong>Ausgelagert</strong>, <strong>Noch im Lager</strong> und <strong>Modell am Band</strong> <Herkunft art="gerechnet" /> kommen aus der Kaskade.</p>
         <Aufklapp titel={<>Je Charge <span className="leise">({daten.bilanz.filter(b => b.eingang_kg !== null).length} Chargen)</span></>}>
         <div className="rollbar"><table>
-          <thead><tr><th>Charge</th><th className="zahl">Eingang</th><th className="zahl">ausgelagert</th><th className="zahl">im Lager</th><th className="zahl">Modell</th><th className="zahl">gewogen</th><th className="zahl">Abweichung</th></tr></thead>
+          <thead><tr><th>Charge</th><th className="zahl">Eingang</th><th className="zahl">Ausgelagert</th><th className="zahl">Noch im Lager</th><th className="zahl">Modell am Band</th><th className="zahl">CSV gewogen</th><th className="zahl">Abweichung Modell ↔ CSV</th></tr></thead>
           <tbody>{daten.bilanz.filter(b => b.eingang_kg !== null).map(b => (
             <tr key={b.charge_nr}><td>{b.charge_nr} · {b.sorte}</td><td className="zahl">{kg(b.eingang_kg)}</td><td className="zahl">{kg(b.ausgelagert_kg)}</td><td className="zahl">{kg(b.lager_kg)}</td>
               <td className="zahl">{kg(b.modell_am_band_kg)}</td><td className="zahl">{kg(b.csv_gemessen_kg)}</td>
@@ -157,16 +179,25 @@ export default function Messungen() {
 
       {daten.wiegungen.length > 0 && (
         <Karte titel={`Gewogene Paletten (${daten.wiegungen.length})`}>
+          <p className="leise" style={{ margin: '0 0 .5rem' }}>
+            <strong>Verdunstet</strong> <Herkunft art="gemessen" /> ist hier keine Hochrechnung, sondern der Unterschied zwischen beiden Wägungen dieser einen Palette — Netto damals minus Netto jetzt, beide auf der Waage.
+            Es wird kein Kürbis entnommen, also ist der Unterschied entwichenes Wasser. ⚠ heisst, es lag sichtbar Faules auf der Palette; dann zählt die Wägung nicht in die Verdunstungsrate, weil Faules schneller Wasser verliert.
+          </p>
           <Aufklapp titel={<>Die letzten Wägungen <span className="leise">({Math.min(daten.wiegungen.length, 40)} von {daten.wiegungen.length})</span></>}>
           <div className="rollbar"><table>
-            <thead><tr><th>Charge</th><th className="zahl">Lagertage</th><th className="zahl">Netto damals</th><th className="zahl">Netto jetzt</th><th className="zahl">Verlust</th><th className="zahl">kg/Kiste</th><th className="zahl">kg/Kürbis</th></tr></thead>
+            <thead><tr><th>Charge</th><th className="zahl">Lagertage</th><th className="zahl">Netto damals</th><th className="zahl">Netto jetzt</th><th className="zahl">Verdunstet</th><th className="zahl">kg/Kiste</th><th className="zahl">kg/Kürbis</th></tr></thead>
             <tbody>{daten.wiegungen.slice(0, 40).map(w => (
               <tr key={w.id}><td>{w.charge_nr} · {w.sorte}{w.sichtbar_schimmel ? ' ⚠' : ''}</td><td className="zahl">{zahl(w.lagertage)}</td><td className="zahl">{kg(w.netto_damals_kg, 1)}</td>
-                <td className="zahl">{kg(w.netto_jetzt_kg, 1)}</td><td className="zahl">{kg(w.verlust_kg, 1)}</td><td className="zahl">{w.kg_pro_kiste?.toFixed(2) ?? '—'}</td><td className="zahl">{w.kg_pro_kuerbis?.toFixed(2) ?? '—'}</td></tr>
+                <td className="zahl">{kg(w.netto_jetzt_kg, 1)}</td><td className="zahl">{kg(w.verdunstung_kg, 1)}</td><td className="zahl">{w.kg_pro_kiste?.toFixed(2) ?? '—'}</td><td className="zahl">{w.kg_pro_kuerbis?.toFixed(2) ?? '—'}</td></tr>
             ))}</tbody>
           </table></div>
           </Aufklapp>
-          <p className="leise" style={{ marginTop: '.5rem' }}>⚠ = sichtbar Faules auf der Palette; zählt nicht in die Verdunstungsrate.</p>
+          {/* Eine Kontrollwägung entsteht ohne Arbeit und war darum über keine
+              Arbeit zu erreichen: sichtbar, aber nicht zu berichtigen. Hier
+              steht sie zum Ändern — am selben Ort, an dem sie auffällt. */}
+          <Aufklapp titel="Lagerkontrollen berichtigen">
+            <Kontrollkorrektur geaendert={neuRechnen} />
+          </Aufklapp>
         </Karte>
       )}
     </>

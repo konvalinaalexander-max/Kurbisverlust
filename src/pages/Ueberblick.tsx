@@ -4,8 +4,8 @@ import DemoDaten from '../components/DemoDaten'
 import { datum, kg, prozent, tonnen, zahl } from '../lib/format'
 import { Aufklapp, Herkunft, Hinweis, Karte, Kennzahl } from '../components/Bausteine'
 import { Anteilsbalken, Glocke, Linien, tonnenAchse, type Anteilszeile, type Reihe } from '../components/Diagramm'
-import { STROMFARBE, STROMKURZ, alterSpanne, gruppenSchluessel, kaliberJe, stroemeVon, useAuswertung,
-         type Auswertung, type Bestand, type Gruppe, type StromSumme } from '../auswertung/daten'
+import { STROMFARBE, STROMKURZ, alterSpanne, glockeVorbereiten, gruppenSchluessel, kaliberJe, stroemeVon, useAuswertung,
+         type Auswertung, type Bestand, type Gruppe } from '../auswertung/daten'
 import { Probleme, Rechnet, Reiterkopf } from '../auswertung/Karten'
 
 const TAG = 86400000
@@ -44,7 +44,7 @@ export default function Ueberblick() {
   const gesamt = stroemeVon(daten.verlust, 'gesamt')
   const unbekannt = gesamt.filter(x => !x.bekannt && x.buch !== 'bilanz').map(x => STROMKURZ[x.strom] ?? x.strom)
   const paletten = daten.bestand.reduce((a, b) => a + b.n_paletten, 0)
-  const kanalAusgelagert = s.kanal_heute_kg - s.kanal_im_haus_kg
+  const kanalAusgelagert = s.kanal_ausgelagert_kg
   const zeilen = anteilszeilen(daten, gruppe)
 
   return (
@@ -75,7 +75,7 @@ export default function Ueberblick() {
           <Herkunft art="gemessen" /> heisst: aus einer vollständigen Liste — jede Palette im Erntejournal, jede Lieferung auf einem Lieferschein.{' '}
           <Herkunft art="gerechnet" /> heisst: bis heute, dem {datum(daten.heute)}, aus gemessenen Raten hochgerechnet — die Ware im Haus ist genau so lange gealtert, wie sie liegt, keinen Tag länger.{' '}
           <strong>Verlust</strong> ist, was wirklich weg ist: verdunstetes Wasser und Faules (im Lager, vom Feld, beim Abpacken).
-          Dazu gehen {tonnen(s.kanal_heute_kg)} als zu klein oder zu gross in einen anderen Kanal — die Ware ist da, nur nicht in der richtigen Grösse; {tonnen(kanalAusgelagert)} davon stecken hinter den Lieferungen, der Rest liegt noch im Haus.{' '}
+          Dazu sind {tonnen(kanalAusgelagert)} als zu klein oder zu gross in einen anderen Kanal gegangen — die Ware ist nicht weg, nur nicht in der richtigen Grösse. An der Ware, die noch unsortiert liegt, kommen dazu {tonnen(s.kanal_im_haus_kg)} erwartet; die sind noch nicht passiert und stehen deshalb nicht in dieser Zahl.{' '}
           <strong>Noch im Haus</strong> ist der Eingang minus die Eingangsware hinter den Lieferungen (verkauft, dazu ihr Verlust und ihr Kanal) minus den Verlust der liegenden Ware bis heute.
           Was die Ware bis zum Saisonende noch verliert, steht unten als Prognose — nirgends sonst.
         </p>
@@ -121,17 +121,23 @@ function Verlauf({ daten }: { daten: Auswertung }) {
   const heute = x(daten.heute)
   const bisHeute = wochen.filter(w => !w.prognose)
   const xErste = x(wochen[0].woche), xLetzte = x(wochen[wochen.length - 1].bis)
-  // Heute in der Mitte der Achse — mindestens bis zum Ende der Prognose.
-  const xBis = Math.max(xLetzte, 2 * heute - xErste)
+  // Heute in die Mitte, ohne dass rechts etwas verschwindet: Die Achse endet
+  // immer beim letzten Punkt — sonst fehlte ein Stück Prognose, und eine
+  // Grafik, die Daten abschneidet, um schön auszusehen, ist eine Lüge.
+  // Gepolstert wird darum links, vor dem ersten Eingang: dort ist ohnehin
+  // nichts. Reicht die Zeit vor heute schon aus, bleibt der erste Eingang der
+  // linke Rand.
+  const xBis = xLetzte
+  const xVon = Math.min(xErste, 2 * heute - xLetzte)
   const reihen: Reihe[] = [
-    { name: 'Eingang', farbe: 'var(--strom-verdunstung)', linie: true, marker: false,
+    { name: 'Eingang kumuliert', farbe: 'var(--strom-verdunstung)', linie: true, marker: false,
       punkte: bisHeute.map(w => ({ x: x(w.bis), y: w.eingang_kum_kg })) },
-    { name: 'Ausgang', farbe: 'var(--strom-rest)', linie: true, marker: false,
+    { name: 'Ausgeliefert kumuliert', farbe: 'var(--strom-rest)', linie: true, marker: false,
       punkte: bisHeute.map(w => ({ x: x(w.bis), y: w.ausgang_kum_kg })) },
-    { name: 'Verlust', farbe: 'var(--strom-schimmel)', linie: true, marker: false, prognoseAb: heute,
+    { name: 'Verlust — bis heute, dann Prognose', farbe: 'var(--strom-schimmel)', linie: true, marker: false, prognoseAb: heute,
       punkte: wochen.map(w => ({ x: x(w.bis), y: w.verlust_kum_kg,
-        text: `Verdunstung ${tonnen(w.verdunstung_kum_kg)} · Faules ${tonnen(w.faul_kum_kg)} · beim Abpacken ${tonnen(w.fax_kum_kg)}` })) },
-    { name: 'Noch im Haus', farbe: 'var(--text-leise)', linie: true, marker: false, prognoseAb: heute, ausgeblendet: true,
+        text: `Verdunstung ${tonnen(w.verdunstung_kum_kg)} · Faules im Lager ${tonnen(w.schimmel_kum_kg)} · nicht lagerbedingt ${tonnen(w.sockel_kum_kg)} · Faules beim Abpacken ${tonnen(w.fax_kum_kg)}` })) },
+    { name: 'Noch im Haus — bis heute, dann Prognose', farbe: 'var(--text-leise)', linie: true, marker: false, prognoseAb: heute, ausgeblendet: true,
       punkte: wochen.map(w => ({ x: x(w.bis), y: w.im_haus_kg })) },
   ]
   return (
@@ -142,7 +148,7 @@ function Verlauf({ daten }: { daten: Auswertung }) {
         Zeigen auf eine Woche nennt alle Linien; die Legende blendet Linien aus; ein gezogener Rahmen vergrössert.
       </p>
       <Linien reihen={reihen} heute={{ x: heute, text: `heute, ${datum(daten.heute).slice(0, 6)}` }}
-              xVon={xErste} xBis={xBis} hoehe={300}
+              xVon={xVon} xBis={xBis} hoehe={300}
               xFormat={d => datum(new Date(d * TAG)).slice(0, 5)} yFormat={tonnenAchse} xTitel="Woche" yTitel="Tonnen, kumuliert" />
     </Karte>
   )
@@ -165,7 +171,7 @@ function anteilszeilen(daten: Auswertung, gruppe: Gruppe): Anteilszeile[] {
     })
     const c = gruppe === 'charge' ? chargen.get(k) : undefined
     const name = gruppe === 'gesamt' ? 'Alle Chargen' : gruppe === 'charge' ? `Charge ${k}` : k
-    const untertitel = gruppe === 'charge' ? `${c?.sorte ?? ''} · ${c?.schlag ?? ''} · ${tonnen(eingang)}` : `${nChargen} Chargen · ${tonnen(eingang)} Eingang`
+    const untertitel = gruppe === 'charge' ? `${c?.sorte ?? ''} · ${c?.schlag ?? ''} · ${tonnen(eingang)} Eingang` : `${nChargen} Chargen · ${tonnen(eingang)} Eingang`
     const ziel = gruppe === 'gesamt' ? undefined : gruppe === 'charge' ? `/ursachen?charge=${k}` : `/ursachen?${gruppe}=${encodeURIComponent(k)}`
     return { name, untertitel, bezug: eingang, teile, ziel }
   })
@@ -255,19 +261,7 @@ function Kaliber({ daten }: { daten: Auswertung }) {
   const sorte = gruppe?.sorte ?? ''
   const gewichte = daten.gewichte.filter(g => nach === 'sorte' ? g.sorte === aktiv : String(g.charge_nr) === aktiv)
   const breite = 50
-  const stufenMap = new Map<number, number>()
-  for (const g of gewichte) { const x = Math.floor(g.stufe_g / breite) * breite; stufenMap.set(x, (stufenMap.get(x) ?? 0) + g.n) }
-  const stufen = [...stufenMap.entries()].map(([x, n]) => ({ x, n })).sort((a, b) => a.x - b.x)
-  const schema = daten.schemata.find(s => s.sorte === sorte && s.art === 'kaliber' && s.kaeufer === null)
-    ?? daten.schemata.find(s => s.sorte === sorte && s.art === 'kaliber')
-  const grenzen: { x: number; text: string }[] = []
-  if (schema?.verlust_unter != null) grenzen.push({ x: schema.verlust_unter, text: 'zu klein <' })
-  ;(schema?.kaliber_baender ?? []).forEach(([a], i) => { if (i > 0) grenzen.push({ x: a, text: `K${i + 1}` }) })
-  if (schema?.kanal_ab != null) grenzen.push({ x: schema.kanal_ab, text: 'zu gross ≥' })
-  const gesamt = gewichte.reduce((a, g) => a + g.n, 0)
-  const mittel = gesamt > 0 ? gewichte.reduce((a, g) => a + (g.stufe_g + 12.5) * g.n, 0) / gesamt : null
-  const klassenfarbe = (x: number) => schema?.verlust_unter != null && x + breite <= schema.verlust_unter ? 'var(--strom-ausschuss)'
-    : schema?.kanal_ab != null && x >= schema.kanal_ab ? 'var(--strom-nebenkanal)' : 'var(--kuerbis)'
+  const { stufen, grenzen, gesamt, mittel, klassenfarbe, schema } = glockeVorbereiten(gewichte, daten.schemata, sorte, breite)
   return (
     <Karte titel="Wie gross sind die Kürbisse?">
       <div className="filterleiste">
@@ -286,9 +280,9 @@ function Kaliber({ daten }: { daten: Auswertung }) {
         <div className="rollbar">
           <table className="kurz">
             <tbody>
-              <tr><th>Kaliber</th>{gruppe.klassen.map(k => <th key={k.name} style={{ color: k.klasse === 'kaliber' ? undefined : 'var(--text-leise)' }}>{k.klasse === 'kaliber' ? k.name : k.name}</th>)}</tr>
-              <tr><td>Anteil</td>{gruppe.klassen.map(k => <td key={k.name}><strong>{prozent(gruppe.n > 0 ? k.n / gruppe.n : null, 0)}</strong></td>)}</tr>
-              <tr><td>Masse</td>{gruppe.klassen.map(k => <td key={k.name}>{kg(k.kg, 0)}</td>)}</tr>
+              <tr><th>Kaliber</th>{gruppe.klassen.map(k => <th key={k.name} style={{ color: k.klasse === 'kaliber' ? undefined : 'var(--text-leise)' }}>{k.name}</th>)}</tr>
+              <tr><td>Anteil der Stück</td>{gruppe.klassen.map(k => <td key={k.name}><strong>{prozent(gruppe.n > 0 ? k.n / gruppe.n : null, 0)}</strong></td>)}</tr>
+              <tr><td>Gewogene Masse</td>{gruppe.klassen.map(k => <td key={k.name}>{kg(k.kg, 0)}</td>)}</tr>
               <tr><td>Stück</td>{gruppe.klassen.map(k => <td key={k.name} className="leise">{zahl(k.n)}</td>)}</tr>
             </tbody>
           </table>
@@ -301,5 +295,3 @@ function Kaliber({ daten }: { daten: Auswertung }) {
   )
 }
 
-// Für Erweiterungen erreichbar; im Überblick selbst nicht mehr gebraucht.
-void ((x: StromSumme) => x)

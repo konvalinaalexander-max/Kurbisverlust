@@ -1,0 +1,230 @@
+{
+  "zweck": "Das Begriffslexikon des Betriebsleiter-Dashboards. Jede Beschriftung, unter der eine Masse (kg oder t) auf dem Bildschirm stehen darf, steht hier — mit dem, was sie bedeutet, und der Spalte, aus der sie kommt. Wer eine Zahl neu beschriftet, trägt sie hier ein; sonst schlägt pruefstand/beschriftung.mjs an. So kann niemand still einen Namen einführen, der nicht sagt, was er meint.",
+  "art": "gemessen = aus einer vollständigen Liste (Erntejournal, Lieferschein, Verkaufsdatei, Waage). gerechnet = aus Stichproben hochgerechnet, bis heute. prognose = über heute hinaus. Bei gerechnet und prognose verlangt Regel R4 zusätzlich die Herkunftsmarke an der Zahl. Ein Begriff, der je nach Karte gemessen oder gerechnet sein kann, steht hier als \"gemessen|gerechnet\"; dann muss die Karte sagen, welches von beiden gilt.",
+  "begriffe": [
+    {
+      "muster": [
+        "Eingang",
+        "Hereingekommen"
+      ],
+      "art": "gemessen",
+      "bedeutet": "Nettomasse der eingelagerten Paletten laut Erntejournal, Tara abgezogen",
+      "quelle": "erg_bilanz.eingang_kg · erg_charge.eingang_kg · v_palette.netto_kg"
+    },
+    {
+      "muster": [
+        "Ausgeliefert",
+        "Bisher hinaus",
+        "Masse der Lieferung",
+        "Masse aller Lieferungen",
+        "Angabe auf dem Lieferschein",
+        "Masse in der Datei",
+        "Masse des Artikels"
+      ],
+      "art": "gemessen",
+      "bedeutet": "Was den Betrieb verlassen hat, wie es auf dem Lieferschein oder in der Verkaufsdatei steht — verkaufsfertige Ware, nicht Eingangsware",
+      "quelle": "erg_bilanz.geliefert_kg · lieferung.kg · ausgang_zeile.kg"
+    },
+    {
+      "muster": [
+        "Ausgelagert"
+      ],
+      "art": "gerechnet",
+      "bedeutet": "Eingangsmasse, die hinter den Lieferungen steckt — zurückgerechnet über Verdunstung, Faules und Kanal der ausgelagerten Portion",
+      "quelle": "erg_bilanz.ausgelagert_kg · mv_kaskade portion='ausgelagert'"
+    },
+    {
+      "muster": [
+        "Noch im Haus",
+        "Noch im Lager",
+        "Vermutet noch im Lager"
+      ],
+      "art": "gerechnet",
+      "bedeutet": "Eingang minus die Eingangsware hinter den Lieferungen minus der Verlust der liegenden Ware bis heute",
+      "quelle": "erg_bilanz.im_haus_heute_kg · erg_charge.im_haus_heute_kg"
+    },
+    {
+      "muster": [
+        "verkaufsfähig",
+        "davon verkaufsfähig"
+      ],
+      "art": "gerechnet",
+      "bedeutet": "Von der Ware im Haus das, was nach Abzug von zu klein und zu gross in den Hauptkanal geht",
+      "quelle": "erg_bilanz.verkaufsfaehig_heute_kg · erg_charge.verkaufsfaehig_lager_kg"
+    },
+    {
+      "muster": [
+        "Verlust bis heute",
+        "Verlust bis "
+      ],
+      "art": "gerechnet",
+      "bedeutet": "Echter Verlust bis zum Stichtag: Verdunstung + Faules im Lager (Kurve und Sockel) + Faules beim Abpacken. Ohne den anderen Kanal, ohne Prognose",
+      "quelle": "erg_bilanz.verlust_heute_kg · erg_charge.verlust_heute_kg · erg_verlauf.verlust_kum_kg"
+    },
+    {
+      "muster": [
+        "Verdunstet",
+        "Verdunstung"
+      ],
+      "art": "gemessen|gerechnet",
+      "bedeutet": "Masseverlust durch Austrocknen. In der Wägungstabelle gemessen (Netto damals minus Netto jetzt derselben Palette), in Bilanz und Ursachen daraus auf die ganze Ware hochgerechnet — die Karte sagt, welches von beiden",
+      "quelle": "erg_bilanz.verdunstung_heute_kg · verdunstung_wiegung · erg_wiegung.verdunstung_kg"
+    },
+    {
+      "muster": [
+        "Faules bis heute",
+        "Faules im Palox",
+        "Faules im Lager"
+      ],
+      "art": "gerechnet",
+      "bedeutet": "Faule Ware der liegenden Portion: die Verderbkurve F(t) über die Lagerdauer, dazu der Sockel a₀ (schon beim Einlagern faul, nicht lagerbedingt)",
+      "quelle": "erg_bilanz.schimmel_heute_kg + erg_bilanz.sockel_heute_kg · schimmel_messung"
+    },
+    {
+      "muster": [
+        "Faules beim Abpacken"
+      ],
+      "art": "gerechnet",
+      "bedeutet": "Was beim Abpacken (Fax) aussortiert wurde — echter Verlust, aber nicht lagerbedingt",
+      "quelle": "erg_bilanz.fax_heute_kg · v_koeff_fax"
+    },
+    {
+      "muster": [
+        "Zu klein",
+        "zu klein"
+      ],
+      "art": "gerechnet",
+      "bedeutet": "Ware unter der kleinsten Kalibergrenze. Kein echter Verlust: sie verlässt den Betrieb an die Tiere, nur nicht zum besten Preis",
+      "quelle": "erg_verlust strom='klein' · erg_bilanz.kanal_* · sortier_gewicht"
+    },
+    {
+      "muster": [
+        "Zu gross",
+        "zu gross"
+      ],
+      "art": "gerechnet",
+      "bedeutet": "Ware über der grössten Kalibergrenze. Kein echter Verlust: sie geht in den Nebenkanal",
+      "quelle": "erg_verlust strom='nebenkanal' · erg_bilanz.kanal_* · sortier_gewicht"
+    },
+    {
+      "muster": [
+        "Anderer Kanal"
+      ],
+      "art": "gerechnet",
+      "bedeutet": "zu klein und zu gross zusammen — Ware, die den Betrieb verlässt, aber nicht als Hauptware",
+      "quelle": "erg_bilanz.kanal_ausgelagert_kg · erg_bilanz.kanal_im_haus_kg"
+    },
+    {
+      "muster": [
+        "Überzählung"
+      ],
+      "art": "gemessen",
+      "bedeutet": "Hinter den Lieferungen steckt mehr Eingangsware, als je eingelagert wurde — ein Datenfehler, kein Verlust: meist fehlt Wareneingang",
+      "quelle": "v_saisonbilanz.ueberzaehlung_kg"
+    },
+    {
+      "muster": [
+        "Verschenkt",
+        "Zu viel je Kiste",
+        "An der ausgelieferten Ware"
+      ],
+      "art": "gerechnet",
+      "bedeutet": "Überfüllung: was die gewogene Kiste über ihrem Soll hat, mal die verkauften Kisten. Kein Masseverlust, sondern verschenkte Marge",
+      "quelle": "erg_ueberfuellung.verschenkt_kg · v_ausgang_kennzahl.ueberfuellung_kg"
+    },
+    {
+      "muster": [
+        "Soll je Kiste"
+      ],
+      "art": "gemessen",
+      "bedeutet": "Was die Kiste laut Artikel enthalten soll („ab x kg\")",
+      "quelle": "erg_ueberfuellung.soll_kg_pro_kiste · gebinde"
+    },
+    {
+      "muster": [
+        "Gewogen je Kiste",
+        "Gewogen je Stück",
+        "Kistengewicht"
+      ],
+      "art": "gemessen",
+      "bedeutet": "Was die Kiste beziehungsweise das Stück auf der Waage wirklich hatte",
+      "quelle": "erg_ueberfuellung.kg_je_kiste · auftrag_gebinde"
+    },
+    {
+      "muster": [
+        "Netto damals"
+      ],
+      "art": "gemessen",
+      "bedeutet": "Nettomasse der Palette bei der ersten Wägung",
+      "quelle": "erg_wiegung.netto_damals_kg"
+    },
+    {
+      "muster": [
+        "Netto jetzt"
+      ],
+      "art": "gemessen",
+      "bedeutet": "Nettomasse derselben Palette bei der letzten Wägung",
+      "quelle": "erg_wiegung.netto_jetzt_kg"
+    },
+    {
+      "muster": [
+        "Bewegte Masse"
+      ],
+      "art": "gemessen",
+      "bedeutet": "Masse, die eine Arbeit durchgesetzt hat — gezählte Paletten, Kisten oder Fax-Paletten",
+      "quelle": "v_auftrag_masse.masse_kg · erg_durchsatz.masse_kg"
+    },
+    {
+      "muster": [
+        "Modell am Band",
+        "Modell"
+      ],
+      "art": "gerechnet",
+      "bedeutet": "Was das Kaskadenmodell für die verarbeitete Ware erwartet — die Gegenprobe zur gewogenen Zahl",
+      "quelle": "erg_massenbilanz.modell_kg"
+    },
+    {
+      "muster": [
+        "CSV gewogen"
+      ],
+      "art": "gemessen",
+      "bedeutet": "Was die Sortier-CSV an der Anlage tatsächlich gewogen hat",
+      "quelle": "erg_massenbilanz.csv_kg · sortier_gewicht"
+    },
+    {
+      "muster": [
+        "Gewogene Masse"
+      ],
+      "art": "gemessen",
+      "bedeutet": "Masse der Kürbisse dieser Kaliberklasse, jedes Stück an der Sortieranlage gewogen",
+      "quelle": "erg_kaliber.kg · sortier_gewicht"
+    },
+    {
+      "muster": [
+        "Gemessener Wert"
+      ],
+      "art": "gemessen",
+      "bedeutet": "Der aus den Messungen geschätzte Koeffizient selbst, in seiner eigenen Einheit",
+      "quelle": "erg_koeff_verdunstung · erg_koeff_ausschuss · erg_koeff_nebenkanal · erg_koeff_ueberfuellung"
+    },
+    {
+      "muster": [
+        "Vermutet vom aktuellen Lager"
+      ],
+      "art": "gerechnet",
+      "bedeutet": "Anteil des heutigen Lagers, den das Modell als schon faul ansieht",
+      "quelle": "mv_schimmel_modell über v_hochrechnung"
+    },
+    {
+      "muster": [
+        "Erwartung für die Ware im Haus",
+        "Prognose",
+        "in 14 Tagen",
+        "14 Tage länger"
+      ],
+      "art": "prognose",
+      "bedeutet": "Was über heute hinaus erwartet wird, wenn die Ware weiterliegt — keine Messung und kein Stand von heute",
+      "quelle": "erg_naechste_charge.prognose_verlust_14_kg · erg_verlauf mit prognose = true"
+    }
+  ]
+}

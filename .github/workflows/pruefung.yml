@@ -34,3 +34,34 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: ./supabase/test/run.sh 'postgresql://postgres:postgres@localhost:5432/postgres'
+
+  bildschirme:
+    name: Bildschirme und Begriffe
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        options: >-
+          --health-cmd pg_isready --health-interval 10s
+          --health-timeout 5s --health-retries 5
+        ports: ['5432:5432']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      # Die Prüfstände spielen der App echte Antworten vor. Die kommen aus
+      # einer Demo-Datenbank, nicht aus dem Repo — also hier gebaut.
+      - name: Demo-Datenbank und Fixtures
+        run: |
+          ./pruefstand/demo_bauen.sh 'postgresql://postgres:postgres@localhost:5432/postgres'
+          ./pruefstand/daten_dumpen.sh 'postgresql://postgres:postgres@localhost:5432/postgres'
+      - name: Sagt jede Zahl, was sie ist?
+        run: node pruefstand/beschriftung.mjs
+      - name: Jeder Bildschirm ohne Konsolenfehler und ohne Überlauf
+        run: node pruefstand/bildschirme.mjs

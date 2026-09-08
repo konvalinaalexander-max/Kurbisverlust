@@ -23,6 +23,7 @@ import { readFileSync, writeFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { filtern, seite as blaettern } from './postgrest.mjs'
+import { CHROMIUM } from './attrappe.mjs'
 
 const HIER = dirname(fileURLToPath(import.meta.url))
 // 0057: die Attrappe nennt denselben Stand, den die App erwartet
@@ -153,7 +154,7 @@ async function authAntwort(route) {
 /* ---------- Der Weg durch die App ----------------------------------------- */
 const vite = await createServer({ root: join(HIER, '..'), server: { port: 5198, strictPort: true }, logLevel: 'silent' })
 await vite.listen()
-const browser = await chromium.launch({ executablePath: process.env.PRUEFSTAND_CHROMIUM ?? '/opt/pw-browsers/chromium' })
+const browser = await chromium.launch({ executablePath: CHROMIUM })
 const kontext = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'de-CH' })
 const seite = await kontext.newPage()
 const konsole = []

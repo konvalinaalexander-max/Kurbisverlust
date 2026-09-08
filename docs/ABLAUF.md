@@ -5,6 +5,20 @@ Sie ist der Massstab, an dem sich Datenmodell und Oberflächen messen lassen
 müssen. Wo das Modell etwas annimmt, das niemand geprüft hat, steht es als
 Annahme da — unmarkierte Annahmen sind der Anfang jedes stillen Fehlers.
 
+## Die Antworten vom 10. September — jede Zahl sagt, was sie ist
+
+Der dritte Durchgang galt nicht dem, was gerechnet wird, sondern dem, was
+danebensteht. Der Satz, der ihn ordnet: *„Wenn du Verlust schreibst, musst du
+wissen, welcher."* Was daraus folgt (umgesetzt in 0062, Beweise in
+`ABMACHUNGEN.md` AB-39 bis AB-42):
+
+| Was der Betrieb sagte | Was die App jetzt tut |
+|---|---|
+| „Da steht einfach ein Verlust, der nicht klar ist" | Keine Masse ohne Beschriftung, keine Beschriftung ausserhalb des Begriffslexikons, „Verlust" nie ohne Zusatz. Ein eigener Prüfstand liest die Bildschirme wie ein Mensch und schlägt an, sobald ein Name das nicht erfüllt (AB-39) |
+| Lieferscheine werden auch vordatiert geschrieben | Eine Lieferung mit Datum in der Zukunft zählt in keine Zahl, die „bis heute" heisst — und erscheint als Befund, damit niemand sie für verschwunden hält (AB-40) |
+| Die Bilanz ging um mehrere Tonnen nicht auf | Zwei Rechenfehler behoben: Lieferungen an die Tiere und in den Nebenkanal fehlten auf der Ausgangsseite und lagen rechnerisch weiter im Lager; vordatierte Lieferungen zählten zu früh. Der Rest liegt jetzt unter einem Kilo — und heisst Überzählung, nicht Lücke (AB-41) |
+| Eine falsch getippte Kontrollwägung liess sich nicht korrigieren | Kontrollwägungen gehören zu keiner Arbeit; unter Messungen steht jetzt ein eigener Block, in dem jede davon geändert oder gelöscht werden kann (AB-42) |
+
 ## Die Antworten vom 9. September — bis heute, und nur Gemessenes
 
 Die zweite Durchsicht galt der Auswertung und der Arbeiter-App. Der Satz,

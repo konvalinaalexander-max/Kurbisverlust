@@ -15,6 +15,7 @@ die Oberfläche das trennt — und woran sich jede Maske messen lassen muss.
 | Ziele mindestens 44 pt / 48 dp, für Handschuhe grösser | Apple HIG 44 pt, Material 48 dp, WCAG 2.5.5 (AAA) 44 px | Hauptknöpfe 56–72 px, der Zähler 84 px, Abstände zwischen Zielen ≥ 8 px |
 | Wiedererkennen statt erinnern | Nielsen, Heuristik 6 | Vier Tätigkeiten als Karten mit Bild und einem Satz; die Checkliste zeigt, was erledigt ist |
 | Frontline-Apps: wenig Text, kein Fachwort, Offline-Toleranz | Resco/Wednesday-Studien zu Frontline-Apps | Keine Rechnung, kein „Weg 1", kein Modell in der Arbeiter-App; jede Speicherung bestätigt sich sichtbar |
+| Jede Zahl sagt, was sie ist | Nielsen, Heuristik 2 (Sprache des Nutzers); Tufte, *data-ink* — eine Zahl ohne Bezug ist keine Information | Keine Masse ohne Beschriftung; jede Beschriftung im Begriffslexikon; „Verlust" nie ohne Zusatz; gemessen / gerechnet / prognose an jeder Karte; jede Prozentzahl nennt ihre Bezugsgrösse. Geprüft von `pruefstand/beschriftung.mjs`, nicht von der Sorgfalt beim Schreiben |
 
 Quellen: <https://www.nngroup.com/articles/wizards/>,
 <https://www.nngroup.com/articles/4-principles-reduce-cognitive-load/>,

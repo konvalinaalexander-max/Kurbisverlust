@@ -11,3 +11,6 @@ dist
 # Bildschirm-Prüfstand: Screenshots und Daten-Abzüge sind erzeugt
 pruefstand/bilder/
 pruefstand/daten/
+
+# Begriffs-Prüfstand: die Ernte ist ein Abzug des Bildschirms, kein Quelltext
+pruefstand/begriffe_gefunden.txt

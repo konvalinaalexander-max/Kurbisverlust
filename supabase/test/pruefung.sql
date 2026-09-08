@@ -407,7 +407,7 @@ begin
   assert abs(v - 823.0 / 40) < 0.01, format('kg je Kiste erwartet ~20.6, ist %s', v);
   select kg_pro_kuerbis into v from v_wiegung_kennzahl where auftrag_id = 960;
   assert abs(v - 823.0 / 240) < 0.01, format('kg je Kürbis erwartet ~3.43, ist %s', v);
-  select verlust_kg into v from v_wiegung_kennzahl where auftrag_id = 960;
+  select verdunstung_kg into v from v_wiegung_kennzahl where auftrag_id = 960;
   assert v = 42.00, format('Gewichtsverlust erwartet 42 kg, ist %s', v);
   select lagertage into v from v_wiegung_kennzahl where auftrag_id = 960;
   assert v = 76, format('Lagertage erwartet 76, sind %s', v);
@@ -926,7 +926,7 @@ begin
     'Der kumulative Anteil beim Waschen liegt unter dem beim Sortieren';
 
   -- Sortierte, aber noch nicht gewaschene Ware bleibt Bestand.
-  select wartet_kg into v_wartet from v_hochrechnung_basis where charge_nr = v_sort.charge_nr;
+  select wartet_kg into v_wartet from v_kaskade_basis where charge_nr = v_sort.charge_nr;
   assert v_wartet >= 0, 'Wartende Menge darf nicht negativ sein';
   assert (select lager_kg from v_hochrechnung_basis where charge_nr = v_sort.charge_nr)
        >= v_wartet - 1e-6,
@@ -1027,9 +1027,9 @@ begin
                       where verdunstung_14_kg < 0 or schimmel_14_kg < 0),
     'Ein projizierter Verlust ist negativ';
   assert not exists (select 1 from v_naechste_charge
-                      where abs(coalesce(verdunstung_14_kg,0) + coalesce(schimmel_14_kg,0)
-                                - verlust_14_kg) > 0.5),
-    'Die Verlustsumme entspricht nicht ihren Teilen';
+                      where prognose_verlust_14_kg is not null
+                        and abs(verdunstung_14_kg + schimmel_14_kg - prognose_verlust_14_kg) > 0.5),
+    'Die Prognosesumme entspricht nicht ihren Teilen';
   assert not exists (select 1 from v_naechste_charge where masse_jetzt_kg > lager_kg + 0.01),
     'Die heutige Masse liegt über dem Eingang — Verdunstung rückwärts?';
   raise notice 'OK  Was kostet Warten (nie negativ, Summe stimmt, ehrlich bei dünnem Modell)';
@@ -1702,11 +1702,11 @@ begin
   -- andere: er hebt den Ausgang und das Gelieferte der Charge um denselben
   -- Betrag; die Lücke (= Überzählung) bleibt, wie sie ist.
   perform auswertung_aktualisieren();
-  select luecke_kg, ausgang_kg, geliefert_kg into v_luecke1, v_ausgang1, v_gel1 from v_saisonbilanz;
+  select bilanz_rest_kg, ausgang_kg, geliefert_kg into v_luecke1, v_ausgang1, v_gel1 from v_saisonbilanz;
   insert into charge_vorlauf (charge_nr, ausgang_vor_app_kg) values (v_charge, 1000)
     on conflict (charge_nr) do update set ausgang_vor_app_kg = 1000;
   perform auswertung_aktualisieren();
-  select luecke_kg, ausgang_kg, vorlauf_kg, geliefert_kg into v_luecke2, v_ausgang2, v_vorlauf, v_gel2 from v_saisonbilanz;
+  select bilanz_rest_kg, ausgang_kg, vorlauf_kg, geliefert_kg into v_luecke2, v_ausgang2, v_vorlauf, v_gel2 from v_saisonbilanz;
   assert v_vorlauf = 1000, format('Vorlauf erwartet 1000, ist %s', v_vorlauf);
   assert abs((v_ausgang2 - v_ausgang1) - 1000) < 1,
     format('Der Vorlauf muss den Ausgang um 1000 heben (%s → %s)', v_ausgang1, v_ausgang2);
@@ -1815,13 +1815,25 @@ begin
   assert (select arbeiten_mit_ablesung <= arbeiten_fertig from v_datenqualitaet), 'mehr Ablesungen als Arbeiten';
   assert (select lagerkontrollen >= 0 from v_datenqualitaet), 'Kontrollzähler unstimmig';
 
-  -- Verlauf (0061, erg_verlauf): die letzte Woche kumuliert den ganzen
-  -- Eingang, die Wochen steigen streng
+  -- Verlauf (0062, erg_verlauf): die letzte Stützstelle kumuliert den ganzen
+  -- Eingang, die Stützstellen steigen streng — gezählt wird über bis, denn das
+  -- ist die Achse der Grafik. Seit 0062 trägt die laufende Woche zwei Punkte:
+  -- einen auf heute() und einen auf den Sonntag danach; woche ist darum kein
+  -- Schlüssel mehr, bis schon.
   select max(eingang_kum_kg) into v from erg_verlauf where sorte is null;
   select coalesce(sum(netto_kg), 0) into v2 from v_palette where netto_kg is not null and eingangsdatum is not null;
   assert abs(coalesce(v, 0) - v2) < 1, format('Verlauf kumuliert %s ≠ Eingang %s', v, v2);
-  assert not exists (select 1 from (select woche, lag(woche) over (order by woche) as vor from erg_verlauf where sorte is null) w
-                      where w.vor is not null and w.woche <= w.vor), 'Wochen nicht streng steigend';
+  assert not exists (select 1 from (select bis, lag(bis) over (order by bis) as vor from erg_verlauf where sorte is null) w
+                      where w.vor is not null and w.bis <= w.vor), 'Stützstellen nicht streng steigend';
+  -- Es gibt genau einen Punkt auf heute(): sonst zeigt die Grafik einen anderen
+  -- Stand als die Kennzahl daneben (bis zu sechs Tage Unterschied).
+  select count(*) into v_n from erg_verlauf where sorte is null and bis = heute();
+  assert v_n = 1, format('erg_verlauf braucht genau eine Stützstelle auf heute(), hat %s', v_n);
+  -- und dieser Punkt sagt dasselbe wie die Bilanz
+  select im_haus_kg into v from erg_verlauf where sorte is null and bis = heute();
+  select im_haus_heute_kg into v2 from erg_bilanz;
+  assert abs(coalesce(v, 0) - coalesce(v2, 0)) < 1,
+    format('Verlauf auf heute %s ≠ Bilanz im Haus %s', v, v2);
 
   delete from auftrag where id in (v_a, v_b);
   perform auswertung_aktualisieren();
@@ -2788,11 +2800,13 @@ begin
   assert abs((select sum(verlust_heute_kg) from erg_charge)
              - (select sum(kg) from erg_verlust where gruppe = 'gesamt' and buch in ('verlust', 'feld'))) < 1,
     'Charge und Ranking nennen denselben Verlust bis heute';
-  assert abs((select sum(eingang_kg - geliefert_kg - verlust_heute_kg - (kanal_heute_kg - kanal_im_haus_kg)
-                         - im_haus_heute_kg + ueberzaehlung_kg) from erg_charge)) < 1,
-    'Eingang = geliefert + Verlust bis heute + Kanal am Ausgelagerten + im Haus − Überzählung';
-  assert abs((select luecke_kg + ueberzaehlung_kg from v_saisonbilanz)) < 1,
-    'Die Lücke der Bilanz ist genau die Überzählung';
+  assert abs((select sum(eingang_kg + ueberzaehlung_kg - geliefert_kg - verlust_heute_kg
+                         - kanal_ausgelagert_kg - im_haus_heute_kg) from erg_charge)) < 1,
+    'Eingang + Überzählung = geliefert + Verlust bis heute + Kanal am Ausgelagerten + im Haus';
+  -- 0062: Die Bilanz geht jetzt wirklich auf — der Rest ist Rundung, nicht die
+  -- Überzählung mit umgekehrtem Vorzeichen.
+  assert abs((select bilanz_rest_kg from v_saisonbilanz)) < 1,
+    format('Die Bilanz schliesst nicht: Rest %s kg', (select bilanz_rest_kg from v_saisonbilanz));
   assert (select befund from v_saisonbilanz) like 'Bis heute (15.01.2027)%'
       or (select befund from v_saisonbilanz) like '%noch nicht gemessen%'
       or (select befund from v_saisonbilanz) like '%zu viel%',
@@ -2949,7 +2963,7 @@ begin
   end loop;
   select count(*) into v_n from pg_matviews where schemaname = 'public' and matviewname like 'erg\_%';
   assert v_n >= 30, format('Mindestens 30 gespeicherte Ergebnisse erwartet, %s gefunden', v_n);
-  assert schema_stand() = 61, 'Stand 61';
+  assert schema_stand() >= 61, format('Stand mindestens 61 erwartet, ist %s', schema_stand());
 
   -- Zurück ans Saisonende
   update einstellung set wert = '"2027-03-31"'::jsonb where schluessel = 'heute_test';
@@ -2959,3 +2973,110 @@ begin
 end $$;
 
 select '——— 0061 Bis heute geprüft ———' as ergebnis;
+
+-- =========================================================================
+-- 0062: Jede Zahl sagt, was sie ist. Zwei Rechenfehler und die irreführenden
+-- Namen. Geprüft wird, was ein Betriebsleiter merken würde: eine Lieferung,
+-- die noch nicht passiert ist, darf in keiner Zahl „bis heute" stecken; eine
+-- Lieferung an die Tiere darf die Kaskade genau einmal belasten, nicht zweimal.
+-- =========================================================================
+do $$
+declare v_charge int; v_lief bigint; v_n int;
+        v_gel1 numeric; v_gel2 numeric; v_haus1 numeric; v_haus2 numeric;
+        v_rest numeric; v_kohorte1 numeric; v_kohorte2 numeric;
+begin
+  perform set_config('request.jwt.claim.sub','11111111-1111-1111-1111-111111111111', true);
+  assert schema_stand() = 62, format('Stand 62 erwartet, ist %s', schema_stand());
+
+  -- Die Namen, die falsch waren, sind weg und die richtigen da
+  assert to_regclass('v_saisonbilanz') is not null;
+  assert exists (select 1 from information_schema.columns
+                  where table_name = 'v_saisonbilanz' and column_name = 'kanal_ausgelagert_kg'),
+    'v_saisonbilanz.kanal_ausgelagert_kg fehlt (hiess kanal_heute_kg, meinte aber nur das Ausgelagerte)';
+  assert exists (select 1 from information_schema.columns
+                  where table_name = 'v_wiegung_kennzahl' and column_name = 'verdunstung_kg'),
+    'v_wiegung_kennzahl.verdunstung_kg fehlt (hiess verlust_kg, ist aber nur die Verdunstung)';
+  assert not exists (select 1 from information_schema.columns
+                      where table_name = 'v_wiegung_kennzahl' and column_name = 'verlust_kg'),
+    'v_wiegung_kennzahl.verlust_kg gibt es noch — ein Name für zwei Dinge';
+  assert exists (select 1 from information_schema.columns
+                  where table_name = 'v_naechste_charge' and column_name = 'prognose_verlust_14_kg'),
+    'v_naechste_charge.prognose_verlust_14_kg fehlt';
+  -- erg_verlauf ist eine materialisierte Sicht; die stehen nicht im
+  -- information_schema, darum über den Katalog.
+  assert (select count(*) from pg_attribute a
+            join pg_class c on c.oid = a.attrelid
+            join pg_namespace n on n.oid = c.relnamespace
+           where n.nspname = 'public' and c.relname = 'erg_verlauf'
+             and a.attnum > 0 and not a.attisdropped
+             and a.attname in ('schimmel_kum_kg', 'sockel_kum_kg')) = 2,
+    'erg_verlauf trennt Schimmel und Sockel nicht';
+
+  select nr into v_charge from charge
+   where nr in (select charge_nr from v_charge_rueckgrat where eingang_netto_kg > 0)
+   order by nr limit 1;
+
+  -- ---- Fehler 1: eine Lieferung in der Zukunft zählt nicht bis heute ----
+  select coalesce(sum(masse_kg), 0) into v_gel1 from v_lieferung_kohorte;
+  insert into lieferung (datum, charge_nr, kg, ziel, kunde)
+    values (heute() + 10, v_charge, 500, 'verkauf', 'Prüfstand Zukunft')
+    returning id into v_lief;
+  select coalesce(sum(masse_kg), 0) into v_gel2 from v_lieferung_kohorte;
+  assert abs(v_gel2 - v_gel1) < 0.01,
+    format('Eine Lieferung mit Datum in der Zukunft ist in „bis heute" gelandet: %s → %s', v_gel1, v_gel2);
+  -- gesehen wird sie trotzdem: sie steht als Befund da, statt still zu wirken
+  assert exists (select 1 from v_plausibilitaet where art = 'Lieferung in der Zukunft'),
+    'Eine Lieferung in der Zukunft muss als Befund auftauchen, nicht bloss verschwinden';
+  delete from lieferung where id = v_lief;
+  select coalesce(sum(masse_kg), 0) into v_gel2 from v_lieferung_kohorte;
+  assert abs(v_gel2 - v_gel1) < 0.01, 'Aufräumen hat die Summe verändert';
+
+  -- ---- Fehler 2: eine Lieferung an die Tiere zählt genau einmal ----------
+  -- Vor 0062 stand v_lieferung_kohorte zweimal in der Kaskade (einmal je Buch),
+  -- und die ausgelagerte Masse war um die Marge-Lieferungen zu gross.
+  perform auswertung_aktualisieren();
+  select sum(masse_kg) into v_kohorte1 from v_lieferung_kohorte where buch in ('verkauf','marge');
+  select im_haus_heute_kg into v_haus1 from erg_bilanz;
+  insert into lieferung (datum, charge_nr, kg, ziel, kunde)
+    values (heute() - 1, v_charge, 400, 'tierfutter', 'Prüfstand Tiere')
+    returning id into v_lief;
+  perform auswertung_aktualisieren();
+  select sum(masse_kg) into v_kohorte2 from v_lieferung_kohorte where buch in ('verkauf','marge');
+  assert abs((v_kohorte2 - v_kohorte1) - 400) < 1,
+    format('400 kg an die Tiere kamen als %s kg an', v_kohorte2 - v_kohorte1);
+  select im_haus_heute_kg into v_haus2 from erg_bilanz;
+  -- Die 400 kg verkaufsfertige Ware stammen aus mehr Eingangsware (Verdunstung,
+  -- Faules, Kanal davor). Doppelt gezählt wäre der Bestand rund doppelt so
+  -- stark gefallen — die Klammer prüft die Grössenordnung, nicht das Modell.
+  assert v_haus1 - v_haus2 between 380 and 900,
+    format('Bestand fiel um %s kg statt um gut 400 kg — Marge-Lieferung doppelt gezählt?', v_haus1 - v_haus2);
+  select bilanz_rest_kg into v_rest from v_saisonbilanz;
+  assert abs(v_rest) < 1, format('Die Bilanz schliesst nach der Marge-Lieferung nicht: Rest %s kg', v_rest);
+  delete from lieferung where id = v_lief;
+  perform auswertung_aktualisieren();
+
+  -- ---- Der Verlauf trifft den Stand von heute ---------------------------
+  select count(*) into v_n from erg_verlauf where sorte is null and bis = heute();
+  assert v_n = 1, format('erg_verlauf braucht genau eine Stützstelle auf heute(), hat %s', v_n);
+  assert abs((select im_haus_kg from erg_verlauf where sorte is null and bis = heute())
+             - (select im_haus_heute_kg from erg_bilanz)) < 1,
+    'Die Grafik zeigt auf heute etwas anderes als die Kennzahl daneben';
+
+  -- ---- Leer ist nicht null: ein Strom ohne Messung bleibt unbekannt ------
+  -- Ein unbekannter Strom trägt keine Zahl. Eine 0 wäre die Behauptung, es sei
+  -- gemessen worden und nichts herausgekommen — das ist etwas anderes.
+  assert not exists (select 1 from erg_verlust where not bekannt and kg is not null),
+    'Ein Strom ohne Messung darf keine Masse zeigen — schon gar keine 0';
+  -- Umgekehrt darf ein bekannter Strom seine Herkunft nicht verschweigen: wo
+  -- die Gruppe keine eigene Messung hat, muss die Basis sagen, woher der
+  -- Koeffizient stammt.
+  assert not exists (select 1 from erg_verlust
+                      where bekannt and coalesce(koeff_n_min, 0) = 0
+                        and (koeff_basis is null or koeff_basis = '')),
+    'Ein Strom ohne eigene Messung muss sagen, aus welcher Grundlage er gerechnet ist';
+
+  perform set_config('request.jwt.claim.sub', '', true);
+  raise notice 'OK  0062 Jede Zahl sagt, was sie ist (Zukunftslieferung, Marge einfach, Namen, Verlauf auf heute)';
+end $$;
+
+select '——— 0062 Jede Zahl sagt, was sie ist geprüft ———' as ergebnis;

@@ -34,22 +34,26 @@ export interface Schimmelpunkt {
  */
 export interface Bestand {
   charge_nr: number; sorte: string; schlag: string
-  eingang_kg: number; lager_kg: number; wartet_kg: number; sortiert_kg: number; gewaschen_kg: number
+  eingang_kg: number; lager_kg: number; gegenprobe_wartet_kg: number | null; sortiert_kg: number; gewaschen_kg: number
   ausgelagert_kg: number; alter_lager: number; alter_lager_heute: number; ueberzaehlung_kg: number
   n_paletten: number; eingangsdatum_mittel: string | null
   eingang_von: string | null; eingang_bis: string | null; n_eingangstage: number | null
   rest_von: string | null; rest_bis: string | null; n_rest_paletten: number | null; n_rest_kohorten: number | null
   alter_lager_von: number | null; alter_lager_bis: number | null
   geliefert_kg: number; verkaufsfaehig_lager_kg: number | null; n_lieferungen: number
-  /** 0061: bis heute — die Teile des Verlusts, was im Haus liegt, was davon anderer Kanal ist. */
-  verdunstung_heute_kg: number; schimmel_heute_kg: number; sockel_heute_kg: number; fax_heute_kg: number
-  fax_erwartet_kg: number; verlust_heute_kg: number; kanal_heute_kg: number
-  im_haus_heute_kg: number; kanal_im_haus_kg: number; verlust_bekannt: boolean; heute: string
+  /** 0061/0062: bis heute — die Teile des Verlusts, was im Haus liegt, was davon anderer Kanal ist.
+   *  kanal_ausgelagert_kg ist der andere Kanal, der schon passiert ist; kanal_im_haus_kg
+   *  ist die Erwartung an der Ware, die noch unsortiert liegt. */
+  verdunstung_heute_kg: number; schimmel_heute_kg: number; sockel_heute_kg: number; sockel_oben_kg: number
+  fax_heute_kg: number; fax_erwartet_kg: number; verlust_heute_kg: number; kanal_ausgelagert_kg: number
+  im_haus_heute_kg: number; kanal_im_haus_kg: number; heute: string
+  verlust_bekannt: boolean; verdunstung_bekannt: boolean; schimmel_bekannt: boolean
+  sockel_nachgewiesen: boolean; fax_bekannt: boolean; kanal_bekannt: boolean
 }
 export interface NaechsteCharge {
   charge_nr: number; sorte: string; schlag: string; lager_kg: number; alter_tage: number
   masse_jetzt_kg: number; verdunstung_14_kg: number | null; schimmel_14_kg: number | null
-  verlust_14_kg: number | null; hochgerechnet: boolean; modell_gilt: boolean
+  prognose_verlust_14_kg: number | null; hochgerechnet: boolean; modell_gilt: boolean
   alter_von: number | null; alter_bis: number | null; n_kohorten: number | null
 }
 export interface Kohorte {
@@ -75,18 +79,22 @@ export interface Saisonbilanz {
   ausgang_kg: number; verkauf_kg: number; marge_kg: number; entsorgt_kg: number; ausgang_fehler_kg: number
   n_lieferungen: number; letzte_lieferung: string | null; vorlauf_kg: number; geliefert_kg: number; ausgelagert_kg: number
   verlust_heute_kg: number; verlust_unten_kg: number | null; verlust_oben_kg: number | null
-  verdunstung_heute_kg: number; schimmel_heute_kg: number; sockel_heute_kg: number; fax_heute_kg: number; fax_erwartet_kg: number
-  kanal_heute_kg: number; kanal_unten_kg: number | null; kanal_oben_kg: number | null
+  verdunstung_heute_kg: number; schimmel_heute_kg: number; sockel_heute_kg: number; sockel_oben_kg: number
+  fax_heute_kg: number; fax_erwartet_kg: number
+  kanal_ausgelagert_kg: number; kanal_unten_kg: number | null; kanal_oben_kg: number | null
   im_haus_heute_kg: number; verkaufsfaehig_heute_kg: number; kanal_im_haus_kg: number
-  lager_kg: number; wartet_kg: number; ueberzaehlung_kg: number; fax_kg: number | null; n_fax: number | null
-  verlust_bekannt: boolean; luecke_kg: number | null; luecke_anteil: number | null; ausgang_deckung: number | null; befund: string
+  lager_kg: number; gegenprobe_wartet_kg: number | null; ueberzaehlung_kg: number
+  fax_durchsatz_kg: number | null; n_fax_arbeiten: number | null
+  verlust_bekannt: boolean; verdunstung_bekannt: boolean; schimmel_bekannt: boolean
+  sockel_nachgewiesen: boolean; fax_bekannt: boolean; kanal_bekannt: boolean
+  bilanz_rest_kg: number | null; bilanz_rest_anteil: number | null; ausgang_deckung: number | null; befund: string
 }
 export interface Selektion { n_verarbeitung: number | null; n_lager: number | null; unterschied: number | null; befund: string }
 export interface Befund { art: string; auftrag_id: number | null; charge_nr: number; sorte: string; start_ts: string | null; befund: string; rat: string }
 export interface Wiegung {
   id: number; auftrag_id: number | null; charge_nr: number; sorte: string; lagertage: number; wiege_ts: string
   netto_damals_kg: number | null; netto_jetzt_kg: number | null; kg_pro_kiste: number | null
-  kg_pro_kuerbis: number | null; verlust_kg: number | null; sichtbar_schimmel: boolean
+  kg_pro_kuerbis: number | null; verdunstung_kg: number | null; sichtbar_schimmel: boolean
 }
 export interface Kurve { altersklasse: string; von: number; bis: number; messungen: number; gemessen: number | null; verwendet: number | null; unten: number | null; oben: number | null; erlaeuterung: string }
 export interface Kaliberzeile { charge_nr: number; sorte: string; klasse: string; band_von: number | null; band_bis: number | null; n_kuerbis: number; masse_kg: number }
@@ -144,7 +152,8 @@ export interface AusgangKennzahl {
  */
 export interface Verlaufswoche {
   woche: string; bis: string; prognose: boolean; sorte: string | null
-  eingang_kum_kg: number; ausgang_kum_kg: number; verdunstung_kum_kg: number; faul_kum_kg: number
+  eingang_kum_kg: number; ausgang_kum_kg: number; verdunstung_kum_kg: number
+  schimmel_kum_kg: number; sockel_kum_kg: number
   fax_kum_kg: number; verlust_kum_kg: number; im_haus_kg: number
 }
 /** Ein Strom einer Gruppe mit Bereich (erg_verlust, 0061) — vorgerechnet für gesamt, jede Sorte, jeden Schlag, jede Charge. */
@@ -165,7 +174,6 @@ export interface Auswertung {
   stand: string | null
   /** Der Tag, bis zu dem gerechnet ist (heute(), 0061). */
   heute: string
-  hochrechnung: Hochrechnung[]
   bilanz: Massenbilanz[]
   lage: Datenlage[]
   befunde: Befund[]
@@ -255,9 +263,6 @@ async function alles(erzwingen: boolean): Promise<Auswertung> {
   const merken = (name: string, fehler: { message?: string } | null) => {
     probleme.push({ sicht: name, meldung: fehler?.message ?? 'unbekannter Fehler' })
   }
-  // Supabase liefert höchstens 1000 Zeilen je Anfrage — die Kaskade je
-  // Eingangstag und die Gewichtsverteilung haben mehr. Deshalb seitenweise.
-  const SEITE = 1000
   const q = async <T,>(name: string, order?: [string, boolean]): Promise<T[]> => {
     const alle: T[] = []
     for (let von = 0; ; von += SEITE) {
@@ -275,8 +280,8 @@ async function alles(erzwingen: boolean): Promise<Auswertung> {
     if (r.error) { merken(name, r.error); return null }
     return (r.data ?? null) as T | null
   }
-  const [h, b, d, pl, kv, sk, mo, sel, sb, pk, hb, nc, kfv, kfa, kfn, kfu, wk, mg, gw, va, ds, uk, dq, vl, ve, kg, ss, ko, fx, ab, lf, ak] = await Promise.all([
-    q<Hochrechnung>('v_hochrechnung'), q<Massenbilanz>('erg_massenbilanz'), q<Datenlage>('erg_datenlage'),
+  const [b, d, pl, kv, sk, mo, sel, sb, pk, hb, nc, kfv, kfa, kfn, kfu, wk, mg, gw, va, ds, uk, dq, vl, ve, kg, ss, ko, fx, ab, lf, ak] = await Promise.all([
+    q<Massenbilanz>('erg_massenbilanz'), q<Datenlage>('erg_datenlage'),
     q<Befund>('erg_plausibilitaet'), q<Kaliberzeile>('erg_kaliber'), q<Kurve>('erg_kurve'),
     eins<Modell>('erg_modell'), eins<Selektion>('erg_selektion'), eins<Saisonbilanz>('erg_bilanz'),
     q<Schimmelpunkt>('erg_punkte'), q<Bestand>('erg_charge'), q<NaechsteCharge>('erg_naechste_charge'),
@@ -309,7 +314,7 @@ async function alles(erzwingen: boolean): Promise<Auswertung> {
   const heute = sb?.heute ?? hb[0]?.heute ?? new Date().toISOString().slice(0, 10)
   return {
     stand: st2?.berechnet_ts ?? null, heute,
-    hochrechnung: h, bilanz: b, lage: d, befunde: pl, kaliber: kv, kurve: sk, koeff,
+    bilanz: b, lage: d, befunde: pl, kaliber: kv, kurve: sk, koeff,
     modell: mo, selektion: sel, saison: sb, punkte: pk, bestand: hb, naechste: nc,
     sorten: { verdunstung: kfv, ausschuss: kfa, nebenkanal: kfn }, wiegungen: wk, marge: mg,
     gewichte: gw, verarbeitung: va, durchsatz: ds, ueberfuellung: uk, qualitaet: dq, verlauf: vl, verlust: ve,
@@ -332,6 +337,29 @@ export function auswertungLaden(erzwingen = false): Promise<Auswertung> {
 
 
 /** Der Datenstand für einen Reiter — geladen, gehalten, auf Wunsch neu gerechnet. */
+// Supabase liefert höchstens 1000 Zeilen je Anfrage — die Kaskade je
+// Eingangstag und die Gewichtsverteilung haben mehr. Deshalb seitenweise.
+const SEITE = 1000
+
+/**
+ * Die volle Hochrechnung — jede Charge mal jeder Strom, mit Formel und
+ * Koeffizient. Das sind einige Megabyte und eine Sicht, die live rechnet;
+ * gebraucht wird sie nur für den CSV-Export unter Messungen. Sie hing bis
+ * Runde I am Laden jeder Seite und kostete auf jedem Reiter Zeit, obwohl sie
+ * niemand ansah. Jetzt holt sie, wer sie braucht, in dem Moment, in dem er
+ * auf „CSV exportieren" drückt.
+ */
+export async function hochrechnungLaden(): Promise<Hochrechnung[]> {
+  const alle: Hochrechnung[] = []
+  for (let von = 0; ; von += SEITE) {
+    const r = await supabase.from('v_hochrechnung').select('*').range(von, von + SEITE - 1)
+    if (r.error) throw new Error(r.error.message)
+    const teil = (r.data ?? []) as Hochrechnung[]
+    alle.push(...teil)
+    if (teil.length < SEITE) return alle
+  }
+}
+
 export function useAuswertung() {
   const [daten, setDaten] = useState<Auswertung | null>(stand)
   const [laedt, setLaedt] = useState(!stand)
@@ -437,6 +465,45 @@ export interface KaliberGruppe {
  * je Sorte und je Bänder-Fassung, sonst stünden zwei Fassungen ineinander
  * verschränkt. Reihenfolge: zu klein, die Bänder aufsteigend, zu gross.
  */
+/**
+ * Die Glocke vorbereiten — für den Überblick und für die Ursachen dasselbe.
+ * Beide Seiten zeigen dieselbe Gewichtsverteilung mit denselben Grenzen und
+ * denselben Farben; die Rechnung stand bis Runde I zweimal im Code, Zeile für
+ * Zeile gleich. Zwei Kopien einer Klassierung laufen früher oder später
+ * auseinander, und dann färbt die eine Seite als „zu klein", was die andere
+ * noch als Kaliber zeichnet.
+ *
+ * Die Grenzen kommen aus der jüngsten Kaliberfassung der Sorte. Ältere
+ * Fassungen tragen noch einen Käufer (bis 0060); ohne Käufer geht vor, weil
+ * das die heute gültige Regel ist.
+ */
+export interface Glockendaten {
+  stufen: { x: number; n: number }[]
+  grenzen: { x: number; text: string }[]
+  gesamt: number
+  mittel: number | null
+  klassenfarbe: (x: number) => string
+  schema: Schema | undefined
+}
+
+export function glockeVorbereiten(gewichte: Gewichtsstufe[], schemata: Schema[], sorte: string, breite: number): Glockendaten {
+  const stufenMap = new Map<number, number>()
+  for (const g of gewichte) { const x = Math.floor(g.stufe_g / breite) * breite; stufenMap.set(x, (stufenMap.get(x) ?? 0) + g.n) }
+  const stufen = [...stufenMap.entries()].map(([x, n]) => ({ x, n })).sort((a, b) => a.x - b.x)
+  const schema = schemata.find(s => s.sorte === sorte && s.art === 'kaliber' && s.kaeufer === null)
+    ?? schemata.find(s => s.sorte === sorte && s.art === 'kaliber')
+  const grenzen: { x: number; text: string }[] = []
+  if (schema?.verlust_unter != null) grenzen.push({ x: schema.verlust_unter, text: 'zu klein <' })
+  ;(schema?.kaliber_baender ?? []).forEach(([a], i) => { if (i > 0) grenzen.push({ x: a, text: `K${i + 1}` }) })
+  if (schema?.kanal_ab != null) grenzen.push({ x: schema.kanal_ab, text: 'zu gross ≥' })
+  const gesamt = gewichte.reduce((a, g) => a + g.n, 0)
+  // Die Rohstufen sind 25 g breit; als Gewicht einer Stufe gilt ihre Mitte.
+  const mittel = gesamt > 0 ? gewichte.reduce((a, g) => a + (g.stufe_g + 12.5) * g.n, 0) / gesamt : null
+  const klassenfarbe = (x: number) => schema?.verlust_unter != null && x + breite <= schema.verlust_unter ? 'var(--strom-ausschuss)'
+    : schema?.kanal_ab != null && x >= schema.kanal_ab ? 'var(--strom-nebenkanal)' : 'var(--kuerbis)'
+  return { stufen, grenzen, gesamt, mittel, klassenfarbe, schema }
+}
+
 export function kaliberJe(zeilen: Kaliberzeile[], nach: 'sorte' | 'charge'): KaliberGruppe[] {
   const proCharge = new Map<number, Kaliberzeile[]>()
   for (const z of zeilen) proCharge.set(z.charge_nr, [...(proCharge.get(z.charge_nr) ?? []), z])

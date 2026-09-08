@@ -1057,7 +1057,7 @@ create materialized view erg_ueberfuellung as select * from v_ueberfuellung_verk
 create index if not exists erg_ueberfuellung_gruppe on erg_ueberfuellung (gruppe, sorte, charge_nr);
 grant select on erg_ueberfuellung to authenticated;
 comment on materialized view erg_ueberfuellung is
-  'v_ueberfuellung_verkauf, gespeichert für die App (0061). Erneuert mit auswertung_schritt(4).';
+  'v_ueberfuellung_verkauf, gespeichert für die App (0061). Erneuert mit auswertung_schritt(1).';
 
 -- ---------- 7. Die Charge gespeichert; Bilanz, Marge, Vorschläge lesen daraus
 -- erg_charge ist v_hochrechnung_basis als Tabelle: eine Zeile je Charge, alles
@@ -1522,7 +1522,9 @@ comment on view v_datenqualitaet is
 -- views bekommen nie welche, wenn niemand ANALYZE sagt) mit schlechten Plänen.
 -- Ab jetzt: jede Sicht, die die Auswertung lädt, hat ein gespeichertes
 -- Gegenstück erg_*. Die v_*-Sichten bleiben — für Tests, den SQL-Editor und
--- als Definition. Die App liest nur erg_*.
+-- als Definition. Die Auswertung des Betriebsleiters liest nur erg_*; die
+-- Arbeiter-Masken lesen weiter ihre v_*-Sichten (Palox-Stand, Auftragsmasse,
+-- Kontrollvorschläge), die je Arbeit ein paar Zeilen liefern.
 do $$
 declare
   paar text[];

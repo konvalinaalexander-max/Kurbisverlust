@@ -206,6 +206,29 @@ zeigte die Bilanz dauerhaft ein Defizit, ohne dass etwas falsch wäre.
 
 In der Demo-Saison: −4.5 %, −1.2 %, +3.8 %.
 
+### Die zweite Gegenprobe: geht die Bilanz auf?
+
+Eingang + Überzählung = verkauft + Verlust bis heute + anderer Kanal
++ noch im Haus. Sie geht von selbst auf, weil das Ausgelagerte aus den
+Lieferungen zurückgerechnet ist — was übrig bleibt, ist Rundung. Genau darum
+ist sie ein Test: Solange in der Kaskade ein Kilo doppelt oder zu früh zählte,
+blieb ein Rest stehen. In Runde I waren das −4 274 kg; nach 0062 sind es
+−0.05 kg, und ein Test in `pruefung.sql` hält es dort.
+
+Was *nicht* aufgeht, heisst **Überzählung**: hinter den Lieferungen steckt mehr
+Eingangsware, als je eingelagert wurde. Das ist ein Datenfehler — meist fehlt
+Wareneingang —, kein Verlust, und steht darum als eigene Zeile.
+
+### Die dritte Gegenprobe: sagt jede Zahl, was sie ist?
+
+`pruefstand/beschriftung.mjs` rendert die zwölf Ansichten des Betriebsleiters
+und liest jede Zahl so, wie ein Mensch sie liest — mit der Beschriftung
+daneben. Jede Masse braucht einen Namen, jeder Name einen Eintrag im
+Begriffslexikon mit Bedeutung und Herkunftsspalte, jede gerechnete Grösse ihre
+Herkunftsmarke, jede Prozentzahl ihre Bezugsgrösse. Dazu die Gegenprobe der
+vier Kopfzahlen gegen `erg_bilanz`: eine richtige Beschriftung an einer
+falschen Zahl wäre schlimmer als gar keine.
+
 ---
 
 ## 5. Was das System nicht weiß

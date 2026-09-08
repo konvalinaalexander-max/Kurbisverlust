@@ -126,10 +126,10 @@ export function Kurvenherkunft({ punkte }: { punkte: Schimmelpunkt[] }) {
  * sie das Modell prüft, nicht den Betrieb.
  */
 export function Bilanz({ bilanz }: { bilanz: Saisonbilanz }) {
-  const kanalAusgelagert = bilanz.kanal_heute_kg - bilanz.kanal_im_haus_kg
+  const kanalAusgelagert = bilanz.kanal_ausgelagert_kg
   return (
     <Karte titel={<>Geht die Rechnung auf? <span className="leise" style={{ fontWeight: 480 }}>bis {datum(bilanz.heute)}</span></>}>
-      <p className="leise">Eingang = verkauft + Verlust bis heute + anderer Kanal + noch im Haus. Sie geht von selbst auf, weil das Ausgelagerte aus den Lieferungen zurückgerechnet ist — geprüft wird an den Rändern: mehr geliefert als hereingekommen (Überzählung), an die Tiere Geliefertes gegen den gerechneten Kanal, Entsorgtes gegen den gerechneten Schimmel.</p>
+      <p className="leise">Eingang + Überzählung = verkauft + Verlust bis heute + anderer Kanal + noch im Haus. Sie geht von selbst auf, weil das Ausgelagerte aus den Lieferungen zurückgerechnet ist — bis auf Rundung, und genau darum taugt sie als Probe: Solange in der Kaskade ein Kilo doppelt oder zu früh zählte, blieb ein Rest stehen. Geprüft wird an den Rändern: mehr geliefert als hereingekommen (Überzählung — ein Datenfehler, kein Verlust), an die Tiere Geliefertes gegen den gerechneten Kanal, Entsorgtes gegen den gerechneten Schimmel.</p>
       <Bilanzzeile titel="Wareneingang" herkunft="gemessen" kg={bilanz.eingang_kg} eingang={bilanz.eingang_kg} farbe="var(--strom-nebenkanal)" erklaerung="Netto ab Zettel, Tara abgezogen" />
       <Bilanzzeile titel="Verkauft" herkunft="gemessen" kg={bilanz.geliefert_kg} eingang={bilanz.eingang_kg} farbe="var(--strom-rest)"
                    erklaerung={bilanz.n_lieferungen === 0 ? 'noch keine Lieferung erfasst' : `${bilanz.n_lieferungen} Lieferungen${bilanz.vorlauf_kg > 0 ? `, dazu ${tonnen(bilanz.vorlauf_kg)} vor dem Erfassungsbeginn` : ''}`} />

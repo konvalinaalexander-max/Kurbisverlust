@@ -732,6 +732,15 @@ npm test                    # Reinigung und Dateinamen-Parser, ohne Datenbank
 node pruefstand/bildschirme.mjs
 SPRACHE=hu node pruefstand/bildschirme.mjs arbeit    # Arbeiter-Masken in der Sprache mit den längsten Wörtern
 
+# Begriffs-Prüfstand: Sagt jede Zahl, was sie ist? Rendert die zwölf Ansichten
+# des Betriebsleiters, erntet jede Zahl mit Einheit samt ihrer Beschriftung und
+# prüft: beschriftet, im Begriffslexikon (pruefstand/begriffe.json), „Verlust"
+# nie ohne Zusatz, gerechnete Grössen mit ihrer Herkunftsmarke, Prozente mit
+# Bezugsgrösse, keine Modellwörter — dazu die Gegenprobe der vier Kopfzahlen
+# gegen erg_bilanz. Ein neuer Name muss ins Lexikon, sonst schlägt er an.
+node pruefstand/beschriftung.mjs
+ERNTE=1 node pruefstand/beschriftung.mjs    # gefundene Beschriftungen auflisten
+
 # Die Kette in beide Richtungen: eine komplette Arbeit über die Masken der
 # App erfassen (neue Arbeit mit Kistensystem, zählen mit Zettelgewicht, wiegen,
 # Palox, fertige Palette, Fax, Waschen mit Sortierdatum, Kontrolle, Abschluss
@@ -742,6 +751,10 @@ node pruefstand/kette.mjs && ./pruefstand/kette_pruefen.sh 'postgresql://…'
 # Lückenscanner: keine Spalte, die die Datenbank erwartet und keine Maske
 # schreibt — und keine ausgewertete Tabelle, die niemand füllt (Teil von run.sh)
 ./pruefstand/luecken.sh 'postgresql://…'
+
+# Die fünf PDFs neu bauen (aus docs/*.html, Schrift eingebettet). Meldet
+# waagerechten Überlauf — im PDF heisst das eine abgeschnittene Tabelle.
+node docs/pdf_bauen.mjs
 
 # Statistik: erfundene Saisons mit bekannter Wahrheit, misst Verzerrung und
 # Überdeckung je Strom (siehe docs/STATISTIK_BEFUND.md)

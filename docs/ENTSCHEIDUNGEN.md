@@ -2220,3 +2220,131 @@ Abweichung vom erwarteten Stückgewicht nur, wo im Band die Ware liegt.
   keine Sperre. Wer sie überspringt, verliert die Verdunstungsrate dieser
   Arbeit und das Kistengewicht — sichtbar in der Datenqualität, nicht in
   einer Blockade.
+
+## Runde I — jede Zahl sagt, was sie ist (10. September, Migration 0062)
+
+Der Betriebsleiter am 10. September: „auf der Webseite hast du immer noch so
+komische Angaben wie einfach einen Verlust, der nicht klar ist." Das war kein
+Schönheitsfehler. Ein Wort, das zwei Dinge bedeutet, ist ein Rechenfehler mit
+Verzögerung: Irgendwann addiert jemand zwei Zahlen, die nicht zusammengehören.
+
+### Ein Prüfstand, der liest, was ein Mensch liest
+
+`pruefstand/beschriftung.mjs` rendert die zwölf Ansichten des Betriebsleiters
+in einem echten Browser mit den echten Demo-Daten und erntet **jede Zahl mit
+Einheit samt ihrer Beschriftung** — aus der Kennzahl, dem Spaltenkopf, dem
+Zeilenkopf einer Matrix, dem Begriff einer Liste. Nicht der Quelltext wird
+geprüft, sondern das Bild.
+
+Sechs Regeln, dazu die Gegenprobe:
+
+- **R1** Jede Zahl hat eine Beschriftung.
+- **R2** Jede Beschriftung einer Masse steht im Begriffslexikon
+  `pruefstand/begriffe.json` — mit Bedeutung und Herkunftsspalte. Der
+  **längste** passende Eintrag gewinnt: „Gewogene Masse · zu klein" ist eine
+  gewogene Masse, kein hochgerechneter Kanal.
+- **R3** „Verlust" nie ohne Zusatz.
+- **R4** Jede gerechnete Grösse trägt in ihrer Karte die Herkunftsmarke, die
+  zu ihr gehört. Ein Begriff, der beides sein kann, steht als
+  `gemessen|gerechnet` im Lexikon — dann muss die Karte sagen, welches gilt.
+- **R5** Jede Prozentzahl nennt ihre Bezugsgrösse.
+- **R6** Keine Modellwörter („Buch A/B"), keine kaputten Zahlen.
+- **Gegenprobe**: die vier Kopfzahlen des Überblicks, unabhängig aus
+  `erg_bilanz` nachgerechnet. Eine richtige Beschriftung an einer falschen
+  Zahl wäre schlimmer als gar keine.
+
+2667 Zahlen, zwölf Ansichten, grün. Was der Prüfstand dabei gefunden hat:
+
+- **Ein `NaN` auf der Messungen-Seite** — die Karte las eine Spalte, die es
+  nach der Umbenennung nicht mehr gab. Auf dem Bildschirm stand „NaN t · NaN %".
+- **Nackte Massen**: „Masse" stand an sechs Stellen für sechs verschiedene
+  Dinge. Jetzt: Bewegte Masse, Masse der Lieferung, Masse in der Datei, Masse
+  des Artikels, Gewogene Masse.
+- **Zwei Erklärungen unter 36 Tabellenzeilen.** Die Legende der Chargen-Seite
+  sagte richtig, welche Spalte gemessen und welche gerechnet ist — nur stand
+  sie hinter der Tabelle, wo sie niemand liest. Sie steht jetzt darüber.
+- **Eine nackte Tonnage** im Untertitel der Charge-Zeilen, ohne ein Wort daneben.
+
+### Zwei Rechenfehler
+
+**Lieferungen an die Tiere fehlten auf der Ausgangsseite.** Die Kaskade nahm
+als ausgelagert nur, was mit `buch = 'verkauf'` geliefert wurde. Was an die
+Tiere oder in den Nebenkanal ging (`buch = 'marge'`), hatte den Betrieb
+verlassen — auf dem Papier lag es weiter im Lager: Es alterte, verdunstete und
+verdarb weiter und stand am Ende noch einmal unter „noch im Haus". In der
+Demo-Saison sind das 2 950 kg von 115 837 kg Lieferungen, gut 2.5 %.
+
+Die Kaskade nimmt jetzt beide Bücher. Weil `v_lieferung_kohorte` je Charge,
+Eingangstag **und Buch** eine Zeile liefert, muss sie dabei über das Buch
+summieren — sonst käme jede Kohorte zweimal in die Rechnung, und der Fehler
+wäre nur umgedreht. Ergebnis: Der Rest der Saisonbilanz lag bei −4 274 kg und
+hiess „Lücke"; jetzt sind es **−0.05 kg.** Was übrig bleibt, heisst Überzählung
+und ist, was es ist — ein Datenfehler, kein Verlust.
+
+**Vordatierte Lieferscheine zählten sofort.** Sie sind im Betrieb üblich. Eine
+Zahl, die „bis heute" heisst, darf aber nichts enthalten, was noch nicht
+passiert ist. `v_lieferung_kohorte` filtert jetzt auf `datum <= heute()` — und
+damit die Menge nicht spurlos verschwindet, nennt die Plausibilität sie als
+Befund „Lieferung in der Zukunft" mit Masse, Datum und Rat. In den echten
+Demo-Daten steckte genau so ein Lieferschein.
+
+### Namen, die etwas anderes meinten
+
+| bisher | jetzt | warum |
+|---|---|---|
+| `kanal_heute_kg` | `kanal_ausgelagert_kg` | enthielt nur das Ausgelagerte, nicht auch den Kanal im Lager |
+| `v_wiegung_kennzahl.verlust_kg` | `verdunstung_kg` | ist die Verdunstung einer Palette, nicht ihr Verlust |
+| `verlust_14_kg` | `prognose_verlust_14_kg` | ist Prognose, nicht Stand |
+| `schimmel_kum_kg` (mit Sockel) | `schimmel_kum_kg` + `sockel_kum_kg` | der Sockel ist nicht lagerbedingt und gehört nicht in dieselbe Zahl |
+| „Verlust" ohne Zeitbezug | „Verlust bis heute" | überall |
+
+### Die Grafik trifft die Kennzahl
+
+Der Verlauf endete am letzten Sonntag vor heute — die Linie zeigte bis zu
+sechs Tage alte Zahlen neben einer Kennzahl von heute. `erg_verlauf` hat jetzt
+eine Stützstelle **genau auf heute()**; ein Test vergleicht sie mit
+`erg_bilanz`. Der Schlüssel der Sicht ist damit `bis`, nicht mehr `woche`: die
+laufende Woche trägt zwei Punkte.
+
+### Was sonst noch aufgeräumt wurde
+
+- **Die Lagerkontrolle ist korrigierbar.** 24 von 41 Wägungen gehören zu
+  keiner Arbeit — der Betriebsleiter wiegt zwischendurch nach. Sie standen in
+  der Auswertung, waren aber über keine Arbeit erreichbar und damit nicht zu
+  berichtigen. Unter Messungen steht jetzt ein eigener Block dafür.
+- **Der Fax-Block zeigt eine Zahl**, wie besprochen. Worauf sie beruht und was
+  noch kommt, steht darunter im Satz. Und die Stichprobe nimmt nur Arbeiten,
+  bei denen das Faule wirklich gewogen wurde: eine ungewogene Arbeit als
+  „0 kg faul" mitzuzählen drückte den gemessenen Anteil nach unten. Leer ist
+  nicht null.
+- **Die Glocke steht nur noch einmal im Code.** Überblick und Ursachen zeigen
+  dieselbe Verteilung mit denselben Grenzen und Farben; die Rechnung stand
+  zweimal da, Zeile für Zeile gleich.
+- **`v_hochrechnung` (einige Megabyte) hing am Laden jeder Seite**, obwohl nur
+  der CSV-Export unter Messungen sie braucht. Jetzt holt sie, wer sie braucht,
+  beim Klick.
+- **Zwei Kommentare sagten die Unwahrheit**: `erg_ueberfuellung` wird in
+  Schritt 1 erneuert, nicht in Schritt 4; und die App liest nicht „nur erg_*"
+  — die Arbeiter-Masken lesen weiter ihre v_*-Sichten.
+- Zwei tote `void`-Ausdrücke und der Auffälligkeiten-Hinweis auf der
+  Chargen-Seite sind weg; Befunde stehen seit Runde H nur unter Messungen.
+
+### Was geprüft und für richtig befunden wurde
+
+- **`bekannt = true` bei `koeff_n_min = 0`** ist kein Fehler: Der Koeffizient
+  ist bekannt, nur nicht aus eigenen Messungen dieser Gruppe. `koeff_basis`
+  sagt das („Wiegungen aller Sorten, zu wenige eigene Chargen"), und ein Test
+  verlangt jetzt, dass diese Begründung nie fehlt.
+- **`v_verlust_ranking`** liefert alle Ströme, auch die, die kein Verlust
+  sind. Die Sicht steht auf keinem Bildschirm; ihr Kommentar sagt jetzt, dass
+  `buch` die Einordnung trägt und eine Summe über alle Zeilen Äpfel und Birnen
+  addiert.
+
+### Was offen bleibt (Runde I)
+
+- **`erg_ueberfuellung` ist über die Ebenen nicht additiv**: je Sorte summiert
+  1 526 kg, je Charge 1 547 kg (1.4 % Unterschied). Beide Ebenen sind für sich
+  ehrlich aus gemessenen Grössen gerechnet; die Differenz entsteht, weil
+  Lieferungen ohne Chargenbezug je Ebene anders verteilt werden. Die App zeigt
+  nie beide Ebenen zugleich, so dass niemand sie addiert — sauber wäre eine
+  gemeinsame Grundlage.

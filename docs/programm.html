@@ -1996,7 +1996,7 @@ einem Zug über die ganze Saison geht und mit jeder Charge länger wird.</p>
 
 <h2 class="gross">2.25 Das Prüfwerk</h2>
 
-<p>Nichts an diesem System ist von Hand geprüft. Sechs Prüfstände laufen bei jeder Änderung; die
+<p>Nichts an diesem System ist von Hand geprüft. Sieben Prüfstände laufen bei jeder Änderung; die
 Gesamtheit ist umfangreicher als die App selbst.</p>
 
 <table>
@@ -2031,7 +2031,20 @@ Gesamtheit ist umfangreicher als die App selbst.</p>
   in ihrer Anfälligkeit, die Verarbeitungsreihenfolge kann am Zustand hängen, die Entnahme aus
   dem Zwischenlager ist gedächtnislos. Das Modell sieht davon nur, was ein Arbeiter erfasst
   hätte. Gemessen werden Verzerrung <em>und</em> Überdeckung.</td></tr>
-<tr><td><code>npm test</code></td><td>74 Einzelprüfungen der reinen Funktionen: CSV-Reinigung,
+<tr><td><code>pruefstand/beschriftung.mjs</code></td><td>Der <strong>Begriffs-Prüfstand</strong>:
+  Sagt jede Zahl, was sie ist? Er rendert die zwölf Ansichten des Betriebsleiters und erntet
+  <em>jede</em> Zahl mit Einheit samt der Beschriftung, unter der ein Mensch sie liest —
+  Kennzahl-Titel, Spaltenkopf, Zeilenkopf einer Matrix, Begriff einer Liste. Dann sechs Regeln:
+  jede Zahl beschriftet; jede Beschriftung einer Masse im Begriffslexikon
+  <code>pruefstand/begriffe.json</code> (mit Bedeutung <em>und</em> Herkunftsspalte);
+  „Verlust“ nie ohne Zusatz; jede gerechnete Grösse mit der Herkunftsmarke, die zu ihr gehört;
+  jede Prozentzahl mit ihrer Bezugsgrösse; keine Modellwörter und keine kaputten Zahlen.
+  Dazu die Gegenprobe: die vier Kopfzahlen des Überblicks, unabhängig aus <code>erg_bilanz</code>
+  nachgerechnet — eine richtige Beschriftung an einer falschen Zahl wäre schlimmer als gar keine.
+  2667 Zahlen über zwölf Ansichten. Wer einen Namen neu vergibt, muss ihn ins Lexikon eintragen;
+  sonst schlägt der Prüfstand an. So kann niemand still einen Begriff einführen, der nicht sagt,
+  was er meint.</td></tr>
+<tr><td><code>npm test</code></td><td>76 Einzelprüfungen der reinen Funktionen: CSV-Reinigung,
   XLSX-Leser, Warenausgang-Regeln, Übersetzungen (jede Sprache hat jeden Schlüssel),
   Konfigurationsprüfung, Schema-Stand.</td></tr>
 </table>

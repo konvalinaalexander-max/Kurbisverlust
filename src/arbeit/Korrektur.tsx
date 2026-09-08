@@ -102,17 +102,26 @@ const zuWert = (s: string, f: Feld): Wert => {
   return s
 }
 
-function Tabellenblock({ t, auftragId, gesperrt, geaendert }: { t: Tabelle; auftragId: number; gesperrt: boolean; geaendert: () => Promise<void> }) {
+/**
+ * Welche Zeilen der Block zeigt. Meist die einer Arbeit; die Lagerkontrolle
+ * gehört zu keiner Arbeit (der Betriebsleiter wiegt zwischendurch eine
+ * Palette), darum kann auch auf „Spalte ist leer" gefiltert werden — sonst
+ * wäre eine Kontrollwägung sichtbar, aber nicht zu berichtigen.
+ */
+interface Filter { spalte: string; wert: number | null }
+
+function Tabellenblock({ t, wo, gesperrt, geaendert }: { t: Tabelle; wo: Filter; gesperrt: boolean; geaendert: () => Promise<void> }) {
   const [zeilen, setZeilen] = useState<Zeile[]>([])
   const [entwurf, setEntwurf] = useState<Record<number, Record<string, string>>>({})
   const [fehler, setFehler] = useState<string | null>(null)
   const [laeuft, setLaeuft] = useState(false)
 
   const laden = useCallback(async () => {
-    const { data, error } = await supabase.from(t.tabelle).select('*').eq('auftrag_id', auftragId).order('id')
+    const frage = supabase.from(t.tabelle).select('*')
+    const { data, error } = await (wo.wert === null ? frage.is(wo.spalte, null) : frage.eq(wo.spalte, wo.wert)).order('id')
     if (error) { setFehler(fehlerText(error)); return }
     setZeilen((data ?? []) as Zeile[]); setEntwurf({})
-  }, [t.tabelle, auftragId])
+  }, [t.tabelle, wo.spalte, wo.wert])
   useEffect(() => { void laden() }, [laden])
 
   const wertVon = (z: Zeile, f: Feld) => entwurf[z.id]?.[f.name] ?? zuText(z[f.name], f)
@@ -225,7 +234,40 @@ export function Korrektur({ d, neuLaden, zurueck }: { d: ArbeitDaten; neuLaden: 
         <button className="haupt" style={{ width: '100%' }} disabled={laeuft || Object.keys(entwurf).length === 0} onClick={() => void auftragSpeichern()}>Arbeit speichern</button>
       </div>
 
-      {TABELLEN.map(t => <Tabellenblock key={t.tabelle} t={t} auftragId={a.id} gesperrt={false} geaendert={neuLaden} />)}
+      {TABELLEN.map(t => <Tabellenblock key={t.tabelle} t={t} wo={{ spalte: 'auftrag_id', wert: a.id }} gesperrt={false} geaendert={neuLaden} />)}
     </>
   )
+}
+
+/**
+ * Die Lagerkontrollen berichtigen. Eine Kontrollwägung entsteht ohne Arbeit —
+ * der Betriebsleiter wiegt zwischendurch eine Palette nach (Seite „Kontrolle").
+ * Sie stand darum in der Auswertung, war aber über keine Arbeit erreichbar und
+ * damit nicht zu korrigieren. Dieser Block zeigt genau diese Zeilen.
+ *
+ * Die Chargennummer ist hier änderbar: bei einer Kontrolle ist sie von Hand
+ * getippt, und eine Wägung an der falschen Charge verschiebt deren
+ * Verdunstungsrate. Alles andere bleibt wie bei den Arbeiten — geändert wird
+ * die Beobachtung, das Abgeleitete rechnet die Datenbank nach.
+ */
+const KONTROLLE: Tabelle = {
+  tabelle: 'verdunstung_wiegung',
+  titel: 'Lagerkontrollen (ohne Arbeit gewogen)',
+  erklaerung: 'Zwischendurch nachgewogene Paletten: Zettel-Datum und -Gewicht gegen das Gewicht jetzt. '
+    + 'Sie gehören zu keiner Arbeit, darum stehen sie hier statt bei einer.',
+  felder: [
+    { name: 'wiege_ts', label: 'Gewogen', typ: 'zeit', nurLesen: true },
+    { name: 'charge_nr', label: 'Charge', typ: 'ganz' },
+    { name: 'eingangsdatum', label: 'Eingangsdatum', typ: 'datum' },
+    { name: 'brutto_damals_kg', label: 'Zettel (kg)', typ: 'zahl' },
+    { name: 'brutto_jetzt_kg', label: 'jetzt (kg)', typ: 'zahl' },
+    { name: 'kisten', label: 'Kisten', typ: 'ganz' },
+    { name: 'gebindeart', label: 'Kistenart', typ: 'text' },
+    { name: 'sichtbar_schimmel', label: 'Faules sichtbar', typ: 'ja_nein' },
+    { name: 'bemerkung', label: 'Bemerkung', typ: 'text' },
+  ],
+}
+
+export function Kontrollkorrektur({ geaendert }: { geaendert: () => Promise<void> }) {
+  return <Tabellenblock t={KONTROLLE} wo={{ spalte: 'auftrag_id', wert: null }} gesperrt={false} geaendert={geaendert} />
 }

@@ -59,6 +59,11 @@ export default function Chargen() {
             {zeilen.length} Chargen · ausgeliefert {kg(summeGeliefert, 0)} · im Haus {kg(summeHaus, 0)}
           </span>
         </div>
+        <p className="leise" style={{ margin: '0 0 .5rem' }}>
+          Eingang und Ausgeliefert sind <Herkunft art="gemessen" />; Verlust bis heute, Noch im Haus und verkaufsfähig sind <Herkunft art="gerechnet" />: der Eingang minus die Eingangsware hinter den Lieferungen minus den Verlust der liegenden Ware bis heute; „verkaufsfähig" zieht davon ab, was zu klein oder zu gross ist.
+          „Liegt seit" ist die Spanne der Eingangstage — es gibt kein Zuerst-rein-zuerst-raus. „Prognose: 14 Tage länger liegen" ist die einzige <Herkunft art="prognose" /> auf dieser Seite: was zwei weitere Wochen Liegen kosten würden. Alles andere steht bis heute.
+          Messungen: Palettenwägungen · Faules · CSV-Läufe. Eine Zeile antippen zeigt Eingang, Ausgang und Arbeiten der Charge; Modell gegen CSV steht unter Messungen.
+        </p>
         <div className="rollbar">
           <table>
             <thead>
@@ -66,7 +71,7 @@ export default function Chargen() {
                 <th>Charge</th><th>Sorte</th><th className="zahl">Eingang</th><th className="zahl">Ausgeliefert</th>
                 <th className="zahl">Verlust bis heute</th>
                 <th className="zahl">Noch im Haus</th><th className="zahl">verkaufsfähig</th><th className="zahl">liegt seit</th>
-                <th className="zahl">nächste 14 Tage</th><th className="zahl">Messungen</th>
+                <th className="zahl">Prognose: 14 Tage länger liegen</th><th className="zahl">Messungen</th>
               </tr>
             </thead>
             <tbody>
@@ -77,11 +82,6 @@ export default function Chargen() {
             </tbody>
           </table>
         </div>
-        <p className="leise" style={{ margin: '.5rem 0 0' }}>
-          Eingang und Ausgeliefert sind <Herkunft art="gemessen" />; Verlust bis heute, noch im Haus und verkaufsfähig sind <Herkunft art="gerechnet" />: der Eingang minus die Eingangsware hinter den Lieferungen minus den Verlust der liegenden Ware bis heute; „verkaufsfähig" zieht davon ab, was zu klein oder zu gross ist.
-          „Liegt seit" ist die Spanne der Eingangstage — es gibt kein Zuerst-rein-zuerst-raus. „Nächste 14 Tage" ist die einzige <Herkunft art="prognose" /> auf dieser Seite: was zwei weitere Wochen Liegen kosten.
-          Messungen: Palettenwägungen · Faules · CSV-Läufe. Eine Zeile antippen zeigt Eingang, Ausgang und Arbeiten der Charge; Modell gegen CSV steht unter Messungen.
-        </p>
       </Karte>
     </>
   )
@@ -103,7 +103,7 @@ function ChargenZeile({ z, offen, oeffnen, daten }: { z: Zeile; offen: boolean; 
         <td className="zahl">{liegt ? <strong>{kg(b.im_haus_heute_kg, 0)}</strong> : <span className="leise">—</span>}</td>
         <td className="zahl">{liegt && b.verkaufsfaehig_lager_kg !== null ? kg(b.verkaufsfaehig_lager_kg, 0) : <span className="leise">—</span>}</td>
         <td className="zahl">{liegt ? alterSpanne(b.alter_lager_von, b.alter_lager_bis, b.alter_lager_heute).replace(' Tagen', ' d') : ''}</td>
-        <td className="zahl">{n?.verlust_14_kg != null && n.verlust_14_kg > 0 ? kg(n.verlust_14_kg, 0) : <span className="leise">—</span>}</td>
+        <td className="zahl">{n?.prognose_verlust_14_kg != null && n.prognose_verlust_14_kg > 0 ? kg(n.prognose_verlust_14_kg, 0) : <span className="leise">—</span>}</td>
         <td className="zahl">{l ? `${l.n_wiegungen} · ${l.n_schimmel} · ${l.n_sortierlaeufe}` : '—'}</td>
       </tr>
       {offen && (
@@ -136,7 +136,6 @@ function ChargeDetail({ nr, z, daten }: { nr: number; z: Zeile; daten: Auswertun
   }, [nr])
   const alter = daten.verarbeitung.filter(x => x.charge_nr === nr)
   const kohorten = daten.kohorten.filter(x => x.charge_nr === nr)
-  const befunde = daten.befunde.filter(x => x.charge_nr === nr).length
   const t = (id: keyof typeof WOERTERBUCH.de) => WOERTERBUCH.de[id]
   if (laedt) return <Lade />
   const b = z.b
@@ -149,7 +148,9 @@ function ChargeDetail({ nr, z, daten }: { nr: number; z: Zeile; daten: Auswertun
         <div><div className="leise">Verlust bis heute</div><strong>{kg(b.verlust_heute_kg, 0)}</strong><div className="leise">Verdunstung {kg(b.verdunstung_heute_kg, 0)} · Faules {kg(b.schimmel_heute_kg + b.sockel_heute_kg, 0)} · Abpacken {kg(b.fax_heute_kg, 0)}</div></div>
         {z.m?.csv_gemessen_kg != null && <div><div className="leise">Modell am Band / CSV gewogen</div><strong>{kg(z.m.modell_am_band_kg, 0)} / {kg(z.m.csv_gemessen_kg, 0)}</strong></div>}
       </div>
-      {befunde > 0 && <p className="leise" style={{ margin: '0 0 .6rem' }}><Marke art="warnung">{befunde} Auffälligkeiten</Marke> zu Messungen dieser Charge — unter <Link to="/messungen">Messungen</Link>, dort auch zu korrigieren.</p>}
+      {/* Auffälligkeiten stehen seit Runde H nur unter Messungen — dort mit Rat
+          und dem Weg zur Korrektur. Zwei Orte für denselben Befund hiessen zwei
+          Zahlen, die auseinanderlaufen, sobald einer korrigiert wird. */}
 
       <h3>1 · Eingang{kohorten.length > 0 && ` (${kohorten.length} Eingangstage)`}</h3>
       {kohorten.length === 0 ? <p className="leise">keine Eingangstage bekannt</p> : (
@@ -171,7 +172,7 @@ function ChargeDetail({ nr, z, daten }: { nr: number; z: Zeile; daten: Auswertun
       <h3 style={{ marginTop: '1rem' }}>2 · Ausgang ({lieferungen.length} Lieferungen)</h3>
       {lieferungen.length === 0 ? <p className="leise">noch keine dieser Charge zugeordnet</p> : (
         <div className="rollbar"><table>
-          <thead><tr><th>Datum</th><th>Ziel</th><th>Kunde</th><th className="zahl">Masse</th></tr></thead>
+          <thead><tr><th>Datum</th><th>Ziel</th><th>Kunde</th><th className="zahl">Masse der Lieferung</th></tr></thead>
           <tbody>{lieferungen.map(l => (
             <tr key={l.id}><td>{datum(l.datum)}</td><td>{l.ziel_name}</td><td>{l.kunde ?? ''}</td>
               <td className="zahl">{kg(l.masse_kg, 0)}{l.masse_quelle !== 'gewogen' && <span className="leise"> ({l.masse_quelle})</span>}</td></tr>
@@ -182,7 +183,7 @@ function ChargeDetail({ nr, z, daten }: { nr: number; z: Zeile; daten: Auswertun
       <h3 style={{ marginTop: '1rem' }}>3 · Arbeiten ({arbeiten.length})</h3>
       {arbeiten.length === 0 ? <p className="leise">noch keine</p> : (
         <div className="rollbar"><table>
-          <thead><tr><th>Start</th><th>Arbeit</th><th>Status</th><th className="zahl">Masse</th><th className="zahl">Alter verarbeitet</th><th></th></tr></thead>
+          <thead><tr><th>Start</th><th>Arbeit</th><th>Status</th><th className="zahl">Bewegte Masse</th><th className="zahl">Alter verarbeitet</th><th></th></tr></thead>
           <tbody>
             {arbeiten.map(a => {
               const ta = taetigkeitVon(a.weg, a.station, a.ist_fax)

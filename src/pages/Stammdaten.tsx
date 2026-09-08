@@ -344,15 +344,20 @@ function Chargen() {
 }
 
 /* ------------------------------------------------------------------ */
-/* Sortierschemata: je Sorte und Käufer, datiert, nie überschrieben     */
+/* Sortierschemata: je Sorte, datiert, nie überschrieben                */
 /* ------------------------------------------------------------------ */
 /**
- * Das Sortierschema hängt am Käufer, nicht an der Sorte (Betrieb, 2. Sept.):
- * Coop will Kaliberbänder, Migros will Kisten ab acht Kilo, und beim nächsten
- * Auftrag ist es wieder anders. Jede Fassung trägt ein gilt_ab; geändert wird
- * nie eine Zeile, es kommt eine neue dazu. Sonst würde die Sortier-CSV vom
- * Oktober mit den Grenzen vom Januar klassiert — und der gemessene Anteil
- * änderte sich, ohne dass ein Kürbis anders gewogen wurde.
+ * Eine Fassung sagt, was zu klein, was Kaliber und was zu gross ist. Jede
+ * trägt ein gilt_ab; geändert wird nie eine Zeile, es kommt eine neue dazu.
+ * Sonst würde die Sortier-CSV vom Oktober mit den Grenzen vom Januar
+ * klassiert — und der gemessene Anteil änderte sich, ohne dass ein Kürbis
+ * anders gewogen wurde.
+ *
+ * Bis 0060 hing die Fassung am Käufer (Coop wollte Kaliberbänder, Migros
+ * Kisten ab acht Kilo). Seit 0060 fragt die Arbeiter-App keinen Käufer mehr
+ * und neue Fassungen gelten je Sorte. Die alten Zeilen behalten ihren Käufer
+ * — sie sind erhoben worden und werden nicht umgeschrieben; darum steht er
+ * hier weiter, wo er dransteht.
  */
 function Kaliber() {
   const [zeilen, setZeilen] = useState<Sortierschema[]>([])
@@ -439,7 +444,8 @@ function Kaliber() {
       ? `Kiste ab ${z.soll_kg_pro_kiste} kg`
       : `< ${zahl(z.verlust_unter)} g zu klein · ${(z.kaliber_baender ?? []).map(([a, b]) => `${a}–${b}`).join(' · ')} · ≥ ${zahl(z.kanal_ab)} g zu gross`
 
-  // Je (Sorte × Käufer) die aktuell gültige Fassung oben, ältere darunter.
+  // Je Sorte die aktuell gültige Fassung oben, ältere darunter; alte Fassungen
+  // mit Käufer bleiben ein eigener Block, damit ihre Grenzen zuordenbar sind.
   const gruppen = new Map<string, Sortierschema[]>()
   for (const z of zeilen) {
     const k = `${z.sorte}|${z.kaeufer ?? ''}`
@@ -450,16 +456,17 @@ function Kaliber() {
     <>
       <Karte titel="Sortierschemata">
         <p className="leise">
-          Was zu klein, was Kaliber und was zu gross ist, hängt am Käufer — und
-          gilt ab einem Datum. Eine Fassung wird nie geändert: Es kommt eine neue
-          dazu, damit jede alte Sortier-CSV nach den Regeln klassiert bleibt, die
-          an ihrem Tag galten. Jeder Auftrag merkt sich seine Fassung.
+          Was zu klein, was Kaliber und was zu gross ist, gilt ab einem Datum.
+          Eine Fassung wird nie geändert: Es kommt eine neue dazu, damit jede alte
+          Sortier-CSV nach den Regeln klassiert bleibt, die an ihrem Tag galten.
+          Jeder Auftrag merkt sich seine Fassung. Neue Fassungen gelten je Sorte;
+          bei älteren steht noch der Käufer, für den sie damals galten.
         </p>
         {fehler && <Hinweis art="warnung">{fehler}</Hinweis>}
         {meldung && <Hinweis art="gut">{meldung}</Hinweis>}
-        {/* Je Sorte × Käufer ein Block, je Fassung eine Zeile. Eine Tabelle mit
-            vier Spalten quetschte die Regel auf dem Handy in eine schmale Spalte
-            und schnitt sie ab. */}
+        {/* Je Sorte ein Block (alte Fassungen mit Käufer je eigener), je Fassung
+            eine Zeile. Eine Tabelle mit vier Spalten quetschte die Regel auf dem
+            Handy in eine schmale Spalte und schnitt sie ab. */}
         <div className="fassungen">
           {[...gruppen.values()].map(fassungen => (
             <div key={`${fassungen[0].sorte}|${fassungen[0].kaeufer ?? ''}`} className="gruppe">

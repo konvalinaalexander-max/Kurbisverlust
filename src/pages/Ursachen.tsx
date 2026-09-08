@@ -3,7 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { datum, kg, prozent, tonnen, zahl } from '../lib/format'
 import { Aufklapp, Herkunft, Hinweis, Karte, Marke, Rechenweg, Zahlen } from '../components/Bausteine'
 import { Glocke, Linien } from '../components/Diagramm'
-import { STROMFARBE, kaliberJe, stroemeVon, useAuswertung, type Auswertung, type Bestand, type Gruppe, type SortenK, type StromSumme, type Ueberfuellung } from '../auswertung/daten'
+import { glockeVorbereiten, kaliberJe, stroemeVon, useAuswertung, type Auswertung, type Bestand, type Gruppe, type SortenK, type StromSumme, type Ueberfuellung } from '../auswertung/daten'
 import { Probleme, Rechnet, Reiterkopf, rechenweg } from '../auswertung/Karten'
 
 /** Kennfarben für Reihen ohne festen Strom (Sorten im Verdunstungsbild). */
@@ -73,10 +73,10 @@ export default function Ursachen() {
 
       <Karte>
         <Zahlen zeilen={[
-          { titel: 'Hereingekommen', wert: <>{tonnen(eingang)} <Herkunft art="gemessen" /></>, unter: `${zahl(summe(b => b.n_paletten))} Paletten` },
-          { titel: 'Bisher hinaus', wert: <>{tonnen(geliefert)} <Herkunft art="gemessen" /></>, unter: `${zahl(summe(b => b.n_lieferungen))} Lieferungen` },
+          { titel: 'Eingang', wert: <>{tonnen(eingang)} <Herkunft art="gemessen" /></>, unter: `${zahl(summe(b => b.n_paletten))} Paletten aus dem Erntejournal` },
+          { titel: 'Ausgeliefert', wert: <>{tonnen(geliefert)} <Herkunft art="gemessen" /></>, unter: `${zahl(summe(b => b.n_lieferungen))} Lieferungen` },
           { titel: 'Verlust bis heute', wert: <>{tonnen(verlust)} <Herkunft art="gerechnet" /></>, unter: `${prozent(eingang > 0 ? verlust / eingang : null)} des Eingangs` },
-          { titel: 'Noch im Lager', wert: <>{tonnen(imHaus)} <Herkunft art="gerechnet" /></>, unter: `${tonnen(lager)} Eingangsware liegt noch` },
+          { titel: 'Noch im Haus', wert: <>{tonnen(imHaus)} <Herkunft art="gerechnet" /></>, unter: `davon ${tonnen(lager)} Eingangsware, die noch liegt` },
         ]} />
       </Karte>
 
@@ -173,7 +173,7 @@ function Verderb({ daten, strom, feld, eingang, lager, sorte, chargen, filter }:
         <Aufklapp titel={<>Je Charge: gemessen gegen Modell <span className="leise">({jeCharge.length} Chargen mit Messung)</span></>}>
           <p className="leise" style={{ margin: '.3rem 0 .4rem' }}>Gemessen = alles Faule dieser Charge (Kilo im Palox) zu allem, was von ihr aus dem Lager kam. Lagertage = wann gemessen wurde. Modell = die Kurve beim mittleren Alter dieser Messungen. Eine Charge deutlich über der Kurve verdirbt schneller als ihre Sorte — eine Beobachtung, keine Erklärung.</p>
           <div className="rollbar"><table>
-            <thead><tr><th>Charge</th><th>Sorte</th><th className="zahl">Messungen</th><th className="zahl">Lagertage</th><th className="zahl">Faules im Palox</th><th className="zahl">Gemessen</th><th className="zahl">Modell</th><th className="zahl">Abweichung</th></tr></thead>
+            <thead><tr><th>Charge</th><th>Sorte</th><th className="zahl">Messungen</th><th className="zahl">Lagertage</th><th className="zahl">Faules im Palox</th><th className="zahl">Gemessener Anteil</th><th className="zahl">Modell-Anteil</th><th className="zahl">Abweichung gemessen ↔ Modell</th></tr></thead>
             <tbody>{jeCharge.map(e => (
               <tr key={e.charge_nr}>
                 <td><Link to={`/ursachen?charge=${e.charge_nr}`}>{e.charge_nr}</Link></td><td>{e.sorte}</td>
@@ -199,7 +199,7 @@ function Verdunstung({ daten, strom, eingang, lager, sorte, chargen, filter }: {
   daten: Auswertung; strom?: StromSumme; eingang: number; lager: number; sorte: string; chargen: Set<number>; filter: Filter
 }) {
   const wiegungen = daten.wiegungen
-    .filter(w => !w.sichtbar_schimmel && w.netto_damals_kg && w.lagertage > 0 && w.verlust_kg !== null)
+    .filter(w => !w.sichtbar_schimmel && w.netto_damals_kg && w.lagertage > 0 && w.verdunstung_kg !== null)
     .filter(w => chargen.has(w.charge_nr) && (!sorte || w.sorte === sorte))
   const sorten = [...new Set(wiegungen.map(w => w.sorte))].sort()
   const tMax = Math.max(...wiegungen.map(w => w.lagertage), 30)
@@ -207,7 +207,7 @@ function Verdunstung({ daten, strom, eingang, lager, sorte, chargen, filter }: {
   const punktReihen = sorten.map((s, i) => ({
     name: `${s} — gewogene Paletten`, farbe: REIHENFARBEN[i % REIHENFARBEN.length],
     punkte: wiegungen.filter(w => w.sorte === s)
-      .map(w => ({ x: w.lagertage, y: (w.verlust_kg! / w.netto_damals_kg!) * 100, text: `Charge ${w.charge_nr} · ${datum(w.wiege_ts)}` })),
+      .map(w => ({ x: w.lagertage, y: (w.verdunstung_kg! / w.netto_damals_kg!) * 100, text: `Charge ${w.charge_nr} · ${datum(w.wiege_ts)}` })),
   }))
   // Die Erwartung je Sorte: 1 − (1 − r)^t mit dem Bereich der Rate als Streifen.
   // Sorten ohne eigene Messreihe rechnen mit dem Gesamtwert — die teilen sich eine Linie.
@@ -351,19 +351,7 @@ function Gewichtsverteilung({ daten, filter, sorte }: { daten: Auswertung; filte
   if (gewichte.length === 0) return null
   const gruppe = gruppen.find(g => g.schluessel === aktiv)
   const sorteAktiv = gruppe?.sorte ?? gewichte[0]?.sorte
-  const stufenMap = new Map<number, number>()
-  for (const g of gewichte) { const x = Math.floor(g.stufe_g / breite) * breite; stufenMap.set(x, (stufenMap.get(x) ?? 0) + g.n) }
-  const stufen = [...stufenMap.entries()].map(([x, n]) => ({ x, n })).sort((a, b) => a.x - b.x)
-  const schema = daten.schemata.find(s => s.sorte === sorteAktiv && s.art === 'kaliber' && s.kaeufer === null)
-    ?? daten.schemata.find(s => s.sorte === sorteAktiv && s.art === 'kaliber')
-  const grenzen: { x: number; text: string }[] = []
-  if (schema?.verlust_unter != null) grenzen.push({ x: schema.verlust_unter, text: 'zu klein <' })
-  ;(schema?.kaliber_baender ?? []).forEach(([a], i) => { if (i > 0) grenzen.push({ x: a, text: `K${i + 1}` }) })
-  if (schema?.kanal_ab != null) grenzen.push({ x: schema.kanal_ab, text: 'zu gross ≥' })
-  const gesamt = gewichte.reduce((a, g) => a + g.n, 0)
-  const mittel = gesamt > 0 ? gewichte.reduce((a, g) => a + (g.stufe_g + 12.5) * g.n, 0) / gesamt : null
-  const klassenfarbe = (x: number) => schema?.verlust_unter != null && x + breite <= schema.verlust_unter ? 'var(--strom-ausschuss)'
-    : schema?.kanal_ab != null && x >= schema.kanal_ab ? 'var(--strom-nebenkanal)' : 'var(--kuerbis)'
+  const { stufen, grenzen, gesamt, mittel, klassenfarbe, schema } = glockeVorbereiten(gewichte, daten.schemata, sorteAktiv, breite)
   return (
     <Aufklapp titel={<>Die Glocke: wie schwer sind die Kürbisse? <span className="leise">{aktiv}{nach === 'charge' ? ` · ${sorteAktiv}` : ''} · {zahl(gesamt)} gewogen{mittel !== null ? ` · Schwerpunkt ${Math.round(mittel)} g` : ''}</span></>}>
       <div className="filterleiste">
@@ -383,8 +371,8 @@ function Gewichtsverteilung({ daten, filter, sorte }: { daten: Auswertung; filte
       {gruppe && (
         <div className="rollbar"><table className="kurz"><tbody>
           <tr><th>Kaliber</th>{gruppe.klassen.map(k => <th key={k.name}>{k.name}</th>)}</tr>
-          <tr><td>Anteil</td>{gruppe.klassen.map(k => <td key={k.name}><strong>{prozent(gruppe.n > 0 ? k.n / gruppe.n : null, 0)}</strong></td>)}</tr>
-          <tr><td>Masse</td>{gruppe.klassen.map(k => <td key={k.name}>{kg(k.kg, 0)}</td>)}</tr>
+          <tr><td>Anteil der Stück</td>{gruppe.klassen.map(k => <td key={k.name}><strong>{prozent(gruppe.n > 0 ? k.n / gruppe.n : null, 0)}</strong></td>)}</tr>
+          <tr><td>Gewogene Masse</td>{gruppe.klassen.map(k => <td key={k.name}>{kg(k.kg, 0)}</td>)}</tr>
         </tbody></table></div>
       )}
       <p className="leise" style={{ margin: '.4rem 0 0' }}>Glockenförmig oder zweigipflig, und wo liegt der Schwerpunkt zu den Kalibergrenzen? Eine Aussage über den Anbau, nicht über das Lager.</p>
@@ -395,18 +383,29 @@ function Gewichtsverteilung({ daten, filter, sorte }: { daten: Auswertung; filte
 /* ---------- Fax: Faules beim Abpacken — eine Zahl --------------------------- */
 
 function Fax({ daten, strom, eingang, chargen }: { daten: Auswertung; strom?: StromSumme; eingang: number; chargen: Set<number> }) {
-  const fax = daten.fax.filter(f => f.status === 'abgeschlossen' && f.plausibel && f.masse_kg != null && chargen.has(f.charge_nr))
+  // Nur Arbeiten, bei denen das Faule wirklich gewogen wurde: faul_kg ist 0,
+  // wenn niemand gewogen hat, und eine ungewogene Arbeit als „0 kg faul" in
+  // die Stichprobe zu nehmen drückte den gemessenen Anteil nach unten.
+  // Leer ist nicht null.
+  const fax = daten.fax.filter(f => f.status === 'abgeschlossen' && f.plausibel
+                                    && f.masse_kg != null && f.faul_erfasst && chargen.has(f.charge_nr))
   const masse = fax.reduce((s, f) => s + (f.masse_kg ?? 0) + f.faul_kg, 0)
   const faul = fax.reduce((s, f) => s + f.faul_kg, 0)
+  const ohne = daten.fax.filter(f => f.status === 'abgeschlossen' && !f.faul_erfasst && chargen.has(f.charge_nr)).length
   return (
     <Karte titel="Faules beim Abpacken (Fax)">
-      <Zahlen zeilen={[
-        Stromzahl({ v: strom, eingang, titel: 'Faules beim Abpacken bis heute' }),
-        { titel: 'Gemessen', wert: fax.length ? <>{prozent(masse > 0 ? faul / masse : null)} <Herkunft art="gemessen" /></> : '—',
-          unter: fax.length ? `${kg(faul, 0)} von ${tonnen(masse)} in ${fax.length} Fax-Arbeiten — die Stichprobe` : 'noch keine Fax-Arbeit mit gewogenem Faulem' },
-        ...(strom?.bekannt && strom.erwartet > 0 ? [{ titel: 'Erwartung für die Ware im Haus', wert: <>{kg(strom.erwartet, 0)} <Herkunft art="prognose" /></>, unter: 'was beim Abpacken noch anfallen dürfte — nicht im Verlust bis heute' }] : []),
-      ]} />
-      <p className="leise" style={{ margin: 0 }}>Nach dem Waschen steht die Ware ein bis drei Tage in Kisten, bis sie abgepackt wird; dabei wird nochmals aussortiert, was faul ist. Das kommt vom Waschen und vom Stehen danach, nicht von der Lagerdauer — darum eine eigene Ursache, gerechnet an der abgepackten Ware.</p>
+      {/* Eine Zahl, wie besprochen: was das Abpacken bis heute gekostet hat.
+          Worauf sie beruht und was noch kommt, steht darunter im Satz — nicht
+          als zweite und dritte grosse Zahl daneben, die man verwechseln kann. */}
+      <Zahlen zeilen={[Stromzahl({ v: strom, eingang, titel: 'Faules beim Abpacken bis heute' })]} />
+      <p className="leise" style={{ margin: 0 }}>
+        Nach dem Waschen steht die Ware ein bis drei Tage in Kisten, bis sie abgepackt wird; dabei wird nochmals aussortiert, was faul ist. Das kommt vom Waschen und vom Stehen danach, nicht von der Lagerdauer — darum eine eigene Ursache, gerechnet an der abgepackten Ware.
+        {' '}Die Zahl beruht auf {fax.length > 0
+          ? <>{fax.length} Fax-Arbeiten mit gewogenem Faulem <Herkunft art="gemessen" />: {kg(faul, 0)} von {tonnen(masse)} abgepackter Ware, also {prozent(masse > 0 ? faul / masse : null)}</>
+          : <>noch keiner Fax-Arbeit mit gewogenem Faulem — solange ist der Anteil unbekannt, nicht null</>}.
+        {ohne > 0 && <> {ohne} weitere Fax-Arbeiten haben nichts gewogen und zählen nicht in die Stichprobe.</>}
+        {strom?.bekannt && strom.erwartet > 0 && <> Für die Ware im Haus kommen beim Abpacken noch rund {kg(strom.erwartet, 0)} dazu <Herkunft art="prognose" /> — die stecken nicht im Verlust bis heute.</>}
+      </p>
       {strom && <Rechenweg zeilen={rechenweg(strom, eingang)} />}
     </Karte>
   )
@@ -509,5 +508,3 @@ function Ueberfuellungsblock({ daten, filter, sorte }: { daten: Auswertung; filt
   )
 }
 
-// Für Erweiterungen erreichbar.
-void STROMFARBE
