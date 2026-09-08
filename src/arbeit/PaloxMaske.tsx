@@ -10,6 +10,11 @@ import { uhrzeit, type ArbeitDaten } from './daten'
  * zeigt — die Differenz zum letzten Stand rechnet die App und zeigt sie, bevor
  * gespeichert wird. Gespeichert wird der Stand, die Menge ist Ableitung.
  *
+ * Liegt der Stand unter dem letzten (der Palox wurde zwischendurch geleert),
+ * wird nichts gefragt und nichts Negatives gezeigt: der Stand wird genommen,
+ * die Menge dieser Arbeit ist für die Auswertung unbekannt (0060). Die
+ * Waschstrasse hat einen Palox — Waschen und Waschen + Sortieren teilen ihn.
+ *
  * `unveraendertErlaubt`: im Abschluss darf gesagt werden „seit der letzten
  * Ablesung kam nichts dazu" — das ist eine Messung (0 kg), kein Auslassen.
  */
@@ -22,7 +27,6 @@ export function PaloxMaske({ d, gesperrt, gespeichert, unveraendertErlaubt = fal
   const [vorher, setVorher] = useState<number | null>(null)
   const [tara, setTara] = useState(0)
   const [stand, setStand] = useState('')
-  const [leer, setLeer] = useState(false)
   const [fehler, setFehler] = useState<string | null>(null)
   const [laeuft, setLaeuft] = useState(false)
 
@@ -37,8 +41,8 @@ export function PaloxMaske({ d, gesperrt, gespeichert, unveraendertErlaubt = fal
   }, [d.auftrag.station, d.ablesungen.length])
 
   const n = stand === '' ? null : Number(stand)
-  const geleert = leer || (n !== null && vorher !== null && n < vorher)
-  const menge = n === null ? null : vorher === null || geleert ? n - tara : n - vorher
+  const gefallen = n !== null && vorher !== null && n < vorher
+  const menge = n === null ? null : vorher === null ? Math.max(n - tara, 0) : gefallen ? null : n - vorher
   const jePalette = menge !== null && d.paletten.length > 0 ? menge / d.paletten.length : null
   const verdaechtig = jePalette !== null && jePalette > 120
 
@@ -46,11 +50,11 @@ export function PaloxMaske({ d, gesperrt, gespeichert, unveraendertErlaubt = fal
     setLaeuft(true); setFehler(null)
     const zeile = unveraendert
       ? { auftrag_id: d.auftrag.id, kg: 0, palox_stand_kg: vorher, palox_geleert: false }
-      : { auftrag_id: d.auftrag.id, kg: Math.round(Math.max(menge ?? 0, 0)), palox_stand_kg: n, palox_geleert: leer }
+      : { auftrag_id: d.auftrag.id, kg: Math.round(Math.max(menge ?? 0, 0)), palox_stand_kg: n, palox_geleert: false }
     const { error } = await supabase.from('schimmel_messung').insert(zeile)
     setLaeuft(false)
     if (error) { setFehler(fehlerText(error)); return }
-    setStand(''); setLeer(false)
+    setStand('')
     await gespeichert()
   }
 
@@ -65,22 +69,18 @@ export function PaloxMaske({ d, gesperrt, gespeichert, unveraendertErlaubt = fal
                value={stand} disabled={gesperrt} onChange={e => setStand(e.target.value)} autoFocus />
         <p className="leise" style={{ margin: '.4rem 0 0' }}>{t('waageAblesenHinweis')}</p>
       </div>
-      <label className="ankreuzen">
-        <input type="checkbox" checked={leer} disabled={gesperrt} onChange={e => setLeer(e.target.checked)} />
-        {t('paloxWarLeer')}
-      </label>
       {menge !== null && (
         <p style={{ margin: '.6rem 0', fontSize: '1.15rem' }}>
           <strong>{Math.round(Math.max(menge, 0))} kg</strong>
-          {vorher !== null && !geleert && <span className="leise"> ({n} − {vorher})</span>}
-          {(vorher === null || geleert) && tara > 0 && <span className="leise"> ({n} − {tara})</span>}
+          {vorher !== null && <span className="leise"> ({n} − {vorher})</span>}
+          {vorher === null && tara > 0 && <span className="leise"> ({n} − {tara})</span>}
           {jePalette !== null && <span className="leise"> · {Math.round(jePalette)} {t('kgJePalette')}</span>}
         </p>
       )}
       {verdaechtig && <Hinweis art="warnung">{t('vielJePalette')}</Hinweis>}
       {fehler && <Hinweis art="warnung">{fehler}</Hinweis>}
       <button id="palox-eintragen" className="haupt" style={{ width: '100%', minHeight: 60, fontSize: '1.08rem' }}
-              onClick={() => void speichern()} disabled={gesperrt || laeuft || menge === null || menge < 0}>
+              onClick={() => void speichern()} disabled={gesperrt || laeuft || n === null || n < 0}>
         {t('eintragen')}
       </button>
       {unveraendertErlaubt && letzte && (

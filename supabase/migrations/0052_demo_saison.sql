@@ -252,21 +252,29 @@ begin
         end if;
         v_nb := coalesce(jsonb_array_length(v_baender), 0);
 
-        insert into auftrag (weg, station, charge_nr, start_ts, ende_ts, status, kaeufer, sortierschema_id, bemerkung)
+        -- 0060: das Kistensystem steht an der Arbeit — von Hand „Kiste ab 8 kg"
+        -- oder Stück-Kisten eines Kalibers; die Sortiermaschine fragt nicht.
+        insert into auftrag (weg, station, charge_nr, start_ts, ende_ts, status, kaeufer, sortierschema_id, bemerkung,
+                             kistensystem, soll_kg_pro_kiste, stueck_je_kiste)
         values (case when d.weg = 'maschine' then 'maschine' else 'hand' end::verarbeitungsweg,
                 case when d.weg = 'maschine' then 'sortieren' else 'waschen_sortieren' end::station,
                 d.nr, v_start,
                 v_start + make_interval(mins => (240 + v_n * 14 + floor(v_zufall * 40)::int)),
-                'abgeschlossen', v_kaeufer, v_schema, 'DEMO')
+                'abgeschlossen', v_kaeufer, v_schema, 'DEMO',
+                case when d.weg = 'maschine' then null when v_art = 'kiste' then 'kiste_ab' else 'stueck' end,
+                case when d.weg <> 'maschine' and v_art = 'kiste' then 8 end,
+                case when d.weg <> 'maschine' and v_art = 'kaliber' then greatest(round(d.kg_kiste * 1000 / d.gramm)::int, 1) end)
         returning id into v_auftrag;
         insert into auftrag_teilnehmer (auftrag_id, profil_id)
         select v_auftrag, id from profil order by erstellt_ts limit (2 + (v_lauf % 2))
         on conflict do nothing;
 
-        -- Paletten zählen — mit dem Datum vom Zettel
-        insert into auftrag_palette (auftrag_id, eingangsdatum, ts)
-        select v_auftrag, datum, v_start + make_interval(mins => (10 + row_number() over (order by id) * 12)::int)
-          from demo_pal where id = any(v_pal_ids);
+        -- Paletten zählen — mit dem Datum vom Zettel; beim Waschen + Sortieren
+        -- auch mit dem Gewicht vom Zettel (0060), damit der Palox einen Nenner hat.
+        insert into auftrag_palette (auftrag_id, eingangsdatum, ts, brutto_zettel_kg)
+        select v_auftrag, dp.datum, v_start + make_interval(mins => (10 + row_number() over (order by dp.id) * 12)::int),
+               case when d.weg <> 'maschine' then (select pl.brutto_kg from palette pl where pl.id = dp.id) end
+          from demo_pal dp where dp.id = any(v_pal_ids);
 
         -- Verderb bis heute: Weibull je Sorte plus Sockel, mit Streuung je Lauf
         v_f := 1 - exp(-power(v_tage / d.lambda, d.k));
@@ -308,7 +316,7 @@ begin
           end loop;
           insert into auftrag_gebinde (auftrag_id, kaliber_idx, anzahl)
           select v_auftrag, i - 1, v_kisten[i] from generate_series(1, v_nb) i where v_kisten[i] > 0
-          on conflict (auftrag_id, kaliber_idx) do nothing;
+          on conflict (auftrag_id, kaliber_idx, sortierdatum) do nothing;
           insert into demo_lauf values (v_auftrag, d.nr, d.sorte, v_start, v_x, v_tage, 'kaliber', v_kaeufer, v_baender, d.kg_kiste, v_kisten);
         else
           -- ---- Von Hand: eine Palette gewogen, Ausschuss gewogen, fertige Palette ----
@@ -389,14 +397,18 @@ begin
         while extract(isodow from v_start) >= 6 loop v_start := v_start + interval '1 day'; end loop;
         if v_start > now() - interval '1 day' then v_gewaschen := v_gewaschen || 0; continue; end if;
         v_kisten := l.kisten[v_i];
-        insert into auftrag (weg, station, charge_nr, start_ts, ende_ts, status, kaliber_idx, sortierschema_id, bemerkung)
+        insert into auftrag (weg, station, charge_nr, start_ts, ende_ts, status, kaliber_idx, sortierschema_id, bemerkung,
+                             kistensystem, stueck_je_kiste)
         values ('maschine', 'waschen', l.nr, v_start,
                 v_start + make_interval(mins => 90 + v_kisten * 5 + floor(v_zufall * 30)::int),
-                'abgeschlossen', v_i - 1, (select sortierschema_id from auftrag where id = l.auftrag_id), 'DEMO')
+                'abgeschlossen', v_i - 1, (select sortierschema_id from auftrag where id = l.auftrag_id), 'DEMO',
+                'stueck', greatest(round(l.kg_je_kiste * 1000 / (select gramm from demo_charge where nr = l.nr))::int, 1))
         returning id into v_neu;
         insert into auftrag_teilnehmer (auftrag_id, profil_id)
         select v_neu, id from profil order by erstellt_ts limit 2 on conflict do nothing;
-        insert into auftrag_gebinde (auftrag_id, kaliber_idx, anzahl) values (v_neu, v_i - 1, v_kisten);
+        -- 0060: das Sortierdatum steht auf der Kiste und wird mitgezählt
+        insert into auftrag_gebinde (auftrag_id, kaliber_idx, anzahl, sortierdatum)
+        values (v_neu, v_i - 1, v_kisten, l.start_ts::date);
         -- Schimmel #2: was seit dem Sortieren in der Kiste dazukam. Der Verderb
         -- geht in der Kiste weiter, nach derselben Kurve — bedingt auf das, was
         -- beim Sortieren noch gut war: (F(t_wasch) − F(t_sort)) / (1 − F(t_sort)).
@@ -411,9 +423,10 @@ begin
         insert into auftrag_angabe (auftrag_id, schluessel, wert)
         values (v_neu, 'eine_charge', 'true'), (v_neu, 'sortierdatum', l.start_ts::date::text);
         -- Fertige Palette nach Kaliber: kein Soll, nur das Kistengewicht
-        insert into ausgang_wiegung (auftrag_id, charge_nr, brutto_kg, kisten, gebindeart, ts)
+        insert into ausgang_wiegung (auftrag_id, charge_nr, brutto_kg, kisten, gebindeart, ts, kaliber_idx, kuerbisse_pro_kiste)
         values (v_neu, l.nr, round((32 * l.kg_je_kiste * (0.96 + 0.08 * v_zufall) + 32 * 1.5 + 25) * 2) / 2.0, 32, 'G2',
-                v_start + interval '2 hours');
+                v_start + interval '2 hours', v_i - 1,
+                greatest(round(l.kg_je_kiste * 1000 / (select gramm from demo_charge where nr = l.nr))::int, 1));
         v_gewaschen := v_gewaschen || v_kisten;
       end loop;
       update demo_lauf set kisten = v_gewaschen where auftrag_id = l.auftrag_id;
@@ -448,15 +461,25 @@ begin
           exit when v_start > now() - interval '1 day';
           v_kaeufer := case when v_j % 3 = 0 then (case l.kaeufer when 'coop' then 'migros' when 'migros' then 'coop' when 'rathgeb' then 'biopartner' else 'rathgeb' end) else l.kaeufer end;
           v_schema := case when l.art = 'kiste' then sortierschema_fuer(l.sorte, l.kaeufer, v_start::date, 'kiste') else null end;
-          insert into auftrag (weg, station, charge_nr, ist_fax, start_ts, ende_ts, status, kaeufer, sortierschema_id, bemerkung)
+          -- 0060: die Palettenzahl als Gesamtzahl, die Tage seit dem Waschen, das
+          -- Kistensystem. Jede zweite Fax-Arbeit zählt zusätzlich noch Kisten
+          -- (der Weg vor 0060) — beide Wege müssen dieselbe Masse ergeben.
+          insert into auftrag (weg, station, charge_nr, ist_fax, start_ts, ende_ts, status, kaeufer, sortierschema_id, bemerkung,
+                               kistensystem, soll_kg_pro_kiste, paletten_gesamt, tage_seit_waschen)
           values ('maschine', 'waschen', l.nr, true, v_start,
                   v_start + make_interval(mins => 40 + v_teil * 2 + floor(v_zufall * 25)::int),
-                  'abgeschlossen', v_kaeufer, v_schema, 'DEMO')
+                  'abgeschlossen', v_kaeufer, v_schema, 'DEMO',
+                  case when l.art = 'kiste' then 'kiste_ab' else 'stueck' end,
+                  case when l.art = 'kiste' then 8 end,
+                  ceil(v_teil / 32.0)::int,
+                  case when v_j % 3 = 0 then null else 1 + floor(v_zufall * 3)::int end)
           returning id into v_neu;
           insert into auftrag_teilnehmer (auftrag_id, profil_id)
           select v_neu, id from profil order by erstellt_ts limit 1 on conflict do nothing;
-          insert into auftrag_gebinde (auftrag_id, kaliber_idx, anzahl)
-          values (v_neu, case when l.art = 'kiste' then -1 else v_i - 1 end, v_teil);
+          if v_j % 2 = 1 then
+            insert into auftrag_gebinde (auftrag_id, kaliber_idx, anzahl)
+            values (v_neu, case when l.art = 'kiste' then -1 else v_i - 1 end, v_teil);
+          end if;
           insert into auftrag_angabe (auftrag_id, schluessel, wert) values (v_neu, 'eine_charge', 'true');
           -- Faules: kistenweise gewogen, 1–3 Kisten, Anteil je Sorte mit Streuung.
           -- Jede fünfte Fax-Arbeit hat nichts Faules — auch das ist eine Messung.
@@ -507,9 +530,9 @@ begin
   declare v record; v_prev timestamptz; v_station text := ''; v_delta interval;
   begin
     for v in
-      select id, station::text as station, start_ts, ende_ts from auftrag
+      select id, palox_station(station)::text as station, start_ts, ende_ts from auftrag
        where bemerkung = 'DEMO' and not ist_fax and status = 'abgeschlossen' and abgebrochen_ts is null
-       order by station, start_ts, id
+       order by palox_station(station), start_ts, id
     loop
       if v.station <> v_station then v_station := v.station; v_prev := null; end if;
       if v_prev is not null and v.start_ts < v_prev + interval '20 minutes' then
@@ -535,11 +558,11 @@ begin
   declare v record; v_stand numeric := 0; v_station text := ''; v_geleert boolean; v_i int := 0;
   begin
     for v in
-      select s.id, s.auftrag_id, s.kg, a.station::text as station, a.start_ts, a.ende_ts
+      select s.id, s.auftrag_id, s.kg, palox_station(a.station)::text as station, a.start_ts, a.ende_ts
         from schimmel_messung s
         join auftrag a on a.id = s.auftrag_id
        where a.bemerkung = 'DEMO' and not a.ist_fax and s.palox_stand_kg is null and s.brutto_kg is null
-       order by a.station, a.start_ts, s.id
+       order by palox_station(a.station), a.start_ts, s.id
     loop
       v_i := v_i + 1;
       if v.station <> v_station then v_station := v.station; v_stand := palox_tara_kg(); end if;
@@ -628,12 +651,14 @@ begin
       '[[800,40],[900,90],[1000,120],[1100,100],[1200,50],[1300,10]]'::jsonb);
 
     -- (6) Drei laufende Arbeiten von heute — damit die Masken nicht leer sind
-    insert into auftrag (weg, station, charge_nr, start_ts, status, kaeufer, sortierschema_id, bemerkung)
+    insert into auftrag (weg, station, charge_nr, start_ts, status, kaeufer, sortierschema_id, bemerkung,
+                         kistensystem, soll_kg_pro_kiste)
     values ('hand', 'waschen_sortieren', 1631, now() - interval '2 hours', 'offen', 'coop',
-            sortierschema_fuer('Mieluna', null, current_date, 'kiste'), 'DEMO')
+            sortierschema_fuer('Mieluna', null, current_date, 'kiste'), 'DEMO', 'kiste_ab', 8)
     returning id into v_auftrag;
-    insert into auftrag_palette (auftrag_id, eingangsdatum)
-    select v_auftrag, datum from demo_pal where nr = 1631 and not verarbeitet order by datum desc limit 3;
+    insert into auftrag_palette (auftrag_id, eingangsdatum, brutto_zettel_kg)
+    select v_auftrag, dp.datum, (select pl.brutto_kg from palette pl where pl.id = dp.id)
+      from demo_pal dp where dp.nr = 1631 and not dp.verarbeitet order by dp.datum desc limit 3;
     insert into schimmel_messung (auftrag_id, kg, palox_stand_kg, ts) values (v_auftrag, 0, 45, now() - interval '110 minutes');
 
     insert into auftrag (weg, station, charge_nr, start_ts, status, kaliber_idx, bemerkung)
@@ -642,7 +667,8 @@ begin
      where a.station = 'sortieren' and l.kisten[1] > 0 order by l.start_ts desc limit 1
     returning id into v_auftrag;
     if v_auftrag is not null then
-      insert into auftrag_gebinde (auftrag_id, kaliber_idx, anzahl) values (v_auftrag, 0, 6);
+      update auftrag set kistensystem = 'stueck', stueck_je_kiste = 6 where id = v_auftrag;
+      insert into auftrag_gebinde (auftrag_id, kaliber_idx, anzahl, sortierdatum) values (v_auftrag, 0, 6, current_date - 21);
     end if;
 
     insert into auftrag (weg, station, charge_nr, ist_fax, start_ts, status, kaeufer, bemerkung)
@@ -651,10 +677,26 @@ begin
      where a.station = 'sortieren' order by l.start_ts limit 1
     returning id into v_auftrag;
     if v_auftrag is not null then
-      insert into auftrag_gebinde (auftrag_id, kaliber_idx, anzahl) values (v_auftrag, 1, 42), (v_auftrag, 0, 10);
+      update auftrag set kistensystem = 'stueck', stueck_je_kiste = 6 where id = v_auftrag;
       insert into schimmel_messung (auftrag_id, kg, brutto_kg, kisten, gebindeart, ts)
       values (v_auftrag, 0, 8.5, 1, 'G2', now() - interval '20 minutes');
     end if;
+
+    -- (7) Ein Palox, der zwischendurch geleert wurde, ohne dass jemand abgelesen
+    --     hat: der Stand fällt von 410 auf 130. Die Menge dieser Arbeit ist
+    --     unbekannt (0060) — die Auswertung sagt es, der Arbeiter wird nicht gefragt.
+    insert into auftrag (weg, station, charge_nr, start_ts, ende_ts, status, bemerkung, kistensystem, soll_kg_pro_kiste)
+    values ('hand', 'waschen_sortieren', 1613, (v_anker + 118)::timestamptz + interval '8 hours',
+            (v_anker + 118)::timestamptz + interval '14 hours', 'abgeschlossen', 'DEMO', 'kiste_ab', 8)
+    returning id into v_auftrag;
+    insert into auftrag_palette (auftrag_id, eingangsdatum, brutto_zettel_kg)
+    select v_auftrag, dp.datum, (select pl.brutto_kg from palette pl where pl.id = dp.id)
+      from demo_pal dp where dp.nr = 1613 and not dp.verarbeitet order by dp.datum limit 4;
+    update demo_pal set verarbeitet = true where id in (select id from demo_pal where nr = 1613 and not verarbeitet order by datum limit 4);
+    insert into schimmel_messung (auftrag_id, kg, palox_stand_kg, ts)
+    values (v_auftrag, 0, 410, (v_anker + 118)::timestamptz + interval '8 hours 10 minutes'),
+           (v_auftrag, 0, 130, (v_anker + 118)::timestamptz + interval '13 hours 50 minutes');
+    insert into auftrag_angabe (auftrag_id, schluessel, wert) values (v_auftrag, 'eine_charge', 'true');
 
     raise notice 'Demo: Sonderfälle und laufende Arbeiten angelegt';
   end;

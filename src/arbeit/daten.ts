@@ -12,7 +12,7 @@ export interface AusschussZeile {
   id: number; art: 'zu_klein' | 'zu_gross'; kg: number; ts: string
   gemessen: boolean; brutto_kg: number | null; kisten: number | null
 }
-export interface Palette { id: number; wiegung_id: number | null; eingangsdatum: string | null }
+export interface Palette { id: number; wiegung_id: number | null; eingangsdatum: string | null; brutto_zettel_kg: number | null }
 /** Die Fassung, nach der die Arbeit läuft (sortierschema). */
 export interface Fassung {
   id: number; art: 'kaliber' | 'kiste'; soll_kg_pro_kiste: number | null
@@ -43,9 +43,9 @@ export async function arbeitLaden(auftragId: number): Promise<ArbeitDaten | null
     supabase.from('auftrag').select('*').eq('id', auftragId).maybeSingle(),
     supabase.from('auftrag_teilnehmer').select('profil_id, profil(name)')
       .eq('auftrag_id', auftragId).is('verlassen_ts', null),
-    supabase.from('auftrag_palette').select('id, wiegung_id, eingangsdatum')
+    supabase.from('auftrag_palette').select('id, wiegung_id, eingangsdatum, brutto_zettel_kg')
       .eq('auftrag_id', auftragId).order('ts'),
-    supabase.from('auftrag_gebinde').select('*').eq('auftrag_id', auftragId).order('kaliber_idx'),
+    supabase.from('auftrag_gebinde').select('*').eq('auftrag_id', auftragId).order('kaliber_idx').order('sortierdatum'),
     supabase.from('schimmel_messung')
       .select('id, kg, ts, palox_stand_kg, brutto_kg, kisten, gebindeart, mit_palette, bemerkung')
       .eq('auftrag_id', auftragId).order('ts'),
@@ -95,24 +95,47 @@ export async function arbeitLaden(auftragId: number): Promise<ArbeitDaten | null
 }
 
 /**
- * Was an dieser Station überhaupt anfällt (docs/ABLAUF.md).
+ * Was an dieser Station überhaupt anfällt (docs/ABLAUF.md, 0060).
  *
- * Fax (0051) ist kein Waschgang: keine Paletten, kein Palox, kein zu klein /
- * zu gross — gezählt werden die gemachten Kisten, gewogen wird das Faule.
+ * Zwei Stationen: Sortiermaschine und Waschstrasse. „Waschen + Sortieren" ist
+ * die Waschstrasse mit Sortieren von Hand am Band dahinter — derselbe Palox.
+ *
+ *  Sortieren            Paletten mit Datum, Kisten je Kaliber, Palox (Pflicht)
+ *  Waschen + Sortieren  Paletten mit Datum und Gewicht vom Zettel, Palox (Pflicht),
+ *                       fertige Palette, wenn das Kistensystem rechenbar ist
+ *  Waschen              Kisten je Kaliber mit Sortierdatum, Palox freiwillig,
+ *                       fertige Palette, wenn das Kistensystem rechenbar ist
+ *  Fax                  Faules kistenweise gewogen, Paletten als Gesamtzahl
+ *
+ * Zu klein / zu gross wird nirgends mehr gefragt (0060): der Anteil kommt aus
+ * der Sortier-CSV derselben Charge.
  */
 export function stationsProfil(a: Auftrag) {
   const fax = a.ist_fax
+  const rechenbar = a.kistensystem === 'kiste_ab' || a.kistensystem === 'stueck'
   return {
     istFax: fax,
-    hatPaletten: a.station !== 'waschen',
-    hatKisten: a.station !== 'waschen_sortieren',
-    /** Ohne gezählte Kisten hat die Arbeit keine Menge (Waschen und Fax). */
-    kistenPflicht: a.station === 'waschen',
-    mitWiegen: a.station === 'waschen_sortieren',
-    hatAusschuss: a.weg === 'hand' && !fax,
-    hatAusgang: !fax && (a.station === 'waschen' || a.station === 'waschen_sortieren'),
+    hatPaletten: !fax && a.station !== 'waschen',
+    /** Beim Waschen + Sortieren steht das Eingangsgewicht auf dem Zettel — Pflicht je Palette. */
+    zettelGewichtPflicht: a.station === 'waschen_sortieren',
+    hatKisten: !fax && a.station !== 'waschen_sortieren',
+    /** Ohne gezählte Kisten hat die Arbeit keine Menge (Waschen). */
+    kistenPflicht: !fax && a.station === 'waschen',
+    /** Beim Waschen steht das Sortierdatum auf der Kiste und wird mitgezählt. */
+    kistenMitDatum: !fax && a.station === 'waschen',
+    /** Eine Palette wiegen: überall, wo Paletten gezählt werden. */
+    mitWiegen: !fax && a.station !== 'waschen',
+    hatAusschuss: false,
+    /** Fertige Palette wiegen — nur, wenn das Kistensystem rechenbar ist. */
+    hatAusgang: !fax && a.station !== 'sortieren' && rechenbar,
     hatPalox: !fax,
+    /** Am Sortierband und an der Waschstrasse mit Sortieren ist der Palox Pflicht;
+     *  beim Waschen aus Kisten freiwillig (der Nenner sind die gezählten Kisten). */
+    paloxPflicht: !fax && a.station !== 'waschen',
     hatFaule: fax,
+    /** Fax: die Palettenzahl als Gesamtzahl am Ende. */
+    hatFaxPaletten: fax,
+    kistensystemRechenbar: rechenbar,
   }
 }
 

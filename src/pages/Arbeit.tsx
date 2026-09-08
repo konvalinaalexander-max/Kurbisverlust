@@ -12,12 +12,11 @@ import { arbeitLaden, stationsProfil, uhrzeit, type ArbeitDaten } from '../arbei
 import { Zaehler } from '../arbeit/Zaehler'
 import { PaloxMaske } from '../arbeit/PaloxMaske'
 import { FauleMaske } from '../arbeit/FauleMaske'
-import { AusschussMaske } from '../arbeit/AusschussMaske'
 import { WiegenMaske } from '../arbeit/WiegenMaske'
 import { FertigePaletteMaske } from '../arbeit/FertigePaletteMaske'
 import { Abschluss } from '../arbeit/Abschluss'
 
-type Ansicht = 'liste' | 'zaehler' | 'palox' | 'faule' | 'ausschuss' | 'wiegen' | 'ausgang' | 'abschluss'
+type Ansicht = 'liste' | 'zaehler' | 'palox' | 'faule' | 'wiegen' | 'ausgang' | 'abschluss'
 
 /**
  * Eine Arbeit, aus zwei Blickwinkeln:
@@ -26,7 +25,8 @@ type Ansicht = 'liste' | 'zaehler' | 'palox' | 'faule' | 'ausschuss' | 'wiegen' 
  *    und weiss jederzeit, was erledigt ist und was noch fehlt.
  * Beide können wechseln; die Rolle hängt an der Arbeit (docs/UI-KONZEPT.md).
  * Welche Punkte die Checkliste hat, sagt das Stationsprofil — beim Fax gibt
- * es keinen Palox und keinen Ausschuss, dafür „Faules wiegen" (0051).
+ * es keinen Palox, dafür „Faules wiegen" und die Palettenzahl (0051, 0060).
+ * Zu klein / zu gross gibt es seit 0060 nirgends mehr.
  */
 export default function Arbeit() {
   const { id } = useParams()
@@ -42,6 +42,8 @@ export default function Arbeit() {
   const [fuehrt, setFuehrt] = useState<boolean | null>(null)
   const [ansicht, setAnsicht] = useState<Ansicht | null>(null)
   const [meldung, setMeldung] = useState<string | null>(null)
+  // 0060: das Gewicht vom Zettel wandert vom Zähler in die Wägung
+  const [zettelBrutto, setZettelBrutto] = useState('')
 
   const laden = useCallback(async () => {
     try {
@@ -50,9 +52,9 @@ export default function Arbeit() {
       if (daten && fuehrt === null) {
         const f = istVorarbeiter(auftragId, daten.auftrag.eroeffnet_von, session?.user.id)
         setFuehrt(f)
-        // Frisch eröffnet: als erstes der Palox (AB-02) — wo es einen gibt.
+        // Frisch eröffnet: als erstes der Palox (AB-02) — wo er Pflicht ist.
         const p = stationsProfil(daten.auftrag)
-        setAnsicht(f ? (suche.get('neu') === '1' && p.hatPalox && daten.ablesungen.length === 0 ? 'palox' : 'liste') : 'zaehler')
+        setAnsicht(f ? (suche.get('neu') === '1' && p.paloxPflicht && daten.ablesungen.length === 0 ? 'palox' : 'liste') : 'zaehler')
       }
     } catch (f) { setFehler(fehlerText(f)) } finally { setLaedt(false) }
   }, [auftragId, session?.user.id, fuehrt, suche])
@@ -81,11 +83,6 @@ export default function Arbeit() {
   function rolleWechseln(neu: boolean) {
     fuehrungSetzen(auftragId, neu); setFuehrt(neu); setAnsicht(neu ? 'liste' : 'zaehler')
   }
-  async function angabeSetzen(schluessel: string, wert: string) {
-    const { error } = await supabase.from('auftrag_angabe').insert({ auftrag_id: auftragId, schluessel, wert })
-    if (error) setFehler(fehlerText(error)); else { melden(t('gespeichert')); await laden() }
-  }
-
   const kopf = (
     <div className="karte" style={{ marginTop: '1rem' }}>
       <div className="reihe">
@@ -118,7 +115,8 @@ export default function Arbeit() {
             <dt>{t('abgeschlossenAm')}</dt>
             <dd>{a.ende_ts ? new Date(a.ende_ts).toLocaleString(gebietsschema, { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—'}</dd>
             {p.hatPaletten && <><dt>{t('paletten')}</dt><dd>{d.paletten.length}</dd></>}
-            {p.hatKisten && kistenGezaehlt > 0 && <><dt>{p.istFax ? t('kistenGemacht') : t('kaliberKisten')}</dt><dd>{kistenGezaehlt}</dd></>}
+            {p.hatFaxPaletten && <><dt>{t('palettenGesamt')}</dt><dd>{a.paletten_gesamt ?? '—'}</dd></>}
+            {p.hatKisten && kistenGezaehlt > 0 && <><dt>{t('kaliberKisten')}</dt><dd>{kistenGezaehlt}</dd></>}
             <dt>{t('faule')}</dt><dd>{faulSumme} kg</dd>
           </dl>
         </div>
@@ -158,9 +156,6 @@ export default function Arbeit() {
   if (ansicht === 'faule') {
     return <>{maske(t('faulesWiegen'), <FauleMaske d={d} gesperrt={false} melden={melden} neuLaden={laden} />)}<Bestaetigt text={meldung} /></>
   }
-  if (ansicht === 'ausschuss') {
-    return <>{maske(t('kleinGross'), <AusschussMaske d={d} gesperrt={false} melden={melden} neuLaden={laden} />)}<Bestaetigt text={meldung} /></>
-  }
   if (ansicht === 'ausgang') {
     return <>{maske(t('fertigePalette'), <FertigePaletteMaske d={d} gesperrt={false} melden={melden} neuLaden={laden} />)}<Bestaetigt text={meldung} /></>
   }
@@ -168,7 +163,8 @@ export default function Arbeit() {
     let zettel = ''
     try { zettel = localStorage.getItem(`zettel_${auftragId}`) ?? '' } catch { /* egal */ }
     return maske(t('paletteWiegen'), (
-      <WiegenMaske d={d} zettelDatum={zettel} fertig={async () => { melden(t('paletteGezaehlt')); await laden(); setAnsicht('zaehler') }} />
+      <WiegenMaske d={d} zettelDatum={zettel} zettelBrutto={zettelBrutto}
+                   fertig={async () => { melden(t('paletteGezaehlt')); await laden(); setAnsicht('zaehler') }} />
     ), 'zaehler')
   }
   if (ansicht === 'abschluss') {
@@ -184,7 +180,7 @@ export default function Arbeit() {
             <span className="stand">{taet?.zeichen} {chargeText(d.charge)}</span>
           </div>
         ) : kopf}
-        <Zaehler d={d} gesperrt={false} neuLaden={laden} melden={melden} zumWiegen={() => setAnsicht('wiegen')} />
+        <Zaehler d={d} gesperrt={false} neuLaden={laden} melden={melden} zumWiegen={b => { setZettelBrutto(b); setAnsicht('wiegen') }} />
         {!fuehrt && (
           <p className="rolle-wechsel">
             <button className="blank" style={{ color: 'var(--text-leise)' }} onClick={() => rolleWechseln(true)}>{t('ichFuehre')}</button>
@@ -196,12 +192,11 @@ export default function Arbeit() {
   }
 
   // liste — die Checkliste des Vorarbeiters
-  const klein = d.ausschuss.filter(z => z.art === 'zu_klein').reduce((s, z) => s + z.kg, 0)
-  const gross = d.ausschuss.filter(z => z.art === 'zu_gross').reduce((s, z) => s + z.kg, 0)
   const erste = d.ablesungen[0]
   const zaehlStand = [
     p.hatPaletten ? `${d.paletten.length} ${t('paletten')}` : '',
-    p.hatKisten ? `${kistenGezaehlt} ${p.istFax ? t('kistenGemacht') : t('kaliberKisten')}` : '',
+    p.hatKisten ? `${kistenGezaehlt} ${t('kaliberKisten')}` : '',
+    p.hatFaxPaletten ? `${a.paletten_gesamt ?? 0} ${t('paletten')}` : '',
   ].filter(Boolean).join(' · ')
   const Zustand = ({ art }: { art: 'getan' | 'offen' | 'frei' }) => (
     <span className={`zustand ${art}`} aria-hidden="true">{art === 'getan' ? '✓' : art === 'offen' ? '!' : '·'}</span>
@@ -214,38 +209,17 @@ export default function Arbeit() {
       <div className="check">
         {p.hatPalox && (
           <button id="check-palox" onClick={() => setAnsicht('palox')}>
-            <Zustand art={d.ablesungen.length > 0 ? 'getan' : 'offen'} />
+            <Zustand art={d.ablesungen.length > 0 ? 'getan' : p.paloxPflicht ? 'offen' : 'frei'} />
             <span className="text">
-              <span className="name">{t('paloxBeginn')}</span>
-              <span className="unter">{erste ? `${t('abgelesenUm')} ${uhrzeit(erste.ts, gebietsschema)}` : t('paloxZuBeginnKurz')}</span>
+              <span className="name">{p.paloxPflicht ? t('paloxBeginn') : t('paloxFreiwillig')}</span>
+              <span className="unter">{erste ? `${t('abgelesenUm')} ${uhrzeit(erste.ts, gebietsschema)}` : p.paloxPflicht ? t('paloxZuBeginnKurz') : t('paloxWaschenWarum')}</span>
             </span>
             <span className="pfeil">›</span>
           </button>
         )}
 
-        {p.hatAusschuss && (
-          <div className="zeile" style={{ display: 'block' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '.8rem' }}>
-              <Zustand art={d.angaben['ausschuss_leer'] !== undefined ? 'getan' : 'offen'} />
-              <span className="text">
-                <span className="name">{t('ausschussLeerFrage')}</span>
-                <span className="unter">
-                  {d.angaben['ausschuss_leer'] === undefined ? t('ausschussLeerWarum')
-                    : d.angaben['ausschuss_leer'] === 'true' ? t('ja') : t('nein')}
-                </span>
-              </span>
-            </div>
-            {d.angaben['ausschuss_leer'] === undefined && (
-              <div className="reihe" style={{ marginTop: '.6rem' }}>
-                <button id="leer-ja" className="haupt" style={{ flex: 1, minHeight: 50 }} onClick={() => void angabeSetzen('ausschuss_leer', 'true')}>{t('ja')}</button>
-                <button id="leer-nein" style={{ flex: 1, minHeight: 50 }} onClick={() => void angabeSetzen('ausschuss_leer', 'false')}>{t('nein')}</button>
-              </div>
-            )}
-          </div>
-        )}
-
         <button id="check-zaehlen" onClick={() => setAnsicht('zaehler')}>
-          <Zustand art={d.paletten.length + kistenGezaehlt > 0 ? 'getan' : 'offen'} />
+          <Zustand art={d.paletten.length + kistenGezaehlt + (a.paletten_gesamt ?? 0) > 0 ? 'getan' : 'offen'} />
           <span className="text">
             <span className="name">{t('zaehlen')}</span>
             <span className="unter">{zaehlStand}</span>
@@ -264,23 +238,12 @@ export default function Arbeit() {
           </button>
         )}
 
-        {p.hatAusschuss && (
-          <button id="check-ausschuss" onClick={() => setAnsicht('ausschuss')}>
-            <Zustand art={d.ausschuss.length > 0 ? 'getan' : 'frei'} />
-            <span className="text">
-              <span className="name">{t('ausschussWiegenSchritt')}</span>
-              <span className="unter">{d.ausschuss.length > 0 ? `${t('zuKlein')} ${klein} kg · ${t('zuGross')} ${gross} kg` : t('freiwilligBisAbschluss')}</span>
-            </span>
-            <span className="pfeil">›</span>
-          </button>
-        )}
-
         {p.hatAusgang && (
           <button id="check-ausgang" onClick={() => setAnsicht('ausgang')}>
             <Zustand art={d.nAusgang > 0 ? 'getan' : 'frei'} />
             <span className="text">
               <span className="name">{t('fertigePaletteSchritt')}</span>
-              <span className="unter">{d.nAusgang > 0 ? `${d.nAusgang} ${t('gewogen')}` : t('freiwillig')}</span>
+              <span className="unter">{d.nAusgang > 0 ? `${d.nAusgang} ${t('gewogen')}` : t('fertigePaletteWarum')}</span>
             </span>
             <span className="pfeil">›</span>
           </button>

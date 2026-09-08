@@ -34,12 +34,24 @@ export interface Auftrag {
   kaliber_von_g: number | null; kaliber_bis_g: number | null
   /** Fax-Arbeit: eigener Waschgang nach Bestellung (AB-08). */
   ist_fax: boolean
+  /** 0060: wie die Kisten nach dem Waschen gefüllt werden — nur die ersten
+   *  beiden Systeme sind rechenbar; bei „anderes" wird keine Palette gewogen. */
+  kistensystem: Kistensystem | null
+  soll_kg_pro_kiste: number | null
+  stueck_je_kiste: number | null
+  /** Fax (0060): Paletten als Gesamtzahl, Tage seit dem Waschen (freiwillig). */
+  paletten_gesamt: number | null
+  tage_seit_waschen: number | null
 }
 
+export type Kistensystem = 'kiste_ab' | 'stueck' | 'anderes'
+
 /** Gezählte Kaliber-Kisten je Arbeit und Kaliber. Beim Sortieren die
- *  gefüllten, beim Waschen die geleerten. */
+ *  gefüllten, beim Waschen die geleerten — dort je Sortierdatum auf der Kiste
+ *  (0060); datum_fehlt heisst: gefragt, keins auf der Kiste. */
 export interface AuftragGebinde {
   id: number; auftrag_id: number; kaliber_idx: number; anzahl: number
+  sortierdatum: string | null; datum_fehlt: boolean
 }
 
 export interface Kaeufer { code: string; name: string; aktiv: boolean }

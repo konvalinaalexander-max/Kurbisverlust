@@ -273,16 +273,30 @@ begin
   end loop;
 
   -- ---- Beide Portionen kommen vor: beobachtet und projiziert ---------
-  -- 1613 ist sortiert *und* gewaschen, also den ganzen Weg 1 durch. Erst
-  -- damit gilt sie als draussen — vor 0024 reichte dafür das Sortieren, und
-  -- die Ware verdunstete in der Rechnung nicht mehr weiter, obwohl sie noch
-  -- wochenlang in der Halle stand.
+  -- 0060: Was ausgelagert ist, sagt der Lieferschein — nicht eine gezählte
+  -- Arbeit. 1613 ist sortiert und gewaschen; solange nichts geliefert ist,
+  -- liegt sie rechnerisch im Haus. Erst eine Lieferung teilt sie auf.
+  assert (select count(*) from v_hochrechnung
+           where charge_nr = 1613 and portion = 'ausgelagert') = 0,
+    'Ohne Lieferung gibt es keine ausgelagerte Portion — gezählte Arbeiten sind keine Mengen (0060)';
+  insert into lieferung (datum, charge_nr, sorte, kg, ziel, bemerkung)
+  values (date '2026-12-30', 1613, 'Tiana', 4000, 'verkauf', 'PRUEF-KASKADE');
+  perform auswertung_aktualisieren();
   assert (select count(*) from v_hochrechnung
            where charge_nr = 1613 and portion = 'ausgelagert') > 0,
-    'Die vollständig verarbeitete Charge muss als beobachtet erscheinen';
-  assert (select alter_ausgelagert from v_hochrechnung_basis where charge_nr = 1613)
-       > (select lagertage from v_auftrag_masse where auftrag_id = 900),
-    'Das Endalter muss beim Waschen liegen, nicht beim Sortieren';
+    'Die gelieferte Charge muss eine ausgelagerte Portion haben';
+  -- Das Alter am Liefertag: 30.12. minus die Eingangstage (1.–5.9., Mittel 3.9.) = 118 Tage
+  select alter_ausgelagert into v from v_hochrechnung_basis where charge_nr = 1613;
+  assert v between 116 and 120,
+    format('Das Alter des Ausgelagerten ist das Alter am Liefertag (~118), ist %s', v);
+  -- Hinter 4000 kg Lieferung steckt mehr Eingang als 4000 kg — und weniger als die ganze Charge.
+  select ausgelagert_kg into v from v_hochrechnung_basis where charge_nr = 1613;
+  assert v > 4000 and v < 8650,
+    format('Das Ausgelagerte ist die Eingangsmasse hinter der Lieferung (4000 < x < 8650), ist %s', v);
+  assert abs((select lager_kg + ausgelagert_kg from v_hochrechnung_basis where charge_nr = 1613) - 8650) < 0.05,
+    'Im Lager = Eingang − Ausgelagert';
+  assert (select geliefert_kg from v_hochrechnung_basis where charge_nr = 1613) = 4000,
+    'Die gelieferte Masse steht als solche da';
   assert (select count(*) from v_hochrechnung
            where charge_nr = 1614 and portion = 'lager') > 0,
     'Die noch eingelagerte Charge muss projiziert werden';
@@ -934,21 +948,50 @@ begin
   assert (select kg from v_schimmel_menge where auftrag_id = (select id from auftrag where bemerkung = 'PRUEFUNG' and station = 'waschen')) = 120,
     'Die Schimmelmenge muss aus dem Stand abgeleitet sein (mit Tara)';
 
-  -- Eine Ablesung auf der Hand-Linie darf den Stand der Wasch-Station nicht
-  -- verschieben: 30 kg auf der Hand-Waage sind keine Differenz zu 120 kg auf
-  -- der Wasch-Waage.
+  -- 0060: Zwei Stationen — Sortiermaschine und Waschstrasse. „Waschen +
+  -- Sortieren" ist die Waschstrasse mit Sortieren am Band: derselbe Palox.
+  -- 165 auf der Wasch-Waage, dann 195 von der Hand-Sortierung = 30 kg dazu.
   insert into auftrag (id, weg, station, charge_nr, start_ts, ende_ts, status)
   values (2100, 'hand', 'waschen_sortieren', 1613,
           now() - interval '2 hours', now(), 'abgeschlossen');
   insert into schimmel_messung (auftrag_id, kg, palox_stand_kg)
-  values (2100, 30, 75);
-  assert palox_letzter_stand('waschen') = 165,
-    'Der Hand-Palox hat den Stand der Wasch-Station verschoben — je Station!';
+  values (2100, 30, 195);
+  assert palox_letzter_stand('waschen') = 195 and palox_letzter_stand('waschen_sortieren') = 195,
+    'Waschen und Waschen + Sortieren teilen sich den Palox der Waschstrasse (0060)';
+  assert palox_letzter_stand('sortieren') is null,
+    'Die Sortiermaschine hat ihren eigenen Palox';
   assert (select differenz from v_palox_stand where auftrag_id = 2100) = 30,
-    'Die erste Ablesung einer Station muss selbst die Menge sein — ohne Behälter';
+    'Die Differenz läuft über beide Stationsnamen der Waschstrasse hinweg (195 − 165)';
 
-  -- Geleert und über den alten Stand hinaus neu befüllt: die Zahlenreihe
-  -- sieht harmlos aus (75 → 90), nur das Häkchen des Arbeiters weiss es.
+  -- Der Stand fällt (195 → 90): zwischendurch geleert, ohne Ablesung davor.
+  -- Der Arbeiter wird nicht gefragt; die Menge dieser Ablesung ist unbekannt,
+  -- die Arbeit hat damit keine bekannte Schimmelmenge.
+  insert into schimmel_messung (auftrag_id, kg, palox_stand_kg)
+  values (2100, 0, 90);
+  select differenz into v_diff from v_palox_stand
+   where auftrag_id = 2100 order by ts desc, id desc limit 1;
+  assert v_diff is null,
+    format('Ein gefallener Stand ergibt eine unbekannte Menge, nicht %s (0060)', v_diff);
+  assert (select zwischendurch_geleert from v_palox_stand
+           where auftrag_id = 2100 order by ts desc, id desc limit 1),
+    'Ein gefallener Stand heisst: zwischendurch geleert';
+  assert not exists (select 1 from v_schimmel_menge where auftrag_id = 2100),
+    'Eine Arbeit mit unbekannter Ablesung hat keine Schimmelmenge — unbekannt, nicht 0';
+  assert exists (select 1 from v_plausibilitaet where art = 'Palox geleert' and auftrag_id = 2100),
+    'Der gefallene Stand steht als Hinweis in der Plausibilität';
+  -- Danach zählt es wieder: 90 → 130 sind 40 kg (die Arbeit bleibt trotzdem unbekannt)
+  insert into schimmel_messung (auftrag_id, kg, palox_stand_kg)
+  values (2100, 40, 130);
+  assert (select differenz from v_palox_stand where auftrag_id = 2100 and palox_stand_kg = 130) = 40,
+    'Nach dem gefallenen Stand zählt die Differenz wieder';
+  assert not exists (select 1 from v_schimmel_menge where auftrag_id = 2100),
+    'Ein unbekanntes Stück macht die ganze Arbeit unbekannt';
+  -- Beide Ablesungen weg (90 und 130): die Menge ist wieder bekannt.
+  delete from schimmel_messung where auftrag_id = 2100 and palox_stand_kg in (90, 130);
+  assert (select kg from v_schimmel_menge where auftrag_id = 2100) = 30,
+    'Ohne die gefallene Ablesung ist die Menge wieder bekannt (30 kg)';
+
+  -- Geleert gemeldet (das alte Häkchen): der Stand ohne Behälter gilt als Menge.
   insert into schimmel_messung (auftrag_id, kg, palox_stand_kg, palox_geleert)
   values (2100, 45, 90, true);
   select differenz into v_diff from v_palox_stand
@@ -990,9 +1033,9 @@ begin
   -- 0028/0029: Der Warenausgang schliesst die Bilanz. Ohne Lieferungen muss
   -- die Ansicht das sagen, statt eine Lücke auszuweisen, die nichts bedeutet.
   select * into v from v_saisonbilanz;
-  assert v.n_lieferungen = 0, 'Die Fixtur sollte noch keine Lieferungen haben';
-  assert v.befund like '%Kein Warenausgang%',
-    'Ohne Lieferungen muss die Bilanz sagen, dass sie nichts prüfen kann';
+  assert v.n_lieferungen = 1, 'Die Fixtur hat genau eine Lieferung (aus dem Kaskaden-Block)';
+  assert v.befund not like '%Kein Warenausgang%',
+    'Mit einer Lieferung darf die Bilanz nicht „kein Warenausgang" sagen';
   v_vorher := v.ausgang_kg;
 
   -- Eine Lieferung in Kilo
@@ -1003,7 +1046,7 @@ begin
   values (current_date, 'Tiana', 100, 'verkauf');
 
   select * into v from v_saisonbilanz;
-  assert v.n_lieferungen = 2, 'Beide Lieferungen müssen in der Bilanz stehen';
+  assert v.n_lieferungen = 3, 'Beide neuen Lieferungen müssen in der Bilanz stehen';
   assert v.ausgang_kg > v_vorher + 4999,
     format('Der Ausgang ist nur um %s kg gewachsen', round(v.ausgang_kg - v_vorher));
 
@@ -1020,7 +1063,7 @@ begin
   assert (select buch from ausgang_ziel where code = 'tierfutter') = 'marge',
     'Tierfutter ist kein physischer Verlust — es hat einen anderen Kanal';
 
-  delete from lieferung;
+  delete from lieferung where bemerkung is distinct from 'PRUEF-KASKADE';
   raise notice 'OK  Warenausgang (Kilo und Kisten, Ziel bestimmt das Buch)';
 end $$;
 
@@ -1085,47 +1128,49 @@ begin
   delete from auftrag where id = 2200;
   perform auswertung_aktualisieren();
 
-  -- (c) Der Restbestand ist die Masse nach Verdunstung und Verderb — ohne die
-  --     Aufteilung in zu klein und zu gross, die erst beim Verarbeiten kommt.
+  -- (c) Der Restbestand ist die verkaufsfähige Masse im Lager (0060): nach
+  --     Verdunstung, Verderb, zu klein, zu gross und Fax — so schliesst die
+  --     Bilanz Eingang = Verlust + Kanal + verkauft + Rest.
   select restbestand_modell_kg into v_rest from v_saisonbilanz;
-  select sum(m2) into v_m2 from v_kaskade where portion = 'lager';
+  select sum(verkaufsfaehig_kg) into v_m2 from v_kaskade where portion = 'lager';
   assert abs(v_rest - v_m2) < 0.5,
-    format('Restbestand %s kg, m2 im Lager %s kg — die Aufteilung wurde zu früh abgezogen',
+    format('Restbestand %s kg, verkaufsfähig im Lager %s kg — die Bilanz und die Kaskade widersprechen sich',
            round(v_rest), round(v_m2));
 
-  -- (d) Die Kistenzahl der Überfüllung folgt der Einstellung, nicht einer
-  --     Zahl im Code. Bei doppeltem Soll halbiert sich die Kistenzahl.
+  -- (d) 0060: Die Kistenzahl der Überfüllung folgt der *verkauften* Masse,
+  --     nicht einer Einstellung und nicht gezählten Arbeiten. Mehr verkauft,
+  --     mehr Kisten, mehr verschenkt.
   select kg into v_vorher from v_marge_buch where posten like '%berf%';
-  update einstellung set wert = '16'::jsonb where schluessel = 'soll_kg_pro_kiste';
-  select kg into v_nachher from v_marge_buch where posten like '%berf%';
-  update einstellung set wert = '8'::jsonb where schluessel = 'soll_kg_pro_kiste';
+  insert into lieferung (datum, charge_nr, sorte, kg, ziel, bemerkung)
+  values (current_date, 1613, 'Tiana', 10000, 'verkauf', 'PRUEF-KETTE');
+  select kg, erlaeuterung into v_nachher, v_text from v_marge_buch where posten like '%berf%';
+  delete from lieferung where bemerkung = 'PRUEF-KETTE';
   if v_vorher is not null and v_vorher <> 0 then
-    -- Der Überschuss je Kiste ändert sich mit dem Soll (weniger über 16 als
-    -- über 8) — geprüft wird nur, dass sich überhaupt etwas ändert und die
-    -- Richtung stimmt.
-    assert v_nachher < v_vorher,
-      format('Überfüllung reagiert nicht auf die Einstellung (%s → %s)', v_vorher, v_nachher);
+    assert v_nachher > v_vorher,
+      format('Die Überfüllung muss mit der verkauften Masse wachsen (%s → %s)', v_vorher, v_nachher);
+    assert v_text like '%verkaufter Ware%',
+      format('Der Rechenweg muss die verkaufte Masse nennen: %s', v_text);
   end if;
 
-  -- (e) Und das Kistenmass der Sorte schlägt die Einstellung (0040). Eine
-  --     Kisten-Fassung mit doppeltem Soll für eine Sorte muss die Kistenzahl
-  --     drücken, und der Rechenweg muss sagen, dass sie aus dem Schema kam.
-  select sorte into v_sorte from v_kaskade where verkaufsfaehig_kg > 0 limit 1;
-  if v_sorte is not null then
+  -- (e) 0060: Das Sollgewicht steht an der Arbeit (Kistensystem „Kiste ab
+  --     x kg"). Ein höheres Soll an der Arbeit mit der gewogenen Palette
+  --     drückt den Überschuss je Kiste — und damit die Überfüllung.
+  if exists (select 1 from auftrag where id = 970) then
     select kg into v_vorher from v_marge_buch where posten like '%berf%';
-    insert into sortierschema (sorte, kaeufer, gilt_ab, art, soll_kg_pro_kiste, bemerkung)
-      values (v_sorte, null, current_date - 1, 'kiste', 16, 'PRUEFUNG');
-    select kg, erlaeuterung into v_nachher, v_text from v_marge_buch where posten like '%berf%';
-    delete from sortierschema where bemerkung = 'PRUEFUNG';
+    update auftrag set kistensystem = 'kiste_ab', soll_kg_pro_kiste = 16 where id = 970;
+    select kg into v_nachher from v_marge_buch where posten like '%berf%';
+    assert (select soll_kg_pro_kiste from v_ausgang_kennzahl where auftrag_id = 970) = 16,
+      'Das Soll der Arbeit muss die Fassung schlagen';
+    update auftrag set kistensystem = null, soll_kg_pro_kiste = null where id = 970;
     if v_vorher is not null and v_vorher <> 0 then
       assert v_nachher < v_vorher,
-        format('Kistenmass der Sorte greift nicht (%s → %s)', v_vorher, v_nachher);
-      assert v_text not like '%: 0 von %',
-        format('Rechenweg meldet keine Charge aus dem Schema: %s', v_text);
+        format('Das Soll an der Arbeit greift nicht (%s → %s)', v_vorher, v_nachher);
     end if;
+    assert (select soll_kg_pro_kiste from v_ausgang_kennzahl where auftrag_id = 970) = 8,
+      'Ohne Kistensystem an der Arbeit gilt wieder die Fassung (8 kg)';
   end if;
 
-  raise notice 'OK  Kette: erfasst = angekommen + gemeldet, Restbestand = m2, Einstellung und Kistenmass greifen';
+  raise notice 'OK  Kette: erfasst = angekommen + gemeldet, Restbestand = verkaufsfähig im Lager, Einstellung und Kistenmass greifen';
 end $$;
 
 -- Ein Koeffizient ohne einzige Messung ist unbekannt, nicht 0. Geprüft an
@@ -1490,6 +1535,7 @@ begin
   refresh materialized view public.mv_schimmel_punkte;
   refresh materialized view public.mv_schimmel_modell;
   refresh materialized view public.mv_kaskade;
+  refresh materialized view public.mv_hochrechnung;
 
   select count(*) into v_n from public.v_verlust_ranking;
   assert v_n > 0, 'Das Ranking muss auch ohne Suchpfad Zeilen liefern';
@@ -1955,9 +2001,12 @@ begin
     'Jede Kohorte rechnet mit ihrem eigenen Alter';
   assert (select alter_lager_bis - alter_lager_von from v_hochrechnung_basis where charge_nr = 1637) = 2,
     'Die Spanne der liegenden Paletten ist zwei Tage';
-  assert (select n_rest_paletten from v_hochrechnung_basis where charge_nr = 1637) = 7, 'Sieben Paletten liegen noch';
-  assert abs((select anteil from v_kohorte_anteil where charge_nr = 1637 and eingangsdatum = current_date - 60) - 3.0 / 7) < 0.001,
-    'Die älteste Kohorte trägt 3/7 des Bestands';
+  -- 0060: Ohne Lieferung liegt rechnerisch alles — die zwei gezählten Paletten
+  -- sind eine Beobachtung, keine Menge; der Anteil einer Kohorte ist ihr Eingangsanteil.
+  assert (select n_rest_paletten from v_hochrechnung_basis where charge_nr = 1637) = 9,
+    'Ohne Lieferung liegen rechnerisch alle neun Paletten (0060)';
+  assert abs((select anteil from v_kohorte_anteil where charge_nr = 1637 and eingangsdatum = current_date - 60) - 3.0 / 9) < 0.001,
+    'Die älteste Kohorte trägt 3/9 — ihren Anteil am Eingang (0060)';
   assert (select n_kohorten from v_naechste_charge where charge_nr = 1637) = 3, 'Was-kostet-Warten rechnet je Kohorte';
   assert (select alter_bis - alter_von from v_naechste_charge where charge_nr = 1637) = 2, 'und zeigt die Spanne';
 
@@ -1999,6 +2048,9 @@ begin
   exception when raise_exception then null;
   end;
 
+  -- 0060: Eine Lieferung teilt die Charge in ausgelagert und liegend
+  insert into lieferung (datum, charge_nr, sorte, kg, ziel, bemerkung)
+  values ((v_start + interval '25 days')::date, 1637, 'Amoro', 1000, 'verkauf', 'PRUEF-0051');
   perform auswertung_aktualisieren();
   assert (select eingang_netto_kg from v_auftrag_masse where auftrag_id = v_fax) = 340,
     'Die Fax-Masse ist 40 Kisten × 8.5 kg';
@@ -2036,8 +2088,9 @@ begin
       format('Charge %s / %s / %s: mit Fax teilen die Ströme die Portion nicht auf', r.charge_nr, r.portion, r.kohorte);
   end loop;
   assert not exists (select 1 from v_kaskade where verkaufsfaehig_kg < -0.01), 'Verkaufsfähig bleibt ≥ 0';
-  assert (select kg from v_hochrechnung where charge_nr = 1637 and portion = 'ausgelagert' and strom = 'Verkaufsfähig')
-       < (select basis_kg from v_hochrechnung where charge_nr = 1637 and portion = 'ausgelagert' and strom = 'Verkaufsfähig'),
+  -- 0060: je Eingangstag eine ausgelagerte Portion, darum die Summe
+  assert (select sum(kg) from v_hochrechnung where charge_nr = 1637 and portion = 'ausgelagert' and strom = 'Verkaufsfähig')
+       < (select sum(basis_kg) from v_hochrechnung where charge_nr = 1637 and portion = 'ausgelagert' and strom = 'Verkaufsfähig'),
     'Das Faule beim Abpacken mindert die verkaufsfähige Masse';
 
   -- Ein unplausibler Fax-Anteil (Tippfehler) fällt auf, ohne die Rechnung zu treffen
@@ -2527,7 +2580,8 @@ begin
       'v_durchsatz','v_ueberfuellung_kaeufer','v_datenqualitaet','v_saisonverlauf','v_koeff_gebinde',
       'v_charge_kohorte','v_fax_beobachtung','v_ausschuss_beobachtung','v_lieferung_masse',
       'v_verlust_ranking','v_kaskade','v_auftrag_masse','v_schimmel_beobachtung',
-      'v_ausgang_kennzahl','v_ausgang_lage','v_ausgang_pruef','v_kohorte_anteil','v_palox_stand']
+      'v_ausgang_kennzahl','v_ausgang_lage','v_ausgang_pruef','v_kohorte_anteil','v_palox_stand',
+      'v_lieferung_kohorte','v_koeff_palette_netto','v_kontrolle_vorschlag','v_kaskade_basis']
   loop
     begin
       execute format('select count(*) from (select * from %I) q', v) into v_n;
@@ -2540,3 +2594,151 @@ begin
 end $$;
 
 select '——— 0059 Keine harten Casts geprüft ———' as ergebnis;
+
+-- =====================================================================
+-- 0060 — Punktuell erfasst, vollständig gerechnet
+-- =====================================================================
+-- Die Halle wird punktuell erfasst; vollständig sind Eingang und Ausgang.
+-- Geprüft: Zettelgewicht als Nenner, Fax aus Paletten, Sortierdatum je Kiste,
+-- Kistensystem statt Käufer, Lieferungen ohne Charge je Sorte verteilt, die
+-- Vorschläge für die Lagerkontrolle, und der Chargenfilter der Bereiche.
+do $$
+declare v_ws bigint; v_fax bigint; v_wa bigint; v numeric; v2 numeric; v_n int; v_id bigint; r record;
+begin
+  perform set_config('request.jwt.claim.sub', '11111111-1111-1111-1111-111111111111', true);
+
+  -- ---- Waschen + Sortieren: das Gewicht vom Zettel ist der Nenner ----------
+  insert into auftrag (weg, station, charge_nr, start_ts, ende_ts, status, eroeffnet_von,
+                       kistensystem, soll_kg_pro_kiste)
+  values ('hand', 'waschen_sortieren', 1613, timestamptz '2027-01-20 08:00+01', timestamptz '2027-01-20 14:00+01',
+          'abgeschlossen', '11111111-1111-1111-1111-111111111111', 'kiste_ab', 8)
+  returning id into v_ws;
+  -- Zwei Paletten mit Zettel: eine trifft eine Palette im Wareneingang (950 → 865 netto),
+  -- eine nicht (930 → mittlere Tara der Charge: 85 kg → 845)
+  insert into auftrag_palette (auftrag_id, eingangsdatum, brutto_zettel_kg)
+  values (v_ws, date '2026-09-01', 950), (v_ws, date '2026-09-01', 930);
+  perform auswertung_aktualisieren();
+  select netto_kg into v from v_auftrag_palette_masse where auftrag_id = v_ws and netto_kg = 865;
+  assert v = 865, 'Das Zettelgewicht 950 findet die Palette im Wareneingang (Netto 865)';
+  assert (select masse_quelle from v_auftrag_palette_masse where auftrag_id = v_ws order by id limit 1) = 'zettel',
+    'Die Quelle heisst „zettel", wenn die Palette gefunden wurde';
+  assert (select netto_kg from v_auftrag_palette_masse where auftrag_id = v_ws order by id desc limit 1) = 845,
+    'Ohne Treffer gilt Brutto minus mittlere Tara der Charge (930 − 85 = 845)';
+  assert (select masse_quelle from v_auftrag_palette_masse where auftrag_id = v_ws order by id desc limit 1) = 'zettel-charge-tara',
+    'Die Quelle sagt, dass die Tara geschätzt ist';
+  assert (select eingang_netto_kg from v_auftrag_masse where auftrag_id = v_ws) = 865 + 845,
+    'Die Masse der Arbeit ist die Summe der Zettel-Nettos';
+  assert exists (select 1 from v_plausibilitaet where art = 'Zettelgewicht' and auftrag_id = v_ws),
+    'Ein Zettelgewicht ohne Palette im Wareneingang fällt auf';
+
+  -- ---- Fertige Palette: Soll aus der Arbeit, nicht aus einer Fassung ---------
+  insert into ausgang_wiegung (auftrag_id, charge_nr, brutto_kg, kisten, gebindeart)
+  values (v_ws, 1613, 32 * 8.5 + 32 * 1.5 + 25, 32, 'Holzkiste');
+  assert (select soll_kg_pro_kiste from v_ausgang_kennzahl where auftrag_id = v_ws) = 8
+     and (select kistensystem from v_ausgang_kennzahl where auftrag_id = v_ws) = 'kiste_ab'
+     and (select ueberfuellung_je_kiste from v_ausgang_kennzahl where auftrag_id = v_ws) = 0.5,
+    'Kiste ab 8 kg: 8.5 kg je Kiste sind 0.5 kg Überfüllung';
+
+  -- ---- Fax aus der Palettenzahl: Paletten × gemessene Palettenmasse ----------
+  insert into auftrag (weg, station, charge_nr, ist_fax, start_ts, ende_ts, status, eroeffnet_von,
+                       kistensystem, soll_kg_pro_kiste, paletten_gesamt, tage_seit_waschen)
+  values ('maschine', 'waschen', 1613, true, timestamptz '2027-01-22 08:00+01', timestamptz '2027-01-22 10:00+01',
+          'abgeschlossen', '11111111-1111-1111-1111-111111111111', 'kiste_ab', 8, 3, 2)
+  returning id into v_fax;
+  insert into schimmel_messung (auftrag_id, kg, brutto_kg, kisten, gebindeart) values (v_fax, 0, 7.5, 1, 'Holzkiste');
+  perform auswertung_aktualisieren();
+  select netto_kg into v from v_koeff_palette_netto where sorte = 'Tiana' and kistensystem = 'kiste_ab';
+  assert v is not null and v > 0, 'Die Palettenmasse je Sorte und Kistensystem ist gemessen';
+  assert (select masse_quelle from v_auftrag_masse where auftrag_id = v_fax) = 'fax_paletten',
+    'Ohne gezählte Kisten kommt die Fax-Masse aus den Paletten';
+  assert abs((select eingang_netto_kg from v_auftrag_masse where auftrag_id = v_fax) - 3 * v) < 0.05,
+    'Fax-Masse = 3 Paletten × Palettenmasse';
+  select * into r from v_fax_beobachtung where auftrag_id = v_fax;
+  assert r.paletten_gesamt = 3 and r.tage_seit_waschen = 2 and r.kistensystem = 'kiste_ab' and r.faul_kg = 6,
+    'Die Fax-Beobachtung trägt Paletten, Tage seit dem Waschen und Kistensystem';
+
+  -- ---- Waschen: Sortierdatum je Kiste, „kein Datum" ist eine Antwort --------
+  insert into auftrag (weg, station, charge_nr, start_ts, ende_ts, status, eroeffnet_von, kaliber_idx,
+                       kistensystem, stueck_je_kiste)
+  values ('maschine', 'waschen', 1613, timestamptz '2027-01-23 08:00+01', timestamptz '2027-01-23 11:00+01',
+          'abgeschlossen', '11111111-1111-1111-1111-111111111111', 0, 'stueck', 6)
+  returning id into v_wa;
+  insert into auftrag_gebinde (auftrag_id, kaliber_idx, anzahl, sortierdatum) values (v_wa, 0, 4, date '2026-11-15');
+  insert into auftrag_gebinde (auftrag_id, kaliber_idx, anzahl, sortierdatum) values (v_wa, 0, 3, date '2026-11-20');
+  insert into auftrag_gebinde (auftrag_id, kaliber_idx, anzahl, datum_fehlt) values (v_wa, 0, 2, true);
+  -- Derselbe Zähler nochmals (Upsert-Schlüssel mit NULL-Datum) muss abgewiesen werden
+  begin
+    insert into auftrag_gebinde (auftrag_id, kaliber_idx, anzahl, datum_fehlt) values (v_wa, 0, 5, true);
+    assert false, 'Zwei Zähler ohne Datum für dasselbe Kaliber darf es nicht geben';
+  exception when unique_violation then null;
+  end;
+  assert (select anzahl from v_auftrag_gebinde_masse where auftrag_id = v_wa and kaliber_idx = 0) = 9,
+    'Die Kisten je Kaliber werden über die Sortierdaten summiert (4 + 3 + 2)';
+  assert (select wasch_kisten_mit_sortierdatum from v_datenqualitaet) >= 9
+     and (select arbeiten_mit_kistensystem from v_datenqualitaet) >= 3,
+    'Die Datenqualität zählt Sortierdaten und Kistensysteme';
+
+  -- ---- Stück-Kisten: Erwartung aus der CSV, keine Überfüllung ----------------
+  -- 6 Stück je Kiste im Kaliber 0: die App zeigt, was eine solche Kiste laut
+  -- Sortier-CSV wiegen müsste — eine Information, keine verschenkte Marge.
+  insert into ausgang_wiegung (auftrag_id, charge_nr, brutto_kg, kisten, gebindeart, kaliber_idx, kuerbisse_pro_kiste)
+  values (v_wa, 1613, 10 * 5.2 + 10 * 1.5 + 25, 10, 'Holzkiste', 0, 6);
+  select sum(sg.anzahl::bigint * sg.gewicht_g)::numeric / sum(sg.anzahl) into v
+    from sortier_gewicht sg join sortier_lauf l on l.id = sg.lauf_id join charge c on c.nr = l.charge_nr
+   where c.sorte = 'Tiana' and sg.klasse = 'kaliber' and sg.kaliber_idx = 0;
+  select * into r from v_ausgang_kennzahl where auftrag_id = v_wa;
+  assert r.kistensystem = 'stueck' and r.stueck_je_kiste = 6 and r.ueberfuellung_je_kiste is null,
+    'Bei Stück-Kisten gibt es kein Soll und keine Überfüllung';
+  assert r.band_mittel_g is not null and abs(r.erwartet_kg_pro_kiste - 6 * v / 1000) < 0.002,
+    format('Die Erwartung je Kiste ist Stück × Bandmittel aus der CSV (%s ≠ 6 × %s g)', r.erwartet_kg_pro_kiste, round(v));
+  assert abs(r.abweichung_je_kiste - (r.kg_pro_kiste - r.erwartet_kg_pro_kiste)) < 0.002,
+    'Die Abweichung je Kiste ist gewogen minus erwartet';
+
+  -- ---- Lieferung ohne Charge: auf die Chargen der Sorte verteilt ------------
+  insert into lieferung (datum, sorte, kg, ziel, bemerkung)
+  values (date '2027-01-25', 'Tiana', 3000, 'verkauf', 'PRUEF-0060');
+  perform auswertung_aktualisieren();
+  select sum(masse_kg) into v from v_lieferung_kohorte where buch = 'verkauf';
+  -- Nur Lieferungen an Chargen mit Wareneingang können zurückgerechnet werden;
+  -- die 1000 kg an 1637 (PRUEF-0051, ohne Eingang) müssen stattdessen auffallen.
+  select sum(masse_kg) into v2 from v_lieferung_masse l where buch = 'verkauf'
+     and (l.charge_nr is null or exists (select 1 from v_kohorte_anteil k where k.charge_nr = l.charge_nr));
+  assert abs(v - v2) < 1, format('Jede verkaufte Lieferung landet bei einer Charge (%s von %s kg)', round(v), round(v2));
+  assert exists (select 1 from v_plausibilitaet where art = 'Lieferung ohne Eingang' and charge_nr = 1637),
+    'Eine Lieferung an eine Charge ohne Wareneingang fällt auf';
+  assert (select count(distinct charge_nr) from v_lieferung_kohorte where buch = 'verkauf') >= 2
+      or (select count(*) from v_charge_rueckgrat where sorte = 'Tiana' and eingang_netto_kg > 0) < 2,
+    'Eine Lieferung ohne Charge verteilt sich auf die Chargen der Sorte';
+  assert (select geliefert_kg from v_hochrechnung_basis where charge_nr = 1613) > 4000,
+    'Die Sorten-Lieferung hebt das Gelieferte der Charge (über die 4000 kg mit Charge)';
+  assert abs((select sum(lager_kg + ausgelagert_kg - eingang_kg - ueberzaehlung_kg) from v_hochrechnung_basis)) < 1,
+    'Je Charge: Lager + Ausgelagert = Eingang + Überzählung';
+  delete from lieferung where bemerkung = 'PRUEF-0060';
+
+  -- ---- Der Chargenfilter der Bereiche ------------------------------------
+  select kg into v from verlust_ranking(null, null, null, 1613) where strom = 'Verdunstung';
+  select kg into v2 from verlust_ranking() where strom = 'Verdunstung';
+  assert v is not null and v > 0 and v < v2,
+    'verlust_ranking je Charge liefert einen Teil des Ganzen';
+  assert (select kg_unten from verlust_ranking(null, null, null, 1613) where strom = 'Verdunstung') is not null,
+    'auch mit Bereich';
+
+  -- ---- Palette kontrollieren: drei Vorschläge, bestandsstärkste zuerst ------
+  assert (select count(*) from v_kontrolle_vorschlag) between 1 and 3, 'Höchstens drei Vorschläge';
+  assert (select n_kontrollen from v_kontrolle_vorschlag order by n_kontrollen limit 1) >= 0, 'Kontrollen gezählt';
+
+  -- ---- Alle neuen Sichten lesbar (select *) --------------------------------
+  perform count(*) from (select * from v_lieferung_kohorte) q;
+  perform count(*) from (select * from v_koeff_palette_netto) q;
+  perform count(*) from (select * from v_kontrolle_vorschlag) q;
+  perform count(*) from (select * from v_kaskade_basis) q;
+  perform count(*) from (select * from v_hochrechnung_basis) q;
+
+  -- Aufräumen
+  delete from auftrag where id in (v_ws, v_fax, v_wa);
+  perform auswertung_aktualisieren();
+  perform set_config('request.jwt.claim.sub', '', true);
+  raise notice 'OK  0060 Punktuell erfasst: Zettel, Fax-Paletten, Sortierdatum, Sorten-Lieferung, Chargenfilter, Vorschläge';
+end $$;
+
+select '——— 0060 Punktuell erfasst geprüft ———' as ergebnis;

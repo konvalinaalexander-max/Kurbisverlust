@@ -137,9 +137,15 @@ with stand as (
          -- Das Alter läuft bis zum *letzten* Schritt. Auf Weg 1 ist das das
          -- Waschen, nicht das Sortieren; was noch wartet, altert bis zum
          -- Stichtag weiter.
-         case when w.weg = 'maschine'
-              then coalesce(w.gewaschen_am, date '2027-03-31')
-              else coalesce(w.verarbeitet_am, date '2027-03-31') end
+         -- Und nie über den Stichtag hinaus: Was nach dem 31.03.2027 noch
+         -- verarbeitet wird, liegt am Stichtag im Lager — die Wahrheit ist der
+         -- Stand am Stichtag, nicht das Ende der Welt. (Vor 0060 fiel das nicht
+         -- auf, weil das Modell die späteren Zählungen kannte; jetzt kennt es
+         -- nur Eingang und Lieferungen bis zum Stichtag, wie im Betrieb.)
+         least(case when w.weg = 'maschine'
+                    then coalesce(w.gewaschen_am, date '2027-03-31')
+                    else coalesce(w.verarbeitet_am, date '2027-03-31') end,
+               date '2027-03-31')
            - w.eingangsdatum                                          as tage,
          p.schimmel_lambda, p.schimmel_k, p.anteil_klein, p.anteil_gross,
          p.anteil_sockel

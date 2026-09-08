@@ -42,7 +42,7 @@ const fixture = name => {
   catch { return null }
 }
 
-import { filtern } from './postgrest.mjs'
+import { filtern, seite } from './postgrest.mjs'
 
 async function restAntwort(route) {
   const url = new URL(route.request().url())
@@ -81,7 +81,7 @@ async function restAntwort(route) {
     console.warn(`  ! kein Fixture für ${name} — leere Antwort`)
     return route.fulfill({ json: [] })
   }
-  const erg = filtern(zeilen, url.searchParams)
+  const erg = seite(filtern(zeilen, url.searchParams), route.request().headers())
 
   if (methode === 'HEAD') {
     return route.fulfill({ status: 200, headers: {
@@ -135,32 +135,35 @@ const BILDSCHIRME = [
   { name: 'sprache', wer: null, pfad: '/', frisch: true },
   { name: 'anmelden', wer: null, pfad: '/' },
   { name: 'start', wer: 'arbeiter', pfad: '/' },
-  // Der Assistent des Vorarbeiters, Schritt für Schritt
+  // Der Assistent des Vorarbeiters, Schritt für Schritt (0060: kein Käufer, Kistensystem)
   { name: 'neu-was', wer: 'arbeiter', pfad: '/neu' },
   { name: 'neu-charge', wer: 'arbeiter', pfad: '/neu',
     tun: async p => { await p.locator('#taet-waschen_sortieren').click(); await p.locator('#charge').fill('1613') } },
-  { name: 'neu-art', wer: 'arbeiter', pfad: '/neu',
+  { name: 'neu-system', wer: 'arbeiter', pfad: '/neu',
     tun: async p => {
       await p.locator('#taet-waschen_sortieren').click(); await p.locator('#charge').fill('1613')
-      await p.getByRole('button', { name: T('weiter') }).click(); await p.locator('#kaeufer-keiner').click()
+      await p.getByRole('button', { name: T('weiter') }).click()
     } },
-  // 0051: das Sollgewicht (Kiste) bzw. die Bänder (Kaliber) — wie zuletzt oder angepasst
   { name: 'neu-soll', wer: 'arbeiter', pfad: '/neu',
     tun: async p => {
       await p.locator('#taet-waschen_sortieren').click(); await p.locator('#charge').fill('1613')
-      await p.getByRole('button', { name: T('weiter') }).click(); await p.locator('#kaeufer-keiner').click()
-      await p.locator('#art-kiste').click()
+      await p.getByRole('button', { name: T('weiter') }).click(); await p.locator('#system-kiste_ab').click()
+    } },
+  { name: 'neu-stueck', wer: 'arbeiter', pfad: '/neu',
+    tun: async p => {
+      await p.locator('#taet-waschen_sortieren').click(); await p.locator('#charge').fill('1613')
+      await p.getByRole('button', { name: T('weiter') }).click(); await p.locator('#system-stueck').click()
     } },
   { name: 'neu-baender', wer: 'arbeiter', pfad: '/neu',
     tun: async p => {
       await p.locator('#taet-sortieren').click(); await p.locator('#charge').fill('1613')
-      await p.getByRole('button', { name: T('weiter') }).click(); await p.locator('#kaeufer-keiner').click()
+      await p.getByRole('button', { name: T('weiter') }).click()
       await p.locator('#baender-anpassen').click()
     } },
   { name: 'neu-fax', wer: 'arbeiter', pfad: '/neu',
     tun: async p => {
       await p.locator('#taet-fax').click(); await p.locator('#charge').fill('1613')
-      await p.getByRole('button', { name: T('weiter') }).click(); await p.locator('#kaeufer-keiner').click()
+      await p.getByRole('button', { name: T('weiter') }).click()
     } },
   // Waschen (0054): die Bänder der Sorte wählen — oder ein eigenes Kaliber tippen
   { name: 'neu-kaliber', wer: 'arbeiter', pfad: '/neu',
@@ -179,52 +182,42 @@ const BILDSCHIRME = [
   { name: 'neu-pruefen', wer: 'arbeiter', pfad: '/neu',
     tun: async p => {
       await p.locator('#taet-waschen_sortieren').click(); await p.locator('#charge').fill('1613')
-      await p.getByRole('button', { name: T('weiter') }).click(); await p.locator('#kaeufer-keiner').click()
-      await p.locator('#art-kiste').click(); await p.getByRole('button', { name: T('weiter') }).click()
+      await p.getByRole('button', { name: T('weiter') }).click()
+      await p.locator('#system-kiste_ab').click(); await p.getByRole('button', { name: T('weiter') }).click()
     } },
   // Die Arbeit: der Zähler sieht den Zähler, der Vorarbeiter die Checkliste
   { name: 'arbeit-zaehler', wer: 'arbeiter', pfad: '/arbeit/OFFEN' },
   { name: 'arbeit-wiegen', wer: 'arbeiter', pfad: '/arbeit/OFFEN',
-    tun: async p => { await p.locator('#zettel').fill('2026-09-01'); await p.locator('#zum-wiegen').click() } },
+    tun: async p => { await p.locator('#zettel').fill('2026-09-01'); await p.locator('#zettel-brutto').fill('950'); await p.locator('#zum-wiegen').click() } },
   { name: 'arbeit-kisten', wer: 'arbeiter', pfad: '/arbeit/OFFENKISTEN' },
   { name: 'arbeit-liste', wer: 'arbeiter', pfad: '/arbeit/OFFEN',
     tun: async p => { await p.getByRole('button', { name: T('ichFuehre') }).click() } },
   { name: 'arbeit-palox', wer: 'arbeiter', pfad: '/arbeit/OFFEN',
     tun: async p => { await p.getByRole('button', { name: T('ichFuehre') }).click(); await p.locator('#check-palox').click() } },
-  { name: 'arbeit-ausschuss', wer: 'arbeiter', pfad: '/arbeit/OFFEN',
-    tun: async p => { await p.getByRole('button', { name: T('ichFuehre') }).click(); await p.locator('#check-ausschuss').click() } },
+  { name: 'arbeit-ausgang', wer: 'arbeiter', pfad: '/arbeit/OFFEN',
+    tun: async p => { await p.getByRole('button', { name: T('ichFuehre') }).click(); await p.locator('#check-ausgang').click() } },
   { name: 'arbeit-abschluss', wer: 'arbeiter', pfad: '/arbeit/OFFEN',
     tun: async p => { await p.getByRole('button', { name: T('ichFuehre') }).click(); await p.locator('#check-abschluss').click() } },
   { name: 'arbeit-abschluss-pruefen', wer: 'arbeiter', pfad: '/arbeit/OFFEN',
     tun: async p => {
       await p.getByRole('button', { name: T('ichFuehre') }).click(); await p.locator('#check-abschluss').click()
       await p.locator('#palox').fill('165'); await p.locator('#palox-eintragen').click()
-      await p.locator('#ausschuss-von-ja').click()
-      if (await p.locator('#ausschuss-leer-ja').count()) await p.locator('#ausschuss-leer-ja').click()
-      await p.getByRole('button', { name: T('weiter') }).click()
+      // Nach der Ablesung kommt die fertige Palette (wo das Kistensystem rechenbar ist) oder gleich die Chargenfrage
+      await p.locator('#a-brutto, #charge-ja').first().waitFor()
+      if (await p.locator('#a-brutto').count()) await p.getByRole('button', { name: T('keineGewogen') }).or(p.getByRole('button', { name: T('weiter') })).first().click()
       await p.locator('#charge-ja').click(); await p.getByRole('button', { name: T('weiter') }).click()
     } },
-  // Waschen (0054): die Bänder der Sorte zur Wahl, oder ein eigenes Kaliber
-  { name: 'neu-kaliber', wer: 'arbeiter', pfad: '/neu',
-    tun: async p => {
-      await p.locator('#taet-waschen').click(); await p.locator('#charge').fill('1613')
-      await p.getByRole('button', { name: T('weiter') }).click(); await p.locator('#kaliber-0').waitFor()
-    } },
-  { name: 'neu-kaliber-eigen', wer: 'arbeiter', pfad: '/neu',
-    tun: async p => {
-      await p.locator('#taet-waschen').click(); await p.locator('#charge').fill('1613')
-      await p.getByRole('button', { name: T('weiter') }).click(); await p.locator('#kaliber-eigen').click()
-      await p.locator('#kaliber-von').fill('700'); await p.locator('#kaliber-bis').fill('900')
-    } },
-  // Fax (0051): Kisten zählen mit „+ 1 Palette", Faules wiegen
+  // Fax (0051, 0060): Paletten als Gesamtzahl, Faules wiegen
   { name: 'arbeit-fax-liste', wer: 'arbeiter', pfad: '/arbeit/OFFENFAX',
     tun: async p => { await p.getByRole('button', { name: T('ichFuehre') }).click() } },
-  { name: 'arbeit-fax-kisten', wer: 'arbeiter', pfad: '/arbeit/OFFENFAX' },
+  { name: 'arbeit-fax-paletten', wer: 'arbeiter', pfad: '/arbeit/OFFENFAX' },
   { name: 'arbeit-fax-faule', wer: 'arbeiter', pfad: '/arbeit/OFFENFAX',
     tun: async p => { await p.getByRole('button', { name: T('ichFuehre') }).click(); await p.locator('#check-faule').click() } },
   { name: 'kontrolle', wer: 'arbeiter', pfad: '/kontrolle' },
   // Betriebsleiter: fünf Reiter
   { name: 'ueberblick', wer: 'admin', pfad: '/dashboard' },
+  { name: 'ueberblick-sorte', wer: 'admin', pfad: '/dashboard',
+    tun: async p => { await p.getByRole('tab', { name: 'je Sorte' }).first().click() } },
   { name: 'ursachen', wer: 'admin', pfad: '/ursachen' },
   { name: 'chargen', wer: 'admin', pfad: '/chargen' },
   { name: 'chargen-offen', wer: 'admin', pfad: '/chargen',
@@ -269,14 +262,15 @@ T = id => WOERTERBUCH[SPRACHE]?.[id] ?? WOERTERBUCH.de[id]
 // dort gibt es weder Palox noch Ausschuss (0051), die Klickwege würden fehlen.
 const auftraege = fixture('auftrag') ?? []
 const offene = auftraege.filter(a => a.status === 'offen' && !a.abgebrochen_ts)
-// Die Hand-Linie (Waschen + Sortieren) hat alle Masken: Zettel, Wiegen, Palox,
-// Ausschuss — Waschen an der Maschine hat keine Paletten, Fax weder Palox noch Ausschuss.
+// Die Waschstrasse mit Sortieren (waschen_sortieren) hat alle Masken: Zettel mit
+// Gewicht, Wiegen, Palox, fertige Palette — Waschen aus Kisten hat keine
+// Paletten, Fax keinen Palox.
 const ohneFax = offene.filter(a => !a.ist_fax)
 const hand = ohneFax.filter(a => a.station === 'waschen_sortieren')
 const OFFEN_ID = hand.length ? Math.max(...hand.map(a => a.id))
   : ohneFax.length ? Math.max(...ohneFax.map(a => a.id)) : offene.length ? Math.max(...offene.map(a => a.id)) : 1
-// Die Kisten-Maske gibt es nur dort, wo es Kaliber-Kisten gibt — auf der
-// Hand-Linie (waschen_sortieren) geht die Ware direkt raus.
+// Die Kisten-Maske gibt es nur dort, wo es Kaliber-Kisten gibt — an der
+// Waschstrasse mit Sortieren (waschen_sortieren) geht die Ware direkt raus.
 const mitKisten = offene.filter(a => a.station !== 'waschen_sortieren' && !a.ist_fax)
 const OFFEN_KISTEN_ID = mitKisten.length ? Math.max(...mitKisten.map(a => a.id)) : OFFEN_ID
 const faxOffen = offene.filter(a => a.ist_fax)

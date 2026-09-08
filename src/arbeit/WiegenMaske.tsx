@@ -8,17 +8,20 @@ import type { Gebinde } from '../lib/typen'
 
 /**
  * Eine Palette wiegen und dabei zählen. Der Arbeiter tippt ab, was auf dem
- * Zettel steht — keine Palettenliste, bei hunderten gleich schweren Paletten
- * wäre die nicht bedienbar. Die Wägung wird zuerst gespeichert, dann die
- * Palette mit dem Verweis darauf.
+ * Zettel steht (Eingangsdatum, Eingangsgewicht) — keine Palettenliste, bei
+ * hunderten gleich schweren Paletten wäre die nicht bedienbar. Die Wägung
+ * wird zuerst gespeichert, dann die Palette mit dem Verweis darauf. Beim
+ * Sortieren und beim Waschen + Sortieren gleichermaßen (0060).
  */
-export function WiegenMaske({ d, zettelDatum, fertig }: {
-  d: ArbeitDaten; zettelDatum: string; fertig: () => Promise<void>
+export function WiegenMaske({ d, zettelDatum, zettelBrutto = '', fertig }: {
+  d: ArbeitDaten; zettelDatum: string; zettelBrutto?: string; fertig: () => Promise<void>
 }) {
   const { t } = useSprache()
   const [gebinde, setGebinde] = useState<Gebinde[]>([])
   const [datum, setDatum] = useState(zettelDatum)
-  const [damals, setDamals] = useState('')
+  // 0060: das Eingangsgewicht steht auf dem Zettel — vorbelegt, wenn es der
+  // Zähler schon eingetippt hat; gefragt wird es immer.
+  const [damals, setDamals] = useState(zettelBrutto)
   const [jetzt, setJetzt] = useState('')
   const [kisten, setKisten] = useState('')
   const [art, setArt] = useState('')
@@ -51,6 +54,7 @@ export function WiegenMaske({ d, zettelDatum, fertig }: {
     if (error) { setLaeuft(false); setFehler(fehlerText(error)); return }
     const { error: f2 } = await supabase.from('auftrag_palette').insert({
       auftrag_id: d.auftrag.id, eingangsdatum: datum, wiegung_id: (data as { id: number }).id,
+      brutto_zettel_kg: d.auftrag.station === 'waschen_sortieren' ? Number(damals) : null,
     })
     setLaeuft(false)
     if (f2) { setFehler(fehlerText(f2)); return }

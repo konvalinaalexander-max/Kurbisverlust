@@ -55,7 +55,7 @@ h2.gross{font-size:12.4pt;margin-top:7mm}
       Unsicherheit · Import und CSV · Sicherheit, Tempo, Prüfwerk · ehrliche Grenzen</span></span></div>
   </div>
 
-  <p class="klein leise" style="margin-top:9mm">Stand: 8. September 2026, Schema-Fassung 0057.
+  <p class="klein leise" style="margin-top:9mm">Stand: 8. September 2026, Schema-Fassung 0060.
   Das Werkzeug läuft auf Supabase und Cloudflare zu Kosten von null. Alle genannten
   Simulationszahlen sind mit <code>supabase/test/simulation/matrix.sh</code> reproduzierbar,
   alle Prüfungen mit <code>supabase/test/run.sh</code>.</p>
@@ -135,7 +135,7 @@ und das ehrlich trennt zwischen „das haben wir gesehen" und „das rechnen wir
       ▼
  ┌─ LAGER ─────────────────── eine Halle, gleiche Bedingungen für alle ──┐
  │    │                                                                  │
- │    ├── Weg 2  „Waschen + Sortieren"  (von Hand, in einem Schritt) ─────┼──▶ raus
+ │    ├── Weg 2  „Waschen + Sortieren"  (von Hand, in einem Schritt) ─────┼──▶ „Fax" ──▶ raus
  │    │                                                                  │
  │    └── Weg 1  „Sortieren" (Maschine) ──┐                              │
  │                                        │                              │
@@ -146,7 +146,8 @@ und das ehrlich trennt zwischen „das haben wir gesehen" und „das rechnen wir
                 „Waschen" (Maschine) ─────────────────────────────────────┘
                      │
                      ▼   ein bis zwei Tage stehen
-                „Fax" — etikettieren und abpacken nach Bestellung ──▶ raus</div>
+                „Fax" — etikettieren und abpacken nach Bestellung ──▶ raus
+                (nach beiden Wegen dieselben Handgriffe — eine Fax-Art)</div>
 
 <p>Der entscheidende Punkt, den ein naives Modell übersieht: <strong>Weg 1 hat zwei
 Lagerabschnitte.</strong> Zwischen Sortieren und Waschen steht die Ware wieder in derselben
@@ -160,7 +161,17 @@ etikettiert und abgepackt. Dabei wird nochmals Faules aussortiert — aber diese
 nicht von der Lagerdauer, sondern von der mechanischen Beanspruchung beim Waschen. Er gehört
 deshalb in einen eigenen Strom mit eigenem Nenner, nicht in die Verderbskurve über der Zeit.
 Solange beides in einem Balken steckt, weiss niemand, ob „sanfter waschen" oder „schneller
-verarbeiten" die richtige Massnahme ist.</p>
+verarbeiten" die richtige Massnahme ist. Und Fax gibt es nach <em>beiden</em> Wegen — nach der
+Maschine wie nach der Handlinie —, mit denselben Handgriffen; deshalb ist es eine Fax-Art, nicht
+zwei (0060).</p>
+
+<p>Der dritte Punkt ist der wichtigste, und er kam vom Betrieb selbst: <strong>Die Halle wird nur
+punktuell erfasst.</strong> Nicht jede Arbeit wird in der App dokumentiert — vielleicht fünfzehn
+Waschgänge in einer Saison. Vollständig sind nur zwei Listen: der Wareneingang (jede Palette,
+aus dem Erntejournal) und der Warenausgang (jede Lieferung, aus den Lieferscheinen). Wie viel
+noch im Haus liegt, weiss man deshalb nur aus dem Vergleich von Eingang und Ausgang — nie aus
+dem Zählen in der Halle. Alles, was die Arbeiter erfassen, sind <em>Raten</em>: wie viel Faules
+je Tonne, wie viel Wasser je Tag, wie schwer eine Kiste. Keine Mengen.</p>
 
 <h2>1.4 Die vier Tätigkeiten</h2>
 
@@ -183,20 +194,22 @@ nirgends vor.</p>
   <code>waschen</code></span></td>
   <td>Kaliber-Kisten kommen aus dem Zwischenlager ans Waschbecken. Vor dem Becken wird nochmals
   Faules aussortiert (Palox). Gewaschen, auf fertige Paletten gestellt.</td>
-  <td>Geleerte Kisten des gewaschenen Kalibers · Palox-Differenz · fertige Paletten ·
-  Sortierdatum vom Kistenzettel</td></tr>
+  <td>Geleerte Kisten des gewaschenen Kalibers, jede mit dem Sortierdatum von der Kiste ·
+  Palox-Differenz (freiwillig) · fertige Paletten</td></tr>
 <tr><td><strong>🧺 Waschen + Sortieren</strong><br><span class="klein leise">Weg 2, Station
   <code>waschen_sortieren</code></span></td>
-  <td>Paletten kommen direkt aus dem Lager ans Wasserbecken. Gewaschen, dabei von Hand
-  aussortiert: faul in den Palox, zu klein und zu gross auf eigene Paletten. Der Rest geht in
-  Kisten mit Sollgewicht oder nach Kalibern.</td>
-  <td>Gezählte Paletten mit Datum · Palox-Differenz · gewogener Ausschuss (klein / gross) ·
-  gewogene Paletten (Verdunstung!) · fertige Paletten</td></tr>
-<tr><td><strong>📠 Fax</strong><br><span class="klein leise">Weg 1, Station
+  <td>Paletten kommen direkt aus dem Lager an die Waschstrasse. Gewaschen, dabei von Hand
+  aussortiert: faul in den Palox, zu klein und zu gross nach denselben Grenzen wie an der
+  Maschine. Der Rest geht in Kisten — ab x kg, x Stück je Kaliber oder ein anderes System.</td>
+  <td>Gezählte Paletten mit Datum <em>und Gewicht vom Zettel</em> · Palox-Differenz · gewogene
+  Paletten (Verdunstung!) · fertige Paletten. Zu klein / zu gross wird nicht gewogen — der Anteil
+  kommt aus der Sortier-CSV (0060)</td></tr>
+<tr><td><strong>📠 Fax</strong><br><span class="klein leise">nach beiden Wegen, Station
   <code>waschen</code>, Markierung <code>ist_fax</code></span></td>
   <td>Gewaschene Ware wird für eine Bestellung etikettiert und abgepackt. Dabei fällt Faules an.
   Kein Waschen, kein Palox, keine Grössensortierung mehr.</td>
-  <td>Gemachte Kisten je Kaliber („+ 1 Palette") · Faules, kistenweise gewogen</td></tr>
+  <td>Paletten gesamt („+ 1") · Faules, kistenweise gewogen · freiwillig die Tage seit dem
+  Waschen. Die Masse ist Paletten × gemessene Palettenmasse (0060)</td></tr>
 </table>
 
 <div class="warum"><b>Warum vier Karten und nicht zwei Wege</b>
@@ -222,8 +235,10 @@ einer klar bestimmbaren Stelle.</p>
   nicht mehr. Ab hier ist das Alter eine Rechnung, keine Ablesung.</li>
 <li><strong>Palox</strong> — der Sammelbehälter für Aussortiertes, auf einer Waage. Er läuft
   über mehrere Arbeiten weiter; der <em>Zuwachs</em> zwischen zwei Ablesungen ist die Menge
-  einer Arbeit. Geführt wird er je Station, weil Sortierband, Waschbecken und Handlinie
-  verschiedene Arbeitsplätze mit je eigenem Behälter sind.</li>
+  einer Arbeit. Geführt wird er je Station — es gibt zwei: die <strong>Sortiermaschine</strong>
+  und die <strong>Waschstrasse</strong>; Waschen und Waschen + Sortieren teilen sich den
+  Behälter (0060). Fällt der Stand zwischen zwei Ablesungen, wurde geleert: Die Menge dieser
+  Arbeit ist dann <em>unbekannt</em> — nie negativ, nie eine angenommene Zahl.</li>
 <li><strong>Fertige Palette</strong> — nach dem Waschen, in Kisten gepackt. Sie wird gewogen;
   daraus folgt, wie viel wirklich in einer Kiste ist.</li>
 </ul>
@@ -237,42 +252,46 @@ bräuchte es eine Behälter-Kennung — dann wäre die Menge beider Arbeiten fal
 jemand merkt. Genau deshalb steht die Annahme hier und nicht im Code-Kommentar.</p>
 </div>
 
-<h2>1.6 Wo Masse verschwindet — sechs Ströme, zwei Bücher</h2>
+<h2>1.6 Wo Masse verschwindet — sechs Ströme, echter und kein echter Verlust</h2>
 
 <p>Masse verlässt den Kürbisberg auf sechs verschiedenen Wegen, und der wichtigste
 Unterschied zwischen ihnen ist nicht die Menge, sondern die <em>Art</em>: Drei sind echter
 Verlust, drei nicht. Sie in einen Topf zu werfen war der erste grosse Fehler des Modells.</p>
 
 <table>
-<tr><th style="width:36mm">Strom</th><th class="z" style="width:16mm">Buch</th><th>Was er ist, und warum er dort steht</th></tr>
-<tr><td><strong>Verdunstung</strong></td><td class="z">A</td><td>Der Kürbis gibt Wasser ab. Die
+<tr><th style="width:36mm">Strom</th><th class="z" style="width:22mm">Verlust?</th><th>Was er ist, und warum er dort steht</th></tr>
+<tr><td><strong>Verdunstung</strong></td><td class="z">echt</td><td>Der Kürbis gibt Wasser ab. Die
   Ware bleibt verkäuflich, sie ist nur leichter. Trotzdem echter Verlust: Verkauft wird nach
   Gewicht oder nach Stück in einem Gewichtsband, und beides schrumpft mit.</td></tr>
-<tr><td><strong>Schimmel / Fäulnis</strong></td><td class="z">A</td><td>Ganze Kürbisse
-  verderben. Totalverlust, wächst mit der Lagerdauer beschleunigt.</td></tr>
+<tr><td><strong>Palox — Verderb im Lager</strong></td><td class="z">echt</td><td>Ganze Kürbisse
+  verderben und landen im Palox. Totalverlust, wächst mit der Lagerdauer beschleunigt.</td></tr>
 <tr><td><strong>Grundaussortierung</strong><br><span class="klein leise">Sockel a₀</span></td>
-  <td class="z">A</td><td>Erde, Hagelnarben, falsch geschnittene Stiele — was ohne jede Lagerung
+  <td class="z">echt</td><td>Erde, Hagelnarben, falsch geschnittene Stiele — was ohne jede Lagerung
   im Palox landet. Kommt vom Feld, nicht aus der Halle. <em>Wird getrennt ausgewiesen und
   <strong>nicht</strong> zum Lagerverlust gezählt</em>, weil den Betrieb interessiert, was
-  während der Lagerung passiert.</td></tr>
-<tr><td><strong>Faul beim Abpacken (Fax)</strong></td><td class="z">A</td><td>Schäden, die beim
+  während der Lagerung passiert. Keine eigene Maske, kein eigener Balken — er rechnet im
+  Modell mit (0060).</td></tr>
+<tr><td><strong>Palox beim Abpacken (Fax)</strong></td><td class="z">echt</td><td>Schäden, die beim
   Waschen entstehen und beim Abpacken sichtbar werden. Bezogen auf die gewaschene Menge, nicht
   auf die Zeit — die Massnahme dagegen ist eine andere.</td></tr>
-<tr><td><strong>Zu klein (Tierfutter)</strong></td><td class="z">B</td><td>Unter der
+<tr><td><strong>Zu klein (Tierfutter)</strong></td><td class="z">kein echter</td><td>Unter der
   Verlustgrenze der Sorte. <strong>Kein physischer Verlust:</strong> Die Kürbisse gehen an die
   Tiere. Sie sind ein anderer Kanal, kein Schwund. Diese Zuordnung hat einen ganzen Balken im
   Ranking verschoben.</td></tr>
-<tr><td><strong>Zu gross (Nebenkanal)</strong></td><td class="z">B</td><td>Über 2000 g. Geht in
+<tr><td><strong>Zu gross (Nebenkanal)</strong></td><td class="z">kein echter</td><td>Über 2000 g. Geht in
   einen anderen Verkaufskanal — auch kein Verlust, aber verschenkte Marge, weil er weniger
   bringt.</td></tr>
-<tr><td><strong>Überfüllung</strong></td><td class="z">B</td><td>Die 8-kg-Kiste wiegt real 8.1
-  bis 8.5 kg. Bezahlt wird die Kiste, verschenkt der Überschuss. Kein Verlust, aber Geld.</td></tr>
+<tr><td><strong>Überfüllung</strong></td><td class="z">kein echter</td><td>Die Kiste ab 8 kg
+  wiegt real 8.1 bis 8.5 kg. Bezahlt wird die Kiste, verschenkt der Überschuss. Kein Verlust,
+  aber Geld. Nur bei „Kiste ab x kg" — bei Stück-Kisten gibt es kein Soll.</td></tr>
 </table>
 
-<p><strong>Buch A</strong> ist der physische Verlust: Was am Ende der Saison nicht mehr da ist.
-<strong>Buch B</strong> ist verschenkte Marge: Was noch da ist, aber weniger einbringt als
-möglich. Die beiden werden nie addiert und nie in demselben Balken gezeigt. Wer sie mischt,
-bekommt eine grosse Zahl, aus der keine Massnahme folgt.</p>
+<p><strong>Echter Verlust</strong> ist, was am Ende der Saison nicht mehr da ist.
+<strong>Kein echter Verlust</strong> ist, was noch da ist, aber weniger einbringt als möglich —
+ein anderer Kanal, verschenkte Marge. Die Ursachen-Seite zeigt die beiden getrennt; der
+Überblick zeigt den Verlust zusammen, nach Gesamt, Sorte, Schlag und Charge, damit der
+Betriebsleiter sieht, <em>woran</em> die Ware fehlt. Die Buchhalterwörter („Buch A", „Buch B")
+kommen in der Oberfläche nirgends vor — der Betrieb hat sie ausdrücklich abgelehnt (AB-30).</p>
 
 <h2>1.7 Der Grundgedanke der Erfassung: Rückgrat und Koeffizienten</h2>
 
@@ -286,7 +305,7 @@ die alles Weitere bestimmt:</p>
   Erntejournal. Ausgelieferte Menge — aus den Lieferscheinen.</td>
   <td>Nur aus <em>Stichproben</em> bekannt, und zwar aus wenigen.<br><br>Verdunstung je Tag,
   Verderbsanteil je Lagerdauer, Ausschussanteil, Nebenkanalanteil, Fax-Anteil, Überfüllung je
-  Kiste, Kistengewicht je Kaliber.</td></tr>
+  Kiste, Kistengewicht je Kaliber, Palettenmasse je Kistensystem.</td></tr>
 </table>
 
 <div class="formel">Verlust  =  Koeffizient  ×  bekannte Grösse</div>
@@ -341,9 +360,9 @@ Arbeiter-App kommt kein Modell, keine Rechnung, kein Fachwort und keine Prozentz
 jemand Rollen vergeben muss:</p>
 
 <ul>
-<li><strong>Vorarbeiter</strong> ist, <em>wer die Arbeit eröffnet</em>. Er kennt Charge, Käufer
-  und Sortierart, liest den Palox ab, wiegt den Ausschuss, beantwortet die Fragen und schliesst
-  ab. Er sieht die <strong>Checkliste</strong>.</li>
+<li><strong>Vorarbeiter</strong> ist, <em>wer die Arbeit eröffnet</em>. Er kennt Charge, Bänder
+  und Kistensystem, liest den Palox ab, wiegt fertige Paletten und das Faule, beantwortet die
+  Fragen und schliesst ab. Er sieht die <strong>Checkliste</strong>.</li>
 <li><strong>Zähler</strong> ist, <em>wer beitritt</em>. Er sieht <strong>einen Zähler</strong>
   und sonst nichts.</li>
 </ul>
@@ -356,7 +375,7 @@ Handy, für den Fall, dass das erste ausfällt oder der Schichtwechsel kommt.</p
 Rollenverwaltung ist Verwaltung: Jemand müsste sie pflegen, und in der Halle wechseln die Leute
 täglich. Die Rolle aus der Handlung abzuleiten („wer eröffnet, führt") kostet niemanden einen
 Klick und ist in 100 % der Fälle richtig, weil derjenige, der eröffnet, tatsächlich derjenige
-ist, der Charge und Käufer kennt.</div>
+ist, der Charge und Kistensystem kennt.</div>
 
 <h3>Sechs Sprachen</h3>
 
@@ -417,22 +436,20 @@ ein fehlender Schritt kostet nichts.</p>
   Tippen schneller als Scrollen, und die Nummer steht ohnehin gross auf dem Zettel. Sobald vier
   Ziffern stehen, zeigt die App Schlag und Sorte zur Bestätigung an. Eine unbekannte Nummer
   sperrt „Weiter" — der Tippfehler wird an der Stelle abgefangen, an der er entsteht.</li>
-<li><strong>Für wen?</strong> — Der Käufer. Er bestimmt das Sortierschema; Coop will es anders
-  als Migros. Neue Käufer legt der Vorarbeiter direkt hier an. Entfällt beim reinen Waschen (dort
-  wurde die Sortierart beim Sortieren festgelegt).</li>
-<li><strong>Wie wird sortiert?</strong> — Nur bei „Waschen + Sortieren": Kiste ab x kg oder nach
-  Kalibern (AB-01). Beide Arten dürfen bei derselben Sorte nebeneinander stehen.</li>
-<li><strong>Welche Bänder / welches Sollgewicht?</strong> — Beim Sortieren fragt die App
-  <em>welche Kaliber heute an der Maschine eingestellt sind</em> — sie kennt nur Bänder. Der
-  Vorschlag lautet „wie zuletzt: übernehmen oder anpassen". Wer anpasst, legt damit eine
-  <strong>neue, datierte Fassung</strong> an; überschrieben wird nie (AB-16).</li>
+<li><strong>Welche Bänder?</strong> — Beim Sortieren und beim Waschen + Sortieren fragt die App
+  <em>welche Kaliber heute gelten</em> — die Maschine kennt nur Bänder, und die Handlinie
+  sortiert nach denselben Grenzen. Der Vorschlag lautet „wie zuletzt: übernehmen oder
+  anpassen". Wer anpasst, legt damit eine <strong>neue, datierte Fassung</strong> an;
+  überschrieben wird nie (AB-16).</li>
 <li><strong>Welches Kaliber?</strong> — Nur beim Waschen: Welche Kaliber-Kisten stehen heute am
   Becken? Zur Wahl stehen die Bänder der Sorte, und die App sagt dazu, <em>woher</em> sie
   stammen — aus der Vorgabe der Sorte oder aus dem letzten Sortierlauf genau dieser Charge. Ist
   auf dem Etikett etwas anderes vermerkt, tippt er ein <strong>eigenes Band</strong> ein, von–bis
   in Gramm (AB-19).</li>
-<li><strong>Was für Kisten?</strong> — Nur beim Fax: Kaliber-Kisten oder Kisten nach
-  Sollgewicht.</li>
+<li><strong>Was für Kisten?</strong> — Das <strong>Kistensystem</strong> (AB-25): Kiste ab
+  x kg (mit dem Soll), x Stück je Kaliber, oder etwas anderes. Nicht der Käufer — der interessiert
+  die Rechnung nicht. Nur die ersten beiden Systeme sind rechenbar: aus dem Soll folgt die
+  Überfüllung, aus den Stück die Erwartung je Kiste; „anderes" heisst ehrlich: keine Rechnung.</li>
 <li><strong>Alles richtig?</strong> — Die Zusammenfassung, ein Knopf. Erst hier entsteht die
   Arbeit in der Datenbank, mit Startzeit vom Server.</li>
 </ol>
@@ -447,7 +464,8 @@ eine ganze Klasse von Fehlern aus, die niemand je bemerkt hätte.</div>
 
 <p>Direkt nach dem Start, noch vor der Checkliste, kommt die Palox-Ablesung. Nicht als Punkt
 unter vielen, sondern als eigener Bildschirm (AB-02). „Später" ist möglich, aber die Checkliste
-lässt den Punkt dann sichtbar offen.</p>
+lässt den Punkt dann sichtbar offen. Beim Waschen ist die Ablesung freiwillig — der Betrieb
+wollte den Arbeiter dort nicht aufhalten (AB-28).</p>
 
 <div class="warum"><b>Warum der Palox zuerst kommt</b>
 Die Menge, die eine Arbeit in den Palox geworfen hat, ist die <em>Differenz</em> zwischen zwei
@@ -462,17 +480,15 @@ vom Betrieb selbst.</div>
 
 <p>Die Arbeitsansicht des Vorarbeiters ist eine Liste mit Zuständen: <span class="mono">✓</span>
 erledigt, <span class="mono">!</span> offen, <span class="mono">·</span> freiwillig. Sie zeigt
-jederzeit den Stand — wie viele Paletten gezählt, wie viel Ausschuss gewogen, ob der Palox
+jederzeit den Stand — wie viele Paletten gezählt, ob eine fertige Palette gewogen, ob der Palox
 abgelesen ist. Welche Punkte erscheinen, hängt an der Tätigkeit:</p>
 
 <table>
 <tr><th>Punkt</th><th class="z">Sortieren</th><th class="z">Waschen</th><th class="z">W+S</th><th class="z">Fax</th></tr>
-<tr><td>Palox zu Beginn</td><td class="z">✓</td><td class="z">✓</td><td class="z">✓</td><td class="z">—</td></tr>
-<tr><td>Ausschuss-Paletten leer?</td><td class="z">—</td><td class="z">—</td><td class="z">✓</td><td class="z">—</td></tr>
-<tr><td>Paletten zählen</td><td class="z">✓</td><td class="z">—</td><td class="z">✓</td><td class="z">—</td></tr>
-<tr><td>Kisten zählen</td><td class="z">✓ gefüllte</td><td class="z">✓ geleerte, Pflicht</td><td class="z">—</td><td class="z">✓ gemachte, Pflicht</td></tr>
+<tr><td>Palox zu Beginn</td><td class="z">✓</td><td class="z">· freiwillig</td><td class="z">✓</td><td class="z">—</td></tr>
+<tr><td>Paletten zählen</td><td class="z">✓ mit Datum</td><td class="z">—</td><td class="z">✓ mit Datum und Gewicht vom Zettel</td><td class="z">✓ gesamt, Pflicht</td></tr>
+<tr><td>Kisten zählen</td><td class="z">✓ gefüllte</td><td class="z">✓ geleerte mit Sortierdatum, Pflicht</td><td class="z">—</td><td class="z">—</td></tr>
 <tr><td>Palette wiegen</td><td class="z">—</td><td class="z">—</td><td class="z">✓ freiwillig</td><td class="z">—</td></tr>
-<tr><td>Zu klein / zu gross wiegen</td><td class="z">—</td><td class="z">—</td><td class="z">✓</td><td class="z">—</td></tr>
 <tr><td>Fertige Palette wiegen</td><td class="z">—</td><td class="z">✓ freiwillig</td><td class="z">✓ freiwillig</td><td class="z">—</td></tr>
 <tr><td>Faules wiegen</td><td class="z">—</td><td class="z">—</td><td class="z">—</td><td class="z">✓</td></tr>
 <tr><td>Arbeit abschliessen</td><td class="z">✓</td><td class="z">✓</td><td class="z">✓</td><td class="z">✓</td></tr>
@@ -507,9 +523,14 @@ die Arbeit wäscht — dort gibt es keine Paletten mehr. Beim Sortieren zählt e
 <strong>gefüllten Kisten je Kaliber</strong>; dann stehen mehrere Zähler untereinander, einer je
 Band, beschriftet mit den Grenzen („600–1100 g").</p>
 
-<p>Beim „Waschen + Sortieren" steht ein zweiter, kleinerer Knopf darunter: <strong>Palette
-wiegen</strong>. Das ist der einzige Umweg, den ein Zähler je sieht — und der wertvollste
-Messpunkt im ganzen System (Abschnitt 1.13).</p>
+<p>Beim „Waschen + Sortieren" steht über dem „+" ein zweites Feld: das <strong>Gewicht vom
+Zettel</strong>, Pflicht und je Palette neu getippt — Gewichte unterscheiden sich, das Datum
+nicht. Es ist der Nenner der Handlinie: Aus dem Zettelgewicht und der Palette im Wareneingang
+folgt das Netto, ohne dass jemand wiegt (AB-26). Darunter ein kleinerer Knopf: <strong>Palette
+wiegen</strong>, mit dem Zettelgewicht schon eingetragen. Das ist der einzige Umweg, den ein
+Zähler je sieht — und der wertvollste Messpunkt im ganzen System (Abschnitt 1.13). Beim Waschen
+trägt jede gezählte Kiste ihr <strong>Sortierdatum</strong> von der Kiste; „kein Datum" ist eine
+Antwort, kein Auslassen (AB-27). Beim Fax zählt der Zähler die Paletten gesamt.</p>
 
 <div class="warum"><b>Warum das Datum Pflicht ist und stehen bleibt</b>
 Ohne das Datum vom Zettel hat die gezählte Palette kein Alter, und ohne Alter ist der Palox-Inhalt
@@ -517,7 +538,9 @@ keiner Lagerdauer zuzuordnen — der Punkt fällt aus der Verderbskurve. Deshalb
 Pflicht: Der „+"-Knopf ist gesperrt, solange es leer ist (AB-11). Damit das nicht bei jeder
 Palette Arbeit macht, <em>bleibt der Wert stehen</em> — bei einer Charge, die an einem Tag
 eingelagert wurde, tippt man ihn einmal und danach nie wieder. Wechselt das Datum, ändert man es.
-Das ist der Unterschied zwischen einem Pflichtfeld, das nervt, und einem, das man nicht bemerkt.</div>
+Damit niemand aus Gewohnheit ein falsches Datum mitzählt, zeigt der „+"-Knopf, welches Datum er
+speichert („+ 1 Palette · 01.09."). Das ist der Unterschied zwischen einem Pflichtfeld, das
+nervt, und einem, das man nicht bemerkt.</div>
 
 <h2 class="gross">1.12 Die Masken einzeln — was erfasst wird und warum genau so</h2>
 
@@ -527,8 +550,10 @@ Das ist der Unterschied zwischen einem Pflichtfeld, das nervt, und einem, das ma
 <dl>
 <dt>Was der Arbeiter tut</dt>
 <dd>Er tippt ab, was die Waage anzeigt. Die App rechnet die Differenz zum letzten Stand und
-  <em>zeigt sie an, bevor gespeichert wird</em> — „das sind 41 kg dazu". Dazu ein Häkchen „Palox
-  wurde geleert" und, im Abschluss, die Möglichkeit „Stand unverändert".</dd>
+  <em>zeigt sie an, bevor gespeichert wird</em> — „das sind 41 kg dazu". Im Abschluss gibt es
+  dazu „Stand unverändert". Ein Häkchen „geleert" gibt es nicht mehr: Ist der Stand kleiner als
+  beim letzten Mal, wurde geleert, und die Menge dieser Arbeit ist unbekannt — die App nimmt
+  keine Zahl an, die niemand gesehen hat (AB-28).</dd>
 <dt>Was gespeichert wird</dt>
 <dd>Der abgelesene <strong>Stand</strong> in Kilogramm, brutto, mit Zeitstempel und Erfasser.
   Nicht die Differenz.</dd>
@@ -561,17 +586,19 @@ Das ist der Unterschied zwischen einem Pflichtfeld, das nervt, und einem, das ma
 <div class="kopf">Palette zählen</div>
 <dl>
 <dt>Felder</dt>
-<dd>Eingangsdatum vom Zettel (Pflicht, bleibt stehen) · „+" · „Rückgängig"</dd>
+<dd>Eingangsdatum vom Zettel (Pflicht, bleibt stehen) · beim Waschen + Sortieren das Gewicht
+  vom Zettel (Pflicht, je Palette neu) · „+" · „Rückgängig"</dd>
 <dt>Warum gezählt und nicht aus einer Liste gewählt</dt>
 <dd>Es gibt hunderte Paletten je Charge, äusserlich gleich und ohne Nummer. Eine Auswahlliste
   wäre nicht bedienbar und würde zu Falschauswahlen führen. Gezählt wird deshalb die
   <em>Anzahl</em>, und das Datum vom Zettel liefert das Alter. Was verloren geht: welche
   konkrete Palette es war. Das ist kein Verlust, denn niemand braucht sie einzeln.</dd>
 <dt>Was daraus wird</dt>
-<dd>Zweierlei. Erstens die <strong>Lagerdauer</strong> dieser Arbeit, massegewichtet über die
-  gezählten Paletten — der Nenner der Verderbskurve. Zweitens der <strong>Bestand je
-  Eingangstag</strong>: Paletten, die an einem Tag hereinkamen, minus die mit diesem Zetteldatum
-  gezählten. Das ist der Grund, warum die App kein FIFO annehmen muss (Abschnitt 2.14).</dd>
+<dd>Die <strong>Lagerdauer</strong> dieser Arbeit, massegewichtet über die gezählten
+  Paletten — das Alter, an dem der Palox-Inhalt in der Verderbskurve sitzt —, und beim Waschen +
+  Sortieren mit dem Zettelgewicht die <strong>Masse</strong> der Arbeit, der Nenner. <em>Nicht</em>
+  der Bestand: Wie viel noch liegt, sagt kein Zählen, weil nicht jede Arbeit gezählt wird. Das
+  sagt der Vergleich von Eingang und Ausgang (Abschnitt 2.14).</dd>
 <dt>Wenn ein Zetteldatum auftaucht, zu dem es keine Palette gibt</dt>
 <dd>Dann steht es als Auffälligkeit da: „5 Paletten mit Datum 03.10., aber im Wareneingang gibt
   es zu dieser Charge kein solches Datum". Meist ein Zahlendreher, manchmal eine Palette, die
@@ -585,13 +612,15 @@ Das ist der Unterschied zwischen einem Pflichtfeld, das nervt, und einem, das ma
 <div class="kopf">Kisten zählen</div>
 <dl>
 <dt>Felder</dt>
-<dd>Je Kaliberband ein Zähler mit „+"; beim Waschen nur das eine Band der Arbeit; beim Fax
-  zusätzlich „+ 1 Palette" (zählt in einem Tipp eine volle Palette, üblicherweise 32 Kisten).</dd>
+<dd>Je Kaliberband ein Zähler mit „+"; beim Waschen nur das eine Band der Arbeit, und dazu das
+  <strong>Sortierdatum von der Kiste</strong> — es bleibt für die nächste Kiste stehen, und
+  „kein Datum" ist eine echte Antwort. Beim Fax werden keine Kisten mehr gezählt, sondern die
+  Paletten gesamt.</dd>
 <dt>Warum das die wichtigste Zahl am Waschbecken ist</dt>
 <dd>Am Waschbecken gibt es keine Paletten mehr, deren Gewicht auf einem Zettel steht. Ohne die
   gezählten Kisten hat die Arbeit <strong>keine Menge</strong> — und ohne Menge ist die
   Schimmelmessung ein Zähler ohne Nenner, also wertlos. Deshalb ist die Kistenzahl beim Waschen
-  und beim Fax Pflicht für den Abschluss.</dd>
+  Pflicht für den Abschluss (beim Fax die Palettenzahl).</dd>
 <dt>Warum niemand mehr Kilo eintippt</dt>
 <dd>Eine frühere Fassung fragte am Ende „wie viel habt ihr etwa gewaschen?". Das war die einzige
   Zahl im System, die ein Arbeiter <em>schätzen</em> statt ablesen musste, und sie ging als
@@ -629,39 +658,36 @@ Das ist der Unterschied zwischen einem Pflichtfeld, das nervt, und einem, das ma
 </div>
 
 <div class="maske">
-<div class="wo">Vorarbeiter · nur Waschen + Sortieren</div>
-<div class="kopf">Zu klein / zu gross wiegen</div>
+<div class="wo">Vorarbeiter · Waschen + Sortieren · <em>entfallen</em></div>
+<div class="kopf">Zu klein / zu gross wiegen — gibt es nicht mehr</div>
 <dl>
-<dt>Felder</dt>
-<dd>Art (zu klein / zu gross) · Bruttogewicht · Kistenzahl · Kistenart — <em>oder</em>, als
-  sichtbar gekennzeichneter Notweg, eine geschätzte Kilozahl.</dd>
-<dt>Warum gewogen statt geschätzt (AB-03)</dt>
-<dd>Der Betrieb hat es selbst verlangt. Eine Schätzung nach Augenmass hat einen Fehler von
-  vielleicht dreissig Prozent und, schlimmer, einen <em>systematischen</em>: Menschen schätzen
-  Haufen konsistent zu klein. Die Palette auf die Waage zu stellen kostet eine Minute je Arbeit.
-  Der Notweg bleibt, weil eine grobe Zahl besser ist als gar keine — aber die Auswertung weiss,
-  welche Zahlen gewogen und welche geschätzt sind, und die Datenqualität weist den Anteil aus.</dd>
-<dt>Warum das Netto die Datenbank rechnet</dt>
-<dd>Brutto minus Kisten mal Kistentara minus Palettentara — drei Zahlen, die der Arbeiter nicht
-  im Kopf haben soll und deren Tara sich ändern kann. Ein Datenbank-Auslöser rechnet es beim
-  Speichern; ändert sich später eine Tara, lässt sich alles neu rechnen.</dd>
+<dt>Was der Betrieb sagte</dt>
+<dd>Die Handlinie sortiert nach denselben Grenzen wie die Maschine. Der Anteil zu klein und zu
+  gross einer Sorte ist deshalb aus der Sortier-CSV bekannt, so gut wie am Band — und eine
+  zweite Wägung je Arbeit ist ein Handgriff, der niemandem etwas bringt. Die Maske ist weg
+  (0060); dafür tippt der Zähler das Gewicht vom Zettel. Was früher gewogen wurde, bleibt
+  lesbar; eine neue Messung entsteht nicht mehr.</dd>
 </dl>
 </div>
 
 <div class="maske">
-<div class="wo">Vorarbeiter · Waschen und Waschen + Sortieren · freiwillig</div>
+<div class="wo">Vorarbeiter · Waschen und Waschen + Sortieren · freiwillig, wo das Kistensystem rechenbar ist</div>
 <div class="kopf">Fertige Palette wiegen</div>
 <dl>
 <dt>Felder</dt>
-<dd>Bruttogewicht · Kistenzahl · Kistenart · optional Kürbisse je Kiste</dd>
+<dd>Bruttogewicht · Kistenzahl · Kistenart · bei Stück-Kisten das Kaliber und die Kürbisse je
+  Kiste (vorbelegt aus der Arbeit)</dd>
 <dt>Wozu</dt>
-<dd>Daraus folgt, <strong>wie viel Kürbis wirklich in einer Kiste liegt</strong>. Bezahlt wird
-  die Kiste ab 8 kg; real wiegt sie 8.1 bis 8.5 kg. Der Überschuss ist verschenkte Ware — bei
-  hunderten Tonnen eine relevante Grösse, und eine, gegen die es eine sehr einfache Massnahme
-  gibt (die Waage am Packplatz).</dd>
+<dd>Daraus folgt, <strong>wie viel Kürbis wirklich in einer Kiste liegt</strong>. Bei „Kiste ab
+  x kg" gegen das Soll der Arbeit: bezahlt wird die Kiste ab 8 kg, real wiegt sie 8.1 bis 8.5 kg;
+  der Überschuss ist verschenkte Ware — bei hunderten Tonnen eine relevante Grösse, und eine,
+  gegen die es eine sehr einfache Massnahme gibt (die Waage am Packplatz). Bei Stück-Kisten gibt
+  es kein Soll: Die App zeigt, was die Kiste laut Sortier-CSV wiegen müsste (Stück × mittleres
+  Gewicht des Kalibers) und die Abweichung — eine Information für den Packplatz, keine Marge
+  (AB-25).</dd>
 <dt>Zweitverwendung</dt>
-<dd>Dieselbe Wägung liefert das <strong>Kistengewicht für Kisten nach Sollgewicht</strong>, das
-  beim Fax gebraucht wird, um aus gezählten Kisten eine Masse zu machen. Ein Messpunkt, zwei
+<dd>Dieselbe Wägung liefert die <strong>Palettenmasse je Sorte und Kistensystem</strong>, die
+  beim Fax gebraucht wird, um aus der Palettenzahl eine Masse zu machen. Ein Messpunkt, zwei
   Antworten — das ist der Grund, warum diese Maske trotz „freiwillig" prominent in der
   Checkliste steht.</dd>
 </dl>
@@ -669,10 +695,13 @@ Das ist der Unterschied zwischen einem Pflichtfeld, das nervt, und einem, das ma
 
 <div class="maske">
 <div class="wo">Vorarbeiter · nur Fax</div>
-<div class="kopf">Faules wiegen</div>
+<div class="kopf">Faules wiegen — und die Paletten gesamt</div>
 <dl>
 <dt>Felder</dt>
-<dd>Bruttogewicht · Kistenzahl · Kistenart · Häkchen „mit Palette darunter"</dd>
+<dd>Bruttogewicht · Kistenzahl · Kistenart · Häkchen „mit Palette darunter". Dazu, im Zähler
+  und im Abschluss: die <strong>Paletten gesamt</strong> („+ 1", eine Zahl für die ganze
+  Arbeit) und freiwillig die <strong>Tage seit dem Waschen</strong> — die Grösse, die den
+  Waschschaden vom Liegen nach dem Waschen trennt (AB-24).</dd>
 <dt>Warum eine eigene Maske und nicht der Palox</dt>
 <dd>Beim Fax steht kein Palox. Das Faule wird kistenweise gesammelt und gewogen. Und es ist
   fachlich etwas anderes: kein Lagerverderb, sondern ein Waschschaden. Es bekommt deshalb einen
@@ -691,10 +720,13 @@ Das ist der Unterschied zwischen einem Pflichtfeld, das nervt, und einem, das ma
 <div class="kopf">Palette kontrollieren — die Lagerkontrolle</div>
 <dl>
 <dt>Felder</dt>
-<dd>Wie beim Wiegen (Datum, Gewicht damals, Gewicht jetzt, Kisten, Kistenart), dazu zwei
-  Pflichtangaben: <strong>„davon faul" in Kilogramm</strong> und <strong>wie die Palette
-  gegriffen wurde</strong> (AB-09) — zufällig unter den erreichbaren · aus der Mitte oder
-  von unten · gezielt.</dd>
+<dd>Zuerst schlägt die App <strong>drei Chargen</strong> vor — die mit dem meisten Bestand und
+  den wenigsten Kontrollen, dort bringt eine Messung am meisten; „andere Charge" bleibt möglich
+  (AB-29). Dann wie beim Wiegen: Eingangsdatum und Eingangsgewicht vom Zettel, Gewicht jetzt,
+  Kisten, Kistenart, dazu zwei Pflichtangaben: <strong>„davon faul" in Kilogramm</strong> und
+  <strong>wie die Palette gegriffen wurde</strong> (AB-09) — zufällig unter den erreichbaren ·
+  aus der Mitte oder von unten · gezielt. Nach dem Eintragen bleibt die Charge stehen: Die
+  nächste Palette ist meist dieselbe.</dd>
 <dt>Warum das die wertvollste Messung im System ist</dt>
 <dd>Alle anderen Schimmelmessungen entstehen bei der Verarbeitung. Wenn aber verarbeitet wird,
   was schlecht aussieht, dann werden anfällige Paletten früh gemessen und robuste spät — der
@@ -732,12 +764,13 @@ Knopf — nicht als ausgegrauter Knopf ohne Begründung.</p>
 
 <ol class="schritte">
 <li><strong>Palox jetzt ablesen</strong> — oder, beim Fax, das Faule wiegen. Hier ist zusätzlich
-  „Stand unverändert" möglich: eine Messung mit 0 kg, kein Auslassen.</li>
-<li><strong>Ausschuss: alles von dieser Arbeit?</strong> — Die Gegenfrage zur Startfrage „waren
-  die Ausschuss-Paletten leer?" (AB-05). Zusammen sagen die beiden, ob die gewogene Menge
-  wirklich dieser Arbeit gehört. Wurde die Startfrage vergessen, holt der Abschluss sie nach.</li>
-<li><strong>Sind Kisten gezählt?</strong> — Nur beim Waschen und Fax, und nur wenn keine gezählt
-  sind: ohne Kisten keine Menge.</li>
+  „Stand unverändert" möglich: eine Messung mit 0 kg, kein Auslassen. Beim Waschen darf der
+  Schritt übersprungen werden („ohne Palox").</li>
+<li><strong>Paletten gesamt und Tage seit dem Waschen</strong> — nur beim Fax.</li>
+<li><strong>Sind Kisten gezählt?</strong> — Nur beim Waschen, und nur wenn keine gezählt sind:
+  ohne Kisten keine Menge.</li>
+<li><strong>Fertige Palette gewogen?</strong> — Wo das Kistensystem rechenbar ist. Freiwillig;
+  „keine gewogen" ist eine Antwort.</li>
 <li><strong>War alles aus einer Charge?</strong> — Bei <em>Nein</em> die Nachfrage „wenigstens
   dieselbe Sorte?".</li>
 <li><strong>Zusammenfassung</strong> — was erfasst wurde, was fehlt, ein Knopf.</li>
@@ -809,8 +842,8 @@ einem Formular.</div>
 </div>
 
 <p>Dazu die Stammdaten: <strong>Gebinde-Tara</strong> (macht aus Brutto ein Netto),
-<strong>Palox-Tara</strong>, die <strong>Sortierschemata</strong> je Sorte und Käufer,
-<strong>Käufer</strong>, der <strong>Erfassungsbeginn</strong> und der <strong>Vorab-Ausgang</strong>
+<strong>Palox-Tara</strong>, die <strong>Fassungen der Bänder</strong> je Sorte, der
+<strong>Erfassungsbeginn</strong> und der <strong>Vorab-Ausgang</strong>
 je Charge (was vor der App schon rausging, AB-07), sowie der <strong>Stichtag</strong>, bis zu
 dem projiziert wird.</p>
 
@@ -826,22 +859,28 @@ fehlt, wenn es fehlt.</p>
   Rechnung — die einzige Grösse, die für jede Charge vollständig bekannt ist.</td>
   <td>gibt es die Charge für die Auswertung nicht</td></tr>
 <tr><td><strong>Palette zählen</strong><br><span class="klein leise">mit Zetteldatum</span></td>
-  <td>Wie alt war die Ware dieser Arbeit? Und: wie viel liegt noch, je Eingangstag?</td>
+  <td>Wie alt war die Ware dieser Arbeit? <em>Nicht:</em> wie viel noch liegt — das sagt kein
+  Zählen, weil nicht jede Arbeit gezählt wird; das sagt der Warenausgang (AB-23).</td>
   <td>hat die Arbeit keine Lagerdauer — der Palox-Inhalt ist keinem Alter zuzuordnen</td></tr>
+<tr><td><strong>Gewicht vom Zettel</strong><br><span class="klein leise">Waschen + Sortieren</span></td>
+  <td>Wie viel Masse ging durch diese Arbeit? Der Nenner der Handlinie, ohne zweite Wägung.</td>
+  <td>hat die Arbeit keine Menge — das Faule ist ein Zähler ohne Nenner</td></tr>
 <tr><td><strong>Palox, zwei Ablesungen</strong></td><td>Wie viel Faules fiel bei dieser Arbeit
   an? Der Zähler der Verderbsrate.</td><td>fehlt ein Punkt in der Verderbskurve</td></tr>
 <tr><td><strong>Palette wiegen</strong></td><td>Wie viel Wasser verliert ein Kürbis je Tag?</td>
   <td>ist die Verdunstung <em>unbekannt</em> — nicht null (mit weniger als etwa zehn Wägungen
   wird der Bereich über 80 % breit)</td></tr>
-<tr><td><strong>Zu klein / zu gross wiegen</strong></td><td>Wie viel fällt von Hand aus der
-  Sortierung? Auf Weg 2 die einzige Quelle.</td><td>fehlt der Ausschussanteil für Weg 2</td></tr>
 <tr><td><strong>Fertige Palette wiegen</strong></td><td>Wie viel Kürbis liegt wirklich in einer
-  Kiste? (Überfüllung <em>und</em> Kistengewicht nach Sollgewicht)</td>
-  <td>ist die Überfüllung unbekannt und die Fax-Menge nach Sollgewicht nicht rechenbar</td></tr>
+  Kiste? (Überfüllung bei Kiste ab x kg, Erwartung bei Stück-Kisten <em>und</em> die
+  Palettenmasse je Kistensystem für den Fax)</td>
+  <td>ist die Überfüllung unbekannt und die Fax-Menge nicht rechenbar</td></tr>
 <tr><td><strong>Kisten zählen</strong></td><td>Wie viel Masse ging durch diese Arbeit? Der
-  Nenner am Waschbecken und beim Fax.</td><td>hat die Arbeit keine Menge — die Schimmelmessung
-  ist ein Zähler ohne Nenner</td></tr>
-<tr><td><strong>Faules wiegen (Fax)</strong></td><td>Wie viel Schaden macht das Waschen?</td>
+  Nenner am Waschbecken; das Sortierdatum je Kiste sagt, wie lange sie im Zwischenlager stand.</td>
+  <td>hat die Arbeit keine Menge — die Schimmelmessung ist ein Zähler ohne Nenner</td></tr>
+<tr><td><strong>Paletten gesamt (Fax)</strong></td><td>Wie viel wurde abgepackt? Der Nenner des
+  Fax, mal die gemessene Palettenmasse.</td><td>hat die Fax-Arbeit keine Menge</td></tr>
+<tr><td><strong>Faules wiegen (Fax)</strong></td><td>Wie viel Schaden macht das Waschen? Mit den
+  Tagen seit dem Waschen: Waschschaden oder Liegen danach?</td>
   <td>fehlt der Fax-Strom ganz</td></tr>
 <tr><td><strong>Lagerkontrolle</strong></td><td>Ist der gemessene Verderb repräsentativ — oder
   wird nach Aussehen ausgewählt?</td><td>steht dieselbe Zahl da, nur mit engem Bereich und ohne
@@ -849,11 +888,12 @@ fehlt, wenn es fehlt.</p>
 <tr><td><strong>Sortier-CSV</strong></td><td>Ausschuss, Nebenkanal, Kaliber-Verteilung,
   Gewichtsverteilung — vier Antworten, gemessen.</td><td>müssen zu klein und zu gross geschätzt
   werden; die Gegenprobe gegen das Modell entfällt</td></tr>
-<tr><td><strong>Warenausgang</strong></td><td>Wie viel hat den Betrieb verlassen? Die zweite
-  vollständige Liste.</td><td>ist der Restbestand reine Projektion und die Bilanz kann nicht
-  schliessen</td></tr>
-<tr><td><strong>Abschlussfragen</strong></td><td>Darf diese Messung ins Zeitmodell? Gehört der
-  Ausschuss zu dieser Arbeit?</td><td>sitzen möglicherweise gemischte Punkte in der Kurve</td></tr>
+<tr><td><strong>Warenausgang</strong></td><td>Wie viel hat den Betrieb verlassen — und damit:
+  wie viel liegt noch im Haus? Die zweite vollständige Liste; das Ausgelagerte wird aus ihr
+  zurückgerechnet (AB-23).</td><td>liegt rechnerisch noch alles im Haus, und der Verlust wird für
+  die ganze Eingangsmasse bis zum Stichtag gerechnet — die Bilanz sagt es im Klartext</td></tr>
+<tr><td><strong>Abschlussfragen</strong></td><td>Darf diese Messung ins Zeitmodell?</td>
+  <td>sitzen möglicherweise gemischte Punkte in der Kurve</td></tr>
 </table>
 
 <h2 class="gross">1.16 Was bewusst <em>nicht</em> erfasst wird</h2>
@@ -876,8 +916,11 @@ Wahrscheinlichkeit, dass überhaupt etwas erfasst wird.</p>
 <tr><td>Temperatur- und Klimadaten</td><td>Die Halle ist temperiert und klimageregelt; eine
   konstante Tagesrate ist damit gut begründet. Klimadaten könnten später eine temperaturabhängige
   Rate tragen — heute gibt es dafür keine Datengrundlage.</td></tr>
-<tr><td>Preise</td><td>Buch B rechnet in Kilogramm, nicht in Franken. Preise je Kaliber und je
-  Kiste kämen später dazu; sie ändern die Rangfolge der <em>physischen</em> Ursachen nicht.</td></tr>
+<tr><td>Preise</td><td>Die verschenkte Marge rechnet in Kilogramm, nicht in Franken. Preise je
+  Kaliber und je Kiste kämen später dazu; sie ändern die Rangfolge der <em>physischen</em>
+  Ursachen nicht.</td></tr>
+<tr><td>Der Käufer</td><td>Seit 0060 nicht mehr gefragt. Was die Rechnung braucht, ist das
+  Kistensystem, nicht der Abnehmer; alte Arbeiten behalten ihren Käufer.</td></tr>
 <tr><td>Wer welche Handbewegung gemacht hat</td><td>Erfasst wird, <em>dass</em> jemand
   angemeldet war und die Messung eingetragen hat — nicht, wie schnell er arbeitet. Das Werkzeug
   misst Kürbisse, keine Menschen. Die Durchsatzzahlen unter „Betrieb" sind je Tätigkeit
@@ -895,46 +938,52 @@ steht als „nicht gemessen" — nie als 0.</strong></p>
 <p>Fünf Karten, und keine davon behauptet etwas, das nicht gewusst werden kann (AB-18):</p>
 
 <ol class="schritte">
-<li><strong>Vier Zahlen</strong> — Eingang (gemessen) · Ausgeliefert (gemessen) · Physisch
-  verloren (Modell) · Noch im Haus (Modell). Die Kennzeichnung „gemessen" gegen „Modell" steht
-  in der Karte, nicht in einer Fussnote.</li>
-<li><strong>Woran geht die Ware verloren?</strong> — Die Hauptursachen, umschaltbar zwischen
-  Gesamt, je Sorte, je Schlag und je Charge, und zwischen Tonnen und Anteil. Gruppiert sind es
-  gestapelte Balken; ein Klick öffnet die Gruppe auf der Ursachen- oder Chargenseite.</li>
-<li><strong>Was ist noch im Haus?</strong> — Je Gruppe: Eingang, Ausgeliefert, Verlust, anderer
-  Kanal, noch im Haus, und „liegt seit" als <em>Spanne</em>, weil es kein FIFO gibt.</li>
+<li><strong>Vier Zahlen</strong> — Eingang (gemessen) · Ausgeliefert (gemessen) · Verlust
+  (gerechnet, echter und anderer Kanal getrennt genannt) · Noch im Haus (gerechnet: Eingang minus
+  das, was hinter den Lieferungen steckt — davon verkaufsfähig). Die Kennzeichnung „gemessen"
+  gegen „gerechnet" steht in der Karte, nicht in einer Fussnote.</li>
+<li><strong>Woran fehlt die Ware?</strong> — Palox, Verdunstung, zu klein, zu gross und die
+  Überfüllung, umschaltbar zwischen Gesamt, je Sorte, je Schlag und je Charge. Gruppiert sind
+  es gestapelte Balken; ein Klick öffnet die Gruppe auf der Ursachen- oder Chargenseite.</li>
+<li><strong>Was ist noch im Haus?</strong> — Je Gruppe: Eingang, Ausgeliefert, Verlust, noch
+  im Haus, davon verkaufsfähig, und „liegt seit" als <em>Spanne</em>, weil es kein FIFO gibt.</li>
 <li><strong>Wie gross sind die Kürbisse?</strong> — Je Sorte ein 100-%-Balken über die
   Kaliberklassen, aus der Sortier-CSV. Gibt es zu einer Sorte mehrere Fassungen der Bänder, steht
   jede für sich, mit ihren Grenzen benannt.</li>
-<li><strong>Die Saison im Verlauf</strong> — Eingang und Ausgang kumuliert über die Wochen. Der
-  Abstand zwischen den Kurven ist, was im Haus ist.</li>
+<li><strong>Die Saison im Verlauf</strong> — Eingang und Ausgang kumuliert über die Wochen,
+  und als dritte Linie der Abstand: was im Haus ist.</li>
 </ol>
 
-<h3>Ursachen — vier Ursachen, jede in der Tiefe</h3>
+<h3>Ursachen — echter Verlust und kein echter, jede Ursache in der Tiefe</h3>
 
-<p>Filterbar nach Sorte und Schlag, auch direkt aus dem Überblick heraus. Je Ursache: der
-Verlauf, die Messpunkte dahinter, die Aufschlüsselung je Sorte und je Charge.</p>
+<p>Filterbar nach Sorte, Schlag und Charge, auch direkt aus dem Überblick heraus. Je Ursache:
+der Verlauf, die Messpunkte dahinter, die Aufschlüsselung je Sorte und je Charge. Zwei
+Abschnitte, ohne Buchhalterwörter (AB-30):</p>
 
 <ul>
-<li><strong>Verderb im Lager</strong> — die Kurve mit ihren Punkten (nach Herkunft
-  unterschieden: Verarbeitung, Lagerkontrolle, gemischte Chargen) und je Charge ein Vergleich
-  gemessen gegen Modell.</li>
-<li><strong>Verdunstung</strong> — der kumulierte Verlust über der Lagerdauer, jede gewogene
-  Palette als Punkt, die Modelllinie je Rate, dazu je Sorte die Tagesrate und der Verlust nach
-  hundert Tagen.</li>
-<li><strong>Sortierung</strong> — zu klein und zu gross je Sorte und Charge, die
-  Kaliber-Verteilung, die Gewichtsverteilung aus der CSV mit den Grenzen darübergelegt, und die
-  Überfüllung je Käufer.</li>
-<li><strong>Faul beim Abpacken</strong> — die Rate je Sorte und je Charge.</li>
+<li><strong>Echter Verlust — Palox:</strong> Verderb im Lager (die Kurve mit ihren Punkten nach
+  Herkunft — Verarbeitung, Lagerkontrolle, gemischte Chargen —, je Charge gemessen gegen Modell
+  und das Faule je Charge) und Palox beim Abpacken (Fax: die Rate je Sorte und Charge, mit den
+  Tagen seit dem Waschen).</li>
+<li><strong>Echter Verlust — Verdunstung:</strong> der kumulierte Verlust über der Lagerdauer,
+  jede gewogene Palette als Punkt, die Modelllinie je Rate, dazu je Sorte die Tagesrate und der
+  Verlust nach hundert Tagen.</li>
+<li><strong>Kein echter Verlust — Sortierung:</strong> zu klein und zu gross je Sorte und
+  Charge, die Kaliber-Verteilung, die Gewichtsverteilung aus der CSV mit den Grenzen
+  darübergelegt.</li>
+<li><strong>Kein echter Verlust — Überfüllung:</strong> aus den gewogenen fertigen Paletten
+  gegen das Soll der Arbeit, auf die verkaufte Masse hochgerechnet; bei Stück-Kisten die
+  Abweichung von der Erwartung aus der CSV als Information.</li>
 </ul>
 
 <h3>Chargen · Messungen · Betrieb</h3>
 
 <table>
 <tr><th style="width:26mm">Reiter</th><th>Beantwortet</th></tr>
-<tr><td><strong>Chargen</strong></td><td>Wo steht welche Charge? Eingang, im Lager, ausgeliefert,
-  „liegt seit" als Spanne, Verlust. Aufgeklappt: die Eingangstage einzeln (gekommen, gezählt,
-  noch da), die Arbeiten und die Lieferungen.</td></tr>
+<tr><td><strong>Chargen</strong></td><td>Wo steht welche Charge? Eingang, ausgeliefert, im Haus
+  (davon verkaufsfähig), „liegt seit" als Spanne, Verlust, Messungen. Aufgeklappt: die
+  Eingangstage einzeln (Paletten, Eingang, in der App gezählt), die Arbeiten und die
+  Lieferungen.</td></tr>
 <tr><td><strong>Messungen</strong></td><td>Was weiss die Auswertung — und was nicht? Wie
   vollständig erfasst wird (je Absprache ein Balken), Auffälligkeiten mit Rat und Sprung zur
   Arbeit, wo Messungen fehlen, ob das Älteste zuerst verarbeitet wird, die Koeffizienten mit
@@ -1107,14 +1156,16 @@ schreiben darf (Abschnitt 2.22) und was bei einer Aktualisierung angefasst werde
 <tr><td><code>sorte_kaliber</code></td><td>Verlustgrenze, Kaliberbänder als JSON, Nebenkanalgrenze.
   Die Anzahl Bänder variiert je Sorte (2–4) und ist bewusst nicht als feste Spaltenzahl
   modelliert.</td></tr>
-<tr><td><code>sortierschema</code></td><td>Eine <em>datierte Fassung</em> der Sortierregeln je
-  Sorte und Käufer: Art (Kiste ab x kg / Kaliber), Sollgewicht oder Bänder, <code>gilt_ab</code>.
+<tr><td><code>sortierschema</code></td><td>Eine <em>datierte Fassung</em> der Bänder je Sorte
+  (Käufer nur noch bei alten Fassungen): Art, Sollgewicht oder Bänder, <code>gilt_ab</code>.
   Nie ändern, nur neue Fassung.</td></tr>
-<tr><td><code>kaeufer</code></td><td>Abnehmer. Bestimmt, welches Schema gilt.</td></tr>
+<tr><td><code>kaeufer</code></td><td>Abnehmer. Seit 0060 nicht mehr gefragt — alte Arbeiten
+  behalten ihren Käufer, keine Maske schreibt einen neuen.</td></tr>
 <tr><td><code>gebinde</code></td><td>Kistenart mit Tara je Kiste und Tara der Palette. Macht aus
   jedem Brutto ein Netto.</td></tr>
 <tr><td><code>einstellung</code></td><td>Schlüssel-Wert als JSON: Saison, Stichtag, Palox-Tara,
-  Sollgewicht, Zuordnungsfenster. Eigene Werte des Betriebs überleben jede Aktualisierung.</td></tr>
+  Zuordnungsfenster. Eigene Werte des Betriebs überleben jede Aktualisierung. Das Sollgewicht
+  steht seit 0060 an der Arbeit, nicht hier.</td></tr>
 <tr><td><code>ausgang_ziel</code></td><td>Wohin Ware den Betrieb verlässt, und <em>in welches
   Buch</em> das fällt: Verkauf, anderer Kanal (Tierfutter), echter Verlust (Kompost).</td></tr>
 <tr><td><code>profil</code></td><td>Ein Profil je Login, mit Rolle (Arbeiter / Betriebsleiter).</td></tr>
@@ -1135,26 +1186,30 @@ schreiben darf (Abschnitt 2.22) und was bei einer Aktualisierung angefasst werde
 <table>
 <tr><th style="width:34mm">Tabelle</th><th>Inhalt und Besonderheit</th></tr>
 <tr><td><code>auftrag</code></td><td>Die Arbeit: Weg, Station, Charge, Start und Ende (Server),
-  Käufer, Fassung des Sortierschemas, Kaliber oder eigenes Band, <code>ist_fax</code>, Status,
-  Abbruch mit Grund.</td></tr>
+  <strong>Kistensystem</strong> (Kiste ab x kg mit Soll · Stück je Kaliber · anderes), Fassung
+  der Bänder, Kaliber oder eigenes Band, <code>ist_fax</code> mit Paletten gesamt und Tagen seit
+  dem Waschen, Status, Abbruch mit Grund. Der Käufer bleibt als Altspalte.</td></tr>
 <tr><td><code>auftrag_teilnehmer</code></td><td>Wer beigetreten ist — für den Durchsatz je
   Person-Stunde und dafür, wer korrigieren darf.</td></tr>
-<tr><td><code>auftrag_palette</code></td><td>Jede gezählte Palette mit ihrem Zetteldatum;
-  optional der Verweis auf eine konkrete Palette oder eine Wägung.</td></tr>
-<tr><td><code>auftrag_gebinde</code></td><td>Gezählte Kisten je Arbeit und Kaliberindex. −1
-  bedeutet „Kiste nach Sollgewicht", −2 „eigenes Band" (die Grenzen stehen am Auftrag).</td></tr>
+<tr><td><code>auftrag_palette</code></td><td>Jede gezählte Palette mit ihrem Zetteldatum und —
+  beim Waschen + Sortieren — dem Gewicht vom Zettel; optional der Verweis auf eine konkrete
+  Palette oder eine Wägung.</td></tr>
+<tr><td><code>auftrag_gebinde</code></td><td>Gezählte Kisten je Arbeit, Kaliberindex und
+  Sortierdatum („kein Datum" ist ein eigener Zähler). −1 bedeutet „Kiste nach Sollgewicht", −2
+  „eigenes Band" (die Grenzen stehen am Auftrag).</td></tr>
 <tr><td><code>auftrag_angabe</code></td><td>Die Antworten aus dem Abschluss als Schlüssel und
-  Wert — „eine Charge: ja/nein", „Ausschuss-Paletten leer". Messwerte, keine Notizen: „nicht
+  Wert — „eine Charge: ja/nein", „gleiche Sorte". Messwerte, keine Notizen: „nicht
   alles aus einer Charge" nimmt die Messung aus dem Zeitmodell.</td></tr>
-<tr><td><code>schimmel_messung</code></td><td>Der Palox-Stand je Ablesung, mit Häkchen „geleert".
-  Die Menge ist die Differenz.</td></tr>
-<tr><td><code>ausschuss_messung</code></td><td>Zu klein / zu gross, gewogen (Brutto, Kisten,
-  Gebinde) oder geschätzt — unterscheidbar gespeichert.</td></tr>
+<tr><td><code>schimmel_messung</code></td><td>Der Palox-Stand je Ablesung. Die Menge ist die
+  Differenz je Station (Sortiermaschine, Waschstrasse); ein gefallener Stand heisst geleert, die
+  Menge ist dann unbekannt.</td></tr>
+<tr><td><code>ausschuss_messung</code></td><td>Zu klein / zu gross, gewogen oder geschätzt —
+  Altbestand; seit 0060 schreibt keine Maske mehr hinein.</td></tr>
 <tr><td><code>verdunstung_wiegung</code></td><td>Palettenwägungen und Lagerkontrollen in einer
   Tabelle: Eingangsdatum, Brutto damals und jetzt, Kisten, Gebinde, sichtbarer Schimmel,
   „davon faul", Auswahlart.</td></tr>
 <tr><td><code>ausgang_wiegung</code></td><td>Fertige Palette nach dem Waschen: Brutto, Kisten,
-  Gebinde, optional Kürbisse je Kiste.</td></tr>
+  Gebinde, bei Stück-Kisten Kaliber und Kürbisse je Kiste.</td></tr>
 <tr><td><code>sortier_lauf</code></td><td>Eine CSV: Charge, Dateiname, Verweis auf die Rohdatei,
   Prüfsumme, Dateizeit mit Quelle, Reinigungsparameter, die vier Zählungen der Reinigung,
   zugeordnete Arbeit, Fassung des Schemas.</td></tr>
@@ -1181,7 +1236,7 @@ schreiben darf (Abschnitt 2.22) und was bei einer Aktualisierung angefasst werde
 
 <h2>2.5 Die Sichtenkette — von der Rohzeile bis zur Zahl</h2>
 
-<p>56 Sichten, sieben davon gespeichert. Sie bilden eine Kette, in der jede Stufe genau eine
+<p>Rund 60 Sichten, acht davon gespeichert. Sie bilden eine Kette, in der jede Stufe genau eine
 Aufgabe hat. Die Kette rückwärts zu lesen ist die beste Art, das System zu prüfen: Jede Zahl
 auf dem Bildschirm muss sich bis zu einer Rohzeile zurückverfolgen lassen.</p>
 
@@ -1194,8 +1249,8 @@ auf dem Bildschirm muss sich bis zu einer Rohzeile zurückverfolgen lassen.</p>
   auftrag_gebinde ─────▶ v_auftrag_gebinde_masse         ┌────────────┘
   sortier_gewicht ─────▶ mv_sortier_lauf_masse           │
   auftrag.durchsatz ───┐            │                    ▼
-                       └──▶ mv_auftrag_masse ──▶ v_hochrechnung_basis ─┐
-                                    │             (ausgelagert/Lager)  │
+                       └──▶ mv_auftrag_masse ──▶ v_kaskade_basis ─────┐
+                                    │             (Eingang, Gegenproben)│
   schimmel_messung ────▶ v_schimmel_menge ─┐                           │
                                            ├─▶ v_schimmel_beobachtung  │
   verdunstung_wiegung ─▶ v_verdunstung_messung   │                     │
@@ -1213,13 +1268,19 @@ auf dem Bildschirm muss sich bis zu einer Rohzeile zurückverfolgen lassen.</p>
   ausgang_wiegung ─────▶ v_koeff_ueberfuellung                        │
   Fax-Wägungen ────────▶ v_koeff_fax                                  ▼
                                                               v_hochrechnung
-  lieferung ───────────▶ v_lieferung_masse ──────────────────▶ v_saisonbilanz
+  lieferung ───────────▶ v_lieferung_masse ──▶ v_lieferung_kohorte ──▶ mv_kaskade
+                                       │        (je Charge, Eingangstag)   │
+                                       └───────────────────────▶ v_saisonbilanz
+                                                              v_hochrechnung_basis
+                                                              (ausgelagert / Lager)
                                                               v_marge_buch
                                                               v_verlust_ranking</div>
 
-<p>Die sieben <strong>gespeicherten</strong> Sichten (<code>mv_</code>) sind die, die zu teuer
+<p>Die acht <strong>gespeicherten</strong> Sichten (<code>mv_</code>) sind die, die zu teuer
 sind, um bei jedem Seitenaufruf neu zu laufen: die Masse je Arbeit, die Sortierläufe, die
-Schimmelpunkte, das Verderbsmodell, die Kaskade, die Kaliber-Verteilung und der Sortiereingang.
+Schimmelpunkte, das Verderbsmodell, die Kaskade, die Hochrechnung je Strom (seit 0060 — die
+Kaskade hat je Eingangstag zwanzigmal mehr Zeilen als früher, und die Ströme daraus rechnet
+niemand bei jedem Aufruf neu), die Kaliber-Verteilung und der Sortiereingang.
 Sie werden von <code>auswertung_aktualisieren()</code> in einem Rutsch erneuert. Die App ruft
 diese Funktion, wenn <code>auswertung_stand</code> sagt, dass sich seit der letzten Rechnung
 etwas geändert hat — und der Betriebsleiter kann sie über „Neu rechnen" erzwingen.</p>
@@ -1237,18 +1298,30 @@ V  = m₀ − m₁              <span class="k">Verdunstung</span>
 G  = m₁·a₀                <span class="k">Grundaussortierung (nicht lagerbedingt)</span>
 S  = m₁·(1−a₀)·f(t)       <span class="k">Schimmel</span>
 m₂ = m₁·(1−a₀)·(1−f)      <span class="k">was ans Band / Becken kommt</span>
-K  = m₂·a                 <span class="k">zu klein  → Buch B</span>
-N  = m₂·n                 <span class="k">zu gross  → Buch B</span>
+K  = m₂·a                 <span class="k">zu klein  → kein echter Verlust (Tierfutter)</span>
+N  = m₂·n                 <span class="k">zu gross  → kein echter Verlust (Nebenkanal)</span>
 X  = (m₂−K−N)·φ           <span class="k">faul beim Abpacken (Fax)</span>
 verkaufsfähig = m₂ − K − N − X</div>
 
 <p>Jeder Anteil bezieht sich auf die Masse, die in <em>seinen</em> Schritt hineingeht. Nur so
 addieren sich die Ströme genau zur Portion, ohne Basen zu vermischen.</p>
 
-<h3>Zwei Portionen je Charge</h3>
-<p>Jede Charge zerfällt in <strong>ausgelagert</strong> (verarbeitet, Lagerdauer beobachtet) und
-<strong>im Lager</strong> (rechts-zensiert, bis zum Stichtag der Saison projiziert). Auf beide
-läuft dieselbe Rechnung, aber mit verschiedenem <em>t</em>. Im Dashboard werden sie getrennt
+<h3>Zwei Portionen je Charge — aus Eingang und Ausgang, nicht aus dem Zählen</h3>
+<p>Jede Charge zerfällt je Eingangstag in <strong>ausgelagert</strong> und <strong>im
+Lager</strong>. Bis 0059 kam „ausgelagert" aus den gezählten Paletten — und das war eine
+Annahme, die im Betrieb nie galt: Nicht jede Arbeit wird erfasst, und was nicht gezählt wurde,
+lag in der Rechnung noch im Lager, alterte weiter und verdarb weiter. Seit 0060 kommt es aus der
+zweiten vollständigen Liste, den verkauften Lieferungen (AB-23):</p>
+<div class="formel">Eingangsmasse hinter einer Lieferung  =  geliefert ÷ verkaufsfähiger Anteil beim Alter am Liefertag
+ausgelagert(Charge, Eingangstag)      =  Σ davon, nach Eingangsanteil des Tags verteilt
+im Lager(Charge, Eingangstag)         =  Eingang − ausgelagert     <span class="k">(nie unter 0)</span></div>
+<p>Der verkaufsfähige Anteil ist dieselbe Kaskade, rückwärts angewandt — die Lieferung sagt, was
+herauskam, das Modell, wie viel dafür hineingehen musste. Er ist nach unten auf 25 % geklammert,
+damit eine Lieferung an eine sehr alte Kohorte nicht das Vierfache der Halle verlangt. Verlangt
+eine Charge trotzdem mehr, als je eingelagert wurde, ist das eine <strong>Überzählung</strong>:
+fast immer ein fehlender Wareneingang oder eine falsch zugeordnete Lieferung — und ein Befund,
+kein stilles Verschwinden. Auf beide Portionen läuft dieselbe Rechnung, aber mit verschiedenem
+<em>t</em>: das Alter am Liefertag, beziehungsweise bis zum Stichtag. Im Dashboard werden sie getrennt
 ausgewiesen — „beobachtet" gegen „projiziert" —, und zusätzlich wird ausgewiesen, welcher Teil
 <em>jenseits der längsten je gemessenen Lagerdauer</em> liegt („hochgerechnet"). Der Unterschied
 zwischen „das haben wir gesehen" und „das rechnen wir hoch" darf nicht verschwinden.</p>
@@ -1450,11 +1523,16 @@ war falsch, und beides verschob die Rangfolge.</p>
   Gewichtsverteilung — <em>nach der Fassung des Schemas, die beim Sortieren galt</em>. Die
   Unsicherheit kommt allein daher, wie repräsentativ die sortierten Läufe für die ganze Charge
   sind; nicht aus der Messung.</td></tr>
-<tr><td><strong>Zu klein / zu gross</strong> (Weg 2)</td><td>Keine Maschine. Gewogene
-  Ausschuss-Paletten gegen die Masse am Becken, mit entsprechend breiterem Bereich.</td></tr>
+<tr><td><strong>Zu klein / zu gross</strong> (Weg 2)</td><td>Seit 0060 aus derselben CSV: Die
+  Handlinie sortiert nach denselben Grenzen. Alte Handmessungen bleiben lesbar.</td></tr>
 <tr><td><strong>Überfüllung</strong></td><td><code>(Brutto − Palette − Kisten × Tara) / Kisten
-  − Soll</code>, Soll aus der Fassung oder der Einstellung. Zusätzlich je Käufer und Sorte
-  ausgewiesen, weil verschiedene Käufer verschiedene Kistenmasse haben können.</td></tr>
+  − Soll</code>, Soll aus dem Kistensystem der Arbeit (nur „Kiste ab x kg"). Die Kistenzahl,
+  auf die sie hochgerechnet wird, folgt der <em>verkauften</em> Masse — nicht einer Einstellung
+  und nicht gezählten Arbeiten. Bei Stück-Kisten gibt es kein Soll, nur die Erwartung aus der
+  CSV.</td></tr>
+<tr><td><strong>Palettenmasse je Kistensystem</strong></td><td>Aus den gewogenen fertigen
+  Paletten je Sorte und Kistensystem, Rückfall auf die Sorte. Der Nenner des Fax: Paletten
+  gesamt × Palettenmasse.</td></tr>
 <tr><td><strong>Kistengewicht je Kaliber</strong></td><td>Am Sortieren gemessen: Dort steht die
   Masse je Kaliber in der CSV, und die gefüllten Kisten werden gezählt. Der Quotient ist das
   Kistengewicht, mit Streuung und 95-%-Bereich aus der t-Verteilung. Ohne diese Messung bleibt
@@ -1486,16 +1564,19 @@ Zwei falsche Antworten wurden gebaut und wieder entfernt:</p>
   im Hauptlager entscheidet die Erreichbarkeit im Stapel.</li>
 </ul>
 
-<p>Die heutige Lösung braucht keine Annahme über die Reihenfolge, weil sie die Reihenfolge
-<em>misst</em>. Jede gezählte Palette trägt ihr Zetteldatum (AB-11). Daraus folgt je Charge und
-Eingangstag eine <strong>Kohorte</strong>:</p>
+<p>Die heutige Lösung braucht eine Annahme weniger, weil sie nichts über die Reihenfolge
+behauptet. Jeder Eingangstag einer Charge ist eine <strong>Kohorte</strong> mit eigenem Alter,
+und jede Lieferung der Charge geht auf alle Kohorten im Verhältnis ihres Eingangs — die App
+weiss nicht, welche Palette gegangen ist, und tut nicht so:</p>
 
-<div class="formel">Rest(Tag) = Paletten mit diesem Zetteldatum im Wareneingang
-          − Paletten mit diesem Zetteldatum, die gezählt wurden</div>
+<div class="formel">Rest(Tag) = Eingang(Tag) − Eingang(Tag) ÷ Eingang(Charge) × ausgelagert(Charge)</div>
 
 <p>Die Kaskade rechnet dann <em>je Kohorte</em> mit deren eigenem Alter, nicht mit einem Mittel;
 der Bestand ist die Summe über die Kohorten. „Liegt seit" ist im Dashboard eine
-<strong>Spanne</strong> — von der jüngsten bis zur ältesten Kohorte —, keine einzelne Zahl.</p>
+<strong>Spanne</strong> — von der jüngsten bis zur ältesten Kohorte —, keine einzelne Zahl. Bis
+0059 stand hier „Paletten des Tags minus gezählte Paletten mit diesem Zetteldatum". Das war
+falsch, weil es voraussetzte, dass jede Arbeit gezählt wird; die gezählten Paletten je
+Eingangstag stehen heute als Information in der Chargentabelle, nicht als Bestand.</p>
 
 <div class="warum"><b>Warum das mehr ist als Genauigkeit</b>
 Der Verderb beschleunigt mit der Zeit (k &gt; 1). Bei einer konvexen Funktion ist der Wert am
@@ -1664,20 +1745,23 @@ Was es <strong>nicht</strong> zeigt: ob die Verluste stimmen — die CSV wiegt, 
 liegen die Abweichungen bei −4.5 %, −1.2 %, +3.8 %.</p>
 
 <h3>Die Saisonbilanz</h3>
-<div class="formel">Eingang  =  physisch weg  +  Ausgang  +  Restbestand  +  Lücke</div>
-<p>Zwei dieser Zahlen sind gemessen (Eingang, Ausgang), der Rest ist Modell. Die
-<strong>Lücke</strong> ist die einzige Zahl im ganzen Werkzeug, die misst, was das Modell
-<em>nicht sieht</em>: nicht erfasste Abgänge, Erde, Hofladen, Eigenbedarf, systematische
-Unterschätzung. Sie ist deshalb keine Fehlermeldung, sondern die wertvollste Zahl der Bilanz.
-Eine kleine Lücke ist ein starkes Argument dafür, dass das Bild stimmt. Sie steht unter
-<em>Messungen</em> und nicht unter <em>Überblick</em>, weil sie das Modell prüft und nicht den
-Betrieb.</p>
+<div class="formel">Eingang  =  echter Verlust  +  anderer Kanal  +  verkauft  +  verkaufsfähig im Haus  (+ Überzählung)</div>
+<p>Zwei dieser Zahlen sind gemessen (Eingang, verkauft), der Rest ist Modell. Seit 0060 schliesst
+die Bilanz von selbst, weil das Ausgelagerte aus den Lieferungen zurückgerechnet ist — die
+„Lücke" früherer Fassungen war die Differenz zwischen gezählten und gelieferten Mengen, und
+die gab es nur, weil das Zählen als Menge galt. Geprüft wird jetzt an den Rändern: Was an die
+Tiere und in den Nebenkanal <em>geliefert</em> wurde, gegen das, was das Modell dafür rechnet;
+und die <strong>Überzählung</strong> — steckt hinter den Lieferungen einer Charge mehr
+Eingangsmasse, als je eingelagert wurde, fehlt Wareneingang oder eine Lieferung ist falsch
+zugeordnet. Beides steht im Klartext unter <em>Messungen</em>, nicht unter <em>Überblick</em>,
+weil es das Modell prüft und nicht den Betrieb.</p>
 
 <h3>Die Plausibilitätsliste</h3>
 <p>Eine dritte Kontrolle, die laufend läuft: <code>v_plausibilitaet</code> sammelt jede Messung,
 die <em>nicht</em> in die Rechnung eingeht, mit Grund und Rat — ein Schimmelanteil über 100 %,
 eine Wägung ohne Tara, eine Palette, die schwerer geworden ist, gezählte Kisten ohne gemessenes
-Kistengewicht, ein Zetteldatum ohne passende Palette im Wareneingang. Jede Zeile nennt die
+Kistengewicht, ein Zetteldatum oder Zettelgewicht ohne passende Palette im Wareneingang, ein
+gefallener Palox-Stand, eine Lieferung an eine Charge ohne Eingang. Jede Zeile nennt die
 Arbeit und verlinkt sie. Das ist der Unterschied zwischen „die Zahl ist komisch" und „an dieser
 Arbeit fehlt die Palox-Ablesung".</p>
 
@@ -2008,7 +2092,9 @@ plausibel klangen und an der Messung scheiterten.</p>
 <tr><td>Der Sockel a₀ am Saisonende</td><td>vom Test nie belegt; der Schimmel bleibt dort in der
   Sockel-Lage rund 48 % zu hoch. Abhilfe: eine direkte Messung beim Leeren des Palox — die
   letzte offene Frage an den Betrieb (AB-14)</td></tr>
-<tr><td>Restbestand im Lager</td><td>Projektion, kein Inventar — niemand hat nachgezählt</td></tr>
+<tr><td>Restbestand im Lager</td><td>Eingang minus das, was hinter den Lieferungen steckt — kein
+  Inventar, und kein Zählen in der Halle; der verkaufsfähige Anteil ist nach unten auf 25 %
+  geklammert</td></tr>
 <tr><td>Massenbilanz gegen die CSV</td><td>prüft die Koeffizienten am Tag des Sortierens, nicht
   die Verluste</td></tr>
 <tr><td>Zuordnung Waschgang → Sortierlauf</td><td>über Charge und Reihenfolge geschlossen, nicht
@@ -2018,7 +2104,7 @@ plausibel klangen und an der Messung scheiterten.</p>
 <tr><td><strong>Ein Arbeitsgang = eine Charge</strong></td><td>Wird beim Waschen gemischt und die
   Abschlussfrage falsch beantwortet, sitzen Kurvenpunkte am falschen Alter. Kein Schutz ausser
   der Frage selbst.</td></tr>
-<tr><td>Preise</td><td>Buch B rechnet in Kilogramm, nicht in Franken</td></tr>
+<tr><td>Preise</td><td>Die verschenkte Marge rechnet in Kilogramm, nicht in Franken</td></tr>
 <tr><td>Restbestände zwischen zwei Saisons</td><td>im Modell nicht abgebildet; es kennt nur
   „bis zum Stichtag gelagert"</td></tr>
 </table>

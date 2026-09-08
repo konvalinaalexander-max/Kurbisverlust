@@ -5,6 +5,25 @@ Sie ist der Massstab, an dem sich Datenmodell und Oberflächen messen lassen
 müssen. Wo das Modell etwas annimmt, das niemand geprüft hat, steht es als
 Annahme da — unmarkierte Annahmen sind der Anfang jedes stillen Fehlers.
 
+## Die Antworten vom 8. September — punktuell erfasst, vollständig gerechnet
+
+Der Betrieb hat die App Maske für Maske durchgesehen. Der Satz, der alles
+ordnet: *„Du kriegst hier nur punktuelle Messungen — du weisst nur, wie viel
+noch im Lager ist, beim Vergleich von Eingang und Ausgang."* Was daraus
+folgt (umgesetzt in 0060, Beweise in `ABMACHUNGEN.md` AB-23 bis AB-30):
+
+| Was der Betrieb sagte | Was die App jetzt tut |
+|---|---|
+| Nicht jede Arbeit wird erfasst; gezählte Paletten sind keine Menge | „Ausgelagert" ist die Eingangsmasse hinter den **verkauften Lieferungen**, „noch im Haus" = Eingang − Ausgelagert je Eingangstag. Das Zählen bestimmt nur noch Alter und Nenner (AB-23) |
+| Fax gibt es auch nach dem Waschen + Sortieren | Eine Fax-Art: Palettenzahl gesamt, Faules kistenweise gewogen, Tage seit dem Waschen freiwillig; Masse = Paletten × gemessene Palettenmasse (AB-24) |
+| Der Käufer interessiert nicht; das Kistensystem schon | Kiste ab x kg · x Stück je Kaliber · anderes. Nur die ersten beiden rechenbar; fertige Paletten wiegen ist bei Stück-Kisten Information, keine Marge (AB-25) |
+| Beim Waschen + Sortieren nicht zu klein / zu gross fragen, dafür das Palettengewicht vom Zettel | Gewicht vom Zettel je Palette (Pflicht), Ausschuss aus der CSV; Netto über die Palette im Wareneingang oder die mittlere Tara der Charge (AB-26) |
+| Beim Waschen das Sortierdatum auf der Kiste klar abfragen | Je gezählter Kiste ein Sortierdatum, „kein Datum" ist eine Antwort (AB-27) |
+| Nur zwei Stationen: Waschstrasse und Sortiermaschine; Palox-Differenz negativ → keine Zahl annehmen | Waschen und Waschen + Sortieren teilen den Palox; ein gefallener Stand heisst geleert, die Menge ist dann unbekannt; beim Waschen freiwillig (AB-28) |
+| Kontrolle: Vorschläge, mehrere Einträge, Eingangsdatum und -gewicht | Drei Vorschläge (bestandsstärkste, wenigste Kontrollen), Charge bleibt stehen (AB-29) |
+| Buch A/B nie als Wörter; zu klein / zu gross als Verlust verallgemeinern; Fax als „Palox" | Ursachen: echter / kein echter Verlust getrennt; Überblick: Verlust zusammen nach Gesamt, Sorte, Schlag, Charge (AB-30) |
+| Die Grundaussortierung muss nicht in der App vorkommen | Keine Maske, kein Balken; der Sockel rechnet im Modell weiter |
+
 ## Die Antworten vom 2. September — und was sie am Modell ändern
 
 > **Stand 3. September:** Die drei Punkte unten sind umgesetzt (Migrationen 0036–0039):
@@ -189,6 +208,13 @@ oder ohne Palette; das Netto rechnet ein Auslöser). Daraus entsteht der Strom �
 Abpacken (Fax)" mit eigenem Koeffizienten je Sorte, bezogen auf die verkaufsfähige Masse. Und
 die Bilanz kennt den dritten Lagerabschnitt: gewaschen, in Kisten, wartet auf eine Bestellung.
 
+*Stand 8. September (0060):* Fax gibt es nach **beiden** Wegen, und es sind dieselben Handgriffe —
+also eine Fax-Art. Gezählt wird die Palettenzahl gesamt (nicht mehr je Kaliber), das Faule
+kistenweise gewogen, freiwillig die Tage seit dem Waschen. Die Masse einer Fax-Arbeit ist
+Paletten × gemessene Palettenmasse je Sorte und Kistensystem, aus den gewogenen fertigen
+Paletten. Der Fax-Strom erscheint beim Betriebsleiter als „Palox (Faules)" neben dem Palox der
+Waschstrasse und der Sortiermaschine.
+
 ### Was der Betriebsleiter aus der Sortier-CSV erfahren will
 
 Nicht nur den Kaliber-Anteil, sondern die **Gewichtsverteilung**: Balken in wählbarer Breite
@@ -288,6 +314,11 @@ vorherigen Sortierläufe einer Charge der richtige Erwartungswert für den
 Zustand der gewaschenen Ware — nachgemessen, nicht nur argumentiert
 (`docs/STATISTIK_BEFUND.md`).
 
+*Stand 8. September (0060):* Wie viel eine Charge verlassen hat, sagt **nicht** das Zählen in
+der Halle — dort wird nur punktuell erfasst —, sondern der Warenausgang: Hinter jeder verkauften
+Lieferung steckt Eingangsmasse (geliefert ÷ verkaufsfähiger Anteil beim Alter am Liefertag), auf
+die Eingangstage der Charge nach Eingangsanteil verteilt. Was übrig bleibt, liegt noch im Haus.
+
 ## Wer entscheidet, was als nächstes drankommt
 
 Das ist keine Nebensache, sondern die grösste verbliebene Fehlerquelle. Wird
@@ -360,11 +391,14 @@ abweichen kann, ohne dass es jemand merkt.
 | Die Palox-Waage zeigt brutto, der Behälter wiegt 45 kg | Betrieb, 2. September; Einstellung `palox_tara_kg` | zeigt sie netto, fehlen bei jeder ersten Ablesung und nach jedem Leeren 45 kg — die Einstellung gehört dann auf 0 |
 | Eine beim Sortieren gefüllte Kaliber-Kiste kommt als dieselbe Kiste ans Waschbecken | daran hängt das gemessene Kistengewicht | wird umgepackt oder zusammengeschüttet, ist die Menge am Waschbecken falsch |
 | Alle Kisten eines Kalibers wiegen ungefähr gleich viel | sie werden gleich gefüllt | die Streuung steht im Bereich; systematisch unterschiedlich gefüllte Kisten verschieben die Menge |
-| Das Kistenmass einer Sorte gilt für alle ihre Käufer | im Warenausgang steht nicht, welche Kiste zu welchem Käufer ging | haben zwei Käufer verschiedene Kistenmasse, ist die Überfüllung für den einen zu hoch, für den anderen zu tief |
+| Die Überfüllung je Kiste aus den gewogenen fertigen Paletten gilt für alle verkauften Kisten der Sorte (Anteil „Kiste ab x kg") | im Warenausgang steht nicht, in welchem Kistensystem eine Lieferung ging | gehen viele Kisten nach Stück oder in ein anderes System, ist die Überfüllung zu hoch |
 | Der Sockel im Palox (Erde, Hagel, Schnitt) gilt für alle Verarbeitungsmessungen gleich, nicht für Lagerkontrollen und nicht am Waschbecken | beim Sortieren wird Optisches aussortiert, beim Waschen nur noch Faules | fällt am Waschbecken nochmals Optisches heraus, wird der Sockel unterschätzt |
 | Der Sockel ist zeitunabhängig | so beschrieben: kommt vom Feld | wächst er mit der Lagerdauer (Erde trocknet ab, Narben faulen an), steckt er zum Teil doch in der Kurve |
 | Wird nach Aussehen ausgewählt, sieht das aus wie ein Sockel | Simulation: 3–4 t erfundener Sockel bei Selektion ohne Test | der Test hält ihn zurück, sieht aber einen echten Sockel nur in der Saisonmitte in knapp jeder zweiten Saison (Schimmel dann +23 %) und am Saisonende nie (+48 %) — Lagerkontrollen oder eine Angabe beim Leeren entscheiden |
-| Alle Weg-2-Ware geht in Kisten mit dem Soll aus den Einstellungen | Überfüllung wird darauf hochgerechnet | gilt die 8-kg-Kiste nur für eine Sorte, ist die Überfüllung zu hoch |
-| Das Alter des Bestands folgt den Paletten, die noch nicht gezählt wurden | Eingangsdatum ist Pflichtfeld beim Zählen | fehlt das Datum, gilt wieder das Chargenmittel — und das liegt bei „Jüngstes zuerst" zu jung |
+| Das Kistensystem einer Arbeit gilt für alle ihre Kisten | eine Frage je Arbeit, nicht je Palette | wird mitten in der Arbeit umgestellt, stimmen Soll und Erwartung für einen Teil nicht |
+| Der Bestand je Eingangstag folgt dem Eingangsanteil des Tags — keine Palette wird verfolgt, kein FIFO (0060) | die App weiss nicht, welche Palette gegangen ist | wird systematisch das Jüngste zuerst verarbeitet, liegt das gerechnete Alter im Haus zu jung; „liegt seit" bleibt eine Spanne |
+| Hinter einer verkauften Lieferung steckt Ware, die beim Alter am Liefertag verkaufsfähig war (Anteil nach unten auf 25 % geklammert) (0060) | die Lieferung ist die einzige vollständige Messung des Ausgangs | fehlt der Wareneingang einer Charge, verlangt die Lieferung mehr, als je eingelagert wurde — das steht als Überzählung im Befund |
+| Ein gefallener Palox-Stand heisst geleert; die Menge dieser Arbeit ist unbekannt (0060) | kein Häkchen mehr, keine angenommene Zahl | wurde geleert *und* weiter gefüllt, fehlt der Punkt dieser Arbeit — nie ein falscher |
+| Das Zettelgewicht ohne passende Palette im Wareneingang bekommt die mittlere Tara der Charge (0060) | ein Zahlendreher oder eine fehlende Palette im Erntejournal | die Palette ist ein paar Kilo daneben; der Befund „Zettelgewicht" nennt sie |
 | Die Fassung des Sortierschemas beim Auftragsstart ist die, die beim Sortieren galt | am Auftrag festgehalten | wird die Fassung während der Arbeit gewechselt, klassiert die CSV nach der alten |
 | Die Antwort „alles aus einer Charge" stimmt | Abschlussfrage, Pflicht | eine falsche Antwort setzt einen gemischten Punkt ins Zeitmodell — kein Schutz ausser der Frage selbst |

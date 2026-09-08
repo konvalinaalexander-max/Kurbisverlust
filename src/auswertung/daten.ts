@@ -19,6 +19,12 @@ export interface Schimmelpunkt {
   auftrag_id: number | null; charge_nr: number; sorte: string; lagertage: number
   schimmel_kg: number; basis_jetzt_kg: number; anteil: number | null; plausibel: boolean; quelle: string
 }
+/**
+ * Je Charge (v_hochrechnung_basis, 0060): Eingang gemessen, geliefert
+ * gemessen, ausgelagert = die Eingangsmasse hinter den Lieferungen
+ * (zurückgerechnet), im Lager = Eingang − ausgelagert. Keine Zahl hier stammt
+ * aus einer gezählten Arbeit — die Erfassung in der Halle ist punktuell.
+ */
 export interface Bestand {
   charge_nr: number; sorte: string; schlag: string
   eingang_kg: number; lager_kg: number; wartet_kg: number; sortiert_kg: number; gewaschen_kg: number
@@ -28,6 +34,8 @@ export interface Bestand {
   eingang_von: string | null; eingang_bis: string | null; n_eingangstage: number | null
   rest_von: string | null; rest_bis: string | null; n_rest_paletten: number | null; n_rest_kohorten: number | null
   alter_lager_von: number | null; alter_lager_bis: number | null
+  /** 0060: gemessen geliefert (verkauft, mit Sorten-Lieferungen anteilig), verkaufsfähig im Lager (Modell). */
+  geliefert_kg: number; verkaufsfaehig_lager_kg: number | null; n_lieferungen: number
 }
 export interface NaechsteCharge {
   charge_nr: number; sorte: string; schlag: string; lager_kg: number; alter_tage: number
@@ -35,10 +43,12 @@ export interface NaechsteCharge {
   verlust_14_kg: number | null; hochgerechnet: boolean; modell_gilt: boolean
   alter_von: number | null; alter_bis: number | null; n_kohorten: number | null
 }
-/** Je Charge und Eingangstag: gekommen, gezählt, noch da (v_charge_kohorte). */
+/** Je Charge und Eingangstag: gekommen, in der App gezählt (v_charge_kohorte).
+ *  n_verarbeitet und n_rest sind Zählungen, keine Mengen (0060). */
 export interface Kohorte {
   charge_nr: number; eingangsdatum: string; n_paletten: number; n_verarbeitet: number; n_rest: number
   netto_je_palette: number | null; rest_kg: number | null; alter_heute: number
+  eingang_kg: number | null
 }
 /** Je Fax-Arbeit: Kisten, Masse, gewogenes Faules (v_fax_beobachtung). */
 export interface FaxBeobachtung {
@@ -46,6 +56,8 @@ export interface FaxBeobachtung {
   start_ts: string; ende_ts: string | null; status: string
   masse_kg: number | null; masse_quelle: string | null; kisten: number
   faul_kg: number; faul_erfasst: boolean; anteil: number | null; plausibel: boolean
+  /** 0060 */
+  paletten_gesamt: number | null; tage_seit_waschen: number | null; kistensystem: string | null
 }
 /** Je Sortierlauf oder Hand-Arbeit: Bezugsmasse, zu klein, zu gross (v_ausschuss_beobachtung). */
 export interface AusschussBeobachtung {
@@ -61,6 +73,8 @@ export interface Saisonbilanz {
   lagerverlust_kg: number | null; feld_kg: number | null
   /** 0051: durchs Fax gegangen, und gewaschen aber noch nicht abgepackt (null ohne Fax-Erfassung). */
   fax_kg: number | null; n_fax: number | null; gewaschen_offen_kg: number | null
+  /** 0060: anderer Kanal (Modell) und Überzählung (mehr geliefert als hereingekommen). */
+  kanal_modell_kg: number | null; ueberzaehlung_kg: number | null
 }
 export interface Selektion { n_verarbeitung: number | null; n_lager: number | null; unterschied: number | null; befund: string }
 export interface Befund { art: string; auftrag_id: number | null; charge_nr: number; sorte: string; start_ts: string | null; befund: string; rat: string }
@@ -95,6 +109,18 @@ export interface Datenqualitaet {
   sortierlaeufe: number; sortierlaeufe_zugeordnet: number; sortier_arbeiten: number; sortier_arbeiten_mit_kisten: number
   wasch_arbeiten: number; wasch_arbeiten_mit_kisten: number
   fax_arbeiten: number; fax_arbeiten_mit_kisten: number; fax_arbeiten_mit_faulem: number
+  /** 0060 */
+  ws_paletten_gezaehlt: number; ws_paletten_mit_zettelgewicht: number
+  arbeiten_nach_waschen: number; arbeiten_mit_kistensystem: number
+  wasch_kisten_gezaehlt: number; wasch_kisten_mit_sortierdatum: number; arbeiten_mit_palox_unbekannt: number
+}
+/** Je fertiger Palette (v_ausgang_kennzahl): Kilo je Kiste, Überschuss, bei Stück die Erwartung aus der CSV (0060). */
+export interface AusgangKennzahl {
+  id: number; auftrag_id: number; charge_nr: number; sorte: string; schlag: string; ts: string
+  kisten: number; kg_pro_kiste: number | null; kg_pro_kuerbis: number | null
+  soll_kg_pro_kiste: number | null; ueberfuellung_je_kiste: number | null; ueberfuellung_kg: number | null
+  kistensystem: string | null; kaliber_idx: number | null; stueck_je_kiste: number | null
+  erwartet_kg_pro_kiste: number | null; abweichung_je_kiste: number | null; band_mittel_g: number | null
 }
 export interface Saisonwoche { woche: string; eingang_kg: number; ausgang_kg: number; eingang_kumuliert_kg: number; ausgang_kumuliert_kg: number; vorlauf_kg: number }
 export interface KoeffGebinde { sorte: string; kaliber_idx: number; n: number; kg_je_gebinde: number; sd: number | null; unten: number | null; oben: number | null }
@@ -132,6 +158,8 @@ export interface Auswertung {
   ausschuss: AusschussBeobachtung[]
   /** Runde E: der Warenausgang je Charge — die zweite vollständige Zahl neben dem Eingang. */
   lieferungen: LieferungKurz[]
+  /** 0060: die gewogenen fertigen Paletten — Überfüllung und Stück-Erwartung. */
+  ausgang: AusgangKennzahl[]
   /**
    * Sichten, die sich nicht lesen liessen. Eine davon darf nicht den ganzen
    * Bildschirm kosten: Ihre Zahlen sind dann unbekannt, alles andere steht.
@@ -172,19 +200,28 @@ async function alles(): Promise<Auswertung> {
   const merken = (name: string, fehler: { message?: string } | null) => {
     probleme.push({ sicht: name, meldung: fehler?.message ?? 'unbekannter Fehler' })
   }
+  // Supabase liefert höchstens 1000 Zeilen je Anfrage — die Kaskade je
+  // Eingangstag und die Gewichtsverteilung haben mehr. Deshalb seitenweise,
+  // bis eine Seite nicht mehr voll ist (0060).
+  const SEITE = 1000
   const q = async <T,>(name: string, order?: [string, boolean]): Promise<T[]> => {
-    let s = supabase.from(name).select('*')
-    if (order) s = s.order(order[0], { ascending: order[1] })
-    const r = await s
-    if (r.error) { merken(name, r.error); return [] }
-    return (r.data ?? []) as T[]
+    const alle: T[] = []
+    for (let von = 0; ; von += SEITE) {
+      let s = supabase.from(name).select('*').range(von, von + SEITE - 1)
+      if (order) s = s.order(order[0], { ascending: order[1] })
+      const r = await s
+      if (r.error) { merken(name, r.error); return alle }
+      const teil = (r.data ?? []) as T[]
+      alle.push(...teil)
+      if (teil.length < SEITE) return alle
+    }
   }
   const eins = async <T,>(name: string): Promise<T | null> => {
     const r = await supabase.from(name).select('*').maybeSingle()
     if (r.error) { merken(name, r.error); return null }
     return (r.data ?? null) as T | null
   }
-  const [h, b, d, pl, kv, sk, mo, sel, sb, pk, hb, nc, kfv, kfa, kfn, kfu, wk, mg, gw, va, ds, uk, dq, sv, kg, ss, ko, fx, ab, lf] = await Promise.all([
+  const [h, b, d, pl, kv, sk, mo, sel, sb, pk, hb, nc, kfv, kfa, kfn, kfu, wk, mg, gw, va, ds, uk, dq, sv, kg, ss, ko, fx, ab, lf, ak] = await Promise.all([
     q<Hochrechnung>('v_hochrechnung'), q<Massenbilanz>('v_massenbilanz'), q<Datenlage>('v_datenlage'),
     q<Befund>('v_plausibilitaet'), q<Kaliberzeile>('v_kaliber_verteilung'), q<Kurve>('v_schimmel_kurve_anzeige'),
     eins<Modell>('v_schimmel_modell'), eins<Selektion>('v_selektionsverdacht'), eins<Saisonbilanz>('v_saisonbilanz'),
@@ -199,6 +236,7 @@ async function alles(): Promise<Auswertung> {
     q<Kohorte>('v_charge_kohorte', ['eingangsdatum', true]), q<FaxBeobachtung>('v_fax_beobachtung', ['start_ts', false]),
     q<AusschussBeobachtung>('v_ausschuss_beobachtung'),
     q<LieferungKurz>('v_lieferung_masse', ['datum', true]),
+    q<AusgangKennzahl>('v_ausgang_kennzahl', ['ts', true]),
   ])
 
   type K = { mittel?: number | null; n: number; basis?: string }
@@ -219,7 +257,7 @@ async function alles(): Promise<Auswertung> {
     modell: mo, selektion: sel, saison: sb, punkte: pk, bestand: hb, naechste: nc,
     sorten: { verdunstung: kfv, ausschuss: kfa, nebenkanal: kfn }, wiegungen: wk, marge: mg,
     gewichte: gw, verarbeitung: va, durchsatz: ds, ueberfuellung: uk, qualitaet: dq, saisonverlauf: sv,
-    gebinde: kg, schemata: ss, kohorten: ko, fax: fx, ausschuss: ab, lieferungen: lf,
+    gebinde: kg, schemata: ss, kohorten: ko, fax: fx, ausschuss: ab, lieferungen: lf, ausgang: ak,
     probleme: rechnenFehler
       ? [{ sicht: 'Auswertung neu rechnen', meldung: rechnenFehler }, ...probleme]
       : probleme,
@@ -302,7 +340,7 @@ export function stroemeSummieren(zeilen: Hochrechnung[], ranking: Ranking[]): St
 }
 
 /** Der Bereich je Strom kommt aus der Datenbank (Fehlerfortpflanzung, nicht Addition). */
-export function useRanking(sorte: string, schlag: string, minLagertage: string, stand: string | null) {
+export function useRanking(sorte: string, schlag: string, minLagertage: string, stand: string | null, charge = '') {
   const [ranking, setRanking] = useState<Ranking[]>([])
   useEffect(() => {
     let verworfen = false
@@ -310,11 +348,12 @@ export function useRanking(sorte: string, schlag: string, minLagertage: string, 
       const { data, error } = await supabase.rpc('verlust_ranking', {
         p_sorte: sorte || null, p_schlag: schlag || null,
         p_min_lagertage: minLagertage ? Number(minLagertage) : null,
+        p_charge: charge ? Number(charge) : null,
       })
       if (!verworfen && !error) setRanking((data ?? []) as Ranking[])
     })()
     return () => { verworfen = true }
-  }, [sorte, schlag, minLagertage, stand])
+  }, [sorte, schlag, minLagertage, stand, charge])
   return ranking
 }
 
@@ -326,7 +365,12 @@ export const STROMFARBE: Record<string, string> = {
   'Zu klein (Tierfutter)': 'var(--strom-ausschuss)',
   'Nebenkanal zu gross': 'var(--strom-nebenkanal)',
   'Faul beim Abpacken (Fax)': 'var(--strom-fax)',
+  /** 0060: im Überblick zählt alles Faule zusammen — im Lager, vom Feld, beim Abpacken. */
+  'Palox (Faules)': 'var(--strom-schimmel)',
 }
+
+/** Was im Palox landet (0060): Schimmel im Lager, nicht Lagerbedingtes, Faules beim Abpacken. */
+export const PALOX_STROEME = ['Schimmel/Fäulnis', 'Nicht lagerbedingt', 'Faul beim Abpacken (Fax)']
 
 /** „liegt seit 128–161 Tagen" — die Spanne der noch liegenden Paletten, nie
  *  nur ein Mittel: Eingang und Ausgang verteilen sich über Wochen (0051). */

@@ -24,7 +24,8 @@ for R in v_hochrechnung v_massenbilanz v_datenlage v_marge_buch v_plausibilitaet
          v_charge_kohorte v_kohorte_anteil v_fax_beobachtung v_ausschuss_beobachtung v_koeff_fax \
          ausgang_quelle ausgang_artikel v_ausgang_lage v_ausgang_artikel_vorschlag v_lieferung_masse \
          charge sorte_kaliber gebinde einstellung ausgang_ziel kaeufer sortierschema \
-         v_lieferung_masse v_ausgang_kennzahl profil palette \
+         v_lieferung_masse v_ausgang_kennzahl profil palette v_kontrolle_vorschlag v_lieferung_kohorte v_koeff_palette_netto \
+         ausgang_wiegung v_auftrag_angabe \
          auftrag auftrag_palette auftrag_gebinde schimmel_messung ausschuss_messung \
          sortier_lauf v_charge_rueckgrat; do
   dump "$R" "select * from $R"

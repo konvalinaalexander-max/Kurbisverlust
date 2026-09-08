@@ -237,3 +237,25 @@ select w.charge_nr, w.eingangsdatum,
   cross join sim.parameter p
  where p.lauf = :lauf
    and w.rang <= coalesce((select n_lagerkontrollen from sim.parameter where lauf = :lauf), 0);
+
+-- ---------- Lieferungen: der zweite vollständige Messwert (0060) ---------
+-- Seit 0060 teilt die Kaskade die Eingangsmasse nach den Lieferungen in
+-- „ausgelagert" und „im Lager" — nicht mehr nach gezählten Arbeiten. Was
+-- verarbeitet ist, geht in der Simulation innert Tagen raus: verkaufsfähig
+-- ist, was nach Verdunstung, Sockel, Verderb und Aussortierung übrig ist.
+delete from lieferung where bemerkung = 'SIM';
+insert into lieferung (datum, charge_nr, sorte, kg, ziel, bemerkung)
+select w.ende + 3, w.charge_nr, w.sorte,
+       round(sum(w.netto_eingang_kg * power(1 - w.r_wahr, w.ende - w.eingangsdatum)
+                 * (1 - p.anteil_sockel)
+                 * (1 - sim.schimmel_wahr(w.ende - w.eingangsdatum, p.schimmel_lambda, p.schimmel_k, w.anfaelligkeit))
+                 * (1 - p.anteil_klein - p.anteil_gross))::numeric, 1),
+       'verkauf', 'SIM'
+  from (
+    select w.*, case when w.weg = 'maschine' then w.gewaschen_am else w.verarbeitet_am end as ende
+      from sim.palette_wahr w where w.lauf = :lauf
+  ) w
+  cross join sim.parameter p
+ where p.lauf = :lauf and w.ende is not null and w.ende + 3 <= date '2027-03-31'
+ group by w.ende, w.charge_nr, w.sorte
+having sum(w.netto_eingang_kg) > 0;

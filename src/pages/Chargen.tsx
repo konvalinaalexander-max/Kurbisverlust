@@ -10,9 +10,11 @@ import { Probleme, Reiterkopf } from '../auswertung/Karten'
 import type { Auftrag } from '../lib/typen'
 
 /**
- * Chargen: Wo steht welche Charge? Eine Zeile je Charge mit Eingang, Lager,
- * Wartendem, Verarbeitetem, Alter, drohendem Verlust und Messungen — und
- * aufgeklappt die Arbeiten und Lieferungen dahinter.
+ * Chargen: Wo steht welche Charge? Eine Zeile je Charge mit Eingang,
+ * Ausgeliefert (gemessen), noch im Haus (aus den Lieferungen zurückgerechnet),
+ * Alter, drohendem Verlust und Messungen — und aufgeklappt die Eingangstage,
+ * Arbeiten und Lieferungen dahinter. Keine Menge stammt aus einer gezählten
+ * Arbeit (0060): die Erfassung in der Halle ist punktuell.
  */
 export default function Chargen() {
   const { daten, laedt, fehler, neuRechnen } = useAuswertung()
@@ -29,8 +31,8 @@ export default function Chargen() {
       l: daten.lage.find(x => x.charge_nr === b.charge_nr),
       m: daten.bilanz.find(x => x.charge_nr === b.charge_nr),
       befunde: daten.befunde.filter(x => x.charge_nr === b.charge_nr).length,
-    })).filter(z => (!sorte || z.b.sorte === sorte) && (!nurBestand || z.b.lager_kg > 0 || z.b.wartet_kg > 0))
-      .sort((a, c) => (c.b.lager_kg + c.b.wartet_kg) - (a.b.lager_kg + a.b.wartet_kg))
+    })).filter(z => (!sorte || z.b.sorte === sorte) && (!nurBestand || z.b.lager_kg > 0))
+      .sort((a, c) => c.b.lager_kg - a.b.lager_kg)
   }, [daten, sorte, nurBestand])
 
   if (laedt && !daten) return <Lade text="Auswertung wird gerechnet …" />
@@ -38,7 +40,7 @@ export default function Chargen() {
   if (!daten) return null
   const sorten = [...new Set(daten.bestand.map(b => b.sorte))].sort()
   const summeLager = zeilen.reduce((a, z) => a + z.b.lager_kg, 0)
-  const summeWartet = zeilen.reduce((a, z) => a + z.b.wartet_kg, 0)
+  const summeGeliefert = zeilen.reduce((a, z) => a + z.b.geliefert_kg, 0)
 
   return (
     <>
@@ -54,15 +56,15 @@ export default function Chargen() {
             <input type="checkbox" checked={nurBestand} onChange={e => setNurBestand(e.target.checked)} /> nur mit Bestand
           </label>
           <span className="leise" style={{ marginLeft: 'auto' }}>
-            {zeilen.length} Chargen · im Lager {kg(summeLager, 0)} · wartet {kg(summeWartet, 0)}
+            {zeilen.length} Chargen · ausgeliefert {kg(summeGeliefert, 0)} · im Haus {kg(summeLager, 0)}
           </span>
         </div>
         <div className="rollbar">
           <table>
             <thead>
               <tr>
-                <th>Charge</th><th>Sorte</th><th className="zahl">Eingang</th><th className="zahl">Im Lager</th>
-                <th className="zahl">liegt seit</th><th className="zahl">wartet</th><th className="zahl">verarbeitet</th>
+                <th>Charge</th><th>Sorte</th><th className="zahl">Eingang</th><th className="zahl">Ausgeliefert</th>
+                <th className="zahl">Im Haus</th><th className="zahl">liegt seit</th><th className="zahl">verkaufsfähig</th>
                 <th className="zahl">Verlust 14 T</th><th className="zahl">Messungen</th><th className="zahl">Modell ↔ CSV</th>
               </tr>
             </thead>
@@ -75,7 +77,7 @@ export default function Chargen() {
           </table>
         </div>
         <p className="leise" style={{ margin: '.5rem 0 0' }}>
-          „Liegt seit" ist die Spanne der noch liegenden Paletten (jüngste bis älteste) — der Eingang einer Charge verteilt sich über Tage und Wochen, und verarbeitet wird, was erreichbar ist, nicht das Älteste. Messungen: Palettenwägungen · Schimmel · CSV-Läufe. Modell ↔ CSV: Abweichung zwischen der Masse, die das Modell am Band erwartet, und der gewogenen. Eine Zeile antippen zeigt Eingangstage, Arbeiten und Lieferungen der Charge.
+          „Im Haus" ist der Eingang minus die Eingangsmasse hinter den Lieferungen — nicht gezählt, sondern aus den Lieferscheinen zurückgerechnet; „verkaufsfähig" zieht Verdunstung, Faules und Kanal für die Lagerdauer ab (Modell). „Liegt seit" ist die Spanne der Eingangstage — der Eingang einer Charge verteilt sich über Tage und Wochen, und es gibt kein Zuerst-rein-zuerst-raus. Messungen: Palettenwägungen · Schimmel · CSV-Läufe. Modell ↔ CSV: Abweichung zwischen der Masse, die das Modell am Band erwartet, und der gewogenen — die eine Gegenprobe, die an gezählten Arbeiten hängt. Eine Zeile antippen zeigt Eingangstage, Arbeiten und Lieferungen der Charge.
         </p>
       </Karte>
     </>
@@ -92,10 +94,10 @@ function ChargenZeile({ z, offen, oeffnen, daten }: { z: Zeile; offen: boolean; 
         <td><strong>{b.charge_nr}</strong> <span className="leise">{b.schlag}</span></td>
         <td>{b.sorte}</td>
         <td className="zahl">{kg(b.eingang_kg, 0)}</td>
+        <td className="zahl">{b.n_lieferungen > 0 ? kg(b.geliefert_kg, 0) : <span className="leise">—</span>}</td>
         <td className="zahl">{b.lager_kg > 0 ? kg(b.lager_kg, 0) : <span className="leise">—</span>}</td>
         <td className="zahl">{b.lager_kg > 0 ? alterSpanne(b.alter_lager_von, b.alter_lager_bis, b.alter_lager_heute).replace(' Tagen', ' d') : ''}</td>
-        <td className="zahl">{b.wartet_kg > 0 ? kg(b.wartet_kg, 0) : <span className="leise">—</span>}</td>
-        <td className="zahl">{kg(b.ausgelagert_kg, 0)}</td>
+        <td className="zahl">{b.lager_kg > 0 && b.verkaufsfaehig_lager_kg !== null ? kg(b.verkaufsfaehig_lager_kg, 0) : <span className="leise">—</span>}</td>
         <td className="zahl">{n?.verlust_14_kg != null && n.verlust_14_kg > 0 ? <strong>{kg(n.verlust_14_kg, 0)}</strong> : <span className="leise">—</span>}</td>
         <td className="zahl">{l ? `${l.n_wiegungen} · ${l.n_schimmel} · ${l.n_sortierlaeufe}` : '—'}{z.befunde > 0 && <> <Marke art="warnung">{z.befunde}</Marke></>}</td>
         <td className="zahl">{m?.abweichung_anteil == null ? <span className="leise">—</span>
@@ -135,30 +137,25 @@ function ChargeDetail({ nr, z, daten }: { nr: number; z: Zeile; daten: Auswertun
   const t = (id: keyof typeof WOERTERBUCH.de) => WOERTERBUCH.de[id]
   if (laedt) return <Lade />
   const b = z.b
-  // Die Hand-Linie wäscht und sortiert in einem — in der Rückgrat-Sicht steht
-  // sie als hand_kg getrennt von der Maschine; hier aus den Arbeiten summiert.
-  const handKg = arbeiten.filter(a => a.station === 'waschen_sortieren' && !a.abgebrochen_ts)
-    .reduce((s, a) => s + (a.masse_kg ?? 0), 0)
   return (
     <div style={{ padding: '.5rem 0' }}>
       <div className="spalten" style={{ marginBottom: '.75rem' }}>
-        <div><div className="leise">Paletten</div><strong>{zahl(b.n_paletten)}</strong>{(b.n_rest_paletten ?? 0) > 0 && <div className="leise">davon {b.n_rest_paletten} noch im Lager</div>}</div>
+        <div><div className="leise">Paletten</div><strong>{zahl(b.n_paletten)}</strong>{b.lager_kg > 0 && (b.n_rest_paletten ?? 0) > 0 && <div className="leise">etwa {b.n_rest_paletten} noch im Haus (gerechnet)</div>}</div>
         <div><div className="leise">Eingang</div><strong>{b.eingang_von && b.eingang_bis && b.eingang_von !== b.eingang_bis ? `${datum(b.eingang_von)} – ${datum(b.eingang_bis)}` : datum(b.eingang_von ?? b.eingangsdatum_mittel)}</strong>{(b.n_eingangstage ?? 0) > 1 && <div className="leise">{b.n_eingangstage} Eingangstage</div>}</div>
-        {handKg > 0 && <div><div className="leise">Hand-Linie (gewaschen + sortiert)</div><strong>{kg(handKg, 0)}</strong></div>}
-        {(b.sortiert_kg > 0 || handKg === 0) && <div><div className="leise">Maschine: sortiert / davon gewaschen</div><strong>{kg(b.sortiert_kg, 0)} / {kg(b.gewaschen_kg, 0)}</strong></div>}
+        <div><div className="leise">Ausgeliefert / dahinter an Eingang</div><strong>{kg(b.geliefert_kg, 0)} / {kg(b.ausgelagert_kg, 0)}</strong>{b.ueberzaehlung_kg > 0 && <div className="leise">mehr geliefert als hereingekommen: {kg(b.ueberzaehlung_kg, 0)}</div>}</div>
         {z.m?.csv_gemessen_kg != null && <div><div className="leise">Modell am Band / CSV gewogen</div><strong>{kg(z.m.modell_am_band_kg, 0)} / {kg(z.m.csv_gemessen_kg, 0)}</strong></div>}
       </div>
       {kohorten.length > 0 && (
         <>
           <h3>Eingangstage ({kohorten.length})</h3>
-          <p className="leise" style={{ margin: '0 0 .4rem' }}>Was an welchem Tag kam, was davon mit diesem Zetteldatum gezählt wurde und was noch liegt. Kein Zuerst-rein-zuerst-raus: die Rechnung nimmt für jeden Tag sein eigenes Alter.</p>
+          <p className="leise" style={{ margin: '0 0 .4rem' }}>Was an welchem Tag kam. „In der App gezählt" sind Paletten, die bei einer erfassten Arbeit mit diesem Zetteldatum gezählt wurden — eine Beobachtung, keine Menge: die Erfassung ist punktuell. Jeder Eingangstag trägt seinen Anteil am Eingang zu jeder Lieferung und zum Bestand bei; die Rechnung nimmt für jeden Tag sein eigenes Alter.</p>
           <div className="rollbar"><table>
-            <thead><tr><th>Eingangstag</th><th className="zahl">Alter</th><th className="zahl">gekommen</th><th className="zahl">verarbeitet</th><th className="zahl">noch da</th><th className="zahl">Bestand</th></tr></thead>
+            <thead><tr><th>Eingangstag</th><th className="zahl">Alter</th><th className="zahl">Paletten</th><th className="zahl">Eingang</th><th className="zahl">in der App gezählt</th></tr></thead>
             <tbody>{kohorten.map(k => (
-              <tr key={k.eingangsdatum} className={k.n_rest === 0 ? 'leise' : ''}>
+              <tr key={k.eingangsdatum}>
                 <td>{datum(k.eingangsdatum)}</td><td className="zahl">{k.alter_heute} d</td>
-                <td className="zahl">{k.n_paletten}</td><td className="zahl">{k.n_verarbeitet}{k.n_verarbeitet > k.n_paletten && <> <Marke art="warnung">mehr gezählt als gekommen</Marke></>}</td>
-                <td className="zahl"><strong>{k.n_rest}</strong></td><td className="zahl">{k.rest_kg != null && k.rest_kg > 0 ? kg(k.rest_kg, 0) : <span className="leise">—</span>}</td>
+                <td className="zahl">{k.n_paletten}</td><td className="zahl">{k.eingang_kg != null ? kg(k.eingang_kg, 0) : <span className="leise">—</span>}</td>
+                <td className="zahl">{k.n_verarbeitet}{k.n_verarbeitet > k.n_paletten && <> <Marke art="warnung">mehr gezählt als gekommen</Marke></>}</td>
               </tr>
             ))}</tbody>
           </table></div>

@@ -174,13 +174,16 @@ function Qualitaet({ q }: { q: Datenqualitaet }) {
     { name: 'Palox abgelesen (mindestens einmal)', ab: 'AB-02', ist: q.arbeiten_mit_ablesung, von: q.arbeiten_fertig, hinweis: 'sonst landet der Schimmel auf der nächsten Arbeit' },
     { name: 'Palox zu Beginn und am Ende abgelesen', ab: 'AB-02', ist: q.arbeiten_mit_zwei_ablesungen, von: q.arbeiten_fertig, hinweis: 'zwei Ablesungen trennen die Arbeiten sauber' },
     { name: 'Abschlussfrage „alles aus einer Charge?" beantwortet', ab: 'AB-04', ist: q.arbeiten_mit_antwort, von: q.arbeiten_fertig, hinweis: 'ohne Antwort ist das Alter geraten' },
-    { name: 'Ausschuss gewogen statt geschätzt', ab: 'AB-03', ist: q.ausschuss_gewogen, von: q.ausschuss_messungen, hinweis: 'gewogen ist verlässlich, geschätzt nur Notweg' },
     { name: 'Sortier-CSV einer Arbeit zugeordnet', ab: '—', ist: q.sortierlaeufe_zugeordnet, von: q.sortierlaeufe, hinweis: 'unzugeordnet: Betrieb → Warteschlange' },
     { name: 'Kisten am Sortieren gezählt', ab: 'AB-12', ist: q.sortier_arbeiten_mit_kisten, von: q.sortier_arbeiten, hinweis: 'daraus entsteht das Kistengewicht' },
     { name: 'Kisten am Waschbecken gezählt (mit Kaliber)', ab: 'AB-12', ist: q.wasch_arbeiten_mit_kisten, von: q.wasch_arbeiten, hinweis: 'sonst hat der Schimmel am Waschbecken keinen Nenner' },
-    { name: 'Fax: Kisten gezählt', ab: '0051', ist: q.fax_arbeiten_mit_kisten, von: q.fax_arbeiten, hinweis: 'ohne Kisten hat das Faule beim Abpacken keinen Nenner' },
+    { name: 'Fax: Paletten oder Kisten gezählt', ab: 'AB-24', ist: q.fax_arbeiten_mit_kisten, von: q.fax_arbeiten, hinweis: 'ohne Palettenzahl hat das Faule beim Abpacken keinen Nenner' },
     { name: 'Fax: Faules gewogen (auch „nichts Faules")', ab: '0051', ist: q.fax_arbeiten_mit_faulem, von: q.fax_arbeiten, hinweis: 'sonst bleibt der Fax-Strom unbekannt' },
+    { name: 'Waschen + Sortieren: Gewicht vom Zettel bei gezählten Paletten', ab: 'AB-25', ist: q.ws_paletten_mit_zettelgewicht, von: q.ws_paletten_gezaehlt, hinweis: 'ohne Zettelgewicht hat der Palox keinen Nenner' },
+    { name: 'Kistensystem nach dem Waschen beantwortet', ab: 'AB-26', ist: q.arbeiten_mit_kistensystem, von: q.arbeiten_nach_waschen, hinweis: 'sonst weiss die Auswertung nicht, ob eine Kiste rechenbar ist' },
+    { name: 'Waschen: Sortierdatum je Kiste (oder „kein Datum")', ab: 'AB-27', ist: q.wasch_kisten_mit_sortierdatum, von: q.wasch_kisten_gezaehlt, hinweis: 'das Datum auf der Kiste sagt, wie lange die Ware nach dem Sortieren stand' },
   ]
+  const unbekannt = q.arbeiten_mit_palox_unbekannt
   return (
     <Karte titel="Wie vollständig wird erfasst?">
       <p className="leise">Je Zeile eine Absprache aus der Halle (docs/ABMACHUNGEN.md) und wie oft sie eingehalten wurde. Was hier fehlt, fehlt der Auswertung.</p>
@@ -201,6 +204,7 @@ function Qualitaet({ q }: { q: Datenqualitaet }) {
       })}
       <p className="leise" style={{ margin: '.5rem 0 0' }}>
         Lagerkontrollen: <strong>{q.lagerkontrollen}</strong>{q.lagerkontrollen > 0 && <>, davon {q.lagerkontrollen_zufaellig} zufällig unter den erreichbaren gegriffen (AB-09)</>}. Zwölf je Saison machen den Bereich des Sockels ehrlich.
+        {unbekannt > 0 && <> Bei <strong>{unbekannt}</strong> Arbeiten fiel der Palox-Stand zwischendurch (geleert ohne Ablesung) — ihr Faules ist unbekannt und fehlt in der Kurve; die Arbeiten stehen unter Auffälligkeiten.</>}
       </p>
     </Karte>
   )

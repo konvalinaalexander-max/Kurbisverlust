@@ -42,7 +42,9 @@ begin
       'v_wiegung_kennzahl','v_marge_buch','v_gewichtsverteilung','v_verarbeitung_alter',
       'v_durchsatz','v_ueberfuellung_kaeufer','v_datenqualitaet','v_saisonverlauf','v_koeff_gebinde',
       'v_charge_kohorte','v_fax_beobachtung','v_ausschuss_beobachtung','v_lieferung_masse',
-      'v_verlust_ranking','v_kaskade','v_auftrag_masse','v_schimmel_beobachtung'] loop
+      'v_verlust_ranking','v_kaskade','v_auftrag_masse','v_schimmel_beobachtung',
+      'v_lieferung_kohorte','v_koeff_palette_netto','v_kontrolle_vorschlag','v_kaskade_basis',
+      'v_ausgang_kennzahl','v_palox_stand','v_schimmel_menge','v_kohorte_anteil'] loop
     begin
       execute format('select count(*) from (select * from %I) q', v) into v_n;
     exception when others then

@@ -64,6 +64,10 @@ declare -A AUSNAHME=(
   [datei_name]="CSV-Upload, aus der Datei"
   [sichtbar_schimmel]="abgeleitet aus faul_kg > 0"
   [teilgewicht]="Alt-Spalte (war-die-Box-voll), von keiner heutigen Maske genutzt"
+  [kaeufer]="seit 0060 nicht mehr gefragt — das Kistensystem steht an der Arbeit; alte Arbeiten behalten ihren Käufer"
+  [palox_geleert]="seit 0060 kein Häkchen mehr: ein gefallener Stand heisst geleert, die Menge ist dann unbekannt"
+  [art]="ausschuss_messung (zu klein / zu gross) wird seit 0060 nicht mehr erfasst — der Anteil kommt aus der Sortier-CSV; sortierschema.art wählt die Datenbank aus dem Kistensystem"
+  [schaetzung]="ausschuss_messung, seit 0060 ohne Maske"
 )
 
 echo "── Lückenscanner ──────────────────────────────────────────────"

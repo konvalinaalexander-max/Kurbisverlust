@@ -103,15 +103,19 @@ export function Herkunft({ punkte }: { punkte: Schimmelpunkt[] }) {
 export function Bilanz({ bilanz }: { bilanz: Saisonbilanz }) {
   return (
     <Karte titel="Geht die Rechnung auf?">
-      <p className="leise">Die einzige Gegenprobe, die es gibt: Was eingelagert wurde, muss als Verlust, als Ausgang oder als Bestand wieder auftauchen. Was übrig bleibt, ist das, was das Modell nicht sieht.</p>
+      <p className="leise">Eingang = echter Verlust + anderer Kanal + verkauft + verkaufsfähig im Haus. Seit 0060 geht sie von selbst auf, weil das Ausgelagerte aus den Lieferungen zurückgerechnet ist — geprüft wird an den Rändern: mehr geliefert als hereingekommen (Überzählung), an die Tiere Geliefertes gegen den gerechneten Kanal, Entsorgtes gegen den gerechneten Schimmel.</p>
       <Bilanzzeile titel="Wareneingang (gemessen)" kg={bilanz.eingang_kg} eingang={bilanz.eingang_kg} farbe="var(--strom-nebenkanal)" erklaerung="Netto ab Zettel, Tara abgezogen" />
-      <Bilanzzeile titel="Physisch weg (Modell)" kg={bilanz.verlust_modell_kg} eingang={bilanz.eingang_kg} farbe="var(--strom-schimmel)" erklaerung="Verdunstung und Schimmel, dazu die Grundaussortierung vom Feld" />
-      <Bilanzzeile titel="Ausgeliefert (gemessen)" kg={bilanz.ausgang_kg} eingang={bilanz.eingang_kg} farbe="var(--strom-rest)"
+      <Bilanzzeile titel="Echter Verlust (Modell)" kg={bilanz.verlust_modell_kg} eingang={bilanz.eingang_kg} farbe="var(--strom-schimmel)" erklaerung="Verdunstung, Palox im Lager, vom Feld, beim Abpacken" />
+      <Bilanzzeile titel="Anderer Kanal (Modell)" kg={bilanz.kanal_modell_kg ?? 0} eingang={bilanz.eingang_kg} farbe="var(--strom-ausschuss)"
+                   erklaerung={`zu klein und zu gross — kein echter Verlust${bilanz.marge_kg > 0 ? `; laut Lieferscheinen ${tonnen(bilanz.marge_kg)} dorthin geliefert` : ''}`} />
+      <Bilanzzeile titel="Verkauft (gemessen)" kg={bilanz.verkauf_kg + bilanz.vorlauf_kg} eingang={bilanz.eingang_kg} farbe="var(--strom-rest)"
                    erklaerung={bilanz.n_lieferungen === 0 ? 'noch keine Lieferung erfasst' : `${bilanz.n_lieferungen} Lieferungen erfasst${bilanz.vorlauf_kg > 0 ? `, dazu ${tonnen(bilanz.vorlauf_kg)} vor dem Erfassungsbeginn` : ''}`} />
-      <Bilanzzeile titel="Noch im Haus (Modell)" kg={bilanz.restbestand_modell_kg} eingang={bilanz.eingang_kg} farbe="var(--strom-verdunstung)"
-                   erklaerung="was nach Verlust und Ausgang übrig bleibt" />
-      <Bilanzzeile titel="Lücke" kg={Math.abs(bilanz.luecke_kg)} eingang={bilanz.eingang_kg} farbe="var(--rot)" erklaerung={`${prozent(bilanz.luecke_anteil)} des Eingangs`} />
-      <Hinweis art={bilanz.n_lieferungen === 0 ? 'warnung' : Math.abs(bilanz.luecke_anteil ?? 1) < 0.05 ? 'gut' : 'info'}>{bilanz.befund}</Hinweis>
+      <Bilanzzeile titel="Verkaufsfähig im Haus (Modell)" kg={bilanz.restbestand_modell_kg} eingang={bilanz.eingang_kg} farbe="var(--strom-verdunstung)"
+                   erklaerung={`von ${tonnen(bilanz.im_lager_kg)} Eingangsmasse, die noch im Haus liegt`} />
+      {(bilanz.ueberzaehlung_kg ?? 0) > 0 && (
+        <Bilanzzeile titel="Überzählung" kg={bilanz.ueberzaehlung_kg ?? 0} eingang={bilanz.eingang_kg} farbe="var(--rot)" erklaerung="hinter den Lieferungen steckt mehr Ware, als je eingelagert wurde — meist fehlt Wareneingang" />
+      )}
+      <Hinweis art={bilanz.n_lieferungen === 0 ? 'warnung' : (bilanz.ueberzaehlung_kg ?? 0) > 0.05 * bilanz.eingang_kg ? 'warnung' : 'gut'}>{bilanz.befund}</Hinweis>
     </Karte>
   )
 }

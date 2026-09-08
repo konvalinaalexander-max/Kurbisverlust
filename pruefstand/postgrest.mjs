@@ -37,8 +37,22 @@ export function filtern(zeilen, params) {
       return (x < y ? -1 : 1) * (absteigend ? -1 : 1)
     })
   }
+  // .range(von, bis) von supabase-js wird zu offset + limit — beides ehren,
+  // sonst blättert das seitenweise Laden der App (0059) endlos weiter.
+  const offset = params.get('offset')
+  if (offset) erg = erg.slice(Number(offset))
   const limit = params.get('limit')
   if (limit) erg = erg.slice(0, Number(limit))
   return erg
 }
 
+
+/* ---------- Seitenweise: der Range-Kopf von supabase-js .range(von, bis) ---
+ * PostgREST liefert nur die Zeilen von–bis. Die App lädt grosse Sichten seit
+ * 0059 in Seiten zu 1000 und hört auf, sobald eine Seite kürzer ist — eine
+ * Attrappe, die den Kopf ignoriert, lässt sie endlos weiterblättern. */
+export function seite(zeilen, kopf) {
+  const r = /^(\d+)-(\d+)$/.exec(kopf?.['range'] ?? '')
+  if (!r) return zeilen
+  return zeilen.slice(Number(r[1]), Number(r[2]) + 1)
+}

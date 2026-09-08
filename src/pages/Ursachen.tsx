@@ -12,27 +12,32 @@ const REIHENFARBEN = ['var(--strom-verdunstung)', 'var(--strom-schimmel)', 'var(
                       'var(--strom-ausschuss)', 'var(--strom-nebenkanal)', 'var(--strom-fax)']
 
 /**
- * Ursachen: vier Ursachen, jede in der Tiefe — je Sorte und je Charge, mit
- * den Messpunkten dahinter. Nur, was gemessen ist: Raten aus Stichproben,
- * hochgerechnet auf die gemessene Eingangsmasse. Keine Ratschläge für die
- * Saison, keine Mengen, die niemand gezählt hat.
+ * Ursachen: jede Ursache in der Tiefe — je Sorte, je Schlag, je Charge, mit
+ * den Messpunkten dahinter. Oben, was wirklich weg ist (echter Verlust):
+ * der Palox in allen drei Formen und die Verdunstung. Unten, was nicht weg,
+ * aber nicht Hauptware ist (kein echter Verlust): zu klein, zu gross, die
+ * Überfüllung, die Lage im Kaliber. Nur, was gemessen ist: Raten aus
+ * Stichproben, hochgerechnet auf die gemessene Eingangsmasse. Keine
+ * Ratschläge für die Saison, keine Mengen, die niemand gezählt hat.
  */
 export default function Ursachen() {
   const { daten, laedt, fehler, neuRechnen } = useAuswertung()
   const [params, setParams] = useSearchParams()
   const sorte = params.get('sorte') ?? ''
   const schlag = params.get('schlag') ?? ''
-  const filterSetzen = (k: 'sorte' | 'schlag', v: string) => {
+  const charge = params.get('charge') ?? ''
+  const filterSetzen = (k: 'sorte' | 'schlag' | 'charge', v: string) => {
     const p = new URLSearchParams(params)
     if (v) p.set(k, v); else p.delete(k)
     setParams(p, { replace: true })
   }
-  const ranking = useRanking(sorte, schlag, '', daten?.stand ?? null)
+  const ranking = useRanking(sorte, schlag, '', daten?.stand ?? null, charge)
 
   const zeilen = daten?.hochrechnung ?? []
   const sorten = useMemo(() => [...new Set(zeilen.map(z => z.sorte))].sort(), [zeilen])
   const schlaege = useMemo(() => [...new Set(zeilen.map(z => z.schlag))].sort(), [zeilen])
-  const gefiltert = useMemo(() => zeilen.filter(z => (!sorte || z.sorte === sorte) && (!schlag || z.schlag === schlag)), [zeilen, sorte, schlag])
+  const chargenListe = useMemo(() => [...new Set(zeilen.map(z => z.charge_nr))].sort((a, b) => a - b), [zeilen])
+  const gefiltert = useMemo(() => zeilen.filter(z => (!sorte || z.sorte === sorte) && (!schlag || z.schlag === schlag) && (!charge || String(z.charge_nr) === charge)), [zeilen, sorte, schlag, charge])
   const stroeme = useMemo(() => stroemeSummieren(gefiltert, ranking), [gefiltert, ranking])
 
   if (laedt && !daten) return <Lade text="Auswertung wird gerechnet …" />
@@ -48,7 +53,7 @@ export default function Ursachen() {
 
   return (
     <>
-      <Reiterkopf titel="Ursachen" zweck="Vier Ursachen, jede in der Tiefe: je Sorte, je Charge, und die Messungen dahinter."
+      <Reiterkopf titel="Ursachen" zweck="Jede Ursache in der Tiefe: je Sorte, Schlag und Charge — echter Verlust oben, kein echter Verlust unten."
                   stand={daten.stand} neuRechnen={() => void neuRechnen()} />
       <Probleme liste={daten.probleme} />
 
@@ -58,19 +63,26 @@ export default function Ursachen() {
             <select id="fs" value={sorte} onChange={e => filterSetzen('sorte', e.target.value)}><option value="">alle</option>{sorten.map(s => <option key={s}>{s}</option>)}</select></div>
           <div className="feld" style={{ margin: 0 }}><label htmlFor="fl">Schlag</label>
             <select id="fl" value={schlag} onChange={e => filterSetzen('schlag', e.target.value)}><option value="">alle</option>{schlaege.map(s => <option key={s}>{s}</option>)}</select></div>
+          <div className="feld" style={{ margin: 0 }}><label htmlFor="fc">Charge</label>
+            <select id="fc" value={charge} onChange={e => filterSetzen('charge', e.target.value)}><option value="">alle</option>{chargenListe.map(c => <option key={c} value={String(c)}>{c}</option>)}</select></div>
           <p className="leise" style={{ margin: 0 }}>
-            {sorte || schlag
-              ? <>Gefiltert: {[sorte, schlag].filter(Boolean).join(' · ')} — {tonnen(eingang)} Eingang in {chargenImFilter.size} Chargen.{' '}
+            {sorte || schlag || charge
+              ? <>Gefiltert: {[sorte, schlag, charge ? `Charge ${charge}` : ''].filter(Boolean).join(' · ')} — {tonnen(eingang)} Eingang in {chargenImFilter.size} Chargen.{' '}
                   <button className="klein" onClick={() => setParams({}, { replace: true })}>alles zeigen</button></>
-              : <>Alle Sorten und Schläge — {tonnen(eingang)} Eingang in {chargenImFilter.size} Chargen.</>}
+              : <>Gesamt — {tonnen(eingang)} Eingang in {chargenImFilter.size} Chargen.</>}
           </p>
         </div>
       </Karte>
 
-      <Verderb daten={daten} strom={strom('Schimmel/Fäulnis')} feld={strom('Nicht lagerbedingt')} eingang={eingang} maximum={maximum} sorte={sorte} chargen={chargenImFilter} />
-      <Verdunstung daten={daten} strom={strom('Verdunstung')} eingang={eingang} maximum={maximum} sorte={sorte} chargen={chargenImFilter} />
-      <Sortierung daten={daten} gefiltert={gefiltert} klein={strom('Zu klein (Tierfutter)')} gross={strom('Nebenkanal zu gross')} eingang={eingang} maximum={maximum} sorte={sorte} />
+      <h2 className="abschnitt-titel" style={{ marginTop: '1.5rem' }}>Echter Verlust — die Ware ist weg</h2>
+      <p className="leise" style={{ margin: '0 0 .75rem' }}>Was im Palox landet und was als Wasser verdunstet. Im Überblick steht beides zusammen als Verlust; hier steht, wann es passiert, wie viel, und je Charge.</p>
+      <Verderb daten={daten} strom={strom('Schimmel/Fäulnis')} feld={strom('Nicht lagerbedingt')} fax={strom('Faul beim Abpacken (Fax)')} eingang={eingang} maximum={maximum} sorte={sorte} chargen={chargenImFilter} />
       <Fax daten={daten} strom={strom('Faul beim Abpacken (Fax)')} eingang={eingang} maximum={maximum} sorte={sorte} chargen={chargenImFilter} />
+      <Verdunstung daten={daten} strom={strom('Verdunstung')} eingang={eingang} maximum={maximum} sorte={sorte} chargen={chargenImFilter} />
+
+      <h2 className="abschnitt-titel" style={{ marginTop: '1.5rem' }}>Kein echter Verlust — die Ware ist da, nur nicht in der richtigen Grösse oder Kiste</h2>
+      <p className="leise" style={{ margin: '0 0 .75rem' }}>Zu klein und zu gross verlassen den Betrieb über einen anderen Kanal, die Überfüllung verlässt ihn in der Kiste des Kunden. Im Überblick zählt das als Verlust, weil es fehlt — hier steht, dass nichts davon verdorben ist.</p>
+      <Sortierung daten={daten} gefiltert={gefiltert} klein={strom('Zu klein (Tierfutter)')} gross={strom('Nebenkanal zu gross')} eingang={eingang} maximum={maximum} sorte={sorte} chargen={chargenImFilter} />
     </>
   )
 }
@@ -96,9 +108,10 @@ function Ursachenkopf({ v, eingang, maximum }: { v: StromSumme | undefined; eing
 }
 
 /** Verderb im Lager: die Kurve, ihre Punkte, und je Charge gemessen gegen Modell. */
-function Verderb({ daten, strom, feld, eingang, maximum, sorte, chargen }: {
-  daten: Auswertung; strom?: StromSumme; feld?: StromSumme; eingang: number; maximum: number; sorte: string; chargen: Set<number>
+function Verderb({ daten, strom, feld, fax, eingang, maximum, sorte, chargen }: {
+  daten: Auswertung; strom?: StromSumme; feld?: StromSumme; fax?: StromSumme; eingang: number; maximum: number; sorte: string; chargen: Set<number>
 }) {
+  const paloxGesamt = [strom, feld, fax].filter((s): s is StromSumme => !!s && s.bekannt).reduce((a, s) => a + s.mittel, 0)
   const m = daten.modell
   const punkte = daten.punkte.filter(p => p.plausibel && p.anteil !== null && chargen.has(p.charge_nr) && (!sorte || p.sorte === sorte))
   const kurveReihe = daten.kurve.filter(k => k.verwendet !== null).map(k => {
@@ -112,6 +125,7 @@ function Verderb({ daten, strom, feld, eingang, maximum, sorte, chargen }: {
   // Je Charge: gemessen (massegewichtet) gegen das Modell beim mittleren Alter der Messungen
   const jeCharge = (() => {
     const map = new Map<number, { charge_nr: number; sorte: string; n: number; tMin: number; tMax: number; tSumme: number; faul: number; basis: number }>()
+    // Je Charge: alle Palox-Messungen (auch aus gemischten Arbeiten zählen die Kilo, nur nicht in die Kurve)
     for (const p of punkte) {
       if (p.quelle === 'verarbeitung_gemischt') continue
       let e = map.get(p.charge_nr)
@@ -126,8 +140,12 @@ function Verderb({ daten, strom, feld, eingang, maximum, sorte, chargen }: {
     }).sort((a, b) => b.n - a.n || b.basis - a.basis)
   })()
   return (
-    <Karte titel="Verderb im Lager (Schimmel, Fäulnis)">
-      <p className="leise">Was im Palox landet, wenn eine Palette ans Band oder ans Waschbecken kommt — bezogen auf die Masse, die an dem Tag aus dem Lager kam, und aufgetragen über der Lagerdauer. Daraus die Kurve, mit der für alle Ware gerechnet wird.</p>
+    <Karte titel="Palox: Verderb im Lager (Schimmel, Fäulnis)">
+      <p className="leise">
+        Im Palox landet dreierlei: was im Lager verdirbt (hier, mit der Lagerdauer), was nicht lagerbedingt ist (Erde, Hagelnarben, Schnittfehler — vom Feld, ohne Lagerdauer) und was beim Abpacken nach dem Waschen aussortiert wird (Fax, nächste Karte).
+        {paloxGesamt > 0 && <> Zusammen <strong>{tonnen(paloxGesamt)}</strong> — so steht der Palox im Überblick.</>}
+        {' '}Gemessen wird der Palox, wenn eine Palette an die Sortiermaschine oder an die Waschstrasse kommt — bezogen auf die Masse, die an dem Tag aus dem Lager kam, und aufgetragen über der Lagerdauer. Daraus die Kurve, mit der für alle Ware gerechnet wird.
+      </p>
       <Ursachenkopf v={strom} eingang={eingang} maximum={maximum} />
       <Diagramm
         reihen={[
@@ -152,15 +170,16 @@ function Verderb({ daten, strom, feld, eingang, maximum, sorte, chargen }: {
       )}
       {jeCharge.length > 0 && (
         <>
-          <h3 style={{ margin: '1rem 0 .4rem' }}>Je Charge: gemessen gegen Modell</h3>
-          <p className="leise" style={{ margin: '0 0 .4rem' }}>Gemessen = alles Faule dieser Charge zu allem, was von ihr aus dem Lager kam. Modell = die Kurve beim mittleren Alter dieser Messungen. Eine Charge deutlich über der Kurve verdirbt schneller als ihre Sorte — das ist eine Beobachtung, keine Erklärung.</p>
+          <h3 style={{ margin: '1rem 0 .4rem' }}>Je Charge: wann, wie viel, gemessen gegen Modell</h3>
+          <p className="leise" style={{ margin: '0 0 .4rem' }}>Gemessen = alles Faule dieser Charge (Kilo im Palox) zu allem, was von ihr aus dem Lager kam. Lagertage = wann gemessen wurde. Modell = die Kurve beim mittleren Alter dieser Messungen. Eine Charge deutlich über der Kurve verdirbt schneller als ihre Sorte — das ist eine Beobachtung, keine Erklärung.</p>
           <div className="rollbar"><table>
-            <thead><tr><th>Charge</th><th>Sorte</th><th className="zahl">Messungen</th><th className="zahl">Lagertage</th><th className="zahl">Gemessen</th><th className="zahl">Modell</th><th className="zahl">Abweichung</th></tr></thead>
+            <thead><tr><th>Charge</th><th>Sorte</th><th className="zahl">Messungen</th><th className="zahl">Lagertage</th><th className="zahl">Faules im Palox</th><th className="zahl">Gemessen</th><th className="zahl">Modell</th><th className="zahl">Abweichung</th></tr></thead>
             <tbody>{jeCharge.slice(0, 20).map(e => (
               <tr key={e.charge_nr}>
                 <td><Link to={`/chargen?charge=${e.charge_nr}`}>{e.charge_nr}</Link></td><td>{e.sorte}</td>
                 <td className="zahl">{e.n}</td>
                 <td className="zahl">{Math.round(e.tMin) === Math.round(e.tMax) ? Math.round(e.tMin) : `${Math.round(e.tMin)}–${Math.round(e.tMax)}`}</td>
+                <td className="zahl">{kg(e.faul, 0)}</td>
                 <td className="zahl"><strong>{prozent(e.gemessen)}</strong></td>
                 <td className="zahl">{prozent(e.modell)}</td>
                 <td className="zahl">{e.abweichung === null ? '—' : <span style={{ color: e.abweichung > 0.02 ? 'var(--rot)' : e.abweichung < -0.02 ? 'var(--strom-rest)' : undefined }}>{e.abweichung > 0 ? '+' : ''}{(e.abweichung * 100).toFixed(1)} Pkt.</span>}</td>
@@ -240,9 +259,11 @@ function Verdunstung({ daten, strom, eingang, maximum, sorte, chargen }: {
 }
 
 /** Sortierung: zu klein und zu gross je Sorte und Charge, die Kaliber, die Gewichtsverteilung, die Überfüllung. */
-function Sortierung({ daten, gefiltert, klein, gross, eingang, maximum, sorte }: {
-  daten: Auswertung; gefiltert: Hochrechnung[]; klein?: StromSumme; gross?: StromSumme; eingang: number; maximum: number; sorte: string
+function Sortierung({ daten, gefiltert, klein, gross, eingang, maximum, sorte, chargen }: {
+  daten: Auswertung; gefiltert: Hochrechnung[]; klein?: StromSumme; gross?: StromSumme; eingang: number; maximum: number; sorte: string; chargen: Set<number>
 }) {
+  const ueberfuellung = daten.marge.find(m => m.posten.startsWith('Überfüllung'))
+  const stueck = daten.ausgang.filter(a => a.kistensystem === 'stueck' && a.erwartet_kg_pro_kiste !== null && chargen.has(a.charge_nr) && (!sorte || a.sorte === sorte))
   const nachCharge = gruppieren(gefiltert.filter(z => z.buch === 'marge'), z => `${z.charge_nr}`)
   const jeSorte = [...new Set(gefiltert.map(z => z.sorte))].sort().map(s => ({
     sorte: s,
@@ -252,8 +273,8 @@ function Sortierung({ daten, gefiltert, klein, gross, eingang, maximum, sorte }:
   const eigene = (k?: SortenK) => k?.basis?.includes('dieser Sorte')
   const kaliber = kaliberJeSorte(daten.kaliber.filter(z => !sorte || z.sorte === sorte))
   return (
-    <Karte titel="Sortierung: zu klein, zu gross, Kaliber">
-      <p className="leise">Kein Lagerverlust — die Ware verlässt den Betrieb, nur nicht zum besten Preis: zu Kleine an die Tiere, zu Grosse in den Nebenkanal, Überfüllung als Geschenk an den Kunden. Gemessen an der Sortier-CSV (jeder Kürbis gewogen) und an den gewogenen Ausschuss-Paletten der Hand-Linie.</p>
+    <Karte titel="Sortierung: zu klein, zu gross, Kaliber, Überfüllung">
+      <p className="leise">Die Ware verlässt den Betrieb, nur nicht zum besten Preis: zu Kleine an die Tiere, zu Grosse in den Nebenkanal, Überfüllung als Geschenk an den Kunden. Gemessen an der Sortier-CSV (jeder Kürbis gewogen) — an der Waschstrasse gilt der Anteil derselben Charge aus der CSV, dort wird nichts mehr gewogen (0060).</p>
       <div className="spalten">
         <div><div className="leise">Zu klein (Tierfutter)</div><Ursachenkopf v={klein} eingang={eingang} maximum={maximum} /></div>
         <div><div className="leise">Zu gross (Nebenkanal)</div><Ursachenkopf v={gross} eingang={eingang} maximum={maximum} /></div>
@@ -325,10 +346,57 @@ function Sortierung({ daten, gefiltert, klein, gross, eingang, maximum, sorte }:
 
       <Gewichtsverteilung daten={daten} sorteFilter={sorte} />
 
+      {ueberfuellung && (
+        <>
+          <h3 style={{ margin: '1rem 0 .4rem' }}>Überfüllung der Kisten — verschenkte Marge</h3>
+          <div className="reihe" style={{ marginBottom: '.3rem' }}>
+            <strong style={{ fontSize: '1.2rem' }}>{ueberfuellung.kg != null ? tonnen(ueberfuellung.kg) : '—'}</strong>
+            {ueberfuellung.kg != null && <span className="leise">{prozent(eingang > 0 ? ueberfuellung.kg / eingang : null)} des Eingangs · Bereich {tonnen(ueberfuellung.kg_unten)} – {tonnen(ueberfuellung.kg_oben)}</span>}
+          </div>
+          <p className="leise" style={{ margin: '0 0 .6rem' }}>{ueberfuellung.erlaeuterung}</p>
+        </>
+      )}
+      {stueck.length > 0 && (
+        <>
+          <h3 style={{ margin: '1rem 0 .4rem' }}>Stück-Kisten: wo im Kaliber liegt die Ware?</h3>
+          <p className="leise" style={{ margin: '0 0 .4rem' }}>Bei Kisten mit fester Stückzahl gibt es kein Sollgewicht und keine Überfüllung. Aber die gewogene Palette sagt, wie schwer die Kürbisse wirklich sind — die Sortier-CSV nennt das mittlere Stückgewicht im Band. Liegt es tief im Band, liesse sich ein engeres Band liefern und der Rest anders verkaufen. Das ist eine Beobachtung, kein Verlust.</p>
+          <div className="rollbar"><table>
+            <thead><tr><th>Sorte</th><th className="zahl">Kaliber</th><th className="zahl">Paletten</th><th className="zahl">Stück je Kiste</th><th className="zahl">gewogen je Kiste</th><th className="zahl">erwartet (CSV)</th><th className="zahl">je Kürbis gewogen</th><th className="zahl">Bandmittel (CSV)</th></tr></thead>
+            <tbody>{(() => {
+              const map = new Map<string, { sorte: string; kaliber: number | null; n: number; kisten: number; kg: number; erwartet: number; stueck: number; gramm: number }>()
+              for (const a of stueck) {
+                const k = `${a.sorte}|${a.kaliber_idx}`
+                const e = map.get(k) ?? { sorte: a.sorte, kaliber: a.kaliber_idx, n: 0, kisten: 0, kg: 0, erwartet: 0, stueck: 0, gramm: a.band_mittel_g ?? 0 }
+                e.n++; e.kisten += a.kisten; e.kg += (a.kg_pro_kiste ?? 0) * a.kisten; e.erwartet += (a.erwartet_kg_pro_kiste ?? 0) * a.kisten; e.stueck += (a.stueck_je_kiste ?? 0) * a.kisten
+                map.set(k, e)
+              }
+              return [...map.values()].sort((a, b) => a.sorte.localeCompare(b.sorte) || (a.kaliber ?? 0) - (b.kaliber ?? 0)).map(e => {
+                const jeKiste = e.kisten > 0 ? e.kg / e.kisten : null
+                const erwartet = e.kisten > 0 ? e.erwartet / e.kisten : null
+                const jeStueck = e.stueck > 0 ? e.kg / e.stueck : null
+                const band = daten.schemata.find(s => s.sorte === e.sorte && s.art === 'kaliber')?.kaliber_baender?.[e.kaliber ?? -1]
+                return (
+                  <tr key={`${e.sorte}${e.kaliber}`}>
+                    <td>{e.sorte}</td>
+                    <td className="zahl">{e.kaliber !== null && e.kaliber >= 0 ? `K${e.kaliber + 1}${band ? ` · ${band[0]}–${band[1]} g` : ''}` : '—'}</td>
+                    <td className="zahl">{e.n}</td>
+                    <td className="zahl">{e.kisten > 0 ? Math.round(e.stueck / e.kisten) : '—'}</td>
+                    <td className="zahl"><strong>{jeKiste !== null ? `${jeKiste.toFixed(2)} kg` : '—'}</strong></td>
+                    <td className="zahl">{erwartet !== null ? `${erwartet.toFixed(2)} kg` : '—'}</td>
+                    <td className="zahl">{jeStueck !== null ? `${Math.round(jeStueck * 1000)} g` : '—'}</td>
+                    <td className="zahl">{e.gramm > 0 ? `${Math.round(e.gramm)} g` : '—'}</td>
+                  </tr>
+                )
+              })
+            })()}</tbody>
+          </table></div>
+        </>
+      )}
+
       {daten.ueberfuellung.length > 0 && (
         <>
-          <h3 style={{ margin: '1rem 0 .4rem' }}>Überfüllung je Käufer</h3>
-          <p className="leise" style={{ margin: '0 0 .4rem' }}>Nur Arbeiten nach „Kiste ab x kg" — nach Kaliber gibt es kein Sollgewicht und nichts zu verschenken. Gemessen an den gewogenen fertigen Paletten.</p>
+          <h3 style={{ margin: '1rem 0 .4rem' }}>Überfüllung je Sorte und Käufer</h3>
+          <p className="leise" style={{ margin: '0 0 .4rem' }}>Nur Arbeiten nach „Kiste ab x kg" — nach Stück gibt es kein Sollgewicht und nichts zu verschenken. Gemessen an den gewogenen fertigen Paletten; der Käufer steht nur an älteren Arbeiten.</p>
           <div className="rollbar">
             <table>
               <thead><tr><th>Käufer</th><th>Sorte</th><th className="zahl">Wägungen</th><th className="zahl">Kisten</th><th className="zahl">kg je Kiste</th><th className="zahl">Soll</th><th className="zahl">zu viel je Kiste</th><th className="zahl">verschenkt</th></tr></thead>
@@ -356,11 +424,12 @@ function Fax({ daten, strom, eingang, maximum, sorte, chargen }: {
 }) {
   const fax = daten.fax.filter(f => f.status === 'abgeschlossen' && f.plausibel && f.masse_kg != null && chargen.has(f.charge_nr) && (!sorte || f.sorte === sorte))
   const buendeln = <K,>(schluessel: (f: typeof fax[number]) => K, name: (f: typeof fax[number]) => string) => {
-    const map = new Map<K, { name: string; sorte: string; n: number; masse: number; faul: number }>()
+    const map = new Map<K, { name: string; sorte: string; n: number; masse: number; faul: number; tage: number; nTage: number }>()
     for (const f of fax) {
       const k = schluessel(f)
-      const e = map.get(k) ?? { name: name(f), sorte: f.sorte, n: 0, masse: 0, faul: 0 }
+      const e = map.get(k) ?? { name: name(f), sorte: f.sorte, n: 0, masse: 0, faul: 0, tage: 0, nTage: 0 }
       e.n++; e.masse += (f.masse_kg ?? 0) + f.faul_kg; e.faul += f.faul_kg
+      if (f.tage_seit_waschen !== null) { e.tage += f.tage_seit_waschen; e.nTage++ }
       map.set(k, e)
     }
     return [...map.values()].sort((a, b) => b.masse - a.masse)
@@ -368,8 +437,8 @@ function Fax({ daten, strom, eingang, maximum, sorte, chargen }: {
   const jeSorte = buendeln(f => f.sorte, f => f.sorte)
   const jeCharge = buendeln(f => f.charge_nr, f => String(f.charge_nr))
   return (
-    <Karte titel="Faul beim Abpacken (Fax)">
-      <p className="leise">Nach dem Waschen steht die Ware in Kisten, bis eine Bestellung kommt. Beim Etikettieren wird nochmals aussortiert, was faul ist — das kommt vom Waschen und vom Stehen danach, nicht von der Lagerdauer, und ist darum eine eigene Ursache: Faules je Masse, die durchs Fax ging.</p>
+    <Karte titel="Palox beim Abpacken (Fax)">
+      <p className="leise">Nach dem Waschen — mit oder ohne Sortieren am Band — steht die Ware ein bis drei Tage in Kisten, bis sie etikettiert und abgepackt wird. Dabei wird nochmals aussortiert, was faul ist: das kommt vom Waschen und vom Stehen danach, nicht von der Lagerdauer, und ist darum eine eigene Ursache. Gemessen an der Palettenzahl der Fax-Arbeit und dem kistenweise gewogenen Faulen; wo der Vorarbeiter es wusste, stehen die Tage seit dem Waschen dabei.</p>
       <Ursachenkopf v={strom} eingang={eingang} maximum={maximum} />
       {fax.length === 0 ? (
         <Hinweis art="info">Noch keine abgeschlossene Fax-Arbeit mit gezählten Kisten und gewogenem Faulem. Die Ursache ist unbekannt — nicht null.</Hinweis>
@@ -380,9 +449,9 @@ function Fax({ daten, strom, eingang, maximum, sorte, chargen }: {
             <div>
               <h3 style={{ margin: '.5rem 0 .4rem' }}>Je Sorte</h3>
               <div className="rollbar"><table>
-                <thead><tr><th>Sorte</th><th className="zahl">Arbeiten</th><th className="zahl">durchs Fax</th><th className="zahl">faul</th><th className="zahl">Anteil</th></tr></thead>
+                <thead><tr><th>Sorte</th><th className="zahl">Arbeiten</th><th className="zahl">durchs Fax</th><th className="zahl">faul</th><th className="zahl">Anteil</th><th className="zahl">Tage seit Waschen</th></tr></thead>
                 <tbody>{jeSorte.map(x => (
-                  <tr key={x.name}><td>{x.name}</td><td className="zahl">{x.n}</td><td className="zahl">{kg(x.masse, 0)}</td><td className="zahl">{kg(x.faul, 0)}</td><td className="zahl"><strong>{prozent(x.masse > 0 ? x.faul / x.masse : null)}</strong></td></tr>
+                  <tr key={x.name}><td>{x.name}</td><td className="zahl">{x.n}</td><td className="zahl">{kg(x.masse, 0)}</td><td className="zahl">{kg(x.faul, 0)}</td><td className="zahl"><strong>{prozent(x.masse > 0 ? x.faul / x.masse : null)}</strong></td><td className="zahl">{x.nTage > 0 ? (x.tage / x.nTage).toFixed(1) : '—'}</td></tr>
                 ))}</tbody>
               </table></div>
             </div>

@@ -554,21 +554,23 @@ Die App in der Halle kennt zwei Rollen, ohne Konten (`docs/UI-KONZEPT.md`):
 
 **Der Vorarbeiter** tippt auf der Startseite **Neue Arbeit starten** und geht
 durch den Assistenten — eine Frage je Bildschirm: Was macht ihr? · Welche
-Charge? (eintippen) · Für wen? · Wie sortiert ihr? (Kiste ab x kg / Kaliber)
-oder Welches Kaliber? · Alles richtig? → **Starten**. Als erstes liest er den
-Palox ab (die Zahl auf der Waage abtippen). Danach sieht er die **Checkliste**:
-Palox zu Beginn · Ausschuss-Paletten leer? · Zählen · Zu klein / zu gross
-wiegen · Fertige Palette wiegen · Arbeit abschliessen. Jeder Punkt zeigt, ob er
-erledigt ist.
+Charge? (eintippen) · Welche Bänder? oder Welches Kaliber? · Was für Kisten?
+(Kiste ab x kg · x Stück je Kaliber · anderes) · Alles richtig? →
+**Starten**. Als erstes liest er den Palox ab (die Zahl auf der Waage
+abtippen; beim Waschen freiwillig). Danach sieht er die **Checkliste**: Palox
+zu Beginn · Zählen · Fertige Palette wiegen · Arbeit abschliessen. Jeder Punkt
+zeigt, ob er erledigt ist.
 
 **Die Zähler** tippen auf der Startseite die Arbeit an → **Mitmachen** und
 sehen genau einen Zähler: Datum vom Zettel (bleibt für die nächste Palette
-stehen), **+ 1 Palette**, **Rückgängig**. Auf der Hand-Linie dazu ein kleiner
+stehen), beim Waschen + Sortieren dazu das Gewicht vom Zettel (je Palette
+neu), **+ 1 Palette**, **Rückgängig**. Auf der Waschstrasse dazu ein kleiner
 Knopf **Palette wiegen** — die wertvollste Messung überhaupt. Beim Sortieren
-und Waschen zählen sie stattdessen die Kisten je Kaliber.
+zählen sie stattdessen die Kisten je Kaliber, beim Waschen die Kisten mit
+ihrem Sortierdatum, beim Fax die Paletten gesamt.
 
-**Der Abschluss** ist ein Assistent: Palox jetzt ablesen · Ausschuss — alles
-von dieser Arbeit? · War alles aus einer Charge? · (Waschen: Menge) ·
+**Der Abschluss** ist ein Assistent: Palox jetzt ablesen (Fax: Faules wiegen,
+Paletten gesamt) · Fertige Palette gewogen? · War alles aus einer Charge? ·
 Zusammenfassung → **Ja, fertig**. Was fehlt, steht als Satz am Knopf.
 
 Fällt das Handy des Vorarbeiters aus, holt **Ich führe diese Arbeit** die
@@ -731,8 +733,9 @@ node pruefstand/bildschirme.mjs
 SPRACHE=hu node pruefstand/bildschirme.mjs arbeit    # Arbeiter-Masken in der Sprache mit den längsten Wörtern
 
 # Die Kette in beide Richtungen: eine komplette Arbeit über die Masken der
-# App erfassen (neue Arbeit mit Käufer, zählen, wiegen, Palox, zu klein/gross,
-# Abschluss mit Fragen), jede Schreibanfrage mitschneiden, dann in eine echte
+# App erfassen (neue Arbeit mit Kistensystem, zählen mit Zettelgewicht, wiegen,
+# Palox, fertige Palette, Fax, Waschen mit Sortierdatum, Kontrolle, Abschluss
+# mit Fragen), jede Schreibanfrage mitschneiden, dann in eine echte
 # Postgres einspielen und prüfen, dass jeder Wert in der Auswertung ankommt.
 node pruefstand/kette.mjs && ./pruefstand/kette_pruefen.sh 'postgresql://…'
 
@@ -778,14 +781,21 @@ in das echte Projekt wird diese Datei **nicht** eingespielt.
 
 Jede Charge wird in zwei Portionen zerlegt:
 
-- **ausgelagert** — schon verarbeitet, die Lagerdauer ist beobachtet
-- **im Lager** — rechts-zensiert, bis zum Stichtag projiziert
+- **ausgelagert** — die Eingangsmasse hinter den verkauften Lieferungen
+  (geliefert ÷ verkaufsfähiger Anteil beim Alter am Liefertag), je
+  Eingangstag nach Eingangsanteil; die Lagerdauer ist der Abstand zum
+  Liefertag
+- **im Lager** — Eingang minus Ausgelagert je Eingangstag, bis zum Stichtag
+  projiziert
+
+Die Halle wird nur punktuell erfasst; vollständig sind der Wareneingang und
+der Warenausgang. Deshalb bestimmt kein Zählen eine Menge (AB-23).
 
 Auf beide läuft dieselbe Massenkaskade, jeder Anteil bezogen auf die Masse, die
 in seinen Schritt hineingeht:
 
 ```
-Eingang ──Verdunstung──> M1 ──Sockel a₀──> ──Schimmel F(t)──> M2 ──zu klein / zu gross──> verkaufsfähig
+Eingang ──Verdunstung──> M1 ──Sockel a₀──> ──Schimmel F(t)──> M2 ──zu klein / zu gross──> ──Fax──> verkaufsfähig
 ```
 
 - **Verdunstung** multiplikativ: `netto_jetzt = netto_damals · (1−r)^Lagertage`.
@@ -796,20 +806,24 @@ Eingang ──Verdunstung──> M1 ──Sockel a₀──> ──Schimmel F(t)
   ihn belegen — sonst 0.
 - **Schimmel** als Verderbsmodell `F(t) = 1 − exp(−λ·t^k)` über die Lagerdauer,
   an alle Messungen angepasst, chargen-robust gefehlert.
-- **Zu klein und zu gross** als Massenanteile aus der Sortier-CSV
-  beziehungsweise den Handmessungen auf Weg 2 — nach der Sortierfassung, die
-  für den Auftrag galt (Käufer und Datum).
+- **Zu klein und zu gross** als Massenanteile aus der Sortier-CSV — nach
+  der Fassung der Bänder, die für den Auftrag galt. Auch die Handlinie
+  sortiert nach denselben Grenzen; dort wird nichts mehr gewogen.
+- **Fax** als Anteil Faules an der abgepackten Masse (Paletten × gemessene
+  Palettenmasse).
 
 Koeffizienten kommen je Sorte und werden nach Datenlage zum Gesamtwert
 gezogen (empirisches Bayes). Welcher Fall gilt, steht an jeder Zahl. Ein
 Koeffizient ohne einzige Messung ist **unbekannt**, nicht null — das Dashboard
 sagt dann „nicht gemessen".
 
-**Drei Bücher, nie vermischt:** Buch A ist der Lagerverlust (Verdunstung +
-Schimmel), Buch B der andere Kanal und die verschenkte Marge (zu klein an die
-Tiere, zu gross in den Nebenkanal, Überfüllung der Kisten), und die
-Grundaussortierung vom Feld steht für sich: physisch weg, aber kein
-Lagerverlust.
+**Echter Verlust und kein echter Verlust, nie vermischt:** Echter Verlust
+ist, was am Ende nicht mehr da ist (Palox — Verderb im Lager und beim
+Abpacken —, Verdunstung). Kein echter Verlust ist der andere Kanal und die
+verschenkte Marge (zu klein an die Tiere, zu gross in den Nebenkanal,
+Überfüllung der Kisten). Der Überblick zeigt beides als Verlust zusammen nach
+Gesamt, Sorte, Schlag und Charge; die Ursachen trennen es. Die
+Grundaussortierung vom Feld rechnet im Modell mit, ohne eigene Maske.
 
 Die Probe aufs Exempel ist die **Massenbilanz**: Das Modell sagt voraus, wie
 viel Masse am Sortierband ankommen müsste, die CSV hat sie gewogen. Liegen beide
@@ -822,10 +836,11 @@ Begründung der Modellentscheidungen: [`docs/ENTSCHEIDUNGEN.md`](docs/ENTSCHEIDU
 
 ## Was noch offen ist
 
-- **Warenausgang** wird von Hand erfasst (Lieferschein: Datum, Sorte, Kilo
-  oder Kisten). Der Import aus Perigon wartet auf die Vorlage der Datei.
-- **Preise fehlen** (pro Stück je Kaliber, pro Kiste). Buch B rechnet in
-  Kilogramm, nicht in Franken.
+- **Warenausgang** kommt aus dem Perigon-Excel (Betrieb → Warenausgang);
+  Lieferungen von Hand bleiben möglich. Ohne Lieferungen liegt rechnerisch
+  noch alles im Haus — die Bilanz sagt es.
+- **Preise fehlen** (pro Stück je Kaliber, pro Kiste). Die verschenkte Marge
+  rechnet in Kilogramm, nicht in Franken.
 - **Ground-Truth für die Dubletten-Regel** steht aus: einmal eine Palette von
   Hand zählen und mit `n_gueltig` vergleichen. Die Regel lässt sich beim Upload
   abschalten, der Unterschied ist damit direkt sichtbar.

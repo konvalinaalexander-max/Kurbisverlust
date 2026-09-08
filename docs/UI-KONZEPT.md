@@ -29,11 +29,12 @@ Quellen: <https://www.nngroup.com/articles/wizards/>,
 Die Halle kennt zwei Arten von Beteiligten, und die App unterscheidet sie ohne
 Verwaltung:
 
-- **Vorarbeiter** — wer eine Arbeit eröffnet. Er kennt Charge, Käufer und
-  Sortierart, liest den Palox ab, wiegt den Ausschuss, beantwortet die Fragen
-  und schliesst ab. Er sieht die **Checkliste**.
+- **Vorarbeiter** — wer eine Arbeit eröffnet. Er kennt Charge, Bänder und
+  Kistensystem, liest den Palox ab, wiegt fertige Paletten und das Faule,
+  beantwortet die Fragen und schliesst ab. Er sieht die **Checkliste**.
 - **Zähler** — wer einer Arbeit beitritt. Er sieht **einen Zähler** und sonst
-  nichts: Paletten mit dem Datum vom Zettel, oder Kisten je Kaliber.
+  nichts: Paletten mit Datum (und beim Waschen + Sortieren dem Gewicht) vom
+  Zettel, Kisten je Kaliber mit Sortierdatum, oder beim Fax die Palettenzahl.
 
 Die Rolle hängt an der Arbeit, nicht an der Person: Eröffner = Vorarbeiter,
 Beitretende = Zähler. Ein Tipp auf „Ich führe diese Arbeit" holt die
@@ -45,33 +46,38 @@ Gespeichert wird die Rolle nicht; sie ist keine Messung.
 1. **Start** — „Läuft gerade" mit den offenen Arbeiten, darunter zwei Knöpfe:
    *Neue Arbeit starten* und *Palette kontrollieren*.
 2. **Assistent** — je Schritt eine Frage: Was macht ihr? · Welche Charge? ·
-   Für wen? · dann je Tätigkeit (0051): Sortieren fragt *welche Kaliber*
-   (die Maschine kennt nur Bänder — „wie zuletzt: übernehmen / anpassen");
-   Waschen fragt *welches Kaliber*; Waschen + Sortieren fragt Kiste oder
-   Kaliber und dann das Sollgewicht bzw. die Bänder; Fax fragt, was für
-   Kisten es sind (Kaliber-Kisten oder nach Sollgewicht) · Alles richtig?
-   Schritte, die für die Tätigkeit nicht gelten, gibt es nicht.
+   dann je Tätigkeit: Sortieren fragt *welche Kaliber* (die Maschine kennt
+   nur Bänder — „wie zuletzt: übernehmen / anpassen"); Waschen fragt
+   *welches Kaliber*; Waschen + Sortieren fragt die Bänder · dann das
+   **Kistensystem** (0060): Kiste ab x kg · x Stück je Kaliber · anderes —
+   kein Käufer mehr · Alles richtig? Schritte, die für die Tätigkeit nicht
+   gelten, gibt es nicht.
 3. **Als erstes: Palox ablesen** — die Ablesung steht direkt nach dem Start
-   (AB-02). „Später" ist möglich, aber die Checkliste lässt den Punkt offen.
+   (AB-02) beim Sortieren und beim Waschen + Sortieren. Beim Waschen ist sie
+   freiwillig (AB-28). „Später" ist möglich, aber die Checkliste lässt den
+   Punkt offen.
 4. **Checkliste** — jeder Punkt mit Zustand (erledigt / offen / freiwillig):
-   Palox zu Beginn · Ausschuss-Paletten leer? · Zählen (mit Stand) ·
-   Zu klein / zu gross wiegen · Fertige Palette wiegen · Arbeit abschliessen.
-   Beim Fax (0051): kein Palox, kein Ausschuss — dafür *Faules wiegen*
-   (kistenweise, mit Kistenart) und *Kisten gemacht* (je Kaliber, „+ 1
-   Palette").
+   Palox zu Beginn · Zählen (mit Stand) · Fertige Palette wiegen (wo das
+   Kistensystem rechenbar ist) · Arbeit abschliessen. Beim Fax: kein Palox —
+   dafür *Faules wiegen* (kistenweise, mit Kistenart) und *Paletten gesamt*.
+   Zu klein / zu gross wird nicht mehr gewogen (AB-26).
 5. **Abschluss-Assistent** — Palox jetzt ablesen (Fax: Faules wiegen) ·
-   Ausschuss: alles von dieser Arbeit? · (Waschen, Fax: sind Kisten gezählt?
-   Ohne Kisten keine Menge — eine Kilo-Zahl wird nirgends mehr getippt) ·
-   Alles aus einer Charge? · Zusammenfassung → *Ja, fertig*. Was fehlt,
-   steht als Satz am Knopf.
+   (Fax: Paletten gesamt, Tage seit dem Waschen) · (Waschen: sind Kisten
+   gezählt? Ohne Kisten keine Menge — eine Kilo-Zahl wird nirgends getippt) ·
+   Fertige Palette gewogen? · Alles aus einer Charge? · Zusammenfassung →
+   *Ja, fertig*. Was fehlt, steht als Satz am Knopf.
 
 ### Der Weg des Zählers
 
 Start → Arbeit antippen → **Mitmachen** → der Zähler. Datum vom Zettel oben
-(bleibt stehen), „+" gross in Daumenreichweite, darunter „Rückgängig". Jede
-Speicherung bestätigt sich mit einem kurzen „✓ gespeichert". Beim Waschen +
-Sortieren steht ein zweiter, kleinerer Knopf „Palette wiegen" — der einzige
-Umweg, den ein Zähler je sieht.
+(bleibt stehen; der „+"-Knopf zeigt, welches Datum er speichert), beim
+Waschen + Sortieren dazu das **Gewicht vom Zettel** (Pflicht, je Palette
+neu — Gewichte unterscheiden sich, das Datum nicht), „+" gross in
+Daumenreichweite, darunter „Rückgängig". Jede Speicherung bestätigt sich mit
+einem kurzen „✓ gespeichert". Beim Waschen + Sortieren steht ein zweiter,
+kleinerer Knopf „Palette wiegen" — das Zettelgewicht ist dort schon
+eingetragen. Beim Waschen trägt jede Kiste ihr **Sortierdatum** („kein
+Datum" ist eine Antwort); beim Fax zählt der Zähler die Paletten gesamt.
 
 ## Die Betriebsleiter-Seite
 
@@ -79,9 +85,9 @@ Fünf Reiter, je mit einem Satz darüber, was er beantwortet:
 
 | Reiter | Beantwortet | Woraus |
 |---|---|---|
-| **Überblick** | Was kam herein, was ging hinaus, was ist verloren — und woran? | Vier Zahlen (Eingang und Ausgang gemessen, Verlust und Bestand Modell); Hauptursachen gesamt oder je Sorte, Schlag, Charge (gestapelte Balken, Tonnen oder Anteil, Klick öffnet die Gruppe); Noch im Haus je Gruppe mit „liegt seit"; Kaliber je Sorte; Saison im Verlauf. Keine Vorhersagen, keine Ratschläge — was nicht gewusst werden kann, steht nicht da (AB-18) |
-| **Ursachen** | Vier Ursachen, jede in der Tiefe: je Sorte, je Charge, die Messungen dahinter | Verderb (Kurve, Punkte, je Charge gemessen gegen Modell); Verdunstung (kumulierter Verlust über der Lagerdauer, Sortenlinie, Raten je Sorte); Sortierung (zu klein, zu gross, Kaliber, Gewichtsverteilung, Überfüllung); Faul beim Abpacken (Rate je Sorte und Charge). Filter Sorte und Schlag, auch aus dem Überblick heraus |
-| **Chargen** | Wo steht welche Charge? | Eingang, im Lager, sortiert, ausgeliefert, „liegt seit" als Spanne (kein FIFO), Verlust; Aufklappen zeigt die Eingangstage (gekommen, gezählt, noch da), die Arbeiten und Lieferungen der Charge |
+| **Überblick** | Was kam herein, was ging hinaus, was ist verloren — und woran? | Vier Zahlen (Eingang und Ausgeliefert gemessen; Verlust und Noch im Haus gerechnet — das Ausgelagerte aus den Lieferungen, AB-23); „Woran fehlt die Ware?" gesamt oder je Sorte, Schlag, Charge (gestapelte Balken: Palox, Verdunstung, zu klein, zu gross, dazu die Überfüllung; Klick öffnet die Gruppe); „Was ist noch im Haus?" je Gruppe mit verkaufsfähigem Anteil und „liegt seit"; Kaliber je Sorte; Saison im Verlauf mit dem Abstand der Kurven. Keine Vorhersagen, keine Ratschläge — was nicht gewusst werden kann, steht nicht da (AB-18) |
+| **Ursachen** | Echter Verlust und kein echter Verlust, jede Ursache in der Tiefe: je Sorte, je Charge, die Messungen dahinter | *Echter Verlust:* Palox — Verderb im Lager (Kurve, Punkte, je Charge gemessen gegen Modell, das Faule je Charge) und Palox beim Abpacken (Fax, mit Tagen seit dem Waschen); Verdunstung (kumulierter Verlust über der Lagerdauer, Raten je Sorte). *Kein echter Verlust:* Sortierung (zu klein, zu gross, Kaliber, Gewichtsverteilung), Überfüllung aus den gewogenen fertigen Paletten, Stück-Kisten gegen die Erwartung aus der CSV. Nie „Buch A/B" (AB-30). Filter Sorte, Schlag und Charge, auch aus dem Überblick heraus |
+| **Chargen** | Wo steht welche Charge? | Eingang, ausgeliefert, im Haus (davon verkaufsfähig), „liegt seit" als Spanne (kein FIFO), Verlust, Messungen; Aufklappen zeigt die Eingangstage (Paletten, Eingang, in der App gezählt), die Arbeiten und Lieferungen der Charge |
 | **Messungen** | Was weiss die Auswertung — und was nicht? | Datenqualität, fehlende Messungen, Lagerkontrollen, Koeffizienten, Modell |
 | **Betrieb** | Was ist heute los, und wie pflege ich die Grundlagen? | Arbeiten (mit „Arbeit und Tempo" je Tätigkeit), Warenausgang (Excel einlesen, Lieferungen), Sortier-CSV, Stammdaten, Zugang |
 | **Messungen** (dazu) | Geht die Rechnung auf? | Die Bilanz Eingang = Verlust + Ausgang + Bestand steht hier, weil sie das Modell prüft, nicht den Betrieb |
@@ -110,3 +116,10 @@ gemessen ist, steht als „nicht gemessen", nie als 0.
 | 0057 | Stand der Datenbank (`schema_stand()`) | Die App vergleicht ihn mit `SCHEMA_ERWARTET` und verlangt bei Abweichung `setup.sql` — statt an alten Formeln zu scheitern. `supabase/diagnose.sql` für den SQL-Editor |
 | 0058 | Eine Zahl, die nicht in ihre Spalte passt | Wird unbekannt („—") statt die ganze Sicht abzubrechen. Anteile sind auf 0 … 1 geklammert, Massen nie negativ; die Bilanz nennt einen fehlenden Wareneingang beim Namen |
 | 0059 | Eine Sicht, die sich nicht lesen lässt | Die App lädt jede für sich — nur ihre Zahlen fehlen, der Bildschirm steht. Oben nennt eine Karte die betroffenen Sichten und den Grund |
+| 0060 | Verkaufte Lieferungen je Charge und Eingangstag | „Ausgelagert" und „noch im Haus" aus Eingang und Ausgang statt aus gezählten Paletten (AB-23); Überzählung als Befund, wenn hinter den Lieferungen mehr steckt als je einlagert wurde |
+| 0060 | Gewicht vom Zettel je gezählter Palette (Waschen + Sortieren) | Die Masse der Handlinie ohne zweite Wägung; ein Zettelgewicht ohne Palette im Wareneingang fällt auf (AB-26) |
+| 0060 | Kistensystem je Arbeit, fertige Paletten mit Kaliber | Überfüllung aus dem Soll an der Arbeit; bei Stück-Kisten die Erwartung aus der CSV (Information, keine Marge); die Palettenmasse je Sorte und Kistensystem als Nenner des Fax (AB-24, AB-25) |
+| 0060 | Fax: Paletten gesamt, Tage seit dem Waschen | Fax-Masse aus Paletten × Palettenmasse; der Waschschaden gegen das Liegen nach dem Waschen |
+| 0060 | Sortierdatum je gezählter Kiste beim Waschen | Kisten je Kaliber über die Sortierdaten summiert; „kein Datum" ist eine Antwort (AB-27) |
+| 0060 | Palox je Station (Waschstrasse, Sortiermaschine), gefallener Stand | Eine Arbeit mit geleertem Palox hat keine Menge — nie eine negative (AB-28) |
+| 0060 | Kontrolle mit Vorschlag, Eingangsdatum und -gewicht | Drei Chargen, bei denen eine Kontrolle am meisten bringt; mehrere Paletten hintereinander (AB-29) |

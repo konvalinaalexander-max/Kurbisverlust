@@ -1894,3 +1894,176 @@ gespeicherten Stand weitergearbeitet, und das steht dabei.
 
 Das ist der eigentliche Fortschritt dieser Runde: Vorher konnte **eine**
 Zahl den ganzen Bildschirm kosten. Jetzt kostet sie sich selbst.
+
+## Punktuell erfasst, vollständig gerechnet (Runde G: 0060)
+
+Der Betrieb hat am 8. September die App Maske für Maske durchgesehen und
+siebzehn Punkte zurückgegeben. Die meisten betreffen einzelne Fragen — was
+beim Fax gezählt wird, ob der Käufer gefragt wird, wie der Palox beim Waschen
+geführt wird. Einer betrifft das Fundament, und mit ihm beginnt diese Runde:
+
+> Du kriegst hier nur punktuelle Messungen. Du weisst nur, wie viel noch im
+> Lager ist, beim Vergleich von Eingang und Ausgang.
+
+### Was falsch war
+
+Bis 0059 kannte die Rechnung die Menge „ausgelagert" aus den **gezählten
+Paletten**: Jede Arbeit zählt, was sie aus dem Lager holt, und die Kaskade
+nahm diese Zählung als Masse, die die Halle verlassen hat. Das ist eine
+Annahme, die im Betrieb nie galt. Nicht jede Arbeit wird in der App erfasst —
+vielleicht fünfzehn Waschgänge in einer Saison —, und was nicht gezählt wird,
+liegt in der Rechnung noch im Lager, altert weiter und verdirbt weiter. Der
+Bestand war zu hoch, der Verlust zu hoch, und beides ohne Warnung. Das PDF
+behauptete an einer Stelle sogar, aus dem Zählen folge, „wie viel noch liegt,
+je Eingangstag". Das war falsch.
+
+### Der Kern: das Ausgelagerte kommt aus den Lieferungen
+
+Vollständig sind zwei Listen: der Wareneingang (jede Palette, aus dem
+Erntejournal) und der Warenausgang (jede Lieferung, aus den Lieferscheinen).
+Alles dazwischen ist Stichprobe. Also muss die Rechnung von den beiden Enden
+her laufen:
+
+```
+hinter einer verkauften Lieferung L am Tag d (Charge c, Eingangstag e):
+    Eingangsmasse  =  L ÷ verkaufsfähiger Anteil beim Alter (d − e)
+ausgelagert(c, e) =  Σ dieser Eingangsmassen, verteilt nach Eingangsanteil des Tags
+lager(c, e)       =  eingang(c, e) − ausgelagert(c, e)          (≥ 0)
+```
+
+Der verkaufsfähige Anteil ist derselbe Koeffizientensatz wie vorher
+(Verdunstung, Verderb beim Alter, zu klein, zu gross, Fax), nur rückwärts
+angewandt — die Lieferung sagt, was am Ende herauskam, das Modell sagt, wie
+viel dafür hineingehen musste. Der Anteil ist nach unten auf 0.25 geklammert,
+damit eine Lieferung an eine sehr alte Kohorte nicht das Vierfache der Halle
+verlangt. Es gibt kein FIFO: eine Lieferung geht auf alle Eingangstage der
+Charge im Verhältnis ihres Eingangs, weil die App nicht weiss, welche Palette
+gegangen ist. Eine Lieferung ohne Charge geht auf die Chargen der Sorte, ebenso
+nach Eingangsanteil. Der Vorlauf (AB-07) ist eine Pseudo-Lieferung am
+Erfassungsbeginn.
+
+Was übrig bleibt, ist der Bestand — nicht als Projektion aus gezählten
+Paletten, sondern als Differenz zweier vollständiger Listen, jeweils mit
+seinem Alter. Auf diesen Bestand läuft die Kaskade weiter bis zum Stichtag.
+Die Bilanz „Eingang = Verlust + Kanal + verkauft + verkaufsfähig im Haus"
+schliesst dadurch von selbst; geprüft wird an den Rändern: Was an die Tiere
+und in den Nebenkanal geliefert wurde, gegen das, was das Modell dafür
+rechnet — und die **Überzählung**: Steckt hinter den Lieferungen einer Charge
+mehr Eingangsmasse, als je eingelagert wurde, fehlt fast immer der
+Wareneingang dieser Charge oder eine Lieferung ist falsch zugeordnet. Das
+steht als Befund im Klartext, und eine Lieferung an eine Charge ohne
+jeden Eingang fällt eigens auf.
+
+Die gezählten Paletten bleiben, was sie sind: der Nenner der Palox-Messung
+und das Alter der Arbeit. Sie bestimmen keine Menge mehr. `v_charge_kohorte`
+zählt sie noch je Eingangstag („in der App gezählt") — als Information, nicht
+als Bestand.
+
+### Was der Test dabei lehrte
+
+Der alte Kette-Test verlangte, dass die Überfüllung auf eine geänderte
+Einstellung `soll_kg_pro_kiste` reagiert. Sie tat es nach 0060 nicht mehr, und
+das war richtig: Das Soll steht jetzt an der Arbeit (Kistensystem), nicht in
+einer Einstellung, und die Kistenzahl der Überfüllung folgt der **verkauften
+Masse** — mehr verkauft, mehr Kisten, mehr verschenkt. Der Test prüft jetzt
+genau das: Eine Lieferung hebt die Überfüllung, ein höheres Soll an der
+Arbeit senkt sie. Ein Test, der eine falsche Annahme prüft, ist gefährlicher
+als keiner.
+
+### Fax nach beiden Wegen, eine Fax-Art
+
+Der Betrieb: Fax gibt es auch nach dem Waschen + Sortieren, und es sind
+dieselben Handgriffe. Also eine Art. Gezählt wird nicht mehr je Kaliber,
+sondern die **Palettenzahl gesamt** (eine Zahl, „+ 1"), das Faule wird
+kistenweise gewogen, und freiwillig die Tage seit dem Waschen — die
+Grösse, die den Waschschaden vom Liegen nach dem Waschen trennt. Die Masse
+einer Fax-Arbeit ist Paletten × gemessene Palettenmasse je Sorte und
+Kistensystem (`v_koeff_palette_netto`, aus den gewogenen fertigen
+Paletten; Rückfall auf die Sorte). Wo keine fertige Palette je gewogen
+wurde, ist die Fax-Masse unbekannt — und die Datenqualität sagt es.
+
+### Zettelgewicht statt Ausschuss
+
+Beim Waschen + Sortieren wird zu klein und zu gross nicht mehr gewogen: Der
+Anteil kommt aus der Sortier-CSV, so gut wie auf Weg 1 — der Betrieb sortiert
+von Hand nach denselben Grenzen. Dafür tippt der Zähler je Palette das
+**Gewicht vom Zettel** (Pflicht, jede Palette neu, weil sich Gewichte
+unterscheiden; das Datum bleibt stehen). Das Netto folgt der Palette im
+Wareneingang mit genau diesem Brutto, Datum und dieser Charge; passt keine,
+der mittleren Tara der Charge — und ein Zettelgewicht ohne Palette fällt auf,
+denn es ist ein Zahlendreher oder eine fehlende Palette im Erntejournal. Das
+ist der gemessene Nenner der Handlinie, ohne eine zweite Wägung.
+
+### Kistensystem statt Käufer
+
+„Für wen?" fiel weg. Was die Rechnung braucht, ist nicht der Käufer, sondern
+das **Kistensystem**: Kiste ab x kg (Soll — daraus Überfüllung), x Stück je
+Kaliber (Erwartung aus der CSV: Stück × mittleres Bandgewicht — eine
+Information für den Packplatz, keine Marge) oder anderes (nicht rechenbar,
+ehrlich gesagt). Fertige Paletten werden gewogen, wo das System rechenbar ist.
+Alte Arbeiten behalten ihren Käufer; keine Maske schreibt ihn mehr, und der
+Lückenscanner kennt die Begründung.
+
+### Zwei Stationen, ein gefallener Palox
+
+Es gibt nur die **Waschstrasse** und die **Sortiermaschine**. Waschen +
+Sortieren ist die Waschstrasse mit Sortieren am Band — derselbe Palox.
+`palox_station()` bildet das ab, ohne die alte Station an den Aufträgen zu
+ändern. Fällt der Stand zwischen zwei Ablesungen, wurde geleert: kein Häkchen
+mehr, die Menge dieser Arbeit ist unbekannt (NULL, nicht negativ, keine
+angenommene Zahl), die Arbeit hat keinen Punkt in der Kurve, und der Befund
+„Palox geleert" sagt es dem Betriebsleiter. Beim Waschen ist die Ablesung
+freiwillig — der Betrieb wollte den Arbeiter dort nicht damit aufhalten.
+
+### Sortierdatum je Kiste, Kontrolle mit Vorschlag, Wörter
+
+Beim Waschen fragt der Zähler das **Sortierdatum von der Kiste**, mit „kein
+Datum" als echter Antwort; die Kisten je Kaliber werden über die Daten
+summiert. Die Lagerkontrolle schlägt **drei Chargen** vor (bestandsstärkste,
+wenigste Kontrollen), fragt Eingangsdatum und Eingangsgewicht vom Zettel und
+nimmt mehrere Paletten hintereinander. Und „Buch A" / „Buch B" sind aus der
+Oberfläche verschwunden: Die Ursachen trennen echten Verlust von keinem echten
+Verlust, der Überblick zeigt den Verlust zusammen — nach Gesamt, Sorte, Schlag
+und Charge, das Faule aus dem Palox als „Palox". Die Grundaussortierung
+(Sockel) rechnet im Modell weiter, ohne eigene Maske und ohne eigenen Balken.
+
+### Zwei Antworten auf Rückfragen des Betriebs
+
+- **Warenausgang Juli/August:** Die zweite Excel-Datei enthält zehn
+  Kürbis-Zeilen im Juli 2026 ohne Chargennummer, die erste beginnt im August.
+  Beide sind importierbar; die Juli-Lieferungen verteilen sich je Sorte auf
+  die Chargen (AB-23), sobald die Artikel bestätigt sind.
+- **Datum stehen lassen:** Bleibt — mit zwei Änderungen: Der „+"-Knopf zeigt
+  das Datum, das er speichert („+ 1 Palette · 01.09."), und beim Waschen +
+  Sortieren muss das Gewicht je Palette neu getippt werden, das Datum nicht.
+
+### Was der Lasttest fand: der JIT
+
+Mit 0060 hat die Kaskade je Eingangstag statt je Charge Zeilen — rund
+zwanzigmal mehr —, und der Lasttest (4300 t, 840 Arbeiten) meldete das
+Dashboard mit 2.8 statt 0.75 Sekunden. Die Suche führte nicht zu einer
+langsamen Sicht, sondern zum Postgres-JIT: Bei geschätzten Plankosten über
+100 000 übersetzt Postgres die Ausdrücke einer Abfrage vor der Ausführung
+in Maschinencode, und diese Übersetzung kostete bei `v_plausibilitaet`
+(vierzehn Zweige) eine Sekunde und bei `verlust_ranking()` zwei — für
+Abfragen, die ohne JIT in 120 beziehungsweise 490 Millisekunden fertig
+sind. Für Abfragen dieser Art — viele Ausdrücke, wenige Zeilen — ist der
+JIT eine Bremse; PostgreSQL 19 schaltet ihn deshalb standardmässig ab.
+
+Zwei Massnahmen: `v_hochrechnung` (ein Strom je Charge, Portion und
+Eingangstag) ist jetzt gespeichert (`mv_hochrechnung`, mit der Kaskade
+erneuert), und die Datenbank schaltet den JIT ab — als Einstellung der
+Datenbank, wo das erlaubt ist, sonst mit einem Hinweis, und für
+`verlust_ranking()` und die Neuberechnung in jedem Fall. Das Dashboard
+liegt damit wieder bei den früheren Werten.
+
+### Was offen bleibt
+
+- Die Klammer 0.25 für den verkaufsfähigen Anteil ist eine Setzung, keine
+  Messung. Sie greift nur bei sehr alten Kohorten; wo sie greift, steht die
+  Überzählung als Befund.
+- Der Bestand je Eingangstag folgt dem Eingangsanteil. Verarbeitet der
+  Betrieb systematisch das Jüngste zuerst, liegt das gerechnete Alter im Haus
+  zu jung — „liegt seit" bleibt deshalb eine Spanne.
+- Die Palettenmasse je Kistensystem kommt aus wenigen Wägungen. Ihr Bereich
+  steht an der Fax-Masse; ohne Wägung gibt es keine.
