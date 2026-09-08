@@ -299,12 +299,25 @@ zuerst verarbeitet, 25 Saisons je Zeile):
 
 | Lagerkontrollen je Saison | Verzerrung Schimmel | Überdeckung |
 |---|---|---|
-| 0 | −12.9 % | 8 % |
-| 12 | −5.3 % | 72 % |
-| **24** | **+3.7 %** | **100 %** |
+| 0 | +10.3 % | **52 %** |
+| 12 | +10.2 % | **100 %** |
+| 24 | +9.8 % | 88 % |
 
-Zwei Paletten im Monat genügen, um die grösste verbliebene Fehlerquelle
-praktisch zu schliessen.
+Neu gemessen am 10. September, 25 Saisons je Zeile. Die früher hier stehenden
+Werte (−12.9 % / 8 %, −5.3 % / 72 %, +3.7 % / 100 %) stammen aus einer älteren
+Fassung des Modells und stimmen nicht mehr — auch das Vorzeichen nicht.
+
+**Die Kontrollen schliessen die Lücke nicht, sie machen sie sichtbar.** Das ist
+der ehrlichere und der wichtigere Befund: Die Verzerrung bleibt bei rund +10 %,
+egal wie viele Paletten zusätzlich gewogen werden. Was sich ändert, ist die
+Überdeckung — von 52 % auf 100 %. Ohne Kontrollen behauptet der Bereich eine
+Genauigkeit, die er nicht hat; mit zwölf Kontrollen wird er breit genug, um die
+Wahrheit zu enthalten. Der Betriebsleiter bekommt also nicht die richtigere
+Zahl, sondern die ehrlichere Spanne um sie herum — und sieht damit, dass er
+hier nicht genau Bescheid weiss.
+
+Dass 24 Kontrollen wieder auf 88 % fallen, ist keine Verschlechterung, sondern
+Rauschen: 88 % und 100 % sind bei 25 Saisons drei Läufe Unterschied.
 
 Solange keine erfasst sind, kann die Selektionsverzerrung nicht einmal geprüft
 werden — `v_selektionsverdacht` sagt genau das. Sind welche da, vergleicht die
@@ -314,26 +327,57 @@ Ansicht beide Quellen und meldet, ob sie dasselbe sagen.
 
 ## Wo das Modell jetzt steht
 
-`./supabase/test/simulation/matrix.sh 25`, Stand dieser Überarbeitung. Ein
-Bereich, der 95 % heissen soll, muss in rund 95 % der Saisons treffen.
+`./supabase/test/simulation/matrix.sh 25`, neu gemessen am 10. September nach
+Migration 0062 — neun Lagen, je 25 Saisons. Ein Bereich, der 95 % heissen soll,
+muss in rund 95 % der Saisons treffen. „Zu klein" und „zu gross" stehen nicht in
+der Tabelle: Sie liegen in jeder Lage unter 0.6 % Verzerrung bei 100 %
+Überdeckung.
 
 | Lage | Strom | Verzerrung | Überdeckung |
 |---|---|---|---|
-| Saisonende, 25 % im Lager | Verdunstung | −1.6 % | 96 % |
-| | Schimmel/Fäulnis | −2.7 % | 92 % |
-| | Ausschuss zu klein | +0.1 % | 100 % |
-| Mitten in der Saison, 50 % im Lager | Verdunstung | −1.6 % | 96 % |
-| | Schimmel/Fäulnis | +1.3 % | 100 % |
-| | Ausschuss zu klein | 0.0 % | 100 % |
-| Saisonende, Schlechtes zuerst | Verdunstung | −2.5 % | 100 % |
-| | Schimmel/Fäulnis | +1.5 % | 100 % |
-| | Ausschuss zu klein | +0.1 % | 100 % |
-| **Mitten in der Saison, Schlechtes zuerst** | Verdunstung | −0.4 % | 96 % |
-| | **Schimmel/Fäulnis** | **−12.9 %** | **8 %** |
-| | Ausschuss zu klein | +0.3 % | 100 % |
-| Dieselbe Lage, 24 Lagerkontrollen | Schimmel/Fäulnis | +3.7 % | 100 % |
-| Knappe Stichprobe: 4 Wägungen | Verdunstung | −3.0 % | 96 % |
-| | Schimmel/Fäulnis | +0.9 % | 100 % |
+| Saisonende, 25 % im Lager | Verdunstung | 0.0 % | 100 % |
+| | Schimmel/Fäulnis | −0.8 % | 96 % |
+| | Nicht lagerbedingt | 0 kg (Wahrheit 0) | 100 % |
+| Mitten in der Saison, 50 % im Lager | Verdunstung | −1.4 % | 96 % |
+| | Schimmel/Fäulnis | −0.5 % | 100 % |
+| | Nicht lagerbedingt | 0 kg (Wahrheit 0) | 100 % |
+| Saisonende, Schlechtes zuerst | Verdunstung | −0.7 % | 96 % |
+| | Schimmel/Fäulnis | −0.7 % | 92 % |
+| | Nicht lagerbedingt | 566 kg (Wahrheit 0) | 96 % |
+| **Mitten in der Saison, Schlechtes zuerst** | Verdunstung | 0.5 % | 100 % |
+| | **Schimmel/Fäulnis** | **+10.3 %** | **52 %** |
+| | Nicht lagerbedingt | 1 252 kg (Wahrheit 0) | 64 % |
+| Dieselbe Lage, 12 Lagerkontrollen | Schimmel/Fäulnis | +10.2 % | 100 % |
+| Dieselbe Lage, 24 Lagerkontrollen | Schimmel/Fäulnis | +9.8 % | 88 % |
+| Knappe Stichprobe: 4 Wägungen | Verdunstung | 0.1 % | 96 % |
+| | Schimmel/Fäulnis | −0.8 % | 100 % |
+| Mitten in der Saison, 2 % Sockel im Palox | Schimmel/Fäulnis | +15.5 % | 52 % |
+| | Nicht lagerbedingt | −36.5 % | 80 % |
+| **Saisonende, 2 % Sockel im Palox** | **Schimmel/Fäulnis** | **+47.2 %** | **12 %** |
+| | Nicht lagerbedingt | −88.0 % | 88 % |
+
+**Was sich gegenüber der vorigen Messung geändert hat.** Die Verzerrung ist in
+allen Lagen praktisch gleich geblieben; 0062 hat an der Statistik nichts
+verschoben, sondern an der Bilanz und an den Namen. Zwei Zahlen sehen trotzdem
+anders aus als früher in dieser Datei:
+
+* Die Zeile „Mitten in der Saison, Schlechtes zuerst" stand hier mit −12.9 %
+  und 8 % Überdeckung. Diese Werte stammen aus einer älteren Fassung des
+  Modells; seit Runde H liegt die Verzerrung bei rund +10 %. Die 52 % sind
+  ausserdem aus 25 Saisons gemessen statt aus 8 — die früher berichteten 75 %
+  waren sechs von acht Läufen und trugen keine Aussage.
+* Die Sockel-Lagen sind besser geworden (mitten in der Saison von +29.1 % auf
+  +15.5 %, am Saisonende von +54.5 % auf +47.2 %), bleiben aber die schlechteste
+  Stelle im ganzen Modell.
+
+**Die beiden schlechten Zeilen sind dieselbe Sache.** Wenn ein Teil des Faulen
+gar nicht vom Lager kommt (Sockel a₀: Erde, Hagelnarben, Schnittfehler) oder
+wenn der Vorarbeiter die schlechten Paletten zuerst verarbeitet, sieht das
+Modell mehr Verderb, als die Lagerdauer erklärt — und schreibt ihn der
+Lagerdauer zu. Der Nachweis des Sockels gelingt mitten in der Saison in 64 %
+der Fälle, am Saisonende nur noch in 12 %: Dann liegt zu wenig Ware da, an der
+er sich zeigen könnte. Dagegen hilft keine Rechnung, sondern eine Messung —
+Lagerkontrollen an zufällig gegriffenen Paletten, früh in der Saison.
 
 Zum Vergleich der Ausgangszustand, mit dem diese Überprüfung begann:
 
