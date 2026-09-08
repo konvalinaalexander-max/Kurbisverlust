@@ -648,6 +648,7 @@ Was jede Ansicht bedeutet, steht in [`docs/DATENFLUSS.md`](docs/DATENFLUSS.md).
 
 | Datei | Worum es geht |
 |---|---|
+| [`docs/Das-Programm-erklaert.pdf`](docs/Das-Programm-erklaert.pdf) | **Das ganze Programm in zwei Teilen.** Teil 1: was im Betrieb passiert, was die App an jeder Stelle fragt, was dabei gespeichert wird und warum genau so — jede Maske einzeln. Teil 2: Datenmodell, Sichtenkette, Massenkaskade, Verderbsmodell, Unsicherheit, Import, Sicherheit, Tempo, Prüfwerk und die ehrlichen Grenzen. 33 Seiten. |
 | [`docs/Ablauf-Betrieb-und-App.pdf`](docs/Ablauf-Betrieb-und-App.pdf) | **Der Einstieg.** Station für Station: was physisch passiert, was die App fragt, was Pflicht und was freiwillig ist — und was sie mit der Antwort anfängt. |
 | [`docs/Datenarchitektur.pdf`](docs/Datenarchitektur.pdf) | **Wie die Daten gespeichert werden** — damit die Analyse später komplett anders aussehen darf, ohne dass ein Messwert verloren geht. |
 | [`docs/Offene-Fragen.pdf`](docs/Offene-Fragen.pdf) | Was noch zu klären ist, geordnet danach, was es freigibt. Der Grossteil ist inzwischen beantwortet — siehe `docs/ABLAUF.md`. |
