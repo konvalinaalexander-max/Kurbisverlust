@@ -2,7 +2,7 @@ import { datum, kg, prozent, zahl } from '../lib/format'
 import { Hinweis, Karte, Lade, Marke } from '../components/Bausteine'
 import { Diagramm } from '../components/Diagramm'
 import { useAuswertung, type Datenqualitaet } from '../auswertung/daten'
-import { Auffaelligkeiten, Bilanz, Herkunft, Reiterkopf } from '../auswertung/Karten'
+import { Auffaelligkeiten, Bilanz, Herkunft, Probleme, Reiterkopf } from '../auswertung/Karten'
 import { STATION_NAME } from '../lib/format'
 
 const TAG = 86400000
@@ -36,6 +36,7 @@ export default function Messungen() {
     <>
       <Reiterkopf titel="Messungen" zweck="Was weiss die Auswertung — und was nicht? Vollständigkeit, Lücken, Auffälligkeiten, Koeffizienten, Modell."
                   stand={daten.stand} neuRechnen={() => void neuRechnen()} />
+      <Probleme liste={daten.probleme} />
 
       {daten.qualitaet && <Qualitaet q={daten.qualitaet} />}
       <Auffaelligkeiten befunde={daten.befunde} />

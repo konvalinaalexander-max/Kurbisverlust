@@ -1836,3 +1836,61 @@ und listet die Grössenordnungen, die einen Überlauf erklären: Ein- und
 Ausgang, die Extremwerte der Kaskade, die Modellvarianzen, die Ströme mit
 ihren Bereichen und das Sollgewicht je Kiste. Eine Diagnose, die eine
 falsche Entwarnung geben kann, ist schlimmer als keine.
+
+## Aufhören, Sicht für Sicht zu flicken (0059)
+
+Nach 0058 kam vom Betrieb `v_massenbilanz: numeric field overflow`. Das war
+vorhersehbar und mein Fehler. 0056 hat die Rohdaten abgesichert, 0057 den
+Stand sichtbar gemacht, 0058 vier Sichten gehärtet — jedes Mal die, an der
+es gerade klemmte. Im Schema stehen aber **26 Sichten mit zusammen 89
+harten Casts** auf berechnete Grössen. Jeder einzelne kann eine Sicht
+sprengen, und welcher es trifft, hängt an den Daten des Betriebs. Sie
+einzeln abzuwarten hätte den Betriebsleiter noch zwanzigmal vor einen
+leeren Bildschirm gestellt.
+
+### Der Umbau
+
+Statt weiterzuflicken: alle auf einmal, mechanisch und nachprüfbar. Ein
+Umschreiber liest jede Sichtdefinition über `pg_get_viewdef`, findet jeden
+`::numeric(p,s)`, bestimmt den Anfang des Ausdrucks davor (mit Klammer-,
+`CASE … END`- und Fensterfunktions-Behandlung) und legt `zahl(…, s,
+10^(p−s))` darum. Der Cast bleibt stehen — deshalb ändern sich die
+Spaltentypen nicht, und `create or replace view` genügt ohne Kaskade.
+
+Nachgewiesen ist die Gleichwertigkeit, nicht behauptet: Auf der Demo-Saison
+liefern alle 26 umgeschriebenen Sichten Zeile für Zeile denselben Inhalt
+(Prüfsumme je Sicht), und alle **777 Spalten** aller Sichten behalten ihren
+Typ. Es ändert sich ausschliesslich, was passiert, wenn eine Zahl nicht
+darstellbar ist: vorher Abbruch der Sicht, jetzt NULL in dieser einen
+Spalte.
+
+Drei gespeicherte Sichten bleiben bewusst aussen vor, mit Begründung im
+Prüfblock: `mv_auftrag_masse.lagertage` ist eine Differenz zweier
+Datumswerte, `mv_sortier_lauf_masse.masse_kg` und
+`mv_kaliber_verteilung.masse_kg` sind Σ Anzahl × Gramm ÷ 1000 mit Gramm
+unter 60 000 aus der CSV-Reinigung. Beide sind durch die Reinigungsregeln
+beziehungsweise den Datumsbereich von Postgres schon begrenzt, und sie
+liessen sich nur mit `drop … cascade` über die ganze Kette ändern. Ändert
+sich eine Reinigungsregel, gehört die Ausnahmeliste geprüft — das steht
+neben der Liste.
+
+### Der Rückfallschutz
+
+`pruefung.sql` zählt in jeder Sicht die engen Casts und die
+`zahl()`-Aufrufe und verlangt Gleichheit. Wer künftig einen harten Cast
+einbaut, hört es beim nächsten Testlauf statt Wochen später vom Betrieb.
+Dazu die Gegenprobe: Jede Sicht, die das Dashboard lädt, wird mit
+`select *` gelesen — `count(*)` wertet die Spaltenausdrücke nicht aus und
+hätte genau diese Fehlerklasse durchgelassen.
+
+### Und die zweite Hälfte: die App darf nicht mitsterben
+
+Der Backend-Umbau macht einen Ausfall unwahrscheinlich, nicht unmöglich.
+Deshalb lädt die Auswertung jede Sicht jetzt **für sich**: Scheitert eine,
+sind ihre Zahlen unbekannt, alles andere steht, und oben auf dem Reiter
+sagt eine Karte, welche Sicht es war und woran es lag. Auch ein
+gescheitertes Neurechnen bricht nicht mehr ab — dann wird mit dem letzten
+gespeicherten Stand weitergearbeitet, und das steht dabei.
+
+Das ist der eigentliche Fortschritt dieser Runde: Vorher konnte **eine**
+Zahl den ganzen Bildschirm kosten. Jetzt kostet sie sich selbst.

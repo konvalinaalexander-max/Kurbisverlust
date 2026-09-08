@@ -132,7 +132,15 @@ export interface Auswertung {
   ausschuss: AusschussBeobachtung[]
   /** Runde E: der Warenausgang je Charge — die zweite vollständige Zahl neben dem Eingang. */
   lieferungen: LieferungKurz[]
+  /**
+   * Sichten, die sich nicht lesen liessen. Eine davon darf nicht den ganzen
+   * Bildschirm kosten: Ihre Zahlen sind dann unbekannt, alles andere steht.
+   * Die Seiten zeigen die Liste an, damit klar ist, was fehlt und warum.
+   */
+  probleme: Problem[]
 }
+
+export interface Problem { sicht: string; meldung: string }
 
 let stand: Auswertung | null = null
 let ladeVersprechen: Promise<Auswertung> | null = null
@@ -148,23 +156,32 @@ async function alles(): Promise<Auswertung> {
 
   const { data: st } = await supabase.from('auswertung_stand').select('berechnet_ts, geaendert_ts').maybeSingle()
   const veraltet = !st?.berechnet_ts || new Date(st.geaendert_ts) > new Date(st.berechnet_ts)
+  let rechnenFehler: string | null = null
   if (veraltet) {
     const { error } = await supabase.rpc('auswertung_aktualisieren')
-    if (error) throw error
+    // Scheitert das Neurechnen, wird mit dem letzten gespeicherten Stand
+    // weitergearbeitet — veraltete Zahlen sind besser als keine, solange
+    // dabeisteht, dass sie veraltet sind.
+    if (error) rechnenFehler = error.message
   }
   const { data: st2 } = await supabase.from('auswertung_stand').select('berechnet_ts').maybeSingle()
+  // Jede Sicht wird für sich geholt. Scheitert eine, ist *ihre* Zahl unbekannt
+  // — der Rest des Bildschirms steht trotzdem. Vorher riss eine einzige Sicht
+  // die ganze Auswertung mit, und der Betriebsleiter sah nur eine rohe Meldung.
+  const probleme: Problem[] = []
+  const merken = (name: string, fehler: { message?: string } | null) => {
+    probleme.push({ sicht: name, meldung: fehler?.message ?? 'unbekannter Fehler' })
+  }
   const q = async <T,>(name: string, order?: [string, boolean]): Promise<T[]> => {
     let s = supabase.from(name).select('*')
     if (order) s = s.order(order[0], { ascending: order[1] })
     const r = await s
-    // Die Sicht mit in die Meldung: „v_plausibilitaet: numeric field overflow"
-    // sagt, wo zu suchen ist — „numeric field overflow" allein nicht.
-    if (r.error) throw { ...r.error, message: `${name}: ${r.error.message}` }
+    if (r.error) { merken(name, r.error); return [] }
     return (r.data ?? []) as T[]
   }
   const eins = async <T,>(name: string): Promise<T | null> => {
     const r = await supabase.from(name).select('*').maybeSingle()
-    if (r.error) throw { ...r.error, message: `${name}: ${r.error.message}` }
+    if (r.error) { merken(name, r.error); return null }
     return (r.data ?? null) as T | null
   }
   const [h, b, d, pl, kv, sk, mo, sel, sb, pk, hb, nc, kfv, kfa, kfn, kfu, wk, mg, gw, va, ds, uk, dq, sv, kg, ss, ko, fx, ab, lf] = await Promise.all([
@@ -203,6 +220,9 @@ async function alles(): Promise<Auswertung> {
     sorten: { verdunstung: kfv, ausschuss: kfa, nebenkanal: kfn }, wiegungen: wk, marge: mg,
     gewichte: gw, verarbeitung: va, durchsatz: ds, ueberfuellung: uk, qualitaet: dq, saisonverlauf: sv,
     gebinde: kg, schemata: ss, kohorten: ko, fax: fx, ausschuss: ab, lieferungen: lf,
+    probleme: rechnenFehler
+      ? [{ sicht: 'Auswertung neu rechnen', meldung: rechnenFehler }, ...probleme]
+      : probleme,
   }
 }
 

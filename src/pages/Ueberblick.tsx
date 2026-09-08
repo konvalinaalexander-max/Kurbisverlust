@@ -6,7 +6,7 @@ import { Balken, Hinweis, Karte, Kennzahl, Lade } from '../components/Bausteine'
 import { Diagramm } from '../components/Diagramm'
 import { Stapelbalken, Stapellegende, type Stapelzeile } from '../components/Stapelbalken'
 import { STROMFARBE, alterSpanne, kaliberJeSorte, stroemeSummieren, useAuswertung, useRanking, type Auswertung, type Bestand, type LieferungKurz } from '../auswertung/daten'
-import { Reiterkopf } from '../auswertung/Karten'
+import { Probleme, Reiterkopf } from '../auswertung/Karten'
 import type { Hochrechnung } from '../lib/typen'
 
 const TAG = 86400000
@@ -40,6 +40,7 @@ export default function Ueberblick() {
     return (
       <>
         <Reiterkopf titel="Überblick" zweck="Was kam herein, was ging hinaus, was ist verloren — und woran." stand={daten.stand} />
+      <Probleme liste={daten.probleme} />
         <Hinweis>Noch keine auswertbaren Daten. Dafür braucht es mindestens Eingangspaletten mit hinterlegter Tara — siehe Betrieb → Stammdaten.</Hinweis>
         <DemoDaten kompakt nachAenderung={() => void neuRechnen()} />
       </>

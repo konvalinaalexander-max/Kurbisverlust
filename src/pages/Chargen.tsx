@@ -6,7 +6,7 @@ import { WOERTERBUCH } from '../lib/i18n'
 import { datum, kg, prozent, zahl, zeitpunkt } from '../lib/format'
 import { Hinweis, Karte, Lade, Marke } from '../components/Bausteine'
 import { alterSpanne, useAuswertung, type Auswertung } from '../auswertung/daten'
-import { Reiterkopf } from '../auswertung/Karten'
+import { Probleme, Reiterkopf } from '../auswertung/Karten'
 import type { Auftrag } from '../lib/typen'
 
 /**
@@ -44,6 +44,7 @@ export default function Chargen() {
     <>
       <Reiterkopf titel="Chargen" zweck="Wo steht welche Charge — wie viel liegt noch, wie alt ist es, was droht?"
                   stand={daten.stand} neuRechnen={() => void neuRechnen()} />
+      <Probleme liste={daten.probleme} />
       <Karte>
         <div className="reihe">
           <select value={sorte} onChange={e => setSorte(e.target.value)} style={{ width: 'auto', minHeight: 36 }}>

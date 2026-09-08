@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { kg, prozent, tonnen, zahl, zeitpunkt } from '../lib/format'
 import { Hinweis, Karte, Marke } from '../components/Bausteine'
 import { Bilanzzeile } from '../components/Kaskadenbild'
-import type { Befund, Saisonbilanz, Schimmelpunkt, StromSumme } from './daten'
+import type { Befund, Problem, Saisonbilanz, Schimmelpunkt, StromSumme } from './daten'
 
 /** Kopfzeile eines Reiters: Name, der eine Satz, wozu er da ist, Stand, Neu rechnen. */
 export function Reiterkopf({ titel, zweck, stand, neuRechnen, rechts }: {
@@ -19,6 +19,25 @@ export function Reiterkopf({ titel, zweck, stand, neuRechnen, rechts }: {
       </div>
       <p className="leise" style={{ margin: '.25rem 0 .75rem' }}>{zweck}</p>
     </div>
+  )
+}
+
+/**
+ * Sichten, die sich nicht lesen liessen. Früher riss eine davon den ganzen
+ * Bildschirm mit; jetzt fehlen nur ihre Zahlen, und hier steht, welche.
+ */
+export function Probleme({ liste }: { liste: Problem[] }) {
+  if (liste.length === 0) return null
+  return (
+    <Hinweis art="warnung">
+      <strong>Ein Teil der Auswertung konnte nicht gerechnet werden.</strong> Alles Übrige auf
+      dieser Seite stimmt; die betroffenen Zahlen stehen als „—".
+      <ul style={{ margin: '.4rem 0 .3rem', paddingLeft: '1.2rem' }}>
+        {liste.map((p, i) => <li key={i}><code>{p.sicht}</code> — {p.meldung}</li>)}
+      </ul>
+      <span className="leise">Was dahintersteckt, sagt <code>supabase/diagnose.sql</code> im
+      SQL-Editor. Meist steht die Ursache auch unter Messungen → Auffälligkeiten.</span>
+    </Hinweis>
   )
 }
 

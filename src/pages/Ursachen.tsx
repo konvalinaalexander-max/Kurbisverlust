@@ -4,7 +4,7 @@ import { datum, kg, prozent, tonnen, zahl } from '../lib/format'
 import { Balken, Hinweis, Karte, Kennzahl, Lade, Marke, Rechenweg } from '../components/Bausteine'
 import { Diagramm, Histogramm } from '../components/Diagramm'
 import { STROMFARBE, kaliberJeSorte, stroemeSummieren, useAuswertung, useRanking, type Auswertung, type SortenK, type StromSumme } from '../auswertung/daten'
-import { Reiterkopf, rechenweg } from '../auswertung/Karten'
+import { Probleme, Reiterkopf, rechenweg } from '../auswertung/Karten'
 import type { Hochrechnung } from '../lib/typen'
 
 /** Kennfarben für Reihen ohne festen Strom (Sorten im Verdunstungsbild). */
@@ -50,6 +50,7 @@ export default function Ursachen() {
     <>
       <Reiterkopf titel="Ursachen" zweck="Vier Ursachen, jede in der Tiefe: je Sorte, je Charge, und die Messungen dahinter."
                   stand={daten.stand} neuRechnen={() => void neuRechnen()} />
+      <Probleme liste={daten.probleme} />
 
       <Karte>
         <div className="spalten" style={{ alignItems: 'end' }}>

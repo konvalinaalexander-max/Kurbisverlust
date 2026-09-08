@@ -56,6 +56,21 @@ begin
     insert into diagnose (was, befund) values ('Sichten des Dashboards', 'alle lesbar');
   end if;
 
+  -- 3b. Sind alle Zahlenschranken abgesichert? (0059)
+  begin
+    select count(*) into v_n
+      from pg_class c join pg_namespace n on n.oid = c.relnamespace
+     where n.nspname = 'public' and c.relkind in ('v','m')
+       and c.relname not in ('mv_auftrag_masse','mv_sortier_lauf_masse','mv_kaliber_verteilung')
+       and regexp_count(pg_get_viewdef(c.oid, true), '::numeric\(\d+,\d+\)')
+           <> regexp_count(pg_get_viewdef(c.oid, true), 'zahl\(');
+    insert into diagnose (was, befund) values ('Sichten mit ungesicherter Zahlenschranke',
+      v_n || case when v_n > 0 then ' — setup.sql ist älter als 0059' else ' (alle abgesichert)' end);
+  exception when others then
+    insert into diagnose (was, befund) values ('Sichten mit ungesicherter Zahlenschranke',
+      'nicht prüfbar: ' || sqlerrm);
+  end;
+
   -- 4. Die Grössenordnungen, die einen Überlauf erklären
   begin
     select 'Eingang ' || round(coalesce(sum(eingang_kg), 0) / 1000.0, 1) || ' t'

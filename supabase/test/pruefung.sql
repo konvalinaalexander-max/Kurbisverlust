@@ -2465,3 +2465,78 @@ begin
 end $$;
 
 select '——— 0058 Auswertung hält stand geprüft ———' as ergebnis;
+
+-- =====================================================================
+-- 0059 — Kein harter Cast mehr in einer Auswertungssicht
+-- =====================================================================
+-- Der Rückfallschutz: `x::numeric(14,2)` auf einer *berechneten* Grösse ist
+-- eine Wette auf den Wertebereich, und wenn sie nicht aufgeht, bricht die
+-- ganze Sicht ab statt einer Spalte. Genau daran ist der Überblick auf dem
+-- Hof dreimal gescheitert, jedes Mal an einer anderen Sicht. Deshalb prüft
+-- dieser Block **jede** Sicht: Vor jedem `::numeric(p,s)` muss ein
+-- `zahl(…, s, 1e^(p−s))` stehen.
+do $$
+declare
+  v record; v_offen text[] := '{}'; v_casts int; v_zahl int; v_gesamt int := 0;
+  -- Drei gespeicherte Sichten bleiben aussen vor, und zwar mit Grund: Ihre
+  -- Casts sind durch die Reinigungsregeln und den Datumsbereich von Postgres
+  -- schon begrenzt, und sie liessen sich nur mit „drop … cascade" über die
+  -- ganze Kette ändern.
+  --   mv_auftrag_masse.lagertage        Differenz zweier Datumswerte
+  --   mv_sortier_lauf_masse.masse_kg    Σ Anzahl × Gramm ÷ 1000, Gramm < 60 000
+  --   mv_kaliber_verteilung.masse_kg    dieselbe Summe, gruppiert
+  -- Ändert sich eine Reinigungsregel, gehört diese Liste geprüft.
+  c_ausnahmen text[] := array['mv_auftrag_masse', 'mv_sortier_lauf_masse',
+                              'mv_kaliber_verteilung'];
+begin
+  for v in select c.relname, pg_get_viewdef(c.oid, true) as defn
+             from pg_class c join pg_namespace n on n.oid = c.relnamespace
+            where n.nspname = 'public' and c.relkind in ('v', 'm')
+              and not (c.relname = any (c_ausnahmen))
+            order by c.relname
+  loop
+    v_casts := regexp_count(v.defn, '::numeric\(\d+,\d+\)');
+    v_zahl  := regexp_count(v.defn, 'zahl\(');
+    v_gesamt := v_gesamt + v_casts;
+    -- Jeder enge Cast braucht genau einen zahl()-Aufruf davor. Mehr zahl() als
+    -- Casts wäre auch verdächtig (doppelt gewrappt), deshalb Gleichheit.
+    if v_casts > 0 and v_zahl <> v_casts then
+      v_offen := v_offen || format('%s (%s Casts, %s zahl)', v.relname, v_casts, v_zahl);
+    end if;
+  end loop;
+
+  assert array_length(v_offen, 1) is null, format(
+    'Harte Casts ohne zahl() in: %s. Ein Cast auf eine berechnete Grösse muss '
+    || 'durch zahl(wert, stellen, grenze) laufen — sonst reisst eine einzelne '
+    || 'unmögliche Zahl die ganze Sicht mit (0059).', array_to_string(v_offen, ', '));
+
+  raise notice 'OK  0059 Keine harten Casts: % Casts in den Sichten, alle abgesichert', v_gesamt;
+end $$;
+
+-- Und die Gegenprobe: jede Sicht, die das Dashboard lädt, muss sich mit
+-- „select *" lesen lassen — count(*) wertet die Spaltenausdrücke nicht aus
+-- und hätte genau die Fehler durchgelassen, um die es hier geht.
+do $$
+declare v text; v_n bigint; v_kaputt text[] := '{}';
+begin
+  foreach v in array array['v_hochrechnung','v_massenbilanz','v_datenlage','v_plausibilitaet',
+      'v_kaliber_verteilung','v_schimmel_kurve_anzeige','v_schimmel_modell','v_selektionsverdacht',
+      'v_saisonbilanz','v_schimmel_punkte','v_hochrechnung_basis','v_naechste_charge',
+      'v_koeff_verdunstung','v_koeff_ausschuss','v_koeff_nebenkanal','v_koeff_ueberfuellung',
+      'v_wiegung_kennzahl','v_marge_buch','v_gewichtsverteilung','v_verarbeitung_alter',
+      'v_durchsatz','v_ueberfuellung_kaeufer','v_datenqualitaet','v_saisonverlauf','v_koeff_gebinde',
+      'v_charge_kohorte','v_fax_beobachtung','v_ausschuss_beobachtung','v_lieferung_masse',
+      'v_verlust_ranking','v_kaskade','v_auftrag_masse','v_schimmel_beobachtung',
+      'v_ausgang_kennzahl','v_ausgang_lage','v_ausgang_pruef','v_kohorte_anteil','v_palox_stand']
+  loop
+    begin
+      execute format('select count(*) from (select * from %I) q', v) into v_n;
+    exception when others then v_kaputt := v_kaputt || (v || ': ' || sqlerrm);
+    end;
+  end loop;
+  assert array_length(v_kaputt, 1) is null,
+    format('Diese Sichten lassen sich nicht lesen: %s', array_to_string(v_kaputt, ' | '));
+  raise notice 'OK  0059 Alle Sichten des Dashboards mit select * lesbar';
+end $$;
+
+select '——— 0059 Keine harten Casts geprüft ———' as ergebnis;
