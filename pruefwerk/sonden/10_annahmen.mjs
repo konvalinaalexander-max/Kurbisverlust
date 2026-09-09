@@ -18,7 +18,11 @@
  * Die Stichworttabelle unter `pruefwerk/befunde/annahmen.md` ist der Vorschlag,
  * mit dem sich die Spalte füllen lässt — nicht ihr Ersatz.
  */
-import { befund, dateien, frage, lies, schreibe } from '../umgebung.mjs'
+import { existsSync } from 'node:fs'
+import { join } from 'node:path'
+import { WURZEL, befund, dateien, frage, lies, schreibe } from '../umgebung.mjs'
+
+const bestehtDatei = (p) => existsSync(join(WURZEL, p))
 
 export const lang = false
 
@@ -33,7 +37,8 @@ export function annahmen(text) {
     if (!z.startsWith('|')) break
     const teile = z.split('|').slice(1, -1).map(t => t.trim())
     if (teile.length < 3) continue
-    raus.push({ nr: raus.length + 1, annahme: teile[0], warum: teile[1], folge: teile[2] })
+    raus.push({ nr: raus.length + 1, annahme: teile[0], warum: teile[1], folge: teile[2],
+                wache: (teile[3] ?? '').trim() })
   }
   return raus
 }
@@ -78,7 +83,15 @@ export async function laufen({ db }) {
     wachen.push({ art: 'Test', pfad: p, text: lies(p) })
   for (const p of dateien('pruefwerk', /\.mjs$/).filter(p => !p.includes('10_annahmen')))
     wachen.push({ art: 'Prüfwerk', pfad: p, text: lies(p) })
-  const arten = frage(db, `select distinct art from v_plausibilitaet order by 1`).map(r => r.art)
+  /* Welche Arten von Auffälligkeiten es **geben kann** — nicht, welche gerade
+     in den Daten stehen. Die Demosaison hat nicht jeden Fall; eine Wache, die
+     es gibt, dürfte deshalb nicht als erfunden gelten. */
+  const arten = [...new Set(
+    frage(db, `select pg_get_viewdef(c.oid, true) as text
+                 from pg_class c join pg_namespace n on n.oid = c.relnamespace
+                where n.nspname = 'public' and c.relname like 'v\\_plausibilitaet%'`)
+      .flatMap(r => [...r.text.matchAll(/'([^']+)'::text AS art\b/g)].map(m => m[1]))
+      .concat(frage(db, `select distinct art from v_plausibilitaet`).map(r => r.art)))]
   wachen.push({ art: 'Auffälligkeit', pfad: 'v_plausibilitaet', text: arten.join(' ') })
 
   /* Ein Stichwort, das in fast jeder Datei vorkommt („Paletten", „Charge"),
@@ -97,45 +110,59 @@ export async function laufen({ db }) {
 
   schreibe('pruefwerk/befunde/annahmen.md', bericht(bewertet, arten))
 
+  /* Die vierte Spalte: Wo würde es auffallen? */
   const kopf = /^\|\s*Annahme\s*\|(.*)$/m.exec(lies('docs/ABLAUF.md'))?.[1] ?? ''
   const hatSpalte = /auffiele|bewacht|Wache/i.test(kopf)
   if (!hatSpalte) {
-    const schwach = bewertet.filter(b => b.wachen.length > 3)
     B({ klasse: 3, ort: { datei: 'docs/ABLAUF.md' },
         titel: `Zu keiner der ${liste.length} Annahmen steht, wo ihr Bruch auffiele`,
         steht_da: `Die Tabelle hat die Spalten „${kopf.split('|').filter(Boolean).map(x => x.trim()).join('", „')}". `
                 + `Eine Stichwortsuche über ${wachen.length} Prüfungen, Prüfstände, Tests und `
                 + `Auffälligkeitsarten findet zu ${liste.length - unbewacht.length} Annahmen irgendeinen `
-                + `Treffer — bei ${schwach.length} davon in mehr als drei Dateien gleichzeitig. `
-                + `Das ist kein Beleg, sondern Zufall: gesucht wird ein Wort, nicht eine Behauptung.`,
-        muesste: 'Eine vierte Spalte „Wo es auffiele" — je Annahme entweder ein Zeiger auf die Stelle, '
-               + 'die anschlägt (Behauptung in pruefung.sql, Auffälligkeit in v_plausibilitaet, Störfall '
-               + 'im Prüfwerk), oder ausdrücklich „nirgends — bewusst in Kauf genommen, Schaden: …". '
-               + 'Danach kann diese Sonde die Spalte bewachen: existiert die genannte Stelle noch?',
-        warum: 'Eine Annahme, deren Bruch keine Spur hinterlässt, ist die teuerste Sorte Fehler: Die '
-             + 'Zahlen bleiben plausibel, die Prüfungen bleiben grün, und der Betrieb handelt nach '
-             + 'einer Zahl, die seit Wochen falsch ist. Die dritte Spalte der Tabelle sagt zu jeder '
-             + 'Zeile selbst, was dann passiert — sie ist damit bereits die Liste der stillen Fehler, '
-             + 'nur ohne Angabe, welche davon jemand bemerken würde. Die Runde hat für genau eine '
-             + 'Zeile nachgesehen (die umgestapelte Palette, Störfall S7) und dort einen messbaren '
-             + 'Fehler gefunden. Das ist der Grund, die übrigen zwanzig nicht auf gut Glück stehen '
-             + 'zu lassen.',
+                + `Treffer. Das ist kein Beleg, sondern Zufall: gesucht wird ein Wort, nicht eine Behauptung.`,
+        muesste: 'Eine vierte Spalte „Wo es auffiele" — je Annahme ein Zeiger auf die Stelle, die '
+               + 'anschlägt, oder ausdrücklich „nirgends — bewusst in Kauf genommen".',
+        warum: 'Eine Annahme, deren Bruch keine Spur hinterlässt, ist die teuerste Sorte Fehler.',
         beleg: 'pruefwerk/befunde/annahmen.md',
         groesse: { wert: liste.length, einheit: 'Annahmen ohne benannte Wache', basis: 'docs/ABLAUF.md' },
-        sicherheit: 'hoch', marke: 'Reparatur', aufwand: 'mittel',
-        gegenrede: 'Man kann einwenden, dass eine Doku-Spalte nichts prüft. Stimmt — sie macht aber '
-                 + 'prüfbar, was heute nicht einmal behauptet wird, und sie kostet keine Zeile Code '
-                 + 'in der App. Der teurere Weg wäre, zu jeder Annahme sofort einen Störfall zu '
-                 + 'bauen; die Spalte sagt zuerst, welche das überhaupt wert sind.' })
-  } else if (unbewacht.length) {
-    B({ klasse: 2, ort: { datei: 'docs/ABLAUF.md' },
-        titel: `${unbewacht.length} Annahmen nennen keine Wache`,
-        steht_da: unbewacht.map(u => `„${u.annahme.slice(0, 90)}"`).join('; '),
-        muesste: 'Jede Zeile nennt eine Stelle — oder sagt ausdrücklich, dass keine existiert.',
-        warum: 'Die Spalte ist da; eine leere Zelle darin ist eine offene Frage, keine Antwort.',
-        beleg: 'pruefwerk/befunde/annahmen.md',
-        groesse: { wert: unbewacht.length, einheit: 'leere Zellen', basis: `${liste.length} Annahmen` },
-        sicherheit: 'hoch', marke: 'Reparatur' })
+        sicherheit: 'hoch', marke: 'Reparatur', aufwand: 'mittel' })
+  } else {
+    /* Die Spalte ist da — jetzt wird sie bewacht. Eine leere Zelle ist eine
+       offene Frage; ein „nirgends" ohne Begründung ist eine verschwiegene. */
+    const leer = liste.filter(a => !a.wache)
+    const OFFEN = /nirgends|keine Prüfung|kein Schutz/i
+    const BEGRUENDET = /in Kauf genommen|Frage an den Betrieb|das ist der Schutz|keine Prüfung|einzige Schutz|hinterlässt keine Spur/i
+    const nackt = liste.filter(a => a.wache && OFFEN.test(a.wache) && !BEGRUENDET.test(a.wache))
+    if (leer.length || nackt.length) {
+      B({ klasse: 2, ort: { datei: 'docs/ABLAUF.md' },
+          titel: `${leer.length + nackt.length} Annahmen sagen nicht, wo ihr Bruch auffiele`,
+          steht_da: [...leer, ...nackt].map(a => `„${a.annahme.slice(0, 80)}"`).join('; '),
+          muesste: 'Jede Zeile nennt eine Stelle — oder sagt „nirgends" **und** warum das in Kauf '
+                 + 'genommen wird.',
+          warum: 'Die Spalte ist da; eine leere Zelle darin ist eine offene Frage, keine Antwort.',
+          beleg: 'pruefwerk/befunde/annahmen.md',
+          groesse: { wert: leer.length + nackt.length, einheit: 'Zeilen ohne Antwort', basis: `${liste.length} Annahmen` },
+          sicherheit: 'hoch', marke: 'Reparatur' })
+    }
+    /* Und: Nennt eine Zeile eine Auffälligkeit, muss es sie geben. */
+    const erfunden = []
+    for (const a of liste) {
+      for (const m of a.wache.matchAll(/Auffälligkeit „([^"„]+)"/g))
+        if (!arten.includes(m[1])) erfunden.push({ annahme: a.annahme, art: m[1] })
+      for (const m of a.wache.matchAll(/`([^`]+\.(?:ts|mjs|sql|md))`/g))
+        if (!bestehtDatei(m[1])) erfunden.push({ annahme: a.annahme, art: m[1] })
+    }
+    if (erfunden.length) {
+      B({ klasse: 3, ort: { datei: 'docs/ABLAUF.md' },
+          titel: 'Eine Annahme nennt eine Wache, die es nicht gibt',
+          steht_da: erfunden.map(e => `„${e.art}" (zu: ${e.annahme.slice(0, 60)})`).join('; '),
+          muesste: 'Jede genannte Auffälligkeit steht in v_plausibilitaet, jede genannte Datei im Bestand.',
+          warum: 'Eine Wache, die es nicht gibt, ist schlimmer als keine: Sie beruhigt und hält niemanden auf. '
+               + 'Auffälligkeiten werden umbenannt und Dateien verschoben — genau dafür ist diese Prüfung da.',
+          beleg: 'pruefwerk/sonden/10_annahmen.mjs',
+          groesse: { wert: erfunden.length, einheit: 'erfundene Wachen', basis: `${liste.length} Annahmen` },
+          sicherheit: 'hoch', marke: 'Reparatur' })
+    }
   }
 
   /* Eine Annahme, die diese Runde bereits als gebrochen gemessen hat */

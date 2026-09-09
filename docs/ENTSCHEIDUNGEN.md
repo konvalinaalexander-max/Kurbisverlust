@@ -2562,3 +2562,129 @@ Reihenfolge abhängt, steht die Regel in 0063 noch einmal ausdrücklich.
 
 `pruefung.sql` hält beides fest: Ansichten ohne Beschreibung und Funktionen
 mit PUBLIC-Recht müssen null sein.
+
+## Runde L — das Prüfwerk, und was es gefunden hat (9. September, 0064 bis 0066)
+
+### Warum ein eigenes Werkzeug
+
+Die Prüfstände der Runden A bis K prüfen, ob das Programm tut, was gemeint
+ist. Sie können nicht prüfen, ob das Gemeinte stimmt: Wer eine Formel
+schreibt und danach den Test dazu, prüft zweimal dieselbe Annahme. Runde L
+baut deshalb ein Werkzeug, das die Datenbank **gegen sich selbst** befragt —
+`pruefwerk/`, zehn Sonden, jede mit einer eigenen Methode:
+
+| Sonde | Fragt |
+|---|---|
+| 01 Herkunft | Liest die Oberfläche etwas, das es nicht gibt? Sagt eine gespeicherte Ansicht dasselbe wie ihre Quelle? |
+| 02 Bezugsgrössen | Steht über einer Prozentzahl derselbe Nenner, mit dem sie gerechnet ist? |
+| 03 Erfassung | Wird etwas erfasst und nie gelesen? Verlangt eine Maske ein Feld, das die Tabelle leer lässt? |
+| 04 Orakel | Rechnet eine zweite, unabhängig geschriebene Kaskade dasselbe? Wie weit ist der Betrieb von den Schutzgrenzen entfernt? |
+| 05 Metamorph | Was muss gleich bleiben, wenn man die Daten verdoppelt, verschiebt, spiegelt? |
+| 06 Mutation | Wenn man eine Formel absichtlich verstellt — merkt es irgendein Test? |
+| 07 Szenarien | Acht Papierfälle, von Hand nachgerechnet, gegen die Datenbank gehalten |
+| 08 Leer ist nicht null | Wo wird aus einer Lücke eine Zahl? |
+| 09 Einheiten | Hält jede Spalte, was ihr Name verspricht? |
+| 10 Annahmen | Steht zu jeder Annahme, wo ihr Bruch auffiele — und stimmt das? |
+
+Jede Sonde hat eine **Selbstprobe**: Sie baut sich einen Fall, in dem sie
+etwas finden *muss*. Findet sie ihn nicht, meldet der Lauf „STUMPF" und bricht
+ab. Eine Sonde, die immer schweigt, ist wertlos und darf nicht wie ein
+Gütesiegel aussehen.
+
+### Was gefunden wurde
+
+24 Befunde, davon 18 mit Folgen für eine Zahl. Sie hatten fast alle dieselbe
+Form — nicht ein Rechenfehler, sondern eine **Verwechslung von „null" und
+„nichts gemessen"**, in beide Richtungen:
+
+**0064 — Leer ist nicht null, auch am Eingang.** Fünf Stellen:
+`v_palette` rechnete eine fehlende Kistenzahl als null Kisten und verbuchte
+das Gewicht der Kisten als Kürbis (bei 30 Kisten à 1 kg auf 950 kg Netto:
+3,2 % zu viel Eingang, und nichts fiel auf). Dieselbe Rechnung stand an drei
+weiteren Stellen und drückte über das Verhältnis der beiden Nettos die
+Verdunstungsrate nach unten. Ein Verluststrom ohne Messung stand in
+`v_hochrechnung_basis` als 0,00 kg — dieselbe Datenbank gab damit auf zwei
+Wegen zwei Antworten, denn `erg_verlust` schrieb dort seit jeher NULL.
+`coalesce(im_haus_heute_kg, eingang_kg)` griff auch dann, wenn es Kaskaden­zeilen
+gibt und nur die liegende Portion fehlt — eine vollständig ausgelieferte
+Charge über 950 kg meldete 950 kg „noch im Haus". Und drei Dinge, die der
+Betrieb sehen soll, sah er nicht: eine Gebindeart ohne hinterlegte Tara, eine
+Charge mit mehr Ausgang als Eingang (4180 kg in der Demosaison), ein
+Zettelgewicht, das zur Charge passt, aber nicht zum Tag.
+
+**0065 — Entsorgtes verlässt das Lager.** Was in den Kompost geht, hat den
+Betrieb verlassen — es lag aber weiter im Bestand und alterte dort weiter,
+während seine Masse gleichzeitig im Ausgang stand. Dieselbe Ware zweimal. Die
+Kaskade bekommt eine dritte Portion (`entsorgt`) neben `ausgelagert` und
+`lager`; entsorgte Masse wird über die Verdunstung auf ihren Eingang
+zurückgerechnet, zählt vollständig als Schimmel und nicht als Lieferung. Auf
+der Demosaison ändert sich keine einzige Zahl — dort gibt es keinen Kompost —,
+und genau das ist der Beweis, dass die Änderung nur wirkt, wo sie soll.
+
+**0066 — Kein Kilo aus einer Lücke, auch nicht im Rechenweg.** Die Nachlese,
+dreimal dieselbe Frage, zweimal mit umgekehrtem Vorzeichen.
+
+Erstens: Der Rechenweg eines Verluststroms zeigt vier Teilbeträge (an
+ausgelieferter Ware, an liegender Ware, jenseits der Messungen, beim Abpacken
+erwartet). Alle vier entstehen als `sum(...) filter (...)`, und eine Summe über
+keine Zeile ist in SQL NULL. Gemeint ist aber „null Kilo in dieser Portion":
+Fax hat nichts an der liegenden Ware, weil dort noch nicht abgepackt wurde.
+Nachweis, dass 0 der richtige Wert ist: `kg = kg_beobachtet + kg_projiziert`
+gilt auf allen 366 Zeilen der Demosaison exakt, sobald man NULL als 0 liest.
+Die Oberfläche hat sich mit `?? 0` beholfen — und schrieb dadurch bei einem
+*ungemessenen* Strom „Ergebnis bis heute: nicht gemessen" und zwei Zeilen
+darunter „Davon an ausgelieferter Ware: 0 kg". Jetzt gilt: Ist der Strom
+gemessen, sind alle vier Teilbeträge Zahlen; ist er es nicht, sind alle vier
+NULL. Dazwischen gibt es nichts.
+
+Zweitens, und das war der teuerste Fund der Nachlese: **zwei Auslöser haben
+ein Nettogewicht erfunden.** `ausschuss_netto_setzen` und
+`schimmel_netto_setzen` rechnen brutto − Kisten × Tara und schreiben das
+Ergebnis in die Pflichtspalte `kg` — mit `coalesce(kisten, 0)` bzw.
+`coalesce(kisten, 1)` und `coalesce(tara, 0)`. Fehlte die Kistenzahl oder die
+hinterlegte Tara, wurde damit das **Bruttogewicht als Netto gespeichert** und
+mit `gemessen = true` markiert. Das ist derselbe Fehler wie bei der Palette in
+0064, nur schlimmer: Dort wurde er beim Lesen gemacht, hier wird er
+geschrieben und bleibt stehen.
+
+Die Zeile wird trotzdem nicht abgewiesen. Sie ist eine Beobachtung („eine
+Kiste Kleines gewogen, 120 kg brutto"), nur eben keine Nettomasse — sie
+bekommt `gemessen = false`, und `v_ausschuss_beobachtung` und
+`v_schimmel_menge` lesen ohnehin nur Gemessenes. Eine Bedingung auf der
+Tabelle (wie `lieferung_hat_menge` in 0064) wäre hier falsch gewesen: Bei
+der Lieferung ist die Zeile ohne Menge unbrauchbar, hier ist sie es nicht.
+
+Drittens: Die Auffälligkeit „Ausschuss-Tara" hat dasselbe Netto ein zweites
+Mal nachgerechnet, wieder mit `coalesce`. Fehlte die Tara, kam als „richtiges"
+Netto das Bruttogewicht heraus, die Prüfung schlug an und gab die falsche
+Auskunft: *„Die Gebinde-Tara wurde nach dem Wiegen geändert."* Sie wurde nicht
+geändert, sie fehlt. Nebenbei fiel dabei eine SQL-Eigenheit auf, die genau in
+dieselbe Falle führt: **`greatest(null, 0)` ist 0, nicht NULL** — die Prüfung
+hätte auch nach dem Entfernen der `coalesce` weiter angeschlagen, wenn das
+Netto nicht ausdrücklich vorher geprüft würde. Jetzt rechnet sie nur nach, wo
+sich etwas nachrechnen lässt, und die Lücke steht als eigene Art daneben:
+„Ausschuss ohne Tara".
+
+### Was ausdrücklich nicht gemacht wurde
+
+Keine neue Auswertung, keine neue Grafik, kein neuer Bildschirm, keine neue
+Frage an den Arbeiter. Fünf der zehn Reparaturen bedeuten sogar **weniger**
+Anzeige: eine Null verschwindet, ein „—" tritt an ihre Stelle.
+
+Zwei Feststellungen sind bewusst offen geblieben und stehen als Frage in
+`docs/PLAN_REPARATUREN.md`: **wovon** der Verlust in Prozent gerechnet werden
+soll (16,1 % des Eingangs gegen 25,1 % des noch nicht Ausgelieferten — bis zu
+9 Prozentpunkte Unterschied, und die Wahl gehört dem Betrieb), und ob zwischen
+Eingang und Wägung umgestapelt wird (11 % zu hohe Tagesrate, wenn ja; das ist
+eine Frage an die Halle, keine an den Code).
+
+### Wie die Reparaturen gehalten werden
+
+Nicht durch die Sonden — die laufen von Hand. Jede Reparatur ist mit einer
+Behauptung in `supabase/test/pruefung.sql` festgenagelt, und zwar **in beide
+Richtungen**: eine Zahl genau dann, wenn gemessen wurde, und unbekannt genau
+dann, wenn nicht. Dazu die Mutationssonde: Sie verstellt fünfzehn Formeln
+einzeln in den Migrationen, baut jedes Mal ein ganzes Schema neu, spielt die
+echten Demodaten ein und fragt, ob irgendein Test anschlägt. Was dabei
+übersteht, ist die Lücke im Netz — und steht als Befund im Bericht, nicht als
+gute Nachricht.

@@ -102,9 +102,18 @@ export async function laufen({ db }) {
     const sichten = frage(db, `select pg_get_viewdef(c.oid, true) as text
                                  from pg_class c join pg_namespace n on n.oid = c.relnamespace
                                 where n.nspname = 'public' and c.relkind in ('v','m')`)
-      .map(r => r.text).join('\n')
-    const rechnend = weich.filter(s =>
-      new RegExp(`COALESCE\\(\\s*[a-z_0-9]*\\.?${s.spalte}\\s*,\\s*\\(?0`, 'i').test(sichten))
+      .map(r => r.text)
+    /* Ein `coalesce(x.feld, 0)` ist nur dann eine erfundene Null, wenn `x`
+       wirklich die Zeile der Tabelle ist. Steht dahinter eine Summe über einen
+       LEFT JOIN — „zu dieser Arbeit wurde nichts erfasst" —, ist die Null
+       beobachtet und richtig. Die Unterscheidung geht über den Alias: Wird er
+       im selben Text an die Tabelle gebunden (`from lieferung l`, `join
+       palette p`), zählt der Treffer; sonst nicht. */
+    const rechnend = weich.filter(sp => sichten.some(text => {
+      const treffer = [...text.matchAll(
+        new RegExp(`COALESCE\\(\\s*([a-z_0-9]+)\\.${sp.spalte}\\s*,\\s*\\(?0`, 'gi'))]
+      return treffer.some(m => new RegExp(`\\b(from|join)\\s+${sp.tabelle}\\s+${m[1]}\\b`, 'i').test(text))
+    }))
     B({ klasse: rechnend.length ? 3 : 2, ort: { sicht: [...new Set(weich.map(w => w.tabelle))].join(', ') },
         titel: rechnend.length
           ? `${rechnend.length} Felder verlangt die Maske, die Datenbank lässt sie leer — und die Rechnung macht eine Null daraus`

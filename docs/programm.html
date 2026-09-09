@@ -55,7 +55,7 @@ h2.gross{font-size:12.4pt;margin-top:7mm}
       Unsicherheit · Import und CSV · Sicherheit, Tempo, Prüfwerk · ehrliche Grenzen</span></span></div>
   </div>
 
-  <p class="klein leise" style="margin-top:9mm">Stand: 9. September 2026, Schema-Fassung 0063.
+  <p class="klein leise" style="margin-top:9mm">Stand: 9. September 2026, Schema-Fassung 0066.
   Das Werkzeug läuft auf Supabase und Cloudflare zu Kosten von null. Alle genannten
   Simulationszahlen sind mit <code>supabase/test/simulation/matrix.sh</code> reproduzierbar,
   alle Prüfungen mit <code>supabase/test/run.sh</code>.</p>
@@ -2076,7 +2076,7 @@ versperrt, den der Hof hat.</p>
 
 <div class="warum">
 <p><b>Die Ursache war nicht die Datenbank, sondern ihre Geschichte.</b> <code>setup.sql</code>
-war die Aneinanderreihung aller 63 Migrationen. Von 1 257 Anweisungen betrafen 869 das
+war die Aneinanderreihung aller damals 63 Migrationen. Von 1 257 Anweisungen betrafen 869 das
 Rechenwerk — und <b>416 davon waren überholt</b>: Fassungen, die eine spätere Migration
 ohnehin überschreibt. <code>v_saisonbilanz</code> stand neunmal in der Datei,
 <code>v_marge_buch</code> fünfzehnmal. Jede wurde beim Einspielen angelegt und Sekunden
@@ -2137,7 +2137,8 @@ sonst schlägt der Testlauf fehl.</p>
 <h2 class="gross">2.27 Das Prüfwerk</h2>
 
 <p>Nichts an diesem System ist von Hand geprüft. Sieben Prüfstände laufen bei jeder Änderung; die
-Gesamtheit ist umfangreicher als die App selbst.</p>
+Gesamtheit ist umfangreicher als die App selbst. Dazu ein achtes Werkzeug, das nicht prüft,
+sondern widerspricht — das Prüfwerk, ganz unten in der Tabelle.</p>
 
 <table>
 <tr><th style="width:40mm">Prüfstand</th><th>Was er prüft</th></tr>
@@ -2145,7 +2146,7 @@ Gesamtheit ist umfangreicher als die App selbst.</p>
   <td><strong>1.</strong> Migrationen einzeln einspielen und rund zweitausend Zeilen Fachlogik
   durchrechnen · <strong>2.</strong> <code>setup.sql</code> als <em>ein</em> Query, wie der
   SQL-Editor sie sendet — stumm bis auf die Fertig-Zeile, unter 1 MB, und im Fingerabdruck
-  deckungsgleich mit dem Weg über die Migrationen (2613 Objekte) ·
+  deckungsgleich mit dem Weg über die Migrationen (2633 Objekte) ·
   <strong>3.</strong> ein zweites Mal — muss durchlaufen und dasselbe
   Schema hinterlassen (Objekt-Fingerabdruck, per <code>diff</code> verglichen) ·
   <strong>3b.</strong> Aktualisierung von einem alten Stand mit echten Daten ·
@@ -2186,9 +2187,23 @@ Gesamtheit ist umfangreicher als die App selbst.</p>
   2667 Zahlen über zwölf Ansichten. Wer einen Namen neu vergibt, muss ihn ins Lexikon eintragen;
   sonst schlägt der Prüfstand an. So kann niemand still einen Begriff einführen, der nicht sagt,
   was er meint.</td></tr>
-<tr><td><code>npm test</code></td><td>76 Einzelprüfungen der reinen Funktionen: CSV-Reinigung,
-  XLSX-Leser, Warenausgang-Regeln, Übersetzungen (jede Sprache hat jeden Schlüssel),
-  Konfigurationsprüfung, Schema-Stand.</td></tr>
+<tr><td><code>npm test</code></td><td>81 Einzelprüfungen der reinen Funktionen: CSV-Reinigung,
+  XLSX-Leser, Warenausgang-Regeln, Massenrechnung (kein Netto ohne Kistenzahl und Tara),
+  Übersetzungen (jede Sprache hat jeden Schlüssel), Konfigurationsprüfung, Schema-Stand.</td></tr>
+<tr><td><code>pruefwerk/lauf.mjs</code><br><span class="klein leise">zehn Sonden</span></td>
+  <td>Das <strong>Prüfwerk</strong> — kein Prüfstand, sondern die Gegenrede. Ein Prüfstand fragt,
+  ob das Programm tut, was gemeint ist; er kann nicht fragen, ob das Gemeinte stimmt. Wer eine
+  Formel schreibt und danach den Test dazu, prüft zweimal dieselbe Annahme. Die zehn Sonden
+  befragen die Datenbank deshalb <em>gegen sich selbst</em>: eine zweite, unabhängig
+  geschriebene Massenkaskade als Orakel; fünfzehn absichtlich verstellte Formeln, jede mit
+  neu gebautem Schema und echten Daten, mit der Frage, ob überhaupt ein Test anschlägt;
+  Papierfälle, die von Hand nachgerechnet sind; die Einheit hinter jedem Spaltennamen; und
+  überall die Frage „wo wird aus einer Lücke eine Zahl — und wo aus null Kilo ein Unwissen?".
+  Jede Sonde hat eine <strong>Selbstprobe</strong>: Sie baut sich einen Fall, in dem sie etwas
+  finden <em>muss</em>. Findet sie ihn nicht, meldet der Lauf „STUMPF" und bricht ab — eine
+  Sonde, die immer schweigt, ist wertlos und darf nicht wie ein Gütesiegel aussehen. Sie läuft
+  von Hand, nicht in der CI: Die Mutationssonde braucht allein rund eine Viertelstunde. Der
+  Bericht steht in <code>docs/PRUEFBERICHT.md</code>.</td></tr>
 </table>
 
 <p>Alles hängt in der CI und läuft bei jedem Push. Dazu die Datei

@@ -394,7 +394,10 @@ export function useAuswertung() {
 export interface StromSumme {
   strom: string; buch: string
   mittel: number; unten: number; oben: number
-  beobachtet: number; projiziert: number; extrapoliert: number; erwartet: number; basis: number
+  // 0066: die Teilbeträge sind null, solange der Strom nicht gemessen ist —
+  // dann gehört „nicht gemessen" hin, keine 0 kg.
+  beobachtet: number | null; projiziert: number | null; extrapoliert: number | null
+  erwartet: number | null; basis: number | null
   koeffN: number | null; koeffBasis: string | null; formel: string
   bereichBekannt: boolean; bekannt: boolean
   eingang: number; nChargen: number
@@ -406,9 +409,14 @@ export type Gruppe = 'gesamt' | 'sorte' | 'schlag' | 'charge'
 export function stroemeVon(zeilen: Verlustzeile[], gruppe: Gruppe, schluessel = ''): StromSumme[] {
   return zeilen.filter(z => z.gruppe === gruppe && z.schluessel === (gruppe === 'gesamt' ? '' : schluessel)).map(z => ({
     strom: z.strom, buch: z.buch,
+    // Diese drei hängen an der Flagge daneben: `bekannt` ist nur wahr, wenn kg
+    // gemessen ist, `bereichBekannt` nur, wenn unten und oben da sind. Jede
+    // Anzeigestelle fragt erst die Flagge — die 0 hier wird nie gelesen.
     mittel: z.kg ?? 0, unten: z.kg_unten ?? 0, oben: z.kg_oben ?? 0,
-    beobachtet: z.kg_beobachtet ?? 0, projiziert: z.kg_projiziert ?? 0, extrapoliert: z.kg_extrapoliert ?? 0,
-    erwartet: z.kg_erwartet ?? 0, basis: z.basis_kg ?? 0,
+    // Die Teilbeträge haben keine solche Flagge und bleiben darum, was sie
+    // sind (0066): Zahlen, wenn der Strom gemessen ist, sonst null.
+    beobachtet: z.kg_beobachtet, projiziert: z.kg_projiziert, extrapoliert: z.kg_extrapoliert,
+    erwartet: z.kg_erwartet, basis: z.basis_kg,
     koeffN: z.koeff_n_min, koeffBasis: z.koeff_basis, formel: z.formel,
     bereichBekannt: z.kg_unten !== null && z.kg_oben !== null, bekannt: z.bekannt && z.kg !== null,
     eingang: z.eingang_kg, nChargen: z.n_chargen,

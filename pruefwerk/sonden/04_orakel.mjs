@@ -246,6 +246,43 @@ export async function laufen({ db }) {
     }
   }
 
+  /* 4g. Wie weit sind die Schutzgrenzen entfernt?
+     Drei Stellen der Kaskade sind Vorkehrungen für den Ausnahmefall: der Boden
+     des verkaufsfähigen Anteils bei 25 %, der Deckel der Verdunstungsrate bei
+     5 % je Tag, der Sockel a₀. Die Mutationssonde (06) findet sie auf den
+     Demodaten „ohne Wirkung" — sie sind so weit weg, dass eine Verstellung
+     keine Zahl ändert. Das ist kein Freispruch, sondern ein Abstand, und ein
+     Abstand gehört gemessen: solange er gross ist, ist die Stelle ungeprüft
+     und ungefährlich; wird er klein, ist sie ungeprüft und gefährlich. */
+  const anteile = zeilen.map(q => anteil({ r: z(q.r), t: z(q.alter_tage), a0: z(q.a0), f: z(q.f),
+                                           klein: z(q.klein), gross: z(q.gross), fax: z(q.fax) }).roh)
+  const kleinster = Math.min(...anteile)
+  const groessteRate = Math.max(...zeilen.map(q => z(q.r)))
+  const groessterSockel = Math.max(...zeilen.map(q => z(q.a0)))
+  const knapp = kleinster < 0.35 || groessteRate > 0.03 || groessterSockel > 0
+  B({ klasse: knapp ? 2 : 1, ort: { sicht: 'mv_kaskade' },
+      titel: knapp
+        ? 'Eine Schutzgrenze der Kaskade rückt in Reichweite'
+        : 'Gemessen: die drei Schutzgrenzen der Kaskade sind weit entfernt — und darum ungeprüft',
+      steht_da: `Kleinster verkaufsfähiger Anteil ${kleinster.toFixed(3)} (Boden bei 0,250). `
+              + `Grösste Verdunstungsrate ${(100 * groessteRate).toFixed(3)} % je Tag (Deckel bei 5 %). `
+              + `Grösster Sockel a₀ ${(100 * groessterSockel).toFixed(2)} % `
+              + `(${groessterSockel > 0 ? 'nachgewiesen' : 'nicht nachweisbar, also 0'}).`,
+      muesste: knapp
+        ? 'Solange eine Grenze in Reichweite ist, gehört sie geprüft: ein Papierfall, der sie ansteuert, '
+        + 'und eine Behauptung, die das erwartete Verhalten festhält.'
+        : 'Nichts — die Zahlen sind die Auskunft. Sie stehen hier, damit der Abstand nicht unbemerkt '
+        + 'kleiner wird.',
+      warum: 'Der Boden bei 25 % verhindert eine Division durch fast null, wenn eine Sorte sehr schlecht '
+           + 'hält; der Deckel bei 5 % je Tag fängt einen Zahlendreher in einer Wägung ab; der Sockel '
+           + 'trennt Feldschäden von Lagerschäden. Alle drei wirken nur im Ausnahmefall — und genau der '
+           + 'kommt in den Demodaten nicht vor. Eine Verstellung an ihnen bleibt deshalb unbemerkt, ohne '
+           + 'dass es an den Prüfungen läge.',
+      beleg: 'pruefwerk/sonden/04_orakel.mjs → 4g; Gegenstück zu MUT-001 in Sonde 06',
+      groesse: { wert: Number((kleinster - 0.25).toFixed(3)), einheit: 'Abstand des kleinsten Anteils zum Boden',
+                 basis: `${zeilen.length} Portionen` },
+      sicherheit: 'hoch', marke: knapp ? 'Reparatur' : 'kein Fehler' })
+
   return raus
 }
 

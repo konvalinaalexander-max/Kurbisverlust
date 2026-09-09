@@ -36,7 +36,6 @@ import * as inv from '../invarianten.mjs'
 
 export const lang = true
 
-const K62 = 'supabase/migrations/0062_jede_zahl_sagt_was_sie_ist.sql'
 
 /**
  * Die Verstellungen. Jede ist ein Fehler, den man beim Schreiben oder beim
@@ -44,37 +43,51 @@ const K62 = 'supabase/migrations/0062_jede_zahl_sagt_was_sie_ist.sql'
  * nicht compiliert.
  */
 export const MUTATIONEN = [
-  { id: 'sockel-auf-m0', datei: K62, was: 'Der Sockel wird vom Eingangsgewicht statt vom Gewicht nach der Verdunstung genommen',
-    alt: '(m1 * a0) AS sockel_kg', neu: '(m0 * a0) AS sockel_kg' },
-  { id: 'schimmel-ohne-sockel', datei: K62, was: 'Der Schimmel rechnet den Sockel nicht heraus — dieselbe Ware zweimal',
-    alt: '((m1 * ((1)::numeric - a0)) * f) AS schimmel_kg', neu: '(m1 * f) AS schimmel_kg' },
-  { id: 'klein-statt-gross', datei: K62, was: 'Zu klein und zu gross vertauscht',
-    alt: '* a_klein_n) AS klein_kg', neu: '* a_gross_n) AS klein_kg' },
-  { id: 'boden-tiefer', datei: K62, was: 'Der Boden des verkaufsfähigen Anteils von 25 % auf 5 %',
+  { id: 'sockel-auf-m0', was: 'Der Sockel wird vom Eingangsgewicht statt vom Gewicht nach der Verdunstung genommen',
+    alt: "CASE WHEN portion = 'entsorgt'::text THEN (0)::numeric ELSE (m1 * a0) END AS sockel_kg",
+    neu: "CASE WHEN portion = 'entsorgt'::text THEN (0)::numeric ELSE (m0 * a0) END AS sockel_kg" },
+  { id: 'schimmel-ohne-sockel', was: 'Der Schimmel rechnet den Sockel nicht heraus — dieselbe Ware zweimal',
+    alt: 'ELSE ((m1 * ((1)::numeric - a0)) * f) END AS schimmel_kg',
+    neu: 'ELSE (m1 * f) END AS schimmel_kg' },
+  { id: 'klein-statt-gross', was: 'Zu klein und zu gross vertauscht',
+    alt: '* a_klein_n) END AS klein_kg', neu: '* a_gross_n) END AS klein_kg' },
+  { id: 'boden-tiefer', was: 'Der Boden des verkaufsfähigen Anteils von 25 % auf 5 %',
     alt: '0.25) AS verkaufsfaehig_anteil', neu: '0.05) AS verkaufsfaehig_anteil' },
-  { id: 'rate-deckel-weg', datei: K62, was: 'Die Verdunstungsrate darf zehnmal so gross werden',
+  { id: 'rate-deckel-weg', was: 'Die Verdunstungsrate darf zehnmal so gross werden',
     alt: '0.05) AS r,', neu: '0.50) AS r,' },
-  { id: 'marge-nicht-ausgeliefert', datei: K62, was: 'Tierfutter und Nebenkanal gelten wieder als nicht ausgeliefert',
+  { id: 'marge-nicht-ausgeliefert', was: 'Tierfutter und Nebenkanal gelten wieder als nicht ausgeliefert',
     alt: "ARRAY['verkauf'::text, 'marge'::text]", neu: "ARRAY['verkauf'::text]" },
-  { id: 'ein-tag-mehr', datei: K62, was: 'Die Ware altert einen Tag zu lang',
+  { id: 'ein-tag-mehr', was: 'Die Ware altert einen Tag zu lang',
     alt: '(t.m0 * power(((1)::numeric - t.r), t.alter_tage)) AS m1',
     neu: '(t.m0 * power(((1)::numeric - t.r), t.alter_tage + (1)::numeric)) AS m1' },
-  { id: 'ueberzaehlung-ungebremst', datei: K62, was: 'Die liegende Masse darf negativ werden',
+  { id: 'ueberzaehlung-ungebremst', was: 'Die liegende Masse darf negativ werden',
     alt: 'GREATEST((a.eingang_kohorte_kg - COALESCE(x.m0, (0)::numeric)), (0)::numeric) AS m0',
     neu: '(a.eingang_kohorte_kg - COALESCE(x.m0, (0)::numeric)) AS m0' },
-  { id: 'ableitung-vorzeichen', datei: K62, was: 'Das Vorzeichen der Ableitung ∂m1/∂r gedreht',
+  { id: 'ableitung-vorzeichen', was: 'Das Vorzeichen der Ableitung ∂m1/∂r gedreht',
     alt: '(((- t.m0) * t.alter_tage) * power', neu: '(((+ t.m0) * t.alter_tage) * power' },
-  { id: 'fax-doppelt', datei: K62, was: 'Das Fax-Faule der liegenden Ware zählt als Verlust bis heute',
-    alt: "sum(fax_kg) filter (where portion = 'ausgelagert')", neu: 'sum(fax_kg)' },
-  { id: 'bekannt-zu-grosszuegig', datei: K62, was: '„Verlust bekannt" schon, wenn *ein* Koeffizient gemessen ist',
+  { id: 'fax-doppelt', was: 'Das Fax-Faule der liegenden Ware zählt als Verlust bis heute',
+    alt: "then coalesce(sum(fax_kg) filter (where portion = 'ausgelagert'), 0) end as fax_heute_kg",
+    neu: 'then coalesce(sum(fax_kg), 0) end as fax_heute_kg' },
+  { id: 'bekannt-zu-grosszuegig', was: '„Verlust bekannt" schon, wenn *ein* Koeffizient gemessen ist',
     alt: 'bool_and(r_bekannt and f_bekannt and a0_bekannt and a_fax_bekannt',
     neu: 'bool_or(r_bekannt or f_bekannt or a0_bekannt or a_fax_bekannt' },
-  { id: 'kanal-im-haus-alles', datei: K62, was: 'Der Kanal der ausgelieferten Ware zählt als „noch im Haus"',
-    alt: "sum(klein_kg + nebenkanal_kg) filter (where portion = 'lager')       as kanal_im_haus_kg",
-    neu: 'sum(klein_kg + nebenkanal_kg)                                        as kanal_im_haus_kg' },
-  { id: 'im-haus-alles', datei: K62, was: 'Auch die ausgelieferte Ware zählt als „noch im Haus"',
+  { id: 'kanal-im-haus-alles', was: 'Der Kanal der ausgelieferten Ware zählt als „noch im Haus"',
+    alt: "then coalesce(sum(klein_kg + nebenkanal_kg) filter (where portion = 'lager'), 0)",
+    neu: 'then coalesce(sum(klein_kg + nebenkanal_kg), 0)' },
+  { id: 'im-haus-alles', was: 'Auch die ausgelieferte Ware zählt als „noch im Haus"',
     alt: "sum(m2) filter (where portion = 'lager')                             as im_haus_heute_kg",
     neu: 'sum(m2)                                                              as im_haus_heute_kg' },
+  /* Genommen wird kg_erwartet, weil dessen Filter bei fünf der sechs Ströme
+     leer ist — die Verstellung schlägt dort auf jede Zeile durch. Bei
+     kg_projiziert wäre sie in den meisten Saisons folgenlos und sagte damit
+     nichts über die Prüfungen. */
+  { id: 'teilbetrag-null', was: 'Ein Teilbetrag über keine Zeile ist wieder NULL statt null Kilo',
+    alt: 'WHEN s.bekannt THEN zahl(COALESCE(s.kg_erwartet, 0::numeric))',
+    neu: 'WHEN s.bekannt THEN zahl(s.kg_erwartet)' },
+  { id: 'netto-erfinden', was: 'Der Auslöser rechnet die fehlende Kistenzahl wieder als null Kisten',
+    alt: '    v_netto := new.brutto_kg - new.kisten * v_tara_kiste - v_tara_palette;',
+    neu: '    v_netto := new.brutto_kg - coalesce(new.kisten, 0) * coalesce(v_tara_kiste, 0)\n'
+       + '             - coalesce(v_tara_palette, 0);' },
 ]
 
 /* ---------- Ein Schema aus (womöglich verstellten) Migrationen ------------ */
@@ -84,17 +97,27 @@ function bauen(db, mutation) {
   const verz = mkdtempSync(join(tmpdir(), 'pw-mut-'))
   cpSync(join(WURZEL, 'supabase/migrations'), join(verz, 'migrations'), { recursive: true })
   if (mutation) {
-    const name = mutation.datei.split('/').pop()
+    /* Welche Migration verstellt wird, steht nicht in der Liste, sondern wird
+       gesucht: die **letzte**, in der der Text vorkommt. Eine Verstellung in
+       einer Migration, die eine spätere ohnehin ersetzt, wirkt nie — und sähe
+       dann wie „gut abgesichert" aus. Das war in Runde L schon einmal
+       passiert: Neun der dreizehn Verstellungen zeigten nach 0064 und 0065 auf
+       Formeln, die es so nicht mehr gab.
+
+       Bleibt der Fall, dass der Text gar nicht mehr vorkommt, weil eine
+       spätere Migration die Formel *umgeschrieben* hat. Den fängt keine Suche
+       ab — er zeigt sich als „ohne Wirkung", und genau darum ist dieser Stand
+       ein eigener Befund und keine gute Nachricht. */
+    const dateien = readdirSync(join(verz, 'migrations')).filter(f => f.endsWith('.sql')).sort()
+    const treffer = dateien.filter(f => readFileSync(join(verz, 'migrations', f), 'utf8').includes(mutation.alt))
+    if (treffer.length === 0) { rmSync(verz, { recursive: true, force: true }); return 'Stelle nicht gefunden' }
+    const name = treffer[treffer.length - 1]
     const ziel = join(verz, 'migrations', name)
     const text = readFileSync(ziel, 'utf8')
-    if (!text.includes(mutation.alt)) { rmSync(verz, { recursive: true, force: true }); return 'Stelle nicht gefunden' }
-    // Eine Verstellung in einer Migration, die eine spätere ohnehin ersetzt,
-    // wirkt nie — und sähe dann wie „gut abgesichert" aus. Das ist der
-    // gefährlichste Irrtum, den diese Sonde machen kann.
-    const spaeter = readdirSync(join(verz, 'migrations')).filter(f => f.endsWith('.sql') && f > name)
-      .find(f => readFileSync(join(verz, 'migrations', f), 'utf8').includes(mutation.alt))
-    if (spaeter) { rmSync(verz, { recursive: true, force: true }); return `Stelle wird von ${spaeter} überschrieben` }
-    writeFileSync(ziel, text.replace(mutation.alt, mutation.neu))
+    // Alle Vorkommen, nicht nur das erste: Steht dieselbe Formel zweimal in
+    // der Datei (etwa der Deckel der Rate in Kaskade und Verlauf), wäre eine
+    // halbe Verstellung eine halbe Aussage.
+    writeFileSync(ziel, text.replaceAll(mutation.alt, mutation.neu))
   }
   try {
     tue(db, `drop schema if exists public cascade; create schema public;
@@ -276,8 +299,10 @@ export async function laufen({ db, schnell }) {
              + 'Demosaison überall 0 (der Nachweis-Test hält ihn zurück), der Boden des verkaufsfähigen '
              + 'Anteils bei 25 % wird nie erreicht (der kleinste Anteil liegt bei 0,671), und der '
              + 'Deckel der Verdunstungsrate bei 5 % je Tag liegt hundertfach über der gemessenen Rate. '
-             + 'Alle drei sind Schutzmassnahmen für den Ausnahmefall — und genau der ist ungeprüft.',
-        beleg: 'pruefwerk/sonden/06_mutation.mjs',
+             + 'Alle drei sind Schutzmassnahmen für den Ausnahmefall — und genau der ist ungeprüft. '
+             + 'Wie weit der Betrieb von jeder der drei Grenzen entfernt ist, misst ORA-001 (Sonde 04g); '
+             + 'die Zahlen dort sind der Massstab dafür, wie dringend dieser Befund ist.',
+        beleg: 'pruefwerk/sonden/06_mutation.mjs (Abstand zu den Grenzen: Sonde 04 → 4g, ORA-001)',
         groesse: { wert: wirkungslos.length, einheit: 'Verstellungen ohne Wirkung',
                    basis: `${ergebnis.length} Verstellungen auf den Demodaten` },
         sicherheit: 'hoch', marke: 'Reparatur', aufwand: 'mittel' })
@@ -293,7 +318,7 @@ export async function laufen({ db, schnell }) {
              + 'die niemand findet, weil alle Prüfungen grün sind.',
         beleg: 'pruefwerk/sonden/06_mutation.mjs → MUTATIONEN',
         groesse: { wert: Math.round((100 * ueberlebt.length) / ergebnis.length), einheit: '% der Verstellungen unbemerkt',
-                   basis: `${ergebnis.length} gezielte Verstellungen in 0061/0062` },
+                   basis: `${ergebnis.length} gezielte Verstellungen in 0062 und 0066` },
         sicherheit: 'hoch', marke: 'Reparatur', aufwand: 'mittel',
         gegenrede: `${gefangen.length} Verstellungen werden erkannt (${gefangen.map(e => e.id).join(', ') || '—'}) — `
                  + 'das Netz ist also nicht leer, nur löchrig. Manche Lücke ist es auch wert: eine '
@@ -301,7 +326,7 @@ export async function laufen({ db, schnell }) {
                  + 'Kilogramm verschiebt. Die Liste sagt, wo man zuerst hinsieht.' })
   }
   for (const e of ergebnis.filter(e => e.stand === 'baut nicht')) {
-    B({ klasse: 1, ort: { datei: e.datei },
+    B({ klasse: 1, ort: { datei: 'supabase/migrations' },
         titel: `Verstellung „${e.id}" liess sich nicht prüfen`,
         steht_da: e.wie, muesste: 'Die Verstellung soll bauen, damit sie etwas aussagt.',
         warum: 'Eine Verstellung, die schon am Bau scheitert, sagt nichts über die Prüfungen.',

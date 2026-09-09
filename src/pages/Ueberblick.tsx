@@ -199,7 +199,7 @@ function anteilszeilen(daten: Auswertung, gruppe: Gruppe): Anteilszeile[] {
 
 interface Gruppenbild {
   name: string; sorte: string; schlag: string; nChargen: number
-  eingang: number; geliefert: number; verlust: number | null; imHaus: number; verkaufsfaehig: number
+  eingang: number; geliefert: number; verlust: number | null; imHaus: number; verkaufsfaehig: number | null
   alterVon: number | null; alterBis: number | null
 }
 
@@ -212,7 +212,10 @@ function gruppenbild(chargen: Bestand[], nach: 'sorte' | 'schlag' | 'charge'): G
     // 0064: ein unbekannter Verlust bleibt unbekannt — auch in einer Gruppe.
     g.nChargen++; g.eingang += c.eingang_kg; g.geliefert += c.geliefert_kg
     g.verlust = summeBekannt([g.verlust, c.verlust_heute_kg])
-    g.imHaus += c.im_haus_heute_kg; g.verkaufsfaehig += c.verkaufsfaehig_lager_kg ?? 0
+    g.imHaus += c.im_haus_heute_kg
+    // 0066: dasselbe für „davon verkaufsfähig" — kennt eine Charge ihre
+    // Kohorten nicht, ist die Zahl unbekannt und nicht null Kilo.
+    g.verkaufsfaehig = summeBekannt([g.verkaufsfaehig, c.verkaufsfaehig_lager_kg])
     if (c.im_haus_heute_kg > 0 && c.alter_lager_von !== null) g.alterVon = g.alterVon === null ? c.alter_lager_von : Math.min(g.alterVon, c.alter_lager_von)
     if (c.im_haus_heute_kg > 0 && c.alter_lager_bis !== null) g.alterBis = g.alterBis === null ? c.alter_lager_bis : Math.max(g.alterBis, c.alter_lager_bis)
   }
@@ -256,7 +259,9 @@ function ImHaus({ daten, gruppe }: { daten: Auswertung; gruppe: Gruppe }) {
             )}
           </tbody>
         </table></div>
-        {(s.ueberzaehlung_kg ?? 0) > 0 && (
+        {/* Überzählung ist immer eine Zahl: keine Lieferung ohne Eingang
+            heisst null Kilo, nicht „unbekannt" (0064). */}
+        {s.ueberzaehlung_kg > 0 && (
           <p className="leise" style={{ margin: '.4rem 0 0' }}>
             Bei einigen Chargen steckt hinter den Lieferungen mehr Ware, als je eingelagert wurde ({tonnen(s.ueberzaehlung_kg)}) — dort fehlt meist Wareneingang. Sie stehen mit 0 im Haus.
           </p>

@@ -226,3 +226,22 @@ davon in mehr als drei Dateien gleichzeitig. Das ist Zufall, kein Beleg.
 beim Eingang — dieselbe Tara wird zweimal abgezogen — ergeben eine um rund
 11 % zu hohe Tagesrate. Die Rate geht potenziert in jede Verdunstungszahl der
 Sorte ein.
+
+## Was aus den bestätigten Vermutungen geworden ist
+
+Dieses Buch ist der Stand **vor** den Reparaturen — es hält fest, was gefragt
+und was gefunden wurde. Was daraus geworden ist, steht hier, damit niemand die
+Liste für den heutigen Zustand hält:
+
+| Vermutungen | Reparatur | Wo |
+|---|---|---|
+| H01, H02, H09, H10 (Tara und Kistenzahl am Eingang) | Ohne Kistenzahl und ohne hinterlegte Tara gibt es kein Netto; die Lücke steht als Auffälligkeit da | Migration 0064, `src/lib/masse.ts` |
+| H11 bis H16 (ungemessene Ströme als 0,00 kg) | Je Strom ein eigenes Kennzeichen; ohne Messung NULL statt 0 | Migration 0064 |
+| H21, H22 (Kompost zählt zweimal) | Dritte Portion „entsorgt": entsorgte Ware altert nicht weiter und liegt nicht mehr im Lager | Migration 0065 |
+| H23 (vollständig ausgelieferte Charge) | „Keine Kaskadenzeile" wird von „keine liegende Portion" unterschieden | Migration 0064 |
+| H31, H48 (Beschriftung, `masse_quelle`) | Herkunftsmarke nach `n_paletten_mit_netto`; deutsche Worte statt Datenbankwerten | `Ueberblick.tsx`, `masse.ts` |
+| H49 (Annahmen ohne Fundort) | Vierte Spalte „Wo es auffiele" für alle 21 Zeilen, von Sonde 10 bewacht | `docs/ABLAUF.md` |
+| H36 bis H40 (Netz aus Tests) | Mutationsschutz in `pruefung.sql`; die Sonde sucht die zu verstellende Migration selbst, statt sie zu kennen | `supabase/test/pruefung.sql`, Sonde 06 |
+| — (in der Nachlese dazugekommen) | Vier Teilbeträge, zwei Auslöser mit erfundenem Netto, eine Auffälligkeit mit falscher Auskunft | Migration 0066 |
+| H43 bis H45 (Bezugsgrösse) | **nicht repariert** — die Wahl gehört dem Betrieb, Frage 1 in `docs/PLAN_REPARATUREN.md` |
+| H50 (umgestapelte Palette) | **nicht repariert** — Frage an die Halle, Frage 2 ebenda |

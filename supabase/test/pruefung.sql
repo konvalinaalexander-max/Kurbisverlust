@@ -3392,3 +3392,197 @@ begin
 end $$;
 
 select '——— 0065 Entsorgtes verlässt das Lager geprüft ———' as ergebnis;
+
+-- =====================================================================
+-- 0066 — Kein Kilo aus einer Lücke
+-- =====================================================================
+-- Drei Zusicherungen, jede in beide Richtungen:
+--   a) Die vier Teilbeträge eines Stroms sind genau dann Zahlen, wenn der
+--      Strom gemessen ist — und dann geht kg_beobachtet + kg_projiziert = kg
+--      auf. Vorher stand dort NULL, wo null Kilo gemessen sind.
+--   b) Die beiden Netto-Auslöser erfinden kein Gewicht mehr: fehlt die
+--      Kistenzahl oder die hinterlegte Tara, bleibt die eingetragene Zahl
+--      stehen und gemessen wird false — die Auswertung liest nur Gemessenes.
+--   c) v_plausibilitaet sagt dazu die Wahrheit: keine Meldung „die Tara wurde
+--      geändert", wo in Wirklichkeit die Tara fehlt, sondern „ohne Tara".
+do $$
+declare v_chef uuid := '11111111-1111-1111-1111-111111111111';
+        v_a bigint; v_id bigint; v_kg numeric; v_gemessen boolean; v_n int;
+begin
+  assert schema_stand() >= 66, format('mindestens Stand 66 erwartet, ist %s', schema_stand());
+  perform set_config('request.jwt.claim.sub', v_chef::text, true);
+
+  -- Eine eigene Saison mit einer gemessenen Verdunstungsrate: nur dann ist ein
+  -- Strom „bekannt", und nur dann sagen die Zusicherungen unten etwas.
+  insert into gebinde (art, tara_kg_pro_kiste, tara_kg_palette) values ('PRF66', 1.0, 20.0)
+    on conflict (art) do update set tara_kg_pro_kiste = 1.0, tara_kg_palette = 20.0;
+  insert into gebinde (art, tara_kg_pro_kiste, tara_kg_palette) values ('PRF66OHNE', null, null)
+    on conflict (art) do update set tara_kg_pro_kiste = null, tara_kg_palette = null;
+  insert into sorte_kaliber (sorte, verlust_unter, kaliber_baender, kanal_ab)
+       values ('Prüfkürbis66', 300, '[[300,800],[800,2000]]'::jsonb, 2000) on conflict (sorte) do nothing;
+  insert into charge (nr, schlag, sorte, saison)
+       values (966001, 'Prüfschlag66', 'Prüfkürbis66', 2026) on conflict (nr) do nothing;
+  insert into palette (charge_nr, eingangsdatum, brutto_kg, kisten, gebindeart, quelle) values
+    (966001, current_date - 100, 1000, 30, 'PRF66', 'pruefung'),
+    (966001, current_date - 100, 1000, 30, 'PRF66', 'pruefung');
+  insert into verdunstung_wiegung (charge_nr, palette_id, eingangsdatum, brutto_damals_kg,
+                                   brutto_jetzt_kg, kisten, gebindeart, wiege_ts)
+       values (966001, (select min(id) from palette where charge_nr = 966001),
+               current_date - 100, 1000, 970, 30, 'PRF66', now() - interval '10 days');
+  insert into lieferung (datum, charge_nr, sorte, kg, ziel, erfasser)
+       values (current_date - 10, 966001, 'Prüfkürbis66', 400, 'verkauf', v_chef);
+  perform auswertung_aktualisieren();
+
+  -- Ohne Zeilen sagen die Zusicherungen unten nichts. Also erst zählen.
+  select count(*) into v_n from erg_verlust where bekannt;
+  assert v_n > 0, 'Für diese Prüfung muss mindestens ein Strom gemessen sein';
+
+  -- a) Alle vier Teilbeträge, in beide Richtungen
+  assert not exists (
+    select 1 from erg_verlust
+     where bekannt and (kg_beobachtet is null or kg_projiziert is null
+                        or kg_extrapoliert is null or kg_erwartet is null)),
+    'Ist ein Strom gemessen, sind alle vier Teilbeträge Zahlen — keine Summe über keine Zeile bleibt NULL (0066)';
+  assert not exists (
+    select 1 from erg_verlust
+     where not bekannt and (kg_beobachtet is not null or kg_projiziert is not null
+                            or kg_extrapoliert is not null or kg_erwartet is not null)),
+    'Ist ein Strom nicht gemessen, ist auch kein Teilbetrag eine Zahl (0066)';
+  assert not exists (
+    select 1 from erg_verlust
+     where bekannt and abs(kg - kg_beobachtet - kg_projiziert) > 0.02),
+    'Ausgeliefert und liegend ergeben zusammen den Strom — die Zerlegung ist vollständig (0066)';
+  assert not exists (
+    select 1 from erg_verlust
+     where bekannt and (kg_extrapoliert < -0.005 or kg_erwartet < -0.005
+                        or kg_beobachtet < -0.005 or kg_projiziert < -0.005)),
+    'Kein Teilbetrag ist negativ';
+  -- Und die Gegenprobe, dass die erste Behauptung nicht leer läuft: an der
+  -- ausgelieferten Ware ist bei einer gemessenen Rate wirklich etwas passiert.
+  assert exists (select 1 from erg_verlust
+                  where bekannt and strom = 'Verdunstung' and kg_beobachtet > 0),
+    'An der ausgelieferten Ware muss die gemessene Verdunstung eine Zahl über null sein';
+
+  -- b) Die Auslöser: dieselbe Wägung einmal vollständig, einmal ohne Tara
+  select id into v_a from auftrag where abgebrochen_ts is null limit 1;
+
+  insert into ausschuss_messung (auftrag_id, art, kg, brutto_kg, kisten, gebindeart)
+    values (v_a, 'zu_klein', 0, 500, 10, 'PRF66OHNE') returning id into v_id;
+  select kg, gemessen into v_kg, v_gemessen from ausschuss_messung where id = v_id;
+  assert v_gemessen is false,
+    'Ohne hinterlegte Tara ist eine Ausschusswägung nicht gemessen (0066)';
+  assert v_kg <> 500,
+    format('Ohne hinterlegte Tara darf nicht das Brutto als Netto gespeichert werden, ist aber %s', v_kg);
+  assert exists (select 1 from v_plausibilitaet
+                  where art = 'Ausschuss ohne Tara' and auftrag_id = v_a),
+    'Die Lücke steht als eigene Auffälligkeit da, statt still zu verschwinden (0066)';
+  assert not exists (select 1 from v_plausibilitaet
+                      where art = 'Ausschuss-Tara' and auftrag_id = v_a),
+    'Eine fehlende Tara wird nicht als geänderte Tara gemeldet (0066)';
+  delete from ausschuss_messung where id = v_id;
+
+  insert into ausschuss_messung (auftrag_id, art, kg, brutto_kg, gebindeart)
+    values (v_a, 'zu_klein', 0, 500, 'PRF66') returning id into v_id;
+  select gemessen into v_gemessen from ausschuss_messung where id = v_id;
+  assert v_gemessen is false,
+    'Ohne Kistenzahl ist eine Ausschusswägung nicht gemessen — nicht „null Kisten" (0066)';
+  delete from ausschuss_messung where id = v_id;
+
+  insert into ausschuss_messung (auftrag_id, art, kg, brutto_kg, kisten, gebindeart)
+    values (v_a, 'zu_klein', 0, 500, 10, 'PRF66') returning id into v_id;
+  select kg, gemessen into v_kg, v_gemessen from ausschuss_messung where id = v_id;
+  assert v_gemessen, 'Sind Kistenzahl und Tara da, ist die Ausschusswägung gemessen';
+  assert v_kg = 470, format('500 − 10·1 − 20 = 470 erwartet, ist %s', v_kg);
+  delete from ausschuss_messung where id = v_id;
+
+  insert into schimmel_messung (auftrag_id, kg, brutto_kg, kisten, gebindeart, mit_palette)
+    values (v_a, 0, 500, 10, 'PRF66OHNE', false) returning id into v_id;
+  select kg, gemessen into v_kg, v_gemessen from schimmel_messung where id = v_id;
+  assert v_gemessen is false,
+    'Ohne hinterlegte Tara ist eine Schimmelwägung nicht gemessen (0066)';
+  assert v_kg <> 500,
+    format('Ohne hinterlegte Tara darf nicht das Brutto als Netto gespeichert werden, ist aber %s', v_kg);
+  delete from schimmel_messung where id = v_id;
+
+  insert into schimmel_messung (auftrag_id, kg, brutto_kg, kisten, gebindeart, mit_palette)
+    values (v_a, 0, 500, 10, 'PRF66', false) returning id into v_id;
+  select kg, gemessen into v_kg, v_gemessen from schimmel_messung where id = v_id;
+  assert v_gemessen, 'Sind Kistenzahl und Tara da, ist die Schimmelwägung gemessen';
+  assert v_kg = 490,
+    format('Ohne mitgewogene Palette: 500 − 10·1 = 490 erwartet, ist %s', v_kg);
+  delete from schimmel_messung where id = v_id;
+
+  delete from verdunstung_wiegung where charge_nr = 966001;
+  delete from lieferung where charge_nr = 966001;
+  delete from palette where charge_nr = 966001;
+  delete from charge where nr = 966001;
+  delete from sorte_kaliber where sorte = 'Prüfkürbis66';
+  delete from gebinde where art in ('PRF66', 'PRF66OHNE');
+  perform auswertung_aktualisieren();
+  perform set_config('request.jwt.claim.sub', '', true);
+  raise notice 'OK  0066 Kein Kilo aus einer Lücke (Teilbeträge vollständig, Auslöser erfinden kein Netto, Auffälligkeit sagt die Wahrheit)';
+end $$;
+
+select '——— 0066 Kein Kilo aus einer Lücke geprüft ———' as ergebnis;
+
+-- =====================================================================
+-- Was eine verstellte Formel verraten muss
+-- =====================================================================
+-- Die Mutationssonde des Prüfwerks (pruefwerk/sonden/06_mutation.mjs)
+-- verstellt gezielt einzelne Terme der Kaskade und sieht nach, ob es
+-- auffällt. Zwei Verstellungen blieben unbemerkt; hier stehen die
+-- Behauptungen, die sie künftig fangen.
+do $$
+declare v_n int;
+begin
+  perform set_config('request.jwt.claim.sub','11111111-1111-1111-1111-111111111111', true);
+
+  -- a) Die Ableitung ∂m1/∂r ist nie positiv. m1 = m0·(1−r)^t fällt mit r —
+  --    eine höhere Verdunstungsrate lässt nicht mehr Masse übrig. Über diese
+  --    Ableitung wird die Unsicherheit der Rate in den Bereich fortgepflanzt;
+  --    ein gedrehtes Vorzeichen verschiebt den Bereich, ohne eine einzige
+  --    Kilozahl zu ändern — und fiel deshalb keinem Test auf.
+  select count(*) into v_n from mv_kaskade
+   where m0 > 0 and alter_tage > 0 and d_m1_r > 0;
+  assert v_n = 0, format('%s Zeilen mit positiver Ableitung ∂m1/∂r — das Vorzeichen ist gedreht', v_n);
+  select count(*) into v_n from mv_kaskade
+   where m0 > 0 and alter_tage > 0 and modell_gilt and d_f_eta < 0;
+  assert v_n = 0, format('%s Zeilen mit negativer Ableitung ∂f/∂η — Verderb wächst mit η, nicht umgekehrt', v_n);
+
+  -- b) Jede Spalte, die eine Portion meint, enthält genau diese Portion.
+  --    „Anderer Kanal am Ausgelagerten" und „Kanal an der Ware im Haus" sind
+  --    zwei verschiedene Aussagen; wer den Filter vergisst, zeigt in beiden
+  --    dieselbe Summe, und beide sind dann falsch.
+  assert not exists (
+    select 1 from erg_charge c
+     where c.kanal_bekannt
+       and abs(coalesce(c.kanal_im_haus_kg, 0)
+               - coalesce((select sum(k.klein_kg + k.nebenkanal_kg) from mv_kaskade k
+                            where k.charge_nr = c.charge_nr and k.portion = 'lager'), 0)) > 0.05),
+    'kanal_im_haus_kg ist der Kanal der liegenden Ware — nicht der aller Portionen';
+  assert not exists (
+    select 1 from erg_charge c
+     where c.kanal_bekannt
+       and abs(coalesce(c.kanal_ausgelagert_kg, 0)
+               - coalesce((select sum(k.klein_kg + k.nebenkanal_kg) from mv_kaskade k
+                            where k.charge_nr = c.charge_nr and k.portion = 'ausgelagert'), 0)) > 0.05),
+    'kanal_ausgelagert_kg ist der Kanal der ausgelieferten Ware';
+  assert not exists (
+    select 1 from erg_charge c
+     where c.fax_bekannt
+       and abs(coalesce(c.fax_heute_kg, 0)
+               - coalesce((select sum(k.fax_kg) from mv_kaskade k
+                            where k.charge_nr = c.charge_nr and k.portion = 'ausgelagert'), 0)) > 0.05),
+    'fax_heute_kg ist das Faule am Abgepackten, nicht die Erwartung an der liegenden Ware';
+  assert not exists (
+    select 1 from erg_charge c
+     where abs(c.im_haus_heute_kg
+               - coalesce((select sum(k.m2) from mv_kaskade k
+                            where k.charge_nr = c.charge_nr and k.portion = 'lager'), c.eingang_kg)) > 0.05),
+    'im_haus_heute_kg ist die liegende Portion der Kaskade';
+
+  perform set_config('request.jwt.claim.sub', '', true);
+  raise notice 'OK  Mutationsschutz (Vorzeichen der Ableitungen, Portionsfilter der Kennzahlen)';
+end $$;
+
+select '——— Mutationsschutz geprüft ———' as ergebnis;

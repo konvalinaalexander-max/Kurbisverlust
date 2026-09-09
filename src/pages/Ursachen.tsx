@@ -128,8 +128,10 @@ function Verderb({ daten, strom, feld, eingang, lager, sorte, chargen, filter }:
     const k = daten.kurve.find(x => t >= x.von && t < x.bis) ?? daten.kurve[daten.kurve.length - 1]
     return k?.verwendet ?? null
   }
-  const imLager = (strom?.bekannt ? strom.projiziert : 0) + (feld?.bekannt ? feld.projiziert : 0)
-  const bisHeute = (strom?.bekannt ? strom.mittel : 0) + (feld?.bekannt ? feld.mittel : 0)
+  // 0066: Was nicht gemessen ist, zählt nicht als 0 mit — summeBekannt gibt
+  // null zurück, sobald ein Teil fehlt, und die Karte schreibt dann „—".
+  const imLager = summeBekannt([strom?.bekannt ? strom.projiziert : 0, feld?.bekannt ? feld.projiziert : 0])
+  const bisHeute = summeBekannt([strom?.bekannt ? strom.mittel : 0, feld?.bekannt ? feld.mittel : 0])
   // Je Charge: gemessen (massegewichtet) gegen das Modell beim mittleren Alter der Messungen
   const jeCharge = (() => {
     const map = new Map<number, { charge_nr: number; sorte: string; n: number; tMin: number; tMax: number; tSumme: number; faul: number; basis: number }>()
@@ -150,13 +152,13 @@ function Verderb({ daten, strom, feld, eingang, lager, sorte, chargen, filter }:
     <Karte titel="Palox: Faules im Lager">
       <Zahlen zeilen={[
         Stromzahl({ v: strom, eingang, titel: 'Faules bis heute' }),
-        { titel: 'Vermutet noch im Lager', wert: strom?.bekannt ? <>{kg(imLager, 0)} <Herkunft art="gerechnet" /></> : '—',
-          unter: strom?.bekannt ? `${prozent(lager > 0 ? imLager / lager : null)} der liegenden Eingangsware — verdorben, noch nicht aussortiert` : 'nicht gemessen' },
+        { titel: 'Vermutet noch im Lager', wert: strom?.bekannt && imLager !== null ? <>{kg(imLager, 0)} <Herkunft art="gerechnet" /></> : '—',
+          unter: strom?.bekannt && imLager !== null ? `${prozent(lager > 0 ? imLager / lager : null)} der liegenden Eingangsware — verdorben, noch nicht aussortiert` : 'nicht gemessen' },
         ...(feld?.bekannt && feld.mittel > 0 ? [{ titel: 'davon nicht lagerbedingt', wert: <>{kg(feld.mittel, 0)}</>, unter: 'Erde, Hagelnarben, Schnittfehler — vom Feld, ohne Lagerdauer' }] : []),
       ]} />
       <p className="leise">
         Gemessen wird der Palox, wenn eine Palette an die Sortiermaschine oder an die Waschstrasse kommt — bezogen auf die Masse, die an dem Tag aus dem Lager kam, aufgetragen über der Lagerdauer. Daraus die Kurve, mit der für alle Ware gerechnet wird: für die ausgelieferte beim Alter am Liefertag, für die liegende bis heute.
-        {bisHeute > 0 && strom?.bekannt && <> Zusammen {tonnen(bisHeute)} im Palox bis heute.</>}
+        {bisHeute !== null && bisHeute > 0 && strom?.bekannt && <> Zusammen {tonnen(bisHeute)} im Palox bis heute.</>}
       </p>
       <Linien
         reihen={[
@@ -245,8 +247,8 @@ function Verdunstung({ daten, strom, eingang, lager, sorte, chargen, filter }: {
     <Karte titel="Verdunstung">
       <Zahlen zeilen={[
         Stromzahl({ v: strom, eingang, titel: 'Verdunstet bis heute' }),
-        { titel: 'Vermutet vom aktuellen Lager', wert: strom?.bekannt ? <>{kg(strom.projiziert, 0)} <Herkunft art="gerechnet" /></> : '—',
-          unter: strom?.bekannt ? `${prozent(lager > 0 ? strom.projiziert / lager : null)} von dem, was ohne Verdunstung läge` : 'nicht gemessen' },
+        { titel: 'Vermutet vom aktuellen Lager', wert: strom?.bekannt && strom.projiziert !== null ? <>{kg(strom.projiziert, 0)} <Herkunft art="gerechnet" /></> : '—',
+          unter: strom?.bekannt && strom.projiziert !== null ? `${prozent(lager > 0 && strom.projiziert !== null ? strom.projiziert / lager : null)} von dem, was ohne Verdunstung läge` : 'nicht gemessen' },
         ...(strom?.bekannt ? [{ titel: 'An der ausgelieferten Ware', wert: kg(strom.beobachtet, 0), unter: 'bis zum jeweiligen Liefertag' }] : []),
       ]} />
       <p className="leise">Jede gewogene Palette: wie viel Prozent ihres Eingangsgewichts sie bis zum Wiegen verloren hat, über der Lagerdauer. Die gestrichelte Linie ist die Erwartung der Sorte, der Streifen ihr Bereich — liegen die Punkte darin, trägt die Rate; liegen sie systematisch darüber oder darunter, stimmt sie nicht. Paletten mit sichtbar Faulem zählen nicht, sonst würde Fäulnis als Wasser verbucht.</p>
@@ -398,6 +400,8 @@ function Fax({ daten, strom, eingang, chargen }: { daten: Auswertung; strom?: St
   // Leer ist nicht null.
   const fax = daten.fax.filter(f => f.status === 'abgeschlossen' && f.plausibel
                                     && f.masse_kg != null && f.faul_erfasst && chargen.has(f.charge_nr))
+  // `fax` ist oben schon auf `masse_kg != null` gefiltert; das `?? 0` steht
+  // nur für den Übersetzer und erreicht nie eine fehlende Masse.
   const masse = fax.reduce((s, f) => s + (f.masse_kg ?? 0) + f.faul_kg, 0)
   const faul = fax.reduce((s, f) => s + f.faul_kg, 0)
   const ohne = daten.fax.filter(f => f.status === 'abgeschlossen' && !f.faul_erfasst && chargen.has(f.charge_nr)).length
@@ -413,7 +417,7 @@ function Fax({ daten, strom, eingang, chargen }: { daten: Auswertung; strom?: St
           ? <>{fax.length} Fax-Arbeiten mit gewogenem Faulem <Herkunft art="gemessen" />: {kg(faul, 0)} von {tonnen(masse)} abgepackter Ware, also {prozent(masse > 0 ? faul / masse : null)}</>
           : <>noch keiner Fax-Arbeit mit gewogenem Faulem — solange ist der Anteil unbekannt, nicht null</>}.
         {ohne > 0 && <> {ohne} weitere Fax-Arbeiten haben nichts gewogen und zählen nicht in die Stichprobe.</>}
-        {strom?.bekannt && strom.erwartet > 0 && <> Für die Ware im Haus kommen beim Abpacken noch rund {kg(strom.erwartet, 0)} dazu <Herkunft art="prognose" /> — die stecken nicht im Verlust bis heute.</>}
+        {strom?.bekannt && strom.erwartet !== null && strom.erwartet > 0 && <> Für die Ware im Haus kommen beim Abpacken noch rund {kg(strom.erwartet, 0)} dazu <Herkunft art="prognose" /> — die stecken nicht im Verlust bis heute.</>}
       </p>
       {strom && <Rechenweg zeilen={rechenweg(strom, eingang)} />}
     </Karte>
@@ -425,6 +429,8 @@ function Fax({ daten, strom, eingang, chargen }: { daten: Auswertung; strom?: St
 function Ueberfuellungsblock({ daten, filter, sorte }: { daten: Auswertung; filter: Filter; sorte: string }) {
   const zeilen = daten.ueberfuellung.filter(u => filter.gruppe === 'charge' ? (u.gruppe === 'charge' && String(u.charge_nr) === filter.schluessel)
     : (u.gruppe === 'sorte' && (!sorte || u.sorte === sorte)))
+  // Sortierschlüssel, keine Rechnung: Zeilen ohne verschenkte Masse stehen
+  // hinten. Die Zahl selbst wird in der Tabelle als „—" gezeigt.
   const alleKisten = zeilen.filter(u => u.kistensystem === 'kiste_ab' && (u.n_lieferungen > 0 || u.n_wiegungen > 0)).sort((a, b) => (b.verschenkt_kg ?? 0) - (a.verschenkt_kg ?? 0) || (b.kisten_verkauft ?? 0) - (a.kisten_verkauft ?? 0))
   const alleStueck = zeilen.filter(u => u.kistensystem === 'stueck' && (u.n_lieferungen > 0 || u.n_wiegungen > 0)).sort((a, b) => (b.stueck_verkauft ?? 0) - (a.stueck_verkauft ?? 0))
   // Gezeigt wird, was verkauft ist; gewogen ohne Verkauf steht aufklappbar darunter
@@ -432,8 +438,10 @@ function Ueberfuellungsblock({ daten, filter, sorte }: { daten: Auswertung; filt
   const stueck = alleStueck.filter(u => u.n_lieferungen > 0), stueckOhne = alleStueck.filter(u => u.n_lieferungen === 0)
   const unbekannt = zeilen.filter(u => u.kistensystem === 'unbekannt' && u.n_lieferungen > 0)
   const marge = daten.marge.find(m => m.posten.startsWith('Überfüllung'))
-  const verschenkt = kisten.reduce((s, u) => s + (u.verschenkt_kg ?? 0), 0)
+  // Summiert wird nur, was gerechnet ist; wie viele Zeilen das sind, steht in
+  // `gerechnet` und darunter im Satz. Eine Zeile ohne Zahl zählt nicht als 0.
   const gerechnet = kisten.filter(u => u.verschenkt_kg != null)
+  const verschenkt = gerechnet.reduce((s, u) => s + (u.verschenkt_kg ?? 0), 0)
   const verkauftOhne = kisten.filter(u => u.n_wiegungen === 0).reduce((s, u) => s + (u.kisten_verkauft ?? 0), 0)
   const datei = daten.ueberfuellung.some(u => u.n_lieferungen > 0)
   const band = (u: Ueberfuellung) => u.band_von_g != null && u.band_bis_g != null ? `${u.band_von_g}–${u.band_bis_g} g` : u.kaliber_idx != null ? `K${u.kaliber_idx + 1}` : '—'

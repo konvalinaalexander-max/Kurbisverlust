@@ -19,6 +19,9 @@ export function tempoJeTaetigkeit(zeilen: Durchsatz[]): Tempo[] {
     const mitMasse = ds.filter(d => d.masse_kg !== null && d.dauer_h >= 0.25)
     const stundenMitMasse = mitMasse.reduce((a, d) => a + d.dauer_h, 0)
     const personStunden = mitMasse.reduce((a, d) => a + d.dauer_h * Math.max(d.n_teilnehmer, 1), 0)
+    // `mitMasse` ist auf `masse_kg !== null` gefiltert; das `?? 0` steht nur
+    // für den Übersetzer. Arbeiten ohne gewogene Masse zählen weder in die
+    // Masse noch in die Stunden, sonst wäre der Durchsatz zu klein.
     const masse = mitMasse.reduce((a, d) => a + (d.masse_kg ?? 0), 0)
     return {
       name: ta ? WOERTERBUCH.de[ta.text] : d0.station, zeichen: ta?.zeichen ?? '',

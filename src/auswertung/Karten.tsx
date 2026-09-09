@@ -77,12 +77,19 @@ export function rechenweg(v: StromSumme, eingang: number): [string, ReactNode][]
       : 'nicht gemessen — der Koeffizient hat keine einzige Messung'],
     ['Bereich', v.bereichBekannt
       ? `${kg(v.unten, 0)} – ${kg(v.oben, 0)} (95 %, aus den Messfehlern fortgepflanzt)` : '—'],
-    ['Davon an ausgelieferter Ware', `${kg(v.beobachtet, 0)} — beim Alter am Liefertag`],
-    ['Davon an der Ware im Haus', `${kg(v.projiziert, 0)} — beim Alter heute`],
-    ['Davon jenseits der Messungen', v.extrapoliert > 0
-      ? `${kg(v.extrapoliert, 0)} — liegt länger als die längste gemessene Lagerdauer, der Verlauf ist dorthin verlängert`
-      : 'nichts — alle Lagerdauern sind durch Messungen abgedeckt'],
-    ...(v.erwartet > 0 ? [['Erwartung, nicht Verlust', `${kg(v.erwartet, 0)} — was beim Abpacken der Ware im Haus noch anfallen dürfte; steht nicht in der Zahl`] as [string, ReactNode]] : []),
+    // 0066: Die vier Teilbeträge sind null, solange der Strom nicht gemessen
+    // ist — und sonst Zahlen, auch wenn ihre Portion leer ist. Vorher stand
+    // hier „0 kg", zwei Zeilen unter „Ergebnis bis heute: nicht gemessen".
+    ['Davon an ausgelieferter Ware', v.beobachtet === null
+      ? 'nicht gemessen' : `${kg(v.beobachtet, 0)} — beim Alter am Liefertag`],
+    ['Davon an der Ware im Haus', v.projiziert === null
+      ? 'nicht gemessen' : `${kg(v.projiziert, 0)} — beim Alter heute`],
+    ['Davon jenseits der Messungen', v.extrapoliert === null
+      ? 'nicht gemessen'
+      : v.extrapoliert > 0
+        ? `${kg(v.extrapoliert, 0)} — liegt länger als die längste gemessene Lagerdauer, der Verlauf ist dorthin verlängert`
+        : 'nichts — alle Lagerdauern sind durch Messungen abgedeckt'],
+    ...(v.erwartet !== null && v.erwartet > 0 ? [['Erwartung, nicht Verlust', `${kg(v.erwartet, 0)} — was beim Abpacken der Ware im Haus noch anfallen dürfte; steht nicht in der Zahl`] as [string, ReactNode]] : []),
   ]
 }
 
@@ -140,10 +147,12 @@ export function Bilanz({ bilanz }: { bilanz: Saisonbilanz }) {
                    erklaerung={`zu klein und zu gross hinter den Lieferungen — kein echter Verlust${bilanz.marge_kg > 0 ? `; laut Lieferscheinen ${tonnen(bilanz.marge_kg)} dorthin geliefert` : ''}`} />
       <Bilanzzeile titel="Noch im Haus" herkunft="gerechnet" kg={bilanz.im_haus_heute_kg} eingang={bilanz.eingang_kg} farbe="var(--strom-verdunstung)"
                    erklaerung={`davon verkaufsfähig ${tonnen(bilanz.verkaufsfaehig_heute_kg)}, zu klein oder zu gross ${tonnen(bilanz.kanal_im_haus_kg)}`} />
-      {(bilanz.ueberzaehlung_kg ?? 0) > 0 && (
-        <Bilanzzeile titel="Überzählung" herkunft="gemessen" kg={bilanz.ueberzaehlung_kg ?? 0} eingang={bilanz.eingang_kg} farbe="var(--rot)" erklaerung="hinter den Lieferungen steckt mehr Ware, als je eingelagert wurde — meist fehlt Wareneingang" />
+      {/* Überzählung ist immer eine Zahl: keine Lieferung ohne Eingang heisst
+          null Kilo, nicht „unbekannt" — die Sicht rechnet sie so (0064). */}
+      {bilanz.ueberzaehlung_kg > 0 && (
+        <Bilanzzeile titel="Überzählung" herkunft="gemessen" kg={bilanz.ueberzaehlung_kg} eingang={bilanz.eingang_kg} farbe="var(--rot)" erklaerung="hinter den Lieferungen steckt mehr Ware, als je eingelagert wurde — meist fehlt Wareneingang" />
       )}
-      <Hinweis art={bilanz.n_lieferungen === 0 ? 'warnung' : (bilanz.ueberzaehlung_kg ?? 0) > 0.05 * bilanz.eingang_kg ? 'warnung' : 'gut'}>{bilanz.befund}</Hinweis>
+      <Hinweis art={bilanz.n_lieferungen === 0 ? 'warnung' : bilanz.ueberzaehlung_kg > 0.05 * bilanz.eingang_kg ? 'warnung' : 'gut'}>{bilanz.befund}</Hinweis>
     </Karte>
   )
 }

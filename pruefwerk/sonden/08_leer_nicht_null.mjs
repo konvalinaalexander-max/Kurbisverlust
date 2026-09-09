@@ -119,32 +119,66 @@ export async function laufen() {
     }
   }
 
-  /* 8b. Wo im Quelltext aus „unbekannt" eine Null gemacht wird */
+  /* 8b. Wo im Quelltext aus „unbekannt" eine Null gemacht wird.
+
+     Nicht jedes `?? 0` ist falsch. Über einer Liste, die selbst die Auskunft
+     ist, ist die Null beobachtet; über einem einzelnen fehlenden Wert ist sie
+     erfunden. Welche von beiden vorliegt, kann keine Regel entscheiden — der
+     Mensch, der die Stelle geschrieben hat, aber schon. Die Sonde verlangt
+     darum nicht, dass es keine solchen Stellen gibt, sondern dass **jede**
+     einen Kommentar unmittelbar darüber hat, der sagt, warum die Null dort
+     richtig ist. Eine Stelle ohne diesen Satz ist der Befund. */
   const MASSE = /(_kg|verlust|verdunstung|schimmel|sockel|fax|kanal|masse|netto|brutto)/i
   const stellen = []
   for (const pfad of dateien('src')) {
     const text = lies(pfad)
+    const zeilen = text.split('\n')
     for (const m of text.matchAll(/([A-Za-z0-9_.?\[\]]*(?:_kg|verlust|verdunstung|schimmel|sockel|fax|kanal|masse|netto|brutto)[A-Za-z0-9_.?\[\]]*)\s*(\?\?|\|\|)\s*0\b/gi)) {
       if (!MASSE.test(m[1])) continue
-      stellen.push({ pfad, zeile: zeileVon(text, m.index), text: m[0].replace(/\s+/g, ' ') })
+      const zeile = zeileVon(text, m.index)
+      /* Begründet heisst: In den drei Zeilen darüber steht ein Kommentar
+         (`//`, `/*` oder eine Fortsetzung davon, auch als JSX-Kommentar). */
+      const davor = zeilen.slice(Math.max(0, zeile - 4), zeile - 1)
+      const begruendet = davor.some(z => /^\s*(\/\/|\/\*|\*|\{\/\*)/.test(z))
+      stellen.push({ pfad, zeile, text: m[0].replace(/\s+/g, ' '), begruendet })
     }
   }
-  if (stellen.length) {
-    B({ klasse: 2, ort: { datei: stellen[0].pfad, zeile: stellen[0].zeile },
-        titel: `${stellen.length} Stellen in der Oberfläche machen aus einer fehlenden Masse eine Null`,
-        steht_da: stellen.slice(0, 8).map(s => `${s.pfad}:${s.zeile} — \`${s.text}\``).join('; ')
-                + (stellen.length > 8 ? ` … und ${stellen.length - 8} weitere` : ''),
-        muesste: 'Fehlt eine Masse, gehört „—" hin. `?? 0` ist richtig, wo eine Summe über eine leere '
-               + 'Liste gebildet wird (dort ist 0 beobachtet), und falsch, wo ein einzelner Wert fehlt.',
-        warum: 'Jede dieser Stellen kann eine unbekannte Masse in eine Summe tragen, die danach wie '
-             + 'eine gemessene Zahl aussieht. Welche der Stellen harmlos ist, muss einzeln entschieden '
-             + 'werden — die Liste ist der Anfang, nicht das Urteil.',
+  const offen = stellen.filter(s => !s.begruendet)
+  if (offen.length === 0 && stellen.length) {
+    B({ klasse: 1, ort: { datei: stellen[0].pfad, zeile: stellen[0].zeile },
+        titel: `Geprüft: alle ${stellen.length} Stellen mit \`?? 0\` an einer Masse sind begründet`,
+        steht_da: stellen.map(s => `${s.pfad}:${s.zeile}`).join(', ')
+          + ' — über jeder steht, warum die Null dort beobachtet und nicht erfunden ist '
+          + '(gefilterte Liste, Sortierschlüssel, oder eine Summe nur über das Gerechnete).',
+        muesste: 'So. Die Sonde prüft nicht, dass es keine solchen Stellen gibt — sie prüft, '
+               + 'dass keine ohne Begründung dasteht.',
+        warum: 'Ein `?? 0` über einer leeren Liste ist richtig, über einem fehlenden Einzelwert '
+             + 'falsch. Die Regel kann das nicht unterscheiden, der Satz darüber schon.',
         beleg: 'pruefwerk/sonden/08_leer_nicht_null.mjs → 8b',
-        groesse: { wert: stellen.length, einheit: 'Stellen', basis: 'src/**' },
-        sicherheit: 'mittel', marke: 'Reparatur', aufwand: 'mittel',
-        gegenrede: 'Ein grosser Teil davon steht in `reduce((a, b) => a + (b.kg ?? 0), 0)` und ist dort '
-                 + 'unbedenklich, weil die Liste selbst die Auskunft ist. Der Befund ist eine Liste zum '
-                 + 'Durchgehen, keine Behauptung, dass alle falsch sind.' })
+        groesse: { wert: stellen.length, einheit: 'begründete Stellen', basis: 'src/**' },
+        sicherheit: 'hoch', marke: 'kein Fehler', aufwand: 'keiner',
+        gegenrede: 'Ein Kommentar kann falsch sein; die Sonde liest ihn nicht, sie zählt ihn. '
+                 + 'Sie hält damit die Stellen sichtbar, nicht die Begründungen wahr.' })
+  }
+  if (offen.length) {
+    B({ klasse: 2, ort: { datei: offen[0].pfad, zeile: offen[0].zeile },
+        titel: `${offen.length} Stellen machen aus einer fehlenden Masse eine Null, ohne zu sagen warum`,
+        steht_da: offen.slice(0, 8).map(s => `${s.pfad}:${s.zeile} — \`${s.text}\``).join('; ')
+                + (offen.length > 8 ? ` … und ${offen.length - 8} weitere` : '')
+                + ` (von ${stellen.length} Stellen insgesamt sind ${stellen.length - offen.length} begründet).`,
+        muesste: 'Fehlt eine Masse, gehört „—" hin. `?? 0` ist richtig, wo eine Summe über eine leere '
+               + 'Liste gebildet oder ein Sortierschlüssel gebraucht wird (dort ist 0 beobachtet), und '
+               + 'falsch, wo ein einzelner Wert fehlt. Was von beidem gilt, gehört als Satz darüber.',
+        warum: 'Jede dieser Stellen kann eine unbekannte Masse in eine Summe tragen, die danach wie '
+             + 'eine gemessene Zahl aussieht. Welche harmlos ist, kann nur entscheiden, wer sie '
+             + 'geschrieben hat — und muss es aufschreiben, sonst entscheidet es der nächste neu.',
+        beleg: 'pruefwerk/sonden/08_leer_nicht_null.mjs → 8b',
+        groesse: { wert: offen.length, einheit: 'unbegründete Stellen',
+                   basis: `${stellen.length} Stellen mit \`?? 0\` an einer Masse` },
+        sicherheit: 'mittel', marke: 'Reparatur', aufwand: 'klein',
+        gegenrede: 'Ein grosser Teil solcher Stellen steht in `reduce((a, b) => a + (b.kg ?? 0), 0)` '
+                 + 'und ist dort unbedenklich, weil die Liste selbst die Auskunft ist. Der Befund '
+                 + 'verlangt keine Änderung an der Rechnung, nur einen Satz darüber.' })
   }
 
   /* 8c. Am Eingang — dort, wo aus einer Lücke ein Gewicht wird.

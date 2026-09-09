@@ -84,7 +84,12 @@ export default function Lieferungen() {
 
   if (laedt) return <Lade />
 
-  const summe = zeilen.reduce((s, z) => s + (z.masse_kg ?? 0), 0)
+  // Leer ist nicht null: Zeilen ohne Masse (das Kistengewicht ist noch
+  // unbekannt) gehen nicht als 0 kg in die Summe, sondern zählen nicht mit —
+  // wie viele es sind, steht unter der Kennzahl und im Hinweis darunter.
+  const massen = zeilen.flatMap(z => z.masse_kg !== null ? [z.masse_kg] : [])
+  const summe = massen.reduce((s, m) => s + m, 0)
+  const ohneMasse = zeilen.length - massen.length
   const ohneKistengewicht = zeilen.some(z => z.masse_quelle === 'Kistengewicht unbekannt')
 
   return (
@@ -168,7 +173,8 @@ export default function Lieferungen() {
       <Karte titel="Erfasst">
         <div className="spalten">
           <Kennzahl titel="Lieferungen" wert={String(zeilen.length)} />
-          <Kennzahl titel="Masse aller Lieferungen" wert={`${(summe / 1000).toFixed(1)} t`} />
+          <Kennzahl titel="Masse aller Lieferungen" wert={`${(summe / 1000).toFixed(1)} t`}
+                    unter={ohneMasse > 0 ? `${ohneMasse} ohne Masse — nicht mitgezählt` : undefined} />
         </div>
         {ohneKistengewicht && (
           <Hinweis art="warnung">

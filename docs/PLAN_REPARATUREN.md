@@ -75,6 +75,40 @@ nicht, welche gewirkt hat.
 | 5.3 | **ANN-001** Zu keiner Annahme steht, wo ihr Bruch auffiele | Eine vierte Spalte in der Annahmentabelle. Sonde 10 bewacht sie danach: Jede Zeile nennt eine Stelle, und die Stelle existiert. | Sonde 10 findet nichts mehr. |
 | 5.4 | **LNN-003** 19 Stellen mit `?? 0` auf einer Masse | Die Liste wird durchgegangen; jede Stelle bekommt entweder ein „—" oder einen Satz, warum die Null dort beobachtet ist. | Die Liste in Sonde 08 wird kürzer; der Rest steht mit Begründung im Code. |
 
+### Stufe 6 — Die Nachlese: dieselbe Frage, umgekehrtes Vorzeichen
+
+Beim Nachprüfen der Stufen 1 bis 5 kamen drei Stellen dazu, die die erste
+Runde übersehen hatte. Zwei davon stehen andersherum als alles davor: Dort
+steht NULL, wo eine Null **beobachtet** ist.
+
+| # | Feststellung | Was gemacht wird | Woran man es sieht |
+|---|---|---|---|
+| 6.1 | Die vier Teilbeträge eines Stroms sind NULL, wenn ihre Portion keine Zeile hat — die Oberfläche machte daraus mit `?? 0` „0 kg", auch bei einem ungemessenen Strom | `v_verlust_je_gruppe`: `coalesce(…, 0)` **innerhalb** des `bekannt`-Zweigs. Gemessener Strom → alle vier sind Zahlen; ungemessener → alle vier NULL. Der Rechenweg schreibt dann „nicht gemessen". | `pruefung.sql`: beide Richtungen, dazu `kg_beobachtet + kg_projiziert = kg` auf allen 366 Zeilen. |
+| 6.2 | `ausschuss_netto_setzen` und `schimmel_netto_setzen` speichern das **Brutto als Netto**, wenn Kistenzahl oder Tara fehlen — und markieren es als gemessen | Beide Auslöser rechnen ohne `coalesce`. Kommt kein Netto heraus, bleibt die eingetragene Zahl stehen und `gemessen` wird false; die Auswertung liest nur Gemessenes. Keine Bedingung auf der Tabelle: Die Zeile ist eine Beobachtung, nur keine Nettomasse. | `pruefung.sql`: dieselbe Wägung einmal vollständig (gerechnet, gemessen) und einmal ohne Tara (unverändert, nicht gemessen). |
+| 6.3 | Die Auffälligkeit „Ausschuss-Tara" meldet „die Tara wurde geändert", wo in Wahrheit die Tara fehlt | Die Prüfung rechnet nur nach, wo sich etwas nachrechnen lässt (`greatest(null, 0)` ist 0 — das Netto muss ausdrücklich vorher geprüft werden). Die Lücke steht als eigene Art daneben: „Ausschuss ohne Tara". | `pruefung.sql`: ohne Tara feuert genau die neue Art und nicht die alte. |
+
+## Stand am Ende von Runde L
+
+| Stufe | Wo es steht | Stand |
+|---|---|---|
+| 1 Eingang | Migration 0064, `src/lib/masse.ts` | erledigt |
+| 2 Unwissen bleibt Unwissen | Migration 0064, Überblick und Ursachen | erledigt |
+| 3 Doppelzählung | Migration 0065 (dritte Portion), 0064 (Bestand nach Auslieferung) | erledigt |
+| 4 Beschriftung | `Ueberblick.tsx`, `Karten.tsx`, `masse.ts` | erledigt |
+| 5 Das Netz | `pruefung.sql` (Mutationsschutz), `docs/ABLAUF.md` (vierte Spalte), Sonde 08 | erledigt |
+| 6 Nachlese | Migration 0066, `daten.ts`, `Karten.tsx` | erledigt |
+| BEZ-004 Bezugsgrösse | Frage 1 unten | offen, gehört dem Betrieb |
+| SZE-005 Umgestapelte Palette | Frage 2 unten | offen, gehört dem Betrieb |
+
+Aus 24 Befunden (18 mit Folgen für eine Zahl) sind die geblieben, die keine
+Reparatur sind: die beiden Fragen an den Betrieb, drei „geprüft und in
+Ordnung"-Notizen, und die zwei Mutationsbefunde, die sagen, wo das Netz noch
+Löcher hat. Die Liste der Stellen mit `?? 0` auf einer Masse ist von 19 über
+14 auf 7 gefallen; die sieben, die bleiben, sind Sortierschlüssel und Summen
+über bereits gefilterte Listen — jede mit einem Satz darüber, warum die Null
+dort beobachtet ist. Sonde 08 prüft seither nicht mehr, ob es solche Stellen
+gibt, sondern ob eine ohne Begründung dasteht.
+
 ## Was nicht gemacht wird, und warum
 
 **BEZ-004 — „Verlust in Prozent, wovon?"** Nicht entschieden. Der Unterschied

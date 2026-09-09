@@ -778,6 +778,18 @@ node docs/pdf_bauen.mjs
 # Statistik: erfundene Saisons mit bekannter Wahrheit, misst Verzerrung und
 # Überdeckung je Strom (siehe docs/STATISTIK_BEFUND.md)
 ./supabase/test/simulation/matrix.sh 25
+
+# Prüfwerk: kein Test, sondern die Gegenrede. Zehn Sonden befragen die
+# Datenbank gegen sich selbst — eine zweite, unabhängig geschriebene Kaskade
+# (Orakel), verstellte Formeln (Mutation), Papierfälle, Einheiten, Annahmen,
+# und überall die Frage „wo wird aus einer Lücke eine Zahl?". Jede Sonde hat
+# eine Selbstprobe; findet sie ihren eigenen eingebauten Fehler nicht, meldet
+# der Lauf STUMPF und bricht ab. Läuft von Hand, nicht in run.sh: Die
+# Mutationssonde baut fünfzehnmal ein ganzes Schema neu (rund 13 Minuten).
+node pruefwerk/lauf.mjs --schnell        # neun Sonden ohne die Mutationssonde
+node pruefwerk/lauf.mjs                  # alle zehn
+node pruefwerk/lauf.mjs --nur 04 --db demo    # eine einzelne, gegen eine Datenbank
+node pruefwerk/bericht.mjs               # docs/PRUEFBERICHT.md neu schreiben
 ```
 
 `run.sh` prüft: dass die Migrationen einzeln durchlaufen und die Fachlogik

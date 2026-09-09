@@ -539,3 +539,43 @@ seit dem 25. August schreibt keine Maske sie mehr, Überfüllung kommt aus
 `ausgang_wiegung`, der Nebenkanal aus der CSV. Migration 0048 entfernt Tabelle
 und Lese-Stellen — und bricht ab, falls die Tabelle auf dem Betrieb doch noch
 Zeilen hält (siehe README, „Wenn etwas klemmt").
+
+---
+
+## Zwei Fragen aus Runde L (9. September)
+
+Beide kommen aus dem Prüfwerk (`pruefwerk/`, Bericht in `docs/PRUEFBERICHT.md`).
+Beide sind beziffert und **nicht entschieden**: Es gibt zwei vertretbare
+Antworten, und die Wahl gehört dem Betrieb, nicht dem Programm.
+
+**51. Verlust in Prozent — wovon?**
+Heute steht auf dem Überblick „16,1 % des Eingangs". Dieselbe Zahl, bezogen auf
+das, was noch nicht ausgeliefert ist, wäre **25,1 %** — neun Prozentpunkte
+Unterschied bei genau derselben Kilozahl.
+
+Unser Vorschlag ist eine dritte Form, weil die beiden ersten je eine Frage
+beantworten und die zweite dabei zwei Bestände mischt: **an der ausgelieferten
+Ware 13,1 %, an der liegenden Ware 18,0 %.** Die erste ist die Nachrechnung
+(das ist passiert), die zweite die Zahl, an der sich noch etwas ändern lässt.
+
+*Warum es zählt:* Diese Prozentzahl ist die Zahl, die im Gespräch genannt wird.
+Wer sie mit einer aus einem anderen Jahr oder von einem anderen Betrieb
+vergleicht, vergleicht nur dann richtig, wenn beide denselben Nenner meinen.
+
+> Sollen beide Zahlen stehen, oder eine — und welche?
+> Antwort:
+
+**52. Wird zwischen Eingang und Wägung umgestapelt?**
+Wenn eine Palette beim Nachwiegen fünf Kisten weniger hat als beim Eingang,
+zählt das Gewicht dieser fünf Kisten als verdunstetes Wasser: Die App fragt die
+Kistenzahl nur einmal, beim Eingang, und zieht beide Male dieselbe Tara ab. Bei
+30 Kisten sind das rund **elf Prozent zu viel auf der Tagesrate** — und die Rate
+geht potenziert in jede Verdunstungszahl der Sorte ein.
+
+Zwei Wege, beide vertretbar: Entweder wird beim Wiegen die Kistenzahl neu
+gefragt (eine Frage mehr für den Arbeiter, dafür ist der Fehler weg), oder der
+Betrieb sagt, dass zwischen Eingang und Wägung nicht umgestapelt wird — dann
+bleibt es, wie es ist, und die Annahme steht mit ihrer Grösse in `ABLAUF.md`.
+
+> Kommt es vor? Und wenn ja, wie oft — bei jeder zehnten Palette, oder nie?
+> Antwort:

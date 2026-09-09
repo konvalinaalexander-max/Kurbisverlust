@@ -68,6 +68,8 @@ export default function Messungen() {
         <p className="leise">Nach Eingangsmasse sortiert: die grössten Chargen ohne Stichprobe kosten am meisten Genauigkeit.</p>
         <div className="rollbar"><table>
           <thead><tr><th>Charge</th><th className="zahl">Eingang</th><th className="zahl">Paletten</th><th className="zahl">Wiegungen</th><th className="zahl">Schimmel</th><th className="zahl">CSV-Läufe</th></tr></thead>
+          {/* Sortierschlüssel, keine Rechnung: Chargen ohne Eingangsmasse
+              stehen hinten; in der Spalte selbst steht dann „—". */}
           <tbody>{[...daten.lage].sort((a, b) => (b.eingang_kg ?? 0) - (a.eingang_kg ?? 0)).slice(0, 20).map(l => (
             <tr key={l.charge_nr}><td>{l.charge_nr} · {l.sorte} · {l.schlag}</td><td className="zahl">{kg(l.eingang_kg)}</td>
               <td className="zahl">{zahl(l.n_paletten)}{l.n_paletten_mit_netto < l.n_paletten && ` (${l.n_paletten_mit_netto} m. Netto)`}</td>
