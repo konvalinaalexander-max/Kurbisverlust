@@ -31,6 +31,8 @@ import { nummernZuruecksetzen, schreibe } from './umgebung.mjs'
 const HIER = dirname(fileURLToPath(import.meta.url))
 
 const WERKSTAETTEN = [
+  { kuerzel: 'p', verzeichnis: 'phase0', name: 'Phase 0 — Schärfe der vorhandenen Werkzeuge',
+    frage: 'Sehen die Werkzeuge der letzten Runde überhaupt noch etwas?' },
   { kuerzel: 'a', verzeichnis: 'a_rechenwerk', name: 'A — Rechenwerk',
     frage: 'Ist das der richtige Schätzer, und ist er ehrlich über sich selbst?' },
   { kuerzel: 'b', verzeichnis: 'b_fundament', name: 'B — Fundament',

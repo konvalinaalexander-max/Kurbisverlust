@@ -80,6 +80,8 @@ const jeMarke = (m) => befunde.filter(b => (b.marke ?? 'Reparatur') === m)
 const jeWerkstatt = (w) => befunde.filter(b => (b.werkstatt ?? '').startsWith(w))
 
 const WERKSTAETTEN = [
+  ['Phase 0', 'Schärfe der vorhandenen Werkzeuge',
+   'Sehen die Werkzeuge der letzten Runde überhaupt noch etwas?'],
   ['A', 'Rechenwerk', 'Ist das der richtige Schätzer, und ist er ehrlich über sich selbst?'],
   ['B', 'Fundament', 'Ist die Datenbank unter der Fachlogik gesund?'],
   ['C', 'Bauwerk', 'Ist der Code so gebaut, wie ein Programm dieser Grösse gebaut sein sollte?'],
