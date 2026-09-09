@@ -706,10 +706,28 @@ Das genügt fast immer zur Klärung.
 | Betriebsleiter: Überblick · Ursachen · Chargen · Messungen · Betrieb | `src/pages/Ueberblick.tsx` … `Betrieb.tsx`, `src/auswertung/` | Diagramme in `src/components/Diagramm.tsx` |
 | Warenausgang aus dem Warenwirtschaftssystem einlesen | `src/lib/xlsx.ts`, `src/lib/warenausgang.ts`, `supabase/migrations/0050` | Leser und Regeln geprüft (27 Tests, 396 096 Zellen gegen einen zweiten Leser); der Bildschirm fehlt noch — `docs/PROMPT_WARENAUSGANG.md` |
 
-`supabase/setup.sql` ist die Zusammenfassung aller Migrationen zu einer Datei —
-das, was in Schritt 3 eingefügt wird. Sie wird von `supabase/setup_bauen.sh`
-erzeugt; nach jeder Änderung an `supabase/migrations/` neu bauen. Der Testlauf
-schlägt fehl, wenn beides auseinanderdriftet.
+`supabase/setup.sql` ist das, was in Schritt 3 eingefügt wird. Sie wird von
+`supabase/setup_bauen.sh` erzeugt; nach jeder Änderung an
+`supabase/migrations/` neu bauen. Der Testlauf schlägt fehl, wenn beides
+auseinanderdriftet.
+
+Sie ist nicht einfach die Aneinanderreihung der Migrationen — die wäre mit
+1,14 MB zu gross für den Supabase-SQL-Editor, der höchstens 1 MB annimmt. Die
+Datei wird verdichtet gebaut (`supabase/verdichten.mjs` erklärt, warum und
+wie):
+
+- **Teil A** ist die Geschichte: Tabellen, Spalten, Bedingungen, Rechte, die
+  Nachträge an den Daten — Migration für Migration, vollständig. Daran hängt,
+  dass eine seit dem Frühjahr laufende Datenbank auf den heutigen Stand kommt.
+- **Teil B** ist das Rechenwerk: jede Ansicht und jede darauf rechnende
+  Funktion genau einmal, in der heutigen Fassung, in ausgerechneter
+  Reihenfolge. `v_saisonbilanz` stand vorher neunmal darin.
+
+Dass dabei nichts verlorengeht, wird nicht geglaubt, sondern geprüft: `run.sh`
+baut eine Datenbank aus den Migrationen einzeln und eine aus `setup.sql` und
+vergleicht beide Fingerabdrücke Zeile für Zeile — 2613 Objekte, jede Spalte,
+jede Ansicht, jede Funktion, jeder Index, jede Regel, jedes Recht, jede
+Beschreibung.
 
 ## Lokal entwickeln
 

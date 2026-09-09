@@ -35,6 +35,11 @@ ERWARTET="$(grep -oE 'SCHEMA_ERWARTET = [0-9]+' "$HIER/../../src/lib/version.ts"
 [ "$ERWARTET" = "$HOECHSTE" ] \
   || { echo "   FEHLER: src/lib/version.ts erwartet $ERWARTET, die höchste Migration ist $HOECHSTE"; exit 1; }
 echo "   Stand: Migration $HOECHSTE — Datenbank, App und Migrationen einig"
+# Der Fingerabdruck dieser Datenbank ist der Massstab für Stufe 2: setup.sql
+# wird verdichtet gebaut und muss trotzdem genau hierauf hinauslaufen.
+AUS_MIGRATIONEN="$(mktemp)"
+psql "$URL" -v ON_ERROR_STOP=1 -f "$HIER/fingerabdruck.sql" > "$AUS_MIGRATIONEN"
+echo "   Fingerabdruck aus den Migrationen: $(wc -l < "$AUS_MIGRATIONEN") Objekte"
 psql "$URL" -v ON_ERROR_STOP=1 -f "$HIER/pruefung.sql"
 
 echo
@@ -67,6 +72,34 @@ echo "   Meldungen im Editor: keine (nur die Fertig-Zeile)"
 FRISCH="$(mktemp)"
 psql "$URL" -v ON_ERROR_STOP=1 -f "$HIER/fingerabdruck.sql" > "$FRISCH"
 echo "   Fingerabdruck der frischen Datenbank: $(wc -l < "$FRISCH") Objekte"
+
+# Die Prüfung, die die Verdichtung trägt.
+#
+# setup.sql ist nicht mehr die Aneinanderreihung der Migrationen: Von jeder
+# Ansicht und jeder darauf rechnenden Funktion steht nur noch die letzte
+# Fassung drin, hinten, in ausgerechneter Reihenfolge (supabase/verdichten.mjs
+# sagt, warum). Ohne diesen Vergleich wäre das ein Vertrauensakt. Mit ihm ist
+# es eine Tatsache: Was aus den Migrationen einzeln entsteht und was aus
+# setup.sql entsteht, muss Zeile für Zeile dasselbe sein — jede Spalte, jede
+# Ansicht, jede Funktion, jeder Index, jede Regel, jeder Auslöser, jede
+# Bedingung, jedes Recht, jede Beschreibung.
+if ! diff -u "$AUS_MIGRATIONEN" "$FRISCH" > /tmp/kuerbis_fp.diff; then
+  echo "   FEHLER: setup.sql ergibt eine andere Datenbank als die Migrationen."
+  echo "   $(grep -c '^[-+][^-+]' /tmp/kuerbis_fp.diff) abweichende Zeilen (- nur aus den Migrationen, + nur aus setup.sql):"
+  grep '^[-+][^-+]' /tmp/kuerbis_fp.diff | head -20 | sed 's/^/     /'
+  exit 1
+fi
+echo "   deckungsgleich mit den Migrationen: alle $(wc -l < "$FRISCH") Objekte"
+
+# Und die Grösse: Der Supabase-SQL-Editor schickt die Datei als einen
+# Anfragekörper und nimmt höchstens 1 MB. Genau daran ist sie einmal
+# gescheitert ("Query is too large to be run via the SQL Editor").
+GROESSE="$(wc -c < "$HIER/../setup.sql")"
+if [ "$GROESSE" -gt 1000000 ]; then
+  echo "   FEHLER: setup.sql ist $((GROESSE / 1024)) KB — der SQL-Editor nimmt höchstens 1000 KB."
+  exit 1
+fi
+echo "   Grösse: $((GROESSE / 1024)) KB von höchstens 1000 KB"
 
 echo
 echo "── 3. setup.sql ein zweites Mal ──────────────────────────────"

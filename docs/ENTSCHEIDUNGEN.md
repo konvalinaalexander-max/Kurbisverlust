@@ -2444,3 +2444,121 @@ Gemessen auf einer frischen Datenbank: **2 Sekunden, 0 Fehler, 0 Warnungen,
 
 `run.sh` prüft das seit Runde J mit: Gibt `setup.sql` auch nur eine
 Hinweiszeile aus, schlägt die Stufe fehl.
+
+## Runde K — setup.sql passt wieder in den SQL-Editor (9. September)
+
+### Der Befund
+
+Beim Einfügen von `setup.sql` in den Supabase-SQL-Editor:
+
+> Error: Query is too large to be run via the SQL Editor
+
+Der Editor schickt die Datei als **einen Anfragekörper**, und der ist bei
+**1 MB** zu Ende. `setup.sql` war 1 142 678 Bytes gross — 94 kB darüber. Damit
+war der einzige Weg versperrt, den der Betrieb hat: markieren, einfügen, Run.
+
+### Die Ursache war nicht die Datenbank, sondern ihre Geschichte
+
+`setup.sql` war die Aneinanderreihung aller 63 Migrationen. Gemessen an den
+einzelnen Anweisungen:
+
+| | |
+|---|---|
+| Anweisungen insgesamt | 1 257 |
+| davon Ansichten, gespeicherte Ansichten, Funktionen | 869 (1 028 kB) |
+| davon **überholt** — von einer späteren Migration ersetzt | 416 (**616 kB, 54 %**) |
+
+`v_saisonbilanz` steht neunmal in der Datei, `v_marge_buch` fünfzehnmal,
+`v_massenbilanz` dreizehnmal. Jede dieser Fassungen wurde beim Einspielen
+angelegt und Sekunden später überschrieben. Und der Anteil wächst weiter: Fast
+jede Migration schreibt Formeln neu, kaum eine legt neue Tabellen an.
+
+### Die Teilung
+
+In den Migrationen stehen zwei Dinge nebeneinander, die sich völlig
+verschieden verhalten:
+
+**Tabellen, Spalten, Bedingungen, Nachträge an den Daten** sind eine
+*Geschichte*. Jeder Schritt zählt. Eine Datenbank, die seit dem Frühjahr auf
+dem Hof läuft, wird genau durch diese Schritte auf den heutigen Stand
+gebracht — man kann keinen weglassen.
+
+**Ansichten und die Funktionen, die auf ihnen rechnen**, sind keine
+Geschichte, sondern ein *Zustand*. Es zählt nur, wie die Formel heute lautet.
+Eine Zwischenfassung von August anzulegen und sofort zu überschreiben ist
+reine Arbeit ohne Ergebnis.
+
+`setup.sql` heisst deshalb seit dieser Runde:
+
+- **Teil A** — die Geschichte, vollständig und in ihrer Reihenfolge (249 kB)
+- **Teil B** — das Rechenwerk, jede Formel genau einmal (269 kB)
+
+**529 kB statt 1 116 kB — 53 % kleiner, gut die Hälfte der Grenze.** Und die
+Datei wächst künftig nur noch mit dem, was wirklich neu ist: Eine Migration,
+die zehn Formeln neu schreibt, macht sie nicht mehr grösser.
+
+### Die Reihenfolge in Teil B wird ausgerechnet, nicht geraten
+
+Eine Ansicht steht auf der anderen. `supabase/verdichten.mjs` liest, welche
+Ansicht welche liest, und sortiert topologisch; ist die Reihenfolge nicht
+kreisfrei, bricht der Bau ab. Zuerst wird das alte Rechenwerk weggeräumt — in
+umgekehrter Reihenfolge, damit nichts unter einem anderen wegbricht —, dann
+neu gebaut. Auf einer leeren Datenbank passiert beim Wegräumen nichts; auf
+einer bestehenden verschwindet das alte Rechenwerk, damit das neue sauber
+daneben steht statt darüber. Die Daten sind davon nicht berührt: In Ansichten
+liegt nichts, sie rechnen nur.
+
+### Was der Verdichter nicht lesen kann, sagt die Migration ihm
+
+Eine Anweisung in 0061 baut 26 gespeicherte Ansichten über zusammengesetztes
+SQL — `execute format('create materialized view %I as select * from %I', …)`
+in einer Schleife. Da hilft kein Lesen: Die Namen entstehen erst beim Laufen.
+Statt zu raten, sagt es die Migration selbst, in einem Kommentar darüber:
+
+```sql
+-- verdichter: baut erg_gewichte erg_kaliber erg_gebinde erg_ausgang
+```
+
+Damit ist die Anweisung ein Objekt wie jedes andere und wird richtig
+einsortiert. Findet der Verdichter so etwas ohne Angabe, **bricht er ab** und
+sagt, welche Zeile fehlt — lieber ein klarer Halt als eine `setup.sql`, die an
+der falschen Stelle aufhört.
+
+### Warum das kein Vertrauensakt ist
+
+Eine Datei umzubauen, die eine Produktionsdatenbank einrichtet, ist genau die
+Sorte Änderung, bei der „sieht richtig aus" nicht genügt. `run.sh` baut
+deshalb seit dieser Runde **zwei Datenbanken** — eine aus den Migrationen
+einzeln, eine aus `setup.sql` — und vergleicht ihre Fingerabdrücke Zeile für
+Zeile: jede Spalte mit Typ und Vorgabewert, jede Ansicht, jede gespeicherte
+Ansicht, jede Funktion, jeder Index, jede Zugriffsregel, jeder Auslöser, jede
+Bedingung, jedes Recht, jede Beschreibung.
+
+**2613 Objekte, kein Unterschied.** Weicht eine Zeile ab, bricht der Lauf ab
+und nennt sie.
+
+### Was dieser Vergleich nebenbei gefunden hat
+
+Zwei Dinge, nach denen niemand gesucht hatte und die beide Wege betrafen:
+
+**26 Ansichten hatten gar keine Beschreibung** — darunter `v_kaskade`,
+`v_marge_buch`, `v_massenbilanz`, `v_hochrechnung`, also der Kern der
+Auswertung. Nicht, weil niemand eine geschrieben hätte: Wer eine Ansicht mit
+`drop … cascade` wegräumt, reisst die darauf aufbauenden mit; die werden
+gleich danach neu gebaut, ihre Beschreibung aber nicht. Beim ersten Mal
+unauffällig, nach neun Umbauten steht die halbe Auswertung unbeschriftet da.
+Die Beschreibung ist das, was im SQL-Editor und in jedem auslesenden Werkzeug
+erklärt, was eine Zahl bedeutet — dieselbe Lücke, gegen die der
+Begriffs-Prüfstand auf der Oberfläche antritt, eine Ebene tiefer. Migration
+0063 schreibt sie neu, für die Fassung, die heute gilt; keine alte
+Beschreibung wurde zurückgeholt, denn eine Erklärung von damals passt nicht
+auf eine Formel von heute.
+
+**Der Rundumschlag „keine Funktion ist für PUBLIC ausführbar"** stammt aus
+0035 und galt für das, was damals da war. In der Reihenfolge der Migrationen
+fiel nie auf, dass später Funktionen dazugekommen sind. Der Verdichter zieht
+solche Rundumschläge jetzt ans Ende — und damit es nicht von einer
+Reihenfolge abhängt, steht die Regel in 0063 noch einmal ausdrücklich.
+
+`pruefung.sql` hält beides fest: Ansichten ohne Beschreibung und Funktionen
+mit PUBLIC-Recht müssen null sein.

@@ -2986,7 +2986,7 @@ declare v_charge int; v_lief bigint; v_n int;
         v_rest numeric; v_kohorte1 numeric; v_kohorte2 numeric;
 begin
   perform set_config('request.jwt.claim.sub','11111111-1111-1111-1111-111111111111', true);
-  assert schema_stand() = 62, format('Stand 62 erwartet, ist %s', schema_stand());
+  assert schema_stand() >= 62, format('Stand mindestens 62 erwartet, ist %s', schema_stand());
 
   -- Die Namen, die falsch waren, sind weg und die richtigen da
   assert to_regclass('v_saisonbilanz') is not null;
@@ -3080,3 +3080,40 @@ begin
 end $$;
 
 select '——— 0062 Jede Zahl sagt, was sie ist geprüft ———' as ergebnis;
+
+
+-- =====================================================================
+-- 0063 — Jede Sicht sagt, was sie ist
+-- =====================================================================
+-- Zwei Regeln, die bisher nur zufällig galten und darum leise verrutschten:
+-- jede Ansicht hat eine Beschreibung, und keine Funktion ist für PUBLIC
+-- ausführbar. Beides ist hier festgehalten, damit die nächste Migration es
+-- nicht wieder verliert.
+do $$
+declare v_ohne text; v_public text;
+begin
+  assert schema_stand() = 63, format('Stand 63 erwartet, ist %s', schema_stand());
+
+  -- a) Keine Ansicht ohne Beschreibung. Sie ist das, was im SQL-Editor und in
+  --    jedem auslesenden Werkzeug erklärt, was eine Zahl bedeutet.
+  select string_agg(c.relname, ', ' order by c.relname) into v_ohne
+    from pg_class c join pg_namespace n on n.oid = c.relnamespace
+   where n.nspname = 'public' and c.relkind in ('v', 'm')
+     and obj_description(c.oid) is null;
+  assert v_ohne is null,
+    format('Diese Ansichten sagen nicht, was sie sind: %s', v_ohne);
+
+  -- b) Keine Funktion ist für jedermann ausführbar. Was authenticated oder
+  --    anon dürfen, steht auf diesen Rollen — nicht auf PUBLIC.
+  select string_agg(p.oid::regprocedure::text, ', ' order by p.oid::regprocedure::text)
+    into v_public
+    from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'public' and p.prokind in ('f', 'p')
+     and has_function_privilege('public', p.oid, 'execute');
+  assert v_public is null,
+    format('Diese Funktionen darf jeder ausführen: %s', v_public);
+
+  raise notice 'OK  0063 Jede Sicht sagt, was sie ist (Beschreibungen vollständig, kein PUBLIC-Recht)';
+end $$;
+
+select '——— 0063 Jede Sicht sagt, was sie ist geprüft ———' as ergebnis;

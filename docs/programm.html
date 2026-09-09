@@ -1836,7 +1836,7 @@ Browser gelesen und gereinigt, in vier Stufen, jede mit Begründung:</p>
 <p>Die App zeigt die Bilanz dieser Reinigung an, und die Rohdatei bleibt unverändert im Storage
 liegen, mit Prüfsumme. Die Dubletten-Regel ist die einzige Reinigungsregel, die
 <strong>unbelegt</strong> ist — sie beruht auf einer statistischen Auffälligkeit, nicht auf
-einer Ground-Truth-Zählung. Sie steht deshalb in den ehrlichen Grenzen (2.27), und die Abhilfe
+einer Ground-Truth-Zählung. Sie steht deshalb in den ehrlichen Grenzen (2.29), und die Abhilfe
 ist bekannt: einmal eine Palette von Hand nachzählen.</p>
 
 <div class="warum"><b>Warum ein Histogramm und nicht eine Zeile je Kürbis</b>
@@ -2062,7 +2062,79 @@ objects". Harmlos — aber wer das im Editor sieht, liest eine Wand von Probleme
 Ärger. Gemessen auf einer frischen Datenbank: <b>2 Sekunden, 0 Fehler, 0 Warnungen, 0
 Hinweise</b> — und eine Zeile, die sagt, was steht.</p>
 
-<h2 class="gross">2.26 Das Prüfwerk</h2>
+<h2 class="gross">2.26 Die eine Datei — und warum sie halb so gross ist</h2>
+
+<p>Der Betrieb richtet die Datenbank mit vier Handgriffen ein: <code>setup.sql</code>
+markieren, kopieren, im Supabase-SQL-Editor einfügen, Run. Im September lehnte der Editor
+sie ab:</p>
+
+<p style="margin:2mm 0 2mm 6mm"><code>Error: Query is too large to be run via the SQL Editor</code></p>
+
+<p>Er schickt die Datei als <em>einen</em> Anfragekörper, und der ist bei 1 MB zu Ende.
+<code>setup.sql</code> war 1 142 678 Bytes — 94 kB darüber. Damit war der einzige Weg
+versperrt, den der Hof hat.</p>
+
+<div class="warum">
+<p><b>Die Ursache war nicht die Datenbank, sondern ihre Geschichte.</b> <code>setup.sql</code>
+war die Aneinanderreihung aller 63 Migrationen. Von 1 257 Anweisungen betrafen 869 das
+Rechenwerk — und <b>416 davon waren überholt</b>: Fassungen, die eine spätere Migration
+ohnehin überschreibt. <code>v_saisonbilanz</code> stand neunmal in der Datei,
+<code>v_marge_buch</code> fünfzehnmal. Jede wurde beim Einspielen angelegt und Sekunden
+später ersetzt. Das waren <b>616 kB, 54 % der Datei</b> — und der Anteil wuchs mit jeder
+Runde, denn fast jede Migration schreibt Formeln neu und kaum eine legt Tabellen an.</p>
+</div>
+
+<p>In den Migrationen stehen zwei Dinge nebeneinander, die sich völlig verschieden verhalten.
+Tabellen, Spalten, Bedingungen und Nachträge an den Daten sind eine <em>Geschichte</em>: Jeder
+Schritt zählt, keiner darf fehlen — eine Datenbank, die seit dem Frühjahr auf dem Hof läuft,
+wird genau durch diese Schritte auf den heutigen Stand gebracht. Ansichten und die Funktionen,
+die auf ihnen rechnen, sind keine Geschichte, sondern ein <em>Zustand</em>: Es zählt nur, wie
+die Formel heute lautet.</p>
+
+<table>
+<tr><th>Teil</th><th>Inhalt</th><th class="z">Grösse</th></tr>
+<tr><td><b>A</b></td><td>Die Geschichte: Tabellen, Spalten, Bedingungen, Rechte, Nachträge an
+  den Daten — Migration für Migration, vollständig</td><td class="z">249 kB</td></tr>
+<tr><td><b>B</b></td><td>Das Rechenwerk: jede Ansicht und jede darauf rechnende Funktion genau
+  einmal, in der heutigen Fassung</td><td class="z">269 kB</td></tr>
+<tr><td colspan="2"><b>zusammen</b> — statt 1 116 kB</td><td class="z"><b>529 kB</b></td></tr>
+</table>
+
+<p>Die Reihenfolge in Teil B wird ausgerechnet, nicht geraten: Eine Ansicht steht auf der
+anderen, also liest der Verdichter, wer wen liest, und sortiert topologisch. Ist die
+Reihenfolge nicht kreisfrei, bricht der Bau ab. Für den Nutzer ändert sich nichts — dieselbe
+Datei, dieselben vier Handgriffe, dasselbe Ergebnis. Sie ist nur nicht mehr zu gross, und sie
+wächst künftig bloss noch mit dem, was wirklich neu ist.</p>
+
+<h3>Warum das kein Vertrauensakt ist</h3>
+
+<p>Eine Datei umzubauen, die die Datenbank des Betriebs einrichtet, ist genau die Sorte
+Änderung, bei der „sieht richtig aus" nicht genügt. Der Testlauf baut deshalb <b>zwei</b>
+Datenbanken — eine aus den Migrationen einzeln, eine aus <code>setup.sql</code> — und
+vergleicht ihre Fingerabdrücke Zeile für Zeile: jede Spalte mit Typ und Vorgabewert, jede
+Ansicht, jede gespeicherte Ansicht, jede Funktion, jeder Index, jede Zugriffsregel, jeder
+Auslöser, jede Bedingung, jedes Recht, jede Beschreibung. <b>2613 Objekte, kein
+Unterschied.</b></p>
+
+<h3>Was dieser Vergleich nebenbei gefunden hat</h3>
+
+<p><b>26 Ansichten hatten gar keine Beschreibung</b> — darunter <code>v_kaskade</code>,
+<code>v_marge_buch</code>, <code>v_massenbilanz</code>, also der Kern der Auswertung. Nicht,
+weil niemand eine geschrieben hätte: Wer eine Ansicht mit <code>drop … cascade</code>
+wegräumt, reisst die darauf aufbauenden mit; die werden gleich danach neu gebaut, ihre
+Beschreibung aber nicht. Beim ersten Mal unauffällig — nach neun Umbauten steht die halbe
+Auswertung unbeschriftet da. Die Beschreibung ist das, was im SQL-Editor und in jedem
+auslesenden Werkzeug erklärt, was eine Zahl bedeutet: dieselbe Lücke, gegen die der
+Begriffs-Prüfstand auf dem Bildschirm antritt, eine Ebene tiefer. Sie sind neu geschrieben,
+für die Fassung, die heute gilt — keine alte Beschreibung wurde zurückgeholt, denn eine
+Erklärung von damals passt nicht auf eine Formel von heute.</p>
+
+<p>Und die Regel „keine Funktion ist für jedermann ausführbar" galt nur für das, was es beim
+Aufräumen im Frühjahr schon gab; später Dazugekommenes hatte niemand geprüft. Beides ist jetzt
+festgehalten: Ansichten ohne Beschreibung und Funktionen mit PUBLIC-Recht müssen null sein,
+sonst schlägt der Testlauf fehl.</p>
+
+<h2 class="gross">2.27 Das Prüfwerk</h2>
 
 <p>Nichts an diesem System ist von Hand geprüft. Sieben Prüfstände laufen bei jeder Änderung; die
 Gesamtheit ist umfangreicher als die App selbst.</p>
@@ -2072,7 +2144,9 @@ Gesamtheit ist umfangreicher als die App selbst.</p>
 <tr><td><code>supabase/test/run.sh</code><br><span class="klein leise">zehn Stufen</span></td>
   <td><strong>1.</strong> Migrationen einzeln einspielen und rund zweitausend Zeilen Fachlogik
   durchrechnen · <strong>2.</strong> <code>setup.sql</code> als <em>ein</em> Query, wie der
-  SQL-Editor sie sendet · <strong>3.</strong> ein zweites Mal — muss durchlaufen und dasselbe
+  SQL-Editor sie sendet — stumm bis auf die Fertig-Zeile, unter 1 MB, und im Fingerabdruck
+  deckungsgleich mit dem Weg über die Migrationen (2613 Objekte) ·
+  <strong>3.</strong> ein zweites Mal — muss durchlaufen und dasselbe
   Schema hinterlassen (Objekt-Fingerabdruck, per <code>diff</code> verglichen) ·
   <strong>3b.</strong> Aktualisierung von einem alten Stand mit echten Daten ·
   <strong>4.</strong> Demo-Daten laden und restlos entfernen · <strong>4b.</strong>
@@ -2176,7 +2250,7 @@ angezeigt hätten. Deshalb schreibt das Dashboard ausdrücklich hin, wenn zwei b
 nicht auseinanderzuhalten sind — wer nur auf die Balkenlänge schaut, liest sonst einen
 Unterschied, den es nicht gibt.</p>
 
-<h2 class="gross">2.27 Was gebaut und wieder verworfen wurde</h2>
+<h2 class="gross">2.28 Was gebaut und wieder verworfen wurde</h2>
 
 <p>Ein Modell ist auch daran zu beurteilen, was es <em>nicht</em> tut. Fünf Ansätze, die
 plausibel klangen und an der Messung scheiterten.</p>
@@ -2204,7 +2278,7 @@ plausibel klangen und an der Messung scheiterten.</p>
   erfassten Arbeiten auf dreihundert. Sah klug aus und war nicht wissbar (AB-18).</td></tr>
 </table>
 
-<h2 class="gross">2.28 Ehrliche Grenzen</h2>
+<h2 class="gross">2.29 Ehrliche Grenzen</h2>
 
 <table>
 <tr><th style="width:56mm">Grösse</th><th>Status</th></tr>

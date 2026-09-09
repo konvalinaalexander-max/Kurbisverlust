@@ -1525,6 +1525,19 @@ comment on view v_datenqualitaet is
 -- als Definition. Die Auswertung des Betriebsleiters liest nur erg_*; die
 -- Arbeiter-Masken lesen weiter ihre v_*-Sichten (Palox-Stand, Auftragsmasse,
 -- Kontrollvorschläge), die je Arbeit ein paar Zeilen liefern.
+--
+-- Die Namen entstehen hier erst beim Laufen, aus der Liste unten. setup.sql
+-- wird verdichtet gebaut und muss trotzdem wissen, was hier entsteht — sonst
+-- landet dieser Block vor den Sichten, aus denen er liest. Darum steht es
+-- hier ausgeschrieben. Ändert sich die Liste, ändert sich auch diese Zeile;
+-- supabase/setup_bauen.sh bricht ab, wenn sie fehlt.
+-- verdichter: baut erg_gewichte erg_kaliber erg_gebinde erg_ausgang
+-- verdichter: baut erg_lieferung erg_kohorte erg_punkte erg_modell erg_kurve
+-- verdichter: baut erg_selektion erg_koeff_verdunstung erg_koeff_ausschuss
+-- verdichter: baut erg_koeff_nebenkanal erg_koeff_ueberfuellung erg_wiegung
+-- verdichter: baut erg_fax erg_ausschuss erg_verarbeitung_alter erg_durchsatz
+-- verdichter: baut erg_bilanz erg_marge erg_massenbilanz erg_naechste_charge
+-- verdichter: baut erg_datenlage erg_plausibilitaet erg_datenqualitaet
 do $$
 declare
   paar text[];
