@@ -232,12 +232,12 @@ export async function laufen(umgebung) {
         + 'stammt daher, dass dieses Werkzeug beim Aufruf selbst darauf hereinfiel — die '
         + 'Laufzeit war das Einzige, was nicht passte.',
       beleg: 'werkstatt/phase0/p0_stumpfheit.mjs; nachgemessen: `node pruefstand/bildschirme.mjs '
-        + '"postgresql://…"` → 1.2 s und „keine Konsolenfehler", ohne Argument über 270 s; die '
+        + '"postgresql://…"` → 1.2 s und „keine Konsolenfehler", ohne Argument über 315 s und dann abgebrochen, weil er noch lief; die '
         + 'Zahl der Bildschirme wird aus dem Quelltext des Prüfstands selbst gezählt',
       groesse: { wert: BILDSCHIRME_GESAMT,
                  einheit: 'Bildschirmaufnahmen, die stillschweigend ausfallen '
                         + `(${BILDSCHIRME_ANZAHL} Bildschirme × 2 Geräte × 2 Themen)`,
-                 basis: 'gemessen an der Laufzeit: 1.2 s mit Argument, über 270 s ohne' },
+                 basis: 'gemessen an der Laufzeit: 1.2 s mit Argument, über 315 s ohne, und da war er noch nicht fertig' },
       gegenrede: 'Wer die Anleitung liest, gibt kein Argument mit, und dann stimmt alles. Der '
         + 'Filter selbst ist nützlich — beim Entwickeln will man einen einzelnen Bildschirm '
         + 'ansehen. Es geht nicht um den Filter, sondern darum, dass sein Danebengreifen wie '
