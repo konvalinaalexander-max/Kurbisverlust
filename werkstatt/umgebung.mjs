@@ -42,6 +42,19 @@ export {
 
 import { WURZEL, url, frage, tue, lies } from '../pruefwerk/umgebung.mjs'
 
+/**
+ * Eine Wegwerfkopie wieder loswerden.
+ *
+ * `tue()` stellt jeder Anweisung ein `set client_min_messages` voran; damit
+ * werden zwei Anweisungen daraus, `psql` fasst sie in eine Transaktion, und
+ * `drop database` darf in keiner Transaktion stehen. Deshalb hier der direkte
+ * Weg — und `if exists`, damit ein zweiter Aufruf nichts bricht.
+ */
+export function wegwerfen(name) {
+  execFileSync('psql', [url('postgres'), '-qX', '-c', `drop database if exists ${name}`],
+    { encoding: 'utf8', stdio: ['ignore', 'ignore', 'pipe'] })
+}
+
 /* ---------- Befunde und Messungen ---------------------------------------- */
 
 let laufendeNummer = new Map()
