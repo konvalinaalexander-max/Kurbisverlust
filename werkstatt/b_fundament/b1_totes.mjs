@@ -179,7 +179,12 @@ function appZugriffe() {
   const von = new Set(), rpc = new Set()
   for (const p of dateien('src')) {
     const t = lies(p)
-    for (const m of t.matchAll(/\.from\(\s*'([a-z_0-9]+)'/g)) von.add(m[1])
+    // `supabase.storage.from('eimer')` sieht aus wie ein Tabellenzugriff, ist
+    // aber ein Dateieimer. Wer ihn mitzählt, versucht später `select * from
+    // rohdaten` — und bekommt einen Fehler, der wie ein Befund aussieht und
+    // keiner ist. Der Blick nach links davor trennt die beiden.
+    for (const m of t.matchAll(/(\.storage)?\.from\(\s*'([a-z_0-9]+)'/g))
+      if (!m[1]) von.add(m[2])
     for (const m of t.matchAll(/\.rpc\(\s*'([a-z_0-9]+)'/g)) rpc.add(m[1])
   }
   return { von: [...von].sort(), rpc: [...rpc].sort() }

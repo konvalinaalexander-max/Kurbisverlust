@@ -10,6 +10,7 @@ import { ChargeFeld } from '../components/ChargeFeld'
 import { fuehrungSetzen } from '../lib/rolle'
 import type { TextId } from '../lib/i18n'
 import type { Charge, Kistensystem, Sortierschema } from '../lib/typen'
+import { heute as heuteOrtszeit } from '../lib/format'
 
 type SchrittId = 'was' | 'charge' | 'baender' | 'kaliber' | 'system' | 'pruefen'
 type Band = [number, number]
@@ -111,7 +112,7 @@ export default function NeueArbeit() {
 
   // Die Fassung, die für Sorte und Art heute gilt — ohne Käufer (0060), also
   // die Standardfassung; dieselbe Reihenfolge wie sortierschema_fuer().
-  const heute = new Date().toISOString().slice(0, 10)
+  const heute = heuteOrtszeit()
   function fassung(fuerArt: 'kaliber' | 'kiste'): Sortierschema | undefined {
     const passend = schemata.filter(x => x.sorte === sorte && x.art === fuerArt && x.gilt_ab <= heute)
     return passend.find(x => x.kaeufer === null) ?? passend[0]

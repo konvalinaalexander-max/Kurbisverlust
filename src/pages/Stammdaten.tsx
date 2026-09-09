@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { einstellung, fehlerText, stammdaten } from '../lib/db'
 import { importErkennen, type ImportBericht } from '../lib/import'
-import { STATION_NAME, datum, kg, tonnen, zahl, zeitpunkt } from '../lib/format'
+import { STATION_NAME, datum, heute as heuteOrtszeit, kg, tonnen, zahl, zeitpunkt } from '../lib/format'
 import { Hinweis, Karte, Kennzahl, Lade, Marke } from '../components/Bausteine'
 import DemoDaten from '../components/DemoDaten'
 import type { Charge, Gebinde, Kaeufer, Profil, Sortierschema } from '../lib/typen'
@@ -369,7 +369,7 @@ function Kaliber() {
   // Neue Fassung
   const [fSorte, setFSorte] = useState('')
   const [fKaeufer, setFKaeufer] = useState('')
-  const [fGiltAb, setFGiltAb] = useState(new Date().toISOString().slice(0, 10))
+  const [fGiltAb, setFGiltAb] = useState(heuteOrtszeit())
   const [fArt, setFArt] = useState<'kaliber' | 'kiste'>('kaliber')
   const [fVerlust, setFVerlust] = useState('')
   const [fBaender, setFBaender] = useState('')

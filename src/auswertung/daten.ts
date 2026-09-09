@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { fehlerText } from '../lib/db'
 import { SCHEMA_ERWARTET, datenbankVeraltet } from '../lib/version'
 import type { Datenlage, Hochrechnung, Massenbilanz } from '../lib/typen'
+import { heute as heuteOrtszeit } from '../lib/format'
 
 /* =========================================================================
    Die Auswertung für den Betriebsleiter — ein Datenstand für alle Reiter.
@@ -318,7 +319,7 @@ async function alles(erzwingen: boolean): Promise<Auswertung> {
     { was: 'Überfüllung je Kiste', n: kfu[0]?.n ?? 0, basis: 'gewogene fertige Paletten',
       wert: kfu[0]?.kg_pro_kiste == null ? '—' : `${kfu[0].kg_pro_kiste.toFixed(3)} kg` },
   ]
-  const heute = sb?.heute ?? hb[0]?.heute ?? new Date().toISOString().slice(0, 10)
+  const heute = sb?.heute ?? hb[0]?.heute ?? heuteOrtszeit()
   return {
     stand: st2?.berechnet_ts ?? null, heute,
     bilanz: b, lage: d, befunde: pl, kaliber: kv, kurve: sk, koeff,

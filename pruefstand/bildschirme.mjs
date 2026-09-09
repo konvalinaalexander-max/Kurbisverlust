@@ -24,6 +24,13 @@ import { CHROMIUM, authAntwort, fehlendeFixtures, fixture, restAntwort, vergesse
 const HIER = dirname(fileURLToPath(import.meta.url))
 const BILDER = join(HIER, 'bilder')
 const NUR = process.argv[2] ?? ''
+// Das erste Argument ist hier ein **Namensfilter**, während jeder andere
+// Prüfstand des Projekts an dieser Stelle die Datenbank-URL nimmt. Wer sie aus
+// Gewohnheit mitgibt, filtert auf einen Namen, den kein Bildschirm trägt — und
+// die Schleife unten übersprang dann klaglos jede einzelne Aufnahme, während
+// der Schlusssatz „keine Konsolenfehler" meldete. Gemessen in Runde M: 1.2
+// Sekunden statt über fünf Minuten. Ein Filter, der auf nichts passt, ist
+// deshalb ein Fehler des Aufrufers und kein leerer Lauf.
 // Sprache der Arbeiter-Oberfläche. Ungarisch und Portugiesisch haben die
 // längsten Wörter — was dort in den Rahmen passt, passt überall.
 //   SPRACHE=hu node pruefstand/bildschirme.mjs auftrag
@@ -175,6 +182,12 @@ const GERAETE = [
 ]
 const THEMEN = ['light', 'dark']
 
+if (NUR && !BILDSCHIRME.some(s => s.name.includes(NUR))) {
+  console.error(`Kein Bildschirm heisst wie "${NUR}". Das erste Argument ist ein Namensfilter, `
+              + `keine Datenbank-URL.\nVorhanden: ${[...new Set(BILDSCHIRME.map(s => s.name))].join(', ')}`)
+  process.exit(1)
+}
+
 /* ---------- Ablauf -------------------------------------------------------- */
 const vite = await createServer({
   root: join(HIER, '..'),
@@ -217,6 +230,7 @@ const browser = await chromium.launch({
   executablePath: CHROMIUM,
 })
 let fehler = 0
+let aufnahmen = 0
 
 for (const geraet of GERAETE) {
   for (const thema of THEMEN) {
@@ -279,6 +293,7 @@ for (const geraet of GERAETE) {
 
       const datei = join(BILDER, `${schirm.name}--${geraet.name}-${thema}${SPRACHE === 'de' ? '' : `-${SPRACHE}`}.png`)
       await seite.screenshot({ path: datei, fullPage: true })
+      aufnahmen++
 
       // Wagerechtes Überlaufen der ganzen Seite ist immer ein Fehler.
       const ueberlauf = await seite.evaluate(() =>
@@ -295,5 +310,9 @@ for (const geraet of GERAETE) {
 await browser.close()
 await vite.close()
 for (const t of fehlendeFixtures) console.warn(`  ! kein Fixture für ${t} — leere Antwort`)
-console.log(`Fertig: Screenshots in ${BILDER}${fehler ? ` — ${fehler} Seiten mit Konsolenfehlern` : ', keine Konsolenfehler'}`)
-process.exit(0)
+console.log(`Fertig: ${aufnahmen} Aufnahmen in ${BILDER}`
+          + `${fehler ? ` — ${fehler} Seiten mit Konsolenfehlern oder Überlauf` : ', keine Konsolenfehler'}`)
+// Ohne diese Zeile konnte der Prüfstand nichts melden: Er schrieb „✗" auf den
+// Bildschirm und endete trotzdem mit null, ging also in jeder Kette der Form
+// `run.sh && kette && bildschirme` stillschweigend durch.
+process.exit(fehler || aufnahmen === 0 ? 1 : 0)

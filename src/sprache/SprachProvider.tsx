@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
 import { GEBIETSSCHEMA, SPRACHEN, uebersetze, type Sprache, type TextId } from '../lib/i18n'
+import { heute as heuteOrtszeit } from '../lib/format'
 
 const SCHLUESSEL = 'sprache'
 const TAG_SCHLUESSEL = 'sprache_tag'
@@ -19,7 +20,7 @@ const Kontext = createContext<SprachWert>({
   setSprache: () => {}, abfrageOffen: false, abfrageOeffnen: () => {},
 })
 
-const heute = () => new Date().toISOString().slice(0, 10)
+const heute = heuteOrtszeit
 
 function lesen(schluessel: string): string | null {
   try { return localStorage.getItem(schluessel) } catch { return null }

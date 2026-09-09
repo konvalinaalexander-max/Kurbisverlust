@@ -22,6 +22,37 @@ export function prozent(anteil: number | null | undefined, stellen = 1): string 
   return `${(anteil * 100).toLocaleString(ORT, { minimumFractionDigits: stellen, maximumFractionDigits: stellen })} %`
 }
 
+/**
+ * Der heutige Kalendertag, wie ihn der Arbeiter in der Halle sieht.
+ *
+ * `new Date().toISOString().slice(0, 10)` wäre der Tag **in UTC**, nicht der
+ * Tag des Arbeiters. Zwischen Mitternacht und zwei Uhr Ortszeit (Schweiz ist
+ * UTC+1, im Sommer UTC+2) liegt der UTC-Tag noch auf gestern — die Maske böte
+ * dann **gestern** als Vorgabe an, und wer sie übernimmt, datiert die Palette
+ * um einen Tag zurück. Aus dem Tag wird eine Lagerdauer, aus der Lagerdauer
+ * eine Verdunstungsrate; bei der kürzesten Lagerung der Demosaison (acht Tage)
+ * verschiebt ein Tag sie um mehr als ein Achtel.
+ *
+ * Deshalb: lokale Mitternacht, und die Zahlen von Hand zusammensetzen.
+ * `toISOString()` darf hier nicht vorkommen, denn es rechnet immer nach UTC um.
+ */
+export function heute(): string {
+  return tagVon(new Date())
+}
+
+/**
+ * Der Kalendertag eines Zeitpunkts in der Zone des Betrachters.
+ *
+ * Eigene Funktion, damit sie prüfbar ist: `heute()` hängt an der Uhr und lässt
+ * sich nicht festhalten, `tagVon()` schon. Der Test in `test/format.test.ts`
+ * setzt `TZ=Europe/Zurich` und gibt einen Zeitpunkt vor, an dem der Schweizer
+ * und der UTC-Kalendertag auseinanderfallen.
+ */
+export function tagVon(d: Date): string {
+  const zwei = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${zwei(d.getMonth() + 1)}-${zwei(d.getDate())}`
+}
+
 export function datum(wert: string | Date | null | undefined): string {
   if (!wert) return '—'
   const d = typeof wert === 'string' ? new Date(wert) : wert

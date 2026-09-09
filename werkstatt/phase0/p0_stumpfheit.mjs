@@ -204,9 +204,13 @@ export async function laufen(umgebung) {
   const schirm = lies('pruefstand/bildschirme.mjs')
   const block = schirm.slice(schirm.indexOf('const BILDSCHIRME = ['),
                              schirm.indexOf('\n]', schirm.indexOf('const BILDSCHIRME = [')))
-  const BILDSCHIRME_ANZAHL = (block.match(/\bname:/g) ?? []).length
-  const GERAETE_ANZAHL = ((schirm.slice(schirm.indexOf('const GERAETE ='))
-    .slice(0, 300).match(/\bname:/g)) ?? []).length
+  // Nur die Einträge der Liste selbst zählen. `name:` steht auch in den
+  // Klickwegen (`getByRole('button', { name: … })`); wer die mitzählt, kommt
+  // auf 64 statt 43 und schreibt eine falsche Zahl in den Bericht.
+  const BILDSCHIRME_ANZAHL = (block.match(/^\s{2}\{\s*name:/gm) ?? []).length
+  const geraeteBlock = schirm.slice(schirm.indexOf('const GERAETE ='))
+  const GERAETE_ANZAHL = (geraeteBlock.slice(0, geraeteBlock.indexOf(']'))
+    .match(/\bname:/g) ?? []).length
   const BILDSCHIRME_GESAMT = BILDSCHIRME_ANZAHL * GERAETE_ANZAHL * 2
   if (/const NUR = process\.argv\[2\]/.test(schirm)
     && /if \(NUR && !schirm\.name\.includes\(NUR\)\) continue/.test(schirm)) {

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { fehlerText } from '../lib/db'
-import { datum as datumText, kg as kgText, zahl } from '../lib/format'
+import { datum as datumText, heute as heuteOrtszeit, kg as kgText, zahl } from '../lib/format'
 import { Hinweis, Karte, Kennzahl, Lade } from '../components/Bausteine'
 import AusgangImport from '../betrieb/AusgangImport'
 
@@ -22,7 +22,7 @@ interface Zeile {
 }
 interface Ziel { code: string; name: string; buch: string; reihenfolge: number }
 
-const heute = () => new Date().toISOString().slice(0, 10)
+const heute = heuteOrtszeit
 
 export default function Lieferungen() {
   const [zeilen, setZeilen] = useState<Zeile[]>([])
