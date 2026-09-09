@@ -2688,3 +2688,105 @@ einzeln in den Migrationen, baut jedes Mal ein ganzes Schema neu, spielt die
 echten Demodaten ein und fragt, ob irgendein Test anschlägt. Was dabei
 übersteht, ist die Lücke im Netz — und steht als Befund im Bericht, nicht als
 gute Nachricht.
+
+## Runde M — die Werkstätten, und der Tag des Arbeiters (9. September, 0067)
+
+Runde L hat gefragt: *bedeutet diese Zahl, was dasteht?* Runde M fragt vier
+andere Fragen, und für jede gibt es eine Werkstatt in `werkstatt/`:
+
+| | Die Frage |
+|---|---|
+| **A — Rechenwerk** | Ist das der richtige Schätzer, und ist er ehrlich über sich selbst? |
+| **B — Fundament** | Ist die Datenbank unter der Fachlogik gesund? |
+| **C — Bauwerk** | Ist der Code so gebaut, wie ein Programm dieser Grösse gebaut sein sollte? |
+| **D — Nutzen** | Löst dieses Programm die Probleme des Betriebs? |
+
+Zwei Regeln gelten für jedes Werkzeug dort, und beide stammen aus einem Fehler
+der letzten Runde:
+
+**Keine Feststellung ohne Grösse.** `befund()` wirft, wenn die Zahl fehlt. Eine
+Liste von Meinungen nimmt niemand ernst, und „ausserhalb des Umfangs" darf man
+erst sagen, nachdem man beziffert hat, wovon man spricht.
+
+**Keine Feststellung ohne Gegenrede.** Ebenfalls Pflicht: das beste Argument
+*gegen* den eigenen Befund, aufgeschrieben von dem, der ihn macht.
+
+**Und jedes Werkzeug hat eine Selbstprobe** — einen eingebauten Fehler, den es
+finden *muss*. In Runde L ist die Mutationssonde unbemerkt blind geworden: Neun
+ihrer dreizehn Mutationen zeigten auf Formeln, die zwei Migrationen später
+anders hiessen. Sie änderte nichts mehr und meldete „keine überlebende
+Mutation" — das sah wie ein gutes Ergebnis aus und war das Gegenteil. Der
+Läufer `werkstatt/lauf.mjs` geht mit Rückgabewert 2, wenn auch nur ein Werkzeug
+seine Selbstprobe nicht besteht oder keine hat.
+
+### Die Zeitzone: `betriebstag()` statt `::date`
+
+Das Programm rechnet mit Lagertagen. Ein Lagertag ist die Differenz aus einem
+**Kalendertag** (`eingangsdatum`, vom Zettel abgetippt, Ortszeit) und einem
+**Zeitpunkt** (`wiege_ts`, von der Datenbank gesetzt, ohne Ort). Aus dem
+Zeitpunkt wurde mit `::date` wieder ein Kalendertag — in der Zeitzone der
+Sitzung. Die Datenbank läuft auf UTC, der Betrieb steht in der Schweiz.
+
+Entschieden: **Jede Stelle sagt ausdrücklich, welchen Kalendertag sie meint.**
+`betriebstag(wiege_ts)` statt `wiege_ts::date`, und die Zone steht als
+Einstellung `zeitzone` in der Datenbank (Rückfall `Europe/Zurich`).
+
+Nicht entschieden wurde `alter database … set timezone`. Das verlegt dieselbe
+stille Annahme nur an eine andere Stelle, und auf Supabase steht sie nicht in
+der Hand dieses Projekts.
+
+Dieselbe Korrektur in der Oberfläche: An fünf Stellen entstand „heute" als
+`new Date().toISOString().slice(0, 10)` — der Tag in UTC. Zwischen Mitternacht
+und zwei Uhr Ortszeit bot die Maske dem Arbeiter **gestern** als Vorgabe an.
+Jetzt gibt es eine Funktion `heute()` in `lib/format.ts`; fünf gleiche
+Ausdrücke werden zu einem.
+
+Gemessen (`werkstatt/b_fundament/b5_zeit.mjs`, Demosaison): Saisonverlust
+52 119.38 → 52 099.70 kg, ein verschobener Lagertag, 19.68 kg. Klein — aber
+einseitig, und auf der Rate einer einzelnen Wägung bis zu 14.4 % bei der
+kürzesten Lagerung.
+
+Beim Bauen der Migration hat sich der Fall von selbst gestellt: Um 22:03 UTC
+sagte dieselbe Datenbank `current_date → 2026-09-09` und
+`betriebstag(now()) → 2026-09-10`. Zwei Zwischenstände, eine Stunde
+auseinander gerechnet, unterschieden sich um einen ganzen Lagertag je Charge.
+In der Sommerzeit dauert dieses Fenster zwei Stunden — jede Nacht.
+
+**Was bewusst liegen bleibt, mit Zahl:** `mv_auftrag_masse` enthält dieselbe
+Verwechslung, ist aber eine gespeicherte Sicht — sie lässt sich nur neu bauen,
+und `drop materialized view … cascade` nimmt **51 Objekte** mit. Nachgemessen,
+bevor das als „später" abgetan wird: 5 von 309 Arbeiten haben einen
+Startzeitpunkt, dessen UTC-Tag und Schweizer Tag auseinanderfallen; die Sicht
+in der Betriebszone neu gefüllt und alles nachgerechnet ergibt auf der
+Demosaison **dieselben vier Zahlen bis auf den Rappen**. Der Umbau bewegt heute
+nichts und bleibt deshalb liegen.
+
+### Zwei Zusagen der Datenbank eingelöst
+
+Vier Prüfbedingungen standen seit ihrer Einführung mit `NOT VALID` im Schema:
+Postgres wendet sie auf neue Zeilen an, hat aber nie nachgesehen, ob die
+vorhandenen sie erfüllen, und darf sie beim Planen nicht voraussetzen.
+Nachgerechnet: null Verstösse bei allen vieren. Jetzt bestätigt.
+
+Fünf Indexe beantworten nur Fragen, die ein anderer Index auch beantwortet —
+ihre Schlüsselspalten sind das Präfix eines anderen. Zusammen 120 kB, bei jedem
+Schreibvorgang mitgepflegt. Gestrichen.
+
+### Der Bildschirm-Prüfstand konnte nicht scheitern
+
+`pruefstand/bildschirme.mjs` kannte im ganzen Quelltext nur `process.exit(0)`.
+Er zählte Konsolenfehler und wagerechtes Überlaufen, schrieb sie als
+„✗"-Zeilen — und endete mit null. In einer Kette wie
+`run.sh && kette && bildschirme` ging er stillschweigend durch. Ausgerechnet
+der einzige Prüfstand, der die Oberfläche wirklich ansieht.
+
+Schlimmer noch: Sein erstes Argument ist ein **Namensfilter**, während jeder
+andere Prüfstand dort die Datenbank-URL nimmt. Wer sie aus Gewohnheit mitgab,
+filterte auf einen Namen, den kein Bildschirm trägt — die Schleife übersprang
+alle 172 Aufnahmen, es entstand kein Bild, und der Schlusssatz lautete
+trotzdem „Fertig … keine Konsolenfehler". Gemessen: 1.2 Sekunden mit Argument,
+über 315 Sekunden ohne.
+
+Jetzt zählt er die Aufnahmen, nennt sie im Schlusssatz, weist ein Argument
+zurück, auf das kein Bildschirm passt, und endet mit eins, wenn etwas
+fehlschlug oder nichts entstand.

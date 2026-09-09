@@ -1779,12 +1779,21 @@ begin
   assert coalesce(v, 0) = coalesce(v2, 0), format('Gewichtsverteilung %s ≠ Histogramm %s', v, v2);
 
   -- Alter der verarbeiteten Ware: zwei Paletten, 10 und 20 Tage alt → 15
+  --
+  -- Die Palettendaten hängen an `heute()` und nicht an `current_date`. Der
+  -- Auftrag startet mit `now()`, und die Sicht macht daraus seit 0067 den
+  -- **Betriebstag**; `current_date` wäre der Tag in UTC. Zwischen 22:00 und
+  -- Mitternacht UTC — also 00:00 bis 02:00 in der Schweiz — fallen die beiden
+  -- auseinander, und dann kamen hier 16 statt 15 heraus. Das war kein Fehler
+  -- der Sicht, sondern derselbe Fehler, den 0067 behebt, im Prüffall selbst:
+  -- Er mischte zwei Kalender. Mit `heute()` auf beiden Seiten steht das
+  -- Ergebnis zu jeder Tageszeit und in jeder Zone.
   select nr into v_charge from charge order by nr limit 1;
   insert into auftrag (weg, station, charge_nr, start_ts, eroeffnet_von)
     values ('maschine', 'sortieren', v_charge, now(), '11111111-1111-1111-1111-111111111111')
     returning id into v_a;
   insert into auftrag_palette (auftrag_id, eingangsdatum)
-    values (v_a, current_date - 10), (v_a, current_date - 20);
+    values (v_a, heute() - 10), (v_a, heute() - 20);
   select alter_verarbeitet into v from v_verarbeitung_alter where auftrag_id = v_a;
   assert v = 15.0, format('Alter der verarbeiteten Ware erwartet 15, ist %s', v);
   select alter_charge into v2 from v_verarbeitung_alter where auftrag_id = v_a;
@@ -3586,3 +3595,54 @@ begin
 end $$;
 
 select '——— Mutationsschutz geprüft ———' as ergebnis;
+
+-- =====================================================================
+-- 0067 — Der Tag des Arbeiters
+-- =====================================================================
+-- Drei Zusicherungen:
+--   a) `betriebstag()` nimmt den Kalendertag der Betriebszone, nicht den von
+--      UTC. Der Fall wird ausdrücklich gestellt: ein Zeitpunkt, an dem die
+--      beiden auseinanderfallen.
+--   b) Keine Sicht macht mehr auf eigene Faust aus einem Zeitstempel einen
+--      Kalendertag. Das ist die Zusicherung, die verhindert, dass die
+--      Verwechslung mit der nächsten Sicht zurückkommt — eine Reparatur, die
+--      nur den heutigen Bestand trifft, hält keine zwei Migrationen.
+--   c) Die vier Prüfbedingungen sind bestätigt und nicht mehr bloss
+--      versprochen.
+do $$
+declare v_utc date; v_zuerich date; v_offen text; v_unbestaetigt text;
+begin
+  assert schema_stand() >= 67, format('mindestens Stand 67 erwartet, ist %s', schema_stand());
+
+  -- (a) 15. Juli 2026, 22:30 UTC. In UTC ist das der 15., in Zürich (Sommer,
+  --     UTC+2) bereits der 16. Genau in dieser Stunde entschied sich vorher,
+  --     welchen Lagertag eine Wägung bekommt.
+  v_utc     := ('2026-07-15 22:30+00'::timestamptz at time zone 'UTC')::date;
+  v_zuerich := betriebstag('2026-07-15 22:30+00'::timestamptz);
+  assert v_utc = date '2026-07-15',
+    format('Gegenprobe misslungen: in UTC sollte es der 15. sein, ist %s', v_utc);
+  assert v_zuerich = date '2026-07-16',
+    format('betriebstag() nimmt nicht die Betriebszone: %s statt 2026-07-16 (Zone: %s)',
+           v_zuerich, betriebszone());
+
+  -- (b) Keine Sicht giesst mehr selbst.
+  select string_agg(c.relname, ', ') into v_offen
+    from pg_class c join pg_namespace n on n.oid = c.relnamespace
+   where n.nspname = 'public' and c.relkind = 'v'
+     and pg_get_viewdef(c.oid, true) ~ '[a-z_][a-z0-9_]*(_ts|_zeit)\s*::\s*date';
+  assert v_offen is null,
+    format('Diese Sichten machen wieder in UTC aus einem Zeitpunkt einen Tag: %s', v_offen);
+
+  -- (c) Die vier Zusagen gelten.
+  select string_agg(conname, ', ') into v_unbestaetigt
+    from pg_constraint
+   where connamespace = 'public'::regnamespace and contype = 'c' and not convalidated
+     and conname in ('auftrag_fax_nur_waschen', 'auftrag_kaliber_nur_waschen',
+                     'auftrag_palette_datum_pflicht', 'lieferung_hat_menge');
+  assert v_unbestaetigt is null,
+    format('Diese Prüfbedingungen sind weiterhin unbestätigt: %s', v_unbestaetigt);
+
+  raise notice 'OK  Der Tag des Arbeiters (Betriebszone, keine Sicht giesst selbst, vier Zusagen bestätigt)';
+end $$;
+
+select '——— Der Tag des Arbeiters geprüft ———' as ergebnis;

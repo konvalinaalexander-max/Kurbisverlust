@@ -92,11 +92,17 @@ const FAELLE = [
     name: 'kette.mjs',
     pfad: 'pruefstand/kette.mjs',
     was: 'eine Kaskadenformel, die ein anderes Ergebnis liefert',
+    // Fünf Prozent auf jede gerundete Zahl der Auswertung. `zahl()` steht in
+    // fast jeder Sicht; wer diese Mutation nicht bemerkt, bemerkt gar nichts.
+    // Die Parameternamen müssen die der vorhandenen Funktion sein — Postgres
+    // lässt sie in `create or replace` nicht umbenennen, und ein Werkzeug, das
+    // daran scheitert, hat nichts geprüft.
     legen: (db) => tue(db, `
-      create or replace function zahl(x numeric, stellen integer default 2,
-                                      grenze numeric default null)
-        returns numeric language sql immutable as $$
-        select case when x is null then null else round(x * 1.05, stellen) end $$`),
+      create or replace function zahl(p_wert numeric, p_stellen integer default 2,
+                                      p_grenze numeric default 100000000000)
+        returns numeric language sql immutable parallel safe set search_path = public as $$
+        select case when p_wert is not null and abs(p_wert) < p_grenze
+                    then round(p_wert * 1.05, p_stellen) end $$`),
     laufen: (db) => execFileSync('node', [join(WURZEL, 'pruefstand/kette.mjs'), url(db)],
       { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: 300000, cwd: WURZEL }),
   },
