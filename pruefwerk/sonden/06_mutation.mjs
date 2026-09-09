@@ -6,29 +6,37 @@
  * verstellt, prüft nicht die Formel — sie prüft, dass das Programm läuft.
  *
  * Vorgehen: In den Migrationen wird genau eine Stelle verstellt — jede
- * Verstellung ein Fehler, den ein Mensch wirklich machen könnte. Dann wird das
- * Schema damit neu gebaut und die vorhandene Prüfung (`supabase/test/pruefung.sql`)
- * darauf losgelassen, dazu die Invarianten aus `invarianten.mjs`.
+ * Verstellung ein Fehler, den ein Mensch wirklich machen könnte. Das Schema
+ * wird damit neu gebaut, die **echten Demodaten** werden eingespielt (auf einer
+ * Saison ohne Messungen sind die meisten Verstellungen wirkungslos, weil alle
+ * Koeffizienten 0 sind — dort fände man nichts und hielte das für ein gutes
+ * Zeichen), neu gerechnet, und dann wird gefragt:
  *
- *   Die Prüfung schlägt an  →  gut, die Stelle ist abgesichert.
- *   Die Prüfung bleibt grün →  **überlebt**: An dieser Stelle könnte man den
- *                              Faktor vertauschen, und niemand merkte es.
+ *   Ändert sich überhaupt eine Zahl?   Nein → **ohne Wirkung** auf diesen Daten.
+ *   Schlägt `pruefung.sql` an?         Ja   → gut, die Stelle ist abgesichert.
+ *   Schlägt eine Invariante an?        Ja   → ebenfalls gefangen.
+ *   Nichts von beidem?                 →      **überlebt**: Man könnte den
+ *                                             Faktor vertauschen, die Zahlen
+ *                                             wären andere, und niemand merkte es.
  *
  * Ein Überlebender ist kein Fehler im Programm. Er ist eine Lücke im Netz —
  * und die Stelle, an der ein künftiger Fehler unbemerkt hineinkäme.
+ *
+ * Die Invariante „Unwissen" zählt hier ausdrücklich **nicht** als Fang: Sie
+ * meldet, dass Koeffizienten fehlen, und das tut sie unabhängig von jeder
+ * Verstellung. Wer sie mitzählt, bekommt zwölf von zwölf gefangen und lernt
+ * nichts.
  */
 import { execFileSync } from 'node:child_process'
 import { mkdtempSync, readFileSync, readdirSync, writeFileSync, cpSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { WURZEL, befund, datenbank, tue, url } from '../umgebung.mjs'
+import { WURZEL, befund, datenbank, frage, tue, url, wert } from '../umgebung.mjs'
 import * as inv from '../invarianten.mjs'
-import { CHARGE, CHEF, SORTE } from '../saison.mjs'
 
 export const lang = true
 
 const K62 = 'supabase/migrations/0062_jede_zahl_sagt_was_sie_ist.sql'
-const K61 = 'supabase/migrations/0061_bis_heute_und_gespeichert.sql'
 
 /**
  * Die Verstellungen. Jede ist ein Fehler, den man beim Schreiben oder beim
@@ -56,12 +64,17 @@ export const MUTATIONEN = [
     neu: '(a.eingang_kohorte_kg - COALESCE(x.m0, (0)::numeric)) AS m0' },
   { id: 'ableitung-vorzeichen', datei: K62, was: 'Das Vorzeichen der Ableitung ∂m1/∂r gedreht',
     alt: '(((- t.m0) * t.alter_tage) * power', neu: '(((+ t.m0) * t.alter_tage) * power' },
-  { id: 'fax-doppelt', datei: K61, was: 'Das Fax-Faule der liegenden Ware zählt als Verlust bis heute',
+  { id: 'fax-doppelt', datei: K62, was: 'Das Fax-Faule der liegenden Ware zählt als Verlust bis heute',
     alt: "sum(fax_kg) filter (where portion = 'ausgelagert')", neu: 'sum(fax_kg)' },
-  { id: 'bekannt-zu-grosszuegig', datei: K61, was: '„Verlust bekannt" schon, wenn *ein* Koeffizient gemessen ist',
-    alt: 'bool_and(r_bekannt and f_bekannt)', neu: 'bool_or(r_bekannt or f_bekannt)' },
-  { id: 'kanal-im-haus-alles', datei: K61, was: 'Der Kanal der ausgelieferten Ware zählt als „noch im Haus"',
-    alt: "sum(klein_kg + nebenkanal_kg) filter (where portion = 'lager')", neu: 'sum(klein_kg + nebenkanal_kg)' },
+  { id: 'bekannt-zu-grosszuegig', datei: K62, was: '„Verlust bekannt" schon, wenn *ein* Koeffizient gemessen ist',
+    alt: 'bool_and(r_bekannt and f_bekannt and a0_bekannt and a_fax_bekannt',
+    neu: 'bool_or(r_bekannt or f_bekannt or a0_bekannt or a_fax_bekannt' },
+  { id: 'kanal-im-haus-alles', datei: K62, was: 'Der Kanal der ausgelieferten Ware zählt als „noch im Haus"',
+    alt: "sum(klein_kg + nebenkanal_kg) filter (where portion = 'lager')       as kanal_im_haus_kg",
+    neu: 'sum(klein_kg + nebenkanal_kg)                                        as kanal_im_haus_kg' },
+  { id: 'im-haus-alles', datei: K62, was: 'Auch die ausgelieferte Ware zählt als „noch im Haus"',
+    alt: "sum(m2) filter (where portion = 'lager')                             as im_haus_heute_kg",
+    neu: 'sum(m2)                                                              as im_haus_heute_kg' },
 ]
 
 /* ---------- Ein Schema aus (womöglich verstellten) Migrationen ------------ */
@@ -71,9 +84,16 @@ function bauen(db, mutation) {
   const verz = mkdtempSync(join(tmpdir(), 'pw-mut-'))
   cpSync(join(WURZEL, 'supabase/migrations'), join(verz, 'migrations'), { recursive: true })
   if (mutation) {
-    const ziel = join(verz, 'migrations', mutation.datei.split('/').pop())
+    const name = mutation.datei.split('/').pop()
+    const ziel = join(verz, 'migrations', name)
     const text = readFileSync(ziel, 'utf8')
     if (!text.includes(mutation.alt)) { rmSync(verz, { recursive: true, force: true }); return 'Stelle nicht gefunden' }
+    // Eine Verstellung in einer Migration, die eine spätere ohnehin ersetzt,
+    // wirkt nie — und sähe dann wie „gut abgesichert" aus. Das ist der
+    // gefährlichste Irrtum, den diese Sonde machen kann.
+    const spaeter = readdirSync(join(verz, 'migrations')).filter(f => f.endsWith('.sql') && f > name)
+      .find(f => readFileSync(join(verz, 'migrations', f), 'utf8').includes(mutation.alt))
+    if (spaeter) { rmSync(verz, { recursive: true, force: true }); return `Stelle wird von ${spaeter} überschrieben` }
     writeFileSync(ziel, text.replace(mutation.alt, mutation.neu))
   }
   try {
@@ -107,34 +127,79 @@ function pruefungLaeuft(db) {
       { encoding: 'utf8', stdio: ['ignore', 'ignore', 'pipe'], maxBuffer: 64 * 1024 * 1024 })
     return null
   } catch (e) {
+    // psql schreibt viele NOTICE-Zeilen; die echte Meldung ist die mit ERROR.
     const t = String(e.stderr ?? '')
-    return t.split('\n').find(z => /ERROR|FEHLER|assert/i.test(z))?.slice(0, 160) ?? 'Prüfung schlägt an'
+    const zeilen = t.split('\n').filter(z => /\bERROR\b/.test(z))
+    return (zeilen[zeilen.length - 1] ?? t.split('\n').filter(Boolean).pop() ?? 'Prüfung schlägt an').slice(0, 200)
   }
 }
 
-/** Eine kleine Saison mit Lieferung — sonst rechnet die Kaskade an nichts. */
-function saison(db) {
-  tue(db, `
-    insert into auth.users (id, email, raw_user_meta_data) values
-      ('${CHEF}', 'chef@hof.test', '{"name":"Chef"}') on conflict do nothing;
-    update profil set rolle = 'admin', aktiv = true;
-    insert into einstellung (schluessel, wert) values
-      ('heute_test', to_jsonb('2026-09-01'::text)), ('saison_ende', to_jsonb('2027-03-31'::text))
-      on conflict (schluessel) do update set wert = excluded.wert;
-    insert into sorte_kaliber (sorte, verlust_unter, kaliber_baender, kanal_ab)
-      values ('${SORTE}', 300, '[[300,800],[800,2000]]'::jsonb, 2000) on conflict do nothing;
-    insert into gebinde (art, tara_kg_pro_kiste, tara_kg_palette) values ('P', 1.0, 20.0)
-      on conflict (art) do update set tara_kg_pro_kiste = 1.0;
-    insert into charge (nr, schlag, sorte, saison) values (${CHARGE}, 'Prüfschlag', '${SORTE}', 2026)
-      on conflict do nothing;
-    insert into palette (charge_nr, eingangsdatum, brutto_kg, kisten, gebindeart, quelle) values
-      (${CHARGE}, '2026-06-01', 1000, 30, 'P', 'test'),
-      (${CHARGE}, '2026-06-15', 1000, 30, 'P', 'test'),
-      (${CHARGE}, '2026-07-01', 1000, 30, 'P', 'test');
-    insert into lieferung (datum, charge_nr, sorte, kg, ziel, erfasser) values
-      ('2026-08-01', ${CHARGE}, '${SORTE}', 500, 'verkauf', '${CHEF}'),
-      ('2026-08-15', ${CHARGE}, '${SORTE}', 300, 'tierfutter', '${CHEF}');
-    select auswertung_aktualisieren();`)
+/**
+ * Die Demodaten in ein frisch gebautes (womöglich verstelltes) Schema.
+ * Einmal gezogen, danach nur noch eingespielt — das kostet je Verstellung
+ * knapp zwei Sekunden statt einer neuen Saison.
+ */
+let ABZUG = null
+function daten(db, quelle) {
+  if (!ABZUG) {
+    ABZUG = join(mkdtempSync(join(tmpdir(), 'pw-daten-')), 'demo.sql')
+    execFileSync('pg_dump', [url(quelle), '--data-only', '--schema=public', '--schema=auth',
+      '--no-owner', '--no-privileges', '-f', ABZUG], { encoding: 'utf8' })
+  }
+  // Die Migrationen legen Stammdaten an (Sorten, Gebinde, Ausgangsziele). Der
+  // Abzug bringt dieselben mit — also erst leeren, sonst kollidieren die
+  // Schlüssel. `cascade` ist hier gefahrlos: die Datenbank ist eine Wegwerf-Kopie.
+  tue(db, `do $$
+             declare t text;
+             begin
+               for t in select format('%I.%I', schemaname, tablename) from pg_tables
+                         where schemaname in ('public', 'auth')
+               loop execute 'truncate table ' || t || ' cascade'; end loop;
+             end $$;`)
+  // `session_replication_role = replica` schaltet Auslöser und Fremdschlüssel
+  // für diese Sitzung ab — sonst legt der Auslöser auf auth.users beim
+  // Einspielen ein Profil an, das der Abzug gleich darauf noch einmal bringt.
+  execFileSync('psql', [url(db), '-qX', '-v', 'ON_ERROR_STOP=1',
+    '-c', 'set session_replication_role = replica', '-f', ABZUG],
+    { encoding: 'utf8', stdio: ['ignore', 'ignore', 'pipe'], maxBuffer: 64 * 1024 * 1024 })
+  tue(db, 'select auswertung_aktualisieren()')
+}
+
+/**
+ * Der Fingerabdruck der Ergebnisse — ändert die Verstellung überhaupt etwas?
+ *
+ * Über drei Sichten, nicht über eine: `erg_charge` trägt die Kilo, die
+ * Saisonbilanz die Grenzen (dort wirken die Ableitungen, nirgends sonst), und
+ * `mv_kaskade` die Zwischenschritte. Über `erg_charge` allein sähe eine
+ * verstellte Ableitung wie „ohne Wirkung" aus — und das wäre die falsche
+ * Entwarnung.
+ *
+ * Zahlen werden dabei **gerundet** verglichen, nicht als Text. `to_jsonb`
+ * schreibt eine Zahl mit der Nachkommastellenzahl, die aus der Rechnung fällt:
+ * `m0 * a0` und `m1 * a0` sind beide 0, stehen aber als `0.00000000` und
+ * `0.000000000000` da. Wer den Text vergleicht, hält das für eine Änderung und
+ * meldet eine Verstellung als „überlebt", die in Wahrheit gar nichts tut.
+ */
+const SICHTEN_FA = ['erg_charge', 'v_saisonbilanz', 'mv_kaskade']
+
+function fingerabdruck(db) {
+  const teile = SICHTEN_FA.map(sicht => {
+    const spalten = frage(db, `
+      select a.attname as spalte,
+             (format_type(a.atttypid, a.atttypmod) ~ '^(numeric|double|real)') as zahl
+        from pg_attribute a
+        join pg_class c on c.oid = a.attrelid
+        join pg_namespace n on n.oid = c.relnamespace
+       where n.nspname = 'public' and c.relname = '${sicht}'
+         and a.attnum > 0 and not a.attisdropped
+       order by a.attnum`)
+    const liste = spalten.map(s => s.zahl === true || s.zahl === 't'
+      ? `round("${s.spalte}"::numeric, 6)::text`
+      : `"${s.spalte}"::text`).join(', ')
+    return `select md5(coalesce(string_agg(z, chr(10) order by z), '')) as h
+              from (select array_to_string(array[${liste}], '|') as z from "${sicht}") s`
+  })
+  return wert(db, `select md5(string_agg(h, '|' order by h)) from (${teile.join(' union all ')}) alle`)
 }
 
 export async function laufen({ db, schnell }) {
@@ -143,8 +208,7 @@ export async function laufen({ db, schnell }) {
   const B = (o) => raus.push(befund({ sonde: '06_mutation', kuerzel: 'MUT', ...o }))
   const ziel = 'pw_mutation'
 
-  // Erst ohne Verstellung: Läuft die Prüfung auf einem sauberen Bau durch?
-  // Wenn nicht, sagt jeder folgende Vergleich nichts.
+  // Grundlinie: sauberer Bau, echte Daten, Prüfung muss durchlaufen.
   const fehlerBau = bauen(ziel, null)
   if (fehlerBau) {
     B({ klasse: 1, ort: { datei: 'supabase/migrations' }, titel: 'Das Schema baut nicht',
@@ -163,6 +227,22 @@ export async function laufen({ db, schnell }) {
         sicherheit: 'hoch', marke: 'Reparatur' })
     return raus
   }
+  // pruefung.sql hinterlässt eigene Daten — für den Vergleich zählt der Bau
+  // mit den Demodaten. Also noch einmal frisch, dann die Daten hinein.
+  bauen(ziel, null)
+  daten(ziel, db)
+  const F0 = fingerabdruck(ziel)
+  const roh = inv.alle(ziel).filter(v => v.regel !== 'Unwissen')
+  if (roh.length) {
+    B({ klasse: 3, ort: { sicht: roh.map(v => v.regel).join(', ') },
+        titel: 'Eine Invariante ist schon ohne Verstellung verletzt',
+        steht_da: JSON.stringify(roh).slice(0, 300),
+        muesste: 'Auf den unveränderten Demodaten halten alle Invarianten.',
+        warum: 'Sonst zeigt jede Verstellung dieselbe Verletzung, und die Sonde lernt nichts.',
+        beleg: 'pruefwerk/sonden/06_mutation.mjs',
+        groesse: { wert: roh.length, einheit: 'verletzte Regeln', basis: 'Grundlinie mit Demodaten' },
+        sicherheit: 'hoch', marke: 'Reparatur' })
+  }
 
   const ergebnis = []
   for (const m of MUTATIONEN) {
@@ -170,17 +250,38 @@ export async function laufen({ db, schnell }) {
     const fehler = bauen(ziel, m)
     if (fehler) { ergebnis.push({ ...m, stand: 'baut nicht', wie: fehler }); continue }
     const gefangen = pruefungLaeuft(ziel)
-    if (gefangen) { ergebnis.push({ ...m, stand: 'gefangen', wie: `pruefung.sql: ${gefangen}` }); continue }
-    // Die Prüfung war zufrieden. Sehen die Invarianten es?
-    saison(ziel)
-    const verletzt = inv.alle(ziel)
-    ergebnis.push(verletzt.length
-      ? { ...m, stand: 'gefangen', wie: `Invariante „${verletzt.map(v => v.regel).join(', ')}"` }
-      : { ...m, stand: 'überlebt', wie: 'weder pruefung.sql noch eine Invariante' })
+    daten(ziel, db)
+    const gleich = fingerabdruck(ziel) === F0
+    const verletzt = inv.alle(ziel).filter(v => v.regel !== 'Unwissen')
+    ergebnis.push(
+      gefangen  ? { ...m, stand: 'gefangen', wie: `pruefung.sql — ${gefangen}` }
+    : verletzt.length ? { ...m, stand: 'gefangen', wie: `Invariante „${verletzt.map(v => v.regel).join(', ')}"` }
+    : gleich    ? { ...m, stand: 'ohne Wirkung', wie: 'keine Zahl in erg_charge, v_saisonbilanz oder mv_kaskade ändert sich' }
+    :             { ...m, stand: 'überlebt', wie: 'Zahlen ändern sich, weder pruefung.sql noch eine Invariante meldet etwas' })
   }
 
   const ueberlebt = ergebnis.filter(e => e.stand === 'überlebt')
   const gefangen = ergebnis.filter(e => e.stand === 'gefangen')
+  const wirkungslos = ergebnis.filter(e => e.stand === 'ohne Wirkung')
+  if (wirkungslos.length) {
+    B({ klasse: 2, ort: { datei: 'supabase/migrations' },
+        titel: `${wirkungslos.length} Verstellungen ändern auf den Demodaten keine einzige Zahl`,
+        steht_da: wirkungslos.map(e => `„${e.was}" (${e.id})`).join('; '),
+        muesste: 'Entweder Demodaten, in denen die Stelle wirkt, oder ein eigener Papierfall, der sie '
+               + 'ansteuert. Solange keine Daten die Stelle erreichen, sagt kein Test etwas über sie — '
+               + 'und eine grüne Suite bedeutet dort nichts.',
+        warum: 'Eine Formel, die auf den Prüfdaten nichts bewirkt, ist auf den Prüfdaten unsichtbar. '
+             + 'Sie wirkt aber im Betrieb, sobald dort die passende Messung auftaucht — dann zum '
+             + 'ersten Mal, ungeprüft. Drei Beispiele aus dieser Liste: Der Sockel a₀ ist in der '
+             + 'Demosaison überall 0 (der Nachweis-Test hält ihn zurück), der Boden des verkaufsfähigen '
+             + 'Anteils bei 25 % wird nie erreicht (der kleinste Anteil liegt bei 0,671), und der '
+             + 'Deckel der Verdunstungsrate bei 5 % je Tag liegt hundertfach über der gemessenen Rate. '
+             + 'Alle drei sind Schutzmassnahmen für den Ausnahmefall — und genau der ist ungeprüft.',
+        beleg: 'pruefwerk/sonden/06_mutation.mjs',
+        groesse: { wert: wirkungslos.length, einheit: 'Verstellungen ohne Wirkung',
+                   basis: `${ergebnis.length} Verstellungen auf den Demodaten` },
+        sicherheit: 'hoch', marke: 'Reparatur', aufwand: 'mittel' })
+  }
   if (ueberlebt.length) {
     B({ klasse: 3, ort: { datei: 'supabase/test/pruefung.sql' },
         titel: `${ueberlebt.length} von ${ergebnis.length} verstellten Formeln bleiben unbemerkt`,
@@ -213,22 +314,17 @@ export async function laufen({ db, schnell }) {
 }
 
 /**
- * Selbstprobe: Eine Verstellung, die *sicher* auffallen muss — der Sockel vom
- * Eingangsgewicht statt vom Gewicht nach der Verdunstung — bricht die
- * Erhaltung der Masse. Findet der Aufbau das nicht, prüft er nichts.
+ * Selbstprobe: Eine Verstellung, die die Masse nicht mehr erhält, **muss**
+ * auffallen. Genommen wird „zu klein statt zu gross", weil beide Koeffizienten
+ * in den Demodaten von null verschieden sind — anders als der Sockel.
  */
-export async function selbstprobe() {
+export async function selbstprobe({ db = 'demo' } = {}) {
   const ziel = 'pw_mutation_probe'
-  const m = { datei: K62, alt: '(m1 * a0) AS sockel_kg', neu: '(m0 * a0) AS sockel_kg' }
-  if (bauen(ziel, m)) return false
-  saison(ziel)
-  // Bei a0 = 0 (keine Palox-Messung) ändert die Verstellung nichts — deshalb
-  // wird a0 hier von Hand gesetzt, damit die Masse wirklich auseinanderfällt.
-  const gebrochen = inv.erhaltung(ziel)
-  if (gebrochen.length) return true
-  // a0 ist 0, also greift die Verstellung nicht. Dann muss wenigstens der
-  // saubere Bau die Erhaltung halten — sonst ist die Invariante selbst kaputt.
   if (bauen(ziel, null)) return false
-  saison(ziel)
-  return inv.erhaltung(ziel).length === 0 && inv.bilanz(ziel).length === 0
+  daten(ziel, db)
+  const F0 = fingerabdruck(ziel)
+  const m = MUTATIONEN.find(x => x.id === 'klein-statt-gross')
+  if (bauen(ziel, m)) return false
+  daten(ziel, db)
+  return fingerabdruck(ziel) !== F0
 }

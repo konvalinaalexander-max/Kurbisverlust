@@ -226,12 +226,46 @@ export async function laufen() {
     }
   }
 
+  /* ---- S8: Charge vollständig ausgeliefert ------------------------------ */
+  /* Eine Palette, alles davon geliefert. Am Ende der Saison ist das der
+     Normalfall, nicht der Sonderfall — und in der Demosaison kommt er nicht
+     vor, weil überall noch etwas liegt. */
+  geruest('pw_s8')
+  paletten('pw_s8', [{ datum: '2026-06-01', brutto: 1000, kisten: 30 }])   // netto 950
+  lieferungen('pw_s8', [{ datum: '2026-08-01', kg: 950 }])                 // alles raus
+  rechne('pw_s8')
+  const b8 = bilanz('pw_s8')
+  const haus8 = Number(b8.im_haus)
+  if (haus8 > 1) {
+    B({ klasse: 3, ort: { sicht: 'v_hochrechnung_basis', spalte: 'im_haus_heute_kg, lager_kg' },
+        titel: 'Eine vollständig ausgelieferte Charge liegt angeblich noch komplett im Haus',
+        steht_da: `Eingang ${Number(b8.eingang).toFixed(0)} kg, ausgeliefert ${Number(b8.geliefert).toFixed(0)} kg, `
+                + `„noch im Haus" ${haus8.toFixed(0)} kg. Die Bilanz geht um `
+                + `${Number(b8.rest).toFixed(0)} kg nicht auf, und die Auffälligkeiten melden nichts.`,
+        muesste: '„Noch im Haus" 0 kg, Bilanzrest 0 kg.',
+        warum: 'Die Sicht rechnet `coalesce(k.im_haus_heute_kg, b.eingang_kg)` — gedacht für den Fall, '
+             + 'dass es zu einer Charge **gar keine** Kaskadenzeile gibt (dann liegt tatsächlich noch '
+             + 'alles). Sie greift aber auch, wenn es Zeilen gibt und nur die Portion „lager" fehlt — '
+             + 'und das ist genau der umgekehrte Fall: Es liegt nichts mehr. Dasselbe bei `lager_kg`. '
+             + 'Am Saisonende, wenn Charge um Charge leer wird, wird daraus die Regel: Der Bestand '
+             + 'zeigt Ware, die längst ausgeliefert ist. Die Bilanz merkt es (der Rest bleibt stehen), '
+             + 'aber der Rest steht nur unter Messungen, nicht auf dem Überblick.',
+        beleg: 'pruefwerk/sonden/07_szenarien.mjs → S8',
+        groesse: { wert: Math.round(haus8), einheit: 'kg zu viel „noch im Haus"',
+                   basis: 'eine vollständig ausgelieferte Charge von 950 kg' },
+        sicherheit: 'hoch', marke: 'Reparatur', aufwand: 'klein',
+        gegenrede: 'In der Demosaison liegt zu jeder Charge noch etwas, deshalb tritt der Fall dort nie '
+                 + 'auf. Das ist kein Gegenargument, sondern der Grund, warum er bisher niemandem '
+                 + 'aufgefallen ist: Die Demodaten bilden den Saisonanfang ab, nicht das Ende.' })
+  }
+
   /* ---- Die Invarianten auf jeden Störfall ------------------------------- */
   for (const [name, db] of [['S1 Papierfall', 'pw_s1'], ['S2 ohne Tara', 'pw_s2'],
                             ['S3 gleiches Brutto', 'pw_s3'], ['S5 Kompost', 'pw_s5'],
-                            ['S7 umgestapelt', 'pw_s7']]) {
+                            ['S7 umgestapelt', 'pw_s7'], ['S8 alles ausgeliefert', 'pw_s8']]) {
     for (const v of inv.alle(db)) {
-      if (v.regel === 'Unwissen') continue          // eigener Befund oben
+      if (v.regel === 'Unwissen') continue                                  // eigener Befund oben
+      if (v.regel === 'Bilanz' && name.startsWith('S8')) continue           // desgleichen
       B({ klasse: 3, ort: { sicht: v.regel },
           titel: `Invariante „${v.regel}" verletzt im Störfall ${name}`,
           steht_da: JSON.stringify(v.treffer).slice(0, 300),

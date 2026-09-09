@@ -178,6 +178,42 @@ export async function laufen({ db }) {
         sicherheit: 'hoch', marke: 'Reparatur' })
   }
 
+  /* 1d. Die Herkunftsmarke: „gemessen" heisst laut Überblick „aus einer
+     vollständigen Liste — jede Palette im Erntejournal, jede Lieferung auf
+     einem Lieferschein". Zwei Zahlen tragen diese Marke und enthalten
+     Bestandteile, für die sie nicht gilt. */
+  const h = frage(db, `
+    select round(vorlauf_kg)::numeric as vorlauf, round(ausgang_kg)::numeric as ausgang,
+           (select count(*) from charge_vorlauf)::int as n_vorlauf
+      from v_saisonbilanz`)[0]
+  const ueberblick = lies('src/pages/Ueberblick.tsx')
+  const marke = /titel="Ausgeliefert"[\s\S]{0,240}?art="gemessen"/.test(ueberblick)
+  if (h && Number(h.vorlauf) > 0 && marke) {
+    B({ klasse: 3, ort: { datei: 'src/pages/Ueberblick.tsx', sicht: 'v_saisonbilanz', spalte: 'ausgang_kg' },
+        titel: '„Ausgeliefert" trägt die Marke „gemessen" und enthält eine Schätzung',
+        steht_da: `ausgang_kg = ${Number(h.ausgang)} kg mit der Marke „gemessen". Davon sind `
+                + `${Number(h.vorlauf)} kg \`vorlauf_kg\` — die Angabe des Betriebs, was vor dem `
+                + `Erfassungsbeginn schon draussen war (${Number(h.n_vorlauf)} Zeile(n) in `
+                + `\`charge_vorlauf\`, mit Bemerkung, ohne Lieferschein). Das sind `
+                + `${(100 * Number(h.vorlauf) / Number(h.ausgang)).toFixed(1)} % der Zahl.`,
+        muesste: 'Entweder die Marke für diese Zahl anders wählen (gemessen + geschätzter Anteil), '
+               + 'oder den Vorlauf aus der Zahl herausnehmen und daneben stellen. Der Untertitel nennt '
+               + 'ihn bereits („… vor dem Erfassungsbeginn") — die Marke widerspricht dem Untertitel.',
+        warum: 'Die Seite erklärt die Marke selbst: „gemessen heisst: aus einer vollständigen Liste — '
+             + 'jede Palette im Erntejournal, jede Lieferung auf einem Lieferschein." Für den Vorlauf '
+             + 'gilt das nicht; er ist eine Erinnerung. Solange beides dieselbe Marke trägt, ist die '
+             + 'Marke keine Auskunft mehr, sondern Dekoration — und sie steht an vier Stellen des '
+             + 'Überblicks.',
+        beleg: 'pruefwerk/sonden/01_herkunft.mjs → 1d',
+        groesse: { wert: Number(h.vorlauf), einheit: 'kg Schätzung in einer als gemessen ausgewiesenen Zahl',
+                   basis: `${(100 * Number(h.vorlauf) / Number(h.ausgang)).toFixed(1)} % von „Ausgeliefert"` },
+        sicherheit: 'hoch', marke: 'Reparatur', aufwand: 'klein',
+        gegenrede: 'Der Untertitel nennt den Vorlauf ausdrücklich, wer genau liest, sieht ihn also. '
+                 + 'Dagegen steht: Die Marke ist die Abkürzung für Leser, die nicht genau lesen — dafür '
+                 + 'wurde sie eingeführt. Eine Abkürzung, die im Sonderfall das Gegenteil sagt, ist '
+                 + 'schlechter als keine.' })
+  }
+
   return raus
 }
 

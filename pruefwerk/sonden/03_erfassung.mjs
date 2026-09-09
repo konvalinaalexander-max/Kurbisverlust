@@ -134,6 +134,42 @@ export async function laufen({ db }) {
                  + 'die Rechnung tragen.' })
   }
 
+  /* 3c. Mehr geliefert als hereingekommen — der Erfassungsfehler, der keine
+     Auffälligkeit auslöst. Die Kaskade fängt ihn ab (`ueberzaehlung_kg`, damit
+     die Bilanz aufgeht), aber abfangen ist nicht dasselbe wie melden. */
+  const ueber = frage(db, `
+    select round(sum(ueberzaehlung_kg))::numeric as gesamt,
+           round(sum(eingang_kg))::numeric as eingang,
+           count(*) filter (where ueberzaehlung_kg > 0)::int as chargen,
+           max(round(100 * ueberzaehlung_kg / nullif(eingang_kg, 0), 1))::numeric as schlimmste,
+           (array_agg(charge_nr order by ueberzaehlung_kg desc))[1] as charge
+      from erg_charge`)[0]
+  const arten = frage(db, `select distinct art from v_plausibilitaet`).map(r => r.art)
+  if (Number(ueber?.chargen ?? 0) > 0 && !arten.some(a => /berzählung|mehr geliefert/i.test(a))) {
+    B({ klasse: 3, ort: { sicht: 'v_plausibilitaet' },
+        titel: 'Mehr geliefert als hereingekommen — und keine Auffälligkeit dazu',
+        steht_da: `${Number(ueber.chargen)} Chargen liefern zusammen ${Number(ueber.gesamt)} kg mehr aus, `
+                + `als für sie je als Eingang erfasst wurde (${Number(ueber.schlimmste)} % bei Charge `
+                + `${ueber.charge}). \`v_plausibilitaet\` kennt dafür keine Art: gemeldet werden `
+                + arten.map(a => `„${a}"`).join(', ') + '.',
+        muesste: 'Eine Auffälligkeit „Überzählung" mit der Charge, den Kilo und dem Sprung zur '
+               + 'Korrektur — wie bei „Zetteldatum" und „Lieferung in der Zukunft" auch. Der Betrieb '
+               + 'sieht Auffälligkeiten unter Messungen; nur dort sucht er nach etwas zu Korrigierendem.',
+        warum: 'Eine Charge, die mehr abgibt, als sie bekommen hat, ist kein Verlustphänomen, sondern '
+             + 'ein Erfassungsfehler: eine fehlende Palette im Erntejournal, eine Lieferung auf die '
+             + 'falsche Charge gebucht, eine vertauschte Chargennummer. Die Kaskade fängt ihn ab, damit '
+             + 'die Bilanz aufgeht — und genau deshalb fällt er niemandem auf. Er verzerrt aber jede '
+             + 'Verlustquote dieser Charge, weil ihr Nenner zu klein ist.',
+        beleg: 'pruefwerk/sonden/03_erfassung.mjs → 3c',
+        groesse: { wert: Number(ueber.gesamt), einheit: 'kg mehr geliefert als erfasst',
+                   basis: `${Number(ueber.chargen)} Chargen, ${(100 * Number(ueber.gesamt) / Number(ueber.eingang)).toFixed(2)} % des Eingangs` },
+        sicherheit: 'hoch', marke: 'Reparatur', aufwand: 'klein',
+        gegenrede: 'Die Zahl steht auf der Chargen-Seite jeder betroffenen Charge („mehr geliefert als '
+                 + 'hereingekommen") und in der Bilanz unter Messungen. Sie ist also nicht verborgen — '
+                 + 'nur nicht dort, wo der Betrieb nach Fehlern sucht, und ohne den Sprung zur '
+                 + 'Korrektur, den die anderen Auffälligkeiten haben.' })
+  }
+
   return raus
 }
 

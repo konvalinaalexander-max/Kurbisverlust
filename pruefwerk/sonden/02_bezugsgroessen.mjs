@@ -182,6 +182,7 @@ export async function laufen({ db }) {
                                from information_schema.columns
                               where table_schema = 'public' and column_name like '%\\_bekannt'
                                 and column_name <> 'koeff_bekannt'`).map(r => r.stamm).filter(Boolean)
+  const offen = new Map()          // Stamm → Liste der Fundstellen
   for (const a of alle) {
     if (!a.zaehler) continue
     const stamm = staemme.find(st => new RegExp(`\\b${st}(_|\\b)`, 'i').test(a.zaehler))
@@ -189,19 +190,26 @@ export async function laufen({ db }) {
     const text = lies(a.pfad)
     const i = text.split('\n').slice(0, a.zeile).join('\n').length
     if (/bekannt/i.test(text.slice(Math.max(0, i - 500), i + 500))) continue
-    B({ klasse: 3, ort: { datei: a.pfad, zeile: a.zeile },
-        titel: `Prozentzahl aus „${stamm}", ohne zu prüfen, ob „${stamm}" gemessen ist`,
-        steht_da: `prozent(${a.ausdruck})` + (a.beschriftung ? ` — beschriftet „${a.beschriftung}"` : ''),
+    if (!offen.has(stamm)) offen.set(stamm, [])
+    offen.get(stamm).push({ ...a, warnstreifen: /nicht gemessen|unbekannt — nicht null/i.test(text) })
+  }
+  for (const [stamm, stellen] of offen) {
+    B({ klasse: 3, ort: { datei: stellen[0].pfad, zeile: stellen[0].zeile },
+        titel: `Prozentzahl aus „${stamm}", ohne zu prüfen, ob „${stamm}" gemessen ist`
+             + (stellen.length > 1 ? ` — an ${stellen.length} Stellen` : ''),
+        steht_da: stellen.map(a => `${a.pfad}:${a.zeile} — \`prozent(${a.ausdruck})\``
+                                 + (a.beschriftung ? `, beschriftet „${a.beschriftung}"` : '')).join('; '),
         muesste: `Ist \`${stamm}_bekannt\` falsch, gehört dort „nicht gemessen" hin, nicht eine Zahl. `
                + 'Die Datenbank führt das Kennzeichen bereits mit; es wird an dieser Stelle nur nicht gelesen.',
         warum: 'Ohne eine einzige Messung ist der Strom 0 kg — und 0 kg von einem Eingang sind '
              + '0,0 %. Der Leser sieht eine gemessene Null, wo nichts gemessen wurde. Genau dieser '
              + 'Fall tritt auf jedem Betrieb in der ersten Saison ein, bevor die erste Palette gewogen ist.',
-        beleg: `${a.pfad}:${a.zeile}`,
-        groesse: { wert: 100, einheit: '% Abweichung im ungemessenen Fall', basis: 'unbekannt wird als 0,0 % gezeigt' },
+        beleg: stellen.map(a => `${a.pfad}:${a.zeile}`).join(', '),
+        groesse: { wert: stellen.length, einheit: 'Stellen, die eine ungemessene Null als Prozent zeigen',
+                   basis: `Strom „${stamm}"` },
         sicherheit: 'hoch', marke: 'Reparatur', aufwand: 'klein',
-        gegenrede: (/nicht gemessen|unbekannt — nicht null/i.test(text)
-            ? 'Die Seite zeigt unter den Zahlen einen Warnstreifen, der die ungemessenen Ursachen '
+        gegenrede: (stellen.some(a => a.warnstreifen)
+            ? 'Die Seiten zeigen unter den Zahlen einen Warnstreifen, der die ungemessenen Ursachen '
             + 'aufzählt — der Befund ist also kein Verschweigen. Er bleibt trotzdem stehen: Der '
             + 'Streifen nennt die Ursache, nicht die Folge, und die Prozentzahl darüber sieht '
             + 'unverändert nach einer Messung aus. Wer nur die grosse Zahl liest, liest eine Null. '

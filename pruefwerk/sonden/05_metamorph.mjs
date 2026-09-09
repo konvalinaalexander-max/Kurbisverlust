@@ -192,7 +192,11 @@ export async function laufen({ db }) {
              + 'die 0062 für die Marge behoben hat, nur für das dritte Buch. Solange niemand Kompost '
              + 'erfasst, ist es folgenlos; sobald doch, ist es eine stille Verschiebung.',
         beleg: 'pruefwerk/sonden/05_metamorph.mjs, Abschnitt 6',
-        groesse: { wert: Number(Number(wieviel ?? 0).toFixed(0)), einheit: 'kg entsorgt in den Demodaten', basis: 'Demodaten' },
+        groesse: Number(wieviel ?? 0) > 0
+          ? { wert: Number(Number(wieviel).toFixed(0)), einheit: 'kg, die gleichzeitig ausgeliefert und auf Lager sind',
+              basis: 'Demodaten' }
+          : { wert: 100, einheit: '% jeder entsorgten Menge zählen doppelt',
+              basis: 'in den Demodaten ist nichts entsorgt; Sonde 07 misst den Fall mit 500 kg' },
         sicherheit: Number(wieviel ?? 0) > 0 ? 'hoch' : 'mittel', marke: 'Reparatur', aufwand: 'klein',
         gegenrede: 'Vielleicht ist beabsichtigt, dass „entsorgt" nur eine Notiz ist. Dann dürfte es aber '
                  + 'auch nicht in ausgang_kg stehen — dort steht es.' })
