@@ -2348,3 +2348,99 @@ laufende Woche trägt zwei Punkte.
   Lieferungen ohne Chargenbezug je Ebene anders verteilt werden. Die App zeigt
   nie beide Ebenen zugleich, so dass niemand sie addiert — sauber wäre eine
   gemeinsame Grundlage.
+
+## Runde J — der Code auf den heutigen Stand (11. September)
+
+Der Betriebsleiter: *„Ich glaube, der Code ist für ältere Programme geschrieben.
+Inzwischen hat sich viel geändert."* Er hatte recht — vier Hauptversionen lagen
+zurück, und dahinter steckte mehr als nur Zahlen in einer Datei.
+
+### Was gehoben wurde
+
+| | vorher | jetzt | warum es nicht nur eine Zahl ist |
+|---|---|---|---|
+| React | 18.3 | 19.2 | — |
+| React Router | 6.30 | 7.18 | offener Redirect über den Backslash in `<Link>` und `useNavigate` (Sicherheitsmeldung) |
+| Vite | 5.4 | 8.2 | der Entwicklungsserver war von jeder Webseite auslesbar; bündelt jetzt mit Rolldown |
+| TypeScript | 5.9 | 7.0 | die native Fassung — der ganze Projektverbund in 1.2 s statt spürbar länger |
+| Supabase | 2.112 | 2.116 | — |
+
+Der Code selbst brauchte für React 19 und Router 7 **keine einzige Änderung**.
+Das ist kein Zufall: kein `forwardRef`, kein `React.FC`, kein `defaultProps` —
+nichts von dem, was diese Hauptversionen entfernt haben, war je benutzt worden.
+
+Von sieben gemeldeten Schwachstellen sind drei übrig, alle in `wrangler →
+miniflare → sharp`. Das ist der lokale Cloudflare-Emulator, eine reine
+Entwicklungsabhängigkeit. **In dem, was beim Benutzer ankommt, sind es null**
+(`npm audit --omit=dev`). npms Vorschlag wäre, Wrangler um 115 Fassungen
+zurückzudrehen; das würde die Veröffentlichung brechen und nichts verbessern.
+
+### Die Falle, die eine Stunde gekostet hat
+
+Das alte `typecheck`-Skript rief `tsc -b --noEmit false --emitDeclarationOnly
+false` auf. Dieser erste Zweig scheiterte zwar immer (weil
+`allowImportingTsExtensions` ein `noEmit` verlangt) und fiel still auf den
+richtigen Befehl zurück — aber **vorher hatte er 53 `.js`-Dateien neben den
+`.tsx`-Quellen abgelegt** und dazu eine `vite.config.js` neben der `.ts`.
+
+Vite löst `./App` nach `App.js` auf, *bevor* es `App.tsx` ansieht. Ab dem
+Moment baute jeder Build eine eingefrorene Kopie des Quelltextes. Änderungen
+wirkten nicht mehr — der Dateiname des Bündels blieb bei jedem Build identisch,
+was der einzige sichtbare Hinweis war.
+
+Das führte mich zuerst zu einem falschen Schluss: Ich hielt es für eine
+Eigenheit von Rolldown, dass `React.lazy` nicht greift. Nach dem Aufräumen der
+53 Dateien griff es sofort. Der Fehler lag nicht im Bündler, sondern im
+Werkzeug davor.
+
+Behoben: Das `typecheck`-Skript ist jetzt schlicht `tsc -b` (respektiert
+`noEmit`), und `.gitignore` fängt Kompilate neben dem Quelltext ab, damit
+niemand mehr in dieselbe Falle läuft.
+
+### Vier Bündel statt einem
+
+Bis hierher lag die ganze App in einer Datei: 822 kB, bevor in der Halle der
+erste Knopf erschien — Diagramme, Kaskade und Excel-Leser inbegriffen, die ein
+Arbeiter beim Palettenzählen noch nie gebraucht hat.
+
+Jetzt sind es vier, und die Auswertung des Betriebsleiters hängt hinter
+`React.lazy`:
+
+| Bündel | Grösse | wann |
+|---|---|---|
+| index | 39 kB | Anmeldung und die vier Arbeiter-Bildschirme |
+| grundlage | 350 kB | was beide Rollen brauchen |
+| fremd | 246 kB | React, Router, Supabase |
+| **auswertung** | **189 kB** | **erst, wenn der Betriebsleiter eine Auswertungsseite öffnet** |
+
+Erster Start in der Halle: **822 → 635 kB** (gepackt 234 → 186 kB). Geprüft,
+nicht behauptet: `index.html` lädt die Auswertung nicht vor, und im
+Einstiegsbündel stehen fünf dynamische Importe.
+
+Der Kniff steckt im Vorrang der Gruppe „grundlage". Ohne ihn zieht die
+Auswertung die gemeinsame Grundlage an sich, der Einstieg muss sie von dort
+holen — und lädt damit die ganze Auswertung doch wieder mit, nur über einen
+Umweg. Zwei Bündel, beide sofort geladen: eine Trennung, die nur auf dem
+Papier steht.
+
+### Im SQL-Editor sieht man jetzt nichts mehr
+
+`setup.sql` räumt vor jedem Anlegen auf, damit dieselbe Datei einrichtet *und*
+aktualisiert. Auf einer leeren Datenbank gibt es nichts wegzuräumen, und
+Postgres sagte das jedes Mal: **135 Zeilen** „materialized view … does not
+exist, skipping" und „drop cascades to 17 other objects". Harmlos — aber wer
+das im Supabase-Editor sieht, liest eine Wand von Problemen.
+
+Ein `set client_min_messages = warning` am Kopf der erzeugten Datei stellt das
+ab. Was durchkommt, ist echter Ärger. Die pg_cron-Auskunft, die dabei
+verlorenginge, steht jetzt in der Schlusszeile, wo sie ohnehin hingehört.
+
+Gemessen auf einer frischen Datenbank: **2 Sekunden, 0 Fehler, 0 Warnungen,
+0 Hinweise**, dann eine Zeile:
+
+> Fertig. Die Datenbank steht: 42 Chargen, 11 Sorten, 28 Tabellen, 62
+> Auswertungen. Auswertung berechnet. Ohne pg_cron rechnet die App selbst
+> nach, wenn etwas veraltet ist. Weiter im README bei Schritt 4.
+
+`run.sh` prüft das seit Runde J mit: Gibt `setup.sql` auch nur eine
+Hinweiszeile aus, schlägt die Stufe fehl.

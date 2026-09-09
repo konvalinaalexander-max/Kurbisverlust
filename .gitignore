@@ -14,3 +14,13 @@ pruefstand/daten/
 
 # Begriffs-Prüfstand: die Ernte ist ein Abzug des Bildschirms, kein Quelltext
 pruefstand/begriffe_gefunden.txt
+
+# Kompilate neben dem Quelltext. Sie entstehen, wenn tsc mit --noEmit false
+# läuft, und sind eine Falle: Vite löst „./App" nach App.js auf, bevor es
+# App.tsx ansieht — ab dann baut jeder Build eine eingefrorene Kopie, und
+# Änderungen am Quelltext wirken nicht mehr. Genau das ist in Runde J
+# passiert und hat eine Stunde gekostet.
+src/**/*.js
+src/**/*.js.map
+test/**/*.js
+vite.config.js

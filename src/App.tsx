@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { Suspense, lazy, type ReactNode } from 'react'
 import { NavLink, Navigate, Route, Routes, useParams } from 'react-router-dom'
 import { ZBalken, ZListe, ZLupe, ZRegler, ZUhr } from './components/Zeichen'
 import { useAuth } from './auth/AuthProvider'
@@ -11,11 +11,13 @@ import Start from './pages/Start'
 import NeueArbeit from './pages/NeueArbeit'
 import Arbeit from './pages/Arbeit'
 import Kontrolle from './pages/Kontrolle'
-import Ueberblick from './pages/Ueberblick'
-import Ursachen from './pages/Ursachen'
-import Chargen from './pages/Chargen'
-import Messungen from './pages/Messungen'
-import Betrieb from './pages/Betrieb'
+
+// Die Auswertung des Betriebsleiters wird erst geholt, wenn er sie öffnet.
+const Ueberblick = lazy(() => import('./pages/Ueberblick'))
+const Ursachen = lazy(() => import('./pages/Ursachen'))
+const Chargen = lazy(() => import('./pages/Chargen'))
+const Messungen = lazy(() => import('./pages/Messungen'))
+const Betrieb = lazy(() => import('./pages/Betrieb'))
 
 export default function App() {
   const { session, profil, laedt, istAdmin, abmelden } = useAuth()
@@ -95,6 +97,7 @@ export default function App() {
       )}
 
       <main className={istAdmin ? 'huelle' : 'huelle eng'}>
+        <Suspense fallback={<Lade />}>
         <Routes>
           <Route path="/" element={<Start />} />
           <Route path="/start" element={<Start />} />
@@ -117,6 +120,7 @@ export default function App() {
           <Route path="/zugang" element={<Navigate to="/betrieb/zugang" replace />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        </Suspense>
       </main>
     </>
   )

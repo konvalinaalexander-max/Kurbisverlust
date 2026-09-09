@@ -1999,7 +1999,70 @@ gesetzt. Das ist keine gekaufte Leistung, sondern eine Einstellung an der Datenb
 kostet nichts und hängt an keinem Tarif. Sie ist nötig, weil das Neurechnen der Auswertung in
 einem Zug über die ganze Saison geht und mit jeder Charge länger wird.</p>
 
-<h2 class="gross">2.25 Das Prüfwerk</h2>
+<h2 class="gross">2.25 Der Unterbau — und warum er aktuell gehalten wird</h2>
+
+<p>Die App steht auf fünf fremden Bausteinen. Im September 2026 lagen vier davon eine
+Hauptversion oder mehr zurück; das ist nicht nur eine Zahl in einer Datei, sondern in zwei
+Fällen eine gemeldete Sicherheitslücke.</p>
+
+<table>
+<tr><th>Baustein</th><th class="z">vorher</th><th class="z">jetzt</th><th>was der Sprung brachte</th></tr>
+<tr><td>React</td><td class="z">18.3</td><td class="z">19.2</td><td>—</td></tr>
+<tr><td>React Router</td><td class="z">6.30</td><td class="z">7.18</td><td>offener Redirect über den Backslash in <code>&lt;Link&gt;</code> und <code>useNavigate</code></td></tr>
+<tr><td>Vite</td><td class="z">5.4</td><td class="z">8.2</td><td>der Entwicklungsserver war von jeder Webseite auslesbar; bündelt jetzt mit Rolldown</td></tr>
+<tr><td>TypeScript</td><td class="z">5.9</td><td class="z">7.0</td><td>die native Fassung: der ganze Projektverbund in 1.2 Sekunden</td></tr>
+<tr><td>Supabase</td><td class="z">2.112</td><td class="z">2.116</td><td>—</td></tr>
+</table>
+
+<p>Bemerkenswert ist, was <em>nicht</em> nötig war: Für React 19 und Router 7 musste am Code
+keine einzige Zeile geändert werden. Kein <code>forwardRef</code>, kein <code>React.FC</code>,
+kein <code>defaultProps</code> — nichts von dem, was diese Hauptversionen entfernt haben, war je
+benutzt worden. Wer sich beim Schreiben auf das beschränkt, was die Sache braucht, bezahlt
+später keine Zeche.</p>
+
+<p>Von sieben gemeldeten Schwachstellen bleiben drei, alle in <code>wrangler → miniflare →
+sharp</code> — dem lokalen Cloudflare-Emulator, einer reinen Entwicklungsabhängigkeit. In dem,
+was auf dem Handy des Arbeiters ankommt, sind es null.</p>
+
+<h3>Vier Bündel statt einem</h3>
+
+<p>Bis dahin lag die ganze App in einer Datei: 822 kB, bevor in der Halle der erste Knopf
+erschien — Diagramme, Kaskade und Excel-Leser inbegriffen, die ein Arbeiter beim Palettenzählen
+noch nie gebraucht hat. Jetzt hängt die Auswertung des Betriebsleiters hinter
+<code>React.lazy</code> und wird erst geholt, wenn er sie öffnet:</p>
+
+<table>
+<tr><th>Bündel</th><th class="z">Grösse</th><th>wann geladen</th></tr>
+<tr><td>index</td><td class="z">39 kB</td><td>Anmeldung und die vier Arbeiter-Bildschirme</td></tr>
+<tr><td>grundlage</td><td class="z">350 kB</td><td>was beide Rollen brauchen</td></tr>
+<tr><td>fremd</td><td class="z">246 kB</td><td>React, Router, Supabase</td></tr>
+<tr><td><b>auswertung</b></td><td class="z"><b>189 kB</b></td><td><b>erst beim Öffnen einer Auswertungsseite</b></td></tr>
+</table>
+
+<p>Erster Start in der Halle: <b>822 → 635 kB</b>, gepackt 234 → 186 kB.</p>
+
+<div class="warum"><b>Die Falle, die eine Stunde gekostet hat</b>
+Das alte <code>typecheck</code>-Skript rief <code>tsc</code> mit <code>--noEmit false</code>.
+Der Aufruf scheiterte zwar immer und fiel still auf den richtigen zurück — aber vorher hatte er
+53 <code>.js</code>-Dateien neben den <code>.tsx</code>-Quellen abgelegt. Vite löst
+<code>./App</code> nach <code>App.js</code> auf, <em>bevor</em> es <code>App.tsx</code> ansieht:
+Ab dem Moment baute jeder Build eine eingefrorene Kopie, und Änderungen am Quelltext wirkten
+nicht mehr. Der einzige sichtbare Hinweis war, dass der Dateiname des Bündels bei jedem Build
+gleich blieb. Das führte zuerst zu einem falschen Schluss — es sah aus, als griffe
+<code>React.lazy</code> unter Rolldown nicht. Nach dem Aufräumen griff es sofort. Der Fehler lag
+nicht im Bündler, sondern im Werkzeug davor.</div>
+
+<h3>Was der Betriebsleiter im SQL-Editor sieht</h3>
+
+<p><code>setup.sql</code> räumt vor jedem Anlegen auf, damit dieselbe Datei einrichtet
+<em>und</em> aktualisiert. Auf einer leeren Datenbank gibt es nichts wegzuräumen, und Postgres
+sagte das jedes Mal: 135 Zeilen „does not exist, skipping" und „drop cascades to 17 other
+objects". Harmlos — aber wer das im Editor sieht, liest eine Wand von Problemen. Ein
+<code>set client_min_messages = warning</code> am Kopf stellt es ab; was durchkommt, ist echter
+Ärger. Gemessen auf einer frischen Datenbank: <b>2 Sekunden, 0 Fehler, 0 Warnungen, 0
+Hinweise</b> — und eine Zeile, die sagt, was steht.</p>
+
+<h2 class="gross">2.26 Das Prüfwerk</h2>
 
 <p>Nichts an diesem System ist von Hand geprüft. Sieben Prüfstände laufen bei jeder Änderung; die
 Gesamtheit ist umfangreicher als die App selbst.</p>
@@ -2113,7 +2176,7 @@ angezeigt hätten. Deshalb schreibt das Dashboard ausdrücklich hin, wenn zwei b
 nicht auseinanderzuhalten sind — wer nur auf die Balkenlänge schaut, liest sonst einen
 Unterschied, den es nicht gibt.</p>
 
-<h2 class="gross">2.26 Was gebaut und wieder verworfen wurde</h2>
+<h2 class="gross">2.27 Was gebaut und wieder verworfen wurde</h2>
 
 <p>Ein Modell ist auch daran zu beurteilen, was es <em>nicht</em> tut. Fünf Ansätze, die
 plausibel klangen und an der Messung scheiterten.</p>
@@ -2141,7 +2204,7 @@ plausibel klangen und an der Messung scheiterten.</p>
   erfassten Arbeiten auf dreihundert. Sah klug aus und war nicht wissbar (AB-18).</td></tr>
 </table>
 
-<h2 class="gross">2.27 Ehrliche Grenzen</h2>
+<h2 class="gross">2.28 Ehrliche Grenzen</h2>
 
 <table>
 <tr><th style="width:56mm">Grösse</th><th>Status</th></tr>

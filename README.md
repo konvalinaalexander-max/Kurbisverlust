@@ -722,6 +722,7 @@ npm run dev
 ## Tests
 
 ```bash
+npm run pruefen             # alles ohne Datenbank und Browser: tsc, Tests, Build
 npm test                    # Reinigung und Dateinamen-Parser, ohne Datenbank
 ./supabase/test/run.sh      # Schema, Logik, Views und Zugriffsrechte
 

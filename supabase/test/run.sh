@@ -49,6 +49,21 @@ esac
 echo "$AUSGABE" | grep -q 'Auswertung berechnet' \
   || { echo "   FEHLER: die Auswertung wurde am Ende nicht berechnet"; exit 1; }
 
+# Und die Meldungen selbst: Wer setup.sql in den Supabase-Editor einfügt, soll
+# nichts sehen, was wie ein Fehler aussieht. Die Datei räumt vor jedem Anlegen
+# auf; auf einer leeren Datenbank gäbe das 135 Zeilen „does not exist,
+# skipping" — harmlos, aber nicht zu unterscheiden von echtem Ärger. Seit
+# Runde J schaltet setup.sql die Hinweise stumm. Diese Prüfung hält das fest.
+zuruecksetzen
+LAUT="$(psql "$URL" -v ON_ERROR_STOP=1 -1 -f "$HIER/../setup.sql" 2>&1 \
+        | grep -cE '^(psql:.*)?(NOTICE|WARNING|HINWEIS|WARNUNG):' || true)"
+if [ "$LAUT" -gt 0 ]; then
+  echo "   FEHLER: setup.sql gibt $LAUT Hinweis-/Warnzeilen aus — im Editor sieht das aus wie ein Fehler."
+  echo "   Fehlt oben in setup_bauen.sh das 'set client_min_messages = warning'?"
+  exit 1
+fi
+echo "   Meldungen im Editor: keine (nur die Fertig-Zeile)"
+
 FRISCH="$(mktemp)"
 psql "$URL" -v ON_ERROR_STOP=1 -f "$HIER/fingerabdruck.sql" > "$FRISCH"
 echo "   Fingerabdruck der frischen Datenbank: $(wc -l < "$FRISCH") Objekte"

@@ -33,6 +33,17 @@ cat <<'KOPF'
 -- Unten im Ergebnisfenster muss danach eine Zeile stehen, die mit
 -- "Fertig." beginnt und die Anzahl Chargen und Sorten nennt.
 -- =====================================================================
+
+-- Nur Warnungen und Fehler anzeigen.
+--
+-- Diese Datei räumt vor jedem Anlegen auf ("drop ... if exists"), damit sie
+-- auf einer leeren wie auf einer bestehenden Datenbank läuft. Auf einer
+-- leeren gibt es nichts wegzuräumen, und Postgres sagt das jedes Mal:
+-- "materialized view ... does not exist, skipping". Das sind 135 Zeilen, die
+-- aussehen wie eine Wand von Problemen und keines sind. Sie bleiben hier
+-- unsichtbar; was wirklich schiefgeht, kommt als WARNING oder ERROR durch
+-- und ist dann auch zu sehen.
+set client_min_messages = warning;
 KOPF
 
 for f in "$HIER"/migrations/*.sql; do
@@ -82,12 +93,24 @@ end $$;
 -- =====================================================================
 -- Rückmeldung im Ergebnisfenster
 -- =====================================================================
-select format('Fertig. Die Datenbank steht: %s Chargen, %s Sorten, %s Tabellen, %s Auswertungen. %s Weiter im README bei Schritt 4.',
+-- Was der Nutzer wissen muss, steht in dieser einen Zeile — die Hinweise
+-- oben sind stummgeschaltet. Dazu gehört auch, ob pg_cron da ist: Fehlt es,
+-- rechnet die App selbst nach, statt dass ein Zeitplan es tut.
+do $$
+begin
+  perform set_config('kuerbis.cron',
+    case when exists (select 1 from pg_extension where extname = 'pg_cron')
+         then '' else ' Ohne pg_cron rechnet die App selbst nach, wenn etwas veraltet ist.' end,
+    false);
+end $$;
+
+select format('Fertig. Die Datenbank steht: %s Chargen, %s Sorten, %s Tabellen, %s Auswertungen. %s%s Weiter im README bei Schritt 4.',
               (select count(*) from charge),
               (select count(*) from sorte_kaliber),
               (select count(*) from pg_tables where schemaname = 'public'),
               (select count(*) from pg_views  where schemaname = 'public'),
-              coalesce(nullif(current_setting('kuerbis.auswertung', true), ''), 'Auswertung nicht gerechnet.')) as ergebnis;
+              coalesce(nullif(current_setting('kuerbis.auswertung', true), ''), 'Auswertung nicht gerechnet.'),
+              coalesce(current_setting('kuerbis.cron', true), '')) as ergebnis;
 FUSS
 } > "$ZIEL"
 
