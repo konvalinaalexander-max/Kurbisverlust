@@ -68,10 +68,15 @@ export function spiele(db, datei) {
  * Für Papierfälle (Sonde 04, 07) und Zufallssaisons (Sonde 05): Dort soll
  * genau das drin sein, was der Fall vorschreibt, und sonst nichts.
  */
-export function frischesSchema(db) {
+export function datenbank(db) {
   execFileSync('psql', [url('postgres'), '-qtAX', '-c',
     `select 1 from pg_database where datname = '${db}'`], { encoding: 'utf8' }).trim()
     || execFileSync('psql', [url('postgres'), '-qX', '-c', `create database ${db}`], { encoding: 'utf8' })
+  return db
+}
+
+export function frischesSchema(db) {
+  datenbank(db)
   tue(db, `drop schema if exists public cascade; create schema public;
            drop schema if exists auth cascade; drop schema if exists storage cascade;`)
   spiele(db, join(WURZEL, 'supabase/test/stub_supabase.sql'))
