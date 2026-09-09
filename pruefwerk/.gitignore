@@ -1,0 +1,4 @@
+# Die Befunde eines Laufs sind Ergebnis, nicht Quelltext — sie entstehen neu,
+# sobald jemand `node pruefwerk/lauf.mjs` aufruft. Was bleiben soll, steht im
+# Bericht unter docs/.
+befunde/
