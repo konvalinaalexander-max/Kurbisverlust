@@ -389,7 +389,14 @@ export async function laufen({ db, schnell, saat }) {
       groesse: { wert: Math.max(...schief.map(e => Math.max(e.faktor_ohne_t, 1 / e.faktor_ohne_t))).toFixed(1),
                  einheit: 'Faktor zwischen den zwei Rechenwegen für dieselbe Unsicherheit',
                  basis: `${n} Ziehungen, Demodaten` },
-      gegenrede: 'Die Ziehung ist nicht automatisch die richtigere. Sie unterstellt, dass die '
+      gegenrede: '**Wichtig für die Reihenfolge der Reparaturen:** Bei der Schimmelkurve zeigen '
+        + 'die beiden Fehler in entgegengesetzte Richtungen und heben sich zum Teil auf. Der '
+        + 't-Faktor macht das Band 6.5-mal zu weit (Befund FPF-001), die Linearisierung macht die '
+        + 'Streuung 3.9-mal zu eng — heraus kommt ein Band, das ungefähr stimmt, aus zwei '
+        + 'falschen Gründen. **Wer nur die Freiheitsgrade richtigstellt, macht es schlimmer**: '
+        + 'Aus zufällig ungefähr richtig würde selbstbewusst zu eng. Die beiden Reparaturen '
+        + 'gehören zusammen oder gar nicht.\n\nIm Übrigen ist die Ziehung nicht automatisch die '
+        + 'richtigere. Sie unterstellt, dass die '
         + 'gezogenen Parameter normalverteilt sind und dass die Koeffizienten voneinander '
         + 'unabhängig sind — beides sind Annahmen. Insbesondere kann eine Ziehung, die weit in '
         + 'den Rand des Bands greift, Kurven erzeugen, die kein Kürbis je gelaufen ist. Dass die '
@@ -423,6 +430,52 @@ export async function laufen({ db, schnell, saat }) {
           'Unterschied 95 % zwischen': `${p.band[0].toFixed(2)} … ${p.band[1].toFixed(2)}`,
           'Urteil': p.entschieden ? 'trägt' : 'trägt nicht',
         }))),
+    }))
+
+    /* --- Der wichtigste Vergleich überhaupt: die oberste Zeile des Überblicks --- */
+    const zwei = Object.entries(punkt['Verlustursache'])
+      .filter(([, w]) => Number.isFinite(w)).sort((a, b) => b[1] - a[1]).slice(0, 2).map(([k]) => k)
+    const oberste = alle.find(p => p.art === 'Verlustursache'
+      && ((p.a === zwei[0] && p.b === zwei[1]) || (p.a === zwei[1] && p.b === zwei[0])))
+    if (oberste && !oberste.entschieden) raus.push(befund({
+      werkstatt: WERKSTATT, kuerzel: 'AUF', klasse: 3, marke: 'Reparatur', sicherheit: 'hoch',
+      ort: { sicht: 'v_verlust_ranking', datei: 'src/pages/Ueberblick.tsx' },
+      titel: 'Der Überblick sagt, welche Verlustursache die grösste ist — die Daten sagen es nicht',
+      steht_da: `Die Auswertung stellt \`${zwei[0]}\` `
+        + `(${punkt['Verlustursache'][zwei[0]].toFixed(0)} kg) über \`${zwei[1]}\` `
+        + `(${punkt['Verlustursache'][zwei[1]].toFixed(0)} kg) und malt sie als obersten Balken. `
+        + `Zieht man die Koeffizienten ${n} Mal aus den Bändern, die dieselbe Auswertung ausweist, `
+        + `ist \`${zwei[0]}\` nur in `
+        + `${(100 * (oberste.a === zwei[0] ? oberste.anteil : 1 - oberste.anteil)).toFixed(0)} % `
+        + `der Ziehungen die grössere. Der Unterschied liegt zu 95 % zwischen `
+        + `${oberste.band[0].toFixed(0)} und ${oberste.band[1].toFixed(0)} kg — das Vorzeichen `
+        + 'wechselt. Zum Vergleich: **jeder andere** der zehn Vergleiche zwischen Verlustursachen '
+        + 'kommt in 100 % der Ziehungen gleich heraus. Es ist ausgerechnet der Vergleich ganz '
+        + 'oben, der nicht trägt.',
+      muesste: 'Die Reihenfolge darf nicht als Reihenfolge auftreten, solange sie keine ist. Zwei '
+        + 'kleine Mittel: Balken, deren Unterschied das Vorzeichen wechselt, bekommen dieselbe '
+        + 'Farbe oder werden zu einer Gruppe zusammengefasst — „Schimmel und Verdunstung, zusammen '
+        + 'rund die Hälfte; welche der beiden grösser ist, sagen die Daten nicht". Und die Kachel '
+        + 'nennt die Zahl, die heute fehlt: wie viele Messungen es bräuchte, damit die Reihenfolge '
+        + 'trägt.',
+      warum: 'Aus dieser einen Reihenfolge folgt eine Handlung, und es sind zwei verschiedene. '
+        + 'Gewinnt die Verdunstung, geht es um Luftfeuchte und kürzere Lagerung; gewinnt der '
+        + 'Schimmel, geht es um früheres Aussortieren. Das sind verschiedene Investitionen in '
+        + 'verschiedene Anlagen. Ein Balkendiagramm, das diese Wahl trifft, wo die Daten sie nicht '
+        + 'treffen, ist schlechter als eines, das schweigt — denn es sieht aus wie eine Antwort.',
+      beleg: `werkstatt/d_nutzen/d2_aufloesung.mjs: ${n} Ziehungen der sechs Koeffizientensichten `
+        + 'aus ihren eigenen `unten`/`oben`-Spalten, volle Kaskade je Ziehung; Eichung siehe '
+        + 'Messreihe darüber',
+      groesse: { wert: (100 * Math.max(oberste.anteil, 1 - oberste.anteil)).toFixed(0),
+                 einheit: '% Sicherheit für die oberste Zeile des Überblicks (nötig wären 97,5 %)',
+                 basis: `${n} Ziehungen, Demodaten` },
+      gegenrede: 'Die Ziehung der Schimmelkurve ist ausgerechnet die, die in der Eichung von der '
+        + 'Delta-Methode abweicht — sie ist also die unsicherste der sechs. Wäre die Delta-Methode '
+        + `im Recht, wäre der Vergleich entschieden. Dagegen spricht die Rechnung: \`exp(a + k·ln t)\` `
+        + 'ist keine Gerade, und eine Linearisierung unterschätzt die Streuung dahinter '
+        + 'systematisch. Wer diesen Befund entkräften will, muss zeigen, dass die Linearisierung '
+        + 'über die Breite dieses Bandes trägt — nicht, dass sie bequemer ist.',
+      aufwand: 'mittel',
     }))
 
     /* --- Befund je Gruppenreiter --- */
