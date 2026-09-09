@@ -303,7 +303,7 @@ zuerst verarbeitet, 25 Saisons je Zeile):
 | 12 | +10.2 % | **100 %** |
 | 24 | +9.8 % | 88 % |
 
-Neu gemessen am 10. September, 25 Saisons je Zeile. Die früher hier stehenden
+Neu gemessen in Runde I (8. September), 25 Saisons je Zeile. Die früher hier stehenden
 Werte (−12.9 % / 8 %, −5.3 % / 72 %, +3.7 % / 100 %) stammen aus einer älteren
 Fassung des Modells und stimmen nicht mehr — auch das Vorzeichen nicht.
 
@@ -327,7 +327,7 @@ Ansicht beide Quellen und meldet, ob sie dasselbe sagen.
 
 ## Wo das Modell jetzt steht
 
-`./supabase/test/simulation/matrix.sh 25`, neu gemessen am 10. September nach
+`./supabase/test/simulation/matrix.sh 25`, neu gemessen in Runde I (8. September) nach
 Migration 0062 — neun Lagen, je 25 Saisons. Ein Bereich, der 95 % heissen soll,
 muss in rund 95 % der Saisons treffen. „Zu klein" und „zu gross" stehen nicht in
 der Tabelle: Sie liegen in jeder Lage unter 0.6 % Verzerrung bei 100 %

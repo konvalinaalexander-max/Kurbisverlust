@@ -2221,9 +2221,9 @@ Abweichung vom erwarteten Stückgewicht nur, wo im Band die Ware liegt.
   Arbeit und das Kistengewicht — sichtbar in der Datenqualität, nicht in
   einer Blockade.
 
-## Runde I — jede Zahl sagt, was sie ist (10. September, Migration 0062)
+## Runde I — jede Zahl sagt, was sie ist (8. September, Migration 0062)
 
-Der Betriebsleiter am 10. September: „auf der Webseite hast du immer noch so
+Der Betriebsleiter in Runde I: „auf der Webseite hast du immer noch so
 komische Angaben wie einfach einen Verlust, der nicht klar ist." Das war kein
 Schönheitsfehler. Ein Wort, das zwei Dinge bedeutet, ist ein Rechenfehler mit
 Verzögerung: Irgendwann addiert jemand zwei Zahlen, die nicht zusammengehören.
@@ -2349,7 +2349,7 @@ laufende Woche trägt zwei Punkte.
   nie beide Ebenen zugleich, so dass niemand sie addiert — sauber wäre eine
   gemeinsame Grundlage.
 
-## Runde J — der Code auf den heutigen Stand (11. September)
+## Runde J — der Code auf den heutigen Stand (9. September)
 
 Der Betriebsleiter: *„Ich glaube, der Code ist für ältere Programme geschrieben.
 Inzwischen hat sich viel geändert."* Er hatte recht — vier Hauptversionen lagen
@@ -2459,7 +2459,7 @@ war der einzige Weg versperrt, den der Betrieb hat: markieren, einfügen, Run.
 
 ### Die Ursache war nicht die Datenbank, sondern ihre Geschichte
 
-`setup.sql` war die Aneinanderreihung aller 63 Migrationen. Gemessen an den
+`setup.sql` war die Aneinanderreihung aller damals 63 Migrationen. Gemessen an den
 einzelnen Anweisungen:
 
 | | |

@@ -29,7 +29,7 @@ dahinter.
 | 2 — Kette | ein erfasstes Feld liest niemand; eine ausgewertete Spalte füllt keine Maske | Lückenscanner, Kette |
 | **3 — Bedeutung** | **die Zahl ist korrekt gerechnet und meint das Falsche** | **niemand** |
 
-Klasse 1 und 2 hat das Projekt im Griff — elf Runden Prüfstände, alle grün.
+Klasse 1 und 2 hat das Projekt im Griff — sieben Prüfstände, alle grün.
 Genau deshalb sind sie nicht deine Aufgabe. **Deine Beute ist Klasse 3**, und
 die findet man nicht durch Ausführen, sondern durch Verstehen.
 
@@ -108,16 +108,28 @@ Harte Grenzen, an denen ich das nachmesse:
 1. `docs/ABLAUF.md` — **was auf dem Betrieb wirklich passiert.** Der Massstab
    für alles. Am Ende die Tabelle „Annahmen, die im Modell stecken": rund
    zwanzig Zeilen, jede ein Prüfauftrag.
-2. `docs/ABMACHUNGEN.md` — 46 Zusagen mit Datum und haltendem Test.
+2. `docs/ABMACHUNGEN.md` — 46 nummerierte Abmachungen mit Datum und dem
+   Test, der jede beweist (AB-14 ist die einzige noch offene).
 3. `docs/FRAGEN.md` — was der Betrieb **nicht** beantwortet hat. Achte
    besonders darauf, ob eine offene Frage im Code inzwischen still
    beantwortet wurde.
-4. `docs/ENTSCHEIDUNGEN.md` und `docs/STATISTIK_BEFUND.md`.
-5. `supabase/setup.sql`, **Teil B** — dort steht jede Ansicht und jede
+4. `docs/DATENFLUSS.md` — die Landkarte: welche Zahl erfasst wird, was
+   daraus gerechnet wird, wo sie beim Betriebsleiter auftaucht. Der
+   schnellste Überblick über die ganze Kette.
+5. `docs/ENTSCHEIDUNGEN.md` (warum etwas so ist, je Runde ein Abschnitt),
+   `docs/STATISTIK_BEFUND.md` (was gemessen wurde und wie gut es trifft),
+   `docs/UI-KONZEPT.md` (die zwei Rollen).
+6. `supabase/setup.sql`, **Teil B** — dort steht jede Ansicht und jede
    rechnende Funktion genau einmal, in ausgerechneter Reihenfolge. Das ist der
    heutige Stand; die Migrationen darunter sind die Geschichte.
-6. `src/arbeit/` (Masken des Arbeiters), `src/pages/` (Seiten des
-   Betriebsleiters), `src/auswertung/daten.ts`.
+7. `src/arbeit/` (Masken des Arbeiters), `src/pages/` (Seiten des
+   Betriebsleiters), `src/auswertung/daten.ts` (was die App lädt).
+
+Die Dokumente sind auf dem Stand von Runde K (9. September 2026, Schema 0063)
+und wurden davor auf falsche Datumsangaben, falsche Dateinamen und veraltete
+Zahlen durchgesehen. Findest du trotzdem eine Stelle, an der die Doku etwas
+anderes behauptet als der Code tut, ist **das ein Befund** — und einer der
+wertvollsten, weil daran das Orakel (5.1) hängt.
 
 Lies mit dem Bleistift: Erfassungsmatrix (Feld → Spalte → Leser → Verhalten
 bei leer) und Zahlenmatrix (Bildschirmzahl → Quelle → Einheit → Nenner →
@@ -460,6 +472,8 @@ node pruefstand/beschriftung.mjs    # sagt jede Zahl, was sie ist?
 node pruefstand/kette.mjs && ./pruefstand/kette_pruefen.sh '<url>'
 ./pruefstand/luecken.sh '<url>'     # Maske ↔ Auswertung, beide Richtungen
 ./pruefstand/demo_bauen.sh          # Datenbank mit Demodaten
+./pruefstand/daten_dumpen.sh        # Fixtures für die Bildschirm-Prüfstände
+./supabase/test/simulation/matrix.sh 25   # Simulationsmatrix, neun Lagen
 ./supabase/setup_bauen.sh           # nach jeder Änderung an migrations/
 ```
 
@@ -515,7 +529,7 @@ verbogen.
    was gefunden, was repariert, was bleibt offen — und was muss **ich**
    entscheiden.
 
-**Schreib nicht „alles in Ordnung".** Ein System dieser Grösse, über elf Runden
+**Schreib nicht „alles in Ordnung".** Ein System dieser Grösse, über elf Runden (A–K)
 gewachsen, hat Stellen, an denen die Rechnung von der Wirklichkeit abweicht.
 Wenn du keine findest, hast du entweder nicht tief genug gegraben — oder du
 kannst mir genau und überprüfbar sagen, warum es diesmal nicht mehr gab.

@@ -4,8 +4,9 @@ Eine Landkarte des ganzen Systems: welche Zahl erfasst wird, was daraus
 gerechnet wird, und wo sie beim Betriebsleiter wieder auftaucht.
 
 Zum Ausprobieren: der Knopf „Demo-Daten" unter Stammdaten (oder auf der
-leeren Auswertung) legt eine erfundene, aber stimmige Saison an (461 t
-Eingang, 10 Chargen, 29 Arbeiten) und räumt sie restlos wieder weg.
+leeren Auswertung) legt eine erfundene, aber stimmige Saison an (323 t
+Eingang, 844 Paletten in 36 Chargen, 309 Arbeiten, 187 Lieferungen) und
+räumt sie restlos wieder weg.
 
 ---
 

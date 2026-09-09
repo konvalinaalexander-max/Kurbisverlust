@@ -5,7 +5,7 @@ Sie ist der Massstab, an dem sich Datenmodell und Oberflächen messen lassen
 müssen. Wo das Modell etwas annimmt, das niemand geprüft hat, steht es als
 Annahme da — unmarkierte Annahmen sind der Anfang jedes stillen Fehlers.
 
-## Die Antworten vom 10. September — jede Zahl sagt, was sie ist
+## Die Antworten aus Runde I (8. September) — jede Zahl sagt, was sie ist
 
 Der dritte Durchgang galt nicht dem, was gerechnet wird, sondern dem, was
 danebensteht. Der Satz, der ihn ordnet: *„Wenn du Verlust schreibst, musst du
@@ -19,7 +19,7 @@ wissen, welcher."* Was daraus folgt (umgesetzt in 0062, Beweise in
 | Die Bilanz ging um mehrere Tonnen nicht auf | Zwei Rechenfehler behoben: Lieferungen an die Tiere und in den Nebenkanal fehlten auf der Ausgangsseite und lagen rechnerisch weiter im Lager; vordatierte Lieferungen zählten zu früh. Der Rest liegt jetzt unter einem Kilo — und heisst Überzählung, nicht Lücke (AB-41) |
 | Eine falsch getippte Kontrollwägung liess sich nicht korrigieren | Kontrollwägungen gehören zu keiner Arbeit; unter Messungen steht jetzt ein eigener Block, in dem jede davon geändert oder gelöscht werden kann (AB-42) |
 
-## Die Antworten vom 9. September — bis heute, und nur Gemessenes
+## Die Antworten aus Runde H (8. September) — bis heute, und nur Gemessenes
 
 Die zweite Durchsicht galt der Auswertung und der Arbeiter-App. Der Satz,
 der sie ordnet: *„Behaupte nichts, was du nicht wissen kannst."* Was daraus
@@ -37,7 +37,7 @@ folgt (umgesetzt in 0061, Beweise in `ABMACHUNGEN.md` AB-31 bis AB-38):
 | Überfüllung: Käufer überall raus, verkaufte Kisten aus den Verkaufsdateien | Zwei Blöcke nach Kistensystem, nur aus Gemessenem; verschenkt nur, wo gewogen **und** verkauft (AB-37) |
 | Fehlermeldungen gehören nicht zu den Chargen, sondern dorthin, wo man sie beheben kann | Auffälligkeiten stehen unter Messungen, mit „korrigieren" direkt in die Messungen der Arbeit (AB-38) |
 
-## Die Antworten vom 8. September — punktuell erfasst, vollständig gerechnet
+## Die Antworten aus Runde G (8. September) — punktuell erfasst, vollständig gerechnet
 
 Der Betrieb hat die App Maske für Maske durchgesehen. Der Satz, der alles
 ordnet: *„Du kriegst hier nur punktuelle Messungen — du weisst nur, wie viel
@@ -416,6 +416,7 @@ abweichen kann, ohne dass es jemand merkt.
 |---|---|---|
 | Alle Paletten einer Charge liegen unter gleichen Bedingungen | eine Halle (Spec §1) | Streuung zwischen Lagerplätzen landet im Fehler, nicht im Modell |
 | Die Verdunstungsrate ist über die Zeit konstant | eine Wägung je Palette gibt keinen Verlauf her | früher Wasserverlust wird unter-, später überschätzt |
+| Eine Palette hat bei der Wägung dieselbe Kistenzahl und dieselbe Gebindeart wie beim Eingang | die Rate kommt aus `brutto_damals` und `brutto_jetzt`, und beide Male wird dieselbe Tara abgezogen — gefragt wird sie nur einmal | wurde umgestapelt oder umgepackt, steckt die Differenz der Tara in der Rate und sieht aus wie Verdunstung |
 | Alles Sortierte wird später gewaschen | vom Betrieb bestätigt | Ware, die ungewaschen rausgeht, altert in der Rechnung zu lange |
 | Der Palox gehört zu der Arbeit, an deren Ende er abgelesen wird | Waage, Differenzbildung | sammelt er über Arbeiten hinweg unbemerkt, sitzt Schimmel am falschen Alter |
 | Ein Waschgang gehört zu den Sortierläufen derselben Charge davor | kein erfasster Verweis | bei stark gemischten Chargen wandert Schimmel #2 ans falsche Alter |
