@@ -1702,11 +1702,15 @@ begin
   -- andere: er hebt den Ausgang und das Gelieferte der Charge um denselben
   -- Betrag; die Lücke (= Überzählung) bleibt, wie sie ist.
   perform auswertung_aktualisieren();
-  select bilanz_rest_kg, ausgang_kg, geliefert_kg into v_luecke1, v_ausgang1, v_gel1 from v_saisonbilanz;
+  -- 0064: Die Lücke wird an ueberzaehlung_kg gemessen, nicht am Bilanzrest.
+  -- Der Rest ist NULL, sobald ein Verluststrom keine Messung hat — und in
+  -- dieser Prüfsaison hat keiner eine. „Lücke (= Überzählung)" heisst es
+  -- ohnehin schon; jetzt steht auch das dort, was gemeint ist.
+  select ueberzaehlung_kg, ausgang_kg, geliefert_kg into v_luecke1, v_ausgang1, v_gel1 from v_saisonbilanz;
   insert into charge_vorlauf (charge_nr, ausgang_vor_app_kg) values (v_charge, 1000)
     on conflict (charge_nr) do update set ausgang_vor_app_kg = 1000;
   perform auswertung_aktualisieren();
-  select bilanz_rest_kg, ausgang_kg, vorlauf_kg, geliefert_kg into v_luecke2, v_ausgang2, v_vorlauf, v_gel2 from v_saisonbilanz;
+  select ueberzaehlung_kg, ausgang_kg, vorlauf_kg, geliefert_kg into v_luecke2, v_ausgang2, v_vorlauf, v_gel2 from v_saisonbilanz;
   assert v_vorlauf = 1000, format('Vorlauf erwartet 1000, ist %s', v_vorlauf);
   assert abs((v_ausgang2 - v_ausgang1) - 1000) < 1,
     format('Der Vorlauf muss den Ausgang um 1000 heben (%s → %s)', v_ausgang1, v_ausgang2);
@@ -2792,21 +2796,64 @@ begin
   assert v between 116 and 120, format('Das Ausgelagerte altert bis zum Liefertag (~118), ist %s', v);
 
   -- ---- Verlust bis heute: die Teile ergeben das Ganze ----------------------
-  assert not exists (select 1 from erg_charge
-                      where abs(verlust_heute_kg - (verdunstung_heute_kg + schimmel_heute_kg + sockel_heute_kg + fax_heute_kg)) > 0.05),
+  assert not exists (select 1 from erg_charge where verlust_bekannt
+                      and abs(verlust_heute_kg - (verdunstung_heute_kg + schimmel_heute_kg + sockel_heute_kg + fax_heute_kg)) > 0.05),
     'Verlust bis heute = Verdunstung + Schimmel + nicht lagerbedingt + Fax am Abgepackten';
-  assert not exists (select 1 from erg_charge where verlust_heute_kg is null or im_haus_heute_kg is null),
-    'Verlust und Bestand bis heute sind nie NULL — auch für eine Charge ohne Lieferung';
-  assert abs((select sum(verlust_heute_kg) from erg_charge)
-             - (select sum(kg) from erg_verlust where gruppe = 'gesamt' and buch in ('verlust', 'feld'))) < 1,
+  -- 0064: NULL heisst „nicht gemessen" — und darf nur dann dastehen. Beide
+  -- Richtungen, sonst deckt die Regel jede Zahl und jede Lücke gleichermassen.
+  assert not exists (select 1 from erg_charge where im_haus_heute_kg is null),
+    'Der Bestand bis heute ist nie NULL: er ist Eingangsmasse, und die ist gemessen';
+  assert not exists (select 1 from erg_charge where verlust_bekannt and verlust_heute_kg is null),
+    'Ist jeder Koeffizient gemessen, ist der Verlust bis heute eine Zahl';
+  assert not exists (select 1 from erg_charge where not verlust_bekannt and verlust_heute_kg is not null),
+    'Fehlt eine Messung, ist der Verlust unbekannt — nicht null (0064)';
+  -- Beide Wege müssen dasselbe sagen, Strom für Strom — auch dasselbe
+  -- „unbekannt". Die Gesamtsumme allein trüge das nicht: erg_verlust führt
+  -- jeden Strom mit eigenem Kennzeichen, erg_charge nur die Summe, und die ist
+  -- unbekannt, sobald ein Teil davon unbekannt ist.
+  assert not exists (
+    select 1 from (values
+        ('Verdunstung',              (select sum(verdunstung_heute_kg) from erg_charge)),
+        ('Schimmel/Fäulnis',         (select sum(schimmel_heute_kg)    from erg_charge)),
+        ('Nicht lagerbedingt',       (select sum(sockel_heute_kg)      from erg_charge)),
+        ('Faul beim Abpacken (Fax)', (select sum(fax_heute_kg)         from erg_charge))
+      ) as c(strom, kg)
+      join erg_verlust v on v.gruppe = 'gesamt' and v.strom = c.strom
+     where ((c.kg is not null and v.kg is not null and abs(c.kg - v.kg) > 1)
+         or ((c.kg is null) <> (v.kg is null)))),
+    'Je Strom müssen Charge und Ranking dieselbe Zahl nennen — und dasselbe „unbekannt"';
+  -- Sind alle sechs Koeffizienten gemessen, muss auch die Summe zusammenpassen.
+  assert (select bool_and(verlust_bekannt) from erg_charge) is not true
+      or abs((select sum(verlust_heute_kg) from erg_charge)
+             - (select sum(kg) from erg_verlust
+                 where gruppe = 'gesamt' and buch in ('verlust', 'feld'))) < 1,
     'Charge und Ranking nennen denselben Verlust bis heute';
-  assert abs((select sum(eingang_kg + ueberzaehlung_kg - geliefert_kg - verlust_heute_kg
-                         - kanal_ausgelagert_kg - im_haus_heute_kg) from erg_charge)) < 1,
+  -- Die Bilanz je Charge — aber nur dort, wo jeder Summand eine Zahl ist. Wo
+  -- ein Koeffizient fehlt, ist der Verlust unbekannt und die Bilanz mit ihm;
+  -- eine Bilanz aus einer Unbekannten ist keine Prüfung, sondern eine Rechnung
+  -- mit angenommener Null. Geprüft wird deshalb: jede rechenbare Charge geht
+  -- auf, und rechenbar ist genau die, deren Koeffizienten alle gemessen sind.
+  assert not exists (
+    select 1 from erg_charge
+     where verlust_bekannt
+       and abs(eingang_kg + ueberzaehlung_kg - geliefert_kg - verlust_heute_kg
+               - kanal_ausgelagert_kg - im_haus_heute_kg) > 1),
     'Eingang + Überzählung = geliefert + Verlust bis heute + Kanal am Ausgelagerten + im Haus';
+  assert not exists (
+    select 1 from erg_charge
+     where verlust_bekannt
+       and (verlust_heute_kg is null or kanal_ausgelagert_kg is null or im_haus_heute_kg is null)),
+    'Ist alles gemessen, hat jeder Summand der Bilanz eine Zahl';
   -- 0062: Die Bilanz geht jetzt wirklich auf — der Rest ist Rundung, nicht die
   -- Überzählung mit umgekehrtem Vorzeichen.
-  assert abs((select bilanz_rest_kg from v_saisonbilanz)) < 1,
-    format('Die Bilanz schliesst nicht: Rest %s kg', (select bilanz_rest_kg from v_saisonbilanz));
+  -- 0064: Der Rest ist NULL, sobald ein Verluststrom keine Messung hat — dann
+  -- gibt es nichts zu schliessen. Geprüft wird beides: geschlossen, wenn alles
+  -- gemessen ist; unbekannt, wenn nicht. Ein Rest, der eine Zahl ist, obwohl
+  -- der Verlust unbekannt ist, wäre eine stillschweigend angenommene Null.
+  assert (select coalesce(abs(bilanz_rest_kg) < 1, not verlust_bekannt) from v_saisonbilanz),
+    format('Die Bilanz schliesst nicht: Rest %s kg (Verlust bekannt: %s)',
+           (select bilanz_rest_kg from v_saisonbilanz),
+           (select verlust_bekannt from v_saisonbilanz));
   assert (select befund from v_saisonbilanz) like 'Bis heute (15.01.2027)%'
       or (select befund from v_saisonbilanz) like '%noch nicht gemessen%'
       or (select befund from v_saisonbilanz) like '%zu viel%',
@@ -2828,7 +2875,13 @@ begin
                       where w.vor > w.verlust_kum_kg + 0.01), 'Der Verlust kumuliert monoton';
   assert not exists (select 1 from erg_verlauf where im_haus_kg < -0.01 or verlust_kum_kg < -0.01), 'Nie negativ';
   select verlust_kum_kg into v from erg_verlauf where sorte is null and not prognose order by woche desc limit 1;
-  select sum(verlust_heute_kg) into v2 from erg_charge;
+  -- Der Verlauf zeichnet die Ursachen, die gemessen sind — eine Kurve, die
+  -- verschwindet, sobald ein Koeffizient fehlt, hilft niemandem. Verglichen wird
+  -- deshalb mit derselben Summe: den gemessenen Strömen. Welche Ursache fehlt,
+  -- sagt der Überblick daneben („Nicht gemessen: …"), und die Kennzahl
+  -- „Verlust bis heute" bleibt unbekannt (0064).
+  select sum(coalesce(verdunstung_heute_kg, 0) + coalesce(schimmel_heute_kg, 0)
+             + coalesce(sockel_heute_kg, 0) + coalesce(fax_heute_kg, 0)) into v2 from erg_charge;
   assert abs(v - v2) <= 0.06 * greatest(v2, 1) + 5,
     format('Die letzte Woche bis heute trifft den Verlust der Chargen (%s vs %s, Wochenraster)', round(v), round(v2));
   assert abs((select sum(eingang_kum_kg) from erg_verlauf where sorte is not null and woche = (select max(woche) from erg_verlauf))
@@ -3050,8 +3103,12 @@ begin
   -- stark gefallen — die Klammer prüft die Grössenordnung, nicht das Modell.
   assert v_haus1 - v_haus2 between 380 and 900,
     format('Bestand fiel um %s kg statt um gut 400 kg — Marge-Lieferung doppelt gezählt?', v_haus1 - v_haus2);
+  -- 0064: unbekannter Verlust ⇒ kein Rest. Die Prüfsaison hat keine
+  -- Fax-Messung, deshalb steht hier NULL; sobald sie eine hat, muss der Rest
+  -- schliessen.
   select bilanz_rest_kg into v_rest from v_saisonbilanz;
-  assert abs(v_rest) < 1, format('Die Bilanz schliesst nach der Marge-Lieferung nicht: Rest %s kg', v_rest);
+  assert v_rest is null or abs(v_rest) < 1,
+    format('Die Bilanz schliesst nach der Marge-Lieferung nicht: Rest %s kg', v_rest);
   delete from lieferung where id = v_lief;
   perform auswertung_aktualisieren();
 
@@ -3092,7 +3149,7 @@ select '——— 0062 Jede Zahl sagt, was sie ist geprüft ———' as ergebn
 do $$
 declare v_ohne text; v_public text;
 begin
-  assert schema_stand() = 63, format('Stand 63 erwartet, ist %s', schema_stand());
+  assert schema_stand() >= 63, format('mindestens Stand 63 erwartet, ist %s', schema_stand());
 
   -- a) Keine Ansicht ohne Beschreibung. Sie ist das, was im SQL-Editor und in
   --    jedem auslesenden Werkzeug erklärt, was eine Zahl bedeutet.
@@ -3117,3 +3174,132 @@ begin
 end $$;
 
 select '——— 0063 Jede Sicht sagt, was sie ist geprüft ———' as ergebnis;
+
+
+-- =====================================================================
+-- 0064 — Leer ist nicht null, auch am Eingang
+-- =====================================================================
+-- Fünf Stellen, an denen aus einer Lücke eine Zahl wurde. Jede bekommt hier
+-- einen Fall, der auf Papier nachrechenbar ist: drei Paletten à 1000 kg mit
+-- 30 Kisten, Kistentara 1 kg, Palettentara 20 kg — Netto also 950 kg je
+-- Palette. Wer eine dieser Behauptungen bricht, sieht es sofort.
+do $$
+declare v_netto numeric; v_eingang numeric; v_verlust numeric; v_haus numeric;
+        v_lager numeric; v_arten text; v_chef uuid := '11111111-1111-1111-1111-111111111111';
+begin
+  assert schema_stand() >= 64, format('mindestens Stand 64 erwartet, ist %s', schema_stand());
+
+  -- Eine eigene Saison, damit die Zahlen von Hand nachzurechnen sind.
+  insert into auth.users (id, email, raw_user_meta_data)
+       values (v_chef, 'pruefung64@hof.test', '{"name":"Prüfung 64"}') on conflict do nothing;
+  update profil set rolle = 'admin', aktiv = true where id = v_chef;
+  perform set_config('request.jwt.claim.sub', v_chef::text, true);
+
+  insert into gebinde (art, tara_kg_pro_kiste, tara_kg_palette) values ('PRF64', 1.0, 20.0)
+    on conflict (art) do update set tara_kg_pro_kiste = 1.0, tara_kg_palette = 20.0;
+  insert into gebinde (art, tara_kg_pro_kiste, tara_kg_palette) values ('PRF64OHNE', null, null)
+    on conflict (art) do update set tara_kg_pro_kiste = null, tara_kg_palette = null;
+  insert into sorte_kaliber (sorte, verlust_unter, kaliber_baender, kanal_ab)
+       values ('Prüfkürbis64', 300, '[[300,800],[800,2000]]'::jsonb, 2000) on conflict (sorte) do nothing;
+  insert into charge (nr, schlag, sorte, saison) values
+    (964001, 'Prüfschlag64a', 'Prüfkürbis64', 2026),  -- vollständig
+    (964002, 'Prüfschlag64b', 'Prüfkürbis64', 2026),  -- eine Palette ohne Kistenzahl
+    (964003, 'Prüfschlag64c', 'Prüfkürbis64', 2026)   -- Gebindeart ohne Tara
+    on conflict (nr) do nothing;
+
+  insert into palette (charge_nr, eingangsdatum, brutto_kg, kisten, gebindeart, quelle) values
+    (964001, '2026-06-01', 1000, 30, 'PRF64', 'pruefung'),
+    (964002, '2026-06-01', 1000, 30, 'PRF64', 'pruefung'),
+    (964002, '2026-06-01', 1000, null, 'PRF64', 'pruefung'),
+    (964003, '2026-06-01', 1000, 30, 'PRF64OHNE', 'pruefung');
+
+  -- a) Netto einer vollständigen Palette: 1000 − 30·1 − 20 = 950.
+  select netto_kg into v_netto from v_palette where charge_nr = 964001;
+  assert v_netto = 950, format('Netto 950 erwartet, ist %s', v_netto);
+
+  -- b) Ohne Kistenzahl gibt es kein Netto — nicht „null Kisten". Sonst stünden
+  --    hier 980 kg, und 30 kg Kistengewicht wären als Kürbis verbucht.
+  select netto_kg into v_netto from v_palette where charge_nr = 964002 and kisten is null;
+  assert v_netto is null, format('Ohne Kistenzahl darf es kein Netto geben, ist %s', v_netto);
+
+  -- c) Ohne hinterlegte Tara ebenso.
+  select netto_kg into v_netto from v_palette where charge_nr = 964003;
+  assert v_netto is null, format('Ohne Tara darf es kein Netto geben, ist %s', v_netto);
+
+  -- d) Beide Fälle melden sich als Auffälligkeit — sonst sucht niemand danach.
+  select string_agg(distinct art, ', ') into v_arten
+    from v_plausibilitaet where charge_nr in (964002, 964003);
+  assert v_arten like '%Tara fehlt%',
+    format('Paletten ohne Netto müssen als „Tara fehlt" auffallen, gemeldet wurde: %s', coalesce(v_arten, 'nichts'));
+
+  perform auswertung_aktualisieren();
+
+  -- e) Jeder Strom trägt genau dann eine Zahl, wenn sein Koeffizient gemessen
+  --    ist — beide Richtungen. Eine Zahl ohne Messung wäre eine erfundene Null;
+  --    ein „unbekannt" trotz Messung wäre eine verschenkte Auskunft.
+  --    (Der Fall „gar nichts gemessen" steht im Prüfwerk, Sonde 08: hier stehen
+  --    Messungen anderer Sorten, und die Koeffizienten werden gepoolt.)
+  assert not exists (select 1 from erg_charge
+                      where (verdunstung_heute_kg is not null) <> verdunstung_bekannt
+                         or (schimmel_heute_kg    is not null) <> schimmel_bekannt
+                         or (sockel_heute_kg      is not null) <> sockel_nachgewiesen
+                         or (fax_heute_kg         is not null) <> fax_bekannt
+                         or (kanal_ausgelagert_kg is not null) <> kanal_bekannt),
+    'Jeder Strom ist genau dann eine Zahl, wenn sein Koeffizient gemessen ist (0064)';
+
+  -- f) Die Charge mit einer Palette ohne Netto rechnet mit dem Mittel weiter:
+  --    950 (die gewogene) × 2 Paletten = 1900 kg Eingang, davon 950 hochgerechnet.
+  select eingang_kg into v_eingang from erg_charge where charge_nr = 964002;
+  assert v_eingang = 1900, format('Eingang 1900 erwartet (Mittel × Palettenzahl), ist %s', v_eingang);
+
+  -- g) Die Charge ohne jede Tara hat gar keinen Eingang und fehlt in der Bilanz.
+  assert not exists (select 1 from erg_charge where charge_nr = 964003),
+    'Eine Charge ohne ein einziges Nettogewicht darf keinen erfundenen Eingang haben';
+
+  -- h) Eine vollständig ausgelieferte Charge liegt nicht mehr im Haus.
+  insert into lieferung (datum, charge_nr, sorte, kg, ziel, erfasser)
+       values ('2026-08-01', 964001, 'Prüfkürbis64', 950, 'verkauf', v_chef);
+  perform auswertung_aktualisieren();
+  select im_haus_heute_kg, lager_kg into v_haus, v_lager
+    from erg_charge where charge_nr = 964001;
+  assert v_haus = 0, format('Alles ausgeliefert: „noch im Haus" muss 0 sein, ist %s', v_haus);
+  assert v_lager = 0, format('Alles ausgeliefert: lager_kg muss 0 sein, ist %s', v_lager);
+
+  -- i) Eine Charge ohne Lieferung liegt dagegen noch da — so viel, wie die
+  --    Kaskade für ihre liegende Portion ausrechnet. (Nicht 1900: die
+  --    Koeffizienten sind aus den Messungen der anderen Sorten gepoolt, also
+  --    ist ein Teil bereits verdunstet und verdorben.)
+  select im_haus_heute_kg into v_haus from erg_charge where charge_nr = 964002;
+  assert v_haus > 0 and v_haus <= 1900,
+    format('Ohne Lieferung muss noch etwas liegen, höchstens der Eingang — ist %s', v_haus);
+  assert abs(v_haus - (select sum(m2) from mv_kaskade
+                        where charge_nr = 964002 and portion = 'lager')) < 0.01,
+    'Der Bestand einer Charge ist die liegende Portion der Kaskade, nichts anderes';
+
+  -- j) Mehr geliefert als hereingekommen fällt auf.
+  insert into lieferung (datum, charge_nr, sorte, kg, ziel, erfasser)
+       values ('2026-08-05', 964002, 'Prüfkürbis64', 2500, 'verkauf', v_chef);
+  perform auswertung_aktualisieren();
+  assert exists (select 1 from v_plausibilitaet where art = 'Überzählung' and charge_nr = 964002),
+    'Mehr Ausgang als Eingang muss als „Überzählung" auffallen';
+
+  -- k) Eine Lieferung ohne Menge und ohne Kisten nimmt die Tabelle nicht an.
+  begin
+    insert into lieferung (datum, charge_nr, sorte, kg, kisten, ziel, erfasser)
+         values ('2026-08-06', 964001, 'Prüfkürbis64', null, null, 'verkauf', v_chef);
+    raise exception 'Eine Lieferung ohne Menge und ohne Kistenzahl darf nicht angenommen werden';
+  exception when check_violation then null;
+  end;
+
+  -- aufräumen
+  delete from lieferung where charge_nr in (964001, 964002, 964003);
+  delete from palette where charge_nr in (964001, 964002, 964003);
+  delete from charge where nr in (964001, 964002, 964003);
+  delete from sorte_kaliber where sorte = 'Prüfkürbis64';
+  delete from gebinde where art in ('PRF64', 'PRF64OHNE');
+  perform auswertung_aktualisieren();
+  perform set_config('request.jwt.claim.sub', '', true);
+  raise notice 'OK  0064 Leer ist nicht null (Netto ohne Kisten, Tara fehlt, Verlust unbekannt, Bestand nach Auslieferung, Überzählung)';
+end $$;
+
+select '——— 0064 Leer ist nicht null geprüft ———' as ergebnis;

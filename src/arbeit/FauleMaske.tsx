@@ -5,6 +5,7 @@ import { fehlerText, stammdaten } from '../lib/db'
 import { Hinweis } from '../components/Bausteine'
 import { uhrzeit, type ArbeitDaten } from './daten'
 import type { Gebinde } from '../lib/typen'
+import { nettoKg, taraFehlt } from '../lib/masse'
 
 /**
  * Faules wiegen (Fax, 0051): kistenweise auf die Waage — Brutto, Kistenzahl,
@@ -30,9 +31,9 @@ export function FauleMaske({ d, gesperrt, melden, neuLaden }: {
 
   const tara = gebinde.find(g => g.art === gart)
   const n = Number(kisten); const b = Number(brutto)
-  const netto = b > 0 && n > 0 && tara?.tara_kg_pro_kiste != null
-    ? Math.max(Math.round(b - n * tara.tara_kg_pro_kiste - (mitPalette ? (tara.tara_kg_palette ?? 0) : 0)), 0)
-    : null
+  const roh = b > 0 && n > 0 ? nettoKg(b, n, tara, mitPalette) : null
+  const netto = roh === null ? null : Math.max(Math.round(roh), 0)
+  const fehlt = b > 0 && n > 0 ? taraFehlt(tara, mitPalette) : null
 
   async function speichern() {
     if (netto === null || laeuft) return
@@ -102,6 +103,7 @@ export function FauleMaske({ d, gesperrt, melden, neuLaden }: {
         </button>
       )}
       {d.ablesungen.length === 0 && <p className="leise" style={{ margin: '.4rem 0 0' }}>{t('nichtsFaulesErkl')}</p>}
+      {fehlt && <Hinweis art="warnung">{fehlt} Ohne sie lässt sich das Nettogewicht nicht ausrechnen — die Angabe gehört in die Stammdaten.</Hinweis>}
       {fehler && <Hinweis art="warnung">{fehler}</Hinweis>}
       {d.ablesungen.length > 0 && (
         <>

@@ -7,6 +7,7 @@ import { Anteilsbalken, Glocke, Linien, tonnenAchse, type Anteilszeile, type Rei
 import { STROMFARBE, STROMKURZ, alterSpanne, glockeVorbereiten, gruppenSchluessel, kaliberJe, stroemeVon, useAuswertung,
          type Auswertung, type Bestand, type Gruppe } from '../auswertung/daten'
 import { Probleme, Rechnet, Reiterkopf } from '../auswertung/Karten'
+import { summeBekannt } from '../lib/masse'
 
 const TAG = 86400000
 const GRUPPEN: [Gruppe, string][] = [['gesamt', 'Gesamt'], ['sorte', 'je Sorte'], ['schlag', 'je Schlag'], ['charge', 'je Charge']]
@@ -44,6 +45,11 @@ export default function Ueberblick() {
   const gesamt = stroemeVon(daten.verlust, 'gesamt')
   const unbekannt = gesamt.filter(x => !x.bekannt && x.buch !== 'bilanz').map(x => STROMKURZ[x.strom] ?? x.strom)
   const paletten = daten.bestand.reduce((a, b) => a + b.n_paletten, 0)
+  // 0064: Paletten ohne Netto (fehlende Tara, fehlende Kistenzahl) gehen mit dem
+  // Mittel der übrigen in den Eingang ein. Solange das vorkommt, ist der Eingang
+  // nicht durchweg gemessen — und die Marke darf das nicht behaupten.
+  const ohneNetto = daten.bestand.reduce((a, b) => a + (b.n_paletten - b.n_paletten_mit_netto), 0)
+  const eingangHochgerechnet = paletten > 0 ? (s.eingang_kg * ohneNetto) / paletten : 0
   const kanalAusgelagert = s.kanal_ausgelagert_kg
   const zeilen = anteilszeilen(daten, gruppe)
 
@@ -56,18 +62,28 @@ export default function Ueberblick() {
       {/* 1. Vier Zahlen bis heute: zwei gemessen, zwei gerechnet */}
       <Karte>
         <div className="spalten">
-          <Kennzahl titel="Eingang" wert={<>{tonnen(s.eingang_kg)} <Herkunft art="gemessen" /></>}
-                    unter={`${zahl(paletten)} Paletten in ${s.n_chargen} Chargen, ab Erntejournal`} />
-          <Kennzahl titel="Ausgeliefert" wert={s.n_lieferungen > 0 || s.vorlauf_kg > 0 ? <>{tonnen(s.ausgang_kg)} <Herkunft art="gemessen" /></> : '—'}
+          <Kennzahl titel="Eingang"
+                    wert={<>{tonnen(s.eingang_kg)} {ohneNetto === 0
+                      ? <Herkunft art="gemessen" />
+                      : <Herkunft art="gerechnet" text={`${ohneNetto} Paletten ohne Nettogewicht — für sie rechnet der Eingang mit dem Mittel der übrigen`} />}</>}
+                    unter={<>{zahl(paletten)} Paletten in {s.n_chargen} Chargen, ab Erntejournal
+                      {ohneNetto > 0 && <>; davon {zahl(ohneNetto)} ohne Nettogewicht — rund {tonnen(eingangHochgerechnet)} sind hochgerechnet. <Link to="/messungen">Messungen</Link> sagt, welche.</>}</>} />
+          <Kennzahl titel="Ausgeliefert" wert={s.n_lieferungen > 0 || s.vorlauf_kg > 0
+                      ? <>{tonnen(s.ausgang_kg)} {s.vorlauf_kg > 0
+                          ? <Herkunft art="gerechnet" text="enthält die Angabe des Betriebs über die Zeit vor dem Erfassungsbeginn — dafür gibt es keinen Lieferschein" />
+                          : <Herkunft art="gemessen" />}</> : '—'}
                     unter={s.n_lieferungen > 0 || s.vorlauf_kg > 0
                       ? <>{zahl(s.n_lieferungen)} Lieferungen ab Lieferschein{s.marge_kg > 0 ? `, davon ${tonnen(s.marge_kg)} an Tiere und Nebenkanal` : ''}{s.vorlauf_kg > 0 ? `, ${tonnen(s.vorlauf_kg)} vor dem Erfassungsbeginn` : ''}</>
                       : <>noch kein Warenausgang eingelesen — <Link to="/betrieb/lieferungen">Betrieb → Warenausgang</Link></>} />
           <Kennzahl titel={`Verlust bis ${datum(daten.heute).slice(0, 6)}`} wert={<>{tonnen(s.verlust_heute_kg)} <Herkunft art="gerechnet" /></>}
-                    unter={<>{prozent(s.eingang_kg > 0 ? s.verlust_heute_kg / s.eingang_kg : null)} des Eingangs
+                    unter={<>{prozent(s.verlust_heute_kg !== null && s.eingang_kg > 0 ? s.verlust_heute_kg / s.eingang_kg : null)} des Eingangs
                       {s.verlust_unten_kg != null && s.verlust_oben_kg != null && <> · Bereich {tonnen(s.verlust_unten_kg)}–{tonnen(s.verlust_oben_kg)}</>}
-                      <br />Verdunstung {tonnen(s.verdunstung_heute_kg)} · Faules {tonnen(s.schimmel_heute_kg + s.sockel_heute_kg)} · beim Abpacken {tonnen(s.fax_heute_kg)}</>} />
-          <Kennzahl titel="Noch im Haus" wert={<>{tonnen(s.im_haus_heute_kg)} <Herkunft art="gerechnet" /></>}
-                    unter={s.n_lieferungen > 0
+                      <br />Verdunstung {tonnen(s.verdunstung_heute_kg)} · Faules {tonnen(summeBekannt([s.schimmel_heute_kg, s.sockel_heute_kg]))} · beim Abpacken {tonnen(s.fax_heute_kg)}</>} />
+          <Kennzahl titel="Noch im Haus"
+                    wert={<>{s.verlust_bekannt ? '' : 'höchstens '}{tonnen(s.im_haus_heute_kg)} <Herkunft art="gerechnet" /></>}
+                    unter={!s.verlust_bekannt
+                      ? <>so viel Eingangsware ist nicht ausgeliefert. Wie viel davon inzwischen verdunstet oder verdorben ist, ist nicht gemessen — mehr als das kann nicht dastehen.</>
+                      : s.n_lieferungen > 0
                       ? <>davon verkaufsfähig {tonnen(s.verkaufsfaehig_heute_kg)}, zu klein oder zu gross {tonnen(s.kanal_im_haus_kg)}</>
                       : 'ohne Warenausgang: rechnerisch alles — abzüglich des Verlusts bis heute'} />
         </div>
@@ -183,7 +199,7 @@ function anteilszeilen(daten: Auswertung, gruppe: Gruppe): Anteilszeile[] {
 
 interface Gruppenbild {
   name: string; sorte: string; schlag: string; nChargen: number
-  eingang: number; geliefert: number; verlust: number; imHaus: number; verkaufsfaehig: number
+  eingang: number; geliefert: number; verlust: number | null; imHaus: number; verkaufsfaehig: number
   alterVon: number | null; alterBis: number | null
 }
 
@@ -193,7 +209,9 @@ function gruppenbild(chargen: Bestand[], nach: 'sorte' | 'schlag' | 'charge'): G
     const name = nach === 'charge' ? String(c.charge_nr) : nach === 'sorte' ? c.sorte : c.schlag
     let g = map.get(name)
     if (!g) { g = { name, sorte: c.sorte, schlag: c.schlag, nChargen: 0, eingang: 0, geliefert: 0, verlust: 0, imHaus: 0, verkaufsfaehig: 0, alterVon: null, alterBis: null }; map.set(name, g) }
-    g.nChargen++; g.eingang += c.eingang_kg; g.geliefert += c.geliefert_kg; g.verlust += c.verlust_heute_kg
+    // 0064: ein unbekannter Verlust bleibt unbekannt — auch in einer Gruppe.
+    g.nChargen++; g.eingang += c.eingang_kg; g.geliefert += c.geliefert_kg
+    g.verlust = summeBekannt([g.verlust, c.verlust_heute_kg])
     g.imHaus += c.im_haus_heute_kg; g.verkaufsfaehig += c.verkaufsfaehig_lager_kg ?? 0
     if (c.im_haus_heute_kg > 0 && c.alter_lager_von !== null) g.alterVon = g.alterVon === null ? c.alter_lager_von : Math.min(g.alterVon, c.alter_lager_von)
     if (c.im_haus_heute_kg > 0 && c.alter_lager_bis !== null) g.alterBis = g.alterBis === null ? c.alter_lager_bis : Math.max(g.alterBis, c.alter_lager_bis)

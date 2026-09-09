@@ -6,6 +6,7 @@ import { Hinweis } from '../components/Bausteine'
 import { Wahl } from '../components/Schritte'
 import { uhrzeit, type ArbeitDaten } from './daten'
 import type { Gebinde } from '../lib/typen'
+import { nettoKg, taraFehlt } from '../lib/masse'
 
 type Art = 'zu_klein' | 'zu_gross'
 
@@ -34,9 +35,9 @@ export function AusschussMaske({ d, gesperrt, melden, neuLaden }: {
 
   const tara = gebinde.find(g => g.art === gart)
   const n = Number(kisten); const b = Number(brutto)
-  const netto = b > 0 && n > 0 && tara?.tara_kg_pro_kiste != null
-    ? Math.max(Math.round(b - n * tara.tara_kg_pro_kiste - (tara.tara_kg_palette ?? 0)), 0)
-    : null
+  const roh = b > 0 && n > 0 ? nettoKg(b, n, tara) : null
+  const netto = roh === null ? null : Math.max(Math.round(roh), 0)
+  const fehlt = b > 0 && n > 0 ? taraFehlt(tara) : null
 
   async function speichern() {
     if (netto === null || laeuft) return
@@ -107,6 +108,7 @@ export function AusschussMaske({ d, gesperrt, melden, neuLaden }: {
           <p className="leise" style={{ margin: '.4rem 0 0' }}>{t('ausschussNichtsErkl')}</p>
         </>
       )}
+      {fehlt && <Hinweis art="warnung">{fehlt} Ohne sie lässt sich das Nettogewicht nicht ausrechnen — die Angabe gehört in die Stammdaten.</Hinweis>}
       {fehler && <Hinweis art="warnung">{fehler}</Hinweis>}
       {d.ausschuss.length > 0 && (
         <>

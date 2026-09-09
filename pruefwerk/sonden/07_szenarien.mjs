@@ -59,8 +59,10 @@ export async function laufen() {
         sicherheit: 'hoch', marke: 'Reparatur' })
   }
 
-  // Der eigentliche Fund dieses Falls: nichts gemessen, Verlust trotzdem 0.
-  if (Number(b1.verlust) === 0 && b1.verlust_bekannt === false) {
+  // Der eigentliche Fund dieses Falls: nichts gemessen, Verlust trotzdem eine
+  // Zahl. `Number(null)` ist 0 — deshalb wird hier auf NULL geprüft, nicht auf
+  // die Null; sonst schlägt die Sonde auch dann an, wenn alles stimmt.
+  if (b1.verlust !== null && b1.verlust_bekannt === false) {
     B({ klasse: 3, ort: { sicht: 'v_hochrechnung_basis', spalte: 'verlust_heute_kg' },
         titel: 'Ohne jede Messung steht „Verlust bis heute: 0 kg" statt „unbekannt"',
         steht_da: 'verlust_heute_kg = 0, verlust_bekannt = false — auf dem Überblick: „0,0 t · 0 % des Eingangs"',

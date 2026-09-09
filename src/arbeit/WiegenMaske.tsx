@@ -5,6 +5,7 @@ import { fehlerText, stammdaten } from '../lib/db'
 import { Hinweis } from '../components/Bausteine'
 import type { ArbeitDaten } from './daten'
 import type { Gebinde } from '../lib/typen'
+import { nettoKg, taraFehlt } from '../lib/masse'
 
 /**
  * Eine Palette wiegen und dabei zählen. Der Arbeiter tippt ab, was auf dem
@@ -38,8 +39,8 @@ export function WiegenMaske({ d, zettelDatum, zettelBrutto = '', fertig }: {
 
   const vollstaendig = datum !== '' && damals !== '' && jetzt !== '' && kisten !== '' && art !== ''
   const tara = gebinde.find(g => g.art === art)
-  const netto = kisten !== '' && jetzt !== '' && tara?.tara_kg_pro_kiste != null
-    ? Number(jetzt) - Number(kisten) * tara.tara_kg_pro_kiste - (tara.tara_kg_palette ?? 0) : null
+  const netto = kisten !== '' && jetzt !== '' ? nettoKg(Number(jetzt), Number(kisten), tara) : null
+  const fehlt = kisten !== '' && jetzt !== '' ? taraFehlt(tara) : null
 
   async function speichern() {
     if (!vollstaendig) return
@@ -102,6 +103,7 @@ export function WiegenMaske({ d, zettelDatum, zettelBrutto = '', fertig }: {
           )}
         </p>
       )}
+      {fehlt && <Hinweis art="warnung">{fehlt} Ohne sie lässt sich das Nettogewicht nicht ausrechnen — die Angabe gehört in die Stammdaten.</Hinweis>}
       {fehler && <Hinweis art="warnung">{fehler}</Hinweis>}
       <button className="haupt" style={{ width: '100%', minHeight: 60 }} onClick={() => void speichern()}
               disabled={laeuft || !vollstaendig}>{t('eintragen')}</button>

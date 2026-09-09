@@ -8,6 +8,7 @@ import { Herkunft, Hinweis, Karte, Lade, Marke } from '../components/Bausteine'
 import { alterSpanne, useAuswertung, type Auswertung } from '../auswertung/daten'
 import { Probleme, Rechnet, Reiterkopf } from '../auswertung/Karten'
 import type { Auftrag } from '../lib/typen'
+import { summeBekannt } from '../lib/masse'
 
 /**
  * Chargen: Wo steht welche Charge? Eine Zeile je Charge mit Eingang,
@@ -145,7 +146,7 @@ function ChargeDetail({ nr, z, daten }: { nr: number; z: Zeile; daten: Auswertun
         <div><div className="leise">Paletten</div><strong>{zahl(b.n_paletten)}</strong>{b.im_haus_heute_kg > 0 && (b.n_rest_paletten ?? 0) > 0 && <div className="leise">etwa {b.n_rest_paletten} noch im Haus (gerechnet)</div>}</div>
         <div><div className="leise">Eingang</div><strong>{b.eingang_von && b.eingang_bis && b.eingang_von !== b.eingang_bis ? `${datum(b.eingang_von)} – ${datum(b.eingang_bis)}` : datum(b.eingang_von ?? b.eingangsdatum_mittel)}</strong>{(b.n_eingangstage ?? 0) > 1 && <div className="leise">{b.n_eingangstage} Eingangstage</div>}</div>
         <div><div className="leise">Ausgeliefert / dahinter an Eingang</div><strong>{kg(b.geliefert_kg, 0)} / {kg(b.ausgelagert_kg, 0)}</strong>{b.ueberzaehlung_kg > 0 && <div className="leise">mehr geliefert als hereingekommen: {kg(b.ueberzaehlung_kg, 0)}</div>}</div>
-        <div><div className="leise">Verlust bis heute</div><strong>{kg(b.verlust_heute_kg, 0)}</strong><div className="leise">Verdunstung {kg(b.verdunstung_heute_kg, 0)} · Faules {kg(b.schimmel_heute_kg + b.sockel_heute_kg, 0)} · Abpacken {kg(b.fax_heute_kg, 0)}</div></div>
+        <div><div className="leise">Verlust bis heute</div><strong>{kg(b.verlust_heute_kg, 0)}</strong><div className="leise">Verdunstung {kg(b.verdunstung_heute_kg, 0)} · Faules {kg(summeBekannt([b.schimmel_heute_kg, b.sockel_heute_kg]), 0)} · Abpacken {kg(b.fax_heute_kg, 0)}</div></div>
         {z.m?.csv_gemessen_kg != null && <div><div className="leise">Modell am Band / CSV gewogen</div><strong>{kg(z.m.modell_am_band_kg, 0)} / {kg(z.m.csv_gemessen_kg, 0)}</strong></div>}
       </div>
       {/* Auffälligkeiten stehen seit Runde H nur unter Messungen — dort mit Rat

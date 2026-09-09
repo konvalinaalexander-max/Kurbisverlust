@@ -36,17 +36,22 @@ export interface Bestand {
   charge_nr: number; sorte: string; schlag: string
   eingang_kg: number; lager_kg: number; gegenprobe_wartet_kg: number | null; sortiert_kg: number; gewaschen_kg: number
   ausgelagert_kg: number; alter_lager: number; alter_lager_heute: number; ueberzaehlung_kg: number
-  n_paletten: number; eingangsdatum_mittel: string | null
+  n_paletten: number; n_paletten_mit_netto: number; eingangsdatum_mittel: string | null
   eingang_von: string | null; eingang_bis: string | null; n_eingangstage: number | null
   rest_von: string | null; rest_bis: string | null; n_rest_paletten: number | null; n_rest_kohorten: number | null
   alter_lager_von: number | null; alter_lager_bis: number | null
   geliefert_kg: number; verkaufsfaehig_lager_kg: number | null; n_lieferungen: number
   /** 0061/0062: bis heute — die Teile des Verlusts, was im Haus liegt, was davon anderer Kanal ist.
    *  kanal_ausgelagert_kg ist der andere Kanal, der schon passiert ist; kanal_im_haus_kg
-   *  ist die Erwartung an der Ware, die noch unsortiert liegt. */
-  verdunstung_heute_kg: number; schimmel_heute_kg: number; sockel_heute_kg: number; sockel_oben_kg: number
-  fax_heute_kg: number; fax_erwartet_kg: number; verlust_heute_kg: number; kanal_ausgelagert_kg: number
-  im_haus_heute_kg: number; kanal_im_haus_kg: number; heute: string
+   *  ist die Erwartung an der Ware, die noch unsortiert liegt.
+   *  0064: **null heisst „nicht gemessen"**, nicht null Kilo. Jeder dieser Ströme ist
+   *  null, solange sein Koeffizient keine Messung hat; das Kennzeichen daneben sagt,
+   *  welcher. Wer hier mit `?? 0` rechnet, macht aus Unwissen eine gemessene Null. */
+  verdunstung_heute_kg: number | null; schimmel_heute_kg: number | null
+  sockel_heute_kg: number | null; sockel_oben_kg: number
+  fax_heute_kg: number | null; fax_erwartet_kg: number | null
+  verlust_heute_kg: number | null; kanal_ausgelagert_kg: number | null
+  im_haus_heute_kg: number; kanal_im_haus_kg: number | null; heute: string
   verlust_bekannt: boolean; verdunstung_bekannt: boolean; schimmel_bekannt: boolean
   sockel_nachgewiesen: boolean; fax_bekannt: boolean; kanal_bekannt: boolean
 }
@@ -78,11 +83,13 @@ export interface Saisonbilanz {
   heute: string; eingang_kg: number; n_chargen: number
   ausgang_kg: number; verkauf_kg: number; marge_kg: number; entsorgt_kg: number; ausgang_fehler_kg: number
   n_lieferungen: number; letzte_lieferung: string | null; vorlauf_kg: number; geliefert_kg: number; ausgelagert_kg: number
-  verlust_heute_kg: number; verlust_unten_kg: number | null; verlust_oben_kg: number | null
-  verdunstung_heute_kg: number; schimmel_heute_kg: number; sockel_heute_kg: number; sockel_oben_kg: number
-  fax_heute_kg: number; fax_erwartet_kg: number
-  kanal_ausgelagert_kg: number; kanal_unten_kg: number | null; kanal_oben_kg: number | null
-  im_haus_heute_kg: number; verkaufsfaehig_heute_kg: number; kanal_im_haus_kg: number
+  /** 0064: null heisst „nicht gemessen" — siehe Bestand. */
+  verlust_heute_kg: number | null; verlust_unten_kg: number | null; verlust_oben_kg: number | null
+  verdunstung_heute_kg: number | null; schimmel_heute_kg: number | null
+  sockel_heute_kg: number | null; sockel_oben_kg: number
+  fax_heute_kg: number | null; fax_erwartet_kg: number | null
+  kanal_ausgelagert_kg: number | null; kanal_unten_kg: number | null; kanal_oben_kg: number | null
+  im_haus_heute_kg: number; verkaufsfaehig_heute_kg: number; kanal_im_haus_kg: number | null
   lager_kg: number; gegenprobe_wartet_kg: number | null; ueberzaehlung_kg: number
   fax_durchsatz_kg: number | null; n_fax_arbeiten: number | null
   verlust_bekannt: boolean; verdunstung_bekannt: boolean; schimmel_bekannt: boolean

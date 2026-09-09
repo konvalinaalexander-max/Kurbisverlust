@@ -194,7 +194,12 @@ export async function laufen() {
 
   const ohneArt = p.find(x => x.gebindeart === null)
   const fehlend = Number(c.n_paletten) - Number(c.n_paletten_mit_netto)
-  if (ohneArt && ohneArt.netto === null && fehlend > 0) {
+  // Seit 0064 hängt die Herkunftsmarke des Eingangs an n_paletten_mit_netto,
+  // und v_plausibilitaet meldet die Lücke. Der Befund bleibt nur, solange
+  // eines von beidem fehlt.
+  const markeBedingt = /n_paletten_mit_netto/.test(lies('src/pages/Ueberblick.tsx'))
+  const gemeldet = auff.some(a => /Tara fehlt/.test(a.art))
+  if (ohneArt && ohneArt.netto === null && fehlend > 0 && !(markeBedingt && gemeldet)) {
     const jeVoll = p.filter(x => x.netto !== null).reduce((a, x) => a + Number(x.netto), 0)
                  / p.filter(x => x.netto !== null).length
     B({ klasse: 3, ort: { sicht: 'erg_charge', spalte: 'eingang_kg' },
@@ -252,17 +257,24 @@ export async function laufen() {
 
 /**
  * Selbstprobe: In der Welt ohne Messung *muss* mindestens ein Strom als
- * unbekannt gelten. Gilt keiner als unbekannt, ist der Massstab kaputt und
- * die ganze Sonde wertlos — dann meldet sie sich lieber selbst.
+ * unbekannt gelten, und `erg_verlust` *muss* ihn als NULL führen. Gilt keiner
+ * als unbekannt oder steht dort eine Zahl, ist der Massstab kaputt — und dann
+ * sagt auch das leere Ergebnis der Sonde nichts.
+ *
+ * (Bis 0064 stand hier zusätzlich, dass v_saisonbilanz denselben Strom als 0
+ * ausweist — das war der Befund LNN-001. Er ist behoben; die Selbstprobe prüft
+ * jetzt nur noch den Massstab, nicht mehr den Fehler.)
  */
 export async function selbstprobe() {
   papierfall('pw_leer_probe')
   const r = frage('pw_leer_probe', `select count(*) filter (where not bekannt) as offen,
+                                           count(*) filter (where kg is not null) as mit_zahl,
                                            count(*) as alle
                                       from erg_verlust where gruppe = 'gesamt'`)[0]
-  const b = frage('pw_leer_probe', `select verlust_bekannt, verlust_heute_kg::numeric as v
+  const b = frage('pw_leer_probe', `select verlust_bekannt, verlust_heute_kg::numeric as v,
+                                           eingang_kg::numeric as e
                                       from v_saisonbilanz`)[0]
-  return Number(r.offen) === Number(r.alle) && Number(r.alle) > 0
+  return Number(r.offen) === Number(r.alle) && Number(r.alle) > 0 && Number(r.mit_zahl) === 0
       && (b.verlust_bekannt === false || b.verlust_bekannt === 'f')
-      && b.v !== null
+      && Number(b.e) > 0
 }

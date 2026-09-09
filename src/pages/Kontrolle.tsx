@@ -7,6 +7,7 @@ import { Hinweis, Karte } from '../components/Bausteine'
 import { Wahl } from '../components/Schritte'
 import { ChargeFeld } from '../components/ChargeFeld'
 import type { Charge, Gebinde } from '../lib/typen'
+import { nettoKg, taraFehlt } from '../lib/masse'
 
 interface Vorschlag {
   charge_nr: number; sorte: string; schlag: string; im_haus_heute_kg: number
@@ -59,9 +60,8 @@ export default function Kontrolle() {
   const vollstaendig = chargeBekannt && datum !== '' && damals !== '' && jetzt !== '' && kisten !== '' && art !== ''
 
   const tara = gebinde.find(g => g.art === art)
-  const netto = kisten !== '' && jetzt !== '' && tara?.tara_kg_pro_kiste != null
-    ? Number(jetzt) - Number(kisten) * tara.tara_kg_pro_kiste - (tara.tara_kg_palette ?? 0)
-    : null
+  const netto = kisten !== '' && jetzt !== '' ? nettoKg(Number(jetzt), Number(kisten), tara) : null
+  const fehlt = kisten !== '' && jetzt !== '' ? taraFehlt(tara) : null
 
   async function speichern() {
     if (!vollstaendig || laeuft) return
@@ -167,6 +167,7 @@ export default function Kontrolle() {
           <p style={{ margin: '0 0 .6rem' }}><strong>{netto.toFixed(1)} kg</strong> {t('netto')}</p>
         )}
 
+        {fehlt && <Hinweis art="warnung">{fehlt} Ohne sie lässt sich das Nettogewicht nicht ausrechnen — die Angabe gehört in die Stammdaten.</Hinweis>}
         {fehler && <Hinweis art="warnung">{fehler}</Hinweis>}
         <div className="reihe">
           <button id="k-eintragen" className="haupt" style={{ flex: 1, minHeight: 54 }}

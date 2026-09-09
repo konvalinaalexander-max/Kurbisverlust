@@ -4,6 +4,7 @@ import { datum, kg, prozent, tonnen, zeitpunkt } from '../lib/format'
 import { Herkunft, Hinweis, Karte, Marke } from '../components/Bausteine'
 import { Bilanzzeile } from '../components/Kaskadenbild'
 import { SCHRITTE, type Befund, type Fortschritt, type Problem, type Saisonbilanz, type Schimmelpunkt, type StromSumme } from './daten'
+import { summeBekannt } from '../lib/masse'
 
 /** Kopfzeile eines Reiters: Name, der eine Satz, wozu er da ist, Stand, bis wann gerechnet, Neu rechnen. */
 export function Reiterkopf({ titel, zweck, stand, heute, neuRechnen, rechts }: {
@@ -134,7 +135,7 @@ export function Bilanz({ bilanz }: { bilanz: Saisonbilanz }) {
       <Bilanzzeile titel="Verkauft" herkunft="gemessen" kg={bilanz.geliefert_kg} eingang={bilanz.eingang_kg} farbe="var(--strom-rest)"
                    erklaerung={bilanz.n_lieferungen === 0 ? 'noch keine Lieferung erfasst' : `${bilanz.n_lieferungen} Lieferungen${bilanz.vorlauf_kg > 0 ? `, dazu ${tonnen(bilanz.vorlauf_kg)} vor dem Erfassungsbeginn` : ''}`} />
       <Bilanzzeile titel="Verlust bis heute" herkunft="gerechnet" kg={bilanz.verlust_heute_kg} eingang={bilanz.eingang_kg} farbe="var(--strom-schimmel)"
-                   erklaerung={`Verdunstung ${tonnen(bilanz.verdunstung_heute_kg)} · Faules im Lager ${tonnen(bilanz.schimmel_heute_kg + bilanz.sockel_heute_kg)} · Faules beim Abpacken ${tonnen(bilanz.fax_heute_kg)}`} />
+                   erklaerung={`Verdunstung ${tonnen(bilanz.verdunstung_heute_kg)} · Faules im Lager ${tonnen(summeBekannt([bilanz.schimmel_heute_kg, bilanz.sockel_heute_kg]))} · Faules beim Abpacken ${tonnen(bilanz.fax_heute_kg)}`} />
       <Bilanzzeile titel="Anderer Kanal am Ausgelagerten" herkunft="gerechnet" kg={kanalAusgelagert} eingang={bilanz.eingang_kg} farbe="var(--strom-ausschuss)"
                    erklaerung={`zu klein und zu gross hinter den Lieferungen — kein echter Verlust${bilanz.marge_kg > 0 ? `; laut Lieferscheinen ${tonnen(bilanz.marge_kg)} dorthin geliefert` : ''}`} />
       <Bilanzzeile titel="Noch im Haus" herkunft="gerechnet" kg={bilanz.im_haus_heute_kg} eingang={bilanz.eingang_kg} farbe="var(--strom-verdunstung)"

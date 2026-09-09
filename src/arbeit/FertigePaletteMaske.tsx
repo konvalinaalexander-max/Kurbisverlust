@@ -5,6 +5,7 @@ import { fehlerText, stammdaten } from '../lib/db'
 import { Hinweis } from '../components/Bausteine'
 import type { ArbeitDaten } from './daten'
 import type { Gebinde } from '../lib/typen'
+import { nettoKg, taraFehlt } from '../lib/masse'
 
 interface Zeile {
   id: number; kisten: number; kg_pro_kiste: number | null; ueberfuellung_je_kiste: number | null
@@ -50,8 +51,8 @@ export function FertigePaletteMaske({ d, gesperrt, melden, neuLaden }: {
   const stueck = a.kistensystem === 'stueck'
   const tara = gebinde.find(g => g.art === art)
   const n = Number(kisten); const b = Number(brutto)
-  const netto = n > 0 && b > 0 && tara?.tara_kg_pro_kiste != null
-    ? b - n * tara.tara_kg_pro_kiste - (tara.tara_kg_palette ?? 0) : null
+  const netto = n > 0 && b > 0 ? nettoKg(b, n, tara) : null
+  const fehlt = n > 0 && b > 0 ? taraFehlt(tara) : null
   const x = netto !== null && netto > 0 ? netto / n : null
   const kaliberOk = !stueck || kaliberIdx !== null || d.baender.length === 0
 
@@ -112,6 +113,7 @@ export function FertigePaletteMaske({ d, gesperrt, melden, neuLaden }: {
       )}
       <button id="a-eintragen" className="haupt" style={{ width: '100%', minHeight: 60 }} onClick={() => void speichern()}
               disabled={gesperrt || x === null || !kaliberOk}>{t('eintragen')}</button>
+      {fehlt && <Hinweis art="warnung">{fehlt} Ohne sie lässt sich das Nettogewicht nicht ausrechnen — die Angabe gehört in die Stammdaten.</Hinweis>}
       {fehler && <Hinweis art="warnung">{fehler}</Hinweis>}
       {zeilen.length > 0 && (
         <>

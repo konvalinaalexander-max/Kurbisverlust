@@ -7,18 +7,22 @@ import { Herkunft } from './Bausteine'
  * gerechnet (Runde H).
  */
 export function Bilanzzeile({ titel, kg, eingang, farbe, erklaerung, herkunft }: {
-  titel: string; kg: number; eingang: number; farbe: string; erklaerung?: ReactNode
+  /** kg = null heisst „nicht gemessen" (0064): kein Balken, kein Anteil, ein „—". */
+  titel: string; kg: number | null; eingang: number; farbe: string; erklaerung?: ReactNode
   herkunft?: 'gemessen' | 'gerechnet' | 'prognose'
 }) {
-  const anteil = eingang > 0 ? Math.max(kg, 0) / eingang : 0
+  const anteil = kg !== null && eingang > 0 ? Math.max(kg, 0) / eingang : null
   return (
     <div style={{ marginBottom: '.8rem' }}>
       <div className="reihe" style={{ justifyContent: 'space-between', gap: '.6rem', marginBottom: '.2rem' }}>
         <span style={{ fontSize: '.9rem', fontWeight: 560 }}>{titel} {herkunft && <Herkunft art={herkunft} />}</span>
-        <strong style={{ fontVariantNumeric: 'tabular-nums' }}>{(kg / 1000).toFixed(1)} t <span className="leise" style={{ fontWeight: 480 }}>· {(anteil * 100).toFixed(1)} %</span></strong>
+        <strong style={{ fontVariantNumeric: 'tabular-nums' }}>
+          {kg === null ? <span className="leise">nicht gemessen</span> : <>{(kg / 1000).toFixed(1)} t</>}
+          {anteil !== null && <span className="leise" style={{ fontWeight: 480 }}> · {(anteil * 100).toFixed(1)} %</span>}
+        </strong>
       </div>
       <div style={{ background: 'var(--flaeche-2)', height: 10, borderRadius: 5 }}>
-        <div style={{ width: `${Math.min(anteil * 100, 100)}%`, height: 10,
+        <div style={{ width: `${Math.min((anteil ?? 0) * 100, 100)}%`, height: 10,
                       background: farbe, borderRadius: 5 }} />
       </div>
       {erklaerung && (

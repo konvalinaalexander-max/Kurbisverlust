@@ -5,6 +5,7 @@ import { Aufklapp, Herkunft, Hinweis, Karte, Marke, Rechenweg, Zahlen } from '..
 import { Glocke, Linien } from '../components/Diagramm'
 import { glockeVorbereiten, kaliberJe, stroemeVon, useAuswertung, type Auswertung, type Bestand, type Gruppe, type SortenK, type StromSumme, type Ueberfuellung } from '../auswertung/daten'
 import { Probleme, Rechnet, Reiterkopf, rechenweg } from '../auswertung/Karten'
+import { summeBekannt } from '../lib/masse'
 
 /** Kennfarben für Reihen ohne festen Strom (Sorten im Verdunstungsbild). */
 const REIHENFARBEN = ['var(--strom-verdunstung)', 'var(--strom-schimmel)', 'var(--strom-feld)',
@@ -43,11 +44,13 @@ export default function Ursachen() {
   const schlaege = [...new Set(daten.bestand.map(b => b.schlag))].sort((a, b) => a.localeCompare(b, 'de'))
   const chargenListe = [...daten.bestand].sort((a, b) => a.charge_nr - b.charge_nr)
   const summe = (f: (b: Bestand) => number) => chargen.reduce((a, b) => a + f(b), 0)
+  /** 0064: unbekannt bleibt unbekannt — eine Summe mit einer Lücke ist keine Zahl. */
+  const summeOffen = (f: (b: Bestand) => number | null) => summeBekannt(chargen.map(f))
   const eingang = summe(b => b.eingang_kg)
   const geliefert = summe(b => b.geliefert_kg)
   const imHaus = summe(b => b.im_haus_heute_kg)
   const lager = summe(b => b.lager_kg)
-  const verlust = summe(b => b.verlust_heute_kg)
+  const verlust = summeOffen(b => b.verlust_heute_kg)
   const strom = (name: string) => stroeme.find(s => s.strom === name)
   const filterSorte = filter.gruppe === 'sorte' ? filter.schluessel : filter.gruppe === 'charge' ? (chargen[0]?.sorte ?? '') : ''
   const chargenSet = new Set(chargen.map(c => c.charge_nr))
@@ -75,8 +78,14 @@ export default function Ursachen() {
         <Zahlen zeilen={[
           { titel: 'Eingang', wert: <>{tonnen(eingang)} <Herkunft art="gemessen" /></>, unter: `${zahl(summe(b => b.n_paletten))} Paletten aus dem Erntejournal` },
           { titel: 'Ausgeliefert', wert: <>{tonnen(geliefert)} <Herkunft art="gemessen" /></>, unter: `${zahl(summe(b => b.n_lieferungen))} Lieferungen` },
-          { titel: 'Verlust bis heute', wert: <>{tonnen(verlust)} <Herkunft art="gerechnet" /></>, unter: `${prozent(eingang > 0 ? verlust / eingang : null)} des Eingangs` },
-          { titel: 'Noch im Haus', wert: <>{tonnen(imHaus)} <Herkunft art="gerechnet" /></>, unter: `davon ${tonnen(lager)} Eingangsware, die noch liegt` },
+          { titel: 'Verlust bis heute',
+            wert: verlust === null ? <Marke art="warnung">nicht gemessen</Marke> : <>{tonnen(verlust)} <Herkunft art="gerechnet" /></>,
+            unter: verlust === null
+              ? 'mindestens eine Ursache hat noch keine Messung — unbekannt, nicht null'
+              : `${prozent(eingang > 0 ? verlust / eingang : null)} des Eingangs` },
+          { titel: 'Noch im Haus',
+            wert: <>{verlust === null ? 'höchstens ' : ''}{tonnen(imHaus)} <Herkunft art="gerechnet" /></>,
+            unter: `davon ${tonnen(lager)} Eingangsware, die noch liegt` },
         ]} />
       </Karte>
 
