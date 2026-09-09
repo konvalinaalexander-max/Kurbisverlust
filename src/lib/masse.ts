@@ -56,3 +56,33 @@ export function summeBekannt(werte: (number | null | undefined)[]): number | nul
   }
   return s
 }
+
+/**
+ * Wie die Masse einer Arbeit oder Lieferung zustande kam — in der Sprache des
+ * Betriebs statt in der der Datenbank.
+ *
+ * Die Spalte `masse_quelle` sagt, welchen Weg die Rechnung genommen hat. Auf
+ * der Chargen-Seite stand sie bisher roh in Klammern („zettel-charge-tara"),
+ * und damit stand dort Technik statt einer Auskunft. Was hier nicht steht,
+ * wird unverändert durchgereicht — dann fällt der neue Wert auf, statt still
+ * hübsch auszusehen.
+ */
+const HERKUNFT_TEXT: Record<string, string> = {
+  gewogen: 'gewogen',
+  zettel: 'vom Zettel, Palette im Wareneingang gefunden',
+  'zettel-charge-tara': 'vom Zettel, mit der mittleren Tara der Charge',
+  palette: 'aus dem Wareneingang',
+  'datum-mittel': 'Mittel des Eingangstags',
+  'charge-mittel': 'Mittel der Charge',
+  paletten: 'aus den gezählten Eingangspaletten',
+  wasch_paletten: 'aus den gewaschenen Paletten',
+  fax_paletten: 'aus den Fax-Paletten',
+  gebinde: 'aus den gezählten Kisten',
+  fehlt: 'nicht bekannt',
+  unbekannt: 'nicht bekannt',
+}
+
+export function herkunftText(quelle: string | null | undefined): string | null {
+  if (!quelle) return null
+  return HERKUNFT_TEXT[quelle] ?? quelle
+}

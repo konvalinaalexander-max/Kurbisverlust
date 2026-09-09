@@ -333,6 +333,23 @@ export function verdichten(liste) {
       + 'Bitte in der Migration eine Zeile darübersetzen:\n'
       + '  -- verdichter: baut <name> <name> …')
   })
+  // Eine angemeldete Anweisung baut ihre Namen neu — mit "drop … if exists"
+  // davor. Alles, was dieselben Namen **früher** gebaut hat, ist damit
+  // überholt. In setup.sql wird jedes Objekt genau einmal gebaut; stünden
+  // zwei Bauanweisungen für erg_bilanz darin, entschiede die Sortierung
+  // statt der Absicht, welche zuerst liefe — und die zweite bräche ab.
+  //
+  // Der Fall entsteht, sobald eine Migration die Kaskade neu baut: „drop …
+  // cascade" reisst die gespeicherten Ergebnisse mit, und sie werden danach
+  // wieder angelegt. Nach dem Verdichten ist von jedem Objekt nur noch die
+  // jüngste Anweisung übrig, und genau die soll bauen.
+  const markeStellen = [...markiert.entries()].sort((a, b) => a[0] - b[0])
+  const ueberholt = (name, stelle) => markeStellen.some(([i, ns]) => i > stelle && ns.includes(name))
+  const ueberholteMarken = new Set()
+  for (const [i, ns] of markeStellen)
+    if (markeStellen.some(([j, ms]) => j > i && ns.every(n => ms.includes(n)))) ueberholteMarken.add(i)
+  for (const i of ueberholteMarken) markiert.delete(i)
+
   const ausMarke = new Set([...markiert.values()].flat())
 
   // Welche Funktionen gibt es am Ende, mit welcher Unterschrift? Nur darauf
@@ -368,7 +385,19 @@ export function verdichten(liste) {
   const nachtrag = new Map()     // Stelle → Gerettetes, das dahinter nachrückt
   const bericht = []
 
+  // Was eine spätere angemeldete Anweisung ohnehin neu baut, muss hier nicht
+  // noch einmal gebaut werden (siehe „überholt" oben).
   for (const [k, b] of jeObjekt) {
+    if (wandert.has(k) && ueberholt(b[0].ziel, b.at(-1).von)) {
+      for (const x of b) for (let i = x.von; i <= x.bis; i++) weg.add(i)
+      wandert.delete(k)
+      bericht.push({ objekt: k, entfernt: b.length, bytes: b.reduce((s2, x) => s2 + kerne.slice(x.von, x.bis + 1).join('').length, 0) })
+    }
+  }
+  for (const i of ueberholteMarken) weg.add(i)
+
+  for (const [k, b] of jeObjekt) {
+    if (weg.has(b[0].von) && !wandert.has(k)) continue
     if (wandert.has(k)) {
       // Vom letzten Block bleibt alles: die Definition, ihre Beschreibung,
       // ihre Indizes. Aus früheren Blöcken bleiben nur die Leserechte — sie

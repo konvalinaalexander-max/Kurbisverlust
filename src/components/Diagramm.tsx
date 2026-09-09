@@ -446,6 +446,8 @@ export interface Anteilszeile {
   untertitel?: string
   /** Die Bezugsmasse (Eingang) — der ganze Balken. */
   bezug: number
+  /** Wie der Nenner heisst — die Beschriftung gehört zur Zahl, nicht in die Grafik. */
+  bezugName?: string
   teile: Anteil[]
   /** Wohin ein Klick führt. */
   ziel?: string
@@ -500,7 +502,7 @@ export function Anteilsbalken({ zeilen, oeffnen, legende = true }: {
       <Schwebend rahmen={rahmen} s={hover ? { x: hover.ort.x, y: hover.ort.y, inhalt: (
         <>
           <div className="schweb-kopf">{hover.z.name} · {hover.t.name}</div>
-          <div className="schweb-zeile"><span>Anteil am Eingang</span><strong>{prozent(hover.z.bezug > 0 ? hover.t.kg / hover.z.bezug : null)}</strong></div>
+          <div className="schweb-zeile"><span>Anteil {hover.z.bezugName ?? 'am Bezug'}</span><strong>{prozent(hover.z.bezug > 0 ? hover.t.kg / hover.z.bezug : null)}</strong></div>
           <div className="schweb-zeile"><span>Masse</span><strong>{tonnen(hover.t.kg)}</strong></div>
           {hover.t.hinweis && <div className="leise" style={{ marginTop: '.15rem' }}>{hover.t.hinweis}</div>}
         </>

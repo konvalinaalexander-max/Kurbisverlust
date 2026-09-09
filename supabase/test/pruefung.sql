@@ -3303,3 +3303,92 @@ begin
 end $$;
 
 select '——— 0064 Leer ist nicht null geprüft ———' as ergebnis;
+
+-- =====================================================================
+-- 0065 — Entsorgtes verlässt das Lager
+-- =====================================================================
+-- Was in den Kompost geht, hat den Betrieb verlassen. Bis 0064 zählte es im
+-- Ausgang und lag gleichzeitig weiter im Lager — dieselbe Ware zweimal.
+-- Geprüft wird an einer Charge, die zur Hälfte verkauft und zu einem Viertel
+-- entsorgt wird: Der Bestand muss um die entsorgte Eingangsmasse fallen, der
+-- Ausgang um die Lieferscheinmasse steigen, und das Gelieferte darf sich
+-- nicht bewegen — Kompost ist keine Lieferung, sondern Verlust.
+do $$
+declare v_chef uuid := '11111111-1111-1111-1111-111111111111';
+        v_haus1 numeric; v_haus2 numeric; v_lager1 numeric; v_lager2 numeric;
+        v_aus1 numeric; v_aus2 numeric; v_gel1 numeric; v_gel2 numeric;
+        v_m0 numeric; v_m1 numeric; v_sch numeric; v_r numeric; v_t numeric;
+        v_lief bigint; v_summe numeric;
+begin
+  assert schema_stand() >= 65, format('mindestens Stand 65 erwartet, ist %s', schema_stand());
+  perform set_config('request.jwt.claim.sub', v_chef::text, true);
+
+  insert into gebinde (art, tara_kg_pro_kiste, tara_kg_palette) values ('PRF65', 1.0, 20.0)
+    on conflict (art) do update set tara_kg_pro_kiste = 1.0, tara_kg_palette = 20.0;
+  insert into sorte_kaliber (sorte, verlust_unter, kaliber_baender, kanal_ab)
+       values ('Prüfkürbis65', 300, '[[300,800],[800,2000]]'::jsonb, 2000) on conflict (sorte) do nothing;
+  insert into charge (nr, schlag, sorte, saison)
+       values (965001, 'Prüfschlag65', 'Prüfkürbis65', 2026) on conflict (nr) do nothing;
+  insert into palette (charge_nr, eingangsdatum, brutto_kg, kisten, gebindeart, quelle) values
+    (965001, current_date - 100, 1000, 30, 'PRF65', 'pruefung'),
+    (965001, current_date - 100, 1000, 30, 'PRF65', 'pruefung');   -- 1900 kg Eingang
+  insert into lieferung (datum, charge_nr, sorte, kg, ziel, erfasser)
+       values (current_date - 10, 965001, 'Prüfkürbis65', 400, 'verkauf', v_chef);
+  perform auswertung_aktualisieren();
+  select im_haus_heute_kg, lager_kg, geliefert_kg into v_haus1, v_lager1, v_gel1
+    from erg_charge where charge_nr = 965001;
+  select ausgang_kg into v_aus1 from v_saisonbilanz;
+
+  -- 300 kg in den Kompost
+  insert into lieferung (datum, charge_nr, sorte, kg, ziel, erfasser)
+       values (current_date - 5, 965001, 'Prüfkürbis65', 300, 'kompost', v_chef)
+    returning id into v_lief;
+  perform auswertung_aktualisieren();
+  select im_haus_heute_kg, lager_kg, geliefert_kg into v_haus2, v_lager2, v_gel2
+    from erg_charge where charge_nr = 965001;
+  select ausgang_kg into v_aus2 from v_saisonbilanz;
+
+  -- a) Die Kaskade kennt die Portion und rechnet nur die Verdunstung zurück.
+  select m0, m1, schimmel_kg, r, alter_tage into v_m0, v_m1, v_sch, v_r, v_t
+    from mv_kaskade where charge_nr = 965001 and portion = 'entsorgt';
+  assert v_m0 is not null, 'Eine Kompost-Lieferung braucht eine Portion „entsorgt" in der Kaskade';
+  assert abs(v_m0 - 300 / greatest(power(1 - v_r, v_t), 0.25)) < 0.01,
+    format('Die Eingangsmasse hinter dem Kompost ist Masse ÷ (1−r)^t, ist aber %s', v_m0);
+  assert abs(v_sch - v_m1) < 0.01,
+    format('Entsorgte Ware ist beobachtetes Faules: die ganze Masse nach Verdunstung, ist aber %s von %s', v_sch, v_m1);
+
+  -- b) Die Masse bleibt erhalten, auch in der neuen Portion.
+  select verdunstung_kg + sockel_kg + schimmel_kg + klein_kg + nebenkanal_kg + fax_kg + verkaufsfaehig_kg
+    into v_summe from mv_kaskade where charge_nr = 965001 and portion = 'entsorgt';
+  assert abs(v_summe - v_m0) < 0.01,
+    format('Auch die entsorgte Portion muss ihre Masse erhalten: %s statt %s', v_summe, v_m0);
+
+  -- c) Der Bestand fällt um genau diese Eingangsmasse.
+  assert abs((v_lager1 - v_lager2) - v_m0) < 0.05,
+    format('Das Lager muss um die entsorgte Eingangsmasse fallen (%s), fiel aber um %s', v_m0, v_lager1 - v_lager2);
+  assert v_haus2 < v_haus1,
+    format('„Noch im Haus" muss nach einer Kompost-Lieferung kleiner sein (%s → %s)', v_haus1, v_haus2);
+
+  -- d) Der Ausgang steigt um die Lieferscheinmasse, das Gelieferte nicht.
+  assert abs((v_aus2 - v_aus1) - 300) < 0.01,
+    format('Der Ausgang muss um 300 kg steigen (%s → %s)', v_aus1, v_aus2);
+  assert abs(v_gel2 - v_gel1) < 0.01,
+    format('Kompost ist keine Lieferung: „geliefert" darf sich nicht bewegen (%s → %s)', v_gel1, v_gel2);
+
+  -- e) Ohne Kompost gibt es die Portion nicht.
+  delete from lieferung where id = v_lief;
+  perform auswertung_aktualisieren();
+  assert not exists (select 1 from mv_kaskade where charge_nr = 965001 and portion = 'entsorgt'),
+    'Ohne entsorgte Ware darf es keine Portion „entsorgt" geben';
+
+  delete from lieferung where charge_nr = 965001;
+  delete from palette where charge_nr = 965001;
+  delete from charge where nr = 965001;
+  delete from sorte_kaliber where sorte = 'Prüfkürbis65';
+  delete from gebinde where art = 'PRF65';
+  perform auswertung_aktualisieren();
+  perform set_config('request.jwt.claim.sub', '', true);
+  raise notice 'OK  0065 Entsorgtes verlässt das Lager (eigene Portion, Rückrechnung nur über die Verdunstung, Bestand fällt, „geliefert" bleibt)';
+end $$;
+
+select '——— 0065 Entsorgtes verlässt das Lager geprüft ———' as ergebnis;

@@ -189,7 +189,7 @@ function anteilszeilen(daten: Auswertung, gruppe: Gruppe): Anteilszeile[] {
     const name = gruppe === 'gesamt' ? 'Alle Chargen' : gruppe === 'charge' ? `Charge ${k}` : k
     const untertitel = gruppe === 'charge' ? `${c?.sorte ?? ''} · ${c?.schlag ?? ''} · ${tonnen(eingang)} Eingang` : `${nChargen} Chargen · ${tonnen(eingang)} Eingang`
     const ziel = gruppe === 'gesamt' ? undefined : gruppe === 'charge' ? `/ursachen?charge=${k}` : `/ursachen?${gruppe}=${encodeURIComponent(k)}`
-    return { name, untertitel, bezug: eingang, teile, ziel }
+    return { name, untertitel, bezug: eingang, bezugName: 'am Eingang', teile, ziel }
   })
   const anteil = (z: Anteilszeile) => z.bezug > 0 ? z.teile.reduce((a, t) => a + t.kg, 0) / z.bezug : 0
   return zeilen.sort((a, b) => anteil(b) - anteil(a))

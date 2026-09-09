@@ -178,8 +178,13 @@ export async function laufen({ db }) {
   // an den Kompost (buch = 'verlust') zählt in ausgang_kg, reduziert aber den
   // Bestand nicht und erscheint nicht als Verlust.
   const ents = Number(bil?.entsorgt ?? 0)
-  const kohorteBuecher = frage(k, `select distinct buch from v_lieferung_kohorte`).map(r => r.buch)
-  if (!kohorteBuecher.includes('verlust')) {
+  // Nicht in den Daten nachsehen, sondern in der Sicht: In den Demodaten wird
+  // nichts entsorgt, also käme „verlust" auch dann nicht vor, wenn die Sicht
+  // es zuliesse. Gefragt ist, ob die Kaskade das dritte Buch **kennt**.
+  const kohorteDef = wert(k, `select pg_get_viewdef('v_lieferung_kohorte'::regclass, true)`)
+  const kennt = /buch\s*=\s*ANY\s*\(ARRAY\[[^\]]*'verlust'/i.test(kohorteDef)
+             || /buch\s+in\s*\([^)]*'verlust'/i.test(kohorteDef)
+  if (!kennt) {
     const wieviel = wert(k, `select coalesce(sum(masse_kg), 0) from v_lieferung_masse
                               where buch = 'verlust' and datum <= heute()`)
     B({ klasse: 3, ort: { sicht: 'v_lieferung_kohorte' },

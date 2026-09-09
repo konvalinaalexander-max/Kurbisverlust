@@ -8,7 +8,7 @@ import { Herkunft, Hinweis, Karte, Lade, Marke } from '../components/Bausteine'
 import { alterSpanne, useAuswertung, type Auswertung } from '../auswertung/daten'
 import { Probleme, Rechnet, Reiterkopf } from '../auswertung/Karten'
 import type { Auftrag } from '../lib/typen'
-import { summeBekannt } from '../lib/masse'
+import { herkunftText, summeBekannt } from '../lib/masse'
 
 /**
  * Chargen: Wo steht welche Charge? Eine Zeile je Charge mit Eingang,
@@ -176,7 +176,7 @@ function ChargeDetail({ nr, z, daten }: { nr: number; z: Zeile; daten: Auswertun
           <thead><tr><th>Datum</th><th>Ziel</th><th>Kunde</th><th className="zahl">Masse der Lieferung</th></tr></thead>
           <tbody>{lieferungen.map(l => (
             <tr key={l.id}><td>{datum(l.datum)}</td><td>{l.ziel_name}</td><td>{l.kunde ?? ''}</td>
-              <td className="zahl">{kg(l.masse_kg, 0)}{l.masse_quelle !== 'gewogen' && <span className="leise"> ({l.masse_quelle})</span>}</td></tr>
+              <td className="zahl">{kg(l.masse_kg, 0)}{l.masse_quelle !== 'gewogen' && <span className="leise"> ({herkunftText(l.masse_quelle)})</span>}</td></tr>
           ))}</tbody>
         </table></div>
       )}
@@ -194,7 +194,7 @@ function ChargeDetail({ nr, z, daten }: { nr: number; z: Zeile; daten: Auswertun
                   <td>{zeitpunkt(a.start_ts)}</td>
                   <td>{ta?.zeichen} {ta ? t(ta.text) : ''}</td>
                   <td>{a.abgebrochen_ts ? <Marke art="warnung">abgebrochen</Marke> : a.status === 'offen' ? <Marke art="offen">läuft</Marke> : <Marke art="fertig">fertig</Marke>}</td>
-                  <td className="zahl">{a.masse_kg != null ? kg(a.masse_kg, 0) : <span className="leise">unbekannt</span>}{a.masse_quelle && a.masse_quelle !== 'fehlt' && <span className="leise"> ({a.masse_quelle})</span>}</td>
+                  <td className="zahl">{a.masse_kg != null ? kg(a.masse_kg, 0) : <span className="leise">unbekannt</span>}{a.masse_quelle && a.masse_quelle !== 'fehlt' && <span className="leise"> ({herkunftText(a.masse_quelle)})</span>}</td>
                   <td className="zahl">{va ? `${Math.round(va.alter_verarbeitet)} d${va.differenz != null ? ` (${va.differenz > 0 ? '+' : ''}${Math.round(va.differenz)})` : ''}` : ''}</td>
                   <td><Link to={`/arbeit/${a.id}`}>öffnen</Link></td>
                 </tr>
