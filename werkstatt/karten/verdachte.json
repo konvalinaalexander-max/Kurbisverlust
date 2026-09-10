@@ -1,0 +1,882 @@
+[
+ {
+  "karte": "db",
+  "titel": "Die Saisonbilanz friert am Tag des letzten Neurechnens ein und niemand merkt, dass der Kalender weitergelaufen ist.",
+  "warum_verdaechtig": "heute() steht an 21 Stellen in 11 Sichten, die alle zu erg_* materialisiert werden (v_kaskade_basis:51, v_hochrechnung_basis:94/95/119, v_saisonbilanz:42, erg_verlauf:38/40/41/143 …). Die Veraltet-Bedingung der App ist src/auswertung/daten.ts:261: `new Date(st.geaendert_ts) > new Date(st.berechnet_ts)` — ein Datumsvergleich kommt darin nicht vor. Der Auslöser auswertung_veraltet() feuert nur bei Schreibzugriffen, nie beim Tageswechsel.",
+  "wie_pruefbar": "Werkzeug, das einstellung.heute_test über eine Reihe aufeinanderfolgender Tage stellt, jedes Mal neu rechnet und die Differenz je Bilanzspalte protokolliert; zusätzlich ein Prüfstand, der die Datenbank an Tag D rechnen lässt, den Kalender auf D+3 stellt und misst, ob die App 'veraltet' meldet. Gemessen habe ich bereits: 08.09. → 09.09. ergibt +195.7 kg Verlust, +85.6 kg Verdunstung, +110.1 kg Faules, −195.6 kg im Haus.",
+  "werkstatt": "A-Rechenwerk",
+  "erwartete_groesse": "196 kg Verlust je Tag Stillstand auf der Demosaison (0.06 % des Eingangs pro Tag); über ein Wochenende 390 kg, über eine zweiwöchige Pause rund 2700 kg"
+ },
+ {
+  "karte": "db",
+  "titel": "erg_punkte ist eine zeichengleiche zweite Kopie von mv_schimmel_punkte; v_schimmel_punkte wird pro Neurechnung zweimal gerechnet.",
+  "warum_verdaechtig": "`diff` der beiden pg_get_viewdef-Ausgaben ist leer; `select * from erg_punkte except select * from mv_schimmel_punkte` und umgekehrt liefern je 0 Zeilen bei 142 Zeilen Inhalt. Beide stehen in auswertung_schritt Schritt 2 (supabase/setup.sql, Namensliste ab Zeile 4655). Gemessene Refresh-Zeiten: erg_punkte 89.7 ms, mv_schimmel_punkte 110.1 ms. Dasselbe Muster bei erg_kaliber ↔ mv_kaliber_verteilung (119 Zeilen, 0 Unterschied) und erg_modell ↔ mv_schimmel_modell (1 Zeile, 0 Unterschied).",
+  "wie_pruefbar": "Werkzeug, das für jedes Paar gespeicherter Ansichten die Definition normalisiert vergleicht und zusätzlich `except` in beide Richtungen ausführt; dazu ein Umbau von erg_punkte/erg_kaliber/erg_modell zu einfachen Sichten über die mv_-Fassung und ein Vorher/Nachher-Vergleich aller 30 erg_*-Inhalte plus der gerenderten Bildschirme.",
+  "werkstatt": "B-Fundament",
+  "erwartete_groesse": "rund 90 ms von 2603 ms Neurechnung (3.5 %) und 136 kB Speicher; bei zehnfacher Saison entsprechend rund 560 ms"
+ },
+ {
+  "karte": "db",
+  "titel": "Acht Tabellen speisen die Rechnung, ohne sie als veraltet zu markieren — eine Änderung an charge bleibt unsichtbar.",
+  "warum_verdaechtig": "Der Auslöser auswertung_veraltet() hängt an 17 Tabellen (pg_trigger). Die Menge der Tabellen, die eine Sicht laut pg_depend liest, ist um 8 grösser: charge, ausgang_zeile, lieferung_import, auftrag_teilnehmer, ausgang_artikel, ausgang_datei, ausgang_quelle, ausgang_ziel. Gemessener Nachweis in karte_db: `update charge set sorte='Butterkin' where nr=1611` (101 Paletten) lässt geaendert_ts unverändert (gilt_als_veraltet = f), verschiebt den Verlust nach erzwungenem Neurechnen aber von 52 119.4 kg auf 51 917.0 kg.",
+  "wie_pruefbar": "Werkzeug, das aus pg_depend die Menge der rechnungsrelevanten Tabellen bildet, sie gegen die Auslöserliste hält und für jede fehlende Tabelle eine kleine Änderung einspielt, geaendert_ts prüft und die Bilanzverschiebung nach erzwungenem Neurechnen misst.",
+  "werkstatt": "B-Fundament",
+  "erwartete_groesse": "202 kg bei einer einzigen geänderten Sortenzuordnung; bei ausgang_zeile (160 Zeilen, speist v_verkauf_lieferung → erg_ueberfuellung → erg_marge) betrifft es die gesamte Marge von 2949 kg"
+ },
+ {
+  "karte": "db",
+  "titel": "Der Auswertungslauf besteht aus fünf getrennten Transaktionen; ein Abbruch dazwischen zeigt zwei Bildschirme mit widersprüchlichen Zahlen ohne Warnung.",
+  "warum_verdaechtig": "src/auswertung/daten.ts:240–248 ruft rpc('auswertung_schritt', {p_schritt: i}) in einer Schleife 1..5, jeder Aufruf eine eigene PostgREST-Anfrage und damit eine eigene Transaktion. berechnet_ts wird erst in Schritt 5 gesetzt (fn_auswertung_schritt, `if p_schritt = 5`). Gemessen in karte_db: nach Schritt 1–3 zeigt Σ erg_charge.im_haus 155 383 kg und erg_bilanz.im_haus 154 545 kg — 838 kg Widerspruch auf demselben Datenstand.",
+  "wie_pruefbar": "Prüfstand, der nach jedem der fünf Schritte alle 30 erg_*-Ansichten abzieht und die drei Bilanzidentitäten (Eingang = Ausgang + Verlust + im Haus, Σ erg_charge = erg_bilanz, erg_verlust vs. erg_marge) auswertet; er muss nach Schritt 1..4 anschlagen und nach Schritt 5 schweigen.",
+  "werkstatt": "B-Fundament",
+  "erwartete_groesse": "838 kg Widerspruch bei einer Änderung von 40 Schimmelmessungen; die Grössenordnung skaliert mit der Änderung, im Extremfall (Import einer ganzen Warenausgangsdatei) mit den vollen 115 836 kg Ausgang"
+ },
+ {
+  "karte": "db",
+  "titel": "Jeder angemeldete Arbeiter darf auswertung_aktualisieren() beliebig oft auslösen — 2.6 s CPU und eine exklusive Sperre je Aufruf, 16.4 s bei zehnfacher Saison.",
+  "warum_verdaechtig": "auswertung_schritt und auswertung_aktualisieren sind SECURITY DEFINER ohne jede ist_admin()/ist_aktiv()-Prüfung (grep 'ist_admin|ist_aktiv' in ihren Körpern: 0 Treffer). setup.sql:9316 erteilt `grant execute on all functions in schema public to authenticated`. Als Arbeiter Tomasz (request.jwt.claim.sub = 2222…) gemessen: auswertung_schritt(1) und auswertung_aktualisieren() laufen beide durch, während demo_daten_entfernen(), auftrag_endgueltig_loeschen() und sortierschema_festlegen() korrekt abprallen. refresh materialized view läuft nicht concurrently (grep -rin concurrently supabase/ → 0 Treffer), hält also AccessExclusiveLock.",
+  "wie_pruefbar": "Prüfstand, der als jede Rolle jede der 42 Funktionen aufruft und Erfolg/Ablehnung tabelliert (ein Fall, der durchkommen muss, und einer, der abprallen muss); zusätzlich ein Lasttest mit N gleichzeitigen Aufrufen, der misst, wie lange ein paralleler Leser von erg_bilanz wartet.",
+  "werkstatt": "B-Fundament",
+  "erwartete_groesse": "2603 ms CPU und Sperrzeit je Aufruf auf der Demosaison, 16 408 ms auf der zehnfachen; bei zehn Arbeitern mit Wiederholschleife 160 s Sperre auf den erg_*-Ansichten"
+ },
+ {
+  "karte": "db",
+  "titel": "62 von 93 Indexen wurden in einem vollständigen Lauf nie benutzt; 34 davon sind nicht-eindeutig und 6 werden von einem anderen Index vollständig überdeckt.",
+  "warum_verdaechtig": "Nach pg_stat_reset(), einem vollen auswertung_aktualisieren(), dem Lesen aller 30 erg_* plus 10 Sichten und 20 Tabellen: 62 Indexe mit idx_scan = 0. Präfixtest über pg_get_indexdef je Spalte findet sechs vollständig überdeckte Paare, darunter zweimal derselbe Schlüssel als Teilindex und als voller Index (ausschuss_auftrag vs. ausschuss_messung_auftrag_id_art_idx; schimmel_auftrag vs. schimmel_messung_auftrag_id_idx). 22 der ungenutzten Indexe liegen auf gespeicherten Ansichten, die immer ganz gelesen werden. 8 eindeutige Indexe auf Matviews (160 kB) existieren nur für refresh concurrently, das nirgends benutzt wird.",
+  "wie_pruefbar": "Werkzeug, das pg_stat_reset() setzt, danach den vollständigen Betriebszyklus abfährt (Neurechnen, Dashboard, Arbeiterschreibwege, CSV-Import, Warenausgangsimport, Demodaten laden/entfernen), pg_stat_user_indexes ausliest und für jeden Kandidaten zusätzlich mit `set enable_indexscan=off`-Vergleich und hypopg-freiem Drop-in-Transaktion prüft, ob ein Plan sich verschlechtert.",
+  "werkstatt": "B-Fundament",
+  "erwartete_groesse": "592 kB nutzloser nicht-eindeutiger Index plus 152 kB überdeckte Duplikate plus 160 kB concurrently-Vorrat = rund 900 kB von 2032 kB Indexmasse; Schreibkosten je Palettenzeile: 4 Indexe auf auftrag_palette statt der nötigen 2"
+ },
+ {
+  "karte": "db",
+  "titel": "Über die Hälfte der Masse gezählter Paletten stammt aus einem Tagesmittel, nicht aus einer Messung — und der Zweig für die exakte Palette ist tot, weil palette_id nie gefüllt wird.",
+  "warum_verdaechtig": "`select masse_quelle, count(*), sum(netto_kg) from v_auftrag_palette_masse group by 1` auf demo: datum-mittel 298 Zeilen / 109 975 kg (54.5 %), zettel 214 / 84 686 kg, gewogen 17 / 6 609 kg, charge-mittel 1 / 398 kg. Die Zweige 'palette', 'zettel-charge-tara' und 'unbekannt' kommen nie vor. Grund: auftrag_palette.palette_id ist in allen 854 Zeilen NULL und verdunstung_wiegung.palette_id in allen 41; `grep -rw palette_id src/` findet 0 Treffer — das Frontend schreibt die Spalte nirgends. Der LEFT JOIN v_palette p ON p.id = ap.palette_id in v_auftrag_palette_masse:46 liefert daher immer NULL.",
+  "wie_pruefbar": "Werkzeug, das für jede Kaskadenstufe die Herkunft der Masse (gemessen / vom Zettel / gemittelt) mit kg beziffert und ein zweites, das eine Welt mit gesetztem palette_id gegen die heutige rechnet, um zu messen, wie viel die exakte Zuordnung an Bilanzgenauigkeit bringt.",
+  "werkstatt": "A-Rechenwerk",
+  "erwartete_groesse": "109 975 kg von 201 668 kg gezählter Palettenmasse ruhen auf einem Tagesmittel; bei einer Streuung der Palettengewichte von wenigen Prozent sind das mehrere Tonnen Unsicherheit, die als exakte Zahl auftreten"
+ },
+ {
+  "karte": "db",
+  "titel": "Die Referenzdatenbank demo hat den JIT an, obwohl Migration 0060 ihn ausdrücklich abschaltet — jede Kopie verliert die Einstellung, und alle Zeitmessungen der Prüfstände messen die falsche Welt.",
+  "warum_verdaechtig": "`select datname, setconfig from pg_db_role_setting join pg_database …` liefert nur postgres, demo64 und demo65 mit {jit=off}; demo, demo66 und jede frische Kopie zeigen `show jit` → on. Ursache: `alter database … set jit = off` (setup.sql:4339) schreibt in pg_db_role_setting, und create database ... template kopiert das nicht. Gemessene Wirkung auf karte_db: refresh mv_kaskade 4267 ms (jit=on) gegen 570 ms (jit=off), refresh erg_verlauf 2584 ms gegen 211 ms. Der Betriebsweg ist nur deshalb geschützt, weil auswertung_schritt `set jit = off` an der Funktion trägt.",
+  "wie_pruefbar": "Prüfstand, der beim Start jeder Datenbank `show jit`, `show jit_above_cost` und die proconfig aller Funktionen prüft und laut meldet, wenn die Umgebung von der der Migrationen abweicht; zusätzlich ein Zeitvergleich aller 38 Refreshes mit jit=on und jit=off.",
+  "werkstatt": "B-Fundament",
+  "erwartete_groesse": "Faktor 7.5 bis 12.3 auf den zwei teuersten Refreshes; ein von Hand abgesetztes refresh materialized view mv_kaskade kostet 3.7 s statt 0.57 s, ein voller Handlauf aller 38 rund 8.9 s statt 2.6 s"
+ },
+ {
+  "karte": "db",
+  "titel": "Migration 0061 hat eine in 0060 bewusst gesetzte Schutzmassnahme still gelöscht, und nichts hat es gemeldet.",
+  "warum_verdaechtig": "0060:1025 setzt `alter function verlust_ranking(text, text, numeric, int) set jit = off;` mit ausführlicher Begründung im Kommentarblock 18c. 0061:512 macht `drop function if exists verlust_ranking(text,text,numeric,int)` und 0061:651 legt `verlust_ranking(text,text,int)` neu an — ohne set jit. Der heutige proconfig ist {search_path=public}. Der Fingerabdruck in supabase/test/fingerabdruck.sql vergleicht Funktionsdefinitionen als md5, aber nicht proconfig, also fällt die verlorene Einstellung durch.",
+  "wie_pruefbar": "Werkzeug, das für jede Funktion und jede Datenbankeinstellung, die eine Migration ausdrücklich setzt, prüft, ob sie im heutigen Katalog noch steht (Migrationstext gegen pg_proc.proconfig und pg_db_role_setting); dazu eine Erweiterung des Fingerabdrucks um proconfig, prosecdef und proacl.",
+  "werkstatt": "B-Fundament",
+  "erwartete_groesse": "die verlorene Einstellung kostet heute 0.2 ms (1.9 gegen 1.7 ms); der Befund ist die Klasse — es gibt 14 Funktionen ohne search_path und 8 mit security definer, bei denen derselbe Verlust nicht harmlos wäre"
+ },
+ {
+  "karte": "db",
+  "titel": "20 % des ganzen Neurechnens gehen für eine einzige Zeile drauf: das Schimmelmodell.",
+  "warum_verdaechtig": "`explain (analyze, timing off) select * from v_schimmel_modell_rechnen` misst 535 ms auf 142 Eingangspunkten und liefert 1 Zeile mit 24 Spalten; die Definition hat 298 Zeilen SQL. Der Refresh von mv_schimmel_modell dauert isoliert 528 ms. Das ganze Neurechnen dauert 2603 ms. Danach wird dieselbe eine Zeile ein zweites Mal als erg_modell materialisiert (24 kB, 0 Zeilen Unterschied) und dreimal weiterverwendet (erg_modell, erg_verlauf, mv_kaskade).",
+  "wie_pruefbar": "Werkzeug, das für jede der 38 gespeicherten Ansichten Rechenzeit gegen Ergebniszeilen und Ergebnisspalten stellt und die Ausreisser nennt; dazu ein explain (analyze, buffers) auf v_schimmel_modell_rechnen, das zeigt, welcher der Regressionsschritte die 535 ms kostet, und ein Vergleich gegen eine Fassung, die die Zwischengrössen nicht mehrfach durchreicht.",
+  "werkstatt": "B-Fundament",
+  "erwartete_groesse": "535 ms von 2603 ms auf der Demosaison; bei zehnfacher Saison entsprechend rund 3.4 s von 16.4 s"
+ },
+ {
+  "karte": "db",
+  "titel": "zahl() prüft die Überlaufgrenze vor dem Runden und kann deshalb genau über die Grenze runden — dann gibt es einen harten Abbruch statt des vorgesehenen stillen NULL.",
+  "warum_verdaechtig": "fn_zahl: `select case when p_wert is not null and abs(p_wert) < p_grenze then round(p_wert, p_stellen) end`. An 97 von 115 Stellen ist die Grenze genau gleich 10^(p−s) des nachfolgenden numeric(p,s)-Gusses — sauber abgestimmt, aber ohne Reserve für die Rundung. Reproduziert: `select zahl(99999.999996::numeric, 5, 100000::numeric)` ergibt 100000.00000, und `…::numeric(10,5)` bricht mit 'numeric field overflow' ab. Betroffen sind unter anderem alle 15 Stellen mit Grenze 1e12 und Guss numeric(14,2) in erg_verlauf und v_hochrechnung_basis.",
+  "wie_pruefbar": "Werkzeug, das aus allen 115 zahl(...)::numeric(p,s)-Paaren die Grenzwerte ableitet und für jedes den Wert G − 0.5·10^(−s) durch die echte Sicht schickt; zusätzlich eine Saison, die so gross ist, dass eine der Zwischengrössen in das Fenster gerät.",
+  "werkstatt": "A-Rechenwerk",
+  "erwartete_groesse": "Fenster von 5·10^(−s−1) unterhalb jeder Grenze — bei numeric(14,2) sind das 0.005 kg unterhalb 1 000 000 000 000 kg; die Wahrscheinlichkeit ist praktisch null, die Wirkung ist ein Abbruch der ganzen Neurechnung statt einer fehlenden Zahl"
+ },
+ {
+  "karte": "db",
+  "titel": "Die Schimmelkurve steht zweimal im Code — einmal als Funktion, einmal ausgeschrieben in den 615 Zeilen von mv_kaskade — und kein Test hält fest, dass sie gleich bleiben.",
+  "warum_verdaechtig": "schimmelanteil(numeric,text) implementiert 1 − exp(−exp(ln_lambda_korrigiert + k·ln t)) mit Band; benutzt wird sie nur von v_massenbilanz und v_schimmel_kurve_anzeige. mv_kaskade nennt schimmelanteil nirgends (grep -lw schimmelanteil über alle Definitionen: nur fn_schimmelanteil, v_massenbilanz, v_schimmel_kurve_anzeige) und leitet f selbst aus v_schimmel_modell ab. Numerisch stimmen sie heute exakt überein: `select round(f − schimmelanteil(alter_tage), 8) from mv_kaskade where portion='lager'` liefert durchgehend 0.00000000 über alle 171 Portionen.",
+  "wie_pruefbar": "Ein Invariantentest, der für jede Zeile von mv_kaskade den f-Wert gegen schimmelanteil(alter_tage) hält und bei jeder Abweichung > 1e−9 anschlägt; dazu eine Mutationsprobe, die eine der beiden Fassungen leicht verstellt und prüft, dass der Test das merkt.",
+  "werkstatt": "A-Rechenwerk",
+  "erwartete_groesse": "heute 0 kg Abweichung; wenn die beiden Fassungen um 1 Prozentpunkt Schimmelanteil auseinanderlaufen, sind das auf 154 545 kg im Haus rund 1545 kg Unterschied zwischen der Kurve auf dem Bildschirm und der Zahl in der Bilanz"
+ },
+ {
+  "karte": "db",
+  "titel": "v_kontrolle_vorschlag mischt zwei Zeitstände in einer Formel: live heute() mal eingefrorenes im_haus_heute_kg.",
+  "warum_verdaechtig": "Die Sicht ist nicht materialisiert und ruft heute() dreimal live auf (v_kontrolle_vorschlag:12, 13, 22), multipliziert es aber mit b.im_haus_heute_kg aus erg_charge — einer gespeicherten Ansicht, deren heute() beim letzten Neurechnen festgehalten wurde. Der 'Informationswert', nach dem der Bildschirm Kontrolle sortiert, ist damit tage_seit_wiegung (heutiger Stand) × im-Haus-Masse (alter Stand).",
+  "wie_pruefbar": "Werkzeug, das für jede der 9 live gelesenen Sichten aufzählt, welche ihrer Quellen materialisiert sind und ob heute()/now() vor oder nach dieser Grenze steht; dazu ein Prüfstand, der den Kalender ohne Datenänderung um n Tage weiterstellt und misst, wie sich die Reihenfolge der Kontrollvorschläge verschiebt.",
+  "werkstatt": "A-Rechenwerk",
+  "erwartete_groesse": "der Informationswert wächst je Tag Stillstand um im_haus_heute_kg — bei 154 545 kg im Haus und drei vorgeschlagenen Chargen verschiebt sich die Reihenfolge schon nach wenigen Tagen falsch, weil der Zähler wächst und der Nenner steht"
+ },
+ {
+  "karte": "db",
+  "titel": "Der Betriebsleiter kann mit einem Klick 455 kg aus der Bilanz und 23 Messzeilen unwiderruflich löschen, und die Datenbank fragt nicht nach.",
+  "warum_verdaechtig": "auftrag_endgueltig_loeschen prüft nur ist_admin(), löscht dann verdunstung_wiegung und ausgang_wiegung ausdrücklich, setzt sortier_lauf.auftrag_id auf null und löscht den Auftrag; die 7 CASCADE-Fremdschlüssel auf auftrag räumen auftrag_angabe, auftrag_gebinde, auftrag_palette, auftrag_teilnehmer, ausschuss_messung, schimmel_messung mit ab. Gemessen in karte_loesch am massenstärksten Auftrag (id 11): 19 gezählte Paletten, 1 Schimmelmessung, 1 Verdunstungswiegung, 2 Ausgangswiegungen weg; Verlust 52 119 kg → 52 574 kg; verwaiste verdunstung_wiegung 23 → 24, verwaiste sortier_lauf 0 → 1.",
+  "wie_pruefbar": "Werkzeug, das für jeden der 309 Aufträge in einer Transaktion das Löschen durchspielt, die Bilanzverschiebung und die Zahl vernichteter Messzeilen misst und danach zurückrollt — daraus eine Rangliste, welche Löschung wie teuer wäre; zusätzlich ein Test, der prüft, ob die App die Zahl vorher anzeigt.",
+  "werkstatt": "D-Nutzen",
+  "erwartete_groesse": "455 kg Bilanzverschiebung und 23 vernichtete Messzeilen beim grössten Auftrag; über alle 309 Aufträge Schätzung: einige Tonnen, die ohne Warnung entfernbar sind"
+ },
+ {
+  "karte": "db",
+  "titel": "1412 Spalten der Ansichten tragen null Beschreibungen, und mindestens ein Spaltenpaar ist gegenläufig benannt.",
+  "warum_verdaechtig": "`count(col_description(c.oid,a.attnum))` über alle Sichten und gespeicherten Ansichten: 0 von 1412. Bei den Tabellen 35 von 266, bei den Funktionen 23 von 42. Migration 0063 hat auf Objektebene ganze Arbeit geleistet (63/63 Sichten und 38/38 gespeicherte Ansichten haben einen Kommentar), auf Spaltenebene gar nicht. Konkreter Schaden: v_hochrechnung_basis:94 definiert alter_lager_von als heute() − k.rest_bis und :95 alter_lager_bis als heute() − k.rest_von — 'von' ist also die kleinere Zeitspanne und 'bis' die grössere, was der Namenslogik der übrigen Spalten (eingang_von/eingang_bis) entgegenläuft.",
+  "wie_pruefbar": "Werkzeug, das jede Spalte einer vom Frontend gelesenen Ansicht gegen die Beschriftung im Bildschirm hält (pruefstand/begriffe.json erweitern) und jede Spalte ohne Kommentar und ohne Bildschirmentsprechung meldet; dazu ein Namenstest, der von/bis-, min/max- und unten/oben-Paare auf Monotonie ihrer Werte prüft.",
+  "werkstatt": "C-Bauwerk",
+  "erwartete_groesse": "1412 undokumentierte Spalten; 27 davon liest ohnehin niemand, 5 sind zu 100 % NULL — der prüfbare Teil sind die rund 460 Spalten der 31 vom Frontend gelesenen Objekte"
+ },
+ {
+  "karte": "db",
+  "titel": "Der Kommentar in daten.ts beschreibt v_hochrechnung als teure Live-Sicht, obwohl sie seit 0061 in 0.3 ms aus einer gespeicherten Ansicht liest — der Sonderweg 'nur beim CSV-Export laden' ist dadurch grundlos geworden.",
+  "warum_verdaechtig": "src/auswertung/daten.ts, Kommentar über hochrechnungLaden(): 'Das sind einige Megabyte und eine Sicht, die live rechnet; … Sie hing bis Runde I am Laden jeder Seite und kostete auf jedem Reiter Zeit'. Gemessen: pg_get_viewdef(v_hochrechnung) ist `select … from mv_hochrechnung` (25 Zeilen, keine Berechnung), explain (analyze) zeigt einen Seq Scan über mv_hochrechnung mit 0.331 ms Execution Time für alle 1197 Zeilen. Die Nutzlast stimmt weiter (2007 kB JSON), die Rechenzeit nicht.",
+  "wie_pruefbar": "Werkzeug, das jeden Leistungs-Kommentar in src/ und in den Migrationen gegen eine aktuelle Messung hält: Kommentar nennt eine Zeit oder ein 'rechnet live', also explain (analyze) auf das genannte Objekt und Abgleich; jeder Kommentar, dessen Behauptung um Faktor 3 danebenliegt, ist ein Befund.",
+  "werkstatt": "C-Bauwerk",
+  "erwartete_groesse": "0.3 ms statt der behaupteten Sekunden; die verbleibende echte Grösse ist die Nutzlast von 2007 kB, die der Sonderweg zu Recht vermeidet — der Kommentar begründet ihn aber mit der falschen Hälfte"
+ },
+ {
+  "karte": "mathe",
+  "titel": "Der Freiheitsgrad des gesamten Saisonbandes wird von der schwaechsten Sorte gesetzt, nicht von der Varianz — t = 12.706 statt 1.960.",
+  "warum_verdaechtig": "supabase/setup.sql:8654 und 8664 rechnen min(COALESCE(u.df, 1)) ueber alle Sorten der Gruppe, 8754 nimmt davon nochmals LEAST. Gemessen: alle sechs Stroeme in v_verlust_je_gruppe (gruppe='gesamt') haben df = 1; Mieluna liefert 1.27 von 53 213 Einheiten Eigenvarianz (0.0024 Prozent) und hat df = 1, waehrend Tiana mit 36 563 Einheiten df = 6 hat. Kontrollrechnung: 23 530.25 + 12.706 * 364.50 = 28 161.6 = kg_oben.",
+  "wie_pruefbar": "Werkzeug, das die Varianzblocke ausserhalb der Ansicht nachbaut (Anhang D der Karte reproduziert jede Streuung exakt), daraus Welch-Satterthwaite-df rechnet, und in einer Simulation mit gesetzten Wahrheiten die Ueberdeckung beider df-Regeln bei n = 1, 2, 3, 5, 10, 30 Chargen je Sorte misst.",
+  "werkstatt": "A-Rechenwerk",
+  "erwartete_groesse": "38 535 kg Bandbreite = 11.9 Prozentpunkte des Saisoneingangs; Faktor 6.48 auf jedes ausgewiesene Band"
+ },
+ {
+  "karte": "mathe",
+  "titel": "Der Sockel a0 und die Kurvenparameter k, lambda werden als unabhaengig addiert, obwohl sie stark gekoppelt sind — die Sockelvarianz ist um Faktor 13 zu klein.",
+  "warum_verdaechtig": "setup.sql:8676 addiert power(m.g_a0,2) * sockel_var einfach zu den drei Modelltermen dazu, ohne Kovarianz. Gemessen: ein a0-Gitterschritt von 0.0025 (innerhalb sockel_oben = 0.0025) verschiebt Sockel+Schimmel um 2 760.2 kg, davon nur 759.8 kg direkt (was die Delta-Methode auf 0.03 Prozent genau trifft) und 2 000.4 kg indirekt ueber neu geschaetztes k = 1.4771 statt 1.2209. (2760.2/759.8)^2 = 13.2.",
+  "wie_pruefbar": "Profil-Likelihood-Werkzeug: fuer jeden der 41 Gitterpunkte k, lambda, smearing neu schaetzen, die resultierende Schimmelmasse ausrechnen und daraus das Band bilden statt aus sockel_var. Dazu eine Simulation mit gesetztem wahrem a0, die die Ueberdeckung beider Bandformen misst.",
+  "werkstatt": "A-Rechenwerk",
+  "erwartete_groesse": "Varianzterm Faktor 13.2 zu klein; in Kilo 2 000 kg fehlende Unsicherheit je Gitterschritt; auf das Band bezogen 2 000 bis 8 950 kg"
+ },
+ {
+  "karte": "mathe",
+  "titel": "Die SSE-Werte des a0-Gitters sind nicht vergleichbar, weil bei steigendem a0 Punkte aus dem Fit fallen (140 bei a0=0, 9 bei a0=0.10).",
+  "warum_verdaechtig": "setup.sql:6469 baut das Gitter, die CTE kand rechnet fs = (f − a0)/(1 − a0), und sowohl fit als auch guete filtern auf fs > 0 and fs < 1. Da min(anteil) = 0.0036, verliert der Fit ab a0 = 0.005 Punkte. Gemessen: 140/140/137/132/130/123/119/113/... Punkte bei a0 = 0, 0.0025, 0.005, ... — die Wahlregel nimmt aber min(SSE), also eine Summe ueber unterschiedlich viele Terme.",
+  "wie_pruefbar": "Werkzeug, das denselben Gitterlauf einmal mit fester Punktmenge (nur Punkte, die bei jedem a0 ueberleben) und einmal mit einem pro-Punkt-normierten Kriterium (SSE/n oder −2*loglik) rechnet, und an synthetischen Welten mit gesetztem a0 misst, welche der drei Regeln den wahren Wert trifft.",
+  "werkstatt": "A-Rechenwerk",
+  "erwartete_groesse": "In der Demo folgenlos (a0 = 0 ist auch bei SSE/n das Minimum), aber bei einer Saison mit hoeherem Grundschimmel Verschiebung um bis zu 0.10 in a0, entsprechend bis 30 000 kg in Sockel+Schimmel"
+ },
+ {
+  "karte": "mathe",
+  "titel": "sockel_var ist ein Gitterartefakt, keine Datenaussage — die Halbbreite kann nie feiner als 0.00125 sein.",
+  "warum_verdaechtig": "setup.sql:6754 rechnet power((a0_oben − a0_unten)/2/t_quantil_95(c_chargen−1), 2). a0_unten und a0_oben sind Gitterpunkte im Abstand 0.0025. Gemessen: a0_unten = 0.0000, a0_oben = 0.0025, sockel_var = 4.067316e-7, sd = 6.378e-4 = genau 0.00125/1.960. Bei einem feineren Gitter faellt die ausgewiesene Unsicherheit, ohne dass sich an den Daten etwas aendert.",
+  "wie_pruefbar": "Denselben Fit mit Gitterschritt 0.0025, 0.00125 und 0.000625 rechnen und zeigen, dass sockel_var mit dem Quadrat der Schrittweite skaliert. Gegenprobe: Profil-Likelihood-Intervall statt Gitterintervall.",
+  "werkstatt": "A-Rechenwerk",
+  "erwartete_groesse": "sockel_var skaliert mit dem Quadrat der Schrittweite; halbierte Schrittweite viertelt die Sockelvarianz und damit den Bandbeitrag von 2 462.74 kg auf 1 231 kg"
+ },
+ {
+  "karte": "mathe",
+  "titel": "Der Nachweistest fuer a0 mischt zwei Zielfunktionen und benutzt Chargen-df fuer eine Punkt-SSE — er ist dadurch 3.6-mal zu stumpf.",
+  "warum_verdaechtig": "setup.sql:6561 setzt die Schwelle auf 1 + t(max(C−3,1))^2/max(C−3,1) mit C = 33 Chargen, gemessen 1.128. Der Zaehler der Statistik ist aber die gewichtete SSE ueber 140 Punkte im Originalraum, waehrend k und ln_lambda per WLS im Log-Log-Raum geschaetzt werden. Mit n − 3 = 137 waere die Schwelle 1.028. Gemessen sockel_nachweis = 1.000.",
+  "wie_pruefbar": "Werkzeug, das an synthetischen Welten mit gesetztem a0 (0, 0.002, 0.005, 0.01) und n = 1, 2, 3, 5, 10, 30 Chargen die Trefferrate des Tests misst: wie oft wird ein vorhandener Sockel erkannt, wie oft ein nicht vorhandener behauptet.",
+  "werkstatt": "A-Rechenwerk",
+  "erwartete_groesse": "Schwelle 1.128 statt 1.028, also Faktor 3.6 in der ueberschuessigen SSE; ein wahrer Sockel von 0.005 (= 1 520 kg Sockelmasse) wird derzeit nicht erkannt"
+ },
+ {
+  "karte": "mathe",
+  "titel": "sockel_nachgewiesen ist true, obwohl der Nachweistest gescheitert ist — der Name behauptet etwas, was die Spalte nicht misst.",
+  "warum_verdaechtig": "In mv_kaskade ist a0_bekannt schlicht m.brauchbar; v_hochrechnung_basis rechnet sockel_nachgewiesen = bool_and(a0_bekannt). Gemessen in der Demo: sockel = 0, sockel_nachweis = 1.000 < sockel_schwelle = 1.128 (kein Nachweis), aber sockel_nachgewiesen = true und v_saisonbilanz zeigt sockel_heute_kg = 0.00 als gemessene Zahl. src/auswertung/daten.ts und src/pages/Messungen.tsx lesen sockel_nachweis und sockel_schwelle, aber die Kaskade nicht.",
+  "wie_pruefbar": "Beschriftungspruefstand (pruefstand/beschriftung.mjs) um eine Regel erweitern: jede Spalte, deren Name 'nachgewiesen' oder 'bekannt' enthaelt, muss auf denselben Ausdruck zurueckgehen wie der zugehoerige Test. Dazu ein Fall mit erzwungenem Sockel, in dem der Test greift.",
+  "werkstatt": "D-Nutzen",
+  "erwartete_groesse": "1 Spalte, 3 Bildschirme; in Kilo: 0 kg werden als 'nachgewiesener Sockel' ausgewiesen, waehrend das Band bis 2 462.74 kg reicht"
+ },
+ {
+  "karte": "mathe",
+  "titel": "verlust_bekannt und r_bekannt sind true, sobald irgendwo in der Saison eine einzige Messung existiert — auch fuer Sorten mit null eigenen Messungen.",
+  "warum_verdaechtig": "mv_kaskade CTE koeff: r_bekannt = (kv.mittel IS NOT NULL). v_koeff_verdunstung liefert dank des gepoolten Gesamtwerts fuer jede Sorte einen Wert, mittel ist nie NULL. Gemessen: 6 von 11 Sorten haben n = 0 eigene Verdunstungswiegungen (Amoro, Bolp 5110, Fictor, Ker Madec, Orange Summer, plus faktisch Kaori Kuri/Lekor/Orangita mit b = 0), alle gelten als bekannt. 93 923.9 kg von 327 447.9 kg Kaskadenmasse (28.7 Prozent) rechnen mit dem gepoolten r. koeff_n_min fuer Verdunstung ist 0, obwohl 41 Wiegungen dahinterstehen.",
+  "wie_pruefbar": "Werkzeug, das je Charge die Massekette bis zur Quelle jedes Koeffizienten verfolgt und ausweist, welcher Anteil der Saisonmasse auf eigenen, auf gezogenen und auf rein gepoolten Werten steht; dazu ein Fall mit genau einer Wiegung in der ganzen Saison, in dem verlust_bekannt true wird.",
+  "werkstatt": "D-Nutzen",
+  "erwartete_groesse": "28.7 Prozent der Kaskadenmasse = 93 924 kg; das Tor verlust_bekannt oeffnet bereits bei 1 von 41 Wiegungen"
+ },
+ {
+  "karte": "mathe",
+  "titel": "Die Treppe verliert Punkte in den Luecken zwischen ihren Altersklassen und rechnet ihr Band mit fixem 1.96.",
+  "warum_verdaechtig": "setup.sql:6434, values (0,14),(15,30),(31,60),(61,90),(91,120),(121,180),(181,100000) — lagertage ist numeric. Gemessen: 80 von 140 plausiblen Punkten haben eine gebrochene Lagerdauer, und 2 fallen tatsaechlich durch (t = 30.5 und t = 90.7). setup.sql:6452/6453 rechnen unten/oben mit 1.96 * sd / sqrt(n); bei den beiden Klassen mit n = 4 (0–14 Tage und 181+ Tage) waere t(3) = 3.182 richtig, das Band ist also um 62 Prozent zu schmal. Zusaetzlich ist anteil ein massegewichtetes Verhaeltnis, sd aber stddev_samp der ungewichteten Einzelanteile.",
+  "wie_pruefbar": "Selbstprobe: einen Punkt mit lagertage = 14.5 einspielen und pruefen, ob er in einer Klasse landet; dazu ein Werkzeug, das die Summe der Klassen-n gegen die Zahl der plausiblen Punkte stellt (138 gegen 140).",
+  "werkstatt": "A-Rechenwerk",
+  "erwartete_groesse": "2 von 140 Punkten (1.4 Prozent) verloren, Lueckenbreite 6 Tage von 195 (3.1 Prozent der Altersachse); Band in der aeltesten Klasse 62 Prozent zu schmal"
+ },
+ {
+  "karte": "mathe",
+  "titel": "Derselbe Koeffizient traegt zwei verschiedene Standardabweichungen — die Anzeige zeigt bis 58 Prozent mehr Unsicherheit als die Kaskade rechnet.",
+  "warum_verdaechtig": "In v_koeff_verdunstung_geschaetzt und v_koeff_kaliber_geschaetzt steht nebeneinander varianz = b*V_eigen + (1−b)^2*V_gesamt (gelesen von v_koeff_ausschuss usw. fuer unten/oben) und varianz_eigen = power(b,2)*V_eigen (gelesen von v_koeff_unsicherheit fuer das Band). Gemessen: Amoro/nebenkanal sd_anzeige 0.016121 gegen sd_kaskade 0.010184, Faktor 1.583; Orangita/fax Faktor 1.519; Amoro/fax 1.295.",
+  "wie_pruefbar": "Werkzeug, das fuer jede Sorte und Art beide Varianzen rechnet und den Quotienten ausweist; dazu eine Simulation, die misst, welche der beiden die richtige Ueberdeckung fuer den Shrinkage-Schaetzer liefert.",
+  "werkstatt": "A-Rechenwerk",
+  "erwartete_groesse": "Faktor bis 1.583 auf sd, also bis 58 Prozent Bandbreite; betrifft 44 Sorten-mal-Art-Kombinationen"
+ },
+ {
+  "karte": "mathe",
+  "titel": "tau2 mischt eine massegewichtete Zwischen-Varianz mit einem ungewichteten Mittel der Innen-Varianzen und ist dadurch nach oben verzerrt — es wird zu wenig gepoolt.",
+  "warum_verdaechtig": "setup.sql CTE tau: GREATEST(sum(sw*power(mittel − mittel_ges,2))/sum(sw) − COALESCE(avg(varianz),0), 0). Der erste Summand laeuft ueber alle Sorten mit Daten, der zweite als ungewichtetes avg nur ueber Sorten mit c_chargen > 1 (fuer Verdunstung 3 von 11: Butterkin, Mieluna, Tiana). Sorten mit genau einer Charge (Kaori Kuri, Lekor, Orangita) treiben die Zwischen-Varianz hoch, ohne in den Abzug einzugehen. Gemessen: tau2 = 1.0963e-8 gegen V_gesamt = 5.604e-10, Faktor 19.6; die Shrinkage-Gewichte b liegen bei 0.9679 / 1.0000 / 0.9936 — es wird praktisch nicht gepoolt.",
+  "wie_pruefbar": "Werkzeug, das tau2 einmal mit dem heutigen und einmal mit einem konsistent massegewichteten Abzug rechnet, und an simulierten Welten mit bekanntem wahrem Sortenunterschied misst, welche Variante den kleineren mittleren quadratischen Fehler der Sortenwerte liefert.",
+  "werkstatt": "A-Rechenwerk",
+  "erwartete_groesse": "tau2 um Faktor 2 bis 5 zu gross (geschaetzt); b faellt von 0.97 auf etwa 0.8, was die Sortenwerte um bis zu 20 Prozent Richtung Gesamtwert zieht — bei Lekor/nebenkanal (mittel 0.1164 gegen Gesamt 0.0194) sind das rund 190 kg auf 9 844 kg Chargenmasse"
+ },
+ {
+  "karte": "mathe",
+  "titel": "Der Bilanzrest ist eine algebraische Identitaet und kann keinen Koeffizientenfehler entdecken, wird aber als Kontrollzahl gezeigt.",
+  "warum_verdaechtig": "v_saisonbilanz rechnet eingang + ueberzaehlung − geliefert − verlust − kanal − im_haus. Gemessen: −0.01 kg auf 323 268 kg. Nachgerechnet: zeilenweise gilt in mv_kaskade exakt m0 = Verdunstung + Sockel + Schimmel + Klein + Nebenkanal + Fax + Verkaufsfaehig (max. Restsumme 0 auf alle Stellen), und lager-m0 wird per Konstruktion als Eingang minus ausgelagert-m0 gebildet. Gegenprobe mit verdoppeltem r: Verdunstung springt von 23 530 auf 45 268 kg (+92 Prozent), Bilanzrest bleibt 0.0000.",
+  "wie_pruefbar": "Werkzeug, das einen Koeffizienten in einer Kopie systematisch verstellt (r mal 0.5, mal 2, mal 10), die Auswertung neu rechnet und protokolliert, welche ausgewiesene Zahl sich bewegt — bilanz_rest_kg bewegt sich nachweislich nicht.",
+  "werkstatt": "D-Nutzen",
+  "erwartete_groesse": "Eine Kennzahl auf dem Hauptbildschirm mit Nachweiskraft null; die dahinterliegende echte Kontrolle (v_massenbilanz) zeigt +9 317 kg Abweichung"
+ },
+ {
+  "karte": "mathe",
+  "titel": "Die einzige unabhaengige Modellpruefung zeigt +9 317 kg Abweichung und wird nirgends als Befund erhoben.",
+  "warum_verdaechtig": "v_massenbilanz (setup.sql:8167) vergleicht modell_am_band_kg mit csv_gemessen_kg. Gemessen ueber 25 vergleichbare von 36 Chargen: Mittel der abweichung_anteil +0.1103, sd 0.2157, Spanne −0.0512 bis +0.4924, Summe abweichung_kg +9 316.7 kg auf 99 066.6 kg Modellmasse. v_plausibilitaet liefert 22 Zeilen (Schimmel 2, Ohne Nenner 1, Palox geleert 4, Kistengewicht 3, Zetteldatum 1, Lieferung in der Zukunft 1, Ueberzaehlung 10) — keine davon betrifft die Massenbilanz. Der Kommentar setup.sql:9310 sagt selbst 'abweichung_anteil nahe 0 heisst: die Koeffizienten treffen die Realitaet'.",
+  "wie_pruefbar": "Werkzeug, das beide Seiten des Vergleichs Term fuer Term zerlegt (am_band_kg, alter_band, anteil_mit_csv, csv-Summe) und zeigt, ob die +11 Prozent aus einer Definitionsluecke oder aus dem Modell kommen; dazu eine Schwelle, ab der v_plausibilitaet den Befund meldet.",
+  "werkstatt": "B-Fundament",
+  "erwartete_groesse": "9 316.7 kg = 2.9 Prozent des Saisoneingangs = 17.9 Prozent des ausgewiesenen Gesamtverlusts von 52 119 kg"
+ },
+ {
+  "karte": "mathe",
+  "titel": "Der Selektionszuschlag verbreitert das Band symmetrisch, obwohl die Richtung der Verzerrung bekannt ist — und die Doku widerspricht sich beim Vorzeichen.",
+  "warum_verdaechtig": "setup.sql:8760 rechnet zuschlag = kg_projiziert * abs(exp(versatz) − 1) und legt ihn in v_verlust_je_gruppe auf beide Seiten (kg − t*s − zuschlag, kg + t*s + zuschlag). docs/STATISTIK_BEFUND.md Zeile 604 sagt 'rund 10 Prozent zu hoch', Zeile 276 derselben Datei sagt 'systematisch zu niedrig' — die erste Tabelle wurde nie nachgefuehrt. Ausserdem rechnet selektions_versatz (setup.sql:6731) mit stddev_samp ueber Punkte und sqrt(count(*)) ueber Punkte, also genau dem Cluster-Fehler, den STATISTIK_BEFUND Abschnitt 3 fuer die Koeffizienten behoben hat. In der Demo ist der Zuschlag 0, weil mv_schimmel_punkte 0 Punkte mit quelle='lager' enthaelt und die Formel n_lager >= 5 verlangt.",
+  "wie_pruefbar": "Simulation mit gesetzter Auswahlregel (Schlechtes zuerst) und 0, 5, 12, 24 Lagerkontrollen, die Verzerrung und Ueberdeckung fuer drei Behandlungen misst: ohne Zuschlag, mit symmetrischem Zuschlag, mit einseitiger Verschiebung des Punktes.",
+  "werkstatt": "A-Rechenwerk",
+  "erwartete_groesse": "10 Prozent von 26 170.3 kg = 2 617 kg Punktverschiebung, die heute als symmetrische Verbreiterung von 0 kg behandelt wird; die Formel ist ab 5 Lagerkontrollen scharf geschaltet"
+ },
+ {
+  "karte": "mathe",
+  "titel": "Dieselbe Groesse f(t) bekommt in der Anzeige ein Band von plus/minus 11 Prozent und in der Kaskade eines von plus/minus 62 Prozent.",
+  "warum_verdaechtig": "schimmelanteil(t,'unten'/'oben') benutzt t_faktor = t_quantil_95(c_chargen−1) = 1.960 und laesst den Sockelterm weg; v_verlust_je_gruppe benutzt t_quantil_95(1) = 12.706 und nimmt den Sockelterm mit. Gemessen bei t = 195 Tagen: Kurve 0.10607 bis 0.13173 um 0.11825, Breite 21.7 Prozent. Strom Schimmel/Faeulnis: 9 917.41 bis 42 423.17 um 26 170.29, Breite 124.2 Prozent. Rechnet man das Kaskadenband mit 1.960, kommt plus/minus 9.6 Prozent heraus — die ganze Differenz ist der df. Ebenso bei sockel_oben_kg: 235.6 kg in v_hochrechnung_basis (1.96, setup.sql:7951) gegen 2 462.74 kg in v_verlust_je_gruppe, Faktor 10.5.",
+  "wie_pruefbar": "Bildschirmpruefstand, der jede angezeigte Unsicherheitsspanne der zugrundeliegenden Groesse zuordnet und meldet, wenn dieselbe Groesse auf zwei Bildschirmen zwei Spannen traegt.",
+  "werkstatt": "D-Nutzen",
+  "erwartete_groesse": "Faktor 5.6 zwischen den beiden Baendern derselben Groesse; beim Sockel Faktor 10.5 (235.6 kg gegen 2 462.74 kg)"
+ },
+ {
+  "karte": "mathe",
+  "titel": "Vier lebende Formeln benutzen weiterhin ein fest verdrahtetes 1.96, obwohl t_quantil_95 genau dafuer gebaut wurde.",
+  "warum_verdaechtig": "supabase/setup.sql:5375 und 5379 (v_koeff_ueberfuellung), 6452 und 6453 (v_schimmel_kurve), 6731 (selektions_versatz), 7951 (sockel_oben_kg). Der Kommentar an t_quantil_95 (setup.sql:1361) sagt selbst 'bei zwoelf Gruppen ist 1.96 zu optimistisch'. Gemessen: bei v_schimmel_kurve n = 4 in zwei Klassen, t(3)/1.96 = 1.623; v_koeff_ueberfuellung hat n = 32, dort ist 1.96 zufaellig richtig; v_koeff_gebinde (Geschwisteransicht) benutzt korrekt t_quantil_95(n−1) — dieselbe Aufgabe, zwei Loesungen.",
+  "wie_pruefbar": "Statische Sonde, die jedes Vorkommen von 1.96 ausserhalb von t_quantil_95 und Kommentaren findet und den daneben stehenden n-Ausdruck ausliest; Selbstprobe: eine bewusst eingebaute 1.96-Stelle muss gefunden werden.",
+  "werkstatt": "C-Bauwerk",
+  "erwartete_groesse": "4 Stellen, 6 Zeilen; Bandbreite in der aeltesten Treppenklasse 62 Prozent zu schmal (0.00798 statt 0.01296 Halbband)"
+ },
+ {
+  "karte": "mathe",
+  "titel": "Die Shrinkage-Ansicht existiert zweimal Wort fuer Wort — rund 90 Zeilen SQL doppelt gepflegt.",
+  "warum_verdaechtig": "v_koeff_verdunstung_geschaetzt (setup.sql:6001, CTE-Kette roh/je_charge/ebene/mittelwert/varianz/gesamt/tau/gitter) und v_koeff_kaliber_geschaetzt (setup.sql:6909) sind identisch aufgebaut; die Schluesselzeilen stimmen woertlich ueberein (6082 gegen 6992 fuer df, 6089 gegen 6999 fuer varianz_eigen, 6100 gegen 7008 fuer das Shrinkage-Gewicht, inklusive desselben dreizeiligen Kommentars). Nur die Rohquelle unterscheidet sich. v_koeff_ausschuss, v_koeff_nebenkanal und v_koeff_fax sind untereinander ebenfalls fast identisch (je 30 Zeilen, Unterschied nur im art-Filter und im Basis-Text).",
+  "wie_pruefbar": "Werkzeug, das die pg_get_viewdef-Texte aller Ansichten normalisiert (Bezeichner maskieren, Whitespace angleichen) und Paare mit hoher Uebereinstimmung meldet; Selbstprobe an einem bekannten Paar.",
+  "werkstatt": "C-Bauwerk",
+  "erwartete_groesse": "2 mal rund 90 Zeilen plus 3 mal rund 30 Zeilen = etwa 180 Zeilen SQL doppelt; jede Formelaenderung muss heute an 2 bis 5 Stellen nachgezogen werden"
+ },
+ {
+  "karte": "mathe",
+  "titel": "sigma2, t_faktor und sockel_unten werden gerechnet und durch vier Ansichten geschleift, aber nirgends benutzt.",
+  "warum_verdaechtig": "grep -rl 'sigma2' src/ ist leer, ebenso fuer t_faktor und sockel_unten; in setup.sql tauchen sie nur in Spaltenlisten von v_schimmel_modell, mv_schimmel_modell, mv_kaskade, v_verlust_je_gruppe auf. sigma2 ist die einzige Groesse, die die Residualstreuung des Fits ausdrueckt — sie wird berechnet (0.067255) und weggeworfen, waehrend das Band aus var_achse/var_k/kov gebaut wird. t_faktor wird von v_verlust_je_gruppe neu gerechnet statt gelesen.",
+  "wie_pruefbar": "Werkzeug, das fuer jede Spalte jeder Ansicht ermittelt, ob sie von einer anderen Ansicht, einer Funktion oder von src/ gelesen wird — Erreichbarkeitsanalyse ueber pg_depend plus grep. Selbstprobe: eine bewusst tote Spalte einfuegen.",
+  "werkstatt": "C-Bauwerk",
+  "erwartete_groesse": "Mindestens 3 tote Spalten mal 4 Ansichten = 12 Spaltendurchreichungen; sigma2 kostet in v_schimmel_modell_rechnen eine eigene Aggregation ueber 140 Punkte"
+ },
+ {
+  "karte": "mathe",
+  "titel": "zahl(x, stellen, grenze) vermischt Ueberlaufschutz und Plausibilitaetsdeckel und ist bei grenze = 1e12 um eine halbe Stelle zu grosszuegig.",
+  "warum_verdaechtig": "setup.sql:4161. Gemessen: select zahl(999999999999.996::numeric, 2, 1e12)::numeric(14,2) wirft 'numeric field overflow', weil round() auf 1e12 aufrundet, waehrend numeric(14,2) nur bis 999999999999.99 reicht. 15 Aufrufe benutzen genau diese Grenze. Bei grenze = 1e5 auf numeric(8,1) (Typgrenze 9 999 999.9) ist die Grenze dagegen ein reiner Plausibilitaetsdeckel mit Faktor 100 Luft — dieselbe Funktion tut zwei verschiedene Dinge.",
+  "wie_pruefbar": "Werkzeug, das fuer jeden zahl()-Aufruf den Zieltyp aus dem Cast liest und prueft, ob grenze < 10^(precision − scale) minus eine halbe letzte Stelle gilt; Selbstprobe an dem oben gezeigten Fall.",
+  "werkstatt": "B-Fundament",
+  "erwartete_groesse": "15 Aufrufstellen an der Kante; erreichbar erst bei 1e12 kg Saisonmasse (1 Milliarde Tonnen), also praktisch 0 kg Wirkung — aber die Doppelrolle der Funktion betrifft alle rund 60 Aufrufe"
+ },
+ {
+  "karte": "mathe",
+  "titel": "Das Verderbsmodell ist auf 140 Punkte aus 33 Chargen gefittet, die alle aus der Verarbeitung stammen — der Sockel ist damit nur ueber die Kurvenkruemmung identifiziert.",
+  "warum_verdaechtig": "select quelle, count(*), count(distinct charge_nr) from mv_schimmel_punkte group by quelle liefert genau eine Zeile: verarbeitung, 142 Punkte, 33 Chargen. Damit gilt in der CTE kand fuer jeden Punkt mit_sockel = true, also fs = (f − a0)/(1 − a0) einheitlich fuer alle. v_selektionsverdacht meldet n_lager = NULL und 'keine Lagerkontrollen — Selektion nicht pruefbar'. selektions_versatz braucht n_lager >= 5 und ist NULL.",
+  "wie_pruefbar": "Simulation mit gesetztem wahrem a0 und variabler Zahl von Lagerkontrollen (0, 3, 5, 12, 24), die misst, ab wann der Gitterschaetzer den wahren Sockel trifft und ab wann das Band ihn ueberdeckt.",
+  "werkstatt": "A-Rechenwerk",
+  "erwartete_groesse": "0 von 140 Punkten ohne Sockel; die in docs/STATISTIK_BEFUND.md gemessene Ueberdeckung faellt in dieser Lage auf 52 Prozent statt der behaupteten 95"
+ },
+ {
+  "karte": "mathe",
+  "titel": "Die Extrapolation ueber die laengste gemessene Lagerdauer hinaus ist in der Demo klein, wird aber ungebremst fortgeschrieben.",
+  "warum_verdaechtig": "mv_kaskade setzt f_extrapoliert = brauchbar AND alter_tage > t_max. Gemessen: t_max des Modells 195.5 Tage, maximales Alter in der Kaskade 198.0 Tage; 21 von 171 Zeilen betroffen, 12 058.5 kg m0 (3.68 Prozent) und 1 302.7 kg Schimmel (5.0 Prozent des Schimmelstroms). Die Kurve laeuft danach unbegrenzt weiter: schimmelanteil(300) = 0.19179 gegen 0.11825 bei 195, also plus 62 Prozent aus reiner Fortschreibung, mit einem Band, das nur ueber var_k waechst (Breite von 21.7 auf 26.1 Prozent).",
+  "wie_pruefbar": "Werkzeug, das die Kurve an synthetischen Welten mit bekanntem wahrem Verlauf ueber t_max hinaus vergleicht und misst, wie schnell die Ueberdeckung mit dem Extrapolationsabstand faellt — bei 1.3, 10, 50 und 100 Prozent ueber t_max.",
+  "werkstatt": "A-Rechenwerk",
+  "erwartete_groesse": "Heute 1 302.7 kg extrapolierter Schimmel (5.0 Prozent des Stroms) bei nur 1.3 Prozent Abstand ueber t_max; am Saisonende mit 300 Tagen waeren es rund 50 Prozent Abstand und plus 62 Prozent im Anteil"
+ },
+ {
+  "karte": "code",
+  "titel": "Die Bündelregeln in vite.config.ts greifen nicht: 222 350 B Fremdcode liegen in grundlage statt in fremd, und jede Codeänderung wirft sie dem Arbeiter aus dem Zwischenspeicher.",
+  "warum_verdaechtig": "vite.config.ts, Kopfkommentar: „fremd — React, Router, Supabase — ändert sich nur beim Aktualisieren\". Gemessen über die Quellkarten (buendel.mjs, VLQ-Dekoder): grundlage-CxPUyYoQ.js enthält @supabase/auth-js 99 762 B, realtime-js 30 718 B, phoenix 25 696 B, storage-js 22 552 B, postgrest-js 16 344 B, supabase-js 10 635 B, react 7 824 B, iceberg-js 5 372 B, functions-js 2 817 B, tslib 630 B. Ich habe die drei Regexe gegen die echten Modulpfade laufen lassen: node_modules/react/index.js trifft NUR die Regel fremd, nicht NUR_GEMEINSAM — Rolldown ordnet trotzdem grundlage zu, weil priority: 10 die Zuordnung kippt. Ursprünglich war die Gruppe fremd genau dafür gedacht, den Fremdcode über Auslieferungen hinweg im Zwischenspeicher zu halten.",
+  "wie_pruefbar": "Ein Werkzeug, das nach jedem Bau die Quellkarten zerlegt (buendel.mjs liegt fertig im Kritzelverzeichnis) und behauptet: kein Modul aus node_modules liegt in einem Bündel, das App-Code enthält. Selbstprobe: ein absichtlich falsch eingruppiertes Modul muss es melden. Zusätzlich zweimal bauen mit einer geänderten Zeile in src/arbeit/ und prüfen, ob sich der Hash von fremd ändert (darf nicht).",
+  "werkstatt": "C-Bauwerk",
+  "erwartete_groesse": "222 350 B roh / ≈ 63 kB gzip, die bei jeder Auslieferung unnötig neu geladen werden"
+ },
+ {
+  "karte": "code",
+  "titel": "Der Arbeiter lädt 116 507 B (35 728 B gzip) Code, den er nachweislich nie ausführen kann.",
+  "warum_verdaechtig": "Tiefensuche von src/main.tsx über nur statische Importkanten liefert 30 erreichbare Module; 24 hängen ausschliesslich an React.lazy. Nicht erreichbar, aber im Arbeiterbündel: src/lib/format.ts (alle 12 Leser sind Betriebsleiter-Module — geprüft mit grep -rln \"from '.*lib/format'\" src), src/lib/version.ts (1 Leser: auswertung/daten.ts), src/components/DemoDaten.tsx (2 Leser: Stammdaten, Ueberblick). Fremdcode: qrcode 23 377 B — einziger Nutzer src/pages/Zugang.tsx:2, erreichbar nur über Betrieb.tsx; @supabase realtime-js+phoenix+functions-js 59 229 B — grep -rnoE \"supabase\\.(channel|functions|realtime)\" src liefert 0 Treffer; storage-js 22 552 B — genau 1 Aufruf in src/pages/CsvUpload.tsx:88; iceberg-js 5 372 B — 0 Aufrufe. Wozu ursprünglich da: qrcode für den Aushang in der Halle (Zugang.tsx), storage für die Rohdaten-Ablage beim CSV-Hochladen, die übrigen Supabase-Teile werden von supabase-js pauschal mitgezogen und nie einzeln gewählt.",
+  "wie_pruefbar": "Ein Werkzeug, das (a) die statisch erreichbare Modulmenge je Einstiegsrolle berechnet und (b) sie mit dem tatsächlichen Bündelinhalt aus den Quellkarten vergleicht; jede Differenz ist ein Befund mit Bytes. Selbstprobe: ein künstlich in App.tsx importiertes Betriebsleiter-Modul muss auftauchen. Für die Supabase-Teile: einen schlanken Klienten bauen (createClient mit auth+postgrest, ohne realtime) und die Bündelgrösse vorher/nachher messen.",
+  "werkstatt": "C-Bauwerk",
+  "erwartete_groesse": "35 728 B gzip je Kaltstart — bei 50 kB/s rund 0,7 s Wartezeit an der Waage"
+ },
+ {
+  "karte": "code",
+  "titel": "Alle sechs Sprachen reisen in einem Modul; der Arbeiter lädt 20 301 B gzip Wörterbuch für eine Sprache, die er auswählt.",
+  "warum_verdaechtig": "src/lib/i18n.ts ist 1434 Zeilen / 70 681 B. Die sechs Blöcke: de Z 27–280 (11 842 B), en 285–511 (11 047 B), hu 513–739 (10 962 B), ro 741–967 (11 162 B), pl 969–1195 (10 827 B), pt 1197–1423 (11 125 B) — je 218 Schlüssel, deckungsgleich. Im Bündel grundlage: 62 200 B roh / 20 301 B gzip (einzeln gemessen mit gz.mjs). Die Sprachwahl gilt laut Kopfkommentar für einen Tag; ein Arbeiter braucht also höchstens eine. Ursprünglich sind alle sechs in einer Datei, weil der Compiler über Record<TextId, string> erzwingt, dass jede Sprache dieselben Schlüssel hat — genau das ist der Wert der Bauart und darf nicht verlorengehen.",
+  "wie_pruefbar": "Werkzeug, das (a) den gzip-Beitrag je Sprachblock im Bündel misst und (b) prüft, ob nach einer Aufteilung in sechs faul geladene Module die Deckungsgleichheit noch erzwungen ist (test/i18n.test.ts muss weiter greifen). Selbstprobe: einen Schlüssel aus einer Sprache entfernen — der Prüfer muss anschlagen.",
+  "werkstatt": "C-Bauwerk",
+  "erwartete_groesse": "≈ 15 800 B gzip je Kaltstart (78 % von 20 301 B)"
+ },
+ {
+  "karte": "code",
+  "titel": "heute() liefert an sechs Stellen das UTC-Datum statt des Schweizer Ortsdatums — zwischen 00:00 und 02:00 Ortszeit rechnet die Oberfläche mit dem Vortag.",
+  "warum_verdaechtig": "grep -rn \"toISOString()\" src findet das Muster new Date().toISOString().slice(0, 10) in src/sprache/SprachProvider.tsx:22, src/pages/Lieferungen.tsx:25 (buchstabengleich, ein Doppelgänger), src/pages/NeueArbeit.tsx:114, src/pages/Stammdaten.tsx:372 und src/auswertung/daten.ts:321. In NeueArbeit.tsx:117 filtert dieses Datum die geltende Fassung: schemata.filter(x => … && x.gilt_ab <= heute) — eine Fassung, die heute in Kraft tritt, wird vor 02:00 Ortszeit nicht gefunden. In SprachProvider entscheidet es, ob die Sprachabfrage erscheint. Dass die App es besser kann, steht in derselben Codebasis: src/lib/format.ts:41 lokalFuerInput baut das Datum aus getFullYear/getMonth/getDate; und src/pages/Start.tsx:31 macht es richtig (new Date(); setHours(0,0,0,0); dann toISOString für einen timestamptz-Vergleich). Ursprünglich ist toISOString der kürzeste Weg zu einem ISO-Datum — er ist nur der falsche.",
+  "wie_pruefbar": "Ein Prüfstand, der die Systemuhr des Browsers auf 22:00, 23:30 und 00:30 Ortszeit im Winter und im Sommer setzt (Playwright kann das über clock/addInitScript) und dieselbe Erfassung durchspielt; verglichen werden die entstehenden Lagertage und die gewählte Sortierschema-Fassung. Selbstprobe: bei 12:00 mittags muss der Prüfstand schweigen.",
+  "werkstatt": "B-Fundament",
+  "erwartete_groesse": "1 Tag Unterschied in der Lagerdauer je betroffener Palette; 2 von 24 Stunden im Sommer, 1 von 24 im Winter — bei 844 Paletten und einer Verdunstungsrate um 0,1 %/Tag rund 0,1 % der Masse je betroffener Palette"
+ },
+ {
+  "karte": "code",
+  "titel": "src/pages/Ursachen.tsx trägt 170 Nullbehandlungen auf 384 Codezeilen — dort bricht die Unterscheidung „nicht gemessen\" gegen „null Kilo\" am ehesten.",
+  "warum_verdaechtig": "Gemessen mit platzhalter.mjs: in Ursachen.tsx stehen 43 Optionalketten ?., 42 Nullish ??, 39 Vergleiche !== null, 24 Vergleiche == null, 15 Ternäre der Form ? … : '—', 15 Ternäre auf .bekannt und 7 Nichtnull-Behauptungen x! — 185 Operatoren, davon 170 auf 384 Codezeilen der Datei (der Rest steht in Kommentaren/JSX-Text, die der Entkerner entfernt). Zum Vergleich: im ganzen src/ sind es 842 Stellen auf 8 061 Codezeilen. Die 7 x!-Behauptungen sind der gefährliche Teil: sie schalten die Prüfung ab, z. B. Ursachen.tsx:221 (w.verdunstung_kg! / w.netto_damals_kg!) und :241 (g.k.unten!, g.k.oben!). Ursprünglich ist diese Dichte gewollt: Migration 0064 hat null die Bedeutung „nicht gemessen\" gegeben und 0066 hat sie in den Rechenweg gezogen — jede dieser Stellen ist eine bewusste Entscheidung, kein Versehen.",
+  "wie_pruefbar": "Ein Werkzeug, das jede der 16 x!-Stellen mit einem null-Wert füttert und misst, ob die gerenderte Seite eine Zahl, ein „—\" oder NaN zeigt; und eines, das für jede der 33 ? … : '—'-Stellen prüft, ob der Nein-Zweig „unbekannt\" oder „gemessen null\" bedeutet. Selbstprobe: eine absichtlich auf 0 statt null gesetzte Zeile muss als Verwechslung auffallen.",
+  "werkstatt": "A-Rechenwerk",
+  "erwartete_groesse": "16 abgeschaltete Prüfungen; je verwechselter Stelle verschiebt sich eine ausgewiesene Verlustsumme um den ganzen Betrag dieses Stroms (bei 323 268 kg Eingang und Strömen zwischen 1 und 8 % also 3 000–26 000 kg)"
+ },
+ {
+  "karte": "code",
+  "titel": "src/pages/Stammdaten.tsx bündelt zehn unabhängige Pflegemasken mit 42 useState in einer Datei von 815 Zeilen.",
+  "warum_verdaechtig": "Gemessen: 815 Zeilen, 24 benannte Funktionen, 42 useState, 8 useEffect, 77 Pfeilfunktionen, längste Funktion Kaliber mit 215 Zeilen ab Zeile 362 (allein 15 useState). Die Reiterliste steht in Zeile 12–18; jeder Reiter (GebindeTara:47, PalettenImport:116, Kaliber:362, Abgebrochene:581, Einstellungen:688, Vorlauf:735 …) ist über setTeil vollständig unabhängig — es gibt keinen gemeinsamen Zustand ausser der Reiterwahl. Zum Vergleich: der Median einer src-Datei ist 137 Zeilen, das 90-%-Quantil 440. 55 von 501 Codezeilen liegen in einem dreifach vorkommenden Klon. Ursprünglich ist die eine Datei bequem: eine Seite, ein Reitergerüst, keine zehn neuen Dateien — und da nur der Betriebsleiter sie sieht, kostet ihre Grösse den Arbeiter kein Byte.",
+  "wie_pruefbar": "Ein Werkzeug, das je Komponente misst, wie viele ihrer useState eine andere Komponente derselben Datei liest (Kopplungsgrad). Ist er 0, ist die Datei nur ein Ordner. Selbstprobe: eine künstlich geteilte Zustandsvariable muss als Kopplung erscheinen. Danach: Bildschirmfotos aller zehn Reiter vorher/nachher als Gleichheitsbeweis.",
+  "werkstatt": "C-Bauwerk",
+  "erwartete_groesse": "815 Zeilen in 10 Dateien à 40–215 Zeilen; die Auswertungsbündelgrösse bleibt gleich (24 289 B), aber die längste Funktion des Projekts sinkt von 215 auf ≈ 80 Zeilen"
+ },
+ {
+  "karte": "code",
+  "titel": "Fünf Arbeiter-Masken tragen dieselbe Kistenart-Auswahl mit derselben HTML-Kennung id=\"aus-art\" — auf einem Bildschirm mit zwei Masken zeigt htmlFor ins Leere.",
+  "warum_verdaechtig": "grep findet die Zeile {gebinde.map(g => <option key={g.art} value={g.art}>{g.art}</option>)} buchstabengleich in src/arbeit/AusschussMaske.tsx:89, FauleMaske.tsx:81, FertigePaletteMaske.tsx:89, WiegenMaske.tsx:89 und src/pages/Kontrolle.tsx:161 — jeweils mit <label htmlFor=\"aus-art\"> und <select id=\"aus-art\">. Dasselbe für das Gewichtsfeld id=\"aus-brutto\" in AusschussMaske:76, FauleMaske:68, FertigePaletteMaske:76, Zaehler:229. Der Klonsucher meldet die Blöcke als 5-fach bzw. 4-fach. src/pages/Arbeit.tsx schaltet die Masken heute einzeln um (ansicht === …), darum kollidiert es aktuell nicht — die Kennungen sind also ursprünglich sicher gewählt gewesen, solange nie zwei Masken gleichzeitig stehen. Diese Annahme steht nirgends geschrieben.",
+  "wie_pruefbar": "Ein Werkzeug, das alle id=\"…\"-Literale in src/ sammelt und meldet, wenn dieselbe Kennung in mehreren Komponenten steht; zusätzlich ein Prüfstand, der jede gerenderte Seite auf doppelte DOM-Kennungen absucht (document.querySelectorAll mit Zählung — bildschirme.mjs rendert die Seiten schon). Selbstprobe: eine künstlich doppelte Kennung auf einer Seite muss anschlagen.",
+  "werkstatt": "C-Bauwerk",
+  "erwartete_groesse": "9 doppelte HTML-Kennungen; ≈ 40 Zeilen sparen und eine Zugänglichkeitsfalle schliessen"
+ },
+ {
+  "karte": "code",
+  "titel": "22 % aller Exporte in src/ (52 von 233) werden von niemandem importiert — solange sie exportiert sind, kann kein Werkzeug künftiges Totholz erkennen.",
+  "warum_verdaechtig": "Gemessen über den Importgraphen (totholz2.mjs, test/ eingeschlossen, nicht über grep): 52 Symbole, die kein anderes Modul einliest, aber alle im eigenen File gebraucht werden. Verteilung: src/auswertung/daten.ts 23 (auswertungLaden plus 22 Typen wie Verlustzeile, Wiegung, Modell, Kohorte, Kurve, Schema, Selektion, Marge), src/lib/warenausgang.ts 8 (KEINE_WARE, PFLICHTSPALTEN, SPALTEN, Kopf, Kuerbisurteil, SpaltenName), src/arbeit/daten.ts 6, src/lib/import.ts 5, src/components/Diagramm.tsx 3 (Anteil, Punkt, Stufe), src/betrieb/AusgangImport.tsx 3 (JOURNAL_INTERN, ZEITRAUM_AB und der Wieder-Ausfuhr export { zeilenSchluessel } in Zeile 440), src/lib/typen.ts 3. Ursprünglich ist der Export bei Typen der billigste Weg, sie dokumentierbar und benennbar zu halten — und tsconfig.app.json hat zwar noUnusedLocals, aber das greift bei exportierten Namen nicht. In den Werkzeugen dasselbe Bild: 13 überflüssige Exporte (invarianten.mjs FINGERABDRUCK/erhaltung/rueckrechnung/unwissen/zerlegung, 04_orakel fModell/kaskade, …) plus 3 in werkstatt/umgebung.mjs, die nirgends gebraucht werden (PRUEFWERK, erklaere, heuteSetzen — vermutlich für noch ungeschriebene Werkzeuge dieser Runde).",
+  "wie_pruefbar": "Ein Werkzeug, das den Importgraphen baut (graph2.mjs liegt fertig vor) und je Export sagt: von wie vielen fremden Modulen gelesen, wie oft im eigenen File gebraucht. Die Weisslisten sind nötig: Exporte, die nur test/ liest (9 Stück, gerechtfertigt), und die dynamisch geladenen Läufer-Protokolle laufen/selbstprobe/lang (44 Stück). Selbstprobe: ein neu hinzugefügter, nirgends gelesener Export muss auftauchen — genau diesen Fall habe ich im ersten Lauf ohne Weissliste als 76 falsche Treffer erlebt.",
+  "werkstatt": "C-Bauwerk",
+  "erwartete_groesse": "65 Symbole (52 in src/, 13 in den Werkzeugen); der unmittelbare Byte-Gewinn ist ≈ 0, der Gewinn ist Sichtbarkeit für alle künftigen Totholz-Läufe"
+ },
+ {
+  "karte": "code",
+  "titel": "Der Name zahl() bezeichnet in drei Modulen drei verschiedene Dinge, und zwei davon sind fast, aber nicht ganz derselbe Zahlenparser.",
+  "warum_verdaechtig": "src/lib/format.ts:15 zahl(wert: number|null) → Text in de-CH. src/lib/import.ts:214 zahl(roh: string) → number|null: roh.trim().replace(/['\\s]/g,'').replace(',','.'). src/lib/warenausgang.ts:118 zahl(z: Zelle) → number|null: z.replace(/'/g,'').replace(',','.').trim(). Beide letzteren entfernen den Schweizer Tausender-Apostroph und tauschen Komma gegen Punkt — aber import.ts entfernt Leerzeichen auch im Inneren der Zahl, warenausgang.ts nur aussen. \"1 234\" ergibt in import.ts 1234, in warenausgang.ts null. Beide lesen Zahlen aus fremden Dateien desselben Betriebs. Ursprünglich sind es zwei getrennte Leser für zwei getrennte Fremdformate (Erntejournal-Sheet gegen Perigon-xlsx), jeder mit eigenen Modultests — die Trennung war also gewollt. Dasselbe Bild bei tonnen(): src/lib/format.ts:8 rundet auf 1 Nachkommastelle in de-CH und fällt unter 1000 kg auf kg() zurück; src/pages/Kontrolle.tsx:94 macht toLocaleString() ohne Ortsangabe und schreibt auch 300 kg als „0,3 t\".",
+  "wie_pruefbar": "Ein Werkzeug, das beide Zahlenparser mit derselben Liste von 200 realistischen Zellwerten füttert (Apostroph, Komma, Punkt, Leerzeichen, leer, Text, negative, wissenschaftliche Schreibweise) und jede Abweichung meldet. Selbstprobe: ein absichtlich eingebauter Unterschied muss auftauchen. Für tonnen(): eine Textprobe, die jede Zahlformatierung der Oberfläche gegen die Regel de-CH prüft — pruefstand/beschriftung.mjs kann das schon für Begriffe und wäre der richtige Ort.",
+  "werkstatt": "A-Rechenwerk",
+  "erwartete_groesse": "1 messbare Verhaltensdifferenz beim Leerzeichen im Zahlenkörper; 1 Formatierung ohne Ortsangabe in Kontrolle.tsx, sichtbar auf jedem Handy mit nicht-schweizerischer Spracheinstellung"
+ },
+ {
+  "karte": "code",
+  "titel": "Die Browser-Prüfstände sind zu 42–45 % Klon: kette.mjs wiederholt dieselbe Klickfolge „Neue Arbeit anlegen\" zwölfmal, bildschirme.mjs neunmal.",
+  "warum_verdaechtig": "Klonmass über 30-Token-Fenster: pruefstand/kette.mjs 181 von 430 Codezeilen (42 %), pruefstand/bildschirme.mjs 101 von 226 (45 %). Die konkrete Folge — getByRole('button', {name: /Neue Arbeit/}).click(); locator('#taet-waschen_sortieren').click(); locator('#charge').fill('1613') — steht in kette.mjs in den Zeilen 208, 272, 315, 327, 356, 361, 372, 420, 433, 441, 482, 490. Warum das so ist, steht im Kopfkommentar von kette.mjs: der Prüfstand soll den Weg durch die echten Masken zeigen, nicht verstecken — eine ausgelagerte Hilfsfunktion würde genau das tun, was ein Prüfstand nicht tun soll. Der Preis: ändert sich eine Kennung wie #taet-waschen_sortieren, muss man zwölf Stellen finden. Genau diese Sorte Nachlässigkeit hat in Runde L die Mutationssonde blind gemacht.",
+  "wie_pruefbar": "Ein Werkzeug, das jede in einem Prüfstand benutzte DOM-Kennung (#id, getByRole-Name, className) gegen den Bestand in src/ prüft und meldet, welche es nicht mehr gibt. Selbstprobe: eine erfundene Kennung im Prüfstand muss gemeldet werden. Das ist die direkte Antwort auf „wie verhindert man, dass ein Prüfwerkzeug unbemerkt stumpf wird\" — der Prüfstand darf nicht auf Kennungen zielen, die es nicht mehr gibt, und er darf nicht schweigend daran vorbeilaufen.",
+  "werkstatt": "C-Bauwerk",
+  "erwartete_groesse": "36 Zeilen im Klon; wichtiger: 12 Fundstellen, an denen eine umbenannte Kennung den Prüfstand still blind machen würde"
+ },
+ {
+  "karte": "code",
+  "titel": "Neun CSS-Klassen und fünf i18n-Schlüssel überleben in allen sechs Sprachen, weil es kein Werkzeug gibt, das nach ihnen sucht.",
+  "warum_verdaechtig": "css.mjs: 123 Klassen in src/index.css, davon 9 nirgends benutzt — .balken-zeile (Z 331), .balken-bereich mit ::before/::after (341–346), .stapel-zeile/.klickbar/:hover (349–351), .stapel-spur (352), .stapel-teil (353), .kaliber-spur (354), .balken-fuellung.projiziert (337), .dialog-hinter (415/421), .dialog (422/429) — zusammen 23 Zeilen, 1 327 B. Die stapel-* sind die Vorgänger der heutigen .anteil-* in Diagramm.tsx:478; .dialog stammt aus einer Zeit, als die App einen Modaldialog hatte statt Seiten. Die Falle: .projiziert hielt mein erster Lauf für lebendig, weil die Zeichenkette 13× im Code steht — immer als Feldname kg_projiziert, nie als Klasse. i18n_tot.mjs: 13 der 218 Schlüssel werden nie als t('…') gerufen, 8 davon leben dynamisch (TAETIGKEITEN[].text in lib/taetigkeit.ts:23–26 und die Tabelle ERKL in NeueArbeit.tsx:17–20), 5 sind wirklich tot: kaeufer (Z 50, die Käuferabfrage, von 0060 aus dem Anlegeweg genommen), abschluss (57), baender (97), fehler (137), abgebrochen (145) — je 6 Sprachen, 30 Zeilen, 758 B.",
+  "wie_pruefbar": "Zwei kleine Prüfer im Stil von test/oberflaeche.test.ts: einer sammelt alle className-Literale plus die 7 dynamischen Template-Klassennamen und vergleicht mit den Selektoren in index.css; einer sammelt alle t('…')-Literale plus die zwei dynamischen Weisslisten und vergleicht mit den Schlüsseln von de. Beide brauchen eine Selbstprobe: eine erfundene tote Klasse bzw. ein erfundener toter Schlüssel muss gemeldet werden — ohne die Weisslisten meldet der i18n-Prüfer 13 statt 5 und wäre wertlos.",
+  "werkstatt": "C-Bauwerk",
+  "erwartete_groesse": "53 Zeilen, 2 085 B Quelle; und zwei dauerhafte Wächter, die verhindern, dass die Zahl über die nächsten Runden wieder wächst"
+ },
+ {
+  "karte": "code",
+  "titel": "src/betrieb/ ist ein Verzeichnis für eine einzige 440-Zeilen-Datei, und src/auswertung/tempo.ts ist das einzige Einzelleser-Modul ohne eigenen Test.",
+  "warum_verdaechtig": "Verzeichnisvermessung: src/betrieb/ enthält genau AusgangImport.tsx (440 Z), gelesen von genau einem Modul (src/pages/Lieferungen.tsx). Zum Vergleich haben src/auswertung/ 3 Dateien, src/arbeit/ 9, src/components/ 7. Bei den Einzelleser-Modulen zeigt sich eine klare Regel: lib/warenausgang.ts, lib/import.ts, lib/xlsx.ts, lib/dateiname.ts, lib/konfiguration.ts und lib/version.ts haben alle eine eigene Testdatei (test/warenausgang.test.ts 297 Z, test/import.test.ts 100 Z, test/csv.test.ts 98 Z, test/konfiguration.test.ts 55 Z, test/version.test.ts 33 Z) — die Aufteilung ist die Naht zwischen „geprüft\" und „gemalt\", nicht Willkür. Genau eine Ausnahme bricht die Regel: src/auswertung/tempo.ts (33 Z, ein Leser: pages/Betrieb.tsx, kein Test). Der Kopfkommentar sagt, es rechne Median statt Mittel, „damit eine vergessene, über Nacht offen gebliebene Arbeit den Wert nicht verzerrt\" — eine fachliche Regel ohne einen einzigen Prüffall.",
+  "wie_pruefbar": "Ein Werkzeug, das für jedes Modul in src/lib/ und src/auswertung/ die Zahl der Leser und die Existenz einer zugehörigen Testdatei nebeneinanderstellt; Module mit einem Leser und ohne Test sind der Befund. Selbstprobe: ein neu angelegtes ungeprüftes Einzelleser-Modul muss auftauchen. Für tempo.ts konkret: eine Testdatei mit einer geraden und einer ungeraden Zahl von Arbeiten und einer bewusst über Nacht offen gelassenen — der Median muss sie ignorieren, das Mittel nicht.",
+  "werkstatt": "D-Nutzen",
+  "erwartete_groesse": "1 fachliche Regel (Median gegen Mittel bei der Tätigkeitsdauer) ohne jeden Prüffall; betrifft die Durchsatzzahlen auf dem Reiter Betrieb für alle 42 Chargen"
+ },
+ {
+  "karte": "doku",
+  "titel": "docs/DATENFLUSS.md behauptet, die Selbstkontrolle des Modells streue um null — gemessen streut sie um +11 % und geht bis +49,2 %.",
+  "warum_verdaechtig": "DATENFLUSS.md §4 „Die Selbstkontrolle\" nennt „In der Demo-Saison: −4.5 %, −1.2 %, +3.8 %\" und den Satz „Streuung um 0 → die Koeffizienten treffen\". Gemessen auf karte_doku: select count(*), avg, min, max von abweichung_anteil aus erg_massenbilanz → 25 Zeilen, Mittel +11,0 %, Spanne −5,1 % bis +49,2 %, 7 Chargen über ±20 % (1625 +49,2 %, 1635 +48,7 %, 1620 +48,2 %, 1605 +48,1 %, 1615 +47,4 %, 1630 +43,9 %, 1619 +22,1 %). Die drei zitierten Zahlen sind die drei kleinsten der Verteilung, und +3,8 % kommt heute gar nicht mehr vor (es gibt −3,8 %).",
+  "wie_pruefbar": "Ein Werkzeug, das erg_massenbilanz je Charge gegen die CSV-gemessene Masse hält und die ganze Verteilung ausgibt (Median, IQR, Ausreisser mit Charge, Sorte, n_sortierlaeufe), statt drei Beispiele. Zweite Frage, die es entscheiden muss: Sind die +48-%-Chargen ein Modellfehler oder Chargen, die nur teilweise über das Band liefen (die Sicht rechnet laut DATENFLUSS auf den CSV-Anteil herunter — greift das hier?).",
+  "werkstatt": "A-Rechenwerk",
+  "erwartete_groesse": "11 Prozentpunkte mittlerer Versatz über 25 Chargen; bei den sieben Ausreissern 22 bis 49 Prozentpunkte, entsprechend rund 1,4 t bis 3,0 t Masse je betroffener Charge"
+ },
+ {
+  "karte": "doku",
+  "titel": "mv_kaskade.eingang_kg trägt die Eingangsmasse der ganzen Charge, wiederholt auf jeder Portions- und Kohortenzeile — der Name verspricht eine Zeilenmasse.",
+  "warum_verdaechtig": "select portion, count(*), sum(eingang_kg) from mv_kaskade group by portion → ausgelagert 85 Zeilen / 1 163 096 kg, lager 86 Zeilen / 1 164 257 kg, bei 323 268 kg tatsächlichem Eingang. Für Charge 1598 steht in beiden Portionszeilen derselbe Wert 1422,20. sum(max(eingang_kg) je charge_nr) = 323 268 kg, sum über charge_nr+portion = 645 375 kg. Die Sichtbeschreibung warnt nur vor dem Summieren der Ströme, nicht vor dieser Spalte; keine der 1412 Sichtspalten hat einen Kommentar (col_description = 0). README und DATENFLUSS §3 laden ausdrücklich zum direkten select im Supabase-SQL-Editor ein. v_kohorte_anteil summiert die Spalte bereits.",
+  "wie_pruefbar": "Ein Werkzeug, das für jede Sicht jede numerische Spalte gegen die passende Gesamtsumme hält und meldet, wo sum(spalte) die Bezugsgrösse um mehr als 1 % überschreitet — plus eine Prüfung, ob v_kohorte_anteil die Wiederholung korrekt herausteilt.",
+  "werkstatt": "B-Fundament",
+  "erwartete_groesse": "322 107 kg Überzählung (+99,6 %) bei naiver Summe über zwei Portionen; über die Kohortenzeilen bis Faktor 3,6"
+ },
+ {
+  "karte": "doku",
+  "titel": "pruefstand/bildschirme.mjs kann nicht durchfallen — process.exit(0) am Ende, obwohl es Fehler zählt.",
+  "warum_verdaechtig": "pruefstand/bildschirme.mjs Zeile 287–289 erhöht `fehler` bei Überlauf > 1 px und bei Konsolenmeldungen, Zeile 298 druckt die Zahl, Zeile 299 lautet `process.exit(0)`. In .github/workflows/pruefung.yml heisst der Schritt „Jeder Bildschirm ohne Konsolenfehler und ohne Überlauf\". ABMACHUNGEN AB-10, AB-38 und AB-42 nennen den Bildschirm-Prüfstand als einzigen Beweis. Zum Vergleich: beschriftung.mjs endet mit exit(1), kette.mjs mit exit(1) — der Rest der Familie ist scharf, nur dieser nicht.",
+  "wie_pruefbar": "Selbstprobe einbauen: eine Seite mit absichtlichem Überlauf und eine mit geworfenem Fehler rendern; der Läufer muss beide melden und mit ≠ 0 enden. Dann messen, wie viele der 96 heutigen Aufnahmen (24 Seiten × 2 Geräte × 2 Themen) tatsächlich Überlauf oder Konsolenfehler haben — diese Zahl ist bislang nie ausgewertet worden.",
+  "werkstatt": "C-Bauwerk",
+  "erwartete_groesse": "96 gerenderte Bildschirmvarianten ohne wirksame Prüfung; 3 von 48 Abmachungen (6 %) ohne jeden Beweis, der rot werden kann"
+ },
+ {
+  "karte": "doku",
+  "titel": "Fünf Abmachungen beschreiben Verhalten, das der Code nicht mehr hat, und ihre Tests sind trotzdem grün.",
+  "warum_verdaechtig": "AB-02 („Ohne Ablesung kein Abschluss\") gegen src/arbeit/daten.ts:155 `paloxPflicht: !fax && a.station !== 'waschen'` und Abschluss.tsx:129-130 (`#palox-ohne`). AB-09 („hält fest, wie die Palette gegriffen wurde\") gegen Kontrolle.tsx:25-26 und die Ausnahme `[auswahl]=\"seit 0061 nicht mehr gefragt\"` in luecken.sh:70 — der Test in pruefung.sql:1735 prüft nur, dass die Datenbank den Wert hält. AB-12 („Am Waschbecken werden Kisten gezählt\") gegen auftrag_palette.sortierdatum/.kisten und die Tatsache, dass es keine Kisten-Tabelle gibt. AB-25 („Kein Käufer mehr\") gegen 210 von 309 Demo-Arbeiten mit kaeufer und Stammdaten.tsx:384-436. AB-27 nennt die Kennungen #kistendatum und #kein-datum — beide 0 Treffer in kette.mjs, richtig heissen sie #sortierdatum und #kein-sortierdatum.",
+  "wie_pruefbar": "Ein Werkzeug, das ABMACHUNGEN.md zeilenweise zerlegt und für jeden Rückstrich-Bezeichner, jede DOM-Kennung und jedes Zitat prüft, ob es im Bestand existiert — und zusätzlich, ob eine spätere Zeile dieselbe Erfassungstabelle oder Maske betrifft, ohne die frühere als überholt zu markieren. Die Prüfung darf keinen Treffer in einer Ausnahmeliste von luecken.sh als Bestätigung werten.",
+  "werkstatt": "D-Nutzen",
+  "erwartete_groesse": "5 von 48 Zusagen (10 %), dazu 2 nicht existierende DOM-Kennungen; Wirkung: der Betrieb liest eine Zusage, die die App seit vier Wochen nicht mehr hält"
+ },
+ {
+  "karte": "doku",
+  "titel": "Der Lückenscanner hält jedes Vorkommen eines Spaltennamens in src/ für einen Schreibnachweis — auch in einer select-Zeichenkette.",
+  "warum_verdaechtig": "Gepflanzte Probe auf karte_doku: alter table auftrag add column testspalte_xyz / sorte / lagertage, dann ./pruefstand/luecken.sh gegen diese Datenbank. Ergebnis: nur testspalte_xyz gemeldet, sorte und lagertage still durchgelassen. Ursache ist luecken.sh:85-88 — `grep -rqE \"(^|[^a-z_])$c[[:space:]]*[:,}]\"` oder `grep -rqF \"'$c'\"`. Der Scanner prüft ausserdem nur 11 der 28 Tabellen und 52 Spalten. ABMACHUNGEN.md beschreibt ihn im Anhang als beidseitige Vollständigkeitsprüfung.",
+  "wie_pruefbar": "Den Nachweis auf echte Schreibwege einengen: nur Vorkommen innerhalb eines .insert()/.update()/.upsert()-Nutzlastobjekts oder eines rpc-Aufrufs zählen. Danach denselben Pflanzversuch wiederholen und zusätzlich messen, wie viele der heutigen 52 Spalten den strengeren Nachweis noch bestehen.",
+  "werkstatt": "B-Fundament",
+  "erwartete_groesse": "2 von 3 gepflanzten Spalten unbemerkt; 17 von 28 Tabellen gar nicht im Suchraum"
+ },
+ {
+  "karte": "doku",
+  "titel": "Die Fundstelle des Verlust-Prozentsatzes im automatisch erzeugten Prüfbericht zeigt 13 Zeilen daneben.",
+  "warum_verdaechtig": "docs/PRUEFBERICHT.md, BEZ-001, verankert bei `src/pages/Ueberblick.tsx:66`; pruefwerk/befunde/befunde.json enthält {\"datei\": \"src/pages/Ueberblick.tsx\", \"zeile\": 66}. Zeile 66 lautet `wert={<>{tonnen(s.eingang_kg)} {ohneNetto === 0` — das ist die Eingang-Kennzahl. Die Zeichenkette „des Eingangs\" mit prozent() steht auf Zeile 79. Ueberblick.tsx (18:56) ist älter als der Bericht (19:17), die Datei hat sich also seit dem Lauf nicht verschoben.",
+  "wie_pruefbar": "Ein Werkzeug, das jede in befunde.json genannte Datei-Zeile-Kombination öffnet und prüft, ob die dort stehende Zeile den im Befund zitierten Ausdruck enthält. Läuft über alle acht Feststellungen und über die Belegzeilen aller Sonden.",
+  "werkstatt": "A-Rechenwerk",
+  "erwartete_groesse": "1 von 8 Feststellungen mit falscher Zeilenangabe, 13 Zeilen daneben; Prüfaufwand für alle Belege: 8 Befunde plus rund 40 Belegstellen"
+ },
+ {
+  "karte": "doku",
+  "titel": "Die Sonde für „Leer ist nicht null\" findet nur Massen, deren Bezeichner ein „_kg\" mit Unterstrich enthält.",
+  "warum_verdaechtig": "pruefwerk/sonden/08_leer_nicht_null.mjs:131/137 nutzt /(_kg|verlust|verdunstung|schimmel|sockel|fax|kanal|masse|netto|brutto)/i auf dem Bezeichner vor `?? 0`. Damit fallen `z.kg`, `z.kg_unten`, `z.kg_oben` (src/auswertung/daten.ts:415), `z.kg` (Stammdaten.tsx:303), `u.kg_verkauft` (Ursachen.tsx:521), `eingang` (Ueberblick.tsx:180), `menge` (arbeit/PaloxMaske.tsx:53 — geht als Kilo in die Palox-Menge) und vier `mittel` (Ursachen.tsx:297) durch. PRUEFBERICHT.md meldet daraufhin „alle 7 Stellen … sind begründet\", PLAN_REPARATUREN.md „von 19 über 14 auf 7 gefallen\". grep -c \"?? 0\" über src/ ergibt 67.",
+  "wie_pruefbar": "Statt über Bezeichnernamen über Typen suchen: den TypeScript-Compiler die Typen der Ausdrücke links von `??` auflösen lassen und jede Stelle melden, deren Typ aus einer Spalte mit kg-Einheit stammt (die Einheitenliste liegt in Sonde 09 schon vor: 401 Spalten mit Einheitenendung). Selbstprobe: eine bekannte Stelle mit `.kg ?? 0` einbauen, die Sonde muss sie finden.",
+  "werkstatt": "C-Bauwerk",
+  "erwartete_groesse": "mindestens 8 zusätzliche Massenstellen, die heute unbemerkt aus einer Lücke eine Null machen; davon eine (PaloxMaske.tsx:53) im Schreibweg einer Messung"
+ },
+ {
+  "karte": "doku",
+  "titel": "Der Betriebsleiter bekommt auf dem Messungen-Bildschirm zu 4 von 10 Balken die falsche Abmachungs-Kennung angezeigt.",
+  "warum_verdaechtig": "src/pages/Messungen.tsx, Zeilen 212–223: Zeile 218 „Waschen: Paletten gezählt (Kisten und Sortierdatum, mit Kaliber)\" trägt ab: 'AB-31', Zeile 223 „Waschen: Sortierdatum je gezählter Palette\" ebenfalls AB-31 — AB-31 ist aber „Alle Zahlen der Auswertung gelten bis heute\"; gemeint ist AB-33. Zeile 221 „Waschen + Sortieren: Gewicht vom Zettel\" trägt AB-25, Zeile 222 „Kistensystem nach dem Waschen beantwortet\" trägt AB-26 — die beiden sind vertauscht (AB-25 ist das Kistensystem, AB-26 das Zettelgewicht).",
+  "wie_pruefbar": "Ein Werkzeug, das jede im Frontend gezeigte AB-Kennung mit dem zugehörigen Beschriftungstext gegen die Zeile in ABMACHUNGEN.md hält (Stichwortabgleich Text gegen Zusage) und Abweichungen meldet. Läuft ohne Browser, direkt über den Quelltext; Selbstprobe: eine Kennung im Prüfaufbau verstellen.",
+  "werkstatt": "D-Nutzen",
+  "erwartete_groesse": "4 von 10 Zeigern falsch (40 %), sichtbar auf dem einzigen Bildschirm, der dem Betrieb die Erfassungsvollständigkeit erklärt"
+ },
+ {
+  "karte": "doku",
+  "titel": "Die Annahmentabelle in ABLAUF.md verweist auf eine Kennzahl „wartet\", die es im Programm nicht gibt und die AB-18 ausdrücklich verbietet.",
+  "warum_verdaechtig": "ABLAUF.md Zeile 420, vierte Spalte: „Betrieb → Tempo: ‚wartet' zeigt, was sortiert ist und noch nicht gewaschen. Bleibt die Zahl über Wochen stehen, stimmt die Annahme nicht.\" grep -rn \"wartet\" src findet nur die Typfelder gegenprobe_wartet_kg und wartet_kg (daten.ts:37, 93) — kein Bildschirm rendert sie; Betrieb.tsx:87 zeigt die Karte „Arbeit und Tempo\" mit Dauer, Masse und kg/h. AB-18 verlangt zugleich: „Überblick und Ursachen behaupten deshalb keine Menge, die nur aus Arbeiten stammt (‚sortiert', ‚gewaschen', ‚wartet aufs Waschen')\". Sonde 10 findet das nicht, weil sie nur Auffälligkeitsnamen und Dateipfade prüft. Dieselbe Lücke trifft Annahme 7, die auf „Messungen → Kaliber\" zeigt, während der Reinigungs-Trichter auf Betrieb → Sortier-CSV steht (CsvUpload.tsx:102, 154).",
+  "wie_pruefbar": "Sonde 10 um Bildschirmzeiger erweitern: jeden Zeiger der Form „Reiter → Abschnitt\" gegen die Routenliste in App.tsx und gegen die vom Begriffs-Prüfstand geernteten Überschriften halten. Der Prüfstand rendert die zwölf Ansichten ohnehin schon; die Überschriften liegen damit vor.",
+  "werkstatt": "D-Nutzen",
+  "erwartete_groesse": "2 von 21 Annahmen (10 %) mit einem Zeiger ins Leere; Annahme 4 („Alles Sortierte wird später gewaschen\") ist damit faktisch unbewacht"
+ },
+ {
+  "karte": "doku",
+  "titel": "Der gesamte statistische Nachweis des Modells hängt an einem Skript, das nichts automatisch aufruft.",
+  "warum_verdaechtig": "docs/STATISTIK_BEFUND.md (948 Zeilen, 49 kB) nennt im Abschnitt „Wie gemessen wurde\" ./supabase/test/simulation/matrix.sh 25 als Quelle aller Zahlen (Schimmel +23 % in der Saisonmitte, +48 % am Saisonende, Überdeckung 0–44 % gegen 96–100 %, 3–4 t erfundener Sockel). grep -rn \"simulation\\|matrix.sh\" über .github/workflows/, supabase/test/run.sh und package.json ergibt 0 Treffer. Vier der 21 Annahmen in ABLAUF.md (Zeilen 428, 429, 430 und die Sockel-Zeile) zeigen als Beleg auf diese Datei. Zum Vergleich: die drei anderen Beweisketten (pruefung.sql, beschriftung.mjs, Modultests) laufen bei jedem Push.",
+  "wie_pruefbar": "matrix.sh mit kleiner Saisonzahl in einen Nachtlauf hängen und die Kennzahlen (Verzerrung, Überdeckung je Lage) gegen die in STATISTIK_BEFUND.md genannten Werte als Schranken prüfen — mit Toleranz, aber mit Alarm, sobald eine Überdeckung unter ihre dokumentierte Grenze fällt. Selbstprobe: einen Koeffizienten im Modell verstellen, der Lauf muss anschlagen.",
+  "werkstatt": "A-Rechenwerk",
+  "erwartete_groesse": "49 kB Dokument und 4 von 21 Annahmen ohne laufenden Beleg; Laufzeit einer Matrix mit 25 Saisons je Lage über neun Lagen als Preis"
+ },
+ {
+  "karte": "doku",
+  "titel": "Drei der fünf PDFs, die der Betrieb liest, beschreiben ein System, das es seit bis zu 13 Migrationen nicht mehr gibt.",
+  "warum_verdaechtig": "Alle fünf PDFs tragen den Baustempel 9. Sept 19:00 (stat -c %y docs/*.pdf), ihre Quellen aber nicht: architektur.html ist vom 3. Sept 10:03, erklaerung.html und ablauf.html vom 8. Sept 21:52. Zwischen dem 3. September und heute kamen die Migrationen 0054 bis 0066 dazu — 13 Dateien, 617 478 Bytes SQL. In erklaerung.html („die vollständige Offenlegung inklusive der Mathematik\", 18 Seiten) kommen „Überzählung\", „entsorgt\" und „Leer ist nicht null\" je 0 mal vor, obwohl 0064 bis 0066 genau diese drei Dinge in die Kaskade gebracht haben. Der frische Dateistempel des PDF verdeckt das Alter des Inhalts.",
+  "wie_pruefbar": "pdf_bauen.mjs so erweitern, dass es beim Bauen die höchste Migrationsnummer, die Objektzahl des Fingerabdrucks und das Änderungsdatum der HTML-Quelle in die Fusszeile schreibt — und rot wird, wenn zwischen dem Datum der Quelle und dem höchsten Migrationsdatum mehr als eine Migration liegt.",
+  "werkstatt": "D-Nutzen",
+  "erwartete_groesse": "3 von 5 PDFs; 13 Migrationen bzw. 617 kB SQL Rückstand beim ältesten, 4 Migrationen bzw. 183 kB beim mathematischen"
+ },
+ {
+  "karte": "doku",
+  "titel": "Zehn von siebzehn Arten von Auffälligkeiten sind auf der Demosaison nie zu sehen — und die Demosaison ist die einzige Datenlage, aus der alle Bilder, Attrappen und Doku-Zahlen stammen.",
+  "warum_verdaechtig": "select distinct art aus allen v_plausibilitaet*-Sichtdefinitionen ergibt 17 Arten; select art, count(*) from v_plausibilitaet auf karte_doku ergibt 7 mit zusammen 22 Zeilen (Überzählung 9, Palox geleert 5, Kistengewicht 3, Schimmel 2, Ohne Nenner 1, Zetteldatum 1, Lieferung in der Zukunft 1). Nie: Ausschuss, Ausschuss ohne Tara, Ausschuss-Tara, Fax, Kaliber fehlt, Lieferung ohne Eingang, Palox, Tara fehlt, Wägung, Zettelgewicht. Vier davon werden von Abmachungen als Beweis genannt (AB-20 „Wägung\", AB-26 und AB-47 „Zettelgewicht\", AB-47 „Tara fehlt\" und „Ausschuss ohne Tara\"). Die Screenshots des Bildschirm-Prüfstands und die Attrappen-Fixtures kommen alle aus dieser Saison.",
+  "wie_pruefbar": "Ein Werkzeug, das je Art einen minimalen Datensatz erzeugt, der sie auslösen muss, den Messungen-Bildschirm damit rendert und prüft, ob Text, Rat und Sprungziel „korrigieren\" tatsächlich erscheinen. Nebenbei fällt auf, welche Art keine erreichbare Bedingung mehr hat — eine tote Regel.",
+  "werkstatt": "B-Fundament",
+  "erwartete_groesse": "10 von 17 Arten (59 %) ohne Sichtprüfung; 22 Zeilen Auffälligkeiten in der Demosaison gegenüber 17 möglichen Arten"
+ },
+ {
+  "karte": "doku",
+  "titel": "docs/SPEC.md wird im README als fachliche Spezifikation beworben und ist seit Runde F (0048) nicht mehr angefasst worden.",
+  "warum_verdaechtig": "git log -1 -- docs/SPEC.md → Commit 80c4c71 „Ballast abwerfen (0048)\", also 18 Migrationen zurück. README.md:878 verweist darauf als „Fachliche Spezifikation\". SPEC.md §2 nennt fünf Ströme und zwei Bücher (A/B); select distinct strom from erg_verlust ergibt sechs Ströme, select distinct buch ergibt drei (feld, marge, verlust). SPEC.md §2 führt „Ausschuss zu klein\" als „Verlust (total)\" — seit dem 2. September gehen die Kleinen an die Tiere und sind kein Verlust (ABLAUF.md). SPEC.md §2 rechnet mit „Restware am Saisonende\", AB-31 rechnet bis heute. AB-30 verbietet ausserdem die Wörter „Buch A/B\", die SPEC.md als Ordnungsprinzip einführt.",
+  "wie_pruefbar": "Ein Werkzeug, das für jedes Dokument in docs/ das Datum der letzten Änderung gegen die höchste seither hinzugekommene Migration hält und für jede aufgeführte Aufzählung (Ströme, Bücher, Reiter, Ansichten) die Anzahl gegen die Datenbank prüft. Selbstprobe: eine Zahl im Prüfaufbau verstellen.",
+  "werkstatt": "D-Nutzen",
+  "erwartete_groesse": "4 substanzielle Widersprüche in einem 241-Zeilen-Dokument, das als Einstieg beworben wird; 18 Migrationen Rückstand"
+ },
+ {
+  "karte": "doku",
+  "titel": "Drei Bedienziele liegen unter der Grenze, die UI-KONZEPT.md als Leitlinie setzt.",
+  "warum_verdaechtig": "UI-KONZEPT.md, Leitlinientabelle: „Ziele mindestens 44 pt / 48 dp, für Handschuhe grösser — Apple HIG 44 pt, Material 48 dp, WCAG 2.5.5 (AAA) 44 px\". Gemessen in src/index.css: button.klein min-height 32px (Zeile 256), .kopf button min-height 34px (Zeile 157), .umschalter button min-height 38px (Zeile 267). Zum Vergleich sind input/select/textarea (Zeile 274) und label.ankreuzen (Zeile 290) korrekt auf 44px. Ausserdem nennt die Datei „Hauptknöpfe 56–72 px\"; gemessen sind es 60px (button.gross, .haupt-unten button) und 64px (.start-knoepfe button, .schritt-…), also 60–64.",
+  "wie_pruefbar": "Der Bildschirm-Prüfstand rendert bereits jede Seite; ihn die tatsächlichen getBoundingClientRect-Höhen aller klickbaren Elemente ernten lassen und jedes unter 44 px melden — mit Seite, Auswahl und gemessener Höhe. Das misst die gerenderte Grösse statt der CSS-Regel und findet auch Ziele, die durch Inhalt kleiner werden.",
+  "werkstatt": "C-Bauwerk",
+  "erwartete_groesse": "3 Klassen, 6 bis 12 px unter der Grenze, 12 Verwendungsstellen im Quelltext — an einer Waage mit Handschuhen der Unterschied zwischen einem und drei Tippversuchen"
+ },
+ {
+  "karte": "erfassung",
+  "titel": "Der Kaliberzähler beim Sortieren verlangt einen Tipp je Kiste, obwohl die Auswertung nur eine Summe je Arbeit und Band braucht — und derselbe Quelltext bietet 120 Zeilen darüber bereits eine Zifferneingabe an.",
+  "warum_verdaechtig": "src/arbeit/Zaehler.tsx:261–278 rendert die Zahl als <span className=\"stand\"> statt als <input>, während paletten-gesamt (Zeile 147) und kisten-palette (Zeile 180) in derselben Datei − / Zifferneingabe / + haben. Gemessen: select sum(anzahl), count(*), max(anzahl) from auftrag_gebinde → 16 254 Tipper, 208 Zeilen, grösste Einzelzahl 435. v_koeff_gebinde aggregiert ohnehin je auftrag_id und kaliber_idx.",
+  "wie_pruefbar": "Ein Werkzeug, das je Maske die Zahl der Bedienschritte gegen die Zahl der daraus entstehenden Datenbankzeilen stellt (Verhältnis Tipper:Zeile) und alle Stellen meldet, wo es über 10:1 liegt. Dazu ein Bildschirmvergleich vorher/nachher über pruefstand/bildschirme.mjs als Beweis der Verhaltensgleichheit.",
+  "werkstatt": "D-Nutzen",
+  "erwartete_groesse": "5,6 Std. (gutes Netz) bis 12,6 Std. (schlechtes Netz) Arbeiterzeit je Saison; 178 794 von 204 579 HTTP-Anfragen; Ersparnis bei Umstellung auf Zifferneingabe je Band: rund 10 Minuten je Sortierschicht"
+ },
+ {
+  "karte": "erfassung",
+  "titel": "Jeder Speichervorgang in den Arbeitermasken lädt den gesamten Arbeitszustand neu — 10 Leseanfragen, obwohl die Antwort des Schreibens den neuen Stand schon enthalten könnte.",
+  "warum_verdaechtig": "src/arbeit/daten.ts:47 startet 9 parallele Abfragen (stammdaten() ist gepuffert, einstellung() nicht) und danach sequenziell die sortierschema-Abfrage (Zeile 73); 309 von 309 Arbeiten haben eine sortierschema_id, also immer 10. Jede der acht Speicherfunktionen ruft nachladen()/neuLaden(). Die Datenbankzeit aller zehn Abfragen zusammen beträgt 1,0 ms (explain analyze je Abfrage), die Kosten sind reine Umlaufzeiten.",
+  "wie_pruefbar": "Ein Zähler, der die supabase-Aufrufe je Bedienpfad statisch aus dem Quelltext ableitet, und ein Lauf gegen pruefstand/postgrest.mjs, der die Anfragen tatsächlich mitschreibt. Vergleich gegen eine Fassung, die nur die betroffene Teilmenge nachlädt.",
+  "werkstatt": "C-Bauwerk",
+  "erwartete_groesse": "rund 185 000 vermeidbare HTTP-Anfragen je Saison; bei 600 ms Umlaufzeit etwa 6 Stunden Wartezeit"
+ },
+ {
+  "karte": "erfassung",
+  "titel": "v_verdunstung_messung.verwendbar liefert NULL statt false, wenn das Netto unbekannt ist, und macht damit den Prüfzweig in v_plausibilitaet unerreichbar, der genau diesen Fall melden soll.",
+  "warum_verdaechtig": "verwendbar = w.gemessen AND NOT w.sichtbar_schimmel AND n.netto_damals_kg > 0 AND … — bei NULL-Netto ist der Ausdruck NULL. v_plausibilitaet filtert WHERE NOT w.verwendbar AND NOT w.sichtbar_schimmel AND EXISTS(… v.gemessen); NOT NULL ist nie wahr. Der CASE-Zweig WHEN w.netto_damals_kg IS NULL THEN 'für die Gebindeart fehlt die Tara' kann folglich nie feuern. Gemessen: Wägung mit +50 % Gewicht → 22 auf 23 Zeilen; dieselbe ohne Gebindeart → 22 auf 22.",
+  "wie_pruefbar": "Ein Werkzeug, das für jede boolesche Spalte einer Sicht prüft, ob sie NULL werden kann, und jede WHERE-Klausel meldet, die diese Spalte mit NOT verneint. Dazu je Prüfzweig von v_plausibilitaet ein gepflanzter Fall, der ihn auslösen muss (Selbstprobe je Zweig).",
+  "werkstatt": "A-Rechenwerk",
+  "erwartete_groesse": "1 von 15 Prüfzweigen beweisbar tot; betroffen wären alle Wägungen ohne Tara — 41 Wägungen tragen heute 45 % des Saisonverlusts (23 530 kg von 52 119 kg)"
+ },
+ {
+  "karte": "erfassung",
+  "titel": "Fax-Faules wird beim Einfügen in kg umgerechnet und danach nie wieder nachgerechnet, weil brutto_kg, kisten und gebindeart von keiner einzigen Sicht gelesen werden — der Ausschuss dagegen wird nachgerechnet und geprüft.",
+  "warum_verdaechtig": "pg_depend auf Spaltenebene: schimmel_messung.brutto_kg, .kisten, .gebindeart haben 0 Sichtenleser; nur der Auslöser schimmel_netto_setzen liest sie. Gemessen: update gebinde set tara_kg_pro_kiste = tara_kg_pro_kiste + 0.5 meldet 30 von 31 ausschuss_messung-Zeilen (Zweig „Ausschuss-Tara\"), aber 0 von 298 schimmel_messung-Zeilen mit brutto_kg (2 611 kg Faules).",
+  "wie_pruefbar": "Ein Werkzeug, das jede gespeicherte abgeleitete Grösse aus ihren Rohspalten neu ausrechnet und die Abweichung beziffert; für schimmel_messung gibt es diesen Vergleich heute nicht. Zusätzlich ein Zweig in v_plausibilitaet analog zu „Ausschuss-Tara\".",
+  "werkstatt": "A-Rechenwerk",
+  "erwartete_groesse": "298 Zeilen mit 2 611 kg; eine Tara-Änderung um 0,5 kg je Kiste verschiebt sie um 149 kg, also 5,7 % des Fax-Faulen"
+ },
+ {
+  "karte": "erfassung",
+  "titel": "v_ausgang_kennzahl ist die einzige von sieben Stellen, die eine fehlende Palettentara als 0 statt als unbekannt rechnet — und widerspricht damit sowohl 0064 als auch der eigenen Erfassungsmaske.",
+  "warum_verdaechtig": "Textsuche über alle Sichtendefinitionen nach tara_kg_palette: v_palette, v_verdunstung_messung, v_wiegung_kennzahl, v_auftrag_palette_masse, v_plausibilitaet und v_plausibilitaet_0064_zusatz rechnen '− g.tara_kg_palette'; v_ausgang_kennzahl rechnet '− COALESCE(g.tara_kg_palette, 0)'. src/lib/masse.ts:1–15 begründet ausdrücklich das Gegenteil, und FertigePaletteMaske.tsx:54 sperrt das Speichern, wenn die Palettentara fehlt.",
+  "wie_pruefbar": "Ein Werkzeug, das alle Vorkommen derselben Fachformel über die 63 Sichten sammelt und Abweichungen im Umgang mit NULL meldet (Formel-Doppelgänger mit unterschiedlicher Nullbehandlung). Selbstprobe: eine Gebindeart ohne Palettentara anlegen und die Nettodifferenz messen.",
+  "werkstatt": "A-Rechenwerk",
+  "erwartete_groesse": "heute 0 betroffene Zeilen (alle vier Gebindearten haben 25,000 kg); bei einer Art ohne Palettentara 25 kg je Palette = 6,0 % der Bruttomasse einer fertigen Palette (13,00 kg × 32 Kisten)"
+ },
+ {
+  "karte": "erfassung",
+  "titel": "Der Datenqualitätsbalken „Datum vom Zettel bei gezählten Paletten\" kann nie 100 % erreichen, weil er 324 Paletten in den Nenner nimmt, die per Bauart kein eingangsdatum haben können.",
+  "warum_verdaechtig": "v_datenqualitaet zählt paletten_mit_datum als count(*) where ap.eingangsdatum is not null über alle auftrag_palette abgeschlossener Arbeiten. Gemessen: Eingangspaletten 527 von 527 mit eingangsdatum, Waschen-Kaliberpaletten 324 von 324 mit sortierdatum und 0 mit eingangsdatum, weil Zaehler.tsx:96 nur sortierdatum und kisten schreibt. Messungen.tsx:230 färbt unter 80 % rot; angezeigt werden dauerhaft 62 %.",
+  "wie_pruefbar": "Ein Werkzeug, das für jede Abdeckungskennzahl in v_datenqualitaet die erreichbare Obergrenze ausrechnet (Zähler bei vollständiger Erfassung) und jede meldet, deren Obergrenze unter 100 % liegt. Selbstprobe: eine Kennzahl mit bekannt erreichbarer 100 % darf nicht gemeldet werden.",
+  "werkstatt": "D-Nutzen",
+  "erwartete_groesse": "38 Prozentpunkte falscher Alarm auf der Seite, die dem Betriebsleiter sagen soll, wo er nachhaken muss; 324 von 851 Paletten betroffen"
+ },
+ {
+  "karte": "erfassung",
+  "titel": "Die Abschlussfrage „Alles die gleiche Sorte?\" kostet einen ganzen Bildschirm und wird von niemandem gelesen.",
+  "warum_verdaechtig": "Abschluss.tsx:100 schreibt auftrag_angabe(schluessel='gleiche_sorte'). Suche über alle Sichten- und Matview-Definitionen (pg_get_viewdef … like '%gleiche_sorte%') → 0 Treffer; pg_proc.prosrc → 0; grep -rl gleiche_sorte src/ → nur Abschluss.tsx. Zum Vergleich: eine_charge wird von v_schimmel_punkte und v_datenqualitaet gelesen. Dieselbe Tabelle trägt zwei weitere Altschlüssel (ausschuss_leer, ausschuss_von_auftrag, je 17 Zeilen), die nur demo_daten_laden schreibt.",
+  "wie_pruefbar": "Ein Werkzeug, das Schlüssel/Wert-Tabellen nicht spaltenweise, sondern wertweise prüft: jeden vorkommenden schluessel gegen die Schreib- und Leseseite abgleichen. Genau das kann pruefstand/luecken.sh nicht.",
+  "werkstatt": "C-Bauwerk",
+  "erwartete_groesse": "1 Bildschirm plus 1 Tipp bei jedem „nicht eine Charge\"; in der Demosaison 0 Auslösungen, weil eine_charge in 304 von 304 Fällen true ist — aber der Zweig quelle='verarbeitung_gemischt' in v_schimmel_punkte ist dadurch ebenfalls dauerhaft leer"
+ },
+ {
+  "karte": "erfassung",
+  "titel": "Vier tote Sichtenzweige rechnen mit Spalten, die keine Maske mehr füllt — sie sehen aus wie Auswertung, tragen aber garantiert 0 Zeilen bei.",
+  "warum_verdaechtig": "verdunstung_wiegung.faul_kg trägt den kompletten dritten UNION-Zweig von v_schimmel_punkte (quelle='lager'), ist aber 0 von 41 gefüllt (select quelle, count(*) from v_schimmel_punkte → nur verarbeitung, 142). auftrag.durchsatz_kg ist der Rückfall für eingang_netto_kg in mv_auftrag_masse, 0 von 309 gefüllt (masse_quelle='durchsatz' hat 0 Zeilen). auftrag_palette.palette_id speist den Zweig masse_quelle='palette' in v_auftrag_palette_masse, 0 von 854 gefüllt. schimmel_messung.palox_geleert speist den ersten CASE-Zweig von v_palox_stand, wird von PaloxMaske.tsx:52 immer als false geschrieben.",
+  "wie_pruefbar": "Ein Werkzeug, das für jeden CASE- und UNION-Zweig einer Sicht die Zeilenzahl ausweist und Zweige meldet, die auf der Demosaison und auf der dreifachen 0 bleiben, zusammen mit der Spalte, die sie speist, und deren Füllstand. Selbstprobe: eine Zeile mit gesetzter Spalte pflanzen, der Zweig muss anspringen.",
+  "werkstatt": "C-Bauwerk",
+  "erwartete_groesse": "4 Zweige in 4 Sichten; die Zusammenlegung spart schätzungsweise 60–90 SQL-Zeilen und macht v_schimmel_punkte von drei auf zwei Zweige kleiner"
+ },
+ {
+  "karte": "erfassung",
+  "titel": "Zwei Spalten sind in Schema, Sichten, Funktionen und Frontend vollständig tot, tragen aber noch Bedingungen und not-null-Vorgaben.",
+  "warum_verdaechtig": "schimmel_messung.teilgewicht (integer-Boolean, not null default false, 0 von 585 true) und verdunstung_wiegung.auswahl (text mit CHECK auf drei Werte, 0 von 41 gefüllt) haben in leser2.mjs je 0 Sichten, 0 Funktionen und 0 src-Stellen. Beide stehen in der Ausnahmeliste von pruefstand/luecken.sh — die Begründung dort sagt nur, dass keine Maske sie füllt, und fragt nie, ob sie noch gelesen werden.",
+  "wie_pruefbar": "Ein Werkzeug, das die Ausnahmeliste jedes Prüfstands gegen die gemessene Wirklichkeit hält: für jede Ausnahme prüfen, ob ihre Begründung heute noch zutrifft, und veraltete melden. Selbstprobe: eine Ausnahme künstlich falsch machen und prüfen, ob sie auffällt.",
+  "werkstatt": "B-Fundament",
+  "erwartete_groesse": "2 Spalten, 1 CHECK-Bedingung; auf 585 + 41 Zeilen etwa 5 kB, aber vor allem zwei Zeilen weniger in jeder Erklärung des Schemas"
+ },
+ {
+  "karte": "erfassung",
+  "titel": "Die Zahl, die der Arbeiter beim Palox bestätigt, ist nicht die Zahl, mit der die Auswertung rechnet — und die Plausibilitätswarnung der Maske hängt an der falschen.",
+  "warum_verdaechtig": "PaloxMaske.tsx:45 rechnet menge = n − vorher mit einem vorher, das beim Öffnen über rpc('palox_letzter_stand') geholt wurde; v_palox_stand rechnet lag(palox_stand_kg) OVER (PARTITION BY palox_station(station) ORDER BY ts, id) und v_schimmel_menge nimmt diese Differenz, nicht das gespeicherte kg. Gemessen: 8 von 281 Palox-Zeilen weichen ab, Summe 1 577 kg, grösste 626 kg (Zeile 580: 4 500 gespeichert gegen 3 874 gerechnet). Die Warnschwelle verdaechtig = jePalette > 120 (PaloxMaske.tsx:47) steht als feste Zahl im Frontend, nicht in einstellung.",
+  "wie_pruefbar": "Ein Werkzeug, das für jede Grösse, die eine Maske dem Arbeiter zeigt, die entsprechende Datenbankformel danebenstellt und beide auf denselben Daten auswertet — ein Vorschau-gegen-Rechnung-Vergleich für alle Masken, nicht nur den Palox.",
+  "werkstatt": "A-Rechenwerk",
+  "erwartete_groesse": "8 von 281 Ablesungen, 1 577 kg Abweichungssumme, 626 kg Einzelfall — gemessen an 26 170 kg Saisonschimmel sind das 6,0 %"
+ },
+ {
+  "karte": "erfassung",
+  "titel": "Die Kistenart wird viermal je Messung gefragt und war in der ganzen Demosaison nie etwas anderes als die Vorbelegung.",
+  "warum_verdaechtig": "FauleMaske, WiegenMaske, AusschussMaske und FertigePaletteMaske setzen alle setArt(a => a || s.gebinde[0]?.art) und rendern ein <select> je Messung. Gemessen über alle vier Tabellen: 498 von 498 Zeilen tragen G2 — den alphabetisch ersten und damit vorbelegten Eintrag. Die Stammdaten kennen drei weitere Arten mit abweichender Kistentara (1,360 / 1,680 / 2,000 gegen 1,500 kg).",
+  "wie_pruefbar": "Ein Werkzeug, das für jedes Auswahlfeld die Verteilung der tatsächlich gespeicherten Werte gegen die Vorbelegung hält und Felder meldet, deren Antwort in über 95 % der Fälle die Vorbelegung ist. Vorher ist zu klären, ob die Demodaten hier den Betrieb abbilden — das ist eine Frage an den Betrieb, keine Behauptung.",
+  "werkstatt": "D-Nutzen",
+  "erwartete_groesse": "498 Klapplistenbedienungen je Saison, bei 2,5 s rund 21 Minuten; bei einer Umstellung auf „einmal je Arbeit\" blieben 309 statt 498, also 8 Minuten Ersparnis — die Zahl ist klein, die Fehleranfälligkeit einer immer gleichen Vorbelegung ist der grössere Punkt"
+ },
+ {
+  "karte": "erfassung",
+  "titel": "Die Erfassung hat keinen Offlinepuffer, keine Wiederholung und keinen optimistischen Zähler — ein Tipp bei schlechtem Netz geht stumm verloren.",
+  "warum_verdaechtig": "grep -rn 'serviceWorker|navigator.onLine|indexedDB' src/ → 0 Treffer; localStorage kommt an 9 Stellen in 5 Dateien vor und nur für Zettel-Datum, Kistenzahl, Rolle und Sprache. Zaehler.tsx:71 bricht bei laeuft ohne Rückmeldung ab (return), und alle Plusknöpfe tragen disabled={gesperrt || laeuft}. Bei 524 Tippern je Sortierschicht und 2,8 s je Runde ist ein verlorener Doppeltipp kein Randfall.",
+  "wie_pruefbar": "Ein Prüfstand, der gegen pruefstand/postgrest.mjs mit künstlicher Verzögerung und künstlichem Abbruch fährt und zählt, wie viele ausgelöste Bedienschritte in einer Zeile enden — die Differenz ist der Verlust. Selbstprobe: bei 0 ms Verzögerung muss die Differenz 0 sein.",
+  "werkstatt": "D-Nutzen",
+  "erwartete_groesse": "unbekannt bis zur Messung; bei 1 % verlorener Tipper wären es 163 Kisten je Saison, was über v_koeff_gebinde (11,4 kg je Gebinde) rund 1 850 kg Masse an den falschen Ort schiebt"
+ },
+ {
+  "karte": "erfassung",
+  "titel": "Das Sortierdatum ist beim Waschen Pflichteingabe, aber seine einzige fachliche Ableitung erreicht keinen Bildschirm.",
+  "warum_verdaechtig": "Zaehler.tsx:91 lässt ohne Sortierdatum (oder ausdrückliches Häkchen) nicht speichern — 324 Pflichteingaben je Saison. v_auftrag_wasch_paletten rechnet daraus zwischenlager_tage und n_mit_sortierdatum; die pg_depend-Abfrage auf v_auftrag_masse.zwischenlager_tage liefert keinen nachgelagerten Leser, keine erg_*-Tabelle führt die Spalte, und grep -rn zwischenlager src/ ist leer. Erreicht wird nur der Abdeckungsbalken v_datenqualitaet.wasch_kisten_mit_sortierdatum auf Messungen.tsx:223, der 8 918 von 8 918 zeigt.",
+  "wie_pruefbar": "Ein Werkzeug, das den vollständigen Weg jeder Sichtenspalte bis zu einer Bildschirmstelle in src/ verfolgt (Sicht → erg_* → TypeScript-Schnittstelle → JSX) und jede Spalte meldet, die unterwegs endet. Selbstprobe: eine Spalte mit bekanntem Bildschirm darf nicht gemeldet werden.",
+  "werkstatt": "D-Nutzen",
+  "erwartete_groesse": "324 Pflichteingaben je Saison für einen Abdeckungsbalken; die daraus gerechnete Zwischenlagerzeit (Sortieren bis Waschen) ist genau die Grösse, die der Betrieb für die Verderbskurve bräuchte, und sie wird nirgends gezeigt"
+ },
+ {
+  "karte": "erfassung",
+  "titel": "Die Datenbank läuft auf Etc/UTC, und jede Umwandlung eines Zeitstempels in ein Datum verschiebt eine Nachterfassung um einen Tag nach hinten.",
+  "warum_verdaechtig": "show timezone → Etc/UTC. Betroffen: v_verdunstung_messung (wiege_ts::date − eingangsdatum), v_auftrag_wasch_paletten (start_ts::date − sortierdatum), v_auftrag_masse.lagertage, v_verarbeitung_alter; heute() fällt auf current_date zurück. Gemessen: 16.01. 00:30 Ortszeit ergibt in UTC den 15.01. (−1 Tag), ebenso 16.07. 00:30. Das Fenster ist 1 h im Winter und 2 h im Sommer. Die Datumsfelder der Masken selbst sind sauber, weil <input type=date> eine reine Zeichenkette liefert.",
+  "wie_pruefbar": "Ein Prüfstand, der dieselbe Erfassung um 22:00, 23:30 und 00:30 Ortszeit im Winter und im Sommer durchspielt (über einstellung('heute_test') und gesetzte Zeitstempel) und die entstehenden Lagertage vergleicht. Selbstprobe: bei 12:00 Ortszeit muss die Differenz 0 sein.",
+  "werkstatt": "B-Fundament",
+  "erwartete_groesse": "0,0005 Verdunstung je Tag auf 323 268 kg Saisoneingang = 162 kg je Tag Verschiebung; je Palette 0,19 kg bei 383 kg Nettomittel"
+ },
+ {
+  "karte": "erfassung",
+  "titel": "pruefstand/luecken.sh meldet „keine Lücke\", während spaltengenau elf tote und zwölf nur gelesene Spalten nachweisbar sind — sein Rückwärtstest arbeitet auf Tabellenebene und seine Ausnahmeliste wird nie nachgeprüft.",
+  "warum_verdaechtig": "Der Lauf gegen karte_erfassung endet mit „OK Keine Lücke\". Der Vorwärtstest prüft nach Abzug der 40 Ausnahmenamen (37 Zeilen) genau 52 Spalten und akzeptiert sie alle über einen Namenstest, der ganz src/ ohne Tabellenbezug durchsucht (bash scratchpad/scanner_blind2.sh). Der Rückwärtstest fragt nur, ob irgendeine Sicht aus der Tabelle liest — nie, ob sie eine bestimmte Spalte liest. Schlüssel/Wert-Tabellen wie auftrag_angabe prüft er nur über die Spaltennamen schluessel und wert.",
+  "wie_pruefbar": "Ein Nachfolger, der drei Dinge macht, die der heutige nicht macht: die Schreibseite aus der Nutzlast der supabase-Aufrufe parsen statt aus Namen, die Leseseite über pg_depend.refobjsubid plus pg_proc plus src/ auf Spaltenebene bestimmen, und Schlüssel/Wert-Tabellen wertweise auflösen. Selbstprobe: eine Spalte aus einer Maske entfernen — der Scanner muss anschlagen; heute schlägt er nicht an, weil der Name anderswo vorkommt.",
+  "werkstatt": "C-Bauwerk",
+  "erwartete_groesse": "23 Spalten, die der heutige Scanner nicht sieht (11 tot, 12 nur gelesen), plus 1 Bildschirm ohne Wirkung und 3 Altschlüssel in auftrag_angabe"
+ },
+ {
+  "karte": "erfassung",
+  "titel": "Die Korrekturmaske macht 43 Spalten als rohe Text- und Zahlenfelder editierbar und macht aus jedem geleerten Feld ein NULL — sie ist der Weg, auf dem alle neun Maske/Tabelle-Uneinigkeiten praktisch entstehen.",
+  "warum_verdaechtig": "src/arbeit/Korrektur.tsx: TABELLEN (6 Blöcke) + AUFTRAG_FELDER (8) + KONTROLLE (1 Block) ergeben 43 editierbare Spalten. zuWert(s, f) gibt bei s === '' null zurück (Zeile 99), ohne zu prüfen, ob die zuständige Erfassungsmaske das Feld verlangt. gebindeart und kistensystem sind typ:'text', also freie Textfelder, nur durch Fremdschlüssel bzw. CHECK gehalten. Der gemessene Effekt eines geleerten gebindeart bei ausgang_wiegung: die Zeile verschwindet aus v_ausgang_kennzahl, ohne dass v_plausibilitaet etwas meldet (22 bleibt 22).",
+  "wie_pruefbar": "Ein Werkzeug, das jede Spalte, die eine Erfassungsmaske als Pflicht behandelt, gegen die Datenbankbedingungen hält und für jede Lücke ausrechnet, wie viele Zeilen und wie viele Kilogramm bei ihrer Verletzung lautlos aus der Auswertung fallen. Selbstprobe: eine Spalte, die not null ist, darf nicht gemeldet werden.",
+  "werkstatt": "B-Fundament",
+  "erwartete_groesse": "9 Spalten ohne Datenbankschutz; je fertiger Palette 416 kg brutto (13,00 kg × 32 Kisten), die bei fehlender Gebindeart komplett und ohne Meldung aus der Überfüllungsrechnung fallen"
+ },
+ {
+  "karte": "betrieb",
+  "titel": "Die Kernaussage des Programms — welche Ursache gewinnt — ist zwischen den beiden Spitzenreitern nicht entscheidbar, und nirgends steht das.",
+  "warum_verdaechtig": "v_verlust_je_gruppe (gruppe='gesamt'): Schimmel/Fäulnis 26 170,29 kg [9 917,41–42 423,17], Verdunstung 23 530,25 kg [18 898,88–28 161,62]. Unterschied 2 640 kg, mittlere Bandbreite 20 884 kg, Verhältnis 0,13. Der Überblick stellt beide als Farbsegmente eines Balkens nebeneinander; die Bandbreite steht nur im Schwebefenster eines einzelnen Segments (src/pages/Ueberblick.tsx:186, src/components/Diagramm.tsx:505) und nie am Balkenwert selbst (Diagramm.tsx:493).",
+  "wie_pruefbar": "Ein Werkzeug, das für jedes Paar, das die Oberfläche nebeneinanderstellt, |Δ| ÷ Bandbreite rechnet und nach Unterscheidbarkeit sortiert — Eingabe v_verlust_je_gruppe plus die Paarliste aus dem Bildschirm-Prüfstand. Selbstprobe: ein künstlich verdoppeltes Band muss ein bisher trennbares Paar untrennbar machen.",
+  "werkstatt": "D-Nutzen",
+  "erwartete_groesse": "5 von 15 Strompaaren (33 %) nicht trennbar; über alle Balkenvergleiche 653 von 766 Paaren (85,2 %) nicht entscheidbar"
+ },
+ {
+  "karte": "betrieb",
+  "titel": "Der Faulanteil beim Abpacken steigt messbar mit jedem Tag zwischen Waschen und Fax — die Zahl wird 142-mal erfasst und null-mal gelesen.",
+  "warum_verdaechtig": "auftrag.tage_seit_waschen ist in 142 von 161 Fax-Arbeiten gefüllt (v_fax_beobachtung). grep -rn 'tage_seit_waschen' src/ supabase/migrations/ findet nur Schreibstellen (src/arbeit/Abschluss.tsx:40,89; src/arbeit/Korrektur.tsx:90; src/lib/typen.ts:42) und die Demodaten (0052). Massegewichtet: 1 Tag 1,314 % (23 901 kg), 2 Tage 1,880 % (39 831 kg), 3 Tage 2,722 % (44 935 kg). Die Ursachen-Karte „Faules beim Abpacken (Fax)\" zeigt genau eine Zahl (1 geerntete Zahl von 310 auf der Seite).",
+  "wie_pruefbar": "Eine Kurve „Faulanteil über Tage seit dem Waschen\" mit Band, gerechnet aus v_fax_beobachtung, und ein Werkzeug, das für jede erfasste Spalte prüft, ob irgendeine Sicht oder Seite sie liest (Leser-/Schreiber-Graph über pg_depend und den Frontend-Scan). Selbstprobe: eine bekannt gelesene Spalte muss als gelesen erkannt werden.",
+  "werkstatt": "D-Nutzen",
+  "erwartete_groesse": "985 kg je Saison = 41 % des ganzen Fax-Stroms (2 419 kg), ohne einen zusätzlichen Handgriff in der Halle"
+ },
+ {
+  "karte": "betrieb",
+  "titel": "Die Spalte, die aussieht wie eine Dringlichkeitsrangfolge der Chargen, ist zu 99,9 % eine Bestandsrangfolge.",
+  "warum_verdaechtig": "v_naechste_charge, 27 Chargen mit Bestand: corr(prognose_verlust_14_kg, lager_kg) = 0,9992; Rangkorrelation 0,9963, 18 von 27 Rängen identisch; die relative 14-Tage-Rate spannt nur von 1,583 % bis 1,745 %. Innerhalb einer Sorte ändert sich die Rate zwischen 168 und 191 Lagertagen um 0,003 Prozentpunkte. Angezeigt in src/pages/Chargen.tsx unter der Spaltenüberschrift „Prognose: 14 Tage länger liegen\", ohne Bereich.",
+  "wie_pruefbar": "Ein Werkzeug, das jede sortierte Spalte der Oberfläche gegen naheliegende Ersatzgrössen (Bestand, Eingang, Alter) korreliert und meldet, wenn eine Spalte mit r > 0,95 an einer bereits sichtbaren Spalte hängt — dann trägt sie keine eigene Auskunft. Selbstprobe: eine künstlich eingefügte Spalte = 2 × Bestand muss anschlagen.",
+  "werkstatt": "D-Nutzen",
+  "erwartete_groesse": "1 Spalte × 36 Zeilen = 56 Zahlen auf dem Schirm; Spannweite der eigentlichen Information 0,162 Prozentpunkte"
+ },
+ {
+  "karte": "betrieb",
+  "titel": "Auf einer Seite stehen gleichzeitig „Lagerkontrollen: 24\" und „keine Lagerkontrollen — Selektion nicht prüfbar\", und der Rat daneben empfiehlt zwölf.",
+  "warum_verdaechtig": "v_selektionsverdacht: n_lager leer, befund 'keine Lagerkontrollen — Selektion nicht prüfbar'; select quelle, count(*) from v_schimmel_punkte → 142 aus 'verarbeitung', 0 aus 'lager'. Gleichzeitig v_datenqualitaet.lagerkontrollen = 24. Beide erscheinen auf /messungen (src/pages/Messungen.tsx: Qualitaet-Karte und Verderbsmodell-Karte). Ursache: seit AB-36 fragt src/pages/Kontrolle.tsx „davon faul\" nicht mehr; verdunstung_wiegung.faul_kg und .auswahl sind in 0 von 41 Zeilen gefüllt.",
+  "wie_pruefbar": "Ein Werkzeug, das je Bildschirm alle Zahlen zum selben Begriff einsammelt und meldet, wenn zwei Karten derselben Seite verschiedene Werte oder ein „keine\" gegen eine positive Zahl zeigen — Eingabe die Ernte aus kf_zahlen.json plus das Begriffslexikon. Selbstprobe: zwei bewusst verschiedene Werte desselben Begriffs müssen anschlagen.",
+  "werkstatt": "D-Nutzen",
+  "erwartete_groesse": "24 Wägungen ≈ 3,2 Stunden Arbeiterzeit ohne Wirkung auf die Frage, für die sie empfohlen wurden; Überdeckung des Schimmelbands laut STATISTIK_BEFUND.md 0–44 % statt 96–100 % — betrifft den grössten Strom (26 170 kg)"
+ },
+ {
+  "karte": "betrieb",
+  "titel": "Dieselbe Masse trägt auf zwei Ansichten zwei verschiedene Lieferungszahlen (186 gegen 731) und zwei verschiedene Herkunftsmarken (gemessen gegen gerechnet).",
+  "warum_verdaechtig": "erg_bilanz.n_lieferungen = 186; sum(erg_charge.n_lieferungen) = 731 bei 187 Zeilen in der Tabelle lieferung. Die Chargenzahl entsteht in 0060_punktuell_erfasst_vollstaendig_gerechnet.sql:768 als sum() über die Eingangstags-Kohorten, zählt also Lieferung × Eingangstag (Charge 1611: 8 Lieferungen × 10 Kohorten = 80). Ursachen.tsx zeigt sie als „731 Lieferungen\" und markiert dieselben 115,8 t als „gemessen\", während Ueberblick.tsx:71–77 sie wegen vorlauf_kg = 5 000 kg als „gerechnet\" markiert.",
+  "wie_pruefbar": "Eine Erweiterung des Begriffs-Prüfstands: derselbe Begriff auf zwei Ansichten muss denselben Wert und dieselbe Herkunftsmarke tragen (heute prüft R4 nur, ob überhaupt eine zulässige Marke dasteht). Selbstprobe: eine künstlich verstellte Marke auf einer Seite muss anschlagen.",
+  "werkstatt": "D-Nutzen",
+  "erwartete_groesse": "Faktor 3,93 bei der Lieferungszahl; 1 Zahl von 115 836 kg mit zwei widersprüchlichen Marken"
+ },
+ {
+  "karte": "betrieb",
+  "titel": "Der Reiter „je Schlag\" beantwortet keine einzige Frage über seinen Spitzenreiter — 89 von 91 Vergleichen sind unentscheidbar.",
+  "warum_verdaechtig": "kf_bild.sql über v_verlust_je_gruppe (alle sechs Ströme, wie der Balken sie zeigt): je Schlag 14 Zeilen, 91 Paare, 2 trennbar (2,2 %); Rang 1 (Rümlang Sauter 18,00 % [15,14–20,86]) ist von keinem der übrigen dreizehn trennbar. Zum Vergleich je Sorte 8 von 45, je Charge 103 von 630. Der Reiter steht in src/pages/Ueberblick.tsx:13 gleichberechtigt neben Gesamt, Sorte und Charge.",
+  "wie_pruefbar": "Dasselbe Trennbarkeitswerkzeug wie oben, angewandt je Reiter, mit einer Schwelle: ein Reiter, dessen Spitzenreiter von keiner anderen Zeile trennbar ist, wird als „zeigt eine Sortierung ohne Aussage\" gemeldet.",
+  "werkstatt": "D-Nutzen",
+  "erwartete_groesse": "14 Balkenzeilen mit je 7 Zahlen = 88 Zahlen auf dem Schirm, von denen keine eine Entscheidung stützt"
+ },
+ {
+  "karte": "betrieb",
+  "titel": "56 % der Eingangsmasse hat keine Kaliberverteilung, und die Oberfläche lässt die betroffenen Sorten stumm aus der Auswahlliste fallen.",
+  "warum_verdaechtig": "select sum(eingang_kg) filter (where n_sortierlaeufe = 0) from v_datenlage → 180 897 kg = 56,0 %. Tiana: 155 999 kg Eingang (48,3 %), 0 Sortierläufe, 0 Kürbisse in v_gewichtsverteilung; Mieluna 24 898 kg, ebenfalls 0. Die Karte „Wie gross sind die Kürbisse?\" (Ueberblick.tsx:276–319) baut ihre Auswahl aus kaliberJe(daten.kaliber, …); Sorten ohne Zeilen erscheinen gar nicht — kein „—\", kein „nicht gemessen\", obwohl AB-39 genau das verlangt.",
+  "wie_pruefbar": "Ein Werkzeug, das für jede Auswahlliste der Oberfläche die angebotenen Werte gegen die Grundgesamtheit (alle Sorten mit Eingang) hält und die fehlende Masse beziffert. Selbstprobe: eine künstlich entfernte Sorte muss gemeldet werden.",
+  "werkstatt": "D-Nutzen",
+  "erwartete_groesse": "180 897 kg = 56,0 % des Eingangs ohne Verteilung; die grösste Sorte des Betriebs fehlt kommentarlos"
+ },
+ {
+  "karte": "betrieb",
+  "titel": "Die Gewichtsverteilung je Schlag — vom Betrieb ausdrücklich verlangt — ist in der Datenbank fertig und in der Oberfläche nicht erreichbar.",
+  "warum_verdaechtig": "ABLAUF.md, Abschnitt „Was der Betriebsleiter aus der Sortier-CSV erfahren will\": „mehrere Verteilungen nebeneinander — nach Sorte, nach Schlag, nach Charge\". v_gewichtsverteilung hat die Spalte schlag. src/auswertung/daten.ts:523 deklariert kaliberJe(zeilen, nach: 'sorte' | 'charge') — Schlag fehlt im Typ; die Auswahlfelder in Ueberblick.tsx:292 und Ursachen.tsx (Gewichtsverteilung) bieten nur diese beiden. Und es wird immer nur eine Verteilung gezeigt, nie zwei nebeneinander.",
+  "wie_pruefbar": "Ein Abgleich-Werkzeug, das die in ABLAUF.md/UI-KONZEPT.md zugesagten Auswertungen gegen die in der Oberfläche erreichbaren Gruppierungen hält (Textliste gegen Selektorwerte aus dem gerenderten Dokument). Selbstprobe: eine entfernte Gruppierung muss auffallen.",
+  "werkstatt": "D-Nutzen",
+  "erwartete_groesse": "1 Spalte, 24 Schlag×Sorte-Gruppen mit über 500 Stück; Schwerpunktspanne innerhalb einer Sorte bis 209 g (Amoro 1 206 → 1 415 g) bzw. 148 g bei Kaori Kuri — rund ein Drittel einer 500-g-Kaliberbreite"
+ },
+ {
+  "karte": "betrieb",
+  "titel": "Das Verderbsmodell rechnet dort, wo heute das ganze Lager liegt, mit dem 4,3-fachen der dort gemessenen Werte — und keine Ansicht zeigt diesen Vergleich.",
+  "warum_verdaechtig": "v_schimmel_kurve_anzeige: Klasse 181+ Tage, 4 Messungen, gemessen 0,0303, verwendet 0,1294; Klasse 121–180, 25 Messungen, gemessen 0,0723, verwendet 0,0876. v_charge_kohorte nach Altersklasse: 86 953 kg (70,6 %) in 121–180, 36 243 kg (29,4 %) in 181+, 0 kg in allen jüngeren Klassen. Die Ursachen-Kurve (src/pages/Ursachen.tsx, kurveReihe) zeichnet nur k.verwendet mit Band; die Spalte gemessen der gespeicherten Ansicht wird nirgends geplottet.",
+  "wie_pruefbar": "Ein Werkzeug, das je Altersklasse die Modellkurve gegen den dort gemessenen Mittelwert und gegen die Masse hält, die heute in dieser Klasse liegt, und meldet, wenn der Bestandsschwerpunkt in einer Klasse mit wenigen Messungen und grosser Abweichung liegt. Selbstprobe: eine künstlich verzogene Kurve muss anschlagen.",
+  "werkstatt": "A-Rechenwerk",
+  "erwartete_groesse": "29,4 % des Bestands (36 243 kg) in einer Klasse mit 4 Messungen und Faktor 4,3 zwischen Modell und Messung; betrifft den grössten Strom (26 170 kg)"
+ },
+ {
+  "karte": "betrieb",
+  "titel": "Acht von elf Sorten zeigen in der Verdunstungstabelle dieselbe geliehene Zahl — ein Vergleich, der wie ein Vergleich aussieht und keiner ist.",
+  "warum_verdaechtig": "select mittel, count(*) from v_koeff_verdunstung group by 1: 0,0005179144 für Orangita, Kaori Kuri, Amoro, Bolp 5110, Orange Summer, Lekor, Fictor, Ker Madec (8 Sorten, basis „Wiegungen aller Sorten\"). Von 55 Sortenpaaren sind 28 identisch, 24 überlappend, 3 trennbar. 41 Palettenwägungen verteilen sich auf 6 Sorten, davon 25 auf Tiana; 5 Sorten haben gar keinen Punkt im Bild. Die Tabelle „Je Sorte: die Rate\" (Ursachen.tsx) zeigt 6 Zeilen.",
+  "wie_pruefbar": "Ein Werkzeug, das in jeder Tabelle der Oberfläche identische Werte in einer Spalte zählt und meldet, wenn mehr als ein Drittel der Zeilen denselben Wert trägt — plus die Angabe, wie viele Zeilen aus geliehenen Koeffizienten stammen. Selbstprobe: eine Tabelle mit künstlich gleichgesetzten Werten muss anschlagen.",
+  "werkstatt": "D-Nutzen",
+  "erwartete_groesse": "28 von 55 Sortenvergleichen sind derselbe Wert gegen sich selbst; 5 von 11 Sorten fehlen im Bild ganz"
+ },
+ {
+  "karte": "betrieb",
+  "titel": "Der Erlös aus dem Perigon-Import wird gespeichert und von keiner Sicht gelesen, während die Frage nach der Rangfolge in Franken seit einer Woche offen steht.",
+  "warum_verdaechtig": "ausgang_zeile.erloes numeric(14,2) wird in 0050_warenausgang_import.sql:107 angelegt, in 0055 und 0061 von ausgang_uebernehmen geschrieben; src/lib/warenausgang.ts:51 bildet die Excel-Spalte AuftragsErloesTotExkl darauf ab. grep über alle Migrationen findet keine einzige Sicht, die die Spalte liest. In den Demodaten sind 0 von 160 Zeilen gefüllt. FRAGEN.md Nr. 49 („Soll die Rangfolge in Kilo oder in Franken sein?\") ist unbeantwortet.",
+  "wie_pruefbar": "Der Leser-/Schreiber-Graph über alle Tabellenspalten (pg_depend plus Textanalyse der Sichten plus Frontend-Scan), der Spalten ohne Leser auflistet — und für jede die offene Frage benennt, die sie beantworten könnte. Selbstprobe: eine bekannt gelesene Spalte darf nicht in der Liste stehen.",
+  "werkstatt": "B-Fundament",
+  "erwartete_groesse": "1 Spalte, 0 Leser; sie entscheidet eine Rangfolge, die in Kilo bei einem Unterschied von 2 640 kg zwischen Platz 1 und 2 ohnehin nicht trägt"
+ },
+ {
+  "karte": "betrieb",
+  "titel": "Ein Fünftel der ausgewiesenen „verschenkten Marge\" hängt an einer unbeantworteten Frage und ruht auf vier Wägungen.",
+  "warum_verdaechtig": "v_ueberfuellung_verkauf (gruppe='sorte', kistensystem='kiste_ab'): Tiana 1 224,7 kg aus 28 Wägungen und 2 546 verkauften Kisten; Mieluna 301,5 ± 168,9 kg aus 4 Wägungen und 821 Kisten. Summe 1 526 kg = die Kennzahl „Verschenkt bis heute\". ABLAUF.md: „Die 8-kg-Kiste gilt nur für eine Sorte.\" FRAGEN.md Nr. 2 fragt genau das und ist offen.",
+  "wie_pruefbar": "Ein Werkzeug, das jede Kennzahl auf die offenen Fragen zurückführt, von denen sie abhängt, und den Anteil der Zahl beziffert, der bei der jeweils anderen Antwort wegfiele — Eingabe die Annahmentabelle aus ABLAUF.md plus die Zerlegung der Kennzahl. Selbstprobe: eine Kennzahl ohne Annahmen darf nicht auftauchen.",
+  "werkstatt": "D-Nutzen",
+  "erwartete_groesse": "301,5 kg = 19,8 % der Kennzahl, mit einem eigenen Fehler von ±168,9 kg (56 % des Werts)"
+ },
+ {
+  "karte": "betrieb",
+  "titel": "Der Strom „Nicht lagerbedingt\" ist auf dem Bildschirm gar nicht vorhanden, obwohl seine Obergrenze fast fünf Prozent des Gesamtverlusts ausmacht.",
+  "warum_verdaechtig": "v_verlust_je_gruppe (gesamt): Nicht lagerbedingt kg = 0,00, kg_oben = 2 462,74, koeff_n_min = 33. In src/pages/Ursachen.tsx wird die Zeile „davon nicht lagerbedingt\" nur gerendert, wenn feld?.bekannt && feld.mittel > 0 — bei 0 kg erscheint sie nie. Im Anteilsbalken des Überblicks wird ein Teil mit kg = 0 nicht gezeichnet (Diagramm.tsx: filter(t => t.kg > 0)). „Nicht nachweisbar\" und „null\" sind damit auf dem Schirm nicht unterscheidbar — genau der Fall, vor dem Abschnitt 9 des Auftrags warnt.",
+  "wie_pruefbar": "Ein Werkzeug, das jeden Strom mit kg = 0 aber positiver Obergrenze sucht und prüft, ob er auf irgendeinem Bildschirm als „nicht nachweisbar\" auftaucht — Eingabe v_verlust_je_gruppe plus die Ernte. Selbstprobe: ein künstlich auf 0 gesetzter Strom mit Band muss gemeldet werden.",
+  "werkstatt": "D-Nutzen",
+  "erwartete_groesse": "Obergrenze 2 463 kg = 4,7 % des Gesamtverlusts (52 119 kg), vollständig unsichtbar"
+ },
+ {
+  "karte": "betrieb",
+  "titel": "Es gibt keine Rangfolge nach Kilo — nur nach Anteil, und beide Ranglisten stimmen kaum überein.",
+  "warum_verdaechtig": "Aus v_verlust_je_gruppe (gruppe='sorte', alle sechs Ströme): Lekor 2 847 kg / 28,9 % → Rang 1 nach Anteil, Rang 6 nach Kilo; Tiana 31 740 kg / 20,3 % → Rang 2 bzw. Rang 1; Ker Madec 665 kg / 20,3 % → Rang 3 bzw. Rang 9. Spearman 0,35. Der Anteilsbalken (Ueberblick.tsx:194) sortiert ausschliesslich nach Anteil. Die Kilozahl je Sorte steht nur in der zugeklappten Tabelle „Was ist noch im Haus?\", dort nach Restbestand sortiert und nur für Sorten mit Bestand — 9 Chargen mit 3 509 kg Verlust fallen aus dieser Tabelle heraus.",
+  "wie_pruefbar": "Ein Werkzeug, das für jede sortierte Liste der Oberfläche die alternative Sortierung nach der absoluten Grösse rechnet und die Rangkorrelation ausweist; unter einem Schwellenwert (etwa 0,7) wird gemeldet, dass zwei verschiedene Antworten möglich sind. Selbstprobe: eine Liste, bei der beide Sortierungen übereinstimmen, darf nicht anschlagen.",
+  "werkstatt": "D-Nutzen",
+  "erwartete_groesse": "Spearman 0,35 zwischen den beiden Ranglisten; die oberste Zeile gehört einer Sorte mit 3,0 % der Ernte und 2,8 t Verlust, die Sorte mit 31,7 t steht darunter"
+ },
+ {
+  "karte": "betrieb",
+  "titel": "Zwei Spalten der Lagerkontrolle sind seit AB-36 tot, bleiben aber im Schema und in der Zählung der Datenqualität stehen.",
+  "warum_verdaechtig": "verdunstung_wiegung.faul_kg und .auswahl: 41 Zeilen, 0 gefüllt. src/pages/Kontrolle.tsx schreibt beide nicht mehr (Kommentar Zeile 25–26: „Nicht mehr gefragt wird ‚davon faul' und ‚wie gegriffen'\"). In 0060_punktuell_erfasst_vollstaendig_gerechnet.sql:1371–1374 hängt die Zählung lagerkontrollen und lagerkontrollen_zufaellig noch an faul_kg is not null bzw. auswahl = 'erreichbar_zufaellig' — beide Bedingungen können nie mehr wahr werden.",
+  "wie_pruefbar": "Ein Werkzeug, das für jede Spalte Schreiber (Maske, Auslöser, Import) und Leser (Sicht, Funktion, Frontend) gegenüberstellt und Spalten mit Lesern aber ohne Schreiber gesondert meldet — das ist die gefährlichere Richtung, weil die Sicht dann still eine Null zurückgibt. Selbstprobe: eine künstlich entkoppelte Spalte muss gemeldet werden.",
+  "werkstatt": "B-Fundament",
+  "erwartete_groesse": "2 Spalten, 41 Zeilen mit 0 Füllung; mindestens eine Kennzahl (lagerkontrollen_zufaellig) ist dauerhaft 0 statt „nicht mehr erhoben\""
+ },
+ {
+  "karte": "werkzeuge",
+  "titel": "Der Datenbanktest ist rot, und das entwaffnet gleichzeitig das schärfste Prüfwerkzeug des Projekts, ohne dass irgendwo „ich kann nichts mehr finden\" steht.",
+  "warum_verdaechtig": "`supabase/test/pruefung.sql:1798` erwartet 15, bekommt −187: Zeile 1791 schreibt `start_ts = now()`, Zeile 1795 `eingangsdatum = heute() - 10`, und `heute_test` steht seit Zeile 118 auf 2027-03-31, während `v_verarbeitung_alter` (0067, Zeile 242) `betriebstag(a.start_ts)` rechnet. Gemessen: `./supabase/test/run.sh` → rc=3 nach 32,3 s. Sonde 06 (`06_mutation.mjs:240–251`) macht daraus `return raus` und testet 0 von 15 Verstellungen.",
+  "wie_pruefbar": "Ein Läufer, der jedes Werkzeug nicht nur startet, sondern seine *Ausbeute* protokolliert (asserts ausgeführt, Mutationen bewertet, Zahlen geerntet, Spalten geprüft) und gegen die Ausbeute des letzten grünen Laufs vergleicht. Ein Werkzeug, dessen Ausbeute um mehr als einen Schwellenwert fällt, ist ein Fehler, auch wenn es 0 Befunde meldet.",
+  "werkstatt": "B-Fundament",
+  "erwartete_groesse": "281 nicht ausgeführte Behauptungen, 6 von 10 run.sh-Stufen, 15 nicht geprüfte Verstellungen — nach der Reparatur der Zeitmischung wieder verfügbar; die Reparatur selbst ist eine Zeile (`start_ts` aus `heute()` statt `now()` bilden)"
+ },
+ {
+  "karte": "werkzeuge",
+  "titel": "`pruefstand/beschriftung.mjs` kann still auf null Ernte fallen und meldet dann Erfolg — die Runde-L-Blindheit, unrepariert, in der CI.",
+  "warum_verdaechtig": "`beschriftung.mjs:104–190` erntet ausschliesslich über 10 CSS-Wähler (`.kennzahl`, `.zahlenzeile > div`, `.gross-zahl`, `.wert`, `.titel`, `.unter`, `.karte`, `.anteil-zeile`, `.anteil-wert`, `.bilanzzeile`). Am Ende steht `if (alleFehler.length === 0) { console.log('  OK  Jede Zahl auf jeder Seite sagt, was sie ist:'); process.exit(0) }`. Es gibt keinen Vergleich der geernteten Menge gegen eine Untergrenze. Der Schwesterprüfstand `bildschirme.mjs:60` hat genau diesen Schutz seit Runde M ('Ein Filter, der auf nichts passt, ist ein Fehler des Aufrufers').",
+  "wie_pruefbar": "Ein Mindestertrag je Seite, aus dem letzten Lauf abgeleitet und mitversioniert (`pruefstand/ernte_soll.json`): Seite `ueberblick` muss ≥ N Massezahlen liefern. Dazu eine Selbstprobe, die eine CSS-Klasse in einer Kopie der App umbenennt und verlangt, dass der Prüfstand rot wird.",
+  "werkstatt": "C-Bauwerk",
+  "erwartete_groesse": "12 Ansichten, heute 42 verschiedene Beschriftungen geerntet; bei Bruch fällt die Prüfung von ~150 Einzelzahlen auf 0, ohne Rückgabewert ≠ 0"
+ },
+ {
+  "karte": "werkzeuge",
+  "titel": "Das Korrekturfenster von 12 Stunden steuert zehn Zugriffsregeln und wird von nichts geprüft.",
+  "warum_verdaechtig": "`korrekturfenster()` gibt `interval '12 hours'` zurück und steht im Prädikat von `auftrag_palette_korrigieren`, `auftrag_palette_zuruecknehmen`, `schimmel_messung_korrigieren/_zuruecknehmen`, `ausschuss_messung_korrigieren/_zuruecknehmen`, `verdunstung_wiegung_korrigieren/_zuruecknehmen`, `ausgang_korrigieren/_zuruecknehmen`. Gemessen: kein Vorkommen des Namens in `pruefung.sql`, `run.sh`, `pruefwerk/`, `pruefstand/`, `test/`, `src/`; nicht in `pg_stat_user_functions` nach einem vollen `pruefung.sql`-Lauf. Gleiches gilt für `ist_beteiligt(bigint)` (Regel `auftrag.auftrag_aendern`).",
+  "wie_pruefbar": "Ein Rechte-Prüfstand, der je Regel zwei Fälle als echte Rolle durchspielt: eine Messung 11 Stunden alt (muss berichtigbar sein) und eine 13 Stunden alt (muss abprallen), einmal als Erfasser, einmal als Fremder, einmal als Betriebsleiter. Über `set local role authenticated` plus `set request.jwt.claim.sub`.",
+  "werkstatt": "B-Fundament",
+  "erwartete_groesse": "10 Regeln × 5 Tabellen × 3 Rollen = 30 ungeprüfte Fälle; 12 Stunden Fenster, dessen Ober- und Untergrenze nie angefahren wurde"
+ },
+ {
+  "karte": "werkzeuge",
+  "titel": "Das Orakel prüft die Kaskade, nimmt aber jeden Schätzer als gegeben — drei Sichten, aus denen die Koeffizienten kommen, hat kein Werkzeug je angefasst.",
+  "warum_verdaechtig": "`04_orakel.mjs:76–81` liest `r`, `f`, `a0`, `a_klein_n`, `a_gross_n`, `a_fax` aus `mv_kaskade` und vergleicht nur die Kombination. Gemessen: `v_koeff_roh_verdunstung`, `v_koeff_verdunstung_geschaetzt`, `v_koeff_unsicherheit` und `v_schimmel_modell_rechnen` kommen in keinem Werkzeugtext vor und in keinem assert-Block von `pruefung.sql`. `v_koeff_unsicherheit` ist die Quelle jedes ausgewiesenen Bandes.",
+  "wie_pruefbar": "Ein Schätzer-Prüfstand je Koeffizient: Welten mit gesetzter Wahrheit bauen, den Schätzer laufen lassen, Verzerrung und Überdeckung über n = 1, 2, 3, 5, 10, 30 Messungen messen. `supabase/test/simulation/` misst heute über die ganze Saison, nicht je Schätzer und nicht über n.",
+  "werkstatt": "A-Rechenwerk",
+  "erwartete_groesse": "4 Sichten mit 0 Behauptungen; das Band, das „95 %\" heisst, ist auf 323 268 kg Eingang nie gegen eine bekannte Wahrheit gehalten worden"
+ },
+ {
+  "karte": "werkzeuge",
+  "titel": "Sonde 10 durchsucht die Modultests nicht — sie sucht sie im falschen Verzeichnis.",
+  "warum_verdaechtig": "`10_annahmen.mjs:82`: `for (const p of dateien('src', /\\.test\\.ts$/))`. Gemessen: `find src -name '*.test.ts' | wc -l` → **0**; `find test -name '*.test.ts' | wc -l` → **9** (807 Zeilen). Die Wachen-Kategorie „Test\" ist seit dem Bau der Sonde leer, und eine Annahme, die nur ein Modultest bewacht, gilt als unbewacht. Die Selbstprobe prüft nur `annahmen()` und `stichworte()` und kann das nicht sehen.",
+  "wie_pruefbar": "Ein Werkzeug, das jede Pfad- und Musterbindung in `pruefwerk/` und `pruefstand/` beim Start auswertet und meldet, wenn ein Suchmuster **null** Dateien trifft — dieselbe Regel wie bei `bildschirme.mjs`' Namensfilter, aber allgemein.",
+  "werkstatt": "C-Bauwerk",
+  "erwartete_groesse": "9 Dateien / 807 Zeilen ausserhalb des Korpus; von 22 gemessenen Pfadbindungen im Prüfwerk ist mindestens diese eine tot"
+ },
+ {
+  "karte": "werkzeuge",
+  "titel": "Die Fingerabdruck-Zusage „nicht zu unterscheiden von frisch eingerichtet\" hat ein Loch: die Rechte auf allen 38 gespeicherten Sichten fehlen darin.",
+  "warum_verdaechtig": "`supabase/test/fingerabdruck.sql` liest Rechte aus `information_schema.role_table_grants`, das materialisierte Sichten nicht kennt. Gemessen: 892 RECHT-Zeilen im Fingerabdruck, davon 0 für `erg_*`; `select count(*) from pg_class where relkind='m' and relacl is not null` → 38. Die App liest ausschliesslich die 30 `erg_*`-Sichten (`src/auswertung/daten.ts:277`).",
+  "wie_pruefbar": "Eine zweite Rechte-Abfrage über `pg_class.relacl` mit `aclexplode()` für `relkind in ('r','v','m','f','p')` in `fingerabdruck.sql`, danach `run.sh` Stufe 2 erneut laufen lassen und die Zeilendifferenz messen. Gegenprobe: in einer Kopie ein `revoke select on erg_charge from authenticated` und prüfen, ob Stufe 2 rot wird.",
+  "werkstatt": "B-Fundament",
+  "erwartete_groesse": "38 Objekte ohne Rechteabgleich; erwartete Zunahme des Fingerabdrucks um rund 76–114 Zeilen"
+ },
+ {
+  "karte": "werkzeuge",
+  "titel": "Die Korrekturmaske schreibt und löscht über einen Variablen-Tabellennamen und ist damit für drei Werkzeuge gleichzeitig unsichtbar.",
+  "warum_verdaechtig": "`src/arbeit/Korrektur.tsx:120` `supabase.from(t.tabelle).select('*')`, `:135` `.update(setzt).eq('id', z.id)`, `:143` `.delete().eq('id', z.id)`. `01_herkunft.mjs` erkennt nur `\\.from\\('([a-z0-9_]+)'\\)`; gemessen: 91 wörtliche `.from(`, **6 dynamische** (dazu `src/auswertung/daten.ts:277,:287`, `src/betrieb/AusgangImport.tsx:55`), 26 × `select('*')`. Sonde 03 baut ihre `schreibt`-Karte aus derselben Funktion, `luecken.sh:85` prüft nur `grep -rqF \"'$c'\"`. Dazu: kein Modultest, kein Klickweg in `kette.mjs`, ein Bildschirm ohne Inhaltsprüfung.",
+  "wie_pruefbar": "Den Leser um dynamische Aufrufe erweitern: wo `from(x)` steht, den Wertebereich von `x` aus der umgebenden Datenstruktur auflösen (in `Korrektur.tsx` ist es eine Liste von `Tabelle`-Objekten mit Feldlisten) — und, wo das nicht geht, die Stelle **zählen und melden** statt zu überspringen.",
+  "werkstatt": "C-Bauwerk",
+  "erwartete_groesse": "274 Zeilen Maske, 3 Schreibpfade, 5 Tabellen; 6 dynamische und 26 sternförmige Zugriffe insgesamt ausserhalb jeder Spaltenprüfung"
+ },
+ {
+  "karte": "werkzeuge",
+  "titel": "Die Sonden messen zwei verschiedene Schemafassungen in einem einzigen Lauf, ohne es zu sagen.",
+  "warum_verdaechtig": "Gemessen: `psql -d demo -tAc 'select schema_stand()'` → **66**, höchste Migration → **67**; `betriebstag`/`betriebszone` existieren in `demo` nicht (`count → 0`). Die Sonden 01, 02, 03, 09, 10 und `invarianten.mjs` lesen `demo` (Vorgabe `--db demo` in `lauf.mjs:33`); die Sonden 04, 05, 07, 08 bauen über `umgebung.mjs:80 frischesSchema()` ein Schema 67. Sonde 06 mischt beides: Schema aus den Migrationen (67), Daten aus `demo` (66).",
+  "wie_pruefbar": "Der Läufer fragt vor dem ersten Lauf `select schema_stand()` auf der Ziel-Datenbank ab, vergleicht mit der höchsten Migrationsnummer und bricht ab (oder baut die Demo neu), statt weiterzumessen. Zusätzlich: jeder Befund trägt die Schemafassung, auf der er entstanden ist.",
+  "werkstatt": "B-Fundament",
+  "erwartete_groesse": "1 Migration Abstand, 8 in 0067 neu geschriebene Objekte, 5 Sonden auf dem alten Stand"
+ },
+ {
+  "karte": "werkzeuge",
+  "titel": "Sechs von zehn Selbstproben können nicht merken, dass ihre Sonde blind geworden ist.",
+  "warum_verdaechtig": "Maschinell gemessen (Rumpf ab `export async function selbstprobe`): 01, 03, 04, 09 rufen `laufen()`; 02, 05, 06, 07, 08, 10 nicht. `05_metamorph.mjs:275–288` schreibt die Erhaltungsabfrage im Selbstprobenrumpf **ein zweites Mal aus** und prüft diese Kopie statt der Sonde. `08` prüft nur `erg_verlust` als Massstab, nicht die Zuordnungsliste von acht Spaltennamen. `07` prüft nur, dass der Papierfall 2850/1900 kg ergibt.",
+  "wie_pruefbar": "Eine Regel im Läufer: eine Selbstprobe, die `laufen()` nicht aufruft, gilt als `selbstprobe: 'schwach'` und wird im Stand ausgewiesen. Dazu je Sonde ein gepflanzter Fehler auf einer Kopie, der durch `laufen()` gefunden werden muss — für 05 etwa eine Kaskadenzeile mit +100 kg, für 08 eine umbenannte Spalte, für 07 ein absichtlich falsches Zettelgewicht.",
+  "werkstatt": "C-Bauwerk",
+  "erwartete_groesse": "6 von 10 Sonden ohne Ende-zu-Ende-Selbstprobe; 3254 Zeilen Prüfwerk, deren Schweigen zu 60 % unbelegt ist"
+ },
+ {
+  "karte": "werkzeuge",
+  "titel": "Sonde 03s Selbstprobe verlangt, dass das Programm fehlerhaft bleibt.",
+  "warum_verdaechtig": "`03_erfassung.mjs`, letzte Zeile: `return Number(s.n) === 1 && r.length > 0`. Gemessen gegen Schema 67 liefert `laufen()` heute genau **einen** Befund („31 Felder verlangt die Maske, die Datenbank lässt sie leer\"). Wird dieser Befund repariert, gibt `laufen()` eine leere Liste zurück, die Selbstprobe wird falsch, `lauf.mjs:76` meldet „⚠ Diese Sonde findet ihren eigenen eingebauten Fehler nicht\" und beendet mit `exit 2`.",
+  "wie_pruefbar": "Die Selbstprobe muss ihren Fall selbst pflanzen (eine Wegwerf-Kopie mit einer nachweislich toten Spalte und einem weichen Feld) statt sich auf einen Befund in den Echtdaten zu verlassen. Prüfbar, indem man den 31-Felder-Befund auf einer Kopie durch `alter table … set not null` beseitigt und den Läufer startet.",
+  "werkstatt": "C-Bauwerk",
+  "erwartete_groesse": "1 Sonde, die beim nächsten erfolgreichen Reparaturschritt fälschlich STUMPF meldet und den ganzen Läufer mit rc=2 beendet"
+ },
+ {
+  "karte": "werkzeuge",
+  "titel": "Die Mutationssonde hat für die gesamte Logik von Migration 0067 keine einzige Verstellung, und ihr Fingerabdruck deckt drei von 101 Sichten ab.",
+  "warum_verdaechtig": "Gemessen: alle 15 Ankertexte finden ihre Migration (13× 0065, 2× 0066), **0× 0067**. 0067 schreibt `heute()`, `betriebstag()`, `betriebszone()`, `v_auftrag_masse`, `v_auftrag_wasch_paletten`, `v_verarbeitung_alter`, `v_verdunstung_messung`, `v_wiegung_kennzahl` neu. `06_mutation.mjs:205`: `SICHTEN_FA = ['erg_charge','v_saisonbilanz','mv_kaskade']` — eine Verstellung in einer der übrigen 98 Sichten kommt als „ohne Wirkung\" heraus, also als Entwarnung.",
+  "wie_pruefbar": "Den Fingerabdruck über **alle** `erg_*`- und `mv_*`-Sichten plus die vom Frontend gelesenen `v_*` bilden (30 + 8 + 10 = 48 statt 3) und die Laufzeit dagegenhalten. Dazu drei bis fünf Verstellungen an 0067 (Betriebszone auf UTC, Betriebstag ohne Zonenwechsel, `heute()` ohne `heute_test`) und messen, ob `pruefung.sql` oder eine Invariante sie fängt.",
+  "werkstatt": "A-Rechenwerk",
+  "erwartete_groesse": "8 neu geschriebene Objekte mit 0 Verstellungen; Fingerabdruck von 3 auf 48 Sichten = Faktor 16 mehr Empfindlichkeit, geschätzte Zusatzlaufzeit unter 1 s je Verstellung"
+ },
+ {
+  "karte": "werkzeuge",
+  "titel": "Die Attrappe der Bildschirm-Prüfstände kennt weder Rollen noch die halbe PostgREST-Filtersprache — sie kann darum weder einen Rechtefehler noch einen Filterfehler zeigen.",
+  "warum_verdaechtig": "`pruefstand/attrappe.mjs:97` liefert jede Zeile aus dem als `postgres` gezogenen Abzug, unabhängig von `wer`; `authAntwort()` baut nur eine formal gültige Sitzung. `pruefstand/postgrest.mjs:6` versteht ausschliesslich `eq/in/is/not.is/like`, `order`, `limit`, `offset` und den `range`-Kopf — jeder andere Filter wird **stillschweigend ignoriert** und die Antwort ungefiltert zurückgegeben. Dazu: `fehlendeFixtures` erzeugt nur ein `console.warn`, keinen Fehlercode; 98 Fixture-Dateien liegen vor.",
+  "wie_pruefbar": "Ein Abgleich der von der App tatsächlich gesendeten Suchparameter (mitschneiden wie in `kette.mjs`) gegen die Liste der von `filtern()` verstandenen Operatoren; jeder unverstandene Parameter ist ein Befund mit Zeilenangabe. Für die Rollen: die Fixtures je Rolle ziehen (`set local role authenticated; set request.jwt.claim.sub = …`) statt einmal als Superuser.",
+  "werkstatt": "D-Nutzen",
+  "erwartete_groesse": "45 Bildschirme und 12 Beschriftungsansichten laufen heute ohne Zugriffsschutz; 5 Routen zeigen den `NurAdmin`-Zweig, der nie gerendert wird"
+ },
+ {
+  "karte": "werkzeuge",
+  "titel": "180 Screenshots werden erzeugt und mit nichts verglichen — der Bildschirm-Prüfstand prüft Überlauf und Konsole, nicht den Inhalt.",
+  "warum_verdaechtig": "`bildschirme.mjs:290–310`: nach `seite.screenshot(...)` wird nur `document.documentElement.scrollWidth - clientWidth > 1` und die Konsolenliste geprüft. Kein `referenz`, `baseline`, `diff` oder `vergleich` im ganzen Modul (gemessen mit `grep -n 'referenz\\|baseline\\|diff\\|vergleich'` → keine Treffer). Auf der Platte liegen 341 PNG in vier Sprach-/Themenvarianten. Der einzige Inhaltsvergleich im Bestand steht in `beschriftung.mjs:341–359` und betrifft 4 Kopfzahlen auf 1 von 12 Seiten — und vergleicht gegen dieselbe Fixture, die die App gelesen hat.",
+  "wie_pruefbar": "Entweder ein Bildvergleich gegen mitversionierte Referenzen mit Toleranz, oder — billiger und aussagekräftiger — eine Inhaltsernte je Bildschirm (welche Kennzahlen, welche Zeilenzahlen, welche leeren Zustände) gegen eine mitversionierte Sollliste, wie es `beschriftung.mjs` für vier Zahlen schon tut.",
+  "werkstatt": "D-Nutzen",
+  "erwartete_groesse": "180 Aufnahmen je Lauf, 0 Vergleiche; 45 Bildschirme, deren Zahlen niemand prüft"
+ },
+ {
+  "karte": "werkzeuge",
+  "titel": "Neun der 48 Zusagen an den Betrieb haben keinen Wächter, der bei einer Zusammenführung anspringt — obwohl das Dokument das Gegenteil behauptet.",
+  "warum_verdaechtig": "`docs/ABMACHUNGEN.md` schreibt in der Einleitung: „Alles hängt in der CI (`.github/workflows/pruefung.yml`).\" Auszählung der Beweis-Spalte der 48 `| AB-`-Zeilen: 39 nennen ein Werkzeug, das in der CI läuft; **3** nennen nur `kette.mjs`/`kette_pruefen.sh` (AB-05, AB-06, AB-35), die in `pruefung.yml` nicht vorkommen; **6** nennen gar kein ausführbares Werkzeug (AB-10, AB-14, AB-18, AB-38, AB-42, AB-44) — AB-14 hat einen leeren Beweistext.",
+  "wie_pruefbar": "Ein Werkzeug wie Sonde 10, aber auf `ABMACHUNGEN.md`: jede Beweis-Zelle in Kennungen zerlegen (Datei, Testname, Meldungstext), prüfen, dass die Datei existiert, dass die genannte Meldung im Quelltext vorkommt und dass die Datei im CI-Ablauf erscheint. Eine Zelle ohne auffindbaren Beweis ist ein Befund.",
+  "werkstatt": "D-Nutzen",
+  "erwartete_groesse": "9 von 48 Zusagen (19 %) ohne CI-Wächter; dazu heute 39 weitere, deren Beweis hinter dem Abbruch in pruefung.sql:1798 liegt"
+ },
+ {
+  "karte": "werkzeuge",
+  "titel": "Sonde 02 verschweigt fünf Prozentstellen, die sie nicht versteht — entgegen ihrem eigenen Kopfkommentar.",
+  "warum_verdaechtig": "Der Kommentar in `02_bezugsgroessen.mjs:26` sagt: „Was nicht passt, wird als ‚Form unbekannt' gemeldet statt stillschweigend übergangen — eine Sonde, die Unverstandenes verschweigt, ist eine Sonde, die nichts findet.\" Gemessen über `stellen()` auf allen 54 Dateien in `src/`: 31 Stellen — 11 bewacht, 15 fertiger Anteil, **5 „Form unbekannt\"**. In `laufen()` erzeugt nur die Form `ungeschützt` einen Befund; „Form unbekannt\" landet ausschliesslich in `pruefwerk/befunde/bezugsgroessen.md`. Zusätzlich haben 7 der 31 Stellen keine erkannte Beschriftung, wodurch 2c und 2e dort stumm übersprungen werden (`if (!a.beschriftung || !a.nenner) continue`).",
+  "wie_pruefbar": "Einen Befund für „Form unbekannt\" und für „ohne Beschriftung\" ausgeben, mit Datei und Zeile, und dann von Hand entscheiden. Prüfbar durch einen Lauf vor und nach der Änderung: die Zahl der Befunde muss von 0 auf ≥ 2 steigen (5 unverstandene Formen, 7 unbeschriftete Stellen).",
+  "werkstatt": "A-Rechenwerk",
+  "erwartete_groesse": "5 unverstandene und 7 unbeschriftete von 31 Prozentstellen = 39 % des Verzeichnisses ohne Urteil"
+ },
+ {
+  "karte": "werkzeuge",
+  "titel": "Sonde 01 stirbt an genau dem Zustand, den ihre eigene dritte Prüfung melden soll.",
+  "warum_verdaechtig": "`01_herkunft.mjs` prüft in 1b (Zeile 130–170) jede `erg_*`-Sicht durch `select to_jsonb(t) from <sicht>` — das wirft bei einer ungefüllten materialisierten Sicht `ERROR: materialized view … has not been populated`. Prüfung 1c (Zeile 172, `not c.relispopulated`) steht **danach** und ist genau der Test auf diesen Zustand. `frage()` wirft, `laufen()` wirft, `lauf.mjs:70` meldet „abgebrochen\". Beleg: das abgelegte `pruefwerk/befunde/befunde.json` zeigt für `01_herkunft` genau diesen Fehler auf der Datenbank `m01c` (`erg_kurve has not been populated`) — Sonde und Selbstprobe beide tot, 0 Befunde.",
+  "wie_pruefbar": "1c vor 1b ziehen und 1b jede Sicht einzeln in try/catch nehmen, mit Zähler für die übersprungenen. Prüfbar, indem man auf einer Kopie `refresh` einer Sicht auslässt und verlangt, dass die Sonde einen Befund (nicht einen Abbruch) liefert.",
+  "werkstatt": "B-Fundament",
+  "erwartete_groesse": "4 Prüfungen einer Sonde fallen aus, wenn 1 von 38 gespeicherten Sichten ungefüllt ist; zusätzlich 1 von 30 Sichten (`erg_verlauf`) wird ohne Zähler still übersprungen"
+ },
+ {
+  "karte": "werkzeuge",
+  "titel": "`luecken.sh` beweist weniger, als es meldet: sein Test auf „wird geschrieben\" ist ein Namensfund irgendwo in `src/`.",
+  "warum_verdaechtig": "`luecken.sh:84–86` akzeptiert eine Spalte als „von einer Maske geschrieben\", sobald `grep -rqF \"'$c'\"` oder `grep -rqF \"\\\"$c\\\"\"` in `src/` anschlägt — das trifft auch auf jedes reine `select('… , spalte, …')` zu. Ebenso `:108–109` für Tabellen. Dazu: nur 11 der 28 Tabellen stehen in `TABELLEN` (126 von 266 Spalten), und 37 Spaltennamen stehen namentlich in `AUSNAHME`. Gemessen läuft es in 0,84 s durch und meldet „Keine Lücke\".",
+  "wie_pruefbar": "Den Schreibnachweis aus `verlangt()` (Sonde 01, `art === 'schreibt'`) beziehen statt aus einem Volltext-grep, und die Differenz beider Methoden ausgeben: jede Spalte, die grep als geschrieben und `verlangt()` als nur gelesen sieht, ist eine Lücke, die heute unentdeckt bleibt.",
+  "werkstatt": "B-Fundament",
+  "erwartete_groesse": "17 von 28 Tabellen und 140 von 266 Spalten ausserhalb des Suchraums; 37 namentliche Dauerausnahmen"
+ }
+]
