@@ -127,7 +127,8 @@ Montag vor einer leeren Maske.
 
 ## Die Fragen an den Betrieb
 
-Sie stehen ausführlich in `docs/FRAGEN.md` und `docs/fragen.html`. Kurz:
+Sie stehen ausführlich in `docs/FRAGEN.md` und `docs/fragen.html` (PDF:
+`docs/Offene-Fragen.pdf`). Kurz:
 
 1. **Darf jeder Angemeldete alle Auswertungen sehen?** Heute ja — auch der
    Zähler, wenn er die Adresse kennt. Die Oberfläche zeigt ihm die Seiten
@@ -135,3 +136,45 @@ Sie stehen ausführlich in `docs/FRAGEN.md` und `docs/fragen.html`. Kurz:
 2. **Der Reiter „Ursachen" antwortet auf 80.6 % seiner Felder**, die übrigen
    vier auf 90.7 % bis 98.5 %. Fehlt dort eine Messung, die der Betrieb
    machen könnte — oder gehören die Spalten weg?
+3. **Wozu wiegt der Betrieb die Paletten mit dem Zettelgewicht?** 231
+   Erfassungen, rund 3.9 Arbeitsstunden je Saison — gemessen durch Weglassen
+   auf einer Kopie: 13 kg von 52 301 kg Unterschied, keine 0.03 %. Eine
+   einzelne Ausschuss-Wägung ist dagegen 379 kg schmaleres Band wert, und von
+   denen gibt es 34.
+4. **Kommt es vor, dass dieselbe Beobachtung zweimal erfasst wird?** Eine
+   einzige doppelte Zeile in `lieferung` verschiebt die Saisonbilanz um
+   1 888 kg, und nichts meldet es. Verhindern oder melden — die Wahl gehört
+   dem Betrieb.
+
+## Was der Bericht dieser Runde zählt
+
+29 Feststellungen aus 15 Werkzeugen, jede mit einer Grösse und einer
+Gegenrede; alle fünfzehn haben ihre Selbstprobe bestanden. Davon sind **zwölf
+ausdrücklich „kein Fehler"** — nachgesehen und in Ordnung. Sie stehen im
+Bericht, weil eine Liste, die nur Mängel nennt, nicht sagt, wie weit
+nachgesehen wurde.
+
+Die fünf der Klasse 3, also die, bei denen eine Zahl etwas anderes meint, als
+der Leser denkt:
+
+| | Feststellung |
+|---|---|
+| `AUF-001` | Zwei Wege zur selben Unsicherheit kommen zu verschiedenen Antworten (Delta-Methode gegen Ziehung, Faktor 3.9) |
+| `AUF-002` | Der Überblick sagt, welche Verlustursache die grösste ist — bei 200 Ziehungen hält diese Aussage nur in 70 % |
+| `FPF-001` | Die Bänder sind bei 5 von 5 Strömen rund 6.3-mal zu weit |
+| `SCH-001` | Eine Sorte, die sich den Koeffizienten einer anderen leiht, bekommt kein breiteres Band |
+| `STU-001` | `pruefstand/kette.mjs` läuft mit einem hineingelegten Fehler genauso durch wie ohne |
+
+Die ersten vier hängen zusammen und werden **gemeinsam** repariert oder gar
+nicht — siehe „Was liegen bleibt". Der fünfte ist neu und stand vorher hinter
+drei falschen Feststellungen:
+
+**`STU-001`.** In eine Wegwerfkopie wurde ein Fehler gelegt — fünf Prozent auf
+**jede** gerundete Zahl der Auswertung, denn `zahl()` steht in fast jeder
+Sicht des Rechenwerks. `pruefstand/kette.mjs` lief damit genauso durch wie
+ohne. Er prüft den **Schreibweg**, nicht die Rechnung; das ist für sich
+vertretbar, aber `README.md` beschreibt ihn als „die Kette in beide
+Richtungen", `run.sh` ruft ihn, und das Prüfwerk mit seinem unabhängigen
+Orakel — das die Mutation **sieht** — läuft nur von Hand. Solange das so ist,
+ist die grüne Kette die Zahl, die jemand sieht. Vorschlag: ein Anker je
+Tätigkeit gegen einen von Hand ausgerechneten Wert, nicht ein zweites Orakel.

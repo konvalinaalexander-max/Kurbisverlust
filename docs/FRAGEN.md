@@ -582,7 +582,7 @@ bleibt es, wie es ist, und die Annahme steht mit ihrer Grösse in `ABLAUF.md`.
 
 ---
 
-## Zwei Fragen aus Runde M (10. September)
+## Vier Fragen aus Runde M (10. September)
 
 Beide kommen aus den Werkstätten (`werkstatt/`, Bericht in
 `docs/WERKSTATTBERICHT.md`). Beide sind beziffert und **nicht entschieden**.
@@ -636,4 +636,51 @@ Kennzeichnung. Die Quote ist ein Wegweiser zum Durchsehen, keine Note.
 
 > Sollen wir die Liste der leeren Spalten gemeinsam durchgehen — welche
 > Messung fehlt, welche Spalte kann weg?
+> Antwort:
+
+**55. Wozu wiegt ihr die Paletten mit dem Zettelgewicht?**
+Gemessen, indem diese Messart aus einer Kopie der Datenbank **entfernt** und
+alles neu gerechnet wurde: 231 Erfassungen über die Saison, rund **3.9
+Arbeitsstunden**. Ohne sie ändert sich der Saisonverlust um **13 kg von
+52 301 kg**, und die Summe aller Unsicherheitsbänder um **−40 kg von
+28 247 kg**. Beides unter einem halben Prozent, und kein Verluststrom
+verstummt.
+
+Zum Vergleich, mit demselben Verfahren: Eine einzelne **Ausschuss-Wägung** ist
+**379 kg schmaleres Band** wert — und davon gibt es in der ganzen Saison nur
+34.
+
+*Warum es zählt:* Es gibt zwei mögliche Antworten, und nur Du kennst die
+richtige. Entweder dient die Messung etwas anderem als der Verlustrechnung —
+Rückverfolgbarkeit, Abrechnung, Kontrolle des Arbeitsablaufs. Dann gehört
+dieser Zweck aufgeschrieben, damit sie nicht eines Tages als nutzlos
+gestrichen wird. Oder sie ist für die Verlustrechnung gedacht und **kommt dort
+nicht an** — dann ist nicht die Messung das Problem, sondern der Weg, den sie
+durch die Rechnung nimmt, und den kann ich reparieren.
+
+> Wozu dient das Zettelgewicht je Palette? Und wenn es nur der
+> Verlustrechnung dienen soll: sollen die 3.9 Stunden stattdessen in
+> Ausschuss-Wägungen gehen?
+> Antwort:
+
+**56. Kommt es vor, dass dieselbe Beobachtung zweimal erfasst wird?**
+In allen sechs Messtabellen kann dieselbe Beobachtung ein zweites Mal
+eingetragen werden — nichts verhindert es, und nichts meldet es.
+Nachgemessen auf einer Kopie: Eine einzige zusätzliche Zeile in `lieferung`
+(die schwerste der Demosaison) verschiebt die Saisonbilanz um **1 888 kg**.
+Sie bewegt gleichzeitig Ausgang, Verlust bis heute, Verdunstung, Schimmel und
+„noch im Haus".
+
+*Warum es zählt:* Es gibt zwei Wege, und die Wahl gehört dem Betrieb.
+**Verhindern:** ein eindeutiger Schlüssel über die Spalten, die eine
+Beobachtung ausmachen. Sauber — verbietet aber auch die legitime Wiederholung,
+und die gibt es: zwei Paletten derselben Charge mit demselben Gewicht am
+selben Tag sind kein Fehler. **Melden:** ein Zweig unter „Auffälligkeiten",
+der wortgleiche Zeilen nebeneinanderstellt und fragt „zweimal erfasst oder
+zweimal gemessen?". Das ist der Weg, den dieses Programm sonst überall geht —
+es hindert niemanden, es zeigt.
+
+> Wie oft passiert es, dass eine Lieferung oder eine Wägung versehentlich
+> zweimal eingetragen wird? Und darf dieselbe Zahl zweimal legitim
+> vorkommen?
 > Antwort:
