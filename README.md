@@ -790,7 +790,25 @@ node pruefwerk/lauf.mjs --schnell        # neun Sonden ohne die Mutationssonde
 node pruefwerk/lauf.mjs                  # alle zehn
 node pruefwerk/lauf.mjs --nur 04 --db demo    # eine einzelne, gegen eine Datenbank
 node pruefwerk/bericht.mjs               # docs/PRUEFBERICHT.md neu schreiben
+
+# Werkstatt: die Fortsetzung des Prüfwerks mit vier anderen Fragen —
+#   A Rechenwerk   Ist das der richtige Schätzer, und ist er ehrlich über sich selbst?
+#   B Fundament    Ist die Datenbank unter der Fachlogik gesund?
+#   C Bauwerk      Ist der Code so gebaut, wie ein Programm dieser Grösse gebaut sein sollte?
+#   D Nutzen       Löst dieses Programm die Probleme des Betriebs?
+# Davor steht Phase 0: Sehen die Werkzeuge der letzten Runde überhaupt noch etwas?
+# Jedes Werkzeug hat eine Selbstprobe und muss jede Feststellung mit einer
+# **Grösse** und einer **Gegenrede** belegen — befund() wirft ohne beides.
+node werkstatt/lauf.mjs                  # alle Werkstätten (rund 25 Minuten)
+node werkstatt/lauf.mjs --nur c          # nur eine Werkstatt
+node werkstatt/lauf.mjs --nur b3 d1      # einzelne Werkzeuge
+node werkstatt/bericht.mjs               # docs/WERKSTATTBERICHT.md neu schreiben
 ```
+
+Ein Lauf mit `--nur` schreibt nach `werkstatt/befunde/teil_<kürzel>.json` und
+lässt `befunde.json` in Ruhe: Nur der volle Lauf darf den Bestand ersetzen.
+Sonst ersetzt ein Nachlauf zur Kontrolle die Feststellungen aller Werkzeuge
+durch die des einen, und der Bericht daraus sieht vollständig aus.
 
 `run.sh` prüft: dass die Migrationen einzeln durchlaufen und die Fachlogik
 stimmt; dass `setup.sql` als ein einziger Query durchgeht, so wie der

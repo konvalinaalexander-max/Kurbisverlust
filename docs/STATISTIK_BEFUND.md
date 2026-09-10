@@ -962,3 +962,80 @@ Bestellung; die Bilanz sah sie als Lücke. Jetzt: verkaufsfähig gewaschen −
 durchs Fax gegangen = „gewaschen, wartet" — nur wenn Fax-Arbeiten erfasst
 sind. In der Demo 53 t von 323 t; ohne diese Zeile stand die Lücke bei 14 %,
 mit ihr bei −0.7 %.
+
+---
+
+## Achte Runde: zwei Fehler im Band, die sich zum Teil aufheben
+
+Diese Runde hat am Modell nichts geändert. Sie hat das **Band** vermessen, das
+neben jeder Verlustzahl steht — und dabei zwei Fehler gefunden, die in
+entgegengesetzte Richtungen zeigen. Beide werden hier festgehalten, bevor
+einer davon repariert wird; wer nur einen behebt, macht die Sache schlechter.
+
+### Fehler 1: die Freiheitsgrade sind ein Minimum, wo eine Summe steht
+
+Ein Band ist `t_quantil_95(df) × streuung_kg`. Die Freiheitsgrade entstehen als
+
+    df = LEAST(df_verdunstung, df_ausschuss, df_modell)
+
+und innerhalb jedes Bestandteils noch einmal als `min(df)` über die Sorten.
+Zweimal ein Minimum — der am schlechtesten belegte Summand setzt den
+Freiheitsgrad der ganzen Summe.
+
+Das ist nicht vorsichtig, sondern falsch: Die Freiheitsgrade einer Varianz**summe**
+sind Satterthwaites Näherung,
+
+    df_eff = (Σvᵢ)² / Σ(vᵢ²/dfᵢ)
+
+Sie ist nicht grosszügiger — wo der schwache Bestandteil die Varianz wirklich
+trägt, ergibt sie von selbst wieder df = 1.
+
+Gemessen, nachdem die Varianz bis auf die einzelne Sorte zerlegt und die Summe
+je Zeile gegen die veröffentlichte Streuung geprüft wurde
+(`werkstatt/a_rechenwerk/a4_fortpflanzung.mjs`):
+
+| Verlustursache | Wert (kg) | df heute | df nach Satterthwaite | t heute | t richtig | Band heute (± kg) | Band richtig (± kg) | grösster Bestandteil |
+|---|---|---|---|---|---|---|---|---|
+| Schimmel/Fäulnis | 26 265 | 1 | 32.0 | 12.706 | 1.960 | 16 343 | 2 521 | Schimmelmodell (100 %, df 32) |
+| Verdunstung | 23 610 | 1 | 21.7 | 12.706 | 2.074 | 4 642 | 758 | Verdunstung gepoolt (60 %, df 14) |
+| Nebenkanal zu gross | 4 787 | 1 | 33.5 | 12.706 | 1.960 | 2 887 | 445 | Ausschuss, Amoro (34 %, df 16) |
+| Zu klein (Tierfutter) | 7 344 | 1 | 14.9 | 12.706 | 2.131 | 2 423 | 406 | Ausschuss, Tiana (52 %, df 5) |
+| Faul beim Abpacken (Fax) | 2 426 | 1 | 38.4 | 12.706 | 1.960 | 722 | 111 | Ausschuss, Kaori Kuri (31 %, df 9) |
+
+Zusammen **22 775 kg zu breite Bänder** über fünf Ströme, im Schnitt Faktor 6.3.
+
+Beim grössten Strom trägt das Schimmelmodell **100 %** der Varianz und hat
+df 32 — den Freiheitsgrad setzt trotzdem ein Bestandteil mit df 1.
+
+### Fehler 2: die Delta-Methode unterschätzt die Streuung der Schimmelkurve
+
+Die Streuung des Schimmelstroms entsteht durch Linearisierung: ∂f/∂Parameter
+mal Parametervarianz. Die Kurve ist aber
+`1 − exp(−exp(ln λ + k·ln t))` — in ihren Parametern stark gekrümmt.
+
+Gegenprobe (`werkstatt/d_nutzen/d2_aufloesung.mjs`): 200 Ziehungen des
+Parameterpaars (ln λ, k) aus seiner eigenen Kovarianzmatrix, per
+Cholesky-Zerlegung, danach die ganze Kaskade neu gerechnet. Die gezogene
+Streuung ist **3.86-mal so gross** wie die aus der Delta-Methode.
+
+### Warum beides zusammen betrachtet werden muss
+
+Für den Schimmelstrom zeigt Fehler 1 nach oben (Band 6.5-mal zu weit) und
+Fehler 2 nach unten (σ 3.9-mal zu klein). Sie heben sich weitgehend auf: Das
+heutige Band ist ungefähr richtig — **aus zwei falschen Gründen**.
+
+Wer nur die Freiheitsgrade richtigstellt, bekommt ein Band, das selbstbewusst
+zu eng ist. Die Reparatur gehört deshalb in **eine** Migration, mit einer
+Prüfung, die beide Seiten festhält: Satterthwaite an beiden Stellen (über die
+Bestandteile und über die Sorten darin) **und** eine nichtlineare Fortpflanzung
+für die Schimmelkurve statt der Linearisierung.
+
+### Was in dieser Runde nachweislich in Ordnung ist
+
+| Geprüft | Ergebnis |
+|---|---|
+| Jensen-Verzerrung des Verhältnisschätzers (`m0 = geliefert ÷ Anteil`) | **19 kg auf 327 t**, 0.006 % — gemessen, dann verworfen |
+| Der Boden `GREATEST(…, 0.25)` im verkaufsfähigen Anteil | greift bei den gemessenen Raten (0.046–0.062 %/Tag) erst nach **6.9 Jahren** Lagerdauer; in 171 Zeilen kein einziges Mal |
+| Normierung von „zu klein" + „zu gross" auf zusammen 1 | hält über 210 Randwerte; der Faktor wird nie negativ |
+| Schimmelkurve: Funktion `schimmelanteil(t)` gegen die Kaskade | dieselbe Kurve, grösste Abweichung 4.5·10⁻¹⁷ (Zusicherung in `pruefung.sql`) |
+| Wert einer zusätzlichen Messung, gemessen durch Weglassen | Ausschuss-Wägung **379 kg schmaleres Band je Wägung** (nur 34 davon); Palette-mit-Zettelgewicht −0.2 kg bei 231 Einträgen |
