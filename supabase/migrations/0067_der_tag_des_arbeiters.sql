@@ -157,7 +157,50 @@ on conflict (schluessel) do nothing;
 -- alten ihn nicht mehr hätte. Der Abgleich in supabase/test/run.sh würde es
 -- melden; besser ist, es gar nicht erst so zu bauen.
 
--- verdichter: baut v_auftrag_masse v_auftrag_wasch_paletten v_verarbeitung_alter v_verdunstung_messung v_wiegung_kennzahl
+-- Reihenfolge nach Abhängigkeit, nicht nach Alphabet: `v_auftrag_masse` liest
+-- `v_auftrag_wasch_paletten`. In den Migrationen fällt das nicht auf, weil
+-- dort beide Sichten schon stehen; erst der Lauf von setup.sql auf einer
+-- leeren Datenbank (supabase/test/run.sh, Stufe 2) hat es gezeigt.
+--
+-- Eine Zeile `-- verdichter: baut …` gehört hier ausdrücklich **nicht** hin.
+-- Sie ist für Anweisungen gedacht, die Sichten aus zusammengesetztem SQL
+-- bauen und deren Namen der Verdichter nicht sehen kann. Diese fünf sind
+-- gewöhnliche `create or replace view` — er erkennt und sortiert sie selbst.
+-- Mit der Marke hielt er die fünf für **eine** Anweisung, die fünf Objekte
+-- baut, und schrieb sie an jede Stelle, an der eines davon gebraucht wurde:
+-- derselbe Block zweimal in setup.sql.
+
+create or replace view v_auftrag_wasch_paletten as
+WITH band AS (
+         SELECT DISTINCT s.sorte,
+            i.idx AS kaliber_idx,
+            ((s.kaliber_baender -> i.idx) ->> 0)::integer AS von,
+            ((s.kaliber_baender -> i.idx) ->> 1)::integer AS bis
+           FROM sortierschema s
+             CROSS JOIN LATERAL generate_series(0, jsonb_array_length(s.kaliber_baender) - 1) i(idx)
+          WHERE s.art = 'kaliber'::text AND s.kaliber_baender IS NOT NULL
+        )
+ SELECT a.id AS auftrag_id,
+    count(*)::integer AS n_paletten,
+    sum(ap.kisten)::integer AS kisten,
+    zahl(sum(ap.kisten)::numeric * max(k.kg_je_gebinde), 2, '10000000000'::numeric)::numeric(12,2) AS kg,
+    max(k.n) AS n_messungen,
+    zahl(sum((ap.kisten * (betriebstag(a.start_ts) - ap.sortierdatum))::numeric) FILTER (WHERE ap.sortierdatum IS NOT NULL) / NULLIF(sum(ap.kisten) FILTER (WHERE ap.sortierdatum IS NOT NULL), 0)::numeric, 1, '100000'::numeric)::numeric(8,1) AS zwischenlager_tage,
+    count(*) FILTER (WHERE ap.sortierdatum IS NOT NULL)::integer AS n_mit_sortierdatum
+   FROM auftrag a
+     JOIN charge c ON c.nr = a.charge_nr
+     JOIN auftrag_palette ap ON ap.auftrag_id = a.id AND ap.kisten IS NOT NULL
+     LEFT JOIN LATERAL ( SELECT b.kaliber_idx
+           FROM band b
+          WHERE a.kaliber_idx IS NULL AND b.sorte = c.sorte AND b.von = a.kaliber_von_g AND b.bis = a.kaliber_bis_g
+          ORDER BY b.kaliber_idx
+         LIMIT 1) e ON true
+     LEFT JOIN v_koeff_gebinde k ON k.sorte = c.sorte AND k.kaliber_idx = COALESCE(a.kaliber_idx, e.kaliber_idx)
+  WHERE a.station = 'waschen'::station AND NOT a.ist_fax AND a.abgebrochen_ts IS NULL
+  GROUP BY a.id;
+grant select on v_auftrag_wasch_paletten to authenticated;
+comment on view v_auftrag_wasch_paletten is
+  'Beim Waschen gezählte Paletten: Kisten gesamt, Masse = Kisten × gemessenes Kistengewicht des Kalibers, Tage im Zwischenlager aus dem Sortierdatum (0061).';
 
 create or replace view v_auftrag_masse as
 SELECT m.auftrag_id,
@@ -202,38 +245,6 @@ SELECT m.auftrag_id,
 grant select on v_auftrag_masse to authenticated;
 comment on view v_auftrag_masse is
   'Masse je Arbeit: gewogene Paletten oder Zettel, beim Waschen gezählte Paletten (Kisten × Kistengewicht, 0061), sonst gezählte Kisten, beim Fax die Palettenzahl mal gemessener Palettenmasse. ist_fax: kein Waschgang.';
-
-create or replace view v_auftrag_wasch_paletten as
-WITH band AS (
-         SELECT DISTINCT s.sorte,
-            i.idx AS kaliber_idx,
-            ((s.kaliber_baender -> i.idx) ->> 0)::integer AS von,
-            ((s.kaliber_baender -> i.idx) ->> 1)::integer AS bis
-           FROM sortierschema s
-             CROSS JOIN LATERAL generate_series(0, jsonb_array_length(s.kaliber_baender) - 1) i(idx)
-          WHERE s.art = 'kaliber'::text AND s.kaliber_baender IS NOT NULL
-        )
- SELECT a.id AS auftrag_id,
-    count(*)::integer AS n_paletten,
-    sum(ap.kisten)::integer AS kisten,
-    zahl(sum(ap.kisten)::numeric * max(k.kg_je_gebinde), 2, '10000000000'::numeric)::numeric(12,2) AS kg,
-    max(k.n) AS n_messungen,
-    zahl(sum((ap.kisten * (betriebstag(a.start_ts) - ap.sortierdatum))::numeric) FILTER (WHERE ap.sortierdatum IS NOT NULL) / NULLIF(sum(ap.kisten) FILTER (WHERE ap.sortierdatum IS NOT NULL), 0)::numeric, 1, '100000'::numeric)::numeric(8,1) AS zwischenlager_tage,
-    count(*) FILTER (WHERE ap.sortierdatum IS NOT NULL)::integer AS n_mit_sortierdatum
-   FROM auftrag a
-     JOIN charge c ON c.nr = a.charge_nr
-     JOIN auftrag_palette ap ON ap.auftrag_id = a.id AND ap.kisten IS NOT NULL
-     LEFT JOIN LATERAL ( SELECT b.kaliber_idx
-           FROM band b
-          WHERE a.kaliber_idx IS NULL AND b.sorte = c.sorte AND b.von = a.kaliber_von_g AND b.bis = a.kaliber_bis_g
-          ORDER BY b.kaliber_idx
-         LIMIT 1) e ON true
-     LEFT JOIN v_koeff_gebinde k ON k.sorte = c.sorte AND k.kaliber_idx = COALESCE(a.kaliber_idx, e.kaliber_idx)
-  WHERE a.station = 'waschen'::station AND NOT a.ist_fax AND a.abgebrochen_ts IS NULL
-  GROUP BY a.id;
-grant select on v_auftrag_wasch_paletten to authenticated;
-comment on view v_auftrag_wasch_paletten is
-  'Beim Waschen gezählte Paletten: Kisten gesamt, Masse = Kisten × gemessenes Kistengewicht des Kalibers, Tage im Zwischenlager aus dem Sortierdatum (0061).';
 
 create or replace view v_verarbeitung_alter as
 WITH gezaehlt AS (

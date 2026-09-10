@@ -1780,20 +1780,29 @@ begin
 
   -- Alter der verarbeiteten Ware: zwei Paletten, 10 und 20 Tage alt → 15
   --
-  -- Die Palettendaten hängen an `heute()` und nicht an `current_date`. Der
-  -- Auftrag startet mit `now()`, und die Sicht macht daraus seit 0067 den
-  -- **Betriebstag**; `current_date` wäre der Tag in UTC. Zwischen 22:00 und
-  -- Mitternacht UTC — also 00:00 bis 02:00 in der Schweiz — fallen die beiden
-  -- auseinander, und dann kamen hier 16 statt 15 heraus. Das war kein Fehler
-  -- der Sicht, sondern derselbe Fehler, den 0067 behebt, im Prüffall selbst:
-  -- Er mischte zwei Kalender. Mit `heute()` auf beiden Seiten steht das
-  -- Ergebnis zu jeder Tageszeit und in jeder Zone.
+  -- Die Palettendaten hängen an `betriebstag(now())`. Genau das rechnet die
+  -- Sicht seit 0067 aus dem `start_ts` dieses Auftrags, und nur wenn beide
+  -- Seiten denselben Kalender benutzen, steht die Differenz fest.
+  --
+  -- Zwei falsche Fassungen standen hier vorher, und beide sind lehrreich:
+  --
+  --   `current_date` — der Tag in **UTC**. Zwischen 22:00 und Mitternacht UTC,
+  --   also 00:00 bis 02:00 in der Schweiz, fällt er vom Betriebstag ab, und
+  --   dann kamen 16 statt 15 heraus. Der Prüffall mischte damit dieselben zwei
+  --   Kalender, deren Vermischung 0067 behebt.
+  --
+  --   `heute()` — der Tag des **Betriebs**, aber mit Vorrang für die
+  --   Einstellung `heute_test`. Die Prüfdatenbank hält damit eine Saison an
+  --   einem festen Tag fest, während `now()` weiterläuft: 187 Tage Differenz.
+  --
+  -- Es geht also nicht darum, „den richtigen Tag" zu nehmen, sondern auf
+  -- beiden Seiten **denselben**.
   select nr into v_charge from charge order by nr limit 1;
   insert into auftrag (weg, station, charge_nr, start_ts, eroeffnet_von)
     values ('maschine', 'sortieren', v_charge, now(), '11111111-1111-1111-1111-111111111111')
     returning id into v_a;
   insert into auftrag_palette (auftrag_id, eingangsdatum)
-    values (v_a, heute() - 10), (v_a, heute() - 20);
+    values (v_a, betriebstag(now()) - 10), (v_a, betriebstag(now()) - 20);
   select alter_verarbeitet into v from v_verarbeitung_alter where auftrag_id = v_a;
   assert v = 15.0, format('Alter der verarbeiteten Ware erwartet 15, ist %s', v);
   select alter_charge into v2 from v_verarbeitung_alter where auftrag_id = v_a;

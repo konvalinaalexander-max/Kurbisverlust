@@ -5098,7 +5098,7 @@ end $$;
 -- TEIL B — Das Rechenwerk: die Formeln, wie sie heute lauten
 -- =====================================================================
 -- Ab hier steht jede Ansicht und jede darauf rechnende Funktion genau
--- einmal — in 91 Schritten, in der Reihenfolge, in der eine auf der
+-- einmal — in 90 Schritten, in der Reihenfolge, in der eine auf der
 -- anderen steht. Die Reihenfolge ist ausgerechnet, nicht geraten:
 -- setup_bauen.sh sortiert topologisch und bricht ab, wenn sie nicht
 -- kreisfrei wäre.
@@ -6225,48 +6225,18 @@ select f.charge_nr, k.eingangsdatum as kohorte, f.buch,
 -- alten ihn nicht mehr hätte. Der Abgleich in supabase/test/run.sh würde es
 -- melden; besser ist, es gar nicht erst so zu bauen.
 
--- verdichter: baut v_auftrag_masse v_auftrag_wasch_paletten v_verarbeitung_alter v_verdunstung_messung v_wiegung_kennzahl
-
-create or replace view v_auftrag_masse as
-SELECT m.auftrag_id,
-    m.charge_nr,
-    m.sorte,
-    m.schlag,
-    m.weg,
-    m.station,
-    m.start_ts,
-    m.ende_ts,
-    m.status,
-    m.n_paletten,
-    COALESCE(m.eingang_netto_kg, wp.kg, gb.kg, fp.kg) AS eingang_netto_kg,
-        CASE
-            WHEN m.masse_quelle <> 'fehlt'::text THEN m.masse_quelle
-            WHEN wp.kg IS NOT NULL THEN 'wasch_paletten'::text
-            WHEN gb.kg IS NOT NULL THEN 'gebinde'::text
-            WHEN fp.kg IS NOT NULL THEN 'fax_paletten'::text
-            ELSE 'fehlt'::text
-        END AS masse_quelle,
-    zahl(COALESCE(m.lagertage,
-        CASE
-            WHEN m.station = 'waschen'::station THEN (betriebstag(m.start_ts) - '2000-01-01'::date)::numeric - COALESCE(se.tage_seit_epoche, (r.eingangsdatum_mittel - '2000-01-01'::date)::numeric)
-            ELSE NULL::numeric
-        END), 1, '1000000000'::numeric)::numeric(10,1) AS lagertage,
-    a.ist_fax,
-    wp.zwischenlager_tage
-   FROM mv_auftrag_masse m
-     JOIN auftrag a ON a.id = m.auftrag_id
-     LEFT JOIN mv_sortier_eingang se ON se.charge_nr = m.charge_nr
-     LEFT JOIN v_charge_rueckgrat r ON r.charge_nr = m.charge_nr
-     LEFT JOIN v_auftrag_wasch_paletten wp ON wp.auftrag_id = m.auftrag_id
-     LEFT JOIN ( SELECT v_auftrag_gebinde_masse.auftrag_id,
-            sum(v_auftrag_gebinde_masse.kg) AS kg
-           FROM v_auftrag_gebinde_masse
-          GROUP BY v_auftrag_gebinde_masse.auftrag_id) gb ON gb.auftrag_id = m.auftrag_id
-     LEFT JOIN LATERAL ( SELECT zahl(a.paletten_gesamt::numeric * p.netto_kg, 2, '10000000000'::numeric)::numeric(12,2) AS kg
-           FROM v_koeff_palette_netto p
-          WHERE a.ist_fax AND a.paletten_gesamt > 0 AND p.sorte = m.sorte AND (p.kistensystem = a.kistensystem OR p.kistensystem IS NULL AND a.kistensystem IS DISTINCT FROM 'anderes'::text)
-          ORDER BY (p.kistensystem = a.kistensystem) DESC NULLS LAST
-         LIMIT 1) fp ON true;
+-- Reihenfolge nach Abhängigkeit, nicht nach Alphabet: `v_auftrag_masse` liest
+-- `v_auftrag_wasch_paletten`. In den Migrationen fällt das nicht auf, weil
+-- dort beide Sichten schon stehen; erst der Lauf von setup.sql auf einer
+-- leeren Datenbank (supabase/test/run.sh, Stufe 2) hat es gezeigt.
+--
+-- Eine Zeile `-- verdichter: baut …` gehört hier ausdrücklich **nicht** hin.
+-- Sie ist für Anweisungen gedacht, die Sichten aus zusammengesetztem SQL
+-- bauen und deren Namen der Verdichter nicht sehen kann. Diese fünf sind
+-- gewöhnliche `create or replace view` — er erkennt und sortiert sie selbst.
+-- Mit der Marke hielt er die fünf für **eine** Anweisung, die fünf Objekte
+-- baut, und schrieb sie an jede Stelle, an der eines davon gebraucht wurde:
+-- derselbe Block zweimal in setup.sql.
 
 create or replace view v_auftrag_wasch_paletten as
 WITH band AS (
@@ -6296,22 +6266,6 @@ WITH band AS (
      LEFT JOIN v_koeff_gebinde k ON k.sorte = c.sorte AND k.kaliber_idx = COALESCE(a.kaliber_idx, e.kaliber_idx)
   WHERE a.station = 'waschen'::station AND NOT a.ist_fax AND a.abgebrochen_ts IS NULL
   GROUP BY a.id;
-
--- ---------- 2. Jede Sicht, die einen Zeitpunkt zu einem Tag macht -------
---
--- Fünf Sichten machten aus einem Zeitstempel einen Kalendertag. Sie stehen
--- hier vollständig, mit `betriebstag(...)` an der Stelle, an der vorher
--- `...::date` stand — sonst nichts geändert.
---
--- Ausgeschrieben und nicht umgeformt: setup.sql entsteht aus diesen Dateien,
--- indem von jeder Sicht die **zuletzt geschriebene Fassung** übernommen wird
--- (supabase/verdichten.mjs). Eine Migration, die Sichten zur Laufzeit umformt,
--- taucht dort gar nicht auf — setup.sql behielte die alte Fassung, und die
--- Datenbank eines neuen Betriebs hätte den Fehler weiter, während die eines
--- alten ihn nicht mehr hätte. Der Abgleich in supabase/test/run.sh würde es
--- melden; besser ist, es gar nicht erst so zu bauen.
-
--- verdichter: baut v_auftrag_masse v_auftrag_wasch_paletten v_verarbeitung_alter v_verdunstung_messung v_wiegung_kennzahl
 
 create or replace view v_auftrag_masse as
 SELECT m.auftrag_id,
@@ -10848,12 +10802,12 @@ comment on view v_verlust_je_gruppe is
 grant select on v_plausibilitaet to authenticated;
 comment on view v_plausibilitaet is
   'Messungen, die die Auswertung bewusst nicht verwendet — und Messungen, die sie nicht verwenden kann, weil ihnen der Nenner fehlt. Neu (0051): Fax-Anteile, Zetteldaten ohne Palette, Kisten nach Sollgewicht ohne gewogene Palette. 0066: „Ausschuss-Tara" rechnet nur nach, wo Kistenzahl und hinterlegte Tara da sind; fehlt eine, steht die Lücke als „Ausschuss ohne Tara" daneben.';
-grant select on v_auftrag_masse to authenticated;
-comment on view v_auftrag_masse is
-  'Masse je Arbeit: gewogene Paletten oder Zettel, beim Waschen gezählte Paletten (Kisten × Kistengewicht, 0061), sonst gezählte Kisten, beim Fax die Palettenzahl mal gemessener Palettenmasse. ist_fax: kein Waschgang.';
 grant select on v_auftrag_wasch_paletten to authenticated;
 comment on view v_auftrag_wasch_paletten is
   'Beim Waschen gezählte Paletten: Kisten gesamt, Masse = Kisten × gemessenes Kistengewicht des Kalibers, Tage im Zwischenlager aus dem Sortierdatum (0061).';
+grant select on v_auftrag_masse to authenticated;
+comment on view v_auftrag_masse is
+  'Masse je Arbeit: gewogene Paletten oder Zettel, beim Waschen gezählte Paletten (Kisten × Kistengewicht, 0061), sonst gezählte Kisten, beim Fax die Palettenzahl mal gemessener Palettenmasse. ist_fax: kein Waschgang.';
 grant select on v_verarbeitung_alter to authenticated;
 comment on view v_verarbeitung_alter is
   'Je Arbeit mit gezählten, datierten Paletten: mittleres Alter der verarbeiteten Ware gegen das mittlere Alter aller Paletten der Charge an dem Tag. differenz > 0: älter als der Durchschnitt verarbeitet.';
