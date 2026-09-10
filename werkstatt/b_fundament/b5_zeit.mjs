@@ -198,7 +198,23 @@ export async function laufen({ db = 'demo' } = {}) {
 
   /* --- Messreihe: was ein Tag kostet --- */
   const effekt = tagesEffekt(db)
-  if (effekt.length) {
+
+  /**
+   * Giesst die Sicht den Wägezeitpunkt noch selbst auf einen Kalendertag?
+   *
+   * Diese Frage entscheidet den Befund, und sie wird an der **laufenden
+   * Sicht** gestellt, nicht an der Empfindlichkeitsrechnung darüber. Die
+   * erste Fassung hing am blossen Vorhandensein verwendbarer Wägungen: Nach
+   * 0067 stand die Reparatur längst da, `tageDelta` war 0 und `verlustDelta`
+   * 0.00 kg — und der Befund behauptete trotzdem weiter,
+   * `lagertage = wiege_ts::date − eingangsdatum`. Eine Feststellung mit der
+   * Grösse null ist keine Feststellung.
+   */
+  const sichtText = wert(db, `select pg_get_viewdef('v_verdunstung_messung'::regclass, true)`)
+  const giesstSelbst = /\bwiege_ts\s*\)?\s*::\s*date\b/i.test(sichtText)
+    || /\bcast\s*\(\s*w?\.?wiege_ts\s+as\s+date\s*\)/i.test(sichtText)
+
+  if (effekt.length && giesstSelbst) {
     const relativ = effekt.map(e => Math.abs(e.rate_ein_tag_weniger - e.rate) / e.rate)
     raus.push(messung({
       werkstatt: 'B', titel: 'Was ein Tag Unterschied auf der Verdunstungsrate ausmacht',
@@ -261,6 +277,39 @@ export async function laufen({ db = 'demo' } = {}) {
         + 'nicht davon abhängen darf, wann jemand sie eintippt; und weil während der Ernte auch '
         + 'nachts gewaschen wird.',
       marke: 'Reparatur', aufwand: 'klein',
+    }))
+  } else if (effekt.length) {
+    const relativ2 = effekt.map(e => Math.abs(e.rate_ein_tag_weniger - e.rate) / e.rate)
+    raus.push(befund({
+      werkstatt: 'B', kuerzel: 'ZEIT', klasse: 1, marke: 'kein Fehler', sicherheit: 'hoch',
+      ort: { sicht: 'v_verdunstung_messung', spalte: 'lagertage' },
+      titel: 'Geprüft und in Ordnung: die Lagertage entstehen aus zwei Kalendertagen derselben Zone',
+      steht_da: '`lagertage = betriebstag(wiege_ts) − eingangsdatum`. Links ein Zeitpunkt, '
+        + 'ausdrücklich in der Betriebszone auf einen Kalendertag gebracht; rechts der Kalendertag '
+        + `vom Palettenzettel. Nachgerechnet an derselben Demosaison in beiden Zeitzonen: `
+        + `${tageDelta} Lagertag verschiebt sich, ${verlustDelta.toFixed(2)} kg Unterschied im `
+        + 'Saisonverlust. Die Zone steht als Einstellung `zeitzone` in der Datenbank, mit Rückfall '
+        + 'auf `Europe/Zurich` — sie hängt nicht mehr an der Sitzung.',
+      muesste: '—',
+      warum: `Die Rate geht potenziert in jede Verdunstungszahl ein: Ein Lagertag Unterschied `
+        + `verschiebt sie im Median um ${(quantil(relativ2, 0.5) * 100).toFixed(1)} %, bei der `
+        + `kürzesten Lagerdauer der Demosaison um ${(Math.max(...relativ2) * 100).toFixed(1)} %. `
+        + 'Dass hier nichts mehr zu holen ist, ist deshalb eine Auskunft und keine '
+        + 'Selbstverständlichkeit — vor 0067 waren es 19.68 kg.',
+      beleg: 'werkstatt/b_fundament/b5_zeit.mjs: `pg_get_viewdef(\'v_verdunstung_messung\')` auf '
+        + 'einen eigenen Guss von `wiege_ts` durchsucht; dazu dieselbe Datenbank in zwei Zeitzonen '
+        + 'gerechnet',
+      groesse: { wert: Number(verlustDelta.toFixed(2)),
+                 einheit: `kg Unterschied im Saisonverlust zwischen UTC und Europe/Zurich `
+                        + `(${tageDelta} Lagertag verschoben)`,
+                 basis: 'Demosaison in beiden Zonen gerechnet' },
+      gegenrede: '`mv_auftrag_masse` enthält dieselbe Verwechslung weiterhin — sie ist eine '
+        + 'gespeicherte Sicht, und `drop materialized view … cascade` nimmt 51 Objekte mit. '
+        + 'Nachgemessen: 5 von 309 Arbeiten haben einen Startzeitpunkt, dessen UTC-Tag und '
+        + 'Schweizer Tag auseinanderfallen; in der Betriebszone neu gefüllt ergibt die Rechnung '
+        + 'dieselben vier Zahlen bis auf den Rappen. Der Freispruch gilt also der '
+        + 'Verdunstungsmessung, nicht der ganzen Datenbank.',
+      aufwand: 'klein',
     }))
   }
 
@@ -329,6 +378,24 @@ export async function selbstprobe({ db = 'demo' } = {}) {
   const gefunden = sqlStellen(p)
   const falschGefunden = gefunden.some(s => s.objekt === 'v_probe_falsch')
   const richtigGemeldet = gefunden.some(s => s.objekt === 'v_probe_richtig')
+
+  // Und der Schalter, der über den Befund entscheidet: Er muss den eigenen
+  // Guss in einer Sichtdefinition finden — und ihn in einer reparierten Sicht
+  // **nicht** finden. Ohne die zweite Hälfte behauptet das Werkzeug den Mangel
+  // weiter, nachdem er behoben ist; genau das ist nach 0067 passiert.
+  const giesst = (text) => /\bwiege_ts\s*\)?\s*::\s*date\b/i.test(text)
+    || /\bcast\s*\(\s*w?\.?wiege_ts\s+as\s+date\s*\)/i.test(text)
+  const alt = wert(p, `select pg_get_viewdef('v_probe_falsch'::regclass, true)`)
+  const neu = wert(p, `select pg_get_viewdef('v_probe_richtig'::regclass, true)`)
+  const echt = wert(p, `select pg_get_viewdef('v_verdunstung_messung'::regclass, true)`)
+
   tue(p, 'drop view if exists v_probe_falsch; drop view if exists v_probe_richtig')
+
+  if (!giesst(alt)) return false
+  if (giesst(neu)) return false
+  // Die echte Sicht steht seit 0067 auf betriebstag(); fände der Schalter dort
+  // einen eigenen Guss, wäre er zu grob.
+  if (giesst(echt) && /betriebstag\s*\(\s*w?\.?wiege_ts/i.test(echt)) return false
+
   return falschGefunden && !richtigGemeldet
 }

@@ -67,7 +67,14 @@ async function sonden(umgebung) {
 function kannScheitern(text) {
   const nullig = [...text.matchAll(/process\.exit\((\d+)\)|(?:^|\n)\s*exit\s+(\d+)/g)]
     .map(m => Number(m[1] ?? m[2]))
-  return { wege: nullig, kann: nullig.some(n => n !== 0) }
+  // Ein Shell-Skript mit `set -e` bricht bei **jedem** fehlschlagenden Befehl
+  // ab und gibt dessen Rückgabewert weiter. Es braucht dafür kein einziges
+  // `exit 1` im Quelltext. Die erste Fassung dieses Werkzeugs zählte nur die
+  // ausdrücklichen Rückgabewege und meldete deshalb `demo_bauen.sh` und
+  // `kette_pruefen.sh` als blind — beide stehen unter `set -euo pipefail` und
+  // sind das Gegenteil davon.
+  const streng = /(^|\n)\s*set\s+-[a-z]*e/.test(text)
+  return { wege: nullig, streng, kann: streng || nullig.some(n => n !== 0) }
 }
 
 /** Dasselbe für eine Datei im Projekt. */
@@ -172,7 +179,10 @@ export async function laufen(umgebung) {
       const g = gelegt.find(x => x.pfad === b.pfad)
       return {
         'Prüfstand': b.pfad, 'wofür': b.zweck,
-        'Rückgabewerte im Quelltext': b.wege.length ? [...new Set(b.wege)].sort().join(', ') : 'keine',
+        'Rückgabewerte im Quelltext': [
+          b.wege.length ? [...new Set(b.wege)].sort().join(', ') : null,
+          b.streng ? '`set -e` (jeder Fehler bricht ab)' : null,
+        ].filter(Boolean).join(' · ') || 'keine',
         'kann scheitern': b.kann ? 'ja' : 'NEIN',
         'am hineingelegten Fehler': g ? `${g.ergebnis} (${g.was})` : 'in dieser Runde nicht gelegt',
       }
@@ -185,25 +195,67 @@ export async function laufen(umgebung) {
     werkstatt: WERKSTATT, kuerzel: 'STU', klasse: 2, marke: 'Reparatur', sicherheit: 'hoch',
     ort: { datei: blind[0].pfad },
     titel: `${blind.length} Prüfstand/Prüfstände können nicht scheitern — sie enden immer mit null`,
-    steht_da: blind.map(b => `\`${b.pfad}\` kennt im ganzen Quelltext nur `
-      + `\`process.exit(0)\`. Er zählt Konsolenfehler und wagerechtes Überlaufen, schreibt sie `
-      + 'als „✗"-Zeilen und in den Schlusssatz — und endet dann mit Rückgabewert null. Wer ihn '
-      + 'in einer Kette aufruft, erfährt nichts davon.').join(' '),
+    steht_da: blind.map(b => `\`${b.pfad}\` (${b.zweck}) kennt im ganzen Quelltext keinen `
+      + `Weg zu einem Rückgabewert ungleich null`
+      + (b.wege.length ? ` — nur ${[...new Set(b.wege)].map(n => `\`${n}\``).join(' und ')}` : '')
+      + '. Er kann seine Feststellungen auf den Bildschirm schreiben, aber niemand, der ihn '
+      + 'aufruft, erfährt davon.').join(' '),
     muesste: '`process.exit(fehler ? 1 : 0)`. Eine Zeile. Solange sie fehlt, ist der Prüfstand '
       + 'ein Bericht, den jemand lesen muss, und kein Prüfstand.',
-    warum: 'Genau dieser Prüfstand ist der einzige, der die Oberfläche wirklich ansieht — '
-      + 'Konsolenfehler, wagerechtes Überlaufen auf dem Handy, ob eine Seite überhaupt lädt. '
-      + 'Das sind die Fehler, die dem Arbeiter in der Halle begegnen und die keine SQL-Prüfung '
-      + 'je finden wird. Dass ausgerechnet dieser Prüfstand sein Ergebnis nicht weitergeben '
-      + 'kann, ist die unangenehmste Lücke im ganzen Netz.',
+    warum: 'Ein Prüfstand, der sein Ergebnis nicht weitergeben kann, ist kein Prüfstand, '
+      + 'sondern ein Bericht, den jemand lesen muss. In einer Kette wie '
+      + '`run.sh && kette && bildschirme` geht er stillschweigend durch, und sein Schweigen '
+      + 'sieht aus wie ein Bestehen.',
     beleg: 'werkstatt/phase0/p0_stumpfheit.mjs: alle Rückgabewege im Quelltext ausgezählt',
     groesse: { wert: blind.length, einheit: `von ${bauart.length} Prüfständen können nicht scheitern`,
                basis: 'Quelltextanalyse' },
-    gegenrede: 'Der Prüfstand ist zum Ansehen von Bildern gebaut, nicht zum Durchwinken — ein '
-      + 'Mensch sieht sich die Aufnahmen ohnehin an, und dann fällt ein „✗" auf. Das trägt, '
-      + 'solange jemand hinsieht. Es trägt nicht mehr, sobald er in einer Kette läuft, und '
-      + 'genau so wird er in `docs/README.md` beschrieben.',
+    gegenrede: 'Manche dieser Werkzeuge sind zum Ansehen gebaut, nicht zum Durchwinken — ein '
+      + 'Mensch liest die Ausgabe ohnehin, und dann fällt ein „✗" auf. Das trägt, solange '
+      + 'jemand hinsieht, und nicht mehr, sobald das Werkzeug in einer Kette läuft. Die härtere '
+      + 'Prüfung steht ohnehin in der Spalte „am hineingelegten Fehler" der Messreihe: Dort '
+      + 'wurde ein Fehler wirklich hineingelegt, statt Rückgabewege zu zählen.',
     aufwand: 'klein',
+  }))
+
+  /* --- Befund: ein Prüfstand, der den hineingelegten Fehler durchwinkt --- */
+  //
+  // Das ist die härtere Prüfung als das Zählen der Rückgabewege: Hier wurde ein
+  // Fehler wirklich in eine Wegwerfkopie gelegt und der Prüfstand darauf
+  // losgelassen. Wer dabei durchläuft, hat nicht bewiesen, dass alles stimmt —
+  // er hat bewiesen, dass er es nicht sehen würde.
+  const durchgewunken = gelegt.filter(g => g.ergebnis === 'STUMPF')
+  if (durchgewunken.length) raus.push(befund({
+    werkstatt: WERKSTATT, kuerzel: 'STU', klasse: 3, marke: 'Reparatur', sicherheit: 'hoch',
+    ort: { datei: durchgewunken[0].pfad },
+    titel: `${durchgewunken.length} Prüfstand/Prüfstände laufen mit einem hineingelegten Fehler `
+         + 'genauso durch wie ohne',
+    steht_da: durchgewunken.map(g =>
+      `In eine Wegwerfkopie der Demodatenbank wurde ${g.was} gelegt. \`${g.pfad}\` läuft `
+      + `ohne den Fehler durch — und mit ihm ebenfalls. Bei \`kette.mjs\` ist der gelegte `
+      + 'Fehler fünf Prozent auf **jede** gerundete Zahl der Auswertung: `zahl()` steht in fast '
+      + 'jeder Sicht des Rechenwerks. Wer diese Änderung nicht bemerkt, bemerkt keine.').join(' '),
+    muesste: 'Der Prüfstand prüft heute den **Schreibweg**: dass die Maske das schreibt, was in '
+      + 'die Tabelle gehört. Das ist richtig und reicht nicht. Er müsste zusätzlich mindestens '
+      + 'eine gerechnete Zahl je Tätigkeit gegen einen von Hand ausgerechneten Wert halten — '
+      + 'nicht die ganze Auswertung, sondern einen Anker je Kette. Das Prüfwerk hat dafür schon '
+      + 'ein Werkzeug (`pruefwerk/` Sonde 04, das unabhängig geschriebene Orakel); hier fehlt '
+      + 'nur der Griff darauf.',
+    warum: 'Ein Prüfstand, der einen Fehler nicht sieht, ist nicht neutral — er ist ein '
+      + 'Versprechen, das nicht eingelöst wird. `kette.mjs` wird in `README.md` als die Prüfung '
+      + 'beschrieben, die „die Kette in beide Richtungen" geht. Wer das liest und danach eine '
+      + 'Formel ändert, hält ein grünes Ergebnis für eine Aussage über die Formel. Es ist keine.',
+    beleg: 'werkstatt/phase0/p0_stumpfheit.mjs: Fehler in eine Kopie gelegt, Prüfstand zweimal '
+      + 'ausgeführt (ohne und mit), Rückgabewerte verglichen',
+    groesse: { wert: durchgewunken.length,
+               einheit: `von ${gelegt.length} geprüften Prüfständen winken den hineingelegten `
+                      + `Fehler durch`,
+               basis: 'Wegwerfkopie der Demodatenbank' },
+    gegenrede: 'Der Prüfstand ist für den Schreibweg gebaut, nicht für die Rechnung — dafür gibt '
+      + 'es das Prüfwerk mit seinem eigenen Orakel, und das **hat** die Mutation gesehen. Wer '
+      + 'beides von `kette.mjs` verlangt, baut die Sonde ein zweites Mal. Dagegen steht: Die '
+      + 'beiden laufen nicht zusammen — `run.sh` ruft die Kette, das Prüfwerk läuft von Hand. '
+      + 'Solange das so ist, ist die grüne Kette die Zahl, die jemand sieht.',
+    aufwand: 'mittel',
   }))
 
   /* --- Befund: ein unerwartetes Argument macht den Prüfstand zum Nichtstuer --- */
@@ -218,8 +270,15 @@ export async function laufen(umgebung) {
   const GERAETE_ANZAHL = (geraeteBlock.slice(0, geraeteBlock.indexOf(']'))
     .match(/\bname:/g) ?? []).length
   const BILDSCHIRME_GESAMT = BILDSCHIRME_ANZAHL * GERAETE_ANZAHL * 2
+  // Der Filter selbst ist in Ordnung — beim Entwickeln will man einen einzelnen
+  // Bildschirm ansehen. Der Befund hängt allein daran, ob ein Filter, auf den
+  // **kein** Bildschirm passt, zurückgewiesen wird. Ohne diese zweite
+  // Bedingung meldete das Werkzeug den Mangel weiter, nachdem er behoben war.
+  const filterGeprueft = /if \(NUR && !BILDSCHIRME\.some\(/.test(schirm)
+    && /process\.exit\(1\)/.test(schirm)
   if (/const NUR = process\.argv\[2\]/.test(schirm)
-    && /if \(NUR && !schirm\.name\.includes\(NUR\)\) continue/.test(schirm)) {
+    && /if \(NUR && !schirm\.name\.includes\(NUR\)\) continue/.test(schirm)
+    && !filterGeprueft) {
     raus.push(befund({
       werkstatt: WERKSTATT, kuerzel: 'STU', klasse: 2, marke: 'Reparatur', sicherheit: 'hoch',
       ort: { datei: 'pruefstand/bildschirme.mjs', zeile: 26 },
@@ -309,7 +368,18 @@ export async function selbstprobe() {
   if (!kannScheitern(mitEins).kann) return false
   if (!kannScheitern(shEins).kann) return false
 
-  // Und die echten Dateien: kette.mjs muss scheitern können, bildschirme.mjs nicht.
+  // Ein Shell-Skript unter `set -euo pipefail` kann scheitern, auch ohne ein
+  // einziges `exit 1`. Diese Zeile fehlte, und das Werkzeug meldete deshalb
+  // zwei Prüfstände als blind, die es nicht sind.
+  const shStreng = '#!/usr/bin/env bash\nset -euo pipefail\npsql "$URL" -f datei.sql\n'
+  if (!kannScheitern(shStreng).kann) return false
+  if (!kannScheitern(shStreng).streng) return false
+  // Ein Skript ohne `set -e` und ohne `exit 1` bleibt blind — sonst wäre die
+  // Erweiterung ein Freibrief für jede Datei mit dem Wort „set" darin.
+  if (kannScheitern('#!/usr/bin/env bash\nsettings=1\npsql -f datei.sql\nexit 0\n').kann)
+    return false
+
+  // Und die echten Dateien: kette.mjs muss scheitern können.
   if (!kannScheiternDatei('pruefstand/kette.mjs').kann) return false
   return true
 }
