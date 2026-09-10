@@ -5320,7 +5320,7 @@ end $$;
 -- TEIL B — Das Rechenwerk: die Formeln, wie sie heute lauten
 -- =====================================================================
 -- Ab hier steht jede Ansicht und jede darauf rechnende Funktion genau
--- einmal — in 91 Schritten, in der Reihenfolge, in der eine auf der
+-- einmal — in 90 Schritten, in der Reihenfolge, in der eine auf der
 -- anderen steht. Die Reihenfolge ist ausgerechnet, nicht geraten:
 -- setup_bauen.sh sortiert topologisch und bricht ab, wenn sie nicht
 -- kreisfrei wäre.
@@ -5333,7 +5333,6 @@ end $$;
 -- wird am Ende dieser Datei neu berechnet.
 -- =====================================================================
 
-drop materialized view if exists erg_punkte cascade;
 drop view if exists v_wiegung_kennzahl cascade;
 drop view if exists v_plausibilitaet cascade;
 drop view if exists v_saisonbilanz cascade;
@@ -9683,18 +9682,22 @@ SELECT w.id,
             zahl(w.brutto_jetzt_kg - w.kisten::numeric * g.tara_kg_pro_kiste - g.tara_kg_palette, 2, '100000000'::numeric)::numeric(10,2) AS netto_jetzt_kg) n
   WHERE w.gemessen AND (a.id IS NULL OR a.abgebrochen_ts IS NULL);
 
--- Die gespeicherten Ergebnisse, die aus einer Liste entstehen
--- ---------------------------------------------------------------------
--- 0061 legt sechsundzwanzig davon in einer Schleife an; ihre Namen stehen
--- nicht im Quelltext, sondern in der Liste. Der Kaskadenneubau hat fünf
--- davon mitgenommen (erg_bilanz, erg_marge, erg_massenbilanz,
--- erg_naechste_charge, erg_plausibilitaet).
+-- ---------- 2. Die Punkte werden nur noch einmal gerechnet ---------------
 --
--- Wiederhergestellt wird hier die **ganze** Liste, mit derselben Angabe für
--- den Verdichter. Das ist Absicht: Sie ist damit dieselbe Anweisung wie in
--- 0061, und setup.sql behält genau eine davon — die letzte. Baute 0065 nur
--- die fünf, stünden in setup.sql zwei Schleifen für dieselben Namen, und
--- welche zuerst liefe, entschiede die Sortierung statt der Absicht.
+-- `erg_punkte` wird zur billigen Kopie von `mv_schimmel_punkte` — genau das
+-- Muster, das `erg_kaliber` und `erg_modell` schon benutzen. `v_schimmel_punkte`
+-- läuft damit einmal je Neurechnen statt zweimal.
+--
+-- Geändert wird das an der einen Stelle, an der die sechsundzwanzig
+-- gespeicherten Ergebnisse entstehen: in der Liste aus 0061/0065. Ein
+-- einzelnes „drop … create" nur für erg_punkte täte es hier **nicht**.
+-- Die Schleife baut erg_punkte weiterhin mit, und in setup.sql stünden dann
+-- zwei Bauanweisungen für denselben Namen — der Verdichter kann einen Namen
+-- nicht aus einer Schleife herauslösen, deren Liste er nur als Text sieht.
+-- Beim Bau brach setup.sql genau daran ab: „relation erg_punkte already
+-- exists". Steht hier dagegen die ganze Liste, mit derselben Angabe für den
+-- Verdichter, dann ist sie dieselbe Anweisung wie in 0065, und setup.sql
+-- behält davon die letzte — diese.
 -- verdichter: baut erg_gewichte erg_kaliber erg_gebinde erg_ausgang
 -- verdichter: baut erg_lieferung erg_kohorte erg_punkte erg_modell erg_kurve
 -- verdichter: baut erg_selektion erg_koeff_verdunstung erg_koeff_ausschuss
@@ -9713,7 +9716,9 @@ declare
     ['erg_ausgang',            'v_ausgang_kennzahl'],
     ['erg_lieferung',          'v_lieferung_masse'],
     ['erg_kohorte',            'v_charge_kohorte'],
-    ['erg_punkte',             'v_schimmel_punkte'],
+    -- Seit 0068 die gespeicherte Fassung statt der Sicht: zeichengleich,
+    -- und die Sicht läuft je Neurechnen einmal statt zweimal.
+    ['erg_punkte',             'mv_schimmel_punkte'],
     ['erg_modell',             'v_schimmel_modell'],
     ['erg_kurve',              'v_schimmel_kurve_anzeige'],
     ['erg_selektion',          'v_selektionsverdacht'],
@@ -9743,7 +9748,6 @@ begin
                    format('%s, gespeichert für die App Erneuert mit auswertung_schritt().', paar[2]));
   end loop;
 end $$;
-create materialized view erg_punkte as select * from mv_schimmel_punkte with no data;
 
 -- ---------------------------------------------------------------------
 -- Beschreibungen, Leserechte und Indizes
@@ -11041,8 +11045,23 @@ comment on view v_verdunstung_messung is
 grant select on v_wiegung_kennzahl to authenticated;
 comment on view v_wiegung_kennzahl is
   'Je gewogener Palette: Netto damals und jetzt, die Verdunstung dazwischen (0062 — vorher verlust_kg), kg je Kiste und je Kürbis. Ohne Kistenzahl oder hinterlegte Tara gibt es kein Netto (0064).';
-create index if not exists erg_punkte_charge on erg_punkte (charge_nr);
-grant select on erg_punkte to authenticated;
+
+-- Die Indizes der neu gebauten Ergebnisse. Ein „drop … cascade" nimmt sie
+-- mit; ohne diese Zeilen hätte die Datenbank nach den Migrationen neun
+-- Indizes weniger als nach setup.sql. Es müssen alle neun sein: Beim ersten
+-- Anlauf stand `erg_verarbeitung_tag` nicht in der Liste, und der Abgleich in
+-- supabase/test/run.sh hat genau diese eine Zeile gemeldet — „+INDEX
+-- erg_verarbeitung_tag, nur aus setup.sql". Wer die Schleife wieder abschreibt,
+-- schreibt diesen Block mit ab.
+create index if not exists erg_gewichte_sorte     on erg_gewichte (sorte);
+create index if not exists erg_ausgang_ts         on erg_ausgang (ts);
+create index if not exists erg_lieferung_datum    on erg_lieferung (datum);
+create index if not exists erg_kohorte_charge     on erg_kohorte (charge_nr, eingangsdatum);
+create index if not exists erg_punkte_charge      on erg_punkte (charge_nr);
+create index if not exists erg_wiegung_ts         on erg_wiegung (wiege_ts);
+create index if not exists erg_fax_start          on erg_fax (start_ts);
+create index if not exists erg_durchsatz_start    on erg_durchsatz (start_ts);
+create index if not exists erg_verarbeitung_tag   on erg_verarbeitung_alter (tag);
 comment on materialized view erg_punkte is
   'v_schimmel_punkte, gespeichert für die App Erneuert mit auswertung_schritt(). '
   'Seit 0068 eine Kopie von mv_schimmel_punkte statt einer zweiten Rechnung — '

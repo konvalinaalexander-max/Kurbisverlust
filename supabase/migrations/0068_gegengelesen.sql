@@ -199,14 +199,83 @@ comment on function auswertung_aktualisieren() is
 -- Muster, das `erg_kaliber` und `erg_modell` schon benutzen. `v_schimmel_punkte`
 -- läuft damit einmal je Neurechnen statt zweimal.
 --
--- Der Index kommt mit: `drop materialized view` nimmt ihn mit, und ohne ihn
--- hätte die Datenbank nach den Migrationen einen Index weniger als nach
--- setup.sql — der Abgleich in supabase/test/run.sh sagt es sofort.
+-- Geändert wird das an der einen Stelle, an der die sechsundzwanzig
+-- gespeicherten Ergebnisse entstehen: in der Liste aus 0061/0065. Ein
+-- einzelnes „drop … create" nur für erg_punkte täte es hier **nicht**.
+-- Die Schleife baut erg_punkte weiterhin mit, und in setup.sql stünden dann
+-- zwei Bauanweisungen für denselben Namen — der Verdichter kann einen Namen
+-- nicht aus einer Schleife herauslösen, deren Liste er nur als Text sieht.
+-- Beim Bau brach setup.sql genau daran ab: „relation erg_punkte already
+-- exists". Steht hier dagegen die ganze Liste, mit derselben Angabe für den
+-- Verdichter, dann ist sie dieselbe Anweisung wie in 0065, und setup.sql
+-- behält davon die letzte — diese.
+-- verdichter: baut erg_gewichte erg_kaliber erg_gebinde erg_ausgang
+-- verdichter: baut erg_lieferung erg_kohorte erg_punkte erg_modell erg_kurve
+-- verdichter: baut erg_selektion erg_koeff_verdunstung erg_koeff_ausschuss
+-- verdichter: baut erg_koeff_nebenkanal erg_koeff_ueberfuellung erg_wiegung
+-- verdichter: baut erg_fax erg_ausschuss erg_verarbeitung_alter erg_durchsatz
+-- verdichter: baut erg_bilanz erg_marge erg_massenbilanz erg_naechste_charge
+-- verdichter: baut erg_datenlage erg_plausibilitaet erg_datenqualitaet
+do $$
+declare
+  paar text[];
+  paare text[][] := array[
+    -- [erg-Name, Quelle]
+    ['erg_gewichte',           'v_gewichtsverteilung'],
+    ['erg_kaliber',            'v_kaliber_verteilung'],
+    ['erg_gebinde',            'v_koeff_gebinde'],
+    ['erg_ausgang',            'v_ausgang_kennzahl'],
+    ['erg_lieferung',          'v_lieferung_masse'],
+    ['erg_kohorte',            'v_charge_kohorte'],
+    -- Seit 0068 die gespeicherte Fassung statt der Sicht: zeichengleich,
+    -- und die Sicht läuft je Neurechnen einmal statt zweimal.
+    ['erg_punkte',             'mv_schimmel_punkte'],
+    ['erg_modell',             'v_schimmel_modell'],
+    ['erg_kurve',              'v_schimmel_kurve_anzeige'],
+    ['erg_selektion',          'v_selektionsverdacht'],
+    ['erg_koeff_verdunstung',  'v_koeff_verdunstung'],
+    ['erg_koeff_ausschuss',    'v_koeff_ausschuss'],
+    ['erg_koeff_nebenkanal',   'v_koeff_nebenkanal'],
+    ['erg_koeff_ueberfuellung','v_koeff_ueberfuellung'],
+    ['erg_wiegung',            'v_wiegung_kennzahl'],
+    ['erg_fax',                'v_fax_beobachtung'],
+    ['erg_ausschuss',          'v_ausschuss_beobachtung'],
+    ['erg_verarbeitung_alter', 'v_verarbeitung_alter'],
+    ['erg_durchsatz',          'v_durchsatz'],
+    ['erg_bilanz',             'v_saisonbilanz'],
+    ['erg_marge',              'v_marge_buch'],
+    ['erg_massenbilanz',       'v_massenbilanz'],
+    ['erg_naechste_charge',    'v_naechste_charge'],
+    ['erg_datenlage',          'v_datenlage'],
+    ['erg_plausibilitaet',     'v_plausibilitaet'],
+    ['erg_datenqualitaet',     'v_datenqualitaet']
+  ];
+begin
+  foreach paar slice 1 in array paare loop
+    execute format('drop materialized view if exists %I cascade', paar[1]);
+    execute format('create materialized view %I as select * from %I with no data', paar[1], paar[2]);
+    execute format('grant select on %I to authenticated', paar[1]);
+    execute format('comment on materialized view %I is %L', paar[1],
+                   format('%s, gespeichert für die App Erneuert mit auswertung_schritt().', paar[2]));
+  end loop;
+end $$;
 
-drop materialized view if exists erg_punkte cascade;
-create materialized view erg_punkte as select * from mv_schimmel_punkte with no data;
-create index if not exists erg_punkte_charge on erg_punkte (charge_nr);
-grant select on erg_punkte to authenticated;
+-- Die Indizes der neu gebauten Ergebnisse. Ein „drop … cascade" nimmt sie
+-- mit; ohne diese Zeilen hätte die Datenbank nach den Migrationen neun
+-- Indizes weniger als nach setup.sql. Es müssen alle neun sein: Beim ersten
+-- Anlauf stand `erg_verarbeitung_tag` nicht in der Liste, und der Abgleich in
+-- supabase/test/run.sh hat genau diese eine Zeile gemeldet — „+INDEX
+-- erg_verarbeitung_tag, nur aus setup.sql". Wer die Schleife wieder abschreibt,
+-- schreibt diesen Block mit ab.
+create index if not exists erg_gewichte_sorte     on erg_gewichte (sorte);
+create index if not exists erg_ausgang_ts         on erg_ausgang (ts);
+create index if not exists erg_lieferung_datum    on erg_lieferung (datum);
+create index if not exists erg_kohorte_charge     on erg_kohorte (charge_nr, eingangsdatum);
+create index if not exists erg_punkte_charge      on erg_punkte (charge_nr);
+create index if not exists erg_wiegung_ts         on erg_wiegung (wiege_ts);
+create index if not exists erg_fax_start          on erg_fax (start_ts);
+create index if not exists erg_durchsatz_start    on erg_durchsatz (start_ts);
+create index if not exists erg_verarbeitung_tag   on erg_verarbeitung_alter (tag);
 comment on materialized view erg_punkte is
   'v_schimmel_punkte, gespeichert für die App Erneuert mit auswertung_schritt(). '
   'Seit 0068 eine Kopie von mv_schimmel_punkte statt einer zweiten Rechnung — '

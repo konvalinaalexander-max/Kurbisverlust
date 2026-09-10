@@ -10,7 +10,9 @@
  *   node werkstatt/lauf.mjs --saat 4711        Saat für alles Zufällige
  *
  * Ergebnis: werkstatt/befunde/befunde.json und ein Stand auf der Konsole.
- * Den Bericht schreibt bericht.mjs.
+ * Den Bericht schreibt bericht.mjs. Ein Lauf mit --nur schreibt statt dessen
+ * nach werkstatt/befunde/teil_….json — nur der volle Lauf darf den Bestand
+ * ersetzen, sonst schrumpft der Bericht still auf das zuletzt Nachgeprüfte.
  *
  * Die zwei Eigenschaften, die das Prüfwerk gelehrt hat, gelten hier genauso:
  *
@@ -115,8 +117,17 @@ for (const w of WERKSTAETTEN) {
 }
 
 alle.sort((a, b) => (b.klasse ?? 0) - (a.klasse ?? 0) || String(a.id).localeCompare(String(b.id)))
-schreibe('werkstatt/befunde/befunde.json',
-  JSON.stringify({ stand, befunde: alle, messungen, saat, db }, null, 2) + '\n')
+
+// Ein Teillauf schreibt **nicht** in befunde.json. Genau das ist hier einmal
+// passiert: `--nur a4` lief zur Kontrolle nach, überschrieb die zweiundzwanzig
+// Feststellungen des vollen Laufs mit der einen von a4, und bericht.mjs baute
+// daraus einen Bericht, der vollständig aussah und über einundzwanzig
+// Feststellungen schwieg. Ein Teillauf legt seine Ausbeute daneben; der
+// Bericht rührt sie nicht an.
+const ziel = nur ? `werkstatt/befunde/teil_${nur.join('_').replace(/[^a-z0-9_]/g, '')}.json`
+                 : 'werkstatt/befunde/befunde.json'
+schreibe(ziel, JSON.stringify(
+  { stand, befunde: alle, messungen, saat, db, ...(nur ? { teillauf: nur } : {}) }, null, 2) + '\n')
 
 const jeKlasse = alle.reduce((m, b) => (m[b.klasse] = (m[b.klasse] ?? 0) + 1, m), {})
 const jeMarke = alle.reduce((m, b) => (m[b.marke] = (m[b.marke] ?? 0) + 1, m), {})
@@ -124,7 +135,8 @@ console.log(`${alle.length} Befunde — Klasse 3: ${jeKlasse[3] ?? 0}, Klasse 2:
           + `Klasse 1: ${jeKlasse[1] ?? 0}`)
 console.log(`Marken — ${Object.entries(jeMarke).map(([k, v]) => `${k}: ${v}`).join(', ') || 'keine'}`)
 console.log(`${messungen.length} Messungen`)
-console.log('werkstatt/befunde/befunde.json geschrieben')
+console.log(`${ziel} geschrieben`)
+if (nur) console.log('  (Teillauf — befunde.json und der Bericht bleiben, wie sie sind.)')
 
 const stumpf = stand.filter(s => s.selbstprobe === 'STUMPF' || s.selbstprobe === 'ohne')
 if (stumpf.length) {
