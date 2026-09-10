@@ -3655,3 +3655,48 @@ begin
 end $$;
 
 select '——— Der Tag des Arbeiters geprüft ———' as ergebnis;
+
+-- =====================================================================
+-- Die Schimmelkurve steht an zwei Stellen — hier werden sie zusammengehalten
+-- =====================================================================
+-- `schimmelanteil(t)` rechnet den Faulanteil aus dem angepassten Modell, und
+-- `mv_kaskade` leitet dieselbe Grösse noch einmal selbst her. Beide sind heute
+-- bis auf 4.5·10⁻¹⁶ gleich — aber nichts hielt sie zusammen.
+--
+-- Nachgewiesen mit einer Mutationsprobe: eine frische Datenbank aus
+-- stub_supabase.sql + setup.sql gebaut, diese Datei grün gelaufen; dann **nur**
+-- `schimmelanteil()` um den Faktor 1.2 verstellt, `mv_kaskade` unberührt
+-- gelassen — und diese Datei lief wieder grün durch, während alle Zeilen der
+-- Kaskade um bis zu 1.06 Prozentpunkte von der Funktion abwichen.
+--
+-- Was ein Prozentpunkt Auseinanderlaufen kostet: Die Masse, die durch `f`
+-- geteilt wird, ist auf der Demosaison 303 836.4 kg. Ein Prozentpunkt sind
+-- damit 3038.4 kg — und niemand hätte es gemerkt, weil jede der beiden
+-- Fassungen für sich weiterhin monoton, ≤ 1 und mit sauberem Band dasteht.
+--
+-- Die Zusicherung ist ein Zweizeiler. Sie gehört an die Stelle, an der die
+-- beiden Fassungen aufeinandertreffen, und nicht in eine Prüfung, die jede
+-- für sich für richtig befindet.
+do $$
+declare v_n int; v_ab int; v_max numeric;
+begin
+  select count(*), count(*) filter (where abs(k.f - schimmelanteil(k.alter_tage)) > 1e-9),
+         max(abs(k.f - schimmelanteil(k.alter_tage)))
+    into v_n, v_ab, v_max
+    from mv_kaskade k where k.f is not null;
+
+  -- Ohne Zeilen sagt die Prüfung nichts. Das ist kein Erfolg, sondern der
+  -- Fall, in dem sie blind wäre — genau die Falle, in die Runde L mit einem
+  -- leeren Prüfblock gelaufen ist.
+  assert v_n > 0, 'mv_kaskade hat keine Zeile mit f — diese Zusicherung sagt dann nichts';
+
+  assert v_ab = 0,
+    format('Die Schimmelkurve läuft auseinander: %s von %s Kaskadenzeilen weichen von '
+           || 'schimmelanteil() ab, grösste Abweichung %s. Ein Prozentpunkt sind auf der '
+           || 'Demosaison 3038 kg.', v_ab, v_n, v_max);
+
+  raise notice 'OK  Schimmelkurve: Funktion und Kaskade sind dieselbe Kurve (% Zeilen, grösste Abweichung %)',
+    v_n, v_max;
+end $$;
+
+select '——— Schimmelkurve zusammengehalten ———' as ergebnis;
