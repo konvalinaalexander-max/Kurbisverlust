@@ -90,10 +90,24 @@ function sqlStellen(db) {
   return raus
 }
 
+/**
+ * Kommentare zählen nicht. Seit die Reparatur in `lib/format.ts` steht, erklärt
+ * sie den Fehler dort in Worten — samt dem Ausdruck, um den es geht. Ein
+ * Werkzeug, das die Erklärung des Fehlers für den Fehler hält, meldet ihn nie
+ * als behoben. Genau das ist beim ersten Lauf nach der Reparatur passiert: fünf
+ * gefundene Stellen wurden zu einer, und diese eine war der Kommentar.
+ *
+ * Die Zeilennummern bleiben die der Originaldatei: Ersetzt wird jedes Zeichen
+ * eines Kommentars durch ein Leerzeichen, Zeilenumbrüche bleiben stehen.
+ */
+const ohneKommentare = (t) => t
+  .replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, ' '))
+  .replace(/(^|[^:])\/\/[^\n]*/g, (m, vor) => vor + ' '.repeat(m.length - vor.length))
+
 function oberflaechenStellen() {
   const raus = []
   for (const pfad of dateien('src')) {
-    const text = lies(pfad)
+    const text = ohneKommentare(lies(pfad))
     for (const m of text.matchAll(TS_UTC_TAG))
       raus.push({ pfad, zeile: zeileVon(text, m.index), stelle: m[0].replace(/\s+/g, ' ') })
   }

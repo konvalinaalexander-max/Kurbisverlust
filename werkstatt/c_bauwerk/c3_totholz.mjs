@@ -234,7 +234,7 @@ export async function laufen() {
   }))
 
   if (!totKandidaten.length) raus.push(befund({
-    werkstatt: WERKSTATT, kuerzel: 'TOT', klasse: 1, marke: 'kein Fehler', sicherheit: 'hoch',
+    werkstatt: WERKSTATT, kuerzel: 'HOLZ', klasse: 1, marke: 'kein Fehler', sicherheit: 'hoch',
     ort: { datei: I18N },
     titel: `Geprüft und in Ordnung: alle ${alleSchluessel.length} Texte werden irgendwo angezeigt`,
     steht_da: `\`${I18N}\` führt ${alleSchluessel.length} Schlüssel in sechs Sprachen, `
@@ -253,7 +253,7 @@ export async function laufen() {
   }))
 
   if (geschafft?.gut && geschafft.zeilen > 0) raus.push(befund({
-    werkstatt: WERKSTATT, kuerzel: 'TOT', klasse: 1, marke: 'Reduktion', sicherheit: 'hoch',
+    werkstatt: WERKSTATT, kuerzel: 'HOLZ', klasse: 1, marke: 'Reduktion', sicherheit: 'hoch',
     ort: { datei: I18N },
     titel: `${totKandidaten.length} Texte werden in sechs Sprachen gepflegt und nirgends angezeigt`,
     steht_da: `\`${I18N}\` führt ${alleSchluessel.length} Textschlüssel in sechs Sprachen. `
@@ -279,7 +279,7 @@ export async function laufen() {
   }))
 
   if (geschafft && !geschafft.gut) raus.push(befund({
-    werkstatt: WERKSTATT, kuerzel: 'TOT', klasse: 1, marke: 'kein Fehler', sicherheit: 'hoch',
+    werkstatt: WERKSTATT, kuerzel: 'HOLZ', klasse: 1, marke: 'kein Fehler', sicherheit: 'hoch',
     ort: { datei: I18N },
     titel: `${totKandidaten.length} Textschlüssel sahen tot aus und sind es nicht`,
     steht_da: `Die Suche hielt ${totKandidaten.length} Schlüssel für unbenutzt. In einer `
@@ -294,7 +294,7 @@ export async function laufen() {
   }))
 
   if (toteExporte.length && exportBeweis?.gut) raus.push(befund({
-    werkstatt: WERKSTATT, kuerzel: 'TOT', klasse: 1, marke: 'Reduktion', sicherheit: 'mittel',
+    werkstatt: WERKSTATT, kuerzel: 'HOLZ', klasse: 1, marke: 'Reduktion', sicherheit: 'mittel',
     ort: { datei: toteExporte[0].pfad },
     titel: `${toteExporte.length} Exporte werden von keiner anderen Datei eingeführt`,
     steht_da: toteExporte.map(e => `\`${e.name}\` (${e.art}, ${e.pfad})`).join(', ') + '.',
@@ -322,7 +322,7 @@ export async function laufen() {
   }))
 
   if (cssTot.length) raus.push(befund({
-    werkstatt: WERKSTATT, kuerzel: 'TOT', klasse: 1, marke: 'Reduktion', sicherheit: 'niedrig',
+    werkstatt: WERKSTATT, kuerzel: 'HOLZ', klasse: 1, marke: 'Reduktion', sicherheit: 'niedrig',
     ort: { datei: 'src/index.css' },
     titel: `${cssTot.length} Klassen im Stylesheet stehen in keinem Element`,
     steht_da: cssTot.slice(0, 15).map(k => `\`.${k}\``).join(', ')
