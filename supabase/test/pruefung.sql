@@ -3700,3 +3700,63 @@ begin
 end $$;
 
 select '——— Schimmelkurve zusammengehalten ———' as ergebnis;
+
+-- =====================================================================
+-- 0068 — Was die Gegenrede übrig gelassen hat
+-- =====================================================================
+-- Drei Zusicherungen, jede in beide Richtungen geprüft:
+--   a) Neu rechnen ist Sache des Betriebsleiters. Ein Arbeiter prallt ab,
+--      der Betriebsleiter kommt durch, und ohne Anmeldung (also als
+--      Eigentümer, wie jeder Prüfstand läuft) ebenfalls — sonst wäre diese
+--      Datei selbst das erste Opfer.
+--   b) `erg_punkte` ist eine Kopie von `mv_schimmel_punkte` und keine zweite
+--      Rechnung über `v_schimmel_punkte`.
+--   c) `zahl()` hält den **gerundeten** Wert gegen die Grenze.
+do $$
+declare v_arbeiter uuid; v_chef uuid := '11111111-1111-1111-1111-111111111111';
+        v_fehler boolean; v_def text;
+begin
+  assert schema_stand() >= 68, format('mindestens Stand 68 erwartet, ist %s', schema_stand());
+
+  -- (a) Ohne Anmeldung: muss durchlaufen. Diese Datei läuft als Eigentümer.
+  perform set_config('request.jwt.claim.sub', '', true);
+  perform auswertung_schritt(1);
+
+  select id into v_arbeiter from profil where rolle <> 'admin' and aktiv order by id limit 1;
+  if v_arbeiter is not null then
+    v_fehler := false;
+    begin
+      perform set_config('request.jwt.claim.sub', v_arbeiter::text, true);
+      perform auswertung_schritt(1);
+    exception when insufficient_privilege then v_fehler := true;
+    end;
+    assert v_fehler,
+      'Ein Arbeiter konnte das Neurechnen auslösen — es sperrt jede gespeicherte '
+      || 'Ansicht für rund drei Sekunden';
+  end if;
+
+  perform set_config('request.jwt.claim.sub', v_chef::text, true);
+  perform auswertung_schritt(1);
+  perform set_config('request.jwt.claim.sub', '', true);
+
+  -- (b) Die Punkte werden nur einmal gerechnet.
+  select pg_get_viewdef('erg_punkte'::regclass, true) into v_def;
+  assert v_def ~* 'mv_schimmel_punkte',
+    format('erg_punkte soll eine Kopie von mv_schimmel_punkte sein, liest aber: %s',
+           left(v_def, 120));
+  assert not exists (select 1 from (select * from erg_punkte except
+                                    select * from mv_schimmel_punkte) x),
+    'erg_punkte und mv_schimmel_punkte haben verschiedenen Inhalt';
+
+  -- (c) Prüfung und Guss auf denselben Wert. Der Wert unten besteht die alte
+  --     Prüfung (abs(p_wert) < Grenze) und fällt beim Runden darüber; vorher
+  --     kam er durch und brach dann an numeric(14,2) ab.
+  assert zahl(999999999999.999, 2, 1000000000000) is null,
+    'zahl() prüft die Grenze weiterhin vor dem Runden';
+  assert zahl(999999999999.994, 2, 1000000000000) = 999999999999.99,
+    'zahl() lässt einen Wert nicht durch, der auch gerundet unter der Grenze bleibt';
+
+  raise notice 'OK  0068 (Neurechnen nur für den Betriebsleiter, erg_punkte als Kopie, zahl() rundet vor der Grenze)';
+end $$;
+
+select '——— 0068 geprüft ———' as ergebnis;
