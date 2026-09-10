@@ -29,7 +29,7 @@ h2 .zusatz{font-family:'Charter','Bitstream Charter',serif;font-weight:400;font-
 <div class="dokkopf">
   <div class="ober">Kürbis-Verlust-Tracking</div>
   <h1>Was noch zu klären ist</h1>
-  <p style="margin:0;color:#444">Zweiundzwanzig Fragen, nach dem geordnet, was sie freigeben. Deine
+  <p style="margin:0;color:#444">Vierundzwanzig Fragen, nach dem geordnet, was sie freigeben. Deine
   letzte Rückmeldung hat viel beantwortet und dabei Neues aufgeworfen — beides steht hier
   zusammen. <span class="marke blockt">blockt</span> heisst: solange das offen ist, kann ich an
   dieser Stelle nicht bauen. <span class="marke kippt">kippt</span> heisst: die Antwort kann die
@@ -251,6 +251,40 @@ Tagesrate</b> — und die Rate geht potenziert in jede Verdunstungszahl der Sort
 beide vertretbar: beim Wiegen die Kistenzahl neu fragen (eine Frage mehr für den Arbeiter,
 dafür ist der Fehler weg), oder Du sagst, dass nicht umgestapelt wird — dann bleibt es, wie es
 ist, und die Annahme steht mit ihrer Grösse in der Ablauf-Beschreibung.</p></div>
+
+<h2>D · Neu aus Runde M
+  <span class="zusatz">Beide kommen aus den Werkstätten. Beide sind gemessen und nicht entschieden.</span></h2>
+
+<div class="f"><span class="nr">23</span>
+<p class="frage">Darf jeder Angemeldete alle Auswertungen sehen — auch der Zähler?</p>
+<p class="zusatz">Heute ja. Achtunddreissig gespeicherte Auswertungstabellen — Verlustquoten je
+Sorte, Margen je Käufer, Durchsatz je Arbeiter — sind für jeden angemeldeten Nutzer lesbar. Die
+Oberfläche zeigt diese Seiten nur Dir; die Datenbank ist aber direkt ansprechbar und kennt
+diese Grenze nicht.</p>
+<p class="warum"><b>Warum:</b> Der Betrieb beschäftigt Saisonkräfte. Ob eine davon die Marge je
+Käufer und den Durchsatz je Kollege sehen kann, ist eine Frage über den Betrieb, nicht über die
+Datenbank — und sie ist bisher nirgends beantwortet, sondern nur beiläufig entschieden. Ändern
+lässt es sich nur Tabelle für Tabelle: Ein Teil dieser Daten braucht die Arbeiter-App selbst
+(Kaliberbänder, Gebindegewichte), sonst steht der Zähler am Montag vor einer leeren Maske.
+Halber Tag Arbeit, kein neuer Bildschirm.</p></div>
+
+<div class="f"><span class="nr">24</span>
+<p class="frage">Auf dem Reiter „Ursachen" steht in jedem fünften Feld ein Strich. Fehlt dort
+eine Messung — oder können die Spalten weg?<span class="marke kippt">kippt</span></p>
+<p class="zusatz">Über eine ganze Demosaison gezählt: Auf <b>Überblick</b> sind 97,8 % der
+Zahlenfelder gefüllt, auf <b>Chargen</b> 98,5 %, auf <b>Messungen</b> 97,3 %, auf
+<b>Betrieb</b> 90,7 % — und auf <b>Ursachen nur 80,6 %</b>. Vierundzwanzig Spalten dort haben
+in einem Teil der Zeilen keinen Wert, drei in keiner einzigen.</p>
+<p class="warum"><b>Warum:</b> Ein Strich ist die richtige Anzeige für Unbekanntes — die
+Alternative wäre eine erfundene Zahl. Gratis ist er nicht: Wer drei Striche hintereinander
+sieht, hört auf, dort hinzuschauen, und übersieht den vierten, hinter dem etwas steckt.
+Ausgerechnet „Ursachen" ist der Reiter, auf dem Du nachsiehst, wenn Du wissen willst, woran die
+Ware fehlt. Für jede Spalte gibt es drei Antworten, und „lassen wie es ist" ist keine davon:
+Messung fehlt (dann gehört sie in diese Liste), für diesen Betrieb nicht vorgesehen (dann
+gehört die Spalte weg), oder sie füllt sich erst im Lauf der Saison (dann gehört ein Satz
+daneben). Gegen eine Überbewertung spricht: Der Reiter zeigt je Sorte <em>und</em> je Charge —
+eine Sorte ohne eigene Wägung <em>soll</em> dort einen Strich haben statt einer geliehenen Zahl
+ohne Kennzeichnung.</p></div>
 
 <div class="kasten">
 <div class="titel">Was ich ohne Antworten trotzdem baue</div>

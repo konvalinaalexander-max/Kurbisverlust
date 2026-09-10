@@ -2790,3 +2790,88 @@ trotzdem „Fertig … keine Konsolenfehler". Gemessen: 1.2 Sekunden mit Argumen
 Jetzt zählt er die Aufnahmen, nennt sie im Schlusssatz, weist ein Argument
 zurück, auf das kein Bildschirm passt, und endet mit eins, wenn etwas
 fehlschlug oder nichts entstand.
+
+### Neu rechnen ist Sache des Betriebsleiters (0068)
+
+`auswertung_schritt()` und `auswertung_aktualisieren()` liefen mit
+Eigentümerrechten und prüften nichts. Gemessen: Der Arbeiter Tomasz
+(`ist_admin()` = falsch) lässt beide durchlaufen; ein Lauf dauert 2 960 ms und
+nimmt dabei AccessExclusiveLock auf jede gespeicherte Ansicht — `refresh …
+concurrently` kommt im ganzen Projekt nicht vor. Ein paralleler Leser von
+`erg_gewichte` wartete **2 897 ms** gegen höchstens 1.34 ms im Ruhezustand.
+
+Die Oberfläche ruft das Neurechnen nur von Betriebsleiterseiten aus, und die
+sind in `src/App.tsx` hinter `istAdmin` weggeschlossen. Es fehlte allein die
+Tür auf der Datenbankseite: PostgREST kennt die Grenze der Oberfläche nicht.
+
+Entschieden: Der Wächter lässt ausdrücklich durch, **wer ohne Anmeldung
+kommt** — die Prüfstände, die Simulation und `demo_bauen.sh` laufen als
+Eigentümer der Datenbank. Ein Wächter, der die eigenen Prüfungen erschlägt,
+wird beim ersten Ärger wieder ausgebaut.
+
+Dazu zwei Kleinigkeiten aus derselben Runde: `erg_punkte` ist eine Kopie von
+`mv_schimmel_punkte` statt einer zweiten Rechnung derselben Sicht (gemessen
+103 ms von 3 017 ms und 120 kB je Neurechnen), und `zahl()` hält den
+**gerundeten** Wert gegen die Grenze statt den ungerundeten — das Fenster, in
+dem ein Wert die Prüfung besteht und beim Runden darüber gehoben wird, war
+0.005 kg breit bei 10¹² kg.
+
+### Was ein Vergleich zweier Wege nicht findet (0069)
+
+0067 hat fünf Sichten neu geschrieben und dabei `with (security_invoker =
+true)` verloren — `create or replace view` löscht die Einstellungen einer
+Sicht, wenn die neue Fassung keine mitbringt. Die Klausel stand in keiner
+geänderten Zeile und war trotzdem weg. Seither liefen `v_auftrag_masse` und
+vier weitere mit den Rechten ihres Eigentümers; die Zeilenregeln der Tabellen
+darunter galten beim Lesen durch sie nicht.
+
+Nachgestellt auf einer Kopie: Wird die Leseregel von `auftrag` auf den
+Betriebsleiter verengt, sieht ein angemeldeter Arbeiter dort **0 Zeilen** und
+durch `v_auftrag_masse` weiterhin **308**.
+
+Heute kostet das nichts — jede Leseregel lautet `true`, `anon` hat auf keine
+dieser Sichten ein Leserecht. Es kostet an dem Tag, an dem der Betrieb eine
+Regel verengt.
+
+**Die Lehre ist die wichtigere Hälfte.** Der Abgleich in `supabase/test/run.sh`
+stellt die Datenbank aus den Migrationen neben die aus setup.sql und meldete
+Deckungsgleichheit über alle 2 636 Objekte — beide Wege hatten denselben
+Fehler. Ein Vergleich zweier Wege findet nur, was die Wege **trennt**, nie das,
+was sie teilen. Entschieden: Für Eigenschaften, die immer gelten müssen, steht
+ab jetzt eine Zusicherung ohne Vergleich in `pruefung.sql`. Die erste lautet:
+jede Sicht in `public` hat `security_invoker = true`. Gegengeprüft, dass sie
+beisst.
+
+### Ein Teillauf darf den Bestand nicht ersetzen
+
+`node werkstatt/lauf.mjs --nur a4` schrieb sein Ergebnis nach
+`werkstatt/befunde/befunde.json` — dieselbe Datei wie der volle Lauf. Ein
+Nachlauf zur Kontrolle ersetzte damit die zweiundzwanzig Feststellungen des
+vollen Laufs durch die eine von a4, und `bericht.mjs` machte daraus einen
+Bericht, der vollständig aussah und über einundzwanzig Feststellungen schwieg.
+
+Jetzt schreibt ein Teillauf nach `teil_<kürzel>.json`; nur der volle Lauf darf
+`befunde.json` ersetzen.
+
+### Wer eine Formel für sich rechnet, prüft seinen Nachbau
+
+`werkstatt/a_rechenwerk/a7_raender.mjs` holt die Formel für den verkaufsfähigen
+Anteil mit `pg_get_viewdef` aus der laufenden Sicht — damit sie nicht
+auseinanderlaufen können — und rechnet sie über ein Gitter aus Randwerten. In
+der ersten Fassung hat es die Zahlen dort eingesetzt, wo `a_klein_n` steht, und
+ihr rohe Ausschussanteile gegeben. `a_klein_n` ist aber die **normierte**
+Grösse: Eine Stufe vorher teilt die Sicht durch `GREATEST(a_klein + a_gross,
+1)`. Das Werkzeug hat der Formel damit eine Eingabe gegeben, die sie nie
+bekommt, einen negativen Faktor herausbekommen und daraus einen Befund
+geschrieben — mit Grösse und Gegenrede.
+
+Entschieden: Ein Werkzeug, das eine Formel für sich rechnet, rechnet **die
+Kette** und weist zuerst nach, dass sein Nachbau auf echten Zeilen dieselben
+Zahlen ergibt wie die veröffentlichte Spalte. Weicht eine um mehr als 1e-6 ab,
+bricht es ab. Derselbe Wächter hat in a4 den vergessenen gepoolten Term
+gefangen.
+
+Was von a7 bleibt, sind drei Freisprüche: Der Boden `GREATEST(…, 0.25)` kann
+bei den gemessenen Verdunstungsraten (0.046 % bis 0.062 % je Tag) nicht
+greifen — er läge bei 6.9 Jahren Lagerdauer; die Normierung der beiden
+Ausschussanteile hält; und über 210 Randwerte bleibt der Anteil in (0, 1].

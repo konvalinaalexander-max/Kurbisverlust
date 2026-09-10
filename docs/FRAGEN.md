@@ -579,3 +579,61 @@ bleibt es, wie es ist, und die Annahme steht mit ihrer Grösse in `ABLAUF.md`.
 
 > Kommt es vor? Und wenn ja, wie oft — bei jeder zehnten Palette, oder nie?
 > Antwort:
+
+---
+
+## Zwei Fragen aus Runde M (10. September)
+
+Beide kommen aus den Werkstätten (`werkstatt/`, Bericht in
+`docs/WERKSTATTBERICHT.md`). Beide sind beziffert und **nicht entschieden**.
+
+**53. Darf jeder Angemeldete alle Auswertungen sehen?**
+Heute ja. Achtunddreissig gespeicherte Auswertungstabellen — Verlustquoten je
+Sorte, Margen je Käufer, Durchsatz je Arbeiter — haben ein Leserecht für jeden
+angemeldeten Nutzer. Die Oberfläche zeigt diese Seiten nur dem Betriebsleiter;
+sie sind in `src/App.tsx` hinter `istAdmin` weggeschlossen. Aber die Datenbank
+ist über PostgREST direkt ansprechbar, und die kennt diese Grenze nicht: Wer
+die Adresse und einen gültigen Anmeldeschlüssel hat, liest sie.
+
+*Warum es zählt:* Der Betrieb beschäftigt Saisonkräfte. Ob eine davon die
+Marge je Käufer und den Durchsatz je Kollege sehen kann, ist eine Frage über
+den Betrieb, nicht über die Datenbank — und sie ist bisher nirgends
+beantwortet, sondern nur beiläufig entschieden.
+
+*Was es kostet, es zu ändern:* Ein Teil dieser Tabellen ist für die
+Arbeiter-App nötig (Kaliberbänder, Gebindegewichte). Es lässt sich also nicht
+pauschal wegnehmen, sondern nur Tabelle für Tabelle — sonst steht der Zähler
+am Montag vor einer leeren Maske. Ein halber Tag Arbeit, kein neuer Bildschirm.
+
+> Soll ein Arbeiter die Auswertungen sehen können — alle, keine, oder nur
+> die, die seine eigene Arbeit betreffen?
+> Antwort:
+
+**54. Auf dem Reiter „Ursachen" steht in jedem fünften Feld ein Strich.**
+Gezählt über eine ganze Demosaison: Von den Zahlenfeldern der fünf
+Betriebsleiter-Reiter sind auf **Überblick 97.8 %** gefüllt, auf **Chargen
+98.5 %**, auf **Messungen 97.3 %**, auf **Betrieb 90.7 %** — und auf
+**Ursachen nur 80.6 %**. Vierundzwanzig Spalten dort haben in einem Teil der
+Zeilen keinen Wert, drei in keiner einzigen.
+
+Ein Strich ist die richtige Anzeige für Unbekanntes — das ist seit Runde L
+ausgemacht, und die Alternative wäre eine erfundene Zahl. Er ist aber nicht
+gratis: Wer drei Striche hintereinander sieht, hört auf, dort hinzuschauen.
+Und ausgerechnet „Ursachen" ist der Reiter, auf dem nachgesehen wird, wenn
+jemand wissen will, woran die Ware fehlt.
+
+*Warum es zählt:* Für jede dieser Spalten gibt es drei mögliche Antworten,
+und „lassen wie es ist" ist keine davon. Entweder fehlt eine Messung, die der
+Betrieb machen könnte — dann gehört sie in diese Liste. Oder sie ist für
+diesen Betrieb nicht vorgesehen — dann gehört die Spalte weg, samt der Stelle,
+die sie anzeigt. Oder sie füllt sich erst im Lauf der Saison — dann gehört ein
+Satz daneben, der das sagt.
+
+*Was dagegen spricht, es überzubewerten:* Die Demosaison ist nicht der
+Betrieb. Und der Reiter zeigt je Sorte **und** je Charge — eine Sorte ohne
+eigene Wägung *soll* dort einen Strich haben statt einer geliehenen Zahl ohne
+Kennzeichnung. Die Quote ist ein Wegweiser zum Durchsehen, keine Note.
+
+> Sollen wir die Liste der leeren Spalten gemeinsam durchgehen — welche
+> Messung fehlt, welche Spalte kann weg?
+> Antwort:
