@@ -269,6 +269,13 @@ Kontrolle — eingelagert minus verkauft minus weggeworfen = 0 — unmöglich.
 
 ## Ehrliche Grenzen: welche Zahlen nicht tragen
 
+> **Stand der ersten Runde — überholt.** Die Zeile zur Selektion sagt hier
+> „systematisch zu niedrig"; gemessen wurde in der zweiten Runde das
+> **Gegenteil** (rund +11 %, Tabelle „Ehrliche Grenzen, Stand jetzt"), und die
+> vierte Runde bestätigt +8 %. Wer nur bis hierher liest, bekommt das falsche
+> Vorzeichen. Die geltende Fassung steht unter „Ehrliche Grenzen nach der
+> vierten Runde".
+
 | Grösse | Status |
 |---|---|
 | Verdunstung, Ausschuss, Nebenkanal | belastbar, Bereiche halten, was sie versprechen |
@@ -597,6 +604,11 @@ verschiedene Chargen sind das Minimum, unter dem die Zahl nichts mehr taugt.
 
 ## Ehrliche Grenzen, Stand jetzt
 
+> **Stand der zweiten Runde.** „Jetzt" meint den Tag, an dem dieser Abschnitt
+> geschrieben wurde. Die geltende Fassung steht unter „Ehrliche Grenzen nach
+> der vierten Runde"; dort ist aus den +11 % ein +8 % geworden, und der Sockel
+> im Palox ist dazugekommen.
+
 | Grösse | Status |
 |---|---|
 | Verdunstung, Ausschuss, Nebenkanal | belastbar, Bereiche halten |
@@ -833,6 +845,10 @@ solcher Wert je Saison legt `a₀` fest, ohne dass er aus dem Zeitverlauf
 geschätzt werden muss.
 
 ## Ehrliche Grenzen nach der vierten Runde
+
+> **Das ist die geltende Fassung.** Zwei frühere Tabellen desselben Namens
+> stehen weiter oben und sind als überholt gekennzeichnet — die erste sagt beim
+> Vorzeichen der Selektionsverzerrung sogar das Gegenteil.
 
 | Grösse | Status |
 |---|---|
