@@ -357,12 +357,67 @@ begin
   end if;
 end $$;
 
--- ---------- 3. Vier Zusagen einlösen ------------------------------------
+-- ---------- 3. Vier Zusagen einlösen, soweit die Daten sie hergeben ------
+--
+-- Vier Prüfbedingungen stehen seit ihrer Einführung mit `NOT VALID` im
+-- Schema: Postgres wendet sie auf neue Zeilen an, hat aber nie nachgesehen,
+-- ob die vorhandenen sie erfüllen, und darf sie beim Planen nicht
+-- voraussetzen. Sie stehen so da, weil sie **nach** den Daten gekommen sind.
+--
+-- Diese Migration hat sie zuerst unbedingt bestätigt — mit der Begründung,
+-- auf der Demosaison gebe es null Verstösse. Das war nie eine Aussage über
+-- die Datenbank des Betriebs, und dort gibt es sie: setup.sql brach ab mit
+--
+--     ERROR: 23514: check constraint "auftrag_palette_datum_pflicht"
+--     of relation "auftrag_palette" is violated by some row
+--
+-- Ein `validate constraint` ist eine Behauptung über **jede vorhandene
+-- Zeile**. Wer sie aufstellt, ohne die Zeilen gesehen zu haben, behauptet
+-- etwas über Daten, die er nicht kennt — und bringt damit das Einrichten der
+-- ganzen Datenbank zum Absturz, weil setup.sql als ein einziger Query läuft
+-- und alles zurückrollt.
+--
+-- Deshalb wird jede der vier jetzt **erst nachgezählt und dann bestätigt**.
+-- Wo Zeilen im Weg stehen, bleibt die Zusage `NOT VALID`: Für neue Zeilen
+-- gilt sie unverändert weiter — das ist der Teil, auf den es ankommt —, und
+-- die alten Zeilen bleiben unangetastet. Nichts wird gelöscht und nichts
+-- stillschweigend zurechtgebogen; die betroffenen Zeilen stehen danach unter
+-- „Auffälligkeiten" (0070), damit der Betrieb sie ansehen und richtigstellen
+-- kann. Ist das geschehen, holt der nächste Lauf die Bestätigung nach.
+--
+-- Die Bedingung wird nicht abgeschrieben, sondern aus dem Katalog geholt:
+-- Ein nachgebautes `where` prüft den Nachbau. `not (bedingung)` zählt dabei
+-- genau das, was Postgres als Verstoss ansieht — eine Bedingung, die NULL
+-- ergibt, gilt als erfüllt, und `not null` ist nicht wahr.
 
-alter table auftrag         validate constraint auftrag_fax_nur_waschen;
-alter table auftrag         validate constraint auftrag_kaliber_nur_waschen;
-alter table auftrag_palette validate constraint auftrag_palette_datum_pflicht;
-alter table lieferung       validate constraint lieferung_hat_menge;
+do $$
+declare
+  r record;
+  v_offen bigint;
+begin
+  for r in
+    select c.conrelid::regclass::text as tabelle, c.conname as name,
+           pg_get_expr(c.conbin, c.conrelid) as bedingung
+      from pg_constraint c
+      join pg_namespace n on n.oid = c.connamespace
+     where n.nspname = 'public'
+       and not c.convalidated
+       and c.conname in ('auftrag_fax_nur_waschen', 'auftrag_kaliber_nur_waschen',
+                         'auftrag_palette_datum_pflicht', 'lieferung_hat_menge')
+     order by c.conname
+  loop
+    execute format('select count(*) from %s where not (%s)', r.tabelle, r.bedingung)
+      into v_offen;
+    if v_offen = 0 then
+      execute format('alter table %s validate constraint %I', r.tabelle, r.name);
+      raise notice 'Zusage % bestätigt (keine Zeile verstösst dagegen).', r.name;
+    else
+      raise notice 'Zusage % bleibt unbestätigt: % Zeile(n) in % erfüllen sie nicht. '
+                   'Für neue Zeilen gilt sie weiter; die vorhandenen stehen unter '
+                   'Auffälligkeiten.', r.name, v_offen, r.tabelle;
+    end if;
+  end loop;
+end $$;
 
 -- ---------- 4. Indexe, die ein anderer schon abdeckt --------------------
 --

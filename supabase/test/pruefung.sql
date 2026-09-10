@@ -3620,6 +3620,7 @@ select '——— Mutationsschutz geprüft ———' as ergebnis;
 --      versprochen.
 do $$
 declare v_utc date; v_zuerich date; v_offen text; v_unbestaetigt text;
+        v_zeile record; v_n bigint;
 begin
   assert schema_stand() >= 67, format('mindestens Stand 67 erwartet, ist %s', schema_stand());
 
@@ -3642,16 +3643,35 @@ begin
   assert v_offen is null,
     format('Diese Sichten machen wieder in UTC aus einem Zeitpunkt einen Tag: %s', v_offen);
 
-  -- (c) Die vier Zusagen gelten.
-  select string_agg(conname, ', ') into v_unbestaetigt
-    from pg_constraint
-   where connamespace = 'public'::regnamespace and contype = 'c' and not convalidated
-     and conname in ('auftrag_fax_nur_waschen', 'auftrag_kaliber_nur_waschen',
-                     'auftrag_palette_datum_pflicht', 'lieferung_hat_menge');
-  assert v_unbestaetigt is null,
-    format('Diese Prüfbedingungen sind weiterhin unbestätigt: %s', v_unbestaetigt);
+  -- (c) Die vier Zusagen gelten — oder es stehen Zeilen dagegen.
+  --
+  -- Nicht mehr „alle vier sind bestätigt": Das war die Behauptung, an der
+  -- setup.sql auf der Datenbank des Betriebs abgebrochen ist. Eine Zusage
+  -- darf unbestätigt bleiben, wenn vorhandene Zeilen sie verletzen — für
+  -- neue Zeilen gilt sie trotzdem. Was **nicht** sein darf, ist eine
+  -- unbestätigte Zusage ohne einen einzigen Verstoss: Dann hat die Migration
+  -- gar nicht nachgesehen.
+  for v_zeile in
+    select c.conrelid::regclass::text as tabelle, c.conname as name,
+           pg_get_expr(c.conbin, c.conrelid) as bedingung
+      from pg_constraint c
+     where c.connamespace = 'public'::regnamespace and c.contype = 'c'
+       and not c.convalidated
+       and c.conname in ('auftrag_fax_nur_waschen', 'auftrag_kaliber_nur_waschen',
+                         'auftrag_palette_datum_pflicht', 'lieferung_hat_menge')
+  loop
+    execute format('select count(*) from %s where not (%s)',
+                   v_zeile.tabelle, v_zeile.bedingung) into v_n;
+    assert v_n > 0,
+      format('Die Zusage %s ist unbestätigt, obwohl keine einzige Zeile in %s dagegen '
+             || 'verstösst — dann hätte die Migration sie bestätigen müssen.',
+             v_zeile.name, v_zeile.tabelle);
+    v_unbestaetigt := coalesce(v_unbestaetigt || ', ', '')
+                   || format('%s (%s Zeilen)', v_zeile.name, v_n);
+  end loop;
 
-  raise notice 'OK  Der Tag des Arbeiters (Betriebszone, keine Sicht giesst selbst, vier Zusagen bestätigt)';
+  raise notice 'OK  Der Tag des Arbeiters (Betriebszone, keine Sicht giesst selbst, Zusagen: %)',
+    coalesce('unbestätigt weil Zeilen dagegen stehen: ' || v_unbestaetigt, 'alle vier bestätigt');
 end $$;
 
 select '——— Der Tag des Arbeiters geprüft ———' as ergebnis;

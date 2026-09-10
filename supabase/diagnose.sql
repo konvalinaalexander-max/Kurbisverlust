@@ -12,6 +12,7 @@ truncate diagnose;
 
 do $$
 declare v text; v_n bigint; v_txt text; v_detail text; v_fehler int := 0;
+        v_zeile record;
 begin
   -- 1. Stand der Datenbank
   begin
@@ -142,6 +143,40 @@ begin
   select coalesce((select (wert #>> '{}') from einstellung where schluessel = 'soll_kg_pro_kiste'), 'nicht gesetzt')
     into v_txt;
   insert into diagnose (was, befund) values ('Sollgewicht je Kiste (Einstellung)', v_txt);
+
+  -- Zusagen, die wegen vorhandener Zeilen unbestätigt bleiben.
+  --
+  -- Vier Prüfbedingungen sind **nach** den Daten ins Schema gekommen. Für
+  -- neue Zeilen gelten sie ab dem ersten Tag; ob die vorhandenen sie
+  -- erfüllen, sieht Postgres erst beim Bestätigen nach. setup.sql bestätigt
+  -- jede, für die kein Verstoss vorliegt, und lässt die übrigen in Ruhe —
+  -- vorher brach es an dieser Stelle ab und rollte das ganze Einrichten
+  -- zurück (0067).
+  --
+  -- Hier steht, welche Zeilen dahinterstehen. Sie sind nicht kaputt: Sie
+  -- sind aus einer Zeit, in der die App weniger verlangt hat. Wer sie
+  -- ergänzt, kann setup.sql erneut ausführen; die Zusage wird dann bestätigt.
+  for v_zeile in
+    select c.conrelid::regclass::text as tabelle, c.conname as name,
+           pg_get_expr(c.conbin, c.conrelid) as bedingung
+      from pg_constraint c
+     where c.connamespace = 'public'::regnamespace and c.contype = 'c'
+       and not c.convalidated
+     order by c.conname
+  loop
+    begin
+      execute format('select count(*) from %s where not (%s)',
+                     v_zeile.tabelle, v_zeile.bedingung) into v_n;
+    exception when others then
+      v_n := null;
+    end;
+    if coalesce(v_n, 0) > 0 then
+      insert into diagnose (was, befund) values (
+        format('Zusage "%s" auf %s noch nicht bestätigt', v_zeile.name, v_zeile.tabelle),
+        format('%s vorhandene Zeile(n) erfüllen sie nicht — für neue Zeilen gilt sie. '
+               || 'Bedingung: %s', v_n, v_zeile.bedingung));
+    end if;
+  end loop;
 end $$;
 
 select nr, was, befund from diagnose order by nr;
