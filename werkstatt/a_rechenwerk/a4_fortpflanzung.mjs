@@ -83,78 +83,137 @@ export function satterthwaite(teile) {
 }
 
 /**
- * Die drei Varianzbestandteile aus `v_verlust_je_gruppe`.
+ * Die Varianzbestandteile aus `v_verlust_je_gruppe` — **einzeln, nicht
+ * gebündelt.**
  *
- * Statt sie nachzubauen — was beim nächsten Umbau der Sicht stillschweigend
- * falsch würde — wird der Quelltext der Sicht genommen, hinter der letzten
- * der drei Varianz-Teilabfragen abgeschnitten und ein eigenes `select`
- * angehängt. Das Werkzeug liest damit immer die Fassung, die wirklich läuft.
+ * Die erste Fassung dieses Werkzeugs holte die drei Summanden so, wie die
+ * Sicht sie bildet: einen für die Verdunstung, einen für Ausschuss/Fax/
+ * Nebenkanal, einen für das Schimmelmodell. Jeder trug den Freiheitsgrad, den
+ * die Sicht ihm gibt — und der ist selbst schon ein Minimum, nämlich
+ * `min(df)` über die Sorten.
+ *
+ * Damit rechnete das Werkzeug Satterthwaite auf einem bereits verstümmelten
+ * Eingang und fand nur bei einem der sechs Ströme etwas. Der Fehler steckt
+ * eine Ebene tiefer: Auch **innerhalb** eines Bestandteils sind die Sorten
+ * verschieden gut belegt, und auch dort wird minimiert statt gewichtet.
+ *
+ * Richtig ist die Zerlegung bis auf die einzelne Sorte:
+ *
+ *     je Sorte:   g_r² · varianz_eigen(sorte)        mit df(sorte)
+ *     gepoolt:    (Σ g_r · gewicht)² · varianz_gesamt mit dem gepoolten df
+ *     Modell:     die Regressionsterme                mit c_chargen − 1
+ *
+ * Aufgefallen ist das nicht diesem Werkzeug, sondern der Gegenrede zu einem
+ * fremden Verdacht: Sie rechnete die Zerlegung bis auf die Sorte durch und kam
+ * für alle sechs Ströme auf zweistellige Freiheitsgrade. Nachgerechnet stimmt
+ * das — und der eigene Befund war um fünf Ströme zu schmal.
+ *
+ * Geholt wird die Zerlegung weiterhin aus der laufenden Sicht und nicht aus
+ * einer Nachbildung, die beim nächsten Umbau still falsch würde.
  */
 function bestandteile(db) {
   const text = wert(db, `select pg_get_viewdef('v_verlust_je_gruppe'::regclass, true)`)
   const marke = '), summe AS'
   const schnitt = text.indexOf(marke)
-  if (schnitt < 0 || !text.includes('varianz_f AS'))
+  if (schnitt < 0 || !text.includes('varianz_f AS') || !text.includes('je_sorte'))
     throw new Error('Der Aufbau von v_verlust_je_gruppe hat sich geändert — dieses Werkzeug '
       + 'findet die Varianz-Teilabfragen nicht mehr und darf deshalb nichts behaupten.')
 
   return frage(db, text.slice(0, schnitt + 1) + `
-    select coalesce(r.gruppe, a.gruppe, f.gruppe)          as gruppe,
-           coalesce(r.schluessel, a.schluessel, f.schluessel) as schluessel,
-           coalesce(r.strom, a.strom, f.strom)             as strom,
-           r.varianz::float8 as v_verdunstung, r.df as df_verdunstung,
-           a.varianz::float8 as v_ausschuss,   a.df as df_ausschuss,
-           f.varianz::float8 as v_modell,      f.df as df_modell
-      from varianz_r r
-      full join varianz_a a
-        on a.gruppe = r.gruppe and a.schluessel = r.schluessel and a.strom = r.strom
-      full join varianz_f f
-        on f.gruppe = coalesce(r.gruppe, a.gruppe)
-       and f.schluessel = coalesce(r.schluessel, a.schluessel)
-       and f.strom = coalesce(r.strom, a.strom)`)
+    select s.gruppe, s.schluessel, s.strom,
+           'Verdunstung, ' || coalesce(s.sorte, 'alle Sorten gemeinsam') as name,
+           (power(s.g_r, 2) * coalesce(u.varianz_eigen, 0))::float8 as varianz,
+           coalesce(u.df, 1) as df
+      from je_sorte s
+      left join unsicherheit u on u.art = 'verdunstung' and not u.sorte is distinct from s.sorte
+    union all
+    select s.gruppe, s.schluessel, s.strom, 'Verdunstung, gepoolter Anteil',
+           (power(sum(s.g_r * coalesce(u.gewicht_gesamt, 1)), 2)
+            * max(coalesce(u.varianz_gesamt, 0)))::float8,
+           max(coalesce(u.df, 1))
+      from je_sorte s
+      left join unsicherheit u on u.art = 'verdunstung' and not u.sorte is distinct from s.sorte
+     group by s.gruppe, s.schluessel, s.strom
+    union all
+    select s.gruppe, s.schluessel, s.strom,
+           'Ausschuss/Fax/Nebenkanal, ' || coalesce(s.sorte, 'alle Sorten gemeinsam'),
+           (power(s.g_a, 2) * coalesce(u.varianz_eigen, 0))::float8, coalesce(u.df, 1)
+      from je_sorte s
+      left join unsicherheit u on u.art = s.koeff_art and not u.sorte is distinct from s.sorte
+     where s.koeff_art is not null
+    union all
+    select s.gruppe, s.schluessel, s.strom, 'Ausschuss/Fax/Nebenkanal, gepoolter Anteil',
+           (power(sum(s.g_a * coalesce(u.gewicht_gesamt, 1)), 2)
+            * max(coalesce(u.varianz_gesamt, 0)))::float8,
+           max(coalesce(u.df, 1))
+      from je_sorte s
+      left join unsicherheit u on u.art = s.koeff_art and not u.sorte is distinct from s.sorte
+     where s.koeff_art is not null
+     group by s.gruppe, s.schluessel, s.strom
+    union all
+    select m.gruppe, m.schluessel, m.strom, 'Schimmelmodell',
+           (power(m.g_achse, 2) * coalesce(sm.var_achse, 0)
+            + 2 * m.g_achse * m.g_steigung * coalesce(sm.kov_achse_k, 0)
+            + power(m.g_steigung, 2) * coalesce(sm.var_k, 0)
+            + power(m.g_a0, 2) * case when sm.brauchbar then coalesce(sm.sockel_var, 0)
+                                      else 0 end)::float8,
+           coalesce(sm.c_chargen - 1, 1)
+      from je_strom_modell m cross join modell sm`)
 }
 
-const teileVon = (z) => [
-  { name: 'Verdunstung', varianz: z.v_verdunstung, df: z.df_verdunstung },
-  { name: 'Ausschuss/Fax/Nebenkanal', varianz: z.v_ausschuss, df: z.df_ausschuss },
-  { name: 'Schimmelmodell', varianz: z.v_modell, df: z.df_modell },
-].filter(t => t.varianz !== null && t.varianz !== undefined)
+/** Alle Bestandteile einer Zeile, gruppiert nach (Gruppe, Schlüssel, Strom). */
+function nachStrom(zeilen) {
+  const karte = new Map()
+  for (const z of zeilen) {
+    const s = `${z.gruppe}|${z.schluessel}|${z.strom}`
+    ;(karte.get(s) ?? karte.set(s, []).get(s)).push({
+      name: z.name, varianz: Number(z.varianz), df: Number(z.df),
+    })
+  }
+  return karte
+}
 
 /* ---------- Lauf ---------------------------------------------------------- */
 
 export async function laufen({ db }) {
   const roh = bestandteile(db)
+  const teile = nachStrom(roh)
   const raus = []
 
-  /* --- Gegenprobe: haben wir die richtigen Bestandteile? --- */
   const veroeffentlicht = frage(db, `
     select gruppe, schluessel, strom, streuung_kg::float8 as streuung, df, kg::float8 as kg,
            kg_unten::float8 as unten, kg_oben::float8 as oben
       from v_verlust_je_gruppe where streuung_kg is not null`)
   const schluessel = (z) => `${z.gruppe}|${z.schluessel}|${z.strom}`
-  const nachSchluessel = new Map(roh.map(z => [schluessel(z), z]))
 
-  let schlimmste = 0
+  /* --- Gegenprobe: ergibt die Zerlegung die veröffentlichte Streuung? ----- */
+  let schlimmste = 0, geprueft = 0
   for (const v of veroeffentlicht) {
-    const b = nachSchluessel.get(schluessel(v))
-    if (!b) continue
-    const nachgerechnet = Math.sqrt(teileVon(b).reduce((a, t) => a + (t.varianz ?? 0), 0))
+    const t = teile.get(schluessel(v))
+    if (!t) continue
+    const nachgerechnet = Math.sqrt(Math.max(t.reduce((a, x) => a + (x.varianz ?? 0), 0), 0))
     schlimmste = Math.max(schlimmste, Math.abs(nachgerechnet - v.streuung))
+    geprueft++
   }
+  if (!geprueft)
+    throw new Error('Keine einzige Zeile liess sich zerlegen — das Werkzeug hat die falschen '
+      + 'Teilabfragen erwischt und darf nichts behaupten.')
   if (schlimmste > 0.02)
     throw new Error(`Die aus der Sicht geholten Varianzbestandteile ergeben nicht die `
-      + `veröffentlichte Streuung (grösste Abweichung ${schlimmste.toFixed(4)} kg). Das Werkzeug `
-      + `hat die falschen Teilabfragen erwischt und darf nichts behaupten.`)
+      + `veröffentlichte Streuung (grösste Abweichung ${schlimmste.toFixed(4)} kg auf `
+      + `${geprueft} Zeilen). Das Werkzeug rechnet dann etwas anderes nach, als dasteht.`)
 
-  /* --- Der Vergleich --- */
+  /* --- Der Vergleich ------------------------------------------------------ */
   const zeilen = veroeffentlicht.map(v => {
-    const b = nachSchluessel.get(schluessel(v))
-    if (!b) return null
-    const teile = teileVon(b).filter(t => Number.isFinite(t.varianz))
-    const dfEff = satterthwaite(teile)
+    const t = teile.get(schluessel(v))
+    if (!t) return null
+    const dfEff = satterthwaite(t)
     if (dfEff === null) return null
     const tJetzt = t95(v.df), tRichtig = t95(Math.round(dfEff))
-    return { ...v, teile, df_min: v.df, df_eff: dfEff,
+    const gesamt = t.reduce((a, x) => a + (x.varianz ?? 0), 0)
+    const groesster = t.filter(x => x.varianz > 0).sort((a, b) => b.varianz - a.varianz)[0]
+    return { ...v, teile: t, df_min: v.df, df_eff: dfEff, groesster,
+             anteil_groesster: gesamt > 0 ? groesster?.varianz / gesamt : null,
              halb_jetzt: tJetzt * v.streuung, halb_richtig: tRichtig * v.streuung,
              kg_zu_weit: (tJetzt - tRichtig) * v.streuung,
              faktor: tRichtig > 0 ? tJetzt / tRichtig : 1 }
@@ -168,69 +227,83 @@ export async function laufen({ db }) {
     werkstatt: WERKSTATT,
     titel: 'Freiheitsgrade der Verlustbänder: Minimum gegen Satterthwaite',
     einheit: 'kg',
-    spalten: ['Verlustursache', 'Wert (kg)', 'Streuung (kg)', 'df heute (Minimum)',
-              'df nach Satterthwaite', 't heute', 't richtig', 'Band heute (± kg)',
-              'Band richtig (± kg)'],
-    erklaerung: 'Die Zeilen sind die sechs Ströme der Gesamtsaison. „df heute" ist das Minimum '
-      + 'der Freiheitsgrade der drei Varianzbestandteile, so wie `v_verlust_je_gruppe` es bildet; '
-      + '„df nach Satterthwaite" gewichtet jeden Freiheitsgrad mit dem Quadrat seines '
-      + 'Varianzanteils. Wo beide gleich sind, ist das heutige Band richtig — dann trägt der '
-      + 'schlecht belegte Bestandteil tatsächlich fast die ganze Varianz. Die Varianzen selbst '
-      + 'sind aus der laufenden Sicht geholt, nicht nachgebaut, und ihre Summe wurde gegen die '
+    spalten: ['Verlustursache', 'Wert (kg)', 'Streuung (kg)', 'Bestandteile',
+              'df heute (Minimum)', 'df nach Satterthwaite', 't heute', 't richtig',
+              'Band heute (± kg)', 'Band richtig (± kg)', 'grösster Bestandteil'],
+    erklaerung: 'Die Zeilen sind die sechs Ströme der Gesamtsaison. Die Varianz wird bis auf die '
+      + 'einzelne Sorte zerlegt — je Sorte ein Bestandteil mit ihrem eigenen Freiheitsgrad, dazu '
+      + 'der gepoolte Anteil und das Schimmelmodell. „df heute" ist das Minimum über alles, so wie '
+      + '`v_verlust_je_gruppe` es bildet; „df nach Satterthwaite" gewichtet jeden Freiheitsgrad '
+      + 'mit dem Quadrat seines Varianzanteils. Die Spalte ganz rechts nennt den Bestandteil, der '
+      + 'die Varianz trägt — er ist fast nie derselbe, der den Freiheitsgrad setzt. Die Varianzen '
+      + 'stammen aus der laufenden Sicht, und ihre Summe wurde auf jeder Zeile gegen die '
       + 'veröffentlichte Streuung geprüft.',
     zeilen: gesamt.map(z => ({
       'Verlustursache': z.strom, 'Wert (kg)': z.kg.toFixed(0),
       'Streuung (kg)': z.streuung.toFixed(1),
+      'Bestandteile': z.teile.filter(x => x.varianz > 0).length,
       'df heute (Minimum)': z.df_min,
       'df nach Satterthwaite': z.df_eff.toFixed(1),
       't heute': t95(z.df_min).toFixed(3), 't richtig': t95(Math.round(z.df_eff)).toFixed(3),
       'Band heute (± kg)': z.halb_jetzt.toFixed(0),
       'Band richtig (± kg)': z.halb_richtig.toFixed(0),
+      'grösster Bestandteil': z.groesster
+        ? `${z.groesster.name} (${(100 * z.anteil_groesster).toFixed(0)} %, df ${z.groesster.df})`
+        : '—',
     })),
   }))
 
   const schlimm = gesamt.filter(z => z.faktor > 1.2)
   if (schlimm.length) {
     const groesster = schlimm[0]
+    const summe = schlimm.reduce((a, z) => a + z.kg_zu_weit, 0)
     raus.push(befund({
       werkstatt: WERKSTATT, kuerzel: 'FPF', klasse: 3, marke: 'Reparatur', sicherheit: 'hoch',
       ort: { sicht: 'v_verlust_je_gruppe' },
-      titel: 'Die Unsicherheitsbänder sind zu weit, weil der schlechteste Bestandteil sie allein bestimmt',
+      titel: `Die Unsicherheitsbänder sind bei ${schlimm.length} von ${gesamt.length} Strömen `
+           + `rund ${(schlimm.reduce((a, z) => a + z.faktor, 0) / schlimm.length).toFixed(1)}-mal `
+           + 'zu weit — der schlechteste Bestandteil bestimmt sie allein',
       steht_da: 'Die Freiheitsgrade eines Bands entstehen als `LEAST(df_verdunstung, '
-        + 'df_ausschuss, df_modell)`, und innerhalb jedes Bestandteils noch einmal als '
-        + '`min(df)` über die Sorten. Ein einziger schwach belegter Bestandteil zieht damit das '
-        + `ganze Band auf. Beim grössten Verluststrom (\`${groesster.strom}\`, `
-        + `${groesster.kg.toFixed(0)} kg) steht heute df = ${groesster.df_min}, also `
-        + `t = ${t95(groesster.df_min).toFixed(3)} — obwohl `
-        + `${(100 * Math.max(...groesster.teile.map(t => t.varianz)) / groesster.teile.reduce((a, t) => a + (t.varianz ?? 0), 0)).toFixed(0)} % `
-        + `der Varianz aus einem Bestandteil mit df = `
-        + `${groesster.teile.reduce((a, t) => (t.varianz ?? 0) > (a.varianz ?? 0) ? t : a).df} `
-        + `kommen. Das Band ist dadurch ±${groesster.halb_jetzt.toFixed(0)} kg statt `
-        + `±${groesster.halb_richtig.toFixed(0)} kg breit.`,
-      muesste: 'Die Freiheitsgrade einer Varianzsumme sind nicht das Minimum, sondern Satterthwaites '
-        + 'Näherung: `df_eff = (Σvᵢ)² / Σ(vᵢ²/dfᵢ)`. Sie ist eine Zeile SQL, braucht nichts, was '
-        + 'nicht schon dasteht, und ist nicht grosszügiger — wo der schwache Bestandteil die '
-        + 'Varianz wirklich trägt, ergibt sie von selbst wieder df = 1. Dieselbe Korrektur gehört '
-        + 'in die `min(df)` über die Sorten innerhalb jedes Bestandteils.',
+        + 'df_ausschuss, df_modell)`, und innerhalb jedes Bestandteils noch einmal als `min(df)` '
+        + 'über die Sorten. Zweimal ein Minimum, und beide Male zieht der am schlechtesten '
+        + `belegte Summand das ganze Band auf. Alle ${gesamt.length} Ströme stehen deshalb auf `
+        + `df = 1 und t = 12.706. Zerlegt man die Varianz bis auf die einzelne Sorte und `
+        + `gewichtet jeden Freiheitsgrad mit seinem Varianzanteil, kommen `
+        + `${Math.min(...schlimm.map(z => z.df_eff)).toFixed(0)} bis `
+        + `${Math.max(...schlimm.map(z => z.df_eff)).toFixed(0)} heraus. Beim grössten Strom `
+        + `(\`${groesster.strom}\`, ${groesster.kg.toFixed(0)} kg) trägt `
+        + `\`${groesster.groesster?.name}\` `
+        + `${(100 * groesster.anteil_groesster).toFixed(0)} % der Varianz und hat df `
+        + `${groesster.groesster?.df} — den Freiheitsgrad setzt trotzdem ein Bestandteil mit `
+        + 'df 1.',
+      muesste: 'Die Freiheitsgrade einer Varianzsumme sind nicht das Minimum, sondern '
+        + 'Satterthwaites Näherung: `df_eff = (Σvᵢ)² / Σ(vᵢ²/dfᵢ)`. Sie ist eine Zeile SQL, '
+        + 'braucht nichts, was nicht schon dasteht, und ist nicht grosszügiger — wo der schwache '
+        + 'Bestandteil die Varianz wirklich trägt, ergibt sie von selbst wieder df = 1. Nötig ist '
+        + 'sie an **beiden** Stellen: über die drei Bestandteile und über die Sorten darin.',
       warum: 'Ein zu weites Band ist keine gute Vorsicht. Es beantwortet die Frage „darf ich '
         + 'diesen Unterschied glauben?" mit Nein, wo die Antwort Ja wäre. Der Betrieb hat für '
-        + 'diese Zahlen Arbeiterzeit bezahlt; ein Band, das ihren Wert um den Faktor '
-        + `${groesster.faktor.toFixed(1)} kleinredet, macht einen Teil dieser Arbeit wertlos.`,
-      beleg: 'werkstatt/a_rechenwerk/a4_fortpflanzung.mjs: Varianzbestandteile aus der laufenden '
-        + 'Sicht geholt, Summe gegen `streuung_kg` geprüft, Satterthwaite danebengerechnet',
-      groesse: { wert: Math.round(groesster.kg_zu_weit),
-                 einheit: `kg zu breites Band beim grössten Verluststrom (Faktor ${groesster.faktor.toFixed(1)})`,
-                 basis: `${schlimm.length} von ${gesamt.length} Strömen betroffen, `
-                      + `${betroffen.length} von ${zeilen.length} Zeilen über alle Gruppen` },
+        + 'diese Zahlen Arbeiterzeit bezahlt; ein Band, das ihren Wert um mehr als das Sechsfache '
+        + 'kleinredet, macht einen Teil dieser Arbeit wertlos.',
+      beleg: 'werkstatt/a_rechenwerk/a4_fortpflanzung.mjs: Varianz aus der laufenden Sicht bis '
+        + 'auf die einzelne Sorte zerlegt, Summe je Zeile gegen `streuung_kg` geprüft, '
+        + 'Satterthwaite danebengerechnet',
+      groesse: { wert: Math.round(summe),
+                 einheit: `kg zu breite Bänder über alle ${schlimm.length} Ströme zusammen `
+                        + `(grösster einzeln: ${Math.round(groesster.kg_zu_weit)} kg bei `
+                        + `${groesster.strom})`,
+                 basis: `${betroffen.length} von ${zeilen.length} Zeilen über alle Gruppen betroffen` },
       gegenrede: 'Drei ernsthafte Einwände. **Erstens** ist ein zu weites Band die sichere Seite: '
         + 'Wer zu wenig behauptet, führt niemanden in die Irre. **Zweitens** ist Satterthwaite '
         + 'selbst eine Näherung und setzt voraus, dass die Bestandteile unabhängig sind — sie '
-        + 'stammen hier teils aus denselben Wägungen. **Drittens** löst die Korrektur das '
-        + 'eigentliche Problem nicht: 41 verwendbare Wägungen bleiben 41, ob man sie mit t = 12.7 '
-        + 'oder t = 1.96 multipliziert. Trotzdem ist `min` an dieser Stelle nicht die vorsichtige '
-        + 'Wahl, sondern die falsche: Sie ist nicht konservativ *begründet*, sie ist eine '
-        + 'Verwechslung von „Freiheitsgrade einer Summe" mit „Freiheitsgrade des schwächsten '
-        + 'Summanden".',
+        + 'stammen hier teils aus denselben Wägungen; für die Sorten untereinander ist die '
+        + 'Annahme gut, für Verdunstung gegen Schimmel weniger. **Drittens** löst die Korrektur '
+        + 'das eigentliche Problem nicht: 41 verwendbare Wägungen bleiben 41. Trotzdem ist `min` '
+        + 'hier nicht die vorsichtige, sondern die falsche Wahl — sie verwechselt „Freiheitsgrade '
+        + 'einer Summe" mit „Freiheitsgrade des schwächsten Summanden". Und für den grössten '
+        + 'Strom gilt zusätzlich: Die Delta-Methode unterschätzt die Streuung dort um Faktor 3.9 '
+        + '(Befund AUF-001), die beiden Fehler heben sich zum Teil auf. **Wer nur die '
+        + 'Freiheitsgrade richtigstellt, macht das Schimmelband schlechter, nicht besser.**',
       aufwand: 'klein',
     }))
   }
@@ -243,14 +316,12 @@ export async function laufen({ db }) {
          + 'schmale Band nicht zu haben',
     steht_da: richtig.map(z => `\`${z.strom}\` (df ${z.df_min}, Satterthwaite `
       + `${z.df_eff.toFixed(1)})`).join(', ') + '. Bei diesen Strömen trägt der schwach belegte '
-      + 'Bestandteil die Varianz tatsächlich fast allein — das weite Band ist verdient, und '
-      + 'Satterthwaite gibt dasselbe Ergebnis.',
+      + 'Bestandteil die Varianz tatsächlich fast allein — das weite Band ist verdient.',
     muesste: '—',
-    warum: 'Die Gegenprobe zum Befund darüber. Eine Korrektur, die überall dieselbe Richtung '
-      + 'hätte, wäre verdächtig; dass sie hier nur dort greift, wo sie greifen soll, ist der '
-      + 'Beleg, dass gerechnet und nicht behauptet wurde.',
+    warum: 'Die Gegenprobe zum Befund darüber. Eine Korrektur, die überall in dieselbe Richtung '
+      + 'ginge, wäre verdächtig.',
     beleg: 'werkstatt/a_rechenwerk/a4_fortpflanzung.mjs, Messreihe „Freiheitsgrade der Verlustbänder"',
-    groesse: { wert: richtig.length, einheit: `von ${gesamt.length} Strömen haben heute schon das `
+    groesse: { wert: richtig.length, einheit: `von ${gesamt.length} Strömen haben schon das `
                                             + 'richtige Band', basis: 'Demodaten' },
     aufwand: 'klein',
   }))
