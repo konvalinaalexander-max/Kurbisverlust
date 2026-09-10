@@ -3760,3 +3760,46 @@ begin
 end $$;
 
 select '——— 0068 geprüft ———' as ergebnis;
+
+-- ---------------------------------------------------------------------
+-- 0069 — Jede Sicht gibt die Zeilenregeln weiter
+--
+-- Diese Zusicherung braucht keinen Vergleich zweier Wege, und genau darauf
+-- kommt es an. Der Abgleich in run.sh stellt die Datenbank aus den
+-- Migrationen neben die aus setup.sql; was **beide** falsch machen, ist ihm
+-- deckungsgleich. 0067 hat `with (security_invoker = true)` von fünf Sichten
+-- gelöscht — `create or replace view` nimmt die Einstellungen einer Sicht
+-- mit, wenn die neue Fassung keine mitbringt —, und beide Wege waren sich
+-- über alle 2 636 Objekte einig.
+--
+-- Ohne die Klausel läuft eine Sicht mit den Rechten ihres Eigentümers, und
+-- die Zeilenregeln der Tabellen darunter gelten beim Lesen durch sie nicht.
+-- Heute kostet das nichts (jede Leseregel lautet `true`); es kostet an dem
+-- Tag, an dem eine davon verengt wird.
+--
+-- Gespeicherte Ansichten (`erg_…`, `mv_…`) sind ausgenommen: Für sie gibt es
+-- die Option nicht, sie laufen immer mit Eigentümerrechten. Wer ihnen ein
+-- Leserecht gibt, gibt es auf jede Zeile darin.
+-- ---------------------------------------------------------------------
+do $$
+declare
+  v_ohne text[];
+begin
+  select array_agg(c.relname order by c.relname) into v_ohne
+    from pg_class c
+    join pg_namespace n on n.oid = c.relnamespace
+   where n.nspname = 'public'
+     and c.relkind = 'v'
+     and coalesce(c.reloptions::text, '') not like '%security_invoker=true%';
+
+  assert v_ohne is null,
+    format('Diese Sichten laufen mit den Rechten des Eigentümers statt mit denen des '
+           || 'Lesenden — es fehlt "with (security_invoker = true)": %s',
+           array_to_string(v_ohne, ', '));
+
+  raise notice 'OK  0069 (alle % Sichten geben die Zeilenregeln weiter)',
+    (select count(*) from pg_class c join pg_namespace n on n.oid = c.relnamespace
+      where n.nspname = 'public' and c.relkind = 'v');
+end $$;
+
+select '——— 0069 geprüft ———' as ergebnis;

@@ -5298,10 +5298,16 @@ comment on function zahl(numeric, integer, numeric) is
   'ihn abwies und das ganze Neurechnen abbrach. Das Fenster war 0.005 kg breit '
   'bei 10^12 kg.';
 
--- ---------- 4. Stand der Datenbank --------------------------------------
+do $$
+begin
+  update auswertung_stand set geaendert_ts = clock_timestamp() where id = 1;
+exception when others then null;
+end $$;
+
+-- ---------- Stand der Datenbank -----------------------------------------
 create or replace function schema_stand() returns int
 language sql immutable parallel safe set search_path = public
-as $$ select 68 $$;
+as $$ select 69 $$;
 comment on function schema_stand is
   'Nummer der jüngsten eingespielten Migration. Die App vergleicht sie mit '
   'SCHEMA_ERWARTET (src/lib/version.ts) und verlangt bei Abweichung, setup.sql '
@@ -6433,34 +6439,69 @@ select f.charge_nr, k.eingangsdatum as kohorte, f.buch,
   join v_kohorte_anteil k on k.charge_nr = f.charge_nr
  group by f.charge_nr, k.eingangsdatum, f.buch;
 
--- ---------- 2. Jede Sicht, die einen Zeitpunkt zu einem Tag macht -------
---
--- Fünf Sichten machten aus einem Zeitstempel einen Kalendertag. Sie stehen
--- hier vollständig, mit `betriebstag(...)` an der Stelle, an der vorher
--- `...::date` stand — sonst nichts geändert.
---
--- Ausgeschrieben und nicht umgeformt: setup.sql entsteht aus diesen Dateien,
--- indem von jeder Sicht die **zuletzt geschriebene Fassung** übernommen wird
--- (supabase/verdichten.mjs). Eine Migration, die Sichten zur Laufzeit umformt,
--- taucht dort gar nicht auf — setup.sql behielte die alte Fassung, und die
--- Datenbank eines neuen Betriebs hätte den Fehler weiter, während die eines
--- alten ihn nicht mehr hätte. Der Abgleich in supabase/test/run.sh würde es
--- melden; besser ist, es gar nicht erst so zu bauen.
 
--- Reihenfolge nach Abhängigkeit, nicht nach Alphabet: `v_auftrag_masse` liest
--- `v_auftrag_wasch_paletten`. In den Migrationen fällt das nicht auf, weil
--- dort beide Sichten schon stehen; erst der Lauf von setup.sql auf einer
--- leeren Datenbank (supabase/test/run.sh, Stufe 2) hat es gezeigt.
---
--- Eine Zeile `-- verdichter: baut …` gehört hier ausdrücklich **nicht** hin.
--- Sie ist für Anweisungen gedacht, die Sichten aus zusammengesetztem SQL
--- bauen und deren Namen der Verdichter nicht sehen kann. Diese fünf sind
--- gewöhnliche `create or replace view` — er erkennt und sortiert sie selbst.
--- Mit der Marke hielt er die fünf für **eine** Anweisung, die fünf Objekte
--- baut, und schrieb sie an jede Stelle, an der eines davon gebraucht wurde:
--- derselbe Block zweimal in setup.sql.
+-- =====================================================================
+-- aus 0069_die_regeln_gelten_wieder.sql
+-- =====================================================================
 
-create or replace view v_auftrag_wasch_paletten as
+-- =====================================================================
+-- 0069 — Die fünf Sichten geben die Zeilenregeln wieder weiter
+--
+-- 0067 hat fünf Sichten neu geschrieben, damit sie den Betriebstag statt
+-- `current_date` verwenden. Dabei ist eine Klausel verlorengegangen, die in
+-- keiner der Zeilen stand, die ich geändert habe:
+--
+--     with (security_invoker = true)
+--
+-- `create or replace view` **löscht** die Einstellungen einer Sicht, wenn die
+-- neue Fassung keine mitbringt. Seit 0067 laufen `v_auftrag_masse`,
+-- `v_auftrag_wasch_paletten`, `v_verarbeitung_alter`, `v_verdunstung_messung`
+-- und `v_wiegung_kennzahl` deshalb mit den Rechten ihres Eigentümers, und die
+-- Zeilenregeln der Tabellen darunter gelten beim Lesen durch sie nicht mehr.
+-- Die übrigen achtundfünfzig Sichten setzen die Klausel — seit 0005, wo neben
+-- ihr der Satz steht: „die RLS der Tabellen gilt weiter".
+--
+-- WAS ES HEUTE KOSTET
+--
+-- Nichts. Jede Leseregel dieses Programms lautet `true` — es darf ohnehin
+-- jeder Angemeldete jede Zeile lesen —, und `anon` hat auf keine dieser
+-- Sichten ein Leserecht. Der Befund beschreibt eine abgeschaltete Sicherung
+-- an einer Tür, die heute offen steht.
+--
+-- WAS ES KOSTEN WÜRDE
+--
+-- Nachgestellt auf einer Kopie der Demodatenbank: Wird die Leseregel von
+-- `auftrag` auf den Betriebsleiter verengt — genau der Schritt, den der
+-- Betrieb tun würde, wenn er sagt „ein Arbeiter soll nur seine eigenen
+-- Aufträge sehen" —, dann sieht ein angemeldeter Arbeiter in `auftrag`
+-- **0 Zeilen** und durch `v_auftrag_masse` weiterhin **308**. Ohne
+-- Fehlermeldung, ohne Hinweis, und ohne dass eine Prüfung anschlägt.
+--
+-- WARUM ES KEINE PRÜFUNG GEMERKT HAT
+--
+-- Der Abgleich in `supabase/test/run.sh` vergleicht die Datenbank aus den
+-- Migrationen mit der aus setup.sql. Beide Wege haben denselben Fehler, also
+-- sind beide deckungsgleich — 2 636 Objekte, kein Unterschied. Ein Vergleich
+-- zweier Wege findet nur, was die Wege trennt, nie das, was sie teilen.
+-- Deshalb steht in `supabase/test/pruefung.sql` ab jetzt eine Zusicherung,
+-- die keinen Vergleich braucht: **jede** Sicht in `public` hat
+-- `security_invoker = true`. Sie hätte 0067 sofort angehalten.
+--
+-- WIE ES REPARIERT WIRD
+--
+-- Mit denselben fünf Definitionen aus 0067, Zeichen für Zeichen, nur mit der
+-- Klausel davor. Nicht mit `alter view … set (…)`: Der Verdichter versteht
+-- eine solche Anweisung nicht als Bauanweisung, liesse sie in Teil A stehen
+-- und bräche dann ab, weil Teil A auf etwas zeigt, das nach Teil B gewandert
+-- ist. Die ganze Definition noch einmal hinzuschreiben ist länger und richtig.
+--
+-- Die Reihenfolge ist dieselbe wie in 0067 (`v_auftrag_wasch_paletten` vor
+-- `v_auftrag_masse`, das darauf liest), und wieder ohne
+-- `-- verdichter: baut …`: Das sind gewöhnliche Sichten, der Verdichter
+-- erkennt und sortiert sie selbst.
+-- =====================================================================
+
+create or replace view v_auftrag_wasch_paletten with (security_invoker = true) as
 WITH band AS (
          SELECT DISTINCT s.sorte,
             i.idx AS kaliber_idx,
@@ -6489,7 +6530,7 @@ WITH band AS (
   WHERE a.station = 'waschen'::station AND NOT a.ist_fax AND a.abgebrochen_ts IS NULL
   GROUP BY a.id;
 
-create or replace view v_auftrag_masse as
+create or replace view v_auftrag_masse with (security_invoker = true) as
 SELECT m.auftrag_id,
     m.charge_nr,
     m.sorte,
@@ -6645,7 +6686,7 @@ select r.charge_nr, r.schlag, r.sorte,
   left join kohorte k on k.charge_nr = r.charge_nr
  where r.eingang_netto_kg is not null;
 
-create or replace view v_verarbeitung_alter as
+create or replace view v_verarbeitung_alter with (security_invoker = true) as
 WITH gezaehlt AS (
          SELECT ap.auftrag_id,
             count(*)::integer AS n_paletten,
@@ -6679,7 +6720,7 @@ WITH gezaehlt AS (
      LEFT JOIN charge_am_tag l ON l.auftrag_id = a.id
   WHERE a.abgebrochen_ts IS NULL AND a.station <> 'waschen'::station;
 
-create or replace view v_verdunstung_messung as
+create or replace view v_verdunstung_messung with (security_invoker = true) as
 SELECT w.id,
     w.charge_nr,
     c.sorte,
@@ -9656,7 +9697,7 @@ UNION ALL
     v_plausibilitaet_0054_zusatz.rat
    FROM v_plausibilitaet_0054_zusatz;
 
-create or replace view v_wiegung_kennzahl as
+create or replace view v_wiegung_kennzahl with (security_invoker = true) as
 SELECT w.id,
     w.auftrag_id,
     w.charge_nr,
@@ -11066,6 +11107,21 @@ comment on materialized view erg_punkte is
   'v_schimmel_punkte, gespeichert für die App Erneuert mit auswertung_schritt(). '
   'Seit 0068 eine Kopie von mv_schimmel_punkte statt einer zweiten Rechnung — '
   'gemessen 103 ms und 120 kB je Neurechnen.';
+grant select on v_auftrag_wasch_paletten to authenticated;
+comment on view v_auftrag_wasch_paletten is
+  'Beim Waschen gezählte Paletten: Kisten gesamt, Masse = Kisten × gemessenes Kistengewicht des Kalibers, Tage im Zwischenlager aus dem Sortierdatum (0061).';
+grant select on v_auftrag_masse to authenticated;
+comment on view v_auftrag_masse is
+  'Masse je Arbeit: gewogene Paletten oder Zettel, beim Waschen gezählte Paletten (Kisten × Kistengewicht, 0061), sonst gezählte Kisten, beim Fax die Palettenzahl mal gemessener Palettenmasse. ist_fax: kein Waschgang.';
+grant select on v_verarbeitung_alter to authenticated;
+comment on view v_verarbeitung_alter is
+  'Je Arbeit mit gezählten, datierten Paletten: mittleres Alter der verarbeiteten Ware gegen das mittlere Alter aller Paletten der Charge an dem Tag. differenz > 0: älter als der Durchschnitt verarbeitet.';
+grant select on v_verdunstung_messung to authenticated;
+comment on view v_verdunstung_messung is
+  'Jede Verdunstungswägung mit Netto damals und jetzt, Lagertagen und Tagesrate. verwendbar: gemessen, ohne sichtbaren Schimmel, positive Nettos, Wiegedatum nach dem Eingang, Arbeit nicht abgebrochen — und die Palette höchstens 1 % schwerer als beim Eingang (0056). Ohne Kistenzahl oder ohne hinterlegte Tara gibt es kein Netto und damit keine Rate (0064). Was nicht verwendbar ist, steht in v_plausibilitaet.';
+grant select on v_wiegung_kennzahl to authenticated;
+comment on view v_wiegung_kennzahl is
+  'Je gewogener Palette: Netto damals und jetzt, die Verdunstung dazwischen (0062 — vorher verlust_kg), kg je Kiste und je Kürbis. Ohne Kistenzahl oder hinterlegte Tara gibt es kein Netto (0064).';
 
 
 -- =====================================================================
