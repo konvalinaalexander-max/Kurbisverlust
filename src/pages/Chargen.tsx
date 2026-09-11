@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { TaetZeichen } from '../components/Zeichen'
 import { Link, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { taetigkeitVon } from '../lib/taetigkeit'
@@ -192,7 +193,7 @@ function ChargeDetail({ nr, z, daten }: { nr: number; z: Zeile; daten: Auswertun
               return (
                 <tr key={a.id}>
                   <td>{zeitpunkt(a.start_ts)}</td>
-                  <td>{ta?.zeichen} {ta ? t(ta.text) : ''}</td>
+                  <td><TaetZeichen id={ta?.id} /> {ta ? t(ta.text) : ''}</td>
                   <td>{a.abgebrochen_ts ? <Marke art="warnung">abgebrochen</Marke> : a.status === 'offen' ? <Marke art="offen">läuft</Marke> : <Marke art="fertig">fertig</Marke>}</td>
                   <td className="zahl">{a.masse_kg != null ? kg(a.masse_kg, 0) : <span className="leise">unbekannt</span>}{a.masse_quelle && a.masse_quelle !== 'fehlt' && <span className="leise"> ({herkunftText(a.masse_quelle)})</span>}</td>
                   <td className="zahl">{va ? `${Math.round(va.alter_verarbeitet)} d${va.differenz != null ? ` (${va.differenz > 0 ? '+' : ''}${Math.round(va.differenz)})` : ''}` : ''}</td>

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { TaetZeichen } from '../components/Zeichen'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../auth/AuthProvider'
@@ -80,7 +81,7 @@ export default function Start() {
         return (
           <div key={a.id} className="arbeit-karte">
             <div className="titel">
-              <span className="bild" aria-hidden="true">{taet?.zeichen}</span>
+              <span className="bild" aria-hidden="true"><TaetZeichen id={taet?.id} /></span>
               {taet ? t(taet.text) : ''}
             </div>
             <div className="charge">{chargeText(chargen.find(c => c.nr === a.charge_nr))}</div>

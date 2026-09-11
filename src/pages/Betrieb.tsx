@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { TaetZeichen } from '../components/Zeichen'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { chargeText, fehlerText, stammdaten } from '../lib/db'
@@ -90,7 +91,7 @@ function Arbeiten() {
           <thead><tr><th>Tätigkeit</th><th className="zahl">Arbeiten</th><th className="zahl">Stunden</th><th className="zahl">Dauer (Median)</th><th className="zahl">Bewegte Masse</th><th className="zahl">kg je Stunde</th><th className="zahl">kg je Person und Stunde</th></tr></thead>
           <tbody>{tempo.map(z => (
             <tr key={z.name}>
-              <td>{z.zeichen} {z.name}</td>
+              <td><TaetZeichen id={z.id} /> {z.name}</td>
               <td className="zahl">{z.n}</td>
               <td className="zahl">{z.stunden.toFixed(1)} h</td>
               <td className="zahl">{z.median.toFixed(1)} h</td>
@@ -122,7 +123,7 @@ function Arbeiten() {
             return (
               <tr key={a.id}>
                 <td>{zeitpunkt(a.start_ts)}</td>
-                <td>{ta?.zeichen} {ta ? t(ta.text) : ''}{a.kaeufer && <span className="leise"> · {a.kaeufer}</span>}</td>
+                <td><TaetZeichen id={ta?.id} /> {ta ? t(ta.text) : ''}{a.kaeufer && <span className="leise"> · {a.kaeufer}</span>}</td>
                 <td>{chargeText(chargen.find(c => c.nr === a.charge_nr))}</td>
                 <td>{a.abgebrochen_ts ? <Marke art="warnung">abgebrochen</Marke> : a.status === 'offen' ? <Marke art="offen">läuft</Marke> : <Marke art="fertig">fertig</Marke>}</td>
                 <td className="zahl">{d ? zahl(d.n_paletten) : ''}</td>

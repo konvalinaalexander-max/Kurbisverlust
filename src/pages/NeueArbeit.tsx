@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { TaetZeichen } from '../components/Zeichen'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useSprache } from '../sprache/SprachProvider'
@@ -196,7 +197,7 @@ export default function NeueArbeit() {
       <Schritt nummer={n} von={von} frage={t('wasMachtIhr')} zurueck={zurueck}>
         <div className="wahl">
           {TAETIGKEITEN.map(a => (
-            <Wahl key={a.id} id={`taet-${a.id}`} bild={a.zeichen} name={t(a.text)} erkl={t(ERKL[a.id])}
+            <Wahl key={a.id} id={`taet-${a.id}`} bild={<TaetZeichen id={a.id} />} name={t(a.text)} erkl={t(ERKL[a.id])}
                   gewaehlt={taetigkeit === a.id}
                   onClick={() => { setTaetigkeit(a.id); setSystem(null); setKaliberIdx(null); setGrenzen(null); setSoll(null); setPos(1) }} />
           ))}
@@ -286,7 +287,7 @@ export default function NeueArbeit() {
                   gewaehlt={eigenes === null && kaliberIdx === i}
                   onClick={() => { setEigenes(null); setKaliberIdx(i); weiter() }} />
           ))}
-          <Wahl id="kaliber-eigen" bild="✏️" name={t('anderesKaliber')} erkl={t('anderesKaliberErkl')}
+          <Wahl id="kaliber-eigen" name={t('anderesKaliber')} erkl={t('anderesKaliberErkl')}
                 gewaehlt={eigenes !== null}
                 onClick={() => { setKaliberIdx(null); setEigenes(e => e ?? { von: '', bis: '' }) }} />
         </div>
@@ -320,11 +321,11 @@ export default function NeueArbeit() {
       <Schritt nummer={n} von={von} frage={t('kistensystemFrage')} warum={t('kistensystemWarum')} zurueck={zurueck}
                weiter={weiter} weiterMoeglich={systemOk}>
         <div className="wahl">
-          <Wahl id="system-kiste_ab" bild="📦" name={t('systemKisteAb')} erkl={t('systemKisteAbErkl')} gewaehlt={system === 'kiste_ab'}
+          <Wahl id="system-kiste_ab" name={t('systemKisteAb')} erkl={t('systemKisteAbErkl')} gewaehlt={system === 'kiste_ab'}
                 onClick={() => setSystem('kiste_ab')} />
-          <Wahl id="system-stueck" bild="🎃" name={t('systemStueck')} erkl={t('systemStueckErkl')} gewaehlt={system === 'stueck'}
+          <Wahl id="system-stueck" name={t('systemStueck')} erkl={t('systemStueckErkl')} gewaehlt={system === 'stueck'}
                 onClick={() => setSystem('stueck')} />
-          <Wahl id="system-anderes" bild="❔" name={t('systemAnderes')} erkl={t('systemAnderesErkl')} gewaehlt={system === 'anderes'}
+          <Wahl id="system-anderes" name={t('systemAnderes')} erkl={t('systemAnderesErkl')} gewaehlt={system === 'anderes'}
                 onClick={() => setSystem('anderes')} />
         </div>
         {system === 'kiste_ab' && (
@@ -356,7 +357,7 @@ export default function NeueArbeit() {
              weiter={() => void starten()} weiterText={t('starten')} weiterMoeglich={!laeuft && chargeBekannt}>
       <div className="karte">
         <dl className="zusammenfassung">
-          <dt>{t('taetigkeit')}</dt><dd>{gewaehlt?.zeichen} {gewaehlt ? t(gewaehlt.text) : ''}</dd>
+          <dt>{t('taetigkeit')}</dt><dd><TaetZeichen id={gewaehlt?.id} /> {gewaehlt ? t(gewaehlt.text) : ''}</dd>
           <dt>{t('charge')}</dt><dd>{chargeText(charge)}</dd>
           {fragtSystem && <><dt>{t('kistensystemFrage')}</dt><dd>{systemText}</dd></>}
           {fragtBaender && (

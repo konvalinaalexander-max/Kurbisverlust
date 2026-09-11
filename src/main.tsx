@@ -8,6 +8,12 @@ import { SprachProvider } from './sprache/SprachProvider'
 // Netz wackelig, und die App muss auch dann gleich aussehen.
 import '@fontsource-variable/inter'
 import './index.css'
+// Runde N: das neue Erscheinungsbild. tokens.css lädt NACH index.css und
+// überschreibt dort die Farb- und Mass-Zeichen (warmes Neutral statt kühlem
+// Grau, satterer Kürbis, weichere Radien); die Struktur-Regeln von index.css
+// greifen die Zeichen von selbst auf. bewegung.css legt die Bewegung darüber.
+import './design/tokens.css'
+import './design/bewegung.css'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

@@ -2,7 +2,7 @@ import { taetigkeitVon } from '../lib/taetigkeit'
 import { WOERTERBUCH } from '../lib/i18n'
 import type { Durchsatz } from './daten'
 
-export interface Tempo { name: string; zeichen: string; n: number; stunden: number; median: number; masse: number; kgProH: number | null; kgProPersonH: number | null }
+export interface Tempo { name: string; id: string | null; zeichen: string; n: number; stunden: number; median: number; masse: number; kgProH: number | null; kgProPersonH: number | null }
 
 /** Dauer und Durchsatz je Tätigkeit — Median statt Mittel, damit eine
  *  vergessene, über Nacht offen gebliebene Arbeit den Wert nicht verzerrt. */
@@ -24,7 +24,7 @@ export function tempoJeTaetigkeit(zeilen: Durchsatz[]): Tempo[] {
     // Masse noch in die Stunden, sonst wäre der Durchsatz zu klein.
     const masse = mitMasse.reduce((a, d) => a + (d.masse_kg ?? 0), 0)
     return {
-      name: ta ? WOERTERBUCH.de[ta.text] : d0.station, zeichen: ta?.zeichen ?? '',
+      name: ta ? WOERTERBUCH.de[ta.text] : d0.station, id: ta?.id ?? null, zeichen: ta?.zeichen ?? '',
       n: ds.length, stunden: ds.reduce((a, d) => a + d.dauer_h, 0), median: median(ds.map(d => d.dauer_h)),
       masse, kgProH: stundenMitMasse > 0 ? masse / stundenMitMasse : null,
       kgProPersonH: personStunden > 0 ? masse / personStunden : null,

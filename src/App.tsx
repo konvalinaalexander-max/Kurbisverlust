@@ -1,6 +1,6 @@
 import { Suspense, lazy, type ReactNode } from 'react'
 import { NavLink, Navigate, Route, Routes, useParams } from 'react-router-dom'
-import { ZBalken, ZListe, ZLupe, ZRegler, ZUhr } from './components/Zeichen'
+import { ZBalken, ZKuerbis, ZListe, ZLupe, ZRegler, ZUhr } from './components/Zeichen'
 import { useAuth } from './auth/AuthProvider'
 import { SprachAuswahl, useSprache } from './sprache/SprachProvider'
 import { istKonfiguriert, konfigurationsProblem } from './lib/supabase'
@@ -77,7 +77,7 @@ export default function App() {
     <>
       <header className="kopf kein-druck">
         <NavLink to="/" className="marke" style={{ textDecoration: 'none', color: 'inherit' }}>
-          <span className="zeichen" aria-hidden="true">🎃</span>
+          <span className="zeichen" aria-hidden="true"><ZKuerbis size={20} /></span>
           <span className="name">{t('appName')}</span>
         </NavLink>
         <span className="wer">{profil?.name ?? ''}</span>

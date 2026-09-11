@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { TaetZeichen } from '../components/Zeichen'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../auth/AuthProvider'
@@ -92,7 +93,7 @@ export default function Arbeit() {
   const kopf = (
     <div className="karte" style={{ marginTop: '1rem' }}>
       <div className="reihe">
-        <h1 style={{ margin: 0, fontSize: '1.25rem' }}>{taet?.zeichen} {taet ? t(taet.text) : ''}</h1>
+        <h1 style={{ margin: 0, fontSize: '1.25rem' }}><TaetZeichen id={taet?.id} /> {taet ? t(taet.text) : ''}</h1>
         <Marke art={gesperrt ? 'fertig' : 'offen'}>{gesperrt ? t('fertig') : t('laeuft')}</Marke>
         {fuehrt && !gesperrt && <Marke>{t('vorarbeiter')}</Marke>}
       </div>
@@ -153,7 +154,7 @@ export default function Arbeit() {
     <>
       <div className="schritt-kopf">
         <button type="button" className="zurueck" onClick={() => setAnsicht(zurueckZu)}>‹ {t('zurueck')}</button>
-        <span className="stand">{taet?.zeichen} {chargeText(d.charge)}</span>
+        <span className="stand"><TaetZeichen id={taet?.id} /> {chargeText(d.charge)}</span>
       </div>
       <h1 className="frage">{titel}</h1>
       {inhalt}
@@ -203,7 +204,7 @@ export default function Arbeit() {
         {fuehrt ? (
           <div className="schritt-kopf">
             <button type="button" className="zurueck" onClick={() => setAnsicht('liste')}>‹ {t('wasZuTun')}</button>
-            <span className="stand">{taet?.zeichen} {chargeText(d.charge)}</span>
+            <span className="stand"><TaetZeichen id={taet?.id} /> {chargeText(d.charge)}</span>
           </div>
         ) : kopf}
         <Zaehler d={d} gesperrt={false} neuLaden={laden} melden={melden} zumWiegen={b => { setZettelBrutto(b); setAnsicht('wiegen') }} />

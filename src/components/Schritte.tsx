@@ -44,7 +44,7 @@ export function Schritt({ nummer, von, frage, warum, zurueck, weiter, weiterText
 
 /** Eine Wahl-Karte: Bild, Name, ein Satz. Ganze Fläche tippbar. */
 export function Wahl({ bild, name, erkl, gewaehlt, onClick, id }: {
-  bild?: string; name: string; erkl?: string; gewaehlt?: boolean; onClick: () => void; id?: string
+  bild?: ReactNode; name: string; erkl?: string; gewaehlt?: boolean; onClick: () => void; id?: string
 }) {
   return (
     <button type="button" id={id} className={gewaehlt ? 'gewaehlt' : ''} onClick={onClick}
