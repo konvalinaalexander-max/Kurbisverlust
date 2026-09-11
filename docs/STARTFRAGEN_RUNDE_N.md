@@ -12,6 +12,10 @@ die baue ich einfach.
 Es bleiben **drei Weggabelungen**, bei denen deine Antwort ändert, was ich
 baue. Nur die stehen hier.
 
+> **Beantwortet am 11. September.** Die Antworten stehen unter jeder Frage.
+> Kurz: alles in einem Zug, sortierte Paletten werden **nicht** nachgewogen
+> (die Datenbank fängt den Fall sauber ab), das Aussehen komplett.
+
 ---
 
 ## 1. Wie weit soll ich in einem Zug gehen?
@@ -29,7 +33,10 @@ grossen Stand abliefern? Oder erst A (der Fehler, den du gemeldet hast) fertig
 und dir zeigen, dann B, dann C? Ich neige zu **A, dann B, dann C in getrennten
 Schritten** — dann siehst du den behobenen Fehler früh und das Aussehen zuletzt.
 
-> Antwort:
+> **Antwort:** Alles in einem Zug. („Es würde Sinn machen zu trennen, aber ich
+> bin zu faul, immer wieder mit Claude zu interagieren — zieh's gleich in
+> einem durch.") → Ich mache A, B und C nacheinander, aber ohne
+> Zwischenabnahme, und liefere am Ende einen Stand.
 
 ---
 
@@ -50,7 +57,15 @@ noch da** ist? Danach richtet sich, ob ich einen dritten Weg in die Maske baue
 („Palette ohne Zettel — nach dem Sortieren") und was er speichert. Sagst du
 nichts, **lasse ich es weg** und melde nur den falschen Fall als Auffälligkeit.
 
-> Antwort:
+> **Antwort:** Nein — sortierte Paletten werden **nicht** als Lagerkontrolle
+> nachgewogen. („Wir kennen das Gewicht nach dem Sortieren ja nicht, also
+> nutzlos — schau, dass das korrekt so in der Datenbank ist.") → Ich baue
+> **keinen** dritten Weg. Stattdessen sorge ich dafür, dass die Datenbank eine
+> solche Wägung, wenn sie doch einmal eingetragen wird (kein Netto „damals",
+> Sortierdatum als Eingang), **nie als verwendbar** führt und **keine**
+> Verdunstungsrate und keinen Lagerpunkt daraus macht. Frage 57 in
+> `docs/FRAGEN.md` wird damit **entschieden**, nicht offen gelassen. Frage 58
+> (sortierte Palette als Ding im Bestand) entfällt ebenfalls.
 
 ---
 
@@ -66,7 +81,10 @@ Vorlage (`docs/DESIGN_RUNDE_N.md`) durchziehen? Ich neige zu **erst ein Muster
 zur Abnahme** — dann stelle ich nicht fünfzehn Bildschirme auf einen Geschmack
 um, den du vielleicht anders willst.
 
-> Antwort:
+> **Antwort:** Gleich alle. („Mach gleich alle drei — ich vertraue dir, leg
+> los.") → Ich ziehe das ganze Aussehen nach `docs/DESIGN_RUNDE_N.md` durch,
+> mit Bild vorher/nachher je Bildschirm als Beleg, damit du am Ende siehst,
+> was sich geändert hat.
 
 ---
 
