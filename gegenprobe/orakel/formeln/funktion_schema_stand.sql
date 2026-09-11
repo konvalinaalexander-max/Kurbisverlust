@@ -6,4 +6,4 @@ CREATE OR REPLACE FUNCTION public.schema_stand()
  LANGUAGE sql
  IMMUTABLE PARALLEL SAFE
  SET search_path TO 'public'
-AS $function$ select 69 $function$
+AS $function$ select 70 $function$

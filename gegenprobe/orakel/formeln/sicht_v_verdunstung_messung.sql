@@ -19,7 +19,7 @@
             WHEN n.netto_damals_kg > 0::numeric AND n.netto_jetzt_kg > 0::numeric AND (betriebstag(w.wiege_ts) - w.eingangsdatum) > 0 THEN 1::numeric - power(n.netto_jetzt_kg / n.netto_damals_kg, 1.0 / (betriebstag(w.wiege_ts) - w.eingangsdatum)::numeric)
             ELSE NULL::numeric
         END, 6, '10000'::numeric)::numeric(10,6) AS rate_pro_tag,
-    w.gemessen AND NOT w.sichtbar_schimmel AND n.netto_damals_kg > 0::numeric AND n.netto_jetzt_kg > 0::numeric AND (betriebstag(w.wiege_ts) - w.eingangsdatum) > 0 AND n.netto_jetzt_kg <= (n.netto_damals_kg * 1.01) AND (a.id IS NULL OR a.abgebrochen_ts IS NULL) AS verwendbar
+    w.gemessen AND NOT w.sichtbar_schimmel AND n.netto_damals_kg > 0::numeric AND n.netto_jetzt_kg > 0::numeric AND (betriebstag(w.wiege_ts) - w.eingangsdatum) > 0 AND n.netto_jetzt_kg < n.netto_damals_kg AND (a.id IS NULL OR a.abgebrochen_ts IS NULL) AS verwendbar
    FROM verdunstung_wiegung w
      JOIN charge c ON c.nr = w.charge_nr
      LEFT JOIN auftrag a ON a.id = w.auftrag_id

@@ -1,6 +1,193 @@
--- sicht: v_plausibilitaet
--- Messungen, die die Auswertung bewusst nicht verwendet — und Messungen, die sie nicht verwenden kann, weil ihnen der Nenner fehlt. Neu (0051): Fax-Anteile, Zetteldaten ohne Palette, Kisten nach Sollgewicht ohne gewogene Palette. 0066: „Ausschuss-Tara" rechnet nur nach, wo Kistenzahl und hinterlegte Tara da sind; fehlt eine, steht die Lücke als „Ausschuss ohne Tara" daneben.
+-- =====================================================================
+-- 0070 — Die Zeit läuft vorwärts, und eine Palette ohne echtes Zettelgewicht
+--        rechnet nicht mit
+--
+-- Der Betrieb hat gemeldet: Auf „Ursachen → Palox: Faules im Lager" reichte
+-- die x-Achse bis minus tausend Tage, und alle echten Messungen sassen als
+-- ein Strich ganz rechts. Ursache war ein Zettel mit dem Jahr 2029 statt
+-- 2026: aus dem Eingangsdatum in der Zukunft wurden negative Lagertage, und
+-- die Auswertung hielt den Punkt für plausibel. Gespeichert ist der Zettel
+-- richtig so (er ist eine Beobachtung, kein Fehler des Programms) — falsch war,
+-- was die Auswertung daraus machte. Diese Migration stellt das an der Wurzel ab.
+--
+-- WAS SICH ÄNDERT
+--
+--   1. Ein Schimmelpunkt mit negativen Lagertagen ist nie plausibel.
+--      `v_schimmel_beobachtung` prüfte bisher nur den Anteil (ist er zwischen
+--      0 und 0.5?), nie das Vorzeichen der Zeit. Jetzt: plausibel nur, wenn
+--      auch die Lagertage ≥ 0 sind. Ebenso im Wasch-Zweig von
+--      `v_schimmel_punkte`. Der Punkt bleibt in der Sicht (Beobachtung),
+--      trägt aber plausibel = false und fällt aus Kurve, Treppe und Kaskade.
+--
+--   2. Eine Wägung ohne Gewichtsverlust ist keine Verdunstungsmessung.
+--      `v_verdunstung_messung` verlangte bisher nur, dass die Palette nicht
+--      schwerer geworden ist (≤ 1 % mehr). Wer eine sortierte Palette wiegt,
+--      kennt ihr Eingangsgewicht aber gar nicht (die Kisten stammen aus
+--      mehreren Eingangspaletten) — trägt er das heutige Gewicht auch als
+--      „damals" ein, entsteht eine Rate von exakt null, die als verwendbar in
+--      die Sorte einfliesst und deren Verdunstungsrate nach unten zieht.
+--      Jetzt: eine Wägung, bei der das Nettogewicht auf das Gramm genau gleich
+--      geblieben ist (netto jetzt = netto damals, Rate exakt null), ist nicht
+--      verwendbar — zwei echte Wägungen treffen sich nicht auf das Gramm, das
+--      ist ein kopiertes Eingangsgewicht. Eine kleine Zunahme durch
+--      Waagenrauschen bleibt dagegen verwendbar (0056). Das ist die Datenbank-Seite der
+--      Entscheidung des Betriebs, sortierte Paletten gar nicht erst als
+--      Lagerkontrolle zu wiegen (Frage 57 in docs/FRAGEN.md).
+--
+--   3. Zwei neue Auffälligkeiten in `v_plausibilitaet`:
+--      · „Zetteldatum Zukunft" — ein Eingangsdatum nach heute (das falsche
+--        Jahr). Der Betriebsleiter sieht es unter Messungen und korrigiert es.
+--      · „Palettengewicht" — eine Eingangspalette über 2 000 kg brutto; das
+--        gibt es nicht, es ist ein Zahlendreher.
+--      Dazu ein eigener Grund im Wägungs-Zweig für die Palette ohne
+--      Gewichtsverlust (das kopierte Eingangsgewicht).
+--
+-- WAS DIESE MIGRATION NICHT ANFASST — UND WARUM, MIT ZAHL
+--
+--   Der Sortier-Eingang (`mv_sortier_eingang`) mittelt die Eingangsdaten der
+--   sortierten Paletten einer Charge; eine Palette mit falschem Jahr zieht
+--   diesen Mittelwert mit, und dann bekommt auch ein späterer, sauberer
+--   Waschgang derselben Charge falsche Lagertage. Und `mv_auftrag_masse`
+--   rechnet die Lagertage noch mit dem UTC-Tag (`start_ts::date`) statt mit
+--   dem Betriebstag — 0067 hat diesen Punkt gemessen und bewusst liegen
+--   lassen: beides sind **gespeicherte** Sichten, und `drop materialized view
+--   … cascade` nimmt 51 weitere Objekte mit, praktisch das ganze Rechenwerk.
+--   Von 309 Arbeiten der Demosaison fallen bei fünf UTC-Tag und Betriebstag
+--   auseinander, und die ganze Auswertung danach ergibt dieselben Zahlen bis
+--   auf den Rappen. Der falsche Zettel wird jetzt als Auffälligkeit gemeldet
+--   und aus der Statistik gehalten (Punkt 1); die verbleibende Wirkung ist,
+--   dass die **angezeigten** Lagertage eines mitbetroffenen Waschgangs
+--   daneben liegen, bis der Betriebsleiter das Jahr berichtigt — dann rechnet
+--   sich alles richtig. Der 51-Objekt-Umbau steht als offener Punkt in
+--   docs/GEGENPROBE_BEFUND.md (N-03, N-04).
+--
+-- Ausgeschrieben, nicht umgeformt: dieselben vier Sichten stehen hier
+-- vollständig mit `create or replace view` (verdichten.mjs übernimmt die
+-- zuletzt geschriebene Fassung nach setup.sql). Jede trägt
+-- `with (security_invoker = true)` — sonst gälte die Zeilenregel der Tabellen
+-- darunter beim Lesen durch sie nicht (0069).
+-- =====================================================================
 
+set client_min_messages = warning;
+
+create or replace view v_verdunstung_messung with (security_invoker = true) as
+ SELECT w.id,
+    w.charge_nr,
+    c.sorte,
+    c.schlag,
+    w.palette_id,
+    w.eingangsdatum,
+    w.wiege_ts,
+    w.sichtbar_schimmel,
+    w.erfasser,
+    w.auftrag_id,
+    n.netto_damals_kg,
+    n.netto_jetzt_kg,
+    betriebstag(w.wiege_ts) - w.eingangsdatum AS lagertage,
+    zahl(
+        CASE
+            WHEN n.netto_damals_kg > 0::numeric AND n.netto_jetzt_kg > 0::numeric AND (betriebstag(w.wiege_ts) - w.eingangsdatum) > 0 THEN 1::numeric - power(n.netto_jetzt_kg / n.netto_damals_kg, 1.0 / (betriebstag(w.wiege_ts) - w.eingangsdatum)::numeric)
+            ELSE NULL::numeric
+        END, 6, '10000'::numeric)::numeric(10,6) AS rate_pro_tag,
+    w.gemessen AND NOT w.sichtbar_schimmel AND n.netto_damals_kg > 0::numeric AND n.netto_jetzt_kg > 0::numeric AND (betriebstag(w.wiege_ts) - w.eingangsdatum) > 0 AND n.netto_jetzt_kg <= (n.netto_damals_kg * 1.01) AND n.netto_jetzt_kg <> n.netto_damals_kg AND (a.id IS NULL OR a.abgebrochen_ts IS NULL) AS verwendbar
+   FROM verdunstung_wiegung w
+     JOIN charge c ON c.nr = w.charge_nr
+     LEFT JOIN auftrag a ON a.id = w.auftrag_id
+     LEFT JOIN gebinde g ON g.art = w.gebindeart
+     CROSS JOIN LATERAL ( SELECT w.brutto_damals_kg - w.kisten::numeric * g.tara_kg_pro_kiste - g.tara_kg_palette AS netto_damals_kg,
+            w.brutto_jetzt_kg - w.kisten::numeric * g.tara_kg_pro_kiste - g.tara_kg_palette AS netto_jetzt_kg) n;
+
+create or replace view v_schimmel_beobachtung with (security_invoker = true) as
+ SELECT am.auftrag_id,
+    am.charge_nr,
+    am.sorte,
+    am.schlag,
+    am.weg,
+    am.station,
+    am.start_ts,
+    am.lagertage,
+    am.masse_quelle,
+    s.kg AS schimmel_kg,
+    am.eingang_netto_kg AS eingang_kg,
+    zahl(am.eingang_netto_kg * power(1::numeric - x.r, x.tage), 2, '10000000000'::numeric)::numeric(12,2) AS basis_jetzt_kg,
+    s.kg / NULLIF(am.eingang_netto_kg * power(1::numeric - x.r, x.tage), 0::numeric) AS anteil,
+    anteil_plausibel(s.kg / NULLIF(am.eingang_netto_kg * power(1::numeric - x.r, x.tage), 0::numeric)) AND am.lagertage >= 0::numeric AS plausibel,
+    am.ist_fax
+   FROM v_auftrag_masse am
+     JOIN v_schimmel_menge s ON s.auftrag_id = am.auftrag_id
+     LEFT JOIN v_koeff_verdunstung kv ON kv.sorte = am.sorte
+     CROSS JOIN LATERAL ( SELECT LEAST(GREATEST(COALESCE(kv.mittel, 0::numeric), 0::numeric), 0.05) AS r,
+            GREATEST(am.lagertage, 0::numeric) AS tage) x
+  WHERE am.eingang_netto_kg IS NOT NULL AND am.lagertage IS NOT NULL;
+
+create or replace view v_schimmel_punkte with (security_invoker = true) as
+ WITH sortier_lauf_anteil AS MATERIALIZED (
+         SELECT b.charge_nr,
+            b.start_ts,
+            b.schimmel_kg,
+            b.basis_jetzt_kg
+           FROM v_schimmel_beobachtung b
+          WHERE b.station = 'sortieren'::station AND b.plausibel AND b.anteil IS NOT NULL
+        ), gemischt AS (
+         SELECT v_auftrag_angabe.auftrag_id
+           FROM v_auftrag_angabe
+          WHERE v_auftrag_angabe.schluessel = 'eine_charge'::text AND v_auftrag_angabe.wert = 'false'::text
+        )
+ SELECT b.charge_nr,
+    b.sorte,
+    b.schlag,
+    b.lagertage,
+    b.schimmel_kg,
+    b.basis_jetzt_kg,
+    b.anteil,
+    b.plausibel,
+        CASE
+            WHEN g.auftrag_id IS NOT NULL THEN 'verarbeitung_gemischt'::text
+            ELSE 'verarbeitung'::text
+        END AS quelle,
+    b.auftrag_id
+   FROM v_schimmel_beobachtung b
+     LEFT JOIN gemischt g ON g.auftrag_id = b.auftrag_id
+  WHERE b.station = ANY (ARRAY['sortieren'::station, 'waschen_sortieren'::station])
+UNION ALL
+ SELECT a.charge_nr,
+    a.sorte,
+    a.schlag,
+    a.lagertage,
+    s.kg AS schimmel_kg,
+    a.eingang_netto_kg + s.kg AS basis_jetzt_kg,
+    k.f2 AS anteil,
+    anteil_plausibel(k.f2) AND a.lagertage >= 0::numeric AS plausibel,
+        CASE
+            WHEN g.auftrag_id IS NOT NULL THEN 'verarbeitung_gemischt'::text
+            ELSE 'verarbeitung'::text
+        END AS quelle,
+    a.auftrag_id
+   FROM v_auftrag_masse a
+     JOIN v_schimmel_menge s ON s.auftrag_id = a.auftrag_id
+     LEFT JOIN gemischt g ON g.auftrag_id = a.auftrag_id
+     LEFT JOIN LATERAL ( SELECT sum(sl.schimmel_kg) / NULLIF(sum(sl.basis_jetzt_kg), 0::numeric) AS f1
+           FROM sortier_lauf_anteil sl
+          WHERE sl.charge_nr = a.charge_nr AND sl.start_ts <= a.start_ts) sa ON true
+     CROSS JOIN LATERAL ( SELECT s.kg / NULLIF(a.eingang_netto_kg + s.kg, 0::numeric) AS g) x
+     CROSS JOIN LATERAL ( SELECT 1::numeric - (1::numeric - LEAST(GREATEST(COALESCE(sa.f1, 0::numeric), 0::numeric), 0.99)) * (1::numeric - LEAST(GREATEST(COALESCE(x.g, 0::numeric), 0::numeric), 0.99)) AS f2) k
+  WHERE a.station = 'waschen'::station AND NOT a.ist_fax AND a.lagertage IS NOT NULL AND a.eingang_netto_kg IS NOT NULL AND a.eingang_netto_kg > 0::numeric
+UNION ALL
+ SELECT w.charge_nr,
+    w.sorte,
+    w.schlag,
+    w.lagertage,
+    v.faul_kg AS schimmel_kg,
+    w.netto_jetzt_kg AS basis_jetzt_kg,
+    v.faul_kg / NULLIF(w.netto_jetzt_kg, 0::numeric) AS anteil,
+    anteil_plausibel(v.faul_kg / NULLIF(w.netto_jetzt_kg, 0::numeric)) AS plausibel,
+    'lager'::text AS quelle,
+    NULL::bigint AS auftrag_id
+   FROM v_verdunstung_messung w
+     JOIN verdunstung_wiegung v ON v.id = w.id
+  WHERE v.faul_kg IS NOT NULL AND v.gemessen AND w.netto_jetzt_kg > 0::numeric AND w.lagertage > 0;
+
+create or replace view v_plausibilitaet with (security_invoker = true) as
  SELECT 'Schimmel'::text AS art,
     b.auftrag_id,
     b.charge_nr,
@@ -107,7 +294,7 @@ UNION ALL
             WHEN w.lagertage <= 0 THEN 'das Wiegedatum liegt nicht nach dem Eingangsdatum'::text
             WHEN w.netto_damals_kg <= 0::numeric OR w.netto_jetzt_kg <= 0::numeric THEN 'das Netto ist null oder negativ'::text
             WHEN w.netto_jetzt_kg > (w.netto_damals_kg * 1.01) THEN format('sie wiegt jetzt %s kg mehr als beim Eingang, und im Lager wird keine Palette schwerer'::text, round(w.netto_jetzt_kg - w.netto_damals_kg))
-            WHEN w.netto_jetzt_kg >= w.netto_damals_kg THEN 'sie hat kein Gewicht verloren — sehr wahrscheinlich wurde das Eingangsgewicht kopiert (etwa bei einer sortierten Palette, deren Zettelgewicht es nicht gibt)'::text
+            WHEN w.netto_jetzt_kg = w.netto_damals_kg THEN 'sie hat kein Gramm verloren — sehr wahrscheinlich wurde das Eingangsgewicht kopiert (etwa bei einer sortierten Palette, deren Zettelgewicht es nicht gibt)'::text
             ELSE 'sie ist nicht verwertbar'::text
         END) || ' — sie zählt nicht in die Verdunstungsrate'::text AS befund,
         CASE
@@ -269,3 +456,8 @@ UNION ALL
    FROM palette p
      JOIN charge c ON c.nr = p.charge_nr
   WHERE p.brutto_kg > 2000::numeric;
+
+
+create or replace function schema_stand() returns int
+language sql immutable parallel safe set search_path = public
+as $$ select 70 $$;

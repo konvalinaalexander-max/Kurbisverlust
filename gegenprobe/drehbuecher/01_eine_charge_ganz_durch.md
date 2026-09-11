@@ -162,7 +162,7 @@ Faules; erzeugt **keine** Rate (kein „damals"), aber einen Schimmel-Punkt
 Bis dahin muss die Datenbank wenigstens eine Wägung mit `netto_jetzt =
 netto_damals` am selben Tag wie das „Eingangsdatum" + wenige Tage als das
 erkennen, was sie ist: kein Messwert. Prüfung heute: was mit (b) geschieht.
-Sie ist **rot**, bis es den dritten Weg gibt oder die Sicht die Lüge erkennt.
+Der Betrieb hat entschieden (Frage 57): sortierte Paletten werden gar nicht als Lagerkontrolle gewogen. Migration 0070 faengt die Luege ab — eine Waegung ohne echten Gewichtsverlust ist nicht verwendbar. Diese Pruefung war rot und ist seit 0070 gruen.
 
 ```sql szene S6
 insert into verdunstung_wiegung (charge_nr, eingangsdatum, brutto_damals_kg, brutto_jetzt_kg, kisten, gebindeart, gemessen, wiege_ts, faul_kg, bemerkung)

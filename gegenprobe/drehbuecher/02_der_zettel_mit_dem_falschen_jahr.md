@@ -44,7 +44,7 @@ select ap.eingangsdatum > heute() as ok, ap.eingangsdatum
 **Wirklichkeit.** Nichts; die Datenbank rechnet.
 **Sichtbar heute.** `v_schimmel_punkte`: ein Punkt mit lagertage ≈ −1051, anteil 12/430 ≈ 2.8 %, **plausibel = true**. Er geht in die Kurve, in die Treppe, in die Kaskade.
 **Erwartung.** Negative Lagertage sind nie plausibel — `anteil_plausibel` prüft den Anteil, aber niemand prüft das Vorzeichen der Zeit. Der Punkt bleibt in der Sicht (Beobachtung), trägt aber plausibel = false und steht in `v_plausibilitaet` als „Eingangsdatum nach der Arbeit".
-**Reparatur (Phase 4).** In `v_schimmel_beobachtung` (und damit in beiden Verarbeitungs-Zweigen von `v_schimmel_punkte`): `plausibel := anteil_plausibel(…) and am.lagertage >= 0`. Dazu eine Zeile in `v_plausibilitaet`. Diese Prüfung ist **rot, bis das geschehen ist** — so muss es sein.
+**Repariert (Migration 0070).** In `v_schimmel_beobachtung` und im Wasch-Zweig von `v_schimmel_punkte` gilt jetzt `plausibel := anteil_plausibel(…) and lagertage >= 0`; dazu meldet `v_plausibilitaet` das Eingangsdatum in der Zukunft als Auffaelligkeit. Diese Pruefung war rot und ist seit 0070 gruen.
 
 ```sql pruefung S2
 select not exists (select 1 from v_schimmel_punkte p where p.charge_nr = 9802 and p.lagertage < 0 and p.plausibel) as ok,

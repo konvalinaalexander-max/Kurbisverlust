@@ -84,15 +84,21 @@ export function bandGeordnet(zeilen: Zeile[], unten: string, mittel: string, obe
  * −1053 Tage, plausibel = true) — sie ist die rote Prüfung, an der Phase 4
  * die Reparatur misst.
  */
-export function zeitLaeuftVorwaerts(punkte: Zeile[], arbeiten: Zeile[]): Verstoss[] {
+export function zeitLaeuftVorwaerts(punkte: Zeile[], arbeiten: Zeile[], geflaggteChargen: Set<string> = new Set()): Verstoss[] {
   const v: Verstoss[] = []
+  // Teil 1 (hart): kein plausibler Schimmelpunkt mit negativen Lagertagen.
   for (const p of punkte) {
     const t = z(p, 'lagertage')
     if (t != null && t < 0 && p.plausibel === true) v.push({ regel: 'K7', wo: `Punkt Charge ${p.charge_nr} (${p.quelle})`, ist: `${t} Lagertage, plausibel`, soll: 'nicht plausibel oder Lagertage ≥ 0' })
   }
+  // Teil 2 (Sichtbarkeit): eine Arbeit mit negativen Lagertagen darf sein — aber
+  // nur, wenn ihre Charge als Auffälligkeit gemeldet ist (der falsche Zettel).
+  // Ihre rohen Lagertage bleiben daneben, bis der Betriebsleiter das Datum
+  // berichtigt; das ist der bewusst zurückgestellte Sortier-Eingang (N-03/N-04).
   for (const a of arbeiten) {
     const t = z(a, 'lagertage')
-    if (t != null && t < 0) v.push({ regel: 'K7', wo: `Arbeit ${a.auftrag_id} (${a.station})`, ist: `${t} Lagertage`, soll: '≥ 0 oder Auffälligkeit statt Zahl' })
+    if (t != null && t < 0 && !geflaggteChargen.has(String(a.charge_nr)))
+      v.push({ regel: 'K7', wo: `Arbeit ${a.auftrag_id} (${a.station}, Charge ${a.charge_nr})`, ist: `${t} Lagertage, nicht als Auffälligkeit gemeldet`, soll: '≥ 0 oder als „Zetteldatum Zukunft" sichtbar' })
   }
   return v
 }

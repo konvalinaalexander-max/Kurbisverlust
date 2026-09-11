@@ -3823,3 +3823,64 @@ begin
 end $$;
 
 select '——— 0069 geprüft ———' as ergebnis;
+
+-- ---------------------------------------------------------------------
+-- 0070 — Die Zeit läuft vorwärts, kopiertes Gewicht rechnet nicht mit
+--
+-- Der gemeldete Fehler: ein Zettel mit dem Jahr 2029 ergab negative Lagertage,
+-- die als plausibel galten und die x-Achse eines Diagramms bis −1000 zogen.
+-- Diese Prüfung legt genau diesen Fall an — eine Palette mit Eingangsdatum in
+-- der Zukunft, dazu eine sortierte Palette, deren Eingangsgewicht kopiert ist —
+-- und hält fest: (a) kein plausibler Schimmelpunkt mit negativen Lagertagen,
+-- (b) eine Wägung ohne Gewichtsverlust ist nicht verwendbar, (c) beide Fälle
+-- stehen als Auffälligkeit in v_plausibilitaet.
+-- ---------------------------------------------------------------------
+do $$
+declare
+  v_charge int := 990070;
+  v_auftrag bigint;
+  v_wer uuid := (select id from profil where rolle = 'admin' order by erstellt_ts limit 1);
+  v_neg_plausibel int;
+  v_wiegung_verwendbar int;
+  v_zukunft int;
+  v_gewicht int;
+begin
+  perform set_config('request.jwt.claim.sub', coalesce(v_wer::text, gen_random_uuid()::text), true);
+  insert into charge (nr, schlag, sorte, saison) values (v_charge, 'Prüfung 0070', 'Orangita', extract(year from heute())::int)
+    on conflict (nr) do nothing;
+  -- Eine Sortierarbeit mit einer Palette im falschen Jahr (Zukunft).
+  insert into auftrag (weg, station, charge_nr, start_ts, ende_ts, status, bemerkung, eroeffnet_von)
+  values ('maschine', 'sortieren', v_charge, (heute() - 1)::timestamp + interval '8 hours', (heute() - 1)::timestamp + interval '10 hours',
+          'abgeschlossen', 'PRUEF0070', v_wer) returning id into v_auftrag;
+  insert into auftrag_palette (auftrag_id, eingangsdatum, ts) values (v_auftrag, (heute() + interval '3 years')::date, (heute() - 1)::timestamp + interval '8 hours 10 minutes');
+  insert into schimmel_messung (auftrag_id, kg, ts) values (v_auftrag, 20, (heute() - 1)::timestamp + interval '10 hours');
+  insert into auftrag_angabe (auftrag_id, schluessel, wert) values (v_auftrag, 'eine_charge', 'true');
+  -- Eine Eingangspalette (für ein echtes Eingangsdatum) und eine sortierte Palette, deren Zettelgewicht kopiert wurde.
+  insert into palette (charge_nr, eingangsdatum, brutto_kg, kisten, gebindeart, extern_id) values (v_charge, heute() - 40, 500, 30, 'G2', 'pruef0070-1');
+  insert into verdunstung_wiegung (charge_nr, eingangsdatum, brutto_damals_kg, brutto_jetzt_kg, kisten, gebindeart, gemessen, wiege_ts, bemerkung)
+  values (v_charge, heute() - 10, 331, 331, 40, 'G2', true, (heute())::timestamp + interval '9 hours', 'PRUEF0070 kopiert');
+
+  select count(*) into v_neg_plausibel from v_schimmel_punkte where charge_nr = v_charge and lagertage < 0 and plausibel;
+  assert v_neg_plausibel = 0, format('0070 (a): %s Schimmelpunkt(e) mit negativen Lagertagen gelten als plausibel', v_neg_plausibel);
+
+  select count(*) into v_wiegung_verwendbar from v_verdunstung_messung
+   where charge_nr = v_charge and netto_jetzt_kg >= netto_damals_kg and verwendbar;
+  assert v_wiegung_verwendbar = 0, format('0070 (b): %s Wägung(en) ohne Gewichtsverlust gelten als verwendbar', v_wiegung_verwendbar);
+
+  select count(*) into v_zukunft from v_plausibilitaet where charge_nr = v_charge and art = 'Zetteldatum Zukunft';
+  assert v_zukunft > 0, '0070 (c): das Eingangsdatum in der Zukunft wird nicht als Auffälligkeit gemeldet';
+
+  raise notice 'OK  0070 (a: % plausible negative Punkte, b: % verwendbare Nullverlust-Wägungen, c: % Zukunfts-Auffälligkeit)',
+    v_neg_plausibel, v_wiegung_verwendbar, v_zukunft;
+
+  -- Aufräumen — die Prüfung hinterlässt keine Zeile.
+  delete from auftrag_angabe where auftrag_id = v_auftrag;
+  delete from schimmel_messung where auftrag_id = v_auftrag;
+  delete from auftrag_palette where auftrag_id = v_auftrag;
+  delete from auftrag where id = v_auftrag;
+  delete from verdunstung_wiegung where charge_nr = v_charge;
+  delete from palette where charge_nr = v_charge;
+  delete from charge where nr = v_charge;
+end $$;
+
+select '——— 0070 geprüft ———' as ergebnis;

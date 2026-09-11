@@ -152,7 +152,8 @@ test('Kaskade: Verkaufsanteil, m0 und alle Ströme je Zeile — und die Invarian
 
 test('Zeit: kein plausibler Schimmelpunkt und keine Arbeit mit negativen Lagertagen (K7)', { skip }, () => {
   const punkte = frage('select charge_nr, quelle, lagertage, plausibel from mv_schimmel_punkte')
-  const arbeiten = frage('select auftrag_id, station, lagertage from v_auftrag_masse')
-  const v = zeitLaeuftVorwaerts(punkte, arbeiten)
+  const arbeiten = frage('select auftrag_id, station, charge_nr, lagertage from v_auftrag_masse')
+  const geflaggt = new Set(frage("select distinct charge_nr from v_plausibilitaet where art = 'Zetteldatum Zukunft'").map(r => String(r.charge_nr)))
+  const v = zeitLaeuftVorwaerts(punkte, arbeiten, geflaggt)
   assert.deepEqual(v, [], `K7 verletzt (${v.length}):\n  ${v.map(x => `${x.wo}: ${x.ist} — soll ${x.soll}`).join('\n  ')}`)
 })

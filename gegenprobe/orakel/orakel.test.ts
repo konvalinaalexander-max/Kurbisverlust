@@ -268,8 +268,13 @@ test('K7 fängt den Zettel mit dem falschen Jahr — plausibel und negativ zugle
   const punkte = [{ charge_nr: 9901, quelle: 'verarbeitung', lagertage: '-1053.0', plausibel: true },
                   { charge_nr: 9901, quelle: 'lager', lagertage: '-1054', plausibel: false },
                   { charge_nr: 1613, quelle: 'verarbeitung', lagertage: '44.0', plausibel: true }]
-  const v = zeitLaeuftVorwaerts(punkte, [{ auftrag_id: 313, station: 'waschen', lagertage: '-137.7' }])
-  assert.deepEqual(v.map(x => x.wo), ['Punkt Charge 9901 (verarbeitung)', 'Arbeit 313 (waschen)'])
+  // Eine Arbeit mit negativen Lagertagen ist nur dann ein Verstoss, wenn ihre
+  // Charge NICHT als Auffälligkeit gemeldet ist: 9902 ist gemeldet (kein
+  // Verstoss), 9903 nicht (Verstoss).
+  const arbeiten = [{ auftrag_id: 313, station: 'waschen', charge_nr: 9902, lagertage: '-137.7' },
+                    { auftrag_id: 314, station: 'sortieren', charge_nr: 9903, lagertage: '-9.0' }]
+  const v = zeitLaeuftVorwaerts(punkte, arbeiten, new Set(['9902']))
+  assert.deepEqual(v.map(x => x.wo), ['Punkt Charge 9901 (verarbeitung)', 'Arbeit 314 (sortieren, Charge 9903)'])
 })
 
 test('vergleiche: Toleranz je Spalte, fehlende Partner auf beiden Seiten', () => {

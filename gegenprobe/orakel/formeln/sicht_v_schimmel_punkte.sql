@@ -37,7 +37,7 @@ UNION ALL
     s.kg AS schimmel_kg,
     a.eingang_netto_kg + s.kg AS basis_jetzt_kg,
     k.f2 AS anteil,
-    anteil_plausibel(k.f2) AS plausibel,
+    anteil_plausibel(k.f2) AND a.lagertage >= 0::numeric AS plausibel,
         CASE
             WHEN g.auftrag_id IS NOT NULL THEN 'verarbeitung_gemischt'::text
             ELSE 'verarbeitung'::text

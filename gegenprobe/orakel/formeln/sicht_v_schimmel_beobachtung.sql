@@ -14,7 +14,7 @@
     am.eingang_netto_kg AS eingang_kg,
     zahl(am.eingang_netto_kg * power(1::numeric - x.r, x.tage), 2, '10000000000'::numeric)::numeric(12,2) AS basis_jetzt_kg,
     s.kg / NULLIF(am.eingang_netto_kg * power(1::numeric - x.r, x.tage), 0::numeric) AS anteil,
-    anteil_plausibel(s.kg / NULLIF(am.eingang_netto_kg * power(1::numeric - x.r, x.tage), 0::numeric)) AS plausibel,
+    anteil_plausibel(s.kg / NULLIF(am.eingang_netto_kg * power(1::numeric - x.r, x.tage), 0::numeric)) AND am.lagertage >= 0::numeric AS plausibel,
     am.ist_fax
    FROM v_auftrag_masse am
      JOIN v_schimmel_menge s ON s.auftrag_id = am.auftrag_id

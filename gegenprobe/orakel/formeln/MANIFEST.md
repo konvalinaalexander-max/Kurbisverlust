@@ -89,22 +89,22 @@ eine Formel seit dem letzten Abzug bewegt hat, zieht neu ab und sieht es im `git
 | sicht | `v_naechste_charge` | `sicht_v_naechste_charge.sql` | 109 | `19ea305bdfcf` |
 | sicht | `v_palette` | `sicht_v_palette.sql` | 9 | `8986da3705b8` |
 | sicht | `v_palox_stand` | `sicht_v_palox_stand.sql` | 19 | `28cc46d93111` |
-| sicht | `v_plausibilitaet` | `sicht_v_plausibilitaet.sql` | 243 | `36ccfdbb617f` |
+| sicht | `v_plausibilitaet` | `sicht_v_plausibilitaet.sql` | 268 | `3c0964f4bab4` |
 | sicht | `v_plausibilitaet_0054_zusatz` | `sicht_v_plausibilitaet_0054_zusatz.sql` | 49 | `90993267f053` |
 | sicht | `v_plausibilitaet_0064_zusatz` | `sicht_v_plausibilitaet_0064_zusatz.sql` | 55 | `b878b26b0822` |
 | sicht | `v_saisonbilanz` | `sicht_v_saisonbilanz.sql` | 116 | `204d569e8774` |
-| sicht | `v_schimmel_beobachtung` | `sicht_v_schimmel_beobachtung.sql` | 21 | `8ca4c212a1e9` |
+| sicht | `v_schimmel_beobachtung` | `sicht_v_schimmel_beobachtung.sql` | 21 | `d6d011b71dc1` |
 | sicht | `v_schimmel_kurve` | `sicht_v_schimmel_kurve.sql` | 27 | `412bffa8a03d` |
 | sicht | `v_schimmel_kurve_anzeige` | `sicht_v_schimmel_kurve_anzeige.sql` | 27 | `59cdbc23ce08` |
 | sicht | `v_schimmel_menge` | `sicht_v_schimmel_menge.sql` | 12 | `a793e2b1db03` |
 | sicht | `v_schimmel_modell` | `sicht_v_schimmel_modell.sql` | 25 | `437aa2b6d9fa` |
 | sicht | `v_schimmel_modell_rechnen` | `sicht_v_schimmel_modell_rechnen.sql` | 298 | `79b98af5e3a4` |
-| sicht | `v_schimmel_punkte` | `sicht_v_schimmel_punkte.sql` | 65 | `065939f9d825` |
+| sicht | `v_schimmel_punkte` | `sicht_v_schimmel_punkte.sql` | 65 | `371c03bf9055` |
 | sicht | `v_selektionsverdacht` | `sicht_v_selektionsverdacht.sql` | 50 | `7a30f363a232` |
 | sicht | `v_sortier_lauf_masse` | `sicht_v_sortier_lauf_masse.sql` | 17 | `8015eef6639c` |
 | sicht | `v_ueberfuellung_verkauf` | `sicht_v_ueberfuellung_verkauf.sql` | 104 | `7eda2ee5cd2d` |
 | sicht | `v_verarbeitung_alter` | `sicht_v_verarbeitung_alter.sql` | 32 | `9cdd8195a0d2` |
-| sicht | `v_verdunstung_messung` | `sicht_v_verdunstung_messung.sql` | 25 | `b1a76ff7285d` |
+| sicht | `v_verdunstung_messung` | `sicht_v_verdunstung_messung.sql` | 25 | `31ca0b6ce6af` |
 | sicht | `v_verkauf_lieferung` | `sicht_v_verkauf_lieferung.sql` | 78 | `f90d4413a206` |
 | sicht | `v_verlust_je_gruppe` | `sicht_v_verlust_je_gruppe.sql` | 232 | `19cc762671de` |
 | sicht | `v_verlust_ranking` | `sicht_v_verlust_ranking.sql` | 13 | `c35e5e5e0528` |
@@ -141,7 +141,7 @@ eine Formel seit dem letzten Abzug bewegt hat, zieht neu ab und sieht es im `git
 | funktion | `palox_station(p_station station)` | `funktion_palox_station.sql` | 10 | `19568b3a25f2` |
 | funktion | `palox_tara_kg()` | `funktion_palox_tara_kg.sql` | 9 | `ddd9f78abba6` |
 | funktion | `rolle_schuetzen()` | `funktion_rolle_schuetzen.sql` | 16 | `2cc07223e203` |
-| funktion | `schema_stand()` | `funktion_schema_stand.sql` | 7 | `73de89418201` |
+| funktion | `schema_stand()` | `funktion_schema_stand.sql` | 7 | `cf6635e1cc9a` |
 | funktion | `schimmel_netto_setzen()` | `funktion_schimmel_netto_setzen.sql` | 27 | `fdf47d6f2ba4` |
 | funktion | `schimmelanteil(p_lagertage numeric, p_szenario text)` | `funktion_schimmelanteil.sql` | 25 | `0829ff1cac63` |
 | funktion | `sockel_anteil()` | `funktion_sockel_anteil.sql` | 8 | `06e050d4c19f` |

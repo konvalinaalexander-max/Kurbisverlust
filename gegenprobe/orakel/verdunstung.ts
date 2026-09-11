@@ -55,7 +55,8 @@ export function messung(w: Waegung, gebinde: Map<string, Tara>): Messung {
   if (damals == null || jetzt == null) gruende.push('kein Netto (Kisten oder Tara fehlt)')
   else {
     if (!(damals > 0 && jetzt > 0)) gruende.push('Netto nicht positiv')
-    if (jetzt > damals * 1.01) gruende.push('Palette mehr als 1 % schwerer als beim Eingang')
+    else if (jetzt > damals * 1.01) gruende.push('Palette mehr als 1 % schwerer als beim Eingang')
+    else if (jetzt === damals) gruende.push('kein Gramm verloren — Eingangsgewicht wohl kopiert (sortierte Palette ohne echtes Zettelgewicht)')
   }
   if (lagertage <= 0) gruende.push(lagertage < 0 ? 'Wiegetag vor dem Eingang (Zettel falsch?)' : 'am Eingangstag gewogen')
   if (w.abgebrochen) gruende.push('Arbeit abgebrochen')
