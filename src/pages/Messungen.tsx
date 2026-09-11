@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { datum, kg, prozent, zahl } from '../lib/format'
 import { Aufklapp, Herkunft, Hinweis, Karte, Marke } from '../components/Bausteine'
 import { Linien } from '../components/Diagramm'
+import { achsenBereich } from '../lib/achse'
 import { hochrechnungLaden, useAuswertung, type Datenqualitaet } from '../auswertung/daten'
 import { Auffaelligkeiten, Bilanz, Kurvenherkunft, Probleme, Rechnet, Reiterkopf } from '../auswertung/Karten'
 import { Kontrollkorrektur } from '../arbeit/Korrektur'
@@ -26,7 +27,15 @@ export default function Messungen() {
   if (!daten) return null
   const m = daten.modell
   const taraLuecken = daten.lage.filter(l => l.n_paletten > 0 && l.n_paletten_mit_netto < l.n_paletten)
-  const alter = daten.verarbeitung.filter(v => v.differenz !== null)
+  // Ein einzelner Ausreisser (ein vergiftetes Chargenalter aus einem Zettel in
+  // der Zukunft) würde die Achse verziehen und alle übrigen zu einem Strich
+  // stauchen. achsenBereich() findet ihn (derselbe Alleinherrscher-Test wie im
+  // Diagramm); die betroffenen Arbeiten bleiben aus dem Bild und stehen als
+  // Hinweis. Sie sind ohnehin oben als Auffälligkeit gemeldet.
+  const alterRoh = daten.verarbeitung.filter(v => v.differenz !== null)
+  const drausx = new Set(achsenBereich(alterRoh.map(v => v.differenz ?? 0), 'frei').ausgeschlossen)
+  const alter = alterRoh.filter(v => !drausx.has(v.differenz ?? 0))
+  const alterAusreisser = alterRoh.length - alter.length
   const stationen = [...new Set(daten.durchsatz.map(d => d.station))]
 
   // Die volle Hochrechnung wird erst hier geholt, beim Klick — sie ist einige
@@ -89,6 +98,11 @@ export default function Messungen() {
         {alter.length > 2 && (
           <p className="leise" style={{ margin: '.5rem 0 0' }}>
             Im Mittel {(() => { const d = alter.reduce((a, v) => a + (v.differenz ?? 0), 0) / alter.length; return `${d > 0 ? '+' : ''}${d.toFixed(1)} Tage` })()} gegenüber dem Durchschnitt der Charge, über {alter.length} Arbeiten.
+          </p>
+        )}
+        {alterAusreisser > 0 && (
+          <p className="leise" style={{ margin: '.35rem 0 0', fontSize: '.78rem' }}>
+            {alterAusreisser === 1 ? '1 Arbeit weicht' : `${alterAusreisser} Arbeiten weichen`} über ein Jahr vom Chargenschnitt ab — das ist ein Datenfehler (ein Zetteldatum in der Zukunft), kein Reihenfolge-Effekt. Er steht oben unter den Auffälligkeiten.
           </p>
         )}
       </Karte>

@@ -4,6 +4,7 @@ import { useSprache } from '../sprache/SprachProvider'
 import { fehlerText } from '../lib/db'
 import { Hinweis } from '../components/Bausteine'
 import { stationsProfil, type ArbeitDaten } from './daten'
+import { heute } from '../lib/format'
 
 const ZETTEL = (id: number) => `zettel_${id}`
 const SORTIERDATUM = (id: number) => `sortierdatum_${id}`
@@ -223,6 +224,9 @@ export function Zaehler({ d, gesperrt, neuLaden, melden, zumWiegen }: {
             <p className="leise" style={{ margin: '.35rem 0 0' }}>
               {zettel === '' ? t('datumZettelPflicht') : t('datumBleibt')}
             </p>
+            {zettel !== '' && zettel > heute() && (
+              <p style={{ margin: '.35rem 0 0', color: 'var(--gelb)', fontWeight: 500 }}>{t('datumZukunft')}</p>
+            )}
           </div>
           {p.zettelGewichtPflicht && (
             <div className="feld">

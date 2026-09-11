@@ -166,12 +166,23 @@ function Verderb({ daten, strom, feld, eingang, lager, sorte, chargen, filter }:
             punkte: kurveReihe.map(k => ({ x: k.x, y: k.y, text: k.text })),
             band: kurveReihe.map(k => ({ x: k.x, unten: k.unten, oben: k.oben })) },
           { name: 'Messung am Band / Waschbecken', farbe: 'var(--strom-verdunstung)',
-            punkte: punkte.filter(p => p.quelle === 'verarbeitung').map(p => ({ x: p.lagertage, y: (p.anteil ?? 0) * 100, text: `Charge ${p.charge_nr} · ${p.sorte}` })) },
+            punkte: punkte.filter(p => p.quelle === 'verarbeitung' && p.plausibel).map(p => ({ x: p.lagertage, y: (p.anteil ?? 0) * 100, text: `Charge ${p.charge_nr} · ${p.sorte}` })) },
           { name: 'Messung bei der Lagerkontrolle', farbe: 'var(--strom-feld)',
-            punkte: punkte.filter(p => p.quelle === 'lager').map(p => ({ x: p.lagertage, y: (p.anteil ?? 0) * 100, text: `Charge ${p.charge_nr} · ${p.sorte}` })) },
+            punkte: punkte.filter(p => p.quelle === 'lager' && p.plausibel).map(p => ({ x: p.lagertage, y: (p.anteil ?? 0) * 100, text: `Charge ${p.charge_nr} · ${p.sorte}` })) },
         ].filter(r => r.punkte.length > 0)}
-        xFormat={x => `${Math.round(x)}`} yFormat={y => `${y.toFixed(1)} %`} xTitel="Lagertage" yTitel="Anteil faul" yVon={0}
+        xFormat={x => `${Math.round(x)}`} yFormat={y => `${y.toFixed(1)} %`} xTitel="Lagertage" yTitel="Anteil faul"
+        xEinheit="tage" yEinheit="prozent" yVon={0}
+        ausgeschlossenText={x => `${Math.round(x)} Lagertage`}
         leer="noch keine Schimmelmessung" />
+      {(() => {
+        const n = punkte.filter(p => (p.quelle === 'verarbeitung' || p.quelle === 'lager') && !p.plausibel).length
+        return n > 0 ? (
+          <p className="leise" style={{ margin: '.35rem 0 0', fontSize: '.78rem' }}>
+            {n === 1 ? '1 Messung ist nicht plausibel' : `${n} Messungen sind nicht plausibel`} und deshalb nicht im Bild
+            (Anteil über der halben Masse oder Eingangsdatum nach der Arbeit) — sie stehen unter <Link to="/messungen">Messungen</Link> mit Grund.
+          </p>
+        ) : null
+      })()}
       {m && (
         <p className="leise" style={{ margin: '.5rem 0 0' }}>
           {m.brauchbar
@@ -209,9 +220,16 @@ function Verderb({ daten, strom, feld, eingang, lager, sorte, chargen, filter }:
 function Verdunstung({ daten, strom, eingang, lager, sorte, chargen, filter }: {
   daten: Auswertung; strom?: StromSumme; eingang: number; lager: number; sorte: string; chargen: Set<number>; filter: Filter
 }) {
-  const wiegungen = daten.wiegungen
+  // Nur echte Verlust-Messungen ins Bild: eine Palette, die schwerer oder
+  // gleich schwer geworden ist, hat nichts verloren (Waagenrauschen oder ein
+  // kopiertes Eingangsgewicht). Sie zählt im gepoolten Mittel weiter (0056),
+  // gehört aber nicht als negativer Punkt auf ein „Gewicht verloren"-Bild —
+  // dort stünde ein Verlust unter null. Wie viele es sind, sagt der Hinweis.
+  const wiegungenAlle = daten.wiegungen
     .filter(w => !w.sichtbar_schimmel && w.netto_damals_kg && w.lagertage > 0 && w.verdunstung_kg !== null)
     .filter(w => chargen.has(w.charge_nr) && (!sorte || w.sorte === sorte))
+  const wiegungen = wiegungenAlle.filter(w => (w.verdunstung_kg ?? 0) > 0)
+  const ohneVerlust = wiegungenAlle.length - wiegungen.length
   const sorten = [...new Set(wiegungen.map(w => w.sorte))].sort()
   const tMax = Math.max(...wiegungen.map(w => w.lagertage), 30)
   const rate = (s: string) => daten.sorten.verdunstung.find(k => k.sorte === s)
@@ -253,8 +271,14 @@ function Verdunstung({ daten, strom, eingang, lager, sorte, chargen, filter }: {
       ]} />
       <p className="leise">Jede gewogene Palette: wie viel Prozent ihres Eingangsgewichts sie bis zum Wiegen verloren hat, über der Lagerdauer. Die gestrichelte Linie ist die Erwartung der Sorte, der Streifen ihr Bereich — liegen die Punkte darin, trägt die Rate; liegen sie systematisch darüber oder darunter, stimmt sie nicht. Paletten mit sichtbar Faulem zählen nicht, sonst würde Fäulnis als Wasser verbucht.</p>
       <Linien reihen={[...linien, ...punktReihen]}
-              xFormat={x => `${Math.round(x)}`} yFormat={y => `${y.toFixed(1)} %`} xTitel="Lagertage beim Wiegen" yTitel="Gewicht verloren" yVon={0}
+              xFormat={x => `${Math.round(x)}`} yFormat={y => `${y.toFixed(1)} %`} xTitel="Lagertage beim Wiegen" yTitel="Gewicht verloren"
+              xEinheit="tage" yEinheit="prozent" ausgeschlossenText={x => `${Math.round(x)} Lagertage`}
               leer="noch keine Palette gewogen" />
+      {ohneVerlust > 0 && (
+        <p className="leise" style={{ margin: '.35rem 0 0', fontSize: '.78rem' }}>
+          {ohneVerlust === 1 ? '1 Wägung zeigt keinen Verlust' : `${ohneVerlust} Wägungen zeigen keinen Verlust`} (Palette gleich schwer oder schwerer als beim Eingang) — nicht im Bild; sie stehen unter <Link to="/messungen">Messungen</Link>.
+        </p>
+      )}
       {tabelle.length > 0 && filter.gruppe !== 'charge' && (
         <Aufklapp titel={<>Je Sorte: die Rate <span className="leise">({tabelle.length} Sorten)</span></>}>
           <p className="leise" style={{ margin: '.3rem 0 .4rem' }}>Nach Rate sortiert — oben hält am besten. Grau: zu wenige eigene Messungen, es gilt der Gesamtwert aller Sorten.</p>

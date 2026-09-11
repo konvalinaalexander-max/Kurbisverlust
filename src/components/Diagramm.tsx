@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react'
 import { kg as kgText, prozent, tonnen, zahl } from '../lib/format'
+import { achsenBereich, type Einheit } from '../lib/achse'
 
 /**
  * Diagramme von Hand als SVG — Linien, Glocke (Verteilung), Anteilsbalken.
@@ -98,12 +99,18 @@ function useZeiger() {
 /* ---------- Linien -------------------------------------------------------- */
 
 export function Linien({ reihen, hoehe = 280, xFormat = String, yFormat = String, xTitel, yTitel,
-                         yVon, yBis, xVon, xBis, senkrechte = [], waagrechte = [], heute, leer = 'keine Messung',
-                         zoom = true, tabelle: tabelleErlaubt = true, kompakt = false }: {
+                         yVon, yBis, xVon, xBis, xEinheit = 'frei', yEinheit = 'frei',
+                         senkrechte = [], waagrechte = [], heute, leer = 'keine Messung',
+                         ausgeschlossenText, zoom = true, tabelle: tabelleErlaubt = true, kompakt = false }: {
   reihen: Reihe[]; hoehe?: number
   xFormat?: (x: number) => string; yFormat?: (y: number) => string
   xTitel?: string; yTitel?: string
   yVon?: number; yBis?: number; xVon?: number; xBis?: number
+  /** Einheit der Achse — hält sie im Rahmen (Lagertage nie < 0, Prozent 0…100)
+   *  und lässt einen einzelnen Ausreisser die Achse nicht bestimmen. */
+  xEinheit?: Einheit; yEinheit?: Einheit
+  /** Wie ein ausgeschlossener x-Wert benannt wird (für den Hinweis unter dem Bild). */
+  ausgeschlossenText?: (x: number) => string
   /** Senkrechte Hilfslinien mit Beschriftung (etwa Kalibergrenzen). */
   senkrechte?: { x: number; text: string }[]
   /** Waagrechte Bezugslinien (etwa der Mittelwert einer Sorte). */
@@ -130,8 +137,19 @@ export function Linien({ reihen, hoehe = 280, xFormat = String, yFormat = String
   const oben = yTitel ? O + 12 : O
 
   const m = useMemo(() => {
-    const xsAlle = reihen.flatMap(r => r.punkte.map(p => p.x)).concat(senkrechte.map(s => s.x), heute ? [heute.x] : [])
-    const xMinAlle = xVon ?? Math.min(...xsAlle), xMaxAlle = xBis ?? Math.max(...xsAlle)
+    // Die Achse folgt den Datenpunkten, nicht einem einzelnen Ausreisser: ein
+    // Zetteldatum in der Zukunft (negative Lagertage) oder ein Tippfehler soll
+    // sie nicht bis −1000 ziehen. achsenBereich() kennt die Einheit und wirft
+    // solche Werte aus der Achse (sie stehen als Hinweis unter dem Bild).
+    const datenX = reihen.flatMap(r => r.punkte.map(p => p.x))
+    const bereich = achsenBereich(datenX, xEinheit, { von: xVon, bis: xBis })
+    // „heute" und Hilfslinien gehören ins Bild, bestimmen die Achse aber nie —
+    // und nur, soweit die Einheit sie zulässt.
+    const g = xEinheit === 'tage' || xEinheit === 'kg' || xEinheit === 'stueck' ? 0 : -Infinity
+    const zusatzX = senkrechte.map(s => s.x).concat(heute ? [heute.x] : []).filter(x => Number.isFinite(x) && x >= g)
+    const xMinAlle = xVon ?? Math.min(bereich.von, ...zusatzX)
+    const xMaxAlle = xBis ?? Math.max(bereich.bis, ...zusatzX)
+    const ausserhalb = bereich.ausgeschlossen
     const x0 = sicht ? sicht[0] : xMinAlle, x1 = sicht ? sicht[1] : xMaxAlle
     const imFenster = (x: number) => x >= x0 && x <= x1
     const ys = alle.filter(p => imFenster(p.x)).map(p => p.y)
@@ -148,12 +166,12 @@ export function Linien({ reihen, hoehe = 280, xFormat = String, yFormat = String
     const sx = (x: number) => L + (x1 > x0 ? (x - x0) / (x1 - x0) : 0.5) * (B - L - R)
     const sy = (y: number) => hoehe - U - (yMax > yMin ? (y - yMin) / (yMax - yMin) : 0.5) * (hoehe - oben - U)
     const xVonPx = (px: number) => x0 + ((px - L) / (B - L - R)) * (x1 - x0)
-    return { x0, x1, xMinAlle, xMaxAlle, yMin, yMax, sx, sy, xt, yt, xVonPx }
-  }, [reihen, alle, bandwerte, senkrechte, waagrechte, heute, xVon, xBis, yVon, yBis, hoehe, oben, sicht, kompakt])
+    return { x0, x1, xMinAlle, xMaxAlle, yMin, yMax, sx, sy, xt, yt, xVonPx, ausserhalb }
+  }, [reihen, alle, bandwerte, senkrechte, waagrechte, heute, xVon, xBis, xEinheit, yVon, yBis, hoehe, oben, sicht, kompakt])
 
   if (reihen.every(r => r.punkte.length === 0)) return <p className="leise">{leer}</p>
 
-  const { x0, x1, sx, sy, xt, yt, yMin, xVonPx } = m
+  const { x0, x1, sx, sy, xt, yt, yMin, xVonPx, ausserhalb } = m
 
   // Zeigerposition im SVG-Raster (B × hoehe), aus der Bildschirmposition
   const raster = (e: React.MouseEvent<SVGSVGElement>) => {
@@ -231,14 +249,14 @@ export function Linien({ reihen, hoehe = 280, xFormat = String, yFormat = String
   const linienTeile = (r: Reihe) => {
     const ps = fensterPunkte(r.punkte)
     if (ps.length < 2) return null
-    if (r.prognoseAb === undefined) return <path d={pfadVon(ps)} fill="none" stroke={r.farbe} strokeWidth="2" strokeLinejoin="round" strokeDasharray={r.gestrichelt ? '5 5' : undefined} />
+    if (r.prognoseAb === undefined) return <path className="linie" pathLength={1} d={pfadVon(ps)} fill="none" stroke={r.farbe} strokeWidth="2" strokeLinejoin="round" strokeDasharray={r.gestrichelt ? '5 5' : undefined} />
     const fest = ps.filter(p => p.x <= r.prognoseAb!)
     const rest = ps.filter(p => p.x >= r.prognoseAb!)
     // Der letzte feste Punkt gehört auch zur Prognose, damit die Linie nicht abreisst
     if (fest.length && rest[0]?.x !== fest[fest.length - 1].x) rest.unshift(fest[fest.length - 1])
     return (
       <>
-        {fest.length > 1 && <path d={pfadVon(fest)} fill="none" stroke={r.farbe} strokeWidth="2" strokeLinejoin="round" />}
+        {fest.length > 1 && <path className="linie" pathLength={1} d={pfadVon(fest)} fill="none" stroke={r.farbe} strokeWidth="2" strokeLinejoin="round" />}
         {rest.length > 1 && <path d={pfadVon(rest)} fill="none" stroke={r.farbe} strokeWidth="2" strokeLinejoin="round" strokeDasharray="5 5" opacity=".85" />}
       </>
     )
@@ -249,18 +267,18 @@ export function Linien({ reihen, hoehe = 280, xFormat = String, yFormat = String
     <div className="diagramm" ref={rahmen}>
       <div className="rollbar" style={{ position: 'relative' }}>
         <svg viewBox={`0 0 ${B} ${hoehe}`} style={{ width: '100%', minWidth: kompakt ? 320 : 420, height: 'auto', display: 'block', cursor: zieh ? 'col-resize' : zoom ? 'crosshair' : 'default' }}
-             role="img" aria-label={yTitel ?? ''}
+             role="img" aria-label={yTitel ?? ''} data-x-einheit={xEinheit} data-y-einheit={yEinheit}
              onMouseMove={bewegung} onMouseLeave={() => { setHover(null); setZieh(null) }}
              onMouseDown={druecken} onMouseUp={loslassen} onDoubleClick={() => setSicht(null)} onWheel={rad}>
           <defs><clipPath id={clipId}><rect x={L} y={oben - 6} width={B - L - R} height={hoehe - oben - U + 6} /></clipPath></defs>
           {yt.map(t => (
             <g key={`y${t}`}>
               <line x1={L} x2={B - R} y1={sy(t)} y2={sy(t)} stroke="var(--rand-leise)" strokeWidth="1" />
-              <text x={L - 6} y={sy(t) + 4} fontSize="11" textAnchor="end" fill="var(--text-leise)">{yFormat(t)}</text>
+              <text className="strich" x={L - 6} y={sy(t) + 4} fontSize="11" textAnchor="end" fill="var(--text-leise)">{yFormat(t)}</text>
             </g>
           ))}
           {xt.map(t => (
-            <text key={`x${t}`} x={sx(t)} y={hoehe - U + 16} fontSize="11" textAnchor="middle" fill="var(--text-leise)">{xFormat(t)}</text>
+            <text key={`x${t}`} className="strich" x={sx(t)} y={hoehe - U + 16} fontSize="11" textAnchor="middle" fill="var(--text-leise)">{xFormat(t)}</text>
           ))}
           <line x1={L} x2={B - R} y1={sy(Math.max(yMin, 0))} y2={sy(Math.max(yMin, 0))} stroke="var(--rand)" strokeWidth="1" />
           {xTitel && <text x={B - R} y={hoehe - 4} fontSize="11" textAnchor="end" fill="var(--text-leise)">{xTitel}</text>}
@@ -291,7 +309,7 @@ export function Linien({ reihen, hoehe = 280, xFormat = String, yFormat = String
             ))}
             {sichtbar.map(r => r.linie && <g key={`l${r.name}`}>{linienTeile(r)}</g>)}
             {sichtbar.map(r => (r.marker ?? !r.linie) && r.punkte.filter(imFenster).map((p, i) => (
-              <circle key={`${r.name}${i}`} cx={sx(p.x)} cy={sy(p.y)} r={kompakt ? 3 : 4} fill={r.farbe}
+              <circle key={`${r.name}${i}`} className="marker" cx={sx(p.x)} cy={sy(p.y)} r={kompakt ? 3 : 4} fill={r.farbe}
                       stroke="var(--flaeche)" strokeWidth="1.5" />
             )))}
             {hover && (
@@ -322,6 +340,14 @@ export function Linien({ reihen, hoehe = 280, xFormat = String, yFormat = String
           </>
         ) } : null} />
       </div>
+      {ausserhalb.length > 0 && (
+        <p className="leise diagramm-ausserhalb" style={{ margin: '.35rem 0 0', fontSize: '.78rem' }}>
+          {ausserhalb.length === 1 ? '1 Messung ausserhalb' : `${ausserhalb.length} Messungen ausserhalb`}
+          {': '}
+          {ausserhalb.map(x => (ausgeschlossenText ? ausgeschlossenText(x) : xFormat(x))).join(', ')}
+          {' — nicht im Bild, damit ein Ausreisser die Achse nicht verzieht.'}
+        </p>
+      )}
       <div className="diagramm-fuss">
         {reihen.length > 1 && (
           <div className="legende" role="group" aria-label="Reihen ein- und ausblenden">
