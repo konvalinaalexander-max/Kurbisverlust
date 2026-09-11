@@ -13,6 +13,7 @@ import { gedeckelt, m0Zurueck, normieren, stroeme, summeStimmt, verkaufsfaehigAn
 import { anpassen, anteilNachModell, treppe, type Punkt } from './schimmel.ts'
 import { bandGeordnet, stroemeSummieren, zeitLaeuftVorwaerts } from './bilanz.ts'
 import { vergleiche } from './vergleich.ts'
+import { band, deckt, deltaVarianz, schimmelSigma } from './band.ts'
 
 const G2: Tara = { kistenKg: 1.5, paletteKg: 25 }
 const GEBINDE = new Map<string, Tara>([['G2', G2], ['IFCO 6416', { kistenKg: 1.68, paletteKg: 25 }]])
@@ -262,6 +263,33 @@ test('K5 fängt ein Band, das keins ist', () => {
   assert.deepEqual(bandGeordnet([{ u: 1, m: 2, o: 3 }], 'u', 'm', 'o', () => 'x'), [])
   assert.equal(bandGeordnet([{ u: 3, m: 2, o: 1 }], 'u', 'm', 'o', () => 'x').length, 1)
   assert.equal(bandGeordnet([{ u: null, m: 2, o: 3 }], 'u', 'm', 'o', () => 'x').length, 1)
+})
+
+test('Delta-Methode: die volle Kovarianz zählt, nicht nur die Diagonale', () => {
+  // Ableitungen [2, 3], Kov [[1, 0.5], [0.5, 4]]
+  // Var = 2·2·1 + 2·3·0.5 + 3·2·0.5 + 3·3·4 = 4 + 3 + 3 + 36 = 46
+  assert.ok(nahe(deltaVarianz([2, 3], [[1, 0.5], [0.5, 4]]), 46))
+  // Nur Diagonale (Kovarianz ignoriert) = 4 + 36 = 40 — hier zu klein
+  assert.ok(nahe(deltaVarianz([2, 3], [[1, 0], [0, 4]]), 40))
+  // Negative Kovarianz kann die Streuung senken
+  assert.ok(nahe(deltaVarianz([2, 3], [[1, -0.5], [-0.5, 4]]), 34))
+  // Var ist nie negativ
+  assert.equal(deltaVarianz([1, -1], [[1, 0.9], [0.9, 1]]) >= 0, true)
+})
+
+test('Band: mittel ± t·√Var; Überdeckung', () => {
+  const b = band(10, [1], [[4]], 2)   // sigma = 2, t = 2
+  assert.ok(nahe(b.sigma, 2)); assert.ok(nahe(b.unten, 6)); assert.ok(nahe(b.oben, 14))
+  assert.equal(deckt(b.unten, b.oben, 7), true)
+  assert.equal(deckt(b.unten, b.oben, 5), false)
+})
+
+test('Schimmel-Sigma: die Ableitung df/dη = (1−f)·exp(η) darf nicht fehlen (AUF-001)', () => {
+  // η = 0 → f = 1 − e^-1 = 0.6321, df/dη = 0.3679
+  assert.ok(nahe(schimmelSigma(0, 0.1), 0.036788, 1e-5))  // 0.3679 · 0.1
+  // Wer nur σ(η) durchreicht (0.1), unterschätzt σ(f) hier nicht — aber bei
+  // grossem η wird die Ableitung klein und der Unterschied gross:
+  assert.ok(schimmelSigma(2, 0.5) < 0.5)   // f nahe 1, df/dη klein → σ(f) < σ(η)
 })
 
 test('K7 fängt den Zettel mit dem falschen Jahr — plausibel und negativ zugleich', () => {
