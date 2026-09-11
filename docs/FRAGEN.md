@@ -710,7 +710,11 @@ Alter der **Charge** und einen Beleg, was noch steht.
 
 > Wiegt ihr sortierte Paletten überhaupt noch nach — und wenn ja, was wollt
 > ihr daraus wissen: nur das Faule, oder auch, wie viel noch da ist?
-> Antwort:
+> **Antwort (11. September): Nein, nicht nachwiegen — das Gewicht nach dem
+> Sortieren kennt niemand, also ist es nutzlos.** Damit ist die Frage
+> **entschieden**: kein dritter Weg in der Maske. Migration 0070 sorgt dafür,
+> dass eine solche Wägung (kopiertes Eingangsgewicht, Rate exakt null) nicht
+> als verwendbar zählt und keine Verdunstungsrate bildet.
 
 **58. Soll die App die sortierten Paletten als Paletten kennen?**
 Heute kennt sie nach dem Sortieren nur die Summe der Kisten je Kaliber
@@ -725,7 +729,9 @@ richtig, wenn der Betrieb die Frage wirklich stellt.
 
 > Fragt ihr euch im Winter „wie viele Paletten Kaliber mittel haben wir
 > noch" — und beantwortet ihr das heute durch Nachzählen im Lager?
-> Antwort:
+> **Antwort (11. September): entfällt.** Da sortierte Paletten nicht als Ding
+> geführt werden (Frage 57), baut die App auch keinen Palettenbestand je
+> Kaliber. Falls der Betrieb das später braucht, ist es eine eigene Runde.
 
 **59. Darf ein Zetteldatum in der Zukunft gespeichert werden?**
 Der Fall vom Betrieb: ein Zähler wählt 2029 statt 2026, die App speichert es
@@ -741,5 +747,9 @@ beobachtet wurde, und zeigen, was daran auffällt". Warnen passt dazu;
 sperren ist bequemer für die Auswertung.
 
 > Sperren oder warnen?
-> Antwort:
+> **Antwort (11. September): warnen.** Der Zähler zeigt bei einem Datum in der
+> Zukunft „liegt in der Zukunft — Jahr prüfen", speichert die Beobachtung aber
+> trotzdem; die Auswertung meldet sie als Auffälligkeit „Zetteldatum Zukunft"
+> und rechnet sie nicht mit (Migration 0070). Das ist die Linie des Programms:
+> es zeigt, es hindert nicht.
 

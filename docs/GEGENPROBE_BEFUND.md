@@ -11,8 +11,8 @@ steht hier — mit Zahl, und mit der Prüfung, die es jetzt hält.
 ## 1. Was gemessen wurde, mit Befehl
 
 ```
-node gegenprobe/lauf.mjs --db demo          # Orakel gegen die Demo: 38/38
-node gegenprobe/lauf.mjs --db boese         # gegen die böse Saison: 38/38
+node gegenprobe/lauf.mjs --db demo          # Orakel gegen die Demo: 41/41
+node gegenprobe/lauf.mjs --db boese         # gegen die böse Saison: 41/41
 node gegenprobe/drehbuecher/spieler.mjs 01  # eine Charge ganz durch: 8/8
 node gegenprobe/drehbuecher/spieler.mjs 02  # der Zettel von 2029: 3/3
 node gegenprobe/bildschirm/invarianten.mjs                      # Demo:  0 Achsen-Verstösse

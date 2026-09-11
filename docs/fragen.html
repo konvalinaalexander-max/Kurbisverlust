@@ -21,6 +21,9 @@ h1{font-size:15.5pt;margin:0 0 1.5mm}
 .marke.blockt{background:#f6e2de;color:#9c4030}
 .marke.kippt{background:#faf0dc;color:#8a6a2a}
 .marke.alt{background:#eceef0;color:#5f6b76}
+.marke.fertig{background:#e2efe1;color:#3f6b3a}
+.f .antwort{margin:.9mm 0 0;font-size:9.2pt}
+.f .antwort b{color:#3f6b3a}
 h2{margin-top:6mm}
 h2 .zusatz{font-family:'Charter','Bitstream Charter',serif;font-weight:400;font-size:9pt;
   font-style:italic;color:#666;display:block;margin-top:.6mm;letter-spacing:0}
@@ -29,12 +32,14 @@ h2 .zusatz{font-family:'Charter','Bitstream Charter',serif;font-weight:400;font-
 <div class="dokkopf">
   <div class="ober">Kürbis-Verlust-Tracking</div>
   <h1>Was noch zu klären ist</h1>
-  <p style="margin:0;color:#444">Sechsundzwanzig Fragen, nach dem geordnet, was sie freigeben. Deine
-  letzte Rückmeldung hat viel beantwortet und dabei Neues aufgeworfen — beides steht hier
+  <p style="margin:0;color:#444">Sechsundzwanzig offene Fragen, nach dem geordnet, was sie
+  freigeben — dazu drei aus Runde N, die schon entschieden sind und am Ende als Beleg stehen.
+  Deine letzte Rückmeldung hat viel beantwortet und dabei Neues aufgeworfen — beides steht hier
   zusammen. <span class="marke blockt">blockt</span> heisst: solange das offen ist, kann ich an
   dieser Stelle nicht bauen. <span class="marke kippt">kippt</span> heisst: die Antwort kann die
   Rangfolge der Ursachen umdrehen. <span class="marke alt">offen seit letztem Mal</span> sind
-  Fragen aus der ersten Runde, die noch keine Antwort haben.</p>
+  Fragen aus der ersten Runde, die noch keine Antwort haben. <span class="marke fertig"
+  >entschieden</span> heisst: in dieser Runde beantwortet und gebaut.</p>
 </div>
 
 <h2>A · Damit ich weiterbauen kann
@@ -327,4 +332,47 @@ Arbeitsgang zu einer Charge gehört oder zu mehreren, entscheidet über die Form
 und das im Nachhinein umzubauen, während schon Daten drinstehen, ist die eine Änderung, die
 teuer wird.</p>
 </div>
+
+<h2>E · Aus Runde N — gestellt und gleich entschieden
+  <span class="zusatz">Diese drei kamen aus dem gemeldeten Fehler und der Gegenprobe. Du hast
+  sie sofort beantwortet; sie stehen hier als Beleg, nicht als offene Frage.</span></h2>
+
+<div class="f"><span class="nr">27</span>
+<p class="frage">Wiegt Ihr sortierte Paletten überhaupt noch nach — und wenn ja, was wollt Ihr
+daraus wissen?<span class="marke fertig">entschieden</span></p>
+<p class="zusatz">Nach dem Sortieren stehen die Kisten auf neuen Paletten. Deren Eingangsgewicht
+kennt niemand, also lässt sich aus einer Nachwägung keine Verdunstungsrate bilden — der Umweg
+über das Sortierdatum machte eine Rate aus 8 statt 38 Tagen (Befund N-07).</p>
+<p class="warum"><b>Warum:</b> Es ging darum, ob die App einen dritten Weg in der
+Lagerkontroll-Maske braucht — einen für sortierte Paletten ohne Zettel.</p>
+<p class="antwort"><b>Antwort: Nein, nicht nachwiegen</b> — das Gewicht nach dem Sortieren kennt
+niemand, es ist nutzlos. Kein dritter Weg in der Maske. Die Datenbank fängt den Fall trotzdem
+ab: Eine Wägung, deren Netto auf das Gramm gleich geblieben ist (ein kopiertes Eingangsgewicht,
+Rate exakt null), zählt nicht als verwendbar und bildet keine Rate (Migration 0070). Eine kleine
+Zunahme durch Waagenrauschen bleibt verwendbar — die Zusage aus 0056 gilt weiter.</p></div>
+
+<div class="f"><span class="nr">28</span>
+<p class="frage">Soll die App die sortierten Paletten als Paletten kennen — für einen Bestand je
+Kaliber?<span class="marke fertig">entschieden</span></p>
+<p class="zusatz">Heute kennt die App nach dem Sortieren nur die Summe der Kisten je Kaliber, nicht
+die einzelne neue Palette.</p>
+<p class="warum"><b>Warum:</b> Ein Palettenbestand je Kaliber wäre ein grösserer Umbau und nur
+sinnvoll, wenn der Betrieb die Frage „wie viele Paletten Kaliber mittel haben wir noch" wirklich
+stellt.</p>
+<p class="antwort"><b>Antwort: entfällt.</b> Da sortierte Paletten nicht als Ding geführt werden
+(Frage 27), baut die App auch keinen Palettenbestand je Kaliber. Falls der Betrieb das später
+braucht, ist es eine eigene Runde.</p></div>
+
+<div class="f"><span class="nr">29</span>
+<p class="frage">Darf ein Zetteldatum in der Zukunft gespeichert werden — sperren oder
+warnen?<span class="marke fertig">entschieden</span></p>
+<p class="zusatz">Der gemeldete Fehler kam daher: Ein Zähler wählte 2029 statt 2026, die App
+speicherte es, die Auswertung machte daraus negative Lagertage und verzog ein Diagramm bis
+−1000 Tage.</p>
+<p class="warum"><b>Warum:</b> Sperren wäre bequemer für die Auswertung; warnen passt zur Linie
+des Programms, das speichert, was beobachtet wurde, und zeigt, was daran auffällt.</p>
+<p class="antwort"><b>Antwort: warnen.</b> Der Zähler zeigt bei einem Datum in der Zukunft „liegt
+in der Zukunft — Jahr prüfen", speichert die Beobachtung aber trotzdem; die Auswertung meldet
+sie als Auffälligkeit „Zetteldatum Zukunft" und rechnet sie nicht mit (Migration 0070). Das
+Programm zeigt, es hindert nicht.</p></div>
 </body></html>

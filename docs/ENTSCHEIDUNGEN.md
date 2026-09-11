@@ -2875,3 +2875,77 @@ Was von a7 bleibt, sind drei Freisprüche: Der Boden `GREATEST(…, 0.25)` kann
 bei den gemessenen Verdunstungsraten (0.046 % bis 0.062 % je Tag) nicht
 greifen — er läge bei 6.9 Jahren Lagerdauer; die Normierung der beiden
 Ausschussanteile hält; und über 210 Randwerte bleibt der Anteil in (0, 1].
+
+## Runde N — die Gegenprobe, der gemeldete Fehler, das Erscheinungsbild (11. September, 0070)
+
+Diese Runde prüfte die App **mit Werkzeugen, die ihr nicht gehören** (eine
+zweite Rechnung aus den Rohtabellen, eine böse Saison, Drehbücher aus der
+Halle) und arbeitete den gemeldeten Fehler und das Erscheinungsbild ab. Der
+volle Befund steht in `docs/GEGENPROBE_BEFUND.md`; hier die Entscheidungen.
+
+### Negative Lagertage sind nie plausibel — der Zettel bleibt trotzdem stehen
+
+Ein Zettel mit dem Jahr 2029 ergab negative Lagertage, die als plausibel galten
+und ein Diagramm bis −1000 Tage zogen. Zwei Wege wären möglich gewesen: das
+falsche Datum beim Speichern **sperren**, oder es **stehen lassen und melden**.
+Wir lassen es stehen: gespeichert wird, was beobachtet wurde. Falsch war, was
+die Auswertung daraus machte — und das ist repariert (0070): plausibel nur bei
+Lagertagen ≥ 0, und eine neue Auffälligkeit „Zetteldatum Zukunft" bringt den
+Fehler dem Betriebsleiter zur Korrektur. Der Zähler warnt beim Tippen, sperrt
+aber nicht (Frage 59).
+
+### Das Diagramm kennt die Einheit seiner Achse
+
+Der eigentliche Anzeigefehler sass tiefer als der eine Zettel: `Linien` nahm
+`Math.min(...alleX)` als Achsenanfang, also durfte **jeder** Ausreisser die
+Achse an sich reissen. Jetzt kennt `src/lib/achse.ts` die Einheit — Lagertage
+beginnen bei 0, Prozent liegt zwischen 0 und 100 — und ein einzelner Punkt, der
+die Spanne der übrigen um mehr als das Doppelte verlängert, bestimmt die Achse
+nicht mehr; er steht als Satz unter dem Bild. Dieselbe Regel steht unabhängig
+in `gegenprobe/bildschirm/achse.ts`, damit die Gegenprobe die App prüfen kann,
+ohne aus ihr zu importieren.
+
+### Sortierte Paletten werden nicht als Lagerkontrolle gewogen
+
+Der Betrieb hat entschieden (Frage 57): Nach dem Sortieren stehen die Kisten
+auf neuen Paletten, deren Eingangsgewicht niemand kennt — sie nachzuwiegen ist
+nutzlos. Die App bekommt deshalb **keinen** dritten Weg in der Maske. Die
+Datenbank fängt den Fall ab: Eine Wägung, deren Netto auf das Gramm gleich
+geblieben ist (Rate exakt null — ein kopiertes Eingangsgewicht), ist nicht
+verwendbar. Eine kleine Zunahme durch Waagenrauschen bleibt es dagegen — die
+Zusage aus 0056 gilt weiter, sie war der Grund, „strikten Verlust" wieder zu
+verwerfen und nur die exakte Gleichheit auszuschliessen.
+
+### Betriebstag und Sortier-Eingang bleiben zurückgestellt — wie in 0067, mit Zahl
+
+`mv_auftrag_masse` (Betriebstag statt UTC-Tag) und `mv_sortier_eingang` (ein
+falsches Jahr vergiftet den gemittelten Eingangstag) sitzen beide hinter einem
+51-Objekt-Cascade. 0067 hatte das schon gemessen: fünf von 309 Arbeiten sind
+betroffen, die ganze Auswertung ergibt danach dieselben Zahlen bis auf den
+Rappen. Der falsche Zettel wird jetzt gemeldet und aus der Statistik gehalten;
+die verbleibende Wirkung ist eine falsch **angezeigte** Lagerdauer, bis der
+Betriebsleiter das Jahr berichtigt. Der Umbau gehört in eine eigene Runde, nicht
+in diese (N-03, N-04 in `docs/GEGENPROBE_BEFUND.md`).
+
+### Die Bänder werden nicht verengt, obwohl eines nachweislich zu eng ist
+
+Die Simulationsmatrix zeigt: die Rangfolge der Ursachen stimmt zu 100 %, die
+Hauptströme sind unverzerrt. Der eine blinde Fleck (N-14): liegt ein echter
+Palox-Sockel vor, mischt das Modell ihn mit dem Schimmel — der Schimmel wird um
+21 % zu hoch geschätzt, sein Band überdeckt nur 47 % statt 95 %. Das Band
+**trotzdem** zu verengen wäre falsch: ohne bessere Trennung von Sockel und
+Schimmel senkt das die Überdeckung nur weiter. Die Trennung hängt am
+Verderbsmodell hinter demselben Cascade und ist ein eigener, statistisch
+schwerer Schritt. `gegenprobe/orakel/band.ts` (Delta-Methode mit voller
+Kovarianz) ist der Massstab, an dem eine künftige Runde das misst.
+
+### Warum das Erscheinungsbild gleich bleibt und doch neu ist
+
+Struktur, Reiter, Grafiken und Zahlen sind unverändert — der Auftrag war
+ausdrücklich „gleiche Struktur, gleiche Infos, nur schöner". Neu ist das
+Zeichensystem: ein warmes, sehr helles Neutral statt kühlem Grau, Tiefe aus
+einer feinen Kontur und einem flachen Schatten statt harter Rahmen, ein
+satterer Kürbis als einziger Akzent, einfarbige SVG-Strichzeichen statt Emoji,
+und ruhige Bewegung (Knopf, Fokus, Linie, Karte). Alles ohne eine neue
+Abhängigkeit; die Strom-Farben blieben, weil sie Bedeutung tragen und auf
+Farbfehlsichtigkeit geprüft sind.
