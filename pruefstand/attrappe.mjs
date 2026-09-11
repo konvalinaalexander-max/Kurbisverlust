@@ -21,7 +21,10 @@ import { fileURLToPath } from 'node:url'
 import { filtern, seite } from './postgrest.mjs'
 
 const HIER = dirname(fileURLToPath(import.meta.url))
-const DATEN = join(HIER, 'daten')
+// Die Antworten kommen aus pruefstand/daten — oder aus einem anderen Ordner,
+// wenn PRUEFSTAND_DATEN gesetzt ist (Runde N: die böse Saison aus
+// gegenprobe/bildschirm/daten, ohne die Demo-Fixtures zu überschreiben).
+const DATEN = process.env.PRUEFSTAND_DATEN ?? join(HIER, 'daten')
 // 0057: die Attrappe nennt denselben Stand, den die App erwartet
 /**
  * Welcher Chromium gestartet wird. Auf dieser Maschine liegt er entpackt unter

@@ -1,0 +1,136 @@
+/* =========================================================================
+   Das Designsystem der Runde N — die Zeichen, aus denen jede Fläche gebaut wird.
+
+   Noch nicht eingebunden. index.css hält heute eigene Werte (--grund, --flaeche,
+   --kuerbis, die Strom-Farben). Phase 5 bindet diese Datei **vor** index.css
+   ein und ersetzt dort Wert für Wert durch die Zeichen hier — nie auf einmal,
+   je Bildschirm, mit Bild davor und danach.
+
+   Grundsätze (docs/DESIGN_RUNDE_N.md):
+   · Gleiche Struktur, gleiche Reiter, gleiche Grafiken, gleiche Zahlen.
+     Neu ist nur, wie es aussieht und wie es sich bewegt.
+   · Die Strom-Farben bleiben. Sie sind Bedeutung (überall dieselbe Farbe je
+     Ursache) und mit dem Palettenprüfer auf Farbfehlsichtigkeit geprüft.
+   · Ein warmes, sehr helles Neutral statt kühlem Grau; Tiefe durch zwei
+     Flächenstufen und eine leise Kontur, nicht durch Schatten.
+   · Der Kürbis-Akzent bleibt der eine Akzent, um eine Spur satter.
+   · Alle Grössen aus zwei Skalen: Abstand (4er-Raster) und Schrift (1.2-Schritte).
+   ========================================================================= */
+
+:root {
+  /* ---- Flächen: warmes Neutral, Papier im Nachmittagslicht ---------------- */
+  --grund:          #f7f6f3;   /* die Seite */
+  --flaeche:        #ffffff;   /* Karten, Kopf */
+  --flaeche-2:      #f2f0ec;   /* Tabellenkopf, Eingabefeld, Chip */
+  --flaeche-3:      #e9e6e0;   /* gedrückt, aktiv */
+  --rand:           #dcd8d0;   /* Kontur */
+  --rand-leise:     #ebe8e2;   /* Zeilen in Tabellen */
+  --text:           #1f1d1a;
+  --text-2:         #4d4943;   /* Fliesstext in Karten */
+  --text-leise:     #7a756d;   /* Beschriftungen, Einheiten */
+  --text-ganz-leise:#a39e95;   /* Platzhalter */
+
+  /* ---- Der Akzent ---------------------------------------------------------- */
+  --kuerbis:        #c8500a;
+  --kuerbis-dunkel: #a03f07;
+  --kuerbis-flaeche:#fbeee3;
+  --kuerbis-ring:   rgb(200 80 10 / 28%);   /* Fokusring */
+
+  /* ---- Zustände ------------------------------------------------------------ */
+  --gruen: #2f7a45;  --gruen-flaeche: #e8f3eb;
+  --rot:   #b6382c;  --rot-flaeche:   #fbebe9;
+  --blau:  #2f5f96;  --blau-flaeche:  #e9f0f8;
+  --gelb:  #9a6a17;  --gelb-flaeche:  #faf2e0;
+
+  /* ---- Die Ströme — unverändert, siehe index.css ---------------------------- */
+  --strom-verdunstung: #2a78d6;
+  --strom-schimmel:    #eb6834;
+  --strom-feld:        #1baf7a;
+  --strom-ausschuss:   #eda100;
+  --strom-nebenkanal:  #e87ba4;
+  --strom-fax:         #7c56d8;
+  --strom-rest:        #008300;
+
+  /* ---- Schrift: eine Familie, zwei Rollen ----------------------------------- */
+  --schrift:        'Inter Variable', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --schrift-zahl:   'Inter Variable', system-ui, sans-serif;   /* mit tabular-nums, siehe unten */
+  --s-0:  .78rem;   /* Fussnote, Einheit unter einer Zahl */
+  --s-1:  .875rem;  /* Tabelle, Beschriftung */
+  --s-2:  1rem;     /* Fliesstext (Basis 16 px) */
+  --s-3:  1.2rem;   /* Kartentitel, h2 */
+  --s-4:  1.44rem;  /* Seitentitel, h1 */
+  --s-5:  1.73rem;  /* Kennzahl */
+  --s-6:  2.49rem;  /* die grosse Zahl im Überblick, der Zähler */
+  --s-7:  3.6rem;   /* der Zählerstand auf dem Handy */
+  --zeile-eng:  1.2;
+  --zeile:      1.5;
+  --gewicht-normal: 440;
+  --gewicht-mittel: 540;
+  --gewicht-stark:  640;
+  --spationierung-eng: -.012em;   /* Titel und grosse Zahlen */
+
+  /* ---- Abstand: 4er-Raster ---------------------------------------------------- */
+  --a-1: .25rem;  --a-2: .5rem;  --a-3: .75rem;  --a-4: 1rem;
+  --a-5: 1.25rem; --a-6: 1.5rem; --a-8: 2rem;    --a-10: 2.5rem; --a-12: 3rem;
+
+  /* ---- Rundung und Tiefe --------------------------------------------------- */
+  --radius-klein: 6px;    /* Chip, Marke, Eingabefeld */
+  --radius:       12px;   /* Karte, Knopf */
+  --radius-gross: 18px;   /* Dialog, Assistent-Karte */
+  --kontur:        0 0 0 1px var(--rand);                       /* statt border: springt beim Hover nicht */
+  --tiefe-1:       0 1px 2px rgb(31 29 26 / 4%), 0 1px 1px rgb(31 29 26 / 3%);
+  --tiefe-2:       0 4px 12px rgb(31 29 26 / 8%), 0 1px 3px rgb(31 29 26 / 6%);   /* schwebende Karte, Hover */
+  --tiefe-3:       0 16px 48px rgb(31 29 26 / 18%), 0 2px 8px rgb(31 29 26 / 8%); /* Dialog, Hinweis */
+
+  /* ---- Masse des Rahmens ------------------------------------------------------ */
+  --kopf-hoehe:    56px;
+  --inhalt-breite: 1080px;
+  --inhalt-eng:    560px;
+  --ziel-min:      44px;   /* jedes Bedienelement, WCAG 2.5.5 */
+  --ziel-halle:    60px;   /* Hauptknöpfe in der Halle */
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --grund:          #15141a;
+    --flaeche:        #1e1d24;
+    --flaeche-2:      #27262e;
+    --flaeche-3:      #302f38;
+    --rand:           #3a3943;
+    --rand-leise:     #2e2d36;
+    --text:           #ecebe7;
+    --text-2:         #c9c7c1;
+    --text-leise:     #9a988f;
+    --text-ganz-leise:#6e6c66;
+
+    --kuerbis:        #ec7a33;
+    --kuerbis-dunkel: #f4924f;
+    --kuerbis-flaeche:#33241a;
+    --kuerbis-ring:   rgb(236 122 51 / 36%);
+
+    --gruen: #6fb886;  --gruen-flaeche: #1e2f24;
+    --rot:   #e07a70;  --rot-flaeche:   #35211f;
+    --blau:  #82abd8;  --blau-flaeche:  #1f2937;
+    --gelb:  #d6ab5c;  --gelb-flaeche:  #302818;
+
+    --strom-verdunstung: #3987e5;
+    --strom-schimmel:    #d95926;
+    --strom-feld:        #199e70;
+    --strom-ausschuss:   #c98500;
+    --strom-nebenkanal:  #d55181;
+    --strom-fax:         #9b7ce8;
+    --strom-rest:        #2e9e3a;   /* das reine #008300 ist auf dunklem Grund zu dunkel: 2.9:1 */
+
+    --kontur:  0 0 0 1px var(--rand);
+    --tiefe-1: 0 1px 2px rgb(0 0 0 / 40%);
+    --tiefe-2: 0 4px 12px rgb(0 0 0 / 45%), 0 1px 3px rgb(0 0 0 / 30%);
+    --tiefe-3: 0 16px 48px rgb(0 0 0 / 60%), 0 2px 8px rgb(0 0 0 / 40%);
+  }
+}
+
+/* Zahlen stehen immer in Tabellenziffern; grosse Zahlen etwas enger. */
+.zahl, .gross-zahl, td, th, input[type='number'], .kennzahl-wert {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1, 'cv05' 1;
+}
+.gross-zahl, .kennzahl-wert { letter-spacing: var(--spationierung-eng); font-weight: var(--gewicht-stark); }

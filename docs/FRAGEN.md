@@ -684,3 +684,62 @@ es hindert niemanden, es zeigt.
 > zweimal eingetragen wird? Und darf dieselbe Zahl zweimal legitim
 > vorkommen?
 > Antwort:
+
+## Drei Fragen aus Runde N (11. September)
+
+Alle drei kommen aus den Drehbüchern (`gegenprobe/drehbuecher/`), die einen
+Tag in der Halle Szene für Szene gegen die Datenbank spielen. Keine ist
+entschieden; jede ändert, was die App **anbietet**, nicht, was sie rechnet.
+
+**57. Wie soll eine sortierte Palette bei der Lagerkontrolle gewogen werden?**
+Nach dem Sortieren stehen die Kisten auf neuen Paletten: Kaliber, Kistenzahl,
+Gebindeart und Sortierdatum sind bekannt — Eingangsgewicht und Eingangsdatum
+nicht, weil die Kisten aus mehreren Eingangspaletten gemischt sind. *Palette
+kontrollieren* verlangt heute beides, und die Datenbank auch
+(`brutto_damals_kg` darf nicht leer sein). Der Vorarbeiter kann nur abbrechen
+oder etwas eintippen, das er nicht weiss. Tippt er das Sortierdatum als
+Eingang und das heutige Gewicht als damaliges, entsteht eine Verdunstungsrate
+von exakt null, die als **verwendbar** in die Sorte einfliesst und deren Rate
+nach unten zieht (Drehbuch 01, Szene S6 — die Prüfung ist rot).
+
+*Warum es zählt:* Ohne einen dritten Weg gibt es nach dem Sortieren keine
+Lagerkontrolle mehr — oder eine falsche. Der Vorschlag: *Palette ohne Zettel
+(nach dem Sortieren)* — speichert Sortierdatum, Kisten, Gebindeart, Brutto
+jetzt, Faules; erzeugt **keine** Rate, aber einen Schimmel-Punkt mit dem
+Alter der **Charge** und einen Beleg, was noch steht.
+
+> Wiegt ihr sortierte Paletten überhaupt noch nach — und wenn ja, was wollt
+> ihr daraus wissen: nur das Faule, oder auch, wie viel noch da ist?
+> Antwort:
+
+**58. Soll die App die sortierten Paletten als Paletten kennen?**
+Heute kennt sie nach dem Sortieren nur die Summe der Kisten je Kaliber
+(`auftrag_gebinde`). Wie viele Paletten welchen Kalibers im Lager stehen,
+sieht niemand — die Kaskade braucht es nicht (sie rechnet in Eingangskilo),
+die Lagerkontrolle (Frage 57) und die Frage „was steht noch da?" schon.
+
+*Warum es zählt:* Ein Bestand je Palette ist eine neue Sache in der App —
+eine Tabelle, ein Zählschritt beim Umpalettieren, ein Bildschirm. Das ist
+genau die Sorte Wachstum, die diese Runden vermeiden. Es ist nur dann
+richtig, wenn der Betrieb die Frage wirklich stellt.
+
+> Fragt ihr euch im Winter „wie viele Paletten Kaliber mittel haben wir
+> noch" — und beantwortet ihr das heute durch Nachzählen im Lager?
+> Antwort:
+
+**59. Darf ein Zetteldatum in der Zukunft gespeichert werden?**
+Der Fall vom Betrieb: ein Zähler wählt 2029 statt 2026, die App speichert es
+kommentarlos, die Auswertung rechnet mit −1053 Lagertagen. Die Rechnung wird
+repariert (negative Lagertage sind nie plausibel). Offen ist die Maske:
+**sperren** (ein Datum nach heute lässt sich nicht speichern — sauber, aber
+ein Zettel vom 31.12. am 1.1. um 00:10 wäre auch gesperrt) oder **warnen**
+(„liegt in der Zukunft — Jahr prüfen", speichern trotzdem möglich — die
+Beobachtung bleibt, die Auffälligkeit meldet sie).
+
+*Warum es zählt:* Der Grundsatz dieses Programms ist „speichern, was
+beobachtet wurde, und zeigen, was daran auffällt". Warnen passt dazu;
+sperren ist bequemer für die Auswertung.
+
+> Sperren oder warnen?
+> Antwort:
+

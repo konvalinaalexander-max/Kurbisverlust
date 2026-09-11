@@ -666,6 +666,7 @@ Alle drei entstehen aus HTML-Quellen im selben Ordner:
 | Was du siehst | Was los ist | Was hilft |
 |---|---|---|
 | Demo: „Es gibt noch kein Benutzerkonto" | Die Demo-Daten brauchen jemanden als Erfasser | Erst Schritt 7 (Betriebsleiter-Konto anlegen), dann nochmal |
+| **Ursachen → „Palox: Faules im Lager": die x-Achse reicht bis −1000 Tage, alle Punkte sitzen als Strich rechts** | Eine Palette wurde beim Zählen mit einem Datum in der Zukunft erfasst (etwa Jahr 2029 statt 2026). Die Auswertung macht daraus negative Lagertage und hält den Punkt für plausibel; das Diagramm gibt ihm die ganze Achse. Beides wird in Runde N repariert (`docs/PLAN_RUNDE_N.md`, N-01 und N-02) | Messungen → Auffälligkeiten: die Zeile „Zetteldatum … an dem Tag kam keine Palette dieser Charge" nennt die Arbeit. Dort das Datum der Palette korrigieren, dann „Neu rechnen". Die Beobachtung bleibt bis dahin so gespeichert, wie sie getippt wurde — das ist richtig so |
 | **„relation \"einstellung\" does not exist" beim Ausführen von `setup.sql`** | Ein Fehler in der Datei, behoben am 3. September: Eine Funktion nannte eine Tabelle ohne Schema davor, und der SQL-Editor arbeitet ohne voreingestellten Suchpfad | **Die Datei neu holen** (Schritt 3a) und noch einmal einfügen. Die aktuelle Fassung nennt überall das Schema. |
 | **„marge_messung enthält … Zeile(n) — die Einrichtung bricht hier ab"** beim Ausführen von `setup.sql` | Ein Alt-Kanal, den die App seit dem 25. August nicht mehr schreibt und seit dem 3. September nicht mehr liest, hält in deiner Datenbank noch Zeilen. Die Datei löscht nichts, was jemand gemessen hat, ohne dass du es gesehen hast | Im SQL-Editor `select * from marge_messung;` ansehen, bei Bedarf als CSV sichern, dann `delete from marge_messung;` — und `setup.sql` noch einmal ausführen |
 | **„check constraint \"…_pflicht\" of relation \"…\" is violated by some row"** beim Ausführen von `setup.sql` | Ein Fehler von mir, behoben am 10. September. Vier Prüfregeln sind **nach** den Daten ins Schema gekommen — für neue Zeilen galten sie ab dem ersten Tag, aber ob die vorhandenen sie erfüllen, hatte nie jemand nachgesehen. `setup.sql` hat es dann auf einmal behauptet, und weil die ganze Datei als **ein** Query läuft, brach das gesamte Einrichten ab und rollte zurück. Deine Daten haben nie Schaden genommen | **Die Datei neu holen** (Schritt 3a) und noch einmal einfügen. Sie bestätigt jetzt nur, was die Daten hergeben, und lässt den Rest in Ruhe. Welche Zeilen dahinterstehen, zeigt `supabase/diagnose.sql` im SQL-Editor — sie sind nicht kaputt, nur älter als die Regel. Wer sie ergänzt und `setup.sql` noch einmal ausführt, bekommt auch die letzte Zusage bestätigt |
@@ -804,6 +805,18 @@ node werkstatt/lauf.mjs                  # alle Werkstätten (rund 25 Minuten)
 node werkstatt/lauf.mjs --nur c          # nur eine Werkstatt
 node werkstatt/lauf.mjs --nur b3 d1      # einzelne Werkzeuge
 node werkstatt/bericht.mjs               # docs/WERKSTATTBERICHT.md neu schreiben
+
+# Gegenprobe (Runde N): die zweite Rechnung mit fremden Werkzeugen. Ein
+# Orakel in TypeScript rechnet Masse, Verdunstung, Schrumpfung, Verderbsmodell
+# und Kaskade aus den Rohtabellen neu — ohne eine Zeile aus src/ und ohne eine
+# Funktion der Datenbank — und hält jede Zeile dagegen. Dazu Achsenregeln für
+# jedes Diagramm (der Fall „x-Achse bis −1000 Tage" als Test), eine böse
+# Saison mit zwölf Fällen, wie sie ein echter Herbst liefert, und Drehbücher,
+# die einen Tag in der Halle Szene für Szene gegen die Datenbank spielen.
+npm run gegenprobe                       # Orakel-Selbstprüfung und Achsenregeln, ohne Datenbank
+npm run gegenprobe -- --db demo          # dazu jede Zeile der Datenbank gegen das Orakel
+node gegenprobe/drehbuecher/spieler.mjs 01                    # ein Drehbuch auf einer Kopie der Demo
+PRUEFSTAND_DATEN=gegenprobe/bildschirm/daten node gegenprobe/bildschirm/invarianten.mjs   # elf Regeln je Seite
 ```
 
 Ein Lauf mit `--nur` schreibt nach `werkstatt/befunde/teil_<kürzel>.json` und

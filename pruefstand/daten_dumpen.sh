@@ -6,7 +6,8 @@
 set -euo pipefail
 U="${1:-postgresql://postgres@/postgres?host=/tmp/pgsock&port=55432}"
 HIER="$(cd "$(dirname "$0")" && pwd)"
-ZIEL="$HIER/daten"
+# Zweites Argument: ein anderer Zielordner (Runde N: gegenprobe/bildschirm/daten für die böse Saison).
+ZIEL="${2:-$HIER/daten}"
 mkdir -p "$ZIEL"
 
 dump() {

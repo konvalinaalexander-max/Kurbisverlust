@@ -24,3 +24,11 @@ src/**/*.js
 src/**/*.js.map
 test/**/*.js
 vite.config.js
+
+# Gegenprobe (Runde N): Abzüge und Befunde entstehen beim Lauf — die böse
+# Saison als Browser-Fixtures kommt aus daten_dumpen.sh, die Befunde aus
+# invarianten.mjs und spieler.mjs. Der Formelabzug (orakel/formeln/) bleibt
+# im Repository: an ihm zeigt git diff, ob sich eine Formel bewegt hat.
+gegenprobe/bildschirm/daten/
+gegenprobe/bildschirm/befund.json
+gegenprobe/drehbuecher/befund_*.json

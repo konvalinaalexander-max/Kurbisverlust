@@ -1,0 +1,31 @@
+-- gespeichert: erg_ueberfuellung
+-- v_ueberfuellung_verkauf, gespeichert für die App (0061). Erneuert mit auswertung_schritt(1).
+
+ SELECT gruppe,
+    sorte,
+    charge_nr,
+    kistensystem,
+    soll_kg_pro_kiste,
+    stueck_je_kiste,
+    kaliber_idx,
+    band_von_g,
+    band_bis_g,
+    nenn_g,
+    n_lieferungen,
+    kg_verkauft,
+    kisten_verkauft,
+    n_anteilig,
+    stueck_verkauft,
+    von,
+    bis,
+    n_wiegungen,
+    kisten_gewogen,
+    kg_je_kiste,
+    sd_je_kiste,
+    zuviel_je_kiste,
+    zuviel_gewogen_kg,
+    verschenkt_kg,
+    verschenkt_fehler_kg,
+    g_je_kuerbis,
+    band_mittel_g
+   FROM v_ueberfuellung_verkauf;
