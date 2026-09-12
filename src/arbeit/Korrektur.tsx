@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { ZKreuz, ZZurueck } from '../components/Zeichen'
 import { supabase } from '../lib/supabase'
 import { fehlerText } from '../lib/db'
 import { Hinweis } from '../components/Bausteine'
@@ -149,9 +150,11 @@ function Tabellenblock({ t, wo, gesperrt, geaendert }: { t: Tabelle; wo: Filter;
   if (zeilen.length === 0 && !fehler) return null
   return (
     <div className="karte">
-      <h2 style={{ margin: '0 0 .2rem', fontSize: '1.05rem' }}>{t.titel} <span className="leise">({zeilen.length})</span></h2>
-      <p className="leise" style={{ margin: '0 0 .6rem' }}>{t.erklaerung}</p>
-      <div style={{ overflowX: 'auto' }}>
+      <div className="karte-kopf"><div className="karte-titel">
+        <h2>{t.titel} <span className="leise">({zeilen.length})</span></h2>
+        <p className="karte-unter">{t.erklaerung}</p>
+      </div></div>
+      <div className="rollbar">
         <table className="korrektur">
           <thead><tr>{t.felder.map(f => <th key={f.name}>{f.label}</th>)}<th /></tr></thead>
           <tbody>
@@ -171,10 +174,10 @@ function Tabellenblock({ t, wo, gesperrt, geaendert }: { t: Tabelle; wo: Filter;
                                 onChange={e => setEntwurf(x => ({ ...x, [z.id]: { ...x[z.id], [f.name]: e.target.value } }))} />}
                   </td>
                 ))}
-                <td style={{ whiteSpace: 'nowrap' }}>
-                  <button className="haupt klein" disabled={gesperrt || laeuft || !istGeaendert(z)} onClick={() => void speichern(z)}>Speichern</button>
+                <td className="nowrap">
+                  <button type="button" className="haupt klein" disabled={gesperrt || laeuft || !istGeaendert(z)} onClick={() => void speichern(z)}>Speichern</button>
                   {' '}
-                  <button className="gefahr klein" disabled={gesperrt || laeuft} aria-label="Löschen" onClick={() => void loeschen(z)}>✕</button>
+                  <button type="button" className="gefahr klein" disabled={gesperrt || laeuft} aria-label="Löschen" onClick={() => void loeschen(z)}><ZKreuz size={16} /></button>
                 </td>
               </tr>
             ))}
@@ -208,7 +211,7 @@ export function Korrektur({ d, neuLaden, zurueck }: { d: ArbeitDaten; neuLaden: 
   return (
     <>
       <div className="schritt-kopf">
-        <button type="button" className="zurueck" onClick={zurueck}>‹ Zurück</button>
+        <button type="button" className="zurueck" onClick={zurueck}><ZZurueck size={18} />Zurück</button>
         <span className="stand">Arbeit {a.id} · Charge {a.charge_nr}</span>
       </div>
       <h1 className="frage">Messungen korrigieren</h1>
@@ -220,8 +223,10 @@ export function Korrektur({ d, neuLaden, zurueck }: { d: ArbeitDaten; neuLaden: 
       {gespeichert && <Hinweis art="gut">Gespeichert — die Auswertung rechnet beim nächsten Aufruf neu.</Hinweis>}
 
       <div className="karte">
-        <h2 style={{ margin: '0 0 .2rem', fontSize: '1.05rem' }}>Die Arbeit</h2>
-        <p className="leise" style={{ margin: '0 0 .6rem' }}>Was beim Eröffnen festgelegt wurde — Kistensystem, Soll, Kaliber; beim Fax Paletten und Tage.</p>
+        <div className="karte-kopf"><div className="karte-titel">
+          <h2>Die Arbeit</h2>
+          <p className="karte-unter">Was beim Eröffnen festgelegt wurde — Kistensystem, Soll, Kaliber; beim Fax Paletten und Tage.</p>
+        </div></div>
         {AUFTRAG_FELDER.map(f => (
           <div className="feld" key={f.name}>
             <label htmlFor={`ko-${f.name}`}>{f.label}</label>
@@ -231,7 +236,7 @@ export function Korrektur({ d, neuLaden, zurueck }: { d: ArbeitDaten; neuLaden: 
           </div>
         ))}
         {fehler && <Hinweis art="warnung">{fehler}</Hinweis>}
-        <button className="haupt" style={{ width: '100%' }} disabled={laeuft || Object.keys(entwurf).length === 0} onClick={() => void auftragSpeichern()}>Arbeit speichern</button>
+        <button type="button" className="haupt voll" disabled={laeuft || Object.keys(entwurf).length === 0} onClick={() => void auftragSpeichern()}>Arbeit speichern</button>
       </div>
 
       {TABELLEN.map(t => <Tabellenblock key={t.tabelle} t={t} wo={{ spalte: 'auftrag_id', wert: a.id }} gesperrt={false} geaendert={neuLaden} />)}

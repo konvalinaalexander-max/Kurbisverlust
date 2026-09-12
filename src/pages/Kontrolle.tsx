@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 import { useSprache } from '../sprache/SprachProvider'
 import { fehlerText, stammdaten } from '../lib/db'
 import { Hinweis, Karte } from '../components/Bausteine'
+import { ZStift, ZZurueck } from '../components/Zeichen'
 import { Wahl } from '../components/Schritte'
 import { ChargeFeld } from '../components/ChargeFeld'
 import type { Charge, Gebinde } from '../lib/typen'
@@ -105,18 +106,18 @@ export default function Kontrolle() {
   return (
     <>
       <div className="schritt-kopf">
-        <button type="button" className="zurueck" onClick={() => navigate('/')}>‹ {t('zurueck')}</button>
+        <button type="button" className="zurueck" onClick={() => navigate('/')}><ZZurueck size={20} />{t('zurueck')}</button>
       </div>
       <h1 className="frage">{t('kontrolle')}</h1>
       <p className="leise frage-warum">{t('kontrolleWarum')}</p>
       {gespeichert.length > 0 && (
-        <Hinweis art="gut">✓ {gespeichert.length} {t('gespeichert')} · {gespeichert.map(g => `${g.charge}: ${g.netto !== null ? `${g.netto.toFixed(0)} kg` : '—'}`).join(' · ')}</Hinweis>
+        <Hinweis art="gut">{gespeichert.length} {t('gespeichert')} · {gespeichert.map(g => `${g.charge}: ${g.netto !== null ? `${g.netto.toFixed(0)} kg` : '—'}`).join(' · ')}</Hinweis>
       )}
 
       <Karte>
         {vorschlaege.length > 0 && (
           <>
-            <p className="leise" style={{ marginTop: 0 }}>{t('kontrolleVorschlag')}</p>
+            <p className="leise oben-0">{t('kontrolleVorschlag')}</p>
             <div className="wahl">
               {vorschlaege.map(v => (
                 <Wahl key={v.charge_nr} id={`vorschlag-${v.charge_nr}`} name={`${v.charge_nr} · ${v.sorte}`}
@@ -124,7 +125,7 @@ export default function Kontrolle() {
                       gewaehlt={!andere && chargeNr === v.charge_nr}
                       onClick={() => { setAndere(false); setChargeNr(v.charge_nr) }} />
               ))}
-              <Wahl id="vorschlag-andere" bild="✏️" name={t('kontrolleAndere')} gewaehlt={andere}
+              <Wahl id="vorschlag-andere" bild={<span className="kachel" style={{ width: 40, height: 40 }}><ZStift size={22} /></span>} name={t('kontrolleAndere')} gewaehlt={andere}
                     onClick={() => { setAndere(true); setChargeNr('') }} />
             </div>
           </>
@@ -141,7 +142,7 @@ export default function Kontrolle() {
           <input id="k-damals" type="number" inputMode="decimal" step="0.1" min={0}
                  value={damals} onChange={e => setDamals(e.target.value)}
                  style={{ fontSize: '1.2rem' }} />
-          <p className="leise" style={{ margin: '.35rem 0 0' }}>{t('kontrolleEingangWarum')}</p>
+          <p className="hilfe">{t('kontrolleEingangWarum')}</p>
         </div>
         <div className="feld">
           <label htmlFor="k-jetzt">{t('gewichtJetzt')}</label>
@@ -149,13 +150,13 @@ export default function Kontrolle() {
                  value={jetzt} onChange={e => setJetzt(e.target.value)}
                  style={{ fontSize: '1.2rem' }} />
         </div>
-        <div className="reihe">
-          <div className="feld" style={{ flex: 1 }}>
+        <div className="spalten">
+          <div className="feld">
             <label htmlFor="k-kisten">{t('anzahlKisten')}</label>
             <input id="k-kisten" type="number" inputMode="numeric" min={1}
                    value={kisten} onChange={e => setKisten(e.target.value)} />
           </div>
-          <div className="feld" style={{ flex: 1 }}>
+          <div className="feld">
             <label htmlFor="k-art">{t('kistenart')}</label>
             <select id="k-art" value={art} onChange={e => setArt(e.target.value)}>
               {gebinde.map(g => <option key={g.art} value={g.art}>{g.art}</option>)}
@@ -169,10 +170,10 @@ export default function Kontrolle() {
 
         {fehlt && <Hinweis art="warnung">{fehlt} Ohne sie lässt sich das Nettogewicht nicht ausrechnen — die Angabe gehört in die Stammdaten.</Hinweis>}
         {fehler && <Hinweis art="warnung">{fehler}</Hinweis>}
-        <div className="reihe">
-          <button id="k-eintragen" className="haupt" style={{ flex: 1, minHeight: 54 }}
+        <div className="knopf-reihe">
+          <button type="button" id="k-eintragen" className="haupt" style={{ minHeight: 54, flex: 2 }}
                   onClick={speichern} disabled={laeuft || !vollstaendig}>{gespeichert.length > 0 ? t('kontrolleWeitere') : t('eintragen')}</button>
-          <button onClick={() => navigate('/')}>{t('uebersicht')}</button>
+          <button type="button" onClick={() => navigate('/')}>{t('uebersicht')}</button>
         </div>
       </Karte>
     </>

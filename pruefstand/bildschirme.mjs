@@ -289,7 +289,7 @@ for (const geraet of GERAETE) {
 
       try { await schirm.tun?.(seite) } catch (f) { meldungen.push(`Klickweg: ${f}`) }
       await seite.waitForLoadState('networkidle').catch(() => {})
-      await seite.waitForTimeout(250)
+      await seite.waitForTimeout(800)  // Zähler und Linien sind bis dahin fertig animiert
 
       const datei = join(BILDER, `${schirm.name}--${geraet.name}-${thema}${SPRACHE === 'de' ? '' : `-${SPRACHE}`}.png`)
       await seite.screenshot({ path: datei, fullPage: true })
@@ -299,7 +299,20 @@ for (const geraet of GERAETE) {
       const ueberlauf = await seite.evaluate(() =>
         document.documentElement.scrollWidth - document.documentElement.clientWidth)
       const zeile = [`${schirm.name} (${geraet.name}, ${thema})`]
-      if (ueberlauf > 1) { fehler++; zeile.push(`ÜBERLAUF ${ueberlauf}px`) }
+      if (ueberlauf > 1) {
+        fehler++
+        // Wer ragt hinaus? Die ersten drei Übeltäter mit Klasse und Breite —
+        // sonst sucht man den einen Pixel in 170 Bildern von Hand.
+        const taeter = await seite.evaluate(() => {
+          const grenze = document.documentElement.clientWidth
+          return [...document.querySelectorAll('body *')]
+            .filter(e => e.getBoundingClientRect().right > grenze + 1)
+            .filter(e => ![...e.children].some(k => k.getBoundingClientRect().right > grenze + 1))
+            .slice(0, 3)
+            .map(e => `${e.tagName.toLowerCase()}${e.className && typeof e.className === 'string' ? '.' + e.className.trim().split(/\s+/).join('.') : ''}→${Math.round(e.getBoundingClientRect().right)}`)
+        })
+        zeile.push(`ÜBERLAUF ${ueberlauf}px (${taeter.join(', ') || 'kein Element ragt hinaus'})`)
+      }
       if (meldungen.length) { fehler++; zeile.push(`KONSOLE: ${meldungen[0]}`) }
       if (zeile.length > 1) console.log('  ✗ ' + zeile.join(' — '))
       await kontext.close()

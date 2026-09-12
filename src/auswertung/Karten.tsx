@@ -1,26 +1,34 @@
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { datum, kg, prozent, tonnen, zeitpunkt } from '../lib/format'
-import { Herkunft, Hinweis, Karte, Marke } from '../components/Bausteine'
+import { datum, kg, prozent, tonnen, vorZeit, zeitpunkt } from '../lib/format'
+import { Erklaerung, Herkunft, Hinweis, Karte, Marke } from '../components/Bausteine'
+import { ZAktualisieren, ZHaken } from '../components/Zeichen'
 import { Bilanzzeile } from '../components/Kaskadenbild'
 import { SCHRITTE, type Befund, type Fortschritt, type Problem, type Saisonbilanz, type Schimmelpunkt, type StromSumme } from './daten'
 import { summeBekannt } from '../lib/masse'
 
-/** Kopfzeile eines Reiters: Name, der eine Satz, wozu er da ist, Stand, bis wann gerechnet, Neu rechnen. */
-export function Reiterkopf({ titel, zweck, stand, heute, neuRechnen, rechts }: {
-  titel: string; zweck: string; stand: string | null; heute?: string; neuRechnen?: () => void; rechts?: ReactNode
+/**
+ * Kopfzeile eines Reiters: Name, der eine Satz, wozu er da ist; rechts der
+ * Stand der Rechnung als Chip („vor 12 min") und „Neu rechnen".
+ */
+export function Reiterkopf({ titel, zweck, stand, heute, neuRechnen, rechts, laeuft }: {
+  titel: string; zweck?: string; stand: string | null; heute?: string; neuRechnen?: () => void; rechts?: ReactNode; laeuft?: boolean
 }) {
   return (
-    <div style={{ marginTop: '1.25rem' }}>
-      <div className="reihe">
-        <h1 style={{ margin: 0 }}>{titel}</h1>
-        <span className="leise" style={{ marginLeft: 'auto' }}>
-          {heute && <>bis heute, {datum(heute)} · </>}Stand {stand ? zeitpunkt(stand) : '—'}
-        </span>
-        {neuRechnen && <button className="klein" onClick={neuRechnen}>Neu rechnen</button>}
+    <div className="seitenkopf">
+      <div>
+        <h1>{titel}</h1>
+        {zweck && <p className="zweck">{zweck}</p>}
+      </div>
+      <div className="rechts">
+        {stand && (
+          <span className="stand-chip" title={`Gerechnet ${zeitpunkt(stand)}${heute ? ` — Zahlen bis heute, ${datum(heute)}` : ''}`}>
+            Stand {vorZeit(stand)}{heute ? ` · bis ${datum(heute).slice(0, 6)}` : ''}
+          </span>
+        )}
+        {neuRechnen && <button type="button" className="klein" onClick={neuRechnen} disabled={laeuft}><ZAktualisieren size={15} />Neu rechnen</button>}
         {rechts}
       </div>
-      <p className="leise" style={{ margin: '.25rem 0 .75rem' }}>{zweck}</p>
     </div>
   )
 }
@@ -29,7 +37,8 @@ export function Reiterkopf({ titel, zweck, stand, heute, neuRechnen, rechts }: {
 export function Rechnet({ fortschritt }: { fortschritt: Fortschritt | null }) {
   return (
     <div className="rechnen">
-      <div className="lade" style={{ padding: '1rem 0 0' }}>
+      <div className="drehen" aria-hidden="true" />
+      <div className="rechnen-kopf">
         {fortschritt ? <>Auswertung wird gerechnet — Schritt {fortschritt.schritt} von {fortschritt.schritte}</> : 'Auswertung wird geladen …'}
       </div>
       {fortschritt && (
@@ -37,7 +46,7 @@ export function Rechnet({ fortschritt }: { fortschritt: Fortschritt | null }) {
           {SCHRITTE.map((name, i) => {
             const nr = i + 1
             const zustand = nr < fortschritt.schritt ? 'fertig' : nr === fortschritt.schritt ? 'laeuft' : ''
-            return <li key={name} className={zustand}><span className="nr">{zustand === 'fertig' ? '✓' : nr}</span>{name}</li>
+            return <li key={name} className={zustand}><span className="nr">{zustand === 'fertig' ? <ZHaken size={12} /> : nr}</span>{name}</li>
           })}
         </ol>
       )}
@@ -78,8 +87,7 @@ export function rechenweg(v: StromSumme, eingang: number): [string, ReactNode][]
     ['Bereich', v.bereichBekannt
       ? `${kg(v.unten, 0)} – ${kg(v.oben, 0)} (95 %, aus den Messfehlern fortgepflanzt)` : '—'],
     // 0066: Die vier Teilbeträge sind null, solange der Strom nicht gemessen
-    // ist — und sonst Zahlen, auch wenn ihre Portion leer ist. Vorher stand
-    // hier „0 kg", zwei Zeilen unter „Ergebnis bis heute: nicht gemessen".
+    // ist — und sonst Zahlen, auch wenn ihre Portion leer ist.
     ['Davon an ausgelieferter Ware', v.beobachtet === null
       ? 'nicht gemessen' : `${kg(v.beobachtet, 0)} — beim Alter am Liefertag`],
     ['Davon an der Ware im Haus', v.projiziert === null
@@ -107,21 +115,23 @@ export function Kurvenherkunft({ punkte }: { punkte: Schimmelpunkt[] }) {
       erklaerung: 'Beim Abschluss wurde „nicht alles aus einer Charge" gesagt. Das Alter der Ware ist dann geraten; die Menge zählt in der Bilanz, aber nicht im Verlauf.' },
   ]
   return (
-    <Karte titel="Woher die Schimmelkurve kommt">
-      {klassen.map(k => {
-        const eigene = brauchbar.filter(p => p.quelle === k.quelle)
-        if (eigene.length === 0) return <p key={k.quelle} className="leise" style={{ marginBottom: '.8rem' }}><strong>{k.name}:</strong> keine. {k.erklaerung}</p>
-        const tage = eigene.map(p => p.lagertage)
-        return (
-          <div key={k.quelle} style={{ marginBottom: '1rem' }}>
-            <div className="reihe"><strong>{k.name}</strong>
-              <span style={{ marginLeft: 'auto' }}>{eigene.length} Punkte · {Math.round(Math.min(...tage))}–{Math.round(Math.max(...tage))} Lagertage</span></div>
-            <p className="leise" style={{ margin: '.2rem 0 0', fontSize: '.82rem' }}>{k.erklaerung}</p>
-          </div>
-        )
-      })}
+    <Karte titel="Woher die Schimmelkurve kommt" unter="Welche Messungen die Kurve tragen — und welche nicht.">
+      <div className="rollbar"><table className="dicht">
+        <thead><tr><th>Herkunft</th><th className="zahl">Punkte</th><th className="zahl">Lagertage</th></tr></thead>
+        <tbody>{klassen.map(k => {
+          const eigene = brauchbar.filter(p => p.quelle === k.quelle)
+          const tage = eigene.map(p => p.lagertage)
+          return (
+            <tr key={k.quelle}>
+              <td>{k.name}<div className="leise-satz" style={{ margin: '.1rem 0 0' }}>{k.erklaerung}</div></td>
+              <td className="zahl">{eigene.length || <span className="leise">keine</span>}</td>
+              <td className="zahl">{eigene.length ? `${Math.round(Math.min(...tage))}–${Math.round(Math.max(...tage))}` : '—'}</td>
+            </tr>
+          )
+        })}</tbody>
+      </table></div>
       {verworfen > 0 && (
-        <Hinweis art="info">{verworfen} Messungen sind nicht eingeflossen, weil der daraus folgende Anteil unplausibel war — meist ein Zahlendreher. Sie stehen unter Messungen → Auffälligkeiten.</Hinweis>
+        <p className="fussnote">{verworfen} Messungen sind nicht eingeflossen, weil der daraus folgende Anteil unplausibel war — meist ein Zahlendreher. Sie stehen unter Auffälligkeiten.</p>
       )}
     </Karte>
   )
@@ -130,16 +140,14 @@ export function Kurvenherkunft({ punkte }: { punkte: Schimmelpunkt[] }) {
 /**
  * Die Gegenprobe: Eingang = verkauft + Verlust bis heute + anderer Kanal +
  * noch im Haus. Zwei Zahlen sind gemessen (Eingang, verkauft), der Rest ist
- * gerechnet — und die Lücke ist die Überzählung. Steht unter Messungen, weil
- * sie das Modell prüft, nicht den Betrieb.
+ * gerechnet — und die Lücke ist die Überzählung.
  */
 export function Bilanz({ bilanz }: { bilanz: Saisonbilanz }) {
   const kanalAusgelagert = bilanz.kanal_ausgelagert_kg
   return (
-    <Karte titel={<>Geht die Rechnung auf? <span className="leise" style={{ fontWeight: 480 }}>bis {datum(bilanz.heute)}</span></>}>
-      <p className="leise">Eingang + Überzählung = verkauft + Verlust bis heute + anderer Kanal + noch im Haus. Sie geht von selbst auf, weil das Ausgelagerte aus den Lieferungen zurückgerechnet ist — bis auf Rundung, und genau darum taugt sie als Probe: Solange in der Kaskade ein Kilo doppelt oder zu früh zählte, blieb ein Rest stehen. Geprüft wird an den Rändern: mehr geliefert als hereingekommen (Überzählung — ein Datenfehler, kein Verlust), an die Tiere Geliefertes gegen den gerechneten Kanal, Entsorgtes gegen den gerechneten Schimmel.</p>
+    <Karte titel="Geht die Rechnung auf?" unter={`Eingang + Überzählung = ausgeliefert + Verlust bis heute + anderer Kanal + noch im Haus — bis ${datum(bilanz.heute)}.`}>
       <Bilanzzeile titel="Wareneingang" herkunft="gemessen" kg={bilanz.eingang_kg} eingang={bilanz.eingang_kg} farbe="var(--strom-nebenkanal)" erklaerung="Netto ab Zettel, Tara abgezogen" />
-      <Bilanzzeile titel="Verkauft" herkunft="gemessen" kg={bilanz.geliefert_kg} eingang={bilanz.eingang_kg} farbe="var(--strom-rest)"
+      <Bilanzzeile titel="Ausgeliefert" herkunft="gemessen" kg={bilanz.geliefert_kg} eingang={bilanz.eingang_kg} farbe="var(--strom-rest)"
                    erklaerung={bilanz.n_lieferungen === 0 ? 'noch keine Lieferung erfasst' : `${bilanz.n_lieferungen} Lieferungen${bilanz.vorlauf_kg > 0 ? `, dazu ${tonnen(bilanz.vorlauf_kg)} vor dem Erfassungsbeginn` : ''}`} />
       <Bilanzzeile titel="Verlust bis heute" herkunft="gerechnet" kg={bilanz.verlust_heute_kg} eingang={bilanz.eingang_kg} farbe="var(--strom-schimmel)"
                    erklaerung={`Verdunstung ${tonnen(bilanz.verdunstung_heute_kg)} · Faules im Lager ${tonnen(summeBekannt([bilanz.schimmel_heute_kg, bilanz.sockel_heute_kg]))} · Faules beim Abpacken ${tonnen(bilanz.fax_heute_kg)}`} />
@@ -147,37 +155,53 @@ export function Bilanz({ bilanz }: { bilanz: Saisonbilanz }) {
                    erklaerung={`zu klein und zu gross hinter den Lieferungen — kein echter Verlust${bilanz.marge_kg > 0 ? `; laut Lieferscheinen ${tonnen(bilanz.marge_kg)} dorthin geliefert` : ''}`} />
       <Bilanzzeile titel="Noch im Haus" herkunft="gerechnet" kg={bilanz.im_haus_heute_kg} eingang={bilanz.eingang_kg} farbe="var(--strom-verdunstung)"
                    erklaerung={`davon verkaufsfähig ${tonnen(bilanz.verkaufsfaehig_heute_kg)}, zu klein oder zu gross ${tonnen(bilanz.kanal_im_haus_kg)}`} />
-      {/* Überzählung ist immer eine Zahl: keine Lieferung ohne Eingang heisst
-          null Kilo, nicht „unbekannt" — die Sicht rechnet sie so (0064). */}
       {bilanz.ueberzaehlung_kg > 0 && (
         <Bilanzzeile titel="Überzählung" herkunft="gemessen" kg={bilanz.ueberzaehlung_kg} eingang={bilanz.eingang_kg} farbe="var(--rot)" erklaerung="hinter den Lieferungen steckt mehr Ware, als je eingelagert wurde — meist fehlt Wareneingang" />
       )}
       <Hinweis art={bilanz.n_lieferungen === 0 ? 'warnung' : bilanz.ueberzaehlung_kg > 0.05 * bilanz.eingang_kg ? 'warnung' : 'gut'}>{bilanz.befund}</Hinweis>
+      <Erklaerung titel="Warum die Rechnung von selbst aufgeht">
+        Sie geht von selbst auf, weil das Ausgelagerte aus den Lieferungen zurückgerechnet ist — bis auf Rundung, und genau darum taugt sie als Probe:
+        Solange in der Kaskade ein Kilo doppelt oder zu früh zählte, blieb ein Rest stehen. Geprüft wird an den Rändern: mehr geliefert als hereingekommen
+        (Überzählung — ein Datenfehler, kein Verlust), an die Tiere Geliefertes gegen den gerechneten Kanal, Entsorgtes gegen den gerechneten Schimmel.
+      </Erklaerung>
     </Karte>
   )
+}
+
+/** Die Farbkante einer Auffälligkeit: rot (Messfehler), gelb (Datum), blau (nur ein Hinweis). */
+function befundTon(art: string): '' | 'gelb' | 'blau' {
+  const a = art.toLowerCase()
+  if (a.includes('datum') || a.includes('zukunft')) return 'gelb'
+  if (a.includes('hinweis') || a.includes('fehlt')) return 'blau'
+  return ''
 }
 
 /**
  * Auffälligkeiten — Messungen, die nicht richtig aussehen, mit Rat und dem
  * Weg zur Korrektur: Jede zeigt auf ihre Arbeit, wo der Betriebsleiter den
- * Wert ändern kann (Runde H). Sie stehen nur hier, nicht bei den Chargen.
+ * Wert ändern kann. Sie stehen nur hier, nicht bei den Chargen.
  */
 export function Auffaelligkeiten({ befunde, kurz = false }: { befunde: Befund[]; kurz?: boolean }) {
-  if (befunde.length === 0) return kurz ? null : <Karte titel="Auffälligkeiten"><p className="leise" style={{ margin: 0 }}>Keine — jede Messung passt zu ihrem Nenner.</p></Karte>
+  if (befunde.length === 0) return kurz ? null : (
+    <Karte titel="Auffälligkeiten" unter="Messungen, die nicht zu ihrem Nenner passen.">
+      <div className="hinweis gut" style={{ margin: 0 }}><span className="hinweis-zeichen"><ZHaken size={18} /></span><div className="hinweis-text">Keine — jede Messung passt zu ihrem Nenner.</div></div>
+    </Karte>
+  )
   const liste = kurz ? befunde.slice(0, 3) : befunde
   return (
     <Karte titel={`Auffälligkeiten (${befunde.length})`}
-           aktion={kurz && befunde.length > 3 ? <Link to="/messungen">alle ansehen</Link> : undefined}>
-      <p className="leise">Diese Werte fliessen bewusst <em>nicht</em> in die Rechnung ein — sie würden sie verfälschen. Fast immer ist ein Tippfehler zu korrigieren oder etwas nachzutragen; „korrigieren" öffnet die Arbeit mit ihren Messungen.</p>
-      <ul style={{ margin: 0, paddingLeft: '1.2rem' }}>
+           unter="Diese Werte fliessen nicht in die Rechnung ein — fast immer ist ein Tippfehler zu korrigieren oder etwas nachzutragen."
+           aktion={kurz && befunde.length > 3 ? <Link to="/messungen" className="knopf klein">alle {befunde.length} ansehen</Link> : undefined}>
+      <div className="befunde">
         {liste.map((b, i) => (
-          <li key={i} style={{ marginBottom: '.45rem' }}>
-            <Marke art="warnung">{b.art}</Marke> <strong>Charge {b.charge_nr} · {b.sorte}</strong> — {b.befund}
-            <br /><span className="leise">{b.rat}</span>
-            {b.auftrag_id && <> · <Link to={`/arbeit/${b.auftrag_id}?korrigieren=1`}>korrigieren</Link></>}
-          </li>
+          <div key={i} className={`befund ${befundTon(b.art)}`}>
+            <div className="befund-kopf"><Marke art="warnung" punkt={false}>{b.art}</Marke> Charge {b.charge_nr} · {b.sorte}</div>
+            <div className="befund-text">{b.befund}</div>
+            <div className="befund-rat">{b.rat}</div>
+            {b.auftrag_id && <Link className="knopf klein befund-aktion" to={`/arbeit/${b.auftrag_id}?korrigieren=1`}>korrigieren</Link>}
+          </div>
         ))}
-      </ul>
+      </div>
     </Karte>
   )
 }

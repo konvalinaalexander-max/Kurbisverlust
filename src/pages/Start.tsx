@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useState } from 'react'
-import { TaetZeichen } from '../components/Zeichen'
+import { TaetKachel, ZChevron, ZLupe, ZNeu } from '../components/Zeichen'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../auth/AuthProvider'
 import { useSprache } from '../sprache/SprachProvider'
 import { chargeText, fehlerText, stammdaten } from '../lib/db'
 import { taetigkeitVon } from '../lib/taetigkeit'
-import { Hinweis, Lade } from '../components/Bausteine'
+import { Avatar, Hinweis, Lade, Marke } from '../components/Bausteine'
+import { staffel } from '../design/bewegung'
 import type { Auftrag, Charge } from '../lib/typen'
 
 /**
@@ -25,7 +26,7 @@ export default function Start() {
   const [chargen, setChargen] = useState<Charge[]>([])
   const [dabei, setDabei] = useState<Record<number, { profil_id: string; name: string }[]>>({})
   const [laedt, setLaedt] = useState(true)
-  const [fehler, setFehler] = setFehlerState()
+  const [fehler, setFehler] = useState<string | null>(null)
 
   const laden = useCallback(async () => {
     try {
@@ -53,7 +54,7 @@ export default function Start() {
       }
       setFehler(null)
     } catch (f) { setFehler(fehlerText(f)) } finally { setLaedt(false) }
-  }, [setFehler])
+  }, [])
   useEffect(() => { void laden() }, [laden])
 
   async function mitmachen(a: Auftrag) {
@@ -69,50 +70,51 @@ export default function Start() {
 
   return (
     <>
-      <h1 style={{ marginBottom: '.25rem' }}>{t('hallo')} {profil?.name ?? ''}</h1>
+      <div className="halle-gruss">
+        <h1>{t('hallo')} {profil?.name ?? ''}</h1>
+        {heuteFertig > 0 && <span className="leise">{t('heuteFertig')}: {heuteFertig}</span>}
+      </div>
       {fehler && <Hinweis art="warnung">{fehler}</Hinweis>}
 
       <div className="abschnitt-titel">{t('laeuftGerade')}</div>
-      {offen.length === 0 && <p className="leise" style={{ margin: '.25rem 0 .5rem' }}>{t('nichtsLaeuft')}</p>}
-      {offen.map(a => {
+      {offen.length === 0 && <p className="leise" style={{ margin: '.25rem 0 .75rem' }}>{t('nichtsLaeuft')}</p>}
+      {offen.map((a, i) => {
         const taet = taetigkeitVon(a.weg, a.station, a.ist_fax)
         const leute = dabei[a.id] ?? []
         const binDabei = !!session && leute.some(x => x.profil_id === session.user.id)
         return (
-          <div key={a.id} className="arbeit-karte">
-            <div className="titel">
-              <span className="bild" aria-hidden="true"><TaetZeichen id={taet?.id} /></span>
-              {taet ? t(taet.text) : ''}
+          <div key={a.id} className="arbeit-karte eintritt" style={staffel(i)}>
+            <div className="kopfzeile">
+              <TaetKachel id={taet?.id} size={44} />
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div className="titel">{taet ? t(taet.text) : ''}</div>
+                <div className="charge">{chargeText(chargen.find(c => c.nr === a.charge_nr))}</div>
+              </div>
+              <Marke art="offen">{t('laeuft')}</Marke>
             </div>
-            <div className="charge">{chargeText(chargen.find(c => c.nr === a.charge_nr))}</div>
-            <div className="leise unter">
-              {t('seit')} {new Date(a.start_ts).toLocaleTimeString(gebietsschema, { hour: '2-digit', minute: '2-digit' })}
-              {' · '}{t('dabei')}: {leute.length ? leute.map(x => x.name).join(', ') : t('niemand')}
+            <div className="unter">
+              <span>{t('seit')} {new Date(a.start_ts).toLocaleTimeString(gebietsschema, { hour: '2-digit', minute: '2-digit' })}</span>
+              <span>·</span>
+              <span>{t('dabei')}:</span>
+              {leute.length
+                ? <><span className="avatare">{leute.slice(0, 4).map(x => <Avatar key={x.profil_id} name={x.name} klein />)}</span><span>{leute.map(x => x.name).join(', ')}</span></>
+                : <span>{t('niemand')}</span>}
             </div>
-            <button className={binDabei ? '' : 'haupt'} style={{ width: '100%', marginTop: '.7rem', minHeight: 54 }}
-                    onClick={() => void mitmachen(a)}>
-              {binDabei ? t('weiter') + ' ›' : t('mitmachen')}
+            <button type="button" className={binDabei ? '' : 'haupt'} onClick={() => void mitmachen(a)}>
+              {binDabei ? <>{t('weiter')} <ZChevron size={18} /></> : t('mitmachen')}
             </button>
           </div>
         )
       })}
 
       <div className="start-knoepfe">
-        <button className={offen.length === 0 ? 'haupt' : ''} onClick={() => navigate('/neu')}>
-          <span className="bild" aria-hidden="true">➕</span>{t('neueArbeitStarten')}
+        <button type="button" className={offen.length === 0 ? 'haupt' : ''} onClick={() => navigate('/neu')}>
+          <span className="kachel" aria-hidden="true" style={{ width: 38, height: 38 }}><ZNeu size={22} /></span>{t('neueArbeitStarten')}
         </button>
-        <button onClick={() => navigate('/kontrolle')}>
-          <span className="bild" aria-hidden="true">🔍</span>{t('kontrolle')}
+        <button type="button" onClick={() => navigate('/kontrolle')}>
+          <span className="kachel" aria-hidden="true" style={{ width: 38, height: 38 }}><ZLupe size={22} /></span>{t('kontrolle')}
         </button>
       </div>
-
-      {heuteFertig > 0 && (
-        <p className="leise" style={{ textAlign: 'center' }}>{t('heuteFertig')}: {heuteFertig}</p>
-      )}
     </>
   )
-}
-
-function setFehlerState() {
-  return useState<string | null>(null)
 }

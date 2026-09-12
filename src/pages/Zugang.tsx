@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { ZDrucken, ZHaken, ZKopieren, ZKuerbis } from '../components/Zeichen'
 import QRCode from 'qrcode'
 import { Hinweis, Karte } from '../components/Bausteine'
 
@@ -31,7 +32,7 @@ export default function Zugang() {
       <h1 className="kein-druck">Zugang für Arbeiter</h1>
 
       <Hinweis>
-        <p style={{ margin: 0 }}>
+        <p className="oben-0 unten-0">
           Diesen QR-Code ausdrucken und in der Halle aufhängen. Die Arbeiter
           scannen ihn mit der normalen Handy-Kamera, tippen einmal ihren Namen und
           können sofort Aufträge starten oder beitreten — <strong>kein Konto,
@@ -39,28 +40,27 @@ export default function Zugang() {
         </p>
       </Hinweis>
 
-      <section className="karte druckbereich" style={{ textAlign: 'center' }}>
-        <h2 style={{ marginBottom: '.25rem' }}>🎃 Kürbis-Verlust — Zugang</h2>
-        <p className="leise nur-druck" style={{ marginTop: 0 }}>
+      <section className="karte druckbereich mitte">
+        <h2 className="zugang-titel"><span className="kachel" aria-hidden="true"><ZKuerbis size={22} /></span>Kürbis-Verlust — Zugang</h2>
+        <p className="leise nur-druck oben-0">
           Mit der Handy-Kamera scannen, Namen eintippen, loslegen.
         </p>
         {fehler && <Hinweis art="warnung">{fehler}</Hinweis>}
         {qr && (
-          <img src={qr} alt="QR-Code zur App"
-               style={{ width: 'min(320px, 80vw)', height: 'auto', margin: '1rem auto' }} />
+          <img src={qr} alt="QR-Code zur App" className="qr-bild" />
         )}
-        <p style={{ fontVariantNumeric: 'tabular-nums', wordBreak: 'break-all', fontWeight: 600 }}>
+        <p className="qr-adresse">
           {url}
         </p>
       </section>
 
       <div className="reihe kein-druck">
-        <button onClick={() => window.print()}>QR-Code drucken</button>
-        <button onClick={kopieren}>{kopiert ? 'Kopiert ✓' : 'Adresse kopieren'}</button>
+        <button type="button" onClick={() => window.print()}><ZDrucken size={18} />QR-Code drucken</button>
+        <button type="button" onClick={kopieren}>{kopiert ? <><ZHaken size={18} />Kopiert</> : <><ZKopieren size={18} />Adresse kopieren</>}</button>
       </div>
 
       <Karte titel="Gut zu wissen" >
-        <ul style={{ margin: 0, paddingLeft: '1.2rem', lineHeight: 1.7 }}>
+        <ul className="zugang-liste">
           <li>Jedes Handy merkt sich seine Anmeldung — beim nächsten Mal geht es
               ohne Nachfrage direkt weiter.</li>
           <li>Der eingetippte Name steht bei jeder Erfassung dabei, damit man

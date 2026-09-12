@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
-import { TaetZeichen } from '../components/Zeichen'
+import { TaetZeichen, ZChevron } from '../components/Zeichen'
 import { Link, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { taetigkeitVon } from '../lib/taetigkeit'
 import { WOERTERBUCH } from '../lib/i18n'
-import { datum, kg, zahl, zeitpunkt } from '../lib/format'
-import { Herkunft, Hinweis, Karte, Lade, Marke } from '../components/Bausteine'
+import { datum, kg, tonnen, zahl, zeitpunkt } from '../lib/format'
+import { Erklaerung, Herkunft, Hinweis, Karte, Lade, Marke } from '../components/Bausteine'
 import { alterSpanne, useAuswertung, type Auswertung } from '../auswertung/daten'
 import { Probleme, Rechnet, Reiterkopf } from '../auswertung/Karten'
 import type { Auftrag } from '../lib/typen'
@@ -43,37 +43,36 @@ export default function Chargen() {
   const sorten = [...new Set(daten.bestand.map(b => b.sorte))].sort()
   const summeHaus = zeilen.reduce((a, z) => a + z.b.im_haus_heute_kg, 0)
   const summeGeliefert = zeilen.reduce((a, z) => a + z.b.geliefert_kg, 0)
+  const summePrognose = summeBekannt(zeilen.map(z => z.n?.prognose_verlust_14_kg ?? null))
 
   return (
     <>
       <Reiterkopf titel="Chargen" zweck="Wo steht welche Charge — wie viel liegt noch, wie alt ist es, was droht?"
-                  stand={daten.stand} heute={daten.heute} neuRechnen={() => void neuRechnen()} />
+                  stand={daten.stand} heute={daten.heute} neuRechnen={() => void neuRechnen()} laeuft={laedt} />
       <Probleme liste={daten.probleme} />
       <Karte>
-        <div className="reihe">
-          <select value={sorte} onChange={e => setSorte(e.target.value)} style={{ width: 'auto', minHeight: 36 }}>
+        <div className="filterleiste">
+          <select value={sorte} onChange={e => setSorte(e.target.value)} aria-label="Sorte">
             <option value="">alle Sorten</option>{sorten.map(s => <option key={s}>{s}</option>)}
           </select>
           <label className="ankreuzen" style={{ minHeight: 36 }}>
             <input type="checkbox" checked={nurBestand} onChange={e => setNurBestand(e.target.checked)} /> nur mit Bestand
           </label>
-          <span className="leise" style={{ marginLeft: 'auto' }}>
-            {zeilen.length} Chargen · ausgeliefert {kg(summeGeliefert, 0)} · im Haus {kg(summeHaus, 0)}
+          <span className="nach-rechts">
+            {zeilen.length} Chargen · ausgeliefert <strong>{tonnen(summeGeliefert)}</strong> · im Haus <strong>{tonnen(summeHaus)}</strong>
+            {summePrognose !== null && summePrognose > 0 && <> · zwei Wochen länger liegen: <strong>+{tonnen(summePrognose)}</strong></>}
           </span>
+          <span className="herkunft-legende">Eingang, Ausgeliefert<Herkunft art="gemessen" /> · Verlust, im Haus, verkaufsfähig<Herkunft art="gerechnet" /> · zwei Wochen<Herkunft art="prognose" /></span>
         </div>
-        <p className="leise" style={{ margin: '0 0 .5rem' }}>
-          Eingang und Ausgeliefert sind <Herkunft art="gemessen" />; Verlust bis heute, Noch im Haus und verkaufsfähig sind <Herkunft art="gerechnet" />: der Eingang minus die Eingangsware hinter den Lieferungen minus den Verlust der liegenden Ware bis heute; „verkaufsfähig" zieht davon ab, was zu klein oder zu gross ist.
-          „Liegt seit" ist die Spanne der Eingangstage — es gibt kein Zuerst-rein-zuerst-raus. „Prognose: 14 Tage länger liegen" ist die einzige <Herkunft art="prognose" /> auf dieser Seite: was zwei weitere Wochen Liegen kosten würden. Alles andere steht bis heute.
-          Messungen: Palettenwägungen · Faules · CSV-Läufe. Eine Zeile antippen zeigt Eingang, Ausgang und Arbeiten der Charge; Modell gegen CSV steht unter Messungen.
-        </p>
         <div className="rollbar">
-          <table>
+          <table className="umbruch">
             <thead>
               <tr>
+                <th style={{ width: 28 }} aria-label="aufklappen" />
                 <th>Charge</th><th>Sorte</th><th className="zahl">Eingang</th><th className="zahl">Ausgeliefert</th>
                 <th className="zahl">Verlust bis heute</th>
                 <th className="zahl">Noch im Haus</th><th className="zahl">verkaufsfähig</th><th className="zahl">liegt seit</th>
-                <th className="zahl">Prognose: 14 Tage länger liegen</th><th className="zahl">Messungen</th>
+                <th className="zahl">Prognose: zwei Wochen länger</th><th className="zahl">Messungen</th>
               </tr>
             </thead>
             <tbody>
@@ -84,6 +83,11 @@ export default function Chargen() {
             </tbody>
           </table>
         </div>
+        <Erklaerung>
+          Eingang und Ausgeliefert sind <Herkunft art="gemessen" />; Verlust bis heute, Noch im Haus und verkaufsfähig sind <Herkunft art="gerechnet" />: der Eingang minus die Eingangsware hinter den Lieferungen minus den Verlust der liegenden Ware bis heute; „verkaufsfähig" zieht davon ab, was zu klein oder zu gross ist.
+          „Liegt seit" ist die Spanne der Eingangstage — es gibt kein Zuerst-rein-zuerst-raus. „Prognose: zwei Wochen länger liegen" ist die einzige <Herkunft art="prognose" /> auf dieser Seite: was 14 weitere Tage Liegen kosten würden. Alles andere steht bis heute.
+          Messungen: Palettenwägungen · Faules · CSV-Läufe. Eine Zeile antippen zeigt Eingang, Ausgang und Arbeiten der Charge.
+        </Erklaerung>
       </Karte>
     </>
   )
@@ -96,8 +100,9 @@ function ChargenZeile({ z, offen, oeffnen, daten }: { z: Zeile; offen: boolean; 
   const liegt = b.im_haus_heute_kg > 0
   return (
     <>
-      <tr onClick={oeffnen} style={{ cursor: 'pointer', background: offen ? 'var(--kuerbis-flaeche)' : undefined }}>
-        <td><strong>{b.charge_nr}</strong> <span className="leise">{b.schlag}</span></td>
+      <tr onClick={oeffnen} className={`klickbar${offen ? ' offen' : ''}`} aria-expanded={offen}>
+        <td><span className="chevron" style={{ display: 'inline-flex', color: 'var(--text-leise)', transition: 'transform var(--d-mittel)', transform: offen ? 'rotate(90deg)' : undefined }}><ZChevron size={16} /></span></td>
+        <td><strong>{b.charge_nr}</strong> <span className="leise nowrap">{b.schlag}</span></td>
         <td>{b.sorte}</td>
         <td className="zahl">{kg(b.eingang_kg, 0)}</td>
         <td className="zahl">{b.n_lieferungen > 0 ? kg(b.geliefert_kg, 0) : <span className="leise">—</span>}</td>
@@ -105,11 +110,11 @@ function ChargenZeile({ z, offen, oeffnen, daten }: { z: Zeile; offen: boolean; 
         <td className="zahl">{liegt ? <strong>{kg(b.im_haus_heute_kg, 0)}</strong> : <span className="leise">—</span>}</td>
         <td className="zahl">{liegt && b.verkaufsfaehig_lager_kg !== null ? kg(b.verkaufsfaehig_lager_kg, 0) : <span className="leise">—</span>}</td>
         <td className="zahl">{liegt ? alterSpanne(b.alter_lager_von, b.alter_lager_bis, b.alter_lager_heute).replace(' Tagen', ' d') : ''}</td>
-        <td className="zahl">{n?.prognose_verlust_14_kg != null && n.prognose_verlust_14_kg > 0 ? kg(n.prognose_verlust_14_kg, 0) : <span className="leise">—</span>}</td>
-        <td className="zahl">{l ? `${l.n_wiegungen} · ${l.n_schimmel} · ${l.n_sortierlaeufe}` : '—'}</td>
+        <td className="zahl">{n?.prognose_verlust_14_kg != null && n.prognose_verlust_14_kg > 0 ? `+${kg(n.prognose_verlust_14_kg, 0)}` : <span className="leise">—</span>}</td>
+        <td className="zahl leise">{l ? `${l.n_wiegungen} · ${l.n_schimmel} · ${l.n_sortierlaeufe}` : '—'}</td>
       </tr>
       {offen && (
-        <tr><td colSpan={10} style={{ background: 'var(--flaeche-2)' }}><ChargeDetail nr={b.charge_nr} z={z} daten={daten} /></td></tr>
+        <tr><td colSpan={11} className="detail"><ChargeDetail nr={b.charge_nr} z={z} daten={daten} /></td></tr>
       )}
     </>
   )
@@ -139,52 +144,55 @@ function ChargeDetail({ nr, z, daten }: { nr: number; z: Zeile; daten: Auswertun
   const alter = daten.verarbeitung.filter(x => x.charge_nr === nr)
   const kohorten = daten.kohorten.filter(x => x.charge_nr === nr)
   const t = (id: keyof typeof WOERTERBUCH.de) => WOERTERBUCH.de[id]
-  if (laedt) return <Lade />
+  if (laedt) return <Lade zeilen={2} />
   const b = z.b
   return (
-    <div style={{ padding: '.5rem 0' }}>
-      <div className="spalten" style={{ marginBottom: '.75rem' }}>
-        <div><div className="leise">Paletten</div><strong>{zahl(b.n_paletten)}</strong>{b.im_haus_heute_kg > 0 && (b.n_rest_paletten ?? 0) > 0 && <div className="leise">etwa {b.n_rest_paletten} noch im Haus (gerechnet)</div>}</div>
-        <div><div className="leise">Eingang</div><strong>{b.eingang_von && b.eingang_bis && b.eingang_von !== b.eingang_bis ? `${datum(b.eingang_von)} – ${datum(b.eingang_bis)}` : datum(b.eingang_von ?? b.eingangsdatum_mittel)}</strong>{(b.n_eingangstage ?? 0) > 1 && <div className="leise">{b.n_eingangstage} Eingangstage</div>}</div>
-        <div><div className="leise">Ausgeliefert / dahinter an Eingang</div><strong>{kg(b.geliefert_kg, 0)} / {kg(b.ausgelagert_kg, 0)}</strong>{b.ueberzaehlung_kg > 0 && <div className="leise">mehr geliefert als hereingekommen: {kg(b.ueberzaehlung_kg, 0)}</div>}</div>
-        <div><div className="leise">Verlust bis heute</div><strong>{kg(b.verlust_heute_kg, 0)}</strong><div className="leise">Verdunstung {kg(b.verdunstung_heute_kg, 0)} · Faules {kg(summeBekannt([b.schimmel_heute_kg, b.sockel_heute_kg]), 0)} · Abpacken {kg(b.fax_heute_kg, 0)}</div></div>
-        {z.m?.csv_gemessen_kg != null && <div><div className="leise">Modell am Band / CSV gewogen</div><strong>{kg(z.m.modell_am_band_kg, 0)} / {kg(z.m.csv_gemessen_kg, 0)}</strong></div>}
+    <div className="wechsel">
+      <div className="zahlenzeile" style={{ marginBottom: '1rem' }}>
+        <div><div className="titel">Paletten</div><div className="wert" style={{ fontSize: '1.2rem' }}>{zahl(b.n_paletten)}</div>{b.im_haus_heute_kg > 0 && (b.n_rest_paletten ?? 0) > 0 && <div className="unter">etwa {b.n_rest_paletten} noch im Haus (gerechnet)</div>}</div>
+        <div><div className="titel">Eingang</div><div className="wert" style={{ fontSize: '1.2rem' }}>{b.eingang_von && b.eingang_bis && b.eingang_von !== b.eingang_bis ? `${datum(b.eingang_von)} – ${datum(b.eingang_bis)}` : datum(b.eingang_von ?? b.eingangsdatum_mittel)}</div>{(b.n_eingangstage ?? 0) > 1 && <div className="unter">{b.n_eingangstage} Eingangstage</div>}</div>
+        <div><div className="titel">Ausgeliefert / dahinter an Eingang</div><div className="wert" style={{ fontSize: '1.2rem' }}>{kg(b.geliefert_kg, 0)} / {kg(b.ausgelagert_kg, 0)}</div>{b.ueberzaehlung_kg > 0 && <div className="unter">mehr geliefert als hereingekommen: {kg(b.ueberzaehlung_kg, 0)}</div>}</div>
+        <div><div className="titel">Verlust bis heute</div><div className="wert" style={{ fontSize: '1.2rem' }}>{kg(b.verlust_heute_kg, 0)}</div><div className="unter">Verdunstung {kg(b.verdunstung_heute_kg, 0)} · Faules {kg(summeBekannt([b.schimmel_heute_kg, b.sockel_heute_kg]), 0)} · Abpacken {kg(b.fax_heute_kg, 0)}</div></div>
+        {z.m?.csv_gemessen_kg != null && <div><div className="titel">Modell am Band / CSV gewogen</div><div className="wert" style={{ fontSize: '1.2rem' }}>{kg(z.m.modell_am_band_kg, 0)} / {kg(z.m.csv_gemessen_kg, 0)}</div></div>}
       </div>
-      {/* Auffälligkeiten stehen seit Runde H nur unter Messungen — dort mit Rat
-          und dem Weg zur Korrektur. Zwei Orte für denselben Befund hiessen zwei
-          Zahlen, die auseinanderlaufen, sobald einer korrigiert wird. */}
+      <p className="leise-satz" style={{ margin: '0 0 1rem' }}>
+        Eingang und Ausgeliefert <Herkunft art="gemessen" />, alles Übrige <Herkunft art="gerechnet" /> bis heute. Auffälligkeiten dieser Charge stehen unter <Link to="/messungen">Messungen</Link>.
+      </p>
 
-      <h3>1 · Eingang{kohorten.length > 0 && ` (${kohorten.length} Eingangstage)`}</h3>
-      {kohorten.length === 0 ? <p className="leise">keine Eingangstage bekannt</p> : (
-        <>
-          <p className="leise" style={{ margin: '0 0 .4rem' }}>Was an welchem Tag kam. „In der App gezählt" sind Paletten, die bei einer erfassten Arbeit mit diesem Zetteldatum gezählt wurden — eine Beobachtung, keine Menge. Jeder Eingangstag trägt seinen Anteil zu jeder Lieferung und zum Bestand bei; die Rechnung nimmt für jeden Tag sein eigenes Alter.</p>
-          <div className="rollbar"><table>
-            <thead><tr><th>Eingangstag</th><th className="zahl">Alter heute</th><th className="zahl">Paletten</th><th className="zahl">Eingang</th><th className="zahl">in der App gezählt</th></tr></thead>
-            <tbody>{kohorten.map(k => (
-              <tr key={k.eingangsdatum}>
-                <td>{datum(k.eingangsdatum)}</td><td className="zahl">{k.alter_heute} d</td>
-                <td className="zahl">{k.n_paletten}</td><td className="zahl">{k.eingang_kg != null ? kg(k.eingang_kg, 0) : <span className="leise">—</span>}</td>
-                <td className="zahl">{k.n_verarbeitet}{k.n_verarbeitet > k.n_paletten && <> <Marke art="warnung">mehr gezählt als gekommen</Marke></>}</td>
-              </tr>
-            ))}</tbody>
-          </table></div>
-        </>
-      )}
+      <div className="gitter">
+        <div>
+          <h3 className="oben-0">1 · Eingang{kohorten.length > 0 && <span className="leise"> · {kohorten.length} Eingangstage</span>}</h3>
+          {kohorten.length === 0 ? <p className="leise">keine Eingangstage bekannt</p> : (
+            <div className="rollbar"><table className="dicht">
+              <thead><tr><th>Eingangstag</th><th className="zahl">Alter heute</th><th className="zahl">Paletten</th><th className="zahl">Eingang</th><th className="zahl">in der App gezählt</th></tr></thead>
+              <tbody>{kohorten.map(k => (
+                <tr key={k.eingangsdatum}>
+                  <td>{datum(k.eingangsdatum)}</td><td className="zahl">{k.alter_heute} d</td>
+                  <td className="zahl">{k.n_paletten}</td><td className="zahl">{k.eingang_kg != null ? kg(k.eingang_kg, 0) : <span className="leise">—</span>}</td>
+                  <td className="zahl">{k.n_verarbeitet}{k.n_verarbeitet > k.n_paletten && <> <Marke art="warnung">mehr gezählt als gekommen</Marke></>}</td>
+                </tr>
+              ))}</tbody>
+            </table></div>
+          )}
+        </div>
 
-      <h3 style={{ marginTop: '1rem' }}>2 · Ausgang ({lieferungen.length} Lieferungen)</h3>
-      {lieferungen.length === 0 ? <p className="leise">noch keine dieser Charge zugeordnet</p> : (
-        <div className="rollbar"><table>
-          <thead><tr><th>Datum</th><th>Ziel</th><th>Kunde</th><th className="zahl">Masse der Lieferung</th></tr></thead>
-          <tbody>{lieferungen.map(l => (
-            <tr key={l.id}><td>{datum(l.datum)}</td><td>{l.ziel_name}</td><td>{l.kunde ?? ''}</td>
-              <td className="zahl">{kg(l.masse_kg, 0)}{l.masse_quelle !== 'gewogen' && <span className="leise"> ({herkunftText(l.masse_quelle)})</span>}</td></tr>
-          ))}</tbody>
-        </table></div>
-      )}
+        <div>
+          <h3 className="oben-0">2 · Ausgang <span className="leise">· {lieferungen.length} Lieferungen</span></h3>
+          {lieferungen.length === 0 ? <p className="leise">noch keine dieser Charge zugeordnet</p> : (
+            <div className="rollbar"><table className="dicht">
+              <thead><tr><th>Datum</th><th>Ziel</th><th>Kunde</th><th className="zahl">Masse der Lieferung</th></tr></thead>
+              <tbody>{lieferungen.map(l => (
+                <tr key={l.id}><td>{datum(l.datum)}</td><td>{l.ziel_name}</td><td>{l.kunde ?? ''}</td>
+                  <td className="zahl">{kg(l.masse_kg, 0)}{l.masse_quelle !== 'gewogen' && <span className="leise"> ({herkunftText(l.masse_quelle)})</span>}</td></tr>
+              ))}</tbody>
+            </table></div>
+          )}
+        </div>
+      </div>
 
-      <h3 style={{ marginTop: '1rem' }}>3 · Arbeiten ({arbeiten.length})</h3>
+      <h3>3 · Arbeiten <span className="leise">· {arbeiten.length}</span></h3>
       {arbeiten.length === 0 ? <p className="leise">noch keine</p> : (
-        <div className="rollbar"><table>
+        <div className="rollbar"><table className="dicht">
           <thead><tr><th>Start</th><th>Arbeit</th><th>Status</th><th className="zahl">Bewegte Masse</th><th className="zahl">Alter verarbeitet</th><th></th></tr></thead>
           <tbody>
             {arbeiten.map(a => {
@@ -197,7 +205,7 @@ function ChargeDetail({ nr, z, daten }: { nr: number; z: Zeile; daten: Auswertun
                   <td>{a.abgebrochen_ts ? <Marke art="warnung">abgebrochen</Marke> : a.status === 'offen' ? <Marke art="offen">läuft</Marke> : <Marke art="fertig">fertig</Marke>}</td>
                   <td className="zahl">{a.masse_kg != null ? kg(a.masse_kg, 0) : <span className="leise">unbekannt</span>}{a.masse_quelle && a.masse_quelle !== 'fehlt' && <span className="leise"> ({herkunftText(a.masse_quelle)})</span>}</td>
                   <td className="zahl">{va ? `${Math.round(va.alter_verarbeitet)} d${va.differenz != null ? ` (${va.differenz > 0 ? '+' : ''}${Math.round(va.differenz)})` : ''}` : ''}</td>
-                  <td><Link to={`/arbeit/${a.id}`}>öffnen</Link></td>
+                  <td className="rechts-buendig"><Link to={`/arbeit/${a.id}`}>öffnen</Link></td>
                 </tr>
               )
             })}

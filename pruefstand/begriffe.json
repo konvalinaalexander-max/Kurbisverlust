@@ -217,6 +217,15 @@
     },
     {
       "muster": [
+        "Tempo",
+        "kg je Stunde"
+      ],
+      "art": "gemessen",
+      "bedeutet": "Bewegte Masse je Stunde einer Tätigkeit — aus Start, Ende und der gezählten Masse abgeschlossener Arbeiten",
+      "quelle": "erg_durchsatz.kg_pro_h"
+    },
+    {
+      "muster": [
         "Erwartung für die Ware im Haus",
         "Prognose",
         "in 14 Tagen",

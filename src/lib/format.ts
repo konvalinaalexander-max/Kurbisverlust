@@ -83,3 +83,21 @@ export const STATION_NAME: Record<string, string> = {
   waschen: 'Waschen',
   waschen_sortieren: 'Waschen + Sortieren',
 }
+
+/**
+ * „vor 12 min", „vor 3 h", „gestern 18:30", sonst Datum und Zeit — der Stand
+ * einer Auswertung, so wie man ihn auf einen Blick einordnet.
+ */
+export function vorZeit(wert: string | Date | null | undefined, jetzt = new Date()): string {
+  if (!wert) return '—'
+  const d = typeof wert === 'string' ? new Date(wert) : wert
+  const min = Math.round((jetzt.getTime() - d.getTime()) / 60000)
+  if (min < 1) return 'gerade eben'
+  if (min < 60) return `vor ${min} min`
+  const h = Math.round(min / 60)
+  if (h < 12) return `vor ${h} h`
+  const gestern = new Date(jetzt); gestern.setDate(gestern.getDate() - 1)
+  if (tagVon(d) === tagVon(jetzt)) return `heute ${d.toLocaleTimeString(ORT, { hour: '2-digit', minute: '2-digit' })}`
+  if (tagVon(d) === tagVon(gestern)) return `gestern ${d.toLocaleTimeString(ORT, { hour: '2-digit', minute: '2-digit' })}`
+  return zeitpunkt(d)
+}

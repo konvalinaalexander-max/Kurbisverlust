@@ -67,10 +67,10 @@ export function PaloxMaske({ d, gesperrt, gespeichert, unveraendertErlaubt = fal
         <label htmlFor="palox">{t('waageZeigt')}</label>
         <input id="palox" className="gross" type="number" inputMode="decimal" min={0} step="0.5"
                value={stand} disabled={gesperrt} onChange={e => setStand(e.target.value)} autoFocus />
-        <p className="leise" style={{ margin: '.4rem 0 0' }}>{t('waageAblesenHinweis')}</p>
+        <p className="hilfe">{t('waageAblesenHinweis')}</p>
       </div>
       {menge !== null && (
-        <p style={{ margin: '.6rem 0', fontSize: '1.15rem' }}>
+        <p className="netto-zeile">
           <strong>{Math.round(Math.max(menge, 0))} kg</strong>
           {vorher !== null && <span className="leise"> ({n} − {vorher})</span>}
           {vorher === null && tara > 0 && <span className="leise"> ({n} − {tara})</span>}
@@ -79,18 +79,18 @@ export function PaloxMaske({ d, gesperrt, gespeichert, unveraendertErlaubt = fal
       )}
       {verdaechtig && <Hinweis art="warnung">{t('vielJePalette')}</Hinweis>}
       {fehler && <Hinweis art="warnung">{fehler}</Hinweis>}
-      <button id="palox-eintragen" className="haupt" style={{ width: '100%', minHeight: 60, fontSize: '1.08rem' }}
+      <button type="button" id="palox-eintragen" className="haupt gross voll"
               onClick={() => void speichern()} disabled={gesperrt || laeuft || n === null || n < 0}>
         {t('eintragen')}
       </button>
       {unveraendertErlaubt && letzte && (
-        <button id="palox-unveraendert" style={{ width: '100%', marginTop: '.6rem', minHeight: 48 }}
+        <button type="button" id="palox-unveraendert" className="voll" style={{ marginTop: '.6rem', minHeight: 48 }}
                 onClick={() => void speichern(true)} disabled={gesperrt || laeuft}>
           {t('standUnveraendert')}
         </button>
       )}
       {d.ablesungen.length > 0 && (
-        <p className="leise" style={{ marginTop: '1rem', marginBottom: 0 }}>
+        <p className="leise abstand-oben unten-0">
           {t('zuletztAbgelesen')} {uhrzeit(letzte.ts, gebietsschema)} · {t('bisher')}: {summe} kg
           {' '}({d.ablesungen.length} {t('ablesungen')})
         </p>

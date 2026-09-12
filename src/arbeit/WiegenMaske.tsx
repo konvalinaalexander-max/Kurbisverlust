@@ -77,13 +77,13 @@ export function WiegenMaske({ d, zettelDatum, zettelBrutto = '', fertig }: {
         <input id="w-jetzt" type="number" inputMode="decimal" step="0.1" min={0} value={jetzt}
                onChange={e => setJetzt(e.target.value)} style={{ fontSize: '1.2rem' }} />
       </div>
-      <div className="reihe">
-        <div className="feld" style={{ flex: 1 }}>
+      <div className="spalten">
+        <div className="feld">
           <label htmlFor="w-kisten">{t('anzahlKisten')}</label>
           <input id="w-kisten" type="number" inputMode="numeric" min={1} value={kisten}
                  onChange={e => setKisten(e.target.value)} />
         </div>
-        <div className="feld" style={{ flex: 1 }}>
+        <div className="feld">
           <label htmlFor="w-art">{t('kistenart')}</label>
           <select id="w-art" value={art} onChange={e => setArt(e.target.value)}>
             {gebinde.map(g => <option key={g.art} value={g.art}>{g.art}</option>)}
@@ -96,7 +96,7 @@ export function WiegenMaske({ d, zettelDatum, zettelBrutto = '', fertig }: {
                onChange={e => setProKiste(e.target.value)} />
       </div>
       {netto !== null && netto > 0 && (
-        <p style={{ margin: '0 0 .6rem' }}>
+        <p className="netto-zeile">
           <strong>{(netto / Number(kisten)).toFixed(2)} kg</strong> {t('jeKiste')}
           {proKiste !== '' && Number(proKiste) > 0 && (
             <> · <strong>{(netto / (Number(kisten) * Number(proKiste))).toFixed(2)} kg</strong> {t('proKuerbis')}</>
@@ -105,7 +105,7 @@ export function WiegenMaske({ d, zettelDatum, zettelBrutto = '', fertig }: {
       )}
       {fehlt && <Hinweis art="warnung">{fehlt} Ohne sie lässt sich das Nettogewicht nicht ausrechnen — die Angabe gehört in die Stammdaten.</Hinweis>}
       {fehler && <Hinweis art="warnung">{fehler}</Hinweis>}
-      <button className="haupt" style={{ width: '100%', minHeight: 60 }} onClick={() => void speichern()}
+      <button type="button" className="haupt gross voll" onClick={() => void speichern()}
               disabled={laeuft || !vollstaendig}>{t('eintragen')}</button>
     </div>
   )

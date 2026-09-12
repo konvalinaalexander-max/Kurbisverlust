@@ -2,9 +2,10 @@ import type { ReactNode } from 'react'
 import { Herkunft } from './Bausteine'
 
 /**
- * Bilanzzeile: Zahl, Balken, Erklärung — die Zeilen der Karte „Geht die
+ * Bilanzzeile: Name, Zahl, Balken, Erklärung — die Zeilen der Karte „Geht die
  * Rechnung auf?" (Messungen). Jede Zeile trägt ihre Herkunft: gemessen oder
- * gerechnet (Runde H).
+ * gerechnet. Die Klasse `.bilanzzeile` mit `.name` ist der Vertrag mit
+ * pruefstand/beschriftung.mjs.
  */
 export function Bilanzzeile({ titel, kg, eingang, farbe, erklaerung, herkunft }: {
   /** kg = null heisst „nicht gemessen" (0064): kein Balken, kein Anteil, ein „—". */
@@ -13,21 +14,18 @@ export function Bilanzzeile({ titel, kg, eingang, farbe, erklaerung, herkunft }:
 }) {
   const anteil = kg !== null && eingang > 0 ? Math.max(kg, 0) / eingang : null
   return (
-    <div style={{ marginBottom: '.8rem' }}>
-      <div className="reihe" style={{ justifyContent: 'space-between', gap: '.6rem', marginBottom: '.2rem' }}>
-        <span style={{ fontSize: '.9rem', fontWeight: 560 }}>{titel} {herkunft && <Herkunft art={herkunft} />}</span>
-        <strong style={{ fontVariantNumeric: 'tabular-nums' }}>
+    <div className="bilanzzeile">
+      <div className="bilanz-kopf">
+        <span className="name">{titel} {herkunft && <Herkunft art={herkunft} />}</span>
+        <span className="bilanz-wert">
           {kg === null ? <span className="leise">nicht gemessen</span> : <>{(kg / 1000).toFixed(1)} t</>}
-          {anteil !== null && <span className="leise" style={{ fontWeight: 480 }}> · {(anteil * 100).toFixed(1)} %</span>}
-        </strong>
+          {anteil !== null && <span className="leise"> · {(anteil * 100).toFixed(1)} %</span>}
+        </span>
       </div>
-      <div style={{ background: 'var(--flaeche-2)', height: 10, borderRadius: 5 }}>
-        <div style={{ width: `${Math.min((anteil ?? 0) * 100, 100)}%`, height: 10,
-                      background: farbe, borderRadius: 5 }} />
+      <div className="balken-spur">
+        <div className="balken-fuellung waechst" style={{ width: `${Math.min((anteil ?? 0) * 100, 100)}%`, background: farbe }} />
       </div>
-      {erklaerung && (
-        <p className="leise" style={{ margin: '.25rem 0 0', fontSize: '.82rem' }}>{erklaerung}</p>
-      )}
+      {erklaerung && <p className="fussnote">{erklaerung}</p>}
     </div>
   )
 }

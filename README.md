@@ -909,6 +909,7 @@ Was in den Warenausgangsdateien steht, gemessen an den echten Dateien:
 [`docs/WARENAUSGANG_BEFUND.md`](docs/WARENAUSGANG_BEFUND.md).
 Fachliche Spezifikation: [`docs/SPEC.md`](docs/SPEC.md).
 Begründung der Modellentscheidungen: [`docs/ENTSCHEIDUNGEN.md`](docs/ENTSCHEIDUNGEN.md).
+Wie die Oberfläche gebaut ist (Büro, Halle, Diagramme, Bausteine): [`docs/DESIGN_RUNDE_O.md`](docs/DESIGN_RUNDE_O.md).
 
 ## Was noch offen ist
 

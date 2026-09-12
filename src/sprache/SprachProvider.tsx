@@ -1,6 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
 import { GEBIETSSCHEMA, SPRACHEN, uebersetze, type Sprache, type TextId } from '../lib/i18n'
 import { heute as heuteOrtszeit } from '../lib/format'
+import { ZKuerbis } from '../components/Zeichen'
+import { staffel } from '../design/bewegung'
 
 const SCHLUESSEL = 'sprache'
 const TAG_SCHLUESSEL = 'sprache_tag'
@@ -61,17 +63,17 @@ export function SprachProvider({ children }: { children: ReactNode }) {
 
 export const useSprache = () => useContext(Kontext)
 
-/** Die Flaggen-Auswahl. Kein Text außer den Sprachnamen — die versteht jeder. */
+/** Die Sprachwahl: je Sprache eine Kachel mit Kürzel und Namen — den versteht jeder. */
 export function SprachAuswahl() {
   const { setSprache } = useSprache()
   return (
-    <div className="huelle" style={{ maxWidth: 460, paddingTop: '3rem' }}>
-      <div style={{ textAlign: 'center', fontSize: '3rem', marginBottom: '.5rem' }}>🎃</div>
+    <div className="huelle eng sprachwahl">
+      <div className="marke-gross"><span className="zeichen" aria-hidden="true"><ZKuerbis size={36} /></span></div>
       <div className="flaggen">
-        {SPRACHEN.map(s => (
-          <button key={s.code} className="flagge" onClick={() => setSprache(s.code)}
+        {SPRACHEN.map((s, i) => (
+          <button key={s.code} type="button" className="flagge eintritt" style={staffel(i)} onClick={() => setSprache(s.code)}
                   lang={s.code} aria-label={s.name}>
-            <span className="flagge-bild">{s.flagge}</span>
+            <span className="flagge-bild" aria-hidden="true">{s.code.toUpperCase()}</span>
             <span className="flagge-name">{s.name}</span>
           </button>
         ))}

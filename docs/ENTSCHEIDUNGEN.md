@@ -2949,3 +2949,63 @@ satterer Kürbis als einziger Akzent, einfarbige SVG-Strichzeichen statt Emoji,
 und ruhige Bewegung (Knopf, Fokus, Linie, Karte). Alles ohne eine neue
 Abhängigkeit; die Strom-Farben blieben, weil sie Bedeutung tragen und auf
 Farbfehlsichtigkeit geprüft sind.
+
+## Runde O — das Erscheinungsbild ganz, nicht halb
+
+Runde N hatte nur die Zeichen getauscht (Farben, Schrift, SVG statt Emoji) und
+das als „komplett" gemeldet; die Bildschirme selbst waren unverändert. Der
+Betrieb hat das gesehen. Runde O baut jede Seite neu — Funktionen und Zahlen
+identisch, bewiesen durch die unveränderten Prüfstände. Was gebaut ist, steht
+in `docs/DESIGN_RUNDE_O.md`; hier die Entscheidungen.
+
+### Die Kurve läuft über die letzte Messung hinaus — mit derselben Formel wie die Datenbank
+
+Ein Diagramm über Lagertage, das an der letzten Messung endet, beantwortet die
+Frage des Betriebs nicht („wie geht es potenziell weiter?"). Die Kurve wird
+deshalb 60 Tage weitergezeichnet, gestrichelt, mit Band. Sie ist keine neue
+Rechnung: `schimmelKurve` und `verdunstungKurve` in `src/auswertung/daten.ts`
+werten genau die Koeffizienten aus, die `erg_kurve` liefert (ln λ, k, x̄,
+Varianzen, Kovarianz, Streufaktor), nur an mehr Stellen — gegen `erg_kurve`
+nachgerechnet (0.0211 gegen 0.0208 an der Stichprobe). Die Zahlen „Prognose:
+zwei Wochen länger liegen" kommen unverändert aus `erg_naechste_charge`.
+
+### „Heute" gibt es auf der Lagertage-Achse nur je Charge
+
+Jede Charge kam an einem anderen Tag herein; ein gemeinsames „heute" wäre
+gelogen. Also: je Charge eine Raute bei ihrem Alter (Grösse nach Masse); ist
+eine Charge gewählt, eine Linie „heute · N Tage im Lager"; sonst eine Zone
+„hier liegt die Ware heute (von–bis Tage)". Das ist beobachtet (Alter aus
+`erg_charge`), nicht gefolgert.
+
+### Das Schwebefeld liegt neben dem Rollbereich, nicht darin
+
+Der gemeldete Fehler (Tooltip verschwindet unter der Legende) kam von
+`overflow: auto` am Rollbereich, der das absolut gesetzte Feld abschnitt. Das
+Feld ist jetzt Geschwister des Rollbereichs innerhalb `.diagramm`
+(`position: relative`) und klappt nach oben, wenn der Zeiger tief steht.
+
+### Herkunft steht oben in der Karte, nicht nur in der Erklärung
+
+Der Begriffs-Prüfstand liest die ersten 1 800 Zeichen einer Karte; eine
+Tabelle mit 27 Chargen schiebt die Erklärung darunter hinaus. Das ist kein
+Prüfstandsfehler, sondern ein Hinweis: Wer eine lange Tabelle liest, sieht die
+Erklärung darunter auch nicht. Die Herkunftsmarke steht deshalb im Titel des
+Aufklappers oder in der Filterleiste — dort, wo der Chef hinschaut. Aus
+demselben Grund heisst die Prognosezeile „zwei Wochen länger liegen": „14 Tage"
+sieht wie eine Zahl mit Einheit aus, und eine Zeile, die selbst wie ein Wert
+aussieht, hat keine Beschriftung.
+
+### Zwei Prüfstände wurden präziser, keiner lockerer
+
+`invarianten.mjs` las die SVG-Zeichen der neuen Werkzeugknöpfe („Als Tabelle")
+als Diagramme mit null Achsenstrichen — der Vertrag sagt seit Runde N
+`svg[data-x-einheit]`; jetzt liest er nur das. `bildschirme.mjs` nennt bei
+Überlauf die Elemente, die hinausragen. Schwellen, Regeln und Lexikonpflicht
+sind unverändert; das Lexikon bekam den Begriff „Tempo".
+
+### Was bewusst nicht gemacht wurde
+
+Kein Chart-Paket, kein Animations-Paket, keine neue Abhängigkeit — die
+Diagramme bleiben lesbar und die Prüfstände können sie zurücklesen. Keine
+Änderung an Schema oder Sichten: Runde O ist reines Frontend, `run.sh` läuft
+unverändert grün.

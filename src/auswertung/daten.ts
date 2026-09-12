@@ -21,6 +21,10 @@ export interface Modell {
   n: number; c_chargen: number; t_min: number; t_max: number
   k: number | null; lambda: number | null; smearing: number | null; brauchbar: boolean
   sockel: number | null; sockel_nachweis: number | null; sockel_schwelle: number | null
+  /** Die Anpassung im Logarithmus (erg_modell): Achse ln λ, Mittel der ln t,
+   *  die Varianzen und ihre Kovarianz, das t-Quantil — daraus das Band. */
+  ln_lambda?: number | null; x_mittel?: number | null
+  var_achse?: number | null; var_k?: number | null; kov_achse_k?: number | null; t_faktor?: number | null
 }
 export interface Schimmelpunkt {
   auftrag_id: number | null; charge_nr: number; sorte: string; lagertage: number
@@ -555,3 +559,61 @@ export function kaliberJe(zeilen: Kaliberzeile[], nach: 'sorte' | 'charge'): Kal
   }).sort((a, b) => b.n - a.n)
 }
 
+
+/* ---------- Die Kurven, an denen die Ware heute steht ------------------------ */
+
+export interface Kurvenpunkt { mittel: number; unten: number; oben: number }
+
+/**
+ * Die Verderbskurve des Modells an einer beliebigen Stelle t — dieselbe
+ * Rechnung, mit der die Datenbank je Altersklasse rechnet (0061/0062):
+ * F(t) = 1 − exp(−λ·t^k), zurückgerechnet mit dem Smearing-Faktor, plus der
+ * Sockel a₀. Das Band kommt aus der Kovarianz der Anpassung (Delta-Methode im
+ * Logarithmus): var(η) = var_achse + d²·var_k + 2·d·kov mit d = ln t − x̄.
+ *
+ * Gebraucht, um die Kurve **über die Messungen hinaus** zu zeichnen — dorthin,
+ * wo die Ware heute liegt und wo sie in 30 oder 60 Tagen liegt. Neue Zahlen
+ * entstehen hier nicht: Die Datenbank rechnet die Kaskade mit genau dieser
+ * Kurve; hier wird sie nur an mehr Stellen ausgewertet als an sieben.
+ */
+export function schimmelKurve(m: Modell | null): ((t: number) => Kurvenpunkt) | null {
+  if (!m || !m.brauchbar || m.lambda == null || m.k == null) return null
+  const lnLambda = m.ln_lambda ?? Math.log(m.lambda)
+  const k = m.k, sm = m.smearing ?? 1, sockel = m.sockel ?? 0
+  const xm = m.x_mittel ?? null, va = m.var_achse ?? null, vk = m.var_k ?? null, kov = m.kov_achse_k ?? 0, tf = m.t_faktor ?? 1.96
+  const f = (eta: number) => Math.min(1, sm * (1 - Math.exp(-Math.exp(eta))) + sockel)
+  return (t: number) => {
+    if (!(t > 0)) return { mittel: sockel, unten: sockel, oben: sockel }
+    const lt = Math.log(t)
+    const eta = lnLambda + k * lt
+    if (xm === null || va === null || vk === null) { const w = f(eta); return { mittel: w, unten: w, oben: w } }
+    const d = lt - xm
+    const sd = Math.sqrt(Math.max(va + d * d * vk + 2 * d * kov, 0))
+    return { mittel: f(eta), unten: f(eta - tf * sd), oben: f(eta + tf * sd) }
+  }
+}
+
+/** Die Verdunstung nach t Tagen bei einer Tagesrate r: 1 − (1 − r)^t, mit dem Bereich der Rate. */
+export function verdunstungKurve(k: SortenK | undefined): ((t: number) => Kurvenpunkt) | null {
+  if (!k || k.mittel == null) return null
+  const r = k.mittel, u = k.unten ?? r, o = k.oben ?? r
+  const f = (rate: number, t: number) => 1 - Math.pow(1 - rate, Math.max(t, 0))
+  return (t: number) => ({ mittel: f(r, t), unten: f(u, t), oben: f(o, t) })
+}
+
+/**
+ * Wo die Ware **heute** auf einer Lagertage-Achse steht: je Charge im Filter
+ * das Alter der liegenden Paletten (Spanne über die Eingangstage) und ihre
+ * Masse — die Rauten auf der Kurve. Chargen ohne Bestand stehen nirgends.
+ */
+export interface Lagerstand { charge: Bestand; alter: number; von: number; bis: number; imHaus: number; naechste?: NaechsteCharge }
+export function lagerstaende(bestand: Bestand[], naechste: NaechsteCharge[]): Lagerstand[] {
+  return bestand
+    .filter(b => b.im_haus_heute_kg > 0 && (b.alter_lager_heute != null || b.alter_lager_von != null))
+    .map(b => {
+      const von = b.alter_lager_von ?? b.alter_lager_heute, bis = b.alter_lager_bis ?? b.alter_lager_heute
+      return { charge: b, alter: b.alter_lager_heute ?? (von + bis) / 2, von, bis, imHaus: b.im_haus_heute_kg,
+               naechste: naechste.find(n => n.charge_nr === b.charge_nr) }
+    })
+    .sort((a, b) => b.imHaus - a.imHaus)
+}

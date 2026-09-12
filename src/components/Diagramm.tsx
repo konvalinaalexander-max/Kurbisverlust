@@ -1,22 +1,29 @@
-import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { kg as kgText, prozent, tonnen, zahl } from '../lib/format'
 import { achsenBereich, type Einheit } from '../lib/achse'
+import { ZTabelle, ZZoomAus } from './Zeichen'
 
 /**
  * Diagramme von Hand als SVG — Linien, Glocke (Verteilung), Anteilsbalken.
  *
- * Regeln (docs/UI-KONZEPT.md, Datenvisualisierung): eine Achse je Grösse,
- * dünne Marken, zurückhaltendes Gitter, Farben nur als Kennung der Reihe
- * (die Strom-Farben aus index.css), Text immer in Textfarbe. Jedes Diagramm
- * hat seine Tabelle — wer die Zahl will, bekommt sie.
+ * Regeln (docs/UI-KONZEPT.md): eine Achse je Grösse, dünne Marken, ein
+ * zurückhaltendes Gitter, Farben nur als Kennung der Reihe, Text in Textfarbe.
+ * Jedes Diagramm hat seine Tabelle — wer die Zahl will, bekommt sie.
  *
- * Runde H: interaktiv. Der Zeiger zeigt an der Stelle x *alle* Reihen
- * (Fadenkreuz), die Legende blendet Reihen aus, ein gezogener Rahmen
- * vergrössert einen Ausschnitt (Doppelklick oder Knopf: zurück), eine Reihe
- * kann ab einem Punkt gestrichelt weiterlaufen (Prognose), und eine
- * senkrechte Marke zeigt „heute".
+ * Bedienung: Der Zeiger (Maus oder Finger) zeigt an der Stelle x alle Reihen
+ * (Fadenkreuz); die Legende blendet Reihen aus; ein mit der Maus gezogener
+ * Rahmen vergrössert (Doppelklick oder Knopf: zurück); Ctrl + Rad vergrössert
+ * um den Zeiger. Eine Reihe kann ab einem x gestrichelt weiterlaufen
+ * (Hochrechnung), Zonen schattieren einen x-Bereich („heute liegt die Ware
+ * hier"), eine senkrechte Marke zeigt „heute".
+ *
+ * Vertrag mit dem Prüfstand (gegenprobe/bildschirm/invarianten.mjs): das SVG
+ * nennt seine Einheiten (data-x-einheit/-y-einheit), jede Achsenbeschriftung
+ * trägt class="strich" mit ihrem Anker, jeder Datenpunkt ist ein <circle
+ * class="marker"> mit r ≤ 4.5, der Rahmen ist B × hoehe mit den Rändern
+ * L/R/U — darauf rechnet der Prüfstand die Achse zurück.
  */
-export interface Punkt { x: number; y: number; text?: string }
+export interface Punkt { x: number; y: number; text?: string; name?: string; groesse?: number }
 export interface Reihe {
   name: string
   farbe: string
@@ -25,15 +32,24 @@ export interface Reihe {
   linie?: boolean
   /** Marker an den Punkten (Messwerte). */
   marker?: boolean
+  /** Form der Marker: Kreis (Messung) oder Raute (eine Charge heute). */
+  form?: 'kreis' | 'raute'
   /** Unsicherheitsband: je Punkt unten/oben. */
   band?: { x: number; unten: number; oben: number }[]
   /** Ganze Linie gestrichelt (ein Modell, keine Messung). */
   gestrichelt?: boolean
-  /** Ab diesem x läuft die Linie gestrichelt weiter: Prognose statt Rechnung bis heute. */
+  /** Ab diesem x läuft die Linie gestrichelt weiter: Hochrechnung statt Messung. */
   prognoseAb?: number
+  /** Fläche unter der Linie leicht füllen (kumulierte Grössen). */
+  flaeche?: boolean
+  /** Etwas dicker (die eine Hauptlinie). */
+  dick?: boolean
   /** In der Legende zunächst ausgeblendet. */
   ausgeblendet?: boolean
+  /** Nicht in der Legende (Hilfsreihe). */
+  ohneLegende?: boolean
 }
+export interface Zone { von: number; bis: number; text?: string; farbe?: string }
 
 const B = 720, L = 56, R = 16, O = 16, U = 36
 
@@ -77,11 +93,17 @@ interface Schweb { x: number; y: number; inhalt: ReactNode }
 /** Ein Hinweis, der dem Zeiger folgt — innerhalb des Rahmens, nie darüber hinaus. */
 function Schwebend({ s, rahmen }: { s: Schweb | null; rahmen: React.RefObject<HTMLDivElement | null> }) {
   if (!s) return null
+  // Der Hinweis hängt am Diagramm-Rahmen, nicht im rollbaren Innenteil —
+  // dort schnitt ihn `overflow: auto` ab, sobald der Zeiger unten stand.
+  // Rechts und unten klappt er auf die andere Seite des Zeigers.
   const breite = rahmen.current?.clientWidth ?? 600
-  const links = s.x > breite * 0.62
+  const hoehe = rahmen.current?.clientHeight ?? 300
+  const links = s.x > breite * 0.6
+  const oben = s.y > hoehe * 0.55
   return (
-    <div className="schweb" style={{ left: links ? undefined : s.x + 14, right: links ? breite - s.x + 14 : undefined, top: Math.max(s.y - 12, 0) }}
-         role="tooltip">
+    <div className="schweb" role="tooltip"
+         style={{ left: links ? undefined : s.x + 14, right: links ? breite - s.x + 14 : undefined,
+                  top: oben ? undefined : Math.max(s.y - 12, 0), bottom: oben ? Math.max(hoehe - s.y - 12, 0) : undefined }}>
       {s.inhalt}
     </div>
   )
@@ -89,19 +111,21 @@ function Schwebend({ s, rahmen }: { s: Schweb | null; rahmen: React.RefObject<HT
 
 function useZeiger() {
   const rahmen = useRef<HTMLDivElement | null>(null)
-  const ort = useCallback((e: React.MouseEvent) => {
+  const ort = useCallback((e: { clientX: number; clientY: number }) => {
     const box = rahmen.current?.getBoundingClientRect()
     return box ? { x: e.clientX - box.left, y: e.clientY - box.top } : { x: 0, y: 0 }
   }, [])
   return { rahmen, ort }
 }
 
+const staffel = (i: number): CSSProperties => ({ '--i': Math.min(i, 40) } as CSSProperties)
+
 /* ---------- Linien -------------------------------------------------------- */
 
 export function Linien({ reihen, hoehe = 280, xFormat = String, yFormat = String, xTitel, yTitel,
                          yVon, yBis, xVon, xBis, xEinheit = 'frei', yEinheit = 'frei',
-                         senkrechte = [], waagrechte = [], heute, leer = 'keine Messung',
-                         ausgeschlossenText, zoom = true, tabelle: tabelleErlaubt = true, kompakt = false }: {
+                         senkrechte = [], waagrechte = [], zonen = [], heute, leer = 'keine Messung',
+                         ausgeschlossenText, zoom = true, tabelle: tabelleErlaubt = true, kompakt = false, fuss }: {
   reihen: Reihe[]; hoehe?: number
   xFormat?: (x: number) => string; yFormat?: (y: number) => string
   xTitel?: string; yTitel?: string
@@ -112,15 +136,19 @@ export function Linien({ reihen, hoehe = 280, xFormat = String, yFormat = String
   /** Wie ein ausgeschlossener x-Wert benannt wird (für den Hinweis unter dem Bild). */
   ausgeschlossenText?: (x: number) => string
   /** Senkrechte Hilfslinien mit Beschriftung (etwa Kalibergrenzen). */
-  senkrechte?: { x: number; text: string }[]
+  senkrechte?: { x: number; text: string; farbe?: string }[]
   /** Waagrechte Bezugslinien (etwa der Mittelwert einer Sorte). */
   waagrechte?: { y: number; text: string; farbe?: string }[]
+  /** Schattierte x-Bereiche („heute liegt die Ware hier", „Hochrechnung"). */
+  zonen?: Zone[]
   /** Die Marke „heute": links davon gerechnet, rechts Prognose. */
-  heute?: { x: number; text?: string }
+  heute?: { x: number; text?: string; rechts?: string }
   leer?: string
   zoom?: boolean
   tabelle?: boolean
   kompakt?: boolean
+  /** Etwas, das links im Fuss neben der Legende steht. */
+  fuss?: ReactNode
 }) {
   const { rahmen, ort } = useZeiger()
   const [aus, setAus] = useState<Set<string>>(() => new Set(reihen.filter(r => r.ausgeblendet).map(r => r.name)))
@@ -143,10 +171,11 @@ export function Linien({ reihen, hoehe = 280, xFormat = String, yFormat = String
     // solche Werte aus der Achse (sie stehen als Hinweis unter dem Bild).
     const datenX = reihen.flatMap(r => r.punkte.map(p => p.x))
     const bereich = achsenBereich(datenX, xEinheit, { von: xVon, bis: xBis })
-    // „heute" und Hilfslinien gehören ins Bild, bestimmen die Achse aber nie —
-    // und nur, soweit die Einheit sie zulässt.
+    // „heute", Zonen und Hilfslinien gehören ins Bild, bestimmen die Achse aber
+    // nie — und nur, soweit die Einheit sie zulässt.
     const g = xEinheit === 'tage' || xEinheit === 'kg' || xEinheit === 'stueck' ? 0 : -Infinity
-    const zusatzX = senkrechte.map(s => s.x).concat(heute ? [heute.x] : []).filter(x => Number.isFinite(x) && x >= g)
+    const zusatzX = senkrechte.map(s => s.x).concat(heute ? [heute.x] : []).concat(zonen.flatMap(z => [z.von, z.bis]))
+      .filter(x => Number.isFinite(x) && x >= g)
     const xMinAlle = xVon ?? Math.min(bereich.von, ...zusatzX)
     const xMaxAlle = xBis ?? Math.max(bereich.bis, ...zusatzX)
     const ausserhalb = bereich.ausgeschlossen
@@ -167,19 +196,19 @@ export function Linien({ reihen, hoehe = 280, xFormat = String, yFormat = String
     const sy = (y: number) => hoehe - U - (yMax > yMin ? (y - yMin) / (yMax - yMin) : 0.5) * (hoehe - oben - U)
     const xVonPx = (px: number) => x0 + ((px - L) / (B - L - R)) * (x1 - x0)
     return { x0, x1, xMinAlle, xMaxAlle, yMin, yMax, sx, sy, xt, yt, xVonPx, ausserhalb }
-  }, [reihen, alle, bandwerte, senkrechte, waagrechte, heute, xVon, xBis, xEinheit, yVon, yBis, hoehe, oben, sicht, kompakt])
+  }, [reihen, alle, bandwerte, senkrechte, waagrechte, zonen, heute, xVon, xBis, xEinheit, yVon, yBis, hoehe, oben, sicht, kompakt])
 
   if (reihen.every(r => r.punkte.length === 0)) return <p className="leise">{leer}</p>
 
   const { x0, x1, sx, sy, xt, yt, yMin, xVonPx, ausserhalb } = m
 
   // Zeigerposition im SVG-Raster (B × hoehe), aus der Bildschirmposition
-  const raster = (e: React.MouseEvent<SVGSVGElement>) => {
+  const raster = (e: { clientX: number; clientY: number; currentTarget: SVGSVGElement }) => {
     const box = e.currentTarget.getBoundingClientRect()
     return { mx: ((e.clientX - box.left) / box.width) * B, my: ((e.clientY - box.top) / box.height) * hoehe }
   }
 
-  function bewegung(e: React.MouseEvent<SVGSVGElement>) {
+  function zeigen(e: React.PointerEvent<SVGSVGElement>) {
     const { mx, my } = raster(e)
     if (zieh) { setZieh({ von: zieh.von, bis: Math.max(L, Math.min(B - R, mx)) }); return }
     // Die nächste x-Stelle über alle sichtbaren Reihen — dann je Reihe der Punkt dort.
@@ -194,7 +223,8 @@ export function Linien({ reihen, hoehe = 280, xFormat = String, yFormat = String
     for (const r of sichtbar) {
       let naechster: Punkt | null = null, dd = 1e12
       for (const p of r.punkte) {
-        const d = Math.abs(p.x - bestX)
+        // Bei mehreren Punkten an derselben Stelle x zählt der dem Zeiger nächste.
+        const d = Math.abs(p.x - bestX) * 1e6 + Math.abs(sy(p.y) - my)
         if (d < dd) { dd = d; naechster = p }
       }
       // Nur, wenn die Reihe wirklich an dieser Stelle einen Punkt hat (Toleranz: ein Rasterpixel)
@@ -204,8 +234,8 @@ export function Linien({ reihen, hoehe = 280, xFormat = String, yFormat = String
     setZeigerOrt(ort(e))
   }
 
-  function druecken(e: React.MouseEvent<SVGSVGElement>) {
-    if (!zoom || e.button !== 0) return
+  function druecken(e: React.PointerEvent<SVGSVGElement>) {
+    if (!zoom || e.button !== 0 || e.pointerType !== 'mouse') return
     const { mx } = raster(e)
     if (mx < L || mx > B - R) return
     setZieh({ von: mx, bis: mx })
@@ -240,6 +270,7 @@ export function Linien({ reihen, hoehe = 280, xFormat = String, yFormat = String
     return s.slice(i0, i1 + 1)
   }
   const pfadVon = (ps: Punkt[]) => ps.map((p, i) => `${i ? 'L' : 'M'} ${sx(p.x).toFixed(1)} ${sy(p.y).toFixed(1)}`).join(' ')
+  const flaechePfad = (ps: Punkt[]) => ps.length < 2 ? '' : `${pfadVon(ps)} L ${sx(ps[ps.length - 1].x).toFixed(1)} ${sy(Math.max(yMin, 0)).toFixed(1)} L ${sx(ps[0].x).toFixed(1)} ${sy(Math.max(yMin, 0)).toFixed(1)} Z`
   const bandPfad = (r: Reihe) => {
     const b = (r.band ?? []).slice().sort((a, c) => a.x - c.x).filter(q => q.x >= x0 - (x1 - x0) * 0.1 && q.x <= x1 + (x1 - x0) * 0.1)
     if (b.length < 2) return ''
@@ -249,53 +280,80 @@ export function Linien({ reihen, hoehe = 280, xFormat = String, yFormat = String
   const linienTeile = (r: Reihe) => {
     const ps = fensterPunkte(r.punkte)
     if (ps.length < 2) return null
-    if (r.prognoseAb === undefined) return <path className="linie" pathLength={1} d={pfadVon(ps)} fill="none" stroke={r.farbe} strokeWidth="2" strokeLinejoin="round" strokeDasharray={r.gestrichelt ? '5 5' : undefined} />
+    const sw = r.dick ? 2.6 : 2
+    if (r.gestrichelt) return <path className="hilfslinie" d={pfadVon(ps)} fill="none" stroke={r.farbe} strokeWidth={sw} strokeLinejoin="round" strokeDasharray="5 5" opacity=".9" />
+    if (r.prognoseAb === undefined) return <path className="linie" pathLength={1} d={pfadVon(ps)} fill="none" stroke={r.farbe} strokeWidth={sw} strokeLinejoin="round" strokeLinecap="round" />
     const fest = ps.filter(p => p.x <= r.prognoseAb!)
     const rest = ps.filter(p => p.x >= r.prognoseAb!)
     // Der letzte feste Punkt gehört auch zur Prognose, damit die Linie nicht abreisst
     if (fest.length && rest[0]?.x !== fest[fest.length - 1].x) rest.unshift(fest[fest.length - 1])
     return (
       <>
-        {fest.length > 1 && <path className="linie" pathLength={1} d={pfadVon(fest)} fill="none" stroke={r.farbe} strokeWidth="2" strokeLinejoin="round" />}
-        {rest.length > 1 && <path d={pfadVon(rest)} fill="none" stroke={r.farbe} strokeWidth="2" strokeLinejoin="round" strokeDasharray="5 5" opacity=".85" />}
+        {fest.length > 1 && <path className="linie" pathLength={1} d={pfadVon(fest)} fill="none" stroke={r.farbe} strokeWidth={sw} strokeLinejoin="round" strokeLinecap="round" />}
+        {rest.length > 1 && <path className="hilfslinie" d={pfadVon(rest)} fill="none" stroke={r.farbe} strokeWidth={sw} strokeLinejoin="round" strokeDasharray="5 5" opacity=".85" />}
       </>
     )
   }
+  const markerVon = (r: Reihe, p: Punkt, i: number) => {
+    const rad = p.groesse ?? (kompakt ? 3 : 4)
+    if (r.form === 'raute') {
+      const s = rad + 1.5
+      return <rect key={`${r.name}${i}`} className="raute" x={sx(p.x) - s} y={sy(p.y) - s} width={2 * s} height={2 * s} rx="1.5"
+                   transform={`rotate(45 ${sx(p.x)} ${sy(p.y)})`} fill={r.farbe} stroke="var(--flaeche)" strokeWidth="1.5" style={staffel(i)} />
+    }
+    return <circle key={`${r.name}${i}`} className="marker" cx={sx(p.x)} cy={sy(p.y)} r={Math.min(rad, 4.5)} fill={r.farbe}
+                   stroke="var(--flaeche)" strokeWidth="1.5" style={staffel(i)} />
+  }
 
   const hoverTeile = hover?.werte ?? []
+  const kopfText = hoverTeile.find(w => w.p.name)?.p.name
   return (
     <div className="diagramm" ref={rahmen}>
-      <div className="rollbar" style={{ position: 'relative' }}>
-        <svg viewBox={`0 0 ${B} ${hoehe}`} style={{ width: '100%', minWidth: kompakt ? 320 : 420, height: 'auto', display: 'block', cursor: zieh ? 'col-resize' : zoom ? 'crosshair' : 'default' }}
+      <div className="rollbar">
+        <svg viewBox={`0 0 ${B} ${hoehe}`} style={{ width: '100%', minWidth: kompakt ? 320 : 420, height: 'auto', display: 'block', cursor: zieh ? 'col-resize' : zoom ? 'crosshair' : 'default', touchAction: 'pan-y' }}
              role="img" aria-label={yTitel ?? ''} data-x-einheit={xEinheit} data-y-einheit={yEinheit}
-             onMouseMove={bewegung} onMouseLeave={() => { setHover(null); setZieh(null) }}
-             onMouseDown={druecken} onMouseUp={loslassen} onDoubleClick={() => setSicht(null)} onWheel={rad}>
-          <defs><clipPath id={clipId}><rect x={L} y={oben - 6} width={B - L - R} height={hoehe - oben - U + 6} /></clipPath></defs>
+             onPointerMove={zeigen} onPointerDown={e => { zeigen(e); druecken(e) }} onPointerUp={loslassen}
+             onPointerLeave={() => { setHover(null); setZieh(null) }} onDoubleClick={() => setSicht(null)} onWheel={rad}>
+          <defs>
+            <clipPath id={clipId}><rect x={L} y={oben - 6} width={B - L - R} height={hoehe - oben - U + 6} /></clipPath>
+            {sichtbar.filter(r => r.flaeche).map(r => (
+              <linearGradient key={`g${r.name}`} id={`${clipId}-${r.name.replace(/\W/g, '')}`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={r.farbe} stopOpacity=".22" /><stop offset="100%" stopColor={r.farbe} stopOpacity=".02" />
+              </linearGradient>
+            ))}
+          </defs>
           {yt.map(t => (
             <g key={`y${t}`}>
               <line x1={L} x2={B - R} y1={sy(t)} y2={sy(t)} stroke="var(--rand-leise)" strokeWidth="1" />
-              <text className="strich" x={L - 6} y={sy(t) + 4} fontSize="11" textAnchor="end" fill="var(--text-leise)">{yFormat(t)}</text>
+              <text className="strich" x={L - 8} y={sy(t) + 4} fontSize="11" textAnchor="end" fill="var(--text-leise)">{yFormat(t)}</text>
             </g>
           ))}
           {xt.map(t => (
-            <text key={`x${t}`} className="strich" x={sx(t)} y={hoehe - U + 16} fontSize="11" textAnchor="middle" fill="var(--text-leise)">{xFormat(t)}</text>
+            <text key={`x${t}`} className="strich" x={sx(t)} y={hoehe - U + 17} fontSize="11" textAnchor="middle" fill="var(--text-leise)">{xFormat(t)}</text>
           ))}
           <line x1={L} x2={B - R} y1={sy(Math.max(yMin, 0))} y2={sy(Math.max(yMin, 0))} stroke="var(--rand)" strokeWidth="1" />
           {xTitel && <text x={B - R} y={hoehe - 4} fontSize="11" textAnchor="end" fill="var(--text-leise)">{xTitel}</text>}
           {yTitel && <text x={L} y={10} fontSize="11" fill="var(--text-leise)">{yTitel}</text>}
           <g clipPath={`url(#${clipId})`}>
+            {zonen.filter(z => z.bis >= x0 && z.von <= x1).map((z, i) => (
+              <g key={`z${i}`}>
+                <rect x={sx(Math.max(z.von, x0))} y={oben} width={Math.max(sx(Math.min(z.bis, x1)) - sx(Math.max(z.von, x0)), 0)} height={hoehe - oben - U}
+                      fill={z.farbe ?? 'var(--kuerbis)'} opacity=".07" />
+                {z.text && <text x={sx(Math.max(z.von, x0)) + 4} y={hoehe - U - 6} fontSize="10" fill={z.farbe ?? 'var(--kuerbis)'} fontWeight="600">{z.text}</text>}
+              </g>
+            ))}
             {senkrechte.filter(imFenster).map(s => (
               <g key={`s${s.x}`}>
-                <line x1={sx(s.x)} x2={sx(s.x)} y1={oben} y2={hoehe - U} stroke="var(--text-leise)" strokeWidth="1" strokeDasharray="3 4" opacity=".7" />
-                <text x={sx(s.x) + 3} y={oben + 10} fontSize="10" fill="var(--text-leise)">{s.text}</text>
+                <line x1={sx(s.x)} x2={sx(s.x)} y1={oben} y2={hoehe - U} stroke={s.farbe ?? 'var(--text-leise)'} strokeWidth="1" strokeDasharray="3 4" opacity=".7" />
+                <text x={sx(s.x) + 3} y={oben + 10} fontSize="10" fill={s.farbe ?? 'var(--text-leise)'}>{s.text}</text>
               </g>
             ))}
             {heute && imFenster(heute) && (
               <g>
-                <rect x={sx(heute.x)} y={oben} width={Math.max(sx(x1) - sx(heute.x), 0)} height={hoehe - oben - U} fill="var(--flaeche-2)" opacity=".55" />
-                <line x1={sx(heute.x)} x2={sx(heute.x)} y1={oben} y2={hoehe - U} stroke="var(--kuerbis)" strokeWidth="1.5" />
+                <rect x={sx(heute.x)} y={oben} width={Math.max(sx(x1) - sx(heute.x), 0)} height={hoehe - oben - U} fill="var(--flaeche-2)" opacity=".6" />
+                <line x1={sx(heute.x)} x2={sx(heute.x)} y1={oben} y2={hoehe - U} stroke="var(--kuerbis)" strokeWidth="1.5" strokeDasharray="4 3" />
                 <text x={sx(heute.x) + 4} y={oben + 10} fontSize="10.5" fontWeight="600" fill="var(--kuerbis)">{heute.text ?? 'heute'}</text>
-                {sx(x1) - sx(heute.x) > 70 && <text x={sx(x1) - 4} y={oben + 10} fontSize="10" textAnchor="end" fill="var(--text-leise)">Prognose</text>}
+                {sx(x1) - sx(heute.x) > 70 && <text x={sx(x1) - 4} y={oben + 10} fontSize="10" textAnchor="end" fill="var(--text-leise)">{heute.rechts ?? 'Prognose'}</text>}
               </g>
             )}
             {beschriftungenVersetzt(waagrechte.map(w => ({ ...w, py: sy(w.y) }))).map(w => (
@@ -305,18 +363,19 @@ export function Linien({ reihen, hoehe = 280, xFormat = String, yFormat = String
               </g>
             ))}
             {sichtbar.map(r => r.band && r.band.length > 1 && (
-              <path key={`b${r.name}`} d={bandPfad(r)} fill={r.farbe} opacity=".14" />
+              <path key={`b${r.name}`} className="band" d={bandPfad(r)} fill={r.farbe} opacity=".13" />
+            ))}
+            {sichtbar.map(r => r.flaeche && r.linie && (
+              <path key={`f${r.name}`} className="flaeche" d={flaechePfad(fensterPunkte(r.punkte).filter(p => r.prognoseAb === undefined || p.x <= r.prognoseAb))}
+                    fill={`url(#${clipId}-${r.name.replace(/\W/g, '')})`} />
             ))}
             {sichtbar.map(r => r.linie && <g key={`l${r.name}`}>{linienTeile(r)}</g>)}
-            {sichtbar.map(r => (r.marker ?? !r.linie) && r.punkte.filter(imFenster).map((p, i) => (
-              <circle key={`${r.name}${i}`} className="marker" cx={sx(p.x)} cy={sy(p.y)} r={kompakt ? 3 : 4} fill={r.farbe}
-                      stroke="var(--flaeche)" strokeWidth="1.5" />
-            )))}
+            {sichtbar.map(r => (r.marker ?? !r.linie) && r.punkte.filter(imFenster).map((p, i) => markerVon(r, p, i)))}
             {hover && (
               <g>
-                <line x1={hover.px} x2={hover.px} y1={oben} y2={hoehe - U} stroke="var(--text)" strokeWidth="1" opacity=".4" />
+                <line x1={hover.px} x2={hover.px} y1={oben} y2={hoehe - U} stroke="var(--text)" strokeWidth="1" opacity=".35" />
                 {hoverTeile.map(({ reihe, p }) => (
-                  <circle key={reihe.name} cx={sx(p.x)} cy={sy(p.y)} r="5.5" fill="var(--flaeche)" stroke={reihe.farbe} strokeWidth="2.5" />
+                  <circle key={reihe.name} cx={sx(p.x)} cy={sy(p.y)} r="6" fill="var(--flaeche)" stroke={reihe.farbe} strokeWidth="2.5" />
                 ))}
               </g>
             )}
@@ -326,9 +385,10 @@ export function Linien({ reihen, hoehe = 280, xFormat = String, yFormat = String
             )}
           </g>
         </svg>
+      </div>
         <Schwebend rahmen={rahmen} s={hover && zeigerOrt && hoverTeile.length ? { x: zeigerOrt.x, y: zeigerOrt.y, inhalt: (
           <>
-            <div className="schweb-kopf">{xFormat(hover.x)}{xTitel ? ` ${xTitel}` : ''}{heute && hover.x > heute.x ? ' · Prognose' : ''}</div>
+            <div className="schweb-kopf">{kopfText ?? <>{xFormat(hover.x)}{xTitel ? ` ${xTitel}` : ''}</>}{heute && hover.x > heute.x ? ' · Prognose' : ''}</div>
             {hoverTeile.map(({ reihe, p }) => (
               <div key={reihe.name} className="schweb-zeile">
                 <span className="chip" style={{ background: reihe.farbe }} />
@@ -339,9 +399,8 @@ export function Linien({ reihen, hoehe = 280, xFormat = String, yFormat = String
             ))}
           </>
         ) } : null} />
-      </div>
       {ausserhalb.length > 0 && (
-        <p className="leise diagramm-ausserhalb" style={{ margin: '.35rem 0 0', fontSize: '.78rem' }}>
+        <p className="diagramm-ausserhalb">
           {ausserhalb.length === 1 ? '1 Messung ausserhalb' : `${ausserhalb.length} Messungen ausserhalb`}
           {': '}
           {ausserhalb.map(x => (ausgeschlossenText ? ausgeschlossenText(x) : xFormat(x))).join(', ')}
@@ -349,9 +408,9 @@ export function Linien({ reihen, hoehe = 280, xFormat = String, yFormat = String
         </p>
       )}
       <div className="diagramm-fuss">
-        {reihen.length > 1 && (
+        {reihen.filter(r => !r.ohneLegende).length > 1 && (
           <div className="legende" role="group" aria-label="Reihen ein- und ausblenden">
-            {reihen.map(r => (
+            {reihen.filter(r => !r.ohneLegende).map(r => (
               <button key={r.name} type="button" className={`legende-knopf${aus.has(r.name) ? ' aus' : ''}`}
                       aria-pressed={!aus.has(r.name)}
                       onClick={() => setAus(s => { const n = new Set(s); if (n.has(r.name)) n.delete(r.name); else n.add(r.name); return n })}>
@@ -360,20 +419,20 @@ export function Linien({ reihen, hoehe = 280, xFormat = String, yFormat = String
             ))}
           </div>
         )}
+        {fuss}
         <span className="diagramm-werkzeuge">
-          {sicht && <button type="button" className="blank klein" onClick={() => setSicht(null)}>Ausschnitt zurück</button>}
-          {zoom && !sicht && !kompakt && <span className="leise" style={{ fontSize: '.76rem' }}>Ausschnitt: Bereich ziehen · Ctrl + Rad</span>}
-          {tabelleErlaubt && <button type="button" className="blank klein" onClick={() => setTabelle(t => !t)}>{tabelle ? 'Tabelle ausblenden' : 'Als Tabelle'}</button>}
+          {sicht && <button type="button" className="werkzeug-knopf" onClick={() => setSicht(null)}><ZZoomAus size={15} />Ausschnitt zurück</button>}
+          {tabelleErlaubt && <button type="button" className="werkzeug-knopf" onClick={() => setTabelle(t => !t)}><ZTabelle size={15} />{tabelle ? 'Tabelle ausblenden' : 'Als Tabelle'}</button>}
         </span>
       </div>
       {tabelle && (
         <div className="rollbar">
-          <table>
+          <table className="dicht">
             <thead><tr><th>Reihe</th><th className="zahl">{xTitel ?? 'x'}</th><th className="zahl">{yTitel ?? 'y'}</th><th></th></tr></thead>
             <tbody>
               {sichtbar.flatMap(r => r.punkte.slice().sort((a, b) => a.x - b.x).map((p, i) => (
                 <tr key={`${r.name}${i}`}><td>{r.name}</td><td className="zahl">{xFormat(p.x)}</td>
-                  <td className="zahl">{yFormat(p.y)}</td><td className="leise">{p.text ?? ''}</td></tr>
+                  <td className="zahl">{yFormat(p.y)}</td><td className="leise">{p.name ? `${p.name} · ` : ''}{p.text ?? ''}</td></tr>
               )))}
             </tbody>
           </table>
@@ -382,8 +441,6 @@ export function Linien({ reihen, hoehe = 280, xFormat = String, yFormat = String
     </div>
   )
 }
-
-/** Die alte Signatur bleibt lesbar — Diagramm ist Linien. */
 
 /* ---------- Glocke: die Verteilung ---------------------------------------- */
 
@@ -419,50 +476,49 @@ export function Glocke({ stufen, breite, grenzen = [], farbe = 'var(--kuerbis)',
   return (
     <div className="diagramm" ref={rahmen}>
       {titel && <div className="leise" style={{ marginBottom: '.3rem' }}>{titel}</div>}
-      <div className="rollbar" style={{ position: 'relative' }}>
-        <svg viewBox={`0 0 ${B} ${hoehe}`} style={{ width: '100%', minWidth: kompakt ? 300 : 420, height: 'auto', display: 'block' }} role="img"
-             onMouseLeave={() => setHover(null)}>
+      <div className="rollbar">
+        <svg viewBox={`0 0 ${B} ${hoehe}`} style={{ width: '100%', minWidth: kompakt ? 300 : 420, height: 'auto', display: 'block', touchAction: 'pan-y' }} role="img"
+             data-x-einheit="frei" data-y-einheit="stueck" onPointerLeave={() => setHover(null)}>
           {schoen(0, nMax, 4).map(t => (
             <g key={t}>
               <line x1={L} x2={B - R} y1={sy(t)} y2={sy(t)} stroke="var(--rand-leise)" />
-              <text x={L - 6} y={sy(t) + 4} fontSize="11" textAnchor="end" fill="var(--text-leise)">{zahl(t)}</text>
+              <text className="strich" x={L - 8} y={sy(t) + 4} fontSize="11" textAnchor="end" fill="var(--text-leise)">{zahl(t)}</text>
             </g>
           ))}
-          {xt.map(t => <text key={t} x={sx(t)} y={hoehe - U + 16} fontSize="11" textAnchor="middle" fill="var(--text-leise)">{xFormat(t)}</text>)}
+          {xt.map(t => <text key={t} className="strich" x={sx(t)} y={hoehe - U + 17} fontSize="11" textAnchor="middle" fill="var(--text-leise)">{xFormat(t)}</text>)}
           <text x={L} y={10} fontSize="11" fill="var(--text-leise)">Kürbisse je Stufe</text>
           <text x={B - R} y={hoehe - 4} fontSize="11" textAnchor="end" fill="var(--text-leise)">Gramm je Kürbis</text>
-          {stufen.map(s => (
-            <rect key={s.x} x={sx(s.x) + 1} y={sy(s.n)} width={Math.max(sx(s.x + breite) - sx(s.x) - 2, 1)}
-                  height={hoehe - U - sy(s.n)} rx="2" fill={klassenfarbe ? klassenfarbe(s.x) : farbe} opacity={hover && hover.s.x === s.x ? 1 : .8}
-                  onMouseEnter={e => setHover({ s, ort: ort(e) })} onMouseMove={e => setHover({ s, ort: ort(e) })} />
+          {stufen.map((s, i) => (
+            <rect key={s.x} className="balken" x={sx(s.x) + 1} y={sy(s.n)} width={Math.max(sx(s.x + breite) - sx(s.x) - 2, 1)}
+                  height={hoehe - U - sy(s.n)} rx="2" fill={klassenfarbe ? klassenfarbe(s.x) : farbe} opacity={hover && hover.s.x === s.x ? 1 : .82}
+                  style={staffel(i)}
+                  onPointerEnter={e => setHover({ s, ort: ort(e) })} onPointerMove={e => setHover({ s, ort: ort(e) })} />
           ))}
           {grenzen.map(g => (
             <g key={g.x}>
-              <line x1={sx(g.x)} x2={sx(g.x)} y1={oben} y2={hoehe - U} stroke="var(--text)" strokeWidth="1" strokeDasharray="3 4" opacity=".6" />
+              <line x1={sx(g.x)} x2={sx(g.x)} y1={oben} y2={hoehe - U} stroke="var(--text)" strokeWidth="1" strokeDasharray="3 4" opacity=".55" />
               <text x={sx(g.x) + 3} y={oben + 10} fontSize="10" fill="var(--text-leise)">{g.text}</text>
             </g>
           ))}
           {mittel != null && mittel >= x0 && mittel <= x1 && (
             <g>
-              <line x1={sx(mittel)} x2={sx(mittel)} y1={oben + 14} y2={hoehe - U} stroke="var(--kuerbis)" strokeWidth="1.5" />
-              <text x={sx(mittel) + 3} y={oben + 24} fontSize="10" fill="var(--kuerbis)" fontWeight="600">Ø {xFormat(Math.round(mittel))} g</text>
+              <line x1={sx(mittel)} x2={sx(mittel)} y1={oben + 14} y2={hoehe - U} stroke="var(--text)" strokeWidth="1.5" />
+              <text x={sx(mittel) + 3} y={oben + 24} fontSize="10" fill="var(--text)" fontWeight="600">Ø {xFormat(Math.round(mittel))} g</text>
             </g>
           )}
           <line x1={L} x2={B - R} y1={hoehe - U} y2={hoehe - U} stroke="var(--rand)" />
         </svg>
-        <Schwebend rahmen={rahmen} s={hover ? { x: hover.ort.x, y: hover.ort.y, inhalt: (
-          <>
-            <div className="schweb-kopf">{xFormat(hover.s.x)}–{xFormat(hover.s.x + breite)} g</div>
-            <div className="schweb-zeile"><span>Kürbisse</span><strong>{zahl(hover.s.n)}</strong></div>
-            <div className="schweb-zeile"><span>Anteil</span><strong>{prozent(gesamt > 0 ? hover.s.n / gesamt : null)}</strong></div>
-          </>
-        ) } : null} />
       </div>
+      <Schwebend rahmen={rahmen} s={hover ? { x: hover.ort.x, y: hover.ort.y, inhalt: (
+        <>
+          <div className="schweb-kopf">{xFormat(hover.s.x)}–{xFormat(hover.s.x + breite)} g</div>
+          <div className="schweb-zeile"><span>Kürbisse</span><strong>{zahl(hover.s.n)}</strong></div>
+          <div className="schweb-zeile"><span>Anteil</span><strong>{prozent(gesamt > 0 ? hover.s.n / gesamt : null)}</strong></div>
+        </>
+      ) } : null} />
     </div>
   )
 }
-
-/** Die alte Signatur bleibt lesbar. */
 
 /* ---------- Anteilsbalken: 100 % je Zeile ----------------------------------- */
 
@@ -497,7 +553,7 @@ export function Anteilsbalken({ zeilen, oeffnen, legende = true }: {
   const namen = [...new Map(zeilen.flatMap(z => z.teile).map(t => [t.name, t.farbe])).entries()]
   return (
     <div className="anteile" ref={rahmen}>
-      {zeilen.map(z => {
+      {zeilen.map((z, i) => {
         const summe = z.teile.reduce((s, t) => s + t.kg, 0)
         const anteil = z.bezug > 0 ? summe / z.bezug : 0
         return (
@@ -509,11 +565,11 @@ export function Anteilsbalken({ zeilen, oeffnen, legende = true }: {
               <strong>{z.name}</strong>
               {z.untertitel && <span className="leise">{z.untertitel}</span>}
             </div>
-            <div className="anteil-spur">
+            <div className="anteil-spur waechst" style={staffel(i)}>
               {z.teile.filter(t => t.kg > 0 && z.bezug > 0).map(t => (
                 <div key={t.name} className="anteil-teil" style={{ width: `${Math.min((t.kg / z.bezug) * 100, 100)}%`, background: t.farbe }}
-                     onMouseEnter={e => setHover({ z, t, ort: ort(e) })} onMouseMove={e => setHover({ z, t, ort: ort(e) })}
-                     onMouseLeave={() => setHover(null)} />
+                     onPointerEnter={e => setHover({ z, t, ort: ort(e) })} onPointerMove={e => setHover({ z, t, ort: ort(e) })}
+                     onPointerLeave={() => setHover(null)} />
               ))}
             </div>
             <div className="anteil-wert">{z.rechts ?? prozent(z.bezug > 0 ? anteil : null)}</div>

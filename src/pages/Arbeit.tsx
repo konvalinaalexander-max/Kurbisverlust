@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { TaetZeichen } from '../components/Zeichen'
+import { TaetKachel, TaetZeichen, ZChevron, ZHaken, ZStift, ZZurueck } from '../components/Zeichen'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../auth/AuthProvider'
@@ -91,18 +91,21 @@ export default function Arbeit() {
     fuehrungSetzen(auftragId, neu); setFuehrt(neu); setAnsicht(neu ? 'liste' : 'zaehler')
   }
   const kopf = (
-    <div className="karte" style={{ marginTop: '1rem' }}>
-      <div className="reihe">
-        <h1 style={{ margin: 0, fontSize: '1.25rem' }}><TaetZeichen id={taet?.id} /> {taet ? t(taet.text) : ''}</h1>
+    <div className="karte arbeit-kopf eintritt">
+      <div className="kopfzeile">
+        <TaetKachel id={taet?.id} size={44} />
+        <div className="flex-1" style={{ minWidth: 0 }}>
+          <h1>{taet ? t(taet.text) : ''}</h1>
+          <div className="charge">{chargeText(d.charge)}</div>
+        </div>
         <Marke art={gesperrt ? 'fertig' : 'offen'}>{gesperrt ? t('fertig') : t('laeuft')}</Marke>
-        {fuehrt && !gesperrt && <Marke>{t('vorarbeiter')}</Marke>}
       </div>
-      <p style={{ margin: '.3rem 0 0', fontSize: '1rem' }}>{chargeText(d.charge)}</p>
-      <p className="leise" style={{ margin: '.2rem 0 0' }}>
+      <p className="leise unter">
         {t('seit')} {uhrzeit(a.start_ts, gebietsschema)} · {t('dabei')}: {d.teilnehmer.length ? d.teilnehmer.map(x => x.name).join(', ') : t('niemand')}
+        {fuehrt && !gesperrt && <> · <Marke>{t('vorarbeiter')}</Marke></>}
       </p>
       {!binDabei && !gesperrt && (
-        <button className="haupt" style={{ width: '100%', marginTop: '.75rem', minHeight: 54 }} onClick={() => void mitmachen()}>
+        <button type="button" className="haupt gross voll" onClick={() => void mitmachen()}>
           {t('mitmachen')}
         </button>
       )}
@@ -141,10 +144,12 @@ export default function Arbeit() {
             {p.hatAusgang && <><dt>{t('fertigePalette')}</dt><dd>{d.nAusgang > 0 ? `${d.nAusgang} ${t('gewogen')}` : t('keineGewogen')}</dd></>}
           </dl>
         </div>
-        {istAdmin && (
-          <button id="zur-korrektur" style={{ width: '100%', marginBottom: '.6rem' }} onClick={() => setAnsicht('korrektur')}>{t('messungenKorrigieren')}</button>
-        )}
-        <button style={{ width: '100%' }} onClick={() => navigate('/')}>‹ {t('uebersicht')}</button>
+        <div className="knopf-reihe">
+          {istAdmin && (
+            <button type="button" id="zur-korrektur" className="voll" onClick={() => setAnsicht('korrektur')}><ZStift size={18} />{t('messungenKorrigieren')}</button>
+          )}
+          <button type="button" className="voll" onClick={() => navigate('/')}><ZZurueck size={18} />{t('uebersicht')}</button>
+        </div>
       </>
     )
   }
@@ -153,7 +158,7 @@ export default function Arbeit() {
   const maske = (titel: string, inhalt: React.ReactNode, zurueckZu: Ansicht = heim) => (
     <>
       <div className="schritt-kopf">
-        <button type="button" className="zurueck" onClick={() => setAnsicht(zurueckZu)}>‹ {t('zurueck')}</button>
+        <button type="button" className="zurueck" onClick={() => setAnsicht(zurueckZu)}><ZZurueck size={18} />{t('zurueck')}</button>
         <span className="stand"><TaetZeichen id={taet?.id} /> {chargeText(d.charge)}</span>
       </div>
       <h1 className="frage">{titel}</h1>
@@ -169,7 +174,7 @@ export default function Arbeit() {
             <p className="leise frage-warum">{t('paloxZuBeginn')}</p>
             <PaloxMaske d={d} gesperrt={false} gespeichert={async () => { melden(t('gespeichert')); await laden(); setAnsicht(heim) }} />
             {d.ablesungen.length === 0 && (
-              <button id="palox-spaeter" style={{ width: '100%', marginTop: '.5rem' }} onClick={() => setAnsicht(heim)}>{t('spaeter')}</button>
+              <button type="button" id="palox-spaeter" className="voll abstand-oben" onClick={() => setAnsicht(heim)}>{t('spaeter')}</button>
             )}
           </>
         ))}
@@ -203,14 +208,14 @@ export default function Arbeit() {
       <>
         {fuehrt ? (
           <div className="schritt-kopf">
-            <button type="button" className="zurueck" onClick={() => setAnsicht('liste')}>‹ {t('wasZuTun')}</button>
+            <button type="button" className="zurueck" onClick={() => setAnsicht('liste')}><ZZurueck size={18} />{t('wasZuTun')}</button>
             <span className="stand"><TaetZeichen id={taet?.id} /> {chargeText(d.charge)}</span>
           </div>
         ) : kopf}
         <Zaehler d={d} gesperrt={false} neuLaden={laden} melden={melden} zumWiegen={b => { setZettelBrutto(b); setAnsicht('wiegen') }} />
         {!fuehrt && (
           <p className="rolle-wechsel">
-            <button className="blank" style={{ color: 'var(--text-leise)' }} onClick={() => rolleWechseln(true)}>{t('ichFuehre')}</button>
+            <button type="button" className="leise-knopf" onClick={() => rolleWechseln(true)}>{t('ichFuehre')}</button>
           </p>
         )}
         <Bestaetigt text={meldung} />
@@ -229,79 +234,79 @@ export default function Arbeit() {
   const gezaehlt = d.paletten.length + kistenGezaehlt + (a.paletten_gesamt ?? 0) > 0
   const wiegenErinnert = p.wiegenSoll > 0 && gewogen < p.wiegenSoll
   const Zustand = ({ art }: { art: 'getan' | 'offen' | 'frei' }) => (
-    <span className={`zustand ${art}`} aria-hidden="true">{art === 'getan' ? '✓' : art === 'offen' ? '!' : '·'}</span>
+    <span className={`zustand ${art}`} aria-hidden="true">{art === 'getan' ? <ZHaken size={18} /> : art === 'offen' ? '!' : <span className="punkt-klein" />}</span>
   )
 
   return (
     <>
       {kopf}
       <div className="abschnitt-titel">{t('wasZuTun')}</div>
-      <div className="check">
+      <div className="check eintritt">
         {p.hatPalox && (
-          <button id="check-palox" onClick={() => setAnsicht('palox')}>
+          <button type="button" id="check-palox" onClick={() => setAnsicht('palox')}>
             <Zustand art={d.ablesungen.length > 0 ? 'getan' : p.paloxPflicht ? 'offen' : 'frei'} />
             <span className="text">
               <span className="name">{p.paloxPflicht ? t('paloxBeginn') : t('paloxFreiwillig')}</span>
               <span className="unter">{erste ? `${t('abgelesenUm')} ${uhrzeit(erste.ts, gebietsschema)}` : p.paloxPflicht ? t('paloxZuBeginnKurz') : t('paloxWaschenWarum')}</span>
             </span>
-            <span className="pfeil">›</span>
+            <span className="pfeil"><ZChevron size={20} /></span>
           </button>
         )}
 
-        <button id="check-zaehlen" onClick={() => setAnsicht('zaehler')}>
+        <button type="button" id="check-zaehlen" onClick={() => setAnsicht('zaehler')}>
           <Zustand art={gezaehlt ? (wiegenErinnert ? 'frei' : 'getan') : 'offen'} />
           <span className="text">
             <span className="name">{t('zaehlen')}</span>
             <span className="unter">{zaehlStand}{wiegenErinnert && gezaehlt ? ` — ${t('dreiWiegen')}` : ''}</span>
           </span>
-          <span className="pfeil">›</span>
+          <span className="pfeil"><ZChevron size={20} /></span>
         </button>
 
         {p.hatFaule && (
-          <button id="check-faule" onClick={() => setAnsicht('faule')}>
+          <button type="button" id="check-faule" onClick={() => setAnsicht('faule')}>
             <Zustand art={d.ablesungen.length > 0 ? 'getan' : 'offen'} />
             <span className="text">
               <span className="name">{t('faulesWiegen')}</span>
               <span className="unter">{d.ablesungen.length > 0 ? `${faulSumme} kg · ${d.ablesungen.length} ${t('kisten')}` : t('faulesWiegenWarum')}</span>
             </span>
-            <span className="pfeil">›</span>
+            <span className="pfeil"><ZChevron size={20} /></span>
           </button>
         )}
 
         {p.hatAusschuss && (
-          <button id="check-ausschuss" onClick={() => setAnsicht('ausschuss')}>
+          <button type="button" id="check-ausschuss" onClick={() => setAnsicht('ausschuss')}>
             <Zustand art={d.ausschuss.length > 0 ? 'getan' : 'frei'} />
             <span className="text">
               <span className="name">{t('ausschussWiegenSchritt')}</span>
               <span className="unter">{d.ausschuss.length > 0 ? `${ausschussSumme} kg · ${d.ausschuss.length} ${t('paletten')}` : t('ausschussAmEnde')}</span>
             </span>
-            <span className="pfeil">›</span>
+            <span className="pfeil"><ZChevron size={20} /></span>
           </button>
         )}
 
         {p.hatAusgang && (
-          <button id="check-ausgang" onClick={() => setAnsicht('ausgang')}>
+          <button type="button" id="check-ausgang" onClick={() => setAnsicht('ausgang')}>
             <Zustand art={d.nAusgang >= soll ? 'getan' : p.ausgangPflicht ? 'offen' : d.nAusgang > 0 ? 'getan' : 'frei'} />
             <span className="text">
               <span className="name">{t('fertigePaletteSchritt')}</span>
               <span className="unter">{d.nAusgang >= soll ? `${d.nAusgang} ${t('gewogen')}` : `${t('dreiFertige')} ${ersetzen(t('nurGewogen'), { n: d.nAusgang, soll })}`}</span>
             </span>
-            <span className="pfeil">›</span>
+            <span className="pfeil"><ZChevron size={20} /></span>
           </button>
         )}
 
-        <button id="check-abschluss" className="haupt" style={{ borderColor: 'var(--kuerbis)' }} onClick={() => setAnsicht('abschluss')}>
-          <span className="zustand" style={{ borderColor: 'rgb(255 255 255 / 60%)', color: '#fff' }} aria-hidden="true">›</span>
+        <button type="button" id="check-abschluss" className="haupt" onClick={() => setAnsicht('abschluss')}>
+          <span className="zustand" aria-hidden="true"><ZChevron size={18} /></span>
           <span className="text">
             <span className="name">{t('abschliessen')}</span>
-            <span className="unter" style={{ color: 'rgb(255 255 255 / 85%)' }}>{p.istFax ? t('dannFax') : p.hatAusschuss ? t('abschlussErklWS') : t('abschlussErkl')}</span>
+            <span className="unter">{p.istFax ? t('dannFax') : p.hatAusschuss ? t('abschlussErklWS') : t('abschlussErkl')}</span>
           </span>
         </button>
       </div>
 
       <p className="rolle-wechsel">
-        <button className="blank" style={{ color: 'var(--text-leise)' }} onClick={() => rolleWechseln(false)}>{t('nurZaehlenAnsicht')}</button>
-        {istAdmin && <> · <button className="blank" style={{ color: 'var(--text-leise)' }} onClick={() => setAnsicht('korrektur')}>{t('messungenKorrigieren')}</button></>}
+        <button type="button" className="leise-knopf" onClick={() => rolleWechseln(false)}>{t('nurZaehlenAnsicht')}</button>
+        {istAdmin && <> · <button type="button" className="leise-knopf" onClick={() => setAnsicht('korrektur')}>{t('messungenKorrigieren')}</button></>}
       </p>
       <Bestaetigt text={meldung} />
     </>

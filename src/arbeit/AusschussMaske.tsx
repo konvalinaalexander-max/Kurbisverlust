@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { useSprache } from '../sprache/SprachProvider'
 import { fehlerText, stammdaten } from '../lib/db'
 import { Hinweis } from '../components/Bausteine'
+import { ZKreuz } from '../components/Zeichen'
 import { Wahl } from '../components/Schritte'
 import { uhrzeit, type ArbeitDaten } from './daten'
 import type { Gebinde } from '../lib/typen'
@@ -67,7 +68,7 @@ export function AusschussMaske({ d, gesperrt, melden, neuLaden }: {
 
   return (
     <div className="karte">
-      <p className="leise" style={{ marginTop: 0 }}>{t('ausschussWarum')}</p>
+      <p className="leise oben-0">{t('ausschussWarum')}</p>
       <div className="wahl" style={{ marginBottom: '.75rem' }}>
         <Wahl id="aus-zu_klein" name={t('zuKlein')} gewaehlt={art === 'zu_klein'} onClick={() => setArt('zu_klein')} />
         <Wahl id="aus-zu_gross" name={t('zuGross')} gewaehlt={art === 'zu_gross'} onClick={() => setArt('zu_gross')} />
@@ -77,13 +78,13 @@ export function AusschussMaske({ d, gesperrt, melden, neuLaden }: {
         <input id="aus-brutto" className="gross" type="number" inputMode="decimal" step="0.1" min={0}
                value={brutto} disabled={gesperrt} onChange={e => setBrutto(e.target.value)} />
       </div>
-      <div className="reihe">
-        <div className="feld" style={{ flex: 1 }}>
+      <div className="spalten">
+        <div className="feld">
           <label htmlFor="aus-kisten">{t('anzahlKisten')}</label>
           <input id="aus-kisten" type="number" inputMode="numeric" min={1} value={kisten}
                  disabled={gesperrt} onChange={e => setKisten(e.target.value)} style={{ fontSize: '1.2rem' }} />
         </div>
-        <div className="feld" style={{ flex: 1 }}>
+        <div className="feld">
           <label htmlFor="aus-art">{t('kistenart')}</label>
           <select id="aus-art" value={gart} disabled={gesperrt} onChange={e => setGart(e.target.value)}>
             {gebinde.map(g => <option key={g.art} value={g.art}>{g.art}</option>)}
@@ -91,43 +92,43 @@ export function AusschussMaske({ d, gesperrt, melden, neuLaden }: {
         </div>
       </div>
       {netto !== null && (
-        <p style={{ fontSize: '1.15rem', margin: '.6rem 0 .75rem' }}>
+        <p className="netto-zeile">
           <strong>{netto} kg</strong> {t('netto')} · {artText(art)}
         </p>
       )}
-      <button id="aus-eintragen" className="haupt" style={{ width: '100%', minHeight: 60 }}
+      <button type="button" id="aus-eintragen" className="haupt gross voll"
               onClick={() => void speichern()} disabled={gesperrt || laeuft || netto === null}>
         {t('eintragen')}
       </button>
       {d.ausschuss.length === 0 && (
         <>
-          <button id="aus-nichts" style={{ width: '100%', marginTop: '.6rem', minHeight: 48 }}
+          <button type="button" id="aus-nichts" className="voll" style={{ marginTop: '.6rem', minHeight: 48 }}
                   onClick={() => void nichts()} disabled={gesperrt || laeuft}>
             {t('ausschussNichts')}
           </button>
-          <p className="leise" style={{ margin: '.4rem 0 0' }}>{t('ausschussNichtsErkl')}</p>
+          <p className="hilfe">{t('ausschussNichtsErkl')}</p>
         </>
       )}
       {fehlt && <Hinweis art="warnung">{fehlt} Ohne sie lässt sich das Nettogewicht nicht ausrechnen — die Angabe gehört in die Stammdaten.</Hinweis>}
       {fehler && <Hinweis art="warnung">{fehler}</Hinweis>}
       {d.ausschuss.length > 0 && (
         <>
-          <p style={{ marginTop: '1rem' }}>
+          <p className="abstand-oben">
             <strong>{t('bisher')}: {t('zuKlein')} {summe('zu_klein')} kg · {t('zuGross')} {summe('zu_gross')} kg</strong>
           </p>
-          <table><tbody>
+          <table className="dicht"><tbody>
             {d.ausschuss.map(z => (
               <tr key={z.id}>
                 <td>{uhrzeit(z.ts, gebietsschema)}</td>
                 <td>{artText(z.art)}</td>
                 <td className="zahl">{z.kg} kg</td>
                 <td className="leise">{z.brutto_kg !== null ? `${z.kisten ?? 1} × ${z.gebindeart ?? ''} · ${z.brutto_kg} kg` : (z.bemerkung ?? '')}</td>
-                <td style={{ textAlign: 'right' }}>
-                  <button className="gefahr klein" disabled={gesperrt} aria-label={t('loeschen')}
+                <td className="rechts-buendig">
+                  <button type="button" className="gefahr klein" disabled={gesperrt} aria-label={t('loeschen')}
                           onClick={async () => {
                             const { error } = await supabase.from('ausschuss_messung').delete().eq('id', z.id)
                             if (error) setFehler(fehlerText(error)); else await neuLaden()
-                          }}>✕</button>
+                          }}><ZKreuz size={14} /></button>
                 </td>
               </tr>
             ))}

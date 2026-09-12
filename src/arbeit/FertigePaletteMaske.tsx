@@ -71,19 +71,19 @@ export function FertigePaletteMaske({ d, gesperrt, melden, neuLaden }: {
 
   return (
     <div className="karte">
-      <p className="leise" style={{ marginTop: 0 }}>{t('fertigePaletteWarum')}</p>
+      <p className="leise oben-0">{t('fertigePaletteWarum')}</p>
       <div className="feld">
         <label htmlFor="a-brutto">{t('gewicht')}</label>
         <input id="a-brutto" className="gross" type="number" inputMode="decimal" step="0.1" min={0}
                value={brutto} disabled={gesperrt} onChange={e => setBrutto(e.target.value)} />
       </div>
-      <div className="reihe">
-        <div className="feld" style={{ flex: 1 }}>
+      <div className="spalten">
+        <div className="feld">
           <label htmlFor="a-kisten">{t('anzahlKisten')}</label>
           <input id="a-kisten" type="number" inputMode="numeric" min={1} value={kisten} disabled={gesperrt}
                  onChange={e => setKisten(e.target.value)} style={{ fontSize: '1.2rem' }} />
         </div>
-        <div className="feld" style={{ flex: 1 }}>
+        <div className="feld">
           <label htmlFor="a-art">{t('kistenart')}</label>
           <select id="a-art" value={art} disabled={gesperrt} onChange={e => setArt(e.target.value)}>
             {gebinde.map(g => <option key={g.art} value={g.art}>{g.art}</option>)}
@@ -106,19 +106,19 @@ export function FertigePaletteMaske({ d, gesperrt, melden, neuLaden }: {
                onChange={e => setProKiste(e.target.value)} />
       </div>
       {x !== null && (
-        <p style={{ fontSize: '1.15rem', margin: '0 0 .75rem' }}>
+        <p className="netto-zeile">
           <strong>{x.toFixed(2)} kg</strong> {t('jeKiste')}
           {soll !== null && x > soll && <span style={{ color: 'var(--rot)' }}> · +{(x - soll).toFixed(2)} kg {t('zuViel')}</span>}
         </p>
       )}
-      <button id="a-eintragen" className="haupt" style={{ width: '100%', minHeight: 60 }} onClick={() => void speichern()}
+      <button type="button" id="a-eintragen" className="haupt gross voll" onClick={() => void speichern()}
               disabled={gesperrt || x === null || !kaliberOk}>{t('eintragen')}</button>
       {fehlt && <Hinweis art="warnung">{fehlt} Ohne sie lässt sich das Nettogewicht nicht ausrechnen — die Angabe gehört in die Stammdaten.</Hinweis>}
       {fehler && <Hinweis art="warnung">{fehler}</Hinweis>}
       {zeilen.length > 0 && (
         <>
-          <p style={{ marginTop: '1rem' }}><strong>{t('bisher')}: {zeilen.length}</strong></p>
-          <table><tbody>
+          <p className="abstand-oben"><strong>{t('bisher')}: {zeilen.length}</strong></p>
+          <table className="dicht"><tbody>
             {zeilen.map(z => (
               <tr key={z.id}>
                 <td>{z.kisten} {t('kisten')}{z.kaliber_idx !== null && z.kaliber_idx >= 0 && <span className="leise"> · K{z.kaliber_idx + 1}</span>}</td>

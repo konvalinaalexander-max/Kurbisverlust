@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { ZKreuz } from '../components/Zeichen'
 import { supabase } from '../lib/supabase'
 import { fehlerText } from '../lib/db'
 import { datum as datumText, heute as heuteOrtszeit, kg as kgText, zahl } from '../lib/format'
@@ -210,9 +211,9 @@ export default function Lieferungen() {
                     </td>
                     <td>{z.ziel_name}</td>
                     <td>{z.kunde ?? ''}</td>
-                    <td style={{ textAlign: 'right' }}>
-                      <button className="gefahr klein" aria-label="Lieferung entfernen"
-                              onClick={() => entfernen(z.id)}>✕</button>
+                    <td className="rechts-buendig">
+                      <button type="button" className="gefahr klein" aria-label="Lieferung entfernen"
+                              onClick={() => entfernen(z.id)}><ZKreuz size={16} /></button>
                     </td>
                   </tr>
                 ))}

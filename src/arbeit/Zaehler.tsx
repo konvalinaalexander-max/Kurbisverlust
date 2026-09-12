@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useSprache } from '../sprache/SprachProvider'
 import { fehlerText } from '../lib/db'
-import { Hinweis } from '../components/Bausteine'
+import { Hinweis, Segmente } from '../components/Bausteine'
+import { ZMinus, ZPlus, ZRueckgaengig, ZWaage } from '../components/Zeichen'
 import { stationsProfil, type ArbeitDaten } from './daten'
 import { heute } from '../lib/format'
 
@@ -19,14 +20,10 @@ const KISTEN_PALETTE = (id: number) => `kisten_palette_${id}`
  * Sortieren dazu das Gewicht vom Zettel (0060), je Palette neu. „Wägst du
  * diese Palette?" führt zur Wägung, sonst zählt „+" sofort.
  *
- * Kaliber-Paletten (Waschen, 0061): Was gewaschen wird, steht auf Paletten aus
- * dem Zwischenlager — auf dem Zettel das Sortierdatum, darauf die Kisten. Gezählt
- * wird die Palette mit beidem; Datum und Kistenzahl bleiben stehen, „kein Datum
- * auf dem Zettel" ist eine Antwort.
+ * Kaliber-Paletten (Waschen, 0061): Sortierdatum vom Zettel (oder ausdrücklich
+ * keines) und die Kisten darauf; beides bleibt für die nächste stehen.
  *
- * Kisten je Kaliber (Sortieren): je Band ein Zähler der gefüllten Kisten —
- * erst daraus kennt die Auswertung das Kistengewicht des Kalibers.
- *
+ * Kisten je Kaliber (Sortieren): je Band ein Zähler der gefüllten Kisten.
  * Fax: die Palettenzahl als Gesamtzahl (0060) — eine Zahl, nicht Klicks.
  */
 export function Zaehler({ d, gesperrt, neuLaden, melden, zumWiegen }: {
@@ -86,8 +83,7 @@ export function Zaehler({ d, gesperrt, neuLaden, melden, zumWiegen }: {
     await nachladen(t('paletteGezaehlt'))
   }
 
-  // Waschen (0061): eine Kaliber-Palette aus dem Zwischenlager — Sortierdatum
-  // vom Zettel (oder ausdrücklich keines) und die Kisten darauf.
+  // Waschen (0061): eine Kaliber-Palette aus dem Zwischenlager.
   const kistenZahl = Number(kistenPalette)
   const waschBereit = (ohneDatum || sortierdatum !== '') && Number.isInteger(kistenZahl) && kistenZahl > 0
   async function waschPaletteZaehlen() {
@@ -109,8 +105,7 @@ export function Zaehler({ d, gesperrt, neuLaden, melden, zumWiegen }: {
     await nachladen(t('rueckgaengig'))
   }
 
-  // Sortieren: die gefüllten Kisten je Kaliberband, ohne Datum — das
-  // Sortierdatum ist heute, es kommt auf den Zettel der Palette.
+  // Sortieren: die gefüllten Kisten je Kaliberband, ohne Datum.
   const zeile = (idx: number) => d.gebinde.find(z => z.kaliber_idx === idx)
   async function kistenSetzen(idx: number, wert: number) {
     if (wert < 0 || laeuft) return
@@ -141,15 +136,14 @@ export function Zaehler({ d, gesperrt, neuLaden, melden, zumWiegen }: {
     const n = Number(paletten) || 0
     return (
       <div className="karte">
-        <p className="leise" style={{ marginTop: 0 }}>{t('palettenGesamtWarum')}</p>
+        <p className="leise oben-0">{t('palettenGesamtWarum')}</p>
         <label htmlFor="paletten-gesamt">{t('palettenGesamt')}</label>
         <div className="zaehler">
-          <button onClick={() => void palettenSetzen(n - 1)} aria-label="−" disabled={gesperrt || laeuft || n === 0}>−</button>
+          <button type="button" onClick={() => void palettenSetzen(n - 1)} aria-label="−" disabled={gesperrt || laeuft || n === 0}><ZMinus size={24} /></button>
           <input id="paletten-gesamt" type="number" inputMode="numeric" min={0} value={paletten} disabled={gesperrt}
-                 className="stand" style={{ width: '5rem', textAlign: 'center', fontSize: '1.6rem' }}
-                 onChange={e => setPaletten(e.target.value)}
+                 className="stand" onChange={e => setPaletten(e.target.value)}
                  onBlur={() => { if (paletten !== '' && Number(paletten) !== (d.auftrag.paletten_gesamt ?? 0)) void palettenSetzen(Number(paletten)) }} />
-          <button className="haupt" aria-label="+" id="paletten-plus" disabled={gesperrt || laeuft} onClick={() => void palettenSetzen(n + 1)}>+</button>
+          <button type="button" className="haupt" aria-label="+" id="paletten-plus" disabled={gesperrt || laeuft} onClick={() => void palettenSetzen(n + 1)}><ZPlus size={26} /></button>
         </div>
         {fehler && <Hinweis art="warnung">{fehler}</Hinweis>}
       </div>
@@ -159,7 +153,7 @@ export function Zaehler({ d, gesperrt, neuLaden, melden, zumWiegen }: {
   if (p.hatWaschPaletten) {
     return (
       <div className="karte">
-        <p className="leise" style={{ marginTop: 0 }}>{t('waschPalettenWarum')}</p>
+        <p className="leise oben-0">{t('waschPalettenWarum')}</p>
         {kaliberFehlt && <Hinweis art="warnung">{t('kistenOhneKaliber')}</Hinweis>}
         <div className="feld">
           <label htmlFor="sortierdatum">{t('sortierdatumZettel')}</label>
@@ -169,35 +163,34 @@ export function Zaehler({ d, gesperrt, neuLaden, melden, zumWiegen }: {
             <input id="kein-sortierdatum" type="checkbox" checked={ohneDatum} disabled={gesperrt} onChange={e => setOhneDatum(e.target.checked)} />
             {t('keinSortierdatum')}
           </label>
-          <p className="leise" style={{ margin: '.35rem 0 0' }}>
+          <p className="hilfe">
             {ohneDatum || sortierdatum === '' ? t('sortierdatumErkl') : `${t('sortierdatumErkl')} ${t('datumBleibt')}`}
           </p>
         </div>
         <div className="feld">
           <label htmlFor="kisten-palette">{t('kistenAufPalette')}</label>
           <div className="zaehler">
-            <button aria-label="−" disabled={gesperrt || laeuft || kistenZahl <= 1}
-                    onClick={() => kistenPaletteSetzen(String(Math.max(1, kistenZahl - 1)))}>−</button>
+            <button type="button" aria-label="−" disabled={gesperrt || laeuft || kistenZahl <= 1}
+                    onClick={() => kistenPaletteSetzen(String(Math.max(1, kistenZahl - 1)))}><ZMinus size={24} /></button>
             <input id="kisten-palette" type="number" inputMode="numeric" min={1} step={1} value={kistenPalette} disabled={gesperrt}
-                   className="stand" style={{ width: '5rem', textAlign: 'center', fontSize: '1.6rem' }}
-                   onChange={e => kistenPaletteSetzen(e.target.value)} />
-            <button aria-label="+" disabled={gesperrt || laeuft}
-                    onClick={() => kistenPaletteSetzen(String((Number.isFinite(kistenZahl) ? kistenZahl : 0) + 1))}>+</button>
+                   className="stand" onChange={e => kistenPaletteSetzen(e.target.value)} />
+            <button type="button" aria-label="+" disabled={gesperrt || laeuft}
+                    onClick={() => kistenPaletteSetzen(String((Number.isFinite(kistenZahl) ? kistenZahl : 0) + 1))}><ZPlus size={24} /></button>
           </div>
-          <p className="leise" style={{ margin: '.35rem 0 0' }}>{t('kistenAufPaletteErkl')}</p>
+          <p className="hilfe">{t('kistenAufPaletteErkl')}</p>
         </div>
         <div className="zaehler-gross">
-          <div className="stand">{d.paletten.length}</div>
+          <div className="stand neu" key={d.paletten.length}>{d.paletten.length}</div>
           <div className="einheit">{t('paletten')} · {kistenGesamt} {t('kisten')}</div>
         </div>
-        <button id="wasch-plus" className="haupt zaehler-plus" disabled={gesperrt || laeuft || !waschBereit}
+        <button type="button" id="wasch-plus" className="haupt zaehler-plus" disabled={gesperrt || laeuft || !waschBereit}
                 onClick={() => void waschPaletteZaehlen()}>
-          + 1 {t('paletteHingestellt')}
-          {waschBereit && <span style={{ fontWeight: 400, opacity: .85 }}> · {ohneDatum ? t('keinSortierdatum') : datumText(sortierdatum)} · {kistenZahl} {t('kisten')}</span>}
+          <span><ZPlus size={22} /> 1 {t('paletteHingestellt')}</span>
+          {waschBereit && <span className="klein-text">{ohneDatum ? t('keinSortierdatum') : datumText(sortierdatum)} · {kistenZahl} {t('kisten')}</span>}
         </button>
-        <button id="wasch-minus" className="zaehler-minus" disabled={gesperrt || laeuft || d.paletten.length === 0}
+        <button type="button" id="wasch-minus" className="zaehler-minus" disabled={gesperrt || laeuft || d.paletten.length === 0}
                 onClick={() => void paletteZurueck()}>
-          ↶ {t('rueckgaengig')}
+          <ZRueckgaengig size={18} /> {t('rueckgaengig')}
         </button>
         {fehler && <Hinweis art="warnung">{fehler}</Hinweis>}
       </div>
@@ -207,11 +200,8 @@ export function Zaehler({ d, gesperrt, neuLaden, melden, zumWiegen }: {
   return (
     <>
       {p.hatPaletten && p.hatKisten && (
-        <div className="umschalter gross" role="tablist">
-          <button role="tab" aria-selected={teil === 'paletten'} className={teil === 'paletten' ? 'aktiv' : ''}
-                  onClick={() => setTeil('paletten')}>{t('paletten')}</button>
-          <button role="tab" aria-selected={teil === 'kisten'} className={teil === 'kisten' ? 'aktiv' : ''}
-                  onClick={() => setTeil('kisten')}>{t('kaliberKisten')}</button>
+        <div className="abstand-unten">
+          <Segmente gross wahl={teil} setzen={setTeil} teile={[['paletten', t('paletten')], ['kisten', t('kaliberKisten')]]} />
         </div>
       )}
 
@@ -221,11 +211,9 @@ export function Zaehler({ d, gesperrt, neuLaden, melden, zumWiegen }: {
             <label htmlFor="zettel">{t('datumZettel')}</label>
             <input id="zettel" type="date" value={zettel} disabled={gesperrt}
                    onChange={e => zettelSetzen(e.target.value)} style={{ fontSize: '1.15rem' }} />
-            <p className="leise" style={{ margin: '.35rem 0 0' }}>
-              {zettel === '' ? t('datumZettelPflicht') : t('datumBleibt')}
-            </p>
+            <p className="hilfe">{zettel === '' ? t('datumZettelPflicht') : t('datumBleibt')}</p>
             {zettel !== '' && zettel > heute() && (
-              <p style={{ margin: '.35rem 0 0', color: 'var(--gelb)', fontWeight: 500 }}>{t('datumZukunft')}</p>
+              <p className="hilfe gelb" style={{ fontWeight: 560 }}>{t('datumZukunft')}</p>
             )}
           </div>
           {p.zettelGewichtPflicht && (
@@ -233,30 +221,31 @@ export function Zaehler({ d, gesperrt, neuLaden, melden, zumWiegen }: {
               <label htmlFor="zettel-brutto">{t('gewichtZettel')}</label>
               <input id="zettel-brutto" type="number" inputMode="decimal" step="0.5" min={0} value={brutto} disabled={gesperrt}
                      onChange={e => setBrutto(e.target.value)} style={{ fontSize: '1.15rem' }} />
-              <p className="leise" style={{ margin: '.35rem 0 0' }}>{brutto === '' ? t('gewichtZettelPflicht') : t('gewichtZettelWarum')}</p>
+              <p className="hilfe">{brutto === '' ? t('gewichtZettelPflicht') : t('gewichtZettelWarum')}</p>
             </div>
           )}
           <div className="zaehler-gross">
-            <div className="stand">{d.paletten.length}</div>
+            <div className="stand neu" key={d.paletten.length}>{d.paletten.length}</div>
             <div className="einheit">{t('paletten')}{gewogen > 0 && ` · ${gewogen} ${t('gewogen')}`}</div>
           </div>
           {p.wiegenSoll > 0 && gewogen < p.wiegenSoll && (
-            <p className="leise" style={{ margin: '0 0 .6rem', textAlign: 'center' }}>
+            <p className="leise mitte" style={{ margin: '0 0 .6rem' }}>
               {t('dreiWiegen')} {t('nurGewogen').replace('{n}', String(gewogen)).replace('{soll}', String(p.wiegenSoll))}
             </p>
           )}
-          <button id="zaehlen-plus" className="haupt zaehler-plus" disabled={gesperrt || laeuft || zettel === '' || !bruttoOk}
+          <button type="button" id="zaehlen-plus" className="haupt zaehler-plus" disabled={gesperrt || laeuft || zettel === '' || !bruttoOk}
                   onClick={() => void paletteZaehlen()}>
-            + 1 {t('paletteHingestellt')}{zettel !== '' && <span style={{ fontWeight: 400, opacity: .85 }}> · {datumText(zettel)}{p.zettelGewichtPflicht && brutto !== '' ? ` · ${brutto} kg` : ''}</span>}
+            <span><ZPlus size={22} /> 1 {t('paletteHingestellt')}</span>
+            {zettel !== '' && <span className="klein-text">{datumText(zettel)}{p.zettelGewichtPflicht && brutto !== '' ? ` · ${brutto} kg` : ''}</span>}
           </button>
-          <button id="zaehlen-minus" className="zaehler-minus" disabled={gesperrt || laeuft || d.paletten.length === 0}
+          <button type="button" id="zaehlen-minus" className="zaehler-minus" disabled={gesperrt || laeuft || d.paletten.length === 0}
                   onClick={() => void paletteZurueck()}>
-            ↶ {t('rueckgaengig')}
+            <ZRueckgaengig size={18} /> {t('rueckgaengig')}
           </button>
           {p.mitWiegen && (
-            <button id="zum-wiegen" style={{ width: '100%', marginTop: '.6rem', minHeight: 48 }}
+            <button type="button" id="zum-wiegen" className="voll" style={{ marginTop: '.6rem', minHeight: 48 }}
                     disabled={gesperrt || zettel === ''} onClick={() => zumWiegen(brutto)}>
-              ⚖️ {t('paletteWiegenFrage')}
+              <ZWaage size={18} /> {t('paletteWiegenFrage')}
             </button>
           )}
         </div>
@@ -264,16 +253,16 @@ export function Zaehler({ d, gesperrt, neuLaden, melden, zumWiegen }: {
 
       {teil === 'kisten' && p.hatKisten && (
         <div className="karte">
-          <p className="leise" style={{ marginTop: 0 }}>{t('kistenSortierenWarum')}</p>
+          <p className="leise oben-0">{t('kistenSortierenWarum')}</p>
           {d.baender.map((band, i) => (
             <div key={i} style={{ marginBottom: '1rem' }}>
               <label>{t('kaliber')} {i + 1}<span className="leise"> · {band[0]}–{band[1]} g</span></label>
               <div className="zaehler">
-                <button onClick={() => void kistenSetzen(i, anzahlVon(i) - 1)} aria-label="−"
-                        disabled={gesperrt || laeuft || anzahlVon(i) === 0}>−</button>
+                <button type="button" onClick={() => void kistenSetzen(i, anzahlVon(i) - 1)} aria-label="−"
+                        disabled={gesperrt || laeuft || anzahlVon(i) === 0}><ZMinus size={24} /></button>
                 <span className="stand">{anzahlVon(i)}</span>
-                <button className="haupt" aria-label="+" id={`kiste-plus-${i}`} disabled={gesperrt || laeuft}
-                        onClick={() => void kistenSetzen(i, anzahlVon(i) + 1)}>+</button>
+                <button type="button" className="haupt" aria-label="+" id={`kiste-plus-${i}`} disabled={gesperrt || laeuft}
+                        onClick={() => void kistenSetzen(i, anzahlVon(i) + 1)}><ZPlus size={26} /></button>
               </div>
             </div>
           ))}

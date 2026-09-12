@@ -7,12 +7,9 @@ import { SprachProvider } from './sprache/SprachProvider'
 // Die Schrift wird mitgebaut statt von einem CDN geladen: In der Halle ist das
 // Netz wackelig, und die App muss auch dann gleich aussehen.
 import '@fontsource-variable/inter'
-import './index.css'
-// Runde N: das neue Erscheinungsbild. tokens.css lädt NACH index.css und
-// überschreibt dort die Farb- und Mass-Zeichen (warmes Neutral statt kühlem
-// Grau, satterer Kürbis, weichere Radien); die Struktur-Regeln von index.css
-// greifen die Zeichen von selbst auf. bewegung.css legt die Bewegung darüber.
+// Erst die Zeichen (Farben, Masse), dann die Struktur, dann die Bewegung.
 import './design/tokens.css'
+import './index.css'
 import './design/bewegung.css'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(

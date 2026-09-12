@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { supabase } from '../lib/supabase'
 import { useSprache } from '../sprache/SprachProvider'
 import { Hinweis } from '../components/Bausteine'
+import { ZKuerbis } from '../components/Zeichen'
 
 const NAME_SCHLUESSEL = 'arbeiter_name'
 
@@ -12,14 +13,9 @@ const NAME_SCHLUESSEL = 'arbeiter_name'
 export default function Anmelden() {
   const { t } = useSprache()
   return (
-    <div className="huelle" style={{ maxWidth: 440, paddingTop: '3rem' }}>
-      <h1 style={{ fontSize: '1.45rem', textAlign: 'center', display: 'flex',
-                   alignItems: 'center', justifyContent: 'center', gap: '.6rem',
-                   marginBottom: '1.25rem' }}>
-        <span aria-hidden="true"
-              style={{ width: 40, height: 40, borderRadius: 12, background: 'var(--kuerbis)',
-                       color: '#fff', display: 'inline-flex', alignItems: 'center',
-                       justifyContent: 'center', fontSize: 22 }}>🎃</span>
+    <div className="huelle eng anmelden">
+      <h1 className="marke-gross">
+        <span className="zeichen" aria-hidden="true"><ZKuerbis size={26} /></span>
         {t('appName')}
       </h1>
       <ArbeiterStart />
@@ -52,17 +48,16 @@ function ArbeiterStart() {
   }
 
   return (
-    <section className="karte" style={{ padding: '1.5rem' }}>
+    <section className="karte eintritt">
       <form onSubmit={los}>
         <div className="feld">
           <label htmlFor="name">{t('deinName')}</label>
           <input id="name" value={name} onChange={e => setName(e.target.value)}
                  autoComplete="off" autoFocus placeholder={t('namePlatzhalter')}
-                 style={{ fontSize: '1.2rem' }} />
+                 style={{ fontSize: '1.2rem', minHeight: 54 }} />
         </div>
         {fehler && <Hinweis art="warnung">{fehler}</Hinweis>}
-        <button className="haupt gross" style={{ width: '100%' }}
-                disabled={laeuft || !name.trim()}>
+        <button className="haupt gross voll" disabled={laeuft || !name.trim()}>
           {laeuft ? t('moment') : t('losGehts')}
         </button>
       </form>
@@ -103,9 +98,8 @@ function BetriebsleiterLogin() {
 
   if (!offen) {
     return (
-      <p style={{ textAlign: 'center', marginTop: '1.5rem' }}>
-        <button className="blank" style={{ color: 'var(--text-leise)', fontWeight: 480, fontSize: '.9rem' }}
-                onClick={() => setOffen(true)}>
+      <p className="mitte" style={{ marginTop: '1.5rem' }}>
+        <button type="button" className="leise-knopf" onClick={() => setOffen(true)}>
           {t('leiterLogin')}
         </button>
       </p>
@@ -113,8 +107,8 @@ function BetriebsleiterLogin() {
   }
 
   return (
-    <section className="karte">
-      <h2 style={{ marginTop: 0 }}>{t('leiterLogin')}</h2>
+    <section className="karte wechsel">
+      <h2 className="oben-0">{t('leiterLogin')}</h2>
       <form onSubmit={absenden}>
         {modus === 'registrieren' && (
           <div className="feld">
@@ -136,10 +130,10 @@ function BetriebsleiterLogin() {
         </div>
         {fehler && <Hinweis art="warnung">{fehler}</Hinweis>}
         {meldung && <Hinweis art="gut">{meldung}</Hinweis>}
-        <button className="haupt" style={{ width: '100%', marginTop: '.5rem' }} disabled={laeuft}>
+        <button className="haupt voll" style={{ marginTop: '.5rem' }} disabled={laeuft}>
           {laeuft ? '…' : modus === 'anmelden' ? 'Anmelden' : 'Konto anlegen'}
         </button>
-        <button type="button" className="blank" style={{ width: '100%', marginTop: '.5rem' }}
+        <button type="button" className="blank voll" style={{ marginTop: '.5rem' }}
                 onClick={() => { setModus(modus === 'anmelden' ? 'registrieren' : 'anmelden'); setFehler(null) }}>
           {modus === 'anmelden' ? 'Neues Betriebsleiter-Konto anlegen' : 'Ich habe schon ein Konto'}
         </button>

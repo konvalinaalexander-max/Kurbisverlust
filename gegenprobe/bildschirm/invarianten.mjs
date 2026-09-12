@@ -91,7 +91,9 @@ const IM_BROWSER = () => {
   }).map(e => `${e.tagName.toLowerCase()} „${(e.textContent || e.getAttribute('aria-label') || '').trim().slice(0, 30)}" ${Math.round(e.getBoundingClientRect().height)} px`)
   const leereKarten = [...document.querySelectorAll('.karte')].filter(k => k.textContent.trim().length === 0 && !k.querySelector('svg')).length
   // Diagramme: Striche und Marker zurücklesen. Striche = <text> unter dem Rahmen (y-Achse links, x-Achse unten).
-  const diagramme = [...document.querySelectorAll('.diagramm svg')].map(svg => {
+  // Nur die Diagramm-SVGs selbst (Vertrag: data-x-einheit) — nicht die Zeichen
+  // in den Werkzeugknöpfen darunter, die auch in .diagramm stehen.
+  const diagramme = [...document.querySelectorAll('.diagramm svg[data-x-einheit]')].map(svg => {
     const vb = svg.getAttribute('viewBox').split(' ').map(Number)
     const B = vb[2], H = vb[3]
     // Die App schreibt das typografische Minus (U+2212): „−1000" — für die Rechnung ein Bindestrich.

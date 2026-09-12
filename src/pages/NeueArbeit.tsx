@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { TaetZeichen } from '../components/Zeichen'
+import { TaetKachel, TaetZeichen } from '../components/Zeichen'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useSprache } from '../sprache/SprachProvider'
@@ -197,7 +197,7 @@ export default function NeueArbeit() {
       <Schritt nummer={n} von={von} frage={t('wasMachtIhr')} zurueck={zurueck}>
         <div className="wahl">
           {TAETIGKEITEN.map(a => (
-            <Wahl key={a.id} id={`taet-${a.id}`} bild={<TaetZeichen id={a.id} />} name={t(a.text)} erkl={t(ERKL[a.id])}
+            <Wahl key={a.id} id={`taet-${a.id}`} bild={<TaetKachel id={a.id} size={44} />} name={t(a.text)} erkl={t(ERKL[a.id])}
                   gewaehlt={taetigkeit === a.id}
                   onClick={() => { setTaetigkeit(a.id); setSystem(null); setKaliberIdx(null); setGrenzen(null); setSoll(null); setPos(1) }} />
           ))}
@@ -224,10 +224,10 @@ export default function NeueArbeit() {
       <Schritt nummer={n} von={von} frage={t('welcheKaliber')} warum={t('kaliberWarum')} zurueck={zurueck}
                weiter={weiter} weiterMoeglich={baenderOk}>
         {zuletztBaender.length > 0 && (
-          <div className="reihe" style={{ marginBottom: '.75rem' }}>
-            <button id="baender-uebernehmen" className={grenzen === null ? 'haupt' : ''} style={{ flex: 1, minHeight: 50 }}
+          <div className="knopf-reihe abstand-unten">
+            <button type="button" id="baender-uebernehmen" className={grenzen === null ? 'haupt' : ''} style={{ minHeight: 50 }}
                     onClick={() => setGrenzen(null)}>{t('wieZuletzt')} · {t('uebernehmen')}</button>
-            <button id="baender-anpassen" className={grenzen !== null ? 'haupt' : ''} style={{ flex: 1, minHeight: 50 }}
+            <button type="button" id="baender-anpassen" className={grenzen !== null ? 'haupt' : ''} style={{ minHeight: 50 }}
                     onClick={() => setGrenzen([...grenzenVon(zuletztBaender)])}>{t('anpassen')}</button>
           </div>
         )}
@@ -235,7 +235,7 @@ export default function NeueArbeit() {
           {g.length === 0 && (
             <>
               <Hinweis art="warnung">{t('kistenKeineBaender')}</Hinweis>
-              <button id="baender-anlegen" style={{ width: '100%', minHeight: 50 }} onClick={() => setGrenzen([500, 1000, 1500, 2000])}>{t('bandDazu')}</button>
+              <button type="button" id="baender-anlegen" className="voll" style={{ minHeight: 50 }} onClick={() => setGrenzen([500, 1000, 1500, 2000])}>{t('bandDazu')}</button>
             </>
           )}
           {g.length > 0 && (
@@ -256,9 +256,9 @@ export default function NeueArbeit() {
                 </div>
               ))}
               {grenzen !== null && (
-                <div className="reihe">
-                  <button id="band-dazu" style={{ flex: 1 }} onClick={() => setGrenzen([...g, (g[g.length - 1] || 0) + 300])}>{t('bandDazu')}</button>
-                  <button id="band-weg" style={{ flex: 1 }} disabled={g.length <= 2} onClick={() => setGrenzen(g.slice(0, -1))}>{t('bandWeg')}</button>
+                <div className="knopf-reihe">
+                  <button type="button" id="band-dazu" onClick={() => setGrenzen([...g, (g[g.length - 1] || 0) + 300])}>{t('bandDazu')}</button>
+                  <button type="button" id="band-weg" disabled={g.length <= 2} onClick={() => setGrenzen(g.slice(0, -1))}>{t('bandWeg')}</button>
                 </div>
               )}
               {!baenderOk && <Hinweis art="warnung">{t('baenderLueckenhaft')}</Hinweis>}
@@ -305,7 +305,7 @@ export default function NeueArbeit() {
                        onChange={e => setEigenes({ ...eigenes, bis: e.target.value })} style={{ fontSize: '1.15rem' }} />
               </div>
             </div>
-            <p className="leise" style={{ margin: '.5rem 0 0' }}>{t('kaliberEigenHinweis')}</p>
+            <p className="hilfe">{t('kaliberEigenHinweis')}</p>
           </div>
         )}
         {zuletztBaender.length === 0 && eigenes === null && <Hinweis art="warnung">{t('kistenKeineBaender')}</Hinweis>}
@@ -335,7 +335,7 @@ export default function NeueArbeit() {
               <input id="soll" className="gross" type="number" inputMode="decimal" step="0.1" min={0} value={sollJetzt}
                      onChange={e => setSoll(e.target.value)} autoFocus />
             </div>
-            <p className="leise" style={{ margin: 0 }}>{t('sollKgWarum')}{soll === null && ` · ${t('wieZuletzt')}`}</p>
+            <p className="hilfe">{t('sollKgWarum')}{soll === null && ` · ${t('wieZuletzt')}`}</p>
           </div>
         )}
         {system === 'stueck' && (

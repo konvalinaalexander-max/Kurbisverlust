@@ -1,11 +1,10 @@
 import { Suspense, lazy, type ReactNode } from 'react'
 import { NavLink, Navigate, Route, Routes, useParams } from 'react-router-dom'
-import { ZBalken, ZKuerbis, ZListe, ZLupe, ZRegler, ZUhr } from './components/Zeichen'
+import { ZAbmelden, ZBalken, ZKuerbis, ZListe, ZLupe, ZRegler, ZSprache, ZUhr } from './components/Zeichen'
 import { useAuth } from './auth/AuthProvider'
 import { SprachAuswahl, useSprache } from './sprache/SprachProvider'
 import { istKonfiguriert, konfigurationsProblem } from './lib/supabase'
-import { SPRACHEN } from './lib/i18n'
-import { Hinweis, Lade } from './components/Bausteine'
+import { Avatar, Hinweis, Lade } from './components/Bausteine'
 import Anmelden from './pages/Anmelden'
 import Start from './pages/Start'
 import NeueArbeit from './pages/NeueArbeit'
@@ -19,17 +18,23 @@ const Chargen = lazy(() => import('./pages/Chargen'))
 const Messungen = lazy(() => import('./pages/Messungen'))
 const Betrieb = lazy(() => import('./pages/Betrieb'))
 
+/**
+ * Der Rahmen. Zwei Oberflächen aus einem System:
+ *  · Das Büro (Betriebsleiter): Seitenleiste links mit den fünf Reitern, auf
+ *    schmalen Bildschirmen eine Kopfzeile und die Reiter als Zeile darunter.
+ *  · Die Halle (Arbeiter): nur eine Kopfzeile — Marke, Name, Sprache, Abmelden.
+ */
 export default function App() {
   const { session, profil, laedt, istAdmin, abmelden } = useAuth()
   const { t, sprache, abfrageOffen, abfrageOeffnen } = useSprache()
 
   if (konfigurationsProblem) {
     return (
-      <div className="huelle" style={{ paddingTop: '2rem' }}>
-        <h1>Kürbis-Verlust</h1>
+      <div className="huelle eng abstand-oben">
+        <h1 className="abstand-oben">Kürbis-Verlust</h1>
         <Hinweis art="warnung">
           <p><strong>Die Zugangsdaten stimmen nicht.</strong></p>
-          <p style={{ marginBottom: 0 }}>{konfigurationsProblem}</p>
+          <p className="unten-0">{konfigurationsProblem}</p>
         </Hinweis>
         <p className="leise">
           Zu ändern bei Cloudflare unter Settings → Environment variables.
@@ -42,11 +47,11 @@ export default function App() {
 
   if (!istKonfiguriert) {
     return (
-      <div className="huelle" style={{ paddingTop: '2rem' }}>
-        <h1>Kürbis-Verlust</h1>
+      <div className="huelle eng abstand-oben">
+        <h1 className="abstand-oben">Kürbis-Verlust</h1>
         <Hinweis art="warnung">
           <p><strong>Noch nicht mit Supabase verbunden.</strong></p>
-          <p style={{ marginBottom: 0 }}>
+          <p className="unten-0">
             <code>VITE_SUPABASE_URL</code> und <code>VITE_SUPABASE_ANON_KEY</code> fehlen —
             lokal in <code>.env.local</code>, bei Cloudflare unter Environment variables.
           </p>
@@ -59,42 +64,60 @@ export default function App() {
   // kommt auch am Anmeldebildschirm nicht weiter.
   if (abfrageOffen) return <SprachAuswahl />
 
-  if (laedt) return <Lade />
+  if (laedt) return <div className="huelle eng"><Lade /></div>
   if (!session) return <Anmelden />
 
-  const aktuelleFlagge = SPRACHEN.find(s => s.code === sprache)?.flagge ?? '🌐'
-
   // Fünf Reiter, je mit einem Satz, was er beantwortet (docs/UI-KONZEPT.md).
-  const reiter: [string, string, () => ReactNode][] = [
+  const reiter: [string, string, (p: { size?: number }) => ReactNode][] = [
     ['/dashboard', 'Überblick', ZBalken],
     ['/ursachen', 'Ursachen', ZLupe],
     ['/chargen', 'Chargen', ZListe],
     ['/messungen', 'Messungen', ZRegler],
     ['/betrieb', 'Betrieb', ZUhr],
   ]
+  const name = profil?.name ?? ''
+  const kuerzel = sprache.toUpperCase()
+
+  const marke = (
+    <NavLink to="/" className="marke">
+      <span className="zeichen" aria-hidden="true"><ZKuerbis size={20} /></span>
+      <span className="name">{t('appName')}</span>
+    </NavLink>
+  )
 
   return (
-    <>
-      <header className="kopf kein-druck">
-        <NavLink to="/" className="marke" style={{ textDecoration: 'none', color: 'inherit' }}>
-          <span className="zeichen" aria-hidden="true"><ZKuerbis size={20} /></span>
-          <span className="name">{t('appName')}</span>
-        </NavLink>
-        <span className="wer">{profil?.name ?? ''}</span>
-        <button onClick={abfrageOeffnen} aria-label="Sprache">{aktuelleFlagge}</button>
-        <button onClick={abmelden}>{t('abmelden')}</button>
-      </header>
-
+    <div className={`app ${istAdmin ? 'buero' : 'halle'}`}>
       {istAdmin && (
-        <nav className="navleiste kein-druck">
-          {reiter.map(([pfad, name, Zeichen]) => (
-            <NavLink key={pfad} to={pfad}
-                     className={({ isActive }) => (isActive ? 'aktiv' : '')}>
-              <Zeichen />{name}
-            </NavLink>
-          ))}
-        </nav>
+        <aside className="seitenleiste kein-druck">
+          {marke}
+          <nav className="navleiste" aria-label="Bereiche">
+            {reiter.map(([pfad, name, Zeichen]) => (
+              <NavLink key={pfad} to={pfad} className={({ isActive }) => (isActive ? 'aktiv' : '')}>
+                <Zeichen size={18} />{name}
+              </NavLink>
+            ))}
+          </nav>
+          <div className="seitenleiste-fuss">
+            <div className="seitenleiste-wer">
+              <Avatar name={name || '?'} />
+              <span className="name">{name}<span className="rolle">Betriebsleiter</span></span>
+            </div>
+            <button type="button" onClick={abfrageOeffnen}><ZSprache size={17} />Sprache · {kuerzel}</button>
+            <button type="button" onClick={abmelden}><ZAbmelden size={17} />{t('abmelden')}</button>
+          </div>
+        </aside>
       )}
+
+      <header className="kopf kein-druck">
+        {marke}
+        <span className="wer">{name}</span>
+        <button type="button" onClick={abfrageOeffnen} aria-label="Sprache" title="Sprache">
+          <ZSprache size={17} /><span className="sprach-kuerzel">{kuerzel}</span>
+        </button>
+        <button type="button" className="abmelden" onClick={abmelden} aria-label={t('abmelden')} title={t('abmelden')}>
+          <ZAbmelden size={17} /><span className="text">{t('abmelden')}</span>
+        </button>
+      </header>
 
       <main className={istAdmin ? 'huelle' : 'huelle eng'}>
         <Suspense fallback={<Lade />}>
@@ -122,7 +145,7 @@ export default function App() {
         </Routes>
         </Suspense>
       </main>
-    </>
+    </div>
   )
 }
 

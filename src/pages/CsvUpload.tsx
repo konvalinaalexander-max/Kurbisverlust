@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { ZWarnung } from '../components/Zeichen'
 import { supabase } from '../lib/supabase'
 import { einstellung, fehlerText, stammdaten } from '../lib/db'
 import { REINIGUNG_STANDARD, csvReinigen, masseKg, pruefsumme, trichter,
@@ -178,7 +179,7 @@ export default function CsvUpload() {
           <p className="leise">
             {kg(masseKg(d.ergebnis.histogramm), 1)} gesamt ·
             {' '}{zahl(d.ergebnis.histogramm.length)} verschiedene Gewichte
-            {d.ergebnis.n_unlesbar > 0 && ` · ⚠ ${d.ergebnis.n_unlesbar} Zeilen unlesbar`}
+            {d.ergebnis.n_unlesbar > 0 && <> · <span className="gelb"><ZWarnung size={14} /> {d.ergebnis.n_unlesbar} Zeilen unlesbar</span></>}
           </p>
 
           {d.hinweis && <Hinweis art="warnung">{d.hinweis}</Hinweis>}

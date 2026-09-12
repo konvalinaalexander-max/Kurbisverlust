@@ -127,7 +127,7 @@ export function Abschluss({ d, neuLaden, zurueck, fertig }: {
         <PaloxMaske d={d} gesperrt={false} unveraendertErlaubt={d.ablesungen.length > 0}
                     gespeichert={async () => { await neuLaden(); weiter() }} />
         {!p.paloxPflicht && (
-          <button id="palox-ohne" style={{ width: '100%', marginTop: '.6rem', minHeight: 48 }} onClick={weiter}>{t('ohneAblesungWeiter')}</button>
+          <button type="button" id="palox-ohne" className="voll" style={{ marginTop: '.6rem', minHeight: 48 }} onClick={weiter}>{t('ohneAblesungWeiter')}</button>
         )}
       </Schritt>
     )
@@ -177,7 +177,7 @@ export function Abschluss({ d, neuLaden, zurueck, fertig }: {
           <div className="feld">
             <label htmlFor="ab-tage">{t('tageSeitWaschen')} ({t('freiwillig')})</label>
             <input id="ab-tage" type="number" inputMode="numeric" min={0} value={tage} onChange={e => setTage(e.target.value)} />
-            <p className="leise" style={{ margin: '.35rem 0 0' }}>{t('tageSeitWaschenErkl')}</p>
+            <p className="hilfe">{t('tageSeitWaschenErkl')}</p>
           </div>
           {fehler && <Hinweis art="warnung">{fehler}</Hinweis>}
         </div>
@@ -227,7 +227,7 @@ export function Abschluss({ d, neuLaden, zurueck, fertig }: {
         </div>
         {eineCharge === false && (
           <>
-            <h2 className="frage" style={{ fontSize: '1.1rem' }}>{t('gleicheSorteFrage')}</h2>
+            <h2 className="frage" style={{ fontSize: '1.15rem', marginTop: '.5rem' }}>{t('gleicheSorteFrage')}</h2>
             <div className="wahl">
               <Wahl id="sorte-ja" name={t('gleicheSorteJa')} gewaehlt={gleicheSorte === true} onClick={() => setGleicheSorte(true)} />
               <Wahl id="sorte-nein" name={t('gleicheSorteNein')} gewaehlt={gleicheSorte === false} onClick={() => setGleicheSorte(false)} />
@@ -260,29 +260,29 @@ export function Abschluss({ d, neuLaden, zurueck, fertig }: {
       {fehlt.length > 0 && (
         <Hinweis art="warnung">
           <strong>{t('fehltNoch')}:</strong>
-          <ul style={{ margin: '.3rem 0 0', paddingLeft: '1.2rem' }}>{fehlt.map(f => <li key={f}>{f}</li>)}</ul>
+          <ul style={{ margin: '.3rem 0 0', paddingLeft: '1.1rem' }}>{fehlt.map(f => <li key={f}>{f}</li>)}</ul>
         </Hinweis>
       )}
       {fehler && <Hinweis art="warnung">{fehler}</Hinweis>}
       {!sicher ? (
-        <button id="arbeit-fertig" className="haupt gross" style={{ width: '100%' }} onClick={() => setSicher(true)}
+        <button type="button" id="arbeit-fertig" className="haupt gross voll" onClick={() => setSicher(true)}
                 disabled={!fertigMoeglich || laeuft}>{t('arbeitFertig')}</button>
       ) : (
-        <div className="reihe">
-          <button id="ja-fertig" className="haupt" style={{ flex: 1, minHeight: 60 }} onClick={() => void abschliessen()}
+        <div className="knopf-reihe">
+          <button type="button" id="ja-fertig" className="haupt gross" style={{ flex: 2 }} onClick={() => void abschliessen()}
                   disabled={laeuft}>{t('jaFertig')}</button>
-          <button onClick={() => setSicher(false)}>{t('abbrechen')}</button>
+          <button type="button" onClick={() => setSicher(false)}>{t('abbrechen')}</button>
         </div>
       )}
-      <div style={{ marginTop: '2.5rem', borderTop: '1px solid var(--rand)', paddingTop: '1rem' }}>
+      <div style={{ marginTop: '2.5rem', borderTop: '1px solid var(--rand-leise)', paddingTop: '1rem' }}>
         {!abbruch ? (
-          <button className="gefahr" style={{ width: '100%' }} onClick={() => setAbbruch(true)}>{t('arbeitAbbrechen')}</button>
+          <button type="button" className="gefahr voll" onClick={() => setAbbruch(true)}>{t('arbeitAbbrechen')}</button>
         ) : (
           <>
             <p className="leise">{t('wirklichAbbrechen')}</p>
-            <div className="reihe">
-              <button className="gefahr" style={{ flex: 1, minHeight: 54 }} onClick={() => void abbrechen()} disabled={laeuft}>{t('jaAbbrechen')}</button>
-              <button onClick={() => setAbbruch(false)}>{t('abbrechen')}</button>
+            <div className="knopf-reihe">
+              <button type="button" className="gefahr" style={{ flex: 2, minHeight: 54 }} onClick={() => void abbrechen()} disabled={laeuft}>{t('jaAbbrechen')}</button>
+              <button type="button" onClick={() => setAbbruch(false)}>{t('abbrechen')}</button>
             </div>
           </>
         )}
