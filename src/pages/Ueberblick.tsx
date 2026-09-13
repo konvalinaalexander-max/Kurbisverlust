@@ -148,7 +148,11 @@ export default function Ueberblick() {
                   unter={<>Eingangsware, die nicht ausgeliefert ist · {chargenImHaus} Chargen
                     · im Haus gesamt <strong>{tonnen(s.im_haus_heute_kg)}</strong>{s.verlust_bekannt ? '' : ' (höchstens)'}</>} />
         <Kennzahl titel="Davon verkaufsfähig" ton="gruen"
-                  wert={<><Tonnen kg={s.verkaufsfaehig_heute_kg} />{anteilHeute !== null && <span style={{ fontSize: '.55em', whiteSpace: 'nowrap' }}> · {prozent(anteilHeute, 0)}</span>}<Herkunft art="gerechnet" /></>}
+                  wert={<>{/* Fehlt ein Koeffizient, ist die Masse eine obere Schranke (0064) — dann
+                             sagt die Kopfzahl das, so wie „Im Lager" es für „im Haus gesamt" tut.
+                             Drehbuch 03 spielt genau diesen Fall. */}
+                    {anteilHeute === null && <span style={{ fontSize: '.45em', whiteSpace: 'nowrap' }}>höchstens </span>}
+                    <Tonnen kg={s.verkaufsfaehig_heute_kg} />{anteilHeute !== null && <span style={{ fontSize: '.55em', whiteSpace: 'nowrap' }}> · {prozent(anteilHeute, 0)}</span>}<Herkunft art="gerechnet" /></>}
                   unter={<>
                     <span className="mini-anteile" aria-hidden="true">
                       {lagerTeile.filter(t => t.kg > 0).map(t => <span key={t.name} style={{ width: `${(t.kg / Math.max(lagerSumme, 1)) * 100}%`, background: t.farbe }} />)}

@@ -103,8 +103,15 @@ async function restAntwort(route) {
     } else {
       // PATCH: die Zeile im Gedächtnis anpassen
       const id = url.searchParams.get('id')?.replace('eq.', '')
+      // Wie der Auslöser in 0039: Wer eine Arbeit abschliesst, schickt kein
+      // Ende mit — das setzt der Server. Ohne diese Zeile hätte hier keine
+      // abgeschlossene Arbeit ein `ende_ts`, und alles, was darauf baut
+      // (Runde P: „Tage seit dem Waschen" vorbelegen), liefe im Prüfstand
+      // ins Leere, ohne dass es auffiele.
+      const auslöser = name === 'auftrag' && zeilen[0]?.status === 'abgeschlossen'
+        ? { ende_ts: new Date().toISOString() } : {}
       eingefuegt[name] = (eingefuegt[name] ?? []).map(z =>
-        String(z.id) === id ? { ...z, ...zeilen[0] } : z)
+        String(z.id) === id ? { ...z, ...zeilen[0], ...auslöser } : z)
     }
     return route.fulfill({ status: 201, json: einzeln ? antwort[0] : antwort })
   }
@@ -515,6 +522,60 @@ await schritt('Kontrolle: andere Charge, Zettel 950 → 905 kg, ohne Faul-Frage 
   const w = protokoll.filter(x => x.tabelle === 'verdunstung_wiegung').map(x => x.zeilen[0])
   if (w[2].charge_nr !== 1613 || 'faul_kg' in w[2] || 'auswahl' in w[2]) throw new Error('Die Kontrolle bleibt nicht auf der Charge stehen — oder schreibt noch faul/auswahl')
 })
+
+// ---------- Sechster Durchlauf: Fax nach dem Waschen (Runde P) ------------
+// Dieselbe Charge, einen Waschgang später: Jetzt kennt die App die Antwort
+// auf „Tage seit dem Waschen" — die Wasch-Arbeit aus dem vierten Durchlauf
+// ist heute fertig geworden, also null Tage. Die Zahl steht **vorbelegt** im
+// Feld, mit dem Hinweis, woher sie kommt; überschreiben bleibt möglich und
+// nimmt den Hinweis weg. Keine neue Frage an den Vorarbeiter.
+await schritt('Assistent: Fax, Charge 1613 — zweiter Fax-Tag nach dem Waschen', async () => {
+  await seite.goto('http://localhost:5198/', { waitUntil: 'networkidle' })
+  await seite.getByRole('button', { name: /Neue Arbeit/ }).click()
+  await seite.locator('#taet-fax').click()
+  await seite.locator('#charge').fill('1613')
+  await seite.getByRole('button', { name: 'Weiter' }).click()
+  await seite.locator('#system-kiste_ab').click()
+  await seite.getByRole('button', { name: 'Weiter' }).click()
+  await seite.getByRole('button', { name: 'Starten' }).click()
+  await warteAuf('auftrag', 'POST', 5)
+  await warteAuf('auftrag_teilnehmer', 'POST', 5)
+})
+
+await schritt('Fax-Abschluss: „Tage seit dem Waschen" ist vorbelegt und sagt, woher', async () => {
+  await seite.locator('#check-zaehlen').click()
+  await seite.locator('#paletten-plus').click()
+  await warteAuf('auftrag', 'PATCH', 8)
+  await seite.getByRole('button', { name: /Was zu tun ist/ }).click()
+  await seite.locator('#check-faule').click()
+  await seite.locator('#faul-brutto').fill('6')
+  await seite.locator('#faul-kisten').fill('1')
+  await seite.locator('#faul-art').selectOption('G2')
+  await seite.locator('#faul-eintragen').click()
+  await warteAuf('schimmel_messung', 'POST', 6)
+  await seite.getByRole('button', { name: /Zurück/ }).click()
+  await seite.locator('#check-abschluss').click()
+  await seite.getByRole('button', { name: 'Weiter' }).click()   // Faules ist gewogen
+  await seite.locator('#ab-tage').waitFor()
+  // Die Wasch-Arbeit desselben Chargenlaufs wurde heute abgeschlossen.
+  await seite.waitForFunction(() => document.querySelector('#ab-tage')?.value === '0')
+  const hinweis = await seite.locator('#ab-tage ~ .hilfe').textContent()
+  if (!/vorgeschlagen/.test(hinweis ?? '')) throw new Error(`Der Vorschlag muss sich als solcher zu erkennen geben, steht aber „${hinweis}"`)
+  // Überschreiben: der Vorarbeiter weiss es besser, und der Hinweis geht weg.
+  await seite.locator('#ab-tage').fill('1')
+  const danach = await seite.locator('#ab-tage ~ .hilfe').textContent()
+  if (/vorgeschlagen/.test(danach ?? '')) throw new Error('Nach dem Überschreiben ist es kein Vorschlag mehr')
+  await seite.getByRole('button', { name: 'Weiter' }).click()
+  await warteAuf('auftrag', 'PATCH', 9)
+  const patch = protokoll.filter(x => x.tabelle === 'auftrag' && x.methode === 'PATCH').at(-1).zeilen[0]
+  if (patch.tage_seit_waschen !== 1) throw new Error(`Gespeichert wird, was im Feld steht — nicht der Vorschlag (${patch.tage_seit_waschen})`)
+  await seite.locator('#charge-ja').click()
+  await seite.getByRole('button', { name: 'Weiter' }).click()
+  await seite.locator('#arbeit-fertig').click()
+  await seite.locator('#ja-fertig').click()
+  await warteAuf('auftrag', 'PATCH', 10)
+})
+
 
 await browser.close(); await vite.close()
 if (konsole.length) { console.log('  Konsolenfehler:'); for (const k of konsole) console.log('   ', k) }

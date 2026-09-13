@@ -138,6 +138,24 @@ const BILDSCHIRME = [
   { name: 'arbeit-fax-paletten', wer: 'arbeiter', pfad: '/arbeit/OFFENFAX' },
   { name: 'arbeit-fax-faule', wer: 'arbeiter', pfad: '/arbeit/OFFENFAX',
     tun: async p => { await p.getByRole('button', { name: T('ichFuehre') }).click(); await p.locator('#check-faule').click() } },
+  // Runde P: der Schritt „Paletten gesamt" im Fax-Abschluss — dort steht
+  // „Tage seit dem Waschen". Der Schritt davor („Faules wiegen") wird
+  // genommen, wie er kommt; er ist nicht auf jeder Fax-Arbeit da.
+  //
+  // Das Bild zeigt den **leeren** Fall: In der Demo liegt die letzte
+  // Wasch-Arbeit dieser Charge Monate zurück, und weiter als zwei Wochen
+  // zurück wird nichts vorgeschlagen (vorschlagTageSeitWaschen). Den
+  // vorbelegten Fall misst die Kette (kette.mjs, sechster Durchlauf): Dort
+  // ist die Wasch-Arbeit am selben Tag fertig geworden, und im Feld steht 0.
+  { name: 'arbeit-fax-tage', wer: 'arbeiter', pfad: '/arbeit/OFFENFAX',
+    tun: async p => {
+      await p.getByRole('button', { name: T('ichFuehre') }).click(); await p.locator('#check-abschluss').click()
+      for (let i = 0; i < 4 && !(await p.locator('#ab-tage').count()); i++) {
+        await p.locator('.haupt-unten button:not([disabled])').first().click()
+        await p.waitForTimeout(300)
+      }
+      await p.locator('#ab-tage').waitFor()
+    } },
   { name: 'kontrolle', wer: 'arbeiter', pfad: '/kontrolle' },
   // Die Korrektur (Runde H): der Betriebsleiter berichtigt die Messungen einer Arbeit
   { name: 'arbeit-korrektur', wer: 'admin', pfad: '/arbeit/FERTIG?korrigieren=1' },

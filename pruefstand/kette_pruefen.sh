@@ -192,8 +192,10 @@ end $$;
 do $$
 declare f record;
 begin
+  -- Die **erste** Fax-Arbeit der Kette (dritter Durchlauf). Seit Runde P gibt
+  -- es eine zweite, nach dem Waschgang — sie wird unten für sich geprüft.
   select * into f from v_fax_beobachtung
-   where auftrag_id = (select max(id) from auftrag where ist_fax);
+   where auftrag_id = (select min(id) from auftrag where ist_fax);
   assert f.auftrag_id is not null, 'Die Fax-Arbeit ist nicht angekommen';
   assert f.status = 'abgeschlossen', 'Der Fax-Abschluss ist nicht angekommen';
   assert f.kaeufer is null, 'Der Käufer wird beim Fax nicht mehr gefragt';
@@ -221,6 +223,40 @@ begin
   assert not exists (select 1 from v_plausibilitaet where auftrag_id = f.auftrag_id),
     'Die Fax-Arbeit taucht in der Plausibilität auf';
   raise notice 'OK  Fax: Paletten gesamt, Faules gewogen, Tage seit dem Waschen, eigener Strom';
+end $$;
+
+-- ---------- Der zweite Fax-Tag: „Tage seit dem Waschen" (Runde P) ---------
+-- Im sechsten Durchlauf packt dieselbe Charge einen Waschgang später ab. Die
+-- App hat „Tage seit dem Waschen" aus der Wasch-Arbeit vorbelegt (0 Tage,
+-- heute abgeschlossen); der Vorarbeiter hat 1 daraus gemacht. Hier steht,
+-- dass ankommt, was **er** eingetragen hat — nicht, was die App vorschlug.
+do $$
+declare f record; w record;
+begin
+  select * into f from v_fax_beobachtung
+   where auftrag_id = (select max(id) from auftrag where ist_fax);
+  assert f.auftrag_id <> (select min(id) from auftrag where ist_fax),
+    'Der zweite Fax-Tag fehlt — die Kette hat ihn nicht geschrieben';
+  assert f.status = 'abgeschlossen', 'Der zweite Fax-Abschluss ist nicht angekommen';
+  assert f.tage_seit_waschen = 1,
+    format('Eingetragen war 1 Tag (überschriebener Vorschlag), angekommen ist %s', f.tage_seit_waschen);
+  assert f.paletten_gesamt = 1, format('1 Palette erwartet, angekommen %s', f.paletten_gesamt);
+  -- Und die Quelle des Vorschlags: eine abgeschlossene Wasch-Arbeit derselben
+  -- Charge, die am selben Tag fertig wurde. Ohne sie hätte die App nichts
+  -- vorzuschlagen gehabt und das Feld wäre leer geblieben — das ist die
+  -- Bedingung, die die Vorbelegung trägt.
+  select * into w from auftrag
+   where charge_nr = f.charge_nr and station = 'waschen' and not ist_fax
+     and status = 'abgeschlossen' and abgebrochen_ts is null and ende_ts is not null
+   order by ende_ts desc limit 1;
+  assert w.id is not null, 'Ohne abgeschlossene Wasch-Arbeit gäbe es nichts vorzuschlagen';
+  assert betriebstag(w.ende_ts) = betriebstag(f.start_ts),
+    format('Die Wasch-Arbeit endete am %s, der Fax-Tag begann am %s', betriebstag(w.ende_ts), betriebstag(f.start_ts));
+  -- Und er landet in der Klasse „0–1 Tage" der Wartezeit-Auswertung (0071),
+  -- nicht bei „unbekannt": Genau dafür wird die Zahl überhaupt erhoben.
+  assert exists (select 1 from v_fax_wartezeit where klasse = '0–1 Tage' and n > 0),
+    'Der Fax-Tag taucht nicht in der Wartezeit-Auswertung auf';
+  raise notice 'OK  Zweiter Fax-Tag: der Vorschlag ist überschreibbar, und das Überschriebene kommt an';
 end $$;
 
 -- ---------- Der Wasch-Durchlauf mit eigenem Kaliber (0054, 0060) -----------

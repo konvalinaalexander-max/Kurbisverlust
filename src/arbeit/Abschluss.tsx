@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useSprache } from '../sprache/SprachProvider'
 import { fehlerText } from '../lib/db'
@@ -8,6 +8,7 @@ import { PaloxMaske } from './PaloxMaske'
 import { FauleMaske } from './FauleMaske'
 import { AusschussMaske } from './AusschussMaske'
 import { FertigePaletteMaske } from './FertigePaletteMaske'
+import { vorschlagTageSeitWaschen } from '../lib/taetigkeit'
 import { fertigeSoll, stationsProfil, uhrzeit, type ArbeitDaten } from './daten'
 
 type SchrittId = 'palox' | 'faule' | 'wiegen' | 'ausschuss' | 'paletten' | 'wasch_paletten' | 'ausgang' | 'charge' | 'pruefen'
@@ -38,10 +39,42 @@ export function Abschluss({ d, neuLaden, zurueck, fertig }: {
   const [gleicheSorte, setGleicheSorte] = useState<boolean | null>(null)
   const [paletten, setPaletten] = useState(String(d.auftrag.paletten_gesamt ?? ''))
   const [tage, setTage] = useState(String(d.auftrag.tage_seit_waschen ?? ''))
+  /** Wahr, solange der Wert der Vorschlag ist und niemand ihn angefasst hat. */
+  const [tageVorgeschlagen, setTageVorgeschlagen] = useState(false)
   const [sicher, setSicher] = useState(false)
   const [abbruch, setAbbruch] = useState(false)
   const [fehler, setFehler] = useState<string | null>(null)
   const [laeuft, setLaeuft] = useState(false)
+
+  /**
+   * „Tage seit dem Waschen" vorbelegen (Runde P): Die App kennt die letzte
+   * abgeschlossene Wasch-Arbeit derselben Charge und schlägt die Tage daraus
+   * vor. Was ein brauchbarer Vorschlag ist und was nicht, steht in
+   * `vorschlagTageSeitWaschen` — hier steht nur, woher das Datum kommt.
+   *
+   * Es ist ein **Vorschlag**, keine Behauptung: Der Vorarbeiter kann ihn
+   * überschreiben, und sobald er das tut, steht der Hinweis nicht mehr da.
+   */
+  useEffect(() => {
+    if (!p.hatFaxPaletten || d.auftrag.tage_seit_waschen != null) return
+    let weg = false
+    void (async () => {
+      const { data } = await supabase.from('auftrag')
+        .select('ende_ts')
+        .eq('charge_nr', d.auftrag.charge_nr)
+        .eq('station', 'waschen')
+        .eq('status', 'abgeschlossen')
+        .is('abgebrochen_ts', null)
+        .not('ende_ts', 'is', null)
+        .order('ende_ts', { ascending: false })
+        .limit(1)
+      const n = vorschlagTageSeitWaschen((data ?? [])[0]?.ende_ts as string | undefined)
+      if (weg || n === null) return
+      setTage(String(n))
+      setTageVorgeschlagen(true)
+    })()
+    return () => { weg = true }
+  }, [p.hatFaxPaletten, d.auftrag.charge_nr, d.auftrag.tage_seit_waschen])
 
   const kistenGezaehlt = d.gebinde.reduce((s, g) => s + g.anzahl, 0)
   const waschKisten = d.paletten.reduce((s, x) => s + (x.kisten ?? 0), 0)
@@ -176,8 +209,9 @@ export function Abschluss({ d, neuLaden, zurueck, fertig }: {
           </div>
           <div className="feld">
             <label htmlFor="ab-tage">{t('tageSeitWaschen')} ({t('freiwillig')})</label>
-            <input id="ab-tage" type="number" inputMode="numeric" min={0} value={tage} onChange={e => setTage(e.target.value)} />
-            <p className="hilfe">{t('tageSeitWaschenErkl')}</p>
+            <input id="ab-tage" type="number" inputMode="numeric" min={0} value={tage}
+                   onChange={e => { setTage(e.target.value); setTageVorgeschlagen(false) }} />
+            <p className="hilfe">{tageVorgeschlagen ? t('tageSeitWaschenVorschlag') : t('tageSeitWaschenErkl')}</p>
           </div>
           {fehler && <Hinweis art="warnung">{fehler}</Hinweis>}
         </div>
