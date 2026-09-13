@@ -1,5 +1,5 @@
 -- sicht: v_ueberfuellung_verkauf
--- Je Sorte (gruppe sorte) und je Charge (gruppe charge), je Kistensystem: verkaufte Kisten und Kilo aus der Verkaufsdatei, gewogene Kisten und Kilo je Kiste aus den fertigen Paletten. verschenkt_kg = Überschuss je gewogener Kiste × verkaufte Kisten, nur bei „Kiste ab x kg" und nur, wo beides gemessen ist. Stück-Kisten: gemessenes Stückgewicht neben dem Nenngewicht, keine Marge (0061).
+-- Je Sorte und je Charge, je Kistensystem: verkaufte Kisten und Kilo aus der Verkaufsdatei, gewogene Kisten und Kilo je Kiste aus den fertigen Paletten. Bei „Kiste ab x kg" ist der Überschuss verschenkte Ware (verschenkt_kg). Bei „x Stück je Kaliber" zählt die Lage im Band: 0 = Unterkante, 1 = Oberkante, über 1 heisst, die Wägung passt nicht zu ihrem Kaliber. spielraum_kg ist die Masse über der Unterkante, die unbezahlt mitgeht — Rahmen, nicht Verlust: niemand sortiert auf die Kante (0061, 0071).
 
  WITH verkauft AS (
          SELECT
@@ -101,7 +101,17 @@
             ELSE NULL::double precision
         END, 1, '100000000000'::numeric)::numeric(12,1) AS verschenkt_fehler_kg,
     zahl(g.g_je_kuerbis, 0, '1000000'::numeric)::numeric(8,0) AS g_je_kuerbis,
-    zahl(g.band_mittel_g, 0, '1000000'::numeric)::numeric(8,0) AS band_mittel_g
+    zahl(g.band_mittel_g, 0, '1000000'::numeric)::numeric(8,0) AS band_mittel_g,
+    zahl(
+        CASE
+            WHEN b.von IS NOT NULL AND b.bis IS NOT NULL AND b.bis > b.von AND g.g_je_kuerbis IS NOT NULL THEN (g.g_je_kuerbis - b.von::numeric) / (b.bis - b.von)::numeric
+            ELSE NULL::numeric
+        END, 4, '10000'::numeric)::numeric(8,4) AS lage_im_band,
+    zahl(
+        CASE
+            WHEN g.g_je_kuerbis IS NOT NULL AND b.von IS NOT NULL AND v.stueck_verkauft IS NOT NULL THEN (g.g_je_kuerbis - b.von::numeric) / 1000.0 * v.stueck_verkauft
+            ELSE NULL::numeric
+        END, 1, '100000000000'::numeric)::numeric(12,1) AS spielraum_kg
    FROM verkauft v
      FULL JOIN gewogen g ON g.gruppe = v.gruppe AND g.sorte = v.sorte AND NOT g.charge_nr IS DISTINCT FROM v.charge_nr AND g.kistensystem = v.kistensystem AND NOT g.soll_kg_pro_kiste IS DISTINCT FROM v.soll_kg_pro_kiste AND NOT g.stueck_je_kiste IS DISTINCT FROM v.stueck_je_kiste AND NOT g.kaliber_idx IS DISTINCT FROM v.kaliber_idx
      LEFT JOIN band b ON b.sorte = COALESCE(v.sorte, g.sorte) AND b.kaliber_idx = COALESCE(v.kaliber_idx, g.kaliber_idx);

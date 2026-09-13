@@ -2,21 +2,21 @@
 -- Buch B: Ware, die den Betrieb verlassen hat, ohne verkaufsfähig zu sein — zu klein, Nebenkanal, Überfüllung. Kein Verlust im Sinne von verdorben, sondern Masse in einem anderen Kanal. kg_unten und kg_oben spannen den Bereich auf, gemessen sagt, ob dahinter Messungen oder Schätzungen stehen.
 
  WITH verkauf AS (
-         SELECT sum(erg_ueberfuellung.verschenkt_kg) AS verschenkt_kg,
+         SELECT sum(v_ueberfuellung_verkauf.verschenkt_kg) AS verschenkt_kg,
             sum(
                 CASE
-                    WHEN erg_ueberfuellung.verschenkt_kg IS NULL THEN NULL::numeric
-                    ELSE GREATEST(erg_ueberfuellung.verschenkt_kg - COALESCE(erg_ueberfuellung.verschenkt_fehler_kg, 0::numeric), 0::numeric)
+                    WHEN v_ueberfuellung_verkauf.verschenkt_kg IS NULL THEN NULL::numeric
+                    ELSE GREATEST(v_ueberfuellung_verkauf.verschenkt_kg - COALESCE(v_ueberfuellung_verkauf.verschenkt_fehler_kg, 0::numeric), 0::numeric)
                 END) AS verschenkt_unten_kg,
-            sum(erg_ueberfuellung.verschenkt_kg + COALESCE(erg_ueberfuellung.verschenkt_fehler_kg, 0::numeric)) AS verschenkt_oben_kg,
-            sum(erg_ueberfuellung.kisten_verkauft) FILTER (WHERE erg_ueberfuellung.n_wiegungen > 0) AS kisten_gerechnet,
-            sum(erg_ueberfuellung.kisten_verkauft) FILTER (WHERE erg_ueberfuellung.n_wiegungen = 0) AS kisten_ungewogen,
-            sum(erg_ueberfuellung.n_wiegungen) AS n_wiegungen,
-            sum(erg_ueberfuellung.kisten_gewogen) AS kisten_gewogen,
-            sum(erg_ueberfuellung.zuviel_je_kiste * erg_ueberfuellung.kisten_gewogen::numeric) / NULLIF(sum(erg_ueberfuellung.kisten_gewogen) FILTER (WHERE erg_ueberfuellung.zuviel_je_kiste IS NOT NULL), 0::numeric) AS zuviel_je_kiste,
-            count(*) FILTER (WHERE erg_ueberfuellung.n_lieferungen > 0)::integer AS n_gruppen_verkauft
-           FROM erg_ueberfuellung
-          WHERE erg_ueberfuellung.gruppe = 'sorte'::text AND erg_ueberfuellung.kistensystem = 'kiste_ab'::text
+            sum(v_ueberfuellung_verkauf.verschenkt_kg + COALESCE(v_ueberfuellung_verkauf.verschenkt_fehler_kg, 0::numeric)) AS verschenkt_oben_kg,
+            sum(v_ueberfuellung_verkauf.kisten_verkauft) FILTER (WHERE v_ueberfuellung_verkauf.n_wiegungen > 0) AS kisten_gerechnet,
+            sum(v_ueberfuellung_verkauf.kisten_verkauft) FILTER (WHERE v_ueberfuellung_verkauf.n_wiegungen = 0) AS kisten_ungewogen,
+            sum(v_ueberfuellung_verkauf.n_wiegungen) AS n_wiegungen,
+            sum(v_ueberfuellung_verkauf.kisten_gewogen) AS kisten_gewogen,
+            sum(v_ueberfuellung_verkauf.zuviel_je_kiste * v_ueberfuellung_verkauf.kisten_gewogen::numeric) / NULLIF(sum(v_ueberfuellung_verkauf.kisten_gewogen) FILTER (WHERE v_ueberfuellung_verkauf.zuviel_je_kiste IS NOT NULL), 0::numeric) AS zuviel_je_kiste,
+            count(*) FILTER (WHERE v_ueberfuellung_verkauf.n_lieferungen > 0)::integer AS n_gruppen_verkauft
+           FROM v_ueberfuellung_verkauf
+          WHERE v_ueberfuellung_verkauf.gruppe = 'sorte'::text AND v_ueberfuellung_verkauf.kistensystem = 'kiste_ab'::text
         ), datei AS (
          SELECT count(*)::integer AS n
            FROM lieferung_import

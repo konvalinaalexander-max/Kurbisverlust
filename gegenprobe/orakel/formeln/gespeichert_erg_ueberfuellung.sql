@@ -1,5 +1,5 @@
 -- gespeichert: erg_ueberfuellung
--- v_ueberfuellung_verkauf, gespeichert für die App (0061). Erneuert mit auswertung_schritt(1).
+-- v_ueberfuellung_verkauf, gespeichert für die App (0061, 0071). Erneuert mit auswertung_schritt().
 
  SELECT gruppe,
     sorte,
@@ -27,5 +27,7 @@
     verschenkt_kg,
     verschenkt_fehler_kg,
     g_je_kuerbis,
-    band_mittel_g
+    band_mittel_g,
+    lage_im_band,
+    spielraum_kg
    FROM v_ueberfuellung_verkauf;

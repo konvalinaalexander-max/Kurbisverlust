@@ -47,6 +47,16 @@ for i in $(seq 1 "$N"); do
     insert into sim.schaetzung (lauf, groesse, mittel, unten, oben)
     select $i, 'sockel_nachweis', sockel_nachweis, sockel, sockel_schwelle from v_schimmel_modell
     on conflict (lauf, groesse) do update
+      set mittel = excluded.mittel, unten = excluded.unten, oben = excluded.oben;
+    -- Die Prognose (0071): Wie viel von dem, was heute liegt, ist in vier
+    -- und in acht Wochen noch verkaufsfähig? Als Anteil, mit Hülle — genau
+    -- die Zahl, die auf dem Überblick steht.
+    insert into sim.schaetzung (lauf, groesse, mittel, unten, oben)
+    select $i, format('vf_anteil_%s', p.h), p.verkaufsfaehig_anteil,
+           p.verkaufsfaehig_unten_kg / nullif(p.lager_kg, 0),
+           p.verkaufsfaehig_oben_kg  / nullif(p.lager_kg, 0)
+      from v_prognose p where p.gruppe = 'gesamt' and p.h in (28, 56)
+    on conflict (lauf, groesse) do update
       set mittel = excluded.mittel, unten = excluded.unten, oben = excluded.oben;" >/dev/null
   printf '\r  %s/%s' "$i" "$N"
 done
@@ -101,4 +111,22 @@ select s.groesse,
              / count(*)) || ' %'                                   as ueberdeckung
   from sim.schaetzung s
   join sim.wahrheit w on w.lauf = s.lauf and w.groesse = s.groesse
+ group by s.groesse order by 1;"
+
+# Die Prognose ist ein Anteil, kein Kilogewicht. Bei einem Anteil sagt die
+# relative Verzerrung oben wenig — gefragt ist, um wie viele **Prozentpunkte**
+# die App danebenliegt, wenn sie sagt „davon sind dann noch 71 % verkaufbar".
+psql "$URL" -P pager=off -c "
+select s.groesse                                                     as prognose,
+       count(*)                                                      as laeufe,
+       round(avg(w.wert) * 100, 1) || ' %'                           as wahrheit,
+       round(avg(s.mittel) * 100, 1) || ' %'                         as geschaetzt,
+       round(avg(s.mittel - w.wert) * 100, 2) || ' pp'               as verzerrung,
+       round(stddev_samp(s.mittel - w.wert) * 100, 2) || ' pp'       as streuung,
+       round(avg(s.oben - s.unten) * 100, 1) || ' pp'                as huellenbreite,
+       round(100.0 * count(*) filter (where w.wert between s.unten and s.oben)
+             / count(*)) || ' %'                                     as ueberdeckung
+  from sim.schaetzung s
+  join sim.wahrheit w on w.lauf = s.lauf and w.groesse = s.groesse
+ where s.groesse like 'vf_anteil_%'
  group by s.groesse order by 1;"

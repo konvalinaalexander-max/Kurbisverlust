@@ -7,6 +7,12 @@
 \set ON_ERROR_STOP on
 \timing off
 set client_min_messages = notice;
+-- Die Prognose steht auf einem Plan mit rund viertausend Knoten. LLVM
+-- braucht zum Übersetzen ein Vielfaches dessen, was Postgres zum Rechnen
+-- braucht (gemessen 49 s mit, 1.3 s ohne) — an den Zahlen ändert es nichts.
+-- auswertung_schritt() trägt dieselbe Einstellung, damit das Neurechnen im
+-- Betrieb nicht daran hängenbleibt.
+set jit = off;
 
 -- --- Benutzer -----------------------------------------------------------
 insert into auth.users (id, email, raw_user_meta_data)
@@ -1842,17 +1848,17 @@ begin
   -- ist die Achse der Grafik. Seit 0062 trägt die laufende Woche zwei Punkte:
   -- einen auf heute() und einen auf den Sonntag danach; woche ist darum kein
   -- Schlüssel mehr, bis schon.
-  select max(eingang_kum_kg) into v from erg_verlauf where sorte is null;
+  select max(eingang_kum_kg) into v from erg_verlauf where gruppe = 'gesamt';
   select coalesce(sum(netto_kg), 0) into v2 from v_palette where netto_kg is not null and eingangsdatum is not null;
   assert abs(coalesce(v, 0) - v2) < 1, format('Verlauf kumuliert %s ≠ Eingang %s', v, v2);
-  assert not exists (select 1 from (select bis, lag(bis) over (order by bis) as vor from erg_verlauf where sorte is null) w
+  assert not exists (select 1 from (select bis, lag(bis) over (order by bis) as vor from erg_verlauf where gruppe = 'gesamt') w
                       where w.vor is not null and w.bis <= w.vor), 'Stützstellen nicht streng steigend';
   -- Es gibt genau einen Punkt auf heute(): sonst zeigt die Grafik einen anderen
   -- Stand als die Kennzahl daneben (bis zu sechs Tage Unterschied).
-  select count(*) into v_n from erg_verlauf where sorte is null and bis = heute();
+  select count(*) into v_n from erg_verlauf where gruppe = 'gesamt' and bis = heute();
   assert v_n = 1, format('erg_verlauf braucht genau eine Stützstelle auf heute(), hat %s', v_n);
   -- und dieser Punkt sagt dasselbe wie die Bilanz
-  select im_haus_kg into v from erg_verlauf where sorte is null and bis = heute();
+  select im_haus_kg into v from erg_verlauf where gruppe = 'gesamt' and bis = heute();
   select im_haus_heute_kg into v2 from erg_bilanz;
   assert abs(coalesce(v, 0) - coalesce(v2, 0)) < 1,
     format('Verlauf auf heute %s ≠ Bilanz im Haus %s', v, v2);
@@ -2882,17 +2888,17 @@ begin
     'Fax hat keinen projizierten Anteil — an der Ware im Haus ist es Erwartung (kg_erwartet)';
 
   -- ---- Der Verlauf: bis heute gerechnet, danach Prognose -------------------
-  assert (select count(*) from erg_verlauf where sorte is null and prognose) > 0,
+  assert (select count(*) from erg_verlauf where gruppe = 'gesamt' and prognose) > 0,
     'Vor dem Saisonende gibt es Prognosewochen';
   assert not exists (select 1 from erg_verlauf where prognose and bis <= heute()), 'Prognose erst nach heute';
   assert not exists (select 1 from erg_verlauf where not prognose and bis > heute()), 'Bis heute ist keine Prognose';
-  assert (select count(distinct eingang_kum_kg) from erg_verlauf where sorte is null and prognose) = 1,
+  assert (select count(distinct eingang_kum_kg) from erg_verlauf where gruppe = 'gesamt' and prognose) = 1,
     'In der Prognose kommt nichts mehr herein';
-  assert not exists (select 1 from (select verlust_kum_kg, lag(verlust_kum_kg) over (order by woche) as vor
-                                      from erg_verlauf where sorte is null) w
+  assert not exists (select 1 from (select verlust_kum_kg, lag(verlust_kum_kg) over (order by bis) as vor
+                                      from erg_verlauf where gruppe = 'gesamt') w
                       where w.vor > w.verlust_kum_kg + 0.01), 'Der Verlust kumuliert monoton';
   assert not exists (select 1 from erg_verlauf where im_haus_kg < -0.01 or verlust_kum_kg < -0.01), 'Nie negativ';
-  select verlust_kum_kg into v from erg_verlauf where sorte is null and not prognose order by woche desc limit 1;
+  select verlust_kum_kg into v from erg_verlauf where gruppe = 'gesamt' and not prognose order by bis desc limit 1;
   -- Der Verlauf zeichnet die Ursachen, die gemessen sind — eine Kurve, die
   -- verschwindet, sobald ein Koeffizient fehlt, hilft niemandem. Verglichen wird
   -- deshalb mit derselben Summe: den gemessenen Strömen. Welche Ursache fehlt,
@@ -2902,9 +2908,13 @@ begin
              + coalesce(sockel_heute_kg, 0) + coalesce(fax_heute_kg, 0)) into v2 from erg_charge;
   assert abs(v - v2) <= 0.06 * greatest(v2, 1) + 5,
     format('Die letzte Woche bis heute trifft den Verlust der Chargen (%s vs %s, Wochenraster)', round(v), round(v2));
-  assert abs((select sum(eingang_kum_kg) from erg_verlauf where sorte is not null and woche = (select max(woche) from erg_verlauf))
-             - (select eingang_kum_kg from erg_verlauf where sorte is null and woche = (select max(woche) from erg_verlauf))) < 1,
+  assert abs((select sum(eingang_kum_kg) from erg_verlauf where gruppe = 'sorte' and bis = (select max(bis) from erg_verlauf))
+             - (select eingang_kum_kg from erg_verlauf where gruppe = 'gesamt' and bis = (select max(bis) from erg_verlauf))) < 1,
     'Die Sorten summieren sich zum Ganzen';
+  -- 0071: dasselbe für Schlag und Charge — der Verlauf gibt es jetzt je Gruppe.
+  assert abs((select sum(eingang_kum_kg) from erg_verlauf where gruppe = 'charge' and bis = (select max(bis) from erg_verlauf))
+             - (select eingang_kum_kg from erg_verlauf where gruppe = 'gesamt' and bis = (select max(bis) from erg_verlauf))) < 1,
+    'Die Chargen summieren sich zum Ganzen';
 
   -- ---- verlust_ranking liest, rechnet nicht ---------------------------------
   assert (select count(*) from verlust_ranking(null, null, 1613)) > 0, 'Charge';
@@ -3131,9 +3141,9 @@ begin
   perform auswertung_aktualisieren();
 
   -- ---- Der Verlauf trifft den Stand von heute ---------------------------
-  select count(*) into v_n from erg_verlauf where sorte is null and bis = heute();
+  select count(*) into v_n from erg_verlauf where gruppe = 'gesamt' and bis = heute();
   assert v_n = 1, format('erg_verlauf braucht genau eine Stützstelle auf heute(), hat %s', v_n);
-  assert abs((select im_haus_kg from erg_verlauf where sorte is null and bis = heute())
+  assert abs((select im_haus_kg from erg_verlauf where gruppe = 'gesamt' and bis = heute())
              - (select im_haus_heute_kg from erg_bilanz)) < 1,
     'Die Grafik zeigt auf heute etwas anderes als die Kennzahl daneben';
 
@@ -3884,3 +3894,204 @@ begin
 end $$;
 
 select '——— 0070 geprüft ———' as ergebnis;
+
+-- ---------------------------------------------------------------------
+-- 0071 — Was liegt, und was davon verkauft sich
+--
+-- Der Betrieb fragt zuerst: „Wie viel liegt noch, und wie viel davon ist
+-- verkaufsfähig — heute und in ein paar Wochen?" Die Antwort darf keine
+-- zweite Mathematik sein. Sie ist die Kaskade (`mv_kaskade`, Portion
+-- „lager") an einem späteren Tag ausgewertet — sonst nichts. Genau das
+-- prüft dieser Block: Bei Horizont 0 muss jede Prognosezahl die Zahl von
+-- heute sein, und zwar die aus `erg_charge`. Weicht eine ab, rechnet die
+-- Prognose etwas anderes als das Dashboard, und beide behaupten dasselbe
+-- zu sein.
+--
+-- Dazu die Zerlegung „Wohin ging der Kürbis" (`v_wohin`): zwei Identitäten,
+-- die den ganzen Eingang aufteilen. Sie gehen nicht von selbst auf — jede
+-- doppelt gezählte oder vergessene Portion bleibt als Rest stehen.
+--
+-- Und die Regel, die seit 0064 gilt: **leer ist nicht null**. Fehlt ein
+-- Koeffizient, ist der verkaufsfähige *Anteil* unbekannt — nicht 100 %.
+-- Die Masse bleibt eine Zahl (sie ist dann eine obere Schranke, genau wie
+-- in der Kaskade), aber der Prozentsatz, den der Betriebsleiter liest, ist
+-- leer. Geprüft wird die Regel selbst, nicht ein Zufall der Prüfdaten.
+-- ---------------------------------------------------------------------
+do $$
+declare
+  v_n int; v_zeilen int; v_txt text;
+  v_heute date := heute();
+begin
+  perform auswertung_aktualisieren();
+
+  -- ---- (a) Horizont 0 ist heute -------------------------------------
+  select count(*) into v_zeilen from v_prognose where gruppe = 'charge' and h = 0;
+  assert v_zeilen > 0,
+    '0071 (a): keine einzige Prognosezeile je Charge — der Prüfdatensatz trägt die Prüfung nicht';
+
+  -- Jede Charge mit liegender Ware hat eine Prognosezeile.
+  select count(*) into v_n
+    from erg_charge c
+   where exists (select 1 from mv_kaskade k
+                  where k.charge_nr = c.charge_nr and k.portion = 'lager' and k.m0 > 0)
+     and not exists (select 1 from v_prognose p
+                      where p.gruppe = 'charge' and p.schluessel = c.charge_nr::text and p.h = 0);
+  assert v_n = 0, format('0071 (a): %s Charge(n) mit liegender Ware fehlen in v_prognose', v_n);
+
+  -- … und sie sagt dieselben Zahlen wie erg_charge.
+  select count(*), string_agg(format('Charge %s: Lager %s/%s, verkaufsfähig %s/%s, gute Ware %s/%s',
+                                     c.charge_nr, p.lager_kg, c.lager_kg,
+                                     p.verkaufsfaehig_kg, c.verkaufsfaehig_lager_kg,
+                                     p.gute_ware_kg, c.im_haus_heute_kg), '; ')
+    into v_n, v_txt
+    from erg_charge c
+    join v_prognose p on p.gruppe = 'charge' and p.schluessel = c.charge_nr::text and p.h = 0
+   where abs(p.lager_kg          - c.lager_kg)                        > 0.05
+      or abs(p.verkaufsfaehig_kg - coalesce(c.verkaufsfaehig_lager_kg, p.verkaufsfaehig_kg)) > 0.05
+      or abs(p.gute_ware_kg      - c.im_haus_heute_kg)                > 0.05
+      or (c.kanal_im_haus_kg is not null and abs(p.kanal_kg - c.kanal_im_haus_kg) > 0.05)
+      or (c.fax_erwartet_kg  is not null and abs(p.fax_kg   - c.fax_erwartet_kg)  > 0.05);
+  assert v_n = 0, format('0071 (a): %s Charge(n) weichen bei Horizont 0 von erg_charge ab — %s', v_n, v_txt);
+
+  -- Dasselbe für die Gruppe „gesamt" gegen die Saisonbilanz.
+  select count(*) into v_n
+    from v_prognose p cross join erg_bilanz b
+   where p.gruppe = 'gesamt' and p.h = 0
+     and (abs(p.lager_kg          - b.lager_kg)                > 0.05
+       or abs(p.verkaufsfaehig_kg - b.verkaufsfaehig_heute_kg) > 0.05
+       or abs(p.gute_ware_kg      - b.im_haus_heute_kg)        > 0.05);
+  assert v_n = 0, '0071 (a): die Gruppe „gesamt" weicht bei Horizont 0 von erg_bilanz ab';
+
+  -- ---- (b) Die Prognose in sich -------------------------------------
+  -- Der Nenner steht fest: die liegende Eingangsware ändert sich über den
+  -- Horizont nicht. Nur was daraus wird, ändert sich.
+  select count(*) into v_n from (
+    select gruppe, schluessel from v_prognose
+     group by gruppe, schluessel having max(lager_kg) - min(lager_kg) > 0.01) x;
+  assert v_n = 0, format('0071 (b): bei %s Gruppe(n) ändert sich „im Lager" über den Horizont', v_n);
+
+  -- Die Ströme teilen die liegende Ware vollständig auf.
+  select count(*) into v_n from v_prognose
+   where abs(verdunstet_kg + sockel_kg + faul_kg + kanal_kg + fax_kg + verkaufsfaehig_kg - lager_kg) > 0.05;
+  assert v_n = 0, format('0071 (b): bei %s Zeile(n) ergeben die Ströme nicht die liegende Ware', v_n);
+
+  -- Verkaufsfähig wird mit der Zeit nie mehr.
+  select count(*) into v_n
+    from v_prognose a join v_prognose b
+      on b.gruppe = a.gruppe and b.schluessel = a.schluessel and b.h > a.h
+   where a.verkaufsfaehig_anteil is not null and b.verkaufsfaehig_anteil is not null
+     and b.verkaufsfaehig_anteil > a.verkaufsfaehig_anteil + 0.00005;
+  assert v_n = 0, format('0071 (b): bei %s Paar(en) steigt der verkaufsfähige Anteil mit der Lagerdauer', v_n);
+
+  -- Die Hülle umschliesst den Mittelwert.
+  select count(*) into v_n from v_prognose
+   where verkaufsfaehig_unten_kg is not null
+     and (verkaufsfaehig_unten_kg > verkaufsfaehig_kg + 0.05
+       or verkaufsfaehig_oben_kg  < verkaufsfaehig_kg - 0.05);
+  assert v_n = 0, format('0071 (b): bei %s Zeile(n) liegt der Mittelwert ausserhalb der Hülle', v_n);
+
+  -- Leer ist nicht null: ohne vollständige Koeffizienten kein Prozentsatz.
+  select count(*) into v_n from v_prognose
+   where (not vollstaendig and (verkaufsfaehig_anteil is not null or verkaufsfaehig_unten_kg is not null))
+      or (vollstaendig and lager_kg > 0 and verkaufsfaehig_anteil is null);
+  assert v_n = 0,
+    format('0071 (b): bei %s Zeile(n) steht ein verkaufsfähiger Anteil, obwohl ein Koeffizient fehlt '
+           '(oder er fehlt, obwohl alle da sind)', v_n);
+
+  -- Keine Prognose aus negativer Zeit (0070 gilt weiter).
+  select count(*) into v_n from v_prognose where alter_tage < 0;
+  assert v_n = 0, format('0071 (b): %s Zeile(n) rechnen mit negativem Alter', v_n);
+
+  -- ---- (c) Wohin ging der Kürbis ------------------------------------
+  select count(*) into v_zeilen from v_wohin;
+  assert v_zeilen > 0, '0071 (c): v_wohin ist leer';
+
+  select count(*), string_agg(format('%s/%s: Rest %s, Lagerrest %s',
+                                     gruppe, schluessel, rest_kg, lager_rest_kg), '; ')
+    into v_n, v_txt
+    from v_wohin where abs(rest_kg) > 0.1 or abs(coalesce(lager_rest_kg, 0)) > 0.1;
+  assert v_n = 0, format('0071 (c): bei %s Zeile(n) geht die Zerlegung nicht auf — %s', v_n, v_txt);
+
+  -- ---- (d) Der Verlauf trifft die Bilanz ----------------------------
+  select count(*) into v_n
+    from erg_verlauf v cross join erg_bilanz b
+   where v.gruppe = 'gesamt' and v.bis = v_heute
+     and (abs(v.lager_kg - b.lager_kg) > 0.05
+       or abs(v.verkaufsfaehig_kg - b.verkaufsfaehig_heute_kg) > 0.05);
+  assert v_n = 0, '0071 (d): der Verlauf sagt an der Stützstelle heute etwas anderes als die Saisonbilanz';
+
+  select count(*) into v_n from erg_verlauf where gruppe = 'gesamt' and bis = v_heute;
+  assert v_n = 1, format('0071 (d): die Stützstelle heute gibt es %s mal statt einmal', v_n);
+
+  -- Der Verlauf reicht bis zum Saisonende — dorthin plant der Betriebsleiter.
+  select max(bis) into v_txt from erg_verlauf;
+  assert (select max(bis) from erg_verlauf) >= greatest(stichtag(), v_heute + 84),
+    format('0071 (d): der Verlauf reicht nur bis %s, gebraucht wird das Saisonende (%s)',
+           v_txt, greatest(stichtag(), v_heute + 84));
+
+  -- Die Prognose reicht bis zum Saisonende und hat die festen Stützstellen.
+  select count(*) into v_n from (select 7 as h union select 14 union select 28) f
+   where not exists (select 1 from v_prognose p where p.gruppe = 'gesamt' and p.h = f.h);
+  assert v_n = 0, format('0071 (d): %s der festen Stützstellen (7, 14, 28 Tage) fehlt in der Prognose', v_n);
+
+  select max(datum) into v_txt from v_prognose where gruppe = 'gesamt';
+  assert (select max(datum) from v_prognose where gruppe = 'gesamt') >= least(stichtag(), v_heute + 400),
+    format('0071 (d): die Prognose reicht nur bis %s, gebraucht wird das Saisonende (%s)', v_txt, stichtag());
+
+  select count(*) into v_n from erg_verlauf where prognose and bis <= v_heute;
+  assert v_n = 0, format('0071 (d): %s Zeile(n) heissen Prognose, liegen aber nicht in der Zukunft', v_n);
+
+  -- Je Sorte, Schlag und Charge summiert sich der Verlauf auf „gesamt".
+  select count(*) into v_n from (
+    select v.bis, sum(v.lager_kg) as summe, max(g.lager_kg) as gesamt
+      from erg_verlauf v
+      join erg_verlauf g on g.bis = v.bis and g.gruppe = 'gesamt'
+     where v.gruppe = 'charge'
+     group by v.bis having abs(sum(v.lager_kg) - max(g.lager_kg)) > 0.5) x;
+  assert v_n = 0, format('0071 (d): bei %s Woche(n) ergeben die Chargen nicht die Gesamtzahl', v_n);
+
+  -- ---- (e) Eine einzige Zwei-Wochen-Zahl ----------------------------
+  select count(*), string_agg(format('Charge %s: %s statt %s', n.charge_nr,
+                                     n.prognose_verlust_14_kg, p14.wert), '; ')
+    into v_n, v_txt
+    from erg_naechste_charge n
+    join lateral (
+      select (p0.verkaufsfaehig_kg - p14.verkaufsfaehig_kg)::numeric(12,1) as wert
+        from v_prognose p0
+        join v_prognose p14 on p14.gruppe = p0.gruppe and p14.schluessel = p0.schluessel and p14.h = 14
+       where p0.gruppe = 'charge' and p0.schluessel = n.charge_nr::text and p0.h = 0) p14 on true
+   where n.prognose_verlust_14_kg is not null
+     and abs(n.prognose_verlust_14_kg - p14.wert) > 0.05;
+  assert v_n = 0,
+    format('0071 (e): %s Charge(n) sagen bei „zwei Wochen länger" etwas anderes als v_prognose — %s', v_n, v_txt);
+
+  -- ---- (f) Fax nach Wartezeit ---------------------------------------
+  select count(*) into v_n
+    from (select sum(faul_kg) as w from v_fax_wartezeit where gruppe = 'alle') a
+   cross join (select sum(faul_kg) as b from v_fax_beobachtung
+                where status = 'abgeschlossen' and masse_kg is not null) b
+   where abs(coalesce(a.w, 0) - coalesce(b.b, 0)) > 0.05;
+  assert v_n = 0, '0071 (f): die Wartezeit-Klassen zusammen ergeben nicht das gewogene Faule der Fax-Arbeiten';
+
+  select count(*) into v_n from v_fax_wartezeit where klasse not in ('0–1 Tage', '2–3 Tage', '4 und mehr', 'unbekannt');
+  assert v_n = 0, format('0071 (f): %s Zeile(n) tragen eine Klasse, die es nicht geben darf', v_n);
+
+  -- ---- (g) Lage im Band ---------------------------------------------
+  -- Die Lage ist genau dann leer, wenn das Band unbekannt ist — und sie
+  -- wird nicht geklammert: ein Wert über 1 heisst, dass die gewogene Kiste
+  -- schwerer ist als die Oberkante ihres Kalibers. Das ist eine Aussage,
+  -- keine Panne, und sie gehört auf den Bildschirm.
+  select count(*) into v_n from erg_ueberfuellung
+   where (lage_im_band is null) <> (band_von_g is null or band_bis_g is null
+                                    or band_bis_g <= band_von_g or g_je_kuerbis is null);
+  assert v_n = 0, format('0071 (g): bei %s Zeile(n) fehlt die Lage im Band, obwohl das Band bekannt ist (oder umgekehrt)', v_n);
+
+  select count(*) into v_n from erg_ueberfuellung
+   where spielraum_kg is not null and (stueck_verkauft is null or g_je_kuerbis is null or band_von_g is null);
+  assert v_n = 0, format('0071 (g): bei %s Zeile(n) steht ein Spielraum ohne verkaufte Stück oder ohne Messung', v_n);
+
+  raise notice 'OK  0071 (% Prognosezeilen je Charge, % Zerlegungszeilen — Horizont 0 = heute, beide Identitäten gehen auf)',
+    v_zeilen, (select count(*) from v_wohin);
+end $$;
+
+select '——— 0071 Prognose und Zerlegung geprüft ———' as ergebnis;

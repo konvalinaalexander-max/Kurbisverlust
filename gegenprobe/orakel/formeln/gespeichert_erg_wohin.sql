@@ -1,0 +1,30 @@
+-- gespeichert: erg_wohin
+-- v_wohin, gespeichert für die App (0071). Erneuert mit auswertung_schritt().
+
+ SELECT gruppe,
+    schluessel,
+    n_chargen,
+    eingang_kg,
+    ueberzaehlung_kg,
+    geliefert_kg,
+    kanal_ausgelagert_kg,
+    klein_ausgelagert_kg,
+    gross_ausgelagert_kg,
+    verdunstet_ausgelagert_kg,
+    faul_ausgelagert_kg,
+    sockel_ausgelagert_kg,
+    fax_kg,
+    lager_kg,
+    lager_gute_ware_kg,
+    lager_verkaufsfaehig_kg,
+    lager_kanal_kg,
+    lager_klein_kg,
+    lager_gross_kg,
+    lager_fax_kg,
+    lager_faul_kg,
+    lager_sockel_kg,
+    lager_verdunstet_kg,
+    rest_kg,
+    lager_rest_kg,
+    vollstaendig
+   FROM v_wohin;

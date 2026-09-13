@@ -21,6 +21,7 @@ for R in v_hochrechnung erg_massenbilanz erg_datenlage erg_marge erg_plausibilit
          erg_koeff_ueberfuellung erg_gewichte erg_verarbeitung_alter erg_durchsatz erg_ueberfuellung \
          erg_datenqualitaet erg_verlauf erg_verlust erg_gebinde erg_lieferung erg_modell erg_selektion \
          erg_bilanz erg_punkte erg_charge erg_naechste_charge erg_kohorte erg_fax erg_ausschuss erg_ausgang \
+         erg_prognose erg_wohin erg_fax_wartezeit erg_koeff_fax \
          v_palox_stand v_lieferung_masse v_auftrag_masse auswertung_stand v_kohorte_anteil v_koeff_fax \
          ausgang_quelle ausgang_artikel v_ausgang_lage v_ausgang_artikel_vorschlag \
          charge sorte_kaliber gebinde einstellung ausgang_ziel kaeufer sortierschema \

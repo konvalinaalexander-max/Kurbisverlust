@@ -4,7 +4,7 @@ Abgezogen aus der Datenbank `demo` mit `node gegenprobe/orakel/formeln_holen.mjs
 Nicht von Hand ändern — der nächste Abzug überschreibt alles. Wer wissen will, ob sich
 eine Formel seit dem letzten Abzug bewegt hat, zieht neu ab und sieht es im `git diff`.
 
-63 Sichten, 38 gespeicherte Sichten, 44 Funktionen.
+67 Sichten, 43 gespeicherte Sichten, 44 Funktionen.
 
 | Art | Name | Datei | Zeilen | Prüfsumme |
 |---|---|---|---|---|
@@ -16,10 +16,12 @@ eine Formel seit dem letzten Abzug bewegt hat, zieht neu ab und sieht es im `git
 | gespeichert | `erg_datenqualitaet` | `gespeichert_erg_datenqualitaet.sql` | 26 | `5000ab7e1502` |
 | gespeichert | `erg_durchsatz` | `gespeichert_erg_durchsatz.sql` | 15 | `b11d79ce83b1` |
 | gespeichert | `erg_fax` | `gespeichert_erg_fax.sql` | 20 | `416d3530d70f` |
+| gespeichert | `erg_fax_wartezeit` | `gespeichert_erg_fax_wartezeit.sql` | 11 | `bf5ba7fcd492` |
 | gespeichert | `erg_gebinde` | `gespeichert_erg_gebinde.sql` | 8 | `4bf2e1aa69d5` |
 | gespeichert | `erg_gewichte` | `gespeichert_erg_gewichte.sql` | 6 | `20d8805623a6` |
 | gespeichert | `erg_kaliber` | `gespeichert_erg_kaliber.sql` | 9 | `953c4e41b877` |
 | gespeichert | `erg_koeff_ausschuss` | `gespeichert_erg_koeff_ausschuss.sql` | 7 | `06d826063d8f` |
+| gespeichert | `erg_koeff_fax` | `gespeichert_erg_koeff_fax.sql` | 7 | `926c59e5673b` |
 | gespeichert | `erg_koeff_nebenkanal` | `gespeichert_erg_koeff_nebenkanal.sql` | 7 | `3087328aa05a` |
 | gespeichert | `erg_koeff_ueberfuellung` | `gespeichert_erg_koeff_ueberfuellung.sql` | 6 | `69a51fc28af1` |
 | gespeichert | `erg_koeff_verdunstung` | `gespeichert_erg_koeff_verdunstung.sql` | 7 | `e7c699d5e307` |
@@ -31,17 +33,20 @@ eine Formel seit dem letzten Abzug bewegt hat, zieht neu ab und sieht es im `git
 | gespeichert | `erg_modell` | `gespeichert_erg_modell.sql` | 25 | `f36f05e060db` |
 | gespeichert | `erg_naechste_charge` | `gespeichert_erg_naechste_charge.sql` | 15 | `9b74d6657c7f` |
 | gespeichert | `erg_plausibilitaet` | `gespeichert_erg_plausibilitaet.sql` | 8 | `172b2cd0cb9e` |
+| gespeichert | `erg_prognose` | `gespeichert_erg_prognose.sql` | 35 | `cd8b0f2858ef` |
 | gespeichert | `erg_punkte` | `gespeichert_erg_punkte.sql` | 11 | `6130ec5d5fc8` |
 | gespeichert | `erg_selektion` | `gespeichert_erg_selektion.sql` | 7 | `bd0e8eb5dc59` |
-| gespeichert | `erg_ueberfuellung` | `gespeichert_erg_ueberfuellung.sql` | 28 | `7db5e3ebdee9` |
+| gespeichert | `erg_ueberfuellung` | `gespeichert_erg_ueberfuellung.sql` | 30 | `91b2b565ca4f` |
 | gespeichert | `erg_verarbeitung_alter` | `gespeichert_erg_verarbeitung_alter.sql` | 12 | `ef92f06687a6` |
-| gespeichert | `erg_verlauf` | `gespeichert_erg_verlauf.sql` | 158 | `a54483b6034e` |
+| gespeichert | `erg_verlauf` | `gespeichert_erg_verlauf.sql` | 228 | `ed7b5bfc1e8a` |
 | gespeichert | `erg_verlust` | `gespeichert_erg_verlust.sql` | 22 | `9bc3a22cdb13` |
 | gespeichert | `erg_wiegung` | `gespeichert_erg_wiegung.sql` | 18 | `4e211199f262` |
+| gespeichert | `erg_wohin` | `gespeichert_erg_wohin.sql` | 27 | `083e457fe347` |
 | gespeichert | `mv_auftrag_masse` | `gespeichert_mv_auftrag_masse.sql` | 22 | `7b79dd8c0b0b` |
 | gespeichert | `mv_hochrechnung` | `gespeichert_mv_hochrechnung.sql` | 42 | `15e7578062e0` |
 | gespeichert | `mv_kaliber_verteilung` | `gespeichert_mv_kaliber_verteilung.sql` | 13 | `430bf250c221` |
 | gespeichert | `mv_kaskade` | `gespeichert_mv_kaskade.sql` | 615 | `0b26bc509231` |
+| gespeichert | `mv_koeff_rand` | `gespeichert_mv_koeff_rand.sql` | 15 | `9d4ae8424b11` |
 | gespeichert | `mv_schimmel_modell` | `gespeichert_mv_schimmel_modell.sql` | 25 | `55071a2f37b0` |
 | gespeichert | `mv_schimmel_punkte` | `gespeichert_mv_schimmel_punkte.sql` | 11 | `fde374da48f8` |
 | gespeichert | `mv_sortier_eingang` | `gespeichert_mv_sortier_eingang.sql` | 6 | `40153db2944b` |
@@ -62,6 +67,7 @@ eine Formel seit dem letzten Abzug bewegt hat, zieht neu ab und sieht es im `git
 | sicht | `v_datenqualitaet` | `sicht_v_datenqualitaet.sql` | 160 | `222babf04421` |
 | sicht | `v_durchsatz` | `sicht_v_durchsatz.sql` | 23 | `02586574f660` |
 | sicht | `v_fax_beobachtung` | `sicht_v_fax_beobachtung.sql` | 28 | `87b36418675c` |
+| sicht | `v_fax_wartezeit` | `sicht_v_fax_wartezeit.sql` | 56 | `7457cde00bd7` |
 | sicht | `v_gewichtsverteilung` | `sicht_v_gewichtsverteilung.sql` | 11 | `ad3d3bbdc291` |
 | sicht | `v_hochrechnung` | `sicht_v_hochrechnung.sql` | 25 | `8baa061aae36` |
 | sicht | `v_hochrechnung_basis` | `sicht_v_hochrechnung_basis.sql` | 127 | `8069e0820291` |
@@ -82,16 +88,18 @@ eine Formel seit dem letzten Abzug bewegt hat, zieht neu ab und sieht es im `git
 | sicht | `v_koeff_verdunstung_geschaetzt` | `sicht_v_koeff_verdunstung_geschaetzt.sql` | 106 | `f5e809f99386` |
 | sicht | `v_kohorte_anteil` | `sicht_v_kohorte_anteil.sql` | 7 | `0a684c89565b` |
 | sicht | `v_kontrolle_vorschlag` | `sicht_v_kontrolle_vorschlag.sql` | 23 | `0e244523add6` |
-| sicht | `v_lieferung_kohorte` | `sicht_v_lieferung_kohorte.sql` | 41 | `a5d5fed03350` |
+| sicht | `v_lieferung_charge_tag` | `sicht_v_lieferung_charge_tag.sql` | 38 | `fd3f1a9fc1da` |
+| sicht | `v_lieferung_kohorte` | `sicht_v_lieferung_kohorte.sql` | 11 | `423c805c5a7a` |
 | sicht | `v_lieferung_masse` | `sicht_v_lieferung_masse.sql` | 36 | `0e3cc6150f2d` |
-| sicht | `v_marge_buch` | `sicht_v_marge_buch.sql` | 49 | `730a611f6c83` |
+| sicht | `v_marge_buch` | `sicht_v_marge_buch.sql` | 49 | `ca2d0b6cf08e` |
 | sicht | `v_massenbilanz` | `sicht_v_massenbilanz.sql` | 49 | `20201d7c3579` |
-| sicht | `v_naechste_charge` | `sicht_v_naechste_charge.sql` | 109 | `19ea305bdfcf` |
+| sicht | `v_naechste_charge` | `sicht_v_naechste_charge.sql` | 29 | `9195c4dc0e41` |
 | sicht | `v_palette` | `sicht_v_palette.sql` | 9 | `8986da3705b8` |
 | sicht | `v_palox_stand` | `sicht_v_palox_stand.sql` | 19 | `28cc46d93111` |
-| sicht | `v_plausibilitaet` | `sicht_v_plausibilitaet.sql` | 268 | `3c0964f4bab4` |
+| sicht | `v_plausibilitaet` | `sicht_v_plausibilitaet.sql` | 268 | `75a9cb4ed0e1` |
 | sicht | `v_plausibilitaet_0054_zusatz` | `sicht_v_plausibilitaet_0054_zusatz.sql` | 49 | `90993267f053` |
 | sicht | `v_plausibilitaet_0064_zusatz` | `sicht_v_plausibilitaet_0064_zusatz.sql` | 55 | `b878b26b0822` |
+| sicht | `v_prognose` | `sicht_v_prognose.sql` | 395 | `9966d0f84ec2` |
 | sicht | `v_saisonbilanz` | `sicht_v_saisonbilanz.sql` | 116 | `204d569e8774` |
 | sicht | `v_schimmel_beobachtung` | `sicht_v_schimmel_beobachtung.sql` | 21 | `d6d011b71dc1` |
 | sicht | `v_schimmel_kurve` | `sicht_v_schimmel_kurve.sql` | 27 | `412bffa8a03d` |
@@ -102,13 +110,14 @@ eine Formel seit dem letzten Abzug bewegt hat, zieht neu ab und sieht es im `git
 | sicht | `v_schimmel_punkte` | `sicht_v_schimmel_punkte.sql` | 65 | `371c03bf9055` |
 | sicht | `v_selektionsverdacht` | `sicht_v_selektionsverdacht.sql` | 50 | `7a30f363a232` |
 | sicht | `v_sortier_lauf_masse` | `sicht_v_sortier_lauf_masse.sql` | 17 | `8015eef6639c` |
-| sicht | `v_ueberfuellung_verkauf` | `sicht_v_ueberfuellung_verkauf.sql` | 104 | `7eda2ee5cd2d` |
-| sicht | `v_verarbeitung_alter` | `sicht_v_verarbeitung_alter.sql` | 32 | `9cdd8195a0d2` |
-| sicht | `v_verdunstung_messung` | `sicht_v_verdunstung_messung.sql` | 25 | `31ca0b6ce6af` |
+| sicht | `v_ueberfuellung_verkauf` | `sicht_v_ueberfuellung_verkauf.sql` | 114 | `6d3171a33985` |
+| sicht | `v_verarbeitung_alter` | `sicht_v_verarbeitung_alter.sql` | 39 | `534c248216cd` |
+| sicht | `v_verdunstung_messung` | `sicht_v_verdunstung_messung.sql` | 25 | `b6a1d1fd7bc8` |
 | sicht | `v_verkauf_lieferung` | `sicht_v_verkauf_lieferung.sql` | 78 | `f90d4413a206` |
 | sicht | `v_verlust_je_gruppe` | `sicht_v_verlust_je_gruppe.sql` | 232 | `19cc762671de` |
 | sicht | `v_verlust_ranking` | `sicht_v_verlust_ranking.sql` | 13 | `c35e5e5e0528` |
 | sicht | `v_wiegung_kennzahl` | `sicht_v_wiegung_kennzahl.sql` | 24 | `dc8d2c116adf` |
+| sicht | `v_wohin` | `sicht_v_wohin.sql` | 82 | `7341041a4698` |
 | funktion | `anteil_plausibel(p_anteil numeric)` | `funktion_anteil_plausibel.sql` | 8 | `b713654afc3d` |
 | funktion | `auftrag_abbrechen(p_auftrag_id bigint, p_grund text)` | `funktion_auftrag_abbrechen.sql` | 20 | `83e316c5d570` |
 | funktion | `auftrag_ende_setzen()` | `funktion_auftrag_ende_setzen.sql` | 14 | `6b9358b5b66a` |
@@ -119,7 +128,7 @@ eine Formel seit dem letzten Abzug bewegt hat, zieht neu ab und sieht es im `git
 | funktion | `ausgang_uebernehmen(p_quelle text, p_quelle_name text, p_datei jsonb, p_zeilen jsonb, p_lieferungen jsonb)` | `funktion_ausgang_uebernehmen.sql` | 137 | `a72004446aec` |
 | funktion | `ausschuss_netto_setzen()` | `funktion_ausschuss_netto_setzen.sql` | 22 | `eb4bf3d9682a` |
 | funktion | `auswertung_aktualisieren()` | `funktion_auswertung_aktualisieren.sql` | 19 | `d6feecf343d7` |
-| funktion | `auswertung_schritt(p_schritt integer)` | `funktion_auswertung_schritt.sql` | 92 | `9c7b60a57a29` |
+| funktion | `auswertung_schritt(p_schritt integer)` | `funktion_auswertung_schritt.sql` | 79 | `4a352c167ef8` |
 | funktion | `auswertung_veraltet()` | `funktion_auswertung_veraltet.sql` | 11 | `7f3d8676e89f` |
 | funktion | `auswertung_wenn_veraltet()` | `funktion_auswertung_wenn_veraltet.sql` | 17 | `0f65b89e2c62` |
 | funktion | `betriebstag(p_ts timestamp with time zone)` | `funktion_betriebstag.sql` | 9 | `72f2b24f93db` |
@@ -141,7 +150,7 @@ eine Formel seit dem letzten Abzug bewegt hat, zieht neu ab und sieht es im `git
 | funktion | `palox_station(p_station station)` | `funktion_palox_station.sql` | 10 | `19568b3a25f2` |
 | funktion | `palox_tara_kg()` | `funktion_palox_tara_kg.sql` | 9 | `ddd9f78abba6` |
 | funktion | `rolle_schuetzen()` | `funktion_rolle_schuetzen.sql` | 16 | `2cc07223e203` |
-| funktion | `schema_stand()` | `funktion_schema_stand.sql` | 7 | `cf6635e1cc9a` |
+| funktion | `schema_stand()` | `funktion_schema_stand.sql` | 7 | `c863c6383016` |
 | funktion | `schimmel_netto_setzen()` | `funktion_schimmel_netto_setzen.sql` | 27 | `fdf47d6f2ba4` |
 | funktion | `schimmelanteil(p_lagertage numeric, p_szenario text)` | `funktion_schimmelanteil.sql` | 25 | `0829ff1cac63` |
 | funktion | `sockel_anteil()` | `funktion_sockel_anteil.sql` | 8 | `06e050d4c19f` |

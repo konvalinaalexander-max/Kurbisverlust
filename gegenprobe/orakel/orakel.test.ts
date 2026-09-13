@@ -14,6 +14,8 @@ import { anpassen, anteilNachModell, treppe, type Punkt } from './schimmel.ts'
 import { bandGeordnet, stroemeSummieren, zeitLaeuftVorwaerts } from './bilanz.ts'
 import { vergleiche } from './vergleich.ts'
 import { band, deckt, deltaVarianz, schimmelSigma } from './band.ts'
+import { huelle, standBei, standNachTagen, summeStimmtPrognose, summieren, verlustAb,
+         zerlegungStimmt, type LagerPortion, type Raender } from './prognose.ts'
 
 const G2: Tara = { kistenKg: 1.5, paletteKg: 25 }
 const GEBINDE = new Map<string, Tara>([['G2', G2], ['IFCO 6416', { kistenKg: 1.68, paletteKg: 25 }]])
@@ -313,4 +315,111 @@ test('vergleiche: Toleranz je Spalte, fehlende Partner auf beiden Seiten', () =>
     [{ db: 'x', orakel: 'x', rel: 1e-6 }],
   )
   assert.deepEqual(ab.map(a => `${a.schluessel}:${a.spalte}`), ['2:*', '3:*'])
+})
+
+/* ---------- prognose: von Hand, zwei Kohorten ------------------------------ */
+
+// Zwei Kohorten derselben Charge, alles glatt gewählt, damit man mitrechnen
+// kann. r = 0.001 je Tag, kein Sockel, 4 % zu klein, 1 % zu gross, 2 % Fax.
+const P_ALT: LagerPortion = { chargeNr: 1, kohorte: '2026-08-01', alterTage: 100, m0: 10000,
+                              r: 0.001, a0: 0, aKleinN: 0.04, aGrossN: 0.01, aFax: 0.02 }
+const P_JUNG: LagerPortion = { ...P_ALT, kohorte: '2026-09-10', alterTage: 30, m0: 5000 }
+
+test('Prognose: der Stand bei Alter t ist die Kaskade, und die Ströme ergeben m0', () => {
+  // F(100) sei 0.10. m1 = 10000 · 0.999^100 = 9048.33…
+  const m1 = 10000 * Math.pow(0.999, 100)
+  assert.ok(nahe(m1, 9048.33, 1e-2, 1e-2))
+  const s = standBei(P_ALT, 0.10)
+  assert.ok(nahe(s.m1, m1, 1e-12))
+  assert.ok(nahe(s.m2, m1 * 0.90, 1e-12))              // kein Sockel, 10 % faul
+  assert.ok(nahe(s.faulKg, m1 * 0.10, 1e-12))
+  assert.ok(nahe(s.kanalKg, m1 * 0.90 * 0.05, 1e-12))  // 4 % + 1 %
+  assert.ok(nahe(s.faxKg, m1 * 0.90 * 0.95 * 0.02, 1e-12))
+  assert.ok(nahe(s.verkaufsfaehigKg, m1 * 0.90 * 0.95 * 0.98, 1e-12))
+  assert.equal(summeStimmtPrognose({ ...s, lagerKg: P_ALT.m0 }), true)
+})
+
+test('Prognose: Horizont 0 ist heute — keine zweite Mathematik', () => {
+  const heute = standBei(P_ALT, 0.10)
+  const inNullTagen = standNachTagen(P_ALT, 0, 0.10)
+  assert.deepEqual(inNullTagen, heute)
+  const v = verlustAb(P_ALT, 0, 0.10, 0.10)
+  assert.deepEqual(v, { wasserKg: 0, faeulnisKg: 0, verkaufsfaehigKg: 0 })
+})
+
+test('Prognose: Wasser und Fäulnis ergeben exakt, was der Horizont kostet', () => {
+  // In 28 Tagen steigt F von 0.10 auf 0.13.
+  const vf0 = standBei(P_ALT, 0.10).verkaufsfaehigKg
+  const vfH = standNachTagen(P_ALT, 28, 0.13).verkaufsfaehigKg
+  const v = verlustAb(P_ALT, 28, 0.10, 0.13)
+  assert.equal(zerlegungStimmt(vf0, vfH, v), true)
+  // Von Hand: B = 10000 · 1 · 0.95 · 0.98 = 9310; Basis = B · 0.999^100.
+  const basis = 9310 * Math.pow(0.999, 100)
+  assert.ok(nahe(v.wasserKg, basis * 0.90 * (1 - Math.pow(0.999, 28)), 1e-12))
+  assert.ok(nahe(v.faeulnisKg, basis * Math.pow(0.999, 28) * 0.03, 1e-12))
+  assert.ok(v.wasserKg > 0 && v.faeulnisKg > 0)
+})
+
+test('Prognose: gesättigter Verderb macht die Fäulnis nicht negativ', () => {
+  // F fällt nicht, aber eine Treppe kann zweimal denselben Wert liefern.
+  // Dann ist der ganze Verlust Wasser — und nichts wird negativ.
+  const v = verlustAb(P_ALT, 28, 0.42, 0.42)
+  assert.equal(v.faeulnisKg, 0)
+  assert.ok(v.wasserKg > 0)
+  const vf0 = standBei(P_ALT, 0.42).verkaufsfaehigKg
+  const vfH = standNachTagen(P_ALT, 28, 0.42).verkaufsfaehigKg
+  assert.equal(zerlegungStimmt(vf0, vfH, v), true)
+})
+
+test('Prognose: die Summe über zwei Kohorten — Alter massegewichtet am Horizont', () => {
+  const teil = (p: LagerPortion, h: number, fHeute: number, fDann: number) => ({
+    p, t: p.alterTage + h,
+    stand: standNachTagen(p, h, fDann),
+    verlust: verlustAb(p, h, fHeute, fDann),
+    huelle: { unten: 0, oben: 0 },
+    bekannt: { r: true, f: true, a0: true, kanal: true, fax: true },
+    modellGilt: true, ueberTMax: false,
+  })
+  const z = summieren([teil(P_ALT, 28, 0.10, 0.13), teil(P_JUNG, 28, 0.02, 0.03)])
+  assert.equal(z.lagerKg, 15000)
+  assert.equal(z.nKohorten, 2)
+  // (10000·128 + 5000·58) / 15000 = (1280000 + 290000) / 15000 = 104.666…
+  assert.ok(nahe(z.alterTage, 1570000 / 15000, 1e-12))
+  assert.equal(z.alterVon, 58)
+  assert.equal(z.alterBis, 128)
+  assert.equal(summeStimmtPrognose(z), true)
+  assert.ok(nahe(z.verlustVerkaufsfaehigKg, z.verlustWasserKg + z.verlustFaeulnisKg, 1e-12))
+  // Alle Koeffizienten bekannt → der Anteil steht da, und er ist genau
+  // „verkaufsfähig durch Eingangsware" — der Nenner, der über die Zeit gleich
+  // bleibt. Von Hand: 7126.6 + 4260.7 = 11387.3 von 15000 → 75.9 %.
+  assert.ok(nahe(z.verkaufsfaehigKg, 11387.3, 1e-4, 0.1))
+  assert.ok(nahe(z.verkaufsfaehigAnteil!, z.verkaufsfaehigKg / 15000, 1e-12))
+  assert.ok(nahe(z.verkaufsfaehigAnteil!, 0.759, 1e-2, 1e-3))
+})
+
+test('Prognose: fehlt ein Koeffizient, bleibt der Anteil leer (leer ist nicht null)', () => {
+  const teil = (bekannt: boolean) => ({
+    p: P_ALT, t: 128,
+    stand: standNachTagen(P_ALT, 28, 0.13),
+    verlust: verlustAb(P_ALT, 28, 0.10, 0.13),
+    huelle: { unten: 0, oben: 0 },
+    bekannt: { r: true, f: true, a0: true, kanal: bekannt, fax: true },
+    modellGilt: true, ueberTMax: false,
+  })
+  assert.equal(summieren([teil(true)]).verkaufsfaehigAnteil != null, true)
+  assert.equal(summieren([teil(false)]).verkaufsfaehigAnteil, null)
+  assert.equal(summieren([teil(true), teil(false)]).vollstaendig, false)
+})
+
+test('Prognose: die Hülle schliesst den Mittelwert ein', () => {
+  const g: Raender = { rUnten: 0.0005, rOben: 0.0015, a0Unten: 0, a0Oben: 0,
+                       kleinUnten: 0.03, kleinOben: 0.05, grossUnten: 0.005, grossOben: 0.02,
+                       faxUnten: 0.01, faxOben: 0.03 }
+  const h = huelle(P_ALT, 28, 0.11, 0.16, g)
+  const mitte = standNachTagen(P_ALT, 28, 0.13).verkaufsfaehigKg
+  assert.ok(h.unten <= mitte && mitte <= h.oben,
+    `Hülle ${h.unten.toFixed(1)} … ${h.oben.toFixed(1)} schliesst ${mitte.toFixed(1)} nicht ein`)
+  // Die Normierung greift, wenn zu klein und zu gross zusammen über 1 gehen.
+  const extrem = huelle(P_ALT, 0, 0, 0, { ...g, kleinOben: 0.8, grossOben: 0.6 })
+  assert.ok(extrem.unten >= 0, 'die untere Kante darf nie negativ werden')
 })

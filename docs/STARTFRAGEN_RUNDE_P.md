@@ -27,7 +27,13 @@ und der Anteil bliebe über Wochen fast gleich, obwohl Ware verdirbt.
 „ich hab noch 400 Tonnen, aber nur 65 % sind verkaufbar". Die gute Ware steht
 als Untertext daneben. (Damit ist auch Frage 51 aus Runde L entschieden.)
 
-> Antwort:
+> **Antwort (13. September): „Keine Ahnung — entscheide du."** → Es gilt die
+> Voreinstellung: **Eingangsware**. Begründung, die auf dem Bildschirm steht:
+> Nur dieser Nenner bleibt über die Zeit gleich, und nur deshalb heisst ein
+> fallender Prozentsatz wirklich „es wird weniger verkaufsfähig". Beim Nenner
+> „gute Ware" schrumpfen Zähler und Nenner gemeinsam, der Anteil bliebe fast
+> konstant — und die Zahl sagte nichts mehr. Damit ist auch Frage 51 aus
+> Runde L entschieden.
 
 ---
 
@@ -44,7 +50,22 @@ Saisonende (31.03.).** Eine Zahl „am Saisonende" ohne Verkaufstempo wäre
 „wenn bis dahin nichts verkauft wird" — ehrlich, aber wenig brauchbar. Willst
 du sie trotzdem?
 
-> Antwort:
+> **Antwort (13. September):** *„Schau typische Saison — Ernte ist August bis
+> Oktober, Verkauf August bis März; viel weiter als März soll das nicht
+> reichen. Die Schwierigkeit: Er kriegt im Oktober seinen letzten Kürbis vom
+> Feld und muss dann schauen, wie viel er wann von welcher Sorte verkauft.
+> Gut wäre zu sehen: ah, wenn ich im März noch so viel im Lager habe, muss
+> ich davon ausgehen, dass 15 % faul oder verdunstet sind."*
+>
+> **Das ändert die Voreinstellung.** Gebaut wird nicht „in x Wochen", sondern
+> **bis zum Saisonende, in Wochenschritten** — und die entscheidende Zahl
+> heisst nicht mehr „in 12 Wochen", sondern **„am 31.03."**. Der Satz daneben
+> ist seiner: *wenn die heute liegende Ware bis dahin liegen bleibt.* Damit
+> liest er genau das ab, was er plant: Ware, die bis März liegt, kostet ihn
+> so und so viel Prozent — also muss sie vorher raus. Die Reihenfolge
+> („welche Sorte zuerst") ergibt sich aus dem Gefälle: Wer bis März am
+> meisten verliert, gehört zuerst verkauft, und genau danach lassen sich
+> Chargen und Sorten sortieren.
 
 ---
 
@@ -61,7 +82,10 @@ Frage, ein Feld weniger zu tippen.
 
 **Voreinstellung: ja.**
 
-> Antwort:
+> **Antwort (13. September): „Entscheide du."** → Es gilt die Voreinstellung:
+> **ja, vorbelegen** — aus der letzten abgeschlossenen Wasch-Arbeit derselben
+> Charge, änderbar. Es ist keine neue Frage, nur ein Vorschlag; und ohne ihn
+> bleibt die Klasse „unbekannt" für immer ein Achtel der Fax-Arbeiten.
 
 ---
 

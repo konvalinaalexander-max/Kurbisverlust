@@ -59,7 +59,12 @@ export function dbErreichbar(): boolean {
 
 /** Eine Abfrage, Ergebnis als Objektliste. Zahlen kommen als Zahl, wenn numeric — psql gibt sie als Text, wir wandeln. */
 export function frage<T = Record<string, unknown>>(sql: string): T[] {
-  const aus = execFileSync('psql', [DB_URL, '-qtAX', '-v', 'ON_ERROR_STOP=1', '-c',
+  // `set jit = off` ändert keine einzige Zahl, nur das Tempo — und zwar
+  // drastisch: Die Prognose steht auf einem Plan mit rund viertausend
+  // Knoten, und LLVM braucht zum Übersetzen mehr Zeit als Postgres zum
+  // Rechnen (gemessen 49 s mit, 1.3 s ohne). Dieselbe Einstellung trägt
+  // auswertung_schritt(), damit das Neurechnen nicht daran hängenbleibt.
+  const aus = execFileSync('psql', [DB_URL, '-qtAX', '-v', 'ON_ERROR_STOP=1', '-c', 'set jit = off', '-c',
     `select coalesce(json_agg(z), '[]'::json)::text from (${sql}) z`], { encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 })
   return JSON.parse(aus) as T[]
 }

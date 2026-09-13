@@ -174,3 +174,39 @@ select :lauf, g.groesse, g.wert from (
   union all select 'r_wahr_mittel',
             sum(r_wahr * netto_eingang_kg) / sum(netto_eingang_kg) from kaskade
 ) g;
+
+-- ---------- Die Wahrheit der Prognose (0071) ------------------------------
+-- Der Betriebsleiter fragt: „Wenn das, was heute liegt, noch vier oder acht
+-- Wochen liegen bleibt — wie viel davon ist dann noch verkaufsfähig?" Hier
+-- steht die Antwort, die niemand schätzen muss, weil die Simulation sie
+-- kennt: dieselben Paletten, dieselbe wahre Verdunstung und derselbe wahre
+-- Verderb, nur 28 bzw. 56 Tage später.
+--
+-- „Liegt am Stichtag" heisst dasselbe wie in erfassung.sql: Was bis zum
+-- 31.03.2027 nicht als Lieferung rausging (ende + 3 Tage), steht noch da.
+-- Der Anteil ist an der **Eingangsware** dieser Paletten gemessen — derselbe
+-- Nenner, den v_prognose benutzt, und der einzige, der über die Zeit gleich
+-- bleibt.
+with liegt as (
+  select w.netto_eingang_kg, w.r_wahr, w.anfaelligkeit,
+         (date '2027-03-31' - w.eingangsdatum) as tage,
+         p.schimmel_lambda, p.schimmel_k, p.anteil_klein, p.anteil_gross, p.anteil_sockel
+    from sim.palette_wahr w
+    cross join sim.parameter p
+    cross join lateral (select case when w.weg = 'maschine' then w.gewaschen_am
+                                    else w.verarbeitet_am end as ende) e
+   where w.lauf = :lauf and p.lauf = :lauf
+     and (e.ende is null or e.ende + 3 > date '2027-03-31')
+), bei as (
+  select h.h, l.*,
+         l.netto_eingang_kg * power(1 - l.r_wahr, l.tage + h.h)
+           * (1 - l.anteil_sockel)
+           * (1 - sim.schimmel_wahr(l.tage + h.h, l.schimmel_lambda, l.schimmel_k, l.anfaelligkeit))
+           * (1 - l.anteil_klein - l.anteil_gross)                     as verkaufsfaehig_kg
+    from liegt l cross join (select 28 as h union all select 56) h
+)
+insert into sim.wahrheit (lauf, groesse, wert)
+select :lauf, format('vf_anteil_%s', h),
+       sum(verkaufsfaehig_kg) / nullif(sum(netto_eingang_kg), 0)
+  from bei group by h
+having sum(netto_eingang_kg) > 0;
