@@ -595,3 +595,124 @@ export function Anteilsbalken({ zeilen, oeffnen, legende = true }: {
 
 /** Die Zahl als Text für Achsen: Tonnen ab 1000 kg. */
 export const tonnenAchse = (y: number) => (Math.abs(y) >= 1000 ? tonnen(y) : kgText(y, 0))
+
+/* ---------- Stapel: gestapelte Anteile über die Zeit ------------------------ */
+
+export interface Stapelteil { name: string; farbe: string; hinweis?: string }
+export interface Stapelpunkt { x: number; werte: number[] }
+
+/**
+ * Ein gestapeltes Flächendiagramm in Prozent: 100 % ist die liegende Ware,
+ * und die Bänder darin sind, was daraus wird. Die x-Achse ist ein Datum, die
+ * y-Achse immer 0–100 % — so sieht man **die Verschiebung**, nicht die
+ * Schrumpfung: Die liegende Masse ändert sich in der Prognose nicht (was
+ * liegt, liegt), nur ihre Zusammensetzung.
+ *
+ * Warum das die eine Grafik für „Was wird aus der liegenden Ware?" ist:
+ * Zwei Bänder sind **flach** — zu klein/zu gross und das beim Abpacken
+ * erwartete Faule. Sie waren vom Feld an so und wachsen nicht mit der
+ * Lagerdauer. Zwei wachsen — verdunstet und faul. Genau diesen Unterschied
+ * sieht man hier auf einen Blick, und in keiner Tabelle.
+ *
+ * Die Teile stehen von unten nach oben in der Reihenfolge von `teile`; die
+ * Werte je Punkt sind Anteile (0–1) und müssen zusammen 1 ergeben. Tut ein
+ * Punkt das nicht, bleibt der Rest oben offen — das ist eine Aussage, keine
+ * Panne, und der Zeiger nennt sie.
+ */
+export function Stapel({ teile, punkte, hoehe = 300, xFormat = String, xTitel, yTitel = 'Anteil der liegenden Ware',
+                         heute, masse, leer = 'keine Prognose' }: {
+  teile: Stapelteil[]
+  punkte: Stapelpunkt[]
+  hoehe?: number
+  xFormat?: (x: number) => string
+  xTitel?: string
+  yTitel?: string
+  /** Senkrechte Marke „heute" — links davon gemessen, rechts Prognose. */
+  heute?: { x: number; text: string }
+  /** Die Masse hinter 100 % — für den Zeiger, damit Prozent auch Kilo sind. */
+  masse?: number
+  leer?: string
+}) {
+  const { rahmen, ort } = useZeiger()
+  const [hover, setHover] = useState<{ i: number; ort: { x: number; y: number } } | null>(null)
+  if (punkte.length < 2 || teile.length === 0) return <p className="leise">{leer}</p>
+  const H = hoehe
+  const xVon = Math.min(...punkte.map(p => p.x)), xBis = Math.max(...punkte.map(p => p.x))
+  const px = (x: number) => L + ((x - xVon) / Math.max(xBis - xVon, 1e-9)) * (B - L - R)
+  const py = (a: number) => O + (1 - a) * (H - O - U)
+  const yTicks = [0, 0.25, 0.5, 0.75, 1]
+
+  // Von unten nach oben aufsummieren: Band i liegt zwischen unten[i] und oben[i].
+  const kanten = punkte.map(p => {
+    const k: number[] = [0]
+    for (let i = 0; i < teile.length; i++) k.push(k[i] + (p.werte[i] ?? 0))
+    return k
+  })
+  const flaeche = (i: number) => {
+    const oben = punkte.map((p, j) => `${px(p.x)},${py(kanten[j][i + 1])}`)
+    const unten = [...punkte].map((p, j) => `${px(p.x)},${py(kanten[j][i])}`).reverse()
+    return `M ${oben.join(' L ')} L ${unten.join(' L ')} Z`
+  }
+  const naechster = (mx: number) => {
+    let best = 0, d = Infinity
+    punkte.forEach((p, i) => { const e = Math.abs(px(p.x) - mx); if (e < d) { d = e; best = i } })
+    return best
+  }
+  const zeigen = (e: React.PointerEvent<SVGSVGElement>) => {
+    const box = (e.currentTarget as SVGSVGElement).getBoundingClientRect()
+    const mx = ((e.clientX - box.left) / box.width) * B
+    setHover({ i: naechster(mx), ort: ort(e) })
+  }
+  const p = hover ? punkte[hover.i] : null
+  const rest = p ? 1 - (kanten[hover!.i].at(-1) ?? 0) : 0
+
+  return (
+    <div className="diagramm" ref={rahmen}>
+      <svg viewBox={`0 0 ${B} ${H}`} width="100%" height={H} role="img"
+           data-x-einheit="datum" data-y-einheit="prozent"
+           onPointerMove={zeigen} onPointerLeave={() => setHover(null)}>
+        {yTicks.map(t => (
+          <g key={t}>
+            <line className="raster" x1={L} x2={B - R} y1={py(t)} y2={py(t)} />
+            <text className="strich" x={L - 8} y={py(t) + 4} textAnchor="end">{Math.round(t * 100)} %</text>
+          </g>
+        ))}
+        {teile.map((t, i) => (
+          <path key={t.name} className="flaeche" d={flaeche(i)} fill={t.farbe} opacity={0.92} />
+        ))}
+        {heute && px(heute.x) >= L && px(heute.x) <= B - R && (
+          <g>
+            <line className="heute" x1={px(heute.x)} x2={px(heute.x)} y1={O} y2={H - U} />
+            {/* Die Marke steht oben. Der Achsentitel weicht ihr aus (siehe
+                unten): Beide sassen übereinander, sobald „heute" am linken
+                Rand liegt — und das ist hier immer so, denn die Prognose
+                fängt heute an. */}
+            <text className="strich heute-text" x={px(heute.x) + 6} y={O + 12}>{heute.text}</text>
+          </g>
+        )}
+        {punkte.filter((_, i) => i % Math.ceil(punkte.length / 6) === 0 || i === punkte.length - 1).map(q => (
+          <text key={q.x} className="strich" x={px(q.x)} y={H - U + 16} textAnchor="middle">{xFormat(q.x)}</text>
+        ))}
+        {hover && <line className="zeiger" x1={px(punkte[hover.i].x)} x2={px(punkte[hover.i].x)} y1={O} y2={H - U} />}
+        {xTitel && <text className="strich achsentitel" x={B - R} y={H - 2} textAnchor="end">{xTitel}</text>}
+        {/* Rechts, nicht links: Links steht bei x = heute die Marke. */}
+        {yTitel && <text className="strich achsentitel" x={B - R} y={12} textAnchor="end">{yTitel}</text>}
+      </svg>
+      <div className="legende">
+        {teile.map(t => <span key={t.name}><span className="chip" style={{ background: t.farbe }} />{t.name}</span>)}
+      </div>
+      <Schwebend rahmen={rahmen} s={hover && p ? { x: hover.ort.x, y: hover.ort.y, inhalt: (
+        <>
+          <div className="schweb-kopf">{xFormat(p.x)}</div>
+          {teile.map((t, i) => (
+            <div key={t.name} className="schweb-zeile">
+              <span><span className="chip" style={{ background: t.farbe }} />{t.name}</span>
+              <strong>{prozent(p.werte[i] ?? 0, 1)}{masse ? ` · ${tonnen((p.werte[i] ?? 0) * masse)}` : ''}</strong>
+            </div>
+          ))}
+          {rest > 0.001 && <div className="schweb-zeile"><span>nicht zugeordnet</span><strong>{prozent(rest, 1)}</strong></div>}
+        </>
+      ) } : null} />
+    </div>
+  )
+}

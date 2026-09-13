@@ -2,9 +2,11 @@ import { useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { datum, kg, prozent, tonnen, zahl } from '../lib/format'
 import { Aufklapp, Erklaerung, Herkunft, Hinweis, Karte, Marke, Rechenweg, Zahlen } from '../components/Bausteine'
-import { Glocke, Linien, type Reihe, type Zone } from '../components/Diagramm'
-import { glockeVorbereiten, kaliberJe, lagerstaende, schimmelKurve, stroemeVon, useAuswertung, verdunstungKurve,
-         type Auswertung, type Bestand, type Gruppe, type Lagerstand, type SortenK, type StromSumme, type Ueberfuellung } from '../auswertung/daten'
+import { Glocke, Linien, Stapel, type Reihe, type Stapelpunkt, type Stapelteil, type Zone } from '../components/Diagramm'
+import { STROMFARBE, anteilBei, glockeVorbereiten, kaliberJe, lagerstaende, prognoseBei, prognoseReihe, schimmelKurve,
+         stroemeVon, useAuswertung, verdunstungKurve,
+         type Auswertung, type Bestand, type Gruppe, type Lagerstand, type SortenK, type StromSumme,
+         type Ueberfuellung } from '../auswertung/daten'
 import { Probleme, Rechnet, Reiterkopf, rechenweg } from '../auswertung/Karten'
 import { summeBekannt } from '../lib/masse'
 import { ZFilter } from '../components/Zeichen'
@@ -63,6 +65,8 @@ export default function Ursachen() {
   const lager = summe(b => b.lager_kg)
   const verlust = summeOffen(b => b.verlust_heute_kg)
   const strom = (name: string) => stroeme.find(s => s.strom === name)
+  const p0 = prognoseBei(daten.prognose, filter.gruppe, filter.schluessel, 0)
+  const anteil28 = anteilBei(daten.prognose, filter.gruppe, filter.schluessel, 28)
   const filterSorte = filter.gruppe === 'sorte' ? filter.schluessel : filter.gruppe === 'charge' ? (chargen[0]?.sorte ?? '') : ''
   const chargenSet = new Set(chargen.map(c => c.charge_nr))
   const name = filter.gruppe === 'gesamt' ? 'Alle Chargen' : filter.gruppe === 'charge' ? `Charge ${filter.schluessel} · ${chargen[0]?.sorte ?? ''} · ${chargen[0]?.schlag ?? ''}` : filter.schluessel
@@ -88,18 +92,28 @@ export default function Ursachen() {
 
       <Karte>
         <Zahlen zeilen={[
-          { titel: 'Eingang', wert: <>{tonnen(eingang)} <Herkunft art="gemessen" /></>, unter: `${zahl(summe(b => b.n_paletten))} Paletten aus dem Erntejournal` },
-          { titel: 'Ausgeliefert', wert: <>{tonnen(geliefert)} <Herkunft art="gemessen" /></>, unter: `${zahl(summe(b => b.n_lieferungen))} Lieferungen` },
+          { titel: 'Im Lager', wert: <>{tonnen(lager)} <Herkunft art="gerechnet" /></>,
+            unter: `Eingangsware, die nicht ausgeliefert ist · Eingang ${tonnen(eingang)}, ausgeliefert ${tonnen(geliefert)} · gute Ware ${tonnen(imHaus)}` },
+          { titel: 'Verkaufsfähig heute',
+            wert: p0 ? <>{tonnen(p0.verkaufsfaehig_kg)}{p0.verkaufsfaehig_anteil !== null && <span style={{ fontSize: '.7em', whiteSpace: 'nowrap' }}> · {prozent(p0.verkaufsfaehig_anteil, 0)}</span>} <Herkunft art="gerechnet" /></> : '—',
+            unter: p0?.verkaufsfaehig_anteil !== null && p0 ? 'Anteil an der liegenden Eingangsware' : 'der Anteil ist unbekannt, solange ein Koeffizient nicht gemessen ist' },
+          { titel: 'In 4 Wochen',
+            wert: anteil28 !== null ? <>{prozent(anteil28, 0)} <Herkunft art="prognose" /></> : '—',
+            unter: anteil28 !== null ? 'wenn die heute liegende Ware bis dahin liegen bleibt' : 'keine Prognose für diese Auswahl' },
+          { titel: 'Verkaufsfähig je Tag',
+            wert: p0?.verkaufsfaehig_je_tag_kg != null ? <>−{kg(p0.verkaufsfaehig_je_tag_kg, 0)} <Herkunft art="prognose" /></> : '—',
+            unter: p0?.verdunstet_je_tag_kg != null && p0.faul_je_tag_kg != null
+              ? `Verdunstung ${kg(p0.verdunstet_je_tag_kg, 0)} · Faules ${kg(p0.faul_je_tag_kg, 0)} · an der liegenden Ware`
+              : 'zurzeit keine Rate' },
           { titel: 'Verlust bis heute',
             wert: verlust === null ? <Marke art="warnung">nicht gemessen</Marke> : <>{tonnen(verlust)} <Herkunft art="gerechnet" /></>,
             unter: verlust === null
               ? 'mindestens eine Ursache hat noch keine Messung — unbekannt, nicht null'
               : `${prozent(eingang > 0 ? verlust / eingang : null)} des Eingangs` },
-          { titel: 'Noch im Haus',
-            wert: <>{verlust === null ? 'höchstens ' : ''}{tonnen(imHaus)} <Herkunft art="gerechnet" /></>,
-            unter: `davon ${tonnen(lager)} Eingangsware, die noch liegt` },
         ]} />
       </Karte>
+
+      <LiegendeWare daten={daten} filter={filter} />
 
       <Verderb daten={daten} strom={strom('Schimmel/Fäulnis')} feld={strom('Nicht lagerbedingt')} eingang={eingang} lager={lager} sorte={filterSorte} chargen={chargenSet} filter={filter} staende={staende} />
       <Verdunstung daten={daten} strom={strom('Verdunstung')} eingang={eingang} lager={lager} sorte={filterSorte} chargen={chargenSet} filter={filter} staende={staende} />
@@ -113,6 +127,57 @@ export default function Ursachen() {
 /** Die Chargen im Filter. */
 function chargenIm(bestand: Bestand[], f: Filter): Bestand[] {
   return bestand.filter(b => f.gruppe === 'gesamt' || (f.gruppe === 'sorte' ? b.sorte === f.schluessel : f.gruppe === 'schlag' ? b.schlag === f.schluessel : String(b.charge_nr) === f.schluessel))
+}
+
+/* ---------- Was wird aus der liegenden Ware? --------------------------------- */
+
+/** Die fünf Bänder, von unten nach oben. Unten das Gute — da schaut man zuerst hin. */
+const BAENDER: (Stapelteil & { feld: 'verkaufsfaehig_kg' | 'kanal_kg' | 'fax_kg' | 'faul' | 'verdunstet_kg' })[] = [
+  { name: 'verkaufsfähig', feld: 'verkaufsfaehig_kg', farbe: 'var(--strom-rest)' },
+  { name: 'zu klein / zu gross', feld: 'kanal_kg', farbe: STROMFARBE['Zu klein (Tierfutter)'],
+    hinweis: 'war es vom Feld an' },
+  { name: 'Fax erwartet', feld: 'fax_kg', farbe: STROMFARBE['Faul beim Abpacken (Fax)'] },
+  { name: 'faul', feld: 'faul', farbe: STROMFARBE['Schimmel/Fäulnis'] },
+  { name: 'verdunstet', feld: 'verdunstet_kg', farbe: STROMFARBE['Verdunstung'] },
+]
+
+/**
+ * Die eine Grafik dieses Reiters: Was wird aus der Ware, die heute liegt?
+ *
+ * 100 % ist die liegende Eingangsware, und die bleibt über die ganze Zeit
+ * dieselbe Zahl — was liegt, liegt. Was sich ändert, ist ihre
+ * Zusammensetzung, und genau die steht hier. Zwei Bänder wachsen (faul und
+ * verdunstet), zwei bleiben fast gleich (zu klein/zu gross, Fax erwartet):
+ * Die waren vom Feld an so und haben mit der Lagerdauer nichts zu tun.
+ */
+function LiegendeWare({ daten, filter }: { daten: Auswertung; filter: Filter }) {
+  const reihe = prognoseReihe(daten.prognose, filter.gruppe, filter.schluessel)
+  if (reihe.length < 2 || reihe[0].lager_kg <= 0) return null
+  const tag = (d: string) => Date.parse(d) / 86400000
+  const anteil = (p: typeof reihe[number], feld: typeof BAENDER[number]['feld']) => {
+    const wert = feld === 'faul' ? p.faul_kg + p.sockel_kg : p[feld]
+    return p.lager_kg > 0 ? wert / p.lager_kg : 0
+  }
+  const punkte: Stapelpunkt[] = reihe.map(p => ({ x: tag(p.datum), werte: BAENDER.map(b => anteil(p, b.feld)) }))
+  const erste = reihe[0], letzte = reihe[reihe.length - 1]
+  const fallen = (erste.verkaufsfaehig_kg - letzte.verkaufsfaehig_kg) / Math.max(erste.lager_kg, 1)
+  return (
+    <Karte titel="Was wird aus der liegenden Ware?"
+           unter={<>100 % ist die Eingangsware, die heute liegt ({tonnen(erste.lager_kg)}) — sie bleibt dieselbe Zahl. Was sich ändert, ist ihre Zusammensetzung. <Herkunft art="prognose" /></>}>
+      <Stapel teile={BAENDER} punkte={punkte} masse={erste.lager_kg}
+              heute={{ x: tag(erste.datum), text: 'heute' }}
+              xFormat={x => datum(new Date(x * 86400000)).slice(0, 6)}
+              xTitel="bis zum Saisonende" yTitel="Anteil der liegenden Ware" />
+      <Erklaerung>
+        <p>Von heute bis zum {datum(letzte.datum)} verliert die liegende Ware <strong>{prozent(fallen, 1)}</strong> ihres verkaufsfähigen Anteils —
+        von {prozent(erste.lager_kg > 0 ? erste.verkaufsfaehig_kg / erste.lager_kg : null, 0)} auf {prozent(letzte.lager_kg > 0 ? letzte.verkaufsfaehig_kg / letzte.lager_kg : null, 0)}.
+        Das gilt <em>wenn die Ware bis dahin liegen bleibt</em>: Die App weiss nicht, wie schnell verkauft wird, und rechnet deshalb keinen Abgang mit.</p>
+        <p>Zwei Bänder wachsen: <strong>faul</strong> und <strong>verdunstet</strong>. Zwei nicht: <strong>zu klein / zu gross</strong> und das beim Abpacken erwartete <strong>Fax</strong>.
+        Die Kürbisse werden nicht mit der Zeit zu klein — sie kamen so vom Feld. Ihr Band wird sogar leicht schmaler, weil ein Teil davon vorher verdirbt; steigen kann es nie.
+        Deshalb steht „zu klein" auch nicht im Verlust: Die Ware ist nicht weg, nur nicht Hauptware.</p>
+      </Erklaerung>
+    </Karte>
+  )
 }
 
 /** Die Zeile mit den Zahlen eines Stroms: bis heute, Anteil, Bereich, Warnungen. */
@@ -252,7 +317,7 @@ function Verderb({ daten, strom, feld, eingang, lager, sorte, chargen, filter, s
   ].filter(r => r.punkte.length > 0)
 
   return (
-    <Karte titel="Palox: Faules im Lager" unter="Wie viel Faules die Ware mit der Lagerdauer ansetzt — die Rauten zeigen, wo die Chargen heute stehen.">
+    <Karte titel="Faules im Lager" unter="Wie viel Faules die Ware mit der Lagerdauer ansetzt — gemessen am Palox, wenn eine Palette an die Maschine kommt.">
       <Zahlen zeilen={[
         Stromzahl({ v: strom, eingang, titel: 'Faules bis heute' }),
         { titel: 'Vermutet noch im Lager', wert: strom?.bekannt && imLager !== null ? <>{kg(imLager, 0)} <Herkunft art="gerechnet" /></> : '—',
@@ -260,19 +325,24 @@ function Verderb({ daten, strom, feld, eingang, lager, sorte, chargen, filter, s
         ...(feld?.bekannt && feld.mittel > 0 ? [{ titel: 'davon nicht lagerbedingt', wert: <>{kg(feld.mittel, 0)}</>, unter: 'Erde, Hagelnarben, Schnittfehler — vom Feld, ohne Lagerdauer' }] : []),
         Prognose14({ staende, feld: 'schimmel_14_kg', titel: 'Prognose: zwei Wochen länger liegen' }),
       ]} />
-      <Linien
-        reihen={reihen}
-        xFormat={x => `${Math.round(x)}`} yFormat={y => `${y.toFixed(1)} %`} xTitel="Lagertage" yTitel="Anteil faul"
-        xEinheit="tage" yEinheit="prozent" yVon={0} xBis={reihen.length ? xEnde : undefined}
-        heute={heute.heute} zonen={heute.zonen}
-        senkrechte={kurve && tMax > 0 ? [{ x: tMax, text: 'bis hier gemessen', farbe: 'var(--text-leise)' }] : []}
-        ausgeschlossenText={x => `${Math.round(x)} Lagertage`}
-        leer="noch keine Schimmelmessung" />
-      {nUnplausibel > 0 && (
-        <p className="fussnote">
-          {nUnplausibel === 1 ? '1 Messung ist nicht plausibel' : `${nUnplausibel} Messungen sind nicht plausibel`} und deshalb nicht im Bild — sie stehen unter <Link to="/messungen">Messungen</Link> mit Grund.
-        </p>
-      )}
+      {/* Die Kurve steht hinter einem Aufklapper: Der Betriebsleiter braucht
+          zuerst die Zahlen und die Reihenfolge der Chargen; das Streubild ist
+          die Begründung dahinter, nicht die Antwort. */}
+      <Aufklapp titel={<><span>Messungen und Kurve</span> <span className="leise">{punkte.length} Messungen über der Lagerdauer, das Modell und wo die Chargen heute stehen</span></>}>
+        <Linien
+          reihen={reihen}
+          xFormat={x => `${Math.round(x)}`} yFormat={y => `${y.toFixed(1)} %`} xTitel="Lagertage" yTitel="Anteil faul"
+          xEinheit="tage" yEinheit="prozent" yVon={0} xBis={reihen.length ? xEnde : undefined}
+          heute={heute.heute} zonen={heute.zonen}
+          senkrechte={kurve && tMax > 0 ? [{ x: tMax, text: 'bis hier gemessen', farbe: 'var(--text-leise)' }] : []}
+          ausgeschlossenText={x => `${Math.round(x)} Lagertage`}
+          leer="noch keine Schimmelmessung" />
+        {nUnplausibel > 0 && (
+          <p className="fussnote">
+            {nUnplausibel === 1 ? '1 Messung ist nicht plausibel' : `${nUnplausibel} Messungen sind nicht plausibel`} und deshalb nicht im Bild — sie stehen unter <Link to="/messungen">Messungen</Link> mit Grund.
+          </p>
+        )}
+      </Aufklapp>
       <Lagerstandtabelle staende={staende} modellAnteil={modellBei} feld="schimmel_14_kg" titel="Welche Charge zuerst? Die Chargen heute auf der Kurve" />
       {jeCharge.length > 0 && filter.gruppe !== 'charge' && (
         <Aufklapp titel={<><span>Je Charge: gemessen gegen Modell</span> <span className="leise">{jeCharge.length} Chargen mit Messung</span></>}>
@@ -387,18 +457,21 @@ function Verdunstung({ daten, strom, eingang, lager, sorte, chargen, filter, sta
         ...(strom?.bekannt ? [{ titel: 'An der ausgelieferten Ware', wert: kg(strom.beobachtet, 0), unter: 'bis zum jeweiligen Liefertag' }] : []),
         Prognose14({ staende, feld: 'verdunstung_14_kg', titel: 'Prognose: zwei Wochen länger liegen' }),
       ]} />
-      <Linien reihen={reihen}
-              xFormat={x => `${Math.round(x)}`} yFormat={y => `${y.toFixed(1)} %`} xTitel="Lagertage" yTitel="Gewicht verloren"
-              xEinheit="tage" yEinheit="prozent" yVon={0} xBis={reihen.length ? xEnde : undefined}
-              heute={heute.heute} zonen={heute.zonen}
-              senkrechte={gemessenBis > 0 ? [{ x: gemessenBis, text: 'bis hier gemessen', farbe: 'var(--text-leise)' }] : []}
-              ausgeschlossenText={x => `${Math.round(x)} Lagertage`}
-              leer="noch keine Palette gewogen" />
-      {ohneVerlust > 0 && (
-        <p className="fussnote">
-          {ohneVerlust === 1 ? '1 Wägung zeigt keinen Verlust' : `${ohneVerlust} Wägungen zeigen keinen Verlust`} (Palette gleich schwer oder schwerer als beim Eingang) — nicht im Bild; sie stehen unter <Link to="/messungen">Messungen</Link>.
-        </p>
-      )}
+      {/* Wie beim Verderb: erst die Zahlen, dann auf Wunsch die Messungen. */}
+      <Aufklapp titel={<><span>Messungen und Kurve</span> <span className="leise">gewogene Paletten über der Lagerdauer, die Erwartung je Sorte und wo die Chargen heute stehen</span></>}>
+        <Linien reihen={reihen}
+                xFormat={x => `${Math.round(x)}`} yFormat={y => `${y.toFixed(1)} %`} xTitel="Lagertage" yTitel="Gewicht verloren"
+                xEinheit="tage" yEinheit="prozent" yVon={0} xBis={reihen.length ? xEnde : undefined}
+                heute={heute.heute} zonen={heute.zonen}
+                senkrechte={gemessenBis > 0 ? [{ x: gemessenBis, text: 'bis hier gemessen', farbe: 'var(--text-leise)' }] : []}
+                ausgeschlossenText={x => `${Math.round(x)} Lagertage`}
+                leer="noch keine Palette gewogen" />
+        {ohneVerlust > 0 && (
+          <p className="fussnote">
+            {ohneVerlust === 1 ? '1 Wägung zeigt keinen Verlust' : `${ohneVerlust} Wägungen zeigen keinen Verlust`} (Palette gleich schwer oder schwerer als beim Eingang) — nicht im Bild; sie stehen unter <Link to="/messungen">Messungen</Link>.
+          </p>
+        )}
+      </Aufklapp>
       {filter.gruppe === 'charge' && (
         <Lagerstandtabelle staende={staende} modellAnteil={erwartungBei} feld="verdunstung_14_kg" titel="Diese Charge heute" />
       )}
@@ -497,8 +570,10 @@ function Sortierung({ daten, klein, gross, eingang, sorte, chargen, filter }: {
 
       <Gewichtsverteilung daten={daten} filter={filter} sorte={sorte} />
       <Erklaerung>
-        Gemessen an der Sortier-CSV (jeder Kürbis gewogen) — der Anteil der Sorte gilt für ihre ganze Ware, an der Waschstrasse wird nichts mehr gewogen.
-        Zu klein geht an die Tiere, zu gross in den Nebenkanal: Die Ware ist nicht weg, nur nicht Hauptware. Darum steht sie nicht im Verlust bis heute.
+        <p>Gemessen an der Sortier-CSV (jeder Kürbis gewogen) — der Anteil der Sorte gilt für ihre ganze Ware, an der Waschstrasse wird nichts mehr gewogen.
+        Zu klein geht an die Tiere, zu gross in den Nebenkanal: Die Ware ist nicht weg, nur nicht Hauptware. Darum steht sie nicht im Verlust bis heute.</p>
+        <p><strong>Ein Anteil, keine Rate.</strong> Die Kürbisse werden nicht mit der Lagerdauer zu klein — sie kamen so vom Feld. In „Was wird aus der liegenden Ware?"
+        ist ihr Band deshalb waagrecht: Es wächst nicht, und es steht nicht in der Prognose als etwas, das noch dazukommt.</p>
       </Erklaerung>
       {klein && <Rechenweg zeilen={rechenweg(klein, eingang)} />}
     </Karte>
@@ -564,12 +639,60 @@ function Fax({ daten, strom, eingang, chargen }: { daten: Auswertung; strom?: St
         ...(strom?.bekannt && strom.erwartet !== null && strom.erwartet > 0
           ? [{ titel: 'Erwartung für die Ware im Haus', wert: <>{kg(strom.erwartet, 0)} <Herkunft art="prognose" /></>, unter: 'was beim Abpacken noch dazukäme — steckt nicht im Verlust bis heute' }] : []),
       ]} />
+      <Wartezeit daten={daten} />
       <Erklaerung>
-        Nach dem Waschen steht die Ware ein bis drei Tage in Kisten, bis sie abgepackt wird; dabei wird nochmals aussortiert, was faul ist. Das kommt vom Waschen und vom Stehen danach, nicht von der Lagerdauer — darum eine eigene Ursache.
-        Die Zahl beruht auf Fax-Arbeiten mit gewogenem Faulem <Herkunft art="gemessen" />; „nichts Faules" ist dabei eine Messung mit 0 kg.
+        <p>Nach dem Waschen steht die Ware ein bis drei Tage in Kisten, bis sie abgepackt wird; dabei wird nochmals aussortiert, was faul ist. Das kommt vom Waschen und vom Stehen danach, nicht von der Lagerdauer — darum eine eigene Ursache.
+        Die Zahl beruht auf Fax-Arbeiten mit gewogenem Faulem <Herkunft art="gemessen" />; „nichts Faules" ist dabei eine Messung mit 0 kg.</p>
+        <p>Die Klassen nach Wartezeit sind eine <strong>Beobachtung</strong>, keine Erklärung: Sie sagen, was gemessen wurde, nicht warum. Erst wenn sich die Bereiche zweier Klassen nicht überlappen, steht ein Satz dazu — vorher könnte der Unterschied Zufall sein.</p>
       </Erklaerung>
       {strom && <Rechenweg zeilen={rechenweg(strom, eingang)} />}
     </Karte>
+  )
+}
+
+/**
+ * Das Faule beim Abpacken nach Tagen seit dem Waschen (erg_fax_wartezeit).
+ * Drei Klassen plus „unbekannt", je mit Anteil, Bereich und Zahl der
+ * Arbeiten. Der Satz darunter kommt nur, wenn die Bereiche der schnellsten
+ * und der langsamsten Klasse sich **nicht** überlappen — sonst behauptete er
+ * einen Unterschied, den die Messung nicht trägt.
+ */
+function Wartezeit({ daten }: { daten: Auswertung }) {
+  const zeilen = daten.faxWartezeit.filter(w => w.gruppe === 'alle').sort((a, b) => a.reihenfolge - b.reihenfolge)
+  const mit = zeilen.filter(w => w.n > 0)
+  if (mit.length < 2) return null
+  const max = Math.max(0.001, ...mit.map(w => w.oben ?? w.anteil ?? 0))
+  const schnell = mit.find(w => w.klasse === '0–1 Tage')
+  const langsam = [...mit].reverse().find(w => w.klasse !== 'unbekannt' && w.klasse !== '0–1 Tage')
+  const getrennt = schnell?.oben != null && langsam?.unten != null && schnell.oben < langsam.unten
+  return (
+    <>
+      <h3>Nach Wartezeit seit dem Waschen <span className="leise">was gemessen wurde, nicht warum</span></h3>
+      <div className="rollbar"><table className="dicht">
+        <thead><tr><th>Tage seit dem Waschen</th><th className="zahl">Anteil faul</th><th style={{ width: '34%' }}></th><th className="zahl">Bereich</th><th className="zahl">Arbeiten</th><th className="zahl">Abgepackt</th></tr></thead>
+        <tbody>{mit.map(w => (
+          <tr key={w.klasse} className={w.klasse === 'unbekannt' ? 'leise' : ''}>
+            <td>{w.klasse}</td>
+            <td className="zahl"><strong>{prozent(w.anteil)}</strong></td>
+            <td><div className="balken-spur" style={{ height: 8 }}>
+              <div className="balken-fuellung waechst" style={{ width: `${((w.anteil ?? 0) / max) * 100}%`, background: 'var(--strom-fax)' }} />
+            </div></td>
+            <td className="zahl">{w.unten != null && w.oben != null ? <span className="leise">{prozent(w.unten)}–{prozent(w.oben)}</span> : <span className="leise">—</span>}</td>
+            <td className="zahl">{w.n}</td>
+            <td className="zahl">{kg(w.masse_kg, 0)}</td>
+          </tr>
+        ))}</tbody>
+      </table></div>
+      {getrennt && schnell && langsam && (
+        <p className="fussnote">
+          <strong>Abpacken am Tag nach dem Waschen: {prozent(schnell.anteil)} faul statt {prozent(langsam.anteil)}</strong> bei {langsam.klasse}.
+          Die zwei Bereiche überlappen sich nicht — der Unterschied ist grösser, als die Streuung der Messungen erklärt.
+        </p>
+      )}
+      {!getrennt && (
+        <p className="fussnote">Die Bereiche der Klassen überlappen sich. Ein Unterschied könnte Zufall sein; hier steht deshalb kein Satz darüber, sondern nur, was gemessen wurde.</p>
+      )}
+    </>
   )
 }
 
@@ -621,21 +744,33 @@ function Ueberfuellungsblock({ daten, filter, sorte }: { daten: Auswertung; filt
       {stueck.length > 0 && (
         <Aufklapp titel={<><span>Stück je Kiste</span> <span className="leise">{stueck.length} Sorten — kein Soll, keine verschenkte Marge, aber die Waage sagt, wo im Band die Ware liegt</span></>}>
           <div className="rollbar"><table className="dicht">
-            <thead><tr>{filter.gruppe !== 'charge' && <th>Sorte</th>}<th className="zahl">Stück je Kiste</th><th>Kaliber</th><th className="zahl">Gewogen je Stück</th><th className="zahl">Nenngewicht (Datei)</th><th className="zahl">Bandmittel (CSV)</th><th className="zahl">Wägungen</th><th className="zahl">Verkaufte Stück</th></tr></thead>
+            <thead><tr>{filter.gruppe !== 'charge' && <th>Sorte</th>}<th className="zahl">Stück je Kiste</th><th>Kaliber</th><th className="zahl">Gewogen je Stück</th><th style={{ width: '16%' }}>Lage im Band</th><th className="zahl">Nenngewicht (Datei)</th><th className="zahl">Wägungen</th><th className="zahl">Verkaufte Stück</th><th className="zahl">Spielraum</th></tr></thead>
             <tbody>{stueck.map((u, i) => (
               <tr key={i}>
                 {filter.gruppe !== 'charge' && <td>{u.sorte}</td>}
                 <td className="zahl">{u.stueck_je_kiste ?? '—'}</td>
                 <td>{band(u)}</td>
                 <td className="zahl">{u.g_je_kuerbis != null ? <strong>{zahl(u.g_je_kuerbis)} g</strong> : <span className="leise">nicht gewogen</span>}</td>
+                <td>{u.lage_im_band == null ? <span className="leise">Band unbekannt</span> : (
+                  <div className="balken-spur" style={{ height: 8 }} title={`${prozent(u.lage_im_band, 0)} über der Unterkante`}>
+                    <div className="balken-fuellung waechst"
+                         style={{ width: `${Math.min(Math.max(u.lage_im_band, 0), 1) * 100}%`,
+                                  background: u.lage_im_band > 1 ? 'var(--strom-schimmel)' : 'var(--strom-nebenkanal)' }} />
+                  </div>
+                )}</td>
                 <td className="zahl">{u.nenn_g != null ? `${zahl(u.nenn_g)} g` : <span className="leise">—</span>}</td>
-                <td className="zahl">{u.band_mittel_g != null ? `${zahl(u.band_mittel_g)} g` : '—'}</td>
                 <td className="zahl">{u.n_wiegungen}</td>
                 <td className="zahl">{u.stueck_verkauft != null ? zahl(u.stueck_verkauft) : <span className="leise">nicht verkauft</span>}</td>
+                <td className="zahl">{u.spielraum_kg != null ? <strong>{kg(u.spielraum_kg, 0)}</strong> : <span className="leise">—</span>}</td>
               </tr>
             ))}</tbody>
           </table></div>
-          <p className="fussnote">Liegt das gewogene Stück tief im Band, liesse sich ein engeres Band liefern — eine Beobachtung, kein Verlust.</p>
+          <p className="fussnote">
+            <strong>Lage im Band</strong> ist, wo die gewogene Ware zwischen Unter- und Oberkante ihres Kalibers liegt: leer heisst Unterkante, voll heisst Oberkante.
+            Bezahlt wird je Stück — je näher an der Unterkante, desto weniger Kilo gehen unbezahlt mit. Genau das ist der <strong>Spielraum</strong>: die Masse über der Unterkante, hochgerechnet auf die verkauften Stück.
+            Ein Balken, der über die Spur hinausläuft (rot), heisst: Die Wägung passt nicht zu ihrem Kaliber — das ist ein Befund, keine Marge.
+            Rahmen, nicht Verlust: Niemand sortiert auf die Kante.
+          </p>
         </Aufklapp>
       )}
       {(kistenOhne.length > 0 || stueckOhne.length > 0) && (
