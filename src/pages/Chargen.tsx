@@ -1,49 +1,86 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { TaetZeichen, ZChevron } from '../components/Zeichen'
 import { Link, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { taetigkeitVon } from '../lib/taetigkeit'
 import { WOERTERBUCH } from '../lib/i18n'
-import { datum, kg, tonnen, zahl, zeitpunkt } from '../lib/format'
+import { datum, kg, prozent, tonnen, zahl, zeitpunkt } from '../lib/format'
 import { Erklaerung, Herkunft, Hinweis, Karte, Lade, Marke } from '../components/Bausteine'
-import { alterSpanne, useAuswertung, type Auswertung } from '../auswertung/daten'
+import { alterSpanne, anteilBei, useAuswertung, type Auswertung } from '../auswertung/daten'
 import { Probleme, Rechnet, Reiterkopf } from '../auswertung/Karten'
 import type { Auftrag } from '../lib/typen'
 import { herkunftText, summeBekannt } from '../lib/masse'
 
+/** Wonach die Tabelle sortiert ist — der Betriebsleiter wählt es mit einem Klick auf den Kopf. */
+type Sortierung = 'lager' | 'verkaufsfaehig' | 'in4wochen' | 'alter'
+
 /**
- * Chargen: Wo steht welche Charge? Eine Zeile je Charge mit Eingang,
- * ausgeliefert (gemessen), Verlust bis heute und noch im Haus (gerechnet),
- * Alter und drohendem Verlust — und aufgeklappt, in der Reihenfolge des
- * Weges der Ware: Eingang (die Eingangstage), Ausgang (die Lieferungen),
- * Arbeiten. Auffälligkeiten stehen nicht hier, sondern unter Messungen —
- * dort, wo man sie korrigiert.
+ * Chargen: Wo steht welche Charge? Eine Zeile je Charge mit Eingang und
+ * ausgeliefert (gemessen), Im Lager, verkaufsfähig heute und in vier Wochen
+ * (gerechnet und prognostiziert), Alter und Verlust bis heute — und
+ * aufgeklappt, in der Reihenfolge des Weges der Ware: Eingang (die
+ * Eingangstage), Ausgang (die Lieferungen), Arbeiten. Auffälligkeiten stehen
+ * nicht hier, sondern unter Messungen — dort, wo man sie korrigiert.
+ *
+ * Die Reihenfolge ist die Aussage: Wer nach „in 4 Wochen" sortiert, sieht
+ * oben die Charge, die am meisten verliert, wenn sie liegen bleibt — und
+ * damit die, die zuerst raus sollte.
  */
 export default function Chargen() {
   const { daten, laedt, fehler, fortschritt, neuRechnen } = useAuswertung()
   const [suche, setSuche] = useSearchParams()
   const [sorte, setSorte] = useState('')
   const [nurBestand, setNurBestand] = useState(false)
+  const [nach, setNach] = useState<Sortierung>('lager')
   const offen = Number(suche.get('charge') ?? 0) || null
 
   const zeilen = useMemo(() => {
     if (!daten) return []
-    return daten.bestand.map(b => ({
+    const anteil = (nr: number, h: number) => anteilBei(daten.prognose, 'charge', String(nr), h)
+    const liste = daten.bestand.map(b => ({
       b,
       n: daten.naechste.find(x => x.charge_nr === b.charge_nr),
       l: daten.lage.find(x => x.charge_nr === b.charge_nr),
       m: daten.bilanz.find(x => x.charge_nr === b.charge_nr),
-    })).filter(z => (!sorte || z.b.sorte === sorte) && (!nurBestand || z.b.im_haus_heute_kg > 0))
-      .sort((a, c) => c.b.im_haus_heute_kg - a.b.im_haus_heute_kg)
-  }, [daten, sorte, nurBestand])
+      heute: anteil(b.charge_nr, 0),
+      in4: anteil(b.charge_nr, 28),
+    })).filter(z => (!sorte || z.b.sorte === sorte) && (!nurBestand || z.b.lager_kg > 0))
+    // Bei den Anteilen steht der **schlechteste** oben: Das ist die Charge, die
+    // zuerst raus sollte. Eine Charge ohne Zahl steht in jedem Fall hinten —
+    // „unbekannt" ist weder gut noch schlecht.
+    const hinten = (x: number | null) => x === null ? Infinity : x
+    return liste.sort((a, c) => {
+      if (nach === 'verkaufsfaehig') return hinten(a.heute) - hinten(c.heute)
+      if (nach === 'in4wochen') return hinten(a.in4) - hinten(c.in4)
+      if (nach === 'alter') return (c.b.alter_lager_bis ?? -1) - (a.b.alter_lager_bis ?? -1)
+      return c.b.lager_kg - a.b.lager_kg
+    })
+  }, [daten, sorte, nurBestand, nach])
 
   if (laedt && !daten) return <Rechnet fortschritt={fortschritt} />
   if (fehler) return <Hinweis art="warnung">{fehler}</Hinweis>
   if (!daten) return null
   const sorten = [...new Set(daten.bestand.map(b => b.sorte))].sort()
-  const summeHaus = zeilen.reduce((a, z) => a + z.b.im_haus_heute_kg, 0)
+  const summeLager = zeilen.reduce((a, z) => a + z.b.lager_kg, 0)
+  const summeVerkaufsfaehig = summeBekannt(zeilen.map(z => z.b.verkaufsfaehig_lager_kg))
   const summeGeliefert = zeilen.reduce((a, z) => a + z.b.geliefert_kg, 0)
   const summePrognose = summeBekannt(zeilen.map(z => z.n?.prognose_verlust_14_kg ?? null))
+  /**
+   * Ein Spaltenkopf, der sortiert. Der Pfeil zeigt, wohin: Bei Masse und
+   * Alter steht das Grösste oben (↓), bei den Anteilen das Kleinste (↑) —
+   * denn dort ist klein das Dringende.
+   */
+  const Kopf = ({ id, children }: { id: Sortierung; children: ReactNode }) => {
+    const auf = id === 'verkaufsfaehig' || id === 'in4wochen'
+    return (
+      <th className="zahl">
+        <button type="button" onClick={() => setNach(id)} aria-pressed={nach === id}
+                style={{ font: 'inherit', color: 'inherit', background: 'none', border: 0, padding: 0, cursor: 'pointer' }}>
+          {children}{nach === id && <span aria-hidden="true"> {auf ? '↑' : '↓'}</span>}
+        </button>
+      </th>
+    )
+  }
 
   return (
     <>
@@ -59,10 +96,10 @@ export default function Chargen() {
             <input type="checkbox" checked={nurBestand} onChange={e => setNurBestand(e.target.checked)} /> nur mit Bestand
           </label>
           <span className="nach-rechts">
-            {zeilen.length} Chargen · ausgeliefert <strong>{tonnen(summeGeliefert)}</strong> · im Haus <strong>{tonnen(summeHaus)}</strong>
+            {zeilen.length} Chargen · ausgeliefert <strong>{tonnen(summeGeliefert)}</strong> · im Lager <strong>{tonnen(summeLager)}</strong> · davon verkaufsfähig <strong>{tonnen(summeVerkaufsfaehig)}</strong>
             {summePrognose !== null && summePrognose > 0 && <> · zwei Wochen länger liegen: <strong>+{tonnen(summePrognose)}</strong></>}
           </span>
-          <span className="herkunft-legende">Eingang, Ausgeliefert<Herkunft art="gemessen" /> · Verlust, im Haus, verkaufsfähig<Herkunft art="gerechnet" /> · zwei Wochen<Herkunft art="prognose" /></span>
+          <span className="herkunft-legende">Eingang, Ausgeliefert<Herkunft art="gemessen" /> · Im Lager, verkaufsfähig, Verlust<Herkunft art="gerechnet" /> · in 4 Wochen, zwei Wochen<Herkunft art="prognose" /></span>
         </div>
         <div className="rollbar">
           <table className="umbruch">
@@ -70,9 +107,12 @@ export default function Chargen() {
               <tr>
                 <th style={{ width: 28 }} aria-label="aufklappen" />
                 <th>Charge</th><th>Sorte</th><th className="zahl">Eingang</th><th className="zahl">Ausgeliefert</th>
+                <Kopf id="lager">Im Lager</Kopf>
+                <Kopf id="verkaufsfaehig">Verkaufsfähig heute</Kopf>
+                <Kopf id="in4wochen">In 4 Wochen</Kopf>
+                <Kopf id="alter">Liegt seit</Kopf>
                 <th className="zahl">Verlust bis heute</th>
-                <th className="zahl">Noch im Haus</th><th className="zahl">verkaufsfähig</th><th className="zahl">liegt seit</th>
-                <th className="zahl">Prognose: zwei Wochen länger</th><th className="zahl">Messungen</th>
+                <th className="zahl">Zwei Wochen länger</th><th className="zahl">Messungen</th>
               </tr>
             </thead>
             <tbody>
@@ -84,20 +124,24 @@ export default function Chargen() {
           </table>
         </div>
         <Erklaerung>
-          Eingang und Ausgeliefert sind <Herkunft art="gemessen" />; Verlust bis heute, Noch im Haus und verkaufsfähig sind <Herkunft art="gerechnet" />: der Eingang minus die Eingangsware hinter den Lieferungen minus den Verlust der liegenden Ware bis heute; „verkaufsfähig" zieht davon ab, was zu klein oder zu gross ist.
-          „Liegt seit" ist die Spanne der Eingangstage — es gibt kein Zuerst-rein-zuerst-raus. „Prognose: zwei Wochen länger liegen" ist die einzige <Herkunft art="prognose" /> auf dieser Seite: was 14 weitere Tage Liegen kosten würden. Alles andere steht bis heute.
-          Messungen: Palettenwägungen · Faules · CSV-Läufe. Eine Zeile antippen zeigt Eingang, Ausgang und Arbeiten der Charge.
+          <p>Eingang und Ausgeliefert sind <Herkunft art="gemessen" />. <strong>Im Lager</strong> ist Eingangsware, die nicht ausgeliefert ist; sie ändert sich nur durch Liefern.
+          <strong> Verkaufsfähig heute</strong> zieht davon ab, was bis heute verdunstet oder verdorben ist und was zu klein oder zu gross ist <Herkunft art="gerechnet" />; der Prozentsatz daneben ist der Anteil an der liegenden Eingangsware.
+          <strong> In 4 Wochen</strong> ist dieselbe Rechnung 28 Tage später <Herkunft art="prognose" />, <em>wenn die Ware bis dahin liegen bleibt</em>.</p>
+          <p>Ein Klick auf einen Spaltenkopf sortiert danach. Nach „In 4 Wochen" sortiert steht oben, was am wenigsten übersteht — und damit die Charge, die zuerst raus sollte.
+          „Liegt seit" ist die Spanne der Eingangstage; es gibt kein Zuerst-rein-zuerst-raus.
+          Messungen: Palettenwägungen · Faules · CSV-Läufe. Eine Zeile antippen zeigt Eingang, Ausgang und Arbeiten der Charge.</p>
         </Erklaerung>
       </Karte>
     </>
   )
 }
 
-type Zeile = { b: Auswertung['bestand'][number]; n?: Auswertung['naechste'][number]; l?: Auswertung['lage'][number]; m?: Auswertung['bilanz'][number] }
+type Zeile = { b: Auswertung['bestand'][number]; n?: Auswertung['naechste'][number]; l?: Auswertung['lage'][number]
+               m?: Auswertung['bilanz'][number]; heute: number | null; in4: number | null }
 
 function ChargenZeile({ z, offen, oeffnen, daten }: { z: Zeile; offen: boolean; oeffnen: () => void; daten: Auswertung }) {
   const { b, n, l } = z
-  const liegt = b.im_haus_heute_kg > 0
+  const liegt = b.lager_kg > 0
   return (
     <>
       <tr onClick={oeffnen} className={`klickbar${offen ? ' offen' : ''}`} aria-expanded={offen}>
@@ -106,11 +150,14 @@ function ChargenZeile({ z, offen, oeffnen, daten }: { z: Zeile; offen: boolean; 
         <td>{b.sorte}</td>
         <td className="zahl">{kg(b.eingang_kg, 0)}</td>
         <td className="zahl">{b.n_lieferungen > 0 ? kg(b.geliefert_kg, 0) : <span className="leise">—</span>}</td>
-        <td className="zahl">{kg(b.verlust_heute_kg, 0)}</td>
-        <td className="zahl">{liegt ? <strong>{kg(b.im_haus_heute_kg, 0)}</strong> : <span className="leise">—</span>}</td>
-        <td className="zahl">{liegt && b.verkaufsfaehig_lager_kg !== null ? kg(b.verkaufsfaehig_lager_kg, 0) : <span className="leise">—</span>}</td>
+        <td className="zahl">{liegt ? <strong>{kg(b.lager_kg, 0)}</strong> : <span className="leise">—</span>}</td>
+        <td className="zahl">{liegt && b.verkaufsfaehig_lager_kg !== null
+          ? <>{kg(b.verkaufsfaehig_lager_kg, 0)}{z.heute !== null && <span className="leise"> · {prozent(z.heute, 0)}</span>}</>
+          : <span className="leise">—</span>}</td>
+        <td className="zahl">{liegt && z.in4 !== null ? prozent(z.in4, 0) : <span className="leise">—</span>}</td>
         <td className="zahl">{liegt ? alterSpanne(b.alter_lager_von, b.alter_lager_bis, b.alter_lager_heute).replace(' Tagen', ' d') : ''}</td>
-        <td className="zahl">{n?.prognose_verlust_14_kg != null && n.prognose_verlust_14_kg > 0 ? `+${kg(n.prognose_verlust_14_kg, 0)}` : <span className="leise">—</span>}</td>
+        <td className="zahl">{kg(b.verlust_heute_kg, 0)}</td>
+        <td className="zahl">{n?.prognose_verlust_14_kg != null && n.prognose_verlust_14_kg > 0 ? `−${kg(n.prognose_verlust_14_kg, 0)}` : <span className="leise">—</span>}</td>
         <td className="zahl leise">{l ? `${l.n_wiegungen} · ${l.n_schimmel} · ${l.n_sortierlaeufe}` : '—'}</td>
       </tr>
       {offen && (

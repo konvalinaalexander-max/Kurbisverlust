@@ -229,11 +229,70 @@
         "Erwartung für die Ware im Haus",
         "Prognose",
         "in 14 Tagen",
-        "14 Tage länger"
+        "14 Tage länger",
+        "Zwei Wochen länger",
+        "Zwei Wochen",
+        "Prognose: zwei Wochen länger"
       ],
       "art": "prognose",
       "bedeutet": "Was über heute hinaus erwartet wird, wenn die Ware weiterliegt — keine Messung und kein Stand von heute",
       "quelle": "erg_naechste_charge.prognose_verlust_14_kg · erg_verlauf mit prognose = true"
+    },
+    {
+      "muster": [
+        "Im Lager",
+        "Masse im Lager"
+      ],
+      "art": "gerechnet",
+      "bedeutet": "Eingangsware, die nicht ausgeliefert ist — Eingang minus die Eingangsmasse hinter den Lieferungen. Sie ändert sich nur durch Liefern, nicht durch Liegen; deshalb ist sie der Nenner, an dem der verkaufsfähige Anteil über die Zeit gemessen wird",
+      "quelle": "erg_bilanz.lager_kg · erg_charge.lager_kg · erg_prognose.lager_kg · erg_verlauf.lager_kg"
+    },
+    {
+      "muster": [
+        "Gute Ware",
+        "Im Haus gesamt"
+      ],
+      "art": "gerechnet",
+      "bedeutet": "Was von der liegenden Ware nach Verdunstung und Faulem übrig ist — mehr als verkaufsfähig, weil zu klein und zu gross noch drinstecken",
+      "quelle": "erg_bilanz.im_haus_heute_kg · erg_charge.im_haus_heute_kg · erg_verlauf.im_haus_kg"
+    },
+    {
+      "muster": [
+        "Verkaufsfähig heute"
+      ],
+      "art": "gerechnet",
+      "bedeutet": "Die liegende Eingangsware nach Verdunstung, Faulem, zu klein, zu gross und dem beim Abpacken erwarteten Faulen — bis heute gerechnet",
+      "quelle": "erg_bilanz.verkaufsfaehig_heute_kg · erg_prognose.verkaufsfaehig_kg (h = 0)"
+    },
+    {
+      "muster": [
+        "In 4 Wochen",
+        "Am Saisonende",
+        "Verkaufsfähig je Tag",
+        "Weiterer Verlust je Tag"
+      ],
+      "art": "prognose",
+      "bedeutet": "Dieselbe Kaskade, nur 28 Tage oder bis zum Saisonende später ausgewertet — wenn die heute liegende Ware bis dahin liegen bleibt und nichts Neues hereinkommt",
+      "quelle": "erg_prognose.verkaufsfaehig_anteil · .verkaufsfaehig_je_tag_kg · .verlust_verkaufsfaehig_kg"
+    },
+    {
+      "muster": [
+        "Masse",
+        "Anteil am Eingang",
+        "Bereich"
+      ],
+      "art": "gerechnet",
+      "bedeutet": "In der Rangfolge unter „Wohin geht der Kuerbis“: die Masse eines Stroms bis heute, ihr Anteil am Eingang der Auswahl und der Bereich, in dem sie nach der Messunsicherheit liegt",
+      "quelle": "erg_verlust.kg · .kg_unten · .kg_oben · .eingang_kg"
+    },
+    {
+      "muster": [
+        "Spielraum",
+        "Lage im Band"
+      ],
+      "art": "gerechnet",
+      "bedeutet": "Bei Kisten nach Stück je Kaliber: die Masse über der Unterkante des Kalibers, die unbezahlt mitgeht (Rahmen, nicht Verlust), und wo im Band die gewogene Ware liegt — 0 ist die Unterkante, 1 die Oberkante",
+      "quelle": "erg_ueberfuellung.spielraum_kg · .lage_im_band"
     }
   ]
 }

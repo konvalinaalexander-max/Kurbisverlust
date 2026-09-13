@@ -138,6 +138,11 @@ export interface Ueberfuellung {
   zuviel_je_kiste: number | null; zuviel_gewogen_kg: number | null
   verschenkt_kg: number | null; verschenkt_fehler_kg: number | null
   g_je_kuerbis: number | null; band_mittel_g: number | null
+  /** 0071, nur bei „x Stück je Kaliber": Wo im Kaliberband liegt die gewogene
+   *  Ware? 0 = Unterkante, 1 = Oberkante, über 1 heisst, die Wägung passt
+   *  nicht zu ihrem Kaliber. spielraum_kg ist die Masse über der Unterkante,
+   *  die unbezahlt mitgeht — Rahmen, nicht Verlust. */
+  lage_im_band: number | null; spielraum_kg: number | null
 }
 export interface Datenqualitaet {
   paletten_gezaehlt: number; paletten_mit_datum: number; arbeiten_fertig: number
@@ -158,15 +163,75 @@ export interface AusgangKennzahl {
   erwartet_kg_pro_kiste: number | null; abweichung_je_kiste: number | null; band_mittel_g: number | null
 }
 /**
- * Der Verlauf je Woche (erg_verlauf, 0061): Eingang und Ausgang kumuliert
- * (gemessen), der Verlust kumuliert (gerechnet, bis heute), danach als
- * Prognose (prognose = true). sorte NULL = alles.
+ * Der Verlauf je Woche (erg_verlauf, 0061/0071): Eingang und Ausgang
+ * kumuliert (gemessen), der Verlust kumuliert (gerechnet, bis heute), danach
+ * als Prognose (prognose = true). Seit 0071 je Gruppe statt nur je Sorte —
+ * gesamt, Sorte, Schlag, Charge — und mit der liegenden Ware: lager_kg ist
+ * die Eingangsware, die an diesem Stichtag noch nicht ausgeliefert war,
+ * verkaufsfaehig_kg davon der verkaufsfähige Teil. Der Verlust ist der
+ * Abstand zwischen beiden Linien.
  */
 export interface Verlaufswoche {
-  woche: string; bis: string; prognose: boolean; sorte: string | null
+  woche: string; bis: string; prognose: boolean
+  gruppe: Gruppe; schluessel: string
   eingang_kum_kg: number; ausgang_kum_kg: number; verdunstung_kum_kg: number
   schimmel_kum_kg: number; sockel_kum_kg: number
   fax_kum_kg: number; verlust_kum_kg: number; im_haus_kg: number
+  lager_kg: number; verkaufsfaehig_kg: number; kanal_kg: number; fax_lager_kg: number
+}
+
+/**
+ * Die Prognose (erg_prognose, 0071): dieselbe Kaskade wie überall, nur bei
+ * `alter + h` ausgewertet. h = 0 ist heute — dort steht auf den Rappen die
+ * Zahl der Saisonbilanz. Die Horizonte gehen in Wochenschritten bis zum
+ * Saisonende; 7, 14 und 28 Tage sind immer dabei.
+ *
+ * `lager_kg` ist über alle Horizonte dieselbe Zahl: Was liegt, liegt. Es
+ * ändert sich nur, wie viel davon noch verkaufsfähig ist — und genau das
+ * ist `verkaufsfaehig_anteil`. Ist ein Koeffizient nicht gemessen, bleibt
+ * der Anteil leer (leer ist nicht null), die Massen sind dann eine obere
+ * Schranke.
+ */
+export interface Prognose {
+  gruppe: Gruppe; schluessel: string; h: number; datum: string
+  n_chargen: number; n_kohorten: number
+  lager_kg: number; verdunstet_kg: number; sockel_kg: number; faul_kg: number
+  kanal_kg: number; fax_kg: number; verkaufsfaehig_kg: number; gute_ware_kg: number
+  verlust_wasser_kg: number; verlust_faeulnis_kg: number; verlust_verkaufsfaehig_kg: number
+  verkaufsfaehig_anteil: number | null
+  verkaufsfaehig_unten_kg: number | null; verkaufsfaehig_oben_kg: number | null
+  verkaufsfaehig_je_tag_kg: number | null; verdunstet_je_tag_kg: number | null; faul_je_tag_kg: number | null
+  r_bekannt: boolean; f_bekannt: boolean; sockel_bekannt: boolean
+  kanal_bekannt: boolean; fax_bekannt: boolean; vollstaendig: boolean
+  modell_gilt: boolean; hochgerechnet: boolean
+  alter_tage: number; alter_von: number; alter_bis: number
+}
+
+/**
+ * Wohin ging der Kürbis (erg_wohin, 0071): der ganze Eingang je Gruppe
+ * aufgeteilt. `rest_kg` und `lager_rest_kg` sind die zwei Identitäten —
+ * beide haben den Erwartungswert null, und eine doppelt gezählte Portion
+ * bliebe darin stehen.
+ */
+export interface Wohin {
+  gruppe: Gruppe; schluessel: string; n_chargen: number
+  eingang_kg: number; ueberzaehlung_kg: number; geliefert_kg: number
+  kanal_ausgelagert_kg: number | null; klein_ausgelagert_kg: number | null; gross_ausgelagert_kg: number | null
+  verdunstet_ausgelagert_kg: number | null; faul_ausgelagert_kg: number | null; sockel_ausgelagert_kg: number | null
+  fax_kg: number | null
+  lager_kg: number; lager_gute_ware_kg: number; lager_verkaufsfaehig_kg: number | null
+  lager_kanal_kg: number | null; lager_klein_kg: number | null; lager_gross_kg: number | null
+  lager_fax_kg: number | null; lager_faul_kg: number | null; lager_sockel_kg: number | null
+  lager_verdunstet_kg: number | null
+  rest_kg: number | null; lager_rest_kg: number | null; vollstaendig: boolean
+}
+
+/** Das Faule beim Abpacken nach Tagen seit dem Waschen (erg_fax_wartezeit, 0071). */
+export interface FaxWartezeit {
+  gruppe: 'alle' | 'sorte'; sorte: string | null
+  klasse: string; reihenfolge: number
+  n: number; masse_kg: number | null; faul_kg: number | null
+  anteil: number | null; unten: number | null; oben: number | null
 }
 /** Ein Strom einer Gruppe mit Bereich (erg_verlust, 0061) — vorgerechnet für gesamt, jede Sorte, jeden Schlag, jede Charge. */
 export interface Verlustzeile {
@@ -198,7 +263,7 @@ export interface Auswertung {
   punkte: Schimmelpunkt[]
   bestand: Bestand[]
   naechste: NaechsteCharge[]
-  sorten: { verdunstung: SortenK[]; ausschuss: SortenK[]; nebenkanal: SortenK[] }
+  sorten: { verdunstung: SortenK[]; ausschuss: SortenK[]; nebenkanal: SortenK[]; fax: SortenK[] }
   wiegungen: Wiegung[]
   marge: Marge[]
   gewichte: Gewichtsstufe[]
@@ -208,6 +273,12 @@ export interface Auswertung {
   qualitaet: Datenqualitaet | null
   verlauf: Verlaufswoche[]
   verlust: Verlustzeile[]
+  /** Die Prognose je Gruppe und Horizont (0071) — h = 0 ist heute. */
+  prognose: Prognose[]
+  /** Der ganze Eingang je Gruppe aufgeteilt (0071). */
+  wohin: Wohin[]
+  /** Das Faule beim Abpacken nach Tagen seit dem Waschen (0071). */
+  faxWartezeit: FaxWartezeit[]
   gebinde: KoeffGebinde[]
   schemata: Schema[]
   kohorten: Kohorte[]
@@ -292,7 +363,7 @@ async function alles(erzwingen: boolean): Promise<Auswertung> {
     if (r.error) { merken(name, r.error); return null }
     return (r.data ?? null) as T | null
   }
-  const [b, d, pl, kv, sk, mo, sel, sb, pk, hb, nc, kfv, kfa, kfn, kfu, wk, mg, gw, va, ds, uk, dq, vl, ve, kg, ss, ko, fx, ab, lf, ak] = await Promise.all([
+  const [b, d, pl, kv, sk, mo, sel, sb, pk, hb, nc, kfv, kfa, kfn, kfu, wk, mg, gw, va, ds, uk, dq, vl, ve, kg, ss, ko, fx, ab, lf, ak, pg, wo, fw, kff] = await Promise.all([
     q<Massenbilanz>('erg_massenbilanz'), q<Datenlage>('erg_datenlage'),
     q<Befund>('erg_plausibilitaet'), q<Kaliberzeile>('erg_kaliber'), q<Kurve>('erg_kurve'),
     eins<Modell>('erg_modell'), eins<Selektion>('erg_selektion'), eins<Saisonbilanz>('erg_bilanz'),
@@ -309,6 +380,8 @@ async function alles(erzwingen: boolean): Promise<Auswertung> {
     q<AusschussBeobachtung>('erg_ausschuss'),
     q<LieferungKurz>('erg_lieferung', ['datum', true]),
     q<AusgangKennzahl>('erg_ausgang', ['ts', true]),
+    q<Prognose>('erg_prognose', ['h', true]), q<Wohin>('erg_wohin'),
+    q<FaxWartezeit>('erg_fax_wartezeit', ['reihenfolge', true]), q<SortenK>('erg_koeff_fax'),
   ])
 
   type K = { mittel?: number | null; n: number; basis?: string }
@@ -328,9 +401,10 @@ async function alles(erzwingen: boolean): Promise<Auswertung> {
     stand: st2?.berechnet_ts ?? null, heute,
     bilanz: b, lage: d, befunde: pl, kaliber: kv, kurve: sk, koeff,
     modell: mo, selektion: sel, saison: sb, punkte: pk, bestand: hb, naechste: nc,
-    sorten: { verdunstung: kfv, ausschuss: kfa, nebenkanal: kfn }, wiegungen: wk, marge: mg,
+    sorten: { verdunstung: kfv, ausschuss: kfa, nebenkanal: kfn, fax: kff }, wiegungen: wk, marge: mg,
     gewichte: gw, verarbeitung: va, durchsatz: ds, ueberfuellung: uk, qualitaet: dq, verlauf: vl, verlust: ve,
     gebinde: kg, schemata: ss, kohorten: ko, fax: fx, ausschuss: ab, lieferungen: lf, ausgang: ak,
+    prognose: pg, wohin: wo, faxWartezeit: fw,
     probleme,
   }
 }
@@ -426,6 +500,48 @@ export function stroemeVon(zeilen: Verlustzeile[], gruppe: Gruppe, schluessel = 
     bereichBekannt: z.kg_unten !== null && z.kg_oben !== null, bekannt: z.bekannt && z.kg !== null,
     eingang: z.eingang_kg, nChargen: z.n_chargen,
   }))
+}
+
+/* ---------- Die Prognose: eine Zeile finden, einen Anteil lesen ------------ */
+
+/**
+ * Die Prognosezeile einer Gruppe bei einem Horizont. `h` muss eine
+ * Stützstelle sein; 0, 7, 14 und 28 gibt es immer, dazu jede Woche bis zum
+ * Saisonende. Gibt es sie nicht (zu weit, oder die Gruppe liegt leer),
+ * kommt null zurück — und der Bildschirm schreibt „—", nicht 0.
+ */
+export function prognoseBei(zeilen: Prognose[], gruppe: Gruppe, schluessel: string, h: number): Prognose | null {
+  const k = gruppe === 'gesamt' ? '' : schluessel
+  return zeilen.find(z => z.gruppe === gruppe && z.schluessel === k && z.h === h) ?? null
+}
+
+/** Der letzte Horizont einer Gruppe — das Saisonende, bis zu dem geplant wird. */
+export function prognoseEnde(zeilen: Prognose[], gruppe: Gruppe, schluessel = ''): Prognose | null {
+  const k = gruppe === 'gesamt' ? '' : schluessel
+  let letzte: Prognose | null = null
+  for (const z of zeilen) if (z.gruppe === gruppe && z.schluessel === k && (!letzte || z.h > letzte.h)) letzte = z
+  return letzte
+}
+
+/** Alle Horizonte einer Gruppe, aufsteigend — die x-Achse der Prognose. */
+export function prognoseReihe(zeilen: Prognose[], gruppe: Gruppe, schluessel = ''): Prognose[] {
+  const k = gruppe === 'gesamt' ? '' : schluessel
+  return zeilen.filter(z => z.gruppe === gruppe && z.schluessel === k).sort((a, b) => a.h - b.h)
+}
+
+/**
+ * Der verkaufsfähige Anteil bei einem Horizont — oder null, wenn die Zeile
+ * fehlt oder ein Koeffizient nicht gemessen ist. Nie 0 als Ersatz: „unbekannt"
+ * und „nichts mehr verkaufsfähig" sind zwei verschiedene Aussagen.
+ */
+export function anteilBei(zeilen: Prognose[], gruppe: Gruppe, schluessel: string, h: number): number | null {
+  return prognoseBei(zeilen, gruppe, schluessel, h)?.verkaufsfaehig_anteil ?? null
+}
+
+/** Die Zerlegung des Eingangs einer Gruppe (erg_wohin). */
+export function wohinVon(zeilen: Wohin[], gruppe: Gruppe, schluessel = ''): Wohin | null {
+  const k = gruppe === 'gesamt' ? '' : schluessel
+  return zeilen.find(z => z.gruppe === gruppe && z.schluessel === k) ?? null
 }
 
 /** Alle Schlüssel einer Gruppe, die es vorgerechnet gibt (Sorten, Schläge, Chargen). */

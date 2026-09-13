@@ -4,7 +4,8 @@ import DemoDaten from '../components/DemoDaten'
 import { datum, kg, prozent, tonnen, zahl } from '../lib/format'
 import { Aufklapp, Erklaerung, Herkunft, Hinweis, Karte, Kennzahl, Segmente } from '../components/Bausteine'
 import { Anteilsbalken, Glocke, Linien, tonnenAchse, type Anteilszeile, type Reihe } from '../components/Diagramm'
-import { STROMFARBE, STROMKURZ, alterSpanne, glockeVorbereiten, gruppenSchluessel, kaliberJe, stroemeVon, useAuswertung,
+import { STROMFARBE, STROMKURZ, alterSpanne, anteilBei, glockeVorbereiten, gruppenSchluessel, kaliberJe,
+         prognoseBei, prognoseEnde, stroemeVon, useAuswertung, wohinVon,
          type Auswertung, type Bestand, type Gruppe } from '../auswertung/daten'
 import { Probleme, Rechnet, Reiterkopf } from '../auswertung/Karten'
 import { summeBekannt } from '../lib/masse'
@@ -13,9 +14,36 @@ import { ZWarnung } from '../components/Zeichen'
 
 const TAG = 86400000
 const GRUPPEN: [Gruppe, string][] = [['gesamt', 'Gesamt'], ['sorte', 'je Sorte'], ['schlag', 'je Schlag'], ['charge', 'je Charge']]
-/** Die Ursachen im Anteilsbalken, in dieser Reihenfolge: erst der echte Verlust, dann der andere Kanal. */
-const URSACHEN = ['Verdunstung', 'Schimmel/Fäulnis', 'Nicht lagerbedingt', 'Faul beim Abpacken (Fax)', 'Zu klein (Tierfutter)', 'Nebenkanal zu gross']
-const KANAL = new Set(['Zu klein (Tierfutter)', 'Nebenkanal zu gross'])
+
+/** Heller Zwilling einer Stromfarbe — dieselbe Ursache, aber noch im Lager. */
+const hell = (farbe: string) => `color-mix(in srgb, ${farbe} 42%, var(--flaeche))`
+
+/**
+ * Die zehn Teile, in die der Eingang zerfällt (erg_wohin). Die ersten fünf
+ * sind passiert, die letzten fünf liegen noch — dieselben Ursachen, dieselben
+ * Farben, nur heller. Zusammen ergeben sie den ganzen Eingang.
+ */
+const WOHIN_TEILE: { name: string; feld: string; farbe: string; hinweis?: string }[] = [
+  { name: 'Ausgeliefert', feld: 'geliefert_kg', farbe: 'var(--strom-rest)',
+    hinweis: 'verkauft — auf einem Lieferschein' },
+  { name: 'Anderer Kanal (ausgeliefert)', feld: 'kanal_ausgelagert_kg', farbe: STROMFARBE['Zu klein (Tierfutter)'],
+    hinweis: 'zu klein oder zu gross: nicht weg, nur nicht Hauptware' },
+  { name: 'Verdunstet (ausgeliefert)', feld: 'verdunstet_ausgelagert_kg', farbe: STROMFARBE['Verdunstung'] },
+  { name: 'Faul (ausgeliefert)', feld: 'faul_ausgelagert_kg', farbe: STROMFARBE['Schimmel/Fäulnis'],
+    hinweis: 'Faules im Lager und vom Feld, an der Ware, die schon draussen ist' },
+  { name: 'Faules beim Abpacken', feld: 'fax_kg', farbe: STROMFARBE['Faul beim Abpacken (Fax)'] },
+  { name: 'Im Lager: verkaufsfähig', feld: 'lager_verkaufsfaehig_kg', farbe: hell('var(--strom-rest)'),
+    hinweis: 'liegt und ist heute verkaufsfähig' },
+  { name: 'Im Lager: zu klein / zu gross', feld: 'lager_kanal_kg', farbe: hell(STROMFARBE['Zu klein (Tierfutter)']),
+    hinweis: 'war es vom Feld an — wächst nicht mit der Lagerdauer' },
+  { name: 'Im Lager: Fax erwartet', feld: 'lager_fax_kg', farbe: hell(STROMFARBE['Faul beim Abpacken (Fax)']),
+    hinweis: 'fällt erst beim Abpacken an' },
+  { name: 'Im Lager: faul', feld: 'lager_faul_kg', farbe: hell(STROMFARBE['Schimmel/Fäulnis']) },
+  { name: 'Im Lager: verdunstet', feld: 'lager_verdunstet_kg', farbe: hell(STROMFARBE['Verdunstung']) },
+]
+/** Was davon echter Verlust ist — danach wird sortiert. */
+const VERLUSTTEILE = new Set(['Verdunstet (ausgeliefert)', 'Faul (ausgeliefert)', 'Faules beim Abpacken',
+                              'Im Lager: faul', 'Im Lager: verdunstet'])
 
 /** Eine Tonnenzahl, die beim Erscheinen zu ihrem Wert läuft. */
 function Tonnen({ kg }: { kg: number | null | undefined }) {
@@ -24,15 +52,21 @@ function Tonnen({ kg }: { kg: number | null | undefined }) {
 }
 
 /**
- * Überblick — das Dashboard des Betriebsleiters. Vier Zahlen bis heute (zwei
- * gemessen, zwei gerechnet), der Verlauf, die Ursachen, dann Bestand und
- * Kaliber. Wenig Text: Wie die Zahlen entstehen, steht in den Erklärungen
- * unter jeder Karte — zu, bis man sie will. Nichts hier ist Prognose ausser
- * der gestrichelten Linie im Verlauf und der Zeile „14 Tage länger liegen".
+ * Überblick — das Dashboard des Betriebsleiters. Er fragt zwei Dinge, und in
+ * dieser Reihenfolge stehen sie hier:
+ *
+ *   1. Wie viel kam herein, wie viel ging hinaus, wie viel liegt noch — und
+ *      wie viel davon ist verkaufsfähig? Vier Kopfzahlen, dann der Verlauf.
+ *   2. Wo geht der Kürbis hin? Eine Karte, in der der ganze Eingang in seine
+ *      zehn Teile zerfällt, mit der Rangfolge darunter.
+ *
+ * Der Verlust ist keine Kopfzahl mehr. Er ist der Abstand zwischen „Im Lager"
+ * und „Verkaufsfähig" — und in „Wohin geht der Kürbis?" steht er ausgebreitet.
  */
 export default function Ueberblick() {
   const { daten, laedt, fehler, fortschritt, neuRechnen } = useAuswertung()
   const [gruppe, setGruppe] = useState<Gruppe>('gesamt')
+  const [wahl, setWahl] = useState('')
   const navigate = useNavigate()
 
   if (laedt && !daten) return <Rechnet fortschritt={fortschritt} />
@@ -42,7 +76,7 @@ export default function Ueberblick() {
   if (!s || daten.bestand.length === 0) {
     return (
       <>
-        <Reiterkopf titel="Überblick" zweck="Was kam herein, was ging hinaus, was ist bis heute verloren — und was liegt noch im Haus." stand={daten.stand} />
+        <Reiterkopf titel="Überblick" zweck="Was kam herein, was ging hinaus — und wie viel von dem, was noch liegt, ist verkaufsfähig." stand={daten.stand} />
         <Probleme liste={daten.probleme} />
         <Hinweis>Noch keine auswertbaren Daten. Dafür braucht es mindestens Eingangspaletten mit hinterlegter Tara — siehe Betrieb → Stammdaten.</Hinweis>
         <DemoDaten kompakt nachAenderung={() => void neuRechnen()} />
@@ -57,20 +91,29 @@ export default function Ueberblick() {
   // Mittel der übrigen in den Eingang ein. Solange das vorkommt, ist der Eingang
   // nicht durchweg gemessen — und die Marke darf das nicht behaupten.
   const ohneNetto = daten.bestand.reduce((a, b) => a + (b.n_paletten - b.n_paletten_mit_netto), 0)
-  const zeilen = anteilszeilen(daten, gruppe)
-  const faules = summeBekannt([s.schimmel_heute_kg, s.sockel_heute_kg])
-  const verlustTeile = [
-    { name: 'Verdunstung', kg: s.verdunstung_heute_kg, farbe: STROMFARBE['Verdunstung'] },
-    { name: 'Faules im Lager', kg: faules, farbe: STROMFARBE['Schimmel/Fäulnis'] },
-    { name: 'Faules beim Abpacken', kg: s.fax_heute_kg, farbe: STROMFARBE['Faul beim Abpacken (Fax)'] },
-  ]
-  const verlustSumme = verlustTeile.reduce((a, t) => a + (t.kg ?? 0), 0)
   const chargenImHaus = daten.bestand.filter(b => b.im_haus_heute_kg > 0).length
-  const prognose14 = summeBekannt(daten.naechste.map(n => n.prognose_verlust_14_kg))
+
+  // Die Prognose der ganzen Saison: heute, in vier Wochen, am Saisonende.
+  const p0 = prognoseBei(daten.prognose, 'gesamt', '', 0)
+  const p28 = prognoseBei(daten.prognose, 'gesamt', '', 28)
+  const pEnde = prognoseEnde(daten.prognose, 'gesamt')
+  const anteilHeute = p0?.verkaufsfaehig_anteil ?? null
+
+  // Die Teile der liegenden Ware — der Mini-Balken unter „davon verkaufsfähig".
+  const wohinGesamt = wohinVon(daten.wohin, 'gesamt')
+  const lagerTeile = WOHIN_TEILE.filter(t => t.feld.startsWith('lager_')).map(t => ({
+    name: t.name.replace('Im Lager: ', ''), farbe: t.farbe,
+    kg: (wohinGesamt?.[t.feld as keyof typeof wohinGesamt] as number | null) ?? 0,
+  }))
+  const lagerSumme = lagerTeile.reduce((a, t) => a + t.kg, 0)
+
+  // Die gewählte Gruppe: ein Schlüssel, wenn nicht „Gesamt".
+  const schluessel = gruppenSchluessel(daten.verlust, gruppe)
+  const aktiv = gruppe === 'gesamt' ? '' : (wahl && schluessel.includes(wahl) ? wahl : schluessel[0] ?? '')
 
   return (
     <>
-      <Reiterkopf titel="Überblick" zweck="Was kam herein, was ging hinaus, was ist bis heute verloren — und was liegt noch im Haus."
+      <Reiterkopf titel="Überblick" zweck="Was kam herein, was ging hinaus — und wie viel von dem, was noch liegt, ist verkaufsfähig."
                   stand={daten.stand} heute={daten.heute} neuRechnen={() => void neuRechnen()} laeuft={laedt} />
       <Probleme liste={daten.probleme} />
       {daten.befunde.length > 0 && (
@@ -83,7 +126,7 @@ export default function Ueberblick() {
         </div>
       )}
 
-      {/* 1. Vier Zahlen bis heute: zwei gemessen, zwei gerechnet */}
+      {/* 1. Vier Zahlen: zwei gemessen, zwei gerechnet */}
       <div className="kennzahl-reihe">
         <Kennzahl titel="Eingang"
                   wert={<><Tonnen kg={s.eingang_kg} />{ohneNetto === 0
@@ -100,104 +143,54 @@ export default function Ueberblick() {
                   unter={s.n_lieferungen > 0 || s.vorlauf_kg > 0
                     ? <>{zahl(s.n_lieferungen)} Lieferungen ab Lieferschein{s.marge_kg > 0 ? ` · ${tonnen(s.marge_kg)} an Tiere und Nebenkanal` : ''}{s.vorlauf_kg > 0 ? ` · ${tonnen(s.vorlauf_kg)} vor dem Erfassungsbeginn` : ''}</>
                     : <>noch kein Warenausgang eingelesen — <Link to="/betrieb/lieferungen">Betrieb → Warenausgang</Link></>} />
-        <Kennzahl titel={`Verlust bis ${datum(daten.heute).slice(0, 6)}`} ton="rot"
-                  wert={<><Tonnen kg={s.verlust_heute_kg} /><Herkunft art="gerechnet" /></>}
+        <Kennzahl titel="Im Lager" ton="kuerbis"
+                  wert={<><Tonnen kg={s.lager_kg} /><Herkunft art="gerechnet" /></>}
+                  unter={<>Eingangsware, die nicht ausgeliefert ist · {chargenImHaus} Chargen
+                    · im Haus gesamt <strong>{tonnen(s.im_haus_heute_kg)}</strong>{s.verlust_bekannt ? '' : ' (höchstens)'}</>} />
+        <Kennzahl titel="Davon verkaufsfähig" ton="gruen"
+                  wert={<><Tonnen kg={s.verkaufsfaehig_heute_kg} />{anteilHeute !== null && <span style={{ fontSize: '.55em', whiteSpace: 'nowrap' }}> · {prozent(anteilHeute, 0)}</span>}<Herkunft art="gerechnet" /></>}
                   unter={<>
-                    <strong>{prozent(s.verlust_heute_kg !== null && s.eingang_kg > 0 ? s.verlust_heute_kg / s.eingang_kg : null)} des Eingangs</strong>
-                    {s.verlust_unten_kg != null && s.verlust_oben_kg != null && <> · Bereich {tonnen(s.verlust_unten_kg)}–{tonnen(s.verlust_oben_kg)}</>}
                     <span className="mini-anteile" aria-hidden="true">
-                      {verlustTeile.filter(t => (t.kg ?? 0) > 0).map(t => <span key={t.name} style={{ width: `${((t.kg ?? 0) / Math.max(verlustSumme, 1)) * 100}%`, background: t.farbe }} />)}
+                      {lagerTeile.filter(t => t.kg > 0).map(t => <span key={t.name} style={{ width: `${(t.kg / Math.max(lagerSumme, 1)) * 100}%`, background: t.farbe }} />)}
                     </span>
-                    {verlustTeile.map(t => t.kg === null ? `${t.name} —` : `${t.name} ${tonnen(t.kg)}`).join(' · ')}
+                    {anteilHeute === null
+                      ? <>der Anteil an der liegenden Eingangsware ist unbekannt, solange ein Koeffizient nicht gemessen ist</>
+                      : <>
+                          {p28?.verkaufsfaehig_anteil != null && <span style={{ whiteSpace: 'nowrap' }}>in 4 Wochen {prozent(p28.verkaufsfaehig_anteil, 0)}</span>}
+                          {p28?.verkaufsfaehig_anteil != null && ' · '}
+                          {pEnde && pEnde.h > 28 && pEnde.verkaufsfaehig_anteil != null
+                            ? <><span style={{ whiteSpace: 'nowrap' }}>am {datum(pEnde.datum).slice(0, 6)} <strong>{prozent(pEnde.verkaufsfaehig_anteil, 0)}</strong></span><Herkunft art="prognose" text="wenn die heute liegende Ware bis dahin liegen bleibt" /></>
+                            : <span className="leise">Anteil an der liegenden Eingangsware</span>}
+                        </>}
                   </>} />
-        <Kennzahl titel="Noch im Haus" ton="gruen"
-                  wert={<>{s.verlust_bekannt ? '' : 'höchstens '}<Tonnen kg={s.im_haus_heute_kg} /><Herkunft art="gerechnet" /></>}
-                  unter={!s.verlust_bekannt
-                    ? <>so viel Eingangsware ist nicht ausgeliefert — wie viel davon verdunstet oder verdorben ist, ist nicht gemessen</>
-                    : s.n_lieferungen > 0
-                    ? <>in {chargenImHaus} Chargen · davon verkaufsfähig <strong>{tonnen(s.verkaufsfaehig_heute_kg)}</strong> · zu klein oder zu gross {tonnen(s.kanal_im_haus_kg)}</>
-                    : 'ohne Warenausgang: rechnerisch alles — abzüglich des Verlusts bis heute'} />
       </div>
       {unbekannt.length > 0 && (
         <Hinweis art="warnung"><strong>Nicht gemessen: {unbekannt.join(', ')}.</strong> Diese Ursache ist unbekannt — nicht null — und fehlt in allen Summen. Unter <Link to="/messungen">Messungen</Link> steht, welche Messung sie liefert.</Hinweis>
       )}
 
-      <div className="zwei-spalten">
-        {/* 2. Der Verlauf: gemessen bis heute, dann Prognose */}
-        <Verlauf daten={daten} />
-
-        {/* 3. Woran fehlt es — die Ursachen bis heute, mit dem Blick 14 Tage voraus */}
-        <Karte titel="Woran fehlt es" unter="Der echte Verlust bis heute nach Ursache, gerechnet aus den Messungen.">
-          <div className="rollbar"><table className="dicht">
-            <thead><tr><th>Ursache</th><th className="zahl">Verlust bis heute</th><th className="zahl">Anteil am Eingang</th></tr></thead>
-            <tbody>
-              {verlustTeile.map(t => (
-                <tr key={t.name}>
-                  <td><span className="chip" style={{ background: t.farbe, marginRight: '.5rem' }} />{t.name}</td>
-                  <td className="zahl"><strong>{t.kg === null ? '—' : tonnen(t.kg)}</strong></td>
-                  <td className="zahl">{t.kg === null ? <span className="leise">nicht gemessen</span> : prozent(s.eingang_kg > 0 ? t.kg / s.eingang_kg : null)}</td>
-                </tr>
-              ))}
-              <tr>
-                <td><strong>Zusammen</strong><Herkunft art="gerechnet" /></td>
-                <td className="zahl"><strong>{tonnen(s.verlust_heute_kg)}</strong></td>
-                <td className="zahl"><strong>{prozent(s.verlust_heute_kg !== null && s.eingang_kg > 0 ? s.verlust_heute_kg / s.eingang_kg : null)}</strong></td>
-              </tr>
-            </tbody>
-          </table></div>
-          <div className="rollbar" style={{ marginTop: '.75rem' }}><table className="dicht">
-            <thead><tr><th>Nicht Hauptware</th><th className="zahl">Anderer Kanal</th><th className="zahl">Anteil am Eingang</th></tr></thead>
-            <tbody>
-              {(['Zu klein (Tierfutter)', 'Nebenkanal zu gross'] as const).map(name => {
-                const v = gesamt.find(x => x.strom === name)
-                return (
-                  <tr key={name}>
-                    <td><span className="chip" style={{ background: STROMFARBE[name], marginRight: '.5rem' }} />{STROMKURZ[name]} — {name === 'Zu klein (Tierfutter)' ? 'an die Tiere' : 'in den Nebenkanal'}</td>
-                    <td className="zahl">{v?.bekannt ? tonnen(v.mittel) : <span className="leise">nicht gemessen</span>}</td>
-                    <td className="zahl">{v?.bekannt ? prozent(s.eingang_kg > 0 ? v.mittel / s.eingang_kg : null) : '—'}</td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table></div>
-          {prognose14 !== null && prognose14 > 0 && (
-            <div className="rollbar" style={{ marginTop: '.75rem' }}><table className="dicht">
-              <tbody>
-                <tr>
-                  <td>Prognose: zwei Wochen länger liegen<Herkunft art="prognose" /></td>
-                  <td className="zahl"><strong>+{tonnen(prognose14)}</strong></td>
-                  <td className="zahl"><Link to="/chargen">je Charge</Link></td>
-                </tr>
-              </tbody>
-            </table></div>
-          )}
-          <Erklaerung>
-            <p><Herkunft art="gemessen" /> heisst: aus einer vollständigen Liste — jede Palette im Erntejournal, jede Lieferung auf einem Lieferschein.{' '}
-            <Herkunft art="gerechnet" /> heisst: bis heute, dem {datum(daten.heute)}, aus gemessenen Raten hochgerechnet — die Ware im Haus ist genau so lange gealtert, wie sie liegt.</p>
-            <p><strong>Verlust</strong> ist, was wirklich weg ist: verdunstetes Wasser und Faules (im Lager, vom Feld, beim Abpacken).
-            Zu klein und zu gross sind kein Verlust: Die Ware ist nicht weg, nur nicht in der richtigen Grösse — sie geht an die Tiere oder in den Nebenkanal.
-            An der Ware, die noch unsortiert liegt, kommen dazu {tonnen(s.kanal_im_haus_kg)} erwartet; die sind noch nicht passiert und stehen nirgends als Zahl.</p>
-            <p><strong>Noch im Haus</strong> ist der Eingang minus die Eingangsware hinter den Lieferungen minus den Verlust der liegenden Ware bis heute.
-            <strong> Zwei Wochen länger liegen</strong> ist die einzige Prognose in diesen Zahlen: was 14 weitere Tage Liegen die ganze Ware im Haus kosten würden.</p>
-          </Erklaerung>
-        </Karte>
+      {/* Die Wahl gilt für den Verlauf, „Wohin geht der Kürbis?" und „Was ist noch im Haus?" */}
+      <div className="filterleiste">
+        <Segmente wahl={gruppe} setzen={g => { setGruppe(g); setWahl('') }} teile={GRUPPEN} />
+        {gruppe !== 'gesamt' && schluessel.length > 0 && (
+          <>
+            <label htmlFor="ueb-wahl">{gruppe === 'sorte' ? 'Sorte' : gruppe === 'schlag' ? 'Schlag' : 'Charge'}</label>
+            <select id="ueb-wahl" value={aktiv} onChange={e => setWahl(e.target.value)}>
+              {schluessel.map(k => <option key={k} value={k}>{gruppe === 'charge' ? `Charge ${k}` : k}</option>)}
+            </select>
+          </>
+        )}
       </div>
 
-      {/* 4. Was vom Eingang bis heute fehlt — je Gruppe, alle Balken gleich lang */}
-      <Karte titel="Wem fehlt anteilig am meisten?" unter="Jeder Balken ist der Eingang seiner Zeile (100 %); die farbigen Teile sind, was davon bis heute fehlt."
-             aktion={<Segmente wahl={gruppe} setzen={setGruppe} teile={GRUPPEN} />}>
-        <Anteilsbalken zeilen={zeilen} oeffnen={gruppe === 'gesamt' ? undefined : z => z.ziel && navigate(z.ziel)} />
-        <Erklaerung>
-          Links der echte Verlust (Verdunstung, Faules), rechts davon der andere Kanal (zu klein, zu gross — nicht weg, nur nicht Hauptware).
-          Rechts steht der Anteil zusammen. So sieht man, wem anteilig am meisten fehlt — nicht, wer am grössten ist.
-          Zeigen auf einen Teil nennt Prozent und Tonnen{gruppe !== 'gesamt' ? '; ein Klick öffnet die Ursachen der Zeile' : ''}.
-        </Erklaerung>
-      </Karte>
+      {/* 2. Der Verlauf: im Lager und verkaufsfähig, bis heute gemessen, dann Prognose */}
+      <Verlauf daten={daten} gruppe={gruppe} schluessel={aktiv} />
 
-      {/* 5. Noch im Haus — aufklappbar, nach derselben Wahl */}
+      {/* 3. Wohin geht der Kürbis — der ganze Eingang, aufgeteilt */}
+      <Wohin daten={daten} gruppe={gruppe} schluessel={aktiv} oeffnen={z => z.ziel && navigate(z.ziel)} />
+
+      {/* 4. Noch im Haus — nach derselben Wahl */}
       <ImHaus daten={daten} gruppe={gruppe} />
 
-      {/* 6. Kaliber: die Glocke je Sorte oder Charge */}
+      {/* 5. Kaliber: die Glocke je Sorte oder Charge */}
       <Kaliber daten={daten} />
     </>
   )
@@ -205,8 +198,10 @@ export default function Ueberblick() {
 
 /* ---------- Der Verlauf --------------------------------------------------- */
 
-function Verlauf({ daten }: { daten: Auswertung }) {
-  const wochen = daten.verlauf.filter(w => w.sorte === null)
+function Verlauf({ daten, gruppe, schluessel }: { daten: Auswertung; gruppe: Gruppe; schluessel: string }) {
+  const k = gruppe === 'gesamt' ? '' : schluessel
+  const wochen = daten.verlauf.filter(w => w.gruppe === gruppe && w.schluessel === k)
+    .sort((a, b) => a.bis.localeCompare(b.bis))
   if (wochen.length < 2) return null
   const x = (d: string) => Date.parse(d) / TAG
   const heute = x(daten.heute)
@@ -216,62 +211,131 @@ function Verlauf({ daten }: { daten: Auswertung }) {
   // Gepolstert wird links, vor dem ersten Eingang: dort ist ohnehin nichts.
   const xBis = xLetzte
   const xVon = Math.min(xErste, 2 * heute - xLetzte)
+  const anteil = (w: typeof wochen[number]) => w.lager_kg > 0 ? w.verkaufsfaehig_kg / w.lager_kg : null
   const reihen: Reihe[] = [
-    { name: 'Eingang kumuliert', farbe: 'var(--strom-verdunstung)', linie: true, marker: false, flaeche: true,
+    { name: 'Eingang kumuliert', farbe: 'var(--text-leise)', linie: true, marker: false, flaeche: true, ausgeblendet: true,
       punkte: bisHeute.map(w => ({ x: x(w.bis), y: w.eingang_kum_kg })) },
-    { name: 'Ausgeliefert kumuliert', farbe: 'var(--strom-rest)', linie: true, marker: false, flaeche: true,
+    { name: 'Ausgeliefert kumuliert', farbe: 'var(--text-2)', linie: true, marker: false, flaeche: true,
       punkte: bisHeute.map(w => ({ x: x(w.bis), y: w.ausgang_kum_kg })) },
-    { name: 'Verlust — bis heute, dann Prognose', farbe: 'var(--strom-schimmel)', linie: true, marker: false, prognoseAb: heute, dick: true,
-      punkte: wochen.map(w => ({ x: x(w.bis), y: w.verlust_kum_kg,
-        text: `Verdunstung ${tonnen(w.verdunstung_kum_kg)} · Faules im Lager ${tonnen(w.schimmel_kum_kg)} · nicht lagerbedingt ${tonnen(w.sockel_kum_kg)} · Faules beim Abpacken ${tonnen(w.fax_kum_kg)}` })) },
-    { name: 'Noch im Haus — bis heute, dann Prognose', farbe: 'var(--text-leise)', linie: true, marker: false, prognoseAb: heute, ausgeblendet: true,
+    { name: 'Im Lager — Eingangsware, die noch liegt', farbe: 'var(--kuerbis)', linie: true, marker: false, dick: true, prognoseAb: heute,
+      punkte: wochen.map(w => ({ x: x(w.bis), y: w.lager_kg })) },
+    { name: 'Davon verkaufsfähig', farbe: 'var(--strom-rest)', linie: true, marker: false, dick: true, prognoseAb: heute,
+      punkte: wochen.map(w => ({ x: x(w.bis), y: w.verkaufsfaehig_kg,
+        text: `${prozent(anteil(w), 0)} der liegenden Ware · zu klein/zu gross ${tonnen(w.kanal_kg)} · Fax erwartet ${tonnen(w.fax_lager_kg)}` })) },
+    { name: 'Gute Ware (nach Verdunstung und Faulem)', farbe: 'var(--text-leise)', linie: true, marker: false, prognoseAb: heute, ausgeblendet: true,
       punkte: wochen.map(w => ({ x: x(w.bis), y: w.im_haus_kg })) },
   ]
+  const name = gruppe === 'gesamt' ? 'alle Chargen' : gruppe === 'charge' ? `Charge ${schluessel}` : schluessel
   return (
-    <Karte titel="Die Saison im Verlauf" unter="Kumuliert je Woche: was hereinkam, was hinausging, was verloren ist — und wie es weiterginge.">
+    <Karte titel="Die Saison im Verlauf" unter={`Je Woche für ${name}: was hereinkam, was hinausging, was noch liegt — und wie viel davon verkaufsfähig ist.`}>
       <Linien reihen={reihen} heute={{ x: heute, text: `heute, ${datum(daten.heute).slice(0, 6)}` }}
               xVon={xVon} xBis={xBis} hoehe={300}
               xFormat={d => datum(new Date(d * TAG)).slice(0, 5)} yFormat={tonnenAchse} xTitel="Woche" yTitel="Tonnen, kumuliert" />
       <Erklaerung>
-        Eingang (Erntejournal) und Ausgeliefert (Lieferscheine) sind <Herkunft art="gemessen" /> und enden heute.
-        Der Verlust ist <Herkunft art="gerechnet" /> bis heute und läuft danach als <Herkunft art="prognose" /> gestrichelt weiter:
-        die Ware im Haus altert bis zum Saisonende, nichts Neues kommt herein, nichts geht hinaus — das weiss niemand.
-        Zeigen auf eine Woche nennt alle Linien; die Legende blendet Linien aus; ein gezogener Rahmen vergrössert.
+        <p>Eingang und Ausgeliefert sind <Herkunft art="gemessen" /> und enden heute.
+        <strong> Im Lager</strong> ist die Eingangsware, die an diesem Stichtag noch nicht ausgeliefert war — sie fällt, wenn geliefert wird, und steht danach still.
+        <strong> Davon verkaufsfähig</strong> ist <Herkunft art="gerechnet" /> und fällt auch dann weiter, wenn nichts geliefert wird: Die liegende Ware altert.</p>
+        <p>Der Abstand zwischen den beiden dicken Linien <em>ist</em> der Verlust plus das, was zu klein, zu gross oder Fax-Ausschuss ist — deshalb gibt es dafür keine eigene Linie mehr.
+        Ab heute läuft beides gestrichelt weiter als <Herkunft art="prognose" />: <em>wenn nichts mehr verkauft wird und nichts Neues hereinkommt.</em>
+        Zeigen auf eine Woche nennt alle Linien und den Anteil; die Legende blendet Linien aus; ein gezogener Rahmen vergrössert.</p>
       </Erklaerung>
     </Karte>
   )
 }
 
-/* ---------- Die Anteile je Gruppe ------------------------------------------ */
+/* ---------- Wohin geht der Kürbis? ----------------------------------------- */
 
-function anteilszeilen(daten: Auswertung, gruppe: Gruppe): Anteilszeile[] {
-  const schluessel = gruppe === 'gesamt' ? [''] : gruppenSchluessel(daten.verlust, gruppe)
+function wohinZeilen(daten: Auswertung, gruppe: Gruppe, schluessel: string): Anteilszeile[] {
+  const keys = gruppe === 'gesamt' ? [''] : gruppenSchluessel(daten.verlust, gruppe)
   const chargen = new Map(daten.bestand.map(b => [String(b.charge_nr), b]))
-  const zeilen = schluessel.map(k => {
-    const stroeme = stroemeVon(daten.verlust, gruppe, k)
-    const eingang = stroeme[0]?.eingang ?? 0
-    const nChargen = stroeme[0]?.nChargen ?? 0
-    const teil = (name: string) => stroeme.find(x => x.strom === name)
-    const teile = URSACHEN.map(u => {
-      const v = teil(u)
-      return { name: STROMKURZ[u] ?? u, kg: v?.bekannt ? v.mittel : 0, farbe: STROMFARBE[u] ?? 'var(--text-leise)',
-               hinweis: !v?.bekannt ? 'nicht gemessen — unbekannt, nicht null' : KANAL.has(u) ? 'kein echter Verlust: die Ware geht in einen anderen Kanal' : v.bereichBekannt ? `Bereich ${tonnen(v.unten)}–${tonnen(v.oben)}` : undefined }
-    })
+  const zeilen = keys.map(k => {
+    const w = wohinVon(daten.wohin, gruppe, k)
+    const teile = WOHIN_TEILE.map(t => ({
+      name: t.name, farbe: t.farbe,
+      kg: (w?.[t.feld as keyof typeof w] as number | null) ?? 0,
+      hinweis: t.hinweis,
+    }))
+    const eingang = w?.eingang_kg ?? 0
+    const verlust = teile.filter(t => VERLUSTTEILE.has(t.name)).reduce((a, t) => a + t.kg, 0)
     const c = gruppe === 'charge' ? chargen.get(k) : undefined
     const name = gruppe === 'gesamt' ? 'Alle Chargen' : gruppe === 'charge' ? `Charge ${k}` : k
-    const untertitel = gruppe === 'charge' ? `${c?.sorte ?? ''} · ${c?.schlag ?? ''} · ${tonnen(eingang)} Eingang` : `${nChargen} Chargen · ${tonnen(eingang)} Eingang`
+    const untertitel = gruppe === 'charge'
+      ? `${c?.sorte ?? ''} · ${c?.schlag ?? ''} · ${tonnen(eingang)} Eingang`
+      : `${w?.n_chargen ?? 0} Chargen · ${tonnen(eingang)} Eingang`
     const ziel = gruppe === 'gesamt' ? undefined : gruppe === 'charge' ? `/ursachen?charge=${k}` : `/ursachen?${gruppe}=${encodeURIComponent(k)}`
-    return { name, untertitel, bezug: eingang, bezugName: 'am Eingang', teile, ziel }
+    return { name, untertitel, bezug: eingang, bezugName: 'am Eingang', teile, ziel,
+             rechts: prozent(eingang > 0 ? verlust / eingang : null), verlust: eingang > 0 ? verlust / eingang : 0,
+             hervor: gruppe !== 'gesamt' && k === schluessel }
   })
-  const anteil = (z: Anteilszeile) => z.bezug > 0 ? z.teile.reduce((a, t) => a + t.kg, 0) / z.bezug : 0
-  return zeilen.sort((a, b) => anteil(b) - anteil(a))
+  return zeilen.sort((a, b) => b.verlust - a.verlust)
+}
+
+function Wohin({ daten, gruppe, schluessel, oeffnen }: {
+  daten: Auswertung; gruppe: Gruppe; schluessel: string; oeffnen: (z: Anteilszeile) => void
+}) {
+  const zeilen = wohinZeilen(daten, gruppe, schluessel)
+  const k = gruppe === 'gesamt' ? '' : schluessel
+  const stroeme = stroemeVon(daten.verlust, gruppe, k)
+  const eingang = stroeme[0]?.eingang ?? 0
+  const echt = ['Schimmel/Fäulnis', 'Verdunstung', 'Faul beim Abpacken (Fax)', 'Nicht lagerbedingt']
+  const kanal = ['Zu klein (Tierfutter)', 'Nebenkanal zu gross']
+  const rang = echt.map(name => stroeme.find(x => x.strom === name)).filter(Boolean)
+    .sort((a, b) => (b!.bekannt ? b!.mittel : -1) - (a!.bekannt ? a!.mittel : -1))
+  const groesster = rang.find(x => x!.bekannt)?.strom
+  const p0 = prognoseBei(daten.prognose, gruppe, k, 0)
+  const name = gruppe === 'gesamt' ? 'alle Chargen' : gruppe === 'charge' ? `Charge ${schluessel}` : schluessel
+
+  const zeile = (x: NonNullable<typeof rang[number]>) => (
+    <tr key={x.strom}>
+      <td><span className="chip" style={{ background: STROMFARBE[x.strom], marginRight: '.5rem' }} />{STROMKURZ[x.strom] ?? x.strom}
+        {x.strom === groesster && <span className="leise"> · grösster Posten</span>}</td>
+      <td className="zahl">{x.bekannt ? <strong>{tonnen(x.mittel)}</strong> : <span className="leise">nicht gemessen</span>}</td>
+      <td className="zahl">{x.bekannt ? prozent(eingang > 0 ? x.mittel / eingang : null) : '—'}</td>
+      <td className="zahl">{x.bekannt && x.bereichBekannt ? <span className="leise">{tonnen(x.unten)}–{tonnen(x.oben)}</span> : <span className="leise">—</span>}</td>
+    </tr>
+  )
+
+  return (
+    <Karte titel="Wohin geht der Kürbis?"
+           unter={<>Der ganze Eingang von {name}, in die zehn Teile zerlegt, in die er zerfällt — was draussen ist, und was noch liegt.
+             Jede Masse hier ist bis heute <Herkunft art="gerechnet" />, ausser wo eine Prognose danebensteht.</>}>
+      <Anteilsbalken zeilen={zeilen} oeffnen={gruppe === 'gesamt' ? undefined : oeffnen} />
+
+      <div className="rollbar" style={{ marginTop: '1rem' }}><table className="dicht">
+        <thead><tr><th>Echter Verlust bis heute<Herkunft art="gerechnet" /></th><th className="zahl">Masse</th><th className="zahl">Anteil am Eingang</th><th className="zahl">Bereich</th></tr></thead>
+        <tbody>{rang.map(x => zeile(x!))}</tbody>
+      </table></div>
+
+      <div className="rollbar" style={{ marginTop: '.75rem' }}><table className="dicht">
+        <thead><tr><th>Nicht weg, nur nicht Hauptware<Herkunft art="gerechnet" /></th><th className="zahl">Masse</th><th className="zahl">Anteil am Eingang</th><th className="zahl">Bereich</th></tr></thead>
+        <tbody>{kanal.map(n => stroeme.find(x => x.strom === n)).filter(Boolean).map(x => zeile(x!))}</tbody>
+      </table></div>
+
+      {p0 && p0.verkaufsfaehig_je_tag_kg !== null && p0.verkaufsfaehig_je_tag_kg > 0 && (
+        <p className="fussnote" style={{ marginTop: '.75rem' }}>
+          <strong>So geht es weiter:</strong> An der liegenden Ware gehen zurzeit rund <strong>{kg(p0.verkaufsfaehig_je_tag_kg, 0)} je Tag</strong> verkaufsfähige Ware verloren
+          {p0.verdunstet_je_tag_kg !== null && p0.faul_je_tag_kg !== null && <> — Verdunstung {kg(p0.verdunstet_je_tag_kg, 0)}, Faules {kg(p0.faul_je_tag_kg, 0)}</>}.
+          <Herkunft art="prognose" /> <Link to="/chargen">je Charge ansehen</Link>
+        </p>
+      )}
+
+      <Erklaerung>
+        <p>Der Balken ist der ganze Eingang (100 %). Die kräftigen Farben sind Ware, die den Betrieb verlassen hat; die hellen sind dieselben Ursachen an der Ware, die noch liegt.
+        Rechts steht der Anteil <strong>echter Verlust</strong> — verdunstetes Wasser und Faules, draussen wie drinnen. Danach sind die Zeilen sortiert.</p>
+        <p><strong>Zu klein und zu gross sind kein Verlust.</strong> Die Ware ist nicht weg, nur nicht in der richtigen Grösse: Sie geht an die Tiere oder in den Nebenkanal.
+        Und sie war es vom Feld an — sie wächst nicht mit der Lagerdauer und steht deshalb in der Prognose als flacher Streifen, nicht als steigende Kurve.</p>
+        <p><Herkunft art="gemessen" /> heisst: aus einer vollständigen Liste — jede Palette im Erntejournal, jede Lieferung auf einem Lieferschein.{' '}
+        <Herkunft art="gerechnet" /> heisst: bis heute, dem {datum(daten.heute)}, aus gemessenen Raten hochgerechnet.</p>
+      </Erklaerung>
+    </Karte>
+  )
 }
 
 /* ---------- Noch im Haus --------------------------------------------------- */
 
 interface Gruppenbild {
   name: string; sorte: string; schlag: string; nChargen: number
-  eingang: number; geliefert: number; verlust: number | null; imHaus: number; verkaufsfaehig: number | null
+  eingang: number; geliefert: number; verlust: number | null; lager: number; imHaus: number; verkaufsfaehig: number | null
   alterVon: number | null; alterBis: number | null
 }
 
@@ -280,58 +344,66 @@ function gruppenbild(chargen: Bestand[], nach: 'sorte' | 'schlag' | 'charge'): G
   for (const c of chargen) {
     const name = nach === 'charge' ? String(c.charge_nr) : nach === 'sorte' ? c.sorte : c.schlag
     let g = map.get(name)
-    if (!g) { g = { name, sorte: c.sorte, schlag: c.schlag, nChargen: 0, eingang: 0, geliefert: 0, verlust: 0, imHaus: 0, verkaufsfaehig: 0, alterVon: null, alterBis: null }; map.set(name, g) }
+    if (!g) { g = { name, sorte: c.sorte, schlag: c.schlag, nChargen: 0, eingang: 0, geliefert: 0, verlust: 0, lager: 0, imHaus: 0, verkaufsfaehig: 0, alterVon: null, alterBis: null }; map.set(name, g) }
     // 0064: ein unbekannter Verlust bleibt unbekannt — auch in einer Gruppe.
     g.nChargen++; g.eingang += c.eingang_kg; g.geliefert += c.geliefert_kg
     g.verlust = summeBekannt([g.verlust, c.verlust_heute_kg])
+    g.lager += c.lager_kg
     g.imHaus += c.im_haus_heute_kg
     // 0066: dasselbe für „davon verkaufsfähig".
     g.verkaufsfaehig = summeBekannt([g.verkaufsfaehig, c.verkaufsfaehig_lager_kg])
     if (c.im_haus_heute_kg > 0 && c.alter_lager_von !== null) g.alterVon = g.alterVon === null ? c.alter_lager_von : Math.min(g.alterVon, c.alter_lager_von)
     if (c.im_haus_heute_kg > 0 && c.alter_lager_bis !== null) g.alterBis = g.alterBis === null ? c.alter_lager_bis : Math.max(g.alterBis, c.alter_lager_bis)
   }
-  return [...map.values()].sort((a, b) => b.imHaus - a.imHaus)
+  // Älteste zuerst: Wer am längsten liegt, verliert als nächstes am meisten.
+  return [...map.values()].sort((a, b) => (b.alterBis ?? -1) - (a.alterBis ?? -1) || b.lager - a.lager)
 }
 
 function ImHaus({ daten, gruppe }: { daten: Auswertung; gruppe: Gruppe }) {
   const s = daten.saison!
   const nach = gruppe === 'gesamt' ? 'sorte' : gruppe
   const gruppen = gruppenbild(daten.bestand, nach)
-  const mitBestand = gruppen.filter(g => g.imHaus > 0)
+  const mitBestand = gruppen.filter(g => g.lager > 0)
   return (
     <Karte>
-      <Aufklapp titel={<><span>Was ist noch im Haus?</span> <span className="leise">{tonnen(s.im_haus_heute_kg)} in {daten.bestand.filter(b => b.im_haus_heute_kg > 0).length} Chargen · davon verkaufsfähig {tonnen(s.verkaufsfaehig_heute_kg)} · {nach === 'sorte' ? 'je Sorte' : nach === 'schlag' ? 'je Schlag' : 'je Charge'}</span><Herkunft art="gerechnet" /></>}>
+      <Aufklapp titel={<><span>Was ist noch im Haus?</span> <span className="leise">{tonnen(s.lager_kg)} im Lager in {daten.bestand.filter(b => b.lager_kg > 0).length} Chargen · davon verkaufsfähig {tonnen(s.verkaufsfaehig_heute_kg)} · {nach === 'sorte' ? 'je Sorte' : nach === 'schlag' ? 'je Schlag' : 'je Charge'}</span><Herkunft art="gerechnet" /></>}>
         {s.n_lieferungen === 0 && <Hinweis art="info">Ohne eingelesenen Warenausgang liegt rechnerisch noch alles im Haus.</Hinweis>}
         <div className="rollbar"><table>
           <thead><tr>
             <th>{nach === 'sorte' ? 'Sorte' : nach === 'schlag' ? 'Schlag' : 'Charge'}</th>
-            <th className="zahl">Eingang</th><th className="zahl">Ausgeliefert</th>
-            <th className="zahl">Verlust bis heute</th>
-            <th className="zahl">Noch im Haus</th><th className="zahl">davon verkaufsfähig</th><th className="zahl">Liegt seit</th>
+            <th className="zahl">Im Lager</th><th className="zahl">Verkaufsfähig heute</th>
+            <th className="zahl">In 4 Wochen</th><th className="zahl">Liegt seit</th>
+            <th className="zahl">Gute Ware</th>
           </tr></thead>
           <tbody>
-            {mitBestand.map(g => (
-              <tr key={g.name}>
-                <td>{nach === 'charge' ? <Link to={`/chargen?charge=${g.name}`}>{g.name}</Link> : <strong>{g.name}</strong>}{nach === 'charge' && <span className="leise"> · {g.sorte} · {g.schlag}</span>}{nach !== 'charge' && <span className="leise"> · {g.nChargen} Chargen</span>}</td>
-                <td className="zahl">{kg(g.eingang, 0)}</td>
-                <td className="zahl">{s.n_lieferungen > 0 ? kg(g.geliefert, 0) : <span className="leise">—</span>}</td>
-                <td className="zahl">{kg(g.verlust, 0)}</td>
-                <td className="zahl"><strong>{kg(g.imHaus, 0)}</strong></td>
-                <td className="zahl">{kg(g.verkaufsfaehig, 0)}</td>
-                <td className="zahl">{g.alterVon !== null && g.alterBis !== null ? alterSpanne(g.alterVon, g.alterBis, null) : <span className="leise">—</span>}</td>
-              </tr>
-            ))}
+            {mitBestand.map(g => {
+              const heute = anteilBei(daten.prognose, nach, g.name, 0)
+              const spaeter = anteilBei(daten.prognose, nach, g.name, 28)
+              return (
+                <tr key={g.name}>
+                  <td>{nach === 'charge' ? <Link to={`/chargen?charge=${g.name}`}>{g.name}</Link> : <strong>{g.name}</strong>}{nach === 'charge' && <span className="leise"> · {g.sorte} · {g.schlag}</span>}{nach !== 'charge' && <span className="leise"> · {g.nChargen} Chargen</span>}</td>
+                  <td className="zahl"><strong>{kg(g.lager, 0)}</strong></td>
+                  <td className="zahl">{kg(g.verkaufsfaehig, 0)}{heute !== null && <span className="leise"> · {prozent(heute, 0)}</span>}</td>
+                  <td className="zahl">{spaeter !== null ? prozent(spaeter, 0) : <span className="leise">—</span>}</td>
+                  <td className="zahl">{g.alterVon !== null && g.alterBis !== null ? alterSpanne(g.alterVon, g.alterBis, null) : <span className="leise">—</span>}</td>
+                  <td className="zahl"><span className="leise">{kg(g.imHaus, 0)}</span></td>
+                </tr>
+              )
+            })}
             {gruppen.length > mitBestand.length && (
-              <tr><td colSpan={7} className="leise">{gruppen.length - mitBestand.length} {nach === 'sorte' ? 'Sorten' : nach === 'schlag' ? 'Schläge' : 'Chargen'} ohne Bestand — alles ausgeliefert.</td></tr>
+              <tr><td colSpan={6} className="leise">{gruppen.length - mitBestand.length} {nach === 'sorte' ? 'Sorten' : nach === 'schlag' ? 'Schläge' : 'Chargen'} ohne Bestand — alles ausgeliefert.</td></tr>
             )}
           </tbody>
         </table></div>
         {s.ueberzaehlung_kg > 0 && (
-          <p className="fussnote">Bei einigen Chargen steckt hinter den Lieferungen mehr Ware, als je eingelagert wurde ({tonnen(s.ueberzaehlung_kg)}) — dort fehlt meist Wareneingang. Sie stehen mit 0 im Haus.</p>
+          <p className="fussnote">Bei einigen Chargen steckt hinter den Lieferungen mehr Ware, als je eingelagert wurde ({tonnen(s.ueberzaehlung_kg)}) — dort fehlt meist Wareneingang. Sie stehen mit 0 im Lager.</p>
         )}
         <Erklaerung>
-          Je Charge: Eingang <Herkunft art="gemessen" /> minus die Eingangsware hinter den Lieferungen <Herkunft art="gemessen" />, minus Verdunstung und Faules der liegenden Ware bis heute <Herkunft art="gerechnet" />.
-          „Verkaufsfähig" zieht davon noch ab, was zu klein oder zu gross ist. „Liegt seit" ist eine Spanne über die Eingangstage — es gibt kein Zuerst-rein-zuerst-raus, und die App weiss nicht, welche Palette gegangen ist.
+          <strong>Im Lager</strong> ist Eingangsware: Eingang <Herkunft art="gemessen" /> minus die Eingangsware hinter den Lieferungen. Sie ändert sich nur durch Liefern.
+          <strong> Verkaufsfähig</strong> zieht davon ab, was bis heute verdunstet oder verdorben ist und was zu klein oder zu gross ist <Herkunft art="gerechnet" />;
+          <strong> in 4 Wochen</strong> ist dieselbe Rechnung 28 Tage später <Herkunft art="prognose" />.
+          <strong> Gute Ware</strong> ist, was nach Verdunstung und Faulem übrig ist — mehr als verkaufsfähig, weil zu klein und zu gross noch drinstecken.
+          Sortiert ist nach der ältesten Ware: Wer am längsten liegt, verliert als nächstes am meisten. „Liegt seit" ist eine Spanne über die Eingangstage — es gibt kein Zuerst-rein-zuerst-raus.
         </Erklaerung>
       </Aufklapp>
     </Karte>

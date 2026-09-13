@@ -200,7 +200,9 @@ const ZUSATZ = ['bis heute', 'bis ', 'echter', 'kein echter', 'erwartet', 'erwar
                 'prognose', 'in 14 tagen', 'nächste', 'je ', 'davon', 'seit']
 const BEZUG = ['von ', 'des eingangs', 'vom eingang', 'je ', 'anteil', 'der ware', 'aller',
                'des lagers', 'im lager', 'im haus', 'gemessen an', 'bezogen auf', 'am eingang',
-               '100 %', 'des bestands']
+               '100 %', 'des bestands',
+               // Runde P: der Nenner der Prognose und der Ursachen-Auswahl
+               'liegenden ware', 'liegenden eingangsware', 'der auswahl', 'davon']
 const VERBOTEN = [
   ['Buch A', 'Modellsprache — der Betriebsleiter liest „echter Verlust"'],
   ['Buch B', 'Modellsprache — der Betriebsleiter liest „kein echter Verlust"'],
@@ -283,8 +285,11 @@ function sollzahlen() {
   return {
     eingang: z(bilanz.eingang_kg),
     geliefert: z(bilanz.geliefert_kg),
-    verlust: z(bilanz.verlust_heute_kg),
-    imHaus: z(bilanz.im_haus_heute_kg),
+    // Seit Runde P stehen oben „Im Lager" und „davon verkaufsfähig" statt
+    // Verlust und „im Haus": Das ist die Frage des Betriebsleiters, und nur
+    // diese zwei Zahlen hängen direkt an dem, was er verkaufen kann.
+    lager: z(bilanz.lager_kg),
+    verkaufsfaehig: z(bilanz.verkaufsfaehig_heute_kg),
   }
 }
 const tonnen = kg => `${(Math.round(kg / 100) / 10).toLocaleString('de-CH')} t`
@@ -344,7 +349,7 @@ for (const seite of SEITEN) {
     if (soll) {
       const kopf = ernte.zahlen.filter(z => z.art === 'kennzahl')
       for (const [titelTeil, wert] of [['eingang', soll.eingang], ['ausgeliefert', soll.geliefert],
-                                       ['verlust', soll.verlust], ['im haus', soll.imHaus]]) {
+                                       ['im lager', soll.lager], ['verkaufsfähig', soll.verkaufsfaehig]]) {
         const gefunden = kopf.find(z => norm(z.beschriftung).includes(titelTeil))
         if (!gefunden) { alleFehler.push({ seite: seite.name, regel: 'Gegenprobe', was: `Kopfzahl „${titelTeil}" fehlt`, wo: 'Überblick' }); continue }
         const erwartet = tonnen(wert)
