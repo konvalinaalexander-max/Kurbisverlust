@@ -217,15 +217,22 @@ Neue kostet einen Griff **je Arbeit**, nicht je Palette.
 | `supabase/test/run.sh` | alle Stufen bestanden |
 | `npm run pruefen` (tsc, Tests, Build) | typecheck grün, **102 Tests**, Build grün |
 | `npm run gegenprobe -- --db demo` | **52 Fälle, 52 bestanden** |
-| `pruefstand/bildschirme.mjs` | 188 Aufnahmen, keine Konsolenfehler |
-| `supabase/test/keine_zerstoerung.sh` | neu, läuft als erste Stufe |
+| `pruefstand/bildschirme.mjs` | 188 Aufnahmen, keine Konsolenfehler — dazu zwei **neue** Ansichten im Prüfstand: `kontrolle-palette` und `betrieb-chargen` |
+| `supabase/test/keine_zerstoerung.sh` | neu, läuft als erste Stufe (77 Migrationen, 3 begründete Altfälle) |
 | `test/kontrollpalette.test.ts` | neu, 6 Fälle |
 
 Der Bildschirmvergleich vorher ↔ nachher: 188 Ansichten, gleich viele wie
-vorher, keine neuen Konsolenfehler. Die Aufnahmen für die vier neuen Ansichten
-(`v_ausgang_voll`, `kontrollpalette`, `kontrollpalette_wiegung`,
-`v_kontrollpalette_vorschlag`) laufen noch ohne Beispieldaten — die Masken
-rendern, die Listen sind leer. Das steht in Abschnitt 9.
+vorher, keine neuen Konsolenfehler. Zwei Ansichten sind neu in den Prüfstand
+gekommen, weil es sie vorher nicht gab: **`kontrolle-palette`** (der zweite Weg
+auf dem Kontroll-Bildschirm) und **`betrieb-chargen`** (der Haken „Die Ernte ist
+eingebracht"). Beide rendern auf Handy und Bildschirm, hell und dunkel, ohne
+Konsolenfehler.
+
+Vier Datenquellen haben in der Demo noch keinen Inhalt (`v_ausgang_voll`,
+`kontrollpalette`, `kontrollpalette_wiegung`, `v_kontrollpalette_vorschlag`) —
+die Masken stehen, die Listen sind leer und sagen das auch („Noch keine
+Kontrollpalette angelegt"). Echte Zeilen entstehen ab der ersten Kontrolle in
+der Halle; das steht in Abschnitt 9.
 
 ---
 
@@ -261,15 +268,16 @@ dieser Runde macht eines davon später unmöglich — im Gegenteil:
 | Was | Ergebnis |
 |---|---|
 | `supabase/test/keine_zerstoerung.sh` | keine zerstörende Anweisung ausserhalb der Ausnahmeliste |
-| `setup.sql` als **ein** Query im Editor | keine Meldung ausser der Fertig-Zeile; **679 KB** von 1000 KB |
+| `setup.sql` als **ein** Query im Editor | keine Meldung ausser der Fertig-Zeile; **683 KB** von 1000 KB |
 | Fingerabdruck Migrationen ↔ setup.sql | **3019 Objekte auf beiden Wegen, kein Unterschied** |
 | Aktualisierung von einem alten Stand | Daten erhalten, Auswertung rufbar, Schema wie frisch eingerichtet |
 | Demo-Daten wie im SQL-Editor | 844 Paletten, 48 Arbeiten, Fax, Lieferungen, Sonderfälle |
-| Tempo der Auswertung | Schritte 341 / 2068 / 951 / 1807 / 405 ms; Dashboard **32.9 ms** |
-| Lasttest (5040 Paletten) | Auswertung neu rechnen **11 607 ms** (Grenze 12 000); Dashboard unter Last **35.2 ms** |
+| Tempo der Auswertung | Schritte 333 / 2102 / 949 / 1711 / 403 ms; Dashboard **32.5 ms** |
+| Lasttest (5040 Paletten, 840 Arbeiten, 255 300 Gewichtsstufen) | Auswertung neu rechnen **11 558 ms** (Grenze 12 000); Dashboard unter Last **34.3 ms** |
 | `npm test` | **102 Fälle, 102 bestanden** |
 | `npm run gegenprobe -- --db demo` | **52 Fälle, 52 bestanden** |
-| `pruefstand/bildschirme.mjs` | 188 Aufnahmen, keine Konsolenfehler |
+| `pruefstand/bildschirme.mjs` | 188 Aufnahmen, keine Konsolenfehler; dazu die zwei neu aufgenommenen Ansichten `kontrolle-palette` und `betrieb-chargen` mit je 4 Aufnahmen, ebenfalls ohne Konsolenfehler |
+| Lückenscanner | keine Lücke zwischen Maske und Auswertung |
 | `node docs/pdf_bauen.mjs` | `Die-Arbeiter-App.pdf`, 23 Seiten (20 + der Nachtrag) |
 
 ```
