@@ -664,6 +664,7 @@ Was jede Ansicht bedeutet, steht in [`docs/DATENFLUSS.md`](docs/DATENFLUSS.md).
 
 | Datei | Worum es geht |
 |---|---|
+| [`docs/Das-ganze-Werkzeug.pdf`](docs/Das-ganze-Werkzeug.pdf) | **Von Grund auf, in einem Fluss.** Folgt dem Kürbis vom Feld bis zum Kunden und erklärt an jeder Station dreierlei nebeneinander: was physisch passiert, was die App dort fragt und speichert, und was die Mathematik mit dieser Antwort macht. Mit einem von Hand nachgerechneten Beispiel (Charge 1632), den gemessenen Zahlen der Demo-Saison und einem eigenen Kapitel über die Annahmen und ihre Grenzen. 17 Kapitel, 33 Seiten. |
 | [`docs/Das-Programm-erklaert.pdf`](docs/Das-Programm-erklaert.pdf) | **Das ganze Programm in zwei Teilen.** Teil 1: was im Betrieb passiert, was die App an jeder Stelle fragt, was dabei gespeichert wird und warum genau so — jede Maske einzeln. Teil 2: Datenmodell, Sichtenkette, Massenkaskade, Verderbsmodell, Unsicherheit, Import, Sicherheit, Tempo, Prüfwerk und die ehrlichen Grenzen. 33 Seiten. |
 | [`docs/Ablauf-Betrieb-und-App.pdf`](docs/Ablauf-Betrieb-und-App.pdf) | **Der Einstieg.** Station für Station: was physisch passiert, was die App fragt, was Pflicht und was freiwillig ist — und was sie mit der Antwort anfängt. |
 | [`docs/Datenarchitektur.pdf`](docs/Datenarchitektur.pdf) | **Wie die Daten gespeichert werden** — damit die Analyse später komplett anders aussehen darf, ohne dass ein Messwert verloren geht. |

@@ -1,11 +1,11 @@
 /**
- * Die fünf PDFs aus den fünf HTML-Dateien bauen.
+ * Die PDFs aus den HTML-Dateien bauen.
  *
  * Bisher stand dieser Schritt nirgends: Wer die Dokumente änderte, musste
  * wissen, wie sie ins PDF kommen — und wer es nicht wusste, liess die PDFs
  * veralten. Jetzt ist es ein Befehl:
  *
- *   node docs/pdf_bauen.mjs            # alle fünf
+ *   node docs/pdf_bauen.mjs            # alle
  *   node docs/pdf_bauen.mjs programm   # nur die, deren Dateiname passt
  *
  * Die Schrift wird als Base64 in das Stylesheet gesetzt, damit das PDF ohne
@@ -24,6 +24,7 @@ const NUR = process.argv[2] ?? ''
 // Welches HTML wird zu welchem PDF. Die Namen sind die, auf die README und
 // docs/*.md verweisen — sie dürfen sich nicht ändern.
 const DOKUMENTE = [
+  { html: 'werkzeug.html',    pdf: 'Das-ganze-Werkzeug.pdf' },
   { html: 'programm.html',    pdf: 'Das-Programm-erklaert.pdf' },
   { html: 'ablauf.html',      pdf: 'Ablauf-Betrieb-und-App.pdf' },
   { html: 'architektur.html', pdf: 'Datenarchitektur.pdf' },
