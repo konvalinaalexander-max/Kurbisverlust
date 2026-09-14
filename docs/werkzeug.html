@@ -230,30 +230,61 @@ und vor allem, an welchen Stellen die Ware ihre Identität verliert. Dort entsch
 
 <h2>2.1 Der Weg des Kürbisses</h2>
 
-<div class="bild">Feld (Schlag)
-   │  geerntet, gestaffelt über Tage und Wochen
-   ▼
-Wareneingang ─────────── Brückenwaage: Palette mit Charge, Datum, Brutto, Kisten, Gebinde
-   │
-   ▼
-┌─ LAGER ────────────── eine Halle, gleiche Bedingungen für alle Paletten
-│      │
-│      ├── Weg 2 (Hand) ──── Waschen + Sortieren in einem Schritt ──► Kisten ──► raus
-│      │
-│      └── Weg 1 (Maschine) ─ Sortieren ─┐
-│                                        │
-└────────────────────────────────────────┘  zurück in dieselbe Halle,
-       Kaliber-Kisten, Wochen bis Monate    die Original-Palette gibt es nicht mehr
-                    │
-                    ▼
-              Waschen ──► fertige Paletten ──► Fax (etikettieren, abpacken) ──► raus
+<div class="bild">FELD (Schlag)
+  |  Ernte, über Tage und Wochen gestaffelt
+  v
+WARENEINGANG — Brückenwaage
+  |  Hier entsteht die EINGANGSPALETTE:
+  |  Charge + Eingangsdatum + Eingangsgewicht + Kisten
+  v
++=== LAGER (eine Halle) ====================================================+
+|                                                                          |
+|  EINGANGSPALETTEN      bekannt: Charge, Eingangsdatum, Eingangsgewicht   |
+|        |                                                                 |
+|        +------ kein FIFO (1) ------+------ kein FIFO (2) ------+         |
+|        v                                                       v         |
+|  WASCHEN + SORTIEREN (Hand)                    SORTIEREN (Maschine)      |
+|  waschen und am Band sortieren                 Kaliberband, Sortier-CSV  |
+|        |                                                       |         |
+|        |                   die Eingangspalette löst sich auf:   |         |
+|        |                   die Kaliber-Kisten kommen auf NEUE   |         |
+|        |                   Paletten, neu zusammengestellt       |         |
+|        |                                                       v         |
+|        |                          KALIBER-PALETTEN                        |
+|        |                          bekannt:  Charge, Sortierdatum          |
+|        |                          verloren: Eingangsdatum, -gewicht       |
+|        |                                                       |         |
+|        |                                        kein FIFO (3)  |         |
+|        |                                                       v         |
+|        |                          WASCHEN — die GANZE Palette            |
+|        |                                                       |         |
+|        +---------------------------+---------------------------+         |
+|                                    v                                     |
+|                      FERTIGE PALETTEN — drei davon gewogen,              |
+|                      daraus das gemessene Kilo je Kiste                  |
+|                                    |                                     |
+|                                    v                                     |
+|                      FAX — etikettieren, abpacken, Faules                |
+|                      ein letztes Mal aussortieren                        |
++====================================|=====================================+
+                                     v
+                               WARENAUSGANG
 </div>
 
-<p>Der Punkt, den ein Modell leicht übersieht: <strong>Weg 1 hat zwei Lagerabschnitte.</strong>
-Zwischen Sortieren und Waschen steht die Ware wieder in derselben Halle — in Kaliber-Kisten
-statt auf der Original-Palette, aber am selben Ort, unter denselben Bedingungen. Sie verdunstet
-und verdirbt weiter. Der Betrieb hat bestätigt: alles, was sortiert wurde, wird später
-gewaschen.</p>
+<p><strong>Die Palette ist durchgehend die Einheit — auch nach dem Sortieren.</strong> Was
+die Sortiermaschine verlässt, sind nicht lose Kisten: Die Kaliber-Kisten werden wieder auf
+Paletten gestellt, neu zusammengestellt nach Kaliber. Diese <em>Kaliber-Palette</em> geht ins
+Zwischenlager, und wenn gewaschen wird, kommt sie <strong>als Ganzes</strong> an die
+Waschstrasse — nicht Kiste für Kiste. Deshalb zählt der Arbeiter beim Waschen auch Paletten
+und nicht Kisten, und gibt je Palette an, wie viele Kisten daraufstehen.</p>
+
+<p>Der zweite Punkt, den ein Modell leicht übersieht: <strong>Weg 1 hat zwei
+Lagerabschnitte.</strong> Zwischen Sortieren und Waschen steht die Ware wieder in derselben
+Halle, unter denselben Bedingungen. Sie verdunstet und verdirbt weiter. Der Betrieb hat
+bestätigt: alles, was sortiert wurde, wird später gewaschen.</p>
+
+<p>Und beide Wege enden gleich: fertige Paletten, dann <strong>Fax</strong>. Auch nach
+Waschen + Sortieren wird abgepackt, und auch dort werden fertige Kisten gewogen.</p>
 
 <h2>2.2 Die Behälter — und wo die Identität verlorengeht</h2>
 
@@ -263,10 +294,13 @@ gewaschen.</p>
 <tr><td><strong>Palette</strong></td><td>Die Erfassungseinheit beim Wareneingang. Gehört zu genau
 einer Charge und hat ihr eigenes Eingangsdatum. Brutto von der Brückenwaage, Kistenzahl und
 Gebindeart vom Zettel.</td></tr>
-<tr><td><strong>Kaliber-Kiste</strong></td><td>Entsteht beim Sortieren. <strong>Ab hier löst sich
-die Palette auf:</strong> Die Kürbisse einer Palette landen je nach Gewicht in verschiedenen
-Kisten, und eine Kiste sammelt aus vielen Paletten. Die Charge bleibt bekannt, das Eingangsdatum
-der einzelnen Palette nicht mehr.</td></tr>
+<tr><td><strong>Kaliber-Palette</strong></td><td>Entsteht beim Sortieren: Die Kaliber-Kisten
+kommen wieder auf eine Palette, neu zusammengestellt. <strong>Hier löst sich die
+Eingangspalette auf</strong> — die Kürbisse einer Eingangspalette landen je nach Gewicht in
+verschiedenen Kisten, und eine Kiste sammelt aus vielen Eingangspaletten. Was bleibt: die
+<strong>Charge</strong> und das <strong>Sortierdatum</strong>. Was verloren geht:
+<strong>Eingangsdatum und Eingangsgewicht</strong> der einzelnen Palette. Gewaschen wird später
+die ganze Kaliber-Palette.</td></tr>
 <tr><td><strong>Palox</strong></td><td>Der Sammelbehälter für Faules. Steht auf einer Waage und
 läuft über mehrere Arbeiten weiter; der <em>Zuwachs</em> zwischen zwei Ablesungen ist die Menge
 einer Arbeit. Wird je Station geführt — Sortierband, Waschbecken und Handlinie sind verschiedene
@@ -302,17 +336,33 @@ eine Eigenschaft der Halle — und das Modell muss sie ehrlich abbilden statt si
 
 <h2>2.4 Kein First-in-first-out</h2>
 
-<p>Der Betrieb hat klargestellt: Aus den Kaliber-Kisten wird <strong>ziemlich zufällig
-entnommen</strong>. An jedem Waschtag hat jede Kiste im Pool dieselbe Chance — ein Prozess ohne
-Gedächtnis. Dasselbe gilt für die Paletten im Lager: Niemand führt Buch darüber, welche Palette
-gegangen ist.</p>
+<p>Der Betrieb hat klargestellt: Es wird <strong>ziemlich zufällig entnommen</strong> — ein
+Prozess ohne Gedächtnis. Und das gilt nicht an einer Stelle, sondern an <strong>allen
+drei</strong> Übergängen:</p>
 
-<p>Das hat zwei Folgen, die das ganze Modell prägen:</p>
+<table class="eng">
+<thead><tr><th style="width:10mm">&nbsp;</th><th style="width:52mm">Übergang</th><th>Was das heisst</th></tr></thead>
+<tbody>
+<tr><td><strong>1</strong></td><td>Lager → Waschen + Sortieren</td><td>Welche Eingangspalette von
+Hand verarbeitet wird, hängt nicht am Alter.</td></tr>
+<tr><td><strong>2</strong></td><td>Lager → Sortierband</td><td>Ebenso wenig, welche
+Eingangspalette auf die Maschine kommt.</td></tr>
+<tr><td><strong>3</strong></td><td>Zwischenlager → Waschen</td><td>Und welche Kaliber-Palette
+gewaschen wird, hängt es erst recht nicht — dort ist das Eingangsdatum ohnehin nicht mehr
+bekannt.</td></tr>
+</tbody>
+</table>
+
+<p>Dazu kommt: Niemand führt Buch darüber, welche Palette den Betrieb verlassen hat. Das hat
+zwei Folgen, die das ganze Modell prägen:</p>
 
 <ul>
 <li>Die App kann nicht sagen, <em>welche</em> Palette weg ist — also rechnet sie nie mit einer
 einzelnen Palette, sondern verteilt den Abgang je Eingangstag nach dem Eingangsanteil dieses Tags
 (Kapitel 4).</li>
+<li>Und sie kann nicht sagen, wie alt die Ware auf einer <em>Kaliber-Palette</em> ist. Sie nimmt
+deshalb das massegewichtete mittlere Eingangsdatum dessen, was von dieser Charge über das
+Sortierband lief — die einzige Annahme, die zu „zufällig entnommen" passt (Kapitel 8.1).</li>
 <li>Das Alter einer Charge ist keine Zahl, sondern eine <strong>Spanne</strong>. Auf dem
 Bildschirm steht „liegt seit 174 – 180 Tagen", nie ein einzelnes Datum.</li>
 </ul>
@@ -888,13 +938,21 @@ Arbeit in der Verderbskurve als Punkt mit null Prozent erscheint oder gar nicht.
 
 <p>In der Demo stehen <strong>584 Palox-Ablesungen</strong> über 16 224 kg Faules.</p>
 
-<h2>6.3 Kisten je Kaliber</h2>
+<h2>6.3 Was hinten herauskommt: neue Paletten</h2>
+
+<p>Die gefüllten Kaliber-Kisten kommen <strong>wieder auf Paletten</strong>, neu zusammengestellt
+nach Kaliber, und gehen zurück in dieselbe Halle. Die Charge bleibt bekannt, das Sortierdatum
+kommt auf den Zettel — Eingangsdatum und Eingangsgewicht der ursprünglichen Palette sind ab hier
+weg. Gewaschen wird später die ganze Palette. Was daraus für die Rechnung folgt, steht in
+Kapitel 8.1.</p>
+
+<h2>6.4 Kisten je Kaliber</h2>
 
 <p>Beim Sortieren werden die gefüllten Kaliber-Kisten gezählt — ein Umschalter „Paletten /
 Kisten", je Band ein Stand mit Plus und Minus. Das ist die Gegenprobe zur CSV: Die Datei sagt,
 was über das Band lief, die Kistenzahl sagt, was am Ende dastand.</p>
 
-<h2>6.4 Was das Sortieren über die Saison sagt</h2>
+<h2>6.5 Was das Sortieren über die Saison sagt</h2>
 
 <p>Aus den Sortierläufen kommen zwei der sechs Verlustströme, und beide sind ausdrücklich
 <strong>kein echter Verlust</strong>: Die Ware verlässt den Betrieb, nur nicht zum besten Preis.</p>
@@ -1152,9 +1210,10 @@ beim Abpacken noch aussortiert wird.</p>
 
 <h2>8.1 Waschen: Paletten ohne Eingangsdatum</h2>
 
-<p>Beim Waschen kommen die Kaliber-Kisten aus dem Zwischenlager auf den Tisch. Die Palette, die
-der Arbeiter vor sich hat, ist <strong>nicht</strong> die Eingangspalette — sie wurde beim
-Sortieren neu gebildet. Sie hat deshalb kein Eingangsdatum und kein Zettelgewicht, nur:</p>
+<p>Beim Waschen holt der Arbeiter eine <strong>Kaliber-Palette</strong> aus dem Zwischenlager
+und wäscht sie <strong>als Ganzes</strong>. Diese Palette ist nicht die Eingangspalette — sie
+wurde beim Sortieren neu zusammengestellt. Sie hat deshalb kein Eingangsdatum und kein
+Zettelgewicht, nur:</p>
 
 <div class="maske">
 <div class="wo">Halle · Arbeit (Waschen) · Zähler</div>
@@ -1169,6 +1228,45 @@ Sortieren neu gebildet. Sie hat deshalb kein Eingangsdatum und kein Zettelgewich
 
 <p>Dass hier <em>Kisten</em> und nicht Kilo gezählt werden, ist der Grund, warum es die nächste
 Messung braucht.</p>
+
+<h3>Wie alt ist die Ware auf einer Kaliber-Palette?</h3>
+
+<p>Das ist die Frage, an der ein naives Modell scheitert. Das Eingangsdatum dieser Palette gibt
+es nicht mehr — sie ist aus vielen Eingangspaletten zusammengesetzt. Zwei Datumsangaben sind
+bekannt, und sie beantworten zwei verschiedene Fragen:</p>
+
+<table class="eng">
+<thead><tr><th style="width:40mm">Angabe</th><th>Wofür</th></tr></thead>
+<tbody>
+<tr><td><strong>Sortierdatum</strong> (vom Zettel)</td><td>Wie lange die Palette im
+<em>Zwischenlager</em> stand. Wird als <span class="sp">zwischenlager_tage</span> geführt —
+kistengewichtet über die Paletten dieser Arbeit.</td></tr>
+<tr><td><strong>Alter seit der Ernte</strong> (gerechnet)</td><td>Was die Verderbskurve braucht.
+Dafür nimmt die App das <strong>massegewichtete mittlere Eingangsdatum dessen, was von dieser
+Charge über das Sortierband lief</strong>:</td></tr>
+</tbody>
+</table>
+
+<div class="rechnung">lagertage = Betriebstag der Wascharbeit
+            − Σ(Eingangsdatum · Netto) ÷ Σ Netto   über alle Sortier-Arbeiten der Charge</div>
+
+<div class="warum"><b>Warum das die einzige ehrliche Annahme ist</b>
+Weil aus dem Zwischenlager zufällig entnommen wird (Kapitel 2.4, Übergang 3), ist die gewaschene
+Palette im Erwartungswert ein <em>Durchschnitt</em> der sortierten Ware dieser Charge — kein
+FIFO, kein LIFO. Der Mittelwert ist genau das, was diese Annahme sagt. Wer stattdessen das
+Sortierdatum als Lagerbeginn nähme, unterschlüge die gesamte erste Lagerphase und hielte die
+Ware für viel jünger, als sie ist.</div>
+
+<p>Und weil die Ware beim Sortieren schon einmal aussortiert wurde, wird der Verderbsanteil beim
+Waschen <strong>verkettet</strong> gerechnet, nicht neu gezählt:</p>
+
+<div class="rechnung">f₁ = alles Faule beim Sortieren dieser Charge bis zu diesem Tag
+g  = Faules beim Waschen ÷ (gewaschene Masse + Faules)
+
+f₂ = 1 − (1 − f₁) · (1 − g)          der Anteil beim Gesamtalter</div>
+
+<p>Ohne diesen Faktor läge die Kurve um <strong>8.8 %</strong> zu hoch — man zöge dasselbe Faule
+zweimal ab.</p>
 
 <h2>8.2 Die fertige Palette — woher das Kilo je Kiste kommt</h2>
 

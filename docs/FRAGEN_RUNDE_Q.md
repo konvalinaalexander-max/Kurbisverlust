@@ -303,3 +303,65 @@ bleiben?
 ---
 
 *Keine Änderung am Code, bis diese Fragen beantwortet sind.*
+
+---
+
+## Nachtrag — der Palettenbegriff, am Code geprüft
+
+Rückmeldung: „*es gibt keine kaliberkisten — also doch, aber sie stehen auf
+paletten, und wenn man waschen geht, wird das ganze palette gewaschen*",
+dazu „*kein FIFO betrifft alle drei Übergänge*" und „*auch bei waschen und
+sortieren gibts dann fax*".
+
+**Das Rechenwerk bildet das bereits richtig ab. Falsch war das Diagramm im
+PDF und meine Wortwahl — beides ist jetzt korrigiert.** Der Nachweis:
+
+| Behauptung | Wo im Code | Stimmt? |
+|---|---|---|
+| Beim Waschen werden **Paletten** gezählt, nicht Kisten | `Zaehler.tsx` Gestalt (c): `#wasch-plus` „+ 1 Palette", je Palette `#kisten-palette`; schreibt `auftrag_palette(sortierdatum, kisten)` **ohne** `eingangsdatum` | ja |
+| Die Kaliber-Palette hat **kein** Eingangsdatum/-gewicht | ebenda — die Spalten bleiben leer | ja |
+| Die **Charge** bleibt bekannt | `auftrag.charge_nr` | ja |
+| Masse der Wascharbeit = Kisten × gemessenes Kistengewicht | `v_auftrag_wasch_paletten` | ja |
+| Zeit im **Zwischenlager** getrennt geführt | ebenda: `zwischenlager_tage` aus `sortierdatum`, kistengewichtet | ja |
+| **Alter seit Ernte** ohne FIFO-Annahme | `v_auftrag_masse`: `lagertage = betriebstag(start_ts) − mv_sortier_eingang.tage_seit_epoche`, und das ist das **massegewichtete mittlere Eingangsdatum der sortierten Ware dieser Charge** | ja |
+| Verderb beim Waschen **verkettet**, nicht doppelt | `v_schimmel_punkte`, 2. Zweig: `f₂ = 1 − (1−f₁)(1−g)` | ja |
+| Keine doppelte Verdunstung beim Waschen | derselbe Zweig nimmt `basis = masse + faules`, **nicht** `· (1−r)^t` | ja |
+| Bei W+S werden fertige Kisten gewogen | `stationsProfil`: `hatAusgang` bei `waschen_sortieren`, wenn rechenbar | ja |
+
+### F8 · Fax nach Waschen + Sortieren bekommt keinen Vorschlag  ▪ Fehler (neu)
+
+`src/arbeit/Abschluss.tsx:62-70` sucht die letzte Wascharbeit so:
+
+```js
+.eq('station', 'waschen')
+```
+
+Eine Arbeit mit `station = 'waschen_sortieren'` wird damit **nie gefunden**.
+Wer von Hand wäscht und sortiert und danach abpackt, bekommt „Tage seit dem
+Waschen" also nie vorbelegt — obwohl die App es genauso gut wüsste. Richtig
+wäre `station in ('waschen','waschen_sortieren')`.
+
+### F9 · Das mittlere Eingangsdatum schaut in die Zukunft  ▪ kleiner Fehler (neu)
+
+`mv_sortier_eingang` mittelt über **alle** Sortier-Arbeiten einer Charge —
+auch über solche, die **nach** der Wascharbeit stattfanden. Wird eine Charge
+im September und noch einmal im November sortiert, verschiebt der
+November-Lauf rückwirkend das Alter jeder Oktober-Wascharbeit. Richtig wäre
+ein Mittel über die Sortier-Arbeiten **bis zum Tag der Wascharbeit** — so wie
+es der verkettete Schimmelanteil `f₁` bereits macht (`sl.start_ts <=
+a.start_ts`).
+
+### Zusatzfragen
+
+**21.** Passiert es in der Praxis, dass **dieselbe Charge zweimal sortiert**
+wird, mit Wochen dazwischen? Davon hängt ab, wie schwer F9 wiegt.
+
+**22.** Steht auf dem Zettel der Kaliber-Palette ausser dem Sortierdatum noch
+etwas — Kaliber, Kistenzahl, Gewicht? Ein **gewogenes** Kaliber-Palettengewicht
+wäre die sauberste Grösse überhaupt: es machte die ganze Brücke über
+„Kisten × Kistengewicht" überflüssig.
+
+**23.** Wird beim **Waschen** je der Palox abgelesen? Er ist dort freiwillig
+(`paloxPflicht: false`). Wenn das Faule an der Waschstrasse regelmässig
+anfällt, wäre es der wertvollste zusätzliche Punkt für die Verderbskurve —
+weil er das **höchste** Alter misst.
