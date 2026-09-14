@@ -167,7 +167,66 @@ const PUNKTE = [
   { id: 'B-02', wo: 'ursachen', satz: 'Keine Konsolenfehler auf Ursachen', pruefe: async (p, meldungen) => {
       if (meldungen.length) throw new Error(meldungen[0].slice(0, 160))
     } },
+
+  // ---- Design (docs/DESIGN_RUNDE_R.md § 6) -----------------------------------
+  { id: 'D-01', wo: 'lager', nur: 'gesamt', satz: 'Jede Karte trägt eine Herkunftsmarke — oder ist eine Leer-Karte', pruefe: ohneHerkunft },
+  { id: 'D-01', wo: 'ursachen', nur: 'gesamt', satz: 'Jede Karte trägt eine Herkunftsmarke — oder ist eine Leer-Karte', pruefe: ohneHerkunft },
+  { id: 'D-02', wo: 'lager', nur: 'gesamt', satz: 'Die vier Kennzahlen sind Kennzahl-Kacheln (.kennzahl mit .gross-zahl und .unter)',
+    pruefe: async p => {
+      for (const k of ['eingang', 'ausgang', 'lager', 'verkaufsfaehig']) {
+        if (!(await p.locator(`#kz-${k}.kennzahl .gross-zahl`).count())) throw new Error(`#kz-${k} ist keine Kennzahl-Kachel mit grosser Zahl`)
+        if (!(await p.locator(`#kz-${k}.kennzahl .unter`).count())) throw new Error(`#kz-${k} hat keinen Untertitel`)
+      }
+    } },
+  { id: 'D-03', wo: 'ursachen', nur: 'gesamt', satz: 'Die Achsen-Umschalter sind Segmente (role=tablist mit button[role=tab])',
+    pruefe: async p => {
+      for (const id of ['palox-achse-kalender', 'palox-achse-liegt', 'verd-achse-kalender', 'verd-achse-liegt']) {
+        if (!(await p.locator(`.umschalter[role="tablist"] > button[role="tab"]#${id}`).count())) throw new Error(`#${id} ist kein Segmente-Knopf`)
+      }
+    } },
+  { id: 'D-04', wo: 'lager', nur: 'gesamt', satz: 'Die Tabelle hat zwei Kopfzeilen mit Gruppen (th[colspan]) und eine haftende erste Spalte',
+    pruefe: async p => {
+      if ((await p.locator('#lager-tabelle thead tr').count()) !== 2) throw new Error('nicht zwei Kopfzeilen')
+      if (!(await p.locator('#lager-tabelle thead tr:first-child th[colspan]').count())) throw new Error('keine Spaltengruppe (th[colspan]) in der ersten Kopfzeile')
+      const pos = await p.locator('#lager-tabelle tbody tr:first-child td:first-child, #lager-tabelle tbody tr:first-child th:first-child').first().evaluate(el => getComputedStyle(el).position)
+      if (pos !== 'sticky') throw new Error(`erste Spalte ist ${pos}, nicht sticky`)
+    } },
+  { id: 'D-05', wo: 'lager', nur: 'gesamt', satz: 'Liniendiagramme tragen data-x-einheit und eine Legende', pruefe: async p => await diagrammVertrag(p, ['#lager-verlauf']) },
+  { id: 'D-05', wo: 'ursachen', nur: 'gesamt', satz: 'Liniendiagramme tragen data-x-einheit und eine Legende', pruefe: async p => await diagrammVertrag(p, ['#urs-palox', '#urs-verdunstung']) },
+  { id: 'D-06', wo: 'lager', nur: 'gesamt', satz: 'Keine Inline-Farben oder -Schriftgrössen in den Karten', pruefe: inlineStile },
+  { id: 'D-06', wo: 'ursachen', nur: 'gesamt', satz: 'Keine Inline-Farben oder -Schriftgrössen in den Karten', pruefe: inlineStile },
+  { id: 'D-07', wo: 'lager', nur: 'gesamt', breite: 390, satz: 'Auf 390 px scrollt die Seite nicht waagrecht', pruefe: keinUeberlauf },
+  { id: 'D-07', wo: 'ursachen', nur: 'gesamt', breite: 390, satz: 'Auf 390 px scrollt die Seite nicht waagrecht', pruefe: keinUeberlauf },
+  { id: 'D-08', wo: 'lager', nur: 'gesamt', thema: 'dark', satz: 'Das dunkle Thema rendert ohne Konsolenfehler', pruefe: async (p, meldungen) => {
+      if (meldungen.length) throw new Error(meldungen[0].slice(0, 160))
+    } },
+  { id: 'D-08', wo: 'ursachen', nur: 'gesamt', thema: 'dark', satz: 'Das dunkle Thema rendert ohne Konsolenfehler', pruefe: async (p, meldungen) => {
+      if (meldungen.length) throw new Error(meldungen[0].slice(0, 160))
+    } },
 ]
+
+async function ohneHerkunft(p) {
+  const karten = await p.locator('main .karte, .inhalt .karte, .karte').evaluateAll(els => els
+    .filter(el => !el.closest('.filterleiste'))
+    .map(el => ({ titel: el.querySelector('h2')?.textContent?.trim() ?? '(ohne Titel)',
+                  herkunft: !!el.querySelector('.herkunft'), leer: !!el.querySelector('.leer') })))
+  const fehlt = karten.filter(k => !k.herkunft && !k.leer).map(k => k.titel)
+  if (fehlt.length) throw new Error(`ohne Herkunftsmarke: ${fehlt.join(' · ')}`)
+}
+async function diagrammVertrag(p, karten) {
+  for (const k of karten) {
+    if (!(await p.locator(`${k} svg[data-x-einheit]`).count())) throw new Error(`${k}: kein SVG mit data-x-einheit`)
+    if (!(await p.locator(`${k} .legende`).count())) throw new Error(`${k}: keine Legende`)
+  }
+}
+async function inlineStile(p) {
+  const n = await p.locator('.karte [style*="color"], .karte [style*="font-size"], .kennzahl [style*="color"], .kennzahl [style*="font-size"]').count()
+  if (n) throw new Error(`${n} Elemente mit Inline-Farbe oder -Schriftgrösse`)
+}
+async function keinUeberlauf(p) {
+  const b = await p.evaluate(() => ({ scroll: document.documentElement.scrollWidth, sicht: document.documentElement.clientWidth }))
+  if (b.scroll > b.sicht + 1) throw new Error(`Seite ist ${b.scroll} px breit bei ${b.sicht} px Sicht`)
+}
 
 /* ---------- Ablauf --------------------------------------------------------- */
 const vite = await createServer({ root: join(HIER, '..'), server: { port: PORT, strictPort: true }, logLevel: 'silent' })
@@ -184,8 +243,8 @@ const FILTER = [
   { name: 'charge', lager: `/dashboard?charge=${CHARGE}`, ursachen: `/ursachen?charge=${CHARGE}` },
 ]
 
-async function seiteOeffnen(pfad) {
-  const kontext = await browser.newContext({ viewport: { width: 1280, height: 900 }, locale: 'de-CH' })
+async function seiteOeffnen(pfad, breite = 1280, thema = 'light') {
+  const kontext = await browser.newContext({ viewport: { width: breite, height: 900 }, colorScheme: thema, locale: 'de-CH' })
   const seite = await kontext.newPage()
   vergessen()
   const meldungen = []
@@ -215,11 +274,19 @@ async function seiteOeffnen(pfad) {
 }
 
 const ergebnis = []
+// Je Filter, Reiter, Breite und Thema eine Seite: die Designpunkte D-07 (390 px)
+// und D-08 (dunkel) brauchen eigene Fenster, alle anderen teilen sich eins.
+const FENSTER = [...new Set(PUNKTE.map(x => `${x.breite ?? 1280}|${x.thema ?? 'light'}`))].map(k => {
+  const [b, t] = k.split('|'); return { breite: Number(b), thema: t }
+})
 for (const f of FILTER) {
   for (const wo of ['lager', 'ursachen']) {
-    const punkte = PUNKTE.filter(x => x.wo === wo && (!x.nur || x.nur === f.name) && (!NUR || x.id.toLowerCase().includes(NUR) || x.satz.toLowerCase().includes(NUR)))
+    for (const fenster of FENSTER) {
+    const punkte = PUNKTE.filter(x => x.wo === wo && (!x.nur || x.nur === f.name)
+      && (x.breite ?? 1280) === fenster.breite && (x.thema ?? 'light') === fenster.thema
+      && (!NUR || x.id.toLowerCase().includes(NUR) || x.satz.toLowerCase().includes(NUR)))
     if (!punkte.length) continue
-    const { seite, kontext, meldungen } = await seiteOeffnen(f[wo])
+    const { seite, kontext, meldungen } = await seiteOeffnen(f[wo], fenster.breite, fenster.thema)
     for (const punkt of punkte) {
       try {
         await punkt.pruefe(seite, meldungen)
@@ -229,6 +296,7 @@ for (const f of FILTER) {
       }
     }
     await kontext.close()
+    }
   }
 }
 await browser.close()
@@ -238,7 +306,8 @@ await vite.close()
 const rot = ergebnis.filter(e => !e.ok)
 console.log('\nAbnahme Runde R — der Vertrag aus docs/PROMPT_RUNDE_R.md § 8\n')
 for (const e of ergebnis) {
-  console.log(`  ${e.ok ? '✓' : '✗'} ${e.id}  ${e.wo.padEnd(8)} ${e.filter.padEnd(6)} ${e.satz}${e.ok ? '' : `\n        → ${e.befund}`}`)
+  const fenster = e.breite || e.thema ? ` [${e.breite ?? 1280} px${e.thema === 'dark' ? ', dunkel' : ''}]` : ''
+  console.log(`  ${e.ok ? '✓' : '✗'} ${e.id}  ${e.wo.padEnd(8)} ${e.filter.padEnd(6)} ${e.satz}${fenster}${e.ok ? '' : `\n        → ${e.befund}`}`)
 }
 console.log(`\n${ergebnis.length - rot.length} von ${ergebnis.length} Punkten erfüllt${rot.length ? ` — ${rot.length} offen` : ' — die Runde ist abgenommen'}.`)
 process.exit(rot.length ? 1 : 0)

@@ -64,12 +64,21 @@ aus. Was du vorfindest (alles auf `claude/new-session-vrnnyo`):
   welche Elemente die zwei Reiter tragen müssen und welche Worte nicht mehr
   vorkommen dürfen (§ 8). **Er ist heute rot. Du machst ihn grün** — und
   erweiterst ihn, wo du Neues baust.
-- Zum Lesen, bevor du eine Zeile schreibst: `docs/PLAN_RUNDE_P.md` §1–§2 (die
-  zwei Fragen, Begriffe und Nenner), `docs/DESIGN_RUNDE_O.md` (Bausteine,
-  Zeichen, Bewegung, Diagramm-Vertrag), `docs/ABMACHUNGEN.md` (AB-61 bis AB-64
-  sind neu), `docs/ENTSCHEIDUNGEN.md` (Abschnitt Runde R), die Migration 0078
-  ganz, `src/pages/Ueberblick.tsx`, `src/pages/Ursachen.tsx`,
-  `src/auswertung/daten.ts`, `src/components/Diagramm.tsx`.
+- **`docs/DESIGN_RUNDE_R.md` — das Design, verbindlich.** Wie jeder Block
+  aufgebaut ist, was er sagt, welche Farbe was bedeutet, wie sich jedes
+  Element bedient, was verboten ist, und welche Designpunkte die Abnahme
+  prüft (D-01 bis D-08). Es lässt dir Handwerksspielraum, keinen
+  Gestaltungsspielraum: Wo es etwas festlegt, gilt es; wo es schweigt, gilt
+  `docs/DESIGN_RUNDE_O.md`; wo beide schweigen, wird weggelassen. Jede
+  Abweichung steht mit Grund im Bericht § 3.
+- Zum Lesen, bevor du eine Zeile schreibst: `docs/DESIGN_RUNDE_R.md` ganz,
+  `docs/PLAN_RUNDE_P.md` §1–§2 (die zwei Fragen, Begriffe und Nenner),
+  `docs/DESIGN_RUNDE_O.md` (Bausteine, Zeichen, Bewegung, Diagramm-Vertrag),
+  `docs/ABMACHUNGEN.md` (AB-61 bis AB-64 sind neu), `docs/ENTSCHEIDUNGEN.md`
+  (Abschnitt Runde R), die Migration 0078 ganz, `src/pages/Ueberblick.tsx`,
+  `src/pages/Ursachen.tsx`, `src/auswertung/daten.ts`,
+  `src/components/Diagramm.tsx`, `src/components/Bausteine.tsx`,
+  `src/design/tokens.css`.
 
 ## 2. Der Betrieb in seinen Worten
 
@@ -143,6 +152,12 @@ Das ist der Massstab. Jede Karte muss auf einen dieser Sätze zeigen können.
    benutze es, erweitere es, ersetze es nicht.
 
 ## 4. Die zwei Reiter, Block für Block
+
+Dieser Abschnitt sagt **was** jeder Block zeigt und woher die Zahl kommt.
+**Wie** er aussieht und sich bedient — Aufbau, Farben, Tooltips, Zustände,
+Handy — steht in `docs/DESIGN_RUNDE_R.md` § 2 (Lagermanagement) und § 3
+(Ursachen), Block für Block mit denselben Kennungen (L1–L4, U1–U4). Beides
+zusammen ist der Auftrag; keins ersetzt das andere.
 
 Fünf Reiter bleiben: **Lagermanagement · Ursachen · Chargen · Messungen ·
 Betrieb**. Der Pfad `/dashboard` bleibt (Lesezeichen, Prüfstände), der Reiter
@@ -244,14 +259,16 @@ Vergangenheit bis heute. **Keine Prognose auf diesem Reiter** — kein Wort
 (`Anteilsbalken`) des Eingangs der Filtergruppe, verlustorientiert, aus
 `erg_wohin`, **sechs Teile in dieser Reihenfolge**:
 
-| Teil | Spalten aus `erg_wohin` | Farbe |
+| Teil | Spalten aus `erg_wohin` | Farbe (Token, `DESIGN_RUNDE_R` § 1.2) |
 |---|---|---|
-| noch im Lager und verkaufsfähig | `lager_verkaufsfaehig_kg` | grün |
-| verkauft | `geliefert_kg` | Kürbis-Orange |
-| verdunstet bis heute | `verdunstet_ausgelagert_kg + lager_verdunstet_kg` | blau |
-| Faules bis heute | `faul_ausgelagert_kg + lager_faul_kg + sockel_ausgelagert_kg + lager_sockel_kg + fax_kg + lager_fax_kg` | braun |
-| zu klein | `klein_ausgelagert_kg + lager_klein_kg` | grau hell |
-| zu gross | `gross_ausgelagert_kg + lager_gross_kg` | grau dunkel |
+| noch im Lager und verkaufsfähig | `lager_verkaufsfaehig_kg` | `hell(--strom-rest)` |
+| verkauft | `geliefert_kg` | `--strom-rest` |
+| verdunstet bis heute | `verdunstet_ausgelagert_kg + lager_verdunstet_kg` | `--strom-verdunstung` |
+| Faules bis heute | `faul_ausgelagert_kg + lager_faul_kg + sockel_ausgelagert_kg + lager_sockel_kg + fax_kg + lager_fax_kg` | `--strom-schimmel` |
+| zu klein | `klein_ausgelagert_kg + lager_klein_kg` | `--strom-ausschuss` |
+| zu gross | `gross_ausgelagert_kg + lager_gross_kg` | `--strom-nebenkanal` |
+
+Dieselben Farben wie auf Chargen und Messungen — eine Sache, eine Farbe.
 
 Der Tooltip von „Faules bis heute" nennt die Teile: „davon `sockel` kg nicht
 lagerbedingt (vom Feld), `fax` kg beim Abpacken gemessen (alte Fax-Arbeiten)".
@@ -499,6 +516,12 @@ Ursache"; auf `/ursachen`: „Fax", „Was wird aus der liegenden Ware",
 „Welche Charge zuerst", „Spielraum"; auf beiden: „Schlag" als Filteroption,
 eine Konsolenfehlermeldung.
 
+**Design (D-01 bis D-08, `DESIGN_RUNDE_R` § 6):** Herkunftsmarke in jeder
+Karte, Kennzahlen als `.kennzahl`, Achsen-Umschalter als `Segmente`, zwei
+Kopfzeilen und haftende erste Spalte in `#lager-tabelle`, `data-x-einheit`
+und Legende an jedem Liniendiagramm, keine Inline-Farben/-Schriftgrössen,
+kein waagrechtes Scrollen bei 390 px, dunkles Thema ohne Fehler.
+
 Der Prüfstand druckt eine Tabelle (Punkt · Reiter · ✓/✗ · Befund) und endet mit
 Exit 1, solange ein Punkt rot ist. **Erweitere ihn**, wenn du etwas baust, das
 hier nicht steht — ein Vertrag, der hinter dem Bau zurückbleibt, ist keiner.
@@ -551,6 +574,6 @@ Kein Umbau der Arbeiter-App — auch nicht „nur ein Feld".
 Konsolenfehler, die Bilder `lager*` und `ursachen*` liegen unter
 `pruefstand/bilder/`. `node pruefstand/beschriftung.mjs` grün. `npm run pruefen`
 grün. `docs/BEFUND_RUNDE_R.md` steht, mit § 3 „Abweichungen" — und wenn dort
-„keine" steht, hast du § 4 dieses Auftrags noch einmal gegen deine Bilder
-gelesen, Block für Block, und jeden Satz des Betriebs aus § 2 einer Karte
-zuordnen können.
+„keine" steht, hast du § 4 dieses Auftrags **und** `docs/DESIGN_RUNDE_R.md`
+noch einmal gegen deine Bilder gelesen, Block für Block, und jeden Satz des
+Betriebs aus § 2 einer Karte zuordnen können.

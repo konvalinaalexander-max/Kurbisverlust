@@ -619,8 +619,9 @@ halben Stunde.
 **Was als Nächstes gebaut wird** — die zwei ersten Reiter des Dashboards neu
 (Lagermanagement mit dem Lager nach Kaliber heute und in X Wochen; Ursachen
 bis heute mit Kalender- oder Lagerdauer-Achse und der Marge je Wägung) — steht
-als Auftrag in [`docs/PROMPT_RUNDE_R.md`](docs/PROMPT_RUNDE_R.md). Die
-Datenbank dafür liegt schon (Migration 0078: `lager_kaliber(h)`,
+als Auftrag in [`docs/PROMPT_RUNDE_R.md`](docs/PROMPT_RUNDE_R.md), das
+Design dazu verbindlich in [`docs/DESIGN_RUNDE_R.md`](docs/DESIGN_RUNDE_R.md).
+Die Datenbank dafür liegt schon (Migration 0078: `lager_kaliber(h)`,
 `erg_marge_wiegung`, Fax auf Eis); die Oberfläche folgt.
 
 ## Vorher ausprobieren: eine erfundene Saison
