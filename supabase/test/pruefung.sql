@@ -342,8 +342,17 @@ begin
   -- 0051: dazu das Faule beim Abpacken (Fax) — unbekannt, bis es gemessen ist.
   assert (select count(*) from v_verlust_ranking where buch = 'verlust') = 3,
     'Drei Lagerverlust-Ströme erwartet (Verdunstung, Schimmel, Fax)';
+  -- 0078: Fax liegt auf Eis — der Strom ist 0 durch Entscheid, nicht unbekannt.
+  -- Ohne den Schalter (und ohne Fax-Arbeit) muss er unbekannt bleiben: beides
+  -- prüfen, damit „leer ist nicht null" hinter dem Schalter weiterlebt.
+  assert (select kg from v_verlust_ranking where strom = 'Faul beim Abpacken (Fax)') = 0,
+    'Fax auf Eis: der Fax-Strom ist 0 durch Entscheid (0078)';
+  update einstellung set wert = 'false'::jsonb where schluessel = 'fax_eingefroren';
+  perform auswertung_aktualisieren();
   assert (select kg from v_verlust_ranking where strom = 'Faul beim Abpacken (Fax)') is null,
     'Ohne Fax-Arbeit ist der Fax-Strom unbekannt — nicht 0';
+  update einstellung set wert = 'true'::jsonb where schluessel = 'fax_eingefroren';
+  perform auswertung_aktualisieren();
   assert (select buch from v_verlust_ranking where strom = 'Zu klein (Tierfutter)') = 'marge',
     'Zu klein geht an die Tiere und gehört in Buch B, nicht in den Verlust';
   assert (select buch from v_verlust_ranking where strom = 'Nicht lagerbedingt') = 'feld',
@@ -2143,6 +2152,10 @@ begin
   -- 0060: Eine Lieferung teilt die Charge in ausgelagert und liegend
   insert into lieferung (datum, charge_nr, sorte, kg, ziel, bemerkung)
   values ((v_start + interval '25 days')::date, 1637, 'Amoro', 1000, 'verkauf', 'PRUEF-0051');
+  -- Runde R (0078): Fax liegt auf Eis — der Koeffizient ist 0 durch Entscheid.
+  -- Die Rechnung dahinter muss trotzdem leben: Schalter aus, rechnen, prüfen;
+  -- beim Aufräumen unten geht er wieder an.
+  update einstellung set wert = 'false'::jsonb where schluessel = 'fax_eingefroren';
   perform auswertung_aktualisieren();
   assert (select eingang_netto_kg from v_auftrag_masse where auftrag_id = v_fax) = 340,
     'Die Fax-Masse ist 40 Kisten × 8.5 kg';
@@ -2228,10 +2241,11 @@ begin
   exception when raise_exception then null;
   end;
 
-  -- Aufräumen
+  -- Aufräumen — und Fax wieder auf Eis (0078)
   delete from auftrag where id in (v_ws, v_fax);
   delete from palette where extern_id like 'k51-%';
   delete from sortierschema where sorte = 'Amoro' and kaeufer = 'coop' and gilt_ab = current_date;
+  update einstellung set wert = 'true'::jsonb where schluessel = 'fax_eingefroren';
   perform auswertung_aktualisieren();
   raise notice 'OK  0051 Fax (gewogen, eigener Strom, nicht gewaschen), Bestand je Eingangstag ohne FIFO, Fassung am Start, Perigon-Nummer';
 end $$;
@@ -4342,3 +4356,147 @@ begin
 end $$;
 
 select '——— 0072 Erfassung geprüft ———' as ergebnis;
+
+-- =====================================================================
+-- 0078 — Das Lager nach Kaliber, die Marge je Wägung, Fax auf Eis
+--
+-- Runde R. Der Betrieb will im Lagermanagement sehen, „von dem kaliber
+-- von der charge ist noch so viel da — aber mit der aktuellen
+-- verdampfung ist dann nur noch so viel von dem kaliber übrig, weil
+-- gewisse in eine andere kalibergrösse fallen". Die Antwort darf keine
+-- zweite Mathematik sein: `v_lager_kaliber` teilt die verkaufsfähige
+-- Masse der Kaskade (`erg_prognose`) auf die Bänder auf, und über die
+-- Bänder summiert steht wieder genau diese Masse. Das ist die erste
+-- Prüfung — sie ist vor 0078 rot, weil die Sicht fehlt.
+--
+-- Dazu: Fax liegt auf Eis. Nicht „unbekannt" (dann wäre verkaufsfähig für
+-- immer „höchstens"), sondern 0 durch Entscheid — und die alte Rechnung
+-- muss hinter dem Schalter weiterleben. Und die Marge je Wägung, die an
+-- keiner Verkaufsdatei hängt.
+-- ---------------------------------------------------------------------
+do $$
+declare
+  v_n int; v_txt text; v_start timestamptz;
+begin
+  -- ---- (a) Fax auf Eis ------------------------------------------------
+  assert (select (wert #>> '{}')::boolean from einstellung where schluessel = 'fax_eingefroren'),
+    '0078 (a1): einstellung.fax_eingefroren fehlt oder steht nicht auf true';
+  assert (select mittel from v_koeff_fax where sorte = 'Amoro') = 0
+     and (select basis from v_koeff_fax where sorte = 'Amoro') like 'eingefroren%',
+    '0078 (a2): Fax eingefroren, aber v_koeff_fax rechnet weiter';
+  perform auswertung_aktualisieren();
+  assert not exists (select 1 from mv_kaskade where a_fax <> 0),
+    '0078 (a3): die Kaskade erwartet noch Fax — a_fax muss 0 sein';
+  assert not exists (select 1 from mv_kaskade k where not k.a_fax_bekannt
+                        and exists (select 1 from v_koeff_fax f where f.sorte = k.sorte)),
+    '0078 (a4): 0 durch Entscheid ist bekannt, nicht unbekannt — a_fax_bekannt muss true sein';
+  assert (select coalesce(max(fax_kg), 0) from erg_prognose) = 0,
+    '0078 (a5): erg_prognose.fax_kg > 0 trotz Eis';
+  update einstellung set wert = 'false'::jsonb where schluessel = 'fax_eingefroren';
+  assert (select mittel from v_koeff_fax where sorte = 'Amoro') > 0,
+    '0078 (a6): Schalter aus, aber der Fax-Koeffizient bleibt 0 — die Rechnung ist tot, nicht auf Eis';
+  update einstellung set wert = 'true'::jsonb where schluessel = 'fax_eingefroren';
+
+  -- ---- (b) Die Identität: Bänder summieren zur Kaskade ----------------
+  assert to_regclass('public.erg_lager_kaliber') is not null,
+    '0078 (b0): erg_lager_kaliber fehlt';
+  select count(*) into v_n from erg_lager_kaliber;
+  assert v_n > 0, '0078 (b1): erg_lager_kaliber ist leer — der Prüfdatensatz trägt die Prüfung nicht';
+  assert (select bool_and(h = 0) from erg_lager_kaliber), '0078 (b1a): erg_lager_kaliber ist „heute" — Horizont 0, sonst nichts';
+  -- Über alle Horizonte, per Funktion: die Summe der Bänder ist die Kaskade.
+  select count(*) into v_n from (
+    select k.gruppe, k.schluessel, k.h
+      from (select distinct h from erg_prognose) hh
+      cross join lateral lager_kaliber(hh.h) k
+      join erg_prognose p on p.gruppe = k.gruppe and p.schluessel = k.schluessel and p.h = k.h
+     group by k.gruppe, k.schluessel, k.h
+    having abs(sum(k.kg) - max(p.verkaufsfaehig_kg)) > 0.05) x;
+  assert v_n = 0,
+    format('0078 (b2): %s Gruppen × Horizonte, deren Bänder nicht auf verkaufsfaehig_kg summieren — zweite Mathematik', v_n);
+  assert (select count(*) from erg_lager_kaliber) = (select count(*) from lager_kaliber(0)),
+    '0078 (b2a): erg_lager_kaliber ist nicht lager_kaliber(0)';
+  select count(*) into v_n
+    from erg_prognose p
+   where p.gruppe = 'charge' and p.lager_kg > 0 and p.h in (0, 28, 196)
+     and not exists (select 1 from lager_kaliber(p.h) k
+                      where k.gruppe = 'charge' and k.schluessel = p.schluessel);
+  assert v_n = 0, format('0078 (b3): %s Prognosezeilen je Charge ohne Kaliber-Zeile', v_n);
+  select count(*) into v_n from (
+    select k.gruppe, k.schluessel, k.h
+      from (values (0), (28), (196)) hh(h) cross join lateral lager_kaliber(hh.h) k
+     where k.basis <> 'keine' group by k.gruppe, k.schluessel, k.h
+    having abs(sum(k.anteil) - 1) > 0.002) x;
+  assert v_n = 0, format('0078 (b4): %s Verteilungen, deren Anteile nicht 1 ergeben', v_n);
+  assert not exists (select 1 from lager_kaliber(196) where kg < 0 or anteil < 0),
+    '0078 (b5): negative Kilo oder Anteile';
+  assert not exists (select 1 from erg_lager_kaliber
+                      where basis = 'keine' and (kaliber_idx is not null or kg <> verkaufsfaehig_kg)),
+    '0078 (b6): basis „keine" muss eine Zeile ohne Band mit der ganzen Masse sein — leer ist nicht null';
+  assert not exists (select 1 from erg_lager_kaliber where basis <> 'keine' and kaliber_idx is null),
+    '0078 (b7): Band-Zeile ohne kaliber_idx';
+  assert not exists (select 1 from erg_lager_kaliber where kaliber_idx >= 0 and (band_von is null or band_bis is null)),
+    '0078 (b8): ein Band ohne Grenzen';
+
+  -- ---- (c) Die Wanderung: schrumpfende Ware fällt nach unten ----------
+  -- Für Chargen mit eigener CSV, einem Sortierlauf und r > 0: das
+  -- Unter-Kaliber wächst von h=0 nach h=196, das oberste Band schrumpft.
+  create temp table t78 on commit drop as
+    select * from lager_kaliber(0) union all select * from lager_kaliber(196);
+  select count(*) into v_n from (
+    select k.schluessel
+      from t78 k
+     where k.gruppe = 'charge' and k.basis = 'charge'
+       and exists (select 1 from mv_kaskade m where m.portion = 'lager' and m.charge_nr = k.schluessel::int and m.r > 0)
+       and (select count(*) from sortier_lauf l where l.charge_nr = k.schluessel::int) = 1
+     group by k.schluessel
+    having coalesce(sum(k.anteil) filter (where k.h = 196 and k.kaliber_idx = -1), 0)
+         < coalesce(sum(k.anteil) filter (where k.h = 0 and k.kaliber_idx = -1), 0) - 1e-6) x;
+  assert v_n = 0, format('0078 (c1): bei %s Chargen schrumpft das Unter-Kaliber mit der Zeit', v_n);
+  select count(*) into v_n from (
+    select k.schluessel
+      from t78 k
+      join (select sorte, max(kaliber_idx) as oben from t78 where kaliber_idx >= 0 group by sorte) o
+        on o.sorte = k.sorte
+     where k.gruppe = 'charge' and k.basis = 'charge' and k.kaliber_idx = o.oben
+       and exists (select 1 from mv_kaskade m where m.portion = 'lager' and m.charge_nr = k.schluessel::int and m.r > 0)
+       and (select count(*) from sortier_lauf l where l.charge_nr = k.schluessel::int) = 1
+     group by k.schluessel
+    having coalesce(sum(k.anteil) filter (where k.h = 196), 0)
+         > coalesce(sum(k.anteil) filter (where k.h = 0), 0) + 1e-6) x;
+  assert v_n = 0, format('0078 (c2): bei %s Chargen wächst das oberste Band mit der Zeit', v_n);
+  select count(*) into v_n from (
+    select schluessel, kaliber_idx from t78
+     where gruppe = 'charge' and basis = 'charge'
+     group by schluessel, kaliber_idx having count(distinct anteil) > 1) x;
+  assert v_n > 0, '0078 (c3): kein einziges Band wandert in 28 Wochen — die Verdunstung kommt in der Aufteilung nicht an';
+  -- Ein Aufruf muss billig sein: der Bildschirm ruft ihn bei jedem X.
+  v_start := clock_timestamp();
+  perform count(*) from lager_kaliber(84);
+  assert clock_timestamp() - v_start < interval '2 seconds',
+    format('0078 (c4): lager_kaliber(84) braucht %s — zu langsam für einen Aufruf je Tastendruck', clock_timestamp() - v_start);
+
+  -- ---- (d) Die Marge je Wägung, ohne Verkaufsdatei --------------------
+  assert to_regclass('public.erg_marge_wiegung') is not null, '0078 (d0): erg_marge_wiegung fehlt';
+  select count(*) into v_n from erg_marge_wiegung;
+  assert v_n > 0, '0078 (d1): erg_marge_wiegung ist leer';
+  assert not exists (select 1 from erg_marge_wiegung
+                      where kistensystem = 'kiste_ab'
+                        and abs(zuviel_je_kiste - (kg_je_kiste - soll_kg_pro_kiste)) > 0.002),
+    '0078 (d2): Kiste ab — zuviel_je_kiste ist nicht Ist − Soll';
+  assert not exists (select 1 from erg_marge_wiegung
+                      where kistensystem = 'stueck' and band_mittel_g is not null
+                        and abs(g_ueber_bandmitte - (g_je_kuerbis - band_mittel_g)) > 1),
+    '0078 (d3): Stück — g_ueber_bandmitte ist nicht Gramm je Kürbis − Bandmitte';
+  assert position('lieferung' in pg_get_viewdef('v_marge_wiegung'::regclass)) = 0,
+    '0078 (d4): die Marge je Wägung darf nicht an der Verkaufsdatei hängen';
+
+  -- ---- (e) Das Rechenwerk und der Stand -------------------------------
+  assert schema_stand() = 78, format('0078 (e1): schema_stand() = %s', schema_stand());
+  select pg_get_functiondef('auswertung_schritt(integer)'::regprocedure) into v_txt;
+  assert v_txt like '%erg_lager_kaliber%' and v_txt like '%erg_marge_wiegung%',
+    '0078 (e2): Schritt 4 rechnet die zwei neuen Ergebnisse nicht';
+
+  raise notice 'OK  0078 — Fax auf Eis (0 durch Entscheid), Lager nach Kaliber summiert zur Kaskade, Marge je Wägung ohne Verkaufsdatei';
+end $$;
+
+select '——— 0078 Lager nach Kaliber geprüft ———' as ergebnis;

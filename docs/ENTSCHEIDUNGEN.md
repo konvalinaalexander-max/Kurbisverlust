@@ -3264,3 +3264,84 @@ nirgends als Fehlerbalken gezeichnet — das gehört zur Markierung der einzelne
 Punkte in der Verderbskurve, und die ist Sache der Auswertungsrunde. Bis dahin
 sagt eine Fussnote unter der Kurve, welche Punkte abgelesen und welche
 geschätzt sind.
+
+## Runde R — vor der ersten echten Palette, und der Plan für das Dashboard
+
+### Die Kette lief seit Runde P nicht mehr — und hat sofort etwas gefunden
+
+`pruefstand/kette.mjs` war zuletzt am 13. September grün gelaufen, **vor**
+Migration 0072. Die Runde Q hatte den Palox auf „je Arbeit" umgestellt (erste
+Ablesung = Startstand, Menge = Ende − Anfang), das Zettelgewicht beim Sortieren
+zur Pflicht gemacht, die Kisten je Kaliber gestrichen und 36 Kisten je Palette
+vorbelegt — und die Kette war nie nachgezogen worden, weil der lokale
+Postgres-Server ausgefallen war und der Prüfstand darum still übersprungen
+wurde. Ein früherer Bericht nannte die Kette trotzdem grün: Das war falsch, es
+war das alte Protokoll. Nachgezogen sind fünf Schritte; beim Nachziehen fand
+die Kette einen echten toten Punkt: Der Abschluss beim Waschen verlangte die
+Antwort auf „Palox zwischendurch geleert?", zeigte die Frage aber nur nach
+einer Ablesung — ohne Ablesung (die beim Waschen freiwillig ist) kam kein
+Arbeiter je an „Arbeit fertig" vorbei. Eine Bedingung (`paloxAblesungen > 0`)
+behebt es. Lehre, festgehalten: Ein Prüfstand, der nicht läuft, ist kein
+grüner Prüfstand.
+
+### Fax auf Eis heisst 0 durch Entscheid, nicht unbekannt
+
+Der Betrieb streicht Fax aus der Oberfläche, nicht aus der Datenbank. Die
+Kaskade hätte zwei falsche Möglichkeiten gehabt: den Fax-Anteil der alten
+Demo-Saison weiterrechnen (2 350 kg „erwartet", die niemand mehr misst) oder
+ihn als unbekannt führen — dann wäre die verkaufsfähige Masse für immer
+„höchstens" beschriftet, in jeder Prognose. Beides wäre eine Zahl aus einer
+Lücke. Die dritte Möglichkeit ist die Entscheidung selbst: Der Betrieb misst
+kein Faules beim Abpacken, also erwartet die Kaskade keins — 0, bekannt, mit
+der Basis „eingefroren". Ein Schalter (`einstellung.fax_eingefroren`), keine
+gelöschte Sicht; der Prüfblock 0078 dreht ihn kurz zurück und beweist, dass die
+alte Rechnung dahinter lebt. Zwei ältere Tests, die „ohne Fax-Arbeit ist der
+Strom unbekannt" prüften, prüfen jetzt beides: mit Schalter 0, ohne Schalter
+unbekannt.
+
+### Das Lager nach Kaliber: eine Funktion je Horizont statt einer Sicht
+
+Die erste Fassung von `v_lager_kaliber` rechnete alle dreissig Horizonte auf
+einmal — 1.16 s auf der Demo, 0.65 s nach dem Auftrennen einer OR-Verknüpfung
+in zwei Hash-Joins. Beim Lasttest (dreifache Saison) wäre das Neurechnen damit
+über seiner Zwölf-Sekunden-Grenze gelegen, die heute nur 400 ms Luft hat. Der
+Bildschirm braucht aber nur zwei Spalten: „heute" und „in X Wochen". Also eine
+Funktion `lager_kaliber(h)`, die Sicht ist `lager_kaliber(0)`, und X ruft die
+Funktion direkt. Dabei zeigte der Plan den eigentlichen Fresser: `betriebstag()`
+je Kürbiszeile — 4 238 Aufrufe, 150 ms; einmal je Sortierlauf gerechnet sind
+es 34 ms für den ganzen Aufruf. Die Formel steht einmal; Sicht und Aufruf lesen
+dieselbe Funktion; der Prüfblock beweist die Identität zur Kaskade über alle
+Horizonte per Funktion.
+
+### Was die Aufteilung ehrlich macht
+
+Ein Kürbis, der durch Verdunstung unter das kleinste Band fällt, ist laut
+Kaskade noch verkaufsfähig (die rechnet mit einem konstanten Anteil „zu
+klein"), laut Band nicht mehr. Statt ihn still im kleinsten Band zu lassen oder
+still abzuziehen, steht er als eigene Spalte „unter Kaliber" da — so bleibt die
+Summe die Kaskade, und der Betriebsleiter sieht, wie viel seiner Ware dem
+Kaliber entwächst. Chargen ohne eigene Sortier-CSV bekommen die Verteilung
+ihrer Sorte und sagen es (`basis = 'sorte'`); 37 von 86 liegenden Portionen
+der Demo sind so. Sorten ohne jede CSV bekommen keine Aufteilung — eine Zeile
+mit der ganzen Masse und ohne Band.
+
+### Die Marge ohne Verkaufsdatei
+
+Der Betrieb will je Palette wissen, was die Kiste über dem Soll hat, und aus
+etwa zehn Wägungen je Saison den Durchschnitt — nicht eine Hochrechnung auf
+verkaufte Kisten, die er nie einer Wägung zuordnen kann. `v_marge_wiegung`
+tut genau das und nichts weiter; `v_ueberfuellung_verkauf` bleibt für die
+andere Frage bestehen. Der Prüfblock verbietet der neuen Sicht das Wort
+`lieferung`.
+
+### Was bewusst nicht gemacht wurde
+
+Das Dashboard selbst ist nicht umgebaut — das ist der Auftrag der Runde R an
+die ausführende KI (`docs/PROMPT_RUNDE_R.md`), mit dem Vertrag
+`pruefstand/abnahme_r.mjs`, der heute rot ist und es bleiben soll, bis die
+zwei Reiter stehen. Keine Erfassungstabelle, keine Spalte, keine
+Arbeiter-Maske wurde für die Auswertung geändert; die einzige neue
+Erfassungsspalte dieser Runde (Kontrollpalette: Eingangsdatum und Brutto vom
+Zettel, 0077) ist freiwillig. `fertige_paletten_gesamt` wird gespeichert, aber
+noch von keiner Sicht gelesen — der Nenner beim Waschen ist § 5.3 des
+Auftrags.

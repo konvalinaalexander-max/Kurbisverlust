@@ -616,6 +616,13 @@ warum sein Deploy-Befehl `npx wrangler deploy --env beispiel` lauten **muss**
 [`docs/ZWEI_WEBSEITEN.md`](docs/ZWEI_WEBSEITEN.md). Rechne mit einer guten
 halben Stunde.
 
+**Was als Nächstes gebaut wird** — die zwei ersten Reiter des Dashboards neu
+(Lagermanagement mit dem Lager nach Kaliber heute und in X Wochen; Ursachen
+bis heute mit Kalender- oder Lagerdauer-Achse und der Marge je Wägung) — steht
+als Auftrag in [`docs/PROMPT_RUNDE_R.md`](docs/PROMPT_RUNDE_R.md). Die
+Datenbank dafür liegt schon (Migration 0078: `lager_kaliber(h)`,
+`erg_marge_wiegung`, Fax auf Eis); die Oberfläche folgt.
+
 ## Vorher ausprobieren: eine erfundene Saison
 
 Bevor die erste echte Palette gezählt ist, zeigt die Auswertung nichts — man
@@ -823,6 +830,11 @@ node pruefstand/kette.mjs && ./pruefstand/kette_pruefen.sh 'postgresql://…'
 # Lückenscanner: keine Spalte, die die Datenbank erwartet und keine Maske
 # schreibt — und keine ausgewertete Tabelle, die niemand füllt (Teil von run.sh)
 ./pruefstand/luecken.sh 'postgresql://…'
+
+# Die Abnahme der Runde R: der Vertrag für die zwei ersten Reiter
+# (Lagermanagement, Ursachen) aus docs/PROMPT_RUNDE_R.md § 8 — welche Elemente
+# da sein müssen, welche Worte nicht mehr. Rot, bis die Reiter stehen.
+node pruefstand/abnahme_r.mjs
 
 # Die fünf PDFs neu bauen (aus docs/*.html, Schrift eingebettet). Meldet
 # waagerechten Überlauf — im PDF heisst das eine abgeschnittene Tabelle.
