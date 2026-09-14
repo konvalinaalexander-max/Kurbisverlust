@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { useSprache } from '../sprache/SprachProvider'
 import { fehlerText, stammdaten } from '../lib/db'
 import { Hinweis } from '../components/Bausteine'
+import { stationsProfil } from './daten'
 import type { ArbeitDaten } from './daten'
 import type { Gebinde } from '../lib/typen'
 import { nettoKg, taraFehlt } from '../lib/masse'
@@ -52,9 +53,17 @@ export function WiegenMaske({ d, zettelDatum, zettelBrutto = '', fertig }: {
       kuerbisse_pro_kiste: proKiste === '' ? null : Number(proKiste),
     }).select('id').single()
     if (error) { setLaeuft(false); setFehler(fehlerText(error)); return }
+    // Die gewogene Palette entsteht HIER, nicht im Zähler — jede Pflicht,
+    // die nur dort durchgesetzt wird, hätte an dieser Stelle ein Loch.
+    // Deshalb dieselbe Quelle (`zettelGewichtPflicht`) statt einer zweiten
+    // Stationsabfrage, und dieselben Angaben: Kisten und Gebinde, die hier
+    // ohnehin erfasst werden, gehen auch auf die Palettenzeile (Runde Q).
+    const pr = stationsProfil(d.auftrag)
     const { error: f2 } = await supabase.from('auftrag_palette').insert({
       auftrag_id: d.auftrag.id, eingangsdatum: datum, wiegung_id: (data as { id: number }).id,
-      brutto_zettel_kg: d.auftrag.station === 'waschen_sortieren' ? Number(damals) : null,
+      brutto_zettel_kg: pr.zettelGewichtPflicht ? Number(damals) : null,
+      kisten: pr.hatPaletten ? Number(kisten) : null,
+      gebindeart: pr.hatPaletten ? art : null,
     })
     setLaeuft(false)
     if (f2) { setFehler(fehlerText(f2)); return }

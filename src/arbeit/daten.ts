@@ -17,7 +17,7 @@ export interface AusschussZeile {
  *  beim Waschen die Kaliber-Palette aus dem Zwischenlager (Sortierdatum, Kisten). */
 export interface Palette {
   id: number; wiegung_id: number | null; eingangsdatum: string | null; brutto_zettel_kg: number | null
-  sortierdatum: string | null; kisten: number | null
+  sortierdatum: string | null; kisten: number | null; gebindeart: string | null
 }
 /** Die Fassung, nach der die Arbeit läuft (sortierschema). */
 export interface Fassung {
@@ -39,17 +39,23 @@ export interface ArbeitDaten {
   angaben: Record<string, string>
   baender: [number, number][]
   fassung: Fassung | null
-  /** Wie viele Kisten eine Palette sind (Einstellung, Vorgabe 32). */
+  /** Wie viele Kisten in der Regel auf einer Palette stehen (Einstellung,
+   *  Vorgabe 36). Vorbelegung der Maske, keine Annahme der Rechnung — der
+   *  Betrieb sagt „teilweise sinds 32 und teilweise 36", also wird je
+   *  Palette gefragt. */
   kistenProPalette: number
+  /** Welches Gebinde im Lager vorbelegt wird (Einstellung, Vorgabe G2).
+   *  „meistens g2 aber auch nur so 95 %" — eine Vorbelegung, keine Annahme. */
+  gebindeLager: string
 }
 
 export async function arbeitLaden(auftragId: number): Promise<ArbeitDaten | null> {
-  const [{ chargen, kaliber }, a, tn, pa, ge, sm, au, ag, an, kpp] = await Promise.all([
+  const [{ chargen, kaliber }, a, tn, pa, ge, sm, au, ag, an, kpp, gl] = await Promise.all([
     stammdaten(),
     supabase.from('auftrag').select('*').eq('id', auftragId).maybeSingle(),
     supabase.from('auftrag_teilnehmer').select('profil_id, profil(name)')
       .eq('auftrag_id', auftragId).is('verlassen_ts', null),
-    supabase.from('auftrag_palette').select('id, wiegung_id, eingangsdatum, brutto_zettel_kg, sortierdatum, kisten')
+    supabase.from('auftrag_palette').select('id, wiegung_id, eingangsdatum, brutto_zettel_kg, sortierdatum, kisten, gebindeart')
       .eq('auftrag_id', auftragId).order('ts'),
     supabase.from('auftrag_gebinde').select('*').eq('auftrag_id', auftragId).order('kaliber_idx').order('sortierdatum'),
     supabase.from('schimmel_messung')
@@ -59,7 +65,8 @@ export async function arbeitLaden(auftragId: number): Promise<ArbeitDaten | null
       .eq('auftrag_id', auftragId).order('ts'),
     supabase.from('ausgang_wiegung').select('id').eq('auftrag_id', auftragId),
     supabase.from('v_auftrag_angabe').select('schluessel, wert').eq('auftrag_id', auftragId),
-    einstellung<number>('kisten_pro_palette', 32),
+    einstellung<number>('kisten_pro_palette', 36),
+    einstellung<string>('gebinde_lager', 'G2'),
   ])
   if (a.error) throw a.error
   const auftrag = a.data as Auftrag | null
@@ -96,7 +103,8 @@ export async function arbeitLaden(auftragId: number): Promise<ArbeitDaten | null
     angaben: Object.fromEntries(av.map(x => [x.schluessel, x.wert])),
     baender,
     fassung,
-    kistenProPalette: Number(kpp) > 0 ? Number(kpp) : 32,
+    kistenProPalette: Number(kpp) > 0 ? Number(kpp) : 36,
+    gebindeLager: typeof gl === 'string' && gl !== '' ? gl : 'G2',
   }
 }
 
@@ -133,12 +141,26 @@ export function stationsProfil(a: Auftrag) {
     istFax: fax,
     /** Eingangspaletten zählen (Sortieren, Waschen + Sortieren). */
     hatPaletten: !fax && a.station !== 'waschen',
-    /** Beim Waschen + Sortieren steht das Eingangsgewicht auf dem Zettel — Pflicht je Palette. */
-    zettelGewichtPflicht: a.station === 'waschen_sortieren',
+    /** Das Eingangsgewicht steht auf dem Zettel — Pflicht überall dort, wo
+     *  Eingangspaletten gezählt werden (Sortieren und Waschen + Sortieren).
+     *  Seit Runde Q auch beim Sortieren: Zettel-Brutto + Kistenzahl +
+     *  Sortier-CSV ergeben die Masse je Kaliberband. Der Betrieb hat den Weg
+     *  selbst gefunden — „du siehst ja dann anzahl paletten - mit anzahl
+     *  kisten und total vom brutto gewicht - dann weisst du wieviel sortiert
+     *  worden ist". */
+    zettelGewichtPflicht: !fax && a.station !== 'waschen',
     /** Kaliber-Paletten aus dem Zwischenlager zählen: Sortierdatum und Kisten je Palette (Waschen). */
     hatWaschPaletten: waschen,
-    /** Kisten je Kaliber zählen — nur noch beim Sortieren (die gefüllten). */
-    hatKisten: !fax && a.station === 'sortieren',
+    /** Kisten je Kaliber zählen: fällt seit Runde Q weg. Der Betrieb:
+     *  „kisten je kaliber werden nicht gezählt.... niemand wird händisch die
+     *  kisten zählen und in der app eintragen". Der Zähler täuschte damit
+     *  eine Messung vor, die es nie gab. Die Masse je Band kommt jetzt aus
+     *  dem Zettelgewicht der Eingangspaletten und der Sortier-CSV.
+     *
+     *  `auftrag_gebinde` bleibt mit allen Zeilen bestehen und wird weiter
+     *  gelesen — was einmal gezählt wurde, verschwindet nicht. Es wird nur
+     *  nichts mehr hineingeschrieben. */
+    hatKisten: false,
     /** Eine Palette wiegen: wo Eingangspaletten gezählt werden. */
     mitWiegen: !fax && a.station !== 'waschen',
     /** Mindestens drei Eingangspaletten wiegen — bevor sie in die Waschmaschine kommen (erinnert, nicht erzwungen). */

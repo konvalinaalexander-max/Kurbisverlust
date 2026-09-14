@@ -299,6 +299,9 @@ const de = {
   nichtVollKurz: 'nicht voll',
   tageSeitWaschenAnnahme: 'Kein Waschdatum auf der Palette — angenommener Durchschnitt. Ändere ihn, wenn du es besser weisst.',
   beispielBand: 'Beispieldaten — nicht der Betrieb',
+  gebindeBleibt: 'Bleibt für die nächste Palette stehen — ändern, wenn eine anders steht.',
+  kistenEingangErkl: 'Wie viele Kisten auf dieser Palette stehen. Zusammen mit dem Zettelgewicht sagt das, wie viel in die Maschine ging.',
+  gewichtZettelSortieren: 'Ohne das Gewicht vom Zettel geht es nicht — daraus und aus der Sortier-Datei rechnet sich die Menge je Kaliber.',
 }
 
 export type TextId = keyof typeof de
@@ -552,6 +555,9 @@ const en: Woerterbuch = {
   nichtVollKurz: 'not full',
   tageSeitWaschenAnnahme: 'No wash date on the pallet — assumed average. Change it if you know better.',
   beispielBand: 'Sample data — not the farm',
+  gebindeBleibt: 'Stays for the next pallet — change it if one is different.',
+  kistenEingangErkl: 'How many boxes are on this pallet. Together with the docket weight this says how much went into the machine.',
+  gewichtZettelSortieren: 'The weight from the docket is required — with the sorting file it gives the amount per size.',
 }
 
 const hu: Woerterbuch = {
@@ -802,6 +808,9 @@ const hu: Woerterbuch = {
   nichtVollKurz: 'nincs tele',
   tageSeitWaschenAnnahme: 'Nincs mosási dátum a raklapon — feltételezett átlag. Írd át, ha jobban tudod.',
   beispielBand: 'Mintaadatok — nem az üzem',
+  gebindeBleibt: 'Megmarad a következő raklaphoz — módosítsd, ha más.',
+  kistenEingangErkl: 'Hány láda van ezen a raklapon. A cédula súlyával együtt ez mondja meg, mennyi ment a gépbe.',
+  gewichtZettelSortieren: 'A cédula súlya kötelező — ebből és a válogatási fájlból jön ki a méretenkénti mennyiség.',
 }
 
 const ro: Woerterbuch = {
@@ -1052,6 +1061,9 @@ const ro: Woerterbuch = {
   nichtVollKurz: 'nu este plin',
   tageSeitWaschenAnnahme: 'Niciun date de spălare pe palet — medie presupusă. Schimb-o dacă știi mai bine.',
   beispielBand: 'Date de exemplu — nu ferma',
+  gebindeBleibt: 'Rămâne pentru următorul palet — schimbă dacă unul e diferit.',
+  kistenEingangErkl: 'Câte lăzi sunt pe acest palet. Împreună cu greutatea de pe bon arată cât a intrat în mașină.',
+  gewichtZettelSortieren: 'Greutatea de pe bon este obligatorie — din ea și din fișierul de sortare rezultă cantitatea pe calibru.',
 }
 
 const pl: Woerterbuch = {
@@ -1302,6 +1314,9 @@ const pl: Woerterbuch = {
   nichtVollKurz: 'niepełna',
   tageSeitWaschenAnnahme: 'Brak daty mycia na palecie — przyjęta średnia. Zmień, jeśli wiesz lepiej.',
   beispielBand: 'Dane przykładowe — nie gospodarstwo',
+  gebindeBleibt: 'Zostaje dla następnej palety — zmień, jeśli inna.',
+  kistenEingangErkl: 'Ile skrzyń stoi na tej palecie. Razem z wagą z kwitu mówi to, ile weszło do maszyny.',
+  gewichtZettelSortieren: 'Waga z kwitu jest wymagana — z niej i z pliku sortowania wynika ilość na kaliber.',
 }
 
 const pt: Woerterbuch = {
@@ -1552,6 +1567,9 @@ const pt: Woerterbuch = {
   nichtVollKurz: 'não cheia',
   tageSeitWaschenAnnahme: 'Sem data de lavagem na palete — média assumida. Altere se souber melhor.',
   beispielBand: 'Dados de exemplo — não a exploração',
+  gebindeBleibt: 'Fica para a próxima palete — altere se for diferente.',
+  kistenEingangErkl: 'Quantas caixas estão nesta palete. Com o peso da guia diz quanto entrou na máquina.',
+  gewichtZettelSortieren: 'O peso da guia é obrigatório — com o ficheiro de triagem dá a quantidade por calibre.',
 }
 
 export const WOERTERBUCH: Record<Sprache, Woerterbuch> = { de, en, hu, ro, pl, pt }

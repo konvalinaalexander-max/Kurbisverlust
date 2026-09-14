@@ -138,7 +138,10 @@ export default function Arbeit() {
             {p.hatPaletten && <><dt>{t('paletten')}</dt><dd>{d.paletten.length}{gewogen > 0 && <span className="leise"> · {gewogen} {t('gewogen')}</span>}</dd></>}
             {p.hatWaschPaletten && <><dt>{t('paletten')}</dt><dd>{d.paletten.length} · {waschKisten} {t('kisten')}</dd></>}
             {p.hatFaxPaletten && <><dt>{t('palettenGesamt')}</dt><dd>{a.paletten_gesamt ?? '—'}</dd></>}
-            {p.hatKisten && kistenGezaehlt > 0 && <><dt>{t('kaliberKisten')}</dt><dd>{kistenGezaehlt}</dd></>}
+            {/* Ohne p.hatKisten: seit Runde Q wird nichts mehr gezählt, aber was
+                einmal gezählt WURDE, bleibt sichtbar. Nicht mehr erheben ist
+                etwas anderes als verschweigen. */}
+            {kistenGezaehlt > 0 && <><dt>{t('kaliberKisten')}</dt><dd>{kistenGezaehlt}</dd></>}
             <dt>{t('faule')}</dt><dd>{faulSumme} kg</dd>
             {p.hatAusschuss && <><dt>{t('ausschussWiegenSchritt')}</dt><dd>{d.ausschuss.length > 0 ? `${ausschussSumme} kg` : '—'}</dd></>}
             {p.hatAusgang && <><dt>{t('fertigePalette')}</dt><dd>{d.nAusgang > 0 ? `${d.nAusgang} ${t('gewogen')}` : t('keineGewogen')}</dd></>}

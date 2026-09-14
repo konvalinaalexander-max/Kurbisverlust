@@ -1,15 +1,17 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useSprache } from '../sprache/SprachProvider'
-import { fehlerText } from '../lib/db'
-import { Hinweis, Segmente } from '../components/Bausteine'
+import { fehlerText, stammdaten } from '../lib/db'
+import { Hinweis } from '../components/Bausteine'
 import { ZMinus, ZPlus, ZRueckgaengig, ZWaage } from '../components/Zeichen'
 import { stationsProfil, type ArbeitDaten } from './daten'
+import type { Gebinde } from '../lib/typen'
 import { heute } from '../lib/format'
 
 const ZETTEL = (id: number) => `zettel_${id}`
 const SORTIERDATUM = (id: number) => `sortierdatum_${id}`
 const KISTEN_PALETTE = (id: number) => `kisten_palette_${id}`
+const GEBINDE = (id: number) => `gebinde_palette_${id}`
 
 /**
  * Der Zähler — das Einzige, was ein Zähler sieht.
@@ -23,7 +25,10 @@ const KISTEN_PALETTE = (id: number) => `kisten_palette_${id}`
  * Kaliber-Paletten (Waschen, 0061): Sortierdatum vom Zettel (oder ausdrücklich
  * keines) und die Kisten darauf; beides bleibt für die nächste stehen.
  *
- * Kisten je Kaliber (Sortieren): je Band ein Zähler der gefüllten Kisten.
+ * Kisten je Kaliber gibt es seit Runde Q nicht mehr: „niemand wird händisch
+ * die kisten zählen und in der app eintragen". Die Masse je Kaliberband
+ * kommt stattdessen aus Zettelgewicht × Kistenzahl der Eingangspaletten und
+ * der Sortier-CSV — beides fällt ohnehin an.
  * Fax: die Palettenzahl als Gesamtzahl (0060) — eine Zahl, nicht Klicks.
  */
 export function Zaehler({ d, gesperrt, neuLaden, melden, zumWiegen }: {
@@ -38,12 +43,19 @@ export function Zaehler({ d, gesperrt, neuLaden, melden, zumWiegen }: {
   const merken = (schluessel: string, wert: string) => {
     try { localStorage.setItem(schluessel, wert) } catch { /* privater Modus */ }
   }
-  const [teil, setTeil] = useState<'paletten' | 'kisten'>(p.hatPaletten ? 'paletten' : 'kisten')
   const [zettel, setZettel] = useState(() => lesen(ZETTEL(d.auftrag.id)))
   const [brutto, setBrutto] = useState('')
   const [sortierdatum, setSortierdatum] = useState(() => lesen(SORTIERDATUM(d.auftrag.id)))
   const [ohneDatum, setOhneDatum] = useState(false)
   const [kistenPalette, setKistenPalette] = useState(() => lesen(KISTEN_PALETTE(d.auftrag.id), String(d.kistenProPalette)))
+  // Das Gebinde klebt wie Datum und Kistenzahl: es kommen Dutzende Paletten
+  // im selben. Vorbelegt aus der letzten Palette dieser Arbeit, sonst aus
+  // der Einstellung (0072).
+  const [gebinde, setGebinde] = useState(() =>
+    d.paletten[d.paletten.length - 1]?.gebindeart
+    || lesen(GEBINDE(d.auftrag.id))
+    || d.gebindeLager)
+  const [arten, setArten] = useState<Gebinde[]>([])
   const [paletten, setPaletten] = useState(String(d.auftrag.paletten_gesamt ?? ''))
   const [fehler, setFehler] = useState<string | null>(null)
   const [laeuft, setLaeuft] = useState(false)
@@ -54,6 +66,8 @@ export function Zaehler({ d, gesperrt, neuLaden, melden, zumWiegen }: {
     merken(SORTIERDATUM(d.auftrag.id), w)
   }
   function kistenPaletteSetzen(w: string) { setKistenPalette(w); merken(KISTEN_PALETTE(d.auftrag.id), w) }
+  function gebindeSetzen(w: string) { setGebinde(w); merken(GEBINDE(d.auftrag.id), w) }
+  useEffect(() => { void stammdaten().then(s => setArten(s.gebinde)) }, [])
 
   const bruttoOk = !p.zettelGewichtPflicht || Number(brutto) > 0
   const datumText = (iso: string) => iso ? new Date(iso + 'T00:00:00').toLocaleDateString(gebietsschema, { day: '2-digit', month: '2-digit' }) : ''
@@ -66,15 +80,21 @@ export function Zaehler({ d, gesperrt, neuLaden, melden, zumWiegen }: {
   }
 
   async function paletteZaehlen() {
-    if (zettel === '' || !bruttoOk || laeuft) return
+    if (zettel === '' || !bruttoOk || !kistenOk || laeuft) return
     // Das Gewicht sofort leeren, nicht erst nach der Antwort: wer schon die
     // nächste Zahl tippt, während die erste noch unterwegs ist, verliert sie
     // sonst an das späte Leeren.
     const bruttoWert = brutto
     setLaeuft(true); setFehler(null); setBrutto('')
     const { error } = await supabase.from('auftrag_palette')
+      // Kistenzahl und Gebinde gehen mit: aus Zettel-Brutto minus Tara
+      // ergibt sich das Netto, und daraus mit der Sortier-CSV die Masse je
+      // Kaliberband (Runde Q). Ein leeres Feld sperrt den Knopf — es wird
+      // nie als 0 geschrieben.
       .insert({ auftrag_id: d.auftrag.id, eingangsdatum: zettel,
-                brutto_zettel_kg: p.zettelGewichtPflicht ? Number(bruttoWert) : null })
+                brutto_zettel_kg: p.zettelGewichtPflicht ? Number(bruttoWert) : null,
+                kisten: p.hatPaletten ? kistenZahl : null,
+                gebindeart: p.hatPaletten ? gebinde : null })
     if (error) {
       setLaeuft(false); setFehler(fehlerText(error))
       setBrutto(b => (b === '' ? bruttoWert : b))   // nichts verloren: der Wert steht wieder da
@@ -85,12 +105,14 @@ export function Zaehler({ d, gesperrt, neuLaden, melden, zumWiegen }: {
 
   // Waschen (0061): eine Kaliber-Palette aus dem Zwischenlager.
   const kistenZahl = Number(kistenPalette)
-  const waschBereit = (ohneDatum || sortierdatum !== '') && Number.isInteger(kistenZahl) && kistenZahl > 0
+  const kistenOk = Number.isInteger(kistenZahl) && kistenZahl > 0
+  const waschBereit = (ohneDatum || sortierdatum !== '') && kistenOk && gebinde !== ''
   async function waschPaletteZaehlen() {
     if (!waschBereit || laeuft) return
     setLaeuft(true); setFehler(null)
     const { error } = await supabase.from('auftrag_palette')
-      .insert({ auftrag_id: d.auftrag.id, sortierdatum: ohneDatum ? null : sortierdatum, kisten: kistenZahl })
+      .insert({ auftrag_id: d.auftrag.id, sortierdatum: ohneDatum ? null : sortierdatum,
+                kisten: kistenZahl, gebindeart: gebinde })
     if (error) { setLaeuft(false); setFehler(fehlerText(error)); return }
     await nachladen(t('paletteGezaehlt'))
   }
@@ -105,18 +127,6 @@ export function Zaehler({ d, gesperrt, neuLaden, melden, zumWiegen }: {
     await nachladen(t('rueckgaengig'))
   }
 
-  // Sortieren: die gefüllten Kisten je Kaliberband, ohne Datum.
-  const zeile = (idx: number) => d.gebinde.find(z => z.kaliber_idx === idx)
-  async function kistenSetzen(idx: number, wert: number) {
-    if (wert < 0 || laeuft) return
-    setLaeuft(true)
-    const { error } = await supabase.from('auftrag_gebinde')
-      .upsert({ auftrag_id: d.auftrag.id, kaliber_idx: idx, anzahl: wert, sortierdatum: null, datum_fehlt: false },
-              { onConflict: 'auftrag_id,kaliber_idx,sortierdatum' })
-    if (error) { setLaeuft(false); setFehler(fehlerText(error)); return }
-    await nachladen(t('gespeichert'))
-  }
-
   async function palettenSetzen(wert: number) {
     if (wert < 0 || laeuft) return
     setLaeuft(true); setFehler(null)
@@ -126,7 +136,6 @@ export function Zaehler({ d, gesperrt, neuLaden, melden, zumWiegen }: {
     await nachladen(t('gespeichert'))
   }
 
-  const anzahlVon = (idx: number) => zeile(idx)?.anzahl ?? 0
   const gewogen = d.paletten.filter(z => z.wiegung_id != null).length
   const kistenGesamt = d.paletten.reduce((s, x) => s + (x.kisten ?? 0), 0)
   const kaliberFehlt = p.hatWaschPaletten && d.auftrag.kaliber_idx === null && d.auftrag.kaliber_von_g === null
@@ -168,6 +177,14 @@ export function Zaehler({ d, gesperrt, neuLaden, melden, zumWiegen }: {
           </p>
         </div>
         <div className="feld">
+          <label htmlFor="gebinde-palette">{t('gebindeFrage')}</label>
+          <select id="gebinde-palette" value={gebinde} disabled={gesperrt}
+                  onChange={e => gebindeSetzen(e.target.value)} style={{ fontSize: '1.1rem' }}>
+            {arten.map(g => <option key={g.art} value={g.art}>{g.art}</option>)}
+          </select>
+          <p className="hilfe">{t('gebindeBleibt')}</p>
+        </div>
+        <div className="feld">
           <label htmlFor="kisten-palette">{t('kistenAufPalette')}</label>
           <div className="zaehler">
             <button type="button" aria-label="−" disabled={gesperrt || laeuft || kistenZahl <= 1}
@@ -186,7 +203,7 @@ export function Zaehler({ d, gesperrt, neuLaden, melden, zumWiegen }: {
         <button type="button" id="wasch-plus" className="haupt zaehler-plus" disabled={gesperrt || laeuft || !waschBereit}
                 onClick={() => void waschPaletteZaehlen()}>
           <span><ZPlus size={22} /> 1 {t('paletteHingestellt')}</span>
-          {waschBereit && <span className="klein-text">{ohneDatum ? t('keinSortierdatum') : datumText(sortierdatum)} · {kistenZahl} {t('kisten')}</span>}
+          {waschBereit && <span className="klein-text">{ohneDatum ? t('keinSortierdatum') : datumText(sortierdatum)} · {kistenZahl} {gebinde}</span>}
         </button>
         <button type="button" id="wasch-minus" className="zaehler-minus" disabled={gesperrt || laeuft || d.paletten.length === 0}
                 onClick={() => void paletteZurueck()}>
@@ -199,13 +216,7 @@ export function Zaehler({ d, gesperrt, neuLaden, melden, zumWiegen }: {
 
   return (
     <>
-      {p.hatPaletten && p.hatKisten && (
-        <div className="abstand-unten">
-          <Segmente gross wahl={teil} setzen={setTeil} teile={[['paletten', t('paletten')], ['kisten', t('kaliberKisten')]]} />
-        </div>
-      )}
-
-      {teil === 'paletten' && p.hatPaletten && (
+      {p.hatPaletten && (
         <div className="karte">
           <div className="feld">
             <label htmlFor="zettel">{t('datumZettel')}</label>
@@ -221,9 +232,37 @@ export function Zaehler({ d, gesperrt, neuLaden, melden, zumWiegen }: {
               <label htmlFor="zettel-brutto">{t('gewichtZettel')}</label>
               <input id="zettel-brutto" type="number" inputMode="decimal" step="0.5" min={0} value={brutto} disabled={gesperrt}
                      onChange={e => setBrutto(e.target.value)} style={{ fontSize: '1.15rem' }} />
-              <p className="hilfe">{brutto === '' ? t('gewichtZettelPflicht') : t('gewichtZettelWarum')}</p>
+              <p className="hilfe">
+                {brutto !== '' ? t('gewichtZettelWarum')
+                  : d.auftrag.station === 'sortieren' ? t('gewichtZettelSortieren')
+                  : t('gewichtZettelPflicht')}
+              </p>
             </div>
           )}
+          {/* Kisten je Eingangspalette (Runde Q): vorbelegt mit 36, immer
+              änderbar — der Betrieb sagt „teilweise sinds 32 und teilweise
+              36". Zusammen mit dem Zettelgewicht ergibt das die Masse, die
+              in die Maschine ging. */}
+          <div className="feld">
+            <label htmlFor="kisten-palette">{t('kistenAufPalette')}</label>
+            <div className="zaehler">
+              <button type="button" aria-label="−" disabled={gesperrt || laeuft || kistenZahl <= 1}
+                      onClick={() => kistenPaletteSetzen(String(Math.max(1, kistenZahl - 1)))}><ZMinus size={24} /></button>
+              <input id="kisten-palette" type="number" inputMode="numeric" min={1} step={1} value={kistenPalette} disabled={gesperrt}
+                     className="stand" onChange={e => kistenPaletteSetzen(e.target.value)} />
+              <button type="button" aria-label="+" disabled={gesperrt || laeuft}
+                      onClick={() => kistenPaletteSetzen(String((Number.isFinite(kistenZahl) ? kistenZahl : 0) + 1))}><ZPlus size={24} /></button>
+            </div>
+            <p className="hilfe">{t('kistenEingangErkl')}</p>
+          </div>
+          <div className="feld">
+            <label htmlFor="gebinde-eingang">{t('gebindeFrage')}</label>
+            <select id="gebinde-eingang" value={gebinde} disabled={gesperrt}
+                    onChange={e => gebindeSetzen(e.target.value)} style={{ fontSize: '1.1rem' }}>
+              {arten.map(g => <option key={g.art} value={g.art}>{g.art}</option>)}
+            </select>
+            <p className="hilfe">{t('gebindeBleibt')}</p>
+          </div>
           <div className="zaehler-gross">
             <div className="stand neu" key={d.paletten.length}>{d.paletten.length}</div>
             <div className="einheit">{t('paletten')}{gewogen > 0 && ` · ${gewogen} ${t('gewogen')}`}</div>
@@ -233,10 +272,10 @@ export function Zaehler({ d, gesperrt, neuLaden, melden, zumWiegen }: {
               {t('dreiWiegen')} {t('nurGewogen').replace('{n}', String(gewogen)).replace('{soll}', String(p.wiegenSoll))}
             </p>
           )}
-          <button type="button" id="zaehlen-plus" className="haupt zaehler-plus" disabled={gesperrt || laeuft || zettel === '' || !bruttoOk}
+          <button type="button" id="zaehlen-plus" className="haupt zaehler-plus" disabled={gesperrt || laeuft || zettel === '' || !bruttoOk || !kistenOk}
                   onClick={() => void paletteZaehlen()}>
             <span><ZPlus size={22} /> 1 {t('paletteHingestellt')}</span>
-            {zettel !== '' && <span className="klein-text">{datumText(zettel)}{p.zettelGewichtPflicht && brutto !== '' ? ` · ${brutto} kg` : ''}</span>}
+            {zettel !== '' && <span className="klein-text">{datumText(zettel)}{p.zettelGewichtPflicht && brutto !== '' ? ` · ${brutto} kg` : ''}{kistenOk ? ` · ${kistenZahl} ${gebinde}` : ''}</span>}
           </button>
           <button type="button" id="zaehlen-minus" className="zaehler-minus" disabled={gesperrt || laeuft || d.paletten.length === 0}
                   onClick={() => void paletteZurueck()}>
@@ -244,31 +283,13 @@ export function Zaehler({ d, gesperrt, neuLaden, melden, zumWiegen }: {
           </button>
           {p.mitWiegen && (
             <button type="button" id="zum-wiegen" className="voll" style={{ marginTop: '.6rem', minHeight: 48 }}
-                    disabled={gesperrt || zettel === ''} onClick={() => zumWiegen(brutto)}>
+                    disabled={gesperrt || zettel === '' || !bruttoOk || !kistenOk} onClick={() => zumWiegen(brutto)}>
               <ZWaage size={18} /> {t('paletteWiegenFrage')}
             </button>
           )}
         </div>
       )}
 
-      {teil === 'kisten' && p.hatKisten && (
-        <div className="karte">
-          <p className="leise oben-0">{t('kistenSortierenWarum')}</p>
-          {d.baender.map((band, i) => (
-            <div key={i} style={{ marginBottom: '1rem' }}>
-              <label>{t('kaliber')} {i + 1}<span className="leise"> · {band[0]}–{band[1]} g</span></label>
-              <div className="zaehler">
-                <button type="button" onClick={() => void kistenSetzen(i, anzahlVon(i) - 1)} aria-label="−"
-                        disabled={gesperrt || laeuft || anzahlVon(i) === 0}><ZMinus size={24} /></button>
-                <span className="stand">{anzahlVon(i)}</span>
-                <button type="button" className="haupt" aria-label="+" id={`kiste-plus-${i}`} disabled={gesperrt || laeuft}
-                        onClick={() => void kistenSetzen(i, anzahlVon(i) + 1)}><ZPlus size={26} /></button>
-              </div>
-            </div>
-          ))}
-          {d.baender.length === 0 && <Hinweis>{t('kistenKeineBaender')}</Hinweis>}
-        </div>
-      )}
       {fehler && <Hinweis art="warnung">{fehler}</Hinweis>}
     </>
   )

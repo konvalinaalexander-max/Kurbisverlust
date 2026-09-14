@@ -353,7 +353,8 @@ export function Abschluss({ d, neuLaden, zurueck, fertig }: {
           {p.hatPaletten && <><dt>{t('paletten')}</dt><dd>{d.paletten.length}{gewogen > 0 && <span className="leise"> · {gewogen} {t('gewogen')}</span>}</dd></>}
           {p.hatWaschPaletten && <><dt>{t('paletten')}</dt><dd>{d.paletten.length} · {waschKisten} {t('kisten')}</dd></>}
           {p.hatFaxPaletten && <><dt>{t('palettenGesamt')}</dt><dd>{paletten || '—'}{tage !== '' && <span className="leise"> · {tage} {t('tageSeitWaschen')}</span>}</dd></>}
-          {p.hatKisten && kistenGezaehlt > 0 && <><dt>{t('kaliberKisten')}</dt><dd>{kistenGezaehlt}</dd></>}
+          {/* Altarbeiten zeigen weiter, was sie gezählt haben (Runde Q). */}
+          {kistenGezaehlt > 0 && <><dt>{t('kaliberKisten')}</dt><dd>{kistenGezaehlt}</dd></>}
           <dt>{t('faule')}</dt><dd>{d.ablesungen.reduce((s, z) => s + z.kg, 0)} kg · {d.ablesungen.length} {p.istFax ? t('kisten') : t('ablesungen')}</dd>
           {p.hatAusschuss && <><dt>{t('ausschussWiegenSchritt')}</dt><dd>{d.ausschuss.length > 0 ? `${t('zuKlein')} ${ausschussSumme('zu_klein')} kg · ${t('zuGross')} ${ausschussSumme('zu_gross')} kg` : '—'}</dd></>}
           {p.hatAusgang && <><dt>{t('fertigePalette')}</dt><dd>{d.nAusgang > 0 ? d.nAusgang : t('keineGewogen')}</dd></>}
