@@ -102,11 +102,9 @@ const BILDSCHIRME = [
       await p.getByRole('button', { name: T('weiter') }).click()
       await p.locator('#baender-anpassen').click()
     } },
-  { name: 'neu-fax', wer: 'arbeiter', pfad: '/neu',
-    tun: async p => {
-      await p.locator('#taet-fax').click(); await p.locator('#charge').fill('1613')
-      await p.getByRole('button', { name: T('weiter') }).click()
-    } },
+  // 'neu-fax' gibt es seit Runde R nicht mehr: die Fax ist eingefroren und
+  // steht nicht zur Wahl. Bestehende Fax-Arbeiten (arbeit-fax-*) bleiben
+  // lesbar und werden weiter aufgenommen.
   // Waschen (0054): die Bänder der Sorte wählen — oder ein eigenes Kaliber tippen
   { name: 'neu-kaliber', wer: 'arbeiter', pfad: '/neu',
     tun: async p => {

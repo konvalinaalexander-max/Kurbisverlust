@@ -118,7 +118,9 @@ export default function Ursachen() {
       <Verderb daten={daten} strom={strom('Schimmel/Fäulnis')} feld={strom('Nicht lagerbedingt')} eingang={eingang} lager={lager} sorte={filterSorte} chargen={chargenSet} filter={filter} staende={staende} />
       <Verdunstung daten={daten} strom={strom('Verdunstung')} eingang={eingang} lager={lager} sorte={filterSorte} chargen={chargenSet} filter={filter} staende={staende} />
       <Sortierung daten={daten} klein={strom('Zu klein (Tierfutter)')} gross={strom('Nebenkanal zu gross')} eingang={eingang} sorte={filterSorte} chargen={chargen} filter={filter} />
-      <Fax daten={daten} strom={strom('Faul beim Abpacken (Fax)')} eingang={eingang} chargen={chargenSet} />
+      {/* Fax (Faules beim Abpacken) ist seit Runde R eingefroren — kein Block
+          mehr. Der Strom bleibt in der Datenbank; Runde R nimmt ihn aus der
+          Kaskade (docs/PROMPT_RUNDE_R.md, Block A). */}
       <Ueberfuellungsblock daten={daten} filter={filter} sorte={filterSorte} />
     </>
   )
@@ -632,81 +634,6 @@ function Gewichtsverteilung({ daten, filter, sorte }: { daten: Auswertung; filte
       )}
       <p className="fussnote">Glockenförmig oder zweigipflig, und wo liegt der Schwerpunkt zu den Kalibergrenzen? Eine Aussage über den Anbau, nicht über das Lager.</p>
     </Aufklapp>
-  )
-}
-
-/* ---------- Fax: Faules beim Abpacken — eine Zahl --------------------------- */
-
-function Fax({ daten, strom, eingang, chargen }: { daten: Auswertung; strom?: StromSumme; eingang: number; chargen: Set<number> }) {
-  // Nur Arbeiten, bei denen das Faule wirklich gewogen wurde. Leer ist nicht null.
-  const fax = daten.fax.filter(f => f.status === 'abgeschlossen' && f.plausibel
-                                    && f.masse_kg != null && f.faul_erfasst && chargen.has(f.charge_nr))
-  const masse = fax.reduce((s, f) => s + (f.masse_kg ?? 0) + f.faul_kg, 0)
-  const faul = fax.reduce((s, f) => s + f.faul_kg, 0)
-  const ohne = daten.fax.filter(f => f.status === 'abgeschlossen' && !f.faul_erfasst && chargen.has(f.charge_nr)).length
-  return (
-    <Karte titel="Faules beim Abpacken (Fax)" unter="Was nach dem Waschen beim Abpacken noch aussortiert wird — gerechnet an der abgepackten Ware.">
-      <Zahlen zeilen={[
-        Stromzahl({ v: strom, eingang, titel: 'Faules beim Abpacken bis heute' }),
-        { titel: 'Gemessen an', wert: fax.length > 0 ? <>{fax.length} Fax-Arbeiten <Herkunft art="gemessen" /></> : <Marke art="warnung">keine Wägung</Marke>,
-          unter: fax.length > 0 ? `${kg(faul, 0)} Faules von ${tonnen(masse)} abgepackter Ware, also ${prozent(masse > 0 ? faul / masse : null)}${ohne > 0 ? ` · ${ohne} weitere Fax-Arbeiten haben nichts gewogen` : ''}` : 'solange ist der Anteil unbekannt, nicht null' },
-        ...(strom?.bekannt && strom.erwartet !== null && strom.erwartet > 0
-          ? [{ titel: 'Erwartung für die Ware im Haus', wert: <>{kg(strom.erwartet, 0)} <Herkunft art="prognose" /></>, unter: 'was beim Abpacken noch dazukäme — steckt nicht im Verlust bis heute' }] : []),
-      ]} />
-      <Wartezeit daten={daten} />
-      <Erklaerung>
-        <p>Nach dem Waschen steht die Ware ein bis drei Tage in Kisten, bis sie abgepackt wird; dabei wird nochmals aussortiert, was faul ist. Das kommt vom Waschen und vom Stehen danach, nicht von der Lagerdauer — darum eine eigene Ursache.
-        Die Zahl beruht auf Fax-Arbeiten mit gewogenem Faulem <Herkunft art="gemessen" />; „nichts Faules" ist dabei eine Messung mit 0 kg.</p>
-        <p>Die Klassen nach Wartezeit sind eine <strong>Beobachtung</strong>, keine Erklärung: Sie sagen, was gemessen wurde, nicht warum. Erst wenn sich die Bereiche zweier Klassen nicht überlappen, steht ein Satz dazu — vorher könnte der Unterschied Zufall sein.</p>
-      </Erklaerung>
-      {strom && <Rechenweg zeilen={rechenweg(strom, eingang)} />}
-    </Karte>
-  )
-}
-
-/**
- * Das Faule beim Abpacken nach Tagen seit dem Waschen (erg_fax_wartezeit).
- * Drei Klassen plus „unbekannt", je mit Anteil, Bereich und Zahl der
- * Arbeiten. Der Satz darunter kommt nur, wenn die Bereiche der schnellsten
- * und der langsamsten Klasse sich **nicht** überlappen — sonst behauptete er
- * einen Unterschied, den die Messung nicht trägt.
- */
-function Wartezeit({ daten }: { daten: Auswertung }) {
-  const zeilen = daten.faxWartezeit.filter(w => w.gruppe === 'alle').sort((a, b) => a.reihenfolge - b.reihenfolge)
-  const mit = zeilen.filter(w => w.n > 0)
-  if (mit.length < 2) return null
-  const max = Math.max(0.001, ...mit.map(w => w.oben ?? w.anteil ?? 0))
-  const schnell = mit.find(w => w.klasse === '0–1 Tage')
-  const langsam = [...mit].reverse().find(w => w.klasse !== 'unbekannt' && w.klasse !== '0–1 Tage')
-  const getrennt = schnell?.oben != null && langsam?.unten != null && schnell.oben < langsam.unten
-  return (
-    <>
-      <h3>Nach Wartezeit seit dem Waschen <span className="leise">was gemessen wurde, nicht warum</span></h3>
-      <div className="rollbar"><table className="dicht">
-        <thead><tr><th>Tage seit dem Waschen</th><th className="zahl">Anteil faul</th><th style={{ width: '34%' }}></th><th className="zahl">Bereich</th><th className="zahl">Arbeiten</th><th className="zahl">Abgepackt</th></tr></thead>
-        <tbody>{mit.map(w => (
-          <tr key={w.klasse} className={w.klasse === 'unbekannt' ? 'leise' : ''}>
-            <td>{w.klasse}</td>
-            <td className="zahl"><strong>{prozent(w.anteil)}</strong></td>
-            <td><div className="balken-spur" style={{ height: 8 }}>
-              <div className="balken-fuellung waechst" style={{ width: `${((w.anteil ?? 0) / max) * 100}%`, background: 'var(--strom-fax)' }} />
-            </div></td>
-            <td className="zahl">{w.unten != null && w.oben != null ? <span className="leise">{prozent(w.unten)}–{prozent(w.oben)}</span> : <span className="leise">—</span>}</td>
-            <td className="zahl">{w.n}</td>
-            <td className="zahl">{kg(w.masse_kg, 0)}</td>
-          </tr>
-        ))}</tbody>
-      </table></div>
-      {getrennt && schnell && langsam && (
-        <p className="fussnote">
-          <strong>Abpacken am Tag nach dem Waschen: {prozent(schnell.anteil)} faul statt {prozent(langsam.anteil)}</strong> bei {langsam.klasse}.
-          Die zwei Bereiche überlappen sich nicht — der Unterschied ist grösser, als die Streuung der Messungen erklärt.
-        </p>
-      )}
-      {!getrennt && (
-        <p className="fussnote">Die Bereiche der Klassen überlappen sich. Ein Unterschied könnte Zufall sein; hier steht deshalb kein Satz darüber, sondern nur, was gemessen wurde.</p>
-      )}
-    </>
   )
 }
 

@@ -6065,14 +6065,54 @@ set client_min_messages = warning;
 -- =====================================================================
 set client_min_messages = warning;
 
+
+-- =====================================================================
+-- aus 0077_die_kontrollpalette_kennt_ihren_eingang.sql
+-- =====================================================================
+
+-- =====================================================================
+-- 0077 — Die Kontrollpalette kennt ihren Eingang
+--
+-- Die Kontrollpalette (0072) ist eine markierte Palette, die stehen bleibt
+-- und immer wieder gewogen wird. Ihre erste Wägung war bisher ihr erster
+-- Messpunkt. Dabei steht auf dem Zettel an der Palette schon ein früherer:
+-- das Eingangsdatum und das Bruttogewicht beim Wareneingang. Wer die
+-- Palette anlegt, hat den Zettel vor Augen — zwei Angaben, die nichts
+-- kosten und den Weg vom Eingang bis zur ersten Wägung mitzählen lassen.
+--
+-- Beide sind freiwillig: Ein Zettel kann fehlen oder unlesbar sein, und
+-- „leer ist nicht null" — dann beginnt die Kurve eben bei der ersten
+-- Wägung. Die Auswertung (v_kontrollpalette_rate) nimmt den Eingang als
+-- Punkt dazu, sobald sie ihn kennt; das ist Sache des Rechenwerks, nicht
+-- dieser Migration.
+--
+-- Nur Spalten dazu, nichts weg, nichts umgedeutet — die Erfassung ist
+-- scharf, und das hier ist die einzige Art Änderung, die dann noch erlaubt
+-- ist (docs/DATENERHEBUNG.md, Abschnitt 4).
+-- =====================================================================
+
+alter table kontrollpalette
+  add column if not exists eingangsdatum     date,
+  add column if not exists brutto_eingang_kg numeric(8,2)
+    check (brutto_eingang_kg is null or brutto_eingang_kg > 0);
+
+comment on column kontrollpalette.eingangsdatum is
+  'Das Eingangsdatum vom Zettel an der Palette — freiwillig beim Anlegen (0077).';
+comment on column kontrollpalette.brutto_eingang_kg is
+  'Das Bruttogewicht beim Wareneingang vom Zettel, mit denselben Kisten wie '
+  'die Wägungen — freiwillig; fehlt es, beginnt die Kurve bei der ersten Wägung (0077).';
+
 create or replace function schema_stand() returns int
-language sql immutable set search_path = public as $$ select 76 $$;
+language sql immutable set search_path = public as $$ select 77 $$;
 comment on function schema_stand is
   'Nummer der jüngsten eingespielten Migration. Die App vergleicht sie mit '
   'SCHEMA_ERWARTET (src/lib/version.ts) und verlangt bei Abweichung, setup.sql '
   'erneut auszuführen. Jede Migration setzt sie auf ihre eigene Nummer.';
 revoke all on function schema_stand() from public;
 grant execute on function schema_stand() to anon, authenticated;
+comment on function schema_stand() is
+  'Die Nummer der höchsten eingespielten Migration. Die App vergleicht sie mit '
+  'SCHEMA_ERWARTET und verlangt setup.sql, wenn sie auseinanderliegen (0057).';
 comment on function schema_stand() is
   'Die Nummer der höchsten eingespielten Migration. Die App vergleicht sie mit '
   'SCHEMA_ERWARTET und verlangt setup.sql, wenn sie auseinanderliegen (0057).';
@@ -12782,9 +12822,24 @@ begin
     case when exists (select 1 from pg_extension where extname = 'pg_cron')
          then '' else ' Ohne pg_cron rechnet die App selbst nach, wenn etwas veraltet ist.' end,
     false);
+  -- Liegen hier echte Erfassungsdaten (einstellung erfassung_scharf, 0072)?
+  -- Dann steht es vorne in der Fertig-Zeile UND kommt als Warnung durch —
+  -- Warnungen sind nicht stummgeschaltet (AB-43), genau dafür. Wer die Datei
+  -- gerade in die echte Datenbank eingespielt hat, soll es lesen; wer eine
+  -- Sicherung vergessen hat, soll es jetzt merken und nicht nächste Woche.
+  perform set_config('kuerbis.scharf',
+    case when coalesce((select (wert #>> '{}')::boolean from einstellung
+                         where schluessel = 'erfassung_scharf'), false)
+         then 'ACHTUNG: Auf dieser Datenbank liegen echte Erfassungsdaten (erfassung_scharf). '
+         else '' end,
+    false);
+  if current_setting('kuerbis.scharf', true) <> '' then
+    raise warning 'Echte Erfassungsdaten auf dieser Datenbank — vor jedem weiteren Einspielen eine Sicherung ziehen (docs/ZWEI_WEBSEITEN.md).';
+  end if;
 end $$;
 
-select format('Fertig. Die Datenbank steht: %s Chargen, %s Sorten, %s Tabellen, %s Auswertungen. %s%s Weiter im README bei Schritt 4.',
+select format('%sFertig. Die Datenbank steht: %s Chargen, %s Sorten, %s Tabellen, %s Auswertungen. %s%s Weiter im README bei Schritt 4.',
+              coalesce(current_setting('kuerbis.scharf', true), ''),
               (select count(*) from charge),
               (select count(*) from sorte_kaliber),
               (select count(*) from pg_tables where schemaname = 'public'),

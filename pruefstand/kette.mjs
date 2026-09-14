@@ -9,6 +9,13 @@
  * Paletten; die Lagerkontrolle mit Vorschlag, ohne Faul-Frage (0061). Jede
  * Schreibanfrage, die die App dabei an Supabase schickt, wird mitgeschnitten.
  *
+ * Fax (0051, 0060) fuhr die Kette bis Runde R als dritten und sechsten
+ * Durchlauf. Seit Runde R ist die Tätigkeit eingefroren — der Betrieb hat den
+ * Nenner in Frage gestellt und das Faule an der Fax aus der Erfassung
+ * genommen. Die Kette prüft jetzt das Gegenteil: dass die Fax **nicht mehr
+ * angeboten** wird. Die Datenbank behält alles; die Prüfblöcke dazu stehen
+ * weiter in pruefung.sql, wo die Fax-Arbeiten direkt in SQL entstehen.
+ *
  * Der zweite Teil (kette_pruefen.sh) spielt genau diese Anfragen in eine
  * echte Postgres ein und prüft, ob jeder eingegebene Wert in der Auswertung
  * ankommt. Das fängt, was der Bildschirm-Prüfstand nicht fangen kann: eine
@@ -51,17 +58,14 @@ async function restAntwort(route) {
     const fn = name.slice(4)
     if (fn === 'auswertung_aktualisieren') return route.fulfill({ json: new Date().toISOString() })
     if (fn === 'schema_stand') return route.fulfill({ json: SCHEMA_STAND })
-    if (fn === 'palox_letzter_stand') {
-      // Wie die echte Funktion (0060): der letzte Stand derselben Palox-Station —
-      // Waschen und Waschen + Sortieren teilen die Waschstrasse. Erst, was in
-      // diesem Durchlauf abgelesen wurde, sonst der Stand aus der Demo.
+    if (fn === 'palox_stand_dieser_arbeit') {
+      // Wie die echte Funktion (0072): der letzte Stand DERSELBEN Arbeit —
+      // nie über die Arbeitsgrenze hinweg. Vor der ersten Ablesung: null,
+      // und die Maske zeigt „Startstand", keine Menge.
       const body = JSON.parse(route.request().postData() ?? '{}')
-      const st = x => (x === 'waschen_sortieren' ? 'waschen' : x)
-      const eigene = (eingefuegt['auftrag'] ?? []).filter(a => st(a.station) === st(body.p_station)).map(a => a.id)
-      const staende_eigen = (eingefuegt['schimmel_messung'] ?? []).filter(m => eigene.includes(m.auftrag_id) && m.palox_stand_kg != null)
-      if (staende_eigen.length) return route.fulfill({ json: staende_eigen[staende_eigen.length - 1].palox_stand_kg })
-      const staende = fixture('rpc_palox_letzter_stand') ?? {}
-      return route.fulfill({ json: staende[body.p_station] ?? null })
+      const eigene = (eingefuegt['schimmel_messung'] ?? [])
+        .filter(m => m.auftrag_id === body.p_auftrag_id && m.palox_stand_kg != null && m.gemessen !== false)
+      return route.fulfill({ json: eigene.length ? eigene[eigene.length - 1].palox_stand_kg : null })
     }
     if (fn === 'sortierschema_festlegen') {
       // Die Fassung legt die Datenbank fest (0051). Hier bekommt sie eine
@@ -275,12 +279,14 @@ await schritt('Eine Palette wiegen: Zettel 950 → 900 kg, 40 Kisten G2, 6 je Ki
   await warteAuf('verdunstung_wiegung'); await warteAuf('auftrag_palette', 'POST', 3)
 })
 
-await schritt('Palox zu Beginn: Waage zeigt 165 (Tara 45 → 120 kg)', async () => {
+await schritt('Palox zu Beginn: Waage zeigt 165 — ein Startstand, keine Menge (0072)', async () => {
   await seite.getByRole('button', { name: /Was zu tun ist/ }).click()
   await seite.locator('#check-palox').click()
   await seite.locator('#palox').fill('165')
-  const vorschau = await seite.locator('text=/\\d+ kg/').first().textContent()
-  if (!/120 kg/.test(vorschau ?? '')) throw new Error(`Vorschau zeigt „${vorschau}" statt 120 kg`)
+  // Seit 0072 rechnet die Maske nicht mehr gegen die Tara: die erste
+  // Ablesung einer Arbeit ist ihr Anfang, die Menge folgt am Ende (S₂ − S₁).
+  await seite.locator('.netto-zeile strong', { hasText: /Startstand/ }).waitFor()
+  if (await seite.locator('.netto-zeile strong', { hasText: /\d+ kg/ }).count() > 0) throw new Error('Die erste Ablesung darf keine Menge zeigen (0072)')
   if (await seite.locator('input[type=checkbox]').count() > 0) throw new Error('Das Häkchen „Palox geleert" gibt es nicht mehr (0060)')
   await seite.locator('#palox-eintragen').click()
   await warteAuf('schimmel_messung')
@@ -297,9 +303,15 @@ await schritt('Fertige Palette wiegen: 32 Kisten G2, 345 kg brutto → 8.5 kg je
   await seite.getByRole('button', { name: /Zurück/ }).click()
 })
 
-await schritt('Geführter Abschluss: Palox am Ende, Erinnerung (1 von 3 gewogen), zu klein 60 kg brutto (4 G2 → 29 kg), fertige Palette erinnert, eine Charge → fertig', async () => {
+await schritt('Geführter Abschluss: Palox am Ende 285 (→ 120 kg), Erinnerung (1 von 3 gewogen), zu klein 60 kg brutto (4 G2 → 29 kg), fertige Palette erinnert, eine Charge → fertig', async () => {
   await seite.locator('#check-abschluss').click()
-  await seite.locator('#palox-unveraendert').click()            // AB-02: Ablesung am Ende (0 kg dazu)
+  // 0072: „Palox zwischendurch geleert?" — nein (kein PATCH: der Auftrag steht schon auf nein)
+  await seite.locator('#geleert-nein').click()
+  // AB-02 / 0072: die zweite Ablesung derselben Arbeit ergibt die Menge — 285 − 165 = 120.
+  await seite.locator('#palox').fill('285')
+  const palox = await seite.locator('.netto-zeile strong', { hasText: /\d+ kg/ }).first().textContent()
+  if (!/^120 kg/.test(palox ?? '')) throw new Error(`Palox-Vorschau zeigt „${palox}" statt 120 kg (285 − 165)`)
+  await seite.locator('#palox-eintragen').click()
   await warteAuf('schimmel_messung', 'POST', 2)
   // Runde H: nur eine von drei Paletten gewogen — gesagt, nicht erzwungen
   await seite.getByText('1 von 3 gewogen').first().waitFor()
@@ -322,7 +334,7 @@ await schritt('Geführter Abschluss: Palox am Ende, Erinnerung (1 von 3 gewogen)
   await seite.getByRole('button', { name: 'Weiter' }).click()
   await seite.locator('#arbeit-fertig').click()
   await seite.locator('#ja-fertig').click()
-  await warteAuf('auftrag', 'PATCH')
+  await warteAuf('auftrag', 'PATCH', 2)                       // palox_unbekannt = nein, dann der Abschluss
 })
 
 // ---------- Zweiter Durchlauf: Sortieren an der Maschine (AB-01, AB-06) ----
@@ -346,88 +358,45 @@ await schritt('Assistent: Sortieren, Charge 1613 eingetippt, Bänder angepasst (
   await warteAuf('auftrag_teilnehmer', 'POST', 2)
 })
 
-await schritt('Sortieren: Palox direkt nach dem Start (60 → 15 kg), eine Palette, zwei Kisten Kaliber 1, abschliessen', async () => {
-  await seite.locator('#palox').fill('60')                    // erste Ablesung dieser Station: 60 − 45 = 15
+await schritt('Sortieren: Palox direkt nach dem Start (60, dann 75 am Ende → 15 kg), eine Palette mit Zettelgewicht, abschliessen', async () => {
+  await seite.locator('#palox').fill('60')                    // Startstand dieser Arbeit (0072), keine Menge
   await seite.locator('#palox-eintragen').click()
   await warteAuf('schimmel_messung', 'POST', 3)
   await seite.locator('#check-zaehlen').click()
   await seite.locator('#zettel').fill('2026-09-05')
-  if (await seite.locator('#zettel-brutto').count() > 0) throw new Error('Beim Sortieren wird kein Zettelgewicht verlangt')
+  // 0072: auch beim Sortieren steht das Zettelgewicht — „anzahl paletten mit
+  // total vom brutto gewicht - dann weisst du wieviel sortiert worden ist".
+  await seite.locator('#zettel-brutto').fill('940')
   await seite.locator('#zaehlen-plus').click()                // ohne Wiegen zählt „+" direkt
   await warteAuf('auftrag_palette', 'POST', 4)
-  await seite.getByRole('tab', { name: 'Kisten' }).click()
-  await seite.locator('#kiste-plus-0').click()
-  await warteAuf('auftrag_gebinde', 'POST', 1)
-  await seite.locator('#kiste-plus-0').click()
-  await warteAuf('auftrag_gebinde', 'POST', 2)
+  // Kisten je Kaliber werden seit Runde Q nicht mehr gezählt (ENTSCHEIDUNGEN
+  // „Kisten je Kaliber zählen: gestrichen") — die Masse je Band kommt aus
+  // Zettelgewicht und Verkaufsdatei.
+  if (await seite.getByRole('tab', { name: 'Kisten' }).count() > 0) throw new Error('Kisten je Kaliber werden nicht mehr gezählt (Runde Q)')
   await seite.getByRole('button', { name: /Was zu tun ist/ }).click()
   await seite.locator('#check-abschluss').click()
-  await seite.locator('#palox-unveraendert').click()
+  await seite.locator('#geleert-nein').click()
+  await seite.locator('#palox').fill('75')                    // 75 − 60 = 15 kg Faules dieser Arbeit
+  await seite.locator('#palox-eintragen').click()
   await warteAuf('schimmel_messung', 'POST', 4)
   await seite.locator('#charge-ja').click()
   await seite.getByRole('button', { name: 'Weiter' }).click()
   await seite.locator('#arbeit-fertig').click()
   await seite.locator('#ja-fertig').click()
-  await warteAuf('auftrag', 'PATCH', 2)
+  await warteAuf('auftrag', 'PATCH', 4)
 })
 
-// ---------- Dritter Durchlauf: Fax (0051, 0060) ----------------------------
-// Etikettieren und abpacken: Paletten als Gesamtzahl, Faules kistenweise
-// wiegen, Tage seit dem Waschen, abschliessen. Kein Palox, keine Kilo-Frage.
-await schritt('Assistent: Fax, Charge 1613, Kiste ab 8 kg', async () => {
+// ---------- Dritter Durchlauf: entfällt — die Fax ist eingefroren (Runde R) --
+// Hier lief bis Runde R der Fax-Durchlauf (Paletten gesamt, Faules kistenweise,
+// Tage seit dem Waschen). Was davon in der Datenbank steht, bleibt dort und
+// wird in pruefung.sql weiter geprüft; die Oberfläche bietet es nicht mehr an.
+await schritt('Fax wird nicht mehr angeboten — die Tätigkeit ist eingefroren (Runde R)', async () => {
   await seite.goto('http://localhost:5198/', { waitUntil: 'networkidle' })
   await seite.getByRole('button', { name: /Neue Arbeit/ }).click()
-  await seite.locator('#taet-fax').click()
-  await seite.locator('#charge').fill('1613')
-  await seite.getByRole('button', { name: 'Weiter' }).click()
-  await seite.locator('#system-kiste_ab').click()
-  await seite.getByRole('button', { name: 'Weiter' }).click()
-  await seite.getByRole('button', { name: 'Starten' }).click()
-  await warteAuf('auftrag', 'POST', 3)
-  await warteAuf('auftrag_teilnehmer', 'POST', 3)
-})
-
-await schritt('Fax: kein Palox — die Checkliste steht sofort, mit „Faules wiegen" statt Palox', async () => {
-  await seite.locator('#check-abschluss').waitFor()
-  if (await seite.locator('#check-palox').count() > 0) throw new Error('Beim Fax gibt es keinen Palox')
-  await seite.locator('#check-faule').waitFor()
-})
-
-await schritt('Fax: zwei Paletten als Gesamtzahl gezählt', async () => {
-  await seite.locator('#check-zaehlen').click()
-  await seite.locator('#paletten-plus').click()
-  await warteAuf('auftrag', 'PATCH', 3)
-  await seite.locator('#paletten-plus').click()
-  await warteAuf('auftrag', 'PATCH', 4)
-  await seite.getByRole('button', { name: /Was zu tun ist/ }).click()
-})
-
-await schritt('Fax: Faules gewogen — 7.5 kg brutto, 1 Kiste G2, ohne Palette', async () => {
-  await seite.locator('#check-faule').click()
-  await seite.locator('#faul-brutto').fill('7.5')
-  await seite.locator('#faul-kisten').fill('1')
-  await seite.locator('#faul-art').selectOption('G2')
-  const vorschau = await seite.locator('text=/\\d+ kg/').first().textContent()
-  if (!/6 kg/.test(vorschau ?? '')) throw new Error(`Vorschau zeigt „${vorschau}" statt 6 kg`)
-  await seite.locator('#faul-eintragen').click()
-  await warteAuf('schimmel_messung', 'POST', 5)
-  await seite.getByRole('button', { name: /Zurück/ }).click()
-})
-
-await schritt('Fax-Abschluss: Faules, Paletten gesamt mit Tagen seit dem Waschen, eine Charge → fertig', async () => {
-  await seite.locator('#check-abschluss').click()
-  await seite.getByRole('button', { name: 'Weiter' }).click()   // Faules ist gewogen
-  const paletten = await seite.locator('#ab-paletten').inputValue()
-  if (paletten !== '2') throw new Error(`Die Palettenzahl aus dem Zähler muss vorbelegt sein, ist „${paletten}"`)
-  await seite.locator('#ab-tage').fill('2')
-  await seite.getByRole('button', { name: 'Weiter' }).click()
-  await warteAuf('auftrag', 'PATCH', 5)
-  if (await seite.locator('#ds').count() > 0) throw new Error('Die Kilo-Frage gibt es nicht mehr')
-  await seite.locator('#charge-ja').click()
-  await seite.getByRole('button', { name: 'Weiter' }).click()
-  await seite.locator('#arbeit-fertig').click()
-  await seite.locator('#ja-fertig').click()
-  await warteAuf('auftrag', 'PATCH', 6)
+  await seite.locator('#taet-waschen').waitFor()
+  if (await seite.locator('#taet-fax').count() > 0) throw new Error('Die Fax steht noch zur Wahl — sie ist eingefroren (taetigkeit.ts, angeboten: false)')
+  const wahl = await seite.locator('[id^=taet-]').count()
+  if (wahl !== 3) throw new Error(`Drei Tätigkeiten erwartet (Sortieren, Waschen, Waschen + Sortieren), es stehen ${wahl} da`)
 })
 
 // ---------- Vierter Durchlauf: Waschen mit eigenem Kaliber (0054, 0061) ----
@@ -450,8 +419,8 @@ await schritt('Assistent: Waschen, Charge 1613, eigenes Kaliber 700–900 g, 6 S
   await seite.locator('#stueck').fill('6')
   await seite.getByRole('button', { name: 'Weiter' }).click()
   await seite.getByRole('button', { name: 'Starten' }).click()
-  await warteAuf('auftrag', 'POST', 4)
-  await warteAuf('auftrag_teilnehmer', 'POST', 4)
+  await warteAuf('auftrag', 'POST', 3)
+  await warteAuf('auftrag_teilnehmer', 'POST', 3)
 })
 
 await schritt('Waschen: Palox freiwillig, Paletten mit Sortierdatum (2 × 32 Kisten) und ohne Datum (1), drei fertige Paletten, abschliessen', async () => {
@@ -459,8 +428,11 @@ await schritt('Waschen: Palox freiwillig, Paletten mit Sortierdatum (2 × 32 Kis
   await seite.locator('#check-zaehlen').click()
   if (await seite.locator('#kiste-plus-eigen').count() > 0) throw new Error('Beim Waschen werden Paletten gezählt, keine Kisten je Kaliber (0061)')
   if (!(await seite.locator('#wasch-plus').isDisabled())) throw new Error('Ohne Sortierdatum darf keine Palette gezählt werden')
+  // 0072: „teilweise sinds 32 und teilweise 36" — die Einstellung belegt 36
+  // vor, gefragt wird je Palette. Hier stehen 32 auf der Palette.
   const kisten = await seite.locator('#kisten-palette').inputValue()
-  if (kisten !== '32') throw new Error(`Kisten je Palette müssen aus der Einstellung vorbelegt sein (32), ist „${kisten}"`)
+  if (kisten !== '36') throw new Error(`Kisten je Palette müssen aus der Einstellung vorbelegt sein (36), ist „${kisten}"`)
+  await seite.locator('#kisten-palette').fill('32')
   await seite.locator('#sortierdatum').fill('2026-09-03')
   for (let i = 1; i <= 2; i++) {
     await seite.locator('#wasch-plus').click()
@@ -497,7 +469,7 @@ await schritt('Waschen: Palox freiwillig, Paletten mit Sortierdatum (2 × 32 Kis
   await seite.getByRole('button', { name: 'Weiter' }).click()
   await seite.locator('#arbeit-fertig').click()
   await seite.locator('#ja-fertig').click()
-  await warteAuf('auftrag', 'PATCH', 7)
+  await warteAuf('auftrag', 'PATCH', 5)
 })
 
 // ---------- Fünfter Durchlauf: Palette kontrollieren (0061) ----------------
@@ -523,58 +495,7 @@ await schritt('Kontrolle: andere Charge, Zettel 950 → 905 kg, ohne Faul-Frage 
   if (w[2].charge_nr !== 1613 || 'faul_kg' in w[2] || 'auswahl' in w[2]) throw new Error('Die Kontrolle bleibt nicht auf der Charge stehen — oder schreibt noch faul/auswahl')
 })
 
-// ---------- Sechster Durchlauf: Fax nach dem Waschen (Runde P) ------------
-// Dieselbe Charge, einen Waschgang später: Jetzt kennt die App die Antwort
-// auf „Tage seit dem Waschen" — die Wasch-Arbeit aus dem vierten Durchlauf
-// ist heute fertig geworden, also null Tage. Die Zahl steht **vorbelegt** im
-// Feld, mit dem Hinweis, woher sie kommt; überschreiben bleibt möglich und
-// nimmt den Hinweis weg. Keine neue Frage an den Vorarbeiter.
-await schritt('Assistent: Fax, Charge 1613 — zweiter Fax-Tag nach dem Waschen', async () => {
-  await seite.goto('http://localhost:5198/', { waitUntil: 'networkidle' })
-  await seite.getByRole('button', { name: /Neue Arbeit/ }).click()
-  await seite.locator('#taet-fax').click()
-  await seite.locator('#charge').fill('1613')
-  await seite.getByRole('button', { name: 'Weiter' }).click()
-  await seite.locator('#system-kiste_ab').click()
-  await seite.getByRole('button', { name: 'Weiter' }).click()
-  await seite.getByRole('button', { name: 'Starten' }).click()
-  await warteAuf('auftrag', 'POST', 5)
-  await warteAuf('auftrag_teilnehmer', 'POST', 5)
-})
-
-await schritt('Fax-Abschluss: „Tage seit dem Waschen" ist vorbelegt und sagt, woher', async () => {
-  await seite.locator('#check-zaehlen').click()
-  await seite.locator('#paletten-plus').click()
-  await warteAuf('auftrag', 'PATCH', 8)
-  await seite.getByRole('button', { name: /Was zu tun ist/ }).click()
-  await seite.locator('#check-faule').click()
-  await seite.locator('#faul-brutto').fill('6')
-  await seite.locator('#faul-kisten').fill('1')
-  await seite.locator('#faul-art').selectOption('G2')
-  await seite.locator('#faul-eintragen').click()
-  await warteAuf('schimmel_messung', 'POST', 6)
-  await seite.getByRole('button', { name: /Zurück/ }).click()
-  await seite.locator('#check-abschluss').click()
-  await seite.getByRole('button', { name: 'Weiter' }).click()   // Faules ist gewogen
-  await seite.locator('#ab-tage').waitFor()
-  // Die Wasch-Arbeit desselben Chargenlaufs wurde heute abgeschlossen.
-  await seite.waitForFunction(() => document.querySelector('#ab-tage')?.value === '0')
-  const hinweis = await seite.locator('#ab-tage ~ .hilfe').textContent()
-  if (!/vorgeschlagen/.test(hinweis ?? '')) throw new Error(`Der Vorschlag muss sich als solcher zu erkennen geben, steht aber „${hinweis}"`)
-  // Überschreiben: der Vorarbeiter weiss es besser, und der Hinweis geht weg.
-  await seite.locator('#ab-tage').fill('1')
-  const danach = await seite.locator('#ab-tage ~ .hilfe').textContent()
-  if (/vorgeschlagen/.test(danach ?? '')) throw new Error('Nach dem Überschreiben ist es kein Vorschlag mehr')
-  await seite.getByRole('button', { name: 'Weiter' }).click()
-  await warteAuf('auftrag', 'PATCH', 9)
-  const patch = protokoll.filter(x => x.tabelle === 'auftrag' && x.methode === 'PATCH').at(-1).zeilen[0]
-  if (patch.tage_seit_waschen !== 1) throw new Error(`Gespeichert wird, was im Feld steht — nicht der Vorschlag (${patch.tage_seit_waschen})`)
-  await seite.locator('#charge-ja').click()
-  await seite.getByRole('button', { name: 'Weiter' }).click()
-  await seite.locator('#arbeit-fertig').click()
-  await seite.locator('#ja-fertig').click()
-  await warteAuf('auftrag', 'PATCH', 10)
-})
+// ---------- Sechster Durchlauf: entfällt (Fax, siehe oben) ----------------
 
 
 await browser.close(); await vite.close()

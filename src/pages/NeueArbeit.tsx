@@ -198,7 +198,9 @@ export default function NeueArbeit() {
     return (
       <Schritt nummer={n} von={von} frage={t('wasMachtIhr')} zurueck={zurueck}>
         <div className="wahl">
-          {TAETIGKEITEN.map(a => (
+          {/* Eingefrorene Tätigkeiten (Fax, Runde R) stehen nicht zur Wahl —
+              bestehende Arbeiten davon bleiben lesbar. */}
+          {TAETIGKEITEN.filter(a => a.angeboten !== false).map(a => (
             <Wahl key={a.id} id={`taet-${a.id}`} bild={<TaetKachel id={a.id} size={44} />} name={t(a.text)} erkl={t(ERKL[a.id])}
                   gewaehlt={taetigkeit === a.id}
                   onClick={() => { setTaetigkeit(a.id); setSystem(null); setKaliberIdx(null); setGrenzen(null); setSoll(null); setPos(1) }} />

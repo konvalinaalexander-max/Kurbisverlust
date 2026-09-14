@@ -126,9 +126,9 @@ begin
   assert (select kg_pro_kuerbis from v_wiegung_kennzahl where auftrag_id = a) is not null,
     'Kürbisse je Kiste sind nicht angekommen';
 
-  -- Palox: 165 auf der Waage, 45 Behälter → 120 kg, aus dem Stand abgeleitet
+  -- Palox: 165 zu Beginn, 285 am Ende → 120 kg. Die Tara kürzt sich heraus (0072).
   select kg into v from v_schimmel_menge where auftrag_id = a;
-  assert v = 120, format('Schimmelmenge erwartet 120 (165 − 45), ist %s', v);
+  assert v = 120, format('Schimmelmenge erwartet 120 (285 − 165), ist %s', v);
   assert (select schimmel_kg from v_schimmel_punkte where auftrag_id = a) = 120,
     'Der Schimmel kommt nicht als Punkt im Modell an';
   assert (select quelle from v_schimmel_punkte where auftrag_id = a) = 'verarbeitung',
@@ -171,16 +171,20 @@ begin
     'Die Palettenmasse je Sorte und Kistensystem ist 272 kg';
 
   -- Die Sortier-Arbeit lief mit angepassten Bändern: zweite Grenze 900 statt 800,
-  -- als neue Fassung von heute — die alte blieb stehen. Zwei Kisten Kaliber 1 gezählt.
+  -- als neue Fassung von heute — die alte blieb stehen. Kisten je Kaliber werden
+  -- seit Runde Q nicht mehr gezählt.
   assert exists (select 1 from auftrag x join sortierschema s on s.id = x.sortierschema_id
                   where x.station = 'sortieren' and s.gilt_ab = current_date
                     and (s.kaliber_baender -> 0 ->> 1)::int = 900),
     'Die angepassten Bänder müssen als Fassung von heute an der Sortier-Arbeit hängen';
   assert (select count(*) from sortierschema where sorte = 'Tiana' and art = 'kaliber') >= 2,
     'Die alte Fassung darf nicht überschrieben worden sein';
-  assert (select sum(anzahl) from auftrag_gebinde g join auftrag x on x.id = g.auftrag_id
-           where x.station = 'sortieren' and g.kaliber_idx = 0) = 2,
-    'Zwei Kisten Kaliber 1 beim Sortieren gezählt';
+  assert not exists (select 1 from auftrag_gebinde g join auftrag x on x.id = g.auftrag_id where x.station = 'sortieren'),
+    'Beim Sortieren werden keine Kisten je Kaliber mehr gezählt (Runde Q)';
+  assert (select kg from v_schimmel_menge m join auftrag x on x.id = m.auftrag_id where x.station = 'sortieren') = 15,
+    'Beim Sortieren: 60 zu Beginn, 75 am Ende → 15 kg Faules (0072)';
+  assert (select brutto_zettel_kg from auftrag_palette p join auftrag x on x.id = p.auftrag_id where x.station = 'sortieren') = 940,
+    'Beim Sortieren steht das Zettelgewicht an der Palette (0072)';
 
   -- Und ganz oben: die echten Verlustströme sind beziffert
   assert (select kg from v_verlust_ranking where strom = 'Verdunstung') > 0, 'Verdunstung nicht beziffert';
@@ -188,75 +192,17 @@ begin
   raise notice 'OK  Die Kette hält: jeder Wert aus den Masken kommt in der Auswertung an';
 end $$;
 
--- ---------- Der Fax-Durchlauf (0051, 0060) ---------------------------------
+-- ---------- Fax: eingefroren (Runde R) -------------------------------------
+-- Bis Runde R standen hier zwei Blöcke, die den Fax-Durchlauf der Kette
+-- prüften (Paletten gesamt, Faules gewogen, Tage seit dem Waschen, eigener
+-- Strom, Vorschlag der Wartezeit). Die Oberfläche bietet die Fax nicht mehr
+-- an — also darf aus der Kette auch keine Fax-Arbeit kommen. Die Datenbank
+-- kann sie weiterhin; das prüft pruefung.sql mit Arbeiten aus SQL.
 do $$
-declare f record;
 begin
-  -- Die **erste** Fax-Arbeit der Kette (dritter Durchlauf). Seit Runde P gibt
-  -- es eine zweite, nach dem Waschgang — sie wird unten für sich geprüft.
-  select * into f from v_fax_beobachtung
-   where auftrag_id = (select min(id) from auftrag where ist_fax);
-  assert f.auftrag_id is not null, 'Die Fax-Arbeit ist nicht angekommen';
-  assert f.status = 'abgeschlossen', 'Der Fax-Abschluss ist nicht angekommen';
-  assert f.kaeufer is null, 'Der Käufer wird beim Fax nicht mehr gefragt';
-  assert f.kistensystem = 'kiste_ab', 'Das Kistensystem der Fax-Arbeit fehlt';
-  assert f.paletten_gesamt = 2, format('2 Paletten als Gesamtzahl erwartet, angekommen %s', f.paletten_gesamt);
-  assert f.tage_seit_waschen = 2, 'Die Tage seit dem Waschen sind nicht angekommen';
-  assert f.masse_quelle = 'fax_paletten', format('Die Fax-Masse kommt aus den Paletten, Quelle ist „%s"', f.masse_quelle);
-  assert f.masse_kg = 2 * 272, format('Fax-Masse 2 × 272 (gemessene Palettenmasse) erwartet, ist %s', f.masse_kg);
-  assert f.faul_kg = 6, format('Faules 7.5 − 1.5 = 6 kg erwartet, ist %s', f.faul_kg);
-  assert f.faul_erfasst, 'Das Faule gilt nicht als erfasst';
-  assert (select gewaschen_kg from v_hochrechnung_basis where charge_nr = 1613) = 0,
-    'Fax zählt nicht als Waschen';
-  assert not exists (select 1 from v_schimmel_punkte where auftrag_id = f.auftrag_id),
-    'Fax-Faules darf kein Punkt der Verderbskurve sein';
-  -- Seit 0061 wird das Fax-Faule am Liefertag gebucht (AB-31). In dieser Kette
-  -- gibt es keine Lieferung: Es steht also nichts als Verlust bis heute da,
-  -- sondern als Erwartung an der Ware, die noch liegt — und die gemessenen
-  -- 6 kg bestimmen den Koeffizienten dahinter.
-  assert (select kg from v_verlust_ranking where strom = 'Faul beim Abpacken (Fax)') is null,
-    'Ohne Lieferung darf Fax-Faules kein Verlust bis heute sein';
-  assert (select kg_erwartet from v_verlust_ranking where strom = 'Faul beim Abpacken (Fax)') > 0,
-    'Das erwartete Fax-Faule der liegenden Ware fehlt';
-  assert (select max(mittel) from v_koeff_fax) > 0,
-    'Die gemessenen 6 kg bestimmen den Fax-Koeffizienten nicht';
-  assert not exists (select 1 from v_plausibilitaet where auftrag_id = f.auftrag_id),
-    'Die Fax-Arbeit taucht in der Plausibilität auf';
-  raise notice 'OK  Fax: Paletten gesamt, Faules gewogen, Tage seit dem Waschen, eigener Strom';
-end $$;
-
--- ---------- Der zweite Fax-Tag: „Tage seit dem Waschen" (Runde P) ---------
--- Im sechsten Durchlauf packt dieselbe Charge einen Waschgang später ab. Die
--- App hat „Tage seit dem Waschen" aus der Wasch-Arbeit vorbelegt (0 Tage,
--- heute abgeschlossen); der Vorarbeiter hat 1 daraus gemacht. Hier steht,
--- dass ankommt, was **er** eingetragen hat — nicht, was die App vorschlug.
-do $$
-declare f record; w record;
-begin
-  select * into f from v_fax_beobachtung
-   where auftrag_id = (select max(id) from auftrag where ist_fax);
-  assert f.auftrag_id <> (select min(id) from auftrag where ist_fax),
-    'Der zweite Fax-Tag fehlt — die Kette hat ihn nicht geschrieben';
-  assert f.status = 'abgeschlossen', 'Der zweite Fax-Abschluss ist nicht angekommen';
-  assert f.tage_seit_waschen = 1,
-    format('Eingetragen war 1 Tag (überschriebener Vorschlag), angekommen ist %s', f.tage_seit_waschen);
-  assert f.paletten_gesamt = 1, format('1 Palette erwartet, angekommen %s', f.paletten_gesamt);
-  -- Und die Quelle des Vorschlags: eine abgeschlossene Wasch-Arbeit derselben
-  -- Charge, die am selben Tag fertig wurde. Ohne sie hätte die App nichts
-  -- vorzuschlagen gehabt und das Feld wäre leer geblieben — das ist die
-  -- Bedingung, die die Vorbelegung trägt.
-  select * into w from auftrag
-   where charge_nr = f.charge_nr and station = 'waschen' and not ist_fax
-     and status = 'abgeschlossen' and abgebrochen_ts is null and ende_ts is not null
-   order by ende_ts desc limit 1;
-  assert w.id is not null, 'Ohne abgeschlossene Wasch-Arbeit gäbe es nichts vorzuschlagen';
-  assert betriebstag(w.ende_ts) = betriebstag(f.start_ts),
-    format('Die Wasch-Arbeit endete am %s, der Fax-Tag begann am %s', betriebstag(w.ende_ts), betriebstag(f.start_ts));
-  -- Und er landet in der Klasse „0–1 Tage" der Wartezeit-Auswertung (0071),
-  -- nicht bei „unbekannt": Genau dafür wird die Zahl überhaupt erhoben.
-  assert exists (select 1 from v_fax_wartezeit where klasse = '0–1 Tage' and n > 0),
-    'Der Fax-Tag taucht nicht in der Wartezeit-Auswertung auf';
-  raise notice 'OK  Zweiter Fax-Tag: der Vorschlag ist überschreibbar, und das Überschriebene kommt an';
+  assert not exists (select 1 from auftrag where ist_fax),
+    'Die Kette hat eine Fax-Arbeit geschrieben — die Tätigkeit ist eingefroren (Runde R)';
+  raise notice 'OK  Fax: keine Arbeit aus der Oberfläche — eingefroren, nicht gelöscht';
 end $$;
 
 -- ---------- Der Wasch-Durchlauf mit eigenem Kaliber (0054, 0060) -----------

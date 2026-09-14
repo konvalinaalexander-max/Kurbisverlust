@@ -593,6 +593,7 @@ Projekte und zwei Veröffentlichungen derselben App:
 |---|---|---|
 | Wofür | die Halle, ab jetzt | ausprobieren, zeigen, üben |
 | Daten | echte Messungen, werden nie gelöscht | eine erfundene Saison, jederzeit neu ladbar |
+| Cloudflare-Worker | `kurbisverlust` | `kurbisverlust-beispiel` |
 | `einstellung.betriebsmodus` | `echt` | `beispiel` |
 | Demo-Daten laden | die Datenbank weist es ab | geht mit einem Knopf |
 
@@ -608,25 +609,12 @@ Beispieldaten in die echte Erfassung lassen: Die Datenbank selbst weist das
 Anlegen von Demo-Daten ab, wenn sie im Echtmodus steht — auch wenn jemand es
 von Hand im SQL-Editor versucht.
 
-**So richtest du es ein:**
-
-1. Zwei Supabase-Projekte anlegen (Schritt 2), in beide `setup.sql` einspielen
-   (Schritt 3).
-2. Im **Echt**-Projekt im SQL-Editor:
-   `update einstellung set wert = to_jsonb('echt'::text) where schluessel = 'betriebsmodus';`
-   Im **Beispiel**-Projekt dasselbe mit `'beispiel'`.
-   (Neu eingerichtete Datenbanken stehen von sich aus auf `echt` — der
-   sichere Wert, wenn jemand den Schritt vergisst.)
-3. Die App **zweimal** veröffentlichen (Schritt 6), einmal je Projekt.
-   `VITE_SUPABASE_URL` und `VITE_SUPABASE_ANON_KEY` werden beim Bauen
-   eingebacken — zwei Datenbanken heissen darum zwangsläufig zwei Builds.
-4. Die Adresse des Echtbetriebs kommt auf den QR-Code in der Halle
-   (Schritt 0); die Beispiel-Adresse behältst du zum Zeigen.
-
-**Und die Sicherung:** Auf der Betriebsseite steht eine Erinnerung, wann
-zuletzt gesichert wurde. In Supabase gibt es täglich automatische Sicherungen;
-zusätzlich lohnt nach jedem grossen Erfassungstag ein Blick dorthin. Was in
-der Halle gemessen wurde, lässt sich nicht noch einmal messen.
+**Die Anleitung Schritt für Schritt** — welches Projekt das echte wird, was in
+welchem SQL-Editor zu tippen ist, wie das zweite Cloudflare-Projekt heisst und
+warum sein Deploy-Befehl `npx wrangler deploy --env beispiel` lauten **muss**
+(sonst überschreibt es die echte Seite) — steht in
+[`docs/ZWEI_WEBSEITEN.md`](docs/ZWEI_WEBSEITEN.md). Rechne mit einer guten
+halben Stunde.
 
 ## Vorher ausprobieren: eine erfundene Saison
 

@@ -17,13 +17,28 @@ export interface Taetigkeit {
   station: Station
   /** Fax: fachlich ein Waschgang, für die Erfassung getrennt (AB-08). */
   fax?: boolean
+  /**
+   * Wird die Tätigkeit beim Eröffnen einer Arbeit angeboten? Fehlt der
+   * Eintrag, ja. `false` heisst: eingefroren — bestehende Arbeiten bleiben
+   * lesbar und bedienbar, neue gibt es nicht.
+   *
+   * Runde R, Fax: Der Betrieb hat den Nenner in Frage gestellt — „egal ob sie
+   * vom waschen oder waschen und sortieren kommt … nirgends weisst du das
+   * gewicht" — und entschieden: „streiche das vorläufig komplett … aus dem
+   * UI … im hintergrund halt einfach auf eis legen". Ohne das gewogene Faule
+   * hätte eine Fax-Arbeit nur noch eine Palettenzahl zu bieten, und ein
+   * Feld, das niemand braucht, ist schlimmer als keines. Die Datenbank
+   * behält Tabellen, Spalten und Sichten unverändert; dieses eine Wort
+   * dreht das Angebot wieder auf.
+   */
+  angeboten?: boolean
 }
 
 export const TAETIGKEITEN: Taetigkeit[] = [
   { id: 'sortieren',         text: 'sortieren',        zeichen: '⚙️', weg: 'maschine', station: 'sortieren' },
   { id: 'waschen',           text: 'waschen',          zeichen: '💧', weg: 'maschine', station: 'waschen' },
   { id: 'waschen_sortieren', text: 'waschenSortieren', zeichen: '🧺', weg: 'hand',     station: 'waschen_sortieren' },
-  { id: 'fax',               text: 'fax',              zeichen: '📠', weg: 'maschine', station: 'waschen', fax: true },
+  { id: 'fax',               text: 'fax',              zeichen: '📠', weg: 'maschine', station: 'waschen', fax: true, angeboten: false },
 ]
 
 export function taetigkeitVon(weg: Weg, station: Station, istFax = false): Taetigkeit | undefined {

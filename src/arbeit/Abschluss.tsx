@@ -131,12 +131,26 @@ export function Abschluss({ d, neuLaden, zurueck, fertig }: {
   else if (p.paloxPflicht && paloxAblesungen === 1 && !d.auftrag.palox_unbekannt) fehlt.push(t('paloxEndeFehlt'))
   // Der Betrieb sagt, das Leeren mittendrin kommt vor. Also wird gefragt —
   // und „ja" heisst: die Menge dieser Arbeit ist unbekannt, nicht null.
-  if (p.hatPalox && paloxGeleert === null && !d.auftrag.palox_unbekannt) fehlt.push(t('paloxGeleertFrage'))
+  // Nur, wenn überhaupt abgelesen wurde: Beim Waschen ist der Palox
+  // freiwillig, und ohne Ablesung gibt es die Frage nicht — sie wäre sonst
+  // eine Pflicht ohne Feld (die Kette fand den toten Punkt).
+  if (p.hatPalox && paloxAblesungen > 0 && paloxGeleert === null && !d.auftrag.palox_unbekannt) fehlt.push(t('paloxGeleertFrage'))
   if (p.hatFaule && d.ablesungen.length === 0) fehlt.push(t('faulesFehlt'))
   if (p.hatFaxPaletten && !palettenOk) fehlt.push(t('palettenGesamt'))
   if (p.hatWaschPaletten && waschKisten === 0) fehlt.push(t('palettenFehlen'))
   if (p.hatAusschuss && d.ausschuss.length === 0) fehlt.push(t('ausschussFehlt'))
   if (p.ausgangPflicht && d.nAusgang < soll) fehlt.push(ersetzen(t('fertigeFehlen'), { n: d.nAusgang, soll }))
+  // Runde R: Beim Waschen hat der Palox nur dann einen Nenner, wenn die
+  // fertigen Paletten gesamt bekannt sind — die Kaliber-Palette aus dem
+  // Zwischenlager wird nicht gewogen, also rechnet die Auswertung rückwärts:
+  // Masse heraus = fertige Paletten × gewogene Palettenmasse, Masse hinein
+  // = heraus + Faules. Wer den Palox abgelesen hat, sagt darum auch, wie
+  // viele Paletten fertig wurden. Sonst wäre die Ablesung ein Zähler ohne
+  // Nenner — gespeichert, aber für immer unbrauchbar.
+  const fertigeGesamtPflicht = p.hatAusgang && d.auftrag.station === 'waschen'
+    && paloxAblesungen >= 2 && !d.auftrag.palox_unbekannt
+  const fertigeGesamtOk = Number(fertigeGesamt) > 0
+  if (fertigeGesamtPflicht && !fertigeGesamtOk) fehlt.push(t('fertigePalettenFehlt'))
   if (eineCharge === null || (eineCharge === false && gleicheSorte === null)) fehlt.push(t('eineChargeFrage'))
   const fertigMoeglich = fehlt.length === 0
   // Erinnerungen: nicht Pflicht, aber gesagt (Runde H).
@@ -301,7 +315,7 @@ export function Abschluss({ d, neuLaden, zurueck, fertig }: {
     const genug = d.nAusgang >= soll
     return (
       <Schritt nummer={n} von={von} frage={t('fertigePaletteSchritt')} warum={t('fertigePaletteWarum')} zurueck={zurueckSchritt}
-               weiter={p.ausgangPflicht && !genug ? undefined : weiter}
+               weiter={(p.ausgangPflicht && !genug) || (fertigeGesamtPflicht && !fertigeGesamtOk) ? undefined : weiter}
                weiterText={genug ? t('weiter') : d.nAusgang > 0 ? t('trotzdemWeiter') : t('keineGewogen')}>
         {genug
           ? <Hinweis art="gut">{d.nAusgang} {t('palettenGewogen')}</Hinweis>
@@ -309,12 +323,12 @@ export function Abschluss({ d, neuLaden, zurueck, fertig }: {
         <FertigePaletteMaske d={d} gesperrt={false} melden={() => undefined} neuLaden={neuLaden} />
         <div className="karte abstand-oben">
           <div className="feld">
-            <label htmlFor="fertige-gesamt">{t('fertigePalettenGesamt')}</label>
+            <label htmlFor="fertige-gesamt">{t('fertigePalettenGesamt')}{!fertigeGesamtPflicht && ` (${t('freiwillig')})`}</label>
             <input id="fertige-gesamt" className="gross" type="number" inputMode="numeric" min={0} step="1"
                    value={fertigeGesamt}
                    placeholder={d.nAusgang > 0 ? String(d.nAusgang) : ''}
                    onChange={e => setFertigeGesamt(e.target.value)} />
-            <p className="hilfe">{t('fertigePalettenWarum')}</p>
+            <p className="hilfe">{fertigeGesamtPflicht ? t('fertigePalettenPflicht') : t('fertigePalettenWarum')}</p>
           </div>
         </div>
       </Schritt>

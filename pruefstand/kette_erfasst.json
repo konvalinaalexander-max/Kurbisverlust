@@ -26,7 +26,7 @@
     "zeilen": [
       {
         "id": 90002,
-        "ts": "2026-09-13T18:44:02.385Z",
+        "ts": "2026-09-14T14:54:31.945Z",
         "weg": "hand",
         "station": "waschen_sortieren",
         "charge_nr": 1613,
@@ -50,7 +50,7 @@
     "zeilen": [
       {
         "id": 90003,
-        "ts": "2026-09-13T18:44:02.391Z",
+        "ts": "2026-09-14T14:54:31.949Z",
         "auftrag_id": 90002
       }
     ]
@@ -63,10 +63,12 @@
     "zeilen": [
       {
         "id": 90004,
-        "ts": "2026-09-13T18:44:03.495Z",
+        "ts": "2026-09-14T14:54:33.091Z",
         "auftrag_id": 90002,
         "eingangsdatum": "2026-09-01",
-        "brutto_zettel_kg": 950
+        "brutto_zettel_kg": 950,
+        "kisten": 36,
+        "gebindeart": "G2"
       }
     ]
   },
@@ -78,10 +80,12 @@
     "zeilen": [
       {
         "id": 90005,
-        "ts": "2026-09-13T18:44:03.595Z",
+        "ts": "2026-09-14T14:54:33.206Z",
         "auftrag_id": 90002,
         "eingangsdatum": "2026-09-01",
-        "brutto_zettel_kg": 950
+        "brutto_zettel_kg": 950,
+        "kisten": 36,
+        "gebindeart": "G2"
       }
     ]
   },
@@ -95,7 +99,7 @@
     "zeilen": [
       {
         "id": 90006,
-        "ts": "2026-09-13T18:44:05.178Z",
+        "ts": "2026-09-14T14:54:33.434Z",
         "auftrag_id": 90002,
         "charge_nr": 1613,
         "eingangsdatum": "2026-09-01",
@@ -115,11 +119,13 @@
     "zeilen": [
       {
         "id": 90007,
-        "ts": "2026-09-13T18:44:05.184Z",
+        "ts": "2026-09-14T14:54:33.444Z",
         "auftrag_id": 90002,
         "eingangsdatum": "2026-09-01",
         "wiegung_id": 90006,
-        "brutto_zettel_kg": 950
+        "brutto_zettel_kg": 950,
+        "kisten": 40,
+        "gebindeart": "G2"
       }
     ]
   },
@@ -131,9 +137,9 @@
     "zeilen": [
       {
         "id": 90008,
-        "ts": "2026-09-13T18:44:05.794Z",
+        "ts": "2026-09-14T14:54:34.086Z",
         "auftrag_id": 90002,
-        "kg": 120,
+        "kg": 0,
         "palox_stand_kg": 165,
         "palox_geleert": false
       }
@@ -147,14 +153,30 @@
     "zeilen": [
       {
         "id": 90009,
-        "ts": "2026-09-13T18:44:06.340Z",
+        "ts": "2026-09-14T14:54:34.633Z",
         "auftrag_id": 90002,
         "charge_nr": 1613,
         "brutto_kg": 345,
         "kisten": 32,
         "gebindeart": "G2",
         "kuerbisse_pro_kiste": null,
-        "kaliber_idx": null
+        "kaliber_idx": null,
+        "voll": true
+      }
+    ]
+  },
+  {
+    "methode": "PATCH",
+    "tabelle": "auftrag",
+    "prefer": "",
+    "filter": {
+      "id": "eq.90002"
+    },
+    "zeilen": [
+      {
+        "id": 90010,
+        "ts": "2026-09-14T14:54:35.372Z",
+        "palox_unbekannt": false
       }
     ]
   },
@@ -165,11 +187,11 @@
     "filter": {},
     "zeilen": [
       {
-        "id": 90010,
-        "ts": "2026-09-13T18:44:07.059Z",
+        "id": 90011,
+        "ts": "2026-09-14T14:54:35.453Z",
         "auftrag_id": 90002,
-        "kg": 0,
-        "palox_stand_kg": 165,
+        "kg": 120,
+        "palox_stand_kg": 285,
         "palox_geleert": false
       }
     ]
@@ -181,8 +203,8 @@
     "filter": {},
     "zeilen": [
       {
-        "id": 90011,
-        "ts": "2026-09-13T18:44:07.526Z",
+        "id": 90012,
+        "ts": "2026-09-14T14:54:35.919Z",
         "auftrag_id": 90002,
         "art": "zu_klein",
         "kg": 29,
@@ -201,8 +223,8 @@
     },
     "zeilen": [
       {
-        "id": 90012,
-        "ts": "2026-09-13T18:44:08.411Z",
+        "id": 90013,
+        "ts": "2026-09-14T14:54:36.820Z",
         "auftrag_id": 90002,
         "schluessel": "eine_charge",
         "wert": "true"
@@ -218,9 +240,10 @@
     },
     "zeilen": [
       {
-        "id": 90013,
-        "ts": "2026-09-13T18:44:08.417Z",
-        "status": "abgeschlossen"
+        "id": 90014,
+        "ts": "2026-09-14T14:54:36.826Z",
+        "status": "abgeschlossen",
+        "fertige_paletten_gesamt": null
       }
     ]
   },
@@ -254,7 +277,7 @@
     },
     "zeilen": [
       {
-        "id": 90014
+        "id": 90015
       }
     ]
   },
@@ -267,8 +290,8 @@
     },
     "zeilen": [
       {
-        "id": 90015,
-        "ts": "2026-09-13T18:44:10.085Z",
+        "id": 90016,
+        "ts": "2026-09-14T14:54:38.578Z",
         "weg": "maschine",
         "station": "sortieren",
         "charge_nr": 1613,
@@ -277,7 +300,7 @@
         "kaliber_idx": null,
         "kaliber_von_g": null,
         "kaliber_bis_g": null,
-        "sortierschema_id": 90014,
+        "sortierschema_id": 90015,
         "kistensystem": null,
         "soll_kg_pro_kiste": null,
         "stueck_je_kiste": null
@@ -291,9 +314,9 @@
     "filter": {},
     "zeilen": [
       {
-        "id": 90016,
-        "ts": "2026-09-13T18:44:10.091Z",
-        "auftrag_id": 90015
+        "id": 90017,
+        "ts": "2026-09-14T14:54:38.582Z",
+        "auftrag_id": 90016
       }
     ]
   },
@@ -304,9 +327,9 @@
     "filter": {},
     "zeilen": [
       {
-        "id": 90017,
-        "ts": "2026-09-13T18:44:10.223Z",
-        "auftrag_id": 90015,
+        "id": 90018,
+        "ts": "2026-09-14T14:54:38.733Z",
+        "auftrag_id": 90016,
         "kg": 0,
         "palox_stand_kg": 60,
         "palox_geleert": false
@@ -320,49 +343,28 @@
     "filter": {},
     "zeilen": [
       {
-        "id": 90018,
-        "ts": "2026-09-13T18:44:10.775Z",
-        "auftrag_id": 90015,
+        "id": 90019,
+        "ts": "2026-09-14T14:54:39.288Z",
+        "auftrag_id": 90016,
         "eingangsdatum": "2026-09-05",
-        "brutto_zettel_kg": null
+        "brutto_zettel_kg": 940,
+        "kisten": 36,
+        "gebindeart": "G2"
       }
     ]
   },
   {
-    "methode": "POST",
-    "tabelle": "auftrag_gebinde",
-    "prefer": "resolution=merge-duplicates",
+    "methode": "PATCH",
+    "tabelle": "auftrag",
+    "prefer": "",
     "filter": {
-      "on_conflict": "auftrag_id,kaliber_idx,sortierdatum"
+      "id": "eq.90016"
     },
     "zeilen": [
       {
-        "id": 90019,
-        "ts": "2026-09-13T18:44:10.878Z",
-        "auftrag_id": 90015,
-        "kaliber_idx": 0,
-        "anzahl": 1,
-        "sortierdatum": null,
-        "datum_fehlt": false
-      }
-    ]
-  },
-  {
-    "methode": "POST",
-    "tabelle": "auftrag_gebinde",
-    "prefer": "resolution=merge-duplicates",
-    "filter": {
-      "on_conflict": "auftrag_id,kaliber_idx,sortierdatum"
-    },
-    "zeilen": [
-      {
-        "id": 90019,
-        "ts": "2026-09-13T18:44:10.943Z",
-        "auftrag_id": 90015,
-        "kaliber_idx": 0,
-        "anzahl": 2,
-        "sortierdatum": null,
-        "datum_fehlt": false
+        "id": 90020,
+        "ts": "2026-09-14T14:54:40.021Z",
+        "palox_unbekannt": false
       }
     ]
   },
@@ -374,10 +376,10 @@
     "zeilen": [
       {
         "id": 90021,
-        "ts": "2026-09-13T18:44:11.691Z",
-        "auftrag_id": 90015,
-        "kg": 0,
-        "palox_stand_kg": 60,
+        "ts": "2026-09-14T14:54:40.102Z",
+        "auftrag_id": 90016,
+        "kg": 15,
+        "palox_stand_kg": 75,
         "palox_geleert": false
       }
     ]
@@ -392,8 +394,8 @@
     "zeilen": [
       {
         "id": 90022,
-        "ts": "2026-09-13T18:44:12.358Z",
-        "auftrag_id": 90015,
+        "ts": "2026-09-14T14:54:40.769Z",
+        "auftrag_id": 90016,
         "schluessel": "eine_charge",
         "wert": "true"
       }
@@ -404,12 +406,12 @@
     "tabelle": "auftrag",
     "prefer": "",
     "filter": {
-      "id": "eq.90015"
+      "id": "eq.90016"
     },
     "zeilen": [
       {
         "id": 90023,
-        "ts": "2026-09-13T18:44:12.366Z",
+        "ts": "2026-09-14T14:54:40.776Z",
         "status": "abgeschlossen"
       }
     ]
@@ -424,142 +426,7 @@
     "zeilen": [
       {
         "id": 90024,
-        "ts": "2026-09-13T18:44:14.041Z",
-        "weg": "maschine",
-        "station": "waschen",
-        "charge_nr": 1613,
-        "ist_fax": true,
-        "kaeufer": null,
-        "kaliber_idx": null,
-        "kaliber_von_g": null,
-        "kaliber_bis_g": null,
-        "sortierschema_id": 21,
-        "kistensystem": "kiste_ab",
-        "soll_kg_pro_kiste": 8,
-        "stueck_je_kiste": null
-      }
-    ]
-  },
-  {
-    "methode": "POST",
-    "tabelle": "auftrag_teilnehmer",
-    "prefer": "",
-    "filter": {},
-    "zeilen": [
-      {
-        "id": 90025,
-        "ts": "2026-09-13T18:44:14.050Z",
-        "auftrag_id": 90024
-      }
-    ]
-  },
-  {
-    "methode": "PATCH",
-    "tabelle": "auftrag",
-    "prefer": "",
-    "filter": {
-      "id": "eq.90024"
-    },
-    "zeilen": [
-      {
-        "id": 90026,
-        "ts": "2026-09-13T18:44:14.573Z",
-        "paletten_gesamt": 1
-      }
-    ]
-  },
-  {
-    "methode": "PATCH",
-    "tabelle": "auftrag",
-    "prefer": "",
-    "filter": {
-      "id": "eq.90024"
-    },
-    "zeilen": [
-      {
-        "id": 90027,
-        "ts": "2026-09-13T18:44:14.639Z",
-        "paletten_gesamt": 2
-      }
-    ]
-  },
-  {
-    "methode": "POST",
-    "tabelle": "schimmel_messung",
-    "prefer": "",
-    "filter": {},
-    "zeilen": [
-      {
-        "id": 90028,
-        "ts": "2026-09-13T18:44:15.158Z",
-        "auftrag_id": 90024,
-        "kg": 6,
-        "brutto_kg": 7.5,
-        "kisten": 1,
-        "gebindeart": "G2",
-        "mit_palette": false
-      }
-    ]
-  },
-  {
-    "methode": "PATCH",
-    "tabelle": "auftrag",
-    "prefer": "",
-    "filter": {
-      "id": "eq.90024"
-    },
-    "zeilen": [
-      {
-        "id": 90029,
-        "ts": "2026-09-13T18:44:15.741Z",
-        "paletten_gesamt": 2,
-        "tage_seit_waschen": 2
-      }
-    ]
-  },
-  {
-    "methode": "POST",
-    "tabelle": "auftrag_angabe",
-    "prefer": "",
-    "filter": {
-      "columns": "\"auftrag_id\",\"schluessel\",\"wert\""
-    },
-    "zeilen": [
-      {
-        "id": 90030,
-        "ts": "2026-09-13T18:44:16.427Z",
-        "auftrag_id": 90024,
-        "schluessel": "eine_charge",
-        "wert": "true"
-      }
-    ]
-  },
-  {
-    "methode": "PATCH",
-    "tabelle": "auftrag",
-    "prefer": "",
-    "filter": {
-      "id": "eq.90024"
-    },
-    "zeilen": [
-      {
-        "id": 90031,
-        "ts": "2026-09-13T18:44:16.433Z",
-        "status": "abgeschlossen"
-      }
-    ]
-  },
-  {
-    "methode": "POST",
-    "tabelle": "auftrag",
-    "prefer": "return=representation",
-    "filter": {
-      "select": "id"
-    },
-    "zeilen": [
-      {
-        "id": 90032,
-        "ts": "2026-09-13T18:44:18.478Z",
+        "ts": "2026-09-14T14:54:43.718Z",
         "weg": "maschine",
         "station": "waschen",
         "charge_nr": 1613,
@@ -582,299 +449,186 @@
     "filter": {},
     "zeilen": [
       {
-        "id": 90033,
-        "ts": "2026-09-13T18:44:18.484Z",
-        "auftrag_id": 90032
+        "id": 90025,
+        "ts": "2026-09-14T14:54:43.727Z",
+        "auftrag_id": 90024
       }
     ]
   },
   {
     "methode": "POST",
     "tabelle": "auftrag_palette",
+    "prefer": "",
+    "filter": {},
+    "zeilen": [
+      {
+        "id": 90026,
+        "ts": "2026-09-14T14:54:44.319Z",
+        "auftrag_id": 90024,
+        "sortierdatum": "2026-09-03",
+        "kisten": 32,
+        "gebindeart": "G2"
+      }
+    ]
+  },
+  {
+    "methode": "POST",
+    "tabelle": "auftrag_palette",
+    "prefer": "",
+    "filter": {},
+    "zeilen": [
+      {
+        "id": 90027,
+        "ts": "2026-09-14T14:54:44.384Z",
+        "auftrag_id": 90024,
+        "sortierdatum": "2026-09-03",
+        "kisten": 32,
+        "gebindeart": "G2"
+      }
+    ]
+  },
+  {
+    "methode": "POST",
+    "tabelle": "auftrag_palette",
+    "prefer": "",
+    "filter": {},
+    "zeilen": [
+      {
+        "id": 90028,
+        "ts": "2026-09-14T14:54:44.484Z",
+        "auftrag_id": 90024,
+        "sortierdatum": null,
+        "kisten": 32,
+        "gebindeart": "G2"
+      }
+    ]
+  },
+  {
+    "methode": "POST",
+    "tabelle": "ausgang_wiegung",
+    "prefer": "",
+    "filter": {},
+    "zeilen": [
+      {
+        "id": 90029,
+        "ts": "2026-09-14T14:54:45.648Z",
+        "auftrag_id": 90024,
+        "charge_nr": 1613,
+        "brutto_kg": 400,
+        "kisten": 32,
+        "gebindeart": "G2",
+        "kuerbisse_pro_kiste": 6,
+        "kaliber_idx": -2,
+        "voll": true
+      }
+    ]
+  },
+  {
+    "methode": "POST",
+    "tabelle": "ausgang_wiegung",
+    "prefer": "",
+    "filter": {},
+    "zeilen": [
+      {
+        "id": 90030,
+        "ts": "2026-09-14T14:54:45.747Z",
+        "auftrag_id": 90024,
+        "charge_nr": 1613,
+        "brutto_kg": 400,
+        "kisten": 32,
+        "gebindeart": "G2",
+        "kuerbisse_pro_kiste": 6,
+        "kaliber_idx": -2,
+        "voll": true
+      }
+    ]
+  },
+  {
+    "methode": "POST",
+    "tabelle": "ausgang_wiegung",
+    "prefer": "",
+    "filter": {},
+    "zeilen": [
+      {
+        "id": 90031,
+        "ts": "2026-09-14T14:54:45.847Z",
+        "auftrag_id": 90024,
+        "charge_nr": 1613,
+        "brutto_kg": 400,
+        "kisten": 32,
+        "gebindeart": "G2",
+        "kuerbisse_pro_kiste": 6,
+        "kaliber_idx": -2,
+        "voll": true
+      }
+    ]
+  },
+  {
+    "methode": "POST",
+    "tabelle": "auftrag_angabe",
+    "prefer": "",
+    "filter": {
+      "columns": "\"auftrag_id\",\"schluessel\",\"wert\""
+    },
+    "zeilen": [
+      {
+        "id": 90032,
+        "ts": "2026-09-14T14:54:47.269Z",
+        "auftrag_id": 90024,
+        "schluessel": "eine_charge",
+        "wert": "true"
+      }
+    ]
+  },
+  {
+    "methode": "PATCH",
+    "tabelle": "auftrag",
+    "prefer": "",
+    "filter": {
+      "id": "eq.90024"
+    },
+    "zeilen": [
+      {
+        "id": 90033,
+        "ts": "2026-09-14T14:54:47.276Z",
+        "status": "abgeschlossen",
+        "fertige_paletten_gesamt": null
+      }
+    ]
+  },
+  {
+    "methode": "POST",
+    "tabelle": "verdunstung_wiegung",
     "prefer": "",
     "filter": {},
     "zeilen": [
       {
         "id": 90034,
-        "ts": "2026-09-13T18:44:19.044Z",
-        "auftrag_id": 90032,
-        "sortierdatum": "2026-09-03",
-        "kisten": 32
+        "ts": "2026-09-14T14:54:48.429Z",
+        "charge_nr": 1613,
+        "eingangsdatum": "2026-09-02",
+        "brutto_damals_kg": 950,
+        "brutto_jetzt_kg": 905,
+        "kisten": 40,
+        "gebindeart": "G2"
       }
     ]
   },
   {
     "methode": "POST",
-    "tabelle": "auftrag_palette",
+    "tabelle": "verdunstung_wiegung",
     "prefer": "",
     "filter": {},
     "zeilen": [
       {
         "id": 90035,
-        "ts": "2026-09-13T18:44:19.108Z",
-        "auftrag_id": 90032,
-        "sortierdatum": "2026-09-03",
-        "kisten": 32
-      }
-    ]
-  },
-  {
-    "methode": "POST",
-    "tabelle": "auftrag_palette",
-    "prefer": "",
-    "filter": {},
-    "zeilen": [
-      {
-        "id": 90036,
-        "ts": "2026-09-13T18:44:19.291Z",
-        "auftrag_id": 90032,
-        "sortierdatum": null,
-        "kisten": 32
-      }
-    ]
-  },
-  {
-    "methode": "POST",
-    "tabelle": "ausgang_wiegung",
-    "prefer": "",
-    "filter": {},
-    "zeilen": [
-      {
-        "id": 90037,
-        "ts": "2026-09-13T18:44:19.939Z",
-        "auftrag_id": 90032,
-        "charge_nr": 1613,
-        "brutto_kg": 400,
-        "kisten": 32,
-        "gebindeart": "G2",
-        "kuerbisse_pro_kiste": 6,
-        "kaliber_idx": -2
-      }
-    ]
-  },
-  {
-    "methode": "POST",
-    "tabelle": "ausgang_wiegung",
-    "prefer": "",
-    "filter": {},
-    "zeilen": [
-      {
-        "id": 90038,
-        "ts": "2026-09-13T18:44:20.039Z",
-        "auftrag_id": 90032,
-        "charge_nr": 1613,
-        "brutto_kg": 400,
-        "kisten": 32,
-        "gebindeart": "G2",
-        "kuerbisse_pro_kiste": 6,
-        "kaliber_idx": -2
-      }
-    ]
-  },
-  {
-    "methode": "POST",
-    "tabelle": "ausgang_wiegung",
-    "prefer": "",
-    "filter": {},
-    "zeilen": [
-      {
-        "id": 90039,
-        "ts": "2026-09-13T18:44:20.138Z",
-        "auftrag_id": 90032,
-        "charge_nr": 1613,
-        "brutto_kg": 400,
-        "kisten": 32,
-        "gebindeart": "G2",
-        "kuerbisse_pro_kiste": 6,
-        "kaliber_idx": -2
-      }
-    ]
-  },
-  {
-    "methode": "POST",
-    "tabelle": "auftrag_angabe",
-    "prefer": "",
-    "filter": {
-      "columns": "\"auftrag_id\",\"schluessel\",\"wert\""
-    },
-    "zeilen": [
-      {
-        "id": 90040,
-        "ts": "2026-09-13T18:44:21.741Z",
-        "auftrag_id": 90032,
-        "schluessel": "eine_charge",
-        "wert": "true"
-      }
-    ]
-  },
-  {
-    "methode": "PATCH",
-    "tabelle": "auftrag",
-    "prefer": "",
-    "filter": {
-      "id": "eq.90032"
-    },
-    "zeilen": [
-      {
-        "id": 90041,
-        "ts": "2026-09-13T18:44:21.749Z",
-        "status": "abgeschlossen"
-      }
-    ]
-  },
-  {
-    "methode": "POST",
-    "tabelle": "verdunstung_wiegung",
-    "prefer": "",
-    "filter": {},
-    "zeilen": [
-      {
-        "id": 90042,
-        "ts": "2026-09-13T18:44:22.830Z",
+        "ts": "2026-09-14T14:54:48.593Z",
         "charge_nr": 1613,
         "eingangsdatum": "2026-09-02",
         "brutto_damals_kg": 950,
         "brutto_jetzt_kg": 905,
         "kisten": 40,
         "gebindeart": "G2"
-      }
-    ]
-  },
-  {
-    "methode": "POST",
-    "tabelle": "verdunstung_wiegung",
-    "prefer": "",
-    "filter": {},
-    "zeilen": [
-      {
-        "id": 90043,
-        "ts": "2026-09-13T18:44:22.946Z",
-        "charge_nr": 1613,
-        "eingangsdatum": "2026-09-02",
-        "brutto_damals_kg": 950,
-        "brutto_jetzt_kg": 905,
-        "kisten": 40,
-        "gebindeart": "G2"
-      }
-    ]
-  },
-  {
-    "methode": "POST",
-    "tabelle": "auftrag",
-    "prefer": "return=representation",
-    "filter": {
-      "select": "id"
-    },
-    "zeilen": [
-      {
-        "id": 90044,
-        "ts": "2026-09-13T18:44:24.623Z",
-        "weg": "maschine",
-        "station": "waschen",
-        "charge_nr": 1613,
-        "ist_fax": true,
-        "kaeufer": null,
-        "kaliber_idx": null,
-        "kaliber_von_g": null,
-        "kaliber_bis_g": null,
-        "sortierschema_id": 21,
-        "kistensystem": "kiste_ab",
-        "soll_kg_pro_kiste": 8,
-        "stueck_je_kiste": null
-      }
-    ]
-  },
-  {
-    "methode": "POST",
-    "tabelle": "auftrag_teilnehmer",
-    "prefer": "",
-    "filter": {},
-    "zeilen": [
-      {
-        "id": 90045,
-        "ts": "2026-09-13T18:44:24.632Z",
-        "auftrag_id": 90044
-      }
-    ]
-  },
-  {
-    "methode": "PATCH",
-    "tabelle": "auftrag",
-    "prefer": "",
-    "filter": {
-      "id": "eq.90044"
-    },
-    "zeilen": [
-      {
-        "id": 90046,
-        "ts": "2026-09-13T18:44:25.173Z",
-        "paletten_gesamt": 1
-      }
-    ]
-  },
-  {
-    "methode": "POST",
-    "tabelle": "schimmel_messung",
-    "prefer": "",
-    "filter": {},
-    "zeilen": [
-      {
-        "id": 90047,
-        "ts": "2026-09-13T18:44:25.707Z",
-        "auftrag_id": 90044,
-        "kg": 5,
-        "brutto_kg": 6,
-        "kisten": 1,
-        "gebindeart": "G2",
-        "mit_palette": false
-      }
-    ]
-  },
-  {
-    "methode": "PATCH",
-    "tabelle": "auftrag",
-    "prefer": "",
-    "filter": {
-      "id": "eq.90044"
-    },
-    "zeilen": [
-      {
-        "id": 90048,
-        "ts": "2026-09-13T18:44:26.307Z",
-        "paletten_gesamt": 1,
-        "tage_seit_waschen": 1
-      }
-    ]
-  },
-  {
-    "methode": "POST",
-    "tabelle": "auftrag_angabe",
-    "prefer": "",
-    "filter": {
-      "columns": "\"auftrag_id\",\"schluessel\",\"wert\""
-    },
-    "zeilen": [
-      {
-        "id": 90049,
-        "ts": "2026-09-13T18:44:27.007Z",
-        "auftrag_id": 90044,
-        "schluessel": "eine_charge",
-        "wert": "true"
-      }
-    ]
-  },
-  {
-    "methode": "PATCH",
-    "tabelle": "auftrag",
-    "prefer": "",
-    "filter": {
-      "id": "eq.90044"
-    },
-    "zeilen": [
-      {
-        "id": 90050,
-        "ts": "2026-09-13T18:44:27.016Z",
-        "status": "abgeschlossen"
       }
     ]
   }

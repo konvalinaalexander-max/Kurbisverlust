@@ -222,8 +222,8 @@ function Qualitaet({ q }: { q: Datenqualitaet }) {
     { name: 'Sortier-CSV einer Arbeit zugeordnet', ab: '—', ist: q.sortierlaeufe_zugeordnet, von: q.sortierlaeufe, hinweis: 'unzugeordnet: Betrieb → Warteschlange' },
     { name: 'Kisten am Sortieren gezählt', ab: 'AB-12', ist: q.sortier_arbeiten_mit_kisten, von: q.sortier_arbeiten, hinweis: 'daraus entsteht das Kistengewicht' },
     { name: 'Waschen: Paletten gezählt (Kisten und Sortierdatum, mit Kaliber)', ab: 'AB-31', ist: q.wasch_arbeiten_mit_kisten, von: q.wasch_arbeiten, hinweis: 'sonst hat das Faule am Waschbecken keinen Nenner' },
-    { name: 'Fax: Paletten oder Kisten gezählt', ab: 'AB-24', ist: q.fax_arbeiten_mit_kisten, von: q.fax_arbeiten, hinweis: 'ohne Palettenzahl hat das Faule beim Abpacken keinen Nenner' },
-    { name: 'Fax: Faules gewogen (auch „nichts Faules")', ab: '0051', ist: q.fax_arbeiten_mit_faulem, von: q.fax_arbeiten, hinweis: 'sonst bleibt der Fax-Strom unbekannt' },
+    // Fax (AB-24, 0051): seit Runde R eingefroren — die zwei Zeilen dazu sind
+    // weg, die Zähler in v_datenqualitaet bleiben.
     { name: 'Waschen + Sortieren: Gewicht vom Zettel bei gezählten Paletten', ab: 'AB-25', ist: q.ws_paletten_mit_zettelgewicht, von: q.ws_paletten_gezaehlt, hinweis: 'ohne Zettelgewicht hat der Palox keinen Nenner' },
     { name: 'Kistensystem nach dem Waschen beantwortet', ab: 'AB-26', ist: q.arbeiten_mit_kistensystem, von: q.arbeiten_nach_waschen, hinweis: 'sonst weiss die Auswertung nicht, ob eine Kiste rechenbar ist' },
     { name: 'Waschen: Sortierdatum je gezählter Palette', ab: 'AB-31', ist: q.wasch_kisten_mit_sortierdatum, von: q.wasch_kisten_gezaehlt, hinweis: 'das Datum auf dem Zettel sagt, wie lange die Ware nach dem Sortieren stand' },

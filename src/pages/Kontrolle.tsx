@@ -65,6 +65,9 @@ export default function Kontrolle() {
   const [kpCharge, setKpCharge] = useState<number | ''>('')
   const [kpKennzeichen, setKpKennzeichen] = useState('')
   const [kpStandort, setKpStandort] = useState('')
+  // 0077: der Zettel am Eingang — freiwillig, aber ein Messpunkt gratis.
+  const [kpEingangsdatum, setKpEingangsdatum] = useState('')
+  const [kpBruttoEingang, setKpBruttoEingang] = useState('')
   const [kpSchimmel, setKpSchimmel] = useState(false)
 
   useEffect(() => {
@@ -145,10 +148,14 @@ export default function Kontrolle() {
     const { data, error } = await supabase.from('kontrollpalette').insert({
       charge_nr: kpCharge, kennzeichen: kpKennzeichen.trim(),
       standort: kpStandort.trim() === '' ? null : kpStandort.trim(),
+      // leer bleibt leer — unbekannt ist nicht 0
+      eingangsdatum: kpEingangsdatum === '' ? null : kpEingangsdatum,
+      brutto_eingang_kg: Number(kpBruttoEingang) > 0 ? Number(kpBruttoEingang) : null,
     }).select('id').single()
     setLaeuft(false)
     if (error) { setFehler(fehlerText(error)); return }
     setKpNeu(false); setKpKennzeichen(''); setKpStandort(''); setKpCharge('')
+    setKpEingangsdatum(''); setKpBruttoEingang('')
     await kpLaden()
     setKpWahl((data as { id: number }).id)
   }
@@ -264,6 +271,19 @@ export default function Kontrolle() {
                 <input id="kp-standort" type="text" value={kpStandort}
                        onChange={e => setKpStandort(e.target.value)} />
               </div>
+              <div className="spalten">
+                <div className="feld">
+                  <label htmlFor="kp-eingangsdatum">{t('eingangsdatum')}</label>
+                  <input id="kp-eingangsdatum" type="date" value={kpEingangsdatum}
+                         onChange={e => setKpEingangsdatum(e.target.value)} />
+                </div>
+                <div className="feld">
+                  <label htmlFor="kp-brutto-eingang">{t('eingangsgewicht')}</label>
+                  <input id="kp-brutto-eingang" type="number" inputMode="decimal" step="0.1" min={0}
+                         value={kpBruttoEingang} onChange={e => setKpBruttoEingang(e.target.value)} />
+                </div>
+              </div>
+              <p className="hilfe">{t('kpEingangErkl')}</p>
               <button type="button" id="kp-anlegen" className="haupt voll" style={{ minHeight: 50 }}
                       disabled={laeuft || !kpNeuBereit} onClick={() => void kpAnlegen()}>{t('kpAnlegen')}</button>
             </div>

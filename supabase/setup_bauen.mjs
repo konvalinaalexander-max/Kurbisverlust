@@ -171,9 +171,24 @@ begin
     case when exists (select 1 from pg_extension where extname = 'pg_cron')
          then '' else ' Ohne pg_cron rechnet die App selbst nach, wenn etwas veraltet ist.' end,
     false);
+  -- Liegen hier echte Erfassungsdaten (einstellung erfassung_scharf, 0072)?
+  -- Dann steht es vorne in der Fertig-Zeile UND kommt als Warnung durch —
+  -- Warnungen sind nicht stummgeschaltet (AB-43), genau dafür. Wer die Datei
+  -- gerade in die echte Datenbank eingespielt hat, soll es lesen; wer eine
+  -- Sicherung vergessen hat, soll es jetzt merken und nicht nächste Woche.
+  perform set_config('kuerbis.scharf',
+    case when coalesce((select (wert #>> '{}')::boolean from einstellung
+                         where schluessel = 'erfassung_scharf'), false)
+         then 'ACHTUNG: Auf dieser Datenbank liegen echte Erfassungsdaten (erfassung_scharf). '
+         else '' end,
+    false);
+  if current_setting('kuerbis.scharf', true) <> '' then
+    raise warning 'Echte Erfassungsdaten auf dieser Datenbank — vor jedem weiteren Einspielen eine Sicherung ziehen (docs/ZWEI_WEBSEITEN.md).';
+  end if;
 end $$;
 
-select format('Fertig. Die Datenbank steht: %s Chargen, %s Sorten, %s Tabellen, %s Auswertungen. %s%s Weiter im README bei Schritt 4.',
+select format('%sFertig. Die Datenbank steht: %s Chargen, %s Sorten, %s Tabellen, %s Auswertungen. %s%s Weiter im README bei Schritt 4.',
+              coalesce(current_setting('kuerbis.scharf', true), ''),
               (select count(*) from charge),
               (select count(*) from sorte_kaliber),
               (select count(*) from pg_tables where schemaname = 'public'),

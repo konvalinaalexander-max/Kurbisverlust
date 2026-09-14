@@ -15,3 +15,31 @@ directory = "./dist"
 # direkt — eine eigene _redirects-Datei ist weder nötig noch erlaubt (sie
 # würde als Endlosschleife abgelehnt).
 not_found_handling = "single-page-application"
+
+# ---------------------------------------------------------------------
+# Zwei Webseiten aus demselben Code (Runde Q)
+# ---------------------------------------------------------------------
+# Der echte Betrieb und die Beispiel-Oberflaeche sind zwei getrennte
+# Aufbauten: zwei Supabase-Projekte, zwei Cloudflare-Projekte, zwei Builds.
+# Zwei Builds sind unvermeidlich, weil VITE_SUPABASE_URL und
+# VITE_SUPABASE_ANON_KEY beim Bauen fest in die Seite kommen.
+#
+# Ohne das hier wuerden beide auf denselben Worker "kurbisverlust"
+# deployen — der zweite ueberschriebe den ersten, und die Halle zeigte
+# ploetzlich Beispieldaten. Die benannte Umgebung gibt der zweiten Seite
+# einen eigenen Worker:
+#
+#   npx wrangler deploy                    -> kurbisverlust           (echt)
+#   npx wrangler deploy --env beispiel     -> kurbisverlust-beispiel  (Beispiel)
+#
+# Der Standardbefehl bleibt unveraendert; eine bestehende Veroeffentlichung
+# muss nichts umstellen.
+[env.beispiel]
+name = "kurbisverlust-beispiel"
+
+# Ausdruecklich wiederholt statt geerbt: Welche Schluessel eine benannte
+# Umgebung erbt, haengt an der Wrangler-Fassung. Hier steht es doppelt und
+# gilt damit in jeder.
+[env.beispiel.assets]
+directory = "./dist"
+not_found_handling = "single-page-application"

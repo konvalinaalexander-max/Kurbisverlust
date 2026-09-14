@@ -18,6 +18,14 @@ test('Fax und Waschen teilen Weg und Station — die Markierung entscheidet', ()
   assert.equal(TAETIGKEITEN.filter(a => a.fax).length, 1)
 })
 
+test('Fax ist eingefroren: bestehende Arbeiten erkennbar, neue nicht angeboten (Runde R)', () => {
+  // Lesbar bleibt sie — eine alte Fax-Arbeit muss ihre Tätigkeit finden.
+  assert.equal(taetigkeitVon('maschine', 'waschen', true)?.id, 'fax')
+  // Angeboten wird sie nicht — und genau drei andere sind es.
+  const angeboten = TAETIGKEITEN.filter(a => a.angeboten !== false).map(a => a.id)
+  assert.deepEqual(angeboten, ['sortieren', 'waschen', 'waschen_sortieren'])
+})
+
 test('Vorschlag: der übliche Fall — gewaschen vorgestern, heute abgepackt', () => {
   const heute = new Date('2026-11-05T09:00:00')
   assert.equal(vorschlagTageSeitWaschen('2026-11-03T16:30:00', heute), 2)

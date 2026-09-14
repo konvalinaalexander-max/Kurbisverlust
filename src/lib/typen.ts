@@ -17,6 +17,8 @@ export interface SorteKaliber {
 export interface Kontrollpalette {
   id: number; charge_nr: number; palette_id: number | null
   kennzeichen: string; standort: string | null
+  /** Vom Zettel am Eingang, freiwillig (0077). */
+  eingangsdatum: string | null; brutto_eingang_kg: number | null
   angelegt_ts: string; beendet_ts: string | null; beendet_grund: string | null
 }
 /** Eine Wägung davon. Gespeichert wird Brutto mit Kisten und Gebinde —
