@@ -4406,11 +4406,13 @@ begin
     '0078 (a8): Schalter an, aber nicht jede Sorte steht auf 0 / „eingefroren"';
 
   -- ---- (b) Die Identität: Bänder summieren zur Kaskade ----------------
-  assert to_regclass('public.erg_lager_kaliber') is not null,
-    '0078 (b0): erg_lager_kaliber fehlt';
-  select count(*) into v_n from erg_lager_kaliber;
-  assert v_n > 0, '0078 (b1): erg_lager_kaliber ist leer — der Prüfdatensatz trägt die Prüfung nicht';
-  assert (select bool_and(h = 0) from erg_lager_kaliber), '0078 (b1a): erg_lager_kaliber ist „heute" — Horizont 0, sonst nichts';
+  assert to_regclass('public.v_lager_kaliber') is not null,
+    '0078 (b0): v_lager_kaliber fehlt';
+  select count(*) into v_n from v_lager_kaliber;
+  assert v_n > 0, '0078 (b1): lager_kaliber(0) ist leer — der Prüfdatensatz trägt die Prüfung nicht';
+  assert (select bool_and(h = 0) from v_lager_kaliber), '0078 (b1a): v_lager_kaliber ist „heute" — Horizont 0, sonst nichts';
+  assert to_regclass('public.erg_lager_kaliber') is null,
+    '0078 (b1b): keine gespeicherte Fassung im Rechenwerk — der Lasttest liegt an seiner Grenze, der Bildschirm ruft die Funktion';
   -- Über alle Horizonte, per Funktion: die Summe der Bänder ist die Kaskade.
   select count(*) into v_n from (
     select k.gruppe, k.schluessel, k.h
@@ -4421,8 +4423,8 @@ begin
     having abs(sum(k.kg) - max(p.verkaufsfaehig_kg)) > 0.05) x;
   assert v_n = 0,
     format('0078 (b2): %s Gruppen × Horizonte, deren Bänder nicht auf verkaufsfaehig_kg summieren — zweite Mathematik', v_n);
-  assert (select count(*) from erg_lager_kaliber) = (select count(*) from lager_kaliber(0)),
-    '0078 (b2a): erg_lager_kaliber ist nicht lager_kaliber(0)';
+  assert (select count(*) from v_lager_kaliber) = (select count(*) from lager_kaliber(0)),
+    '0078 (b2a): v_lager_kaliber ist nicht lager_kaliber(0)';
   select count(*) into v_n
     from erg_prognose p
    where p.gruppe = 'charge' and p.lager_kg > 0 and p.h in (0, 28, 196)
@@ -4437,12 +4439,12 @@ begin
   assert v_n = 0, format('0078 (b4): %s Verteilungen, deren Anteile nicht 1 ergeben', v_n);
   assert not exists (select 1 from lager_kaliber(196) where kg < 0 or anteil < 0),
     '0078 (b5): negative Kilo oder Anteile';
-  assert not exists (select 1 from erg_lager_kaliber
+  assert not exists (select 1 from v_lager_kaliber
                       where basis = 'keine' and (kaliber_idx is not null or kg <> verkaufsfaehig_kg)),
     '0078 (b6): basis „keine" muss eine Zeile ohne Band mit der ganzen Masse sein — leer ist nicht null';
-  assert not exists (select 1 from erg_lager_kaliber where basis <> 'keine' and kaliber_idx is null),
+  assert not exists (select 1 from v_lager_kaliber where basis <> 'keine' and kaliber_idx is null),
     '0078 (b7): Band-Zeile ohne kaliber_idx';
-  assert not exists (select 1 from erg_lager_kaliber where kaliber_idx >= 0 and (band_von is null or band_bis is null)),
+  assert not exists (select 1 from v_lager_kaliber where kaliber_idx >= 0 and (band_von is null or band_bis is null)),
     '0078 (b8): ein Band ohne Grenzen';
 
   -- ---- (c) Die Wanderung: schrumpfende Ware fällt nach unten ----------
@@ -4512,8 +4514,8 @@ begin
   -- ---- (e) Das Rechenwerk und der Stand -------------------------------
   assert schema_stand() = 78, format('0078 (e1): schema_stand() = %s', schema_stand());
   select pg_get_functiondef('auswertung_schritt(integer)'::regprocedure) into v_txt;
-  assert v_txt like '%erg_lager_kaliber%' and v_txt like '%erg_marge_wiegung%',
-    '0078 (e2): Schritt 4 rechnet die zwei neuen Ergebnisse nicht';
+  assert v_txt like '%erg_marge_wiegung%' and v_txt not like '%erg_lager_kaliber%',
+    '0078 (e2): Schritt 4 rechnet erg_marge_wiegung — und keine gespeicherte Kaliber-Fassung';
 
   raise notice 'OK  0078 — Fax auf Eis (0 durch Entscheid), Lager nach Kaliber summiert zur Kaskade, Marge je Wägung ohne Verkaufsdatei';
 end $$;

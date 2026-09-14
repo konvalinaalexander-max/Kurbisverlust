@@ -33,8 +33,14 @@ aus. Was du vorfindest (alles auf `claude/new-session-vrnnyo`):
     über alle 30 Horizonte. `basis` sagt, woher die Verteilung kommt: `charge`
     (eigene CSV), `sorte` (die CSV-Kürbisse der Sorte), `keine` (eine Zeile ohne
     Band mit der ganzen Masse — leer ist nicht null). Ein Aufruf kostet ~35 ms.
-  - `v_lager_kaliber` / `erg_lager_kaliber` — `lager_kaliber(0)`, also „heute",
-    gespeichert wie jede andere Dashboard-Zahl (Schritt 4 des Rechenwerks).
+  - `v_lager_kaliber` — `lager_kaliber(0)`, also „heute", als Sicht für den
+    SQL-Editor. **Keine gespeicherte Fassung im Rechenwerk:** Der Lasttest
+    (dreifache Saison, 255 000 CSV-Kürbisse) liegt beim Neurechnen mit
+    11.6–12.0 s an seiner Zwölf-Sekunden-Grenze; „heute" allein kostete dort
+    eine Sekunde. Der Bildschirm ruft `rpc('lager_kaliber', { p_h: 0 })` und
+    `rpc('lager_kaliber', { p_h: 7·X })` — zwei Aufrufe, je 35 ms auf der
+    Demo, im Speicher gehalten. Prüfblock 0078 (b1b) verbietet eine
+    gespeicherte Fassung ausdrücklich.
   - `v_marge_wiegung` / `erg_marge_wiegung` — je Sorte und Kistensystem der
     Durchschnitt der gewogenen **vollen** fertigen Paletten: Kiste ab
     (`kg_je_kiste`, `soll_kg_pro_kiste`, `zuviel_je_kiste = Ist − Soll`,
@@ -180,7 +186,7 @@ Heute-Marke. Streiche die Fax-Linie/-Fläche, falls noch eine da ist.
 **(L3) „Was ist noch im Haus"** — `#lager-tabelle`. **Das Herz des Reiters.**
 Eine Tabelle:
 
-- Zeilen: Filter „Alle" → eine Zeile je **Sorte** (`erg_lager_kaliber`,
+- Zeilen: Filter „Alle" → eine Zeile je **Sorte** (`lager_kaliber(0)`,
   `gruppe = 'sorte'`); Filter „Sorte" → eine Zeile je **Charge** dieser Sorte
   (`gruppe = 'charge'`, `sorte = …`); Filter „Charge" → **eine** Zeile.
   Nur Zeilen mit `lager_kg > 0`. Sortiert nach `lager_kg` absteigend.
@@ -191,10 +197,11 @@ Eine Tabelle:
   Zeile > 0), und **„gesamt"** (`verkaufsfaehig_kg`, mit `anteil` als
   Prozent vom Lager) · Gruppe **„in X Wochen"** mit denselben Unterspalten.
 - **X** ist ein Zahlenfeld `#lager-wochen` (1 … 28, Vorgabe 4). Die Spalten
-  „in X Wochen" kommen aus `rpc('lager_kaliber', { p_h: 7 · X })` — ein Aufruf
-  je X, Ergebnis je X im Speicher gehalten (Map), während des Ladens die alten
-  Zahlen leise grau. Datum des Horizonts steht im Gruppenkopf („in 4 Wochen ·
-  12. Okt").
+  „verkaufsfähig heute" kommen aus `rpc('lager_kaliber', { p_h: 0 })`, die
+  Spalten „in X Wochen" aus `rpc('lager_kaliber', { p_h: 7 · X })` — ein
+  Aufruf je Horizont, Ergebnis je Horizont im Speicher gehalten (Map), während
+  des Ladens die alten Zahlen leise grau; der Aufruf für 0 läuft beim Laden der
+  Seite mit. Datum des Horizonts steht im Gruppenkopf („in 4 Wochen · 12. Okt").
 - Die Bänder unterscheiden sich je Sorte (Orangita: 300–800 g; Lekor:
   700–1200 g). Im Filter „Alle" heissen die Spaltenköpfe darum „Kaliber 1 …
   Kaliber 4" und jede Zelle trägt ihr Band klein darunter („600–1100 g");
@@ -393,21 +400,26 @@ es in den Bericht und lässt es.
 
 ### 5.5 Das Rechenwerk
 
-`auswertung_schritt(4)` bekommt die neuen `erg_*` dazu (Vorlage: 0078 § 4).
-Das Neurechnen bei dreifacher Saison bleibt unter 12 s gesamt und 6 s je Schritt
-(`run.sh` Stufe 6 misst es). Deshalb: Funktionen je Horizont, keine Sicht über
-alle Horizonte. `schema_stand()` → 79, `SCHEMA_ERWARTET = 79`,
-`node supabase/setup_bauen.mjs`.
+`auswertung_schritt(4)` bekommt `erg_punkte` (neu gebaut) wie gehabt; **keine
+neue `erg_*`-Tabelle** für die Kaliber und die Glocke. Das Neurechnen bei
+dreifacher Saison muss unter 12 s gesamt und 6 s je Schritt bleiben (`run.sh`
+Stufe 6 misst es) — und liegt heute bei 11.6–12.0 s. Jede Sekunde, die du dem
+Rechenwerk hinzufügst, kippt den Lasttest; jede, die du ihm nimmst (Schritt 2:
+3.9 s, Schritt 4: 4.2 s bei dreifacher Saison), ist willkommen, aber nicht
+dein Auftrag. Deshalb: Funktionen je Aufruf. `schema_stand()` → 79,
+`SCHEMA_ERWARTET = 79`, `node supabase/setup_bauen.mjs`.
 
 ## 6. Das Frontend
 
 ### 6.1 Daten (`src/auswertung/daten.ts`)
 
-- Neu laden in `Promise.all`: `erg_lager_kaliber` (Typ `LagerKaliber`),
-  `erg_marge_wiegung` (Typ `MargeWiegung`), `erg_punkte` mit `messtag`.
+- Neu laden in `Promise.all`: `erg_marge_wiegung` (Typ `MargeWiegung`),
+  `erg_punkte` mit `messtag`.
 - Neu: `lagerKaliberBei(h)` — `supabase.rpc('lager_kaliber', { p_h: h })`,
-  Ergebnis je h gemerkt (`Map<number, LagerKaliber[]>`), und `kaliberGlockeBei(h)`
-  genauso. Beide mit `fehlerText`, nie ein stiller Fehler.
+  Ergebnis je h gemerkt (`Map<number, LagerKaliber[]>`; h = 0 wird mit dem
+  Datenstand geladen), und `kaliberGlockeBei(h)` genauso. Beide mit
+  `fehlerText`, nie ein stiller Fehler. **Keine** neue `erg_*`-Tabelle für
+  die Kaliber — siehe § 1.
 - **Weg:** `erg_fax`, `erg_fax_wartezeit`, `erg_koeff_fax`, `erg_ueberfuellung`,
   `erg_marge` aus dem Ladeblock, sobald keine Seite sie mehr liest (`tsc` mit
   `noUnusedLocals` sagt es dir). Die Sichten bleiben in der Datenbank.

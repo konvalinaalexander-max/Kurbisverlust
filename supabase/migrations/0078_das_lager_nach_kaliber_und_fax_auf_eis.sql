@@ -7,7 +7,7 @@
 -- keine Erfassungstabelle und keine Spalte — die Erfassung ist scharf
 -- (0072), und die Daten der Arbeiter-App bleiben, wie sie sind.
 --
--- 1. DAS LAGER NACH KALIBER — `v_lager_kaliber` → `erg_lager_kaliber`
+-- 1. DAS LAGER NACH KALIBER — `lager_kaliber(h)` und `v_lager_kaliber`
 --
 -- Der Betrieb: „von dem kaliber von der charge ist noch so viel da - aber
 -- dann vlt auch rechnen - ja aber mit dem aktuellen verdampfung - ist dann
@@ -116,13 +116,16 @@ comment on view v_koeff_fax is
 -- ---------------------------------------------------------------------
 -- 2. Das Lager nach Kaliber
 -- ---------------------------------------------------------------------
--- Eine Funktion je Horizont statt einer Sicht über alle dreissig: Die
--- Aufteilung für alle Horizonte auf einmal kostete 0.65 s auf der Demo —
--- beim Lasttest (dreifache Saison) wäre das Neurechnen über seiner
--- Zwölf-Sekunden-Grenze. Der Bildschirm braucht ohnehin nur zwei Spalten:
--- „heute" (gespeichert in erg_lager_kaliber) und „in X Wochen" (X tippt
--- der Betriebsleiter — ein Aufruf, rund 25 ms). Die Formel steht einmal,
--- hier; die Sicht und der Aufruf lesen dieselbe Funktion.
+-- Eine Funktion je Horizont, aufgerufen vom Bildschirm — keine gespeicherte
+-- Sicht im Rechenwerk: Die Aufteilung für alle dreissig Horizonte kostete
+-- 0.65 s auf der Demo, und selbst „heute" allein kostete beim Lasttest
+-- (Prüfdatensatz mit 255 000 CSV-Kürbissen) eine Sekunde — das Neurechnen
+-- liegt dort mit 11.6–12.0 s ohnehin an seiner Zwölf-Sekunden-Grenze, jede
+-- weitere Sicht in Schritt 1–5 kippt ihn. Der Bildschirm braucht zwei
+-- Spalten: „heute" (lager_kaliber(0)) und „in X Wochen" (lager_kaliber(7·X),
+-- X tippt der Betriebsleiter). Ein Aufruf: 35 ms auf der Demo. Die Formel
+-- steht einmal, hier; v_lager_kaliber (für SQL-Editor und Diagnose) liest
+-- dieselbe Funktion.
 create or replace function lager_kaliber(p_h integer)
 returns table (
   gruppe text, schluessel text, sorte text, h integer, datum date,
@@ -210,28 +213,42 @@ with stichtag as (
     cross join horizont h
     cross join stichtag t
    where v.basis = 'sorte'
+), schwellen as (
+  -- Je Sorte die Bandgrenzen als sortierte Schwellen: von_0, von_1, …, bis_n.
+  -- width_bucket findet das Band in O(log n) je Kürbis — kein Verbund mit
+  -- Ungleichung über 200 000 Zeilen (der kostete beim Lasttest eine Sekunde).
+  select b.sorte,
+         array_agg(b.band_von::numeric order by b.kaliber_idx)
+           || (select max(x.band_bis)::numeric from band x where x.sorte = b.sorte and x.letztes) as grenzen,
+         count(*)::int as n_baender
+    from band b
+   group by b.sorte
 ), verteilung_roh as (
-  -- Massenanteile je Band und Horizont. Das Band: von ≤ g < bis, das
-  -- oberste einschliesslich seiner Obergrenze.
+  -- Massenanteile je Band und Horizont. Bucket 0 = unter dem kleinsten Band
+  -- (kaliber_idx −1); Bucket n+1 (genau auf der Obergrenze) gehört zum
+  -- obersten Band — Klasse „kaliber" heisst, die Maschine hat ihn im Band
+  -- gesehen, und schrumpfende Ware wächst nicht darüber hinaus.
   select w.basis, w.schluessel, w.sorte, w.h,
-         b.kaliber_idx, b.band_von, b.band_bis,
+         case when sw.grenzen is null then null
+              else least(width_bucket(w.g::numeric, sw.grenzen), sw.n_baender) - 1 end as kaliber_idx,
          sum(w.anzahl * w.g)  as masse_g,
          sum(w.anzahl)        as n_kuerbis
     from gewicht w
-    left join band b on b.sorte = w.sorte
-                    and w.g >= b.band_von
-                    and (w.g < b.band_bis or (b.letztes and w.g <= b.band_bis))
-   group by w.basis, w.schluessel, w.sorte, w.h, b.kaliber_idx, b.band_von, b.band_bis
+    left join schwellen sw on sw.sorte = w.sorte
+   group by w.basis, w.schluessel, w.sorte, w.h,
+            case when sw.grenzen is null then null
+                 else least(width_bucket(w.g::numeric, sw.grenzen), sw.n_baender) - 1 end
 ), verteilung as (
   -- Ohne Band (b.kaliber_idx null) heisst: unter dem kleinsten Kaliber
   -- gelandet — oder über dem grössten, was bei schrumpfender Ware nicht
   -- vorkommt. Beides ist Kaliber −1: verkaufsfähig laut Kaskade, aber in
   -- keinem Band.
-  select basis, schluessel, sorte, h,
-         coalesce(kaliber_idx, -1) as kaliber_idx, band_von, band_bis,
-         masse_g / nullif(sum(masse_g) over (partition by basis, schluessel, h), 0) as anteil,
-         sum(n_kuerbis) over (partition by basis, schluessel, h)                   as n_kuerbis
-    from verteilung_roh
+  select v.basis, v.schluessel, v.sorte, v.h,
+         coalesce(v.kaliber_idx, -1) as kaliber_idx, b.band_von, b.band_bis,
+         v.masse_g / nullif(sum(v.masse_g) over (partition by v.basis, v.schluessel, v.h), 0) as anteil,
+         sum(v.n_kuerbis) over (partition by v.basis, v.schluessel, v.h)                       as n_kuerbis
+    from verteilung_roh v
+    left join band b on b.sorte = v.sorte and b.kaliber_idx = v.kaliber_idx
 ), je_charge as (
   select p.schluessel::int as charge_nr, c.sorte, c.schlag, p.h, p.datum,
          q.basis,
@@ -288,7 +305,8 @@ comment on function lager_kaliber(integer) is
 revoke all on function lager_kaliber(integer) from public;
 grant execute on function lager_kaliber(integer) to authenticated;
 
--- „Heute" liegt gespeichert vor wie jede andere Dashboard-Zahl.
+-- Für den SQL-Editor und die Diagnose: „heute" als Sicht. Der Bildschirm
+-- ruft die Funktion direkt (0 und 7·X); im Rechenwerk steht sie nicht.
 create or replace view v_lager_kaliber with (security_invoker = true) as
 select gruppe, schluessel, sorte, h, datum, kaliber_idx, band_von, band_bis,
        zahl(kg, 2, 1e12)::numeric(14,2)                as kg,
@@ -299,20 +317,14 @@ select gruppe, schluessel, sorte, h, datum, kaliber_idx, band_von, band_bis,
        n_chargen
   from lager_kaliber(0);
 comment on view v_lager_kaliber is
-  'lager_kaliber(0): das Lager nach Kaliber heute. Für „in X Wochen" ruft der '
-  'Bildschirm lager_kaliber(7·X) direkt (0078).';
-
-drop materialized view if exists erg_lager_kaliber;
-create materialized view erg_lager_kaliber as select * from v_lager_kaliber with no data;
-create unique index erg_lager_kaliber_pk
-  on erg_lager_kaliber (gruppe, schluessel, h, coalesce(kaliber_idx, -9));
-comment on materialized view erg_lager_kaliber is
-  'Gespeichert: das Lager nach Kaliber heute (lager_kaliber(0)) — je Charge und je '
-  'Sorte die verkaufsfähige Masse je Kaliberband; Summe der Bänder = '
-  'erg_prognose.verkaufsfaehig_kg bei h = 0. Für „in X Wochen" ruft der Bildschirm '
-  'lager_kaliber(7·X). Schritt 4 des Rechenwerks (0078).';
+  'lager_kaliber(0): das Lager nach Kaliber heute — zum Nachschauen im SQL-Editor. '
+  'Der Bildschirm ruft lager_kaliber(0) und lager_kaliber(7·X) direkt; im '
+  'Rechenwerk (auswertung_schritt) steht keine gespeicherte Fassung, weil das '
+  'Neurechnen bei dreifacher Saison an seiner Zwölf-Sekunden-Grenze liegt (0078).';
 grant select on v_lager_kaliber to authenticated;
-grant select on erg_lager_kaliber to authenticated;
+-- Eine Zwischenfassung dieser Migration hatte „heute" als gespeicherte Sicht;
+-- wo sie liegt, geht sie weg (sie stand nie in einer veröffentlichten Datenbank).
+drop materialized view if exists erg_lager_kaliber;
 
 -- ---------------------------------------------------------------------
 -- 3. Die Marge je Wägung
@@ -369,7 +381,7 @@ grant select on v_marge_wiegung to authenticated;
 grant select on erg_marge_wiegung to authenticated;
 
 -- ---------------------------------------------------------------------
--- 4. Das Rechenwerk kennt die zwei neuen Ergebnisse (Schritt 4)
+-- 4. Das Rechenwerk kennt das neue Ergebnis (Schritt 4: erg_marge_wiegung)
 -- ---------------------------------------------------------------------
 create or replace function auswertung_schritt(p_schritt integer)
 returns jsonb language plpgsql security definer set search_path = public set jit = off as $$
@@ -403,7 +415,7 @@ begin
       v_titel := 'Ergebnis';
       v_namen := array['erg_verlust', 'erg_prognose', 'erg_wohin', 'erg_verlauf', 'erg_bilanz',
                        'erg_marge', 'erg_massenbilanz', 'erg_naechste_charge', 'erg_datenlage',
-                       'erg_lager_kaliber', 'erg_marge_wiegung'];
+                       'erg_marge_wiegung'];
     when 5 then
       v_titel := 'Befunde';
       v_namen := array['erg_plausibilitaet', 'erg_datenqualitaet'];

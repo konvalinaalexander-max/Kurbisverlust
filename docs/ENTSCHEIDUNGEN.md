@@ -3299,19 +3299,30 @@ alte Rechnung dahinter lebt. Zwei ältere Tests, die „ohne Fax-Arbeit ist der
 Strom unbekannt" prüften, prüfen jetzt beides: mit Schalter 0, ohne Schalter
 unbekannt.
 
-### Das Lager nach Kaliber: eine Funktion je Horizont statt einer Sicht
+### Das Lager nach Kaliber: eine Funktion je Aufruf, nichts im Rechenwerk
 
 Die erste Fassung von `v_lager_kaliber` rechnete alle dreissig Horizonte auf
 einmal — 1.16 s auf der Demo, 0.65 s nach dem Auftrennen einer OR-Verknüpfung
-in zwei Hash-Joins. Beim Lasttest (dreifache Saison) wäre das Neurechnen damit
-über seiner Zwölf-Sekunden-Grenze gelegen, die heute nur 400 ms Luft hat. Der
-Bildschirm braucht aber nur zwei Spalten: „heute" und „in X Wochen". Also eine
-Funktion `lager_kaliber(h)`, die Sicht ist `lager_kaliber(0)`, und X ruft die
-Funktion direkt. Dabei zeigte der Plan den eigentlichen Fresser: `betriebstag()`
-je Kürbiszeile — 4 238 Aufrufe, 150 ms; einmal je Sortierlauf gerechnet sind
-es 34 ms für den ganzen Aufruf. Die Formel steht einmal; Sicht und Aufruf lesen
-dieselbe Funktion; der Prüfblock beweist die Identität zur Kaskade über alle
-Horizonte per Funktion.
+in zwei Hash-Joins. Der Bildschirm braucht aber nur zwei Spalten: „heute" und
+„in X Wochen". Also eine Funktion `lager_kaliber(h)`. Dabei zeigte der Plan den
+ersten Fresser: `betriebstag()` je Kürbiszeile — 4 238 Aufrufe, 150 ms; einmal
+je Sortierlauf gerechnet sind es 34 ms für den ganzen Aufruf.
+
+Die zweite Fassung hielt „heute" noch als gespeicherte Sicht im Rechenwerk.
+Der Lasttest hat sie gekippt: Sein Prüfdatensatz hat 255 000 CSV-Kürbisse,
+„heute" kostete dort eine Sekunde, und das Neurechnen lag mit 13.1 s über
+seiner Zwölf-Sekunden-Grenze — von der die Grundlinie ohne jede neue Sicht
+schon 11.6 bis 12.0 s braucht. Der Verbund mit Ungleichung (Gewicht zwischen
+Bandgrenzen) über 219 000 Zeilen wurde durch `width_bucket` über die
+Bandschwellen je Sorte ersetzt; und die gespeicherte Fassung ist weg. Der
+Bildschirm ruft `lager_kaliber(0)` und `lager_kaliber(7·X)` direkt — zwei
+Aufrufe, im Speicher gehalten. Das ist eine bewusste Ausnahme von „nur
+gespeicherte Sichten" (0061): Die Regel schützt vor Zeitüberschreitungen beim
+Laden, und ein Aufruf von 35 ms auf der Demo ist keine; der Prüfblock misst
+ihn. Die Formel steht einmal; `v_lager_kaliber` (für den SQL-Editor) und der
+Aufruf lesen dieselbe Funktion; der Prüfblock beweist die Identität zur
+Kaskade über alle Horizonte per Funktion — und verbietet eine gespeicherte
+Fassung ausdrücklich, damit niemand sie in guter Absicht zurückbaut.
 
 ### Was die Aufteilung ehrlich macht
 
