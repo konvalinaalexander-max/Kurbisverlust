@@ -8,6 +8,7 @@ import { chargeText, fehlerText, stammdaten } from '../lib/db'
 import { taetigkeitVon } from '../lib/taetigkeit'
 import { Avatar, Hinweis, Lade, Marke } from '../components/Bausteine'
 import { staffel } from '../design/bewegung'
+import { useFrischhalten } from '../lib/frischhalten'
 import type { Auftrag, Charge } from '../lib/typen'
 
 /**
@@ -56,12 +57,23 @@ export default function Start() {
     } catch (f) { setFehler(fehlerText(f)) } finally { setLaedt(false) }
   }, [])
   useEffect(() => { void laden() }, [laden])
+  // Q22: die Liste altert nicht mehr still vor sich hin — sie holt sich neu,
+  // sobald jemand wieder hinschaut. Genau das braucht der Schichtwechsel.
+  useFrischhalten(laden)
 
   async function mitmachen(a: Auftrag) {
     const ich = session?.user.id
     if (ich && !(dabei[a.id] ?? []).some(x => x.profil_id === ich)) {
       const { error } = await supabase.from('auftrag_teilnehmer').insert({ auftrag_id: a.id })
-      if (error) { setFehler(fehlerText(error)); return }
+      // 23505: Der Eintrag steht schon — der eindeutige Schlüssel über
+      // (Arbeit, Person) lässt keinen zweiten zu. Das passiert genau dann,
+      // wenn diese Liste älter ist als die Wirklichkeit: der Mann hat auf
+      // einem anderen Handy schon mitgemacht. Früher stand dann eine rote
+      // Datenbankmeldung da und er kam nicht hinein. Jetzt ist er einfach
+      // drin — dabei ist dabei (Q22).
+      if (error && (error as { code?: string }).code !== '23505') {
+        setFehler(fehlerText(error)); return
+      }
     }
     navigate(`/arbeit/${a.id}`)
   }

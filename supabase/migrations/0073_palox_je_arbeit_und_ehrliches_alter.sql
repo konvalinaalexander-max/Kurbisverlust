@@ -96,6 +96,10 @@ comment on view v_schimmel_menge is
 -- Diese Zahl ist eine Schätzung, und ihre Unsicherheit ist genau die
 -- Streuung der Eingangsdaten innerhalb der Charge. Die rechnet die App
 -- sich selbst aus — dafür braucht es kein Erntejournal von Hand.
+-- Direkt aus v_palette, nicht über ein `lateral` je Zeile: der Lasttest
+-- fährt mit 5040 Paletten, und ein Nachschlagen je Palette in einer Sicht
+-- über zwei Tabellen kostete dort allein 700 ms. Dasselbe Ergebnis, eine
+-- Verknüpfung statt fünftausend.
 create or replace view v_charge_erntespanne with (security_invoker = true) as
 select p.charge_nr,
        count(*)::int                                                   as n_paletten,
@@ -103,16 +107,15 @@ select p.charge_nr,
        max(p.eingangsdatum)                                            as letzter_tag,
        (max(p.eingangsdatum) - min(p.eingangsdatum))::int               as spanne_tage,
        zahl(sqrt(nullif(
-         sum(n.netto_kg * power((p.eingangsdatum - r.eingangsdatum_mittel)::numeric, 2))
-         / nullif(sum(n.netto_kg), 0), 0)), 1, 100000)::numeric(6,1)   as streuung_tage,
+         sum(p.netto_kg * power((p.eingangsdatum - r.eingangsdatum_mittel)::numeric, 2))
+         / nullif(sum(p.netto_kg), 0), 0)), 1, 100000)::numeric(6,1)   as streuung_tage,
        c.ernte_abgeschlossen_ts is not null
          or coalesce((select (wert #>> '{}')::boolean from einstellung
                        where schluessel = 'ernte_abgeschlossen'), false) as ernte_fertig
-  from palette p
+  from v_palette p
   join charge c on c.nr = p.charge_nr
   join v_charge_rueckgrat r on r.charge_nr = p.charge_nr
-  cross join lateral (select netto_kg from v_palette v where v.id = p.id) n
- where n.netto_kg is not null
+ where p.netto_kg is not null
  group by p.charge_nr, c.ernte_abgeschlossen_ts, r.eingangsdatum_mittel;
 
 comment on view v_charge_erntespanne is

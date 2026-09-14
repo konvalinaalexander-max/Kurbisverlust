@@ -3121,3 +3121,146 @@ Reiter und keine neue Frage in der Halle. Kein Palettenbestand je Kaliber
 (Frage 58 ist entschieden: entfällt). Und keine Mengenprognose in Tonnen —
 der Betrieb bekommt Prozente, weil er die Verkaufsseite besser kennt als die
 App.
+
+## Runde Q — die Erfassung scharf schalten (11. September, 0072 bis 0076)
+
+Diese Runde ist die letzte, in der an der **Erfassung** etwas geändert wird.
+Der Betrieb hat das gesagt und es stimmt: Die Auswertung darf ewig
+weiterlernen, aber was in der Halle nicht gemessen wurde, ist für diese Saison
+weg. Ab jetzt sind die Daten echt und werden nicht mehr gelöscht.
+
+### Der Palox rechnete über die Arbeitsgrenze hinweg — an zwei Stellen
+
+Der gemeldete Fehler war „minus 445, warum — es sind 45 kg": Die erste
+Ablesung einer Arbeit wurde als Menge verbucht, obwohl sie nur der Stand ist,
+bei dem die Arbeit beginnt. Beim Suchen fand sich derselbe Denkfehler ein
+zweites Mal, und dort war er gefährlicher.
+
+`v_palox_stand` bildete das Fenster über die **Station**, nicht über die
+Arbeit. Ein *fallender* Startstand liess die Arbeit aus der Rechnung fallen —
+zufällig richtig. Ein *steigender* buchte die Differenz zur letzten Arbeit
+derselben Station als Faules dieser Arbeit: fremde Kilo, still, ohne Befund.
+Der Betrieb hatte die Regel längst gesagt — „arbeitsschritte werden nie über
+nacht pausiert … deswegen soll nie von der letzten arbeit der palox wert
+irgendwie übernommen werden" — sie stand nur nicht in der Sicht.
+
+Was daraus folgt: Die erste Ablesung ist ein Startstand und ergibt 0 kg. Zwei
+Ablesungen sind Pflicht; mit einer einzigen hat die Arbeit **keine** Faul-Menge,
+statt einer erfundenen. Fällt der Stand, fragt die Maske, statt stillschweigend
+`kg: 0` zu schreiben.
+
+**Was das an den Demo-Zahlen ändert** — ausdrücklich eine Aussage über die
+Beispieldaten, nicht über den Betrieb: vorher 132 Arbeiten mit zusammen
+10 705 kg Faulem, nachher 128 Arbeiten mit 8 159 kg. Die Beispieldaten waren mit
+13 549 kg erzeugt worden. Die Differenz sind Arbeiten ohne Startablesung; sie
+sind jetzt ehrlich *unbekannt* statt falsch beziffert.
+
+### Die Beinahe-Falle: eine Kistenzahl, die 289 Zeilen verschwinden liess
+
+`v_auftrag_palette_masse` endete mit `where ap.kisten is null`. Das war eine
+Abgrenzung gegen die Wasch-Paletten, die dort nicht hingehören — nur hing sie
+an der falschen Spalte. Sobald die Wäge-Maske die Kistenzahl auf die
+**Eingangs**palette schreibt (genau das, was diese Runde bringt), fällt jede
+solche Palette aus der Sicht.
+
+Im Versuch nachgemessen: 289 Zeilen → 0, und 31 Sortierarbeiten stehen danach
+mit `n_paletten = 0` und Masse NULL da. Kein Fehler, keine Warnung — die Masse
+wäre einfach weg gewesen. 0074 grenzt jetzt nach der **Station** ab, nicht nach
+einer Spalte, die sich füllen darf.
+
+Das ist die Sorte Fehler, die diese Runde verhindern sollte: nicht der falsch
+gerechnete Wert, sondern der stumme Ausfall.
+
+### Kisten je Kaliber zählen: gestrichen, nicht verbessert
+
+„niemand wird händisch die kisten zählen und in der app eintragen." Der Reiter
+blieb also nicht in besserer Form stehen, er ist weg. Ein Eingabefeld, das
+niemand füllt, ist schlimmer als keines: Es sieht in jeder Auswertung so aus,
+als hätte es eine Messung geben können.
+
+Was einmal gezählt **wurde**, bleibt gespeichert und wird weiter angezeigt.
+Nicht mehr erheben ist etwas anderes als verschweigen.
+
+### Das Alter beim Waschen ist eine Schätzung, und das steht jetzt dran
+
+Der Betrieb hat einen Denkfehler im Erklärdokument korrigiert: Auf einer
+Palette mit sortierten Kisten kommen mehrere Eingangsdaten zusammen — „dann
+gibt es nur noch sortierdatum und kalibergrösse und chargennummer". Die Palette
+trägt kein Eingangsdatum mehr.
+
+Der ehrliche Ersatz ist das **massegewichtete mittlere Eingangsdatum der
+Charge**, und seine Unsicherheit ist die Streuung der Erntedaten derselben
+Charge — eine Zahl, die die App sich selbst ausrechnen kann. `alter_quelle`
+sagt seither je Arbeit, ob das Alter abgelesen oder geschätzt ist.
+
+Ob die Erntespanne einer Charge endgültig ist, kann die App nicht wissen: Eine
+Lücke im Erntejournal kann drei Tage Regen sein oder das Saisonende. Das sagt
+der Betrieb mit einem Haken, nicht die Statistik.
+
+### Die Kontrollpalette misst, was einmalige Wägungen nicht messen können
+
+Bisher wurde jede Lagerkontrolle an einer anderen Palette gemacht. Daraus
+lässt sich eine mittlere Rate schätzen, aber nicht die Frage beantworten, die
+den Betrieb wirklich beschäftigt: ob die Verdunstung zu Beginn schneller läuft
+(„wir glauben jetzt zu beginn hats viel schock"). Dafür braucht es **dieselbe**
+Palette zweimal. Am Anfang alle 14 Tage, später alle 30 — und ausdrücklich
+ohne Faules zu zählen, denn „was wir nicht können - wöchentlich faule zählen".
+
+### Die Schrumpfung des Verderbs: bewusst in die nächste Runde
+
+Geplant war, den Verderb wie die Verdunstung je Sorte zu schrumpfen und mit
+● ◐ ○ zu kennzeichnen, wie gut eine Sorte belegt ist. Gebaut wurde nur die
+**Lage** (`v_verderb_lage`, 0075): je Sorte, auf wie vielen eigenen Messpunkten
+aus wie vielen Chargen die gemeinsame Kurve dort ruht.
+
+Zwei Gründe. Erstens ist die Schrumpfung der einzige offene Punkt, der die
+**Kaskade** bewegt; alles andere dieser Runde sind Masken. Beides zusammen
+hiesse: Zahlen und Bildschirme ändern sich gleichzeitig, und wenn danach etwas
+falsch aussieht, kann niemand sagen, welches von beidem es war. Zweitens wäre
+ein ◐ auf einer Sorte, deren Zahl in Wirklichkeit zu hundert Prozent das
+Gesamtmittel ist, ein Zeichen, das lügt. Solange es nur eine Kurve für alles
+gibt, steht überall ○.
+
+### Nichts geht verloren — Journal, Wächter, zwei Webseiten
+
+Der Auftrag war wörtlich: „genügend geschützt dass dort nicht mehr gross
+rumgepfuscht wird von der KI und falls schon, dann nur so dass nichts verloren
+geht". Drei Schichten:
+
+1. **Das Journal.** Jede Änderung an einer der 17 Erfassungstabellen schreibt
+   Vorher und Nachher nach `erfassung_journal`, mit Person und Zeit. Eine
+   gelöschte Messung ist damit nicht weg, sondern gelöscht *und* aufgehoben.
+2. **Der Zerstörungswächter.** `supabase/test/keine_zerstoerung.sh` liest jede
+   Migration, bevor sie läuft, und weist `drop table`, `drop column`,
+   `truncate` und `delete` ohne `where` ab. Drei begründete Altfälle stehen mit
+   Namen auf der Ausnahmeliste — eine Liste mit Namen ist etwas anderes als
+   eine Regel mit Löchern.
+3. **Zwei Datenbanken.** Echtbetrieb und Beispiel laufen getrennt, und welche
+   vorliegt, sagt die **Datenbank** (`einstellung.betriebsmodus`), nicht der
+   Build. Ein Build kann sich irren; eine Datenbank weiss, was sie ist. Im
+   Echtmodus weist ein Auslöser das Anlegen von Beispieldaten ab, auch von
+   Hand im SQL-Editor.
+
+### Der Schichtwechsel, vier Kanten
+
+Beitreten geht seit je mit zwei Tipps. Was fehlte, waren die Kanten, die genau
+beim Schichtwechsel weh tun: Die Liste auf der Startseite lud **einmal** und
+alterte danach still (das Handy liegt zwischen zwei Griffen auf der Palette);
+ein zweiter „Mitmachen"-Tipp lief in eine rote Datenbankmeldung, weil der
+Eintrag von einem anderen Gerät schon stand; `verlassen_ts` wurde **nirgends**
+gesetzt, also stand am Abend die ganze Tagesbelegschaft unter „Dabei"; und die
+Rolle merkte sich das Gerät je Arbeit, nicht je Person — wer das Handy um vier
+Uhr übernahm, erbte sie.
+
+Alle vier sind behoben. Keine davon war ein Rechenfehler; alle vier hätten in
+der Halle Zeit gekostet.
+
+### Was bewusst nicht gemacht wurde
+
+Keine Tabelle und keine Spalte gelöscht (der Wächter würde es auch abweisen).
+Keine neue Abhängigkeit. Keine Schrumpfung des Verderbs (eigene Runde, siehe
+oben). Und `alter_spanne_tage` wird zwar gerechnet und dokumentiert, aber noch
+nirgends als Fehlerbalken gezeichnet — das gehört zur Markierung der einzelnen
+Punkte in der Verderbskurve, und die ist Sache der Auswertungsrunde. Bis dahin
+sagt eine Fussnote unter der Kurve, welche Punkte abgelesen und welche
+geschätzt sind.

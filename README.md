@@ -584,6 +584,50 @@ einen Auftrag, landet sie in der **Warteschlange** statt geraten zu werden.
 
 ---
 
+## Zwei Webseiten: der Betrieb und das Beispiel
+
+Ab Runde Q laufen **zwei getrennte Aufbauten** nebeneinander — zwei Supabase-
+Projekte und zwei Veröffentlichungen derselben App:
+
+| | Echtbetrieb | Beispiel |
+|---|---|---|
+| Wofür | die Halle, ab jetzt | ausprobieren, zeigen, üben |
+| Daten | echte Messungen, werden nie gelöscht | eine erfundene Saison, jederzeit neu ladbar |
+| `einstellung.betriebsmodus` | `echt` | `beispiel` |
+| Demo-Daten laden | die Datenbank weist es ab | geht mit einem Knopf |
+
+Warum zwei und nicht ein Schalter: Weil sonst genau der Fehler passiert, den
+niemand mehr rückgängig macht — eine erfundene Palette landet zwischen echten
+Messungen, und nachher weiss keiner mehr, welche Zahl gemessen und welche
+erfunden war.
+
+**Den Modus setzt die Datenbank, nicht der Build.** Die App liest
+`einstellung.betriebsmodus` aus dem Projekt, mit dem sie gerade verbunden ist.
+Ein vertauschter Umgebungswert beim Veröffentlichen kann damit keine
+Beispieldaten in die echte Erfassung lassen: Die Datenbank selbst weist das
+Anlegen von Demo-Daten ab, wenn sie im Echtmodus steht — auch wenn jemand es
+von Hand im SQL-Editor versucht.
+
+**So richtest du es ein:**
+
+1. Zwei Supabase-Projekte anlegen (Schritt 2), in beide `setup.sql` einspielen
+   (Schritt 3).
+2. Im **Echt**-Projekt im SQL-Editor:
+   `update einstellung set wert = to_jsonb('echt'::text) where schluessel = 'betriebsmodus';`
+   Im **Beispiel**-Projekt dasselbe mit `'beispiel'`.
+   (Neu eingerichtete Datenbanken stehen von sich aus auf `echt` — der
+   sichere Wert, wenn jemand den Schritt vergisst.)
+3. Die App **zweimal** veröffentlichen (Schritt 6), einmal je Projekt.
+   `VITE_SUPABASE_URL` und `VITE_SUPABASE_ANON_KEY` werden beim Bauen
+   eingebacken — zwei Datenbanken heissen darum zwangsläufig zwei Builds.
+4. Die Adresse des Echtbetriebs kommt auf den QR-Code in der Halle
+   (Schritt 0); die Beispiel-Adresse behältst du zum Zeigen.
+
+**Und die Sicherung:** Auf der Betriebsseite steht eine Erinnerung, wann
+zuletzt gesichert wurde. In Supabase gibt es täglich automatische Sicherungen;
+zusätzlich lohnt nach jedem grossen Erfassungstag ein Blick dorthin. Was in
+der Halle gemessen wurde, lässt sich nicht noch einmal messen.
+
 ## Vorher ausprobieren: eine erfundene Saison
 
 Bevor die erste echte Palette gezählt ist, zeigt die Auswertung nichts — man
@@ -624,7 +668,7 @@ verschoben. Zweimal laden gibt zweimal dieselbe Saison.
 5. Zum Anschauen der Arbeiter-Masken: auf einem Handy den QR-Code aus
    **Betrieb → Zugang** öffnen, Namen eintippen, und eine der drei laufenden
    Arbeiten antippen — oder „Neue Arbeit starten" und den Assistenten
-   durchgehen (Sortieren fragt die Kaliber, Fax zählt Kisten und wiegt
+   durchgehen (Sortieren fragt die Kaliber, Fax zählt Paletten und wiegt
    Faules).
 
 **Steht dort nur „Demo-Daten entfernen"?** Dann liegt schon eine Demo in der
@@ -664,7 +708,7 @@ Was jede Ansicht bedeutet, steht in [`docs/DATENFLUSS.md`](docs/DATENFLUSS.md).
 
 | Datei | Worum es geht |
 |---|---|
-| [`docs/Die-Arbeiter-App.pdf`](docs/Die-Arbeiter-App.pdf) | **Die Halle, Station für Station.** Wie der Ablauf im Betrieb verstanden wird und wie die App ihn erfasst: Grundregeln, Arbeit anlegen, der Palox (samt dem `−445`-Fehler), Sortieren, Waschen + Sortieren, Waschen mit Gebindewechsel und Kistenrechnung, Fax, Kontrollpalette, Abschluss. Mit fünfzehn Fragen an den Betrieb und allen vorgeschlagenen Änderungen auf einer Seite. Zum Gegenlesen vor dem Scharfschalten der Erfassung. 20 Seiten. |
+| [`docs/Die-Arbeiter-App.pdf`](docs/Die-Arbeiter-App.pdf) | **Die Halle, Station für Station.** Wie der Ablauf im Betrieb verstanden wird und wie die App ihn erfasst: Grundregeln, Arbeit anlegen, der Palox (samt dem `−445`-Fehler), Sortieren, Waschen + Sortieren, Waschen mit Gebindewechsel und Kistenrechnung, Fax, Kontrollpalette, Abschluss. Mit fünfzehn Fragen an den Betrieb und allen vorgeschlagenen Änderungen auf einer Seite. Am Ende ein **Nachtrag**: was aus den fünfzehn Antworten wirklich gebaut wurde, samt der Zahl der Handgriffe je Tätigkeit vorher und nachher. 23 Seiten. |
 | [`docs/Das-ganze-Werkzeug.pdf`](docs/Das-ganze-Werkzeug.pdf) | **Verständnis und Dashboard.** Teil I: wie der Betrieb verstanden wird — die Annahmen einzeln zum Abhaken, Palox, Alter, Verdunstung ohne feste Rate, Verderb je Charge, der Nenner beim Waschen und der Gebindewechsel. Teil II: Entwürfe für die drei neuen Reiter. Zum Prüfen vor dem Scharfschalten der Datenerfassung. 19 Seiten. |
 | [`docs/Das-Programm-erklaert.pdf`](docs/Das-Programm-erklaert.pdf) | **Das ganze Programm in zwei Teilen.** Teil 1: was im Betrieb passiert, was die App an jeder Stelle fragt, was dabei gespeichert wird und warum genau so — jede Maske einzeln. Teil 2: Datenmodell, Sichtenkette, Massenkaskade, Verderbsmodell, Unsicherheit, Import, Sicherheit, Tempo, Prüfwerk und die ehrlichen Grenzen. 33 Seiten. |
 | [`docs/Ablauf-Betrieb-und-App.pdf`](docs/Ablauf-Betrieb-und-App.pdf) | **Der Einstieg.** Station für Station: was physisch passiert, was die App fragt, was Pflicht und was freiwillig ist — und was sie mit der Antwort anfängt. |
@@ -723,6 +767,8 @@ Das genügt fast immer zur Klärung.
 | Arbeiter-App: Start, Assistent, Zähler, Checkliste, Abschluss | `src/pages/Start.tsx`, `NeueArbeit.tsx`, `Arbeit.tsx`, `src/arbeit/` | Kette über die echten Masken in `pruefstand/kette.mjs` |
 | Betriebsleiter: Überblick · Ursachen · Chargen · Messungen · Betrieb | `src/pages/Ueberblick.tsx` … `Betrieb.tsx`, `src/auswertung/` | Diagramme in `src/components/Diagramm.tsx` |
 | Prognose: was aus der liegenden Ware wird, bis zum Saisonende | `supabase/migrations/0071`, `src/auswertung/daten.ts` | dieselbe Kaskade an einem späteren Tag; bei Horizont 0 auf zwei Rappen die Zahl von heute (Block 0071 der Prüfung) |
+| Die Erfassung scharf geschaltet: Palox je Arbeit, Gebinde je Palette, ehrliches Alter, Kontrollpalette | `supabase/migrations/0072`–`0076`, `src/arbeit/` | Prüfblock 0072 in `pruefung.sql`; `docs/BEFUND_RUNDE_Q.md` |
+| Schutz der Erfassung: Journal, Zerstörungswächter, zwei Webseiten | `erfassung_journal` (0072), `supabase/test/keine_zerstoerung.sh`, `src/lib/betriebsmodus.ts` | Wächter läuft als erste Stufe von `run.sh` |
 | Warenausgang aus dem Warenwirtschaftssystem einlesen | `src/lib/xlsx.ts`, `src/lib/warenausgang.ts`, `supabase/migrations/0050` | Leser und Regeln geprüft (27 Tests, 396 096 Zellen gegen einen zweiten Leser); der Bildschirm steht: Betrieb → Warenausgang (`src/betrieb/AusgangImport.tsx`, `src/pages/Lieferungen.tsx`, Übernahme in `ausgang_uebernehmen`, 0055) |
 
 `supabase/setup.sql` ist das, was in Schritt 3 eingefügt wird. Sie wird von
@@ -744,7 +790,7 @@ wie):
 
 Dass dabei nichts verlorengeht, wird nicht geglaubt, sondern geprüft: `run.sh`
 baut eine Datenbank aus den Migrationen einzeln und eine aus `setup.sql` und
-vergleicht beide Fingerabdrücke Zeile für Zeile — 2613 Objekte, jede Spalte,
+vergleicht beide Fingerabdrücke Zeile für Zeile — 3019 Objekte, jede Spalte,
 jede Ansicht, jede Funktion, jeder Index, jede Regel, jedes Recht, jede
 Beschreibung.
 
@@ -945,12 +991,21 @@ gemessen in [`docs/BEFUND_RUNDE_P.md`](docs/BEFUND_RUNDE_P.md).
   Hand zählen und mit `n_gueltig` vergleichen. Die Regel lässt sich beim Upload
   abschalten, der Unterschied ist damit direkt sichtbar.
 - **Weg 1, Waschen:** Dort sind die Original-Paletten in Kaliber-Kisten
-  aufgelöst, es gibt keine Palettenzahl mehr. Seit 0041 zählt der Arbeiter
-  stattdessen die Kisten, und was eine Kiste wiegt, misst die Auswertung am
-  Sortieren: dort ist die Masse je Kaliber aus der CSV bekannt, und die
-  gefüllten Kisten werden ebenfalls gezählt. Gewogen wird nirgends. Solange für
-  ein Kaliber noch nie mitgezählt wurde, bleibt die Menge unbekannt (nicht 0),
-  und die Auffälligkeiten sagen, was fehlt.
+  aufgelöst, es gibt keine Palettenzahl mehr. Der Arbeiter zählt die Paletten
+  aus dem Zwischenlager mit Kistenzahl, Gebindeart und Sortierdatum; was eine
+  Kiste wiegt, misst die Auswertung am Sortieren aus Zettelgewicht und
+  Sortier-CSV. Seit Runde Q werden **keine Kisten je Kaliber** mehr gezählt —
+  der Betrieb: „niemand wird händisch die kisten zählen und in der app
+  eintragen". Solange für ein Kaliber nichts vorliegt, bleibt die Menge
+  unbekannt (nicht 0), und die Auffälligkeiten sagen, was fehlt.
+- **Das Alter beim Waschen ist geschätzt**, nicht gemessen: Die Palette aus dem
+  Zwischenlager trägt kein Eingangsdatum mehr. Gerechnet wird mit dem
+  massegewichteten mittleren Eingangsdatum der Charge; die Streuung der
+  Erntedaten ist die Unsicherheit. Jede Zahl sagt, welches von beidem sie ist.
+- **Der Verderb wird noch nicht je Sorte geschrumpft.** Es gilt **eine** Kurve
+  für alles; je Sorte steht, auf wie vielen eigenen Messpunkten sie dort ruht.
+  Die Schrumpfung ist der einzige offene Punkt, der die Kaskade bewegt, und
+  bekommt deshalb eine eigene Runde (`docs/BEFUND_RUNDE_Q.md`, Abschnitt 9).
 - **Überfüllung:** Die Hochrechnung auf Kisten nimmt an, dass alle Weg-2-Ware
   in Kisten mit dem Soll aus den Einstellungen geht. Der Betrieb hat gesagt,
   die 8-kg-Kiste gilt nur für eine Sorte — welche, ist offen. Die Rechnung nimmt

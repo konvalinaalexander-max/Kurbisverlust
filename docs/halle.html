@@ -1056,4 +1056,194 @@ Saison unwiederbringlich weg.</p>
 
 </div>
 
+<div class="kap">
+<div class="kap-nr">Nachtrag</div>
+<h1>Was seit diesem Dokument gebaut wurde</h1>
+<p class="kap-vor">Dieses Kapitel ist nach deinen fünfzehn Antworten entstanden. Die Kapitel davor
+stehen unverändert da, so wie du sie gelesen hast — hier steht, was inzwischen wirklich in der App
+ist. Wo eine Antwort von dir etwas entschieden hat, steht sie im Wortlaut dabei.</p>
+
+<h2>N.1 Der Palox (Kapitel 3)</h2>
+
+<div class="warum neu"><b>Gebaut, und dabei ein zweiter Fehler gefunden</b>
+Die <span class="sp">−445</span> sind weg: Die erste Ablesung einer Arbeit heisst jetzt
+<strong>Startstand</strong> und ergibt keine Menge. Beim Suchen kam ein zweiter Fehler ans
+Licht, den niemand gemeldet hatte, weil man ihn nicht sehen konnte — die Datenbank rechnete
+über die <strong>Station</strong>, nicht über die Arbeit. Bei einem <em>fallenden</em> Anfangsstand
+fiel die Arbeit aus der Rechnung; bei einem <em>steigenden</em> wurde die Differenz zur letzten
+Arbeit derselben Station dieser Arbeit als Faules angehängt. Fremde Kilo, still, ohne
+Auffälligkeit. Deine Regel — „arbeitsschritte werden nie über nacht pausiert … deswegen soll nie
+von der letzten arbeit der palox wert irgendwie übernommen werden“ — steht jetzt in der Sicht,
+nicht nur im Chat.</div>
+
+<p>Was das in der Halle heisst:</p>
+<table class="eng">
+<thead><tr><th>Fall</th><th>Was die Maske jetzt tut</th></tr></thead>
+<tbody>
+<tr><td>erste Ablesung einer Arbeit</td><td>zeigt <strong>„Startstand“</strong> und keine Menge</td></tr>
+<tr><td>jede weitere</td><td>Stand − vorheriger Stand, mit der Rechnung daneben</td></tr>
+<tr><td>Stand ist <em>gefallen</em></td><td>fragt: <strong>„Ja, geleert“</strong> oder <strong>„Nein, vertippt“</strong>. Bei „geleert“ ist die Menge dieser Arbeit <em>unbekannt</em> — nicht null</td></tr>
+<tr><td>nur eine Ablesung bis zum Schluss</td><td>der Abschluss geht nicht weiter, bevor die zweite da ist</td></tr>
+<tr><td>die 45 kg Leergewicht</td><td>werden <strong>nirgends</strong> abgezogen — sie kürzen sich in der Differenz heraus. Sie stehen nur noch als Hinweis in der Maske</td></tr>
+</tbody>
+</table>
+
+<h2>N.2 Das Gebinde und die Masse (Kapitel 4, 5, 6)</h2>
+
+<div class="warum neu"><b>Die Gebindeart steht jetzt an der Palette, nicht an der Arbeit</b>
+Du hast geschrieben: „in den g2 ist voll gestapelt - in den ifcos nicht - also kanns sein dass
+3 paletten vorne reingehen und hinten 4 rauskommen“. Genau deshalb wird die Kistenart jetzt
+<strong>je Palette</strong> gewählt, an beiden Stationen. Vorbelegt ist <span class="sp">G2</span>
+und <span class="sp">36 Kisten</span> — deine Angabe „generell sinds 36 g2 kisten pro palette“,
+und beides lässt sich in den Einstellungen ändern. Beide Felder bleiben von Palette zu Palette
+stehen: im Dauerbetrieb kostet das keinen einzigen zusätzlichen Griff.</div>
+
+<div class="warum neu"><b>Kisten je Kaliber zählen: gestrichen</b>
+„kisten je kaliber werden nicht gezählt.... niemand wird händisch die kisten zählen und in der
+app eintragen.“ Der Reiter ist weg — bei 120 Kisten waren das 120 Tipps, die nie jemand gemacht
+hat. Ein Feld, das niemand füllt, ist schlimmer als keines: In jeder Auswertung sieht es so aus,
+als <em>hätte</em> es eine Messung geben können. Was früher einmal gezählt wurde, bleibt
+gespeichert und sichtbar — nicht mehr erheben ist etwas anderes als verschweigen.</div>
+
+<div class="warum neu"><b>Den Rechenweg hast du selbst gefunden</b>
+„du siehst ja dann anzahl paletten - mit anzahl kisten und total vom brutto gewicht - dann weisst
+du wieviel sortiert worden ist“. So rechnet die App jetzt. Die Eingangspalette trägt Zettelgewicht,
+Kistenzahl und Gebindeart; daraus das Netto (Brutto minus Kistenzahl × Leergewicht der Art), und
+daraus über die Sortier-CSV die Masse je Kaliberband. Damit fällt die Formel aus Kapitel 6.3, die
+über „Kisten × Kilo je G2-Kiste“ ging, ersatzlos weg.</div>
+
+<h2>N.3 Das Alter der Ware (Kapitel 6.4)</h2>
+
+<p>Deine Korrektur war richtig und sie steht jetzt im Code: Auf einer Palette mit sortierten
+Kisten kommen mehrere Eingangsdaten zusammen — „dann gibt es nur noch sortierdatum und
+kalibergrösse und chargennummer“. Die Palette trägt kein Eingangsdatum mehr.</p>
+
+<table class="eng">
+<thead><tr><th>Tätigkeit</th><th>Woher das Alter kommt</th><th>gemessen oder geschätzt</th></tr></thead>
+<tbody>
+<tr><td>Sortieren</td><td>Eingangsdatum von jedem Zettel, massegewichtet</td><td><strong>gemessen</strong></td></tr>
+<tr><td>Waschen + Sortieren</td><td>dasselbe</td><td><strong>gemessen</strong></td></tr>
+<tr><td>Waschen</td><td>massegewichtetes mittleres Eingangsdatum der Charge</td><td><strong>geschätzt</strong>, mit der Streuung der Erntedaten als Unsicherheit</td></tr>
+</tbody>
+</table>
+
+<p>Jede Arbeit trägt seither das Zeichen mit, welches von beidem gilt. Unter der Verderbskurve
+steht es als Satz, und auf der Seite <em>Messungen</em> steht die Zahl: wie viele der Arbeiten
+ein <em>abgelesenes</em> Alter haben.</p>
+
+<div class="warum neu"><b>Und wann die Ernte vorbei ist, sagst du</b>
+Deine Antwort auf Frage 9 war: „vlt kann ich ja irgendwo dann in den einstellungen angeben - nun
+ernte vorbei“. Der Haken steht unter <em>Betrieb → Stammdaten → Chargen</em>. Die App rät es nicht
+aus der Lücke im Erntejournal — eine Lücke kann drei Tage Regen sein oder das Saisonende, und der
+Unterschied ist von aussen nicht zu sehen.</div>
+
+<h2>N.4 Die fertige Palette (Kapitel 6.5)</h2>
+
+<p>„oft ist die palette dann nicht voll … vlt die ersten beiden paletten je 40 kisten ifco und die
+letzte vlt nur 24“. Die Maske hat dafür jetzt einen Haken <strong>„Palette ist nicht voll“</strong>.
+Eine so gekennzeichnete Palette zählt <strong>für die Masse</strong>, aber <strong>nicht für
+Kilo je Kiste</strong> — sonst zöge die halbvolle letzte Palette jeder Arbeit den Koeffizienten
+nach unten, und von dort aus die ganze Fax-Masse, die auf ihm beruht.</p>
+
+<p>Kürbisse je Kiste: „nein dort werden nicht gezählt“. Beim Gewichtssystem ist das Feld deshalb
+freiwillig; beim Stücksystem bleibt es Pflicht, weil sich ohne es gar nichts rechnen lässt.</p>
+
+<h2>N.5 Fax (Kapitel 7)</h2>
+
+<p>„nein da gibts kein datum - vlt gehen wir einfach von durchschnitt von 4 tagen aus“. Die App
+schlägt jetzt den Abstand zur <strong>letzten dokumentierten Wascharbeit derselben Charge</strong>
+vor; gibt es keine, die Vorgabe von vier Tagen aus den Einstellungen. Gefragt wird trotzdem — der
+Vorschlag ist eine Vorbelegung, keine Messung, und wer es besser weiss, überschreibt ihn.</p>
+
+<h2>N.6 Die Kontrollpalette (Kapitel 8)</h2>
+
+<p>Du hast zugesagt: „ja lässt sich machen“. Gebaut ist der zweite Weg auf dem Kontroll-Bildschirm:
+eine Palette einmal anlegen, danach jedes Mal wiederfinden und wiegen. Vor dem Speichern zeigt die
+Maske, was dieselbe Palette beim letzten Mal gewogen hat.</p>
+
+<table class="eng">
+<thead><tr><th>Zeitraum</th><th>Abstand</th><th>warum</th></tr></thead>
+<tbody>
+<tr><td>erste vier Wochen</td><td>alle <strong>14 Tage</strong></td><td>„wir glauben jetzt zu beginn hats viel schock“ — wenn das stimmt, sieht man es nur mit engen Abständen</td></tr>
+<tr><td>danach</td><td>alle <strong>30 Tage</strong></td><td>die Kurve wird flacher, die Abstände dürfen weiter werden</td></tr>
+</tbody>
+</table>
+
+<p>Was ausdrücklich <em>nicht</em> gebaut wurde: wöchentlich Faules zählen. „was wir nicht können -
+wöchentlich faule zählen“ — also fragt die App auch nicht danach.</p>
+
+<h2>N.7 Der Schichtwechsel</h2>
+
+<p>„soll ein anderer ja dann auch dem auftrag beitreten können“ — das ging schon, mit zwei Tipps.
+Was fehlte, waren vier Kanten, die genau beim Schichtwechsel weh tun:</p>
+
+<table class="eng">
+<thead><tr><th>Was passierte</th><th>Was jetzt passiert</th></tr></thead>
+<tbody>
+<tr><td>Das Handy lag zwei Stunden auf der Palette; die Liste zeigte den Stand von vorhin</td><td>Die Liste holt sich neu, sobald jemand wieder hinschaut</td></tr>
+<tr><td>„Mitmachen“ gab eine rote Datenbankmeldung, wenn derselbe Mann auf einem anderen Handy schon dabei war</td><td>Er ist einfach drin — dabei ist dabei</td></tr>
+<tr><td>Wer nach Hause ging, stand abends immer noch unter „Dabei“</td><td>„Ich bin nicht mehr dabei“, einmal bestätigen, fertig</td></tr>
+<tr><td>Wer das Handy übernahm, erbte die Rolle des Vorherigen (Vorarbeiter oder Zähler)</td><td>Die Rolle merkt sich das Gerät je <em>Person</em>; der Neue fängt bei der ehrlichen Vorgabe an</td></tr>
+</tbody>
+</table>
+
+<h2>N.8 Damit nichts mehr verloren gehen kann</h2>
+
+<p>Dein Satz war: „genügend geschützt dass dort nicht mehr gross rumgepfuscht wird von der KI und
+falls schon, dann nur so dass nichts verloren geht“. Drei Schichten, von innen nach aussen:</p>
+
+<table class="eng">
+<thead><tr><th></th><th>Was</th><th>Wogegen</th></tr></thead>
+<tbody>
+<tr><td><strong>1</strong></td><td>Ein <strong>Journal</strong> über 17 Erfassungstabellen: jede Änderung mit Vorher, Nachher, Person und Zeit</td><td>Eine gelöschte Messung ist gelöscht <em>und</em> aufgehoben — sie lässt sich zurückholen</td></tr>
+<tr><td><strong>2</strong></td><td>Ein <strong>Wächter</strong>, der jede Datenbank-Änderung liest, bevor sie läuft, und <span class="sp">drop table</span>, <span class="sp">drop column</span>, <span class="sp">truncate</span> und <span class="sp">delete</span> ohne Bedingung abweist</td><td>Eine KI, die „aufräumt“. Drei begründete Altfälle stehen namentlich auf einer Ausnahmeliste — eine Liste mit Namen ist etwas anderes als eine Regel mit Löchern</td></tr>
+<tr><td><strong>3</strong></td><td><strong>Zwei getrennte Webseiten</strong>: echter Betrieb und Beispiel, zwei Datenbanken. Welche vorliegt, sagt die <em>Datenbank</em>, nicht der Bauvorgang</td><td>Beispieldaten zwischen echten Messungen. Im Echtmodus weist die Datenbank das Anlegen von Beispieldaten ab, auch von Hand</td></tr>
+</tbody>
+</table>
+
+<div class="warum neu"><b>Und die Sicherung</b>
+Auf der Betriebsseite steht seither, wann zuletzt gesichert wurde. Supabase sichert täglich von
+selbst; nach einem grossen Erfassungstag lohnt trotzdem der Blick. Was in der Halle gemessen
+wurde, lässt sich nicht noch einmal messen.</div>
+
+<h2>N.9 Was das an Handgriffen kostet</h2>
+
+<p>Gezählt sind Felder und Knopfdrücke, nicht gestoppte Zeiten. Im Dauerbetrieb — bei der
+zwanzigsten Palette derselben Arbeit — bleiben Datum, Kistenzahl und Gebinde stehen:</p>
+
+<table class="eng">
+<thead><tr><th>Tätigkeit</th><th>vorher</th><th>jetzt</th></tr></thead>
+<tbody>
+<tr><td>Sortieren, je Eingangspalette</td><td>Gewicht tippen, „+“ — <strong>2</strong></td><td>dieselben <strong>2</strong></td></tr>
+<tr><td>Waschen, je Kaliber-Palette</td><td>„+“ — <strong>1</strong></td><td>dasselbe <strong>1</strong></td></tr>
+<tr><td>Waschen, Kisten je Kaliber</td><td><strong>1 Tipp je Kiste</strong> — bei 120 Kisten 120 Tipps</td><td><strong>0</strong> — gestrichen</td></tr>
+<tr><td>fertige Palette wiegen</td><td>Gewicht, Kisten, Art, Eintragen — <strong>4</strong></td><td>dieselben <strong>4</strong>; der Haken „nicht voll“ nur bei der letzten</td></tr>
+<tr><td>Palox je Ablesung</td><td>Zahl, Eintragen — <strong>2</strong></td><td>dieselben <strong>2</strong>; bei gefallenem Stand eine Rückfrage mehr</td></tr>
+<tr><td>Schicht übernehmen</td><td>Karte, Mitmachen — <strong>2</strong></td><td>dieselben <strong>2</strong>, ohne rote Meldung</td></tr>
+<tr><td>Schicht abgeben</td><td><em>ging nicht</em></td><td><strong>2</strong></td></tr>
+</tbody>
+</table>
+
+<p>Unterm Strich: Die einzige Stelle mit grossen Zahlen war der Kaliber-Reiter, und der ist weg.
+Alles Neue kostet einen Griff <em>je Arbeit</em>, nicht je Palette.</p>
+
+<h2>N.10 Was ich bewusst nicht gebaut habe</h2>
+
+<div class="frage"><b>Der Verderb je Sorte — nächste Runde, mit Grund</b>
+Geplant war, den Verderb wie die Verdunstung je Sorte zu schrumpfen und mit ● ◐ ○ zu
+kennzeichnen, wie gut eine Sorte belegt ist. Gebaut habe ich davon nur die <em>Lage</em>: je Sorte
+steht jetzt da, auf wie vielen eigenen Messpunkten aus wie vielen Chargen die gemeinsame Kurve
+dort ruht. Zwei Gründe. Erstens ist die Schrumpfung der einzige offene Punkt, der die <em>Zahlen</em>
+bewegt — alles andere dieser Runde sind Masken; zusammen geändert wüsste man hinterher nicht, was
+eine Abweichung verursacht hat. Zweitens: Solange es nur <strong>eine</strong> Kurve für alles
+gibt, wäre ein ◐ auf einer Sorte, deren Zahl in Wirklichkeit zu hundert Prozent das Gesamtmittel
+ist, ein Zeichen, das lügt. Deshalb steht überall ○.</div>
+
+<p>Und deine Frage 14 — ob die Unterschiede eher zwischen Sorten oder zwischen Schlägen liegen —
+bleibt genau deshalb offen. „absolut keine ahnung“ ist eine gute Antwort: Sie heisst, dass die
+Daten es sagen müssen und nicht eine Annahme. Mit den ersten echten Messungen lässt sich das
+beantworten; vorher wäre jede Wahl geraten.</p>
+
+</div>
+
 </body></html>

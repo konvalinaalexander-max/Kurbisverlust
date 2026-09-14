@@ -5,6 +5,32 @@ Sie ist der Massstab, an dem sich Datenmodell und Oberflächen messen lassen
 müssen. Wo das Modell etwas annimmt, das niemand geprüft hat, steht es als
 Annahme da — unmarkierte Annahmen sind der Anfang jedes stillen Fehlers.
 
+## Die Antworten aus Runde Q (11. September) — die Erfassung wird scharf geschaltet
+
+Dieser Durchgang steht anders da als alle davor: Danach wird an der **Erfassung**
+nichts mehr geändert. Die Auswertung darf ewig weiterlernen — was an der
+Erfassung fehlt, ist für die laufende Saison weg. Der Betrieb hat das Dokument
+`Die-Arbeiter-App.pdf` gegengelesen und fünfzehn Fragen beantwortet; was daraus
+folgt (umgesetzt in 0072 bis 0076, Beweise in `ABMACHUNGEN.md` AB-49 bis AB-60):
+
+| Was der Betrieb sagte | Was die App jetzt tut |
+|---|---|
+| „wenn ich bei sortieren palox zu beginn ablese rechnet es minus 445? warum - es sind 45 kg" | Die erste Ablesung einer Arbeit ist ein **Startstand**, keine Menge. Die Maske schreibt das hin. Das Leergewicht der Box kürzt sich in der Differenz heraus und wird nirgends abgezogen (AB-51) |
+| „arbeitsschritte werden nie über nacht pausiert … deswegen soll nie von der letzten arbeit der palox wert irgendwie übernommen werden" | Jede Arbeit liest ihren eigenen Anfang und ihr eigenes Ende ab. Vorher rechnete die Sicht über die **Station** hinweg — ein steigender Stand lud fremde Kilo als Faules auf die nächste Arbeit. Zwei Ablesungen sind Pflicht; fehlt die zweite, hat die Arbeit keine Faul-Menge, statt einer erfundenen (AB-51) |
+| „in den g2 ist voll gestapelt - in den ifcos nicht - also kanns sein dass 3 paletten vorne reingehen und hinten 4 rauskommen" | Die Gebindeart wird **je Palette** gewählt, an beiden Stationen — sie wechselt mitten in der Arbeit. Das Leergewicht folgt dem Gebinde, nicht der Arbeit (AB-53) |
+| „kisten je kaliber werden nicht gezählt.... niemand wird händisch die kisten zählen und in der app eintragen" | Der Reiter ist weg. Er täuschte eine Messung vor, die es nie gab. Was einmal gezählt **wurde**, bleibt gespeichert und sichtbar (AB-52) |
+| „du siehst ja dann anzahl paletten - mit anzahl kisten und total vom brutto gewicht - dann weisst du wieviel sortiert worden ist" | Genau so rechnet die App jetzt. Die Eingangspalette trägt Kistenzahl und Gebindeart; daraus das Netto, daraus über die Sortier-CSV die Masse je Kaliberband (AB-49) |
+| „auf dem palette mit sortieren kisten - kommen ja mehrere eingangsdaten zusammen" | Beim Waschen hat die Palette kein Eingangsdatum mehr. Das Alter ist dort das massegewichtete mittlere Eingangsdatum der Charge — eine **Schätzung**, mit der Streuung der Erntedaten als Unsicherheit, und sie ist als solche beschriftet (AB-50) |
+| „generell sinds 36 g2 kisten pro palette … teilweise sinds 32 un teilweise 36 … meistens g2 aber auch nur so 95 %" | 36 und G2 sind vorgespeichert und änderbar. Die Vorgabe ist eine Vorbelegung, keine Messung (AB-53) |
+| „oft ist die palette dann nicht voll … vlt die ersten beiden paletten je 40 kisten ifco und die letzte vlt nur 24" | „Nicht voll" ist eine eigene Angabe. Die Palette zählt für die Masse, aber nicht für kg je Kiste — sonst zieht die halbvolle letzte Palette jeder Arbeit den Koeffizienten nach unten (AB-54) |
+| „nein dort werden nicht gezählt" (Kürbisse je Kiste beim Gewichtssystem) | Bei „Kiste ab x kg" ist die Stückzahl freiwillig; beim Stücksystem Pflicht, weil ohne sie nichts rechenbar ist (AB-54) |
+| „nein da gibts kein datum - vlt gehen wir einfach von durchschnitt von 4 tagen aus" | Beim Fax schlägt die App den Abstand zur letzten dokumentierten Wascharbeit derselben Charge vor, sonst die Vorgabe. Gefragt wird trotzdem (AB-55) |
+| „ja lässt sich machen" (dieselbe Palette mehrfach wiegen), „wir glauben jetzt zu beginn hats viel schock", „was wir nicht können - wöchentlich faule zählen" | Die Kontrollpalette: dieselbe Palette, am Anfang alle 14 Tage, später alle 30. Erst das misst die Verdunstungsrate **über die Zeit**. Faules zählen ist ausdrücklich nicht vereinbart (AB-56) |
+| „vlt kann ich ja irgendwo dann in den einstellungen angeben - nun ernte vorbei" | Ein Haken in den Stammdaten. Die App rät nicht aus der Lücke im Erntejournal, ob die Saison vorbei ist oder nur drei Tage Regen dazwischenliegen (AB-57) |
+| „einmal echter betrieb das dann losgehen kan und ander mal die sample oberfläche" | Zwei Datenbanken, zwei Builds. Welche vorliegt, sagt die **Datenbank**, nicht der Build — und im Echtmodus weist sie das Anlegen von Beispieldaten ab (AB-58) |
+| „genügend geschützt dass dort nicht mehr gross rumgepfuscht wird von der KI und falls schon, dann nur so dass nichts verloren geht" | Jede Änderung an einer Erfassungstabelle schreibt Vorher und Nachher ins Journal. Ein Wächter liest jede Migration, bevor sie läuft, und weist `drop table`, `drop column`, `truncate` und `delete` ohne `where` ab (AB-59) |
+| „soll ein anderer ja dann auch dem auftrag beitreten können" | Zwei Tipps, und man ist dabei. Wer geht, trägt sich aus; die Liste altert nicht mehr still; ein schon bestehender Eintrag ist kein Fehler, sondern „drin" (AB-60) |
+
 ## Die Antworten aus Runde I (8. September) — jede Zahl sagt, was sie ist
 
 Der dritte Durchgang galt nicht dem, was gerechnet wird, sondern dem, was

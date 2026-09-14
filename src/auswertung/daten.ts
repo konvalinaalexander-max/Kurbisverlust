@@ -154,6 +154,8 @@ export interface Datenqualitaet {
   ws_paletten_gezaehlt: number; ws_paletten_mit_zettelgewicht: number
   arbeiten_nach_waschen: number; arbeiten_mit_kistensystem: number
   wasch_kisten_gezaehlt: number; wasch_kisten_mit_sortierdatum: number; arbeiten_mit_palox_unbekannt: number
+  eingangspaletten: number; eingangspaletten_mit_kisten: number
+  arbeiten_alter_gemessen: number
 }
 export interface AusgangKennzahl {
   id: number; auftrag_id: number; charge_nr: number; sorte: string; schlag: string; ts: string

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { TaetKachel, TaetZeichen } from '../components/Zeichen'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { useAuth } from '../auth/AuthProvider'
 import { useSprache } from '../sprache/SprachProvider'
 import { chargeText, einstellung, fehlerText, stammdaten } from '../lib/db'
 import { TAETIGKEITEN } from '../lib/taetigkeit'
@@ -45,6 +46,7 @@ const gleicheBaender = (a: Band[], b: Band[]) => a.length === b.length && a.ever
  */
 export default function NeueArbeit() {
   const { t } = useSprache()
+  const { session } = useAuth()
   const navigate = useNavigate()
   const [chargen, setChargen] = useState<Charge[]>([])
   const [schemata, setSchemata] = useState<Sortierschema[]>([])
@@ -183,7 +185,7 @@ export default function NeueArbeit() {
     const id = (data as { id: number }).id
     // Wer eröffnet, ist dabei — und führt.
     await supabase.from('auftrag_teilnehmer').insert({ auftrag_id: id })
-    fuehrungSetzen(id, true)
+    fuehrungSetzen(id, session?.user.id, true)
     setLaeuft(false)
     navigate(`/arbeit/${id}?neu=1`, { replace: true })
   }

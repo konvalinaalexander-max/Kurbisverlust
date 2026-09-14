@@ -227,6 +227,14 @@ function Qualitaet({ q }: { q: Datenqualitaet }) {
     { name: 'Waschen + Sortieren: Gewicht vom Zettel bei gezählten Paletten', ab: 'AB-25', ist: q.ws_paletten_mit_zettelgewicht, von: q.ws_paletten_gezaehlt, hinweis: 'ohne Zettelgewicht hat der Palox keinen Nenner' },
     { name: 'Kistensystem nach dem Waschen beantwortet', ab: 'AB-26', ist: q.arbeiten_mit_kistensystem, von: q.arbeiten_nach_waschen, hinweis: 'sonst weiss die Auswertung nicht, ob eine Kiste rechenbar ist' },
     { name: 'Waschen: Sortierdatum je gezählter Palette', ab: 'AB-31', ist: q.wasch_kisten_mit_sortierdatum, von: q.wasch_kisten_gezaehlt, hinweis: 'das Datum auf dem Zettel sagt, wie lange die Ware nach dem Sortieren stand' },
+    // Runde Q: die Kistenzahl auf der Eingangspalette. Ohne sie hat die
+    // Palette kein Netto (die Tara hängt am Gebinde) — und ohne Netto keine
+    // Masse. Die Zeile sagt, wie oft dieser Weg wirklich trägt.
+    { name: 'Eingangspalette: Kistenzahl getippt', ab: 'AB-49', ist: q.eingangspaletten_mit_kisten, von: q.eingangspaletten, hinweis: 'ohne Kistenzahl kein Leergewicht und damit keine Masse für diese Palette' },
+    // Runde Q, Q21: eine geschätzte Zahl darf nicht aussehen wie eine
+    // gemessene. Diese Zeile sagt, auf wie vielen ABGELESENEN Altersangaben
+    // die Verderbskurve ruht — beim Waschen ist das Alter geschätzt.
+    { name: 'Alter der Ware vom Zettel abgelesen', ab: 'AB-50', ist: q.arbeiten_alter_gemessen, von: q.arbeiten_fertig, hinweis: 'beim Waschen kommt die Palette aus dem Zwischenlager und trägt kein Eingangsdatum mehr — dort ist das Alter geschätzt' },
   ]
   const unbekannt = q.arbeiten_mit_palox_unbekannt
   const gesamtAnteil = zeilen.filter(z => z.von > 0)

@@ -186,6 +186,10 @@ const BILDSCHIRME = [
       await p.locator('#ab-tage').waitFor()
     } },
   { name: 'kontrolle', wer: 'arbeiter', pfad: '/kontrolle' },
+  // Runde Q: der zweite Weg auf demselben Bildschirm — die Kontrollpalette,
+  // die stehen bleibt und mehrfach gewogen wird (0072).
+  { name: 'kontrolle-palette', wer: 'arbeiter', pfad: '/kontrolle',
+    tun: async p => { await p.locator('#weg-kp').click(); await p.waitForTimeout(200) } },
   // Die Korrektur (Runde H): der Betriebsleiter berichtigt die Messungen einer Arbeit
   { name: 'arbeit-korrektur', wer: 'admin', pfad: '/arbeit/FERTIG?korrigieren=1' },
   // Betriebsleiter: fünf Reiter
@@ -235,6 +239,16 @@ const BILDSCHIRME = [
   // Die Demo-Karte im geladenen Zustand: neu laden und entfernen (0052).
   { name: 'betrieb-demo', wer: 'admin', pfad: '/betrieb/stammdaten',
     tun: async p => { await p.getByRole('link', { name: 'Demo-Daten' }).click() } },
+  // Runde Q: der Haken „Die Ernte ist eingebracht" (Q9) steht bei den Chargen.
+  { name: 'betrieb-chargen', wer: 'admin', pfad: '/betrieb/stammdaten',
+    // „Chargen" steht zweimal auf der Seite: in der Bereichsleiste oben und
+    // im Reiter der Stammdaten. Gemeint ist der Reiter — die Bereichsleiste
+    // trägt aria-label="Bereiche" und wird damit ausgeschlossen.
+    tun: async p => {
+      await p.locator('nav.navleiste:not([aria-label="Bereiche"])')
+             .getByRole('link', { name: 'Chargen' }).click()
+      await p.locator('#ernte-fertig').waitFor()
+    } },
   { name: 'betrieb-schemata', wer: 'admin', pfad: '/betrieb/stammdaten',
     tun: async p => { await p.getByRole('link', { name: 'Sortierschemata' }).click() } },
   { name: 'betrieb-zugang', wer: 'admin', pfad: '/betrieb/zugang' },

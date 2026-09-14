@@ -197,7 +197,21 @@ export function importErkennen(text: string, chargen: ChargeRef[]): ImportBerich
     if (kennung) {
       extern = `journal:${kennung}`
     } else {
-      const kern = [chargeNr, datum, brutto, kisten ?? '', gebinde ?? ''].join('|')
+      // Die Ersatz-Kennung darf NUR aus dem bestehen, was eine Zeile
+      // ausmacht — nicht aus allem, was zufällig danebensteht.
+      //
+      // Vorher standen Kistenzahl und Gebindeart mit drin. Das ging gut,
+      // solange das Erntejournal keine Kistenspalte hatte. Bekommt es eine
+      // (genau darum geht es in dieser Runde), ändert sich für JEDE bereits
+      // importierte Zeile die Kennung: `onConflict: 'extern_id'` findet
+      // nichts mehr, und der zweite Import legt jede Palette ein zweites
+      // Mal an. Die Eingangsmasse der Saison verdoppelt sich — ohne eine
+      // einzige Fehlermeldung.
+      //
+      // Charge, Datum und Bruttogewicht identifizieren eine Palette; die
+      // laufende Nummer trennt gleiche Zeilen desselben Tages. Was sonst
+      // noch in der Zeile steht, darf die Kennung nicht bewegen.
+      const kern = [chargeNr, datum, brutto].join('|')
       const n = (laufNr.get(kern) ?? 0) + 1
       laufNr.set(kern, n)
       extern = `${kern}#${n}`

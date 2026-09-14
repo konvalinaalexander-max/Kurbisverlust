@@ -1,5 +1,19 @@
 # Was ich vom Betrieb wissen muss
 
+> **Stand 11. September, Runde Q — fünfzehn Fragen zur Arbeiter-App sind beantwortet.**
+> Die Antworten stehen im Wortlaut in **`docs/ANTWORTEN_RUNDE_Q.md`** und als Tatsachen
+> in `docs/ABLAUF.md` („Die Antworten aus Runde Q"); was daraus gebaut wurde, steht in
+> `docs/ABMACHUNGEN.md` (AB-49 bis AB-60) und `docs/BEFUND_RUNDE_Q.md`.
+>
+> **Zwei Fragen sind ausdrücklich offen geblieben, und das ist in Ordnung:**
+>
+> * **Frage 14 — Verderb: Sorte oder Schlag?** Antwort: „absolut keine ahnung". Damit
+>   entscheidet es die Messung und nicht eine Annahme. Bis dahin gilt **eine** Kurve für
+>   alles, und jede Sorte trägt das Zeichen ○ („es gilt die gemeinsame Kurve"). Ein ◐ auf
+>   einer Sorte ohne eigene Messpunkte wäre ein Zeichen, das lügt.
+> * **AB-14 — die direkte Messung beim Leeren des Palox** (wie viel davon nicht faul ist).
+>   Entscheidet, ob der nicht lagerbedingte Sockel am Saisonende erkennbar wird.
+
 > **Stand 2. September — das meiste ist beantwortet.**
 > Die Antworten stehen als Tatsachen in **`docs/ABLAUF.md`**, nicht mehr hier. Diese Datei
 > bleibt als vollständige Liste der einmal gestellten Fragen bestehen.

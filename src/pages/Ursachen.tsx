@@ -337,6 +337,20 @@ function Verderb({ daten, strom, feld, eingang, lager, sorte, chargen, filter, s
           senkrechte={kurve && tMax > 0 ? [{ x: tMax, text: 'bis hier gemessen', farbe: 'var(--text-leise)' }] : []}
           ausgeschlossenText={x => `${Math.round(x)} Lagertage`}
           leer="noch keine Schimmelmessung" />
+        {/* Runde Q, Q21: Die Lagerdauer auf der x-Achse ist nicht überall
+            gleich gut bekannt. Beim Sortieren und beim Waschen + Sortieren
+            liest der Arbeiter das Eingangsdatum von jedem Zettel ab; beim
+            Waschen kommt die Palette aus dem Zwischenlager und trägt keines
+            mehr — dort ist der Wert das massegewichtete mittlere
+            Eingangsdatum der Charge, also eine Schätzung. Das gehört
+            dazugesagt, sonst sieht eine geschätzte Zahl aus wie eine
+            gemessene. Wie oft welches zutrifft, steht unter Messungen. */}
+        <p className="fussnote">
+          Die Lagerdauer ist beim Sortieren und beim Waschen + Sortieren vom Zettel abgelesen;
+          beim Waschen hat die Palette aus dem Zwischenlager kein Eingangsdatum mehr — dort ist
+          sie das mittlere Eingangsdatum der Charge, also geschätzt. Wie oft welches zutrifft:
+          {' '}<Link to="/messungen">Messungen</Link>.
+        </p>
         {nUnplausibel > 0 && (
           <p className="fussnote">
             {nUnplausibel === 1 ? '1 Messung ist nicht plausibel' : `${nUnplausibel} Messungen sind nicht plausibel`} und deshalb nicht im Bild — sie stehen unter <Link to="/messungen">Messungen</Link> mit Grund.

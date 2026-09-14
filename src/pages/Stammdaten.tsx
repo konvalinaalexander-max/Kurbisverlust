@@ -185,9 +185,19 @@ function PalettenImport() {
           .upsert(arten.map(art => ({ art })), { onConflict: 'art', ignoreDuplicates: true })
         if (error) throw error
       }
-      for (let i = 0; i < bericht.paletten.length; i += 500) {
+      // Ein Upsert schreibt beim Konflikt ALLE Felder der Nutzlast. Eine
+      // Quelle ohne Kistenspalte schickt `kisten: null` — und hätte damit
+      // bestehende, gemessene Kistenzahlen auf NULL zurückgesetzt. Was
+      // nicht in der Datei steht, darf nichts überschreiben: die leeren
+      // Felder gehen gar nicht erst mit.
+      const ohneLeere = bericht.paletten.map(z => {
+        const rein: Record<string, unknown> = {}
+        for (const [k, v] of Object.entries(z)) if (v !== null) rein[k] = v
+        return rein
+      })
+      for (let i = 0; i < ohneLeere.length; i += 500) {
         const { error } = await supabase.from('palette')
-          .upsert(bericht.paletten.slice(i, i + 500), { onConflict: 'extern_id' })
+          .upsert(ohneLeere.slice(i, i + 500), { onConflict: 'extern_id' })
         if (error) throw error
       }
       setMeldung(`${bericht.paletten.length} Paletten übernommen.`)
@@ -254,7 +264,12 @@ function PalettenImport() {
           <p>
             <strong>{kg(bruttoSumme, 0)} brutto</strong> · Zuordnung über
             {' '}{bericht.quelle === 'chargennummer' ? 'Chargennummer' : 'Schlag + Sorte'}
-            {ohneGebinde > 0 && ` · ${ohneGebinde} ohne Gebindeart (gelten als G2)`}
+            {/* Vorher stand hier „gelten als G2". Das war falsch: eine LEERE
+                Zelle wird zu G2, eine FEHLENDE SPALTE zu NULL — und ohne
+                Gebindeart findet v_palette keine Tara und liefert für diese
+                Zeilen gar kein Netto. Der Import meldete Erfolg, die
+                Eingangsmasse verschwand lautlos. */}
+            {ohneGebinde > 0 && ` · ${ohneGebinde} ohne Gebindeart — ohne sie gibt es für diese Paletten kein Nettogewicht`}
           </p>
           <div className="rollbar">
             <table>
@@ -292,6 +307,27 @@ function PalettenImport() {
 function Chargen() {
   const [chargen, setChargen] = useState<Charge[]>([])
   const [zahlen, setZahlen] = useState<Record<number, { n: number; kg: number | null }>>({})
+  // Runde Q, Q9: „vlt kann ich ja irgendwo dann in den einstellungen angeben
+  // - nun ernte vorbei". Solange die Ernte läuft, ist die Erntespanne einer
+  // Charge vorläufig — es kann noch eine Palette dazukommen und das mittlere
+  // Eingangsdatum verschieben. Danach steht sie. Die Auswertung liest das
+  // Zeichen in v_charge_erntespanne.ernte_fertig (0073).
+  const [ernteFertig, setErnteFertig] = useState<boolean | null>(null)
+  const [speichert, setSpeichert] = useState(false)
+  const [fehler, setFehler] = useState<string | null>(null)
+  useEffect(() => {
+    void einstellung<boolean>('ernte_abgeschlossen', false).then(w => setErnteFertig(!!w))
+  }, [])
+  async function ernteSetzen(wert: boolean) {
+    setSpeichert(true); setFehler(null)
+    const { error } = await supabase.from('einstellung').upsert(
+      { schluessel: 'ernte_abgeschlossen', wert,
+        bemerkung: 'Die Ernte ist eingebracht — die Erntespanne jeder Charge steht fest (0072/0073).' },
+      { onConflict: 'schluessel' })
+    setSpeichert(false)
+    if (error) { setFehler(fehlerText(error)); return }
+    setErnteFertig(wert)
+  }
   useEffect(() => {
     void (async () => {
       const s = await stammdaten(true)
@@ -319,10 +355,25 @@ function Chargen() {
           <Kennzahl titel="Paletten" wert={zahl(gesamtPaletten)} />
           <Kennzahl titel="Chargen mit Ware" wert={`${mitDaten} von ${chargen.length}`} />
         </div>
-        <p className="leise" style={{ marginBottom: 0 }}>
+        <p className="leise">
           Das ist die bisher eingelagerte Menge — sie wächst mit jedem Import aus
           dem Google Sheet. Die genaue Verlust-Auswertung steht im Dashboard.
         </p>
+        {/* Q9: ein Schalter, keine Rechnerei. Die App kann nicht wissen, ob
+            zwischen zwei Lieferungen drei Tage Regen liegen oder die Saison
+            vorbei ist — das weiss nur der Betrieb. */}
+        <label className="haken" style={{ display: 'flex', alignItems: 'center', gap: '.6rem', minHeight: 44 }}>
+          <input type="checkbox" id="ernte-fertig" checked={ernteFertig === true}
+                 disabled={ernteFertig === null || speichert}
+                 onChange={e => void ernteSetzen(e.target.checked)} />
+          <span>Die Ernte ist eingebracht</span>
+        </label>
+        <p className="fussnote" style={{ marginBottom: 0 }}>
+          {ernteFertig
+            ? 'Die Erntespanne jeder Charge steht fest. Das mittlere Eingangsdatum, aus dem das Alter der Ware gerechnet wird, ändert sich nicht mehr.'
+            : 'Solange der Haken fehlt, gilt jede Erntespanne als vorläufig — es kann noch eine Palette dazukommen und das mittlere Eingangsdatum verschieben.'}
+        </p>
+        {fehler && <Hinweis art="warnung">{fehler}</Hinweis>}
       </Karte>
 
     <Karte titel={`Chargen (${chargen.length})`}>

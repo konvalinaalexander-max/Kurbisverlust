@@ -50,6 +50,9 @@ export default function Arbeit() {
   const [meldung, setMeldung] = useState<string | null>(null)
   // 0060: das Gewicht vom Zettel wandert vom Zähler in die Wägung
   const [zettelBrutto, setZettelBrutto] = useState('')
+  // Q22: „Ich bin nicht mehr dabei" fragt einmal nach — ein Fehlgriff in der
+  // Halle soll niemanden aus der Arbeit werfen.
+  const [fragtVerlassen, setFragtVerlassen] = useState(false)
 
   const laden = useCallback(async () => {
     try {
@@ -85,10 +88,27 @@ export default function Arbeit() {
 
   async function mitmachen() {
     const { error } = await supabase.from('auftrag_teilnehmer').insert({ auftrag_id: auftragId })
-    if (error) setFehler(fehlerText(error)); else await laden()
+    // 23505 heisst „steht schon" — er ist auf einem anderen Handy schon
+    // dabei, oder diese Seite ist älter als die Wirklichkeit. Kein Fehler,
+    // den ein Arbeiter lesen müsste: neu laden, fertig (Q22).
+    if (error && (error as { code?: string }).code !== '23505') { setFehler(fehlerText(error)); return }
+    await laden()
+  }
+  // Q22, Schichtwechsel: Wer geht, trägt sich aus. Ohne das stand am Abend
+  // die halbe Belegschaft unter „Dabei" — auch die, die um zwei nach Hause
+  // gegangen sind, weil `verlassen_ts` bis Runde Q nirgends gesetzt wurde.
+  // Die Messungen bleiben unberührt; ausgetragen wird nur die Anwesenheit.
+  async function verlassen() {
+    const ich = session?.user.id
+    if (!ich) return
+    const { error } = await supabase.from('auftrag_teilnehmer')
+      .update({ verlassen_ts: new Date().toISOString() })
+      .eq('auftrag_id', auftragId).eq('profil_id', ich).is('verlassen_ts', null)
+    if (error) { setFehler(fehlerText(error)); return }
+    navigate('/')
   }
   function rolleWechseln(neu: boolean) {
-    fuehrungSetzen(auftragId, neu); setFuehrt(neu); setAnsicht(neu ? 'liste' : 'zaehler')
+    fuehrungSetzen(auftragId, session?.user.id, neu); setFuehrt(neu); setAnsicht(neu ? 'liste' : 'zaehler')
   }
   const kopf = (
     <div className="karte arbeit-kopf eintritt">
@@ -108,6 +128,18 @@ export default function Arbeit() {
         <button type="button" className="haupt gross voll" onClick={() => void mitmachen()}>
           {t('mitmachen')}
         </button>
+      )}
+      {binDabei && !gesperrt && (
+        <p className="rolle-wechsel" style={{ margin: '.5rem 0 0' }}>
+          {fragtVerlassen
+            ? <>
+                <span className="leise">{t('nichtMehrDabeiFrage')}</span>{' '}
+                <button type="button" id="verlassen-ja" className="leise-knopf" onClick={() => void verlassen()}>{t('jaGehe')}</button>
+                {' · '}
+                <button type="button" className="leise-knopf" onClick={() => setFragtVerlassen(false)}>{t('abbrechen')}</button>
+              </>
+            : <button type="button" id="verlassen" className="leise-knopf" onClick={() => setFragtVerlassen(true)}>{t('nichtMehrDabei')}</button>}
+        </p>
       )}
     </div>
   )

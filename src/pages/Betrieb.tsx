@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import Sicherung from '../components/Sicherung'
 import { TaetZeichen, ZNeu } from '../components/Zeichen'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
@@ -102,6 +103,7 @@ function Arbeiten() {
 
   return (
     <>
+    <Sicherung />
     {tempo.length > 0 && (
       <Karte titel="Arbeit und Tempo" unter="Je Tätigkeit: wie viele Arbeiten, wie lange sie dauerten, wie viel Masse je Stunde durchging.">
         <div className="rollbar"><table className="dicht">
