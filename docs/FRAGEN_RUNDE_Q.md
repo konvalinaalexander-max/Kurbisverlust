@@ -461,3 +461,87 @@ Spanne je Schlag von rund 1 % bis 10 % — bei derselben Sorte (Frage 15).
 
 Damit sind F9 (Blick in die Zukunft) und F10 (Massenkette ohne Zählung) beide
 gelöst, und F1–F3 (Palox) sind entscheidungsreif.
+
+---
+
+## Nachtrag 3 — vier Korrekturen, alle nachgemessen
+
+### Die Verdunstungsrate ist nicht konstant
+
+*„Am Anfang haben sie sicher Schock von draussen Feld in Halle zu kommen — dann
+ändert sich ja auch Temperatur. Aktuell ists im September in der Lagerhalle
+ziemlich warm, im Dezember wirds kalt sein."*
+
+Die Rechnung nimmt heute eine feste Tagesrate je Sorte an. Eine einzelne
+Wägung kann den Verlauf prinzipiell nicht zeigen — sie liefert die *mittlere*
+Rate über die ganze Lagerdauer. Zwei Wägungen **derselben** Palette liefern
+dagegen eine Rate **für den Zeitraum dazwischen**.
+
+**Vorschlag: Kontrollpaletten.** Eine markierte Palette je Sorte, monatlich
+gewogen, nicht verarbeitet. Die Datenbank kann das schon (`verdunstung_wiegung`
+kann auf eine Palette zeigen); die Maske muss es nur anbieten. Fünf Minuten im
+Monat für die ganze Halle — und es löst zugleich die Selektionsfrage, weil eine
+markierte Palette nicht nach Aussehen ausgewählt wird.
+
+Zur Einordnung: Die 41 Wägungen der Demo, nach Lagerdauer klassiert, liegen um
+±8 % auseinander — obwohl die Demo mit *konstanter* Rate erzeugt wurde. Das ist
+also das Rauschen, nicht der Effekt. Ein echter Effekt muss deutlicher sein.
+
+### Es gibt nur eine Verderbskurve für den ganzen Betrieb
+
+*„Alle Chargen einer Sorte — wissen wir nicht, das wollen wir rausfinden. Wenn
+du keine Messpunkte hast, darfst du annehmen dass sie faulen wie Mittelmass —
+aber falls du Messpunkte hast, zeig an dass es von spezifischen Messpunkten
+gerechnet wurde."*
+
+Heute: **eine** Kurve, global, aus 140 Punkten von 33 Chargen. Nicht je Sorte,
+nicht je Charge. Eine anfällige Charge verschwindet darin spurlos.
+
+Vorschlag: dasselbe Verfahren wie bei der Verdunstung — je Charge rechnen, zum
+Mittel ziehen je weniger Messungen, stetig statt mit Schwelle. Und daneben drei
+Zeichen: ● eigene Messungen · ◐ eigene, zum Mittel gezogen · ○ Mittel der
+Sorte. Reine Auswertung, jederzeit nachrüstbar.
+
+### Das Alter braucht den Sortierschritt gar nicht
+
+*„Wir dokumentieren in der App ja nicht jeden Sortierschritt — also weisst du
+nicht von jedem Sortierdatum welche Eingangsdaten vorkamen."*
+
+Richtig, und mein Zwischenentwurf hatte genau diese Annahme eingeschmuggelt.
+Nachgemessen in der Demo: **25 von 42 Chargen** haben überhaupt eine
+dokumentierte Sortierarbeit.
+
+Die Auflösung ist einfacher als der Umweg: `Alter = Waschtag − Eingangsdatum`.
+Das Sortieren ist ein Ereignis dazwischen und kommt in der Rechnung nicht vor.
+Das Eingangsdatum steht vollständig im Erntejournal. Nachgemessen, wo beides
+existiert: Das Mittel aus den Sortierarbeiten weicht vom Chargenmittel um
+**0.31 Tage** ab (höchstens 1.28) — und kostet 40 % der Chargen.
+
+Der Umweg brachte also 0.3 Tage und kostete 17 Chargen. **Künftig immer das
+Chargenmittel.** Damit ist auch F9 erledigt, weil sich nichts mehr rückwirkend
+ändern kann.
+
+Ebenso entschärft: **FIFO oder anteilig.** Keine Charge der Demo streut über
+mehr als sechs Eingangstage; für Charge 1632 unterscheiden sich die beiden
+Annahmen um **0.8 Tage** bei 180 Tagen Lagerdauer. Die Frage muss nicht
+entschieden werden.
+
+### Beim Waschen wechselt das Gebinde
+
+*„Im Lager ist alles in G2-Kisten, aber nach dem Waschen kommen sie in IFCOs.
+In den G2 ist voll gestapelt, in den IFCOs nicht — also kanns sein dass 3
+Paletten vorne reingehen und hinten 4 rauskommen."*
+
+Das bricht die naheliegende Formel „fertige Paletten × Palettengewicht". Die
+Palette ist auf beiden Seiten etwas anderes. Der Nenner muss über die
+**Kiste** gehen:
+
+```
+Masse raus = fertige Paletten × Kisten je Palette × kg je Kiste (gemessen)
+```
+
+Daraus drei Konsequenzen: zwei Zahlen beim Abschluss statt einer; `kg je Kiste`
+muss **je Gebinde** getrennt werden (eine G2-Kaliber-Kiste und eine
+IFCO-Verkaufskiste haben nichts miteinander zu tun); und **beide** Gebinde
+brauchen ihr Leergewicht in den Stammdaten, sonst fehlt auf der Ausgangsseite
+das Netto.

@@ -23,13 +23,12 @@
 .sp{color:#b0530f;font-family:'DejaVu Sans Mono',monospace;font-size:8.1pt}
 table.eng{font-size:7.7pt}
 table.eng td,table.eng th{padding:.65mm 1.2mm;vertical-align:top}
-.teil{break-before:page;border-top:2.2pt solid #b0530f;padding-top:2.4mm;margin-bottom:0}
+td.jn{text-align:center;font-size:10pt;color:#b0530f;width:10mm}
+.teil{break-before:page;border-top:2.2pt solid #b0530f;padding-top:2.4mm;margin-bottom:5mm}
+.teil + .kap{break-before:auto;padding-top:0}
 .teil .nr{font-family:'Inter',sans-serif;font-size:8pt;font-weight:700;letter-spacing:.16em;
   text-transform:uppercase;color:#b0530f}
 .teil h1{font-size:22pt;margin:1mm 0 2mm;line-height:1.1}
-/* Der Teil-Kopf teilt sich die Seite mit seinem ersten Kapitel */
-.teil{margin-bottom:5mm}
-.teil + .kap{break-before:auto;padding-top:0}
 .teil p{font-size:10pt;color:#444;max-width:148mm}
 .kopfzeile{border-bottom:1.4pt solid #b0530f;padding-bottom:1.6mm;margin-bottom:3.4mm}
 .kopfzeile .ober{font-family:'Inter',sans-serif;font-size:8pt;font-weight:700;letter-spacing:.14em;
@@ -43,105 +42,152 @@ table.eng td,table.eng th{padding:.65mm 1.2mm;vertical-align:top}
 <div class="kopfzeile">
   <div class="ober">Kürbis-Verlust-Tracking</div>
   <h1>Verständnis und Dashboard</h1>
-  <p><strong>Teil I</strong> schreibt auf, was sich durch deine Antworten geändert hat und wie ich
-  den Betrieb jetzt verstehe — zum Prüfen, bevor die Datenerfassung scharf geschaltet wird.
-  <strong>Teil II</strong> sind Vorschläge für das neue Dashboard, als Entwürfe zum Zerreissen.
-  Kein Code geändert. Alle Zahlen am 14.09.2026 gegen die Demo gemessen.</p>
+  <p><strong>Teil I</strong> schreibt auf, wie ich den Betrieb nach deinen Antworten verstehe —
+  zum Prüfen, bevor die Datenerfassung scharf geschaltet wird. <strong>Teil II</strong> sind
+  Entwürfe für die drei neuen Reiter. Kein Code geändert. Alle Zahlen am 14.09.2026 gegen die
+  Demo gemessen.</p>
 </div>
 
-<h2>Was deine Antworten verändert haben — die Kurzfassung</h2>
+<h2>Was sich seit der letzten Fassung geändert hat</h2>
 
 <table class="eng">
-<thead><tr><th style="width:38mm">Deine Antwort</th><th style="width:50mm">Was ich vorher annahm</th><th>Folge</th></tr></thead>
+<thead><tr><th style="width:44mm">Deine Antwort</th><th>Was folgt</th></tr></thead>
 <tbody>
-<tr><td><strong>Der Palox-Stand der letzten Arbeit darf nie übernommen werden</strong> — zwischen zwei Arbeiten passiert Undokumentiertes</td><td>Die Menge einer Arbeit sei die Differenz zum letzten Stand <em>derselben Station</em>, über Arbeiten hinweg</td><td><strong>Grundlegend.</strong> Jede Arbeit liest selbst am Anfang und am Ende ab; die Differenz <em>innerhalb</em> der Arbeit ist die Menge. Kapitel 1.</td></tr>
-<tr><td>Bei „geleert" die Daten <strong>wegwerfen</strong>, nicht schätzen</td><td>Bei gefallenem Stand ab Tara weiterzählen</td><td>Einfacher und ehrlicher. Die Arbeit hat dann keine Faul-Menge — unbekannt, nicht null.</td></tr>
-<tr><td>Waage nicht tariert: <strong>45 kg bei leer</strong>, an beiden Stationen</td><td>unklar</td><td>Beide Ablesungen minus 45. In der Differenz kürzt es sich ohnehin.</td></tr>
-<tr><td>Beim Fax kein Palox — <strong>Kisten einzeln wiegen</strong></td><td>Fax habe gar keine Palox-Frage (stimmte), aber der Ablauf war mir unklar</td><td>Die Maske sollte erst nach der Kistenzahl fragen und dann durch die Wägungen führen. Kapitel 5.</td></tr>
-<tr><td>Eine Charge wird <strong>immer wieder</strong> sortiert, und gleichzeitig für Waschen+Sortieren entnommen</td><td>ein- bis zweimal</td><td>Das mittlere Eingangsdatum „über alle Sortierarbeiten" wäre viel zu grob. <strong>Kapitel 3 hat eine bessere Lösung.</strong></td></tr>
-<tr><td>Kisten je Kaliber werden <strong>nie</strong> gezählt</td><td>sie würden gezählt</td><td>Die Zählung <strong>entfällt ersatzlos</strong> — es gibt einen besseren Nenner. Kapitel 4.</td></tr>
-<tr><td>Das <strong>Gebinde muss gefragt werden</strong>, bei beiden Kistensystemen</td><td>es sei aus der Fassung ableitbar</td><td>Gebinde wird Teil des Schlüssels für „kg je Kiste".</td></tr>
-<tr><td>Beide Verkaufsarten kommen bei <strong>allen Sorten</strong> vor</td><td>die Art hänge an der Sorte</td><td>Meine Frage 14 war falsch gestellt. Die Art gehört zur Arbeit, nicht zur Sorte.</td></tr>
-<tr><td>Zu klein: die Kürbisse <strong>sollten nicht geerntet werden</strong></td><td>„war schon auf dem Feld zu klein", Punkt</td><td>Vermeidbar — also eine Rückmeldung an die Ernte, nicht nur ein Verlustposten.</td></tr>
+<tr><td><strong>Die Verdunstungsrate ist nicht konstant</strong> — Schock beim Einlagern, und die Halle ist im September warm und im Dezember kalt</td><td><strong>Das grösste Ding in diesem Dokument.</strong> Die Rechnung nimmt heute eine feste Tagesrate an. Kapitel 5 zeigt, wie man den Verlauf stattdessen <em>misst</em> — und was dafür heute erfasst werden muss.</td></tr>
+<tr><td><strong>Ob alle Chargen einer Sorte gleich faulen, wissen wir nicht — das wollen wir herausfinden.</strong> Wo Messpunkte sind, soll je Charge gerechnet werden; wo keine, das Mittel — und man muss sehen, was von beidem gilt</td><td>Heute gibt es <strong>eine einzige Verderbskurve für den ganzen Betrieb</strong> — nicht je Sorte, nicht je Charge. Kapitel 6 baut das um.</td></tr>
+<tr><td><strong>Man kann wohl mit FIFO rechnen</strong></td><td>Nachgemessen: Die Eingangstage einer Charge liegen <strong>höchstens sechs Tage</strong> auseinander. Der Unterschied zwischen FIFO und anteilig ist unter einem Tag Alter. <strong>Du musst das nicht entscheiden.</strong> Kapitel 4.3</td></tr>
+<tr><td><strong>Fertige Paletten bei beiden Systemen wiegen</strong> — „geben wir 8.5 statt 8?" und „geben wir bei 1100–1850 im Schnitt 1750?"</td><td>Beides ist dieselbe Messung mit zwei Lesarten. Kapitel 7 macht daraus <em>eine</em> Tabelle mit einer Skala von 0 % bis 100 %.</td></tr>
+<tr><td>„Weiss nicht, was du mit <em>gewaschene so alt wie sortierte Ware</em> meinst" — und: <strong>wir dokumentieren nicht jeden Sortierschritt</strong></td><td>Beides trifft. Mein Zwischenentwurf wollte das Alter über die Sortierarbeit holen — das setzt lückenlose Dokumentation voraus. Nachgemessen: nur <strong>25 von 42</strong> Chargen hätten eine. <strong>Kapitel 4 ist deshalb ganz neu, und einfacher:</strong> Das Alter braucht den Sortierschritt gar nicht.</td></tr>
+<tr><td><strong>Beim Waschen wechselt das Gebinde</strong> — G2 voll gestapelt rein, IFCO nicht voll raus; 3 Paletten rein können 4 Paletten raus werden</td><td>Bricht die naheliegende Formel „Paletten × Palettengewicht". Der Nenner muss über die <strong>Kiste</strong> gehen, und kg je Kiste muss je Gebinde getrennt werden. Kapitel 7.5</td></tr>
+<tr><td>Eingangspalette hat Charge, Eingangsdatum, Bruttogewicht und Gebindeart</td><td><strong>Du nennst die Kistenzahl nicht.</strong> Ohne sie gibt es kein Nettogewicht — und das ist der Nenner von allem. Offene Frage 1, Kapitel 9.</td></tr>
 </tbody>
 </table>
 
 <div class="teil">
 <div class="nr">Teil I</div>
 <h1>Haben wir dasselbe Verständnis?</h1>
-<p>Sechs Kapitel. Jedes beschreibt einen Ablauf so, wie ich ihn jetzt verstehe, und sagt dazu,
-was die App daraus rechnet. Wo ich unsicher bin, steht es dabei.</p>
+<p>Neun Kapitel. Jedes beschreibt einen Ablauf oder eine Rechnung so, wie ich sie jetzt
+verstehe, und sagt, was daraus folgt. Kapitel 5 und 6 sind neu und die wichtigsten.</p>
 </div>
 
 <div class="kap">
 <div class="kap-nr">Kapitel 1</div>
-<h1>Der Palox — neu, und viel einfacher</h1>
-<p class="kap-vor">Deine Antwort auf Frage 3 wirft die bisherige Regel um. Das Ergebnis ist
-einfacher, robuster und braucht keine Annahme über das, was zwischen zwei Arbeiten passiert.</p>
+<h1>Die Annahmen — zum Abhaken</h1>
+<p class="kap-vor">Alles, was gerechnet wird, steht auf diesen Sätzen. Die durchgestrichenen sind
+durch deine Antworten weggefallen — das ist der eigentliche Fortschritt.</p>
 
-<h2>1.1 Die alte Regel und warum sie falsch war</h2>
+<table class="eng">
+<thead><tr><th class="jn">ok?</th><th style="width:54mm">Annahme</th><th>Stand</th></tr></thead>
+<tbody>
+<tr><td class="jn">☐</td><td>Eine <strong>Charge</strong> ist Schlag × Sorte × Saison und bleibt über den ganzen Weg bekannt</td><td>bestätigt</td></tr>
+<tr><td class="jn">☐</td><td>Die <strong>Eingangspalette</strong> hat Charge, Eingangsdatum, Bruttogewicht, Gebindeart — <em>und Kistenzahl?</em></td><td><strong>offen.</strong> Ohne Kistenzahl kein Netto. Frage 1</td></tr>
+<tr><td class="jn">☐</td><td>Beim <strong>Sortieren</strong> löst sich die Eingangspalette auf; Charge und Sortierdatum bleiben</td><td>bestätigt</td></tr>
+<tr><td class="jn">☐</td><td>Beim <strong>Waschen</strong> kommt eine ganze Kaliber-Palette an die Strasse</td><td>bestätigt</td></tr>
+<tr><td class="jn">☐</td><td>Alles <strong>Sortierte</strong> wird später gewaschen, und beide Wege enden mit <strong>Fax</strong></td><td>bestätigt</td></tr>
+<tr><td class="jn">☐</td><td>Im <strong>Palox</strong> liegt nur Faules und Feldabgang</td><td>bestätigt</td></tr>
+<tr><td class="jn">☐</td><td>Ernte <strong>August bis Oktober</strong>, Verkauf <strong>August bis März</strong></td><td>bestätigt</td></tr>
+<tr><td class="jn">☐</td><td><s>Kein FIFO — jeder Abgang wird anteilig verteilt</s></td><td><strong>entschärft.</strong> Die Eingangstage liegen höchstens 6 Tage auseinander; FIFO und anteilig unterscheiden sich um unter einen Tag. Kapitel 4.3</td></tr>
+<tr><td class="jn">☐</td><td><s>Die Verdunstungsrate ist über die Saison konstant</s></td><td><strong>verworfen.</strong> Wird gemessen statt angenommen. Kapitel 5</td></tr>
+<tr><td class="jn">☐</td><td><s>Alle Chargen einer Sorte verderben ungefähr gleich</s></td><td><strong>verworfen.</strong> Je Charge rechnen, wo gemessen wurde. Kapitel 6</td></tr>
+<tr><td class="jn">☐</td><td><s>Eine gewaschene Palette ist so alt wie die <em>sortierte</em> Ware ihrer Charge</s></td><td><strong>ersetzt.</strong> Sie ist so alt wie die Charge selbst — Waschtag minus Eingangsdatum aus dem Erntejournal, vollständig und ohne Dokumentationspflicht. Kapitel 4</td></tr>
+<tr><td class="jn">☐</td><td><s>Die Faul-Menge einer Arbeit ist die Differenz zum Stand der Vorarbeit</s></td><td><strong>verworfen.</strong> Zwei Ablesungen in derselben Arbeit. Kapitel 3</td></tr>
+<tr><td class="jn">☐</td><td><s>Kisten je Kaliber werden gezählt</s></td><td><strong>entfällt.</strong> Gezählt wird, was hinten herauskommt. Kapitel 7</td></tr>
+<tr><td class="jn">☐</td><td><strong>Was verarbeitet wird, ist nicht nach Zustand ausgewählt</strong></td><td><strong>bleibt — und du sagst selbst, es stimmt nicht:</strong> „an sich werden schon die schlechter aussehenden Paletten ausgewählt". Kapitel 9.1</td></tr>
+</tbody>
+</table>
 
-<div class="rechnung">ALT:  Menge dieser Arbeit = Stand jetzt − letzter Stand DERSELBEN STATION
-                                              (über Arbeiten hinweg, tagealt)</div>
+<div class="warum neu"><b>Sieben Annahmen weniger</b>
+Vor deinen Antworten hing die Rechnung an dreizehn Sätzen, die man glauben musste. Jetzt sind es
+sechs — und fünf davon sind schlicht Beschreibungen des Betriebs, keine Modellannahmen. Übrig
+bleibt eine einzige echte Unsicherheit: die Auswahl der verarbeiteten Paletten.</div>
 
-<p>Das setzt voraus, dass zwischen dem letzten Ablesen und heute <em>nichts</em> in den Palox
-kam. Du sagst: doch — es gibt Arbeitsvorgänge, die nicht auf dem Handy dokumentiert werden. Der
-Stand verändert sich dazwischen. Die alte Regel schreibt diese fremde Menge der nächsten Arbeit
-zu.</p>
+</div>
 
-<h2>1.2 Die neue Regel</h2>
+<div class="kap">
+<div class="kap-nr">Kapitel 2</div>
+<h1>Der Weg des Kürbisses</h1>
 
-<div class="rechnung">NEU:  Beim Start der Arbeit:   Stand ablesen        →  S₁
-      Beim Abschluss:          Stand ablesen        →  S₂
-      Frage beim Abschluss:    „Wurde der Palox zwischendurch geleert?"
+<div class="bild">FELD (Schlag)  —  Ernte über Tage und Wochen
+  v
+WARENEINGANG — Brückenwaage
+  |  EINGANGSPALETTE:  Charge + Eingangsdatum + Brutto + Gebinde ( + Kisten? )
+  v
++=== LAGER (eine Halle) ====================================================+
+|  EINGANGSPALETTEN      bekannt: Charge, Eingangsdatum, Eingangsgewicht   |
+|        |                                                                 |
+|        +---------------------------+---------------------------+         |
+|        v                                                       v         |
+|  WASCHEN + SORTIEREN (Hand)                    SORTIEREN (Maschine)      |
+|  Palox der Waschstrasse                        eigener Palox             |
+|        |                                       Sortier-CSV je Lauf       |
+|        |          dieselbe Charge wird immer wieder sortiert,   |         |
+|        |          bis sie aufgebraucht ist — und gleichzeitig   |         |
+|        |          links von Hand entnommen                      |         |
+|        |                                                       v         |
+|        |                          KALIBER-PALETTEN                        |
+|        |                          Zettel: Chargennummer + Sortierdatum    |
+|        |                                                       |         |
+|        |                                                       v         |
+|        |                          WASCHEN — die GANZE Palette            |
+|        |                          Palox der Waschstrasse                 |
+|        +---------------------------+---------------------------+         |
+|                                    v                                     |
+|                      FERTIGE PALETTEN — einige gewogen                   |
+|                      (bei BEIDEN Kistensystemen)                         |
+|                                    v                                     |
+|                      FAX — abpacken; Faules in Kisten, einzeln           |
+|                      gewogen (kein Palox hier)                           |
++====================================|=====================================+
+                                     v
+                               WARENAUSGANG</div>
 
-      Antwort NEIN:  Menge dieser Arbeit = S₂ − S₁
-      Antwort JA:    Menge unbekannt  (nicht 0 — wir wissen nicht,
-                     wie voll er vor dem Leeren war)</div>
+<h2>2.1 Wo Masse verschwindet — und wie gut wir es messen</h2>
 
-<p>Die 45 kg Tara stehen in beiden Ablesungen und kürzen sich in der Differenz weg. Gespeichert
-wird trotzdem der <strong>abgelesene Stand</strong>, nicht die Menge — dann lässt sich eine
-falsch getippte Ablesung später korrigieren und alles Folgende neu rechnen.</p>
+<table class="eng">
+<thead><tr><th style="width:34mm">Stelle</th><th style="width:40mm">Wie erfasst</th><th>Güte</th></tr></thead>
+<tbody>
+<tr><td>Wasser, laufend</td><td>Palettenwägung (Lagerkontrolle)</td><td><strong>Die knappste Messung im System</strong> — 41 Stück für elf Sorten. Und der Verlauf ist nicht konstant (Kapitel 5).</td></tr>
+<tr><td>Fäulnis, laufend</td><td>Palox beim Verarbeiten</td><td>Gut in der Menge, aber die Auswahl der Paletten ist nicht zufällig.</td></tr>
+<tr><td>zu klein / zu gross</td><td>Sortier-CSV: jeder Kürbis gewogen</td><td>Genaueste Messung überhaupt.</td></tr>
+<tr><td>Kisten füllen</td><td>gewogene fertige Paletten</td><td>Gut — und beantwortet zwei Fragen auf einmal (Kapitel 7).</td></tr>
+<tr><td>Abpacken (Fax)</td><td>Kisten einzeln gewogen</td><td>Gut.</td></tr>
+<tr><td>Warenausgang</td><td>Lieferscheine</td><td>Vollständig.</td></tr>
+</tbody>
+</table>
+
+</div>
+
+<div class="kap">
+<div class="kap-nr">Kapitel 3</div>
+<h1>Der Palox — jede Arbeit misst sich selbst</h1>
+<p class="kap-vor">Deine Antwort 3 wirft die bisherige Regel um: Zwischen zwei Arbeiten passiert
+Undokumentiertes, also darf der Stand der Vorarbeit nie übernommen werden.</p>
+
+<div class="rechnung">ALT:  Menge = Stand jetzt − letzter Stand DERSELBEN STATION (über Arbeiten hinweg)
+      → schreibt fremde Mengen der nächsten Arbeit zu
+
+NEU:  Beim Start:      Stand ablesen                    → S₁
+      Beim Abschluss:  Stand ablesen                    → S₂
+                       „Palox zwischendurch geleert?"
+
+      Nein  →  Menge dieser Arbeit = S₂ − S₁
+      Ja    →  Menge unbekannt (nicht 0 — wir wissen nicht,
+               wie voll er vor dem Leeren war)</div>
+
+<p>Die 45 kg Tara stehen in beiden Ablesungen und kürzen sich weg. Gespeichert wird trotzdem der
+<strong>abgelesene Stand</strong>, damit eine falsch getippte Zahl später korrigierbar bleibt.</p>
 
 <div class="warum neu"><b>Was das an der App ändert</b>
-<strong>Zwei Ablesungen werden Pflicht, wo der Palox Pflicht ist.</strong> Heute springt die App
-nach dem Start sofort in die Palox-Maske (gut, das bleibt) und fragt beim Abschluss noch einmal
-(auch gut). Neu ist: Hat eine Arbeit nur <em>eine</em> Ablesung, ist ihre Menge
-<strong>unbekannt</strong> — nicht „Stand minus Tara". Und der Knopf „Stand unverändert" bleibt
-richtig: Er bedeutet S₂ = S₁, also 0 kg, und das ist eine Messung.</div>
+<strong>Zwei Ablesungen werden Pflicht.</strong> Hat eine Arbeit nur eine, ist ihre Menge
+unbekannt — nicht „Stand minus Tara". Der Knopf „Stand unverändert" bleibt richtig: Er bedeutet
+S₂ = S₁, also 0 kg, und das ist eine Messung. Bei „geleert: ja" wird die Arbeit ganz normal
+abgeschlossen; dem Arbeiter muss man nichts erklären, er hat richtig geantwortet.</div>
 
-<h2>1.3 Was dem Arbeiter angezeigt wird</h2>
+<h2>3.1 Beim Fax gibt es keinen Palox</h2>
 
-<div class="bild">  ┌────────────────────────────────────────────────┐
-  │  Waage zeigt (kg)                              │
-  │  ┌──────────────┐                              │
-  │  │   490        │   Gewicht direkt ablesen —   │
-  │  └──────────────┘   nicht umrechnen.           │
-  │                                                │
-  │  Beim Start stand 370 kg  →   120 kg dazu      │
-  │                               30 kg je Palette │
-  │  ┌──────────────────────────────────────────┐  │
-  │  │              Eintragen                   │  │
-  │  └──────────────────────────────────────────┘  │
-  └────────────────────────────────────────────────┘
-
-  Beim Abschluss zusätzlich, einmal:
-  ┌────────────────────────────────────────────────┐
-  │  Wurde der Palox während dieser Arbeit         │
-  │  geleert?                                      │
-  │     [  Nein  ]        [  Ja  ]                 │
-  └────────────────────────────────────────────────┘</div>
-
-<p>Bei „Ja" passiert nach aussen nichts Besonderes — die Arbeit wird normal abgeschlossen. Im
-Hintergrund ist die Faul-Menge dieser Arbeit dann <em>unbekannt</em>. Dem Arbeiter das zu
-erklären bringt nichts; er hat richtig geantwortet, und das genügt.</p>
-
-<h2>1.4 Der Palox beim Fax — es gibt keinen</h2>
-
-<p>Beim Fax fällt so wenig an, dass es in Kisten gesammelt wird. Die Kisten werden einzeln
-gewogen und danach in einen Palox ausserhalb der Halle geleert — <strong>nicht</strong> in die
-der Wasch- oder Sortierstation. Für die Rechnung heisst das: Die Fax-Menge ist die Summe der
-gewogenen Kisten, sauber getrennt von allem anderen. Die Maske sollte danach fragen:</p>
+<p>Dort fällt so wenig an, dass es in Kisten gesammelt, einzeln gewogen und danach in einen Palox
+<em>ausserhalb</em> der Halle geleert wird. Die Maske sollte darum erst nach der Zahl fragen und
+dann durchführen — das verhindert das häufigste Versehen, eine Kiste zu vergessen:</p>
 
 <div class="bild">  Wie viele Kisten Faules sind angefallen?     [  3  ]
   ──────────────────────────────────────────────────────
@@ -151,363 +197,504 @@ gewogenen Kisten, sauber getrennt von allem anderen. Die Maske sollte danach fra
   ──────────────────────────────────────────────────────
   bisher 14.3 kg brutto  →  11.3 kg netto</div>
 
-<p class="ein">Heute fragt die Maske nicht nach der Zahl vorab, sondern lässt einzeln eintragen.
-Der Unterschied ist klein, aber die Vorabzahl verhindert das häufigste Versehen: eine Kiste
-vergessen.</p>
-
-</div>
-
-<div class="kap">
-<div class="kap-nr">Kapitel 2</div>
-<h1>Der Weg des Kürbisses</h1>
-<p class="kap-vor">Unverändert gegenüber der letzten Fassung, bis auf zwei Stellen: Eine Charge
-wird immer wieder sortiert (nicht ein- oder zweimal), und aus derselben Charge wird gleichzeitig
-für Waschen + Sortieren entnommen.</p>
-
-<div class="bild">FELD (Schlag)
-  |  Ernte, über Tage und Wochen gestaffelt
-  v
-WARENEINGANG — Brückenwaage
-  |  EINGANGSPALETTE:  Charge + Eingangsdatum + Eingangsgewicht + Kisten
-  v
-+=== LAGER (eine Halle) ====================================================+
-|                                                                          |
-|  EINGANGSPALETTEN      bekannt: Charge, Eingangsdatum, Eingangsgewicht   |
-|        |                                                                 |
-|        +------ kein FIFO (1) ------+------ kein FIFO (2) ------+         |
-|        v                                                       v         |
-|  WASCHEN + SORTIEREN (Hand)                    SORTIEREN (Maschine)      |
-|  Palox der Waschstrasse                        eigener Palox             |
-|        |                                       Sortier-CSV je Lauf       |
-|        |                                                       |         |
-|        |         dieselbe Charge wird immer wieder sortiert,    |         |
-|        |         solange sie reicht — und gleichzeitig links    |         |
-|        |         von Hand entnommen                             |         |
-|        |                                                       v         |
-|        |                          KALIBER-PALETTEN                        |
-|        |                          Zettel: Chargennummer + Sortierdatum    |
-|        |                          verloren: Eingangsdatum, -gewicht       |
-|        |                                                       |         |
-|        |                                        kein FIFO (3)  |         |
-|        |                                                       v         |
-|        |                          WASCHEN — die GANZE Palette            |
-|        |                          Palox der Waschstrasse                 |
-|        +---------------------------+---------------------------+         |
-|                                    v                                     |
-|                      FERTIGE PALETTEN — einige gewogen                   |
-|                                    |                                     |
-|                                    v                                     |
-|                      FAX — abpacken; Faules in Kisten,                   |
-|                      einzeln gewogen (kein Palox hier)                   |
-+====================================|=====================================+
-                                     v
-                               WARENAUSGANG
-</div>
-
-<h2>2.1 Die drei Stellen ohne FIFO, und was sie kosten</h2>
-
-<table class="eng">
-<thead><tr><th style="width:10mm">&nbsp;</th><th style="width:46mm">Übergang</th><th>Folge für die Rechnung</th></tr></thead>
-<tbody>
-<tr><td><strong>1</strong></td><td>Lager → Waschen + Sortieren</td><td>Keine. Das Eingangsdatum jeder Palette wird abgelesen — das Alter ist <em>beobachtet</em>.</td></tr>
-<tr><td><strong>2</strong></td><td>Lager → Sortierband</td><td>Keine, aus demselben Grund.</td></tr>
-<tr><td><strong>3</strong></td><td>Zwischenlager → Waschen</td><td><strong>Hier liegt die einzige echte Lücke</strong> — und Kapitel 3 macht sie viel kleiner, als ich dachte.</td></tr>
-</tbody>
-</table>
-
-<div class="warum"><b>Dein Einwand zum Eingangsdatum beim Sortieren</b>
-Du schreibst: <em>„beim Sortieren wird eine Charge ausgewählt, aber die Charge besteht aus
-unterschiedlichen Eingangsdaten — wahrscheinlich können wir das nicht nachverfolgen."</em><br><br>
-Doch, und genau deshalb wird beim Zählen <strong>je Palette</strong> das Zetteldatum gefragt,
-nicht einmal für die Arbeit. Damit kennt die App die <em>Mischung</em> dieser Sortierarbeit
-exakt — etwa „12 Paletten vom 3.9., 7 vom 8.9., 4 vom 15.9.". Ein einzelnes Datum bräuchte es
-gar nicht; gerechnet wird mit dem massegewichteten Mittel <em>dieser</em> Arbeit, und angezeigt
-wird eine Spanne. Solange der Zettel stimmt — und du sagst, er stimmt —, ist das belastbar.</div>
-
-</div>
-
-<div class="kap">
-<div class="kap-nr">Kapitel 3</div>
-<h1>Das Alter beim Waschen — die Lücke ist kleiner als gedacht</h1>
-<p class="kap-vor">Du fragst zu Recht: „Genau genommen kennen wir das Alter nicht ansatzweise."
-Das stimmte für meine bisherige Rechnung. Deine Antwort auf Frage 4 öffnet aber einen Weg, den
-ich übersehen hatte — und ich habe ihn an den Daten geprüft.</p>
-
-<h2>3.1 Was bisher gerechnet wurde (und zu grob war)</h2>
-
-<div class="rechnung">ALT:  Alter = Waschtag − mittleres Eingangsdatum ALLER Sortierarbeiten dieser Charge</div>
-
-<p>Bei einer Charge, die über Wochen immer wieder sortiert wird, ist dieser Mittelwert über die
-ganze Saison verschmiert. Und er blickt sogar in die Zukunft: Ein Sortierlauf im November
-verschiebt rückwirkend das Alter einer Wascharbeit vom Oktober. Das war Fehler F9.</p>
-
-<h2>3.2 Was tatsächlich auf dem Zettel steht</h2>
-
-<p>Auf der Kaliber-Palette steht <strong>Chargennummer und Sortierdatum</strong>, und beides wird
-abgelesen. Das Sortierdatum ist der Schlüssel: Es identifiziert die <em>Sortierarbeit</em>, aus
-der diese Palette stammt — und diese Arbeit kennt die Eingangsdaten ihrer Paletten genau.</p>
-
-<div class="rechnung">NEU:  Sortierdatum der Palette  →  die Sortierarbeit dieser Charge an diesem Tag
-                              →  deren massegewichtetes mittleres Eingangsdatum
-
-      Alter = Waschtag − dieses Eingangsdatum
-
-      Zerlegt:   Zeit im Zwischenlager  =  Waschtag − Sortierdatum      (abgelesen)
-               + Zeit im ersten Lager   =  Sortierdatum − Eingangsdatum (abgelesen)</div>
-
-<p><strong>Beide Teile sind damit abgelesen, keiner geschätzt.</strong> Die einzige verbleibende
-Unschärfe ist die Mischung innerhalb einer Sortierarbeit — und die kennt die App als Verteilung,
-nicht als Rateschätzung.</p>
-
-<div class="warum neu"><b>An den Daten geprüft</b>
-In der Demo-Saison lassen sich <strong>305 von 323 Kaliber-Paletten (94 %)</strong> über ihr
-Sortierdatum exakt einer Sortierarbeit derselben Charge zuordnen. Und das ist die
-<em>schwierige</em> Version des Tests: Die Demo hat nur ein bis zwei Sortierarbeiten je Charge.
-Je öfter eine Charge sortiert wird — und du sagst, es sind viele —, <strong>desto mehr bringt
-diese Zuordnung</strong>, weil der alte Mittelwert dann umso gröber wäre.<br><br>
-Die restlichen 6 % (Palette ohne Sortierdatum, oder ein Datum ohne passende Arbeit) fallen auf
-den Chargenmittelwert zurück — und werden als solche gekennzeichnet.</div>
-
-<p>Damit ist auch F9 erledigt: Es wird nur noch über die Sortierarbeit gemittelt, aus der die
-Palette stammt. Nichts blickt mehr in die Zukunft.</p>
-
-<h2>3.3 Warum der Palox beim Waschen doch wertvoll ist</h2>
-
-<p>Du hast gefragt: „Warum misst er das höchste Alter?" — Weil Weg 1 zwei Lagerabschnitte hat.
-Ein Kürbis, der im September eingelagert, im November sortiert und im Februar gewaschen wird,
-ist beim Waschen rund 150 Tage alt. Beim Sortieren war er 60 Tage alt. In der Demo:</p>
-
-<table class="eng">
-<thead><tr><th style="width:40mm">Messpunkte kommen von</th><th style="width:26mm">Lagerdauer</th><th>Was sie zur Kurve beitragen</th></tr></thead>
-<tbody>
-<tr><td>Sortieren und Waschen + Sortieren</td><td>meist 6 – 120 Tage</td><td>Der Anfang und die Mitte der Kurve — dort, wo sie flach ist.</td></tr>
-<tr><td><strong>Waschen</strong> (zweiter Abschnitt)</td><td>bis 196 Tage</td><td><strong>Das Ende der Kurve</strong> — genau der Bereich, in dem die Hochrechnung auf den März entschieden wird.</td></tr>
-</tbody>
-</table>
-
-<p>Ohne die Waschen-Punkte endete die Messung dort, wo die interessante Frage anfängt. Deshalb
-mein Vorschlag: <strong>Palox beim Waschen nicht weglassen, sondern zur Pflicht machen</strong> —
-sobald der Nenner steht. Und der steht, siehe nächstes Kapitel.</p>
-
 </div>
 
 <div class="kap">
 <div class="kap-nr">Kapitel 4</div>
-<h1>Der Nenner beim Waschen — und warum die Kistenzählung entfällt</h1>
-<p class="kap-vor">Deine Frage 5: „Wo genau liegt das Problem, ich seh die Relevanz nicht." Die
-Antwort in einem Satz — und danach die Lösung, die deine Zählung überflüssig macht.</p>
+<h1>Das Alter — einfacher als ich dachte</h1>
+<p class="kap-vor">Du hast in meinem letzten Entwurf eine Annahme gefunden, die ich selbst nicht
+gesehen hatte: dass jeder Sortierschritt dokumentiert wird. Wird er nicht. Die Korrektur macht
+die Rechnung <em>einfacher</em>, nicht komplizierter.</p>
 
-<h2>4.1 Warum es überhaupt einen Nenner braucht</h2>
+<h2>4.1 Dein Einwand, nachgemessen</h2>
 
-<p>Der Palox liefert einen Zähler: <em>120 kg Faules</em>. Das allein sagt nichts. Erst mit der
-Masse, die durch diese Arbeit ging, wird ein Anteil daraus — und nur Anteile lassen sich über
-Chargen und Lagerdauern vergleichen:</p>
+<p>Ich hatte vorgeschlagen: Das Sortierdatum auf der Kaliber-Palette verweist auf die
+Sortierarbeit, und die kennt ihre Eingangsdaten. Das setzt voraus, dass jede Sortierarbeit in der
+App steht. Tut sie nicht — und selbst in der erzeugten Demo, wo alles sauber ist:</p>
 
-<div class="rechnung">Anteil faul = Faules ÷ (Faules + gute Ware, die durch die Arbeit ging)</div>
+<div class="rechnung">42 Chargen insgesamt
+25 davon haben überhaupt eine dokumentierte Sortierarbeit
+17 haben keine  →  für sie bricht die Kette</div>
 
-<p>Beim Sortieren ist das leicht: Dort werden Eingangspaletten gezählt, und die haben ein
-Nettogewicht. <strong>Beim Waschen gibt es das nicht</strong> — die Kaliber-Palette hat kein
-Gewicht auf dem Zettel, und gewogen wird sie nicht.</p>
+<h2>4.2 Aber das Alter braucht den Sortierschritt gar nicht</h2>
 
-<h2>4.2 Der bisherige Umweg — und warum er nicht trägt</h2>
+<div class="rechnung">Alter beim Waschen  =  Waschtag  −  Eingangsdatum</div>
 
-<div class="rechnung">ALT:  Masse = gezählte Kisten × (CSV-Masse je Kaliberband ÷ gezählte Kisten beim Sortieren)</div>
+<p>Das Sortieren ist ein <em>Ereignis dazwischen</em>. Es kommt in dieser Rechnung nicht vor. Und
+das Eingangsdatum steht vollständig im Erntejournal — für jede Palette, jede Charge, ohne dass
+irgendjemand irgendetwas dokumentieren muss.</p>
 
-<p>Genau das setzt die Zählung voraus, die es nicht gibt. Gemessen, was daran hängt:</p>
+<p>Bleibt die eine Frage: <em>welcher</em> Eingangstag, wenn die Charge über mehrere hereinkam?
+Bei einer Spanne von höchstens sechs Tagen (Kapitel 4.4) sind das ±3 Tage bei einer Lagerdauer
+von einem halben Jahr. Also: <strong>das massegewichtete mittlere Eingangsdatum der
+Charge</strong>, und fertig.</p>
+
+<h2>4.3 Der eigentliche Fehler war ein anderer</h2>
+
+<p>Heute rechnet die App nicht mit dem Chargenmittel, sondern mit dem Mittel der Paletten, die
+<strong>an dokumentierten Sortierarbeiten gezählt wurden</strong>. Das ist eine Teilmenge — und
+eine, die danach ausgewählt ist, wie gut jemand dokumentiert hat. Nachgemessen, wo beides
+existiert:</p>
 
 <table class="eng">
-<thead><tr><th style="width:44mm">Woher die Masse heute kommt</th><th style="width:20mm">Arbeiten</th><th style="width:22mm">Masse</th><th>bricht weg?</th></tr></thead>
+<thead><tr><th style="width:56mm">Vergleich</th><th>Ergebnis</th></tr></thead>
 <tbody>
-<tr><td>Waschen: Kisten × kg je Kiste</td><td>94</td><td>101 408 kg</td><td><strong>ja</strong></td></tr>
-<tr><td>Fax: gezählte Kisten</td><td>107</td><td>73 608 kg</td><td><strong>ja</strong></td></tr>
-<tr><td>Fax: Paletten × Palettenmasse</td><td>53</td><td>46 171 kg</td><td>nein</td></tr>
-<tr><td>Sortieren / W+S: Eingangspaletten</td><td>51</td><td>200 465 kg</td><td>nein</td></tr>
+<tr><td>Mittel aus Sortierarbeiten gegen Chargenmittel</td><td>Abweichung im Schnitt <strong>0.31 Tage</strong>, höchstens 1.28 Tage</td></tr>
+<tr><td>Abdeckung</td><td>Sortierarbeiten: <strong>25 von 42</strong> Chargen · Erntejournal: <strong>42 von 42</strong></td></tr>
 </tbody>
 </table>
 
-<h2>4.3 Die Lösung: was hinten herauskommt, zählen statt was vorne hineingeht</h2>
+<div class="warum neu"><b>Also: die schlechtere Zahl war die kompliziertere</b>
+Der Umweg über die Sortierarbeiten bringt <strong>0.3 Tage</strong> Genauigkeit und kostet
+<strong>40 % der Chargen</strong>. Künftig immer das Chargenmittel aus dem Erntejournal. Das
+löst auch den alten Fehler mit, dass ein später Sortierlauf rückwirkend das Alter einer früheren
+Wascharbeit verschob — es gibt schlicht nichts mehr, was sich rückwirkend ändern könnte.</div>
 
-<p>Am Ende einer Wascharbeit stehen <strong>fertige Paletten</strong>. Einige davon werden
-ohnehin schon gewogen. Fehlt nur eine einzige Zahl: <strong>wie viele es insgesamt waren</strong>
-— dieselbe Frage, die beim Fax längst gestellt wird.</p>
+<h2>4.4 Und FIFO? Auch entschärft</h2>
 
-<div class="rechnung">Masse raus  = fertige Paletten  ×  mittleres Netto einer fertigen Palette
-                                  (aus den gewogenen dieser Arbeit)
-
-Masse rein  = Masse raus  +  Faules (Palox)  +  Ausschuss, falls erfasst
-
-Anteil faul = Faules ÷ Masse rein</div>
-
-<div class="warum neu"><b>Was das kostet und was es bringt</b>
-<strong>Kosten:</strong> eine Zahl je Wascharbeit. Kein Zählen von Kisten, kein Wiegen einer
-Kaliber-Palette, keine neue Handlung — nur eine Eingabe im Abschluss, genau wie beim Fax.<br><br>
-<strong>Nutzen:</strong> Die Masse ist <em>gemessen</em> statt über zwei Zwischenschritte
-hochgerechnet. Die Kistenzählung beim Sortieren <strong>entfällt ersatzlos</strong>. Und es gibt
-eine neue Gegenprobe umsonst: Die fertigen Paletten einer Wascharbeit sind die Eingangspaletten
-der Fax-Arbeit, die folgt — zwei unabhängig erfasste Zahlen, die zusammenpassen müssen.</div>
-
-<h2>4.4 Was ich noch nicht weiss</h2>
+<p>Der Unterschied zwischen FIFO und anteilig betrifft nur, aus welchem Eingangstag die verkaufte
+Ware stammt. Wie weit liegen die Eingangstage einer Charge überhaupt auseinander?</p>
 
 <table class="eng">
-<thead><tr><th style="width:52mm">Offen</th><th>Warum es zählt</th></tr></thead>
+<thead><tr><th>Spanne der Eingangstage</th><th>0 Tage</th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th></tr></thead>
 <tbody>
-<tr><td>Ist eine fertige Palette am Ende einer Wascharbeit immer <strong>voll</strong>, oder bleibt die letzte angebrochen?</td><td>Bei angebrochenen Paletten bräuchte es zusätzlich „Kisten auf der letzten Palette" — eine Zahl mehr, aber nur einmal je Arbeit.</td></tr>
-<tr><td>Ist das, was hinten herauskommt, <strong>dasselbe Gebinde</strong> wie das, was vorne hineingeht?</td><td>Wenn die Kaliber-Kisten selbst gewaschen und weiterverwendet werden, ist „Palette rein = Palette raus" und die Rechnung wird noch einfacher.</td></tr>
-<tr><td>Wird beim Waschen auch <strong>Ausschuss</strong> (zu klein / zu gross) aussortiert, oder nur Faules?</td><td>Steht Ausschuss in der Bilanz, gehört er in „Masse rein".</td></tr>
+<tr><td>Chargen</td><td>10</td><td>10</td><td>2</td><td>3</td><td>5</td><td>1</td><td>5</td></tr>
+<tr><td>Tonnen</td><td>19</td><td>60</td><td>14</td><td>16</td><td>51</td><td>18</td><td>146</td></tr>
 </tbody>
 </table>
+
+<div class="rechnung">Charge 1632, mittleres Alter der liegenden Ware heute
+
+  anteilig verteilt   178.0 Tage
+  strikt FIFO         177.2 Tage
+  ───────────────────────────────
+  Unterschied           0.8 Tage</div>
+
+<p>Kleiner als die Rundung. Ich lasse es bei anteilig — das ist die Annahme, die nichts
+behauptet. Und es ist reine Auswertung: Käme eine echte Charge einmal über Wochen herein,
+rechnen wir es um, ohne dass an der Erfassung etwas anders wäre.</p>
+
+<h2>4.5 Wozu das Sortierdatum dann noch?</h2>
+
+<table class="eng">
+<thead><tr><th style="width:40mm">Wofür</th><th>Warum es trotzdem auf den Zettel gehört</th></tr></thead>
+<tbody>
+<tr><td><strong>Zeit im Zwischenlager</strong></td><td>Eine eigene Frage, die sonst niemand beantwortet: Verdirbt Ware in Kaliber-Kisten schneller oder langsamer als auf der Eingangspalette? Dafür braucht es die Aufteilung der Lagerdauer in zwei Abschnitte — und nur das Sortierdatum liefert sie.</td></tr>
+<tr><td><strong>Die Verbindung zur Sortier-CSV</strong></td><td>Welcher Sortierlauf diese Palette erzeugt hat, und damit welche Kaliberverteilung darin steckt. Das trägt die Kaliber-Ansicht in Reiter 1.</td></tr>
+<tr><td><strong>Gegenprobe</strong></td><td>Ein Sortierdatum vor dem Eingangsdatum oder nach dem Waschtag ist ein Erfassungsfehler, den man sonst nie bemerkt.</td></tr>
+</tbody>
+</table>
+
+<p class="ein">Für das <em>Alter</em> braucht es das Sortierdatum nicht. Für alles andere schon.</p>
 
 </div>
 
 <div class="kap">
 <div class="kap-nr">Kapitel 5</div>
-<h1>Station für Station — der Stand nach deinen Antworten</h1>
-<p class="kap-vor">Was die App fragt, was sie speichert, was daraus wird. <span class="sp">neu</span>
-markiert, was sich gegenüber heute ändert. Das ist die Liste, die vor dem Scharfschalten stehen
-muss.</p>
+<h1>Die Verdunstung ist nicht konstant — und das ist wichtig</h1>
+<p class="kap-vor">Deine Beobachtung: Schock beim Einlagern, und die Halle ist im September warm
+und im Dezember kalt. Das trifft eine Annahme mitten ins Herz — und es ist messbar.</p>
+
+<h2>5.1 Was heute gerechnet wird</h2>
+
+<div class="rechnung">netto(t) = netto₀ · (1 − r)^t          r = feste Tagesrate je Sorte</div>
+
+<p>Jede Wägung liefert genau <em>einen</em> Punkt: „nach 120 Tagen sind 6.2 % weg". Daraus wird
+rückwärts eine Rate gerechnet — und das ist per Konstruktion die <strong>mittlere Rate über
+diese 120 Tage</strong>. Ob der Verlust in den ersten drei Wochen doppelt so schnell lief, sieht
+man dieser einen Zahl nicht an.</p>
+
+<h2>5.2 Zwei Effekte, zwei verschiedene Messungen</h2>
 
 <table class="eng">
-<thead><tr><th style="width:22mm">Station</th><th style="width:44mm">Gefragt</th><th>Wird daraus</th></tr></thead>
+<thead><tr><th style="width:32mm">Effekt</th><th style="width:46mm">Was ihn erzeugt</th><th>Womit man ihn misst</th></tr></thead>
 <tbody>
-
-<tr><td rowspan="2"><strong>Warenein&shy;gang</strong></td>
-<td>Erntejournal: Charge · Eingangsdatum · Brutto · Kisten · Gebinde</td>
-<td>Netto = Brutto − Kisten × Tara − Palettentara. <strong>Der Nenner von allem.</strong> Fehlt eine Angabe, bleibt das Netto leer.</td></tr>
-<tr><td colspan="2"><em>Keine Änderung.</em></td></tr>
-
-<tr><td rowspan="4"><strong>Sortieren</strong></td>
-<td>Eingangsdatum <strong>je Palette</strong> vom Zettel</td>
-<td>Das Alter dieser Arbeit als Verteilung. <strong>Und neu:</strong> über das Sortierdatum der Schlüssel zum Alter beim Waschen (Kapitel 3).</td></tr>
-<tr><td>Palox-Stand bei Start <em>und</em> Abschluss <span class="sp">neu: zwei Pflicht</span></td>
-<td>Menge = S₂ − S₁ <span class="sp">neu</span>. Nie mehr aus der Vorarbeit.</td></tr>
-<tr><td>„Palox zwischendurch geleert?" <span class="sp">neu</span></td><td>Bei Ja: Menge unbekannt.</td></tr>
-<tr><td><s>Kisten je Kaliber</s> <span class="sp">entfällt</span></td><td>—</td></tr>
-
-<tr><td rowspan="4"><strong>Waschen +<br>Sortieren</strong></td>
-<td>Eingangsdatum und <strong>Zettelgewicht</strong> je Palette</td><td>Masse und Alter direkt — hier ist alles beobachtet.</td></tr>
-<tr><td>Ausschuss je Palette gewogen: Brutto · Kisten · <strong>Gebinde</strong></td><td>zu klein / zu gross in Kilo.</td></tr>
-<tr><td>Palox zweimal + Leerfrage <span class="sp">neu</span></td><td>wie oben.</td></tr>
-<tr><td>Fertige Paletten wiegen (erinnert)</td><td>kg je Kiste, und der Ausgangsstrom.</td></tr>
-
-<tr><td rowspan="4"><strong>Waschen</strong></td>
-<td>Sortierdatum <strong>je Palette</strong> vom Zettel</td>
-<td><strong>Der Schlüssel.</strong> Zeit im Zwischenlager <em>und</em> — über die Sortierarbeit — das Alter seit der Ernte.</td></tr>
-<tr><td><strong>Anzahl fertiger Paletten</strong> <span class="sp">neu, eine Zahl</span></td>
-<td><strong>Der Nenner</strong> (Kapitel 4). Ersetzt die Kistenzählung vollständig.</td></tr>
-<tr><td>Fertige Paletten wiegen: Brutto · Kisten · <strong>Gebinde</strong> · Stück je Kiste</td><td>Netto je fertiger Palette, kg je Kiste, Gramm je Kürbis.</td></tr>
-<tr><td>Palox zweimal + Leerfrage <span class="sp">neu: Pflicht statt freiwillig</span></td><td>Die Messpunkte mit dem <strong>höchsten Alter</strong> — das Ende der Verderbskurve.</td></tr>
-
-<tr><td rowspan="3"><strong>Fax</strong></td>
-<td>Paletten gesamt</td><td>Masse der Arbeit.</td></tr>
-<tr><td>Faules: <strong>erst die Kistenzahl</strong>, dann jede Kiste wiegen <span class="sp">neu</span> · Gebinde</td><td>Der Fax-Anteil, getrennt vom Lagerverderb. Kein Palox an dieser Station.</td></tr>
-<tr><td>Tage seit dem Waschen (vorbelegt) <span class="sp">neu: findet auch W+S</span></td><td>Der Zusammenhang zwischen Wartezeit und Faulem.</td></tr>
-
-<tr><td><strong>Lager&shy;kontrolle</strong></td>
-<td>Charge · Zetteldatum · Zettelgewicht · Gewicht jetzt · Kisten · Gebinde</td>
-<td>Die Verdunstungsrate — und die <strong>einzige</strong> Messung ohne Auswahlverzerrung.</td></tr>
-
+<tr><td><strong>Schock am Anfang</strong></td><td>Feld → Halle, Wundheilung, hoher Anfangsverlust, danach flacher</td><td>Hängt am <strong>Alter</strong>. Viele Wägungen über viele verschiedene Lagerdauern — dann sieht man die Form der Kurve.</td></tr>
+<tr><td><strong>Jahreszeit</strong></td><td>Hallentemperatur: September warm, Dezember kalt</td><td>Hängt am <strong>Kalender</strong>. Aus einer einzelnen Wägung nicht zu trennen — es braucht <em>dieselbe</em> Palette zweimal.</td></tr>
 </tbody>
 </table>
 
-<h2>5.1 Beim Verkauf: das Gebinde gehört überall dazu</h2>
+<div class="warum neu"><b>Der springende Punkt</b>
+Eine Wägung sagt: „zwischen Einlagerung und heute sind 6.2 % weg." <strong>Zwei Wägungen
+derselben Palette</strong> sagen: „zwischen dem 1.11. und dem 1.12. sind 1.1 % weg" — und das
+ist eine <em>Rate für diesen Monat</em>. Genau das braucht es, um den Jahresgang zu sehen. Eine
+einzelne Wägung kann das prinzipiell nicht.</div>
 
-<p>Du sagst es deutlich: Das Gebinde muss bei <strong>beiden</strong> Verkaufsarten gefragt
-werden. Damit wird der Schlüssel für „was wiegt eine Kiste wirklich":</p>
+<h2>5.3 Der Vorschlag: die Kontrollpalette</h2>
 
-<div class="rechnung">Sorte  ×  Gebinde  ×  Kistensystem  ×  (Soll-kg  oder  Kaliber)</div>
+<div class="bild">  Je Sorte EINE markierte Palette, die nicht verarbeitet wird.
+  Einmal im Monat auf die Waage. Fünf Minuten für die ganze Halle.
 
-<p>Heute fehlt das Gebinde in diesem Schlüssel — „8 kg in IFCO xxx" und „8 kg in IFCO yyy"
-landen im selben Durchschnitt. Das wird korrigiert.</p>
+  Sorte Tiana · Palette Nr. 4711 · Eingang 12.09., netto 902 kg
+  ──────────────────────────────────────────────────────────────
+   12.10.   878 kg    − 2.7 %     0.090 % je Tag   ← Schockphase
+   12.11.   866 kg    − 1.4 %     0.045 % je Tag
+   12.12.   858 kg    − 0.9 %     0.030 % je Tag   ← kalt, langsamer
+   12.01.   851 kg    − 0.8 %     0.026 % je Tag
+  ──────────────────────────────────────────────────────────────
+  Die Rate fällt von 0.090 auf 0.026 — Faktor 3.5 über vier Monate.
+  Mit einer festen Rate wäre das alles eine einzige Zahl gewesen.</div>
 
-<p>Und deine Korrektur zu Frage 12 nehme ich auf: <strong>Beide Verkaufsarten kommen bei allen
-Sorten vor.</strong> Die Art gehört also zur Arbeit und zum Verkauf, nicht zur Sorte. Meine
-Frage 14 war falsch gestellt — es gibt keine „Sorte, die nach Kaliber sortiert wird", sondern
-nur Arbeiten, die es tun.</p>
+<p>Die Zahlen oben sind erfunden — aber die <em>Form</em> ist genau das, was du beschreibst, und
+mit vier Wägungen je Sorte messbar. Die Datenbank kann das schon: Eine Wägung kann auf dieselbe
+Palette zeigen. Die Maske muss es nur anbieten.</p>
+
+<h2>5.4 Ohne Kontrollpalette: was die gewöhnlichen Wägungen hergeben</h2>
+
+<p>Auch ohne sie lässt sich der Alterseffekt sehen — wenn die Wägungen über viele verschiedene
+Lagerdauern verteilt sind. Statt je Wägung eine Rate zu rechnen und zu mitteln, passt man eine
+Kurve an die Punkte <em>(Lagertage, kumulierter Verlust)</em> an, genau wie beim Verderb:</p>
+
+<div class="rechnung">heute:   Verlust(t) = 1 − (1 − r)^t                   eine Zahl, feste Rate
+besser:  Verlust(t) = a · (1 − exp(−t/τ))  +  b · t
+                      └── Schockphase ──┘     └ Dauerrate ┘</div>
+
+<p>Zur Einordnung, was die 41 Wägungen der Demo hergeben — nach Lagerdauer klassiert:</p>
+
+<table class="eng">
+<thead><tr><th>Lagerdauer bei der Wägung</th><th>Wägungen</th><th>mittlere Rate je Tag</th></tr></thead>
+<tbody>
+<tr><td>unter 60 Tagen</td><td>12</td><td>0.0485 %</td></tr>
+<tr><td>60 – 120 Tage</td><td>18</td><td>0.0532 %</td></tr>
+<tr><td>über 120 Tage</td><td>11</td><td>0.0559 %</td></tr>
+</tbody>
+</table>
+
+<div class="warum"><b>Ehrlich dazu: das beweist nichts</b>
+Die Demo-Saison ist mit einer <em>konstanten</em> Rate erzeugt. Dass die drei Klassen trotzdem
+um ±8 % auseinanderliegen, sagt also nichts über den Schock — es sagt, <strong>wie gross das
+Rauschen bei 41 Wägungen ist</strong>. Ein echter Effekt muss deutlicher sein als das, um
+erkennbar zu werden. Mit zwölf Kontrollpalettenwägungen <em>derselben</em> Paletten sieht man ihn
+dagegen sofort, weil dort die Palette sich selbst als Vergleich dient.</div>
+
+<h2>5.5 Was heute entschieden werden muss</h2>
+
+<table class="eng">
+<thead><tr><th style="width:52mm">Entscheidung</th><th>Warum jetzt</th></tr></thead>
+<tbody>
+<tr><td><strong>Kontrollpaletten einführen?</strong> Eine je Sorte, markiert, monatlich gewogen, nicht verarbeitet</td><td>Betrifft die Maske (dieselbe Palette wiederfinden) und den Ablauf in der Halle. Danach nicht mehr änderbar.</td></tr>
+<tr><td><strong>Hallentemperatur mitschreiben?</strong> Ein einfacher Logger, oder täglich eine Zahl</td><td>Nur mit ihr lässt sich der Jahresgang <em>erklären</em> statt nur beobachten. Und: er liesse sich auf die nächste Saison übertragen.</td></tr>
+<tr><td>Die gewöhnlichen Wägungen <strong>über die Lagerdauern verteilen</strong> statt alle im Herbst</td><td>Keine Änderung an der App — nur eine Absprache. Aber sie entscheidet, ob die Kurve überhaupt eine Form bekommt.</td></tr>
+</tbody>
+</table>
+
+<p class="ein">Die Auswertung selbst — Kurve statt fester Rate — ist reine Rechnung und kann
+jederzeit nachgerüstet werden. <strong>Nur die Messungen müssen jetzt anfangen.</strong></p>
 
 </div>
 
 <div class="kap">
 <div class="kap-nr">Kapitel 6</div>
-<h1>Was danach noch unsicher bleibt</h1>
-<p class="kap-vor">Damit klar ist, was das Werkzeug auch nach allen Reparaturen nicht kann.
-Ehrlich aufgelistet, nach Gewicht.</p>
+<h1>Der Verderb je Charge statt einer Kurve für alles</h1>
+<p class="kap-vor">Du sagst: Ob alle Chargen einer Sorte gleich faulen, wissen wir nicht — das
+wollen wir herausfinden. Wo Messpunkte sind, soll je Charge gerechnet werden; wo keine, das
+Mittel; und man muss sehen, was von beidem gilt. Heute ist keines von beidem der Fall.</p>
+
+<h2>6.1 Was heute gerechnet wird</h2>
+
+<div class="rechnung">EINE Kurve F(t) für den ganzen Betrieb.
+Nicht je Sorte. Nicht je Charge. Eine.
+
+  aus 140 Messpunkten aus 33 Chargen,  k = 1.22,  gemessen 6 – 196 Tage</div>
+
+<p>Das war beim Bauen die vorsichtige Wahl — 140 Punkte auf eine Kurve geben eine belastbare
+Form. Aber es beantwortet deine Frage nicht: Eine anfällige Charge verschwindet darin spurlos.</p>
+
+<h2>6.2 Was stattdessen</h2>
+
+<p>Dasselbe Verfahren, das die Verdunstung schon benutzt: <strong>je Charge rechnen, aber zum
+Mittel ziehen, je weniger Messungen es gibt.</strong> Nicht mit einer Schwelle („ab 3 Messungen
+eigene Kurve") — die erzeugt Sprünge —, sondern stetig:</p>
+
+<div class="rechnung">Kurve dieser Charge  =  b · eigene Messungen  +  (1 − b) · Kurve der Sorte
+Kurve der Sorte      =  b · eigene Messungen  +  (1 − b) · Kurve aller Sorten
+
+b läuft von 0 bis 1 und hängt davon ab, wie verlässlich die eigenen
+Messungen sind — gemessen an ihrer Streuung untereinander.</div>
+
+<p>Und genau das, was du verlangst: <strong>daneben steht, woher die Zahl kommt.</strong> Wie es
+bei der Verdunstung längst dasteht — „Wiegungen dieser Sorte" / „zum Gesamtwert gezogen" /
+„alle Sorten".</p>
+
+<h2>6.3 Wie es aussehen könnte</h2>
+
+<div class="bild">┌ Verderb je Charge · Sorte Tiana ──────────────────────────────────────────┐
+│                                                                            │
+│  Charge  Schlag        Messungen  gemessen  Modell   Herkunft der Zahl     │
+│                                   heute     heute                          │
+│  1632    Andi Ball        11       13.4 %   13.1 %   ● eigene Messungen    │
+│  1641    Rüti              9        8.8 %    8.9 %   ● eigene Messungen    │
+│  1655    Weid              4        7.1 %    8.4 %   ◐ eigene, zur Sorte   │
+│                                                        gezogen             │
+│  1660    Andi Ball         1          —      9.6 %   ○ Kurve der Sorte     │
+│  1663    Rüti              0          —      9.6 %   ○ Kurve der Sorte     │
+│  ─────────────────────────────────────────────────────────────────────     │
+│  Sorte Tiana gesamt       25        9.7 %    9.6 %                         │
+│                                                                            │
+│  ⚠ Charge 1632 liegt 3.5 Punkte über ihrer Sorte — bei 11 Messungen        │
+│    ist das kein Zufall.  [ Verlauf ansehen ]                               │
+└────────────────────────────────────────────────────────────────────────────┘</div>
+
+<p>Das ist die Tabelle, aus der „vielleicht war diese Charge krank" wird. Heute gibt es sie in
+Ansätzen — als „Je Charge: gemessen gegen Modell" —, aber sie vergleicht gegen die <em>eine</em>
+Kurve für alles, und sie ist zweifach eingeklappt.</p>
+
+<h2>6.4 Und der Verlauf: wann genau ist es passiert</h2>
+
+<p>Das ist deine eigentliche Frage, und sie braucht keine Kurve, sondern die
+<strong>Rohpunkte in ihrer zeitlichen Reihenfolge</strong>:</p>
+
+<div class="bild">┌ Anteil faul am Verarbeitungstag  —  gemessen, nicht gerechnet ────────────┐
+│  15 % |                                                    *               │
+│       |                                               *                    │
+│       |                                          *          <- 1632 Tiana  │
+│  10 % |                               *     *                              │
+│       |                     *    *                                         │
+│       |           *    *                        o    o   o  <- 1641 Tiana  │
+│   5 % |      *                            o  o                             │
+│       |  *                      o    o                                     │
+│   0 % +---+----+----+----+----+----+----+----+----+----+----+----          │
+│         Sep  Okt  Nov  Dez  Jan  Feb  Mär                                  │
+│                                                                            │
+│  Auffällig:  1632 springt zwischen 12.12. und 04.01. von 6.1 % auf 13.4 %  │
+│              — bei drei Wochen Abstand.                                    │
+└────────────────────────────────────────────────────────────────────────────┘</div>
+
+<p>Genau dein Beispiel: <em>„plötzlich ab Dezember wurde dieser Kürbis faul, fast vollständig
+auf einen Schlag."</em> Ein Knick ist eine Form — im Bild sofort sichtbar, in einer Zahlenkolonne
+nie. Deshalb eine der drei Grafiken (Teil II).</p>
+
+<div class="warum neu"><b>Was das für die Erhebung heisst</b>
+Nichts Neues. Die Punkte entstehen bei jeder Arbeit ohnehin. Aber es macht Kapitel 3 und 4
+sichtbar wertvoll: Nur wenn die Palox-Menge je Arbeit stimmt (zwei Ablesungen) und das Alter
+stimmt (Sortierdatum), liegt der Punkt an der richtigen Stelle. Ein übernommener Stand aus der
+Vorarbeit hätte einen Sprung erzeugt, den es nie gab — <strong>und genau danach wollen wir
+suchen.</strong></div>
+
+</div>
+
+<div class="kap">
+<div class="kap-nr">Kapitel 7</div>
+<h1>Die fertige Palette — eine Messung, drei Antworten</h1>
+<p class="kap-vor">Du willst bei <em>beiden</em> Kistensystemen wiegen, und du hast für jedes
+eine eigene Frage. Beide kommen aus derselben Wägung — und es gibt noch eine dritte Antwort
+gratis dazu.</p>
+
+<h2>7.1 Was gewogen wird</h2>
+
+<div class="rechnung">Brutto · Kisten · Gebinde · Kürbisse je Kiste   ( und Kaliber, wenn nach Stück )
+
+Netto      = Brutto − Kisten × Kistentara − Palettentara
+kg/Kiste   = Netto ÷ Kisten
+Gramm/Stück= Netto ÷ (Kisten × Kürbisse je Kiste)</div>
+
+<h2>7.2 Deine zwei Fragen sind dieselbe Skala</h2>
 
 <table class="eng">
-<thead><tr><th style="width:12mm">&nbsp;</th><th style="width:46mm">Unsicherheit</th><th>Wie gross, und was hilft</th></tr></thead>
+<thead><tr><th style="width:36mm">System</th><th style="width:44mm">Deine Frage</th><th>Die Zahl</th></tr></thead>
 <tbody>
-<tr><td><strong>1</strong></td><td><strong>Wird Schlechtes zuerst verarbeitet?</strong> Dann ist die gemessene Verderbskurve zu flach und die Hochrechnung auf März zu niedrig.</td><td>Die grösste verbliebene Unsicherheit, und aus Verarbeitungsmessungen nicht heilbar. <strong>Nur die Lagerkontrolle hilft</strong> — eine zufällig gegriffene Palette. Zwölf im Jahr genügen.</td></tr>
-<tr><td><strong>2</strong></td><td>Die <strong>Verdunstungsrate gilt als konstant</strong> über die Saison.</td><td>In Wirklichkeit ist sie anfangs höher. Jede Wägung liefert nur einen Punkt; für einen Verlauf müsste <em>dieselbe</em> Palette mehrfach gewogen werden. Das wäre möglich — eine markierte Kontrollpalette je Sorte.</td></tr>
-<tr><td><strong>3</strong></td><td>Die <strong>Mischung innerhalb einer Sortierarbeit</strong> — welche der gezählten Paletten in welche Kaliber-Palette wanderte.</td><td>Prinzipiell unbeobachtbar. Gerechnet wird mit dem Mittel <em>dieser</em> Arbeit, angezeigt wird die Spanne. Nach Kapitel 3 ist das der einzige verbleibende Mittelwert in der Kette.</td></tr>
-<tr><td><strong>4</strong></td><td>Bei <strong>6 % der Kaliber-Paletten</strong> passt das Sortierdatum zu keiner Sortierarbeit.</td><td>Rückfall auf den Chargenmittelwert, gekennzeichnet. Wird besser, je vollständiger erfasst wird.</td></tr>
-<tr><td><strong>5</strong></td><td><strong>Was den Betrieb ohne Lieferschein verlässt</strong> — Hofladen, Tierfutter, Kompost, Eigenbedarf.</td><td>Fehlende Masse sieht in der Bilanz aus wie Verlust. Die Ziele sind angelegt; es braucht nur die Angabe, welche es gibt.</td></tr>
-<tr><td><strong>6</strong></td><td>Zwei bezifferte Fehler in den <strong>Bereichen</strong>: beim Zusammenfassen 6.3× zu weit, die Fäulnisstreuung 3.9× zu eng.</td><td>Ändert keine Punktschätzung, nur die angezeigte Genauigkeit. Beide durch die unabhängige Zweitrechnung gefunden.</td></tr>
+<tr><td><strong>Kiste ab x kg</strong></td><td>„Geben wir immer 8.5 statt 8?"</td><td>kg/Kiste gegen das Soll. Jedes Kilo darüber geht unbezahlt mit.</td></tr>
+<tr><td><strong>x Kürbisse, Kaliber x</strong></td><td>„Geben wir bei 1100–1850 im Schnitt 1750?"</td><td>Gramm/Stück gegen das Band. <strong>Lage im Band</strong> = wo zwischen Unter- und Oberkante.</td></tr>
 </tbody>
 </table>
 
-<h2>6.1 Und was jetzt <em>nicht</em> mehr unsicher ist</h2>
+<div class="bild">  Lage im Band — eine Skala, zwei Gefahren
+
+     0 %                          50 %                        100 %
+     |-----------------------------|-----------------------------|
+   Unterkante                  gut getroffen                Oberkante
+   1100 g                        1475 g                      1850 g
+
+   ← zu tief:                                      zu hoch: →
+   Das Etikett wird knapp erfüllt.                 Wir verschenken Masse.
+   Durch Verdunstung rutscht die Ware              Dein Fall: 1750 g
+   im Lauf der Saison darunter.                    statt 1475 g = 87 %,
+   (Kaori Kuri 1600-2000: schon bei der            also 275 g je Kürbis
+   Sortierung nur 11 %)                            unbezahlt.</div>
+
+<p><strong>Beide Enden sind teuer, auf verschiedene Weise</strong> — und beide sieht man erst,
+wenn man die fertigen Paletten bei <em>beiden</em> Systemen wiegt. Genau wie du sagst.</p>
+
+<h2>7.3 Die dritte Antwort: der Nenner beim Waschen</h2>
+
+<p>Du hast gefragt, wozu die Kistenzählung gut sein soll. Antwort: für den <em>Nenner</em> — der
+Palox liefert nur den Zähler, „120 kg Faules". Ohne die Masse, die durchging, ist das keine Rate.
+Weil die Kaliber-Kisten nie gezählt werden, muss der Nenner von der <strong>Ausgangsseite</strong>
+kommen. Und dort ist Vorsicht nötig — siehe 7.5.</p>
+
+<div class="rechnung">Masse raus  = fertige Paletten × Kisten je Palette × kg je Kiste (gemessen)
+Masse rein  = Masse raus + Faules (Palox) + Ausschuss
+Anteil faul = Faules ÷ Masse rein</div>
+
+<p>Gerechnet wird über die <strong>Kiste</strong>, nicht über die Palette — das ist der
+entscheidende Unterschied zu meinem ersten Entwurf. Warum, steht in 7.5.</p>
+
+<p>Kosten: <strong>zwei Zahlen je Wascharbeit</strong> (Paletten und Kisten je Palette) —
+dieselben zwei, die auf der Eingangsseite längst gefragt werden. Die Kistenzählung beim Sortieren
+entfällt ersatzlos.</p>
+
+<h2>7.5 Vorsicht: beim Waschen wechselt das Gebinde</h2>
+
+<p>Du hast darauf hingewiesen, und es bricht die naheliegende Formel:</p>
+
+<div class="bild">  REIN  (Zwischenlager)              RAUS  (nach dem Waschen)
+  ─────────────────────────          ────────────────────────────
+  G2-Kisten                          IFCO
+  voll gestapelt                     nicht voll gestapelt
+  viele Kisten je Palette            weniger Kisten je Palette
+  Kisten randvoll                    Kisten weniger voll
+
+         3 Paletten rein    ──────►    4 Paletten raus
+
+  Die Palette ist auf beiden Seiten etwas ANDERES.</div>
 
 <table class="eng">
-<thead><tr><th style="width:46mm">War unsicher</th><th>Ist jetzt</th></tr></thead>
+<thead><tr><th style="width:44mm">Falle</th><th>Was dagegen hilft</th></tr></thead>
 <tbody>
-<tr><td>Die Faul-Menge einer Arbeit (Übernahme aus der Vorarbeit)</td><td><strong>gemessen</strong> — zwei Ablesungen in derselben Arbeit.</td></tr>
-<tr><td>Das Alter beim Waschen (Mittel über die ganze Saison)</td><td><strong>abgelesen</strong> in beiden Teilen — Sortierdatum plus Eingangsdatum der passenden Sortierarbeit. 94 % treffen exakt.</td></tr>
-<tr><td>Die Masse einer Wascharbeit (über zwei Zwischenschritte hochgerechnet)</td><td><strong>gemessen</strong> — fertige Paletten mal gewogenem Palettennetto.</td></tr>
-<tr><td>„kg je Kiste" quer über Gebinde gemittelt</td><td>je <strong>Sorte × Gebinde × System</strong> getrennt.</td></tr>
+<tr><td>„Paletten rein = Paletten raus"</td><td><strong>Stimmt nicht.</strong> Deshalb wird der Nenner nur aus der Ausgangsseite gebildet und nie aus der Eingangsseite geschätzt.</td></tr>
+<tr><td>„eine fertige Palette wiegt im Schnitt x kg"</td><td><strong>Zu grob</strong>, wenn die Kistenzahl je Palette schwankt. Deshalb der Umweg über <em>kg je Kiste</em> — das ist die stabile Grösse, und sie wird ohnehin an den gewogenen Paletten gemessen.</td></tr>
+<tr><td>„Tara ist Tara"</td><td><strong>G2 und IFCO haben verschiedene Leergewichte.</strong> Beide müssen vor dem Scharfschalten in den Stammdaten stehen, sonst gibt es auf der Ausgangsseite kein Netto.</td></tr>
+<tr><td>„kg je Kiste je Sorte"</td><td>Muss <strong>je Gebinde</strong> getrennt werden. Eine G2-Kaliber-Kiste und eine IFCO-Verkaufskiste haben nichts miteinander zu tun.</td></tr>
 </tbody>
 </table>
 
-<div class="warum neu"><b>Der eigentliche Gewinn</b>
-Vor deinen Antworten hing die halbe Rechnung an Annahmen: an einem Palox-Stand von gestern, an
-einem Chargenmittelwert über Monate, an einer Kistenzählung, die nie stattfindet. Danach hängt
-sie an drei Zetteln, die der Betrieb ohnehin schreibt — Eingangsdatum, Sortierdatum,
-Palettenzahl — und an zwei Waagen, die ohnehin dastehen.<br><br>
-<strong>Das ist der Unterschied zwischen einem Modell, das man glauben muss, und einem, das man
-nachrechnen kann.</strong></div>
+<div class="warum neu"><b>Was daraus folgt</b>
+Beim Abschluss einer Wascharbeit werden <strong>zwei</strong> Zahlen gefragt: wie viele fertige
+Paletten, und wie viele Kisten je Palette — letzteres vorbelegt aus den gewogenen Paletten
+derselben Arbeit, änderbar. Und das <strong>Gebinde der fertigen Palette</strong> wird ohnehin
+schon gefragt; es ist nur bisher nirgends als eigener Schlüssel geführt.<br><br>
+Nebeneffekt: Die fertigen Paletten einer Wascharbeit sind die Eingangspaletten der Fax-Arbeit,
+die folgt — beide in IFCO, beide gezählt. Eine Gegenprobe, die nichts kostet.</div>
+
+<h2>7.4 Das Gebinde gehört überall dazu</h2>
+
+<p>Du sagst es deutlich: bei <strong>beiden</strong> Systemen. Damit wird der Schlüssel für „was
+wiegt eine Kiste wirklich":</p>
+
+<div class="rechnung">Sorte  ×  Gebinde  ×  System  ×  ( Soll-kg  oder  Kaliber )</div>
+
+<p>Heute fehlt das Gebinde darin — „8 kg in IFCO xxx" und „8 kg in IFCO yyy" landen im selben
+Durchschnitt. Das wird korrigiert.</p>
+
+</div>
+
+<div class="kap">
+<div class="kap-nr">Kapitel 8</div>
+<h1>Station für Station — der Stand nach allen Antworten</h1>
+<p class="kap-vor"><span class="sp">neu</span> markiert, was sich gegenüber heute ändert. Das ist
+die Liste, die vor dem Scharfschalten stehen muss.</p>
+
+<table class="eng">
+<thead><tr><th style="width:22mm">Station</th><th style="width:44mm">Gefragt</th><th>Wird daraus</th></tr></thead>
+<tbody>
+<tr><td><strong>Warenein&shy;gang</strong></td>
+<td>Charge · Eingangsdatum · Brutto · Gebinde · <strong>Kisten?</strong></td>
+<td>Netto = Brutto − Kisten × Tara − Palettentara. <strong>Der Nenner von allem.</strong> Ohne Kistenzahl gibt es keines — Frage 1.</td></tr>
+
+<tr><td rowspan="3"><strong>Sortieren</strong></td>
+<td>Eingangsdatum <strong>je Palette</strong></td>
+<td>Alter dieser Arbeit als Verteilung — und über das Sortierdatum der Schlüssel zum Alter beim Waschen.</td></tr>
+<tr><td>Palox bei Start <em>und</em> Abschluss <span class="sp">neu: beide Pflicht</span> + „geleert?" <span class="sp">neu</span></td>
+<td>Menge = S₂ − S₁. Bei „geleert": unbekannt.</td></tr>
+<tr><td><s>Kisten je Kaliber</s> <span class="sp">entfällt</span></td><td>—</td></tr>
+
+<tr><td rowspan="3"><strong>Waschen +<br>Sortieren</strong></td>
+<td>Eingangsdatum und Zettelgewicht je Palette</td><td>Masse und Alter direkt — alles beobachtet.</td></tr>
+<tr><td>Ausschuss je Palette: Brutto · Kisten · <strong>Gebinde</strong></td><td>zu klein / zu gross in Kilo.</td></tr>
+<tr><td>Palox zweimal + „geleert?" <span class="sp">neu</span> · fertige Paletten wiegen</td><td>wie oben; kg je Kiste und Gramm je Stück.</td></tr>
+
+<tr><td rowspan="4"><strong>Waschen</strong></td>
+<td>Sortierdatum <strong>je Palette</strong></td>
+<td>Zeit im Zwischenlager · die Verbindung zur Sortier-CSV · Gegenprobe. <em>Nicht</em> für das Alter — das kommt aus dem Erntejournal.</td></tr>
+<tr><td><strong>Fertige Paletten</strong> und <strong>Kisten je Palette</strong> <span class="sp">neu, zwei Zahlen</span></td>
+<td><strong>Der Nenner</strong> — über die Kiste, weil beim Waschen das Gebinde wechselt (7.5). Ersetzt die Kistenzählung vollständig.</td></tr>
+<tr><td>Fertige Paletten wiegen: Brutto · Kisten · <strong>Gebinde</strong> · Stück je Kiste · Kaliber — <strong>bei beiden Systemen</strong> <span class="sp">neu</span></td><td>kg je Kiste <em>und</em> Lage im Band.</td></tr>
+<tr><td>Palox zweimal + „geleert?" <span class="sp">neu: Pflicht statt freiwillig</span></td><td>Die Messpunkte mit dem höchsten Alter.</td></tr>
+
+<tr><td rowspan="3"><strong>Fax</strong></td>
+<td>Paletten gesamt</td><td>Masse der Arbeit.</td></tr>
+<tr><td>Faules: <strong>erst die Kistenzahl</strong>, dann jede Kiste wiegen <span class="sp">neu</span> · Gebinde</td><td>Fax-Anteil, getrennt vom Lagerverderb.</td></tr>
+<tr><td>Tage seit dem Waschen (vorbelegt) <span class="sp">neu: findet auch W+S</span></td><td>Was das Warten kostet.</td></tr>
+
+<tr><td rowspan="2"><strong>Lager&shy;kontrolle</strong></td>
+<td>Charge · Zetteldatum · Zettelgewicht · Gewicht jetzt · Kisten · Gebinde</td>
+<td>Die Verdunstung — und die einzige Messung ohne Auswahlverzerrung.</td></tr>
+<tr><td><strong>„dieselbe Palette wie beim letzten Mal"</strong> <span class="sp">neu</span></td>
+<td><strong>Die Kontrollpalette</strong> (Kapitel 5.3). Nur sie kann den Jahresgang messen.</td></tr>
+</tbody>
+</table>
+
+</div>
+
+<div class="kap">
+<div class="kap-nr">Kapitel 9</div>
+<h1>Was offen bleibt</h1>
+
+<h2>9.1 Die eine echte Unsicherheit</h2>
+
+<p>Du schreibst: <em>„an sich werden schon die schlechter aussehenden Paletten ausgewählt."</em>
+Das ist genau der Fall, den das Werkzeug fürchtet. Wenn Schlechtes zuerst verarbeitet wird,
+werden anfällige Paletten früh gemessen und robuste spät — die gemessene Kurve wird
+<strong>flacher</strong> als die wahre, und die Hochrechnung auf den März <strong>zu
+niedrig</strong>.</p>
+
+<p>Aus Verarbeitungsmessungen allein ist das nicht heilbar: Alter und Anfälligkeit sind durch die
+Reihenfolge vermengt. Es gibt genau ein Gegenmittel — eine Messung, deren
+<strong>Auswahl nicht am Zustand hängt</strong>. Das ist die Lagerkontrolle. Und das ist derselbe
+Vorgang wie die Kontrollpalette aus Kapitel 5: <strong>eine Handlung, zwei Probleme gelöst.</strong></p>
+
+<div class="warum neu"><b>Wenn du nur eine Sache aus diesem Dokument mitnimmst</b>
+Eine markierte Palette je Sorte, die nicht verarbeitet und einmal im Monat gewogen wird, misst
+<strong>den Jahresgang der Verdunstung</strong> und liefert zugleich <strong>den unverzerrten
+Punkt für die Verderbskurve</strong>. Fünf Minuten im Monat für die ganze Halle — und es ist das
+Einzige, was die beiden grössten Unsicherheiten gleichzeitig angreift.</div>
+
+<h2>9.2 Offene Fragen</h2>
+
+<table class="eng">
+<thead><tr><th style="width:10mm">&nbsp;</th><th style="width:48mm">Frage</th><th>Warum sie zählt</th></tr></thead>
+<tbody>
+<tr><td><strong>1</strong></td><td>Steht im Erntejournal die <strong>Kistenzahl</strong> je Palette? Du hast sie nicht genannt.</td><td><strong>Ohne sie gibt es kein Nettogewicht</strong> — und das ist der Nenner von allem. Falls nein: feste Kistenzahl je Gebinde, oder Tara je voller Palette? Und: <strong>alle</strong> Gebinde brauchen ihr Leergewicht — G2 <em>und</em> IFCO, sonst fehlt das Netto auf der Ausgangsseite.</td></tr>
+<tr><td><strong>2</strong></td><td><strong>Kontrollpaletten</strong> — eine je Sorte, markiert, monatlich gewogen, nicht verarbeitet?</td><td>Kapitel 5.3 und 9.1. Betrifft Maske und Ablauf, also heute zu entscheiden.</td></tr>
+<tr><td><strong>3</strong></td><td><strong>Hallentemperatur</strong> mitschreiben — Logger oder täglich eine Zahl?</td><td>Nur damit lässt sich der Jahresgang <em>erklären</em> statt nur beobachten, und auf die nächste Saison übertragen.</td></tr>
+<tr><td><strong>4</strong></td><td>Ist die <strong>letzte fertige Palette</strong> einer Wascharbeit voll oder angebrochen?</td><td>Bei angebrochenen bräuchte es „Kisten auf der letzten Palette" — eine Zahl mehr, einmal je Arbeit.</td></tr>
+<tr><td><strong>4b</strong></td><td>Schwankt die <strong>Kistenzahl je fertiger Palette</strong> stark, oder ist sie je Gebinde ungefähr fest? Steht sie auf einem Packzettel?</td><td>Ist sie fest, genügt eine Zahl je Arbeit. Schwankt sie, brauchen wir sie je Arbeit — und das ist immer noch billiger als Kaliber-Kisten zu zählen.</td></tr>
+<tr><td><strong>5</strong></td><td>Wird beim <strong>Waschen</strong> auch Ausschuss aussortiert, oder nur Faules?</td><td>Steht Ausschuss an, gehört er in „Masse rein".</td></tr>
+<tr><td><strong>6</strong></td><td>Welche Wege nimmt Ware <strong>ohne Lieferschein</strong> — Hofladen, Tierfutter, Kompost, Eigenbedarf?</td><td>Fehlende Masse sieht in der Bilanz aus wie Verlust. Die Ziele sind angelegt, es fehlt die Angabe, welche es gibt.</td></tr>
+<tr><td><strong>7</strong></td><td>Der <strong>Lagerrechner</strong>: bei „am 1.2. noch 80 t" — willst du sehen, was dann verkaufsfähig ist, oder was du bis dahin verloren hast? Soll er auch rückwärts können?</td><td>Zwei verschiedene Bildschirme. Die Rückwärtsfrage ist die, die im Oktober ansteht.</td></tr>
+<tr><td><strong>8</strong></td><td>Die <strong>Sicherung</strong>: Welche bietet deine Supabase-Stufe, über wie viele Tage? Wer merkt es, wenn eine Woche nichts geschrieben wurde?</td><td>Eine im Oktober nicht gewogene Palette lässt sich im März nicht nachholen. <strong>Das grösste operative Risiko.</strong></td></tr>
+</tbody>
+</table>
+
+<h2>9.3 Was jetzt <em>nicht</em> mehr unsicher ist</h2>
+
+<table class="eng">
+<thead><tr><th style="width:48mm">War unsicher</th><th>Ist jetzt</th></tr></thead>
+<tbody>
+<tr><td>Faul-Menge einer Arbeit (Übernahme aus der Vorarbeit)</td><td><strong>gemessen</strong> — zwei Ablesungen in derselben Arbeit</td></tr>
+<tr><td>Alter beim Waschen (Mittel der dokumentierten Sortierarbeiten — 25 von 42 Chargen)</td><td><strong>Chargenmittel aus dem Erntejournal</strong> — 42 von 42 Chargen, und nur 0.3 Tage ungenauer</td></tr>
+<tr><td>Masse einer Wascharbeit (zwei Zwischenschritte)</td><td><strong>gemessen</strong> — fertige Paletten × gewogenes Netto</td></tr>
+<tr><td>FIFO oder anteilig</td><td><strong>gleichgültig</strong> — unter einem Tag Unterschied</td></tr>
+<tr><td>kg je Kiste quer über Gebinde gemittelt</td><td>je Sorte × Gebinde × System getrennt</td></tr>
+<tr><td>Verdunstung als feste Rate</td><td>wird <strong>gemessen</strong>, sobald Kontrollpaletten laufen</td></tr>
+<tr><td>Eine Verderbskurve für alles</td><td>je Charge, wo Messungen sind — <strong>mit Angabe, woher</strong></td></tr>
+</tbody>
+</table>
 
 </div>
 
 <div class="teil">
 <div class="nr">Teil II</div>
 <h1>Ideen für das neue Dashboard</h1>
-<p>Drei Reiter, nach deiner Reihenfolge: erst das Tagesgeschäft, dann der Rückblick, dann die
-Extras. Entwürfe zum Zerreissen — nichts davon ist gebaut.</p>
+<p>Drei Reiter in deiner Reihenfolge: Tagesgeschäft, Rückblick, Extras. Und drei Grafiken im
+ganzen Dashboard — mehr braucht es nicht.</p>
 </div>
 
 <div class="kap">
-<div class="kap-nr">Kapitel 7</div>
-<h1>Wie viele Grafiken es braucht: drei</h1>
-<p class="kap-vor">„Weniger ist mehr, dafür Qualität." Hier meine Antwort darauf, samt
-Begründung — bevor die Entwürfe kommen.</p>
-
-<p>Eine Tabelle kann man <strong>lesen, sortieren, vergleichen und abschreiben</strong>. Eine
-Grafik kann eines besser: eine <em>Form</em> zeigen, die in Zahlen nicht auffällt. Also braucht
-es eine Grafik nur dort, wo genau das der Punkt ist. Das ist dreimal der Fall:</p>
-
-<table class="eng">
-<thead><tr><th style="width:12mm">&nbsp;</th><th style="width:44mm">Grafik</th><th>Warum hier keine Tabelle genügt</th></tr></thead>
-<tbody>
-<tr><td><strong>1</strong></td><td><strong>Wohin geht der Kürbis</strong> — ein Balken über 100 % des Eingangs<br><em>Reiter 2</em></td><td>Die Frage ist „wie verhalten sich die Posten <em>zueinander</em>". Genau das zeigt ein Balken in einer Sekunde und eine Tabelle nie.</td></tr>
-<tr><td><strong>2</strong></td><td><strong>Wann ist es faul geworden</strong> — Messpunkte über die Saison<br><em>Reiter 2</em></td><td>Ein <em>Sprung</em> ist eine Form. „Ab Dezember plötzlich" sieht man im Bild sofort und in einer Zahlenkolonne nie.</td></tr>
-<tr><td><strong>3</strong></td><td><strong>Lage im Kaliberband</strong> — ein kurzer Balken je Zeile<br><em>Reiter 1 und 3</em></td><td>Es ist eine Position zwischen zwei Grenzen. Keine Grafik im eigentlichen Sinn — ein Zeichen in der Tabelle.</td></tr>
-</tbody>
-</table>
-
-<p>Alles andere wird Tabelle, mit Balken <em>in</em> der Zelle wo es hilft. Und was heute an
-Grafik da ist und wegfällt:</p>
-
-<div class="ein"><s>Das Flächendiagramm „Was wird aus der liegenden Ware"</s> — 77 % → 59 % über
-sechs Monate sieht fast flach aus, die vier oberen Bänder sind unlesbar gequetscht. ·
-<s>Die Verdunstungs-Streubilder</s> und <s>die Modellkurve mit Band</s> — sie sind der Beleg,
-nicht die Antwort; sie gehören in „Messungen". · <s>Der Wochenverlauf mit fünf Linien</s> — was
-er sagt, sagt Grafik 1 besser.</div>
-
-</div>
-
-<div class="kap">
-<div class="kap-nr">Kapitel 8</div>
+<div class="kap-nr">Kapitel 10</div>
 <h1>Reiter 1 — Lager</h1>
 <p class="kap-vor">Das Tagesgeschäft. Was ist da, wie viel davon ist noch gut, welches Kaliber,
-und wie sieht es im Februar aus. Alles auf einem Bildschirm, alles abschreibbar.</p>
+und wie sieht es im Februar aus. Eine Tabelle, ein Regler, keine Grafik zum Entziffern.</p>
 
 <div class="bild">┌ LAGER ─────────────────────────────────────────────────────────────────────┐
 │  Eingang         Ausgeliefert      Im Lager        Davon verkaufsfähig      │
@@ -516,35 +703,28 @@ und wie sieht es im Februar aus. Alles auf einem Bildschirm, alles abschreibbar.
 ├────────────────────────────────────────────────────────────────────────────┤
 │  Stand am:   [ heute ] [ +2 Wochen ] [ +4 Wochen ] [ Saisonende ]          │
 │              |──────────●─────────────────────────────|    12.10.2026      │
-│                                                                            │
 │  Erwarteter Lagerbestand an dem Tag:  [ 188.4 ] t    ( heute: 188.4 t )    │
-│  Annahme: alle Chargen gehen anteilig gleich raus                          │
 ├────────────────────────────────────────────────────────────────────────────┤
-│  Sorte / Charge    Schlag        Eingang       liegt seit  Im Lager   verk. │
+│  Sorte / Charge   Schlag      Eingang      liegt seit  Im Lager   verkaufs- │
 │                                                                     fähig  │
-│  v Tiana                                                   62.4 t  46.1 t  │
-│                                                                      74 %  │
-│      1632   Andi Ball    18.–24.03.   174–180 d            29.3 t  21.8 t  │
-│                                                                      74 %  │
-│      1641   Rüti         12.–19.04.   151–158 d            18.7 t  14.2 t  │
-│                                                                      76 %  │
-│      1655   Weid         03.–09.06.    92– 99 d            14.4 t  11.5 t  │
-│                                                                      80 %  │
-│  > Kaori Kuri                                              41.2 t  30.8 t  │
-│  > Butterkin                                               38.9 t  28.1 t  │
+│  v Tiana                                              62.4 t  46.1 t  74 % │
+│      1632  Andi Ball   18.–24.03.  174–180 d          29.3 t  21.8 t  74 % │
+│      1641  Rüti        12.–19.04.  151–158 d          18.7 t  14.2 t  76 % │
+│      1655  Weid        03.–09.06.   92– 99 d          14.4 t  11.5 t  80 % │
+│  > Kaori Kuri                                         41.2 t  30.8 t  75 % │
+│  > Butterkin                                          38.9 t  28.1 t  72 % │
 └────────────────────────────────────────────────────────────────────────────┘</div>
 
-<p>Ein Regler, eine Tabelle. Standardsortierung: <strong>schlechtester Anteil zuerst</strong> —
-das ist die Charge, die zuerst raus sollte. Zeilen ohne Anteil (noch keine Messung) stehen
-hinten, nicht vorn.</p>
+<p>Standardsortierung: <strong>schlechtester Anteil zuerst</strong> — das ist die Charge, die
+zuerst raus sollte. Zeilen ohne Anteil (noch keine Messung) stehen hinten, nicht vorn.</p>
 
-<h2>8.1 Eine Zeile aufgeklappt</h2>
+<h2>10.1 Eine Zeile aufgeklappt</h2>
 
 <div class="bild">   1632 · Tiana · Andi Ball · 93 Paletten · Eingang 36 946 kg
    ──────────────────────────────────────────────────────────────────
      Im Lager (Eingangsware)                        29 300 kg
         Wasser verloren                            −  2 308 kg   7.9 %
-        faul geworden                              −  2 852 kg   9.7 %
+        faul geworden                              −  2 852 kg   9.7 %  ●
      ──────────────────────────────────────────────────────────
      Gute Ware, heute tatsächlich da                24 140 kg
         zu klein / zu gross                        −  1 267 kg
@@ -553,56 +733,51 @@ hinten, nicht vorn.</p>
      VERKAUFSFÄHIG                                  22 576 kg  77.1 %
                                       Hülle  21 941 … 23 132 kg
    ──────────────────────────────────────────────────────────────────
-     davon noch nicht sortiert   18 400 kg
-     davon im Zwischenlager      10 900 kg   (sortiert 12.10.–03.11.)
-   ──────────────────────────────────────────────────────────────────
-     heute  ████████████████████░░░░░  12.10.   Anteil 77.1 % → 74.4 %</div>
+     ● aus 11 eigenen Messungen dieser Charge — 3.5 Punkte über ihrer Sorte
+     noch nicht sortiert 18 400 kg · im Zwischenlager 10 900 kg
+     heute  ████████████████████░░░░░  12.10.   77.1 % → 74.4 %</div>
 
-<p>Die Zeile „<strong>Wasser verloren − 2 308 kg</strong>" ist die, die du gemeint hast mit
-<em>„es ist eben nicht wenig"</em>. 7.9 % der liegenden Masse, an einer einzigen Charge, allein
-aus Verdunstung. Heute steht sie nirgends.</p>
+<p>Der Punkt <strong>●</strong> ist die Transparenz, die du verlangst: <em>„zeig an, dass es von
+spezifischen Messpunkten gerechnet wurde und nicht von Mittelmass."</em> Drei Zeichen genügen:
+<strong>●</strong> eigene Messungen · <strong>◐</strong> eigene, zum Mittel gezogen ·
+<strong>○</strong> Mittel der Sorte.</p>
 
-<h2>8.2 Was liegt in welchem Kaliber — und was die Kiste heute wirklich enthält</h2>
+<h2>10.2 Was in welchem Kaliber liegt</h2>
 
 <div class="bild">┌ Kaliber im Lager · Charge 1632 · Tiana  (nur sortierte Ware) ──────────────┐
+│  Kaliber        Stück   heute im   Ø Gewicht   Lage im Band                │
+│                         Lager      heute                                   │
+│   500– 800 g    4 120    2 980 kg     690 g    |=====@---------|   63 %    │
+│   800–1300 g    9 340    8 210 kg   1 040 g    |====@----------|   48 %    │
+│  1300–1800 g    3 110    3 440 kg   1 470 g    |===@-----------|   34 %    │
+│  1800–2000 g      410      520 kg   1 852 g    |==@------------|   26 %    │
 │                                                                            │
-│  Kaliber        Stück    heute im    Ø Gewicht   Lage im Band              │
-│                          Lager       heute                                 │
-│   500– 800 g    4 120     2 980 kg      690 g    |=====@---------|   63 %  │
-│   800–1300 g    9 340     8 210 kg    1 040 g    |====@----------|   48 %  │
-│  1300–1800 g    3 110     3 440 kg    1 470 g    |===@-----------|   34 %  │
-│  1800–2000 g      410       520 kg    1 852 g    |==@------------|   26 %  │
-│                                                                            │
-│  Bei der Sortierung lagen dieselben Kisten bei 71 % / 55 % / 41 % / 32 %.  │
-│  Der Unterschied ist die Verdunstung — die Kürbisse wandern nach unten.    │
+│  Bei der Sortierung: 71 % / 55 % / 41 % / 32 %.                            │
+│  Der Unterschied ist die Verdunstung — die Ware wandert nach unten.        │
 └────────────────────────────────────────────────────────────────────────────┘
 
 ┌ Achtung ───────────────────────────────────────────────────────────────────┐
 │  Kaori Kuri, Kaliber 1600–2000 g:  Ø heute 1 544 g                        │
-│  Das ist UNTER der Grenze, die auf der Kiste steht.                       │
-│  Bei der Sortierung waren es 1 644 g (11 % im Band) — nach 120 Tagen      │
-│  liegt der Schnitt darunter.  →  Diese Ware sollte zuerst raus.           │
+│  Das ist UNTER der Grenze, die auf der Kiste steht.  →  zuerst raus.       │
 └────────────────────────────────────────────────────────────────────────────┘</div>
 
-<div class="warum neu"><b>Woher das kommt — ohne eine einzige neue Frage</b>
-Die Sortier-CSV enthält <strong>jeden Kürbis einzeln in Gramm</strong>. Verschiebt man das ganze
-Histogramm um die gemessene Verdunstung und klassiert neu, bekommt man beides: wie viel heute in
-welchem Band liegt, und wo im Band die Ware steht. Gemessen über 91 101 Kürbisse der Demo
-rutschen nach 180 Tagen <strong>1 806 Stück (2.0 %)</strong> unter die unterste Kalibergrenze.
-Reine Auswertung — nichts davon muss erfasst werden.</div>
+<div class="warum neu"><b>Ohne eine einzige neue Frage</b>
+Die Sortier-CSV enthält jeden Kürbis einzeln in Gramm. Verschiebt man das Histogramm um die
+gemessene Verdunstung und klassiert neu, bekommt man beides: wie viel heute in welchem Band
+liegt und wo im Band die Ware steht. Über 91 101 Kürbisse der Demo rutschen nach 180 Tagen
+<strong>1 806 Stück (2.0 %)</strong> unter die unterste Grenze — zu klein wächst also doch mit
+der Lagerdauer, ein bisschen.</div>
 
 </div>
 
 <div class="kap">
-<div class="kap-nr">Kapitel 9</div>
-<h1>Reiter 2 — Rückblick: was ist tatsächlich passiert?</h1>
-<p class="kap-vor">Nicht erst am Saisonende, aber vor allem dann. Zwei Fragen: <em>Warum habe
-ich weniger, als ich eingelagert habe?</em> Und: <em>Wann genau ist es passiert?</em></p>
+<div class="kap-nr">Kapitel 11</div>
+<h1>Reiter 2 — Rückblick: was ist passiert, und wann?</h1>
+<p class="kap-vor">Zwei Fragen, zwei Grafiken. Mehr nicht.</p>
 
-<h2>9.1 Die eine Grafik, die alles aufteilt</h2>
+<h2>11.1 Warum habe ich weniger, als ich eingelagert habe?</h2>
 
 <div class="bild">┌ Wohin ist der Kürbis gegangen?   323.3 t Eingang = 100 % ─────────────────┐
-│                                                                            │
 │  ausgeliefert           115.8 t  ████████████████████████        35.8 %    │
 │  noch im Lager          154.3 t  ████████████████████████████    47.7 %    │
 │  ──────────────────────────────  echter Verlust ──────────────────────     │
@@ -616,126 +791,116 @@ ich weniger, als ich eingelagert habe?</em> Und: <em>Wann genau ist es passiert?
 │  Geht die Rechnung auf?          Differenz  − 0.01 kg     ✓                │
 └────────────────────────────────────────────────────────────────────────────┘</div>
 
-<p>Die letzte Zeile ist die wichtigste des ganzen Dashboards. Sie misst, was das Modell
-<strong>nicht</strong> sieht — nicht erfasste Abgänge, Erde, im Feld Aussortiertes. Sie ist keine
-Fehlermeldung, sondern das stärkste Argument, wenn sie klein ist.</p>
+<p>Die letzte Zeile misst, was das Modell <strong>nicht</strong> sieht — nicht erfasste Abgänge,
+Erde, im Feld Aussortiertes. Keine Fehlermeldung, sondern das stärkste Argument, wenn sie klein
+ist.</p>
 
-<h2>9.2 Wann ist es faul geworden?</h2>
+<h2>11.2 Wann ist es faul geworden?</h2>
 
-<p>Das ist die Frage, die du neu gestellt hast — und sie braucht etwas, das es heute nicht gibt:
-die <strong>gemessenen</strong> Palox-Anteile in ihrer zeitlichen Reihenfolge, je Charge. Nicht
-die Modellkurve, sondern die Rohpunkte.</p>
+<p>Die Grafik aus Kapitel 6.4 — die gemessenen Punkte in ihrer zeitlichen Reihenfolge, je Charge,
+mit automatischer Sprungerkennung. Darunter dieselben Daten als Tabelle, sortierbar nach dem
+grössten Sprung:</p>
 
-<div class="bild">┌ Anteil faul am Verarbeitungstag  —  gemessen, nicht gerechnet ────────────┐
-│                                                                            │
-│  15 % |                                                    *               │
-│       |                                               *                    │
-│       |                                          *          <- 1632 Tiana  │
-│  10 % |                               *     *                              │
-│       |                     *    *                                         │
-│       |           *    *                        o    o   o  <- 1641 Tiana  │
-│   5 % |      *                            o  o                             │
-│       |  *                      o    o                                     │
-│       |            o   o   o                                               │
-│   0 % +---+----+----+----+----+----+----+----+----+----+----+----          │
-│         Sep  Okt  Nov  Dez  Jan  Feb  Mär                                  │
-│                                                                            │
-│  Auffällig:  1632 springt zwischen 12.12. und 04.01. von 6.1 % auf 13.4 %  │
-│              — bei nur drei Wochen Abstand.  [ Charge ansehen ]            │
-└────────────────────────────────────────────────────────────────────────────┘</div>
+<div class="bild">  Charge  Sorte       Messungen  Zeitraum         grösster Sprung
+  1632    Tiana           11      06.09.–14.03.    +7.3 Pkt.  12.12.→04.01.
+  1617    Kaori Kuri       8      21.09.–02.02.    +3.1 Pkt.  15.11.→30.11.
+  1641    Tiana            9      12.10.–10.03.    +1.4 Pkt.  08.01.→22.01.</div>
 
-<p>Genau dein Beispiel: <em>„plötzlich ab Dezember — dieser Kürbis wurde faul, fast vollständig
-auf einen Schlag."</em> Im Bild ist das ein Knick, in einer Tabelle ist es unsichtbar. Deshalb
-verdient es die zweite von drei Grafiken.</p>
+<h2>11.3 Und die Verdunstung über die Saison</h2>
 
-<p>Darunter dieselben Daten als Tabelle — je Charge die Messungen der Reihe nach, mit der
-Veränderung zur vorigen, sortierbar nach dem grössten Sprung:</p>
+<p>Sobald Kontrollpaletten laufen (Kapitel 5.3), gehört hierher die zweite Hälfte derselben
+Frage — <em>wann</em> verdunstet es am meisten:</p>
 
-<div class="bild">  Charge  Sorte    Messungen   Zeitraum          grösster Sprung
-  1632    Tiana        11       06.09.–14.03.     +7.3 Pkt.  12.12.→04.01.
-  1617    Kaori Kuri    8       21.09.–02.02.     +3.1 Pkt.  15.11.→30.11.
-  1641    Tiana         9       12.10.–10.03.     +1.4 Pkt.  08.01.→22.01.</div>
+<div class="bild">  Verdunstung je Tag, gemessen an den Kontrollpaletten
+  0.10 % |  *
+         |     *
+  0.05 % |        *    *
+         |                  *    *    *    *
+  0.00 % +----+----+----+----+----+----+----+----
+          Sep  Okt  Nov  Dez  Jan  Feb  Mär
 
-<div class="warum neu"><b>Was das für die Erhebung heisst</b>
-Nichts Neues — die Punkte entstehen bei jeder Arbeit ohnehin. Aber es macht zwei Dinge aus
-Kapitel 1 und 3 <em>sichtbar wertvoll</em>: Nur wenn die Palox-Menge je Arbeit stimmt (zwei
-Ablesungen) und das Alter je Arbeit stimmt (Sortierdatum), liegen die Punkte an der richtigen
-Stelle. Ein übernommener Stand aus der Vorarbeit hätte einen Sprung erzeugt, den es gar nicht
-gab.</div>
+  Schockphase und Jahresgang in einer Linie — heute nicht messbar.</div>
 
-<h2>9.3 Und die Frage „wo verliere ich am meisten"</h2>
+<h2>11.4 Wo verliere ich am meisten</h2>
 
-<div class="bild">  Je Sorte, Anteil des Eingangs             faul    Wasser   klein/gross
-  ──────────────────────────────────────────────────────────────────────
-  Tiana            96.2 t Eingang          9.1 %    7.8 %      3.9 %
-  Kaori Kuri       71.4 t                  7.4 %    7.1 %      5.2 %
-  Butterkin        58.9 t                  6.2 %    9.4 %      1.5 %
-  ──────────────────────────────────────────────────────────────────────
+<div class="bild">  Je Sorte, Anteil des Eingangs        faul    Wasser   klein/gross  Herkunft
+  ────────────────────────────────────────────────────────────────────────────
+  Tiana          96.2 t Eingang        9.1 %   7.8 %      3.9 %       ● 25 M.
+  Kaori Kuri     71.4 t                7.4 %   7.1 %      5.2 %       ● 18 M.
+  Butterkin      58.9 t                6.2 %   9.4 %      1.5 %       ◐  4 M.
+  Orangita       12.1 t                9.6 %   5.2 %      6.1 %       ○  Mittel
+  ────────────────────────────────────────────────────────────────────────────
   Je Schlag, dieselbe Aufteilung  [ umschalten ]</div>
 
-<p>Sortierbar nach jeder Spalte. Eine Zeile anklicken filtert die Grafik oben. Kein zweites
-Diagramm — dieselbe Grafik, andere Auswahl.</p>
+<p>Eine Zeile anklicken filtert die Grafiken oben. Kein drittes Diagramm — dieselben Grafiken,
+andere Auswahl. Und in jeder Zeile steht, worauf die Zahl beruht.</p>
 
 </div>
 
 <div class="kap">
-<div class="kap-nr">Kapitel 10</div>
+<div class="kap-nr">Kapitel 12</div>
 <h1>Reiter 3 — Extras aus den Daten</h1>
-<p class="kap-vor">Was die Daten hergeben, ohne dass es jemand gefragt hätte. Nichts davon ist
-Tagesgeschäft; alles davon ändert irgendwann eine Entscheidung.</p>
+<p class="kap-vor">Kein Tagesgeschäft, aber alles davon ändert irgendwann eine Entscheidung.</p>
+
+<h2>12.1 Was eine Kiste wirklich wiegt — beide Systeme</h2>
+
+<div class="bild">┌ Kisten nach Gewicht  („ab 8 kg")   →  Geben wir 8.5 statt 8? ─────────────┐
+│  ·········· gemessen, steht immer ··········  ···· braucht Verkaufsdatei ··│
+│  Sorte      Gebinde     Soll   Ø gewogen   Wägungen   verkauft  verschenkt │
+│  Tiana      IFCO 4314   8.0    8.48 +0.48   28 Pal.     2 475    1 191 kg  │
+│  Mieluna    IFCO 6416  10.0   10.37 +0.37    4 Pal.       821      302 kg  │
+│  Tiana      IFCO 6416   8.0    8.21 +0.21    6 Pal.         —        —     │
+└────────────────────────────────────────────────────────────────────────────┘
+
+┌ Kisten nach Stück  →  Wo im Band liegt die Ware? ─────────────────────────┐
+│  Sorte    Gebinde    Kaliber       Ø je Stück   Lage im Band              │
+│  Amoro    IFCO 4314  1100–1600 g     1 329 g    |====@---------|   46 %   │
+│  Tiana    IFCO 4314  1100–1850 g     1 750 g    |===========@--|   87 %  !│
+│  K. Kuri  IFCO 4314  1600–2000 g     1 644 g    |@-------------|   11 %  !│
+│                                                                            │
+│  ! 87 %  Wir geben fast die Oberkante — 275 g je Kürbis unbezahlt.        │
+│  ! 11 %  Schon bei der Sortierung an der Unterkante; nach 60 Tagen        │
+│          liegt der Schnitt unter dem, was auf der Kiste steht.            │
+└────────────────────────────────────────────────────────────────────────────┘</div>
+
+<p>Eine Skala, zwei Gefahren, beide teuer. Genau deine beiden Fragen — und beide brauchen
+dieselbe Wägung.</p>
+
+<h2>12.2 Die übrigen Extras</h2>
 
 <table class="eng">
-<thead><tr><th style="width:44mm">Was</th><th>Woraus, und was es beantwortet</th></tr></thead>
+<thead><tr><th style="width:42mm">Was</th><th>Woraus, und was es beantwortet</th></tr></thead>
 <tbody>
-<tr><td><strong>Erntequalität je Schlag</strong></td><td>Aus der Sortier-CSV: Anteil „zu klein" je Schlag und Erntewoche. In der Demo 1 % bis 10 % — <em>bei derselben Sorte</em>. Das ist eine Rückmeldung an die Erntemannschaft, kein Lagerbefund.</td></tr>
-<tr><td><strong>Kalibermitte je Sorte</strong></td><td>Aus zehntausenden einzeln gewogenen Kürbissen. Beantwortet: „Kaliber 1100–1600 — wiegen die 1200 oder 1700?" Und damit: ist das Band gut geschnitten?</td></tr>
-<tr><td><strong>Was eine Kiste wirklich wiegt</strong></td><td>Je <strong>Sorte × Gebinde × System</strong> aus den gewogenen fertigen Paletten. Links die Messung (steht immer), rechts die Hochrechnung auf verkaufte Kisten (braucht die Verkaufsdatei).</td></tr>
-<tr><td><strong>Was das Warten kostet</strong></td><td>Fax-Faules nach Tagen seit dem Waschen. In der Demo: 1.31 % bei 0–1 Tagen gegen 2.34 % bei 2–3 Tagen, und die Bereiche überlappen sich nicht.</td></tr>
+<tr><td><strong>Erntequalität je Schlag</strong></td><td>Aus der Sortier-CSV: Anteil „zu klein" je Schlag und Erntewoche. In der Demo 1 % bis 10 % <em>bei derselben Sorte</em> — eine Rückmeldung an die Erntemannschaft, kein Lagerbefund.</td></tr>
+<tr><td><strong>Kalibermitte je Sorte</strong></td><td>Aus zehntausenden einzeln gewogenen Kürbissen. Beantwortet: Ist das Band gut geschnitten?</td></tr>
+<tr><td><strong>Was das Warten kostet</strong></td><td>Fax-Faules nach Tagen seit dem Waschen: 1.31 % bei 0–1 Tagen gegen 2.34 % bei 2–3 Tagen, Bereiche überlappen nicht.</td></tr>
 <tr><td><strong>Tempo je Tätigkeit</strong></td><td>kg je Stunde und je Person, Median statt Mittel.</td></tr>
 </tbody>
 </table>
 
-<h2>10.1 Ein Entwurf: „Was eine Kiste wirklich wiegt"</h2>
-
-<div class="bild">┌ Kisten nach Gewicht  („ab 8 kg")  ────────────────────────────────────────┐
-│  ·········· gemessen, steht immer ··········  ···· braucht Verkaufsdatei ··│
-│  Sorte      Gebinde     Soll   Ø gewogen   Wägungen  verkauft   verschenkt │
-│  Tiana      IFCO 4314   8.0    8.48  +0.48  28 Pal.    2 475     1 191 kg  │
-│  Mieluna    IFCO 6416  10.0   10.37  +0.37   4 Pal.      821       302 kg  │
-│  Tiana      IFCO 6416   8.0    8.21  +0.21   6 Pal.        —         —     │
-└────────────────────────────────────────────────────────────────────────────┘
-
-┌ Kisten nach Stück  („6 Stück je Kiste")  ─────────────────────────────────┐
-│  Sorte      Gebinde    Kaliber      aus der CSV      aus Paletten   Lage   │
-│  Amoro      IFCO 4314  1100–1600 g  1 329 g (5 134)  1 272 g (4)    46 %   │
-│  Kaori Kuri IFCO 4314  1600–2000 g  1 644 g (3 399)  1 601 g (3)    11 %   │
-└────────────────────────────────────────────────────────────────────────────┘</div>
-
-<p>Zwei unabhängige Quellen nebeneinander — die CSV wiegt vor dem Waschen, die Palette danach.
-Weichen sie ab, ist das selbst ein Befund. Und fehlt die Verkaufsdatei, steht rechts „—" und ein
-Satz, was fehlt: Die Karte sieht dann nicht nach Fehler aus, denn die Messung links ist
-vollständig.</p>
-
-<h2>10.2 Was ich für den Lagerrechner noch klären will</h2>
-
-<p>Du hast bei Frage 18 selbst gesagt „gute Frage, idk — Mittelmass". Ich nehme das als
-Ausgangspunkt: <strong>alle Chargen gehen anteilig gleich raus.</strong> Aber drei Dinge würde
-ich gern zusammen durchdenken, bevor ich das baue:</p>
+<h2>12.3 Drei Grafiken im ganzen Dashboard</h2>
 
 <table class="eng">
-<thead><tr><th style="width:10mm">&nbsp;</th><th style="width:44mm">Frage</th><th>Warum es das Ergebnis ändert</th></tr></thead>
+<thead><tr><th style="width:10mm">&nbsp;</th><th style="width:40mm">Grafik</th><th>Warum hier keine Tabelle genügt</th></tr></thead>
 <tbody>
-<tr><td><strong>a</strong></td><td>Wenn du „am 1.2. noch 80 t" eingibst — willst du dann sehen, was <em>dann</em> verkaufsfähig ist, oder was du bis dahin <em>verloren</em> hast?</td><td>Beides ist rechenbar, aber es sind zwei verschiedene Bildschirme.</td></tr>
-<tr><td><strong>b</strong></td><td>Soll der Rechner auch <em>rückwärts</em> können: „ich will am 1.2. noch 60 t verkaufsfähig haben — wie viel muss ich bis dahin raus haben?"</td><td>Das ist die Frage, die im Oktober tatsächlich ansteht.</td></tr>
-<tr><td><strong>c</strong></td><td>Willst du je Charge eingreifen können („diese verkaufe ich zuerst"), oder ist anteilig gut genug?</td><td>Anteilig ist eine Annahme; ein Eingriff wäre ein Plan. Der Plan wäre nützlicher, aber auch mehr Arbeit für dich.</td></tr>
+<tr><td><strong>1</strong></td><td>Wohin geht der Kürbis <em>(Reiter 2)</em></td><td>Die Frage ist, wie sich die Posten <em>zueinander</em> verhalten. Ein Balken zeigt das in einer Sekunde.</td></tr>
+<tr><td><strong>2</strong></td><td>Wann ist es faul geworden <em>(Reiter 2)</em></td><td>Ein <em>Sprung</em> ist eine Form. „Ab Dezember plötzlich" sieht man im Bild sofort und in Zahlen nie.</td></tr>
+<tr><td><strong>3</strong></td><td>Lage im Band <em>(Reiter 1 und 3)</em></td><td>Eine Position zwischen zwei Grenzen — genau genommen keine Grafik, sondern ein Zeichen in der Tabelle.</td></tr>
 </tbody>
 </table>
 
-<div class="warum neu"><b>Und der Vorschlag zur Reihenfolge</b>
-Reiter 1 zuerst — er hilft ab dem ersten Tag und braucht nur Daten, die es ab Tag eins gibt
-(Eingang, Lieferungen). Die Prognose darin wird von Woche zu Woche besser, je mehr Messungen
-zusammenkommen. Reiter 2 wird erst ab Weihnachten richtig interessant, Reiter 3 am Saisonende.
-Gebaut werden kann alles in dieser Reihenfolge — und nichts davon berührt die Erfassung.</div>
+<p>Alles andere wird Tabelle, mit Balken <em>in</em> der Zelle wo es hilft. Weg fallen: das
+Flächendiagramm „Was wird aus der liegenden Ware" (77 % → 59 % über sechs Monate sieht fast flach
+aus), die Streubilder und Modellkurven (sie sind der Beleg, nicht die Antwort — sie gehören nach
+„Messungen") und der Wochenverlauf mit fünf Linien.</p>
+
+<h2>12.4 Vorschlag zur Reihenfolge</h2>
+
+<p><strong>Reiter 1 zuerst.</strong> Er hilft ab dem ersten Tag und braucht nur Daten, die es ab
+Tag eins gibt — Eingang und Lieferungen. Die Prognose darin wird von Woche zu Woche besser, je
+mehr Messungen zusammenkommen. <strong>Reiter 2</strong> wird ab Weihnachten richtig interessant,
+<strong>Reiter 3</strong> am Saisonende. Alles davon ist reine Auswertung und berührt die
+Erfassung nicht — gebaut werden kann es, wann es passt.</p>
 
 </div>
 

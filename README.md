@@ -664,7 +664,7 @@ Was jede Ansicht bedeutet, steht in [`docs/DATENFLUSS.md`](docs/DATENFLUSS.md).
 
 | Datei | Worum es geht |
 |---|---|
-| [`docs/Das-ganze-Werkzeug.pdf`](docs/Das-ganze-Werkzeug.pdf) | **Verständnis und Dashboard.** Teil I: wie der Betrieb verstanden wird — Palox, Alter, Nenner, Station für Station, und was unsicher bleibt. Teil II: Entwürfe für die drei neuen Reiter, mit Skizzen. Zum Prüfen vor dem Scharfschalten der Datenerfassung. 17 Seiten. |
+| [`docs/Das-ganze-Werkzeug.pdf`](docs/Das-ganze-Werkzeug.pdf) | **Verständnis und Dashboard.** Teil I: wie der Betrieb verstanden wird — die Annahmen einzeln zum Abhaken, Palox, Alter, Verdunstung ohne feste Rate, Verderb je Charge, der Nenner beim Waschen und der Gebindewechsel. Teil II: Entwürfe für die drei neuen Reiter. Zum Prüfen vor dem Scharfschalten der Datenerfassung. 19 Seiten. |
 | [`docs/Das-Programm-erklaert.pdf`](docs/Das-Programm-erklaert.pdf) | **Das ganze Programm in zwei Teilen.** Teil 1: was im Betrieb passiert, was die App an jeder Stelle fragt, was dabei gespeichert wird und warum genau so — jede Maske einzeln. Teil 2: Datenmodell, Sichtenkette, Massenkaskade, Verderbsmodell, Unsicherheit, Import, Sicherheit, Tempo, Prüfwerk und die ehrlichen Grenzen. 33 Seiten. |
 | [`docs/Ablauf-Betrieb-und-App.pdf`](docs/Ablauf-Betrieb-und-App.pdf) | **Der Einstieg.** Station für Station: was physisch passiert, was die App fragt, was Pflicht und was freiwillig ist — und was sie mit der Antwort anfängt. |
 | [`docs/Datenarchitektur.pdf`](docs/Datenarchitektur.pdf) | **Wie die Daten gespeichert werden** — damit die Analyse später komplett anders aussehen darf, ohne dass ein Messwert verloren geht. |
