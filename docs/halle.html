@@ -1,0 +1,1039 @@
+<!doctype html>
+<html lang="de"><head><meta charset="utf-8">
+<title>Die Arbeiter-App — Ablauf und Erfassung</title>
+<!--STIL-->
+<style>
+.bild{font-family:'DejaVu Sans Mono',monospace;font-size:7.2pt;line-height:1.3;
+  background:#fbfaf7;border:.6pt solid #e2ded4;padding:2.4mm 2.8mm;margin:2.2mm 0 2.8mm;
+  break-inside:avoid;white-space:pre;overflow:hidden}
+.rechnung{font-family:'DejaVu Sans Mono',monospace;font-size:8pt;line-height:1.42;
+  background:#fbfaf7;border:.6pt solid #e2ded4;padding:2mm 2.8mm;margin:1.8mm 0 2.4mm;
+  break-inside:avoid;white-space:pre;overflow:hidden}
+.warum{font-size:8.7pt;background:#f7f6f3;border-left:2.2pt solid #8a8578;padding:1.6mm 2.8mm;
+  margin:1.4mm 0 2.4mm;break-inside:avoid}
+.warum b{font-family:'Inter',sans-serif;font-size:7.4pt;letter-spacing:.08em;text-transform:uppercase;
+  color:#6a6558;display:block;margin-bottom:.5mm}
+.neu{background:#fdfaef;border-left-color:#b0530f}
+.neu b{color:#b0530f}
+.frage{font-size:8.7pt;background:#f4f7f8;border-left:2.2pt solid #4a7c8c;padding:1.6mm 2.8mm;
+  margin:1.4mm 0 2.4mm;break-inside:avoid}
+.frage b{font-family:'Inter',sans-serif;font-size:7.4pt;letter-spacing:.08em;text-transform:uppercase;
+  color:#3a6675;display:block;margin-bottom:.5mm}
+.kap{break-before:page;padding-top:1mm}
+.kap-nr{font-family:'Inter',sans-serif;font-size:8pt;font-weight:700;letter-spacing:.16em;
+  text-transform:uppercase;color:#b0530f}
+.kap h1{font-size:15pt;margin:.4mm 0 1.2mm;line-height:1.18;color:#111}
+.kap-vor{font-size:9.4pt;color:#444;margin:0 0 3.4mm;max-width:142mm;font-style:italic}
+.sp{color:#b0530f;font-family:'DejaVu Sans Mono',monospace;font-size:8.1pt}
+table.eng{font-size:7.7pt}
+table.eng td,table.eng th{padding:.65mm 1.2mm;vertical-align:top}
+.kopfzeile{border-bottom:1.4pt solid #b0530f;padding-bottom:1.6mm;margin-bottom:3.4mm}
+.kopfzeile .ober{font-family:'Inter',sans-serif;font-size:8pt;font-weight:700;letter-spacing:.14em;
+  text-transform:uppercase;color:#b0530f}
+.kopfzeile h1{font-size:19pt;margin:.6mm 0 1mm;line-height:1.12}
+.kopfzeile p{font-size:9.2pt;color:#444;margin:0;max-width:152mm}
+.ein{font-size:8.8pt;color:#555;margin:-.6mm 0 2.2mm;padding-left:2.6mm;border-left:1.6pt solid #e2ded4}
+</style>
+</head><body>
+
+<div class="kopfzeile">
+  <div class="ober">Kürbis-Verlust-Tracking</div>
+  <h1>Die Arbeiter-App: Ablauf und Erfassung</h1>
+  <p>Station für Station: <strong>was in der Halle passiert</strong>, <strong>was der Arbeiter
+  tippt</strong>, <strong>was gespeichert wird</strong> und <strong>welche Zahl daraus wird</strong>.
+  Zum Kontrollieren, bevor die Erfassung scharf geschaltet wird — danach soll an der Halle nichts
+  mehr geändert werden. <span class="sp">ändert sich</span> markiert, was gegenüber heute neu
+  wäre. Die blauen Kästen sind meine Fragen an dich.</p>
+</div>
+
+<h2>Die vier Tätigkeiten im Überblick</h2>
+
+<table class="eng">
+<thead><tr><th style="width:26mm">Tätigkeit</th><th style="width:36mm">Was hineingeht</th><th style="width:34mm">Was herauskommt</th><th>Was dabei gemessen wird</th></tr></thead>
+<tbody>
+<tr><td><strong>Sortieren</strong><br>an der Maschine</td><td>Eingangspaletten aus dem Lager (G2)</td><td>Kaliber-Paletten ins Zwischenlager (G2)</td><td>Palox · Sortier-CSV (jeder Kürbis gewogen) · Eingangsdatum je Palette</td></tr>
+<tr><td><strong>Waschen + Sortieren</strong><br>von Hand am Band</td><td>Eingangspaletten aus dem Lager (G2)</td><td>fertige Paletten (IFCO) → raus</td><td>Palox · Ausschuss je Palette gewogen · Zettelgewicht je Palette · fertige Paletten</td></tr>
+<tr><td><strong>Waschen</strong><br>an der Waschstrasse</td><td>Kaliber-Paletten aus dem Zwischenlager (G2)</td><td>fertige Paletten (IFCO) → raus</td><td>Palox · Sortierdatum je Palette · fertige Paletten</td></tr>
+<tr><td><strong>Fax</strong><br>am Abpacktisch</td><td>fertige Paletten (IFCO)</td><td>verkaufsfertige Ware</td><td>Faules kistenweise gewogen · Palettenzahl · Tage seit dem Waschen</td></tr>
+</tbody>
+</table>
+
+<div class="bild">FELD ──► WARENEINGANG (Brückenwaage) ──► EINGANGSPALETTE, G2
+                                              |
+              +-------------------------------+-------------------------------+
+              v                                                               v
+    WASCHEN + SORTIEREN                                              SORTIEREN
+    (von Hand am Band)                                               (Maschine)
+              |                                                               |
+              |                                             KALIBER-PALETTE, G2
+              |                                             Zettel: Charge + Sortierdatum
+              |                                                               |
+              |                                                        WASCHEN
+              |                                                               |
+              +-------------------------------+-------------------------------+
+                                              v
+                                   FERTIGE PALETTE, IFCO
+                                   Gebinde wechselt hier!
+                                              v
+                                            FAX
+                                              v
+                                       WARENAUSGANG</div>
+
+<div class="warum neu"><b>Die Stelle, an der man sich am leichtesten vertut</b>
+Beim Waschen <strong>wechselt das Gebinde</strong>: G2 voll gestapelt hinein, IFCO nicht voll
+heraus. Drei Paletten rein können vier Paletten raus werden. Eine „Palette" ist auf beiden Seiten
+etwas anderes — und deshalb darf keine Rechnung Eingangs- und Ausgangspaletten gleichsetzen.</div>
+
+<div class="frage"><b>Frage 1 — die Reihenfolge</b>
+Stimmt das Bild? Konkret: Kann eine Eingangspalette auch <em>direkt</em> zum Waschen gehen, ohne
+vorher sortiert worden zu sein? Und geht die fertige Palette immer über Fax, oder verlässt
+manches den Betrieb auch ohne Abpacken?</div>
+
+<div class="kap">
+<div class="kap-nr">Kapitel 1</div>
+<h1>Die Grundregeln — warum die App so fragt, wie sie fragt</h1>
+<p class="kap-vor">Vier Regeln bestimmen jede einzelne Maske. Wenn eine davon nicht zum Betrieb
+passt, ist die ganze Erfassung schief.</p>
+
+<h2>1.1 Gespeichert wird, was beobachtet wurde — nie das, was daraus folgt</h2>
+
+<table class="eng">
+<thead><tr><th style="width:42mm">Gespeichert</th><th style="width:34mm">Nicht gespeichert</th><th>Warum</th></tr></thead>
+<tbody>
+<tr><td>Der Waagenstand am Palox</td><td>die Menge Faules</td><td>Die Menge ist eine Differenz. War eine Ablesung falsch getippt, lässt sich alles Folgende neu rechnen — die Beobachtung ist nicht verloren.</td></tr>
+<tr><td>Brutto, Kistenzahl, Gebinde</td><td>das Nettogewicht</td><td>Dasselbe. Fehlt eine Tara in den Stammdaten, wird sie nachgetragen und alles rechnet neu.</td></tr>
+<tr><td>Das Datum <em>vom Zettel</em>, auch wenn es offensichtlich falsch ist</td><td>ein stillschweigend korrigiertes Datum</td><td>Die Auswertung meldet es als Auffälligkeit. <strong>Eine korrigierte Beobachtung lässt sich nie zurückholen, eine gemeldete schon.</strong></td></tr>
+</tbody>
+</table>
+
+<h2>1.2 Leer ist nicht null</h2>
+
+<p>Wird etwas nicht gemessen, bleibt es <strong>unbekannt</strong> — nicht null. Eine Arbeit ohne
+Palox-Ablesung hat keine Faul-Menge; sie hat nicht null Kilo Faules. Deshalb gibt es überall
+Knöpfe wie <em>„Nichts Faules"</em> und <em>„Stand unverändert"</em>: Sie schreiben eine
+<strong>echte Null</strong>, und die ist etwas völlig anderes als ein ausgelassenes Feld.</p>
+
+<h2>1.3 Jede Messung hat einen Urheber und ein Korrekturfenster</h2>
+
+<table class="eng">
+<tbody>
+<tr><td style="width:42mm"><strong>Erfassen</strong></td><td>Jeder Angemeldete, unter seinem eigenen Namen. Der Name steht bei jeder Zeile.</td></tr>
+<tr><td><strong>Berichtigen</strong></td><td>Die eigene Zeile, <strong>12 Stunden lang</strong>. Danach nur noch der Betriebsleiter. Ein Tippfehler fällt in derselben Schicht auf; danach ist es keine Korrektur mehr, sondern eine Änderung der Geschichte.</td></tr>
+<tr><td><strong>Stammdaten</strong></td><td>Nur der Betriebsleiter — Chargen, Paletten, Gebinde-Taras, Lieferungen.</td></tr>
+</tbody>
+</table>
+
+<h2>1.4 Zugang ohne Konto, sechs Sprachen</h2>
+
+<p>Der QR-Code an der Wand enthält nur die Adresse. Der Arbeiter scannt, tippt <strong>einmal
+seinen Namen</strong>, und ist drin — kein Konto, keine Mail, kein Passwort. Das Handy merkt es
+sich. Die Sprachwahl (Deutsch, English, Magyar, Română, Polski, Português) erscheint
+<strong>beim ersten Öffnen an jedem Tag</strong>, weil die Handys weitergereicht werden.</p>
+
+<div class="frage"><b>Frage 2 — wie gearbeitet wird</b>
+Wie viele Leute stehen an einer Station, und wie viele Handys sind im Spiel? Die App geht davon
+aus, dass <strong>einer die Arbeit führt</strong> (Palox ablesen, Abschluss) und die anderen
+höchstens mitzählen. Stimmt das? Und was passiert bei einem Schichtwechsel mitten in einer
+Arbeit — wird sie abgeschlossen und eine neue begonnen?</div>
+
+</div>
+
+<div class="kap">
+<div class="kap-nr">Kapitel 2</div>
+<h1>Eine Arbeit anlegen</h1>
+<p class="kap-vor">Alles, was gemessen wird, hängt an einer <em>Arbeit</em>: eine Station, eine
+Charge, ein Zeitraum, eine Handvoll Leute. Der Assistent fragt nur, was die gewählte Tätigkeit
+wirklich braucht.</p>
+
+<h2>2.1 Schritt 1 — was machst du?</h2>
+
+<div class="bild">  ┌──────────────────────────────────────────────┐
+  │  Was machst du?                              │
+  │  ┌────────────────────────────────────────┐  │
+  │  │ Sortieren                              │  │
+  │  │ An der Sortiermaschine                 │  │
+  │  ├────────────────────────────────────────┤  │
+  │  │ Waschen                                │  │
+  │  │ Am Waschbecken, aus Kaliber-Kisten     │  │
+  │  ├────────────────────────────────────────┤  │
+  │  │ Waschen + Sortieren                    │  │
+  │  │ An der Waschstrasse, von Hand am Band  │  │
+  │  ├────────────────────────────────────────┤  │
+  │  │ Fax                                    │  │
+  │  │ Etikettieren und abpacken              │  │
+  │  └────────────────────────────────────────┘  │
+  └──────────────────────────────────────────────┘</div>
+
+<h2>2.2 Schritt 2 — welche Charge?</h2>
+
+<p>Die Chargennummer wird <strong>getippt, nicht aus einer Liste gewählt</strong>: In der Halle
+steht sie auf dem Zettel, und vier Ziffern zu tippen ist schneller als vierzig Einträge zu
+durchsuchen. Eine unbekannte Nummer wird rot gemeldet und <em>nicht</em> still angelegt — eine
+erfundene Charge hätte keinen Eingang, und alles, was daran hängt, stünde ohne Bezugsmasse da.</p>
+
+<h2>2.3 Die weiteren Schritte, je nach Tätigkeit</h2>
+
+<table class="eng">
+<thead><tr><th style="width:30mm">Tätigkeit</th><th>Schritte</th></tr></thead>
+<tbody>
+<tr><td><strong>Sortieren</strong></td><td>was → charge → <strong>Kaliberbänder</strong> → prüfen &nbsp;<em>(4)</em></td></tr>
+<tr><td><strong>Waschen</strong></td><td>was → charge → <strong>Kaliber</strong> → <strong>Kistensystem</strong> → prüfen &nbsp;<em>(5)</em></td></tr>
+<tr><td><strong>Waschen + Sortieren</strong></td><td>was → charge → <strong>Kistensystem</strong> → [Kaliberbänder, nur bei „x Stück je Kiste"] → prüfen &nbsp;<em>(4–5)</em></td></tr>
+<tr><td><strong>Fax</strong></td><td>was → charge → <strong>Kistensystem</strong> → prüfen &nbsp;<em>(4)</em></td></tr>
+</tbody>
+</table>
+
+<h2>2.4 Die Kaliberbänder</h2>
+
+<p>Sie werden als <strong>Grenzen</strong> eingegeben, nicht als Bänder — lückenlos per Bauart:</p>
+
+<div class="rechnung">[ 500 ] [ 800 ] [ 1300 ] [ 1800 ] [ 2000 ]      + Band   − Band
+  ^                                        ^
+  zu klein unter                           zu gross ab
+
+  ergibt:  500–800 · 800–1300 · 1300–1800 · 1800–2000</div>
+
+<p>Vorbelegt wird die Fassung des <strong>letzten Sortierlaufs genau dieser Charge</strong> —
+nicht die Sortenvorgabe, denn die Ware auf dem Tisch wurde nach der Regel sortiert, die damals
+galt. Solange niemand etwas anfasst, sind die Felder gesperrt und bedeuten „wie zuletzt".</p>
+
+<div class="warum"><b>Eine Fassung wird festgelegt, nicht geändert</b>
+Gilt heute schon genau dieselbe Regel, bekommt die Arbeit deren Kennung. Sonst entsteht eine
+<strong>neue Fassung ab heute</strong> — ältere bleiben unberührt. Sonst hätte eine
+Grenzverschiebung im März rückwirkend jede Klassierung seit August verändert.</div>
+
+<h2>2.5 Das Kistensystem</h2>
+
+<table class="eng">
+<thead><tr><th style="width:34mm">Wahl</th><th style="width:30mm">Zusatzfrage</th><th>Was es bedeutet</th></tr></thead>
+<tbody>
+<tr><td><strong>Kiste ab x kg</strong></td><td>Sollgewicht (kg)</td><td>Bezahlt wird nach Gewicht. Jedes Kilo über dem Soll geht unbezahlt mit.</td></tr>
+<tr><td><strong>x Stück je Kiste</strong></td><td>Kürbisse je Kiste</td><td>Bezahlt wird je Stück. Jedes Gramm über der Kaliber-Unterkante geht unbezahlt mit.</td></tr>
+<tr><td><strong>anderes</strong></td><td>—</td><td>Weder Gewicht noch Stückzahl — die Masse der Arbeit ist dann nicht rechenbar, und der Abschluss verlangt keine fertige Palette.</td></tr>
+</tbody>
+</table>
+
+<div class="frage"><b>Frage 3 — das Kistensystem</b>
+Steht beim Starten einer Arbeit schon fest, wie die Ware verkauft wird? Oder entscheidet sich
+das erst später, und es gehen aus derselben Wascharbeit sowohl Gewichtskisten als auch
+Stückkisten raus? <strong>Falls gemischt</strong>, muss ich die Frage von der Arbeit auf die
+fertige Palette verschieben — das wäre eine echte Änderung.</div>
+
+<h2>2.6 Was beim Starten gespeichert wird</h2>
+
+<table class="eng">
+<thead><tr><th style="width:40mm">Spalte</th><th>Inhalt</th></tr></thead>
+<tbody>
+<tr><td><span class="sp">station</span>, <span class="sp">weg</span>, <span class="sp">ist_fax</span></td><td>die Tätigkeit</td></tr>
+<tr><td><span class="sp">charge_nr</span></td><td>die getippte Nummer</td></tr>
+<tr><td><span class="sp">sortierschema_id</span></td><td>die Fassung der Kaliberregeln, die für diese Arbeit gilt</td></tr>
+<tr><td><span class="sp">kaliber_idx</span> oder <span class="sp">kaliber_von_g</span>/<span class="sp">_bis_g</span></td><td>welches Kaliber gewaschen wird (nur beim Waschen)</td></tr>
+<tr><td><span class="sp">kistensystem</span>, <span class="sp">soll_kg_pro_kiste</span>, <span class="sp">stueck_je_kiste</span></td><td>wie verkauft wird</td></tr>
+<tr><td><span class="sp">start_ts</span>, <span class="sp">eroeffnet_von</span></td><td>setzt der Server, nicht das Handy</td></tr>
+</tbody>
+</table>
+
+</div>
+
+<div class="kap">
+<div class="kap-nr">Kapitel 3</div>
+<h1>Der Palox — die Regel, die an drei Stationen gilt</h1>
+<p class="kap-vor">Der Palox ist die einzige Stelle, an der die App heute sicher falsch rechnet.
+Dieses Kapitel steht vor den Stationen, weil dieselbe Regel an dreien davon gilt — und weil es
+die Änderung ist, die mir am wichtigsten ist.</p>
+
+<h2>3.1 In der Halle</h2>
+
+<p>Es gibt <strong>zwei stationäre Palox-Boxen</strong>: eine an der Sortiermaschine, eine an der
+Waschstrasse. Beide stehen auf einer Bodenwaage. Was faul ist, fliegt hinein. Die Waage zeigt
+immer das Gesamtgewicht — Box plus Inhalt. <strong>Sie ist nicht tariert: leer zeigt sie 45 kg.</strong></p>
+
+<p>Die Waschstrasse teilen sich zwei Tätigkeiten: <em>Waschen</em> und <em>Waschen + Sortieren</em>
+laufen über denselben Palox. An der <strong>Fax gibt es keinen Palox</strong> — dort fällt so
+wenig an, dass es kistenweise gewogen wird.</p>
+
+<h2>3.2 Die Regel</h2>
+
+<div class="rechnung">Zu Beginn der Arbeit:   Waage ablesen  →  S₁
+Am Ende der Arbeit:     Waage ablesen  →  S₂
+
+        Faules dieser Arbeit  =  S₂ − S₁
+
+Die 45 kg Leergewicht kürzen sich in der Differenz von selbst heraus.
+Sie müssen nirgends abgezogen werden — sie stecken in beiden Ständen.</div>
+
+<p>Und wenn der Palox <strong>während</strong> der Arbeit geleert wurde, ist S₂ kleiner als S₁.
+Dann ist die Menge nicht null und nicht negativ, sondern <strong>unbekannt</strong>. Die App
+fragt beim Abschluss nach und trägt sie als unbekannt ein — genau wie in Regel 1.2.</p>
+
+<div class="warum"><b>Warum nie vom letzten Mal übernehmen</b>
+Arbeitsschritte werden nie über Nacht pausiert: eine Arbeit beginnt und endet am selben Tag.
+Zwischen zwei Arbeiten liegt aber unbekannt viel — eine andere Arbeit, eine Leerung, eine
+Lagerkontrolle. Der Stand vom letzten Mal sagt deshalb <strong>nichts</strong> über den Anfang
+dieser Arbeit. Jede Arbeit liest ihren eigenen Anfang und ihr eigenes Ende ab.</div>
+
+<h2>3.3 Was die App heute macht — und warum <span class="sp">−445</span> herauskam</h2>
+
+<p>Heute holt die Maske beim Öffnen den <strong>letzten Stand derselben Station</strong> — über
+Arbeitsgrenzen hinweg (<span class="sp">palox_letzter_stand(station)</span>). Aus der
+Anfangsablesung einer neuen Arbeit wird dadurch eine Differenz zu einer fremden Arbeit:</p>
+
+<div class="rechnung">Letzte Ablesung einer früheren Arbeit:   490 kg
+Der Palox wurde inzwischen geleert.
+Du liest zu Beginn deiner Arbeit ab:      45 kg   (die leere Box)
+
+        angezeigt:  45 − 490  =  −445 kg</div>
+
+<p>Drei Fehler auf einmal:</p>
+
+<table class="eng">
+<thead><tr><th style="width:9mm">Nr.</th><th style="width:44mm">Fehler</th><th>Folge</th></tr></thead>
+<tbody>
+<tr><td><strong>F1</strong></td><td>Der Anfangswert kommt aus einer fremden Arbeit</td><td>Die erste Ablesung einer Arbeit ist immer eine Differenz zu etwas Unbekanntem.</td></tr>
+<tr><td><strong>F2</strong></td><td>Fällt der Stand, wird <em>gar nichts</em> angezeigt — der Arbeiter sieht keine Zahl, keinen Hinweis, keine Rückfrage</td><td>Er tippt trotzdem auf „Eintragen“, weil nichts dagegen spricht.</td></tr>
+<tr><td><strong>F3</strong></td><td>Gespeichert wird dann <span class="sp">kg: 0</span> und <span class="sp">palox_geleert: false</span></td><td>Aus „unbekannt“ wird eine <strong>behauptete Null</strong>. Genau das, was Regel 1.2 verbietet. Die Auswertung glaubt, es sei nichts fault.</td></tr>
+</tbody>
+</table>
+
+<h2>3.4 Wie es werden soll</h2>
+
+<div class="bild">┌──────────────────────────────────────────────┐   ┌──────────────────────────────────────────────┐
+│  Palox — Beginn                              │   │  Palox — Ende                                │
+│                                              │   │                                              │
+│  Was zeigt die Waage jetzt?                  │   │  Bei Beginn:  45 kg                          │
+│  ┌────────────────────────────┐              │   │                                              │
+│  │  45                    kg  │              │   │  Was zeigt die Waage jetzt?                  │
+│  └────────────────────────────┘              │   │  ┌────────────────────────────┐              │
+│                                              │   │  │  310                   kg  │              │
+│  Die leere Box wiegt 45 kg.                  │   │  └────────────────────────────┘              │
+│  Lies einfach ab, was dasteht.               │   │                                              │
+│                                              │   │        265 kg faul   (310 − 45)              │
+│  ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─     │   │        66 kg je Palette                      │
+│                                              │   │                                              │
+│  [        Eintragen                    ]     │   │  Wurde der Palox zwischendurch geleert?      │
+│                                              │   │     ( ) nein    ( ) ja                       │
+└──────────────────────────────────────────────┘   │                                              │
+                                                   │  [        Eintragen                    ]     │
+   kein Vorwert, keine fremde Arbeit,              └──────────────────────────────────────────────┘
+   kein automatisches Abziehen                        „ja“  →  Menge dieser Arbeit unbekannt</div>
+
+<div class="warum neu"><b>Was sich ändert</b>
+<span class="sp">palox_letzter_stand</span> darf nur noch innerhalb <em>derselben</em> Arbeit
+suchen. · Die Frage „zwischendurch geleert?“ kommt beim Abschluss, nicht als stille Annahme. ·
+<span class="sp">palox_geleert</span> wird tatsächlich gesetzt und die Menge bleibt leer statt 0. ·
+<span class="sp">palox_tara_kg</span> steht auf <strong>45</strong> (heute 0) — sie wird nur noch
+für die allererste Ablesung gebraucht, falls jemand nur einmal abliest.</div>
+
+<div class="frage"><b>Frage 4 — der Palox in der Praxis</b>
+<b style="display:inline">a)</b> Wird der Palox <em>während</em> einer Arbeit tatsächlich manchmal
+geleert, oder praktisch nie? Wenn praktisch nie, kann die Frage beim Abschluss klein und
+unauffällig sein.<br>
+<b style="display:inline">b)</b> Wenn zwei Arbeiten gleichzeitig an der Waschstrasse laufen —
+gibt es das? Dann teilen sich zwei Arbeiten denselben Palox und die Differenz gehört
+keiner von beiden allein.<br>
+<b style="display:inline">c)</b> 45 kg: gilt das für beide Boxen, oder sind sie unterschiedlich
+schwer?</div>
+
+<h2>3.5 Was aus der Zahl wird</h2>
+
+<div class="rechnung">Faules dieser Arbeit  →  Anteil an der verarbeiteten Masse
+                      →  ein Punkt auf der Verderbskurve F(t)
+                         (t = Alter der Ware, siehe Kapitel 6.4)
+
+Alle Punkte aller Arbeiten ergeben die Kurve, mit der die App
+vorhersagt, wie viel von der liegenden Ware noch faul wird.</div>
+
+<p>Deshalb wiegt jede einzelne falsche Null hier doppelt: sie verfälscht nicht nur die Bilanz
+dieser Charge, sondern zieht die Kurve für <strong>alle</strong> Chargen nach unten.</p>
+
+</div>
+
+<div class="kap">
+<div class="kap-nr">Kapitel 4</div>
+<h1>Sortieren — an der Maschine</h1>
+<p class="kap-vor">Die Station, an der die Ware ihre Herkunft verliert. Was hier passiert,
+entscheidet darüber, was die App an allen späteren Stationen überhaupt noch wissen kann.</p>
+
+<h2>4.1 In der Halle</h2>
+
+<div class="bild">Eingangspaletten aus dem Lager          Sortiermaschine              Zwischenlager
+  ┌──────────┐ ┌──────────┐              ┌───────────┐            ┌──────────┐ ┌──────────┐
+  │  G2      │ │  G2      │  ────────►   │ wiegt     │ ────────►  │ G2       │ │ G2       │
+  │ Zettel:  │ │ Zettel:  │              │ jeden     │            │ Zettel:  │ │ Zettel:  │
+  │ Charge   │ │ Charge   │              │ Kürbis    │            │ Charge   │ │ Charge   │
+  │ 12.09.   │ │ 15.09.   │              │ einzeln   │            │ Sort.    │ │ Sort.    │
+  │ 842 kg   │ │ 790 kg   │              └─────┬─────┘            │ 14.11.   │ │ 14.11.   │
+  └──────────┘ └──────────┘                    │                  │ 1200-1800│ │ 1800-2400│
+                                               │                  └──────────┘ └──────────┘
+      verschiedene Eingangsdaten,              │                    ein Kaliber je Palette
+      dieselbe Charge                          │
+                                       ┌───────┴───────┐
+                                       │               │
+                                  zu klein /        PALOX
+                                  zu gross          (faul)
+                                  (aus der CSV)     (abgelesen)</div>
+
+<div class="warum neu"><b>Hier verliert die Palette ihre Herkunft</b>
+Nach dem Sortieren stehen die Kisten <strong>neu gemischt</strong> auf Paletten. Auf einer
+Kaliber-Palette liegen Kürbisse von mehreren Eingangspaletten mit mehreren Eingangsdaten.
+Ab hier weiss man von einer Palette nur noch <strong>drei Dinge</strong>:
+<strong>Chargennummer · Sortierdatum · Kalibergrösse</strong>.
+Eingangsdatum und Eingangsgewicht sind weg — nicht verloren gegangen, sondern
+<em>vermischt</em>. Gebindeart und Anzahl Gebinde sieht man zwar mit blossem Auge, aber sie
+stehen nicht auf dem Zettel und werden an dieser Stelle nicht erfasst.</div>
+
+<h2>4.2 Was die App fragt</h2>
+
+<table class="eng">
+<thead><tr><th style="width:32mm">Schritt</th><th style="width:42mm">Eingabe</th><th>Pflicht?</th></tr></thead>
+<tbody>
+<tr><td><strong>Palox — Beginn</strong></td><td>Waagenstand</td><td>ja</td></tr>
+<tr><td><strong>Eingangspaletten</strong></td><td>je Palette: Eingangsdatum vom Zettel; „Wägst du diese Palette?“ → Brutto, Kisten, Gebinde</td><td>Datum ja, Wägung nein</td></tr>
+<tr><td><strong>Kisten je Kaliber</strong></td><td>je Band ein Zähler der gefüllten Kisten</td><td>nein — <span class="sp">soll ganz wegfallen</span></td></tr>
+<tr><td><strong>Palox — Ende</strong></td><td>Waagenstand + „zwischendurch geleert?“</td><td>ja</td></tr>
+<tr><td><strong>Charge</strong></td><td>„Ist die Charge fertig?“</td><td>ja</td></tr>
+</tbody>
+</table>
+
+<div class="bild">┌────────────────────────────────────────────────────────────┐
+│  Eingangspaletten                                    12    │
+│                                                            │
+│  Datum vom Zettel                                          │
+│  ┌──────────────────────┐                                  │
+│  │  12.09.2026          │   bleibt für die nächste stehen  │
+│  └──────────────────────┘                                  │
+│                                                            │
+│  Wägst du diese Palette?      ( ) nein   ( ) ja            │
+│                                                            │
+│     ┌──────────┐   ┌────────────────────────┐  ┌────────┐  │
+│     │    −     │   │   + Palette (12.09.)   │  │ zurück │  │
+│     └──────────┘   └────────────────────────┘  └────────┘  │
+└────────────────────────────────────────────────────────────┘</div>
+
+<p>Das Datum <strong>bleibt stehen</strong> — es kommen Dutzende Paletten mit demselben Datum,
+und der Knopf sagt jedes Mal ausdrücklich, welches Datum er speichert. So sieht man sofort, wenn
+man vergessen hat umzustellen.</p>
+
+<h2>4.3 Wozu das Eingangsdatum hier gebraucht wird</h2>
+
+<p>Du hast gefragt, ob das Datum vom Eingangszettel überhaupt wichtig ist. Ja — an dieser Station
+ist es <strong>die einzige Stelle im ganzen Betrieb</strong>, an der die App gleichzeitig weiss,
+<em>wie alt</em> die Ware ist und <em>wie viel davon faul ist</em>:</p>
+
+<div class="rechnung">Alter dieser Arbeit   =  Sortiertag − Eingangsdatum
+                         (massegewichtet über alle Paletten dieser Arbeit)
+
+Faules dieser Arbeit  =  S₂ − S₁   (Palox)
+
+  →  ein Punkt (t, Anteil faul) auf der Verderbskurve — und zwar ein
+     Punkt, dessen Alter exakt bekannt ist, nicht geschätzt.</div>
+
+<p>Das Zweite: das Sortierdatum wird der <strong>Anfang der Zwischenlagerzeit</strong>. Und das
+Dritte: Sortiertag + Chargennummer sind der Schlüssel, mit dem die App die hochgeladene
+Sortier-CSV der richtigen Arbeit zuordnet.</p>
+
+<h2>4.4 Die Sortier-CSV — die genaueste Messung im Betrieb</h2>
+
+<p>Die Maschine wiegt jeden Kürbis einzeln. Die Datei wird hochgeladen, im Browser gereinigt
+(Überlauf ab 60 kg raus, unter 100 g raus, Dubletten zusammengefasst) und als Histogramm
+gespeichert: <span class="sp">gewicht_g → anzahl</span>, 2-Gramm-Auflösung.</p>
+
+<div class="rechnung">Masse eines Kaliberbandes  =  Σ ( gewicht_g × anzahl )   über alle Gewichte im Band
+
+Das braucht keine gezählte Kiste. Die CSV liefert die Masse je Band direkt.</div>
+
+<div class="warum neu"><b>Kisten je Kaliber fallen weg</b>
+Du hast recht: niemand zählt von Hand die Kisten je Kaliber, und die CSV kann es nicht, weil sie
+nicht weiss, wie viele Kürbisse in eine Kiste kommen. Der Zähler suggeriert eine Messung, die es
+nicht gibt. <strong>Er soll verschwinden.</strong> Die Masse je Band kommt aus der CSV; das
+Gewicht je Kiste wird dort gemessen, wo ohnehin gewogen wird — an der fertigen Palette beim
+Waschen (Kapitel 6.5).</div>
+
+<div class="frage"><b>Frage 5 — die CSV</b>
+<b style="display:inline">a)</b> Wird die CSV <em>immer</em> hochgeladen, oder nur manchmal? Wenn
+nur manchmal, hat eine Sortierarbeit ohne CSV gar keine Masse mehr, sobald der Kistenzähler weg
+ist — dann brauche ich einen Ersatz (etwa: die Zahl der fertigen Paletten je Kaliber).<br>
+<b style="display:inline">b)</b> Läuft je Arbeit genau eine Datei, oder werden mehrere Chargen
+in einem Rutsch sortiert und die Maschine schreibt eine Datei über alles?<br>
+<b style="display:inline">c)</b> Wirft die Maschine „zu klein“ und „zu gross“ mechanisch aus, oder
+zählt sie sie nur und ein Mensch sortiert sie danach von Hand aus?</div>
+
+<h2>4.5 Zu klein — ein Erntefehler, kein Lagerverlust</h2>
+
+<p>Kürbisse unter der untersten Kaliberkante <em>gibt es</em> — sie hätten auf dem Feld nicht
+geerntet werden sollen, wurden aber geerntet. Sie sind also <strong>vermeidbar</strong>, und
+zwar auf dem Feld, nicht in der Halle. Deshalb zählt „zu klein“ in der Auswertung nicht als
+Lagerverlust, sondern wird <strong>je Schlag</strong> ausgewiesen — dort, wo man etwas dagegen
+tun kann.</p>
+
+<p>Die unterste Kante ist nicht überall 600 g. Sie steht je Sorte in den Stammdaten und reicht von
+300 g bis 700 g. Ein Kürbis von 450 g ist bei der einen Sorte gute Ware und bei der anderen
+Ausschuss.</p>
+
+<div class="frage"><b>Frage 6 — zu gross</b>
+„Zu klein“ ist ein Erntefehler. Was ist <strong>zu gross</strong>? Ist das auch vermeidbar
+(falsche Sorte, zu spät geerntet, zu dünn gesät), oder fällt das einfach an und lässt sich nicht
+beeinflussen? Und: wird zu Grosses weggeworfen, verfüttert oder anders verkauft? Davon hängt ab,
+ob es in der Auswertung als Verlust oder als zweiter Kanal erscheint.</div>
+
+</div>
+
+<div class="kap">
+<div class="kap-nr">Kapitel 5</div>
+<h1>Waschen + Sortieren — von Hand am Band</h1>
+<p class="kap-vor">Die Waschstrasse mit Sortieren von Hand dahinter. Aus dem Lager direkt in den
+Verkauf, in einem Durchgang — und die einzige Station, an der die Ware am Anfang <em>und</em> am
+Ende gewogen wird.</p>
+
+<h2>5.1 In der Halle</h2>
+
+<div class="bild">Eingangspaletten aus dem Lager       Waschstrasse        Leute am Band      Ausgang
+  ┌──────────┐ ┌──────────┐           ┌──────────┐        ┌─────────┐      ┌──────────┐
+  │  G2      │ │  G2      │ ────────► │ waschen  │ ─────► │ von     │ ───► │  IFCO    │
+  │ Charge   │ │ Charge   │           │          │        │ Hand    │      │  fertig  │
+  │ 12.09.   │ │ 15.09.   │           └────┬─────┘        │ sortie- │      └──────────┘
+  │ 842 kg   │ │ 790 kg   │                │              │ ren     │            │
+  └──────────┘ └──────────┘              PALOX            └────┬────┘            │
+                                         (faul)               │                 ▼
+   Eingangsdatum + Gewicht                                zu klein /           FAX
+   stehen auf dem Zettel                                  zu gross
+   → das Alter ist hier exakt bekannt                     je Palette gewogen
+                                                          (keine CSV an dieser Station!)</div>
+
+<h2>5.2 Was die App fragt</h2>
+
+<table class="eng">
+<thead><tr><th style="width:32mm">Schritt</th><th style="width:46mm">Eingabe</th><th>Pflicht?</th></tr></thead>
+<tbody>
+<tr><td><strong>Palox — Beginn</strong></td><td>Waagenstand</td><td>ja</td></tr>
+<tr><td><strong>Eingangspaletten</strong></td><td>je Palette: Eingangsdatum <em>und</em> Gewicht vom Zettel</td><td><strong>beides ja</strong></td></tr>
+<tr><td><strong>Drei Paletten wiegen</strong></td><td>Brutto, Kisten, Gebinde — <em>bevor</em> sie in die Waschmaschine kommen</td><td>erinnert, nicht erzwungen</td></tr>
+<tr><td><strong>Ausschuss</strong></td><td>zu klein / zu gross, je Palette gewogen: Brutto, Kisten, Gebinde</td><td>ja, mindestens einer</td></tr>
+<tr><td><strong>Fertige Paletten</strong></td><td>Brutto, Kisten, Gebinde, Kürbisse je Kiste</td><td>erinnert (drei)</td></tr>
+<tr><td><strong>Palox — Ende</strong></td><td>Waagenstand + „zwischendurch geleert?“</td><td>ja</td></tr>
+</tbody>
+</table>
+
+<h2>5.3 Warum das Zettelgewicht hier Pflicht ist — und warum es trotzdem nicht die Antwort ist</h2>
+
+<p>Du hast gefragt: <em>„aber bis zu Tag x ist die Palette ja leichter — ziehst du den Wert ab?“</em>
+Ja. Das Zettelgewicht ist das Gewicht <strong>am Eingangstag</strong>, oft Monate her. Seither hat
+die Palette Wasser verloren. Als Nenner für „wie viel Prozent davon war faul“ taugt es so nicht:</p>
+
+<div class="rechnung">Zettel (Eingangstag):        842 kg  netto
+Seither vergangen:            68 Tage
+Verdunstungsrate r:            0,05 % je Tag   (aus den Wägungen dieser Sorte)
+
+Nenner heute  =  842 × (1 − 0,0005) ^ 68  =  842 × 0,9666  =  814 kg
+                                                                ───────
+Faules laut Palox:            41 kg
+Anteil faul  =  41 / 814  =  5,0 %      (nicht 41/842 = 4,9 % — der Unterschied
+                                         wächst mit der Lagerdauer)</div>
+
+<div class="warum"><b>Deshalb sollen drei Paletten gewogen werden</b>
+Die Rechnung oben braucht die Rate <strong>r</strong>. Woher kommt sie? Genau von hier: eine
+Palette wird gewogen, <em>bevor</em> sie in die Maschine kommt. Man hat dann das Zettelgewicht
+vom Eingangstag und das echte Gewicht von heute. Zwei Wägungen derselben Palette, dazwischen eine
+bekannte Zahl Tage — das ist eine direkte Messung der Rate, keine Schätzung.</div>
+
+<div class="frage"><b>Frage 7 — die drei Wägungen</b>
+Werden die drei Paletten in der Praxis wirklich gewogen, oder ist das der Schritt, der als Erstes
+übersprungen wird, wenn es pressiert? Wenn er meist übersprungen wird, ist mir das lieber ehrlich
+gesagt als gehofft — dann setze ich bei der Verdunstung ganz auf die Kontrollpalette (Kapitel 8)
+und mache aus den drei Wägungen hier eine freiwillige Zugabe statt einer Erinnerung.</div>
+
+<h2>5.4 Ausschuss wird gewogen, nicht geschätzt</h2>
+
+<p>An dieser Station gibt es <strong>keine Maschine und keine CSV</strong>. Zu klein und zu gross
+sammeln sich in Kisten und werden am Ende je Palette auf die Waage gestellt. Gespeichert wird
+wieder die Beobachtung — Brutto, Kistenzahl, Gebindeart — und nicht das Netto:</p>
+
+<div class="rechnung">netto = brutto − kisten × tara_kiste − tara_palette</div>
+
+<p>Deshalb muss die Gebindeart mitgefragt werden: eine G2-Kiste und eine IFCO-Kiste wiegen leer
+nicht dasselbe, und bei 32 Kisten macht das schnell 6 kg aus.</p>
+
+<h2>5.5 Was hier exakt ist — und an der Waschstation nicht mehr</h2>
+
+<div class="warum"><b>Der Unterschied, der das ganze Altersproblem erklärt</b>
+Hier liest der Arbeiter das <strong>Eingangsdatum</strong> von jedem einzelnen Zettel ab. Das
+Alter der Ware ist damit für diese Arbeit <em>gemessen</em>, nicht geschätzt — massegewichtet
+über die Paletten, die tatsächlich durchgelaufen sind. An der Waschstation (Kapitel 6) steht auf
+dem Zettel kein Eingangsdatum mehr, weil es dort keines mehr gibt. Dort muss geschätzt werden.
+<strong>Diese Station liefert also die verlässlichsten Punkte der Verderbskurve.</strong></div>
+
+</div>
+
+<div class="kap">
+<div class="kap-nr">Kapitel 6</div>
+<h1>Waschen — aus dem Zwischenlager</h1>
+<p class="kap-vor">Die schwierigste Station. Hier wechselt das Gebinde, hier ist die Herkunft
+verwischt, und hier entscheidet sich, ob die Masse überhaupt gerechnet werden kann.</p>
+
+<h2>6.1 In der Halle</h2>
+
+<div class="bild">Zwischenlager                  Waschstrasse              Ausgang
+ ┌──────────┐ ┌──────────┐ ┌──────────┐        ┌──────────┐  ┌──────┐┌──────┐┌──────┐┌──────┐
+ │  G2      │ │  G2      │ │  G2      │ ─────► │ waschen  │► │ IFCO ││ IFCO ││ IFCO ││ IFCO │
+ │ Charge   │ │ Charge   │ │ Charge   │        └────┬─────┘  └──────┘└──────┘└──────┘└──────┘
+ │ Sort.    │ │ Sort.    │ │ Sort.    │             │
+ │ 14.11.   │ │ 14.11.   │ │ 14.11.   │           PALOX       ▲                            ▲
+ │ 1200-1800│ │ 1200-1800│ │ 1200-1800│           (faul)      │                            │
+ └──────────┘ └──────────┘ └──────────┘                       └──── 3 rein, 4 raus ────────┘
+
+        G2: voll gestapelt                             IFCO: nicht voll gefüllt,
+        ein Kaliber je Palette                         andere Zahl Kisten je Palette</div>
+
+<div class="warum neu"><b>Drei Paletten rein können vier Paletten raus werden</b>
+Im Lager ist fast alles in G2-Kisten, voll gestapelt. Nach dem Waschen kommt die Ware in IFCOs,
+und die werden <em>nicht</em> voll gefüllt. Dazu kommen unterschiedlich viele Kisten auf eine
+Palette. Wer „Paletten rein“ mit „Paletten raus“ vergleicht, rechnet Unsinn — und zwar Unsinn,
+der wie ein Verlust aussieht.</div>
+
+<h2>6.2 Was die App fragt</h2>
+
+<table class="eng">
+<thead><tr><th style="width:32mm">Schritt</th><th style="width:46mm">Eingabe</th><th>Pflicht?</th></tr></thead>
+<tbody>
+<tr><td><strong>Kaliber wählen</strong></td><td>welches Band gewaschen wird</td><td>beim Anlegen</td></tr>
+<tr><td><strong>Kaliber-Paletten</strong></td><td>je Palette: Sortierdatum vom Zettel + Kisten darauf<br><span class="sp">+ Gebindeart (fehlt heute)</span></td><td>ja — das ist die Menge</td></tr>
+<tr><td><strong>Palox</strong></td><td>Waagenstand Beginn und Ende</td><td>gefragt, nicht Pflicht</td></tr>
+<tr><td><strong>Fertige Paletten</strong></td><td>Brutto, Kisten, Gebinde, Kürbisse je Kiste</td><td><strong>ja</strong>, mindestens eine</td></tr>
+</tbody>
+</table>
+
+<div class="bild">┌────────────────────────────────────────────────────────────┐
+│  Kaliber-Paletten                                     3    │
+│                                                            │
+│  Sortierdatum vom Zettel            Kisten auf der Palette │
+│  ┌──────────────────────┐           ┌──────────────────┐   │
+│  │  14.11.2026          │           │  32              │   │
+│  └──────────────────────┘           └──────────────────┘   │
+│  [ kein Datum auf dem Zettel ]                             │
+│                                                            │
+│  Gebinde        ( G2 )  ( IFCO )  ( … )      ← fehlt heute │
+│                                                            │
+│     ┌──────────┐   ┌────────────────────────┐  ┌────────┐  │
+│     │    −     │   │   + Palette (14.11.)   │  │ zurück │  │
+│     └──────────┘   └────────────────────────┘  └────────┘  │
+└────────────────────────────────────────────────────────────┘</div>
+
+<h2>6.3 Die Masse — der Weg über die Kiste</h2>
+
+<p>Weil die Palette auf beiden Seiten etwas anderes bedeutet, darf die Masse nicht über Paletten
+laufen. Sie läuft über die <strong>Kiste</strong>, und die Kiste wird gewogen:</p>
+
+<div class="rechnung">Masse hinein  =  Σ ( Kisten je Kaliber-Palette )  ×  kg je G2-Kiste
+Masse heraus  =  Σ ( Kisten je fertiger Palette ) ×  kg je IFCO-Kiste
+
+  kg je Kiste  =  ( Brutto − Kisten × Tara_Kiste − Tara_Palette ) / Kisten
+                  ── aus den tatsächlich gewogenen Paletten dieser Arbeit ──
+
+Beispiel:
+   hinein   3 Paletten × 32 G2-Kisten   = 96 Kisten × 12,4 kg = 1190 kg
+   heraus   4 Paletten × 24 IFCO-Kisten = 96 Kisten ×  8,5 kg =  816 kg
+                                                                ───────
+   Differenz 374 kg  — und davon ist fast nichts Verlust:
+   es sind einfach andere Kisten, anders gefüllt.</div>
+
+<div class="warum neu"><b>Was fehlt und dazu muss</b>
+Die App fragt beim Waschen heute <strong>nicht</strong>, in welchem Gebinde die Kaliber-Paletten
+stehen (<span class="sp">auftrag_palette</span> hat keine Spalte dafür). Ohne die Gebindeart ist
+weder die Tara noch das kg-je-Kiste bestimmt — die Eingangsmasse dieser Station hängt in der
+Luft. Die Frage muss dazu, an beiden Enden.</div>
+
+<div class="frage"><b>Frage 8 — Kisten und Gebinde beim Waschen</b>
+<b style="display:inline">a)</b> Die App fragt heute die <em>Kisten je Palette</em> beim Waschen.
+Wird das tatsächlich gezählt — oder ist das dieselbe Illusion wie beim Sortieren? Beim Waschen
+sind es nur wenige Paletten je Arbeit und die Kisten stehen sichtbar gestapelt, deshalb halte
+ich es hier für machbar. Stimmt das?<br>
+<b style="display:inline">b)</b> Ist die Zahl der Kisten auf einer G2-Palette <em>immer</em>
+dieselbe (etwa 32), oder wechselt sie? Wenn sie immer gleich ist, reicht eine Zahl je Arbeit
+statt eine je Palette.<br>
+<b style="display:inline">c)</b> Steht im Lager wirklich „fast alles“ in G2 — was ist das
+Übrige, und kommt es auch zum Waschen?</div>
+
+<h2>6.4 Das Alter der Ware — hier wird geschätzt, und ich sage auch wie</h2>
+
+<p>Du hast mich hier zu Recht korrigiert. Auf einer Kaliber-Palette liegen Kürbisse von mehreren
+Eingangspaletten mit <strong>mehreren Eingangsdaten</strong>. Es gibt kein Eingangsdatum dieser
+Palette. Der Satz „Alter = Waschtag − Eingangsdatum“ ist an dieser Station schlicht falsch, weil
+es die Grösse nicht gibt, auf die er sich beruft.</p>
+
+<p>Was es gibt, ist dreierlei — und nur das Erste ist gemessen:</p>
+
+<table class="eng">
+<thead><tr><th style="width:46mm">Grösse</th><th style="width:22mm">Herkunft</th><th>Genauigkeit</th></tr></thead>
+<tbody>
+<tr><td><strong>Zwischenlagerzeit</strong><br>Waschtag − Sortierdatum</td><td>Zettel auf der Palette</td><td><strong>exakt</strong>, je Palette, tagesgenau</td></tr>
+<tr><td><strong>Zeit vor dem Sortieren</strong><br>Sortierdatum − Eingang</td><td>gibt es je Palette <em>nicht</em></td><td>nur als Mittel über die Charge</td></tr>
+<tr><td><strong>Gesamtalter</strong></td><td>Summe der beiden</td><td>geschätzt — siehe unten</td></tr>
+</tbody>
+</table>
+
+<div class="rechnung">Alter  =  Waschtag  −  massegewichtetes mittleres Eingangsdatum der Charge
+
+              Σ ( Eingangsdatum_p × Nettogewicht_p )
+   Mittel  =  ────────────────────────────────────────   über alle Eingangs-
+                     Σ Nettogewicht_p                    paletten der Charge
+                                                         (aus dem Erntejournal)
+
+   Zulässig, weil die Kaliber-Palette zwar viele Eingangsdaten mischt,
+   aber alle aus DERSELBEN Charge stammen.
+   Unsicher genau um die Streuung der Eingangsdaten innerhalb der Charge.</div>
+
+<div class="warum neu"><b>Was ich dazu ehrlich sagen muss</b>
+Wie gross diese Unsicherheit ist, <strong>weiss ich nicht</strong>. Ich habe im Moment keinen
+Zugang zum Erntejournal — nur die Tabellenstruktur (<span class="sp">palette</span> mit
+Eingangsdatum, Brutto, Kisten, Gebinde) und Beispieldaten, die eine KI erzeugt hat und die über
+euren Betrieb nichts aussagen. Zahlen, die ich früher genannt habe („die Streuung beträgt
+höchstens 6 Tage“), stammen aus diesen erfundenen Daten und sind <strong>wertlos</strong>.
+Ich streiche sie.</div>
+
+<div class="frage"><b>Frage 9 — das Erntejournal</b>
+Kannst du mir das Erntejournal geben? Ich möchte genau zwei Dinge daraus wissen, und beide
+entscheiden über echte Rechnungen:<br>
+<b style="display:inline">a)</b> <strong>Über wie viele Tage zieht sich die Ernte einer Charge?</strong>
+Kommt ein Schlag an einem Tag herein, oder über drei Wochen? Bei einem Tag ist der Mittelwert
+oben praktisch exakt. Bei drei Wochen ist er eine grobe Näherung, und ich muss die Spanne im
+Dashboard anzeigen statt einer Zahl.<br>
+<b style="display:inline">b)</b> <strong>Wie verteilt sich die Masse über diese Tage?</strong>
+Gleichmässig, oder ein grosser Tag und ein paar Nachzügler? Davon hängt ab, ob der
+massegewichtete Mittelwert etwas anderes ist als der einfache.<br>
+Und ja — du sagst, die Kistenzahl steht im Erntejournal. Dann bekommt die App die Kistenzahl je
+Eingangspalette geschenkt und niemand muss sie zählen. Das ändert einiges (Kapitel 10).</div>
+
+<h2>6.5 Kilo je Kiste und Kürbisse je Kiste — was die fertige Palette misst</h2>
+
+<p>Die fertige Palette ist die Stelle, an der zwei Zahlen entstehen, die sonst nirgends
+herkommen. Beide werden gewogen, keine wird geschätzt:</p>
+
+<div class="rechnung">Gewogen:  Brutto 245 kg · 24 IFCO-Kisten · 7 Kürbisse je Kiste
+
+   netto  =  245 − 24 × 1,68 − 25            =  179,7 kg
+   kg je Kiste      =  179,7 / 24            =    7,49 kg
+   kg je Kürbis     =  179,7 / (24 × 7)      =    1,07 kg
+   Lage im Band     =  1070 g in 1000–1400 g →   17 % über der Unterkante</div>
+
+<table class="eng">
+<thead><tr><th style="width:34mm">Kistensystem</th><th style="width:34mm">Was unbezahlt mitgeht</th><th>Wie man es sieht</th></tr></thead>
+<tbody>
+<tr><td><strong>Kiste ab 8 kg</strong></td><td>jedes Kilo über 8</td><td>gemessen 7,49 → hier <em>fehlen</em> 0,5 kg je Kiste; gemessen 8,4 → 0,4 kg je Kiste verschenkt</td></tr>
+<tr><td><strong>7 Stück je Kiste</strong></td><td>jedes Gramm über der Kaliber-Unterkante</td><td>1070 g statt 1000 g → 70 g je Kürbis verschenkt, 11,8 kg je Palette</td></tr>
+</tbody>
+</table>
+
+<div class="warum"><b>Warum beide Zahlen und nicht nur eine</b>
+Du wolltest beides: Kilo je Kiste <em>und</em> Kürbisse je Kiste. Erst zusammen ergeben sie das
+Durchschnittsgewicht eines Kürbisses in diesem Kaliber — die Zahl, mit der sich die
+Stück-Überfüllung überhaupt rechnen lässt, und die Zahl, mit der sich später prüfen lässt, ob
+ein Kaliber durch Verdunstung unter seine Unterkante gerutscht ist.</div>
+
+<div class="frage"><b>Frage 10 — die fertige Palette</b>
+<b style="display:inline">a)</b> Ist die <em>letzte</em> fertige Palette einer Arbeit meist nicht
+voll? Wenn ja, darf sie nicht zur Messung von „kg je Kiste“ herangezogen werden — dann braucht
+die Maske ein Häkchen „diese Palette ist nicht voll“.<br>
+<b style="display:inline">b)</b> Sind auf einer IFCO-Palette immer gleich viele Kisten?<br>
+<b style="display:inline">c)</b> Ist „Kürbisse je Kiste“ beim Gewichtssystem (Kiste ab x kg)
+auch bekannt, oder zählt sie dort niemand — dort kommt ja rein, was bis zum Sollgewicht passt?</div>
+
+</div>
+
+<div class="kap">
+<div class="kap-nr">Kapitel 7</div>
+<h1>Fax — am Abpacktisch</h1>
+<p class="kap-vor">Die letzte Station vor dem Kunden. Wenig Ausschuss, aber die Station, an der
+sich zeigt, was das Warten nach dem Waschen gekostet hat.</p>
+
+<h2>7.1 In der Halle</h2>
+
+<p>Gewaschene Ware steht in IFCOs bereit und wird abgepackt. Was dabei faul auffällt, kommt
+beiseite. <strong>Es gibt hier keinen Palox</strong> — es fällt so wenig an, dass sich das
+Sammeln nicht lohnt. Stattdessen wird kistenweise gewogen, direkt auf der Tischwaage.</p>
+
+<h2>7.2 Was die App fragt</h2>
+
+<table class="eng">
+<thead><tr><th style="width:32mm">Schritt</th><th style="width:46mm">Eingabe</th><th>Pflicht?</th></tr></thead>
+<tbody>
+<tr><td><strong>Faules</strong></td><td>je Kiste: Brutto, Kistenzahl, Gebinde, „mit Palette?“ — oder der Knopf <em>„nichts Faules“</em></td><td>ja, mindestens eine Zeile</td></tr>
+<tr><td><strong>Paletten</strong></td><td>wie viele Paletten insgesamt abgepackt wurden — <em>eine</em> Zahl, keine Klickerei</td><td>ja</td></tr>
+<tr><td><strong>Tage seit dem Waschen</strong></td><td>wie lange die Ware gewaschen dastand</td><td>nein, aber vorgeschlagen</td></tr>
+<tr><td><strong>Charge</strong></td><td>„Ist die Charge fertig?“</td><td>ja</td></tr>
+</tbody>
+</table>
+
+<div class="warum"><b>Warum „nichts Faules“ ein eigener Knopf ist</b>
+Eine Fax-Arbeit ohne Faul-Zeile und eine Fax-Arbeit mit ausdrücklich null Kilo sind zwei ganz
+verschiedene Dinge (Regel 1.2). Nur die zweite darf in den Durchschnitt. Ohne den Knopf würde
+jede saubere Charge die Statistik verlassen und übrig blieben nur die schlechten — die
+Auswertung sähe den Betrieb dann systematisch zu düster.</div>
+
+<h2>7.3 Die Wartezeit — die Zahl, die den Fax-Verlust erklärt</h2>
+
+<p>Gewaschene Ware ist nass und verderbt schneller als ungewaschene. Wie viel schneller, hängt
+davon ab, wie lange sie zwischen Waschen und Abpacken steht. Deshalb fragt die App nach den
+Tagen — und schlägt dabei vor, was sie aus den Daten weiss.</p>
+
+<div class="warum neu"><b>Der Vorschlag findet die halbe Ware nicht</b>
+Die App sucht die letzte abgeschlossene Arbeit derselben Charge <strong>mit
+<span class="sp">station = 'waschen'</span></strong>. Ware, die über <em>Waschen + Sortieren</em>
+gelaufen ist, ist aber auch gewaschen — und wird von dieser Suche nie gefunden. Für die halbe
+Ware steht der Arbeiter also ohne Vorschlag da. Die Suche muss beide Stationen umfassen.</div>
+
+<div class="frage"><b>Frage 11 — die Tage seit dem Waschen</b>
+<b style="display:inline">a)</b> Weiss der Mann an der Fax das überhaupt? Steht auf der fertigen
+Palette ein Waschdatum, oder muss er raten?<br>
+<b style="display:inline">b)</b> Wird oft am selben Tag gewaschen und abgepackt (dann wären es
+0 Tage und die Frage ist meistens langweilig), oder liegt die gewaschene Ware regelmässig
+Tage herum?<br>
+<b style="display:inline">c)</b> Wird an der Fax auch Ware abgepackt, die <em>gar nicht</em>
+gewaschen wurde?</div>
+
+<h2>7.4 Und was hier <em>nicht</em> gemessen wird</h2>
+
+<p>Was die Fax verlässt, ist verkaufsfertige Ware — aber die App zählt hier nur Paletten, nicht
+Kilo. Die Kilo kommen aus den Lieferscheinen (Warenausgang-Import). Das ist absichtlich so: die
+Lieferscheine sind vollständig und werden ohnehin erfasst; eine zweite Wägung an der Fax wäre
+Arbeit ohne neuen Erkenntnisgewinn.</p>
+
+<div class="frage"><b>Frage 12 — Wege ohne Lieferschein</b>
+Gibt es Ware, die den Betrieb <strong>ohne Lieferschein</strong> verlässt? Hofladen, Direktverkauf,
+Personal, Verfütterung, Kompost? Wenn ja, wie viel ungefähr — und wird das irgendwo notiert? Was
+die App davon nicht weiss, erscheint in der Bilanz als „verschwunden“ und verfälscht jede
+Verlustzahl nach oben.</div>
+
+</div>
+
+<div class="kap">
+<div class="kap-nr">Kapitel 8</div>
+<h1>Lagerkontrolle und Kontrollpalette</h1>
+<p class="kap-vor">Alles bisher misst Ware, die gerade verarbeitet wird. Dieses Kapitel misst
+Ware, die einfach nur daliegt — und das ist der Teil, über den heute am wenigsten bekannt ist.</p>
+
+<h2>8.1 Die Lagerkontrolle, wie es sie heute gibt</h2>
+
+<p>Ein Arbeiter geht ins Lager, stellt eine Palette auf die Waage und trägt Brutto, Kisten und
+Gebinde ein. Ist dieselbe Palette schon einmal gewogen worden, hat man zwei Gewichte derselben
+Palette und den Abstand in Tagen:</p>
+
+<div class="rechnung">Wägung 1:   12.09.2026   842 kg netto
+Wägung 2:   19.11.2026   814 kg netto
+                         ───────
+Abstand:    68 Tage      −28 kg   =  −3,33 %
+
+   Rate  r  =  1 − (814/842)^(1/68)  =  0,0498 % je Tag</div>
+
+<h2>8.2 Zwei Probleme mit dieser Messung</h2>
+
+<table class="eng">
+<thead><tr><th style="width:34mm">Problem</th><th>Warum es die Zahl verzerrt</th></tr></thead>
+<tbody>
+<tr><td><strong>Auswahl</strong></td><td>Du sagst, an sich werden eher die schlechter aussehenden Paletten ausgewählt. Wer schlechte Paletten wiegt, misst eine zu hohe Rate — und rechnet sie dann auf das ganze Lager hoch.</td></tr>
+<tr><td><strong>Die Palette wird verarbeitet</strong></td><td>Eine Palette, die zwischen zwei Wägungen ins Waschen ging, hat Masse verloren, die nichts mit Verdunstung zu tun hat. Wird das nicht bemerkt, wird aus Verarbeitung Verdunstung.</td></tr>
+</tbody>
+</table>
+
+<h2>8.3 Die Kontrollpalette — mein Vorschlag</h2>
+
+<div class="warum neu"><b>Eine Palette je Sorte, markiert, monatlich gewogen, nie verarbeitet</b>
+Am Anfang der Saison wird je Sorte eine Palette ausgesucht, deutlich markiert und beiseite
+gestellt. Sie wird einmal im Monat gewogen und sonst <strong>nicht angefasst</strong>. Damit
+verschwinden beide Probleme oben auf einen Schlag: die Auswahl ist einmalig und bewusst, und
+verarbeitet wird sie nie.</div>
+
+<p>Sie kann aber noch mehr — sie beantwortet die Frage, die du gestellt hast und auf die ich
+heute keine Antwort habe:</p>
+
+<div class="rechnung">Du sagst:  „ich weiss nicht ob verdunstungsrate konstant ist - ich denke nicht -
+            weil am anfang haben sie sicher schock von draussen feld in halle zu kommen"
+
+Heute rechnet die App mit EINER Rate je Sorte über die ganze Saison.
+Ist deine Vermutung richtig, ist das falsch — und zwar systematisch:
+die Anfangsverluste werden auf die ganze Lagerzeit verschmiert.
+
+Mit einer monatlich gewogenen Kontrollpalette:
+
+  Wägung 1 → 2    (Okt → Nov)   r = ?  ← der „Schock“, falls es ihn gibt
+  Wägung 2 → 3    (Nov → Dez)   r = ?
+  Wägung 3 → 4    (Dez → Jan)   r = ?
+
+Jedes Paar gibt eine Rate FÜR DEN ZEITRAUM DAZWISCHEN. Fällt die erste
+deutlich höher aus als die späteren, ist die Frage beantwortet — gemessen,
+nicht vermutet. Und dann rechnet die App mit einer Kurve statt einer Zahl.</div>
+
+<div class="frage"><b>Frage 13 — die Kontrollpalette</b>
+<b style="display:inline">a)</b> Geht das überhaupt? Kann eine Palette eine ganze Saison stehen
+bleiben, ohne dass sie jemand verarbeitet?<br>
+<b style="display:inline">b)</b> Eine je Sorte — wie viele Sorten sind das? Und wie viel Aufwand
+ist eine Wägung: Stapler holen, hinfahren, wiegen, zurückstellen — zehn Minuten oder eine Stunde?<br>
+<b style="display:inline">c)</b> Monatlich, oder lieber alle zwei Wochen? Wenn der Schock am
+Anfang wirklich existiert, ist er in den ersten Wochen — dann wären am Anfang engere Abstände
+wertvoller als später.<br>
+<b style="display:inline">d)</b> Wäre es realistisch, die Kontrollpalette am Ende der Saison doch
+noch zu verarbeiten und dann zu sehen, wie viel davon faul ist? Das wäre zusätzlich ein
+Verderbs-Messpunkt mit exakt bekanntem Alter.</div>
+
+<h2>8.4 Was die App aus mehreren Messpunkten macht — und was sie anzeigt</h2>
+
+<p>Du hast gesagt: wo Messpunkte fehlen, darf mit dem Mittelmass gerechnet werden — aber dann
+soll man <strong>sehen</strong>, dass es Mittelmass ist. Genau so ist es gebaut, und so soll es
+auch für den Verderb werden:</p>
+
+<table class="eng">
+<thead><tr><th style="width:12mm">Zeichen</th><th style="width:40mm">Bedeutung</th><th>Woher die Zahl kommt</th></tr></thead>
+<tbody>
+<tr><td style="font-size:11pt">●</td><td><strong>eigene Messungen</strong></td><td>Genug Wägungen dieser Sorte — die Zahl ist ihre eigene.</td></tr>
+<tr><td style="font-size:11pt">◐</td><td><strong>zum Mittel gezogen</strong></td><td>Wenige Wägungen. Die eigene Zahl wird Richtung Gesamtmittel gezogen, je weniger Messpunkte desto stärker. Wenige Messungen schwanken stark; ungezogen würde eine Sorte mit zwei Wägungen den Betrieb regieren.</td></tr>
+<tr><td style="font-size:11pt">○</td><td><strong>Mittel aller Sorten</strong></td><td>Keine eigene Wägung. Die Zahl ist geliehen — und das steht dran.</td></tr>
+</tbody>
+</table>
+
+<p>Beim <strong>Verderb</strong> gibt es das heute noch nicht: dort rechnet die App mit
+<em>einer einzigen Kurve für alles</em> — eine Sorte, alle Chargen, die ganze Saison. Das soll
+dasselbe Zeichen-System bekommen wie die Verdunstung, damit man einer Chargenzahl ansieht, ob
+sie gemessen oder geliehen ist.</p>
+
+<div class="frage"><b>Frage 14 — Sorten und Chargen beim Verderb</b>
+Du sagst, ob alle Chargen einer Sorte gleich faulen, wisst ihr nicht — das wollt ihr
+herausfinden. Einverstanden. Dann meine Gegenfrage: <strong>vermutest du grössere Unterschiede
+zwischen Sorten oder zwischen Schlägen?</strong> Also: faulen zwei Chargen derselben Sorte von
+verschiedenen Schlägen unterschiedlich, oder ist die Sorte das, was zählt? Davon hängt ab,
+worauf die App den Mittelwert bezieht, wenn eine Charge zu wenig eigene Messpunkte hat.</div>
+
+</div>
+
+<div class="kap">
+<div class="kap-nr">Kapitel 9</div>
+<h1>Der Abschluss — geführt, nicht als Formular</h1>
+<p class="kap-vor">Der Abschluss ist kein Bildschirm mit zwölf Feldern, sondern eine Folge von
+Fragen, jede allein auf dem Handy. Er entscheidet, ob eine Arbeit mit Lücken in der Datenbank
+landet oder nicht.</p>
+
+<h2>9.1 Was gefragt wird, je Tätigkeit</h2>
+
+<table class="eng">
+<thead><tr><th style="width:26mm">Tätigkeit</th><th style="width:56mm">Schritte in dieser Reihenfolge</th><th>Ohne das geht es nicht weiter</th></tr></thead>
+<tbody>
+<tr><td><strong>Sortieren</strong></td><td>Palox · Charge · Prüfen</td><td>Palox-Ablesung · Chargenfrage</td></tr>
+<tr><td><strong>Waschen + Sortieren</strong></td><td>Palox · drei Wägungen · Ausschuss · fertige Paletten · Charge · Prüfen</td><td>Palox-Ablesung · mindestens ein Ausschuss · Chargenfrage</td></tr>
+<tr><td><strong>Waschen</strong></td><td>Palox · Kaliber-Paletten · fertige Paletten · Charge · Prüfen</td><td>Kisten &gt; 0 · fertige Paletten gewogen · Chargenfrage</td></tr>
+<tr><td><strong>Fax</strong></td><td>Faules · Paletten · Charge · Prüfen</td><td>eine Faul-Zeile (oder „nichts Faules“) · Palettenzahl · Chargenfrage</td></tr>
+</tbody>
+</table>
+
+<div class="warum"><b>Sperren und Erinnern sind zwei verschiedene Dinge</b>
+Gesperrt wird nur, was die Arbeit <em>unbrauchbar</em> macht — ohne Palox-Ablesung hat eine
+Sortierarbeit keine Faul-Menge, ohne Kisten hat eine Wascharbeit keine Masse. Alles andere wird
+gesagt, aber nicht erzwungen: <em>„Drei Paletten wiegen — du hast 1 von 3.“</em> Die Arbeit lässt
+sich trotzdem abschliessen. Wer Arbeiter zwingt, bekommt erfundene Zahlen; wer sie erinnert,
+bekommt entweder die Zahl oder eine ehrliche Lücke.</div>
+
+<h2>9.2 Die Chargenfrage</h2>
+
+<p>Am Ende jeder Arbeit: <em>„War alles aus einer Charge?“</em> — und bei Nein: <em>„War es
+wenigstens dieselbe Sorte?“</em></p>
+
+<p>Die Chargennummer ist der Schlüssel, über den im ganzen System alles zusammenläuft: Eingang,
+Alter, Verderb, Ausgang. Lief eine Arbeit über zwei Chargen, gehört ihr Faules keiner von beiden
+allein — und darf deshalb nicht zum Alter <em>einer</em> Charge gerechnet werden. Die App wirft
+die Messung dann nicht weg, sie <strong>markiert</strong> sie und lässt sie aus der Alterskurve
+heraus. Eine gemischte Arbeit ist keine schlechte Arbeit, sie ist nur eine, die weniger
+beantworten kann.</p>
+
+<div class="frage"><b>Frage 15 — gemischte Arbeiten</b>
+Wie oft kommt das vor? Wenn regelmässig zwei Chargen in einem Durchgang laufen, verliere ich
+damit viele Messpunkte. Dann wäre es vielleicht besser, den Arbeiter die zweite Chargennummer
+eintippen zu lassen und die Menge hälftig zu teilen — ungenau, aber besser als wegwerfen. Was
+ist realistischer?</div>
+
+<h2>9.3 Der letzte Schritt: Prüfen</h2>
+
+<p>Vor dem endgültigen Abschluss zeigt die App alles noch einmal: Palox-Ablesungen, Paletten,
+Ausschuss, fertige Paletten, die Chargenantwort. Wer hier etwas Falsches sieht, geht zurück.
+Danach ist die Arbeit abgeschlossen — und ab dann gilt das Korrekturfenster aus Regel 1.3:
+zwölf Stunden lang darf der Urheber selbst ändern, danach nur noch der Betriebsleiter, und
+jede Änderung bleibt sichtbar.</p>
+
+</div>
+
+<div class="kap">
+<div class="kap-nr">Kapitel 10</div>
+<h1>Alle Änderungen auf einen Blick</h1>
+<p class="kap-vor">Was in diesem Dokument als <span class="sp">Änderung</span> markiert ist,
+gesammelt — nach Dringlichkeit geordnet. Programmiert ist davon noch nichts.</p>
+
+<table class="eng">
+<thead><tr><th style="width:8mm">#</th><th style="width:40mm">Änderung</th><th style="width:22mm">Wo</th><th>Warum</th></tr></thead>
+<tbody>
+<tr><td><strong>1</strong></td><td>Palox liest nur noch innerhalb <em>derselben</em> Arbeit</td><td>Palox-Maske</td><td>Der <span class="sp">−445</span>-Fehler. Heute wird gegen eine fremde Arbeit gerechnet.</td></tr>
+<tr><td><strong>2</strong></td><td>„Palox zwischendurch geleert?“ beim Abschluss, und die Menge bleibt dann <em>leer</em></td><td>Abschluss</td><td>Heute wird in diesem Fall <span class="sp">kg&nbsp;0</span> gespeichert — eine behauptete Null. Verstösst gegen Regel 1.2.</td></tr>
+<tr><td><strong>3</strong></td><td><span class="sp">palox_tara_kg</span> auf 45 setzen</td><td>Einstellung</td><td>Steht heute auf 0. Betrifft nur den Fall einer einzelnen Ablesung.</td></tr>
+<tr><td><strong>4</strong></td><td>Gebindeart bei den Kaliber-Paletten fragen</td><td>Waschen</td><td>Ohne sie ist weder Tara noch kg-je-Kiste bestimmt — die Eingangsmasse des Waschens hängt in der Luft.</td></tr>
+<tr><td><strong>5</strong></td><td>Kisten je Kaliber ersatzlos streichen</td><td>Sortieren</td><td>Wird nicht gezählt und kann nicht gezählt werden. Die Masse je Band kommt aus der CSV.</td></tr>
+<tr><td><strong>6</strong></td><td>Kürbisse je Kiste bei jeder fertigen Palette</td><td>Waschen, W+S</td><td>Die einzige Quelle für das Durchschnittsgewicht je Kaliber — und damit für die Stück-Überfüllung.</td></tr>
+<tr><td><strong>7</strong></td><td>Fax-Vorschlag sucht auch <span class="sp">waschen_sortieren</span></td><td>Fax</td><td>Findet heute die halbe Ware nicht.</td></tr>
+<tr><td><strong>8</strong></td><td>Kontrollpalette: eine je Sorte, monatlich, markiert</td><td>neu</td><td>Beseitigt die Auswahlverzerrung und beantwortet, ob die Verdunstungsrate konstant ist.</td></tr>
+<tr><td><strong>9</strong></td><td>Alter beim Waschen als <em>massegewichtetes Chargenmittel</em> ausweisen, nicht als Tatsache</td><td>Auswertung</td><td>Die Kaliber-Palette hat kein Eingangsdatum. Die Zahl ist eine Schätzung und muss so aussehen.</td></tr>
+<tr><td><strong>10</strong></td><td>Verderb bekommt dieselben Zeichen wie die Verdunstung (● ◐ ○)</td><td>Auswertung</td><td>Heute eine einzige Kurve für alles, ohne Hinweis darauf.</td></tr>
+<tr><td><strong>11</strong></td><td>Kistenzahl aus dem Erntejournal übernehmen</td><td>Import</td><td>Du sagst, sie steht dort. Dann muss sie niemand zählen.</td></tr>
+</tbody>
+</table>
+
+<div class="warum neu"><b>Was ich <em>nicht</em> ändern will</b>
+Nichts an der Reihenfolge der Masken, nichts an den Pflichtfeldern ausser dem, was oben steht,
+und keine neue Frage an den Arbeiter ausser der Gebindeart beim Waschen und den Kürbissen je
+Kiste. Die App soll für den Arbeiter <strong>gleich schnell bleiben</strong>. Zwei der drei
+schlimmsten Fehler (1 und 2) kosten ihn sogar weniger Zeit als heute, weil eine sinnlose
+negative Zahl verschwindet.</div>
+
+</div>
+
+<div class="kap">
+<div class="kap-nr">Kapitel 11</div>
+<h1>Die Fragen — gesammelt</h1>
+<p class="kap-vor">Fünfzehn Fragen, die ich aus dem Code nicht beantworten kann. Die fett
+gedruckten ändern etwas an der App, wenn die Antwort anders ausfällt, als ich annehme. Die
+übrigen ändern nur, wie sicher ich mir bin.</p>
+
+<table class="eng">
+<thead><tr><th style="width:8mm">Nr.</th><th style="width:24mm">Thema</th><th>Frage</th></tr></thead>
+<tbody>
+<tr><td><strong>1</strong></td><td>Reihenfolge</td><td>Kann eine Eingangspalette direkt zum Waschen, ohne vorher sortiert zu werden? Geht alles über die Fax?</td></tr>
+<tr><td><strong>2</strong></td><td>Leute</td><td>Wie viele Leute mit wie vielen Handys an einer Arbeit? Führt einer die Arbeit, oder tippt jeder? Gibt es Schichtwechsel mitten in einer Arbeit?</td></tr>
+<tr><td><strong>3</strong></td><td><strong>Kistensystem</strong></td><td><strong>Steht beim Starten fest, wie verkauft wird — oder gehen aus derselben Wascharbeit Gewichts- und Stückkisten raus?</strong> Bei gemischt muss die Frage von der Arbeit auf die fertige Palette wandern.</td></tr>
+<tr><td><strong>4</strong></td><td>Palox</td><td>Wird der Palox <em>während</em> einer Arbeit geleert, oder praktisch nie? Laufen zwei Arbeiten gleichzeitig an derselben Waschstrasse? Wiegen beide Boxen 45 kg leer?</td></tr>
+<tr><td><strong>5</strong></td><td><strong>Sortier-CSV</strong></td><td><strong>Wird die CSV immer hochgeladen?</strong> Eine Datei je Arbeit, oder eine über mehrere Chargen? Wirft die Maschine zu klein / zu gross mechanisch aus oder zählt sie nur?</td></tr>
+<tr><td><strong>6</strong></td><td>zu gross</td><td>Ist „zu gross“ vermeidbar wie „zu klein“, oder fällt es einfach an? Und wohin geht es — Abfall, Futter, anderer Verkauf?</td></tr>
+<tr><td><strong>7</strong></td><td>drei Wägungen</td><td>Werden die drei Eingangspaletten vor dem Waschen wirklich gewogen, oder ist das der Schritt, der als Erstes ausfällt?</td></tr>
+<tr><td><strong>8</strong></td><td><strong>Kisten beim Waschen</strong></td><td><strong>Werden die Kisten je Kaliber-Palette tatsächlich gezählt?</strong> Ist die Zahl je G2-Palette immer dieselbe? Was steht im Lager ausser G2?</td></tr>
+<tr><td><strong>9</strong></td><td><strong>Erntejournal</strong></td><td><strong>Kann ich es bekommen?</strong> Über wie viele Tage zieht sich die Ernte einer Charge, und wie verteilt sich die Masse darüber? Davon hängt ab, wie genau das Alter beim Waschen überhaupt sein kann.</td></tr>
+<tr><td><strong>10</strong></td><td>fertige Palette</td><td>Ist die letzte Palette einer Arbeit meist nicht voll? Immer gleich viele IFCOs je Palette? Ist „Kürbisse je Kiste“ beim Gewichtssystem überhaupt bekannt?</td></tr>
+<tr><td><strong>11</strong></td><td>Fax-Wartezeit</td><td>Weiss der Mann an der Fax, wie lange die Ware gewaschen dasteht? Wird meist am selben Tag abgepackt? Kommt auch ungewaschene Ware an die Fax?</td></tr>
+<tr><td><strong>12</strong></td><td><strong>ohne Lieferschein</strong></td><td><strong>Verlässt Ware den Betrieb ohne Lieferschein?</strong> Hofladen, Personal, Futter, Kompost — und wie viel ungefähr? Was die App nicht kennt, sieht in der Bilanz aus wie Verlust.</td></tr>
+<tr><td><strong>13</strong></td><td><strong>Kontrollpalette</strong></td><td><strong>Machbar?</strong> Kann eine Palette je Sorte eine Saison unangetastet stehen? Wie viele Sorten? Wie lange dauert eine Wägung? Monatlich oder enger? Am Ende doch verarbeiten?</td></tr>
+<tr><td><strong>14</strong></td><td>Verderb</td><td>Vermutest du grössere Unterschiede zwischen <em>Sorten</em> oder zwischen <em>Schlägen</em>? Danach richtet sich, worauf gemittelt wird, wenn eine Charge zu wenig eigene Messpunkte hat.</td></tr>
+<tr><td><strong>15</strong></td><td>gemischte Arbeiten</td><td>Wie oft laufen zwei Chargen in einem Durchgang? Wenn oft: lieber zweite Nummer eintippen und hälftig teilen statt die Messung verwerfen?</td></tr>
+</tbody>
+</table>
+
+<h2>Was ich <em>nicht</em> weiss und auch nicht behaupte</h2>
+
+<div class="warum neu"><b>Alle Zahlen in diesem Dokument sind Beispielrechnungen</b>
+Ich habe keinen Zugang zu euren echten Daten. Was in der Datenbank liegt, sind Beispieldaten,
+die eine KI erzeugt hat — sie haben die richtige <em>Form</em>, aber über euren Betrieb sagen
+sie nichts. Jede Zahl in den Rechenkästen dieses Dokuments ist erfunden und dient nur dazu, die
+Rechnung zu zeigen. Wo ich früher Messergebnisse genannt habe („die Streuung beträgt höchstens
+sechs Tage“, „zwei Prozent rutschen unter die Kaliberkante“), waren das Auswertungen der
+erfundenen Daten. <strong>Sie sind gestrichen.</strong> Mit dem Erntejournal und den ersten
+echten Erfassungen kann ich das ersetzen — vorher nicht.</div>
+
+<p>Und noch eines, das aus dem Code nicht hervorgeht und das du entscheiden musst: Ab dem
+Moment, in dem erfasst wird, sind die Daten echt und werden nicht mehr gelöscht. Alles in
+Kapitel 10 sollte <strong>vorher</strong> drin sein — besonders 1, 2, 4 und 5. Was danach kommt,
+kann die Auswertung jederzeit dazulernen; was an der Erfassung fehlt, ist für die laufende
+Saison unwiederbringlich weg.</p>
+
+</div>
+
+</body></html>

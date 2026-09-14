@@ -24,6 +24,7 @@ const NUR = process.argv[2] ?? ''
 // Welches HTML wird zu welchem PDF. Die Namen sind die, auf die README und
 // docs/*.md verweisen — sie dürfen sich nicht ändern.
 const DOKUMENTE = [
+  { html: 'halle.html',       pdf: 'Die-Arbeiter-App.pdf' },
   { html: 'werkzeug.html',    pdf: 'Das-ganze-Werkzeug.pdf' },
   { html: 'programm.html',    pdf: 'Das-Programm-erklaert.pdf' },
   { html: 'ablauf.html',      pdf: 'Ablauf-Betrieb-und-App.pdf' },
