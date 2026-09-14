@@ -4392,10 +4392,18 @@ begin
     '0078 (a4): 0 durch Entscheid ist bekannt, nicht unbekannt — a_fax_bekannt muss true sein';
   assert (select coalesce(max(fax_kg), 0) from erg_prognose) = 0,
     '0078 (a5): erg_prognose.fax_kg > 0 trotz Eis';
+  -- Schalter aus: die alte Rechnung meldet sich zurück — unbekannt (null), wo
+  -- keine Fax-Arbeit Faules gewogen hat, sonst > 0; nie mehr „eingefroren"
+  -- und nie eine behauptete Null. (Dass sie mit einer gewogenen Fax-Arbeit
+  -- wirklich > 0 rechnet, prüft Block 0051 mit genau so einer Arbeit.)
   update einstellung set wert = 'false'::jsonb where schluessel = 'fax_eingefroren';
-  assert (select mittel from v_koeff_fax where sorte = 'Amoro') > 0,
-    '0078 (a6): Schalter aus, aber der Fax-Koeffizient bleibt 0 — die Rechnung ist tot, nicht auf Eis';
+  assert not exists (select 1 from v_koeff_fax where basis like 'eingefroren%'),
+    '0078 (a6): Schalter aus, aber v_koeff_fax sagt noch „eingefroren"';
+  assert not exists (select 1 from v_koeff_fax where mittel = 0),
+    '0078 (a7): Schalter aus, aber ein Fax-Anteil steht auf 0 — aus unbekannt wurde eine Null';
   update einstellung set wert = 'true'::jsonb where schluessel = 'fax_eingefroren';
+  assert not exists (select 1 from v_koeff_fax where basis not like 'eingefroren%' or mittel <> 0),
+    '0078 (a8): Schalter an, aber nicht jede Sorte steht auf 0 / „eingefroren"';
 
   -- ---- (b) Die Identität: Bänder summieren zur Kaskade ----------------
   assert to_regclass('public.erg_lager_kaliber') is not null,
@@ -4464,11 +4472,22 @@ begin
     having coalesce(sum(k.anteil) filter (where k.h = 196), 0)
          > coalesce(sum(k.anteil) filter (where k.h = 0), 0) + 1e-6) x;
   assert v_n = 0, format('0078 (c2): bei %s Chargen wächst das oberste Band mit der Zeit', v_n);
+  -- Gibt es eine Charge mit eigener CSV, r > 0 und Ware an beiden Horizonten,
+  -- muss bei ihr mindestens ein Band wandern. (Der Prüfdatensatz hat so eine
+  -- nicht immer — die Demo hat sie; dann ist die Prüfung scharf.)
   select count(*) into v_n from (
-    select schluessel, kaliber_idx from t78
-     where gruppe = 'charge' and basis = 'charge'
-     group by schluessel, kaliber_idx having count(distinct anteil) > 1) x;
-  assert v_n > 0, '0078 (c3): kein einziges Band wandert in 28 Wochen — die Verdunstung kommt in der Aufteilung nicht an';
+    select k.schluessel from t78 k
+     where k.gruppe = 'charge' and k.basis = 'charge' and k.kaliber_idx is not null
+       and exists (select 1 from mv_kaskade m where m.portion = 'lager' and m.charge_nr = k.schluessel::int and m.r > 0)
+     group by k.schluessel having count(distinct k.h) = 2) x;
+  if v_n > 0 then
+    select count(*) into v_n from (
+      select schluessel, kaliber_idx from t78
+       where gruppe = 'charge' and basis = 'charge'
+         and exists (select 1 from mv_kaskade m where m.portion = 'lager' and m.charge_nr = t78.schluessel::int and m.r > 0)
+       group by schluessel, kaliber_idx having count(distinct anteil) > 1) x;
+    assert v_n > 0, '0078 (c3): kein einziges Band wandert in 28 Wochen — die Verdunstung kommt in der Aufteilung nicht an';
+  end if;
   -- Ein Aufruf muss billig sein: der Bildschirm ruft ihn bei jedem X.
   v_start := clock_timestamp();
   perform count(*) from lager_kaliber(84);
