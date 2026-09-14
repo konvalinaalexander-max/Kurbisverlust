@@ -906,10 +906,16 @@ begin
           v_sort.start_ts + interval '60 days 7 hours', 'abgeschlossen',
           v_sort.eingang_netto_kg * 0.9, 'PRUEFUNG')
   returning id into v_wasch;
-  -- Die Waage zeigt brutto: 165 auf der Anzeige sind 120 kg Faules bei 45 kg
-  -- Behälter. Gespeichert wird der Stand; die Menge leitet die Auswertung ab.
-  insert into schimmel_messung (auftrag_id, kg, palox_stand_kg)
-  values (v_wasch, 120, 165);
+  -- Die Waage zeigt brutto. Seit 0073 liest jede Arbeit ihren eigenen Anfang
+  -- UND ihr eigenes Ende: 45 kg ist die leere Box, 165 kg der Stand am Schluss,
+  -- also 120 kg Faules. Eine einzige Ablesung wäre ein Startstand und kein
+  -- Messwert — die Menge der Arbeit bliebe unbekannt (und das ist richtig so).
+  -- Die Zeitpunkte liegen bewusst vor „jetzt": palox_letzter_stand(station)
+  -- ordnet nach ts, und der nachfolgende Block prüft, dass er dort den Stand
+  -- der SPÄTEREN Arbeit findet.
+  insert into schimmel_messung (auftrag_id, kg, palox_stand_kg, ts) values
+    (v_wasch,   0,  45, now() - interval '4 hours'),
+    (v_wasch, 120, 165, now() - interval '3 hours');
 
   perform auswertung_aktualisieren();
 
@@ -944,44 +950,61 @@ end $$;
 do $$
 declare v_hand bigint; v_diff numeric;
 begin
-  -- 0027/0032: Der Arbeiter trägt den Waagenstand ein, die Differenz rechnet
-  -- die Software — und zwar je Station: Sortierband, Waschbecken und
-  -- Hand-Linie haben je einen eigenen Palox auf eigener Waage. Vor 0032 war
-  -- der Stand global; liefen zwei Linien gleichzeitig, verzahnten sich ihre
-  -- Ablesungen und jede Differenz war falsch.
+  -- 0027/0032/0073: Der Arbeiter trägt den Waagenstand ein, die Differenz
+  -- rechnet die Software. Seit 0073 aber NUR innerhalb derselben Arbeit.
+  --
+  -- Was hier früher stand und nicht mehr gilt: „die erste Ablesung einer
+  -- Station enthält den Behälter" (165 brutto − 45 Tara = 120) und „die
+  -- Differenz läuft über beide Stationsnamen der Waschstrasse hinweg".
+  -- Beides waren Folgerungen über Arbeitsgrenzen hinweg. Der Betrieb hat sie
+  -- widerrufen: „arbeitsschritte werden nie über nacht pausiert … deswegen
+  -- soll nie von der letzten arbeit der palox wert irgendwie übernommen
+  -- werden." Jede Arbeit liest ihren eigenen Anfang und ihr eigenes Ende;
+  -- die Tara kürzt sich in der Differenz heraus.
   assert (select count(*) from v_palox_stand where differenz < 0) = 0,
     'Eine Palox-Differenz ist negativ — der Stand wurde falsch verrechnet';
+  -- palox_letzter_stand(station) bleibt bestehen und bleibt rufbar; sie dient
+  -- nur nicht mehr der Differenzbildung in der Maske.
   assert palox_letzter_stand('waschen') is not null,
-    'Der letzte Waagenstand ist nicht abrufbar — die Eingabemaske kann nicht rechnen';
-  -- 0036: Die erste Ablesung einer Station enthält den Behälter. 165 brutto
-  -- bei 45 kg Tara sind 120 kg Faules — und genau das muss im Modell ankommen,
-  -- nicht 165.
-  assert (select differenz from v_palox_stand where auftrag_id = (select id from auftrag where bemerkung = 'PRUEFUNG' and station = 'waschen')) = 120,
-    format('Erste Ablesung: erwartet 165 − 45 = 120, ist %s',
-           (select differenz from v_palox_stand where auftrag_id = (select id from auftrag where bemerkung = 'PRUEFUNG' and station = 'waschen')));
-  assert (select kg from v_schimmel_menge where auftrag_id = (select id from auftrag where bemerkung = 'PRUEFUNG' and station = 'waschen')) = 120,
-    'Die Schimmelmenge muss aus dem Stand abgeleitet sein (mit Tara)';
+    'Der letzte Waagenstand ist nicht abrufbar';
 
-  -- 0060: Zwei Stationen — Sortiermaschine und Waschstrasse. „Waschen +
-  -- Sortieren" ist die Waschstrasse mit Sortieren am Band: derselbe Palox.
-  -- 165 auf der Wasch-Waage, dann 195 von der Hand-Sortierung = 30 kg dazu.
+  -- Die Wascharbeit von oben: 45 (leere Box) → 165. Die erste Ablesung ist
+  -- der Nullpunkt, die zweite trägt die 120 kg.
+  select id into v_hand from auftrag where bemerkung = 'PRUEFUNG' and station = 'waschen';
+  assert (select differenz from v_palox_stand where auftrag_id = v_hand and palox_stand_kg = 45) = 0,
+    'Die erste Ablesung einer Arbeit ist der Startstand, keine Menge (0073)';
+  assert (select differenz from v_palox_stand where auftrag_id = v_hand and palox_stand_kg = 165) = 120,
+    'Die zweite Ablesung trägt die Menge: 165 − 45 = 120';
+  assert (select kg from v_schimmel_menge where auftrag_id = v_hand) = 120,
+    'Die Schimmelmenge ist die Summe der Differenzen innerhalb der Arbeit';
+
+  -- Eine neue Arbeit an derselben Waschstrasse. Ihr Anfangsstand ist 165 —
+  -- derselbe Wert, mit dem die Vorarbeit endete. Früher hätte das eine
+  -- Differenz von 0 gegen die Vorarbeit ergeben; heute ist es schlicht der
+  -- Nullpunkt dieser Arbeit.
   insert into auftrag (id, weg, station, charge_nr, start_ts, ende_ts, status)
   values (2100, 'hand', 'waschen_sortieren', 1613,
           now() - interval '2 hours', now(), 'abgeschlossen');
-  insert into schimmel_messung (auftrag_id, kg, palox_stand_kg)
-  values (2100, 30, 195);
+  insert into schimmel_messung (auftrag_id, kg, palox_stand_kg, ts) values
+    (2100, 0, 165, now() - interval '110 minutes'),
+    (2100, 30, 195, now() - interval '10 minutes');
+  assert (select differenz from v_palox_stand where auftrag_id = 2100 and palox_stand_kg = 165) = 0,
+    'Auch bei gleichem Anfangsstand ist die erste Ablesung der Nullpunkt (0073)';
+  assert (select kg from v_schimmel_menge where auftrag_id = 2100) = 30,
+    'Die Arbeit hat ihre eigene Menge: 195 − 165 = 30';
+  -- Die Vorarbeit bleibt davon unberührt — das ist der Kern der Änderung.
+  assert (select kg from v_schimmel_menge where auftrag_id = v_hand) = 120,
+    'Eine neue Arbeit darf die Menge der Vorarbeit nicht verändern';
+  -- Und die Stationsfunktion sieht weiterhin über beide Namen hinweg.
   assert palox_letzter_stand('waschen') = 195 and palox_letzter_stand('waschen_sortieren') = 195,
     'Waschen und Waschen + Sortieren teilen sich den Palox der Waschstrasse (0060)';
   assert palox_letzter_stand('sortieren') is null,
     'Die Sortiermaschine hat ihren eigenen Palox';
-  assert (select differenz from v_palox_stand where auftrag_id = 2100) = 30,
-    'Die Differenz läuft über beide Stationsnamen der Waschstrasse hinweg (195 − 165)';
 
-  -- Der Stand fällt (195 → 90): zwischendurch geleert, ohne Ablesung davor.
-  -- Der Arbeiter wird nicht gefragt; die Menge dieser Ablesung ist unbekannt,
-  -- die Arbeit hat damit keine bekannte Schimmelmenge.
-  insert into schimmel_messung (auftrag_id, kg, palox_stand_kg)
-  values (2100, 0, 90);
+  -- Der Stand fällt (195 → 90): zwischendurch geleert. Die Menge dieser
+  -- Ablesung ist unbekannt, und damit die der ganzen Arbeit.
+  insert into schimmel_messung (auftrag_id, kg, palox_stand_kg, ts)
+  values (2100, 0, 90, now() - interval '5 minutes');
   select differenz into v_diff from v_palox_stand
    where auftrag_id = 2100 order by ts desc, id desc limit 1;
   assert v_diff is null,
@@ -993,34 +1016,56 @@ begin
     'Eine Arbeit mit unbekannter Ablesung hat keine Schimmelmenge — unbekannt, nicht 0';
   assert exists (select 1 from v_plausibilitaet where art = 'Palox geleert' and auftrag_id = 2100),
     'Der gefallene Stand steht als Hinweis in der Plausibilität';
-  -- Danach zählt es wieder: 90 → 130 sind 40 kg (die Arbeit bleibt trotzdem unbekannt)
-  insert into schimmel_messung (auftrag_id, kg, palox_stand_kg)
-  values (2100, 40, 130);
+  -- Danach zählt es wieder: 90 → 130 sind 40 kg (die Arbeit bleibt unbekannt)
+  insert into schimmel_messung (auftrag_id, kg, palox_stand_kg, ts)
+  values (2100, 40, 130, now() - interval '4 minutes');
   assert (select differenz from v_palox_stand where auftrag_id = 2100 and palox_stand_kg = 130) = 40,
     'Nach dem gefallenen Stand zählt die Differenz wieder';
   assert not exists (select 1 from v_schimmel_menge where auftrag_id = 2100),
     'Ein unbekanntes Stück macht die ganze Arbeit unbekannt';
-  -- Beide Ablesungen weg (90 und 130): die Menge ist wieder bekannt.
   delete from schimmel_messung where auftrag_id = 2100 and palox_stand_kg in (90, 130);
   assert (select kg from v_schimmel_menge where auftrag_id = 2100) = 30,
     'Ohne die gefallene Ablesung ist die Menge wieder bekannt (30 kg)';
 
-  -- Geleert gemeldet (das alte Häkchen): der Stand ohne Behälter gilt als Menge.
-  insert into schimmel_messung (auftrag_id, kg, palox_stand_kg, palox_geleert)
-  values (2100, 45, 90, true);
+  -- Geleert gemeldet: früher galt „der Stand ohne Behälter ist die Menge".
+  -- Das war eine Folgerung — wie viel beim Leeren herausging, weiss niemand.
+  -- Seit 0073 ist die Menge dieser Ablesung unbekannt.
+  insert into schimmel_messung (auftrag_id, kg, palox_stand_kg, palox_geleert, ts)
+  values (2100, 45, 90, true, now() - interval '3 minutes');
   select differenz into v_diff from v_palox_stand
    where auftrag_id = 2100 order by ts desc, id desc limit 1;
-  assert v_diff = 45,
-    format('Nach dem Leeren gilt der Stand ohne Behälter als Menge, nicht die Differenz (%s)', v_diff);
+  assert v_diff is null,
+    format('Nach dem Leeren ist die Menge unbekannt, nicht %s (0073)', v_diff);
+  assert not exists (select 1 from v_schimmel_menge where auftrag_id = 2100),
+    'Nach dem Leeren hat die Arbeit keine bekannte Menge mehr';
+  delete from schimmel_messung where auftrag_id = 2100 and palox_geleert;
+
+  -- Eine Arbeit mit nur EINER Ablesung: das ist ein Startstand, kein
+  -- Messwert. Früher kam dabei `stand − tara` heraus, also eine Zahl, die
+  -- niemand gemessen hat.
+  delete from schimmel_messung where auftrag_id = 2100 and palox_stand_kg = 195;
+  assert not exists (select 1 from v_schimmel_menge where auftrag_id = 2100),
+    'Eine einzige Palox-Ablesung ist ein Startstand — die Menge bleibt unbekannt (0073)';
+  insert into schimmel_messung (auftrag_id, kg, palox_stand_kg, ts)
+  values (2100, 30, 195, now() - interval '10 minutes');
+
+  -- „Palox zwischendurch geleert?" beim Abschluss: die Ablesungen bleiben,
+  -- die Menge ist unbekannt.
+  update auftrag set palox_unbekannt = true where id = 2100;
+  assert not exists (select 1 from v_schimmel_menge where auftrag_id = 2100),
+    'palox_unbekannt heisst: keine Menge (0072)';
+  assert (select count(*) from schimmel_messung where auftrag_id = 2100) = 2,
+    'Die Ablesungen selbst bleiben erhalten — unbekannt heisst nicht gelöscht';
+  update auftrag set palox_unbekannt = false where id = 2100;
 
   -- Ein Stand unter dem Leergewicht ist unmöglich und gehört gemeldet.
-  insert into schimmel_messung (auftrag_id, kg, palox_stand_kg)
-  values (2100, 0, 20);
+  insert into schimmel_messung (auftrag_id, kg, palox_stand_kg, ts)
+  values (2100, 0, 20, now() - interval '2 minutes');
   assert exists (select 1 from v_plausibilitaet where art = 'Palox' and auftrag_id = 2100),
     'Ein Waagenstand unter der Palox-Tara muss in v_plausibilitaet erscheinen';
   delete from schimmel_messung where auftrag_id = 2100 and palox_stand_kg = 20;
 
-  raise notice 'OK  Palox-Waage (je Station, Leeren gemeldet, ablesen statt kopfrechnen)';
+  raise notice 'OK  Palox-Waage (je Arbeit, Leeren unbekannt, ablesen statt kopfrechnen)';
 end $$;
 
 do $$
@@ -1397,6 +1442,9 @@ begin
   perform set_config('request.jwt.claim.sub',
                      (select id::text from profil where rolle = 'arbeiter' limit 1), true);
   begin
+    -- 0072: Im Echtmodus verweigert die Datenbank Beispieldaten. Der
+    -- Prüfstand ist eine Beispieldatenbank und sagt das ausdrücklich.
+    update einstellung set wert = '"beispiel"'::jsonb where schluessel = 'betriebsmodus';
     perform demo_daten_laden();
     assert false, 'Ein Arbeiter darf die Demo-Saison nicht laden können';
   exception when others then
@@ -2216,6 +2264,18 @@ begin
     v_vorher := v_vorher || jsonb_build_object(v_tabelle, v_zahl);
   end loop;
 
+  -- 0072: Der Schutz greift zuerst — und wird hier ausdrücklich geprüft,
+  -- statt nur umgangen. Eine Datenbank im Echtmodus nimmt keine
+  -- Beispieldaten an, auch nicht über einen Umweg von Hand.
+  update einstellung set wert = '"echt"'::jsonb where schluessel = 'betriebsmodus';
+  begin
+    perform demo_daten_laden();
+    assert false, '0072: demo_daten_laden() lief im Echtmodus durch';
+  exception when others then
+    assert sqlerrm like '%Echtmodus%',
+      format('0072: unerwarteter Fehler im Echtmodus: %s', sqlerrm);
+  end;
+  update einstellung set wert = '"beispiel"'::jsonb where schluessel = 'betriebsmodus';
   perform demo_daten_laden();
   v_geladen := '{}'::jsonb;
   foreach v_tabelle in array v_tabellen loop
@@ -4095,3 +4155,190 @@ begin
 end $$;
 
 select '——— 0071 Prognose und Zerlegung geprüft ———' as ergebnis;
+
+
+-- =====================================================================
+-- 0072 — Die Erfassung scharf schalten
+--
+-- Der Betrieb hat den Palox-Fehler gemeldet: „wenn ich bei sortieren palox
+-- zu beginn ablese rechnet es minus 445? warum - es sind 45 kg". Der Fehler
+-- sitzt an zwei Stellen, und die zweite ist die schlimmere.
+--
+-- In der Maske holt PaloxMaske.tsx den letzten Stand *derselben Station*
+-- über Arbeitsgrenzen hinweg. In der Datenbank tut v_palox_stand genau
+-- dasselbe: sie fenstert über `palox_station(a.station)` statt über den
+-- Auftrag. Damit greift lag() in die vorherige Arbeit.
+--
+--   Beginnt eine Arbeit mit einem NIEDRIGEREN Stand als die Vorarbeit
+--   endete, wird die Differenz NULL und v_schimmel_menge wirft die ganze
+--   Arbeit hinaus. Das Ergebnis ist zufällig richtig (unbekannt statt
+--   falsch), kostet aber eine vollständig vorhandene Messung.
+--
+--   Beginnt sie mit einem HÖHEREN Stand — weil zwischen zwei Arbeiten
+--   jemand etwas hineingeworfen hat —, wird die Differenz stillschweigend
+--   DIESER Arbeit als Fäulnis angelastet. Das sieht niemand, und es zieht
+--   die Verderbskurve für alle Chargen nach oben.
+--
+-- Die Regel des Betriebs (Antwort 3): „arbeitsschritte werden nie über
+-- nacht pausiert … deswegen soll nie von der letzten arbeit der palox wert
+-- irgendwie übernommen werden". Jede Arbeit liest ihren eigenen Anfang und
+-- ihr eigenes Ende. Menge = S₂ − S₁. Die Tara (45 kg) kürzt sich in der
+-- Differenz heraus und darf nirgends mehr abgezogen werden.
+--
+-- Dazu der Gebindewechsel beim Waschen (G2 → IFCO, „3 paletten vorne rein,
+-- 4 hinten raus"), das Alter als ausgewiesene Schätzung, die
+-- Kontrollpalette und der Schutz der Erfassung.
+-- ---------------------------------------------------------------------
+do $$
+declare
+  v_n int; v_txt text; v_def text;
+  v_a1 bigint; v_a2 bigint; v_a3 bigint;
+  v_chef uuid := '11111111-1111-1111-1111-111111111111';
+begin
+  -- ================================================================
+  -- (a) Der Palox liest nur innerhalb derselben Arbeit
+  -- ================================================================
+
+  -- Zwei Arbeiten an derselben Station, nacheinander. Die erste endet bei
+  -- 310 kg, die zweite beginnt bei 45 kg (die leere Box) und endet bei 200.
+  -- Richtig: Arbeit 1 hat 265 kg, Arbeit 2 hat 155 kg.
+  insert into auftrag (weg, station, charge_nr, eroeffnet_von, start_ts, ende_ts, status)
+  values ('maschine', 'sortieren', 1613, v_chef, '2026-11-01 07:00+01', '2026-11-01 15:00+01', 'abgeschlossen')
+  returning id into v_a1;
+  insert into auftrag (weg, station, charge_nr, eroeffnet_von, start_ts, ende_ts, status)
+  values ('maschine', 'sortieren', 1613, v_chef, '2026-11-02 07:00+01', '2026-11-02 15:00+01', 'abgeschlossen')
+  returning id into v_a2;
+
+  insert into schimmel_messung (auftrag_id, kg, palox_stand_kg, erfasser, ts) values
+    (v_a1,   0,  45, v_chef, '2026-11-01 07:05+01'),
+    (v_a1, 265, 310, v_chef, '2026-11-01 14:55+01'),
+    (v_a2,   0,  45, v_chef, '2026-11-02 07:05+01'),
+    (v_a2, 155, 200, v_chef, '2026-11-02 14:55+01');
+
+  -- a1: `vorher` muss die vorige Ablesung DERSELBEN Arbeit sein.
+  select count(*), string_agg(format('Ablesung %s (Arbeit %s): vorher %s statt %s',
+                                     p.id, x.auftrag_id, p.vorher, x.vorher_soll), '; ')
+    into v_n, v_txt
+    from v_palox_stand p
+    join (select s.id, s.auftrag_id,
+                 lag(s.palox_stand_kg) over (partition by s.auftrag_id order by s.ts, s.id) as vorher_soll
+            from schimmel_messung s
+           where s.palox_stand_kg is not null and s.gemessen) x on x.id = p.id
+   where p.vorher is distinct from x.vorher_soll;
+  assert v_n = 0, format('0072 (a1): %s Ablesung(en) rechnen gegen eine fremde Arbeit — %s', v_n, v_txt);
+
+  -- a2: Die erste Ablesung einer Arbeit ist der Nullpunkt, keine Menge.
+  select count(*) into v_n from (
+    select p.differenz,
+           row_number() over (partition by s.auftrag_id order by s.ts, s.id) as rn
+      from v_palox_stand p join schimmel_messung s on s.id = p.id) x
+   where x.rn = 1 and x.differenz is distinct from 0;
+  assert v_n = 0,
+    format('0072 (a2): bei %s Arbeit(en) gilt die erste Ablesung als Menge statt als Startstand', v_n);
+
+  -- a3: Beide Arbeiten haben ihre eigene, richtige Menge.
+  select kg into v_n from v_schimmel_menge where auftrag_id = v_a1;
+  assert v_n = 265, format('0072 (a3): Arbeit 1 hat %s kg statt 265', coalesce(v_n::text, 'keine Zeile'));
+  select kg into v_n from v_schimmel_menge where auftrag_id = v_a2;
+  assert v_n = 155, format('0072 (a3): Arbeit 2 hat %s kg statt 155 — der Stand der Vorarbeit wirkt nach',
+                           coalesce(v_n::text, 'keine Zeile'));
+
+  -- a4: Der stille Überschätzungsfehler. Eine dritte Arbeit beginnt mit
+  -- einem HÖHEREN Stand als die zweite endete (jemand warf zwischendurch
+  -- etwas hinein). Die 60 kg dazwischen gehören KEINER der beiden Arbeiten.
+  insert into auftrag (weg, station, charge_nr, eroeffnet_von, start_ts, ende_ts, status)
+  values ('maschine', 'sortieren', 1613, v_chef, '2026-11-03 07:00+01', '2026-11-03 15:00+01', 'abgeschlossen')
+  returning id into v_a3;
+  insert into schimmel_messung (auftrag_id, kg, palox_stand_kg, erfasser, ts) values
+    (v_a3,   0, 260, v_chef, '2026-11-03 07:05+01'),
+    (v_a3, 100, 360, v_chef, '2026-11-03 14:55+01');
+
+  select kg into v_n from v_schimmel_menge where auftrag_id = v_a3;
+  assert v_n = 100,
+    format('0072 (a4): Arbeit 3 hat %s kg statt 100 — sie bekommt die 60 kg angelastet, '
+           'die zwischen den Arbeiten hineingeworfen wurden', coalesce(v_n::text, 'keine Zeile'));
+
+  -- a5: Die Tara kommt in v_palox_stand nicht mehr vor. Sie kürzt sich in
+  -- der Differenz heraus; wo sie noch abgezogen wird, ist die Rechnung
+  -- eine Folgerung und keine Beobachtung.
+  select pg_get_viewdef('v_palox_stand'::regclass, true) into v_def;
+  assert v_def not like '%palox_tara_kg%',
+    '0072 (a5): v_palox_stand zieht noch eine Tara ab — in der Differenz zweier Stände kürzt sie sich weg';
+
+  -- a6: Eine einzige Ablesung ist kein Messwert, sondern nur ein
+  -- Startstand. Die Menge der Arbeit ist unbekannt, nicht 0.
+  delete from schimmel_messung where auftrag_id = v_a3 and palox_stand_kg = 360;
+  assert not exists (select 1 from v_schimmel_menge where auftrag_id = v_a3),
+    '0072 (a6): eine Arbeit mit nur einer Palox-Ablesung hat eine Menge — sie darf keine haben (leer ist nicht null)';
+
+  -- a7: „Palox zwischendurch geleert" macht die Menge unbekannt, nicht 0.
+  assert exists (select 1 from information_schema.columns
+                  where table_name = 'auftrag' and column_name = 'palox_unbekannt'),
+    '0072 (a7): auftrag.palox_unbekannt fehlt — ohne sie lässt sich „geleert" nicht von „nichts faul" trennen';
+  insert into schimmel_messung (auftrag_id, kg, palox_stand_kg, erfasser, ts)
+  values (v_a3, 100, 360, v_chef, '2026-11-03 14:55+01');
+  update auftrag set palox_unbekannt = true where id = v_a3;
+  assert not exists (select 1 from v_schimmel_menge where auftrag_id = v_a3),
+    '0072 (a7): eine Arbeit mit geleertem Palox liefert trotzdem eine Menge';
+  assert (select count(*) from schimmel_messung where auftrag_id = v_a3) = 2,
+    '0072 (a7): die Ablesungen selbst sind verschwunden — unbekannt heisst nicht gelöscht';
+
+  delete from schimmel_messung where auftrag_id in (v_a1, v_a2, v_a3);
+  delete from auftrag where id in (v_a1, v_a2, v_a3);
+
+  -- ================================================================
+  -- (b) Der Gebindewechsel beim Waschen
+  -- ================================================================
+
+  -- b1: In welchem Gebinde die Kaliber-Paletten stehen. Ohne die Angabe
+  -- ist die Tara unbestimmt und damit jedes Netto.
+  assert exists (select 1 from information_schema.columns
+                  where table_name = 'auftrag_palette' and column_name = 'gebindeart'),
+    '0072 (b1): auftrag_palette.gebindeart fehlt — beim Waschen ist damit keine Tara bestimmt';
+
+  -- b2: Wie viele fertige Paletten es insgesamt geworden sind. Ohne diese
+  -- Zahl ist „3 rein, 4 raus" nicht rechenbar: die App kennt nur die
+  -- gewogenen Paletten, nicht alle.
+  assert exists (select 1 from information_schema.columns
+                  where table_name = 'auftrag' and column_name = 'fertige_paletten_gesamt'),
+    '0072 (b2): auftrag.fertige_paletten_gesamt fehlt — die Ausgangsmasse des Waschens hängt in der Luft';
+
+  -- b3: Die letzte fertige Palette einer Arbeit ist oft nicht voll. Sie
+  -- zählt für die Masse, aber nicht für kg je Kiste.
+  assert exists (select 1 from information_schema.columns
+                  where table_name = 'ausgang_wiegung' and column_name = 'voll'),
+    '0072 (b3): ausgang_wiegung.voll fehlt — die halbvolle letzte Palette zieht den Koeffizienten nach unten';
+
+  -- ================================================================
+  -- (c) Die Kontrollpalette
+  -- ================================================================
+  assert to_regclass('public.kontrollpalette') is not null,
+    '0072 (c1): Tabelle kontrollpalette fehlt';
+  assert to_regclass('public.kontrollpalette_wiegung') is not null,
+    '0072 (c1): Tabelle kontrollpalette_wiegung fehlt';
+  assert to_regclass('public.v_kontrollpalette_rate') is not null,
+    '0072 (c2): Sicht v_kontrollpalette_rate fehlt — ohne sie beantwortet die Kontrollpalette nichts';
+
+  -- ================================================================
+  -- (d) Das Alter beim Waschen ist eine Schätzung und sagt es
+  -- ================================================================
+  assert exists (select 1 from information_schema.columns
+                  where table_name = 'v_auftrag_masse' and column_name = 'alter_quelle'),
+    '0072 (d1): v_auftrag_masse.alter_quelle fehlt — eine geschätzte Zahl sieht aus wie eine gemessene';
+  assert exists (select 1 from information_schema.columns
+                  where table_name = 'v_auftrag_masse' and column_name = 'alter_spanne_tage'),
+    '0072 (d1): v_auftrag_masse.alter_spanne_tage fehlt — die Unsicherheit des Chargenmittels';
+  assert exists (select 1 from information_schema.columns
+                  where table_name = 'v_auftrag_masse' and column_name = 'zwischenlager_tage'),
+    '0072 (d1): v_auftrag_masse.zwischenlager_tage fehlt — das exakt bekannte Stück des Alters';
+
+  -- ================================================================
+  -- (e) Die Erfassung wird unlöschbar
+  -- ================================================================
+  assert to_regclass('public.erfassung_journal') is not null,
+    '0072 (e1): Tabelle erfassung_journal fehlt — eine gelöschte Messung wäre endgültig weg';
+
+  raise notice 'OK  0072 — Palox je Arbeit, Gebindewechsel, Alter als Schätzung, Kontrollpalette, Journal';
+end $$;
+
+select '——— 0072 Erfassung geprüft ———' as ergebnis;

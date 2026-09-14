@@ -1,0 +1,21 @@
+Phase 1 — die Prüfung 0072 vor der Migration, auf einer frischen Datenbank
+mit allen Migrationen 0000–0071 (Datenbank pruef_q, 14.09.2026):
+
+  psql … -f supabase/test/pruefung.sql
+
+  psql:supabase/test/pruefung.sql:4282: ERROR:  0072 (a1): 2 Ablesung(en)
+  rechnen gegen eine fremde Arbeit — Ablesung 625 (Arbeit 1320): vorher
+  310.00 statt ; Ablesung 21 (Arbeit 2100): vorher 165.00 statt
+
+Rot aus dem richtigen Grund: v_palox_stand fenstert über
+`palox_station(a.station)` statt über `s.auftrag_id`, also greift lag() in
+die vorherige Arbeit. Die Prüfung rechnet dieselbe Grösse mit
+`partition by s.auftrag_id` nach und vergleicht.
+
+Bemerkenswert: die Prüfung fängt nicht nur die zwei Arbeiten, die sie
+selbst anlegt, sondern auch Arbeit 2100 aus dem bestehenden
+Prüfdatensatz — der Fehler ist keine Konstruktion, er steckt in Daten, die
+seit Runden dort liegen.
+
+Die Prüfungen a2–a7, b1–b3, c1–c2, d1 und e1 werden von diesem Abbruch noch
+nicht erreicht; sie sind es, sobald a1 grün ist.

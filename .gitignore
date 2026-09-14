@@ -32,3 +32,7 @@ vite.config.js
 gegenprobe/bildschirm/daten/
 gegenprobe/bildschirm/befund.json
 gegenprobe/drehbuecher/befund_*.json
+
+# Bildschirm-Abzug "vorher" der laufenden Runde: 62 MB erzeugte PNG,
+# lokaler Vergleichsstand. Der Befund hält fest, was sich geändert hat.
+pruefstand/bilder_vorher_q/

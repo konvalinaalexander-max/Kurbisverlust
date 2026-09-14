@@ -602,17 +602,30 @@ begin
     loop
       v_i := v_i + 1;
       if v.station <> v_station then v_station := v.station; v_stand := palox_tara_kg(); end if;
+      -- Zwischen zwei Arbeiten geleert, weil der Palox sonst überliefe. Das
+      -- ist der Normalfall, und er kostet seit 0073 keine Messung mehr: die
+      -- neue Arbeit beginnt einfach bei der leeren Box und liest ihren
+      -- eigenen Anfang ab.
+      if v_stand + v.kg > 800 then v_stand := palox_tara_kg(); end if;
       -- Jede 17. Arbeit hat die Ablesung zu Beginn vergessen — die Datenqualität zeigt es.
       if v_i % 17 <> 0 then
         insert into schimmel_messung (auftrag_id, kg, palox_stand_kg, palox_geleert, ts)
         values (v.auftrag_id, 0, v_stand, false, v.start_ts + interval '10 minutes');
       end if;
-      v_geleert := v_stand + v.kg > 800;
-      if v_geleert then v_stand := palox_tara_kg(); end if;
-      v_stand := v_stand + v.kg;
+      -- Jede 23. Arbeit wird MITTENDRIN geleert. Der Betrieb sagt, das kommt
+      -- vor. Dann ist die Menge dieser Arbeit unbekannt — nicht null: wie
+      -- viel beim Leeren herausging, weiss niemand (0073).
+      v_geleert := v_i % 23 = 0;
+      if v_geleert
+        then v_stand := palox_tara_kg() + round(v.kg * 0.4);
+        else v_stand := v_stand + v.kg;
+      end if;
       update schimmel_messung
          set palox_stand_kg = v_stand, palox_geleert = v_geleert, ts = coalesce(v.ende_ts, v.start_ts + interval '5 hours') - interval '10 minutes'
        where id = v.id;
+      if v_geleert then
+        update auftrag set palox_unbekannt = true where id = v.auftrag_id;
+      end if;
     end loop;
     raise notice 'Demo: Palox-Ablesungen nachgetragen';
   end;

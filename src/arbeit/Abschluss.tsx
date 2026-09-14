@@ -35,6 +35,12 @@ export function Abschluss({ d, neuLaden, zurueck, fertig }: {
   const { t, gebietsschema } = useSprache()
   const p = stationsProfil(d.auftrag)
   const [pos, setPos] = useState(0)
+  // 0072: Wie viele fertige Paletten es insgesamt geworden sind. Die App
+  // kennt sonst nur die gewogenen — und ohne die Gesamtzahl ist „3 Paletten
+  // rein, 4 raus" nicht rechenbar. Nicht Pflicht: der Betrieb sagt, die
+  // fertigen Paletten werden eher nicht gezählt. Vorbelegt mit dem, was
+  // gewogen wurde, damit im Normalfall ein Tippen genügt.
+  const [fertigeGesamt, setFertigeGesamt] = useState(String(d.auftrag.fertige_paletten_gesamt ?? ''))
   const [eineCharge, setEineCharge] = useState<boolean | null>(null)
   const [gleicheSorte, setGleicheSorte] = useState<boolean | null>(null)
   const [paletten, setPaletten] = useState(String(d.auftrag.paletten_gesamt ?? ''))
@@ -136,8 +142,12 @@ export function Abschluss({ d, neuLaden, zurueck, fertig }: {
         .insert(angaben.map(a => ({ auftrag_id: d.auftrag.id, ...a })))
       if (error) { setLaeuft(false); setFehler(fehlerText(error)); return }
     }
-    // Das Ende setzt der Server (Auslöser in 0039).
-    const { error } = await supabase.from('auftrag').update({ status: 'abgeschlossen' }).eq('id', d.auftrag.id)
+    // Das Ende setzt der Server (Auslöser in 0039). Die Gesamtzahl der
+    // fertigen Paletten geht mit: leer bleibt leer — unbekannt ist nicht 0.
+    const { error } = await supabase.from('auftrag').update({
+      status: 'abgeschlossen',
+      ...(p.hatAusgang ? { fertige_paletten_gesamt: fertigeGesamt === '' ? null : Number(fertigeGesamt) } : {}),
+    }).eq('id', d.auftrag.id)
     setLaeuft(false)
     if (error) { setFehler(fehlerText(error)); return }
     await neuLaden(); fertig()
@@ -245,6 +255,16 @@ export function Abschluss({ d, neuLaden, zurueck, fertig }: {
           ? <Hinweis art="gut">{d.nAusgang} {t('palettenGewogen')}</Hinweis>
           : <Hinweis art={p.ausgangPflicht ? 'warnung' : 'info'}>{t('dreiFertige')} {ersetzen(t('nurGewogen'), { n: d.nAusgang, soll })}</Hinweis>}
         <FertigePaletteMaske d={d} gesperrt={false} melden={() => undefined} neuLaden={neuLaden} />
+        <div className="karte abstand-oben">
+          <div className="feld">
+            <label htmlFor="fertige-gesamt">{t('fertigePalettenGesamt')}</label>
+            <input id="fertige-gesamt" className="gross" type="number" inputMode="numeric" min={0} step="1"
+                   value={fertigeGesamt}
+                   placeholder={d.nAusgang > 0 ? String(d.nAusgang) : ''}
+                   onChange={e => setFertigeGesamt(e.target.value)} />
+            <p className="hilfe">{t('fertigePalettenWarum')}</p>
+          </div>
+        </div>
       </Schritt>
     )
   }

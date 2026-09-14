@@ -196,6 +196,9 @@ psql "$URL" -v ON_ERROR_STOP=1 -q -c "
   insert into auth.users (id, email, raw_user_meta_data)
   values ('11111111-1111-1111-1111-111111111111', 'chef@hof.test', '{\"name\":\"Chef\"}');
   update profil set rolle = 'admin' where id = '11111111-1111-1111-1111-111111111111';"
+# 0072: Beispieldaten gehen nur in eine Datenbank, die sich als Beispiel
+# ausweist. Der Prüfstand ist eine — und sagt es, statt den Schutz zu umgehen.
+psql "$URL" -v ON_ERROR_STOP=1 -q -c "update einstellung set wert = '\"beispiel\"'::jsonb where schluessel = 'betriebsmodus'"
 DEMO="$(psql "$URL" -v ON_ERROR_STOP=1 -qtA -1 -f "$HIER/../demo_daten.sql" | tail -1)"
 echo "   $DEMO"
 case "$DEMO" in
@@ -297,6 +300,9 @@ psql "$URL" -v ON_ERROR_STOP=1 -q -c "
   insert into auth.users (id, email, raw_user_meta_data)
   values ('11111111-1111-1111-1111-111111111111', 'chef@hof.test', '{\"name\":\"Chef\"}');
   update profil set rolle = 'admin' where id = '11111111-1111-1111-1111-111111111111';"
+# 0072: Beispieldaten gehen nur in eine Datenbank, die sich als Beispiel
+# ausweist. Der Prüfstand ist eine — und sagt es, statt den Schutz zu umgehen.
+psql "$URL" -v ON_ERROR_STOP=1 -q -c "update einstellung set wert = '\"beispiel\"'::jsonb where schluessel = 'betriebsmodus'"
 psql "$URL" -v ON_ERROR_STOP=1 -qtA -f "$HIER/last.sql" | tail -1 | sed 's/^/   /'
 
 RECHNEN="$(psql "$URL" -qtA -c "select auswertung_aktualisieren()" >/dev/null; \

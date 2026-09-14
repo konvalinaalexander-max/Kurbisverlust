@@ -40,6 +40,13 @@ export interface Auftrag {
   /** Fax (0060): Paletten als Gesamtzahl, Tage seit dem Waschen (freiwillig). */
   paletten_gesamt: number | null
   tage_seit_waschen: number | null
+  /** Waschen und Waschen + Sortieren: wie viele fertige Paletten es
+   *  insgesamt geworden sind. Die App kennt sonst nur die gewogenen, und
+   *  ohne diese Zahl ist der Gebindewechsel nicht rechenbar (0072). */
+  fertige_paletten_gesamt: number | null
+  /** Der Palox wurde während der Arbeit geleert — die Faul-Menge dieser
+   *  Arbeit ist unbekannt, nicht null (0072). */
+  palox_unbekannt: boolean
 }
 
 export type Kistensystem = 'kiste_ab' | 'stueck' | 'anderes'
