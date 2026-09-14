@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:echt": "tsc -b && vite build --mode echt",
+    "build:beispiel": "tsc -b && vite build --mode beispiel",
     "preview": "vite preview",
     "test": "node --test test/*.test.ts",
     "typecheck": "tsc -b",

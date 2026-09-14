@@ -4,10 +4,12 @@ import { einstellung, fehlerText, stammdaten } from '../lib/db'
 import { importErkennen, type ImportBericht } from '../lib/import'
 import { STATION_NAME, datum, heute as heuteOrtszeit, kg, tonnen, zahl, zeitpunkt } from '../lib/format'
 import { Hinweis, Karte, Kennzahl, Lade, Marke } from '../components/Bausteine'
+import { useBetriebsmodus } from '../lib/betriebsmodus'
 import DemoDaten from '../components/DemoDaten'
 import type { Charge, Gebinde, Kaeufer, Profil, Sortierschema } from '../lib/typen'
 
 export default function Stammdaten() {
+  const modus = useBetriebsmodus()
   const [teil, setTeil] = useState<'gebinde' | 'paletten' | 'chargen' | 'kaliber'
     | 'abgebrochen' | 'benutzer' | 'einstellungen' | 'vorlauf' | 'demo'>('gebinde')
   const teile: [typeof teil, string][] = [
@@ -38,7 +40,12 @@ export default function Stammdaten() {
       {teil === 'benutzer' && <Benutzer />}
       {teil === 'einstellungen' && <Einstellungen />}
       {teil === 'vorlauf' && <Vorlauf />}
-      {teil === 'demo' && <DemoDaten />}
+      {/* 0072: Im Echtmodus gibt es die Beispieldaten gar nicht erst zu
+          sehen. Der Schutz selbst sitzt in der Datenbank (Auslöser), hier
+          steht nur, dass niemand versehentlich darauf tippt. */}
+      {teil === 'demo' && (modus === 'beispiel'
+        ? <DemoDaten />
+        : <Hinweis>Diese Datenbank läuft im Echtmodus. Beispieldaten gehören auf die Beispiel-Webseite — sie werden hier auch dann nicht geladen, wenn jemand es von Hand versucht.</Hinweis>)}
     </>
   )
 }

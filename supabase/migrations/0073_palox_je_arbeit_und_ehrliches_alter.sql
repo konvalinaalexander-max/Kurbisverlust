@@ -270,6 +270,43 @@ comment on view v_kontrollpalette_vorschlag is
 grant select on v_kontrollpalette_vorschlag to authenticated;
 
 -- =====================================================================
+-- 6b. Die nicht volle Palette zählt für die Masse, nicht für kg je Kiste
+-- =====================================================================
+-- ausgang_wiegung.voll (0072) muss dort ankommen, wo der Koeffizient
+-- gebildet wird. Der Betrieb: „vlt die ersten beiden paletten je 40 kisten
+-- ifco und die letzte vlt nur 24". Eine halbvolle Palette im Mittelwert
+-- zieht das Gewicht je Kiste nach unten, und die Zahl wandert von dort in
+-- die Fax-Masse und in die Überfüllung.
+--
+-- v_ausgang_kennzahl bleibt unangetastet — sie hat acht Leser, und ihren
+-- Text umzuschreiben wäre eine Operation am offenen Herzen für eine
+-- einzige Spalte. Stattdessen eine schlanke Sicht darüber, die sie um
+-- `voll` ergänzt. Die Maske und der Koeffizient lesen diese.
+create or replace view v_ausgang_voll with (security_invoker = true) as
+select k.*, w.voll
+  from v_ausgang_kennzahl k
+  join ausgang_wiegung w on w.id = k.id;
+comment on view v_ausgang_voll is
+  'v_ausgang_kennzahl mit der Angabe, ob die Palette voll war. Nicht volle '
+  'zählen für die Masse, aber nicht für kg je Kiste — der Betrieb: „vlt die '
+  'ersten beiden paletten je 40 kisten ifco und die letzte vlt nur 24" (0073).';
+grant select on v_ausgang_voll to authenticated;
+
+create or replace view v_koeff_palette_netto with (security_invoker = true) as
+select sorte, kistensystem,
+       count(*)::int                                              as n,
+       zahl(avg(netto_kg), 2, 100000000)::numeric(10,2)           as netto_kg,
+       zahl(stddev_samp(netto_kg), 2, 100000000)::numeric(10,2)   as sd,
+       zahl(avg(kisten), 1, 1000000)::numeric(8,1)                as kisten
+  from v_ausgang_voll k
+ where coalesce(k.voll, true)
+ group by grouping sets ((sorte, kistensystem), (sorte));
+comment on view v_koeff_palette_netto is
+  'Was eine VOLLE fertige Palette wiegt, je Sorte und Kistensystem. Nicht '
+  'volle Paletten bleiben draussen — sonst zieht die halbvolle letzte Palette '
+  'jeder Arbeit den Mittelwert nach unten und von dort die Fax-Masse (0073).';
+
+-- =====================================================================
 -- 7. v_datenqualitaet neu anlegen — wegen `select a.*`
 -- =====================================================================
 -- Die Sicht beginnt mit `with arbeiten as (select a.* from auftrag a …)`.

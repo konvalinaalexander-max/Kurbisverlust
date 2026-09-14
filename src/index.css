@@ -35,6 +35,22 @@ strong { font-weight: var(--gewicht-stark); }
 svg { display: inline-block; vertical-align: middle; }
 .zeichen-inline { display: inline-flex; vertical-align: -.2em; margin-right: .15em; }
 
+/* ---------- Das Band der Beispiel-Webseite ---------------------------------- */
+/* Zwei Webseiten, eine Gefahr: jemand hält die eine für die andere. Das Band
+   steht deshalb fest am oberen Rand, nicht als Hinweis, den man wegklickt —
+   und es hängt an der Einstellung `betriebsmodus` in der DATENBANK, nicht am
+   Build. Eine Datenbank weiss immer, was sie ist (0072).
+   `position: fixed` hält es aus dem Raster heraus; `.mit-band` schafft ihm
+   oben Platz, damit es nichts überdeckt. */
+.beispiel-band {
+  position: fixed; inset: 0 0 auto 0; z-index: 60;
+  background: var(--gelb); color: #fff;
+  font-size: .78rem; font-weight: 600; letter-spacing: .04em;
+  text-align: center; padding: .28rem .6rem; line-height: 1.3;
+}
+.app.mit-band { padding-top: 1.65rem; }
+.app.buero.mit-band > .seitenleiste { top: 1.65rem; }
+
 /* ---------- Der Rahmen ------------------------------------------------------ */
 /* minmax(0, 1fr) statt „auto": eine Kopfzeile mit nowrap-Text darf die
    einzige Spalte nie über die Bildschirmbreite hinaus wachsen lassen. */

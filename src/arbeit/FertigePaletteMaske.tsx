@@ -10,6 +10,7 @@ import { nettoKg, taraFehlt } from '../lib/masse'
 interface Zeile {
   id: number; kisten: number; kg_pro_kiste: number | null; ueberfuellung_je_kiste: number | null
   erwartet_kg_pro_kiste: number | null; abweichung_je_kiste: number | null; kaliber_idx: number | null
+  voll: boolean | null
 }
 
 /**
@@ -33,13 +34,18 @@ export function FertigePaletteMaske({ d, gesperrt, melden, neuLaden }: {
   const [proKiste, setProKiste] = useState(a.stueck_je_kiste === null ? '' : String(a.stueck_je_kiste))
   const [kaliberIdx, setKaliberIdx] = useState<number | null>(
     a.station === 'waschen' ? (a.kaliber_idx ?? (a.kaliber_von_g !== null ? -2 : null)) : (d.baender.length === 1 ? 0 : null))
+  // 0072: Die letzte Palette einer Arbeit ist oft nicht voll. Der Betrieb:
+  // „vlt die ersten beiden paletten je 40 kisten ifco und die letzte vlt nur
+  // 24". Sie zählt für die Masse, aber nicht für kg je Kiste — sonst zieht
+  // sie den Koeffizienten nach unten.
+  const [voll, setVoll] = useState(true)
   const [zeilen, setZeilen] = useState<Zeile[]>([])
   const [fehler, setFehler] = useState<string | null>(null)
 
   const laden = useCallback(async () => {
     const [s, k] = await Promise.all([
       stammdaten(),
-      supabase.from('v_ausgang_kennzahl').select('id, kg_pro_kiste, ueberfuellung_je_kiste, kisten, erwartet_kg_pro_kiste, abweichung_je_kiste, kaliber_idx')
+      supabase.from('v_ausgang_voll').select('id, kg_pro_kiste, ueberfuellung_je_kiste, kisten, erwartet_kg_pro_kiste, abweichung_je_kiste, kaliber_idx, voll')
         .eq('auftrag_id', d.auftrag.id).order('ts'),
     ])
     setGebinde(s.gebinde); setArt(x => x || s.gebinde[0]?.art || '')
@@ -55,17 +61,22 @@ export function FertigePaletteMaske({ d, gesperrt, melden, neuLaden }: {
   const fehlt = n > 0 && b > 0 ? taraFehlt(tara) : null
   const x = netto !== null && netto > 0 ? netto / n : null
   const kaliberOk = !stueck || kaliberIdx !== null || d.baender.length === 0
+  // Kürbisse je Kiste: beim Stücksystem Pflicht, beim Gewichtssystem nicht.
+  // Der Betrieb auf die Frage, ob dort gezählt wird: „nein dort werden nicht
+  // gezählt" — dort passt hinein, was bis zum Sollgewicht geht.
+  const proKisteOk = !stueck || Number(proKiste) > 0
 
   async function speichern() {
-    if (!(n > 0 && b > 0 && art) || !kaliberOk) return
+    if (!(n > 0 && b > 0 && art) || !kaliberOk || !proKisteOk) return
     const { error } = await supabase.from('ausgang_wiegung').insert({
       auftrag_id: d.auftrag.id, charge_nr: d.auftrag.charge_nr,
       brutto_kg: b, kisten: n, gebindeart: art,
       kuerbisse_pro_kiste: proKiste === '' ? null : Number(proKiste),
       kaliber_idx: stueck ? kaliberIdx : null,
+      voll,
     })
     if (error) { setFehler(fehlerText(error)); return }
-    setBrutto(''); setKisten(''); setFehler(null)
+    setBrutto(''); setKisten(''); setVoll(true); setFehler(null)
     melden(t('gespeichert')); await laden(); await neuLaden()
   }
 
@@ -105,6 +116,13 @@ export function FertigePaletteMaske({ d, gesperrt, melden, neuLaden }: {
         <input id="a-pro" type="number" inputMode="numeric" min={1} value={proKiste} disabled={gesperrt}
                onChange={e => setProKiste(e.target.value)} />
       </div>
+      {/* 0072: nicht voll → zählt für die Masse, nicht für den Koeffizienten. */}
+      <label className="haken" style={{ display: 'flex', alignItems: 'center', gap: '.6rem', minHeight: 44 }}>
+        <input id="a-voll" type="checkbox" checked={!voll} disabled={gesperrt}
+               onChange={e => setVoll(!e.target.checked)} />
+        <span>{t('palettenNichtVoll')}</span>
+      </label>
+      {!voll && <p className="hilfe">{t('palettenNichtVollWarum')}</p>}
       {x !== null && (
         <p className="netto-zeile">
           <strong>{x.toFixed(2)} kg</strong> {t('jeKiste')}
@@ -112,7 +130,7 @@ export function FertigePaletteMaske({ d, gesperrt, melden, neuLaden }: {
         </p>
       )}
       <button type="button" id="a-eintragen" className="haupt gross voll" onClick={() => void speichern()}
-              disabled={gesperrt || x === null || !kaliberOk}>{t('eintragen')}</button>
+              disabled={gesperrt || x === null || !kaliberOk || !proKisteOk}>{t('eintragen')}</button>
       {fehlt && <Hinweis art="warnung">{fehlt} Ohne sie lässt sich das Nettogewicht nicht ausrechnen — die Angabe gehört in die Stammdaten.</Hinweis>}
       {fehler && <Hinweis art="warnung">{fehler}</Hinweis>}
       {zeilen.length > 0 && (
@@ -121,7 +139,8 @@ export function FertigePaletteMaske({ d, gesperrt, melden, neuLaden }: {
           <table className="dicht"><tbody>
             {zeilen.map(z => (
               <tr key={z.id}>
-                <td>{z.kisten} {t('kisten')}{z.kaliber_idx !== null && z.kaliber_idx >= 0 && <span className="leise"> · K{z.kaliber_idx + 1}</span>}</td>
+                <td>{z.kisten} {t('kisten')}{z.kaliber_idx !== null && z.kaliber_idx >= 0 && <span className="leise"> · K{z.kaliber_idx + 1}</span>}
+                    {z.voll === false && <span className="leise"> · {t('nichtVollKurz')}</span>}</td>
                 <td className="zahl">{z.kg_pro_kiste?.toFixed(2) ?? '—'} kg</td>
                 <td className="zahl" style={{ color: 'var(--rot)' }}>
                   {z.ueberfuellung_je_kiste != null && z.ueberfuellung_je_kiste > 0 ? `+${z.ueberfuellung_je_kiste.toFixed(2)}` : ''}

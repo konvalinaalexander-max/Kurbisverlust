@@ -19,6 +19,12 @@ zuruecksetzen() {
   psql "$URL" -v ON_ERROR_STOP=1 -q -f "$HIER/stub_supabase.sql"
 }
 
+# 0072: Bevor irgendetwas eingespielt wird — nimmt eine Migration Daten weg?
+# Das ist eine reine Textprüfung und braucht keine Datenbank, also steht sie
+# ganz vorne: Wer hier durchfällt, muss gar nicht erst weiterlaufen.
+"$HIER/keine_zerstoerung.sh"
+echo
+
 echo "── 1. Migrationen und Fachlogik ──────────────────────────────"
 zuruecksetzen
 for f in "$HIER"/../migrations/*.sql; do

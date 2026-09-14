@@ -5978,11 +5978,57 @@ create trigger sortier_lauf_keine_demo before insert on sortier_lauf
 -- =====================================================================
 set client_min_messages = warning;
 
+
 -- =====================================================================
--- 8. Der Stand
+-- aus 0074_die_eingangspalette_darf_kisten_haben.sql
+-- =====================================================================
+
+-- =====================================================================
+-- 0074 — Die Eingangspalette darf eine Kistenzahl haben
+--
+-- Der Betrieb hat den Weg zur Masse je Kaliberband selbst gefunden:
+--
+--   „du siehst ja dann anzahl paletten - mit anzahl kisten und total vom
+--    brutto gewicht - dann weisst du wieviel sortiert worden ist"
+--
+-- Dafür muss der Zähler beim Sortieren die Kistenzahl je Eingangspalette
+-- erfassen. Genau das hätte die Auswertung stillgelegt.
+--
+-- WAS PASSIERT WÄRE
+--
+-- v_auftrag_palette_masse endet seit 0064 mit `where ap.kisten is null`.
+-- Das war damals die Trennung zwischen zwei Welten: Eingangspaletten
+-- (ohne Kisten) rechnet diese Sicht, Kaliber-Paletten beim Waschen (mit
+-- Kisten) rechnet v_auftrag_wasch_paletten. Die Kistenzahl war das
+-- Unterscheidungsmerkmal — weil sie zufällig nur auf der einen Seite
+-- vorkam.
+--
+-- Schreibt der Zähler künftig Kisten auf Eingangspaletten, kippt diese
+-- Trennung. Nachgemessen an den Beispieldaten:
+--
+--   vorher:   289 Zeilen für Sortierarbeiten in v_auftrag_palette_masse
+--   nachher:    0 Zeilen
+--             31 Sortierarbeiten mit n_paletten = 0 und Masse NULL
+--
+-- Kein Fehler, keine Warnung. Die Arbeiten wären einfach verschwunden —
+-- und ausgerechnet die Änderung, die ihre Masse GENAUER machen soll,
+-- hätte sie gelöscht.
+--
+-- WAS STATTDESSEN GILT
+--
+-- Getrennt wird nach der STATION, nicht nach einer Spalte, die zufällig
+-- leer ist. v_auftrag_wasch_paletten filtert ohnehin schon selbst auf
+-- `station = 'waschen' and not ist_fax` — diese Sicht nimmt genau den
+-- Rest. Damit ist die Trennung ausgesprochen statt geraten, und sie hält
+-- auch, wenn später eine weitere Spalte hinzukommt.
+-- =====================================================================
+set client_min_messages = warning;
+
+-- =====================================================================
+-- Der Stand
 -- =====================================================================
 create or replace function schema_stand() returns int
-language sql immutable set search_path = public as $$ select 73 $$;
+language sql immutable set search_path = public as $$ select 74 $$;
 comment on function schema_stand is
   'Nummer der jüngsten eingespielten Migration. Die App vergleicht sie mit '
   'SCHEMA_ERWARTET (src/lib/version.ts) und verlangt bei Abweichung, setup.sql '
@@ -5998,13 +6044,16 @@ comment on function schema_stand() is
 comment on function schema_stand() is
   'Die Nummer der höchsten eingespielten Migration. Die App vergleicht sie mit '
   'SCHEMA_ERWARTET und verlangt setup.sql, wenn sie auseinanderliegen (0057).';
+comment on function schema_stand() is
+  'Die Nummer der höchsten eingespielten Migration. Die App vergleicht sie mit '
+  'SCHEMA_ERWARTET und verlangt setup.sql, wenn sie auseinanderliegen (0057).';
 
 
 -- =====================================================================
 -- TEIL B — Das Rechenwerk: die Formeln, wie sie heute lauten
 -- =====================================================================
 -- Ab hier steht jede Ansicht und jede darauf rechnende Funktion genau
--- einmal — in 102 Schritten, in der Reihenfolge, in der eine auf der
+-- einmal — in 103 Schritten, in der Reihenfolge, in der eine auf der
 -- anderen steht. Die Reihenfolge ist ausgerechnet, nicht geraten:
 -- setup_bauen.sh sortiert topologisch und bricht ab, wenn sie nicht
 -- kreisfrei wäre.
@@ -6017,9 +6066,6 @@ comment on function schema_stand() is
 -- wird am Ende dieser Datei neu berechnet.
 -- =====================================================================
 
-drop view if exists v_datenqualitaet cascade;
-drop view if exists v_kontrollpalette_vorschlag cascade;
-drop view if exists v_kontrollpalette_rate cascade;
 drop materialized view if exists erg_fax_wartezeit cascade;
 drop materialized view if exists erg_wohin cascade;
 drop view if exists v_marge_buch cascade;
@@ -6066,6 +6112,14 @@ drop view if exists v_fax_beobachtung cascade;
 drop view if exists v_durchsatz cascade;
 drop view if exists v_ausschuss_beobachtung cascade;
 drop view if exists v_auftrag_masse cascade;
+drop materialized view if exists mv_sortier_eingang cascade;
+drop materialized view if exists mv_auftrag_masse cascade;
+drop view if exists v_auftrag_palette_masse cascade;
+drop view if exists v_datenqualitaet cascade;
+drop view if exists v_koeff_palette_netto cascade;
+drop view if exists v_ausgang_voll cascade;
+drop view if exists v_kontrollpalette_vorschlag cascade;
+drop view if exists v_kontrollpalette_rate cascade;
 drop view if exists v_charge_erntespanne cascade;
 drop view if exists v_schimmel_menge cascade;
 drop view if exists v_palox_stand cascade;
@@ -6080,9 +6134,6 @@ drop view if exists v_koeff_roh_verdunstung cascade;
 drop view if exists v_verdunstung_messung cascade;
 drop view if exists v_wiegung_kennzahl cascade;
 drop view if exists v_auftrag_wasch_paletten cascade;
-drop materialized view if exists mv_sortier_eingang cascade;
-drop materialized view if exists mv_auftrag_masse cascade;
-drop view if exists v_auftrag_palette_masse cascade;
 drop view if exists v_kohorte_anteil cascade;
 drop view if exists v_charge_kohorte cascade;
 drop view if exists v_datenlage cascade;
@@ -6093,7 +6144,6 @@ drop view if exists v_ueberfuellung_kaeufer cascade;
 drop view if exists v_verkauf_lieferung cascade;
 drop view if exists v_auftrag_gebinde_masse cascade;
 drop view if exists v_koeff_gebinde cascade;
-drop view if exists v_koeff_palette_netto cascade;
 drop view if exists v_koeff_ueberfuellung cascade;
 drop view if exists v_lieferung_masse cascade;
 drop view if exists v_ausgang_kennzahl cascade;
@@ -6432,17 +6482,6 @@ create or replace view v_koeff_ueberfuellung with (security_invoker = true) as
         END, 3, 1e7)::numeric(10,3) AS oben
    FROM s;
 
--- Wie schwer ist eine fertige Palette netto? Je Sorte und Kistensystem aus
--- den gewogenen fertigen Paletten — der Nenner der Fax-Arbeit.
-create or replace view v_koeff_palette_netto with (security_invoker = true) as
-select k.sorte, k.kistensystem,
-       count(*)::int                                            as n,
-       zahl(avg(k.netto_kg), 2, 1e8)::numeric(10,2)             as netto_kg,
-       zahl(stddev_samp(k.netto_kg), 2, 1e8)::numeric(10,2)     as sd,
-       zahl(avg(k.kisten), 1, 1e6)::numeric(8,1)                as kisten
-  from v_ausgang_kennzahl k
- group by grouping sets ((k.sorte, k.kistensystem), (k.sorte));
-
 -- v_koeff_gebinde: die gezählten Kisten je Kaliber summiert (mehrere
 -- Sortierdaten je Kaliber sind seit 0060 möglich); Kisten ohne Kaliber (−1)
 -- aus den fertigen Paletten der Arbeiten mit Sollgewicht.
@@ -6762,111 +6801,6 @@ select charge_nr, eingangsdatum, n_rest, rest_kg,
        zahl(eingang_kg / nullif(sum(eingang_kg) over (partition by charge_nr), 0), 6, 1e4)::numeric(10,6) as anteil
   from v_charge_kohorte
  where eingang_kg > 0;
-
-create or replace view v_auftrag_palette_masse with (security_invoker = true) as
-with wiegung as materialized (
-  select vw.id,
-         zahl(vw.brutto_damals_kg - vw.kisten * g.tara_kg_pro_kiste
-              - g.tara_kg_palette, 2, 1e8)::numeric(10,2) as netto_damals_kg,
-         vw.eingangsdatum
-    from verdunstung_wiegung vw
-    left join gebinde g on g.art = vw.gebindeart
-), datum_mittel as materialized (
-  select charge_nr, eingangsdatum, avg(netto_kg) as netto_mittel
-    from v_palette group by charge_nr, eingangsdatum
-), charge_mittel as materialized (
-  select charge_nr, avg(netto_kg) as netto_mittel,
-         avg(brutto_kg - netto_kg) filter (where netto_kg is not null) as tara_mittel
-    from v_palette group by charge_nr
-), charge_datum as materialized (
-  select charge_nr, eingangsdatum_mittel from v_charge_rueckgrat
-), zettel as materialized (
-  select ap.id,
-         coalesce(pe.netto_kg,
-                  zahl(ap.brutto_zettel_kg - cm.tara_mittel, 2, 1e8)::numeric(10,2)) as netto_kg,
-         (pe.id is not null) as exakt
-    from auftrag_palette ap
-    join auftrag a on a.id = ap.auftrag_id
-    left join lateral (
-      select p.id, p.netto_kg from v_palette p
-       where p.charge_nr = a.charge_nr and p.eingangsdatum = ap.eingangsdatum
-         and p.brutto_kg = ap.brutto_zettel_kg and p.netto_kg is not null
-       order by p.id limit 1) pe on true
-    left join charge_mittel cm on cm.charge_nr = a.charge_nr
-   where ap.brutto_zettel_kg is not null
-)
-select ap.id, ap.auftrag_id, a.charge_nr, a.start_ts,
-       coalesce(w.netto_damals_kg, z.netto_kg, p.netto_kg, d.netto_mittel, cm.netto_mittel) as netto_kg,
-       coalesce(w.eingangsdatum, p.eingangsdatum, ap.eingangsdatum, cd.eingangsdatum_mittel) as eingangsdatum,
-       case when w.netto_damals_kg is not null then 'gewogen'
-            when z.netto_kg is not null and z.exakt then 'zettel'
-            when z.netto_kg is not null then 'zettel-charge-tara'
-            when p.netto_kg is not null then 'palette'
-            when d.netto_mittel is not null then 'datum-mittel'
-            when cm.netto_mittel is not null then 'charge-mittel'
-            else 'unbekannt' end::text                                                 as masse_quelle
-  from auftrag_palette ap
-  join auftrag a on a.id = ap.auftrag_id
-  left join wiegung w on w.id = ap.wiegung_id
-  left join zettel z on z.id = ap.id
-  left join v_palette p on p.id = ap.palette_id
-  left join datum_mittel d on d.charge_nr = a.charge_nr and d.eingangsdatum = ap.eingangsdatum
-  left join charge_mittel cm on cm.charge_nr = a.charge_nr
-  left join charge_datum cd on cd.charge_nr = a.charge_nr
- where ap.kisten is null;
-
--- ---------- 2. Masse je Arbeit --------------------------------------------
-create materialized view if not exists mv_auftrag_masse as
-select a.id as auftrag_id, a.charge_nr, c.sorte, c.schlag, a.weg, a.station,
-       a.start_ts, a.ende_ts, a.status,
-       count(m.id)                                     as n_paletten,
-       coalesce(sum(m.netto_kg), a.durchsatz_kg)        as eingang_netto_kg,
-       case when sum(m.netto_kg) is not null then 'paletten'
-            when a.durchsatz_kg  is not null then 'durchsatz'
-            else 'fehlt' end                            as masse_quelle,
-       (sum((a.start_ts::date - m.eingangsdatum) * m.netto_kg)
-        / nullif(sum(m.netto_kg), 0))::numeric(10,1)    as lagertage
-  from auftrag a
-  join charge c on c.nr = a.charge_nr
-  left join v_auftrag_palette_masse m on m.auftrag_id = a.id
- where a.abgebrochen_ts is null
- group by a.id, a.charge_nr, c.sorte, c.schlag, a.weg, a.station,
-          a.start_ts, a.ende_ts, a.status, a.durchsatz_kg with no data;
-
-
--- =====================================================================
--- aus 0026_schimmelpunkte_speichern.sql
--- =====================================================================
-
--- =====================================================================
--- 0026 — Die Schimmelpunkte einmal rechnen statt viermal
---
--- v_schimmel_punkte ist mit 0025 teuer geworden: Für jeden Waschgang wird
--- nachgeschlagen, was bis dahin beim Sortieren derselben Charge gemessen
--- wurde. Das ist richtig so, aber die Ansicht hängt an vier Stellen in der
--- Kette und wurde dabei jedes Mal neu gerechnet. Dazu kam, dass
--- v_auftrag_masse seit 0024 bei jeder Referenz den Wareneingang der
--- sortierten Ware neu aggregiert — und v_auftrag_masse steckt in einem
--- Dutzend Ansichten. Die Neuberechnung stieg dadurch von 226 ms auf 2 639 ms.
---
--- Dasselbe Mittel wie in 0016: einmal rechnen, speichern, alle lesen von der
--- gespeicherten Fassung. Reihenfolge im Neuberechnen ist Pflicht — jede Stufe
--- liest die vorige.
---
--- Nicht per Umbenennung: Postgres merkt sich Abhängigkeiten über die Objekt-ID,
--- eine umbenannte Ansicht nehmen ihre Leser einfach mit. Wer den schnellen Weg
--- will, muss die Leser umhängen. Genau das passiert hier.
--- =====================================================================
-
--- ---------- Der Wareneingang der sortierten Ware, einmal gerechnet ---------
-create materialized view if not exists mv_sortier_eingang as
-select a.charge_nr,
-       sum((m.eingangsdatum - date '2000-01-01')::numeric * m.netto_kg)
-         / nullif(sum(m.netto_kg), 0)                        as tage_seit_epoche
-  from auftrag a
-  join v_auftrag_palette_masse m on m.auftrag_id = a.id
- where a.station = 'sortieren' and a.abgebrochen_ts is null
- group by a.charge_nr with no data;
 
 
 -- =====================================================================
@@ -7514,6 +7448,280 @@ select p.charge_nr,
   cross join lateral (select netto_kg from v_palette v where v.id = p.id) n
  where n.netto_kg is not null
  group by p.charge_nr, c.ernte_abgeschlossen_ts, r.eingangsdatum_mittel;
+
+-- =====================================================================
+-- 5. Die Kontrollpalette rechnet
+-- =====================================================================
+-- Je zwei aufeinanderfolgende Wägungen derselben Palette eine Rate FÜR
+-- DEN ZEITRAUM DAZWISCHEN. Das beantwortet die Frage, die heute niemand
+-- beantworten kann: ob die Verdunstungsrate über die Saison konstant ist.
+-- Der Betrieb vermutet nein — „am anfang haben sie sicher schock von
+-- draussen feld in halle zu kommen". Diese Sicht misst es, statt zu raten.
+--
+-- Sie wird in dieser Runde NICHT in die Kaskade eingebaut. Erst erheben,
+-- dann entscheiden.
+create or replace view v_kontrollpalette_rate with (security_invoker = true) as
+with w as (
+  select k.id as kontrollpalette_id, k.charge_nr, c.sorte, k.kennzeichen,
+         wg.wiege_ts, wg.sichtbar_schimmel,
+         case when g.tara_kg_pro_kiste is null or g.tara_kg_palette is null then null
+              else wg.brutto_kg - wg.kisten * g.tara_kg_pro_kiste - g.tara_kg_palette end as netto_kg
+    from kontrollpalette_wiegung wg
+    join kontrollpalette k on k.id = wg.kontrollpalette_id
+    join charge c on c.nr = k.charge_nr
+    left join gebinde g on g.art = wg.gebindeart
+),
+paar as (
+  select w.*,
+         lag(wiege_ts)          over p as von_ts,
+         lag(netto_kg)          over p as netto_von_kg,
+         lag(sichtbar_schimmel) over p as schimmel_von
+    from w
+  window p as (partition by kontrollpalette_id order by wiege_ts, netto_kg)
+)
+select kontrollpalette_id, charge_nr, sorte, kennzeichen,
+       von_ts, wiege_ts as bis_ts,
+       (betriebstag(wiege_ts) - betriebstag(von_ts))::int as tage,
+       netto_von_kg, netto_kg as netto_bis_kg,
+       case when netto_von_kg > 0 and netto_kg > 0
+             and betriebstag(wiege_ts) > betriebstag(von_ts)
+            then zahl(1 - power(netto_kg / netto_von_kg,
+                                1.0 / (betriebstag(wiege_ts) - betriebstag(von_ts))::numeric),
+                      6, 1)::numeric(9,6)
+       end as rate_je_tag,
+       -- Brauchbar nur, wenn nichts dazwischenkommt: kein sichtbarer
+       -- Schimmel (dann ist der Verlust kein Wasser), mindestens eine
+       -- Woche Abstand (sonst rauscht die Waage lauter als die
+       -- Verdunstung), und die Palette darf nicht schwerer geworden sein.
+       (netto_von_kg is not null and netto_kg is not null
+        and not coalesce(schimmel_von, false) and not sichtbar_schimmel
+        and (betriebstag(wiege_ts) - betriebstag(von_ts)) >= 7
+        and netto_kg <= netto_von_kg) as verwendbar
+  from paar
+ where von_ts is not null;
+
+-- =====================================================================
+-- 6. Welche Chargen sich als Kontrollpalette lohnen
+-- =====================================================================
+-- Der Betrieb: „definiere 5 chargen … die ertragswichtigsten". Statt sie
+-- von Hand aus einem Journal herauszusuchen, rechnet die App den
+-- Vorschlag aus den Eingangsdaten — und hält ihn aktuell.
+create or replace view v_kontrollpalette_vorschlag with (security_invoker = true) as
+select r.charge_nr, c.sorte, c.schlag, r.eingang_netto_kg,
+       rank() over (order by r.eingang_netto_kg desc nulls last) as rang,
+       exists (select 1 from kontrollpalette k
+                where k.charge_nr = r.charge_nr and k.beendet_ts is null) as hat_schon
+  from v_charge_rueckgrat r
+  join charge c on c.nr = r.charge_nr
+ where r.eingang_netto_kg > 0;
+
+-- =====================================================================
+-- 6b. Die nicht volle Palette zählt für die Masse, nicht für kg je Kiste
+-- =====================================================================
+-- ausgang_wiegung.voll (0072) muss dort ankommen, wo der Koeffizient
+-- gebildet wird. Der Betrieb: „vlt die ersten beiden paletten je 40 kisten
+-- ifco und die letzte vlt nur 24". Eine halbvolle Palette im Mittelwert
+-- zieht das Gewicht je Kiste nach unten, und die Zahl wandert von dort in
+-- die Fax-Masse und in die Überfüllung.
+--
+-- v_ausgang_kennzahl bleibt unangetastet — sie hat acht Leser, und ihren
+-- Text umzuschreiben wäre eine Operation am offenen Herzen für eine
+-- einzige Spalte. Stattdessen eine schlanke Sicht darüber, die sie um
+-- `voll` ergänzt. Die Maske und der Koeffizient lesen diese.
+create or replace view v_ausgang_voll with (security_invoker = true) as
+select k.*, w.voll
+  from v_ausgang_kennzahl k
+  join ausgang_wiegung w on w.id = k.id;
+
+create or replace view v_koeff_palette_netto with (security_invoker = true) as
+select sorte, kistensystem,
+       count(*)::int                                              as n,
+       zahl(avg(netto_kg), 2, 100000000)::numeric(10,2)           as netto_kg,
+       zahl(stddev_samp(netto_kg), 2, 100000000)::numeric(10,2)   as sd,
+       zahl(avg(kisten), 1, 1000000)::numeric(8,1)                as kisten
+  from v_ausgang_voll k
+ where coalesce(k.voll, true)
+ group by grouping sets ((sorte, kistensystem), (sorte));
+
+-- =====================================================================
+-- 7. v_datenqualitaet neu anlegen — wegen `select a.*`
+-- =====================================================================
+-- Die Sicht beginnt mit `with arbeiten as (select a.* from auftrag a …)`.
+-- Postgres friert den Stern beim Anlegen ein: die Spaltenliste steht fest,
+-- wie sie damals war. 0072 hat `auftrag` zwei Spalten gegeben — damit
+-- ergibt der Weg über die Migrationen eine andere Sicht als der Weg über
+-- setup.sql (Teil B legt alles frisch an, also mit den neuen Spalten).
+-- Der Fingerabdruck-Vergleich in supabase/test/run.sh hat genau das
+-- gefunden. Ein Neuanlegen bringt beide Wege wieder zusammen.
+--
+-- Der Rumpf ist unverändert der aus 0061 — hier steht er nur noch einmal,
+-- damit der Stern neu ausgerechnet wird. `create or replace` statt
+-- `drop … cascade`: die Spaltenliste der Sicht selbst ändert sich nicht,
+-- also bleibt die gespeicherte Fassung erg_datenqualitaet stehen. In
+-- setup.sql kostet das nichts — Teil B behält ohnehin nur die letzte
+-- Fassung jeder Sicht.
+create or replace view v_datenqualitaet with (security_invoker = true) as
+with arbeiten as (select a.* from auftrag a where a.abgebrochen_ts is null),
+     fertig as (select * from arbeiten where status = 'abgeschlossen')
+select
+  (select count(*) from auftrag_palette ap join arbeiten a on a.id = ap.auftrag_id)::int as paletten_gezaehlt,
+  (select count(*) from auftrag_palette ap join arbeiten a on a.id = ap.auftrag_id
+    where ap.eingangsdatum is not null)::int                                             as paletten_mit_datum,
+  (select count(*) from fertig where not ist_fax)::int                                    as arbeiten_fertig,
+  (select count(*) from fertig f where not f.ist_fax and exists (select 1 from schimmel_messung s
+    where s.auftrag_id = f.id and s.palox_stand_kg is not null))::int                     as arbeiten_mit_ablesung,
+  (select count(*) from fertig f where not f.ist_fax and (select count(*) from schimmel_messung s
+    where s.auftrag_id = f.id and s.palox_stand_kg is not null) >= 2)::int                as arbeiten_mit_zwei_ablesungen,
+  (select count(*) from fertig f where not f.ist_fax and exists (select 1 from auftrag_angabe g
+    where g.auftrag_id = f.id and g.schluessel = 'eine_charge'))::int                     as arbeiten_mit_antwort,
+  (select count(*) from ausschuss_messung m join arbeiten a on a.id = m.auftrag_id
+    where m.gemessen)::int                                                                as ausschuss_messungen,
+  (select count(*) from ausschuss_messung m join arbeiten a on a.id = m.auftrag_id
+    where m.gemessen and m.brutto_kg is not null)::int                                    as ausschuss_gewogen,
+  -- 0061: die Lagerkontrolle ist eine Verdunstungsmessung — gezählt wird jede
+  -- gemessene Kontrolle, nicht nur die mit Faul-Angabe
+  (select count(*) from verdunstung_wiegung w
+    where w.auftrag_id is null and w.gemessen)::int                                       as lagerkontrollen,
+  (select count(*) from sortier_lauf)::int                                                as sortierlaeufe,
+  (select count(*) from sortier_lauf where auftrag_id is not null)::int                   as sortierlaeufe_zugeordnet,
+  (select count(*) from fertig f where f.station = 'sortieren')::int                      as sortier_arbeiten,
+  (select count(*) from fertig f where f.station = 'sortieren' and exists (select 1
+    from auftrag_gebinde g where g.auftrag_id = f.id and g.anzahl > 0))::int              as sortier_arbeiten_mit_kisten,
+  (select count(*) from fertig f where f.station = 'waschen' and not f.ist_fax)::int      as wasch_arbeiten,
+  (select count(*) from fertig f where f.station = 'waschen' and not f.ist_fax
+    and (f.kaliber_idx is not null or f.kaliber_von_g is not null)
+    and (exists (select 1 from auftrag_gebinde g where g.auftrag_id = f.id and g.anzahl > 0)
+         or exists (select 1 from auftrag_palette p where p.auftrag_id = f.id and p.kisten > 0)))::int
+                                                                                          as wasch_arbeiten_mit_kisten,
+  (select count(*) from fertig f where f.ist_fax)::int                                    as fax_arbeiten,
+  (select count(*) from fertig f where f.ist_fax and (f.paletten_gesamt > 0 or exists (select 1
+    from auftrag_gebinde g where g.auftrag_id = f.id and g.anzahl > 0)))::int             as fax_arbeiten_mit_kisten,
+  (select count(*) from fertig f where f.ist_fax and exists (select 1
+    from schimmel_messung s where s.auftrag_id = f.id and s.gemessen))::int               as fax_arbeiten_mit_faulem,
+  (select count(*) from auftrag_palette ap join arbeiten a on a.id = ap.auftrag_id
+    where a.station = 'waschen_sortieren')::int                                           as ws_paletten_gezaehlt,
+  (select count(*) from auftrag_palette ap join arbeiten a on a.id = ap.auftrag_id
+    where a.station = 'waschen_sortieren' and ap.brutto_zettel_kg is not null)::int       as ws_paletten_mit_zettelgewicht,
+  (select count(*) from fertig f where f.ist_fax or f.station in ('waschen', 'waschen_sortieren'))::int
+                                                                                          as arbeiten_nach_waschen,
+  (select count(*) from fertig f where (f.ist_fax or f.station in ('waschen', 'waschen_sortieren'))
+    and f.kistensystem is not null)::int                                                  as arbeiten_mit_kistensystem,
+  ((select coalesce(sum(g.anzahl), 0) from auftrag_gebinde g join arbeiten a on a.id = g.auftrag_id
+     where a.station = 'waschen' and not a.ist_fax)
+   + (select coalesce(sum(p.kisten), 0) from auftrag_palette p join arbeiten a on a.id = p.auftrag_id
+       where a.station = 'waschen' and not a.ist_fax))::int                               as wasch_kisten_gezaehlt,
+  ((select coalesce(sum(g.anzahl), 0) from auftrag_gebinde g join arbeiten a on a.id = g.auftrag_id
+     where a.station = 'waschen' and not a.ist_fax and (g.sortierdatum is not null or g.datum_fehlt))
+   + (select coalesce(sum(p.kisten), 0) from auftrag_palette p join arbeiten a on a.id = p.auftrag_id
+       where a.station = 'waschen' and not a.ist_fax and p.sortierdatum is not null))::int
+                                                                                          as wasch_kisten_mit_sortierdatum,
+  (select count(*) from fertig f where not f.ist_fax and exists (select 1 from v_palox_stand p
+    where p.auftrag_id = f.id and p.differenz is null))::int                              as arbeiten_mit_palox_unbekannt;
+
+create or replace view v_auftrag_palette_masse with (security_invoker = true) as
+with wiegung as materialized (
+  select vw.id,
+         zahl(vw.brutto_damals_kg - vw.kisten * g.tara_kg_pro_kiste
+              - g.tara_kg_palette, 2, 1e8)::numeric(10,2) as netto_damals_kg,
+         vw.eingangsdatum
+    from verdunstung_wiegung vw
+    left join gebinde g on g.art = vw.gebindeart
+), datum_mittel as materialized (
+  select charge_nr, eingangsdatum, avg(netto_kg) as netto_mittel
+    from v_palette group by charge_nr, eingangsdatum
+), charge_mittel as materialized (
+  select charge_nr, avg(netto_kg) as netto_mittel,
+         avg(brutto_kg - netto_kg) filter (where netto_kg is not null) as tara_mittel
+    from v_palette group by charge_nr
+), charge_datum as materialized (
+  select charge_nr, eingangsdatum_mittel from v_charge_rueckgrat
+), zettel as materialized (
+  select ap.id,
+         coalesce(pe.netto_kg,
+                  zahl(ap.brutto_zettel_kg - cm.tara_mittel, 2, 1e8)::numeric(10,2)) as netto_kg,
+         (pe.id is not null) as exakt
+    from auftrag_palette ap
+    join auftrag a on a.id = ap.auftrag_id
+    left join lateral (
+      select p.id, p.netto_kg from v_palette p
+       where p.charge_nr = a.charge_nr and p.eingangsdatum = ap.eingangsdatum
+         and p.brutto_kg = ap.brutto_zettel_kg and p.netto_kg is not null
+       order by p.id limit 1) pe on true
+    left join charge_mittel cm on cm.charge_nr = a.charge_nr
+   where ap.brutto_zettel_kg is not null
+)
+select ap.id, ap.auftrag_id, a.charge_nr, a.start_ts,
+       coalesce(w.netto_damals_kg, z.netto_kg, p.netto_kg, d.netto_mittel, cm.netto_mittel) as netto_kg,
+       coalesce(w.eingangsdatum, p.eingangsdatum, ap.eingangsdatum, cd.eingangsdatum_mittel) as eingangsdatum,
+       case when w.netto_damals_kg is not null then 'gewogen'
+            when z.netto_kg is not null and z.exakt then 'zettel'
+            when z.netto_kg is not null then 'zettel-charge-tara'
+            when p.netto_kg is not null then 'palette'
+            when d.netto_mittel is not null then 'datum-mittel'
+            when cm.netto_mittel is not null then 'charge-mittel'
+            else 'unbekannt' end::text                                                 as masse_quelle
+  from auftrag_palette ap
+  join auftrag a on a.id = ap.auftrag_id
+  left join wiegung w on w.id = ap.wiegung_id
+  left join zettel z on z.id = ap.id
+  left join v_palette p on p.id = ap.palette_id
+  left join datum_mittel d on d.charge_nr = a.charge_nr and d.eingangsdatum = ap.eingangsdatum
+  left join charge_mittel cm on cm.charge_nr = a.charge_nr
+  left join charge_datum cd on cd.charge_nr = a.charge_nr
+ where not (a.station = 'waschen' and not a.ist_fax);
+
+-- ---------- 2. Masse je Arbeit --------------------------------------------
+create materialized view if not exists mv_auftrag_masse as
+select a.id as auftrag_id, a.charge_nr, c.sorte, c.schlag, a.weg, a.station,
+       a.start_ts, a.ende_ts, a.status,
+       count(m.id)                                     as n_paletten,
+       coalesce(sum(m.netto_kg), a.durchsatz_kg)        as eingang_netto_kg,
+       case when sum(m.netto_kg) is not null then 'paletten'
+            when a.durchsatz_kg  is not null then 'durchsatz'
+            else 'fehlt' end                            as masse_quelle,
+       (sum((a.start_ts::date - m.eingangsdatum) * m.netto_kg)
+        / nullif(sum(m.netto_kg), 0))::numeric(10,1)    as lagertage
+  from auftrag a
+  join charge c on c.nr = a.charge_nr
+  left join v_auftrag_palette_masse m on m.auftrag_id = a.id
+ where a.abgebrochen_ts is null
+ group by a.id, a.charge_nr, c.sorte, c.schlag, a.weg, a.station,
+          a.start_ts, a.ende_ts, a.status, a.durchsatz_kg with no data;
+
+
+-- =====================================================================
+-- aus 0026_schimmelpunkte_speichern.sql
+-- =====================================================================
+
+-- =====================================================================
+-- 0026 — Die Schimmelpunkte einmal rechnen statt viermal
+--
+-- v_schimmel_punkte ist mit 0025 teuer geworden: Für jeden Waschgang wird
+-- nachgeschlagen, was bis dahin beim Sortieren derselben Charge gemessen
+-- wurde. Das ist richtig so, aber die Ansicht hängt an vier Stellen in der
+-- Kette und wurde dabei jedes Mal neu gerechnet. Dazu kam, dass
+-- v_auftrag_masse seit 0024 bei jeder Referenz den Wareneingang der
+-- sortierten Ware neu aggregiert — und v_auftrag_masse steckt in einem
+-- Dutzend Ansichten. Die Neuberechnung stieg dadurch von 226 ms auf 2 639 ms.
+--
+-- Dasselbe Mittel wie in 0016: einmal rechnen, speichern, alle lesen von der
+-- gespeicherten Fassung. Reihenfolge im Neuberechnen ist Pflicht — jede Stufe
+-- liest die vorige.
+--
+-- Nicht per Umbenennung: Postgres merkt sich Abhängigkeiten über die Objekt-ID,
+-- eine umbenannte Ansicht nehmen ihre Leser einfach mit. Wer den schnellen Weg
+-- will, muss die Leser umhängen. Genau das passiert hier.
+-- =====================================================================
+
+-- ---------- Der Wareneingang der sortierten Ware, einmal gerechnet ---------
+create materialized view if not exists mv_sortier_eingang as
+select a.charge_nr,
+       sum((m.eingangsdatum - date '2000-01-01')::numeric * m.netto_kg)
+         / nullif(sum(m.netto_kg), 0)                        as tage_seit_epoche
+  from auftrag a
+  join v_auftrag_palette_masse m on m.auftrag_id = a.id
+ where a.station = 'sortieren' and a.abgebrochen_ts is null
+ group by a.charge_nr with no data;
 
 -- =====================================================================
 -- 4. Das Alter sagt, woher es kommt
@@ -10819,149 +11027,6 @@ UNION ALL
     v.verschenkt_kg IS NOT NULL AS gemessen
    FROM verkauf v
      CROSS JOIN datei d;
-create materialized view erg_wohin as select * from v_wohin with no data;
-create materialized view erg_fax_wartezeit as select * from v_fax_wartezeit with no data;
-
--- =====================================================================
--- 5. Die Kontrollpalette rechnet
--- =====================================================================
--- Je zwei aufeinanderfolgende Wägungen derselben Palette eine Rate FÜR
--- DEN ZEITRAUM DAZWISCHEN. Das beantwortet die Frage, die heute niemand
--- beantworten kann: ob die Verdunstungsrate über die Saison konstant ist.
--- Der Betrieb vermutet nein — „am anfang haben sie sicher schock von
--- draussen feld in halle zu kommen". Diese Sicht misst es, statt zu raten.
---
--- Sie wird in dieser Runde NICHT in die Kaskade eingebaut. Erst erheben,
--- dann entscheiden.
-create or replace view v_kontrollpalette_rate with (security_invoker = true) as
-with w as (
-  select k.id as kontrollpalette_id, k.charge_nr, c.sorte, k.kennzeichen,
-         wg.wiege_ts, wg.sichtbar_schimmel,
-         case when g.tara_kg_pro_kiste is null or g.tara_kg_palette is null then null
-              else wg.brutto_kg - wg.kisten * g.tara_kg_pro_kiste - g.tara_kg_palette end as netto_kg
-    from kontrollpalette_wiegung wg
-    join kontrollpalette k on k.id = wg.kontrollpalette_id
-    join charge c on c.nr = k.charge_nr
-    left join gebinde g on g.art = wg.gebindeart
-),
-paar as (
-  select w.*,
-         lag(wiege_ts)          over p as von_ts,
-         lag(netto_kg)          over p as netto_von_kg,
-         lag(sichtbar_schimmel) over p as schimmel_von
-    from w
-  window p as (partition by kontrollpalette_id order by wiege_ts, netto_kg)
-)
-select kontrollpalette_id, charge_nr, sorte, kennzeichen,
-       von_ts, wiege_ts as bis_ts,
-       (betriebstag(wiege_ts) - betriebstag(von_ts))::int as tage,
-       netto_von_kg, netto_kg as netto_bis_kg,
-       case when netto_von_kg > 0 and netto_kg > 0
-             and betriebstag(wiege_ts) > betriebstag(von_ts)
-            then zahl(1 - power(netto_kg / netto_von_kg,
-                                1.0 / (betriebstag(wiege_ts) - betriebstag(von_ts))::numeric),
-                      6, 1)::numeric(9,6)
-       end as rate_je_tag,
-       -- Brauchbar nur, wenn nichts dazwischenkommt: kein sichtbarer
-       -- Schimmel (dann ist der Verlust kein Wasser), mindestens eine
-       -- Woche Abstand (sonst rauscht die Waage lauter als die
-       -- Verdunstung), und die Palette darf nicht schwerer geworden sein.
-       (netto_von_kg is not null and netto_kg is not null
-        and not coalesce(schimmel_von, false) and not sichtbar_schimmel
-        and (betriebstag(wiege_ts) - betriebstag(von_ts)) >= 7
-        and netto_kg <= netto_von_kg) as verwendbar
-  from paar
- where von_ts is not null;
-
--- =====================================================================
--- 6. Welche Chargen sich als Kontrollpalette lohnen
--- =====================================================================
--- Der Betrieb: „definiere 5 chargen … die ertragswichtigsten". Statt sie
--- von Hand aus einem Journal herauszusuchen, rechnet die App den
--- Vorschlag aus den Eingangsdaten — und hält ihn aktuell.
-create or replace view v_kontrollpalette_vorschlag with (security_invoker = true) as
-select r.charge_nr, c.sorte, c.schlag, r.eingang_netto_kg,
-       rank() over (order by r.eingang_netto_kg desc nulls last) as rang,
-       exists (select 1 from kontrollpalette k
-                where k.charge_nr = r.charge_nr and k.beendet_ts is null) as hat_schon
-  from v_charge_rueckgrat r
-  join charge c on c.nr = r.charge_nr
- where r.eingang_netto_kg > 0;
-
--- =====================================================================
--- 7. v_datenqualitaet neu anlegen — wegen `select a.*`
--- =====================================================================
--- Die Sicht beginnt mit `with arbeiten as (select a.* from auftrag a …)`.
--- Postgres friert den Stern beim Anlegen ein: die Spaltenliste steht fest,
--- wie sie damals war. 0072 hat `auftrag` zwei Spalten gegeben — damit
--- ergibt der Weg über die Migrationen eine andere Sicht als der Weg über
--- setup.sql (Teil B legt alles frisch an, also mit den neuen Spalten).
--- Der Fingerabdruck-Vergleich in supabase/test/run.sh hat genau das
--- gefunden. Ein Neuanlegen bringt beide Wege wieder zusammen.
---
--- Der Rumpf ist unverändert der aus 0061 — hier steht er nur noch einmal,
--- damit der Stern neu ausgerechnet wird. `create or replace` statt
--- `drop … cascade`: die Spaltenliste der Sicht selbst ändert sich nicht,
--- also bleibt die gespeicherte Fassung erg_datenqualitaet stehen. In
--- setup.sql kostet das nichts — Teil B behält ohnehin nur die letzte
--- Fassung jeder Sicht.
-create or replace view v_datenqualitaet with (security_invoker = true) as
-with arbeiten as (select a.* from auftrag a where a.abgebrochen_ts is null),
-     fertig as (select * from arbeiten where status = 'abgeschlossen')
-select
-  (select count(*) from auftrag_palette ap join arbeiten a on a.id = ap.auftrag_id)::int as paletten_gezaehlt,
-  (select count(*) from auftrag_palette ap join arbeiten a on a.id = ap.auftrag_id
-    where ap.eingangsdatum is not null)::int                                             as paletten_mit_datum,
-  (select count(*) from fertig where not ist_fax)::int                                    as arbeiten_fertig,
-  (select count(*) from fertig f where not f.ist_fax and exists (select 1 from schimmel_messung s
-    where s.auftrag_id = f.id and s.palox_stand_kg is not null))::int                     as arbeiten_mit_ablesung,
-  (select count(*) from fertig f where not f.ist_fax and (select count(*) from schimmel_messung s
-    where s.auftrag_id = f.id and s.palox_stand_kg is not null) >= 2)::int                as arbeiten_mit_zwei_ablesungen,
-  (select count(*) from fertig f where not f.ist_fax and exists (select 1 from auftrag_angabe g
-    where g.auftrag_id = f.id and g.schluessel = 'eine_charge'))::int                     as arbeiten_mit_antwort,
-  (select count(*) from ausschuss_messung m join arbeiten a on a.id = m.auftrag_id
-    where m.gemessen)::int                                                                as ausschuss_messungen,
-  (select count(*) from ausschuss_messung m join arbeiten a on a.id = m.auftrag_id
-    where m.gemessen and m.brutto_kg is not null)::int                                    as ausschuss_gewogen,
-  -- 0061: die Lagerkontrolle ist eine Verdunstungsmessung — gezählt wird jede
-  -- gemessene Kontrolle, nicht nur die mit Faul-Angabe
-  (select count(*) from verdunstung_wiegung w
-    where w.auftrag_id is null and w.gemessen)::int                                       as lagerkontrollen,
-  (select count(*) from sortier_lauf)::int                                                as sortierlaeufe,
-  (select count(*) from sortier_lauf where auftrag_id is not null)::int                   as sortierlaeufe_zugeordnet,
-  (select count(*) from fertig f where f.station = 'sortieren')::int                      as sortier_arbeiten,
-  (select count(*) from fertig f where f.station = 'sortieren' and exists (select 1
-    from auftrag_gebinde g where g.auftrag_id = f.id and g.anzahl > 0))::int              as sortier_arbeiten_mit_kisten,
-  (select count(*) from fertig f where f.station = 'waschen' and not f.ist_fax)::int      as wasch_arbeiten,
-  (select count(*) from fertig f where f.station = 'waschen' and not f.ist_fax
-    and (f.kaliber_idx is not null or f.kaliber_von_g is not null)
-    and (exists (select 1 from auftrag_gebinde g where g.auftrag_id = f.id and g.anzahl > 0)
-         or exists (select 1 from auftrag_palette p where p.auftrag_id = f.id and p.kisten > 0)))::int
-                                                                                          as wasch_arbeiten_mit_kisten,
-  (select count(*) from fertig f where f.ist_fax)::int                                    as fax_arbeiten,
-  (select count(*) from fertig f where f.ist_fax and (f.paletten_gesamt > 0 or exists (select 1
-    from auftrag_gebinde g where g.auftrag_id = f.id and g.anzahl > 0)))::int             as fax_arbeiten_mit_kisten,
-  (select count(*) from fertig f where f.ist_fax and exists (select 1
-    from schimmel_messung s where s.auftrag_id = f.id and s.gemessen))::int               as fax_arbeiten_mit_faulem,
-  (select count(*) from auftrag_palette ap join arbeiten a on a.id = ap.auftrag_id
-    where a.station = 'waschen_sortieren')::int                                           as ws_paletten_gezaehlt,
-  (select count(*) from auftrag_palette ap join arbeiten a on a.id = ap.auftrag_id
-    where a.station = 'waschen_sortieren' and ap.brutto_zettel_kg is not null)::int       as ws_paletten_mit_zettelgewicht,
-  (select count(*) from fertig f where f.ist_fax or f.station in ('waschen', 'waschen_sortieren'))::int
-                                                                                          as arbeiten_nach_waschen,
-  (select count(*) from fertig f where (f.ist_fax or f.station in ('waschen', 'waschen_sortieren'))
-    and f.kistensystem is not null)::int                                                  as arbeiten_mit_kistensystem,
-  ((select coalesce(sum(g.anzahl), 0) from auftrag_gebinde g join arbeiten a on a.id = g.auftrag_id
-     where a.station = 'waschen' and not a.ist_fax)
-   + (select coalesce(sum(p.kisten), 0) from auftrag_palette p join arbeiten a on a.id = p.auftrag_id
-       where a.station = 'waschen' and not a.ist_fax))::int                               as wasch_kisten_gezaehlt,
-  ((select coalesce(sum(g.anzahl), 0) from auftrag_gebinde g join arbeiten a on a.id = g.auftrag_id
-     where a.station = 'waschen' and not a.ist_fax and (g.sortierdatum is not null or g.datum_fehlt))
-   + (select coalesce(sum(p.kisten), 0) from auftrag_palette p join arbeiten a on a.id = p.auftrag_id
-       where a.station = 'waschen' and not a.ist_fax and p.sortierdatum is not null))::int
-                                                                                          as wasch_kisten_mit_sortierdatum,
-  (select count(*) from fertig f where not f.ist_fax and exists (select 1 from v_palox_stand p
-    where p.auftrag_id = f.id and p.differenz is null))::int                              as arbeiten_mit_palox_unbekannt;
 
 -- ---------- 2. Die Punkte werden nur noch einmal gerechnet ---------------
 --
@@ -11029,6 +11094,8 @@ begin
                    format('%s, gespeichert für die App Erneuert mit auswertung_schritt().', paar[2]));
   end loop;
 end $$;
+create materialized view erg_wohin as select * from v_wohin with no data;
+create materialized view erg_fax_wartezeit as select * from v_fax_wartezeit with no data;
 
 -- ---------------------------------------------------------------------
 -- Beschreibungen, Leserechte und Indizes
@@ -12506,12 +12573,29 @@ comment on view v_kontrollpalette_vorschlag is
   'Die Chargen nach Eingangsmasse geordnet, mit der Angabe, ob schon eine '
   'Kontrollpalette darauf steht. Die fünf obersten sind der Vorschlag (0073).';
 grant select on v_kontrollpalette_vorschlag to authenticated;
+comment on view v_ausgang_voll is
+  'v_ausgang_kennzahl mit der Angabe, ob die Palette voll war. Nicht volle '
+  'zählen für die Masse, aber nicht für kg je Kiste — der Betrieb: „vlt die '
+  'ersten beiden paletten je 40 kisten ifco und die letzte vlt nur 24" (0073).';
+grant select on v_ausgang_voll to authenticated;
+comment on view v_koeff_palette_netto is
+  'Was eine VOLLE fertige Palette wiegt, je Sorte und Kistensystem. Nicht '
+  'volle Paletten bleiben draussen — sonst zieht die halbvolle letzte Palette '
+  'jeder Arbeit den Mittelwert nach unten und von dort die Fax-Masse (0073).';
 
 comment on view v_datenqualitaet is
   'Zähler zur Vollständigkeit der Erfassung. Seit 0061 zählen beim Waschen die '
   'gezählten Paletten (Kisten mit Sortierdatum) mit; die Lagerkontrolle zählt '
   'als Verdunstungsmessung, ohne Faul-Angabe. Seit 0073 neu angelegt, weil '
   '`select a.*` die Spaltenliste einfriert (0072 gab auftrag zwei Spalten).';
+comment on view v_auftrag_palette_masse is
+  'Netto je gezählter Eingangspalette: gewogen, vom Zettel, aus dem Wareneingang, '
+  'oder das Mittel des Eingangstags / der Charge; masse_quelle sagt, welcher Weg es '
+  'war. Beim Waschen gezählte Kaliber-Paletten stehen nicht hier — ihre Masse '
+  'rechnet v_auftrag_wasch_paletten (0061). Getrennt wird seit 0074 nach der '
+  'STATION statt nach „hat eine Kistenzahl": seit der Zähler beim Sortieren die '
+  'Kisten je Eingangspalette erfasst, wäre das alte Merkmal die Löschtaste für '
+  'jede Sortierarbeit gewesen.';
 
 
 -- =====================================================================

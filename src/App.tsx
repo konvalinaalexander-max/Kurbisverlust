@@ -5,6 +5,7 @@ import { useAuth } from './auth/AuthProvider'
 import { SprachAuswahl, useSprache } from './sprache/SprachProvider'
 import { istKonfiguriert, konfigurationsProblem } from './lib/supabase'
 import { Avatar, Hinweis, Lade } from './components/Bausteine'
+import { useBetriebsmodus } from './lib/betriebsmodus'
 import Anmelden from './pages/Anmelden'
 import Start from './pages/Start'
 import NeueArbeit from './pages/NeueArbeit'
@@ -27,6 +28,9 @@ const Betrieb = lazy(() => import('./pages/Betrieb'))
 export default function App() {
   const { session, profil, laedt, istAdmin, abmelden } = useAuth()
   const { t, sprache, abfrageOffen, abfrageOeffnen } = useSprache()
+  // 0072: Auf der Beispiel-Webseite steht das dauerhaft oben. Nicht als
+  // Hinweis, den man wegklickt — als Band, das nicht verschwindet.
+  const modus = useBetriebsmodus()
 
   if (konfigurationsProblem) {
     return (
@@ -86,7 +90,10 @@ export default function App() {
   )
 
   return (
-    <div className={`app ${istAdmin ? 'buero' : 'halle'}`}>
+    <div className={`app ${istAdmin ? 'buero' : 'halle'}${modus === 'beispiel' ? ' mit-band' : ''}`}>
+      {modus === 'beispiel' && (
+        <div className="beispiel-band kein-druck" role="status">{t('beispielBand')}</div>
+      )}
       {istAdmin && (
         <aside className="seitenleiste kein-druck">
           {marke}

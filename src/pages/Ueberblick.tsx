@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { useBetriebsmodus } from '../lib/betriebsmodus'
 import DemoDaten from '../components/DemoDaten'
 import { datum, kg, prozent, tonnen, zahl } from '../lib/format'
 import { Aufklapp, Erklaerung, Herkunft, Hinweis, Karte, Kennzahl, Segmente } from '../components/Bausteine'
@@ -65,6 +66,7 @@ function Tonnen({ kg }: { kg: number | null | undefined }) {
  */
 export default function Ueberblick() {
   const { daten, laedt, fehler, fortschritt, neuRechnen } = useAuswertung()
+  const modus = useBetriebsmodus()
   const [gruppe, setGruppe] = useState<Gruppe>('gesamt')
   const [wahl, setWahl] = useState('')
   const navigate = useNavigate()
@@ -79,7 +81,7 @@ export default function Ueberblick() {
         <Reiterkopf titel="Überblick" zweck="Was kam herein, was ging hinaus — und wie viel von dem, was noch liegt, ist verkaufsfähig." stand={daten.stand} />
         <Probleme liste={daten.probleme} />
         <Hinweis>Noch keine auswertbaren Daten. Dafür braucht es mindestens Eingangspaletten mit hinterlegter Tara — siehe Betrieb → Stammdaten.</Hinweis>
-        <DemoDaten kompakt nachAenderung={() => void neuRechnen()} />
+        {modus === 'beispiel' && <DemoDaten kompakt nachAenderung={() => void neuRechnen()} />}
       </>
     )
   }

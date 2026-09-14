@@ -296,6 +296,9 @@ const de = {
   kistenJePalette: 'Kisten auf der Palette',
   tageGeschaetzt: 'geschätzt',
   csvFehltHinweis: 'Für diese Arbeit ist noch keine Sortier-Datei hochgeladen. Ohne sie kennt die Auswertung die Menge je Kaliber nicht.',
+  nichtVollKurz: 'nicht voll',
+  tageSeitWaschenAnnahme: 'Kein Waschdatum auf der Palette — angenommener Durchschnitt. Ändere ihn, wenn du es besser weisst.',
+  beispielBand: 'Beispieldaten — nicht der Betrieb',
 }
 
 export type TextId = keyof typeof de
@@ -546,6 +549,9 @@ const en: Woerterbuch = {
   kistenJePalette: 'Boxes on the pallet',
   tageGeschaetzt: 'estimated',
   csvFehltHinweis: 'No sorting file has been uploaded for this job yet. Without it the analysis does not know the amount per size.',
+  nichtVollKurz: 'not full',
+  tageSeitWaschenAnnahme: 'No wash date on the pallet — assumed average. Change it if you know better.',
+  beispielBand: 'Sample data — not the farm',
 }
 
 const hu: Woerterbuch = {
@@ -793,6 +799,9 @@ const hu: Woerterbuch = {
   kistenJePalette: 'Ládák a raklapon',
   tageGeschaetzt: 'becsült',
   csvFehltHinweis: 'Ehhez a munkához még nincs feltöltve válogatási fájl. Nélküle a kiértékelés nem ismeri a méretenkénti mennyiséget.',
+  nichtVollKurz: 'nincs tele',
+  tageSeitWaschenAnnahme: 'Nincs mosási dátum a raklapon — feltételezett átlag. Írd át, ha jobban tudod.',
+  beispielBand: 'Mintaadatok — nem az üzem',
 }
 
 const ro: Woerterbuch = {
@@ -1040,6 +1049,9 @@ const ro: Woerterbuch = {
   kistenJePalette: 'Lăzi pe palet',
   tageGeschaetzt: 'estimat',
   csvFehltHinweis: 'Pentru această lucrare nu a fost încă încărcat niciun fișier de sortare. Fără el analiza nu cunoaște cantitatea pe calibru.',
+  nichtVollKurz: 'nu este plin',
+  tageSeitWaschenAnnahme: 'Niciun date de spălare pe palet — medie presupusă. Schimb-o dacă știi mai bine.',
+  beispielBand: 'Date de exemplu — nu ferma',
 }
 
 const pl: Woerterbuch = {
@@ -1287,6 +1299,9 @@ const pl: Woerterbuch = {
   kistenJePalette: 'Skrzynie na palecie',
   tageGeschaetzt: 'szacowane',
   csvFehltHinweis: 'Do tej pracy nie wgrano jeszcze pliku sortowania. Bez niego analiza nie zna ilości na kaliber.',
+  nichtVollKurz: 'niepełna',
+  tageSeitWaschenAnnahme: 'Brak daty mycia na palecie — przyjęta średnia. Zmień, jeśli wiesz lepiej.',
+  beispielBand: 'Dane przykładowe — nie gospodarstwo',
 }
 
 const pt: Woerterbuch = {
@@ -1534,6 +1549,9 @@ const pt: Woerterbuch = {
   kistenJePalette: 'Caixas na palete',
   tageGeschaetzt: 'estimado',
   csvFehltHinweis: 'Ainda não foi carregado nenhum ficheiro de triagem para este trabalho. Sem ele a análise não conhece a quantidade por calibre.',
+  nichtVollKurz: 'não cheia',
+  tageSeitWaschenAnnahme: 'Sem data de lavagem na palete — média assumida. Altere se souber melhor.',
+  beispielBand: 'Dados de exemplo — não a exploração',
 }
 
 export const WOERTERBUCH: Record<Sprache, Woerterbuch> = { de, en, hu, ro, pl, pt }

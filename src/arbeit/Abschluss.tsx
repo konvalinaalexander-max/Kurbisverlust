@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useSprache } from '../sprache/SprachProvider'
-import { fehlerText } from '../lib/db'
+import { einstellung, fehlerText } from '../lib/db'
 import { Hinweis } from '../components/Bausteine'
 import { Schritt, Wahl } from '../components/Schritte'
 import { PaloxMaske } from './PaloxMaske'
@@ -41,12 +41,18 @@ export function Abschluss({ d, neuLaden, zurueck, fertig }: {
   // fertigen Paletten werden eher nicht gezählt. Vorbelegt mit dem, was
   // gewogen wurde, damit im Normalfall ein Tippen genügt.
   const [fertigeGesamt, setFertigeGesamt] = useState(String(d.auftrag.fertige_paletten_gesamt ?? ''))
+  /** „Palox zwischendurch geleert?" — beim Abschluss gefragt (0072). */
+  const [paloxGeleert, setPaloxGeleert] = useState<boolean | null>(
+    d.auftrag.palox_unbekannt ? true : null)
   const [eineCharge, setEineCharge] = useState<boolean | null>(null)
   const [gleicheSorte, setGleicheSorte] = useState<boolean | null>(null)
   const [paletten, setPaletten] = useState(String(d.auftrag.paletten_gesamt ?? ''))
   const [tage, setTage] = useState(String(d.auftrag.tage_seit_waschen ?? ''))
-  /** Wahr, solange der Wert der Vorschlag ist und niemand ihn angefasst hat. */
-  const [tageVorgeschlagen, setTageVorgeschlagen] = useState(false)
+  /** Woher der Wert kommt, solange niemand ihn angefasst hat:
+   *  'gemessen'  — aus der letzten Wasch-Arbeit derselben Charge
+   *  'annahme'   — die Vorgabe aus den Einstellungen, weil nichts zu finden war
+   *  false       — der Arbeiter hat selbst getippt */
+  const [tageVorgeschlagen, setTageVorgeschlagen] = useState<'gemessen' | 'annahme' | false>(false)
   const [sicher, setSicher] = useState(false)
   const [abbruch, setAbbruch] = useState(false)
   const [fehler, setFehler] = useState<string | null>(null)
@@ -68,16 +74,25 @@ export function Abschluss({ d, neuLaden, zurueck, fertig }: {
       const { data } = await supabase.from('auftrag')
         .select('ende_ts')
         .eq('charge_nr', d.auftrag.charge_nr)
-        .eq('station', 'waschen')
+        // 0072: Ware aus „Waschen + Sortieren" ist auch gewaschen. Vorher
+        // suchte die App nur 'waschen' und fand damit die halbe Ware nicht.
+        .in('station', ['waschen', 'waschen_sortieren'])
         .eq('status', 'abgeschlossen')
         .is('abgebrochen_ts', null)
         .not('ende_ts', 'is', null)
         .order('ende_ts', { ascending: false })
         .limit(1)
       const n = vorschlagTageSeitWaschen((data ?? [])[0]?.ende_ts as string | undefined)
-      if (weg || n === null) return
-      setTage(String(n))
-      setTageVorgeschlagen(true)
+      if (weg) return
+      if (n !== null) { setTage(String(n)); setTageVorgeschlagen('gemessen'); return }
+      // Findet die App nichts, steht dort die Annahme des Betriebs: „vlt
+      // gehen wir einfach von durchschnitt von 4 tagen aus". Sie wird
+      // ausdrücklich als Annahme gekennzeichnet, nicht als Messung — an der
+      // Fax gibt es kein Waschdatum auf der Palette (Antwort 11a).
+      const v = await einstellung<number>('fax_tage_vorgabe', 4)
+      if (weg || !(Number(v) > 0)) return
+      setTage(String(Number(v)))
+      setTageVorgeschlagen('annahme')
     })()
     return () => { weg = true }
   }, [p.hatFaxPaletten, d.auftrag.charge_nr, d.auftrag.tage_seit_waschen])
@@ -108,7 +123,15 @@ export function Abschluss({ d, neuLaden, zurueck, fertig }: {
 
   // Was noch fehlt — als Sätze, nicht als gesperrter Knopf ohne Grund.
   const fehlt: string[] = []
-  if (p.paloxPflicht && d.ablesungen.length === 0) fehlt.push(t('paloxVorAbschluss'))
+  // 0073: Eine einzige Ablesung ist ein Startstand, kein Messwert — die Menge
+  // der Arbeit bliebe unbekannt. Also zwei: Beginn und Ende. Oder eine plus
+  // ausdrücklich „Stand unverändert" (die schreibt eine echte Null).
+  const paloxAblesungen = d.ablesungen.filter(x => x.palox_stand_kg !== null).length
+  if (p.paloxPflicht && paloxAblesungen === 0) fehlt.push(t('paloxVorAbschluss'))
+  else if (p.paloxPflicht && paloxAblesungen === 1 && !d.auftrag.palox_unbekannt) fehlt.push(t('paloxEndeFehlt'))
+  // Der Betrieb sagt, das Leeren mittendrin kommt vor. Also wird gefragt —
+  // und „ja" heisst: die Menge dieser Arbeit ist unbekannt, nicht null.
+  if (p.hatPalox && paloxGeleert === null && !d.auftrag.palox_unbekannt) fehlt.push(t('paloxGeleertFrage'))
   if (p.hatFaule && d.ablesungen.length === 0) fehlt.push(t('faulesFehlt'))
   if (p.hatFaxPaletten && !palettenOk) fehlt.push(t('palettenGesamt'))
   if (p.hatWaschPaletten && waschKisten === 0) fehlt.push(t('palettenFehlen'))
@@ -130,6 +153,17 @@ export function Abschluss({ d, neuLaden, zurueck, fertig }: {
     setLaeuft(false)
     if (error) { setFehler(fehlerText(error)); return }
     await neuLaden(); weiter()
+  }
+
+  /** „Geleert?" beantworten. Ja setzt auftrag.palox_unbekannt — die
+   *  Ablesungen bleiben, die Menge dieser Arbeit ist unbekannt (0072). */
+  async function paloxGeleertSetzen(wert: boolean) {
+    setPaloxGeleert(wert)
+    if (wert === d.auftrag.palox_unbekannt) return
+    const { error } = await supabase.from('auftrag')
+      .update({ palox_unbekannt: wert }).eq('id', d.auftrag.id)
+    if (error) { setFehler(fehlerText(error)); return }
+    await neuLaden()
   }
 
   async function abschliessen() {
@@ -169,6 +203,20 @@ export function Abschluss({ d, neuLaden, zurueck, fertig }: {
                zurueck={zurueckSchritt}>
         <PaloxMaske d={d} gesperrt={false} unveraendertErlaubt={d.ablesungen.length > 0}
                     gespeichert={async () => { await neuLaden(); weiter() }} />
+        {/* 0072: klein und unauffällig, aber da — der Betrieb sagt, es kommt
+            vor. „Ja" heisst unbekannt, nicht null. */}
+        {p.hatPalox && paloxAblesungen > 0 && (
+          <div className="karte abstand-oben">
+            <h2 className="frage" style={{ fontSize: '1.05rem', marginTop: 0 }}>{t('paloxGeleertFrage')}</h2>
+            <div className="wahl">
+              <Wahl id="geleert-nein" name={t('nein')} gewaehlt={paloxGeleert === false}
+                    onClick={() => void paloxGeleertSetzen(false)} />
+              <Wahl id="geleert-ja" name={t('ja')} gewaehlt={paloxGeleert === true}
+                    onClick={() => void paloxGeleertSetzen(true)} />
+            </div>
+            {paloxGeleert === true && <p className="hilfe">{t('paloxGeleertFolge')}</p>}
+          </div>
+        )}
         {!p.paloxPflicht && (
           <button type="button" id="palox-ohne" className="voll" style={{ marginTop: '.6rem', minHeight: 48 }} onClick={weiter}>{t('ohneAblesungWeiter')}</button>
         )}
@@ -221,7 +269,11 @@ export function Abschluss({ d, neuLaden, zurueck, fertig }: {
             <label htmlFor="ab-tage">{t('tageSeitWaschen')} ({t('freiwillig')})</label>
             <input id="ab-tage" type="number" inputMode="numeric" min={0} value={tage}
                    onChange={e => { setTage(e.target.value); setTageVorgeschlagen(false) }} />
-            <p className="hilfe">{tageVorgeschlagen ? t('tageSeitWaschenVorschlag') : t('tageSeitWaschenErkl')}</p>
+            <p className="hilfe">
+              {tageVorgeschlagen === 'gemessen' ? t('tageSeitWaschenVorschlag')
+                : tageVorgeschlagen === 'annahme' ? t('tageSeitWaschenAnnahme')
+                : t('tageSeitWaschenErkl')}
+            </p>
           </div>
           {fehler && <Hinweis art="warnung">{fehler}</Hinweis>}
         </div>

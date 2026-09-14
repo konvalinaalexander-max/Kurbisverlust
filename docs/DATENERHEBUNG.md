@@ -97,6 +97,80 @@ Ein Export-Knopf „Alles sichern" (alle Beobachtungstabellen als Dateien) wäre
 wenig Arbeit und der billigste Versicherungsschutz, den es gibt. **Das ist
 meine dringendste Empfehlung vor dem Scharfschalten.**
 
+### 3.1 Was seit Runde Q gebaut ist
+
+Zwei Netze, und sie fangen Verschiedenes.
+
+**Das Journal** (`erfassung_journal`, Migration 0072) hängt als Auslöser an
+siebzehn Tabellen. Jede Änderung wird festgehalten; bei einem Löschen steht
+die **ganze alte Zeile als JSON** darin, mit Zeitpunkt und Urheber. Niemand
+kann das Journal ändern oder löschen — auch der Betriebsleiter nicht. Ein
+Protokoll, das sich bearbeiten lässt, ist keines.
+
+Damit gilt: **eine gelöschte Messung ist wiederherstellbar**, solange die
+Datenbank selbst existiert.
+
+```sql
+-- Was wurde in den letzten sieben Tagen gelöscht?
+select wann, tabelle, zeile_id, alt
+  from erfassung_journal
+ where vorgang = 'delete' and wann > now() - interval '7 days'
+ order by wann desc;
+```
+
+**Der Wächter** (`supabase/test/keine_zerstoerung.sh`) liest die Migrationen
+und ist rot, sobald eine davon `drop table`, `drop column`, `truncate` oder
+ein `delete from` ohne `where` enthält. Er läuft als Erstes in
+`supabase/test/run.sh` — noch vor jeder Datenbankverbindung. Drei geprüfte
+Altfälle stehen mit Begründung in einer Freigabeliste im Skript selbst.
+
+Das Journal fängt, was trotzdem passiert. Der Wächter sorgt dafür, dass es
+gar nicht erst passiert.
+
+### 3.2 Was das Journal NICHT ersetzt
+
+Beides hilft nichts, wenn die Datenbank als Ganzes verschwindet. Dafür
+braucht es eine Sicherung, und die zieht der Betrieb selbst.
+
+**Weg 1 — über das Supabase-Dashboard (kein Werkzeug nötig):**
+
+1. Supabase öffnen → das Projekt wählen
+2. Links **Database** → **Backups**
+3. Dort steht, welche Sicherungen es gibt und bis wann sie zurückreichen.
+   Auf der Gratis-Stufe sind das wenige Tage — das reicht für einen Unfall,
+   nicht für eine Saison.
+
+**Weg 2 — eine eigene Kopie, die dem Betrieb gehört:**
+
+```bash
+# Die Verbindungszeichenfolge steht in Supabase unter
+# Project Settings → Database → Connection string → URI
+pg_dump "postgresql://postgres:PASSWORT@db.xxxx.supabase.co:5432/postgres"   --no-owner --no-acl --format=custom   --file="kuerbis-$(date +%Y-%m-%d).dump"
+```
+
+Die Datei gehört auf einen anderen Rechner als den, der sie erzeugt hat.
+
+**Die Regel, die jede andere überwiegt:**
+
+> **Vor jedem Einspielen von `setup.sql` eine Sicherung.**
+
+`setup.sql` ersetzt das ganze Rechenwerk (Teil B) und legt Fehlendes an
+(Teil A). Sie nimmt keine Daten weg — der Prüfstand belegt das bei jedem
+Lauf. Aber „belegt" ist nicht „unmöglich", und eine Sicherung kostet zwei
+Minuten.
+
+### 3.3 Die Erinnerung in der App
+
+`einstellung('letzte_sicherung')` hält fest, wann zuletzt gesichert wurde.
+Der Betriebsleiter trägt das von Hand ein — es gibt keinen automatischen
+Mechanismus, und es soll auch keiner vorgetäuscht werden. Auf der Seite
+**Betrieb** steht die Zeile „Letzte vermerkte Sicherung: …", ab dreissig
+Tagen in Warnfarbe.
+
+Steht `einstellung('erfassung_scharf')` auf `true`, gibt `setup.sql` beim
+Einspielen zusätzlich einen deutlichen Hinweis aus, dass auf dieser Datenbank
+echte Erfassungsdaten liegen.
+
 ---
 
 ## 4. Was „eingefroren" wirklich heisst — und was nicht
