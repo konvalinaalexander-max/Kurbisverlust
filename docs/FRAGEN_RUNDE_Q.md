@@ -419,3 +419,45 @@ wächst nicht mit der Lagerdauer). Für die Darstellung ändert es alles: Die
 Zahl ist **vermeidbar** und gehört je Schlag und je Erntewoche vor die
 Erntemannschaft, nicht nur in die Verlustrangliste. In der Demo reicht die
 Spanne je Schlag von rund 1 % bis 10 % — bei derselben Sorte (Frage 15).
+
+---
+
+## Die Antworten (14.09.2026) — verbindlich festgehalten
+
+| # | Frage | Antwort | Folge |
+|---|---|---|---|
+| 1 | Palox gefallen: annehmen oder fragen? | **Fragen.** Bei „ja" die Daten **nicht verwenden** — wir wissen nicht, wie voll er vor dem Leeren war. Dem Arbeiter muss man das nicht erklären. | Menge unbekannt, nicht 0 |
+| 2 | Waage tariert? | **Nein — 45 kg bei leer**, an beiden Stationen. Beide Ablesungen minus 45. | kürzt sich in der Differenz weg |
+| 3 | Palox über Nacht? | **Irrelevant** — Arbeitsvorgänge werden nie über Nacht pausiert, immer vor Feierabend abgeschlossen. Aber: dazwischen passieren undokumentierte Vorgänge. **Der Stand der letzten Arbeit darf nie übernommen werden.** | **Grundlegende Änderung:** Menge = Ablesung am Ende − Ablesung am Anfang **derselben Arbeit** |
+| 4 | Eingangsdatum abgelesen oder geraten? | **Abgelesen** — steht genau auf dem Zettel. | bleibt tragend |
+| 5 | Kistenzählung: welche Brücke? | Kisten je Kaliber werden **nie** gezählt. Relevanz war unklar. | **Neuer Nenner:** Anzahl fertiger Paletten (eine Zahl je Wascharbeit). Kistenzählung entfällt ersatzlos |
+| 6 | Weitere Palox? | Zwei stationäre (Sortieren, Waschen). **Beim Fax nicht** — dort Kisten, einzeln gewogen, danach in einen Palox ausserhalb der Halle. | Fax-Maske: erst Kistenzahl, dann je Kiste wiegen |
+| 7 | Kaliber-Palette wiegen? | **Könnte, machen wir aber nicht.** Auf dem Zettel: Chargennummer + Sortierdatum. | → Lösung über die fertigen Paletten |
+| 8 | Palox beim Waschen? | Zweifel, weil der Nenner fehlt. | Nenner ist gelöst → **Pflicht statt freiwillig**; es sind die Punkte mit dem höchsten Alter |
+| 9 | Charge mehrfach sortiert? | **Ja, immer wieder** — bis sie aufgebraucht ist. Und gleichzeitig wird für Waschen+Sortieren entnommen. | Chargenmittelwert wäre viel zu grob → Zuordnung über das Sortierdatum (94 % Treffer) |
+| 10 | Gebinde in den Schlüssel? | **Ja, unbedingt** — bei beiden Kistensystemen muss das Gebinde gefragt werden. | Schlüssel: Sorte × Gebinde × System |
+| 11 | Sollgewicht in der Verkaufsdatei? | Sollte drinstehen; genauere Erklärung folgt. | offen |
+| 12 | Hauptzahl bei Stück-Kisten? | Kaliber ist von Kürbis zu Kürbis anders. **Beide Verkaufsarten kommen bei allen Sorten vor.** | Die Art gehört zur Arbeit, nicht zur Sorte — Frage 14 war falsch gestellt |
+| 13 | Marge in Franken? | — | offen |
+| 14 | Kalibergrenzen? | siehe 12 | — |
+| 15 | Zu klein je Schlag? | **Ja**, aber in einem weiteren Reiter. | Reiter 3 |
+| 16 | Regler tagesgenau? | **Tagesgenau.** | |
+| 17 | Nur Datum oder auch Bestand? | **Datum und erwarteter Lagerbestand.** | |
+| 18 | Woher kommt der erwartete Bestand? | **Mittelmass** — alle Chargen gehen anteilig gleich raus. Der Rechner ist noch genauer zu überlegen. | drei Rückfragen in Kapitel 10.2 des PDF |
+| 19 | Gruppierung? | **Sehr benutzerfreundlich.** | |
+| 21 | Balken je Zeile? | **Ja.** | |
+| 22 | Stapelgrafik? | **Einfach verständlich** — es soll sich als Praxiswerkzeug eignen. | gestrichen, drei Grafiken bleiben |
+| 23 | Seitenstruktur? | **Neu planen.** Drei Reiter nach Wichtigkeit: 1 Lager-Management (Tagesgeschäft) · 2 Rückblick (welcher Verlust wann und wie) · 3 Extra-Fakten. | Teil II des PDF |
+| 26 | Palox sofort reparieren? | **Ja.** | |
+
+### Was am Rechenwerk dadurch besser wird
+
+| War | Ist |
+|---|---|
+| Faul-Menge über Arbeiten hinweg abgeleitet | **gemessen** — zwei Ablesungen in derselben Arbeit |
+| Alter beim Waschen = Chargenmittel über die Saison | **abgelesen** in beiden Teilen (Sortierdatum + Eingangsdatum der passenden Sortierarbeit); 305 von 323 Paletten (94 %) treffen exakt |
+| Masse der Wascharbeit über zwei Zwischenschritte | **gemessen** — fertige Paletten × gewogenes Palettennetto |
+| kg je Kiste quer über Gebinde gemittelt | je Sorte × Gebinde × System getrennt |
+
+Damit sind F9 (Blick in die Zukunft) und F10 (Massenkette ohne Zählung) beide
+gelöst, und F1–F3 (Palox) sind entscheidungsreif.
