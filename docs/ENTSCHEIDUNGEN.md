@@ -3009,3 +3009,115 @@ Kein Chart-Paket, kein Animations-Paket, keine neue Abhängigkeit — die
 Diagramme bleiben lesbar und die Prüfstände können sie zurücklesen. Keine
 Änderung an Schema oder Sichten: Runde O ist reines Frontend, `run.sh` läuft
 unverändert grün.
+
+## Runde P — was liegt, und was davon verkauft sich (13. September, 0071)
+
+Der Betrieb hat zwei Fragen gestellt und dazugesagt, dass die Antworten
+darauf fehlen: *wie viel kam rein, ging raus, liegt noch — und wie viel davon
+ist verkaufsfähig* und *wo geht mein Kürbis hin, was war am schlimmsten*.
+Gebaut ist beides in `docs/DESIGN_RUNDE_P.md`, gemessen im
+`docs/BEFUND_RUNDE_P.md`; hier stehen die Entscheidungen.
+
+### Eine Formel für heute und für morgen
+
+Jede Zahl über die Zukunft ist die Kaskade (`mv_kaskade`, Portion „lager") an
+einem späteren Tag ausgewertet — dieselben Faktoren, dieselben Klammern, kein
+zweites Modell. Das ist keine Stilfrage: `v_naechste_charge` hatte eine eigene
+Zwei-Wochen-Formel (F auf 0.99 geklammert, Verderb bedingt auf die gute
+Masse) und sagte für Charge 1632 466 kg, wo die Kaskade 388 kg sagt — 20 %
+auseinander, beide Zahlen im selben Programm. Ab 0071 gibt es genau **eine**.
+
+Bewiesen wird das nicht durch Lesen, sondern durch Block 0071 in
+`supabase/test/pruefung.sql`: Bei Horizont 0 muss jede Prognosezahl auf zwei
+Rappen die Zahl von heute sein. Der Block war vor der Migration rot (die Sicht
+gab es nicht) und ist seither grün.
+
+### Der Anteil in Prozent, nicht die Menge in Tonnen
+
+Der Betrieb weiss im Oktober nicht, wie der Verkauf weitergeht — eine
+Mengenprognose wäre eine Behauptung über sein Geschäft. Der **Anteil** ist
+eine Aussage über die Ware: *von dem, was dann noch liegt, sind y %
+verkaufsfähig*. Der Nenner ist die heute liegende Eingangsware und bleibt über
+den ganzen Horizont derselbe; was sich ändert, ist nur die Zusammensetzung.
+Genau so hat der Betriebsleiter die Frage gestellt („ich hab noch 400 Tonnen,
+aber nur 65 % sind verkaufbar"), und genau so steht sie jetzt da.
+
+### Die zu Kleinen gehören ins Bild, aber nicht in die Prognose
+
+Ein Kürbis unter 600 g war schon auf dem Feld zu klein; „zu klein" und „zu
+gross" wachsen nicht mit der Lagerdauer. Sie werden trotzdem gezeigt — als
+Band, das über die Zeit **flach** bleibt. Der Betriebsleiter sieht damit ohne
+Erklärung, welche zwei Bänder mit dem Liegen wachsen und welche zwei von
+Anfang an da waren. Sie aus der Grafik zu nehmen wäre bequemer gewesen und
+hätte die Frage „wo ist der Rest?" erzeugt.
+
+### Der Verlust ist keine Kopfzahl mehr
+
+Die vier Kopfzahlen heissen Eingang · Ausgeliefert · Im Lager · Davon
+verkaufsfähig. Der Verlust ist der **Abstand** zwischen den letzten beiden —
+in dieser Form liest ihn der Betriebsleiter, ohne dass ihm jemand erklären
+muss, was alles hineinzählt. Dieselbe Entscheidung trägt den Verlauf: vier
+Linien (Eingang, Ausgeliefert, Im Lager, Davon verkaufsfähig) statt einer
+Verlustlinie.
+
+### Zwei Identitäten, die stehen bleiben dürfen
+
+`v_wohin` teilt den ganzen Eingang auf und rechnet den Rest **nicht** weg:
+`rest_kg` und `lager_rest_kg` stehen als Spalten da. Beide haben den
+Erwartungswert null. Eine doppelt gezählte oder vergessene Portion bleibt
+darin als Zahl sichtbar, statt in einer Summe zu verschwinden — auf der Demo
+sind es −0.06 und −0.02 kg über 61 Gruppen, also Rundung.
+
+### Keine neue Frage an den Arbeiter
+
+Der Betrieb hat gefragt, ob für die fehlenden Auswertungen mehr Daten nötig
+sind. Die Antwort ist nein. „Faules beim Abpacken" war „faul dargestellt",
+weil ihm der Zusammenhang fehlte — den gibt es seit Migration 0060 als
+Angabe *Tage seit dem Waschen*, sie wurde nur nie ausgewertet. Jetzt schon:
+0–1 Tage 1.31 %, 2–3 Tage 2.34 %, Bereiche ohne Überschneidung.
+
+Die einzige Änderung in der Halle nimmt Arbeit **weg**: „Tage seit dem
+Waschen" ist beim Fax-Abschluss aus der letzten Wasch-Arbeit derselben Charge
+vorbelegt. Vorgeschlagen wird nur, was Sinn ergibt — nichts aus der Zukunft,
+nichts, was länger als zwei Wochen her ist. Die Grenze ist gemessen (in der
+ganzen Saison steht die Zahl auf 1, 2 oder 3 Tagen), nicht geraten: Eine
+Wasch-Arbeit von vor fünf Monaten ist nicht die, aus der diese Paletten
+kommen, und dann ist das Feld leer besser als falsch vorbelegt.
+
+### „Spielraum", nicht „verschenkte Marge"
+
+Bei Stück-Kisten wird je Stück bezahlt; jedes Gramm über der Unterkante des
+Kalibers geht unbezahlt mit. Das als „verschenkt" zu bezeichnen wäre ein
+Vorwurf an eine Halle, die gar nicht anders kann — niemand sortiert auf die
+Kante. Die Zahl heisst deshalb **Spielraum**, und daneben steht, wo im Band
+die Ware tatsächlich liegt (Kaori Kuri 10 %, Orangita 58 %, Ker Madec 79 %).
+Ob das Absicht ist, weiss nur der Betrieb; die Frage steht in `FRAGEN.md` (61).
+
+### Leer ist nicht null — auch in der Kopfzahl
+
+Fehlt ein Koeffizient, bleibt der Anteil NULL und die Masse ist eine obere
+Schranke. Das stand in der Datenbank seit 0064 richtig, auf dem Bildschirm
+aber nicht: Die Kopfzahl „Davon verkaufsfähig" zeigte die Schranke wie eine
+Schätzung. Gefunden hat das nicht ein Test, sondern das neue Drehbuch *Die
+Sorte ohne Wägung* (`gegenprobe/drehbuecher/03_…`), das eine leere App Szene
+für Szene füllt und nach jeder Messung fragt, was die App jetzt behauptet.
+Die Karte sagt seither **„höchstens"**, solange etwas fehlt.
+
+### Ein Zyklus in der Datenbank, strukturell gelöst
+
+`v_prognose` braucht die Ränder der Koeffizienten (r, klein, gross, fax je
+Sorte). Liest sie diese aus den gespeicherten `erg_koeff_*`, entsteht ein
+echter Kreis: Die Schleife, die `erg_koeff_*` füllt, hinge dann an einer
+Sicht, die aus `erg_koeff_*` liest — `setup.sql` liess sich nicht mehr
+topologisch sortieren. Das war kein Werkzeugproblem, sondern ein Zyklus im
+Objektgraphen. Gelöst mit einer eigenen kleinen Matrix `mv_koeff_rand` (acht
+geklammerte Zahlen je Sorte), die Schritt 2 füllt und die ausserhalb der
+markierten Schleife steht.
+
+### Was bewusst nicht gemacht wurde
+
+Keine Tabelle und keine Spalte gelöscht. Keine neue Abhängigkeit. Kein neuer
+Reiter und keine neue Frage in der Halle. Kein Palettenbestand je Kaliber
+(Frage 58 ist entschieden: entfällt). Und keine Mengenprognose in Tonnen —
+der Betrieb bekommt Prozente, weil er die Verkaufsseite besser kennt als die
+App.

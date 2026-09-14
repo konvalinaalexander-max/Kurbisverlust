@@ -44,6 +44,35 @@ let T = id => id
 /* ---------- Die Bildschirm-Liste ----------------------------------------- */
 // Jeder Eintrag: Name, wer angemeldet ist, Pfad, und was vor dem Screenshot
 // noch zu tun ist (Klicks, damit Reiter und Dialoge sichtbar werden).
+/**
+ * Die Auswahl auf *Ursachen* umstellen (Runde P). Der Filter ist ein
+ * `<select>` mit Gruppen; welche Sorte oder Charge die Demo gerade hat, weiss
+ * der Prüfstand nicht — er nimmt die erste ihrer Art. So bleibt das Bild
+ * stabil, auch wenn die Demo-Saison wächst.
+ */
+async function waehleGruppe(p, art) {
+  const feld = p.locator('#uf')
+  await feld.waitFor({ state: 'visible', timeout: 60000 })
+  const werte = await p.locator(`#uf option[value^="${art}|"]`).evaluateAll(
+    os => os.map(o => o.value))
+  if (!werte.length) throw new Error(`Ursachen-Filter hat keine Auswahl der Art „${art}"`)
+  // Die erste Sorte oder Charge der Liste hat womöglich nichts mehr im Lager —
+  // dann fehlt die neue Grafik „Was wird aus der liegenden Ware?" zu Recht
+  // (ohne Bestand gibt es keine Prognose), und das Bild zeigt sie nicht. Also
+  // die erste Auswahl nehmen, die noch Ware im Haus hat; gibt es keine, die
+  // erste überhaupt — auch dieser Zustand darf dann im Bild stehen.
+  for (const wert of werte.slice(0, 12)) {
+    await feld.selectOption(wert)
+    await p.locator('.aktiv-filter').waitFor()
+    await p.waitForTimeout(200)
+    // Nur der **Kartentitel** zählt: Denselben Satz nennt auch die Erklärung
+    // im Sortierungs-Block, und darauf träfe jede Auswahl zu.
+    if (await p.locator('.karte-titel h2', { hasText: 'Was wird aus der liegenden Ware?' }).count()) return
+  }
+  await feld.selectOption(werte[0])
+  await p.locator('.aktiv-filter').waitFor()
+}
+
 const BILDSCHIRME = [
   { name: 'sprache', wer: null, pfad: '/', frisch: true },
   { name: 'anmelden', wer: null, pfad: '/' },
@@ -170,7 +199,24 @@ const BILDSCHIRME = [
       await reiter.waitFor({ state: 'visible', timeout: 60000 })
       await reiter.click()
     } },
+  // Runde P: dieselbe Wahl gilt jetzt für Verlauf, „Wohin geht der Kürbis?"
+  // und „Was ist noch im Haus?". Eine Charge ist der härteste Fall — wenige
+  // Kohorten, schmale Zahlen, und die Prognose muss trotzdem stehen.
+  { name: 'ueberblick-charge', wer: 'admin', pfad: '/dashboard',
+    tun: async p => {
+      const reiter = p.getByRole('tab', { name: 'je Charge' }).first()
+      await reiter.waitFor({ state: 'visible', timeout: 60000 })
+      await reiter.click()
+      await p.locator('#ueb-wahl').waitFor()
+    } },
   { name: 'ursachen', wer: 'admin', pfad: '/ursachen' },
+  // Und dieselben fünf Blöcke je Sorte und je Charge: Die Kopfzahlen, das
+  // Stapeldiagramm und die Fax-Wartezeit sehen für eine Auswahl anders aus
+  // als für alles zusammen — auch das gehört ins Bild.
+  { name: 'ursachen-sorte', wer: 'admin', pfad: '/ursachen',
+    tun: async p => { await waehleGruppe(p, 'sorte') } },
+  { name: 'ursachen-charge', wer: 'admin', pfad: '/ursachen',
+    tun: async p => { await waehleGruppe(p, 'charge') } },
   { name: 'chargen', wer: 'admin', pfad: '/chargen' },
   { name: 'chargen-offen', wer: 'admin', pfad: '/chargen',
     tun: async p => { await p.locator('tbody tr').first().click() } },

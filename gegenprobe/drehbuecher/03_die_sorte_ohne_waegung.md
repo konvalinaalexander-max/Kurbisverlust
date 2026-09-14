@@ -19,11 +19,17 @@ wird Messung für Messung „gemessen", und der Anteil erscheint erst, wenn die
 Kaskade vollständig ist — nicht früher, aber auch nicht später.
 
 > **Achtung beim Spielen.** S1 leert die Beobachtungstabellen: Die Szene
-> beginnt in einer leeren App, und eine Kopie der Demo ist nicht leer. Die
+> beginnt in einer leeren App, und eine Kopie der Demo ist nicht leer. **Jede**
 > Szene weigert sich darum, auf einer Datenbank zu laufen, deren Name nicht mit
 > `drehbuch` oder `probe` beginnt. `spieler.mjs 03` legt von selbst
 > `drehbuch_03` aus der Demo an; `--db demo` bricht ab, statt die Demo
 > auszuräumen.
+>
+> Die Wache steht in jeder Szene und nicht nur in S1, und das ist keine
+> Vorsicht auf Vorrat: Der Spieler führt nach einer gescheiterten Szene die
+> nächste trotzdem aus (er will den ganzen Befund, nicht den ersten Fehler).
+> Mit der Wache allein in S1 hat genau das beim Bauen dieser Runde zwei
+> Chargen in die Demo geschrieben.
 
 ## Szenen
 
@@ -94,6 +100,9 @@ die Stromspalten und der Rest leer — nicht null: Wie viel von der
 ausgelieferten Ware unterwegs verdunstet ist, weiss an diesem Tag niemand.
 
 ```sql szene S2
+do $$ begin if current_database() !~ '^(drehbuch|probe)' then
+  raise exception 'Drehbuch 03 schreibt Beobachtungen und läuft nur auf einer Spielkopie (Name beginnt mit drehbuch oder probe) — hier: %', current_database();
+end if; end $$;
 insert into lieferung (datum, charge_nr, sorte, kg, ziel, kunde, bemerkung)
 values (heute() - 5, 9803, 'Kaori Kuri', 1200, 'verkauf', 'Drehbuch-Kunde', 'DREHBUCH 03 S2');
 select auswertung_aktualisieren();
@@ -127,6 +136,9 @@ für das ganze Lager macht, hat vier Unbekannte auf null gesetzt und es nicht
 dazugesagt.
 
 ```sql szene S3
+do $$ begin if current_database() !~ '^(drehbuch|probe)' then
+  raise exception 'Drehbuch 03 schreibt Beobachtungen und läuft nur auf einer Spielkopie (Name beginnt mit drehbuch oder probe) — hier: %', current_database();
+end if; end $$;
 insert into verdunstung_wiegung (charge_nr, palette_id, eingangsdatum, brutto_damals_kg, brutto_jetzt_kg,
                                  kisten, gebindeart, sichtbar_schimmel, gemessen, wiege_ts, bemerkung)
 select 9803, p.id, p.eingangsdatum, p.brutto_kg, 512, p.kisten, p.gebindeart, false, true,
@@ -174,6 +186,9 @@ schon drei von fünf Zahlen dastehen. Das ist die Stelle, an der eine bequeme
 Auswertung anfangen würde zu raten.
 
 ```sql szene S4
+do $$ begin if current_database() !~ '^(drehbuch|probe)' then
+  raise exception 'Drehbuch 03 schreibt Beobachtungen und läuft nur auf einer Spielkopie (Name beginnt mit drehbuch oder probe) — hier: %', current_database();
+end if; end $$;
 insert into auftrag (weg, station, charge_nr, start_ts, ende_ts, status, sortierschema_id, bemerkung, eroeffnet_von)
 select 'maschine', 'sortieren', 9803, (heute() - 2)::timestamp + interval '8 hours', (heute() - 2)::timestamp + interval '13 hours',
        'abgeschlossen', s.id, 'DREHBUCH 03 S4', (select id from profil where rolle = 'admin' order by erstellt_ts limit 1)
@@ -242,6 +257,9 @@ Fünftel: Eine Kaskade mit einer unbekannten Stufe hat kein Ergebnis, nur eine
 obere Schranke.
 
 ```sql szene S5
+do $$ begin if current_database() !~ '^(drehbuch|probe)' then
+  raise exception 'Drehbuch 03 schreibt Beobachtungen und läuft nur auf einer Spielkopie (Name beginnt mit drehbuch oder probe) — hier: %', current_database();
+end if; end $$;
 insert into charge (nr, schlag, sorte, saison) values
   (9804, 'Drehbuch Süd',  'Kaori Kuri', extract(year from heute())::int),
   (9805, 'Drehbuch West', 'Kaori Kuri', extract(year from heute())::int);
@@ -323,6 +341,9 @@ Fäulnis weiterlaufen. Das ist die Zahl, nach der der Betriebsleiter gefragt
 hat — und sie steht erst da, seit sie verdient ist.
 
 ```sql szene S6
+do $$ begin if current_database() !~ '^(drehbuch|probe)' then
+  raise exception 'Drehbuch 03 schreibt Beobachtungen und läuft nur auf einer Spielkopie (Name beginnt mit drehbuch oder probe) — hier: %', current_database();
+end if; end $$;
 insert into auftrag (weg, station, charge_nr, start_ts, ende_ts, status, bemerkung, kaliber_idx,
                      kistensystem, soll_kg_pro_kiste, eroeffnet_von)
 values ('hand', 'waschen', 9803, (heute() - 1)::timestamp + interval '7 hours', (heute() - 1)::timestamp + interval '10 hours',

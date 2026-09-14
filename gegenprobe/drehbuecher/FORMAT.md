@@ -66,3 +66,21 @@ Maschine.
 node gegenprobe/drehbuecher/spieler.mjs 01                # Drehbuch 01 auf einer frischen Kopie der Demo
 node gegenprobe/drehbuecher/spieler.mjs 01 --db meine_db  # auf einer bestehenden Datenbank (wird verändert!)
 ```
+
+## Die Wache gehört in jede Szene, nicht in die erste
+
+Der Spieler führt nach einer gescheiterten Szene die **nächste trotzdem aus**:
+Er will den ganzen Befund, nicht den ersten Fehler. Ein Drehbuch, das mit
+einer Prüfung beginnt („diese Datenbank darf ich ausräumen"), schützt damit
+nur seine erste Szene — alle weiteren schreiben munter weiter. Genau so sind
+in Runde P zwei Chargen in die Demo geraten, obwohl S1 korrekt abgebrochen
+hatte.
+
+Wer also Beobachtungen schreibt, die nicht überall stehen dürfen, setzt die
+Wache an den Anfang **jeder** Szene:
+
+```sql
+do $$ begin if current_database() !~ '^(drehbuch|probe)' then
+  raise exception 'Drehbuch NN läuft nur auf einer Spielkopie — hier: %', current_database();
+end if; end $$;
+```

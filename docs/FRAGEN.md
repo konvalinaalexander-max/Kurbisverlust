@@ -753,3 +753,80 @@ sperren ist bequemer für die Auswertung.
 > und rechnet sie nicht mit (Migration 0070). Das ist die Linie des Programms:
 > es zeigt, es hindert nicht.
 
+
+## Drei Fragen aus Runde P (13. September)
+
+Alle drei kommen aus Zahlen, die es vorher nicht gab. Keine ändert, was die
+App rechnet; jede ändert, was der Betrieb **tun** könnte, wenn er die Antwort
+gibt.
+
+**60. Fax: geht es schneller vom Waschen zum Abpacken?**
+Die Angabe „Tage seit dem Waschen" gibt es seit Migration 0060; ausgewertet
+wurde sie nie. Jetzt schon, und sie sagt etwas Deutliches:
+
+| Wartezeit | Arbeiten | Faules beim Abpacken | Bereich |
+|---|---|---|---|
+| 0–1 Tage | 43 | 1.31 % | 1.13 – 1.49 % |
+| 2–3 Tage | 98 | 2.34 % | 2.17 – 2.51 % |
+| unbekannt | 18 | 2.18 % | 1.72 – 2.65 % |
+
+Die Bereiche überschneiden sich nicht: Das ist kein Rauschen. Zwei Tage
+Warten kosten rund **einen Prozentpunkt** der abgepackten Ware, und der
+Normalfall im Betrieb sind zwei bis drei Tage (98 von 159 Arbeiten).
+
+*Warum es zählt:* Das ist die einzige Verlustursache in dieser Auswertung, die
+sich allein durch die Reihenfolge in der Halle ändern lässt — kein Gerät, kein
+Umbau, keine neue Erfassung. In der Demo-Saison sind an den 98 länger
+stehenden Arbeiten 1 964 kg Faules angefallen; mit der Rate der schnellen
+Arbeiten wären es rund 1 080 kg gewesen. Die Differenz ist knapp **900 kg**
+in einer Saison.
+
+> Was steht dem im Weg, gewaschene Ware am selben oder am nächsten Tag
+> abzupacken — die Bestellungen, die Leute, der Platz im Kühlraum? Und: Gibt
+> es Ware, die absichtlich steht (abtrocknen, Schale härten)?
+
+**61. Der Spielraum bei Stück-Kisten: liegt ihr absichtlich über der Kante?**
+Bei Kisten mit fester Stückzahl wird je Stück bezahlt. Jedes Gramm über der
+**Unterkante** des Kalibers geht damit unbezahlt mit. Die App nennt das seit
+Runde P *Spielraum* und nicht mehr „verschenkte Marge" — niemand sortiert auf
+die Kante, und die Zahl ist kein Vorwurf. Wo die Ware im Band liegt, ist je
+Sorte aber sehr verschieden:
+
+| Sorte | Lage im Band | Spielraum |
+|---|---|---|
+| Ker Madec | 79 % | 1 180 kg |
+| Orangita | 58 % | 2 315 kg |
+| Lekor | 40 % | 578 kg |
+| Kaori Kuri | 10 % | 1 060 kg |
+
+*Warum es zählt:* 58 % gegen 10 % ist kein Messfehler, sondern eine
+Entscheidung — entweder beim Sortieren (wo die Bänder liegen) oder beim
+Packen (welche Kürbisse in die Kiste kommen). Wenn sie bewusst gefallen ist,
+bleibt alles, wie es ist. Wenn nicht, liegt hier bares Geld.
+
+> Ist es Absicht, dass Orangita und Ker Madec im oberen Drittel ihres Bandes
+> liegen — weil der Kunde es so will oder weil die Kiste sonst leer wirkt? Und
+> wäre es möglich, näher an die Unterkante zu sortieren, ohne dass jemand
+> reklamiert?
+
+**62. Zählt beim Sortieren wirklich jemand die Kisten je Kaliber?**
+Das Kistengewicht je Kaliber entsteht nur an einer Stelle: bei einer
+Sortier-Arbeit, bei der sowohl die CSV vorliegt **als auch** die gefüllten
+Kisten je Kaliber gezählt wurden. Fehlt die Zählung, bleibt das Kistengewicht
+dieses Kalibers für immer unbekannt — und jede spätere Wasch-Arbeit, die
+solche Kisten verarbeitet, hat keine Bezugsmasse: Ihr Palox-Wert ist gemessen,
+fliesst aber nirgends ein.
+
+In der Demo-Saison trifft es Charge 1647 in drei Kalibern (46, 34 und 46
+Kisten). Die App verschweigt das nicht — die Auffälligkeit *Kistengewicht*
+nennt sie unter *Messungen* —, aber sie kann es nicht heilen. Dieselbe Frage
+stand schon am 3. September („Zählt beim Sortieren jemand zuverlässig mit?")
+und ist die einzige der vier, die offen geblieben ist; jetzt gibt es Zahlen
+dazu.
+
+*Warum es zählt:* Es ist ein Zählschritt von zehn Sekunden je Kaliber, und er
+entscheidet, ob die Verderbsmessungen des ganzen Winters für diese Sorte
+zählen oder nicht.
+
+> Wird beim Sortieren mitgezählt, wie viele Kisten je Kaliber gefüllt wurden —
+> und wenn nein: Wer müsste es tun, und was hindert ihn daran?

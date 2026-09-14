@@ -644,6 +644,20 @@ Vermerk `DEMO`, Paletten mit `demo-…`, Sortierdateien `DEMO-…`).
 [`supabase/demo_daten_entfernen.sql`](supabase/demo_daten_entfernen.sql)
 einspielen wie in Schritt 3. Dieselben Funktionen, dieselbe Saison.
 
+### Was die fünf Reiter zeigen
+
+| Reiter | Die Frage, die er beantwortet |
+|---|---|
+| **Überblick** | Wie viel kam herein, wie viel ging hinaus, wie viel liegt noch — und **wie viel davon ist verkaufsfähig**, heute, in vier Wochen und am Saisonende. Dazu der Verlauf je Woche und die eine Karte „Wohin geht der Kürbis?": der ganze Eingang aufgeteilt, mit Rangfolge nach Tonnen und nach Anteil. |
+| **Ursachen** | Woher der Verlust kommt. Oben fünf Zahlen für die gewählte Auswahl und **eine** Grafik („Was wird aus der liegenden Ware?" in Prozent bis zum Saisonende); darunter die fünf Ursachen im Einzelnen — Faules im Lager, Verdunstung, Sortierung, Faules beim Abpacken (nach Wartezeit), Überfüllung und Spielraum. Messpunkte und Modellkurven sind eingeklappt. |
+| **Chargen** | Wo welche Charge steht: Im Lager, verkaufsfähig heute, in vier Wochen, wie lange sie liegt, was zwei Wochen längeres Liegen kosten. Nach „In 4 Wochen" sortiert steht oben, was zuerst raus sollte. |
+| **Messungen** | Die Rohbeobachtungen und die Auffälligkeiten — was nicht zusammenpasst, mit dem Sprung zur Korrektur. |
+| **Betrieb** | Stammdaten, Warenausgang einlesen, Zugang für die Arbeiter, Tempo der Halle. |
+
+Der Anteil bezieht sich immer auf **die liegende Eingangsware** — heute und
+über jeden Horizont derselbe Nenner. Fehlt eine Messung, bleibt der Anteil
+leer und die Masse trägt „höchstens": leer ist nicht null.
+
 Was jede Ansicht bedeutet, steht in [`docs/DATENFLUSS.md`](docs/DATENFLUSS.md).
 
 ### Die Dokumente zum Projekt
@@ -706,6 +720,7 @@ Das genügt fast immer zur Klärung.
 | Kennzahlen aus den neuen Erfassungspunkten | `supabase/migrations/0049` | Gewichtsverteilung, Reihenfolge, Durchsatz, Überfüllung je Käufer, Datenqualität, Saisonverlauf |
 | Arbeiter-App: Start, Assistent, Zähler, Checkliste, Abschluss | `src/pages/Start.tsx`, `NeueArbeit.tsx`, `Arbeit.tsx`, `src/arbeit/` | Kette über die echten Masken in `pruefstand/kette.mjs` |
 | Betriebsleiter: Überblick · Ursachen · Chargen · Messungen · Betrieb | `src/pages/Ueberblick.tsx` … `Betrieb.tsx`, `src/auswertung/` | Diagramme in `src/components/Diagramm.tsx` |
+| Prognose: was aus der liegenden Ware wird, bis zum Saisonende | `supabase/migrations/0071`, `src/auswertung/daten.ts` | dieselbe Kaskade an einem späteren Tag; bei Horizont 0 auf zwei Rappen die Zahl von heute (Block 0071 der Prüfung) |
 | Warenausgang aus dem Warenwirtschaftssystem einlesen | `src/lib/xlsx.ts`, `src/lib/warenausgang.ts`, `supabase/migrations/0050` | Leser und Regeln geprüft (27 Tests, 396 096 Zellen gegen einen zweiten Leser); der Bildschirm steht: Betrieb → Warenausgang (`src/betrieb/AusgangImport.tsx`, `src/pages/Lieferungen.tsx`, Übernahme in `ausgang_uebernehmen`, 0055) |
 
 `supabase/setup.sql` ist das, was in Schritt 3 eingefügt wird. Sie wird von
@@ -897,9 +912,12 @@ sagt dann „nicht gemessen".
 ist, was am Ende nicht mehr da ist (Palox — Verderb im Lager und beim
 Abpacken —, Verdunstung). Kein echter Verlust ist der andere Kanal und die
 verschenkte Marge (zu klein an die Tiere, zu gross in den Nebenkanal,
-Überfüllung der Kisten). Der Überblick zeigt beides als Verlust zusammen nach
-Gesamt, Sorte, Schlag und Charge; die Ursachen trennen es. Die
-Grundaussortierung vom Feld rechnet im Modell mit, ohne eigene Maske.
+Überfüllung der Kisten). Seit Runde P steht auf dem Überblick nicht mehr „der
+Verlust", sondern **Im Lager** und **davon verkaufsfähig** — der Verlust ist
+der Abstand zwischen beiden, und die Karte „Wohin geht der Kürbis?" teilt ihn
+nach Gesamt, Sorte, Schlag und Charge auf; die Ursachen trennen echten von
+unechtem Verlust. Die Grundaussortierung vom Feld rechnet im Modell mit, ohne
+eigene Maske.
 
 Die Probe aufs Exempel ist die **Massenbilanz**: Das Modell sagt voraus, wie
 viel Masse am Sortierband ankommen müsste, die CSV hat sie gewogen. Liegen beide
@@ -910,6 +928,9 @@ Was in den Warenausgangsdateien steht, gemessen an den echten Dateien:
 Fachliche Spezifikation: [`docs/SPEC.md`](docs/SPEC.md).
 Begründung der Modellentscheidungen: [`docs/ENTSCHEIDUNGEN.md`](docs/ENTSCHEIDUNGEN.md).
 Wie die Oberfläche gebaut ist (Büro, Halle, Diagramme, Bausteine): [`docs/DESIGN_RUNDE_O.md`](docs/DESIGN_RUNDE_O.md).
+Was liegt und was davon verkauft sich — Prognose, „Wohin geht der Kürbis",
+Fax-Wartezeit, Spielraum: [`docs/DESIGN_RUNDE_P.md`](docs/DESIGN_RUNDE_P.md),
+gemessen in [`docs/BEFUND_RUNDE_P.md`](docs/BEFUND_RUNDE_P.md).
 
 ## Was noch offen ist
 

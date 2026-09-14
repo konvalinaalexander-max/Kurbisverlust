@@ -33,7 +33,8 @@ h2 .zusatz{font-family:'Charter','Bitstream Charter',serif;font-weight:400;font-
   <div class="ober">Kürbis-Verlust-Tracking</div>
   <h1>Was noch zu klären ist</h1>
   <p style="margin:0;color:#444">Sechsundzwanzig offene Fragen, nach dem geordnet, was sie
-  freigeben — dazu drei aus Runde N, die schon entschieden sind und am Ende als Beleg stehen.
+  freigeben — dazu drei aus Runde N, die schon entschieden sind und als Beleg stehen, und drei
+  neue aus Runde P (Abschnitt F), die aus Zahlen kommen, die es vorher nicht gab.
   Deine letzte Rückmeldung hat viel beantwortet und dabei Neues aufgeworfen — beides steht hier
   zusammen. <span class="marke blockt">blockt</span> heisst: solange das offen ist, kann ich an
   dieser Stelle nicht bauen. <span class="marke kippt">kippt</span> heisst: die Antwort kann die
@@ -375,4 +376,55 @@ des Programms, das speichert, was beobachtet wurde, und zeigt, was daran auffäl
 in der Zukunft — Jahr prüfen", speichert die Beobachtung aber trotzdem; die Auswertung meldet
 sie als Auffälligkeit „Zetteldatum Zukunft" und rechnet sie nicht mit (Migration 0070). Das
 Programm zeigt, es hindert nicht.</p></div>
+
+<h2>F · Neu aus Runde P — drei Fragen, die aus Zahlen kommen
+  <span class="zusatz">Alle drei stehen erst da, seit die App etwas auswertet, das sie vorher
+  nicht ausgewertet hat. Keine ändert, was die App rechnet; jede ändert, was der Betrieb tun
+  kann, wenn er sie beantwortet.</span></h2>
+
+<div class="f"><span class="nr">30</span>
+<p class="frage">Fax: Geht es schneller vom Waschen zum Abpacken?<span class="marke kippt">kippt</span></p>
+<p class="zusatz">Die Angabe „Tage seit dem Waschen" wird seit Runde P ausgewertet. Ware, die
+null bis einen Tag wartet, verliert beim Abpacken <b>1.31&nbsp;%</b> (43 Arbeiten); Ware, die
+zwei bis drei Tage wartet, <b>2.34&nbsp;%</b> (98 Arbeiten). Die Unsicherheitsbereiche
+(1.13–1.49&nbsp;% gegen 2.17–2.51&nbsp;%) überschneiden sich nicht — das ist kein Rauschen. Der
+Normalfall im Betrieb sind zwei bis drei Tage.</p>
+<p class="warum"><b>Warum:</b> Das ist die einzige Verlustursache in dieser Auswertung, die sich
+allein durch die Reihenfolge in der Halle ändern lässt — kein Gerät, kein Umbau, keine neue
+Erfassung. In der Demo-Saison sind an den länger stehenden Arbeiten 1&nbsp;964&nbsp;kg Faules
+angefallen; mit der Rate der schnellen Arbeiten wären es rund 1&nbsp;080&nbsp;kg gewesen. Knapp
+900&nbsp;kg in einer Saison.</p>
+<p class="antwort"><b>Was ich wissen muss:</b> Was steht dem im Weg, gewaschene Ware am selben
+oder am nächsten Tag abzupacken — die Bestellungen, die Leute, der Platz im Kühlraum? Und gibt
+es Ware, die absichtlich steht (abtrocknen, Schale härten)?</p></div>
+
+<div class="f"><span class="nr">31</span>
+<p class="frage">Liegt die Ware absichtlich im oberen Teil ihres Kaliberbandes?</p>
+<p class="zusatz">Bei Kisten mit fester Stückzahl wird je Stück bezahlt; jedes Gramm über der
+Unterkante des Kalibers geht unbezahlt mit. Wo die Ware im Band liegt, ist je Sorte sehr
+verschieden: Ker&nbsp;Madec bei 79&nbsp;%, Orangita bei 58&nbsp;%, Lekor bei 40&nbsp;%,
+Kaori&nbsp;Kuri bei 10&nbsp;%. Die App nennt das <i>Spielraum</i> und nicht mehr „verschenkte
+Marge" — niemand sortiert auf die Kante, und die Zahl ist kein Vorwurf.</p>
+<p class="warum"><b>Warum:</b> 58&nbsp;% gegen 10&nbsp;% ist kein Messfehler, sondern eine
+Entscheidung — beim Sortieren (wo die Bänder liegen) oder beim Packen (welche Kürbisse in die
+Kiste kommen). Ist sie bewusst gefallen, bleibt alles wie es ist.</p>
+<p class="antwort"><b>Was ich wissen muss:</b> Ist es Absicht, dass Orangita und Ker&nbsp;Madec
+im oberen Drittel liegen — weil der Kunde es so will oder weil die Kiste sonst leer wirkt? Und
+wäre es möglich, näher an die Unterkante zu sortieren, ohne dass jemand reklamiert?</p></div>
+
+<div class="f"><span class="nr">32</span>
+<p class="frage">Zählt beim Sortieren wirklich jemand die Kisten je
+Kaliber?<span class="marke alt">offen seit letztem Mal</span></p>
+<p class="zusatz">Das Kistengewicht je Kaliber entsteht nur an einer Stelle: bei einer
+Sortier-Arbeit, bei der die Sortierdatei vorliegt <i>und</i> die gefüllten Kisten je Kaliber
+gezählt wurden. Fehlt die Zählung, bleibt das Kistengewicht dieses Kalibers für immer unbekannt
+— und jede spätere Wasch-Arbeit mit solchen Kisten hat keine Bezugsmasse: Ihr Palox-Wert ist
+gemessen, fliesst aber nirgends ein. In der Demo-Saison trifft es Charge 1647 in drei Kalibern
+(46, 34 und 46 Kisten).</p>
+<p class="warum"><b>Warum:</b> Es ist ein Zählschritt von zehn Sekunden je Kaliber, und er
+entscheidet, ob die Verderbsmessungen des ganzen Winters für diese Sorte zählen. Dieselbe Frage
+stand schon im September bei den vier Prüffragen und ist die einzige davon, die offen geblieben
+ist; jetzt gibt es Zahlen dazu.</p>
+<p class="antwort"><b>Was ich wissen muss:</b> Wird beim Sortieren mitgezählt, wie viele Kisten
+je Kaliber gefüllt wurden — und wenn nein: Wer müsste es tun, und was hindert ihn daran?</p></div>
 </body></html>
