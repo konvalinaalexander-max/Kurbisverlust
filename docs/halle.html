@@ -599,6 +599,7 @@ der wie ein Verlust aussieht.</div>
 <tr><td><strong>Kaliber-Paletten</strong></td><td>je Palette: Sortierdatum vom Zettel + Kisten darauf<br><span class="sp">+ Gebindeart (fehlt heute)</span></td><td>ja — das ist die Menge</td></tr>
 <tr><td><strong>Palox</strong></td><td>Waagenstand Beginn und Ende</td><td>gefragt, nicht Pflicht</td></tr>
 <tr><td><strong>Fertige Paletten</strong></td><td>Brutto, Kisten, Gebinde, Kürbisse je Kiste</td><td><strong>ja</strong>, mindestens eine</td></tr>
+<tr><td><strong>Wie viele insgesamt?</strong></td><td>die Gesamtzahl der fertigen Paletten — eine Zahl<br><span class="sp">fehlt heute</span></td><td><span class="sp">ja</span> — ohne sie keine Masse</td></tr>
 </tbody>
 </table>
 
@@ -618,29 +619,47 @@ der wie ein Verlust aussieht.</div>
 │     └──────────┘   └────────────────────────┘  └────────┘  │
 └────────────────────────────────────────────────────────────┘</div>
 
-<h2>6.3 Die Masse — der Weg über die Kiste</h2>
+<h2>6.3 Die Masse — von hinten gerechnet</h2>
 
 <p>Weil die Palette auf beiden Seiten etwas anderes bedeutet, darf die Masse nicht über Paletten
-laufen. Sie läuft über die <strong>Kiste</strong>, und die Kiste wird gewogen:</p>
+laufen. Sie läuft über die <strong>Kiste</strong> — und zwar über die Kiste, die tatsächlich auf
+der Waage steht. Das ist die <em>fertige</em> Palette am Ausgang.</p>
 
-<div class="rechnung">Masse hinein  =  Σ ( Kisten je Kaliber-Palette )  ×  kg je G2-Kiste
-Masse heraus  =  Σ ( Kisten je fertiger Palette ) ×  kg je IFCO-Kiste
+<div class="rechnung">Masse heraus  =  fertige Paletten gesamt
+                 ×  Kisten je gewogener voller Palette
+                 ×  kg je Kiste
 
   kg je Kiste  =  ( Brutto − Kisten × Tara_Kiste − Tara_Palette ) / Kisten
-                  ── aus den tatsächlich gewogenen Paletten dieser Arbeit ──
+
+Masse hinein  =  Masse heraus  +  Faules (Palox)  +  Ausschuss
+                 ── das ist keine Annahme, sondern eine Identität:
+                    was hineinging, ging entweder hinaus, in den Palox
+                    oder in den Ausschuss ──
 
 Beispiel:
-   hinein   3 Paletten × 32 G2-Kisten   = 96 Kisten × 12,4 kg = 1190 kg
-   heraus   4 Paletten × 24 IFCO-Kisten = 96 Kisten ×  8,5 kg =  816 kg
-                                                                ───────
-   Differenz 374 kg  — und davon ist fast nichts Verlust:
-   es sind einfach andere Kisten, anders gefüllt.</div>
+   4 fertige Paletten × 24 IFCO-Kisten × 8,5 kg  =  816 kg heraus
+   Palox                                              41 kg
+   Ausschuss                                          12 kg
+                                                    ───────
+   hinein                                            869 kg
+   Anteil faul  =  41 / 869  =  4,7 %</div>
 
-<div class="warum neu"><b>Was fehlt und dazu muss</b>
-Die App fragt beim Waschen heute <strong>nicht</strong>, in welchem Gebinde die Kaliber-Paletten
-stehen (<span class="sp">auftrag_palette</span> hat keine Spalte dafür). Ohne die Gebindeart ist
-weder die Tara noch das kg-je-Kiste bestimmt — die Eingangsmasse dieser Station hängt in der
-Luft. Die Frage muss dazu, an beiden Enden.</div>
+<div class="warum neu"><b>Warum nicht von vorne — und was dazu muss</b>
+Die naheliegende Rechnung wäre <em>Kisten rein × kg je G2-Kiste</em>. Sie geht nicht: was eine
+G2-Kiste eines <strong>bestimmten Kaliberbandes</strong> wiegt, misst im Betrieb niemand — eine
+gewogene Eingangspalette ist gemischt-kalibrig, und die Kaliber-Palette kommt nicht auf die Waage.
+Deshalb wird von hinten gerechnet. Dafür fehlen zwei Angaben: die App fragt heute
+<strong>nicht</strong>, in welchem Gebinde die Kaliber-Paletten stehen
+(<span class="sp">auftrag_palette</span> hat keine Spalte dafür), und sie fragt nicht, <strong>wie
+viele fertige Paletten</strong> es am Ende insgesamt geworden sind — sie kennt nur die gewogenen.
+Ohne diese zweite Zahl ist „3 rein, 4 raus" nicht rechenbar. Beide Fragen müssen dazu.</div>
+
+<div class="warum"><b>Und die gezählten Kisten am Eingang?</b>
+Die bleiben — als <strong>Gegenprobe</strong>. Wo für diese Sorte und dieses Kaliber doch einmal
+eine G2-Palette gewogen wurde (Lagerkontrolle, Kontrollpalette), rechnet die App die Eingangsseite
+zusätzlich aus und stellt beide Zahlen nebeneinander. Weichen sie stark ab, ist das eine Meldung
+zum Nachschauen — nicht eine stille Korrektur. <strong>Die Bilanz gewinnt, die Gegenprobe
+meldet.</strong></div>
 
 <div class="frage"><b>Frage 8 — Kisten und Gebinde beim Waschen</b>
 <b style="display:inline">a)</b> Die App fragt heute die <em>Kisten je Palette</em> beim Waschen.
@@ -966,10 +985,11 @@ gesammelt — nach Dringlichkeit geordnet. Programmiert ist davon noch nichts.</
 <table class="eng">
 <thead><tr><th style="width:8mm">#</th><th style="width:40mm">Änderung</th><th style="width:22mm">Wo</th><th>Warum</th></tr></thead>
 <tbody>
-<tr><td><strong>1</strong></td><td>Palox liest nur noch innerhalb <em>derselben</em> Arbeit</td><td>Palox-Maske</td><td>Der <span class="sp">−445</span>-Fehler. Heute wird gegen eine fremde Arbeit gerechnet.</td></tr>
+<tr><td><strong>1</strong></td><td>Palox liest nur noch innerhalb <em>derselben</em> Arbeit — in der Maske <strong>und</strong> in der Datenbank</td><td>Palox-Maske, <span class="sp">v_palox_stand</span></td><td>Der <span class="sp">−445</span>-Fehler. Heute rechnet <em>beides</em> gegen die vorherige Arbeit. Beginnt eine Arbeit mit einem <em>höheren</em> Stand, werden ihr fremde Kilo als Fäulnis angelastet, ohne dass es jemand sieht.</td></tr>
 <tr><td><strong>2</strong></td><td>„Palox zwischendurch geleert?“ beim Abschluss, und die Menge bleibt dann <em>leer</em></td><td>Abschluss</td><td>Heute wird in diesem Fall <span class="sp">kg&nbsp;0</span> gespeichert — eine behauptete Null. Verstösst gegen Regel 1.2.</td></tr>
 <tr><td><strong>3</strong></td><td><span class="sp">palox_tara_kg</span> auf 45 setzen</td><td>Einstellung</td><td>Steht heute auf 0. Betrifft nur den Fall einer einzelnen Ablesung.</td></tr>
-<tr><td><strong>4</strong></td><td>Gebindeart bei den Kaliber-Paletten fragen</td><td>Waschen</td><td>Ohne sie ist weder Tara noch kg-je-Kiste bestimmt — die Eingangsmasse des Waschens hängt in der Luft.</td></tr>
+<tr><td><strong>4</strong></td><td>Gebindeart bei den Kaliber-Paletten fragen</td><td>Waschen</td><td>Ohne sie ist die Tara nicht bestimmt — und damit kein Netto.</td></tr>
+<tr><td><strong>4b</strong></td><td>„Wie viele fertige Paletten insgesamt?“ — eine Zahl am Ende</td><td>Waschen, W+S</td><td>Die App kennt heute nur die <em>gewogenen</em> Paletten. Ohne die Gesamtzahl ist „3 rein, 4 raus“ nicht rechenbar und die Ausgangsmasse fehlt.</td></tr>
 <tr><td><strong>5</strong></td><td>Kisten je Kaliber ersatzlos streichen</td><td>Sortieren</td><td>Wird nicht gezählt und kann nicht gezählt werden. Die Masse je Band kommt aus der CSV.</td></tr>
 <tr><td><strong>6</strong></td><td>Kürbisse je Kiste bei jeder fertigen Palette</td><td>Waschen, W+S</td><td>Die einzige Quelle für das Durchschnittsgewicht je Kaliber — und damit für die Stück-Überfüllung.</td></tr>
 <tr><td><strong>7</strong></td><td>Fax-Vorschlag sucht auch <span class="sp">waschen_sortieren</span></td><td>Fax</td><td>Findet heute die halbe Ware nicht.</td></tr>
