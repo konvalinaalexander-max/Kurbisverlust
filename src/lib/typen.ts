@@ -13,6 +13,20 @@ export interface Charge {
 export interface SorteKaliber {
   sorte: string; verlust_unter: number; kaliber_baender: [number, number][]; kanal_ab: number
 }
+/** Eine markierte Palette, die eine Saison lang nur gewogen wird (0072). */
+export interface Kontrollpalette {
+  id: number; charge_nr: number; palette_id: number | null
+  kennzeichen: string; standort: string | null
+  angelegt_ts: string; beendet_ts: string | null; beendet_grund: string | null
+}
+/** Eine Wägung davon. Gespeichert wird Brutto mit Kisten und Gebinde —
+ *  das Netto ist Ableitung (Beobachtung statt Folgerung). */
+export interface KontrollpaletteWiegung {
+  id: number; kontrollpalette_id: number
+  brutto_kg: number; kisten: number; gebindeart: string | null
+  sichtbar_schimmel: boolean; wiege_ts: string
+}
+
 export interface Gebinde {
   art: string; tara_kg_pro_kiste: number | null; tara_kg_palette: number | null; bemerkung: string | null
 }
