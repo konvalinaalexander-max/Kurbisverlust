@@ -1,5 +1,9 @@
 # Runde Q — Befund und Fragen
 
+> **Die aktuelle Fragenliste steht auf Seite 1–2 von
+> `docs/Das-ganze-Werkzeug.pdf` (26 Fragen).** Diese Datei hält die Befunde fest,
+> auf denen sie beruhen.
+
 Grundlage: die Rückmeldung vom 14.09. („Palox rechnet minus 445", „verschenkte
 Marge braucht keine Verkaufsdatei", „Was wird aus der liegenden Ware ist
 grafischer Horror", „weniger Themenblöcke, dafür richtig gut").
@@ -365,3 +369,53 @@ wäre die sauberste Grösse überhaupt: es machte die ganze Brücke über
 (`paloxPflicht: false`). Wenn das Faule an der Waschstrasse regelmässig
 anfällt, wäre es der wertvollste zusätzliche Punkt für die Verderbskurve —
 weil er das **höchste** Alter misst.
+
+---
+
+## Nachtrag 2 — zwei Korrekturen vom Betrieb, beide belegt
+
+### F10 · Die Massenkette nach dem Sortieren steht auf einer Zählung, die es nicht gibt  ▪ Fehler
+
+Rückmeldung: „*Kisten je Kaliber werden nicht gezählt — das kann das CSV nicht,
+weil es nicht weiss wie viele Kürbisse pro Kiste, und niemand wird händisch
+die Kisten zählen und in der App eintragen.*"
+
+Damit fällt `v_koeff_gebinde` (CSV-Masse je Band ÷ gezählte Kisten) weg — und
+mit ihr die einzige Brücke von „Kisten" zurück zu „Kilo". In der Demo gemessen:
+
+| Woher die Masse kommt | Arbeiten | Masse | hängt daran? |
+|---|---|---|---|
+| Waschen: Kisten × kg je Kiste | **94** | 101 408 kg | **ja** |
+| Fax: gezählte Kisten | 107 | 73 608 kg | **ja** |
+| Fax: Paletten × Palettenmasse | 53 | 46 171 kg | nein |
+| Sortieren / W+S: Eingangspaletten | 51 | 200 465 kg | nein |
+
+**201 von 305 Arbeiten und 175 t von 421 t verlieren ihre Masse.** Drei
+Auswege stehen in Kapitel 3.7 des PDF; Weg (b) — die CSV-Masse nach
+Palettenzahl verteilen — kostet keine einzige neue Handlung in der Halle,
+weil die Paletten beim Waschen ohnehin gezählt werden. Entscheidung: Frage 5.
+
+### Kalibergrenzen: „unter 600 g" war falsch
+
+Hinterlegt ist je Sorte etwas anderes:
+
+| zu klein unter | Sorten |
+|---|---|
+| 300 g | Orangita |
+| 500 g | Butterkin, Mieluna, Tiana |
+| 600 g | Amoro, Bolp 5110, Fictor, Kaori Kuri, Ker Madec, Orange Summer |
+| 700 g | Lekor |
+
+Und: für **8 von 11 Sorten** ist die heute geltende Fassung „Kiste ab 8 kg",
+nicht Kaliber — dort klassiert die Sortier-CSV gar nicht nach Kaliber, und
+„zu klein / zu gross" kann nur aus Handwägungen kommen. Ob das so gewollt ist,
+ist offen (Frage 14).
+
+### „Zu klein" ist ein Erntefehler, kein Naturgesetz
+
+Rückmeldung: „*sie existieren — die Arbeiter sollten sie nicht ernten, aber
+sie tuns eben doch manchmal.*" Für die Rechnung ändert das nichts (zu klein
+wächst nicht mit der Lagerdauer). Für die Darstellung ändert es alles: Die
+Zahl ist **vermeidbar** und gehört je Schlag und je Erntewoche vor die
+Erntemannschaft, nicht nur in die Verlustrangliste. In der Demo reicht die
+Spanne je Schlag von rund 1 % bis 10 % — bei derselben Sorte (Frage 15).
