@@ -174,6 +174,37 @@ Thema).
 | `node pruefstand/beschriftung.mjs` | grün — jede Zahl beschriftet, im Lexikon, mit Herkunft, Prozente mit Bezug, Kopfzahlen gegengerechnet |
 | `npm run pruefen` | grün, 103 Tests |
 
+### Der Lasttest hat einen echten Rückschritt gefunden
+
+Beim ersten Volllauf stand Stufe 6 (dreifache Saison) bei **13 490 ms** gegen
+eine Decke von 12 000 ms; die Grundlinie war 11 170 ms. Die Decke wurde
+**nicht** angehoben — die Ursache ist nachgemessen worden:
+
+| Gemessen an der dreifachen Saison | je Auswertung von `v_auftrag_masse` |
+|---|---|
+| `mv_auftrag_masse` (die Grundlage) | 1 ms |
+| die Sicht **ohne** den neuen Wasch-Zweig | 22 ms |
+| die Sicht mit dem Zweig, erste Fassung | **90 ms** |
+| die Sicht mit dem Zweig, einmal gruppiert | **30 ms** |
+
+Der Zweig stand als Unterabfrage in einem `lateral` und las `v_ausgang_voll`
+für **jede** Arbeit neu. 68 ms je Durchgang klingt nach nichts — aber acht
+Sichten lesen `v_auftrag_masse` (`v_schimmel_beobachtung`, `v_kaskade_basis`,
+`v_massenbilanz`, `v_plausibilitaet`, `v_durchsatz`, `v_fax_beobachtung`,
+`v_ausschuss_beobachtung`, `v_schimmel_punkte`), mehrere davon mehrfach je
+Neurechnung. Das sind die gut zwei Sekunden.
+
+Die Reparatur ist dieselbe Zahl in einem Durchgang: das Mittel der eigenen
+gewogenen Paletten wird einmal nach `auftrag_id` gruppiert, und das `lateral`
+rechnet nur noch — es liest nichts mehr. Dass sich dabei keine Zahl ändert,
+ist gegengeprüft: beide Fassungen nebeneinander auf der Demo (307 Arbeiten)
+und auf der Ketten-Datenbank, wo der Zweig wirklich feuert — **0 abweichende
+Zeilen**, und die Wasch-Arbeit steht in beiden mit 1635.00 kg aus der Quelle
+`fertige_paletten`.
+
+Merksatz für die nächste Runde: Eine Sicht, die acht Leser hat, ist kein Ort
+für eine Unterabfrage je Zeile.
+
 ---
 
 ## § 3 — Abweichungen vom Auftrag
