@@ -8156,31 +8156,23 @@ select m.auftrag_id, m.charge_nr, m.sorte, m.schlag, m.weg, m.station,
   -- Paletten), hilfsweise der ihrer Sorte und ihres Kistensystems. Ohne
   -- Palettenzahl und ohne beide Massen bleibt die Zeile leer: unbekannt,
   -- nicht null.
-  --
-  -- **Einmal gruppiert, nicht je Zeile gefragt.** Zuerst stand das Mittel der
-  -- eigenen Paletten als Unterabfrage im Lateral — dann las die Sicht
-  -- v_ausgang_voll für **jede** Arbeit neu. Gemessen im Lasttest: 68 ms je
-  -- Auswertung von v_auftrag_masse, und acht Sichten lesen sie, manche
-  -- mehrfach je Neurechnung — über zwei Sekunden, die niemandem gehören.
-  -- Dasselbe Ergebnis, ein Durchgang.
-  left join (select v.auftrag_id, avg(v.netto_kg) as netto_kg
-               from v_ausgang_voll v
-              where coalesce(v.voll, true) and v.netto_kg > 0
-              group by v.auftrag_id) eig on eig.auftrag_id = m.auftrag_id
   left join lateral (
-        select p.netto_kg
-          from v_koeff_palette_netto p
-         where p.sorte = m.sorte
-           and (p.kistensystem = a.kistensystem
-                or p.kistensystem is null and a.kistensystem is distinct from 'anderes')
-         order by (p.kistensystem = a.kistensystem) desc nulls last
-         limit 1) kp on true
-  -- Nur noch Rechnen, kein Lesen: alle Zutaten stehen schon in der Zeile.
-  cross join lateral (
-        select case when m.station = 'waschen' and not a.ist_fax
-                     and coalesce(a.fertige_paletten_gesamt, 0) > 0
-                    then zahl(a.fertige_paletten_gesamt::numeric * coalesce(eig.netto_kg, kp.netto_kg),
-                              2, 10000000000)::numeric(12,2) end as kg) fpg
+        select zahl(a.fertige_paletten_gesamt::numeric * coalesce(eig.netto_kg, kp.netto_kg),
+                    2, 10000000000)::numeric(12,2) as kg
+          from (select avg(v.netto_kg) as netto_kg
+                  from v_ausgang_voll v
+                 where v.auftrag_id = m.auftrag_id and coalesce(v.voll, true) and v.netto_kg > 0) eig
+          left join lateral (
+               select p.netto_kg
+                 from v_koeff_palette_netto p
+                where p.sorte = m.sorte
+                  and (p.kistensystem = a.kistensystem
+                       or p.kistensystem is null and a.kistensystem is distinct from 'anderes')
+                order by (p.kistensystem = a.kistensystem) desc nulls last
+                limit 1) kp on true
+         where m.station = 'waschen' and not a.ist_fax
+           and coalesce(a.fertige_paletten_gesamt, 0) > 0
+           and coalesce(eig.netto_kg, kp.netto_kg) is not null) fpg on true
   left join lateral (
         select zahl(a.paletten_gesamt::numeric * p.netto_kg, 2, 10000000000)::numeric(12,2) as kg
           from v_koeff_palette_netto p
