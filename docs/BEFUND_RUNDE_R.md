@@ -174,6 +174,83 @@ Thema).
 | `node pruefstand/beschriftung.mjs` | grün — jede Zahl beschriftet, im Lexikon, mit Herkunft, Prozente mit Bezug, Kopfzahlen gegengerechnet |
 | `npm run pruefen` | grün, 103 Tests |
 
+### Der Lasttest hat einen echten Rückschritt gefunden — und drei Anläufe gekostet
+
+Beim ersten Volllauf stand Stufe 6 (dreifache Saison) bei **13 490 ms** gegen
+eine Decke von 12 000 ms. Die Decke wurde nicht angehoben. Der Weg dorthin
+gehört in diesen Bericht, weil zwei der drei Anläufe falsch waren und beide
+Male die **Messung** schuld war, nicht das SQL.
+
+**Erst die Grundlinie.** Zwei Lastdatenbanken nebeneinander, eine aus dem
+`setup.sql` vor 0079, eine aus dem heutigen, dieselben Daten, dieselbe
+Maschine, je zwei Läufe, alle fünf Rechenschritte einzeln:
+
+| | S1 | S2 | S3 | S4 | S5 | im Ganzen |
+|---|---|---|---|---|---|---|
+| vor 0079 | 674 / 687 | 3640 / 3616 | 1951 / 2094 | 4079 / 4130 | 1091 / 1161 | **11 240 / 11 256** |
+| 0079 | 666 / 684 | 4742 / 4792 | 2346 / 2427 | 4451 / 4409 | 1337 / 1316 | **13 126 / 13 336** |
+
+Damit war der Rückschritt belegt (kein Rauschen: die Streuung liegt bei rund
+1 %) und über alle Schritte verteilt.
+
+**Dann der Rückbau, Stufe für Stufe:**
+
+| | im Ganzen |
+|---|---|
+| 0079, alles drin | 13 231 / 13 288 |
+| dazu den Wasch-Zweig ganz raus | **11 380 / 11 389** |
+| dazu `erg_punkte` wieder als blosse Kopie | 11 176 / 11 301 |
+
+Also: der Wasch-Zweig kostete **1875 ms**, der Messtag zusammen **145 ms** —
+der Posten, den ich für den zweitgrössten hielt, war der kleinste.
+
+**Die zwei Irrwege.**
+
+*Erster Anlauf:* das Mittel der gewogenen Paletten einmal gruppieren statt je
+Zeile fragen. Belegt mit `select count(*) from v_auftrag_masse` — 90 ms gegen
+30 ms. Im Volllauf: **16 879 ms**, also 3.5 s *schlechter*. Der Grund steht in
+Schritt 5: `v_plausibilitaet` braucht nur wenige Arbeiten, das Lateral holte
+genau die, die Gruppierung rechnete alle. Ein `count(*)` auf einer Sicht sagt
+nichts über ihr Verhalten in den Abfragen, die sie einbetten.
+
+*Zweiter Anlauf:* die Unterabfrage im `case` bewachen, damit sie für die
+neunzehn von zwanzig Arbeiten, die nicht gewaschen haben, gar nicht läuft.
+Gemessen an einer Datenbank, in die die Sicht **nachträglich** hineingeschoben
+wurde: 12 352 ms. Frisch gebaut: **12 725 / 12 272 ms** — der Wächter half,
+reichte aber nicht. Ein Messwert aus einem angefassten Zustand ist kein
+Messwert.
+
+**Der Befund, der trägt.** Der Plan sagte beim `case`-Wächter „never
+executed" — die Unterabfrage lief also gar nicht, und trotzdem kostete sie
+über eine Sekunde. Teuer war nicht ihre Ausführung, sondern ihre
+**Anwesenheit**: Eine Sicht mit Unterabfragen in der Spaltenliste kann der
+Planer nicht mehr in ihre Leser hineinfalten, und `v_auftrag_masse` hat acht
+davon (`v_schimmel_beobachtung`, `v_kaskade_basis`, `v_massenbilanz`,
+`v_plausibilitaet`, `v_durchsatz`, `v_fax_beobachtung`,
+`v_ausschuss_beobachtung`, `v_schimmel_punkte`).
+
+Also liegt der Zweig jetzt in einer eigenen kleinen Sicht,
+`v_auftrag_fertige_masse`, deren Bedingung an der **treibenden** Tabelle steht;
+`v_auftrag_masse` bindet sie mit einem flachen `left join` an und bleibt
+durchsichtig. Ergebnis: **11 685 / 11 777 ms**, im Volllauf der Suite
+**11 972 ms**.
+
+Dass sich dabei keine Zahl ändert, ist bei jeder der drei Fassungen
+gegengeprüft worden, bevor gemessen wurde: beide Fassungen nebeneinander auf
+der Ketten-Datenbank, wo der Zweig wirklich feuert — null abweichende Zeilen,
+die Wasch-Arbeit steht in allen mit 1635.00 kg aus der Quelle
+`fertige_paletten`; auf der Demo 307 Arbeiten, 305 mit Masse, 421 766.43 kg.
+
+**Was offen bleibt: der Rand ist dünn.** 0079 kostet noch rund 600 ms von
+752 ms Spielraum bis zur Decke, und die Läufe streuen um ±300 ms. Die Suite
+besteht heute, aber ein unglücklicher Lauf auf langsamerer Hardware fällt
+durch. Zwei Merksätze für die nächste Runde:
+
+- Eine Sicht mit vielen Lesern verträgt keine Unterabfrage in der
+  Spaltenliste — auch keine, die nie ausgeführt wird.
+- Gemessen wird am Volllauf, an einer frisch gebauten Datenbank. Ein
+  Mikrowert, der den Volllauf nicht vorhersagt, ist kein Beleg.
+
 ---
 
 ## § 3 — Abweichungen vom Auftrag
