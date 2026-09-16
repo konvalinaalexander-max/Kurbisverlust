@@ -241,6 +241,12 @@ der Ketten-Datenbank, wo der Zweig wirklich feuert — null abweichende Zeilen,
 die Wasch-Arbeit steht in allen mit 1635.00 kg aus der Quelle
 `fertige_paletten`; auf der Demo 307 Arbeiten, 305 mit Masse, 421 766.43 kg.
 
+Ein vierter Anlauf, das innere Mittel korreliert statt gruppiert zu holen,
+brachte nichts: **11 830 / 11 945 ms**, also im Rauschen. Die restlichen rund
+330 ms des Zweigs stecken im Verbund selbst, nicht in der Form der
+Aggregation — dort ist ohne Umbau nichts mehr zu holen, und die Fassung ist
+verworfen statt committet.
+
 **Was offen bleibt: der Rand ist dünn.** 0079 kostet noch rund 600 ms von
 752 ms Spielraum bis zur Decke, und die Läufe streuen um ±300 ms. Die Suite
 besteht heute, aber ein unglücklicher Lauf auf langsamerer Hardware fällt
