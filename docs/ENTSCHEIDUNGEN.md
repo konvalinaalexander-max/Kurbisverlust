@@ -3356,3 +3356,116 @@ Erfassungsspalte dieser Runde (Kontrollpalette: Eingangsdatum und Brutto vom
 Zettel, 0077) ist freiwillig. `fertige_paletten_gesamt` wird gespeichert, aber
 noch von keiner Sicht gelesen — der Nenner beim Waschen ist § 5.3 des
 Auftrags.
+
+## Runde R — die zwei ersten Reiter (16. September)
+
+### Warum der Reiter „Lagermanagement" heisst und nicht mehr „Überblick"
+
+Ein Überblick ist alles und nichts. Der Betrieb macht das Dashboard mit einer
+Frage auf: „wieviel kürbis ist gerade im lager — aber halt genau". Der Name
+sagt jetzt, was der Reiter kann, und die Trennung ist scharf: **alles über
+morgen steht im Lagermanagement, alles bis heute in den Ursachen.** Wer wissen
+will, was die liegende Ware in acht Wochen noch wert ist, geht in den ersten
+Reiter; wer wissen will, wo das Faule herkam, in den zweiten. Vorher stand
+beides auf beiden, und keine Karte sagte, auf welchen Tag sie sich bezieht.
+
+### Zwei Achsen an derselben Messung
+
+„wann hat fäulnis besonders zugelegt … plötzlich ab dezember" und „faulen sie
+nach N Wochen" sind zwei Fragen an **eine** Messung. Statt zwei Grafiken
+nebeneinander zu stellen (und damit zu suggerieren, es seien zwei Messreihen),
+tragen die zwei Zeitbilder der Ursachen einen Umschalter: *Kalender* oder
+*liegt seit*. Dieselben Punkte, eine andere x-Achse. Die Wahl merkt sich der
+Browser je Karte (`localStorage`), damit niemand sie bei jedem Aufruf neu
+treffen muss.
+
+Auf dem Kalender endet die Achse bei heute — rechts davon gibt es keine
+Messung, und eine leere Fläche mit dem Wort „Prognose" wäre eine Behauptung.
+Auf der Lagerdauer heisst der Bereich rechts der Heute-Linie **„länger
+gelagert"**: dort liegt nicht die Zukunft, sondern längere Lagerung.
+
+### Der Messtag kommt aus dem Betriebstag, nicht aus `now()`
+
+`v_schimmel_punkte.messtag` ist `betriebstag(...)` der Arbeit (oder der
+Wägung) — dieselbe Funktion, die schon über „gehört diese Ablesung zu gestern
+Abend oder zu heute früh" entscheidet. Damit liegt ein Punkt im Kalender genau
+dort, wo die Arbeit im Journal steht, und der Prüfblock kann es zeilenweise
+nachrechnen (0079 a5). Ein zweiter Datumsbegriff hätte zwei Wahrheiten ergeben.
+
+### `mv_schimmel_punkte` bleibt eingefroren, `erg_punkte` wird neu gebaut
+
+Die Spalte gehört an beide — aber `mv_schimmel_punkte` neu anzulegen verlangt
+`cascade` und nimmt **34** Objekte mit (`v_schimmel_kurve`,
+`v_schimmel_modell_rechnen`, `v_selektionsverdacht`, `mv_kaskade`,
+`erg_prognose` …). Eine Runde, die das Dashboard umbaut, reisst nicht die
+Kaskade ein. Also: `mv_schimmel_punkte` steht mit einer **ausdrücklichen
+Spaltenliste** und `if not exists` da (Migrationsweg und `setup.sql` ergeben
+dieselbe Fassung), und `erg_punkte` — die Fassung, die die App liest — wird aus
+`v_schimmel_punkte` gebaut. Der Prüfblock 0068 (b) prüft seither nicht mehr
+„Kopie", sondern: gleiche Werte in den gemeinsamen Spalten, keine
+Analyse-Sicht liest `erg_punkte`, und ein `refresh` bleibt unter einer Sekunde.
+
+### Der Nenner beim Waschen: erst die eigenen Paletten, dann die Kisten
+
+`v_auftrag_masse` hat eine neue Quelle **vor** dem Kistenweg:
+`fertige_paletten` = `fertige_paletten_gesamt` × dem Mittel der eigenen
+gewogenen vollen Paletten dieser Arbeit. Warum davor: Die Kaliber-Palette aus
+dem Zwischenlager wird nie gewogen, der Kistenweg rechnet also mit einem
+Kistengewicht aus *fremden* Arbeiten und quer über den Gebindewechsel. Die
+fertigen Paletten sind gewogen, in dieser Arbeit, in diesem Gebinde.
+
+Dass der Kistenweg das Faule doppelt zählt (er misst, was *hineinging*, und die
+Basis addiert das Faule noch einmal), steht als Befund B-1 im
+`BEFUND_RUNDE_R.md` und als Frage an den Betrieb in `FRAGEN.md`. Repariert wird
+er nicht mit einer Formel, sondern mit einer Angabe: Sobald eine Wasch-Arbeit
+ihre fertigen Paletten meldet, greift der neue Weg.
+
+### Zwei Bilder, eine Rechnung
+
+`kaliber_glocke(h)` und `lager_kaliber(h)` lesen beide `kuerbis_stichtag(h)`
+und `lager_schluessel()`. Der Prüfblock beweist an drei Stichtagen, dass die
+Stufen einer Gruppe auf die Masse ihrer Bänder summieren. Zwei Bilder, die
+über dieselbe Ware Verschiedenes sagen, wären schlimmer als ein Bild weniger.
+
+### Die Marge zeichnet kein Diagramm
+
+Ein Balken um eine Nulllinie und ein Punkt in einem Band sind **eine Zahl je
+Zeile**. Dafür ein SVG mit Achse zu bauen, hiesse eine Achse zu zeichnen, die
+nichts trägt. Die zwei Karten tragen ihre Zahlen in einer Tabelle und daneben
+ein kleines Bild aus CSS. Wer keine Farben sieht, liest die Tabelle.
+
+### Die Spalte sagt ihre Herkunft im Kopf
+
+In der Tabelle „Was ist noch im Haus?" sind die Spalten **verschiedener**
+Herkunft: links gerechnet bis heute, rechts über heute hinaus. Eine
+Herkunftsmarke am Fuss der Karte hätte für beide gegolten und damit für keine.
+Darum steht sie in der Kopfzelle der Spaltengruppe — dort, wo man die Zahl
+liest. Deshalb heisst die zweite Gruppe auch „verkaufsfähig in X Wochen" und
+nicht bloss „in X Wochen": Eine Beschriftung muss sagen, wovon die Kilo sind.
+
+### Drei Prüfstände waren stumpf
+
+Beim Grünmachen ist aufgefallen, dass drei Werkzeuge nicht massen, was sie
+behaupteten — und alle drei wären **still** grün geblieben:
+
+- Die Abnahme verglich zweimal `innerText` eines SVG-Elements. SVG hat kein
+  `innerText`; zwei leere Zeichenketten sind immer gleich, der Punkt hätte nie
+  angeschlagen. Jetzt `textContent` plus `data-x-einheit`.
+- Der Begriffs-Prüfstand warf beide Kopfzeilen einer Tabelle in eine Liste;
+  bei zwei Kopfzeilen verrutschten die Spaltennamen. Jetzt löst er `colspan`
+  und `rowspan` auf und setzt je Spalte zusammen, was ein Mensch liest.
+- Die Herkunfts-Sonde des Prüfwerks las `src/pages/Ueberblick.tsx` — eine
+  Datei, die es seit dieser Runde nicht mehr gibt. Sie wäre beim nächsten Lauf
+  abgestürzt, statt ihren Befund zu melden.
+
+Ein Werkzeug, das nicht rot werden kann, ist kein Werkzeug. Das gehört zum
+Ergebnis der Runde wie die zwei Reiter selbst.
+
+### Was bewusst nicht gemacht wurde
+
+Kein neuer Reiter; Chargen, Messungen und Betrieb sind unverändert. Keine
+Prognose auf Ursachen. Keine zweite Verdunstungs- oder Verderbsformel im
+Frontend. Keine Schlag-Ebene in den Filtern. Keine Fax-Rückkehr. Keine
+Verkaufsdatei in der Marge. Kein Umbau der Arbeiter-App — auch nicht „nur ein
+Feld": `#fertige-gesamt` gab es seit Runde Q, die Kette füllt es jetzt bloss
+aus, damit der neue Weg im Prüfstand wirklich läuft.

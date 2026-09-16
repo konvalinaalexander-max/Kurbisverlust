@@ -50,6 +50,17 @@
   --strom-nebenkanal:  #e87ba4;
   --strom-fax:         #7c56d8;
   --strom-rest:        #1f8a3a;
+  /* Runde R: derselbe Strom heller — „liegt noch und ist verkaufsfähig" gegen
+     „schon verkauft". Zwei Nachbarn im Band, eine Familie. */
+  --strom-rest-hell:   #62c07a;
+
+  /* Reihen: Sorten und Chargen in Diagrammen (Runde R). Nicht die
+     Stromfarben — sonst sähe „Tiana" aus wie „Verdunstung". Die Zuordnung
+     ist alphabetisch stabil, damit eine Sorte in jedem Bild dieselbe Farbe
+     hat; ab der elften Reihe wiederholt sie sich gestrichelt. */
+  --reihe-1: #3b6fd1;  --reihe-2: #d9740f;  --reihe-3: #2f9e6b;  --reihe-4: #b84fa8;
+  --reihe-5: #c9a800;  --reihe-6: #17a2b8;  --reihe-7: #a0522d;  --reihe-8: #6b6b6b;
+  --reihe-9: #7e57c2;  --reihe-10: #e0568c;
 
   /* ---- Schrift ------------------------------------------------------------- */
   --schrift: 'Inter Variable', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
@@ -120,6 +131,11 @@
     --strom-nebenkanal:  #e0679a;
     --strom-fax:         #9b7ce8;
     --strom-rest:        #3aa653;
+    --strom-rest-hell:   #6fd18a;
+
+    --reihe-1: #7ea1ea;  --reihe-2: #f0a054;  --reihe-3: #5ec99a;  --reihe-4: #d98acb;
+    --reihe-5: #e5c94a;  --reihe-6: #5ccbe0;  --reihe-7: #c98a6b;  --reihe-8: #a6a6a6;
+    --reihe-9: #a98be0;  --reihe-10: #f08ab1;
 
     --kontur:  0 0 0 1px var(--rand);
     --tiefe-1: 0 1px 2px rgb(0 0 0 / 40%);

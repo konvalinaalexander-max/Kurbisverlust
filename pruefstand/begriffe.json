@@ -14,6 +14,7 @@
     {
       "muster": [
         "Ausgeliefert",
+        "Ausgang",
         "Bisher hinaus",
         "Masse der Lieferung",
         "Masse aller Lieferungen",
@@ -22,7 +23,7 @@
         "Masse des Artikels"
       ],
       "art": "gemessen",
-      "bedeutet": "Was den Betrieb verlassen hat, wie es auf dem Lieferschein oder in der Verkaufsdatei steht — verkaufsfertige Ware, nicht Eingangsware",
+      "bedeutet": "Was den Betrieb verlassen hat, wie es auf dem Lieferschein oder in der Verkaufsdatei steht — verkaufsfertige Ware, nicht Eingangsware — im Lagermanagement heisst die Kennzahl „Ausgang\"",
       "quelle": "erg_bilanz.geliefert_kg · lieferung.kg · ausgang_zeile.kg"
     },
     {
@@ -129,9 +130,9 @@
         "Zu viel je Kiste",
         "An der ausgelieferten Ware"
       ],
-      "art": "gerechnet",
-      "bedeutet": "Überfüllung: was die gewogene Kiste über ihrem Soll hat, mal die verkauften Kisten. Kein Masseverlust, sondern verschenkte Marge",
-      "quelle": "erg_ueberfuellung.verschenkt_kg · v_ausgang_kennzahl.ueberfuellung_kg"
+      "art": "gemessen|gerechnet",
+      "bedeutet": "Was über dem Soll in der Kiste liegt. In der Wägungstabelle der Ursachen die gemessene Differenz an den gewogenen vollen Paletten (erg_marge_wiegung, 0078); wo sie auf verkaufte Kisten hochgerechnet wird, gerechnet.",
+      "quelle": "erg_marge_wiegung.zuviel_je_kiste · erg_ueberfuellung.zuviel_je_kiste"
     },
     {
       "muster": [
@@ -264,6 +265,14 @@
       "art": "gerechnet",
       "bedeutet": "Die liegende Eingangsware nach Verdunstung, Faulem, zu klein, zu gross und dem beim Abpacken erwarteten Faulen — bis heute gerechnet",
       "quelle": "erg_bilanz.verkaufsfaehig_heute_kg · erg_prognose.verkaufsfaehig_kg (h = 0)"
+    },
+    {
+      "muster": [
+        "verkaufsfähig in"
+      ],
+      "art": "prognose",
+      "bedeutet": "Verkaufsfähige Masse an einem Stichtag über heute hinaus, je Kaliberband — dieselbe Kaskade wie heute, nur an einem späteren Tag ausgewertet (lager_kaliber(h), 0079)",
+      "quelle": "lager_kaliber(h).masse_kg · erg_prognose.verkaufsfaehig_kg"
     },
     {
       "muster": [

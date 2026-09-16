@@ -74,6 +74,17 @@ export async function restAntwort(route) {
       const staende = fixture('rpc_palox_letzter_stand') ?? {}
       return route.fulfill({ json: staende[body.p_station] ?? null })
     }
+    // Runde R: die beiden Stichtag-Funktionen haben je Stichtag ein eigenes
+    // Fixture (rpc_<fn>_<h>.json). Wer einen Stichtag ohne Datei anfragt,
+    // bekommt leer und steht auf der Fehlliste — nicht die Zahlen von heute,
+    // sonst sähe „in 6 Wochen" aus wie heute und niemand merkte es.
+    if (fn === 'lager_kaliber' || fn === 'kaliber_glocke') {
+      const body = JSON.parse(route.request().postData() ?? '{}')
+      const h = Number(body.p_h ?? 0)
+      const f = fixture(`rpc_${fn}_${h}`)
+      if (f === null) fehlendeFixtures.add(`rpc_${fn}_${h}`)
+      return route.fulfill({ json: f ?? [] })
+    }
     if (fn === 'demo_daten_laden') return route.fulfill({ json: 'Demo-Saison steht.' })
     if (fn === 'demo_daten_entfernen') return route.fulfill({ json: 'Demo-Daten entfernt.' })
     return route.fulfill({ json: fixture(`rpc_${fn}`) ?? null })

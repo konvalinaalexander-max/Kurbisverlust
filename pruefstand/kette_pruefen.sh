@@ -207,7 +207,7 @@ end $$;
 
 -- ---------- Der Wasch-Durchlauf mit eigenem Kaliber (0054, 0060) -----------
 do $$
-declare a record;
+declare a record; v numeric;
 begin
   select * into a from auftrag where station = 'waschen' and not ist_fax order by id desc limit 1;
   assert a.id is not null, 'Die Wasch-Arbeit ist nicht angekommen';
@@ -242,9 +242,23 @@ begin
   assert exists (select 1 from v_plausibilitaet where auftrag_id = a.id and art = 'Kistengewicht'
                     and befund like '%700–900 g%' and befund like '%3 Paletten mit 96 Kisten%'),
     'Das Kistengewicht zum eigenen Kaliber ist unbekannt — das muss die Plausibilität an den gezählten Paletten sagen';
-  assert (select eingang_netto_kg from v_auftrag_masse where auftrag_id = a.id) is null,
-    'Ohne Kistengewicht darf die Arbeit keine Masse behaupten';
-  raise notice 'OK  Waschen: eigenes Kaliber, Kaliber-Paletten mit Sortierdatum und Kisten, drei fertige Paletten, Palox freiwillig';
+  -- 0079: Der Nenner des Waschens sind die fertigen Paletten. Fünf wurden es,
+  -- drei davon gewogen (400 kg brutto, 32 Kisten G2). Aus ihrem Mittel und der
+  -- Zahl fünf kennt die Auswertung die Masse, die herauskam — ohne ein
+  -- Kistengewicht für das eigene Kaliber 700–900 g. Die gezählten Kisten der
+  -- Eingangspaletten bleiben weiter stumm: Bis Runde R war diese Zeile leer,
+  -- weil es für sie kein Gewicht gibt, und daran hat sich nichts geändert.
+  assert (select fertige_paletten_gesamt from auftrag where id = a.id) = 5,
+    'Die Zahl der fertigen Paletten gesamt ist nicht angekommen';
+  assert (select masse_quelle from v_auftrag_masse where auftrag_id = a.id) = 'fertige_paletten',
+    format('Die Masse muss aus den fertigen Paletten kommen, sie kommt aus %s',
+           (select masse_quelle from v_auftrag_masse where auftrag_id = a.id));
+  select round(5 * avg(netto_kg)) into v from v_ausgang_voll where auftrag_id = a.id and voll;
+  assert v > 0, 'Die gewogenen fertigen Paletten haben kein Nettogewicht';
+  assert (select round(eingang_netto_kg) from v_auftrag_masse where auftrag_id = a.id) = v,
+    format('Die Masse der Wasch-Arbeit ist %s kg statt %s kg (5 × das Mittel der gewogenen Paletten)',
+           (select round(eingang_netto_kg) from v_auftrag_masse where auftrag_id = a.id), v);
+  raise notice 'OK  Waschen: eigenes Kaliber, Kaliber-Paletten mit Sortierdatum und Kisten, fünf fertige Paletten (drei gewogen) als Nenner, Palox freiwillig';
 end $$;
 
 -- ---------- Die Lagerkontrolle (0061) -------------------------------------

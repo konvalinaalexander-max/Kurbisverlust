@@ -464,7 +464,13 @@ await schritt('Waschen: Palox freiwillig, Paletten mit Sortierdatum (2 × 32 Kis
   await seite.getByText('3 Paletten mit 96 Kisten').first().waitFor()
   await seite.getByRole('button', { name: 'Weiter' }).click()   // Paletten: drei gezählt
   await seite.getByText('3 fertige Paletten gewogen').first().waitFor()
-  await seite.getByRole('button', { name: 'Weiter' }).click()   // fertige Paletten: drei gewogen
+  // Runde R/0079: Wie viele Paletten insgesamt fertig wurden, ist der Nenner
+  // des Waschens. Drei davon sind gewogen, fünf wurden es — daraus kennt die
+  // Auswertung die Masse, die herauskam, ohne ein Kistengewicht für das eigene
+  // Kaliber zu brauchen. Ohne Palox-Ablesung ist das Feld freiwillig; hier wird
+  // es trotzdem gefüllt, damit der neue Weg im Prüfstand wirklich läuft.
+  await seite.locator('#fertige-gesamt').fill('5')
+  await seite.getByRole('button', { name: 'Weiter' }).click()   // fertige Paletten: drei gewogen, fünf gesamt
   await seite.locator('#charge-ja').click()
   await seite.getByRole('button', { name: 'Weiter' }).click()
   await seite.locator('#arbeit-fertig').click()

@@ -62,9 +62,11 @@ export function Karte({ titel, unter, aktion, klickbar, id, className, style, ch
 }
 
 /** Eine Kennzahl: Titel, grosse Zahl, ein Satz darunter. Als Kachel in einer Reihe. */
-export function Kennzahl({ titel, wert, unter, ton }: { titel: ReactNode; wert: ReactNode; unter?: ReactNode; ton?: 'rot' | 'gruen' | 'kuerbis' }) {
+export function Kennzahl({ titel, wert, unter, ton, id }: {
+  titel: ReactNode; wert: ReactNode; unter?: ReactNode; ton?: 'rot' | 'gruen' | 'kuerbis'; id?: string
+}) {
   return (
-    <div className={`kennzahl${ton ? ` ton-${ton}` : ''}`}>
+    <div id={id} className={`kennzahl${ton ? ` ton-${ton}` : ''}`}>
       <div className="titel">{titel}</div>
       <div className="gross-zahl">{wert}</div>
       {unter && <div className="unter">{unter}</div>}
@@ -150,7 +152,11 @@ export function Aufklapp({ titel, offen = false, children }: { titel: ReactNode;
  * nicht drei Knöpfe.
  */
 export function Segmente<T extends string>({ wahl, setzen, teile, gross = false, id }: {
-  wahl: T; setzen: (t: T) => void; teile: [T, ReactNode][]; gross?: boolean; id?: string
+  wahl: T; setzen: (t: T) => void
+  /** Wert, Beschriftung — und seit Runde R eine Id je Knopf, damit ein
+   *  Prüfstand den einzelnen Umschalter ansprechen kann. */
+  teile: (readonly [T, ReactNode] | readonly [T, ReactNode, string])[]
+  gross?: boolean; id?: string
 }) {
   const rahmen = useRef<HTMLDivElement>(null)
   // Der Schieber legt sich unter den aktiven Knopf — gemessen, nicht geraten:
@@ -170,8 +176,9 @@ export function Segmente<T extends string>({ wahl, setzen, teile, gross = false,
   }, [wahl, teile.length])
   return (
     <div id={id} ref={rahmen} className={`umschalter gleitend${gross ? ' gross' : ''}`} role="tablist">
-      {teile.map(([t, name]) => (
-        <button key={t} type="button" role="tab" aria-selected={wahl === t} className={wahl === t ? 'aktiv' : ''} onClick={() => setzen(t)}>{name}</button>
+      {teile.map(([t, name, knopfId]) => (
+        <button key={t} id={knopfId} type="button" role="tab" aria-selected={wahl === t}
+                className={wahl === t ? 'aktiv' : ''} onClick={() => setzen(t)}>{name}</button>
       ))}
     </div>
   )

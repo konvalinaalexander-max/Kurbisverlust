@@ -186,11 +186,14 @@ export async function laufen({ db }) {
     select round(vorlauf_kg)::numeric as vorlauf, round(ausgang_kg)::numeric as ausgang,
            (select count(*) from charge_vorlauf)::int as n_vorlauf
       from v_saisonbilanz`)[0]
-  const ueberblick = lies('src/pages/Ueberblick.tsx')
-  const marke = /titel="Ausgeliefert"[\s\S]{0,240}?art="gemessen"/.test(ueberblick)
+  // Runde R: die Kopfzahlen stehen im Lagermanagement, und die Karte heisst
+  // dort „Ausgang". Die Sonde muss dem Umbau folgen — sonst prüft sie eine
+  // Datei, die es nicht mehr gibt, und meldet stumm nichts mehr.
+  const lager = lies('src/pages/Lagermanagement.tsx')
+  const marke = /titel="Ausgang"[\s\S]{0,240}?art="gemessen"/.test(lager)
   if (h && Number(h.vorlauf) > 0 && marke) {
-    B({ klasse: 3, ort: { datei: 'src/pages/Ueberblick.tsx', sicht: 'v_saisonbilanz', spalte: 'ausgang_kg' },
-        titel: '„Ausgeliefert" trägt die Marke „gemessen" und enthält eine Schätzung',
+    B({ klasse: 3, ort: { datei: 'src/pages/Lagermanagement.tsx', sicht: 'v_saisonbilanz', spalte: 'ausgang_kg' },
+        titel: '„Ausgang" trägt die Marke „gemessen" und enthält eine Schätzung',
         steht_da: `ausgang_kg = ${Number(h.ausgang)} kg mit der Marke „gemessen". Davon sind `
                 + `${Number(h.vorlauf)} kg \`vorlauf_kg\` — die Angabe des Betriebs, was vor dem `
                 + `Erfassungsbeginn schon draussen war (${Number(h.n_vorlauf)} Zeile(n) in `
@@ -203,10 +206,10 @@ export async function laufen({ db }) {
              + 'jede Palette im Erntejournal, jede Lieferung auf einem Lieferschein." Für den Vorlauf '
              + 'gilt das nicht; er ist eine Erinnerung. Solange beides dieselbe Marke trägt, ist die '
              + 'Marke keine Auskunft mehr, sondern Dekoration — und sie steht an vier Stellen des '
-             + 'Überblicks.',
+             + 'Lagermanagements.',
         beleg: 'pruefwerk/sonden/01_herkunft.mjs → 1d',
         groesse: { wert: Number(h.vorlauf), einheit: 'kg Schätzung in einer als gemessen ausgewiesenen Zahl',
-                   basis: `${(100 * Number(h.vorlauf) / Number(h.ausgang)).toFixed(1)} % von „Ausgeliefert"` },
+                   basis: `${(100 * Number(h.vorlauf) / Number(h.ausgang)).toFixed(1)} % von „Ausgang"` },
         sicherheit: 'hoch', marke: 'Reparatur', aufwand: 'klein',
         gegenrede: 'Der Untertitel nennt den Vorlauf ausdrücklich, wer genau liest, sieht ihn also. '
                  + 'Dagegen steht: Die Marke ist die Abkürzung für Leser, die nicht genau lesen — dafür '

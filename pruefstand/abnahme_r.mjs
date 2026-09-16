@@ -128,13 +128,21 @@ const PUNKTE = [
       await sichtbar(p, '#urs-palox', 'Palox-Karte')
       await sichtbar(p, '#palox-achse-kalender', 'Knopf Kalender')
       await sichtbar(p, '#palox-achse-liegt', 'Knopf liegt seit')
-      const vorher = await p.locator('#urs-palox svg').first().innerText().catch(() => '')
-      await p.locator('#palox-achse-kalender').click(); await p.waitForTimeout(300)
-      const kalender = await p.locator('#urs-palox svg').first().innerText().catch(() => '')
-      await p.locator('#palox-achse-liegt').click(); await p.waitForTimeout(300)
-      const liegt = await p.locator('#urs-palox svg').first().innerText().catch(() => '')
+      // Ein SVG hat kein innerText — nur textContent. Mit innerText verglich
+      // dieser Punkt zweimal die leere Zeichenkette und wäre immer grün
+      // gewesen; die Beschriftungen der x-Achse stehen in textContent.
+      const achsentext = async () =>
+        (await p.locator('#urs-palox svg[data-x-einheit]').first().textContent().catch(() => '')) ?? ''
+      await p.locator('#palox-achse-kalender').click(); await p.waitForTimeout(400)
+      const kalender = await achsentext()
+      const einheitKalender = await p.locator('#urs-palox svg[data-x-einheit]').first().getAttribute('data-x-einheit')
+      await p.locator('#palox-achse-liegt').click(); await p.waitForTimeout(400)
+      const liegt = await achsentext()
+      const einheitLiegt = await p.locator('#urs-palox svg[data-x-einheit]').first().getAttribute('data-x-einheit')
+      if (!kalender || !liegt) throw new Error('das Diagramm hat keine Achsenbeschriftung')
       if (kalender === liegt) throw new Error('die Achse wechselt nicht')
-      void vorher
+      if (einheitLiegt !== 'tage') throw new Error(`„liegt seit" hat die Einheit ${einheitLiegt}, nicht „tage"`)
+      if (einheitKalender === 'tage') throw new Error('„Kalender" trägt noch die Einheit „tage"')
     } },
   { id: 'U-04', wo: 'ursachen', satz: '„Verdunstung": Kalender oder liegt seit',
     pruefe: async p => {

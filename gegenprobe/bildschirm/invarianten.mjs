@@ -59,7 +59,7 @@ const { CHROMIUM, authAntwort, restAntwort, vergessen, fehlendeFixtures } = awai
 /* ---------- Die Seiten ------------------------------------------------------ */
 // Betriebsleiter-Seiten mit allen Diagrammen; Arbeiter-Seiten für I8.
 const SEITEN = [
-  { name: 'ueberblick', wer: 'admin', pfad: '/dashboard' },
+  { name: 'lager', wer: 'admin', pfad: '/dashboard' },
   { name: 'ursachen', wer: 'admin', pfad: '/ursachen' },
   { name: 'chargen', wer: 'admin', pfad: '/chargen' },
   { name: 'messungen', wer: 'admin', pfad: '/messungen' },

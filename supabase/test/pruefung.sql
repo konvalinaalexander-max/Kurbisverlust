@@ -3818,7 +3818,7 @@ select '——— Schimmelkurve zusammengehalten ———' as ergebnis;
 --   c) `zahl()` hält den **gerundeten** Wert gegen die Grenze.
 do $$
 declare v_arbeiter uuid; v_chef uuid := '11111111-1111-1111-1111-111111111111';
-        v_fehler boolean; v_def text;
+        v_fehler boolean; v_def text; v_start timestamptz;
 begin
   assert schema_stand() >= 68, format('mindestens Stand 68 erwartet, ist %s', schema_stand());
 
@@ -3843,14 +3843,36 @@ begin
   perform auswertung_schritt(1);
   perform set_config('request.jwt.claim.sub', '', true);
 
-  -- (b) Die Punkte werden nur einmal gerechnet.
+  -- (b) Die Punkte werden für die Auswertung nur einmal gerechnet.
+  --
+  -- Bis 0079 war erg_punkte eine blosse Kopie von mv_schimmel_punkte — 103 ms
+  -- und 120 kB für nichts. Seit 0079 trägt sie den Messtag bei, den die
+  -- Auswertung nicht braucht und der Bildschirm sehr wohl; dafür rechnet sie
+  -- v_schimmel_punkte ein zweites Mal. Erlaubt ist das unter drei
+  -- Bedingungen, und die stehen hier: dieselben Zeilen wie die gespeicherte
+  -- Fassung der Auswertung, **keine** Sicht der Auswertung, die sie liest,
+  -- und billig genug, dass das Neurechnen nichts davon merkt.
   select pg_get_viewdef('erg_punkte'::regclass, true) into v_def;
-  assert v_def ~* 'mv_schimmel_punkte',
-    format('erg_punkte soll eine Kopie von mv_schimmel_punkte sein, liest aber: %s',
-           left(v_def, 120));
-  assert not exists (select 1 from (select * from erg_punkte except
-                                    select * from mv_schimmel_punkte) x),
+  assert v_def ~* 'v_schimmel_punkte',
+    format('erg_punkte soll die Punkte mit Messtag führen, liest aber: %s', left(v_def, 120));
+  assert not exists (
+    select 1 from (
+      select charge_nr, sorte, schlag, lagertage, schimmel_kg, basis_jetzt_kg, anteil, plausibel, quelle, auftrag_id
+        from erg_punkte
+      except
+      select charge_nr, sorte, schlag, lagertage, schimmel_kg, basis_jetzt_kg, anteil, plausibel, quelle, auftrag_id
+        from mv_schimmel_punkte) x),
     'erg_punkte und mv_schimmel_punkte haben verschiedenen Inhalt';
+  assert not exists (
+    select 1 from pg_depend d join pg_rewrite r on r.oid = d.objid
+      join pg_class c on c.oid = r.ev_class
+     where d.refobjid = 'erg_punkte'::regclass and c.relname <> 'erg_punkte'),
+    'Eine Sicht der Auswertung liest erg_punkte — dann gäbe es die Punkte auf zwei Wegen';
+  v_start := clock_timestamp();
+  refresh materialized view erg_punkte;
+  assert clock_timestamp() - v_start < interval '1 second',
+    format('erg_punkte braucht %s zum Neurechnen — die zweite Rechnung muss billig bleiben',
+           clock_timestamp() - v_start);
 
   -- (c) Prüfung und Guss auf denselben Wert. Der Wert unten besteht die alte
   --     Prüfung (abs(p_wert) < Grenze) und fällt beim Runden darüber; vorher
@@ -4512,7 +4534,7 @@ begin
     '0078 (d4): die Marge je Wägung darf nicht an der Verkaufsdatei hängen';
 
   -- ---- (e) Das Rechenwerk und der Stand -------------------------------
-  assert schema_stand() = 78, format('0078 (e1): schema_stand() = %s', schema_stand());
+  assert schema_stand() >= 78, format('0078 (e1): schema_stand() = %s, mindestens 78 erwartet', schema_stand());
   select pg_get_functiondef('auswertung_schritt(integer)'::regprocedure) into v_txt;
   assert v_txt like '%erg_marge_wiegung%' and v_txt not like '%erg_lager_kaliber%',
     '0078 (e2): Schritt 4 rechnet erg_marge_wiegung — und keine gespeicherte Kaliber-Fassung';
@@ -4521,3 +4543,178 @@ begin
 end $$;
 
 select '——— 0078 Lager nach Kaliber geprüft ———' as ergebnis;
+
+-- =====================================================================
+-- 0079 — Der Messtag, der Nenner beim Waschen, die Glocke am Stichtag
+--
+-- Runde R baut die zwei ersten Reiter neu. Drei Zahlen fehlen ihnen:
+--
+-- (a) DER MESSTAG. „wann hat fäulnis besonders zugelegt … plötzlich ab
+--     dezember" — dafür braucht jeder Punkt der Verderbskurve ein Datum,
+--     nicht nur eine Lagerdauer. Die Lagerdauer beantwortet „faulen sie
+--     nach N Wochen", der Kalender „ab wann ging es los". Zwei Fragen,
+--     eine Messung, zwei Achsen.
+--
+-- (b) DER NENNER BEIM WASCHEN. Die Kaliber-Palette aus dem Zwischenlager
+--     wird nicht gewogen; bisher rechnet die Masse einer Wasch-Arbeit
+--     über die gezählten Kisten mal einem Kistengewicht aus *anderen*
+--     Arbeiten — und quer über den Gebindewechsel (G2 hinein, IFCO
+--     heraus). Seit Runde Q ist `fertige_paletten_gesamt` Pflicht, sobald
+--     der Palox zweimal abgelesen wurde: Damit steht die Masse, die
+--     herauskam, aus den *eigenen* gewogenen Paletten dieser Arbeit.
+--     Bisher liest die Spalte keine einzige Sicht.
+--
+-- (c) DIE GLOCKE AM STICHTAG. `lager_kaliber(h)` sagt, wie viele Kilo je
+--     Band liegen. Die Glocke daneben muss dieselben Kürbisse zeigen,
+--     sonst behaupten zwei Bilder zweierlei über dieselbe Ware.
+--
+-- Vor 0079 ist dieser Block rot: die Spalte, die Quelle und die Funktion
+-- gibt es nicht.
+-- ---------------------------------------------------------------------
+do $$
+declare
+  v_n int; v_start timestamptz; v_a bigint; v numeric; v2 numeric; v_txt text;
+  v_sorte text; v_t0 timestamptz;
+begin
+  -- ================================================================
+  -- (a) Jeder Punkt der Verderbskurve kennt seinen Messtag
+  -- ================================================================
+  assert exists (select 1 from information_schema.columns
+                  where table_name = 'v_schimmel_punkte' and column_name = 'messtag'),
+    '0079 (a1): v_schimmel_punkte.messtag fehlt — ohne Datum gibt es keine Kalenderachse';
+  perform auswertung_aktualisieren();
+  select count(*) into v_n from erg_punkte;
+  assert v_n > 0, '0079 (a2): keine Punkte — der Prüfdatensatz trägt die Prüfung nicht';
+  assert not exists (select 1 from erg_punkte where messtag is null),
+    '0079 (a3): ein Punkt ohne Messtag — leer ist nicht null, aber gemessen wurde an einem Tag';
+  select count(*) into v_n from erg_punkte where messtag > heute();
+  assert v_n = 0, format('0079 (a4): %s Punkte mit einem Messtag in der Zukunft (0070: die Zeit läuft vorwärts)', v_n);
+  select count(*) into v_n from erg_punkte p join auftrag a on a.id = p.auftrag_id
+   where p.messtag is distinct from betriebstag(a.start_ts);
+  assert v_n = 0,
+    format('0079 (a5): %s Punkte, deren Messtag nicht der Betriebstag ihrer Arbeit ist', v_n);
+  assert (select count(*) from erg_punkte) = (select count(*) from v_schimmel_punkte),
+    '0079 (a6): erg_punkte ist nicht die Sicht — die gespeicherte Fassung muss neu gebaut werden (Muster 0076)';
+
+  -- ================================================================
+  -- (b) Der Nenner beim Waschen: die fertigen Paletten
+  -- ================================================================
+  select sorte into v_sorte from charge where nr = 1613;
+  v_t0 := now() - interval '3 hours';
+  insert into auftrag (weg, station, charge_nr, start_ts, ende_ts, status,
+                       kistensystem, soll_kg_pro_kiste,
+                       sortierschema_id, eroeffnet_von)
+  values ('maschine', 'waschen', 1613, v_t0, v_t0 + interval '2 hours', 'abgeschlossen',
+          'kiste_ab', 8, sortierschema_fuer(v_sorte, null, current_date, 'kiste'),
+          '11111111-1111-1111-1111-111111111111')
+  returning id into v_a;
+  -- Der Palox: 165 zu Beginn, 285 am Ende — 120 kg Faules in dieser Arbeit.
+  insert into schimmel_messung (auftrag_id, kg, palox_stand_kg, ts, erfasser)
+  values (v_a, 0, 165, v_t0, '11111111-1111-1111-1111-111111111111'),
+         (v_a, 0, 285, v_t0 + interval '2 hours', '11111111-1111-1111-1111-111111111111');
+  assert (select kg from v_schimmel_menge where auftrag_id = v_a) = 120,
+    '0079 (b1): 285 − 165 = 120 kg Faules — der Prüffall steht nicht';
+  -- Die Masse je Arbeit liegt gespeichert vor; die neue Arbeit muss erst hinein.
+  -- Nur diese eine Sicht, nicht das ganze Rechenwerk: geprüft wird v_auftrag_masse.
+  refresh materialized view mv_auftrag_masse;
+
+  -- Ohne fertige Paletten und ohne gezählte Kisten: keine Masse, kein Punkt.
+  -- Leer ist nicht null — eine Arbeit ohne Nenner darf nicht mit 0 dastehen.
+  assert (select eingang_netto_kg from v_auftrag_masse where auftrag_id = v_a) is null,
+    '0079 (b2): ohne fertige Paletten hat die Wasch-Arbeit eine Masse — woher?';
+  assert not exists (select 1 from v_schimmel_punkte where auftrag_id = v_a),
+    '0079 (b3): ohne Nenner darf die Arbeit kein Punkt der Verderbskurve sein';
+
+  -- Drei gewogene volle Paletten, je 32 Kisten G2: 272 kg netto je Palette.
+  insert into ausgang_wiegung (auftrag_id, charge_nr, brutto_kg, kisten, gebindeart, voll, erfasser)
+  select v_a, 1613, 272 + 32 * 1.5 + 25, 32, 'G2', true, '11111111-1111-1111-1111-111111111111'
+    from generate_series(1, 3);
+  assert (select round(avg(netto_kg), 2) from v_ausgang_voll where auftrag_id = v_a) = 272,
+    '0079 (b4): 345 brutto − 32 × 1.5 − 25 = 272 kg netto je Palette';
+  -- Gewogen sind drei, dagestanden sind fünf.
+  update auftrag set fertige_paletten_gesamt = 5 where id = v_a;
+  refresh materialized view mv_auftrag_masse;
+
+  select eingang_netto_kg into v from v_auftrag_masse where auftrag_id = v_a;
+  assert v = 5 * 272,
+    format('0079 (b5): Masse heraus = 5 fertige Paletten × 272 kg = 1360, ist %s', v);
+  assert (select masse_quelle from v_auftrag_masse where auftrag_id = v_a) = 'fertige_paletten',
+    '0079 (b6): die Quelle muss „fertige_paletten" heissen — sonst weiss niemand, woher die Zahl kommt';
+  select basis_jetzt_kg into v from v_schimmel_punkte where auftrag_id = v_a;
+  assert v = 5 * 272 + 120,
+    format('0079 (b7): hinein = heraus + Faules = 1480, ist %s', v);
+  assert (select messtag from v_schimmel_punkte where auftrag_id = v_a) = betriebstag(v_t0),
+    '0079 (b8): der Messtag der Wasch-Arbeit ist ihr Betriebstag';
+
+  -- Ohne eigene Wägungen fällt die Masse auf die Palettenmasse der Sorte
+  -- zurück — oder sie ist unbekannt. Eine 0 darf dabei nie herauskommen.
+  delete from ausgang_wiegung where auftrag_id = v_a;
+  refresh materialized view mv_auftrag_masse;
+  select eingang_netto_kg into v from v_auftrag_masse where auftrag_id = v_a;
+  assert v is null or v > 0,
+    format('0079 (b9): ohne eigene Wägungen ist die Masse unbekannt oder die der Sorte — nie 0 (ist %s)', v);
+
+  delete from auftrag where id = v_a;
+  perform auswertung_aktualisieren();
+
+  -- ================================================================
+  -- (c) Die Glocke am Stichtag zeigt dieselben Kürbisse wie die Tabelle
+  -- ================================================================
+  assert to_regprocedure('public.kaliber_glocke(integer)') is not null,
+    '0079 (c1): kaliber_glocke(integer) fehlt';
+  assert to_regprocedure('public.kuerbis_stichtag(integer)') is not null,
+    '0079 (c2): kuerbis_stichtag(integer) fehlt — beide Bilder müssen aus einer Rechnung kommen';
+  select count(*) into v_n from kaliber_glocke(0);
+  assert v_n > 0, '0079 (c3): kaliber_glocke(0) ist leer';
+  -- Dieselbe Masse: die Stufen einer Gruppe summieren auf die Masse ihrer
+  -- Bänder in lager_kaliber — für heute und für zwei Stichtage danach.
+  select count(*) into v_n from (
+    select g.gruppe, g.schluessel, g.h
+      from (values (0), (28), (196)) hh(h)
+      cross join lateral kaliber_glocke(hh.h) g
+     group by g.gruppe, g.schluessel, g.h
+    having abs(sum(g.masse_kg) - coalesce((select sum(k.kg) from lager_kaliber(g.h) k
+                                            where k.gruppe = g.gruppe and k.schluessel = g.schluessel
+                                              and k.basis <> 'keine'), 0)) > 0.05) x;
+  assert v_n = 0,
+    format('0079 (c4): %s Gruppen, deren Glocke nicht auf die Masse ihrer Bänder summiert — zwei Bilder, zwei Rechnungen', v_n);
+  -- Die Stufen sind 50 g breit und wandern mit der Zeit nach unten.
+  assert not exists (select 1 from kaliber_glocke(0) where stufe_g % 50 <> 0),
+    '0079 (c5): die Stufen der Glocke sind nicht 50 g breit';
+  -- Verglichen wird eine Sorte, die am späteren Stichtag **noch liegt**: Wo
+  -- nichts mehr im Haus ist, gibt es keinen Schwerpunkt, und ein Vergleich
+  -- gegen NULL wäre keine Prüfung, sondern ein blinder Fleck. Deshalb wird
+  -- die Sorte am späten Stichtag gewählt und dann rückwärts verglichen.
+  -- Der Prüfdatensatz von run.sh ist kürzer als die Demo-Saison: Irgendwann
+  -- ist das Lager leer, und ein Stichtag dahinter hat keinen Schwerpunkt.
+  -- Deshalb der **späteste** Stichtag, an dem überhaupt noch eine Sorte liegt.
+  v_n := null;
+  foreach v_a in array array[196, 84, 28, 14] loop
+    select schluessel into v_txt from kaliber_glocke(v_a::int)
+     where gruppe = 'sorte' group by schluessel order by sum(n_kuerbis) desc limit 1;
+    if v_txt is not null then v_n := v_a; exit; end if;
+  end loop;
+  assert v_n is not null,
+    '0079 (c6a): schon in 14 Tagen liegt keine Sorte mehr — dann trägt der Prüfdatensatz die Schwerpunkt-Prüfung nicht';
+  select sum(stufe_g * n_kuerbis)::numeric / nullif(sum(n_kuerbis), 0) into v
+    from kaliber_glocke(0) where gruppe = 'sorte' and schluessel = v_txt;
+  select sum(stufe_g * n_kuerbis)::numeric / nullif(sum(n_kuerbis), 0) into v2
+    from kaliber_glocke(v_n) where gruppe = 'sorte' and schluessel = v_txt;
+  assert v is not null and v2 is not null,
+    format('0079 (c6b): die Sorte %s hat an einem der beiden Stichtage keinen Schwerpunkt (%s → %s)', v_txt, v, v2);
+  -- Gleichstand ist erlaubt: Liegt die ganze Sorte in einer 50-g-Stufe und
+  -- schrumpft in dieser Zeit um weniger als eine Stufe, wandert der
+  -- Schwerpunkt nicht. Steigen darf er nie — Kürbisse werden nicht schwerer.
+  assert v2 <= v,
+    format('0079 (c6): der Schwerpunkt der Glocke von %s steigt in %s Tagen (%s → %s g) — die Ware schrumpft',
+           v_txt, v_n, v, v2);
+  -- Ein Aufruf muss billig sein: der Bildschirm ruft ihn bei jedem Tastendruck.
+  v_start := clock_timestamp();
+  perform count(*) from kaliber_glocke(84);
+  assert clock_timestamp() - v_start < interval '2 seconds',
+    format('0079 (c7): kaliber_glocke(84) braucht %s — zu langsam für einen Aufruf je Tastendruck', clock_timestamp() - v_start);
+
+  raise notice 'OK  0079 — Messtag an jedem Punkt, Wasch-Nenner aus den fertigen Paletten, Glocke und Tabelle aus einer Rechnung';
+end $$;
+
+select '——— 0079 Messtag, Wasch-Nenner, Glocke geprüft ———' as ergebnis;

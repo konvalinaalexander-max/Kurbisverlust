@@ -844,3 +844,56 @@ zählen oder nicht.
 
 > Wird beim Sortieren mitgezählt, wie viele Kisten je Kaliber gefüllt wurden —
 > und wenn nein: Wer müsste es tun, und was hindert ihn daran?
+
+---
+
+## Aus Runde R (16. September) — drei Fragen an die echte Saison
+
+**63. Soll die Zahl der fertigen Paletten beim Waschen immer Pflicht sein?**
+
+Seit 0079 rechnet eine Wasch-Arbeit ihre Masse aus den **fertigen** Paletten:
+`fertige_paletten_gesamt` × dem Mittel der eigenen gewogenen vollen Paletten.
+Das ist die Masse, die herauskam; die Basis der Verderbsrechnung ist dann
+*heraus + Faules* — sauber.
+
+Wo die Zahl fehlt, greift der alte Weg: die gezählten Kisten der Paletten, die
+**hineingingen**, mal einem Kistengewicht aus anderen Arbeiten. Dort ist das
+Faule schon in der Masse enthalten, und die Basis addiert es ein zweites Mal —
+rund 1 % zu viel, gemessen an der Demo-Saison. Dazu kommt, dass das
+Kistengewicht quer über den Gebindewechsel gerechnet wird (G2 hinein, IFCO
+heraus).
+
+Heute ist die Zahl nur Pflicht, wenn der Palox zweimal abgelesen wurde
+(AB-64). Der Aufwand ist ein einziges Feld am Ende der Arbeit.
+
+> Kann der Vorarbeiter beim Waschen **immer** sagen, wie viele fertige
+> Paletten es wurden — auch wenn er den Palox nicht abgelesen hat? Wenn ja,
+> wird das Feld Pflicht und der alte Kistenweg verschwindet von selbst.
+
+**64. Fällt die Fäulnis im Winter sichtbar an — und wann genau?**
+
+„wann hat fäulnis besonders zugelegt … plötzlich ab dezember" lässt sich seit
+0079 stellen: Jeder Punkt der Verderbskurve trägt seinen Messtag, und die
+Grafik *Ursachen → Faules im Lager* hat einen Umschalter **Kalender**. Was
+fehlt, sind Punkte aus einem Winter — die Demo-Saison hat keine.
+
+Die App **behauptet dazu nichts**: Sie rechnet weiter mit einer Kurve über der
+Lagerdauer. Erst wenn die Punkte im Kalender ein Muster zeigen, das die
+Lagerdauer allein nicht erklärt, wird daraus eine zweite Grösse — und dann
+gemessen, nicht angenommen.
+
+> Zum Ansehen im Frühling: Liegen die Punkte im Dezember und Januar sichtbar
+> höher als im Herbst, bei gleicher Lagerdauer?
+
+**65. Warum streut die Verdunstungsrate um den Faktor drei?**
+
+41 verwendbare Wägungen der Demo-Saison ergeben Tagesraten von 0.033 % bis
+0.096 %. Gerechnet wird mit **einer** Rate je Sorte. Ob der Unterschied an der
+Sorte liegt, am Lagerplatz (Halle, Aussenlager, Tiefkühlnähe), an der
+Jahreszeit oder an der Waage, sagen die Zahlen nicht.
+
+Auf der Kalenderachse (*Ursachen → Verdunstung*) wäre ein jahreszeitlicher
+Gang sichtbar, wenn es ihn gibt.
+
+> Gibt es Lagerplätze, die sich spürbar unterscheiden — und wird beim Wiegen
+> notiert, wo die Palette lag?

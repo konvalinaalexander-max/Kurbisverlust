@@ -29,6 +29,9 @@ export interface Modell {
 export interface Schimmelpunkt {
   auftrag_id: number | null; charge_nr: number; sorte: string; lagertage: number
   schimmel_kg: number; basis_jetzt_kg: number; anteil: number | null; plausibel: boolean; quelle: string
+  /** 0079: der Betriebstag der Messung. Die Lagerdauer sagt „nach wie vielen
+   *  Wochen", der Messtag „ab wann" — zwei Fragen an dieselbe Messung. */
+  messtag: string
 }
 /**
  * Je Charge (erg_charge, 0061): Eingang gemessen, geliefert gemessen,
@@ -107,6 +110,7 @@ export interface Wiegung {
   id: number; auftrag_id: number | null; charge_nr: number; sorte: string; lagertage: number; wiege_ts: string
   netto_damals_kg: number | null; netto_jetzt_kg: number | null; kg_pro_kiste: number | null
   kg_pro_kuerbis: number | null; verdunstung_kg: number | null; sichtbar_schimmel: boolean
+  rate_pro_tag: number | null; verwendbar: boolean
 }
 export interface Kurve { altersklasse: string; von: number; bis: number; messungen: number; gemessen: number | null; verwendet: number | null; unten: number | null; oben: number | null; erlaeuterung: string }
 export interface Kaliberzeile { charge_nr: number; sorte: string; klasse: string; band_von: number | null; band_bis: number | null; n_kuerbis: number; masse_kg: number }
@@ -144,6 +148,45 @@ export interface Ueberfuellung {
    *  die unbezahlt mitgeht — Rahmen, nicht Verlust. */
   lage_im_band: number | null; spielraum_kg: number | null
 }
+/**
+ * Die verschenkte Marge je Wägung (erg_marge_wiegung, 0078) — ohne
+ * Verkaufsdatei: je Sorte und Kistensystem der Durchschnitt der gewogenen
+ * vollen fertigen Paletten. „Kiste ab x kg": Ist gegen Soll je Kiste.
+ * „x Stück je Kaliber": Gramm je Kürbis gegen die Mitte des Bands.
+ */
+export interface MargeWiegung {
+  sorte: string; kistensystem: 'kiste_ab' | 'stueck'
+  soll_kg_pro_kiste: number | null; kaliber_idx: number | null; stueck_je_kiste: number | null
+  band_mittel_g: number | null
+  n_wiegungen: number; kisten: number
+  kg_je_kiste: number | null; sd_je_kiste: number | null; zuviel_je_kiste: number | null
+  g_je_kuerbis: number | null; g_ueber_bandmitte: number | null
+  von: string | null; bis: string | null
+}
+
+/**
+ * Das Lager nach Kaliber (lager_kaliber(h), 0078/0079): die verkaufsfähige
+ * Masse der Kaskade, aufgeteilt auf die Kaliberbänder der Sorte — jeder
+ * Kürbis der Sortier-CSV um die gemessene Verdunstung geschrumpft und neu
+ * ins Band gelegt. `kaliber_idx` −1 heisst „unter das kleinste Band
+ * gefallen": laut Rechnung verkaufsfähig, laut Band nicht mehr.
+ * `basis` sagt, woher die Verteilung kommt (eigene CSV, die der Sorte,
+ * keine). Die Summe über die Bänder ist verkaufsfaehig_kg.
+ */
+export interface LagerKaliber {
+  gruppe: 'charge' | 'sorte'; schluessel: string; sorte: string; h: number; datum: string
+  kaliber_idx: number | null; band_von: number | null; band_bis: number | null
+  kg: number | null; anteil: number | null; basis: 'charge' | 'sorte' | 'keine' | 'gemischt'
+  n_kuerbis: number | null; verkaufsfaehig_kg: number; lager_kg: number; n_chargen: number
+}
+
+/** Dieselben Kürbisse in 50-Gramm-Stufen (kaliber_glocke(h), 0079). */
+export interface KaliberGlocke {
+  gruppe: 'charge' | 'sorte'; schluessel: string; sorte: string; h: number; datum: string
+  stufe_g: number; n_kuerbis: number | null; masse_kg: number | null; anteil: number | null
+  basis: 'charge' | 'sorte' | 'gemischt'; n_chargen: number
+}
+
 export interface Datenqualitaet {
   paletten_gezaehlt: number; paletten_mit_datum: number; arbeiten_fertig: number
   arbeiten_mit_ablesung: number; arbeiten_mit_zwei_ablesungen: number; arbeiten_mit_antwort: number
@@ -265,13 +308,13 @@ export interface Auswertung {
   punkte: Schimmelpunkt[]
   bestand: Bestand[]
   naechste: NaechsteCharge[]
-  sorten: { verdunstung: SortenK[]; ausschuss: SortenK[]; nebenkanal: SortenK[]; fax: SortenK[] }
+  sorten: { verdunstung: SortenK[]; ausschuss: SortenK[]; nebenkanal: SortenK[] }
   wiegungen: Wiegung[]
-  marge: Marge[]
+  /** Die Marge je Wägung, ohne Verkaufsdatei (0078). */
+  margeWiegung: MargeWiegung[]
   gewichte: Gewichtsstufe[]
   verarbeitung: VerarbeitungAlter[]
   durchsatz: Durchsatz[]
-  ueberfuellung: Ueberfuellung[]
   qualitaet: Datenqualitaet | null
   verlauf: Verlaufswoche[]
   verlust: Verlustzeile[]
@@ -279,12 +322,9 @@ export interface Auswertung {
   prognose: Prognose[]
   /** Der ganze Eingang je Gruppe aufgeteilt (0071). */
   wohin: Wohin[]
-  /** Das Faule beim Abpacken nach Tagen seit dem Waschen (0071). */
-  faxWartezeit: FaxWartezeit[]
   gebinde: KoeffGebinde[]
   schemata: Schema[]
   kohorten: Kohorte[]
-  fax: FaxBeobachtung[]
   ausschuss: AusschussBeobachtung[]
   lieferungen: LieferungKurz[]
   ausgang: AusgangKennzahl[]
@@ -365,26 +405,29 @@ async function alles(erzwingen: boolean): Promise<Auswertung> {
     if (r.error) { merken(name, r.error); return null }
     return (r.data ?? null) as T | null
   }
-  const [b, d, pl, kv, sk, mo, sel, sb, pk, hb, nc, kfv, kfa, kfn, kfu, wk, mg, gw, va, ds, uk, dq, vl, ve, kg, ss, ko, fx, ab, lf, ak, pg, wo, fw, kff] = await Promise.all([
+  const [b, d, pl, kv, sk, mo, sel, sb, pk, hb, nc, kfv, kfa, kfn, kfu, wk, mw, gw, va, ds, dq, vl, ve, kg, ss, ko, ab, lf, ak, pg, wo] = await Promise.all([
     q<Massenbilanz>('erg_massenbilanz'), q<Datenlage>('erg_datenlage'),
     q<Befund>('erg_plausibilitaet'), q<Kaliberzeile>('erg_kaliber'), q<Kurve>('erg_kurve'),
     eins<Modell>('erg_modell'), eins<Selektion>('erg_selektion'), eins<Saisonbilanz>('erg_bilanz'),
     q<Schimmelpunkt>('erg_punkte'), q<Bestand>('erg_charge'), q<NaechsteCharge>('erg_naechste_charge'),
     q<SortenK>('erg_koeff_verdunstung'), q<SortenK>('erg_koeff_ausschuss'), q<SortenK>('erg_koeff_nebenkanal'),
     q<{ n: number; kg_pro_kiste: number | null }>('erg_koeff_ueberfuellung'),
-    q<Wiegung>('erg_wiegung', ['wiege_ts', false]), q<Marge>('erg_marge'),
+    q<Wiegung>('erg_wiegung', ['wiege_ts', false]), q<MargeWiegung>('erg_marge_wiegung'),
     q<Gewichtsstufe>('erg_gewichte'), q<VerarbeitungAlter>('erg_verarbeitung_alter', ['tag', true]),
-    q<Durchsatz>('erg_durchsatz', ['start_ts', false]), q<Ueberfuellung>('erg_ueberfuellung'),
+    q<Durchsatz>('erg_durchsatz', ['start_ts', false]),
     eins<Datenqualitaet>('erg_datenqualitaet'), q<Verlaufswoche>('erg_verlauf', ['woche', true]),
     q<Verlustzeile>('erg_verlust'),
     q<KoeffGebinde>('erg_gebinde'), q<Schema>('sortierschema', ['gilt_ab', false]),
-    q<Kohorte>('erg_kohorte', ['eingangsdatum', true]), q<FaxBeobachtung>('erg_fax', ['start_ts', false]),
+    q<Kohorte>('erg_kohorte', ['eingangsdatum', true]),
     q<AusschussBeobachtung>('erg_ausschuss'),
     q<LieferungKurz>('erg_lieferung', ['datum', true]),
     q<AusgangKennzahl>('erg_ausgang', ['ts', true]),
     q<Prognose>('erg_prognose', ['h', true]), q<Wohin>('erg_wohin'),
-    q<FaxWartezeit>('erg_fax_wartezeit', ['reihenfolge', true]), q<SortenK>('erg_koeff_fax'),
   ])
+  // Fax liegt auf Eis (Runde R): erg_fax, erg_fax_wartezeit und erg_koeff_fax
+  // bleiben in der Datenbank, aber kein Bildschirm liest sie mehr. Ebenso
+  // erg_ueberfuellung und erg_marge — die Marge hängt jetzt an den Wägungen,
+  // nicht an der Verkaufsdatei (0078).
 
   type K = { mittel?: number | null; n: number; basis?: string }
   const mittelwert = (r: K[]) => { const g = r.filter(x => x.mittel != null); return g.length ? g.reduce((a, x) => a + (x.mittel ?? 0), 0) / g.length : null }
@@ -403,10 +446,10 @@ async function alles(erzwingen: boolean): Promise<Auswertung> {
     stand: st2?.berechnet_ts ?? null, heute,
     bilanz: b, lage: d, befunde: pl, kaliber: kv, kurve: sk, koeff,
     modell: mo, selektion: sel, saison: sb, punkte: pk, bestand: hb, naechste: nc,
-    sorten: { verdunstung: kfv, ausschuss: kfa, nebenkanal: kfn, fax: kff }, wiegungen: wk, marge: mg,
-    gewichte: gw, verarbeitung: va, durchsatz: ds, ueberfuellung: uk, qualitaet: dq, verlauf: vl, verlust: ve,
-    gebinde: kg, schemata: ss, kohorten: ko, fax: fx, ausschuss: ab, lieferungen: lf, ausgang: ak,
-    prognose: pg, wohin: wo, faxWartezeit: fw,
+    sorten: { verdunstung: kfv, ausschuss: kfa, nebenkanal: kfn }, wiegungen: wk, margeWiegung: mw,
+    gewichte: gw, verarbeitung: va, durchsatz: ds, qualitaet: dq, verlauf: vl, verlust: ve,
+    gebinde: kg, schemata: ss, kohorten: ko, ausschuss: ab, lieferungen: lf, ausgang: ak,
+    prognose: pg, wohin: wo,
     probleme,
   }
 }
@@ -414,6 +457,8 @@ async function alles(erzwingen: boolean): Promise<Auswertung> {
 export function auswertungLaden(erzwingen = false): Promise<Auswertung> {
   if (stand && !erzwingen) return Promise.resolve(stand)
   if (!ladeVersprechen || erzwingen) {
+    // Wird neu gerechnet, sind auch die geholten Stichtage von gestern.
+    if (erzwingen) { kaliberJeStichtag.clear(); glockeJeStichtag.clear() }
     const v: Promise<Auswertung> = alles(erzwingen)
       .then(a => { stand = a; ladeVersprechen = null; hoerer.forEach(h => h()); return a })
       .catch((f: unknown) => { ladeVersprechen = null; melden(null); throw f })
@@ -446,6 +491,53 @@ export async function hochrechnungLaden(): Promise<Hochrechnung[]> {
     alle.push(...teil)
     if (teil.length < SEITE) return alle
   }
+}
+
+/* ---------- Das Lager nach Kaliber: je Stichtag ein Aufruf ----------------- */
+
+/**
+ * `lager_kaliber(h)` und `kaliber_glocke(h)` sind Funktionen, keine
+ * gespeicherten Sichten: Das Neurechnen liegt bei dreifacher Saison an
+ * seiner Zwölf-Sekunden-Grenze, und der Bildschirm braucht ohnehin nur zwei
+ * Stichtage — heute und „in X Wochen". Ein Aufruf kostet rund 35 ms; jeder
+ * Stichtag wird einmal geholt und behalten, bis neu gerechnet wird.
+ */
+const kaliberJeStichtag = new Map<number, LagerKaliber[]>()
+const glockeJeStichtag = new Map<number, KaliberGlocke[]>()
+
+async function rpcStichtag<T>(fn: string, h: number, halde: Map<number, T[]>): Promise<T[]> {
+  const da = halde.get(h)
+  if (da) return da
+  const r = await supabase.rpc(fn, { p_h: h })
+  if (r.error) throw new Error(r.error.message)
+  const zeilen = (r.data ?? []) as T[]
+  halde.set(h, zeilen)
+  return zeilen
+}
+
+export const lagerKaliberBei = (h: number) => rpcStichtag<LagerKaliber>('lager_kaliber', h, kaliberJeStichtag)
+export const kaliberGlockeBei = (h: number) => rpcStichtag<KaliberGlocke>('kaliber_glocke', h, glockeJeStichtag)
+
+/**
+ * Ein Stichtag für einen Bildschirm: die Zeilen, ob gerade geladen wird, und
+ * der Fehler, falls einer kam. Während des Ladens bleiben die zuletzt
+ * geholten Zeilen stehen (der Bildschirm zeigt sie blass) — ein Sprung auf
+ * leer bei jedem Tastendruck wäre unruhiger als eine alte Zahl.
+ */
+export function useStichtag<T>(holen: (h: number) => Promise<T[]>, h: number) {
+  const [zeilen, setZeilen] = useState<T[]>([])
+  const [laedt, setLaedt] = useState(true)
+  const [fehler, setFehler] = useState<string | null>(null)
+  useEffect(() => {
+    let gilt = true
+    setLaedt(true)
+    holen(h)
+      .then(z => { if (gilt) { setZeilen(z); setFehler(null) } })
+      .catch((f: unknown) => { if (gilt) setFehler(fehlerText(f)) })
+      .finally(() => { if (gilt) setLaedt(false) })
+    return () => { gilt = false }
+  }, [holen, h])
+  return { zeilen, laedt, fehler }
 }
 
 export function useAuswertung() {

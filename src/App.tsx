@@ -13,7 +13,7 @@ import Arbeit from './pages/Arbeit'
 import Kontrolle from './pages/Kontrolle'
 
 // Die Auswertung des Betriebsleiters wird erst geholt, wenn er sie öffnet.
-const Ueberblick = lazy(() => import('./pages/Ueberblick'))
+const Lagermanagement = lazy(() => import('./pages/Lagermanagement'))
 const Ursachen = lazy(() => import('./pages/Ursachen'))
 const Chargen = lazy(() => import('./pages/Chargen'))
 const Messungen = lazy(() => import('./pages/Messungen'))
@@ -73,7 +73,7 @@ export default function App() {
 
   // Fünf Reiter, je mit einem Satz, was er beantwortet (docs/UI-KONZEPT.md).
   const reiter: [string, string, (p: { size?: number }) => ReactNode][] = [
-    ['/dashboard', 'Überblick', ZBalken],
+    ['/dashboard', 'Lagermanagement', ZBalken],
     ['/ursachen', 'Ursachen', ZLupe],
     ['/chargen', 'Chargen', ZListe],
     ['/messungen', 'Messungen', ZRegler],
@@ -137,7 +137,7 @@ export default function App() {
           <Route path="/auftraege" element={<Navigate to="/" replace />} />
           <Route path="/auftraege/:id" element={<AlteArbeit />} />
           <Route path="/kontrolle" element={<Kontrolle />} />
-          <Route path="/dashboard" element={istAdmin ? <Ueberblick /> : <NurAdmin />} />
+          <Route path="/dashboard" element={istAdmin ? <Lagermanagement /> : <NurAdmin />} />
           <Route path="/ursachen" element={istAdmin ? <Ursachen /> : <NurAdmin />} />
           <Route path="/chargen" element={istAdmin ? <Chargen /> : <NurAdmin />} />
           <Route path="/messungen" element={istAdmin ? <Messungen /> : <NurAdmin />} />

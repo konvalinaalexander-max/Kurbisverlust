@@ -57,15 +57,15 @@ const LEXIKON = JSON.parse(readFileSync(join(HIER, 'begriffe.json'), 'utf8'))
 /* ---------- Die Seiten des Betriebsleiters ------------------------------- */
 // Jede Ansicht, die Zahlen zeigt — auch die, die erst ein Klick öffnet.
 const SEITEN = [
-  { name: 'ueberblick', pfad: '/dashboard' },
-  { name: 'ueberblick-sorte', pfad: '/dashboard',
-    tun: async p => { await reiter(p, 'je Sorte'); } },
-  { name: 'ueberblick-charge', pfad: '/dashboard',
-    tun: async p => { await reiter(p, 'je Charge'); } },
-  { name: 'ueberblick-imhaus', pfad: '/dashboard',
-    tun: async p => { await aufklappen(p) } },
+  // Runde R: /dashboard ist das Lagermanagement. Der Filter ist ein Feld, kein
+  // Reiter — deshalb steht die Auswahl in der Adresse.
+  { name: 'lager', pfad: '/dashboard' },
+  { name: 'lager-sorte', pfad: '/dashboard', tun: async p => { await ersteWahl(p, 'lager-filter', 'sorte') } },
+  { name: 'lager-charge', pfad: '/dashboard', tun: async p => { await ersteWahl(p, 'lager-filter', 'charge') } },
+  { name: 'lager-wochen', pfad: '/dashboard?wochen=6' },
   { name: 'ursachen', pfad: '/ursachen' },
   { name: 'ursachen-aufgeklappt', pfad: '/ursachen', tun: async p => { await aufklappen(p) } },
+  { name: 'ursachen-sorte', pfad: '/ursachen', tun: async p => { await ersteWahl(p, 'uf', 'sorte') } },
   { name: 'chargen', pfad: '/chargen' },
   { name: 'chargen-offen', pfad: '/chargen',
     tun: async p => {
@@ -78,6 +78,16 @@ const SEITEN = [
   { name: 'betrieb-arbeiten', pfad: '/betrieb/arbeiten' },
   { name: 'betrieb-lieferungen', pfad: '/betrieb/lieferungen' },
 ]
+/** Die erste Sorte oder Charge im Filterfeld wählen. */
+const ersteWahl = async (p, feldId, art) => {
+  const feld = p.locator(`#${feldId}`)
+  await feld.waitFor({ state: 'visible', timeout: 60000 })
+  const werte = await p.locator(`#${feldId} option[value^="${art}|"]`).evaluateAll(os => os.map(o => o.value))
+  if (!werte.length) throw new Error(`Filter #${feldId} hat keine Auswahl der Art „${art}"`)
+  await feld.selectOption(werte[0])
+  await p.locator('.aktiv-filter').waitFor()
+  await p.waitForTimeout(400)
+}
 const reiter = async (p, name) => {
   const r = p.getByRole('tab', { name }).first()
   await r.waitFor({ state: 'visible', timeout: 60000 })
@@ -119,8 +129,38 @@ const ERNTEN = () => {
   //    bei einer Merkmal-Wert-Tabelle ohne Kopfzeile sagt es die Zeile allein.
   //    Zellen, in denen eine ganze Tabelle steckt (die aufgeklappte Charge),
   //    sind Behälter, keine Zahlen — die Zahlen darin werden für sich geerntet.
+  // Ein Kopf kann zwei Zeilen hoch sein (Runde R: die Gruppe „verkaufsfähig
+  // heute" über den Bändern). Dann gilt je Spalte, was **beide** Zeilen
+  // sagen — ein Mensch liest „verkaufsfähig heute · 1800–2000 g" und weiss
+  // erst dadurch, ob die Zahl von heute oder von später ist. Wer nur die
+  // untere Zeile nimmt, hält „1800–2000 g" für die Beschriftung einer Masse.
+  const spaltenNamen = zeilen => {
+    const feld = new Map()                      // "zeile|spalte" → Text
+    zeilen.forEach((zeile, r) => {
+      let c = 0
+      for (const z of zeile.children) {
+        while (feld.has(`${r}|${c}`)) c++
+        const cs = z.colSpan || 1, rs = z.rowSpan || 1
+        const t = text(z)
+        for (let i = 0; i < rs; i++) for (let j = 0; j < cs; j++) feld.set(`${r + i}|${c + j}`, t)
+        c += cs
+      }
+    })
+    const breite = Math.max(0, ...[...feld.keys()].map(k => Number(k.split('|')[1]) + 1))
+    return Array.from({ length: breite }, (_, c) => {
+      const teile = []
+      for (let r = 0; r < zeilen.length; r++) {
+        const t = feld.get(`${r}|${c}`)
+        if (t && !teile.includes(t)) teile.push(t)
+      }
+      return teile.join(' · ')
+    })
+  }
   for (const tab of document.querySelectorAll('table')) {
-    const koepfe = [...tab.querySelectorAll('thead th, tr:first-child th')].map(text)
+    const kopfzeilen = [...tab.querySelectorAll('thead tr')]
+    const koepfe = kopfzeilen.length
+      ? spaltenNamen(kopfzeilen)
+      : [...tab.querySelectorAll('tr:first-child th')].map(text)
     // Eine Liste (mit thead) beschriftet ihre Zahlen über die Spalte: jede
     // Zeile ist ein Ding, die Spalte sagt, welche Grösse. Eine kleine Matrix
     // ohne thead (Kennzahl mal Klasse) beschriftet über beides — der Mensch
@@ -344,18 +384,18 @@ for (const seite of SEITEN) {
   console.log(`  ${fehler.length ? '✗' : '✓'} ${seite.name}: ${ernte.zahlen.length} Zahlen geerntet${fehler.length ? `, ${fehler.length} Beanstandungen` : ''}`)
 
   // Die Gegenprobe nur dort, wo die Kopfzahlen stehen
-  if (seite.name === 'ueberblick') {
+  if (seite.name === 'lager') {
     const soll = sollzahlen()
     if (soll) {
       const kopf = ernte.zahlen.filter(z => z.art === 'kennzahl')
-      for (const [titelTeil, wert] of [['eingang', soll.eingang], ['ausgeliefert', soll.geliefert],
+      for (const [titelTeil, wert] of [['eingang', soll.eingang], ['ausgang', soll.geliefert],
                                        ['im lager', soll.lager], ['verkaufsfähig', soll.verkaufsfaehig]]) {
         const gefunden = kopf.find(z => norm(z.beschriftung).includes(titelTeil))
-        if (!gefunden) { alleFehler.push({ seite: seite.name, regel: 'Gegenprobe', was: `Kopfzahl „${titelTeil}" fehlt`, wo: 'Überblick' }); continue }
+        if (!gefunden) { alleFehler.push({ seite: seite.name, regel: 'Gegenprobe', was: `Kopfzahl „${titelTeil}" fehlt`, wo: 'Lagermanagement' }); continue }
         const erwartet = tonnen(wert)
         if (!gefunden.wert.includes(erwartet.replace(' t', ''))) {
           alleFehler.push({ seite: seite.name, regel: 'Gegenprobe',
-                            was: `„${gefunden.beschriftung}" zeigt ${gefunden.wert}, aus erg_bilanz folgt ${erwartet}`, wo: 'Überblick' })
+                            was: `„${gefunden.beschriftung}" zeigt ${gefunden.wert}, aus erg_bilanz folgt ${erwartet}`, wo: 'Lagermanagement' })
         }
       }
     }

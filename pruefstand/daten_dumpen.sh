@@ -21,7 +21,7 @@ for R in v_hochrechnung erg_massenbilanz erg_datenlage erg_marge erg_plausibilit
          erg_koeff_ueberfuellung erg_gewichte erg_verarbeitung_alter erg_durchsatz erg_ueberfuellung \
          erg_datenqualitaet erg_verlauf erg_verlust erg_gebinde erg_lieferung erg_modell erg_selektion \
          erg_bilanz erg_punkte erg_charge erg_naechste_charge erg_kohorte erg_fax erg_ausschuss erg_ausgang \
-         erg_prognose erg_wohin erg_fax_wartezeit erg_koeff_fax \
+         erg_prognose erg_wohin erg_fax_wartezeit erg_koeff_fax erg_marge_wiegung \
          v_palox_stand v_lieferung_masse v_auftrag_masse auswertung_stand v_kohorte_anteil v_koeff_fax \
          ausgang_quelle ausgang_artikel v_ausgang_lage v_ausgang_artikel_vorschlag \
          charge sorte_kaliber gebinde einstellung ausgang_ziel kaeufer sortierschema \
@@ -33,6 +33,14 @@ for R in v_hochrechnung erg_massenbilanz erg_datenlage erg_marge erg_plausibilit
   dump "$R" "select * from $R"
 done
 dump erg_wiegung "select * from erg_wiegung order by wiege_ts desc"
+
+# Runde R: die beiden Stichtag-Funktionen. Sie rechnen beim Aufruf, also gibt
+# es je Stichtag eine eigene Datei — der Prüfstand soll für „in 6 Wochen" nicht
+# die Zahlen von heute sehen. h = 0 ist heute, sonst Wochen mal sieben.
+for H in 0 7 14 21 28 35 42 56 84; do
+  dump "rpc_lager_kaliber_$H"  "select * from lager_kaliber($H)"
+  dump "rpc_kaliber_glocke_$H" "select * from kaliber_glocke($H)"
+done
 
 # Eingebettete Abfrage: auftrag_teilnehmer mit profil(name)
 dump auftrag_teilnehmer "select at.auftrag_id, at.profil_id, at.verlassen_ts,

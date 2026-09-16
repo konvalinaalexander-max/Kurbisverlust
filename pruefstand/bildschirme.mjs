@@ -45,29 +45,27 @@ let T = id => id
 // Jeder Eintrag: Name, wer angemeldet ist, Pfad, und was vor dem Screenshot
 // noch zu tun ist (Klicks, damit Reiter und Dialoge sichtbar werden).
 /**
- * Die Auswahl auf *Ursachen* umstellen (Runde P). Der Filter ist ein
- * `<select>` mit Gruppen; welche Sorte oder Charge die Demo gerade hat, weiss
- * der Prüfstand nicht — er nimmt die erste ihrer Art. So bleibt das Bild
- * stabil, auch wenn die Demo-Saison wächst.
+ * Die Auswahl eines Reiters umstellen (Runde R). *Ursachen* und
+ * *Lagermanagement* haben dieselbe Filterleiste, nur ein anderes Feld:
+ * `#uf` dort, `#lager-filter` hier. Welche Sorte oder Charge die Demo gerade
+ * hat, weiss der Prüfstand nicht — er nimmt die erste ihrer Art, die noch Ware
+ * im Haus hat. Ohne Bestand fehlen die Kaliber-Tabelle und die Glocke zu
+ * Recht, und das Bild zeigte nur leere Karten.
  */
-async function waehleGruppe(p, art) {
-  const feld = p.locator('#uf')
+async function waehleGruppe(p, art, feldId = 'uf') {
+  const feld = p.locator(`#${feldId}`)
   await feld.waitFor({ state: 'visible', timeout: 60000 })
-  const werte = await p.locator(`#uf option[value^="${art}|"]`).evaluateAll(
+  const werte = await p.locator(`#${feldId} option[value^="${art}|"]`).evaluateAll(
     os => os.map(o => o.value))
-  if (!werte.length) throw new Error(`Ursachen-Filter hat keine Auswahl der Art „${art}"`)
-  // Die erste Sorte oder Charge der Liste hat womöglich nichts mehr im Lager —
-  // dann fehlt die neue Grafik „Was wird aus der liegenden Ware?" zu Recht
-  // (ohne Bestand gibt es keine Prognose), und das Bild zeigt sie nicht. Also
-  // die erste Auswahl nehmen, die noch Ware im Haus hat; gibt es keine, die
-  // erste überhaupt — auch dieser Zustand darf dann im Bild stehen.
+  if (!werte.length) throw new Error(`Filter #${feldId} hat keine Auswahl der Art „${art}"`)
   for (const wert of werte.slice(0, 12)) {
     await feld.selectOption(wert)
     await p.locator('.aktiv-filter').waitFor()
     await p.waitForTimeout(200)
-    // Nur der **Kartentitel** zählt: Denselben Satz nennt auch die Erklärung
-    // im Sortierungs-Block, und darauf träfe jede Auswahl zu.
-    if (await p.locator('.karte-titel h2', { hasText: 'Was wird aus der liegenden Ware?' }).count()) return
+    // Die Filterleiste sagt selbst, ob die Auswahl noch Ware im Haus hat:
+    // „3 Chargen · 2 mit Ware im Haus". Null heisst: die nächste nehmen.
+    const zeile = await p.locator('.filterleiste span', { hasText: 'mit Ware im Haus' }).first().innerText()
+    if (!/·\s*0 mit Ware im Haus/.test(zeile)) return
   }
   await feld.selectOption(werte[0])
   await p.locator('.aktiv-filter').waitFor()
@@ -191,34 +189,46 @@ const BILDSCHIRME = [
   // Die Korrektur (Runde H): der Betriebsleiter berichtigt die Messungen einer Arbeit
   { name: 'arbeit-korrektur', wer: 'admin', pfad: '/arbeit/FERTIG?korrigieren=1' },
   // Betriebsleiter: fünf Reiter
-  { name: 'ueberblick', wer: 'admin', pfad: '/dashboard' },
-  { name: 'ueberblick-sorte', wer: 'admin', pfad: '/dashboard',
-    // Erst warten, bis die Karte samt Umschalter steht: Der Überblick lädt ein
-    // Dutzend Ansichten, und ein Klick auf einen noch nicht gezeichneten Reiter
-    // lief bisher ins Zeitlimit.
+  // Runde R: der erste Reiter ist das Lagermanagement — was liegt, wovon, in
+  // welchem Kaliber, heute und in X Wochen. Die Kaliber-Tabelle und die Glocke
+  // rufen `lager_kaliber(h)` und `kaliber_glocke(h)` je Stichtag; die Attrappe
+  // hat dafür eigene Fixtures, damit „in 6 Wochen" nicht heute zeigt.
+  { name: 'lager', wer: 'admin', pfad: '/dashboard' },
+  { name: 'lager-sorte', wer: 'admin', pfad: '/dashboard',
+    tun: async p => { await waehleGruppe(p, 'sorte', 'lager-filter') } },
+  { name: 'lager-charge', wer: 'admin', pfad: '/dashboard',
+    tun: async p => { await waehleGruppe(p, 'charge', 'lager-filter') } },
+  // Ein anderer Stichtag: die rechte Hälfte der Tabelle muss andere Zahlen
+  // tragen als die linke, und der Kopf muss das Datum nennen.
+  { name: 'lager-wochen', wer: 'admin', pfad: '/dashboard?wochen=6',
+    tun: async p => { await p.locator('#lager-tabelle th.gruppe.spaeter').waitFor({ timeout: 60000 }) } },
+  // Die Glocke am späteren Stichtag: dieselbe Kurve, nach rechts gewandert.
+  { name: 'lager-glocke-wochen', wer: 'admin', pfad: '/dashboard?wochen=8',
     tun: async p => {
-      const reiter = p.getByRole('tab', { name: 'je Sorte' }).first()
-      await reiter.waitFor({ state: 'visible', timeout: 60000 })
-      await reiter.click()
-    } },
-  // Runde P: dieselbe Wahl gilt jetzt für Verlauf, „Wohin geht der Kürbis?"
-  // und „Was ist noch im Haus?". Eine Charge ist der härteste Fall — wenige
-  // Kohorten, schmale Zahlen, und die Prognose muss trotzdem stehen.
-  { name: 'ueberblick-charge', wer: 'admin', pfad: '/dashboard',
-    tun: async p => {
-      const reiter = p.getByRole('tab', { name: 'je Charge' }).first()
-      await reiter.waitFor({ state: 'visible', timeout: 60000 })
-      await reiter.click()
-      await p.locator('#ueb-wahl').waitFor()
+      const knopf = p.locator('#glocke-spaeter')
+      await knopf.waitFor({ state: 'visible', timeout: 60000 })
+      await knopf.click()
+      await p.waitForTimeout(400)
     } },
   { name: 'ursachen', wer: 'admin', pfad: '/ursachen' },
-  // Und dieselben fünf Blöcke je Sorte und je Charge: Die Kopfzahlen, das
-  // Stapeldiagramm und die Fax-Wartezeit sehen für eine Auswahl anders aus
+  // Und dieselben vier Blöcke je Sorte und je Charge: die Kopfzahlen, das
+  // Anteilsband und die beiden Marge-Karten sehen für eine Auswahl anders aus
   // als für alles zusammen — auch das gehört ins Bild.
   { name: 'ursachen-sorte', wer: 'admin', pfad: '/ursachen',
     tun: async p => { await waehleGruppe(p, 'sorte') } },
   { name: 'ursachen-charge', wer: 'admin', pfad: '/ursachen',
     tun: async p => { await waehleGruppe(p, 'charge') } },
+  // Runde R: beide Zeitbilder tragen zwei Achsen. Das Bild „Kalender" ist der
+  // neue Fall — die Punkte stehen auf dem Messtag, nicht auf der Lagerdauer.
+  { name: 'ursachen-kalender', wer: 'admin', pfad: '/ursachen',
+    tun: async p => {
+      for (const id of ['#palox-achse-kalender', '#verd-achse-kalender']) {
+        const knopf = p.locator(id)
+        await knopf.waitFor({ state: 'visible', timeout: 60000 })
+        await knopf.click()
+      }
+      await p.waitForTimeout(400)
+    } },
   { name: 'chargen', wer: 'admin', pfad: '/chargen' },
   { name: 'chargen-offen', wer: 'admin', pfad: '/chargen',
     tun: async p => { await p.locator('tbody tr').first().click() } },

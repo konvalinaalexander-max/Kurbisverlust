@@ -545,8 +545,8 @@ Chargennummern der zweiten Firma werden über die Planungsdatei aufgelöst.
 Dieselbe Datei nochmals hochladen ist erlaubt und ändert nichts — die App
 erkennt sie an der Prüfsumme.
 
-Ab dann steht im Überblick „Ausgeliefert" als gemessene Zahl, und „Noch im
-Haus" lässt sich beziffern.
+Ab dann steht im Lagermanagement „Ausgang" als gemessene Zahl, und „Im Lager"
+lässt sich beziffern.
 
 ## 3. Eine echte Arbeit mitlaufen lassen
 
@@ -616,13 +616,16 @@ warum sein Deploy-Befehl `npx wrangler deploy --env beispiel` lauten **muss**
 [`docs/ZWEI_WEBSEITEN.md`](docs/ZWEI_WEBSEITEN.md). Rechne mit einer guten
 halben Stunde.
 
-**Was als Nächstes gebaut wird** — die zwei ersten Reiter des Dashboards neu
-(Lagermanagement mit dem Lager nach Kaliber heute und in X Wochen; Ursachen
-bis heute mit Kalender- oder Lagerdauer-Achse und der Marge je Wägung) — steht
-als Auftrag in [`docs/PROMPT_RUNDE_R.md`](docs/PROMPT_RUNDE_R.md), das
-Design dazu verbindlich in [`docs/DESIGN_RUNDE_R.md`](docs/DESIGN_RUNDE_R.md).
-Die Datenbank dafür liegt schon (Migration 0078: `lager_kaliber(h)`,
-`erg_marge_wiegung`, Fax auf Eis); die Oberfläche folgt.
+**Zuletzt gebaut (Runde R)** — die zwei ersten Reiter des Dashboards neu:
+**Lagermanagement** (das Lager nach Kaliber, heute und in X Wochen, mit der
+Glocke am selben Stichtag) und **Ursachen** (alles bis heute, jede Zeitgrafik
+wahlweise nach Kalender oder nach Lagerdauer, die Marge je Wägung). Der Auftrag
+steht in [`docs/PROMPT_RUNDE_R.md`](docs/PROMPT_RUNDE_R.md), das Design
+verbindlich in [`docs/DESIGN_RUNDE_R.md`](docs/DESIGN_RUNDE_R.md), was daraus
+wurde in [`docs/BEFUND_RUNDE_R.md`](docs/BEFUND_RUNDE_R.md). Die Datenbank
+dazu: Migration 0078 (`lager_kaliber(h)`, `erg_marge_wiegung`, Fax auf Eis) und
+0079 (Messtag an jedem Punkt, der Wasch-Nenner aus den fertigen Paletten,
+`kaliber_glocke(h)`).
 
 ## Vorher ausprobieren: eine erfundene Saison
 
@@ -634,7 +637,8 @@ eine vollständige, erfundene Saison zum Durchklicken.
 
 **In der App, ein Klick:** Melde dich als Betriebsleiter an und geh auf
 **Betrieb → Stammdaten → Demo-Daten → „Demo-Saison laden"**. Solange noch gar
-nichts da ist, steht derselbe Knopf auch gleich auf dem leeren **Überblick** —
+nichts da ist, steht derselbe Knopf auch gleich auf dem leeren
+**Lagermanagement** —
 dort, wo die Leere auffällt. Nach ein paar Sekunden ist jeder Bildschirm gefüllt.
 
 Du bekommst die Saison der Anbauplanung 2026 in halber Grösse: rund 320 t
@@ -659,7 +663,7 @@ verschoben. Zweimal laden gibt zweimal dieselbe Saison.
 2. In der App als Betriebsleiter anmelden.
 3. **Betrieb → Stammdaten → Demo-Daten → „Demo-Saison laden"** antippen.
    Nach zwei bis vier Sekunden steht die Meldung „Demo-Saison steht: …".
-4. **Überblick** öffnen — die Auswertung rechnet beim ersten Aufruf einmal
+4. **Lagermanagement** öffnen — die Auswertung rechnet beim ersten Aufruf einmal
    durch (ein paar Sekunden), danach sind alle fünf Reiter gefüllt.
 5. Zum Anschauen der Arbeiter-Masken: auf einem Handy den QR-Code aus
    **Betrieb → Zugang** öffnen, Namen eintippen, und eine der drei laufenden
@@ -688,8 +692,8 @@ einspielen wie in Schritt 3. Dieselben Funktionen, dieselbe Saison.
 
 | Reiter | Die Frage, die er beantwortet |
 |---|---|
-| **Überblick** | Wie viel kam herein, wie viel ging hinaus, wie viel liegt noch — und **wie viel davon ist verkaufsfähig**, heute, in vier Wochen und am Saisonende. Dazu der Verlauf je Woche und die eine Karte „Wohin geht der Kürbis?": der ganze Eingang aufgeteilt, mit Rangfolge nach Tonnen und nach Anteil. |
-| **Ursachen** | Woher der Verlust kommt. Oben fünf Zahlen für die gewählte Auswahl und **eine** Grafik („Was wird aus der liegenden Ware?" in Prozent bis zum Saisonende); darunter die fünf Ursachen im Einzelnen — Faules im Lager, Verdunstung, Sortierung, Faules beim Abpacken (nach Wartezeit), Überfüllung und Spielraum. Messpunkte und Modellkurven sind eingeklappt. |
+| **Lagermanagement** | Was **jetzt** im Lager liegt — und zwar genau. Vier Zahlen (Eingang, Ausgang, im Lager, davon verkaufsfähig), der Verlauf je Woche, die Tabelle „Was ist noch im Haus?" (je Sorte oder Charge, wie viel in welchem Kaliberband verkaufsfähig ist — **heute und in X Wochen**, X ist ein Feld) und die Glocke der Gewichte am selben Stichtag. Alles über morgen steht hier, nirgends sonst. |
+| **Ursachen** | Wohin der Kürbis **bis heute** ging. Der ganze Eingang als ein Balken in sechs Teilen (verkaufsfähig liegend, verkauft, verdunstet, Faules, zu klein, zu gross), darunter je Sorte oder Charge nach Verlustanteil. Dann Faules im Lager und Verdunstung als Messpunkte — wahlweise nach **Kalender** („ab wann ging es los") oder nach **Lagerdauer** („nach wie vielen Wochen"). Zuletzt die verschenkte Marge je Wägung: was die Kiste über dem Soll hat, und wie schwer der einzelne Kürbis gegen die Bandmitte ist. Keine Prognose. |
 | **Chargen** | Wo welche Charge steht: Im Lager, verkaufsfähig heute, in vier Wochen, wie lange sie liegt, was zwei Wochen längeres Liegen kosten. Nach „In 4 Wochen" sortiert steht oben, was zuerst raus sollte. |
 | **Messungen** | Die Rohbeobachtungen und die Auffälligkeiten — was nicht zusammenpasst, mit dem Sprung zur Korrektur. |
 | **Betrieb** | Stammdaten, Warenausgang einlesen, Zugang für die Arbeiter, Tempo der Halle. |
@@ -728,7 +732,7 @@ Alle drei entstehen aus HTML-Quellen im selben Ordner:
 | **„check constraint \"…_pflicht\" of relation \"…\" is violated by some row"** beim Ausführen von `setup.sql` | Ein Fehler von mir, behoben am 10. September. Vier Prüfregeln sind **nach** den Daten ins Schema gekommen — für neue Zeilen galten sie ab dem ersten Tag, aber ob die vorhandenen sie erfüllen, hatte nie jemand nachgesehen. `setup.sql` hat es dann auf einmal behauptet, und weil die ganze Datei als **ein** Query läuft, brach das gesamte Einrichten ab und rollte zurück. Deine Daten haben nie Schaden genommen | **Die Datei neu holen** (Schritt 3a) und noch einmal einfügen. Sie bestätigt jetzt nur, was die Daten hergeben, und lässt den Rest in Ruhe. Welche Zeilen dahinterstehen, zeigt `supabase/diagnose.sql` im SQL-Editor — sie sind nicht kaputt, nur älter als die Regel. Wer sie ergänzt und `setup.sql` noch einmal ausführt, bekommt auch die letzte Zusage bestätigt |
 | **„Could not find the function public.… in the schema cache"** | Die App ruft etwas, das es in deiner Datenbank nicht gibt: Sie wurde eingerichtet, als es das noch nicht gab, und ist seither nicht aktualisiert worden | **Schritt 3 nochmal ausführen** — dieselbe Datei, dieselben Handgriffe. Deine Daten bleiben. Danach in der App einmal F5. |
 | **„Die Datenbank steht auf Migration …, die App erwartet …"** oder **„… älter als Migration 0057"** | Die App ist neuer als die Datenbank; die Auswertung würde an alten Formeln scheitern | **Schritt 3 nochmal ausführen.** Unten muss „Fertig … Auswertung berechnet." stehen. Danach F5. |
-| **„numeric field overflow"** oder eine andere rohe Meldung im Überblick | Eine Formel ist an einer Messung gesprengt worden — am 7. September an Wägungen, bei denen die Palette schwerer war als beim Eingang. Seit 0056 zählt so eine Wägung nicht mehr, und `setup.sql` rechnet nur noch am Ende mit den heutigen Formeln | Schritt 3 nochmal ausführen. Seit 0058 macht eine Zahl, die nicht darstellbar ist, nur noch diese eine Spalte unbekannt statt den ganzen Bildschirm leer. Bleibt eine Meldung: `supabase/diagnose.sql` in den SQL-Editor einfügen und ausführen — die Tabelle unten sagt, welche Sicht scheitert, woran, und welche Grössen aus dem Rahmen fallen; Ergebnis wörtlich weitergeben. |
+| **„numeric field overflow"** oder eine andere rohe Meldung im Lagermanagement | Eine Formel ist an einer Messung gesprengt worden — am 7. September an Wägungen, bei denen die Palette schwerer war als beim Eingang. Seit 0056 zählt so eine Wägung nicht mehr, und `setup.sql` rechnet nur noch am Ende mit den heutigen Formeln | Schritt 3 nochmal ausführen. Seit 0058 macht eine Zahl, die nicht darstellbar ist, nur noch diese eine Spalte unbekannt statt den ganzen Bildschirm leer. Bleibt eine Meldung: `supabase/diagnose.sql` in den SQL-Editor einfügen und ausführen — die Tabelle unten sagt, welche Sicht scheitert, woran, und welche Grössen aus dem Rahmen fallen; Ergebnis wörtlich weitergeben. |
 | Auswertung bleibt leer, obwohl Daten da sind | Die gespeicherte Auswertung ist noch nicht gerechnet | In der App oben auf **Neu rechnen**. Bleibt es leer: Schritt 3 nochmal ausführen. |
 | „Potentially destructive operation" | Supabase warnt bei Skripten mit `drop`/`alter` | **Run this query** klicken. In einem neuen Projekt ist nichts zu zerstören. |
 | Nach **Run** passiert nichts | Skript läuft noch | 10–20 Sekunden warten. Der Knopf zeigt solange einen Ladekreis. |
@@ -740,7 +744,7 @@ Alle drei entstehen aus HTML-Quellen im selben Ordner:
 | Arbeiter sieht „Der direkte Zugang ist noch nicht freigeschaltet" | Schritt 4b fehlt | In Supabase Authentication → Sign In / Providers → Anonymous sign-ins einschalten |
 | „Dafür fehlt die Berechtigung" | Du bist noch Arbeiter, nicht Betriebsleiter | Schritt 7 nachholen, dann F5. |
 | Menü zeigt kein „Stammdaten" | Dasselbe | Schritt 7 nachholen, dann F5. |
-| Überblick: „Noch keine auswertbaren Daten" | Keine Paletten importiert oder überall Tara fehlend | Teil 2, Punkte 1 und 2. |
+| Lagermanagement: „Noch keine auswertbaren Daten" | Keine Paletten importiert oder überall Tara fehlend | Teil 2, Punkte 1 und 2. |
 | Messungen warnt „Fehlende Tara" | Für manche Gebinde fehlt das Leergewicht | *Betrieb → Stammdaten → Gebinde & Tara* ausfüllen. |
 | Supabase: „Project is paused" | Gratis-Projekte pausieren nach 7 Tagen ohne Nutzung | Grüner Knopf **Restore project**, ein bis zwei Minuten warten. Während der Saison passiert das durch die normale Nutzung nicht. |
 | Cloudflare-Build schlägt fehl | Meist das Build command falsch oder leer | In der Konsole nach der ersten roten Zeile suchen. Build command muss `npm run build`, Deploy command `npx wrangler deploy` sein. |
@@ -761,7 +765,8 @@ Das genügt fast immer zur Klärung.
 | Auswertung und Hochrechnung | `supabase/migrations/0005`–`0007` | Massenbilanz schließt im Test auf 0.1 % |
 | Kennzahlen aus den neuen Erfassungspunkten | `supabase/migrations/0049` | Gewichtsverteilung, Reihenfolge, Durchsatz, Überfüllung je Käufer, Datenqualität, Saisonverlauf |
 | Arbeiter-App: Start, Assistent, Zähler, Checkliste, Abschluss | `src/pages/Start.tsx`, `NeueArbeit.tsx`, `Arbeit.tsx`, `src/arbeit/` | Kette über die echten Masken in `pruefstand/kette.mjs` |
-| Betriebsleiter: Überblick · Ursachen · Chargen · Messungen · Betrieb | `src/pages/Ueberblick.tsx` … `Betrieb.tsx`, `src/auswertung/` | Diagramme in `src/components/Diagramm.tsx` |
+| Betriebsleiter: Lagermanagement · Ursachen · Chargen · Messungen · Betrieb | `src/pages/Lagermanagement.tsx` … `Betrieb.tsx`, `src/auswertung/` | Diagramme in `src/components/Diagramm.tsx` |
+| Das Lager nach Kaliber am Stichtag, die Glocke daneben | `supabase/migrations/0078`–`0079`, `src/pages/Lagermanagement.tsx` | Prüfblock 0078 (b/c) und 0079 (c): beide Bilder summieren auf dieselbe Masse, ein Aufruf unter 2 s |
 | Prognose: was aus der liegenden Ware wird, bis zum Saisonende | `supabase/migrations/0071`, `src/auswertung/daten.ts` | dieselbe Kaskade an einem späteren Tag; bei Horizont 0 auf zwei Rappen die Zahl von heute (Block 0071 der Prüfung) |
 | Die Erfassung scharf geschaltet: Palox je Arbeit, Gebinde je Palette, ehrliches Alter, Kontrollpalette | `supabase/migrations/0072`–`0076`, `src/arbeit/` | Prüfblock 0072 in `pruefung.sql`; `docs/BEFUND_RUNDE_Q.md` |
 | Schutz der Erfassung: Journal, Zerstörungswächter, zwei Webseiten | `erfassung_journal` (0072), `supabase/test/keine_zerstoerung.sh`, `src/lib/betriebsmodus.ts` | Wächter läuft als erste Stufe von `run.sh` |
@@ -834,7 +839,8 @@ node pruefstand/kette.mjs && ./pruefstand/kette_pruefen.sh 'postgresql://…'
 
 # Die Abnahme der Runde R: der Vertrag für die zwei ersten Reiter
 # (Lagermanagement, Ursachen) aus docs/PROMPT_RUNDE_R.md § 8 — welche Elemente
-# da sein müssen, welche Worte nicht mehr. Rot, bis die Reiter stehen.
+# da sein müssen, welche Worte nicht mehr, und acht Designpunkte (auch bei
+# 390 px und im dunklen Thema). 59 Punkte, alle grün seit Runde R.
 node pruefstand/abnahme_r.mjs
 
 # Die fünf PDFs neu bauen (aus docs/*.html, Schrift eingebettet). Meldet
@@ -961,10 +967,10 @@ sagt dann „nicht gemessen".
 ist, was am Ende nicht mehr da ist (Palox — Verderb im Lager und beim
 Abpacken —, Verdunstung). Kein echter Verlust ist der andere Kanal und die
 verschenkte Marge (zu klein an die Tiere, zu gross in den Nebenkanal,
-Überfüllung der Kisten). Seit Runde P steht auf dem Überblick nicht mehr „der
+Überfüllung der Kisten). Seit Runde P steht zuoberst nicht mehr „der
 Verlust", sondern **Im Lager** und **davon verkaufsfähig** — der Verlust ist
-der Abstand zwischen beiden, und die Karte „Wohin geht der Kürbis?" teilt ihn
-nach Gesamt, Sorte, Schlag und Charge auf; die Ursachen trennen echten von
+der Abstand zwischen beiden. Seit Runde R teilt ihn der Balken „Wohin ging der
+Kürbis?" auf dem Reiter *Ursachen* auf, nach Gesamt, Sorte und Charge; die Ursachen trennen echten von
 unechtem Verlust. Die Grundaussortierung vom Feld rechnet im Modell mit, ohne
 eigene Maske.
 

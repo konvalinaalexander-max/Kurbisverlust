@@ -659,3 +659,90 @@ details.aufklapp > summary .leise { font-weight: var(--gewicht-normal); }
 .qr-adresse { font-variant-numeric: tabular-nums; word-break: break-all; font-weight: var(--gewicht-stark); }
 .zugang-liste { margin: 0; padding-left: 1.2rem; line-height: 1.7; }
 .herkunft-legende { font-size: var(--s-1); color: var(--text-leise); width: 100%; }
+
+/* ---------- Lagermanagement (Runde R) --------------------------------------- */
+/* Die Tabelle „Was ist noch im Haus": zwei Kopfzeilen (Gruppe, Band), die
+   erste Spalte haftet beim seitlichen Rollen — auf dem Handy ist sie sonst
+   nach der zweiten Zahl verschwunden, und niemand weiss mehr, wessen Kilo
+   dort stehen. */
+.lagertabelle th.haftend {
+  position: sticky; left: 0; z-index: 2;
+  background: var(--flaeche); text-align: left; white-space: normal; min-width: 8.5rem;
+  text-transform: none; letter-spacing: 0; font-size: var(--s-1); color: var(--text);
+}
+.lagertabelle thead th.haftend { background: var(--flaeche); color: var(--text-leise); font-size: .68rem; text-transform: uppercase; letter-spacing: .06em; }
+.lagertabelle tfoot th.haftend { background: var(--flaeche); }
+.lagertabelle .zeilenname { font-weight: var(--gewicht-stark); }
+.lagertabelle th.gruppe {
+  text-align: center; border-bottom: 2px solid var(--rand);
+  color: var(--text); font-size: .72rem;
+}
+.lagertabelle th.gruppe.spaeter, .lagertabelle td.spaeter, .lagertabelle th.zahl.spaeter {
+  background: color-mix(in srgb, var(--flaeche-2) 55%, transparent);
+}
+.lagertabelle td.summe, .lagertabelle th.zahl.summe { border-left: 1px solid var(--rand-leise); }
+.lagertabelle td.unter-kaliber { color: var(--gelb); }
+.lagertabelle td .band-unter { display: block; font-size: var(--s-0); color: var(--text-leise); font-weight: var(--gewicht-normal); }
+.lagertabelle td.zahl { min-width: 5.5rem; }
+/* Während „in X Wochen" nachgeladen wird, bleiben die alten Zahlen blass
+   stehen — ein Sprung auf leer bei jedem Tastendruck wäre unruhiger. */
+.lagertabelle .laedt { opacity: .45; transition: opacity var(--d-kurz); }
+.lagertabelle tfoot td, .lagertabelle tfoot th { border-top: 1px solid var(--rand); border-bottom: none; }
+
+/* Auf dem Handy darf die Aktion im Kartenkopf umbrechen. Ein Umschalter und
+   daneben „in 8 Wochen · 11.11." sind zusammen breiter als 390 px; mit
+   `flex: none` nahm der Kopf seine volle Wunschbreite und schob die ganze
+   Seite seitlich aus dem Bild. Umbrechen statt hinausragen. */
+@media (max-width: 560px) {
+  .karte-kopf .aktion { margin-left: 0; flex: 1 1 100%; flex-wrap: wrap; }
+}
+
+/* Das Feld „in X Wochen" — zweimal derselbe Zustand (Tabelle und Glocke) */
+.wochenfeld { display: inline-flex; align-items: center; gap: .4rem; font-size: var(--s-1); color: var(--text-leise); white-space: nowrap; }
+.wochenfeld label { margin: 0; }
+.wochenfeld input { width: 4.2rem; min-height: 36px; padding: .25rem .5rem; text-align: center; font-variant-numeric: tabular-nums; }
+.wochenfeld input[aria-invalid='true'] { border-color: var(--rot); }
+
+/* Kleine Wörter an einer grossen Zahl */
+.gross-zahl .mini-wort { font-size: .45em; white-space: nowrap; color: var(--text-leise); }
+.gross-zahl .neben-zahl { font-size: .55em; white-space: nowrap; }
+
+/* ---------- Ursachen: die beiden Marge-Karten (Runde R) --------------------- */
+/* Zwei kleine Bilder, die kein Diagramm brauchen: ein Balken um eine Nulllinie
+   („wie viel zu viel in der Kiste") und ein Punkt in einem Band („wo im Kaliber
+   liegt der Kürbis wirklich"). Beides ist eine Zahl je Zeile — dafür ein SVG zu
+   bauen wäre Aufwand ohne Gewinn, und die Tabelle daneben trägt die Zahlen.
+   Wer keine Farben sieht, liest sie dort; der Balken ist die Zugabe. */
+.marge-balken, .band-liste { display: grid; gap: var(--a-2); margin-top: var(--a-4); }
+.marge-zeile, .band-zeile { display: grid; grid-template-columns: minmax(6rem, 9rem) 1fr auto; gap: var(--a-3); align-items: center; }
+.marge-name { font-size: var(--s-1); color: var(--text-2); overflow-wrap: anywhere; }
+.marge-spur {
+  position: relative; height: 14px; border-radius: var(--radius-klein);
+  background: var(--flaeche-2); overflow: hidden;
+}
+/* Die Nulllinie in der Mitte: links davon steht zu wenig, rechts zu viel. */
+.marge-null { position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: var(--rand); }
+.marge-stab { position: absolute; top: 2px; bottom: 2px; border-radius: 3px; min-width: 2px; }
+.marge-stab.plus  { background: var(--strom-nebenkanal); }
+.marge-stab.minus { background: var(--blau); }
+.marge-wert { font-size: var(--s-1); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+.band-name { font-size: var(--s-1); color: var(--text-2); display: grid; line-height: 1.3; }
+.band-spur {
+  position: relative; height: 16px; border-radius: var(--radius-klein);
+  background: linear-gradient(90deg,
+    var(--flaeche-2) 0%, var(--flaeche-3) 50%, var(--flaeche-2) 100%);
+}
+/* Die Bandmitte ist, was der Kunde bezahlt — deshalb steht sie als Strich da
+   und der gemessene Kürbis als Punkt daneben. */
+.band-mitte { position: absolute; left: 50%; top: -2px; bottom: -2px; width: 2px; background: var(--text-leise); border-radius: 1px; }
+.band-punkt {
+  position: absolute; top: 50%; width: 9px; height: 9px; margin: -4.5px 0 0 -4.5px;
+  border-radius: 50%; background: var(--kuerbis); box-shadow: 0 0 0 2px var(--flaeche);
+}
+.band-wert { font-size: var(--s-1); font-variant-numeric: tabular-nums; white-space: nowrap; text-align: right; }
+
+@media (max-width: 560px) {
+  .marge-zeile, .band-zeile { grid-template-columns: 1fr auto; }
+  .marge-spur, .band-spur { grid-column: 1 / -1; order: 3; }
+}
