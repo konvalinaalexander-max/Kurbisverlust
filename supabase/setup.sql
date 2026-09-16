@@ -6304,7 +6304,7 @@ comment on function schema_stand() is
 -- TEIL B — Das Rechenwerk: die Formeln, wie sie heute lauten
 -- =====================================================================
 -- Ab hier steht jede Ansicht und jede darauf rechnende Funktion genau
--- einmal — in 116 Schritten, in der Reihenfolge, in der eine auf der
+-- einmal — in 117 Schritten, in der Reihenfolge, in der eine auf der
 -- anderen steht. Die Reihenfolge ist ausgerechnet, nicht geraten:
 -- setup_bauen.sh sortiert topologisch und bricht ab, wenn sie nicht
 -- kreisfrei wäre.
@@ -6365,6 +6365,7 @@ drop view if exists v_fax_beobachtung cascade;
 drop view if exists v_durchsatz cascade;
 drop view if exists v_ausschuss_beobachtung cascade;
 drop view if exists v_auftrag_masse cascade;
+drop view if exists v_auftrag_fertige_masse cascade;
 drop view if exists v_wiegung_kennzahl cascade;
 drop materialized view if exists erg_marge_wiegung cascade;
 drop view if exists v_marge_wiegung cascade;
@@ -8117,6 +8118,51 @@ end $$;
 -- ---------------------------------------------------------------------
 -- 6. Der Nenner beim Waschen: die fertigen Paletten
 -- ---------------------------------------------------------------------
+-- Die Masse, die beim Waschen herauskam: fertige Paletten mal Palettenmasse —
+-- dem Mittel der **eigenen** gewogenen vollen Paletten dieser Arbeit,
+-- hilfsweise dem ihrer Sorte und ihres Kistensystems. Fehlt die Palettenzahl
+-- oder fehlen beide Massen, gibt es keine Zeile: unbekannt, nicht null.
+--
+-- Warum eine eigene Sicht und keine Unterabfrage in v_auftrag_masse? Gemessen
+-- an der dreifachen Saison, über alle fünf Rechenschritte:
+--
+--   ohne diesen Zweig                                  11 385 ms
+--   als Unterabfrage im Lateral (erster Anlauf)        13 260 ms
+--   dieselbe Unterabfrage, im `case` bewacht           12 500 ms
+--
+-- Der Wächter allein genügte nicht. Eine Unterabfrage in der Spaltenliste
+-- macht die Sicht für den Planer undurchsichtig: Er kann sie nicht mehr in
+-- ihre acht Leser hineinfalten (v_schimmel_beobachtung, v_kaskade_basis,
+-- v_massenbilanz, v_plausibilitaet, v_durchsatz, v_fax_beobachtung,
+-- v_ausschuss_beobachtung, v_schimmel_punkte), und jeder von ihnen bekommt
+-- einen schlechteren Plan — auch wenn die Unterabfrage selbst nie ausgeführt
+-- wird. Als flacher Verbund auf eine kleine Sicht bleibt alles beim Alten.
+--
+-- Hier führt die Bedingung: `where station = 'waschen'` steht an der
+-- **treibenden** Tabelle, also fallen die neunzehn von zwanzig Arbeiten weg,
+-- bevor irgendetwas gerechnet wird.
+create or replace view v_auftrag_fertige_masse with (security_invoker = true) as
+select a.id as auftrag_id,
+       zahl(a.fertige_paletten_gesamt::numeric * coalesce(eig.netto_kg, kp.netto_kg),
+            2, 10000000000)::numeric(12,2) as kg
+  from auftrag a
+  join charge c on c.nr = a.charge_nr
+  left join (select v.auftrag_id, avg(v.netto_kg) as netto_kg
+               from v_ausgang_voll v
+              where coalesce(v.voll, true) and v.netto_kg > 0
+              group by v.auftrag_id) eig on eig.auftrag_id = a.id
+  left join lateral (
+       select p.netto_kg
+         from v_koeff_palette_netto p
+        where p.sorte = c.sorte
+          and (p.kistensystem = a.kistensystem
+               or p.kistensystem is null and a.kistensystem is distinct from 'anderes')
+        order by (p.kistensystem = a.kistensystem) desc nulls last
+        limit 1) kp on true
+ where a.station = 'waschen' and not a.ist_fax
+   and coalesce(a.fertige_paletten_gesamt, 0) > 0
+   and coalesce(eig.netto_kg, kp.netto_kg) is not null;
+
 create or replace view v_auftrag_masse with (security_invoker = true) as
 select m.auftrag_id, m.charge_nr, m.sorte, m.schlag, m.weg, m.station,
        m.start_ts, m.ende_ts, m.status, m.n_paletten,
@@ -8151,35 +8197,11 @@ select m.auftrag_id, m.charge_nr, m.sorte, m.schlag, m.weg, m.station,
   left join v_auftrag_wasch_paletten wp on wp.auftrag_id = m.auftrag_id
   left join (select auftrag_id, sum(kg) as kg from v_auftrag_gebinde_masse group by auftrag_id) gb
          on gb.auftrag_id = m.auftrag_id
-  -- 0079: Beim Waschen die Masse, die herauskam — fertige Paletten mal der
-  -- Palettenmasse dieser Arbeit (das Mittel ihrer eigenen gewogenen vollen
-  -- Paletten), hilfsweise der ihrer Sorte und ihres Kistensystems. Ohne
-  -- Palettenzahl und ohne beide Massen bleibt die Zeile leer: unbekannt,
-  -- nicht null.
-  --
-  -- **Der Wachtposten steht vor der Frage, nicht dahinter.** Zuerst stand die
-  -- Bedingung „nur beim Waschen" im `where` eines Laterals — dann rechnete
-  -- Postgres das Mittel erst für **jede** Arbeit aus und warf es danach für
-  -- die neunzehn von zwanzig weg, die nicht gewaschen haben. Im `case` wird
-  -- die Unterabfrage nur ausgewertet, wenn der Zweig überhaupt gilt; `coalesce`
-  -- fragt die zweite Quelle nur, wenn die erste nichts hat. Gemessen an der
-  -- dreifachen Saison über alle fünf Schritte — die einzige Messung, die
-  -- zählt, denn acht Sichten lesen v_auftrag_masse.
-  cross join lateral (
-        select case when m.station = 'waschen' and not a.ist_fax
-                     and coalesce(a.fertige_paletten_gesamt, 0) > 0
-                    then zahl(a.fertige_paletten_gesamt::numeric * coalesce(
-                           (select avg(v.netto_kg) from v_ausgang_voll v
-                             where v.auftrag_id = m.auftrag_id
-                               and coalesce(v.voll, true) and v.netto_kg > 0),
-                           (select p.netto_kg
-                              from v_koeff_palette_netto p
-                             where p.sorte = m.sorte
-                               and (p.kistensystem = a.kistensystem
-                                    or p.kistensystem is null and a.kistensystem is distinct from 'anderes')
-                             order by (p.kistensystem = a.kistensystem) desc nulls last
-                             limit 1)),
-                         2, 10000000000)::numeric(12,2) end as kg) fpg
+  -- 0079: Beim Waschen die Masse, die herauskam — als eigene Sicht daneben,
+  -- nicht als Unterabfrage hier drin. Warum das wichtig ist, steht bei
+  -- v_auftrag_fertige_masse: Eine Unterabfrage in der Spaltenliste nimmt dem
+  -- Planer die Möglichkeit, diese Sicht in ihre acht Leser hineinzufalten.
+  left join v_auftrag_fertige_masse fpg on fpg.auftrag_id = m.auftrag_id
   left join lateral (
         select zahl(a.paletten_gesamt::numeric * p.netto_kg, 2, 10000000000)::numeric(12,2) as kg
           from v_koeff_palette_netto p
@@ -13454,6 +13476,12 @@ create index if not exists erg_wiegung_ts on erg_wiegung (wiege_ts);
 comment on materialized view erg_wiegung is
   'v_wiegung_kennzahl mit der Tagesrate, gespeichert für die App (0079). '
   'Erneuert mit auswertung_schritt().';
+comment on view v_auftrag_fertige_masse is
+  'Beim Waschen die Masse, die herauskam: fertige Paletten gesamt mal der '
+  'mittleren Masse der eigenen gewogenen vollen Paletten, hilfsweise der ihrer '
+  'Sorte und ihres Kistensystems (0079). Nur Zeilen, für die beides bekannt '
+  'ist — fehlt eine Angabe, gibt es keine Zeile: unbekannt, nicht null.';
+grant select on v_auftrag_fertige_masse to authenticated;
 comment on view v_auftrag_masse is
   'Die Masse einer Arbeit und ihr Alter. Die Masse in dieser Reihenfolge: '
   'gewogene oder vom Zettel gelesene Eingangspaletten; beim Waschen die '
