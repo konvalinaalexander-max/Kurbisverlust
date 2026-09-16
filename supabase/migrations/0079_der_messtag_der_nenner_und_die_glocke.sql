@@ -579,23 +579,30 @@ select m.auftrag_id, m.charge_nr, m.sorte, m.schlag, m.weg, m.station,
   -- Paletten), hilfsweise der ihrer Sorte und ihres Kistensystems. Ohne
   -- Palettenzahl und ohne beide Massen bleibt die Zeile leer: unbekannt,
   -- nicht null.
-  left join lateral (
-        select zahl(a.fertige_paletten_gesamt::numeric * coalesce(eig.netto_kg, kp.netto_kg),
-                    2, 10000000000)::numeric(12,2) as kg
-          from (select avg(v.netto_kg) as netto_kg
-                  from v_ausgang_voll v
-                 where v.auftrag_id = m.auftrag_id and coalesce(v.voll, true) and v.netto_kg > 0) eig
-          left join lateral (
-               select p.netto_kg
-                 from v_koeff_palette_netto p
-                where p.sorte = m.sorte
-                  and (p.kistensystem = a.kistensystem
-                       or p.kistensystem is null and a.kistensystem is distinct from 'anderes')
-                order by (p.kistensystem = a.kistensystem) desc nulls last
-                limit 1) kp on true
-         where m.station = 'waschen' and not a.ist_fax
-           and coalesce(a.fertige_paletten_gesamt, 0) > 0
-           and coalesce(eig.netto_kg, kp.netto_kg) is not null) fpg on true
+  --
+  -- **Der Wachtposten steht vor der Frage, nicht dahinter.** Zuerst stand die
+  -- Bedingung „nur beim Waschen" im `where` eines Laterals — dann rechnete
+  -- Postgres das Mittel erst für **jede** Arbeit aus und warf es danach für
+  -- die neunzehn von zwanzig weg, die nicht gewaschen haben. Im `case` wird
+  -- die Unterabfrage nur ausgewertet, wenn der Zweig überhaupt gilt; `coalesce`
+  -- fragt die zweite Quelle nur, wenn die erste nichts hat. Gemessen an der
+  -- dreifachen Saison über alle fünf Schritte — die einzige Messung, die
+  -- zählt, denn acht Sichten lesen v_auftrag_masse.
+  cross join lateral (
+        select case when m.station = 'waschen' and not a.ist_fax
+                     and coalesce(a.fertige_paletten_gesamt, 0) > 0
+                    then zahl(a.fertige_paletten_gesamt::numeric * coalesce(
+                           (select avg(v.netto_kg) from v_ausgang_voll v
+                             where v.auftrag_id = m.auftrag_id
+                               and coalesce(v.voll, true) and v.netto_kg > 0),
+                           (select p.netto_kg
+                              from v_koeff_palette_netto p
+                             where p.sorte = m.sorte
+                               and (p.kistensystem = a.kistensystem
+                                    or p.kistensystem is null and a.kistensystem is distinct from 'anderes')
+                             order by (p.kistensystem = a.kistensystem) desc nulls last
+                             limit 1)),
+                         2, 10000000000)::numeric(12,2) end as kg) fpg
   left join lateral (
         select zahl(a.paletten_gesamt::numeric * p.netto_kg, 2, 10000000000)::numeric(12,2) as kg
           from v_koeff_palette_netto p
