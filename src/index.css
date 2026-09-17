@@ -491,6 +491,10 @@ details.aufklapp > summary .leise { font-weight: var(--gewicht-normal); }
   .huelle { max-width: 100%; padding: 0; }
   .druckbereich { border: none; box-shadow: none; margin: 0; }
   .hinweis { display: none; }
+  /* Auf Papier in Schwarz, damit der Streifen auch aus einem Laserdrucker
+     ohne Farbe kommt. Die Klasse steht doppelt, weil die Grundregel weiter
+     unten in dieser Datei steht und sonst gewönne. */
+  .zugang-beispiel.zugang-beispiel { border-color: #000; color: #000; background: #fff; font-size: 1.05rem; padding: .6rem; }
 }
 
 /* ---------- Dialog ------------------------------------------------------------ */
@@ -657,6 +661,15 @@ details.aufklapp > summary .leise { font-weight: var(--gewicht-normal); }
 .zugang-titel .kachel { width: 36px; height: 36px; }
 .qr-bild { width: min(320px, 80vw); height: auto; margin: 1rem auto; display: block; border-radius: var(--radius); }
 .qr-adresse { font-variant-numeric: tabular-nums; word-break: break-all; font-weight: var(--gewicht-stark); }
+/* Der Streifen auf dem Beispiel-Blatt: er wird mitgedruckt, das Band oben
+   nicht (kein-druck). Ohne ihn wäre ein versehentlich auf der Übungsseite
+   gedrucktes Blatt auf Papier nicht vom richtigen zu unterscheiden. */
+.zugang-beispiel {
+  margin: 0 0 var(--a-3); padding: .5rem .75rem; border-radius: var(--radius);
+  background: var(--gelb-flaeche); color: var(--gelb); border: 2px solid var(--gelb);
+  font-weight: var(--gewicht-stark); letter-spacing: .04em; text-transform: uppercase;
+  font-size: var(--s-0); print-color-adjust: exact;
+}
 .zugang-liste { margin: 0; padding-left: 1.2rem; line-height: 1.7; }
 .herkunft-legende { font-size: var(--s-1); color: var(--text-leise); width: 100%; }
 

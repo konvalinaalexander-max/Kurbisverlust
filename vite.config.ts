@@ -29,7 +29,7 @@ import react from '@vitejs/plugin-react'
 
 // Was nur der Betriebsleiter braucht.
 const NUR_BETRIEBSLEITER =
-  /src[\\/](pages[\\/](Ueberblick|Ursachen|Chargen|Messungen|Betrieb|Lieferungen|Stammdaten|Zugang|CsvUpload|Warteschlange)|auswertung[\\/]|betrieb[\\/]|components[\\/](Diagramm|Kaskadenbild)|lib[\\/](csv|xlsx|warenausgang|import|dateiname))/
+  /src[\\/](pages[\\/](Lagermanagement|Ursachen|Chargen|Messungen|Betrieb|Lieferungen|Stammdaten|Zugang|CsvUpload|Warteschlange)|auswertung[\\/]|betrieb[\\/]|components[\\/](Diagramm|Kaskadenbild)|lib[\\/](csv|xlsx|warenausgang|import|dateiname))/
 
 // Was beide Rollen brauchen — ohne das, was oben schon abgefangen ist.
 const NUR_GEMEINSAM =

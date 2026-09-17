@@ -157,8 +157,8 @@ Unten im Ergebnisfenster erscheint eine Tabelle mit einer Spalte `ergebnis` und
 genau dieser Zeile:
 
 ```
-Fertig. Die Datenbank steht: 42 Chargen, 11 Sorten, 28 Tabellen,
-62 Auswertungen. Auswertung berechnet. Weiter im README bei Schritt 4.
+Fertig. Die Datenbank steht: 42 Chargen, 11 Sorten, 31 Tabellen,
+75 Auswertungen. Auswertung berechnet. Weiter im README bei Schritt 4.
 ```
 
 Wenn du das siehst, ist die komplette Datenbank fertig: Tabellen, Zugriffsrechte,
@@ -190,8 +190,16 @@ diese Zeile unten.
 > an keinem Tarif; es ist eine Einstellung an der Rolle `authenticated`.
 > Wer nicht angemeldet ist, bleibt beim knappen Standard.
 >
-> Steht in der Ergebnisliste eine Zeile „Zeitlimit liess sich nicht setzen",
-> fehlte die Berechtigung. Dann einmal von Hand im SQL-Editor:
+> Ob es geklappt hat, sagt die Fertig-Zeile **nicht** — misslingt es, bleibt
+> das nur ein Vermerk im Serverprotokoll, den der SQL-Editor nicht anzeigt.
+> Wer sichergehen will, fragt danach einmal nach:
+>
+> ```sql
+> select rolconfig from pg_roles where rolname = 'authenticated';
+> ```
+>
+> Dort muss `{statement_timeout=30s}` stehen. Steht `NULL` oder `8s`, fehlte
+> die Berechtigung. Dann einmal von Hand im SQL-Editor:
 > `alter role authenticated set statement_timeout = '30s';` und danach
 > `notify pgrst, 'reload config';`
 
@@ -426,8 +434,9 @@ werden — danach vergibst du alle weiteren Rollen bequem in der App.
    dann auf **Neues Betriebsleiter-Konto anlegen**.
 2. Namen, deine E-Mail-Adresse und ein Passwort eintragen (mindestens 6 Zeichen)
    → **Konto anlegen**.
-3. Du bist angemeldet und siehst die Startseite der Arbeiter. Oben rechts steht dein Name.
-   Noch **ohne** den Zusatz „Betriebsleiter" — das ändern wir jetzt.
+3. Du bist angemeldet und siehst die Startseite der Halle („Hallo …",
+   „Gerade läuft keine Arbeit."). Oben rechts steht dein Name — und sonst
+   nichts: **keine** Reiter, keine Seitenleiste. Das ändern wir jetzt.
 4. Zurück zum Supabase-Tab → linke Symbolleiste → **SQL Editor**.
 5. Falls noch das alte Skript im Feld steht: **Strg+A**, dann **Entf** — es ist
    längst ausgeführt und wird nicht mehr gebraucht.
@@ -452,9 +461,17 @@ werden — danach vergibst du alle weiteren Rollen bequem in der App.
 
 **Woran du merkst, dass es geklappt hat**
 
-Zurück im App-Tab die Seite neu laden (**F5**). Oben rechts steht jetzt dein
-Name **· Betriebsleiter**, und in der Menüleiste sind drei Punkte dazugekommen:
-**Sortier-CSV**, **Warteschlange** und **Stammdaten**.
+Zurück im App-Tab die Seite neu laden (**F5**). Aus der Hallen-Ansicht wird
+die Büro-Ansicht mit fünf Reitern: **Lagermanagement**, **Ursachen**,
+**Chargen**, **Messungen**, **Betrieb**.
+
+Am Computer stehen sie links in einer Seitenleiste, ganz unten darin dein Name
+mit dem Zusatz **Betriebsleiter**. Auf dem Handy stehen sie als Zeile unter der
+Kopfzeile, der Zusatz „Betriebsleiter" fehlt dort — die fünf Reiter sind das
+Merkmal, nicht der Zusatz.
+
+Sortier-CSV, Warteschlange, Lieferungen, Stammdaten und der QR-Zugang liegen
+alle unter **Betrieb**.
 
 **Damit ist die Einrichtung fertig.** Alles Weitere geht in der App.
 
@@ -638,8 +655,16 @@ eine vollständige, erfundene Saison zum Durchklicken.
 **In der App, ein Klick:** Melde dich als Betriebsleiter an und geh auf
 **Betrieb → Stammdaten → Demo-Daten → „Demo-Saison laden"**. Solange noch gar
 nichts da ist, steht derselbe Knopf auch gleich auf dem leeren
-**Lagermanagement** —
-dort, wo die Leere auffällt. Nach ein paar Sekunden ist jeder Bildschirm gefüllt.
+**Lagermanagement** — dort, wo die Leere auffällt. Nach ein paar Sekunden ist
+jeder Bildschirm gefüllt.
+
+**Beides gibt es nur, solange die Datenbank im Beispielmodus läuft.** Steht sie
+auf `echt` — und so wird sie ausgeliefert —, steht unter Demo-Daten statt der
+Knöpfe der Satz „Diese Datenbank läuft im Echtmodus", und auf dem leeren
+Lagermanagement erscheint gar nichts. Das ist kein Fehler, sondern der Schutz
+aus 0072: Beispieldaten gehören auf die Beispiel-Webseite. Wie man beides
+nebeneinander betreibt, steht in
+[`docs/ZWEI_WEBSEITEN.md`](docs/ZWEI_WEBSEITEN.md).
 
 Du bekommst die Saison der Anbauplanung 2026 in halber Grösse: rund 320 t
 Eingang, 840 Paletten in 36 Chargen, gut 300 Arbeiten (Sortieren mit CSV und
@@ -738,12 +763,13 @@ Alle drei entstehen aus HTML-Quellen im selben Ordner:
 | Nach **Run** passiert nichts | Skript läuft noch | 10–20 Sekunden warten. Der Knopf zeigt solange einen Ladekreis. |
 | `syntax error at or near ""` | Beim Kopieren wurde nur ein Teil erwischt | Schritt 3a wiederholen, diesmal über **Raw** + Strg+A + Strg+C. |
 | App zeigt „Die Zugangsdaten stimmen nicht" | Die App prüft die zwei Werte beim Start und sagt im Text, welcher davon nicht passt | Meldung lesen, Schritt 5 wiederholen, bei Cloudflare korrigieren — **und danach neu bauen** (siehe Zeile unten) |
+| Anmeldung: „Invalid API key" | URL und Schlüssel stammen aus **verschiedenen** Supabase-Projekten — der häufigste Fehler beim Hin- und Herkopieren zwischen zwei Tabs | Beide Werte noch einmal aus **demselben** Supabase-Projekt holen (Schritt 5a und 5b), bei Cloudflare ersetzen — **und danach neu bauen** |
 | App zeigt „Noch nicht mit Supabase verbunden" | Die zwei Werte aus Schritt 5 fehlen bei Cloudflare oder sind vertippt | Cloudflare → dein Projekt → *Settings* → *Environment variables* prüfen. **Danach zwingend neu bauen:** Reiter *Deployments* → beim obersten Eintrag rechts das Menü **⋯** → **Retry deployment**. Ohne neuen Build ändert sich nichts. |
 | Anmeldung: „Email not confirmed" | Schritt 4 fehlt | Schritt 4 nachholen, dann erneut anmelden. |
 | Anmeldung: „Invalid login credentials" | Falsches Passwort — oder das Konto gibt es noch nicht | Unten auf **Neues Konto anlegen** wechseln. |
 | Arbeiter sieht „Der direkte Zugang ist noch nicht freigeschaltet" | Schritt 4b fehlt | In Supabase Authentication → Sign In / Providers → Anonymous sign-ins einschalten |
 | „Dafür fehlt die Berechtigung" | Du bist noch Arbeiter, nicht Betriebsleiter | Schritt 7 nachholen, dann F5. |
-| Menü zeigt kein „Stammdaten" | Dasselbe | Schritt 7 nachholen, dann F5. |
+| Keine Seitenleiste, kein Reiter „Betrieb" | Dasselbe | Schritt 7 nachholen, dann F5. |
 | Lagermanagement: „Noch keine auswertbaren Daten" | Keine Paletten importiert oder überall Tara fehlend | Teil 2, Punkte 1 und 2. |
 | Messungen warnt „Fehlende Tara" | Für manche Gebinde fehlt das Leergewicht | *Betrieb → Stammdaten → Gebinde & Tara* ausfüllen. |
 | Supabase: „Project is paused" | Gratis-Projekte pausieren nach 7 Tagen ohne Nutzung | Grüner Knopf **Restore project**, ein bis zwei Minuten warten. Während der Saison passiert das durch die normale Nutzung nicht. |

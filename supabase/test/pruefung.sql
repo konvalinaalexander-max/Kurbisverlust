@@ -4718,3 +4718,36 @@ begin
 end $$;
 
 select '——— 0079 Messtag, Wasch-Nenner, Glocke geprüft ———' as ergebnis;
+
+-- =====================================================================
+-- Die Vorbelegung, die der Betrieb selbst gesetzt hat, bleibt stehen
+-- =====================================================================
+-- 0051 legt `kisten_pro_palette` mit 32 und **ohne** Bemerkung an, 0072
+-- stellt auf 36 um und schreibt eine Bemerkung dazu. Die Stammdaten-Maske
+-- ändert nur den Wert. Eine leere Bemerkung heisst deshalb „so
+-- ausgeliefert, noch nie angefasst" — und nur dann darf 0072 umstellen.
+--
+-- Vorher hing die Umstellung allein am Wert 32. Wer als Betrieb auf 32
+-- stellte — was `docs/ZWEI_WEBSEITEN.md` Teil 6 ausdrücklich anbietet —,
+-- sah beim nächsten Einspielen von setup.sql still wieder 36.
+--
+-- Hier steht nur die Voraussetzung, auf der die Unterscheidung ruht. Das
+-- Verhalten selbst prüft `run.sh` Stufe 3 an der echten Datei: dort wird
+-- vor dem zweiten Durchlauf auf 32 gestellt und danach nachgesehen. Diese
+-- Prüfung hier den Ablauf nachbauen zu lassen, hiesse die Anweisung
+-- abzuschreiben — sie bliebe grün, während die Datei kaputt wäre.
+do $$
+declare v_wert jsonb; v_bem text;
+begin
+  select wert, bemerkung into v_wert, v_bem
+    from einstellung where schluessel = 'kisten_pro_palette';
+  assert v_wert = '36'::jsonb,
+    format('Vorbelegung (a1): kisten_pro_palette steht auf %s statt 36', v_wert);
+  assert v_bem is not null,
+    'Vorbelegung (a2): nach 0072 muss eine Bemerkung dastehen — sie ist das Merkmal, an dem '
+    'ein weiteres Einspielen „ausgeliefert" von „vom Betrieb gesetzt" unterscheidet';
+
+  raise notice 'OK  Vorbelegung — kisten_pro_palette trägt die Bemerkung, an der 0072 den Auslieferungszustand erkennt';
+end $$;
+
+select '——— Vorbelegung kisten_pro_palette geprüft ———' as ergebnis;

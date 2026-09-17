@@ -5802,12 +5802,18 @@ create policy ausgang_zuruecknehmen on ausgang_wiegung for delete to authenticat
 -- palette", aber „teilweise sinds 32 und teilweise 36". Die Zahl ist
 -- also eine Vorbelegung, keine Annahme — gefragt wird je Palette.
 -- Überschrieben wird nur der ausgelieferte Vorgabewert 32, nie eine Zahl,
--- die der Betrieb selbst gesetzt hat.
+-- die der Betrieb selbst gesetzt hat. Woran man beides unterscheidet:
+-- 0051 legt die Zeile ohne Bemerkung an, diese Anweisung schreibt eine
+-- dazu, und die Stammdaten-Maske ändert nur den Wert. Eine leere Bemerkung
+-- heisst deshalb „so ausgeliefert, noch nie angefasst" — und nur dann darf
+-- umgestellt werden. Ohne diese Bedingung setzte jedes weitere Einspielen
+-- von setup.sql eine vom Betrieb gewählte 32 still wieder auf 36.
 update einstellung set wert = '36'::jsonb,
        bemerkung = 'Wie viele Kisten in der Regel auf einer Palette stehen. '
                    'Vorbelegung der Maske, keine Annahme der Rechnung — je Palette '
                    'wird gefragt, weil es teils 32 und teils 36 sind (0072).'
- where schluessel = 'kisten_pro_palette' and wert = '32'::jsonb;
+ where schluessel = 'kisten_pro_palette' and wert = '32'::jsonb
+   and bemerkung is null;
 
 insert into einstellung (schluessel, wert, bemerkung) values
   ('betriebsmodus', '"echt"'::jsonb,

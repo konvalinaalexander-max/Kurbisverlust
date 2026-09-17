@@ -114,6 +114,18 @@ echo "── 3. setup.sql ein zweites Mal ────────────�
 # bekommen, und ein Betrieb lief monatelang auf einem Stand, den die App
 # längst überholt hatte. Jetzt gilt das Gegenteil — der zweite Durchlauf
 # muss gelingen und dieselbe Datenbank hinterlassen.
+#
+# „Dieselbe Datenbank" heisst auch: Was der Betrieb an Einstellungen gesetzt
+# hat, bleibt stehen. Der Fall, an dem das einmal scheiterte: 0072 stellt die
+# Vorbelegung `kisten_pro_palette` von 32 auf 36 um. Die Bedingung dafür hing
+# allein am Wert — und deshalb setzte jedes weitere Einspielen auch eine 32
+# wieder auf 36 zurück, die der Betrieb selbst gewählt hatte (docs/
+# ZWEI_WEBSEITEN.md, Teil 6, bietet genau das an). Seit 0072 zusätzlich auf
+# die leere Bemerkung prüft, unterscheidet es „so ausgeliefert" von „vom
+# Betrieb gesetzt". Hier wird es an der echten Datei nachgemessen: erst wie
+# die Stammdaten-Maske nur den Wert setzen, dann setup.sql laufen lassen.
+psql "$URL" -v ON_ERROR_STOP=1 -q -c \
+  "update einstellung set wert = '32'::jsonb where schluessel = 'kisten_pro_palette';"
 if ! ZWEITE="$(psql "$URL" -v ON_ERROR_STOP=1 -qtA -1 -f "$HIER/../setup.sql" 2>&1)"; then
   echo "   FEHLER: der zweite Durchlauf ist gescheitert:"
   echo "$ZWEITE" | grep -iE 'error|fehler' | head -10; exit 1
@@ -127,7 +139,12 @@ psql "$URL" -v ON_ERROR_STOP=1 -f "$HIER/fingerabdruck.sql" > "$FRISCH.zwei"
 diff -q "$FRISCH" "$FRISCH.zwei" >/dev/null \
   || { echo "   FEHLER: das Schema hat sich beim zweiten Durchlauf verändert:";
        diff "$FRISCH" "$FRISCH.zwei" | head -20; exit 1; }
-echo "   läuft durch, Daten unversehrt ($VERBLIEBEN Chargen), Schema unverändert"
+KISTEN="$(psql "$URL" -qtA -c "select wert from einstellung where schluessel = 'kisten_pro_palette'")"
+[ "$KISTEN" = "32" ] || { echo "   FEHLER: setup.sql hat die vom Betrieb gesetzte kisten_pro_palette (32) auf $KISTEN zurückgesetzt"; exit 1; }
+psql "$URL" -v ON_ERROR_STOP=1 -q -c \
+  "update einstellung set wert = '36'::jsonb where schluessel = 'kisten_pro_palette';"
+echo "   läuft durch, Daten unversehrt ($VERBLIEBEN Chargen), Schema unverändert,"
+echo "   selbst gesetzte Einstellungen unangetastet (kisten_pro_palette blieb 32)"
 
 echo
 echo "── 3b. Aktualisierung von einem alten Stand ──────────────────"

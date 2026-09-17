@@ -2,14 +2,23 @@ import { useEffect, useState } from 'react'
 import { ZDrucken, ZHaken, ZKopieren, ZKuerbis } from '../components/Zeichen'
 import QRCode from 'qrcode'
 import { Hinweis, Karte } from '../components/Bausteine'
+import { useBetriebsmodus } from '../lib/betriebsmodus'
 
 /**
  * Der QR-Code zum Aufhängen in der Halle. Er enthält schlicht die Adresse
  * dieser App — wer ihn mit der Handy-Kamera scannt, landet auf der Startseite,
  * tippt seinen Namen und ist drin.
+ *
+ * Das Band „Beispieldaten — nicht der Betrieb" trägt die Klasse `kein-druck`
+ * und steht deshalb nicht auf dem Blatt. Ein versehentlich auf der
+ * Beispiel-Seite gedrucktes Blatt sähe sonst aus wie das richtige, hinge in
+ * der Halle und die ganze Schicht erfasste in die Übungsdatenbank. Darum
+ * druckt der Beispielmodus einen eigenen Streifen mit — quer über das Blatt,
+ * nicht wegzusehen.
  */
 export default function Zugang() {
   const url = window.location.origin
+  const modus = useBetriebsmodus()
   const [qr, setQr] = useState<string | null>(null)
   const [fehler, setFehler] = useState<string | null>(null)
   const [kopiert, setKopiert] = useState(false)
@@ -41,6 +50,11 @@ export default function Zugang() {
       </Hinweis>
 
       <section className="karte druckbereich mitte">
+        {modus === 'beispiel' && (
+          <p className="zugang-beispiel" role="status">
+            BEISPIEL — nicht der Betrieb. Dieses Blatt gehört nicht in die Halle.
+          </p>
+        )}
         <h2 className="zugang-titel"><span className="kachel" aria-hidden="true"><ZKuerbis size={22} /></span>Kürbis-Verlust — Zugang</h2>
         <p className="leise nur-druck oben-0">
           Mit der Handy-Kamera scannen, Namen eintippen, loslegen.
@@ -51,6 +65,9 @@ export default function Zugang() {
         )}
         <p className="qr-adresse">
           {url}
+        </p>
+        <p className="leise nur-druck unten-0">
+          Diese Adresse muss die sein, die in der Halle gilt.
         </p>
       </section>
 
