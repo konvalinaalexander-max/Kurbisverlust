@@ -35,6 +35,15 @@ psql "$U" -v ON_ERROR_STOP=1 -q -c "
   update profil set rolle = 'admin' where id = '11111111-1111-1111-1111-111111111111';
   update profil set aktiv = true;"
 
+# Seit 0072 weist eine Datenbank im Echtmodus Beispieldaten ab — als Auslöser
+# an den Tabellen, nicht als Prüfung in der Funktion. Frisch eingerichtet steht
+# jede Datenbank auf `echt`, das ist die sichere Vorgabe. Diese hier *ist* die
+# Beispieldatenbank, also sagt sie es auch. Ohne diese Zeile brach der Aufbau
+# ab („Diese Datenbank läuft im Echtmodus …") und niemand konnte die Demo mehr
+# bauen — dieselbe Zeile steht aus demselben Grund in run.sh Stufe 4.
+psql "$U" -v ON_ERROR_STOP=1 -q -c \
+  "update einstellung set wert = '\"beispiel\"'::jsonb where schluessel = 'betriebsmodus'"
+
 psql "$U" -v ON_ERROR_STOP=1 -qtA -c "select demo_daten_laden()" >/dev/null
 # Seit 0055 rechnet demo_daten_laden() nicht mehr selbst — wie die App: eigener Aufruf.
 psql "$U" -v ON_ERROR_STOP=1 -qtA -c "select auswertung_aktualisieren()" >/dev/null
