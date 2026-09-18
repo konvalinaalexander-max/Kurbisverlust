@@ -231,7 +231,13 @@ export async function laufen() {
   // Seit 0064 hängt die Herkunftsmarke des Eingangs an n_paletten_mit_netto,
   // und v_plausibilitaet meldet die Lücke. Der Befund bleibt nur, solange
   // eines von beidem fehlt.
-  const markeBedingt = /n_paletten_mit_netto/.test(lies('src/pages/Ueberblick.tsx'))
+  //
+  // Die Seite hiess bis Runde R „Ueberblick"; seither „Lagermanagement".
+  // Die Sonde las weiter die alte Datei, fand sie nicht und brach ab — eine
+  // Sonde, die an einem Dateinamen stirbt, prüft nichts mehr. Sie liest
+  // deshalb den Reiter, der die Kennzahl heute zeigt, und sagt es deutlich,
+  // wenn auch der einmal umgetauft wird.
+  const markeBedingt = /n_paletten_mit_netto/.test(lies('src/pages/Lagermanagement.tsx'))
   const gemeldet = auff.some(a => /Tara fehlt/.test(a.art))
   if (ohneArt && ohneArt.netto === null && fehlend > 0 && !(markeBedingt && gemeldet)) {
     const jeVoll = p.filter(x => x.netto !== null).reduce((a, x) => a + Number(x.netto), 0)
@@ -290,25 +296,41 @@ export async function laufen() {
 }
 
 /**
- * Selbstprobe: In der Welt ohne Messung *muss* mindestens ein Strom als
- * unbekannt gelten, und `erg_verlust` *muss* ihn als NULL führen. Gilt keiner
- * als unbekannt oder steht dort eine Zahl, ist der Massstab kaputt — und dann
- * sagt auch das leere Ergebnis der Sonde nichts.
+ * Selbstprobe: In der Welt ohne Messung *muss* jeder gemessene Strom als
+ * unbekannt gelten, und `erg_verlust` *muss* ihn als NULL führen. Steht dort
+ * eine Zahl, ist der Massstab kaputt — und dann sagt auch das leere Ergebnis
+ * der Sonde nichts.
  *
  * (Bis 0064 stand hier zusätzlich, dass v_saisonbilanz denselben Strom als 0
  * ausweist — das war der Befund LNN-001. Er ist behoben; die Selbstprobe prüft
  * jetzt nur noch den Massstab, nicht mehr den Fehler.)
+ *
+ * Eine Ausnahme, und nur eine: Seit 0078 ist der Fax-Strom **eingefroren**.
+ * Der Betrieb erfasst Fax nicht mehr, also ist der erwartete Anteil nicht
+ * unbekannt, sondern null durch Entscheid — `bekannt = true`, `kg = 0`, mit
+ * der Basis „eingefroren". Bis zu diesem Umbau verlangte die Selbstprobe,
+ * dass **alle** Ströme offen sind; seither meldete sie sich selbst als stumpf.
+ * Sie prüft die Ausnahme jetzt ausdrücklich mit: Wird Fax je wieder erfasst
+ * oder taut jemand den Koeffizienten versehentlich auf, fällt sie hier auf —
+ * das ist strenger als vorher, nicht nachsichtiger.
  */
 export async function selbstprobe() {
   papierfall('pw_leer_probe')
   const r = frage('pw_leer_probe', `select count(*) filter (where not bekannt) as offen,
                                            count(*) filter (where kg is not null) as mit_zahl,
                                            count(*) as alle
-                                      from erg_verlust where gruppe = 'gesamt'`)[0]
+                                      from erg_verlust
+                                     where gruppe = 'gesamt' and koeff_art is distinct from 'fax'`)[0]
+  const fax = frage('pw_leer_probe', `select bekannt, kg::numeric as kg, koeff_basis
+                                        from erg_verlust
+                                       where gruppe = 'gesamt' and koeff_art = 'fax'`)[0]
   const b = frage('pw_leer_probe', `select verlust_bekannt, verlust_heute_kg::numeric as v,
                                            eingang_kg::numeric as e
                                       from v_saisonbilanz`)[0]
   return Number(r.offen) === Number(r.alle) && Number(r.alle) > 0 && Number(r.mit_zahl) === 0
+      && fax !== undefined
+      && (fax.bekannt === true || fax.bekannt === 't')
+      && Number(fax.kg) === 0 && /eingefroren/.test(String(fax.koeff_basis))
       && (b.verlust_bekannt === false || b.verlust_bekannt === 'f')
       && Number(b.e) > 0
 }

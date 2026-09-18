@@ -222,7 +222,7 @@ export async function laufen({ db }) {
   const l = lesarten(db)
   if (l.eingang > 0 && l.vomEingang !== null && l.vomRest !== null) {
     const spanne = Math.abs(l.vomRest - l.vomEingang)
-    B({ klasse: 3, ort: { sicht: 'v_saisonbilanz', datei: 'src/pages/Ueberblick.tsx', zeile: 66 },
+    B({ klasse: 3, ort: { sicht: 'v_saisonbilanz', datei: 'src/pages/Lagermanagement.tsx' },
         titel: 'Verlust in Prozent — wovon? Drei Lesarten, bis zu ' + spanne.toFixed(1) + ' Prozentpunkte auseinander',
         steht_da: `„${l.vomEingang.toFixed(2)} % des Eingangs" (${Math.round(l.verlust)} von ${Math.round(l.eingang)} kg). `
                 + `Dieselbe Zahl bezogen auf das, was noch nicht ausgeliefert ist, wäre `
