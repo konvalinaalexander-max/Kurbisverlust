@@ -5,42 +5,42 @@ die Fassung, die zählt, entsteht neu mit `node pruefwerk/lauf.mjs && node pruef
 
 ## Was hier steht
 
-8 Feststellungen aus 10 Sonden. Jede hat eine Grösse — ohne Grösse
+12 Feststellungen aus 10 Sonden. Jede hat eine Grösse — ohne Grösse
 ist eine Feststellung eine Meinung, und eine Liste von Meinungen nimmt niemand ernst. Jede hat
 eine Gegenrede, wo es eine gibt: das beste Argument dagegen, aufgeschrieben von dem, der die
 Feststellung gemacht hat.
 
-Nicht jede Feststellung ist ein Fehler. 4 sind ausdrücklich
+Nicht jede Feststellung ist ein Fehler. 3 sind ausdrücklich
 „geprüft und in Ordnung" — sie stehen hier, weil ein Bericht, der nur Fehler nennt, nicht sagt,
 wie weit nachgesehen wurde.
 
 | Klasse | Was das heisst | Anzahl |
 |---|---|---|
-| 3 — Bedeutung | Die Zahl steht da und meint etwas anderes, als der Leser denkt — oder sie ist falsch. | 2 |
-| 2 — Kette | Erfassung, Rechnung und Anzeige passen nicht sauber zusammen; heute trägt es, morgen vielleicht nicht. | 2 |
-| 1 — Technisch | Im Bestand nachgesehen und in Ordnung befunden, oder eine Kleinigkeit ohne Folge für eine Zahl. | 4 |
+| 3 — Bedeutung | Die Zahl steht da und meint etwas anderes, als der Leser denkt — oder sie ist falsch. | 5 |
+| 2 — Kette | Erfassung, Rechnung und Anzeige passen nicht sauber zusammen; heute trägt es, morgen vielleicht nicht. | 4 |
+| 1 — Technisch | Im Bestand nachgesehen und in Ordnung befunden, oder eine Kleinigkeit ohne Folge für eine Zahl. | 3 |
 
 | Marke | Was zu tun ist | Anzahl |
 |---|---|---|
-| Reparatur | Etwas ist falsch und lässt sich richtigstellen, ohne die App zu erweitern. | 2 |
+| Reparatur | Etwas ist falsch und lässt sich richtigstellen, ohne die App zu erweitern. | 7 |
 | Frage an den Betrieb | Zwei Lesarten sind beide vertretbar; entscheiden muss der Betrieb. | 1 |
 | Entscheidung des Betriebs | Es geht um den Ablauf im Betrieb, nicht um den Code. | 1 |
-| kein Fehler | Nachgesehen, in Ordnung. | 4 |
+| kein Fehler | Nachgesehen, in Ordnung. | 3 |
 
 ## Was geprüft wurde
 
 | Sonde | Feststellungen | Dauer | Selbstprobe |
 |---|---|---|---|
-| `01_herkunft` | 0 | 12.6 s | ok |
-| `02_bezugsgroessen` | 1 | 0.2 s | ok |
-| `03_erfassung` | 1 | 1.6 s | ok |
-| `04_orakel` | 1 | 0.5 s | ok |
-| `05_metamorph` | 0 | 6.8 s | ok |
-| `06_mutation` | 1 | 1049.1 s | ok |
-| `07_szenarien` | 1 | 57.5 s | ok |
-| `08_leer_nicht_null` | 1 | 18.3 s | ok |
-| `09_einheiten` | 1 | 40.8 s | ok |
-| `10_annahmen` | 1 | 0.3 s | ok |
+| `01_herkunft` | 1 | 26.4 s | ok |
+| `02_bezugsgroessen` | 3 | 0.2 s | ok |
+| `03_erfassung` | 1 | 2.2 s | ok |
+| `04_orakel` | 1 | 0.4 s | ok |
+| `05_metamorph` | 1 | 12.8 s | ok |
+| `06_mutation` | 1 | 1752.6 s | ok |
+| `07_szenarien` | 1 | 63.3 s | ok |
+| `08_leer_nicht_null` | 1 | 21 s | ok |
+| `09_einheiten` | 1 | 135 s | ok |
+| `10_annahmen` | 1 | 0.5 s | ok |
 
 Die Spalte **Selbstprobe** ist die wichtigste der Tabelle. Jede Sonde bekommt einen Fall
 vorgesetzt, in dem sie anschlagen *muss*. Steht dort „ok", hat sie ihren eigenen eingebauten
@@ -50,21 +50,75 @@ Fehler gefunden; steht dort „STUMPF", sagt auch ihr leeres Ergebnis nichts.
 
 Die Zahl steht da und meint etwas anderes, als der Leser denkt — oder sie ist falsch.
 
-### BEZ-001 · Verlust in Prozent — wovon? Drei Lesarten, bis zu 9.0 Prozentpunkte auseinander
+### BEZ-002 · Prozentzahl aus „verlust", ohne zu prüfen, ob „verlust" gemessen ist
 
-*Frage an den Betrieb · Sicherheit hoch · Aufwand klein · `src/pages/Ueberblick.tsx:66` · `v_saisonbilanz`*
+*Reparatur · Sicherheit hoch · Aufwand klein · `src/pages/Ursachen.tsx:147`*
 
-**Grösse.** **9 Prozentpunkte** (Demosaison, 323268 kg Eingang)
+**Grösse.** **1 Stellen, die eine ungemessene Null als Prozent zeigen** (Strom „verlust")
 
-**Was dasteht.** „16.12 % des Eingangs" (52119 von 323268 kg). Dieselbe Zahl bezogen auf das, was noch nicht ausgeliefert ist, wäre 25.13 % (52119 von 207432 kg).
+**Was dasteht.** src/pages/Ursachen.tsx:147 — `prozent(eingang > 0 ? verlust / eingang : null)`, beschriftet „function Wohin("
 
-**Was dastehen müsste.** Zwei Zahlen nebeneinander, jede mit ihrer Aufgabe: Saisonbilanz 16.1 % des Eingangs (was von allem, was hereinkam, weg ist) und getrennt nach Ware: ausgelieferte Ware 13.1 % (18167 von 138950 kg Eingangsmasse), liegende Ware 18.0 % (33952 von 188498 kg, wächst weiter).
+**Was dastehen müsste.** Ist `verlust_bekannt` falsch, gehört dort „nicht gemessen" hin, nicht eine Zahl. Die Datenbank führt das Kennzeichen bereits mit; es wird an dieser Stelle nur nicht gelesen.
+
+**Warum das zählt.** Ohne eine einzige Messung ist der Strom 0 kg — und 0 kg von einem Eingang sind 0,0 %. Der Leser sieht eine gemessene Null, wo nichts gemessen wurde. Genau dieser Fall tritt auf jedem Betrieb in der ersten Saison ein, bevor die erste Palette gewogen ist.
+
+**Gegenrede.** In den Demodaten ist `verlust` immer gemessen, deshalb fällt es nie auf — das ist kein Gegenargument, sondern die Erklärung, warum es stehen blieb.
+
+<sub>Nachweis: src/pages/Ursachen.tsx:147</sub>
+
+---
+
+### BEZ-003 · Verlust in Prozent — wovon? Drei Lesarten, bis zu 9.6 Prozentpunkte auseinander
+
+*Frage an den Betrieb · Sicherheit hoch · Aufwand klein · `src/pages/Lagermanagement.tsx` · `v_saisonbilanz`*
+
+**Grösse.** **9.6 Prozentpunkte** (Demosaison, 362170 kg Eingang)
+
+**Was dasteht.** „14.87 % des Eingangs" (53848 von 362170 kg). Dieselbe Zahl bezogen auf das, was noch nicht ausgeliefert ist, wäre 24.49 % (53848 von 219867 kg).
+
+**Was dastehen müsste.** Zwei Zahlen nebeneinander, jede mit ihrer Aufgabe: Saisonbilanz 14.9 % des Eingangs (was von allem, was hereinkam, weg ist) und getrennt nach Ware: ausgelieferte Ware 10.5 % (17445 von 165610 kg Eingangsmasse), liegende Ware 18.2 % (36402 von 200249 kg, wächst weiter).
 
 **Warum das zählt.** Die dritte Lesart — Verlust geteilt durch (Eingang − Ausgang) — ist die, nach der gefragt wird, und sie ist die einzige, die niemand verwenden sollte: Der Zähler enthält auch den Verlust der Ware, die bereits ausgeliefert ist, der Nenner aber nicht mehr ihre Masse. Sie mischt zwei Bestände und ist deshalb immer zu hoch. Was hinter der Frage steckt — „welcher Prozentsatz ist die Zahl, an der ich etwas ändern kann?" — beantwortet die Trennung nach Portion, und die rechnet die Kaskade ohnehin schon: die liegende Ware ist die Zahl zum Handeln, die ausgelieferte die zum Nachrechnen.
 
 **Gegenrede.** Man kann argumentieren, dass eine einzige Zahl leichter zu merken ist als drei. Dagegen steht, dass die eine Zahl heute schon zwei Bedeutungen trägt und der Betriebsleiter nicht sieht, welche. Die Trennung nach Portion kostet keine neue Rechnung — sie steht bereits in mv_kaskade.
 
 <sub>Nachweis: pruefwerk/sonden/02_bezugsgroessen.mjs → lesarten(); mv_kaskade nach portion gruppiert</sub>
+
+---
+
+### HER-001 · „Ausgang" trägt die Marke „gemessen" und enthält eine Schätzung
+
+*Reparatur · Sicherheit hoch · Aufwand klein · `src/pages/Lagermanagement.tsx` · `v_saisonbilanz` · Spalte `ausgang_kg`*
+
+**Grösse.** **5000 kg Schätzung in einer als gemessen ausgewiesenen Zahl** (3.5 % von „Ausgang")
+
+**Was dasteht.** ausgang_kg = 142302 kg mit der Marke „gemessen". Davon sind 5000 kg `vorlauf_kg` — die Angabe des Betriebs, was vor dem Erfassungsbeginn schon draussen war (1 Zeile(n) in `charge_vorlauf`, mit Bemerkung, ohne Lieferschein). Das sind 3.5 % der Zahl.
+
+**Was dastehen müsste.** Entweder die Marke für diese Zahl anders wählen (gemessen + geschätzter Anteil), oder den Vorlauf aus der Zahl herausnehmen und daneben stellen. Der Untertitel nennt ihn bereits („… vor dem Erfassungsbeginn") — die Marke widerspricht dem Untertitel.
+
+**Warum das zählt.** Die Seite erklärt die Marke selbst: „gemessen heisst: aus einer vollständigen Liste — jede Palette im Erntejournal, jede Lieferung auf einem Lieferschein." Für den Vorlauf gilt das nicht; er ist eine Erinnerung. Solange beides dieselbe Marke trägt, ist die Marke keine Auskunft mehr, sondern Dekoration — und sie steht an vier Stellen des Lagermanagements.
+
+**Gegenrede.** Der Untertitel nennt den Vorlauf ausdrücklich, wer genau liest, sieht ihn also. Dagegen steht: Die Marke ist die Abkürzung für Leser, die nicht genau lesen — dafür wurde sie eingeführt. Eine Abkürzung, die im Sonderfall das Gegenteil sagt, ist schlechter als keine.
+
+<sub>Nachweis: pruefwerk/sonden/01_herkunft.mjs → 1d</sub>
+
+---
+
+### MET-001 · Eine Lieferung in den Kompost verlässt den Betrieb, fehlt aber in Bestand und Verlust
+
+*Reparatur · Sicherheit mittel · Aufwand klein · `v_lieferung_kohorte`*
+
+**Grösse.** **100 % jeder entsorgten Menge zählen doppelt** (in den Demodaten ist nichts entsorgt; Sonde 07 misst den Fall mit 500 kg)
+
+**Was dasteht.** v_lieferung_kohorte filtert auf buch in ('verkauf','marge'); entsorgt sind heute 0 kg
+
+**Was dastehen müsste.** Entsorgte Ware ist echter Verlust: sie muss den Bestand verringern und im Verlust erscheinen.
+
+**Warum das zählt.** Sie zählt in ausgang_kg (v_saisonbilanz nimmt dort alle Bücher), aber die Kaskade sieht sie nicht. Damit liegt sie rechnerisch weiter im Lager und altert weiter — dieselbe Fehlerart, die 0062 für die Marge behoben hat, nur für das dritte Buch. Solange niemand Kompost erfasst, ist es folgenlos; sobald doch, ist es eine stille Verschiebung.
+
+**Gegenrede.** Vielleicht ist beabsichtigt, dass „entsorgt" nur eine Notiz ist. Dann dürfte es aber auch nicht in ausgang_kg stehen — dort steht es.
+
+<sub>Nachweis: pruefwerk/sonden/05_metamorph.mjs, Abschnitt 6</sub>
 
 ---
 
@@ -88,13 +142,29 @@ Die Zahl steht da und meint etwas anderes, als der Leser denkt — oder sie ist 
 
 Erfassung, Rechnung und Anzeige passen nicht sauber zusammen; heute trägt es, morgen vielleicht nicht.
 
-### ERF-001 · 31 Felder verlangt die Maske, die Datenbank lässt sie leer
+### BEZ-001 · Prozentzahl ohne Wache auf dem Nenner
+
+*Reparatur · Sicherheit hoch · Aufwand klein · `src/pages/Ursachen.tsx:461`*
+
+**Grösse.** **1 Stelle** (Quelltextprüfung)
+
+**Was dasteht.** prozent(z.zuviel_je_kiste / z.soll_kg_pro_kiste)
+
+**Was dastehen müsste.** prozent(z.soll_kg_pro_kiste > 0 ? z.zuviel_je_kiste / z.soll_kg_pro_kiste : null) — ohne Nenner ist der Anteil unbekannt, nicht null und nicht unendlich.
+
+**Warum das zählt.** Ist der Nenner 0, kommt Infinity oder NaN heraus. `prozent()` fängt NaN ab und schreibt „—", Infinity aber nicht: dort stünde „∞ %".
+
+<sub>Nachweis: src/pages/Ursachen.tsx:461</sub>
+
+---
+
+### ERF-001 · 32 Felder verlangt die Maske, die Datenbank lässt sie leer
 
 *Reparatur · Sicherheit hoch · Aufwand klein · `auftrag, auftrag_palette, ausgang_wiegung, ausschuss_messung, lieferung, schimmel_messung, verdunstung_wiegung`*
 
-**Grösse.** **31 Felder ohne Bedingung** (31 Felder, die die Maske verlangt)
+**Grösse.** **32 Felder ohne Bedingung** (32 Felder, die die Maske verlangt)
 
-**Was dasteht.** Insgesamt 31 Felder, die die Maske verlangt und die Tabelle nicht: auftrag.kaeufer, auftrag.sortierschema_id, auftrag.kaliber_idx, auftrag.kaliber_von_g, auftrag.kaliber_bis_g, auftrag.kistensystem, auftrag.soll_kg_pro_kiste, auftrag.stueck_je_kiste, auftrag_palette.eingangsdatum, auftrag_palette.wiegung_id, auftrag_palette.brutto_zettel_kg, auftrag_palette.sortierdatum, auftrag_palette.kisten, ausgang_wiegung.gebindeart, ausgang_wiegung.kuerbisse_pro_kiste, ausgang_wiegung.kaliber_idx, ausschuss_messung.brutto_kg, ausschuss_messung.kisten, ausschuss_messung.gebindeart, lieferung.charge_nr, lieferung.sorte, lieferung.kg, lieferung.kisten, lieferung.kunde, schimmel_messung.brutto_kg, schimmel_messung.kisten, schimmel_messung.gebindeart, verdunstung_wiegung.auftrag_id, verdunstung_wiegung.kisten, verdunstung_wiegung.gebindeart, verdunstung_wiegung.kuerbisse_pro_kiste
+**Was dasteht.** Insgesamt 32 Felder, die die Maske verlangt und die Tabelle nicht: auftrag.kaeufer, auftrag.sortierschema_id, auftrag.kaliber_idx, auftrag.kaliber_von_g, auftrag.kaliber_bis_g, auftrag.kistensystem, auftrag.soll_kg_pro_kiste, auftrag.stueck_je_kiste, auftrag_palette.eingangsdatum, auftrag_palette.wiegung_id, auftrag_palette.brutto_zettel_kg, auftrag_palette.sortierdatum, auftrag_palette.kisten, auftrag_palette.gebindeart, ausgang_wiegung.gebindeart, ausgang_wiegung.kuerbisse_pro_kiste, ausgang_wiegung.kaliber_idx, ausschuss_messung.brutto_kg, ausschuss_messung.kisten, ausschuss_messung.gebindeart, lieferung.charge_nr, lieferung.sorte, lieferung.kg, lieferung.kisten, lieferung.kunde, schimmel_messung.brutto_kg, schimmel_messung.kisten, schimmel_messung.gebindeart, verdunstung_wiegung.auftrag_id, verdunstung_wiegung.kisten, verdunstung_wiegung.gebindeart, verdunstung_wiegung.kuerbisse_pro_kiste
 
 **Was dastehen müsste.** `not null` auf den Feldern, ohne die die Zeile nicht rechenbar ist. Wo eine Lücke zulässig sein soll, gehört sie ausdrücklich zugelassen — und die Rechnung dahinter muss sie als „unbekannt" behandeln, nicht als Null.
 
@@ -106,13 +176,31 @@ Erfassung, Rechnung und Anzeige passen nicht sauber zusammen; heute trägt es, m
 
 ---
 
-### MUT-001 · 4 Verstellungen ändern auf den Demodaten keine einzige Zahl
+### LNN-001 · 10 Stellen machen aus einer fehlenden Masse eine Null, ohne zu sagen warum
+
+*Reparatur · Sicherheit mittel · Aufwand klein · `src/auswertung/daten.ts:810`*
+
+**Grösse.** **10 unbegründete Stellen** (11 Stellen mit `?? 0` an einer Masse)
+
+**Was dasteht.** src/auswertung/daten.ts:810 — `m.sockel ?? 0`; src/pages/Lagermanagement.tsx:163 — `w?.geliefert_kg ?? 0`; src/pages/Lagermanagement.tsx:164 — `w?.geliefert_kg ?? 0`; src/pages/Lagermanagement.tsx:165 — `w?.kanal_ausgelagert_kg ?? 0`; src/pages/Messungen.tsx:75 — `b.eingang_kg ?? 0`; src/pages/Messungen.tsx:75 — `a.eingang_kg ?? 0`; src/pages/Ursachen.tsx:142 — `w?.rest_kg ?? 0`; src/pages/Ursachen.tsx:142 — `w?.lager_rest_kg ?? 0` … und 2 weitere (von 11 Stellen insgesamt sind 1 begründet).
+
+**Was dastehen müsste.** Fehlt eine Masse, gehört „—" hin. `?? 0` ist richtig, wo eine Summe über eine leere Liste gebildet oder ein Sortierschlüssel gebraucht wird (dort ist 0 beobachtet), und falsch, wo ein einzelner Wert fehlt. Was von beidem gilt, gehört als Satz darüber.
+
+**Warum das zählt.** Jede dieser Stellen kann eine unbekannte Masse in eine Summe tragen, die danach wie eine gemessene Zahl aussieht. Welche harmlos ist, kann nur entscheiden, wer sie geschrieben hat — und muss es aufschreiben, sonst entscheidet es der nächste neu.
+
+**Gegenrede.** Ein grosser Teil solcher Stellen steht in `reduce((a, b) => a + (b.kg ?? 0), 0)` und ist dort unbedenklich, weil die Liste selbst die Auskunft ist. Der Befund verlangt keine Änderung an der Rechnung, nur einen Satz darüber.
+
+<sub>Nachweis: pruefwerk/sonden/08_leer_nicht_null.mjs → 8b</sub>
+
+---
+
+### MUT-001 · 5 Verstellungen ändern auf den Demodaten keine einzige Zahl
 
 *Reparatur · Sicherheit hoch · Aufwand mittel · `supabase/migrations`*
 
-**Grösse.** **4 Verstellungen ohne Wirkung** (15 Verstellungen auf den Demodaten)
+**Grösse.** **5 Verstellungen ohne Wirkung** (15 Verstellungen auf den Demodaten)
 
-**Was dasteht.** „Der Sockel wird vom Eingangsgewicht statt vom Gewicht nach der Verdunstung genommen" (sockel-auf-m0); „Der Schimmel rechnet den Sockel nicht heraus — dieselbe Ware zweimal" (schimmel-ohne-sockel); „Der Boden des verkaufsfähigen Anteils von 25 % auf 5 %" (boden-tiefer); „Die Verdunstungsrate darf zehnmal so gross werden" (rate-deckel-weg)
+**Was dasteht.** „Der Sockel wird vom Eingangsgewicht statt vom Gewicht nach der Verdunstung genommen" (sockel-auf-m0); „Der Schimmel rechnet den Sockel nicht heraus — dieselbe Ware zweimal" (schimmel-ohne-sockel); „Der Boden des verkaufsfähigen Anteils von 25 % auf 5 %" (boden-tiefer); „Die Verdunstungsrate darf zehnmal so gross werden" (rate-deckel-weg); „Das Fax-Faule der liegenden Ware zählt als Verlust bis heute" (fax-doppelt)
 
 **Was dastehen müsste.** Entweder Demodaten, in denen die Stelle wirkt, oder ein eigener Papierfall, der sie ansteuert. Solange keine Daten die Stelle erreichen, sagt kein Test etwas über sie — und eine grüne Suite bedeutet dort nichts.
 
@@ -144,9 +232,9 @@ Im Bestand nachgesehen und in Ordnung befunden, oder eine Kleinigkeit ohne Folge
 
 *kein Fehler · Sicherheit hoch · Aufwand klein · `alle Sichten`*
 
-**Grösse.** **401 geprüfte Spalten** (alle Tabellen und Sichten)
+**Grösse.** **523 geprüfte Spalten** (alle Tabellen und Sichten)
 
-**Was dasteht.** 401 Spalten mit einer Endung, die eine Einheit nennt (…_anteil, …_kg, …_tage, …_g, n_…), über 124 Tabellen und Sichten. Keine hält einen Wert ausserhalb ihres Bereichs. 3 Spalten sind einzeln begründet ausgenommen, dazu die Wortgruppe der Differenzen (Abweichung, Rest, Fehler, Versatz), bei der das Vorzeichen die Aussage ist.
+**Was dasteht.** 523 Spalten mit einer Endung, die eine Einheit nennt (…_anteil, …_kg, …_tage, …_g, n_…), über 145 Tabellen und Sichten. Keine hält einen Wert ausserhalb ihres Bereichs. 3 Spalten sind einzeln begründet ausgenommen, dazu die Wortgruppe der Differenzen (Abweichung, Rest, Fehler, Versatz), bei der das Vorzeichen die Aussage ist.
 
 **Was dastehen müsste.** Nichts.
 
@@ -156,31 +244,13 @@ Im Bestand nachgesehen und in Ordnung befunden, oder eine Kleinigkeit ohne Folge
 
 ---
 
-### LNN-001 · Geprüft: alle 7 Stellen mit `?? 0` an einer Masse sind begründet
-
-*kein Fehler · Sicherheit hoch · Aufwand keiner · `src/auswertung/tempo.ts:25`*
-
-**Grösse.** **7 begründete Stellen** (src/**)
-
-**Was dasteht.** src/auswertung/tempo.ts:25, src/pages/Messungen.tsx:73, src/pages/Messungen.tsx:73, src/pages/Ursachen.tsx:405, src/pages/Ursachen.tsx:434, src/pages/Ursachen.tsx:434, src/pages/Ursachen.tsx:444 — über jeder steht, warum die Null dort beobachtet und nicht erfunden ist (gefilterte Liste, Sortierschlüssel, oder eine Summe nur über das Gerechnete).
-
-**Was dastehen müsste.** So. Die Sonde prüft nicht, dass es keine solchen Stellen gibt — sie prüft, dass keine ohne Begründung dasteht.
-
-**Warum das zählt.** Ein `?? 0` über einer leeren Liste ist richtig, über einem fehlenden Einzelwert falsch. Die Regel kann das nicht unterscheiden, der Satz darüber schon.
-
-**Gegenrede.** Ein Kommentar kann falsch sein; die Sonde liest ihn nicht, sie zählt ihn. Sie hält damit die Stellen sichtbar, nicht die Begründungen wahr.
-
-<sub>Nachweis: pruefwerk/sonden/08_leer_nicht_null.mjs → 8b</sub>
-
----
-
 ### ORA-001 · Gemessen: die drei Schutzgrenzen der Kaskade sind weit entfernt — und darum ungeprüft
 
 *kein Fehler · Sicherheit hoch · Aufwand klein · `mv_kaskade`*
 
-**Grösse.** **0.421 Abstand des kleinsten Anteils zum Boden** (156 Portionen)
+**Grösse.** **0.441 Abstand des kleinsten Anteils zum Boden** (187 Portionen)
 
-**Was dasteht.** Kleinster verkaufsfähiger Anteil 0.671 (Boden bei 0,250). Grösste Verdunstungsrate 0.062 % je Tag (Deckel bei 5 %). Grösster Sockel a₀ 0.00 % (nicht nachweisbar, also 0).
+**Was dasteht.** Kleinster verkaufsfähiger Anteil 0.691 (Boden bei 0,250). Grösste Verdunstungsrate 0.051 % je Tag (Deckel bei 5 %). Grösster Sockel a₀ 0.00 % (nicht nachweisbar, also 0).
 
 **Was dastehen müsste.** Nichts — die Zahlen sind die Auskunft. Sie stehen hier, damit der Abstand nicht unbemerkt kleiner wird.
 
