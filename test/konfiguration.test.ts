@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { konfigurationPruefen } from '../src/lib/konfiguration.ts'
+import { konfigurationPruefen, zugangBrauchbar } from '../src/lib/konfiguration.ts'
 
 const URL_OK = 'https://qaryvviqdjnxrukpgdn.supabase.co'
 const PUBLISHABLE = 'sb_publishable_Fj_FAZGOdxGiBeN4DV0v2Q_HGBxsAbCdEf'
@@ -52,4 +52,50 @@ test('ein Schrägstrich am Ende stört nicht', () => {
 test('ein halb kopierter Schlüssel wird bemängelt', () => {
   const m = konfigurationPruefen(URL_OK, 'FAZGOdxGiBeN4DV0v2Q')
   assert.match(m!, /nur ein Teil/)
+})
+
+
+/* ------------------------------------------------------------------ */
+/* zugangBrauchbar — die Frage vor createClient()                      */
+/*                                                                     */
+/* Aus dem Betrieb gemeldet: schwarzer Bildschirm beim ersten Versuch  */
+/* mit dem Demo-Knopf, ohne Weg zurück. createClient() wirft bei einer */
+/* Adresse ohne https:// — und zwar beim Laden des Moduls, vor jedem   */
+/* Stück Oberfläche. Diese Funktion fragt vorher, damit die App die    */
+/* Meldung zeigen kann, statt zu sterben.                              */
+
+test('brauchbar: richtige Adresse und richtiger Schlüssel', () => {
+  assert.equal(zugangBrauchbar(URL_OK, PUBLISHABLE), true)
+  assert.equal(zugangBrauchbar(URL_OK, jwt('anon')), true)
+})
+
+test('unbrauchbar: die Adresse ohne https:// — der gemeldete Fall', () => {
+  assert.equal(zugangBrauchbar('qmhxkfyowwvsumcwssxe.supabase.co', PUBLISHABLE), false)
+})
+
+test('unbrauchbar: Adresse und Schlüssel vertauscht', () => {
+  assert.equal(zugangBrauchbar(PUBLISHABLE, URL_OK), false)
+})
+
+test('unbrauchbar: die Adresse der Verwaltungsoberfläche', () => {
+  assert.equal(zugangBrauchbar('https://supabase.com/dashboard/project/abcdefgh', PUBLISHABLE), false)
+})
+
+test('unbrauchbar: die API-Adresse mit /rest/v1/ dahinter', () => {
+  assert.equal(zugangBrauchbar(`${URL_OK}/rest/v1/`, PUBLISHABLE), false)
+})
+
+test('unbrauchbar: ein fehlender Wert — und zwar jeder von beiden', () => {
+  assert.equal(zugangBrauchbar(undefined, PUBLISHABLE), false)
+  assert.equal(zugangBrauchbar(URL_OK, undefined), false)
+  assert.equal(zugangBrauchbar('', ''), false)
+})
+
+test('unbrauchbar: der geheime Schlüssel — er darf nie in eine Webseite', () => {
+  assert.equal(zugangBrauchbar(URL_OK, 'sb_secret_Fj_FAZGOdxGiBeN4DV0v2Q'), false)
+  assert.equal(zugangBrauchbar(URL_OK, jwt('service_role')), false)
+})
+
+test('brauchbar bleibt der lokale Prüfstand', () => {
+  assert.equal(zugangBrauchbar('http://localhost:5199', jwt('anon')), true)
 })

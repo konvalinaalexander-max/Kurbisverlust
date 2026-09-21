@@ -39,6 +39,29 @@ export const demoMoeglich = Boolean(url && schluessel)
 export const demoZugang = demoMoeglich ? { url: url as string, schluessel: schluessel as string } : null
 
 /**
+ * Der Notausgang — und warum er ganz oben im Modul steht.
+ *
+ * Gemeldet aus dem Betrieb, beim allerersten Versuch: „wenn ich auf demo
+ * klicke - ist der screen einfach schwarz und ich komm da auch nicht mehr
+ * raus". Das Zweite ist das Schlimmere. Der Merkzettel liegt im Browser,
+ * also führt jeder Neuladeversuch wieder in denselben schwarzen Bildschirm;
+ * wer keine Entwicklerkonsole bedienen kann, kommt aus eigener Kraft nicht
+ * mehr heraus.
+ *
+ * Deshalb: Ein Aufruf mit `?demo=aus` löscht den Merkzettel, **bevor**
+ * irgendetwas anderes passiert. Dieses Modul wird von supabase.ts importiert
+ * und läuft damit vor jedem Stück App — auch dann noch, wenn die App gleich
+ * danach an einer kaputten Adresse stirbt. Ein Ausgang, der nur funktioniert,
+ * solange die App läuft, ist keiner.
+ */
+try {
+  if (typeof window !== 'undefined'
+      && /(^|[?&])demo=aus(&|$)/.test(window.location.search)) {
+    localStorage.removeItem(SCHLUESSEL)
+  }
+} catch { /* privater Modus */ }
+
+/**
  * Steht der Merkzettel? Im privaten Modus kann localStorage werfen; dann gilt
  * die sichere Antwort „nein, echter Betrieb".
  */

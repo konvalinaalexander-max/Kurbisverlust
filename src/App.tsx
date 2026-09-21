@@ -6,6 +6,7 @@ import { SprachAuswahl, useSprache } from './sprache/SprachProvider'
 import { imDemoModus, istKonfiguriert, konfigurationsProblem } from './lib/supabase'
 import { Avatar, Hinweis, Lade } from './components/Bausteine'
 import { useBetriebsmodus } from './lib/betriebsmodus'
+import { demoVerlassen } from './lib/demo'
 import DemoBand from './components/DemoBand'
 import Anmelden from './pages/Anmelden'
 import Start from './pages/Start'
@@ -40,15 +41,35 @@ export default function App() {
     imDemoModus ? 'demo' : modus === 'beispiel' ? 'beispiel' : null
 
   if (konfigurationsProblem) {
+    // Im Demo-Modus geht es um die zwei DEMO-Werte, nicht um die des
+    // Betriebs — und vor allem: Es muss hier einen Weg hinaus geben. Ohne
+    // ihn sitzt der Besucher fest, weil der Merkzettel im Browser jeden
+    // Neuladeversuch wieder hierher führt.
     return (
       <div className="huelle eng abstand-oben">
-        <h1 className="abstand-oben">Kürbis-Verlust</h1>
+        <h1 className="abstand-oben">Kürbis-Verlust{imDemoModus ? ' · Demo' : ''}</h1>
         <Hinweis art="warnung">
-          <p><strong>Die Zugangsdaten stimmen nicht.</strong></p>
+          <p><strong>
+            {imDemoModus
+              ? 'Die Zugangsdaten der Demo-Datenbank stimmen nicht.'
+              : 'Die Zugangsdaten stimmen nicht.'}
+          </strong></p>
           <p className="unten-0">{konfigurationsProblem}</p>
         </Hinweis>
+        {imDemoModus && (
+          <>
+            <p>
+              Das betrifft nur die Demo. Die Daten des Betriebs liegen woanders
+              und sind unberührt — Du kommst mit einem Tipp wieder zu ihnen.
+            </p>
+            <button className="haupt gross voll" onClick={demoVerlassen}>
+              Demo verlassen
+            </button>
+          </>
+        )}
         <p className="leise">
-          Zu ändern bei Cloudflare unter Settings → Environment variables.
+          Zu ändern bei Cloudflare unter Settings → Environment variables
+          {imDemoModus ? ' (VITE_DEMO_SUPABASE_URL und VITE_DEMO_SUPABASE_ANON_KEY)' : ''}.
           Danach unter Deployments beim obersten Eintrag über das Menü ⋯ auf
           „Retry deployment" — ohne neuen Build ändert sich nichts.
         </p>
@@ -59,7 +80,7 @@ export default function App() {
   if (!istKonfiguriert) {
     return (
       <div className="huelle eng abstand-oben">
-        <h1 className="abstand-oben">Kürbis-Verlust</h1>
+        <h1 className="abstand-oben">Kürbis-Verlust{imDemoModus ? ' · Demo' : ''}</h1>
         <Hinweis art="warnung">
           <p><strong>Noch nicht mit Supabase verbunden.</strong></p>
           <p className="unten-0">
@@ -67,6 +88,11 @@ export default function App() {
             lokal in <code>.env.local</code>, bei Cloudflare unter Environment variables.
           </p>
         </Hinweis>
+        {imDemoModus && (
+          <button className="haupt gross voll" onClick={demoVerlassen}>
+            Demo verlassen
+          </button>
+        )}
       </div>
     )
   }

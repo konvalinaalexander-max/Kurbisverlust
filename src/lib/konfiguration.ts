@@ -37,6 +37,30 @@ export function konfigurationPruefen(
   return null
 }
 
+/**
+ * Lässt sich aus diesen zwei Werten überhaupt eine Verbindung bauen?
+ *
+ * Gebraucht an genau einer Stelle, und die ist heikel: createClient() wirft
+ * bei einer Adresse, die keine Adresse ist — und zwar beim Laden des Moduls,
+ * lange bevor React etwas zeichnen könnte. Eine geworfene Ausnahme dort
+ * nimmt nicht eine Seite mit, sondern die ganze App: schwarzer Bildschirm,
+ * keine Meldung, kein Weg zurück. Gemessen mit @supabase/supabase-js:
+ * `qmhxkfyowwvsumcwssxe.supabase.co` (ohne https://) wirft, ein vertauschtes
+ * Paar aus Adresse und Schlüssel wirft, eine leere Adresse wirft.
+ *
+ * Deshalb wird vorher gefragt, statt hinterher zu bereuen. Wer hier false
+ * bekommt, baut den Client mit einem Platzhalter und zeigt dem Menschen die
+ * Meldung aus konfigurationPruefen() — die es längst gab, die aber nie jemand
+ * zu Gesicht bekam, weil die App vorher starb.
+ */
+export function zugangBrauchbar(
+  url: string | undefined,
+  schluessel: string | undefined,
+): boolean {
+  if (!url || !schluessel) return false
+  return konfigurationPruefen(url, schluessel) === null
+}
+
 /** Legacy-Schlüssel sind JWTs; die Rolle steht im mittleren Abschnitt. */
 function istServiceRole(schluessel: string): boolean {
   const teile = schluessel.split('.')
