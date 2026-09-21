@@ -353,25 +353,33 @@ for (const geraet of GERAETE) {
       await seite.goto(`http://localhost:5199${pfad}`, { waitUntil: 'networkidle' })
 
       /*
-       * Anmelden — und zwar warten statt nachsehen.
+       * Anmelden — warten, bis sie gegriffen hat, nicht bis das Netz ruhig ist.
        *
-       * Hier stand `isVisible()`, und das fragt nicht, sondern schaut im
-       * selben Augenblick nach. Jeder Bildschirm bekommt weiter oben einen
-       * frischen Browser-Kontext, ist also immer abgemeldet: Der Anmeldeknopf
-       * *muss* kommen. War React in dem Moment noch nicht so weit, sagte
-       * isVisible() trotzdem „nein", die Anmeldung wurde übersprungen, und
-       * der Klickweg lief danach auf der Anmeldeseite ins Leere — sichtbar
-       * als „Timeout 30000ms exceeded, waiting for #taet-…" auf einem
-       * Bildschirm, der mit dem Fehler nichts zu tun hatte. Gemessen: In drei
-       * Läufen traf es drei verschiedene Bildschirme, immer den ersten in
-       * seiner Reihe (desktop/light) und immer beim Warten auf ein Element,
-       * das es nur nach der Anmeldung gibt.
+       * Hier stand zweimal ein Trugschluss. Zuerst `isVisible()`, das nicht
+       * wartet, sondern im selben Augenblick nachsieht. Dann, nach dem ersten
+       * Anlauf, ein `waitForLoadState('networkidle')` nach dem Klick — und
+       * das ist das eigentliche Loch: „networkidle" heisst „seit 500 ms keine
+       * Verbindung offen". Der Klick auf „Los geht's" löst aber erst einen
+       * React-Zustandswechsel aus, und die Anmeldung geht danach über die
+       * Leitung. Ist sie in diesem Augenblick noch nicht losgeschickt, gilt
+       * das Netz als ruhig, der Prüfstand lädt die Zielseite — und die App
+       * startet ohne Sitzung neu und zeigt wieder den Anmeldeschirm.
        *
-       * Also warten. Bleibt die Anmeldung aus, ist das ein eigener Befund mit
-       * klarem Namen — und nicht mehr ein rätselhafter Timeout drei Schritte
-       * später.
+       * Belegt durch das Bild des fehlgeschlagenen Laufs: Zu sehen war die
+       * Anmeldeseite mit bereits eingetragenem „Tomasz". Der Name wird
+       * gespeichert, *bevor* signInAnonymously() aufgerufen wird — ein
+       * eingetragener Name beweist also den Klick, nicht die Anmeldung. Der
+       * Klickweg suchte danach „Ich führe diese Arbeit" auf der
+       * Anmeldeseite, dreissig Sekunden lang, vergeblich. Und weil es vom
+       * Zufall der Zeitverhältnisse abhing, wanderte der Befund von Lauf zu
+       * Lauf über verschiedene Bildschirme.
+       *
+       * Also auf den Beweis warten: Die Anmeldung hat gegriffen, wenn der
+       * Anmeldeschirm verschwunden ist. Erst dann wird die Zielseite geladen.
+       * Bleibt er stehen, ist das ein eigener Befund mit klarem Namen — und
+       * nicht mehr ein rätselhafter Timeout drei Schritte später.
        */
-      async function anmelden(marke, schritte) {
+      async function anmelden(marke, schritte, beweis) {
         try {
           await marke.waitFor({ state: 'visible', timeout: 30000 })
         } catch {
@@ -379,24 +387,32 @@ for (const geraet of GERAETE) {
           return
         }
         await schritte()
-        await seite.waitForLoadState('networkidle')
+        try {
+          await beweis.waitFor({ state: 'hidden', timeout: 30000 })
+        } catch {
+          meldungen.push('Anmeldung: hat nicht gegriffen, der Anmeldeschirm steht noch')
+          return
+        }
         await seite.goto(`http://localhost:5199${pfad}`, { waitUntil: 'networkidle' })
       }
 
       if (schirm.wer === 'admin') {
         const login = seite.getByRole('button', { name: 'Betriebsleiter' })
+        // Der Knopf „Betriebsleiter" ist schon weg, sobald das Formular
+        // aufgeht — er taugt nicht als Beweis. Das E-Mail-Feld verschwindet
+        // erst, wenn die Anmeldung durch ist.
         await anmelden(login, async () => {
           await login.click()
           await seite.getByLabel('E-Mail').fill('chef@hof.test')
           await seite.getByLabel('Passwort').fill('pruefstand')
           await seite.getByRole('button', { name: 'Anmelden', exact: true }).click()
-        })
+        }, seite.getByLabel('E-Mail'))
       } else if (schirm.wer === 'arbeiter') {
         const feld = seite.getByLabel(T('deinName'))
         await anmelden(feld, async () => {
           await feld.fill('Tomasz')
           await seite.getByRole('button', { name: T('losGehts') }).click()
-        })
+        }, feld)
       }
 
       try { await schirm.tun?.(seite) } catch (f) { meldungen.push(`Klickweg: ${f}`) }
