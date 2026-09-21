@@ -29,6 +29,7 @@ for R in v_hochrechnung erg_massenbilanz erg_datenlage erg_marge erg_plausibilit
          ausgang_wiegung v_auftrag_angabe v_verkauf_lieferung v_auftrag_wasch_paletten \
          auftrag auftrag_palette auftrag_gebinde schimmel_messung ausschuss_messung \
          verdunstung_wiegung ausgang_zeile \
+         kontrollpalette kontrollpalette_wiegung v_kontrollpalette_vorschlag v_ausgang_voll \
          sortier_lauf v_charge_rueckgrat; do
   dump "$R" "select * from $R"
 done
