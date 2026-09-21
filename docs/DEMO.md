@@ -145,12 +145,18 @@ Das ist `VITE_DEMO_SUPABASE_ANON_KEY`.
 > Bei den richtigen Schlüsseln steht in Supabase übrigens „can be safely
 > shared publicly". Das ist das Erkennungszeichen.
 
-### 3b — Die Project URL
+### 3b — Die Adresse der Datenbank
 
-Auf der Seite mit den API Keys steht sie **nicht**. Zwei Wege:
+Gesucht ist eine Adresse dieser Form — mehr nicht:
 
-**Der schnelle Weg — aus der Adresszeile deines Browsers.** Dort steht gerade
-etwas wie:
+```
+https://DEINE-PROJEKT-KENNUNG.supabase.co
+```
+
+Die Projekt-Kennung ist eine zwanzigstellige Buchstabenfolge. Sie steht an
+drei Stellen, und alle drei geben dasselbe; nimm die, die du zuerst siehst.
+
+**1. In der Adresszeile deines Browsers.** Dort steht gerade etwas wie:
 
 ```
 supabase.com/dashboard/project/qaryvviqdjnxrukpgdn/settings/api-keys
@@ -165,11 +171,25 @@ https://DEINE-KENNUNG.supabase.co
 
 Für die Kennung oben wäre das `https://qaryvviqdjnxrukpgdn.supabase.co`.
 
-**Der offizielle Weg.** Im selben Menü links, weiter unten unter
-*INTEGRATIONS*, auf **Data API** klicken. Dort steht ganz oben **Project URL**
-mit einem Kopier-Symbol daneben.
+**2. Unter *INTEGRATIONS* → Data API.** Dort steht die Adresse ganz oben. Je
+nach Fassung der Oberfläche heisst das Feld **Project URL**, **API URL** oder
+**RESTful endpoint** — und in zwei von drei Fällen hängt ein Pfad daran:
 
-Das ist `VITE_DEMO_SUPABASE_URL`.
+```
+https://qmhxkfyowwvsumcwssxe.supabase.co/rest/v1/   ← so steht es da
+https://qmhxkfyowwvsumcwssxe.supabase.co            ← so gehört es eingetragen
+```
+
+Lösch also alles ab `.supabase.co` weg, auch den Schrägstrich am Ende. Den
+Pfad hängt der Supabase-Client selbst an; gibst du ihn mit, sucht er später
+unter `/rest/v1/rest/v1/…` und findet nichts. Die App startet in dem Fall gar
+nicht, sondern sagt „Die Project URL sieht nicht richtig aus" — das kostet
+dich aber ein Deployment, bis du es siehst.
+
+**3. Zahnrad → Settings → General.** Dort heisst die Kennung **Project ID**
+oder **Reference ID**. Daraus baust du `https://KENNUNG.supabase.co`.
+
+Das Ergebnis ist `VITE_DEMO_SUPABASE_URL`.
 
 > **Nicht die ganze Adresszeile kopieren.** `https://supabase.com/dashboard/…`
 > ist die Adresse der *Verwaltungsoberfläche*, nicht die der Datenbank. Die
