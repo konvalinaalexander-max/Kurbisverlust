@@ -6844,11 +6844,390 @@ comment on function public.handle_new_user is
   'bleibt es beim Arbeiter (0081).';
 
 
+-- =====================================================================
+-- aus 0082_zwei_arten_von_sortierdatei.sql
+-- =====================================================================
+
+-- =====================================================================
+-- 0082 — Zwei Arten von Sortierdatei
+--
+-- Der Betrieb hat eine Annahme korrigiert, auf der die Sortier-CSV seit
+-- dem ersten Tag ruhte: „ich dachte jedesmal wenn ich sortiere gibt es
+-- eine neue CSV - aber dem ist nicht so - stattdessen heisst die datei
+-- jedesmal z.b. 1614 - also es gibt nur eine 1614 - und bei jedem
+-- sortieren wird einfach unterhalb weiter angefügt."
+--
+-- Ab Oktober 2026 tragen die Dateien wieder ein Datum im Namen
+-- (`1614_07_10_26`, beliebige Trenner). Die Dateien der bisherigen Saison
+-- — rund ein Monat Sortieren je Charge — bleiben aber, wie sie sind, und
+-- müssen einlesbar sein. Also kennt die App von hier an zwei Arten:
+--
+--   'lauf'    ein Sortierlauf. Das Datum steht im Namen. Wie bisher.
+--   'sammel'  eine Datei je Charge, kumulativ. Kein Datum, und der
+--             nächste Upload enthält alles vom vorigen noch einmal.
+--
+-- Zwei Dinge macht die Sammeldatei kaputt, und beide still:
+--
+--   1. DOPPELZÄHLUNG. `roh_pruefsumme unique` schützt nur vor derselben
+--      Datei — die gewachsene hat eine andere Prüfsumme und bringt die
+--      alten Kürbisse ein zweites Mal mit. Niemand merkt es; die Charge
+--      hat am Ende mehr sortiert, als sie je gewogen hat.
+--      Gegenmittel: gespeichert wird nur das DELTA. Und weil die
+--      Reinigung präfixstabil ist (src/lib/csv.ts, test/csv.test.ts),
+--      genügt dafür eine Subtraktion — und eine negative Stufe ist der
+--      Beweis, dass die Datei keine reine Erweiterung ist.
+--
+--   2. DAS ERFUNDENE DATUM. Ohne Datum im Namen nahm die App bisher den
+--      Zeitstempel des Dateisystems. Bei einer Sammeldatei ist das der
+--      Zeitpunkt des letzten Anhängens — für die Kürbisse vom ersten Tag
+--      also Wochen zu spät. Daran hängt mehr, als man denkt:
+--        · `betriebstag(l.datei_zeit)` ist der Sortiertag, ab dem die
+--          Verdunstung rechnet (0079). Wochen zu spät heisst: zu wenig
+--          Schwund, zu schwere Kürbisse im Lager.
+--        · `lauf_neu_klassieren` wählt die Kaliberbänder nach diesem
+--          Datum. Zu spät heisst: womöglich die falschen Bänder.
+--      Gegenmittel: `datei_zeit` wird für eine Sammeldatei gar nicht
+--      erst gesetzt. Stattdessen ein Zeitfenster (von .. bis) und ein
+--      daraus abgeleiteter `sortiertag`, der sagt, woher er kommt —
+--      dieselbe Bauart wie `masse_quelle` und wie das geschätzte
+--      Chargenalter aus AB-50.
+--
+-- Nichts wird gelöscht: `datei_zeit` und `auftrag_id` bleiben mit allem,
+-- was drinsteht. Für eine Sammeldatei sind sie leer — und leer ist nicht
+-- null, sondern unbekannt.
+-- =====================================================================
+
 -- ---------------------------------------------------------------------
--- 4. Der Stand der Datenbank
+-- 1. Was für eine Datei war das, und für welchen Zeitraum gilt sie?
+-- ---------------------------------------------------------------------
+
+alter table sortier_lauf add column if not exists art text not null default 'lauf';
+do $$ begin
+  alter table sortier_lauf add constraint sortier_lauf_art_check
+    check (art in ('lauf', 'sammel'));
+exception when duplicate_object then null; end $$;
+comment on column sortier_lauf.art is
+  '''lauf'': ein Sortierlauf, das Datum steht im Dateinamen. ''sammel'': die '
+  'kumulative Datei einer ganzen Charge ohne Datum, bei der die Maschine bei '
+  'jedem Sortieren unten anhängt. Bei ''sammel'' trägt der Lauf nur das DELTA '
+  'zur vorigen Lesung, damit nichts doppelt zählt (0082).';
+
+alter table sortier_lauf add column if not exists von_ts timestamptz;
+alter table sortier_lauf add column if not exists bis_ts timestamptz;
+comment on column sortier_lauf.von_ts is
+  'Frühester Zeitpunkt, zu dem ein Kürbis dieser Lesung sortiert worden sein '
+  'kann: das Ende der vorigen Lesung derselben Sammeldatei, sonst der erste '
+  'Eingang der Charge — vor dem Eingang kann nichts sortiert worden sein. Bei '
+  'einer Lauf-Datei gleich datei_zeit (0082).';
+comment on column sortier_lauf.bis_ts is
+  'Spätester Zeitpunkt: der Zeitstempel der Datei beim Hochladen, sonst der '
+  'Zeitpunkt des Einlesens. Bei einer Lauf-Datei gleich datei_zeit (0082).';
+
+alter table sortier_lauf add column if not exists sortiertag date;
+alter table sortier_lauf add column if not exists sortiertag_quelle text;
+comment on column sortier_lauf.sortiertag is
+  'Der Tag, an dem die Kürbisse dieser Lesung gewogen wurden — der Startpunkt '
+  'der Verdunstungsrechnung. Bei einer Lauf-Datei abgelesen, bei einer '
+  'Sammeldatei abgeleitet. Leer heisst unbekannt, nicht heute (0082).';
+comment on column sortier_lauf.sortiertag_quelle is
+  'Woher der Sortiertag kommt: ''datei'' (aus dem Dateinamen), ''arbeit'' (genau '
+  'eine Sortier-Arbeit der Charge im Zeitfenster), ''arbeiten-mittel'' (mehrere, '
+  'nach gezählten Paletten gewichtet), ''fenster-mitte'' (keine Arbeit erfasst — '
+  'die Mitte zwischen von_ts und bis_ts), ''betriebsleiter'' (von Hand gesetzt). '
+  'Leer: kein Sortiertag bekannt (0082).';
+
+alter table sortier_lauf add column if not exists vorgaenger_id bigint references sortier_lauf(id);
+comment on column sortier_lauf.vorgaenger_id is
+  'Die vorige Lesung derselben Sammeldatei. Macht die Kette der Lesungen '
+  'nachvollziehbar: jede trägt nur, was seit der vorigen dazukam (0082).';
+
+alter table sortier_lauf add column if not exists voll_n_roh int;
+comment on column sortier_lauf.voll_n_roh is
+  'Rohzeilen der GANZEN Datei bei dieser Lesung — n_roh zählt dagegen nur die '
+  'Zeilen, die neu dazukamen. Bei einer Lauf-Datei sind beide gleich (0082).';
+
+create index if not exists sortier_lauf_charge_art_idx on sortier_lauf (charge_nr, art, gelesen_ts);
+
+-- ---------------------------------------------------------------------
+-- 2. Was schon in der Datenbank liegt, ist eine Lauf-Datei
+--
+-- Alles Bisherige wurde als einzelner Lauf eingelesen und behält seine
+-- Bedeutung. Der Sortiertag kommt aus dem Dateidatum, wo es eines gibt;
+-- sonst aus dem Zeitpunkt des Einlesens — und sagt das auch.
+-- ---------------------------------------------------------------------
+
+update sortier_lauf
+   set von_ts            = coalesce(von_ts, datei_zeit),
+       bis_ts            = coalesce(bis_ts, datei_zeit, gelesen_ts),
+       sortiertag        = coalesce(sortiertag, betriebstag(coalesce(datei_zeit, gelesen_ts))),
+       sortiertag_quelle = coalesce(sortiertag_quelle,
+                                    case when datei_zeit is not null then 'datei' else 'gelesen' end),
+       voll_n_roh        = coalesce(voll_n_roh, n_roh)
+ where sortiertag is null or sortiertag_quelle is null or voll_n_roh is null;
+
+-- ---------------------------------------------------------------------
+-- 3. Der Sortiertag einer Sammeldatei: abgeleitet, mit Quelle
+--
+-- Die Reihenfolge ist die der Güte. Eine erfasste Sortier-Arbeit im
+-- Zeitfenster ist das Beste, was es gibt — dort hat ein Mensch den Tag
+-- bezeugt. Liegen mehrere im Fenster, wird nach dem gewichtet, was sie
+-- gezählt haben; dieselbe Regel, nach der das Chargenalter aus den
+-- Eingangstagen gemittelt wird (AB-50). Ist gar keine Arbeit erfasst —
+-- der Normalfall beim Nachtragen der bisherigen Saison —, bleibt die
+-- Mitte des Fensters. Sie ist eine Schätzung und heisst auch so.
+-- ---------------------------------------------------------------------
+
+create or replace function sortiertag_bestimmen(
+  p_charge_nr int, p_von timestamptz, p_bis timestamptz
+) returns table (tag date, quelle text)
+language sql stable set search_path = public as $$
+  with arbeit as (
+    select a.id, betriebstag(a.start_ts) as tag,
+           -- Gewicht: was in dieser Arbeit gezählt wurde. Ohne Zählung
+           -- zählt die Arbeit einfach als eine — nie als null.
+           greatest(coalesce((select count(*) from auftrag_palette p where p.auftrag_id = a.id), 0), 1) as w
+      from auftrag a
+     where a.charge_nr = p_charge_nr
+       and a.station = 'sortieren' and not a.ist_fax
+       and a.abgebrochen_ts is null
+       and (p_von is null or a.start_ts >= p_von)
+       and (p_bis is null or a.start_ts <= p_bis)
+  )
+  select case
+           when (select count(*) from arbeit) = 1 then (select tag from arbeit)
+           when (select count(*) from arbeit) > 1 then
+             (select (sum(w * (tag - date '2000-01-01')) / sum(w))::int + date '2000-01-01' from arbeit)
+           when p_von is not null and p_bis is not null then
+             (p_von + (p_bis - p_von) / 2)::date
+         end,
+         case
+           when (select count(*) from arbeit) = 1 then 'arbeit'
+           when (select count(*) from arbeit) > 1 then 'arbeiten-mittel'
+           when p_von is not null and p_bis is not null then 'fenster-mitte'
+         end
+$$;
+comment on function sortiertag_bestimmen(int, timestamptz, timestamptz) is
+  'Der Sortiertag für eine Sammeldatei und woher er kommt. Erfasste '
+  'Sortier-Arbeiten im Zeitfenster schlagen die Fenstermitte; ohne Fenster '
+  'gibt es keinen Tag — leer ist nicht null (0082).';
+revoke all on function sortiertag_bestimmen(int, timestamptz, timestamptz) from public;
+grant execute on function sortiertag_bestimmen(int, timestamptz, timestamptz) to authenticated;
+
+-- ---------------------------------------------------------------------
+-- 4. Eine Sammeldatei einlesen: nur das Delta, und erst nach der Probe
+--
+-- Die Datenbank rechnet die Subtraktion, nicht der Browser: Nur sie weiss
+-- sicher, was schon gespeichert ist. Der Browser rechnet dasselbe für die
+-- Vorschau (histogrammAbziehen), aber massgeblich ist, was hier steht.
+--
+-- Abgezogen wird ausschliesslich, was frühere SAMMEL-Lesungen derselben
+-- Charge tragen. Lauf-Dateien derselben Charge werden nicht abgezogen —
+-- sie können Kürbisse enthalten, die in der Sammeldatei nie standen.
+-- Stattdessen wird gemeldet, dass es sie gibt; entscheiden muss ein Mensch.
+-- ---------------------------------------------------------------------
+
+create or replace function csv_sammel_speichern(
+  p_charge_nr      int,
+  p_datei_name     text,
+  p_roh_datei_ref  text,
+  p_roh_pruefsumme text,
+  p_reinigung      jsonb,
+  p_n_roh          int,
+  p_n_overflow     int,
+  p_n_klein        int,
+  p_n_dubletten    int,
+  p_histogramm     jsonb,          -- das Histogramm der GANZEN Datei
+  p_von            timestamptz default null,
+  p_bis            timestamptz default null
+) returns jsonb language plpgsql as $$
+declare
+  v_lauf_id   bigint;
+  v_vorher    bigint;
+  v_n_bekannt int;
+  v_n_neu     int;
+  v_negativ   jsonb;
+  v_von       timestamptz;
+  v_bis       timestamptz;
+  v_tag       date;
+  v_quelle    text;
+  v_laeufe    int;
+  v_roh_vorher int;
+  v_ov_vorher  int;
+  v_kl_vorher  int;
+  v_du_vorher  int;
+begin
+  -- Die vorige Lesung derselben Sammeldatei.
+  select id, coalesce(bis_ts, gelesen_ts) into v_vorher, v_von
+    from sortier_lauf
+   where charge_nr = p_charge_nr and art = 'sammel'
+   order by gelesen_ts desc, id desc
+   limit 1;
+
+  -- Das Fenster. Nach unten: das Ende der vorigen Lesung, sonst der erste
+  -- Eingang der Charge — vor dem Eingang kann nichts sortiert worden sein.
+  v_von := coalesce(p_von, v_von,
+                    (select min(eingangsdatum)::timestamptz from palette where charge_nr = p_charge_nr));
+  v_bis := coalesce(p_bis, now());
+  if v_von is not null and v_von > v_bis then
+    return jsonb_build_object('fehler', 'fenster',
+      'meldung', 'Das Zeitfenster endet vor seinem Anfang.');
+  end if;
+
+  -- Was frühere Sammel-Lesungen dieser Charge schon tragen — an Kürbissen
+  -- und an Trichterzahlen. Jede gespeicherte Zahl einer Lesung sagt, was
+  -- DIESE Lesung dazugebracht hat; die Summe über alle Lesungen ist die
+  -- Zahl der ganzen Datei. So bleiben n_roh, n_overflow, n_klein,
+  -- n_dubletten und n_gueltig untereinander vergleichbar.
+  select coalesce(sum(g.anzahl), 0)::int into v_n_bekannt
+    from sortier_gewicht g
+    join sortier_lauf l on l.id = g.lauf_id
+   where l.charge_nr = p_charge_nr and l.art = 'sammel';
+
+  select coalesce(sum(n_roh), 0)::int, coalesce(sum(n_overflow), 0)::int,
+         coalesce(sum(n_klein), 0)::int, coalesce(sum(n_dubletten), 0)::int
+    into v_roh_vorher, v_ov_vorher, v_kl_vorher, v_du_vorher
+    from sortier_lauf where charge_nr = p_charge_nr and art = 'sammel';
+
+  -- Die Probe: Wird eine Stufe negativ, ist die Datei keine reine
+  -- Erweiterung. Dann wird nichts übernommen.
+  with voll as (
+    select (e->>0)::int as gewicht_g, (e->>1)::int as anzahl
+      from jsonb_array_elements(p_histogramm) e
+  ), bekannt as (
+    select g.gewicht_g, sum(g.anzahl)::int as anzahl
+      from sortier_gewicht g
+      join sortier_lauf l on l.id = g.lauf_id
+     where l.charge_nr = p_charge_nr and l.art = 'sammel'
+     group by g.gewicht_g
+  ), d as (
+    select coalesce(v.gewicht_g, b.gewicht_g) as gewicht_g,
+           coalesce(v.anzahl, 0) - coalesce(b.anzahl, 0) as diff
+      from voll v full join bekannt b on b.gewicht_g = v.gewicht_g
+  )
+  select coalesce(sum(diff) filter (where diff > 0), 0)::int,
+         coalesce(jsonb_agg(jsonb_build_array(gewicht_g, -diff) order by gewicht_g)
+                  filter (where diff < 0), '[]'::jsonb)
+    into v_n_neu, v_negativ
+    from d;
+
+  if jsonb_array_length(v_negativ) > 0 then
+    return jsonb_build_object(
+      'fehler', 'keine_erweiterung',
+      'negativ', v_negativ,
+      'meldung', 'Diese Datei ist keine Erweiterung der zuletzt eingelesenen: '
+              || jsonb_array_length(v_negativ)
+              || ' Gewichtsstufen fehlen darin. Wurde die Datei bearbeitet, oder '
+              || 'gehört sie zu einer anderen Charge?');
+  end if;
+
+  if v_n_neu = 0 then
+    return jsonb_build_object('fehler', 'nichts_neu',
+      'n_bekannt', v_n_bekannt,
+      'meldung', 'In dieser Datei steht nichts, was nicht schon eingelesen wäre.');
+  end if;
+
+  select tag, quelle into v_tag, v_quelle from sortiertag_bestimmen(p_charge_nr, v_von, v_bis);
+
+  -- Eine Sammel-Lesung gehört zu keiner einzelnen Arbeit: `zuordnung` bleibt
+  -- auf dem Vorgabewert und bedeutet für sie nichts. Die Warteschlange fragt
+  -- deshalb nach `art = 'lauf'` — nicht nach dem Status.
+  insert into sortier_lauf (charge_nr, datei_name, roh_datei_ref, roh_pruefsumme,
+                            art, von_ts, bis_ts, sortiertag, sortiertag_quelle,
+                            vorgaenger_id, voll_n_roh, reinigung,
+                            n_roh, n_overflow, n_klein, n_dubletten, n_gueltig)
+  values (p_charge_nr, p_datei_name, p_roh_datei_ref, p_roh_pruefsumme,
+          'sammel', v_von, v_bis, v_tag, v_quelle,
+          v_vorher, p_n_roh, p_reinigung,
+          greatest(p_n_roh       - v_roh_vorher, 0),
+          greatest(p_n_overflow  - v_ov_vorher,  0),
+          greatest(p_n_klein     - v_kl_vorher,  0),
+          greatest(p_n_dubletten - v_du_vorher,  0),
+          v_n_neu)
+  returning id into v_lauf_id;
+
+  -- Nur das Delta wird gespeichert.
+  insert into sortier_gewicht (lauf_id, gewicht_g, anzahl, klasse, kaliber_idx)
+  with voll as (
+    select (e->>0)::int as gewicht_g, (e->>1)::int as anzahl
+      from jsonb_array_elements(p_histogramm) e
+  ), bekannt as (
+    select g.gewicht_g, sum(g.anzahl)::int as anzahl
+      from sortier_gewicht g
+      join sortier_lauf l on l.id = g.lauf_id
+     where l.charge_nr = p_charge_nr and l.art = 'sammel' and l.id <> v_lauf_id
+     group by g.gewicht_g
+  )
+  select v_lauf_id, v.gewicht_g, v.anzahl - coalesce(b.anzahl, 0), 'unklassiert', null
+    from voll v left join bekannt b on b.gewicht_g = v.gewicht_g
+   where v.anzahl - coalesce(b.anzahl, 0) > 0;
+
+  perform lauf_neu_klassieren(v_lauf_id);
+
+  select count(*)::int into v_laeufe
+    from sortier_lauf where charge_nr = p_charge_nr and art = 'lauf';
+
+  return jsonb_build_object(
+    'lauf_id', v_lauf_id,
+    'n_neu', v_n_neu,
+    'n_bekannt', v_n_bekannt,
+    'sortiertag', v_tag,
+    'sortiertag_quelle', v_quelle,
+    'von', v_von, 'bis', v_bis,
+    'lauf_dateien', v_laeufe);
+end $$;
+comment on function csv_sammel_speichern is
+  'Liest eine Sammeldatei ein: speichert nur, was seit der vorigen Lesung '
+  'dazukam, und weist die Datei ab, wenn sie keine Erweiterung der vorigen ist. '
+  'Gibt zurück, was übernommen wurde, welcher Sortiertag gilt und woher er '
+  'kommt (0082).';
+
+-- ---------------------------------------------------------------------
+-- 5. Klassiert wird nach dem Sortiertag, nicht nach dem Dateidatum
+--
+-- Bisher: `coalesce(l.datei_zeit, l.gelesen_ts)::date`. Für eine
+-- Sammeldatei wäre das der Tag des Hochladens — und damit womöglich eine
+-- Fassung der Kaliberbänder, die es beim Sortieren noch gar nicht gab.
+-- ---------------------------------------------------------------------
+
+create or replace function lauf_neu_klassieren(p_lauf_id bigint)
+returns int language plpgsql as $$
+declare v_schema bigint; v_n int;
+begin
+  -- Die Fassung: vom Auftrag, sonst vom Lauf, sonst der Standard der Sorte
+  -- zum Sortiertag. Ohne Sortiertag bleibt der Tag des Einlesens — besser
+  -- eine Fassung als keine Klassierung, aber sortiertag_quelle sagt, dass
+  -- der Tag geschätzt ist.
+  select coalesce(a.sortierschema_id, l.sortierschema_id,
+                  sortierschema_fuer(c.sorte, null,
+                                     coalesce(l.sortiertag, betriebstag(coalesce(l.datei_zeit, l.gelesen_ts)))))
+    into v_schema
+    from sortier_lauf l
+    join charge c on c.nr = l.charge_nr
+    left join auftrag a on a.id = l.auftrag_id
+   where l.id = p_lauf_id;
+
+  update sortier_lauf set sortierschema_id = v_schema where id = p_lauf_id;
+
+  with neu as (
+    select sg.gewicht_g, k.klasse, k.kaliber_idx
+      from sortier_gewicht sg
+      cross join lateral klassiere(v_schema, sg.gewicht_g) k
+     where sg.lauf_id = p_lauf_id
+  )
+  update sortier_gewicht g
+     set klasse = neu.klasse, kaliber_idx = neu.kaliber_idx
+    from neu
+   where g.lauf_id = p_lauf_id and g.gewicht_g = neu.gewicht_g;
+
+  get diagnostics v_n = row_count;
+  return v_n;
+end $$;
+
+-- ---------------------------------------------------------------------
+-- 9. Der Stand der Datenbank
 -- ---------------------------------------------------------------------
 create or replace function schema_stand() returns int
-language sql immutable set search_path = public as $$ select 81 $$;
+language sql immutable set search_path = public as $$ select 82 $$;
 comment on function schema_stand is
   'Nummer der jüngsten eingespielten Migration. Die App vergleicht sie mit '
   'SCHEMA_ERWARTET (src/lib/version.ts) und verlangt bei Abweichung, setup.sql '
@@ -6888,13 +7267,16 @@ comment on function schema_stand() is
 comment on function schema_stand() is
   'Die Nummer der höchsten eingespielten Migration. Die App vergleicht sie mit '
   'SCHEMA_ERWARTET und verlangt setup.sql, wenn sie auseinanderliegen (0057).';
+comment on function schema_stand() is
+  'Die Nummer der höchsten eingespielten Migration. Die App vergleicht sie mit '
+  'SCHEMA_ERWARTET und verlangt setup.sql, wenn sie auseinanderliegen (0057).';
 
 
 -- =====================================================================
 -- TEIL B — Das Rechenwerk: die Formeln, wie sie heute lauten
 -- =====================================================================
 -- Ab hier steht jede Ansicht und jede darauf rechnende Funktion genau
--- einmal — in 117 Schritten, in der Reihenfolge, in der eine auf der
+-- einmal — in 118 Schritten, in der Reihenfolge, in der eine auf der
 -- anderen steht. Die Reihenfolge ist ausgerechnet, nicht geraten:
 -- setup_bauen.sh sortiert topologisch und bricht ab, wenn sie nicht
 -- kreisfrei wäre.
@@ -6907,6 +7289,8 @@ comment on function schema_stand() is
 -- wird am Ende dieser Datei neu berechnet.
 -- =====================================================================
 
+drop view if exists v_datenqualitaet cascade;
+drop view if exists v_sortier_lesung cascade;
 drop view if exists v_lager_kaliber cascade;
 drop materialized view if exists erg_wohin cascade;
 drop view if exists v_marge_buch cascade;
@@ -6960,7 +7344,6 @@ drop view if exists v_wiegung_kennzahl cascade;
 drop materialized view if exists erg_marge_wiegung cascade;
 drop view if exists v_marge_wiegung cascade;
 drop materialized view if exists erg_lager_kaliber cascade;
-drop view if exists v_datenqualitaet cascade;
 drop materialized view if exists mv_sortier_eingang cascade;
 drop materialized view if exists mv_auftrag_masse cascade;
 drop view if exists v_auftrag_palette_masse cascade;
@@ -8471,147 +8854,6 @@ select a.charge_nr,
   join v_auftrag_palette_masse m on m.auftrag_id = a.id
  where a.station = 'sortieren' and a.abgebrochen_ts is null
  group by a.charge_nr with no data;
-
-
--- =====================================================================
--- aus 0076_was_die_app_von_der_eingangspalette_weiss.sql
--- =====================================================================
-
--- =====================================================================
--- 0076 — Was die App von der Eingangspalette weiss
---
--- Seit Runde Q trägt die Wäge-Maske Kistenzahl und Gebindeart auf die
--- Eingangspalette (`auftrag_palette.kisten`, `.gebindeart`). Daran hängt
--- der ganze Rechenweg, den der Betrieb selbst gefunden hat:
---
---   „du siehst ja dann anzahl paletten - mit anzahl kisten und total vom
---    brutto gewicht - dann weisst du wieviel sortiert worden ist"
---
--- Ohne die Kistenzahl gibt es kein Netto (die Tara hängt am Gebinde) und
--- damit keine Masse für diese Palette — „leer ist nicht null", die Masse
--- fehlt einfach. Das ist richtig so, aber es muss sichtbar sein: sonst
--- sinkt die erfasste Menge, und niemand weiss warum.
---
--- Diese Migration zählt beides und nichts sonst. Sie ändert keine Zahl der
--- Auswertung — sie sagt nur, worauf sie ruht.
---
--- Dazu ein dritter Zähler: wie oft das Alter der Ware vom Zettel
--- ABGELESEN ist und nicht geschätzt. Eine geschätzte Zahl darf auf dem
--- Bildschirm nicht aussehen wie eine gemessene (AB-50) — und wie oft
--- welches zutrifft, soll man nachsehen können.
---
--- Der Rumpf von v_datenqualitaet steht hier vollständig, weil `create or
--- replace view` genau das verlangt; neu sind allein die drei letzten
--- Spalten. Angehängt, nicht eingeschoben: `create or replace` darf
--- Spalten nur am Ende ergänzen.
--- =====================================================================
-
-create or replace view v_datenqualitaet with (security_invoker = true) as
-with arbeiten as (select a.* from auftrag a where a.abgebrochen_ts is null),
-     fertig as (select * from arbeiten where status = 'abgeschlossen')
-select
-  (select count(*) from auftrag_palette ap join arbeiten a on a.id = ap.auftrag_id)::int as paletten_gezaehlt,
-  (select count(*) from auftrag_palette ap join arbeiten a on a.id = ap.auftrag_id
-    where ap.eingangsdatum is not null)::int                                             as paletten_mit_datum,
-  (select count(*) from fertig where not ist_fax)::int                                    as arbeiten_fertig,
-  (select count(*) from fertig f where not f.ist_fax and exists (select 1 from schimmel_messung s
-    where s.auftrag_id = f.id and s.palox_stand_kg is not null))::int                     as arbeiten_mit_ablesung,
-  (select count(*) from fertig f where not f.ist_fax and (select count(*) from schimmel_messung s
-    where s.auftrag_id = f.id and s.palox_stand_kg is not null) >= 2)::int                as arbeiten_mit_zwei_ablesungen,
-  (select count(*) from fertig f where not f.ist_fax and exists (select 1 from auftrag_angabe g
-    where g.auftrag_id = f.id and g.schluessel = 'eine_charge'))::int                     as arbeiten_mit_antwort,
-  (select count(*) from ausschuss_messung m join arbeiten a on a.id = m.auftrag_id
-    where m.gemessen)::int                                                                as ausschuss_messungen,
-  (select count(*) from ausschuss_messung m join arbeiten a on a.id = m.auftrag_id
-    where m.gemessen and m.brutto_kg is not null)::int                                    as ausschuss_gewogen,
-  (select count(*) from verdunstung_wiegung w
-    where w.auftrag_id is null and w.gemessen)::int                                       as lagerkontrollen,
-  (select count(*) from sortier_lauf)::int                                                as sortierlaeufe,
-  (select count(*) from sortier_lauf where auftrag_id is not null)::int                   as sortierlaeufe_zugeordnet,
-  (select count(*) from fertig f where f.station = 'sortieren')::int                      as sortier_arbeiten,
-  (select count(*) from fertig f where f.station = 'sortieren' and exists (select 1
-    from auftrag_gebinde g where g.auftrag_id = f.id and g.anzahl > 0))::int              as sortier_arbeiten_mit_kisten,
-  (select count(*) from fertig f where f.station = 'waschen' and not f.ist_fax)::int      as wasch_arbeiten,
-  (select count(*) from fertig f where f.station = 'waschen' and not f.ist_fax
-    and (f.kaliber_idx is not null or f.kaliber_von_g is not null)
-    and (exists (select 1 from auftrag_gebinde g where g.auftrag_id = f.id and g.anzahl > 0)
-         or exists (select 1 from auftrag_palette p where p.auftrag_id = f.id and p.kisten > 0)))::int
-                                                                                          as wasch_arbeiten_mit_kisten,
-  (select count(*) from fertig f where f.ist_fax)::int                                    as fax_arbeiten,
-  (select count(*) from fertig f where f.ist_fax and (f.paletten_gesamt > 0 or exists (select 1
-    from auftrag_gebinde g where g.auftrag_id = f.id and g.anzahl > 0)))::int             as fax_arbeiten_mit_kisten,
-  (select count(*) from fertig f where f.ist_fax and exists (select 1
-    from schimmel_messung s where s.auftrag_id = f.id and s.gemessen))::int               as fax_arbeiten_mit_faulem,
-  (select count(*) from auftrag_palette ap join arbeiten a on a.id = ap.auftrag_id
-    where a.station = 'waschen_sortieren')::int                                           as ws_paletten_gezaehlt,
-  (select count(*) from auftrag_palette ap join arbeiten a on a.id = ap.auftrag_id
-    where a.station = 'waschen_sortieren' and ap.brutto_zettel_kg is not null)::int       as ws_paletten_mit_zettelgewicht,
-  (select count(*) from fertig f where f.ist_fax or f.station in ('waschen', 'waschen_sortieren'))::int
-                                                                                          as arbeiten_nach_waschen,
-  (select count(*) from fertig f where (f.ist_fax or f.station in ('waschen', 'waschen_sortieren'))
-    and f.kistensystem is not null)::int                                                  as arbeiten_mit_kistensystem,
-  ((select coalesce(sum(g.anzahl), 0) from auftrag_gebinde g join arbeiten a on a.id = g.auftrag_id
-     where a.station = 'waschen' and not a.ist_fax)
-   + (select coalesce(sum(p.kisten), 0) from auftrag_palette p join arbeiten a on a.id = p.auftrag_id
-       where a.station = 'waschen' and not a.ist_fax))::int                               as wasch_kisten_gezaehlt,
-  ((select coalesce(sum(g.anzahl), 0) from auftrag_gebinde g join arbeiten a on a.id = g.auftrag_id
-     where a.station = 'waschen' and not a.ist_fax and (g.sortierdatum is not null or g.datum_fehlt))
-   + (select coalesce(sum(p.kisten), 0) from auftrag_palette p join arbeiten a on a.id = p.auftrag_id
-       where a.station = 'waschen' and not a.ist_fax and p.sortierdatum is not null))::int
-                                                                                          as wasch_kisten_mit_sortierdatum,
-  (select count(*) from fertig f where not f.ist_fax and exists (select 1 from v_palox_stand p
-    where p.auftrag_id = f.id and p.differenz is null))::int                              as arbeiten_mit_palox_unbekannt,
-  -- 0076: Die Eingangspalette — dort, wo eine gezählt wird (Sortieren und
-  -- Waschen + Sortieren; beim Waschen kommt die Ware aus dem Zwischenlager
-  -- und hat keine Eingangspalette).
-  (select count(*) from auftrag_palette ap join arbeiten a on a.id = ap.auftrag_id
-    where not a.ist_fax and a.station in ('sortieren', 'waschen_sortieren'))::int         as eingangspaletten,
-  (select count(*) from auftrag_palette ap join arbeiten a on a.id = ap.auftrag_id
-    where not a.ist_fax and a.station in ('sortieren', 'waschen_sortieren')
-      and ap.kisten is not null and ap.kisten > 0)::int                                   as eingangspaletten_mit_kisten,
-  -- 0076: Wie oft ist das Alter der Ware ABGELESEN und nicht geschätzt?
-  -- Gemessen ist es, wo der Arbeiter das Eingangsdatum von jedem Zettel
-  -- tippt (Sortieren, Waschen + Sortieren). Beim Waschen kommt die Palette
-  -- aus dem Zwischenlager und trägt kein Eingangsdatum mehr — dort steht
-  -- eine Schätzung (0073, alter_quelle). Der Betriebsleiter soll sehen,
-  -- wie viel von der Verderbskurve auf abgelesenen Daten ruht.
-  -- Gelesen wird mv_auftrag_masse, nicht v_auftrag_masse: dieselbe Regel
-  -- (`lagertage is not null` heisst gemessen), aber ohne den zweiten Lauf
-  -- über die Sicht, der im Lasttest Zeit kostet.
-  (select count(*) from mv_auftrag_masse m join fertig f on f.id = m.auftrag_id
-    where not f.ist_fax and m.lagertage is not null)::int                                 as arbeiten_alter_gemessen;
-
--- ---------------------------------------------------------------------
--- Die gespeicherte Fassung muss mitkommen
--- ---------------------------------------------------------------------
--- erg_datenqualitaet ist ein `create materialized view … as select * from
--- v_datenqualitaet` (0065). Der Stern ist dort beim Anlegen eingefroren:
--- Die drei neuen Spalten der Sicht kämen über die Migrationen NICHT in der
--- gespeicherten Fassung an, über setup.sql (Teil B legt alles frisch an)
--- schon. Genau diesen Unterschied findet der Fingerabdruck-Vergleich in
--- supabase/test/run.sh — er hat ihn beim ersten Lauf dieser Migration auch
--- gefunden. Also neu bauen, mit demselben Wortlaut wie 0065, damit beide
--- Wege wieder Zeichen für Zeichen dieselbe Datenbank ergeben.
---
--- `with no data`: gefüllt wird beim nächsten Lauf von auswertung_schritt(),
--- nicht hier. setup.sql darf keine Zwischenstände rechnen (AB-32).
--- Als EIN Block, nicht als vier Anweisungen: Der Verdichter sortiert
--- einzelne `drop` nach Teil A und einzelne `create` nach Teil B — das
--- Wegräumen und das Anlegen wären dann weit voneinander getrennt, und das
--- Anlegen liefe hinter der Schleife aus 0065/0068, die die gespeicherte
--- Fassung schon gebaut hat („relation erg_datenqualitaet already exists").
--- In einem `do`-Block bleiben sie zusammen. Der Kommentar darüber sagt dem
--- Verdichter, welches Objekt hier entsteht — der Name steht im Text, nicht
--- im SQL-Baum.
--- verdichter: baut erg_datenqualitaet
-do $$
-begin
-  execute 'drop materialized view if exists erg_datenqualitaet cascade';
-  execute 'create materialized view erg_datenqualitaet as select * from v_datenqualitaet with no data';
-  execute 'grant select on erg_datenqualitaet to authenticated';
-  execute format('comment on materialized view erg_datenqualitaet is %L',
-                 'v_datenqualitaet, gespeichert für die App Erneuert mit auswertung_schritt().');
-end $$;
 
 -- ---------------------------------------------------------------------
 -- 3. Die Marge je Wägung
@@ -12113,81 +12355,39 @@ UNION ALL
     v.verschenkt_kg IS NOT NULL AS gemessen
    FROM verkauf v
      CROSS JOIN datei d;
-
--- ---------- 2. Die Punkte werden nur noch einmal gerechnet ---------------
---
--- `erg_punkte` wird zur billigen Kopie von `mv_schimmel_punkte` — genau das
--- Muster, das `erg_kaliber` und `erg_modell` schon benutzen. `v_schimmel_punkte`
--- läuft damit einmal je Neurechnen statt zweimal.
---
--- Geändert wird das an der einen Stelle, an der die sechsundzwanzig
--- gespeicherten Ergebnisse entstehen: in der Liste aus 0061/0065. Ein
--- einzelnes „drop … create" nur für erg_punkte täte es hier **nicht**.
--- Die Schleife baut erg_punkte weiterhin mit, und in setup.sql stünden dann
--- zwei Bauanweisungen für denselben Namen — der Verdichter kann einen Namen
--- nicht aus einer Schleife herauslösen, deren Liste er nur als Text sieht.
--- Beim Bau brach setup.sql genau daran ab: „relation erg_punkte already
--- exists". Steht hier dagegen die ganze Liste, mit derselben Angabe für den
--- Verdichter, dann ist sie dieselbe Anweisung wie in 0065, und setup.sql
--- behält davon die letzte — diese.
--- verdichter: baut erg_gewichte erg_kaliber erg_gebinde erg_ausgang
--- verdichter: baut erg_lieferung erg_kohorte erg_punkte erg_modell erg_kurve
--- verdichter: baut erg_selektion erg_koeff_verdunstung erg_koeff_ausschuss
--- verdichter: baut erg_koeff_nebenkanal erg_koeff_ueberfuellung erg_wiegung
--- verdichter: baut erg_fax erg_ausschuss erg_verarbeitung_alter erg_durchsatz
--- verdichter: baut erg_bilanz erg_marge erg_massenbilanz erg_naechste_charge
--- verdichter: baut erg_datenlage erg_plausibilitaet erg_datenqualitaet
-do $$
-declare
-  paar text[];
-  paare text[][] := array[
-    -- [erg-Name, Quelle]
-    ['erg_gewichte',           'v_gewichtsverteilung'],
-    ['erg_kaliber',            'v_kaliber_verteilung'],
-    ['erg_gebinde',            'v_koeff_gebinde'],
-    ['erg_ausgang',            'v_ausgang_kennzahl'],
-    ['erg_lieferung',          'v_lieferung_masse'],
-    ['erg_kohorte',            'v_charge_kohorte'],
-    -- Seit 0068 die gespeicherte Fassung statt der Sicht: zeichengleich,
-    -- und die Sicht läuft je Neurechnen einmal statt zweimal.
-    ['erg_punkte',             'mv_schimmel_punkte'],
-    ['erg_modell',             'v_schimmel_modell'],
-    ['erg_kurve',              'v_schimmel_kurve_anzeige'],
-    ['erg_selektion',          'v_selektionsverdacht'],
-    ['erg_koeff_verdunstung',  'v_koeff_verdunstung'],
-    ['erg_koeff_ausschuss',    'v_koeff_ausschuss'],
-    ['erg_koeff_nebenkanal',   'v_koeff_nebenkanal'],
-    ['erg_koeff_ueberfuellung','v_koeff_ueberfuellung'],
-    ['erg_wiegung',            'v_wiegung_kennzahl'],
-    ['erg_fax',                'v_fax_beobachtung'],
-    ['erg_ausschuss',          'v_ausschuss_beobachtung'],
-    ['erg_verarbeitung_alter', 'v_verarbeitung_alter'],
-    ['erg_durchsatz',          'v_durchsatz'],
-    ['erg_bilanz',             'v_saisonbilanz'],
-    ['erg_marge',              'v_marge_buch'],
-    ['erg_massenbilanz',       'v_massenbilanz'],
-    ['erg_naechste_charge',    'v_naechste_charge'],
-    ['erg_datenlage',          'v_datenlage'],
-    ['erg_plausibilitaet',     'v_plausibilitaet'],
-    ['erg_datenqualitaet',     'v_datenqualitaet']
-  ];
-begin
-  foreach paar slice 1 in array paare loop
-    execute format('drop materialized view if exists %I cascade', paar[1]);
-    execute format('create materialized view %I as select * from %I with no data', paar[1], paar[2]);
-    execute format('grant select on %I to authenticated', paar[1]);
-    execute format('comment on materialized view %I is %L', paar[1],
-                   format('%s, gespeichert für die App Erneuert mit auswertung_schritt().', paar[2]));
-  end loop;
-end $$;
 create materialized view erg_wohin as select * from v_wohin with no data;
 
+-- `erg_punkte` ist die Fassung für die **App**. Sie hing bis hierher als
+-- blosse Kopie an mv_schimmel_punkte (0068: 103 ms und 120 kB für nichts).
+-- Ab jetzt trägt sie etwas bei, das die Auswertung nicht braucht und der
+-- Betriebsleiter sehr wohl: den Messtag. Dafür rechnet sie v_schimmel_punkte
+-- ein zweites Mal — das kostet rund ein Zehntel einer Sekunde, und der
+-- Prüfblock 0068 misst es, damit es dabei bleibt. Die Auswertung selbst
+-- liest sie nicht; sie steht am Ende der Kette, nicht darin.
+-- verdichter: baut erg_punkte
+do $$
+begin
+  execute 'drop materialized view if exists erg_punkte cascade';
+  execute 'create materialized view erg_punkte as select * from v_schimmel_punkte with no data';
+  execute 'grant select on erg_punkte to authenticated';
+  execute format('comment on materialized view erg_punkte is %L',
+                 'v_schimmel_punkte mit dem Messtag, gespeichert für die App (0079). Die '
+                 'Auswertung steht auf mv_schimmel_punkte; diese Fassung liest nur der '
+                 'Bildschirm. Erneuert mit auswertung_schritt().');
+end $$;
+
 -- ---------------------------------------------------------------------
--- 1. Die gemeinsame Rechnung: welcher Schlüssel, welche Kürbisse
+-- 6. Die Verdunstung rechnet ab dem Sortiertag, nicht ab dem Dateidatum
+--
+-- Dieselbe Rechnung wie in 0079, nur mit der Spalte statt mit
+-- `betriebstag(l.datei_zeit)`. Für alle bisherigen Läufe ist das
+-- derselbe Wert (Abschnitt 2 hat ihn genau so gesetzt); für eine
+-- Sammeldatei ist es der einzige, der stimmen kann.
+--
+-- Kürbisse ohne Sortiertag fallen heraus, statt mit einem erfundenen Tag
+-- zu rechnen. Wie viele das sind, sagt v_datenqualitaet.
 -- ---------------------------------------------------------------------
--- Welche Verteilung eine liegende Charge benutzt: ihre eigene Sortier-CSV
--- („charge"), die ihrer Sorte („sorte") oder keine. Dazu die Rate, mit der
--- geschrumpft wird — dieselbe, mit der die Kaskade rechnet.
+
 create or replace function lager_schluessel()
 returns table (charge_nr integer, sorte text, basis text, schluessel text, r numeric)
 language sql stable set search_path = public as $$
@@ -12202,6 +12402,7 @@ with liegend as (
     from sortier_lauf l join charge c on c.nr = l.charge_nr
     join sortier_gewicht g on g.lauf_id = l.id
    where g.klasse = 'kaliber' and g.anzahl > 0 and g.gewicht_g > 0
+     and l.sortiertag is not null
 )
 select l.charge_nr, l.sorte,
        case when exists (select 1 from mit_csv m where m.charge_nr = l.charge_nr) then 'charge'
@@ -12215,19 +12416,18 @@ select l.charge_nr, l.sorte,
   left join rate_sorte rs on rs.sorte = l.sorte
 $$;
 
--- Jeder sortierte Kürbis, wie er am Stichtag heute + p_h wiegt. Einmal je
--- Verteilungsschlüssel, nicht je Charge: Die Sorte Butterkin rechnet ihre
--- 8 000 Kürbisse sonst für jede ihrer Chargen neu.
 create or replace function kuerbis_stichtag(p_h integer)
 returns table (basis text, schluessel text, sorte text, h integer, anzahl integer, g double precision)
 language sql stable set search_path = public as $$
 with stichtag as (
   select heute() as heute
 ), lauf as materialized (
-  -- Der Sortiertag je Lauf — einmal je Lauf gerechnet, nicht je Kürbis:
-  -- betriebstag() liest die Zeitzone, und 4 000 Aufrufe kosteten 150 ms.
-  select l.id, l.charge_nr, c.sorte, betriebstag(l.datei_zeit) as sortiertag
+  -- Der Sortiertag steht seit 0082 an der Lesung: abgelesen bei einer
+  -- Lauf-Datei, abgeleitet bei einer Sammeldatei (sortiertag_quelle sagt
+  -- welches). Vorher stand hier betriebstag(l.datei_zeit).
+  select l.id, l.charge_nr, c.sorte, l.sortiertag
     from sortier_lauf l join charge c on c.nr = l.charge_nr
+   where l.sortiertag is not null
 ), kuerbis as (
   -- Nur die Klasse „kaliber": zu klein und Nebenkanal sind aus der
   -- verkaufsfähigen Masse schon heraus (a_klein_n, a_gross_n).
@@ -12241,8 +12441,6 @@ with stichtag as (
   select distinct 'sorte', s.sorte, s.sorte, null::int, s.r
     from lager_schluessel() s where s.basis = 'sorte'
 )
--- Zwei getrennte Verbindungen (je Charge, je Sorte), damit die Datenbank
--- sie streuen kann, statt Zeile für Zeile zu suchen.
 select v.basis, v.schluessel, v.sorte, p_h, k.anzahl,
        k.gewicht_g * power((1 - coalesce(v.r, 0))::double precision,
                            greatest(t.heute + p_h - k.sortiertag, 0)::double precision)
@@ -12443,23 +12641,185 @@ select gruppe, schluessel, sorte, h, datum, stufe_g,
   from zeilen
 $$;
 
--- `erg_punkte` ist die Fassung für die **App**. Sie hing bis hierher als
--- blosse Kopie an mv_schimmel_punkte (0068: 103 ms und 120 kB für nichts).
--- Ab jetzt trägt sie etwas bei, das die Auswertung nicht braucht und der
--- Betriebsleiter sehr wohl: den Messtag. Dafür rechnet sie v_schimmel_punkte
--- ein zweites Mal — das kostet rund ein Zehntel einer Sekunde, und der
--- Prüfblock 0068 misst es, damit es dabei bleibt. Die Auswertung selbst
--- liest sie nicht; sie steht am Ende der Kette, nicht darin.
--- verdichter: baut erg_punkte
+-- ---------------------------------------------------------------------
+-- 7. Die Lesungen, wie die Oberfläche sie zeigt
+-- ---------------------------------------------------------------------
+
+create or replace view v_sortier_lesung with (security_invoker = true) as
+select l.id, l.charge_nr, c.sorte, c.schlag, l.datei_name, l.art,
+       l.von_ts, l.bis_ts, l.sortiertag, l.sortiertag_quelle,
+       l.vorgaenger_id, l.voll_n_roh, l.n_roh, l.n_gueltig, l.gelesen_ts,
+       l.zuordnung::text as zuordnung, l.auftrag_id,
+       (select count(*) from sortier_gewicht g where g.lauf_id = l.id)::int as stufen,
+       (select coalesce(sum(g.anzahl::bigint * g.gewicht_g), 0) / 1000.0
+          from sortier_gewicht g where g.lauf_id = l.id)::numeric(12,2)     as masse_kg,
+       case l.sortiertag_quelle
+         when 'datei'          then 'aus dem Dateinamen'
+         when 'arbeit'         then 'aus der Sortier-Arbeit im Zeitraum'
+         when 'arbeiten-mittel' then 'Mittel der Sortier-Arbeiten im Zeitraum'
+         when 'fenster-mitte'  then 'Mitte des Zeitraums — geschätzt'
+         when 'betriebsleiter' then 'von Hand gesetzt'
+         when 'gelesen'        then 'Tag des Einlesens — geschätzt'
+         else 'nicht bekannt'
+       end                                                                  as sortiertag_text
+  from sortier_lauf l
+  join charge c on c.nr = l.charge_nr;
+
+-- ---------------------------------------------------------------------
+-- 8. Der Betriebsleiter soll sehen, worauf die Verteilung ruht
+-- ---------------------------------------------------------------------
+
+create or replace view v_datenqualitaet with (security_invoker = true) as
+with arbeiten as (select a.* from auftrag a where a.abgebrochen_ts is null),
+     fertig as (select * from arbeiten where status = 'abgeschlossen')
+select
+  (select count(*) from auftrag_palette ap join arbeiten a on a.id = ap.auftrag_id)::int as paletten_gezaehlt,
+  (select count(*) from auftrag_palette ap join arbeiten a on a.id = ap.auftrag_id
+    where ap.eingangsdatum is not null)::int                                             as paletten_mit_datum,
+  (select count(*) from fertig where not ist_fax)::int                                    as arbeiten_fertig,
+  (select count(*) from fertig f where not f.ist_fax and exists (select 1 from schimmel_messung s
+    where s.auftrag_id = f.id and s.palox_stand_kg is not null))::int                     as arbeiten_mit_ablesung,
+  (select count(*) from fertig f where not f.ist_fax and (select count(*) from schimmel_messung s
+    where s.auftrag_id = f.id and s.palox_stand_kg is not null) >= 2)::int                as arbeiten_mit_zwei_ablesungen,
+  (select count(*) from fertig f where not f.ist_fax and exists (select 1 from auftrag_angabe g
+    where g.auftrag_id = f.id and g.schluessel = 'eine_charge'))::int                     as arbeiten_mit_antwort,
+  (select count(*) from ausschuss_messung m join arbeiten a on a.id = m.auftrag_id
+    where m.gemessen)::int                                                                as ausschuss_messungen,
+  (select count(*) from ausschuss_messung m join arbeiten a on a.id = m.auftrag_id
+    where m.gemessen and m.brutto_kg is not null)::int                                    as ausschuss_gewogen,
+  (select count(*) from verdunstung_wiegung w
+    where w.auftrag_id is null and w.gemessen)::int                                       as lagerkontrollen,
+  (select count(*) from sortier_lauf)::int                                                as sortierlaeufe,
+  (select count(*) from sortier_lauf where auftrag_id is not null)::int                   as sortierlaeufe_zugeordnet,
+  (select count(*) from fertig f where f.station = 'sortieren')::int                      as sortier_arbeiten,
+  (select count(*) from fertig f where f.station = 'sortieren' and exists (select 1
+    from auftrag_gebinde g where g.auftrag_id = f.id and g.anzahl > 0))::int              as sortier_arbeiten_mit_kisten,
+  (select count(*) from fertig f where f.station = 'waschen' and not f.ist_fax)::int      as wasch_arbeiten,
+  (select count(*) from fertig f where f.station = 'waschen' and not f.ist_fax
+    and (f.kaliber_idx is not null or f.kaliber_von_g is not null)
+    and (exists (select 1 from auftrag_gebinde g where g.auftrag_id = f.id and g.anzahl > 0)
+         or exists (select 1 from auftrag_palette p where p.auftrag_id = f.id and p.kisten > 0)))::int
+                                                                                          as wasch_arbeiten_mit_kisten,
+  (select count(*) from fertig f where f.ist_fax)::int                                    as fax_arbeiten,
+  (select count(*) from fertig f where f.ist_fax and (f.paletten_gesamt > 0 or exists (select 1
+    from auftrag_gebinde g where g.auftrag_id = f.id and g.anzahl > 0)))::int             as fax_arbeiten_mit_kisten,
+  (select count(*) from fertig f where f.ist_fax and exists (select 1
+    from schimmel_messung s where s.auftrag_id = f.id and s.gemessen))::int               as fax_arbeiten_mit_faulem,
+  (select count(*) from auftrag_palette ap join arbeiten a on a.id = ap.auftrag_id
+    where a.station = 'waschen_sortieren')::int                                           as ws_paletten_gezaehlt,
+  (select count(*) from auftrag_palette ap join arbeiten a on a.id = ap.auftrag_id
+    where a.station = 'waschen_sortieren' and ap.brutto_zettel_kg is not null)::int       as ws_paletten_mit_zettelgewicht,
+  (select count(*) from fertig f where f.ist_fax or f.station in ('waschen', 'waschen_sortieren'))::int
+                                                                                          as arbeiten_nach_waschen,
+  (select count(*) from fertig f where (f.ist_fax or f.station in ('waschen', 'waschen_sortieren'))
+    and f.kistensystem is not null)::int                                                  as arbeiten_mit_kistensystem,
+  ((select coalesce(sum(g.anzahl), 0) from auftrag_gebinde g join arbeiten a on a.id = g.auftrag_id
+     where a.station = 'waschen' and not a.ist_fax)
+   + (select coalesce(sum(p.kisten), 0) from auftrag_palette p join arbeiten a on a.id = p.auftrag_id
+       where a.station = 'waschen' and not a.ist_fax))::int                               as wasch_kisten_gezaehlt,
+  ((select coalesce(sum(g.anzahl), 0) from auftrag_gebinde g join arbeiten a on a.id = g.auftrag_id
+     where a.station = 'waschen' and not a.ist_fax and (g.sortierdatum is not null or g.datum_fehlt))
+   + (select coalesce(sum(p.kisten), 0) from auftrag_palette p join arbeiten a on a.id = p.auftrag_id
+       where a.station = 'waschen' and not a.ist_fax and p.sortierdatum is not null))::int
+                                                                                          as wasch_kisten_mit_sortierdatum,
+  (select count(*) from fertig f where not f.ist_fax and exists (select 1 from v_palox_stand p
+    where p.auftrag_id = f.id and p.differenz is null))::int                              as arbeiten_mit_palox_unbekannt,
+  (select count(*) from auftrag_palette ap join arbeiten a on a.id = ap.auftrag_id
+    where not a.ist_fax and a.station in ('sortieren', 'waschen_sortieren'))::int         as eingangspaletten,
+  (select count(*) from auftrag_palette ap join arbeiten a on a.id = ap.auftrag_id
+    where not a.ist_fax and a.station in ('sortieren', 'waschen_sortieren')
+      and ap.kisten is not null and ap.kisten > 0)::int                                   as eingangspaletten_mit_kisten,
+  (select count(*) from mv_auftrag_masse m join fertig f on f.id = m.auftrag_id
+    where not f.ist_fax and m.lagertage is not null)::int                                 as arbeiten_alter_gemessen,
+  -- 0082: Zwei Arten von Datei, und die Güte des Sortiertags. Darauf ruht
+  -- die ganze Gewichtsverteilung des Lagers. Angehängt und nicht
+  -- eingeschoben: `create or replace view` darf die Spaltenliste nur
+  -- verlängern, sonst bricht es mit „cannot change name of view column".
+  (select count(*) from sortier_lauf where art = 'sammel')::int                           as sammel_lesungen,
+  (select count(*) from sortier_lauf where sortiertag is not null)::int                   as lesungen_mit_sortiertag,
+  (select count(*) from sortier_lauf
+    where sortiertag_quelle in ('datei', 'arbeit'))::int                                  as lesungen_sortiertag_bezeugt;
+
+-- ---------- 2. Die Punkte werden nur noch einmal gerechnet ---------------
+--
+-- `erg_punkte` wird zur billigen Kopie von `mv_schimmel_punkte` — genau das
+-- Muster, das `erg_kaliber` und `erg_modell` schon benutzen. `v_schimmel_punkte`
+-- läuft damit einmal je Neurechnen statt zweimal.
+--
+-- Geändert wird das an der einen Stelle, an der die sechsundzwanzig
+-- gespeicherten Ergebnisse entstehen: in der Liste aus 0061/0065. Ein
+-- einzelnes „drop … create" nur für erg_punkte täte es hier **nicht**.
+-- Die Schleife baut erg_punkte weiterhin mit, und in setup.sql stünden dann
+-- zwei Bauanweisungen für denselben Namen — der Verdichter kann einen Namen
+-- nicht aus einer Schleife herauslösen, deren Liste er nur als Text sieht.
+-- Beim Bau brach setup.sql genau daran ab: „relation erg_punkte already
+-- exists". Steht hier dagegen die ganze Liste, mit derselben Angabe für den
+-- Verdichter, dann ist sie dieselbe Anweisung wie in 0065, und setup.sql
+-- behält davon die letzte — diese.
+-- verdichter: baut erg_gewichte erg_kaliber erg_gebinde erg_ausgang
+-- verdichter: baut erg_lieferung erg_kohorte erg_punkte erg_modell erg_kurve
+-- verdichter: baut erg_selektion erg_koeff_verdunstung erg_koeff_ausschuss
+-- verdichter: baut erg_koeff_nebenkanal erg_koeff_ueberfuellung erg_wiegung
+-- verdichter: baut erg_fax erg_ausschuss erg_verarbeitung_alter erg_durchsatz
+-- verdichter: baut erg_bilanz erg_marge erg_massenbilanz erg_naechste_charge
+-- verdichter: baut erg_datenlage erg_plausibilitaet erg_datenqualitaet
+do $$
+declare
+  paar text[];
+  paare text[][] := array[
+    -- [erg-Name, Quelle]
+    ['erg_gewichte',           'v_gewichtsverteilung'],
+    ['erg_kaliber',            'v_kaliber_verteilung'],
+    ['erg_gebinde',            'v_koeff_gebinde'],
+    ['erg_ausgang',            'v_ausgang_kennzahl'],
+    ['erg_lieferung',          'v_lieferung_masse'],
+    ['erg_kohorte',            'v_charge_kohorte'],
+    -- Seit 0068 die gespeicherte Fassung statt der Sicht: zeichengleich,
+    -- und die Sicht läuft je Neurechnen einmal statt zweimal.
+    ['erg_punkte',             'mv_schimmel_punkte'],
+    ['erg_modell',             'v_schimmel_modell'],
+    ['erg_kurve',              'v_schimmel_kurve_anzeige'],
+    ['erg_selektion',          'v_selektionsverdacht'],
+    ['erg_koeff_verdunstung',  'v_koeff_verdunstung'],
+    ['erg_koeff_ausschuss',    'v_koeff_ausschuss'],
+    ['erg_koeff_nebenkanal',   'v_koeff_nebenkanal'],
+    ['erg_koeff_ueberfuellung','v_koeff_ueberfuellung'],
+    ['erg_wiegung',            'v_wiegung_kennzahl'],
+    ['erg_fax',                'v_fax_beobachtung'],
+    ['erg_ausschuss',          'v_ausschuss_beobachtung'],
+    ['erg_verarbeitung_alter', 'v_verarbeitung_alter'],
+    ['erg_durchsatz',          'v_durchsatz'],
+    ['erg_bilanz',             'v_saisonbilanz'],
+    ['erg_marge',              'v_marge_buch'],
+    ['erg_massenbilanz',       'v_massenbilanz'],
+    ['erg_naechste_charge',    'v_naechste_charge'],
+    ['erg_datenlage',          'v_datenlage'],
+    ['erg_plausibilitaet',     'v_plausibilitaet'],
+    ['erg_datenqualitaet',     'v_datenqualitaet']
+  ];
+begin
+  foreach paar slice 1 in array paare loop
+    execute format('drop materialized view if exists %I cascade', paar[1]);
+    execute format('create materialized view %I as select * from %I with no data', paar[1], paar[2]);
+    execute format('grant select on %I to authenticated', paar[1]);
+    execute format('comment on materialized view %I is %L', paar[1],
+                   format('%s, gespeichert für die App Erneuert mit auswertung_schritt().', paar[2]));
+  end loop;
+end $$;
+
+-- Die gespeicherte Fassung muss mitkommen: erg_datenqualitaet ist ein
+-- `create materialized view … as select * from v_datenqualitaet`, und der
+-- Stern ist dort beim Anlegen eingefroren. Ohne diesen Block kämen die drei
+-- neuen Spalten über die Migrationen nicht an, über setup.sql schon — und
+-- genau diesen Unterschied findet der Fingerabdruck-Vergleich in run.sh.
+-- verdichter: baut erg_datenqualitaet
 do $$
 begin
-  execute 'drop materialized view if exists erg_punkte cascade';
-  execute 'create materialized view erg_punkte as select * from v_schimmel_punkte with no data';
-  execute 'grant select on erg_punkte to authenticated';
-  execute format('comment on materialized view erg_punkte is %L',
-                 'v_schimmel_punkte mit dem Messtag, gespeichert für die App (0079). Die '
-                 'Auswertung steht auf mv_schimmel_punkte; diese Fassung liest nur der '
-                 'Bildschirm. Erneuert mit auswertung_schritt().');
+  execute 'drop materialized view if exists erg_datenqualitaet cascade';
+  execute 'create materialized view erg_datenqualitaet as select * from v_datenqualitaet with no data';
+  execute 'grant select on erg_datenqualitaet to authenticated';
+  execute format('comment on materialized view erg_datenqualitaet is %L',
+                 'v_datenqualitaet, gespeichert für die App Erneuert mit auswertung_schritt().');
 end $$;
 
 -- ---------------------------------------------------------------------
@@ -14078,6 +14438,30 @@ comment on view v_auftrag_masse is
   'fertigen Paletten dieser Arbeit (0079, „fertige_paletten"); die gezählten '
   'Kisten der Kaliber-Paletten („wasch_paletten"); gezählte Gebinde; bei Fax '
   'die Palettenzahl. Fehlt alles, ist die Masse unbekannt — nicht null.';
+comment on function lager_schluessel() is
+  'Je Charge mit liegender Ware: woher ihre Gewichtsverteilung kommt (eigene '
+  'Sortier-CSV, die der Sorte, oder keine) und mit welcher Verdunstungsrate '
+  'geschrumpft wird. Seit 0082 zählt eine CSV nur mit, wenn ihr Sortiertag '
+  'bekannt ist — ohne ihn lässt sich nicht sagen, wie lange geschrumpft wurde.';
+comment on function kuerbis_stichtag(integer) is
+  'Jeder sortierte Kürbis, wie er am Stichtag heute + p_h wiegt — geschrumpft '
+  'ab seinem Sortiertag. Seit 0082 aus sortier_lauf.sortiertag; Lesungen ohne '
+  'bekannten Sortiertag bleiben draussen, statt mit einem erfundenen Tag zu '
+  'rechnen (0079, 0082).';
+comment on view v_sortier_lesung is
+  'Je eingelesener Datei: welche Art, welcher Zeitraum, welcher Sortiertag und '
+  'woher er kommt. Eine Sammel-Lesung trägt nur das Delta zur vorigen — '
+  'n_gueltig ist also, was DAZUKAM, nicht was in der Datei steht (0082).';
+grant select on v_sortier_lesung to authenticated;
+
+comment on view v_datenqualitaet is
+  'Zähler zur Vollständigkeit der Erfassung. Seit 0061 zählen beim Waschen die '
+  'gezählten Paletten (Kisten mit Sortierdatum) mit; die Lagerkontrolle zählt '
+  'als Verdunstungsmessung, ohne Faul-Angabe. Seit 0076 zusätzlich die '
+  'Kistenzahl auf der Eingangspalette. Seit 0082 die zwei Arten von '
+  'Sortierdatei und die Güte des Sortiertags: Wie viele Lesungen haben '
+  'überhaupt einen, und bei wie vielen ist er bezeugt statt geschätzt? '
+  'Darauf ruht die Gewichtsverteilung des Lagers (0082).';
 
 
 -- =====================================================================
