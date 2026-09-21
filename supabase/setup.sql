@@ -7191,6 +7191,12 @@ comment on function csv_sammel_speichern is
   'dazukam, und weist die Datei ab, wenn sie keine Erweiterung der vorigen ist. '
   'Gibt zurück, was übernommen wurde, welcher Sortiertag gilt und woher er '
   'kommt (0082).';
+-- Ohne diese zwei Zeilen stünde die Funktion jedem offen, auch ohne
+-- Anmeldung — `create function` gibt public das Ausführungsrecht mit.
+revoke all on function csv_sammel_speichern(int, text, text, text, jsonb, int, int,
+                                            int, int, jsonb, timestamptz, timestamptz) from public;
+grant execute on function csv_sammel_speichern(int, text, text, text, jsonb, int, int,
+                                               int, int, jsonb, timestamptz, timestamptz) to authenticated;
 
 -- ---------------------------------------------------------------------
 -- 4a. Auch eine Lauf-Datei füllt die neuen Spalten
@@ -7352,7 +7358,24 @@ begin
   end if;
 
   -- Das Delta behalten: was eine frühere Lesung schon trägt, fällt weg.
+  --
+  -- Die Reihenfolge ist hier kein Geschmack, sondern der Unterschied
+  -- zwischen richtig und falsch. Erst wird gelöscht, dann gekürzt — beide
+  -- Anweisungen vergleichen mit derselben, ungekürzten Zahl. Stünde das
+  -- Kürzen voran, läse das Löschen danach die schon gekürzte Zahl und
+  -- nähme auch das weg, was gerade übrig geblieben ist: Aus 6 gelesenen
+  -- bei 4 bekannten würden erst 2 — und die 2 sind nicht mehr grösser als
+  -- 4, also verschwänden sie. Die Lesung meldete 2 Kürbisse und trüge
+  -- keinen einzigen.
   if v_vorher is not null then
+    -- Stufen, die vollständig bekannt sind, tragen nichts mehr bei.
+    delete from sortier_gewicht g
+     using (select gewicht_g, sum(anzahl)::int as anzahl
+              from sortier_gewicht sg join sortier_lauf l on l.id = sg.lauf_id
+             where l.charge_nr = v_lauf.charge_nr and l.art = 'sammel' and l.id <> p_lauf_id
+             group by gewicht_g) b
+     where g.lauf_id = p_lauf_id and g.gewicht_g = b.gewicht_g and g.anzahl <= b.anzahl;
+
     with bekannt as (
       select g.gewicht_g, sum(g.anzahl)::int as anzahl
         from sortier_gewicht g join sortier_lauf l on l.id = g.lauf_id
@@ -7365,14 +7388,6 @@ begin
       left join bekannt b on b.gewicht_g = alle.gewicht_g
      where g.lauf_id = p_lauf_id and g.gewicht_g = alle.gewicht_g
        and g.anzahl - coalesce(b.anzahl, 0) > 0;
-
-    -- Stufen, die vollständig bekannt waren, tragen nichts mehr bei.
-    delete from sortier_gewicht g
-     using (select gewicht_g, sum(anzahl)::int as anzahl
-              from sortier_gewicht sg join sortier_lauf l on l.id = sg.lauf_id
-             where l.charge_nr = v_lauf.charge_nr and l.art = 'sammel' and l.id <> p_lauf_id
-             group by gewicht_g) b
-     where g.lauf_id = p_lauf_id and g.gewicht_g = b.gewicht_g and g.anzahl <= b.anzahl;
   end if;
 
   select tag, quelle into v_tag, v_quelle
@@ -9160,20 +9175,6 @@ SELECT w.id,
      CROSS JOIN LATERAL ( SELECT zahl(w.brutto_damals_kg - w.kisten::numeric * g.tara_kg_pro_kiste - g.tara_kg_palette, 2, '100000000'::numeric)::numeric(10,2) AS netto_damals_kg,
             zahl(w.brutto_jetzt_kg - w.kisten::numeric * g.tara_kg_pro_kiste - g.tara_kg_palette, 2, '100000000'::numeric)::numeric(10,2) AS netto_jetzt_kg) n
   WHERE w.gemessen AND (a.id IS NULL OR a.abgebrochen_ts IS NULL);
-
--- Dieselbe Geschichte wie bei erg_punkte: der Stern ist beim Anlegen
--- eingefroren (0062). erg_wiegung liest niemand ausser dem Bildschirm —
--- neu anlegen ist hier gefahrlos.
--- verdichter: baut erg_wiegung
-do $$
-begin
-  execute 'drop materialized view if exists erg_wiegung cascade';
-  execute 'create materialized view erg_wiegung as select * from v_wiegung_kennzahl with no data';
-  execute 'grant select on erg_wiegung to authenticated';
-  execute format('comment on materialized view erg_wiegung is %L',
-                 'v_wiegung_kennzahl mit der Tagesrate, gespeichert für die App (0079). '
-                 'Erneuert mit auswertung_schritt().');
-end $$;
 
 -- ---------------------------------------------------------------------
 -- 6. Der Nenner beim Waschen: die fertigen Paletten
@@ -12585,25 +12586,6 @@ UNION ALL
      CROSS JOIN datei d;
 create materialized view erg_wohin as select * from v_wohin with no data;
 
--- `erg_punkte` ist die Fassung für die **App**. Sie hing bis hierher als
--- blosse Kopie an mv_schimmel_punkte (0068: 103 ms und 120 kB für nichts).
--- Ab jetzt trägt sie etwas bei, das die Auswertung nicht braucht und der
--- Betriebsleiter sehr wohl: den Messtag. Dafür rechnet sie v_schimmel_punkte
--- ein zweites Mal — das kostet rund ein Zehntel einer Sekunde, und der
--- Prüfblock 0068 misst es, damit es dabei bleibt. Die Auswertung selbst
--- liest sie nicht; sie steht am Ende der Kette, nicht darin.
--- verdichter: baut erg_punkte
-do $$
-begin
-  execute 'drop materialized view if exists erg_punkte cascade';
-  execute 'create materialized view erg_punkte as select * from v_schimmel_punkte with no data';
-  execute 'grant select on erg_punkte to authenticated';
-  execute format('comment on materialized view erg_punkte is %L',
-                 'v_schimmel_punkte mit dem Messtag, gespeichert für die App (0079). Die '
-                 'Auswertung steht auf mv_schimmel_punkte; diese Fassung liest nur der '
-                 'Bildschirm. Erneuert mit auswertung_schritt().');
-end $$;
-
 -- ---------------------------------------------------------------------
 -- 6. Die Verdunstung rechnet ab dem Sortiertag, nicht ab dem Dateidatum
 --
@@ -12879,8 +12861,12 @@ select l.id, l.charge_nr, c.sorte, c.schlag, l.datei_name, l.art,
        l.vorgaenger_id, l.voll_n_roh, l.n_roh, l.n_gueltig, l.gelesen_ts,
        l.zuordnung::text as zuordnung, l.auftrag_id,
        (select count(*) from sortier_gewicht g where g.lauf_id = l.id)::int as stufen,
-       (select coalesce(sum(g.anzahl::bigint * g.gewicht_g), 0) / 1000.0
-          from sortier_gewicht g where g.lauf_id = l.id)::numeric(12,2)     as masse_kg,
+       -- zahl() statt eines harten Casts (0058): Eine einzelne unmögliche
+       -- Zahl — ein Tippfehler von 900 000 g etwa — würde sonst die ganze
+       -- Sicht abbrechen lassen, statt nur diese eine Masse unbekannt zu
+       -- machen.
+       zahl((select coalesce(sum(g.anzahl::bigint * g.gewicht_g), 0) / 1000.0
+               from sortier_gewicht g where g.lauf_id = l.id), 2, 1e10) as masse_kg,
        case l.sortiertag_quelle
          when 'datei'          then 'aus dem Dateinamen'
          when 'arbeit'         then 'aus der Sortier-Arbeit im Zeitraum'
@@ -13034,6 +13020,39 @@ begin
     execute format('comment on materialized view %I is %L', paar[1],
                    format('%s, gespeichert für die App Erneuert mit auswertung_schritt().', paar[2]));
   end loop;
+end $$;
+
+-- `erg_punkte` ist die Fassung für die **App**. Sie hing bis hierher als
+-- blosse Kopie an mv_schimmel_punkte (0068: 103 ms und 120 kB für nichts).
+-- Ab jetzt trägt sie etwas bei, das die Auswertung nicht braucht und der
+-- Betriebsleiter sehr wohl: den Messtag. Dafür rechnet sie v_schimmel_punkte
+-- ein zweites Mal — das kostet rund ein Zehntel einer Sekunde, und der
+-- Prüfblock 0068 misst es, damit es dabei bleibt. Die Auswertung selbst
+-- liest sie nicht; sie steht am Ende der Kette, nicht darin.
+-- verdichter: baut erg_punkte
+do $$
+begin
+  execute 'drop materialized view if exists erg_punkte cascade';
+  execute 'create materialized view erg_punkte as select * from v_schimmel_punkte with no data';
+  execute 'grant select on erg_punkte to authenticated';
+  execute format('comment on materialized view erg_punkte is %L',
+                 'v_schimmel_punkte mit dem Messtag, gespeichert für die App (0079). Die '
+                 'Auswertung steht auf mv_schimmel_punkte; diese Fassung liest nur der '
+                 'Bildschirm. Erneuert mit auswertung_schritt().');
+end $$;
+
+-- Dieselbe Geschichte wie bei erg_punkte: der Stern ist beim Anlegen
+-- eingefroren (0062). erg_wiegung liest niemand ausser dem Bildschirm —
+-- neu anlegen ist hier gefahrlos.
+-- verdichter: baut erg_wiegung
+do $$
+begin
+  execute 'drop materialized view if exists erg_wiegung cascade';
+  execute 'create materialized view erg_wiegung as select * from v_wiegung_kennzahl with no data';
+  execute 'grant select on erg_wiegung to authenticated';
+  execute format('comment on materialized view erg_wiegung is %L',
+                 'v_wiegung_kennzahl mit der Tagesrate, gespeichert für die App (0079). '
+                 'Erneuert mit auswertung_schritt().');
 end $$;
 
 -- Die gespeicherte Fassung muss mitkommen: erg_datenqualitaet ist ein

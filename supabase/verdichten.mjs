@@ -509,9 +509,9 @@ export function verdichten(liste) {
   }
 
   // Kante A → B: A liest B, also muss B zuerst stehen. Zwischen Knoten
-  // desselben Namens wird keine Kante gezogen — die stehen in der
-  // Reihenfolge, in der sie in den Migrationen stehen, und ein "drop" und ein
-  // "create" derselben Funktion würden sich sonst gegenseitig blockieren.
+  // desselben Namens gilt etwas anderes: Sie sollen in der Reihenfolge
+  // stehen, in der sie in den Migrationen stehen — wer dasselbe Objekt
+  // später baut, baut es endgültig.
   const braucht = new Map(knoten.map(x => [x.k, new Set()]))
   for (const x of knoten) {
     const text = x.text ?? x.bauen.map(i => kerne[i]).join(' ')
@@ -519,6 +519,29 @@ export function verdichten(liste) {
       if (!new RegExp(`\\b${name}\\b`).test(text)) continue
       for (const y of ys) if (!y.namen.some(n2 => x.namen.includes(n2))) braucht.get(x.k).add(y.k)
     }
+  }
+
+  // Und genau das muss dastehen, statt sich darauf zu verlassen.
+  //
+  // Der Fall, an dem es aufflog: `erg_punkte` wird von zwei angemeldeten
+  // Anweisungen gebaut — von der Schleife aus 0068, die die ganze Kaskade
+  // neu anlegt (dort als billige Kopie von mv_schimmel_punkte), und von
+  // 0079, das ihr den Messtag gibt. Beide teilen den Namen, also zog der
+  // Code oben zwischen ihnen keine Kante. Die Sortierung entschied dann
+  // nach Bereitschaft: Die Schleife wartet auf zwei Dutzend Ansichten,
+  // 0079 nur auf eine — also lief 0079 zuerst und die Schleife überschrieb
+  // es hinterher. In der Datenbank aus setup.sql fehlte `erg_punkte` damit
+  // die Spalte `messtag`, die der Ursachen-Bildschirm liest; aus den
+  // Migrationen einzeln eingespielt war sie da. Ein Abgleich ohne diese
+  // Kante fand den Unterschied, konnte ihn aber nicht verhindern.
+  //
+  // Die Kante zeigt immer von der späteren Anweisung auf die frühere, also
+  // in eine Richtung — ein „drop" und ein „create" derselben Funktion
+  // blockieren sich dadurch nicht gegenseitig.
+  for (const ys of nameZuKnoten.values()) {
+    if (ys.length < 2) continue
+    const nach = [...new Set(ys)].sort((a, b) => a.ab - b.ab)
+    for (let j = 1; j < nach.length; j++) braucht.get(nach[j].k).add(nach[j - 1].k)
   }
 
   // Kahn, stabil nach ursprünglicher Stelle.

@@ -5028,3 +5028,282 @@ begin
 end $$;
 
 select '——— 0081 Demo-Saison geprüft ———' as ergebnis;
+
+-- =====================================================================
+-- 0082 — Zwei Arten von Sortierdatei
+--
+-- Bis hierher gab es nur eine: eine Datei, ein Sortierlauf, das Datum im
+-- Namen. In Wirklichkeit hängt die Maschine bei jedem Sortieren derselben
+-- Charge unten an dieselbe Datei an. Eine solche Sammeldatei enthält beim
+-- zweiten Hochladen alles vom ersten Mal noch einmal und trägt kein
+-- Sortierdatum. Beides ging vorher still daneben: die Masse verdoppelte
+-- sich, und der Zeitstempel der Datei wurde als Sortierzeitpunkt genommen,
+-- obwohl er der Moment des letzten Anhängens ist.
+--
+-- Geprüft wird deshalb dreierlei, und zwar an der Wurzel:
+--   · Zweimal dieselbe, gewachsene Datei zählt jeden Kürbis einmal.
+--   · Eine Datei, die keine Fortsetzung sein kann, wird abgewiesen statt
+--     halb übernommen.
+--   · Was vor 0082 als Lauf eingelesen wurde, lässt sich umdeuten, ohne
+--     ein einziges Gramm zu verlieren.
+-- =====================================================================
+do $$
+declare
+  v_u   uuid := '00000000-0082-0000-0000-000000000001';
+  v_c   int;
+  v_a   jsonb;
+  v_id  bigint;
+  v_n   int;
+  v_g   int;
+  v_tag date;
+  v_q   text;
+  v_art text;
+  v_ja  boolean;
+  v_zt  timestamptz;
+  v_bis timestamptz;
+begin
+  insert into auth.users (id, email, raw_user_meta_data)
+  values (v_u, null, '{"name":"Prüf-0082"}');
+  update profil set rolle = 'admin' where id = v_u;
+  perform set_config('request.jwt.claim.sub', v_u::text, true);
+
+  select nr into v_c from charge order by nr limit 1;
+  insert into palette (charge_nr, eingangsdatum, kisten, brutto_kg, gebindeart)
+  values (v_c, date '2026-08-12', 30, 900, 'G2');
+
+  -- ------------------------------------------------------------------
+  -- (a) Die gewachsene Datei: jeder Kürbis genau einmal
+  -- ------------------------------------------------------------------
+  -- Erste Lesung: 3× 500 g und 2× 700 g stehen in der Datei.
+  v_a := csv_sammel_speichern(v_c, '1614', null, 'pruef-0082-a1', '{}'::jsonb,
+           5, 0, 0, 0, '[[500,3],[700,2]]'::jsonb,
+           timestamptz '2026-08-12 00:00', timestamptz '2026-09-21 23:59');
+  assert v_a->>'fehler' is null, format('0082 (a1): erste Lesung abgewiesen — %s', v_a);
+  assert (v_a->>'n_neu')::int = 5, format('0082 (a1): %s statt 5 neue Kürbisse', v_a->>'n_neu');
+  assert (v_a->>'n_bekannt')::int = 0, format('0082 (a1): %s statt 0 bekannte', v_a->>'n_bekannt');
+
+  -- Zweite Lesung derselben, inzwischen gewachsenen Datei: jetzt stehen
+  -- 5× 500 g und 3× 700 g darin — die drei alten sind wieder dabei.
+  v_a := csv_sammel_speichern(v_c, '1614', null, 'pruef-0082-a2', '{}'::jsonb,
+           8, 0, 0, 0, '[[500,5],[700,3]]'::jsonb,
+           timestamptz '2026-08-12 00:00', timestamptz '2026-09-21 23:59');
+  assert v_a->>'fehler' is null, format('0082 (a2): zweite Lesung abgewiesen — %s', v_a);
+  assert (v_a->>'n_neu')::int = 3, format('0082 (a2): %s statt 3 neue Kürbisse', v_a->>'n_neu');
+  assert (v_a->>'n_bekannt')::int = 5, format('0082 (a2): %s statt 5 bekannte', v_a->>'n_bekannt');
+
+  -- Und die Probe, auf die es ankommt: gespeichert ist, was in der Datei
+  -- steht — nicht 5 + 8 = 13.
+  select coalesce(sum(g.anzahl), 0)::int into v_n
+    from sortier_gewicht g join sortier_lauf l on l.id = g.lauf_id
+   where l.charge_nr = v_c and l.art = 'sammel';
+  assert v_n = 8, format('0082 (a3): %s Kürbisse gespeichert, die Datei hat 8 — doppelt gezählt', v_n);
+  select coalesce(sum(l.n_gueltig), 0)::int into v_n
+    from sortier_lauf l where l.charge_nr = v_c and l.art = 'sammel';
+  assert v_n = 8, format('0082 (a4): die Lesungen melden zusammen %s statt 8', v_n);
+  -- Auch die Trichterzahlen sind Anteile, nicht Gesamtstände.
+  select coalesce(sum(l.n_roh), 0)::int into v_n
+    from sortier_lauf l where l.charge_nr = v_c and l.art = 'sammel';
+  assert v_n = 8, format('0082 (a5): n_roh summiert sich zu %s statt zu den 8 Zeilen der Datei', v_n);
+
+  -- ------------------------------------------------------------------
+  -- (b) Dieselbe Datei nochmals, unverändert
+  -- ------------------------------------------------------------------
+  v_a := csv_sammel_speichern(v_c, '1614', null, 'pruef-0082-b', '{}'::jsonb,
+           8, 0, 0, 0, '[[500,5],[700,3]]'::jsonb,
+           timestamptz '2026-08-12 00:00', timestamptz '2026-09-21 23:59');
+  assert v_a->>'fehler' = 'nichts_neu',
+    format('0082 (b): die unveränderte Datei wurde nicht abgewiesen — %s', v_a);
+  select count(*)::int into v_n from sortier_lauf where roh_pruefsumme = 'pruef-0082-b';
+  assert v_n = 0, '0082 (b): die unveränderte Datei hat trotzdem eine Lesung angelegt';
+
+  -- ------------------------------------------------------------------
+  -- (c) Eine Datei, die keine Fortsetzung sein kann
+  -- ------------------------------------------------------------------
+  -- Hier fehlt eine Stufe, die schon eingelesen ist (nur noch 1× 700 g).
+  -- Das kann keine gewachsene Datei sein — also wird nichts übernommen,
+  -- statt die Differenz gutgläubig als „neu" zu buchen.
+  v_a := csv_sammel_speichern(v_c, '1614', null, 'pruef-0082-c', '{}'::jsonb,
+           7, 0, 0, 0, '[[500,6],[700,1]]'::jsonb,
+           timestamptz '2026-08-12 00:00', timestamptz '2026-09-21 23:59');
+  assert v_a->>'fehler' = 'keine_erweiterung',
+    format('0082 (c1): die beschnittene Datei wurde angenommen — %s', v_a);
+  assert v_a->'negativ' = '[[700,2]]'::jsonb,
+    format('0082 (c2): die fehlende Stufe wird falsch benannt — %s', v_a->'negativ');
+  select coalesce(sum(g.anzahl), 0)::int into v_n
+    from sortier_gewicht g join sortier_lauf l on l.id = g.lauf_id
+   where l.charge_nr = v_c and l.art = 'sammel';
+  assert v_n = 8, format('0082 (c3): die abgewiesene Datei hat den Stand auf %s verändert', v_n);
+
+  -- ------------------------------------------------------------------
+  -- (d) Der Sortiertag: abgeleitet, und er sagt woher
+  -- ------------------------------------------------------------------
+  -- Ohne Arbeit im Fenster bleibt nur die Mitte — und die Lesung sagt das,
+  -- statt einen gemessenen Tag vorzutäuschen.
+  select sortiertag, sortiertag_quelle into v_tag, v_q
+    from sortier_lauf where roh_pruefsumme = 'pruef-0082-a1';
+  assert v_q = 'fenster-mitte', format('0082 (d1): Quelle %s statt fenster-mitte', v_q);
+  assert v_tag = date '2026-09-01', format('0082 (d2): Mitte des Fensters ist %s, nicht der 1.9.', v_tag);
+
+  -- Liegt genau eine Sortier-Arbeit im Fenster, zählt ihr Tag — das ist
+  -- eine Messung, keine Schätzung.
+  insert into auftrag (weg, station, charge_nr, eroeffnet_von, start_ts, status)
+  values ('maschine', 'sortieren', v_c, v_u, timestamptz '2026-09-10 08:00', 'abgeschlossen');
+  v_a := csv_sammel_speichern(v_c, '1614', null, 'pruef-0082-d', '{}'::jsonb,
+           10, 0, 0, 0, '[[500,6],[700,4]]'::jsonb,
+           timestamptz '2026-09-05 00:00', timestamptz '2026-09-15 23:59');
+  assert v_a->>'sortiertag_quelle' = 'arbeit',
+    format('0082 (d3): Quelle %s statt arbeit', v_a->>'sortiertag_quelle');
+  assert (v_a->>'sortiertag')::date = date '2026-09-10',
+    format('0082 (d4): Sortiertag %s statt 10.9.', v_a->>'sortiertag');
+  -- Und die Lesung hängt an ihrer Vorgängerin — die Kette ist nachlesbar.
+  select vorgaenger_id is not null into v_ja
+    from sortier_lauf where roh_pruefsumme = 'pruef-0082-d';
+  assert v_ja, '0082 (d5): die Lesung nennt ihre Vorgängerin nicht';
+
+  -- ------------------------------------------------------------------
+  -- (e) Umdeuten, ohne ein Gramm zu verlieren
+  -- ------------------------------------------------------------------
+  -- Der Fall des Betriebs: Die Sammeldateien einer ganzen Saison wurden
+  -- vor 0082 hochgeladen und als Lauf gedeutet. Löschen und neu hochladen
+  -- wäre der teure Weg — und der gefährliche, weil dabei die Rohdatei aus
+  -- dem Speicher verschwände. Umgedeutet bleibt die Masse, nur die Deutung
+  -- ändert sich.
+  select nr into v_c from charge order by nr offset 1 limit 1;
+  insert into palette (charge_nr, eingangsdatum, kisten, brutto_kg, gebindeart)
+  values (v_c, date '2026-08-20', 30, 900, 'G2');
+  -- Eine Sortier-Arbeit zur Dateizeit, damit die Lauf-Lesung auch wirklich
+  -- automatisch zugeordnet wird. Ohne sie prüfte (g) unten nichts: Was nie
+  -- zugeordnet war, kann beim Umdeuten auch nicht hängen bleiben.
+  insert into auftrag (weg, station, charge_nr, eroeffnet_von, start_ts, ende_ts, status)
+  values ('maschine', 'sortieren', v_c, v_u,
+          timestamptz '2026-09-19 16:00', timestamptz '2026-09-19 18:00', 'abgeschlossen');
+  v_id := csv_lauf_speichern(v_c, '1616', null, 'pruef-0082-e', 
+            timestamptz '2026-09-19 17:00', 'lastModified', '{}'::jsonb,
+            9, 0, 0, 0, '[[500,4],[900,5]]'::jsonb);
+
+  -- Erst die Gegenprobe: Auch eine echte Lauf-Datei bekommt seit 0082 ihren
+  -- Sortiertag — sonst fiele jeder künftige Lauf aus der Verdunstungs-
+  -- rechnung, und zwar lautlos.
+  select art, sortiertag, sortiertag_quelle, n_gueltig into v_art, v_tag, v_q, v_n
+    from sortier_lauf where id = v_id;
+  assert v_art = 'lauf', format('0082 (e1): art %s statt lauf', v_art);
+  assert v_tag = date '2026-09-19', format('0082 (e2): Sortiertag %s statt 19.9.', v_tag);
+  assert v_q = 'dateistempel', format('0082 (e3): Quelle %s statt dateistempel', v_q);
+  assert v_n = 9, format('0082 (e4): %s statt 9 Kürbisse', v_n);
+  select auftrag_id is not null into v_ja from sortier_lauf where id = v_id;
+  assert v_ja, '0082 (e4b): die Lauf-Lesung wurde nicht automatisch zugeordnet — dann prüft (g) nichts';
+
+  v_a := lesung_als_sammel(v_id);
+  assert v_a->>'fehler' is null, format('0082 (e5): das Umdeuten scheiterte — %s', v_a);
+  select art, datei_zeit, bis_ts, sortiertag, sortiertag_quelle, n_gueltig, voll_n_roh
+    into v_art, v_zt, v_bis, v_tag, v_q, v_n, v_g
+    from sortier_lauf where id = v_id;
+  assert v_art = 'sammel', format('0082 (e6): art %s statt sammel', v_art);
+  assert v_zt is null, '0082 (e7): der Zeitstempel steht weiterhin als Sortierzeitpunkt da';
+  assert v_bis = timestamptz '2026-09-19 17:00',
+    format('0082 (e8): der Zeitstempel ging verloren statt zur oberen Schranke zu werden (%s)', v_bis);
+  assert v_q = 'arbeit', format('0082 (e9): Quelle %s statt arbeit', v_q);
+  assert v_tag = date '2026-09-19', format('0082 (e9b): Sortiertag %s statt 19.9.', v_tag);
+  assert v_n = 9, format('0082 (e10): beim Umdeuten wurden %s statt 9 Kürbisse behalten', v_n);
+  assert v_g = 9, format('0082 (e11): voll_n_roh ist %s, die Datei hatte 9 Zeilen', v_g);
+  select coalesce(sum(anzahl), 0)::int into v_n from sortier_gewicht where lauf_id = v_id;
+  assert v_n = 9, format('0082 (e12): %s Kürbisse im Histogramm statt 9', v_n);
+
+  -- Und nun wächst die Datei weiter: 3 kommen dazu, die 9 bleiben einmal.
+  v_a := csv_sammel_speichern(v_c, '1616', null, 'pruef-0082-e2', '{}'::jsonb,
+           12, 0, 0, 0, '[[500,5],[900,7]]'::jsonb,
+           null, timestamptz '2026-09-21 23:59');
+  assert v_a->>'fehler' is null, format('0082 (e13): die gewachsene Datei wurde abgewiesen — %s', v_a);
+  assert (v_a->>'n_neu')::int = 3, format('0082 (e14): %s statt 3 neue Kürbisse', v_a->>'n_neu');
+  select coalesce(sum(g.anzahl), 0)::int into v_n
+    from sortier_gewicht g join sortier_lauf l on l.id = g.lauf_id
+   where l.charge_nr = v_c and l.art = 'sammel';
+  assert v_n = 12, format('0082 (e15): %s Kürbisse gespeichert, die Datei hat 12', v_n);
+  -- Das Fenster der zweiten Lesung beginnt, wo die erste endete — sonst
+  -- läge derselbe Zeitraum zweimal in der Rechnung.
+  select von_ts into v_zt from sortier_lauf where roh_pruefsumme = 'pruef-0082-e2';
+  assert v_zt = timestamptz '2026-09-19 17:00',
+    format('0082 (e16): das zweite Fenster beginnt bei %s statt am Ende des ersten', v_zt);
+
+  -- ------------------------------------------------------------------
+  -- (f) Umdeuten, wenn die Charge schon eine Sammel-Lesung trägt
+  -- ------------------------------------------------------------------
+  -- Der gefährliche Fall: Dieselbe Sammeldatei wurde zweimal hochgeladen,
+  -- beide Male als Lauf. Wird die zweite umgedeutet, darf sie nur ihr Delta
+  -- behalten — sonst stünde alles aus der ersten ein zweites Mal da, und
+  -- zwar diesmal mit dem Segen des Umdeutens.
+  select nr into v_c from charge order by nr offset 2 limit 1;
+  insert into palette (charge_nr, eingangsdatum, kisten, brutto_kg, gebindeart)
+  values (v_c, date '2026-08-25', 30, 900, 'G2');
+  v_a := csv_sammel_speichern(v_c, '1620', null, 'pruef-0082-f1', '{}'::jsonb,
+           4, 0, 0, 0, '[[600,4]]'::jsonb,
+           timestamptz '2026-08-25 00:00', timestamptz '2026-09-10 23:59');
+  assert v_a->>'fehler' is null, format('0082 (f1): erste Lesung abgewiesen — %s', v_a);
+  -- Die gewachsene Datei, versehentlich als Lauf eingelesen.
+  v_id := csv_lauf_speichern(v_c, '1620', null, 'pruef-0082-f2',
+            timestamptz '2026-09-20 09:00', 'lastModified', '{}'::jsonb,
+            6, 0, 0, 0, '[[600,6]]'::jsonb);
+  select n_gueltig into v_n from sortier_lauf where id = v_id;
+  assert v_n = 6, format('0082 (f2): die Lauf-Lesung trägt %s statt 6', v_n);
+  v_a := lesung_als_sammel(v_id);
+  assert v_a->>'fehler' is null, format('0082 (f3): das Umdeuten scheiterte — %s', v_a);
+  assert (v_a->>'n_gueltig')::int = 2,
+    format('0082 (f4): beim Umdeuten blieben %s statt der 2 neuen Kürbisse', v_a->>'n_gueltig');
+  select coalesce(sum(g.anzahl), 0)::int into v_n
+    from sortier_gewicht g join sortier_lauf l on l.id = g.lauf_id
+   where l.charge_nr = v_c and l.art = 'sammel';
+  assert v_n = 6, format('0082 (f5): %s Kürbisse gespeichert, die Datei hat 6', v_n);
+  -- Und eine Lesung, die gar keine Fortsetzung ist, wird auch beim Umdeuten
+  -- abgewiesen — nicht halb übernommen.
+  v_id := csv_lauf_speichern(v_c, '1620', null, 'pruef-0082-f6',
+            timestamptz '2026-09-20 10:00', 'lastModified', '{}'::jsonb,
+            3, 0, 0, 0, '[[600,3]]'::jsonb);
+  v_a := lesung_als_sammel(v_id);
+  assert v_a->>'fehler' = 'keine_erweiterung',
+    format('0082 (f6): die beschnittene Lesung wurde umgedeutet — %s', v_a);
+  select art, n_gueltig into v_art, v_n from sortier_lauf where id = v_id;
+  assert v_art = 'lauf' and v_n = 3,
+    format('0082 (f7): die abgewiesene Lesung wurde trotzdem angefasst (art=%s, n=%s)', v_art, v_n);
+  delete from sortier_gewicht where lauf_id = v_id;
+  delete from sortier_lauf where id = v_id;
+
+  -- ------------------------------------------------------------------
+  -- (g) Eine Sammel-Lesung gehört zu keiner einzelnen Arbeit
+  -- ------------------------------------------------------------------
+  -- Darum fragt die Warteschlange nach `art = 'lauf'`, nicht nach dem
+  -- Zuordnungsstatus: Eine Sammeldatei dort zuordnen zu lassen hiesse, nach
+  -- etwas zu fragen, das es nicht gibt.
+  select count(*)::int into v_n from sortier_lauf where art = 'sammel' and auftrag_id is not null;
+  assert v_n = 0, format('0082 (g): %s Sammel-Lesungen hängen an einer Arbeit', v_n);
+
+  -- ------------------------------------------------------------------
+  -- (h) Kein Kürbis fällt lautlos aus der Rechnung
+  -- ------------------------------------------------------------------
+  -- Die Verdunstung rechnet ab dem Sortiertag. Eine Lesung ohne ihn fällt
+  -- heraus — das ist richtig („leer ist nicht null"), darf aber niemanden
+  -- überraschen. v_datenqualitaet sagt es.
+  select count(*)::int into v_n from sortier_lauf where sortiertag is null;
+  assert v_n = 0, format('0082 (h1): %s Lesungen ohne Sortiertag', v_n);
+  -- Sieben Lesungen sind es: a1, a2, d, e, e2, f1, f2 — alle Sammel.
+  select sammel_lesungen, lesungen_mit_sortiertag into v_g, v_n from v_datenqualitaet;
+  assert v_g = 7, format('0082 (h2): v_datenqualitaet zählt %s statt 7 Sammel-Lesungen', v_g);
+  assert v_n = 7, format('0082 (h3): v_datenqualitaet zählt %s statt 7 Lesungen mit Sortiertag', v_n);
+  -- Bezeugt sind nur die beiden Sortiertage, die aus einer Sortier-Arbeit
+  -- kamen (d und e). Die anderen fünf sind aus dem Zeitfenster geschätzt,
+  -- und die Kennzahl sagt es — sonst sähe die Verteilung gemessen aus,
+  -- obwohl sie es nicht ist.
+  select lesungen_sortiertag_bezeugt into v_n from v_datenqualitaet;
+  assert v_n = 2, format('0082 (h4): %s statt 2 bezeugte Sortiertage', v_n);
+
+  -- Aufräumen: Dieser Block hinterlässt die Datenbank so leer wie 0081.
+  delete from sortier_gewicht where lauf_id in (select id from sortier_lauf);
+  delete from sortier_lauf;
+  delete from auftrag where eroeffnet_von = v_u;
+  delete from palette;
+  delete from profil where id = v_u;
+  delete from auth.users where id = v_u;
+
+  raise notice 'OK  0082 — Die gewachsene Datei zählt jeden Kürbis einmal, die beschnittene wird abgewiesen, und was als Lauf eingelesen wurde, lässt sich ohne Verlust umdeuten';
+end $$;
+
+select '——— 0082 Zwei Arten von Sortierdatei geprüft ———' as ergebnis;
