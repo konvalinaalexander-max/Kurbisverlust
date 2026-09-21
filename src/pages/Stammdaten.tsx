@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { supabase } from '../lib/supabase'
+import { imDemoModus, supabase } from '../lib/supabase'
 import { einstellung, fehlerText, stammdaten } from '../lib/db'
 import { importErkennen, type ImportBericht } from '../lib/import'
 import { STATION_NAME, datum, heute as heuteOrtszeit, kg, tonnen, zahl, zeitpunkt } from '../lib/format'
@@ -45,8 +45,10 @@ export default function Stammdaten() {
       {teil === 'vorlauf' && <Vorlauf />}
       {/* 0072: Im Echtmodus gibt es die Beispieldaten gar nicht erst zu
           sehen. Der Schutz selbst sitzt in der Datenbank (Auslöser), hier
-          steht nur, dass niemand versehentlich darauf tippt. */}
-      {teil === 'demo' && (modus === 'beispiel'
+          steht nur, dass niemand versehentlich darauf tippt.
+          0081: Wer über den Demo-Knopf hereinkam, sieht die Karte in jedem
+          Fall — sie erklärt dann selbst, was der Demo-Datenbank fehlt. */}
+      {teil === 'demo' && ((modus === 'beispiel' || imDemoModus)
         ? <DemoDaten />
         : <Hinweis>Diese Datenbank läuft im Echtmodus. Beispieldaten gehören auf die Beispiel-Webseite — sie werden hier auch dann nicht geladen, wenn jemand es von Hand versucht.</Hinweis>)}
       {/* 0080: Anders als die Demo-Daten gibt es das Leeren in beiden Modi —

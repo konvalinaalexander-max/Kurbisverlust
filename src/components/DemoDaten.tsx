@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
-import { supabase } from '../lib/supabase'
+import { imDemoModus, supabase } from '../lib/supabase'
+import { useBetriebsmodus } from '../lib/betriebsmodus'
 import { fehlerText } from '../lib/db'
 import { Hinweis, Karte } from './Bausteine'
 
@@ -20,6 +21,7 @@ export default function DemoDaten({ kompakt = false, nachAenderung }: {
   kompakt?: boolean
   nachAenderung?: () => void
 }) {
+  const modus = useBetriebsmodus()
   const [geladen, setGeladen] = useState<boolean | null>(null)
   const [laeuft, setLaeuft] = useState<'laden' | 'entfernen' | 'neu' | 'rechnen' | null>(null)
   const [meldung, setMeldung] = useState<string | null>(null)
@@ -69,16 +71,17 @@ export default function DemoDaten({ kompakt = false, nachAenderung }: {
       {geladen === false && (
         <>
           <p>
-            Eine erfundene Saison, so gebaut, wie die Daten wirklich kommen: die 36
-            Chargen der Anbauplanung mit halber Menge (rund 320 t, 840 Paletten), die
-            Ernte je Charge über Tage und Wochen verteilt, gut 300 Arbeiten über beide
+            Eine erfundene Saison, so gebaut, wie die Daten wirklich kommen: alle
+            42 Chargen der Anbauplanung (rund 362 t, 951 Paletten), die Ernte je
+            Charge über Tage und Wochen verteilt, gut 370 Arbeiten über beide
             Wege — Sortieren mit Sortier-CSV und gezählten Kisten, Waschen je Kaliber,
             Waschen + Sortieren von Hand mit gewogener Palette und gewogenem Ausschuss,
-            Fax mit gezählten Kisten und gewogenem Faulem — dazu Lagerkontrollen,
-            Lieferungen über Wochen verschränkt, und die Sonderfälle jeder Saison
-            (abgebrochene Arbeit, Zahlendreher, vergessene Ablesung, Zetteldatum ohne
-            Palette). Damit füllt sich jeder Bildschirm der App und man sieht, was am
-            Ende herauskommt — bevor die erste echte Palette gezählt ist.
+            Fax mit gezählten Kisten — dazu Kontrollpaletten, die über Wochen immer
+            wieder gewogen werden, monatliche Verkaufsdateien, Lieferungen über Wochen
+            verschränkt, und die Sonderfälle jeder Saison (abgebrochene Arbeit,
+            Zahlendreher, vergessene Ablesung, Zetteldatum ohne Palette). Damit füllt
+            sich jeder Bildschirm der App und man sieht, was am Ende herauskommt —
+            bevor die erste echte Palette gezählt ist.
           </p>
           <p className="leise">
             Alles Erfundene ist markiert und lässt sich mit einem Klick restlos
@@ -132,12 +135,79 @@ export default function DemoDaten({ kompakt = false, nachAenderung }: {
     </>
   )
 
+  /**
+   * Wer über den Demo-Knopf hereinkam, darf nie vor einem leeren Bildschirm
+   * ohne Erklärung stehen.
+   *
+   * Gemeldet aus dem Betrieb, gleich nach dem ersten erfolgreichen Eintritt:
+   * „demo ist komplett leer - absolut keine daten - kein eingang - ausgang
+   * etc. keine arbeiten? hat überhaupt nicht geklappt". Dort war die Ursache
+   * harmlos — der Knopf „Demo-Saison laden" war schlicht noch nicht gedrückt.
+   * Beim Nachsehen fiel aber ein zweiter Weg zum selben leeren Bildschirm
+   * auf, und der wäre nicht harmlos: Die Karte zum Laden der Saison hing an
+   * `betriebsmodus = 'beispiel'`. Fehlt diese eine Zeile in der
+   * Demo-Datenbank — oder lief sie im falschen Projekt —, verschwindet die
+   * Karte, und zurück bleibt genau nichts. Kein Knopf, kein Hinweis, keine
+   * Vermutung, was fehlt.
+   *
+   * Der Demo-Modus weiss aber unabhängig von jeder Datenbank, dass er der
+   * Demo-Modus ist (der Merkzettel im Browser). Also kann er hier immer etwas
+   * sagen — auch wenn die Datenbank noch gar nicht antwortet.
+   */
+  if (imDemoModus && modus !== 'beispiel') {
+    return (
+      <Karte titel="Die Demo-Datenbank ist noch nicht scharfgeschaltet">
+        {fehler && <Hinweis art="warnung">{fehler}</Hinweis>}
+        <p>
+          Die Datenbank, mit der diese Seite gerade spricht, sagt von sich, sie
+          sei die <strong>echte</strong>. Dann nimmt sie keine Beispieldaten an —
+          absichtlich, das ist der Schutz, der verhindert, dass eine erfundene
+          Palette zwischen echten Messungen landet.
+        </p>
+        <p>
+          Deshalb steht hier nichts. Es fehlt genau eine Zeile, und zwar im
+          <strong> Demo-Projekt</strong> bei Supabase, unter SQL Editor:
+        </p>
+        <pre style={{ whiteSpace: 'pre-wrap', fontSize: '.85rem' }}>{
+`update einstellung set wert = '"beispiel"'::jsonb
+ where schluessel = 'betriebsmodus';`}</pre>
+        <p className="leise">
+          Danach diese Seite neu laden — dann steht hier der Knopf, der die
+          Saison hineinlegt. Kommt beim Ausführen ein Fehler wie „relation
+          einstellung does not exist", dann fehlt im Demo-Projekt noch die
+          <code> setup.sql</code> (Teil B der Anleitung).
+        </p>
+        <p className="leise">
+          Und falls die Zeile schon gelaufen ist: Vermutlich lief sie im
+          falschen Projekt. Oben links im Supabase-Fenster steht, in welchem
+          Du gerade bist.
+        </p>
+      </Karte>
+    )
+  }
+
   // Im Dashboard geht es nur ums Anbieten: Ist die Demo schon geladen (oder
   // der Stand noch nicht bekannt), soll dort gar nichts stehen — ein leerer
-  // Kasten mit einer Überschrift wäre schlimmer als nichts.
+  // Kasten mit einer Überschrift wäre schlimmer als nichts. Im Demo-Modus
+  // gilt das nicht: dort ist ein leerer Bildschirm ohne Erklärung das
+  // Schlimmste, was passieren kann.
   if (kompakt) {
-    if (geladen !== false) return null
-    return <Karte titel="Erst mal anschauen, wie es aussieht">{inhalt}</Karte>
+    if (geladen === false) return <Karte titel="Erst mal anschauen, wie es aussieht">{inhalt}</Karte>
+    if (imDemoModus && geladen === null) {
+      return (
+        <Karte titel="Die Demo lädt noch — oder die Datenbank antwortet nicht">
+          {fehler
+            ? <Hinweis art="warnung">{fehler}</Hinweis>
+            : <p className="leise">Einen Moment …</p>}
+          <p className="leise">
+            Bleibt das stehen, fehlt im Demo-Projekt die <code>setup.sql</code>
+            {' '}(Teil B der Anleitung) — oder die Zugangsdaten zeigen auf ein
+            Projekt, in dem noch nichts eingerichtet ist.
+          </p>
+        </Karte>
+      )
+    }
+    return null
   }
   return <Karte titel="Demo-Daten">{inhalt}</Karte>
 }

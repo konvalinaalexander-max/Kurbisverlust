@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useBetriebsmodus } from '../lib/betriebsmodus'
+import { imDemoModus } from '../lib/supabase'
 import DemoDaten from '../components/DemoDaten'
 import { datum, kg, prozent, tonnen, zahl } from '../lib/format'
 import { Erklaerung, Herkunft, Hinweis, Karte, Kennzahl, Leer, Marke, Segmente } from '../components/Bausteine'
@@ -72,7 +73,10 @@ export default function Lagermanagement() {
         <Reiterkopf titel="Lagermanagement" zweck={ZWECK} stand={daten.stand} />
         <Probleme liste={daten.probleme} />
         <Hinweis>Noch keine auswertbaren Daten. Dafür braucht es mindestens Eingangspaletten mit hinterlegter Tara — siehe Betrieb → Stammdaten.</Hinweis>
-        {modus === 'beispiel' && <DemoDaten kompakt nachAenderung={() => void neuRechnen()} />}
+        {/* 0081: Auch im Demo-Modus — dort erklärt die Karte, was der
+            Demo-Datenbank noch fehlt, statt zu verschwinden. */}
+        {(modus === 'beispiel' || imDemoModus)
+          && <DemoDaten kompakt nachAenderung={() => void neuRechnen()} />}
       </>
     )
   }
