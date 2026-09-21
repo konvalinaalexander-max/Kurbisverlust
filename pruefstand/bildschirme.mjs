@@ -71,32 +71,45 @@ async function waehleGruppe(p, art, feldId = 'uf') {
   await p.locator('.aktiv-filter').waitFor()
 }
 
+/** Tätigkeit wählen und den Plan (Runde T: vor · während · nach) bestätigen —
+ *  erst dann kommt die Charge. Jeder Klickweg durch den Assistenten geht hier
+ *  durch, damit ein weiterer Schritt nicht an zehn Stellen nachgetragen wird. */
+const wahl = async (p, id) => {
+  await p.locator(id).click()
+  await p.getByRole('button', { name: T('weiter') }).click()
+}
+
 const BILDSCHIRME = [
   { name: 'sprache', wer: null, pfad: '/', frisch: true },
   { name: 'anmelden', wer: null, pfad: '/' },
   { name: 'start', wer: 'arbeiter', pfad: '/' },
   // Der Assistent des Vorarbeiters, Schritt für Schritt (0060: kein Käufer, Kistensystem)
   { name: 'neu-was', wer: 'arbeiter', pfad: '/neu' },
+  // Runde T: der Plan in drei Blöcken, direkt nach der Tätigkeit
+  { name: 'neu-ueberblick', wer: 'arbeiter', pfad: '/neu',
+    tun: async p => { await p.locator('#taet-waschen_sortieren').click() } },
+  { name: 'neu-ueberblick-waschen', wer: 'arbeiter', pfad: '/neu',
+    tun: async p => { await p.locator('#taet-waschen').click() } },
   { name: 'neu-charge', wer: 'arbeiter', pfad: '/neu',
-    tun: async p => { await p.locator('#taet-waschen_sortieren').click(); await p.locator('#charge').fill('1613') } },
+    tun: async p => { await wahl(p, '#taet-waschen_sortieren'); await p.locator('#charge').fill('1613') } },
   { name: 'neu-system', wer: 'arbeiter', pfad: '/neu',
     tun: async p => {
-      await p.locator('#taet-waschen_sortieren').click(); await p.locator('#charge').fill('1613')
+      await wahl(p, '#taet-waschen_sortieren'); await p.locator('#charge').fill('1613')
       await p.getByRole('button', { name: T('weiter') }).click()
     } },
   { name: 'neu-soll', wer: 'arbeiter', pfad: '/neu',
     tun: async p => {
-      await p.locator('#taet-waschen_sortieren').click(); await p.locator('#charge').fill('1613')
+      await wahl(p, '#taet-waschen_sortieren'); await p.locator('#charge').fill('1613')
       await p.getByRole('button', { name: T('weiter') }).click(); await p.locator('#system-kiste_ab').click()
     } },
   { name: 'neu-stueck', wer: 'arbeiter', pfad: '/neu',
     tun: async p => {
-      await p.locator('#taet-waschen_sortieren').click(); await p.locator('#charge').fill('1613')
+      await wahl(p, '#taet-waschen_sortieren'); await p.locator('#charge').fill('1613')
       await p.getByRole('button', { name: T('weiter') }).click(); await p.locator('#system-stueck').click()
     } },
   { name: 'neu-baender', wer: 'arbeiter', pfad: '/neu',
     tun: async p => {
-      await p.locator('#taet-sortieren').click(); await p.locator('#charge').fill('1613')
+      await wahl(p, '#taet-sortieren'); await p.locator('#charge').fill('1613')
       await p.getByRole('button', { name: T('weiter') }).click()
       await p.locator('#baender-anpassen').click()
     } },
@@ -106,20 +119,20 @@ const BILDSCHIRME = [
   // Waschen (0054): die Bänder der Sorte wählen — oder ein eigenes Kaliber tippen
   { name: 'neu-kaliber', wer: 'arbeiter', pfad: '/neu',
     tun: async p => {
-      await p.locator('#taet-waschen').click(); await p.locator('#charge').fill('1613')
+      await wahl(p, '#taet-waschen'); await p.locator('#charge').fill('1613')
       await p.getByRole('button', { name: T('weiter') }).click()
       await p.locator('#kaliber-0').waitFor()
     } },
   { name: 'neu-kaliber-eigen', wer: 'arbeiter', pfad: '/neu',
     tun: async p => {
-      await p.locator('#taet-waschen').click(); await p.locator('#charge').fill('1613')
+      await wahl(p, '#taet-waschen'); await p.locator('#charge').fill('1613')
       await p.getByRole('button', { name: T('weiter') }).click()
       await p.locator('#kaliber-eigen').click()
       await p.locator('#kaliber-von').fill('700'); await p.locator('#kaliber-bis').fill('900')
     } },
   { name: 'neu-pruefen', wer: 'arbeiter', pfad: '/neu',
     tun: async p => {
-      await p.locator('#taet-waschen_sortieren').click(); await p.locator('#charge').fill('1613')
+      await wahl(p, '#taet-waschen_sortieren'); await p.locator('#charge').fill('1613')
       await p.getByRole('button', { name: T('weiter') }).click()
       await p.locator('#system-kiste_ab').click(); await p.getByRole('button', { name: T('weiter') }).click()
     } },

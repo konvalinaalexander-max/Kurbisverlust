@@ -64,7 +64,6 @@ export function FauleMaske({ d, gesperrt, melden, neuLaden }: {
 
   return (
     <div className="karte">
-      <p className="leise oben-0">{t('faulesWiegenWarum')}</p>
       <div className="feld">
         <label htmlFor="faul-brutto">{t('gewicht')}</label>
         <input id="faul-brutto" className="gross" type="number" inputMode="decimal" step="0.1" min={0}
@@ -103,8 +102,7 @@ export function FauleMaske({ d, gesperrt, melden, neuLaden }: {
           {t('nichtsFaules')}
         </button>
       )}
-      {d.ablesungen.length === 0 && <p className="hilfe">{t('nichtsFaulesErkl')}</p>}
-      {fehlt && <Hinweis art="warnung">{fehlt} Ohne sie lässt sich das Nettogewicht nicht ausrechnen — die Angabe gehört in die Stammdaten.</Hinweis>}
+      {fehlt && <Hinweis art="warnung">{fehlt}</Hinweis>}
       {fehler && <Hinweis art="warnung">{fehler}</Hinweis>}
       {d.ablesungen.length > 0 && (
         <>

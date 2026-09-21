@@ -9,9 +9,9 @@ import { FauleMaske } from './FauleMaske'
 import { AusschussMaske } from './AusschussMaske'
 import { FertigePaletteMaske } from './FertigePaletteMaske'
 import { vorschlagTageSeitWaschen } from '../lib/taetigkeit'
-import { fertigeSoll, stationsProfil, uhrzeit, type ArbeitDaten } from './daten'
+import { fertigeSoll, stationsProfil, type ArbeitDaten } from './daten'
 
-type SchrittId = 'palox' | 'faule' | 'wiegen' | 'ausschuss' | 'paletten' | 'wasch_paletten' | 'ausgang' | 'charge' | 'pruefen'
+type SchrittId = 'palox' | 'geleert' | 'faule' | 'wiegen' | 'ausschuss' | 'paletten' | 'wasch_paletten' | 'ausgang' | 'fertige_gesamt' | 'charge' | 'pruefen'
 
 /**
  * Der geführte Abschluss (AB-02, AB-04, AB-05): Was man vergessen kann, wird
@@ -28,11 +28,20 @@ type SchrittId = 'palox' | 'faule' | 'wiegen' | 'ausschuss' | 'paletten' | 'wasc
  *                       fertige Paletten: drei verlangt, oder so viele, wie die
  *                       Arbeit hergibt
  *  Fax                  Palettenzahl als Gesamtzahl, Tage seit dem Waschen
+ *
+ * Runde T: Jede Pflichtfrage ist ein eigener Schritt und blockiert sichtbar.
+ * „Wurde der Palox zwischendurch geleert?" stand unter der Ablesemaske —
+ * unter dem Falz, ohne Pflicht am Knopf — und tauchte erst in der
+ * Zusammenfassung als „Fehlt noch" auf. Der Betrieb: „man sieht es nicht
+ * ausser man scrollt - und verpasst es und erst weiter später kommt man
+ * dann nicht weiter". Dasselbe galt für „Wie viele fertige Paletten
+ * insgesamt?" unter der Wiegemaske. Beide sind jetzt eigene Schritte; wo
+ * „Weiter" grau ist, steht der Grund direkt daneben.
  */
 export function Abschluss({ d, neuLaden, zurueck, fertig }: {
   d: ArbeitDaten; neuLaden: () => Promise<void>; zurueck: () => void; fertig: () => void
 }) {
-  const { t, gebietsschema } = useSprache()
+  const { t } = useSprache()
   const p = stationsProfil(d.auftrag)
   const [pos, setPos] = useState(0)
   // 0072: Wie viele fertige Paletten es insgesamt geworden sind. Die App
@@ -41,9 +50,14 @@ export function Abschluss({ d, neuLaden, zurueck, fertig }: {
   // fertigen Paletten werden eher nicht gezählt. Vorbelegt mit dem, was
   // gewogen wurde, damit im Normalfall ein Tippen genügt.
   const [fertigeGesamt, setFertigeGesamt] = useState(String(d.auftrag.fertige_paletten_gesamt ?? ''))
-  /** „Palox zwischendurch geleert?" — beim Abschluss gefragt (0072). */
-  const [paloxGeleert, setPaloxGeleert] = useState<boolean | null>(
-    d.auftrag.palox_unbekannt ? true : null)
+  /** „Palox zwischendurch geleert?" — beim Abschluss gefragt (0072). Was
+   *  die Ablesemaske schon gesetzt hat (gefallener Stand → geleert), gilt. */
+  const [paloxGeleertAntwort, setPaloxGeleertAntwort] = useState<boolean | null>(null)
+  const paloxGeleert: boolean | null = paloxGeleertAntwort ?? (d.auftrag.palox_unbekannt ? true : null)
+  /** Ob der Palox schon beim Start als unbekannt erklärt wurde — einmal
+   *  gelesen, damit die Schrittliste nicht unter den Füssen wegrutscht,
+   *  wenn „Ja, geleert" den Auftrag mitten im Abschluss umschreibt. */
+  const [ohnePaloxVonAnfang] = useState(d.auftrag.palox_unbekannt)
   const [eineCharge, setEineCharge] = useState<boolean | null>(null)
   const [gleicheSorte, setGleicheSorte] = useState<boolean | null>(null)
   const [paletten, setPaletten] = useState(String(d.auftrag.paletten_gesamt ?? ''))
@@ -103,17 +117,25 @@ export function Abschluss({ d, neuLaden, zurueck, fertig }: {
   const palettenOk = Number(paletten) > 0
   const soll = fertigeSoll(d)
   const wiegenErinnern = p.wiegenSoll > 0 && gewogen < p.wiegenSoll
+  // 0073: Eine einzige Ablesung ist ein Startstand, kein Messwert — die Menge
+  // der Arbeit bliebe unbekannt. Also zwei: Beginn und Ende. Oder eine plus
+  // ausdrücklich „Stand unverändert" (die schreibt eine echte Null).
+  const paloxAblesungen = d.ablesungen.filter(x => x.palox_stand_kg !== null).length
   const schritte = useMemo<SchrittId[]>(() => [
-    ...(p.hatPalox ? ['palox' as const] : []),
+    ...(p.hatPalox && !ohnePaloxVonAnfang ? ['palox' as const] : []),
+    // Die Frage nach dem Leeren hat erst mit zwei Ablesungen einen Sinn —
+    // vorher gibt es keine Differenz, die ein Leeren verfälschen könnte.
+    ...(p.hatPalox && !ohnePaloxVonAnfang && paloxAblesungen >= 2 ? ['geleert' as const] : []),
     ...(p.hatFaule ? ['faule' as const] : []),
     ...(wiegenErinnern ? ['wiegen' as const] : []),
     ...(p.hatAusschuss ? ['ausschuss' as const] : []),
     ...(p.hatFaxPaletten ? ['paletten' as const] : []),
     ...(p.hatWaschPaletten ? ['wasch_paletten' as const] : []),
     ...(p.hatAusgang ? ['ausgang' as const] : []),
+    ...(p.hatAusgang ? ['fertige_gesamt' as const] : []),
     'charge',
     'pruefen',
-  ], [p.hatPalox, p.hatFaule, wiegenErinnern, p.hatAusschuss, p.hatFaxPaletten, p.hatWaschPaletten, p.hatAusgang])
+  ], [p.hatPalox, ohnePaloxVonAnfang, paloxAblesungen, p.hatFaule, wiegenErinnern, p.hatAusschuss, p.hatFaxPaletten, p.hatWaschPaletten, p.hatAusgang])
   const aktuell = schritte[Math.min(pos, schritte.length - 1)]
   const n = pos + 1, von = schritte.length
   const weiter = () => setPos(x => Math.min(x + 1, schritte.length - 1))
@@ -123,18 +145,15 @@ export function Abschluss({ d, neuLaden, zurueck, fertig }: {
 
   // Was noch fehlt — als Sätze, nicht als gesperrter Knopf ohne Grund.
   const fehlt: string[] = []
-  // 0073: Eine einzige Ablesung ist ein Startstand, kein Messwert — die Menge
-  // der Arbeit bliebe unbekannt. Also zwei: Beginn und Ende. Oder eine plus
-  // ausdrücklich „Stand unverändert" (die schreibt eine echte Null).
-  const paloxAblesungen = d.ablesungen.filter(x => x.palox_stand_kg !== null).length
-  if (p.paloxPflicht && paloxAblesungen === 0) fehlt.push(t('paloxVorAbschluss'))
-  else if (p.paloxPflicht && paloxAblesungen === 1 && !d.auftrag.palox_unbekannt) fehlt.push(t('paloxEndeFehlt'))
+  // Wer den Palox beim Start ausdrücklich als „nicht ablesbar" erklärt hat
+  // (Runde T), hat eine Arbeit ohne Faul-Menge — und wird am Ende nicht
+  // nach Ablesungen gefragt, die es nicht geben kann.
+  const paloxUnbekannt = d.auftrag.palox_unbekannt
+  if (p.paloxPflicht && !paloxUnbekannt && paloxAblesungen === 0) fehlt.push(t('paloxVorAbschluss'))
+  else if (p.paloxPflicht && !paloxUnbekannt && paloxAblesungen === 1) fehlt.push(t('paloxEndeFehlt'))
   // Der Betrieb sagt, das Leeren mittendrin kommt vor. Also wird gefragt —
   // und „ja" heisst: die Menge dieser Arbeit ist unbekannt, nicht null.
-  // Nur, wenn überhaupt abgelesen wurde: Beim Waschen ist der Palox
-  // freiwillig, und ohne Ablesung gibt es die Frage nicht — sie wäre sonst
-  // eine Pflicht ohne Feld (die Kette fand den toten Punkt).
-  if (p.hatPalox && paloxAblesungen > 0 && paloxGeleert === null && !d.auftrag.palox_unbekannt) fehlt.push(t('paloxGeleertFrage'))
+  if (p.hatPalox && !paloxUnbekannt && paloxAblesungen >= 2 && paloxGeleert === null) fehlt.push(t('paloxGeleertFrage'))
   if (p.hatFaule && d.ablesungen.length === 0) fehlt.push(t('faulesFehlt'))
   if (p.hatFaxPaletten && !palettenOk) fehlt.push(t('palettenGesamt'))
   if (p.hatWaschPaletten && waschKisten === 0) fehlt.push(t('palettenFehlen'))
@@ -172,7 +191,7 @@ export function Abschluss({ d, neuLaden, zurueck, fertig }: {
   /** „Geleert?" beantworten. Ja setzt auftrag.palox_unbekannt — die
    *  Ablesungen bleiben, die Menge dieser Arbeit ist unbekannt (0072). */
   async function paloxGeleertSetzen(wert: boolean) {
-    setPaloxGeleert(wert)
+    setPaloxGeleertAntwort(wert)
     if (wert === d.auftrag.palox_unbekannt) return
     const { error } = await supabase.from('auftrag')
       .update({ palox_unbekannt: wert }).eq('id', d.auftrag.id)
@@ -210,27 +229,10 @@ export function Abschluss({ d, neuLaden, zurueck, fertig }: {
   }
 
   if (aktuell === 'palox') {
-    const letzte = d.ablesungen[d.ablesungen.length - 1]
     return (
-      <Schritt nummer={n} von={von} frage={p.paloxPflicht ? t('paloxJetzt') : t('paloxFreiwillig')}
-               warum={letzte ? `${t('zuletztAbgelesen')} ${uhrzeit(letzte.ts, gebietsschema)}. ${t('paloxEndeWarum')}` : p.paloxPflicht ? t('paloxEndeWarum') : t('paloxWaschenWarum')}
-               zurueck={zurueckSchritt}>
+      <Schritt nummer={n} von={von} frage={p.paloxPflicht ? t('paloxJetzt') : t('paloxFreiwillig')} zurueck={zurueckSchritt}>
         <PaloxMaske d={d} gesperrt={false} unveraendertErlaubt={d.ablesungen.length > 0}
                     gespeichert={async () => { await neuLaden(); weiter() }} />
-        {/* 0072: klein und unauffällig, aber da — der Betrieb sagt, es kommt
-            vor. „Ja" heisst unbekannt, nicht null. */}
-        {p.hatPalox && paloxAblesungen > 0 && (
-          <div className="karte abstand-oben">
-            <h2 className="frage" style={{ fontSize: '1.05rem', marginTop: 0 }}>{t('paloxGeleertFrage')}</h2>
-            <div className="wahl">
-              <Wahl id="geleert-nein" name={t('nein')} gewaehlt={paloxGeleert === false}
-                    onClick={() => void paloxGeleertSetzen(false)} />
-              <Wahl id="geleert-ja" name={t('ja')} gewaehlt={paloxGeleert === true}
-                    onClick={() => void paloxGeleertSetzen(true)} />
-            </div>
-            {paloxGeleert === true && <p className="hilfe">{t('paloxGeleertFolge')}</p>}
-          </div>
-        )}
         {!p.paloxPflicht && (
           <button type="button" id="palox-ohne" className="voll" style={{ marginTop: '.6rem', minHeight: 48 }} onClick={weiter}>{t('ohneAblesungWeiter')}</button>
         )}
@@ -238,10 +240,29 @@ export function Abschluss({ d, neuLaden, zurueck, fertig }: {
     )
   }
 
+  if (aktuell === 'geleert') {
+    // 0072: der Betrieb sagt, es kommt vor. „Ja" heisst unbekannt, nicht
+    // null. Runde T: ein eigener Schritt — vorher stand die Frage unter der
+    // Ablesemaske und wurde übersehen.
+    return (
+      <Schritt nummer={n} von={von} frage={t('paloxGeleertFrage')} zurueck={zurueckSchritt}
+               weiter={weiter} weiterMoeglich={paloxGeleert !== null} grund={t('bitteWaehlen')}>
+        <div className="wahl">
+          <Wahl id="geleert-nein" name={t('nein')} gewaehlt={paloxGeleert === false}
+                onClick={() => void paloxGeleertSetzen(false)} />
+          <Wahl id="geleert-ja" name={t('ja')} gewaehlt={paloxGeleert === true}
+                onClick={() => void paloxGeleertSetzen(true)} />
+        </div>
+        {paloxGeleert === true && <Hinweis art="info">{t('paloxGeleertFolge')}</Hinweis>}
+        {fehler && <Hinweis art="warnung">{fehler}</Hinweis>}
+      </Schritt>
+    )
+  }
+
   if (aktuell === 'faule') {
     return (
       <Schritt nummer={n} von={von} frage={t('faulesWiegen')} zurueck={zurueckSchritt}
-               weiter={d.ablesungen.length > 0 ? weiter : undefined}>
+               weiter={weiter} weiterMoeglich={d.ablesungen.length > 0} grund={t('faulesFehlt')}>
         <FauleMaske d={d} gesperrt={false} melden={() => undefined} neuLaden={neuLaden} />
       </Schritt>
     )
@@ -252,7 +273,7 @@ export function Abschluss({ d, neuLaden, zurueck, fertig }: {
     // gesagt, nicht erzwungen. Wiegen geht nur am Zähler, bevor die Palette in
     // die Maschine kommt; hier bleibt nur die Erinnerung.
     return (
-      <Schritt nummer={n} von={von} frage={t('dreiWiegen')} warum={t('dreiWiegenWarum')} zurueck={zurueckSchritt}
+      <Schritt nummer={n} von={von} frage={t('dreiWiegen')} zurueck={zurueckSchritt}
                weiter={weiter} weiterText={t('trotzdemWeiter')}>
         <Hinweis art="warnung">{ersetzen(t('nurGewogen'), { n: gewogen, soll: p.wiegenSoll })}</Hinweis>
       </Schritt>
@@ -262,7 +283,7 @@ export function Abschluss({ d, neuLaden, zurueck, fertig }: {
   if (aktuell === 'ausschuss') {
     return (
       <Schritt nummer={n} von={von} frage={t('ausschussWiegenSchritt')} zurueck={zurueckSchritt}
-               weiter={d.ausschuss.length > 0 ? weiter : undefined}>
+               weiter={weiter} weiterMoeglich={d.ausschuss.length > 0} grund={t('ausschussFehlt')}>
         <AusschussMaske d={d} gesperrt={false} melden={() => undefined} neuLaden={neuLaden} />
       </Schritt>
     )
@@ -271,7 +292,7 @@ export function Abschluss({ d, neuLaden, zurueck, fertig }: {
   if (aktuell === 'paletten') {
     // Fax (0060): die Palettenzahl als Gesamtzahl, dazu freiwillig die Tage seit dem Waschen
     return (
-      <Schritt nummer={n} von={von} frage={t('palettenGesamt')} warum={t('palettenGesamtWarum')} zurueck={zurueckSchritt}
+      <Schritt nummer={n} von={von} frage={t('palettenGesamt')} zurueck={zurueckSchritt}
                weiter={() => void palettenSpeichern()} weiterMoeglich={palettenOk && !laeuft}>
         <div className="karte">
           <div className="feld">
@@ -300,8 +321,8 @@ export function Abschluss({ d, neuLaden, zurueck, fertig }: {
     // nur nachgesehen, ob sie da sind, mit welchen Sortierdaten.
     const daten = [...new Set(d.paletten.filter(x => x.kisten != null).map(x => x.sortierdatum ?? t('keinSortierdatum')))]
     return (
-      <Schritt nummer={n} von={von} frage={t('paletten')} warum={t('waschPalettenWarum')} zurueck={zurueckSchritt}
-               weiter={waschKisten > 0 ? weiter : undefined}>
+      <Schritt nummer={n} von={von} frage={t('paletten')} zurueck={zurueckSchritt}
+               weiter={weiter} weiterMoeglich={waschKisten > 0} grund={t('palettenFehlen')}>
         {waschKisten > 0
           ? <Hinweis art="gut">{ersetzen(t('palettenGezaehltGut'), { n: d.paletten.length, kisten: waschKisten })}{daten.length > 0 && <> · {t('sortierdatumZettel')}: {daten.join(', ')}</>}</Hinweis>
           : <Hinweis art="warnung">{t('palettenFehlen')}</Hinweis>}
@@ -314,22 +335,36 @@ export function Abschluss({ d, neuLaden, zurueck, fertig }: {
     // wie die Arbeit hergibt); beim Waschen + Sortieren erinnert.
     const genug = d.nAusgang >= soll
     return (
-      <Schritt nummer={n} von={von} frage={t('fertigePaletteSchritt')} warum={t('fertigePaletteWarum')} zurueck={zurueckSchritt}
-               weiter={(p.ausgangPflicht && !genug) || (fertigeGesamtPflicht && !fertigeGesamtOk) ? undefined : weiter}
+      <Schritt nummer={n} von={von} frage={t('fertigePaletteSchritt')} zurueck={zurueckSchritt}
+               weiter={weiter} weiterMoeglich={!(p.ausgangPflicht && !genug)}
+               grund={ersetzen(t('fertigeFehlen'), { n: d.nAusgang, soll })}
                weiterText={genug ? t('weiter') : d.nAusgang > 0 ? t('trotzdemWeiter') : t('keineGewogen')}>
         {genug
           ? <Hinweis art="gut">{d.nAusgang} {t('palettenGewogen')}</Hinweis>
           : <Hinweis art={p.ausgangPflicht ? 'warnung' : 'info'}>{t('dreiFertige')} {ersetzen(t('nurGewogen'), { n: d.nAusgang, soll })}</Hinweis>}
         <FertigePaletteMaske d={d} gesperrt={false} melden={() => undefined} neuLaden={neuLaden} />
-        <div className="karte abstand-oben">
+      </Schritt>
+    )
+  }
+
+  if (aktuell === 'fertige_gesamt') {
+    // Runde R/0079: der Nenner des Waschens. Runde T: ein eigener Schritt —
+    // vorher stand das Feld unter der Wiegemaske, und wer es übersah, stand
+    // am Ende vor „Fehlt noch" ohne zu wissen, wo.
+    return (
+      <Schritt nummer={n} von={von} frage={t('fertigePalettenGesamt')}
+               warum={fertigeGesamtPflicht ? t('fertigePalettenPflicht') : t('fertigePalettenWarum')}
+               zurueck={zurueckSchritt}
+               weiter={weiter} weiterMoeglich={!fertigeGesamtPflicht || fertigeGesamtOk} grund={t('fertigePalettenFehlt')}>
+        <div className="karte">
           <div className="feld">
             <label htmlFor="fertige-gesamt">{t('fertigePalettenGesamt')}{!fertigeGesamtPflicht && ` (${t('freiwillig')})`}</label>
             <input id="fertige-gesamt" className="gross" type="number" inputMode="numeric" min={0} step="1"
-                   value={fertigeGesamt}
+                   value={fertigeGesamt} autoFocus
                    placeholder={d.nAusgang > 0 ? String(d.nAusgang) : ''}
                    onChange={e => setFertigeGesamt(e.target.value)} />
-            <p className="hilfe">{fertigeGesamtPflicht ? t('fertigePalettenPflicht') : t('fertigePalettenWarum')}</p>
           </div>
+          <p className="leise unten-0">{d.nAusgang} {t('gewogen')}</p>
         </div>
       </Schritt>
     )
@@ -338,8 +373,8 @@ export function Abschluss({ d, neuLaden, zurueck, fertig }: {
   if (aktuell === 'charge') {
     const ok = eineCharge === true || (eineCharge === false && gleicheSorte !== null)
     return (
-      <Schritt nummer={n} von={von} frage={t('eineChargeFrage')} warum={t('eineChargeWarum')} zurueck={zurueckSchritt}
-               weiter={ok ? weiter : undefined}>
+      <Schritt nummer={n} von={von} frage={t('eineChargeFrage')} zurueck={zurueckSchritt}
+               weiter={weiter} weiterMoeglich={ok} grund={t('bitteWaehlen')}>
         <div className="wahl">
           <Wahl id="charge-ja" name={t('eineChargeJa')} gewaehlt={eineCharge === true}
                 onClick={() => { setEineCharge(true); setGleicheSorte(null) }} />
@@ -376,7 +411,6 @@ export function Abschluss({ d, neuLaden, zurueck, fertig }: {
           <dd>{eineCharge === null ? '—' : eineCharge ? t('ja') : `${t('nein')}${gleicheSorte === null ? '' : gleicheSorte ? ` · ${t('gleicheSorteJa')}` : ` · ${t('gleicheSorteNein')}`}`}</dd>
         </dl>
       </div>
-      {d.auftrag.station === 'sortieren' && <Hinweis art="info">{t('sortierdatumSchreiben')}</Hinweis>}
       {erinnert.map(e => <Hinweis key={e} art="info">{e}</Hinweis>)}
       {fehlt.length > 0 && (
         <Hinweis art="warnung">

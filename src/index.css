@@ -552,6 +552,13 @@ details.aufklapp > summary .leise { font-weight: var(--gewicht-normal); }
 /* Der eine Hauptknopf unten, in Daumenreichweite */
 .haupt-unten { position: sticky; bottom: 0; padding: .75rem 0 1rem; background: linear-gradient(to top, var(--grund) 70%, transparent); z-index: 5; }
 .haupt-unten button { width: 100%; min-height: var(--ziel-halle); font-size: 1.1rem; border-radius: 14px; }
+/* Runde T: der Grund am grauen Knopf, und der Plan in drei Blöcken */
+.haupt-unten .grund { margin: 0 0 .45rem; text-align: center; font-size: var(--s-1); color: var(--text-2); font-weight: var(--gewicht-stark); }
+.zaehler-grund { text-align: center; font-size: var(--s-1); color: var(--text-2); font-weight: var(--gewicht-stark); margin: .45rem 0 0; }
+.plan-block { margin-bottom: .75rem; }
+.plan { margin: 0; padding-left: 1.4rem; display: grid; gap: .45rem; font-size: 1.02rem; }
+.plan li::marker { color: var(--kuerbis); font-weight: 700; }
+.plan-zettel { margin: .7rem 0 0; }
 
 /* Zusammenfassung vor dem Start */
 .zusammenfassung { display: grid; grid-template-columns: auto 1fr; gap: .55rem 1rem; font-size: 1rem; margin: 0; }

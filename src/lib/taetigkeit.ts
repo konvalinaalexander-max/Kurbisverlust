@@ -90,3 +90,23 @@ export function vorschlagTageSeitWaschen(ende: string | Date | null | undefined,
 
 /** Weiter zurück als zwei Wochen wird nicht mehr vorgeschlagen — siehe oben. */
 export const VORSCHLAG_HOECHSTENS_TAGE = 14
+
+/**
+ * Das Zählblatt je Station — für die, die lieber von Hand zählen (Runde T).
+ *
+ * Der Betrieb: „falls die person am anfang der waschstrasse nicht digital
+ * affin ist - dass sie das von hand aufschreiben kann - ich hab blätter
+ * vorbereitet". Die App bleibt der Ort, an dem die Zahlen am Ende landen —
+ * das Blatt ist der Umweg dorthin, nicht ein zweiter Speicher. Der Plan vor
+ * der Arbeit nennt das Blatt beim Namen, damit der Vorarbeiter weiss, welches
+ * er dem Zähler in die Hand drückt.
+ *
+ * Die Namen stehen hier und nirgends sonst: Heisst ein Blatt im Betrieb
+ * anders, wird genau diese eine Zeile geändert. Sie werden nicht übersetzt —
+ * der Titel steht so auf dem Papier, in jeder Sprache derselbe.
+ */
+export const ZAEHLBLATT: Record<Station, string> = {
+  sortieren:         'Zählblatt Sortieren',
+  waschen:           'Zählblatt Waschen',
+  waschen_sortieren: 'Zählblatt Waschen + Sortieren',
+}

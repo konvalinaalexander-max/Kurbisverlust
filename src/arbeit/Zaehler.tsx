@@ -33,7 +33,12 @@ const GEBINDE = (id: number) => `gebinde_palette_${id}`
  */
 export function Zaehler({ d, gesperrt, neuLaden, melden, zumWiegen }: {
   d: ArbeitDaten; gesperrt: boolean
-  neuLaden: () => Promise<void>; melden: (text: string) => void; zumWiegen: (brutto: string) => void
+  neuLaden: () => Promise<void>; melden: (text: string) => void
+  /** Zur Wägung — mit allem, was der Zähler schon weiss (Runde T): das
+   *  Gewicht vom Zettel, die Kisten und das Gebinde. Vorher fing die
+   *  Wägung mit leeren Kisten und dem ersten Gebinde der Liste an — und
+   *  wer beim Zählen G2 gewählt hatte, wog plötzlich in IFCO. */
+  zumWiegen: (brutto: string, kisten: string, gebinde: string) => void
 }) {
   const { t, gebietsschema } = useSprache()
   const p = stationsProfil(d.auftrag)
@@ -145,7 +150,6 @@ export function Zaehler({ d, gesperrt, neuLaden, melden, zumWiegen }: {
     const n = Number(paletten) || 0
     return (
       <div className="karte">
-        <p className="leise oben-0">{t('palettenGesamtWarum')}</p>
         <label htmlFor="paletten-gesamt">{t('palettenGesamt')}</label>
         <div className="zaehler">
           <button type="button" onClick={() => void palettenSetzen(n - 1)} aria-label="−" disabled={gesperrt || laeuft || n === 0}><ZMinus size={24} /></button>
@@ -162,7 +166,6 @@ export function Zaehler({ d, gesperrt, neuLaden, melden, zumWiegen }: {
   if (p.hatWaschPaletten) {
     return (
       <div className="karte">
-        <p className="leise oben-0">{t('waschPalettenWarum')}</p>
         {kaliberFehlt && <Hinweis art="warnung">{t('kistenOhneKaliber')}</Hinweis>}
         <div className="feld">
           <label htmlFor="sortierdatum">{t('sortierdatumZettel')}</label>
@@ -172,9 +175,6 @@ export function Zaehler({ d, gesperrt, neuLaden, melden, zumWiegen }: {
             <input id="kein-sortierdatum" type="checkbox" checked={ohneDatum} disabled={gesperrt} onChange={e => setOhneDatum(e.target.checked)} />
             {t('keinSortierdatum')}
           </label>
-          <p className="hilfe">
-            {ohneDatum || sortierdatum === '' ? t('sortierdatumErkl') : `${t('sortierdatumErkl')} ${t('datumBleibt')}`}
-          </p>
         </div>
         <div className="feld">
           <label htmlFor="gebinde-palette">{t('gebindeFrage')}</label>
@@ -182,7 +182,6 @@ export function Zaehler({ d, gesperrt, neuLaden, melden, zumWiegen }: {
                   onChange={e => gebindeSetzen(e.target.value)} style={{ fontSize: '1.1rem' }}>
             {arten.map(g => <option key={g.art} value={g.art}>{g.art}</option>)}
           </select>
-          <p className="hilfe">{t('gebindeBleibt')}</p>
         </div>
         <div className="feld">
           <label htmlFor="kisten-palette">{t('kistenAufPalette')}</label>
@@ -194,7 +193,6 @@ export function Zaehler({ d, gesperrt, neuLaden, melden, zumWiegen }: {
             <button type="button" aria-label="+" disabled={gesperrt || laeuft}
                     onClick={() => kistenPaletteSetzen(String((Number.isFinite(kistenZahl) ? kistenZahl : 0) + 1))}><ZPlus size={24} /></button>
           </div>
-          <p className="hilfe">{t('kistenAufPaletteErkl')}</p>
         </div>
         <div className="zaehler-gross">
           <div className="stand neu" key={d.paletten.length}>{d.paletten.length}</div>
@@ -205,6 +203,13 @@ export function Zaehler({ d, gesperrt, neuLaden, melden, zumWiegen }: {
           <span><ZPlus size={22} /> 1 {t('paletteHingestellt')}</span>
           {waschBereit && <span className="klein-text">{ohneDatum ? t('keinSortierdatum') : datumText(sortierdatum)} · {kistenZahl} {gebinde}</span>}
         </button>
+        {/* Runde T: statt Erklärtexten unter jedem Feld ein Satz am grauen
+            Knopf, der sagt, was ihm gerade fehlt. */}
+        {!waschBereit && !gesperrt && (
+          <p className="zaehler-grund" role="status">
+            {!(ohneDatum || sortierdatum !== '') ? t('grundSortierdatumFehlt') : !kistenOk ? t('grundKistenFehlen') : t('gebindeFrage')}
+          </p>
+        )}
         <button type="button" id="wasch-minus" className="zaehler-minus" disabled={gesperrt || laeuft || d.paletten.length === 0}
                 onClick={() => void paletteZurueck()}>
           <ZRueckgaengig size={18} /> {t('rueckgaengig')}
@@ -222,7 +227,6 @@ export function Zaehler({ d, gesperrt, neuLaden, melden, zumWiegen }: {
             <label htmlFor="zettel">{t('datumZettel')}</label>
             <input id="zettel" type="date" value={zettel} disabled={gesperrt}
                    onChange={e => zettelSetzen(e.target.value)} style={{ fontSize: '1.15rem' }} />
-            <p className="hilfe">{zettel === '' ? t('datumZettelPflicht') : t('datumBleibt')}</p>
             {zettel !== '' && zettel > heute() && (
               <p className="hilfe gelb" style={{ fontWeight: 560 }}>{t('datumZukunft')}</p>
             )}
@@ -232,11 +236,6 @@ export function Zaehler({ d, gesperrt, neuLaden, melden, zumWiegen }: {
               <label htmlFor="zettel-brutto">{t('gewichtZettel')}</label>
               <input id="zettel-brutto" type="number" inputMode="decimal" step="0.5" min={0} value={brutto} disabled={gesperrt}
                      onChange={e => setBrutto(e.target.value)} style={{ fontSize: '1.15rem' }} />
-              <p className="hilfe">
-                {brutto !== '' ? t('gewichtZettelWarum')
-                  : d.auftrag.station === 'sortieren' ? t('gewichtZettelSortieren')
-                  : t('gewichtZettelPflicht')}
-              </p>
             </div>
           )}
           {/* Kisten je Eingangspalette (Runde Q): vorbelegt mit 36, immer
@@ -253,7 +252,6 @@ export function Zaehler({ d, gesperrt, neuLaden, melden, zumWiegen }: {
               <button type="button" aria-label="+" disabled={gesperrt || laeuft}
                       onClick={() => kistenPaletteSetzen(String((Number.isFinite(kistenZahl) ? kistenZahl : 0) + 1))}><ZPlus size={24} /></button>
             </div>
-            <p className="hilfe">{t('kistenEingangErkl')}</p>
           </div>
           <div className="feld">
             <label htmlFor="gebinde-eingang">{t('gebindeFrage')}</label>
@@ -261,7 +259,6 @@ export function Zaehler({ d, gesperrt, neuLaden, melden, zumWiegen }: {
                     onChange={e => gebindeSetzen(e.target.value)} style={{ fontSize: '1.1rem' }}>
               {arten.map(g => <option key={g.art} value={g.art}>{g.art}</option>)}
             </select>
-            <p className="hilfe">{t('gebindeBleibt')}</p>
           </div>
           <div className="zaehler-gross">
             <div className="stand neu" key={d.paletten.length}>{d.paletten.length}</div>
@@ -277,13 +274,20 @@ export function Zaehler({ d, gesperrt, neuLaden, melden, zumWiegen }: {
             <span><ZPlus size={22} /> 1 {t('paletteHingestellt')}</span>
             {zettel !== '' && <span className="klein-text">{datumText(zettel)}{p.zettelGewichtPflicht && brutto !== '' ? ` · ${brutto} kg` : ''}{kistenOk ? ` · ${kistenZahl} ${gebinde}` : ''}</span>}
           </button>
+          {/* Runde T: der Grund am grauen Knopf statt eines Absatzes unter
+              jedem Feld — genau das eine, was gerade fehlt. */}
+          {(zettel === '' || !bruttoOk || !kistenOk) && !gesperrt && (
+            <p className="zaehler-grund" role="status">
+              {zettel === '' ? t('grundDatumFehlt') : !bruttoOk ? t('grundGewichtFehlt') : t('grundKistenFehlen')}
+            </p>
+          )}
           <button type="button" id="zaehlen-minus" className="zaehler-minus" disabled={gesperrt || laeuft || d.paletten.length === 0}
                   onClick={() => void paletteZurueck()}>
             <ZRueckgaengig size={18} /> {t('rueckgaengig')}
           </button>
           {p.mitWiegen && (
             <button type="button" id="zum-wiegen" className="voll" style={{ marginTop: '.6rem', minHeight: 48 }}
-                    disabled={gesperrt || zettel === '' || !bruttoOk || !kistenOk} onClick={() => zumWiegen(brutto)}>
+                    disabled={gesperrt || zettel === '' || !bruttoOk || !kistenOk} onClick={() => zumWiegen(brutto, kistenPalette, gebinde)}>
               <ZWaage size={18} /> {t('paletteWiegenFrage')}
             </button>
           )}

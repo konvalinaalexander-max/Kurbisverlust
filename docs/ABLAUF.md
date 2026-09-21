@@ -5,6 +5,23 @@ Sie ist der Massstab, an dem sich Datenmodell und Oberflächen messen lassen
 müssen. Wo das Modell etwas annimmt, das niemand geprüft hat, steht es als
 Annahme da — unmarkierte Annahmen sind der Anfang jedes stillen Fehlers.
 
+## Runde T (21. September) — die Arbeiter-App führt, statt zu erklären
+
+Der Betrieb hat die Arbeiter-App aus der Sicht der Halle durchgesehen: nicht
+die Mathematik, nur das Bedienen. Der Satz, der diesen Durchgang ordnet:
+*„nicht erst im letzten schritt merken - ah ich hab was vergessen aber jetzt
+ist die palette schon weg"*. Was daraus folgt (nur Oberfläche — keine
+Migration, keine Tabelle, keine Spalte):
+
+| Was der Betrieb sagte | Was die App jetzt tut |
+|---|---|
+| „also du hast extrem oft solche infos - aber die braucht es nicht unbedingt - müssen das die arbeiter wissen? nein" | Die Erklärabsätze unter den Feldern sind weg („Ohne Datum vom Zettel geht es nicht — daran hängt das Alter …", „Die leere Box wiegt 45 kg", „Bleibt für die nächste Palette stehen", das Sollgewicht, „wie zuletzt", …). Geblieben ist, was einen Fehler verhindert; wofür eine Zahl gebraucht wird, steht in `DATENERHEBUNG.md` |
+| „fragst du ob palox geleert wurde -- aber man sieht es nicht ausser man scrollt - und verpasst es und erst weiter später kommt man dann nicht weiter" | „Wurde der Palox zwischendurch geleert?" ist ein eigener Schritt im Abschluss, „Weiter" bleibt grau, bis er beantwortet ist — und der Grund steht am Knopf. Dasselbe für „Wie viele fertige Paletten insgesamt?", das unter der Wiegemaske lag |
+| „warum überhaupt dann weiter kommen ohne anklicken?" | Die Startablesung des Palox ist keine Empfehlung mehr: Ohne sie gibt es keine Checkliste, „Später" ist weg. Wer wirklich nicht ablesen kann, sagt das ausdrücklich — die Arbeit hat dann eine **unbekannte** Faul-Menge, nicht null. Bis dahin führte „Später" in eine Falle: Mit nur der Ablesung am Ende verlangte der Abschluss die zweite, und die Ware war längst durch |
+| „gleich zu beginn - nachdem man die art der arbeit abgelesen hat - soll man auch eine übersicht kriegen was gemacht werden muss … in 3 blöcke unterteilt - vor der arbeit - während der arbeit - nach der arbeit" | Der **Plan** direkt nach der Tätigkeit: vor · während · nach, in der Reihenfolge, in der die App nachher fragt. Die drei fertigen Paletten und der Palox am Ende stehen so von Anfang an da. Die Checkliste der Arbeit trägt dieselben drei Blöcke |
+| „wir machens nun auch analog - falls die person am anfang der waschstrasse nicht digital affin ist - dass sie das von hand aufschreiben kann - ich hab blätter vorbereitet" | Der Plan nennt beim Zählen das Zählblatt der Station beim Namen („Zählblatt Waschen", „Zählblatt Waschen + Sortieren", „Zählblatt Sortieren" — die Namen stehen in `src/lib/taetigkeit.ts`) und sagt, dass die Paletten am Ende vom Blatt in die App übertragen werden. Die App bleibt der Ort, an dem die Zahlen landen |
+| „mach es idiotensicher - schau dass da keine fehler passieren können" | Jeder graue Knopf sagt, was ihm fehlt („Gewicht vom Zettel fehlt", „Bitte zuerst auswählen"). Die Wägung übernimmt Kisten und Gebinde vom Zähler, statt mit leeren Feldern und dem ersten Gebinde der Liste anzufangen. „Eintragen" bei der fertigen Palette ist gesperrt, bis der neue Stand da ist — ein Doppeltipp schrieb dieselbe Palette zweimal |
+
 ## Die Antworten aus Runde Q (11. September) — die Erfassung wird scharf geschaltet
 
 Dieser Durchgang steht anders da als alle davor: Danach wird an der **Erfassung**

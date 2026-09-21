@@ -18,8 +18,13 @@ import { nettoKg, taraFehlt } from '../lib/masse'
  * Runde H: kein „Faules sichtbar" mehr — die Palette wird gewogen, nicht
  * ausgepackt; was faul ist, zählt der Palox. Gefragt wird nur, was man sieht.
  */
-export function WiegenMaske({ d, zettelDatum, zettelBrutto = '', fertig }: {
-  d: ArbeitDaten; zettelDatum: string; zettelBrutto?: string; fertig: () => Promise<void>
+export function WiegenMaske({ d, zettelDatum, zettelBrutto = '', kistenVorbelegt = '', gebindeVorbelegt = '', fertig }: {
+  d: ArbeitDaten; zettelDatum: string; zettelBrutto?: string
+  /** Runde T: Kisten und Gebinde kommen vom Zähler mit — dort stehen sie
+   *  schon, und eine Wägung mit anderem Gebinde als die Zählung wäre ein
+   *  stiller Widerspruch in den Daten. */
+  kistenVorbelegt?: string; gebindeVorbelegt?: string
+  fertig: () => Promise<void>
 }) {
   const { t } = useSprache()
   const [gebinde, setGebinde] = useState<Gebinde[]>([])
@@ -28,8 +33,8 @@ export function WiegenMaske({ d, zettelDatum, zettelBrutto = '', fertig }: {
   // Zähler schon eingetippt hat; gefragt wird es immer.
   const [damals, setDamals] = useState(zettelBrutto)
   const [jetzt, setJetzt] = useState('')
-  const [kisten, setKisten] = useState('')
-  const [art, setArt] = useState('')
+  const [kisten, setKisten] = useState(kistenVorbelegt)
+  const [art, setArt] = useState(gebindeVorbelegt)
   const [proKiste, setProKiste] = useState('')
   const [fehler, setFehler] = useState<string | null>(null)
   const [laeuft, setLaeuft] = useState(false)
@@ -112,7 +117,7 @@ export function WiegenMaske({ d, zettelDatum, zettelBrutto = '', fertig }: {
           )}
         </p>
       )}
-      {fehlt && <Hinweis art="warnung">{fehlt} Ohne sie lässt sich das Nettogewicht nicht ausrechnen — die Angabe gehört in die Stammdaten.</Hinweis>}
+      {fehlt && <Hinweis art="warnung">{fehlt}</Hinweis>}
       {fehler && <Hinweis art="warnung">{fehler}</Hinweis>}
       <button type="button" className="haupt gross voll" onClick={() => void speichern()}
               disabled={laeuft || !vollstaendig}>{t('eintragen')}</button>

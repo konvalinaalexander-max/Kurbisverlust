@@ -41,6 +41,9 @@ export function FertigePaletteMaske({ d, gesperrt, melden, neuLaden }: {
   const [voll, setVoll] = useState(true)
   const [zeilen, setZeilen] = useState<Zeile[]>([])
   const [fehler, setFehler] = useState<string | null>(null)
+  // Runde T: gesperrt, bis der neue Stand da ist — ein schneller zweiter
+  // Tipp auf „Eintragen" schrieb dieselbe Palette zweimal.
+  const [laeuft, setLaeuft] = useState(false)
 
   const laden = useCallback(async () => {
     const [s, k] = await Promise.all([
@@ -67,7 +70,8 @@ export function FertigePaletteMaske({ d, gesperrt, melden, neuLaden }: {
   const proKisteOk = !stueck || Number(proKiste) > 0
 
   async function speichern() {
-    if (!(n > 0 && b > 0 && art) || !kaliberOk || !proKisteOk) return
+    if (!(n > 0 && b > 0 && art) || !kaliberOk || !proKisteOk || laeuft) return
+    setLaeuft(true)
     const { error } = await supabase.from('ausgang_wiegung').insert({
       auftrag_id: d.auftrag.id, charge_nr: d.auftrag.charge_nr,
       brutto_kg: b, kisten: n, gebindeart: art,
@@ -75,14 +79,14 @@ export function FertigePaletteMaske({ d, gesperrt, melden, neuLaden }: {
       kaliber_idx: stueck ? kaliberIdx : null,
       voll,
     })
-    if (error) { setFehler(fehlerText(error)); return }
+    if (error) { setLaeuft(false); setFehler(fehlerText(error)); return }
     setBrutto(''); setKisten(''); setVoll(true); setFehler(null)
-    melden(t('gespeichert')); await laden(); await neuLaden()
+    melden(t('gespeichert'))
+    try { await laden(); await neuLaden() } finally { setLaeuft(false) }
   }
 
   return (
     <div className="karte">
-      <p className="leise oben-0">{t('fertigePaletteWarum')}</p>
       <div className="feld">
         <label htmlFor="a-brutto">{t('gewicht')}</label>
         <input id="a-brutto" className="gross" type="number" inputMode="decimal" step="0.1" min={0}
@@ -122,7 +126,6 @@ export function FertigePaletteMaske({ d, gesperrt, melden, neuLaden }: {
                onChange={e => setVoll(!e.target.checked)} />
         <span>{t('palettenNichtVoll')}</span>
       </label>
-      {!voll && <p className="hilfe">{t('palettenNichtVollWarum')}</p>}
       {x !== null && (
         <p className="netto-zeile">
           <strong>{x.toFixed(2)} kg</strong> {t('jeKiste')}
@@ -130,8 +133,8 @@ export function FertigePaletteMaske({ d, gesperrt, melden, neuLaden }: {
         </p>
       )}
       <button type="button" id="a-eintragen" className="haupt gross voll" onClick={() => void speichern()}
-              disabled={gesperrt || x === null || !kaliberOk || !proKisteOk}>{t('eintragen')}</button>
-      {fehlt && <Hinweis art="warnung">{fehlt} Ohne sie lässt sich das Nettogewicht nicht ausrechnen — die Angabe gehört in die Stammdaten.</Hinweis>}
+              disabled={gesperrt || laeuft || x === null || !kaliberOk || !proKisteOk}>{t('eintragen')}</button>
+      {fehlt && <Hinweis art="warnung">{fehlt}</Hinweis>}
       {fehler && <Hinweis art="warnung">{fehler}</Hinweis>}
       {zeilen.length > 0 && (
         <>

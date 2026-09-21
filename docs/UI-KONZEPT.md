@@ -48,35 +48,70 @@ Gespeichert wird die Rolle nicht; sie ist keine Messung.
 
 1. **Start** — „Läuft gerade" mit den offenen Arbeiten, darunter zwei Knöpfe:
    *Neue Arbeit starten* und *Palette kontrollieren*.
-2. **Assistent** — je Schritt eine Frage: Was macht ihr? · Welche Charge? ·
-   dann je Tätigkeit: Sortieren fragt *welche Kaliber* (die Maschine kennt
-   nur Bänder — „wie zuletzt: übernehmen / anpassen"); Waschen fragt
-   *welches Kaliber*; Waschen + Sortieren fragt die Bänder · dann das
-   **Kistensystem** (0060): Kiste ab x kg · x Stück je Kaliber · anderes —
-   kein Käufer mehr · Alles richtig? Schritte, die für die Tätigkeit nicht
-   gelten, gibt es nicht.
+2. **Assistent** — je Schritt eine Frage: Was macht ihr? · **der Plan**
+   (Runde T) · Welche Charge? · dann je Tätigkeit: Sortieren fragt *welche
+   Kaliber* (die Maschine kennt nur Bänder — „wie zuletzt: übernehmen /
+   anpassen"); Waschen fragt *welches Kaliber*; Waschen + Sortieren fragt die
+   Bänder · dann das **Kistensystem** (0060): Kiste ab x kg · x Stück je
+   Kaliber · anderes — kein Käufer mehr · Alles richtig? Schritte, die für
+   die Tätigkeit nicht gelten, gibt es nicht.
+
+   **Der Plan** steht direkt nach der Tätigkeit, in drei Blöcken — *vor der
+   Arbeit · während der Arbeit · nach der Arbeit* — und in genau der
+   Reihenfolge, in der die App nachher fragt. Kurz zum Überfliegen: Wer den
+   Palox zweimal ablesen und am Ende drei fertige Paletten wiegen muss,
+   erfährt es hier, nicht erst im Abschluss, wenn die Ware weg ist. Beim
+   Zählen nennt der Plan das **Zählblatt** der Station („Zählblatt Waschen",
+   „Zählblatt Waschen + Sortieren", „Zählblatt Sortieren", Namen in
+   `src/lib/taetigkeit.ts`): Wer lieber von Hand zählt, bekommt das Blatt
+   und überträgt die Paletten am Ende in die App. Die App bleibt der Ort,
+   an dem die Zahlen landen; das Blatt ist der Umweg dorthin.
 3. **Als erstes: Palox ablesen** — die Ablesung steht direkt nach dem Start
-   (AB-02) beim Sortieren und beim Waschen + Sortieren. Beim Waschen ist sie
-   freiwillig (AB-28). „Später" ist möglich, aber die Checkliste lässt den
-   Punkt offen.
-4. **Checkliste** — jeder Punkt mit Zustand (erledigt / offen / freiwillig):
-   Palox zu Beginn · Zählen (mit Stand, beim Waschen + Sortieren mit der
-   Erinnerung an drei Wägungen) · Zu klein / zu gross wiegen (nur Waschen +
-   Sortieren, am Ende) · Fertige Paletten wiegen (wo das Kistensystem
-   rechenbar ist, mit „3 von 3") · Arbeit abschliessen. Beim Fax: kein Palox —
-   dafür *Faules wiegen* (kistenweise, mit Kistenart) und *Paletten gesamt*.
+   (AB-02) beim Sortieren und beim Waschen + Sortieren, und seit Runde T
+   **kommt niemand daran vorbei**: Ohne Startablesung gibt es keine
+   Checkliste, „Zurück" führt aus der Arbeit hinaus, nicht an der Frage
+   vorbei. „Später" gab es bis Runde T — und es führte in eine Falle: Mit
+   nur der Ablesung am Ende hat die Arbeit keine Faul-Menge, der Abschluss
+   verlangt die zweite, und die Ware ist längst durch. Wer wirklich nicht
+   ablesen kann (Waage defekt), sagt das ausdrücklich — *Palox kann nicht
+   abgelesen werden*, mit Nachfrage —; die Arbeit hat dann eine unbekannte
+   Faul-Menge, nicht null, und wird am Ende nicht nach Ablesungen gefragt.
+   Beim Waschen ist die Ablesung freiwillig (AB-28).
+4. **Checkliste** — in denselben drei Blöcken wie der Plan (*vor · während ·
+   nach*), jeder Punkt mit Zustand (erledigt / offen / freiwillig): Palox zu
+   Beginn · Zählen (mit Stand, beim Waschen + Sortieren mit der Erinnerung
+   an drei Wägungen) · Zu klein / zu gross wiegen (nur Waschen + Sortieren,
+   am Ende) · Fertige Paletten wiegen (wo das Kistensystem rechenbar ist,
+   mit „3 von 3") · Arbeit abschliessen. Beim Fax: kein Palox — dafür *Faules
+   wiegen* (kistenweise, mit Kistenart) und *Paletten gesamt*.
 5. **Abschluss-Assistent** — Palox jetzt ablesen (Fax: Faules wiegen) ·
-   (Waschen + Sortieren, wenn weniger als drei Eingangspaletten gewogen sind:
-   die Erinnerung, mit *Trotzdem weiter*) · (Waschen + Sortieren: zu klein /
-   zu gross Palette für Palette wiegen — oder „Nichts zu klein oder zu
-   gross") · (Fax: Paletten gesamt, Tage seit dem Waschen) · (Waschen: sind
-   Paletten gezählt? Ohne sie keine Menge — eine Kilo-Zahl wird nirgends
-   getippt) · Fertige Paletten: drei, beim Waschen verlangt, sonst erinnert ·
-   Alles aus einer Charge? · Zusammenfassung → *Ja, fertig*. Was fehlt, steht
-   als Satz am Knopf; was nur erinnert wird, als Hinweis daneben.
+   **Wurde der Palox zwischendurch geleert?** (eigener Schritt, seit Runde T
+   — vorher lag die Frage unter der Ablesemaske, wurde übersehen und
+   tauchte erst in der Zusammenfassung als „Fehlt noch" auf) · (Waschen +
+   Sortieren, wenn weniger als drei Eingangspaletten gewogen sind: die
+   Erinnerung, mit *Trotzdem weiter*) · (Waschen + Sortieren: zu klein / zu
+   gross Palette für Palette wiegen — oder „Nichts zu klein oder zu gross") ·
+   (Fax: Paletten gesamt, Tage seit dem Waschen) · (Waschen: sind Paletten
+   gezählt? Ohne sie keine Menge — eine Kilo-Zahl wird nirgends getippt) ·
+   Fertige Paletten: drei, beim Waschen verlangt, sonst erinnert · **Wie
+   viele fertige Paletten insgesamt?** (eigener Schritt) · Alles aus einer
+   Charge? · Zusammenfassung → *Ja, fertig*. **Jeder Schritt zeigt seinen
+   „Weiter"-Knopf; ist er grau, steht der Grund direkt darüber** — kein
+   verschwundener Knopf, keine Liste am Ende, die einen drei Schritte
+   zurückschickt.
 6. **Korrigieren** — der Betriebsleiter (und nur er) erreicht von einer
    Auffälligkeit aus die Messungen einer Arbeit: jede Zeile änderbar oder
    löschbar. Geändert wird die Beobachtung, nicht das Abgeleitete (AB-38).
+
+**Was nicht mehr da steht (Runde T).** Die Masken hatten unter fast jedem
+Feld einen Absatz, der erklärte, wofür die Zahl gebraucht wird — „Ohne Datum
+vom Zettel geht es nicht — daran hängt das Alter der Ware …", „Die leere Box
+wiegt 45 kg", „Bleibt für die nächste Palette stehen". Der Betrieb: „müssen
+das die arbeiter wissen? nein". Die Erklärungen sind weg; geblieben ist,
+was einen Fehler verhindert (Datum in der Zukunft, unbekannte Charge, Bänder
+in falscher Reihenfolge), und an jedem grauen Knopf ein Satz, der sagt, was
+gerade fehlt („Gewicht vom Zettel fehlt"). Wer wissen will, wofür — liest
+`docs/DATENERHEBUNG.md`; das ist der Ort dafür, nicht die Maske in der Halle.
 
 ### Der Weg des Zählers
 
@@ -86,8 +121,10 @@ Waschen + Sortieren dazu das **Gewicht vom Zettel** (Pflicht, je Palette
 neu — Gewichte unterscheiden sich, das Datum nicht), „+" gross in
 Daumenreichweite, darunter „Rückgängig". Jede Speicherung bestätigt sich mit
 einem kurzen „✓ gespeichert". Beim Waschen + Sortieren steht ein zweiter,
-kleinerer Knopf „Palette wiegen" — das Zettelgewicht ist dort schon
-eingetragen —, und darüber die Erinnerung „3 von 3 gewogen".
+kleinerer Knopf „Palette wiegen" — Zettelgewicht, Kisten und Gebinde sind
+dort schon eingetragen (Runde T; vorher fing die Wägung mit leeren Kisten
+und dem ersten Gebinde der Liste an) —, und darüber die Erinnerung „3 von 3
+gewogen". Ist „+" grau, steht darunter, was fehlt.
 
 Beim **Waschen** zählt der Zähler die Paletten aus dem Zwischenlager: oben
 das **Sortierdatum vom Zettel** („kein Datum" ist eine Antwort), darunter die

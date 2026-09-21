@@ -9,12 +9,13 @@ import { TAETIGKEITEN } from '../lib/taetigkeit'
 import { Hinweis } from '../components/Bausteine'
 import { Schritt, Wahl } from '../components/Schritte'
 import { ChargeFeld } from '../components/ChargeFeld'
+import { Planliste } from '../arbeit/Plan'
 import { fuehrungSetzen } from '../lib/rolle'
 import type { TextId } from '../lib/i18n'
 import type { Charge, Kistensystem, Sortierschema } from '../lib/typen'
 import { heute as heuteOrtszeit } from '../lib/format'
 
-type SchrittId = 'was' | 'charge' | 'baender' | 'kaliber' | 'system' | 'pruefen'
+type SchrittId = 'was' | 'ueberblick' | 'charge' | 'baender' | 'kaliber' | 'system' | 'pruefen'
 type Band = [number, number]
 
 const ERKL: Record<string, TextId> = {
@@ -80,8 +81,11 @@ export default function NeueArbeit() {
   const fragtBaender = station === 'sortieren' || (station === 'waschen_sortieren' && system === 'stueck')
   const fragtKaliber = station === 'waschen' && !istFax
 
+  // Runde T: nach der Tätigkeit zuerst der Plan — vor, während, nach der
+  // Arbeit — und dann erst die Fragen. Was am Ende verlangt wird (drei
+  // fertige Paletten, der Palox zweimal), steht so von Anfang an da.
   const schritte = useMemo<SchrittId[]>(() => [
-    'was', 'charge',
+    'was', 'ueberblick', 'charge',
     ...(station === 'sortieren' ? ['baender' as const] : []),
     ...(fragtKaliber ? ['kaliber' as const] : []),
     ...(fragtSystem ? ['system' as const] : []),
@@ -210,6 +214,14 @@ export default function NeueArbeit() {
     )
   }
 
+  if (aktuell === 'ueberblick' && station) {
+    return (
+      <Schritt nummer={n} von={von} frage={t('wasZuTun')} warum={t('ueberblickWarum')} zurueck={zurueck} weiter={weiter}>
+        <Planliste station={station} istFax={istFax} rechenbar={null} />
+      </Schritt>
+    )
+  }
+
   if (aktuell === 'charge') {
     return (
       <Schritt nummer={n} von={von} frage={t('welcheCharge')} warum={t('chargeWarum')}
@@ -225,8 +237,8 @@ export default function NeueArbeit() {
     // Reihenfolge kann falsch sein, und das sagt die Maske.
     const g = grenzenJetzt
     return (
-      <Schritt nummer={n} von={von} frage={t('welcheKaliber')} warum={t('kaliberWarum')} zurueck={zurueck}
-               weiter={weiter} weiterMoeglich={baenderOk}>
+      <Schritt nummer={n} von={von} frage={t('welcheKaliber')} zurueck={zurueck}
+               weiter={weiter} weiterMoeglich={baenderOk} grund={t('baenderLueckenhaft')}>
         {zuletztBaender.length > 0 && (
           <div className="knopf-reihe abstand-unten">
             <button type="button" id="baender-uebernehmen" className={grenzen === null ? 'haupt' : ''} style={{ minHeight: 50 }}
@@ -278,8 +290,8 @@ export default function NeueArbeit() {
     const eigenOk = eigenes !== null && eigenes.von !== '' && eigenes.bis !== ''
       && Number(eigenes.von) >= 0 && Number(eigenes.bis) > Number(eigenes.von)
     return (
-      <Schritt nummer={n} von={von} frage={t('welchesKaliber')} warum={t('welchesKaliberWarum')} zurueck={zurueck}
-               weiter={eigenes !== null ? weiter : undefined} weiterMoeglich={eigenOk}>
+      <Schritt nummer={n} von={von} frage={t('welchesKaliber')} zurueck={zurueck}
+               weiter={eigenes !== null ? weiter : undefined} weiterMoeglich={eigenOk} grund={`${t('kaliberVon')} · ${t('kaliberBis')}`}>
         {zuletztBaender.length > 0 && (
           <p className="leise" style={{ margin: '0 0 .5rem' }}>
             {fassungLauf ? t('kaliberQuelleLauf') : `${t('kaliberQuelleSorte')} · ${sorte ?? ''}`}
@@ -309,7 +321,6 @@ export default function NeueArbeit() {
                        onChange={e => setEigenes({ ...eigenes, bis: e.target.value })} style={{ fontSize: '1.15rem' }} />
               </div>
             </div>
-            <p className="hilfe">{t('kaliberEigenHinweis')}</p>
           </div>
         )}
         {zuletztBaender.length === 0 && eigenes === null && <Hinweis art="warnung">{t('kistenKeineBaender')}</Hinweis>}
@@ -322,8 +333,8 @@ export default function NeueArbeit() {
     // Nur die ersten beiden sind rechenbar — dann wird später eine fertige
     // Palette verlangt. Das x steht direkt unter der Wahl.
     return (
-      <Schritt nummer={n} von={von} frage={t('kistensystemFrage')} warum={t('kistensystemWarum')} zurueck={zurueck}
-               weiter={weiter} weiterMoeglich={systemOk}>
+      <Schritt nummer={n} von={von} frage={t('kistensystemFrage')} zurueck={zurueck}
+               weiter={weiter} weiterMoeglich={systemOk} grund={system === null ? t('bitteWaehlen') : system === 'kiste_ab' ? t('kgProKiste') : t('stueckJeKiste')}>
         <div className="wahl">
           <Wahl id="system-kiste_ab" name={t('systemKisteAb')} erkl={t('systemKisteAbErkl')} gewaehlt={system === 'kiste_ab'}
                 onClick={() => setSystem('kiste_ab')} />
@@ -339,7 +350,6 @@ export default function NeueArbeit() {
               <input id="soll" className="gross" type="number" inputMode="decimal" step="0.1" min={0} value={sollJetzt}
                      onChange={e => setSoll(e.target.value)} autoFocus />
             </div>
-            <p className="hilfe">{t('sollKgWarum')}{soll === null && ` · ${t('wieZuletzt')}`}</p>
           </div>
         )}
         {system === 'stueck' && (
@@ -378,10 +388,6 @@ export default function NeueArbeit() {
           )}
         </dl>
       </div>
-      <p className="leise">{istFax ? t('dannFax') : station === 'waschen' ? t('paloxWaschenWarum') : t('dannPalox')}</p>
-      {station === 'sortieren' && <Hinweis art="info">{t('sortierdatumSchreiben')}</Hinweis>}
-      {station === 'waschen_sortieren' && <Hinweis art="info">{t('dreiWiegenStart')}</Hinweis>}
-      {station === 'waschen' && !istFax && <Hinweis art="info">{t('dreiFertigeStart')}</Hinweis>}
       {fehler && <Hinweis art="warnung">{fehler}</Hinweis>}
     </Schritt>
   )

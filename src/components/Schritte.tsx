@@ -11,11 +11,21 @@ import { ZHaken, ZZurueck } from './Zeichen'
  * noch dauert, und bricht ab. Der Inhalt kommt bei jedem Schritt von unten
  * ins Bild (`wechsel`, mit der Nummer als Schlüssel), das Alte ist weg.
  */
-export function Schritt({ nummer, von, frage, warum, zurueck, weiter, weiterText, weiterMoeglich = true,
+export function Schritt({ nummer, von, frage, warum, zurueck, weiter, weiterText, weiterMoeglich = true, grund,
                           children }: {
   nummer: number; von: number; frage: string; warum?: string
   zurueck?: () => void
   weiter?: () => void; weiterText?: string; weiterMoeglich?: boolean
+  /**
+   * Warum „Weiter" gerade grau ist — ein Satz, direkt am Knopf (Runde T).
+   *
+   * Ein gesperrter Knopf ohne Grund ist eine Sackgasse: Der Betrieb stand
+   * am Ende des Abschlusses vor „Fehlt noch: Wurde der Palox geleert?" und
+   * hatte die Frage nie gesehen, weil sie unter dem Falz lag. Seither gilt:
+   * Wer nicht weiterkommt, liest am Knopf, was fehlt — nicht drei Schritte
+   * später in einer Liste.
+   */
+  grund?: string
   children: ReactNode
 }) {
   const { t } = useSprache()
@@ -37,6 +47,7 @@ export function Schritt({ nummer, von, frage, warum, zurueck, weiter, weiterText
       </div>
       {weiter && (
         <div className="haupt-unten">
+          {!weiterMoeglich && grund && <p className="grund" role="status">{grund}</p>}
           <button type="button" className="haupt" onClick={weiter} disabled={!weiterMoeglich}>
             {weiterText ?? t('weiter')}
           </button>

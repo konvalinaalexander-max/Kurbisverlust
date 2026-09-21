@@ -68,7 +68,6 @@ export function AusschussMaske({ d, gesperrt, melden, neuLaden }: {
 
   return (
     <div className="karte">
-      <p className="leise oben-0">{t('ausschussWarum')}</p>
       <div className="wahl" style={{ marginBottom: '.75rem' }}>
         <Wahl id="aus-zu_klein" name={t('zuKlein')} gewaehlt={art === 'zu_klein'} onClick={() => setArt('zu_klein')} />
         <Wahl id="aus-zu_gross" name={t('zuGross')} gewaehlt={art === 'zu_gross'} onClick={() => setArt('zu_gross')} />
@@ -106,10 +105,9 @@ export function AusschussMaske({ d, gesperrt, melden, neuLaden }: {
                   onClick={() => void nichts()} disabled={gesperrt || laeuft}>
             {t('ausschussNichts')}
           </button>
-          <p className="hilfe">{t('ausschussNichtsErkl')}</p>
         </>
       )}
-      {fehlt && <Hinweis art="warnung">{fehlt} Ohne sie lässt sich das Nettogewicht nicht ausrechnen — die Angabe gehört in die Stammdaten.</Hinweis>}
+      {fehlt && <Hinweis art="warnung">{fehlt}</Hinweis>}
       {fehler && <Hinweis art="warnung">{fehler}</Hinweis>}
       {d.ausschuss.length > 0 && (
         <>

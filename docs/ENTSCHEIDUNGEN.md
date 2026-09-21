@@ -3469,3 +3469,46 @@ Frontend. Keine Schlag-Ebene in den Filtern. Keine Fax-Rückkehr. Keine
 Verkaufsdatei in der Marge. Kein Umbau der Arbeiter-App — auch nicht „nur ein
 Feld": `#fertige-gesamt` gab es seit Runde Q, die Kette füllt es jetzt bloss
 aus, damit der neue Weg im Prüfstand wirklich läuft.
+
+## Runde T: die Arbeiter-App führt, statt zu erklären
+
+### Die Startablesung des Palox ist eine Sperre, keine Empfehlung
+
+Bis Runde T stand nach dem Start „Später" unter der Palox-Maske. Das war gut
+gemeint — der Vorarbeiter steht vielleicht noch nicht an der Waage — und
+führte in eine Falle, die erst am Ende zuschnappte: Mit nur der Ablesung am
+Schluss hat die Arbeit keine Faul-Menge (AB-51: zwei Ablesungen, sonst keine
+Differenz), der Abschluss verlangte die zweite, und die Ware war längst
+durch. Der einzige Ausweg wäre „Stand unverändert" gewesen — eine erfundene
+Null. Der Betrieb: „warum überhaupt dann weiter kommen ohne anklicken?"
+
+Entschieden: Solange die Startablesung fehlt, gibt es keine Checkliste.
+„Zurück" führt aus der Arbeit hinaus, nicht an der Frage vorbei; wer die
+Rolle wechselt oder die Arbeit neu öffnet, landet wieder bei der Frage. Der
+ehrliche Ausweg bleibt: *Palox kann nicht abgelesen werden* — mit Nachfrage
+und der Folge im Klartext — setzt `auftrag.palox_unbekannt`, dieselbe Spalte
+wie beim Leeren zwischendurch (0072). Die Arbeit hat dann eine **unbekannte**
+Faul-Menge, nicht null, und der Abschluss fragt sie nicht mehr nach
+Ablesungen. Keine neue Spalte, kein neues Wort in der Datenbank.
+
+Was nicht gesperrt wird: der Zähler. Wer beitritt, zählt — der Palox ist
+Sache dessen, der die Arbeit führt.
+
+### Ein grauer Knopf ohne Grund ist eine Sackgasse
+
+Der Rahmen `Schritt` kannte zwei Zustände: Knopf da und Knopf weg. „Weg"
+hiess in der Praxis: Der Arbeiter scrollt, sucht, findet nichts — und die
+Antwort kam erst drei Schritte später als Liste „Fehlt noch". Jetzt ist der
+Knopf immer da; ist er grau, steht der eine Satz darüber, der sagt, was
+fehlt. Die Prüfstände haben das mitgemacht: `kette.mjs` prüft nicht mehr,
+dass der Knopf fehlt, sondern dass er gesperrt ist — mit dem Grund daneben.
+
+### Was bewusst nicht gemacht wurde
+
+Keine Migration. Keine neue Tabelle, keine neue Spalte, kein neuer
+Einstellungsschlüssel — die Namen der Zählblätter stehen im Code
+(`src/lib/taetigkeit.ts`), weil sie sich mit dem Papier ändern, nicht mit
+der Saison. Die Lagerkontrolle ist unberührt; die Fax bleibt eingefroren.
+Und die Erklärungen sind nicht gelöscht, sondern umgezogen: Wofür eine Zahl
+gebraucht wird, steht in `DATENERHEBUNG.md` — dort liest es der
+Betriebsleiter, der es wissen muss.

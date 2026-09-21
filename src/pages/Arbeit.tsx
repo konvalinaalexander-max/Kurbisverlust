@@ -34,6 +34,25 @@ type Ansicht = 'liste' | 'zaehler' | 'palox' | 'faule' | 'wiegen' | 'ausschuss' 
  * Der Betriebsleiter kommt mit „?korrigieren=1" von einer Auffälligkeit her
  * und sieht die Messungen dieser Arbeit zum Berichtigen (Runde H).
  */
+/**
+ * Muss der Vorarbeiter zuerst den Palox ablesen, bevor er irgendetwas
+ * anderes sieht? (Runde T)
+ *
+ * Vorher gab es „Später": Die Ablesung liess sich überspringen, und die
+ * Checkliste zeigte dafür ein „!". Der Haken daran kam erst am Ende: Mit nur
+ * einer Ablesung (der am Schluss) hat die Arbeit keine Faul-Menge, der
+ * Abschluss verlangt die zweite — und die Ware ist längst durch. Der
+ * Betrieb: „warum überhaupt dann weiter kommen ohne anklicken?" Also nicht.
+ * Wer wirklich nicht ablesen kann, sagt das ausdrücklich — dann ist das
+ * Faule dieser Arbeit unbekannt, nicht null, und die Sperre fällt.
+ */
+function paloxSperre(d: ArbeitDaten): boolean {
+  const p = stationsProfil(d.auftrag)
+  return p.paloxPflicht && d.auftrag.status !== 'abgeschlossen'
+    && !d.auftrag.palox_unbekannt
+    && d.ablesungen.filter(x => x.palox_stand_kg !== null).length === 0
+}
+
 export default function Arbeit() {
   const { id } = useParams()
   const auftragId = Number(id)
@@ -48,8 +67,13 @@ export default function Arbeit() {
   const [fuehrt, setFuehrt] = useState<boolean | null>(null)
   const [ansicht, setAnsicht] = useState<Ansicht | null>(null)
   const [meldung, setMeldung] = useState<string | null>(null)
-  // 0060: das Gewicht vom Zettel wandert vom Zähler in die Wägung
-  const [zettelBrutto, setZettelBrutto] = useState('')
+  // 0060: das Gewicht vom Zettel wandert vom Zähler in die Wägung — und seit
+  // Runde T auch Kisten und Gebinde, damit die Wägung nicht mit leeren
+  // Feldern und dem falschen Gebinde anfängt.
+  const [wiegenStart, setWiegenStart] = useState({ brutto: '', kisten: '', gebinde: '' })
+  // Runde T: „Palox kann nicht abgelesen werden" fragt einmal nach — die
+  // Folge (Faules dieser Arbeit unbekannt) soll niemand aus Versehen wählen.
+  const [fragtOhnePalox, setFragtOhnePalox] = useState(false)
   // Q22: „Ich bin nicht mehr dabei" fragt einmal nach — ein Fehlgriff in der
   // Halle soll niemanden aus der Arbeit werfen.
   const [fragtVerlassen, setFragtVerlassen] = useState(false)
@@ -61,10 +85,11 @@ export default function Arbeit() {
       if (daten && fuehrt === null) {
         const f = istVorarbeiter(auftragId, daten.auftrag.eroeffnet_von, session?.user.id)
         setFuehrt(f)
-        const p = stationsProfil(daten.auftrag)
         if (istAdmin && suche.get('korrigieren') === '1') setAnsicht('korrektur')
-        // Frisch eröffnet: als erstes der Palox (AB-02) — wo er Pflicht ist.
-        else setAnsicht(f ? (suche.get('neu') === '1' && p.paloxPflicht && daten.ablesungen.length === 0 ? 'palox' : 'liste') : 'zaehler')
+        // Als erstes der Palox (AB-02), wo er Pflicht ist — und zwar nicht
+        // nur beim ersten Öffnen: Solange die Startablesung fehlt, kommt der
+        // Vorarbeiter an der Frage nicht vorbei (Runde T, siehe paloxSperre).
+        else setAnsicht(f ? (paloxSperre(daten) ? 'palox' : 'liste') : 'zaehler')
       }
     } catch (f) { setFehler(fehlerText(f)) } finally { setLaedt(false) }
   }, [auftragId, session?.user.id, fuehrt, suche, istAdmin])
@@ -108,7 +133,15 @@ export default function Arbeit() {
     navigate('/')
   }
   function rolleWechseln(neu: boolean) {
-    fuehrungSetzen(auftragId, session?.user.id, neu); setFuehrt(neu); setAnsicht(neu ? 'liste' : 'zaehler')
+    fuehrungSetzen(auftragId, session?.user.id, neu); setFuehrt(neu)
+    setAnsicht(neu ? (d && paloxSperre(d) ? 'palox' : 'liste') : 'zaehler')
+  }
+  /** Der ausdrückliche Verzicht: die Arbeit bleibt ohne bekannte Faul-Menge. */
+  async function ohnePalox() {
+    const { error } = await supabase.from('auftrag').update({ palox_unbekannt: true }).eq('id', auftragId)
+    if (error) { setFehler(fehlerText(error)); return }
+    setFragtOhnePalox(false)
+    await laden(); setAnsicht(heim)
   }
   const kopf = (
     <div className="karte arbeit-kopf eintritt">
@@ -202,17 +235,35 @@ export default function Arbeit() {
   )
 
   if (ansicht === 'palox') {
+    const sperre = paloxSperre(d)
     return (
       <>
-        {maske(t('paloxBeginn'), (
-          <>
-            <p className="leise frage-warum">{t('paloxZuBeginn')}</p>
-            <PaloxMaske d={d} gesperrt={false} gespeichert={async () => { melden(t('gespeichert')); await laden(); setAnsicht(heim) }} />
-            {d.ablesungen.length === 0 && (
-              <button type="button" id="palox-spaeter" className="voll abstand-oben" onClick={() => setAnsicht(heim)}>{t('spaeter')}</button>
-            )}
-          </>
-        ))}
+        <div className="schritt-kopf">
+          {/* Solange die Startablesung Pflicht ist und fehlt, führt „Zurück"
+              nicht zur Checkliste, sondern aus der Arbeit hinaus — an der
+              Frage vorbei kommt niemand (Runde T). */}
+          <button type="button" className="zurueck" onClick={() => (sperre ? navigate('/') : setAnsicht(heim))}><ZZurueck size={18} />{sperre ? t('uebersicht') : t('zurueck')}</button>
+          <span className="stand"><TaetZeichen id={taet?.id} /> {chargeText(d.charge)}</span>
+        </div>
+        <h1 className="frage">{p.paloxPflicht ? t('paloxBeginn') : t('paloxFreiwillig')}</h1>
+        <PaloxMaske d={d} gesperrt={false} gespeichert={async () => { melden(t('gespeichert')); await laden(); setAnsicht(heim) }} />
+        {d.ablesungen.length === 0 && !p.paloxPflicht && (
+          <button type="button" id="palox-spaeter" className="voll abstand-oben" onClick={() => setAnsicht(heim)}>{t('ohneAblesungWeiter')}</button>
+        )}
+        {sperre && !fragtOhnePalox && (
+          <p className="rolle-wechsel">
+            <button type="button" id="palox-unbekannt" className="leise-knopf" onClick={() => setFragtOhnePalox(true)}>{t('paloxNichtMoeglich')}</button>
+          </p>
+        )}
+        {sperre && fragtOhnePalox && (
+          <div className="karte abstand-oben">
+            <p className="oben-0">{t('paloxNichtMoeglichFolge')}</p>
+            <div className="knopf-reihe">
+              <button type="button" id="palox-unbekannt-ja" className="gefahr" style={{ flex: 2, minHeight: 48 }} onClick={() => void ohnePalox()}>{t('paloxUnbekanntLassen')}</button>
+              <button type="button" onClick={() => setFragtOhnePalox(false)}>{t('abbrechen')}</button>
+            </div>
+          </div>
+        )}
         <Bestaetigt text={meldung} />
       </>
     )
@@ -230,7 +281,8 @@ export default function Arbeit() {
     let zettel = ''
     try { zettel = localStorage.getItem(`zettel_${auftragId}`) ?? '' } catch { /* egal */ }
     return maske(t('paletteWiegen'), (
-      <WiegenMaske d={d} zettelDatum={zettel} zettelBrutto={zettelBrutto}
+      <WiegenMaske d={d} zettelDatum={zettel} zettelBrutto={wiegenStart.brutto}
+                   kistenVorbelegt={wiegenStart.kisten} gebindeVorbelegt={wiegenStart.gebinde}
                    fertig={async () => { melden(t('paletteGezaehlt')); await laden(); setAnsicht('zaehler') }} />
     ), 'zaehler')
   }
@@ -247,7 +299,8 @@ export default function Arbeit() {
             <span className="stand"><TaetZeichen id={taet?.id} /> {chargeText(d.charge)}</span>
           </div>
         ) : kopf}
-        <Zaehler d={d} gesperrt={false} neuLaden={laden} melden={melden} zumWiegen={b => { setZettelBrutto(b); setAnsicht('wiegen') }} />
+        <Zaehler d={d} gesperrt={false} neuLaden={laden} melden={melden}
+                 zumWiegen={(brutto, kisten, gebinde) => { setWiegenStart({ brutto, kisten, gebinde }); setAnsicht('wiegen') }} />
         {!fuehrt && (
           <p className="rolle-wechsel">
             <button type="button" className="leise-knopf" onClick={() => rolleWechseln(true)}>{t('ichFuehre')}</button>
@@ -272,22 +325,28 @@ export default function Arbeit() {
     <span className={`zustand ${art}`} aria-hidden="true">{art === 'getan' ? <ZHaken size={18} /> : art === 'offen' ? '!' : <span className="punkt-klein" />}</span>
   )
 
+  // Runde T: dieselben drei Blöcke wie im Plan vor der Arbeit — vor,
+  // während, nach. Was der Plan angekündigt hat, steht hier an derselben
+  // Stelle wieder; nichts taucht erst am Ende auf.
   return (
     <>
       {kopf}
-      <div className="abschnitt-titel">{t('wasZuTun')}</div>
-      <div className="check eintritt">
-        {p.hatPalox && (
+      {p.hatPalox && <div className="abschnitt-titel">{t('vorDerArbeit')}</div>}
+      {p.hatPalox && (
+        <div className="check eintritt">
           <button type="button" id="check-palox" onClick={() => setAnsicht('palox')}>
-            <Zustand art={d.ablesungen.length > 0 ? 'getan' : p.paloxPflicht ? 'offen' : 'frei'} />
+            <Zustand art={d.ablesungen.length > 0 ? 'getan' : a.palox_unbekannt ? 'frei' : p.paloxPflicht ? 'offen' : 'frei'} />
             <span className="text">
               <span className="name">{p.paloxPflicht ? t('paloxBeginn') : t('paloxFreiwillig')}</span>
-              <span className="unter">{erste ? `${t('abgelesenUm')} ${uhrzeit(erste.ts, gebietsschema)}` : p.paloxPflicht ? t('paloxZuBeginnKurz') : t('paloxWaschenWarum')}</span>
+              <span className="unter">{erste ? `${t('abgelesenUm')} ${uhrzeit(erste.ts, gebietsschema)}` : a.palox_unbekannt ? t('faulesUnbekannt') : p.paloxPflicht ? t('paloxZuBeginnKurz') : t('freiwillig')}</span>
             </span>
             <span className="pfeil"><ZChevron size={20} /></span>
           </button>
-        )}
+        </div>
+      )}
 
+      <div className="abschnitt-titel">{t('waehrendDerArbeit')}</div>
+      <div className="check eintritt">
         <button type="button" id="check-zaehlen" onClick={() => setAnsicht('zaehler')}>
           <Zustand art={gezaehlt ? (wiegenErinnert ? 'frei' : 'getan') : 'offen'} />
           <span className="text">
@@ -302,12 +361,15 @@ export default function Arbeit() {
             <Zustand art={d.ablesungen.length > 0 ? 'getan' : 'offen'} />
             <span className="text">
               <span className="name">{t('faulesWiegen')}</span>
-              <span className="unter">{d.ablesungen.length > 0 ? `${faulSumme} kg · ${d.ablesungen.length} ${t('kisten')}` : t('faulesWiegenWarum')}</span>
+              {d.ablesungen.length > 0 && <span className="unter">{faulSumme} kg · {d.ablesungen.length} {t('kisten')}</span>}
             </span>
             <span className="pfeil"><ZChevron size={20} /></span>
           </button>
         )}
+      </div>
 
+      <div className="abschnitt-titel">{t('nachDerArbeit')}</div>
+      <div className="check eintritt">
         {p.hatAusschuss && (
           <button type="button" id="check-ausschuss" onClick={() => setAnsicht('ausschuss')}>
             <Zustand art={d.ausschuss.length > 0 ? 'getan' : 'frei'} />

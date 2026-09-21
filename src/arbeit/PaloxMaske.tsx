@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useSprache } from '../sprache/SprachProvider'
-import { einstellung, fehlerText } from '../lib/db'
+import { fehlerText } from '../lib/db'
 import { Hinweis } from '../components/Bausteine'
 import { uhrzeit, type ArbeitDaten } from './daten'
 
@@ -16,8 +16,8 @@ import { uhrzeit, type ArbeitDaten } from './daten'
  *   erste Ablesung dieser Arbeit  →  Startstand, keine Menge
  *   jede weitere                  →  Stand − vorheriger Stand
  *
- * Die 45 kg Leergewicht kürzen sich in der Differenz von selbst heraus und
- * werden nirgends abgezogen — sie stehen nur als Hinweis in der Maske.
+ * Das Leergewicht der Box kürzt sich in der Differenz von selbst heraus und
+ * wird nirgends abgezogen — und seit Runde T auch nirgends mehr erwähnt.
  *
  * Fällt der Stand, wurde der Palox zwischendurch geleert. Dann ist die Menge
  * dieser Arbeit **unbekannt**, nicht null (Regel „leer ist nicht null"). Vor
@@ -35,20 +35,17 @@ export function PaloxMaske({ d, gesperrt, gespeichert, unveraendertErlaubt = fal
 }) {
   const { t, gebietsschema } = useSprache()
   const [vorher, setVorher] = useState<number | null>(null)
-  const [tara, setTara] = useState(0)
   const [stand, setStand] = useState('')
   const [fehler, setFehler] = useState<string | null>(null)
   const [laeuft, setLaeuft] = useState(false)
 
   useEffect(() => {
-    void Promise.all([
-      // Nur noch innerhalb DIESER Arbeit — nie über die Arbeitsgrenze hinweg.
-      supabase.rpc('palox_stand_dieser_arbeit', { p_auftrag_id: d.auftrag.id }),
-      einstellung<number>('palox_tara_kg', 45),
-    ]).then(([v, ta]) => {
-      setVorher(typeof v.data === 'number' ? v.data : null)
-      setTara(Number(ta) || 0)
-    })
+    // Nur noch innerhalb DIESER Arbeit — nie über die Arbeitsgrenze hinweg.
+    // Runde T: das Leergewicht der Box wird nicht mehr angezeigt — es kürzt
+    // sich in der Differenz heraus, und der Satz dazu verwirrte mehr, als er
+    // half („rechnet es minus 445?"). Der Arbeiter tippt ab, was die Waage zeigt.
+    void supabase.rpc('palox_stand_dieser_arbeit', { p_auftrag_id: d.auftrag.id })
+      .then(v => setVorher(typeof v.data === 'number' ? v.data : null))
   }, [d.auftrag.id, d.ablesungen.length])
 
   const n = stand === '' ? null : Number(stand)
@@ -101,10 +98,6 @@ export function PaloxMaske({ d, gesperrt, gespeichert, unveraendertErlaubt = fal
         <label htmlFor="palox">{t('waageZeigt')}</label>
         <input id="palox" className="gross" type="number" inputMode="decimal" min={0} step="0.5"
                value={stand} disabled={gesperrt} onChange={e => setStand(e.target.value)} autoFocus />
-        <p className="hilfe">
-          {t('waageAblesenHinweis')}
-          {erste && tara > 0 && ` ${ersetzen(t('paloxLeereBox'), { n: tara })}`}
-        </p>
       </div>
 
       {/* Startstand: die App zeigt ausdrücklich, dass das noch keine Menge ist. */}
@@ -148,11 +141,6 @@ export function PaloxMaske({ d, gesperrt, gespeichert, unveraendertErlaubt = fal
                 onClick={() => void speichern('normal')} disabled={gesperrt || laeuft || n === null || n < 0}>
           {t('eintragen')}
         </button>
-      )}
-
-      {/* Nach dem Startstand: sagen, dass noch eine zweite Ablesung kommt. */}
-      {erste && !gefallen && (
-        <p className="hilfe">{t('paloxEndeFehlt')}</p>
       )}
 
       {unveraendertErlaubt && letzte && !gefallen && (

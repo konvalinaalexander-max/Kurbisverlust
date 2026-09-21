@@ -570,13 +570,18 @@ lässt sich beziffern.
 Die App in der Halle kennt zwei Rollen, ohne Konten (`docs/UI-KONZEPT.md`):
 
 **Der Vorarbeiter** tippt auf der Startseite **Neue Arbeit starten** und geht
-durch den Assistenten — eine Frage je Bildschirm: Was macht ihr? · Welche
+durch den Assistenten — eine Frage je Bildschirm: Was macht ihr? · **Was zu
+tun ist** (der Plan: vor, während, nach der Arbeit — kurz überfliegen; er
+nennt auch das Zählblatt, falls jemand lieber von Hand zählt) · Welche
 Charge? (eintippen) · Welche Bänder? oder Welches Kaliber? · Was für Kisten?
 (Kiste ab x kg · x Stück je Kaliber · anderes) · Alles richtig? →
 **Starten**. Als erstes liest er den Palox ab (die Zahl auf der Waage
-abtippen; beim Waschen freiwillig). Danach sieht er die **Checkliste**: Palox
-zu Beginn · Zählen · Fertige Palette wiegen · Arbeit abschliessen. Jeder Punkt
-zeigt, ob er erledigt ist.
+abtippen) — daran kommt er nicht vorbei; wer nicht ablesen kann, sagt das
+ausdrücklich, und die Arbeit hat dann eine unbekannte Faul-Menge. Beim
+Waschen ist die Ablesung freiwillig. Danach sieht er die **Checkliste** in
+denselben drei Blöcken wie der Plan: Palox zu Beginn · Zählen · Zu klein / zu
+gross · Fertige Palette wiegen · Arbeit abschliessen. Jeder Punkt zeigt, ob
+er erledigt ist.
 
 **Die Zähler** tippen auf der Startseite die Arbeit an → **Mitmachen** und
 sehen genau einen Zähler: Datum vom Zettel (bleibt für die nächste Palette
@@ -587,8 +592,10 @@ zählen sie stattdessen die Kisten je Kaliber, beim Waschen die Kisten mit
 ihrem Sortierdatum, beim Fax die Paletten gesamt.
 
 **Der Abschluss** ist ein Assistent: Palox jetzt ablesen (Fax: Faules wiegen,
-Paletten gesamt) · Fertige Palette gewogen? · War alles aus einer Charge? ·
-Zusammenfassung → **Ja, fertig**. Was fehlt, steht als Satz am Knopf.
+Paletten gesamt) · Palox zwischendurch geleert? · Fertige Palette gewogen? ·
+Wie viele fertige Paletten insgesamt? · War alles aus einer Charge? ·
+Zusammenfassung → **Ja, fertig**. Jeder Schritt hat seinen „Weiter"-Knopf;
+ist er grau, steht der Grund direkt darüber.
 
 Fällt das Handy des Vorarbeiters aus, holt **Ich führe diese Arbeit** die
 Checkliste auf jedes andere Handy. **Palette kontrollieren** auf der Startseite
