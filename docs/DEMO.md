@@ -99,19 +99,87 @@ update einstellung set wert = '"beispiel"'::jsonb
 
 ## Teil 3 — Die zwei Zugangswerte abholen
 
-Im **neuen** Projekt: links **Settings → API** (in neueren Fassungen
-**Settings → Data API**).
+Die App muss zwei Dinge über die Demo-Datenbank wissen: **wo** sie steht und
+**womit** sie sich melden darf. Die beiden Werte stehen auf **zwei
+verschiedenen Seiten** — das ist die Stelle, an der man sucht. Alles hier im
+**neuen** Projekt.
 
-Du brauchst zwei Dinge:
+### 3a — Der Schlüssel
 
-* **Project URL** — sieht aus wie `https://abcdefgh.supabase.co`
-* **Publishable key** (im Reiter *Legacy*: der mit der Beschriftung
-  **anon public**) — beginnt mit `sb_publishable_` oder mit `eyJ`
+1. Ganz unten links in der Symbolleiste auf das **Zahnrad** (*Project
+   Settings*).
+2. Im Menü links unter *CONFIGURATION* auf **API Keys**.
+3. Oben siehst du zwei Reiter:
+   `Publishable and secret API keys` und `Legacy anon, service_role API keys`.
+4. Auf dem ersten Reiter steht der Abschnitt **Publishable key** mit einer
+   Zeile namens `default`. Der Schlüssel beginnt mit `sb_publishable_`;
+   rechts davon ist ein kleines **Kopier-Symbol** (zwei übereinanderliegende
+   Rechtecke). Klick darauf.
 
-> **Niemals** den Schlüssel mit der Beschriftung *secret* oder
-> *service_role*. Der umgeht alle Zugriffsregeln. Die App prüft das beim
-> Start und weigert sich mit einer deutlichen Meldung — verlass dich aber
-> nicht darauf.
+Das ist `VITE_DEMO_SUPABASE_ANON_KEY`.
+
+> **Du findest keinen „Publishable key"?** Das ist normal und kein Problem.
+> Es gibt drei Fälle, und alle drei haben dieselbe Lösung:
+>
+> * Dein Projekt ist älter als das neue Schlüsselsystem und hat noch gar
+>   keine publishable keys.
+> * Die Seite heisst bei dir **API** statt **API Keys** und zeigt eine Liste
+>   `Project API keys` statt Reiter.
+> * Der Reiter ist da, aber der Abschnitt darunter ist leer.
+>
+> **Nimm dann den Schlüssel mit der Beschriftung `anon` `public`.** Er steht
+> im Reiter *Legacy anon, service_role API keys* — oder, in der älteren
+> Oberfläche, gleich in der Liste. Er beginnt mit `eyJ` und ist sehr lang
+> (mehrere hundert Zeichen, mit zwei Punkten darin).
+>
+> **Die App nimmt beide.** Sie prüft beim Start nur, dass es *nicht* der
+> geheime ist; ob `sb_publishable_…` oder `eyJ…` ist ihr gleich. Der
+> `anon public` ist genau derselbe Schlüssel, den deine echte Webseite schon
+> benutzt — nur eben der des Demo-Projekts.
+
+> **Finger weg vom Abschnitt darunter.** „Secret keys" (beginnt mit
+> `sb_secret_`) und `service_role` umgehen sämtliche Zugriffsregeln und
+> gehören niemals in eine Webseite. Die App erkennt das und verweigert den
+> Start mit einer deutlichen Meldung — verlass dich aber lieber nicht darauf.
+>
+> Bei den richtigen Schlüsseln steht in Supabase übrigens „can be safely
+> shared publicly". Das ist das Erkennungszeichen.
+
+### 3b — Die Project URL
+
+Auf der Seite mit den API Keys steht sie **nicht**. Zwei Wege:
+
+**Der schnelle Weg — aus der Adresszeile deines Browsers.** Dort steht gerade
+etwas wie:
+
+```
+supabase.com/dashboard/project/qaryvviqdjnxrukpgdn/settings/api-keys
+                               └────── das ist deine Projekt-Kennung ──────┘
+```
+
+Nimm das Stück zwischen `/project/` und dem nächsten `/` und baue daraus:
+
+```
+https://DEINE-KENNUNG.supabase.co
+```
+
+Für die Kennung oben wäre das `https://qaryvviqdjnxrukpgdn.supabase.co`.
+
+**Der offizielle Weg.** Im selben Menü links, weiter unten unter
+*INTEGRATIONS*, auf **Data API** klicken. Dort steht ganz oben **Project URL**
+mit einem Kopier-Symbol daneben.
+
+Das ist `VITE_DEMO_SUPABASE_URL`.
+
+> **Nicht die ganze Adresszeile kopieren.** `https://supabase.com/dashboard/…`
+> ist die Adresse der *Verwaltungsoberfläche*, nicht die der Datenbank. Die
+> App sagt dir das beim Start, aber es kostet eine Runde.
+
+> **Und bitte zweimal hinschauen, ob du im richtigen Projekt bist.** Oben
+> links steht der Projektname. Kommen hier die Werte des *echten* Projekts
+> heraus, zeigt die Demo später die Daten des Betriebs — sie schreibt dann
+> zwar nichts kaputt (der Echtmodus weist Beispieldaten ab), aber der Sinn
+> ist dahin.
 
 Schreib beide Werte auf. Im nächsten Teil werden sie gebraucht.
 
