@@ -92,6 +92,18 @@ export interface SortierLauf {
   auftrag_id: number | null; zuordnung: Zuordnung
   n_roh: number; n_overflow: number; n_klein: number; n_dubletten: number; n_gueltig: number
   gelesen_ts: string
+  /** 0082: ein Sortierlauf mit Datum, oder eine Lesung der Sammeldatei. */
+  art: 'lauf' | 'sammel'
+  /** Nur bei einer Sammel-Lesung: das Zeitfenster, in dem sortiert wurde. */
+  von_ts: string | null; bis_ts: string | null
+  /** Der Tag, mit dem gerechnet wird — und woher er stammt. Leer ist nicht null:
+   *  ohne Sortiertag fällt die Lesung aus der Verdunstungsrechnung heraus. */
+  sortiertag: string | null; sortiertag_quelle: string | null
+  /** Die vorige Sammel-Lesung derselben Charge, von der diese das Delta ist. */
+  vorgaenger_id: number | null
+  /** Wie viele Zeilen die Datei insgesamt trug — n_roh zählt bei einer
+   *  Sammel-Lesung nur das Delta. */
+  voll_n_roh: number | null
 }
 
 /** Eine Zeile aus v_hochrechnung — ein Strom einer Charge in einer Portion.

@@ -15,7 +15,8 @@
  */
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { tagVon } from '../src/lib/format.ts'
+import { SORTIERTAG_QUELLE_NAME, sortiertagText, tagAnfang, tagEnde, tagVon }
+  from '../src/lib/format.ts'
 
 const ZONE = process.env.TZ
 
@@ -68,4 +69,45 @@ test('kein toISOString in den Masken — das wäre wieder der UTC-Tag', async ()
   const fundstellen = dateien.filter(d => muster.test(ohneKommentare(readFileSync(d, 'utf8'))))
   assert.deepEqual(fundstellen, [],
     'Diese Dateien bilden „heute" wieder in UTC. Stattdessen `heute()` aus lib/format.')
+})
+
+test('ein Zeitfenster aus zwei Datumsfeldern umschliesst den ganzen Tag', () => {
+  // Der Fehler, den das verhindert: Beide Enden auf Mittag zu legen. Ein
+  // Fenster „vom 7. bis zum 7." wäre dann null Minuten breit, und
+  // sortiertag_bestimmen fände die Sortier-Arbeit um acht Uhr nicht — der
+  // Sortiertag käme aus der Mitte des Fensters statt aus der Arbeit selbst.
+  const von = tagAnfang('2026-10-07')!
+  const bis = tagEnde('2026-10-07')!
+  assert.ok(von < bis, 'der Tagesbeginn liegt vor dem Tagesende')
+
+  const arbeitFrueh = new Date(2026, 9, 7, 8, 0)
+  const arbeitSpaet = new Date(2026, 9, 7, 22, 30)
+  for (const a of [arbeitFrueh, arbeitSpaet]) {
+    assert.ok(von <= a && a <= bis, `${a.toISOString()} liegt im Fenster`)
+  }
+
+  // Der Tag davor und der danach gehören nicht dazu.
+  assert.ok(new Date(2026, 9, 6, 23, 59) < von)
+  assert.ok(new Date(2026, 9, 8, 0, 1) > bis)
+})
+
+test('ein leeres Datumsfeld ist kein Fenster-Ende, sondern keine Angabe', () => {
+  // Leer ist nicht null: Ein leeres Feld darf nicht als 1970 durchgehen,
+  // sonst reicht das Fenster bis vor die Ernte zurück.
+  assert.equal(tagAnfang(''), null)
+  assert.equal(tagEnde(''), null)
+})
+
+test('die Herkunft des Sortiertags heisst überall gleich', async () => {
+  // Dieselben Worte wie in v_sortier_lesung (0082). Liefen sie auseinander,
+  // hiesse dieselbe Lesung auf zwei Bildschirmen Verschiedenes.
+  const { readFileSync } = await import('node:fs')
+  const sql = readFileSync('supabase/migrations/0082_zwei_arten_von_sortierdatei.sql', 'utf8')
+  for (const [quelle, text] of Object.entries(SORTIERTAG_QUELLE_NAME)) {
+    const zeile = sql.match(new RegExp(`when '${quelle}'\\s+then '([^']*)'`))
+    assert.ok(zeile, `0082 kennt die Quelle „${quelle}" nicht`)
+    assert.equal(zeile![1], text, `„${quelle}" heisst in der Sicht anders`)
+  }
+  assert.equal(sortiertagText(null), 'nicht bekannt')
+  assert.equal(sortiertagText('was-anderes'), 'nicht bekannt')
 })

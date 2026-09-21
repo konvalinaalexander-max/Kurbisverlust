@@ -73,6 +73,38 @@ export function lokalFuerInput(d: Date): string {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`
 }
 
+/**
+ * Ein Datumsfeld als Ende eines Zeitfensters. Beide Enden auf Mittag zu
+ * legen wäre bequem und falsch: Ein Fenster „vom 7. bis zum 7." wäre dann
+ * null Minuten breit, und eine Sortier-Arbeit um acht Uhr läge ausserhalb.
+ * Der Anfang ist also der Tagesbeginn, das Ende die letzte Sekunde.
+ */
+export function tagAnfang(feld: string): Date | null {
+  return feld ? new Date(`${feld}T00:00:00`) : null
+}
+export function tagEnde(feld: string): Date | null {
+  return feld ? new Date(`${feld}T23:59:59`) : null
+}
+
+/**
+ * Woher der Sortiertag einer Lesung stammt — in denselben Worten wie in
+ * v_sortier_lesung (0082). Beide Stellen zeigen dasselbe an; stünden die
+ * Texte zweimal geschrieben, liefen sie auseinander.
+ */
+export const SORTIERTAG_QUELLE_NAME: Record<string, string> = {
+  datei: 'aus dem Dateinamen',
+  arbeit: 'aus der Sortier-Arbeit im Zeitraum',
+  'arbeiten-mittel': 'Mittel der Sortier-Arbeiten im Zeitraum',
+  'fenster-mitte': 'Mitte des Zeitraums — geschätzt',
+  betriebsleiter: 'von Hand gesetzt',
+  dateistempel: 'Zeitstempel der Datei — kein Sortierdatum',
+  gelesen: 'Tag des Einlesens — geschätzt',
+}
+
+export function sortiertagText(quelle: string | null | undefined): string {
+  return (quelle && SORTIERTAG_QUELLE_NAME[quelle]) || 'nicht bekannt'
+}
+
 export const WEG_NAME: Record<string, string> = {
   maschine: 'Weg 1 — Maschine',
   hand: 'Weg 2 — Hand',
