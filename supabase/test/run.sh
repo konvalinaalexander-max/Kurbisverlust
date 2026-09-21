@@ -22,6 +22,11 @@ zuruecksetzen() {
 # 0072: Bevor irgendetwas eingespielt wird — nimmt eine Migration Daten weg?
 # Das ist eine reine Textprüfung und braucht keine Datenbank, also steht sie
 # ganz vorne: Wer hier durchfällt, muss gar nicht erst weiterlaufen.
+# 0080: Erst prüft der Wächter sich selbst. Seit er ein „delete from x;" im
+# Rumpf einer freigestellten Funktion durchlässt, ist sein Schweigen nur so
+# viel wert wie der Nachweis, dass er überhaupt noch anschlägt.
+"$HIER/keine_zerstoerung.sh" --selbstprobe
+echo
 "$HIER/keine_zerstoerung.sh"
 echo
 

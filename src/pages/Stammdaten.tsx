@@ -6,12 +6,13 @@ import { STATION_NAME, datum, heute as heuteOrtszeit, kg, tonnen, zahl, zeitpunk
 import { Hinweis, Karte, Kennzahl, Lade, Marke } from '../components/Bausteine'
 import { useBetriebsmodus } from '../lib/betriebsmodus'
 import DemoDaten from '../components/DemoDaten'
+import ErfassungLeeren from '../components/ErfassungLeeren'
 import type { Charge, Gebinde, Kaeufer, Profil, Sortierschema } from '../lib/typen'
 
 export default function Stammdaten() {
   const modus = useBetriebsmodus()
   const [teil, setTeil] = useState<'gebinde' | 'paletten' | 'chargen' | 'kaliber'
-    | 'abgebrochen' | 'benutzer' | 'einstellungen' | 'vorlauf' | 'demo'>('gebinde')
+    | 'abgebrochen' | 'benutzer' | 'einstellungen' | 'vorlauf' | 'demo' | 'leeren'>('gebinde')
   const teile: [typeof teil, string][] = [
     ['gebinde', 'Gebinde & Tara'],
     ['paletten', 'Paletten-Import'],
@@ -22,6 +23,8 @@ export default function Stammdaten() {
     ['einstellungen', 'Einstellungen'],
     ['vorlauf', 'Erfassungsbeginn'],
     ['demo', 'Demo-Daten'],
+    // Ganz hinten und als letzter Reiter: Wer ihn trifft, wollte ihn treffen.
+    ['leeren', 'Alles löschen'],
   ]
   return (
     <>
@@ -46,6 +49,10 @@ export default function Stammdaten() {
       {teil === 'demo' && (modus === 'beispiel'
         ? <DemoDaten />
         : <Hinweis>Diese Datenbank läuft im Echtmodus. Beispieldaten gehören auf die Beispiel-Webseite — sie werden hier auch dann nicht geladen, wenn jemand es von Hand versucht.</Hinweis>)}
+      {/* 0080: Anders als die Demo-Daten gibt es das Leeren in beiden Modi —
+          gerade die echte Datenbank braucht es am Testtag. Der Schutz ist
+          nicht der Modus, sondern das getippte Wort. */}
+      {teil === 'leeren' && <ErfassungLeeren />}
     </>
   )
 }

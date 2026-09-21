@@ -4751,3 +4751,102 @@ begin
 end $$;
 
 select '——— Vorbelegung kisten_pro_palette geprüft ———' as ergebnis;
+
+-- =====================================================================
+-- 0080 — Tabula rasa: was weg ist, was bleibt, was nachlesbar bleibt
+-- =====================================================================
+-- Der Löschknopf des Testtags. Drei Zusagen stehen in der Oberfläche, und
+-- alle drei werden hier nachgemessen: Er nimmt die Erfassung weg, er lässt
+-- die Stammdaten stehen, und was er wegnimmt, steht im Journal.
+--
+-- Dieser Block steht bewusst am ENDE der Datei: Er leert die Datenbank.
+-- Alles, was nach ihm käme, läse aus einer leeren Tabelle.
+do $$
+declare
+  v_charge    int;
+  v_pal       bigint; v_auf bigint; v_lief bigint;
+  v_journal0  bigint; v_journal1 bigint;
+  v_txt       text;
+  v_fehler    text;
+begin
+  select nr into v_charge from charge order by nr limit 1;
+
+  -- (a) Etwas zu löschen anlegen — eine Palette, eine Arbeit, eine Lieferung.
+  insert into palette (charge_nr, eingangsdatum, kisten, brutto_kg, gebindeart)
+  values (v_charge, current_date - 30, 30, 900, 'G2');
+  insert into auftrag (weg, charge_nr, station, start_ts, status)
+  values ('maschine', v_charge, 'waschen', now() - interval '2 hours', 'offen');
+  insert into lieferung (datum, charge_nr, sorte, kg, ziel)
+  select current_date - 5, v_charge, c.sorte, 500, 'verkauf' from charge c where c.nr = v_charge;
+
+  select count(*) into v_pal  from palette;
+  select count(*) into v_auf  from auftrag;
+  select count(*) into v_lief from lieferung;
+  assert v_pal > 0 and v_auf > 0 and v_lief > 0,
+    '0080 (a): die Vorbereitung hat nichts angelegt';
+
+  -- (b) erfassung_umfang() nennt, was dasteht — und nur das, was dasteht.
+  assert exists (select 1 from erfassung_umfang() where tabelle = 'palette' and zeilen = v_pal),
+    '0080 (b1): erfassung_umfang() nennt die Paletten nicht oder falsch';
+  assert not exists (select 1 from erfassung_umfang() where zeilen = 0),
+    '0080 (b2): erfassung_umfang() zeigt leere Tabellen — sie soll nur nennen, was da ist';
+
+  -- (c) Ohne Bestätigungswort passiert nichts. Weder gelöscht noch gemeckert
+  --     und dann doch gelöscht: Danach muss alles noch da sein.
+  begin
+    perform erfassung_leeren('bitte loeschen');
+    assert false, '0080 (c1): ohne Bestätigungswort wurde nicht abgebrochen';
+  exception when others then
+    get stacked diagnostics v_fehler = message_text;
+    assert v_fehler like '%Bestätigungswort%',
+      format('0080 (c2): der Abbruch nennt nicht das Bestätigungswort (%s)', v_fehler);
+  end;
+  assert (select count(*) from palette) = v_pal,
+    '0080 (c3): der abgebrochene Aufruf hat trotzdem gelöscht';
+
+  -- (d) Mit Bestätigungswort: die Erfassung ist leer.
+  select count(*) into v_journal0 from erfassung_journal;
+  select erfassung_leeren('ALLES LOESCHEN') into v_txt;
+
+  assert (select count(*) from palette) = 0,              '0080 (d1): Paletten stehen noch da';
+  assert (select count(*) from auftrag) = 0,              '0080 (d2): Arbeiten stehen noch da';
+  assert (select count(*) from lieferung) = 0,            '0080 (d3): Lieferungen stehen noch da';
+  assert (select count(*) from sortier_gewicht) = 0,      '0080 (d4): Gewichtsstufen stehen noch da';
+  assert (select count(*) from verdunstung_wiegung) = 0,  '0080 (d5): Lagerkontroll-Wägungen stehen noch da';
+  assert (select count(*) from kontrollpalette) = 0,      '0080 (d6): Kontrollpaletten stehen noch da';
+  assert (select count(*) from charge_vorlauf) = 0,       '0080 (d7): Vorlauf-Angaben stehen noch da';
+  assert (select count(*) from ausgang_zeile) = 0,        '0080 (d8): Warenausgangszeilen stehen noch da';
+
+  -- (e) Die Stammdaten sind unberührt. Ohne sie wäre die App nach dem
+  --     Leeren nicht leer, sondern kaputt.
+  assert (select count(*) from charge) = 42,
+    format('0080 (e1): von 42 Chargen sind %s übrig', (select count(*) from charge));
+  assert (select count(*) from sorte_kaliber) > 0, '0080 (e2): die Sorten sind weg';
+  assert (select count(*) from gebinde) > 0,       '0080 (e3): die Gebinde sind weg';
+  assert (select count(*) from profil) > 0,        '0080 (e4): die Konten sind weg';
+  assert (select count(*) from einstellung) > 0,   '0080 (e5): die Einstellungen sind weg';
+  assert (select count(*) from ausgang_ziel) > 0,  '0080 (e6): die Ausgangsziele sind weg';
+
+  -- (f) Was weg ist, ist nachlesbar. Das ist die Zusage, auf der die ganze
+  --     Umkehrbarkeit ruht — und die einzige, die der Knopf nicht selbst
+  --     einlösen kann, sondern der Auslöser aus 0072.
+  select count(*) into v_journal1 from erfassung_journal;
+  assert v_journal1 > v_journal0,
+    '0080 (f1): das Journal ist nicht gewachsen — gelöscht wurde ohne Spur';
+  assert (select count(*) from erfassung_journal
+           where vorgang = 'delete' and tabelle = 'palette' and alt is not null) > 0,
+    '0080 (f2): die gelöschte Palette steht nicht mit ihrem alten Inhalt im Journal';
+
+  -- (g) Der Rückgabetext sagt, was geschah, und nennt das Journal.
+  assert v_txt like '%Journal%',
+    format('0080 (g1): der Rückgabetext nennt das Journal nicht (%s)', v_txt);
+
+  -- (h) Noch einmal drücken tut nichts und sagt das auch.
+  select erfassung_leeren('ALLES LOESCHEN') into v_txt;
+  assert v_txt like '%schon leer%',
+    format('0080 (h): der zweite Aufruf meldet nicht „schon leer" (%s)', v_txt);
+
+  raise notice 'OK  0080 — Tabula rasa: Erfassung weg, Stammdaten da, alles im Journal';
+end $$;
+
+select '——— 0080 Tabula rasa geprüft ———' as ergebnis;

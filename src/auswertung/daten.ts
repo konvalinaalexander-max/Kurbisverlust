@@ -519,6 +519,24 @@ export const lagerKaliberBei = (h: number) => rpcStichtag<LagerKaliber>('lager_k
 export const kaliberGlockeBei = (h: number) => rpcStichtag<KaliberGlocke>('kaliber_glocke', h, glockeJeStichtag)
 
 /**
+ * Den gemerkten Stand vergessen (0080).
+ *
+ * `stand` hält die gerechnete Auswertung für die ganze Sitzung; jeder Reiter
+ * nimmt sie, ohne nachzufragen. Das ist richtig, solange nur dazukommt —
+ * aber nicht, wenn jemand die Erfassung leert. Ohne diesen Aufruf stünde
+ * nach dem Löschen auf dem Überblick weiter die alte Tonnage, gerechnet aus
+ * Zeilen, die es nicht mehr gibt: genau die „Zahlen aus Resten", gegen die
+ * der Löschknopf gebaut ist. Wer als Nächstes einen Reiter öffnet, holt sie
+ * danach frisch.
+ */
+export function auswertungVergessen() {
+  stand = null
+  ladeVersprechen = null
+  kaliberJeStichtag.clear()
+  glockeJeStichtag.clear()
+}
+
+/**
  * Ein Stichtag für einen Bildschirm: die Zeilen, ob gerade geladen wird, und
  * der Fehler, falls einer kam. Während des Ladens bleiben die zuletzt
  * geholten Zeilen stehen (der Bildschirm zeigt sie blass) — ein Sprung auf
