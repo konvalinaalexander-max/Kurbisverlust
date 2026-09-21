@@ -62,6 +62,39 @@ test('jeder Text des Plans steht in allen sechs Sprachen, und der Zettel-Satz tr
   }
 })
 
+test('solange das Kistensystem offen ist, verspricht der Plan die fertigen Paletten nicht', () => {
+  // Der Betrieb: „bei anders muss man ja keine fertigen paletten wiegen".
+  // Der Plan steht aber vor der Frage nach dem Kistensystem. Also steht die
+  // Bedingung dabei, statt etwas anzukündigen, das später nicht verlangt wird.
+  for (const station of ['waschen', 'waschen_sortieren'] as const) {
+    const offen = arbeitsplan(station, false, null)
+    const p = offen.nachher.find(x => x.text === 'planDreiFertige')
+    assert.ok(p, `${station}: die fertigen Paletten gehören in den Plan`)
+    assert.equal(p!.bedingt, true, `${station}: und zwar mit ihrer Bedingung`)
+  }
+})
+
+test('sobald das Kistensystem gewählt ist, steht der Plan endgültig da', () => {
+  for (const station of ['waschen', 'waschen_sortieren'] as const) {
+    const ja = arbeitsplan(station, false, true)
+    assert.equal(ja.nachher.find(x => x.text === 'planDreiFertige')?.bedingt, undefined,
+      `${station}: rechenbar — kein Wenn und Aber`)
+    const nein = arbeitsplan(station, false, false)
+    assert.ok(!texte(nein).includes('planDreiFertige'),
+      `${station}: „anderes" — die fertigen Paletten stehen gar nicht erst da`)
+    assert.ok(!texte(nein).includes('planFertigeGesamt'))
+  }
+})
+
+test('beim Sortieren ist der Plan von der ersten Sekunde an vollständig', () => {
+  // Dort fragt die App nie nach dem Kistensystem, und fertige Paletten gibt
+  // es nicht — also darf auch nichts als „bedingt" dastehen.
+  const p = arbeitsplan('sortieren', false, null)
+  const alle = [...p.vorher, ...p.waehrend, ...p.nachher]
+  assert.ok(alle.every(x => !x.bedingt), 'beim Sortieren ist nichts bedingt')
+  assert.ok(!texte(p).includes('planDreiFertige'))
+})
+
 test('jede Station hat ein Zählblatt mit Namen', () => {
   for (const station of ['sortieren', 'waschen', 'waschen_sortieren'] as const) {
     assert.match(ZAEHLBLATT[station], /\S/)

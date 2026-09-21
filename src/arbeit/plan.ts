@@ -26,6 +26,21 @@ export interface PlanPunkt {
   text: TextId
   /** Nicht Pflicht — die App fragt, hält aber nicht auf. */
   freiwillig?: boolean
+  /**
+   * Hängt davon ab, wie die Kisten gefüllt werden — und das ist beim Plan
+   * noch nicht entschieden.
+   *
+   * Gemeldet vom Betrieb: „bei waschen oder waschen und sortieren - kannst
+   * du nicht gleich die infos geben - du musst ja noch wissen nach welchem
+   * schema dann sortiert wird - ob x kürbisse je kiste oder halt anders -
+   * weil bei anders muss man ja keine fertigen paletten wiegen". Stimmt:
+   * `stationsProfil.hatAusgang` verlangt ein rechenbares Kistensystem. Ein
+   * Plan, der drei fertige Paletten ankündigt und sie später nicht
+   * verlangt, ist schlimmer als keiner — also steht die Bedingung dabei,
+   * solange sie offen ist. Sobald das System gewählt ist, verschwindet der
+   * Punkt entweder ganz oder er steht ohne Wenn und Aber da.
+   */
+  bedingt?: boolean
 }
 export interface Arbeitsplan {
   vorher: PlanPunkt[]
@@ -37,6 +52,17 @@ export interface Arbeitsplan {
 
 export function arbeitsplan(station: Station, istFax: boolean, rechenbar: boolean | null): Arbeitsplan {
   const ausgang = rechenbar !== false
+  // Beim Sortieren gibt es nie fertige Paletten zu wiegen (stationsProfil:
+  // `hatAusgang` schliesst die Station aus) — dort ist der Plan von der
+  // ersten Sekunde an vollständig. Offen ist die Frage nur da, wo die App
+  // später nach dem Kistensystem fragt.
+  const offen = rechenbar === null && station !== 'sortieren' && !istFax
+  // `bedingt` nur setzen, wenn es zutrifft — ein `bedingt: false` in den
+  // Daten wäre ein Feld, das etwas behauptet, ohne etwas zu sagen.
+  const wenn = offen ? { bedingt: true as const } : {}
+  const fertige: PlanPunkt[] = ausgang
+    ? [{ text: 'planDreiFertige', ...wenn }, { text: 'planFertigeGesamt', ...wenn }]
+    : []
   const frage: PlanPunkt = { text: 'planFrage' }
   if (istFax) {
     return {
@@ -58,11 +84,7 @@ export function arbeitsplan(station: Station, istFax: boolean, rechenbar: boolea
     return {
       vorher: [{ text: 'planPaloxStart', freiwillig: true }],
       waehrend: [{ text: 'planZaehlenWasch' }],
-      nachher: [
-        ...(ausgang ? [{ text: 'planDreiFertige' as const }, { text: 'planFertigeGesamt' as const }] : []),
-        { text: 'planPaloxEnde', freiwillig: true },
-        frage,
-      ],
+      nachher: [...fertige, { text: 'planPaloxEnde', freiwillig: true }, frage],
       mitZettel: true,
     }
   }
@@ -70,12 +92,7 @@ export function arbeitsplan(station: Station, istFax: boolean, rechenbar: boolea
   return {
     vorher: [{ text: 'planPaloxStart' }],
     waehrend: [{ text: 'planZaehlenEingang' }, { text: 'planDreiWiegen' }],
-    nachher: [
-      { text: 'planPaloxEnde' },
-      { text: 'planAusschuss' },
-      ...(ausgang ? [{ text: 'planDreiFertige' as const }, { text: 'planFertigeGesamt' as const }] : []),
-      frage,
-    ],
+    nachher: [{ text: 'planPaloxEnde' }, { text: 'planAusschuss' }, ...fertige, frage],
     mitZettel: true,
   }
 }

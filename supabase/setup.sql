@@ -6933,7 +6933,9 @@ comment on column sortier_lauf.sortiertag_quelle is
   'Woher der Sortiertag kommt: ''datei'' (aus dem Dateinamen), ''arbeit'' (genau '
   'eine Sortier-Arbeit der Charge im Zeitfenster), ''arbeiten-mittel'' (mehrere, '
   'nach gezählten Paletten gewichtet), ''fenster-mitte'' (keine Arbeit erfasst — '
-  'die Mitte zwischen von_ts und bis_ts), ''betriebsleiter'' (von Hand gesetzt). '
+  'die Mitte zwischen von_ts und bis_ts), ''betriebsleiter'' (von Hand gesetzt), '
+  '''dateistempel'' (der Zeitstempel des Dateisystems — eine obere Schranke, kein '
+  'Sortierdatum), ''gelesen'' (der Tag des Einlesens). '
   'Leer: kein Sortiertag bekannt (0082).';
 
 alter table sortier_lauf add column if not exists vorgaenger_id bigint references sortier_lauf(id);
@@ -6956,12 +6958,21 @@ create index if not exists sortier_lauf_charge_art_idx on sortier_lauf (charge_n
 -- sonst aus dem Zeitpunkt des Einlesens — und sagt das auch.
 -- ---------------------------------------------------------------------
 
+-- `datei_zeit_quelle` hat von Anfang an festgehalten, WOHER das Datum kam.
+-- Das wird hier gebraucht: Ein Datum aus dem Dateinamen ist abgelesen, eines
+-- aus dem Zeitstempel des Dateisystems ist bestenfalls eine obere Schranke.
+-- Wer beides gleich behandelt, macht aus einer Vermutung eine Messung.
 update sortier_lauf
    set von_ts            = coalesce(von_ts, datei_zeit),
        bis_ts            = coalesce(bis_ts, datei_zeit, gelesen_ts),
        sortiertag        = coalesce(sortiertag, betriebstag(coalesce(datei_zeit, gelesen_ts))),
        sortiertag_quelle = coalesce(sortiertag_quelle,
-                                    case when datei_zeit is not null then 'datei' else 'gelesen' end),
+                             case
+                               when datei_zeit is null                    then 'gelesen'
+                               when datei_zeit_quelle = 'dateiname'       then 'datei'
+                               when datei_zeit_quelle = 'manuell'         then 'betriebsleiter'
+                               else 'dateistempel'
+                             end),
        voll_n_roh        = coalesce(voll_n_roh, n_roh)
  where sortiertag is null or sortiertag_quelle is null or voll_n_roh is null;
 
@@ -7180,6 +7191,223 @@ comment on function csv_sammel_speichern is
   'dazukam, und weist die Datei ab, wenn sie keine Erweiterung der vorigen ist. '
   'Gibt zurück, was übernommen wurde, welcher Sortiertag gilt und woher er '
   'kommt (0082).';
+
+-- ---------------------------------------------------------------------
+-- 4a. Auch eine Lauf-Datei füllt die neuen Spalten
+--
+-- Abschnitt 2 hat die Bestandsdaten gedeutet — aber nur einmal, beim
+-- Einspielen. Ohne diesen Block bekäme jede künftig eingelesene Lauf-Datei
+-- keinen Sortiertag und fiele damit aus der Verdunstungsrechnung heraus
+-- (kuerbis_stichtag verlangt ihn seit Abschnitt 6). Beim ersten Lauf des
+-- Prüfstands stand genau das da: „VORHER: Sortiertag=NULL".
+--
+-- Die Signatur bleibt Zeichen für Zeichen dieselbe: Die Demo-Generatoren
+-- (0052, 0081) rufen diese Funktion, und ein geänderter Parametersatz
+-- liesse sie mit „function does not exist" auflaufen.
+-- ---------------------------------------------------------------------
+
+create or replace function csv_lauf_speichern(
+  p_charge_nr         int,
+  p_datei_name        text,
+  p_roh_datei_ref     text,
+  p_roh_pruefsumme    text,
+  p_datei_zeit        timestamptz,
+  p_datei_zeit_quelle text,
+  p_reinigung         jsonb,
+  p_n_roh             int,
+  p_n_overflow        int,
+  p_n_klein           int,
+  p_n_dubletten       int,
+  p_histogramm        jsonb
+) returns bigint language plpgsql as $$
+declare
+  v_lauf_id bigint;
+  v_gueltig int;
+begin
+  select coalesce(sum((e->>1)::int), 0) into v_gueltig
+    from jsonb_array_elements(p_histogramm) e;
+
+  insert into sortier_lauf (charge_nr, datei_name, roh_datei_ref, roh_pruefsumme,
+                            datei_zeit, datei_zeit_quelle, reinigung,
+                            n_roh, n_overflow, n_klein, n_dubletten, n_gueltig,
+                            art, von_ts, bis_ts, voll_n_roh,
+                            sortiertag, sortiertag_quelle)
+  values (p_charge_nr, p_datei_name, p_roh_datei_ref, p_roh_pruefsumme,
+          p_datei_zeit, p_datei_zeit_quelle, p_reinigung,
+          p_n_roh, p_n_overflow, p_n_klein, p_n_dubletten, v_gueltig,
+          -- Eine Lauf-Datei ist ein Zeitpunkt, kein Zeitraum: von und bis
+          -- fallen zusammen, und voll_n_roh ist n_roh.
+          'lauf', p_datei_zeit, coalesce(p_datei_zeit, now()), p_n_roh,
+          betriebstag(coalesce(p_datei_zeit, now())),
+          case
+            when p_datei_zeit is null              then 'gelesen'
+            when p_datei_zeit_quelle = 'dateiname' then 'datei'
+            when p_datei_zeit_quelle = 'manuell'   then 'betriebsleiter'
+            else 'dateistempel'
+          end)
+  returning id into v_lauf_id;
+
+  -- Das Histogramm zunächst unklassiert ablegen; die Klasse folgt der Fassung,
+  -- und die hängt am Auftrag — also erst zuordnen.
+  insert into sortier_gewicht (lauf_id, gewicht_g, anzahl, klasse, kaliber_idx)
+  select v_lauf_id, (e->>0)::int, (e->>1)::int, 'unklassiert', null
+    from jsonb_array_elements(p_histogramm) e;
+
+  perform auftrag_zuordnen(v_lauf_id);
+  perform lauf_neu_klassieren(v_lauf_id);
+  return v_lauf_id;
+end $$;
+comment on function csv_lauf_speichern is
+  'Liest eine Lauf-Datei ein — einen Sortierlauf mit Datum im Namen. Seit 0082 '
+  'füllt sie auch art, das Zeitfenster und den Sortiertag mit seiner Quelle; '
+  'ohne den fiele der Lauf aus der Verdunstungsrechnung.';
+
+-- ---------------------------------------------------------------------
+-- 4b. Eine schon eingelesene Datei nachträglich als Sammeldatei deuten
+--
+-- Der Betrieb hat die Sammeldateien hochgeladen, bevor die App sie kannte:
+-- „ich hab bevor ich den auftrag hier gestartet habe - schon probiert die
+-- daten hochzuladen und jetzt sind sie dort in der warteschlange."
+--
+-- Was dort liegt, ist nicht falsch, sondern falsch gedeutet. Die Kürbisse
+-- stehen genau einmal in der Datenbank — jede Datei wurde ja einmal
+-- hochgeladen —, also stimmt die Masse. Falsch ist dreierlei: Die Lesung
+-- gilt als einzelner Lauf, ihr Sortierdatum ist der Zeitstempel des
+-- Dateisystems, und sie wartet auf eine Zuordnung zu einer Arbeit, die es
+-- nicht gibt.
+--
+-- Also umdeuten statt löschen und neu einlesen. Der Zeitstempel geht dabei
+-- nicht verloren: Er wandert nach bis_ts, wo er hingehört — als obere
+-- Schranke des Zeitfensters. Später als da kann nichts sortiert worden sein.
+--
+-- Sollten für dieselbe Charge mehrere Lesungen umgedeutet werden (zweimal
+-- hochgeladen), trägt jede nur ihr Delta — dieselbe Regel und dieselbe
+-- Probe wie beim Einlesen.
+-- ---------------------------------------------------------------------
+
+create or replace function lesung_als_sammel(
+  p_lauf_id bigint,
+  p_von     timestamptz default null,
+  p_bis     timestamptz default null
+) returns jsonb language plpgsql as $$
+declare
+  v_lauf    sortier_lauf%rowtype;
+  v_von     timestamptz;
+  v_bis     timestamptz;
+  v_tag     date;
+  v_quelle  text;
+  v_negativ jsonb;
+  v_neu     int;
+  v_vorher  bigint;
+begin
+  select * into v_lauf from sortier_lauf where id = p_lauf_id;
+  if not found then
+    return jsonb_build_object('fehler', 'unbekannt', 'meldung', 'Diese Lesung gibt es nicht.');
+  end if;
+  if v_lauf.art = 'sammel' then
+    return jsonb_build_object('fehler', 'schon_sammel',
+      'meldung', 'Diese Lesung gilt bereits als Sammeldatei.');
+  end if;
+
+  -- Das Fenster: nach unten die letzte Sammel-Lesung derselben Charge, sonst
+  -- der erste Eingang — vor dem Eingang kann nichts sortiert worden sein.
+  -- Nach oben der Zeitstempel der Datei, sonst der Zeitpunkt des Einlesens.
+  select id, coalesce(bis_ts, gelesen_ts) into v_vorher, v_von
+    from sortier_lauf
+   where charge_nr = v_lauf.charge_nr and art = 'sammel' and id <> p_lauf_id
+   order by gelesen_ts desc, id desc limit 1;
+
+  v_von := coalesce(p_von, v_von,
+             (select min(eingangsdatum)::timestamptz from palette where charge_nr = v_lauf.charge_nr));
+  v_bis := coalesce(p_bis, v_lauf.datei_zeit, v_lauf.gelesen_ts);
+  if v_von is not null and v_von > v_bis then
+    return jsonb_build_object('fehler', 'fenster',
+      'meldung', 'Das Zeitfenster endet vor seinem Anfang.');
+  end if;
+
+  -- Trägt diese Lesung Kürbisse, die eine frühere Sammel-Lesung derselben
+  -- Charge schon hat? Dann ist sie eine spätere Lesung derselben Datei und
+  -- darf nur ihr Delta behalten.
+  with bekannt as (
+    select g.gewicht_g, sum(g.anzahl)::int as anzahl
+      from sortier_gewicht g join sortier_lauf l on l.id = g.lauf_id
+     where l.charge_nr = v_lauf.charge_nr and l.art = 'sammel' and l.id <> p_lauf_id
+     group by g.gewicht_g
+  ), d as (
+    select coalesce(v.gewicht_g, b.gewicht_g) as gewicht_g,
+           coalesce(v.anzahl, 0) - coalesce(b.anzahl, 0) as diff
+      from (select gewicht_g, anzahl from sortier_gewicht where lauf_id = p_lauf_id) v
+      full join bekannt b on b.gewicht_g = v.gewicht_g
+  )
+  select coalesce(sum(diff) filter (where diff > 0), 0)::int,
+         coalesce(jsonb_agg(jsonb_build_array(gewicht_g, -diff) order by gewicht_g)
+                  filter (where diff < 0), '[]'::jsonb)
+    into v_neu, v_negativ
+    from d;
+
+  if jsonb_array_length(v_negativ) > 0 then
+    return jsonb_build_object('fehler', 'keine_erweiterung', 'negativ', v_negativ,
+      'meldung', 'Diese Lesung passt nicht als Fortsetzung der schon vorhandenen '
+              || 'Sammel-Lesungen dieser Charge — es fehlen Gewichtsstufen.');
+  end if;
+
+  -- Das Delta behalten: was eine frühere Lesung schon trägt, fällt weg.
+  if v_vorher is not null then
+    with bekannt as (
+      select g.gewicht_g, sum(g.anzahl)::int as anzahl
+        from sortier_gewicht g join sortier_lauf l on l.id = g.lauf_id
+       where l.charge_nr = v_lauf.charge_nr and l.art = 'sammel' and l.id <> p_lauf_id
+       group by g.gewicht_g
+    )
+    update sortier_gewicht g
+       set anzahl = g.anzahl - coalesce(b.anzahl, 0)
+      from (select gewicht_g from sortier_gewicht where lauf_id = p_lauf_id) alle
+      left join bekannt b on b.gewicht_g = alle.gewicht_g
+     where g.lauf_id = p_lauf_id and g.gewicht_g = alle.gewicht_g
+       and g.anzahl - coalesce(b.anzahl, 0) > 0;
+
+    -- Stufen, die vollständig bekannt waren, tragen nichts mehr bei.
+    delete from sortier_gewicht g
+     using (select gewicht_g, sum(anzahl)::int as anzahl
+              from sortier_gewicht sg join sortier_lauf l on l.id = sg.lauf_id
+             where l.charge_nr = v_lauf.charge_nr and l.art = 'sammel' and l.id <> p_lauf_id
+             group by gewicht_g) b
+     where g.lauf_id = p_lauf_id and g.gewicht_g = b.gewicht_g and g.anzahl <= b.anzahl;
+  end if;
+
+  select tag, quelle into v_tag, v_quelle
+    from sortiertag_bestimmen(v_lauf.charge_nr, v_von, v_bis);
+  if p_von is not null or p_bis is not null then v_quelle := 'betriebsleiter'; end if;
+
+  update sortier_lauf
+     set art               = 'sammel',
+         von_ts            = v_von,
+         bis_ts            = v_bis,
+         -- Der Zeitstempel war nie ein Sortierdatum. Er steht jetzt in
+         -- bis_ts; hier stünde er als Messung, die es nie gab.
+         datei_zeit        = null,
+         sortiertag        = v_tag,
+         sortiertag_quelle = v_quelle,
+         vorgaenger_id     = v_vorher,
+         voll_n_roh        = coalesce(voll_n_roh, n_roh),
+         n_gueltig         = v_neu,
+         auftrag_id        = null,
+         zuordnung         = 'offen'
+   where id = p_lauf_id;
+
+  perform lauf_neu_klassieren(p_lauf_id);
+
+  return jsonb_build_object('lauf_id', p_lauf_id, 'n_gueltig', v_neu,
+    'sortiertag', v_tag, 'sortiertag_quelle', v_quelle, 'von', v_von, 'bis', v_bis);
+end $$;
+comment on function lesung_als_sammel(bigint, timestamptz, timestamptz) is
+  'Deutet eine schon eingelesene Datei nachträglich als Sammeldatei: Zeitfenster '
+  'statt erfundenem Zeitpunkt, abgeleiteter Sortiertag, keine Zuordnung zu einer '
+  'Arbeit. Der Zeitstempel der Datei geht nicht verloren — er wird zur oberen '
+  'Schranke des Fensters. Gebraucht für die Dateien, die vor 0082 hochgeladen '
+  'wurden und in der Warteschlange liegen (0082).';
+revoke all on function lesung_als_sammel(bigint, timestamptz, timestamptz) from public;
+grant execute on function lesung_als_sammel(bigint, timestamptz, timestamptz) to authenticated;
 
 -- ---------------------------------------------------------------------
 -- 5. Klassiert wird nach dem Sortiertag, nicht nach dem Dateidatum
@@ -12659,6 +12887,7 @@ select l.id, l.charge_nr, c.sorte, c.schlag, l.datei_name, l.art,
          when 'arbeiten-mittel' then 'Mittel der Sortier-Arbeiten im Zeitraum'
          when 'fenster-mitte'  then 'Mitte des Zeitraums — geschätzt'
          when 'betriebsleiter' then 'von Hand gesetzt'
+         when 'dateistempel'   then 'Zeitstempel der Datei — kein Sortierdatum'
          when 'gelesen'        then 'Tag des Einlesens — geschätzt'
          else 'nicht bekannt'
        end                                                                  as sortiertag_text

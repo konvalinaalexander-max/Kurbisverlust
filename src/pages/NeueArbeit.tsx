@@ -140,6 +140,14 @@ export default function NeueArbeit() {
   const sollOk = Number(sollJetzt) > 0
   const stueckOk = Number(stueck) > 0
   const systemOk = system === 'anderes' || (system === 'kiste_ab' && sollOk) || (system === 'stueck' && stueckOk)
+  /**
+   * Lässt sich aus dem Kistensystem rechnen, was eine Kiste wiegt? Nur dann
+   * werden am Ende fertige Paletten gewogen (stationsProfil.hatAusgang).
+   * `null`, solange nicht gewählt — dann steht die Bedingung im Plan, statt
+   * etwas zu versprechen, das später nicht verlangt wird.
+   */
+  const rechenbarJetzt: boolean | null =
+    !fragtSystem ? true : system === null ? null : system !== 'anderes'
 
   function grenzeSetzen(i: number, wert: string) {
     const g = [...grenzenJetzt]; g[i] = wert === '' ? Number.NaN : Number(wert); setGrenzen(g)
@@ -217,7 +225,11 @@ export default function NeueArbeit() {
   if (aktuell === 'ueberblick' && station) {
     return (
       <Schritt nummer={n} von={von} frage={t('wasZuTun')} warum={t('ueberblickWarum')} zurueck={zurueck} weiter={weiter}>
-        <Planliste station={station} istFax={istFax} rechenbar={null} />
+        {/* `rechenbar` ist hier meist noch offen — das Kistensystem kommt
+            erst später. Der Plan sagt das dann bei den betroffenen Punkten
+            statt sie zu versprechen. Wer zurückblättert, hat es schon
+            gewählt; dann steht der Plan endgültig da. */}
+        <Planliste station={station} istFax={istFax} rechenbar={rechenbarJetzt} />
       </Schritt>
     )
   }
@@ -388,6 +400,11 @@ export default function NeueArbeit() {
           )}
         </dl>
       </div>
+      {/* Hier ist jede Frage beantwortet: Der Plan steht endgültig da, mit
+          den fertigen Paletten oder ohne. Das ist der letzte Bildschirm vor
+          dem Start — und damit der Ort, an dem „was zu tun ist" zählt. */}
+      <div className="abschnitt-titel">{t('wasZuTun')}</div>
+      {station && <Planliste station={station} istFax={istFax} rechenbar={rechenbarJetzt} />}
       {fehler && <Hinweis art="warnung">{fehler}</Hinweis>}
     </Schritt>
   )

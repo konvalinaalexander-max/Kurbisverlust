@@ -21,7 +21,11 @@ export function Planliste({ station, istFax, rechenbar }: {
         <div className="abschnitt-titel oben-0">{titel}</div>
         <ol className="plan">
           {punkte.map(x => (
-            <li key={x.text}>{t(x.text)}{x.freiwillig && <span className="leise"> · {t('freiwillig')}</span>}</li>
+            <li key={x.text}>
+              {t(x.text)}
+              {x.freiwillig && <span className="leise"> · {t('freiwillig')}</span>}
+              {x.bedingt && <span className="leise"> · {t('nurWennRechenbar')}</span>}
+            </li>
           ))}
         </ol>
         {zettel && plan.mitZettel && (
