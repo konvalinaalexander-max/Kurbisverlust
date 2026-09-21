@@ -352,25 +352,51 @@ for (const geraet of GERAETE) {
                               .replace('OFFEN', String(OFFEN_ID))
       await seite.goto(`http://localhost:5199${pfad}`, { waitUntil: 'networkidle' })
 
-      // Anmelden, falls die Seite jemanden braucht und der Login-Schirm steht
+      /*
+       * Anmelden — und zwar warten statt nachsehen.
+       *
+       * Hier stand `isVisible()`, und das fragt nicht, sondern schaut im
+       * selben Augenblick nach. Jeder Bildschirm bekommt weiter oben einen
+       * frischen Browser-Kontext, ist also immer abgemeldet: Der Anmeldeknopf
+       * *muss* kommen. War React in dem Moment noch nicht so weit, sagte
+       * isVisible() trotzdem „nein", die Anmeldung wurde übersprungen, und
+       * der Klickweg lief danach auf der Anmeldeseite ins Leere — sichtbar
+       * als „Timeout 30000ms exceeded, waiting for #taet-…" auf einem
+       * Bildschirm, der mit dem Fehler nichts zu tun hatte. Gemessen: In drei
+       * Läufen traf es drei verschiedene Bildschirme, immer den ersten in
+       * seiner Reihe (desktop/light) und immer beim Warten auf ein Element,
+       * das es nur nach der Anmeldung gibt.
+       *
+       * Also warten. Bleibt die Anmeldung aus, ist das ein eigener Befund mit
+       * klarem Namen — und nicht mehr ein rätselhafter Timeout drei Schritte
+       * später.
+       */
+      async function anmelden(marke, schritte) {
+        try {
+          await marke.waitFor({ state: 'visible', timeout: 30000 })
+        } catch {
+          meldungen.push('Anmeldung: der Anmeldeschirm kam nicht')
+          return
+        }
+        await schritte()
+        await seite.waitForLoadState('networkidle')
+        await seite.goto(`http://localhost:5199${pfad}`, { waitUntil: 'networkidle' })
+      }
+
       if (schirm.wer === 'admin') {
         const login = seite.getByRole('button', { name: 'Betriebsleiter' })
-        if (await login.isVisible().catch(() => false)) {
+        await anmelden(login, async () => {
           await login.click()
           await seite.getByLabel('E-Mail').fill('chef@hof.test')
           await seite.getByLabel('Passwort').fill('pruefstand')
           await seite.getByRole('button', { name: 'Anmelden', exact: true }).click()
-          await seite.waitForLoadState('networkidle')
-          await seite.goto(`http://localhost:5199${pfad}`, { waitUntil: 'networkidle' })
-        }
+        })
       } else if (schirm.wer === 'arbeiter') {
         const feld = seite.getByLabel(T('deinName'))
-        if (await feld.isVisible().catch(() => false)) {
+        await anmelden(feld, async () => {
           await feld.fill('Tomasz')
           await seite.getByRole('button', { name: T('losGehts') }).click()
-          await seite.waitForLoadState('networkidle')
-          await seite.goto(`http://localhost:5199${pfad}`, { waitUntil: 'networkidle' })
-        }
+        })
       }
 
       try { await schirm.tun?.(seite) } catch (f) { meldungen.push(`Klickweg: ${f}`) }
