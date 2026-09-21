@@ -304,9 +304,31 @@ Nötig ist **nur die Chargennummer**. Ohne Datum funktionieren die Gewichtsverte
 Ausschussanteil über die Saison. Das Datum bringt zusätzlich zweierlei: eine Gegenprobe
 (gezählte gegen gewogene Masse desselben Tages) und eine Zeitachse für den Ausschuss — Kürbisse
 werden mit der Lagerdauer leichter, also rutschen mit der Zeit mehr unter die Verlustgrenze.
-Niemand soll ein Datum tippen: Die App nimmt den Dateinamen, sonst den Zeitstempel der Datei,
-sonst geht es auch ohne. *Achtung:* Werden zwanzig Dateien am Saisonende auf einmal kopiert, ist
-der Zeitstempel das Kopierdatum und wertlos.
+Niemand soll ein Datum tippen.
+
+**Korrigiert in Runde U (21. September).** Der Betrieb: „es gibt nur eine 1614 - und bei jedem
+sortieren wird einfach unterhalb weiter angefügt - also die zuweisung auf das datum ist nicht
+möglich". Es gibt also **zwei Arten von Datei**:
+
+- Eine **Lauf-Datei** trägt das Datum im Namen. Ab Oktober 2026 ist das Format vereinbart —
+  `1614_07_10_26`, Charge, Tag, Monat, Jahr —, aber der Parser nimmt jeden Trenner und auch
+  die älteren Namen mit Uhrzeit.
+- Eine **Sammeldatei** heisst nur nach der Charge und wächst bei jedem Sortieren. Sie enthält
+  alles bisher Sortierte dieser Charge und trägt **kein** Datum, weder im Namen noch im Inhalt.
+
+Daraus folgen zwei Dinge, die vorher still danebengingen. Beim zweiten Hochladen einer
+Sammeldatei wird **nur das Delta** übernommen — sonst zählte alles vom ersten Mal doppelt.
+Und statt eines Zeitpunkts steht ein **Zeitfenster**; den Sortiertag leitet die App daraus ab
+und sagt, woher er stammt (aus einer Sortier-Arbeit im Fenster, aus dem gewichteten Mittel
+mehrerer, aus der Mitte des Fensters, oder von Hand gesetzt).
+
+Der Zeitstempel der Datei ist damit **keine Datumsquelle mehr**. Er ist der Moment des letzten
+Anhängens oder — werden zwanzig Dateien am Saisonende auf einmal kopiert — des Kopierens. Er
+zählt nur noch als obere Schranke: Später als da kann nichts darin sortiert worden sein.
+
+Eine Lesung ohne Sortiertag fällt aus der Verdunstungsrechnung heraus, statt mit einem
+erfundenen Tag zu rechnen. Wie viele das sind und bei wie vielen der Tag bezeugt statt
+geschätzt ist, zählt `v_datenqualitaet`.
 
 ## Der Weg eines Kürbisses
 

@@ -3512,3 +3512,123 @@ der Saison. Die Lagerkontrolle ist unberührt; die Fax bleibt eingefroren.
 Und die Erklärungen sind nicht gelöscht, sondern umgezogen: Wofür eine Zahl
 gebraucht wird, steht in `DATENERHEBUNG.md` — dort liest es der
 Betriebsleiter, der es wissen muss.
+
+## Runde U: zwei Arten von Sortierdatei (21. September, 0082)
+
+### Die Annahme war falsch, und sie war still falsch
+
+Bis hierher galt: Ein Sortierlauf, eine CSV, das Datum im Namen. Der
+Betrieb korrigierte das: „es gibt nur eine 1614 - und bei jedem sortieren
+wird einfach unterhalb weiter angefügt - also die zuweisung auf das datum
+ist nicht möglich".
+
+Das sind zwei verschiedene Fehler, und beide liefen lautlos:
+
+**Doppelzählung.** `roh_pruefsumme unique` schützt vor derselben Datei,
+nicht vor der gewachsenen. Wer dieselbe Sammeldatei ein zweites Mal
+hochlädt, brachte bis 0082 alles vom ersten Mal noch einmal mit — die
+Charge hatte plötzlich doppelt so viele Kürbisse, und keine Meldung sagte
+es.
+
+**Ein Datum, das niemand gemessen hat.** Ohne Datum im Namen nahm die App
+den Zeitstempel der Datei. Bei einer Sammeldatei ist das der Moment des
+letzten Anhängens; bei einer kopierten Datei der des Kopierens. Aus diesem
+Tag rechnet die Verdunstung, wie lange ein Kürbis geschrumpft ist.
+
+### Was jetzt gilt
+
+Die App kennt **zwei Arten**. Eine **Lauf-Datei** trägt das Datum im Namen
+— ab Oktober 2026 im Format `1614_07_10_26`, aber der Parser nimmt jeden
+Trenner (`1614.07.10.26`, `1616 7 10 26`, `1614-07-10-2026`), ein- oder
+zweistellige Tage, zwei- oder vierstellige Jahre, mit oder ohne Uhrzeit.
+Eine **Sammeldatei** heisst nur nach der Charge.
+
+Von einer Sammeldatei wird nur das **Delta** gespeichert. Die Datenbank
+rechnet es; die Oberfläche zeigt es vorher an („7 in der Datei → 3 schon
+bekannt → 4 neu"), damit niemand blind drückt.
+
+Statt eines erfundenen Zeitpunkts steht ein **Zeitfenster**. Daraus leitet
+`sortiertag_bestimmen()` den Sortiertag ab: Liegt genau eine Sortier-Arbeit
+im Fenster, gilt ihr Tag; liegen mehrere, das nach Zählung gewichtete
+Mittel; liegt keine, die Mitte des Fensters. Und die Lesung sagt in
+`sortiertag_quelle`, welcher Fall es war — dieselbe Ehrlichkeit wie bei
+`masse_quelle`.
+
+Der Zeitstempel der Datei ist damit **keine Datumsquelle mehr**, sondern
+nur noch obere Schranke: Später als da kann nichts darin sortiert worden
+sein.
+
+### Warum die Datei nicht einfach neu hochgeladen wird
+
+Der Betrieb hatte die Sammeldateien schon hochgeladen, bevor diese Runde
+begann — sie lagen als Lauf-Dateien in der Warteschlange. Löschen und neu
+einlesen wäre der naheliegende Weg und der falsche: Die Masse ist richtig
+(jede Datei wurde einmal hochgeladen), nur die Deutung ist falsch. Und
+beim Löschen verschwände die Rohdatei aus dem Speicher.
+
+`lesung_als_sammel()` deutet sie an Ort und Stelle um: Der Zeitstempel
+wandert von `datei_zeit` nach `bis_ts` und wird zur oberen Schranke, der
+Sortiertag wird abgeleitet, die Zuordnung zu einer Arbeit fällt weg. Kein
+Kilogramm bewegt sich.
+
+### Die Probe, die eine falsche Datei abweist
+
+`reinigen()` entscheidet je Zeile aus der Zeile und dem zuletzt behaltenen
+Wert. Damit ist die Reinigung **präfixstabil**: Was aus den ersten N Zeilen
+entsteht, entsteht auch aus den ersten N Zeilen einer längeren Datei.
+Nachgemessen, bevor darauf gebaut wurde: `reinigen(P+S).n_gueltig −
+reinigen(P).n_gueltig = reinigen(S).n_gueltig` (298 = 298), keine negative
+Stufe.
+
+Daraus folgt die Probe: Zieht man vom Histogramm der Datei ab, was schon
+eingelesen ist, darf **keine Stufe negativ** werden. Wird eine es doch, ist
+die Datei keine Fortsetzung — sie wurde bearbeitet, oder sie gehört zu einer
+anderen Charge. Dann wird nichts übernommen und gesagt, welche Stufen
+fehlen.
+
+### Was der Prüfblock gefunden hat
+
+Zwei Fehler, die ohne ihn in Betrieb gegangen wären.
+
+Der erste in `lesung_als_sammel()`: Erst kürzen, dann löschen, was
+vollständig bekannt ist. Die zweite Anweisung las die schon gekürzte Zahl —
+aus 6 gelesenen bei 4 bekannten wurden 2, und 2 ist nicht mehr grösser als
+4, also verschwanden auch die. Die Lesung meldete zwei Kürbisse und trug
+keinen. Jetzt wird erst gelöscht, dann gekürzt.
+
+Der zweite ist älter und wog schwerer. `setup.sql` entsteht verdichtet; von
+jedem Objekt bleibt nur die jüngste Anweisung, und die wandert in einen nach
+Abhängigkeiten geordneten Teil. Bauen zwei angemeldete Anweisungen dasselbe
+Objekt, zog der Verdichter zwischen ihnen keine Kante — der Kommentar
+versprach, sie stünden dann in der Reihenfolge der Migrationen, der Code
+hielt das aber nicht. Die Sortierung nahm, was zuerst fertig war. Bei
+`erg_punkte` hiess das: Die Kaskaden-Schleife wartet auf zwei Dutzend
+Ansichten, die spätere Fassung aus 0079 auf eine — also lief die spätere
+zuerst und die Schleife überschrieb sie. In **jeder aus setup.sql
+eingerichteten Datenbank** fehlte `erg_punkte` seit 0079 die Spalte
+`messtag`, die der Ursachen-Bildschirm liest; aus den Migrationen einzeln
+eingespielt war sie da. Der Abgleich in `run.sh` sieht genau solche
+Unterschiede — er war nur nie bis zu Ende gelaufen.
+
+### Was bewusst nicht gemacht wurde
+
+**Kein neuer Wert in `zuordnung_status`.** Naheliegend wäre gewesen, eine
+Sammel-Lesung mit `zuordnung = 'sammel'` zu kennzeichnen. Dagegen sprach
+zweierlei: `alter type … add value` in einer Transaktion ist heikel, und
+der Status hat für eine Sammel-Lesung ohnehin keine Bedeutung. Die
+Warteschlange fragt deshalb nach `art = 'lauf'` — nach dem, was sie meint.
+
+**Die Demo-Saison zeigt die Sammeldatei noch nicht.** `demo_daten_laden()`
+erzeugt weiterhin nur Lauf-Dateien mit Datum im Namen — die Fähigkeit ist in
+`test/csv.test.ts` und im Prüfblock 0082 belegt, nicht in den Beispieldaten.
+Das weicht von der Linie aus Runde S ab („jede Fähigkeit der Masken kommt in
+den Daten vor"); es steht hier, damit es nicht stillschweigend untergeht. Wer
+es nachholt, braucht eine Migration am Demo-Erzeuger und muss die
+Reproduzierbarkeitsprobe 0081 (f) mitziehen.
+
+**Keine gelöschte Spalte.** `datei_zeit` und `datei_zeit_quelle` bleiben;
+sie halten fest, was beim Einlesen bekannt war, und Abschnitt 2 der
+Migration liest sie, um die Bestandsdaten ehrlich zu deuten: Wer sein Datum
+aus dem Dateinamen hatte, bekommt `sortiertag_quelle = 'datei'`, wer es vom
+Zeitstempel hatte, `'dateistempel'` — und der sagt von sich, dass er kein
+Sortierdatum ist.

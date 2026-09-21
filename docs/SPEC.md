@@ -82,13 +82,34 @@ Beispiel real (Datei 1613/Tiana): 11 370 → −5 → −11 → −3 204 → **8
 
 ## 5. CSV-Dateiname & Zuordnung zum Auftrag
 
-- Die Maschine erzeugt bei **jedem Chargenwechsel** eine neue Datei. Dateiname-Format (an der Maschine getippt):
-  **`Charge-TT-MM-HH-MM`**, z. B. `1614-25-08-11-10` (Jahr = laufende Saison). Dadurch ist **jeder Lauf eindeutig**,
-  auch wenn dieselbe Charge Mo–Fr wieder läuft — kein Überschreiben.
-- Die App muss den Namen **tolerant** parsen: Chargennummer = 4-stellige Zahl gegen die bekannte Charge-Liste;
-  Trenner können `-`, `_`, `/`, Leerzeichen sein; Datum/Zeit fuzzy. Notnagel: Datei-`lastModified` beim Upload.
-- **Zuordnung:** über Charge + nächstliegende Zeit an den passenden **Auftrag** (verlässliche Server-Zeit).
-  Eindeutig → automatisch; mehrdeutig/kein Treffer → **Admin-Warteschlange** „nicht zugeordnete CSVs".
+> **Korrigiert am 21. September 2026 (Runde U, Migration 0082).** Der ursprüngliche Absatz stand auf der
+> Annahme, jedes Sortieren erzeuge eine eigene Datei. Der Betrieb: „es gibt nur eine 1614 - und bei jedem
+> sortieren wird einfach unterhalb weiter angefügt - also die zuweisung auf das datum ist nicht möglich."
+> Es gibt deshalb **zwei Arten** von Datei, und sie bedeuten Verschiedenes.
+
+**Lauf-Datei** — ein Sortierlauf, das Datum steht im Namen. Ab Oktober 2026 ist das Format vereinbart:
+**`Charge_TT_MM_JJ`**, z. B. `1614_07_10_26`. Ältere Läufe tragen `Charge-TT-MM-HH-MM` (`1614-25-08-11-10`,
+Jahr = laufende Saison); beide bleiben lesbar.
+
+**Sammeldatei** — eine Datei je Charge, benannt nur nach der Charge (`1614`). Die Maschine hängt bei jedem
+weiteren Sortieren derselben Charge unten an. Sie enthält also **alles bisher Sortierte** dieser Charge und
+trägt **kein Datum**.
+
+- Die App parst den Namen **tolerant**: Chargennummer = 4-stellige Zahl gegen die bekannte Charge-Liste;
+  Trenner können `-`, `_`, `.`, `/`, Leerzeichen sein; Tag und Monat ein- oder zweistellig, das Jahr zwei-
+  oder vierstellig. Wie viele Zahlen **nach** der Charge stehen, entscheidet ihre Bedeutung: keine →
+  Sammeldatei; zwei → Tag, Monat; drei → Tag, Monat, Jahr; vier → Tag, Monat, Stunde, Minute; fünf → alles.
+- **Der Datei-Zeitstempel ist kein Notnagel mehr.** Bei einer Sammeldatei ist er der Zeitpunkt des letzten
+  Anhängens, bei einer kopierten Datei der des Kopierens — in beiden Fällen nicht der Sortierzeitpunkt. Er
+  gilt nur noch als **obere Schranke**: Später als da kann nichts darin sortiert worden sein.
+- **Sammeldatei einlesen:** gespeichert wird nur das **Delta** gegenüber den früheren Lesungen derselben
+  Charge. Wird dabei eine Gewichtsstufe negativ, ist die Datei keine Fortsetzung — dann wird sie abgewiesen,
+  nicht halb übernommen. Statt eines Zeitpunkts wird ein **Zeitfenster** angegeben; daraus leitet
+  `sortiertag_bestimmen()` den Sortiertag ab und `sortiertag_quelle` sagt, wie.
+- **Zuordnung** (nur für Lauf-Dateien): über Charge + nächstliegende Zeit an den passenden **Auftrag**
+  (verlässliche Server-Zeit). Eindeutig → automatisch; mehrdeutig/kein Treffer → **Admin-Warteschlange**
+  „nicht zugeordnete CSVs". Eine Sammeldatei gehört zu keiner einzelnen Arbeit und wird dort gar nicht erst
+  danach gefragt; eine vor 0082 falsch gedeutete Lesung lässt sich dort umdeuten.
 
 ## 6. Sorten-Kaliber-Grenzen (Gramm; Konvention [untere, obere))
 

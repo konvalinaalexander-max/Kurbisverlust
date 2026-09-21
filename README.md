@@ -606,6 +606,26 @@ siehst du den Reinigungs-Trichter — „11 370 gelesen → −5 Overflow → �
 100 g → −2 183 Dubletten → 9 172 Kürbisse". Läuft die Datei nicht eindeutig auf
 einen Auftrag, landet sie in der **Warteschlange** statt geraten zu werden.
 
+Seit Runde U kennt die App **zwei Arten von Sortierdatei** (0082), und sie
+fragt beim Einlesen, welche vorliegt — der Dateiname schlägt die Antwort vor:
+
+- **Ein Sortierlauf.** Das Datum steht im Namen: `1614_07_10_26` (Charge, Tag,
+  Monat, Jahr). Der Trenner ist egal — `1614.07.10.26`, `1616 7 10 26`,
+  `1614-07-10-2026` werden alle gelesen, ebenso ältere Namen mit Uhrzeit.
+- **Die Sammeldatei einer Charge.** Sie heisst nur nach der Charge (`1614`),
+  und die Maschine hängt bei jedem Sortieren unten an. Dann wird **nur das
+  Delta** eingelesen — was schon drin ist, zählt nicht doppelt —, und statt
+  eines Zeitpunkts gibst du einen **Zeitraum** an. Daraus leitet die App den
+  Sortiertag ab und sagt, woher er stammt: aus einer Sortier-Arbeit in diesem
+  Zeitraum, aus dem Mittel mehrerer, aus der Mitte des Zeitraums, oder von
+  Hand gesetzt.
+
+Der Zeitstempel der Datei ist **kein Sortierdatum** — er ist der Moment des
+letzten Anhängens oder des Kopierens. Er zählt nur noch als obere Schranke.
+Wer vor 0082 eine Sammeldatei als Lauf eingelesen hat, findet sie in der
+Warteschlange mit dem Knopf **Als Sammeldatei umdeuten**: Die Kürbisse
+bleiben, nur die Deutung ändert sich.
+
 ---
 
 ## Zwei Webseiten: der Betrieb und das Beispiel

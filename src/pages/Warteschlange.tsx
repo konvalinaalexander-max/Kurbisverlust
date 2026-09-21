@@ -82,7 +82,9 @@ export default function Warteschlange() {
    * gewachsene Datei.
    */
   async function alsSammel(l: SortierLauf) {
-    const f = fenster[l.id] ?? { von: '', bis: '' }
+    // Dieselbe Vorbelegung wie im Formular. Stünde hier ein anderer
+    // Rückfallwert, schickte der Knopf etwas anderes ab, als im Feld steht.
+    const f = fenster[l.id] ?? vorbelegt(l)
     setLaeuft(l.id)
     try {
       const { data, error } = await supabase.rpc('lesung_als_sammel', {
@@ -145,7 +147,7 @@ export default function Warteschlange() {
         // Kam der Zeitpunkt nicht aus dem Dateinamen, hat ihn niemand
         // gemessen — dann ist der Verdacht „Sammeldatei" nicht abwegig.
         const geraten = l.datei_zeit_quelle !== 'dateiname'
-        const f = fenster[l.id] ?? { von: '', bis: alsFeld(l.datei_zeit) }
+        const f = fenster[l.id] ?? vorbelegt(l)
         const setzen = (teil: Partial<{ von: string; bis: string }>) =>
           setFenster(s => ({ ...s, [l.id]: { ...f, ...teil } }))
         return (
@@ -246,6 +248,13 @@ function kurz(wert: unknown): string {
   if (typeof wert !== 'string' || !wert) return 'unbekannt'
   return zeitpunkt(wert).slice(0, 10)
 }
+
+/**
+ * Das Zeitfenster, solange niemand es angefasst hat: offen nach unten (die
+ * Datenbank nimmt dann die vorige Lesung oder den Eingang der Charge), nach
+ * oben der Zeitstempel der Datei — später kann nichts sortiert worden sein.
+ */
+const vorbelegt = (l: SortierLauf) => ({ von: '', bis: alsFeld(l.datei_zeit) })
 
 /** Ein Zeitstempel als Vorbelegung für ein <input type="date">. */
 function alsFeld(wert: string | null): string {
