@@ -1,287 +1,355 @@
-# Die Demo: ein Knopf vor dem Login
+# Die Demo einrichten — Schritt für Schritt
 
-**Was am Ende dasteht:** Deine Webseite bleibt genau eine Webseite. Wer sich
-anmeldet — als Arbeiter mit Namen oder als Betriebsleiter mit E-Mail —
-arbeitet mit den echten Daten des Betriebs. Wer vorher unten auf der
-Anmeldeseite auf **„Demo ansehen"** drückt, landet in einer erfundenen
-Saison: gut 950 Paletten Eingang, rund 370 Arbeiten, Lieferungen,
-Lagerkontrollen, ein volles Dashboard. Dort darf er alles anfassen — Arbeiten
-eröffnen, wiegen, zählen, abschliessen — und alles wird mitgerechnet.
+**Was am Ende dasteht:** Auf deiner Webseite kommt unten auf der
+Anmeldeseite ein Knopf **„Demo ansehen"** dazu. Wer ihn drückt, landet in
+einer erfundenen Saison und darf dort alles anfassen. Deine echten Daten
+liegen in einer anderen Datenbank und werden dabei nicht berührt.
 
-**Warum eine zweite Datenbank sein muss:** Weil „anfassen dürfen" sonst heisst
-„in die echten Zahlen schreiben". Eine Demo, die in dieselbe Datenbank
-schreibt, ist keine Demo, sondern genau die Verschmutzung, die der Löschknopf
-gerade beseitigt hat. Die zweite Datenbank kostet nichts (Gratis-Stufe wie die
-erste) und ist hart getrennt: zwei Projekte, zwei Adressen, zwei Schlüssel.
-Die App baut ihre Verbindung beim Laden der Seite auf und redet danach mit
-genau einer von beiden.
+**Was du brauchst:** einen Browser. Sonst nichts.
 
-**Zeit:** rund 20 Minuten, davon zehn Warten.
+**Wie lange:** etwa 20 Minuten, davon 10 Minuten Warten.
 
-**Zwei Dinge, die du über die Gratis-Stufe wissen musst:**
+**Was es kostet:** nichts.
 
-* Sie erlaubt **zwei aktive Projekte** pro Organisation. Das echte und das
-  Demo-Projekt sind genau zwei. Wenn du früher schon eine eigene
-  Beispiel-Webseite nach [ZWEI_WEBSEITEN.md](ZWEI_WEBSEITEN.md) aufgesetzt
-  hast, wäre das dritte eines zu viel — dann nimm jenes Projekt als
-  Demo-Projekt und überspring Teil 1.
-* Ein Projekt, das **sieben Tage** nichts zu tun hatte, wird pausiert. Das
-  echte trifft das nie (dort wird gearbeitet); das Demo-Projekt schon. Beim
-  ersten Klick nach einer langen Pause kommt dann eine Netzwerk-Fehlermeldung.
-  Aufwecken: im Supabase-Dashboard das Projekt öffnen und **Restore**
-  drücken, ein bis zwei Minuten warten. Wenn du jemandem etwas zeigen
-  willst, weck die Demo lieber am Tag davor auf.
+Es sind 15 Schritte. Mach sie der Reihe nach. Nach jedem Schritt steht, was
+du sehen musst — stimmt es nicht, geh nicht weiter, sondern schau unten bei
+„Wenn etwas klemmt".
 
 ---
 
-## Was du am Ende hast
+## Teil A — Ein zweites Supabase-Projekt anlegen
 
-| | Die echte Seite | Die Demo dahinter |
-|---|---|---|
-| Adresse | dieselbe | dieselbe |
-| Datenbank | dein bisheriges Supabase-Projekt | ein zweites, neues |
-| Hinein kommt man | Anmelden (Name oder E-Mail) | Knopf „Demo ansehen" |
-| Oben steht | nichts Besonderes | gelbes Band „Demo — erfundene Daten" |
-| Daten | die des Betriebs | eine erfundene Saison |
-| Wer darf was | Arbeiter sehen die Halle, Betriebsleiter das Büro | jeder sieht beides |
-| Zurücksetzen | der Knopf „Alles löschen" in den Stammdaten | der Knopf im gelben Band |
+Du hast schon ein Supabase-Projekt: das mit den echten Daten. Jetzt kommt
+ein zweites daneben. Die beiden wissen nichts voneinander — das ist der
+ganze Trick.
+
+### Schritt 1 — Bei Supabase anmelden
+
+Geh auf **supabase.com** und melde dich an. Du landest auf einer Übersicht,
+in der dein bestehendes Projekt steht.
+
+### Schritt 2 — Neues Projekt anlegen
+
+Klick auf **New project** (grüner Knopf, oben rechts).
+
+Trag ein:
+
+* **Name:** `kurbis-demo`
+* **Database Password:** irgendein Passwort. Du brauchst es nie wieder.
+  Schreib es trotzdem auf.
+* **Region:** `Central EU (Frankfurt)`
+
+Dann unten auf **Create new project**.
+
+> **Du siehst:** eine Seite mit einem kreisenden Symbol und „Setting up
+> project". Das dauert zwei bis fünf Minuten. Warte, bis oben links neben
+> dem Projektnamen ein **grüner Punkt** steht.
+
+### Schritt 3 — Merken, wo du bist
+
+Oben links steht jetzt `kurbis-demo`. **Alles, was jetzt kommt, passiert in
+diesem Projekt.** Wenn du zwischendurch unsicher bist: schau oben links
+nach. Steht dort der Name deines echten Projekts, bist du falsch.
 
 ---
 
-## Teil 1 — Das zweite Supabase-Projekt anlegen
+## Teil B — Die Datenbank einrichten
 
-1. [supabase.com](https://supabase.com) öffnen, anmelden, **New project**.
-2. Name: etwas, das du wiedererkennst — zum Beispiel `kurbis-demo`.
-   Region: **Frankfurt (eu-central-1)** wie beim ersten.
-   Datenbank-Passwort: irgendeines, du brauchst es nicht wieder. Trotzdem
-   aufschreiben.
-3. **Create new project** und ein paar Minuten warten, bis oben links der
-   grüne Punkt steht.
+### Schritt 4 — Die Datei setup.sql holen
 
-> Verwechsle die beiden Projekte nicht. Das neue ist die Spielwiese. Im
-> alten liegen die echten Zahlen. Wenn du unsicher bist, welches du gerade
-> vor dir hast: oben links steht der Projektname.
+Öffne in einem **neuen Browser-Tab** diese Adresse:
 
----
+```
+https://raw.githubusercontent.com/konvalinaalexander-max/Kurbisverlust/claude/new-session-vrnnyo/supabase/setup.sql
+```
 
-## Teil 2 — Die Datenbank einrichten
+Du siehst eine sehr lange Textwüste. Das ist richtig so.
 
-Alles in diesem Teil passiert im **neuen** Projekt.
+Drück **Strg + A** (alles markieren), dann **Strg + C** (kopieren).
 
-1. Links auf **SQL Editor**, dann **New query**.
-2. Aus dem Code die Datei `supabase/setup.sql` öffnen, **alles** markieren,
-   kopieren, ins leere Fenster einfügen, **Run**.
-   Nach etwa einer halben Minute steht unten eine Zeile, die mit
-   *„Fertig. Die Datenbank steht: …"* beginnt und Chargen, Sorten, Tabellen
-   und Auswertungen zählt.
-3. Ein zweites Query aufmachen und diese zwei Zeilen ausführen:
+> **Auf dem Mac:** Cmd + A, dann Cmd + C.
+
+### Schritt 5 — setup.sql ausführen
+
+Zurück zum Supabase-Tab (`kurbis-demo`).
+
+1. Links in der schmalen Leiste auf **SQL Editor**.
+2. Auf **New query** oder das grosse `+`.
+3. Klick in das leere weisse Feld und drück **Strg + V** (einfügen).
+4. Unten rechts auf **Run** (oder Strg + Enter).
+
+> **Du siehst:** nach etwa 30 Sekunden erscheint unten ein Ergebnis mit
+> einer Zeile, die so anfängt: **„Fertig. Die Datenbank steht: 42 Chargen,
+> 11 Sorten, …"**
+>
+> Kommt stattdessen eine rote Fehlermeldung: du hast beim Kopieren nicht
+> alles erwischt. Schritt 4 nochmal, diesmal wirklich Strg + A zuerst.
+
+### Schritt 6 — Der Datenbank sagen, dass sie die Demo ist
+
+Das ist die wichtigste Zeile der ganzen Anleitung. Sie sorgt dafür, dass
+diese Datenbank Beispieldaten annimmt — und deine echte weiterhin nicht.
+
+1. Im SQL Editor wieder auf **New query**.
+2. Das hier hineinkopieren:
 
 ```sql
 update einstellung set wert = '"beispiel"'::jsonb
  where schluessel = 'betriebsmodus';
 ```
 
-   Damit sagt die Datenbank selbst, dass sie eine Beispieldatenbank ist.
-   Daran hängt zweierlei: das gelbe Band oben, und die Erlaubnis, überhaupt
-   Beispieldaten zu laden. In der Datenbank des Betriebs steht `echt`, und
-   dort werden Beispieldaten nicht nur versteckt, sondern von der Datenbank
-   selbst abgewiesen (Migration 0072).
+3. **Run**.
 
-4. Links auf **Authentication → Sign In / Providers**, ganz unten
-   **Anonymous sign-ins** einschalten. Ohne das kommt niemand in die Demo
-   hinein: sie hat kein Passwort und kein Konto, nur einen Namen.
+> **Du siehst:** unten links steht **Success. No rows returned**. Das ist
+> richtig — die Zeile ändert etwas, sie fragt nichts ab.
 
-5. Ebenfalls unter **Authentication → Sign In / Providers → Email**: den
-   Haken bei **Confirm email** herausnehmen. (Nur nötig, wenn du dir in der
-   Demo später ein E-Mail-Konto anlegen willst. Für den Demo-Knopf nicht.)
+### Schritt 7 — Anmelden ohne Konto freischalten
+
+Die Demo hat kein Passwort. Jemand tippt einen Namen ein und ist drin. Damit
+das geht, muss ein Schalter um.
+
+1. Links auf **Authentication**.
+2. Im Menü links auf **Sign In / Providers**.
+3. Runterscrollen bis **Anonymous sign-ins**.
+4. Den Schalter **einschalten** (er wird grün). Falls eine Rückfrage kommt:
+   bestätigen.
+
+> **Du siehst:** der Schalter steht auf grün / „Enabled".
+>
+> Ohne diesen Schritt kommt später niemand in die Demo hinein, und die App
+> sagt „Zugang ohne Konto noch nicht freigeschaltet".
 
 ---
 
-## Teil 3 — Die zwei Zugangswerte abholen
+## Teil C — Die zwei Zugangswerte abholen
 
-Die App muss zwei Dinge über die Demo-Datenbank wissen: **wo** sie steht und
-**womit** sie sich melden darf. Die beiden Werte stehen auf **zwei
-verschiedenen Seiten** — das ist die Stelle, an der man sucht. Alles hier im
-**neuen** Projekt.
+Die Webseite muss zwei Dinge über die neue Datenbank wissen: **wo** sie
+steht und **womit** sie sich melden darf. Beides holst du jetzt.
 
-### 3a — Der Schlüssel
+Nimm dir einen leeren Notizzettel (oder ein Textfeld). Da kommen zwei Werte
+hinein.
 
-1. Ganz unten links in der Symbolleiste auf das **Zahnrad** (*Project
-   Settings*).
+### Schritt 8 — Wert 1: die Adresse
+
+Du brauchst eine Adresse in genau dieser Form:
+
+```
+https://EINEZWANZIGSTELLIGEBUCHSTABENFOLGE.supabase.co
+```
+
+Die Buchstabenfolge steht **in der Adresszeile deines Browsers**, genau
+jetzt, während du im Projekt `kurbis-demo` bist. Dort steht etwas wie:
+
+```
+https://supabase.com/dashboard/project/qmhxkfyowwvsumcwssxe/auth/providers
+                                       └──── das brauchst du ────┘
+```
+
+Nimm das Stück zwischen `/project/` und dem nächsten Schrägstrich und bau
+daraus:
+
+```
+https://qmhxkfyowwvsumcwssxe.supabase.co
+```
+
+Das schreibst du auf den Notizzettel als **Wert 1**.
+
+> **Wichtig, zwei Fallen:**
+>
+> * **Nicht** `https://supabase.com/dashboard/…` nehmen. Das ist die
+>   Verwaltungsoberfläche, nicht die Datenbank.
+> * Findest du woanders eine Adresse, die auf **`/rest/v1/`** endet, ist das
+>   dieselbe Adresse mit einem Pfad dran. Lösch den Pfad weg:
+>
+>   ```
+>   https://qmhxkfyowwvsumcwssxe.supabase.co/rest/v1/   ← so steht es da
+>   https://qmhxkfyowwvsumcwssxe.supabase.co            ← so gehört es hin
+>   ```
+>
+>   Alles bis `.supabase.co`, kein Schrägstrich am Ende.
+
+### Schritt 9 — Wert 2: der Schlüssel
+
+1. Ganz unten links auf das **Zahnrad** (*Project Settings*).
 2. Im Menü links unter *CONFIGURATION* auf **API Keys**.
-3. Oben siehst du zwei Reiter:
-   `Publishable and secret API keys` und `Legacy anon, service_role API keys`.
-4. Auf dem ersten Reiter steht der Abschnitt **Publishable key** mit einer
-   Zeile namens `default`. Der Schlüssel beginnt mit `sb_publishable_`;
-   rechts davon ist ein kleines **Kopier-Symbol** (zwei übereinanderliegende
-   Rechtecke). Klick darauf.
+3. Jetzt gibt es zwei Möglichkeiten, und **beide sind richtig**:
 
-Das ist `VITE_DEMO_SUPABASE_ANON_KEY`.
+   **Fall A — du siehst einen Abschnitt „Publishable key".**
+   Darin eine Zeile `default` mit einem Schlüssel, der mit
+   `sb_publishable_` anfängt. Rechts davon ein Kopier-Symbol (zwei
+   übereinanderliegende Rechtecke). Draufklicken.
 
-> **Du findest keinen „Publishable key"?** Das ist normal und kein Problem.
-> Es gibt drei Fälle, und alle drei haben dieselbe Lösung:
+   **Fall B — du siehst keinen.** Völlig normal bei älteren Projekten.
+   Klick oben auf den Reiter **`Legacy anon, service_role API keys`** (oder,
+   falls die Seite bei dir schlicht **API** heisst, schau in der Liste
+   `Project API keys` nach). Nimm dort die Zeile mit der Beschriftung
+   **`anon`** **`public`**. Der Schlüssel ist sehr lang und fängt mit `eyJ`
+   an. Kopier-Symbol daneben, draufklicken.
+
+Das ist **Wert 2** für deinen Notizzettel.
+
+> **Die App nimmt beide Sorten.** Sie prüft nur, dass es nicht der geheime
+> ist.
 >
-> * Dein Projekt ist älter als das neue Schlüsselsystem und hat noch gar
->   keine publishable keys.
-> * Die Seite heisst bei dir **API** statt **API Keys** und zeigt eine Liste
->   `Project API keys` statt Reiter.
-> * Der Reiter ist da, aber der Abschnitt darunter ist leer.
->
-> **Nimm dann den Schlüssel mit der Beschriftung `anon` `public`.** Er steht
-> im Reiter *Legacy anon, service_role API keys* — oder, in der älteren
-> Oberfläche, gleich in der Liste. Er beginnt mit `eyJ` und ist sehr lang
-> (mehrere hundert Zeichen, mit zwei Punkten darin).
->
-> **Die App nimmt beide.** Sie prüft beim Start nur, dass es *nicht* der
-> geheime ist; ob `sb_publishable_…` oder `eyJ…` ist ihr gleich. Der
-> `anon public` ist genau derselbe Schlüssel, den deine echte Webseite schon
-> benutzt — nur eben der des Demo-Projekts.
+> **Finger weg** von allem, wo **`secret`** oder **`service_role`** steht.
+> Solche Schlüssel umgehen sämtliche Schutzregeln und gehören nie in eine
+> Webseite. Erkennungszeichen für die richtigen: Supabase schreibt daneben
+> „can be safely shared publicly".
 
-> **Finger weg vom Abschnitt darunter.** „Secret keys" (beginnt mit
-> `sb_secret_`) und `service_role` umgehen sämtliche Zugriffsregeln und
-> gehören niemals in eine Webseite. Die App erkennt das und verweigert den
-> Start mit einer deutlichen Meldung — verlass dich aber lieber nicht darauf.
->
-> Bei den richtigen Schlüsseln steht in Supabase übrigens „can be safely
-> shared publicly". Das ist das Erkennungszeichen.
+### Schritt 10 — Kurz gegenprüfen
 
-### 3b — Die Adresse der Datenbank
+Schau auf deinen Notizzettel. Wert 1 muss die Kennung des **neuen**
+Projekts enthalten. Wenn du gleich bei Cloudflare bist, siehst du dort den
+Wert `VITE_SUPABASE_URL` stehen — das ist dein **echtes** Projekt. Die
+beiden Kennungen müssen **verschieden** sein.
 
-Gesucht ist eine Adresse dieser Form — mehr nicht:
-
-```
-https://DEINE-PROJEKT-KENNUNG.supabase.co
-```
-
-Die Projekt-Kennung ist eine zwanzigstellige Buchstabenfolge. Sie steht an
-drei Stellen, und alle drei geben dasselbe; nimm die, die du zuerst siehst.
-
-**1. In der Adresszeile deines Browsers.** Dort steht gerade etwas wie:
-
-```
-supabase.com/dashboard/project/qaryvviqdjnxrukpgdn/settings/api-keys
-                               └────── das ist deine Projekt-Kennung ──────┘
-```
-
-Nimm das Stück zwischen `/project/` und dem nächsten `/` und baue daraus:
-
-```
-https://DEINE-KENNUNG.supabase.co
-```
-
-Für die Kennung oben wäre das `https://qaryvviqdjnxrukpgdn.supabase.co`.
-
-**2. Unter *INTEGRATIONS* → Data API.** Dort steht die Adresse ganz oben. Je
-nach Fassung der Oberfläche heisst das Feld **Project URL**, **API URL** oder
-**RESTful endpoint** — und in zwei von drei Fällen hängt ein Pfad daran:
-
-```
-https://qmhxkfyowwvsumcwssxe.supabase.co/rest/v1/   ← so steht es da
-https://qmhxkfyowwvsumcwssxe.supabase.co            ← so gehört es eingetragen
-```
-
-Lösch also alles ab `.supabase.co` weg, auch den Schrägstrich am Ende. Den
-Pfad hängt der Supabase-Client selbst an; gibst du ihn mit, sucht er später
-unter `/rest/v1/rest/v1/…` und findet nichts. Die App startet in dem Fall gar
-nicht, sondern sagt „Die Project URL sieht nicht richtig aus" — das kostet
-dich aber ein Deployment, bis du es siehst.
-
-**3. Zahnrad → Settings → General.** Dort heisst die Kennung **Project ID**
-oder **Reference ID**. Daraus baust du `https://KENNUNG.supabase.co`.
-
-Das Ergebnis ist `VITE_DEMO_SUPABASE_URL`.
-
-> **Nicht die ganze Adresszeile kopieren.** `https://supabase.com/dashboard/…`
-> ist die Adresse der *Verwaltungsoberfläche*, nicht die der Datenbank. Die
-> App sagt dir das beim Start, aber es kostet eine Runde.
-
-> **Und bitte zweimal hinschauen, ob du im richtigen Projekt bist.** Oben
-> links steht der Projektname. Kommen hier die Werte des *echten* Projekts
-> heraus, zeigt die Demo später die Daten des Betriebs — sie schreibt dann
-> zwar nichts kaputt (der Echtmodus weist Beispieldaten ab), aber der Sinn
-> ist dahin.
-
-Schreib beide Werte auf. Im nächsten Teil werden sie gebraucht.
+Sind sie gleich, warst du im falschen Projekt. Dann Schritt 3 nochmal.
 
 ---
 
-## Teil 4 — Der Webseite die Demo beibringen
+## Teil D — Der Webseite die Demo beibringen
 
-Bei **Cloudflare**, in dem Projekt, das deine Webseite ausliefert:
+### Schritt 11 — Die zwei Werte bei Cloudflare eintragen
 
-1. **Settings → Environment variables → Add variable**, zweimal:
+1. Geh auf **dash.cloudflare.com** und öffne das Projekt, unter dem deine
+   Webseite läuft (`kurbisverlust`).
+2. **Settings** → **Environment variables** (oder *Variables and Secrets*).
+3. **Add variable**, und zwar zweimal:
 
-   | Name | Wert |
+   | Variable name | Value |
    |---|---|
-   | `VITE_DEMO_SUPABASE_URL` | die Project URL aus Teil 3 |
-   | `VITE_DEMO_SUPABASE_ANON_KEY` | der Publishable key aus Teil 3 |
+   | `VITE_DEMO_SUPABASE_URL` | Wert 1 vom Notizzettel |
+   | `VITE_DEMO_SUPABASE_ANON_KEY` | Wert 2 vom Notizzettel |
 
-   Als Typ **Text** wählen, nicht *Secret*: Der Wert muss beim Bauen in die
-   Seite eingesetzt werden, und Secrets stehen dem Bauvorgang nicht zur
-   Verfügung. Öffentlich ist er ohnehin — er steckt in jeder ausgelieferten
-   Seite und kann nur das, was die Zugriffsregeln erlauben.
+4. Als Typ **Text** wählen, **nicht** *Secret*. (Grund: der Wert muss beim
+   Bauen der Seite eingesetzt werden, und an Secrets kommt der Bauvorgang
+   nicht heran. Geheim ist er ohnehin nicht.)
+5. **Save**.
 
-2. **Deployments → beim obersten Eintrag das Menü ⋯ → Retry deployment.**
-   Ohne diesen Schritt ändert sich nichts: Die Werte kommen beim *Bauen* in
-   die Seite, nicht beim Laden.
+> **Die Namen müssen exakt stimmen**, mit `DEMO` in der Mitte. Schreib sie
+> ab, tipp sie nicht frei.
 
-3. Nach ein bis zwei Minuten die Webseite neu laden (F5). Unten auf der
-   Anmeldeseite steht jetzt **„Demo ansehen — erfundene Saison, nichts davon
-   ist der Betrieb"**.
+### Schritt 12 — Neu veröffentlichen
 
-Fehlen die beiden Werte oder ist einer leer, erscheint der Knopf nicht. Das
-ist Absicht: Ein Knopf, der beim Drücken eine Fehlermeldung zeigt, ist
-schlimmer als keiner.
+Das Eintragen allein bewirkt nichts. Die Werte kommen beim **Bauen** in die
+Seite.
 
----
+1. Links auf **Deployments**.
+2. Beim **obersten** Eintrag rechts auf das Menü **⋯**.
+3. **Retry deployment**.
+4. Ein bis zwei Minuten warten, bis der Eintrag auf **Success** steht.
 
-## Teil 5 — Die Saison hineinlegen
+### Schritt 13 — Nachschauen
 
-Jetzt kommt der schönste Teil, weil er ohne SQL geht:
+Öffne deine Webseite und drück **F5** (Seite neu laden).
 
-1. Auf der Anmeldeseite **„Demo ansehen"** drücken. Die Seite lädt neu und
-   zeigt den Demo-Eingang.
-2. Einen Namen eintippen (`Gast` steht schon da) und **Demo starten**.
-3. Du bist drin — und zwar als Betriebsleiter. Das macht die Datenbank so,
-   weil sie eine Beispieldatenbank ist; in der Datenbank des Betriebs bleibt
-   ein anonymer Zugang ein Arbeiter.
-4. Das Dashboard ist noch leer und bietet eine Karte **„Erst mal anschauen,
-   wie es aussieht"** an. Darin: **Demo-Saison laden**. Das dauert eine
-   Sekunde, danach rechnet die App die Auswertung in fünf Schritten durch
-   (etwa zehn Sekunden).
-
-Fertig. Ab jetzt zeigt die Demo eine volle Saison.
-
-> **Lieber über den SQL-Editor?** Geht auch — aber erst, nachdem sich
-> mindestens einmal jemand angemeldet hat (die Saison braucht einen
-> Erfasser):
-> ```sql
-> select demo_daten_laden();
-> select auswertung_aktualisieren();
-> ```
+> **Du siehst:** unten auf der Anmeldeseite, unter dem Betriebsleiter-Login,
+> steht jetzt in kleiner Schrift:
+> **„Demo ansehen — erfundene Saison, nichts davon ist der Betrieb"**.
+>
+> Steht da nichts, siehe unten „Wenn etwas klemmt".
 
 ---
 
-## Teil 6 — Aufräumen, wenn andere darin gespielt haben
+## Teil E — Die Demo-Saison hineinlegen
 
-In der Demo darf jeder alles. Nach ein paar Besuchern steht dort Unsinn:
-halbe Arbeiten, vertippte Gewichte, drei angefangene Waschgänge.
+Dieser Teil geht ohne SQL. Einfach klicken.
 
-Oben im gelben Band steht **„Demo zurücksetzen"**. Ein Druck, eine
-Rückfrage, und die Saison wird neu aufgebaut — dieselbe wie am ersten Tag.
-Sie ist reproduzierbar: gleiche Chargen, gleiche Paletten, gleiche Zahlen.
-Nur die Tage wandern mit, damit die Demo nicht altert.
+### Schritt 14 — In die Demo gehen
 
-Daneben steht **„Demo verlassen"** — zurück zur Anmeldung des Betriebs.
+1. **„Demo ansehen"** drücken. Die Seite lädt neu.
+2. Jetzt siehst du oben ein **gelbes Band** und darunter „Kürbis-Verlust ·
+   Demo".
+3. Ein Name steht schon da (`Gast`). Drück **Demo starten**.
+
+> **Du siehst:** die App, wie du sie kennst — aber leer, und mit dem gelben
+> Band oben. Du bist als Betriebsleiter drin.
+
+### Schritt 15 — Die Saison laden
+
+Auf dem leeren Lagermanagement steht eine Karte **„Erst mal anschauen, wie
+es aussieht"**. Darin ein Knopf **„Demo-Saison laden"**. Drück ihn.
+
+> **Du siehst:** nach ein, zwei Sekunden eine Meldung „Demo-Saison steht:
+> 951 Paletten in 42 Chargen, 377 Arbeiten …". Danach rechnet die App etwa
+> zehn Sekunden.
+
+**Fertig.** Lade die Seite einmal neu — jetzt ist jeder Bildschirm gefüllt:
+362 Tonnen Eingang, das Lager nach Kaliber, die Verlustursachen, die
+Lagerkontrollen, die Arbeiter-Masken.
 
 ---
 
-## Wenn du die Demo öffentlich zeigst
+## Teil F — Was du damit jetzt tun kannst
 
-Die Chargen im Stammdatenregister tragen die **echten Schlagnamen** deiner
-Anbauplanung, und einige davon sind Namen von Produzenten. Für dich intern
-ist das richtig so. Wenn du die Demo jemandem zeigst, der das nicht sehen
-soll, ersetze sie in der **Demo-Datenbank** (nur dort!) durch neutrale:
+**Herumklicken und ausprobieren.** Alles ist erfunden. Eröffne Arbeiten,
+wiege, zähle, schliess ab. Es wird mitgerechnet wie im Echtbetrieb.
+
+**Beide Seiten anschauen.** Oben links auf den Kürbis → du bist in der
+Halle (Arbeiter). Über die Reiter links → du bist im Büro
+(Betriebsleiter). In der Demo darfst du beides.
+
+**Jemandem zeigen.** Schick ihm einfach deine normale Adresse. Er drückt
+„Demo ansehen" und ist drin — ohne Konto, ohne Passwort.
+
+**Aufräumen, wenn jemand Unsinn hineingetippt hat.** Oben im gelben Band:
+**„Demo zurücksetzen"** → Rückfrage → die Saison wird neu aufgebaut,
+identisch zum ersten Tag.
+
+**Wieder raus.** Oben im gelben Band: **„Demo verlassen"**.
+
+---
+
+## Wenn etwas klemmt
+
+**„Demo ansehen" steht nicht auf der Anmeldeseite.**
+Entweder fehlt einer der beiden Werte bei Cloudflare, oder einer ist leer,
+oder Schritt 12 (Retry deployment) wurde vergessen. Prüf die Schreibweise
+der Namen — `VITE_DEMO_SUPABASE_URL` und `VITE_DEMO_SUPABASE_ANON_KEY`.
+
+**„In der Demo-Datenbank ist der Zugang ohne Konto noch nicht freigeschaltet."**
+Schritt 7 fehlt oder wurde im falschen Projekt gemacht.
+
+**„Die Datenbank steht auf 0080, die App erwartet 0081."**
+Im Demo-Projekt fehlt die aktuelle `setup.sql`. Schritt 4 und 5 wiederholen.
+Die Datei darf beliebig oft laufen und nimmt nichts weg.
+
+**„Diese Datenbank läuft im Echtmodus …" beim Laden der Demo-Saison.**
+Schritt 6 fehlt oder wurde im falschen Projekt gemacht.
+
+**„Invalid API key" oder „Die Zugangsdaten stimmen nicht."**
+Der Schlüssel gehört zum anderen Projekt, oder beim Kopieren wurde nur ein
+Teil erwischt. Nimm das Kopier-Symbol, nicht die Maus.
+
+**„Die Project URL sieht nicht richtig aus."**
+Bei Wert 1 hängt ein Pfad dran (`/rest/v1/`) oder es ist die
+`supabase.com/dashboard/…`-Adresse. Siehe Schritt 8.
+
+**Es kommt nur eine Netzwerk-Fehlermeldung.**
+Das Demo-Projekt wurde nach sieben ruhigen Tagen pausiert — das macht
+Supabase auf der Gratis-Stufe automatisch. Projekt im Supabase-Dashboard
+öffnen, **Restore** drücken, ein bis zwei Minuten warten. Wenn du jemandem
+etwas zeigen willst: weck die Demo am Tag davor auf.
+
+**Die Demo zeigt die echten Daten des Betriebs.**
+Beide Werte zeigen auf das alte Projekt. Schritt 8 bis 12 nochmal, diesmal
+im Projekt `kurbis-demo`.
+
+**Supabase lässt kein drittes Projekt zu.**
+Die Gratis-Stufe erlaubt zwei aktive Projekte. Hast du früher schon eine
+eigene Beispiel-Webseite aufgesetzt, nimm jenes Projekt als Demo-Projekt
+und überspring Teil A.
+
+---
+
+## Zum Schluss: wenn du die Demo öffentlich zeigst
+
+Die Chargen tragen die **echten Schlagnamen** deiner Anbauplanung, und
+einige davon sind Namen von Produzenten. Für dich intern ist das richtig
+so; für ein Publikum vielleicht nicht.
+
+Wenn du sie neutral haben willst, führ **im Demo-Projekt** (nur dort!) im
+SQL Editor das hier aus:
 
 ```sql
 -- Nur im Demo-Projekt ausführen. In der echten Datenbank niemals.
@@ -291,55 +359,23 @@ update charge c set schlag = 'Feld ' || t.n
  where t.schlag = c.schlag;
 ```
 
-Die Abnehmer der Demo sind ohnehin erfunden — *Nordmarkt Genossenschaft*,
-*Talhof Bio AG*, *Grünwerk Handel*, *Feldfrisch Ost*. Kein Kunde des
-Betriebs steht in der Demo.
+Aus „Illnau Gross" wird dann „Feld 7". Die Abnehmer der Demo sind ohnehin
+erfunden — *Nordmarkt Genossenschaft*, *Talhof Bio AG*, *Grünwerk Handel*,
+*Feldfrisch Ost*. Kein Kunde des Betriebs steht in der Demo.
 
 ---
 
-## Was sicher ist, und woran man es sieht
+## Warum das sicher ist
 
 * **Die echte Datenbank kann keine Demo-Daten bekommen.** Sie steht auf
   `betriebsmodus = 'echt'`, und dann weisen die Tabellen selbst jede
-  Beispielzeile ab — als Auslöser in der Datenbank, nicht als Prüfung in der
-  App (0072). Selbst wer die Funktion von Hand im SQL-Editor aufruft, kommt
-  nicht durch.
+  Beispielzeile ab — als Regel in der Datenbank, nicht als Prüfung in der
+  App. Selbst wer die Funktion von Hand im SQL-Editor aufruft, kommt nicht
+  durch.
 * **Die Demo kann nicht in die echte Datenbank schreiben.** Sie kennt deren
-  Adresse nicht. Im Browser steht ein Merkzettel, welche der beiden gilt; die
-  Verbindung wird beim Laden der Seite einmal aufgebaut und danach nicht mehr
-  gewechselt.
+  Adresse nicht. Die Verbindung wird beim Laden der Seite einmal gewählt und
+  danach nicht mehr gewechselt.
 * **Man sieht immer, wo man ist.** In der Demo steht auf jedem Bildschirm
   oben das gelbe Band. Es lässt sich nicht wegklicken.
 * **Der Löschknopf des Betriebs ist woanders.** „Alles löschen" steht in den
   Stammdaten und betrifft immer nur die Datenbank, in der man gerade ist.
-
----
-
-## Wenn etwas klemmt
-
-**„Demo ansehen" erscheint nicht.**
-Die beiden `VITE_DEMO_…`-Werte fehlen, sind leer, oder das Deployment wurde
-nach dem Eintragen nicht wiederholt. Cloudflare → Deployments → ⋯ → Retry
-deployment.
-
-**„In der Demo-Datenbank ist der Zugang ohne Konto noch nicht freigeschaltet."**
-Teil 2, Schritt 4: Anonymous sign-ins im *neuen* Projekt einschalten.
-
-**„Die Datenbank steht auf 0080, die App erwartet 0081."**
-Im Demo-Projekt fehlt die aktuelle `setup.sql`. Teil 2, Schritt 2 wiederholen —
-sie darf beliebig oft laufen und nimmt nichts weg.
-
-**„Diese Datenbank läuft im Echtmodus …" beim Laden der Demo-Saison.**
-Teil 2, Schritt 3 wurde übersprungen oder im falschen Projekt ausgeführt.
-
-**Invalid API key.**
-Der Schlüssel gehört zum anderen Projekt, oder beim Kopieren wurde nur ein
-Teil erwischt. Neben dem Schlüssel steht in Supabase ein Kopier-Symbol.
-
-**Es kommt eine Netzwerk-Fehlermeldung, sonst nichts.**
-Wahrscheinlich ist das Demo-Projekt nach sieben ruhigen Tagen pausiert. Im
-Supabase-Dashboard öffnen und **Restore** drücken.
-
-**Die Demo zeigt die Daten des Betriebs.**
-Dann zeigen beide `VITE_DEMO_…`-Werte auf das alte Projekt. Teil 3 und 4
-nochmals, diesmal im neuen Projekt.
