@@ -161,9 +161,13 @@ const BILDSCHIRME = [
       // Danach je Station (0061): die Wiege-Erinnerung, zu klein / zu gross,
       // die fertigen Paletten — und zuletzt die Chargenfrage. Jeder Schritt
       // wird genommen, wie er kommt; keiner ist auf jeder Station da.
-      for (let i = 0; i < 5; i++) {
-        await p.locator('#aus-nichts, #charge-ja, .haupt-unten button').first().waitFor()
+      // Runde T: „Palox zwischendurch geleert?" ist ein eigener, blockierender
+      // Schritt — „Weiter" bleibt grau, bis Nein oder Ja gedrückt ist. Und
+      // die Gesamtzahl der fertigen Paletten ist ein Schritt mehr.
+      for (let i = 0; i < 7; i++) {
+        await p.locator('#aus-nichts, #geleert-nein, #charge-ja, .haupt-unten button').first().waitFor()
         if (await p.locator('#charge-ja').count()) break
+        if (await p.locator('#geleert-nein').count()) { await p.locator('#geleert-nein').click(); await p.waitForTimeout(300) }
         if (await p.locator('#aus-nichts').count()) { await p.locator('#aus-nichts').click(); await p.waitForTimeout(300) }
         await p.locator('.haupt-unten button:not([disabled])').first().click()
         await p.waitForTimeout(300)
