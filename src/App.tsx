@@ -3,9 +3,10 @@ import { NavLink, Navigate, Route, Routes, useParams } from 'react-router-dom'
 import { ZAbmelden, ZBalken, ZKuerbis, ZListe, ZLupe, ZRegler, ZSprache, ZUhr } from './components/Zeichen'
 import { useAuth } from './auth/AuthProvider'
 import { SprachAuswahl, useSprache } from './sprache/SprachProvider'
-import { istKonfiguriert, konfigurationsProblem } from './lib/supabase'
+import { imDemoModus, istKonfiguriert, konfigurationsProblem } from './lib/supabase'
 import { Avatar, Hinweis, Lade } from './components/Bausteine'
 import { useBetriebsmodus } from './lib/betriebsmodus'
+import DemoBand from './components/DemoBand'
 import Anmelden from './pages/Anmelden'
 import Start from './pages/Start'
 import NeueArbeit from './pages/NeueArbeit'
@@ -30,7 +31,13 @@ export default function App() {
   const { t, sprache, abfrageOffen, abfrageOeffnen } = useSprache()
   // 0072: Auf der Beispiel-Webseite steht das dauerhaft oben. Nicht als
   // Hinweis, den man wegklickt — als Band, das nicht verschwindet.
+  // 0081: Wer über den Demo-Knopf hereinkam, bekommt dasselbe Band mit zwei
+  // Knöpfen darin — zurücksetzen und verlassen. Die Demo-Datenbank steht
+  // ohnehin auf 'beispiel'; der Demo-Eingang ist nur der bequemere Weg
+  // hinein, deshalb hat er Vorrang bei der Anzeige.
   const modus = useBetriebsmodus()
+  const band: 'demo' | 'beispiel' | null =
+    imDemoModus ? 'demo' : modus === 'beispiel' ? 'beispiel' : null
 
   if (konfigurationsProblem) {
     return (
@@ -90,8 +97,9 @@ export default function App() {
   )
 
   return (
-    <div className={`app ${istAdmin ? 'buero' : 'halle'}${modus === 'beispiel' ? ' mit-band' : ''}`}>
-      {modus === 'beispiel' && (
+    <div className={`app ${istAdmin ? 'buero' : 'halle'}${band ? ' mit-band' : ''}`}>
+      {band === 'demo' && <DemoBand />}
+      {band === 'beispiel' && (
         <div className="beispiel-band kein-druck" role="status">{t('beispielBand')}</div>
       )}
       {istAdmin && (

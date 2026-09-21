@@ -235,11 +235,18 @@ case "$DEMO" in
 esac
 UEBRIG="$(psql "$URL" -v ON_ERROR_STOP=1 -qtA -1 -f "$HIER/../demo_daten_entfernen.sql" | tail -1)"
 echo "   $UEBRIG"
+# Seit 0081 legt die Demo auch Kontrollpaletten, deren Wägungen und die
+# monatlichen Verkaufsdateien an. Wer eine neue Tabelle füllt und das
+# Entfernen vergisst, soll genau hier auffliegen — nicht erst, wenn jemand
+# sich wundert, warum in der leeren Datenbank noch neun Paletten stehen.
 VERWAIST="$(psql "$URL" -qtA -c "select (select count(*) from verdunstung_wiegung)
   + (select count(*) from ausgang_wiegung) + (select count(*) from sortier_gewicht)
-  + (select count(*) from schimmel_messung)")"
+  + (select count(*) from schimmel_messung) + (select count(*) from kontrollpalette)
+  + (select count(*) from kontrollpalette_wiegung) + (select count(*) from ausgang_datei)
+  + (select count(*) from charge where ernte_abgeschlossen_ts is not null)")"
 [ "$VERWAIST" = "0" ] || { echo "   FEHLER: $VERWAIST verwaiste Zeilen nach dem Entfernen"; exit 1; }
-echo "   nichts Verwaistes zurückgeblieben"
+echo "   nichts Verwaistes zurückgeblieben (auch keine Kontrollpalette,"
+echo "   keine Verkaufsdatei und kein gesetzter Erntestand)"
 
 echo
 echo "── 4b. Aktualisierung mit Paletten, die schwerer geworden sind ─"

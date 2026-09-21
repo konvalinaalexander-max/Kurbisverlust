@@ -650,6 +650,13 @@ Bevor die erste echte Palette gezählt ist, zeigt die Auswertung nichts — man
 kann also nicht beurteilen, was am Ende herauskommt. Dafür gibt es Demo-Daten:
 eine vollständige, erfundene Saison zum Durchklicken.
 
+> **Zum Herzeigen gibt es seit Runde S den bequemeren Weg:** ein Knopf
+> **„Demo ansehen"** unten auf der Anmeldeseite, der in eine zweite Datenbank
+> führt. Wer ihn drückt, darf dort alles anfassen; die echten Zahlen bleiben
+> unberührt, und ein gelbes Band sagt auf jedem Bildschirm, wo man ist.
+> Einrichtung in [`docs/DEMO.md`](docs/DEMO.md), rund 20 Minuten. Der Rest
+> dieses Abschnitts beschreibt denselben Datensatz von innen.
+
 **Voraussetzung:** Dein Betriebsleiter-Konto muss existieren (Schritt 7).
 
 **In der App, ein Klick:** Melde dich als Betriebsleiter an und geh auf
@@ -666,19 +673,41 @@ aus 0072: Beispieldaten gehören auf die Beispiel-Webseite. Wie man beides
 nebeneinander betreibt, steht in
 [`docs/ZWEI_WEBSEITEN.md`](docs/ZWEI_WEBSEITEN.md).
 
-Du bekommst die Saison der Anbauplanung 2026 in halber Grösse: rund 320 t
-Eingang, 840 Paletten in 36 Chargen, gut 300 Arbeiten (Sortieren mit CSV und
-gezählten Kisten, Waschen je Kaliber, Waschen + Sortieren von Hand, 160 Fax
-mit gewogenem Faulem), 32 Sortierläufe, 24 Lagerkontrollen und knapp 190
-Lieferungen, verschränkt über Wochen. Kein FIFO: die Paletten einer Charge
-kommen über Tage bis Wochen herein und gehen in der Reihenfolge hinaus, in
-der man an sie herankommt. Dazu absichtlich die Sonderfälle jeder Saison —
-eine abgebrochene Arbeit, ein Zahlendreher, eine vergessene Palox-Ablesung,
-ein Waschgang ohne gezählte Kisten, eine CSV in der Warteschlange, ein
-Zetteldatum ohne Palette — und drei laufende Arbeiten von heute, damit die
-Arbeiter-Masken nicht leer sind. Die Demo spielt relativ zu heute (Ernte vor
-rund 200 Tagen) und altert deshalb nicht; die Kalenderdaten sind entsprechend
-verschoben. Zweimal laden gibt zweimal dieselbe Saison.
+Du bekommst die ganze Anbauplanung 2026: rund 360 t Eingang, 950 Paletten in
+allen 42 Chargen, gut 370 Arbeiten (Sortieren mit CSV und gezählten Kisten,
+Waschen je Kaliber, Waschen + Sortieren von Hand, knapp 200 Fax), 40
+Sortierläufe, 220 Lieferungen und sechs monatliche Verkaufsdateien mit Erlös.
+Kein FIFO: die Paletten einer Charge kommen über Tage bis Wochen herein und
+gehen in der Reihenfolge hinaus, in der man an sie herankommt.
+
+**Seit Runde S zeigt die Demo jede Fähigkeit, die die Masken haben** (0081).
+Vorher fehlten neun davon — gemessen, nicht geschätzt: drei Sichten der
+Auswertung blieben leer, zwei Tabellen auch, fünfzehn Spalten wurden nie
+gefüllt. Jetzt sind dabei: **Kontrollpaletten**, die über Wochen immer wieder
+auf dieselbe Waage kommen (neun Stück, knapp 90 Wägungen, daraus 70 brauchbare
+Verdunstungsraten ohne jede Annahme); **gezählte fertige Paletten** an zwei von
+drei Arbeiten; die **Verkaufsdatei als Datei**, mit zwei Abweichungen zwischen
+Datei und Lieferung; die **gegriffene Eingangspalette** (und die Arbeiten, die
+stattdessen nur das Zetteldatum abtippen — alle fünf Herkunftsarten der
+Palettenmasse kommen vor); **eigenes Kaliber** beim Waschen, **Durchsatz statt
+Paletten**, **Schichtwechsel**, **wie die Kontrollpalette gegriffen wurde**
+(alle drei Arten), **wie viel davon faul war**, und welche Chargen **fertig
+geerntet** sind und welche noch laufen.
+
+Dazu absichtlich die Sonderfälle jeder Saison — eine abgebrochene Arbeit, ein
+Zahlendreher, eine vergessene Palox-Ablesung, ein Waschgang ohne Nenner, eine
+CSV in der Warteschlange, ein Zetteldatum ohne Palette — und laufende Arbeiten
+von heute, damit die Arbeiter-Masken nicht leer sind. Die Demo spielt relativ
+zu heute (Ernte vor rund 215 Tagen) und altert deshalb nicht.
+
+**Zweimal laden gibt zweimal dieselbe Saison** — seit 0081 stimmt dieser Satz
+auch. Vorher hing der Schnitt „was ist schon passiert" an `now()` und an den
+laufenden Nummern der Sequenzen; zwei Läufe im Abstand von Minuten ergaben 367
+und 376 Arbeiten. Jetzt liegt die Grenze auf einer festen Stunde des Tages, und
+kein Zufallsschlüssel hängt mehr an einer Zeilennummer.
+
+Die Abnehmer der Demo sind erfunden (*Nordmarkt*, *Talhof*, *Grünwerk*,
+*Feldfrisch*) — kein Kunde des Betriebs steht in den Beispieldaten.
 
 **Schritt für Schritt, wenn du es zum ersten Mal machst:**
 

@@ -4870,3 +4870,161 @@ begin
 end $$;
 
 select '——— 0080 Tabula rasa geprüft ———' as ergebnis;
+
+-- =====================================================================
+-- 0081 — Die Demo-Saison zeigt, was die App heute kann
+--
+-- Dieser Block steht bewusst nach 0080: dort wurde die Erfassung geleert,
+-- die Datenbank ist also sauber, und die Demo-Saison kann hier ohne
+-- Vermischung mit den Fixtures der früheren Blöcke geladen werden. Am Ende
+-- wird sie wieder entfernt, damit die Datenbank so leer zurückbleibt, wie
+-- 0080 sie hinterlassen hat.
+--
+-- Geprüft wird nicht, dass die Saison „gut aussieht" — das kann eine
+-- Maschine nicht. Geprüft wird, dass jede Fähigkeit, die die Masken haben,
+-- in den Daten auch vorkommt. Denn genau das war der Mangel: die Demo zeigte
+-- ein Werkzeug, das weniger kann als das echte.
+-- =====================================================================
+do $$
+declare
+  v_txt text;
+  v_a1 int; v_a2 int; v_p1 int; v_p2 int; v_k1 int; v_k2 int; v_s1 numeric; v_s2 numeric;
+  v_n int;
+begin
+  update einstellung set wert = '"beispiel"'::jsonb where schluessel = 'betriebsmodus';
+  select demo_daten_laden() into v_txt;
+
+  -- (a) Die drei Sichten, die vor 0081 leer blieben, haben Inhalt.
+  select count(*) into v_n from v_kontrollpalette_rate;
+  assert v_n > 20, format('0081 (a1): v_kontrollpalette_rate hat nur %s Zeilen', v_n);
+  select count(*) into v_n from v_kontrollpalette_rate where verwendbar;
+  assert v_n > 10, format('0081 (a2): nur %s brauchbare Raten aus Kontrollpaletten', v_n);
+  select count(*) into v_n from v_auftrag_fertige_masse;
+  assert v_n > 20, format('0081 (a3): v_auftrag_fertige_masse hat nur %s Zeilen', v_n);
+  select count(*) into v_n from v_ausgang_pruef;
+  assert v_n >= 1, '0081 (a4): der Abgleich Datei gegen Lieferung findet keine einzige Abweichung';
+
+  -- (b) Keine Sicht der Auswertung bleibt leer. Das ist die schärfste Form
+  --     der Frage „zeigt die Demo alles?", und sie prüft sich selbst mit:
+  --     kommt morgen eine Sicht dazu, die die Demo nicht füllt, fällt es hier auf.
+  perform auswertung_aktualisieren();
+  declare rv record; v_leer text := '';
+  begin
+    for rv in select cl.relname as s from pg_class cl join pg_namespace ns on ns.oid = cl.relnamespace
+               where ns.nspname = 'public' and cl.relkind in ('v','m') order by 1
+    loop
+      execute format('select count(*) from %I', rv.s) into v_n;
+      if v_n = 0 then v_leer := v_leer || rv.s || ' '; end if;
+    end loop;
+    assert v_leer = '', format('0081 (b): diese Sichten bleiben auf der Demo-Saison leer: %s', v_leer);
+  end;
+
+  -- (c) Jede Fähigkeit der Masken kommt in den Daten vor.
+  select count(*) into v_n from auftrag where fertige_paletten_gesamt is not null;
+  assert v_n > 20, format('0081 (c1): nur %s Arbeiten mit gezählten fertigen Paletten', v_n);
+  select count(*) into v_n from auftrag where kaliber_von_g is not null and kaliber_idx is null;
+  assert v_n >= 3, format('0081 (c2): nur %s Arbeiten mit eigenem Kaliber', v_n);
+  select count(*) into v_n from auftrag where durchsatz_kg is not null;
+  assert v_n >= 5, format('0081 (c3): nur %s Arbeiten mit Durchsatz statt Paletten', v_n);
+  select count(*) into v_n from auftrag where geplante_paletten is not null;
+  assert v_n > 20, format('0081 (c4): nur %s Arbeiten mit geplanten Paletten', v_n);
+  select count(*) into v_n from auftrag_palette where palette_id is not null;
+  assert v_n > 50, format('0081 (c5): nur %s gezählte Paletten zeigen auf ihre Eingangspalette', v_n);
+  select count(*) into v_n from auftrag_teilnehmer where verlassen_ts is not null;
+  assert v_n >= 3, format('0081 (c6): nur %s Schichtwechsel', v_n);
+  select count(*) into v_n from verdunstung_wiegung where auswahl is not null;
+  assert v_n >= 10, format('0081 (c7): nur %s Lagerkontrollen sagen, wie gegriffen wurde', v_n);
+  select count(distinct auswahl) into v_n from verdunstung_wiegung where auswahl is not null;
+  assert v_n = 3, format('0081 (c8): nur %s von drei Auswahlarten kommen vor', v_n);
+  select count(*) into v_n from verdunstung_wiegung where faul_kg is not null;
+  assert v_n >= 10, format('0081 (c9): nur %s Wägungen mit „davon faul"', v_n);
+  select count(*) into v_n from charge where ernte_abgeschlossen_ts is not null;
+  assert v_n >= 10, format('0081 (c10): nur %s Chargen mit abgeschlossener Ernte', v_n);
+  select count(*) into v_n from charge c where c.ernte_abgeschlossen_ts is null
+     and exists (select 1 from palette p where p.charge_nr = c.nr);
+  assert v_n >= 1, '0081 (c11): keine einzige Charge steht auf „Ernte läuft noch"';
+  select count(*) into v_n from sortier_lauf where roh_datei_ref is not null;
+  assert v_n >= 10, format('0081 (c12): nur %s Sortierläufe nennen ihre Datei', v_n);
+  select count(*) into v_n from ausgang_datei where bemerkung = 'DEMO';
+  assert v_n >= 3, format('0081 (c13): nur %s Verkaufsdateien', v_n);
+  select count(*) into v_n from ausgang_zeile where datei_id is null and quelle = 'DEMO';
+  assert v_n = 0, format('0081 (c14): %s Verkaufszeilen ohne Datei', v_n);
+  select count(*) into v_n from ausgang_zeile where erloes is not null;
+  assert v_n > 50, format('0081 (c15): nur %s Verkaufszeilen mit Erlös', v_n);
+  select count(*) into v_n from ausgang_zeile where geaendert_ts is not null;
+  assert v_n >= 2, '0081 (c16): keine einzige nachträglich korrigierte Verkaufszeile';
+  select count(*) into v_n from kontrollpalette where beendet_ts is not null;
+  assert v_n >= 1, '0081 (c17): keine beendete Kontrollpalette';
+  select count(*) into v_n from kontrollpalette_wiegung where sichtbar_schimmel;
+  assert v_n >= 1, '0081 (c18): keine Kontrollwägung mit sichtbarem Schimmel';
+
+  -- (d) Alle fünf Herkunftsarten der Palettenmasse kommen vor. Die
+  --     Herkunftsspalte im Dashboard ist nur dann eine Aussage, wenn sie
+  --     nicht überall dasselbe sagt.
+  select count(distinct masse_quelle) into v_n from v_auftrag_palette_masse;
+  assert v_n >= 4, format('0081 (d): nur %s verschiedene Herkunftsarten der Palettenmasse', v_n);
+
+  -- (e) Keine echten Kundennamen. Eine Demo, die jeder anschauen darf, nennt
+  --     keine Abnehmer des Betriebs.
+  select count(*) into v_n from kaeufer where bemerkung = 'DEMO'
+     and code not in ('nordmarkt', 'talhof', 'gruenwerk', 'feldfrisch');
+  assert v_n = 0, '0081 (e): die Demo legt einen Käufer an, der nicht zu den erfundenen gehört';
+
+  -- (f) Zweimal laden gibt zweimal dieselbe Saison. Vorher hing der Schnitt
+  --     an now() und an den laufenden Nummern der Sequenzen — zwei Läufe im
+  --     Abstand von Minuten ergaben 367 und 376 Arbeiten.
+  select count(*) into v_a1 from auftrag;
+  select count(*) into v_p1 from palette;
+  select count(*) into v_k1 from kontrollpalette_wiegung;
+  select round(sum(kg), 1) into v_s1 from schimmel_messung;
+  perform demo_daten_entfernen();
+  perform demo_daten_laden();
+  select count(*) into v_a2 from auftrag;
+  select count(*) into v_p2 from palette;
+  select count(*) into v_k2 from kontrollpalette_wiegung;
+  select round(sum(kg), 1) into v_s2 from schimmel_messung;
+  assert v_a1 = v_a2 and v_p1 = v_p2 and v_k1 = v_k2 and v_s1 is not distinct from v_s2,
+    format('0081 (f): zweimal geladen gibt Verschiedenes — Arbeiten %s/%s, Paletten %s/%s, Kontrollwägungen %s/%s, Schimmel %s/%s',
+           v_a1, v_a2, v_p1, v_p2, v_k1, v_k2, v_s1, v_s2);
+
+  -- (g) Entfernen lässt nichts zurück — auch nicht das Neue aus 0081.
+  perform demo_daten_entfernen();
+  select count(*) into v_n from kontrollpalette;
+  assert v_n = 0, format('0081 (g1): %s Kontrollpaletten übrig', v_n);
+  select count(*) into v_n from kontrollpalette_wiegung;
+  assert v_n = 0, format('0081 (g2): %s Kontrollwägungen übrig', v_n);
+  select count(*) into v_n from ausgang_datei;
+  assert v_n = 0, format('0081 (g3): %s Verkaufsdateien übrig', v_n);
+  select count(*) into v_n from charge where ernte_abgeschlossen_ts is not null;
+  assert v_n = 0, format('0081 (g4): bei %s Chargen steht die Ernte noch als abgeschlossen', v_n);
+  select count(*) into v_n from palette;
+  assert v_n = 0, format('0081 (g5): %s Paletten übrig', v_n);
+  select count(*) into v_n from auftrag;
+  assert v_n = 0, format('0081 (g6): %s Arbeiten übrig', v_n);
+
+  -- (h) In einer Beispieldatenbank wird ein neues Konto zum Betriebsleiter,
+  --     in der Datenbank des Betriebs nicht. Sonst sähe ein Demo-Besucher
+  --     nur die Halle und nie das Dashboard — und umgekehrt wäre jeder
+  --     Arbeiter des Betriebs plötzlich Betriebsleiter, was weit schlimmer
+  --     wäre. Beide Richtungen werden geprüft, nicht nur die bequeme.
+  update einstellung set wert = '"beispiel"'::jsonb where schluessel = 'betriebsmodus';
+  insert into auth.users (id, email, raw_user_meta_data)
+  values ('00000000-0081-0000-0000-000000000001', null, '{"name":"Demo-Gast"}');
+  update einstellung set wert = '"echt"'::jsonb where schluessel = 'betriebsmodus';
+  insert into auth.users (id, email, raw_user_meta_data)
+  values ('00000000-0081-0000-0000-000000000002', null, '{"name":"Hallen-Tom"}');
+  select count(*) into v_n from profil
+   where id = '00000000-0081-0000-0000-000000000001' and rolle = 'admin';
+  assert v_n = 1, '0081 (h1): in der Beispieldatenbank wird ein neues Konto nicht zum Betriebsleiter';
+  select count(*) into v_n from profil
+   where id = '00000000-0081-0000-0000-000000000002' and rolle = 'arbeiter';
+  assert v_n = 1, '0081 (h2): im Echtmodus wird ein neues Konto zu etwas anderem als einem Arbeiter';
+  delete from profil where id in ('00000000-0081-0000-0000-000000000001',
+                                  '00000000-0081-0000-0000-000000000002');
+  delete from auth.users where id in ('00000000-0081-0000-0000-000000000001',
+                                      '00000000-0081-0000-0000-000000000002');
+
+  raise notice 'OK  0081 — Die Demo zeigt jede Fähigkeit, lädt reproduzierbar, geht restlos wieder weg und öffnet in der Beispieldatenbank das Büro';
+end $$;
+
+select '——— 0081 Demo-Saison geprüft ———' as ergebnis;

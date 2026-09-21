@@ -1,5 +1,17 @@
 # Zwei Webseiten: eine für den Betrieb, eine zum Ausprobieren
 
+> **Seit Runde S gibt es dafür einen kürzeren Weg — [docs/DEMO.md](DEMO.md).**
+> Dort bleibt es bei *einer* Webseite: Wer sich anmeldet, arbeitet mit den
+> echten Daten; wer vorher auf „Demo ansehen" drückt, landet in einer zweiten
+> Datenbank mit einer erfundenen Saison. Ein Cloudflare-Projekt statt zwei,
+> eine Adresse statt zwei, ein QR-Code statt zwei — und trotzdem dieselbe
+> harte Trennung der Daten, denn die zweite Datenbank braucht es so oder so.
+>
+> Diese Anleitung hier bleibt gültig und beschreibt den anderen Weg: zwei
+> vollständig getrennte Webseiten mit eigenen Adressen. Den braucht, wer der
+> Beispiel-Seite eine eigene Adresse zum Weitergeben geben will. Wer nur
+> zeigen will, was die App kann, nimmt DEMO.md.
+
 Ab jetzt laufen **zwei getrennte Aufbauten** nebeneinander:
 
 | | **Echt** | **Beispiel** |

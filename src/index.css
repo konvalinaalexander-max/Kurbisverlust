@@ -48,6 +48,19 @@ svg { display: inline-block; vertical-align: middle; }
   font-size: .78rem; font-weight: 600; letter-spacing: .04em;
   text-align: center; padding: .28rem .6rem; line-height: 1.3;
 }
+/* Das Band der Demo trägt zwei Knöpfe. Eine Zeile bleibt es trotzdem: Zwei
+   Zeilen würden den Kopf darunter überdecken, weil der Abstand oben fest ist.
+   Auf sehr schmalen Geräten schiebt man das Band stattdessen zur Seite. */
+.beispiel-band.demo {
+  display: flex; justify-content: center; align-items: center; gap: .55rem;
+  white-space: nowrap; overflow-x: auto; font-size: .74rem;
+}
+.band-knopf {
+  background: none; border: 0; padding: 0 .1rem; min-height: 0;
+  color: #fff; font: inherit; text-decoration: underline; cursor: pointer;
+}
+.band-knopf:hover { text-decoration: none; }
+
 .app.mit-band { padding-top: 1.65rem; }
 .app.buero.mit-band > .seitenleiste { top: 1.65rem; }
 

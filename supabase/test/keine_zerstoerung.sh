@@ -44,6 +44,12 @@ FREIGEGEBEN=(
   # sie sind Notizzettel innerhalb einer Funktion.
   "0052_demo_saison.sql:106"
   "0052_demo_saison.sql:756"
+  # 0081 schreibt demo_daten_laden() neu und benutzt dieselben drei
+  # Notizzettel. Derselbe Grund, dieselbe Sorgfalt: Es sind temporäre
+  # Tabellen innerhalb der Funktion, sie leben nur für die Dauer eines
+  # Aufrufs, und keine davon trägt je eine Messung des Betriebs.
+  "0081_die_demo_zeigt_was_die_app_kann.sql:124"
+  "0081_die_demo_zeigt_was_die_app_kann.sql:988"
 )
 
 # ---------------------------------------------------------------------
