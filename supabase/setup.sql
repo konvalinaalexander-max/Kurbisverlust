@@ -6294,15 +6294,26 @@ set client_min_messages = warning;
 --
 -- WARUM DAS ÜBERHAUPT VERANTWORTBAR IST
 --
--- Weil nichts verloren geht. An 17 Erfassungstabellen hängt seit 0072 der
--- Auslöser `erfassung_journal_schreiben()`; er schreibt bei jedem Löschen
--- die ganze alte Zeile als jsonb ins `erfassung_journal`. Nachgemessen an
--- der Demo-Saison: 10 030 gelöschte Zeilen, davon 9 710 im Journal — die
--- fehlenden 320 sind `ausgang_zeile` und `lieferung_import`, die beiden
--- Tabellen des Warenausgang-Imports. Sie tragen den Auslöser nicht, weil
--- sie keine Messung der Halle sind, sondern der eingelesene Inhalt einer
--- Excel-Datei, die der Betrieb weiterhin hat und erneut hochladen kann.
--- Genau so steht es auch in der Oberfläche — ein Versprechen, das nur zu
+-- Weil fast nichts verloren geht. An den Erfassungstabellen hängt seit 0072
+-- der Auslöser `erfassung_journal_schreiben()`; er schreibt bei jedem
+-- Löschen die ganze alte Zeile als jsonb ins `erfassung_journal`.
+--
+-- 16 der 19 geleerten Tabellen tragen ihn. Die drei ohne sind die des
+-- Warenausgang-Imports: `ausgang_datei`, `ausgang_zeile` und
+-- `lieferung_import`. Sie sind keine Messung der Halle, sondern der
+-- eingelesene Inhalt einer Excel-Datei, die der Betrieb weiterhin hat und
+-- erneut hochladen kann — deshalb hat 0055 ihnen nie einen Auslöser
+-- gegeben.
+--
+-- (0072 nennt 17 Tabellen; `marge_messung` steht darunter, wurde aber schon
+-- in 0048 abgeworfen. Die Schleife überspringt sie per `to_regclass`, es
+-- sind also 16 lebende. Nachgemessen an der Demo-Saison: 10 030 gelöschte
+-- Zeilen, 9 710 davon im Journal — die 320 fehlenden waren `ausgang_zeile`
+-- und `lieferung_import`; `ausgang_datei` stand dort zufällig leer und ist
+-- mir bei der Messung entgangen. Gezählt wird die Wahrheit hier deshalb aus
+-- `pg_trigger`, nicht aus einer Messung.)
+--
+-- Genau so steht es auch in der Oberfläche. Ein Versprechen, das nur zu
 -- 97 % gilt, wäre schlimmer als keines.
 --
 -- WAS STEHEN BLEIBT
@@ -6343,18 +6354,25 @@ create or replace function erfassung_umfang()
 returns table (tabelle text, was text, zeilen bigint)
 language sql stable security definer set search_path = public as $$
   select * from (values
-    ('auftrag',                 'Arbeiten (auch laufende)', (select count(*) from auftrag)),
-    ('palette',                 'Eingangspaletten',         (select count(*) from palette)),
-    ('lieferung',               'Lieferungen',              (select count(*) from lieferung)),
-    ('sortier_lauf',            'Sortierläufe',             (select count(*) from sortier_lauf)),
-    ('sortier_gewicht',         'gemessene Gewichtsstufen', (select count(*) from sortier_gewicht)),
-    ('schimmel_messung',        'Messungen von Faulem',     (select count(*) from schimmel_messung)),
-    ('ausschuss_messung',       'Ausschuss-Wägungen',       (select count(*) from ausschuss_messung)),
-    ('ausgang_wiegung',         'Wägungen fertiger Paletten', (select count(*) from ausgang_wiegung)),
-    ('verdunstung_wiegung',     'Lagerkontroll-Wägungen',   (select count(*) from verdunstung_wiegung)),
-    ('kontrollpalette',         'Kontrollpaletten',         (select count(*) from kontrollpalette)),
-    ('ausgang_zeile',           'Zeilen aus Warenausgangsdateien', (select count(*) from ausgang_zeile)),
-    ('charge_vorlauf',          'Angaben zum Erfassungsbeginn', (select count(*) from charge_vorlauf))
+    ('auftrag',                 'Arbeiten (auch laufende)',          (select count(*) from auftrag)),
+    ('auftrag_palette',         'gezählte Paletten je Arbeit',       (select count(*) from auftrag_palette)),
+    ('auftrag_gebinde',         'gezählte Gebinde je Arbeit',        (select count(*) from auftrag_gebinde)),
+    ('auftrag_angabe',          'Antworten aus dem Abschluss',       (select count(*) from auftrag_angabe)),
+    ('auftrag_teilnehmer',      'Teilnehmer an Arbeiten',            (select count(*) from auftrag_teilnehmer)),
+    ('palette',                 'Eingangspaletten',                  (select count(*) from palette)),
+    ('lieferung',               'Lieferungen',                       (select count(*) from lieferung)),
+    ('lieferung_import',        'Zuordnungen Lieferung ↔ Importzeile', (select count(*) from lieferung_import)),
+    ('sortier_lauf',            'Sortierläufe',                      (select count(*) from sortier_lauf)),
+    ('sortier_gewicht',         'gemessene Gewichtsstufen',          (select count(*) from sortier_gewicht)),
+    ('schimmel_messung',        'Messungen von Faulem',              (select count(*) from schimmel_messung)),
+    ('ausschuss_messung',       'Ausschuss-Wägungen',                (select count(*) from ausschuss_messung)),
+    ('ausgang_wiegung',         'Wägungen fertiger Paletten',        (select count(*) from ausgang_wiegung)),
+    ('verdunstung_wiegung',     'Lagerkontroll-Wägungen',            (select count(*) from verdunstung_wiegung)),
+    ('kontrollpalette',         'Kontrollpaletten',                  (select count(*) from kontrollpalette)),
+    ('kontrollpalette_wiegung', 'Wägungen der Kontrollpaletten',     (select count(*) from kontrollpalette_wiegung)),
+    ('ausgang_datei',           'hochgeladene Warenausgangsdateien', (select count(*) from ausgang_datei)),
+    ('ausgang_zeile',           'Zeilen aus Warenausgangsdateien',   (select count(*) from ausgang_zeile)),
+    ('charge_vorlauf',          'Angaben zum Erfassungsbeginn',      (select count(*) from charge_vorlauf))
   ) as t(tabelle, was, zeilen)
   where zeilen > 0
   order by zeilen desc;
@@ -6362,7 +6380,9 @@ $$;
 
 comment on function erfassung_umfang() is
   'Was der Löschknopf treffen würde, Tabelle für Tabelle, ohne etwas zu ändern. '
-  'Nur Zeilen mit Inhalt (0080).';
+  'Nur Zeilen mit Inhalt. Dieselben 19 Tabellen, die erfassung_leeren() leert — '
+  'die Liste hier und die Liste dort müssen deckungsgleich bleiben, sonst nennt '
+  'die Oberfläche eine kleinere Zahl, als sie dann löscht (0080).';
 
 revoke all on function erfassung_umfang() from public;
 grant execute on function erfassung_umfang() to authenticated;
@@ -6410,7 +6430,7 @@ begin
   select count(*) into v_vorher from palette;
 
   -- Von den Blättern zur Wurzel. Jede dieser Zeilen geht durch den
-  -- Journal-Auslöser, sofern die Tabelle ihn trägt (17 von 19 tun es).
+  -- Journal-Auslöser, sofern die Tabelle ihn trägt (16 von 19 tun es).
   --
   -- `where true` ist kein Zierrat und keine Umgehung, sondern Pflicht:
   -- Supabase lässt die API-Verbindung mit der Sicherung „safeupdate"
@@ -6461,8 +6481,8 @@ comment on function erfassung_leeren(text) is
   'Lagerkontrollen, eingelesene Warenausgangsdateien) und lässt die Stammdaten '
   'stehen. Verlangt das Bestätigungswort „ALLES LOESCHEN" und den Betriebsleiter. '
   'Jede gelöschte Zeile einer Erfassungstabelle steht mit ihrem alten Inhalt im '
-  'erfassung_journal; ausgang_zeile und lieferung_import tragen den Auslöser nicht '
-  'und sind nur über die hochgeladene Datei wiederherstellbar. Rechnet die '
+  'erfassung_journal; ausgang_datei, ausgang_zeile und lieferung_import tragen den '
+  'Auslöser nicht und sind nur über die hochgeladene Datei wiederherstellbar. Rechnet die '
   'Auswertung nicht neu — eigener Aufruf, wie bei demo_daten_laden() (0080).';
 
 revoke all on function erfassung_leeren(text) from public;

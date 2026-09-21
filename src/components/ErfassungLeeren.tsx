@@ -73,6 +73,9 @@ export default function ErfassungLeeren({ nachAenderung }: { nachAenderung?: () 
 
   /** Der Stand, bevor etwas passiert — und nach dem Leeren noch einmal. */
   const laden = useCallback(async () => {
+    // Zuerst zurücksetzen: sonst bleibt eine einmalige Störung von vorhin als
+    // rote Warnung stehen, auch wenn dieser Lauf sauber durchgeht.
+    setFehler(null)
     const [u, o, j, s, w] = await Promise.all([
       supabase.rpc('erfassung_umfang'),
       supabase.from('auftrag').select('id', { count: 'exact', head: true })
@@ -123,7 +126,8 @@ export default function ErfassungLeeren({ nachAenderung }: { nachAenderung?: () 
       setFehler(`${bericht} Die Auswertung liess sich danach nicht neu rechnen — ${rechenfehler} `
         + 'Oben rechts auf dem Überblick „Neu rechnen" drücken.')
     } else {
-      setMeldung(`${bericht} Die Auswertung ist neu gerechnet: alle Zahlen stehen wieder auf null.`)
+      setMeldung(`${bericht} Die Auswertung ist neu gerechnet — es sind keine Zahlen mehr da; `
+        + 'das Lagermanagement sagt wieder „Noch keine auswertbaren Daten".')
     }
     await laden()
     nachAenderung?.()
@@ -195,10 +199,11 @@ export default function ErfassungLeeren({ nachAenderung }: { nachAenderung?: () 
           <p className="leise">
             <strong>Nachlesbar bleibt es auch:</strong> Jede gelöschte Zeile einer
             Erfassungstabelle wandert mit ihrem ganzen Inhalt ins Journal
-            {journal !== null && <> — dort stehen heute schon {zahl(journal)} Zeilen</>}. Eine
-            Ausnahme gehört dazu: die Zeilen aus hochgeladenen Warenausgangsdateien tragen
-            den Journal-Auslöser nicht. Verloren sind sie trotzdem nicht — sie stehen in
-            der Excel-Datei, die sich erneut hochladen lässt.
+            {journal !== null && <> — dort stehen heute schon {zahl(journal)} Zeilen</>}. Drei
+            Tabellen sind ausgenommen, alle drei vom Warenausgang-Import: die eingelesenen
+            Zeilen, der Vermerk der hochgeladenen Datei und die Zuordnung zu den Lieferungen.
+            Verloren sind sie trotzdem nicht — sie stehen in der Excel-Datei, die sich erneut
+            hochladen lässt.
           </p>
 
           {scharf && (

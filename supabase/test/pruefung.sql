@@ -4785,6 +4785,26 @@ begin
   assert v_pal > 0 and v_auf > 0 and v_lief > 0,
     '0080 (a): die Vorbereitung hat nichts angelegt';
 
+  -- (a2) Die beiden Listen müssen deckungsgleich sein. Sie waren es beim
+  --      ersten Wurf NICHT: gezählt wurden 12 Tabellen, geleert 19. Der Knopf
+  --      hätte „7 752 Zeilen löschen" versprochen und 10 030 gelöscht — und
+  --      sich bei gefüllten Beitabellen sogar als „schon leer" versteckt.
+  --      Gegengeprüft wird hier am Text beider Funktionen, nicht an einer
+  --      Messung: eine leere Tabelle fällt in einer Messung nicht auf.
+  declare
+    v_tab text;
+    v_umfang text := pg_get_functiondef('erfassung_umfang()'::regprocedure);
+    v_leeren text := pg_get_functiondef('erfassung_leeren(text)'::regprocedure);
+  begin
+    for v_tab in
+      select (regexp_matches(v_leeren, 'delete from ([a-z_]+) where true', 'g'))[1]
+    loop
+      assert v_umfang like '%' || v_tab || '%',
+        format('0080 (a2): erfassung_leeren() leert %s, erfassung_umfang() zählt es nicht — '
+               'die Zahl auf dem Knopf wäre kleiner als das, was passiert', v_tab);
+    end loop;
+  end;
+
   -- (b) erfassung_umfang() nennt, was dasteht — und nur das, was dasteht.
   assert exists (select 1 from erfassung_umfang() where tabelle = 'palette' and zeilen = v_pal),
     '0080 (b1): erfassung_umfang() nennt die Paletten nicht oder falsch';
