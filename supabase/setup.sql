@@ -4014,68 +4014,6 @@ begin
 exception when others then null;
 end $$;
 
--- ---------- 2. Kein erfundenes Netto in der Datenbank -------------------
--- Beide Auslöser rechnen jetzt ohne coalesce. Kommt dabei nichts heraus,
--- bleibt die eingetragene Zahl stehen und die Wägung zählt nicht als
--- gemessen — die Auswertung liest nur Gemessenes (v_ausschuss_beobachtung,
--- v_schimmel_menge), und die Auffälligkeit unten nennt die Lücke beim
--- Namen. Vorher wurde das Bruttogewicht als Netto gespeichert.
-create or replace function ausschuss_netto_setzen() returns trigger
-language plpgsql
-as $$
-declare v_tara_kiste numeric; v_tara_palette numeric; v_netto numeric;
-begin
-  if new.brutto_kg is not null then
-    select g.tara_kg_pro_kiste, g.tara_kg_palette
-      into v_tara_kiste, v_tara_palette
-      from public.gebinde g where g.art = new.gebindeart;
-    v_netto := new.brutto_kg - new.kisten * v_tara_kiste - v_tara_palette;
-    if v_netto is null then
-      -- Ohne Kistenzahl oder ohne hinterlegte Tara gibt es kein Netto (0066).
-      new.gemessen := false;
-    else
-      new.kg := greatest(round(v_netto), 0);
-      new.gemessen := true;
-    end if;
-  end if;
-  return new;
-end $$;
-comment on function ausschuss_netto_setzen() is
-  'Setzt kg auf das Netto aus Brutto, Kistenzahl und hinterlegter Tara. '
-  'Fehlt eine der drei Angaben, gibt es kein Netto: die Zeile bleibt stehen, '
-  'gemessen wird false, und v_plausibilitaet meldet „Ausschuss ohne Tara" (0066).';
-
-create or replace function schimmel_netto_setzen() returns trigger
-language plpgsql
-as $$
-declare v_tara_kiste numeric; v_tara_palette numeric; v_netto numeric;
-begin
-  if new.brutto_kg is not null then
-    if new.palox_stand_kg is not null then
-      raise exception 'Eine Messung ist entweder eine Palox-Ablesung oder eine Kistenwägung, nicht beides.';
-    end if;
-    select g.tara_kg_pro_kiste, g.tara_kg_palette
-      into v_tara_kiste, v_tara_palette
-      from public.gebinde g where g.art = new.gebindeart;
-    -- Ohne Palette braucht es die Palettentara nicht — dann ist sie 0 und
-    -- nicht unbekannt. Die Kistentara braucht es immer.
-    v_netto := new.brutto_kg - new.kisten * v_tara_kiste
-             - case when new.mit_palette then v_tara_palette else 0 end;
-    if v_netto is null then
-      new.gemessen := false;
-    else
-      new.kg := greatest(round(v_netto), 0);
-      new.gemessen := true;
-    end if;
-  end if;
-  return new;
-end $$;
-comment on function schimmel_netto_setzen() is
-  'Setzt kg auf das Netto aus Brutto, Kistenzahl und hinterlegter Tara (die '
-  'Palettentara nur, wenn die Palette mitgewogen wurde). Fehlt eine nötige '
-  'Angabe, gibt es kein Netto: die Zeile bleibt stehen und gemessen wird '
-  'false — v_schimmel_menge liest nur Gemessenes (0066).';
-
 do $$
 begin
   update auswertung_stand set geaendert_ts = clock_timestamp() where id = 1;
@@ -7466,17 +7404,196 @@ begin
   return v_n;
 end $$;
 
+
+-- =====================================================================
+-- aus 0083_der_ausschuss_stand_nicht_auf_einer_palette.sql
+-- =====================================================================
+
+-- =====================================================================
+-- 0083 — Der Ausschuss stand nicht auf einer Palette
+--
+-- Der Betrieb: „ich glaube es hat einen bug beim eintragen von zu klein
+-- und zu gross … man kanns zwar eingeben - aber es gibt trotzdem immer
+-- nur 0 ein."
+--
+-- Er hat recht, und der Fehler ist still. Die Ausschuss-Maske zieht vom
+-- Brutto immer die volle Tara ab — Kisten UND Palette (25 kg). Was am Ende
+-- einer Wasch-Arbeit zu klein oder zu gross war, sind aber oft ein, zwei
+-- Kisten, die jemand direkt auf die Waage stellt. Eine Kiste mit 12 kg:
+-- 12 − 1.5 − 25 = −14.5. Und beides, die Maske und der Auslöser
+-- ausschuss_netto_setzen(), klemmten das mit greatest(…, 0) auf null.
+-- Die Wägung sah gespeichert aus, das Netto war null, niemand sah, wo die
+-- Kilo geblieben waren.
+--
+-- Die Faule-Maske hat den Schalter „Auf einer Palette gewogen" seit 0051,
+-- und schimmel_messung die Spalte mit_palette dazu. Die Ausschuss-Maske hat
+-- ihn nie bekommen. Das holt diese Migration nach — und sie nimmt die
+-- Klammer weg: Ein negatives Netto ist kein „nichts", es ist ein
+-- Widerspruch, und der wird gemeldet statt verschluckt.
+--
+-- Drei Dinge:
+--
+--   1. ausschuss_messung.mit_palette, Vorgabe true — so bleibt die
+--      Bedeutung jeder bestehenden Zeile, wie sie war: mit Palettentara
+--      gerechnet.
+--
+--   2. Beide Auslöser weisen ein negatives Netto zurück, mit einem Satz,
+--      den der Arbeiter versteht. greatest(…, 0) gibt es nicht mehr — weder
+--      beim Ausschuss noch beim Faulen.
+--
+--   3. Die bestehenden Nullen werden nachgerechnet, wo es keine Deutung
+--      braucht: Ist das Brutto kleiner als die Palettentara plus die
+--      Kisten, dann KANN keine Palette auf der Waage gestanden haben —
+--      eine leere Palette wiegt allein schon mehr. Diese Zeilen bekommen
+--      mit_palette = false, und der Auslöser rechnet ihr Netto neu.
+--      Zeilen, bei denen eine kleine Zahl übrig blieb (30 kg brutto mit
+--      zwei Kisten → 2 kg statt 27), lassen sich so nicht unterscheiden;
+--      sie stehen als Auffälligkeit da, und in der Korrektur lässt sich
+--      der Haken nachträglich setzen.
+-- =====================================================================
+
 -- ---------------------------------------------------------------------
--- 9. Der Stand der Datenbank
+-- 1. Die Spalte
+-- ---------------------------------------------------------------------
+
+alter table ausschuss_messung
+  add column if not exists mit_palette boolean not null default true;
+comment on column ausschuss_messung.mit_palette is
+  'Stand die Ware beim Wiegen auf einer Palette? Nur dann wird die '
+  'Palettentara abgezogen. Vorgabe true, damit die Zeilen von vor 0083 '
+  'ihre Bedeutung behalten (0083).';
+
+-- ---------------------------------------------------------------------
+-- 2. Die Auslöser: ohne Klammer, mit Widerspruch
+-- ---------------------------------------------------------------------
+
+create or replace function ausschuss_netto_setzen() returns trigger
+language plpgsql
+as $$
+declare v_tara_kiste numeric; v_tara_palette numeric; v_netto numeric; v_tara numeric;
+begin
+  if new.brutto_kg is not null then
+    select g.tara_kg_pro_kiste, g.tara_kg_palette
+      into v_tara_kiste, v_tara_palette
+      from public.gebinde g where g.art = new.gebindeart;
+    -- Ohne Palette braucht es die Palettentara nicht — dann ist sie 0 und
+    -- nicht unbekannt. Die Kistentara braucht es immer.
+    v_tara  := new.kisten * v_tara_kiste
+             + case when new.mit_palette then v_tara_palette else 0 end;
+    v_netto := new.brutto_kg - v_tara;
+    if v_netto is null then
+      -- Ohne Kistenzahl oder ohne hinterlegte Tara gibt es kein Netto (0066).
+      new.gemessen := false;
+    elsif v_netto < 0 then
+      -- Kein greatest(…, 0) mehr: Ein Brutto unter der Tara ist ein
+      -- Widerspruch, keine leere Wägung. So kam bis 0083 jede Kiste, die
+      -- ohne Palette auf der Waage stand, als null Kilo an.
+      raise exception
+        'Das Gewicht (% kg) ist kleiner als die Tara (% × % kg Kiste%) = % kg. So kann die Ware nicht gewogen worden sein — steht sie wirklich auf einer Palette?',
+        new.brutto_kg, new.kisten, v_tara_kiste,
+        case when new.mit_palette then format(' + Palette %s kg', v_tara_palette) else '' end,
+        v_tara;
+    else
+      new.kg := round(v_netto);
+      new.gemessen := true;
+    end if;
+  end if;
+  return new;
+end $$;
+comment on function ausschuss_netto_setzen() is
+  'Setzt kg auf das Netto aus Brutto, Kistenzahl und hinterlegter Tara. '
+  'Fehlt eine der drei Angaben, gibt es kein Netto: die Zeile bleibt stehen, '
+  'gemessen wird false, und v_plausibilitaet meldet „Ausschuss ohne Tara" (0066).';
+comment on function ausschuss_netto_setzen() is
+  'Setzt kg auf das Netto aus Brutto, Kistenzahl und hinterlegter Tara — die '
+  'Palettentara nur, wenn mit_palette (0083). Fehlt eine Angabe, gibt es kein '
+  'Netto: die Zeile bleibt stehen, gemessen wird false (0066). Ein negatives '
+  'Netto wird zurückgewiesen statt auf null geklemmt (0083).';
+
+create or replace function schimmel_netto_setzen() returns trigger
+language plpgsql
+as $$
+declare v_tara_kiste numeric; v_tara_palette numeric; v_netto numeric; v_tara numeric;
+begin
+  if new.brutto_kg is not null then
+    if new.palox_stand_kg is not null then
+      raise exception 'Eine Messung ist entweder eine Palox-Ablesung oder eine Kistenwägung, nicht beides.';
+    end if;
+    select g.tara_kg_pro_kiste, g.tara_kg_palette
+      into v_tara_kiste, v_tara_palette
+      from public.gebinde g where g.art = new.gebindeart;
+    v_tara  := new.kisten * v_tara_kiste
+             + case when new.mit_palette then v_tara_palette else 0 end;
+    v_netto := new.brutto_kg - v_tara;
+    if v_netto is null then
+      new.gemessen := false;
+    elsif v_netto < 0 then
+      raise exception
+        'Das Gewicht (% kg) ist kleiner als die Tara (% × % kg Kiste%) = % kg. So kann das Faule nicht gewogen worden sein — steht es wirklich auf einer Palette?',
+        new.brutto_kg, new.kisten, v_tara_kiste,
+        case when new.mit_palette then format(' + Palette %s kg', v_tara_palette) else '' end,
+        v_tara;
+    else
+      new.kg := round(v_netto);
+      new.gemessen := true;
+    end if;
+  end if;
+  return new;
+end $$;
+comment on function schimmel_netto_setzen() is
+  'Setzt kg auf das Netto aus Brutto, Kistenzahl und hinterlegter Tara (die '
+  'Palettentara nur, wenn die Palette mitgewogen wurde). Fehlt eine nötige '
+  'Angabe, gibt es kein Netto: die Zeile bleibt stehen und gemessen wird '
+  'false — v_schimmel_menge liest nur Gemessenes (0066).';
+comment on function schimmel_netto_setzen() is
+  'Setzt kg auf das Netto aus Brutto, Kistenzahl und hinterlegter Tara (die '
+  'Palettentara nur, wenn die Palette mitgewogen wurde). Fehlt eine nötige '
+  'Angabe, gibt es kein Netto: die Zeile bleibt stehen und gemessen wird '
+  'false (0066). Ein negatives Netto wird zurückgewiesen (0083).';
+
+-- ---------------------------------------------------------------------
+-- 3. Die bestehenden Nullen, wo die Deutung zwingend ist
+--
+-- Der Auslöser oben ist schon die neue Fassung: mit_palette = false
+-- genügt, das Netto rechnet er selbst nach.
+-- ---------------------------------------------------------------------
+
+do $$
+declare v_n int;
+begin
+  with rep as (
+    update ausschuss_messung m
+       set mit_palette = false
+      from gebinde g
+     where g.art = m.gebindeart
+       and m.brutto_kg is not null and m.kisten is not null
+       and m.gemessen and m.mit_palette
+       and m.kg = 0
+       -- Mit Palette hätte es null (oder weniger) ergeben …
+       and m.brutto_kg - m.kisten * g.tara_kg_pro_kiste - g.tara_kg_palette <= 0
+       -- … ohne Palette bleibt etwas übrig. Dann stand keine drunter.
+       and m.brutto_kg - m.kisten * g.tara_kg_pro_kiste > 0
+    returning m.id)
+  select count(*) into v_n from rep;
+  if v_n > 0 then
+    raise notice '0083: % Ausschuss-Wägungen standen nicht auf einer Palette — Netto nachgerechnet.', v_n;
+  end if;
+end $$;
+
+-- ---------------------------------------------------------------------
+-- 5. Der Stand der Datenbank
 -- ---------------------------------------------------------------------
 create or replace function schema_stand() returns int
-language sql immutable set search_path = public as $$ select 82 $$;
+language sql immutable set search_path = public as $$ select 83 $$;
 comment on function schema_stand is
   'Nummer der jüngsten eingespielten Migration. Die App vergleicht sie mit '
   'SCHEMA_ERWARTET (src/lib/version.ts) und verlangt bei Abweichung, setup.sql '
   'erneut auszuführen. Jede Migration setzt sie auf ihre eigene Nummer.';
 revoke all on function schema_stand() from public;
 grant execute on function schema_stand() to anon, authenticated;
+comment on function schema_stand() is
+  'Die Nummer der höchsten eingespielten Migration. Die App vergleicht sie mit '
+  'SCHEMA_ERWARTET und verlangt setup.sql, wenn sie auseinanderliegen (0057).';
 comment on function schema_stand() is
   'Die Nummer der höchsten eingespielten Migration. Die App vergleicht sie mit '
   'SCHEMA_ERWARTET und verlangt setup.sql, wenn sie auseinanderliegen (0057).';
@@ -7532,6 +7649,9 @@ comment on function schema_stand() is
 -- wird am Ende dieser Datei neu berechnet.
 -- =====================================================================
 
+drop view if exists v_plausibilitaet cascade;
+drop view if exists v_plausibilitaet_0054_zusatz cascade;
+drop view if exists v_plausibilitaet_0064_zusatz cascade;
 drop view if exists v_datenqualitaet cascade;
 drop view if exists v_sortier_lesung cascade;
 drop view if exists v_lager_kaliber cascade;
@@ -7542,13 +7662,10 @@ drop materialized view if exists erg_verlauf cascade;
 drop view if exists v_wohin cascade;
 drop materialized view if exists erg_prognose cascade;
 drop view if exists v_prognose cascade;
-drop view if exists v_plausibilitaet cascade;
 drop view if exists v_saisonbilanz cascade;
 drop view if exists v_verlust_ranking cascade;
 drop materialized view if exists erg_verlust cascade;
 drop view if exists v_verlust_je_gruppe cascade;
-drop view if exists v_plausibilitaet_0054_zusatz cascade;
-drop view if exists v_plausibilitaet_0064_zusatz cascade;
 drop view if exists v_massenbilanz cascade;
 drop view if exists v_kontrolle_vorschlag cascade;
 drop view if exists v_hochrechnung cascade;
@@ -11087,127 +11204,6 @@ WITH csv_anteil AS MATERIALIZED (
      LEFT JOIN gemessen c ON c.charge_nr = b.charge_nr
      LEFT JOIN rest r ON r.charge_nr = b.charge_nr;
 
-create view v_plausibilitaet_0064_zusatz with (security_invoker = true) as
--- Paletten ohne Nettogewicht: fehlende Gebindeart, fehlende Tara in den
--- Stammdaten oder fehlende Kistenzahl. Der Eingang der Charge rechnet dann mit
--- dem Mittel der übrigen Paletten weiter (v_charge_rueckgrat) — und hat kein
--- Netto mehr, sobald *keine* Palette der Charge eines hat. Beides sah man
--- bisher nur, wenn man auf der Seite Messungen nachsah.
-select 'Tara fehlt'::text as art, null::bigint as auftrag_id, p.charge_nr, c.sorte,
-       min(p.eingangsdatum)::timestamptz as start_ts,
-       format('%s von %s Paletten der Charge haben kein Nettogewicht (%s kg brutto): %s. %s',
-              count(*), r.n_paletten, round(sum(p.brutto_kg)),
-              case when bool_or(p.gebindeart is null)      then 'die Gebindeart steht nicht auf der Palette'
-                   when bool_or(g.art is null)             then 'diese Gebindeart steht nicht in den Stammdaten'
-                   when bool_or(g.tara_kg_pro_kiste is null) then 'für die Gebindeart ist kein Kistengewicht hinterlegt'
-                   when bool_or(g.tara_kg_palette is null)   then 'für die Gebindeart ist kein Palettengewicht hinterlegt'
-                   else 'die Kistenzahl fehlt' end,
-              case when r.n_paletten_mit_netto = 0
-                   then 'Damit hat die Charge gar keinen Eingang — sie fehlt in der ganzen Bilanz.'
-                   else format('Für sie rechnet der Eingang mit dem Mittel der übrigen: %s der %s kg '
-                               || 'Eingang sind hochgerechnet, nicht gewogen.',
-                               round(r.eingang_netto_kg - r.eingang_netto_gemessen_kg),
-                               round(r.eingang_netto_kg)) end)                        as befund,
-       case when bool_or(p.gebindeart is null) then 'Gebindeart am Wareneingang nachtragen.'
-            when bool_or(g.art is null) or bool_or(g.tara_kg_pro_kiste is null) or bool_or(g.tara_kg_palette is null)
-            then 'Unter Betrieb → Stammdaten die Tara dieser Gebindeart eintragen. '
-                 || 'Die Zahlen rechnen sich danach von selbst neu.'
-            else 'Kistenzahl der Palette im Wareneingang nachtragen.' end               as rat
-  from palette p
-  left join gebinde g on g.art = p.gebindeart
-  join charge c on c.nr = p.charge_nr
-  join v_charge_rueckgrat r on r.charge_nr = p.charge_nr
- where p.brutto_kg - p.kisten * g.tara_kg_pro_kiste - g.tara_kg_palette is null
- group by p.charge_nr, c.sorte, r.n_paletten, r.n_paletten_mit_netto,
-          r.eingang_netto_kg, r.eingang_netto_gemessen_kg
-union all
--- Mehr ausgeliefert als je hereingekommen: das ist kein Verlustphänomen,
--- sondern eine Lücke im Erntejournal oder eine Lieferung auf der falschen
--- Chargennummer. Die Kaskade fängt es ab, damit die Bilanz aufgeht — und
--- genau deshalb fiel es niemandem auf.
-select 'Überzählung', null::bigint, h.charge_nr, h.sorte, h.eingangsdatum_mittel::timestamptz,
-       format('%s kg mehr ausgeliefert, als für diese Charge je als Eingang erfasst wurde '
-              || '(%s kg Eingang, %s kg geliefert) — das sind %s %% des Eingangs',
-              round(h.ueberzaehlung_kg), round(h.eingang_kg), round(h.geliefert_kg),
-              round(100 * h.ueberzaehlung_kg / nullif(h.eingang_kg, 0))),
-       'Fehlt im Erntejournal eine Palette dieser Charge? Oder ist ein Lieferschein auf '
-       || 'die falsche Chargennummer gebucht? Beides lässt sich nachtragen; bis dahin ist '
-       || 'die Verlustquote dieser Charge zu hoch, weil ihr Eingang zu klein ist.'
-  from v_hochrechnung_basis h
- where h.ueberzaehlung_kg > 0
-union all
--- Ein Zettelgewicht, das zur Charge passt, aber nicht zum Eingangstag: die
--- Massenrechnung fällt still auf die mittlere Tara der Charge zurück. Die
--- Auffälligkeit von 0060 prüft nur Charge und Brutto und schweigt dann.
-select 'Zettelgewicht', ap.auftrag_id, a.charge_nr, c.sorte, a.start_ts,
-       format('%s Palette(n) mit %s kg vom Zettel und Eingangsdatum %s gezählt. Eine Palette '
-              || 'dieses Gewichts gibt es in der Charge, aber an einem anderen Tag — gerechnet '
-              || 'wird deshalb mit der mittleren Tara der Charge, nicht mit ihrer eigenen.',
-              count(*), ap.brutto_zettel_kg, to_char(ap.eingangsdatum, 'DD.MM.YYYY')),
-       'Eingangsdatum an der Zählung prüfen — oder das Datum der Palette im Wareneingang.'
-  from auftrag_palette ap
-  join auftrag a on a.id = ap.auftrag_id
-  join charge c on c.nr = a.charge_nr
- where ap.brutto_zettel_kg is not null and ap.eingangsdatum is not null
-   and a.abgebrochen_ts is null
-   and exists (select 1 from palette p
-                where p.charge_nr = a.charge_nr and p.brutto_kg = ap.brutto_zettel_kg)
-   and not exists (select 1 from v_palette p
-                    where p.charge_nr = a.charge_nr and p.brutto_kg = ap.brutto_zettel_kg
-                      and p.eingangsdatum = ap.eingangsdatum and p.netto_kg is not null)
- group by ap.auftrag_id, a.charge_nr, c.sorte, a.start_ts, ap.brutto_zettel_kg, ap.eingangsdatum;
-
-create view v_plausibilitaet_0054_zusatz with (security_invoker = true) as
-SELECT 'Kistengewicht'::text AS art,
-    g.auftrag_id,
-    a.charge_nr,
-    c.sorte,
-    a.start_ts,
-    format('%s Kisten zum eigenen Kaliber %s–%s g gezählt, aber ein Band mit diesen '::text || 'Grenzen wurde beim Sortieren noch nie mitgezählt — das Kistengewicht ist unbekannt'::text, g.anzahl, a.kaliber_von_g, a.kaliber_bis_g) AS befund,
-    'Entweder das Band aus der Liste wählen, das dem Etikett entspricht, oder beim '::text || 'nächsten Sortierlauf mit diesem Band die gefüllten Kisten zählen.'::text AS rat
-   FROM v_auftrag_gebinde_masse g
-     JOIN auftrag a ON a.id = g.auftrag_id
-     JOIN charge c ON c.nr = a.charge_nr
-  WHERE g.kg IS NULL AND g.anzahl > 0 AND g.kaliber_idx = '-2'::integer
-UNION ALL
- SELECT 'Kistengewicht'::text AS art,
-    wp.auftrag_id,
-    a.charge_nr,
-    c.sorte,
-    a.start_ts,
-    format('%s Paletten mit %s Kisten gezählt, aber %s — das Kistengewicht ist unbekannt, '::text || 'die Menge dieser Arbeit damit auch'::text, wp.n_paletten, wp.kisten,
-        CASE
-            WHEN a.kaliber_von_g IS NOT NULL THEN format('ein Band %s–%s g wurde beim Sortieren noch nie mitgezählt'::text, a.kaliber_von_g, a.kaliber_bis_g)
-            ELSE 'für dieses Kaliber wurde beim Sortieren noch nie mitgezählt'::text
-        END) AS befund,
-        CASE
-            WHEN a.kaliber_von_g IS NOT NULL THEN 'Entweder das Band aus der Liste wählen, das dem Etikett entspricht, oder beim '::text || 'nächsten Sortierlauf mit diesem Band die gefüllten Kisten zählen.'::text
-            ELSE 'Beim nächsten Sortierlauf die gefüllten Kisten je Kaliber zählen. Das '::text || 'Kistengewicht gilt dann rückwirkend für alle Waschgänge dieser Sorte.'::text
-        END AS rat
-   FROM v_auftrag_wasch_paletten wp
-     JOIN auftrag a ON a.id = wp.auftrag_id
-     JOIN charge c ON c.nr = a.charge_nr
-  WHERE wp.kg IS NULL AND wp.kisten > 0
-UNION ALL
- SELECT 'Lieferung in der Zukunft'::text AS art,
-    NULL::bigint AS auftrag_id,
-    l.charge_nr,
-    l.sorte,
-    l.datum::timestamp with time zone AS start_ts,
-    format('Lieferschein über %s kg mit Datum %s — das liegt nach heute (%s). '::text || 'Die Menge zählt erst ab diesem Tag in Ausgang und Bestand.'::text, round(l.masse_kg), to_char(l.datum::timestamp with time zone, 'DD.MM.YYYY'::text), to_char(heute()::timestamp with time zone, 'DD.MM.YYYY'::text)) AS befund,
-    'Stimmt das Datum? Ein vordatierter Lieferschein ist in Ordnung — die Zahl '::text || 'erscheint von selbst, sobald der Tag da ist. Ein Zahlendreher gehört korrigiert.'::text AS rat
-   FROM v_lieferung_masse l
-  WHERE l.datum > heute() AND l.masse_kg IS NOT NULL AND l.masse_kg > 0::numeric
-UNION ALL
- SELECT v_plausibilitaet_0064_zusatz.art,
-    v_plausibilitaet_0064_zusatz.auftrag_id,
-    v_plausibilitaet_0064_zusatz.charge_nr,
-    v_plausibilitaet_0064_zusatz.sorte,
-    v_plausibilitaet_0064_zusatz.start_ts,
-    v_plausibilitaet_0064_zusatz.befund,
-    v_plausibilitaet_0064_zusatz.rat
-   FROM v_plausibilitaet_0064_zusatz;
-
 
 -- =====================================================================
 -- aus 0066_kein_kilo_aus_einer_luecke.sql
@@ -11688,276 +11684,6 @@ WITH charge AS (
      CROSS JOIN ausgang a
      CROSS JOIN vorlauf vl
      CROSS JOIN fax f;
-
-create or replace view v_plausibilitaet with (security_invoker = true) as
- SELECT 'Schimmel'::text AS art,
-    b.auftrag_id,
-    b.charge_nr,
-    b.sorte,
-    b.start_ts,
-    format('%s kg Schimmel auf %s kg Ware — das wären %s %%'::text, round(b.schimmel_kg), round(b.basis_jetzt_kg), round(b.anteil * 100::numeric)) AS befund,
-    'Sehr wahrscheinlich ein Tippfehler bei den Kilogramm. Zahl im Auftrag korrigieren.'::text AS rat
-   FROM v_schimmel_beobachtung b
-  WHERE b.anteil IS NOT NULL AND NOT b.plausibel AND NOT b.ist_fax AND b.lagertage >= 0::numeric
-UNION ALL
- SELECT 'Fax'::text AS art,
-    f.auftrag_id,
-    f.charge_nr,
-    f.sorte,
-    f.start_ts,
-    format('%s kg Faules bei %s (%s kg) — das wären %s %%'::text, round(f.faul_kg),
-        CASE
-            WHEN f.paletten_gesamt > 0 THEN f.paletten_gesamt || ' Paletten'::text
-            ELSE f.kisten || ' Kisten'::text
-        END, round(f.masse_kg), round(f.anteil * 100::numeric)) AS befund,
-    'Entweder die Palettenzahl oder eine Wägung ist vertippt. Im Auftrag prüfen.'::text AS rat
-   FROM v_fax_beobachtung f
-  WHERE f.anteil IS NOT NULL AND NOT f.plausibel
-UNION ALL
- SELECT 'Ausschuss'::text AS art,
-    a.auftrag_id,
-    a.charge_nr,
-    a.sorte,
-    NULL::timestamp with time zone AS start_ts,
-    format('%s kg zu klein / %s kg zu gross bei %s kg Bezugsmasse'::text, round(COALESCE(a.klein_kg, 0::numeric)), round(COALESCE(a.gross_kg, 0::numeric)), round(a.basis_kg)) AS befund,
-    'Entweder die Kilogramm oder die Palettenzahl im Auftrag stimmt nicht.'::text AS rat
-   FROM v_ausschuss_beobachtung a
-  WHERE a.weg = 'hand'::verarbeitungsweg AND NOT a.plausibel
-UNION ALL
- SELECT 'Ohne Nenner'::text AS art,
-    a.id AS auftrag_id,
-    a.charge_nr,
-    c.sorte,
-    a.start_ts,
-    format('%s erfasst, aber %s — die Messung hat keinen Nenner und fliesst nirgends ein'::text, concat_ws(' und '::text,
-        CASE
-            WHEN COALESCE(s.kg, 0::numeric) > 0::numeric THEN round(s.kg) || ' kg Faules'::text
-            ELSE NULL::text
-        END,
-        CASE
-            WHEN COALESCE(x.kg, 0::numeric) > 0::numeric THEN round(x.kg) || ' kg zu klein/gross'::text
-            ELSE NULL::text
-        END),
-        CASE
-            WHEN a.ist_fax THEN 'keine Palette gezählt oder noch keine fertige Palette dieser Sorte gewogen'::text
-            WHEN a.station = 'waschen'::station THEN 'keine Kiste gezählt und keine Menge eingetragen'::text
-            WHEN a.station = 'waschen_sortieren'::station THEN 'keine Palette mit Gewicht vom Zettel gezählt'::text
-            ELSE 'keine Palette gezählt'::text
-        END) AS befund,
-        CASE
-            WHEN a.ist_fax THEN ('Die Palettenzahl am Ende der Fax-Arbeit eintragen. Fehlt die Palettenmasse, '::text || 'beim Waschen oder Waschen + Sortieren eine fertige Palette wiegen — sie '::text) || 'gilt dann für alle Fax-Arbeiten der Sorte.'::text
-            WHEN a.station = 'waschen'::station THEN 'Die geleerten Kisten am Auftrag zählen (dann rechnet die Masse sich '::text || 'selbst) oder die verarbeitete Menge in kg nachtragen.'::text
-            WHEN a.station = 'waschen_sortieren'::station THEN 'Die Paletten mit Datum und Gewicht vom Zettel am Auftrag nachtragen.'::text
-            ELSE 'Die gezählten Paletten am Auftrag nachtragen.'::text
-        END AS rat
-   FROM auftrag a
-     JOIN charge c ON c.nr = a.charge_nr
-     LEFT JOIN v_schimmel_menge s ON s.auftrag_id = a.id
-     LEFT JOIN ( SELECT ausschuss_messung.auftrag_id,
-            sum(ausschuss_messung.kg)::numeric AS kg
-           FROM ausschuss_messung
-          WHERE ausschuss_messung.gemessen
-          GROUP BY ausschuss_messung.auftrag_id) x ON x.auftrag_id = a.id
-     LEFT JOIN v_auftrag_masse m ON m.auftrag_id = a.id
-  WHERE a.abgebrochen_ts IS NULL AND (COALESCE(s.kg, 0::numeric) > 0::numeric OR COALESCE(x.kg, 0::numeric) > 0::numeric) AND COALESCE(m.eingang_netto_kg, 0::numeric) <= 0::numeric
-UNION ALL
- SELECT 'Palox'::text AS art,
-    s.auftrag_id,
-    a.charge_nr,
-    c.sorte,
-    s.ts AS start_ts,
-    format('Waagenstand %s kg liegt unter dem Leergewicht des Palox (%s kg)'::text, s.palox_stand_kg, palox_tara_kg()) AS befund,
-    'Zeigt die Waage netto, gehört palox_tara_kg in den Einstellungen auf 0. '::text || 'Sonst ist der Stand vertippt.'::text AS rat
-   FROM schimmel_messung s
-     JOIN auftrag a ON a.id = s.auftrag_id
-     JOIN charge c ON c.nr = a.charge_nr
-  WHERE s.gemessen AND a.abgebrochen_ts IS NULL AND s.palox_stand_kg IS NOT NULL AND s.palox_stand_kg < palox_tara_kg()
-UNION ALL
- SELECT 'Palox geleert'::text AS art,
-    p.auftrag_id,
-    a.charge_nr,
-    c.sorte,
-    p.ts AS start_ts,
-    format('Der Waagenstand fiel von %s auf %s kg — der Palox wurde zwischendurch geleert. '::text || 'Wie viel davor noch dazukam, weiss niemand; das Faule dieser Arbeit ist unbekannt.'::text, p.vorher, p.palox_stand_kg) AS befund,
-    'Nichts zu korrigieren. Wird der Palox vor dem Leeren einmal abgelesen, bleibt die Menge bekannt.'::text AS rat
-   FROM v_palox_stand p
-     JOIN auftrag a ON a.id = p.auftrag_id
-     JOIN charge c ON c.nr = a.charge_nr
-  WHERE p.differenz IS NULL AND a.abgebrochen_ts IS NULL
-UNION ALL
- SELECT 'Wägung'::text AS art,
-    w.auftrag_id,
-    w.charge_nr,
-    w.sorte,
-    w.wiege_ts AS start_ts,
-    ('Palette gewogen, aber '::text ||
-        CASE
-            WHEN w.netto_damals_kg IS NULL OR w.netto_jetzt_kg IS NULL THEN 'für die Gebindeart fehlt die Tara'::text
-            WHEN w.lagertage <= 0 THEN 'das Wiegedatum liegt nicht nach dem Eingangsdatum'::text
-            WHEN w.netto_damals_kg <= 0::numeric OR w.netto_jetzt_kg <= 0::numeric THEN 'das Netto ist null oder negativ'::text
-            WHEN w.netto_jetzt_kg > (w.netto_damals_kg * 1.01) THEN format('sie wiegt jetzt %s kg mehr als beim Eingang, und im Lager wird keine Palette schwerer'::text, round(w.netto_jetzt_kg - w.netto_damals_kg))
-            WHEN w.netto_jetzt_kg = w.netto_damals_kg THEN 'sie hat kein Gramm verloren — sehr wahrscheinlich wurde das Eingangsgewicht kopiert (etwa bei einer sortierten Palette, deren Zettelgewicht es nicht gibt)'::text
-            ELSE 'sie ist nicht verwertbar'::text
-        END) || ' — sie zählt nicht in die Verdunstungsrate'::text AS befund,
-        CASE
-            WHEN w.netto_damals_kg IS NULL OR w.netto_jetzt_kg IS NULL THEN 'Unter Stammdaten → Gebinde die Tara nachtragen.'::text
-            WHEN w.netto_jetzt_kg > (w.netto_damals_kg * 1.01) THEN 'Gebindeart, Kistenzahl und beide Gewichte prüfen — meist stimmt die Tara nicht oder eine Zahl ist verdreht.'::text
-            ELSE 'Eingangsdatum und Gewichte der Wägung prüfen.'::text
-        END AS rat
-   FROM v_verdunstung_messung w
-     LEFT JOIN auftrag a ON a.id = w.auftrag_id
-  WHERE NOT w.verwendbar AND NOT w.sichtbar_schimmel AND (a.id IS NULL OR a.abgebrochen_ts IS NULL) AND (EXISTS ( SELECT 1
-           FROM verdunstung_wiegung v
-          WHERE v.id = w.id AND v.gemessen))
-UNION ALL
- SELECT 'Kistengewicht'::text AS art,
-    g.auftrag_id,
-    a.charge_nr,
-    c.sorte,
-    a.start_ts,
-        CASE
-            WHEN g.kaliber_idx = '-1'::integer THEN format('%s Kisten nach Sollgewicht gezählt, aber für diese Sorte wurde noch '::text || 'nie eine fertige Palette gewogen — das Kistengewicht ist unbekannt'::text, g.anzahl)
-            ELSE format('%s Kisten Kaliber %s gezählt, aber für dieses Kaliber wurde beim '::text || 'Sortieren noch nie mitgezählt — das Kistengewicht ist unbekannt'::text, g.anzahl, g.kaliber_idx + 1)
-        END AS befund,
-        CASE
-            WHEN g.kaliber_idx = '-1'::integer THEN 'Bei der nächsten Arbeit „Kiste ab x kg" eine fertige Palette wiegen. Das '::text || 'Kistengewicht gilt dann für alle Fax-Arbeiten dieser Sorte.'::text
-            ELSE 'Beim nächsten Sortierlauf die gefüllten Kisten je Kaliber zählen. Das '::text || 'Kistengewicht gilt dann rückwirkend für alle Waschgänge dieser Sorte.'::text
-        END AS rat
-   FROM v_auftrag_gebinde_masse g
-     JOIN auftrag a ON a.id = g.auftrag_id
-     JOIN charge c ON c.nr = a.charge_nr
-  WHERE g.kg IS NULL AND g.anzahl > 0 AND g.kaliber_idx <> '-2'::integer
-UNION ALL
- SELECT 'Kaliber fehlt'::text AS art,
-    a.id AS auftrag_id,
-    a.charge_nr,
-    c.sorte,
-    a.start_ts,
-    'Waschgang ohne Kaliber eröffnet — die gezählten Kisten lassen sich keiner Masse zuordnen'::text AS befund,
-    'Das Kaliber am Auftrag nachtragen; welche Bänder es gibt, steht unter '::text || 'Stammdaten → Sortierschemata.'::text AS rat
-   FROM auftrag a
-     JOIN charge c ON c.nr = a.charge_nr
-  WHERE a.station = 'waschen'::station AND NOT a.ist_fax AND a.kaliber_idx IS NULL AND a.kaliber_von_g IS NULL AND a.abgebrochen_ts IS NULL AND (EXISTS ( SELECT 1
-           FROM auftrag_gebinde g
-          WHERE g.auftrag_id = a.id AND g.anzahl > 0))
-UNION ALL
- SELECT 'Ausschuss-Tara'::text AS art,
-    m.auftrag_id,
-    a.charge_nr,
-    c.sorte,
-    m.ts AS start_ts,
-    format('%s kg %s gespeichert — aus Brutto %s kg und heutiger Tara wären es %s kg'::text, m.kg,
-        CASE m.art
-            WHEN 'zu_klein'::ausschuss_art THEN 'zu klein'::text
-            ELSE 'zu gross'::text
-        END, m.brutto_kg, GREATEST(round(n.roh), 0::numeric)) AS befund,
-    'Die Gebinde-Tara wurde nach dem Wiegen geändert. Stimmt die neue Tara, den '::text || 'Eintrag im Auftrag löschen und mit demselben Brutto neu eintragen.'::text AS rat
-   FROM ausschuss_messung m
-     JOIN auftrag a ON a.id = m.auftrag_id
-     JOIN charge c ON c.nr = a.charge_nr
-     LEFT JOIN gebinde g ON g.art = m.gebindeart
-     CROSS JOIN LATERAL ( SELECT m.brutto_kg - m.kisten::numeric * g.tara_kg_pro_kiste - g.tara_kg_palette AS roh) n
-  WHERE m.brutto_kg IS NOT NULL AND a.abgebrochen_ts IS NULL AND n.roh IS NOT NULL AND m.kg::numeric <> GREATEST(round(n.roh), 0::numeric)
-UNION ALL
- SELECT 'Ausschuss ohne Tara'::text AS art,
-    m.auftrag_id,
-    a.charge_nr,
-    c.sorte,
-    m.ts AS start_ts,
-    format('%s kg %s mit %s kg brutto gespeichert — nachrechnen lässt sich das nicht: %s'::text, m.kg,
-        CASE m.art
-            WHEN 'zu_klein'::ausschuss_art THEN 'zu klein'::text
-            ELSE 'zu gross'::text
-        END, m.brutto_kg,
-        CASE
-            WHEN m.gebindeart IS NULL THEN 'an der Wägung steht keine Gebindeart'::text
-            WHEN g.art IS NULL THEN 'diese Gebindeart steht nicht in den Stammdaten'::text
-            WHEN g.tara_kg_pro_kiste IS NULL THEN 'für die Gebindeart ist kein Kistengewicht hinterlegt'::text
-            WHEN g.tara_kg_palette IS NULL THEN 'für die Gebindeart ist kein Palettengewicht hinterlegt'::text
-            ELSE 'die Kistenzahl fehlt'::text
-        END) AS befund,
-    'Die gespeicherten Kilo bleiben, wie sie sind — geprüft werden können sie erst, '::text || 'wenn Gebindeart, Tara und Kistenzahl beisammen sind.'::text AS rat
-   FROM ausschuss_messung m
-     JOIN auftrag a ON a.id = m.auftrag_id
-     JOIN charge c ON c.nr = a.charge_nr
-     LEFT JOIN gebinde g ON g.art = m.gebindeart
-  WHERE m.brutto_kg IS NOT NULL AND a.abgebrochen_ts IS NULL AND (m.brutto_kg - m.kisten::numeric * g.tara_kg_pro_kiste - g.tara_kg_palette) IS NULL
-UNION ALL
- SELECT 'Zetteldatum'::text AS art,
-    ap.auftrag_id,
-    a.charge_nr,
-    c.sorte,
-    a.start_ts,
-    format('%s Palette(n) mit Zetteldatum %s gezählt, aber an dem Tag kam keine Palette dieser Charge'::text, count(*), to_char(ap.eingangsdatum::timestamp with time zone, 'DD.MM.YYYY'::text)) AS befund,
-    'Datum an der Zählung prüfen (Zahlendreher?) — oder die Palette fehlt im Wareneingang.'::text AS rat
-   FROM auftrag_palette ap
-     JOIN auftrag a ON a.id = ap.auftrag_id
-     JOIN charge c ON c.nr = a.charge_nr
-  WHERE ap.eingangsdatum IS NOT NULL AND ap.palette_id IS NULL AND ap.wiegung_id IS NULL AND a.abgebrochen_ts IS NULL AND NOT (EXISTS ( SELECT 1
-           FROM palette p
-          WHERE p.charge_nr = a.charge_nr AND p.eingangsdatum = ap.eingangsdatum))
-  GROUP BY ap.auftrag_id, a.charge_nr, c.sorte, a.start_ts, ap.eingangsdatum
-UNION ALL
- SELECT 'Zettelgewicht'::text AS art,
-    ap.auftrag_id,
-    a.charge_nr,
-    c.sorte,
-    a.start_ts,
-    format('%s Palette(n) mit %s kg vom Zettel gezählt, aber im Wareneingang hat keine Palette '::text || 'dieser Charge dieses Gewicht — gerechnet wird mit der mittleren Tara der Charge'::text, count(*), ap.brutto_zettel_kg) AS befund,
-    'Gewicht an der Zählung prüfen (Zahlendreher?) — oder die Palette fehlt im Wareneingang.'::text AS rat
-   FROM auftrag_palette ap
-     JOIN auftrag a ON a.id = ap.auftrag_id
-     JOIN charge c ON c.nr = a.charge_nr
-  WHERE ap.brutto_zettel_kg IS NOT NULL AND a.abgebrochen_ts IS NULL AND NOT (EXISTS ( SELECT 1
-           FROM palette p
-          WHERE p.charge_nr = a.charge_nr AND p.brutto_kg = ap.brutto_zettel_kg))
-  GROUP BY ap.auftrag_id, a.charge_nr, c.sorte, a.start_ts, ap.brutto_zettel_kg
-UNION ALL
- SELECT 'Lieferung ohne Eingang'::text AS art,
-    NULL::bigint AS auftrag_id,
-    l.charge_nr,
-    l.sorte,
-    min(l.datum)::timestamp with time zone AS start_ts,
-    format('%s Lieferung(en) mit %s kg an Charge %s, aber im Wareneingang steht keine Palette dieser Charge'::text, count(*), round(sum(l.masse_kg)), l.charge_nr) AS befund,
-    'Wareneingang der Charge nachtragen (Erntejournal) — oder die Lieferung gehört zu einer anderen Charge.'::text AS rat
-   FROM v_lieferung_masse l
-  WHERE l.buch = 'verkauf'::text AND l.charge_nr IS NOT NULL AND l.masse_kg > 0::numeric AND NOT (EXISTS ( SELECT 1
-           FROM v_kohorte_anteil k
-          WHERE k.charge_nr = l.charge_nr))
-  GROUP BY l.charge_nr, l.sorte
-UNION ALL
- SELECT v_plausibilitaet_0054_zusatz.art,
-    v_plausibilitaet_0054_zusatz.auftrag_id,
-    v_plausibilitaet_0054_zusatz.charge_nr,
-    v_plausibilitaet_0054_zusatz.sorte,
-    v_plausibilitaet_0054_zusatz.start_ts,
-    v_plausibilitaet_0054_zusatz.befund,
-    v_plausibilitaet_0054_zusatz.rat
-   FROM v_plausibilitaet_0054_zusatz
-UNION ALL
- SELECT 'Zetteldatum Zukunft'::text AS art,
-    ap.auftrag_id,
-    a.charge_nr,
-    c.sorte,
-    a.start_ts,
-    format('%s Palette(n) mit Eingangsdatum %s gezählt — das liegt in der Zukunft, sehr wahrscheinlich ein falsches Jahr'::text, count(*), to_char(max(ap.eingangsdatum)::timestamp with time zone, 'DD.MM.YYYY'::text)) AS befund,
-    'Datum an der Zählung korrigieren (Jahr prüfen). Die Beobachtung bleibt gespeichert, bis sie berichtigt ist; solange rechnet die Auswertung sie nicht mit.'::text AS rat
-   FROM auftrag_palette ap
-     JOIN auftrag a ON a.id = ap.auftrag_id
-     JOIN charge c ON c.nr = a.charge_nr
-  WHERE ap.eingangsdatum > heute() AND a.abgebrochen_ts IS NULL
-  GROUP BY ap.auftrag_id, a.charge_nr, c.sorte, a.start_ts
-UNION ALL
- SELECT 'Palettengewicht'::text AS art,
-    NULL::bigint AS auftrag_id,
-    p.charge_nr,
-    c.sorte,
-    p.eingangsdatum::timestamp with time zone AS start_ts,
-    format('Eine Palette mit %s kg brutto — für eine Palette Kürbisse ist das unmöglich'::text, round(p.brutto_kg)) AS befund,
-    'Bruttogewicht im Wareneingang prüfen — sehr wahrscheinlich ein Zahlendreher.'::text AS rat
-   FROM palette p
-     JOIN charge c ON c.nr = p.charge_nr
-  WHERE p.brutto_kg > 2000::numeric;
 
 
 -- ---------------------------------------------------------------------
@@ -12954,6 +12680,414 @@ select
   (select count(*) from sortier_lauf where sortiertag is not null)::int                   as lesungen_mit_sortiertag,
   (select count(*) from sortier_lauf
     where sortiertag_quelle in ('datei', 'arbeit'))::int                                  as lesungen_sortiertag_bezeugt;
+
+-- ---------------------------------------------------------------------
+-- 4. Was sich nicht von selbst deuten lässt, steht als Auffälligkeit da
+--
+-- Der Zusatz von 0064 wird vollständig wiederholt (create or replace view
+-- verlangt das) und um einen Zweig verlängert: eine Ausschuss-Wägung „mit
+-- Palette", deren Brutto kaum mehr wiegt als die leere Palette.
+-- ---------------------------------------------------------------------
+
+create or replace view v_plausibilitaet_0064_zusatz with (security_invoker = true) as
+ SELECT 'Tara fehlt'::text AS art,
+    NULL::bigint AS auftrag_id,
+    p.charge_nr,
+    c.sorte,
+    min(p.eingangsdatum)::timestamp with time zone AS start_ts,
+    format('%s von %s Paletten der Charge haben kein Nettogewicht (%s kg brutto): %s. %s'::text, count(*), r.n_paletten, round(sum(p.brutto_kg)),
+        CASE
+            WHEN bool_or(p.gebindeart IS NULL) THEN 'die Gebindeart steht nicht auf der Palette'::text
+            WHEN bool_or(g.art IS NULL) THEN 'diese Gebindeart steht nicht in den Stammdaten'::text
+            WHEN bool_or(g.tara_kg_pro_kiste IS NULL) THEN 'für die Gebindeart ist kein Kistengewicht hinterlegt'::text
+            WHEN bool_or(g.tara_kg_palette IS NULL) THEN 'für die Gebindeart ist kein Palettengewicht hinterlegt'::text
+            ELSE 'die Kistenzahl fehlt'::text
+        END,
+        CASE
+            WHEN r.n_paletten_mit_netto = 0 THEN 'Damit hat die Charge gar keinen Eingang — sie fehlt in der ganzen Bilanz.'::text
+            ELSE format('Für sie rechnet der Eingang mit dem Mittel der übrigen: %s der %s kg '::text || 'Eingang sind hochgerechnet, nicht gewogen.'::text, round(r.eingang_netto_kg - r.eingang_netto_gemessen_kg), round(r.eingang_netto_kg))
+        END) AS befund,
+        CASE
+            WHEN bool_or(p.gebindeart IS NULL) THEN 'Gebindeart am Wareneingang nachtragen.'::text
+            WHEN bool_or(g.art IS NULL) OR bool_or(g.tara_kg_pro_kiste IS NULL) OR bool_or(g.tara_kg_palette IS NULL) THEN 'Unter Betrieb → Stammdaten die Tara dieser Gebindeart eintragen. '::text || 'Die Zahlen rechnen sich danach von selbst neu.'::text
+            ELSE 'Kistenzahl der Palette im Wareneingang nachtragen.'::text
+        END AS rat
+   FROM palette p
+     LEFT JOIN gebinde g ON g.art = p.gebindeart
+     JOIN charge c ON c.nr = p.charge_nr
+     JOIN v_charge_rueckgrat r ON r.charge_nr = p.charge_nr
+  WHERE (p.brutto_kg - p.kisten::numeric * g.tara_kg_pro_kiste - g.tara_kg_palette) IS NULL
+  GROUP BY p.charge_nr, c.sorte, r.n_paletten, r.n_paletten_mit_netto, r.eingang_netto_kg, r.eingang_netto_gemessen_kg
+UNION ALL
+ SELECT 'Überzählung'::text AS art,
+    NULL::bigint AS auftrag_id,
+    h.charge_nr,
+    h.sorte,
+    h.eingangsdatum_mittel::timestamp with time zone AS start_ts,
+    format('%s kg mehr ausgeliefert, als für diese Charge je als Eingang erfasst wurde '::text || '(%s kg Eingang, %s kg geliefert) — das sind %s %% des Eingangs'::text, round(h.ueberzaehlung_kg), round(h.eingang_kg), round(h.geliefert_kg), round(100::numeric * h.ueberzaehlung_kg / NULLIF(h.eingang_kg, 0::numeric))) AS befund,
+    ('Fehlt im Erntejournal eine Palette dieser Charge? Oder ist ein Lieferschein auf '::text || 'die falsche Chargennummer gebucht? Beides lässt sich nachtragen; bis dahin ist '::text) || 'die Verlustquote dieser Charge zu hoch, weil ihr Eingang zu klein ist.'::text AS rat
+   FROM v_hochrechnung_basis h
+  WHERE h.ueberzaehlung_kg > 0::numeric
+UNION ALL
+ SELECT 'Zettelgewicht'::text AS art,
+    ap.auftrag_id,
+    a.charge_nr,
+    c.sorte,
+    a.start_ts,
+    format(('%s Palette(n) mit %s kg vom Zettel und Eingangsdatum %s gezählt. Eine Palette '::text || 'dieses Gewichts gibt es in der Charge, aber an einem anderen Tag — gerechnet '::text) || 'wird deshalb mit der mittleren Tara der Charge, nicht mit ihrer eigenen.'::text, count(*), ap.brutto_zettel_kg, to_char(ap.eingangsdatum::timestamp with time zone, 'DD.MM.YYYY'::text)) AS befund,
+    'Eingangsdatum an der Zählung prüfen — oder das Datum der Palette im Wareneingang.'::text AS rat
+   FROM auftrag_palette ap
+     JOIN auftrag a ON a.id = ap.auftrag_id
+     JOIN charge c ON c.nr = a.charge_nr
+  WHERE ap.brutto_zettel_kg IS NOT NULL AND ap.eingangsdatum IS NOT NULL AND a.abgebrochen_ts IS NULL AND (EXISTS ( SELECT 1
+           FROM palette p
+          WHERE p.charge_nr = a.charge_nr AND p.brutto_kg = ap.brutto_zettel_kg)) AND NOT (EXISTS ( SELECT 1
+           FROM v_palette p
+          WHERE p.charge_nr = a.charge_nr AND p.brutto_kg = ap.brutto_zettel_kg AND p.eingangsdatum = ap.eingangsdatum AND p.netto_kg IS NOT NULL))
+  GROUP BY ap.auftrag_id, a.charge_nr, c.sorte, a.start_ts, ap.brutto_zettel_kg, ap.eingangsdatum
+UNION ALL
+ -- 0083: Eine Ausschuss-Wägung „mit Palette", deren Brutto kaum mehr ist
+ -- als die leere Palette. Das kann stimmen — ein paar Kürbisse auf einer
+ -- Palette —, aber meistens standen die Kisten direkt auf der Waage, und
+ -- 25 kg Palette sind zu Unrecht abgezogen.
+ SELECT 'Palette fraglich'::text AS art,
+    m.auftrag_id,
+    a.charge_nr,
+    c.sorte,
+    a.start_ts,
+    format('%s: %s kg brutto in %s Kiste(n) %s, mit Palette gewogen — davon bleiben %s kg netto. Eine leere Palette wiegt allein %s kg.'::text,
+           CASE m.art WHEN 'zu_klein' THEN 'Zu klein' ELSE 'Zu gross' END,
+           m.brutto_kg, m.kisten, m.gebindeart, m.kg, g.tara_kg_palette) AS befund,
+    'Standen die Kisten direkt auf der Waage? Dann in der Korrektur „mit Palette" abwählen — das Netto rechnet sich von selbst neu.'::text AS rat
+   FROM ausschuss_messung m
+     JOIN auftrag a ON a.id = m.auftrag_id
+     JOIN charge c ON c.nr = a.charge_nr
+     JOIN gebinde g ON g.art = m.gebindeart
+  WHERE m.gemessen AND m.mit_palette AND m.brutto_kg IS NOT NULL
+    AND g.tara_kg_palette IS NOT NULL
+    AND m.brutto_kg < 2 * g.tara_kg_palette
+    AND a.abgebrochen_ts IS NULL;
+
+create view v_plausibilitaet_0054_zusatz with (security_invoker = true) as
+SELECT 'Kistengewicht'::text AS art,
+    g.auftrag_id,
+    a.charge_nr,
+    c.sorte,
+    a.start_ts,
+    format('%s Kisten zum eigenen Kaliber %s–%s g gezählt, aber ein Band mit diesen '::text || 'Grenzen wurde beim Sortieren noch nie mitgezählt — das Kistengewicht ist unbekannt'::text, g.anzahl, a.kaliber_von_g, a.kaliber_bis_g) AS befund,
+    'Entweder das Band aus der Liste wählen, das dem Etikett entspricht, oder beim '::text || 'nächsten Sortierlauf mit diesem Band die gefüllten Kisten zählen.'::text AS rat
+   FROM v_auftrag_gebinde_masse g
+     JOIN auftrag a ON a.id = g.auftrag_id
+     JOIN charge c ON c.nr = a.charge_nr
+  WHERE g.kg IS NULL AND g.anzahl > 0 AND g.kaliber_idx = '-2'::integer
+UNION ALL
+ SELECT 'Kistengewicht'::text AS art,
+    wp.auftrag_id,
+    a.charge_nr,
+    c.sorte,
+    a.start_ts,
+    format('%s Paletten mit %s Kisten gezählt, aber %s — das Kistengewicht ist unbekannt, '::text || 'die Menge dieser Arbeit damit auch'::text, wp.n_paletten, wp.kisten,
+        CASE
+            WHEN a.kaliber_von_g IS NOT NULL THEN format('ein Band %s–%s g wurde beim Sortieren noch nie mitgezählt'::text, a.kaliber_von_g, a.kaliber_bis_g)
+            ELSE 'für dieses Kaliber wurde beim Sortieren noch nie mitgezählt'::text
+        END) AS befund,
+        CASE
+            WHEN a.kaliber_von_g IS NOT NULL THEN 'Entweder das Band aus der Liste wählen, das dem Etikett entspricht, oder beim '::text || 'nächsten Sortierlauf mit diesem Band die gefüllten Kisten zählen.'::text
+            ELSE 'Beim nächsten Sortierlauf die gefüllten Kisten je Kaliber zählen. Das '::text || 'Kistengewicht gilt dann rückwirkend für alle Waschgänge dieser Sorte.'::text
+        END AS rat
+   FROM v_auftrag_wasch_paletten wp
+     JOIN auftrag a ON a.id = wp.auftrag_id
+     JOIN charge c ON c.nr = a.charge_nr
+  WHERE wp.kg IS NULL AND wp.kisten > 0
+UNION ALL
+ SELECT 'Lieferung in der Zukunft'::text AS art,
+    NULL::bigint AS auftrag_id,
+    l.charge_nr,
+    l.sorte,
+    l.datum::timestamp with time zone AS start_ts,
+    format('Lieferschein über %s kg mit Datum %s — das liegt nach heute (%s). '::text || 'Die Menge zählt erst ab diesem Tag in Ausgang und Bestand.'::text, round(l.masse_kg), to_char(l.datum::timestamp with time zone, 'DD.MM.YYYY'::text), to_char(heute()::timestamp with time zone, 'DD.MM.YYYY'::text)) AS befund,
+    'Stimmt das Datum? Ein vordatierter Lieferschein ist in Ordnung — die Zahl '::text || 'erscheint von selbst, sobald der Tag da ist. Ein Zahlendreher gehört korrigiert.'::text AS rat
+   FROM v_lieferung_masse l
+  WHERE l.datum > heute() AND l.masse_kg IS NOT NULL AND l.masse_kg > 0::numeric
+UNION ALL
+ SELECT v_plausibilitaet_0064_zusatz.art,
+    v_plausibilitaet_0064_zusatz.auftrag_id,
+    v_plausibilitaet_0064_zusatz.charge_nr,
+    v_plausibilitaet_0064_zusatz.sorte,
+    v_plausibilitaet_0064_zusatz.start_ts,
+    v_plausibilitaet_0064_zusatz.befund,
+    v_plausibilitaet_0064_zusatz.rat
+   FROM v_plausibilitaet_0064_zusatz;
+
+create or replace view v_plausibilitaet with (security_invoker = true) as
+ SELECT 'Schimmel'::text AS art,
+    b.auftrag_id,
+    b.charge_nr,
+    b.sorte,
+    b.start_ts,
+    format('%s kg Schimmel auf %s kg Ware — das wären %s %%'::text, round(b.schimmel_kg), round(b.basis_jetzt_kg), round(b.anteil * 100::numeric)) AS befund,
+    'Sehr wahrscheinlich ein Tippfehler bei den Kilogramm. Zahl im Auftrag korrigieren.'::text AS rat
+   FROM v_schimmel_beobachtung b
+  WHERE b.anteil IS NOT NULL AND NOT b.plausibel AND NOT b.ist_fax AND b.lagertage >= 0::numeric
+UNION ALL
+ SELECT 'Fax'::text AS art,
+    f.auftrag_id,
+    f.charge_nr,
+    f.sorte,
+    f.start_ts,
+    format('%s kg Faules bei %s (%s kg) — das wären %s %%'::text, round(f.faul_kg),
+        CASE
+            WHEN f.paletten_gesamt > 0 THEN f.paletten_gesamt || ' Paletten'::text
+            ELSE f.kisten || ' Kisten'::text
+        END, round(f.masse_kg), round(f.anteil * 100::numeric)) AS befund,
+    'Entweder die Palettenzahl oder eine Wägung ist vertippt. Im Auftrag prüfen.'::text AS rat
+   FROM v_fax_beobachtung f
+  WHERE f.anteil IS NOT NULL AND NOT f.plausibel
+UNION ALL
+ SELECT 'Ausschuss'::text AS art,
+    a.auftrag_id,
+    a.charge_nr,
+    a.sorte,
+    NULL::timestamp with time zone AS start_ts,
+    format('%s kg zu klein / %s kg zu gross bei %s kg Bezugsmasse'::text, round(COALESCE(a.klein_kg, 0::numeric)), round(COALESCE(a.gross_kg, 0::numeric)), round(a.basis_kg)) AS befund,
+    'Entweder die Kilogramm oder die Palettenzahl im Auftrag stimmt nicht.'::text AS rat
+   FROM v_ausschuss_beobachtung a
+  WHERE a.weg = 'hand'::verarbeitungsweg AND NOT a.plausibel
+UNION ALL
+ SELECT 'Ohne Nenner'::text AS art,
+    a.id AS auftrag_id,
+    a.charge_nr,
+    c.sorte,
+    a.start_ts,
+    format('%s erfasst, aber %s — die Messung hat keinen Nenner und fliesst nirgends ein'::text, concat_ws(' und '::text,
+        CASE
+            WHEN COALESCE(s.kg, 0::numeric) > 0::numeric THEN round(s.kg) || ' kg Faules'::text
+            ELSE NULL::text
+        END,
+        CASE
+            WHEN COALESCE(x.kg, 0::numeric) > 0::numeric THEN round(x.kg) || ' kg zu klein/gross'::text
+            ELSE NULL::text
+        END),
+        CASE
+            WHEN a.ist_fax THEN 'keine Palette gezählt oder noch keine fertige Palette dieser Sorte gewogen'::text
+            WHEN a.station = 'waschen'::station THEN 'keine Kiste gezählt und keine Menge eingetragen'::text
+            WHEN a.station = 'waschen_sortieren'::station THEN 'keine Palette mit Gewicht vom Zettel gezählt'::text
+            ELSE 'keine Palette gezählt'::text
+        END) AS befund,
+        CASE
+            WHEN a.ist_fax THEN ('Die Palettenzahl am Ende der Fax-Arbeit eintragen. Fehlt die Palettenmasse, '::text || 'beim Waschen oder Waschen + Sortieren eine fertige Palette wiegen — sie '::text) || 'gilt dann für alle Fax-Arbeiten der Sorte.'::text
+            WHEN a.station = 'waschen'::station THEN 'Die geleerten Kisten am Auftrag zählen (dann rechnet die Masse sich '::text || 'selbst) oder die verarbeitete Menge in kg nachtragen.'::text
+            WHEN a.station = 'waschen_sortieren'::station THEN 'Die Paletten mit Datum und Gewicht vom Zettel am Auftrag nachtragen.'::text
+            ELSE 'Die gezählten Paletten am Auftrag nachtragen.'::text
+        END AS rat
+   FROM auftrag a
+     JOIN charge c ON c.nr = a.charge_nr
+     LEFT JOIN v_schimmel_menge s ON s.auftrag_id = a.id
+     LEFT JOIN ( SELECT ausschuss_messung.auftrag_id,
+            sum(ausschuss_messung.kg)::numeric AS kg
+           FROM ausschuss_messung
+          WHERE ausschuss_messung.gemessen
+          GROUP BY ausschuss_messung.auftrag_id) x ON x.auftrag_id = a.id
+     LEFT JOIN v_auftrag_masse m ON m.auftrag_id = a.id
+  WHERE a.abgebrochen_ts IS NULL AND (COALESCE(s.kg, 0::numeric) > 0::numeric OR COALESCE(x.kg, 0::numeric) > 0::numeric) AND COALESCE(m.eingang_netto_kg, 0::numeric) <= 0::numeric
+UNION ALL
+ SELECT 'Palox'::text AS art,
+    s.auftrag_id,
+    a.charge_nr,
+    c.sorte,
+    s.ts AS start_ts,
+    format('Waagenstand %s kg liegt unter dem Leergewicht des Palox (%s kg)'::text, s.palox_stand_kg, palox_tara_kg()) AS befund,
+    'Zeigt die Waage netto, gehört palox_tara_kg in den Einstellungen auf 0. '::text || 'Sonst ist der Stand vertippt.'::text AS rat
+   FROM schimmel_messung s
+     JOIN auftrag a ON a.id = s.auftrag_id
+     JOIN charge c ON c.nr = a.charge_nr
+  WHERE s.gemessen AND a.abgebrochen_ts IS NULL AND s.palox_stand_kg IS NOT NULL AND s.palox_stand_kg < palox_tara_kg()
+UNION ALL
+ SELECT 'Palox geleert'::text AS art,
+    p.auftrag_id,
+    a.charge_nr,
+    c.sorte,
+    p.ts AS start_ts,
+    format('Der Waagenstand fiel von %s auf %s kg — der Palox wurde zwischendurch geleert. '::text || 'Wie viel davor noch dazukam, weiss niemand; das Faule dieser Arbeit ist unbekannt.'::text, p.vorher, p.palox_stand_kg) AS befund,
+    'Nichts zu korrigieren. Wird der Palox vor dem Leeren einmal abgelesen, bleibt die Menge bekannt.'::text AS rat
+   FROM v_palox_stand p
+     JOIN auftrag a ON a.id = p.auftrag_id
+     JOIN charge c ON c.nr = a.charge_nr
+  WHERE p.differenz IS NULL AND a.abgebrochen_ts IS NULL
+UNION ALL
+ SELECT 'Wägung'::text AS art,
+    w.auftrag_id,
+    w.charge_nr,
+    w.sorte,
+    w.wiege_ts AS start_ts,
+    ('Palette gewogen, aber '::text ||
+        CASE
+            WHEN w.netto_damals_kg IS NULL OR w.netto_jetzt_kg IS NULL THEN 'für die Gebindeart fehlt die Tara'::text
+            WHEN w.lagertage <= 0 THEN 'das Wiegedatum liegt nicht nach dem Eingangsdatum'::text
+            WHEN w.netto_damals_kg <= 0::numeric OR w.netto_jetzt_kg <= 0::numeric THEN 'das Netto ist null oder negativ'::text
+            WHEN w.netto_jetzt_kg > (w.netto_damals_kg * 1.01) THEN format('sie wiegt jetzt %s kg mehr als beim Eingang, und im Lager wird keine Palette schwerer'::text, round(w.netto_jetzt_kg - w.netto_damals_kg))
+            WHEN w.netto_jetzt_kg = w.netto_damals_kg THEN 'sie hat kein Gramm verloren — sehr wahrscheinlich wurde das Eingangsgewicht kopiert (etwa bei einer sortierten Palette, deren Zettelgewicht es nicht gibt)'::text
+            ELSE 'sie ist nicht verwertbar'::text
+        END) || ' — sie zählt nicht in die Verdunstungsrate'::text AS befund,
+        CASE
+            WHEN w.netto_damals_kg IS NULL OR w.netto_jetzt_kg IS NULL THEN 'Unter Stammdaten → Gebinde die Tara nachtragen.'::text
+            WHEN w.netto_jetzt_kg > (w.netto_damals_kg * 1.01) THEN 'Gebindeart, Kistenzahl und beide Gewichte prüfen — meist stimmt die Tara nicht oder eine Zahl ist verdreht.'::text
+            ELSE 'Eingangsdatum und Gewichte der Wägung prüfen.'::text
+        END AS rat
+   FROM v_verdunstung_messung w
+     LEFT JOIN auftrag a ON a.id = w.auftrag_id
+  WHERE NOT w.verwendbar AND NOT w.sichtbar_schimmel AND (a.id IS NULL OR a.abgebrochen_ts IS NULL) AND (EXISTS ( SELECT 1
+           FROM verdunstung_wiegung v
+          WHERE v.id = w.id AND v.gemessen))
+UNION ALL
+ SELECT 'Kistengewicht'::text AS art,
+    g.auftrag_id,
+    a.charge_nr,
+    c.sorte,
+    a.start_ts,
+        CASE
+            WHEN g.kaliber_idx = '-1'::integer THEN format('%s Kisten nach Sollgewicht gezählt, aber für diese Sorte wurde noch '::text || 'nie eine fertige Palette gewogen — das Kistengewicht ist unbekannt'::text, g.anzahl)
+            ELSE format('%s Kisten Kaliber %s gezählt, aber für dieses Kaliber wurde beim '::text || 'Sortieren noch nie mitgezählt — das Kistengewicht ist unbekannt'::text, g.anzahl, g.kaliber_idx + 1)
+        END AS befund,
+        CASE
+            WHEN g.kaliber_idx = '-1'::integer THEN 'Bei der nächsten Arbeit „Kiste ab x kg" eine fertige Palette wiegen. Das '::text || 'Kistengewicht gilt dann für alle Fax-Arbeiten dieser Sorte.'::text
+            ELSE 'Beim nächsten Sortierlauf die gefüllten Kisten je Kaliber zählen. Das '::text || 'Kistengewicht gilt dann rückwirkend für alle Waschgänge dieser Sorte.'::text
+        END AS rat
+   FROM v_auftrag_gebinde_masse g
+     JOIN auftrag a ON a.id = g.auftrag_id
+     JOIN charge c ON c.nr = a.charge_nr
+  WHERE g.kg IS NULL AND g.anzahl > 0 AND g.kaliber_idx <> '-2'::integer
+UNION ALL
+ SELECT 'Kaliber fehlt'::text AS art,
+    a.id AS auftrag_id,
+    a.charge_nr,
+    c.sorte,
+    a.start_ts,
+    'Waschgang ohne Kaliber eröffnet — die gezählten Kisten lassen sich keiner Masse zuordnen'::text AS befund,
+    'Das Kaliber am Auftrag nachtragen; welche Bänder es gibt, steht unter '::text || 'Stammdaten → Sortierschemata.'::text AS rat
+   FROM auftrag a
+     JOIN charge c ON c.nr = a.charge_nr
+  WHERE a.station = 'waschen'::station AND NOT a.ist_fax AND a.kaliber_idx IS NULL AND a.kaliber_von_g IS NULL AND a.abgebrochen_ts IS NULL AND (EXISTS ( SELECT 1
+           FROM auftrag_gebinde g
+          WHERE g.auftrag_id = a.id AND g.anzahl > 0))
+UNION ALL
+ SELECT 'Ausschuss-Tara'::text AS art,
+    m.auftrag_id,
+    a.charge_nr,
+    c.sorte,
+    m.ts AS start_ts,
+    format('%s kg %s gespeichert — aus Brutto %s kg und heutiger Tara wären es %s kg'::text, m.kg,
+        CASE m.art
+            WHEN 'zu_klein'::ausschuss_art THEN 'zu klein'::text
+            ELSE 'zu gross'::text
+        END, m.brutto_kg, GREATEST(round(n.roh), 0::numeric)) AS befund,
+    'Die Gebinde-Tara wurde nach dem Wiegen geändert. Stimmt die neue Tara, den '::text || 'Eintrag im Auftrag löschen und mit demselben Brutto neu eintragen.'::text AS rat
+   FROM ausschuss_messung m
+     JOIN auftrag a ON a.id = m.auftrag_id
+     JOIN charge c ON c.nr = a.charge_nr
+     LEFT JOIN gebinde g ON g.art = m.gebindeart
+     CROSS JOIN LATERAL ( SELECT m.brutto_kg - m.kisten::numeric * g.tara_kg_pro_kiste - g.tara_kg_palette AS roh) n
+  WHERE m.brutto_kg IS NOT NULL AND a.abgebrochen_ts IS NULL AND n.roh IS NOT NULL AND m.kg::numeric <> GREATEST(round(n.roh), 0::numeric)
+UNION ALL
+ SELECT 'Ausschuss ohne Tara'::text AS art,
+    m.auftrag_id,
+    a.charge_nr,
+    c.sorte,
+    m.ts AS start_ts,
+    format('%s kg %s mit %s kg brutto gespeichert — nachrechnen lässt sich das nicht: %s'::text, m.kg,
+        CASE m.art
+            WHEN 'zu_klein'::ausschuss_art THEN 'zu klein'::text
+            ELSE 'zu gross'::text
+        END, m.brutto_kg,
+        CASE
+            WHEN m.gebindeart IS NULL THEN 'an der Wägung steht keine Gebindeart'::text
+            WHEN g.art IS NULL THEN 'diese Gebindeart steht nicht in den Stammdaten'::text
+            WHEN g.tara_kg_pro_kiste IS NULL THEN 'für die Gebindeart ist kein Kistengewicht hinterlegt'::text
+            WHEN g.tara_kg_palette IS NULL THEN 'für die Gebindeart ist kein Palettengewicht hinterlegt'::text
+            ELSE 'die Kistenzahl fehlt'::text
+        END) AS befund,
+    'Die gespeicherten Kilo bleiben, wie sie sind — geprüft werden können sie erst, '::text || 'wenn Gebindeart, Tara und Kistenzahl beisammen sind.'::text AS rat
+   FROM ausschuss_messung m
+     JOIN auftrag a ON a.id = m.auftrag_id
+     JOIN charge c ON c.nr = a.charge_nr
+     LEFT JOIN gebinde g ON g.art = m.gebindeart
+  WHERE m.brutto_kg IS NOT NULL AND a.abgebrochen_ts IS NULL AND (m.brutto_kg - m.kisten::numeric * g.tara_kg_pro_kiste - g.tara_kg_palette) IS NULL
+UNION ALL
+ SELECT 'Zetteldatum'::text AS art,
+    ap.auftrag_id,
+    a.charge_nr,
+    c.sorte,
+    a.start_ts,
+    format('%s Palette(n) mit Zetteldatum %s gezählt, aber an dem Tag kam keine Palette dieser Charge'::text, count(*), to_char(ap.eingangsdatum::timestamp with time zone, 'DD.MM.YYYY'::text)) AS befund,
+    'Datum an der Zählung prüfen (Zahlendreher?) — oder die Palette fehlt im Wareneingang.'::text AS rat
+   FROM auftrag_palette ap
+     JOIN auftrag a ON a.id = ap.auftrag_id
+     JOIN charge c ON c.nr = a.charge_nr
+  WHERE ap.eingangsdatum IS NOT NULL AND ap.palette_id IS NULL AND ap.wiegung_id IS NULL AND a.abgebrochen_ts IS NULL AND NOT (EXISTS ( SELECT 1
+           FROM palette p
+          WHERE p.charge_nr = a.charge_nr AND p.eingangsdatum = ap.eingangsdatum))
+  GROUP BY ap.auftrag_id, a.charge_nr, c.sorte, a.start_ts, ap.eingangsdatum
+UNION ALL
+ SELECT 'Zettelgewicht'::text AS art,
+    ap.auftrag_id,
+    a.charge_nr,
+    c.sorte,
+    a.start_ts,
+    format('%s Palette(n) mit %s kg vom Zettel gezählt, aber im Wareneingang hat keine Palette '::text || 'dieser Charge dieses Gewicht — gerechnet wird mit der mittleren Tara der Charge'::text, count(*), ap.brutto_zettel_kg) AS befund,
+    'Gewicht an der Zählung prüfen (Zahlendreher?) — oder die Palette fehlt im Wareneingang.'::text AS rat
+   FROM auftrag_palette ap
+     JOIN auftrag a ON a.id = ap.auftrag_id
+     JOIN charge c ON c.nr = a.charge_nr
+  WHERE ap.brutto_zettel_kg IS NOT NULL AND a.abgebrochen_ts IS NULL AND NOT (EXISTS ( SELECT 1
+           FROM palette p
+          WHERE p.charge_nr = a.charge_nr AND p.brutto_kg = ap.brutto_zettel_kg))
+  GROUP BY ap.auftrag_id, a.charge_nr, c.sorte, a.start_ts, ap.brutto_zettel_kg
+UNION ALL
+ SELECT 'Lieferung ohne Eingang'::text AS art,
+    NULL::bigint AS auftrag_id,
+    l.charge_nr,
+    l.sorte,
+    min(l.datum)::timestamp with time zone AS start_ts,
+    format('%s Lieferung(en) mit %s kg an Charge %s, aber im Wareneingang steht keine Palette dieser Charge'::text, count(*), round(sum(l.masse_kg)), l.charge_nr) AS befund,
+    'Wareneingang der Charge nachtragen (Erntejournal) — oder die Lieferung gehört zu einer anderen Charge.'::text AS rat
+   FROM v_lieferung_masse l
+  WHERE l.buch = 'verkauf'::text AND l.charge_nr IS NOT NULL AND l.masse_kg > 0::numeric AND NOT (EXISTS ( SELECT 1
+           FROM v_kohorte_anteil k
+          WHERE k.charge_nr = l.charge_nr))
+  GROUP BY l.charge_nr, l.sorte
+UNION ALL
+ SELECT v_plausibilitaet_0054_zusatz.art,
+    v_plausibilitaet_0054_zusatz.auftrag_id,
+    v_plausibilitaet_0054_zusatz.charge_nr,
+    v_plausibilitaet_0054_zusatz.sorte,
+    v_plausibilitaet_0054_zusatz.start_ts,
+    v_plausibilitaet_0054_zusatz.befund,
+    v_plausibilitaet_0054_zusatz.rat
+   FROM v_plausibilitaet_0054_zusatz
+UNION ALL
+ SELECT 'Zetteldatum Zukunft'::text AS art,
+    ap.auftrag_id,
+    a.charge_nr,
+    c.sorte,
+    a.start_ts,
+    format('%s Palette(n) mit Eingangsdatum %s gezählt — das liegt in der Zukunft, sehr wahrscheinlich ein falsches Jahr'::text, count(*), to_char(max(ap.eingangsdatum)::timestamp with time zone, 'DD.MM.YYYY'::text)) AS befund,
+    'Datum an der Zählung korrigieren (Jahr prüfen). Die Beobachtung bleibt gespeichert, bis sie berichtigt ist; solange rechnet die Auswertung sie nicht mit.'::text AS rat
+   FROM auftrag_palette ap
+     JOIN auftrag a ON a.id = ap.auftrag_id
+     JOIN charge c ON c.nr = a.charge_nr
+  WHERE ap.eingangsdatum > heute() AND a.abgebrochen_ts IS NULL
+  GROUP BY ap.auftrag_id, a.charge_nr, c.sorte, a.start_ts
+UNION ALL
+ SELECT 'Palettengewicht'::text AS art,
+    NULL::bigint AS auftrag_id,
+    p.charge_nr,
+    c.sorte,
+    p.eingangsdatum::timestamp with time zone AS start_ts,
+    format('Eine Palette mit %s kg brutto — für eine Palette Kürbisse ist das unmöglich'::text, round(p.brutto_kg)) AS befund,
+    'Bruttogewicht im Wareneingang prüfen — sehr wahrscheinlich ein Zahlendreher.'::text AS rat
+   FROM palette p
+     JOIN charge c ON c.nr = p.charge_nr
+  WHERE p.brutto_kg > 2000::numeric;
 
 -- ---------- 2. Die Punkte werden nur noch einmal gerechnet ---------------
 --
@@ -14710,6 +14844,7 @@ comment on view v_datenqualitaet is
   'Sortierdatei und die Güte des Sortiertags: Wie viele Lesungen haben '
   'überhaupt einen, und bei wie vielen ist er bezeugt statt geschätzt? '
   'Darauf ruht die Gewichtsverteilung des Lagers (0082).';
+grant select on v_plausibilitaet_0064_zusatz to authenticated;
 
 
 -- =====================================================================

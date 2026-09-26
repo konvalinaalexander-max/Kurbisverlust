@@ -136,12 +136,15 @@ begin
   assert (select eingang_netto_kg from v_auftrag_masse where auftrag_id = a) = 3 * 865,
     'Die Bezugsmasse der drei Paletten stimmt nicht (3 × 865: Zettel 950 − 40·1.5 − 25)';
 
-  -- Zu klein / zu gross je Palette am Ende (0061): 60 brutto, 4 G2 → 60 − 6 − 25 = 29 kg, gemessen
-  assert (select count(*) from ausschuss_messung where auftrag_id = a) = 1, 'Eine Ausschuss-Palette gewogen';
-  assert (select kg from ausschuss_messung where auftrag_id = a and art = 'zu_klein' and gemessen and brutto_kg = 60 and kisten = 4) = 29,
+  -- Zu klein / zu gross am Ende (0061, 0083): eine Kiste ohne Palette
+  -- (12 − 1.5 = 10.5 → 11 kg — vorher null) und eine Palette (60 − 6 − 25 = 29 kg)
+  assert (select count(*) from ausschuss_messung where auftrag_id = a) = 2, 'Zwei Ausschuss-Wägungen';
+  assert (select kg from ausschuss_messung where auftrag_id = a and art = 'zu_klein' and gemessen and brutto_kg = 12 and kisten = 1 and not mit_palette) = 11,
+    'Die Kiste ohne Palette: der Auslöser zieht keine Palettentara ab (11 kg, nicht 0) (0083)';
+  assert (select kg from ausschuss_messung where auftrag_id = a and art = 'zu_klein' and gemessen and brutto_kg = 60 and kisten = 4 and mit_palette) = 29,
     'Der Ausschuss-Auslöser rechnet das Netto aus Brutto und Tara (29 kg)';
-  assert (select klein_kg from v_ausschuss_beobachtung where auftrag_id = a and weg = 'hand') = 29,
-    'Der von Hand gewogene Ausschuss kommt nicht als Beobachtung an';
+  assert (select klein_kg from v_ausschuss_beobachtung where auftrag_id = a and weg = 'hand') = 40,
+    'Der von Hand gewogene Ausschuss kommt nicht vollständig als Beobachtung an (11 + 29 = 40)';
   assert not exists (select 1 from v_auftrag_angabe where auftrag_id = a and schluessel like 'ausschuss%'),
     'Die Ausschuss-Fragen gibt es nicht mehr';
   -- Die Wägung ohne Faul-Frage (0061): faul_kg bleibt leer, die Wägung zählt trotzdem

@@ -33,11 +33,14 @@ export function FauleMaske({ d, gesperrt, melden, neuLaden }: {
   const tara = gebinde.find(g => g.art === gart)
   const n = Number(kisten); const b = Number(brutto)
   const roh = b > 0 && n > 0 ? nettoKg(b, n, tara, mitPalette) : null
-  const netto = roh === null ? null : Math.max(Math.round(roh), 0)
+  // Kein Math.max(…, 0) (0083): Ein Brutto unter der Tara ist ein
+  // Widerspruch, den der Arbeiter sehen muss — keine leere Wägung.
+  const netto = roh === null ? null : Math.round(roh)
   const fehlt = b > 0 && n > 0 ? taraFehlt(tara, mitPalette) : null
+  const unterTara = netto !== null && netto < 0
 
   async function speichern() {
-    if (netto === null || laeuft) return
+    if (netto === null || netto < 0 || laeuft) return
     setLaeuft(true); setFehler(null)
     // kg ist ein Pflichtfeld; der Auslöser ersetzt es durch das Netto aus Brutto und Tara.
     const { error } = await supabase.from('schimmel_messung').insert({
@@ -92,8 +95,9 @@ export function FauleMaske({ d, gesperrt, melden, neuLaden }: {
           <strong>{netto} kg</strong> {t('netto')}
         </p>
       )}
+      {unterTara && <p className="grund" role="status">{mitPalette ? t('bruttoUnterTara') : t('bruttoUnterKisten')}</p>}
       <button type="button" id="faul-eintragen" className="haupt gross voll"
-              onClick={() => void speichern()} disabled={gesperrt || laeuft || netto === null}>
+              onClick={() => void speichern()} disabled={gesperrt || laeuft || netto === null || unterTara}>
         {t('eintragen')}
       </button>
       {d.ablesungen.length === 0 && (

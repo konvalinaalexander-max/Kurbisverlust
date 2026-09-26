@@ -12,6 +12,8 @@ export interface Ablesung {
 export interface AusschussZeile {
   id: number; art: 'zu_klein' | 'zu_gross'; kg: number; ts: string
   gemessen: boolean; brutto_kg: number | null; kisten: number | null; gebindeart: string | null; bemerkung: string | null
+  /** 0083: Stand die Ware auf einer Palette? Nur dann ist die Palettentara abgezogen. */
+  mit_palette: boolean
 }
 /** Eine gezählte Palette: am Eingang (Eingangsdatum, Zettelgewicht, Wägung) oder
  *  beim Waschen die Kaliber-Palette aus dem Zwischenlager (Sortierdatum, Kisten). */
@@ -61,7 +63,7 @@ export async function arbeitLaden(auftragId: number): Promise<ArbeitDaten | null
     supabase.from('schimmel_messung')
       .select('id, kg, ts, palox_stand_kg, brutto_kg, kisten, gebindeart, mit_palette, bemerkung')
       .eq('auftrag_id', auftragId).order('ts'),
-    supabase.from('ausschuss_messung').select('id, art, kg, ts, gemessen, brutto_kg, kisten, gebindeart, bemerkung')
+    supabase.from('ausschuss_messung').select('id, art, kg, ts, gemessen, brutto_kg, kisten, gebindeart, bemerkung, mit_palette')
       .eq('auftrag_id', auftragId).order('ts'),
     supabase.from('ausgang_wiegung').select('id').eq('auftrag_id', auftragId),
     supabase.from('v_auftrag_angabe').select('schluessel, wert').eq('auftrag_id', auftragId),

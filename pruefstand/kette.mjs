@@ -320,7 +320,7 @@ await schritt('Fertige Palette wiegen: 32 Kisten G2, 345 kg brutto → 8.5 kg je
   await seite.getByRole('button', { name: /Zurück/ }).click()
 })
 
-await schritt('Geführter Abschluss: Palox am Ende 285 (→ 120 kg), geleert? nein, Erinnerung (1 von 3 gewogen), zu klein 60 kg brutto (4 G2 → 29 kg), fertige Palette erinnert, Gesamtzahl, eine Charge → fertig', async () => {
+await schritt('Geführter Abschluss: Palox am Ende 285 (→ 120 kg), geleert? nein, Erinnerung (1 von 3 gewogen), zu klein: 1 Kiste 12 kg ohne Palette (→ 11 kg, vorher null) und 4 G2 60 kg mit Palette (→ 29 kg), fertige Palette erinnert, Gesamtzahl, eine Charge → fertig', async () => {
   await seite.locator('#check-abschluss').click()
   // AB-02 / 0072: die zweite Ablesung derselben Arbeit ergibt die Menge — 285 − 165 = 120.
   await seite.locator('#palox').fill('285')
@@ -342,16 +342,40 @@ await schritt('Geführter Abschluss: Palox am Ende 285 (→ 120 kg), geleert? ne
   // zu klein / zu gross: Palette für Palette, Brutto + Kisten + Kistenart.
   // Runde T: der Knopf ist da, aber grau — mit dem Grund daneben.
   if (!(await seite.getByRole('button', { name: 'Weiter' }).isDisabled())) throw new Error('Ohne Ausschuss-Messung darf es nicht weitergehen')
+  // Runde V (0083): Der Fall, der bis dahin still zu null wurde — eine Kiste
+  // direkt auf der Waage. 12 kg brutto, 1 G2: ohne Palette 12 − 1.5 = 10.5 → 11.
+  // Mit der alten Maske wäre das 12 − 1.5 − 25 = −14.5 → 0 gewesen.
   await seite.locator('#aus-zu_klein').click()
-  await seite.locator('#aus-brutto').fill('60')
-  await seite.locator('#aus-kisten').fill('4')
+  await seite.locator('#aus-brutto').fill('12')
+  await seite.locator('#aus-kisten').fill('1')
   await seite.locator('#aus-art').selectOption('G2')
-  const vorschau = await seite.locator('text=/\\d+ kg netto/').first().textContent()
-  if (!/29 kg/.test(vorschau ?? '')) throw new Error(`Ausschuss-Vorschau zeigt „${vorschau}" statt 29 kg`)
+  // Ohne Antwort auf „Palette?" geht nichts — der Grund steht am Knopf.
+  if (!(await seite.locator('#aus-eintragen').isDisabled())) throw new Error('Ohne „Palette?"-Antwort darf der Ausschuss nicht speicherbar sein (0083)')
+  await seite.getByText('Bitte zuerst sagen, ob eine Palette drunter steht').waitFor()
+  // Erst „mit Palette": das ergäbe ein negatives Netto — gesperrt, mit Grund.
+  await seite.locator('#aus-mit-palette').click()
+  if (!(await seite.locator('#aus-eintragen').isDisabled())) throw new Error('Ein Brutto unter der Tara darf nicht speicherbar sein (0083)')
+  await seite.getByText(/so kann keine Palette drunter gestanden haben/).waitFor()
+  // Dann ehrlich: ohne Palette.
+  await seite.locator('#aus-ohne-palette').click()
+  let vorschau = await seite.locator('text=/-?\\d+ kg netto/').first().textContent()
+  if (!/\b11 kg/.test(vorschau ?? '')) throw new Error(`Ausschuss-Vorschau zeigt „${vorschau}" statt 11 kg`)
   await seite.locator('#aus-eintragen').click()
   await warteAuf('ausschuss_messung')
-  const m = protokoll.find(x => x.tabelle === 'ausschuss_messung').zeilen[0]
-  if (m.art !== 'zu_klein' || Number(m.brutto_kg) !== 60 || m.kisten !== 4 || m.kg !== 29) throw new Error('Ausschuss je Palette kommt nicht mit')
+  // Und eine echte Palette: 60 kg brutto, 4 G2, mit Palette → 60 − 6 − 25 = 29.
+  await seite.locator('#aus-brutto').fill('60')
+  await seite.locator('#aus-kisten').fill('4')
+  await seite.locator('#aus-mit-palette').click()
+  vorschau = await seite.locator('text=/-?\\d+ kg netto/').first().textContent()
+  if (!/\b29 kg/.test(vorschau ?? '')) throw new Error(`Ausschuss-Vorschau zeigt „${vorschau}" statt 29 kg`)
+  await seite.locator('#aus-eintragen').click()
+  await warteAuf('ausschuss_messung', 'POST', 2)
+  const ms = protokoll.filter(x => x.tabelle === 'ausschuss_messung').map(x => x.zeilen[0])
+  const [m1, m2] = ms
+  if (m1.art !== 'zu_klein' || Number(m1.brutto_kg) !== 12 || m1.kisten !== 1 || m1.mit_palette !== false || m1.kg !== 11)
+    throw new Error(`Die Kiste ohne Palette kommt nicht richtig mit: ${JSON.stringify(m1)}`)
+  if (m2.art !== 'zu_klein' || Number(m2.brutto_kg) !== 60 || m2.kisten !== 4 || m2.mit_palette !== true || m2.kg !== 29)
+    throw new Error(`Die Palette kommt nicht richtig mit: ${JSON.stringify(m2)}`)
   await seite.getByRole('button', { name: 'Weiter' }).click()
   await seite.getByRole('button', { name: 'Trotzdem weiter' }).click()   // fertige Palette: eine von drei gewogen
   // Runde T: „Wie viele fertige Paletten insgesamt?" ist ein eigener Schritt

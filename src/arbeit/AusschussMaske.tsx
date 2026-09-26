@@ -13,10 +13,18 @@ type Art = 'zu_klein' | 'zu_gross'
 
 /**
  * Zu klein / zu gross beim Waschen + Sortieren (0061): Am Band gibt es keine
- * Sortier-CSV — was von Hand aussortiert wurde, steht am Ende auf Paletten.
- * Die werden Palette für Palette gewogen: Art, Brutto, Kisten, Kistenart; das
- * Netto rechnet die Datenbank (Auslöser aus 0044). „Nichts zu klein oder zu
- * gross" ist eine Messung mit 0 kg für beide Arten, kein Auslassen.
+ * Sortier-CSV — was von Hand aussortiert wurde, wird am Ende gewogen: Art,
+ * Brutto, Kisten, Kistenart. Das Netto rechnet die Datenbank (Auslöser aus
+ * 0044). „Nichts zu klein oder zu gross" ist eine Messung mit 0 kg für beide
+ * Arten, kein Auslassen.
+ *
+ * Seit 0083 fragt die Maske, ob eine Palette drunter steht — und sie fragt
+ * es, statt es anzunehmen. Vorher zog sie immer 25 kg Palette ab, auch von
+ * der einen Kiste, die jemand direkt auf die Waage stellte: 12 − 1.5 − 25
+ * ist negativ, und das wurde still zu null. Der Betrieb: „man kanns zwar
+ * eingeben - aber es gibt trotzdem immer nur 0 ein". Jetzt gibt es ohne
+ * die Antwort keinen Eintrag, und ein Brutto unter der Tara wird gesagt
+ * statt verschluckt.
  */
 export function AusschussMaske({ d, gesperrt, melden, neuLaden }: {
   d: ArbeitDaten; gesperrt: boolean; melden: (text: string) => void; neuLaden: () => Promise<void>
@@ -27,6 +35,11 @@ export function AusschussMaske({ d, gesperrt, melden, neuLaden }: {
   const [brutto, setBrutto] = useState('')
   const [kisten, setKisten] = useState('')
   const [gart, setGart] = useState('')
+  // Keine Vorgabe: Die Maske kann nicht wissen, ob eine Palette drunter
+  // steht, und beide Annahmen gehen daneben — die eine still (null Kilo),
+  // die andere um 25 kg. Also wird gefragt. Die Antwort bleibt für die
+  // nächste Wägung stehen, denn die steht meist gleich auf der Waage.
+  const [mitPalette, setMitPalette] = useState<boolean | null>(null)
   const [fehler, setFehler] = useState<string | null>(null)
   const [laeuft, setLaeuft] = useState(false)
 
@@ -36,16 +49,25 @@ export function AusschussMaske({ d, gesperrt, melden, neuLaden }: {
 
   const tara = gebinde.find(g => g.art === gart)
   const n = Number(kisten); const b = Number(brutto)
-  const roh = b > 0 && n > 0 ? nettoKg(b, n, tara) : null
-  const netto = roh === null ? null : Math.max(Math.round(roh), 0)
-  const fehlt = b > 0 && n > 0 ? taraFehlt(tara) : null
+  const eingegeben = b > 0 && n > 0
+  const roh = eingegeben && mitPalette !== null ? nettoKg(b, n, tara, mitPalette) : null
+  // Kein Math.max(…, 0): ein negatives Netto ist ein Widerspruch, den der
+  // Arbeiter sehen muss — nicht eine leere Wägung.
+  const netto = roh === null ? null : Math.round(roh)
+  const fehlt = eingegeben && mitPalette !== null ? taraFehlt(tara, mitPalette) : null
+  const unterTara = netto !== null && netto < 0
+  const grund = !eingegeben ? null
+    : mitPalette === null ? t('paletteZuerst')
+    : unterTara ? (mitPalette ? t('bruttoUnterTara') : t('bruttoUnterKisten'))
+    : null
+  const kannSpeichern = netto !== null && netto >= 0 && !fehlt
 
   async function speichern() {
-    if (netto === null || laeuft) return
+    if (!kannSpeichern || mitPalette === null || laeuft) return
     setLaeuft(true); setFehler(null)
     // kg ist ein Pflichtfeld; der Auslöser ersetzt es durch das Netto aus Brutto und Tara.
     const { error } = await supabase.from('ausschuss_messung').insert({
-      auftrag_id: d.auftrag.id, art, kg: netto, brutto_kg: b, kisten: n, gebindeart: gart,
+      auftrag_id: d.auftrag.id, art, kg: netto, brutto_kg: b, kisten: n, gebindeart: gart, mit_palette: mitPalette,
     })
     setLaeuft(false)
     if (error) { setFehler(fehlerText(error)); return }
@@ -90,13 +112,27 @@ export function AusschussMaske({ d, gesperrt, melden, neuLaden }: {
           </select>
         </div>
       </div>
-      {netto !== null && (
+      <div className="feld">
+        <label>{t('paletteFrage')}</label>
+        <div className="wahl">
+          <Wahl id="aus-ohne-palette" name={t('ohnePaletteGewogen')} gewaehlt={mitPalette === false}
+                onClick={() => !gesperrt && setMitPalette(false)} />
+          <Wahl id="aus-mit-palette" name={t('aufPaletteGewogen')} gewaehlt={mitPalette === true}
+                onClick={() => !gesperrt && setMitPalette(true)} />
+        </div>
+      </div>
+      {netto !== null && tara?.tara_kg_pro_kiste != null && (
         <p className="netto-zeile">
           <strong>{netto} kg</strong> {t('netto')} · {artText(art)}
+          <span className="leise">
+            {' '}· {b} − {n} × {tara.tara_kg_pro_kiste}
+            {mitPalette && tara.tara_kg_palette != null ? ` − ${tara.tara_kg_palette} ${t('paletteWort')}` : ''}
+          </span>
         </p>
       )}
+      {grund && <p className="grund" role="status">{grund}</p>}
       <button type="button" id="aus-eintragen" className="haupt gross voll"
-              onClick={() => void speichern()} disabled={gesperrt || laeuft || netto === null}>
+              onClick={() => void speichern()} disabled={gesperrt || laeuft || !kannSpeichern}>
         {t('eintragen')}
       </button>
       {d.ausschuss.length === 0 && (
@@ -120,7 +156,11 @@ export function AusschussMaske({ d, gesperrt, melden, neuLaden }: {
                 <td>{uhrzeit(z.ts, gebietsschema)}</td>
                 <td>{artText(z.art)}</td>
                 <td className="zahl">{z.kg} kg</td>
-                <td className="leise">{z.brutto_kg !== null ? `${z.kisten ?? 1} × ${z.gebindeart ?? ''} · ${z.brutto_kg} kg` : (z.bemerkung ?? '')}</td>
+                <td className="leise">
+                  {z.brutto_kg !== null
+                    ? `${z.kisten ?? 1} × ${z.gebindeart ?? ''} · ${z.brutto_kg} kg${z.mit_palette ? ` · ${t('paletteWort')}` : ''}`
+                    : (z.bemerkung ?? '')}
+                </td>
                 <td className="rechts-buendig">
                   <button type="button" className="gefahr klein" disabled={gesperrt} aria-label={t('loeschen')}
                           onClick={async () => {

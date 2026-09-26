@@ -5307,3 +5307,138 @@ begin
 end $$;
 
 select '——— 0082 Zwei Arten von Sortierdatei geprüft ———' as ergebnis;
+
+-- =====================================================================
+-- 0083 — Der Ausschuss stand nicht auf einer Palette
+--
+-- Der Betrieb: „man kanns zwar eingeben - aber es gibt trotzdem immer nur
+-- 0 ein". Eine Kiste direkt auf der Waage, und die Maske zog trotzdem die
+-- Palette ab — 12 − 1.5 − 25 ist negativ, und das wurde still zu null.
+-- Geprüft wird: das Netto ohne Palette, die Zurückweisung eines Bruttos
+-- unter der Tara (statt der Klammer auf null), das Nachrechnen der alten
+-- Nullen, wo die Deutung zwingend ist, und die Auffälligkeit dort, wo sie
+-- es nicht ist.
+-- =====================================================================
+do $$
+declare
+  v_u   uuid := '00000000-0083-0000-0000-000000000001';
+  v_a   bigint;
+  v_id  bigint;
+  v_kg  numeric;
+  v_gem boolean;
+  v_mp  boolean;
+  v_n   int;
+  v_msg text;
+begin
+  insert into auth.users (id, email, raw_user_meta_data)
+  values (v_u, null, '{"name":"Prüf-0083"}');
+  update profil set rolle = 'admin' where id = v_u;
+  perform set_config('request.jwt.claim.sub', v_u::text, true);
+  insert into auftrag (weg, station, charge_nr, start_ts, eroeffnet_von)
+    select 'hand', 'waschen_sortieren', c.nr, now(), v_u from charge c order by nr limit 1
+    returning id into v_a;
+  -- Eine gezählte Palette mit Zettelgewicht, damit die Arbeit eine
+  -- Bezugsmasse hat — ohne sie hat der Ausschuss in der Auswertung keinen
+  -- Nenner und die Beobachtung bleibt leer (das ist richtig so, nur nicht
+  -- das, was hier geprüft wird).
+  insert into palette (charge_nr, eingangsdatum, kisten, brutto_kg, gebindeart)
+    select charge_nr, current_date - 10, 40, 950, 'G2' from auftrag where id = v_a;
+  insert into auftrag_palette (auftrag_id, eingangsdatum, brutto_zettel_kg, kisten, gebindeart)
+    values (v_a, current_date - 10, 950, 40, 'G2');
+
+  -- (a) Eine Kiste direkt auf der Waage: 12 − 1.5 = 10.5 → 11 kg. Nicht null.
+  insert into ausschuss_messung (auftrag_id, art, brutto_kg, kisten, gebindeart, mit_palette)
+    values (v_a, 'zu_klein', 12, 1, 'G2', false) returning kg, gemessen into v_kg, v_gem;
+  assert v_kg = 11, format('0083 (a1): eine Kiste ohne Palette ergibt %s statt 11 kg', v_kg);
+  assert v_gem, '0083 (a2): die Wägung ohne Palette gilt nicht als gemessen';
+
+  -- (b) Eine Palette: wie bisher, 60 − 6 − 25 = 29.
+  insert into ausschuss_messung (auftrag_id, art, brutto_kg, kisten, gebindeart, mit_palette)
+    values (v_a, 'zu_klein', 60, 4, 'G2', true) returning kg into v_kg;
+  assert v_kg = 29, format('0083 (b): die Palette ergibt %s statt 29 kg', v_kg);
+
+  -- (c) Die Vorgabe ist „mit Palette" — so behalten die alten Zeilen ihre
+  --     Bedeutung. Ohne Angabe wird die Palette abgezogen.
+  insert into ausschuss_messung (auftrag_id, art, brutto_kg, kisten, gebindeart)
+    values (v_a, 'zu_gross', 60, 4, 'G2') returning kg, mit_palette into v_kg, v_mp;
+  assert v_mp and v_kg = 29, format('0083 (c): ohne Angabe muss mit Palette gerechnet werden (29), ist %s / %s', v_mp, v_kg);
+
+  -- (d) Ein Brutto unter der Tara wird zurückgewiesen — nicht auf null geklemmt.
+  begin
+    insert into ausschuss_messung (auftrag_id, art, brutto_kg, kisten, gebindeart, mit_palette)
+      values (v_a, 'zu_klein', 12, 1, 'G2', true);
+    raise exception '0083 (d1): 12 kg mit Palette wurde angenommen — das ist der alte Fehler (null Kilo)';
+  exception when others then
+    v_msg := sqlerrm;
+    if v_msg like '0083 (d1)%' then raise; end if;
+    assert v_msg like '%kleiner als die Tara%' and v_msg like '%Palette%',
+      format('0083 (d2): die Zurückweisung sagt nicht, was los ist: %s', v_msg);
+  end;
+  assert not exists (select 1 from ausschuss_messung where auftrag_id = v_a and kg = 0),
+    '0083 (d3): trotz Zurückweisung steht eine Null-Wägung da';
+
+  -- (e) Dasselbe beim Faulen: 10 kg brutto, 1 G2, mit Palette → Widerspruch.
+  begin
+    insert into schimmel_messung (auftrag_id, kg, brutto_kg, kisten, gebindeart, mit_palette)
+      values (v_a, 0, 10, 1, 'G2', true);
+    raise exception '0083 (e1): 10 kg Faules mit Palette wurde angenommen';
+  exception when others then
+    v_msg := sqlerrm;
+    if v_msg like '0083 (e1)%' then raise; end if;
+    assert v_msg like '%kleiner als die Tara%', format('0083 (e2): %s', v_msg);
+  end;
+
+  -- (f) Die alten Nullen: eine Zeile, wie sie vor 0083 entstand (Auslöser
+  --     abgeschaltet, damit sie überhaupt so hineinkommt). Die Deutung ist
+  --     zwingend — 12 kg wiegen weniger als eine leere Palette —, also wird
+  --     sie nachgerechnet, genau wie die Migration es tut.
+  alter table ausschuss_messung disable trigger ausschuss_netto;
+  insert into ausschuss_messung (auftrag_id, art, kg, brutto_kg, kisten, gebindeart, mit_palette, gemessen)
+    values (v_a, 'zu_gross', 0, 12, 1, 'G2', true, true) returning id into v_id;
+  alter table ausschuss_messung enable trigger ausschuss_netto;
+  update ausschuss_messung m
+     set mit_palette = false
+    from gebinde g
+   where g.art = m.gebindeart and m.id = v_id
+     and m.brutto_kg is not null and m.kisten is not null and m.gemessen and m.mit_palette and m.kg = 0
+     and m.brutto_kg - m.kisten * g.tara_kg_pro_kiste - g.tara_kg_palette <= 0
+     and m.brutto_kg - m.kisten * g.tara_kg_pro_kiste > 0;
+  select kg, mit_palette into v_kg, v_mp from ausschuss_messung where id = v_id;
+  assert not v_mp and v_kg = 11,
+    format('0083 (f): die alte Null-Zeile wurde nicht nachgerechnet (mit_palette=%s, kg=%s)', v_mp, v_kg);
+
+  -- (g) Wo die Deutung nicht zwingend ist, steht die Auffälligkeit:
+  --     40 kg brutto, 2 G2, „mit Palette" → 12 kg netto, Brutto unter 2 × 25.
+  insert into ausschuss_messung (auftrag_id, art, brutto_kg, kisten, gebindeart, mit_palette)
+    values (v_a, 'zu_gross', 40, 2, 'G2', true) returning id into v_id;
+  select count(*) into v_n from v_plausibilitaet where art = 'Palette fraglich' and auftrag_id = v_a;
+  assert v_n = 1, format('0083 (g1): %s statt 1 Auffälligkeit „Palette fraglich"', v_n);
+  select count(*) into v_n from v_plausibilitaet where art = 'Palette fraglich' and befund like '%12 kg netto%';
+  assert v_n = 1, '0083 (g2): die Auffälligkeit nennt das Netto nicht';
+  -- Ein volles Brutto mit Palette ist keine Auffälligkeit.
+  select count(*) into v_n from v_plausibilitaet where art = 'Palette fraglich'
+     and befund like '%60 kg brutto%';
+  assert v_n = 0, '0083 (g3): eine 60-kg-Palette wird zu Unrecht als fraglich gemeldet';
+  -- Und ohne Palette gibt es nichts zu fragen.
+  select count(*) into v_n from v_plausibilitaet where art = 'Palette fraglich'
+     and befund like '%12 kg brutto%';
+  assert v_n = 0, '0083 (g4): eine Wägung ohne Palette wird als „Palette fraglich" gemeldet';
+
+  -- (h) Die Auswertung sieht die Kilo: 11 + 29 (zu klein) und 29 + 11 + 12 (zu gross).
+  --     Die Sicht liest gespeicherte Hilfssichten; auf einer frischen
+  --     Datenbank sind sie noch nie gerechnet worden.
+  perform auswertung_aktualisieren();
+  select klein_kg into v_kg from v_ausschuss_beobachtung where auftrag_id = v_a;
+  assert v_kg = 40, format('0083 (h): v_ausschuss_beobachtung sieht %s statt 40 kg zu klein', v_kg);
+
+  delete from ausschuss_messung where auftrag_id = v_a;
+  delete from auftrag_palette where auftrag_id = v_a;
+  delete from auftrag where id = v_a;
+  delete from palette where brutto_kg = 950 and kisten = 40 and eingangsdatum = current_date - 10;
+  delete from profil where id = v_u;
+  delete from auth.users where id = v_u;
+
+  raise notice 'OK  0083 — Eine Kiste ohne Palette ist nicht null Kilo, ein Brutto unter der Tara wird gesagt, die alten Nullen sind nachgerechnet, der Rest steht als Auffälligkeit da';
+end $$;
+
+select '——— 0083 Ausschuss ohne Palette geprüft ———' as ergebnis;
