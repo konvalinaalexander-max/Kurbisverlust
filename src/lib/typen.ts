@@ -38,6 +38,12 @@ export interface Rueckmeldung {
   art: 'ware' | 'app'
   /** 0091: was das Handy mitgeschrieben hat (handy) oder der Mensch daraus machte (hand). */
   transkript: string | null; transkript_quelle: 'handy' | 'hand' | null
+  /** 0094: die Kurzfassung, die das Dashboard zeigt — erst nach dem Lesen.
+   *  Leer = noch nicht gelesen, steht nirgends. Wer gekürzt hat: die Runde am
+   *  Programm (aus docs/betrieb/kurzfassungen.json) oder der Betriebsleiter. */
+  kurz: string | null; kurz_quelle: 'runde' | 'betriebsleiter' | null; kurz_ts: string | null
+  /** 0094: gehört der Kommentar zu einer anderen Charge als die Arbeit — dann steht sie hier. */
+  kurz_charge_nr: number | null
 }
 
 export interface Gebinde {

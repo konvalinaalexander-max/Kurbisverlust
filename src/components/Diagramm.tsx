@@ -27,6 +27,8 @@ export interface Punkt {
   x: number; y: number; text?: string; name?: string; groesse?: number
   /** Runde W: die Arbeit hinter dem Punkt — ein Klick öffnet sie. */
   auftragId?: number | null
+  /** Runde Z: die Charge des Punkts — für das Messungsfenster, wenn keine Arbeit dahintersteht. */
+  chargeNr?: number
 }
 export interface Reihe {
   name: string
@@ -577,6 +579,12 @@ export interface Anteilszeile {
   ziel?: string
   /** Was rechts steht, wenn nicht der Anteil der Teile. */
   rechts?: string
+  /** Runde Z: Knöpfe unter dem Namen — aufklappen, ansehen. Klicks darauf öffnen die Zeile nicht. */
+  aktion?: ReactNode
+  /** Runde Z: eine aufgeklappte Unterzeile (Charge unter ihrer Sorte). */
+  eingerueckt?: boolean
+  /** Ein eindeutiger Schlüssel, wenn der Name nicht reicht. */
+  schluessel?: string
 }
 
 /**
@@ -599,13 +607,14 @@ export function Anteilsbalken({ zeilen, oeffnen, legende = true }: {
         const summe = z.teile.reduce((s, t) => s + t.kg, 0)
         const anteil = z.bezug > 0 ? summe / z.bezug : 0
         return (
-          <div key={z.name} className={`anteil-zeile${oeffnen ? ' klickbar' : ''}`}
+          <div key={z.schluessel ?? z.name} className={`anteil-zeile${oeffnen ? ' klickbar' : ''}${z.eingerueckt ? ' eingerueckt' : ''}`}
                onClick={oeffnen ? () => oeffnen(z) : undefined} role={oeffnen ? 'button' : undefined}
                tabIndex={oeffnen ? 0 : undefined}
                onKeyDown={oeffnen ? e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); oeffnen(z) } } : undefined}>
             <div className="anteil-name">
               <strong>{z.name}</strong>
               {z.untertitel && <span className="leise">{z.untertitel}</span>}
+              {z.aktion && <span className="anteil-aktion" onClick={e => e.stopPropagation()} onKeyDown={e => e.stopPropagation()}>{z.aktion}</span>}
             </div>
             <div className="anteil-spur waechst" style={staffel(i)}>
               {z.teile.filter(t => t.kg > 0 && z.bezug > 0).map(t => (

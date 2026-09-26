@@ -836,3 +836,19 @@ tr.marge-dahinter table { margin: 0; }
 /* ---------- Runde Y: die Rückmeldung in zwei Arten ------------------------ */
 .rueck-wahl { margin: .5rem 0 var(--a-3); }
 .rueck-frage { font-size: 1.35rem; font-weight: var(--gewicht-stark); line-height: 1.25; margin: 0 0 .5rem; }
+
+/* ---------- Runde Z: Kurzfassung, Messung voran, Chargen als Fenster ------- */
+.rueckmeldung-block + .rueckmeldung-block { border-top: 1px solid var(--rand); padding-top: .5rem; margin-top: .5rem; }
+.rueckmeldung-kurz { margin: 0 0 .35rem; }
+.kurz-block { margin-top: .5rem; padding: .5rem .7rem; border-radius: var(--radius-klein); background: var(--flaeche-2); border-left: 3px solid var(--rand); }
+.kurz-block[data-stand="offen"] { border-left-color: var(--gelb); }
+.kurz-block[data-stand="gekuerzt"] { border-left-color: var(--gruen, var(--kuerbis)); }
+.messung-voran { padding: .6rem .8rem; border-radius: var(--radius-klein); background: var(--flaeche-2); border-left: 3px solid var(--kuerbis); }
+.messung-voran h3 { color: var(--kuerbis); }
+.liste-schlicht { margin: 0; padding-left: 1.1rem; }
+.liste-schlicht li { margin: .1rem 0; }
+.charge-knopf { font: inherit; font-weight: inherit; color: inherit; text-decoration: underline dotted; text-underline-offset: .2em; padding: 0 .2rem; min-height: 0; }
+.charge-knopf:hover { color: var(--kuerbis); background: transparent; }
+.anteil-aktion { display: flex; gap: .3rem; margin-top: .15rem; }
+.anteil-aktion .werkzeug-knopf { min-height: 24px; padding: 0 .4rem; }
+.anteil-zeile.eingerueckt { margin-left: 1.1rem; border-left: 2px solid var(--rand); border-radius: 0 8px 8px 0; }

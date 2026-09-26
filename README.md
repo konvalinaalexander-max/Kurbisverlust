@@ -668,7 +668,17 @@ warum sein Deploy-Befehl `npx wrangler deploy --env beispiel` lauten **muss**
 [`docs/ZWEI_WEBSEITEN.md`](docs/ZWEI_WEBSEITEN.md). Rechne mit einer guten
 halben Stunde.
 
-**Zuletzt gebaut (Runde Y, 0091–0093)** — die Rückmeldung am Ende jeder
+**Zuletzt gebaut (Runde Z, 0094)** — ein Kommentar zur Ware steht erst
+im Dashboard, wenn jemand ihn gelesen und **gekürzt** hat („Hagelschaden"):
+beim Drüberfahren die Kurzfassung, beim Anklicken die Rohfassung samt
+Aufnahme. Gekürzt wird von der Runde am Programm (über
+`docs/betrieb/kurzfassungen.json`, der Abzug spielt es ein — der Rückweg)
+oder vom Betriebsleiter unter Betrieb → Arbeiten; seine Kurzfassung bleibt.
+Dazu mehr Klickwege: ein Punkt öffnet seine Messung (auch eine
+Kontrollwägung ohne Arbeit), jede Chargennummer ihre Charge als Fenster,
+die Wohin-Karte klappt je Sorte zu ihren Chargen auf. AB-94 bis AB-96.
+
+**Runde Y (0091–0093)** — die Rückmeldung am Ende jeder
 Arbeit hat zwei Arten: **zur Ware** (Hagel, Faules — steht im Dashboard an
 den Messungen) und **zur App** (für die nächste Runde am Programm); das
 Handy schreibt beim Aufnehmen mit, das Transkript wird geprüft und
@@ -914,6 +924,7 @@ Das genügt fast immer zur Klärung.
 | Runde V: Ausschuss ohne Palette, Palox mittendrin leeren, Rückmeldung mit Sprachaufnahme, Marge je Charge | `supabase/migrations/0083`–`0088`, `src/arbeit/AusschussMaske.tsx`, `PaloxLeerenMaske.tsx`, `Sprachaufnahme.tsx`, `src/pages/Ursachen.tsx` | Prüfblöcke 0083–0088 (jeder gegengeprüft durch absichtliches Kaputtmachen); `kette.mjs` mit Ausschuss ohne Palette, Palox-Leeren und Rückmeldung; Aufnahmen im Bucket `rueckmeldungen` |
 | Runde W: Arbeiten löschen, Marge in zwei Blöcken mit den Wägungen dahinter, Punkt-Tooltip und Arbeitsfenster, Verdunstungsgrenze | `supabase/migrations/0089`, `src/pages/Betrieb.tsx`, `src/pages/Ursachen.tsx`, `src/betrieb/ArbeitFenster.tsx`, `src/components/Diagramm.tsx` | Prüfblock 0089 (gegengeprüft); Bildschirme `betrieb-arbeiten-loeschen`, `ursachen-marge-auf`, `ursachen-arbeit` |
 | Runde X: Auffälligkeiten mit Arbeit und Fenster, Korrektur mit Kopf und „was fehlt", Zettelpalette mit eigenen Kisten, Erntejournal von selbst | `supabase/migrations/0090`, `src/auswertung/Karten.tsx`, `src/arbeit/Korrektur.tsx`, `src/betrieb/JournalAbgleich.tsx` | Prüfblock 0090 (gegengeprüft); Bildschirme `messungen-arbeit`, `arbeit-korrektur` |
+| Runde Z: Kommentar erst nach dem Lesen und Kürzen im Dashboard, der Rückweg Repository → Datenbank, Punkt öffnet die Messung, Charge als Fenster | `supabase/migrations/0094`, `pruefstand/kurzfassung.mjs`, `pruefstand/betrieb_abzug.mjs`, `src/betrieb/ChargeFenster.tsx`, `src/betrieb/MessungFenster.tsx`, `src/betrieb/ArbeitFenster.tsx`, `src/pages/Betrieb.tsx`, `src/pages/Ursachen.tsx` | Prüfblock 0094 (gegengeprüft); `test/kurzfassung.test.ts`; Kette (der Betriebsleiter kürzt); Bildschirme `betrieb-kurzfassung`, `ursachen-punkt`, `ursachen-messung-ohne-arbeit`, `ursachen-charge`, `messungen-charge` |
 | Runde Y: Rückmeldung zur Ware und zur App mit Transkript, Kommentare an den Messungen, Betriebsabzug nach GitHub, Herleitung geprüft, Kistengewicht von der Waage, Demo mit Rückmeldungen | `supabase/migrations/0091`–`0093`, `src/arbeit/Sprachaufnahme.tsx`, `pruefstand/betrieb_abzug.mjs`, `.github/workflows/betrieb_abzug.yml`, `CLAUDE.md`, `docs/HERLEITUNG.md`, `docs/SAISONBEGLEITUNG.md` | Prüfblöcke 0091–0093 (gegengeprüft); Kette mit App- und Ware-Rückmeldung; Bildschirm `ursachen-kommentar` |
 | Schutz der Erfassung: Journal, Zerstörungswächter, zwei Webseiten | `erfassung_journal` (0072), `supabase/test/keine_zerstoerung.sh`, `src/lib/betriebsmodus.ts` | Wächter läuft als erste Stufe von `run.sh` |
 | Warenausgang aus dem Warenwirtschaftssystem einlesen | `src/lib/xlsx.ts`, `src/lib/warenausgang.ts`, `supabase/migrations/0050` | Leser und Regeln geprüft (27 Tests, 396 096 Zellen gegen einen zweiten Leser); der Bildschirm steht: Betrieb → Warenausgang (`src/betrieb/AusgangImport.tsx`, `src/pages/Lieferungen.tsx`, Übernahme in `ausgang_uebernehmen`, 0055) |

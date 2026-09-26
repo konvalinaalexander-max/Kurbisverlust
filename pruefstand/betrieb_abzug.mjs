@@ -17,10 +17,19 @@
  * steht ihr Transkript.
  *
  *   SUPABASE_URL=… SUPABASE_SERVICE_KEY=… node pruefstand/betrieb_abzug.mjs
+ *
+ * Runde Z — der Rückweg: Bevor gezogen wird, spielt der Abzug die
+ * Kurzfassungen aus docs/betrieb/kurzfassungen.json in die Datenbank
+ * (kurz, kurz_quelle = runde). Erst damit steht ein Kommentar zur Ware im
+ * Dashboard — der Betrieb: „es soll erst im Dashboard erscheinen, nachdem
+ * du es gelesen hast und verstanden hast." Was der Betriebsleiter selbst
+ * gekürzt hat, bleibt (pruefstand/kurzfassung.mjs sagt, was gilt). Mit
+ * NUR_EINSPIELEN=1 (der Push-Auslöser des Workflows) endet das Skript danach.
  */
 import { writeFileSync, mkdirSync, existsSync, readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { eintraegePruefen, patchFuer } from './kurzfassung.mjs'
 
 const HIER = dirname(fileURLToPath(import.meta.url))
 const ZIEL = join(HIER, '..', 'docs', 'betrieb')
@@ -35,6 +44,32 @@ async function rest(pfad) {
   const r = await fetch(`${url}/rest/v1/${pfad}`, { headers: { apikey: key, Authorization: `Bearer ${key}` } })
   if (!r.ok) throw new Error(`${pfad}: ${r.status} ${await r.text()}`)
   return r.json()
+}
+async function patch(pfad, koerper) {
+  const r = await fetch(`${url}/rest/v1/${pfad}`, {
+    method: 'PATCH', body: JSON.stringify(koerper),
+    headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+  })
+  if (!r.ok) throw new Error(`PATCH ${pfad}: ${r.status} ${await r.text()}`)
+}
+
+// ---- 0. Der Rückweg: Kurzfassungen einspielen --------------------------------
+const kurzPfad = join(ZIEL, 'kurzfassungen.json')
+if (existsSync(kurzPfad)) {
+  const eintraege = eintraegePruefen(JSON.parse(readFileSync(kurzPfad, 'utf8')))
+  let geschickt = 0, gleich = 0
+  const jetzt = new Date().toISOString()
+  for (const e of eintraege) {
+    const [zeile] = await rest(`auftrag_rueckmeldung?select=*&id=eq.${e.id}`)
+    const { patch: p, grund } = patchFuer(zeile ?? null, e, jetzt)
+    if (grund) { console.log(`  · ${grund}`); continue }
+    if (!p) { gleich++; continue }
+    await patch(`auftrag_rueckmeldung?id=eq.${e.id}`, p)
+    geschickt++
+    console.log(`  ✓ Nr. ${e.id}: ${Object.entries(p).map(([k, v]) => `${k} = ${JSON.stringify(v)}`).join(', ')}`)
+  }
+  console.log(`Kurzfassungen: ${eintraege.length} Einträge, ${geschickt} eingespielt, ${gleich} standen schon so.`)
+  if (process.env.NUR_EINSPIELEN) process.exit(0)
 }
 const heute = new Date().toISOString().slice(0, 10)
 const zeit = ts => ts ? new Date(ts).toLocaleString('de-CH', { timeZone: 'Europe/Zurich', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'
@@ -71,6 +106,9 @@ const kopf = titel => `# ${titel}\n\n_Abzug vom ${heute}${modus === 'beispiel' ?
 // ---- 1. Rückmeldungen -------------------------------------------------------
 let r = kopf('Rückmeldungen aus der Halle')
 r += 'Was die Person am Ende einer Arbeit gesagt hat — geschrieben, oder mitgeschrieben vom Handy (Transkript, ungeprüft = so wie die Spracherkennung es verstand). Die Aufnahmen liegen im Bucket `rueckmeldungen` des Projekts; hier steht, was sich lesen lässt.\n\n'
+r += '**Zur Ware gilt seit 0094:** Ein Kommentar steht erst im Dashboard, wenn jemand ihn gelesen, verstanden und gekürzt hat („Hagelschaden"). Kürzen heisst: ein Eintrag je Nr. in `docs/betrieb/kurzfassungen.json` (der Abzug spielt ihn ein — täglich, und sofort beim Push der Datei), oder der Betriebsleiter tut es unter Betrieb → Arbeiten. Was der Betriebsleiter gekürzt hat, bleibt. Nur Aufnahme, kein Transkript: das kann hier niemand hören — anhören und kürzen kann nur der Betriebsleiter.\n\n'
+const offen = rueck.filter(x => x.art === 'ware' && !x.kurz)
+if (offen.length) r += `**Noch zu kürzen: ${offen.length}** — Nr. ${offen.map(x => x.id).join(', ')}.\n\n`
 for (const art of ['app', 'ware']) {
   const liste = rueck.filter(x => (x.art ?? 'app') === art)
   r += `## ${art === 'app' ? 'Zur App — für die nächste Runde' : 'Zur Ware — für den Betriebsleiter'} (${liste.length})\n\n`
@@ -78,7 +116,12 @@ for (const art of ['app', 'ware']) {
   for (const x of liste) {
     const t = (x.text ?? '').trim()
     const tr = (x.transkript ?? '').trim()
-    r += `- **${tag(x.ts)}** · ${arbeitText(x.auftrag_id)} · ${name(x.erfasser)}\n`
+    r += `- **Nr. ${x.id}** · ${tag(x.ts)} · ${arbeitText(x.auftrag_id)} · ${name(x.erfasser)}\n`
+    if (art === 'ware') {
+      if (x.kurz) r += `  - **gekürzt** (${x.kurz_quelle === 'betriebsleiter' ? 'Betriebsleiter' : 'Runde'}, ${tag(x.kurz_ts)}): „${md(x.kurz)}"${x.kurz_charge_nr ? ` — zugeordnet zu Charge ${chargeText(x.kurz_charge_nr)}` : ''}\n`
+      else if (!t && !tr && x.audio_ref) r += '  - **nur Aufnahme, kein Transkript** — steht noch nicht im Dashboard; Betriebsleiter: anhören und unter Betrieb → Arbeiten kürzen\n'
+      else r += '  - **noch nicht gekürzt** — steht noch nicht im Dashboard\n'
+    }
     if (t) r += `  - „${md(t)}"\n`
     if (tr) r += `  - mitgeschrieben${x.transkript_quelle === 'hand' ? ' (geprüft)' : ' (ungeprüft)'}: „${md(tr)}"\n`
     if (x.audio_ref) r += `  - Aufnahme ${x.audio_sekunden != null ? `${Math.floor(x.audio_sekunden / 60)}:${String(x.audio_sekunden % 60).padStart(2, '0')} ` : ''}\`${x.audio_ref}\`${!tr ? ' — **ohne Transkript**' : ''}\n`
@@ -121,7 +164,7 @@ mkdirSync(ZIEL, { recursive: true })
 const verlaufPfad = join(ZIEL, 'VERLAUF.md')
 let v = existsSync(verlaufPfad) ? readFileSync(verlaufPfad, 'utf8') : '# Verlauf der Abzüge\n\nEine Zeile je Abzug — damit man sieht, ob die Auffälligkeiten weniger werden und die Rückmeldungen ankommen.\n\n| Tag | Rückmeldungen App | Rückmeldungen Ware | Auffälligkeiten | davon die häufigste |\n|---|---|---|---|---|\n'
 const haeufigste = [...jeArt.entries()].sort((p, q) => q[1] - p[1])[0]
-const zeile = `| ${heute} | ${rueck.filter(x => (x.art ?? 'app') === 'app').length} | ${rueck.filter(x => x.art === 'ware').length} | ${befunde.length} | ${haeufigste ? `${md(haeufigste[0])} (${haeufigste[1]})` : '—'} |\n`
+const zeile = `| ${heute} | ${rueck.filter(x => (x.art ?? 'app') === 'app').length} | ${rueck.filter(x => x.art === 'ware').length} (${offen.length} zu kürzen) | ${befunde.length} | ${haeufigste ? `${md(haeufigste[0])} (${haeufigste[1]})` : '—'} |\n`
 if (!v.includes(`| ${heute} |`)) v += zeile
 else v = v.replace(new RegExp(`\\| ${heute} \\|[^\\n]*\\n`), zeile)
 

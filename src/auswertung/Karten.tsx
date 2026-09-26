@@ -10,6 +10,7 @@ import { supabase } from '../lib/supabase'
 import { taetigkeitVon } from '../lib/taetigkeit'
 import { WOERTERBUCH } from '../lib/i18n'
 import { ArbeitFenster } from '../betrieb/ArbeitFenster'
+import { ChargeFenster } from '../betrieb/ChargeFenster'
 
 /**
  * Kopfzeile eines Reiters: Name, der eine Satz, wozu er da ist; rechts der
@@ -196,6 +197,8 @@ export function Auffaelligkeiten({ befunde, kurz = false }: { befunde: Befund[];
   const [arbeiten, setArbeiten] = useState<Map<number, ArbeitKurz>>(new Map())
   const [kommentare, setKommentare] = useState<Map<number, string>>(new Map())
   const [fenster, setFenster] = useState<number | null>(null)
+  /** Runde Z: die Charge hinter der Auffälligkeit, als Fenster. */
+  const [chargeFenster, setChargeFenster] = useState<number | null>(null)
   const ids = [...new Set(befunde.map(b => b.auftrag_id).filter((x): x is number => x !== null))]
   const schluessel = ids.join(',')
   useEffect(() => {
@@ -206,6 +209,7 @@ export function Auffaelligkeiten({ befunde, kurz = false }: { befunde: Befund[];
       .then(({ data }) => { if (lebt) setArbeiten(new Map(((data ?? []) as ArbeitKurz[]).map(a => [a.id, a]))) })
     // 0091: Was die Person an der Arbeit zur Ware gesagt hat — „Hagelschaden"
     // erklärt manche Auffälligkeit, bevor jemand sie korrigieren will.
+    // 0094: nur die Kurzfassung, und nur, wenn jemand sie gelesen hat.
     void supabase.from('v_arbeit_kommentar').select('auftrag_id, text').in('auftrag_id', ids)
       .then(({ data }) => { if (lebt) setKommentare(new Map(((data ?? []) as { auftrag_id: number; text: string }[]).map(k => [k.auftrag_id, k.text]))) })
     return () => { lebt = false }
@@ -231,7 +235,7 @@ export function Auffaelligkeiten({ befunde, kurz = false }: { befunde: Befund[];
       <div className="befunde">
         {liste.map((b, i) => (
           <div key={i} className={`befund ${befundTon(b.art)}`}>
-            <div className="befund-kopf"><Marke art="warnung" punkt={false}>{b.art}</Marke> Charge {b.charge_nr} · {b.sorte}</div>
+            <div className="befund-kopf"><Marke art="warnung" punkt={false}>{b.art}</Marke> <button type="button" className="werkzeug-knopf charge-knopf" onClick={() => setChargeFenster(b.charge_nr)} title="Charge ansehen">Charge {b.charge_nr} · {b.sorte}</button></div>
             {b.auftrag_id && <div className="befund-arbeit">{arbeitText(b.auftrag_id)}</div>}
             {b.auftrag_id && kommentare.has(b.auftrag_id) && <div className="befund-arbeit"><strong>Kommentar zur Ware:</strong> {kommentare.get(b.auftrag_id)}</div>}
             <div className="befund-text">{b.befund}</div>
@@ -246,6 +250,7 @@ export function Auffaelligkeiten({ befunde, kurz = false }: { befunde: Befund[];
         ))}
       </div>
       {fenster !== null && <ArbeitFenster auftragId={fenster} schliessen={() => setFenster(null)} />}
+      {chargeFenster !== null && <ChargeFenster chargeNr={chargeFenster} schliessen={() => setChargeFenster(null)} />}
     </Karte>
   )
 }

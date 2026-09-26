@@ -7,11 +7,19 @@
 #   SUPABASE_SERVICE_KEY  der service_role-Schlüssel (liest an RLS vorbei;
 #                         nie in die App, nur hierher)
 # Ohne sie läuft der Workflow durch und schreibt nichts.
+#
+# Runde Z — der Rückweg: docs/betrieb/kurzfassungen.json trägt die
+# Kurzfassungen der Kommentare zur Ware (gelesen, verstanden, gekürzt). Der
+# tägliche Lauf spielt sie ein; und ein Push dieser Datei — auf jedem Zweig —
+# spielt sie sofort ein, ohne etwas einzuchecken (NUR_EINSPIELEN).
 name: Betriebsabzug
 on:
   schedule:
     - cron: '17 4 * * *'   # täglich 04:17 UTC — nach der Nacht, vor dem Büro
   workflow_dispatch:
+  push:
+    paths:
+      - 'docs/betrieb/kurzfassungen.json'
 permissions:
   contents: write
 jobs:
@@ -22,12 +30,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Abzug ziehen
+      - name: Abzug ziehen (bei Push der Kurzfassungen nur einspielen)
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          NUR_EINSPIELEN: ${{ github.event_name == 'push' && '1' || '' }}
         run: node pruefstand/betrieb_abzug.mjs
       - name: Einchecken, wenn sich etwas geändert hat
+        if: github.event_name != 'push'
         run: |
           git config user.name "Betriebsabzug"
           git config user.email "betriebsabzug@users.noreply.github.com"

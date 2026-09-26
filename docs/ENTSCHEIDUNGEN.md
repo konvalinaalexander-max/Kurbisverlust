@@ -4008,6 +4008,122 @@ an, was neu ist, und lässt stehen, was da ist — auch wenn das Journal
 inzwischen anders lautet. Sonst überschriebe ein Tippfehler im Sheet eine
 Berichtigung in der App, ohne dass jemand es sähe.
 
+## Runde Z: erst gelesen, dann gezeigt (26. September, 0094)
+
+### Noch einmal: Kann ich Aufnahmen hören?
+
+Nein — und daran ändert auch der Vorschlag nichts, die Rohdatei im
+Repository abzulegen und „beim nächsten Auftrag zu übersetzen": Ich könnte
+sie dort genauso wenig hören wie im Bucket. Was es gibt, sind drei Wege zum
+Text, und alle drei stehen jetzt nebeneinander:
+
+1. **Das Handy schreibt mit** (0091, Spracherkennung des Browsers,
+   Hochdeutsch). Das ist der Text, den ich lese — mit dem Vorbehalt, dass
+   Mundart darin verstümmelt ankommt.
+2. **Der Betriebsleiter hört und kürzt** (0094): Unter Betrieb → Arbeiten
+   spielt er die Aufnahme ab und schreibt die Kurzfassung selbst. Der
+   Abzug nennt ihm jede Aufnahme ohne Transkript als „nur Aufnahme — anhören
+   und kürzen".
+3. **Ein Erkennungsdienst im Workflow** — nicht gebaut. Ein
+   Sprachmodell im GitHub-Workflow (150 MB bis 1.5 GB je Lauf) wäre ein
+   weiteres Werkzeug, das ich hier nicht prüfen kann, und für Mundart wäre
+   es kaum besser als das Handy. Wenn Weg 1 und 2 sich als zu dünn
+   erweisen, ist das die nächste Stufe — dann mit echten Aufnahmen aus der
+   Halle als Prüfmaterial, nicht blind.
+
+### Erst gelesen, dann gezeigt (0094)
+
+Der Betrieb: „es soll erst im Dashboard erscheinen, nachdem du es gelesen
+hast und du es verstanden hast … es kann sein, dass die Person die halbe
+Story erzählt mit Grammatikfehlern … runterbrechen und abkürzen auf
+Hagelschaden." Bis 0093 stand der Rohtext sofort am Punkt. Jetzt hat die
+Rückmeldung eine **Kurzfassung** (`kurz`), und nur die zeigt das
+Dashboard — beim Drüberfahren am Punkt, an der Auffälligkeit, im
+Chargenfenster. Solange sie fehlt, steht der Kommentar nirgends; die
+Rohfassung (Text, Transkript, Aufnahme) sieht, wer klickt: im
+Arbeitsfenster, mit Abspielknopf.
+
+**Wer kürzt, steht dabei** (`kurz_quelle`): die Runde am Programm oder der
+Betriebsleiter. Beides kommt vor — ich lese den Abzug alle paar Tage, der
+Betriebsleiter hört eine Aufnahme sofort. Damit sich die beiden nicht ins
+Wort fallen, gilt: **Was der Betriebsleiter gekürzt hat, bleibt.** Der
+Abzug ersetzt es nur, wenn der Eintrag es ausdrücklich sagt
+(`ueberschreiben: true`), und das schreibe ich nur, wenn er es gesagt hat.
+
+**Zuordnen** (`kurz_charge_nr`, `auftrag_id`): „ordne es korrekt den
+Chargen zu und den Aufträgen." Ein Kommentar hängt an der Arbeit, an der er
+gesagt wurde; meint er eine andere Charge, steht sie in `kurz_charge_nr`,
+und die Sicht folgt ihr. Eine andere Arbeit geht über `auftrag_id` in der
+Datei. Beides ohne Kurzfassung geht nicht — was nirgends steht, muss auch
+nirgends hin.
+
+**Zur App keine Kurzfassung.** Feedback zur App ist meine Aufgabe, nicht
+eine Zeile im Dashboard. Wer ein gekürztes „zur Ware" nachträglich zur App
+erklärt, muss `kurz: null` dazusagen — nichts wird stillschweigend
+weggenommen.
+
+### Der Rückweg
+
+Der Abzug lief bisher in eine Richtung: Datenbank → Repository. Die
+Kurzfassungen brauchen die andere. Sie stehen in
+`docs/betrieb/kurzfassungen.json` — ein Eintrag je Nr. aus
+`RUECKMELDUNGEN.md` —, und der Abzug spielt sie ein: täglich, und sofort,
+wenn die Datei gepusht wird (der Workflow hat dafür einen Push-Auslöser,
+auf jedem Zweig, der dann nichts eincheckt, sondern nur einspielt). Warum
+JSON und nicht SQL: Die Regeln — wessen Kurzfassung gilt, was mit `art`
+und Charge passiert, was schon so steht — stehen in
+`pruefstand/kurzfassung.mjs` und werden von `npm test` geprüft. Eine
+SQL-Datei könnte alles, und genau das soll sie nicht.
+
+### Mehr Klickwege
+
+„Wenn ich irgendwo bei den Ursachen auf einen Punkt klicke, der eine
+Messung ist, soll im Pop-up die Messung kommen … und wenn ich eine Charge
+anklicke, ein Pop-up mit den Chargen-Infos." Gebaut, wo die Logik es
+hergibt:
+
+- **Punkt → Messung.** Hat der Punkt eine Arbeit, öffnet sich das
+  Arbeitsfenster, und die Messung steht voran („Diese Messung: Faules am
+  Palox", die Zeilen des Punkts). Hat er keine — eine Kontrollwägung im
+  Lager —, öffnet sich ein Messungsfenster mit denselben Zeilen und dem
+  Weg zur Charge. Bis 0093 tat ein Klick auf so einen Punkt nichts.
+- **Charge → Fenster.** Von der Wohin-Karte (jede Sorte lässt sich zu
+  ihren Chargen aufklappen, ohne den Filter zu wechseln), von jeder
+  Auffälligkeit, aus dem Arbeitsfenster und aus dem Messungsfenster. Das
+  Chargenfenster zeigt Eingang, heute, wohin, Arbeiten (jede als Fenster),
+  Lieferungen, Auffälligkeiten, gekürzte Kommentare — und führt zu
+  Ursachen und Lagermanagement mit gesetztem Filter.
+- Fenster über Fenster (Charge über Arbeit, Arbeit über Charge): Escape
+  schliesst das oberste, ein Klick daneben auch — nicht beide.
+
+Nicht gebaut: Klickwege in den Tabellen des Lagermanagements und der
+Chargen-Seite (dort gibt es den Filter und die aufklappbare Zeile schon)
+und ein Bearbeiten im Chargenfenster — berichtigt wird an der Arbeit.
+
+### Die Demo, noch einmal ganz (0094)
+
+Die Ladefunktion steht in 0094 ein drittes Mal — die Rückmeldungen der
+Demo bekommen ihre Kurzfassungen (drei gekürzt, von der Runde und vom
+Betriebsleiter; eine ungelesen, damit man den offenen Zustand sieht). Der
+Grund ist derselbe wie in 0093: `setup.sql` behält nur die letzte Fassung,
+und die Demo muss zeigen, was die App kann — sonst schlägt der Prüfblock
+zu 0081 an. Ein Nachtrag statt der ganzen Funktion würde im Verdichter
+verloren gehen.
+
+### Was bewusst nicht gemacht wurde
+
+**Kein Sprachmodell im Workflow, keine Aufnahmen im Repository.** Siehe
+oben.
+
+**Kein Freigeben ohne Kürzen.** Man könnte den Rohtext mit einem Knopf
+„so zeigen" durchwinken. Das widerspräche dem Wunsch: Das Dashboard zeigt,
+was jemand verstanden hat, nicht, was jemand gesagt hat.
+
+**Die Charge-Zuordnung nicht in der Maske.** Der Betriebsleiter kürzt
+unter Betrieb → Arbeiten; eine andere Charge zuordnen geht nur über die
+Datei. Das kommt selten vor und braucht den Blick auf beide Chargen — das
+ist Arbeit der Runde.
+
 ## Runde Y: die Halle spricht, das Repository liest (26. September, 0091–0093)
 
 ### Kann ich Aufnahmen hören?

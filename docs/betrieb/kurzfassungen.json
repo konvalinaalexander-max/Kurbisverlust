@@ -1,0 +1,4 @@
+{
+  "erklaerung": "Kurzfassungen der Rückmeldungen zur Ware — eine je Nr. aus RUECKMELDUNGEN.md. Der Betriebsabzug spielt sie in die Datenbank ein: täglich, und sofort, wenn diese Datei gepusht wird (Workflow betrieb_abzug.yml). Felder je Eintrag: id (Pflicht, die Nr.), kurz (die Kurzfassung — oder null, um sie zurückzunehmen), charge_nr (wenn der Kommentar zu einer anderen Charge gehört), art ('ware' oder 'app', wenn er falsch einsortiert war), auftrag_id (wenn er zu einer anderen Arbeit gehört), ueberschreiben (true nur, wenn der Betriebsleiter seine eigene Kurzfassung ersetzt haben will), warum (frei, für den Leser). Eine Kurzfassung des Betriebsleiters bleibt sonst immer stehen. Eingespielte Einträge dürfen stehen bleiben — der Abzug schickt nur, was sich unterscheidet.",
+  "eintraege": []
+}

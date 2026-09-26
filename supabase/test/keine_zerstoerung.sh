@@ -55,6 +55,9 @@ FREIGEGEBEN=(
   # selben Ende der Funktion, aus demselben Grund.
   "0093_die_demo_saison_hat_rueckmeldungen.sql:81"
   "0093_die_demo_saison_hat_rueckmeldungen.sql:991"
+  # 0094 dasselbe noch einmal (die Demo bekommt die Kurzfassungen mit).
+  "0094_der_kommentar_wird_gelesen_bevor_er_im_dashboard_steht.sql:140"
+  "0094_der_kommentar_wird_gelesen_bevor_er_im_dashboard_steht.sql:1075"
 )
 
 # ---------------------------------------------------------------------

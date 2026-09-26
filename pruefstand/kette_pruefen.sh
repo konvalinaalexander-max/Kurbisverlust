@@ -171,9 +171,36 @@ begin
   assert (select audio_ref is null from auftrag_rueckmeldung where auftrag_id = a), 'Ohne Aufnahme darf keine Datei stehen';
   assert (select art from auftrag_rueckmeldung where auftrag_id = a) = 'app', 'Das Feedback zur App trägt nicht die Art „app" (0091)';
   assert not exists (select 1 from v_arbeit_kommentar where auftrag_id = a), 'Feedback zur App darf kein Kommentar zur Ware sein (0091)';
-  -- 0091: der Kommentar zur Ware aus dem zweiten Durchlauf hängt an seiner Arbeit
-  assert (select count(*) from v_arbeit_kommentar where text like '%Hagelschaden%') = 1,
-    'Der Kommentar zur Ware „Hagelschaden" fehlt in v_arbeit_kommentar (0091)';
+  -- 0091: der Kommentar zur Ware aus dem zweiten Durchlauf hängt an seiner Arbeit —
+  -- 0094: aber erst, wenn jemand ihn gelesen und gekürzt hat. Vorher steht die
+  -- Rohfassung in der Tabelle und nirgends im Dashboard. (Bis 0093 prüfte diese
+  -- Stelle, dass der Rohtext sofort in v_arbeit_kommentar steht; die Regel hat
+  -- sich geändert, also der Test mit ihr.)
+  assert (select count(*) from auftrag_rueckmeldung where art = 'ware' and text like '%Hagelschaden%' and kurz is null) = 1,
+    'Der Kommentar zur Ware „Hagelschaden" fehlt in der Tabelle oder ist schon gekürzt (0094)';
+  assert (select count(*) from v_arbeit_kommentar where roh like '%Hagelschaden%' or text like '%Hagelschaden%') = 0,
+    'Ein ungelesener Kommentar zur Ware steht schon im Dashboard (0094)';
+  -- Der Betriebsleiter kürzt — über die Zeilenregel, wie die Maske unter
+  -- Betrieb → Arbeiten. Die Kette kennt nur den Arbeiter; der Betriebsleiter
+  -- wird hier angelegt. Der Arbeiter darf es vorher nicht.
+  declare v_chef uuid := '33333333-3333-3333-3333-333333333333'; v_r bigint; v_k int;
+  begin
+    insert into auth.users (id, email, raw_user_meta_data) values (v_chef, null, '{"name":"Chef"}') on conflict (id) do nothing;
+    update profil set rolle = 'admin' where id = v_chef;
+    select id into v_r from auftrag_rueckmeldung where art = 'ware' and text like '%Hagelschaden%';
+    set local role authenticated;
+    perform set_config('request.jwt.claim.sub', '22222222-2222-2222-2222-222222222222', true);
+    update auftrag_rueckmeldung set kurz = 'Hagelschaden', kurz_quelle = 'betriebsleiter', kurz_ts = now() where id = v_r;
+    reset role;
+    select count(*) into v_k from auftrag_rueckmeldung where id = v_r and kurz is not null;
+    assert v_k = 0, 'Der Arbeiter konnte den Kommentar zur Ware kürzen (0094)';
+    set local role authenticated;
+    perform set_config('request.jwt.claim.sub', v_chef::text, true);
+    update auftrag_rueckmeldung set kurz = 'Hagelschaden', kurz_quelle = 'betriebsleiter', kurz_ts = now() where id = v_r;
+    reset role;
+  end;
+  assert (select count(*) from v_arbeit_kommentar where text = 'Hagelschaden' and roh like '%viel weggeworfen%') = 1,
+    'Nach dem Kürzen fehlt der Kommentar „Hagelschaden" mit seiner Rohfassung in v_arbeit_kommentar (0094)';
   assert (select wert from v_auftrag_angabe where auftrag_id = a and schluessel = 'eine_charge') = 'true',
     'Die Antwort „alles aus einer Charge" ist nicht angekommen';
 

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { chargeText, fehlerText } from '../lib/db'
@@ -9,6 +9,10 @@ import { Hinweis, Lade, Marke } from '../components/Bausteine'
 import { TaetZeichen, ZKreuz } from '../components/Zeichen'
 import { arbeitLaden, uhrzeit, type ArbeitDaten } from '../arbeit/daten'
 import type { Rueckmeldung } from '../lib/typen'
+import { ChargeFenster } from './ChargeFenster'
+
+/** Runde Z: die Messung, von der aus das Fenster geöffnet wurde — steht voran. */
+export interface Messung { titel: string; name: string; zeilen: string[] }
 
 interface Wiegung {
   id: number; wiege_ts: string; eingangsdatum: string; brutto_damals_kg: number; brutto_jetzt_kg: number
@@ -27,12 +31,17 @@ interface Ausgang {
  * alle Zahlen nachschauen dort drin." Also alles, was die Arbeit erfasst
  * hat, zum Lesen; berichtigt wird auf der Arbeitsseite (Korrektur).
  */
-export function ArbeitFenster({ auftragId, schliessen }: { auftragId: number; schliessen: () => void }) {
+export function ArbeitFenster({ auftragId, schliessen, messung }: { auftragId: number; schliessen: () => void; messung?: Messung }) {
   const [d, setD] = useState<ArbeitDaten | null>(null)
   const [wiegungen, setWiegungen] = useState<Wiegung[]>([])
   const [ausgang, setAusgang] = useState<Ausgang[]>([])
   const [rueck, setRueck] = useState<Rueckmeldung[]>([])
   const [fehler, setFehler] = useState<string | null>(null)
+  /** Runde Z: die Aufnahme lässt sich hier anhören — der Bucket ist nicht öffentlich, also signiert. */
+  const [tonUrl, setTonUrl] = useState<Map<number, string>>(new Map())
+  const [chargeFenster, setChargeFenster] = useState<number | null>(null)
+  const kindOffen = useRef(false)
+  kindOffen.current = chargeFenster !== null
   const t = (id: keyof typeof WOERTERBUCH.de) => WOERTERBUCH.de[id]
 
   useEffect(() => {
@@ -57,12 +66,27 @@ export function ArbeitFenster({ auftragId, schliessen }: { auftragId: number; sc
     return () => { lebt = false }
   }, [auftragId])
 
-  // Escape schliesst; der Hintergrund auch.
+  // Escape schliesst; der Hintergrund auch — aber nicht, solange die Charge
+  // darüber offen ist: dann schliesst Escape erst die.
   useEffect(() => {
-    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') schliessen() }
+    const h = (e: KeyboardEvent) => { if (e.key === 'Escape' && !kindOffen.current) schliessen() }
     window.addEventListener('keydown', h)
     return () => window.removeEventListener('keydown', h)
   }, [schliessen])
+
+  // Die Aufnahmen signieren lassen, sobald die Rückmeldungen da sind — eine
+  // Stunde reicht zum Anhören.
+  useEffect(() => {
+    let lebt = true
+    void (async () => {
+      for (const r of rueck) {
+        if (!r.audio_ref) continue
+        const { data } = await supabase.storage.from('rueckmeldungen').createSignedUrl(r.audio_ref, 3600)
+        if (lebt && data?.signedUrl) setTonUrl(u => new Map(u).set(r.id, data.signedUrl))
+      }
+    })()
+    return () => { lebt = false }
+  }, [rueck])
 
   const a = d?.auftrag
   const ta = a ? taetigkeitVon(a.weg, a.station, a.ist_fax) : null
@@ -78,7 +102,7 @@ export function ArbeitFenster({ auftragId, schliessen }: { auftragId: number; sc
             <div className="fenster-kopf">
               <TaetZeichen id={ta?.id} />
               <div>
-                <h2>{ta ? t(ta.text) : 'Arbeit'} <span className="leise">· {chargeText(d.charge)}</span></h2>
+                <h2>{ta ? t(ta.text) : 'Arbeit'} <button type="button" className="werkzeug-knopf charge-knopf" onClick={() => setChargeFenster(a.charge_nr)} title="Charge ansehen">{chargeText(d.charge)}</button></h2>
                 <p className="leise" style={{ margin: '.2rem 0 0' }}>
                   {zeitpunkt(a.start_ts)}{a.ende_ts ? ` – ${uhrzeit(a.ende_ts, gebietsschema)}` : ''}
                   {' · '}{a.abgebrochen_ts ? <Marke art="warnung">abgebrochen</Marke> : a.status === 'offen' ? <Marke art="offen">läuft</Marke> : <Marke art="fertig">fertig</Marke>}
@@ -87,6 +111,14 @@ export function ArbeitFenster({ auftragId, schliessen }: { auftragId: number; sc
               </div>
               <button type="button" className="klein schliessen" onClick={schliessen} aria-label="schliessen"><ZKreuz size={16} /></button>
             </div>
+
+            {messung && (
+              <section className="fenster-abschnitt messung-voran" id="fenster-messung">
+                <h3>{messung.titel}</h3>
+                <p style={{ margin: '0 0 .3rem', fontWeight: 600 }}>{messung.name}</p>
+                <ul className="liste-schlicht">{messung.zeilen.map((z, i) => <li key={i}>{z}</li>)}</ul>
+              </section>
+            )}
 
             {d.ablesungen.length > 0 && (
               <section className="fenster-abschnitt">
@@ -196,14 +228,25 @@ export function ArbeitFenster({ auftragId, schliessen }: { auftragId: number; sc
             )}
 
             {rueck.length > 0 && (
-              <section className="fenster-abschnitt">
+              <section className="fenster-abschnitt" id="fenster-rueckmeldung">
                 <h3>Rückmeldung</h3>
+                {/* Runde Z: beim Drüberfahren die Kurzfassung, beim Anklicken die
+                    Rohfassung — hier ist das Anklicken: Text, Transkript, Aufnahme. */}
                 {rueck.map(r => (
-                  <p key={r.id} className="rueckmeldung-text">
-                    <strong>{r.art === 'ware' ? 'Zur Ware' : 'Zur App'}:</strong> {r.text ?? ''}
-                    {r.transkript && <span className="leise"> · mitgeschrieben{r.transkript_quelle === 'hand' ? ', geprüft' : ''}: „{r.transkript}"</span>}
-                    {r.audio_ref ? <span className="leise"> · Aufnahme{r.audio_sekunden != null ? ` (${Math.floor(r.audio_sekunden / 60)}:${String(r.audio_sekunden % 60).padStart(2, '0')})` : ''} — unter Betrieb → Arbeiten anhören</span> : ''}
-                  </p>
+                  <div key={r.id} className="rueckmeldung-block">
+                    <p className="leise" style={{ margin: '0 0 .2rem' }}>
+                      <strong>{r.art === 'ware' ? 'Zur Ware' : 'Zur App'}</strong> · {zeitpunkt(r.ts)}
+                      {r.audio_sekunden != null && <> · {Math.floor(r.audio_sekunden / 60)}:{String(r.audio_sekunden % 60).padStart(2, '0')} Aufnahme</>}
+                    </p>
+                    {r.art === 'ware' && (r.kurz
+                      ? <p className="rueckmeldung-kurz"><strong>Im Dashboard:</strong> {r.kurz} <span className="leise">· gekürzt {r.kurz_quelle === 'betriebsleiter' ? 'vom Betriebsleiter' : 'von der Runde am Programm'}{r.kurz_ts ? `, ${datum(r.kurz_ts)}` : ''}{r.kurz_charge_nr != null ? ` · zugeordnet zu Charge ${r.kurz_charge_nr}` : ''}</span></p>
+                      : <p className="rueckmeldung-kurz leise">Noch nicht gelesen — steht noch nicht im Dashboard. Kürzen unter Betrieb → Arbeiten.</p>)}
+                    {r.text && <p className="rueckmeldung-text">„{r.text}"</p>}
+                    {r.transkript && <p className="rueckmeldung-text leise">mitgeschrieben{r.transkript_quelle === 'hand' ? ', geprüft' : ' (ungeprüft)'}: „{r.transkript}"</p>}
+                    {r.audio_ref && (tonUrl.has(r.id)
+                      ? <audio controls src={tonUrl.get(r.id)} style={{ width: '100%', maxWidth: 480 }} />
+                      : <span className="leise">Aufnahme wird geholt …</span>)}
+                  </div>
                 ))}
               </section>
             )}
@@ -215,6 +258,7 @@ export function ArbeitFenster({ auftragId, schliessen }: { auftragId: number; sc
           </>
         )}
       </div>
+      {chargeFenster !== null && <div onClick={e => e.stopPropagation()}><ChargeFenster chargeNr={chargeFenster} schliessen={() => setChargeFenster(null)} /></div>}
     </div>
   )
 }

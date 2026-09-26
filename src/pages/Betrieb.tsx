@@ -77,6 +77,11 @@ function Arbeiten() {
   const [offen, setOffen] = useState<Set<number>>(new Set())
   /** Signierte Adressen der Aufnahmen — der Bucket ist nicht öffentlich. */
   const [tonUrl, setTonUrl] = useState<Map<number, string>>(new Map())
+  /** Runde Z (0094): die Kurzfassung, die der Betriebsleiter selbst macht —
+   *  etwa nach dem Anhören einer Aufnahme. Erst damit steht der Kommentar
+   *  im Dashboard. */
+  const [kurzEntwurf, setKurzEntwurf] = useState<Map<number, string>>(new Map())
+  const [kuerzt, setKuerzt] = useState<Set<number>>(new Set())
   /** Runde W: der Löschmodus — Kreise an den Zeilen, dann ein Knopf. */
   const [loeschmodus, setLoeschmodus] = useState(false)
   const [gewaehlt, setGewaehlt] = useState<Set<number>>(new Set())
@@ -141,6 +146,23 @@ function Arbeiten() {
       const { data } = await supabase.storage.from('rueckmeldungen').createSignedUrl(r.audio_ref, 3600)
       if (data?.signedUrl) setTonUrl(u => new Map(u).set(r.id, data.signedUrl))
     }
+  }
+  /** Kürzen oder zurücknehmen — die Zeilenregel lässt nur den Betriebsleiter. */
+  async function kuerzen(r: Rueckmeldung, kurz: string | null) {
+    if (kuerzt.has(r.id)) return
+    setKuerzt(k => new Set(k).add(r.id)); setFehler(null)
+    const neu = kurz === null
+      ? { kurz: null, kurz_quelle: null, kurz_ts: null, kurz_charge_nr: null }
+      : { kurz, kurz_quelle: 'betriebsleiter' as const, kurz_ts: new Date().toISOString() }
+    const { error } = await supabase.from('auftrag_rueckmeldung').update(neu).eq('id', r.id)
+    setKuerzt(k => { const n = new Set(k); n.delete(r.id); return n })
+    if (error) { setFehler(fehlerText(error)); return }
+    setRueckmeldungen(m => {
+      const n = new Map(m)
+      n.set(r.auftrag_id, (n.get(r.auftrag_id) ?? []).map(x => x.id === r.id ? { ...x, ...neu } : x))
+      return n
+    })
+    setKurzEntwurf(e => { const n = new Map(e); n.delete(r.id); return n })
   }
   const t = (id: keyof typeof WOERTERBUCH.de) => WOERTERBUCH.de[id]
   const gezeigt = auftraege.filter(a => filter === 'alle' ? true
@@ -274,6 +296,25 @@ function Arbeiten() {
                           {r.audio_ref && (tonUrl.has(r.id)
                             ? <audio controls src={tonUrl.get(r.id)} style={{ width: '100%', maxWidth: 480 }} />
                             : <span className="leise">Aufnahme wird geholt …</span>)}
+                          {r.art === 'ware' && (
+                            // 0094: erst gelesen, dann gezeigt — die Kurzfassung ist, was das
+                            // Dashboard an die Messungen hängt. Leer heisst: noch nirgends.
+                            <div className="kurz-block" data-stand={r.kurz ? 'gekuerzt' : 'offen'}>
+                              {r.kurz
+                                ? <p className="rueckmeldung-kurz"><strong>Im Dashboard:</strong> {r.kurz} <span className="leise">· gekürzt {r.kurz_quelle === 'betriebsleiter' ? 'von dir' : 'von der Runde am Programm'}{r.kurz_ts ? `, ${datum(r.kurz_ts)}` : ''}{r.kurz_charge_nr != null ? ` · zugeordnet zu Charge ${r.kurz_charge_nr}` : ''}</span></p>
+                                : <p className="rueckmeldung-kurz"><Marke art="warnung" punkt={false}>noch nicht gelesen</Marke> <span className="leise">Steht noch nicht im Dashboard. Auf das Wesentliche kürzen — „Hagelschaden" — dann steht es an den Messungen dieser Arbeit.</span></p>}
+                              <form className="knopf-reihe" style={{ alignItems: 'center' }}
+                                    onSubmit={e => { e.preventDefault(); const k = (kurzEntwurf.get(r.id) ?? '').trim(); if (k) void kuerzen(r, k) }}>
+                                <input id={`kurz-${r.id}`} type="text" maxLength={120} placeholder={r.kurz ? 'anders kürzen' : 'Kurzfassung fürs Dashboard'}
+                                       value={kurzEntwurf.get(r.id) ?? ''} onChange={e => setKurzEntwurf(m => new Map(m).set(r.id, e.target.value))}
+                                       style={{ flex: '1 1 220px', minHeight: 36 }} aria-label="Kurzfassung fürs Dashboard" />
+                                <button type="submit" id={`kurz-speichern-${r.id}`} className="klein haupt" disabled={kuerzt.has(r.id) || !(kurzEntwurf.get(r.id) ?? '').trim()}>
+                                  {r.kurz ? 'ändern' : 'ins Dashboard'}
+                                </button>
+                                {r.kurz && <button type="button" id={`kurz-weg-${r.id}`} className="klein" disabled={kuerzt.has(r.id)} onClick={() => void kuerzen(r, null)}>zurücknehmen</button>}
+                              </form>
+                            </div>
+                          )}
                         </td>
                       </tr>
                     ))}

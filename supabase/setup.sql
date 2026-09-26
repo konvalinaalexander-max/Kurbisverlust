@@ -6826,31 +6826,67 @@ create index if not exists auftrag_rueckmeldung_art on auftrag_rueckmeldung (art
 
 
 -- =====================================================================
--- aus 0093_die_demo_saison_hat_rueckmeldungen.sql
+-- aus 0094_der_kommentar_wird_gelesen_bevor_er_im_dashboard_steht.sql
 -- =====================================================================
 
 -- =====================================================================
--- 0093 — Die Demo-Saison hat Rückmeldungen
+-- 0094 — Der Kommentar zur Ware wird gelesen, bevor er im Dashboard steht
 --
--- 0081 verlangt, dass die Demo jede Fähigkeit der App zeigt, und ihr
--- Prüfblock lässt keine Sicht der Auswertung leer. 0091 hat die
--- Rückmeldung zur Ware gebracht und mit ihr v_arbeit_kommentar — auf der
--- Demo-Saison blieb die Sicht leer, und der Prüfblock hat es gemeldet,
--- wie er soll. Also hinterlässt die Demo, was die Halle seit 0091
--- hinterlassen kann: drei Rückmeldungen zur Ware und eine zur App, an
--- Arbeiten, an denen man sie im Dashboard auch findet — am Punkt der
--- Faul-Kurve, an einer Auffälligkeit, im Arbeitsfenster, unter Betrieb →
--- Arbeiten. Geschrieben, nicht gesprochen: eine Aufnahme wäre eine Datei
--- im Bucket, und die kann eine SQL-Funktion nicht anlegen.
+-- Der Betrieb: „es soll erst im Dashboard erscheinen, nachdem du es
+-- gelesen hast und du es verstanden hast … es kann sein, dass die Person
+-- die halbe Story erzählt mit Grammatikfehlern … du musst verstehen, was
+-- sie eigentlich sagen wollte, runterbrechen und abkürzen auf
+-- Hagelschaden. … beim Drüberscrollen deine Zusammenfassung, beim
+-- Anklicken die Rohdatei."
 --
--- Die Ladefunktion steht hier noch einmal ganz, wie schon 0081 sie nach
--- 0052 ganz neu schrieb — neu ist allein Abschnitt 9 (und der Satz am
--- Ende zählt die Rückmeldungen mit). Warum nicht nur ein Nachtrag: Die
--- Funktion ist ein Zustand, keine Geschichte. setup.sql behält von jeder
--- Funktion nur die letzte Fassung (supabase/verdichten.mjs), das
--- Abschreiben kostet dort also nichts, und wer wissen will, wie die Demo
--- heute entsteht, liest eine Datei, nicht eine Kette von Nachträgen.
+-- Also bekommt die Rückmeldung eine Kurzfassung: `kurz` ist der Text, den
+-- das Dashboard zeigt; `kurz_quelle` sagt, wer ihn gemacht hat — die Runde
+-- am Programm (aus docs/betrieb/kurzfassungen.json, vom Betriebsabzug
+-- eingespielt) oder der Betriebsleiter selbst (unter Betrieb → Arbeiten,
+-- etwa nach dem Anhören einer Aufnahme). Solange `kurz` leer ist, steht
+-- die Rückmeldung nirgends im Dashboard: nicht am Punkt, nicht an der
+-- Auffälligkeit. Die Rohfassung — Text, Transkript, Aufnahme — bleibt, und
+-- wer klickt, sieht sie im Arbeitsfenster.
+--
+-- `kurz_charge_nr`: wenn der Kommentar zu einer anderen Charge gehört als
+-- die Arbeit, an der er gesagt wurde („ordne es korrekt den Chargen zu").
+-- Die Arbeit selbst bleibt, wo er gesagt wurde.
+--
+-- Eine Kurzfassung gibt es nur zur Ware: Feedback zur App ist für die
+-- nächste Runde, nicht fürs Dashboard.
+--
+-- Die Demo-Saison (0093) bekommt ihre Kurzfassungen mit — drei gekürzt,
+-- eine ungelesen, damit beides zu sehen ist. Die Ladefunktion steht darum
+-- noch einmal ganz; neu ist allein Abschnitt 9 (setup.sql behält ohnehin
+-- nur die letzte Fassung, siehe 0093).
 -- =====================================================================
+
+alter table auftrag_rueckmeldung
+  add column if not exists kurz text,
+  add column if not exists kurz_quelle text
+    constraint auftrag_rueckmeldung_kurz_quelle check (kurz_quelle is null or kurz_quelle in ('runde', 'betriebsleiter')),
+  add column if not exists kurz_ts timestamptz,
+  add column if not exists kurz_charge_nr int references charge(nr);
+comment on column auftrag_rueckmeldung.kurz is
+  'Die Kurzfassung des Kommentars zur Ware, wie das Dashboard sie zeigt („Hagelschaden"). '
+  'Leer = noch nicht gelesen; dann steht die Rückmeldung nirgends im Dashboard (0094).';
+comment on column auftrag_rueckmeldung.kurz_quelle is
+  'runde: die Runde am Programm hat gekürzt (docs/betrieb/kurzfassungen.json, vom Betriebsabzug '
+  'eingespielt). betriebsleiter: der Betriebsleiter selbst, unter Betrieb → Arbeiten. Die des '
+  'Betriebsleiters überschreibt der Abzug nie.';
+comment on column auftrag_rueckmeldung.kurz_ts is 'Wann gekürzt wurde.';
+comment on column auftrag_rueckmeldung.kurz_charge_nr is
+  'Gehört der Kommentar zu einer anderen Charge als die Arbeit, steht sie hier; sonst leer und '
+  'die Charge der Arbeit gilt (0094).';
+-- Eine Kurzfassung ist nie leer, hat immer Quelle und Zeit, gibt es nur zur
+-- Ware — und eine andere Charge nur mit Kurzfassung.
+alter table auftrag_rueckmeldung drop constraint if exists auftrag_rueckmeldung_kurz_passt;
+alter table auftrag_rueckmeldung add constraint auftrag_rueckmeldung_kurz_passt
+  check ((kurz is null) = (kurz_quelle is null)
+     and (kurz is null) = (kurz_ts is null)
+     and (kurz is null or nullif(btrim(kurz), '') is not null)
+     and (kurz is null or art = 'ware')
+     and (kurz_charge_nr is null or kurz is not null));
 
 create or replace function demo_daten_laden()
 returns text language plpgsql security definer set search_path = public as $fn$
@@ -7773,23 +7809,28 @@ begin
   select a.id, v_wer from auftrag a where a.bemerkung = 'DEMO' and a.status = 'offen'
   on conflict do nothing;
 
-  -- ---------- 9. Rückmeldungen aus der Halle (0091, neu in 0093) ------------
+  -- ---------- 9. Rückmeldungen aus der Halle (0091, 0093, 0094) --------------
   -- Geschrieben, nicht gesprochen: Eine Aufnahme wäre eine Datei im Bucket,
   -- und die kann eine SQL-Funktion nicht anlegen. Jede Rückmeldung steht kurz
   -- nach dem Ende der Arbeit bei einer Person, die daran beteiligt war — die
   -- Arbeit aus Sonderfall 7 hat keine Beteiligten, dort ist es der
   -- Betriebsleiter selbst. Und sie steht an Arbeiten, an denen man sie im
   -- Dashboard auch findet.
-  declare v_a1 bigint; v_a2 bigint; v_a3 bigint;
+  --
+  -- 0094: Was die Halle sagt, ist die halbe Geschichte; was das Dashboard
+  -- zeigt, ist die Kurzfassung, die jemand daraus gemacht hat — die Runde am
+  -- Programm oder der Betriebsleiter. Drei der vier zur Ware sind gekürzt;
+  -- die vierte ist noch nicht gelesen und steht darum noch nirgends.
+  declare v_a1 bigint; v_a2 bigint; v_a3 bigint; v_a4 bigint;
   begin
-    -- (1) Zur Ware, an der Sortier-Arbeit mit dem meisten Faulen: der Grund
-    --     steht dann am Punkt der Faul-Kurve unter Ursachen.
+    -- (1) Zur Ware, an der Sortier-Arbeit mit dem meisten Faulen: die
+    --     Kurzfassung steht am Punkt der Faul-Kurve unter Ursachen.
     select a.id into v_a1
       from auftrag a join schimmel_messung s on s.auftrag_id = a.id
      where a.bemerkung = 'DEMO' and a.status = 'abgeschlossen' and a.station = 'sortieren'
      order by s.kg desc, a.id limit 1;
     -- (2) Zur Ware, an der Arbeit mit dem falschen Zetteldatum (Sonderfall 3):
-    --     die Auffälligkeit zeigt den Kommentar mit an.
+    --     die Auffälligkeit zeigt die Kurzfassung mit an.
     select a.id into v_a2 from auftrag a
      where a.bemerkung = 'DEMO' and a.charge_nr = 1613 and a.station = 'waschen_sortieren'
      order by a.start_ts limit 1;
@@ -7800,23 +7841,43 @@ begin
      where a.bemerkung = 'DEMO' and a.charge_nr = 1613 and a.station = 'waschen_sortieren'
        and exists (select 1 from schimmel_messung s where s.auftrag_id = a.id and s.palox_stand_kg = 410)
      order by a.start_ts limit 1;
-    if v_a1 is null or v_a2 is null or v_a3 is null then
+    -- (5) Zur Ware, noch nicht gelesen: an der ersten Wasch+Sortier-Arbeit
+    --     der Charge 1636 — unter Betrieb → Arbeiten wartet sie auf ihre
+    --     Kurzfassung, im Dashboard steht sie noch nicht.
+    select a.id into v_a4 from auftrag a
+     where a.bemerkung = 'DEMO' and a.charge_nr = 1636 and a.station = 'waschen_sortieren' and a.status = 'abgeschlossen'
+     order by a.start_ts limit 1;
+    if v_a1 is null or v_a2 is null or v_a3 is null or v_a4 is null then
       raise exception 'Demo: die Arbeiten für die Rückmeldungen fehlen — die Saison oben hat sich geändert.';
     end if;
-    insert into auftrag_rueckmeldung (auftrag_id, art, text, erfasser, ts)
+    insert into auftrag_rueckmeldung (auftrag_id, art, text, erfasser, ts, kurz, kurz_quelle, kurz_ts)
     select r.auftrag_id, r.art, r.text,
            coalesce((select t.profil_id from auftrag_teilnehmer t
                       where t.auftrag_id = r.auftrag_id order by t.profil_id limit 1), v_wer),
-           coalesce(a.ende_ts, a.start_ts) + make_interval(mins => 3 * r.nr)
+           coalesce(a.ende_ts, a.start_ts) + make_interval(mins => 3 * r.nr),
+           r.kurz, r.quelle,
+           case when r.kurz is not null then coalesce(a.ende_ts, a.start_ts) + make_interval(days => 1, hours => 8) end
       from (values
-              (1, v_a1, 'ware', 'Hagelschaden: viele Kürbisse mit Dellen und Rissen, darum so viel Faules.'),
-              (2, v_a2, 'ware', 'Der Zettel war nass, das Datum kaum zu lesen.'),
-              (3, v_a3, 'ware', 'Sehr viel Faules, der Palox war randvoll — wir haben ihn zwischendurch geleert.'),
-              (4, v_a3, 'app',  'Wo trage ich ein, dass der Palox geleert wurde? Ich habe es nicht gefunden.')
-           ) as r(nr, auftrag_id, art, text)
+              (1, v_a1, 'ware',
+               'Also am Anfang habe ich gedacht, das ist normal, aber dann waren so viele mit Dellen und Rissen, '
+               'ich glaube das war der Hagel im Juli auf dem hinteren Feld, darum haben wir so viel weggeworfen.',
+               'Hagelschaden', 'runde'),
+              (2, v_a2, 'ware',
+               'Der Zettel war nass, das Datum konnte man kaum lesen, ich habe 13. geschrieben, kann auch 31. gewesen sein.',
+               'Zettel nass, Datum unsicher', 'betriebsleiter'),
+              (3, v_a3, 'ware',
+               'Sehr viel Faules, der Palox war randvoll — wir haben ihn zwischendurch geleert.',
+               'Viel Faules, Palox zwischendurch geleert', 'runde'),
+              (4, v_a3, 'app',
+               'Wo trage ich ein, dass der Palox geleert wurde? Ich habe es nicht gefunden.',
+               null, null),
+              (5, v_a4, 'ware',
+               'Die Kürbisse waren viel kleiner als sonst, fast alles K1, und ein paar mit weichen Stellen.',
+               null, null)
+           ) as r(nr, auftrag_id, art, text, kurz, quelle)
       join auftrag a on a.id = r.auftrag_id
      order by r.nr;
-    raise notice 'Demo: Rückmeldungen aus der Halle angelegt';
+    raise notice 'Demo: Rückmeldungen aus der Halle angelegt (drei gekürzt, eine ungelesen, eine zur App)';
   end;
 
   drop table if exists demo_charge; drop table if exists demo_pal; drop table if exists demo_lauf;
@@ -7864,17 +7925,26 @@ comment on function demo_daten_laden is
 revoke execute on function demo_daten_laden() from public;
 grant execute on function demo_daten_laden() to authenticated;
 
+
+comment on function demo_daten_laden is
+  'Legt die erfundene Demo-Saison an (Arbeiten mit bemerkung = ''DEMO'', Paletten mit extern_id ''demo-…'', Sortierdateien ''DEMO-…'', Lieferungen und Verkaufsdateien ''DEMO'', Kontrollpaletten mit bemerkung ''DEMO''). Echte Daten bleiben unberührt; im Echtmodus lässt sie sich gar nicht laden (0072). Seit 0093 mit den Rückmeldungen aus der Halle, seit 0094 mit ihren Kurzfassungen. Deterministisch: zweimal laden gibt zweimal dieselbe Saison (0081).';
+revoke execute on function demo_daten_laden() from public;
+grant execute on function demo_daten_laden() to authenticated;
+
 -- ---------------------------------------------------------------------
 -- Der Stand der Datenbank
 -- ---------------------------------------------------------------------
 create or replace function schema_stand() returns int
-language sql immutable set search_path = public as $$ select 93 $$;
+language sql immutable set search_path = public as $$ select 94 $$;
 comment on function schema_stand is
   'Nummer der jüngsten eingespielten Migration. Die App vergleicht sie mit '
   'SCHEMA_ERWARTET (src/lib/version.ts) und verlangt bei Abweichung, setup.sql '
   'erneut auszuführen. Jede Migration setzt sie auf ihre eigene Nummer.';
 revoke all on function schema_stand() from public;
 grant execute on function schema_stand() to anon, authenticated;
+comment on function schema_stand() is
+  'Die Nummer der höchsten eingespielten Migration. Die App vergleicht sie mit '
+  'SCHEMA_ERWARTET und verlangt setup.sql, wenn sie auseinanderliegen (0057).';
 comment on function schema_stand() is
   'Die Nummer der höchsten eingespielten Migration. Die App vergleicht sie mit '
   'SCHEMA_ERWARTET und verlangt setup.sql, wenn sie auseinanderliegen (0057).';
@@ -7963,6 +8033,7 @@ comment on function schema_stand() is
 -- wird am Ende dieser Datei neu berechnet.
 -- =====================================================================
 
+drop view if exists v_arbeit_kommentar cascade;
 drop view if exists v_plausibilitaet cascade;
 drop view if exists v_plausibilitaet_0054_zusatz cascade;
 drop view if exists v_plausibilitaet_0064_zusatz cascade;
@@ -8014,7 +8085,6 @@ drop view if exists v_auftrag_masse cascade;
 drop view if exists v_auftrag_wasch_paletten cascade;
 drop view if exists v_auftrag_gebinde_masse cascade;
 drop view if exists v_koeff_gebinde cascade;
-drop view if exists v_arbeit_kommentar cascade;
 drop view if exists v_datenqualitaet cascade;
 drop materialized view if exists mv_sortier_eingang cascade;
 drop materialized view if exists mv_auftrag_masse cascade;
@@ -9736,20 +9806,6 @@ select
   (select count(*) from sortier_lauf where sortiertag is not null)::int                   as lesungen_mit_sortiertag,
   (select count(*) from sortier_lauf
     where sortiertag_quelle in ('datei', 'arbeit'))::int                                  as lesungen_sortiertag_bezeugt;
-
--- Der Kommentar zur Ware, so wie das Dashboard ihn an die Messung hängt:
--- je Arbeit ein Text — geschrieben, sonst das Transkript.
-create or replace view v_arbeit_kommentar with (security_invoker = true) as
-select r.auftrag_id,
-       a.charge_nr,
-       string_agg(coalesce(nullif(btrim(r.text), ''), r.transkript), ' · ' order by r.ts) as text,
-       bool_or(r.audio_ref is not null) as mit_aufnahme,
-       max(r.ts) as ts
-  from auftrag_rueckmeldung r
-  join auftrag a on a.id = r.auftrag_id
- where r.art = 'ware'
-   and (nullif(btrim(coalesce(r.text, '')), '') is not null or r.transkript is not null)
- group by r.auftrag_id, a.charge_nr;
 
 
 -- =====================================================================
@@ -13765,6 +13821,23 @@ begin
                  'Gespeichert: jede gewogene fertige Palette mit ihren Kennzahlen (v_ausgang_voll) — seit 0089 mit voll, damit die Marge-Karte sagen kann, welche Wägung nicht zählt.');
 end $$;
 
+-- Die Kommentar-Sicht zeigt nur Gekürztes: `text` ist die Kurzfassung.
+-- Dazu, neu am Ende (eine Sicht kann Spalten nur anhängen): `roh` — was die
+-- Person wirklich gesagt hat (Text, sonst Transkript) — und `n`.
+create or replace view v_arbeit_kommentar with (security_invoker = true) as
+select r.auftrag_id,
+       coalesce(r.kurz_charge_nr, a.charge_nr) as charge_nr,
+       string_agg(r.kurz, ' · ' order by r.ts) as text,
+       bool_or(r.audio_ref is not null) as mit_aufnahme,
+       max(r.ts) as ts,
+       string_agg(coalesce(nullif(btrim(r.text), ''), r.transkript, '(nur Aufnahme)'), ' · ' order by r.ts) as roh,
+       count(*)::int as n
+  from auftrag_rueckmeldung r
+  join auftrag a on a.id = r.auftrag_id
+ where r.art = 'ware'
+   and r.kurz is not null
+ group by r.auftrag_id, coalesce(r.kurz_charge_nr, a.charge_nr);
+
 -- ---------------------------------------------------------------------
 -- Beschreibungen, Leserechte und Indizes
 -- ---------------------------------------------------------------------
@@ -15467,6 +15540,12 @@ comment on view v_koeff_gebinde is
 grant select on v_koeff_gebinde to authenticated;
 grant select on v_plausibilitaet to authenticated;
 grant select on v_plausibilitaet_0054_zusatz to authenticated;
+comment on view v_arbeit_kommentar is
+  'Je Arbeit der Kommentar zur Ware, so wie das Dashboard ihn an die Messungen hängt: '
+  'text ist die Kurzfassung (0094 — nur gelesene und gekürzte Rückmeldungen erscheinen), '
+  'roh das, was die Person gesagt hat, charge_nr die zugeordnete Charge (kurz_charge_nr, '
+  'sonst die der Arbeit).';
+grant select on v_arbeit_kommentar to authenticated;
 
 
 -- =====================================================================

@@ -273,6 +273,27 @@ const BILDSCHIRME = [
       await p.locator(`#urs-palox circle.marker[data-auftrag="${k.auftrag_id}"]`).first().hover({ force: true })
       await p.locator('.schweb', { hasText: 'Kommentar: Hagelschaden' }).waitFor()
     } },
+  // Runde Z: ein Punkt öffnet die Messung — mit Arbeit das Arbeitsfenster,
+  // die Messung voran; ohne Arbeit (Kontrollwägung) das Messungsfenster.
+  { name: 'ursachen-punkt', wer: 'admin', pfad: '/ursachen',
+    tun: async p => {
+      await p.locator('#urs-palox circle.marker[data-auftrag]').first().click({ force: true })
+      await p.locator('#fenster-messung', { hasText: 'Faules am Palox' }).waitFor()
+    } },
+  { name: 'ursachen-messung-ohne-arbeit', wer: 'admin', pfad: '/ursachen',
+    tun: async p => {
+      await p.locator('#urs-verdunstung circle.marker:not([data-auftrag])').first().click({ force: true })
+      await p.locator('#messung-fenster h2', { hasText: 'Diese Wägung' }).waitFor()
+    } },
+  // Runde Z: eine Sorte aufklappen, eine Charge als Fenster.
+  { name: 'ursachen-charge', wer: 'admin', pfad: '/ursachen',
+    tun: async p => {
+      await p.locator('#urs-wohin .sorte-auf').first().click()
+      await p.locator('#urs-wohin .anteil-zeile.eingerueckt').first().waitFor()
+      await p.locator('#urs-wohin .anteil-zeile.eingerueckt .charge-ansehen').first().click()
+      await p.locator('#charge-fenster h2', { hasText: 'Charge' }).waitFor()
+      await p.locator('#charge-fenster table').first().waitFor()
+    } },
   { name: 'chargen', wer: 'admin', pfad: '/chargen' },
   { name: 'chargen-offen', wer: 'admin', pfad: '/chargen',
     tun: async p => { await p.locator('tbody tr').first().click() } },
@@ -280,7 +301,31 @@ const BILDSCHIRME = [
   // Runde X: jede Auffälligkeit nennt ihre Arbeit und öffnet sie als Fenster.
   { name: 'messungen-arbeit', wer: 'admin', pfad: '/messungen',
     tun: async p => { await p.getByRole('button', { name: 'Arbeit ansehen' }).first().click(); await p.locator('#arbeit-fenster h2').waitFor() } },
+  // Runde Z: von der Auffälligkeit zur Charge.
+  { name: 'messungen-charge', wer: 'admin', pfad: '/messungen',
+    tun: async p => { await p.locator('.befund-kopf .charge-knopf').first().click(); await p.locator('#charge-fenster h2').waitFor() } },
   { name: 'betrieb-arbeiten', wer: 'admin', pfad: '/betrieb/arbeiten' },
+  // Runde Z (0094): der Betriebsleiter kürzt einen ungelesenen Kommentar zur
+  // Ware — erst damit steht er im Dashboard. Die Demo hat genau einen offenen;
+  // seine Arbeit liegt Monate zurück, also „Ältere zeigen", bis sie da ist.
+  { name: 'betrieb-kurzfassung', wer: 'admin', pfad: '/betrieb/arbeiten',
+    tun: async p => {
+      const rm = (fixture('auftrag_rueckmeldung') ?? []).find(r => r.art === 'ware' && !r.kurz)
+      if (!rm) throw new Error('auftrag_rueckmeldung.json kennt keinen ungelesenen Kommentar — daten_dumpen.sh nach 0094 neu laufen lassen')
+      for (let i = 0; i < 30 && !(await p.locator(`#kurz-${rm.id}`).count()); i++) {
+        while (await p.locator('button[aria-label="Rückmeldung öffnen"]').count()) {
+          await p.locator('button[aria-label="Rückmeldung öffnen"]').first().click()
+        }
+        if (await p.locator(`#kurz-${rm.id}`).count()) break
+        const aelter = p.getByRole('button', { name: /Ältere zeigen/ })
+        if (!(await aelter.count())) throw new Error(`Die Arbeit ${rm.auftrag_id} mit dem ungelesenen Kommentar ist nirgends`)
+        await aelter.click()
+      }
+      await p.locator(`.kurz-block[data-stand="offen"]`).first().waitFor()
+      await p.locator(`#kurz-${rm.id}`).fill('Kleine Ware, weiche Stellen')
+      await p.locator(`#kurz-speichern-${rm.id}`).click()
+      await p.locator(`.kurz-block[data-stand="gekuerzt"]`, { hasText: 'Kleine Ware' }).waitFor()
+    } },
   // Runde W: der Löschmodus — Kreise an den Zeilen, dann die Rückfrage.
   { name: 'betrieb-arbeiten-loeschen', wer: 'admin', pfad: '/betrieb/arbeiten',
     tun: async p => {

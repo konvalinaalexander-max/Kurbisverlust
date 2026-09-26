@@ -6012,12 +6012,25 @@ begin
   end;
 
   -- (b) Zur Ware: geschrieben, oder nur mitgeschrieben — beides ein Kommentar.
+  --     Bis 0093 stand hier: der Rohtext steht sofort in v_arbeit_kommentar.
+  --     Seit 0094 gilt „erst gelesen, dann gezeigt": Die Sicht zeigt die
+  --     Kurzfassung, und erst, wenn eine da ist; das Gesagte steht als roh
+  --     daneben. Die Regel hat sich geändert, also der Test mit ihr.
   insert into auftrag_rueckmeldung (auftrag_id, art, text) values (v_a, 'ware', 'Hagelschaden — viel weggeworfen');
   insert into auftrag_rueckmeldung (auftrag_id, art, audio_ref, audio_typ, audio_sekunden, transkript, transkript_quelle)
     values (v_a, 'ware', v_a || '/2.webm', 'audio/webm', 12, 'die Kürbisse waren sehr weich', 'handy');
+  select count(*) into v_n from v_arbeit_kommentar where auftrag_id = v_a;
+  assert v_n = 0, format('0091 (b0): %s ungelesene Kommentare stehen schon in v_arbeit_kommentar (0094)', v_n);
+  update auftrag_rueckmeldung set kurz = 'Hagelschaden', kurz_quelle = 'runde', kurz_ts = now()
+   where auftrag_id = v_a and art = 'ware' and text is not null;
+  update auftrag_rueckmeldung set kurz = 'weiche Ware', kurz_quelle = 'betriebsleiter', kurz_ts = now()
+   where auftrag_id = v_a and art = 'ware' and audio_ref is not null;
   select text into v_txt from v_arbeit_kommentar where auftrag_id = v_a;
+  assert v_txt = 'Hagelschaden · weiche Ware',
+    format('0091 (b1): der Kommentar zur Ware lautet „%s" statt der zwei Kurzfassungen', v_txt);
+  select roh into v_txt from v_arbeit_kommentar where auftrag_id = v_a;
   assert v_txt = 'Hagelschaden — viel weggeworfen · die Kürbisse waren sehr weich',
-    format('0091 (b1): der Kommentar zur Ware lautet „%s"', v_txt);
+    format('0091 (b1r): die Rohfassung lautet „%s" — geschrieben, sonst das Transkript', v_txt);
   assert (select mit_aufnahme from v_arbeit_kommentar where auftrag_id = v_a), '0091 (b2): die Aufnahme wird nicht angezeigt';
   -- Die App-Rückmeldung ist kein Kommentar zur Ware.
   assert (select text from v_arbeit_kommentar where auftrag_id = v_a) not like '%Knopf%', '0091 (b3): Feedback zur App steht im Kommentar zur Ware';
@@ -6142,15 +6155,18 @@ begin
   select wert into v_modus from einstellung where schluessel = 'betriebsmodus';
   update einstellung set wert = '"beispiel"'::jsonb where schluessel = 'betriebsmodus';
   select demo_daten_laden() into v_txt;
-  assert v_txt like '%4 Rückmeldungen%', format('0093 (a): der Ladesatz zählt die Rückmeldungen nicht: %s', v_txt);
+  -- 0093 brachte vier (drei zur Ware, eine zur App); 0094 legt eine fünfte
+  -- zur Ware dazu, die noch niemand gelesen hat — damit man den offenen
+  -- Zustand sieht. Der Test zählt mit der Regel.
+  assert v_txt like '%5 Rückmeldungen%', format('0093 (a): der Ladesatz zählt die Rückmeldungen nicht: %s', v_txt);
 
-  -- (b) Drei zur Ware, eine zur App — an abgeschlossenen Demo-Arbeiten,
-  --     geschrieben (keine Aufnahme, die es im Bucket nicht gäbe), mit Zeit
-  --     nach dem Ende der Arbeit, von einer beteiligten Person oder dem
-  --     Betriebsleiter.
+  -- (b) Vier zur Ware (drei gekürzt, eine ungelesen — 0094), eine zur App —
+  --     an abgeschlossenen Demo-Arbeiten, geschrieben (keine Aufnahme, die
+  --     es im Bucket nicht gäbe), mit Zeit nach dem Ende der Arbeit, von
+  --     einer beteiligten Person oder dem Betriebsleiter.
   select count(*) into v_n from auftrag_rueckmeldung r join auftrag a on a.id = r.auftrag_id
    where a.bemerkung = 'DEMO' and r.art = 'ware';
-  assert v_n = 3, format('0093 (b1): %s Rückmeldungen zur Ware statt 3', v_n);
+  assert v_n = 4, format('0093 (b1): %s Rückmeldungen zur Ware statt 4', v_n);
   select count(*) into v_n from auftrag_rueckmeldung r join auftrag a on a.id = r.auftrag_id
    where a.bemerkung = 'DEMO' and r.art = 'app';
   assert v_n = 1, format('0093 (b2): %s Rückmeldungen zur App statt 1', v_n);
@@ -6165,8 +6181,9 @@ begin
      and not exists (select 1 from profil p where p.id = r.erfasser and p.rolle = 'admin');
   assert v_n = 0, format('0093 (b4): %s Demo-Rückmeldungen von jemandem, der weder beteiligt noch Betriebsleiter ist', v_n);
 
-  -- (c) Die Kommentar-Sicht zeigt genau die drei zur Ware, mit ihrer Charge —
-  --     und die zur App nicht (sie ist für die nächste Runde am Programm).
+  -- (c) Die Kommentar-Sicht zeigt genau die drei gekürzten zur Ware, mit
+  --     ihrer Charge — nicht die ungelesene (0094) und nicht die zur App
+  --     (sie ist für die nächste Runde am Programm).
   select count(*) into v_n from v_arbeit_kommentar k join auftrag a on a.id = k.auftrag_id where a.bemerkung = 'DEMO';
   assert v_n = 3, format('0093 (c1): v_arbeit_kommentar zeigt %s Demo-Kommentare statt 3', v_n);
   select count(*) into v_n from v_arbeit_kommentar k
@@ -6191,7 +6208,133 @@ begin
   perform auswertung_aktualisieren();
 
   update einstellung set wert = v_modus where schluessel = 'betriebsmodus';
-  raise notice 'OK  0093 — Die Demo hinterlässt drei Rückmeldungen zur Ware und eine zur App; die zur Ware stehen an Charge und Auffälligkeit, die zur App nicht; das Entfernen nimmt alle mit';
+  raise notice 'OK  0093 — Die Demo hinterlässt Rückmeldungen zur Ware und eine zur App; die gekürzten stehen an Charge und Auffälligkeit, die zur App nicht; das Entfernen nimmt alle mit';
 end $$;
 
 select '——— 0093 Demo-Rückmeldungen geprüft ———' as ergebnis;
+
+-- =====================================================================
+-- 0094 — Der Kommentar zur Ware wird gelesen, bevor er im Dashboard steht
+--
+-- Der Betrieb: „es soll erst im Dashboard erscheinen, nachdem du es
+-- gelesen hast und verstanden hast … runterbrechen auf Hagelschaden".
+-- Geprüft wird, dass die Rohfassung nirgends erscheint, solange keine
+-- Kurzfassung steht; dass die Kurzfassung nie leer, nie ohne Quelle und
+-- Zeit, nie zur App und die andere Charge nie ohne Kurzfassung ist; dass
+-- die Sicht Kurzfassung, Rohfassung und zugeordnete Charge zeigt; dass ein
+-- Arbeiter nicht kürzen kann; und dass die Demo drei gekürzte, eine
+-- ungelesene und eine zur App mitbringt.
+-- =====================================================================
+do $$
+declare
+  v_u  uuid := '00000000-0094-0000-0000-000000000001';
+  v_w  uuid := '00000000-0094-0000-0000-000000000002';
+  v_a  bigint; v_id bigint; v_id2 bigint; v_n int; v_txt text; v_modus jsonb;
+begin
+  insert into auth.users (id, email, raw_user_meta_data) values (v_u, null, '{"name":"Prüf-0094"}');
+  update profil set rolle = 'admin' where id = v_u;
+  insert into auth.users (id, email, raw_user_meta_data) values (v_w, null, '{"name":"Halle-0094"}');
+  update profil set rolle = 'arbeiter', aktiv = true where id = v_w;
+  perform set_config('request.jwt.claim.sub', v_u::text, true);
+  insert into auftrag (weg, station, charge_nr, start_ts, ende_ts, status)
+  values ('hand', 'waschen_sortieren', 1613, now() - interval '3 hours', now() - interval '1 hour', 'abgeschlossen')
+  returning id into v_a;
+
+  -- (a) Die halbe Geschichte aus der Halle steht in der Tabelle — und
+  --     nirgends im Dashboard, solange niemand sie gekürzt hat.
+  insert into auftrag_rueckmeldung (auftrag_id, art, text, erfasser)
+  values (v_a, 'ware', 'Also am Anfang dachte ich das ist normal aber dann waren so viele mit Dellen, ich glaube das war der Hagel, darum so viel weggeworfen.', v_w)
+  returning id into v_id;
+  select count(*) into v_n from v_arbeit_kommentar where auftrag_id = v_a;
+  assert v_n = 0, format('0094 (a): die ungelesene Rückmeldung steht schon im Dashboard (%s Zeilen)', v_n);
+
+  -- (b) Was eine Kurzfassung nicht sein darf.
+  begin
+    update auftrag_rueckmeldung set kurz = 'Hagelschaden' where id = v_id;
+    raise exception '0094 (b1): eine Kurzfassung ohne Quelle und Zeit ging durch';
+  exception when check_violation then null; end;
+  begin
+    update auftrag_rueckmeldung set kurz = '   ', kurz_quelle = 'runde', kurz_ts = now() where id = v_id;
+    raise exception '0094 (b2): eine leere Kurzfassung ging durch';
+  exception when check_violation then null; end;
+  begin
+    update auftrag_rueckmeldung set kurz = 'Hagelschaden', kurz_quelle = 'irgendwer', kurz_ts = now() where id = v_id;
+    raise exception '0094 (b3): eine Kurzfassung von „irgendwer" ging durch';
+  exception when check_violation then null; end;
+  begin
+    update auftrag_rueckmeldung set kurz_charge_nr = 1611 where id = v_id;
+    raise exception '0094 (b4): eine andere Charge ohne Kurzfassung ging durch';
+  exception when check_violation then null; end;
+  insert into auftrag_rueckmeldung (auftrag_id, art, text, erfasser) values (v_a, 'app', 'Der Knopf war klein.', v_w) returning id into v_id2;
+  begin
+    update auftrag_rueckmeldung set kurz = 'Knopf', kurz_quelle = 'runde', kurz_ts = now() where id = v_id2;
+    raise exception '0094 (b5): Feedback zur App bekam eine Kurzfassung';
+  exception when check_violation then null; end;
+
+  -- (c) Ein Arbeiter kann nicht kürzen — nur der Betriebsleiter (Zeilenregel).
+  set local role authenticated;
+  perform set_config('request.jwt.claim.sub', v_w::text, true);
+  update auftrag_rueckmeldung set kurz = 'Hagelschaden', kurz_quelle = 'betriebsleiter', kurz_ts = now() where id = v_id;
+  reset role;
+  perform set_config('request.jwt.claim.sub', v_u::text, true);
+  select count(*) into v_n from auftrag_rueckmeldung where id = v_id and kurz is not null;
+  assert v_n = 0, '0094 (c): ein Arbeiter konnte eine Kurzfassung setzen';
+
+  -- (d) Der Betriebsleiter kürzt: jetzt zeigt die Sicht die Kurzfassung als
+  --     text, die halbe Geschichte als roh, die Charge der Arbeit.
+  set local role authenticated;
+  update auftrag_rueckmeldung set kurz = 'Hagelschaden', kurz_quelle = 'betriebsleiter', kurz_ts = now() where id = v_id;
+  reset role;
+  perform set_config('request.jwt.claim.sub', v_u::text, true);
+  select count(*) into v_n from v_arbeit_kommentar where auftrag_id = v_a;
+  assert v_n = 1, format('0094 (d1): %s Zeilen statt 1 nach dem Kürzen', v_n);
+  select text into v_txt from v_arbeit_kommentar where auftrag_id = v_a;
+  assert v_txt = 'Hagelschaden', format('0094 (d2): text ist „%s", nicht die Kurzfassung', v_txt);
+  select roh into v_txt from v_arbeit_kommentar where auftrag_id = v_a;
+  assert v_txt like '%der Hagel, darum%', format('0094 (d3): roh ist „%s", nicht die halbe Geschichte', v_txt);
+  assert (select charge_nr from v_arbeit_kommentar where auftrag_id = v_a) = 1613, '0094 (d4): die Charge der Arbeit fehlt';
+  assert (select n from v_arbeit_kommentar where auftrag_id = v_a) = 1, '0094 (d5): n ist nicht 1';
+  assert (select not mit_aufnahme from v_arbeit_kommentar where auftrag_id = v_a), '0094 (d6): ohne Aufnahme steht „mit Aufnahme"';
+
+  -- (e) Eine andere Charge zugeordnet: die Sicht folgt ihr.
+  update auftrag_rueckmeldung set kurz_charge_nr = 1611 where id = v_id;
+  assert (select charge_nr from v_arbeit_kommentar where auftrag_id = v_a) = 1611, '0094 (e): die zugeordnete Charge gilt nicht';
+  update auftrag_rueckmeldung set kurz_charge_nr = null where id = v_id;
+
+  -- (f) Zwei gekürzte an einer Arbeit: beide, in der Reihenfolge der Zeit.
+  insert into auftrag_rueckmeldung (auftrag_id, art, text, erfasser, ts, kurz, kurz_quelle, kurz_ts)
+  values (v_a, 'ware', 'Und die Zettel waren nass.', v_w, now() + interval '1 minute', 'Zettel nass', 'runde', now());
+  select text into v_txt from v_arbeit_kommentar where auftrag_id = v_a;
+  assert v_txt = 'Hagelschaden · Zettel nass', format('0094 (f): text ist „%s"', v_txt);
+  assert (select n from v_arbeit_kommentar where auftrag_id = v_a) = 2, '0094 (f2): n ist nicht 2';
+
+  -- (g) Die Demo bringt drei gekürzte, eine ungelesene und eine zur App mit.
+  delete from auftrag where id = v_a;
+  select wert into v_modus from einstellung where schluessel = 'betriebsmodus';
+  update einstellung set wert = '"beispiel"'::jsonb where schluessel = 'betriebsmodus';
+  select demo_daten_laden() into v_txt;
+  assert v_txt like '%5 Rückmeldungen%', format('0094 (g1): der Ladesatz zählt nicht 5 Rückmeldungen: %s', v_txt);
+  select count(*) into v_n from auftrag_rueckmeldung r join auftrag a on a.id = r.auftrag_id
+   where a.bemerkung = 'DEMO' and r.art = 'ware' and r.kurz is not null;
+  assert v_n = 3, format('0094 (g2): %s gekürzte Demo-Rückmeldungen statt 3', v_n);
+  select count(*) into v_n from auftrag_rueckmeldung r join auftrag a on a.id = r.auftrag_id
+   where a.bemerkung = 'DEMO' and r.art = 'ware' and r.kurz is null;
+  assert v_n = 1, format('0094 (g3): %s ungelesene Demo-Rückmeldungen statt 1', v_n);
+  select count(*) into v_n from v_arbeit_kommentar k join auftrag a on a.id = k.auftrag_id where a.bemerkung = 'DEMO';
+  assert v_n = 3, format('0094 (g4): das Dashboard sieht %s Demo-Kommentare statt 3', v_n);
+  select count(*) into v_n from v_arbeit_kommentar where roh like '%kleiner als sonst%';
+  assert v_n = 0, '0094 (g5): die ungelesene Demo-Rückmeldung steht im Dashboard';
+  select count(*) into v_n from v_arbeit_kommentar where text = 'Hagelschaden' and roh like '%Hagel im Juli%' and charge_nr = 1628;
+  assert v_n = 1, '0094 (g6): der Hagelschaden steht nicht gekürzt mit seiner Geschichte an Charge 1628';
+  select count(*) into v_n from auftrag_rueckmeldung r join auftrag a on a.id = r.auftrag_id
+   where a.bemerkung = 'DEMO' and r.kurz_quelle = 'betriebsleiter';
+  assert v_n = 1, '0094 (g7): die Demo zeigt keine Kurzfassung des Betriebsleiters';
+  perform demo_daten_entfernen();
+  update einstellung set wert = v_modus where schluessel = 'betriebsmodus';
+
+  delete from profil where id in (v_u, v_w);
+  delete from auth.users where id in (v_u, v_w);
+  raise notice 'OK  0094 — Ohne Kurzfassung steht der Kommentar nirgends; die Kurzfassung ist nie leer, nur zur Ware, nur vom Betriebsleiter oder der Runde; die Sicht zeigt kurz, roh und Charge; die Demo bringt drei gekürzte und eine ungelesene mit';
+end $$;
+
+select '——— 0094 Kommentar erst nach dem Lesen geprüft ———' as ergebnis;

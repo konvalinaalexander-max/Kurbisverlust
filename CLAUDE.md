@@ -12,9 +12,18 @@ Werkzeug — beginnt so:
 1. **`docs/betrieb/RUECKMELDUNGEN.md`** — Rückmeldungen *zur App* sind
    Aufgaben: jede eine Zeile im Plan der Runde, mit dem Satz aus der Halle
    als Warum. Rückmeldungen *zur Ware* sind Befunde für den Betriebsleiter,
-   keine Aufgaben — sie stehen im Dashboard an den Messungen.
-   Transkripte sind ungeprüfte Spracherkennung, oft Hochdeutsch mit
-   Mundart: den Sinn nehmen, nicht die Worte.
+   keine Aufgaben — und sie stehen **erst dann** im Dashboard, wenn jemand
+   sie gelesen, verstanden und gekürzt hat (0094). Das ist Arbeit der
+   Runde: jede Nr. unter „noch nicht gekürzt" lesen, den Sinn auf das
+   Wesentliche bringen („Hagelschaden", nicht die halbe Geschichte),
+   prüfen, ob Charge und Arbeit stimmen, und einen Eintrag in
+   **`docs/betrieb/kurzfassungen.json`** schreiben (`id`, `kurz`, bei
+   Bedarf `charge_nr`, `art`, `auftrag_id`). Der Abzug spielt die Datei ein,
+   sobald sie gepusht ist. Was der Betriebsleiter selbst gekürzt hat, bleibt
+   — `ueberschreiben: true` nur, wenn er es gesagt hat. „Nur Aufnahme, kein
+   Transkript" kann hier niemand hören: stehen lassen, der Betriebsleiter
+   hört und kürzt. Transkripte sind ungeprüfte Spracherkennung, oft
+   Hochdeutsch mit Mundart: den Sinn nehmen, nicht die Worte.
 2. **`docs/betrieb/AUFFAELLIGKEITEN.md`** — je Art fragen: Wo im Ablauf oder
    in der Maske entsteht das? Ist es ein Datenfehler, der dem Betrieb gehört
    (fehlende Palette im Erntejournal, falsches Zetteldatum) — dann sagen,

@@ -2,12 +2,14 @@ import { Fragment, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { datum, kg, prozent, tonnen, zahl } from '../lib/format'
 import { Aufklapp, Erklaerung, Herkunft, Hinweis, Karte, Leer, Segmente } from '../components/Bausteine'
-import { Anteilsbalken, Linien, type Anteilszeile, type Reihe, type Zone } from '../components/Diagramm'
+import { Anteilsbalken, Linien, type Anteilszeile, type Punkt, type Reihe, type Zone } from '../components/Diagramm'
 import { lagerstaende, prognoseBei, schimmelKurve, useAuswertung, wohinVon,
          type Auswertung, type AusgangKennzahl, type Bestand, type Lagerstand, type MargeWiegung, type Schema, type SortenK, type Wohin } from '../auswertung/daten'
 import { Probleme, Rechnet, Reiterkopf } from '../auswertung/Karten'
 import { ZChevron } from '../components/Zeichen'
-import { ArbeitFenster } from '../betrieb/ArbeitFenster'
+import { ArbeitFenster, type Messung } from '../betrieb/ArbeitFenster'
+import { ChargeFenster } from '../betrieb/ChargeFenster'
+import { MessungFenster, type PunktInfo } from '../betrieb/MessungFenster'
 
 const TAG = 86400000
 
@@ -48,8 +50,18 @@ export default function Ursachen() {
     setParams(neu, { replace: true })
   }
 
-  /** Runde W: die Arbeit hinter einem Punkt oder einer Wägung, als Fenster über der Seite. */
-  const [fenster, setFenster] = useState<number | null>(null)
+  /** Runde W: die Arbeit hinter einem Punkt oder einer Wägung, als Fenster über
+   *  der Seite. Runde Z: mit der Messung voran, von der aus geklickt wurde —
+   *  und wenn der Punkt keine Arbeit hat (Kontrollwägung), die Messung allein;
+   *  dazu die Charge als Fenster. */
+  const [fenster, setFenster] = useState<{ auftragId: number; messung?: Messung } | null>(null)
+  const [punkt, setPunkt] = useState<PunktInfo | null>(null)
+  const [chargeFenster, setChargeFenster] = useState<number | null>(null)
+  const punktOeffnen = (p: Punkt, titel: string) => {
+    const zeilen = (p.text ?? '').split(' · ')
+    if (p.auftragId != null) setFenster({ auftragId: p.auftragId, messung: { titel, name: p.name ?? '', zeilen } })
+    else setPunkt({ titel, name: p.name ?? '', zeilen, chargeNr: p.chargeNr })
+  }
   const chargen = useMemo(() => daten ? chargenIm(daten.bestand, filter) : [], [daten, filter])
   const staende = useMemo(() => daten ? lagerstaende(chargen, daten.naechste) : [], [chargen, daten])
 
@@ -82,11 +94,13 @@ export default function Ursachen() {
         {filter.gruppe !== 'gesamt' && <button type="button" className="werkzeug-knopf" onClick={() => setzen('')}>alle zeigen</button>}
       </div>
 
-      <Wohin daten={daten} filter={filter} setzen={setzen} />
-      <Faules daten={daten} filter={filter} chargen={chargen} staende={staende} oeffnen={setFenster} />
-      <Verdunstung daten={daten} filter={filter} chargen={chargen} oeffnen={setFenster} />
-      <Marge daten={daten} filter={filter} chargen={chargen} oeffnen={setFenster} />
-      {fenster !== null && <ArbeitFenster auftragId={fenster} schliessen={() => setFenster(null)} />}
+      <Wohin daten={daten} filter={filter} setzen={setzen} chargeAnsehen={setChargeFenster} />
+      <Faules daten={daten} filter={filter} chargen={chargen} staende={staende} oeffnen={punktOeffnen} />
+      <Verdunstung daten={daten} filter={filter} chargen={chargen} oeffnen={punktOeffnen} />
+      <Marge daten={daten} filter={filter} chargen={chargen} oeffnen={id => setFenster({ auftragId: id })} />
+      {fenster !== null && <ArbeitFenster auftragId={fenster.auftragId} messung={fenster.messung} schliessen={() => setFenster(null)} />}
+      {punkt !== null && <MessungFenster info={punkt} schliessen={() => setPunkt(null)} />}
+      {chargeFenster !== null && <ChargeFenster chargeNr={chargeFenster} schliessen={() => setChargeFenster(null)} />}
     </>
   )
 }
@@ -149,24 +163,55 @@ function wohinZeile(w: Wohin | null, name: string, untertitel: string, ziel?: st
            rechts: prozent(eingang > 0 ? verlust / eingang : null), verlust: eingang > 0 ? verlust / eingang : 0 }
 }
 
-function Wohin({ daten, filter, setzen }: { daten: Auswertung; filter: Filter; setzen: (w: string) => void }) {
+function Wohin({ daten, filter, setzen, chargeAnsehen }: {
+  daten: Auswertung; filter: Filter; setzen: (w: string) => void; chargeAnsehen: (nr: number) => void
+}) {
+  // Runde Z: eine Sorte lässt sich aufklappen — ihre Chargen darunter, ohne
+  // den Filter zu wechseln; jede Charge öffnet sich als Fenster.
+  const [auf, setAuf] = useState<Set<string>>(new Set())
+  const umschalten = (s: string) => setAuf(a => { const n = new Set(a); if (n.has(s)) n.delete(s); else n.add(s); return n })
   const w = wohinVon(daten.wohin, filter.gruppe, filter.schluessel)
   const chargen = chargenIm(daten.bestand, filter)
-  const kopf = wohinZeile(w, filter.gruppe === 'gesamt' ? 'Alle Chargen' : filter.gruppe === 'charge' ? `Charge ${filter.schluessel}` : filter.schluessel,
-    `${w?.n_chargen ?? chargen.length} ${(w?.n_chargen ?? 0) === 1 ? 'Charge' : 'Chargen'} · ${tonnen(w?.eingang_kg)} Eingang`)
+  const kopf: Anteilszeile & { verlust: number } = {
+    ...wohinZeile(w, filter.gruppe === 'gesamt' ? 'Alle Chargen' : filter.gruppe === 'charge' ? `Charge ${filter.schluessel}` : filter.schluessel,
+      `${w?.n_chargen ?? chargen.length} ${(w?.n_chargen ?? 0) === 1 ? 'Charge' : 'Chargen'} · ${tonnen(w?.eingang_kg)} Eingang`),
+    aktion: filter.gruppe === 'charge'
+      ? <button type="button" className="werkzeug-knopf charge-ansehen" onClick={() => chargeAnsehen(Number(filter.schluessel))}>Charge ansehen</button>
+      : undefined,
+  }
 
-  // Darunter: je Sorte (Filter Alle) oder je Charge (Filter Sorte).
+  const chargeZeile = (c: Bestand, eingerueckt = false): Anteilszeile & { verlust: number } => ({
+    ...wohinZeile(wohinVon(daten.wohin, 'charge', String(c.charge_nr)), `Charge ${c.charge_nr}`,
+      `${c.sorte} · ${c.schlag} · ${tonnen(c.eingang_kg)} Eingang`, `charge|${c.charge_nr}`),
+    schluessel: `charge|${c.charge_nr}`, eingerueckt,
+    aktion: <button type="button" className="werkzeug-knopf charge-ansehen" onClick={() => chargeAnsehen(c.charge_nr)}>ansehen</button>,
+  })
+  const nachVerlust = (a: { verlust: number }, b: { verlust: number }) => b.verlust - a.verlust
+
+  // Darunter: je Sorte (Filter Alle, aufklappbar zu ihren Chargen) oder je
+  // Charge (Filter Sorte).
   const unterGruppe = filter.gruppe === 'gesamt' ? 'sorte' : filter.gruppe === 'sorte' ? 'charge' : null
-  const zeilen = unterGruppe === 'sorte'
-    ? [...new Set(daten.bestand.map(b => b.sorte))].sort().map(s =>
-        wohinZeile(wohinVon(daten.wohin, 'sorte', s), s,
-          `${daten.bestand.filter(b => b.sorte === s).length} Chargen · ${tonnen(wohinVon(daten.wohin, 'sorte', s)?.eingang_kg)} Eingang`,
-          `sorte|${s}`))
-    : unterGruppe === 'charge'
-    ? chargen.map(c => wohinZeile(wohinVon(daten.wohin, 'charge', String(c.charge_nr)), `Charge ${c.charge_nr}`,
-        `${c.sorte} · ${c.schlag} · ${tonnen(c.eingang_kg)} Eingang`, `charge|${c.charge_nr}`))
-    : []
-  const sortiert = zeilen.filter(z => z.bezug > 0).sort((a, b) => b.verlust - a.verlust)
+  const sortiert: (Anteilszeile & { verlust: number })[] = []
+  if (unterGruppe === 'sorte') {
+    const sorten = [...new Set(daten.bestand.map(b => b.sorte))].sort().map(s => {
+      const inSorte = daten.bestand.filter(b => b.sorte === s)
+      const z: Anteilszeile & { verlust: number } = {
+        ...wohinZeile(wohinVon(daten.wohin, 'sorte', s), s,
+          `${inSorte.length} Chargen · ${tonnen(wohinVon(daten.wohin, 'sorte', s)?.eingang_kg)} Eingang`, `sorte|${s}`),
+        schluessel: `sorte|${s}`,
+        aktion: <button type="button" className="werkzeug-knopf sorte-auf" aria-expanded={auf.has(s)} onClick={() => umschalten(s)}>
+                  <ZChevron size={12} richtung={auf.has(s) ? 'auf' : 'zu'} /> {auf.has(s) ? 'Chargen zu' : `${inSorte.length} Chargen`}
+                </button>,
+      }
+      return { z, inSorte }
+    }).filter(x => x.z.bezug > 0).sort((a, b) => nachVerlust(a.z, b.z))
+    for (const { z, inSorte } of sorten) {
+      sortiert.push(z)
+      if (auf.has(z.name)) sortiert.push(...inSorte.map(c => chargeZeile(c, true)).filter(x => x.bezug > 0).sort(nachVerlust))
+    }
+  } else if (unterGruppe === 'charge') {
+    sortiert.push(...chargen.map(c => chargeZeile(c)).filter(z => z.bezug > 0).sort(nachVerlust))
+  }
 
   return (
     <Karte id="urs-wohin" titel="Wohin ging der Kürbis?"
@@ -179,6 +224,7 @@ function Wohin({ daten, filter, setzen }: { daten: Auswertung; filter: Filter; s
         <>
           <div className="tag-trenner">{unterGruppe === 'sorte' ? 'je Sorte' : 'je Charge'} <span className="leise">nach Verlustanteil</span></div>
           <Anteilsbalken zeilen={sortiert} oeffnen={z => z.ziel && setzen(z.ziel)} />
+          <p className="fussnote">Eine Zeile anklicken macht sie zur Ansicht; „ansehen" öffnet die Charge als Fenster, ohne die Seite zu verlassen.</p>
         </>
       )}
       {(w?.ueberzaehlung_kg ?? 0) > 0 && (
@@ -197,7 +243,7 @@ function Wohin({ daten, filter, setzen }: { daten: Auswertung; filter: Filter; s
 /* ---------- U2: Faules im Lager --------------------------------------------- */
 
 function Faules({ daten, filter, chargen, staende, oeffnen }: {
-  daten: Auswertung; filter: Filter; chargen: Bestand[]; staende: Lagerstand[]; oeffnen: (auftragId: number) => void
+  daten: Auswertung; filter: Filter; chargen: Bestand[]; staende: Lagerstand[]; oeffnen: (p: Punkt, titel: string) => void
 }) {
   const [achse, setAchse] = useAchse('urs.palox.achse')
   const imFilter = new Set(chargen.map(c => c.charge_nr))
@@ -238,7 +284,7 @@ function Faules({ daten, filter, chargen, staende, oeffnen }: {
       y: (p.anteil ?? 0) * 100,
       name: `Charge ${p.charge_nr} · ${p.sorte}`,
       text: `${datum(p.messtag)} · liegt seit ${Math.round(p.lagertage)} Tagen · ${kg(p.schimmel_kg, 0)} von ${kg(p.basis_jetzt_kg, 0)} · ${quelleText(p.quelle)}${p.auftrag_id != null && kommentar.has(p.auftrag_id) ? ` · Kommentar: ${kommentar.get(p.auftrag_id)}` : ''}`,
-      auftragId: p.auftrag_id,
+      auftragId: p.auftrag_id, chargeNr: p.charge_nr,
       groesse: p.auftrag_id != null && kommentar.has(p.auftrag_id) ? 6 : undefined,
     })),
   })).filter(r => r.punkte.length > 0)
@@ -251,7 +297,7 @@ function Faules({ daten, filter, chargen, staende, oeffnen }: {
         y: Math.min((p.anteil ?? 0) * 100, 100),
         name: `Charge ${p.charge_nr} · ${p.sorte}`,
         text: `${datum(p.messtag)} · ${kg(p.schimmel_kg, 0)} von ${kg(p.basis_jetzt_kg, 0)} · nicht plausibel, siehe Messungen${p.auftrag_id != null && kommentar.has(p.auftrag_id) ? ` · Kommentar: ${kommentar.get(p.auftrag_id)}` : ''}`,
-        auftragId: p.auftrag_id,
+        auftragId: p.auftrag_id, chargeNr: p.charge_nr,
       })),
     })
   }
@@ -308,7 +354,7 @@ function Faules({ daten, filter, chargen, staende, oeffnen }: {
                 zonen={zonen}
                 senkrechte={achse === 'liegt' && kurve && tMax > 0 ? [{ x: tMax, text: 'bis hier gemessen', farbe: 'var(--text-leise)' }] : []}
                 leer="noch keine Schimmelmessung"
-                treffer="punkt" onPunkt={p => { if (p.auftragId != null) oeffnen(p.auftragId) }}
+                treffer="punkt" onPunkt={p => oeffnen(p, 'Diese Messung: Faules am Palox')}
                 fuss={p0?.faul_je_tag_kg != null
                   ? <span className="leise">Rechnung heute: {kg(p0.faul_je_tag_kg, 0)} Faules je Tag an der liegenden Ware (aus dem Modell)</span>
                   : undefined} />
@@ -336,7 +382,7 @@ const quelleText = (q: string) =>
 
 /* ---------- U3: Verdunstung -------------------------------------------------- */
 
-function Verdunstung({ daten, filter, chargen, oeffnen }: { daten: Auswertung; filter: Filter; chargen: Bestand[]; oeffnen: (auftragId: number) => void }) {
+function Verdunstung({ daten, filter, chargen, oeffnen }: { daten: Auswertung; filter: Filter; chargen: Bestand[]; oeffnen: (p: Punkt, titel: string) => void }) {
   const [achse, setAchse] = useAchse('urs.verd.achse')
   const imFilter = new Set(chargen.map(c => c.charge_nr))
   const alle = daten.wiegungen.filter(w => imFilter.has(w.charge_nr) && w.lagertage > 0 && w.rate_pro_tag !== null)
@@ -364,7 +410,7 @@ function Verdunstung({ daten, filter, chargen, oeffnen }: { daten: Auswertung; f
       y: (w.rate_pro_tag ?? 0) * 100,
       name: `Charge ${w.charge_nr} · ${w.sorte}`,
       text: `${datum(w.wiege_ts)} · liegt seit ${Math.round(w.lagertage)} Tagen · ${kg(w.netto_damals_kg, 0)} → ${kg(w.netto_jetzt_kg, 0)}${w.auftrag_id != null && kommentar.has(w.auftrag_id) ? ` · Kommentar: ${kommentar.get(w.auftrag_id)}` : ''}`,
-      auftragId: w.auftrag_id,
+      auftragId: w.auftrag_id, chargeNr: w.charge_nr,
       groesse: w.auftrag_id != null && kommentar.has(w.auftrag_id) ? 6 : undefined,
     })),
   })).filter(r => r.punkte.length > 0)
@@ -380,7 +426,7 @@ function Verdunstung({ daten, filter, chargen, oeffnen }: { daten: Auswertung; f
         y: Math.max((w.rate_pro_tag ?? 0) * 100, 0),
         name: `Charge ${w.charge_nr} · ${w.sorte}`,
         text: `${datum(w.wiege_ts)} · ${kg(w.netto_damals_kg, 0)} → ${kg(w.netto_jetzt_kg, 0)} · ${w.grund ?? 'zählt nicht in die Rate'}${w.plausibel ? '' : ' — unter Messungen berichtigen'}`,
-        auftragId: w.auftrag_id,
+        auftragId: w.auftrag_id, chargeNr: w.charge_nr,
       })),
     })
   }
@@ -414,7 +460,7 @@ function Verdunstung({ daten, filter, chargen, oeffnen }: { daten: Auswertung; f
                 heute={achse === 'kalender' ? { x: heute, text: `heute, ${tagText(heute)}`, rechts: '' } : undefined}
                 waagrechte={waagrechte}
                 leer="noch keine verwendbare Wägung"
-                treffer="punkt" onPunkt={p => { if (p.auftragId != null) oeffnen(p.auftragId) }}
+                treffer="punkt" onPunkt={p => oeffnen(p, 'Diese Wägung')}
                 fuss={<span className="leise">Die Rechnung nimmt je Sorte eine Rate. Fallen die Punkte im Winter sichtbar ab, ist das ein Befund — kein zweites Modell. Ein Punkt angeklickt öffnet die Arbeit dahinter.</span>} />
       )}
       {tabelle.length > 0 && (
