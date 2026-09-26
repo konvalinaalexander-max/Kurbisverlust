@@ -398,7 +398,7 @@ export default function Arbeit() {
             <Zustand art={d.ausschuss.length > 0 ? 'getan' : 'frei'} />
             <span className="text">
               <span className="name">{t('ausschussWiegenSchritt')}</span>
-              <span className="unter">{d.ausschuss.length > 0 ? `${ausschussSumme} kg · ${d.ausschuss.length} ${t('paletten')}` : t('ausschussAmEnde')}</span>
+              <span className="unter">{d.ausschuss.length > 0 ? `${ausschussSumme} kg · ${d.ausschuss.reduce((n, z) => n + (z.brutto_kg !== null ? (z.kisten ?? 1) : 0), 0)} ${t('kisten')}` : t('ausschussAmEnde')}</span>
             </span>
             <span className="pfeil"><ZChevron size={20} /></span>
           </button>

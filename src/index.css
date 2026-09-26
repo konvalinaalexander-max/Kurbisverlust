@@ -799,3 +799,10 @@ details.aufklapp > summary .leise { font-weight: var(--gewicht-normal); }
 .marge-tabelle thead + tbody + thead th { padding-top: var(--a-3); }
 .marge-spur-zelle { min-width: 11rem; }
 .marge-spur-zelle .marge-spur, .marge-spur-zelle .band-spur { display: block; width: 7rem; margin-bottom: .2rem; }
+
+/* ---------- Runde V (0088): der Ausschuss Kiste für Kiste ----------------- */
+.einzelkiste { display: flex; align-items: center; gap: .6rem; margin: 0 0 .75rem; padding: .6rem .75rem; border-radius: var(--radius-klein); background: var(--flaeche-2); font-weight: var(--gewicht-mittel); line-height: 1.3; }
+.einzelkiste svg { flex: none; color: var(--akzent, var(--text)); }
+.kistenliste { list-style: none; margin: var(--a-3) 0 0; padding: 0; display: grid; gap: .25rem; }
+.kistenliste li { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: .6rem; padding: .35rem .5rem; border-radius: var(--radius-klein); background: var(--flaeche-2); }
+.kistenliste .zahl { font-variant-numeric: tabular-nums; }

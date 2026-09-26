@@ -3633,7 +3633,7 @@ aus dem Dateinamen hatte, bekommt `sortiertag_quelle = 'datei'`, wer es vom
 Zeitstempel hatte, `'dateistempel'` — und der sagt von sich, dass er kein
 Sortierdatum ist.
 
-## Runde V: die Halle meldet sich (26. September, 0083–0087)
+## Runde V: die Halle meldet sich (26. September, 0083–0088)
 
 ### Der Ausschuss, der immer null war
 
@@ -3755,6 +3755,36 @@ weiter — und hätten jede richtige Ausschuss-Zeile ohne Palette als
 Tippfehler gemeldet. 0087 lässt die Probe so rechnen wie den Auslöser;
 der Prüfblock 0087 hält beides fest: richtig gespeichert heisst keine
 Meldung, und eine nach dem Wiegen geänderte Tara wird weiterhin gemeldet.
+
+### Nachtrag: der Ausschuss Kiste für Kiste (0088)
+
+Nach dem Fix aus 0083 hat der Betrieb gesagt, wie der Ausschuss wirklich
+gewogen wird: „sie werden wahrscheinlich in G2-Kisten sein … die Kisten
+werden nacheinander auf eine Waage gestellt … sie werden nie auf Paletten
+stehen, sondern halt nur einzelne Kisten". Damit ist die Frage „steht eine
+Palette drunter?" beim Ausschuss beantwortet — mit Nein, ein für alle Mal —
+und die Maske hat sie nicht mehr. Stattdessen sagt sie, was gilt, vor dem
+Feld: „Eine einzelne Kiste auf die Waage — ohne Palette", zählt mit
+(„Kiste 3"), hat G2 vorbelegt und nimmt die nächste Kiste mit Enter.
+
+**Eine Zeile je Art, nicht eine je Kiste.** `kg` ist ganzzahlig, und der
+Auslöser rundet je Zeile. Drei Kisten zu 12, 13.5 und 11 kg brutto sind
+netto 10.5, 12 und 9.5 — als drei Zeilen 11 + 12 + 10 = 33 kg, als eine
+Zeile 36.5 − 4.5 = 32 kg. Die Summe wird einmal gerundet. Die einzelnen
+Gewichte gehen dabei nicht verloren: Sie stehen in der Bemerkung („3
+Kisten einzeln gewogen: 12 · 13.5 · 11 kg"), lesbar in der Arbeit und in
+der Korrektur. Der Prüfblock 0088 hält beide Rechnungen nebeneinander
+fest, damit niemand die Zeile später „vereinfacht".
+
+**Was keine einzelne Kiste sein kann, wird gesagt.** Unter der leeren
+Kiste: gesperrt. Ab 60 kg: gesperrt — „So schwer ist keine einzelne
+Kiste". Ab 30 kg: eine Rückfrage, aber erlaubt. Die zwei Zahlen sind
+Setzungen aus der Erfahrung mit vollen G2-Kisten (meist 12 bis 25 kg); sie
+stehen als Konstanten oben in `AusschussMaske.tsx`.
+
+**Die noch nicht eingetragenen Kisten überleben ein zugeklapptes Handy.**
+Sie liegen bis zum Eintragen im Browser (`localStorage`, je Arbeit) — was
+an der Waage gezählt wurde, soll nicht an einem Bildschirmschoner hängen.
 
 ### Farben
 

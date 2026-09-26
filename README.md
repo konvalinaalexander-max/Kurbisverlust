@@ -662,11 +662,12 @@ warum sein Deploy-Befehl `npx wrangler deploy --env beispiel` lauten **muss**
 [`docs/ZWEI_WEBSEITEN.md`](docs/ZWEI_WEBSEITEN.md). Rechne mit einer guten
 halben Stunde.
 
-**Zuletzt gebaut (Runde V, 0083–0087)** — was die Halle gemeldet hat: Der
+**Zuletzt gebaut (Runde V, 0083–0088)** — was die Halle gemeldet hat: Der
 Ausschuss beim Waschen wurde immer zu 0 kg, weil die Rechnung stets eine
 Palette abzog und ein negatives Netto still auf null klemmte — jetzt fragt die
-Maske „auf einer Palette?", und ein Netto unter null wird abgewiesen statt
-versteckt. Der Palox lässt sich **mitten in der Arbeit leeren**, ohne dass
+App den Ausschuss **Kiste für Kiste** ab („Eine einzelne Kiste auf die
+Waage — ohne Palette", G2 vorbelegt, Enter für die nächste), und ein Netto
+unter null wird abgewiesen statt versteckt. Der Palox lässt sich **mitten in der Arbeit leeren**, ohne dass
 die Faul-Menge verloren geht (ablesen, leeren, die leere Box ablesen). Am
 Ende jeder Arbeit fragt die App, ob alles gut lief — **Textfeld und
 Mikrofon-Knopf**; die Aufnahme liegt im Speicher des Supabase-Projekts
@@ -674,7 +675,7 @@ Mikrofon-Knopf**; die Aufnahme liegt im Speicher des Supabase-Projekts
 Zeichen dafür. Die verschenkte Marge auf Ursachen ist eine Karte, gegliedert
 wie der Filter, mit dem Kaliber in Gramm. Die Entscheidungen dazu in
 [`docs/ENTSCHEIDUNGEN.md`](docs/ENTSCHEIDUNGEN.md) („Runde V"), die
-Abmachungen AB-74 bis AB-79.
+Abmachungen AB-74 bis AB-80.
 
 **Runde R** — die zwei ersten Reiter des Dashboards neu:
 **Lagermanagement** (das Lager nach Kaliber, heute und in X Wochen, mit der
@@ -867,7 +868,7 @@ Das genügt fast immer zur Klärung.
 | Das Lager nach Kaliber am Stichtag, die Glocke daneben | `supabase/migrations/0078`–`0079`, `src/pages/Lagermanagement.tsx` | Prüfblock 0078 (b/c) und 0079 (c): beide Bilder summieren auf dieselbe Masse, ein Aufruf unter 2 s |
 | Prognose: was aus der liegenden Ware wird, bis zum Saisonende | `supabase/migrations/0071`, `src/auswertung/daten.ts` | dieselbe Kaskade an einem späteren Tag; bei Horizont 0 auf zwei Rappen die Zahl von heute (Block 0071 der Prüfung) |
 | Die Erfassung scharf geschaltet: Palox je Arbeit, Gebinde je Palette, ehrliches Alter, Kontrollpalette | `supabase/migrations/0072`–`0076`, `src/arbeit/` | Prüfblock 0072 in `pruefung.sql`; `docs/BEFUND_RUNDE_Q.md` |
-| Runde V: Ausschuss ohne Palette, Palox mittendrin leeren, Rückmeldung mit Sprachaufnahme, Marge je Charge | `supabase/migrations/0083`–`0087`, `src/arbeit/AusschussMaske.tsx`, `PaloxLeerenMaske.tsx`, `Sprachaufnahme.tsx`, `src/pages/Ursachen.tsx` | Prüfblöcke 0083–0087 (jeder gegengeprüft durch absichtliches Kaputtmachen); `kette.mjs` mit Ausschuss ohne Palette, Palox-Leeren und Rückmeldung; Aufnahmen im Bucket `rueckmeldungen` |
+| Runde V: Ausschuss ohne Palette, Palox mittendrin leeren, Rückmeldung mit Sprachaufnahme, Marge je Charge | `supabase/migrations/0083`–`0088`, `src/arbeit/AusschussMaske.tsx`, `PaloxLeerenMaske.tsx`, `Sprachaufnahme.tsx`, `src/pages/Ursachen.tsx` | Prüfblöcke 0083–0088 (jeder gegengeprüft durch absichtliches Kaputtmachen); `kette.mjs` mit Ausschuss ohne Palette, Palox-Leeren und Rückmeldung; Aufnahmen im Bucket `rueckmeldungen` |
 | Schutz der Erfassung: Journal, Zerstörungswächter, zwei Webseiten | `erfassung_journal` (0072), `supabase/test/keine_zerstoerung.sh`, `src/lib/betriebsmodus.ts` | Wächter läuft als erste Stufe von `run.sh` |
 | Warenausgang aus dem Warenwirtschaftssystem einlesen | `src/lib/xlsx.ts`, `src/lib/warenausgang.ts`, `supabase/migrations/0050` | Leser und Regeln geprüft (27 Tests, 396 096 Zellen gegen einen zweiten Leser); der Bildschirm steht: Betrieb → Warenausgang (`src/betrieb/AusgangImport.tsx`, `src/pages/Lieferungen.tsx`, Übernahme in `ausgang_uebernehmen`, 0055) |
 

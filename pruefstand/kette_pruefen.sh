@@ -148,15 +148,17 @@ begin
   assert (select eingang_netto_kg from v_auftrag_masse where auftrag_id = a) = 3 * 865,
     'Die Bezugsmasse der drei Paletten stimmt nicht (3 × 865: Zettel 950 − 40·1.5 − 25)';
 
-  -- Zu klein / zu gross am Ende (0061, 0083): eine Kiste ohne Palette
-  -- (12 − 1.5 = 10.5 → 11 kg — vorher null) und eine Palette (60 − 6 − 25 = 29 kg)
-  assert (select count(*) from ausschuss_messung where auftrag_id = a) = 2, 'Zwei Ausschuss-Wägungen';
-  assert (select kg from ausschuss_messung where auftrag_id = a and art = 'zu_klein' and gemessen and brutto_kg = 12 and kisten = 1 and not mit_palette) = 11,
-    'Die Kiste ohne Palette: der Auslöser zieht keine Palettentara ab (11 kg, nicht 0) (0083)';
-  assert (select kg from ausschuss_messung where auftrag_id = a and art = 'zu_klein' and gemessen and brutto_kg = 60 and kisten = 4 and mit_palette) = 29,
-    'Der Ausschuss-Auslöser rechnet das Netto aus Brutto und Tara (29 kg)';
-  assert (select klein_kg from v_ausschuss_beobachtung where auftrag_id = a and weg = 'hand') = 40,
-    'Der von Hand gewogene Ausschuss kommt nicht vollständig als Beobachtung an (11 + 29 = 40)';
+  -- Zu klein / zu gross am Ende (0061, 0088): Kiste für Kiste, eine Zeile je Art
+  assert (select count(*) from ausschuss_messung where auftrag_id = a) = 2, 'Zwei Ausschuss-Zeilen (eine je Art)';
+  -- 0088: Kiste für Kiste — eine Zeile je Art, Summe der Bruttos, einmal gerundet, nie auf einer Palette
+  assert (select kg from ausschuss_messung where auftrag_id = a and art = 'zu_klein' and gemessen and brutto_kg = 36.5 and kisten = 3 and not mit_palette) = 32,
+    'Drei Kisten 12 · 13.5 · 11 kg müssen 32 kg zu klein ergeben (36.5 − 4.5, einmal gerundet)';
+  assert (select bemerkung from ausschuss_messung where auftrag_id = a and art = 'zu_klein') like '%12 · 13.5 · 11 kg',
+    'Die einzelnen Kistengewichte stehen nicht in der Bemerkung';
+  assert (select kg from ausschuss_messung where auftrag_id = a and art = 'zu_gross' and gemessen and brutto_kg = 20.4 and kisten = 1 and not mit_palette) = 19,
+    'Eine Kiste 20.4 kg muss 19 kg zu gross ergeben';
+  assert (select klein_kg from v_ausschuss_beobachtung where auftrag_id = a and weg = 'hand') = 32,
+    'Die Ausschuss-Beobachtung rechnet nicht mit 32 kg zu klein';
   assert not exists (select 1 from v_auftrag_angabe where auftrag_id = a and schluessel like 'ausschuss%'),
     'Die Ausschuss-Fragen gibt es nicht mehr';
   -- Die Wägung ohne Faul-Frage (0061): faul_kg bleibt leer, die Wägung zählt trotzdem

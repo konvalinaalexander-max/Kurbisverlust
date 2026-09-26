@@ -1692,8 +1692,10 @@ begin
     returning id into v_a;
 
   -- Gewogen: Brutto 100, 4 Kisten G2 (1.5 + Palette 25) → 100 − 6 − 25 = 69.
-  insert into ausschuss_messung (auftrag_id, art, brutto_kg, kisten, gebindeart)
-    values (v_a, 'zu_klein', 100, 4, 'G2') returning kg, gemessen into v_kg, v_gem;
+  -- Seit 0088 steht Ausschuss im Betrieb nie auf einer Palette und der
+  -- Standard ist „ohne"; diese alte Palettenwägung muss es darum sagen.
+  insert into ausschuss_messung (auftrag_id, art, brutto_kg, kisten, gebindeart, mit_palette)
+    values (v_a, 'zu_klein', 100, 4, 'G2', true) returning kg, gemessen into v_kg, v_gem;
   assert v_kg = 69, format('Gewogenes Netto erwartet 69, ist %s', v_kg);
   assert v_gem, 'Gewogener Ausschuss ist gemessen';
 
@@ -3590,8 +3592,9 @@ begin
     'Ohne Kistenzahl ist eine Ausschusswägung nicht gemessen — nicht „null Kisten" (0066)';
   delete from ausschuss_messung where id = v_id;
 
-  insert into ausschuss_messung (auftrag_id, art, kg, brutto_kg, kisten, gebindeart)
-    values (v_a, 'zu_klein', 0, 500, 10, 'PRF66') returning id into v_id;
+  -- Mit Palette gesagt (seit 0088 ist „ohne" der Standard): 500 − 10·1 − 20.
+  insert into ausschuss_messung (auftrag_id, art, kg, brutto_kg, kisten, gebindeart, mit_palette)
+    values (v_a, 'zu_klein', 0, 500, 10, 'PRF66', true) returning id into v_id;
   select kg, gemessen into v_kg, v_gemessen from ausschuss_messung where id = v_id;
   assert v_gemessen, 'Sind Kistenzahl und Tara da, ist die Ausschusswägung gemessen';
   assert v_kg = 470, format('500 − 10·1 − 20 = 470 erwartet, ist %s', v_kg);
@@ -5357,11 +5360,12 @@ begin
     values (v_a, 'zu_klein', 60, 4, 'G2', true) returning kg into v_kg;
   assert v_kg = 29, format('0083 (b): die Palette ergibt %s statt 29 kg', v_kg);
 
-  -- (c) Die Vorgabe ist „mit Palette" — so behalten die alten Zeilen ihre
-  --     Bedeutung. Ohne Angabe wird die Palette abgezogen.
+  -- (c) Die Vorgabe: In 0083 war sie „mit Palette", damit die alten Zeilen
+  --     ihre Bedeutung behielten; seit 0088 ist sie „ohne" — der Betrieb
+  --     wiegt Ausschuss Kiste für Kiste. Ohne Angabe: 60 − 4 × 1.5 = 54.
   insert into ausschuss_messung (auftrag_id, art, brutto_kg, kisten, gebindeart)
     values (v_a, 'zu_gross', 60, 4, 'G2') returning kg, mit_palette into v_kg, v_mp;
-  assert v_mp and v_kg = 29, format('0083 (c): ohne Angabe muss mit Palette gerechnet werden (29), ist %s / %s', v_mp, v_kg);
+  assert not v_mp and v_kg = 54, format('0083 (c) / 0088: ohne Angabe gilt ohne Palette (54), ist %s / %s', v_mp, v_kg);
 
   -- (d) Ein Brutto unter der Tara wird zurückgewiesen — nicht auf null geklemmt.
   begin
@@ -5776,3 +5780,51 @@ begin
 end $$;
 
 select '——— 0087 Ausschuss-Tara geprüft ———' as ergebnis;
+
+-- =====================================================================
+-- 0088 — Der Ausschuss wird Kiste für Kiste gewogen
+--
+-- Der Betrieb: „die Kisten werden nacheinander auf eine Waage gestellt …
+-- sie werden nie auf Paletten stehen". Geprüft wird, dass eine Zeile ohne
+-- Angabe als „ohne Palette" gilt, und dass die Summe mehrerer Kisten
+-- einmal gerundet wird — nicht je Kiste.
+-- =====================================================================
+do $$
+declare
+  v_u  uuid := '00000000-0088-0000-0000-000000000001';
+  v_a  bigint; v_kg int; v_mp boolean;
+begin
+  insert into auth.users (id, email, raw_user_meta_data)
+  values (v_u, null, '{"name":"Prüf-0088"}');
+  update profil set rolle = 'admin' where id = v_u;
+  perform set_config('request.jwt.claim.sub', v_u::text, true);
+  insert into auftrag (weg, station, charge_nr, start_ts, eroeffnet_von)
+    select 'hand', 'waschen_sortieren', c.nr, now() - interval '2 hours', v_u
+      from charge c order by nr limit 1 returning id into v_a;
+
+  -- (a) Ohne Angabe: keine Palette. Drei Kisten 12, 13.5, 11 → 36.5 − 4.5 = 32.
+  insert into ausschuss_messung (auftrag_id, art, brutto_kg, kisten, gebindeart, bemerkung)
+    values (v_a, 'zu_klein', 36.5, 3, 'G2', '3 Kisten einzeln gewogen: 12 · 13.5 · 11 kg');
+  select kg, mit_palette into v_kg, v_mp from ausschuss_messung where auftrag_id = v_a;
+  assert not v_mp, '0088 (a1): ohne Angabe gilt die Zeile als auf einer Palette gewogen';
+  assert v_kg = 32, format('0088 (a2): drei Kisten 36.5 kg brutto ergeben %s statt 32 kg', v_kg);
+  assert (select count(*) from v_plausibilitaet where auftrag_id = v_a and art in ('Ausschuss-Tara', 'Palette fraglich')) = 0,
+    '0088 (a3): eine Wägung Kiste für Kiste steht als Auffälligkeit da';
+
+  -- (b) Dieselben Kisten einzeln gäben 11 + 12 + 10 = 33: die Summe einer
+  --     Zeile ist die einmal gerundete — darum schreibt die Maske eine Zeile.
+  insert into ausschuss_messung (auftrag_id, art, brutto_kg, kisten, gebindeart)
+    values (v_a, 'zu_gross', 12, 1, 'G2'), (v_a, 'zu_gross', 13.5, 1, 'G2'), (v_a, 'zu_gross', 11, 1, 'G2');
+  assert (select sum(kg) from ausschuss_messung where auftrag_id = v_a and art = 'zu_gross') = 33,
+    '0088 (b1): drei einzelne Zeilen runden anders als erwartet';
+
+  assert schema_stand() >= 88, format('0088 (c1): schema_stand() = %s, mindestens 88 erwartet', schema_stand());
+
+  delete from ausschuss_messung where auftrag_id = v_a;
+  delete from auftrag where id = v_a;
+  delete from profil where id = v_u;
+  delete from auth.users where id = v_u;
+  raise notice 'OK  0088 — Ausschuss Kiste für Kiste: ohne Angabe keine Palette, die Summe einmal gerundet (36.5 kg / 3 G2 → 32)';
+end $$;
+
+select '——— 0088 Ausschuss Kiste für Kiste geprüft ———' as ergebnis;

@@ -21,12 +21,13 @@ test('„Buch A" und „Buch B" stehen in keiner Oberfläche und keinem Text', (
   assert.deepEqual(treffer, [])
 })
 
-test('keine Arbeiter-Maske schreibt mehr einen Käufer; Ausschuss nur gewogen je Palette (0061)', () => {
+test('keine Arbeiter-Maske schreibt mehr einen Käufer; Ausschuss nur gewogen, Kiste für Kiste (0061, 0088)', () => {
   // Die Masken des Arbeiters: src/arbeit und die Arbeiter-Seiten. Der
   // Betriebsleiter darf alte Fassungen je Käufer weiter pflegen und lesen.
   // Zu klein / zu gross schreibt genau eine Maske — die am Ende des Waschens
-  // + Sortierens, Palette für Palette mit Brutto (oder „nichts", 0 kg); eine
-  // geschätzte Kilozahl gibt es nirgends mehr.
+  // + Sortierens, Kiste für Kiste mit Brutto (oder „nichts", 0 kg); eine
+  // geschätzte Kilozahl gibt es nirgends mehr, und eine Palette auch nicht
+  // (0088: die Summe der einzeln gewogenen Kisten, nie auf einer Palette).
   const masken = alle.filter(d => /\/src\/arbeit\//.test(d.p) || /\/src\/pages\/(Start|NeueArbeit|Arbeit|Kontrolle)\.tsx$/.test(d.p))
   const schreibt: string[] = []
   for (const d of masken) {
@@ -41,5 +42,10 @@ test('keine Arbeiter-Maske schreibt mehr einen Käufer; Ausschuss nur gewogen je
   assert.ok(maske, 'AusschussMaske.tsx fehlt')
   const inserts = [...maske.text.matchAll(/from\('ausschuss_messung'\)\.insert\(([^]*?)\)\s*$/gm)].map(m => m[1])
   assert.ok(inserts.length >= 2, 'Die Maske schreibt gewogen und „nichts"')
-  for (const i of inserts) assert.ok(/brutto_kg: b/.test(i) || /kg: 0/.test(i), `Ausschuss ohne Brutto und nicht 0: ${i}`)
+  for (const i of inserts) assert.ok(/brutto_kg: summeBrutto/.test(i) || /kg: 0/.test(i), `Ausschuss ohne Brutto und nicht 0: ${i}`)
+  const gewogen = inserts.filter(i => /brutto_kg/.test(i))
+  assert.equal(gewogen.length, 1, 'Genau ein Schreibweg für gewogenen Ausschuss')
+  assert.ok(/kisten: liste\.length/.test(gewogen[0]), 'Die Kistenzahl ist die Zahl der gewogenen Kisten — nicht getippt')
+  assert.ok(/mit_palette: false/.test(gewogen[0]), 'Ausschuss steht nie auf einer Palette (0088)')
+  assert.ok(!/mit_palette: true|mitPalette/.test(maske.text), 'Die Maske fragt nicht mehr nach einer Palette (0088)')
 })
