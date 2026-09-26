@@ -3909,3 +3909,101 @@ selbst für normal. Eine feste, sichtbare, änderbare Grenze ist ehrlicher.
 schon immer berichtigt wurde — in der Korrektur der Arbeitsseite —, damit
 es eine Stelle gibt, an der Änderungen stattfinden, und das Journal sie
 alle sieht.
+
+## Runde X: der Betrieb liest seine Auffälligkeiten (26. September, 0090)
+
+Der Betrieb hat die Auffälligkeiten seiner echten Messungen durchgelesen
+und Punkt für Punkt gefragt. Die Antworten stehen hier, weil sie zeigen,
+wo die App recht hatte, wo sie falsch redete, und wo sie schwieg.
+
+### „0 kg zu klein, 22 kg zu gross, 28 kg Bezugsmasse"
+
+Ja, die Null ist der Fehler aus 0083: Bis dahin zog die Ausschuss-Rechnung
+immer die Palette ab und klemmte das negative Ergebnis auf null. Die alten
+Zeilen sind nachgerechnet, wo es eindeutig war; wo nicht, steht „Palette
+fraglich". Die 28 kg Bezugsmasse sind der andere Teil dieser Auffälligkeit:
+Die Bezugsmasse ist das, was diese Arbeit an Eingangsware verarbeitet hat
+(die gezählten Paletten mit Zettelgewicht, minus Verdunstung und Faules).
+28 kg heisst: An dieser Arbeit hängt fast keine Eingangspalette — dann
+sind 22 kg zu gross 79 % davon, und das ist nicht plausibel. Nachzusehen
+in der Korrektur: Sind die Paletten dieser Arbeit gezählt?
+
+### „173 kg Faules erfasst, aber keine Kiste gezählt"
+
+Eine Arbeit, bei der nur der Palox abgelesen wurde und sonst nichts —
+kein Nenner, also fliesst das Faule nirgends ein. Wie das passieren konnte:
+Palox ablesen ist der erste Schritt und Pflicht; alles andere kam nicht.
+Seit Runde T sagt die Checkliste, was fehlt; diese Arbeit ist älter. In
+der Korrektur lässt sich die Palette nachtragen.
+
+### „Waagenstand sinkt von 229 auf 55"
+
+Genau der Fall, für den es seit 0084 den Knopf „Palox leeren" gibt: vor
+dem Leeren ablesen, leeren, die leere Box ablesen — dann bleibt die Menge
+bekannt. Der Rat der Auffälligkeit nennt den Knopf jetzt.
+
+### „Palette mit 235 kg vom Zettel, 18 Kisten — gerechnet mit der mittleren Tara"
+
+Der Betrieb hat recht: Wenn die Kisten dastehen, ist die eigene Tara
+besser als die mittlere. `v_auftrag_palette_masse` rechnet seit 0090 in
+dieser Reihenfolge: gewogen → im Wareneingang gefunden → Zettel minus die
+gezählten Kisten und ihre Tara (neu) → Zettel minus mittlere Tara → Tages-
+mittel → Chargenmittel. Und die Auffälligkeit sagt, welcher Fall gilt.
+
+Dass die Palette im Wareneingang fehlt, ist die eigentliche Frage — sie
+kommt mehrmals vor („wir haben nirgends diesen Eingang"). Meist steht die
+Palette im Erntejournal unter einer anderen Chargennummer, oder die Zeile
+fehlt dort. Seit Runde X zieht sich das Journal von selbst nach (unten);
+was dann noch fehlt, fehlt im Journal.
+
+### „Was ist 218 bei Wägung?"
+
+Die Datenbanknummer der verknüpften Wägung. Ein Fehler der Anzeige, kein
+Fehler der Daten: Die Korrektur zeigte das Feld `wiegung_id` roh. Jetzt
+steht dort das Gewicht (Zettel → jetzt) und daneben das gerechnete Netto
+der Palette mit seiner Quelle. Und die Korrektur beginnt mit einem Kopf:
+welche Tätigkeit, welche Charge, wann, wer — und einer Tabelle „Diese
+Arbeit braucht / Da ist / fehlt", damit man sieht, was fehlt, ohne es aus
+den Blöcken zu erraten.
+
+### „Kistengewicht unbekannt — wird das rückwirkend korrigiert?"
+
+Ja, von selbst. Die Menge eines Waschgangs aus Kisten ist Kisten × mittleres
+Kistengewicht dieses Bandes, und das Kistengewicht kommt aus den Sortier-
+läufen, bei denen die gefüllten Kisten je Band gezählt werden. Sobald ein
+Sortierlauf dieses Band zählt, hat der Waschgang seine Masse — rückwirkend,
+denn es ist eine Sicht, keine gespeicherte Zahl. Es ist eine Warteschlange
+ohne Knopf. Eine Bedingung: Das Band muss dasselbe sein. Wäscht jemand
+„700–900 g" als eigenes Kaliber, das beim Sortieren nie so gezählt wird,
+bleibt die Meldung stehen — dann in der Korrektur das passende Band wählen.
+
+### „160 kg mehr ausgeliefert als Eingang — aber der Ausgang ist kleiner"
+
+Der Betrieb hat recht, der Satz war falsch. Gemeint war: Die Lieferungen
+(6'348 kg) brauchen nach der gerechneten Ausbeute (verkaufsfähiger Anteil)
+mehr Eingang, als erfasst ist (9'549 kg) — 160 kg mehr. Das ist kein
+„zu viel geliefert", sondern ein „die Rechnung erwartet aus diesem Eingang
+weniger Verkauf". Jetzt steht genau das da, mit der Ausbeute in Prozent.
+Und der Rat nennt die dritte Möglichkeit, die er bisher verschwieg: Die
+Charge ist besser als das Modell — dann ist „Im Lager" für sie zu klein
+gerechnet (dieselbe Frage wie die 937 kg aus Runde V).
+
+### „Wird das Erntejournal jedes Mal neu geholt?"
+
+Bisher nicht — nur auf Knopfdruck unter Stammdaten. Jetzt holt das
+Dashboard die veröffentlichte CSV beim Öffnen (höchstens alle zehn
+Minuten je Gerät) und übernimmt, was neu ist. Nur Neues: Eine Palette,
+die schon da ist, wird nicht angefasst — was der Betriebsleiter berichtigt
+hat, bleibt berichtigt. Gab es Neues, rechnen die Ergebnisse neu, und die
+Karte sagt, wie viele. Der volle Abgleich mit Vorschau bleibt unter
+Stammdaten.
+
+### Was bewusst nicht gemacht wurde
+
+**Die Auffälligkeiten sind keine Tabelle geworden.** Der Betrieb liest sie
+Satz für Satz; eine Zeile je Arbeit mit der Tätigkeit davor reicht.
+
+**Kein automatisches Überschreiben aus dem Journal.** Der Abgleich legt
+an, was neu ist, und lässt stehen, was da ist — auch wenn das Journal
+inzwischen anders lautet. Sonst überschriebe ein Tippfehler im Sheet eine
+Berichtigung in der App, ohne dass jemand es sähe.

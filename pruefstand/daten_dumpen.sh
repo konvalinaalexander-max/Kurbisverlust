@@ -30,7 +30,7 @@ for R in v_hochrechnung erg_massenbilanz erg_datenlage erg_marge erg_plausibilit
          auftrag auftrag_palette auftrag_gebinde schimmel_messung ausschuss_messung \
          verdunstung_wiegung ausgang_zeile \
          kontrollpalette kontrollpalette_wiegung v_kontrollpalette_vorschlag v_ausgang_voll \
-         sortier_lauf v_sortier_lesung v_charge_rueckgrat auftrag_rueckmeldung erg_marge_charge; do
+         sortier_lauf v_sortier_lesung v_charge_rueckgrat auftrag_rueckmeldung erg_marge_charge v_auftrag_palette_masse; do
   dump "$R" "select * from $R"
 done
 dump erg_wiegung "select * from erg_wiegung order by wiege_ts desc"

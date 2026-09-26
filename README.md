@@ -496,6 +496,12 @@ CSV-Upload und Stammdaten bleiben dir vorbehalten.
 
 ## 1. Paletten aus dem Erntejournal übernehmen
 
+> Seit Runde X holt das Dashboard das Journal beim Öffnen von selbst nach
+> (höchstens alle zehn Minuten je Gerät) und übernimmt, was neu ist — sobald
+> die veröffentlichte CSV-Adresse einmal unter Stammdaten eingetragen ist.
+> Der Weg hier bleibt für den ersten Abgleich und für alles, was eine
+> Vorschau braucht.
+
 *Betrieb → Stammdaten → Paletten-Import*
 
 Zwei Wege — der erste ist der bequeme:
@@ -662,7 +668,17 @@ warum sein Deploy-Befehl `npx wrangler deploy --env beispiel` lauten **muss**
 [`docs/ZWEI_WEBSEITEN.md`](docs/ZWEI_WEBSEITEN.md). Rechne mit einer guten
 halben Stunde.
 
-**Zuletzt gebaut (Runde W, 0089)** — der Betriebsleiter löscht Arbeiten
+**Zuletzt gebaut (Runde X, 0090)** — der Betrieb hat seine Auffälligkeiten
+gelesen: Jede nennt jetzt ihre Arbeit (Tätigkeit, Zeit, Stand) und öffnet
+sie als Fenster; die Korrektur beginnt mit „Diese Arbeit braucht / Da ist /
+fehlt" und zeigt bei gezählten Paletten das Gewicht statt einer Datenbank-
+nummer; eine Zettelpalette ohne Treffer im Wareneingang rechnet mit ihren
+Kisten; „Überzählung" sagt, was sie meint; das Erntejournal zieht sich
+beim Öffnen des Dashboards von selbst nach. AB-84 bis AB-88,
+[`docs/ENTSCHEIDUNGEN.md`](docs/ENTSCHEIDUNGEN.md) „Runde X" — dort auch die
+Antworten auf die Fragen zu den Messungen.
+
+**Runde W (0089)** — der Betriebsleiter löscht Arbeiten
 (Betrieb → Arbeiten → „Löschen", Kreise, Rückfrage, endgültig). Die
 verschenkte Marge sind zwei Blöcke — „Kiste ab x kg" und „x Stück je Kiste"
 —, jeder erklärt sich in einem Satz, und jede Zeile zeigt aufgeklappt nur
@@ -880,6 +896,7 @@ Das genügt fast immer zur Klärung.
 | Die Erfassung scharf geschaltet: Palox je Arbeit, Gebinde je Palette, ehrliches Alter, Kontrollpalette | `supabase/migrations/0072`–`0076`, `src/arbeit/` | Prüfblock 0072 in `pruefung.sql`; `docs/BEFUND_RUNDE_Q.md` |
 | Runde V: Ausschuss ohne Palette, Palox mittendrin leeren, Rückmeldung mit Sprachaufnahme, Marge je Charge | `supabase/migrations/0083`–`0088`, `src/arbeit/AusschussMaske.tsx`, `PaloxLeerenMaske.tsx`, `Sprachaufnahme.tsx`, `src/pages/Ursachen.tsx` | Prüfblöcke 0083–0088 (jeder gegengeprüft durch absichtliches Kaputtmachen); `kette.mjs` mit Ausschuss ohne Palette, Palox-Leeren und Rückmeldung; Aufnahmen im Bucket `rueckmeldungen` |
 | Runde W: Arbeiten löschen, Marge in zwei Blöcken mit den Wägungen dahinter, Punkt-Tooltip und Arbeitsfenster, Verdunstungsgrenze | `supabase/migrations/0089`, `src/pages/Betrieb.tsx`, `src/pages/Ursachen.tsx`, `src/betrieb/ArbeitFenster.tsx`, `src/components/Diagramm.tsx` | Prüfblock 0089 (gegengeprüft); Bildschirme `betrieb-arbeiten-loeschen`, `ursachen-marge-auf`, `ursachen-arbeit` |
+| Runde X: Auffälligkeiten mit Arbeit und Fenster, Korrektur mit Kopf und „was fehlt", Zettelpalette mit eigenen Kisten, Erntejournal von selbst | `supabase/migrations/0090`, `src/auswertung/Karten.tsx`, `src/arbeit/Korrektur.tsx`, `src/betrieb/JournalAbgleich.tsx` | Prüfblock 0090 (gegengeprüft); Bildschirme `messungen-arbeit`, `arbeit-korrektur` |
 | Schutz der Erfassung: Journal, Zerstörungswächter, zwei Webseiten | `erfassung_journal` (0072), `supabase/test/keine_zerstoerung.sh`, `src/lib/betriebsmodus.ts` | Wächter läuft als erste Stufe von `run.sh` |
 | Warenausgang aus dem Warenwirtschaftssystem einlesen | `src/lib/xlsx.ts`, `src/lib/warenausgang.ts`, `supabase/migrations/0050` | Leser und Regeln geprüft (27 Tests, 396 096 Zellen gegen einen zweiten Leser); der Bildschirm steht: Betrieb → Warenausgang (`src/betrieb/AusgangImport.tsx`, `src/pages/Lieferungen.tsx`, Übernahme in `ausgang_uebernehmen`, 0055) |
 

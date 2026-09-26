@@ -70,6 +70,7 @@ export function summeBekannt(werte: (number | null | undefined)[]): number | nul
 const HERKUNFT_TEXT: Record<string, string> = {
   gewogen: 'gewogen',
   zettel: 'vom Zettel, Palette im Wareneingang gefunden',
+  'zettel-kisten': 'vom Zettel, minus die gezählten Kisten und ihre Tara',
   'zettel-charge-tara': 'vom Zettel, mit der mittleren Tara der Charge',
   palette: 'aus dem Wareneingang',
   'datum-mittel': 'Mittel des Eingangstags',

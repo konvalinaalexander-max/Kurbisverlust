@@ -9,6 +9,7 @@ import { Glocke, Linien, tonnenAchse, type Reihe } from '../components/Diagramm'
 import { kaliberGlockeBei, lagerKaliberBei, prognoseBei, useAuswertung, useStichtag, wohinVon,
          type Auswertung, type Bestand, type KaliberGlocke, type LagerKaliber } from '../auswertung/daten'
 import { Probleme, Rechnet, Reiterkopf } from '../auswertung/Karten'
+import { JournalAbgleich } from '../betrieb/JournalAbgleich'
 import { useZaehler } from '../design/bewegung'
 import { ZWarnung } from '../components/Zeichen'
 
@@ -85,6 +86,7 @@ export default function Lagermanagement() {
     <>
       <Reiterkopf titel="Lagermanagement" zweck={ZWECK}
                   stand={daten.stand} heute={daten.heute} neuRechnen={() => void neuRechnen()} laeuft={laedt} />
+      <JournalAbgleich neuGerechnet={() => void neuRechnen()} />
       <Probleme liste={daten.probleme} />
       {daten.befunde.length > 0 && (
         <div className="hinweis warnung" role="status">

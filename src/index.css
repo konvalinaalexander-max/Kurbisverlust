@@ -403,7 +403,8 @@ details.aufklapp > summary .leise { font-weight: var(--gewicht-normal); }
 .befund .befund-kopf { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; font-weight: var(--gewicht-stark); font-size: var(--s-1); }
 .befund .befund-text { grid-column: 1; font-size: var(--s-1); color: var(--text-2); }
 .befund .befund-rat { grid-column: 1; font-size: var(--s-0); color: var(--text-leise); }
-.befund .befund-aktion { grid-column: 2; grid-row: 1 / span 3; align-self: center; }
+.befund .befund-aktion { grid-column: 2; grid-row: 1 / span 4; align-self: center; flex-direction: column; gap: .35rem; }
+.befund .befund-arbeit { grid-column: 1; font-size: var(--s-0); color: var(--text-leise); }
 @media (max-width: 560px) { .befund { grid-template-columns: 1fr; } .befund .befund-aktion { grid-column: 1; grid-row: auto; } }
 
 /* Fortschrittsbalken (Vollständigkeit, Bilanz) */

@@ -268,6 +268,9 @@ const BILDSCHIRME = [
   { name: 'chargen-offen', wer: 'admin', pfad: '/chargen',
     tun: async p => { await p.locator('tbody tr').first().click() } },
   { name: 'messungen', wer: 'admin', pfad: '/messungen' },
+  // Runde X: jede Auffälligkeit nennt ihre Arbeit und öffnet sie als Fenster.
+  { name: 'messungen-arbeit', wer: 'admin', pfad: '/messungen',
+    tun: async p => { await p.getByRole('button', { name: 'Arbeit ansehen' }).first().click(); await p.locator('#arbeit-fenster h2').waitFor() } },
   { name: 'betrieb-arbeiten', wer: 'admin', pfad: '/betrieb/arbeiten' },
   // Runde W: der Löschmodus — Kreise an den Zeilen, dann die Rückfrage.
   { name: 'betrieb-arbeiten-loeschen', wer: 'admin', pfad: '/betrieb/arbeiten',

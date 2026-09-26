@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { datum, kg, prozent, tonnen, vorZeit, zeitpunkt } from '../lib/format'
 import { Erklaerung, Herkunft, Hinweis, Karte, Marke } from '../components/Bausteine'
@@ -6,6 +6,10 @@ import { ZAktualisieren, ZHaken } from '../components/Zeichen'
 import { Bilanzzeile } from '../components/Kaskadenbild'
 import { SCHRITTE, type Befund, type Fortschritt, type Problem, type Saisonbilanz, type Schimmelpunkt, type StromSumme } from './daten'
 import { summeBekannt } from '../lib/masse'
+import { supabase } from '../lib/supabase'
+import { taetigkeitVon } from '../lib/taetigkeit'
+import { WOERTERBUCH } from '../lib/i18n'
+import { ArbeitFenster } from '../betrieb/ArbeitFenster'
 
 /**
  * Kopfzeile eines Reiters: Name, der eine Satz, wozu er da ist; rechts der
@@ -181,7 +185,34 @@ function befundTon(art: string): '' | 'gelb' | 'blau' {
  * Weg zur Korrektur: Jede zeigt auf ihre Arbeit, wo der Betriebsleiter den
  * Wert ändern kann. Sie stehen nur hier, nicht bei den Chargen.
  */
+/** Was eine Auffälligkeit über ihre Arbeit sagen kann, ohne dass man sie öffnet. */
+interface ArbeitKurz { id: number; weg: string; station: string; ist_fax: boolean; start_ts: string; ende_ts: string | null; status: string; abgebrochen_ts: string | null }
+
 export function Auffaelligkeiten({ befunde, kurz = false }: { befunde: Befund[]; kurz?: boolean }) {
+  // Runde X: Der Betrieb: „schau, dass ein bisschen klarer ersichtlich ist,
+  // bei welcher Arbeit das entstanden ist, damit ich die Arbeit nachlesen
+  // kann." Also zu jeder Auffälligkeit die Tätigkeit, der Tag, der Stand —
+  // und ein Fenster, das die Arbeit zeigt, ohne die Seite zu verlassen.
+  const [arbeiten, setArbeiten] = useState<Map<number, ArbeitKurz>>(new Map())
+  const [fenster, setFenster] = useState<number | null>(null)
+  const ids = [...new Set(befunde.map(b => b.auftrag_id).filter((x): x is number => x !== null))]
+  const schluessel = ids.join(',')
+  useEffect(() => {
+    if (!schluessel) { setArbeiten(new Map()); return }
+    let lebt = true
+    void supabase.from('auftrag').select('id, weg, station, ist_fax, start_ts, ende_ts, status, abgebrochen_ts')
+      .in('id', schluessel.split(',').map(Number))
+      .then(({ data }) => { if (lebt) setArbeiten(new Map(((data ?? []) as ArbeitKurz[]).map(a => [a.id, a]))) })
+    return () => { lebt = false }
+  }, [schluessel])
+  const t = (id: keyof typeof WOERTERBUCH.de) => WOERTERBUCH.de[id]
+  const arbeitText = (id: number) => {
+    const a = arbeiten.get(id); if (!a) return `Arbeit ${id}`
+    const ta = taetigkeitVon(a.weg as never, a.station as never, a.ist_fax)
+    const stand = a.abgebrochen_ts ? 'abgebrochen' : a.status === 'offen' ? 'läuft' : 'fertig'
+    return `${ta ? t(ta.text) : 'Arbeit'} · ${zeitpunkt(a.start_ts)} · ${stand} · Arbeit ${a.id}`
+  }
+
   if (befunde.length === 0) return kurz ? null : (
     <Karte titel="Auffälligkeiten" unter="Messungen, die nicht zu ihrem Nenner passen.">
       <div className="hinweis gut" style={{ margin: 0 }}><span className="hinweis-zeichen"><ZHaken size={18} /></span><div className="hinweis-text">Keine — jede Messung passt zu ihrem Nenner.</div></div>
@@ -196,12 +227,19 @@ export function Auffaelligkeiten({ befunde, kurz = false }: { befunde: Befund[];
         {liste.map((b, i) => (
           <div key={i} className={`befund ${befundTon(b.art)}`}>
             <div className="befund-kopf"><Marke art="warnung" punkt={false}>{b.art}</Marke> Charge {b.charge_nr} · {b.sorte}</div>
+            {b.auftrag_id && <div className="befund-arbeit">{arbeitText(b.auftrag_id)}</div>}
             <div className="befund-text">{b.befund}</div>
             <div className="befund-rat">{b.rat}</div>
-            {b.auftrag_id && <Link className="knopf klein befund-aktion" to={`/arbeit/${b.auftrag_id}?korrigieren=1`}>korrigieren</Link>}
+            {b.auftrag_id && (
+              <div className="befund-aktion knopf-reihe" style={{ display: 'flex' }}>
+                <button type="button" className="knopf klein" onClick={() => setFenster(b.auftrag_id)}>Arbeit ansehen</button>
+                <Link className="knopf klein" to={`/arbeit/${b.auftrag_id}?korrigieren=1`}>korrigieren</Link>
+              </div>
+            )}
           </div>
         ))}
       </div>
+      {fenster !== null && <ArbeitFenster auftragId={fenster} schliessen={() => setFenster(null)} />}
     </Karte>
   )
 }

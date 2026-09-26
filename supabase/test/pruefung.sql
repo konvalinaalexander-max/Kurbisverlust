@@ -5914,3 +5914,69 @@ begin
 end $$;
 
 select '——— 0089 Verdunstung mit Grenze geprüft ———' as ergebnis;
+
+-- =====================================================================
+-- 0090 — Die Auffälligkeiten sagen, was sie meinen — und die Zettelpalette
+--        rechnet mit ihren Kisten
+--
+-- Der Betrieb, beim Durchlesen seiner Auffälligkeiten: Eine Palette mit
+-- 235 kg vom Zettel und 18 Kisten soll mit IHRER Tara gerechnet werden,
+-- nicht mit der mittleren der Charge; „160 kg mehr ausgeliefert als
+-- Eingang" stimmt nicht, wenn 6'348 kg gegen 9'549 kg stehen; und wer
+-- den Palox mittendrin leert, soll den neuen Knopf genannt bekommen.
+-- =====================================================================
+do $$
+declare
+  v_u  uuid := '00000000-0090-0000-0000-000000000001';
+  v_c  int; v_a bigint; v_b bigint; v_p1 bigint; v_p2 bigint; v_kg numeric; v_q text; v_txt text; v_n int;
+begin
+  insert into auth.users (id, email, raw_user_meta_data)
+  values (v_u, null, '{"name":"Prüf-0090"}');
+  update profil set rolle = 'admin' where id = v_u;
+  perform set_config('request.jwt.claim.sub', v_u::text, true);
+  -- Eine Charge ohne Wareneingang — damit es sicher keinen Treffer gibt.
+  select c.nr into v_c from charge c where not exists (select 1 from palette p where p.charge_nr = c.nr) order by c.nr desc limit 1;
+  assert v_c is not null, '0090 (a0): keine Charge ohne Paletten zum Prüfen';
+
+  -- (a) Die Zettelpalette: 235 kg, 18 Kisten G2, im Wareneingang unbekannt.
+  insert into auftrag (weg, station, charge_nr, start_ts, eroeffnet_von)
+    select 'hand', 'sortieren', v_c, now() - interval '3 hours', v_u returning id into v_a;
+  insert into auftrag_palette (auftrag_id, eingangsdatum, brutto_zettel_kg, kisten, gebindeart)
+    values (v_a, current_date - 20, 235, 18, 'G2') returning id into v_p1;
+  insert into auftrag_palette (auftrag_id, eingangsdatum, brutto_zettel_kg)
+    values (v_a, current_date - 20, 240) returning id into v_p2;
+  select netto_kg, masse_quelle into v_kg, v_q from v_auftrag_palette_masse where id = v_p1;
+  assert v_q = 'zettel-kisten', format('0090 (a1): Quelle „%s" statt zettel-kisten', v_q);
+  assert v_kg = 183, format('0090 (a2): 235 − 18 × 1.5 − 25 = 183 erwartet, ist %s', v_kg);
+  select masse_quelle into v_q from v_auftrag_palette_masse where id = v_p2;
+  assert v_q <> 'zettel-kisten', format('0090 (a3): ohne Kisten darf nicht mit Kisten gerechnet werden (Quelle „%s")', v_q);
+  -- Die Auffälligkeit sagt, womit gerechnet wird.
+  select befund into v_txt from v_plausibilitaet where art = 'Zettelgewicht' and auftrag_id = v_a and befund like '%235%';
+  assert v_txt like '%gezählten Kisten%', format('0090 (a4): der Befund sagt nicht, dass mit den Kisten gerechnet wird: „%s"', v_txt);
+  select befund into v_txt from v_plausibilitaet where art = 'Zettelgewicht' and auftrag_id = v_a and befund like '%240%';
+  assert v_txt like '%mittleren Tara%', format('0090 (a5): ohne Kisten muss der Befund die mittlere Tara nennen: „%s"', v_txt);
+
+  -- (b) Der Rat bei „Palox geleert" kennt den Knopf aus 0084.
+  insert into auftrag (weg, station, charge_nr, start_ts, eroeffnet_von)
+    select 'hand', 'waschen_sortieren', v_c, now() - interval '3 hours', v_u returning id into v_b;
+  insert into schimmel_messung (auftrag_id, kg, palox_stand_kg, ts) values
+    (v_b, 0, 229, now() - interval '170 minutes'), (v_b, 0, 55, now() - interval '100 minutes');
+  select rat into v_txt from v_plausibilitaet where art = 'Palox geleert' and auftrag_id = v_b;
+  assert v_txt like '%Palox leeren%', format('0090 (b1): der Rat nennt den Knopf nicht: „%s"', v_txt);
+
+  -- (c) Die „Überzählung" sagt, was sie meint — im Text der Sicht, denn ihr
+  --     Fall braucht die ganze Kaskade: „brauchen nach der gerechneten Ausbeute".
+  select pg_get_viewdef('v_plausibilitaet_0064_zusatz'::regclass) into v_txt;
+  assert v_txt like '%brauchen nach der gerechneten Ausbeute%', '0090 (c1): der Überzählungs-Satz ist nicht der neue';
+  assert v_txt not like '%mehr ausgeliefert, als für diese Charge je als Eingang erfasst%', '0090 (c2): der alte, falsche Satz steht noch da';
+  assert v_txt like '%weniger Verlust als das Modell annimmt%', '0090 (c3): der Rat nennt die dritte Möglichkeit nicht';
+
+  assert schema_stand() >= 90, format('0090 (d1): schema_stand() = %s, mindestens 90 erwartet', schema_stand());
+
+  delete from auftrag where id in (v_a, v_b);
+  delete from profil where id = v_u;
+  delete from auth.users where id = v_u;
+  raise notice 'OK  0090 — Die Zettelpalette rechnet mit ihren Kisten (235 − 18 × 1.5 − 25 = 183); Überzählung und Palox geleert sagen, was sie meinen';
+end $$;
+
+select '——— 0090 Auffälligkeiten geprüft ———' as ergebnis;
