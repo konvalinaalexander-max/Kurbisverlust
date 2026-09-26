@@ -7,6 +7,8 @@ export interface Ablesung {
   id: number; kg: number; ts: string; palox_stand_kg: number | null
   brutto_kg: number | null; kisten: number | null; gebindeart: string | null; mit_palette: boolean
   bemerkung: string | null
+  /** 0084: die Ablesung der leeren Box nach dem Leeren — ein neuer Anfang, keine Menge. */
+  palox_nach_leeren: boolean
 }
 /** Zu klein / zu gross, je Palette gewogen (Waschen + Sortieren, am Ende). */
 export interface AusschussZeile {
@@ -61,7 +63,7 @@ export async function arbeitLaden(auftragId: number): Promise<ArbeitDaten | null
       .eq('auftrag_id', auftragId).order('ts'),
     supabase.from('auftrag_gebinde').select('*').eq('auftrag_id', auftragId).order('kaliber_idx').order('sortierdatum'),
     supabase.from('schimmel_messung')
-      .select('id, kg, ts, palox_stand_kg, brutto_kg, kisten, gebindeart, mit_palette, bemerkung')
+      .select('id, kg, ts, palox_stand_kg, brutto_kg, kisten, gebindeart, mit_palette, bemerkung, palox_nach_leeren')
       .eq('auftrag_id', auftragId).order('ts'),
     supabase.from('ausschuss_messung').select('id, art, kg, ts, gemessen, brutto_kg, kisten, gebindeart, bemerkung, mit_palette')
       .eq('auftrag_id', auftragId).order('ts'),

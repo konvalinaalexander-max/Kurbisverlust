@@ -150,10 +150,9 @@ const PUNKTE = [
       await sichtbar(p, '#verd-achse-kalender', 'Knopf Kalender')
       await sichtbar(p, '#verd-achse-liegt', 'Knopf liegt seit')
     } },
-  { id: 'U-05', wo: 'ursachen', satz: '„Verschenkte Marge" in zwei Karten: Kiste ab, Stück',
+  { id: 'U-05', wo: 'ursachen', satz: '„Verschenkte Marge" in einer Karte, gegliedert wie der Filter (Runde V)',
     pruefe: async p => {
-      await sichtbar(p, '#urs-marge-kiste', 'Marge Kiste ab')
-      await sichtbar(p, '#urs-marge-stueck', 'Marge Stück')
+      await sichtbar(p, '#urs-marge', 'Marge')
       await nichtDa(p, 'Gewogen, aber nicht verkauft', 'Ursachen')
       await nichtDa(p, 'Überfüllung', 'Ursachen')
     } },
@@ -164,7 +163,7 @@ const PUNKTE = [
   { id: 'U-07', wo: 'ursachen', satz: 'Die Reihenfolge: Wohin, Faules, Verdunstung, Marge',
     pruefe: async p => {
       const y = async id => (await p.locator(`#${id}`).boundingBox())?.y ?? Infinity
-      const ys = [await y('urs-wohin'), await y('urs-palox'), await y('urs-verdunstung'), await y('urs-marge-kiste')]
+      const ys = [await y('urs-wohin'), await y('urs-palox'), await y('urs-verdunstung'), await y('urs-marge')]
       for (let i = 1; i < ys.length; i++) if (!(ys[i] > ys[i - 1])) throw new Error(`Block ${i} steht nicht unter Block ${i - 1}`)
     } },
 

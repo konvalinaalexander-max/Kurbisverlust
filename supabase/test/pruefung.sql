@@ -5442,3 +5442,337 @@ begin
 end $$;
 
 select '——— 0083 Ausschuss ohne Palette geprüft ———' as ergebnis;
+
+-- =====================================================================
+-- 0084 — Der Palox wird mittendrin geleert
+--
+-- Der Betrieb: „man beginnt vlt mit 250kg … palox leeren - man wird
+-- gefragt wie viel es war - dann isses vlt 550kg - dann arbeitet man
+-- weiter, schliesst den auftrag ab und wird wieder gefragt und dann isses
+-- vlt 150kg". Geprüft wird, dass die Menge über das Leeren hinweg bekannt
+-- bleibt — und dass ein Leeren OHNE die Ablesung davor weiterhin eine
+-- unbekannte Menge ist, keine erfundene.
+-- =====================================================================
+do $$
+declare
+  v_u  uuid := '00000000-0084-0000-0000-000000000001';
+  v_a  bigint; v_b bigint;
+  v_kg numeric; v_n int; v_txt text;
+begin
+  insert into auth.users (id, email, raw_user_meta_data)
+  values (v_u, null, '{"name":"Prüf-0084"}');
+  update profil set rolle = 'admin' where id = v_u;
+  perform set_config('request.jwt.claim.sub', v_u::text, true);
+
+  -- (a) Das Beispiel des Betriebs: 250 → 550, geleert, 45 → 150.
+  insert into auftrag (weg, station, charge_nr, start_ts, eroeffnet_von)
+    select 'hand', 'waschen_sortieren', c.nr, now() - interval '3 hours', v_u
+      from charge c order by nr limit 1 returning id into v_a;
+  insert into schimmel_messung (auftrag_id, kg, palox_stand_kg, ts) values
+    (v_a,   0, 250, now() - interval '170 minutes'),
+    (v_a, 300, 550, now() - interval '100 minutes');
+  insert into schimmel_messung (auftrag_id, kg, palox_stand_kg, palox_nach_leeren, ts) values
+    (v_a,   0,  45, true, now() - interval '99 minutes');
+  insert into schimmel_messung (auftrag_id, kg, palox_stand_kg, ts) values
+    (v_a, 105, 150, now() - interval '10 minutes');
+
+  select string_agg(coalesce(round(differenz)::int::text, 'null'), ',' order by ts, id) into v_txt
+    from v_palox_stand where auftrag_id = v_a;
+  assert v_txt = '0,300,0,105', format('0084 (a1): Differenzen %s statt 0,300,0,105', v_txt);
+  select kg into v_kg from v_schimmel_menge where auftrag_id = v_a;
+  assert v_kg = 405, format('0084 (a2): Faul-Menge %s statt 405 (300 vor dem Leeren + 105 danach)', v_kg);
+  select count(*) into v_n from v_palox_stand where auftrag_id = v_a and zwischendurch_geleert;
+  assert v_n = 0, format('0084 (a3): ein gemessenes Leeren gilt %s-mal als „zwischendurch geleert"', v_n);
+  select count(*) into v_n from v_plausibilitaet where auftrag_id = v_a and art = 'Palox geleert';
+  assert v_n = 0, '0084 (a4): ein gemessenes Leeren steht als Auffälligkeit „Palox geleert" da';
+  -- Die Ablesung nach dem Leeren ist der Anfang für die nächste: der Stand
+  -- dieser Arbeit ist 150, nicht 550.
+  assert palox_stand_dieser_arbeit(v_a) = 150, '0084 (a5): der letzte Stand der Arbeit ist nicht 150';
+
+  -- (b) Zweimal geleert — jede Strecke zählt.
+  insert into schimmel_messung (auftrag_id, kg, palox_stand_kg, palox_nach_leeren, ts) values
+    (v_a, 0, 45, true, now() - interval '9 minutes');
+  insert into schimmel_messung (auftrag_id, kg, palox_stand_kg, ts) values
+    (v_a, 20, 65, now() - interval '1 minute');
+  select kg into v_kg from v_schimmel_menge where auftrag_id = v_a;
+  assert v_kg = 425, format('0084 (b): nach dem zweiten Leeren %s statt 425', v_kg);
+
+  -- (c) Ohne die Ablesung davor bleibt es, wie es war: unbekannt, nicht null.
+  insert into auftrag (weg, station, charge_nr, start_ts, eroeffnet_von)
+    select 'hand', 'waschen_sortieren', c.nr, now() - interval '3 hours', v_u
+      from charge c order by nr offset 1 limit 1 returning id into v_b;
+  insert into schimmel_messung (auftrag_id, kg, palox_stand_kg, ts) values
+    (v_b, 0, 250, now() - interval '170 minutes'),
+    (v_b, 0,  45, now() - interval '100 minutes'),   -- gefallen, nichts angemeldet
+    (v_b, 0, 150, now() - interval '10 minutes');
+  select count(*) into v_n from v_schimmel_menge where auftrag_id = v_b;
+  assert v_n = 0, '0084 (c1): ein gefallener Stand ohne Ablesung davor ergibt eine Menge — sie muss unbekannt bleiben (0073)';
+  select count(*) into v_n from v_palox_stand where auftrag_id = v_b and zwischendurch_geleert;
+  assert v_n = 1, format('0084 (c2): der gefallene Stand wird %s-mal statt einmal als geleert erkannt', v_n);
+  select count(*) into v_n from v_plausibilitaet where auftrag_id = v_b and art = 'Palox geleert';
+  assert v_n = 1, format('0084 (c3): %s statt 1 Auffälligkeit „Palox geleert"', v_n);
+
+  -- (d) Der alte Weg „Ja, geleert" (palox_geleert) bleibt, was er war: unbekannt.
+  insert into schimmel_messung (auftrag_id, kg, palox_stand_kg, palox_geleert, ts) values
+    (v_b, 0, 40, true, now() - interval '5 minutes');
+  select count(*) into v_n from v_schimmel_menge where auftrag_id = v_b;
+  assert v_n = 0, '0084 (d): „Ja, geleert" ohne Ablesung davor darf keine Menge ergeben';
+
+  delete from schimmel_messung where auftrag_id in (v_a, v_b);
+  delete from auftrag where id in (v_a, v_b);
+  delete from profil where id = v_u;
+  delete from auth.users where id = v_u;
+
+  raise notice 'OK  0084 — Vorher ablesen, leeren, nachher ablesen: die Menge bleibt bekannt (250→550, 45→150 = 405 kg); ohne die Ablesung davor bleibt sie unbekannt';
+end $$;
+
+select '——— 0084 Palox mittendrin geleert geprüft ———' as ergebnis;
+
+-- =====================================================================
+-- 0085 — Die Rückmeldung am Ende jeder Arbeit
+--
+-- Der Betrieb: „vor dem finalem abschliessen soll die app fragen ob alles
+-- gut lief oder verbesserungswünsche". Geprüft wird, dass eine Rückmeldung
+-- Text, Aufnahme oder beides ist — nie nichts —, dass sie im Journal
+-- steht, dass die Aufnahmen einen eigenen, nicht öffentlichen Ablageort
+-- haben, und dass niemand im Namen eines anderen etwas hinterlässt.
+-- =====================================================================
+do $$
+declare
+  v_u  uuid := '00000000-0085-0000-0000-000000000001';
+  v_w  uuid := '00000000-0085-0000-0000-000000000002';
+  v_a  bigint; v_n int; v_j0 bigint; v_j1 bigint; v_id bigint;
+begin
+  insert into auth.users (id, email, raw_user_meta_data) values
+    (v_u, null, '{"name":"Prüf-0085 Leiter"}'),
+    (v_w, null, '{"name":"Prüf-0085 Arbeiter"}');
+  update profil set rolle = 'admin' where id = v_u;
+  update profil set rolle = 'arbeiter', aktiv = true where id = v_w;
+  perform set_config('request.jwt.claim.sub', v_u::text, true);
+
+  insert into auftrag (weg, station, charge_nr, start_ts, eroeffnet_von)
+    select 'hand', 'waschen', c.nr, now() - interval '2 hours', v_u
+      from charge c order by nr limit 1 returning id into v_a;
+
+  -- (a) Die Tabelle und ihre Regel: leer gibt es nicht.
+  assert to_regclass('public.auftrag_rueckmeldung') is not null, '0085 (a0): auftrag_rueckmeldung fehlt';
+  select count(*) into v_j0 from erfassung_journal;
+  insert into auftrag_rueckmeldung (auftrag_id, text) values (v_a, 'Lief gut, die Waage stand schief.') returning id into v_id;
+  insert into auftrag_rueckmeldung (auftrag_id, audio_ref, audio_typ, audio_sekunden)
+    values (v_a, v_a || '/1.webm', 'audio/webm', 42);
+  insert into auftrag_rueckmeldung (auftrag_id, text, audio_ref, audio_typ, audio_sekunden)
+    values (v_a, 'und dazu gesprochen', v_a || '/2.webm', 'audio/webm', 7);
+  select count(*) into v_n from auftrag_rueckmeldung where auftrag_id = v_a;
+  assert v_n = 3, format('0085 (a1): %s Rückmeldungen statt 3', v_n);
+  begin
+    insert into auftrag_rueckmeldung (auftrag_id) values (v_a);
+    assert false, '0085 (a2): eine Rückmeldung ohne Text und ohne Aufnahme wurde angenommen';
+  exception when check_violation then null;
+  end;
+  begin
+    insert into auftrag_rueckmeldung (auftrag_id, text) values (v_a, '   ');
+    assert false, '0085 (a3): eine Rückmeldung aus Leerzeichen wurde angenommen';
+  exception when check_violation then null;
+  end;
+  begin
+    insert into auftrag_rueckmeldung (auftrag_id, text, audio_sekunden) values (v_a, 'x', -1);
+    assert false, '0085 (a4): eine negative Dauer wurde angenommen';
+  exception when check_violation then null;
+  end;
+  assert (select erfasser from auftrag_rueckmeldung where id = v_id) = v_u,
+    '0085 (a5): der Erfasser ist nicht der Angemeldete';
+
+  -- (b) Jede Rückmeldung steht im Journal — auch sie ist eine Erfassung.
+  select count(*) into v_j1 from erfassung_journal;
+  assert v_j1 - v_j0 = 3, format('0085 (b1): das Journal wuchs um %s statt 3', v_j1 - v_j0);
+  assert (select count(*) from erfassung_journal where tabelle = 'auftrag_rueckmeldung' and vorgang = 'insert'
+           and (neu ->> 'id')::bigint = v_id and neu ->> 'text' like 'Lief gut%') = 1,
+    '0085 (b2): der Text steht nicht im Journal';
+
+  -- (c) Die Aufnahmen haben ihren Ort — und der ist nicht öffentlich.
+  assert (select count(*) from storage.buckets where id = 'rueckmeldungen' and not public) = 1,
+    '0085 (c1): der Bucket rueckmeldungen fehlt oder ist öffentlich';
+  assert (select count(*) from pg_policies where schemaname = 'storage' and tablename = 'objects'
+           and policyname in ('rueckmeldungen_lesen', 'rueckmeldungen_schreiben')) = 2,
+    '0085 (c2): die Regeln für den Bucket rueckmeldungen fehlen';
+  assert (select count(*) from pg_policies where schemaname = 'storage' and tablename = 'objects'
+           and policyname like 'rueckmeldungen_%' and cmd in ('UPDATE', 'DELETE')) = 0,
+    '0085 (c3): eine Aufnahme darf nicht überschrieben oder gelöscht werden';
+
+  -- (d) Die Regeln der Tabelle: lesen darf jeder, hinterlassen nur im eigenen Namen.
+  assert (select relrowsecurity from pg_class where oid = 'auftrag_rueckmeldung'::regclass),
+    '0085 (d0): kein Zeilenschutz auf auftrag_rueckmeldung';
+  assert (select count(*) from pg_policies where tablename = 'auftrag_rueckmeldung') = 4,
+    '0085 (d1): vier Regeln erwartet (lesen, erfassen, ändern, löschen)';
+  assert (select with_check from pg_policies where tablename = 'auftrag_rueckmeldung' and policyname = 'rueckmeldung_erfassen')
+         like '%ist_aktiv()%',
+    '0085 (d2): erfassen ist nicht an ist_aktiv() gebunden';
+  assert (select with_check from pg_policies where tablename = 'auftrag_rueckmeldung' and policyname = 'rueckmeldung_erfassen')
+         like '%erfasser = auth.uid()%',
+    '0085 (d3): erfassen ist nicht an den eigenen Namen gebunden';
+  assert (select qual from pg_policies where tablename = 'auftrag_rueckmeldung' and policyname = 'rueckmeldung_loeschen')
+         like '%ist_admin()%',
+    '0085 (d4): löschen ist nicht dem Betriebsleiter vorbehalten';
+
+  -- (e) Der Stand.
+  assert schema_stand() >= 85, format('0085 (e1): schema_stand() = %s, mindestens 85 erwartet', schema_stand());
+
+  delete from auftrag_rueckmeldung where auftrag_id = v_a;
+  delete from auftrag where id = v_a;
+  delete from profil where id in (v_u, v_w);
+  delete from auth.users where id in (v_u, v_w);
+  raise notice 'OK  0085 — Die Rückmeldung: Text, Aufnahme oder beides, nie nichts; im Journal; die Aufnahmen in einem eigenen, nicht öffentlichen Ort';
+end $$;
+
+select '——— 0085 Rückmeldung geprüft ———' as ergebnis;
+
+-- =====================================================================
+-- 0086 — Die verschenkte Marge je Charge
+--
+-- Der Betrieb: „wenn man alle sagt - dann alle chargen - wenn man nur eine
+-- sorte hat die chargen untereinander". Der Bildschirm gliedert nur, was
+-- die Datenbank auseinanderhält: Geprüft wird, dass die Zahl je Charge
+-- dieselbe Rechnung ist wie die je Sorte — und sich zu ihr aufsummiert.
+-- =====================================================================
+do $$
+declare
+  v_u  uuid := '00000000-0086-0000-0000-000000000001';
+  v_n int; v_txt text; v_modus jsonb;
+begin
+  insert into auth.users (id, email, raw_user_meta_data)
+  values (v_u, null, '{"name":"Prüf-0086"}');
+  update profil set rolle = 'admin' where id = v_u;
+  perform set_config('request.jwt.claim.sub', v_u::text, true);
+
+  -- Die Beispielsaison hat gewogene volle Paletten in mehreren Chargen —
+  -- sie lädt nur im Beispielmodus (0072); der vorige Modus kommt zurück.
+  select wert into v_modus from einstellung where schluessel = 'betriebsmodus';
+  update einstellung set wert = '"beispiel"'::jsonb where schluessel = 'betriebsmodus';
+  perform demo_daten_laden();
+  perform auswertung_aktualisieren();
+
+  -- (a) Das Ergebnis ist da und nicht leer.
+  assert to_regclass('public.erg_marge_charge') is not null, '0086 (a0): erg_marge_charge fehlt';
+  select count(*) into v_n from erg_marge_charge;
+  assert v_n > 0, '0086 (a1): erg_marge_charge ist leer';
+  select count(distinct charge_nr) into v_n from erg_marge_charge;
+  assert v_n > 1, format('0086 (a2): nur %s Charge in der Marge je Charge — die Gliederung wäre keine', v_n);
+  assert not exists (select 1 from erg_marge_charge m
+                      where not exists (select 1 from charge c where c.nr = m.charge_nr and c.sorte = m.sorte)),
+    '0086 (a3): eine Charge steht mit einer fremden Sorte da';
+
+  -- (b) Dieselbe Rechnung wie je Sorte (0078): Ist − Soll, Gramm − Bandmitte.
+  assert not exists (select 1 from erg_marge_charge
+                      where kistensystem = 'kiste_ab'
+                        and abs(zuviel_je_kiste - (kg_je_kiste - soll_kg_pro_kiste)) > 0.002),
+    '0086 (b1): Kiste ab — zuviel_je_kiste ist nicht Ist − Soll';
+  assert not exists (select 1 from erg_marge_charge
+                      where kistensystem = 'stueck' and band_mittel_g is not null
+                        and abs(g_ueber_bandmitte - (g_je_kuerbis - band_mittel_g)) > 1),
+    '0086 (b2): Stück — g_ueber_bandmitte ist nicht Gramm je Kürbis − Bandmitte';
+  assert position('lieferung' in pg_get_viewdef('v_marge_charge'::regclass)) = 0,
+    '0086 (b3): die Marge je Charge darf nicht an der Verkaufsdatei hängen';
+
+  -- (c) Die Chargen summieren sich zur Sorte: Wägungen, Kisten, und das
+  --     gewichtete Mittel je Kiste. Sonst zeigte die aufgeklappte Charge
+  --     andere Zahlen als die Zeile darüber.
+  assert not exists (
+    select 1
+      from erg_marge_wiegung w
+      left join (select sorte, kistensystem, soll_kg_pro_kiste, kaliber_idx, stueck_je_kiste,
+                        sum(n_wiegungen) as n, sum(kisten) as kisten,
+                        sum(kg_je_kiste * n_wiegungen) / sum(n_wiegungen) as kg_je_kiste
+                   from erg_marge_charge
+                  group by 1, 2, 3, 4, 5) c
+        on c.sorte = w.sorte and c.kistensystem = w.kistensystem
+       and c.soll_kg_pro_kiste is not distinct from w.soll_kg_pro_kiste
+       and c.kaliber_idx is not distinct from w.kaliber_idx
+       and c.stueck_je_kiste is not distinct from w.stueck_je_kiste
+     where c.n is distinct from w.n_wiegungen
+        or c.kisten is distinct from w.kisten
+        or abs(c.kg_je_kiste - w.kg_je_kiste) > 0.01),
+    '0086 (c1): die Chargen summieren sich nicht zur Sorte (Wägungen, Kisten oder kg je Kiste)';
+  assert not exists (
+    select 1 from erg_marge_charge c
+     where not exists (select 1 from erg_marge_wiegung w
+                        where w.sorte = c.sorte and w.kistensystem = c.kistensystem
+                          and w.soll_kg_pro_kiste is not distinct from c.soll_kg_pro_kiste
+                          and w.kaliber_idx is not distinct from c.kaliber_idx
+                          and w.stueck_je_kiste is not distinct from c.stueck_je_kiste)),
+    '0086 (c2): eine Charge hat eine Zeile, die es je Sorte nicht gibt';
+
+  -- (d) Das Rechenwerk und der Stand.
+  select pg_get_functiondef('auswertung_schritt(integer)'::regprocedure) into v_txt;
+  assert v_txt like '%erg_marge_charge%', '0086 (d1): Schritt 4 rechnet erg_marge_charge nicht';
+  assert schema_stand() >= 86, format('0086 (d2): schema_stand() = %s, mindestens 86 erwartet', schema_stand());
+
+  perform demo_daten_entfernen();
+  update einstellung set wert = v_modus where schluessel = 'betriebsmodus';
+  perform auswertung_aktualisieren();
+  delete from profil where id = v_u;
+  delete from auth.users where id = v_u;
+  raise notice 'OK  0086 — Die Marge je Charge: dieselbe Rechnung wie je Sorte, und die Chargen summieren sich zur Sorte';
+end $$;
+
+select '——— 0086 Marge je Charge geprüft ———' as ergebnis;
+
+-- =====================================================================
+-- 0087 — Die Auffälligkeit „Ausschuss-Tara" kennt die Palette
+--
+-- Von der Kette gefunden: Eine richtige Ausschuss-Zeile ohne Palette
+-- (12 kg brutto, 1 Kiste G2 → 11 kg) stand als Tippfehler da, weil die
+-- Nachrechnung in der Plausibilität noch immer die Palette abzog und
+-- auf null klemmte. Geprüft wird, dass die Probe jetzt so rechnet wie
+-- der Auslöser — und dass sie eine wirklich veränderte Tara weiterhin
+-- meldet.
+-- =====================================================================
+do $$
+declare
+  v_u  uuid := '00000000-0087-0000-0000-000000000001';
+  v_a  bigint; v_n int; v_tara numeric;
+begin
+  insert into auth.users (id, email, raw_user_meta_data)
+  values (v_u, null, '{"name":"Prüf-0087"}');
+  update profil set rolle = 'admin' where id = v_u;
+  perform set_config('request.jwt.claim.sub', v_u::text, true);
+
+  insert into auftrag (weg, station, charge_nr, start_ts, eroeffnet_von)
+    select 'hand', 'waschen', c.nr, now() - interval '2 hours', v_u
+      from charge c order by nr limit 1 returning id into v_a;
+  -- Die zwei Zeilen aus der Kette: ohne und mit Palette.
+  insert into ausschuss_messung (auftrag_id, art, brutto_kg, kisten, gebindeart, mit_palette)
+    values (v_a, 'zu_klein', 12, 1, 'G2', false), (v_a, 'zu_klein', 60, 4, 'G2', true);
+  assert (select string_agg(kg::text, ',' order by id) from ausschuss_messung where auftrag_id = v_a) = '11,29',
+    '0087 (a0): der Auslöser rechnet nicht 11 und 29';
+
+  -- (a) Richtig gespeichert heisst: keine Auffälligkeit.
+  select count(*) into v_n from v_plausibilitaet where auftrag_id = v_a and art = 'Ausschuss-Tara';
+  assert v_n = 0, format('0087 (a1): %s richtige Ausschuss-Zeilen stehen als „Ausschuss-Tara" da', v_n);
+
+  -- (b) Ändert sich die Tara nach dem Wiegen, meldet die Probe es — bei
+  --     beiden Zeilen, mit dem Netto der neuen Tara (ohne Palette: 12 − 2 = 10).
+  select tara_kg_pro_kiste into v_tara from gebinde where art = 'G2';
+  update gebinde set tara_kg_pro_kiste = 2 where art = 'G2';
+  select count(*) into v_n from v_plausibilitaet where auftrag_id = v_a and art = 'Ausschuss-Tara';
+  assert v_n = 2, format('0087 (b1): nach geänderter Tara %s statt 2 Auffälligkeiten', v_n);
+  assert exists (select 1 from v_plausibilitaet where auftrag_id = v_a and art = 'Ausschuss-Tara'
+                  and befund like '11 kg zu klein gespeichert%wären es 10 kg'),
+    '0087 (b2): die Nachrechnung ohne Palette nennt nicht 10 kg';
+  assert exists (select 1 from v_plausibilitaet where auftrag_id = v_a and art = 'Ausschuss-Tara'
+                  and befund like '29 kg zu klein gespeichert%wären es 27 kg'),
+    '0087 (b3): die Nachrechnung mit Palette nennt nicht 27 kg';
+  update gebinde set tara_kg_pro_kiste = v_tara where art = 'G2';
+  select count(*) into v_n from v_plausibilitaet where auftrag_id = v_a and art = 'Ausschuss-Tara';
+  assert v_n = 0, '0087 (b4): mit der alten Tara zurück bleibt eine Auffälligkeit stehen';
+
+  -- (c) Der Stand.
+  assert schema_stand() >= 87, format('0087 (c1): schema_stand() = %s, mindestens 87 erwartet', schema_stand());
+
+  delete from ausschuss_messung where auftrag_id = v_a;
+  delete from auftrag where id = v_a;
+  delete from profil where id = v_u;
+  delete from auth.users where id = v_u;
+  raise notice 'OK  0087 — „Ausschuss-Tara" rechnet wie der Auslöser: Palette nur wenn mitgewogen, keine Klemme auf null; eine geänderte Tara wird weiterhin gemeldet';
+end $$;
+
+select '——— 0087 Ausschuss-Tara geprüft ———' as ergebnis;

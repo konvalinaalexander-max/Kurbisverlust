@@ -130,7 +130,7 @@ export function PaloxMaske({ d, gesperrt, gespeichert, unveraendertErlaubt = fal
                   onClick={() => void speichern('geleert')} disabled={gesperrt || laeuft}>
             {t('paloxGeleertJa')}
           </button>
-          <p className="hilfe">{t('paloxGeleertFolge')}</p>
+          <p className="hilfe">{t('paloxGeleertFolge')} {t('paloxLeerenTipp')}</p>
           <button type="button" id="palox-vertippt" className="voll" style={{ marginTop: '.6rem', minHeight: 48 }}
                   onClick={() => setStand('')} disabled={gesperrt || laeuft}>
             {t('paloxVertippt')}

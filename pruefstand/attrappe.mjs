@@ -74,6 +74,15 @@ export async function restAntwort(route) {
       const staende = fixture('rpc_palox_letzter_stand') ?? {}
       return route.fulfill({ json: staende[body.p_station] ?? null })
     }
+    // Runde V: der letzte Palox-Stand DIESER Arbeit (0073/0084) — aus den
+    // Ablesungen der Attrappe, wie die Datenbank ihn rechnen würde.
+    if (fn === 'palox_stand_dieser_arbeit') {
+      const body = JSON.parse(route.request().postData() ?? '{}')
+      const zeilen = [...(fixture('schimmel_messung') ?? []), ...(geschrieben.schimmel_messung ?? [])]
+        .filter(z => Number(z.auftrag_id) === Number(body.p_auftrag_id) && z.palox_stand_kg != null && z.gemessen !== false)
+        .sort((a, b) => String(a.ts).localeCompare(String(b.ts)) || a.id - b.id)
+      return route.fulfill({ json: zeilen.length ? Number(zeilen[zeilen.length - 1].palox_stand_kg) : null })
+    }
     // Runde R: die beiden Stichtag-Funktionen haben je Stichtag ein eigenes
     // Fixture (rpc_<fn>_<h>.json). Wer einen Stichtag ohne Datei anfragt,
     // bekommt leer und steht auf der Fehlliste — nicht die Zahlen von heute,

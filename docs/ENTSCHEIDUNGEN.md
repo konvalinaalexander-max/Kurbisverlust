@@ -3632,3 +3632,150 @@ Migration liest sie, um die Bestandsdaten ehrlich zu deuten: Wer sein Datum
 aus dem Dateinamen hatte, bekommt `sortiertag_quelle = 'datei'`, wer es vom
 Zeitstempel hatte, `'dateistempel'` — und der sagt von sich, dass er kein
 Sortierdatum ist.
+
+## Runde V: die Halle meldet sich (26. September, 0083–0087)
+
+### Der Ausschuss, der immer null war
+
+Der Betrieb: „ich glaube es hat einen bug beim eintragen von zu klein und
+zu gross bei waschen und waschen und sortieren - man kanns zwar eingeben -
+aber es gibt trotzdem immer nur 0 ein". Er hatte recht, und der Fehler
+lag an zwei Stellen, die einander deckten.
+
+Die Rechnung zog **immer** die Palette ab — 25 kg —, auch wenn der
+Ausschuss in einer einzelnen Kiste auf dem Boden stand. Eine Kiste von 12
+kg brutto minus 1.5 kg Tara minus 25 kg Palette ist −14.5 kg. Und dieses
+Ergebnis klemmte die Maske mit `Math.max(…, 0)` auf null, und der Auslöser
+in der Datenbank mit `greatest(…, 0)` gleich noch einmal. Zwei Sicherungen,
+die beide dasselbe taten: aus einer unmöglichen Zahl eine falsche machen.
+
+Jetzt fragt die Maske, ob die Ware auf einer Palette steht
+(`mit_palette`), und die Datenbank **weigert sich** bei einem Netto unter
+null mit einem Satz, der sagt, was nicht stimmen kann. Die alten Zeilen
+wurden nachträglich gedeutet: Wo die Null nur aus der Palette kam — ohne
+Palette wäre das Netto positiv —, steht jetzt „ohne Palette". Wo es nicht
+eindeutig ist, steht „Palette fraglich" in den Auffälligkeiten, und der
+Betriebsleiter entscheidet.
+
+### Brutto und Netto
+
+Der Betrieb wollte sichergehen: „du weisst dass das zettelgewicht brutto
+ist - und dass das abgelesene gewicht auch brutto ist … schau dass du
+immer brutto und netto korrekt speicherst". Das Audit über alle
+Schreibpfade fand keinen Fall, in dem die App ein Netto speichert: Jede
+Tabelle nimmt `brutto_kg`, und jedes Netto entsteht in einem Auslöser aus
+Brutto, Kisten, Gebinde und Palette. Die Verdunstung vergleicht also Netto
+mit Netto derselben Rechnung. Was fehlte, war das Wort: Die Felder heissen
+jetzt „(kg brutto)", in allen sechs Sprachen.
+
+### Der Palox wird mittendrin geleert
+
+Seit 0073 galt: Fällt der Stand, ist die Menge der ganzen Arbeit unbekannt
+— richtig („leer ist nicht null"), aber schade, denn der Betrieb leert
+den Palox, wenn er voll ist, und das ist oft mitten am Tag. Der Weg, der
+die Menge bekannt hält, sind zwei Ablesungen: vor dem Leeren (eine normale
+Ablesung, die Differenz zählt) und danach die leere Box. Die zweite ist
+ein **neuer Anfang**: `palox_nach_leeren`, Differenz 0, und alles Weitere
+rechnet von dort.
+
+Warum nicht das alte `palox_geleert` wiederverwenden? Weil es das
+Gegenteil bedeutet: „der Stand ist gefallen, und niemand weiss, wie viel
+vorher noch dazukam" — eine unbekannte Menge. Die neue Spalte bedeutet
+„gemessen geleert" — eine bekannte. Zwei Bedeutungen, zwei Spalten; eine
+Spalte mit zwei Bedeutungen wäre der nächste stille Fehler.
+
+Die Ablesung nach dem Leeren ist mit dem Leergewicht aus den
+Einstellungen **vorbelegt**, und die Maske sagt das (AB-50: eine
+vorbelegte Zahl darf nicht wie eine gemessene aussehen). Wer die Waage
+abliest, überschreibt sie.
+
+### Die Rückmeldung — und warum sie nicht im Repository liegt
+
+Der Betrieb: „am ende eines auftrags … soll die app fragen ob alles gut
+lief oder verbesserungswünsche … textfeld … grosser knopf mit mikrofon
+… und die audiodatei soll irgendwo im github abgelegt werden".
+
+Der Text und der Knopf sind gebaut, wie gewünscht (0085,
+`Sprachaufnahme.tsx`): aufnehmen, beenden, anhören, löschen, neu
+aufnehmen, „Bitte auf Hochdeutsch sprechen". Gespeichert wird beim
+Abschliessen — und nur, wenn etwas da ist: Text, Aufnahme oder beides.
+Eine leere Rückmeldung gibt es nicht als Zeile.
+
+Die Datei liegt **nicht** im Repository, sondern im Speicher des
+Supabase-Projekts (Bucket `rueckmeldungen`), und das ist eine bewusste
+Abweichung vom Wortlaut. Ein Repository ist Quelltext: Jede Datei darin
+ist eine Fassung des Programms, wird bei jedem Auschecken mitkopiert und
+ist für jeden lesbar, der den Quelltext lesen darf. Eine Sprachaufnahme
+über einen Arbeitstag ist ein Betriebsdatum — sie gehört dorthin, wo auch
+die Rohdateien der Sortiermaschine und jede Messung liegen, hinter
+denselben Zugangsregeln, im selben Projekt, das der Betrieb selbst
+verwaltet. Der Bucket ist nicht öffentlich; die App holt sich zum Anhören
+eine auf eine Stunde befristete Adresse. Und eine Aufnahme wird nie
+überschrieben oder gelöscht — es gibt keine Regel dafür.
+
+Ausgewertet wird die Rückmeldung nicht. Sie ist eine Stimme aus der Halle
+für den Betriebsleiter; sie steht bei den Arbeiten unter Betrieb, mit
+einem Zeichen für Text oder Ton, zum Aufklappen.
+
+Was der Prüfstand nicht kann: aufnehmen. Ein Browser ohne Mikrofon nimmt
+nichts auf, und die Kette läuft in einem solchen. Sie prüft den Text —
+im ersten Durchlauf kommt er an, im zweiten bleibt er leer und erzeugt
+keine Zeile. Die Zustände der Aufnahme (läuft, fertig, gelöscht, neu) sind
+von Hand geprüft; der Prüfblock 0085 prüft die Datenbank dahinter.
+
+### Die verschenkte Marge, gegliedert wie die Ansicht
+
+Zwei Karten nebeneinander, je Sorte zusammengefasst, das Kaliber als „K2"
+ohne Gramm: Der Betrieb nannte es scheusslich, und er hatte recht. Der
+Bildschirm kann nur gliedern, was die Datenbank auseinanderhält —
+`v_marge_wiegung` (0078) fasst je Sorte zusammen, die Charge ist darin
+verschwunden. 0086 stellt dieselbe Rechnung eine Ebene feiner daneben
+(`v_marge_charge`): dieselben Spalten, derselbe Nenner (nur volle
+Paletten), plus Charge und Schlag. Nicht statt, sondern zusätzlich: Die
+Zahl je Sorte ist die, mit der der Betriebsleiter die Kisten füllen lässt;
+die je Charge zeigt, wo es herkommt.
+
+Die Karte folgt dem Filter oben, eine Stufe feiner: alle Chargen → je
+Sorte ein Block, die Chargen aufklappbar darunter; eine Sorte → die
+Chargen untereinander; eine Charge → ihre Wägungen. Das Kaliber heisst,
+was es wiegt: „K2 · 900–1200 g", aus dem Sortierschema der Sorte. Der
+Prüfblock 0086 hält die Chargen gegen die Sorte: Wägungen, Kisten und das
+gewichtete Mittel je Kiste müssen sich aufsummieren — sonst zeigte die
+aufgeklappte Charge andere Zahlen als die Zeile darüber.
+
+### Was die Kette gefunden hat
+
+Beim Rückwärts-Einspielen der Runde (`kette_pruefen.sh`) stand die Kiste
+Ausschuss von 12 kg ohne Palette — richtig als 11 kg gespeichert — sofort
+als Auffälligkeit da: „aus Brutto 12.00 kg und heutiger Tara wären es
+0 kg". Die Nachrechnung in `v_plausibilitaet` (0066/0070) war die alte
+Rechnung: immer die Palette abziehen, und das Ergebnis mit `greatest(…, 0)`
+auf null klemmen. Die zwei Fehler aus 0083 lebten dort ein drittes Mal
+weiter — und hätten jede richtige Ausschuss-Zeile ohne Palette als
+Tippfehler gemeldet. 0087 lässt die Probe so rechnen wie den Auslöser;
+der Prüfblock 0087 hält beides fest: richtig gespeichert heisst keine
+Meldung, und eine nach dem Wiegen geänderte Tara wird weiterhin gemeldet.
+
+### Farben
+
+„Ausgang kumuliert" und „Davon verkaufsfähig" waren rot und grün. Für
+jemanden mit Rot-Grün-Schwäche sind das zwei gleiche Linien. Jetzt grau
+und blau (`--text-leise`, `--blau`). Die Regel daraus steht als AB-79:
+Keine Aussage hängt allein an Rot gegen Grün.
+
+### Was bewusst nicht gemacht wurde
+
+**Keine Verschriftlichung der Aufnahme.** Ein Dienst, der Sprache zu Text
+macht, wäre eine neue Abhängigkeit und ein Weg der Betriebsdaten nach
+draussen. Der Betriebsleiter hört zu.
+
+**Die Demo-Saison hat keine Rückmeldungen und kein gemessenes Leeren.**
+Beides ist im Prüfblock und in der Kette belegt, nicht in den
+Beispieldaten — dieselbe Abweichung wie bei der Sammeldatei in Runde U,
+und aus demselben Grund hier notiert.
+
+**Die Frage zu Charge 1625 ist offen.** „Im Lager 937 kg" ist die
+Eingangsmasse, die noch keine Lieferung erklärt (Eingang minus
+Lieferungen ÷ verkaufsfähigen Anteil), nicht das, was in der Halle liegt.
+Ob dort etwa eine Tonne oder drei liegen, entscheidet, ob nur die
+Beschriftung oder die Ausbeute falsch ist — die Antwort steht aus.

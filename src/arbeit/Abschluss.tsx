@@ -1,17 +1,18 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useSprache } from '../sprache/SprachProvider'
 import { einstellung, fehlerText } from '../lib/db'
 import { Hinweis } from '../components/Bausteine'
 import { Schritt, Wahl } from '../components/Schritte'
 import { PaloxMaske } from './PaloxMaske'
+import { Sprachaufnahme, sprachaufnahmeMoeglich, type Aufnahme } from './Sprachaufnahme'
 import { FauleMaske } from './FauleMaske'
 import { AusschussMaske } from './AusschussMaske'
 import { FertigePaletteMaske } from './FertigePaletteMaske'
 import { vorschlagTageSeitWaschen } from '../lib/taetigkeit'
 import { fertigeSoll, stationsProfil, type ArbeitDaten } from './daten'
 
-type SchrittId = 'palox' | 'geleert' | 'faule' | 'wiegen' | 'ausschuss' | 'paletten' | 'wasch_paletten' | 'ausgang' | 'fertige_gesamt' | 'charge' | 'pruefen'
+type SchrittId = 'palox' | 'geleert' | 'faule' | 'wiegen' | 'ausschuss' | 'paletten' | 'wasch_paletten' | 'ausgang' | 'fertige_gesamt' | 'charge' | 'rueckmeldung' | 'pruefen'
 
 /**
  * Der geführte Abschluss (AB-02, AB-04, AB-05): Was man vergessen kann, wird
@@ -58,6 +59,10 @@ export function Abschluss({ d, neuLaden, zurueck, fertig }: {
    *  gelesen, damit die Schrittliste nicht unter den Füssen wegrutscht,
    *  wenn „Ja, geleert" den Auftrag mitten im Abschluss umschreibt. */
   const [ohnePaloxVonAnfang] = useState(d.auftrag.palox_unbekannt)
+  /** 0085: die Rückmeldung — Text, Aufnahme oder beides; leer heisst keine Zeile. */
+  const [rueckText, setRueckText] = useState('')
+  const [aufnahme, setAufnahme] = useState<Aufnahme | null>(null)
+  const rueckGespeichert = useRef(false)
   const [eineCharge, setEineCharge] = useState<boolean | null>(null)
   const [gleicheSorte, setGleicheSorte] = useState<boolean | null>(null)
   const [paletten, setPaletten] = useState(String(d.auftrag.paletten_gesamt ?? ''))
@@ -121,11 +126,15 @@ export function Abschluss({ d, neuLaden, zurueck, fertig }: {
   // der Arbeit bliebe unbekannt. Also zwei: Beginn und Ende. Oder eine plus
   // ausdrücklich „Stand unverändert" (die schreibt eine echte Null).
   const paloxAblesungen = d.ablesungen.filter(x => x.palox_stand_kg !== null).length
+  // 0084: Wurde der Palox mit „Palox leeren" geleert — vorher und nachher
+  // abgelesen —, ist die Frage beantwortet, und zwar besser als mit Ja/Nein:
+  // die Menge ist bekannt. Dann wird sie nicht mehr gestellt.
+  const geleertGemessen = d.ablesungen.some(x => x.palox_nach_leeren)
   const schritte = useMemo<SchrittId[]>(() => [
     ...(p.hatPalox && !ohnePaloxVonAnfang ? ['palox' as const] : []),
     // Die Frage nach dem Leeren hat erst mit zwei Ablesungen einen Sinn —
     // vorher gibt es keine Differenz, die ein Leeren verfälschen könnte.
-    ...(p.hatPalox && !ohnePaloxVonAnfang && paloxAblesungen >= 2 ? ['geleert' as const] : []),
+    ...(p.hatPalox && !ohnePaloxVonAnfang && paloxAblesungen >= 2 && !geleertGemessen ? ['geleert' as const] : []),
     ...(p.hatFaule ? ['faule' as const] : []),
     ...(wiegenErinnern ? ['wiegen' as const] : []),
     ...(p.hatAusschuss ? ['ausschuss' as const] : []),
@@ -134,8 +143,10 @@ export function Abschluss({ d, neuLaden, zurueck, fertig }: {
     ...(p.hatAusgang ? ['ausgang' as const] : []),
     ...(p.hatAusgang ? ['fertige_gesamt' as const] : []),
     'charge',
+    // 0085: vor dem endgültigen Abschliessen — was die Person zu sagen hat.
+    'rueckmeldung',
     'pruefen',
-  ], [p.hatPalox, ohnePaloxVonAnfang, paloxAblesungen, p.hatFaule, wiegenErinnern, p.hatAusschuss, p.hatFaxPaletten, p.hatWaschPaletten, p.hatAusgang])
+  ], [p.hatPalox, ohnePaloxVonAnfang, paloxAblesungen, geleertGemessen, p.hatFaule, wiegenErinnern, p.hatAusschuss, p.hatFaxPaletten, p.hatWaschPaletten, p.hatAusgang])
   const aktuell = schritte[Math.min(pos, schritte.length - 1)]
   const n = pos + 1, von = schritte.length
   const weiter = () => setPos(x => Math.min(x + 1, schritte.length - 1))
@@ -153,7 +164,7 @@ export function Abschluss({ d, neuLaden, zurueck, fertig }: {
   else if (p.paloxPflicht && !paloxUnbekannt && paloxAblesungen === 1) fehlt.push(t('paloxEndeFehlt'))
   // Der Betrieb sagt, das Leeren mittendrin kommt vor. Also wird gefragt —
   // und „ja" heisst: die Menge dieser Arbeit ist unbekannt, nicht null.
-  if (p.hatPalox && !paloxUnbekannt && paloxAblesungen >= 2 && paloxGeleert === null) fehlt.push(t('paloxGeleertFrage'))
+  if (p.hatPalox && !paloxUnbekannt && paloxAblesungen >= 2 && !geleertGemessen && paloxGeleert === null) fehlt.push(t('paloxGeleertFrage'))
   if (p.hatFaule && d.ablesungen.length === 0) fehlt.push(t('faulesFehlt'))
   if (p.hatFaxPaletten && !palettenOk) fehlt.push(t('palettenGesamt'))
   if (p.hatWaschPaletten && waschKisten === 0) fehlt.push(t('palettenFehlen'))
@@ -201,6 +212,26 @@ export function Abschluss({ d, neuLaden, zurueck, fertig }: {
 
   async function abschliessen() {
     setLaeuft(true); setFehler(null)
+    // 0085: Die Rückmeldung zuerst — die Aufnahme in den Speicher, die Zeile
+    // dazu. Einmal: Scheitert der Abschluss danach, wird beim zweiten
+    // Versuch nicht noch einmal geschrieben.
+    const text = rueckText.trim()
+    if (!rueckGespeichert.current && (text || aufnahme)) {
+      let audio_ref: string | null = null
+      if (aufnahme) {
+        const endung = aufnahme.typ.includes('mp4') ? 'm4a' : aufnahme.typ.includes('ogg') ? 'ogg' : 'webm'
+        audio_ref = `${d.auftrag.id}/${Date.now()}.${endung}`
+        const { error: e1 } = await supabase.storage.from('rueckmeldungen')
+          .upload(audio_ref, aufnahme.blob, { contentType: aufnahme.typ, upsert: false })
+        if (e1) { setLaeuft(false); setFehler(fehlerText(e1)); return }
+      }
+      const { error: e2 } = await supabase.from('auftrag_rueckmeldung').insert({
+        auftrag_id: d.auftrag.id, text: text || null, audio_ref,
+        audio_typ: aufnahme?.typ ?? null, audio_sekunden: aufnahme?.sekunden ?? null,
+      })
+      if (e2) { setLaeuft(false); setFehler(fehlerText(e2)); return }
+      rueckGespeichert.current = true
+    }
     const angaben: { schluessel: string; wert: string }[] = []
     if (eineCharge !== null) angaben.push({ schluessel: 'eine_charge', wert: String(eineCharge) })
     if (eineCharge === false && gleicheSorte !== null) angaben.push({ schluessel: 'gleiche_sorte', wert: String(gleicheSorte) })
@@ -370,6 +401,21 @@ export function Abschluss({ d, neuLaden, zurueck, fertig }: {
     )
   }
 
+  if (aktuell === 'rueckmeldung') {
+    return (
+      <Schritt nummer={n} von={von} frage={t('rueckmeldungFrage')} zurueck={zurueckSchritt} weiter={weiter}>
+        <div className="karte">
+          <div className="feld">
+            <label htmlFor="rueckmeldung-text">{t('rueckmeldungSchreiben')}</label>
+            <textarea id="rueckmeldung-text" rows={3} value={rueckText} onChange={e => setRueckText(e.target.value)} />
+          </div>
+          {sprachaufnahmeMoeglich() && <Sprachaufnahme wert={aufnahme} setzen={setAufnahme} />}
+          <p className="hilfe">{t('rueckmeldungFreiwillig')}</p>
+        </div>
+      </Schritt>
+    )
+  }
+
   if (aktuell === 'charge') {
     const ok = eineCharge === true || (eineCharge === false && gleicheSorte !== null)
     return (
@@ -404,11 +450,15 @@ export function Abschluss({ d, neuLaden, zurueck, fertig }: {
           {p.hatFaxPaletten && <><dt>{t('palettenGesamt')}</dt><dd>{paletten || '—'}{tage !== '' && <span className="leise"> · {tage} {t('tageSeitWaschen')}</span>}</dd></>}
           {/* Altarbeiten zeigen weiter, was sie gezählt haben (Runde Q). */}
           {kistenGezaehlt > 0 && <><dt>{t('kaliberKisten')}</dt><dd>{kistenGezaehlt}</dd></>}
-          <dt>{t('faule')}</dt><dd>{d.ablesungen.reduce((s, z) => s + z.kg, 0)} kg · {d.ablesungen.length} {p.istFax ? t('kisten') : t('ablesungen')}</dd>
+          <dt>{t('faule')}</dt><dd>{d.ablesungen.reduce((s, z) => s + z.kg, 0)} kg · {d.ablesungen.length} {p.istFax ? t('kisten') : t('ablesungen')}{geleertGemessen && <span className="leise"> · {d.ablesungen.filter(x => x.palox_nach_leeren).length}× {t('geleertWort')}</span>}</dd>
           {p.hatAusschuss && <><dt>{t('ausschussWiegenSchritt')}</dt><dd>{d.ausschuss.length > 0 ? `${t('zuKlein')} ${ausschussSumme('zu_klein')} kg · ${t('zuGross')} ${ausschussSumme('zu_gross')} kg` : '—'}</dd></>}
           {p.hatAusgang && <><dt>{t('fertigePalette')}</dt><dd>{d.nAusgang > 0 ? d.nAusgang : t('keineGewogen')}</dd></>}
           <dt>{t('eineChargeFrage')}</dt>
           <dd>{eineCharge === null ? '—' : eineCharge ? t('ja') : `${t('nein')}${gleicheSorte === null ? '' : gleicheSorte ? ` · ${t('gleicheSorteJa')}` : ` · ${t('gleicheSorteNein')}`}`}</dd>
+          <dt>{t('rueckmeldung')}</dt>
+          <dd>{rueckText.trim() || aufnahme
+            ? <>{rueckText.trim() && <span>{rueckText.trim()}</span>}{rueckText.trim() && aufnahme ? ' · ' : ''}{aufnahme && <span>{t('aufnahme')} {Math.floor(aufnahme.sekunden / 60)}:{String(aufnahme.sekunden % 60).padStart(2, '0')}</span>}</>
+            : '—'}</dd>
         </dl>
       </div>
       {erinnert.map(e => <Hinweis key={e} art="info">{e}</Hinweis>)}

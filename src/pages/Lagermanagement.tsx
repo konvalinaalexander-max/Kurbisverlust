@@ -208,11 +208,14 @@ function Verlauf({ daten, filter }: { daten: Auswertung; filter: Filter }) {
   const reihen: Reihe[] = [
     { name: 'Eingang kumuliert', farbe: 'var(--text-leise)', linie: true, marker: false, flaeche: true, ausgeblendet: true,
       punkte: bisHeute.map(w => ({ x: x(w.bis), y: w.eingang_kum_kg })) },
-    { name: 'Ausgang kumuliert', farbe: 'var(--strom-rest)', linie: true, marker: false,
+    // Runde V: Orange gegen Blau statt Orange gegen Grün — das Paar, das
+    // auch bei Rot-Grün-Schwäche zwei Linien bleibt. Der Ausgang ist
+    // Umgebung, kein Vergleich, und steht darum in Grau.
+    { name: 'Ausgang kumuliert', farbe: 'var(--text-leise)', linie: true, marker: false,
       punkte: bisHeute.map(w => ({ x: x(w.bis), y: w.ausgang_kum_kg })) },
     { name: 'Im Lager', farbe: 'var(--kuerbis)', linie: true, marker: false, dick: true, prognoseAb: heute,
       punkte: wochen.map(w => ({ x: x(w.bis), y: w.lager_kg })) },
-    { name: 'Davon verkaufsfähig', farbe: 'var(--strom-rest)', linie: true, marker: false, dick: true, prognoseAb: heute,
+    { name: 'Davon verkaufsfähig', farbe: 'var(--blau)', linie: true, marker: false, dick: true, prognoseAb: heute,
       punkte: wochen.map(w => ({ x: x(w.bis), y: w.verkaufsfaehig_kg,
         text: `${prozent(anteil(w), 0)} der liegenden Ware · zu klein/zu gross ${tonnen(w.kanal_kg)}` })) },
   ]

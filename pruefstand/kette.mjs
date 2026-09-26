@@ -258,6 +258,34 @@ await schritt('Nach dem Start steht der Palox als erstes — und ohne Ablesung g
   await warteAuf('schimmel_messung')
   await seite.locator('#check-abschluss').waitFor()
   await seite.locator('#check-ausschuss').waitFor()      // zu klein / zu gross am Ende, je Palette (0061)
+})
+
+await schritt('Palox mittendrin leeren (0084): vorher 265 (→ 100 kg), leeren, leere Box 165 → neuer Anfang; die Menge bleibt bekannt', async () => {
+  // Runde V: Bis 0084 war ein Leeren das Ende jeder Messung — der Stand
+  // fiel, die Menge der Arbeit war unbekannt. Jetzt gibt es den Knopf, der
+  // die Menge bekannt hält: Ablesung vor dem Leeren, Ablesung danach.
+  await seite.locator('#check-palox-leeren').click()
+  await seite.locator('#palox-vor').fill('150')          // niedriger als 165: kann nicht „vor dem Leeren" sein
+  if (!(await seite.locator('#palox-vor-eintragen').isDisabled())) throw new Error('Ein Stand unter der letzten Ablesung darf nicht als „vor dem Leeren" gelten (0084)')
+  await seite.getByText(/niedriger als bei der letzten Ablesung/).waitFor()
+  await seite.locator('#palox-vor').fill('265')          // 265 − 165 = 100 kg bis hierher
+  const vor = await seite.locator('.netto-zeile strong').first().textContent()
+  if (!/^100 kg/.test(vor ?? '')) throw new Error(`Vor dem Leeren zeigt „${vor}" statt 100 kg (265 − 165)`)
+  await seite.locator('#palox-vor-eintragen').click()
+  await warteAuf('schimmel_messung', 'POST', 2)
+  // Danach: die leere Box. Vorbelegt mit dem Leergewicht aus den
+  // Einstellungen — der Prüfstand liest die Waage selbst ab.
+  await seite.locator('#palox-nach').waitFor()
+  await seite.locator('#palox-nach').fill('165')
+  await seite.locator('.netto-zeile strong', { hasText: /Neuer Anfang/ }).waitFor()
+  await seite.locator('#palox-nach-eintragen').click()
+  await warteAuf('schimmel_messung', 'POST', 3)
+  await seite.locator('#check-palox-leeren').waitFor()
+  await seite.getByText(/1× geleert um/).waitFor()       // die Checkliste sagt, dass geleert wurde
+  const ab = protokoll.filter(x => x.tabelle === 'schimmel_messung').map(x => x.zeilen[0])
+  if (ab.length !== 3) throw new Error(`3 Ablesungen erwartet, ${ab.length} mitgeschnitten`)
+  if (Number(ab[1].palox_stand_kg) !== 265 || ab[1].kg !== 100 || ab[1].palox_nach_leeren) throw new Error(`Die Ablesung vor dem Leeren stimmt nicht: ${JSON.stringify(ab[1])}`)
+  if (Number(ab[2].palox_stand_kg) !== 165 || ab[2].kg !== 0 || ab[2].palox_nach_leeren !== true) throw new Error(`Der neue Anfang stimmt nicht: ${JSON.stringify(ab[2])}`)
   if (await seite.locator('#leer-ja').count() > 0) throw new Error('Die Ausschuss-Frage gibt es nicht mehr (0060)')
   // Runde T: die Checkliste in denselben drei Blöcken wie der Plan
   await seite.getByText('Vor der Arbeit').waitFor()
@@ -320,22 +348,18 @@ await schritt('Fertige Palette wiegen: 32 Kisten G2, 345 kg brutto → 8.5 kg je
   await seite.getByRole('button', { name: /Zurück/ }).click()
 })
 
-await schritt('Geführter Abschluss: Palox am Ende 285 (→ 120 kg), geleert? nein, Erinnerung (1 von 3 gewogen), zu klein: 1 Kiste 12 kg ohne Palette (→ 11 kg, vorher null) und 4 G2 60 kg mit Palette (→ 29 kg), fertige Palette erinnert, Gesamtzahl, eine Charge → fertig', async () => {
+await schritt('Geführter Abschluss: Palox am Ende 285 (→ 120 kg ab dem neuen Anfang, 220 kg gesamt), keine Frage „geleert?" mehr, Erinnerung (1 von 3 gewogen), zu klein: 1 Kiste 12 kg ohne Palette (→ 11 kg, vorher null) und 4 G2 60 kg mit Palette (→ 29 kg), fertige Palette erinnert, Gesamtzahl, eine Charge → fertig', async () => {
   await seite.locator('#check-abschluss').click()
-  // AB-02 / 0072: die zweite Ablesung derselben Arbeit ergibt die Menge — 285 − 165 = 120.
+  // AB-02 / 0072 / 0084: die Ablesung am Ende rechnet ab dem neuen Anfang —
+  // 285 − 165 = 120. Zusammen mit den 100 kg vor dem Leeren: 220 kg.
   await seite.locator('#palox').fill('285')
   const palox = await seite.locator('.netto-zeile strong', { hasText: /\d+ kg/ }).first().textContent()
   if (!/^120 kg/.test(palox ?? '')) throw new Error(`Palox-Vorschau zeigt „${palox}" statt 120 kg (285 − 165)`)
   await seite.locator('#palox-eintragen').click()
-  await warteAuf('schimmel_messung', 'POST', 2)
-  // 0072 / Runde T: „Palox zwischendurch geleert?" ist ein eigener Schritt und
-  // blockiert sichtbar — vorher lag die Frage unter der Maske und wurde
-  // übersehen. Nein (kein PATCH: der Auftrag steht schon auf nein).
-  await seite.locator('#geleert-nein').waitFor()
-  if (!(await seite.getByRole('button', { name: 'Weiter' }).isDisabled())) throw new Error('„Weiter" muss grau sein, bis „geleert?" beantwortet ist (Runde T)')
-  await seite.getByText('Bitte zuerst auswählen').waitFor()     // der Grund steht am Knopf
-  await seite.locator('#geleert-nein').click()
-  await seite.getByRole('button', { name: 'Weiter' }).click()
+  await warteAuf('schimmel_messung', 'POST', 4)
+  // 0084: Die Frage „Palox zwischendurch geleert?" gibt es nur, wenn das
+  // Leeren nicht gemessen wurde. Hier wurde es — die Frage entfällt.
+  if (await seite.locator('#geleert-nein').count() > 0) throw new Error('„Geleert?" darf nicht mehr gefragt werden, wenn das Leeren gemessen ist (0084)')
   // Runde H: nur eine von drei Paletten gewogen — gesagt, nicht erzwungen
   await seite.getByText('1 von 3 gewogen').first().waitFor()
   await seite.getByRole('button', { name: 'Trotzdem weiter' }).click()
@@ -384,14 +408,23 @@ await schritt('Geführter Abschluss: Palox am Ende 285 (→ 120 kg), geleert? ne
   await seite.getByRole('button', { name: 'Weiter' }).click()
   await seite.locator('#charge-ja').click()
   await seite.getByRole('button', { name: 'Weiter' }).click()
+  // 0085: vor dem Abschliessen die Rückmeldung — hier geschrieben. Eine
+  // Sprachaufnahme kann der Prüfstand nicht machen (kein Mikrofon); der
+  // Knopf dafür muss aber da sein, wenn der Browser aufnehmen kann.
+  await seite.locator('#rueckmeldung-text').waitFor()
+  await seite.locator('#rueckmeldung-text').fill('Lief gut. Die Waage stand schief, wir haben sie unterlegt.')
+  await seite.getByRole('button', { name: 'Weiter' }).click()
   await seite.locator('#arbeit-fertig').click()
   await seite.locator('#ja-fertig').click()
-  // Zwei PATCHes: „geleert? nein" (die Attrappe kennt palox_unbekannt an der
-  // frischen Zeile nicht, also schreibt die App es) und der Abschluss. Die
-  // Zahl muss genau stimmen: warteAuf() wartet auf „mindestens", und wer
-  // hier zu wenig verlangt, springt zum nächsten Durchlauf, bevor der
-  // Abschluss über die Leitung ist — dann fehlt er im Mitschnitt.
-  await warteAuf('auftrag', 'PATCH', 2)
+  await warteAuf('auftrag_rueckmeldung')
+  const rm = protokoll.find(x => x.tabelle === 'auftrag_rueckmeldung').zeilen[0]
+  if (!/Waage stand schief/.test(rm.text ?? '') || rm.audio_ref !== null) throw new Error(`Die Rückmeldung kommt nicht richtig mit: ${JSON.stringify(rm)}`)
+  // Ein PATCH: der Abschluss. (Bis 0084 waren es zwei — „geleert? nein"
+  // schrieb palox_unbekannt; die Frage entfällt, wenn das Leeren gemessen
+  // ist.) Die Zahl muss genau stimmen: warteAuf() wartet auf „mindestens",
+  // und wer hier zu wenig verlangt, springt zum nächsten Durchlauf, bevor
+  // der Abschluss über die Leitung ist — dann fehlt er im Mitschnitt.
+  await warteAuf('auftrag', 'PATCH', 1)
 })
 
 // ---------- Zweiter Durchlauf: Sortieren an der Maschine (AB-01, AB-06) ----
@@ -420,7 +453,7 @@ await schritt('Assistent: Sortieren, Charge 1613 eingetippt, Bänder angepasst (
 await schritt('Sortieren: Palox direkt nach dem Start (60, dann 75 am Ende → 15 kg), eine Palette mit Zettelgewicht, abschliessen', async () => {
   await seite.locator('#palox').fill('60')                    // Startstand dieser Arbeit (0072), keine Menge
   await seite.locator('#palox-eintragen').click()
-  await warteAuf('schimmel_messung', 'POST', 3)
+  await warteAuf('schimmel_messung', 'POST', 5)
   await seite.locator('#check-zaehlen').click()
   await seite.locator('#zettel').fill('2026-09-05')
   // 0072: auch beim Sortieren steht das Zettelgewicht — „anzahl paletten mit
@@ -436,14 +469,16 @@ await schritt('Sortieren: Palox direkt nach dem Start (60, dann 75 am Ende → 1
   await seite.locator('#check-abschluss').click()
   await seite.locator('#palox').fill('75')                    // 75 − 60 = 15 kg Faules dieser Arbeit
   await seite.locator('#palox-eintragen').click()
-  await warteAuf('schimmel_messung', 'POST', 4)
+  await warteAuf('schimmel_messung', 'POST', 6)
   await seite.locator('#geleert-nein').click()                // Runde T: eigener Schritt
   await seite.getByRole('button', { name: 'Weiter' }).click()
   await seite.locator('#charge-ja').click()
   await seite.getByRole('button', { name: 'Weiter' }).click()
+  await seite.locator('#rueckmeldung-text').waitFor()   // 0085: leer lassen — dann entsteht keine Zeile
+  await seite.getByRole('button', { name: 'Weiter' }).click()
   await seite.locator('#arbeit-fertig').click()
   await seite.locator('#ja-fertig').click()
-  await warteAuf('auftrag', 'PATCH', 4)
+  await warteAuf('auftrag', 'PATCH', 3)
 })
 
 // ---------- Dritter Durchlauf: entfällt — die Fax ist eingefroren (Runde R) --
@@ -537,9 +572,11 @@ await schritt('Waschen: Palox freiwillig, Paletten mit Sortierdatum (2 × 32 Kis
   await seite.getByRole('button', { name: 'Weiter' }).click()   // fünf gesamt
   await seite.locator('#charge-ja').click()
   await seite.getByRole('button', { name: 'Weiter' }).click()
+  await seite.locator('#rueckmeldung-text').waitFor()   // 0085
+  await seite.getByRole('button', { name: 'Weiter' }).click()
   await seite.locator('#arbeit-fertig').click()
   await seite.locator('#ja-fertig').click()
-  await warteAuf('auftrag', 'PATCH', 5)                       // … mit fertige_paletten_gesamt = 5
+  await warteAuf('auftrag', 'PATCH', 4)                       // … mit fertige_paletten_gesamt = 5
 })
 
 // ---------- Fünfter Durchlauf: Palette kontrollieren (0061) ----------------

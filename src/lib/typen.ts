@@ -29,6 +29,13 @@ export interface KontrollpaletteWiegung {
   sichtbar_schimmel: boolean; wiege_ts: string
 }
 
+/** 0085: was am Ende einer Arbeit gesagt wurde — Text, Aufnahme oder beides. */
+export interface Rueckmeldung {
+  id: number; auftrag_id: number; text: string | null
+  audio_ref: string | null; audio_typ: string | null; audio_sekunden: number | null
+  erfasser: string; ts: string
+}
+
 export interface Gebinde {
   art: string; tara_kg_pro_kiste: number | null; tara_kg_palette: number | null; bemerkung: string | null
 }

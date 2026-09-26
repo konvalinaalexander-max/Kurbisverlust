@@ -779,3 +779,23 @@ details.aufklapp > summary .leise { font-weight: var(--gewicht-normal); }
   .marge-zeile, .band-zeile { grid-template-columns: 1fr auto; }
   .marge-spur, .band-spur { grid-column: 1 / -1; order: 3; }
 }
+
+/* ---------- Runde V: die Sprachaufnahme am Ende der Arbeit ---------------- */
+.aufnahme { margin-top: var(--a-3); }
+.aufnahme-start { display: flex; align-items: center; justify-content: center; gap: .6rem; min-height: 64px; font-size: 1.15rem; }
+.aufnahme-stand { display: flex; align-items: center; gap: .5rem; margin: 0 0 .5rem; font-weight: 600; }
+.aufnahme-punkt { width: 12px; height: 12px; border-radius: 50%; background: var(--rot); animation: aufnahme-puls 1s ease-in-out infinite; }
+@keyframes aufnahme-puls { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .35; transform: scale(.75); } }
+@media (prefers-reduced-motion: reduce) { .aufnahme-punkt { animation: none; } }
+.rueckmeldung-zeile td { background: var(--flaeche-leise, transparent); }
+.rueckmeldung-text { white-space: pre-wrap; margin: 0 0 .4rem; }
+
+/* ---------- Runde V: die verschenkte Marge, gegliedert wie der Filter ------- */
+.marge-block { margin-top: var(--a-4); }
+.marge-block:first-child { margin-top: 0; }
+.marge-titel { font-size: var(--s-1); font-weight: var(--gewicht-mittel); margin: 0 0 .35rem; }
+.marge-titel.klein { font-size: var(--s-0); margin-top: var(--a-3); }
+.marge-charge + .marge-charge { border-top: 1px solid var(--rand); }
+.marge-tabelle thead + tbody + thead th { padding-top: var(--a-3); }
+.marge-spur-zelle { min-width: 11rem; }
+.marge-spur-zelle .marge-spur, .marge-spur-zelle .band-spur { display: block; width: 7rem; margin-bottom: .2rem; }

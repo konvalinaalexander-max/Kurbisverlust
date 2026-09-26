@@ -27,6 +27,10 @@ export const ZListe = ({ size }: P) => <Z size={size}><path d="M4 7h1.5M9 7h11M4
 export const ZRegler = ({ size }: P) => <Z size={size}><path d="M4 8h7M15 8h5M4 16h3M11 16h9" /><circle cx="13" cy="8" r="2.2" /><circle cx="9" cy="16" r="2.2" /></Z>
 /** Betrieb: Uhr. */
 export const ZUhr = ({ size }: P) => <Z size={size}><circle cx="12" cy="12" r="8.5" /><path d="M12 7.5V12l3 2" /></Z>
+/** Runde V: die Rückmeldung am Ende der Arbeit — gesprochen oder geschrieben. */
+export const ZMikrofon = ({ size }: P) => <Z size={size}><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3M8.5 21h7" /></Z>
+export const ZStopp = ({ size }: P) => <Z size={size}><rect x="6" y="6" width="12" height="12" rx="2" /></Z>
+export const ZSprechblase = ({ size }: P) => <Z size={size}><path d="M4 6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5v7a2.5 2.5 0 0 1-2.5 2.5H10l-4.5 4v-4A2.5 2.5 0 0 1 4 13.5z" /><path d="M8 9h8M8 12.5h5" /></Z>
 
 /* ---------- Marke ------------------------------------------------------------ */
 /** Der Kürbis — die Marke. Drei Rippen und ein Stiel. */

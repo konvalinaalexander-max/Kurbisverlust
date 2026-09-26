@@ -4,7 +4,7 @@ import { datum, kg, prozent, tonnen, zahl } from '../lib/format'
 import { Aufklapp, Erklaerung, Herkunft, Hinweis, Karte, Leer, Segmente } from '../components/Bausteine'
 import { Anteilsbalken, Linien, type Anteilszeile, type Reihe, type Zone } from '../components/Diagramm'
 import { lagerstaende, prognoseBei, schimmelKurve, useAuswertung, wohinVon,
-         type Auswertung, type Bestand, type Lagerstand, type MargeWiegung, type SortenK, type Wohin } from '../auswertung/daten'
+         type Auswertung, type Bestand, type Lagerstand, type MargeCharge, type MargeWiegung, type Schema, type SortenK, type Wohin } from '../auswertung/daten'
 import { Probleme, Rechnet, Reiterkopf } from '../auswertung/Karten'
 
 const TAG = 86400000
@@ -81,10 +81,7 @@ export default function Ursachen() {
       <Wohin daten={daten} filter={filter} setzen={setzen} />
       <Faules daten={daten} filter={filter} chargen={chargen} staende={staende} />
       <Verdunstung daten={daten} filter={filter} chargen={chargen} />
-      <div className="zwei-spalten">
-        <MargeKiste daten={daten} filter={filter} chargen={chargen} />
-        <MargeStueck daten={daten} filter={filter} chargen={chargen} />
-      </div>
+      <Marge daten={daten} filter={filter} chargen={chargen} />
     </>
   )
 }
@@ -429,125 +426,178 @@ function Verdunstung({ daten, filter, chargen }: { daten: Auswertung; filter: Fi
 
 /* ---------- U4: Verschenkte Marge ------------------------------------------- */
 
-function MargeKiste({ daten, filter, chargen }: { daten: Auswertung; filter: Filter; chargen: Bestand[] }) {
+/**
+ * Die verschenkte Marge — gegliedert wie der Filter oben (Runde V).
+ *
+ * Der Betrieb über die zwei alten Karten: „scheusslich … sagt nicht welches
+ * kaliber … die messungen übereinander und nicht clever zusammengefasst".
+ * Jetzt eine Karte, eine Ebene feiner als die Ansicht:
+ *
+ *   alle Chargen  →  je Sorte ein Block, ihre Chargen darunter aufklappbar
+ *   eine Sorte    →  je Charge ein Block
+ *   eine Charge   →  ihre Wägungen
+ *
+ * In jedem Block stehen die Kiste-ab-Zeilen (Soll, gewogen, zu viel) und die
+ * Stück-Zeilen (Kaliber mit seinem Band in Gramm, gewogen je Kürbis, über
+ * der Bandmitte). Das Kaliber heisst, was es wiegt: „K2 · 900–1200 g".
+ */
+function Marge({ daten, filter, chargen }: { daten: Auswertung; filter: Filter; chargen: Bestand[] }) {
   const sorten = new Set(chargen.map(c => c.sorte))
-  const zeilen = daten.margeWiegung
-    .filter(m => m.kistensystem === 'kiste_ab' && (filter.gruppe === 'gesamt' || sorten.has(m.sorte)))
-    .sort((a, b) => (b.zuviel_je_kiste ?? 0) - (a.zuviel_je_kiste ?? 0))
-  const spanne = Math.max(0.5, ...zeilen.map(z => Math.abs(z.zuviel_je_kiste ?? 0)))
-  const von = zeilen.map(z => z.von).filter(Boolean).sort()[0]
+  const imFilter = (m: { sorte: string; charge_nr?: number }) =>
+    filter.gruppe === 'gesamt' ? true
+    : filter.gruppe === 'sorte' ? m.sorte === filter.schluessel
+    : m.charge_nr !== undefined ? String(m.charge_nr) === filter.schluessel : sorten.has(m.sorte)
+  const jeSorte = daten.margeWiegung.filter(imFilter)
+  const jeCharge = daten.margeCharge.filter(imFilter)
+  const bandName = bandNamen(daten.schemata)
+  const von = [...jeSorte, ...jeCharge].map(z => z.von).filter(Boolean).sort()[0]
+
+  // Die Blöcke: was der Filter eine Stufe feiner hergibt.
+  const bloecke: { schluessel: string; titel: string; unter?: string; zeilen: MargeWiegung[]; chargen?: { nr: number; schlag: string; zeilen: MargeCharge[] }[] }[] = []
+  const chargenVon = (sorte: string) => {
+    const nrn = [...new Set(jeCharge.filter(z => z.sorte === sorte).map(z => z.charge_nr))].sort((a, b) => a - b)
+    return nrn.map(nr => ({ nr, schlag: jeCharge.find(z => z.charge_nr === nr)?.schlag ?? '', zeilen: jeCharge.filter(z => z.charge_nr === nr) }))
+  }
+  if (filter.gruppe === 'gesamt') {
+    for (const sorte of [...new Set(jeSorte.map(z => z.sorte))].sort((a, b) => a.localeCompare(b, 'de'))) {
+      bloecke.push({ schluessel: sorte, titel: sorte, zeilen: jeSorte.filter(z => z.sorte === sorte), chargen: chargenVon(sorte) })
+    }
+  } else if (filter.gruppe === 'sorte') {
+    for (const c of chargenVon(filter.schluessel)) {
+      bloecke.push({ schluessel: `c${c.nr}`, titel: `Charge ${c.nr}`, unter: c.schlag, zeilen: c.zeilen })
+    }
+  } else {
+    for (const c of chargenVon(chargen[0]?.sorte ?? '')) {
+      bloecke.push({ schluessel: `c${c.nr}`, titel: `Charge ${c.nr} · ${chargen[0]?.sorte ?? ''}`, unter: c.schlag, zeilen: c.zeilen })
+    }
+  }
+  const nWiegungen = jeSorte.reduce((s, z) => s + z.n_wiegungen, 0)
+
   return (
-    <Karte id="urs-marge-kiste" titel="Kiste ab x kg"
-           unter="Was die Kiste über dem Soll hat, ist geschenkt — gemessen an den gewogenen vollen Paletten.">
-      {zeilen.length === 0
-        ? <Leer titel="Noch keine Kiste-ab-Palette gewogen">Sobald eine fertige Palette mit „Kiste ab x kg" gewogen ist, steht sie hier.</Leer>
+    <Karte id="urs-marge" titel="Verschenkte Marge"
+           unter="Was die Kiste über dem Soll hat und der Kürbis über seiner Bandmitte, ist geschenkt — gemessen an den gewogenen vollen fertigen Paletten.">
+      {bloecke.length === 0
+        ? <Leer titel="Noch keine fertige Palette gewogen">Sobald eine volle fertige Palette gewogen ist — „Kiste ab x kg" oder nach Kaliber —, steht sie hier.</Leer>
         : (
         <>
-          <div className="rollbar"><table className="dicht">
-            {/* Die Spalten heissen wie im Begriffslexikon (pruefstand/begriffe.json):
-                „Soll je Kiste", „Gewogen je Kiste", „Zu viel je Kiste". Ein
-                neuer Name für dieselbe Grösse ist ein neuer Begriff — und dann
-                weiss niemand mehr, ob zwei Zahlen dasselbe meinen. */}
-            <thead><tr><th>Sorte</th><th className="zahl">Soll je Kiste</th><th className="zahl">Gewogen je Kiste</th><th className="zahl">Zu viel je Kiste</th><th className="zahl">Wägungen</th></tr></thead>
-            <tbody>{zeilen.map(z => (
-              <tr key={`${z.sorte}|${z.soll_kg_pro_kiste}`}>
-                <td>{z.sorte}</td>
-                <td className="zahl">{z.soll_kg_pro_kiste?.toFixed(1)} kg</td>
-                <td className="zahl"><strong>{z.kg_je_kiste?.toFixed(2)} kg</strong>
-                  {z.sd_je_kiste != null && <span className="leise"> ± {z.sd_je_kiste.toFixed(2)}</span>}</td>
-                <td className={`zahl ${tonVon(z.zuviel_je_kiste, z.soll_kg_pro_kiste)}`}>
-                  {z.zuviel_je_kiste != null ? `${z.zuviel_je_kiste > 0 ? '+' : ''}${z.zuviel_je_kiste.toFixed(2)} kg` : '—'}
-                  {z.zuviel_je_kiste != null && z.soll_kg_pro_kiste
-                    ? <span className="leise"> {prozent(z.zuviel_je_kiste / z.soll_kg_pro_kiste, 0)}</span> : null}
-                </td>
-                <td className="zahl">{z.n_wiegungen} <span className="leise">· {zahl(z.kisten)} Kisten</span></td>
-              </tr>
-            ))}</tbody>
-          </table></div>
-          <div className="marge-balken" role="list">
-            {zeilen.map(z => (
-              <div className="marge-zeile" role="listitem" key={`b${z.sorte}|${z.soll_kg_pro_kiste}`}>
-                <span className="marge-name">{z.sorte}</span>
-                <span className="marge-spur">
+          {filter.gruppe === 'sorte' && jeSorte.length > 0 && (
+            <div className="marge-block" data-block="sorte">
+              <h3 className="marge-titel">{filter.schluessel} <span className="leise">· alle Chargen · {nWiegungen} {nWiegungen === 1 ? 'Wägung' : 'Wägungen'}</span></h3>
+              <MargeZeilen zeilen={jeSorte} bandName={bandName} />
+            </div>
+          )}
+          {bloecke.map(b => (
+            <div className="marge-block" data-block={b.schluessel} key={b.schluessel}>
+              <h3 className="marge-titel">{b.titel}{b.unter && <span className="leise"> · {b.unter}</span>}
+                <span className="leise"> · {b.zeilen.reduce((s, z) => s + z.n_wiegungen, 0)} {b.zeilen.reduce((s, z) => s + z.n_wiegungen, 0) === 1 ? 'Wägung' : 'Wägungen'}</span></h3>
+              <MargeZeilen zeilen={b.zeilen} bandName={bandName} />
+              {b.chargen && b.chargen.length > 0 && (
+                <Aufklapp titel={<><span>{b.chargen.length === 1 ? 'die Charge dahinter' : `${b.chargen.length} Chargen dahinter`}</span> <span className="leise">dieselben Zahlen, je Charge</span></>}>
+                  {b.chargen.map(c => (
+                    <div className="marge-charge" key={c.nr}>
+                      <h4 className="marge-titel klein">Charge {c.nr}{c.schlag && <span className="leise"> · {c.schlag}</span>}</h4>
+                      <MargeZeilen zeilen={c.zeilen} bandName={bandName} />
+                    </div>
+                  ))}
+                </Aufklapp>
+              )}
+            </div>
+          ))}
+        </>
+      )}
+      <p className="hilfe">
+        Mittel aus den gewogenen vollen Paletten{von ? ` seit ${datum(von)}` : ''} <Herkunft art="gemessen" /> —
+        nicht auf verkaufte Kisten hochgerechnet. Kiste ab: gewogen je Kiste gegen das Soll. Stück: Gramm je Kürbis
+        gegen die Bandmitte — sie ist, was der Kunde bezahlt.
+      </p>
+    </Karte>
+  )
+}
+
+/** Das Kaliber beim Namen: „K2 · 900–1200 g" — aus dem Sortierschema der Sorte. */
+function bandNamen(schemata: Schema[]): (sorte: string, idx: number | null) => string {
+  return (sorte, idx) => {
+    if (idx == null) return 'ohne Kaliber'
+    const schema = schemata.find(s => s.sorte === sorte && s.art === 'kaliber' && s.kaeufer === null)
+      ?? schemata.find(s => s.sorte === sorte && s.art === 'kaliber')
+    const band = schema?.kaliber_baender?.[idx]
+    return band ? `K${idx + 1} · ${zahl(band[0])}–${zahl(band[1])} g` : `K${idx + 1}`
+  }
+}
+
+/** Die Zeilen eines Blocks: erst Kiste ab (nach Soll), dann Stück (nach Kaliber). */
+function MargeZeilen({ zeilen, bandName }: { zeilen: MargeWiegung[]; bandName: (sorte: string, idx: number | null) => string }) {
+  const kiste = zeilen.filter(z => z.kistensystem === 'kiste_ab').sort((a, b) => (a.soll_kg_pro_kiste ?? 0) - (b.soll_kg_pro_kiste ?? 0))
+  const stueck = zeilen.filter(z => z.kistensystem === 'stueck').sort((a, b) => (a.kaliber_idx ?? 0) - (b.kaliber_idx ?? 0) || (a.stueck_je_kiste ?? 0) - (b.stueck_je_kiste ?? 0))
+  const spanne = Math.max(0.5, ...kiste.map(z => Math.abs(z.zuviel_je_kiste ?? 0)))
+  return (
+    <div className="rollbar"><table className="dicht marge-tabelle">
+      {/* Die Spalten heissen wie im Begriffslexikon (pruefstand/begriffe.json):
+          „Soll je Kiste", „Gewogen je Kiste", „Zu viel je Kiste". Ein neuer
+          Name für dieselbe Grösse ist ein neuer Begriff — und dann weiss
+          niemand mehr, ob zwei Zahlen dasselbe meinen. */}
+      {kiste.length > 0 && (
+        <>
+          <thead><tr><th>Kistensystem</th><th className="zahl">Soll je Kiste</th><th className="zahl">Gewogen je Kiste</th><th className="zahl">Zu viel je Kiste</th><th>Wägungen</th></tr></thead>
+          <tbody>{kiste.map(z => (
+            <tr key={`k${z.soll_kg_pro_kiste}`}>
+              {/* Das Soll steht in seiner Spalte; hier nur das System — eine Zahl
+                  ohne eigene Beschriftung wäre eine Zahl zu viel (beschriftung.mjs). */}
+              <td className="nowrap">Kiste ab x kg</td>
+              <td className="zahl">{z.soll_kg_pro_kiste?.toFixed(1)} kg</td>
+              <td className="zahl"><strong>{z.kg_je_kiste?.toFixed(2)} kg</strong>
+                {z.sd_je_kiste != null && <span className="leise"> ± {z.sd_je_kiste.toFixed(2)}</span>}</td>
+              <td className={`zahl ${tonVon(z.zuviel_je_kiste, z.soll_kg_pro_kiste)}`}>
+                {z.zuviel_je_kiste != null ? `${z.zuviel_je_kiste > 0 ? '+' : ''}${z.zuviel_je_kiste.toFixed(2)} kg` : '—'}
+                {z.zuviel_je_kiste != null && z.soll_kg_pro_kiste
+                  ? <span className="leise"> {prozent(z.zuviel_je_kiste / z.soll_kg_pro_kiste, 0)}</span> : null}
+              </td>
+              <td className="marge-spur-zelle">
+                <span className="marge-spur" aria-hidden="true">
                   <span className="marge-null" />
                   <span className={`marge-stab ${(z.zuviel_je_kiste ?? 0) < 0 ? 'minus' : 'plus'}`}
                         style={{ width: `${(Math.abs(z.zuviel_je_kiste ?? 0) / spanne) * 50}%`,
                                  left: (z.zuviel_je_kiste ?? 0) < 0 ? `${50 - (Math.abs(z.zuviel_je_kiste ?? 0) / spanne) * 50}%` : '50%' }} />
                 </span>
-                <span className="marge-wert">{z.zuviel_je_kiste != null ? `${z.zuviel_je_kiste > 0 ? '+' : ''}${z.zuviel_je_kiste.toFixed(2)} kg` : '—'}</span>
-              </div>
-            ))}
-          </div>
+                <span className="leise nowrap">{z.n_wiegungen} · {zahl(z.kisten)} Kisten</span>
+              </td>
+            </tr>
+          ))}</tbody>
         </>
       )}
-      <p className="hilfe">
-        Mittel aus den gewogenen vollen Paletten{von ? ` seit ${datum(von)}` : ''} <Herkunft art="gemessen" /> —
-        nicht auf verkaufte Kisten hochgerechnet.
-      </p>
-    </Karte>
+      {stueck.length > 0 && (
+        <>
+          <thead><tr><th>Kaliber</th><th className="zahl">Je Kiste</th><th className="zahl">Gewogen je Stück</th><th className="zahl">Über Bandmitte</th><th>Wägungen</th></tr></thead>
+          <tbody>{stueck.map(z => {
+            const mitte = z.band_mittel_g ?? null, g = z.g_je_kuerbis ?? null
+            // Die Lage im Band: 0 = Unterkante, 1 = Oberkante — die Bandbreite
+            // ist die halbe Mitte, wie die Wägung sie sieht.
+            const breite = mitte != null ? mitte * 0.5 : null
+            const lage = g != null && mitte != null && breite ? Math.min(1, Math.max(0, 0.5 + (g - mitte) / (2 * breite))) : null
+            return (
+              <tr key={`s${z.kaliber_idx}|${z.stueck_je_kiste}`}>
+                <td className="nowrap"><strong>{bandName(z.sorte, z.kaliber_idx)}</strong>
+                  {mitte != null && <span className="leise"> · Mitte {Math.round(mitte)} g</span>}</td>
+                <td className="zahl">{z.stueck_je_kiste} Stück</td>
+                <td className="zahl"><strong>{g != null ? `${Math.round(g)} g` : '—'}</strong></td>
+                <td className={`zahl ${z.g_ueber_bandmitte != null && z.g_ueber_bandmitte > 0 ? 'rot' : ''}`}>
+                  {z.g_ueber_bandmitte != null ? `${z.g_ueber_bandmitte > 0 ? '+' : ''}${Math.round(z.g_ueber_bandmitte)} g` : '—'}
+                </td>
+                <td className="marge-spur-zelle">
+                  <span className="band-spur" aria-hidden="true" title={mitte != null ? `Bandmitte ${Math.round(mitte)} g` : undefined}>
+                    <span className="band-mitte" />
+                    {lage !== null && <span className="band-punkt" style={{ left: `${lage * 100}%` }} />}
+                  </span>
+                  <span className="leise nowrap">{z.n_wiegungen} · {zahl(z.kisten)} Kisten</span>
+                </td>
+              </tr>
+            )
+          })}</tbody>
+        </>
+      )}
+    </table></div>
   )
 }
 
 const tonVon = (zuviel: number | null, soll: number | null) =>
   zuviel == null || !soll ? '' : zuviel / soll > 0.05 ? 'rot' : zuviel < 0 ? 'gruen' : ''
-
-function MargeStueck({ daten, filter, chargen }: { daten: Auswertung; filter: Filter; chargen: Bestand[] }) {
-  const sorten = new Set(chargen.map(c => c.sorte))
-  const zeilen = daten.margeWiegung
-    .filter(m => m.kistensystem === 'stueck' && (filter.gruppe === 'gesamt' || sorten.has(m.sorte)))
-    .sort((a, b) => a.sorte.localeCompare(b.sorte, 'de') || (a.kaliber_idx ?? 0) - (b.kaliber_idx ?? 0))
-  return (
-    <Karte id="urs-marge-stueck" titel="x Kürbisse je Kiste"
-           unter="Wie schwer der einzelne Kürbis wirklich ist, gegen die Mitte seines Kalibers.">
-      {zeilen.length === 0
-        ? <Leer titel="Noch keine Stück-Palette gewogen">Sobald eine fertige Palette nach Kaliber gewogen ist, steht sie hier.</Leer>
-        : (
-        <>
-        <div className="band-liste" role="list">
-          {zeilen.slice(0, ERSTE).map(z => bandzeile(z))}
-        </div>
-        {zeilen.length > ERSTE && (
-          <Aufklapp titel={<><span>{zeilen.length - ERSTE} weitere Kaliber</span> <span className="leise">dieselbe Darstellung, nur weiter unten im Alphabet</span></>}>
-            <div className="band-liste" role="list">{zeilen.slice(ERSTE).map(z => bandzeile(z))}</div>
-          </Aufklapp>
-        )}
-        </>
-      )}
-      <p className="hilfe">
-        Mittel aus den gewogenen vollen Paletten <Herkunft art="gemessen" /> — die Bandmitte ist, was der Kunde bezahlt.
-      </p>
-    </Karte>
-  )
-}
-
-/** Wie viele Bänder ohne Aufklappen dastehen — genug zum Vergleichen, wenig
- *  genug, dass die Karte neben ihrer Nachbarin nicht ins Endlose wächst. */
-const ERSTE = 12
-
-/** Eine Zeile der Bandliste: Name, Band mit Mitte und Punkt, Gewicht. */
-function bandzeile(z: MargeWiegung) {
-  const mitte = z.band_mittel_g ?? null
-  const g = z.g_je_kuerbis ?? null
-  // Die Lage im Band: 0 = Unterkante, 1 = Oberkante. Die Bandbreite kommt aus
-  // der Mitte und der Abweichung — beide misst die Wägung.
-  const breite = mitte != null ? mitte * 0.5 : null
-  const lage = g != null && mitte != null && breite ? Math.min(1, Math.max(0, 0.5 + (g - mitte) / (2 * breite))) : null
-  return (
-    <div className="band-zeile" role="listitem" key={`${z.sorte}|${z.kaliber_idx}`}>
-      <span className="band-name">
-        <strong>{z.sorte}</strong>
-        <span className="leise"> K{(z.kaliber_idx ?? 0) + 1} · {z.stueck_je_kiste} je Kiste · {z.n_wiegungen} {z.n_wiegungen === 1 ? 'Wägung' : 'Wägungen'}</span>
-      </span>
-      <span className="band-spur" title={mitte != null ? `Bandmitte ${Math.round(mitte)} g` : undefined}>
-        <span className="band-mitte" />
-        {lage !== null && <span className="band-punkt" style={{ left: `${lage * 100}%` }} />}
-      </span>
-      <span className="band-wert">
-        {g != null ? `${Math.round(g)} g` : '—'}
-        {z.g_ueber_bandmitte != null && (
-          <span className={`leise ${z.g_ueber_bandmitte > 0 ? 'rot' : ''}`}> {z.g_ueber_bandmitte > 0 ? '+' : ''}{Math.round(z.g_ueber_bandmitte)} g</span>
-        )}
-      </span>
-    </div>
-  )
-}

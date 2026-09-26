@@ -26,6 +26,7 @@ const TABELLEN: Tabelle[] = [
     felder: [
       { name: 'ts', label: 'Zeit', typ: 'zeit', nurLesen: true },
       { name: 'palox_stand_kg', label: 'Waage (kg)', typ: 'zahl' },
+      { name: 'palox_nach_leeren', label: 'nach dem Leeren', typ: 'ja_nein' },
       { name: 'brutto_kg', label: 'Brutto (kg)', typ: 'zahl' },
       { name: 'kisten', label: 'Kisten', typ: 'ganz' },
       { name: 'gebindeart', label: 'Kistenart', typ: 'text' },

@@ -15,11 +15,12 @@ import { PaloxMaske } from '../arbeit/PaloxMaske'
 import { FauleMaske } from '../arbeit/FauleMaske'
 import { WiegenMaske } from '../arbeit/WiegenMaske'
 import { AusschussMaske } from '../arbeit/AusschussMaske'
+import { PaloxLeerenMaske } from '../arbeit/PaloxLeerenMaske'
 import { FertigePaletteMaske } from '../arbeit/FertigePaletteMaske'
 import { Abschluss } from '../arbeit/Abschluss'
 import { Korrektur } from '../arbeit/Korrektur'
 
-type Ansicht = 'liste' | 'zaehler' | 'palox' | 'faule' | 'wiegen' | 'ausschuss' | 'ausgang' | 'abschluss' | 'korrektur'
+type Ansicht = 'liste' | 'zaehler' | 'palox' | 'palox_leeren' | 'faule' | 'wiegen' | 'ausschuss' | 'ausgang' | 'abschluss' | 'korrektur'
 
 /**
  * Eine Arbeit, aus zwei Blickwinkeln:
@@ -271,6 +272,11 @@ export default function Arbeit() {
   if (ansicht === 'faule') {
     return <>{maske(t('faulesWiegen'), <FauleMaske d={d} gesperrt={false} melden={melden} neuLaden={laden} />)}<Bestaetigt text={meldung} /></>
   }
+  if (ansicht === 'palox_leeren') {
+    // 0084: vor dem Leeren ablesen, leeren, die leere Box ablesen — die
+    // Menge bleibt bekannt. Zurück in die Checkliste, wenn beides steht.
+    return <>{maske(t('paloxLeeren'), <PaloxLeerenMaske d={d} fertig={async () => { await laden(); melden(t('gespeichert')); setAnsicht('liste') }} />)}<Bestaetigt text={meldung} /></>
+  }
   if (ansicht === 'ausschuss') {
     return <>{maske(t('ausschussWiegenSchritt'), <AusschussMaske d={d} gesperrt={false} melden={melden} neuLaden={laden} />)}<Bestaetigt text={meldung} /></>
   }
@@ -313,6 +319,7 @@ export default function Arbeit() {
 
   // liste — die Checkliste des Vorarbeiters
   const erste = d.ablesungen[0]
+  const geleerte = d.ablesungen.filter(x => x.palox_nach_leeren)
   const zaehlStand = [
     p.hatPaletten ? `${d.paletten.length} ${t('paletten')}${gewogen > 0 ? ` · ${gewogen} ${t('gewogen')}` : ''}` : '',
     p.hatWaschPaletten ? `${d.paletten.length} ${t('paletten')} · ${waschKisten} ${t('kisten')}` : '',
@@ -355,6 +362,22 @@ export default function Arbeit() {
           </span>
           <span className="pfeil"><ZChevron size={20} /></span>
         </button>
+
+        {/* 0084: Der Palox wird mittendrin geleert — mit Ablesung davor und
+            danach bleibt die Menge bekannt. Erst sinnvoll, wenn ein Anfang
+            abgelesen ist; sinnlos, wenn die Menge ohnehin unbekannt ist. */}
+        {p.hatPalox && d.ablesungen.some(x => x.palox_stand_kg !== null) && !a.palox_unbekannt && (
+          <button type="button" id="check-palox-leeren" onClick={() => setAnsicht('palox_leeren')}>
+            <Zustand art="frei" />
+            <span className="text">
+              <span className="name">{t('paloxLeeren')}</span>
+              <span className="unter">{geleerte.length > 0
+                ? `${geleerte.length}× ${t('paloxGeleertUm')} ${geleerte.map(g => uhrzeit(g.ts, gebietsschema)).join(', ')}`
+                : t('paloxLeerenKurz')}</span>
+            </span>
+            <span className="pfeil"><ZChevron size={20} /></span>
+          </button>
+        )}
 
         {p.hatFaule && (
           <button type="button" id="check-faule" onClick={() => setAnsicht('faule')}>

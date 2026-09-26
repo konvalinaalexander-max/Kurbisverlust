@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import Sicherung from '../components/Sicherung'
-import { TaetZeichen, ZNeu } from '../components/Zeichen'
+import { TaetZeichen, ZMikrofon, ZNeu, ZSprechblase } from '../components/Zeichen'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { chargeText, fehlerText, stammdaten } from '../lib/db'
@@ -8,14 +8,14 @@ import { taetigkeitVon } from '../lib/taetigkeit'
 import { tempoJeTaetigkeit } from '../auswertung/tempo'
 import type { Durchsatz } from '../auswertung/daten'
 import { WOERTERBUCH } from '../lib/i18n'
-import { datum, kg, tagVon, zahl } from '../lib/format'
+import { datum, kg, tagVon, zahl, zeitpunkt } from '../lib/format'
 import { Hinweis, Karte, Lade, Leer, Marke, Segmente } from '../components/Bausteine'
 import Lieferungen from './Lieferungen'
 import CsvUpload from './CsvUpload'
 import Warteschlange from './Warteschlange'
 import Stammdaten from './Stammdaten'
 import Zugang from './Zugang'
-import type { Auftrag, Charge } from '../lib/typen'
+import type { Auftrag, Charge, Rueckmeldung } from '../lib/typen'
 
 type Teil = 'arbeiten' | 'lieferungen' | 'csv' | 'warteschlange' | 'stammdaten' | 'zugang'
 const TEILE: [Teil, string, string][] = [
@@ -71,20 +71,45 @@ function Arbeiten() {
   const [tage, setTage] = useState(TAGE_ZUERST)
   const [laedt, setLaedt] = useState(true)
   const [fehler, setFehler] = useState<string | null>(null)
+  /** 0085: die Rückmeldungen je Arbeit, und wer sie gegeben hat. */
+  const [rueckmeldungen, setRueckmeldungen] = useState<Map<number, Rueckmeldung[]>>(new Map())
+  const [namen, setNamen] = useState<Map<string, string>>(new Map())
+  const [offen, setOffen] = useState<Set<number>>(new Set())
+  /** Signierte Adressen der Aufnahmen — der Bucket ist nicht öffentlich. */
+  const [tonUrl, setTonUrl] = useState<Map<number, string>>(new Map())
   useEffect(() => {
     void (async () => {
       try {
-        const [{ chargen }, a, d] = await Promise.all([
+        const [{ chargen }, a, d, r, pr] = await Promise.all([
           stammdaten(),
           supabase.from('auftrag').select('*').order('start_ts', { ascending: false }).limit(400),
           supabase.from('erg_durchsatz').select('*'),
+          supabase.from('auftrag_rueckmeldung').select('*').order('ts', { ascending: false }).limit(1000),
+          supabase.from('profil').select('id, name'),
         ])
         if (a.error) throw a.error
         setChargen(chargen); setAuftraege((a.data ?? []) as Auftrag[])
         setDurchsatz(new Map(((d.data ?? []) as Durchsatz[]).map(x => [x.auftrag_id, x])))
+        const m = new Map<number, Rueckmeldung[]>()
+        for (const x of (r.data ?? []) as Rueckmeldung[]) m.set(x.auftrag_id, [...(m.get(x.auftrag_id) ?? []), x])
+        setRueckmeldungen(m)
+        setNamen(new Map(((pr.data ?? []) as { id: string; name: string | null }[]).map(x => [x.id, x.name ?? ''])))
       } catch (f) { setFehler(fehlerText(f)) } finally { setLaedt(false) }
     })()
   }, [])
+
+  /** Eine Rückmeldung auf- oder zuklappen; beim Öffnen die Aufnahme
+   *  signieren lassen — eine Stunde reicht zum Anhören. */
+  async function umschalten(auftragId: number) {
+    const neu = new Set(offen)
+    if (neu.has(auftragId)) { neu.delete(auftragId); setOffen(neu); return }
+    neu.add(auftragId); setOffen(neu)
+    for (const r of rueckmeldungen.get(auftragId) ?? []) {
+      if (!r.audio_ref || tonUrl.has(r.id)) continue
+      const { data } = await supabase.storage.from('rueckmeldungen').createSignedUrl(r.audio_ref, 3600)
+      if (data?.signedUrl) setTonUrl(u => new Map(u).set(r.id, data.signedUrl))
+    }
+  }
   const t = (id: keyof typeof WOERTERBUCH.de) => WOERTERBUCH.de[id]
   const gezeigt = auftraege.filter(a => filter === 'alle' ? true
     : filter === 'abgebrochen' ? a.abgebrochen_ts !== null
@@ -135,11 +160,14 @@ function Arbeiten() {
             <div key={tag}>
               <div className="tag-trenner">{tagName(tag)} <span className="leise">· {gruppen.get(tag)!.length} Arbeiten</span></div>
               <div className="rollbar"><table className="dicht">
-                <thead><tr><th>Start</th><th>Arbeit</th><th>Charge</th><th>Status</th><th className="zahl">Paletten</th><th className="zahl">Bewegte Masse</th><th className="zahl">Dauer</th><th className="zahl">kg/h</th><th className="zahl">Leute</th><th></th></tr></thead>
+                <thead><tr><th>Start</th><th>Arbeit</th><th>Charge</th><th>Status</th><th className="zahl">Paletten</th><th className="zahl">Bewegte Masse</th><th className="zahl">Dauer</th><th className="zahl">kg/h</th><th className="zahl">Leute</th><th>Rückmeldung</th><th></th></tr></thead>
                 <tbody>{gruppen.get(tag)!.map(a => {
                   const ta = taetigkeitVon(a.weg, a.station, a.ist_fax); const d = durchsatz.get(a.id)
+                  const rm = rueckmeldungen.get(a.id) ?? []
+                  const hatText = rm.some(r => r.text), hatTon = rm.some(r => r.audio_ref)
                   return (
-                    <tr key={a.id}>
+                    <Fragment key={a.id}>
+                    <tr>
                       <td className="nowrap">{new Date(a.start_ts).toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' })}</td>
                       <td className="nowrap"><TaetZeichen id={ta?.id} /> {ta ? t(ta.text) : ''}</td>
                       <td>{chargeText(chargen.find(c => c.nr === a.charge_nr))}</td>
@@ -149,8 +177,31 @@ function Arbeiten() {
                       <td className="zahl">{d ? `${d.dauer_h.toFixed(1)} h` : ''}</td>
                       <td className="zahl">{d?.kg_pro_h != null ? zahl(d.kg_pro_h) : ''}</td>
                       <td className="zahl">{d ? d.n_teilnehmer : ''}</td>
+                      <td className="nowrap">{rm.length > 0 && (
+                        // 0085: Die Zeichen sagen, was da ist — Text, Ton oder beides.
+                        <button type="button" className="klein" onClick={() => void umschalten(a.id)}
+                                aria-expanded={offen.has(a.id)} aria-label={`Rückmeldung ${offen.has(a.id) ? 'schliessen' : 'öffnen'}`}>
+                          {hatText && <ZSprechblase size={15} />}{hatTon && <ZMikrofon size={15} />}
+                          {' '}{offen.has(a.id) ? 'schliessen' : rm.length > 1 ? `${rm.length} lesen` : hatTon && !hatText ? 'anhören' : 'lesen'}
+                        </button>
+                      )}</td>
                       <td className="rechts-buendig"><Link to={`/arbeit/${a.id}`}>öffnen</Link></td>
                     </tr>
+                    {offen.has(a.id) && rm.map(r => (
+                      <tr key={`r${r.id}`} className="rueckmeldung-zeile">
+                        <td colSpan={11}>
+                          <div className="leise" style={{ marginBottom: '.3rem' }}>
+                            {namen.get(r.erfasser) || 'jemand'} · {zeitpunkt(r.ts)}
+                            {r.audio_sekunden != null && <> · {Math.floor(r.audio_sekunden / 60)}:{String(r.audio_sekunden % 60).padStart(2, '0')} Aufnahme</>}
+                          </div>
+                          {r.text && <p className="rueckmeldung-text">{r.text}</p>}
+                          {r.audio_ref && (tonUrl.has(r.id)
+                            ? <audio controls src={tonUrl.get(r.id)} style={{ width: '100%', maxWidth: 480 }} />
+                            : <span className="leise">Aufnahme wird geholt …</span>)}
+                        </td>
+                      </tr>
+                    ))}
+                    </Fragment>
                   )
                 })}</tbody>
               </table></div>

@@ -127,10 +127,22 @@ begin
     'Kürbisse je Kiste sind nicht angekommen';
 
   -- Palox: 165 zu Beginn, 285 am Ende → 120 kg. Die Tara kürzt sich heraus (0072).
+  -- 0084: vier Ablesungen — 165 (Anfang), 265 (+100), 165 nach dem Leeren
+  -- (neuer Anfang, 0), 285 (+120). Die Menge der Arbeit ist 220, nicht
+  -- unbekannt und nicht 120.
+  assert (select count(*) from v_palox_stand where auftrag_id = a) = 4, 'Vier Palox-Ablesungen erwartet';
+  assert (select differenz from v_palox_stand where auftrag_id = a and nach_leeren) = 0,
+    'Die Ablesung nach dem Leeren ist ein Anfang: Differenz 0, nicht der Stand und nicht unbekannt (0084)';
+  assert (select string_agg(round(differenz)::int::text, ',' order by ts, id) from v_palox_stand where auftrag_id = a) = '0,100,0,120',
+    format('Die Differenzen müssen 0,100,0,120 sein, sind %s', (select string_agg(coalesce(round(differenz)::int::text, 'null'), ',' order by ts, id) from v_palox_stand where auftrag_id = a));
+  assert not exists (select 1 from v_palox_stand where auftrag_id = a and zwischendurch_geleert),
+    'Ein gemessenes Leeren ist kein „zwischendurch geleert" (0084)';
   select kg into v from v_schimmel_menge where auftrag_id = a;
-  assert v = 120, format('Schimmelmenge erwartet 120 (285 − 165), ist %s', v);
-  assert (select schimmel_kg from v_schimmel_punkte where auftrag_id = a) = 120,
+  assert v = 220, format('Schimmelmenge erwartet 220 (100 vor dem Leeren + 120 danach), ist %s', v);
+  assert (select schimmel_kg from v_schimmel_punkte where auftrag_id = a) = 220,
     'Der Schimmel kommt nicht als Punkt im Modell an';
+  assert not exists (select 1 from v_plausibilitaet where auftrag_id = a and art = 'Palox geleert'),
+    'Ein gemessenes Leeren darf nicht als Auffälligkeit „Palox geleert" stehen (0084)';
   assert (select quelle from v_schimmel_punkte where auftrag_id = a) = 'verarbeitung',
     'Eine Arbeit aus einer Charge gehört ins Zeitmodell';
   assert (select eingang_netto_kg from v_auftrag_masse where auftrag_id = a) = 3 * 865,
@@ -150,6 +162,11 @@ begin
   -- Die Wägung ohne Faul-Frage (0061): faul_kg bleibt leer, die Wägung zählt trotzdem
   assert (select faul_kg is null and not sichtbar_schimmel from verdunstung_wiegung where auftrag_id = a),
     'Beim Wiegen wird nicht mehr nach Faulem gefragt';
+  -- 0085: die Rückmeldung — geschrieben, ohne Aufnahme — steht an der Arbeit
+  assert (select count(*) from auftrag_rueckmeldung where auftrag_id = a) = 1, 'Eine Rückmeldung erwartet (0085)';
+  assert (select text from auftrag_rueckmeldung where auftrag_id = a) like '%Waage stand schief%',
+    'Der Text der Rückmeldung kommt nicht an';
+  assert (select audio_ref is null from auftrag_rueckmeldung where auftrag_id = a), 'Ohne Aufnahme darf keine Datei stehen';
   assert (select wert from v_auftrag_angabe where auftrag_id = a and schluessel = 'eine_charge') = 'true',
     'Die Antwort „alles aus einer Charge" ist nicht angekommen';
 

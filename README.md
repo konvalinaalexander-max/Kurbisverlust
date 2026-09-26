@@ -592,8 +592,10 @@ zählen sie stattdessen die Kisten je Kaliber, beim Waschen die Kisten mit
 ihrem Sortierdatum, beim Fax die Paletten gesamt.
 
 **Der Abschluss** ist ein Assistent: Palox jetzt ablesen (Fax: Faules wiegen,
-Paletten gesamt) · Palox zwischendurch geleert? · Fertige Palette gewogen? ·
+Paletten gesamt) · Palox zwischendurch geleert? (entfällt, wenn das Leeren
+mit **Palox leeren** gemessen wurde) · Fertige Palette gewogen? ·
 Wie viele fertige Paletten insgesamt? · War alles aus einer Charge? ·
+Lief alles gut? (Text oder Sprachaufnahme, freiwillig) ·
 Zusammenfassung → **Ja, fertig**. Jeder Schritt hat seinen „Weiter"-Knopf;
 ist er grau, steht der Grund direkt darüber.
 
@@ -660,7 +662,21 @@ warum sein Deploy-Befehl `npx wrangler deploy --env beispiel` lauten **muss**
 [`docs/ZWEI_WEBSEITEN.md`](docs/ZWEI_WEBSEITEN.md). Rechne mit einer guten
 halben Stunde.
 
-**Zuletzt gebaut (Runde R)** — die zwei ersten Reiter des Dashboards neu:
+**Zuletzt gebaut (Runde V, 0083–0087)** — was die Halle gemeldet hat: Der
+Ausschuss beim Waschen wurde immer zu 0 kg, weil die Rechnung stets eine
+Palette abzog und ein negatives Netto still auf null klemmte — jetzt fragt die
+Maske „auf einer Palette?", und ein Netto unter null wird abgewiesen statt
+versteckt. Der Palox lässt sich **mitten in der Arbeit leeren**, ohne dass
+die Faul-Menge verloren geht (ablesen, leeren, die leere Box ablesen). Am
+Ende jeder Arbeit fragt die App, ob alles gut lief — **Textfeld und
+Mikrofon-Knopf**; die Aufnahme liegt im Speicher des Supabase-Projekts
+(Bucket `rueckmeldungen`), und unter Betrieb → Arbeiten trägt die Arbeit ein
+Zeichen dafür. Die verschenkte Marge auf Ursachen ist eine Karte, gegliedert
+wie der Filter, mit dem Kaliber in Gramm. Die Entscheidungen dazu in
+[`docs/ENTSCHEIDUNGEN.md`](docs/ENTSCHEIDUNGEN.md) („Runde V"), die
+Abmachungen AB-74 bis AB-79.
+
+**Runde R** — die zwei ersten Reiter des Dashboards neu:
 **Lagermanagement** (das Lager nach Kaliber, heute und in X Wochen, mit der
 Glocke am selben Stichtag) und **Ursachen** (alles bis heute, jede Zeitgrafik
 wahlweise nach Kalender oder nach Lagerdauer, die Marge je Wägung). Der Auftrag
@@ -774,7 +790,7 @@ einspielen wie in Schritt 3. Dieselben Funktionen, dieselbe Saison.
 | Reiter | Die Frage, die er beantwortet |
 |---|---|
 | **Lagermanagement** | Was **jetzt** im Lager liegt — und zwar genau. Vier Zahlen (Eingang, Ausgang, im Lager, davon verkaufsfähig), der Verlauf je Woche, die Tabelle „Was ist noch im Haus?" (je Sorte oder Charge, wie viel in welchem Kaliberband verkaufsfähig ist — **heute und in X Wochen**, X ist ein Feld) und die Glocke der Gewichte am selben Stichtag. Alles über morgen steht hier, nirgends sonst. |
-| **Ursachen** | Wohin der Kürbis **bis heute** ging. Der ganze Eingang als ein Balken in sechs Teilen (verkaufsfähig liegend, verkauft, verdunstet, Faules, zu klein, zu gross), darunter je Sorte oder Charge nach Verlustanteil. Dann Faules im Lager und Verdunstung als Messpunkte — wahlweise nach **Kalender** („ab wann ging es los") oder nach **Lagerdauer** („nach wie vielen Wochen"). Zuletzt die verschenkte Marge je Wägung: was die Kiste über dem Soll hat, und wie schwer der einzelne Kürbis gegen die Bandmitte ist. Keine Prognose. |
+| **Ursachen** | Wohin der Kürbis **bis heute** ging. Der ganze Eingang als ein Balken in sechs Teilen (verkaufsfähig liegend, verkauft, verdunstet, Faules, zu klein, zu gross), darunter je Sorte oder Charge nach Verlustanteil. Dann Faules im Lager und Verdunstung als Messpunkte — wahlweise nach **Kalender** („ab wann ging es los") oder nach **Lagerdauer** („nach wie vielen Wochen"). Zuletzt die verschenkte Marge, gegliedert wie der Filter oben (alle Chargen → je Sorte mit den Chargen aufklappbar; eine Sorte → ihre Chargen; eine Charge → ihre Wägungen): was die Kiste über dem Soll hat, und wie schwer der einzelne Kürbis gegen die Mitte seines Kalibers ist — das Kaliber mit seinem Band in Gramm. Keine Prognose. |
 | **Chargen** | Wo welche Charge steht: Im Lager, verkaufsfähig heute, in vier Wochen, wie lange sie liegt, was zwei Wochen längeres Liegen kosten. Nach „In 4 Wochen" sortiert steht oben, was zuerst raus sollte. |
 | **Messungen** | Die Rohbeobachtungen und die Auffälligkeiten — was nicht zusammenpasst, mit dem Sprung zur Korrektur. |
 | **Betrieb** | Stammdaten, Warenausgang einlesen, Zugang für die Arbeiter, Tempo der Halle. |
@@ -851,6 +867,7 @@ Das genügt fast immer zur Klärung.
 | Das Lager nach Kaliber am Stichtag, die Glocke daneben | `supabase/migrations/0078`–`0079`, `src/pages/Lagermanagement.tsx` | Prüfblock 0078 (b/c) und 0079 (c): beide Bilder summieren auf dieselbe Masse, ein Aufruf unter 2 s |
 | Prognose: was aus der liegenden Ware wird, bis zum Saisonende | `supabase/migrations/0071`, `src/auswertung/daten.ts` | dieselbe Kaskade an einem späteren Tag; bei Horizont 0 auf zwei Rappen die Zahl von heute (Block 0071 der Prüfung) |
 | Die Erfassung scharf geschaltet: Palox je Arbeit, Gebinde je Palette, ehrliches Alter, Kontrollpalette | `supabase/migrations/0072`–`0076`, `src/arbeit/` | Prüfblock 0072 in `pruefung.sql`; `docs/BEFUND_RUNDE_Q.md` |
+| Runde V: Ausschuss ohne Palette, Palox mittendrin leeren, Rückmeldung mit Sprachaufnahme, Marge je Charge | `supabase/migrations/0083`–`0087`, `src/arbeit/AusschussMaske.tsx`, `PaloxLeerenMaske.tsx`, `Sprachaufnahme.tsx`, `src/pages/Ursachen.tsx` | Prüfblöcke 0083–0087 (jeder gegengeprüft durch absichtliches Kaputtmachen); `kette.mjs` mit Ausschuss ohne Palette, Palox-Leeren und Rückmeldung; Aufnahmen im Bucket `rueckmeldungen` |
 | Schutz der Erfassung: Journal, Zerstörungswächter, zwei Webseiten | `erfassung_journal` (0072), `supabase/test/keine_zerstoerung.sh`, `src/lib/betriebsmodus.ts` | Wächter läuft als erste Stufe von `run.sh` |
 | Warenausgang aus dem Warenwirtschaftssystem einlesen | `src/lib/xlsx.ts`, `src/lib/warenausgang.ts`, `supabase/migrations/0050` | Leser und Regeln geprüft (27 Tests, 396 096 Zellen gegen einen zweiten Leser); der Bildschirm steht: Betrieb → Warenausgang (`src/betrieb/AusgangImport.tsx`, `src/pages/Lieferungen.tsx`, Übernahme in `ausgang_uebernehmen`, 0055) |
 
@@ -910,8 +927,8 @@ ERNTE=1 node pruefstand/beschriftung.mjs    # gefundene Beschriftungen auflisten
 
 # Die Kette in beide Richtungen: eine komplette Arbeit über die Masken der
 # App erfassen (neue Arbeit mit Kistensystem, zählen mit Zettelgewicht, wiegen,
-# Palox, fertige Palette, Fax, Waschen mit Sortierdatum, Kontrolle, Abschluss
-# mit Fragen), jede Schreibanfrage mitschneiden, dann in eine echte
+# Palox, Palox mittendrin leeren, fertige Palette, Fax, Waschen mit Sortierdatum,
+# Kontrolle, Abschluss mit Fragen und Rückmeldung), jede Schreibanfrage mitschneiden, dann in eine echte
 # Postgres einspielen und prüfen, dass jeder Wert in der Auswertung ankommt.
 node pruefstand/kette.mjs && ./pruefstand/kette_pruefen.sh 'postgresql://…'
 

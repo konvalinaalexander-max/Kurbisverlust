@@ -132,7 +132,7 @@
       ],
       "art": "gemessen|gerechnet",
       "bedeutet": "Was über dem Soll in der Kiste liegt. In der Wägungstabelle der Ursachen die gemessene Differenz an den gewogenen vollen Paletten (erg_marge_wiegung, 0078); wo sie auf verkaufte Kisten hochgerechnet wird, gerechnet.",
-      "quelle": "erg_marge_wiegung.zuviel_je_kiste · erg_ueberfuellung.zuviel_je_kiste"
+      "quelle": "erg_marge_wiegung.zuviel_je_kiste · erg_marge_charge.zuviel_je_kiste · erg_ueberfuellung.zuviel_je_kiste"
     },
     {
       "muster": [

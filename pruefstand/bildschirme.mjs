@@ -198,6 +198,15 @@ const BILDSCHIRME = [
       }
       await p.locator('#ab-tage').waitFor()
     } },
+  // Runde V: der Palox wird mitten in der Arbeit geleert (0084) — der Knopf
+  // steht in der Checkliste, sobald die Arbeit einen Palox-Stand hat; die
+  // Maske fragt zuerst den Stand vor dem Leeren.
+  { name: 'arbeit-palox-leeren', wer: 'arbeiter', pfad: '/arbeit/OFFEN',
+    tun: async p => {
+      await p.getByRole('button', { name: T('ichFuehre') }).click()
+      await p.locator('#check-palox-leeren').click()
+      await p.locator('#palox-vor').waitFor()
+    } },
   { name: 'kontrolle', wer: 'arbeiter', pfad: '/kontrolle' },
   // Runde Q: der zweite Weg auf demselben Bildschirm — die Kontrollpalette,
   // die stehen bleibt und mehrfach gewogen wird (0072).
