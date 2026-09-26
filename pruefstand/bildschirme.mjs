@@ -264,6 +264,15 @@ const BILDSCHIRME = [
       await p.locator('#urs-verdunstung circle.marker[data-auftrag]').first().click({ force: true })
       await p.locator('#arbeit-fenster h2').waitFor()
     } },
+  // Runde Y: der Kommentar zur Ware steht am Punkt der Faul-Kurve — die Demo
+  // hat seit 0093 einen Hagelschaden an ihrer faulsten Sortier-Arbeit.
+  { name: 'ursachen-kommentar', wer: 'admin', pfad: '/ursachen',
+    tun: async p => {
+      const k = (fixture('v_arbeit_kommentar') ?? []).find(k => /^Hagelschaden/.test(k.text))
+      if (!k) throw new Error('v_arbeit_kommentar.json kennt keinen Hagelschaden — daten_dumpen.sh nach 0093 neu laufen lassen')
+      await p.locator(`#urs-palox circle.marker[data-auftrag="${k.auftrag_id}"]`).first().hover({ force: true })
+      await p.locator('.schweb', { hasText: 'Kommentar: Hagelschaden' }).waitFor()
+    } },
   { name: 'chargen', wer: 'admin', pfad: '/chargen' },
   { name: 'chargen-offen', wer: 'admin', pfad: '/chargen',
     tun: async p => { await p.locator('tbody tr').first().click() } },

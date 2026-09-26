@@ -105,6 +105,8 @@ export interface Saisonbilanz {
   bilanz_rest_kg: number | null; bilanz_rest_anteil: number | null; ausgang_deckung: number | null; befund: string
 }
 export interface Selektion { n_verarbeitung: number | null; n_lager: number | null; unterschied: number | null; befund: string }
+/** 0091: der Kommentar zur Ware einer Arbeit — geschrieben oder mitgeschrieben. */
+export interface Kommentar { auftrag_id: number; charge_nr: number; text: string; mit_aufnahme: boolean; ts: string }
 export interface Befund { art: string; auftrag_id: number | null; charge_nr: number; sorte: string; start_ts: string | null; befund: string; rat: string }
 export interface Wiegung {
   id: number; auftrag_id: number | null; charge_nr: number; sorte: string; lagertage: number; wiege_ts: string
@@ -321,6 +323,8 @@ export interface Auswertung {
   /** Die Marge je Wägung, ohne Verkaufsdatei (0078). */
   margeWiegung: MargeWiegung[]
   margeCharge: MargeCharge[]
+  /** 0091: Kommentare zur Ware, je Arbeit — hängen an den Messungen. */
+  kommentare: Kommentar[]
   gewichte: Gewichtsstufe[]
   verarbeitung: VerarbeitungAlter[]
   durchsatz: Durchsatz[]
@@ -414,14 +418,14 @@ async function alles(erzwingen: boolean): Promise<Auswertung> {
     if (r.error) { merken(name, r.error); return null }
     return (r.data ?? null) as T | null
   }
-  const [b, d, pl, kv, sk, mo, sel, sb, pk, hb, nc, kfv, kfa, kfn, kfu, wk, mw, mc, gw, va, ds, dq, vl, ve, kg, ss, ko, ab, lf, ak, pg, wo] = await Promise.all([
+  const [b, d, pl, kv, sk, mo, sel, sb, pk, hb, nc, kfv, kfa, kfn, kfu, wk, mw, mc, km, gw, va, ds, dq, vl, ve, kg, ss, ko, ab, lf, ak, pg, wo] = await Promise.all([
     q<Massenbilanz>('erg_massenbilanz'), q<Datenlage>('erg_datenlage'),
     q<Befund>('erg_plausibilitaet'), q<Kaliberzeile>('erg_kaliber'), q<Kurve>('erg_kurve'),
     eins<Modell>('erg_modell'), eins<Selektion>('erg_selektion'), eins<Saisonbilanz>('erg_bilanz'),
     q<Schimmelpunkt>('erg_punkte'), q<Bestand>('erg_charge'), q<NaechsteCharge>('erg_naechste_charge'),
     q<SortenK>('erg_koeff_verdunstung'), q<SortenK>('erg_koeff_ausschuss'), q<SortenK>('erg_koeff_nebenkanal'),
     q<{ n: number; kg_pro_kiste: number | null }>('erg_koeff_ueberfuellung'),
-    q<Wiegung>('erg_wiegung', ['wiege_ts', false]), q<MargeWiegung>('erg_marge_wiegung'), q<MargeCharge>('erg_marge_charge'),
+    q<Wiegung>('erg_wiegung', ['wiege_ts', false]), q<MargeWiegung>('erg_marge_wiegung'), q<MargeCharge>('erg_marge_charge'), q<Kommentar>('v_arbeit_kommentar'),
     q<Gewichtsstufe>('erg_gewichte'), q<VerarbeitungAlter>('erg_verarbeitung_alter', ['tag', true]),
     q<Durchsatz>('erg_durchsatz', ['start_ts', false]),
     eins<Datenqualitaet>('erg_datenqualitaet'), q<Verlaufswoche>('erg_verlauf', ['woche', true]),
@@ -455,7 +459,7 @@ async function alles(erzwingen: boolean): Promise<Auswertung> {
     stand: st2?.berechnet_ts ?? null, heute,
     bilanz: b, lage: d, befunde: pl, kaliber: kv, kurve: sk, koeff,
     modell: mo, selektion: sel, saison: sb, punkte: pk, bestand: hb, naechste: nc,
-    sorten: { verdunstung: kfv, ausschuss: kfa, nebenkanal: kfn }, wiegungen: wk, margeWiegung: mw, margeCharge: mc,
+    sorten: { verdunstung: kfv, ausschuss: kfa, nebenkanal: kfn }, wiegungen: wk, margeWiegung: mw, margeCharge: mc, kommentare: km,
     gewichte: gw, verarbeitung: va, durchsatz: ds, qualitaet: dq, verlauf: vl, verlust: ve,
     gebinde: kg, schemata: ss, kohorten: ko, ausschuss: ab, lieferungen: lf, ausgang: ak,
     prognose: pg, wohin: wo,

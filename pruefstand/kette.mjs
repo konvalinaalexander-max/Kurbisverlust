@@ -419,14 +419,19 @@ await schritt('Geführter Abschluss: Palox am Ende 285 (→ 120 kg ab dem neuen 
   // 0085: vor dem Abschliessen die Rückmeldung — hier geschrieben. Eine
   // Sprachaufnahme kann der Prüfstand nicht machen (kein Mikrofon); der
   // Knopf dafür muss aber da sein, wenn der Browser aufnehmen kann.
-  await seite.locator('#rueckmeldung-text').waitFor()
-  await seite.locator('#rueckmeldung-text').fill('Lief gut. Die Waage stand schief, wir haben sie unterlegt.')
+  // 0091: zuerst die Wahl — zur Ware oder zur App —, dann die Frage dazu.
+  await seite.locator('#rueck-app').waitFor()
+  if (await seite.locator('#rueckmeldung-text-app').count() > 0) throw new Error('Vor der Wahl darf kein Feld stehen (0091)')
+  await seite.locator('#rueck-app').click()
+  await seite.getByText('Was hat nicht funktioniert? Was wünschst du dir?').waitFor()
+  await seite.locator('#rueckmeldung-text-app').fill('Lief gut. Die Waage stand schief, wir haben sie unterlegt.')
   await seite.getByRole('button', { name: 'Weiter' }).click()
   await seite.locator('#arbeit-fertig').click()
   await seite.locator('#ja-fertig').click()
   await warteAuf('auftrag_rueckmeldung')
   const rm = protokoll.find(x => x.tabelle === 'auftrag_rueckmeldung').zeilen[0]
-  if (!/Waage stand schief/.test(rm.text ?? '') || rm.audio_ref !== null) throw new Error(`Die Rückmeldung kommt nicht richtig mit: ${JSON.stringify(rm)}`)
+  if (!/Waage stand schief/.test(rm.text ?? '') || rm.audio_ref !== null || rm.art !== 'app' || rm.transkript !== null)
+    throw new Error(`Die Rückmeldung zur App kommt nicht richtig mit: ${JSON.stringify(rm)}`)
   // Ein PATCH: der Abschluss. (Bis 0084 waren es zwei — „geleert? nein"
   // schrieb palox_unbekannt; die Frage entfällt, wenn das Leeren gemessen
   // ist.) Die Zahl muss genau stimmen: warteAuf() wartet auf „mindestens",
@@ -482,10 +487,16 @@ await schritt('Sortieren: Palox direkt nach dem Start (60, dann 75 am Ende → 1
   await seite.getByRole('button', { name: 'Weiter' }).click()
   await seite.locator('#charge-ja').click()
   await seite.getByRole('button', { name: 'Weiter' }).click()
-  await seite.locator('#rueckmeldung-text').waitFor()   // 0085: leer lassen — dann entsteht keine Zeile
+  // 0091: der Kommentar zur Ware — für den Betriebsleiter, an den Messungen.
+  await seite.locator('#rueck-ware').click()
+  await seite.getByText('Was war heute besonders an dieser Ware?').waitFor()
+  await seite.locator('#rueckmeldung-text-ware').fill('Hagelschaden — viel weggeworfen')
   await seite.getByRole('button', { name: 'Weiter' }).click()
   await seite.locator('#arbeit-fertig').click()
   await seite.locator('#ja-fertig').click()
+  await warteAuf('auftrag_rueckmeldung', 'POST', 2)
+  const rmWare = protokoll.filter(x => x.tabelle === 'auftrag_rueckmeldung').at(-1).zeilen[0]
+  if (rmWare.art !== 'ware' || !/Hagelschaden/.test(rmWare.text ?? '')) throw new Error(`Der Kommentar zur Ware kommt nicht richtig mit: ${JSON.stringify(rmWare)}`)
   await warteAuf('auftrag', 'PATCH', 3)
 })
 
@@ -580,7 +591,7 @@ await schritt('Waschen: Palox freiwillig, Paletten mit Sortierdatum (2 × 32 Kis
   await seite.getByRole('button', { name: 'Weiter' }).click()   // fünf gesamt
   await seite.locator('#charge-ja').click()
   await seite.getByRole('button', { name: 'Weiter' }).click()
-  await seite.locator('#rueckmeldung-text').waitFor()   // 0085
+  await seite.locator('#rueck-app').waitFor()   // 0085/0091: leer lassen — dann entsteht keine Zeile
   await seite.getByRole('button', { name: 'Weiter' }).click()
   await seite.locator('#arbeit-fertig').click()
   await seite.locator('#ja-fertig').click()

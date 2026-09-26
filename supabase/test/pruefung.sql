@@ -5980,3 +5980,218 @@ begin
 end $$;
 
 select '——— 0090 Auffälligkeiten geprüft ———' as ergebnis;
+
+-- =====================================================================
+-- 0091 — Die Rückmeldung hat zwei Arten und ein Transkript
+--
+-- Der Betrieb: „zwei Möglichkeiten — Feedback über die App oder ein
+-- Kommentar zur Charge". Geprüft wird, dass die Art nur diese zwei Werte
+-- kennt, dass ein Transkript nur mit Aufnahme und Quelle steht, und dass
+-- der Kommentar zur Ware am Auftrag hängt — geschrieben oder mitgeschrieben.
+-- =====================================================================
+do $$
+declare
+  v_u  uuid := '00000000-0091-0000-0000-000000000001';
+  v_a  bigint; v_txt text; v_n int;
+begin
+  insert into auth.users (id, email, raw_user_meta_data)
+  values (v_u, null, '{"name":"Prüf-0091"}');
+  update profil set rolle = 'admin' where id = v_u;
+  perform set_config('request.jwt.claim.sub', v_u::text, true);
+  insert into auftrag (weg, station, charge_nr, start_ts, eroeffnet_von)
+    select 'hand', 'waschen', c.nr, now() - interval '2 hours', v_u
+      from charge c order by nr limit 1 returning id into v_a;
+
+  -- (a) Zwei Arten, nicht mehr; ohne Angabe „app" (so waren alle bisherigen).
+  insert into auftrag_rueckmeldung (auftrag_id, text) values (v_a, 'Der Knopf war zu klein.');
+  assert (select art from auftrag_rueckmeldung where auftrag_id = v_a) = 'app', '0091 (a1): ohne Angabe muss die Art „app" sein';
+  begin
+    insert into auftrag_rueckmeldung (auftrag_id, art, text) values (v_a, 'charge', 'x');
+    assert false, '0091 (a2): eine dritte Art wurde angenommen';
+  exception when check_violation then null;
+  end;
+
+  -- (b) Zur Ware: geschrieben, oder nur mitgeschrieben — beides ein Kommentar.
+  insert into auftrag_rueckmeldung (auftrag_id, art, text) values (v_a, 'ware', 'Hagelschaden — viel weggeworfen');
+  insert into auftrag_rueckmeldung (auftrag_id, art, audio_ref, audio_typ, audio_sekunden, transkript, transkript_quelle)
+    values (v_a, 'ware', v_a || '/2.webm', 'audio/webm', 12, 'die Kürbisse waren sehr weich', 'handy');
+  select text into v_txt from v_arbeit_kommentar where auftrag_id = v_a;
+  assert v_txt = 'Hagelschaden — viel weggeworfen · die Kürbisse waren sehr weich',
+    format('0091 (b1): der Kommentar zur Ware lautet „%s"', v_txt);
+  assert (select mit_aufnahme from v_arbeit_kommentar where auftrag_id = v_a), '0091 (b2): die Aufnahme wird nicht angezeigt';
+  -- Die App-Rückmeldung ist kein Kommentar zur Ware.
+  assert (select text from v_arbeit_kommentar where auftrag_id = v_a) not like '%Knopf%', '0091 (b3): Feedback zur App steht im Kommentar zur Ware';
+
+  -- (c) Ein Transkript nur mit Aufnahme und mit Quelle.
+  begin
+    insert into auftrag_rueckmeldung (auftrag_id, art, text, transkript, transkript_quelle) values (v_a, 'ware', 'x', 'y', 'handy');
+    assert false, '0091 (c1): ein Transkript ohne Aufnahme wurde angenommen';
+  exception when check_violation then null;
+  end;
+  begin
+    insert into auftrag_rueckmeldung (auftrag_id, art, audio_ref, transkript) values (v_a, 'ware', v_a || '/3.webm', 'y');
+    assert false, '0091 (c2): ein Transkript ohne Quelle wurde angenommen';
+  exception when check_violation then null;
+  end;
+  begin
+    insert into auftrag_rueckmeldung (auftrag_id, art, audio_ref, transkript, transkript_quelle) values (v_a, 'ware', v_a || '/4.webm', 'y', 'maschine');
+    assert false, '0091 (c3): eine unbekannte Transkript-Quelle wurde angenommen';
+  exception when check_violation then null;
+  end;
+
+  -- (d) Journal und Stand.
+  select count(*) into v_n from erfassung_journal where tabelle = 'auftrag_rueckmeldung' and vorgang = 'insert' and neu ->> 'art' = 'ware' and (neu ->> 'auftrag_id')::bigint = v_a;
+  assert v_n = 2, format('0091 (d1): %s Ware-Zeilen im Journal statt 2', v_n);
+  assert schema_stand() >= 91, format('0091 (d2): schema_stand() = %s, mindestens 91 erwartet', schema_stand());
+
+  delete from auftrag_rueckmeldung where auftrag_id = v_a;
+  delete from auftrag where id = v_a;
+  delete from profil where id = v_u;
+  delete from auth.users where id = v_u;
+  raise notice 'OK  0091 — Zwei Arten der Rückmeldung; das Transkript nur mit Aufnahme und Quelle; der Kommentar zur Ware hängt an der Arbeit';
+end $$;
+
+select '——— 0091 Rückmeldung in zwei Arten geprüft ———' as ergebnis;
+
+-- =====================================================================
+-- 0092 — Das Kistengewicht je Band kommt von der Waage, nicht vom Zählen
+--
+-- Gefunden beim Prüfen der Herleitungen: Seit niemand mehr Kisten je Band
+-- zählt, konnte die App das Kistengewicht eines Bandes nie mehr lernen —
+-- jeder Waschgang aus Kisten ohne gewogene fertige Paletten blieb ohne
+-- Menge. Geprüft wird, dass EINE Wasch-Arbeit, die hinein zählt und heraus
+-- wiegt, das Kistengewicht liefert — und dass es rückwirkend für eine
+-- andere Wasch-Arbeit desselben Bandes gilt.
+-- =====================================================================
+do $$
+declare
+  v_u  uuid := '00000000-0092-0000-0000-000000000001';
+  v_c  int; v_a bigint; v_b bigint; v_kg numeric; v_q text; v_txt text; v_n int;
+begin
+  insert into auth.users (id, email, raw_user_meta_data)
+  values (v_u, null, '{"name":"Prüf-0092"}');
+  update profil set rolle = 'admin' where id = v_u;
+  perform set_config('request.jwt.claim.sub', v_u::text, true);
+  select nr into v_c from charge where sorte = 'Kaori Kuri' order by nr limit 1;
+  assert v_c is not null, '0092 (a0): keine Charge der Sorte Kaori Kuri';
+  assert (select count(*) from v_koeff_gebinde where sorte = 'Kaori Kuri' and kaliber_idx = 1) = 0,
+    '0092 (a0): für Kaori Kuri Kaliber 2 steht schon ein Kistengewicht — die Prüfung braucht ein leeres Band';
+
+  -- (a) Die Wasch-Arbeit B: Kaliber-Paletten gezählt (36 Kisten, Kaliber 2),
+  --     nichts gewogen. Ohne Kistengewicht keine Menge — und die Auffälligkeit
+  --     sagt, was jetzt hilft: wiegen, nicht zählen.
+  insert into auftrag (weg, station, charge_nr, start_ts, eroeffnet_von, kaliber_idx, kistensystem, stueck_je_kiste)
+    values ('hand', 'waschen', v_c, now() - interval '3 hours', v_u, 1, 'stueck', 10) returning id into v_b;
+  insert into auftrag_palette (auftrag_id, sortierdatum, kisten, gebindeart) values (v_b, current_date - 3, 36, 'G2');
+  assert (select kg from v_auftrag_wasch_paletten where auftrag_id = v_b) is null, '0092 (a1): ohne Kistengewicht darf keine Menge stehen';
+  select befund, rat into v_txt, v_q from v_plausibilitaet where art = 'Kistengewicht' and auftrag_id = v_b;
+  assert v_txt is not null, '0092 (a2): die Auffälligkeit „Kistengewicht" fehlt';
+  assert v_txt like '%fertigen Paletten gewogen%', format('0092 (a3): der Befund redet noch vom Zählen: „%s"', v_txt);
+  assert v_q like '%fertigen Paletten wiegen%' and v_q not like '%Sortierlauf%', format('0092 (a4): der Rat ist nicht befolgbar: „%s"', v_q);
+
+  -- (b) Die Wasch-Arbeit A: 72 Kisten hinein (2 Kaliber-Paletten), 2 fertige
+  --     Paletten heraus, beide gewogen: 400 kg brutto, 32 G2 → 327 kg netto.
+  --     Kistengewicht = 2 × 327 ÷ 72 = 9.083 kg.
+  insert into auftrag (weg, station, charge_nr, start_ts, eroeffnet_von, kaliber_idx, kistensystem, stueck_je_kiste, fertige_paletten_gesamt)
+    values ('hand', 'waschen', v_c, now() - interval '2 hours', v_u, 1, 'stueck', 10, 2) returning id into v_a;
+  insert into auftrag_palette (auftrag_id, sortierdatum, kisten, gebindeart) values (v_a, current_date - 3, 36, 'G2'), (v_a, current_date - 3, 36, 'G2');
+  insert into ausgang_wiegung (auftrag_id, charge_nr, brutto_kg, kisten, gebindeart, kuerbisse_pro_kiste, kaliber_idx, voll)
+    values (v_a, v_c, 400, 32, 'G2', 10, 1, true), (v_a, v_c, 400, 32, 'G2', 10, 1, true);
+  select kg_je_gebinde into v_kg from v_koeff_gebinde where sorte = 'Kaori Kuri' and kaliber_idx = 1;
+  assert v_kg = 9.083, format('0092 (b1): Kistengewicht %s statt 9.083 (654 ÷ 72)', v_kg);
+
+  -- (c) Rückwirkend: B hat jetzt eine Menge, und keine Auffälligkeit mehr.
+  select kg into v_kg from v_auftrag_wasch_paletten where auftrag_id = v_b;
+  assert v_kg between 326 and 328, format('0092 (c1): 36 Kisten × 9.083 müssten ≈ 327 kg sein, sind %s', v_kg);
+  assert (select count(*) from v_plausibilitaet where art = 'Kistengewicht' and auftrag_id = v_b) = 0,
+    '0092 (c2): die Auffälligkeit steht noch, obwohl das Kistengewicht bekannt ist';
+  perform auswertung_aktualisieren();
+  select eingang_netto_kg, masse_quelle into v_kg, v_q from v_auftrag_masse where auftrag_id = v_b;
+  assert v_q = 'wasch_paletten' and v_kg between 326 and 328,
+    format('0092 (c3): die Masse der Arbeit B ist %s aus „%s" — erwartet ≈ 327 aus wasch_paletten', v_kg, v_q);
+  -- A selbst rechnet mit den eigenen fertigen Paletten — nicht im Kreis.
+  select masse_quelle into v_q from v_auftrag_masse where auftrag_id = v_a;
+  assert v_q = 'fertige_paletten', format('0092 (c4): die Masse der Arbeit A stammt aus „%s" statt fertige_paletten', v_q);
+
+  assert schema_stand() >= 92, format('0092 (d1): schema_stand() = %s, mindestens 92 erwartet', schema_stand());
+
+  delete from ausgang_wiegung where auftrag_id in (v_a, v_b);
+  delete from auftrag where id in (v_a, v_b);
+  perform auswertung_aktualisieren();
+  delete from profil where id = v_u;
+  delete from auth.users where id = v_u;
+  raise notice 'OK  0092 — Das Kistengewicht je Band aus einer Wasch-Arbeit, die hinein zählt und heraus wiegt (654 ÷ 72 = 9.083 kg); rückwirkend für die anderen';
+end $$;
+
+select '——— 0092 Kistengewicht von der Waage geprüft ———' as ergebnis;
+
+-- =====================================================================
+-- 0093 — Die Demo-Saison hat Rückmeldungen
+--
+-- 0081 (b) verlangt, dass keine Sicht der Auswertung auf der Demo leer
+-- bleibt — v_arbeit_kommentar (0091) blieb es. Geprüft wird, dass die Demo
+-- jetzt beide Arten der Rückmeldung hinterlässt, dass die zur Ware dort
+-- ankommen, wo das Dashboard sie zeigt (Kommentar-Sicht mit Charge, an
+-- einer Arbeit mit Auffälligkeit), dass die zur App dort nicht erscheint,
+-- und dass das Entfernen der Demo sie restlos mitnimmt.
+-- =====================================================================
+do $$
+declare
+  v_modus jsonb; v_txt text; v_n int; v_a bigint;
+begin
+  select wert into v_modus from einstellung where schluessel = 'betriebsmodus';
+  update einstellung set wert = '"beispiel"'::jsonb where schluessel = 'betriebsmodus';
+  select demo_daten_laden() into v_txt;
+  assert v_txt like '%4 Rückmeldungen%', format('0093 (a): der Ladesatz zählt die Rückmeldungen nicht: %s', v_txt);
+
+  -- (b) Drei zur Ware, eine zur App — an abgeschlossenen Demo-Arbeiten,
+  --     geschrieben (keine Aufnahme, die es im Bucket nicht gäbe), mit Zeit
+  --     nach dem Ende der Arbeit, von einer beteiligten Person oder dem
+  --     Betriebsleiter.
+  select count(*) into v_n from auftrag_rueckmeldung r join auftrag a on a.id = r.auftrag_id
+   where a.bemerkung = 'DEMO' and r.art = 'ware';
+  assert v_n = 3, format('0093 (b1): %s Rückmeldungen zur Ware statt 3', v_n);
+  select count(*) into v_n from auftrag_rueckmeldung r join auftrag a on a.id = r.auftrag_id
+   where a.bemerkung = 'DEMO' and r.art = 'app';
+  assert v_n = 1, format('0093 (b2): %s Rückmeldungen zur App statt 1', v_n);
+  select count(*) into v_n from auftrag_rueckmeldung r join auftrag a on a.id = r.auftrag_id
+   where a.bemerkung = 'DEMO'
+     and (a.status <> 'abgeschlossen' or r.audio_ref is not null or r.transkript is not null
+          or nullif(btrim(r.text), '') is null or r.ts <= coalesce(a.ende_ts, a.start_ts));
+  assert v_n = 0, format('0093 (b3): %s Demo-Rückmeldungen mit Aufnahme, ohne Text, an offener Arbeit oder vor deren Ende', v_n);
+  select count(*) into v_n from auftrag_rueckmeldung r join auftrag a on a.id = r.auftrag_id
+   where a.bemerkung = 'DEMO'
+     and not exists (select 1 from auftrag_teilnehmer t where t.auftrag_id = a.id and t.profil_id = r.erfasser)
+     and not exists (select 1 from profil p where p.id = r.erfasser and p.rolle = 'admin');
+  assert v_n = 0, format('0093 (b4): %s Demo-Rückmeldungen von jemandem, der weder beteiligt noch Betriebsleiter ist', v_n);
+
+  -- (c) Die Kommentar-Sicht zeigt genau die drei zur Ware, mit ihrer Charge —
+  --     und die zur App nicht (sie ist für die nächste Runde am Programm).
+  select count(*) into v_n from v_arbeit_kommentar k join auftrag a on a.id = k.auftrag_id where a.bemerkung = 'DEMO';
+  assert v_n = 3, format('0093 (c1): v_arbeit_kommentar zeigt %s Demo-Kommentare statt 3', v_n);
+  select count(*) into v_n from v_arbeit_kommentar k
+   where k.text like 'Hagelschaden%' and k.charge_nr = 1628 and not k.mit_aufnahme;
+  assert v_n = 1, '0093 (c2): der Hagelschaden steht nicht an der Charge 1628';
+  select count(*) into v_n from v_arbeit_kommentar k
+   where k.text like '%Palox geleert wurde%' or k.text like 'Wo trage ich ein%';
+  assert v_n = 0, '0093 (c3): die Rückmeldung zur App erscheint als Kommentar zur Ware';
+
+  -- (d) Eine der drei hängt an einer Arbeit, die die Auswertung als
+  --     auffällig meldet — dort zeigt die Karte den Kommentar mit an.
+  perform auswertung_aktualisieren();
+  select count(*) into v_n
+    from erg_plausibilitaet p join v_arbeit_kommentar k on k.auftrag_id = p.auftrag_id;
+  assert v_n >= 1, '0093 (d): keine Auffälligkeit trägt einen Kommentar zur Ware';
+
+  -- (e) Das Entfernen nimmt die Rückmeldungen restlos mit.
+  perform demo_daten_entfernen();
+  select count(*) into v_n from auftrag_rueckmeldung r
+   where r.text like 'Hagelschaden: viele Kürbisse%' or r.text like 'Wo trage ich ein, dass der Palox%';
+  assert v_n = 0, format('0093 (e): %s Demo-Rückmeldungen nach dem Entfernen übrig', v_n);
+  perform auswertung_aktualisieren();
+
+  update einstellung set wert = v_modus where schluessel = 'betriebsmodus';
+  raise notice 'OK  0093 — Die Demo hinterlässt drei Rückmeldungen zur Ware und eine zur App; die zur Ware stehen an Charge und Auffälligkeit, die zur App nicht; das Entfernen nimmt alle mit';
+end $$;
+
+select '——— 0093 Demo-Rückmeldungen geprüft ———' as ergebnis;

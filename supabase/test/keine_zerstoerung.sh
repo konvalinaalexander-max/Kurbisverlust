@@ -50,6 +50,11 @@ FREIGEGEBEN=(
   # Aufrufs, und keine davon trägt je eine Messung des Betriebs.
   "0081_die_demo_zeigt_was_die_app_kann.sql:124"
   "0081_die_demo_zeigt_was_die_app_kann.sql:988"
+  # 0093 schreibt demo_daten_laden() noch einmal ganz (die Demo hinterlässt
+  # Rückmeldungen) — dieselben drei Notizzettel, am selben Anfang und am
+  # selben Ende der Funktion, aus demselben Grund.
+  "0093_die_demo_saison_hat_rueckmeldungen.sql:81"
+  "0093_die_demo_saison_hat_rueckmeldungen.sql:991"
 )
 
 # ---------------------------------------------------------------------

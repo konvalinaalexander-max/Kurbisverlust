@@ -34,6 +34,10 @@ export interface Rueckmeldung {
   id: number; auftrag_id: number; text: string | null
   audio_ref: string | null; audio_typ: string | null; audio_sekunden: number | null
   erfasser: string; ts: string
+  /** 0091: zur Ware (für den Betriebsleiter) oder zur App (für die nächste Runde). */
+  art: 'ware' | 'app'
+  /** 0091: was das Handy mitgeschrieben hat (handy) oder der Mensch daraus machte (hand). */
+  transkript: string | null; transkript_quelle: 'handy' | 'hand' | null
 }
 
 export interface Gebinde {

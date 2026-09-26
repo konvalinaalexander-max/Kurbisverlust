@@ -59,10 +59,19 @@ export function Abschluss({ d, neuLaden, zurueck, fertig }: {
    *  gelesen, damit die Schrittliste nicht unter den Füssen wegrutscht,
    *  wenn „Ja, geleert" den Auftrag mitten im Abschluss umschreibt. */
   const [ohnePaloxVonAnfang] = useState(d.auftrag.palox_unbekannt)
-  /** 0085: die Rückmeldung — Text, Aufnahme oder beides; leer heisst keine Zeile. */
-  const [rueckText, setRueckText] = useState('')
-  const [aufnahme, setAufnahme] = useState<Aufnahme | null>(null)
-  const rueckGespeichert = useRef(false)
+  /** 0085/0091: die Rückmeldung — je Art (zur Ware, zur App) Text, Aufnahme
+   *  oder beides; leer heisst keine Zeile. Das Transkript kommt aus der
+   *  Aufnahme und darf von Hand berichtigt werden. */
+  type RueckArt = 'ware' | 'app'
+  interface RueckFelder { text: string; aufnahme: Aufnahme | null; transkript: string; transkriptGeaendert: boolean }
+  const leer = (): RueckFelder => ({ text: '', aufnahme: null, transkript: '', transkriptGeaendert: false })
+  const [rueck, setRueck] = useState<Record<RueckArt, RueckFelder>>({ ware: leer(), app: leer() })
+  const [rueckArt, setRueckArt] = useState<RueckArt | null>(null)
+  const rueckGespeichert = useRef<Set<RueckArt>>(new Set())
+  const rueckSetzen = (art: RueckArt, teil: Partial<RueckFelder>) => setRueck(r => ({ ...r, [art]: { ...r[art], ...teil } }))
+  const aufnahmeSetzen = (art: RueckArt, a: Aufnahme | null) =>
+    setRueck(r => ({ ...r, [art]: { ...r[art], aufnahme: a, transkript: a?.transkript ?? '', transkriptGeaendert: false } }))
+  const rueckVoll = (art: RueckArt) => rueck[art].text.trim() !== '' || rueck[art].aufnahme !== null
   const [eineCharge, setEineCharge] = useState<boolean | null>(null)
   const [gleicheSorte, setGleicheSorte] = useState<boolean | null>(null)
   const [paletten, setPaletten] = useState(String(d.auftrag.paletten_gesamt ?? ''))
@@ -212,25 +221,29 @@ export function Abschluss({ d, neuLaden, zurueck, fertig }: {
 
   async function abschliessen() {
     setLaeuft(true); setFehler(null)
-    // 0085: Die Rückmeldung zuerst — die Aufnahme in den Speicher, die Zeile
-    // dazu. Einmal: Scheitert der Abschluss danach, wird beim zweiten
-    // Versuch nicht noch einmal geschrieben.
-    const text = rueckText.trim()
-    if (!rueckGespeichert.current && (text || aufnahme)) {
+    // 0085/0091: Die Rückmeldungen zuerst — je Art eine Zeile: die Aufnahme
+    // in den Speicher, das Transkript daneben. Einmal je Art: Scheitert der
+    // Abschluss danach, wird beim zweiten Versuch nicht noch einmal geschrieben.
+    for (const art of ['ware', 'app'] as RueckArt[]) {
+      const f = rueck[art]
+      const text = f.text.trim()
+      if (rueckGespeichert.current.has(art) || !(text || f.aufnahme)) continue
       let audio_ref: string | null = null
-      if (aufnahme) {
-        const endung = aufnahme.typ.includes('mp4') ? 'm4a' : aufnahme.typ.includes('ogg') ? 'ogg' : 'webm'
-        audio_ref = `${d.auftrag.id}/${Date.now()}.${endung}`
+      if (f.aufnahme) {
+        const endung = f.aufnahme.typ.includes('mp4') ? 'm4a' : f.aufnahme.typ.includes('ogg') ? 'ogg' : 'webm'
+        audio_ref = `${d.auftrag.id}/${Date.now()}-${art}.${endung}`
         const { error: e1 } = await supabase.storage.from('rueckmeldungen')
-          .upload(audio_ref, aufnahme.blob, { contentType: aufnahme.typ, upsert: false })
+          .upload(audio_ref, f.aufnahme.blob, { contentType: f.aufnahme.typ, upsert: false })
         if (e1) { setLaeuft(false); setFehler(fehlerText(e1)); return }
       }
+      const transkript = f.aufnahme ? (f.transkript.trim() || null) : null
       const { error: e2 } = await supabase.from('auftrag_rueckmeldung').insert({
-        auftrag_id: d.auftrag.id, text: text || null, audio_ref,
-        audio_typ: aufnahme?.typ ?? null, audio_sekunden: aufnahme?.sekunden ?? null,
+        auftrag_id: d.auftrag.id, art, text: text || null, audio_ref,
+        audio_typ: f.aufnahme?.typ ?? null, audio_sekunden: f.aufnahme?.sekunden ?? null,
+        transkript, transkript_quelle: transkript === null ? null : f.transkriptGeaendert ? 'hand' : 'handy',
       })
       if (e2) { setLaeuft(false); setFehler(fehlerText(e2)); return }
-      rueckGespeichert.current = true
+      rueckGespeichert.current.add(art)
     }
     const angaben: { schluessel: string; wert: string }[] = []
     if (eineCharge !== null) angaben.push({ schluessel: 'eine_charge', wert: String(eineCharge) })
@@ -402,16 +415,37 @@ export function Abschluss({ d, neuLaden, zurueck, fertig }: {
   }
 
   if (aktuell === 'rueckmeldung') {
+    // 0091: Zuerst die Wahl — zur Ware oder zur App —, gross und auf Anhieb
+    // sichtbar; dann die Frage dazu, gross, damit der Kopf in die Richtung
+    // denkt. Der Betrieb: „gibst du ihr auch noch gleich eine Frage gross auf
+    // dem Bildschirm". Beides kann gefüllt werden; beides darf leer bleiben.
+    const felder = (art: RueckArt) => (
+      <div className="karte" id={`rueck-felder-${art}`}>
+        <p className="rueck-frage">{art === 'ware' ? t('frageWare') : t('frageApp')}</p>
+        {art === 'ware' && <p className="hilfe" style={{ marginTop: 0 }}>{t('hinweisWare')}</p>}
+        <div className="feld">
+          <label htmlFor={`rueckmeldung-text-${art}`}>{t('rueckmeldungSchreiben')}</label>
+          <textarea id={`rueckmeldung-text-${art}`} rows={3} value={rueck[art].text} onChange={e => rueckSetzen(art, { text: e.target.value })} />
+        </div>
+        {sprachaufnahmeMoeglich() && <Sprachaufnahme wert={rueck[art].aufnahme} setzen={a => aufnahmeSetzen(art, a)} />}
+        {rueck[art].aufnahme && (
+          <div className="feld abstand-oben">
+            <label htmlFor={`rueck-transkript-${art}`}>{rueck[art].aufnahme.transkript ? t('verstanden') : t('nichtVerstanden')}</label>
+            <textarea id={`rueck-transkript-${art}`} rows={3} value={rueck[art].transkript}
+                      onChange={e => rueckSetzen(art, { transkript: e.target.value, transkriptGeaendert: true })} />
+          </div>
+        )}
+      </div>
+    )
     return (
       <Schritt nummer={n} von={von} frage={t('rueckmeldungFrage')} zurueck={zurueckSchritt} weiter={weiter}>
-        <div className="karte">
-          <div className="feld">
-            <label htmlFor="rueckmeldung-text">{t('rueckmeldungSchreiben')}</label>
-            <textarea id="rueckmeldung-text" rows={3} value={rueckText} onChange={e => setRueckText(e.target.value)} />
-          </div>
-          {sprachaufnahmeMoeglich() && <Sprachaufnahme wert={aufnahme} setzen={setAufnahme} />}
-          <p className="hilfe">{t('rueckmeldungFreiwillig')}</p>
+        <p className="leise unten-0">{t('rueckWahl')}</p>
+        <div className="wahl rueck-wahl">
+          <Wahl id="rueck-ware" name={t('rueckWare')} erkl={`${t('rueckWareUnter')}${rueckVoll('ware') ? ' ✓' : ''}`} gewaehlt={rueckArt === 'ware'} onClick={() => setRueckArt('ware')} />
+          <Wahl id="rueck-app" name={t('rueckApp')} erkl={`${t('rueckAppUnter')}${rueckVoll('app') ? ' ✓' : ''}`} gewaehlt={rueckArt === 'app'} onClick={() => setRueckArt('app')} />
         </div>
+        {rueckArt && felder(rueckArt)}
+        <p className="hilfe">{t('rueckmeldungFreiwillig')}</p>
       </Schritt>
     )
   }
@@ -456,9 +490,10 @@ export function Abschluss({ d, neuLaden, zurueck, fertig }: {
           <dt>{t('eineChargeFrage')}</dt>
           <dd>{eineCharge === null ? '—' : eineCharge ? t('ja') : `${t('nein')}${gleicheSorte === null ? '' : gleicheSorte ? ` · ${t('gleicheSorteJa')}` : ` · ${t('gleicheSorteNein')}`}`}</dd>
           <dt>{t('rueckmeldung')}</dt>
-          <dd>{rueckText.trim() || aufnahme
-            ? <>{rueckText.trim() && <span>{rueckText.trim()}</span>}{rueckText.trim() && aufnahme ? ' · ' : ''}{aufnahme && <span>{t('aufnahme')} {Math.floor(aufnahme.sekunden / 60)}:{String(aufnahme.sekunden % 60).padStart(2, '0')}</span>}</>
-            : '—'}</dd>
+          <dd>{(['ware', 'app'] as RueckArt[]).filter(rueckVoll).length === 0 ? '—'
+            : (['ware', 'app'] as RueckArt[]).filter(rueckVoll).map(art => (
+              <div key={art}><strong>{art === 'ware' ? t('rueckWare') : t('rueckApp')}:</strong> {rueck[art].text.trim()}{rueck[art].text.trim() && rueck[art].aufnahme ? ' · ' : ''}{rueck[art].aufnahme && <span>{t('aufnahme')} {Math.floor(rueck[art].aufnahme!.sekunden / 60)}:{String(rueck[art].aufnahme!.sekunden % 60).padStart(2, '0')}</span>}</div>
+            ))}</dd>
         </dl>
       </div>
       {erinnert.map(e => <Hinweis key={e} art="info">{e}</Hinweis>)}

@@ -169,6 +169,11 @@ begin
   assert (select text from auftrag_rueckmeldung where auftrag_id = a) like '%Waage stand schief%',
     'Der Text der Rückmeldung kommt nicht an';
   assert (select audio_ref is null from auftrag_rueckmeldung where auftrag_id = a), 'Ohne Aufnahme darf keine Datei stehen';
+  assert (select art from auftrag_rueckmeldung where auftrag_id = a) = 'app', 'Das Feedback zur App trägt nicht die Art „app" (0091)';
+  assert not exists (select 1 from v_arbeit_kommentar where auftrag_id = a), 'Feedback zur App darf kein Kommentar zur Ware sein (0091)';
+  -- 0091: der Kommentar zur Ware aus dem zweiten Durchlauf hängt an seiner Arbeit
+  assert (select count(*) from v_arbeit_kommentar where text like '%Hagelschaden%') = 1,
+    'Der Kommentar zur Ware „Hagelschaden" fehlt in v_arbeit_kommentar (0091)';
   assert (select wert from v_auftrag_angabe where auftrag_id = a and schluessel = 'eine_charge') = 'true',
     'Die Antwort „alles aus einer Charge" ist nicht angekommen';
 

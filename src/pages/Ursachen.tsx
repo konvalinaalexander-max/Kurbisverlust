@@ -213,6 +213,9 @@ function Faules({ daten, filter, chargen, staende, oeffnen }: {
   const farbe = farbwahl(namen)
   const eigene = new Set(gute.map(p => p.charge_nr))
 
+  // 0091: der Kommentar zur Ware am Punkt — „Hagelschaden" erklärt den
+  // Ausreisser, bevor jemand ihn sucht.
+  const kommentar = new Map(daten.kommentare.map(k => [k.auftrag_id, k.text]))
   const modell = daten.modell
   const kurve = schimmelKurve(modell)
   const tMax = modell?.t_max ?? 0
@@ -234,8 +237,9 @@ function Faules({ daten, filter, chargen, staende, oeffnen }: {
       x: achse === 'kalender' ? tagVon(p.messtag) : p.lagertage,
       y: (p.anteil ?? 0) * 100,
       name: `Charge ${p.charge_nr} · ${p.sorte}`,
-      text: `${datum(p.messtag)} · liegt seit ${Math.round(p.lagertage)} Tagen · ${kg(p.schimmel_kg, 0)} von ${kg(p.basis_jetzt_kg, 0)} · ${quelleText(p.quelle)}`,
+      text: `${datum(p.messtag)} · liegt seit ${Math.round(p.lagertage)} Tagen · ${kg(p.schimmel_kg, 0)} von ${kg(p.basis_jetzt_kg, 0)} · ${quelleText(p.quelle)}${p.auftrag_id != null && kommentar.has(p.auftrag_id) ? ` · Kommentar: ${kommentar.get(p.auftrag_id)}` : ''}`,
       auftragId: p.auftrag_id,
+      groesse: p.auftrag_id != null && kommentar.has(p.auftrag_id) ? 6 : undefined,
     })),
   })).filter(r => r.punkte.length > 0)
 
@@ -246,7 +250,7 @@ function Faules({ daten, filter, chargen, staende, oeffnen }: {
         x: achse === 'kalender' ? tagVon(p.messtag) : p.lagertage,
         y: Math.min((p.anteil ?? 0) * 100, 100),
         name: `Charge ${p.charge_nr} · ${p.sorte}`,
-        text: `${datum(p.messtag)} · ${kg(p.schimmel_kg, 0)} von ${kg(p.basis_jetzt_kg, 0)} · nicht plausibel, siehe Messungen`,
+        text: `${datum(p.messtag)} · ${kg(p.schimmel_kg, 0)} von ${kg(p.basis_jetzt_kg, 0)} · nicht plausibel, siehe Messungen${p.auftrag_id != null && kommentar.has(p.auftrag_id) ? ` · Kommentar: ${kommentar.get(p.auftrag_id)}` : ''}`,
         auftragId: p.auftrag_id,
       })),
     })
@@ -343,6 +347,7 @@ function Verdunstung({ daten, filter, chargen, oeffnen }: { daten: Auswertung; f
   const farbe = farbwahl(namen)
   const heute = tagVon(daten.heute)
   const rate = (s: string): SortenK | undefined => daten.sorten.verdunstung.find(k => k.sorte === s)
+  const kommentar = new Map(daten.kommentare.map(k => [k.auftrag_id, k.text]))
 
   // Wie beim Faulen: höchstens zehn Reihen sichtbar, der Rest wartet in der
   // Legende (DESIGN_RUNDE_R § 5). Sortiert nach der Zahl der Wägungen — die
@@ -358,8 +363,9 @@ function Verdunstung({ daten, filter, chargen, oeffnen }: { daten: Auswertung; f
       x: achse === 'kalender' ? tagVon(w.wiege_ts) : w.lagertage,
       y: (w.rate_pro_tag ?? 0) * 100,
       name: `Charge ${w.charge_nr} · ${w.sorte}`,
-      text: `${datum(w.wiege_ts)} · liegt seit ${Math.round(w.lagertage)} Tagen · ${kg(w.netto_damals_kg, 0)} → ${kg(w.netto_jetzt_kg, 0)}`,
+      text: `${datum(w.wiege_ts)} · liegt seit ${Math.round(w.lagertage)} Tagen · ${kg(w.netto_damals_kg, 0)} → ${kg(w.netto_jetzt_kg, 0)}${w.auftrag_id != null && kommentar.has(w.auftrag_id) ? ` · Kommentar: ${kommentar.get(w.auftrag_id)}` : ''}`,
       auftragId: w.auftrag_id,
+      groesse: w.auftrag_id != null && kommentar.has(w.auftrag_id) ? 6 : undefined,
     })),
   })).filter(r => r.punkte.length > 0)
 

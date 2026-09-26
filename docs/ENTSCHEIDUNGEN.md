@@ -4007,3 +4007,114 @@ Satz für Satz; eine Zeile je Arbeit mit der Tätigkeit davor reicht.
 an, was neu ist, und lässt stehen, was da ist — auch wenn das Journal
 inzwischen anders lautet. Sonst überschriebe ein Tippfehler im Sheet eine
 Berichtigung in der App, ohne dass jemand es sähe.
+
+## Runde Y: die Halle spricht, das Repository liest (26. September, 0091–0093)
+
+### Kann ich Aufnahmen hören?
+
+Nein. Ich lese Text; eine Audiodatei ist für mich ein Klumpen Bytes. Es
+gäbe zwei Wege, sie zu Text zu machen: ein Dienst im Netz (die Aufnahmen
+des Betriebs verliessen dann das Projekt, und es wäre eine neue
+Abhängigkeit) oder ein Modell, das im Repository läuft (gross, langsam,
+und für Mundart kaum besser). Der dritte Weg ist der, den das Handy schon
+kann: Die Spracherkennung des Browsers schreibt beim Aufnehmen mit —
+Chrome und Android haben sie, Safari auf dem iPhone seit 14.5, auf
+Hochdeutsch eingestellt (`de-CH`). Das Transkript steht sofort unter der
+Aufnahme zum Prüfen, und es wird mit seiner Quelle gespeichert: `handy`
+(ungeprüft) oder `hand` (geprüft oder getippt). Was der Betriebsleiter
+liest und was ich lese, ist derselbe Text. Mundart versteht die Erkennung
+schlecht — darum bleibt „Bitte Hochdeutsch", und wo sie nichts versteht,
+bittet die Maske um ein paar getippte Worte statt zu schweigen.
+
+### Zwei Arten, und die Wahl vor dem Feld
+
+„Zur Ware" und „Zur App" sind verschiedene Dinge: Das eine ist ein
+Befund über diese Charge, für den Betriebsleiter, an den Messungen —
+„Hagelschaden" erklärt den Ausreisser, bevor jemand ihn korrigieren will.
+Das andere ist eine Aufgabe für die nächste Runde am Programm. Die
+Maske fragt zuerst, wozu, als zwei grosse Karten; dann kommt die Frage
+dazu, gross, damit der Kopf in die Richtung denkt. Beides darf gefüllt
+werden, beides darf leer bleiben; je Art entsteht eine Zeile.
+
+### Das Repository liest jeden Tag
+
+Der Betrieb wollte die Rückmeldungen „im GitHub", damit die nächste Runde
+sie holt — und dasselbe für die Auffälligkeiten, „damit du von den
+Fehlern selber lernst". Beides tut der Betriebsabzug: ein Skript ohne
+Abhängigkeiten, das über die REST-Schnittstelle des Projekts die
+Rückmeldungen (mit Transkript), die Auffälligkeiten (gezählt und einzeln,
+jede mit ihrer Arbeit) und den Stand der Modelle holt und als Text nach
+`docs/betrieb/` schreibt; ein Workflow, der es täglich tut und eincheckt,
+was sich geändert hat. Die zwei Secrets muss der Betrieb einmal setzen.
+Die Aufnahmen selbst bleiben im Bucket — ein Repository ist kein Ort für
+Betriebsdaten —, ihr Transkript darf hinein.
+
+Und `CLAUDE.md` sagt, wie eine Runde beginnt: mit diesen Dateien.
+Rückmeldungen zur App werden Aufgaben. Auffälligkeiten werden nach ihrem
+Ursprung befragt — Ablauf, Maske, oder ein Datenfehler, der dem Betrieb
+gehört und dem Betrieb gesagt wird. Der Modellstand wird gegen
+`docs/SAISONBEGLEITUNG.md` gelesen: Was sollte die Saison zeigen, was
+zeigt sie, und wenn es anders ist — erst die Daten, dann die Annahme,
+zuletzt die Mathematik.
+
+### Woher jede Zahl ihre Eingaben nimmt — und was die Prüfung fand
+
+Der Betrieb: „Wenn du A, B und D hast und C fehlt — wie errätst du dir
+das C? Macht das Sinn?" `docs/HERLEITUNG.md` antwortet Kette für Kette.
+Elf Ketten sind ehrlich: Der Ersatz kommt aus Messungen derselben Art,
+in fester Reihenfolge, und die Zahl sagt, dass sie ein Ersatz ist.
+
+Eine Kette war **gebrochen**, und niemand hatte es gemerkt: Die Masse
+eines Waschgangs aus Kisten ist Kisten × Kistengewicht des Bandes, und
+das Kistengewicht kam ausschliesslich aus Sortierläufen, bei denen die
+gefüllten Kisten je Band *gezählt* wurden. Seit Runde Q zählt das niemand
+mehr — der Betrieb hatte es so gewollt. Die Quelle war versiegt, jeder
+Waschgang ohne gewogene fertige Paletten blieb „Kistengewicht unbekannt",
+und der Rat („beim nächsten Sortierlauf zählen") war nicht befolgbar. Der
+Betrieb sah die Meldung „fast zehnmal" und fragte, ob sich das von selbst
+löse. Meine erste Antwort („ja, rückwirkend") war falsch: Es hätte sich
+nie gelöst.
+
+0092 lässt die Waage sprechen: Eine Wasch-Arbeit, die ihre Kaliber-
+Paletten gezählt (Kisten hinein) und ihre fertigen Paletten gewogen hat
+(Masse heraus), misst das Kistengewicht des Bandes selbst — Masse heraus
+÷ Kisten hinein. Das Faule und der Ausschuss fehlen in der Masse heraus,
+darum ist die Zahl eher etwas zu klein, nie zu gross. Eine solche Arbeit
+je Sorte und Band genügt, sie gilt rückwirkend, und die Arbeit selbst
+rechnet weiter mit ihren eigenen Paletten — nicht im Kreis (der Prüfblock
+hält das fest). Befund und Rat nennen jetzt die Waage.
+
+### Die Demo hinterlässt Rückmeldungen (0093)
+
+Der Prüfblock zu 0081 lässt keine Sicht der Auswertung auf der Demo-Saison
+leer — und `v_arbeit_kommentar` blieb leer, weil die Demo keine Rückmeldung
+zur Ware kannte. Der Prüfblock hat also getan, was er soll; die Antwort ist
+nicht eine Ausnahme in der Prüfung, sondern eine Demo, die auch das zeigt:
+drei Rückmeldungen zur Ware (der Hagelschaden an der faulsten
+Sortier-Arbeit, der nasse Zettel an der Arbeit mit dem falschen
+Zetteldatum, der randvolle Palox an der Arbeit aus Sonderfall 7) und eine
+zur App an derselben Arbeit. So sieht man den Kommentar am Punkt der
+Faul-Kurve, an der Auffälligkeit und im Arbeitsfenster, bevor die Halle den
+ersten schreibt. Geschrieben, nicht gesprochen: eine Aufnahme wäre eine
+Datei im Bucket, die eine SQL-Funktion nicht anlegen kann.
+
+Die Ladefunktion steht in 0093 noch einmal ganz — wie 0081 sie nach 0052
+ganz neu schrieb. Ein kurzer Nachtrag (die alte Fassung umbenennen und
+aufrufen) sähe kleiner aus, hielte aber nicht: `setup.sql` behält von jeder
+Funktion nur die letzte Fassung, die alte wäre dort weg. Das Abschreiben
+kostet in `setup.sql` darum auch nichts (1.7 KB mehr), und wer wissen will,
+wie die Demo heute entsteht, liest eine Datei.
+
+### Was bewusst nicht gemacht wurde
+
+**Kein Transkriptionsdienst.** Siehe oben — die Aufnahmen bleiben im
+Projekt, und ein Modell, das im Repository läuft, wäre für die Mundart
+der Halle nicht besser als das Handy.
+
+**Kein Modell je Sorte für das Faule.** Die Saisonbegleitung fragt danach;
+gebaut wird es erst, wenn eine Sorte genug Punkte hat, dass die Kurve
+sich von der gemeinsamen unterscheidet — als eigene Migration mit Prüfblock.
+
+**Der Abzug schreibt nur Text.** Keine Bilder, keine Rohdaten, keine
+Namen von Kunden. Was ich zum Lernen brauche, ist der Satz aus der Halle
+und die Zeile der Auffälligkeit mit ihrer Arbeit.

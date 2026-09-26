@@ -199,7 +199,11 @@ export function ArbeitFenster({ auftragId, schliessen }: { auftragId: number; sc
               <section className="fenster-abschnitt">
                 <h3>Rückmeldung</h3>
                 {rueck.map(r => (
-                  <p key={r.id} className="rueckmeldung-text">{r.text ?? ''}{r.audio_ref ? <span className="leise"> · Aufnahme{r.audio_sekunden != null ? ` (${Math.floor(r.audio_sekunden / 60)}:${String(r.audio_sekunden % 60).padStart(2, '0')})` : ''} — unter Betrieb → Arbeiten anhören</span> : ''}</p>
+                  <p key={r.id} className="rueckmeldung-text">
+                    <strong>{r.art === 'ware' ? 'Zur Ware' : 'Zur App'}:</strong> {r.text ?? ''}
+                    {r.transkript && <span className="leise"> · mitgeschrieben{r.transkript_quelle === 'hand' ? ', geprüft' : ''}: „{r.transkript}"</span>}
+                    {r.audio_ref ? <span className="leise"> · Aufnahme{r.audio_sekunden != null ? ` (${Math.floor(r.audio_sekunden / 60)}:${String(r.audio_sekunden % 60).padStart(2, '0')})` : ''} — unter Betrieb → Arbeiten anhören</span> : ''}
+                  </p>
                 ))}
               </section>
             )}

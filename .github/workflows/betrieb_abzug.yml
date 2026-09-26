@@ -1,0 +1,37 @@
+# Der Betriebsabzug (Runde Y): einmal am Tag holt das Repository, was die
+# Halle gesagt hat und was die Auswertung gefunden hat — als Text nach
+# docs/betrieb/. Die nächste Runde am Programm beginnt mit diesen Dateien.
+#
+# Braucht zwei Secrets im Repository (Settings → Secrets → Actions):
+#   SUPABASE_URL          https://<projekt>.supabase.co
+#   SUPABASE_SERVICE_KEY  der service_role-Schlüssel (liest an RLS vorbei;
+#                         nie in die App, nur hierher)
+# Ohne sie läuft der Workflow durch und schreibt nichts.
+name: Betriebsabzug
+on:
+  schedule:
+    - cron: '17 4 * * *'   # täglich 04:17 UTC — nach der Nacht, vor dem Büro
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  abzug:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Abzug ziehen
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: node pruefstand/betrieb_abzug.mjs
+      - name: Einchecken, wenn sich etwas geändert hat
+        run: |
+          git config user.name "Betriebsabzug"
+          git config user.email "betriebsabzug@users.noreply.github.com"
+          git add docs/betrieb
+          if git diff --cached --quiet; then echo "nichts Neues"; exit 0; fi
+          git commit -m "Betriebsabzug $(date -u +%Y-%m-%d): Rückmeldungen, Auffälligkeiten, Modellstand"
+          git push

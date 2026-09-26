@@ -268,7 +268,9 @@ function Arbeiten() {
                             {namen.get(r.erfasser) || 'jemand'} · {zeitpunkt(r.ts)}
                             {r.audio_sekunden != null && <> · {Math.floor(r.audio_sekunden / 60)}:{String(r.audio_sekunden % 60).padStart(2, '0')} Aufnahme</>}
                           </div>
+                          <div className="leise" style={{ marginBottom: '.2rem' }}><strong>{r.art === 'ware' ? 'Zur Ware' : 'Zur App'}</strong></div>
                           {r.text && <p className="rueckmeldung-text">{r.text}</p>}
+                          {r.transkript && <p className="rueckmeldung-text leise">mitgeschrieben{r.transkript_quelle === 'hand' ? ', geprüft' : ' (ungeprüft)'}: „{r.transkript}"</p>}
                           {r.audio_ref && (tonUrl.has(r.id)
                             ? <audio controls src={tonUrl.get(r.id)} style={{ width: '100%', maxWidth: 480 }} />
                             : <span className="leise">Aufnahme wird geholt …</span>)}

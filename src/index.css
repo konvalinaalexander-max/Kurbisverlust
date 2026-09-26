@@ -832,3 +832,7 @@ tr.marge-dahinter td { background: var(--flaeche-2); padding: .5rem .75rem .75re
 tr.marge-dahinter table { margin: 0; }
 .liste-schlicht { margin: 0 0 var(--a-3); padding-left: 1.2rem; }
 .liste-schlicht li { margin: .15rem 0; }
+
+/* ---------- Runde Y: die Rückmeldung in zwei Arten ------------------------ */
+.rueck-wahl { margin: .5rem 0 var(--a-3); }
+.rueck-frage { font-size: 1.35rem; font-weight: var(--gewicht-stark); line-height: 1.25; margin: 0 0 .5rem; }

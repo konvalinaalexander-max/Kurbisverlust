@@ -668,7 +668,21 @@ warum sein Deploy-Befehl `npx wrangler deploy --env beispiel` lauten **muss**
 [`docs/ZWEI_WEBSEITEN.md`](docs/ZWEI_WEBSEITEN.md). Rechne mit einer guten
 halben Stunde.
 
-**Zuletzt gebaut (Runde X, 0090)** — der Betrieb hat seine Auffälligkeiten
+**Zuletzt gebaut (Runde Y, 0091–0093)** — die Rückmeldung am Ende jeder
+Arbeit hat zwei Arten: **zur Ware** (Hagel, Faules — steht im Dashboard an
+den Messungen) und **zur App** (für die nächste Runde am Programm); das
+Handy schreibt beim Aufnehmen mit, das Transkript wird geprüft und
+gespeichert. Ein täglicher **Betriebsabzug** holt Rückmeldungen,
+Auffälligkeiten und Modellstand als Text nach `docs/betrieb/` — damit
+beginnt jede Runde (`CLAUDE.md`, `docs/SAISONBEGLEITUNG.md`).
+`docs/HERLEITUNG.md` sagt, woher jede gerechnete Zahl ihre Eingaben nimmt;
+dabei fand sich die gebrochene Kette beim Kistengewicht je Band (seit Runde
+Q zählt niemand Kisten) — seit 0092 kommt es von der Waage. Die Demo-Saison
+hinterlässt seit 0093 selbst Rückmeldungen (drei zur Ware, eine zur App),
+damit man den Kommentar am Punkt, an der Auffälligkeit und im Arbeitsfenster
+sieht, bevor die Halle den ersten schreibt. AB-89 bis AB-93.
+
+**Runde X (0090)** — der Betrieb hat seine Auffälligkeiten
 gelesen: Jede nennt jetzt ihre Arbeit (Tätigkeit, Zeit, Stand) und öffnet
 sie als Fenster; die Korrektur beginnt mit „Diese Arbeit braucht / Da ist /
 fehlt" und zeigt bei gezählten Paletten das Gewicht statt einer Datenbank-
@@ -832,6 +846,9 @@ Was jede Ansicht bedeutet, steht in [`docs/DATENFLUSS.md`](docs/DATENFLUSS.md).
 
 | Datei | Worum es geht |
 |---|---|
+| [`docs/HERLEITUNG.md`](docs/HERLEITUNG.md) | **Woher jede gerechnete Zahl ihre Eingaben nimmt** — Kette für Kette: die Eingaben, ihre Quelle, die Reihenfolge der Ersatzwege, und ob der Ersatz ehrlich ist. Wer eine Kette ändert, ändert die Datei mit. |
+| [`docs/SAISONBEGLEITUNG.md`](docs/SAISONBEGLEITUNG.md) | **Die Fragen an jede Runde** — was Verdunstung, Verderbskurve, Ausschussanteile, Ausbeute und Datenqualität zeigen sollten, und was zu tun ist, wenn sie es nicht tun. Gelesen mit `docs/betrieb/MODELLSTAND.md`. |
+| `docs/betrieb/` | **Was die Halle sagt, was die Auswertung findet** — täglich vom Betriebsabzug geschrieben: Rückmeldungen (mit Transkript), Auffälligkeiten, Modellstand, Verlauf. Der Anfang jeder Runde (`CLAUDE.md`). |
 | [`docs/Die-Arbeiter-App.pdf`](docs/Die-Arbeiter-App.pdf) | **Die Halle, Station für Station.** Wie der Ablauf im Betrieb verstanden wird und wie die App ihn erfasst: Grundregeln, Arbeit anlegen, der Palox (samt dem `−445`-Fehler), Sortieren, Waschen + Sortieren, Waschen mit Gebindewechsel und Kistenrechnung, Fax, Kontrollpalette, Abschluss. Mit fünfzehn Fragen an den Betrieb und allen vorgeschlagenen Änderungen auf einer Seite. Am Ende ein **Nachtrag**: was aus den fünfzehn Antworten wirklich gebaut wurde, samt der Zahl der Handgriffe je Tätigkeit vorher und nachher. 23 Seiten. |
 | [`docs/Das-ganze-Werkzeug.pdf`](docs/Das-ganze-Werkzeug.pdf) | **Verständnis und Dashboard.** Teil I: wie der Betrieb verstanden wird — die Annahmen einzeln zum Abhaken, Palox, Alter, Verdunstung ohne feste Rate, Verderb je Charge, der Nenner beim Waschen und der Gebindewechsel. Teil II: Entwürfe für die drei neuen Reiter. Zum Prüfen vor dem Scharfschalten der Datenerfassung. 19 Seiten. |
 | [`docs/Das-Programm-erklaert.pdf`](docs/Das-Programm-erklaert.pdf) | **Das ganze Programm in zwei Teilen.** Teil 1: was im Betrieb passiert, was die App an jeder Stelle fragt, was dabei gespeichert wird und warum genau so — jede Maske einzeln. Teil 2: Datenmodell, Sichtenkette, Massenkaskade, Verderbsmodell, Unsicherheit, Import, Sicherheit, Tempo, Prüfwerk und die ehrlichen Grenzen. 33 Seiten. |
@@ -897,6 +914,7 @@ Das genügt fast immer zur Klärung.
 | Runde V: Ausschuss ohne Palette, Palox mittendrin leeren, Rückmeldung mit Sprachaufnahme, Marge je Charge | `supabase/migrations/0083`–`0088`, `src/arbeit/AusschussMaske.tsx`, `PaloxLeerenMaske.tsx`, `Sprachaufnahme.tsx`, `src/pages/Ursachen.tsx` | Prüfblöcke 0083–0088 (jeder gegengeprüft durch absichtliches Kaputtmachen); `kette.mjs` mit Ausschuss ohne Palette, Palox-Leeren und Rückmeldung; Aufnahmen im Bucket `rueckmeldungen` |
 | Runde W: Arbeiten löschen, Marge in zwei Blöcken mit den Wägungen dahinter, Punkt-Tooltip und Arbeitsfenster, Verdunstungsgrenze | `supabase/migrations/0089`, `src/pages/Betrieb.tsx`, `src/pages/Ursachen.tsx`, `src/betrieb/ArbeitFenster.tsx`, `src/components/Diagramm.tsx` | Prüfblock 0089 (gegengeprüft); Bildschirme `betrieb-arbeiten-loeschen`, `ursachen-marge-auf`, `ursachen-arbeit` |
 | Runde X: Auffälligkeiten mit Arbeit und Fenster, Korrektur mit Kopf und „was fehlt", Zettelpalette mit eigenen Kisten, Erntejournal von selbst | `supabase/migrations/0090`, `src/auswertung/Karten.tsx`, `src/arbeit/Korrektur.tsx`, `src/betrieb/JournalAbgleich.tsx` | Prüfblock 0090 (gegengeprüft); Bildschirme `messungen-arbeit`, `arbeit-korrektur` |
+| Runde Y: Rückmeldung zur Ware und zur App mit Transkript, Kommentare an den Messungen, Betriebsabzug nach GitHub, Herleitung geprüft, Kistengewicht von der Waage, Demo mit Rückmeldungen | `supabase/migrations/0091`–`0093`, `src/arbeit/Sprachaufnahme.tsx`, `pruefstand/betrieb_abzug.mjs`, `.github/workflows/betrieb_abzug.yml`, `CLAUDE.md`, `docs/HERLEITUNG.md`, `docs/SAISONBEGLEITUNG.md` | Prüfblöcke 0091–0093 (gegengeprüft); Kette mit App- und Ware-Rückmeldung; Bildschirm `ursachen-kommentar` |
 | Schutz der Erfassung: Journal, Zerstörungswächter, zwei Webseiten | `erfassung_journal` (0072), `supabase/test/keine_zerstoerung.sh`, `src/lib/betriebsmodus.ts` | Wächter läuft als erste Stufe von `run.sh` |
 | Warenausgang aus dem Warenwirtschaftssystem einlesen | `src/lib/xlsx.ts`, `src/lib/warenausgang.ts`, `supabase/migrations/0050` | Leser und Regeln geprüft (27 Tests, 396 096 Zellen gegen einen zweiten Leser); der Bildschirm steht: Betrieb → Warenausgang (`src/betrieb/AusgangImport.tsx`, `src/pages/Lieferungen.tsx`, Übernahme in `ausgang_uebernehmen`, 0055) |
 

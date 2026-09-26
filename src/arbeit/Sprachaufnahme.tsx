@@ -10,6 +10,33 @@ export interface Aufnahme {
   sekunden: number
   /** Zum Anhören vor dem Abschicken — eine Objekt-URL, die wieder freigegeben wird. */
   url: string
+  /** 0091: was das Handy beim Aufnehmen mitgeschrieben hat — die Spracherkennung
+   *  des Browsers, auf Hochdeutsch eingestellt. null, wenn es keine gibt. */
+  transkript: string | null
+}
+
+/** Die Spracherkennung des Browsers, ohne Typen aus der DOM-Bibliothek:
+ *  Chrome und Android haben sie als webkitSpeechRecognition, Safari auf dem
+ *  iPhone seit 14.5. Wo sie fehlt, wird nur aufgenommen. */
+interface Erkennung {
+  lang: string; continuous: boolean; interimResults: boolean
+  onresult: ((e: { resultIndex: number; results: ArrayLike<ArrayLike<{ transcript: string }> & { isFinal: boolean }> }) => void) | null
+  onerror: (() => void) | null
+  start(): void; stop(): void
+}
+function erkennungBauen(): Erkennung | null {
+  const w = window as unknown as { SpeechRecognition?: new () => Erkennung; webkitSpeechRecognition?: new () => Erkennung }
+  const K = w.SpeechRecognition ?? w.webkitSpeechRecognition
+  if (!K) return null
+  try {
+    const e = new K()
+    // Hochdeutsch aus der Schweiz: das Nächste an dem, was in der Halle
+    // gesprochen wird. Mundart versteht sie schlecht — darum steht „Bitte
+    // Hochdeutsch" unter dem Knopf, und das Transkript wird gezeigt, nicht
+    // nur gespeichert.
+    e.lang = 'de-CH'; e.continuous = true; e.interimResults = false
+    return e
+  } catch { return null }
 }
 
 /** Länger als fünf Minuten redet niemand über eine Arbeit; danach hört die
@@ -46,6 +73,8 @@ export function Sprachaufnahme({ wert, setzen }: { wert: Aufnahme | null; setzen
   const stuecke = useRef<Blob[]>([])
   const start = useRef(0)
   const uhr = useRef<number | null>(null)
+  const erkennung = useRef<Erkennung | null>(null)
+  const mitgeschrieben = useRef<string[]>([])
 
   // Die Objekt-URL einer verworfenen Aufnahme wieder freigeben.
   useEffect(() => () => { if (wert) URL.revokeObjectURL(wert.url) }, [wert])
@@ -62,13 +91,33 @@ export function Sprachaufnahme({ wert, setzen }: { wert: Aufnahme | null; setzen
     }
     const r = new MediaRecorder(strom, typ ? { mimeType: typ } : undefined)
     stuecke.current = []
+    // Mitschreiben, solange aufgenommen wird — was dabei herauskommt, steht
+    // nachher unter der Aufnahme zum Prüfen.
+    mitgeschrieben.current = []
+    const e = erkennungBauen()
+    erkennung.current = e
+    if (e) {
+      e.onresult = ev => {
+        for (let i = ev.resultIndex; i < ev.results.length; i++) {
+          const r0 = ev.results[i]
+          if (r0.isFinal && r0[0]?.transcript) mitgeschrieben.current.push(r0[0].transcript.trim())
+        }
+      }
+      e.onerror = () => { /* kein Netz, kein Recht — dann eben ohne Text */ }
+      try { e.start() } catch { erkennung.current = null }
+    }
     r.ondataavailable = e => { if (e.data.size > 0) stuecke.current.push(e.data) }
     r.onstop = () => {
       strom.getTracks().forEach(s => s.stop())
       const dauer = Math.max(1, Math.round((Date.now() - start.current) / 1000))
       const blob = new Blob(stuecke.current, { type: r.mimeType || typ || 'audio/webm' })
       if (wert) URL.revokeObjectURL(wert.url)
-      setzen({ blob, typ: blob.type, sekunden: dauer, url: URL.createObjectURL(blob) })
+      // Die Erkennung liefert ihr Letztes oft erst kurz nach dem Stopp.
+      try { erkennung.current?.stop() } catch { /* schon aus */ }
+      window.setTimeout(() => {
+        const text = mitgeschrieben.current.join(' ').trim()
+        setzen({ blob, typ: blob.type, sekunden: dauer, url: URL.createObjectURL(blob), transkript: text || null })
+      }, 400)
       setZustand('bereit')
       if (uhr.current !== null) { window.clearInterval(uhr.current); uhr.current = null }
     }

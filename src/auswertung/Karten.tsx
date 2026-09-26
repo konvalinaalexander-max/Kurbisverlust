@@ -194,15 +194,20 @@ export function Auffaelligkeiten({ befunde, kurz = false }: { befunde: Befund[];
   // kann." Also zu jeder Auffälligkeit die Tätigkeit, der Tag, der Stand —
   // und ein Fenster, das die Arbeit zeigt, ohne die Seite zu verlassen.
   const [arbeiten, setArbeiten] = useState<Map<number, ArbeitKurz>>(new Map())
+  const [kommentare, setKommentare] = useState<Map<number, string>>(new Map())
   const [fenster, setFenster] = useState<number | null>(null)
   const ids = [...new Set(befunde.map(b => b.auftrag_id).filter((x): x is number => x !== null))]
   const schluessel = ids.join(',')
   useEffect(() => {
     if (!schluessel) { setArbeiten(new Map()); return }
     let lebt = true
-    void supabase.from('auftrag').select('id, weg, station, ist_fax, start_ts, ende_ts, status, abgebrochen_ts')
-      .in('id', schluessel.split(',').map(Number))
+    const ids = schluessel.split(',').map(Number)
+    void supabase.from('auftrag').select('id, weg, station, ist_fax, start_ts, ende_ts, status, abgebrochen_ts').in('id', ids)
       .then(({ data }) => { if (lebt) setArbeiten(new Map(((data ?? []) as ArbeitKurz[]).map(a => [a.id, a]))) })
+    // 0091: Was die Person an der Arbeit zur Ware gesagt hat — „Hagelschaden"
+    // erklärt manche Auffälligkeit, bevor jemand sie korrigieren will.
+    void supabase.from('v_arbeit_kommentar').select('auftrag_id, text').in('auftrag_id', ids)
+      .then(({ data }) => { if (lebt) setKommentare(new Map(((data ?? []) as { auftrag_id: number; text: string }[]).map(k => [k.auftrag_id, k.text]))) })
     return () => { lebt = false }
   }, [schluessel])
   const t = (id: keyof typeof WOERTERBUCH.de) => WOERTERBUCH.de[id]
@@ -228,6 +233,7 @@ export function Auffaelligkeiten({ befunde, kurz = false }: { befunde: Befund[];
           <div key={i} className={`befund ${befundTon(b.art)}`}>
             <div className="befund-kopf"><Marke art="warnung" punkt={false}>{b.art}</Marke> Charge {b.charge_nr} · {b.sorte}</div>
             {b.auftrag_id && <div className="befund-arbeit">{arbeitText(b.auftrag_id)}</div>}
+            {b.auftrag_id && kommentare.has(b.auftrag_id) && <div className="befund-arbeit"><strong>Kommentar zur Ware:</strong> {kommentare.get(b.auftrag_id)}</div>}
             <div className="befund-text">{b.befund}</div>
             <div className="befund-rat">{b.rat}</div>
             {b.auftrag_id && (
