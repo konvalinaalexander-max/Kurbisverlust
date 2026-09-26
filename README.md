@@ -662,7 +662,17 @@ warum sein Deploy-Befehl `npx wrangler deploy --env beispiel` lauten **muss**
 [`docs/ZWEI_WEBSEITEN.md`](docs/ZWEI_WEBSEITEN.md). Rechne mit einer guten
 halben Stunde.
 
-**Zuletzt gebaut (Runde V, 0083–0088)** — was die Halle gemeldet hat: Der
+**Zuletzt gebaut (Runde W, 0089)** — der Betriebsleiter löscht Arbeiten
+(Betrieb → Arbeiten → „Löschen", Kreise, Rückfrage, endgültig). Die
+verschenkte Marge sind zwei Blöcke — „Kiste ab x kg" und „x Stück je Kiste"
+—, jeder erklärt sich in einem Satz, und jede Zeile zeigt aufgeklappt nur
+ihre Wägungen. Im Messbild trifft der Zeiger nur den Punkt, und ein Klick
+öffnet die Arbeit dahinter als Fenster. Eine Verdunstung über der Grenze
+`verdunstung_rate_max_pro_tag` (Vorgabe 1 % je Tag) ist keine: nicht in der
+Rate, grau im Bild mit dem Grund, als Auffälligkeit zum Berichtigen.
+Abmachungen AB-81 bis AB-83, [`docs/ENTSCHEIDUNGEN.md`](docs/ENTSCHEIDUNGEN.md) „Runde W".
+
+**Runde V (0083–0088)** — was die Halle gemeldet hat: Der
 Ausschuss beim Waschen wurde immer zu 0 kg, weil die Rechnung stets eine
 Palette abzog und ein negatives Netto still auf null klemmte — jetzt fragt die
 App den Ausschuss **Kiste für Kiste** ab („Eine einzelne Kiste auf die
@@ -869,6 +879,7 @@ Das genügt fast immer zur Klärung.
 | Prognose: was aus der liegenden Ware wird, bis zum Saisonende | `supabase/migrations/0071`, `src/auswertung/daten.ts` | dieselbe Kaskade an einem späteren Tag; bei Horizont 0 auf zwei Rappen die Zahl von heute (Block 0071 der Prüfung) |
 | Die Erfassung scharf geschaltet: Palox je Arbeit, Gebinde je Palette, ehrliches Alter, Kontrollpalette | `supabase/migrations/0072`–`0076`, `src/arbeit/` | Prüfblock 0072 in `pruefung.sql`; `docs/BEFUND_RUNDE_Q.md` |
 | Runde V: Ausschuss ohne Palette, Palox mittendrin leeren, Rückmeldung mit Sprachaufnahme, Marge je Charge | `supabase/migrations/0083`–`0088`, `src/arbeit/AusschussMaske.tsx`, `PaloxLeerenMaske.tsx`, `Sprachaufnahme.tsx`, `src/pages/Ursachen.tsx` | Prüfblöcke 0083–0088 (jeder gegengeprüft durch absichtliches Kaputtmachen); `kette.mjs` mit Ausschuss ohne Palette, Palox-Leeren und Rückmeldung; Aufnahmen im Bucket `rueckmeldungen` |
+| Runde W: Arbeiten löschen, Marge in zwei Blöcken mit den Wägungen dahinter, Punkt-Tooltip und Arbeitsfenster, Verdunstungsgrenze | `supabase/migrations/0089`, `src/pages/Betrieb.tsx`, `src/pages/Ursachen.tsx`, `src/betrieb/ArbeitFenster.tsx`, `src/components/Diagramm.tsx` | Prüfblock 0089 (gegengeprüft); Bildschirme `betrieb-arbeiten-loeschen`, `ursachen-marge-auf`, `ursachen-arbeit` |
 | Schutz der Erfassung: Journal, Zerstörungswächter, zwei Webseiten | `erfassung_journal` (0072), `supabase/test/keine_zerstoerung.sh`, `src/lib/betriebsmodus.ts` | Wächter läuft als erste Stufe von `run.sh` |
 | Warenausgang aus dem Warenwirtschaftssystem einlesen | `src/lib/xlsx.ts`, `src/lib/warenausgang.ts`, `supabase/migrations/0050` | Leser und Regeln geprüft (27 Tests, 396 096 Zellen gegen einen zweiten Leser); der Bildschirm steht: Betrieb → Warenausgang (`src/betrieb/AusgangImport.tsx`, `src/pages/Lieferungen.tsx`, Übernahme in `ausgang_uebernehmen`, 0055) |
 

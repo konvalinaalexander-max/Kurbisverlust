@@ -255,11 +255,29 @@ const BILDSCHIRME = [
       }
       await p.waitForTimeout(400)
     } },
+  // Runde W: die Marge in zwei Blöcken — eine Zeile aufgeklappt zeigt die
+  // Wägungen dahinter; ein Punkt im Verdunstungsbild öffnet die Arbeit.
+  { name: 'ursachen-marge-auf', wer: 'admin', pfad: '/ursachen',
+    tun: async p => { await p.locator('#urs-marge .marge-auf').first().click(); await p.locator('#urs-marge tr.marge-dahinter').first().waitFor() } },
+  { name: 'ursachen-arbeit', wer: 'admin', pfad: '/ursachen',
+    tun: async p => {
+      await p.locator('#urs-verdunstung circle.marker[data-auftrag]').first().click({ force: true })
+      await p.locator('#arbeit-fenster h2').waitFor()
+    } },
   { name: 'chargen', wer: 'admin', pfad: '/chargen' },
   { name: 'chargen-offen', wer: 'admin', pfad: '/chargen',
     tun: async p => { await p.locator('tbody tr').first().click() } },
   { name: 'messungen', wer: 'admin', pfad: '/messungen' },
   { name: 'betrieb-arbeiten', wer: 'admin', pfad: '/betrieb/arbeiten' },
+  // Runde W: der Löschmodus — Kreise an den Zeilen, dann die Rückfrage.
+  { name: 'betrieb-arbeiten-loeschen', wer: 'admin', pfad: '/betrieb/arbeiten',
+    tun: async p => {
+      await p.locator('#arbeiten-loeschen').click()
+      await p.locator('.wahlkreis').first().click()
+      await p.locator('.wahlkreis').nth(1).click()
+      await p.locator('#arbeiten-loeschen-weiter').click()
+      await p.locator('#arbeiten-loeschen-ja').waitFor()
+    } },
   { name: 'betrieb-lieferungen', wer: 'admin', pfad: '/betrieb/lieferungen' },
   // Warenausgang einlesen (0055): die Probedatei wählen, Befund und Abgleich lesen
   { name: 'betrieb-import', wer: 'admin', pfad: '/betrieb/lieferungen',

@@ -111,6 +111,9 @@ export interface Wiegung {
   netto_damals_kg: number | null; netto_jetzt_kg: number | null; kg_pro_kiste: number | null
   kg_pro_kuerbis: number | null; verdunstung_kg: number | null; sichtbar_schimmel: boolean
   rate_pro_tag: number | null; verwendbar: boolean
+  /** 0089: unter der Grenze verdunstung_rate_max_pro_tag? Und wenn die
+   *  Wägung nicht zählt: warum nicht — in Worten. */
+  plausibel: boolean; grund: string | null
 }
 export interface Kurve { altersklasse: string; von: number; bis: number; messungen: number; gemessen: number | null; verwendet: number | null; unten: number | null; oben: number | null; erlaeuterung: string }
 export interface Kaliberzeile { charge_nr: number; sorte: string; klasse: string; band_von: number | null; band_bis: number | null; n_kuerbis: number; masse_kg: number }
@@ -209,6 +212,8 @@ export interface AusgangKennzahl {
   soll_kg_pro_kiste: number | null; ueberfuellung_je_kiste: number | null; ueberfuellung_kg: number | null
   kistensystem: string | null; kaliber_idx: number | null; stueck_je_kiste: number | null
   erwartet_kg_pro_kiste: number | null; abweichung_je_kiste: number | null; band_mittel_g: number | null
+  /** 0089: eine volle Palette? Nur die zählt in der Marge (0072). */
+  voll: boolean
 }
 /**
  * Der Verlauf je Woche (erg_verlauf, 0061/0071): Eingang und Ausgang

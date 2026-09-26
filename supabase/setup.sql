@@ -7754,8 +7754,61 @@ comment on column ausschuss_messung.bemerkung is
   'einzelnen Bruttogewichte („3 Kisten einzeln gewogen: 12 · 13.5 · 11 kg") — '
   'die Zeile selbst trägt die Summe.';
 
+
+-- =====================================================================
+-- aus 0089_eine_verdunstung_die_keine_ist.sql
+-- =====================================================================
+
+-- =====================================================================
+-- 0089 — Eine Verdunstung, die keine ist
+--
+-- Der Betrieb: „Kaori Kuri … hat eine tägliche Verdunstung von 4,8 %.
+-- Kann ja natürlich nicht sein." Richtig — so schnell verdunstet kein
+-- Kürbis. Eine Wägung mit dieser Rate ist ein falsches Zettelgewicht, eine
+-- andere Palette oder falsche Kisten. Bis hierher zählte sie trotzdem in
+-- die Rate der Sorte (v_koeff_roh_verdunstung nimmt alles, was
+-- `verwendbar` ist), und `verwendbar` kannte nur die Fälle „schwerer
+-- geworden", „unverändert", „Schimmel sichtbar", „abgebrochen".
+--
+-- Jetzt gibt es eine Grenze — eine Einstellung, keine Zahl im Code:
+-- verdunstung_rate_max_pro_tag, Vorgabe 1 % je Tag (das Zehnfache dessen,
+-- was die Wägungen im Herbst zeigen). Eine Wägung darüber ist nicht
+-- plausibel: Sie zählt nicht in die Rate, steht grau im Bild und als
+-- Auffälligkeit „Verdunstung" unter Messungen, mit dem Weg zur Korrektur.
+--
+-- Und jede Wägung sagt jetzt, WARUM sie nicht zählt (`grund`) — bisher
+-- stand im Bild für alle dasselbe („die Palette wurde nicht leichter"),
+-- auch wenn der Grund ein anderer war.
+--
+-- Dazu: erg_ausgang trägt `voll` — die Marge-Karte zeigt die Wägungen
+-- hinter jeder Zeile und muss sagen können, welche nicht zählt (halbe
+-- Palette).
+-- =====================================================================
+
+-- ---------- 1. Die Grenze als Einstellung -------------------------------
+insert into einstellung (schluessel, wert, bemerkung) values
+  ('verdunstung_rate_max_pro_tag', '0.01'::jsonb,
+   'Höchste Verdunstung je Tag, die noch eine sein kann — als Anteil (0.01 = 1 % je Tag). '
+   'Eine Wägung darüber ist keine Verdunstung, sondern ein falsches Zettelgewicht, eine andere '
+   'Palette oder falsche Kisten: Sie zählt nicht in die Rate und steht unter Auffälligkeiten (0089).')
+on conflict (schluessel) do nothing;
+
+-- Ohne `set search_path`, mit ausgeschriebenem Schema — wie palox_tara_kg()
+-- (0036): So kann der Planer die Funktion einbetten, statt sie je Zeile zu rufen.
+create or replace function verdunstung_rate_max() returns numeric
+language sql stable as $$
+  select coalesce((select (wert #>> '{}')::numeric from public.einstellung
+                    where schluessel = 'verdunstung_rate_max_pro_tag'), 0.01);
+$$;
+comment on function verdunstung_rate_max() is
+  'Die Grenze aus der Einstellung verdunstung_rate_max_pro_tag (Vorgabe 0.01 = 1 % je Tag, 0089).';
+-- Wie palox_tara_kg() (0036): nicht für Nichtangemeldete.
+revoke execute on function verdunstung_rate_max() from public;
+grant execute on function verdunstung_rate_max() to authenticated;
+
+-- ---------- 5. Der Stand -------------------------------------------------
 create or replace function schema_stand() returns int
-language sql immutable set search_path = public as $$ select 88 $$;
+language sql immutable set search_path = public as $$ select 89 $$;
 comment on function schema_stand is
   'Nummer der jüngsten eingespielten Migration. Die App vergleicht sie mit '
   'SCHEMA_ERWARTET (src/lib/version.ts) und verlangt bei Abweichung, setup.sql '
@@ -7816,13 +7869,16 @@ comment on function schema_stand() is
 comment on function schema_stand() is
   'Die Nummer der höchsten eingespielten Migration. Die App vergleicht sie mit '
   'SCHEMA_ERWARTET und verlangt setup.sql, wenn sie auseinanderliegen (0057).';
+comment on function schema_stand() is
+  'Die Nummer der höchsten eingespielten Migration. Die App vergleicht sie mit '
+  'SCHEMA_ERWARTET und verlangt setup.sql, wenn sie auseinanderliegen (0057).';
 
 
 -- =====================================================================
 -- TEIL B — Das Rechenwerk: die Formeln, wie sie heute lauten
 -- =====================================================================
 -- Ab hier steht jede Ansicht und jede darauf rechnende Funktion genau
--- einmal — in 120 Schritten, in der Reihenfolge, in der eine auf der
+-- einmal — in 121 Schritten, in der Reihenfolge, in der eine auf der
 -- anderen steht. Die Reihenfolge ist ausgerechnet, nicht geraten:
 -- setup_bauen.sh sortiert topologisch und bricht ab, wenn sie nicht
 -- kreisfrei wäre.
@@ -7836,11 +7892,9 @@ comment on function schema_stand() is
 -- =====================================================================
 
 drop view if exists v_plausibilitaet cascade;
-drop materialized view if exists erg_marge_charge cascade;
-drop view if exists v_marge_charge cascade;
 drop view if exists v_plausibilitaet_0054_zusatz cascade;
 drop view if exists v_plausibilitaet_0064_zusatz cascade;
-drop view if exists v_datenqualitaet cascade;
+drop view if exists v_wiegung_kennzahl cascade;
 drop view if exists v_lager_kaliber cascade;
 drop materialized view if exists erg_wohin cascade;
 drop view if exists v_marge_buch cascade;
@@ -7873,16 +7927,23 @@ drop view if exists v_schimmel_punkte cascade;
 drop materialized view if exists mv_koeff_rand cascade;
 drop materialized view if exists erg_koeff_fax cascade;
 drop view if exists v_koeff_fax cascade;
-drop materialized view if exists erg_fax_wartezeit cascade;
-drop view if exists v_fax_wartezeit cascade;
 drop view if exists v_schimmel_beobachtung cascade;
 drop view if exists v_koeff_nebenkanal cascade;
 drop view if exists v_koeff_ausschuss cascade;
 drop view if exists v_koeff_unsicherheit cascade;
 drop view if exists v_koeff_kaliber_geschaetzt cascade;
 drop view if exists v_koeff_roh_kaliber cascade;
-drop view if exists v_fax_beobachtung cascade;
 drop view if exists v_ausschuss_beobachtung cascade;
+drop view if exists v_koeff_verdunstung cascade;
+drop view if exists v_koeff_verdunstung_geschaetzt cascade;
+drop view if exists v_koeff_roh_verdunstung cascade;
+drop view if exists v_verdunstung_messung cascade;
+drop materialized view if exists erg_marge_charge cascade;
+drop view if exists v_marge_charge cascade;
+drop view if exists v_datenqualitaet cascade;
+drop materialized view if exists erg_fax_wartezeit cascade;
+drop view if exists v_fax_wartezeit cascade;
+drop view if exists v_fax_beobachtung cascade;
 drop view if exists v_schimmel_menge cascade;
 drop view if exists v_palox_stand cascade;
 drop view if exists v_sortier_lesung cascade;
@@ -7890,7 +7951,6 @@ drop view if exists v_kaskade_basis cascade;
 drop view if exists v_durchsatz cascade;
 drop view if exists v_auftrag_masse cascade;
 drop view if exists v_auftrag_fertige_masse cascade;
-drop view if exists v_wiegung_kennzahl cascade;
 drop materialized view if exists erg_marge_wiegung cascade;
 drop view if exists v_marge_wiegung cascade;
 drop materialized view if exists erg_lager_kaliber cascade;
@@ -7907,10 +7967,6 @@ drop materialized view if exists erg_ueberfuellung cascade;
 drop view if exists v_ueberfuellung_verkauf cascade;
 drop view if exists v_lieferung_kohorte cascade;
 drop view if exists v_lieferung_charge_tag cascade;
-drop view if exists v_koeff_verdunstung cascade;
-drop view if exists v_koeff_verdunstung_geschaetzt cascade;
-drop view if exists v_koeff_roh_verdunstung cascade;
-drop view if exists v_verdunstung_messung cascade;
 drop view if exists v_auftrag_wasch_paletten cascade;
 drop view if exists v_kohorte_anteil cascade;
 drop view if exists v_charge_kohorte cascade;
@@ -8671,238 +8727,6 @@ WITH band AS (
   WHERE a.station = 'waschen'::station AND NOT a.ist_fax AND a.abgebrochen_ts IS NULL
   GROUP BY a.id;
 
-create or replace view v_verdunstung_messung with (security_invoker = true) as
- SELECT w.id,
-    w.charge_nr,
-    c.sorte,
-    c.schlag,
-    w.palette_id,
-    w.eingangsdatum,
-    w.wiege_ts,
-    w.sichtbar_schimmel,
-    w.erfasser,
-    w.auftrag_id,
-    n.netto_damals_kg,
-    n.netto_jetzt_kg,
-    betriebstag(w.wiege_ts) - w.eingangsdatum AS lagertage,
-    zahl(
-        CASE
-            WHEN n.netto_damals_kg > 0::numeric AND n.netto_jetzt_kg > 0::numeric AND (betriebstag(w.wiege_ts) - w.eingangsdatum) > 0 THEN 1::numeric - power(n.netto_jetzt_kg / n.netto_damals_kg, 1.0 / (betriebstag(w.wiege_ts) - w.eingangsdatum)::numeric)
-            ELSE NULL::numeric
-        END, 6, '10000'::numeric)::numeric(10,6) AS rate_pro_tag,
-    w.gemessen AND NOT w.sichtbar_schimmel AND n.netto_damals_kg > 0::numeric AND n.netto_jetzt_kg > 0::numeric AND (betriebstag(w.wiege_ts) - w.eingangsdatum) > 0 AND n.netto_jetzt_kg <= (n.netto_damals_kg * 1.01) AND n.netto_jetzt_kg <> n.netto_damals_kg AND (a.id IS NULL OR a.abgebrochen_ts IS NULL) AS verwendbar
-   FROM verdunstung_wiegung w
-     JOIN charge c ON c.nr = w.charge_nr
-     LEFT JOIN auftrag a ON a.id = w.auftrag_id
-     LEFT JOIN gebinde g ON g.art = w.gebindeart
-     CROSS JOIN LATERAL ( SELECT w.brutto_damals_kg - w.kisten::numeric * g.tara_kg_pro_kiste - g.tara_kg_palette AS netto_damals_kg,
-            w.brutto_jetzt_kg - w.kisten::numeric * g.tara_kg_pro_kiste - g.tara_kg_palette AS netto_jetzt_kg) n;
-
-
--- =====================================================================
--- aus 0018_koeffizienten_gepoolt.sql
--- =====================================================================
-
--- =====================================================================
--- 0018 — Koeffizienten massegewichtet, chargen-robust und teilgebündelt
---
--- Nach 0017 trifft der Schimmel. Was übrig bleibt, misst der Harness so
--- (25 Saisons, 50 % im Lager):
---
---   Ausschuss zu klein   Verzerrung −0.1 %   Bereich 0.8 % breit   Überdeckung 44 %
---
--- Der Punktwert stimmt, der Bereich ist eine Behauptung. Vier Gründe, alle
--- im Code nachweisbar, alle hier behoben.
---
--- ---------- 1. Gewichteter Mittelwert, ungewichtete Streuung --------------
--- v_koeff_ausschuss bildete den Mittelwert massegewichtet
---   sum(anteil * basis_kg) / sum(basis_kg)
--- die Streuung daneben aber ungewichtet
---   stddev_samp(anteil)
--- Das sind zwei verschiedene Grössen; die zweite beschreibt die erste nicht.
---
--- ---------- 2. n zählt Messungen, nicht unabhängige Gruppen ---------------
--- Auf dem Testbestand:
---
---   Sorte        Messungen   Chargen
---   Kaori Kuri       51         2
---   Tiana            36         1
---   Fictor           35         1
---
--- Mit n = 51 in mittel ± 1.96·sd/√n kommt ein Bereich von 0.8 % Breite
--- heraus. Tatsächlich stammen die 51 Messungen aus zwei Chargen — gleicher
--- Schlag, gleiche Ernte, gleiche Sortiereinstellung. Sie sind keine 51
--- unabhängigen Ziehungen. Bei Tiana ist es *eine* Charge: daraus lässt sich
--- die Streuung zwischen Chargen gar nicht schätzen.
---
--- ---------- 3. Verdunstung war massenungewichtet --------------------------
--- v_verdunstung_stichprobe nahm avg(rate_pro_tag): eine 400-kg-Palette zählte
--- so viel wie eine 900-kg-Palette, obwohl sie halb so viel Masse vertritt.
---
--- ---------- 4. Harte Schwelle statt Teilbündelung -------------------------
--- „eigene Sorte ab n ≥ 3, sonst global" springt: bei n = 2 gilt der globale
--- Wert voll, bei n = 3 der eigene voll — obwohl sich zwischen den beiden
--- Fällen fast nichts geändert hat. Ersetzt durch empirisches Bayes: der
--- Sortenwert wird mit dem Gewicht
---
---   B = τ² / (τ² + Fehler²)
---
--- zum Gesamtwert gezogen, wobei τ² die geschätzte echte Streuung zwischen
--- den Sorten ist. Viele verlässliche eigene Messungen → B nahe 1, der eigene
--- Wert zählt. Wenige oder aus nur einer Charge → B nahe 0, der Gesamtwert
--- trägt. Kein Sprung, und keine Sorte behauptet mehr Sicherheit als sie hat.
---
--- Alle drei Koeffizienten sind derselbe Schätzer — ein massegewichteter
--- Anteil — und werden deshalb hier einmal gemeinsam gerechnet statt dreimal
--- fast gleich.
--- =====================================================================
-
--- ---------- Die Rohbeobachtungen -----------------------------------------
--- Zwei getrennte Quellen, und zwar zwingend: v_ausschuss_beobachtung rechnet
--- die Basismasse der Handmessungen um die Verdunstung herunter und liest dazu
--- v_koeff_verdunstung. Läge alles in einer Ansicht, hinge der
--- Verdunstungskoeffizient über den Umweg an sich selbst — Postgres bricht das
--- mit „infinite recursion in rules" ab, und zu Recht.
-create or replace view v_koeff_roh_verdunstung with (security_invoker = true) as
--- Tagesrate je gewogener Palette, gewichtet mit der Masse, die sie vertritt.
-select 'verdunstung'::text as art, m.sorte, m.charge_nr,
-       m.rate_pro_tag::numeric as anteil, m.netto_jetzt_kg::numeric as gewicht
-  from v_verdunstung_messung m
- where m.verwendbar and m.netto_jetzt_kg > 0;
-
--- Derselbe Schätzer zweimal — er kann nicht über beide Quellen laufen, ohne
--- den Zyklus oben wieder aufzumachen. Änderungen gehören in beide.
-
--- ---------- Schätzer: Verdunstung ----------
-create or replace view v_koeff_verdunstung_geschaetzt with (security_invoker = true) as
-with roh as materialized (
-  select art, sorte, charge_nr, anteil, gewicht from v_koeff_roh_verdunstung
-   where anteil is not null and gewicht > 0
-),
-je_charge as (
-  -- Ein Durchgang. Alles Weitere braucht nur noch diese Summen je Charge:
-  -- Σw·Anteil und Σw. Frühere Fassungen scannten die Beobachtungen einmal je
-  -- Sorte und brauchten 3.2 s allein für v_koeff_ausschuss.
-  select art, sorte, charge_nr,
-         sum(gewicht)          as sw_c,
-         sum(anteil * gewicht) as swa_c,
-         count(*)              as n_c
-    from roh group by art, sorte, charge_nr
-),
-ebene as (
-  -- Sortenebene und Gesamtebene (sorte = NULL) in einem Durchgang
-  select art, sorte, sum(sw_c) as sw, sum(swa_c) as swa,
-         sum(n_c)::int as n, count(distinct charge_nr)::int as c_chargen
-    from je_charge
-   group by grouping sets ((art, sorte), (art))
-),
-mittelwert as (
-  select e.*, e.swa / nullif(e.sw, 0) as mittel from ebene e
-),
-varianz as (
-  -- Chargen-robuste Varianz des massegewichteten Anteils. Die gewichtete
-  -- Abweichungssumme einer Charge ist Σw·Anteil − Mittel·Σw, also direkt aus
-  -- den Chargensummen zu haben. Die Streuung *dieser Summen* ist der Fehler;
-  -- mit einer einzigen Charge gibt es nichts zu streuen und sie bleibt NULL.
-  select m.*, v.varianz
-    from mittelwert m
-    cross join lateral (
-      select case when m.c_chargen > 1 and m.sw > 0
-                  then sum(power(j.swa_c - m.mittel * j.sw_c, 2)) / power(m.sw, 2)
-                       * m.c_chargen::numeric / (m.c_chargen - 1) end as varianz
-        from je_charge j
-       where j.art = m.art and (m.sorte is null or j.sorte = m.sorte)
-    ) v
-),
-gesamt as (
-  select art, mittel, varianz, c_chargen, n, sw from varianz where sorte is null
-),
-tau as (
-  -- τ²: wie stark sich die Sorten *wirklich* unterscheiden. Die beobachtete
-  -- Streuung der Sortenmittel enthält auch den eigenen Schätzfehler; der wird
-  -- abgezogen (Momentenschätzer). Bleibt nichts übrig, unterscheiden sich die
-  -- Sorten nicht nachweisbar und es wird voll gebündelt.
-  select v.art,
-         greatest(
-           sum(v.sw * power(v.mittel - g.mittel, 2)) / nullif(sum(v.sw), 0)
-           - coalesce(avg(v.varianz), 0), 0) as tau2
-    from varianz v join gesamt g on g.art = v.art
-   where v.sorte is not null
-   group by v.art
-),
-gitter as (
-  -- Jede Sorte des Stammdatensatzes bekommt eine Zeile, auch die ungemessene.
-  -- Sonst fiele sie ganz heraus und ihr Koeffizient stünde auf 0 — also „kein
-  -- Verlust", was schlicht falsch ist.
-  select a.art, sk.sorte from (select distinct art from roh) a cross join sorte_kaliber sk
-  union all
-  select art, null::text from (select distinct art from roh) a
-)
-select gi.art, gi.sorte, coalesce(v.n, 0) as n, coalesce(v.c_chargen, 0) as c_chargen,
-       v.mittel                                            as mittel_roh,
-       v.varianz                                           as varianz_roh,
-       g.mittel                                            as mittel_gesamt,
-       t.tau2,
-       -- Bündelungsgewicht: 0 = ganz der Gesamtwert, 1 = ganz der eigene
-       b.gewicht                                           as b,
-       -- coalesce, weil eine Sorte ohne eigene Messung kein v.mittel hat;
-       -- b ist dann 0 und es bleibt genau der Gesamtwert stehen.
-       (b.gewicht * coalesce(v.mittel, g.mittel)
-        + (1 - b.gewicht) * g.mittel)                      as mittel,
-       -- Fehler des gebündelten Werts: der eigene, um B geschrumpft, plus
-       -- der Rest-Anteil am Fehler des Gesamtwerts.
-       (b.gewicht * coalesce(v.varianz, 0)
-        + power(1 - b.gewicht, 2) * coalesce(g.varianz, 0)) as varianz,
-       -- Freiheitsgrade: so viele unabhängige Chargen, wie tatsächlich
-       -- eingehen — zwischen der eigenen Zahl und der des Gesamtwerts.
-       greatest(round(b.gewicht * coalesce(v.c_chargen, 0)
-                      + (1 - b.gewicht) * g.c_chargen)::int - 1, 1) as df,
-       g.n                                                 as n_gesamt,
-       -- Für die Fehlerfortpflanzung: der eigene, unabhängige Anteil am
-       -- Fehler und das Gewicht, mit dem der (allen Sorten gemeinsame)
-       -- Gesamtwert eingeht. Die beiden dürfen nicht wie unabhängige Fehler
-       -- addiert werden — der Gesamtwert ist derselbe für jede Sorte.
-       power(b.gewicht, 2) * coalesce(v.varianz, 0)        as varianz_eigen,
-       (1 - b.gewicht)                                     as gewicht_gesamt,
-       coalesce(g.varianz, 0)                              as varianz_gesamt
-  from gitter gi
-  join gesamt g on g.art = gi.art
-  left join varianz v on v.art = gi.art and v.sorte is not distinct from gi.sorte
-  left join tau t on t.art = gi.art
-  cross join lateral (
-    select case when gi.sorte is null then 1.0
-                when v.varianz is null or v.mittel is null
-                     or coalesce(t.tau2, 0) = 0 then 0.0
-                else t.tau2 / (t.tau2 + v.varianz) end as gewicht
-  ) b;
-
--- ---------- 2. Die Rate je Sorte: nie negativ -----------------------------
-create or replace view v_koeff_verdunstung with (security_invoker = true) as
-select sk.sorte,
-       -- 0056: Verdunstung nimmt Masse, sie gibt keine. Ein Mittel unter 0
-       -- kommt nur aus Waagenrauschen und heisst „keine messbare Verdunstung".
-       -- NULL bleibt NULL: ohne Wiegung ist die Rate unbekannt, nicht 0.
-       (case when k.mittel < 0 then 0 else k.mittel end)::numeric          as mittel,
-       (case when coalesce(k.varianz, 0) = 0
-               then case when k.mittel < 0 then 0 else k.mittel end
-             else greatest(k.mittel - k.t * sqrt(k.varianz), 0)
-        end)::double precision                                          as unten,
-       (case when coalesce(k.varianz, 0) = 0
-               then case when k.mittel < 0 then 0 else k.mittel end
-             else greatest(k.mittel + k.t * sqrt(k.varianz), 0)
-        end)::double precision                                          as oben,
-       coalesce(k.n, 0)                                                 as n,
-       case when coalesce(k.n_gesamt, 0) = 0 then 'keine Wiegung vorhanden'
-            when k.b >= 0.67        then 'Wiegungen dieser Sorte'
-            when k.b >= 0.33        then 'Wiegungen dieser Sorte, zum Gesamtwert gezogen'
-            else 'Wiegungen aller Sorten (zu wenige eigene Chargen)' end as basis
-  from sorte_kaliber sk
-  left join lateral (
-    select g.*, t_quantil_95(g.df) as t
-      from v_koeff_verdunstung_geschaetzt g
-     where g.art = 'verdunstung' and g.sorte is not distinct from sk.sorte
-  ) k on true;
-
 -- ---------------------------------------------------------------------
 -- 3. Lieferungen je Charge und Tag — eine Regel, an einer Stelle
 --
@@ -9383,47 +9207,6 @@ select w.sorte, w.kistensystem,
 create materialized view erg_marge_wiegung as select * from v_marge_wiegung with no data;
 
 -- ---------------------------------------------------------------------
--- 5. Die gewogene Palette sagt ihre Tagesrate
--- ---------------------------------------------------------------------
--- Auf der Kalenderachse ist die *kumulierte* Verdunstung einer Palette
--- keine Auskunft: Eine alte Palette hat mehr verloren als eine junge, ganz
--- gleich, wann gewogen wurde. Was der Betrieb sehen will — „ich weiss
--- nicht ob verdunstungsrate konstant ist … im dezember wirds kalt sein" —
--- ist die Rate je Tag. Die rechnet `v_verdunstung_messung` längst
--- (rate_pro_tag, verwendbar); sie stand nur nicht in der Fassung, die der
--- Bildschirm liest. Angehängt, nicht neu gerechnet: derselbe Wägungs-
--- schlüssel, ein Verbund über die Id.
-create or replace view v_wiegung_kennzahl with (security_invoker = true) as
-SELECT w.id,
-    w.auftrag_id,
-    w.charge_nr,
-    c.sorte,
-    c.schlag,
-    w.eingangsdatum,
-    w.wiege_ts,
-    w.kisten,
-    w.gebindeart,
-    w.sichtbar_schimmel,
-    w.kuerbisse_pro_kiste,
-    betriebstag(w.wiege_ts) - w.eingangsdatum AS lagertage,
-    n.netto_damals_kg,
-    n.netto_jetzt_kg,
-    zahl(n.netto_jetzt_kg / NULLIF(w.kisten, 0)::numeric, 3, '10000000'::numeric)::numeric(10,3) AS kg_pro_kiste,
-    zahl(n.netto_jetzt_kg / NULLIF(w.kisten * w.kuerbisse_pro_kiste, 0)::numeric, 3, '10000000'::numeric)::numeric(10,3) AS kg_pro_kuerbis,
-    zahl(n.netto_damals_kg - n.netto_jetzt_kg, 2, '100000000'::numeric)::numeric(10,2) AS verdunstung_kg,
-    -- 0079: die Tagesrate und ob sie in die Rechnung eingeht
-    m.rate_pro_tag,
-    m.verwendbar
-   FROM verdunstung_wiegung w
-     JOIN charge c ON c.nr = w.charge_nr
-     LEFT JOIN auftrag a ON a.id = w.auftrag_id
-     LEFT JOIN gebinde g ON g.art = w.gebindeart
-     LEFT JOIN v_verdunstung_messung m ON m.id = w.id
-     CROSS JOIN LATERAL ( SELECT zahl(w.brutto_damals_kg - w.kisten::numeric * g.tara_kg_pro_kiste - g.tara_kg_palette, 2, '100000000'::numeric)::numeric(10,2) AS netto_damals_kg,
-            zahl(w.brutto_jetzt_kg - w.kisten::numeric * g.tara_kg_pro_kiste - g.tara_kg_palette, 2, '100000000'::numeric)::numeric(10,2) AS netto_jetzt_kg) n
-  WHERE w.gemessen AND (a.id IS NULL OR a.abgebrochen_ts IS NULL);
-
--- ---------------------------------------------------------------------
 -- 6. Der Nenner beim Waschen: die fertigen Paletten
 -- ---------------------------------------------------------------------
 -- Die Masse, die beim Waschen herauskam: fertige Paletten mal Palettenmasse —
@@ -9697,6 +9480,483 @@ having bool_and(s.palox_stand_kg is null or p.differenz is not null)
    and (count(*) filter (where s.palox_stand_kg is not null) = 0
      or count(*) filter (where s.palox_stand_kg is not null) >= 2);
 
+-- ---------- 15. Fax: Paletten gezählt, Tage seit dem Waschen -------------
+create or replace view v_fax_beobachtung with (security_invoker = true) as
+select a.id as auftrag_id, a.charge_nr, c.sorte, c.schlag, a.kaeufer,
+       a.start_ts, a.ende_ts, a.status, a.abgebrochen_ts,
+       m.eingang_netto_kg                                            as masse_kg,
+       m.masse_quelle,
+       coalesce(g.kisten, 0)                                         as kisten,
+       coalesce(s.kg, 0)                                             as faul_kg,
+       (s.auftrag_id is not null)                                    as faul_erfasst,
+       zahl(coalesce(s.kg, 0) / nullif(m.eingang_netto_kg + coalesce(s.kg, 0), 0), 5, 1e5)::numeric(10,5)
+                                                                     as anteil,
+       anteil_plausibel(coalesce(s.kg, 0) / nullif(m.eingang_netto_kg + coalesce(s.kg, 0), 0))
+                                                                     as plausibel,
+       -- neu (0060)
+       a.paletten_gesamt, a.tage_seit_waschen, a.kistensystem
+  from auftrag a
+  join charge c on c.nr = a.charge_nr
+  left join v_auftrag_masse m on m.auftrag_id = a.id
+  left join v_schimmel_menge s on s.auftrag_id = a.id
+  left join (select auftrag_id, sum(anzahl)::int as kisten from auftrag_gebinde group by auftrag_id) g
+         on g.auftrag_id = a.id
+ where a.ist_fax and a.abgebrochen_ts is null;
+
+-- ---------------------------------------------------------------------
+-- 6. Faules beim Abpacken nach Wartezeit
+--
+-- Beim Fax wird nochmals Faules aussortiert — und der Verdacht des Betriebs
+-- ist, dass die Tage zwischen Waschen und Abpacken daran schuld sind. Die
+-- Angabe gibt es seit 0060 (`auftrag.tage_seit_waschen`, freiwillig); sie
+-- wurde nur nie ausgewertet. Der Anteil ist massegewichtet — eine kleine
+-- Arbeit soll nicht so viel zählen wie eine grosse.
+-- ---------------------------------------------------------------------
+create or replace view v_fax_wartezeit with (security_invoker = true) as
+with roh as (
+  select case when f.tage_seit_waschen is null then 'unbekannt'
+              when f.tage_seit_waschen <= 1    then '0–1 Tage'
+              when f.tage_seit_waschen <= 3    then '2–3 Tage'
+              else '4 und mehr' end                              as klasse,
+         f.sorte, f.masse_kg, f.faul_kg, f.anteil
+    from v_fax_beobachtung f
+   where f.status = 'abgeschlossen' and f.masse_kg is not null
+), je as (
+  -- Zweimal dieselben Arbeiten: einmal über alle Sorten, einmal je Sorte.
+  select g.gruppe,
+         (case when g.gruppe = 'sorte' then roh.sorte end) as sorte,
+         roh.klasse,
+         count(*)::int as n, sum(roh.masse_kg) as masse_kg, sum(roh.faul_kg) as faul_kg,
+         sum(roh.faul_kg) / nullif(sum(roh.masse_kg + roh.faul_kg), 0) as anteil,
+         stddev_samp(roh.anteil) as sd
+    from roh cross join lateral (select unnest(array['alle', 'sorte']) as gruppe) g
+   group by g.gruppe, (case when g.gruppe = 'sorte' then roh.sorte end), roh.klasse
+)
+select gruppe,
+       sorte,
+       klasse,
+       case klasse when '0–1 Tage' then 1 when '2–3 Tage' then 2
+                   when '4 und mehr' then 3 else 4 end          as reihenfolge,
+       n,
+       zahl(masse_kg, 1, 1e11)::numeric(12,1)                    as masse_kg,
+       zahl(faul_kg,  1, 1e11)::numeric(12,1)                    as faul_kg,
+       zahl(anteil, 5, 1e5)::numeric(10,5)                       as anteil,
+       case when n >= 2 and sd is not null
+            then zahl(greatest(anteil - t_quantil_95(n - 1) * sd / sqrt(n), 0), 5, 1e5)::numeric(10,5)
+            else zahl(anteil, 5, 1e5)::numeric(10,5) end         as unten,
+       case when n >= 2 and sd is not null
+            then zahl(least(anteil + t_quantil_95(n - 1) * sd / sqrt(n), 1), 5, 1e5)::numeric(10,5)
+            else zahl(anteil, 5, 1e5)::numeric(10,5) end         as oben
+  from je;
+create materialized view erg_fax_wartezeit as select * from v_fax_wartezeit with no data;
+
+-- ---------------------------------------------------------------------
+-- 8. Der Betriebsleiter soll sehen, worauf die Verteilung ruht
+-- ---------------------------------------------------------------------
+
+create or replace view v_datenqualitaet with (security_invoker = true) as
+with arbeiten as (select a.* from auftrag a where a.abgebrochen_ts is null),
+     fertig as (select * from arbeiten where status = 'abgeschlossen')
+select
+  (select count(*) from auftrag_palette ap join arbeiten a on a.id = ap.auftrag_id)::int as paletten_gezaehlt,
+  (select count(*) from auftrag_palette ap join arbeiten a on a.id = ap.auftrag_id
+    where ap.eingangsdatum is not null)::int                                             as paletten_mit_datum,
+  (select count(*) from fertig where not ist_fax)::int                                    as arbeiten_fertig,
+  (select count(*) from fertig f where not f.ist_fax and exists (select 1 from schimmel_messung s
+    where s.auftrag_id = f.id and s.palox_stand_kg is not null))::int                     as arbeiten_mit_ablesung,
+  (select count(*) from fertig f where not f.ist_fax and (select count(*) from schimmel_messung s
+    where s.auftrag_id = f.id and s.palox_stand_kg is not null) >= 2)::int                as arbeiten_mit_zwei_ablesungen,
+  (select count(*) from fertig f where not f.ist_fax and exists (select 1 from auftrag_angabe g
+    where g.auftrag_id = f.id and g.schluessel = 'eine_charge'))::int                     as arbeiten_mit_antwort,
+  (select count(*) from ausschuss_messung m join arbeiten a on a.id = m.auftrag_id
+    where m.gemessen)::int                                                                as ausschuss_messungen,
+  (select count(*) from ausschuss_messung m join arbeiten a on a.id = m.auftrag_id
+    where m.gemessen and m.brutto_kg is not null)::int                                    as ausschuss_gewogen,
+  (select count(*) from verdunstung_wiegung w
+    where w.auftrag_id is null and w.gemessen)::int                                       as lagerkontrollen,
+  (select count(*) from sortier_lauf)::int                                                as sortierlaeufe,
+  (select count(*) from sortier_lauf where auftrag_id is not null)::int                   as sortierlaeufe_zugeordnet,
+  (select count(*) from fertig f where f.station = 'sortieren')::int                      as sortier_arbeiten,
+  (select count(*) from fertig f where f.station = 'sortieren' and exists (select 1
+    from auftrag_gebinde g where g.auftrag_id = f.id and g.anzahl > 0))::int              as sortier_arbeiten_mit_kisten,
+  (select count(*) from fertig f where f.station = 'waschen' and not f.ist_fax)::int      as wasch_arbeiten,
+  (select count(*) from fertig f where f.station = 'waschen' and not f.ist_fax
+    and (f.kaliber_idx is not null or f.kaliber_von_g is not null)
+    and (exists (select 1 from auftrag_gebinde g where g.auftrag_id = f.id and g.anzahl > 0)
+         or exists (select 1 from auftrag_palette p where p.auftrag_id = f.id and p.kisten > 0)))::int
+                                                                                          as wasch_arbeiten_mit_kisten,
+  (select count(*) from fertig f where f.ist_fax)::int                                    as fax_arbeiten,
+  (select count(*) from fertig f where f.ist_fax and (f.paletten_gesamt > 0 or exists (select 1
+    from auftrag_gebinde g where g.auftrag_id = f.id and g.anzahl > 0)))::int             as fax_arbeiten_mit_kisten,
+  (select count(*) from fertig f where f.ist_fax and exists (select 1
+    from schimmel_messung s where s.auftrag_id = f.id and s.gemessen))::int               as fax_arbeiten_mit_faulem,
+  (select count(*) from auftrag_palette ap join arbeiten a on a.id = ap.auftrag_id
+    where a.station = 'waschen_sortieren')::int                                           as ws_paletten_gezaehlt,
+  (select count(*) from auftrag_palette ap join arbeiten a on a.id = ap.auftrag_id
+    where a.station = 'waschen_sortieren' and ap.brutto_zettel_kg is not null)::int       as ws_paletten_mit_zettelgewicht,
+  (select count(*) from fertig f where f.ist_fax or f.station in ('waschen', 'waschen_sortieren'))::int
+                                                                                          as arbeiten_nach_waschen,
+  (select count(*) from fertig f where (f.ist_fax or f.station in ('waschen', 'waschen_sortieren'))
+    and f.kistensystem is not null)::int                                                  as arbeiten_mit_kistensystem,
+  ((select coalesce(sum(g.anzahl), 0) from auftrag_gebinde g join arbeiten a on a.id = g.auftrag_id
+     where a.station = 'waschen' and not a.ist_fax)
+   + (select coalesce(sum(p.kisten), 0) from auftrag_palette p join arbeiten a on a.id = p.auftrag_id
+       where a.station = 'waschen' and not a.ist_fax))::int                               as wasch_kisten_gezaehlt,
+  ((select coalesce(sum(g.anzahl), 0) from auftrag_gebinde g join arbeiten a on a.id = g.auftrag_id
+     where a.station = 'waschen' and not a.ist_fax and (g.sortierdatum is not null or g.datum_fehlt))
+   + (select coalesce(sum(p.kisten), 0) from auftrag_palette p join arbeiten a on a.id = p.auftrag_id
+       where a.station = 'waschen' and not a.ist_fax and p.sortierdatum is not null))::int
+                                                                                          as wasch_kisten_mit_sortierdatum,
+  (select count(*) from fertig f where not f.ist_fax and exists (select 1 from v_palox_stand p
+    where p.auftrag_id = f.id and p.differenz is null))::int                              as arbeiten_mit_palox_unbekannt,
+  (select count(*) from auftrag_palette ap join arbeiten a on a.id = ap.auftrag_id
+    where not a.ist_fax and a.station in ('sortieren', 'waschen_sortieren'))::int         as eingangspaletten,
+  (select count(*) from auftrag_palette ap join arbeiten a on a.id = ap.auftrag_id
+    where not a.ist_fax and a.station in ('sortieren', 'waschen_sortieren')
+      and ap.kisten is not null and ap.kisten > 0)::int                                   as eingangspaletten_mit_kisten,
+  (select count(*) from mv_auftrag_masse m join fertig f on f.id = m.auftrag_id
+    where not f.ist_fax and m.lagertage is not null)::int                                 as arbeiten_alter_gemessen,
+  -- 0082: Zwei Arten von Datei, und die Güte des Sortiertags. Darauf ruht
+  -- die ganze Gewichtsverteilung des Lagers. Angehängt und nicht
+  -- eingeschoben: `create or replace view` darf die Spaltenliste nur
+  -- verlängern, sonst bricht es mit „cannot change name of view column".
+  (select count(*) from sortier_lauf where art = 'sammel')::int                           as sammel_lesungen,
+  (select count(*) from sortier_lauf where sortiertag is not null)::int                   as lesungen_mit_sortiertag,
+  (select count(*) from sortier_lauf
+    where sortiertag_quelle in ('datei', 'arbeit'))::int                                  as lesungen_sortiertag_bezeugt;
+
+
+-- =====================================================================
+-- aus 0086_die_verschenkte_marge_je_charge.sql
+-- =====================================================================
+
+-- =====================================================================
+-- 0086 — Die verschenkte Marge je Charge
+--
+-- Der Betrieb über die Marge-Darstellung: „scheusslich — es sagt z.b.
+-- nicht welches kaliber … dann sind die messungen auch übereinander und
+-- nicht clever zusammengefasst - z.b. dass dort genau so wie alles andere
+-- so geordnet wird wie ganz oben angeben - wenn man alle sagt - dann alle
+-- chargen - wenn man nur eine sorte hat die chargen untereinander".
+--
+-- Der Bildschirm kann nur gliedern, was die Datenbank auseinanderhält.
+-- v_marge_wiegung (0078) fasst je Sorte zusammen — die Charge ist darin
+-- verschwunden. Diese Migration stellt dieselbe Rechnung eine Ebene feiner
+-- daneben: je Charge. Nicht statt, sondern zusätzlich, weil die Zahl je
+-- Sorte weiter die ist, mit der der Betriebsleiter die Kisten füllen
+-- lässt; die je Charge ist die, mit der er sieht, wo es herkommt.
+--
+-- Dieselbe Mathematik wie in 0078, derselbe Nenner (nur volle Paletten),
+-- dieselben Namen der Spalten — plus charge_nr und schlag.
+-- =====================================================================
+
+create or replace view v_marge_charge with (security_invoker = true) as
+with w as (
+  select k.*
+    from v_ausgang_voll k
+   where k.kisten > 0 and k.netto_kg is not null and k.kistensystem is not null and k.voll
+)
+select w.charge_nr,
+       w.sorte,
+       w.schlag,
+       w.kistensystem,
+       case when w.kistensystem = 'kiste_ab' then w.soll_kg_pro_kiste end   as soll_kg_pro_kiste,
+       case when w.kistensystem = 'stueck'   then w.kaliber_idx end         as kaliber_idx,
+       case when w.kistensystem = 'stueck'   then w.stueck_je_kiste end     as stueck_je_kiste,
+       case when w.kistensystem = 'stueck'   then w.band_mittel_g end       as band_mittel_g,
+       count(*)::int                                                       as n_wiegungen,
+       sum(w.kisten)::int                                                  as kisten,
+       zahl(avg(w.kg_pro_kiste), 3, 10000)::numeric(10,3)                  as kg_je_kiste,
+       zahl(stddev_samp(w.kg_pro_kiste), 3, 10000)::numeric(10,3)          as sd_je_kiste,
+       zahl(avg(w.ueberfuellung_je_kiste), 3, 10000)::numeric(10,3)        as zuviel_je_kiste,
+       zahl(avg(w.kg_pro_kuerbis) * 1000, 0, 1000000)::numeric(8,0)        as g_je_kuerbis,
+       zahl(avg(w.kg_pro_kuerbis) * 1000 - w.band_mittel_g, 0, 1000000)::numeric(8,0)
+                                                                           as g_ueber_bandmitte,
+       betriebstag(min(w.ts))                                              as von,
+       betriebstag(max(w.ts))                                              as bis
+  from w
+ group by w.charge_nr, w.sorte, w.schlag, w.kistensystem,
+          case when w.kistensystem = 'kiste_ab' then w.soll_kg_pro_kiste end,
+          case when w.kistensystem = 'stueck'   then w.kaliber_idx end,
+          case when w.kistensystem = 'stueck'   then w.stueck_je_kiste end,
+          case when w.kistensystem = 'stueck'   then w.band_mittel_g end,
+          w.band_mittel_g;
+create materialized view erg_marge_charge as select * from v_marge_charge with no data;
+
+-- ---------- 2. Jede Wägung sagt, ob und warum sie zählt -----------------
+-- Dieselben Spalten wie bisher (0069/0070), dazu `plausibel` und `grund`.
+-- `verwendbar` ist jetzt genau: kein Grund dagegen.
+--
+-- Zur Form: Der Lasttest hat die erste Fassung dieser Sicht bei dreifacher
+-- Saison mit +1.2 s erwischt. Der Planer setzt die Spalten einer flachen
+-- Sicht an jeder Verwendungsstelle neu ein — die Rate stand in `plausibel`,
+-- im Grund und in `rate_pro_tag`, und in jeder davon rechnete betriebstag()
+-- von vorn. Darum die Stufen mit `offset 0`: einmal Netto und Lagertage,
+-- einmal die Rate, einmal der Grund. So ist die Sicht schneller als die alte.
+create or replace view v_verdunstung_messung with (security_invoker = true) as
+select b.id,
+       b.charge_nr,
+       b.sorte,
+       b.schlag,
+       b.palette_id,
+       b.eingangsdatum,
+       b.wiege_ts,
+       b.sichtbar_schimmel,
+       b.erfasser,
+       b.auftrag_id,
+       b.netto_damals_kg,
+       b.netto_jetzt_kg,
+       b.lagertage,
+       r.rate_pro_tag,
+       (u.grund is null)                                               as verwendbar,
+       (r.rate_pro_tag is null or r.rate_pro_tag <= k.rate_max)       as plausibel,
+       u.grund
+  from (
+    -- Einmal je Zeile: Netto damals und jetzt, die Lagertage. Das `offset 0`
+    -- hält den Block zusammen — sonst setzt der Planer jede Spalte an jeder
+    -- Verwendungsstelle neu ein, und betriebstag() ist keine billige Funktion.
+    select w.id, w.charge_nr, c.sorte, c.schlag, w.palette_id, w.eingangsdatum, w.wiege_ts,
+           w.sichtbar_schimmel, w.erfasser, w.auftrag_id, w.gemessen,
+           (a.id is not null and a.abgebrochen_ts is not null)                              as abgebrochen,
+           w.brutto_damals_kg - w.kisten::numeric * g.tara_kg_pro_kiste - g.tara_kg_palette as netto_damals_kg,
+           w.brutto_jetzt_kg  - w.kisten::numeric * g.tara_kg_pro_kiste - g.tara_kg_palette as netto_jetzt_kg,
+           (betriebstag(w.wiege_ts) - w.eingangsdatum)                                       as lagertage
+      from verdunstung_wiegung w
+      join charge c on c.nr = w.charge_nr
+      left join auftrag a on a.id = w.auftrag_id
+      left join gebinde g on g.art = w.gebindeart
+    offset 0
+  ) b
+  -- Die Grenze einmal je Abfrage, nicht je Zeile.
+  cross join (select verdunstung_rate_max() as rate_max) k
+  cross join lateral (
+    select zahl(case when b.netto_damals_kg > 0 and b.netto_jetzt_kg > 0 and b.lagertage > 0
+                     then 1 - power(b.netto_jetzt_kg / b.netto_damals_kg, (1.0 / b.lagertage)::numeric)
+                end, 6, 10000)::numeric(10,6) as rate_pro_tag
+    offset 0
+  ) r
+  cross join lateral (
+    -- Der erste Grund, der zutrifft — in der Reihenfolge, in der er sich
+    -- beim Nachsehen aufklärt.
+    select case
+             when not b.gemessen                                     then 'nicht gemessen'
+             when b.sichtbar_schimmel                                then 'Schimmel sichtbar — die Palette verlor mehr als Wasser'
+             when b.abgebrochen                                      then 'Arbeit abgebrochen'
+             when b.netto_damals_kg is null or b.netto_jetzt_kg is null then 'ohne Netto — die Tara des Gebindes fehlt'
+             when b.netto_damals_kg <= 0 or b.netto_jetzt_kg <= 0    then 'Netto unter null — das Brutto ist kleiner als die Tara'
+             when b.lagertage <= 0                                   then 'am Eingangstag gewogen — keine Lagerdauer'
+             when b.netto_jetzt_kg > b.netto_damals_kg * 1.01        then 'schwerer geworden — Waagenrauschen oder ein kopiertes Eingangsgewicht'
+             when b.netto_jetzt_kg = b.netto_damals_kg               then 'unverändert — dieselbe Zahl zweimal'
+             when r.rate_pro_tag > k.rate_max
+               then format('zu schnell — %s %% je Tag ist keine Verdunstung', round(r.rate_pro_tag * 100, 2))
+           end as grund
+  ) u;
+
+
+-- =====================================================================
+-- aus 0018_koeffizienten_gepoolt.sql
+-- =====================================================================
+
+-- =====================================================================
+-- 0018 — Koeffizienten massegewichtet, chargen-robust und teilgebündelt
+--
+-- Nach 0017 trifft der Schimmel. Was übrig bleibt, misst der Harness so
+-- (25 Saisons, 50 % im Lager):
+--
+--   Ausschuss zu klein   Verzerrung −0.1 %   Bereich 0.8 % breit   Überdeckung 44 %
+--
+-- Der Punktwert stimmt, der Bereich ist eine Behauptung. Vier Gründe, alle
+-- im Code nachweisbar, alle hier behoben.
+--
+-- ---------- 1. Gewichteter Mittelwert, ungewichtete Streuung --------------
+-- v_koeff_ausschuss bildete den Mittelwert massegewichtet
+--   sum(anteil * basis_kg) / sum(basis_kg)
+-- die Streuung daneben aber ungewichtet
+--   stddev_samp(anteil)
+-- Das sind zwei verschiedene Grössen; die zweite beschreibt die erste nicht.
+--
+-- ---------- 2. n zählt Messungen, nicht unabhängige Gruppen ---------------
+-- Auf dem Testbestand:
+--
+--   Sorte        Messungen   Chargen
+--   Kaori Kuri       51         2
+--   Tiana            36         1
+--   Fictor           35         1
+--
+-- Mit n = 51 in mittel ± 1.96·sd/√n kommt ein Bereich von 0.8 % Breite
+-- heraus. Tatsächlich stammen die 51 Messungen aus zwei Chargen — gleicher
+-- Schlag, gleiche Ernte, gleiche Sortiereinstellung. Sie sind keine 51
+-- unabhängigen Ziehungen. Bei Tiana ist es *eine* Charge: daraus lässt sich
+-- die Streuung zwischen Chargen gar nicht schätzen.
+--
+-- ---------- 3. Verdunstung war massenungewichtet --------------------------
+-- v_verdunstung_stichprobe nahm avg(rate_pro_tag): eine 400-kg-Palette zählte
+-- so viel wie eine 900-kg-Palette, obwohl sie halb so viel Masse vertritt.
+--
+-- ---------- 4. Harte Schwelle statt Teilbündelung -------------------------
+-- „eigene Sorte ab n ≥ 3, sonst global" springt: bei n = 2 gilt der globale
+-- Wert voll, bei n = 3 der eigene voll — obwohl sich zwischen den beiden
+-- Fällen fast nichts geändert hat. Ersetzt durch empirisches Bayes: der
+-- Sortenwert wird mit dem Gewicht
+--
+--   B = τ² / (τ² + Fehler²)
+--
+-- zum Gesamtwert gezogen, wobei τ² die geschätzte echte Streuung zwischen
+-- den Sorten ist. Viele verlässliche eigene Messungen → B nahe 1, der eigene
+-- Wert zählt. Wenige oder aus nur einer Charge → B nahe 0, der Gesamtwert
+-- trägt. Kein Sprung, und keine Sorte behauptet mehr Sicherheit als sie hat.
+--
+-- Alle drei Koeffizienten sind derselbe Schätzer — ein massegewichteter
+-- Anteil — und werden deshalb hier einmal gemeinsam gerechnet statt dreimal
+-- fast gleich.
+-- =====================================================================
+
+-- ---------- Die Rohbeobachtungen -----------------------------------------
+-- Zwei getrennte Quellen, und zwar zwingend: v_ausschuss_beobachtung rechnet
+-- die Basismasse der Handmessungen um die Verdunstung herunter und liest dazu
+-- v_koeff_verdunstung. Läge alles in einer Ansicht, hinge der
+-- Verdunstungskoeffizient über den Umweg an sich selbst — Postgres bricht das
+-- mit „infinite recursion in rules" ab, und zu Recht.
+create or replace view v_koeff_roh_verdunstung with (security_invoker = true) as
+-- Tagesrate je gewogener Palette, gewichtet mit der Masse, die sie vertritt.
+select 'verdunstung'::text as art, m.sorte, m.charge_nr,
+       m.rate_pro_tag::numeric as anteil, m.netto_jetzt_kg::numeric as gewicht
+  from v_verdunstung_messung m
+ where m.verwendbar and m.netto_jetzt_kg > 0;
+
+-- Derselbe Schätzer zweimal — er kann nicht über beide Quellen laufen, ohne
+-- den Zyklus oben wieder aufzumachen. Änderungen gehören in beide.
+
+-- ---------- Schätzer: Verdunstung ----------
+create or replace view v_koeff_verdunstung_geschaetzt with (security_invoker = true) as
+with roh as materialized (
+  select art, sorte, charge_nr, anteil, gewicht from v_koeff_roh_verdunstung
+   where anteil is not null and gewicht > 0
+),
+je_charge as (
+  -- Ein Durchgang. Alles Weitere braucht nur noch diese Summen je Charge:
+  -- Σw·Anteil und Σw. Frühere Fassungen scannten die Beobachtungen einmal je
+  -- Sorte und brauchten 3.2 s allein für v_koeff_ausschuss.
+  select art, sorte, charge_nr,
+         sum(gewicht)          as sw_c,
+         sum(anteil * gewicht) as swa_c,
+         count(*)              as n_c
+    from roh group by art, sorte, charge_nr
+),
+ebene as (
+  -- Sortenebene und Gesamtebene (sorte = NULL) in einem Durchgang
+  select art, sorte, sum(sw_c) as sw, sum(swa_c) as swa,
+         sum(n_c)::int as n, count(distinct charge_nr)::int as c_chargen
+    from je_charge
+   group by grouping sets ((art, sorte), (art))
+),
+mittelwert as (
+  select e.*, e.swa / nullif(e.sw, 0) as mittel from ebene e
+),
+varianz as (
+  -- Chargen-robuste Varianz des massegewichteten Anteils. Die gewichtete
+  -- Abweichungssumme einer Charge ist Σw·Anteil − Mittel·Σw, also direkt aus
+  -- den Chargensummen zu haben. Die Streuung *dieser Summen* ist der Fehler;
+  -- mit einer einzigen Charge gibt es nichts zu streuen und sie bleibt NULL.
+  select m.*, v.varianz
+    from mittelwert m
+    cross join lateral (
+      select case when m.c_chargen > 1 and m.sw > 0
+                  then sum(power(j.swa_c - m.mittel * j.sw_c, 2)) / power(m.sw, 2)
+                       * m.c_chargen::numeric / (m.c_chargen - 1) end as varianz
+        from je_charge j
+       where j.art = m.art and (m.sorte is null or j.sorte = m.sorte)
+    ) v
+),
+gesamt as (
+  select art, mittel, varianz, c_chargen, n, sw from varianz where sorte is null
+),
+tau as (
+  -- τ²: wie stark sich die Sorten *wirklich* unterscheiden. Die beobachtete
+  -- Streuung der Sortenmittel enthält auch den eigenen Schätzfehler; der wird
+  -- abgezogen (Momentenschätzer). Bleibt nichts übrig, unterscheiden sich die
+  -- Sorten nicht nachweisbar und es wird voll gebündelt.
+  select v.art,
+         greatest(
+           sum(v.sw * power(v.mittel - g.mittel, 2)) / nullif(sum(v.sw), 0)
+           - coalesce(avg(v.varianz), 0), 0) as tau2
+    from varianz v join gesamt g on g.art = v.art
+   where v.sorte is not null
+   group by v.art
+),
+gitter as (
+  -- Jede Sorte des Stammdatensatzes bekommt eine Zeile, auch die ungemessene.
+  -- Sonst fiele sie ganz heraus und ihr Koeffizient stünde auf 0 — also „kein
+  -- Verlust", was schlicht falsch ist.
+  select a.art, sk.sorte from (select distinct art from roh) a cross join sorte_kaliber sk
+  union all
+  select art, null::text from (select distinct art from roh) a
+)
+select gi.art, gi.sorte, coalesce(v.n, 0) as n, coalesce(v.c_chargen, 0) as c_chargen,
+       v.mittel                                            as mittel_roh,
+       v.varianz                                           as varianz_roh,
+       g.mittel                                            as mittel_gesamt,
+       t.tau2,
+       -- Bündelungsgewicht: 0 = ganz der Gesamtwert, 1 = ganz der eigene
+       b.gewicht                                           as b,
+       -- coalesce, weil eine Sorte ohne eigene Messung kein v.mittel hat;
+       -- b ist dann 0 und es bleibt genau der Gesamtwert stehen.
+       (b.gewicht * coalesce(v.mittel, g.mittel)
+        + (1 - b.gewicht) * g.mittel)                      as mittel,
+       -- Fehler des gebündelten Werts: der eigene, um B geschrumpft, plus
+       -- der Rest-Anteil am Fehler des Gesamtwerts.
+       (b.gewicht * coalesce(v.varianz, 0)
+        + power(1 - b.gewicht, 2) * coalesce(g.varianz, 0)) as varianz,
+       -- Freiheitsgrade: so viele unabhängige Chargen, wie tatsächlich
+       -- eingehen — zwischen der eigenen Zahl und der des Gesamtwerts.
+       greatest(round(b.gewicht * coalesce(v.c_chargen, 0)
+                      + (1 - b.gewicht) * g.c_chargen)::int - 1, 1) as df,
+       g.n                                                 as n_gesamt,
+       -- Für die Fehlerfortpflanzung: der eigene, unabhängige Anteil am
+       -- Fehler und das Gewicht, mit dem der (allen Sorten gemeinsame)
+       -- Gesamtwert eingeht. Die beiden dürfen nicht wie unabhängige Fehler
+       -- addiert werden — der Gesamtwert ist derselbe für jede Sorte.
+       power(b.gewicht, 2) * coalesce(v.varianz, 0)        as varianz_eigen,
+       (1 - b.gewicht)                                     as gewicht_gesamt,
+       coalesce(g.varianz, 0)                              as varianz_gesamt
+  from gitter gi
+  join gesamt g on g.art = gi.art
+  left join varianz v on v.art = gi.art and v.sorte is not distinct from gi.sorte
+  left join tau t on t.art = gi.art
+  cross join lateral (
+    select case when gi.sorte is null then 1.0
+                when v.varianz is null or v.mittel is null
+                     or coalesce(t.tau2, 0) = 0 then 0.0
+                else t.tau2 / (t.tau2 + v.varianz) end as gewicht
+  ) b;
+
+-- ---------- 2. Die Rate je Sorte: nie negativ -----------------------------
+create or replace view v_koeff_verdunstung with (security_invoker = true) as
+select sk.sorte,
+       -- 0056: Verdunstung nimmt Masse, sie gibt keine. Ein Mittel unter 0
+       -- kommt nur aus Waagenrauschen und heisst „keine messbare Verdunstung".
+       -- NULL bleibt NULL: ohne Wiegung ist die Rate unbekannt, nicht 0.
+       (case when k.mittel < 0 then 0 else k.mittel end)::numeric          as mittel,
+       (case when coalesce(k.varianz, 0) = 0
+               then case when k.mittel < 0 then 0 else k.mittel end
+             else greatest(k.mittel - k.t * sqrt(k.varianz), 0)
+        end)::double precision                                          as unten,
+       (case when coalesce(k.varianz, 0) = 0
+               then case when k.mittel < 0 then 0 else k.mittel end
+             else greatest(k.mittel + k.t * sqrt(k.varianz), 0)
+        end)::double precision                                          as oben,
+       coalesce(k.n, 0)                                                 as n,
+       case when coalesce(k.n_gesamt, 0) = 0 then 'keine Wiegung vorhanden'
+            when k.b >= 0.67        then 'Wiegungen dieser Sorte'
+            when k.b >= 0.33        then 'Wiegungen dieser Sorte, zum Gesamtwert gezogen'
+            else 'Wiegungen aller Sorten (zu wenige eigene Chargen)' end as basis
+  from sorte_kaliber sk
+  left join lateral (
+    select g.*, t_quantil_95(g.df) as t
+      from v_koeff_verdunstung_geschaetzt g
+     where g.art = 'verdunstung' and g.sorte is not distinct from sk.sorte
+  ) k on true;
+
 -- v_ausschuss_beobachtung: 1 Cast(s)
 create or replace view v_ausschuss_beobachtung with (security_invoker = true) as
  SELECT 'maschine'::verarbeitungsweg AS weg,
@@ -9729,29 +9989,6 @@ UNION ALL
      LEFT JOIN v_koeff_verdunstung kv ON kv.sorte = am.sorte
      CROSS JOIN LATERAL ( SELECT zahl(GREATEST(am.eingang_netto_kg * power(1::numeric - LEAST(GREATEST(COALESCE(kv.mittel, 0::numeric), 0::numeric), 0.05), GREATEST(am.lagertage, 0::numeric)) - COALESCE(sm.kg, 0::numeric), 0::numeric), 2, 1e10)::numeric(12,2) AS basis) n
   WHERE am.weg = 'hand'::verarbeitungsweg AND am.eingang_netto_kg IS NOT NULL AND am.lagertage IS NOT NULL;
-
--- ---------- 15. Fax: Paletten gezählt, Tage seit dem Waschen -------------
-create or replace view v_fax_beobachtung with (security_invoker = true) as
-select a.id as auftrag_id, a.charge_nr, c.sorte, c.schlag, a.kaeufer,
-       a.start_ts, a.ende_ts, a.status, a.abgebrochen_ts,
-       m.eingang_netto_kg                                            as masse_kg,
-       m.masse_quelle,
-       coalesce(g.kisten, 0)                                         as kisten,
-       coalesce(s.kg, 0)                                             as faul_kg,
-       (s.auftrag_id is not null)                                    as faul_erfasst,
-       zahl(coalesce(s.kg, 0) / nullif(m.eingang_netto_kg + coalesce(s.kg, 0), 0), 5, 1e5)::numeric(10,5)
-                                                                     as anteil,
-       anteil_plausibel(coalesce(s.kg, 0) / nullif(m.eingang_netto_kg + coalesce(s.kg, 0), 0))
-                                                                     as plausibel,
-       -- neu (0060)
-       a.paletten_gesamt, a.tage_seit_waschen, a.kistensystem
-  from auftrag a
-  join charge c on c.nr = a.charge_nr
-  left join v_auftrag_masse m on m.auftrag_id = a.id
-  left join v_schimmel_menge s on s.auftrag_id = a.id
-  left join (select auftrag_id, sum(anzahl)::int as kisten from auftrag_gebinde group by auftrag_id) g
-         on g.auftrag_id = a.id
- where a.ist_fax and a.abgebrochen_ts is null;
 
 -- v_koeff_roh_kaliber: 1 Cast(s)
 create or replace view v_koeff_roh_kaliber with (security_invoker = true) as
@@ -9956,53 +10193,6 @@ create or replace view v_schimmel_beobachtung with (security_invoker = true) as
      CROSS JOIN LATERAL ( SELECT LEAST(GREATEST(COALESCE(kv.mittel, 0::numeric), 0::numeric), 0.05) AS r,
             GREATEST(am.lagertage, 0::numeric) AS tage) x
   WHERE am.eingang_netto_kg IS NOT NULL AND am.lagertage IS NOT NULL;
-
--- ---------------------------------------------------------------------
--- 6. Faules beim Abpacken nach Wartezeit
---
--- Beim Fax wird nochmals Faules aussortiert — und der Verdacht des Betriebs
--- ist, dass die Tage zwischen Waschen und Abpacken daran schuld sind. Die
--- Angabe gibt es seit 0060 (`auftrag.tage_seit_waschen`, freiwillig); sie
--- wurde nur nie ausgewertet. Der Anteil ist massegewichtet — eine kleine
--- Arbeit soll nicht so viel zählen wie eine grosse.
--- ---------------------------------------------------------------------
-create or replace view v_fax_wartezeit with (security_invoker = true) as
-with roh as (
-  select case when f.tage_seit_waschen is null then 'unbekannt'
-              when f.tage_seit_waschen <= 1    then '0–1 Tage'
-              when f.tage_seit_waschen <= 3    then '2–3 Tage'
-              else '4 und mehr' end                              as klasse,
-         f.sorte, f.masse_kg, f.faul_kg, f.anteil
-    from v_fax_beobachtung f
-   where f.status = 'abgeschlossen' and f.masse_kg is not null
-), je as (
-  -- Zweimal dieselben Arbeiten: einmal über alle Sorten, einmal je Sorte.
-  select g.gruppe,
-         (case when g.gruppe = 'sorte' then roh.sorte end) as sorte,
-         roh.klasse,
-         count(*)::int as n, sum(roh.masse_kg) as masse_kg, sum(roh.faul_kg) as faul_kg,
-         sum(roh.faul_kg) / nullif(sum(roh.masse_kg + roh.faul_kg), 0) as anteil,
-         stddev_samp(roh.anteil) as sd
-    from roh cross join lateral (select unnest(array['alle', 'sorte']) as gruppe) g
-   group by g.gruppe, (case when g.gruppe = 'sorte' then roh.sorte end), roh.klasse
-)
-select gruppe,
-       sorte,
-       klasse,
-       case klasse when '0–1 Tage' then 1 when '2–3 Tage' then 2
-                   when '4 und mehr' then 3 else 4 end          as reihenfolge,
-       n,
-       zahl(masse_kg, 1, 1e11)::numeric(12,1)                    as masse_kg,
-       zahl(faul_kg,  1, 1e11)::numeric(12,1)                    as faul_kg,
-       zahl(anteil, 5, 1e5)::numeric(10,5)                       as anteil,
-       case when n >= 2 and sd is not null
-            then zahl(greatest(anteil - t_quantil_95(n - 1) * sd / sqrt(n), 0), 5, 1e5)::numeric(10,5)
-            else zahl(anteil, 5, 1e5)::numeric(10,5) end         as unten,
-       case when n >= 2 and sd is not null
-            then zahl(least(anteil + t_quantil_95(n - 1) * sd / sqrt(n), 1), 5, 1e5)::numeric(10,5)
-            else zahl(anteil, 5, 1e5)::numeric(10,5) end         as oben
-  from je;
-create materialized view erg_fax_wartezeit as select * from v_fax_wartezeit with no data;
 
 -- Dieselben Spalten und Typen wie 0051 — die Kaskade (mv_kaskade, 0065)
 -- liest mittel, n und basis.
@@ -12793,167 +12983,126 @@ select gruppe, schluessel, sorte, h, datum, stufe_g,
   from zeilen
 $$;
 
--- ---------------------------------------------------------------------
--- 8. Der Betriebsleiter soll sehen, worauf die Verteilung ruht
--- ---------------------------------------------------------------------
+create or replace view v_wiegung_kennzahl with (security_invoker = true) as
+select w.id,
+       w.auftrag_id,
+       w.charge_nr,
+       c.sorte,
+       c.schlag,
+       w.eingangsdatum,
+       w.wiege_ts,
+       w.kisten,
+       w.gebindeart,
+       w.sichtbar_schimmel,
+       w.kuerbisse_pro_kiste,
+       (betriebstag(w.wiege_ts) - w.eingangsdatum)                                   as lagertage,
+       n.netto_damals_kg,
+       n.netto_jetzt_kg,
+       zahl(n.netto_jetzt_kg / nullif(w.kisten, 0)::numeric, 3, 10000000)::numeric(10,3)                          as kg_pro_kiste,
+       zahl(n.netto_jetzt_kg / nullif(w.kisten * w.kuerbisse_pro_kiste, 0)::numeric, 3, 10000000)::numeric(10,3)  as kg_pro_kuerbis,
+       zahl(n.netto_damals_kg - n.netto_jetzt_kg, 2, 100000000)::numeric(10,2)                                     as verdunstung_kg,
+       m.rate_pro_tag,
+       m.verwendbar,
+       m.plausibel,
+       m.grund
+  from verdunstung_wiegung w
+  join charge c on c.nr = w.charge_nr
+  left join auftrag a on a.id = w.auftrag_id
+  left join gebinde g on g.art = w.gebindeart
+  left join v_verdunstung_messung m on m.id = w.id
+  cross join lateral (
+    select zahl(w.brutto_damals_kg - w.kisten::numeric * g.tara_kg_pro_kiste - g.tara_kg_palette, 2, 100000000)::numeric(10,2) as netto_damals_kg,
+           zahl(w.brutto_jetzt_kg  - w.kisten::numeric * g.tara_kg_pro_kiste - g.tara_kg_palette, 2, 100000000)::numeric(10,2) as netto_jetzt_kg) n
+ where w.gemessen and (a.id is null or a.abgebrochen_ts is null);
 
-create or replace view v_datenqualitaet with (security_invoker = true) as
-with arbeiten as (select a.* from auftrag a where a.abgebrochen_ts is null),
-     fertig as (select * from arbeiten where status = 'abgeschlossen')
-select
-  (select count(*) from auftrag_palette ap join arbeiten a on a.id = ap.auftrag_id)::int as paletten_gezaehlt,
-  (select count(*) from auftrag_palette ap join arbeiten a on a.id = ap.auftrag_id
-    where ap.eingangsdatum is not null)::int                                             as paletten_mit_datum,
-  (select count(*) from fertig where not ist_fax)::int                                    as arbeiten_fertig,
-  (select count(*) from fertig f where not f.ist_fax and exists (select 1 from schimmel_messung s
-    where s.auftrag_id = f.id and s.palox_stand_kg is not null))::int                     as arbeiten_mit_ablesung,
-  (select count(*) from fertig f where not f.ist_fax and (select count(*) from schimmel_messung s
-    where s.auftrag_id = f.id and s.palox_stand_kg is not null) >= 2)::int                as arbeiten_mit_zwei_ablesungen,
-  (select count(*) from fertig f where not f.ist_fax and exists (select 1 from auftrag_angabe g
-    where g.auftrag_id = f.id and g.schluessel = 'eine_charge'))::int                     as arbeiten_mit_antwort,
-  (select count(*) from ausschuss_messung m join arbeiten a on a.id = m.auftrag_id
-    where m.gemessen)::int                                                                as ausschuss_messungen,
-  (select count(*) from ausschuss_messung m join arbeiten a on a.id = m.auftrag_id
-    where m.gemessen and m.brutto_kg is not null)::int                                    as ausschuss_gewogen,
-  (select count(*) from verdunstung_wiegung w
-    where w.auftrag_id is null and w.gemessen)::int                                       as lagerkontrollen,
-  (select count(*) from sortier_lauf)::int                                                as sortierlaeufe,
-  (select count(*) from sortier_lauf where auftrag_id is not null)::int                   as sortierlaeufe_zugeordnet,
-  (select count(*) from fertig f where f.station = 'sortieren')::int                      as sortier_arbeiten,
-  (select count(*) from fertig f where f.station = 'sortieren' and exists (select 1
-    from auftrag_gebinde g where g.auftrag_id = f.id and g.anzahl > 0))::int              as sortier_arbeiten_mit_kisten,
-  (select count(*) from fertig f where f.station = 'waschen' and not f.ist_fax)::int      as wasch_arbeiten,
-  (select count(*) from fertig f where f.station = 'waschen' and not f.ist_fax
-    and (f.kaliber_idx is not null or f.kaliber_von_g is not null)
-    and (exists (select 1 from auftrag_gebinde g where g.auftrag_id = f.id and g.anzahl > 0)
-         or exists (select 1 from auftrag_palette p where p.auftrag_id = f.id and p.kisten > 0)))::int
-                                                                                          as wasch_arbeiten_mit_kisten,
-  (select count(*) from fertig f where f.ist_fax)::int                                    as fax_arbeiten,
-  (select count(*) from fertig f where f.ist_fax and (f.paletten_gesamt > 0 or exists (select 1
-    from auftrag_gebinde g where g.auftrag_id = f.id and g.anzahl > 0)))::int             as fax_arbeiten_mit_kisten,
-  (select count(*) from fertig f where f.ist_fax and exists (select 1
-    from schimmel_messung s where s.auftrag_id = f.id and s.gemessen))::int               as fax_arbeiten_mit_faulem,
-  (select count(*) from auftrag_palette ap join arbeiten a on a.id = ap.auftrag_id
-    where a.station = 'waschen_sortieren')::int                                           as ws_paletten_gezaehlt,
-  (select count(*) from auftrag_palette ap join arbeiten a on a.id = ap.auftrag_id
-    where a.station = 'waschen_sortieren' and ap.brutto_zettel_kg is not null)::int       as ws_paletten_mit_zettelgewicht,
-  (select count(*) from fertig f where f.ist_fax or f.station in ('waschen', 'waschen_sortieren'))::int
-                                                                                          as arbeiten_nach_waschen,
-  (select count(*) from fertig f where (f.ist_fax or f.station in ('waschen', 'waschen_sortieren'))
-    and f.kistensystem is not null)::int                                                  as arbeiten_mit_kistensystem,
-  ((select coalesce(sum(g.anzahl), 0) from auftrag_gebinde g join arbeiten a on a.id = g.auftrag_id
-     where a.station = 'waschen' and not a.ist_fax)
-   + (select coalesce(sum(p.kisten), 0) from auftrag_palette p join arbeiten a on a.id = p.auftrag_id
-       where a.station = 'waschen' and not a.ist_fax))::int                               as wasch_kisten_gezaehlt,
-  ((select coalesce(sum(g.anzahl), 0) from auftrag_gebinde g join arbeiten a on a.id = g.auftrag_id
-     where a.station = 'waschen' and not a.ist_fax and (g.sortierdatum is not null or g.datum_fehlt))
-   + (select coalesce(sum(p.kisten), 0) from auftrag_palette p join arbeiten a on a.id = p.auftrag_id
-       where a.station = 'waschen' and not a.ist_fax and p.sortierdatum is not null))::int
-                                                                                          as wasch_kisten_mit_sortierdatum,
-  (select count(*) from fertig f where not f.ist_fax and exists (select 1 from v_palox_stand p
-    where p.auftrag_id = f.id and p.differenz is null))::int                              as arbeiten_mit_palox_unbekannt,
-  (select count(*) from auftrag_palette ap join arbeiten a on a.id = ap.auftrag_id
-    where not a.ist_fax and a.station in ('sortieren', 'waschen_sortieren'))::int         as eingangspaletten,
-  (select count(*) from auftrag_palette ap join arbeiten a on a.id = ap.auftrag_id
-    where not a.ist_fax and a.station in ('sortieren', 'waschen_sortieren')
-      and ap.kisten is not null and ap.kisten > 0)::int                                   as eingangspaletten_mit_kisten,
-  (select count(*) from mv_auftrag_masse m join fertig f on f.id = m.auftrag_id
-    where not f.ist_fax and m.lagertage is not null)::int                                 as arbeiten_alter_gemessen,
-  -- 0082: Zwei Arten von Datei, und die Güte des Sortiertags. Darauf ruht
-  -- die ganze Gewichtsverteilung des Lagers. Angehängt und nicht
-  -- eingeschoben: `create or replace view` darf die Spaltenliste nur
-  -- verlängern, sonst bricht es mit „cannot change name of view column".
-  (select count(*) from sortier_lauf where art = 'sammel')::int                           as sammel_lesungen,
-  (select count(*) from sortier_lauf where sortiertag is not null)::int                   as lesungen_mit_sortiertag,
-  (select count(*) from sortier_lauf
-    where sortiertag_quelle in ('datei', 'arbeit'))::int                                  as lesungen_sortiertag_bezeugt;
-
--- ---------------------------------------------------------------------
--- 4. Was sich nicht von selbst deuten lässt, steht als Auffälligkeit da
---
--- Der Zusatz von 0064 wird vollständig wiederholt (create or replace view
--- verlangt das) und um einen Zweig verlängert: eine Ausschuss-Wägung „mit
--- Palette", deren Brutto kaum mehr wiegt als die leere Palette.
--- ---------------------------------------------------------------------
-
+-- ---------- 4. Die Auffälligkeit „Verdunstung" --------------------------
+-- Der Zusatz von 0064 wird wie in 0083 als Ganzes neu gestellt, um einen
+-- Zweig länger.
 create or replace view v_plausibilitaet_0064_zusatz with (security_invoker = true) as
  SELECT 'Tara fehlt'::text AS art,
     NULL::bigint AS auftrag_id,
     p.charge_nr,
     c.sorte,
-    min(p.eingangsdatum)::timestamp with time zone AS start_ts,
+    (min(p.eingangsdatum))::timestamp with time zone AS start_ts,
     format('%s von %s Paletten der Charge haben kein Nettogewicht (%s kg brutto): %s. %s'::text, count(*), r.n_paletten, round(sum(p.brutto_kg)),
         CASE
-            WHEN bool_or(p.gebindeart IS NULL) THEN 'die Gebindeart steht nicht auf der Palette'::text
-            WHEN bool_or(g.art IS NULL) THEN 'diese Gebindeart steht nicht in den Stammdaten'::text
-            WHEN bool_or(g.tara_kg_pro_kiste IS NULL) THEN 'für die Gebindeart ist kein Kistengewicht hinterlegt'::text
-            WHEN bool_or(g.tara_kg_palette IS NULL) THEN 'für die Gebindeart ist kein Palettengewicht hinterlegt'::text
+            WHEN bool_or((p.gebindeart IS NULL)) THEN 'die Gebindeart steht nicht auf der Palette'::text
+            WHEN bool_or((g.art IS NULL)) THEN 'diese Gebindeart steht nicht in den Stammdaten'::text
+            WHEN bool_or((g.tara_kg_pro_kiste IS NULL)) THEN 'für die Gebindeart ist kein Kistengewicht hinterlegt'::text
+            WHEN bool_or((g.tara_kg_palette IS NULL)) THEN 'für die Gebindeart ist kein Palettengewicht hinterlegt'::text
             ELSE 'die Kistenzahl fehlt'::text
         END,
         CASE
-            WHEN r.n_paletten_mit_netto = 0 THEN 'Damit hat die Charge gar keinen Eingang — sie fehlt in der ganzen Bilanz.'::text
-            ELSE format('Für sie rechnet der Eingang mit dem Mittel der übrigen: %s der %s kg '::text || 'Eingang sind hochgerechnet, nicht gewogen.'::text, round(r.eingang_netto_kg - r.eingang_netto_gemessen_kg), round(r.eingang_netto_kg))
+            WHEN (r.n_paletten_mit_netto = 0) THEN 'Damit hat die Charge gar keinen Eingang — sie fehlt in der ganzen Bilanz.'::text
+            ELSE format(('Für sie rechnet der Eingang mit dem Mittel der übrigen: %s der %s kg '::text || 'Eingang sind hochgerechnet, nicht gewogen.'::text), round((r.eingang_netto_kg - r.eingang_netto_gemessen_kg)), round(r.eingang_netto_kg))
         END) AS befund,
         CASE
-            WHEN bool_or(p.gebindeart IS NULL) THEN 'Gebindeart am Wareneingang nachtragen.'::text
-            WHEN bool_or(g.art IS NULL) OR bool_or(g.tara_kg_pro_kiste IS NULL) OR bool_or(g.tara_kg_palette IS NULL) THEN 'Unter Betrieb → Stammdaten die Tara dieser Gebindeart eintragen. '::text || 'Die Zahlen rechnen sich danach von selbst neu.'::text
+            WHEN bool_or((p.gebindeart IS NULL)) THEN 'Gebindeart am Wareneingang nachtragen.'::text
+            WHEN (bool_or((g.art IS NULL)) OR bool_or((g.tara_kg_pro_kiste IS NULL)) OR bool_or((g.tara_kg_palette IS NULL))) THEN ('Unter Betrieb → Stammdaten die Tara dieser Gebindeart eintragen. '::text || 'Die Zahlen rechnen sich danach von selbst neu.'::text)
             ELSE 'Kistenzahl der Palette im Wareneingang nachtragen.'::text
         END AS rat
-   FROM palette p
-     LEFT JOIN gebinde g ON g.art = p.gebindeart
-     JOIN charge c ON c.nr = p.charge_nr
-     JOIN v_charge_rueckgrat r ON r.charge_nr = p.charge_nr
-  WHERE (p.brutto_kg - p.kisten::numeric * g.tara_kg_pro_kiste - g.tara_kg_palette) IS NULL
+   FROM (((palette p
+     LEFT JOIN gebinde g ON ((g.art = p.gebindeart)))
+     JOIN charge c ON ((c.nr = p.charge_nr)))
+     JOIN v_charge_rueckgrat r ON ((r.charge_nr = p.charge_nr)))
+  WHERE (((p.brutto_kg - ((p.kisten)::numeric * g.tara_kg_pro_kiste)) - g.tara_kg_palette) IS NULL)
   GROUP BY p.charge_nr, c.sorte, r.n_paletten, r.n_paletten_mit_netto, r.eingang_netto_kg, r.eingang_netto_gemessen_kg
 UNION ALL
  SELECT 'Überzählung'::text AS art,
     NULL::bigint AS auftrag_id,
     h.charge_nr,
     h.sorte,
-    h.eingangsdatum_mittel::timestamp with time zone AS start_ts,
-    format('%s kg mehr ausgeliefert, als für diese Charge je als Eingang erfasst wurde '::text || '(%s kg Eingang, %s kg geliefert) — das sind %s %% des Eingangs'::text, round(h.ueberzaehlung_kg), round(h.eingang_kg), round(h.geliefert_kg), round(100::numeric * h.ueberzaehlung_kg / NULLIF(h.eingang_kg, 0::numeric))) AS befund,
-    ('Fehlt im Erntejournal eine Palette dieser Charge? Oder ist ein Lieferschein auf '::text || 'die falsche Chargennummer gebucht? Beides lässt sich nachtragen; bis dahin ist '::text) || 'die Verlustquote dieser Charge zu hoch, weil ihr Eingang zu klein ist.'::text AS rat
+    (h.eingangsdatum_mittel)::timestamp with time zone AS start_ts,
+    format(('%s kg mehr ausgeliefert, als für diese Charge je als Eingang erfasst wurde '::text || '(%s kg Eingang, %s kg geliefert) — das sind %s %% des Eingangs'::text), round(h.ueberzaehlung_kg), round(h.eingang_kg), round(h.geliefert_kg), round((((100)::numeric * h.ueberzaehlung_kg) / NULLIF(h.eingang_kg, (0)::numeric)))) AS befund,
+    (('Fehlt im Erntejournal eine Palette dieser Charge? Oder ist ein Lieferschein auf '::text || 'die falsche Chargennummer gebucht? Beides lässt sich nachtragen; bis dahin ist '::text) || 'die Verlustquote dieser Charge zu hoch, weil ihr Eingang zu klein ist.'::text) AS rat
    FROM v_hochrechnung_basis h
-  WHERE h.ueberzaehlung_kg > 0::numeric
+  WHERE (h.ueberzaehlung_kg > (0)::numeric)
 UNION ALL
  SELECT 'Zettelgewicht'::text AS art,
     ap.auftrag_id,
     a.charge_nr,
     c.sorte,
     a.start_ts,
-    format(('%s Palette(n) mit %s kg vom Zettel und Eingangsdatum %s gezählt. Eine Palette '::text || 'dieses Gewichts gibt es in der Charge, aber an einem anderen Tag — gerechnet '::text) || 'wird deshalb mit der mittleren Tara der Charge, nicht mit ihrer eigenen.'::text, count(*), ap.brutto_zettel_kg, to_char(ap.eingangsdatum::timestamp with time zone, 'DD.MM.YYYY'::text)) AS befund,
+    format((('%s Palette(n) mit %s kg vom Zettel und Eingangsdatum %s gezählt. Eine Palette '::text || 'dieses Gewichts gibt es in der Charge, aber an einem anderen Tag — gerechnet '::text) || 'wird deshalb mit der mittleren Tara der Charge, nicht mit ihrer eigenen.'::text), count(*), ap.brutto_zettel_kg, to_char((ap.eingangsdatum)::timestamp with time zone, 'DD.MM.YYYY'::text)) AS befund,
     'Eingangsdatum an der Zählung prüfen — oder das Datum der Palette im Wareneingang.'::text AS rat
-   FROM auftrag_palette ap
-     JOIN auftrag a ON a.id = ap.auftrag_id
-     JOIN charge c ON c.nr = a.charge_nr
-  WHERE ap.brutto_zettel_kg IS NOT NULL AND ap.eingangsdatum IS NOT NULL AND a.abgebrochen_ts IS NULL AND (EXISTS ( SELECT 1
+   FROM ((auftrag_palette ap
+     JOIN auftrag a ON ((a.id = ap.auftrag_id)))
+     JOIN charge c ON ((c.nr = a.charge_nr)))
+  WHERE ((ap.brutto_zettel_kg IS NOT NULL) AND (ap.eingangsdatum IS NOT NULL) AND (a.abgebrochen_ts IS NULL) AND (EXISTS ( SELECT 1
            FROM palette p
-          WHERE p.charge_nr = a.charge_nr AND p.brutto_kg = ap.brutto_zettel_kg)) AND NOT (EXISTS ( SELECT 1
+          WHERE ((p.charge_nr = a.charge_nr) AND (p.brutto_kg = ap.brutto_zettel_kg)))) AND (NOT (EXISTS ( SELECT 1
            FROM v_palette p
-          WHERE p.charge_nr = a.charge_nr AND p.brutto_kg = ap.brutto_zettel_kg AND p.eingangsdatum = ap.eingangsdatum AND p.netto_kg IS NOT NULL))
+          WHERE ((p.charge_nr = a.charge_nr) AND (p.brutto_kg = ap.brutto_zettel_kg) AND (p.eingangsdatum = ap.eingangsdatum) AND (p.netto_kg IS NOT NULL))))))
   GROUP BY ap.auftrag_id, a.charge_nr, c.sorte, a.start_ts, ap.brutto_zettel_kg, ap.eingangsdatum
 UNION ALL
- -- 0083: Eine Ausschuss-Wägung „mit Palette", deren Brutto kaum mehr ist
- -- als die leere Palette. Das kann stimmen — ein paar Kürbisse auf einer
- -- Palette —, aber meistens standen die Kisten direkt auf der Waage, und
- -- 25 kg Palette sind zu Unrecht abgezogen.
  SELECT 'Palette fraglich'::text AS art,
     m.auftrag_id,
     a.charge_nr,
     c.sorte,
     a.start_ts,
     format('%s: %s kg brutto in %s Kiste(n) %s, mit Palette gewogen — davon bleiben %s kg netto. Eine leere Palette wiegt allein %s kg.'::text,
-           CASE m.art WHEN 'zu_klein' THEN 'Zu klein' ELSE 'Zu gross' END,
-           m.brutto_kg, m.kisten, m.gebindeart, m.kg, g.tara_kg_palette) AS befund,
+        CASE m.art
+            WHEN 'zu_klein'::ausschuss_art THEN 'Zu klein'::text
+            ELSE 'Zu gross'::text
+        END, m.brutto_kg, m.kisten, m.gebindeart, m.kg, g.tara_kg_palette) AS befund,
     'Standen die Kisten direkt auf der Waage? Dann in der Korrektur „mit Palette" abwählen — das Netto rechnet sich von selbst neu.'::text AS rat
-   FROM ausschuss_messung m
-     JOIN auftrag a ON a.id = m.auftrag_id
-     JOIN charge c ON c.nr = a.charge_nr
-     JOIN gebinde g ON g.art = m.gebindeart
-  WHERE m.gemessen AND m.mit_palette AND m.brutto_kg IS NOT NULL
-    AND g.tara_kg_palette IS NOT NULL
-    AND m.brutto_kg < 2 * g.tara_kg_palette
-    AND a.abgebrochen_ts IS NULL;
+   FROM (((ausschuss_messung m
+     JOIN auftrag a ON ((a.id = m.auftrag_id)))
+     JOIN charge c ON ((c.nr = a.charge_nr)))
+     JOIN gebinde g ON ((g.art = m.gebindeart)))
+  WHERE (m.gemessen AND m.mit_palette AND (m.brutto_kg IS NOT NULL) AND (g.tara_kg_palette IS NOT NULL) AND (m.brutto_kg < ((2)::numeric * g.tara_kg_palette)) AND (a.abgebrochen_ts IS NULL))
+UNION ALL
+ SELECT 'Verdunstung'::text AS art,
+    m.auftrag_id,
+    m.charge_nr,
+    m.sorte,
+    m.wiege_ts AS start_ts,
+    format('%s %% je Tag: %s kg → %s kg in %s Tagen — so schnell verdunstet kein Kürbis (Grenze %s %% je Tag)'::text,
+           round(m.rate_pro_tag * 100, 2), round(m.netto_damals_kg), round(m.netto_jetzt_kg), m.lagertage,
+           round(verdunstung_rate_max() * 100, 2)) AS befund,
+    'Zettelgewicht, Kisten und Gebinde dieser Wägung prüfen — oder es ist eine andere Palette. Bis zur Korrektur zählt sie nicht in die Rate.'::text AS rat
+   FROM v_verdunstung_messung m
+  WHERE m.grund LIKE 'zu schnell%';
 
 create view v_plausibilitaet_0054_zusatz with (security_invoker = true) as
 SELECT 'Kistengewicht'::text AS art,
@@ -13005,64 +13154,6 @@ UNION ALL
     v_plausibilitaet_0064_zusatz.befund,
     v_plausibilitaet_0064_zusatz.rat
    FROM v_plausibilitaet_0064_zusatz;
-
-
--- =====================================================================
--- aus 0086_die_verschenkte_marge_je_charge.sql
--- =====================================================================
-
--- =====================================================================
--- 0086 — Die verschenkte Marge je Charge
---
--- Der Betrieb über die Marge-Darstellung: „scheusslich — es sagt z.b.
--- nicht welches kaliber … dann sind die messungen auch übereinander und
--- nicht clever zusammengefasst - z.b. dass dort genau so wie alles andere
--- so geordnet wird wie ganz oben angeben - wenn man alle sagt - dann alle
--- chargen - wenn man nur eine sorte hat die chargen untereinander".
---
--- Der Bildschirm kann nur gliedern, was die Datenbank auseinanderhält.
--- v_marge_wiegung (0078) fasst je Sorte zusammen — die Charge ist darin
--- verschwunden. Diese Migration stellt dieselbe Rechnung eine Ebene feiner
--- daneben: je Charge. Nicht statt, sondern zusätzlich, weil die Zahl je
--- Sorte weiter die ist, mit der der Betriebsleiter die Kisten füllen
--- lässt; die je Charge ist die, mit der er sieht, wo es herkommt.
---
--- Dieselbe Mathematik wie in 0078, derselbe Nenner (nur volle Paletten),
--- dieselben Namen der Spalten — plus charge_nr und schlag.
--- =====================================================================
-
-create or replace view v_marge_charge with (security_invoker = true) as
-with w as (
-  select k.*
-    from v_ausgang_voll k
-   where k.kisten > 0 and k.netto_kg is not null and k.kistensystem is not null and k.voll
-)
-select w.charge_nr,
-       w.sorte,
-       w.schlag,
-       w.kistensystem,
-       case when w.kistensystem = 'kiste_ab' then w.soll_kg_pro_kiste end   as soll_kg_pro_kiste,
-       case when w.kistensystem = 'stueck'   then w.kaliber_idx end         as kaliber_idx,
-       case when w.kistensystem = 'stueck'   then w.stueck_je_kiste end     as stueck_je_kiste,
-       case when w.kistensystem = 'stueck'   then w.band_mittel_g end       as band_mittel_g,
-       count(*)::int                                                       as n_wiegungen,
-       sum(w.kisten)::int                                                  as kisten,
-       zahl(avg(w.kg_pro_kiste), 3, 10000)::numeric(10,3)                  as kg_je_kiste,
-       zahl(stddev_samp(w.kg_pro_kiste), 3, 10000)::numeric(10,3)          as sd_je_kiste,
-       zahl(avg(w.ueberfuellung_je_kiste), 3, 10000)::numeric(10,3)        as zuviel_je_kiste,
-       zahl(avg(w.kg_pro_kuerbis) * 1000, 0, 1000000)::numeric(8,0)        as g_je_kuerbis,
-       zahl(avg(w.kg_pro_kuerbis) * 1000 - w.band_mittel_g, 0, 1000000)::numeric(8,0)
-                                                                           as g_ueber_bandmitte,
-       betriebstag(min(w.ts))                                              as von,
-       betriebstag(max(w.ts))                                              as bis
-  from w
- group by w.charge_nr, w.sorte, w.schlag, w.kistensystem,
-          case when w.kistensystem = 'kiste_ab' then w.soll_kg_pro_kiste end,
-          case when w.kistensystem = 'stueck'   then w.kaliber_idx end,
-          case when w.kistensystem = 'stueck'   then w.stueck_je_kiste end,
-          case when w.kistensystem = 'stueck'   then w.band_mittel_g end,
-          w.band_mittel_g;
-create materialized view erg_marge_charge as select * from v_marge_charge with no data;
 
 
 -- =====================================================================
@@ -13449,20 +13540,6 @@ begin
                  'Bildschirm. Erneuert mit auswertung_schritt().');
 end $$;
 
--- Dieselbe Geschichte wie bei erg_punkte: der Stern ist beim Anlegen
--- eingefroren (0062). erg_wiegung liest niemand ausser dem Bildschirm —
--- neu anlegen ist hier gefahrlos.
--- verdichter: baut erg_wiegung
-do $$
-begin
-  execute 'drop materialized view if exists erg_wiegung cascade';
-  execute 'create materialized view erg_wiegung as select * from v_wiegung_kennzahl with no data';
-  execute 'grant select on erg_wiegung to authenticated';
-  execute format('comment on materialized view erg_wiegung is %L',
-                 'v_wiegung_kennzahl mit der Tagesrate, gespeichert für die App (0079). '
-                 'Erneuert mit auswertung_schritt().');
-end $$;
-
 -- Die gespeicherte Fassung muss mitkommen: erg_datenqualitaet ist ein
 -- `create materialized view … as select * from v_datenqualitaet`, und der
 -- Stern ist dort beim Anlegen eingefroren. Ohne diesen Block kämen die drei
@@ -13476,6 +13553,31 @@ begin
   execute 'grant select on erg_datenqualitaet to authenticated';
   execute format('comment on materialized view erg_datenqualitaet is %L',
                  'v_datenqualitaet, gespeichert für die App Erneuert mit auswertung_schritt().');
+end $$;
+
+-- Die gespeicherte Fassung neu, damit die zwei Spalten mitkommen — als
+-- Bauanweisung mit Marke, wie in 0061/0079: So weiss der Verdichter, dass
+-- dies die jüngste Fassung von erg_wiegung ist, und setup.sql baut sie
+-- genau einmal.
+-- verdichter: baut erg_wiegung
+do $$
+begin
+  execute 'drop materialized view if exists erg_wiegung cascade';
+  execute 'create materialized view erg_wiegung as select * from v_wiegung_kennzahl with no data';
+  execute 'grant select on erg_wiegung to authenticated';
+  execute format('comment on materialized view erg_wiegung is %L',
+                 'Gespeichert: jede Wägung mit ihren Kennzahlen (v_wiegung_kennzahl), seit 0089 mit plausibel und grund. Schritt 4 des Rechenwerks.');
+end $$;
+
+-- ---------- 3. Die fertigen Paletten tragen „voll" ----------------------
+-- verdichter: baut erg_ausgang
+do $$
+begin
+  execute 'drop materialized view if exists erg_ausgang cascade';
+  execute 'create materialized view erg_ausgang as select * from v_ausgang_voll with no data';
+  execute 'grant select on erg_ausgang to authenticated';
+  execute format('comment on materialized view erg_ausgang is %L',
+                 'Gespeichert: jede gewogene fertige Palette mit ihren Kennzahlen (v_ausgang_voll) — seit 0089 mit voll, damit die Marge-Karte sagen kann, welche Wägung nicht zählt.');
 end $$;
 
 -- ---------------------------------------------------------------------
@@ -15146,6 +15248,22 @@ comment on view v_plausibilitaet is
   'Tara" daneben. 0087: die Nachrechnung zieht die Palette nur ab, wenn sie '
   'mitgewogen wurde, und klemmt nichts auf null.';
 grant select on v_plausibilitaet to authenticated;
+comment on view v_verdunstung_messung is
+  'Je Wägung derselben Palette: Netto damals und jetzt, Lagertage, die Tagesrate — '
+  'und ob sie in die Rate der Sorte zählt (verwendbar). Seit 0089 sagt `grund`, '
+  'warum nicht, und `plausibel`, ob die Rate unter der Grenze '
+  'verdunstung_rate_max_pro_tag liegt: Was schneller schwindet, ist keine Verdunstung.';
+grant select on v_verdunstung_messung to authenticated;
+grant select on v_wiegung_kennzahl to authenticated;
+create index if not exists erg_wiegung_ts on erg_wiegung (wiege_ts);
+-- Die Beschreibung auch im Klartext (wie 0079): Der Verdichter zieht die
+-- jüngste Klartext-Beschreibung nach — sonst stünde in setup.sql die von 0061.
+comment on materialized view erg_wiegung is
+  'Gespeichert: jede Wägung mit ihren Kennzahlen (v_wiegung_kennzahl), seit 0089 mit plausibel und grund. Schritt 4 des Rechenwerks.';
+create index if not exists erg_ausgang_ts on erg_ausgang (ts);
+comment on materialized view erg_ausgang is
+  'Gespeichert: jede gewogene fertige Palette mit ihren Kennzahlen (v_ausgang_voll) — seit 0089 mit voll, damit die Marge-Karte sagen kann, welche Wägung nicht zählt.';
+grant select on v_plausibilitaet_0064_zusatz to authenticated;
 
 
 -- =====================================================================

@@ -23,7 +23,11 @@ import { ZTabelle, ZZoomAus } from './Zeichen'
  * class="marker"> mit r ≤ 4.5, der Rahmen ist B × hoehe mit den Rändern
  * L/R/U — darauf rechnet der Prüfstand die Achse zurück.
  */
-export interface Punkt { x: number; y: number; text?: string; name?: string; groesse?: number }
+export interface Punkt {
+  x: number; y: number; text?: string; name?: string; groesse?: number
+  /** Runde W: die Arbeit hinter dem Punkt — ein Klick öffnet sie. */
+  auftragId?: number | null
+}
 export interface Reihe {
   name: string
   farbe: string
@@ -125,8 +129,14 @@ const staffel = (i: number): CSSProperties => ({ '--i': Math.min(i, 40) } as CSS
 export function Linien({ reihen, hoehe = 280, xFormat = String, yFormat = String, xTitel, yTitel,
                          yVon, yBis, xVon, xBis, xEinheit = 'frei', yEinheit = 'frei',
                          senkrechte = [], waagrechte = [], zonen = [], heute, leer = 'keine Messung',
-                         ausgeschlossenText, zoom = true, tabelle: tabelleErlaubt = true, kompakt = false, fuss }: {
+                         ausgeschlossenText, zoom = true, tabelle: tabelleErlaubt = true, kompakt = false, fuss,
+                         treffer = 'spalte', onPunkt }: {
   reihen: Reihe[]; hoehe?: number
+  /** Was der Zeiger trifft: die x-Stelle über alle Reihen (Zeitreihe) oder
+   *  den einen Punkt darunter (Messbild, Runde W). */
+  treffer?: 'spalte' | 'punkt'
+  /** Ein Klick auf einen Punkt — nur bei treffer='punkt'. */
+  onPunkt?: (p: Punkt, r: Reihe) => void
   xFormat?: (x: number) => string; yFormat?: (y: number) => string
   xTitel?: string; yTitel?: string
   yVon?: number; yBis?: number; xVon?: number; xBis?: number
@@ -155,6 +165,10 @@ export function Linien({ reihen, hoehe = 280, xFormat = String, yFormat = String
   const [sicht, setSicht] = useState<[number, number] | null>(null)
   const [zieh, setZieh] = useState<{ von: number; bis: number } | null>(null)
   const [hover, setHover] = useState<{ x: number; px: number; my: number; werte: { reihe: Reihe; p: Punkt }[] } | null>(null)
+  // Der zuletzt getroffene Punkt, sofort und nicht erst nach dem nächsten
+  // Zeichnen: Ein Antippen ist pointerdown und pointerup im selben Atemzug,
+  // und dazwischen hat React noch nicht gezeichnet.
+  const getroffen = useRef<{ reihe: Reihe; p: Punkt } | null>(null)
   const [zeigerOrt, setZeigerOrt] = useState<{ x: number; y: number } | null>(null)
   const [tabelle, setTabelle] = useState(false)
   const clipId = useMemo(() => `clip${Math.random().toString(36).slice(2, 8)}`, [])
@@ -211,6 +225,22 @@ export function Linien({ reihen, hoehe = 280, xFormat = String, yFormat = String
   function zeigen(e: React.PointerEvent<SVGSVGElement>) {
     const { mx, my } = raster(e)
     if (zieh) { setZieh({ von: zieh.von, bis: Math.max(L, Math.min(B - R, mx)) }); return }
+    if (treffer === 'punkt') {
+      // Runde W: nur der Punkt unter dem Zeiger — nicht alles, was am selben
+      // Tag gewogen wurde. Der Betrieb: „ich möchte einfach nur das Pop-up
+      // für den Punkt selber."
+      let bester: { reihe: Reihe; p: Punkt } | null = null, bd = 1e12
+      for (const r of sichtbar) for (const p of r.punkte) {
+        if (p.x < x0 || p.x > x1) continue
+        const d = Math.hypot(sx(p.x) - mx, sy(p.y) - my)
+        if (d < bd) { bd = d; bester = { reihe: r, p } }
+      }
+      if (!bester || bd > 14) { getroffen.current = null; setHover(null); return }
+      getroffen.current = bester
+      setHover({ x: bester.p.x, px: sx(bester.p.x), my, werte: [bester] })
+      setZeigerOrt(ort(e))
+      return
+    }
     // Die nächste x-Stelle über alle sichtbaren Reihen — dann je Reihe der Punkt dort.
     let bestX: number | null = null, bestD = 1e12
     for (const r of sichtbar) for (const p of r.punkte) {
@@ -240,11 +270,19 @@ export function Linien({ reihen, hoehe = 280, xFormat = String, yFormat = String
     if (mx < L || mx > B - R) return
     setZieh({ von: mx, bis: mx })
   }
+  // Ein Klick (kein Ziehen) auf einen getroffenen Punkt öffnet, was dahinter
+  // steht — die Arbeit. Mit dem Finger gibt es kein Ziehen; dann zählt der
+  // Punkt, den das Antippen getroffen hat.
+  function klick() {
+    const g = getroffen.current
+    if (treffer !== 'punkt' || !onPunkt || !g) return
+    onPunkt(g.p, g.reihe)
+  }
   function loslassen() {
-    if (!zieh) return
+    if (!zieh) { klick(); return }
     const a = Math.min(zieh.von, zieh.bis), b = Math.max(zieh.von, zieh.bis)
     setZieh(null)
-    if (b - a < 8) return
+    if (b - a < 8) { klick(); return }
     setSicht([xVonPx(a), xVonPx(b)])
     setHover(null)
   }
@@ -302,6 +340,7 @@ export function Linien({ reihen, hoehe = 280, xFormat = String, yFormat = String
                    transform={`rotate(45 ${sx(p.x)} ${sy(p.y)})`} fill={r.farbe} stroke="var(--flaeche)" strokeWidth="1.5" style={staffel(i)} />
     }
     return <circle key={`${r.name}${i}`} className="marker" cx={sx(p.x)} cy={sy(p.y)} r={Math.min(rad, 4.5)} fill={r.farbe}
+                   data-auftrag={p.auftragId ?? undefined}
                    stroke="var(--flaeche)" strokeWidth="1.5" style={staffel(i)} />
   }
 
@@ -310,7 +349,7 @@ export function Linien({ reihen, hoehe = 280, xFormat = String, yFormat = String
   return (
     <div className="diagramm" ref={rahmen}>
       <div className="rollbar">
-        <svg viewBox={`0 0 ${B} ${hoehe}`} style={{ width: '100%', minWidth: kompakt ? 320 : 420, height: 'auto', display: 'block', cursor: zieh ? 'col-resize' : zoom ? 'crosshair' : 'default', touchAction: 'pan-y' }}
+        <svg viewBox={`0 0 ${B} ${hoehe}`} style={{ width: '100%', minWidth: kompakt ? 320 : 420, height: 'auto', display: 'block', cursor: zieh ? 'col-resize' : treffer === 'punkt' && onPunkt && hover?.werte[0]?.p.auftragId != null ? 'pointer' : zoom ? 'crosshair' : 'default', touchAction: 'pan-y' }}
              role="img" aria-label={yTitel ?? ''} data-x-einheit={xEinheit} data-y-einheit={yEinheit}
              onPointerMove={zeigen} onPointerDown={e => { zeigen(e); druecken(e) }} onPointerUp={loslassen}
              onPointerLeave={() => { setHover(null); setZieh(null) }} onDoubleClick={() => setSicht(null)} onWheel={rad}>
@@ -373,7 +412,7 @@ export function Linien({ reihen, hoehe = 280, xFormat = String, yFormat = String
             {sichtbar.map(r => (r.marker ?? !r.linie) && r.punkte.filter(imFenster).map((p, i) => markerVon(r, p, i)))}
             {hover && (
               <g>
-                <line x1={hover.px} x2={hover.px} y1={oben} y2={hoehe - U} stroke="var(--text)" strokeWidth="1" opacity=".35" />
+                {treffer === 'spalte' && <line x1={hover.px} x2={hover.px} y1={oben} y2={hoehe - U} stroke="var(--text)" strokeWidth="1" opacity=".35" />}
                 {hoverTeile.map(({ reihe, p }) => (
                   <circle key={reihe.name} cx={sx(p.x)} cy={sy(p.y)} r="6" fill="var(--flaeche)" stroke={reihe.farbe} strokeWidth="2.5" />
                 ))}
@@ -397,6 +436,9 @@ export function Linien({ reihen, hoehe = 280, xFormat = String, yFormat = String
                 {p.text && <span className="leise" style={{ gridColumn: '2 / span 2' }}>{p.text}</span>}
               </div>
             ))}
+            {treffer === 'punkt' && onPunkt && hoverTeile[0]?.p.auftragId != null && (
+              <div className="leise" style={{ marginTop: '.25rem' }}>anklicken: die Arbeit dazu</div>
+            )}
           </>
         ) } : null} />
       {ausserhalb.length > 0 && (

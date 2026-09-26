@@ -5828,3 +5828,89 @@ begin
 end $$;
 
 select '——— 0088 Ausschuss Kiste für Kiste geprüft ———' as ergebnis;
+
+-- =====================================================================
+-- 0089 — Eine Verdunstung, die keine ist
+--
+-- Der Betrieb: „Kaori Kuri … hat eine tägliche Verdunstung von 4,8 %.
+-- Kann ja natürlich nicht sein." Geprüft wird, dass eine solche Wägung
+-- nicht in die Rate zählt, sagt warum, als Auffälligkeit dasteht — und
+-- dass die Grenze eine Einstellung ist, keine Zahl im Code.
+-- =====================================================================
+do $$
+declare
+  v_u  uuid := '00000000-0089-0000-0000-000000000001';
+  v_c  int; v_schnell bigint; v_normal bigint; v_txt text; v_n int; v_grenze jsonb; v_vorher int;
+begin
+  insert into auth.users (id, email, raw_user_meta_data)
+  values (v_u, null, '{"name":"Prüf-0089"}');
+  update profil set rolle = 'admin' where id = v_u;
+  perform set_config('request.jwt.claim.sub', v_u::text, true);
+  select nr into v_c from charge order by nr limit 1;
+  select wert into v_grenze from einstellung where schluessel = 'verdunstung_rate_max_pro_tag';
+  assert v_grenze is not null, '0089 (a0): die Einstellung verdunstung_rate_max_pro_tag fehlt';
+  update einstellung set wert = '0.01'::jsonb where schluessel = 'verdunstung_rate_max_pro_tag';
+
+  -- Was die Rate der Sorte vor den zwei Wägungen sah (andere Blöcke lassen
+  -- Wägungen dieser Charge stehen — darum der Vergleich mit vorher).
+  select count(*) into v_vorher from v_koeff_roh_verdunstung where charge_nr = v_c;
+
+  -- Zwei Wägungen derselben Art, zehn Tage nach dem Eingang, 36 G2 auf Palette:
+  -- eine normale (1000 → 990 kg brutto, ≈ 0.1 % je Tag) und eine, die keine
+  -- Verdunstung sein kann (1000 → 700 kg, ≈ 3.9 % je Tag).
+  insert into verdunstung_wiegung (charge_nr, eingangsdatum, wiege_ts, brutto_damals_kg, brutto_jetzt_kg, kisten, gebindeart)
+    values (v_c, current_date - 10, now(), 1000, 990, 36, 'G2') returning id into v_normal;
+  insert into verdunstung_wiegung (charge_nr, eingangsdatum, wiege_ts, brutto_damals_kg, brutto_jetzt_kg, kisten, gebindeart)
+    values (v_c, current_date - 10, now(), 1000, 700, 36, 'G2') returning id into v_schnell;
+
+  -- (a) Die normale zählt, die schnelle nicht — und sie sagt warum.
+  assert (select verwendbar and plausibel and grund is null from v_verdunstung_messung where id = v_normal),
+    '0089 (a1): die normale Wägung zählt nicht oder trägt einen Grund';
+  assert (select not verwendbar and not plausibel from v_verdunstung_messung where id = v_schnell),
+    '0089 (a2): 3.9 % je Tag zählt noch in die Rate';
+  select grund into v_txt from v_verdunstung_messung where id = v_schnell;
+  assert v_txt like 'zu schnell%' and v_txt like '%keine Verdunstung%', format('0089 (a3): der Grund lautet „%s"', v_txt);
+  -- Die Rate der Sorte rechnet aus v_koeff_roh_verdunstung — dort darf die
+  -- schnelle nicht stehen, die normale (≈ 0.1 % je Tag) schon.
+  assert (select count(*) from v_koeff_roh_verdunstung where charge_nr = v_c and anteil > 0.03) = 0,
+    '0089 (a4): die schnelle Wägung geht in die Rate der Sorte ein';
+  assert (select count(*) from v_koeff_roh_verdunstung where charge_nr = v_c) = v_vorher + 1,
+    format('0089 (a5): die Rate der Sorte sieht %s statt %s Wägungen — die normale fehlt oder die schnelle zählt',
+           (select count(*) from v_koeff_roh_verdunstung where charge_nr = v_c), v_vorher + 1);
+
+  -- (b) Sie steht als Auffälligkeit da — mit der Rate und der Grenze im Satz.
+  select count(*) into v_n from v_plausibilitaet where art = 'Verdunstung' and charge_nr = v_c
+    and befund like '%so schnell verdunstet kein Kürbis%' and befund like '%1.00 %%%';
+  assert v_n = 1, format('0089 (b1): %s Auffälligkeiten „Verdunstung" statt 1', v_n);
+
+  -- (c) Die alten Gründe bleiben Gründe: schwerer geworden.
+  update verdunstung_wiegung set brutto_jetzt_kg = 1030 where id = v_schnell;
+  select grund into v_txt from v_verdunstung_messung where id = v_schnell;
+  assert v_txt like 'schwerer geworden%', format('0089 (c1): der Grund lautet „%s"', v_txt);
+  assert (select count(*) from v_plausibilitaet where art = 'Verdunstung' and charge_nr = v_c) = 0,
+    '0089 (c2): eine schwerer gewordene Palette ist keine zu schnelle Verdunstung';
+  update verdunstung_wiegung set brutto_jetzt_kg = 700 where id = v_schnell;
+
+  -- (d) Die Grenze ist eine Einstellung: bei 10 % je Tag zählt die Wägung.
+  update einstellung set wert = '0.10'::jsonb where schluessel = 'verdunstung_rate_max_pro_tag';
+  assert (select verwendbar and plausibel from v_verdunstung_messung where id = v_schnell),
+    '0089 (d1): mit der Grenze bei 10 % müsste die Wägung zählen';
+  assert (select count(*) from v_plausibilitaet where art = 'Verdunstung' and charge_nr = v_c) = 0,
+    '0089 (d2): unter der Grenze darf keine Auffälligkeit stehen';
+  update einstellung set wert = v_grenze where schluessel = 'verdunstung_rate_max_pro_tag';
+
+  -- (e) Die gespeicherten Fassungen tragen die neuen Spalten.
+  -- (materialisierte Sichten stehen nicht in information_schema — darum pg_attribute)
+  assert (select count(*) from pg_attribute where attrelid = 'erg_wiegung'::regclass and attname in ('plausibel', 'grund') and not attisdropped) = 2,
+    '0089 (e1): erg_wiegung kennt plausibel/grund nicht';
+  assert (select count(*) from pg_attribute where attrelid = 'erg_ausgang'::regclass and attname = 'voll' and not attisdropped) = 1,
+    '0089 (e2): erg_ausgang kennt voll nicht';
+  assert schema_stand() >= 89, format('0089 (e3): schema_stand() = %s, mindestens 89 erwartet', schema_stand());
+
+  delete from verdunstung_wiegung where id in (v_normal, v_schnell);
+  delete from profil where id = v_u;
+  delete from auth.users where id = v_u;
+  raise notice 'OK  0089 — Eine Verdunstung über der Grenze zählt nicht, sagt warum und steht als Auffälligkeit da; die Grenze ist eine Einstellung';
+end $$;
+
+select '——— 0089 Verdunstung mit Grenze geprüft ———' as ergebnis;

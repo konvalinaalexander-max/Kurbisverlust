@@ -1,6 +1,6 @@
-import { Fragment, useEffect, useState } from 'react'
+import { Fragment, useCallback, useEffect, useState } from 'react'
 import Sicherung from '../components/Sicherung'
-import { TaetZeichen, ZMikrofon, ZNeu, ZSprechblase } from '../components/Zeichen'
+import { TaetZeichen, ZHaken, ZKreuz, ZMikrofon, ZNeu, ZSprechblase } from '../components/Zeichen'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { chargeText, fehlerText, stammdaten } from '../lib/db'
@@ -77,7 +77,13 @@ function Arbeiten() {
   const [offen, setOffen] = useState<Set<number>>(new Set())
   /** Signierte Adressen der Aufnahmen — der Bucket ist nicht öffentlich. */
   const [tonUrl, setTonUrl] = useState<Map<number, string>>(new Map())
-  useEffect(() => {
+  /** Runde W: der Löschmodus — Kreise an den Zeilen, dann ein Knopf. */
+  const [loeschmodus, setLoeschmodus] = useState(false)
+  const [gewaehlt, setGewaehlt] = useState<Set<number>>(new Set())
+  const [frage, setFrage] = useState(false)
+  const [loescht, setLoescht] = useState(false)
+  const [geloescht, setGeloescht] = useState<string | null>(null)
+  const laden = useCallback(async () => {
     void (async () => {
       try {
         const [{ chargen }, a, d, r, pr] = await Promise.all([
@@ -97,6 +103,32 @@ function Arbeiten() {
       } catch (f) { setFehler(fehlerText(f)) } finally { setLaedt(false) }
     })()
   }, [])
+  useEffect(() => { void laden() }, [laden])
+
+  function umschaltenWahl(id: number) {
+    setGewaehlt(g => { const n = new Set(g); if (n.has(id)) n.delete(id); else n.add(id); return n })
+  }
+  function loeschmodusAus() { setLoeschmodus(false); setGewaehlt(new Set()); setFrage(false) }
+
+  /** Endgültig löschen — je Arbeit die Funktion aus 0013, die auch die
+   *  Wägungen mitnimmt, die sonst verwaist zurückblieben. Das Journal (0072)
+   *  behält jede gelöschte Zeile. Danach rechnen die Ergebnisse neu. */
+  async function loeschen() {
+    if (loescht || gewaehlt.size === 0) return
+    setLoescht(true); setFehler(null)
+    const fehlgeschlagen: string[] = []
+    for (const id of gewaehlt) {
+      const { error } = await supabase.rpc('auftrag_endgueltig_loeschen', { p_auftrag_id: id })
+      if (error) fehlgeschlagen.push(`Arbeit ${id}: ${fehlerText(error)}`)
+    }
+    const n = gewaehlt.size - fehlgeschlagen.length
+    if (fehlgeschlagen.length) setFehler(fehlgeschlagen.join(' · '))
+    loeschmodusAus()
+    setLaedt(true); await laden()
+    const { error: e2 } = await supabase.rpc('auswertung_aktualisieren')
+    setLoescht(false)
+    setGeloescht(`${n === 1 ? '1 Arbeit' : `${n} Arbeiten`} endgültig gelöscht — das Journal behält eine Spur.${e2 ? ' Die Ergebnisse konnten nicht neu gerechnet werden: auf dem Dashboard „Neu rechnen".' : ' Die Ergebnisse sind neu gerechnet.'}`)
+  }
 
   /** Eine Rückmeldung auf- oder zuklappen; beim Öffnen die Aufnahme
    *  signieren lassen — eine Stunde reicht zum Anhören. */
@@ -149,8 +181,42 @@ function Arbeiten() {
       </Karte>
     )}
     <Karte titel="Arbeiten" unter={`${gezeigt.length} Arbeiten an ${alleTage.length} Tagen — die neuesten zuerst.`}
-           aktion={<Link to="/neu" className="knopf haupt klein"><ZNeu size={15} />Neue Arbeit starten</Link>}>
+           aktion={loeschmodus
+             ? <button type="button" className="werkzeug-knopf" onClick={loeschmodusAus}>Abbrechen</button>
+             : <>
+                 <button type="button" id="arbeiten-loeschen" className="werkzeug-knopf" onClick={() => { setLoeschmodus(true); setGeloescht(null) }}><ZKreuz size={14} />Löschen</button>
+                 <Link to="/neu" className="knopf haupt klein"><ZNeu size={15} />Neue Arbeit starten</Link>
+               </>}>
       {fehler && <Hinweis art="warnung">{fehler}</Hinweis>}
+      {geloescht && <Hinweis art="info">{geloescht}</Hinweis>}
+      {loeschmodus && (
+        <div className="loesch-leiste" role="status">
+          <span>Arbeiten zum Löschen anklicken —</span>
+          <strong>{gewaehlt.size === 1 ? '1 ausgewählt' : `${gewaehlt.size} ausgewählt`}</strong>
+          <button type="button" id="arbeiten-loeschen-weiter" className="knopf klein gefahr" disabled={gewaehlt.size === 0} onClick={() => setFrage(true)}>Löschen …</button>
+          <button type="button" className="werkzeug-knopf" onClick={loeschmodusAus}>Abbrechen</button>
+        </div>
+      )}
+      {frage && (
+        <div className="dialog-hinter" onClick={() => setFrage(false)}>
+          <div className="dialog" role="dialog" aria-modal="true" aria-label="Arbeiten löschen" onClick={e => e.stopPropagation()}>
+            <h2 style={{ marginTop: 0 }}>{gewaehlt.size === 1 ? 'Diese Arbeit endgültig löschen?' : `Diese ${gewaehlt.size} Arbeiten endgültig löschen?`}</h2>
+            <ul className="liste-schlicht">
+              {auftraege.filter(a => gewaehlt.has(a.id)).map(a => {
+                const ta = taetigkeitVon(a.weg, a.station, a.ist_fax)
+                return <li key={a.id}>{datum(a.start_ts)} · {ta ? t(ta.text) : ''} · {chargeText(chargen.find(c => c.nr === a.charge_nr))} · {a.abgebrochen_ts ? 'abgebrochen' : a.status === 'offen' ? 'läuft' : 'fertig'}</li>
+              })}
+            </ul>
+            <Hinweis art="warnung">Mit der Arbeit gehen alle ihre Messungen: Palox-Ablesungen, zu klein / zu gross, gezählte Paletten, Wägungen, fertige Paletten, Angaben und Rückmeldungen. Zugeordnete Sortierdateien gehen zurück in die Warteschlange. Das Journal behält jede gelöschte Zeile.</Hinweis>
+            <div className="knopf-reihe" style={{ marginTop: 'var(--a-3)' }}>
+              <button type="button" id="arbeiten-loeschen-ja" className="knopf gefahr" disabled={loescht} onClick={() => void loeschen()}>
+                {loescht ? 'Löscht …' : gewaehlt.size === 1 ? 'Ja, endgültig löschen' : `Ja, ${gewaehlt.size} Arbeiten endgültig löschen`}
+              </button>
+              <button type="button" className="knopf" disabled={loescht} onClick={() => setFrage(false)}>Abbrechen</button>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="filterleiste">
         <Segmente wahl={filter} setzen={setFilter} teile={[['alle', 'alle'], ['offen', 'läuft'], ['fertig', 'fertig'], ['abgebrochen', 'abgebrochen']]} />
       </div>
@@ -160,14 +226,22 @@ function Arbeiten() {
             <div key={tag}>
               <div className="tag-trenner">{tagName(tag)} <span className="leise">· {gruppen.get(tag)!.length} Arbeiten</span></div>
               <div className="rollbar"><table className="dicht">
-                <thead><tr><th>Start</th><th>Arbeit</th><th>Charge</th><th>Status</th><th className="zahl">Paletten</th><th className="zahl">Bewegte Masse</th><th className="zahl">Dauer</th><th className="zahl">kg/h</th><th className="zahl">Leute</th><th>Rückmeldung</th><th></th></tr></thead>
+                <thead><tr>{loeschmodus && <th></th>}<th>Start</th><th>Arbeit</th><th>Charge</th><th>Status</th><th className="zahl">Paletten</th><th className="zahl">Bewegte Masse</th><th className="zahl">Dauer</th><th className="zahl">kg/h</th><th className="zahl">Leute</th><th>Rückmeldung</th><th></th></tr></thead>
                 <tbody>{gruppen.get(tag)!.map(a => {
                   const ta = taetigkeitVon(a.weg, a.station, a.ist_fax); const d = durchsatz.get(a.id)
                   const rm = rueckmeldungen.get(a.id) ?? []
                   const hatText = rm.some(r => r.text), hatTon = rm.some(r => r.audio_ref)
                   return (
                     <Fragment key={a.id}>
-                    <tr>
+                    <tr className={loeschmodus && gewaehlt.has(a.id) ? 'gewaehlt' : undefined}>
+                      {loeschmodus && (
+                        <td>
+                          <button type="button" role="checkbox" aria-checked={gewaehlt.has(a.id)} aria-label={`Arbeit ${a.id} zum Löschen wählen`}
+                                  className={`wahlkreis${gewaehlt.has(a.id) ? ' an' : ''}`} onClick={() => umschaltenWahl(a.id)}>
+                            {gewaehlt.has(a.id) && <ZHaken size={14} />}
+                          </button>
+                        </td>
+                      )}
                       <td className="nowrap">{new Date(a.start_ts).toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' })}</td>
                       <td className="nowrap"><TaetZeichen id={ta?.id} /> {ta ? t(ta.text) : ''}</td>
                       <td>{chargeText(chargen.find(c => c.nr === a.charge_nr))}</td>
@@ -189,7 +263,7 @@ function Arbeiten() {
                     </tr>
                     {offen.has(a.id) && rm.map(r => (
                       <tr key={`r${r.id}`} className="rueckmeldung-zeile">
-                        <td colSpan={11}>
+                        <td colSpan={loeschmodus ? 12 : 11}>
                           <div className="leise" style={{ marginBottom: '.3rem' }}>
                             {namen.get(r.erfasser) || 'jemand'} · {zeitpunkt(r.ts)}
                             {r.audio_sekunden != null && <> · {Math.floor(r.audio_sekunden / 60)}:{String(r.audio_sekunden % 60).padStart(2, '0')} Aufnahme</>}

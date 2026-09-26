@@ -3809,3 +3809,103 @@ Eingangsmasse, die noch keine Lieferung erklärt (Eingang minus
 Lieferungen ÷ verkaufsfähigen Anteil), nicht das, was in der Halle liegt.
 Ob dort etwa eine Tonne oder drei liegen, entscheidet, ob nur die
 Beschriftung oder die Ausbeute falsch ist — die Antwort steht aus.
+
+## Runde W: Löschen, die Marge verständlich, ein Punkt ist ein Punkt (26. September, 0089)
+
+### Arbeiten löschen
+
+Der Betrieb wollte im Büro Arbeiten auswählen und löschen — laufende wie
+fertige. Die Datenbank konnte das seit 0013: `auftrag_endgueltig_loeschen`
+nimmt die Arbeit samt allem, was an ihr hängt, und räumt auch die zwei
+Tabellen auf, die nur `on delete set null` haben (Wägungen, Sortierläufe)
+— ohne das blieben Wägungen verwaist zurück und zählten weiter. Neu ist
+der Weg dorthin: ein kleiner Knopf, Kreise an den Zeilen, eine Leiste, die
+mitzählt, und eine Rückfrage, die die gewählten Arbeiten aufzählt und sagt,
+was mitgeht. Danach rechnen die Ergebnisse neu, und das Journal (0072)
+behält jede gelöschte Zeile.
+
+### Die verschenkte Marge — erst verstehen, dann zeigen
+
+Die Karte aus 0086 hatte beide Kistensysteme in einer Tabelle und die
+Chargen als einen Block darunter. Der Betrieb: „ich komme da überhaupt
+nicht raus … da steht wieder 10 Stück pro Kiste und Kaliber 2 … es geht ja
+darum, Kiste ab x Kilo". Er hat recht, und der Fehler war ein Verständnis-
+fehler, kein Layoutfehler. Also zuerst das Verständnis, so wie es jetzt
+über jeder der zwei Tabellen steht:
+
+**Kiste ab x kg.** Der Kunde zahlt die Kiste zu einem Mindestgewicht
+(„ab 8 kg"). Alles darüber ist geschenkt. Gemessen an vollen fertigen
+Paletten: Netto ÷ Kisten = gewogen je Kiste; minus Soll = zu viel je
+Kiste. Wie viele Kürbisse in der Kiste liegen, weiss die Waage nicht — und
+es spielt für diesen Verkauf keine Rolle. Ein Kaliber kann an der Wägung
+stehen (wenn die Palette eines trägt); es steht dann in der aufgeklappten
+Liste, nicht in der Zeile.
+
+**x Stück je Kiste.** Der Kunde zahlt je Kürbis, nach Kaliber („10 Stück
+K2, 900–1200 g"). Bezahlt ist die Bandmitte; jedes Gramm darüber ist
+geschenkt. Gemessen: Netto ÷ (Kisten × Stück) = gewogen je Stück; minus
+Bandmitte.
+
+Zwei Blöcke, klar getrennt, jeder mit seinem Satz. Und statt „die Chargen
+dahinter" als ein Block: jede Zeile lässt sich aufklappen und zeigt **nur
+ihre** Wägungen — Kaliber 1 angeklickt zeigt alle Einträge mit Kaliber 1,
+jede mit Datum, Charge und dem Knopf zur Arbeit. Halbe Paletten stehen in
+der Liste, zählen aber nicht (0072); die Liste sagt es an der Zeile. Dafür
+trägt `erg_ausgang` seit 0089 die Spalte `voll`.
+
+### Ein Punkt ist ein Punkt
+
+Der Zeiger im Messbild traf bisher die x-Stelle: alles, was am selben Tag
+gewogen wurde, stand im Kasten. Bei einer Zeitreihe ist das richtig
+(eine Woche, drei Linien); bei einem Messbild aus Punkten ist es falsch —
+der Betrieb: „ich möchte einfach nur das Pop-up für den Punkt selber".
+`Linien` kennt jetzt zwei Treffer: `spalte` (Zeitreihe) und `punkt`
+(Messbild: der eine Punkt unter dem Zeiger, sonst nichts). Ein Klick auf
+den Punkt öffnet die Arbeit dahinter als Fenster über der Seite
+(`ArbeitFenster`): Palox, gezählte Paletten, Wägungen, Ausschuss, fertige
+Paletten, Angaben, Rückmeldung — zum Nachsehen; berichtigt wird auf der
+Arbeitsseite, wohin der Knopf führt. Mit dem Finger gibt es kein Ziehen,
+dann zählt der Punkt, den das Antippen getroffen hat.
+
+### Eine Verdunstung, die keine ist
+
+„Kaori Kuri … 4,8 % täglich. Kann ja natürlich nicht sein." Richtig — und
+bis 0089 zählte die Wägung trotzdem in die Rate der Sorte. `verwendbar`
+kannte vier Gründe (schwerer geworden, unverändert, Schimmel sichtbar,
+abgebrochen), aber keinen für „zu schnell". Eine Grenze musste her, und sie
+ist eine **Einstellung**, keine Zahl im Code: `verdunstung_rate_max_pro_tag`,
+Vorgabe 0.01 (1 % je Tag, das Zehnfache dessen, was die Wägungen im Herbst
+zeigen). Darüber ist eine Wägung nicht plausibel: Sie zählt nicht in die
+Rate, steht grau im Bild, und als Auffälligkeit „Verdunstung" unter
+Messungen mit dem Weg zur Korrektur — denn sie ist ein falsches
+Zettelgewicht, eine andere Palette oder falsche Kisten, und das gehört
+berichtigt, nicht weggeschaut.
+
+Und jede Wägung, die nicht zählt, sagt seit 0089 **warum** (`grund`). Im
+Bild stand bisher für alle dasselbe („die Palette wurde nicht leichter"),
+auch wenn der Grund ein anderer war.
+
+### Was der Lasttest gefunden hat
+
+Die erste Fassung von `v_verdunstung_messung` kostete bei dreifacher
+Saison 1.2 Sekunden mehr als die alte — und `run.sh` hat es gemeldet
+(12.8 s statt unter 12). Nicht die Rechnung war teuer, die Form: Bei einer
+flachen Sicht setzt der Planer jede Spalte an jeder Verwendungsstelle neu
+ein. Die Rate stand in `rate_pro_tag`, in `plausibel` und im Grund; in
+jeder davon rechnete `betriebstag()` von vorn, und die ist keine billige
+Funktion. Jetzt stehen die Stufen einzeln (`offset 0`): einmal Netto und
+Lagertage, einmal die Rate, einmal der Grund. Die Sicht ist damit schneller
+als die alte (57 statt 72 ms für `erg_wiegung`, 680 statt 1085 ms für
+`mv_koeff_rand`). Die Schwelle im Lasttest blieb, wo sie war.
+
+### Was bewusst nicht gemacht wurde
+
+**Keine Ausreisserstatistik.** Eine Grenze relativ zum Mittel der Sorte
+(„dreimal so schnell wie die anderen") wäre datenabhängig — mit zwei
+Wägungen einer Sorte gäbe es kein Mittel, und der Ausreisser hielte sich
+selbst für normal. Eine feste, sichtbare, änderbare Grenze ist ehrlicher.
+
+**Das Fenster berichtigt nicht.** Es zeigt. Berichtigt wird dort, wo es
+schon immer berichtigt wurde — in der Korrektur der Arbeitsseite —, damit
+es eine Stelle gibt, an der Änderungen stattfinden, und das Journal sie
+alle sieht.
