@@ -36,7 +36,6 @@ export function Reiterkopf({ titel, zweck, stand, heute, neuRechnen, rechts, lae
   aktuell?: boolean
 }) {
   const zustand = zeitplan?.zustand ?? 'fehlt'
-  const naechster = zustand === 'laeuft' ? naechsterLauf(zeitplan!.takt) : null
   const uhr = (d: Date) => d.toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' })
   const letzterLauf = zeitplan?.letzterStart
     ? `letzter Lauf ${zeitpunkt(zeitplan.letzterStart)}${zeitplan.letzterStatus === 'failed' ? ', fehlgeschlagen' : zeitplan.letzterStatus ? `, ${zeitplan.letzterStatus}` : ''}${zeitplan.letzteMeldung && zeitplan.letzterStatus === 'failed' ? ` (${zeitplan.letzteMeldung})` : ''}`
@@ -64,8 +63,10 @@ export function Reiterkopf({ titel, zweck, stand, heute, neuRechnen, rechts, lae
                 oder ein anderes Fenster —, nicht nur für den laufenden Zeitplan. */}
             {angefordert && <span className="leise"> · Neu rechnen angefordert {uhr(new Date(zeitplan!.angefordertTs!))}, wird gerechnet</span>}
             {!angefordert && veraltet && rechnetGerade(zeitplan?.rechnetSeit) && <span className="leise"> · wird gerade erneuert</span>}
+            {/* 0103: Der Zeitplan tickt jede Minute, rechnet aber gedrosselt — die Halle
+                löst höchstens alle zehn Minuten einen Lauf aus. Also keine Uhrzeit versprechen. */}
             {!angefordert && veraltet && zustand === 'laeuft' && !rechnetGerade(zeitplan!.rechnetSeit)
-              && <span className="leise"> · neu {naechster ? `bis ${uhr(naechster)}` : 'in Kürze'}</span>}
+              && <span className="leise"> · Zeitplan rechnet nach</span>}
             {zeitplan && zustand === 'fehlt' && <span className="leise"> · kein Zeitplan</span>}
             {zustand === 'rechnet_nicht' && <span className="leise"> · Zeitplan rechnet nicht</span>}
           </span>

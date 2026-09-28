@@ -317,7 +317,7 @@ export interface Zeitplan {
   letzterStart: string | null; letzterStatus: string | null; letzteDauerS: number | null; letzteMeldung: string | null
   /** Seit wann gerade gerechnet wird — null, wenn nicht. */
   rechnetSeit: string | null
-  /** 0102: wann zuletzt „Neu rechnen" angefordert wurde, und ob der Sofort-Lauf eingetragen ist. */
+  /** 0102: wann zuletzt „Neu rechnen" angefordert wurde; sofort: der Sofort-Lauf aus 0102 (seit 0103 nie mehr eingetragen). */
   angefordertTs: string | null
   sofort: boolean
   /** Läuft er wirklich? Eingetragen heisst nicht laufend (src/lib/zeitplan.ts). */
@@ -457,8 +457,8 @@ async function abwarten(grund: 'laeuft' | 'angefordert'): Promise<Problem[]> {
 
 /**
  * „Neu rechnen" (Runde AG, 0102): kein Rechnen im Browser, sondern eine
- * Anforderung an die Datenbank. Mit Zeitplan (pg_cron) rechnet der
- * Sofort-Lauf im Hintergrund, unter seiner Zeitgrenze von 15 Minuten, und
+ * Anforderung an die Datenbank. Mit Zeitplan (pg_cron) rechnet der Lauf
+ * des Zeitplans beim nächsten Tick (jede Minute, 0103) im Hintergrund, und
  * die App wartet auf den neuen Stand. Ohne Zeitplan (Demo, Tests) rechnet
  * die App wie bisher Schritt für Schritt — die Datenbank sagt, welcher Weg.
  */
@@ -475,7 +475,7 @@ async function anfordern(): Promise<Problem[]> {
 }
 
 /** Der Text, an dem useAuswertung den Zustand „wird gebaut" erkennt und von selbst nachlädt. */
-export const IM_BAU = 'Die Auswertung wird gerade neu gebaut: Nach dem Einspielen von setup.sql rechnet der Zeitplan sie im Hintergrund, ein bis drei Minuten. Diese Seite lädt von selbst nach.'
+export const IM_BAU = 'Die Auswertung wird gerade neu gebaut: Nach dem Einspielen von setup.sql rechnet der Zeitplan sie im Hintergrund, zwei bis vier Minuten. Diese Seite lädt von selbst nach.'
 const NACHLADEN_IM_BAU_MS = 15000
 
 async function alles(erzwingen: boolean): Promise<Auswertung> {

@@ -32,7 +32,7 @@ for (const f of dateien) {
 const v = verdichten(anweisungen(quelle))
 
 const KOPF = `-- =====================================================================
--- Kürbis-Verlust-Tracking — das komplette Setup in einer Datei
+-- Kürbis-Verlust-Tracking — setup.sql: das komplette Setup in einer Datei
 --
 -- ERZEUGT. Nicht von Hand ändern — Quelle ist supabase/migrations/*.sql,
 -- gebaut von supabase/setup_bauen.sh.
@@ -96,6 +96,14 @@ set client_min_messages = warning;
 -- als 20 Sekunden gewartet — lieber ein klarer Fehler („canceling statement
 -- due to lock timeout": zwei Minuten später nochmals Run) als eine Sitzung,
 -- die die Datenbank festhält, bis jemand das Projekt neu startet.
+--
+-- Seit 0103 nimmt diese Datei dazu selbst die Sperre der Rechnung
+-- (Beratungssperre, bis zum Ende der Transaktion): Ein Lauf des Zeitplans,
+-- der währenddessen tickt, sieht sie besetzt und geht sofort, statt auf
+-- eine halb gebaute Ansicht zu treffen. Und ein Rest von „rechnet gerade"
+-- (rechnet_seit) einer eben beendeten Rechnung wird gelöst, damit „Neu
+-- rechnen" nicht eine Viertelstunde auf einen Lauf wartet, den es nicht
+-- mehr gibt.
 set lock_timeout = '20s';
 do $$
 declare r record; v_n int := 0;
@@ -103,7 +111,9 @@ begin
   for r in select pid from pg_stat_activity
             where datname = current_database() and pid <> pg_backend_pid()
               and state <> 'idle'
-              and (query ilike '%auswertung_%' or query ilike '%refresh materialized view%')
+              and (query ~* 'auswertung_(schritt|wenn_veraltet|aktualisieren|sofort_lauf)'
+                   or query ilike '%refresh materialized view%')
+              and query not ilike '%setup.sql%'
   loop
     begin
       if pg_terminate_backend(r.pid) then v_n := v_n + 1; end if;
@@ -112,6 +122,10 @@ begin
   end loop;
   if v_n > 0 then
     raise warning 'setup.sql: % laufende Rechnung(en) beendet, damit die Einrichtung nicht auf sie wartet — der Zeitplan rechnet nach.', v_n;
+  end if;
+  perform pg_advisory_xact_lock(hashtext('auswertung_schritt'));
+  if to_regclass('public.auswertung_stand') is not null then
+    execute 'update public.auswertung_stand set rechnet_seit = null where id = 1 and rechnet_seit is not null';
   end if;
 exception when others then
   raise notice 'setup.sql: laufende Rechnungen nicht prüfbar (%)', sqlerrm;
@@ -184,19 +198,36 @@ notify pgrst, 'reload schema';
 -- Saison des Betriebs länger, als der SQL-Editor auf eine Antwort wartet
 -- („Load failed", die ganze Einspielung zurückgerollt, und bis dahin hielt
 -- die Transaktion Sperren auf allem, was die App liest). Darum: Wo ein
--- Zeitplan da ist (pg_cron), wird nur angefordert — der Sofort-Lauf rechnet
--- gleich nach dem Einspielen im Hintergrund, unter seiner Zeitgrenze von
--- 15 Minuten; die App sagt derweil „wird gebaut" und lädt von selbst nach.
--- Ohne Zeitplan (die Tests, eine Datenbank ohne pg_cron) wird hier
--- gerechnet wie bisher: da wartet niemand im Browser.
+-- Zeitplan da ist (pg_cron), wird nur angefordert — der Lauf des Zeitplans
+-- (jede Minute, 0103) rechnet gleich nach dem Einspielen im Hintergrund,
+-- unter der Zeitgrenze der Rolle (60 Minuten); die App sagt derweil „wird
+-- gebaut" und lädt von selbst nach. Ohne Zeitplan (die Tests, eine
+-- Datenbank ohne pg_cron) wird hier gerechnet wie bisher: da wartet niemand
+-- im Browser.
+--
+-- Vorher noch einmal: Läufe, die während dieser Datei begonnen haben und
+-- auf ihre Sperren warten (mit dem Stand von vor dieser Datei im Bauch),
+-- werden beendet — sonst rechnete gleich nach dem Abschluss noch ein alter.
 do $$
-declare v_erg jsonb;
+declare v_erg jsonb; r record;
 begin
+  for r in select pid from pg_stat_activity
+            where datname = current_database() and pid <> pg_backend_pid()
+              and state <> 'idle'
+              and (query ~* 'auswertung_(schritt|wenn_veraltet|aktualisieren|sofort_lauf)'
+                   or query ilike '%refresh materialized view%')
+              and query not ilike '%setup.sql%'
+  loop
+    begin
+      perform pg_terminate_backend(r.pid);
+    exception when others then null;
+    end;
+  end loop;
   if exists (select 1 from pg_extension where extname = 'pg_cron') then
     v_erg := auswertung_anfordern();
     if (v_erg ->> 'weg') = 'zeitplan' then
       perform set_config('kuerbis.auswertung',
-        format('Auswertung angefordert (%s Uhr): der Zeitplan rechnet sie jetzt im Hintergrund, in ein bis drei Minuten steht sie — die App zeigt derweil „wird gebaut" und lädt von selbst nach.',
+        format('Auswertung angefordert (%s Uhr): der Zeitplan rechnet sie jetzt im Hintergrund, in zwei bis vier Minuten steht sie — die App zeigt derweil „wird gebaut" und lädt von selbst nach.',
                to_char(now(), 'HH24:MI')), false);
       return;
     end if;

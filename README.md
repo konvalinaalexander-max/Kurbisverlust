@@ -164,7 +164,7 @@ sie jetzt im Hintergrund … Weiter im README bei Schritt 4.
 
 Wenn du das siehst, ist die komplette Datenbank fertig: Tabellen, Zugriffsrechte,
 alle Chargen, alle Kaliber-Grenzen. Die Auswertung selbst rechnet der Zeitplan
-gleich danach im Hintergrund — ein bis drei Minuten; die App sagt derweil
+gleich danach im Hintergrund — zwei bis vier Minuten; die App sagt derweil
 „wird gebaut" und lädt von selbst nach (seit Runde AG: vorher rechnete die
 Datei am Ende selbst, und mit einer vollen Saison dauerte das länger, als der
 SQL-Editor wartet). Ohne Zeitplan (pg_cron) steht dort „Auswertung berechnet."
@@ -706,8 +706,14 @@ nie: Sie zeigt den gespeicherten Stand; **„Neu rechnen" fordert einen Lauf
 an**, der Zeitplan rechnet im Hintergrund, der Chip sagt „angefordert",
 bis der Stand steht. Keine Anfrage wartet länger als 40 s; antwortet die
 Datenbank nicht, sagt die Seite es mit dem Weg hinaus (Restart project).
-AB-114 bis AB-116. **`setup.sql` einspielen (Stand 102)** — vorher im
-Dashboard das Projekt neu starten, wenn die Seite hängt.
+Nachtrag 0103, nachdem seit dem Mittag kein Lauf mehr fertig geworden war
+(ein Konvoi überlappender Läufe ohne Sperre — ein Lauf dauert mit der Saison
+690 Sekunden, länger als der Takt): ein einziger Zeitplan-Eintrag, jede
+Minute, gedrosselt auf zehn Minuten oder das Dreifache des letzten Laufs;
+die Sperre vor allem anderen; keine Zeilensperre während des Rechnens;
+fremde Reste werden beendet; Zeitgrenze 60 min; jeder Lauf notiert je
+Ansicht seine Dauer; `auswertung_diagnose()`. AB-114 bis AB-117. **`setup.sql`
+einspielen (Stand 103).**
 
 **Runde AF (0101)** — Ausgang ist nur der Lieferschein: Zu klein und zu
 gross, das beim Sortieren herausfällt, steht im Haus, bis ein Lieferschein

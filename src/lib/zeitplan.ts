@@ -78,8 +78,9 @@ export function rechnetGerade(rechnetSeit: string | null | undefined, jetzt: Dat
   return min >= -1 && min <= RECHNEN_HOECHSTENS_MIN
 }
 
-/** Wie lange eine Anforderung („Neu rechnen", 0102) als offen gilt — dieselbe
- *  Grenze wie auswertung_sofort_lauf() in der Datenbank: danach ist sie verfallen. */
+/** Wie lange eine Anforderung („Neu rechnen", 0102) als offen gilt: Hat der
+ *  Zeitplan nach 30 Minuten keinen jüngeren Stand gebracht, sagt der Chip nicht
+ *  länger „wird gerechnet" — dann stimmt etwas nicht, und Betrieb → Zeitplan sagt was. */
 export const ANFORDERUNG_HOECHSTENS_MIN = 30
 
 /**

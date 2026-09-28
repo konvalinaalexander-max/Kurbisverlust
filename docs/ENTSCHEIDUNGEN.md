@@ -4249,24 +4249,131 @@ rechnet („weg: app").
 4. In der App F5: „wird gebaut" — nach ein bis drei Minuten stehen die
    Zahlen, mit Stand 102.
 
+### Nachtrag 0103, 22:00: der Konvoi
+
+Der Betrieb, 23:54: „Seit fünf Minuten nichts passiert — also es war doch
+nie ein Problem — was ist nun anders, dass wir da so viele Probleme haben?
+Finde eine finale Lösung."
+
+Was anders ist, steht in einer Zahl: `berechnet_ts` = 11:52. Seit dem
+Mittag hat kein einziger Lauf mehr fertig gerechnet. Auf Stand 97 gibt es
+die Sperre aus 0100 nicht; alle zehn Minuten begann ein Lauf, und sobald
+zwei überlappten (der erste Anlass: das Rechnen der App beim Öffnen und
+die abgebrochenen setup.sql-Versuche am Mittag), wartete der jüngere auf
+die Sperren des älteren, der ältere auf die des noch älteren — ein Konvoi.
+Jeden schoss nach 15 Minuten die Zeitgrenze ab, keiner wurde fertig, und
+bis dahin hielt jeder die Ansichten fest, die die App liest. Der Lauf von
+21:26 brach beim Erneuern von `mv_koeff_rand` ab — elf Zeilen. Er hatte
+nicht gerechnet, er hatte gewartet. Um 21:41, als er starb, antwortete die
+API wieder; um 21:50 konnte der nächste Lauf nicht einmal starten („job
+startup timeout"): Der Sofort-Lauf aus 0102 tickte alle 15 Sekunden, der
+erste Tick rechnete, jeder weitere hing an der Zeilensperre von
+`auswertung_stand` (die Sperre aus 0100 ist ein Update — in einer
+Transaktion für andere unsichtbar, aber die Zeile ist gesperrt) und
+besetzte einen Arbeiter von pg_cron. Ein zweiter Konvoi, diesmal von mir.
+Mit kleinen Daten dauerte ein Lauf Sekunden und nichts davon konnte sich
+je überlappen; mit der Saison dauert er Minuten, und alles, was gleichzeitig
+rechnen darf, tut es irgendwann.
+
+Um 00:00 Uhr wurde dann doch ein Lauf fertig — der erste seit dem Mittag —
+und er sagt, wie viel „Minuten" sind: **690 Sekunden**, mit der Demo sind
+es acht. Das ist der Kern von „was ist anders": Ein Lauf dauert länger als
+der Zehn-Minuten-Takt, in dem er gestartet wurde. Der nächste begann also
+jedes Mal, bevor der eine fertig war — der Konvoi war kein Unfall, er war
+die Regel. Warum neunzig Mal langsamer als die Demo, sagt keine Zahl,
+die es bisher gab; darum schreibt ab 0103 jeder Lauf je Ansicht auf, wie
+lange sie brauchte (`auswertung_laufzeit`, sieben Tage), und die Diagnose
+nennt die langsamsten. Die nächste Runde sucht die Sekunden dort, wo sie
+sind.
+
+Die Datenmenge ist es nicht. Der Betrieb hat mehr Paletten (1638 gegen
+951 in der Demo), mehr Lieferungen (772 gegen 215) und ein grösseres
+Journal (32 771 gegen 19 614 Zeilen), aber weniger Arbeiten (24 gegen
+367), weniger Sortierläufe (12 gegen 40) und weniger Messungen (45
+Faul-Messungen gegen 706). Das erklärt keinen Faktor neunzig — und am
+Mittag brauchte ein Lauf mit denselben Daten gut zwei Minuten, um
+Mitternacht elfeinhalb. Was sich über den Tag verbraucht, ist das
+Eingabe-Ausgabe-Budget der kleinen Datenbankinstanz: Ein Tag lang alle
+zehn Minuten 45 Ansichten neu schreiben, dazu die zurückgerollten Läufe
+des Konvois, und die Platte wird gedrosselt. Nachsehen kann das nur der
+Betriebsleiter (Supabase → Reports → Disk IO). Wenn es so ist, hilft genau
+das, was 0103 tut: seltener rechnen, nie doppelt, nachts gar nicht.
+
+Nebenbei gefunden: Die Kettenprüfung zählte die Tage im Zwischenlager in
+UTC-Tagen (`current_date`), die Sicht in Betriebstagen (0067) — ein Lauf
+nach 22 Uhr UTC sah 26 statt 25. Die Prüfung nimmt jetzt dieselbe Uhr wie
+die Sicht; die Regel blieb.
+
+Die endgültige Form (0103):
+
+- **Ein Eintrag, jede Minute.** `auswertung_wenn_veraltet()` rechnet nur,
+  wenn etwas veraltet ist und entweder „Neu rechnen" angefordert wurde
+  oder der Stand älter als die Drossel ist: zehn Minuten, mindestens aber
+  das Dreifache des letzten Laufs (`auswertung_drossel()`). Nach einem Lauf
+  von zwölf Minuten löst die Halle den nächsten frühestens nach 36 aus —
+  die Datenbank rechnet höchstens ein Viertel der Zeit für die Halle, der
+  Rest gehört den Anfragen der App. „Neu rechnen" wirkt binnen einer
+  Minute, immer; ein Tick ohne Arbeit kostet eine Millisekunde. Kein
+  Sofort-Lauf mehr; `auswertung_anfordern()` markiert nur und trägt einen
+  Rest davon aus.
+- **Die Sperre zuerst.** `pg_try_advisory_xact_lock`, bevor der Lauf eine
+  Zeile anfasst. Wer sie nicht bekommt, geht sofort — wartet auf nichts,
+  hält nichts. Stirbt eine Sitzung, ist die Sperre weg: kein Rest, der 15
+  Minuten blockiert.
+- **Keine Zeilensperre während des Rechnens.** Der Zeitplan-Weg schreibt
+  `auswertung_stand` erst am Ende (Schritt 5: `berechnet_ts`, Dauer,
+  Notiz). Der App-Weg (fünf Aufrufe, je eine Transaktion) merkt sich
+  `rechnet_seit` weiter; er ist der Weg ohne pg_cron.
+- **Fremde Reste beenden, nie lange warten.** Vor dem Rechnen beendet der
+  Lauf jede andere Sitzung, die noch an einer Rechnung hängt (ein Konvoi
+  von vor 0103, ein Schritt aus der App) — eine Erneuerung ist eine
+  Transaktion, beendet heisst zurückgerollt —, und wartet auf keine Sperre
+  länger als 30 Sekunden (`lock_timeout`). Die Zeitgrenze der Rolle steigt
+  von 15 auf 60 Minuten: Ein Lauf, der rechnet, wird nicht abgeschossen;
+  einer, der wartet, bricht viel früher ab.
+- **Diagnose.** `auswertung_diagnose()` sagt, was die Datenbank gerade tut:
+  aktive Sitzungen mit Wartegrund, die letzten zwanzig Läufe aller
+  Einträge, welche Ansichten gefüllt sind, die Grenzen (Zeit, Arbeiter,
+  Verbindungen), der Stand. Nur für den Betriebsleiter — und für den, der
+  von aussen nachsieht, ohne SQL-Editor.
+
+Dazu nimmt `setup.sql` die Sperre jetzt selbst (ein Tick während des
+Einspielens geht sofort), löst einen Rest von `rechnet_seit` und beendet
+vor dem Abschluss noch einmal, was während ihr begonnen hat — sonst
+rechnete gleich danach noch ein Lauf mit dem alten Stand im Bauch.
+
+Prüfblock 0103 (a–j) ohne pg_cron, sieben Mutationen — Drossel, Drossel
+nach Laufdauer, Anforderung, Zeilensperre, Dauer je Ansicht, Diagnose,
+Zeitgrenze —, jede schlägt an. Vier ältere Blöcke prüften noch „veraltet
+heisst beim nächsten Tick gerechnet" (0061, 0095), „verfallen" und
+„gewartet" des Sofort-Laufs (0102) oder verliessen sich auf `rechnet_seit`
+(0100); sie prüfen jetzt die Regel von 0103 und sagen es im Kommentar —
+nichts wurde abgeschwächt.
+
+Ehrlich dazu, was die Prüfung nicht deckt: Ob pg_cron auf dem Projekt des
+Betriebs den Takt „jede Minute" übernimmt (heute hat sein Starter zweimal
+einen neuen Eintrag nicht übernommen), sieht man erst dort — mit der
+Diagnose. Übernimmt er ihn nicht, bleibt der Zehn-Minuten-Takt, und
+„Neu rechnen" dauert bis zu zehn Minuten statt einer.
+
 ### Was bewusst nicht gemacht wurde
 
 **Die gespeicherten Ansichten beim Einspielen nicht stehen lassen.** Teil B
-räumt jede weg und baut sie neu; danach sind sie leer, bis der Sofort-Lauf
-fertig ist. Nur die unveränderten zu behalten hiesse, im Verdichter oder in
+räumt jede weg und baut sie neu; danach sind sie leer, bis der Lauf des
+Zeitplans fertig ist. Nur die unveränderten zu behalten hiesse, im Verdichter oder in
 der Datenbank Definitionen zu vergleichen — ein anderes Werkzeug, für ein
-Fenster von ein bis drei Minuten, das die App jetzt benennt.
+Fenster von zwei bis vier Minuten, das die App jetzt benennt.
 
 **Kein Weg über die Management-API.** Von hier aus liesse sich mit einem
 Zugangstoken der Plattform SQL ausführen und die Datenbank selbst
 entstören. Der Betrieb hat dieses Token nicht herausgegeben, und ein Weg,
 der es braucht, gehört ihm, nicht dem Werkzeug.
 
-**Der Zehn-Minuten-Takt bleibt.** Der Betrieb will nur auf Anforderung
-rechnen; der Takt rechnet nach, wenn die Halle etwas erfasst hat, ohne dass
-jemand die Seite öffnet — im Hintergrund, nie doppelt. Er erzeugt keinen
-Stau, er ist das Gegenteil davon. Sollte er stören, wird er unter Betrieb
-ausgeschaltet, nicht gelöscht.
+**Der Takt bleibt (jetzt jede Minute, gedrosselt auf zehn).** Der Betrieb
+will nur auf Anforderung rechnen; der Takt rechnet nach, wenn die Halle
+etwas erfasst hat, ohne dass jemand die Seite öffnet — im Hintergrund,
+nie doppelt, höchstens alle zehn Minuten. Er erzeugt keinen Stau, er ist
+das Gegenteil davon.
 
 ## Runde AF: Ausgang ist nur der Lieferschein (28. September, 0101)
 

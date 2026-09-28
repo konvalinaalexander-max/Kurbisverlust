@@ -297,8 +297,11 @@ begin
     'Kaliber-Paletten haben kein Eingangsdatum';
   assert (select n_paletten = 3 and kisten = 96 and n_mit_sortierdatum = 2 from v_auftrag_wasch_paletten where auftrag_id = a.id),
     'Die Wasch-Paletten kommen nicht als Menge an';
-  assert (select zwischenlager_tage from v_auftrag_wasch_paletten where auftrag_id = a.id) = (current_date - date '2026-09-03'),
-    format('Die Tage im Zwischenlager sind %s statt %s', (select zwischenlager_tage from v_auftrag_wasch_paletten where auftrag_id = a.id), current_date - date '2026-09-03');
+  -- Die Sicht zählt in Betriebstagen (0067: betriebstag(start_ts), Zürcher
+  -- Datum), nicht in UTC-Tagen — ein Lauf nach 22 Uhr UTC hat den
+  -- Unterschied gefunden (26 statt 25). Also dieselbe Uhr wie die Sicht.
+  assert (select zwischenlager_tage from v_auftrag_wasch_paletten where auftrag_id = a.id) = (betriebstag(a.start_ts) - date '2026-09-03'),
+    format('Die Tage im Zwischenlager sind %s statt %s', (select zwischenlager_tage from v_auftrag_wasch_paletten where auftrag_id = a.id), betriebstag(a.start_ts) - date '2026-09-03');
   assert not exists (select 1 from v_auftrag_palette_masse where auftrag_id = a.id),
     'Kaliber-Paletten dürfen nicht als Eingangspaletten zählen';
   -- Drei fertige Paletten (verlangt beim Waschen, Runde H), je mit Kaliber und Stück je Kiste
