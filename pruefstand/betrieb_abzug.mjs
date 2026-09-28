@@ -56,6 +56,14 @@ async function restAlle(pfad) {
     if (teil.length < 1000) return alle
   }
 }
+async function rpc(name) {
+  const r = await fetch(`${url}/rest/v1/rpc/${name}`, {
+    method: 'POST', body: '{}',
+    headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+  })
+  if (!r.ok) throw new Error(`rpc ${name}: ${r.status} ${await r.text()}`)
+  return r.json()
+}
 async function patch(pfad, koerper) {
   const r = await fetch(`${url}/rest/v1/${pfad}`, {
     method: 'PATCH', body: JSON.stringify(koerper),
@@ -162,6 +170,16 @@ const tabelle = zeilen => {
 }
 let m = kopf('Stand der Modelle')
 m += `Gerechnet: ${zeit(stand[0]?.berechnet_ts)} · Einstellungen: ${einstellungen.map(e => `${e.schluessel} = ${JSON.stringify(e.wert)}`).join(' · ')}\n\n`
+// 0095: Läuft der Zeitplan? Ein stiller Ausfall wäre der schlimmste Fall —
+// alte Zahlen, die niemand als alt erkennt.
+try {
+  const z = await rpc('auswertung_zeitplan')
+  m += z?.aktiv
+    ? `**Zeitplan läuft** (${z.takt ?? '?'}) · letzter Lauf ${zeit(z.letzter_start)}${z.letzter_status ? ` · ${z.letzter_status}` : ''}${z.letzte_dauer_s != null ? ` · ${z.letzte_dauer_s} s` : ''}${z.letzte_meldung ? ` · ${md(z.letzte_meldung)}` : ''}${z.rechnet_seit ? ` · rechnet gerade seit ${zeit(z.rechnet_seit)}` : ''}\n\n`
+    : `**Zeitplan fehlt** — die App rechnet beim Öffnen selbst. pg_cron im Supabase-Projekt einschalten und setup.sql einspielen (0061/0095).${z?.fehler ? ` (${md(z.fehler)})` : ''}\n\n`
+} catch (f) {
+  m += `_Zeitplan nicht abfragbar: ${md(String(f.message ?? f))} — setup.sql auf Stand 95?_\n\n`
+}
 m += 'Für die nächste Runde: Passen die Zahlen zu dem, was die Saison zeigen sollte (docs/SAISONBEGLEITUNG.md)? Wo steht ein Koeffizient auf „Wiegungen aller Sorten", weil die eigenen fehlen? Wo ist ein Band leer, wo ist die Basis dünn?\n\n'
 m += '## Verdunstung je Sorte (erg_koeff_verdunstung)\n\n' + tabelle(kv)
 m += '## Zu klein / zu gross je Sorte (erg_koeff_ausschuss)\n\n' + tabelle(ka)

@@ -4538,7 +4538,10 @@ begin
 
   -- ---- (e) Das Rechenwerk und der Stand -------------------------------
   assert schema_stand() >= 78, format('0078 (e1): schema_stand() = %s, mindestens 78 erwartet', schema_stand());
-  select pg_get_functiondef('auswertung_schritt(integer)'::regprocedure) into v_txt;
+  -- Seit 0095 steht der Rumpf mit den Schrittlisten in auswertung_schritt_intern
+  -- (auswertung_schritt ist nur noch der App-Aufruf davon). Die Regel ist
+  -- dieselbe, der Ort hat sich verschoben — also der Test mit ihm.
+  select pg_get_functiondef('auswertung_schritt_intern(integer, boolean)'::regprocedure) into v_txt;
   assert v_txt like '%erg_marge_wiegung%' and v_txt not like '%erg_lager_kaliber%',
     '0078 (e2): Schritt 4 rechnet erg_marge_wiegung — und keine gespeicherte Kaliber-Fassung';
 
@@ -5706,7 +5709,10 @@ begin
     '0086 (c2): eine Charge hat eine Zeile, die es je Sorte nicht gibt';
 
   -- (d) Das Rechenwerk und der Stand.
-  select pg_get_functiondef('auswertung_schritt(integer)'::regprocedure) into v_txt;
+  -- Seit 0095 steht der Rumpf mit den Schrittlisten in auswertung_schritt_intern
+  -- (auswertung_schritt ist nur noch der App-Aufruf davon). Die Regel ist
+  -- dieselbe, der Ort hat sich verschoben — also der Test mit ihm.
+  select pg_get_functiondef('auswertung_schritt_intern(integer, boolean)'::regprocedure) into v_txt;
   assert v_txt like '%erg_marge_charge%', '0086 (d1): Schritt 4 rechnet erg_marge_charge nicht';
   assert schema_stand() >= 86, format('0086 (d2): schema_stand() = %s, mindestens 86 erwartet', schema_stand());
 
@@ -6338,3 +6344,135 @@ begin
 end $$;
 
 select '——— 0094 Kommentar erst nach dem Lesen geprüft ———' as ergebnis;
+
+-- =====================================================================
+-- 0095 — Die Zahlen liegen fertig da, wenn man die Seite öffnet
+--
+-- Der Betrieb: „der Server soll automatisch rechnen … und wenn ich genau
+-- in diesem Zeitpunkt auf die Webseite gehe, möchte ich die Daten bis zu
+-- dem Zeitpunkt." Geprüft wird: jede erg_-Ansicht hat einen Schlüssel; der
+-- Zeitplan-Weg legt daraus eindeutige Indizes aus Spalten an und erneuert
+-- nebenläufig; rechnet_seit steht, solange gerechnet wird; die App-Frage
+-- auswertung_zeitplan() antwortet auch ohne pg_cron ehrlich; der App-Weg
+-- (auswertung_schritt) läuft unverändert.
+-- =====================================================================
+do $$
+declare
+  v_modus jsonb; v_txt text; v_n int; v_fehlt text; v_z jsonb; v_vorher timestamptz;
+begin
+  -- (a) Jede erg_-Ansicht hat einen Schlüssel — wer eine neue anlegt, trägt ihn ein.
+  select string_agg(m.matviewname, ', ' order by m.matviewname) into v_fehlt
+    from pg_matviews m
+   where m.schemaname = 'public' and m.matviewname like 'erg\_%'
+     and not exists (select 1 from auswertung_schluessel() s where s.sicht = m.matviewname);
+  assert v_fehlt is null, format('0095 (a1): ohne Schlüssel in auswertung_schluessel(): %s', v_fehlt);
+  select string_agg(s.sicht, ', ') into v_fehlt from auswertung_schluessel() s
+   where to_regclass('public.' || s.sicht) is null;
+  assert v_fehlt is null, format('0095 (a2): Schlüssel für Ansichten, die es nicht gibt: %s', v_fehlt);
+  select count(*) into v_n from auswertung_schluessel() s where s.ausdruck ~ '[()]';
+  assert v_n = 0, format('0095 (a3): %s Schlüssel mit Ausdruck statt Spalten — nebenläufig geht nur mit Spalten', v_n);
+
+  -- (b) Der Zeitplan-Weg auf der Demo: Indizes entstehen, alles erneuert sich,
+  --     rechnet_seit ist danach leer, berechnet_ts liegt nach geaendert_ts.
+  select wert into v_modus from einstellung where schluessel = 'betriebsmodus';
+  update einstellung set wert = '"beispiel"'::jsonb where schluessel = 'betriebsmodus';
+  select demo_daten_laden() into v_txt;
+  perform auswertung_aktualisieren();                    -- der App-Weg füllt zuerst (nicht nebenläufig)
+  update auswertung_stand set geaendert_ts = clock_timestamp() where id = 1;
+  assert auswertung_wenn_veraltet(), '0095 (b1): veraltet, aber der Zeitplan-Weg hat nicht gerechnet';
+  select string_agg(s.sicht, ', ' order by s.sicht) into v_fehlt
+    from auswertung_schluessel() s
+   where not exists (select 1 from pg_index i join pg_class c on c.oid = i.indrelid
+                      where c.relname = s.sicht and i.indisunique and i.indexprs is null and i.indpred is null);
+  assert v_fehlt is null, format('0095 (b2): nach dem Zeitplan-Lauf ohne eindeutigen Spaltenindex: %s', v_fehlt);
+  assert (select rechnet_seit is null from auswertung_stand where id = 1), '0095 (b3): rechnet_seit steht nach dem Lauf noch';
+  assert (select berechnet_ts >= geaendert_ts from auswertung_stand where id = 1), '0095 (b4): der Stand ist nach dem Lauf noch veraltet';
+  assert not auswertung_wenn_veraltet(), '0095 (b5): nichts veraltet, aber gerechnet';
+  -- Ein zweiter Lauf, jetzt mit Indizes: nebenläufig für jede Ansicht (kein Notice mehr nötig).
+  update auswertung_stand set geaendert_ts = clock_timestamp() where id = 1;
+  assert auswertung_wenn_veraltet(), '0095 (b6): zweiter Lauf hat nicht gerechnet';
+  select string_agg(m.matviewname, ', ') into v_fehlt from pg_matviews m
+   join pg_class c on c.relname = m.matviewname where m.schemaname = 'public' and not c.relispopulated;
+  assert v_fehlt is null, format('0095 (b7): nach dem Lauf leer: %s', v_fehlt);
+
+  -- (c) Solange gerechnet wird, steht rechnet_seit — Schritt 1 setzt, Schritt 5 löscht.
+  perform auswertung_schritt_intern(1, true);
+  assert (select rechnet_seit is not null from auswertung_stand where id = 1), '0095 (c1): Schritt 1 setzt rechnet_seit nicht';
+  select rechnet_seit into v_vorher from auswertung_stand where id = 1;
+  perform auswertung_schritt_intern(2, true); perform auswertung_schritt_intern(3, true);
+  perform auswertung_schritt_intern(4, true);
+  assert (select rechnet_seit = v_vorher from auswertung_stand where id = 1), '0095 (c2): rechnet_seit ändert sich zwischen den Schritten';
+  perform auswertung_schritt_intern(5, true);
+  assert (select rechnet_seit is null from auswertung_stand where id = 1), '0095 (c3): Schritt 5 löscht rechnet_seit nicht';
+
+  -- (d) Die Frage der App — ohne pg_cron ehrlich „kein Zeitplan", mit dem Stand dabei.
+  v_z := auswertung_zeitplan();
+  assert (v_z ->> 'aktiv') = 'false', format('0095 (d1): ohne pg_cron meldet der Zeitplan aktiv: %s', v_z);
+  assert v_z ? 'berechnet_ts' and v_z ? 'rechnet_seit', format('0095 (d2): der Stand fehlt in der Antwort: %s', v_z);
+  assert (v_z ->> 'rechnet_seit') is null, '0095 (d3): rechnet_seit steht in der Antwort, obwohl nichts läuft';
+
+  -- (e) Der App-Weg läuft unverändert — und gibt seinen Schritt zurück.
+  assert (auswertung_schritt(5) ->> 'fertig') = 'true', '0095 (e): auswertung_schritt(5) meldet nicht fertig';
+  assert (auswertung_schritt(5) ->> 'nebenlaeufig') = 'false', '0095 (e2): der App-Weg rechnet nebenläufig';
+
+  perform demo_daten_entfernen();
+  perform auswertung_aktualisieren();
+  update einstellung set wert = v_modus where schluessel = 'betriebsmodus';
+  raise notice 'OK  0095 — Jede erg_-Ansicht hat einen Spaltenschlüssel; der Zeitplan legt die Indizes an und erneuert nebenläufig; rechnet_seit steht während des Laufs; die App-Frage antwortet ehrlich';
+end $$;
+
+select '——— 0095 Zahlen liegen fertig da geprüft ———' as ergebnis;
+
+-- =====================================================================
+-- 0096 — Die Demo-Verkaufsdatei stimmt an jedem Tag
+--
+-- Gefunden am 28. September: die Demo hängt am heutigen Datum, ihr erster
+-- Verkaufsmonat hatte eine einzige Zeile — und die Datei behauptete „2
+-- geändert". Geprüft wird, was an jedem Tag des Jahres gelten muss: jede
+-- Verkaufsdatei der Demo zählt genau so viele geänderte Zeilen, wie ihre
+-- Zeilen eine Änderungszeit tragen; genau eine Datei ist die nachkorrigierte,
+-- und sie hat die zwei Zeilen dafür. 0081 (c16) verlangt weiter „mindestens
+-- zwei korrigierte Zeilen" — hier steht, warum das an jedem Tag aufgeht.
+-- =====================================================================
+do $$
+declare
+  v_modus jsonb; v_txt text; v_n int; v_fehlt text;
+begin
+  select wert into v_modus from einstellung where schluessel = 'betriebsmodus';
+  update einstellung set wert = '"beispiel"'::jsonb where schluessel = 'betriebsmodus';
+  select demo_daten_laden() into v_txt;
+
+  -- (a) Datei und Zeilen sagen dasselbe — bei jeder Datei, nicht nur bei der ersten.
+  select string_agg(format('%s (Datei %s, Zeilen %s)', d.dateiname, d.n_geaendert, z.n), ', ') into v_fehlt
+    from ausgang_datei d
+    join lateral (select count(geaendert_ts)::int as n from ausgang_zeile where datei_id = d.id) z on true
+   where d.bemerkung = 'DEMO' and d.n_geaendert <> z.n;
+  assert v_fehlt is null, format('0096 (a): Datei und Zeilen widersprechen sich: %s', v_fehlt);
+
+  -- (b) Genau eine Datei ist die nachkorrigierte, und sie hat mindestens zwei Zeilen.
+  select count(*) into v_n from ausgang_datei where bemerkung = 'DEMO' and n_geaendert > 0;
+  assert v_n = 1, format('0096 (b1): %s nachkorrigierte Verkaufsdateien statt einer', v_n);
+  select n_zeilen into v_n from ausgang_datei where bemerkung = 'DEMO' and n_geaendert > 0;
+  assert v_n >= 2, format('0096 (b2): die nachkorrigierte Datei hat nur %s Zeilen — zu wenig für zwei Korrekturen', v_n);
+  select count(*) into v_n from ausgang_zeile where geaendert_ts is not null;
+  assert v_n = 2, format('0096 (b3): %s Zeilen mit Änderungszeit statt 2', v_n);
+
+  -- (c) Die Änderungszeit liegt nach dem ersten Hochladen der Datei — sonst
+  --     wäre die Korrektur vor der Datei gewesen.
+  select count(*) into v_n
+    from ausgang_zeile z join ausgang_datei d on d.id = z.datei_id
+   where z.geaendert_ts is not null and z.geaendert_ts <= d.ts;
+  assert v_n = 0, format('0096 (c): %s Korrekturen vor dem Hochladen der Datei', v_n);
+
+  -- (d) n_neu + n_geaendert = n_kuerbis — die Zählung der Datei geht auf.
+  select count(*) into v_n from ausgang_datei
+   where bemerkung = 'DEMO' and n_neu + n_geaendert <> n_kuerbis;
+  assert v_n = 0, format('0096 (d): bei %s Dateien geht neu + geändert nicht in kürbis auf', v_n);
+
+  perform demo_daten_entfernen();
+  perform auswertung_aktualisieren();
+  update einstellung set wert = v_modus where schluessel = 'betriebsmodus';
+  raise notice 'OK  0096 — Jede Demo-Verkaufsdatei zählt genau ihre korrigierten Zeilen; die nachkorrigierte hat die zwei Zeilen dafür, an jedem Tag';
+end $$;
+
+select '——— 0096 Demo-Verkaufsdatei geprüft ———' as ergebnis;

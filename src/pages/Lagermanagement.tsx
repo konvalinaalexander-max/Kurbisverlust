@@ -71,7 +71,7 @@ export default function Lagermanagement() {
   if (!s || daten.bestand.length === 0) {
     return (
       <>
-        <Reiterkopf titel="Lagermanagement" zweck={ZWECK} stand={daten.stand} />
+        <Reiterkopf titel="Lagermanagement" zweck={ZWECK} stand={daten.stand} zeitplan={daten.zeitplan} veraltet={daten.veraltet} />
         <Probleme liste={daten.probleme} />
         <Hinweis>Noch keine auswertbaren Daten. Dafür braucht es mindestens Eingangspaletten mit hinterlegter Tara — siehe Betrieb → Stammdaten.</Hinweis>
         {/* 0081: Auch im Demo-Modus — dort erklärt die Karte, was der
@@ -85,7 +85,8 @@ export default function Lagermanagement() {
   return (
     <>
       <Reiterkopf titel="Lagermanagement" zweck={ZWECK}
-                  stand={daten.stand} heute={daten.heute} neuRechnen={() => void neuRechnen()} laeuft={laedt} />
+                  stand={daten.stand} heute={daten.heute} neuRechnen={() => void neuRechnen()} laeuft={laedt}
+                  zeitplan={daten.zeitplan} veraltet={daten.veraltet} />
       <JournalAbgleich neuGerechnet={() => void neuRechnen()} />
       <Probleme liste={daten.probleme} />
       {daten.befunde.length > 0 && (

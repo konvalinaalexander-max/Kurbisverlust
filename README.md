@@ -668,7 +668,21 @@ warum sein Deploy-Befehl `npx wrangler deploy --env beispiel` lauten **muss**
 [`docs/ZWEI_WEBSEITEN.md`](docs/ZWEI_WEBSEITEN.md). Rechne mit einer guten
 halben Stunde.
 
-**Zuletzt gebaut (Runde AA, angefangen)** — der Betriebsabzug holt jetzt
+**Zuletzt gebaut (Runde AB, 0095, 0096)** — die Zahlen liegen fertig da: Läuft
+in der Datenbank der Zeitplan aus 0061 (pg_cron, alle zehn Minuten, nur
+bei Änderung), rechnet die App beim Öffnen nicht mehr selbst, sondern
+zeigt den letzten Stand („neu bis 14:10", „wird gerade erneuert") und lädt
+den neuen still nach. Der Zeitplan erneuert **nebenläufig**: Wer
+währenddessen liest, sieht die alten Zahlen statt zu warten. Fehlt der
+Zeitplan, sagt es der Chip. AB-97, AB-98. **Einschalten:** Supabase →
+Database → Extensions → `pg_cron`, dann `setup.sql` einspielen; prüfen mit
+`select jobname, schedule, active from cron.job;`. Nebenbei 0096: Die
+Demo-Verkaufsdatei mit den zwei nachkorrigierten Zeilen ist jetzt an
+jedem Tag des Jahres die erste Monatsdatei mit mindestens zwei Zeilen
+(vorher log sie an Tagen, an denen der erste Verkaufsmonat nur eine
+Lieferung hatte). AB-99.
+
+**Runde AA (angefangen)** — der Betriebsabzug holt jetzt
 **alle Rohdaten** (ohne Kundennamen, Preise, freie Texte) nach
 `docs/betrieb/rohdaten/` und schreibt den **Plausibilitätsdurchgang**
 `docs/betrieb/DURCHGANG.md`: Teilpaletten, Gewicht je Kiste, doppelte

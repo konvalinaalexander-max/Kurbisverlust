@@ -85,7 +85,8 @@ export default function Chargen() {
   return (
     <>
       <Reiterkopf titel="Chargen" zweck="Wo steht welche Charge — wie viel liegt noch, wie alt ist es, was droht?"
-                  stand={daten.stand} heute={daten.heute} neuRechnen={() => void neuRechnen()} laeuft={laedt} />
+                  stand={daten.stand} heute={daten.heute} neuRechnen={() => void neuRechnen()} laeuft={laedt}
+                  zeitplan={daten.zeitplan} veraltet={daten.veraltet} />
       <Probleme liste={daten.probleme} />
       <Karte>
         <div className="filterleiste">

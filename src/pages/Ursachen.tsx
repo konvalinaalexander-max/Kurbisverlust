@@ -78,7 +78,8 @@ export default function Ursachen() {
     <>
       <Reiterkopf titel="Ursachen"
                   zweck="Wohin der Kürbis bis heute ging, wo und wann das Faule und die Verdunstung entstanden — und was die Waage verschenkt."
-                  stand={daten.stand} heute={daten.heute} neuRechnen={() => void neuRechnen()} laeuft={laedt} />
+                  stand={daten.stand} heute={daten.heute} neuRechnen={() => void neuRechnen()} laeuft={laedt}
+                  zeitplan={daten.zeitplan} veraltet={daten.veraltet} />
       <Probleme liste={daten.probleme} />
 
       <div className="filterleiste haftend">
@@ -200,7 +201,7 @@ function Wohin({ daten, filter, setzen, chargeAnsehen }: {
           `${inSorte.length} Chargen · ${tonnen(wohinVon(daten.wohin, 'sorte', s)?.eingang_kg)} Eingang`, `sorte|${s}`),
         schluessel: `sorte|${s}`,
         aktion: <button type="button" className="werkzeug-knopf sorte-auf" aria-expanded={auf.has(s)} onClick={() => umschalten(s)}>
-                  <ZChevron size={12} richtung={auf.has(s) ? 'auf' : 'zu'} /> {auf.has(s) ? 'Chargen zu' : `${inSorte.length} Chargen`}
+                  <span className="chevron" aria-hidden="true" style={{ display: 'inline-flex', transition: 'transform var(--d-mittel)', transform: auf.has(s) ? 'rotate(90deg)' : undefined }}><ZChevron size={12} /></span> {auf.has(s) ? 'Chargen zu' : `${inSorte.length} Chargen`}
                 </button>,
       }
       return { z, inSorte }

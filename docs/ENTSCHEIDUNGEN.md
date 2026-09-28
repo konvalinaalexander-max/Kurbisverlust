@@ -4008,6 +4008,116 @@ an, was neu ist, und lässt stehen, was da ist — auch wenn das Journal
 inzwischen anders lautet. Sonst überschriebe ein Tippfehler im Sheet eine
 Berichtigung in der App, ohne dass jemand es sähe.
 
+## Runde AB: die Zahlen liegen fertig da (28. September, 0095, 0096)
+
+Der Betrieb: „aktuell muss ich teilweise bis zu einer Minute warten, bis
+alles gerechnet worden ist. Warum wird alles gerechnet, wenn ich die Seite
+öffne? … der Server soll automatisch rechnen … und wenn ich genau in
+diesem Zeitpunkt auf die Webseite gehe, möchte ich die Daten bis zu dem
+Zeitpunkt, wie er begonnen hat zu rechnen."
+
+### Warum die App rechnete
+
+Jede Erfassung markiert die Auswertung als veraltet; die App fand sie beim
+Öffnen veraltet vor und rief die fünf Schritte selbst — weil sonst niemand
+es tat. Den Zeitplan, der es täte, gibt es seit 0061 (pg_cron, alle zehn
+Minuten, nur wenn etwas veraltet ist). Er war im Projekt des Betriebs nie
+eingeschaltet: Die Erweiterung fehlte, der Block aus 0061 sagte es leise in
+einer Notiz, und die App rechnete weiter selbst. Diese Runde macht drei
+Dinge, damit der Zeitplan nicht nur läuft, sondern die App ihn auch nutzt.
+
+### Die App überlässt dem Zeitplan das Rechnen (0095)
+
+`auswertung_zeitplan()` sagt der App, ob der Job läuft, wann zuletzt, mit
+welchem Ergebnis. Läuft er, rechnet die App beim Öffnen nicht mehr: Sie
+zeigt den letzten Stand und sagt im Chip, dass er erneuert wird („neu bis
+14:10" aus dem Takt, oder „wird gerade erneuert", wenn `rechnet_seit`
+steht). Alle halbe Minute sieht sie nach; hat der Zeitplan einen neuen
+Stand, wird er still nachgeladen. Läuft kein Zeitplan, bleibt alles wie
+bisher — und der Chip sagt „kein Zeitplan", damit es nicht wieder
+unbemerkt bleibt. „Neu rechnen" rechnet immer, das ist der Knopf für den,
+der nicht warten will.
+
+### Während des Rechnens die alten Zahlen (0095)
+
+Postgres erneuert eine gespeicherte Ansicht auf zwei Arten: gesperrt (wer
+liest, wartet, bis die neue Fassung steht) oder nebenläufig (die alte
+bleibt lesbar, am Ende wird getauscht). Nebenläufig braucht je Ansicht
+einen eindeutigen Index — und zwar aus Spalten, nicht aus Ausdrücken; die
+`coalesce`-Indizes aus 0071 und 0078 zählen dafür nicht. Darum steht in
+`auswertung_schluessel()` je Ansicht ihre Spaltenliste, mit `nulls not
+distinct`, damit „kein Kaliber" nur einmal vorkommen darf. Der Zeitplan-Weg
+legt den Index an, wenn er fehlt, und erneuert nebenläufig; scheitert
+eines (eine doppelte Zeile, eine nie gefüllte Ansicht), wird normal
+erneuert und notiert. Nie bricht ein Lauf daran ab.
+
+Warum die Indizes nicht als Anweisungen in der Migration stehen: `setup.sql`
+baut die Ansichten am Ende neu, mal leer, mal gefüllt. Ein eindeutiger
+Index auf einer gefüllten Ansicht mit einer doppelten Zeile liesse
+`setup.sql` scheitern — beim Betrieb, nicht hier. Ein Index, den der Lauf
+anlegt und bei Misserfolg nur notiert, kann das nicht.
+
+Der App-Weg („Neu rechnen", `auswertung_schritt`) erneuert weiter gesperrt:
+schneller, und wer den Knopf drückt, wartet ohnehin. Der Lasttest misst
+diesen Weg; er ist unverändert. Der Zeitplan-Weg braucht auf der Demo etwa
+das Anderthalbfache.
+
+Ehrlich dazu: Nebenläufig heisst je Ansicht atomar, nicht über alle
+Ansichten zusammen. Wer in der einen Minute des Laufs lädt, kann eine
+schon erneuerte und eine noch alte Ansicht nebeneinander sehen. Dafür sagt
+der Chip „wird gerade erneuert", und die App lädt nach, sobald der Lauf
+fertig ist.
+
+### Die Zeitgrenze der Rolle
+
+Der Zeitplan läuft nicht unter der Acht-Sekunden-Grenze der API, sondern
+unter der seiner Rolle. 0095 setzt sie auf 15 Minuten, wo die Datenbank es
+zulässt, und notiert es sonst. Ob ein Lauf scheitert, sieht man in
+`cron.job_run_details` und im Chip (letzter Lauf mit Status) und im
+Betriebsabzug (`MODELLSTAND.md`: Zeitplan läuft / fehlt).
+
+### Nebenbei gefunden: die Demo log an manchen Tagen (0096)
+
+Der Volltest schlug am 28. September bei 0081 (c16) an: „keine einzige
+nachträglich korrigierte Verkaufszeile" — obwohl sich an der Demo nichts
+geändert hatte. Die Demo hängt am heutigen Datum (Anker = heute − 215
+Tage); an diesem Tag fiel ihre erste Lieferung auf den 29. April, und die
+Verkaufsdatei des ersten Monats hatte genau eine Zeile. Die Demo wollte
+aber zwei Zeilen dieser Datei als „nachträglich korrigiert" kennzeichnen:
+die Datei sagte „2 geändert", nur eine Zeile trug eine Änderungszeit. Das
+ist genau der Widerspruch, den der Abgleich „Datei gegen Lieferung"
+finden soll — die Demo darf ihn nicht selbst erzeugen, an keinem Tag.
+
+0096 stellt `demo_daten_laden()` noch einmal ganz (setup.sql behält von
+jeder Funktion nur die letzte Fassung) und ändert eine Regel: Die ein
+zweites Mal hochgeladene Datei ist die erste Monatsdatei mit **mindestens
+zwei Zeilen**. Der Prüfblock 0096 hält fest, was an jedem Tag gelten muss:
+jede Demo-Verkaufsdatei zählt genau so viele geänderte Zeilen, wie ihre
+Zeilen eine Änderungszeit tragen; genau eine ist die nachkorrigierte; die
+Korrektur liegt nach dem Hochladen. Gegengeprüft mit drei Mutationen — die
+erste ist die alte Regel und reproduziert den Fehler des Tages.
+
+Dabei fielen zwei Fehler im Quelltext auf, die der Build hätte melden
+müssen: ein Doku-Kommentar in `Karten.tsx`, der mit dem Beispiel-Takt
+sich selbst beendete, und in `Ursachen.tsx` (Runde Z) ein Pfeil-Symbol mit
+einer Eigenschaft `richtung`, die es nicht hat. Beide behoben; der Pfeil
+dreht sich jetzt wie in der Chargenliste über eine Drehung des Rahmens.
+
+### Was bewusst nicht gemacht wurde
+
+**Kein fester Drei-Stunden-Takt.** Der Betrieb hatte ihn vorgeschlagen.
+Zehn Minuten prüfen und nur bei Änderung rechnen ist frischer und
+billiger: nachts und am Wochenende läuft nichts.
+
+**Kein Rechnen sofort nach jeder Erfassung.** Die Halle erfasst im
+Minutentakt; jede Palette würde eine Minute Rechnen auslösen. Die
+Zehn-Minuten-Prüfung ist die Entprellung.
+
+**Kein gemeinsamer Tausch aller Ansichten.** Möglich wäre ein zweiter Satz
+Ansichten, der am Ende in einem Zug umbenannt wird. Das ist eine andere
+Architektur für einen Fall, der ein paar Prozent der Seitenaufrufe trifft
+und den der Chip benennt.
+
 ## Runde AA, angefangen: alle Daten auf Plausibilität (28. September)
 
 Der Betrieb: „meine Idee ist es, dass er nicht nur die Teilpaletten

@@ -303,8 +303,30 @@ export interface KoeffGebinde { sorte: string; kaliber_idx: number; n: number; k
 export interface KoeffZeile { was: string; wert: string; n: number; basis: string }
 export interface Schema { sorte: string; kaeufer: string | null; art: string; gilt_ab: string; kaliber_baender: [number, number][] | null; verlust_unter: number | null; kanal_ab: number | null }
 
+/** 0095: läuft in der Datenbank ein Zeitplan, der von selbst nachrechnet? */
+export interface Zeitplan {
+  aktiv: boolean; takt: string | null
+  letzterStart: string | null; letzterStatus: string | null; letzteDauerS: number | null; letzteMeldung: string | null
+  /** Seit wann gerade gerechnet wird — null, wenn nicht. */
+  rechnetSeit: string | null
+}
+export function zeitplanVon(x: unknown): Zeitplan {
+  const o = (x && typeof x === 'object' ? x : {}) as Record<string, unknown>
+  const s = (k: string) => (typeof o[k] === 'string' ? o[k] as string : null)
+  return {
+    aktiv: o.aktiv === true, takt: s('takt'),
+    letzterStart: s('letzter_start'), letzterStatus: s('letzter_status'),
+    letzteDauerS: typeof o.letzte_dauer_s === 'number' ? o.letzte_dauer_s : null, letzteMeldung: s('letzte_meldung'),
+    rechnetSeit: s('rechnet_seit'),
+  }
+}
+
 export interface Auswertung {
   stand: string | null
+  /** 0095: der Zeitplan der Datenbank — und ob dieser Stand veraltet ist, weil
+   *  die App ihn dem Zeitplan überlassen hat statt selbst zu rechnen. */
+  zeitplan: Zeitplan
+  veraltet: boolean
   /** Der Tag, bis zu dem gerechnet ist (heute(), 0061). */
   heute: string
   bilanz: Massenbilanz[]
@@ -389,13 +411,24 @@ async function alles(erzwingen: boolean): Promise<Auswertung> {
   const schemaStand = typeof version.data === 'number' ? version.data : null
   if (version.error || schemaStand === null || schemaStand < SCHEMA_ERWARTET) throw new Error(datenbankVeraltet(schemaStand))
 
-  const { data: st } = await supabase.from('auswertung_stand').select('berechnet_ts, geaendert_ts').maybeSingle()
+  const [{ data: st }, zp] = await Promise.all([
+    supabase.from('auswertung_stand').select('berechnet_ts, geaendert_ts').maybeSingle(),
+    supabase.rpc('auswertung_zeitplan'),
+  ])
+  const zeitplan = zeitplanVon(zp.data)
   const veraltet = !st?.berechnet_ts || new Date(st.geaendert_ts) > new Date(st.berechnet_ts)
-  // Scheitert das Neurechnen, wird mit dem letzten gespeicherten Stand
-  // weitergearbeitet — veraltete Zahlen sind besser als keine, solange
-  // dabeisteht, dass sie veraltet sind.
-  const probleme: Problem[] = (veraltet || erzwingen) ? await rechnen() : []
-  const { data: st2 } = await supabase.from('auswertung_stand').select('berechnet_ts').maybeSingle()
+  // 0095: Läuft in der Datenbank ein Zeitplan, rechnet die App beim Öffnen
+  // nicht mehr selbst — sie zeigt den letzten Stand, sagt, dass er erneuert
+  // wird, und lädt nach, sobald der Zeitplan fertig ist (useAuswertung).
+  // Der Betrieb: „das Rechnen muss ja nicht passieren, wenn ich die Webseite
+  // öffne." Ohne Zeitplan bleibt es beim Rechnen aus der App; „Neu rechnen"
+  // rechnet immer. Scheitert das Neurechnen, wird mit dem letzten
+  // gespeicherten Stand weitergearbeitet — veraltete Zahlen sind besser als
+  // keine, solange dabeisteht, dass sie veraltet sind.
+  const selbstRechnen = erzwingen || (veraltet && !zeitplan.aktiv)
+  const probleme: Problem[] = selbstRechnen ? await rechnen() : []
+  const { data: st2 } = await supabase.from('auswertung_stand').select('berechnet_ts, rechnet_seit').maybeSingle()
+  zeitplan.rechnetSeit = st2?.rechnet_seit ?? zeitplan.rechnetSeit
 
   // Jede Sicht wird für sich geholt. Scheitert eine, ist *ihre* Zahl unbekannt
   // — der Rest des Bildschirms steht trotzdem.
@@ -458,6 +491,7 @@ async function alles(erzwingen: boolean): Promise<Auswertung> {
   const heute = sb?.heute ?? hb[0]?.heute ?? heuteOrtszeit()
   return {
     stand: st2?.berechnet_ts ?? null, heute,
+    zeitplan, veraltet: veraltet && !selbstRechnen,
     bilanz: b, lage: d, befunde: pl, kaliber: kv, kurve: sk, koeff,
     modell: mo, selektion: sel, saison: sb, punkte: pk, bestand: hb, naechste: nc,
     sorten: { verdunstung: kfv, ausschuss: kfa, nebenkanal: kfn }, wiegungen: wk, margeWiegung: mw, margeCharge: mc, kommentare: km,
@@ -572,6 +606,16 @@ export function useStichtag<T>(holen: (h: number) => Promise<T[]>, h: number) {
   return { zeilen, laedt, fehler }
 }
 
+/** 0095: den Stand vergessen und still neu holen — ohne zu rechnen, wenn er
+ *  frisch ist. Der Weg, sobald der Zeitplan fertig gerechnet hat. */
+export function auswertungNachladen(): Promise<Auswertung> {
+  stand = null; ladeVersprechen = null
+  return auswertungLaden(false)
+}
+
+/** Wie oft die App nachsieht, ob der Zeitplan einen neuen Stand hat. */
+const NACHSEHEN_MS = 30000
+
 export function useAuswertung() {
   const [daten, setDaten] = useState<Auswertung | null>(stand)
   const [laedt, setLaedt] = useState(!stand)
@@ -590,6 +634,26 @@ export function useAuswertung() {
     if (!stand) void laden()
     return () => { hoerer.delete(h); fortschrittHoerer.delete(fh) }
   }, [laden])
+  // 0095: Läuft ein Zeitplan, sieht die App alle halbe Minute nach. Ein
+  // neuer Stand wird still nachgeladen — die Zahlen wechseln, ohne dass
+  // jemand etwas drückt; „wird gerade erneuert" steht im Chip, solange
+  // rechnet_seit gesetzt ist.
+  useEffect(() => {
+    if (!daten?.zeitplan.aktiv) return
+    const t = window.setInterval(() => {
+      void (async () => {
+        const { data: st } = await supabase.from('auswertung_stand').select('berechnet_ts, rechnet_seit').maybeSingle()
+        if (!st || !stand) return
+        if (st.berechnet_ts && st.berechnet_ts !== stand.stand) {
+          try { setDaten(await auswertungNachladen()) } catch { /* beim nächsten Mal */ }
+        } else if ((st.rechnet_seit ?? null) !== stand.zeitplan.rechnetSeit) {
+          stand = { ...stand, zeitplan: { ...stand.zeitplan, rechnetSeit: st.rechnet_seit ?? null } }
+          hoerer.forEach(x => x())
+        }
+      })()
+    }, NACHSEHEN_MS)
+    return () => window.clearInterval(t)
+  }, [daten?.zeitplan.aktiv])
   return { daten, laedt, fehler, fortschritt: schritt, neuRechnen: () => laden(true) }
 }
 

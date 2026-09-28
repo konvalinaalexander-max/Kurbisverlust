@@ -4,7 +4,7 @@ import { datum, kg, prozent, tonnen, vorZeit, zeitpunkt } from '../lib/format'
 import { Erklaerung, Herkunft, Hinweis, Karte, Marke } from '../components/Bausteine'
 import { ZAktualisieren, ZHaken } from '../components/Zeichen'
 import { Bilanzzeile } from '../components/Kaskadenbild'
-import { SCHRITTE, type Befund, type Fortschritt, type Problem, type Saisonbilanz, type Schimmelpunkt, type StromSumme } from './daten'
+import { SCHRITTE, type Befund, type Fortschritt, type Problem, type Saisonbilanz, type Schimmelpunkt, type StromSumme, type Zeitplan } from './daten'
 import { summeBekannt } from '../lib/masse'
 import { supabase } from '../lib/supabase'
 import { taetigkeitVon } from '../lib/taetigkeit'
@@ -16,9 +16,27 @@ import { ChargeFenster } from '../betrieb/ChargeFenster'
  * Kopfzeile eines Reiters: Name, der eine Satz, wozu er da ist; rechts der
  * Stand der Rechnung als Chip („vor 12 min") und „Neu rechnen".
  */
-export function Reiterkopf({ titel, zweck, stand, heute, neuRechnen, rechts, laeuft }: {
+/** Wann der Zeitplan das nächste Mal dran ist — aus einem Takt „alle N Minuten" (cron-Schreibweise Stern-Schrägstrich-N). */
+export function naechsterLauf(takt: string | null, jetzt = new Date()): Date | null {
+  const m = /^\*\/(\d+) \* \* \* \*$/.exec(takt ?? '')
+  if (!m) return null
+  const schritt = Number(m[1])
+  const d = new Date(jetzt)
+  d.setSeconds(0, 0)
+  d.setMinutes(Math.floor(d.getMinutes() / schritt) * schritt + schritt)
+  return d
+}
+
+export function Reiterkopf({ titel, zweck, stand, heute, neuRechnen, rechts, laeuft, zeitplan, veraltet }: {
   titel: string; zweck?: string; stand: string | null; heute?: string; neuRechnen?: () => void; rechts?: ReactNode; laeuft?: boolean
+  /** 0095: läuft ein Zeitplan, und ist dieser Stand veraltet, weil die App ihm das Rechnen überlässt? */
+  zeitplan?: Zeitplan; veraltet?: boolean
 }) {
+  const naechster = zeitplan?.aktiv ? naechsterLauf(zeitplan.takt) : null
+  const uhr = (d: Date) => d.toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' })
+  const zeitplanText = zeitplan?.aktiv
+    ? `Zeitplan läuft (${zeitplan.takt ?? 'in der Datenbank'})${zeitplan.letzterStart ? ` · letzter Lauf ${zeitpunkt(zeitplan.letzterStart)}${zeitplan.letzterStatus ? `, ${zeitplan.letzterStatus}` : ''}` : ''}`
+    : 'Kein Zeitplan in der Datenbank — die App rechnet beim Öffnen selbst (pg_cron einschalten, siehe README)'
   return (
     <div className="seitenkopf">
       <div>
@@ -27,8 +45,13 @@ export function Reiterkopf({ titel, zweck, stand, heute, neuRechnen, rechts, lae
       </div>
       <div className="rechts">
         {stand && (
-          <span className="stand-chip" title={`Gerechnet ${zeitpunkt(stand)}${heute ? ` — Zahlen bis heute, ${datum(heute)}` : ''}`}>
+          <span className="stand-chip" data-zeitplan={zeitplan?.aktiv ? 'laeuft' : 'fehlt'} data-veraltet={veraltet ? 'ja' : 'nein'}
+                title={`Gerechnet ${zeitpunkt(stand)}${heute ? ` — Zahlen bis heute, ${datum(heute)}` : ''} · ${zeitplanText}`}>
             Stand {vorZeit(stand)}{heute ? ` · bis ${datum(heute).slice(0, 6)}` : ''}
+            {veraltet && zeitplan?.aktiv && (zeitplan.rechnetSeit
+              ? <span className="leise"> · wird gerade erneuert</span>
+              : <span className="leise"> · neu {naechster ? `bis ${uhr(naechster)}` : 'in Kürze'}</span>)}
+            {zeitplan && !zeitplan.aktiv && <span className="leise"> · kein Zeitplan</span>}
           </span>
         )}
         {neuRechnen && <button type="button" className="klein" onClick={neuRechnen} disabled={laeuft}><ZAktualisieren size={15} />Neu rechnen</button>}

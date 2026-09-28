@@ -58,6 +58,10 @@ FREIGEGEBEN=(
   # 0094 dasselbe noch einmal (die Demo bekommt die Kurzfassungen mit).
   "0094_der_kommentar_wird_gelesen_bevor_er_im_dashboard_steht.sql:140"
   "0094_der_kommentar_wird_gelesen_bevor_er_im_dashboard_steht.sql:1075"
+  # 0096 dasselbe noch einmal (die nachkorrigierte Verkaufsdatei stimmt an
+  # jedem Tag) — dieselben drei Notizzettel, derselbe Anfang, dasselbe Ende.
+  "0096_die_demo_verkaufsdatei_stimmt_an_jedem_tag.sql:84"
+  "0096_die_demo_verkaufsdatei_stimmt_an_jedem_tag.sql:1024"
 )
 
 # ---------------------------------------------------------------------
