@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { taktMinuten, zeitplanZustand, TAKTE_OHNE_LAUF } from '../src/lib/zeitplan.ts'
+import { istAktuell, rechnetGerade, taktMinuten, zeitplanZustand, RECHNEN_HOECHSTENS_MIN, TAKTE_OHNE_LAUF } from '../src/lib/zeitplan.ts'
 
 const JETZT = new Date('2026-09-28T09:02:00Z')
 const vor = (min: number) => new Date(JETZT.getTime() - min * 60000).toISOString()
@@ -48,4 +48,22 @@ test('ein unbekannter Takt gilt als stündlich', () => {
 
 test('ein unlesbarer Zeitpunkt ist kein Lauf', () => {
   assert.equal(zeitplanZustand({ ...eingetragen, letzterStart: 'gestern', letzterStatus: 'succeeded' }, JETZT), 'rechnet_nicht')
+})
+
+test('aktuell heisst: seit der letzten Rechnung nichts Neues erfasst — auch wenn sie eine Stunde her ist', () => {
+  // Der Fall vom 28. September: gerechnet 10:09, zuletzt erfasst 10:07, Chip „Stand vor 1 h".
+  assert.equal(istAktuell('2026-09-28T08:09:20Z', '2026-09-28T08:07:44Z'), true)
+  assert.equal(istAktuell('2026-09-28T08:09:20Z', '2026-09-28T09:30:00Z'), false)
+  assert.equal(istAktuell('2026-09-28T08:09:20Z', '2026-09-28T08:09:20Z'), true)
+  assert.equal(istAktuell(null, '2026-09-28T08:07:44Z'), false, 'nie gerechnet ist nie aktuell')
+  assert.equal(istAktuell('2026-09-28T08:09:20Z', null), true)
+  assert.equal(istAktuell('Unsinn', '2026-09-28T08:07:44Z'), false)
+})
+
+test('ein abgebrochener Lauf hinterlässt rechnet_seit — älter als die Zeitgrenze ist es kein Rechnen', () => {
+  assert.equal(rechnetGerade(vor(2), JETZT), true)
+  assert.equal(rechnetGerade(vor(RECHNEN_HOECHSTENS_MIN), JETZT), true)
+  assert.equal(rechnetGerade(vor(RECHNEN_HOECHSTENS_MIN + 1), JETZT), false)
+  assert.equal(rechnetGerade(null, JETZT), false)
+  assert.equal(rechnetGerade('gestern', JETZT), false)
 })

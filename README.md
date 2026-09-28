@@ -682,7 +682,10 @@ Wichtigkeit, für den Betriebsleiter. Nichts an den Daten wurde geändert.
 Nachtrag: Die App überlässt das Rechnen dem Zeitplan nur noch, wenn er
 wirklich gelaufen ist (letzter Lauf höchstens drei Takte alt, nicht
 fehlgeschlagen); sonst rechnet sie beim Öffnen selbst, und der Chip sagt
-„Zeitplan rechnet nicht" (AB-97, `src/lib/zeitplan.ts`).
+„Zeitplan rechnet nicht" (AB-97, `src/lib/zeitplan.ts`). Wurde seit der
+letzten Rechnung nichts erfasst, sagt der Chip „aktuell". „Neu rechnen" gibt
+es nur ohne laufenden Zeitplan — mit einer ganzen Saison schafft der Knopf
+Schritt 3 nicht unter der Zeitgrenze der App.
 
 **Runde AB (0095, 0096)** — die Zahlen liegen fertig da: Läuft
 in der Datenbank der Zeitplan aus 0061 (pg_cron, alle zehn Minuten, nur

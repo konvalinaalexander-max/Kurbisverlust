@@ -44,3 +44,36 @@ export function zeitplanZustand(
   const alterMin = (jetzt.getTime() - start) / 60000
   return alterMin <= TAKTE_OHNE_LAUF * takt ? 'laeuft' : 'rechnet_nicht'
 }
+
+/**
+ * Sind die Zahlen aktuell? Ja, wenn seit der letzten Rechnung nichts Neues
+ * erfasst wurde — egal, wie lange die Rechnung her ist. Der Zeitplan rechnet
+ * nur, wenn es Neues gibt; „Stand vor 1 h" heisst dann nicht „alt". Der
+ * Betrieb las es am 28. September so, darum sagt der Chip „aktuell".
+ */
+export function istAktuell(berechnetTs: string | null | undefined, geaendertTs: string | null | undefined): boolean {
+  if (!berechnetTs) return false
+  const b = Date.parse(berechnetTs)
+  if (Number.isNaN(b)) return false
+  if (!geaendertTs) return true
+  const g = Date.parse(geaendertTs)
+  if (Number.isNaN(g)) return false
+  return g <= b
+}
+
+/** Länger rechnet kein Lauf: die Zeitgrenze des Zeitplans (0095). */
+export const RECHNEN_HOECHSTENS_MIN = 15
+
+/**
+ * Wird gerade gerechnet? rechnet_seit bleibt stehen, wenn ein Lauf abbricht
+ * (am 28. September: „Neu rechnen" um 11:18, nach Schritt 2 abgebrochen).
+ * Ein Zeitpunkt, der älter ist als die Zeitgrenze, ist darum kein Rechnen,
+ * sondern ein Rest.
+ */
+export function rechnetGerade(rechnetSeit: string | null | undefined, jetzt: Date = new Date()): boolean {
+  if (!rechnetSeit) return false
+  const t = Date.parse(rechnetSeit)
+  if (Number.isNaN(t)) return false
+  const min = (jetzt.getTime() - t) / 60000
+  return min >= -1 && min <= RECHNEN_HOECHSTENS_MIN
+}

@@ -4029,17 +4029,43 @@ also noch selbst — das ist gewollt: lieber einmal warten als einmal
 getäuscht werden. Der Betriebsabzug schreibt in `MODELLSTAND.md` dasselbe
 Urteil.
 
-Warum der Job nicht läuft, sieht man über die REST-Schnittstelle nicht
-(`cron` ist nicht freigegeben). Der Betriebsleiter schickt das Ergebnis
-einer Abfrage auf `cron.job`, `cron.job_run_details` und den pg_cron-
-Starter; dann die Ursache.
+Warum der Job nicht lief, sah man über die REST-Schnittstelle nicht
+(`cron` ist nicht freigegeben). Der Betriebsleiter schickte das Ergebnis
+von `supabase/abfragen/zeitplan_pruefen.sql`: Einstellungen richtig,
+Starter läuft, kein einziger Lauf irgendeines Jobs. Um 11:19 startete der
+Starter von pg_cron neu, um 11:20 lief der Job zum ersten Mal, erfolgreich.
+Wahrscheinlich hatte pg_cron den Job aus dem langen `setup.sql`-Lauf nicht
+übernommen, erst der Neustart lud ihn. Warum der Starter neu startete, ist
+offen.
+
+### „Stand vor 1 h" ist nicht alt, und „Neu rechnen" schafft die Saison nicht mehr
+
+Der Betrieb las „Stand vor 1 h" als „alt". Seit der Rechnung war aber nichts
+Neues erfasst worden — die Zahlen waren aktuell. Der Chip sagt jetzt
+„aktuell", solange `geaendert_ts` nicht nach `berechnet_ts` liegt, und die
+App sieht alle halbe Minute nach, ob in der Halle etwas erfasst wurde; dann
+wechselt er auf „neu bis …".
+
+Um 11:18 drückte der Betrieb „Neu rechnen". Schritt 1 und 2 waren nach 17 s
+fertig, Schritt 3 kam nicht zurück: Der Knopf rechnet als `authenticated`
+unter 30 s je Schritt (0053), und die Kaskade einer ganzen Saison braucht
+länger (`setup.sql` brauchte für alle fünf Schritte 94 s). Übrig blieb ein
+`rechnet_seit` von 11:18, das der Chip als „wird gerade erneuert" gelesen
+hätte — ein Zeitpunkt älter als die Zeitgrenze des Zeitplans (15 min) gilt
+jetzt als Rest. Und solange der Zeitplan läuft, gibt es den Knopf nicht: Er
+rechnet nach jeder Erfassung von selbst, unter 15 Minuten Grenze.
 
 ### Was bewusst nicht gemacht wurde
 
 **Keine Migration.** `auswertung_zeitplan()` gibt den letzten Lauf schon
-mit; das Urteil gehört in die App, die ihn liest. **Kein Neustart des
+mit; das Urteil gehört in die App, die ihn liest. Der Betrieb hatte eben
+erst eingespielt — eine neue Migration hätte das Dashboard bis zum nächsten
+Einspielen gesperrt. **Den Knopf nicht schneller gemacht.** Ohne Zeitplan
+bleibt er und scheitert mit der ganzen Saison an Schritt 3; die Abhilfe (die
+Kaskade teilen, oder der Knopf stösst den Zeitplan an, statt selbst zu
+rechnen) ist eine Migration für die nächste Runde. **Kein Neustart des
 Projekts auf Verdacht** — mitten im Arbeitstag trennte das die Halle kurz
-von der Datenbank, und die Ursache ist noch nicht bekannt.
+von der Datenbank.
 
 ## Runde AC: die erste Zweitmeinung über echte Daten (28. September)
 

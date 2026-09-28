@@ -4,7 +4,7 @@ import { fehlerText } from '../lib/db'
 import { SCHEMA_ERWARTET, datenbankVeraltet } from '../lib/version'
 import type { Datenlage, Hochrechnung, Massenbilanz } from '../lib/typen'
 import { heute as heuteOrtszeit } from '../lib/format'
-import { zeitplanZustand, type ZeitplanZustand } from '../lib/zeitplan'
+import { istAktuell, zeitplanZustand, type ZeitplanZustand } from '../lib/zeitplan'
 
 /* =========================================================================
    Die Auswertung für den Betriebsleiter — ein Datenstand für alle Reiter.
@@ -331,6 +331,8 @@ export interface Auswertung {
    *  die App ihn dem Zeitplan überlassen hat statt selbst zu rechnen. */
   zeitplan: Zeitplan
   veraltet: boolean
+  /** Seit der letzten Rechnung nichts Neues erfasst — die Zahlen sind aktuell, wie alt die Rechnung auch ist. */
+  aktuell: boolean
   /** Der Tag, bis zu dem gerechnet ist (heute(), 0061). */
   heute: string
   bilanz: Massenbilanz[]
@@ -435,7 +437,8 @@ async function alles(erzwingen: boolean): Promise<Auswertung> {
   // geschieht nichts.
   const selbstRechnen = erzwingen || (veraltet && zeitplan.zustand !== 'laeuft')
   const probleme: Problem[] = selbstRechnen ? await rechnen() : []
-  const { data: st2 } = await supabase.from('auswertung_stand').select('berechnet_ts, rechnet_seit').maybeSingle()
+  const { data: st2 } = await supabase.from('auswertung_stand').select('berechnet_ts, geaendert_ts, rechnet_seit').maybeSingle()
+  const aktuell = istAktuell(st2?.berechnet_ts, st2?.geaendert_ts)
   zeitplan.rechnetSeit = st2?.rechnet_seit ?? zeitplan.rechnetSeit
 
   // Jede Sicht wird für sich geholt. Scheitert eine, ist *ihre* Zahl unbekannt
@@ -499,7 +502,7 @@ async function alles(erzwingen: boolean): Promise<Auswertung> {
   const heute = sb?.heute ?? hb[0]?.heute ?? heuteOrtszeit()
   return {
     stand: st2?.berechnet_ts ?? null, heute,
-    zeitplan, veraltet: veraltet && !selbstRechnen,
+    zeitplan, veraltet: veraltet && !selbstRechnen, aktuell,
     bilanz: b, lage: d, befunde: pl, kaliber: kv, kurve: sk, koeff,
     modell: mo, selektion: sel, saison: sb, punkte: pk, bestand: hb, naechste: nc,
     sorten: { verdunstung: kfv, ausschuss: kfa, nebenkanal: kfn }, wiegungen: wk, margeWiegung: mw, margeCharge: mc, kommentare: km,
@@ -650,13 +653,19 @@ export function useAuswertung() {
     if (daten?.zeitplan.zustand !== 'laeuft') return
     const t = window.setInterval(() => {
       void (async () => {
-        const { data: st } = await supabase.from('auswertung_stand').select('berechnet_ts, rechnet_seit').maybeSingle()
+        const { data: st } = await supabase.from('auswertung_stand').select('berechnet_ts, geaendert_ts, rechnet_seit').maybeSingle()
         if (!st || !stand) return
         if (st.berechnet_ts && st.berechnet_ts !== stand.stand) {
           try { setDaten(await auswertungNachladen()) } catch { /* beim nächsten Mal */ }
-        } else if ((st.rechnet_seit ?? null) !== stand.zeitplan.rechnetSeit) {
-          stand = { ...stand, zeitplan: { ...stand.zeitplan, rechnetSeit: st.rechnet_seit ?? null } }
-          hoerer.forEach(x => x())
+        } else {
+          // Wird in der Halle etwas erfasst, wechselt der Chip von „aktuell"
+          // auf „neu bis …" — ohne dass jemand die Seite neu lädt.
+          const aktuell = istAktuell(st.berechnet_ts, st.geaendert_ts)
+          const rechnetSeit = st.rechnet_seit ?? null
+          if (aktuell !== stand.aktuell || rechnetSeit !== stand.zeitplan.rechnetSeit) {
+            stand = { ...stand, aktuell, veraltet: !aktuell, zeitplan: { ...stand.zeitplan, rechnetSeit } }
+            hoerer.forEach(x => x())
+          }
         }
       })()
     }, NACHSEHEN_MS)

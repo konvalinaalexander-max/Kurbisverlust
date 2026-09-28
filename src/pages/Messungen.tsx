@@ -60,7 +60,7 @@ export default function Messungen() {
     <>
       <Reiterkopf titel="Messungen" zweck="Was weiss die Auswertung — und was nicht? Auffälligkeiten zum Korrigieren, Vollständigkeit, Lücken, Koeffizienten, Modell."
                   stand={daten.stand} heute={daten.heute} neuRechnen={() => void neuRechnen()} laeuft={laedt}
-                  zeitplan={daten.zeitplan} veraltet={daten.veraltet} />
+                  zeitplan={daten.zeitplan} veraltet={daten.veraltet} aktuell={daten.aktuell} />
       <Probleme liste={daten.probleme} />
 
       <Auffaelligkeiten befunde={daten.befunde} />

@@ -6,6 +6,7 @@ import { ZAktualisieren, ZHaken } from '../components/Zeichen'
 import { Bilanzzeile } from '../components/Kaskadenbild'
 import { SCHRITTE, type Befund, type Fortschritt, type Problem, type Saisonbilanz, type Schimmelpunkt, type StromSumme, type Zeitplan } from './daten'
 import { summeBekannt } from '../lib/masse'
+import { rechnetGerade } from '../lib/zeitplan'
 import { supabase } from '../lib/supabase'
 import { taetigkeitVon } from '../lib/taetigkeit'
 import { WOERTERBUCH } from '../lib/i18n'
@@ -27,10 +28,12 @@ export function naechsterLauf(takt: string | null, jetzt = new Date()): Date | n
   return d
 }
 
-export function Reiterkopf({ titel, zweck, stand, heute, neuRechnen, rechts, laeuft, zeitplan, veraltet }: {
+export function Reiterkopf({ titel, zweck, stand, heute, neuRechnen, rechts, laeuft, zeitplan, veraltet, aktuell }: {
   titel: string; zweck?: string; stand: string | null; heute?: string; neuRechnen?: () => void; rechts?: ReactNode; laeuft?: boolean
   /** 0095: läuft ein Zeitplan (wirklich — zustand), und ist dieser Stand veraltet, weil die App ihm das Rechnen überlässt? */
   zeitplan?: Zeitplan; veraltet?: boolean
+  /** Seit dieser Rechnung nichts Neues erfasst? Dann sagt der Chip „aktuell", auch wenn sie eine Stunde her ist. */
+  aktuell?: boolean
 }) {
   const zustand = zeitplan?.zustand ?? 'fehlt'
   const naechster = zustand === 'laeuft' ? naechsterLauf(zeitplan!.takt) : null
@@ -51,17 +54,23 @@ export function Reiterkopf({ titel, zweck, stand, heute, neuRechnen, rechts, lae
       </div>
       <div className="rechts">
         {stand && (
-          <span className="stand-chip" data-zeitplan={zustand} data-veraltet={veraltet ? 'ja' : 'nein'}
-                title={`Gerechnet ${zeitpunkt(stand)}${heute ? ` — Zahlen bis heute, ${datum(heute)}` : ''} · ${zeitplanText}`}>
+          <span className="stand-chip" data-zeitplan={zustand} data-veraltet={veraltet ? 'ja' : 'nein'} data-aktuell={aktuell ? 'ja' : 'nein'}
+                title={`Gerechnet ${zeitpunkt(stand)}${heute ? ` — Zahlen bis heute, ${datum(heute)}` : ''}${aktuell ? ' · seither nichts Neues erfasst, die Zahlen sind aktuell' : ''} · ${zeitplanText}`}>
             Stand {vorZeit(stand)}{heute ? ` · bis ${datum(heute).slice(0, 6)}` : ''}
-            {veraltet && zustand === 'laeuft' && (zeitplan!.rechnetSeit
+            {aktuell && <span className="leise"> · aktuell</span>}
+            {veraltet && zustand === 'laeuft' && (rechnetGerade(zeitplan!.rechnetSeit)
               ? <span className="leise"> · wird gerade erneuert</span>
               : <span className="leise"> · neu {naechster ? `bis ${uhr(naechster)}` : 'in Kürze'}</span>)}
             {zeitplan && zustand === 'fehlt' && <span className="leise"> · kein Zeitplan</span>}
             {zustand === 'rechnet_nicht' && <span className="leise"> · Zeitplan rechnet nicht</span>}
           </span>
         )}
-        {neuRechnen && <button type="button" className="klein" onClick={neuRechnen} disabled={laeuft}><ZAktualisieren size={15} />Neu rechnen</button>}
+        {/* Läuft der Zeitplan, rechnet er nach jeder Erfassung von selbst, mit
+            15 Minuten Zeitgrenze. Der Knopf rechnet dagegen unter der Grenze der
+            App (30 s je Schritt) — mit einer ganzen Saison schafft Schritt 3 das
+            nicht mehr (28. September: nach Schritt 2 abgebrochen). Also gibt es
+            ihn nur, solange kein Zeitplan rechnet. */}
+        {neuRechnen && zustand !== 'laeuft' && <button type="button" className="klein" onClick={neuRechnen} disabled={laeuft}><ZAktualisieren size={15} />Neu rechnen</button>}
         {rechts}
       </div>
     </div>

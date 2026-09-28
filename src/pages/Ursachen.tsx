@@ -79,7 +79,7 @@ export default function Ursachen() {
       <Reiterkopf titel="Ursachen"
                   zweck="Wohin der Kürbis bis heute ging, wo und wann das Faule und die Verdunstung entstanden — und was die Waage verschenkt."
                   stand={daten.stand} heute={daten.heute} neuRechnen={() => void neuRechnen()} laeuft={laedt}
-                  zeitplan={daten.zeitplan} veraltet={daten.veraltet} />
+                  zeitplan={daten.zeitplan} veraltet={daten.veraltet} aktuell={daten.aktuell} />
       <Probleme liste={daten.probleme} />
 
       <div className="filterleiste haftend">
