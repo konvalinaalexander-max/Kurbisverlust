@@ -51,6 +51,21 @@ export interface ArbeitDaten {
   /** Welches Gebinde im Lager vorbelegt wird (Einstellung, Vorgabe G2).
    *  „meistens g2 aber auch nur so 95 %" — eine Vorbelegung, keine Annahme. */
   gebindeLager: string
+  /** Runde AD: Kennt die Auswertung das Kistengewicht für Sorte und Band
+   *  dieser Arbeit (v_koeff_gebinde)? Beim Waschen entscheidet das, ob eine
+   *  gewogene fertige Palette Pflicht ist — ohne Kistengewicht und ohne
+   *  Wägung wüsste niemand, was die Arbeit herausgebracht hat. */
+  kistengewicht: Kistengewicht
+}
+
+export interface Kistengewicht {
+  bekannt: boolean
+  /** kg je Kiste, wie die Auswertung es kennt — null, wenn unbekannt. */
+  kgJeKiste: number | null
+  /** Aus wie vielen Arbeiten oder Sortierläufen es stammt. */
+  n: number
+  /** Das Band als Text für die Maske: „700–900 g", „Kiste ab 8 kg" oder „Band 2". */
+  band: string
 }
 
 export async function arbeitLaden(auftragId: number): Promise<ArbeitDaten | null> {
@@ -91,6 +106,11 @@ export async function arbeitLaden(auftragId: number): Promise<ArbeitDaten | null
     baender = kaliber.find(k => k.sorte === charge.sorte)?.kaliber_baender ?? []
   }
 
+  // Runde AD: das Kistengewicht des Bandes, wie die Auswertung es kennt —
+  // nur dort gefragt, wo fertige Paletten gewogen werden. Das eigene Band
+  // (0054) zählt als bekannt, wenn die Fassung dasselbe Band hat.
+  const kistengewicht = await kistengewichtLaden(auftrag, charge?.sorte ?? null, baender)
+
   type Eintrag = { profil_id: string; profil: { name: string } | { name: string }[] | null }
   const av = (an.data ?? []) as { schluessel: string; wert: string }[]
   return {
@@ -109,7 +129,51 @@ export async function arbeitLaden(auftragId: number): Promise<ArbeitDaten | null
     fassung,
     kistenProPalette: Number(kpp) > 0 ? Number(kpp) : 36,
     gebindeLager: typeof gl === 'string' && gl !== '' ? gl : 'G2',
+    kistengewicht,
   }
+}
+
+/** Welche Zeile von v_koeff_gebinde zu dieser Arbeit gehört: Sollgewicht-Kisten
+ *  stehen unter −1 (0060), Stück-Kisten unter dem Index ihres Bandes; ein
+ *  eigenes Band (0054) nur, wenn die Fassung es genau so kennt. */
+export function kistengewichtIdx(a: Auftrag, baender: [number, number][]): number | null {
+  if (a.kistensystem === 'kiste_ab') return -1
+  if (a.kistensystem !== 'stueck') return null
+  if (a.kaliber_idx !== null) return a.kaliber_idx
+  const i = baender.findIndex(([von, bis]) => von === a.kaliber_von_g && bis === a.kaliber_bis_g)
+  return i >= 0 ? i : null
+}
+
+export function bandText(a: Auftrag, baender: [number, number][]): string {
+  if (a.kistensystem === 'kiste_ab') return `Kiste ab ${a.soll_kg_pro_kiste ?? '?'} kg`
+  const band = a.kaliber_idx !== null ? baender[a.kaliber_idx] : null
+  const von = band ? band[0] : a.kaliber_von_g, bis = band ? band[1] : a.kaliber_bis_g
+  if (von !== null && bis !== null) return `${von}–${bis} g`
+  return a.kaliber_idx !== null ? `Band ${a.kaliber_idx + 1}` : '?'
+}
+
+async function kistengewichtLaden(a: Auftrag, sorte: string | null, baender: [number, number][]): Promise<Kistengewicht> {
+  const band = bandText(a, baender)
+  const idx = kistengewichtIdx(a, baender)
+  if (!stationsProfil(a).hatAusgang || sorte === null || idx === null) return { bekannt: false, kgJeKiste: null, n: 0, band }
+  const { data, error } = await supabase.from('v_koeff_gebinde').select('kg_je_gebinde, n')
+    .eq('sorte', sorte).eq('kaliber_idx', idx).maybeSingle()
+  if (error) throw error
+  const z = data as { kg_je_gebinde: number | string | null; n: number } | null
+  const kg = z?.kg_je_gebinde === null || z?.kg_je_gebinde === undefined ? null : Number(z.kg_je_gebinde)
+  return { bekannt: kg !== null && kg > 0, kgJeKiste: kg, n: z?.n ?? 0, band }
+}
+
+/** Was an fertigen Paletten verlangt ist und was geraten (Runde AD).
+ *  `mindestens` sperrt den Abschluss, `soll` ist der Rat (drei, oder so
+ *  viele, wie die Arbeit hergibt). Pflicht gibt es nur beim Waschen, und nur,
+ *  solange das Kistengewicht des Bandes unbekannt ist: dann ist die eine
+ *  gewogene Palette der einzige Weg, die Masse dieser Arbeit zu kennen. */
+export function fertigeVerlangt(d: ArbeitDaten): { mindestens: number; soll: number; grund: 'kistengewicht' | null } {
+  const p = stationsProfil(d.auftrag)
+  const soll = fertigeSoll(d)
+  if (p.ausgangPflicht && !d.kistengewicht.bekannt) return { mindestens: Math.min(1, soll || 1), soll, grund: 'kistengewicht' }
+  return { mindestens: 0, soll, grund: null }
 }
 
 /** Wie viele fertige Paletten am Ende gewogen sein sollen — drei, und
@@ -173,7 +237,11 @@ export function stationsProfil(a: Auftrag) {
     hatAusschuss: a.station === 'waschen_sortieren',
     /** Fertige Palette wiegen — nur, wenn das Kistensystem rechenbar ist. */
     hatAusgang: !fax && a.station !== 'sortieren' && rechenbar,
-    /** Beim Waschen sind die fertigen Paletten die eine Messung am Ende: verlangt. */
+    /** Beim Waschen sind die fertigen Paletten die eine Messung am Ende.
+     *  Runde AD: verlangt ist EINE — und nur, solange die Auswertung das
+     *  Kistengewicht des Bandes nicht kennt (`fertigeVerlangt` entscheidet
+     *  mit den Daten). Drei bleiben der Rat, nicht die Pflicht: „drei
+     *  fertige Paletten wiegen … die pflicht weg". */
     ausgangPflicht: waschen && rechenbar,
     hatPalox: !fax,
     /** Am Sortierband und an der Waschstrasse mit Sortieren ist der Palox Pflicht;

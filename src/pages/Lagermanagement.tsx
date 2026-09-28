@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useBetriebsmodus } from '../lib/betriebsmodus'
 import { imDemoModus } from '../lib/supabase'
@@ -11,7 +11,8 @@ import { kaliberGlockeBei, lagerKaliberBei, prognoseBei, useAuswertung, useStich
 import { Probleme, Rechnet, Reiterkopf } from '../auswertung/Karten'
 import { JournalAbgleich } from '../betrieb/JournalAbgleich'
 import { useZaehler } from '../design/bewegung'
-import { ZWarnung } from '../components/Zeichen'
+import { ZWarnung, ZChevron } from '../components/Zeichen'
+import { chargenNachFeld } from '../lib/felder'
 
 const TAG = 86400000
 /** Wie weit der Betriebsleiter vorausschauen darf: eine Saison. */
@@ -49,7 +50,9 @@ export default function Lagermanagement() {
   const filter: Filter = params.get('charge') ? { gruppe: 'charge', schluessel: params.get('charge')! }
     : params.get('sorte') ? { gruppe: 'sorte', schluessel: params.get('sorte')! }
     : { gruppe: 'gesamt', schluessel: '' }
-  const wochen = Math.min(WOCHEN_MAX, Math.max(1, Number(params.get('wochen')) || 4))
+  // Runde AD: Grundeinstellung 0 Wochen — die Tabelle zeigt heute; wer die
+  // Wochen ändert, sieht die ganze Tabelle am Stichtag, nicht eine zweite Hälfte.
+  const wochen = Math.min(WOCHEN_MAX, Math.max(0, Math.round(Number(params.get('wochen')) || 0)))
 
   const setzen = (wert: string) => {
     const [g, k] = wert.split('|')
@@ -114,7 +117,7 @@ const ZWECK = 'Was liegt, wovon, in welchem Kaliber — heute und in ein paar Wo
 
 function Filterleiste({ daten, filter, setzen }: { daten: Auswertung; filter: Filter; setzen: (w: string) => void }) {
   const sorten = [...new Set(daten.bestand.map(b => b.sorte))].sort((a, b) => a.localeCompare(b, 'de'))
-  const chargen = [...daten.bestand].sort((a, b) => a.charge_nr - b.charge_nr)
+  const felder = chargenNachFeld(daten.bestand)
   const imFilter = chargenIm(daten.bestand, filter)
   const name = filter.gruppe === 'gesamt' ? '' : filter.gruppe === 'charge'
     ? `Charge ${filter.schluessel}` : filter.schluessel
@@ -125,7 +128,14 @@ function Filterleiste({ daten, filter, setzen }: { daten: Auswertung; filter: Fi
               onChange={e => setzen(e.target.value)}>
         <option value="">alle Chargen</option>
         <optgroup label="Sorte">{sorten.map(x => <option key={x} value={`sorte|${x}`}>{x}</option>)}</optgroup>
-        <optgroup label="Charge">{chargen.map(c => <option key={c.charge_nr} value={`charge|${c.charge_nr}`}>{c.charge_nr} · {c.sorte}</option>)}</optgroup>
+        {/* Runde AD: die Chargen nach Feld, darin nach Sorte, dann die Nummer —
+            „wichtiger ist Feld und Sorte und dann die Zahl". Das Feld ist die
+            Gruppe (fett), die Zeile heisst „Sorte (Charge Nr)". */}
+        {felder.map(f => (
+          <optgroup key={f.feld} label={f.feld}>
+            {f.chargen.map(c => <option key={c.charge_nr} value={`charge|${c.charge_nr}`}>{c.sorte} (Charge {c.charge_nr})</option>)}
+          </optgroup>
+        ))}
       </select>
       {filter.gruppe !== 'gesamt' && <span className="aktiv-filter">{name}</span>}
       <span>{imFilter.length} {imFilter.length === 1 ? 'Charge' : 'Chargen'} · {imFilter.filter(b => b.lager_kg > 0).length} mit Ware im Haus</span>
@@ -208,9 +218,9 @@ function Verlauf({ daten, filter }: { daten: Auswertung; filter: Filter }) {
   const xErste = x(wochen[0].woche), xLetzte = x(wochen[wochen.length - 1].bis)
   const xVon = Math.min(xErste, 2 * heute - xLetzte)
   const anteil = (w: typeof wochen[number]) => w.lager_kg > 0 ? w.verkaufsfaehig_kg / w.lager_kg : null
+  // Runde AD: „Eingang kumuliert" ist weg — der Eingang steht als Zahl in der
+  // Kennzahl oben; als Linie war er ausgeblendet und hat nur die Legende gefüllt.
   const reihen: Reihe[] = [
-    { name: 'Eingang kumuliert', farbe: 'var(--text-leise)', linie: true, marker: false, flaeche: true, ausgeblendet: true,
-      punkte: bisHeute.map(w => ({ x: x(w.bis), y: w.eingang_kum_kg })) },
     // Runde V: Orange gegen Blau statt Orange gegen Grün — das Paar, das
     // auch bei Rot-Grün-Schwäche zwei Linien bleibt. Der Ausgang ist
     // Umgebung, kein Vergleich, und steht darum in Grau.
@@ -303,76 +313,86 @@ function bandspalten(zeilen: Bandzeile[]): { idx: number; kopf: string; unter: s
 function ImHaus({ daten, filter, wochen, setzeWochen }: {
   daten: Auswertung; filter: Filter; wochen: number; setzeWochen: (n: number) => void
 }) {
-  const heute = useStichtag(lagerKaliberBei, 0)
-  const spaeter = useStichtag(lagerKaliberBei, 7 * wochen)
-  const zeilenHeute = useMemo(() => bandzeilen(heute.zeilen, filter, daten.bestand), [heute.zeilen, filter, daten.bestand])
-  const zeilenSpaeter = useMemo(() => bandzeilen(spaeter.zeilen, filter, daten.bestand), [spaeter.zeilen, filter, daten.bestand])
-  const spalten = bandspalten([...zeilenHeute, ...zeilenSpaeter])
-  const spaeterJe = new Map(zeilenSpaeter.map(z => [z.schluessel, z]))
-  const stichtag = spaeter.zeilen[0]?.datum ?? null
-
-  const summe = (f: (z: Bandzeile) => number) => zeilenHeute.reduce((a, z) => a + f(z), 0)
+  // Runde AD: EINE Tabelle am Stichtag — heute (0 Wochen) oder in X Wochen.
+  // Vorher standen heute und der Stichtag nebeneinander, doppelt so breit,
+  // mit Rollbalken im Block. Jetzt ändert das Wochenfeld die ganze Tabelle.
+  const stand = useStichtag(lagerKaliberBei, 7 * wochen)
+  const zeilen = useMemo(() => bandzeilen(stand.zeilen, filter, daten.bestand), [stand.zeilen, filter, daten.bestand])
+  const spalten = bandspalten(zeilen)
+  const stichtag = stand.zeilen[0]?.datum ?? null
+  const spaeter = wochen > 0
+  const jeSorte = filter.gruppe === 'gesamt'
+  // Eine Sorte aufklappen: ihre Chargen darunter, aus derselben Rechnung.
+  const [auf, setAuf] = useState<Set<string>>(new Set())
+  const umschalten = (k: string) => setAuf(a => { const n = new Set(a); if (n.has(k)) n.delete(k); else n.add(k); return n })
+  const chargenVon = (sorte: string) => bandzeilen(stand.zeilen, { gruppe: 'sorte', schluessel: sorte }, daten.bestand)
+  const summe = (f: (z: Bandzeile) => number) => zeilen.reduce((a, z) => a + f(z), 0)
+  const herkunft = spaeter ? 'prognose' : 'gerechnet'
 
   return (
     <Karte id="lager-tabelle" titel="Was ist noch im Haus?"
-           unter={`Je ${filter.gruppe === 'gesamt' ? 'Sorte' : 'Charge'}: was liegt, und wie viel davon in welchem Kaliber verkaufsfähig ist — heute und in ${wochen} Wochen.`}
-           aktion={<WochenFeld id="lager-wochen" wochen={wochen} setzen={setzeWochen} datum={stichtag} />}>
-      {heute.fehler && <Hinweis art="warnung">Die Kaliber von heute konnten nicht geladen werden: {heute.fehler}</Hinweis>}
-      {spaeter.fehler && <Hinweis art="warnung">Die Spalten „in {wochen} Wochen" konnten nicht geladen werden: {spaeter.fehler}</Hinweis>}
-      {zeilenHeute.length === 0 && !heute.laedt
+           unter={`Je ${jeSorte ? 'Sorte' : 'Charge'}: was liegt, und wie viel davon in welchem Kaliber verkaufsfähig ist — ${spaeter ? `in ${wochen} Wochen` : 'heute'}.${jeSorte ? ' Eine Sorte anklicken zeigt ihre Chargen.' : ''}`}
+           aktion={<WochenFeld id="lager-wochen" wochen={wochen} setzen={setzeWochen} datum={spaeter ? stichtag : null} />}>
+      {stand.fehler && <Hinweis art="warnung">Die Kaliber konnten nicht geladen werden: {stand.fehler}</Hinweis>}
+      {zeilen.length === 0 && !stand.laedt
         ? <Leer titel="Nichts im Lager">Sobald wieder Ware liegt, steht hier, in welchem Kaliber sie liegt.</Leer>
         : (
         <div className="rollbar">
-          <table className="dicht umbruch lagertabelle">
+          <table className={`dicht umbruch lagertabelle${stand.laedt ? ' laedt' : ''}`}>
             <thead>
               <tr>
-                {/* Die Herkunftsmarke steht im Kopf, nicht nur in der Erklärung:
-                    Eine Zahl in dieser Tabelle liest man über ihre Spalte, und
-                    die Spalten sind verschiedener Herkunft — links gerechnet bis
-                    heute, rechts über heute hinaus. */}
-                <th rowSpan={2} className="haftend">{filter.gruppe === 'gesamt' ? 'Sorte' : 'Charge'}</th>
-                <th rowSpan={2} className="zahl">im Lager<Herkunft art="gerechnet" /></th>
-                <th colSpan={spalten.length + 1} className="gruppe">verkaufsfähig heute<Herkunft art="gerechnet" /></th>
-                <th colSpan={spalten.length + 1} className="gruppe spaeter">verkaufsfähig in {wochen} Wochen{stichtag ? <span className="leise"> · {datum(stichtag).slice(0, 6)}</span> : null}<Herkunft art="prognose" /></th>
+                {/* Die Herkunftsmarke steht im Kopf: bis heute gerechnet, oder
+                    über heute hinaus — je nach Wochenfeld die ganze Tabelle. */}
+                <th rowSpan={2} className="haftend">{jeSorte ? 'Sorte' : 'Charge'}</th>
+                <th rowSpan={2} className="zahl">im Lager<Herkunft art={herkunft} /></th>
+                <th colSpan={spalten.length + 1} className={`gruppe${spaeter ? ' spaeter' : ''}`}>
+                  verkaufsfähig {spaeter ? `in ${wochen} Wochen` : 'heute'}
+                  {spaeter && stichtag ? <span className="leise"> · {datum(stichtag).slice(0, 6)}</span> : null}
+                  <Herkunft art={herkunft} />
+                </th>
               </tr>
               <tr>
-                {spalten.map(sp => <th key={`h${sp.idx}`} className="zahl">{sp.kopf}</th>)}
+                {spalten.map(sp => <th key={sp.idx} className="zahl">{sp.kopf}</th>)}
                 <th className="zahl">gesamt</th>
-                {spalten.map(sp => <th key={`s${sp.idx}`} className="zahl spaeter">{sp.kopf}</th>)}
-                <th className="zahl spaeter">gesamt</th>
               </tr>
             </thead>
             <tbody>
-              {zeilenHeute.map(z => {
-                const sp = spaeterJe.get(z.schluessel)
-                return (
-                  <tr key={z.schluessel}>
+              {zeilen.map(z => (
+                <Fragment key={z.schluessel}>
+                  <tr className={jeSorte ? `klickbar sorte-zeile${auf.has(z.schluessel) ? ' offen' : ''}` : undefined}
+                      onClick={jeSorte ? () => umschalten(z.schluessel) : undefined} aria-expanded={jeSorte ? auf.has(z.schluessel) : undefined}>
                     <th scope="row" className="haftend">
+                      {jeSorte && <span className="chevron" aria-hidden="true"><ZChevron size={14} /></span>}
                       <span className="zeilenname">{z.name}</span>
-                      <span className="leise"> {z.unter}</span>
+                      <span className="zeilenunter leise">{z.unter}</span>
                       {z.basis === 'sorte' && <Marke art="neutral" punkt={false}>aus der Sorte</Marke>}
                     </th>
                     <td className="zahl"><strong>{masse(z.lager)}</strong></td>
-                    {spalten.map(s => <Bandzelle key={`h${s.idx}`} zeile={z} idx={s.idx} filter={filter} />)}
+                    {spalten.map(s => <Bandzelle key={s.idx} zeile={z} idx={s.idx} filter={filter} spaeter={spaeter} />)}
                     <td className="zahl summe"><strong>{masse(z.verkaufsfaehig)}</strong>
                       {z.anteil !== null && <span className="leise"> {prozent(z.anteil, 0)}</span>}</td>
-                    {spalten.map(s => <Bandzelle key={`s${s.idx}`} zeile={sp} idx={s.idx} filter={filter} laedt={spaeter.laedt} spaeter />)}
-                    <td className={`zahl summe spaeter${spaeter.laedt ? ' laedt' : ''}`}>
-                      {sp ? <><strong>{masse(sp.verkaufsfaehig)}</strong>{sp.anteil !== null && <span className="leise"> {prozent(sp.anteil, 0)}</span>}</> : '—'}
-                    </td>
                   </tr>
-                )
-              })}
+                  {jeSorte && auf.has(z.schluessel) && chargenVon(z.sorte).map(c => (
+                    <tr key={c.schluessel} className="charge-zeile">
+                      <th scope="row" className="haftend">
+                        <span className="zeilenname">{c.name}</span>
+                        <span className="zeilenunter leise">{c.unter}</span>
+                      </th>
+                      <td className="zahl">{masse(c.lager)}</td>
+                      {spalten.map(s => <Bandzelle key={s.idx} zeile={c} idx={s.idx} filter={{ gruppe: 'sorte', schluessel: z.sorte }} spaeter={spaeter} />)}
+                      <td className="zahl summe">{masse(c.verkaufsfaehig)}{c.anteil !== null && <span className="leise"> {prozent(c.anteil, 0)}</span>}</td>
+                    </tr>
+                  ))}
+                </Fragment>
+              ))}
             </tbody>
-            {zeilenHeute.length > 1 && (
+            {zeilen.length > 1 && (
               <tfoot>
                 <tr>
                   <th scope="row" className="haftend">Summe</th>
                   <td className="zahl"><strong>{masse(summe(z => z.lager))}</strong></td>
-                  {spalten.map(s => <td key={`fh${s.idx}`} className="zahl"><strong>{masse(summe(z => z.kg.get(s.idx) ?? 0))}</strong></td>)}
+                  {spalten.map(s => <td key={s.idx} className="zahl"><strong>{masse(summe(z => z.kg.get(s.idx) ?? 0))}</strong></td>)}
                   <td className="zahl summe"><strong>{masse(summe(z => z.verkaufsfaehig))}</strong></td>
-                  {spalten.map(s => <td key={`fs${s.idx}`} className="zahl spaeter"><strong>{masse(zeilenSpaeter.reduce((a, z) => a + (z.kg.get(s.idx) ?? 0), 0))}</strong></td>)}
-                  <td className="zahl summe spaeter"><strong>{masse(zeilenSpaeter.reduce((a, z) => a + z.verkaufsfaehig, 0))}</strong></td>
                 </tr>
               </tfoot>
             )}
@@ -385,7 +405,7 @@ function ImHaus({ daten, filter, wochen, setzeWochen }: {
       </p>
       <Erklaerung>
         <p><strong>Im Lager</strong> ist Eingangsware, die nicht ausgeliefert ist <Herkunft art="gerechnet" />.
-        <strong> Verkaufsfähig</strong> zieht davon ab, was bis heute verdunstet oder verdorben ist und was zu klein oder zu gross war.</p>
+        <strong> Verkaufsfähig</strong> zieht davon ab, was bis zum Stichtag verdunstet oder verdorben ist und was zu klein oder zu gross war.</p>
         <p>Die Aufteilung auf die Kaliber ist keine zweite Rechnung: Jeder Kürbis der Sortier-CSV wird um die
         gemessene Verdunstung seiner Charge geschrumpft und neu in sein Band gelegt; die Massenanteile der Bänder
         mal der verkaufsfähigen Masse ergeben die Kilo. Über alle Bänder summiert steht wieder genau diese Masse.</p>
@@ -431,17 +451,18 @@ function WochenFeld({ id, wochen, setzen, datum: stichtag }: {
   // „1" einen Aufruf auslösen.
   useEffect(() => {
     const n = Number(text)
-    if (!Number.isFinite(n) || n < 1 || n > WOCHEN_MAX || n === wochen) return
+    if (!Number.isFinite(n) || n < 0 || n > WOCHEN_MAX || n === wochen) return
     const uhr = setTimeout(() => setzen(Math.round(n)), 300)
     return () => clearTimeout(uhr)
   }, [text, wochen, setzen])
-  const gueltig = Number(text) >= 1 && Number(text) <= WOCHEN_MAX
+  // Runde AD: 0 ist erlaubt und die Grundeinstellung — „heute".
+  const gueltig = Number(text) >= 0 && Number(text) <= WOCHEN_MAX
   return (
     <span className="wochenfeld">
       <label htmlFor={id}>in</label>
-      <input id={id} type="number" inputMode="numeric" min={1} max={WOCHEN_MAX} step={1}
+      <input id={id} type="number" inputMode="numeric" min={0} max={WOCHEN_MAX} step={1}
              value={text} aria-invalid={!gueltig} onChange={e => setText(e.target.value)} />
-      <span>Wochen{stichtag ? <span className="leise"> · {datum(stichtag).slice(0, 6)}</span> : null}</span>
+      <span>Wochen{wochen === 0 ? <span className="leise"> · heute</span> : stichtag ? <span className="leise"> · {datum(stichtag).slice(0, 6)}</span> : null}</span>
     </span>
   )
 }
@@ -452,7 +473,8 @@ function Glockenkarte({ daten, filter, wochen, setzeWochen }: {
   daten: Auswertung; filter: Filter; wochen: number; setzeWochen: (n: number) => void
 }) {
   const [wann, setWann] = useState<'heute' | 'spaeter'>('heute')
-  const h = wann === 'heute' ? 0 : 7 * wochen
+  // Runde AD: bei 0 Wochen gibt es nur „heute" — der Umschalter fällt weg.
+  const h = wann === 'heute' || wochen === 0 ? 0 : 7 * wochen
   const glocke = useStichtag(kaliberGlockeBei, h)
   const kaliber = useStichtag(lagerKaliberBei, h)
   const [sorte, setSorte] = useState('')
@@ -484,9 +506,9 @@ function Glockenkarte({ daten, filter, wochen, setzeWochen }: {
     <Karte id="lager-glocke" titel="Wie schwer sind die Kürbisse?"
            unter={`Die Gewichte der sortierten Kürbisse${gruppe === 'charge' ? ` der Charge ${schluessel}` : ` der Sorte ${schluessel || '—'}`}, mit den Kalibergrenzen.`}
            aktion={<span className="reihe">
-             <Segmente wahl={wann} setzen={setWann} id="glocke-umschalter"
-                       teile={[['heute', 'heute', 'glocke-heute'], ['spaeter', `in ${wochen} Wochen`, 'glocke-spaeter']]} />
-             <WochenFeld id="glocke-wochen" wochen={wochen} setzen={setzeWochen} datum={wann === 'spaeter' ? stichtag : null} />
+             {wochen > 0 && <Segmente wahl={wann} setzen={setWann} id="glocke-umschalter"
+                       teile={[['heute', 'heute', 'glocke-heute'], ['spaeter', `in ${wochen} Wochen`, 'glocke-spaeter']]} />}
+             <WochenFeld id="glocke-wochen" wochen={wochen} setzen={setzeWochen} datum={wann === 'spaeter' && wochen > 0 ? stichtag : null} />
            </span>}>
       {filter.gruppe === 'gesamt' && sorten.length > 1 && (
         <div className="filterleiste">
@@ -505,7 +527,7 @@ function Glockenkarte({ daten, filter, wochen, setzeWochen }: {
                   xFormat={x => `${x}`} mittel={mittel}
                   klassenfarbe={x => unterstes !== null && x + STUFE_G <= unterstes ? 'var(--gelb)' : 'var(--kuerbis)'} />
           <p className="leise">
-            {zahl(gesamt)} gewogen{wann === 'heute'
+            {zahl(gesamt)} gewogen{wann === 'heute' || wochen === 0
               ? <Herkunft art="gemessen" text="die Gewichte aus der Sortier-CSV" />
               : <Herkunft art="gerechnet" text="dieselben Kürbisse, um die Verdunstung bis zum Stichtag leichter" />}
             {' · '}{basis === 'charge' ? 'eigene Messung' : basis === 'sorte' ? 'aus der Sorte' : 'gemischt'}

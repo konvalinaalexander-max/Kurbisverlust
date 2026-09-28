@@ -47,6 +47,10 @@ export const ZKuerbis = ({ size = 20 }: P) => (
 /* ---------- Zustände ---------------------------------------------------------- */
 export const ZHaken = ({ size }: P) => <Z size={size} strich={2.2}><path d="m5 12.5 4.5 4.5L19 7.5" /></Z>
 export const ZKreuz = ({ size }: P) => <Z size={size} strich={2}><path d="M6 6l12 12M18 6 6 18" /></Z>
+/** Auswählen: zwei Zeilen mit Haken davor — der Modus, in dem man Arbeiten ankreuzt (Runde AD). */
+export const ZAuswahl = ({ size }: P) => <Z size={size}><circle cx="7" cy="7.5" r="3.2" /><path d="m5.6 7.5 1 1 1.9-2.2M13 7.5h7" /><circle cx="7" cy="16.5" r="3.2" /><path d="m5.6 16.5 1 1 1.9-2.2M13 16.5h7" /></Z>
+/** Endgültig löschen — der Papierkorb statt des Wortes (Runde AD). */
+export const ZPapierkorb = ({ size }: P) => <Z size={size}><path d="M4 7h16M9.5 7V4.5h5V7M6.5 7l.8 12.5h9.4L17.5 7" /><path d="M10 10.5v6M14 10.5v6" /></Z>
 export const ZWarnung = ({ size }: P) => <Z size={size}><path d="M12 3.5 2.5 20h19L12 3.5Z" /><path d="M12 9.5v5M12 17.2v.3" /></Z>
 export const ZInfo = ({ size }: P) => <Z size={size}><circle cx="12" cy="12" r="8.5" /><path d="M12 11v5M12 8v.3" /></Z>
 export const ZPunkt = ({ size }: P) => <Z size={size} strich={3}><path d="M12 12v.01" /></Z>

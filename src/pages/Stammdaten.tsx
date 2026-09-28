@@ -6,6 +6,7 @@ import { STATION_NAME, datum, heute as heuteOrtszeit, kg, tonnen, zahl, zeitpunk
 import { Hinweis, Karte, Kennzahl, Lade, Marke } from '../components/Bausteine'
 import { useBetriebsmodus } from '../lib/betriebsmodus'
 import DemoDaten from '../components/DemoDaten'
+import { ZHaken } from '../components/Zeichen'
 import ErfassungLeeren from '../components/ErfassungLeeren'
 import type { Charge, Gebinde, Kaeufer, Profil, Sortierschema } from '../lib/typen'
 
@@ -724,18 +725,32 @@ function Benutzer() {
     const { error } = await supabase.from('profil').update({ rolle }).eq('id', p.id)
     if (error) setFehler(fehlerText(error)); else void laden()
   }
+  /** Runde AD (0097): wer laufende Arbeiten abbrechen darf, auch fremde —
+   *  der Betriebsleiter setzt den Haken, die Datenbank prüft ihn. */
+  async function erlaubnisSetzen(p: Profil, darf: boolean) {
+    const { error } = await supabase.from('profil').update({ darf_abbrechen: darf }).eq('id', p.id)
+    if (error) setFehler(fehlerText(error)); else void laden()
+  }
 
   return (
     <Karte titel="Benutzer">
       {fehler && <Hinweis art="warnung">{fehler}</Hinweis>}
       <div className="rollbar">
         <table>
-          <thead><tr><th>Name</th><th>Rolle</th><th /></tr></thead>
+          <thead><tr><th>Name</th><th>Rolle</th><th>Darf laufende Arbeiten abbrechen</th><th /></tr></thead>
           <tbody>
             {zeilen.map(p => (
               <tr key={p.id}>
                 <td>{p.name}</td>
                 <td>{p.rolle === 'admin' ? 'Betriebsleiter' : 'Arbeiter'}</td>
+                <td>
+                  {p.rolle === 'admin'
+                    ? <span className="leise">immer</span>
+                    : <button type="button" role="checkbox" aria-checked={!!p.darf_abbrechen} aria-label={`${p.name} darf laufende Arbeiten abbrechen`}
+                              className={`wahlkreis${p.darf_abbrechen ? ' an' : ''}`} onClick={() => void erlaubnisSetzen(p, !p.darf_abbrechen)}>
+                        {p.darf_abbrechen && <ZHaken size={14} />}
+                      </button>}
+                </td>
                 <td style={{ textAlign: 'right' }}>
                   <button style={{ minHeight: 32, padding: '.2rem .6rem' }}
                           onClick={() => rolleSetzen(p, p.rolle === 'admin' ? 'arbeiter' : 'admin')}>
@@ -747,6 +762,7 @@ function Benutzer() {
           </tbody>
         </table>
       </div>
+      <p className="fussnote">Wer den Haken hat, kann auf der Startseite laufende Arbeiten auswählen und abbrechen — auch solche, die andere begonnen haben. Der Betriebsleiter darf es immer; fertige Arbeiten bricht niemand ab.</p>
     </Karte>
   )
 }

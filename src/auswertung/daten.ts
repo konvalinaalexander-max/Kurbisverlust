@@ -172,6 +172,9 @@ export interface MargeWiegung {
   kg_je_kiste: number | null; sd_je_kiste: number | null; zuviel_je_kiste: number | null
   g_je_kuerbis: number | null; g_ueber_bandmitte: number | null
   von: string | null; bis: string | null
+  /** 0097: die Grenzen des Bandes aus der Fassung des Auftrags — derselbe Index
+   *  kann in zwei Fassungen zwei Bänder sein; und wie viele der Wägungen voll waren. */
+  band_von_g: number | null; band_bis_g: number | null; n_voll: number
 }
 
 /**
@@ -216,8 +219,10 @@ export interface AusgangKennzahl {
   soll_kg_pro_kiste: number | null; ueberfuellung_je_kiste: number | null; ueberfuellung_kg: number | null
   kistensystem: string | null; kaliber_idx: number | null; stueck_je_kiste: number | null
   erwartet_kg_pro_kiste: number | null; abweichung_je_kiste: number | null; band_mittel_g: number | null
-  /** 0089: eine volle Palette? Nur die zählt in der Marge (0072). */
+  /** 0089: eine volle Palette? Seit 0097 zählt jede Palette je Kiste; voll steht dabei. */
   voll: boolean
+  /** 0097: die Grenzen des Bandes aus der Fassung des Auftrags. */
+  band_von_g?: number | null; band_bis_g?: number | null
 }
 /**
  * Der Verlauf je Woche (erg_verlauf, 0061/0071): Eingang und Ausgang

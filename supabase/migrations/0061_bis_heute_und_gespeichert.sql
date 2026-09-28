@@ -1721,13 +1721,32 @@ grant execute on function auswertung_wenn_veraltet() to authenticated;
 
 -- Wo pg_cron da ist (Supabase), rechnet die Datenbank alle zehn Minuten nach,
 -- wenn etwas veraltet ist. Wo nicht, bleibt es beim Rechnen aus der App.
+--
+-- Geändert am 28. September (Runde AD, 0097): Der Eintrag wird nicht mehr
+-- gelöscht und neu angelegt. Zweimal an diesem Tag hat der Starter von
+-- pg_cron einen frisch angelegten Eintrag nicht übernommen — eine Stunde lang
+-- kein Lauf, bis der Starter neu startete. Einen bestehenden Eintrag führt
+-- er weiter, und seine Laufgeschichte bleibt. Also: gibt es ihn mit
+-- gleichem Takt und Befehl, bleibt er stehen; weicht er ab, wird er mit
+-- cron.alter_job angepasst (dieselbe Nummer); fehlt er, wird er angelegt.
 do $$
+declare v_id bigint; v_gleich boolean;
 begin
   if exists (select 1 from pg_extension where extname = 'pg_cron') then
-    perform cron.unschedule(jobid) from cron.job where jobname = 'auswertung_wenn_veraltet';
-    perform cron.schedule('auswertung_wenn_veraltet', '*/10 * * * *',
-                          'select public.auswertung_wenn_veraltet()');
-    raise notice 'Zeitplan: auswertung_wenn_veraltet() alle zehn Minuten (pg_cron).';
+    select jobid, (schedule = '*/10 * * * *' and command = 'select public.auswertung_wenn_veraltet()' and active)
+      into v_id, v_gleich
+      from cron.job where jobname = 'auswertung_wenn_veraltet' order by jobid limit 1;
+    if v_id is null then
+      perform cron.schedule('auswertung_wenn_veraltet', '*/10 * * * *',
+                            'select public.auswertung_wenn_veraltet()');
+      raise notice 'Zeitplan: auswertung_wenn_veraltet() alle zehn Minuten (pg_cron) — neu angelegt.';
+    elsif v_gleich then
+      raise notice 'Zeitplan: auswertung_wenn_veraltet() alle zehn Minuten (pg_cron) — steht schon, bleibt.';
+    else
+      perform cron.alter_job(job_id => v_id, schedule => '*/10 * * * *',
+                             command => 'select public.auswertung_wenn_veraltet()', active => true);
+      raise notice 'Zeitplan: auswertung_wenn_veraltet() alle zehn Minuten (pg_cron) — angepasst.';
+    end if;
   else
     raise notice 'pg_cron fehlt — die App rechnet selbst nach, wenn etwas veraltet ist.';
   end if;

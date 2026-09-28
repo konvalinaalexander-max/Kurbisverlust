@@ -545,9 +545,13 @@ export function Glocke({ stufen, breite, grenzen = [], farbe = 'var(--kuerbis)',
             </g>
           ))}
           {mittel != null && mittel >= x0 && mittel <= x1 && (
+            // Runde AD: Die Marke stand mitten auf einem Balken und war schwer
+            // zu lesen. Jetzt steht sie über den Balken, mit einem Saum in der
+            // Hintergrundfarbe, damit sie sich von jedem Balken abhebt.
             <g>
-              <line x1={sx(mittel)} x2={sx(mittel)} y1={oben + 14} y2={hoehe - U} stroke="var(--text)" strokeWidth="1.5" />
-              <text x={sx(mittel) + 3} y={oben + 24} fontSize="10" fill="var(--text)" fontWeight="600">Ø {xFormat(Math.round(mittel))} g</text>
+              <line x1={sx(mittel)} x2={sx(mittel)} y1={oben + 2} y2={hoehe - U} stroke="var(--text)" strokeWidth="1.5" />
+              <text x={sx(mittel) + 4} y={oben - 1} fontSize="11" fill="var(--text)" fontWeight="700"
+                    stroke="var(--flaeche, #fff)" strokeWidth="4" paintOrder="stroke" strokeLinejoin="round">Ø {xFormat(Math.round(mittel))} g</text>
             </g>
           )}
           <line x1={L} x2={B - R} y1={hoehe - U} y2={hoehe - U} stroke="var(--rand)" />

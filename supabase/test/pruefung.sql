@@ -5683,18 +5683,24 @@ begin
   -- (c) Die Chargen summieren sich zur Sorte: Wägungen, Kisten, und das
   --     gewichtete Mittel je Kiste. Sonst zeigte die aufgeklappte Charge
   --     andere Zahlen als die Zeile darüber.
+  --     Seit 0097 gehören die Grenzen des Bandes (band_von_g, band_bis_g)
+  --     zum Schlüssel beider Sichten — derselbe Index ist in zwei Fassungen
+  --     zwei Bänder. Die Regel „Chargen summieren sich zur Sorte" bleibt;
+  --     der Schlüssel, über den summiert wird, ist mit der Regel gewachsen.
   assert not exists (
     select 1
       from erg_marge_wiegung w
-      left join (select sorte, kistensystem, soll_kg_pro_kiste, kaliber_idx, stueck_je_kiste,
+      left join (select sorte, kistensystem, soll_kg_pro_kiste, kaliber_idx, stueck_je_kiste, band_von_g, band_bis_g,
                         sum(n_wiegungen) as n, sum(kisten) as kisten,
                         sum(kg_je_kiste * n_wiegungen) / sum(n_wiegungen) as kg_je_kiste
                    from erg_marge_charge
-                  group by 1, 2, 3, 4, 5) c
+                  group by 1, 2, 3, 4, 5, 6, 7) c
         on c.sorte = w.sorte and c.kistensystem = w.kistensystem
        and c.soll_kg_pro_kiste is not distinct from w.soll_kg_pro_kiste
        and c.kaliber_idx is not distinct from w.kaliber_idx
        and c.stueck_je_kiste is not distinct from w.stueck_je_kiste
+       and c.band_von_g is not distinct from w.band_von_g
+       and c.band_bis_g is not distinct from w.band_bis_g
      where c.n is distinct from w.n_wiegungen
         or c.kisten is distinct from w.kisten
         or abs(c.kg_je_kiste - w.kg_je_kiste) > 0.01),
@@ -5705,7 +5711,9 @@ begin
                         where w.sorte = c.sorte and w.kistensystem = c.kistensystem
                           and w.soll_kg_pro_kiste is not distinct from c.soll_kg_pro_kiste
                           and w.kaliber_idx is not distinct from c.kaliber_idx
-                          and w.stueck_je_kiste is not distinct from c.stueck_je_kiste)),
+                          and w.stueck_je_kiste is not distinct from c.stueck_je_kiste
+                          and w.band_von_g is not distinct from c.band_von_g
+                          and w.band_bis_g is not distinct from c.band_bis_g)),
     '0086 (c2): eine Charge hat eine Zeile, die es je Sorte nicht gibt';
 
   -- (d) Das Rechenwerk und der Stand.
@@ -6476,3 +6484,150 @@ begin
 end $$;
 
 select '——— 0096 Demo-Verkaufsdatei geprüft ———' as ergebnis;
+
+
+-- =====================================================================
+-- 0097 — Was der Betrieb am ersten Tag mit echten Zahlen sah
+--
+-- Geprüft wird auf der Demo: (a) jede gewogene fertige Palette kennt die
+-- Grenzen ihres Bandes aus der Fassung IHRES Auftrags — derselbe Index in
+-- zwei Fassungen ergibt zwei Zeilen der Marge; (b) eine Ausschuss-Art ohne
+-- Messung ist unbekannt: keine Auffälligkeit, die gemessene Art zählt;
+-- (c) ohne brauchbares Verderbsmodell ist der Sockel 0, nicht unbekannt —
+-- der Verlust bleibt bekannt, der Nachweis bleibt aus; (d) eine nicht volle
+-- Palette zählt je Kiste; (e) die Schlüssel der Marge-Ansichten kennen die
+-- Grenzen; (f) abbrechen darf, wer beteiligt ist, Betriebsleiter ist oder
+-- die Erlaubnis hat — sonst niemand.
+-- =====================================================================
+do $$
+declare
+  v_modus jsonb; v_txt text; v_n int; v_n2 int;
+  v_u uuid := '00000000-0097-0000-0000-000000000001';
+  v_w uuid := '00000000-0097-0000-0000-000000000002';   -- Arbeiterin ohne Beteiligung
+  v_c int; v_s bigint; v_a bigint; v_b bigint; v_von int; v_bis int; v_mittel numeric;
+  v_alt_von int; v_id bigint; v_kg numeric; v_bekannt boolean; v_brauchbar boolean;
+  v_datum date; v_brutto numeric; v_kisten int;
+begin
+  select wert into v_modus from einstellung where schluessel = 'betriebsmodus';
+  update einstellung set wert = '"beispiel"'::jsonb where schluessel = 'betriebsmodus';
+  insert into auth.users (id, email, raw_user_meta_data) values (v_u, null, '{"name":"Prüf-0097"}');
+  update profil set rolle = 'admin' where id = v_u;
+  insert into auth.users (id, email, raw_user_meta_data) values (v_w, null, '{"name":"Prüf-0097-Arbeiterin"}');
+  update profil set rolle = 'arbeiter' where id = v_w;   -- der Anleger macht jeden Neuen zum Betriebsleiter, solange keiner da ist
+  perform set_config('request.jwt.claim.sub', v_u::text, true);
+  select demo_daten_laden() into v_txt;
+  perform auswertung_aktualisieren();
+
+  -- (a) Eine neue Fassung für Amoro mit einem Band 500–600 vorne dran: Index 0
+  --     heisst jetzt etwas anderes. Eine Wasch-Arbeit mit dieser Fassung und
+  --     eine der Demo (alte Fassung) tragen beide Index 0 — und verschiedene Grenzen.
+  select nr into v_c from charge where sorte = 'Amoro' order by nr limit 1;
+  select band_von_g into v_alt_von from v_ausgang_kennzahl where sorte = 'Amoro' and kaliber_idx = 0 limit 1;
+  assert v_alt_von = 600, format('0097 (a0): die Demo-Wägung Amoro K1 hat Grenze %s statt 600', v_alt_von);
+  select sortierschema_festlegen('Amoro', null, 'kaliber', '[[500,600],[600,1100],[1100,1600],[1600,2000]]'::jsonb) into v_s;
+  insert into auftrag (weg, station, charge_nr, start_ts, eroeffnet_von, kaliber_idx, kistensystem, stueck_je_kiste, fertige_paletten_gesamt)
+    values ('hand', 'waschen', v_c, now() - interval '3 hours', v_u, 0, 'stueck', 9, 2) returning id into v_a;
+  update auftrag set sortierschema_id = v_s where id = v_a;
+  insert into auftrag_palette (auftrag_id, sortierdatum, kisten, gebindeart) values (v_a, current_date - 3, 36, 'G2');
+  insert into ausgang_wiegung (auftrag_id, charge_nr, brutto_kg, kisten, gebindeart, kuerbisse_pro_kiste, kaliber_idx, voll)
+    values (v_a, v_c, 400, 32, 'G2', 9, 0, true) returning id into v_id;
+  select band_von_g, band_bis_g, band_mittel_g into v_von, v_bis, v_mittel from v_ausgang_kennzahl where id = v_id;
+  assert v_von = 500 and v_bis = 600, format('0097 (a1): die Wägung trägt die Grenzen %s–%s statt 500–600 aus der Fassung ihres Auftrags', v_von, v_bis);
+  assert v_mittel is null or (v_mittel >= 500 and v_mittel < 600), format('0097 (a2): die Bandmitte %s liegt nicht innerhalb der Grenzen', v_mittel);
+  select band_von_g into v_alt_von from v_ausgang_kennzahl where sorte = 'Amoro' and kaliber_idx = 0 and auftrag_id <> v_a limit 1;
+  assert v_alt_von = 600, format('0097 (a3): die Demo-Wägung mit der alten Fassung hat jetzt Grenze %s — die neueste Fassung überschreibt die des Auftrags', v_alt_von);
+  select count(*) into v_n from v_marge_wiegung where sorte = 'Amoro' and kaliber_idx = 0 and stueck_je_kiste = 9;
+  assert v_n = 2, format('0097 (a4): Amoro K1 mit 9 Stück gibt %s Zeile(n) der Marge statt 2 (eine je Fassung)', v_n);
+  assert (select count(*) from v_marge_wiegung where band_von_g is null and kistensystem = 'stueck' and kaliber_idx is not null) = 0,
+    '0097 (a5): eine Stück-Zeile der Marge ohne Grenzen';
+
+  -- (d) Eine zweite, nicht volle Palette derselben Arbeit zählt je Kiste — n_voll sagt, wie viele voll waren.
+  insert into ausgang_wiegung (auftrag_id, charge_nr, brutto_kg, kisten, gebindeart, kuerbisse_pro_kiste, kaliber_idx, voll)
+    values (v_a, v_c, 210, 16, 'G2', 9, 0, false);
+  select n_wiegungen, n_voll into v_n, v_n2 from v_marge_wiegung where sorte = 'Amoro' and kaliber_idx = 0 and band_von_g = 500;
+  assert v_n = 2 and v_n2 = 1, format('0097 (d1): %s Wägungen, %s davon voll — die nicht volle Palette zählt nicht je Kiste', v_n, v_n2);
+  select n_wiegungen, n_voll into v_n, v_n2 from v_marge_charge where charge_nr = v_c and kaliber_idx = 0 and band_von_g = 500;
+  assert v_n = 2 and v_n2 = 1, format('0097 (d2): je Charge %s Wägungen, %s voll', v_n, v_n2);
+
+  -- (b) Eine Handarbeit, die „zu gross" gewogen und „zu klein" ausgelassen hat.
+  select p.eingangsdatum, p.brutto_kg, p.kisten into v_datum, v_brutto, v_kisten
+    from palette p where p.charge_nr = v_c order by p.id limit 1;
+  insert into auftrag (weg, station, charge_nr, start_ts, eroeffnet_von)
+    values ('hand', 'waschen_sortieren', v_c, now() - interval '2 hours', v_u) returning id into v_b;
+  insert into auftrag_palette (auftrag_id, eingangsdatum, brutto_zettel_kg, kisten, gebindeart)
+    values (v_b, v_datum, v_brutto, v_kisten, 'G2');
+  insert into ausschuss_messung (auftrag_id, art, brutto_kg, kisten, gebindeart) values (v_b, 'zu_gross', 12, 1, 'G2');
+  -- Die Masse einer Arbeit gibt es erst, wenn sie abgeschlossen ist — und erst
+  -- nach dem Erneuern, denn v_auftrag_masse liest aus mv_auftrag_masse.
+  update auftrag set status = 'abgeschlossen', ende_ts = start_ts + interval '2 hours' where id = v_b;
+  perform auswertung_aktualisieren();
+  select klein_kg, plausibel into v_kg, v_bekannt from v_ausschuss_beobachtung where auftrag_id = v_b;
+  assert v_kg is null, format('0097 (b1): „zu klein" ohne Messung steht als %s da statt als unbekannt', v_kg);
+  assert v_bekannt, '0097 (b2): die Arbeit gilt als unplausibel, obwohl nur eine Art fehlt';
+  assert (select count(*) from v_plausibilitaet where auftrag_id = v_b and art = 'Ausschuss') = 0,
+    '0097 (b3): „0 kg zu klein" steht als Auffälligkeit da';
+  assert (select count(*) from v_koeff_roh_kaliber where art = 'nebenkanal' and charge_nr = v_c) >= 1,
+    '0097 (b4): die gemessene Art zählt nicht für den Koeffizienten';
+
+  -- (c) Ohne brauchbares Verderbsmodell (nur noch eine Charge mit Messungen,
+  --     keine Kontrollpalette) ist der Sockel 0 und der Verlust bekannt; der
+  --     Nachweis bleibt aus. Die Kurve gibt es weiter — aus den Punkten der
+  --     einen Charge, „solange gilt der zuletzt gemessene Wert".
+  delete from kontrollpalette_wiegung;
+  delete from verdunstung_wiegung where faul_kg is not null;     -- auch die Lagerpunkte der Kontrolle
+  delete from schimmel_messung m using auftrag a
+   where a.id = m.auftrag_id
+     and a.charge_nr <> (select a2.charge_nr from schimmel_messung m2 join auftrag a2 on a2.id = m2.auftrag_id
+                          group by a2.charge_nr order by count(*) desc limit 1);
+  perform auswertung_aktualisieren();
+  select brauchbar into v_brauchbar from erg_modell;
+  assert not v_brauchbar, '0097 (c0): das Modell ist mit zwei Chargen noch brauchbar — die Probe greift nicht';
+  assert (select verdunstung_heute_kg is not null from erg_bilanz), '0097 (c0b): die Verdunstung ist nach der Probe unbekannt — die Probe hat zu viel gelöscht';
+  select verlust_bekannt, sockel_heute_kg into v_bekannt, v_kg from erg_bilanz;
+  assert v_bekannt, '0097 (c1): ohne Nachweis des Sockels gilt der ganze Verlust als unbekannt';
+  assert v_kg = 0, format('0097 (c2): der Sockel ohne Nachweis ist %s statt 0', v_kg);
+  assert (select count(*) from erg_charge where sockel_nachgewiesen) = 0, '0097 (c3): ein Sockel gilt als nachgewiesen, obwohl das Modell nicht brauchbar ist';
+  assert (select count(*) from erg_charge where verlust_heute_kg is null and lager_kg > 0 and verdunstung_heute_kg is not null) = 0,
+    '0097 (c4): Chargen mit gerechneter Verdunstung haben keinen Verlust bis heute';
+
+  -- (e) Die Schlüssel der Marge-Ansichten kennen die Grenzen.
+  assert (select ausdruck from auswertung_schluessel() where sicht = 'erg_marge_wiegung') like '%band_von_g%band_bis_g%',
+    '0097 (e1): der Schlüssel von erg_marge_wiegung kennt die Grenzen nicht';
+  assert (select ausdruck from auswertung_schluessel() where sicht = 'erg_marge_charge') like '%band_von_g%band_bis_g%',
+    '0097 (e2): der Schlüssel von erg_marge_charge kennt die Grenzen nicht';
+
+  -- (f) Abbrechen: die Arbeiterin ohne Beteiligung darf nicht — mit Erlaubnis
+  --     darf sie, aber nur, was läuft (v_a läuft noch, v_b ist fertig).
+  perform set_config('request.jwt.claim.sub', v_w::text, true);
+  begin
+    perform auftrag_abbrechen(v_a, 'Probe');
+    assert false, '0097 (f1): eine Unbeteiligte ohne Erlaubnis konnte abbrechen';
+  exception when insufficient_privilege then null;
+  end;
+  assert (select abgebrochen_ts is null from auftrag where id = v_a), '0097 (f2): die Arbeit ist trotzdem abgebrochen';
+  perform set_config('request.jwt.claim.sub', v_u::text, true);
+  update profil set darf_abbrechen = true where id = v_w;
+  perform set_config('request.jwt.claim.sub', v_w::text, true);
+  begin
+    perform auftrag_abbrechen(v_b, 'Probe');
+    assert false, '0097 (f3): mit Erlaubnis liess sich eine fertige Arbeit abbrechen';
+  exception when insufficient_privilege then null;
+  end;
+  perform auftrag_abbrechen(v_a, 'Probe');
+  assert (select abgebrochen_ts is not null and status = 'abgeschlossen' from auftrag where id = v_a), '0097 (f4): mit Erlaubnis bricht sie die laufende Arbeit nicht ab';
+  perform set_config('request.jwt.claim.sub', v_u::text, true);
+
+  delete from ausgang_wiegung where auftrag_id in (v_a, v_b);
+  delete from auftrag_palette where auftrag_id in (v_a, v_b);
+  delete from ausschuss_messung where auftrag_id in (v_a, v_b);
+  delete from auftrag where id in (v_a, v_b);
+  delete from sortierschema where id = v_s;               -- die Fassung der Probe (sie hängt am Prüf-Benutzer)
+  perform auswertung_aktualisieren();
+  perform demo_daten_entfernen();
+  delete from profil where id in (v_u, v_w);
+  delete from auth.users where id in (v_u, v_w);
+  update einstellung set wert = v_modus where schluessel = 'betriebsmodus';
+  raise notice 'OK  0097 — Bandgrenzen aus der Fassung des Auftrags, eine Zeile je Fassung; Ausschuss-Art ohne Messung unbekannt; Sockel ohne Nachweis 0, Verlust bekannt; nicht volle Palette zählt je Kiste; Abbrechen nur mit Erlaubnis';
+end $$;
+
+select '——— 0097 Was der Betrieb am ersten Tag sah geprüft ———' as ergebnis;

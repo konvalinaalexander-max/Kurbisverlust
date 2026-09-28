@@ -51,9 +51,18 @@ const sql = q => execFileSync('psql', [url, '-v', 'ON_ERROR_STOP=1', '-qtA', '-c
 
 for (const p of protokoll) {
   if (p.methode === 'RPC') {
+    const a = p.args ?? {}
+    if (p.tabelle === 'auftrag_abbrechen') {
+      // Runde AD: Abbrechen von der Startseite — die echte Funktion (0097)
+      // mit der echten Id der Arbeit. Tomasz hat sie eröffnet, ist also
+      // beteiligt; die Erlaubnis für Fremde prüft pruefung.sql (0097 f).
+      const id = ids[a.p_auftrag_id] ?? a.p_auftrag_id
+      sql(`select auftrag_abbrechen(p_auftrag_id => ${id}, p_grund => ${wert(a.p_grund ?? null)})`)
+      console.log(`   auftrag_abbrechen: gerufen (Arbeit ${id})`)
+      continue
+    }
     // Die Fassung festlegen (0051): dieselben Argumente wie aus der App, die
     // echte Funktion, und ihre Id wird wie eine Einfügung abgebildet.
-    const a = p.args ?? {}
     const q = `select ${p.tabelle}(p_sorte => ${wert(a.p_sorte)}, p_kaeufer => ${wert(a.p_kaeufer ?? null)}, `
       + `p_art => ${wert(a.p_art)}, p_baender => ${a.p_baender == null ? 'null' : wert(JSON.stringify(a.p_baender)) + '::jsonb'}, `
       + `p_soll => ${a.p_soll == null ? 'null' : wert(a.p_soll)}, p_bemerkung => ${wert(a.p_bemerkung ?? null)})`
@@ -109,6 +118,11 @@ begin
      and (select soll_kg_pro_kiste from auftrag where id = a) = 8, 'Kistensystem „Kiste ab 8 kg" nicht angekommen';
   assert (select sortierschema_id from auftrag where id = a) is not null, 'Sortierschema nicht festgehalten';
   assert (select status from auftrag where id = a) = 'abgeschlossen', 'Abschluss nicht angekommen';
+  -- Runde AD: von der Startseite abgebrochen — genau eine Arbeit, mit Grund
+  assert (select count(*) from auftrag where abgebrochen_ts is not null) = 1,
+    format('Genau eine Arbeit ist abgebrochen, nicht %s', (select count(*) from auftrag where abgebrochen_ts is not null));
+  assert (select abbruch_grund from auftrag where abgebrochen_ts is not null) like 'Startseite · %',
+    'Der Abbruch von der Startseite trägt seinen Grund nicht';
 
   -- Drei Paletten: zwei mit Gewicht vom Zettel, eine gewogen und verbunden
   select count(*) into v_n from auftrag_palette where auftrag_id = a;
@@ -263,7 +277,9 @@ end $$;
 do $$
 declare a record; v numeric;
 begin
-  select * into a from auftrag where station = 'waschen' and not ist_fax order by id desc limit 1;
+  -- Runde AD: die letzte Wasch-Arbeit ist die von der Startseite abgebrochene
+  -- (Band der Fassung, siebter Durchlauf) — gemeint ist hier die mit eigenem Kaliber.
+  select * into a from auftrag where station = 'waschen' and not ist_fax and abgebrochen_ts is null order by id desc limit 1;
   assert a.id is not null, 'Die Wasch-Arbeit ist nicht angekommen';
   assert a.kaliber_von_g = 700 and a.kaliber_bis_g = 900 and a.kaliber_idx is null,
     format('Eigenes Kaliber 700–900 erwartet, angekommen %s–%s (Index %s)', a.kaliber_von_g, a.kaliber_bis_g, a.kaliber_idx);

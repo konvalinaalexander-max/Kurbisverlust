@@ -852,3 +852,29 @@ tr.marge-dahinter table { margin: 0; }
 .anteil-aktion { display: flex; gap: .3rem; margin-top: .15rem; }
 .anteil-aktion .werkzeug-knopf { min-height: 24px; padding: 0 .4rem; }
 .anteil-zeile.eingerueckt { margin-left: 1.1rem; border-left: 2px solid var(--rand); border-radius: 0 8px 8px 0; }
+
+/* Runde AD: „Was ist noch im Haus" — die Sorte zweizeilig (Name, darunter die
+   Chargen), aufklappbar; die Chargen darunter eingerückt. */
+.lagertabelle .zeilenname { display: block; font-weight: 600; }
+.lagertabelle .zeilenunter { display: block; font-size: .82em; font-weight: 400; }
+.lagertabelle tr.sorte-zeile th { cursor: pointer; }
+.lagertabelle tr.sorte-zeile .chevron { display: inline-flex; float: left; margin: .15rem .35rem 0 0; color: var(--text-leise); transition: transform var(--d-mittel); }
+.lagertabelle tr.sorte-zeile.offen .chevron { transform: rotate(90deg); }
+.lagertabelle tr.charge-zeile th { padding-left: 1.7rem; font-weight: 400; background: var(--flaeche-2, transparent); }
+.lagertabelle tr.charge-zeile td { background: var(--flaeche-2, transparent); }
+.lagertabelle.laedt td { opacity: .55; }
+
+/* Runde AD: Arbeiten auswählen und abbrechen — auf der Startseite und im Büro.
+   Ein Kreis links an jeder Karte, ein Symbolknopf statt des Wortes. */
+.abschnitt-kopf { display: flex; align-items: center; justify-content: space-between; gap: .5rem; margin: var(--a-5) 0 var(--a-2); }
+.abschnitt-kopf .abschnitt-titel { margin: 0; }
+.symbolknopf { width: 36px; height: 36px; min-height: 0; padding: 0; border-radius: 50%; display: inline-grid; place-items: center; color: var(--text-leise); background: transparent; border-color: transparent; box-shadow: none; }
+.symbolknopf:hover:not(:disabled) { color: var(--kuerbis); background: var(--kuerbis-flaeche); }
+.symbolknopf.an { color: var(--kuerbis); background: var(--kuerbis-flaeche); }
+.arbeit-karte.waehlbar { cursor: pointer; }
+.arbeit-karte.waehlbar .kopfzeile { gap: .6rem; }
+/* Der Kreis ist ein Knopf, aber nicht DER Knopf der Karte: die Regel
+   „.arbeit-karte button" (volle Breite, 54 px) gilt für ihn nicht. */
+.arbeit-karte .kopfzeile .wahlkreis { flex: none; width: 26px; height: 26px; min-height: 0; margin: 0; font-size: 1rem; border-radius: 50%; }
+.arbeit-karte.gewaehlt { outline: 2px solid var(--kuerbis); background: color-mix(in srgb, var(--kuerbis) 7%, var(--flaeche)); }
+.loesch-leiste .symbolknopf { margin-left: auto; }

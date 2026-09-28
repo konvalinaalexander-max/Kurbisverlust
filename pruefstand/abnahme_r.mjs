@@ -75,13 +75,23 @@ const PUNKTE = [
       await sichtbar(p, '#lager-verlauf', 'Verlaufskarte')
       await nichtDa(p, 'Fax', 'Lagermanagement')
     } },
-  { id: 'L-04', wo: 'lager', satz: 'Die Tabelle „Was ist noch im Haus": Zeilen, „verkaufsfähig heute", „in … Wochen"',
+  // Runde AD: EINE Tabelle am Stichtag statt zweier Spaltengruppen — der
+  // Betrieb: „standardmässig 0 wochen … das wochen feld ändert die ganze
+  // tabelle". Also steht „heute" im Kopf, bis jemand Wochen eingibt; dann
+  // „in X Wochen" an derselben Stelle. Der Vertrag (§ 8) verlangte beides
+  // nebeneinander; die Regel ist mit dem Wunsch gewachsen, der Punkt mit ihr.
+  { id: 'L-04', wo: 'lager', satz: 'Die Tabelle „Was ist noch im Haus": Zeilen, „verkaufsfähig heute" — und mit Wochen „in … Wochen" an derselben Stelle',
     pruefe: async p => {
       await sichtbar(p, '#lager-tabelle', 'Tabelle')
       await sichtbar(p, '#lager-tabelle thead', 'Tabellenkopf')
       if (!(await p.locator('#lager-tabelle tbody tr').count())) throw new Error('keine Zeile in der Tabelle')
       await sichtbar(p, '#lager-tabelle thead :text("verkaufsfähig heute")', 'Spaltengruppe „verkaufsfähig heute"')
-      await sichtbar(p, '#lager-tabelle thead :text-matches("in \\\\d+ Wochen")', 'Spaltengruppe „in X Wochen"')
+      if (await p.locator('#lager-tabelle thead :text-matches("in \\\\d+ Wochen")').count()) throw new Error('Ohne Wochen darf kein „in X Wochen" im Kopf stehen (Runde AD: Grundeinstellung heute)')
+      await p.locator('#lager-wochen').fill('6')
+      await p.locator('#lager-tabelle thead :text("verkaufsfähig in 6 Wochen")').waitFor({ timeout: 10000 })
+      if (await p.locator('#lager-tabelle thead :text("verkaufsfähig heute")').count()) throw new Error('Mit Wochen zeigt die Tabelle den Stichtag, nicht heute daneben (Runde AD)')
+      await p.locator('#lager-wochen').fill('0')
+      await p.locator('#lager-tabelle thead :text("verkaufsfähig heute")').waitFor({ timeout: 10000 })
     } },
   { id: 'L-05', wo: 'lager', nur: 'gesamt', satz: 'Das Feld X: nach Eingabe von 8 steht „in 8 Wochen" im Tabellenkopf',
     pruefe: async p => {
@@ -89,11 +99,19 @@ const PUNKTE = [
       await p.locator('#lager-wochen').fill('8')
       await p.locator('#lager-tabelle thead :text("in 8 Wochen")').waitFor({ timeout: 10000 })
     } },
-  { id: 'L-06', wo: 'lager', satz: 'Die Glocke mit „heute" und „in X Wochen"',
+  // Runde AD: bei 0 Wochen gibt es nur „heute" — der Umschalter erscheint
+  // erst mit Wochen (siehe L-04).
+  { id: 'L-06', wo: 'lager', satz: 'Die Glocke: „heute" — und mit Wochen der Umschalter „heute / in X Wochen"',
     pruefe: async p => {
-      await sichtbar(p, '#lager-glocke', 'Glocke')
-      await sichtbar(p, '#glocke-heute', 'Knopf heute')
       await sichtbar(p, '#glocke-wochen', 'Feld Wochen')
+      await p.locator('#glocke-wochen').fill('0')   // L-05 lässt 8 Wochen stehen — erst auf heute
+      // Das Feld übernimmt erst nach einer kurzen Pause (WochenFeld): warten, bis der Umschalter weg ist.
+      await p.locator('#glocke-heute').waitFor({ state: 'detached', timeout: 10000 })
+        .catch(() => { throw new Error('Ohne Wochen gibt es nichts umzuschalten (Runde AD)') })
+      await p.locator('#glocke-wochen').fill('6')
+      await p.locator('#glocke-heute').waitFor({ timeout: 10000 })
+      await sichtbar(p, '#glocke-spaeter', 'Umschalter „in 6 Wochen"')
+      await p.locator('#glocke-wochen').fill('0')
     } },
   { id: 'L-07', wo: 'lager', satz: 'Nicht mehr auf Lagermanagement: „liegt seit", „gute Ware", „Wohin geht der Kürbis", „Verlust nach Ursache"',
     pruefe: async p => {

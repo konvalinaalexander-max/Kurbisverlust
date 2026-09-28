@@ -208,7 +208,7 @@ export function ArbeitFenster({ auftragId, schliessen, messung }: { auftragId: n
                       <td>{g.gebindeart ?? ''}</td>
                       <td className="zahl">{g.kuerbisse_pro_kiste ?? '—'}</td>
                       <td>{g.kaliber_idx != null ? `K${g.kaliber_idx + 1}` : '—'}</td>
-                      <td className="leise">{g.voll ? '' : 'halbe Palette — zählt nicht in der Marge'}</td>
+                      <td className="leise">{g.voll ? '' : 'nicht voll — zählt je Kiste, nicht als Palettenmasse'}</td>
                     </tr>
                   ))}</tbody>
                 </table>

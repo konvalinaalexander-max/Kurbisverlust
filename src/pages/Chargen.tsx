@@ -137,6 +137,20 @@ export default function Chargen() {
   )
 }
 
+/** Runde AD: „—" beim Verlust sagt, WELCHER Strom noch keine Messung hat —
+ *  der Betrieb fragte „warum?". Vier Ströme, jeder mit Koeffizient; fehlt
+ *  einer, ist die Summe unbekannt, nicht die Summe der übrigen (0064). */
+function verlustTitel(b: Auswertung['bestand'][number]): string {
+  if (b.verlust_heute_kg !== null) return 'Verdunstung + Faules im Lager + Faules beim Abpacken, gerechnet bis heute'
+  const fehlt = [
+    !b.verdunstung_bekannt && 'Verdunstung (keine Wägung einer Palette nach Lagerung)',
+    !b.schimmel_bekannt && 'Faules im Lager (keine Palox-Ablesung mit Nenner)',
+    !b.fax_bekannt && 'Faules beim Abpacken',
+    !b.kanal_bekannt && 'zu klein / zu gross',
+  ].filter(Boolean)
+  return `unbekannt, solange nicht gemessen: ${fehlt.join(' · ') || 'ein Koeffizient ohne Messung'}`
+}
+
 type Zeile = { b: Auswertung['bestand'][number]; n?: Auswertung['naechste'][number]; l?: Auswertung['lage'][number]
                m?: Auswertung['bilanz'][number]; heute: number | null; in4: number | null }
 
@@ -157,7 +171,7 @@ function ChargenZeile({ z, offen, oeffnen, daten }: { z: Zeile; offen: boolean; 
           : <span className="leise">—</span>}</td>
         <td className="zahl">{liegt && z.in4 !== null ? prozent(z.in4, 0) : <span className="leise">—</span>}</td>
         <td className="zahl">{liegt ? alterSpanne(b.alter_lager_von, b.alter_lager_bis, b.alter_lager_heute).replace(' Tagen', ' d') : ''}</td>
-        <td className="zahl">{kg(b.verlust_heute_kg, 0)}</td>
+        <td className="zahl" title={verlustTitel(b)}>{kg(b.verlust_heute_kg, 0)}</td>
         <td className="zahl">{n?.prognose_verlust_14_kg != null && n.prognose_verlust_14_kg > 0 ? `−${kg(n.prognose_verlust_14_kg, 0)}` : <span className="leise">—</span>}</td>
         <td className="zahl leise">{l ? `${l.n_wiegungen} · ${l.n_schimmel} · ${l.n_sortierlaeufe}` : '—'}</td>
       </tr>
@@ -200,7 +214,7 @@ function ChargeDetail({ nr, z, daten }: { nr: number; z: Zeile; daten: Auswertun
         <div><div className="titel">Paletten</div><div className="wert" style={{ fontSize: '1.2rem' }}>{zahl(b.n_paletten)}</div>{b.im_haus_heute_kg > 0 && (b.n_rest_paletten ?? 0) > 0 && <div className="unter">etwa {b.n_rest_paletten} noch im Haus (gerechnet)</div>}</div>
         <div><div className="titel">Eingang</div><div className="wert" style={{ fontSize: '1.2rem' }}>{b.eingang_von && b.eingang_bis && b.eingang_von !== b.eingang_bis ? `${datum(b.eingang_von)} – ${datum(b.eingang_bis)}` : datum(b.eingang_von ?? b.eingangsdatum_mittel)}</div>{(b.n_eingangstage ?? 0) > 1 && <div className="unter">{b.n_eingangstage} Eingangstage</div>}</div>
         <div><div className="titel">Ausgeliefert / dahinter an Eingang</div><div className="wert" style={{ fontSize: '1.2rem' }}>{kg(b.geliefert_kg, 0)} / {kg(b.ausgelagert_kg, 0)}</div>{b.ueberzaehlung_kg > 0 && <div className="unter">mehr geliefert als hereingekommen: {kg(b.ueberzaehlung_kg, 0)}</div>}</div>
-        <div><div className="titel">Verlust bis heute</div><div className="wert" style={{ fontSize: '1.2rem' }}>{kg(b.verlust_heute_kg, 0)}</div><div className="unter">Verdunstung {kg(b.verdunstung_heute_kg, 0)} · Faules {kg(summeBekannt([b.schimmel_heute_kg, b.sockel_heute_kg]), 0)}</div></div>
+        <div><div className="titel">Verlust bis heute</div><div className="wert" style={{ fontSize: '1.2rem' }}>{kg(b.verlust_heute_kg, 0)}</div><div className="unter">Verdunstung {kg(b.verdunstung_heute_kg, 0)} · Faules {kg(summeBekannt([b.schimmel_heute_kg, b.sockel_heute_kg]), 0)}{b.schimmel_heute_kg !== null && !b.sockel_nachgewiesen && <span title="Der Sockel a₀ — was schon am ersten Tag faul war — gilt nur mit Nachweis. Ohne Nachweis ist er 0."> (Sockel ohne Nachweis)</span>}{b.verlust_heute_kg === null && <span className="leise"> · {verlustTitel(b)}</span>}</div></div>
         {z.m?.csv_gemessen_kg != null && <div><div className="titel">Modell am Band / CSV gewogen</div><div className="wert" style={{ fontSize: '1.2rem' }}>{kg(z.m.modell_am_band_kg, 0)} / {kg(z.m.csv_gemessen_kg, 0)}</div></div>}
       </div>
       <p className="leise-satz" style={{ margin: '0 0 1rem' }}>

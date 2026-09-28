@@ -1,6 +1,6 @@
 import { Fragment, useCallback, useEffect, useState } from 'react'
 import Sicherung from '../components/Sicherung'
-import { TaetZeichen, ZHaken, ZKreuz, ZMikrofon, ZNeu, ZSprechblase } from '../components/Zeichen'
+import { TaetZeichen, ZAuswahl, ZHaken, ZKreuz, ZMikrofon, ZNeu, ZPapierkorb, ZSprechblase } from '../components/Zeichen'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { chargeText, fehlerText, stammdaten } from '../lib/db'
@@ -204,19 +204,19 @@ function Arbeiten() {
     )}
     <Karte titel="Arbeiten" unter={`${gezeigt.length} Arbeiten an ${alleTage.length} Tagen — die neuesten zuerst.`}
            aktion={loeschmodus
-             ? <button type="button" className="werkzeug-knopf" onClick={loeschmodusAus}>Abbrechen</button>
+             ? <button type="button" id="arbeiten-loeschen-aus" className="symbolknopf an" aria-label="Auswahl beenden" title="Auswahl beenden" onClick={loeschmodusAus}><ZKreuz size={18} /></button>
              : <>
-                 <button type="button" id="arbeiten-loeschen" className="werkzeug-knopf" onClick={() => { setLoeschmodus(true); setGeloescht(null) }}><ZKreuz size={14} />Löschen</button>
+                 {/* Runde AD: ein Symbol statt „x Löschen" — der Modus heisst Auswählen, das Löschen kommt erst mit der Rückfrage. */}
+                 <button type="button" id="arbeiten-loeschen" className="symbolknopf" aria-label="Arbeiten auswählen" title="Arbeiten auswählen — zum Löschen" onClick={() => { setLoeschmodus(true); setGeloescht(null) }}><ZAuswahl size={20} /></button>
                  <Link to="/neu" className="knopf haupt klein"><ZNeu size={15} />Neue Arbeit starten</Link>
                </>}>
       {fehler && <Hinweis art="warnung">{fehler}</Hinweis>}
       {geloescht && <Hinweis art="info">{geloescht}</Hinweis>}
       {loeschmodus && (
         <div className="loesch-leiste" role="status">
-          <span>Arbeiten zum Löschen anklicken —</span>
+          <span>Antippen, was gelöscht werden soll —</span>
           <strong>{gewaehlt.size === 1 ? '1 ausgewählt' : `${gewaehlt.size} ausgewählt`}</strong>
-          <button type="button" id="arbeiten-loeschen-weiter" className="knopf klein gefahr" disabled={gewaehlt.size === 0} onClick={() => setFrage(true)}>Löschen …</button>
-          <button type="button" className="werkzeug-knopf" onClick={loeschmodusAus}>Abbrechen</button>
+          <button type="button" id="arbeiten-loeschen-weiter" className="knopf klein gefahr" disabled={gewaehlt.size === 0} onClick={() => setFrage(true)}><ZPapierkorb size={16} />Löschen …</button>
         </div>
       )}
       {frage && (
@@ -232,7 +232,7 @@ function Arbeiten() {
             <Hinweis art="warnung">Mit der Arbeit gehen alle ihre Messungen: Palox-Ablesungen, zu klein / zu gross, gezählte Paletten, Wägungen, fertige Paletten, Angaben und Rückmeldungen. Zugeordnete Sortierdateien gehen zurück in die Warteschlange. Das Journal behält jede gelöschte Zeile.</Hinweis>
             <div className="knopf-reihe" style={{ marginTop: 'var(--a-3)' }}>
               <button type="button" id="arbeiten-loeschen-ja" className="knopf gefahr" disabled={loescht} onClick={() => void loeschen()}>
-                {loescht ? 'Löscht …' : gewaehlt.size === 1 ? 'Ja, endgültig löschen' : `Ja, ${gewaehlt.size} Arbeiten endgültig löschen`}
+                <ZPapierkorb size={16} />{loescht ? 'Löscht …' : gewaehlt.size === 1 ? 'Ja, endgültig löschen' : `Ja, ${gewaehlt.size} Arbeiten endgültig löschen`}
               </button>
               <button type="button" className="knopf" disabled={loescht} onClick={() => setFrage(false)}>Abbrechen</button>
             </div>

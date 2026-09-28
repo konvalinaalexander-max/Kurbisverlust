@@ -67,6 +67,17 @@ async function restAntwort(route) {
         .filter(m => m.auftrag_id === body.p_auftrag_id && m.palox_stand_kg != null && m.gemessen !== false)
       return route.fulfill({ json: eigene.length ? eigene[eigene.length - 1].palox_stand_kg : null })
     }
+    if (fn === 'auftrag_abbrechen') {
+      // Runde AD: Abbrechen von der Startseite. Die echte Funktion (0097)
+      // ruft kette_pruefen.sh mit denselben Argumenten; hier merkt sich das
+      // Gedächtnis den Abbruch, damit „Läuft gerade" die Arbeit nicht mehr zeigt.
+      const body = JSON.parse(route.request().postData() ?? '{}')
+      protokoll.push({ methode: 'RPC', tabelle: 'auftrag_abbrechen', args: body, zeilen: [] })
+      const jetzt = new Date().toISOString()
+      eingefuegt['auftrag'] = (eingefuegt['auftrag'] ?? []).map(z =>
+        z.id === body.p_auftrag_id ? { ...z, abgebrochen_ts: jetzt, abbruch_grund: body.p_grund ?? null, status: 'abgeschlossen', ende_ts: jetzt } : z)
+      return route.fulfill({ json: null })
+    }
     if (fn === 'sortierschema_festlegen') {
       // Die Fassung legt die Datenbank fest (0051). Hier bekommt sie eine
       // Fake-Id; kette_pruefen.sh ruft die echte Funktion mit denselben
@@ -87,6 +98,15 @@ async function restAntwort(route) {
       const zeile = { id: naechsteId++, ts: new Date().toISOString(), ...z }
       return zeile
     })
+    // Das Protokoll enthält nur, was die App geschickt hat — kette_pruefen.sh
+    // spielt es Spalte für Spalte ein. Das Gedächtnis dagegen kennt die
+    // Vorgaben der Tabelle: eine neue Arbeit ist „offen", nicht abgebrochen
+    // und von Tomasz eröffnet; ein Beteiligter ist Tomasz (auth.uid()), und
+    // die Startseite liest ihn mit profil(name). Sonst fände „Läuft gerade"
+    // (status=eq.offen) die eben eröffnete Arbeit nicht (Runde AD).
+    const vorgaben = name === 'auftrag' ? { status: 'offen', abgebrochen_ts: null, eroeffnet_von: ARBEITER }
+      : name === 'auftrag_teilnehmer' ? { profil_id: ARBEITER, profil: { name: 'Tomasz' } } : {}
+    const gemerkt = antwort.map(z => ({ ...vorgaben, ...z }))
     protokoll.push({ methode, tabelle: name, prefer: kopf['prefer'] ?? '',
                      filter: Object.fromEntries(url.searchParams), zeilen: antwort })
     if (methode === 'POST') {
@@ -97,13 +117,13 @@ async function restAntwort(route) {
       const mischen = /merge-duplicates/.test(kopf['prefer'] ?? '') && schluessel.length
       let bestand = eingefuegt[name] ?? []
       if (mischen) {
-        for (const neu of antwort) {
+        for (const neu of gemerkt) {
           const gleich = z => schluessel.every(k => String(z[k]) === String(neu[k]))
           const alt = bestand.find(gleich)
           if (alt) { neu.id = alt.id; bestand = bestand.filter(z => !gleich(z)) }
         }
       }
-      eingefuegt[name] = [...bestand, ...antwort]
+      eingefuegt[name] = [...bestand, ...gemerkt]
     } else {
       // PATCH: die Zeile im Gedächtnis anpassen
       const id = url.searchParams.get('id')?.replace('eq.', '')
@@ -144,6 +164,13 @@ async function restAntwort(route) {
 }
 
 const ARBEITER = '22222222-2222-2222-2222-222222222222'
+// Runde AD: Tomasz ist Arbeiter mit der Erlaubnis, laufende Arbeiten
+// abzubrechen — wie Seraina im Betrieb (profil.darf_abbrechen, 0097). Die
+// Fixtures kennen nur den Chef; sein Profil steht darum hier im Gedächtnis.
+// In kette_pruefen.sh ist er der erste Benutzer und damit Betriebsleiter —
+// die Erlaubnis für Unbeteiligte ohne Rolle prüft pruefung.sql (0097 f).
+eingefuegt['profil'] = [{ id: ARBEITER, name: 'Tomasz', rolle: 'arbeiter', aktiv: true, anonym: true,
+                          darf_abbrechen: true, erstellt_ts: '2026-09-01T08:00:00Z' }]
 const jwt = (id, name) => {
   const teil = o => Buffer.from(JSON.stringify(o)).toString('base64url')
   return `${teil({ alg: 'none' })}.${teil({ sub: id, role: 'authenticated',
@@ -562,6 +589,10 @@ await schritt('Waschen: Palox freiwillig, Paletten mit Sortierdatum (2 × 32 Kis
   if (g[4].eingangsdatum !== undefined) throw new Error('Eine Kaliber-Palette hat kein Eingangsdatum')
   await seite.getByText('Paletten · 96 Kisten').first().waitFor()
   await seite.getByRole('button', { name: /Was zu tun ist/ }).click()
+  // Runde AD: drei sind der Rat, nicht die Pflicht. Pflicht ist EINE, weil die
+  // Auswertung für dieses Band (700–900 g, eigenes Kaliber) kein Kistengewicht
+  // kennt — und die Zeile sagt genau das, bevor die Arbeiterin die Maske öffnet.
+  await seite.getByText('Mindestens 1 fertige Palette wiegen — das Kistengewicht ist noch unbekannt.').waitFor()
   await seite.locator('#check-ausgang').click()
   const pro = await seite.locator('#a-pro').inputValue()
   if (pro !== '6') throw new Error(`Stück je Kiste muss aus der Arbeit vorbelegt sein, ist „${pro}"`)
@@ -622,6 +653,53 @@ await schritt('Kontrolle: andere Charge, Zettel 950 → 905 kg, ohne Faul-Frage 
 })
 
 // ---------- Sechster Durchlauf: entfällt (Fax, siehe oben) ----------------
+
+// ---------- Siebter Durchlauf: von der Startseite abbrechen (Runde AD) -----
+// Seraina soll laufende Arbeiten abbrechen können, auch fremde: erst der
+// Auswahlmodus, ein Kreis an jeder Karte, dann der Knopf, dann die Rückfrage
+// mit der Liste. Nie „alles": ohne Auswahl ist der Knopf grau, „Nein" tut
+// nichts, und abgebrochen wird genau die eine gewählte Arbeit.
+await schritt('Startseite: eine laufende Arbeit auswählen und abbrechen — Rückfrage nennt genau sie, „Nein" tut nichts', async () => {
+  await seite.goto('http://localhost:5198/', { waitUntil: 'networkidle' })
+  await seite.getByRole('button', { name: /Neue Arbeit/ }).click()     // eine Arbeit, die laufen darf
+  await seite.locator('#taet-waschen').click()
+  await seite.getByText(/Zählblatt Waschen/).waitFor()                 // der Plan ist da, erst dann „Weiter"
+  await seite.getByRole('button', { name: 'Weiter' }).click()
+  await seite.locator('#charge').fill('1613')
+  await seite.getByRole('button', { name: 'Weiter' }).click()
+  await seite.locator('#kaliber-0').click()                            // ein Band der Fassung geht gleich weiter
+  await seite.locator('#system-stueck').click()
+  await seite.locator('#stueck').fill('6')
+  await seite.getByRole('button', { name: 'Weiter' }).click()
+  await seite.getByRole('button', { name: 'Starten' }).click()
+  await warteAuf('auftrag', 'POST', 4)
+  const neu = protokoll.filter(p => p.tabelle === 'auftrag' && p.methode === 'POST').at(-1).zeilen[0].id
+  await seite.goto('http://localhost:5198/', { waitUntil: 'networkidle' })
+  const karte = seite.locator(`.arbeit-karte[data-id="${neu}"]`)
+  await karte.waitFor()
+  if (await seite.locator('.arbeit-karte .wahlkreis').count() > 0) throw new Error('Ohne Auswahlmodus gibt es keine Kreise')
+  await seite.locator('#auswahl-an').click()
+  if (!(await seite.locator('#auswahl-abbrechen').isDisabled())) throw new Error('Ohne Auswahl muss der Knopf grau sein')
+  await karte.locator('.wahlkreis').click()
+  await seite.getByText('1 ausgewählt').waitFor()
+  await seite.locator('#auswahl-abbrechen').click()
+  await seite.getByRole('dialog').waitFor()
+  const genannt = await seite.locator('.dialog li').count()
+  if (genannt !== 1) throw new Error(`Die Rückfrage nennt ${genannt} Arbeiten statt genau der einen gewählten`)
+  await seite.locator('#auswahl-abbrechen-nein').click()                 // Nein: nichts geschieht
+  await seite.waitForTimeout(300)
+  if (protokoll.some(p => p.tabelle === 'auftrag_abbrechen')) throw new Error('„Nein" hat abgebrochen')
+  await seite.locator('#auswahl-abbrechen').click()
+  await seite.locator('#auswahl-abbrechen-ja').click()
+  for (let i = 0; i < 100 && !protokoll.some(p => p.tabelle === 'auftrag_abbrechen'); i++) await seite.waitForTimeout(100)
+  const r = protokoll.filter(p => p.tabelle === 'auftrag_abbrechen')
+  if (r.length !== 1 || r[0].args.p_auftrag_id !== neu) throw new Error(`Abgebrochen: ${JSON.stringify(r.map(x => x.args))} statt genau ${neu}`)
+  if (!/^Startseite · /.test(r[0].args.p_grund ?? '')) throw new Error('Der Grund nennt nicht die Startseite und den Namen')
+  await seite.getByText('Arbeit abgebrochen.').waitFor()
+  // Die Liste lädt nach dem Abbruch neu — die Karte muss verschwinden, nicht sofort, aber bald.
+  await karte.waitFor({ state: 'detached', timeout: 5000 })
+    .catch(() => { throw new Error('Die abgebrochene Arbeit steht noch unter „Läuft gerade"') })
+})
 
 
 await browser.close(); await vite.close()

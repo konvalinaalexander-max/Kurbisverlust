@@ -9,7 +9,7 @@ import { taetigkeitVon } from '../lib/taetigkeit'
 import { fuehrungSetzen, istVorarbeiter } from '../lib/rolle'
 import { Hinweis, Lade, Marke } from '../components/Bausteine'
 import { Bestaetigt } from '../components/Schritte'
-import { arbeitLaden, fertigeSoll, stationsProfil, uhrzeit, type ArbeitDaten } from '../arbeit/daten'
+import { arbeitLaden, fertigeVerlangt, stationsProfil, uhrzeit, type ArbeitDaten } from '../arbeit/daten'
 import { Zaehler } from '../arbeit/Zaehler'
 import { PaloxMaske } from '../arbeit/PaloxMaske'
 import { FauleMaske } from '../arbeit/FauleMaske'
@@ -183,8 +183,9 @@ export default function Arbeit() {
   const gewogen = d.paletten.filter(x => x.wiegung_id != null).length
   const faulSumme = d.ablesungen.reduce((s, z) => s + z.kg, 0)
   const ausschussSumme = d.ausschuss.reduce((s, z) => s + z.kg, 0)
-  const soll = fertigeSoll(d)
-  const ersetzen = (text: string, werte: Record<string, number>) =>
+  const verlangt = fertigeVerlangt(d)
+  const soll = verlangt.soll
+  const ersetzen = (text: string, werte: Record<string, number | string>) =>
     Object.entries(werte).reduce((s, [k, v]) => s.replace(`{${k}}`, String(v)), text)
 
   // Der Betriebsleiter berichtigt Messungen — auch an einer fertigen Arbeit.
@@ -406,10 +407,13 @@ export default function Arbeit() {
 
         {p.hatAusgang && (
           <button type="button" id="check-ausgang" onClick={() => setAnsicht('ausgang')}>
-            <Zustand art={d.nAusgang >= soll ? 'getan' : p.ausgangPflicht ? 'offen' : d.nAusgang > 0 ? 'getan' : 'frei'} />
+            <Zustand art={d.nAusgang >= soll ? 'getan' : d.nAusgang < verlangt.mindestens ? 'offen' : d.nAusgang > 0 ? 'getan' : 'frei'} />
             <span className="text">
               <span className="name">{t('fertigePaletteSchritt')}</span>
-              <span className="unter">{d.nAusgang >= soll ? `${d.nAusgang} ${t('gewogen')}` : `${t('dreiFertige')} ${ersetzen(t('nurGewogen'), { n: d.nAusgang, soll })}`}</span>
+              {/* Runde AD: Pflicht ist eine, solange das Kistengewicht unbekannt ist — und die Zeile sagt es. */}
+              <span className="unter">{d.nAusgang >= soll ? `${d.nAusgang} ${t('gewogen')}`
+                : d.nAusgang < verlangt.mindestens ? `${t('eineFertigePflicht')} ${ersetzen(t('nurGewogen'), { n: d.nAusgang, soll: verlangt.mindestens })}`
+                : `${t('dreiFertige')} ${ersetzen(t('nurGewogen'), { n: d.nAusgang, soll })}`}</span>
             </span>
             <span className="pfeil"><ZChevron size={20} /></span>
           </button>

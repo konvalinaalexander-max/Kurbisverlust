@@ -4,7 +4,11 @@ export type Station = 'sortieren' | 'waschen' | 'waschen_sortieren'
 export type AuftragStatus = 'offen' | 'abgeschlossen'
 export type Zuordnung = 'auto' | 'manuell' | 'offen' | 'mehrdeutig'
 
-export interface Profil { id: string; name: string; rolle: Rolle; aktiv: boolean; anonym: boolean }
+export interface Profil {
+  id: string; name: string; rolle: Rolle; aktiv: boolean; anonym: boolean
+  /** Runde AD (0097): darf laufende Arbeiten abbrechen, auch fremde — vom Betriebsleiter gesetzt. */
+  darf_abbrechen: boolean
+}
 export interface Charge {
   nr: number; schlag: string; sorte: string; saison: number
   /** Dieselbe Ware im Perigon der Firma AG (sechsstellig, 0051). Nicht eindeutig. */

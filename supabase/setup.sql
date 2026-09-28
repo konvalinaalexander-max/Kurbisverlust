@@ -3953,13 +3953,32 @@ comment on function auswertung_aktualisieren() is
 
 -- Wo pg_cron da ist (Supabase), rechnet die Datenbank alle zehn Minuten nach,
 -- wenn etwas veraltet ist. Wo nicht, bleibt es beim Rechnen aus der App.
+--
+-- Geändert am 28. September (Runde AD, 0097): Der Eintrag wird nicht mehr
+-- gelöscht und neu angelegt. Zweimal an diesem Tag hat der Starter von
+-- pg_cron einen frisch angelegten Eintrag nicht übernommen — eine Stunde lang
+-- kein Lauf, bis der Starter neu startete. Einen bestehenden Eintrag führt
+-- er weiter, und seine Laufgeschichte bleibt. Also: gibt es ihn mit
+-- gleichem Takt und Befehl, bleibt er stehen; weicht er ab, wird er mit
+-- cron.alter_job angepasst (dieselbe Nummer); fehlt er, wird er angelegt.
 do $$
+declare v_id bigint; v_gleich boolean;
 begin
   if exists (select 1 from pg_extension where extname = 'pg_cron') then
-    perform cron.unschedule(jobid) from cron.job where jobname = 'auswertung_wenn_veraltet';
-    perform cron.schedule('auswertung_wenn_veraltet', '*/10 * * * *',
-                          'select public.auswertung_wenn_veraltet()');
-    raise notice 'Zeitplan: auswertung_wenn_veraltet() alle zehn Minuten (pg_cron).';
+    select jobid, (schedule = '*/10 * * * *' and command = 'select public.auswertung_wenn_veraltet()' and active)
+      into v_id, v_gleich
+      from cron.job where jobname = 'auswertung_wenn_veraltet' order by jobid limit 1;
+    if v_id is null then
+      perform cron.schedule('auswertung_wenn_veraltet', '*/10 * * * *',
+                            'select public.auswertung_wenn_veraltet()');
+      raise notice 'Zeitplan: auswertung_wenn_veraltet() alle zehn Minuten (pg_cron) — neu angelegt.';
+    elsif v_gleich then
+      raise notice 'Zeitplan: auswertung_wenn_veraltet() alle zehn Minuten (pg_cron) — steht schon, bleibt.';
+    else
+      perform cron.alter_job(job_id => v_id, schedule => '*/10 * * * *',
+                             command => 'select public.auswertung_wenn_veraltet()', active => true);
+      raise notice 'Zeitplan: auswertung_wenn_veraltet() alle zehn Minuten (pg_cron) — angepasst.';
+    end if;
   else
     raise notice 'pg_cron fehlt — die App rechnet selbst nach, wenn etwas veraltet ist.';
   end if;
@@ -8192,18 +8211,128 @@ comment on function demo_daten_laden is
 revoke execute on function demo_daten_laden() from public;
 grant execute on function demo_daten_laden() to authenticated;
 
+-- ---------------------------------------------------------------------
+-- 5. Die Schlüssel der Marge-Ansichten kennen die Grenzen (0095)
+-- ---------------------------------------------------------------------
+create or replace function auswertung_schluessel()
+returns table (sicht text, ausdruck text) language sql immutable set search_path = public as $$
+  values
+    ('erg_ausgang',            'id'),
+    ('erg_ausschuss',          'weg, charge_nr, auftrag_id'),
+    ('erg_bilanz',             'heute'),
+    ('erg_charge',             'charge_nr'),
+    ('erg_datenlage',          'charge_nr'),
+    ('erg_datenqualitaet',     'paletten_gezaehlt'),
+    ('erg_durchsatz',          'auftrag_id'),
+    ('erg_fax',                'auftrag_id'),
+    ('erg_fax_wartezeit',      'gruppe, sorte, klasse'),
+    ('erg_gebinde',            'sorte, kaliber_idx'),
+    ('erg_gewichte',           'charge_nr, stufe_g'),
+    ('erg_kaliber',            'charge_nr, klasse, kaliber_idx'),
+    ('erg_koeff_ausschuss',    'sorte'),
+    ('erg_koeff_fax',          'sorte'),
+    ('erg_koeff_nebenkanal',   'sorte'),
+    ('erg_koeff_ueberfuellung','n'),
+    ('erg_koeff_verdunstung',  'sorte'),
+    ('erg_kohorte',            'charge_nr, eingangsdatum'),
+    ('erg_kurve',              'altersklasse'),
+    ('erg_lieferung',          'id'),
+    ('erg_marge',              'posten'),
+    ('erg_marge_charge',       'charge_nr, kistensystem, soll_kg_pro_kiste, kaliber_idx, stueck_je_kiste, band_von_g, band_bis_g'),
+    ('erg_marge_wiegung',      'sorte, kistensystem, soll_kg_pro_kiste, kaliber_idx, stueck_je_kiste, band_von_g, band_bis_g'),
+    ('erg_massenbilanz',       'charge_nr'),
+    ('erg_modell',             'n'),
+    ('erg_naechste_charge',    'charge_nr'),
+    ('erg_plausibilitaet',     'art, charge_nr, auftrag_id, befund'),
+    ('erg_prognose',           'gruppe, schluessel, h'),
+    ('erg_punkte',             'charge_nr, auftrag_id, quelle, messtag, lagertage'),
+    ('erg_selektion',          'n_verarbeitung'),
+    ('erg_ueberfuellung',      'gruppe, sorte, charge_nr, kistensystem, soll_kg_pro_kiste, kaliber_idx, stueck_je_kiste'),
+    ('erg_verarbeitung_alter', 'auftrag_id'),
+    ('erg_verlauf',            'woche, bis, gruppe, schluessel'),
+    ('erg_verlust',            'gruppe, schluessel, strom, buch'),
+    ('erg_wiegung',            'id'),
+    ('erg_wohin',              'gruppe, schluessel'),
+    ('mv_hochrechnung',        'charge_nr, portion, strom, buch, kohorte'),
+    ('mv_schimmel_modell',     'n'),
+    ('mv_schimmel_punkte',     'charge_nr, auftrag_id, quelle, lagertage')
+$$;
+
+revoke execute on function auswertung_schluessel() from public;
+grant execute on function auswertung_schluessel() to authenticated;
+
+-- ---------------------------------------------------------------------
+-- 6. Abbrechen mit Erlaubnis
+-- ---------------------------------------------------------------------
+-- Der Betrieb: „Seraina soll die Möglichkeit haben, Aufträge, die gerade
+-- noch laufen, zu löschen — auch wenn sie nicht die ist, die den Auftrag
+-- gestartet hat." Löschen im Sinn der App ist Abbrechen (0013): Die Zeile
+-- bleibt als Spur, zählt aber nirgends mehr. Bis 0096 durfte das, wer an
+-- der Arbeit beteiligt war, und der Betriebsleiter — über die Zeilenregel
+-- von auftrag. Jetzt auch, wer die Erlaubnis dazu hat: eine Spalte am
+-- Profil, die der Betriebsleiter unter Betrieb → Stammdaten → Benutzer
+-- setzt. Kein Name im Quelltext — Namen wechseln, Erlaubnisse werden erteilt.
+-- Die Funktion prüft selbst und läuft als Eigentümer (security definer),
+-- weil die Zeilenregel die Erlaubnis nicht kennt. Wer nicht Betriebsleiter
+-- ist, bricht nur ab, was läuft.
+alter table profil add column if not exists darf_abbrechen boolean not null default false;
+comment on column profil.darf_abbrechen is
+  'Darf laufende Arbeiten abbrechen, auch fremde (0097). Setzt der Betriebsleiter unter Benutzer.';
+
+create or replace function public.darf_abbrechen()
+returns boolean language sql stable security definer set search_path = public as $$
+  select exists (select 1 from profil where id = auth.uid() and darf_abbrechen and aktiv);
+$$;
+revoke execute on function public.darf_abbrechen() from public;
+grant execute on function public.darf_abbrechen() to authenticated;
+
+create or replace function auftrag_abbrechen(p_auftrag_id bigint, p_grund text default null)
+returns void language plpgsql security definer set search_path = public as $$
+declare v_status auftrag_status;
+begin
+  if not (ist_admin() or ist_beteiligt(p_auftrag_id) or darf_abbrechen()) then
+    raise exception 'Abbrechen darf, wer an der Arbeit beteiligt ist, der Betriebsleiter — oder wer die Erlaubnis dazu hat.'
+      using errcode = '42501';
+  end if;
+  select status into v_status from auftrag where id = p_auftrag_id;
+  if not ist_admin() and v_status is distinct from 'offen' then
+    raise exception 'Nur eine laufende Arbeit lässt sich abbrechen.' using errcode = '42501';
+  end if;
+
+  update auftrag
+     set abgebrochen_ts = now(),
+         abbruch_grund  = p_grund,
+         status         = 'abgeschlossen',
+         -- greatest, nicht einfach now(): Die Prüfregel verlangt ende_ts >= start_ts.
+         -- Ein Abbruch darf nie an einer Zeitverschiebung scheitern.
+         ende_ts        = greatest(coalesce(ende_ts, now()), start_ts)
+   where id = p_auftrag_id and abgebrochen_ts is null;
+
+  update sortier_lauf
+     set auftrag_id = null, zuordnung = 'offen'
+   where auftrag_id = p_auftrag_id;
+end $$;
+comment on function auftrag_abbrechen is
+  'Verwirft eine Arbeit. Die Erfassungen bleiben als Spur stehen, zählen aber '
+  'nirgends mehr mit; zugeordnete Sortier-CSVs gehen zurück in die Warteschlange. '
+  'Seit 0097 mit eigener Prüfung: Beteiligte, Betriebsleiter, oder wer die Erlaubnis hat (profil.darf_abbrechen).';
+revoke execute on function auftrag_abbrechen(bigint, text) from public;
+grant execute on function auftrag_abbrechen(bigint, text) to authenticated;
 
 -- ---------------------------------------------------------------------
 -- Der Stand der Datenbank
 -- ---------------------------------------------------------------------
 create or replace function schema_stand() returns int
-language sql immutable set search_path = public as $$ select 96 $$;
+language sql immutable set search_path = public as $$ select 97 $$;
 comment on function schema_stand is
   'Nummer der jüngsten eingespielten Migration. Die App vergleicht sie mit '
   'SCHEMA_ERWARTET (src/lib/version.ts) und verlangt bei Abweichung, setup.sql '
   'erneut auszuführen. Jede Migration setzt sie auf ihre eigene Nummer.';
 revoke all on function schema_stand() from public;
 grant execute on function schema_stand() to anon, authenticated;
+comment on function schema_stand() is
+  'Die Nummer der höchsten eingespielten Migration. Die App vergleicht sie mit '
+  'SCHEMA_ERWARTET und verlangt setup.sql, wenn sie auseinanderliegen (0057).';
 comment on function schema_stand() is
   'Die Nummer der höchsten eingespielten Migration. Die App vergleicht sie mit '
   'SCHEMA_ERWARTET und verlangt setup.sql, wenn sie auseinanderliegen (0057).';
@@ -8301,30 +8430,42 @@ comment on function schema_stand() is
 -- wird am Ende dieser Datei neu berechnet.
 -- =====================================================================
 
-drop view if exists v_arbeit_kommentar cascade;
 drop view if exists v_plausibilitaet cascade;
 drop view if exists v_plausibilitaet_0054_zusatz cascade;
 drop view if exists v_plausibilitaet_0064_zusatz cascade;
-drop view if exists v_lager_kaliber cascade;
 drop materialized view if exists erg_wohin cascade;
+drop view if exists v_wohin cascade;
+drop view if exists v_saisonbilanz cascade;
+drop view if exists v_massenbilanz cascade;
+drop view if exists v_kontrolle_vorschlag cascade;
+drop materialized view if exists erg_charge cascade;
+drop view if exists v_hochrechnung_basis cascade;
+drop view if exists v_lager_kaliber cascade;
 drop view if exists v_marge_buch cascade;
 drop view if exists v_naechste_charge cascade;
 drop materialized view if exists erg_verlauf cascade;
-drop view if exists v_wohin cascade;
 drop materialized view if exists erg_prognose cascade;
 drop view if exists v_prognose cascade;
-drop view if exists v_saisonbilanz cascade;
+drop materialized view if exists mv_koeff_rand cascade;
+drop materialized view if exists erg_koeff_fax cascade;
 drop view if exists v_verlust_ranking cascade;
 drop materialized view if exists erg_verlust cascade;
 drop view if exists v_verlust_je_gruppe cascade;
-drop view if exists v_massenbilanz cascade;
-drop view if exists v_kontrolle_vorschlag cascade;
 drop view if exists v_hochrechnung cascade;
 drop materialized view if exists mv_hochrechnung cascade;
 drop view if exists v_kaskade cascade;
-drop materialized view if exists erg_charge cascade;
-drop view if exists v_hochrechnung_basis cascade;
 drop materialized view if exists mv_kaskade cascade;
+drop view if exists v_koeff_fax cascade;
+drop view if exists v_koeff_nebenkanal cascade;
+drop view if exists v_koeff_ausschuss cascade;
+drop view if exists v_koeff_unsicherheit cascade;
+drop view if exists v_koeff_kaliber_geschaetzt cascade;
+drop view if exists v_koeff_roh_kaliber cascade;
+drop view if exists v_ausschuss_beobachtung cascade;
+drop materialized view if exists erg_marge_charge cascade;
+drop materialized view if exists erg_marge_wiegung cascade;
+drop view if exists v_marge_charge cascade;
+drop view if exists v_marge_wiegung cascade;
 drop view if exists v_schimmel_kurve_anzeige cascade;
 drop view if exists v_selektionsverdacht cascade;
 drop view if exists v_schimmel_modell cascade;
@@ -8334,25 +8475,27 @@ drop view if exists v_schimmel_kurve cascade;
 drop materialized view if exists mv_schimmel_punkte cascade;
 drop view if exists v_verderb_lage cascade;
 drop view if exists v_schimmel_punkte cascade;
-drop materialized view if exists mv_koeff_rand cascade;
-drop materialized view if exists erg_koeff_fax cascade;
-drop view if exists v_koeff_fax cascade;
 drop materialized view if exists erg_fax_wartezeit cascade;
 drop view if exists v_fax_wartezeit cascade;
 drop view if exists v_schimmel_beobachtung cascade;
 drop view if exists v_kaskade_basis cascade;
-drop view if exists v_koeff_nebenkanal cascade;
-drop view if exists v_koeff_ausschuss cascade;
-drop view if exists v_koeff_unsicherheit cascade;
-drop view if exists v_koeff_kaliber_geschaetzt cascade;
-drop view if exists v_koeff_roh_kaliber cascade;
 drop view if exists v_fax_beobachtung cascade;
 drop view if exists v_durchsatz cascade;
-drop view if exists v_ausschuss_beobachtung cascade;
 drop view if exists v_auftrag_masse cascade;
 drop view if exists v_auftrag_wasch_paletten cascade;
 drop view if exists v_auftrag_gebinde_masse cascade;
 drop view if exists v_koeff_gebinde cascade;
+drop view if exists v_auftrag_fertige_masse cascade;
+drop view if exists v_koeff_palette_netto cascade;
+drop view if exists v_ausgang_voll cascade;
+drop materialized view if exists erg_ueberfuellung cascade;
+drop view if exists v_ueberfuellung_verkauf cascade;
+drop view if exists v_lieferung_kohorte cascade;
+drop view if exists v_lieferung_charge_tag cascade;
+drop view if exists v_koeff_ueberfuellung cascade;
+drop view if exists v_lieferung_masse cascade;
+drop view if exists v_ausgang_kennzahl cascade;
+drop view if exists v_arbeit_kommentar cascade;
 drop view if exists v_datenqualitaet cascade;
 drop materialized view if exists mv_sortier_eingang cascade;
 drop materialized view if exists mv_auftrag_masse cascade;
@@ -8362,25 +8505,14 @@ drop view if exists v_koeff_verdunstung cascade;
 drop view if exists v_koeff_verdunstung_geschaetzt cascade;
 drop view if exists v_koeff_roh_verdunstung cascade;
 drop view if exists v_verdunstung_messung cascade;
-drop materialized view if exists erg_marge_charge cascade;
-drop view if exists v_marge_charge cascade;
 drop view if exists v_schimmel_menge cascade;
 drop view if exists v_palox_stand cascade;
 drop view if exists v_sortier_lesung cascade;
-drop view if exists v_auftrag_fertige_masse cascade;
-drop materialized view if exists erg_marge_wiegung cascade;
-drop view if exists v_marge_wiegung cascade;
 drop materialized view if exists erg_lager_kaliber cascade;
-drop view if exists v_koeff_palette_netto cascade;
-drop view if exists v_ausgang_voll cascade;
 drop view if exists v_kontrollpalette_vorschlag cascade;
 drop view if exists v_kontrollpalette_rate cascade;
 drop view if exists v_charge_erntespanne cascade;
 drop view if exists v_verarbeitung_alter cascade;
-drop materialized view if exists erg_ueberfuellung cascade;
-drop view if exists v_ueberfuellung_verkauf cascade;
-drop view if exists v_lieferung_kohorte cascade;
-drop view if exists v_lieferung_charge_tag cascade;
 drop view if exists v_kohorte_anteil cascade;
 drop view if exists v_charge_kohorte cascade;
 drop view if exists v_datenlage cascade;
@@ -8389,9 +8521,6 @@ drop view if exists v_palette cascade;
 drop view if exists v_saisonverlauf cascade;
 drop view if exists v_ueberfuellung_kaeufer cascade;
 drop view if exists v_verkauf_lieferung cascade;
-drop view if exists v_koeff_ueberfuellung cascade;
-drop view if exists v_lieferung_masse cascade;
-drop view if exists v_ausgang_kennzahl cascade;
 drop view if exists v_ausgang_pruef cascade;
 drop view if exists v_ausgang_lage cascade;
 drop view if exists v_ausgang_artikel_vorschlag cascade;
@@ -8624,108 +8753,6 @@ create or replace view v_ausgang_pruef with (security_invoker = true) as
      JOIN urteil u ON u.artikel_id = p.artikel_id AND u.artikel = p.artikel AND u.kuerbis
      LEFT JOIN geliefert g ON g.quelle = p.quelle AND g.pos_id = p.pos_id
   WHERE abs(COALESCE(g.kg, 0::numeric) - p.kg_position) > 0.05 AND p.kg_position > 0::numeric;
-
--- ---------- 4. Fertige Palette: Soll aus der Arbeit, Erwartung bei Stück ---
--- Das Sollgewicht steht jetzt an der Arbeit (kistensystem = kiste_ab); ältere
--- Arbeiten haben es in der Fassung. Bei Stück-Kisten gibt es kein Soll, aber
--- eine Erwartung: Stück × mittleres Gewicht des Kalibers aus der Sortier-CSV.
--- Die Erwartung ist keine verschenkte Marge — sie sagt nur, wo im Band die
--- Ware liegt.
-create or replace view v_ausgang_kennzahl with (security_invoker = true) as
-with band_mittel as (
-  -- Mittleres Stückgewicht je Sorte und Kaliber aus allen Sortierläufen
-  select c.sorte, sg.kaliber_idx,
-         sum(sg.anzahl::bigint * sg.gewicht_g)::numeric / nullif(sum(sg.anzahl), 0) as gramm
-    from sortier_gewicht sg
-    join sortier_lauf l on l.id = sg.lauf_id
-    join charge c on c.nr = l.charge_nr
-   where sg.klasse = 'kaliber' and sg.kaliber_idx is not null
-   group by c.sorte, sg.kaliber_idx
-)
-select w.id, w.auftrag_id, w.charge_nr, c.sorte, c.schlag, w.ts, w.brutto_kg, w.kisten,
-       w.gebindeart, w.kuerbisse_pro_kiste, n.netto_kg,
-       zahl(n.netto_kg / w.kisten, 3, 1e7)::numeric(10,3)                          as kg_pro_kiste,
-       zahl(n.netto_kg / nullif(w.kisten * w.kuerbisse_pro_kiste, 0), 3, 1e7)::numeric(10,3) as kg_pro_kuerbis,
-       s.soll::numeric                                                              as soll_kg_pro_kiste,
-       zahl(case when s.soll is not null then n.netto_kg / w.kisten - s.soll end, 3, 1e7)::numeric(10,3)
-                                                                                    as ueberfuellung_je_kiste,
-       zahl(case when s.soll is not null then n.netto_kg - w.kisten * s.soll end, 2, 1e8)::numeric(10,2)
-                                                                                    as ueberfuellung_kg,
-       -- neu (0060)
-       coalesce(a.kistensystem, case when ss.art = 'kiste' then 'kiste_ab' end)::text as kistensystem,
-       w.kaliber_idx,
-       e.stueck                                                                     as stueck_je_kiste,
-       zahl(e.stueck * bm.gramm / 1000.0, 3, 1e7)::numeric(10,3)                    as erwartet_kg_pro_kiste,
-       zahl(n.netto_kg / w.kisten - e.stueck * bm.gramm / 1000.0, 3, 1e7)::numeric(10,3)
-                                                                                    as abweichung_je_kiste,
-       zahl(bm.gramm, 0, 1e6)::numeric(8,0)                                         as band_mittel_g
-  from ausgang_wiegung w
-  join auftrag a on a.id = w.auftrag_id
-  join charge c on c.nr = w.charge_nr
-  left join gebinde g on g.art = w.gebindeart
-  left join sortierschema ss on ss.id = a.sortierschema_id
-  cross join lateral (
-    select zahl(w.brutto_kg - w.kisten * g.tara_kg_pro_kiste - coalesce(g.tara_kg_palette, 0), 2, 1e8)::numeric(10,2) as netto_kg) n
-  cross join lateral (
-    select case when a.kistensystem = 'kiste_ab' then a.soll_kg_pro_kiste
-                when a.kistensystem is null and ss.art = 'kiste' then ss.soll_kg_pro_kiste end as soll) s
-  cross join lateral (
-    select case when a.kistensystem = 'stueck' then coalesce(w.kuerbisse_pro_kiste, a.stueck_je_kiste) end as stueck) e
-  left join band_mittel bm on bm.sorte = c.sorte
-        and bm.kaliber_idx = case when w.kaliber_idx = -2 then null else coalesce(w.kaliber_idx, a.kaliber_idx) end
- where w.gemessen and a.abgebrochen_ts is null and n.netto_kg > 0;
-
--- ---------- Kisten in Kilo, mit ausgewiesener Unsicherheit ----------------
-create or replace view v_lieferung_masse with (security_invoker = true) as
-with kiste as (
-  -- Wie schwer ist eine ausgelieferte Kiste wirklich? Aus den fertig
-  -- gepackten Paletten nach dem Waschen (0013).
-  select avg(kg_pro_kiste)                            as mittel,
-         stddev_samp(kg_pro_kiste)                    as sd,
-         count(*)::int                                as n
-    from v_ausgang_kennzahl where kg_pro_kiste is not null
-)
-select l.*, z.name as ziel_name, z.buch,
-       coalesce(l.kg, l.kisten * k.mittel)                          as masse_kg,
-       case when l.kg is not null then 'gewogen'
-            when k.n > 0          then 'aus Kisten hochgerechnet'
-            else 'Kistengewicht unbekannt' end                      as masse_quelle,
-       -- Fehler der Umrechnung: nur bei Kistenangaben, und nur so gross, wie
-       -- die Wägungen es hergeben.
-       case when l.kg is not null then 0
-            when k.n >= 2 then l.kisten * t_quantil_95(k.n - 1) * k.sd / sqrt(k.n)
-       end                                                          as masse_fehler_kg,
-       k.n                                                          as kisten_n
-  from lieferung l
-  join ausgang_ziel z on z.code = l.ziel
-  cross join kiste k;
-
--- v_koeff_ueberfuellung: 4 Cast(s)
-create or replace view v_koeff_ueberfuellung with (security_invoker = true) as
- WITH roh AS (
-         SELECT k.ueberfuellung_kg AS wert,
-            k.kisten AS n_kisten,
-            k.ueberfuellung_je_kiste AS je_kiste
-           FROM v_ausgang_kennzahl k
-          WHERE k.ueberfuellung_je_kiste IS NOT NULL
-        ), s AS (
-         SELECT count(*)::integer AS n,
-            sum(roh.wert) / NULLIF(sum(roh.n_kisten), 0)::numeric AS kg_pro_kiste,
-            stddev_samp(roh.je_kiste) AS sd
-           FROM roh
-        )
- SELECT n,
-    zahl(kg_pro_kiste, 3, 1e7)::numeric(10,3) AS kg_pro_kiste,
-    zahl(sd, 3, 1e7)::numeric(10,3) AS sd,
-        zahl(CASE
-            WHEN sd IS NULL OR n < 2 THEN kg_pro_kiste::double precision
-            ELSE GREATEST(kg_pro_kiste::double precision - (1.96 * sd)::double precision / sqrt(n::double precision), 0::double precision)
-        END, 3, 1e7)::numeric(10,3) AS unten,
-        zahl(CASE
-            WHEN sd IS NULL OR n < 2 THEN kg_pro_kiste::double precision
-            ELSE kg_pro_kiste::double precision + (1.96 * sd)::double precision / sqrt(n::double precision)
-        END, 3, 1e7)::numeric(10,3) AS oben
-   FROM s;
 drop function if exists verlust_ranking(text, text, numeric);
 drop function if exists verlust_ranking(text, text, numeric, int);
 
@@ -8973,171 +9000,6 @@ select charge_nr, eingangsdatum, n_rest, rest_kg,
  where eingang_kg > 0;
 
 -- ---------------------------------------------------------------------
--- 3. Lieferungen je Charge und Tag — eine Regel, an einer Stelle
---
--- Eine Lieferung ohne Chargennummer wird nach dem Eingangsanteil auf die
--- Chargen ihrer Sorte verteilt. Diese Regel steckte bisher nur in
--- `v_lieferung_kohorte`; der Verlauf je Schlag und Charge braucht sie auch.
--- Damit es sie nicht zweimal gibt, steht sie jetzt hier — und
--- `v_lieferung_kohorte` rechnet darauf weiter.
--- ---------------------------------------------------------------------
-create or replace view v_lieferung_charge_tag with (security_invoker = true) as
-with lief as (
-  select l.id, l.datum, l.buch, l.masse_kg, c.charge_nr, c.anteil
-    from (select heute() as heute) d
-    cross join v_lieferung_masse l
-    cross join lateral (
-      select l.charge_nr, 1::numeric as anteil where l.charge_nr is not null
-      union all
-      select r.charge_nr, r.eingang_netto_kg / sum(r.eingang_netto_kg) over ()
-        from v_charge_rueckgrat r
-       where l.charge_nr is null and r.sorte = l.sorte and r.eingang_netto_kg > 0
-    ) c
-   where l.masse_kg is not null and l.masse_kg > 0
-     and l.buch in ('verkauf', 'marge', 'verlust') and l.datum <= d.heute
-  union all
-  -- Was vor dem Erfassungsbeginn rausging: eine Angabe des Betriebs je
-  -- Charge, gebucht am Erfassungsbeginn.
-  select -cv.charge_nr,
-         coalesce((select nullif(wert #>> '{}', '')::date from einstellung where schluessel = 'erfassungsbeginn'),
-                  r.letzter_eingang),
-         'verkauf', cv.ausgang_vor_app_kg, cv.charge_nr, 1
-    from charge_vorlauf cv join v_charge_rueckgrat r on r.charge_nr = cv.charge_nr
-   where cv.ausgang_vor_app_kg > 0
-)
-select charge_nr, datum, buch,
-       zahl(sum(masse_kg * anteil), 2, 1e12)::numeric(14,2) as masse_kg,
-       count(distinct id)::int                              as n_lieferungen
-  from lief
- group by charge_nr, datum, buch;
-
--- v_lieferung_kohorte auf dieselbe Regel stellen. Spalten und Reihenfolge
--- bleiben unverändert — mv_kaskade hängt daran und wird nicht angefasst.
-create or replace view v_lieferung_kohorte with (security_invoker = true) as
-select f.charge_nr,
-       k.eingangsdatum as kohorte,
-       f.buch,
-       zahl(sum(f.masse_kg * k.anteil), 2, 1e12)::numeric(14,2) as masse_kg,
-       zahl(sum(f.masse_kg * k.anteil * greatest(f.datum - k.eingangsdatum, 0)::numeric)
-            / nullif(sum(f.masse_kg * k.anteil), 0), 1, 1e5)::numeric(8,1) as alter_tage,
-       sum(f.n_lieferungen)::int as n_lieferungen,
-       min(f.datum) as von,
-       max(f.datum) as bis
-  from v_lieferung_charge_tag f
-  join v_kohorte_anteil k on k.charge_nr = f.charge_nr
- group by f.charge_nr, k.eingangsdatum, f.buch;
-
--- ---------------------------------------------------------------------
--- 7. Überfüllung: die Lage im Band
---
--- Bei „Kiste ab x kg" ist zu viel in der Kiste verschenkte Ware — das
--- rechnet die Sicht schon. Bei „x Stück je Kaliber" ist es anders: bezahlt
--- wird je Stück innerhalb eines Bandes, das Gewicht ist dem Käufer egal.
--- Wer nahe an der Unterkante des Bandes liefert, verkauft dieselbe Zahl
--- Kürbisse mit weniger Kilo. „Lage im Band" sagt, wo die gewogene Ware
--- liegt: 0 % ist die Unterkante, 100 % die Oberkante.
---
--- Die Lage wird **nicht** geklammert. Ein Wert über 100 % heisst, dass die
--- gewogene Kiste schwerer ist als die Oberkante ihres Kalibers — dann passt
--- die Kaliberangabe der Wägung nicht zur Ware, und das gehört gesehen und
--- nicht wegformatiert.
---
--- „Spielraum" heisst die Masse über der Unterkante ausdrücklich nicht
--- „verschenkt": Niemand sortiert auf die Kante, und eine Kiste an der
--- Unterkante wäre ein Reklamationsrisiko. Es ist der Rahmen, in dem sich
--- überhaupt etwas holen liesse.
--- ---------------------------------------------------------------------
-create or replace view v_ueberfuellung_verkauf with (security_invoker = true) as
-with verkauft as (
-  select case when grouping(v.charge_nr) = 1 then 'sorte' else 'charge' end as gruppe,
-         v.sorte, v.charge_nr, v.kistensystem, v.soll_kg_pro_kiste, v.stueck_je_kiste, v.kaliber_idx,
-         count(*)::int as n_lieferungen, sum(v.kg) as kg_verkauft, sum(v.kisten) as kisten_verkauft,
-         count(*) filter (where v.kisten_quelle = 'anteil')::int as n_anteilig,
-         sum(v.stueck) as stueck_verkauft,
-         sum(v.stueck * v.nenn_g::numeric) / nullif(sum(v.stueck), 0) as nenn_g,
-         min(v.datum) as von, max(v.datum) as bis
-    from v_verkauf_lieferung v
-   where v.sorte is not null
-   group by grouping sets ((v.sorte, v.kistensystem, v.soll_kg_pro_kiste, v.stueck_je_kiste, v.kaliber_idx),
-                           (v.sorte, v.charge_nr, v.kistensystem, v.soll_kg_pro_kiste, v.stueck_je_kiste, v.kaliber_idx))
-), gewogen as (
-  select case when grouping(k.charge_nr) = 1 then 'sorte' else 'charge' end as gruppe,
-         k.sorte, k.charge_nr, k.kistensystem, k.soll_kg_pro_kiste, k.stueck_je_kiste,
-         case when k.kistensystem = 'stueck' then k.kaliber_idx end as kaliber_idx,
-         count(*)::int as n_wiegungen, sum(k.kisten) as kisten_gewogen,
-         sum(k.netto_kg) / nullif(sum(k.kisten), 0)::numeric as kg_je_kiste,
-         stddev_samp(k.kg_pro_kiste) as sd_je_kiste,
-         sum(k.ueberfuellung_kg) as zuviel_gewogen_kg,
-         sum(k.netto_kg) / nullif(sum(k.kisten * k.stueck_je_kiste), 0)::numeric * 1000 as g_je_kuerbis,
-         max(k.band_mittel_g) as band_mittel_g
-    from v_ausgang_kennzahl k
-   where k.kistensystem in ('kiste_ab', 'stueck')
-     and (k.kistensystem <> 'kiste_ab' or k.soll_kg_pro_kiste is not null)
-     and (k.kistensystem <> 'stueck'   or k.stueck_je_kiste  is not null)
-   group by grouping sets ((k.sorte, k.kistensystem, k.soll_kg_pro_kiste, k.stueck_je_kiste,
-                            (case when k.kistensystem = 'stueck' then k.kaliber_idx end)),
-                           (k.sorte, k.charge_nr, k.kistensystem, k.soll_kg_pro_kiste, k.stueck_je_kiste,
-                            (case when k.kistensystem = 'stueck' then k.kaliber_idx end)))
-), band as (
-  select distinct on (s.sorte, i.idx) s.sorte, i.idx as kaliber_idx,
-         ((s.kaliber_baender -> i.idx) ->> 0)::int as von,
-         ((s.kaliber_baender -> i.idx) ->> 1)::int as bis
-    from sortierschema s
-    cross join lateral generate_series(0, jsonb_array_length(s.kaliber_baender) - 1) i(idx)
-   where s.art = 'kaliber' and s.kaliber_baender is not null and s.kaeufer is null and s.gilt_ab <= heute()
-   order by s.sorte, i.idx, s.gilt_ab desc
-)
-select coalesce(v.gruppe, g.gruppe)                       as gruppe,
-       coalesce(v.sorte, g.sorte)                         as sorte,
-       coalesce(v.charge_nr, g.charge_nr)                 as charge_nr,
-       coalesce(v.kistensystem, g.kistensystem)           as kistensystem,
-       coalesce(v.soll_kg_pro_kiste, g.soll_kg_pro_kiste) as soll_kg_pro_kiste,
-       coalesce(v.stueck_je_kiste, g.stueck_je_kiste)     as stueck_je_kiste,
-       coalesce(v.kaliber_idx, g.kaliber_idx)             as kaliber_idx,
-       b.von as band_von_g, b.bis as band_bis_g,
-       zahl(v.nenn_g, 0, 1e6)::numeric(8,0)               as nenn_g,
-       coalesce(v.n_lieferungen, 0)                       as n_lieferungen,
-       zahl(v.kg_verkauft, 1, 1e11)::numeric(12,1)        as kg_verkauft,
-       zahl(v.kisten_verkauft, 0, 1e9)::numeric(12,0)     as kisten_verkauft,
-       coalesce(v.n_anteilig, 0)                          as n_anteilig,
-       zahl(v.stueck_verkauft, 0, 1e9)::numeric(12,0)     as stueck_verkauft,
-       v.von, v.bis,
-       coalesce(g.n_wiegungen, 0)                         as n_wiegungen,
-       g.kisten_gewogen,
-       zahl(g.kg_je_kiste, 3, 1e7)::numeric(10,3)         as kg_je_kiste,
-       zahl(g.sd_je_kiste, 3, 1e7)::numeric(10,3)         as sd_je_kiste,
-       zahl(g.kg_je_kiste - g.soll_kg_pro_kiste, 3, 1e7)::numeric(10,3) as zuviel_je_kiste,
-       zahl(g.zuviel_gewogen_kg, 1, 1e11)::numeric(12,1)  as zuviel_gewogen_kg,
-       zahl(case when g.n_wiegungen > 0 and v.kisten_verkauft is not null and g.kistensystem = 'kiste_ab'
-                 then greatest(g.kg_je_kiste - g.soll_kg_pro_kiste, 0) * v.kisten_verkauft
-                 else null::numeric end,
-            1, 1e11)::numeric(12,1)                       as verschenkt_kg,
-       zahl(case when g.n_wiegungen >= 2 and v.kisten_verkauft is not null and g.kistensystem = 'kiste_ab'
-                 then (t_quantil_95(g.n_wiegungen - 1) * g.sd_je_kiste)::double precision
-                      / sqrt(g.n_wiegungen::double precision) * v.kisten_verkauft::double precision end,
-            1, 1e11)::numeric(12,1)                       as verschenkt_fehler_kg,
-       zahl(g.g_je_kuerbis, 0, 1e6)::numeric(8,0)         as g_je_kuerbis,
-       zahl(g.band_mittel_g, 0, 1e6)::numeric(8,0)        as band_mittel_g,
-       -- Neu (0071): wo im Kaliberband liegt die gewogene Ware, und wie viel
-       -- Masse geht über der Unterkante unbezahlt mit?
-       zahl(case when b.von is not null and b.bis is not null and b.bis > b.von and g.g_je_kuerbis is not null
-                 then (g.g_je_kuerbis - b.von) / (b.bis - b.von)::numeric end,
-            4, 1e4)::numeric(8,4)                         as lage_im_band,
-       zahl(case when g.g_je_kuerbis is not null and b.von is not null and v.stueck_verkauft is not null
-                 then (g.g_je_kuerbis - b.von) / 1000.0 * v.stueck_verkauft end,
-            1, 1e11)::numeric(12,1)                       as spielraum_kg
-  from verkauft v
-  full join gewogen g
-    on g.gruppe = v.gruppe and g.sorte = v.sorte and g.charge_nr is not distinct from v.charge_nr
-   and g.kistensystem = v.kistensystem
-   and g.soll_kg_pro_kiste is not distinct from v.soll_kg_pro_kiste
-   and g.stueck_je_kiste is not distinct from v.stueck_je_kiste
-   and g.kaliber_idx is not distinct from v.kaliber_idx
-  left join band b on b.sorte = coalesce(v.sorte, g.sorte)
-                  and b.kaliber_idx = coalesce(v.kaliber_idx, g.kaliber_idx);
-create materialized view erg_ueberfuellung as select * from v_ueberfuellung_verkauf with no data;
-
--- ---------------------------------------------------------------------
 -- 8b. Warum Schritt 2 vier Sekunden verlor
 --
 -- Mit den zwei neuen gespeicherten Ansichten (erg_koeff_fax,
@@ -9281,119 +9143,6 @@ select r.charge_nr, c.sorte, c.schlag, r.eingang_netto_kg,
   join charge c on c.nr = r.charge_nr
  where r.eingang_netto_kg > 0;
 
--- =====================================================================
--- 6b. Die nicht volle Palette zählt für die Masse, nicht für kg je Kiste
--- =====================================================================
--- ausgang_wiegung.voll (0072) muss dort ankommen, wo der Koeffizient
--- gebildet wird. Der Betrieb: „vlt die ersten beiden paletten je 40 kisten
--- ifco und die letzte vlt nur 24". Eine halbvolle Palette im Mittelwert
--- zieht das Gewicht je Kiste nach unten, und die Zahl wandert von dort in
--- die Fax-Masse und in die Überfüllung.
---
--- v_ausgang_kennzahl bleibt unangetastet — sie hat acht Leser, und ihren
--- Text umzuschreiben wäre eine Operation am offenen Herzen für eine
--- einzige Spalte. Stattdessen eine schlanke Sicht darüber, die sie um
--- `voll` ergänzt. Die Maske und der Koeffizient lesen diese.
-create or replace view v_ausgang_voll with (security_invoker = true) as
-select k.*, w.voll
-  from v_ausgang_kennzahl k
-  join ausgang_wiegung w on w.id = k.id;
-
-create or replace view v_koeff_palette_netto with (security_invoker = true) as
-select sorte, kistensystem,
-       count(*)::int                                              as n,
-       zahl(avg(netto_kg), 2, 100000000)::numeric(10,2)           as netto_kg,
-       zahl(stddev_samp(netto_kg), 2, 100000000)::numeric(10,2)   as sd,
-       zahl(avg(kisten), 1, 1000000)::numeric(8,1)                as kisten
-  from v_ausgang_voll k
- where coalesce(k.voll, true)
- group by grouping sets ((sorte, kistensystem), (sorte));
-
--- ---------------------------------------------------------------------
--- 3. Die Marge je Wägung
--- ---------------------------------------------------------------------
-create or replace view v_marge_wiegung with (security_invoker = true) as
-with w as (
-  -- Nur volle Paletten (0072): eine halbe zieht das Kistengewicht nach unten.
-  select k.*, coalesce(aw.voll, true) as voll
-    from v_ausgang_kennzahl k
-    join ausgang_wiegung aw on aw.id = k.id
-   where k.kisten > 0 and k.netto_kg is not null and k.kistensystem is not null
-)
-select w.sorte, w.kistensystem,
-       case when w.kistensystem = 'kiste_ab' then w.soll_kg_pro_kiste end   as soll_kg_pro_kiste,
-       case when w.kistensystem = 'stueck'   then w.kaliber_idx end         as kaliber_idx,
-       case when w.kistensystem = 'stueck'   then w.stueck_je_kiste end     as stueck_je_kiste,
-       case when w.kistensystem = 'stueck'   then w.band_mittel_g end       as band_mittel_g,
-       count(*)::int                                                       as n_wiegungen,
-       sum(w.kisten)::int                                                  as kisten,
-       zahl(avg(w.kg_pro_kiste), 3, 1e4)::numeric(10,3)                    as kg_je_kiste,
-       zahl(stddev_samp(w.kg_pro_kiste), 3, 1e4)::numeric(10,3)            as sd_je_kiste,
-       -- Kiste ab: Ist − Soll je Kiste, gemittelt über die Wägungen.
-       zahl(avg(w.ueberfuellung_je_kiste), 3, 1e4)::numeric(10,3)          as zuviel_je_kiste,
-       -- Stück: Gramm je Kürbis und die Abweichung von der Bandmitte.
-       zahl(avg(w.kg_pro_kuerbis) * 1000, 0, 1e6)::numeric(8,0)            as g_je_kuerbis,
-       zahl(avg(w.kg_pro_kuerbis) * 1000 - w.band_mittel_g, 0, 1e6)::numeric(8,0) as g_ueber_bandmitte,
-       betriebstag(min(w.ts))                                              as von,
-       betriebstag(max(w.ts))                                              as bis
-  from w
- where w.voll
- group by w.sorte, w.kistensystem,
-          case when w.kistensystem = 'kiste_ab' then w.soll_kg_pro_kiste end,
-          case when w.kistensystem = 'stueck'   then w.kaliber_idx end,
-          case when w.kistensystem = 'stueck'   then w.stueck_je_kiste end,
-          case when w.kistensystem = 'stueck'   then w.band_mittel_g end,
-          w.band_mittel_g;
-create materialized view erg_marge_wiegung as select * from v_marge_wiegung with no data;
-
--- ---------------------------------------------------------------------
--- 6. Der Nenner beim Waschen: die fertigen Paletten
--- ---------------------------------------------------------------------
--- Die Masse, die beim Waschen herauskam: fertige Paletten mal Palettenmasse —
--- dem Mittel der **eigenen** gewogenen vollen Paletten dieser Arbeit,
--- hilfsweise dem ihrer Sorte und ihres Kistensystems. Fehlt die Palettenzahl
--- oder fehlen beide Massen, gibt es keine Zeile: unbekannt, nicht null.
---
--- Warum eine eigene Sicht und keine Unterabfrage in v_auftrag_masse? Gemessen
--- an der dreifachen Saison, über alle fünf Rechenschritte:
---
---   ohne diesen Zweig                                  11 385 ms
---   als Unterabfrage im Lateral (erster Anlauf)        13 260 ms
---   dieselbe Unterabfrage, im `case` bewacht           12 500 ms
---
--- Der Wächter allein genügte nicht. Eine Unterabfrage in der Spaltenliste
--- macht die Sicht für den Planer undurchsichtig: Er kann sie nicht mehr in
--- ihre acht Leser hineinfalten (v_schimmel_beobachtung, v_kaskade_basis,
--- v_massenbilanz, v_plausibilitaet, v_durchsatz, v_fax_beobachtung,
--- v_ausschuss_beobachtung, v_schimmel_punkte), und jeder von ihnen bekommt
--- einen schlechteren Plan — auch wenn die Unterabfrage selbst nie ausgeführt
--- wird. Als flacher Verbund auf eine kleine Sicht bleibt alles beim Alten.
---
--- Hier führt die Bedingung: `where station = 'waschen'` steht an der
--- **treibenden** Tabelle, also fallen die neunzehn von zwanzig Arbeiten weg,
--- bevor irgendetwas gerechnet wird.
-create or replace view v_auftrag_fertige_masse with (security_invoker = true) as
-select a.id as auftrag_id,
-       zahl(a.fertige_paletten_gesamt::numeric * coalesce(eig.netto_kg, kp.netto_kg),
-            2, 10000000000)::numeric(12,2) as kg
-  from auftrag a
-  join charge c on c.nr = a.charge_nr
-  left join (select v.auftrag_id, avg(v.netto_kg) as netto_kg
-               from v_ausgang_voll v
-              where coalesce(v.voll, true) and v.netto_kg > 0
-              group by v.auftrag_id) eig on eig.auftrag_id = a.id
-  left join lateral (
-       select p.netto_kg
-         from v_koeff_palette_netto p
-        where p.sorte = c.sorte
-          and (p.kistensystem = a.kistensystem
-               or p.kistensystem is null and a.kistensystem is distinct from 'anderes')
-        order by (p.kistensystem = a.kistensystem) desc nulls last
-        limit 1) kp on true
- where a.station = 'waschen' and not a.ist_fax
-   and coalesce(a.fertige_paletten_gesamt, 0) > 0
-   and coalesce(eig.netto_kg, kp.netto_kg) is not null;
-
 -- ---------------------------------------------------------------------
 -- 7. Die Lesungen, wie die Oberfläche sie zeigt
 -- ---------------------------------------------------------------------
@@ -9479,64 +9228,6 @@ select s.auftrag_id,
 having bool_and(s.palox_stand_kg is null or p.differenz is not null)
    and (count(*) filter (where s.palox_stand_kg is not null) = 0
      or count(*) filter (where s.palox_stand_kg is not null) >= 2);
-
-
--- =====================================================================
--- aus 0086_die_verschenkte_marge_je_charge.sql
--- =====================================================================
-
--- =====================================================================
--- 0086 — Die verschenkte Marge je Charge
---
--- Der Betrieb über die Marge-Darstellung: „scheusslich — es sagt z.b.
--- nicht welches kaliber … dann sind die messungen auch übereinander und
--- nicht clever zusammengefasst - z.b. dass dort genau so wie alles andere
--- so geordnet wird wie ganz oben angeben - wenn man alle sagt - dann alle
--- chargen - wenn man nur eine sorte hat die chargen untereinander".
---
--- Der Bildschirm kann nur gliedern, was die Datenbank auseinanderhält.
--- v_marge_wiegung (0078) fasst je Sorte zusammen — die Charge ist darin
--- verschwunden. Diese Migration stellt dieselbe Rechnung eine Ebene feiner
--- daneben: je Charge. Nicht statt, sondern zusätzlich, weil die Zahl je
--- Sorte weiter die ist, mit der der Betriebsleiter die Kisten füllen
--- lässt; die je Charge ist die, mit der er sieht, wo es herkommt.
---
--- Dieselbe Mathematik wie in 0078, derselbe Nenner (nur volle Paletten),
--- dieselben Namen der Spalten — plus charge_nr und schlag.
--- =====================================================================
-
-create or replace view v_marge_charge with (security_invoker = true) as
-with w as (
-  select k.*
-    from v_ausgang_voll k
-   where k.kisten > 0 and k.netto_kg is not null and k.kistensystem is not null and k.voll
-)
-select w.charge_nr,
-       w.sorte,
-       w.schlag,
-       w.kistensystem,
-       case when w.kistensystem = 'kiste_ab' then w.soll_kg_pro_kiste end   as soll_kg_pro_kiste,
-       case when w.kistensystem = 'stueck'   then w.kaliber_idx end         as kaliber_idx,
-       case when w.kistensystem = 'stueck'   then w.stueck_je_kiste end     as stueck_je_kiste,
-       case when w.kistensystem = 'stueck'   then w.band_mittel_g end       as band_mittel_g,
-       count(*)::int                                                       as n_wiegungen,
-       sum(w.kisten)::int                                                  as kisten,
-       zahl(avg(w.kg_pro_kiste), 3, 10000)::numeric(10,3)                  as kg_je_kiste,
-       zahl(stddev_samp(w.kg_pro_kiste), 3, 10000)::numeric(10,3)          as sd_je_kiste,
-       zahl(avg(w.ueberfuellung_je_kiste), 3, 10000)::numeric(10,3)        as zuviel_je_kiste,
-       zahl(avg(w.kg_pro_kuerbis) * 1000, 0, 1000000)::numeric(8,0)        as g_je_kuerbis,
-       zahl(avg(w.kg_pro_kuerbis) * 1000 - w.band_mittel_g, 0, 1000000)::numeric(8,0)
-                                                                           as g_ueber_bandmitte,
-       betriebstag(min(w.ts))                                              as von,
-       betriebstag(max(w.ts))                                              as bis
-  from w
- group by w.charge_nr, w.sorte, w.schlag, w.kistensystem,
-          case when w.kistensystem = 'kiste_ab' then w.soll_kg_pro_kiste end,
-          case when w.kistensystem = 'stueck'   then w.kaliber_idx end,
-          case when w.kistensystem = 'stueck'   then w.stueck_je_kiste end,
-          case when w.kistensystem = 'stueck'   then w.band_mittel_g end,
-          w.band_mittel_g;
-create materialized view erg_marge_charge as select * from v_marge_charge with no data;
 
 -- ---------- 2. Jede Wägung sagt, ob und warum sie zählt -----------------
 -- Dieselben Spalten wie bisher (0069/0070), dazu `plausibel` und `grund`.
@@ -10075,6 +9766,433 @@ select
   (select count(*) from sortier_lauf
     where sortiertag_quelle in ('datei', 'arbeit'))::int                                  as lesungen_sortiertag_bezeugt;
 
+-- Die Kommentar-Sicht zeigt nur Gekürztes: `text` ist die Kurzfassung.
+-- Dazu, neu am Ende (eine Sicht kann Spalten nur anhängen): `roh` — was die
+-- Person wirklich gesagt hat (Text, sonst Transkript) — und `n`.
+create or replace view v_arbeit_kommentar with (security_invoker = true) as
+select r.auftrag_id,
+       coalesce(r.kurz_charge_nr, a.charge_nr) as charge_nr,
+       string_agg(r.kurz, ' · ' order by r.ts) as text,
+       bool_or(r.audio_ref is not null) as mit_aufnahme,
+       max(r.ts) as ts,
+       string_agg(coalesce(nullif(btrim(r.text), ''), r.transkript, '(nur Aufnahme)'), ' · ' order by r.ts) as roh,
+       count(*)::int as n
+  from auftrag_rueckmeldung r
+  join auftrag a on a.id = r.auftrag_id
+ where r.art = 'ware'
+   and r.kurz is not null
+ group by r.auftrag_id, coalesce(r.kurz_charge_nr, a.charge_nr);
+
+
+-- =====================================================================
+-- aus 0097_was_der_betrieb_am_ersten_tag_sah.sql
+-- =====================================================================
+
+-- =====================================================================
+-- 0097 — Was der Betrieb am ersten Tag mit echten Zahlen sah (Runde AD)
+--
+-- Am 28. September lagen zum ersten Mal echte Zahlen im Dashboard, und der
+-- Betrieb hat sie gelesen. Fünf Dinge davon gehören der Datenbank:
+--
+-- 1. „Kaori Kuri K1 · 500–600 g · Mitte 878 g" — das Kaliber hiess nach der
+--    neuesten Fassung, die Mitte war nach der Fassung des Auftrags gerechnet
+--    (K1 = 600–1100 g). Jede Wägung trägt jetzt die Grenzen ihres Bandes aus
+--    der Fassung des Auftrags (band_von_g, band_bis_g), und die Bandmitte ist
+--    der Schwerpunkt der Kürbisse INNERHALB dieser Grenzen aus den
+--    Sortierläufen der Sorte — nicht das Mittel je Index über alle Fassungen.
+--    Die Marge-Ansichten gruppieren nach den Grenzen.
+-- 2. „halbe Palette — zählt nicht in der Marge?" — 43 statt 44 Kisten ändern
+--    das Gewicht je Kiste nicht. Jede gewogene Palette zählt je Kiste; ob sie
+--    voll war, steht dabei (n_voll). Für die Palettenmasse (Nenner des
+--    Waschens) zählen weiter nur volle.
+-- 3. „0 kg zu klein / 22 kg zu gross — stimmt nicht" — die Arbeiterin hat
+--    „zu gross" gewogen und „zu klein" ausgelassen. Eine Art ohne Messung ist
+--    unbekannt, nicht 0: keine Auffälligkeit, und die gemessene Art zählt.
+-- 4. „Verlust bis heute —" bei jeder Charge, obwohl Verdunstung und Faules
+--    gerechnet waren: Der Sockel a₀ galt als unbekannt, solange das
+--    Verderbsmodell nicht brauchbar war. Der Sockel ist ein Zuschlag, den es
+--    nur mit Nachweis gibt; ohne Nachweis ist er 0.
+-- 5. Der Zeitplan-Eintrag (0061) wird beim Einspielen nicht mehr gelöscht und
+--    neu angelegt — siehe die Änderung im Block von 0061: Der Starter von
+--    pg_cron hat einen neu angelegten Eintrag zweimal am selben Tag nicht
+--    übernommen; einen bestehenden führt er weiter.
+-- 6. Abbrechen mit Erlaubnis: Eine Arbeiterin darf laufende Arbeiten
+--    abbrechen, auch fremde, wenn der Betriebsleiter es ihr erlaubt hat
+--    (profil.darf_abbrechen). Die Funktion prüft es selbst.
+--
+-- Keine Tabelle, keine Spalte wird gelöscht. Die zwei Marge-Ansichten werden
+-- als gespeicherte Ansichten neu angelegt, weil sie Spalten dazubekommen
+-- (wie 0078 und 0086).
+-- =====================================================================
+
+-- ---------------------------------------------------------------------
+-- 1. Jede gewogene fertige Palette kennt die Grenzen ihres Bandes
+-- ---------------------------------------------------------------------
+create or replace view v_ausgang_kennzahl with (security_invoker = true) as
+with grenzen as (
+  -- 0097: jedes Band, das es gibt — aus allen Fassungen der Sortierschemata
+  -- und aus den eigenen Bändern der Wasch-Arbeiten (kaliber_von_g/bis_g, 0054).
+  select distinct s.sorte, (e.band ->> 0)::int as von, (e.band ->> 1)::int as bis
+    from sortierschema s
+    cross join lateral jsonb_array_elements(s.kaliber_baender) as e(band)
+   where s.art = 'kaliber' and s.kaliber_baender is not null
+  union
+  select distinct c.sorte, a.kaliber_von_g, a.kaliber_bis_g
+    from auftrag a join charge c on c.nr = a.charge_nr
+   where a.kaliber_von_g is not null and a.kaliber_bis_g is not null
+), band_mittel as (
+  -- Mittleres Stückgewicht der Kürbisse dieser Sorte INNERHALB der Grenzen,
+  -- aus allen Sortierläufen der Sorte — gleich, mit welcher Fassung der Lauf
+  -- klassiert hat. Bis 0096 stand hier das Mittel je kaliber_idx, und ein
+  -- Index heisst je Fassung etwas anderes: Kaori Kuri bekam am 23. September
+  -- ein Band 500–600 g vorne dran, K1 rutschte von 600–1100 auf 500–600 —
+  -- die Marge-Karte zeigte „K1 · 500–600 g · Mitte 878 g".
+  select g.sorte, g.von, g.bis,
+         sum(sg.anzahl::bigint * sg.gewicht_g)::numeric / nullif(sum(sg.anzahl), 0) as gramm
+    from grenzen g
+    join charge c on c.sorte = g.sorte
+    join sortier_lauf l on l.charge_nr = c.nr
+    join sortier_gewicht sg on sg.lauf_id = l.id and sg.gewicht_g >= g.von and sg.gewicht_g < g.bis
+   group by g.sorte, g.von, g.bis
+)
+select w.id, w.auftrag_id, w.charge_nr, c.sorte, c.schlag, w.ts, w.brutto_kg, w.kisten,
+       w.gebindeart, w.kuerbisse_pro_kiste, n.netto_kg,
+       zahl(n.netto_kg / w.kisten, 3, 1e7)::numeric(10,3)                          as kg_pro_kiste,
+       zahl(n.netto_kg / nullif(w.kisten * w.kuerbisse_pro_kiste, 0), 3, 1e7)::numeric(10,3) as kg_pro_kuerbis,
+       s.soll::numeric                                                              as soll_kg_pro_kiste,
+       zahl(case when s.soll is not null then n.netto_kg / w.kisten - s.soll end, 3, 1e7)::numeric(10,3)
+                                                                                    as ueberfuellung_je_kiste,
+       zahl(case when s.soll is not null then n.netto_kg - w.kisten * s.soll end, 2, 1e8)::numeric(10,2)
+                                                                                    as ueberfuellung_kg,
+       -- neu (0060)
+       coalesce(a.kistensystem, case when ss.art = 'kiste' then 'kiste_ab' end)::text as kistensystem,
+       w.kaliber_idx,
+       e.stueck                                                                     as stueck_je_kiste,
+       zahl(e.stueck * bm.gramm / 1000.0, 3, 1e7)::numeric(10,3)                    as erwartet_kg_pro_kiste,
+       zahl(n.netto_kg / w.kisten - e.stueck * bm.gramm / 1000.0, 3, 1e7)::numeric(10,3)
+                                                                                    as abweichung_je_kiste,
+       zahl(bm.gramm, 0, 1e6)::numeric(8,0)                                         as band_mittel_g,
+       -- 0097: die Grenzen des Bandes, wie die Fassung des Auftrags sie kennt
+       bd.von                                                                       as band_von_g,
+       bd.bis                                                                       as band_bis_g
+  from ausgang_wiegung w
+  join auftrag a on a.id = w.auftrag_id
+  join charge c on c.nr = w.charge_nr
+  left join gebinde g on g.art = w.gebindeart
+  left join sortierschema ss on ss.id = a.sortierschema_id
+  cross join lateral (
+    select zahl(w.brutto_kg - w.kisten * g.tara_kg_pro_kiste - coalesce(g.tara_kg_palette, 0), 2, 1e8)::numeric(10,2) as netto_kg) n
+  cross join lateral (
+    select case when a.kistensystem = 'kiste_ab' then a.soll_kg_pro_kiste
+                when a.kistensystem is null and ss.art = 'kiste' then ss.soll_kg_pro_kiste end as soll) s
+  cross join lateral (
+    select case when a.kistensystem = 'stueck' then coalesce(w.kuerbisse_pro_kiste, a.stueck_je_kiste) end as stueck) e
+  cross join lateral (
+    select case when w.kaliber_idx = -2 then null else coalesce(w.kaliber_idx, a.kaliber_idx) end as idx) i
+  cross join lateral (
+    -- Die Grenzen des Bandes, wie die Fassung DES AUFTRAGS sie kennt; beim
+    -- eigenen Band (Waschen, 0054) die des Auftrags selbst. Trägt der Auftrag
+    -- keine Fassung: die heute gültige Standardfassung der Sorte.
+    select case when i.idx is null then a.kaliber_von_g else (f.baender -> i.idx ->> 0)::int end as von,
+           case when i.idx is null then a.kaliber_bis_g else (f.baender -> i.idx ->> 1)::int end as bis
+      from (select coalesce(ss.kaliber_baender,
+                            (select x.kaliber_baender from sortierschema x
+                              where x.sorte = c.sorte and x.art = 'kaliber' and x.kaeufer is null
+                                and x.kaliber_baender is not null
+                              order by x.gilt_ab desc limit 1)) as baender) f) bd
+  left join band_mittel bm on bm.sorte = c.sorte and bm.von = bd.von and bm.bis = bd.bis
+ where w.gemessen and a.abgebrochen_ts is null and n.netto_kg > 0;
+
+-- ---------- Kisten in Kilo, mit ausgewiesener Unsicherheit ----------------
+create or replace view v_lieferung_masse with (security_invoker = true) as
+with kiste as (
+  -- Wie schwer ist eine ausgelieferte Kiste wirklich? Aus den fertig
+  -- gepackten Paletten nach dem Waschen (0013).
+  select avg(kg_pro_kiste)                            as mittel,
+         stddev_samp(kg_pro_kiste)                    as sd,
+         count(*)::int                                as n
+    from v_ausgang_kennzahl where kg_pro_kiste is not null
+)
+select l.*, z.name as ziel_name, z.buch,
+       coalesce(l.kg, l.kisten * k.mittel)                          as masse_kg,
+       case when l.kg is not null then 'gewogen'
+            when k.n > 0          then 'aus Kisten hochgerechnet'
+            else 'Kistengewicht unbekannt' end                      as masse_quelle,
+       -- Fehler der Umrechnung: nur bei Kistenangaben, und nur so gross, wie
+       -- die Wägungen es hergeben.
+       case when l.kg is not null then 0
+            when k.n >= 2 then l.kisten * t_quantil_95(k.n - 1) * k.sd / sqrt(k.n)
+       end                                                          as masse_fehler_kg,
+       k.n                                                          as kisten_n
+  from lieferung l
+  join ausgang_ziel z on z.code = l.ziel
+  cross join kiste k;
+
+-- v_koeff_ueberfuellung: 4 Cast(s)
+create or replace view v_koeff_ueberfuellung with (security_invoker = true) as
+ WITH roh AS (
+         SELECT k.ueberfuellung_kg AS wert,
+            k.kisten AS n_kisten,
+            k.ueberfuellung_je_kiste AS je_kiste
+           FROM v_ausgang_kennzahl k
+          WHERE k.ueberfuellung_je_kiste IS NOT NULL
+        ), s AS (
+         SELECT count(*)::integer AS n,
+            sum(roh.wert) / NULLIF(sum(roh.n_kisten), 0)::numeric AS kg_pro_kiste,
+            stddev_samp(roh.je_kiste) AS sd
+           FROM roh
+        )
+ SELECT n,
+    zahl(kg_pro_kiste, 3, 1e7)::numeric(10,3) AS kg_pro_kiste,
+    zahl(sd, 3, 1e7)::numeric(10,3) AS sd,
+        zahl(CASE
+            WHEN sd IS NULL OR n < 2 THEN kg_pro_kiste::double precision
+            ELSE GREATEST(kg_pro_kiste::double precision - (1.96 * sd)::double precision / sqrt(n::double precision), 0::double precision)
+        END, 3, 1e7)::numeric(10,3) AS unten,
+        zahl(CASE
+            WHEN sd IS NULL OR n < 2 THEN kg_pro_kiste::double precision
+            ELSE kg_pro_kiste::double precision + (1.96 * sd)::double precision / sqrt(n::double precision)
+        END, 3, 1e7)::numeric(10,3) AS oben
+   FROM s;
+
+-- ---------------------------------------------------------------------
+-- 3. Lieferungen je Charge und Tag — eine Regel, an einer Stelle
+--
+-- Eine Lieferung ohne Chargennummer wird nach dem Eingangsanteil auf die
+-- Chargen ihrer Sorte verteilt. Diese Regel steckte bisher nur in
+-- `v_lieferung_kohorte`; der Verlauf je Schlag und Charge braucht sie auch.
+-- Damit es sie nicht zweimal gibt, steht sie jetzt hier — und
+-- `v_lieferung_kohorte` rechnet darauf weiter.
+-- ---------------------------------------------------------------------
+create or replace view v_lieferung_charge_tag with (security_invoker = true) as
+with lief as (
+  select l.id, l.datum, l.buch, l.masse_kg, c.charge_nr, c.anteil
+    from (select heute() as heute) d
+    cross join v_lieferung_masse l
+    cross join lateral (
+      select l.charge_nr, 1::numeric as anteil where l.charge_nr is not null
+      union all
+      select r.charge_nr, r.eingang_netto_kg / sum(r.eingang_netto_kg) over ()
+        from v_charge_rueckgrat r
+       where l.charge_nr is null and r.sorte = l.sorte and r.eingang_netto_kg > 0
+    ) c
+   where l.masse_kg is not null and l.masse_kg > 0
+     and l.buch in ('verkauf', 'marge', 'verlust') and l.datum <= d.heute
+  union all
+  -- Was vor dem Erfassungsbeginn rausging: eine Angabe des Betriebs je
+  -- Charge, gebucht am Erfassungsbeginn.
+  select -cv.charge_nr,
+         coalesce((select nullif(wert #>> '{}', '')::date from einstellung where schluessel = 'erfassungsbeginn'),
+                  r.letzter_eingang),
+         'verkauf', cv.ausgang_vor_app_kg, cv.charge_nr, 1
+    from charge_vorlauf cv join v_charge_rueckgrat r on r.charge_nr = cv.charge_nr
+   where cv.ausgang_vor_app_kg > 0
+)
+select charge_nr, datum, buch,
+       zahl(sum(masse_kg * anteil), 2, 1e12)::numeric(14,2) as masse_kg,
+       count(distinct id)::int                              as n_lieferungen
+  from lief
+ group by charge_nr, datum, buch;
+
+-- v_lieferung_kohorte auf dieselbe Regel stellen. Spalten und Reihenfolge
+-- bleiben unverändert — mv_kaskade hängt daran und wird nicht angefasst.
+create or replace view v_lieferung_kohorte with (security_invoker = true) as
+select f.charge_nr,
+       k.eingangsdatum as kohorte,
+       f.buch,
+       zahl(sum(f.masse_kg * k.anteil), 2, 1e12)::numeric(14,2) as masse_kg,
+       zahl(sum(f.masse_kg * k.anteil * greatest(f.datum - k.eingangsdatum, 0)::numeric)
+            / nullif(sum(f.masse_kg * k.anteil), 0), 1, 1e5)::numeric(8,1) as alter_tage,
+       sum(f.n_lieferungen)::int as n_lieferungen,
+       min(f.datum) as von,
+       max(f.datum) as bis
+  from v_lieferung_charge_tag f
+  join v_kohorte_anteil k on k.charge_nr = f.charge_nr
+ group by f.charge_nr, k.eingangsdatum, f.buch;
+
+-- ---------------------------------------------------------------------
+-- 7. Überfüllung: die Lage im Band
+--
+-- Bei „Kiste ab x kg" ist zu viel in der Kiste verschenkte Ware — das
+-- rechnet die Sicht schon. Bei „x Stück je Kaliber" ist es anders: bezahlt
+-- wird je Stück innerhalb eines Bandes, das Gewicht ist dem Käufer egal.
+-- Wer nahe an der Unterkante des Bandes liefert, verkauft dieselbe Zahl
+-- Kürbisse mit weniger Kilo. „Lage im Band" sagt, wo die gewogene Ware
+-- liegt: 0 % ist die Unterkante, 100 % die Oberkante.
+--
+-- Die Lage wird **nicht** geklammert. Ein Wert über 100 % heisst, dass die
+-- gewogene Kiste schwerer ist als die Oberkante ihres Kalibers — dann passt
+-- die Kaliberangabe der Wägung nicht zur Ware, und das gehört gesehen und
+-- nicht wegformatiert.
+--
+-- „Spielraum" heisst die Masse über der Unterkante ausdrücklich nicht
+-- „verschenkt": Niemand sortiert auf die Kante, und eine Kiste an der
+-- Unterkante wäre ein Reklamationsrisiko. Es ist der Rahmen, in dem sich
+-- überhaupt etwas holen liesse.
+-- ---------------------------------------------------------------------
+create or replace view v_ueberfuellung_verkauf with (security_invoker = true) as
+with verkauft as (
+  select case when grouping(v.charge_nr) = 1 then 'sorte' else 'charge' end as gruppe,
+         v.sorte, v.charge_nr, v.kistensystem, v.soll_kg_pro_kiste, v.stueck_je_kiste, v.kaliber_idx,
+         count(*)::int as n_lieferungen, sum(v.kg) as kg_verkauft, sum(v.kisten) as kisten_verkauft,
+         count(*) filter (where v.kisten_quelle = 'anteil')::int as n_anteilig,
+         sum(v.stueck) as stueck_verkauft,
+         sum(v.stueck * v.nenn_g::numeric) / nullif(sum(v.stueck), 0) as nenn_g,
+         min(v.datum) as von, max(v.datum) as bis
+    from v_verkauf_lieferung v
+   where v.sorte is not null
+   group by grouping sets ((v.sorte, v.kistensystem, v.soll_kg_pro_kiste, v.stueck_je_kiste, v.kaliber_idx),
+                           (v.sorte, v.charge_nr, v.kistensystem, v.soll_kg_pro_kiste, v.stueck_je_kiste, v.kaliber_idx))
+), gewogen as (
+  select case when grouping(k.charge_nr) = 1 then 'sorte' else 'charge' end as gruppe,
+         k.sorte, k.charge_nr, k.kistensystem, k.soll_kg_pro_kiste, k.stueck_je_kiste,
+         case when k.kistensystem = 'stueck' then k.kaliber_idx end as kaliber_idx,
+         count(*)::int as n_wiegungen, sum(k.kisten) as kisten_gewogen,
+         sum(k.netto_kg) / nullif(sum(k.kisten), 0)::numeric as kg_je_kiste,
+         stddev_samp(k.kg_pro_kiste) as sd_je_kiste,
+         sum(k.ueberfuellung_kg) as zuviel_gewogen_kg,
+         sum(k.netto_kg) / nullif(sum(k.kisten * k.stueck_je_kiste), 0)::numeric * 1000 as g_je_kuerbis,
+         max(k.band_mittel_g) as band_mittel_g
+    from v_ausgang_kennzahl k
+   where k.kistensystem in ('kiste_ab', 'stueck')
+     and (k.kistensystem <> 'kiste_ab' or k.soll_kg_pro_kiste is not null)
+     and (k.kistensystem <> 'stueck'   or k.stueck_je_kiste  is not null)
+   group by grouping sets ((k.sorte, k.kistensystem, k.soll_kg_pro_kiste, k.stueck_je_kiste,
+                            (case when k.kistensystem = 'stueck' then k.kaliber_idx end)),
+                           (k.sorte, k.charge_nr, k.kistensystem, k.soll_kg_pro_kiste, k.stueck_je_kiste,
+                            (case when k.kistensystem = 'stueck' then k.kaliber_idx end)))
+), band as (
+  select distinct on (s.sorte, i.idx) s.sorte, i.idx as kaliber_idx,
+         ((s.kaliber_baender -> i.idx) ->> 0)::int as von,
+         ((s.kaliber_baender -> i.idx) ->> 1)::int as bis
+    from sortierschema s
+    cross join lateral generate_series(0, jsonb_array_length(s.kaliber_baender) - 1) i(idx)
+   where s.art = 'kaliber' and s.kaliber_baender is not null and s.kaeufer is null and s.gilt_ab <= heute()
+   order by s.sorte, i.idx, s.gilt_ab desc
+)
+select coalesce(v.gruppe, g.gruppe)                       as gruppe,
+       coalesce(v.sorte, g.sorte)                         as sorte,
+       coalesce(v.charge_nr, g.charge_nr)                 as charge_nr,
+       coalesce(v.kistensystem, g.kistensystem)           as kistensystem,
+       coalesce(v.soll_kg_pro_kiste, g.soll_kg_pro_kiste) as soll_kg_pro_kiste,
+       coalesce(v.stueck_je_kiste, g.stueck_je_kiste)     as stueck_je_kiste,
+       coalesce(v.kaliber_idx, g.kaliber_idx)             as kaliber_idx,
+       b.von as band_von_g, b.bis as band_bis_g,
+       zahl(v.nenn_g, 0, 1e6)::numeric(8,0)               as nenn_g,
+       coalesce(v.n_lieferungen, 0)                       as n_lieferungen,
+       zahl(v.kg_verkauft, 1, 1e11)::numeric(12,1)        as kg_verkauft,
+       zahl(v.kisten_verkauft, 0, 1e9)::numeric(12,0)     as kisten_verkauft,
+       coalesce(v.n_anteilig, 0)                          as n_anteilig,
+       zahl(v.stueck_verkauft, 0, 1e9)::numeric(12,0)     as stueck_verkauft,
+       v.von, v.bis,
+       coalesce(g.n_wiegungen, 0)                         as n_wiegungen,
+       g.kisten_gewogen,
+       zahl(g.kg_je_kiste, 3, 1e7)::numeric(10,3)         as kg_je_kiste,
+       zahl(g.sd_je_kiste, 3, 1e7)::numeric(10,3)         as sd_je_kiste,
+       zahl(g.kg_je_kiste - g.soll_kg_pro_kiste, 3, 1e7)::numeric(10,3) as zuviel_je_kiste,
+       zahl(g.zuviel_gewogen_kg, 1, 1e11)::numeric(12,1)  as zuviel_gewogen_kg,
+       zahl(case when g.n_wiegungen > 0 and v.kisten_verkauft is not null and g.kistensystem = 'kiste_ab'
+                 then greatest(g.kg_je_kiste - g.soll_kg_pro_kiste, 0) * v.kisten_verkauft
+                 else null::numeric end,
+            1, 1e11)::numeric(12,1)                       as verschenkt_kg,
+       zahl(case when g.n_wiegungen >= 2 and v.kisten_verkauft is not null and g.kistensystem = 'kiste_ab'
+                 then (t_quantil_95(g.n_wiegungen - 1) * g.sd_je_kiste)::double precision
+                      / sqrt(g.n_wiegungen::double precision) * v.kisten_verkauft::double precision end,
+            1, 1e11)::numeric(12,1)                       as verschenkt_fehler_kg,
+       zahl(g.g_je_kuerbis, 0, 1e6)::numeric(8,0)         as g_je_kuerbis,
+       zahl(g.band_mittel_g, 0, 1e6)::numeric(8,0)        as band_mittel_g,
+       -- Neu (0071): wo im Kaliberband liegt die gewogene Ware, und wie viel
+       -- Masse geht über der Unterkante unbezahlt mit?
+       zahl(case when b.von is not null and b.bis is not null and b.bis > b.von and g.g_je_kuerbis is not null
+                 then (g.g_je_kuerbis - b.von) / (b.bis - b.von)::numeric end,
+            4, 1e4)::numeric(8,4)                         as lage_im_band,
+       zahl(case when g.g_je_kuerbis is not null and b.von is not null and v.stueck_verkauft is not null
+                 then (g.g_je_kuerbis - b.von) / 1000.0 * v.stueck_verkauft end,
+            1, 1e11)::numeric(12,1)                       as spielraum_kg
+  from verkauft v
+  full join gewogen g
+    on g.gruppe = v.gruppe and g.sorte = v.sorte and g.charge_nr is not distinct from v.charge_nr
+   and g.kistensystem = v.kistensystem
+   and g.soll_kg_pro_kiste is not distinct from v.soll_kg_pro_kiste
+   and g.stueck_je_kiste is not distinct from v.stueck_je_kiste
+   and g.kaliber_idx is not distinct from v.kaliber_idx
+  left join band b on b.sorte = coalesce(v.sorte, g.sorte)
+                  and b.kaliber_idx = coalesce(v.kaliber_idx, g.kaliber_idx);
+create materialized view erg_ueberfuellung as select * from v_ueberfuellung_verkauf with no data;
+
+-- Die schlanke Sicht darüber (0089) neu angelegt, damit sie die zwei neuen
+-- Spalten trägt.
+create or replace view v_ausgang_voll with (security_invoker = true) as
+select k.id, k.auftrag_id, k.charge_nr, k.sorte, k.schlag, k.ts, k.brutto_kg, k.kisten,
+       k.gebindeart, k.kuerbisse_pro_kiste, k.netto_kg, k.kg_pro_kiste, k.kg_pro_kuerbis,
+       k.soll_kg_pro_kiste, k.ueberfuellung_je_kiste, k.ueberfuellung_kg, k.kistensystem,
+       k.kaliber_idx, k.stueck_je_kiste, k.erwartet_kg_pro_kiste, k.abweichung_je_kiste,
+       k.band_mittel_g,
+       w.voll,
+       -- 0097: die zwei neuen Spalten HINTER voll — eine bestehende Sicht darf
+       -- Spalten nur am Ende dazubekommen, und k.* hätte sie davor gestellt.
+       k.band_von_g, k.band_bis_g
+  from v_ausgang_kennzahl k
+  join ausgang_wiegung w on w.id = k.id;
+
+create or replace view v_koeff_palette_netto with (security_invoker = true) as
+select sorte, kistensystem,
+       count(*)::int                                              as n,
+       zahl(avg(netto_kg), 2, 100000000)::numeric(10,2)           as netto_kg,
+       zahl(stddev_samp(netto_kg), 2, 100000000)::numeric(10,2)   as sd,
+       zahl(avg(kisten), 1, 1000000)::numeric(8,1)                as kisten
+  from v_ausgang_voll k
+ where coalesce(k.voll, true)
+ group by grouping sets ((sorte, kistensystem), (sorte));
+
+-- ---------------------------------------------------------------------
+-- 6. Der Nenner beim Waschen: die fertigen Paletten
+-- ---------------------------------------------------------------------
+-- Die Masse, die beim Waschen herauskam: fertige Paletten mal Palettenmasse —
+-- dem Mittel der **eigenen** gewogenen vollen Paletten dieser Arbeit,
+-- hilfsweise dem ihrer Sorte und ihres Kistensystems. Fehlt die Palettenzahl
+-- oder fehlen beide Massen, gibt es keine Zeile: unbekannt, nicht null.
+--
+-- Warum eine eigene Sicht und keine Unterabfrage in v_auftrag_masse? Gemessen
+-- an der dreifachen Saison, über alle fünf Rechenschritte:
+--
+--   ohne diesen Zweig                                  11 385 ms
+--   als Unterabfrage im Lateral (erster Anlauf)        13 260 ms
+--   dieselbe Unterabfrage, im `case` bewacht           12 500 ms
+--
+-- Der Wächter allein genügte nicht. Eine Unterabfrage in der Spaltenliste
+-- macht die Sicht für den Planer undurchsichtig: Er kann sie nicht mehr in
+-- ihre acht Leser hineinfalten (v_schimmel_beobachtung, v_kaskade_basis,
+-- v_massenbilanz, v_plausibilitaet, v_durchsatz, v_fax_beobachtung,
+-- v_ausschuss_beobachtung, v_schimmel_punkte), und jeder von ihnen bekommt
+-- einen schlechteren Plan — auch wenn die Unterabfrage selbst nie ausgeführt
+-- wird. Als flacher Verbund auf eine kleine Sicht bleibt alles beim Alten.
+--
+-- Hier führt die Bedingung: `where station = 'waschen'` steht an der
+-- **treibenden** Tabelle, also fallen die neunzehn von zwanzig Arbeiten weg,
+-- bevor irgendetwas gerechnet wird.
+create or replace view v_auftrag_fertige_masse with (security_invoker = true) as
+select a.id as auftrag_id,
+       zahl(a.fertige_paletten_gesamt::numeric * coalesce(eig.netto_kg, kp.netto_kg),
+            2, 10000000000)::numeric(12,2) as kg
+  from auftrag a
+  join charge c on c.nr = a.charge_nr
+  left join (select v.auftrag_id, avg(v.netto_kg) as netto_kg
+               from v_ausgang_voll v
+              where coalesce(v.voll, true) and v.netto_kg > 0
+              group by v.auftrag_id) eig on eig.auftrag_id = a.id
+  left join lateral (
+       select p.netto_kg
+         from v_koeff_palette_netto p
+        where p.sorte = c.sorte
+          and (p.kistensystem = a.kistensystem
+               or p.kistensystem is null and a.kistensystem is distinct from 'anderes')
+        order by (p.kistensystem = a.kistensystem) desc nulls last
+        limit 1) kp on true
+ where a.station = 'waschen' and not a.ist_fax
+   and coalesce(a.fertige_paletten_gesamt, 0) > 0
+   and coalesce(eig.netto_kg, kp.netto_kg) is not null;
+
 
 -- =====================================================================
 -- aus 0092_das_kistengewicht_kommt_von_der_waage.sql
@@ -10351,39 +10469,6 @@ select m.auftrag_id, m.charge_nr, m.sorte, m.schlag, m.weg, m.station,
          order by (p.kistensystem = a.kistensystem) desc nulls last
          limit 1) fp on true;
 
--- v_ausschuss_beobachtung: 1 Cast(s)
-create or replace view v_ausschuss_beobachtung with (security_invoker = true) as
- SELECT 'maschine'::verarbeitungsweg AS weg,
-    lm.charge_nr,
-    lm.sorte,
-    lm.auftrag_id,
-    lm.masse_kg AS basis_kg,
-    lm.masse_klein_kg AS klein_kg,
-    lm.masse_nebenkanal_kg AS gross_kg,
-    true AS plausibel
-   FROM v_sortier_lauf_masse lm
-  WHERE lm.masse_kg > 0::numeric
-UNION ALL
- SELECT 'hand'::verarbeitungsweg AS weg,
-    am.charge_nr,
-    am.sorte,
-    am.auftrag_id,
-    n.basis AS basis_kg,
-    h.klein_kg,
-    h.gross_kg,
-    anteil_plausibel(h.klein_kg / NULLIF(n.basis, 0::numeric)) AND anteil_plausibel(COALESCE(h.gross_kg, 0::numeric) / NULLIF(n.basis, 0::numeric)) AS plausibel
-   FROM v_auftrag_masse am
-     JOIN ( SELECT ausschuss_messung.auftrag_id,
-            sum(ausschuss_messung.kg) FILTER (WHERE ausschuss_messung.art = 'zu_klein'::ausschuss_art)::numeric AS klein_kg,
-            sum(ausschuss_messung.kg) FILTER (WHERE ausschuss_messung.art = 'zu_gross'::ausschuss_art)::numeric AS gross_kg
-           FROM ausschuss_messung
-          WHERE ausschuss_messung.gemessen
-          GROUP BY ausschuss_messung.auftrag_id) h ON h.auftrag_id = am.auftrag_id
-     LEFT JOIN v_schimmel_menge sm ON sm.auftrag_id = am.auftrag_id
-     LEFT JOIN v_koeff_verdunstung kv ON kv.sorte = am.sorte
-     CROSS JOIN LATERAL ( SELECT zahl(GREATEST(am.eingang_netto_kg * power(1::numeric - LEAST(GREATEST(COALESCE(kv.mittel, 0::numeric), 0::numeric), 0.05), GREATEST(am.lagertage, 0::numeric)) - COALESCE(sm.kg, 0::numeric), 0::numeric), 2, 1e10)::numeric(12,2) AS basis) n
-  WHERE am.weg = 'hand'::verarbeitungsweg AND am.eingang_netto_kg IS NOT NULL AND am.lagertage IS NOT NULL;
-
 -- v_durchsatz: 2 Cast(s)
 create or replace view v_durchsatz with (security_invoker = true) as
  SELECT a.id AS auftrag_id,
@@ -10431,187 +10516,6 @@ select a.id as auftrag_id, a.charge_nr, c.sorte, c.schlag, a.kaeufer,
   left join (select auftrag_id, sum(anzahl)::int as kisten from auftrag_gebinde group by auftrag_id) g
          on g.auftrag_id = a.id
  where a.ist_fax and a.abgebrochen_ts is null;
-
--- v_koeff_roh_kaliber: 1 Cast(s)
-create or replace view v_koeff_roh_kaliber with (security_invoker = true) as
- SELECT 'ausschuss'::text AS art,
-    b.sorte,
-    b.charge_nr,
-    b.klein_kg / b.basis_kg AS anteil,
-    b.basis_kg AS gewicht
-   FROM v_ausschuss_beobachtung b
-  WHERE b.plausibel AND b.basis_kg > 0::numeric AND b.klein_kg IS NOT NULL
-UNION ALL
- SELECT 'nebenkanal'::text AS art,
-    b.sorte,
-    b.charge_nr,
-    b.gross_kg / b.basis_kg AS anteil,
-    b.basis_kg AS gewicht
-   FROM v_ausschuss_beobachtung b
-  WHERE b.plausibel AND b.basis_kg > 0::numeric AND b.gross_kg IS NOT NULL
-UNION ALL
- SELECT 'fax'::text AS art,
-    f.sorte,
-    f.charge_nr,
-    f.anteil::numeric AS anteil,
-    zahl((f.masse_kg + f.faul_kg), 2, 1e10)::numeric(12,2) AS gewicht
-   FROM v_fax_beobachtung f
-  WHERE f.plausibel AND f.masse_kg > 0::numeric AND f.faul_erfasst AND f.status = 'abgeschlossen'::auftrag_status;
-
--- ---------- Schätzer: Ausschuss zu klein und Nebenkanal zu gross ----------
-create or replace view v_koeff_kaliber_geschaetzt with (security_invoker = true) as
-with roh as materialized (
-  select art, sorte, charge_nr, anteil, gewicht from v_koeff_roh_kaliber
-   where anteil is not null and gewicht > 0
-),
-je_charge as (
-  -- Ein Durchgang. Alles Weitere braucht nur noch diese Summen je Charge:
-  -- Σw·Anteil und Σw. Frühere Fassungen scannten die Beobachtungen einmal je
-  -- Sorte und brauchten 3.2 s allein für v_koeff_ausschuss.
-  select art, sorte, charge_nr,
-         sum(gewicht)          as sw_c,
-         sum(anteil * gewicht) as swa_c,
-         count(*)              as n_c
-    from roh group by art, sorte, charge_nr
-),
-ebene as (
-  -- Sortenebene und Gesamtebene (sorte = NULL) in einem Durchgang
-  select art, sorte, sum(sw_c) as sw, sum(swa_c) as swa,
-         sum(n_c)::int as n, count(distinct charge_nr)::int as c_chargen
-    from je_charge
-   group by grouping sets ((art, sorte), (art))
-),
-mittelwert as (
-  select e.*, e.swa / nullif(e.sw, 0) as mittel from ebene e
-),
-varianz as (
-  -- Chargen-robuste Varianz des massegewichteten Anteils. Die gewichtete
-  -- Abweichungssumme einer Charge ist Σw·Anteil − Mittel·Σw, also direkt aus
-  -- den Chargensummen zu haben. Die Streuung *dieser Summen* ist der Fehler;
-  -- mit einer einzigen Charge gibt es nichts zu streuen und sie bleibt NULL.
-  select m.*, v.varianz
-    from mittelwert m
-    cross join lateral (
-      select case when m.c_chargen > 1 and m.sw > 0
-                  then sum(power(j.swa_c - m.mittel * j.sw_c, 2)) / power(m.sw, 2)
-                       * m.c_chargen::numeric / (m.c_chargen - 1) end as varianz
-        from je_charge j
-       where j.art = m.art and (m.sorte is null or j.sorte = m.sorte)
-    ) v
-),
-gesamt as (
-  select art, mittel, varianz, c_chargen, n, sw from varianz where sorte is null
-),
-tau as (
-  -- τ²: wie stark sich die Sorten *wirklich* unterscheiden. Die beobachtete
-  -- Streuung der Sortenmittel enthält auch den eigenen Schätzfehler; der wird
-  -- abgezogen (Momentenschätzer). Bleibt nichts übrig, unterscheiden sich die
-  -- Sorten nicht nachweisbar und es wird voll gebündelt.
-  select v.art,
-         greatest(
-           sum(v.sw * power(v.mittel - g.mittel, 2)) / nullif(sum(v.sw), 0)
-           - coalesce(avg(v.varianz), 0), 0) as tau2
-    from varianz v join gesamt g on g.art = v.art
-   where v.sorte is not null
-   group by v.art
-),
-gitter as (
-  -- Jede Sorte des Stammdatensatzes bekommt eine Zeile, auch die ungemessene.
-  -- Sonst fiele sie ganz heraus und ihr Koeffizient stünde auf 0 — also „kein
-  -- Verlust", was schlicht falsch ist.
-  select a.art, sk.sorte from (select distinct art from roh) a cross join sorte_kaliber sk
-  union all
-  select art, null::text from (select distinct art from roh) a
-)
-select gi.art, gi.sorte, coalesce(v.n, 0) as n, coalesce(v.c_chargen, 0) as c_chargen,
-       v.mittel                                            as mittel_roh,
-       v.varianz                                           as varianz_roh,
-       g.mittel                                            as mittel_gesamt,
-       t.tau2,
-       -- Bündelungsgewicht: 0 = ganz der Gesamtwert, 1 = ganz der eigene
-       b.gewicht                                           as b,
-       -- coalesce, weil eine Sorte ohne eigene Messung kein v.mittel hat;
-       -- b ist dann 0 und es bleibt genau der Gesamtwert stehen.
-       (b.gewicht * coalesce(v.mittel, g.mittel)
-        + (1 - b.gewicht) * g.mittel)                      as mittel,
-       -- Fehler des gebündelten Werts: der eigene, um B geschrumpft, plus
-       -- der Rest-Anteil am Fehler des Gesamtwerts.
-       (b.gewicht * coalesce(v.varianz, 0)
-        + power(1 - b.gewicht, 2) * coalesce(g.varianz, 0)) as varianz,
-       -- Freiheitsgrade: so viele unabhängige Chargen, wie tatsächlich
-       -- eingehen — zwischen der eigenen Zahl und der des Gesamtwerts.
-       greatest(round(b.gewicht * coalesce(v.c_chargen, 0)
-                      + (1 - b.gewicht) * g.c_chargen)::int - 1, 1) as df,
-       g.n                                                 as n_gesamt,
-       -- Für die Fehlerfortpflanzung: der eigene, unabhängige Anteil am
-       -- Fehler und das Gewicht, mit dem der (allen Sorten gemeinsame)
-       -- Gesamtwert eingeht. Die beiden dürfen nicht wie unabhängige Fehler
-       -- addiert werden — der Gesamtwert ist derselbe für jede Sorte.
-       power(b.gewicht, 2) * coalesce(v.varianz, 0)        as varianz_eigen,
-       (1 - b.gewicht)                                     as gewicht_gesamt,
-       coalesce(g.varianz, 0)                              as varianz_gesamt
-  from gitter gi
-  join gesamt g on g.art = gi.art
-  left join varianz v on v.art = gi.art and v.sorte is not distinct from gi.sorte
-  left join tau t on t.art = gi.art
-  cross join lateral (
-    select case when gi.sorte is null then 1.0
-                when v.varianz is null or v.mittel is null
-                     or coalesce(t.tau2, 0) = 0 then 0.0
-                else t.tau2 / (t.tau2 + v.varianz) end as gewicht
-  ) b;
-
--- ---------- Unsicherheit aller Koeffizienten an einer Stelle --------------
--- Wird nur von der Fehlerfortpflanzung gelesen, nie von den Koeffizienten
--- selbst — sonst wäre der Zyklus von oben wieder da.
-create or replace view v_koeff_unsicherheit with (security_invoker = true) as
-select art, sorte, b, varianz_eigen, gewicht_gesamt, varianz_gesamt, df
-  from v_koeff_verdunstung_geschaetzt
-union all
-select art, sorte, b, varianz_eigen, gewicht_gesamt, varianz_gesamt, df
-  from v_koeff_kaliber_geschaetzt;
-
-create or replace view v_koeff_ausschuss with (security_invoker = true) as
-select sk.sorte,
-       k.mittel::numeric                                                    as mittel,
-       (case when coalesce(k.varianz, 0) = 0 then k.mittel
-             else greatest(k.mittel - k.t * sqrt(k.varianz), 0)
-        end)::double precision                                              as unten,
-       (case when coalesce(k.varianz, 0) = 0 then k.mittel
-             else least(k.mittel + k.t * sqrt(k.varianz), 1)
-        end)::double precision                                              as oben,
-       coalesce(k.n, 0)                                                     as n,
-       case when coalesce(k.n_gesamt, 0) = 0 then 'keine Messung vorhanden'
-            when k.b >= 0.67     then 'Sortierläufe/Handmessungen dieser Sorte'
-            when k.b >= 0.33     then 'eigene Messungen, zum Gesamtwert gezogen'
-            else 'alle Sorten (zu wenige eigene Chargen)' end               as basis
-  from sorte_kaliber sk
-  left join lateral (
-    select g.*, t_quantil_95(g.df) as t
-      from v_koeff_kaliber_geschaetzt g
-     where g.art = 'ausschuss' and g.sorte is not distinct from sk.sorte
-  ) k on true;
-
-create or replace view v_koeff_nebenkanal with (security_invoker = true) as
-select sk.sorte,
-       k.mittel::numeric                                                    as mittel,
-       (case when coalesce(k.varianz, 0) = 0 then k.mittel
-             else greatest(k.mittel - k.t * sqrt(k.varianz), 0)
-        end)::double precision                                              as unten,
-       (case when coalesce(k.varianz, 0) = 0 then k.mittel
-             else least(k.mittel + k.t * sqrt(k.varianz), 1)
-        end)::double precision                                              as oben,
-       coalesce(k.n, 0)                                                     as n,
-       case when coalesce(k.n_gesamt, 0) = 0 then 'keine Messung vorhanden'
-            when k.b >= 0.67     then 'Sortierläufe/Handmessungen dieser Sorte'
-            when k.b >= 0.33     then 'eigene Messungen, zum Gesamtwert gezogen'
-            else 'alle Sorten (zu wenige eigene Chargen)' end               as basis
-  from sorte_kaliber sk
-  left join lateral (
-    select g.*, t_quantil_95(g.df) as t
-      from v_koeff_kaliber_geschaetzt g
-     where g.art = 'nebenkanal' and g.sorte is not distinct from sk.sorte
-  ) k on true;
 
 -- ---------- 2. Die Basis rechnet bis heute -----------------------------------
 -- v_kaskade_basis.stichtag war der Tag, bis zu dem die Ware im Haus gealtert
@@ -10749,51 +10653,6 @@ select gruppe,
             else zahl(anteil, 5, 1e5)::numeric(10,5) end         as oben
   from je;
 create materialized view erg_fax_wartezeit as select * from v_fax_wartezeit with no data;
-
--- Dieselben Spalten und Typen wie 0051 — die Kaskade (mv_kaskade, 0065)
--- liest mittel, n und basis.
-create or replace view v_koeff_fax with (security_invoker = true) as
-with schalter as (
-  select coalesce((select (wert #>> '{}')::boolean from einstellung where schluessel = 'fax_eingefroren'), false) as eingefroren
-)
-select sk.sorte,
-       case when s.eingefroren then 0::numeric else k.mittel::numeric end        as mittel,
-       case when s.eingefroren then 0::double precision
-            when coalesce(k.varianz, 0) = 0 then k.mittel
-            else greatest(k.mittel - k.t * sqrt(k.varianz), 0) end::double precision as unten,
-       case when s.eingefroren then 0::double precision
-            when coalesce(k.varianz, 0) = 0 then k.mittel
-            else least(k.mittel + k.t * sqrt(k.varianz), 1) end::double precision   as oben,
-       case when s.eingefroren then 0 else coalesce(k.n, 0) end                  as n,
-       case when s.eingefroren then 'eingefroren (Runde R): Fax wird nicht erfasst, erwarteter Anteil 0 durch Entscheid'
-            when coalesce(k.n_gesamt, 0) = 0 then 'keine Fax-Arbeit mit gewogenem Faulem'
-            when k.b >= 0.67     then 'Fax-Arbeiten dieser Sorte'
-            when k.b >= 0.33     then 'eigene Fax-Arbeiten, zum Gesamtwert gezogen'
-            else 'alle Sorten (zu wenige eigene Chargen)' end                    as basis
-  from sorte_kaliber sk
-  cross join schalter s
-  left join lateral (
-    select g.*, t_quantil_95(g.df) as t
-      from v_koeff_kaliber_geschaetzt g
-     where g.art = 'fax' and g.sorte is not distinct from sk.sorte
-  ) k on true;
-create materialized view erg_koeff_fax as select * from v_koeff_fax with no data;
-create materialized view mv_koeff_rand as
-  select b.sorte,
-         least(greatest(coalesce(kv.unten::numeric, 0), 0), 0.05)   as r_unten,
-         least(greatest(coalesce(kv.oben::numeric,  0), 0), 0.05)   as r_oben,
-         least(greatest(coalesce(ka.unten::numeric, 0), 0), 1)      as klein_unten,
-         least(greatest(coalesce(ka.oben::numeric,  0), 0), 1)      as klein_oben,
-         least(greatest(coalesce(kn.unten::numeric, 0), 0), 1)      as gross_unten,
-         least(greatest(coalesce(kn.oben::numeric,  0), 0), 1)      as gross_oben,
-         least(greatest(coalesce(kf.unten::numeric, 0), 0), 1)      as fax_unten,
-         least(greatest(coalesce(kf.oben::numeric,  0), 0), 1)      as fax_oben
-    from (select distinct sorte from v_kaskade_basis) b
-    left join v_koeff_verdunstung kv on kv.sorte = b.sorte
-    left join v_koeff_ausschuss   ka on ka.sorte = b.sorte
-    left join v_koeff_nebenkanal  kn on kn.sorte = b.sorte
-    left join v_koeff_fax         kf on kf.sorte = b.sorte
-with no data;
 
 -- ---------------------------------------------------------------------
 -- 4. Der Messtag an jedem Punkt der Verderbskurve
@@ -11352,6 +11211,339 @@ create or replace view v_schimmel_kurve_anzeige with (security_invoker = true) a
         END AS erlaeuterung
    FROM v_schimmel_kurve k
   ORDER BY von;
+
+create or replace view v_marge_wiegung with (security_invoker = true) as
+with w as (
+  -- 0097: jede gewogene Palette zählt je Kiste. „Nicht voll" heisst: weniger
+  -- Kisten auf der Palette, nicht weniger in der Kiste — 43 statt 44 Kisten
+  -- ändern das Gewicht je Kiste nicht (Arbeit 1586: 11.76 gegen 11.90 kg).
+  -- Bis 0096 zählten sie nicht; n_voll sagt, wie viele voll waren.
+  select k.*, coalesce(aw.voll, true) as voll
+    from v_ausgang_kennzahl k
+    join ausgang_wiegung aw on aw.id = k.id
+   where k.kisten > 0 and k.netto_kg is not null and k.kistensystem is not null
+)
+select w.sorte, w.kistensystem,
+       case when w.kistensystem = 'kiste_ab' then w.soll_kg_pro_kiste end   as soll_kg_pro_kiste,
+       case when w.kistensystem = 'stueck'   then w.kaliber_idx end         as kaliber_idx,
+       case when w.kistensystem = 'stueck'   then w.stueck_je_kiste end     as stueck_je_kiste,
+       case when w.kistensystem = 'stueck'   then w.band_mittel_g end       as band_mittel_g,
+       count(*)::int                                                       as n_wiegungen,
+       sum(w.kisten)::int                                                  as kisten,
+       zahl(avg(w.kg_pro_kiste), 3, 1e4)::numeric(10,3)                    as kg_je_kiste,
+       zahl(stddev_samp(w.kg_pro_kiste), 3, 1e4)::numeric(10,3)            as sd_je_kiste,
+       -- Kiste ab: Ist − Soll je Kiste, gemittelt über die Wägungen.
+       zahl(avg(w.ueberfuellung_je_kiste), 3, 1e4)::numeric(10,3)          as zuviel_je_kiste,
+       -- Stück: Gramm je Kürbis und die Abweichung von der Bandmitte.
+       zahl(avg(w.kg_pro_kuerbis) * 1000, 0, 1e6)::numeric(8,0)            as g_je_kuerbis,
+       zahl(avg(w.kg_pro_kuerbis) * 1000 - w.band_mittel_g, 0, 1e6)::numeric(8,0) as g_ueber_bandmitte,
+       betriebstag(min(w.ts))                                              as von,
+       betriebstag(max(w.ts))                                              as bis,
+       -- 0097: die Grenzen des Bandes aus der Fassung des Auftrags — dazu
+       -- gruppiert, weil derselbe Index in zwei Fassungen zwei Bänder sein kann.
+       case when w.kistensystem = 'stueck'   then w.band_von_g end         as band_von_g,
+       case when w.kistensystem = 'stueck'   then w.band_bis_g end         as band_bis_g,
+       count(*) filter (where w.voll)::int                                 as n_voll
+  from w
+ group by w.sorte, w.kistensystem,
+          case when w.kistensystem = 'kiste_ab' then w.soll_kg_pro_kiste end,
+          case when w.kistensystem = 'stueck'   then w.kaliber_idx end,
+          case when w.kistensystem = 'stueck'   then w.stueck_je_kiste end,
+          case when w.kistensystem = 'stueck'   then w.band_mittel_g end,
+          case when w.kistensystem = 'stueck'   then w.band_von_g end,
+          case when w.kistensystem = 'stueck'   then w.band_bis_g end,
+          w.band_mittel_g;
+
+create or replace view v_marge_charge with (security_invoker = true) as
+with w as (
+  select k.*
+    from v_ausgang_voll k
+   where k.kisten > 0 and k.netto_kg is not null and k.kistensystem is not null
+)
+select w.charge_nr,
+       w.sorte,
+       w.schlag,
+       w.kistensystem,
+       case when w.kistensystem = 'kiste_ab' then w.soll_kg_pro_kiste end   as soll_kg_pro_kiste,
+       case when w.kistensystem = 'stueck'   then w.kaliber_idx end         as kaliber_idx,
+       case when w.kistensystem = 'stueck'   then w.stueck_je_kiste end     as stueck_je_kiste,
+       case when w.kistensystem = 'stueck'   then w.band_mittel_g end       as band_mittel_g,
+       count(*)::int                                                       as n_wiegungen,
+       sum(w.kisten)::int                                                  as kisten,
+       zahl(avg(w.kg_pro_kiste), 3, 10000)::numeric(10,3)                  as kg_je_kiste,
+       zahl(stddev_samp(w.kg_pro_kiste), 3, 10000)::numeric(10,3)          as sd_je_kiste,
+       zahl(avg(w.ueberfuellung_je_kiste), 3, 10000)::numeric(10,3)        as zuviel_je_kiste,
+       zahl(avg(w.kg_pro_kuerbis) * 1000, 0, 1000000)::numeric(8,0)        as g_je_kuerbis,
+       zahl(avg(w.kg_pro_kuerbis) * 1000 - w.band_mittel_g, 0, 1000000)::numeric(8,0)
+                                                                           as g_ueber_bandmitte,
+       betriebstag(min(w.ts))                                              as von,
+       betriebstag(max(w.ts))                                              as bis,
+       case when w.kistensystem = 'stueck'   then w.band_von_g end         as band_von_g,
+       case when w.kistensystem = 'stueck'   then w.band_bis_g end         as band_bis_g,
+       count(*) filter (where w.voll)::int                                 as n_voll
+  from w
+ group by w.charge_nr, w.sorte, w.schlag, w.kistensystem,
+          case when w.kistensystem = 'kiste_ab' then w.soll_kg_pro_kiste end,
+          case when w.kistensystem = 'stueck'   then w.kaliber_idx end,
+          case when w.kistensystem = 'stueck'   then w.stueck_je_kiste end,
+          case when w.kistensystem = 'stueck'   then w.band_mittel_g end,
+          case when w.kistensystem = 'stueck'   then w.band_von_g end,
+          case when w.kistensystem = 'stueck'   then w.band_bis_g end,
+          w.band_mittel_g;
+
+create materialized view erg_marge_wiegung as select * from v_marge_wiegung with no data;
+
+create materialized view erg_marge_charge as select * from v_marge_charge with no data;
+
+-- ---------------------------------------------------------------------
+-- 3. Zu klein / zu gross: eine Art ohne Messung ist unbekannt
+-- ---------------------------------------------------------------------
+create or replace view v_ausschuss_beobachtung with (security_invoker = true) as
+ SELECT 'maschine'::verarbeitungsweg AS weg,
+    lm.charge_nr,
+    lm.sorte,
+    lm.auftrag_id,
+    lm.masse_kg AS basis_kg,
+    lm.masse_klein_kg AS klein_kg,
+    lm.masse_nebenkanal_kg AS gross_kg,
+    true AS plausibel
+   FROM v_sortier_lauf_masse lm
+  WHERE lm.masse_kg > 0::numeric
+UNION ALL
+ SELECT 'hand'::verarbeitungsweg AS weg,
+    am.charge_nr,
+    am.sorte,
+    am.auftrag_id,
+    n.basis AS basis_kg,
+    h.klein_kg,
+    h.gross_kg,
+    -- 0097: Eine Art ohne Messung ist unbekannt, nicht 0. Sechs Arbeiten der
+    -- Saison 2026 hatten „zu gross" gewogen und „zu klein" ausgelassen — die
+    -- Auffälligkeit sagte „0 kg zu klein … stimmt nicht", und der Koeffizient
+    -- verlor auch die gemessene Art. Was gemessen ist, wird geprüft; was
+    -- fehlt, bleibt leer (v_koeff_roh_kaliber nimmt je Art nur Messungen).
+    (h.klein_kg IS NULL OR anteil_plausibel(h.klein_kg / NULLIF(n.basis, 0::numeric)))
+      AND (h.gross_kg IS NULL OR anteil_plausibel(h.gross_kg / NULLIF(n.basis, 0::numeric))) AS plausibel
+   FROM v_auftrag_masse am
+     JOIN ( SELECT ausschuss_messung.auftrag_id,
+            sum(ausschuss_messung.kg) FILTER (WHERE ausschuss_messung.art = 'zu_klein'::ausschuss_art)::numeric AS klein_kg,
+            sum(ausschuss_messung.kg) FILTER (WHERE ausschuss_messung.art = 'zu_gross'::ausschuss_art)::numeric AS gross_kg
+           FROM ausschuss_messung
+          WHERE ausschuss_messung.gemessen
+          GROUP BY ausschuss_messung.auftrag_id) h ON h.auftrag_id = am.auftrag_id
+     LEFT JOIN v_schimmel_menge sm ON sm.auftrag_id = am.auftrag_id
+     LEFT JOIN v_koeff_verdunstung kv ON kv.sorte = am.sorte
+     CROSS JOIN LATERAL ( SELECT zahl(GREATEST(am.eingang_netto_kg * power(1::numeric - LEAST(GREATEST(COALESCE(kv.mittel, 0::numeric), 0::numeric), 0.05), GREATEST(am.lagertage, 0::numeric)) - COALESCE(sm.kg, 0::numeric), 0::numeric), 2, 1e10)::numeric(12,2) AS basis) n
+  WHERE am.weg = 'hand'::verarbeitungsweg AND am.eingang_netto_kg IS NOT NULL AND am.lagertage IS NOT NULL;
+
+-- v_koeff_roh_kaliber: 1 Cast(s)
+create or replace view v_koeff_roh_kaliber with (security_invoker = true) as
+ SELECT 'ausschuss'::text AS art,
+    b.sorte,
+    b.charge_nr,
+    b.klein_kg / b.basis_kg AS anteil,
+    b.basis_kg AS gewicht
+   FROM v_ausschuss_beobachtung b
+  WHERE b.plausibel AND b.basis_kg > 0::numeric AND b.klein_kg IS NOT NULL
+UNION ALL
+ SELECT 'nebenkanal'::text AS art,
+    b.sorte,
+    b.charge_nr,
+    b.gross_kg / b.basis_kg AS anteil,
+    b.basis_kg AS gewicht
+   FROM v_ausschuss_beobachtung b
+  WHERE b.plausibel AND b.basis_kg > 0::numeric AND b.gross_kg IS NOT NULL
+UNION ALL
+ SELECT 'fax'::text AS art,
+    f.sorte,
+    f.charge_nr,
+    f.anteil::numeric AS anteil,
+    zahl((f.masse_kg + f.faul_kg), 2, 1e10)::numeric(12,2) AS gewicht
+   FROM v_fax_beobachtung f
+  WHERE f.plausibel AND f.masse_kg > 0::numeric AND f.faul_erfasst AND f.status = 'abgeschlossen'::auftrag_status;
+
+-- ---------- Schätzer: Ausschuss zu klein und Nebenkanal zu gross ----------
+create or replace view v_koeff_kaliber_geschaetzt with (security_invoker = true) as
+with roh as materialized (
+  select art, sorte, charge_nr, anteil, gewicht from v_koeff_roh_kaliber
+   where anteil is not null and gewicht > 0
+),
+je_charge as (
+  -- Ein Durchgang. Alles Weitere braucht nur noch diese Summen je Charge:
+  -- Σw·Anteil und Σw. Frühere Fassungen scannten die Beobachtungen einmal je
+  -- Sorte und brauchten 3.2 s allein für v_koeff_ausschuss.
+  select art, sorte, charge_nr,
+         sum(gewicht)          as sw_c,
+         sum(anteil * gewicht) as swa_c,
+         count(*)              as n_c
+    from roh group by art, sorte, charge_nr
+),
+ebene as (
+  -- Sortenebene und Gesamtebene (sorte = NULL) in einem Durchgang
+  select art, sorte, sum(sw_c) as sw, sum(swa_c) as swa,
+         sum(n_c)::int as n, count(distinct charge_nr)::int as c_chargen
+    from je_charge
+   group by grouping sets ((art, sorte), (art))
+),
+mittelwert as (
+  select e.*, e.swa / nullif(e.sw, 0) as mittel from ebene e
+),
+varianz as (
+  -- Chargen-robuste Varianz des massegewichteten Anteils. Die gewichtete
+  -- Abweichungssumme einer Charge ist Σw·Anteil − Mittel·Σw, also direkt aus
+  -- den Chargensummen zu haben. Die Streuung *dieser Summen* ist der Fehler;
+  -- mit einer einzigen Charge gibt es nichts zu streuen und sie bleibt NULL.
+  select m.*, v.varianz
+    from mittelwert m
+    cross join lateral (
+      select case when m.c_chargen > 1 and m.sw > 0
+                  then sum(power(j.swa_c - m.mittel * j.sw_c, 2)) / power(m.sw, 2)
+                       * m.c_chargen::numeric / (m.c_chargen - 1) end as varianz
+        from je_charge j
+       where j.art = m.art and (m.sorte is null or j.sorte = m.sorte)
+    ) v
+),
+gesamt as (
+  select art, mittel, varianz, c_chargen, n, sw from varianz where sorte is null
+),
+tau as (
+  -- τ²: wie stark sich die Sorten *wirklich* unterscheiden. Die beobachtete
+  -- Streuung der Sortenmittel enthält auch den eigenen Schätzfehler; der wird
+  -- abgezogen (Momentenschätzer). Bleibt nichts übrig, unterscheiden sich die
+  -- Sorten nicht nachweisbar und es wird voll gebündelt.
+  select v.art,
+         greatest(
+           sum(v.sw * power(v.mittel - g.mittel, 2)) / nullif(sum(v.sw), 0)
+           - coalesce(avg(v.varianz), 0), 0) as tau2
+    from varianz v join gesamt g on g.art = v.art
+   where v.sorte is not null
+   group by v.art
+),
+gitter as (
+  -- Jede Sorte des Stammdatensatzes bekommt eine Zeile, auch die ungemessene.
+  -- Sonst fiele sie ganz heraus und ihr Koeffizient stünde auf 0 — also „kein
+  -- Verlust", was schlicht falsch ist.
+  select a.art, sk.sorte from (select distinct art from roh) a cross join sorte_kaliber sk
+  union all
+  select art, null::text from (select distinct art from roh) a
+)
+select gi.art, gi.sorte, coalesce(v.n, 0) as n, coalesce(v.c_chargen, 0) as c_chargen,
+       v.mittel                                            as mittel_roh,
+       v.varianz                                           as varianz_roh,
+       g.mittel                                            as mittel_gesamt,
+       t.tau2,
+       -- Bündelungsgewicht: 0 = ganz der Gesamtwert, 1 = ganz der eigene
+       b.gewicht                                           as b,
+       -- coalesce, weil eine Sorte ohne eigene Messung kein v.mittel hat;
+       -- b ist dann 0 und es bleibt genau der Gesamtwert stehen.
+       (b.gewicht * coalesce(v.mittel, g.mittel)
+        + (1 - b.gewicht) * g.mittel)                      as mittel,
+       -- Fehler des gebündelten Werts: der eigene, um B geschrumpft, plus
+       -- der Rest-Anteil am Fehler des Gesamtwerts.
+       (b.gewicht * coalesce(v.varianz, 0)
+        + power(1 - b.gewicht, 2) * coalesce(g.varianz, 0)) as varianz,
+       -- Freiheitsgrade: so viele unabhängige Chargen, wie tatsächlich
+       -- eingehen — zwischen der eigenen Zahl und der des Gesamtwerts.
+       greatest(round(b.gewicht * coalesce(v.c_chargen, 0)
+                      + (1 - b.gewicht) * g.c_chargen)::int - 1, 1) as df,
+       g.n                                                 as n_gesamt,
+       -- Für die Fehlerfortpflanzung: der eigene, unabhängige Anteil am
+       -- Fehler und das Gewicht, mit dem der (allen Sorten gemeinsame)
+       -- Gesamtwert eingeht. Die beiden dürfen nicht wie unabhängige Fehler
+       -- addiert werden — der Gesamtwert ist derselbe für jede Sorte.
+       power(b.gewicht, 2) * coalesce(v.varianz, 0)        as varianz_eigen,
+       (1 - b.gewicht)                                     as gewicht_gesamt,
+       coalesce(g.varianz, 0)                              as varianz_gesamt
+  from gitter gi
+  join gesamt g on g.art = gi.art
+  left join varianz v on v.art = gi.art and v.sorte is not distinct from gi.sorte
+  left join tau t on t.art = gi.art
+  cross join lateral (
+    select case when gi.sorte is null then 1.0
+                when v.varianz is null or v.mittel is null
+                     or coalesce(t.tau2, 0) = 0 then 0.0
+                else t.tau2 / (t.tau2 + v.varianz) end as gewicht
+  ) b;
+
+-- ---------- Unsicherheit aller Koeffizienten an einer Stelle --------------
+-- Wird nur von der Fehlerfortpflanzung gelesen, nie von den Koeffizienten
+-- selbst — sonst wäre der Zyklus von oben wieder da.
+create or replace view v_koeff_unsicherheit with (security_invoker = true) as
+select art, sorte, b, varianz_eigen, gewicht_gesamt, varianz_gesamt, df
+  from v_koeff_verdunstung_geschaetzt
+union all
+select art, sorte, b, varianz_eigen, gewicht_gesamt, varianz_gesamt, df
+  from v_koeff_kaliber_geschaetzt;
+
+create or replace view v_koeff_ausschuss with (security_invoker = true) as
+select sk.sorte,
+       k.mittel::numeric                                                    as mittel,
+       (case when coalesce(k.varianz, 0) = 0 then k.mittel
+             else greatest(k.mittel - k.t * sqrt(k.varianz), 0)
+        end)::double precision                                              as unten,
+       (case when coalesce(k.varianz, 0) = 0 then k.mittel
+             else least(k.mittel + k.t * sqrt(k.varianz), 1)
+        end)::double precision                                              as oben,
+       coalesce(k.n, 0)                                                     as n,
+       case when coalesce(k.n_gesamt, 0) = 0 then 'keine Messung vorhanden'
+            when k.b >= 0.67     then 'Sortierläufe/Handmessungen dieser Sorte'
+            when k.b >= 0.33     then 'eigene Messungen, zum Gesamtwert gezogen'
+            else 'alle Sorten (zu wenige eigene Chargen)' end               as basis
+  from sorte_kaliber sk
+  left join lateral (
+    select g.*, t_quantil_95(g.df) as t
+      from v_koeff_kaliber_geschaetzt g
+     where g.art = 'ausschuss' and g.sorte is not distinct from sk.sorte
+  ) k on true;
+
+create or replace view v_koeff_nebenkanal with (security_invoker = true) as
+select sk.sorte,
+       k.mittel::numeric                                                    as mittel,
+       (case when coalesce(k.varianz, 0) = 0 then k.mittel
+             else greatest(k.mittel - k.t * sqrt(k.varianz), 0)
+        end)::double precision                                              as unten,
+       (case when coalesce(k.varianz, 0) = 0 then k.mittel
+             else least(k.mittel + k.t * sqrt(k.varianz), 1)
+        end)::double precision                                              as oben,
+       coalesce(k.n, 0)                                                     as n,
+       case when coalesce(k.n_gesamt, 0) = 0 then 'keine Messung vorhanden'
+            when k.b >= 0.67     then 'Sortierläufe/Handmessungen dieser Sorte'
+            when k.b >= 0.33     then 'eigene Messungen, zum Gesamtwert gezogen'
+            else 'alle Sorten (zu wenige eigene Chargen)' end               as basis
+  from sorte_kaliber sk
+  left join lateral (
+    select g.*, t_quantil_95(g.df) as t
+      from v_koeff_kaliber_geschaetzt g
+     where g.art = 'nebenkanal' and g.sorte is not distinct from sk.sorte
+  ) k on true;
+
+-- Dieselben Spalten und Typen wie 0051 — die Kaskade (mv_kaskade, 0065)
+-- liest mittel, n und basis.
+create or replace view v_koeff_fax with (security_invoker = true) as
+with schalter as (
+  select coalesce((select (wert #>> '{}')::boolean from einstellung where schluessel = 'fax_eingefroren'), false) as eingefroren
+)
+select sk.sorte,
+       case when s.eingefroren then 0::numeric else k.mittel::numeric end        as mittel,
+       case when s.eingefroren then 0::double precision
+            when coalesce(k.varianz, 0) = 0 then k.mittel
+            else greatest(k.mittel - k.t * sqrt(k.varianz), 0) end::double precision as unten,
+       case when s.eingefroren then 0::double precision
+            when coalesce(k.varianz, 0) = 0 then k.mittel
+            else least(k.mittel + k.t * sqrt(k.varianz), 1) end::double precision   as oben,
+       case when s.eingefroren then 0 else coalesce(k.n, 0) end                  as n,
+       case when s.eingefroren then 'eingefroren (Runde R): Fax wird nicht erfasst, erwarteter Anteil 0 durch Entscheid'
+            when coalesce(k.n_gesamt, 0) = 0 then 'keine Fax-Arbeit mit gewogenem Faulem'
+            when k.b >= 0.67     then 'Fax-Arbeiten dieser Sorte'
+            when k.b >= 0.33     then 'eigene Fax-Arbeiten, zum Gesamtwert gezogen'
+            else 'alle Sorten (zu wenige eigene Chargen)' end                    as basis
+  from sorte_kaliber sk
+  cross join schalter s
+  left join lateral (
+    select g.*, t_quantil_95(g.df) as t
+      from v_koeff_kaliber_geschaetzt g
+     where g.art = 'fax' and g.sorte is not distinct from sk.sorte
+  ) k on true;
 create materialized view mv_kaskade as
 WITH modell AS MATERIALIZED (
          SELECT v_schimmel_modell.n,
@@ -11798,175 +11990,6 @@ WITH modell AS MATERIALIZED (
    FROM kaskade k
  with no data;
 
-create view v_hochrechnung_basis with (security_invoker = true) as
-with je_charge as (
-  select charge_nr,
-         sum(m0) filter (where portion = 'ausgelagert')                       as ausgelagert_kg,
-         sum(m0 * alter_tage) filter (where portion = 'ausgelagert')
-           / nullif(sum(m0) filter (where portion = 'ausgelagert'), 0)        as alter_ausgelagert,
-         sum(m0) filter (where portion = 'lager')                             as lager_kg,
-         sum(m0 * alter_tage) filter (where portion = 'lager')
-           / nullif(sum(m0) filter (where portion = 'lager'), 0)              as alter_lager,
-         sum(verkaufsfaehig_kg) filter (where portion = 'lager')              as verkaufsfaehig_lager_kg,
-         sum(geliefert_kg)                                                    as geliefert_kg,
-         sum(ueberzaehlung_kg)                                                as ueberzaehlung_kg,
-         sum(n_lieferungen)::int                                              as n_lieferungen,
-         min(kohorte) filter (where portion = 'lager' and m0 > 0)             as rest_von,
-         max(kohorte) filter (where portion = 'lager' and m0 > 0)             as rest_bis,
-         count(*) filter (where portion = 'lager' and m0 > 0)::int            as n_rest_kohorten,
-         sum(m0 * (kohorte - date '2000-01-01')) filter (where portion = 'lager')
-           / nullif(sum(m0) filter (where portion = 'lager'), 0)              as rest_tage_seit_epoche,
-         -- 0064: jede Stromsumme nur, wenn ihr Koeffizient gemessen ist.
-         -- Das `coalesce` innerhalb der Bedingung trennt zwei Sorten NULL:
-         -- „der Koeffizient ist unbekannt" (dann bleibt die ganze Summe NULL)
-         -- von „diese Portion gibt es nicht" — eine Charge ohne Lieferung hat
-         -- keine Zeile mit portion = 'ausgelagert', und dort ist 0 richtig.
-         case when bool_and(r_bekannt)  then coalesce(sum(verdunstung_kg), 0) end as verdunstung_heute_kg,
-         case when bool_and(f_bekannt)  then coalesce(sum(schimmel_kg), 0)    end as schimmel_heute_kg,
-         case when bool_and(a0_bekannt) then coalesce(sum(sockel_kg), 0)      end as sockel_heute_kg,
-         case when bool_and(a_klein_bekannt and a_gross_bekannt)
-              then coalesce(sum(klein_kg + nebenkanal_kg) filter (where portion = 'ausgelagert'), 0)
-              end                                                             as kanal_ausgelagert_kg,
-         case when bool_and(a_fax_bekannt)
-              then coalesce(sum(fax_kg) filter (where portion = 'ausgelagert'), 0) end as fax_heute_kg,
-         case when bool_and(a_fax_bekannt)
-              then coalesce(sum(fax_kg) filter (where portion = 'lager'), 0) end       as fax_erwartet_kg,
-         sum(m2) filter (where portion = 'lager')                             as im_haus_heute_kg,
-         case when bool_and(a_klein_bekannt and a_gross_bekannt)
-              then coalesce(sum(klein_kg + nebenkanal_kg) filter (where portion = 'lager'), 0)
-              end                                                             as kanal_im_haus_kg,
-         bool_and(r_bekannt and f_bekannt and a0_bekannt and a_fax_bekannt
-                  and a_klein_bekannt and a_gross_bekannt)                     as verlust_bekannt,
-         bool_and(r_bekannt)                                                   as verdunstung_bekannt,
-         bool_and(f_bekannt)                                                   as schimmel_bekannt,
-         bool_and(a0_bekannt)                                                  as sockel_nachgewiesen,
-         bool_and(a_fax_bekannt)                                               as fax_bekannt,
-         bool_and(a_klein_bekannt and a_gross_bekannt)                         as kanal_bekannt,
-         max(a0_var)                                                           as a0_var,
-         -- 0064: gab es zu dieser Charge überhaupt eine Kaskadenzeile?
-         count(*) > 0                                                          as gerechnet,
-         count(*) filter (where portion = 'lager') > 0                         as hat_lager
-    from mv_kaskade
-   group by charge_nr
-)
-select b.charge_nr, b.schlag, b.sorte,
-       b.eingang_kg,
-       b.n_paletten,
-       b.eingangsdatum_mittel,
-       zahl(coalesce(k.ausgelagert_kg, 0), 2, 1e12)::numeric(14,2)             as ausgelagert_kg,
-       zahl(k.alter_ausgelagert, 1, 1e5)::numeric(8,1)                         as alter_ausgelagert,
-       -- 0064: keine Kaskadenzeile → es liegt noch alles. Zeilen, aber keine
-       -- Portion „lager" → es liegt nichts mehr. Bisher hiess beides „alles".
-       zahl(case when k.gerechnet is not true then b.eingang_kg
-                 else coalesce(k.lager_kg, 0) end, 2, 1e12)::numeric(14,2)     as lager_kg,
-       zahl(coalesce(k.alter_lager, (b.stichtag - b.eingangsdatum_mittel)), 1, 1e5)::numeric(8,1)
-                                                                              as alter_lager,
-       zahl((heute() - x.rest_datum), 1, 1e5)::numeric(8,1)                    as alter_lager_heute,
-       b.weg2_anteil,
-       b.stichtag,
-       b.n_paletten_mit_netto,
-       zahl(coalesce(k.ueberzaehlung_kg, 0), 2, 1e12)::numeric(14,2)           as ueberzaehlung_kg,
-       b.sortiert_kg, b.gewaschen_kg, b.wartet_kg, b.anteil_gewaschen, b.alter_band, b.am_band_kg,
-       x.rest_datum                                                           as eingangsdatum_rest,
-       (coalesce(k.n_lieferungen, 0) > 0)                                     as rest_alter_aus_zaehlung,
-       b.eingang_von, b.eingang_bis, b.n_eingangstage,
-       coalesce(k.rest_von, b.eingang_von)                                    as rest_von,
-       coalesce(k.rest_bis, b.eingang_bis)                                    as rest_bis,
-       round(case when k.gerechnet is not true then b.eingang_kg else coalesce(k.lager_kg, 0) end
-             / nullif(b.eingang_kg / nullif(b.n_paletten, 0), 0))::int        as n_rest_paletten,
-       coalesce(k.n_rest_kohorten, b.n_eingangstage)                          as n_rest_kohorten,
-       (heute() - coalesce(k.rest_bis, b.eingang_bis))::int                   as alter_lager_von,
-       (heute() - coalesce(k.rest_von, b.eingang_von))::int                   as alter_lager_bis,
-       zahl(coalesce(k.geliefert_kg, 0), 2, 1e12)::numeric(14,2)              as geliefert_kg,
-       zahl(k.verkaufsfaehig_lager_kg, 2, 1e12)::numeric(14,2)                 as verkaufsfaehig_lager_kg,
-       coalesce(k.n_lieferungen, 0)                                           as n_lieferungen,
-       zahl(k.verdunstung_heute_kg, 2, 1e12)::numeric(14,2)                   as verdunstung_heute_kg,
-       zahl(k.schimmel_heute_kg, 2, 1e12)::numeric(14,2)                      as schimmel_heute_kg,
-       zahl(k.sockel_heute_kg, 2, 1e12)::numeric(14,2)                        as sockel_heute_kg,
-       zahl(k.fax_heute_kg, 2, 1e12)::numeric(14,2)                           as fax_heute_kg,
-       -- Der Verlust ist die Summe von vier Strömen. Fehlt einer, ist die
-       -- Summe unbekannt — nicht die Summe der übrigen.
-       zahl(k.verdunstung_heute_kg + k.schimmel_heute_kg + k.sockel_heute_kg + k.fax_heute_kg,
-            2, 1e12)::numeric(14,2)                                           as verlust_heute_kg,
-       zahl(k.kanal_ausgelagert_kg, 2, 1e12)::numeric(14,2)                   as kanal_ausgelagert_kg,
-       zahl(k.fax_erwartet_kg, 2, 1e12)::numeric(14,2)                        as fax_erwartet_kg,
-       zahl(case when k.gerechnet is not true then b.eingang_kg
-                 else coalesce(k.im_haus_heute_kg, 0) end, 2, 1e12)::numeric(14,2) as im_haus_heute_kg,
-       zahl(k.kanal_im_haus_kg, 2, 1e12)::numeric(14,2)                       as kanal_im_haus_kg,
-       coalesce(k.verlust_bekannt, false)                                     as verlust_bekannt,
-       coalesce(k.verdunstung_bekannt, false)                                 as verdunstung_bekannt,
-       coalesce(k.schimmel_bekannt, false)                                    as schimmel_bekannt,
-       coalesce(k.sockel_nachgewiesen, false)                                 as sockel_nachgewiesen,
-       coalesce(k.fax_bekannt, false)                                         as fax_bekannt,
-       coalesce(k.kanal_bekannt, false)                                       as kanal_bekannt,
-       zahl(coalesce(k.lager_kg, 0) * 1.96 * sqrt(greatest(coalesce(k.a0_var, 0), 0)), 2, 1e12)::numeric(14,2)
-                                                                              as sockel_oben_kg,
-       heute()                                                                as heute
-  from v_kaskade_basis b
-  left join je_charge k on k.charge_nr = b.charge_nr
-  cross join lateral (
-    select case when k.rest_tage_seit_epoche is not null
-                then date '2000-01-01' + round(k.rest_tage_seit_epoche)::int
-                else b.eingangsdatum_mittel end as rest_datum
-  ) x
- where b.eingang_kg is not null;
-
-create materialized view erg_charge as
-SELECT charge_nr,
-    schlag,
-    sorte,
-    eingang_kg,
-    n_paletten,
-    eingangsdatum_mittel,
-    ausgelagert_kg,
-    alter_ausgelagert,
-    lager_kg,
-    alter_lager,
-    alter_lager_heute,
-    weg2_anteil,
-    stichtag,
-    n_paletten_mit_netto,
-    ueberzaehlung_kg,
-    sortiert_kg,
-    gewaschen_kg,
-    wartet_kg,
-    anteil_gewaschen,
-    alter_band,
-    am_band_kg,
-    eingangsdatum_rest,
-    rest_alter_aus_zaehlung,
-    eingang_von,
-    eingang_bis,
-    n_eingangstage,
-    rest_von,
-    rest_bis,
-    n_rest_paletten,
-    n_rest_kohorten,
-    alter_lager_von,
-    alter_lager_bis,
-    geliefert_kg,
-    verkaufsfaehig_lager_kg,
-    n_lieferungen,
-    verdunstung_heute_kg,
-    schimmel_heute_kg,
-    sockel_heute_kg,
-    fax_heute_kg,
-    verlust_heute_kg,
-    kanal_ausgelagert_kg,
-    fax_erwartet_kg,
-    im_haus_heute_kg,
-    kanal_im_haus_kg,
-    verlust_bekannt,
-    verdunstung_bekannt,
-    schimmel_bekannt,
-    sockel_nachgewiesen,
-    fax_bekannt,
-    kanal_bekannt,
-    sockel_oben_kg,
-    heute
-   FROM v_hochrechnung_basis
-with no data;
-
 create view v_kaskade with (security_invoker = true) as
 SELECT charge_nr,
     sorte,
@@ -12089,82 +12112,6 @@ SELECT charge_nr,
     koeff_bekannt,
     kohorte
    FROM mv_hochrechnung;
-
-create view v_kontrolle_vorschlag with (security_invoker = true) as
-SELECT b.charge_nr,
-    b.sorte,
-    b.schlag,
-    b.lager_kg,
-    b.alter_lager_von,
-    b.alter_lager_bis,
-    b.eingang_von,
-    b.eingang_bis,
-    COALESCE(k.n_kontrollen, 0) AS n_kontrollen,
-    k.zuletzt,
-    b.im_haus_heute_kg,
-    heute() - COALESCE(k.zuletzt, b.eingang_von) AS tage_seit_wiegung,
-    zahl(b.im_haus_heute_kg * GREATEST(heute() - COALESCE(k.zuletzt, b.eingang_von), 1)::numeric, 0, '10000000000000'::numeric)::numeric(14,0) AS informationswert
-   FROM erg_charge b
-     LEFT JOIN ( SELECT verdunstung_wiegung.charge_nr,
-            count(*) FILTER (WHERE verdunstung_wiegung.auftrag_id IS NULL)::integer AS n_kontrollen,
-            max(verdunstung_wiegung.wiege_ts)::date AS zuletzt
-           FROM verdunstung_wiegung
-          WHERE verdunstung_wiegung.gemessen
-          GROUP BY verdunstung_wiegung.charge_nr) k ON k.charge_nr = b.charge_nr
-  WHERE b.im_haus_heute_kg > 0::numeric
-  ORDER BY (zahl(b.im_haus_heute_kg * GREATEST(heute() - COALESCE(k.zuletzt, b.eingang_von), 1)::numeric, 0, '10000000000000'::numeric)::numeric(14,0)) DESC NULLS LAST, b.im_haus_heute_kg DESC
- LIMIT 3;
-
-create view v_massenbilanz with (security_invoker = true) as
-WITH csv_anteil AS MATERIALIZED (
-         SELECT am.charge_nr,
-            COALESCE(sum(am.eingang_netto_kg) FILTER (WHERE (EXISTS ( SELECT 1
-                   FROM sortier_lauf l
-                  WHERE l.auftrag_id = am.auftrag_id))) / NULLIF(sum(am.eingang_netto_kg), 0::numeric), 0::numeric) AS anteil_mit_csv
-           FROM v_auftrag_masse am
-          WHERE (am.station = ANY (ARRAY['sortieren'::station, 'waschen_sortieren'::station])) AND am.eingang_netto_kg IS NOT NULL
-          GROUP BY am.charge_nr
-        ), gemessen AS MATERIALIZED (
-         SELECT v_sortier_lauf_masse.charge_nr,
-            sum(v_sortier_lauf_masse.masse_kg) AS gemessen_kg
-           FROM v_sortier_lauf_masse
-          GROUP BY v_sortier_lauf_masse.charge_nr
-        ), rest AS MATERIALIZED (
-         SELECT v_kaskade.charge_nr,
-            sum(v_kaskade.m2) FILTER (WHERE v_kaskade.portion = 'lager'::text) AS restbestand_kg
-           FROM v_kaskade
-          GROUP BY v_kaskade.charge_nr
-        ), modell AS MATERIALIZED (
-         SELECT b_1.charge_nr,
-            b_1.am_band_kg * power(1::numeric - LEAST(GREATEST(COALESCE(kv.mittel, 0::numeric), 0::numeric), 0.05), COALESCE(b_1.alter_band, 0::numeric)) * (1::numeric - sockel_anteil()) * (1::numeric - schimmelanteil(COALESCE(b_1.alter_band, 0::numeric))) * q.anteil_mit_csv AS am_band_modell_kg
-           FROM v_kaskade_basis b_1
-             LEFT JOIN csv_anteil q ON q.charge_nr = b_1.charge_nr
-             LEFT JOIN v_koeff_verdunstung kv ON kv.sorte = b_1.sorte
-        )
- SELECT b.charge_nr,
-    b.sorte,
-    b.schlag,
-    b.eingang_kg,
-    b.ausgelagert_kg,
-    b.lager_kg,
-    b.n_paletten,
-    b.alter_ausgelagert,
-    b.alter_lager,
-    b.stichtag,
-    zahl(m.am_band_modell_kg, 2, '1000000000000'::numeric)::numeric(14,2) AS modell_am_band_kg,
-    c.gemessen_kg AS csv_gemessen_kg,
-    zahl(c.gemessen_kg - m.am_band_modell_kg, 2, '1000000000000'::numeric)::numeric(14,2) AS abweichung_kg,
-        CASE
-            WHEN m.am_band_modell_kg > 0::numeric THEN zahl((c.gemessen_kg - m.am_band_modell_kg) / m.am_band_modell_kg, 4, '1000000'::numeric)::numeric(10,4)
-            ELSE NULL::numeric
-        END AS abweichung_anteil,
-    zahl(r.restbestand_kg, 2, '1000000000000'::numeric)::numeric(14,2) AS restbestand_kg,
-    kb.alter_band
-   FROM erg_charge b
-     JOIN v_kaskade_basis kb ON kb.charge_nr = b.charge_nr
-     LEFT JOIN modell m ON m.charge_nr = b.charge_nr
-     LEFT JOIN gemessen c ON c.charge_nr = b.charge_nr
-     LEFT JOIN rest r ON r.charge_nr = b.charge_nr;
 
 
 -- =====================================================================
@@ -12528,124 +12475,23 @@ $$;
 
 create view v_verlust_ranking with (security_invoker = true) as
 select * from verlust_ranking();
-
-create view v_saisonbilanz with (security_invoker = true) as
-WITH charge AS (
-         SELECT sum(erg_charge.eingang_kg) AS eingang_kg,
-            sum(erg_charge.ausgelagert_kg) AS ausgelagert_kg,
-            sum(erg_charge.geliefert_kg) AS geliefert_kg,
-            sum(erg_charge.lager_kg) AS lager_kg,
-            sum(erg_charge.wartet_kg) AS wartet_kg,
-            sum(erg_charge.ueberzaehlung_kg) AS ueberzaehlung_kg,
-            sum(erg_charge.verkaufsfaehig_lager_kg) AS verkaufsfaehig_heute_kg,
-            sum(erg_charge.im_haus_heute_kg) AS im_haus_heute_kg,
-            sum(erg_charge.kanal_im_haus_kg) AS kanal_im_haus_kg,
-            sum(erg_charge.verlust_heute_kg) AS verlust_heute_kg,
-            sum(erg_charge.verdunstung_heute_kg) AS verdunstung_heute_kg,
-            sum(erg_charge.schimmel_heute_kg) AS schimmel_heute_kg,
-            sum(erg_charge.sockel_heute_kg) AS sockel_heute_kg,
-            sum(erg_charge.fax_heute_kg) AS fax_heute_kg,
-            sum(erg_charge.fax_erwartet_kg) AS fax_erwartet_kg,
-            sum(erg_charge.kanal_ausgelagert_kg) AS kanal_ausgelagert_kg,
-            bool_and(erg_charge.verlust_bekannt) AS bekannt,
-            count(*)::integer AS n_chargen,
-            max(erg_charge.heute) AS heute
-           FROM erg_charge
-        ), bereich AS (
-         SELECT sum(erg_verlust.kg_unten) FILTER (WHERE erg_verlust.buch = ANY (ARRAY['verlust'::text, 'feld'::text])) AS verlust_unten_kg,
-            sum(erg_verlust.kg_oben) FILTER (WHERE erg_verlust.buch = ANY (ARRAY['verlust'::text, 'feld'::text])) AS verlust_oben_kg,
-            sum(erg_verlust.kg) FILTER (WHERE erg_verlust.buch = ANY (ARRAY['verlust'::text, 'feld'::text])) AS verlust_kg,
-            sum(erg_verlust.kg_unten) FILTER (WHERE erg_verlust.buch = 'marge'::text) AS kanal_unten_kg,
-            sum(erg_verlust.kg_oben) FILTER (WHERE erg_verlust.buch = 'marge'::text) AS kanal_oben_kg
-           FROM erg_verlust
-          WHERE erg_verlust.gruppe = 'gesamt'::text
-        ), vorlauf AS (
-         SELECT COALESCE(sum(charge_vorlauf.ausgang_vor_app_kg), 0::numeric) AS kg
-           FROM charge_vorlauf
-        ), ausgang AS (
-         SELECT COALESCE(sum(v_lieferung_masse.masse_kg), 0::numeric) AS kg,
-            COALESCE(sum(v_lieferung_masse.masse_kg) FILTER (WHERE v_lieferung_masse.buch = 'verkauf'::text), 0::numeric) AS verkauf_kg,
-            COALESCE(sum(v_lieferung_masse.masse_kg) FILTER (WHERE v_lieferung_masse.buch = 'marge'::text), 0::numeric) AS marge_kg,
-            COALESCE(sum(v_lieferung_masse.masse_kg) FILTER (WHERE v_lieferung_masse.buch = 'verlust'::text), 0::numeric) AS entsorgt_kg,
-            COALESCE(sum(v_lieferung_masse.masse_fehler_kg), 0::double precision) AS fehler_kg,
-            count(*)::integer AS n_lieferungen,
-            max(v_lieferung_masse.datum) AS letzte_lieferung
-           FROM v_lieferung_masse
-          WHERE v_lieferung_masse.datum <= heute()
-        ), fax AS (
-         SELECT COALESCE(sum(v_fax_beobachtung.masse_kg), 0::numeric) AS kg,
-            count(*)::integer AS n
-           FROM v_fax_beobachtung
-          WHERE v_fax_beobachtung.status = 'abgeschlossen'::auftrag_status AND v_fax_beobachtung.masse_kg IS NOT NULL
-        )
- SELECT c.heute,
-    zahl(c.eingang_kg)::numeric(14,2) AS eingang_kg,
-    c.n_chargen,
-    zahl(a.kg + vl.kg)::numeric(14,2) AS ausgang_kg,
-    zahl(a.verkauf_kg)::numeric(14,2) AS verkauf_kg,
-    zahl(a.marge_kg)::numeric(14,2) AS marge_kg,
-    zahl(a.entsorgt_kg)::numeric(14,2) AS entsorgt_kg,
-    zahl(a.fehler_kg)::numeric(14,2) AS ausgang_fehler_kg,
-    a.n_lieferungen,
-    a.letzte_lieferung,
-    zahl(vl.kg)::numeric(14,2) AS vorlauf_kg,
-    zahl(c.geliefert_kg)::numeric(14,2) AS geliefert_kg,
-    zahl(c.ausgelagert_kg)::numeric(14,2) AS ausgelagert_kg,
-    zahl(c.verlust_heute_kg)::numeric(14,2) AS verlust_heute_kg,
-    zahl(b.verlust_unten_kg)::numeric(14,2) AS verlust_unten_kg,
-    zahl(b.verlust_oben_kg)::numeric(14,2) AS verlust_oben_kg,
-    zahl(c.verdunstung_heute_kg)::numeric(14,2) AS verdunstung_heute_kg,
-    zahl(c.schimmel_heute_kg)::numeric(14,2) AS schimmel_heute_kg,
-    zahl(c.sockel_heute_kg)::numeric(14,2) AS sockel_heute_kg,
-    zahl(c.fax_heute_kg)::numeric(14,2) AS fax_heute_kg,
-    zahl(c.fax_erwartet_kg)::numeric(14,2) AS fax_erwartet_kg,
-    zahl(c.kanal_ausgelagert_kg)::numeric(14,2) AS kanal_ausgelagert_kg,
-    zahl(b.kanal_unten_kg)::numeric(14,2) AS kanal_unten_kg,
-    zahl(b.kanal_oben_kg)::numeric(14,2) AS kanal_oben_kg,
-    zahl(c.im_haus_heute_kg)::numeric(14,2) AS im_haus_heute_kg,
-    zahl(c.verkaufsfaehig_heute_kg)::numeric(14,2) AS verkaufsfaehig_heute_kg,
-    zahl(c.kanal_im_haus_kg)::numeric(14,2) AS kanal_im_haus_kg,
-    zahl(c.lager_kg)::numeric(14,2) AS lager_kg,
-    zahl(c.wartet_kg)::numeric(14,2) AS gegenprobe_wartet_kg,
-    zahl(c.ueberzaehlung_kg)::numeric(14,2) AS ueberzaehlung_kg,
-    zahl(f.kg)::numeric(14,2) AS fax_durchsatz_kg,
-    f.n AS n_fax_arbeiten,
-    COALESCE(c.bekannt, false) AS verlust_bekannt,
-    zahl(c.eingang_kg + c.ueberzaehlung_kg - c.geliefert_kg - c.verlust_heute_kg - c.kanal_ausgelagert_kg - c.im_haus_heute_kg)::numeric(14,2) AS bilanz_rest_kg,
-    zahl(
-        CASE
-            WHEN c.eingang_kg > 0::numeric THEN (c.eingang_kg + c.ueberzaehlung_kg - c.geliefert_kg - c.verlust_heute_kg - c.kanal_ausgelagert_kg - c.im_haus_heute_kg) / c.eingang_kg
-            ELSE NULL::numeric
-        END, 4, '100000'::numeric)::numeric(10,4) AS bilanz_rest_anteil,
-    zahl(
-        CASE
-            WHEN c.eingang_kg > 0::numeric THEN (a.kg + vl.kg) / c.eingang_kg
-            ELSE NULL::numeric
-        END, 4, '100000'::numeric)::numeric(10,4) AS ausgang_deckung,
-        CASE
-            WHEN COALESCE(c.eingang_kg, 0::numeric) <= 0::numeric THEN 'Es ist kein Wareneingang erfasst. Ohne das Erntejournal gibt es '::text || 'nichts, worauf sich Verlust und Bestand beziehen könnten.'::text
-            WHEN COALESCE(c.ueberzaehlung_kg, 0::numeric) > (0.05 * c.eingang_kg) THEN format((('Hinter den Lieferungen steckt mehr Ware, als je eingelagert wurde — '::text || 'bei einigen Chargen rund %s kg zu viel. Fast immer fehlt der '::text) || 'Wareneingang dieser Chargen (Erntejournal unvollständig) oder eine '::text) || 'Lieferung ist der falschen Charge zugeordnet.'::text, round(c.ueberzaehlung_kg))
-            WHEN a.n_lieferungen = 0 AND vl.kg = 0::numeric THEN ('Kein Warenausgang erfasst — dann liegt rechnerisch noch alles im Haus, '::text || 'und der Verlust bis heute gilt für die ganze Eingangsmasse. Sobald die '::text) || 'Lieferscheine eingelesen sind, teilt sich die Ware in ausgeliefert und liegend.'::text
-            WHEN NOT COALESCE(c.bekannt, false) THEN 'Ein Verluststrom ist noch nicht gemessen — die Ursachen sind erst '::text || 'vollständig, wenn jeder Koeffizient mindestens eine Messung hat.'::text
-            ELSE format((('Bis heute (%s): %s t Eingang = %s t ausgeliefert + %s t Verlust '::text || '(Verdunstung %s t, Faules %s t, Fax %s t) + %s t anderer Kanal '::text) || '+ %s t noch im Haus (davon %s t verkaufsfähig). Die Prognose bis zum '::text) || 'Saisonende steht in der Grafik, nicht in diesen Zahlen.%s'::text, to_char(c.heute::timestamp with time zone, 'DD.MM.YYYY'::text), round(c.eingang_kg / 1000.0, 1), round(c.geliefert_kg / 1000.0, 1), round(c.verlust_heute_kg / 1000.0, 1), round(c.verdunstung_heute_kg / 1000.0, 1), round((c.schimmel_heute_kg + c.sockel_heute_kg) / 1000.0, 1), round(c.fax_heute_kg / 1000.0, 1), round(c.kanal_ausgelagert_kg / 1000.0, 1), round(c.im_haus_heute_kg / 1000.0, 1), round(c.verkaufsfaehig_heute_kg / 1000.0, 1), concat_ws(' '::text, '',
-            CASE
-                WHEN a.marge_kg > 0::numeric THEN format('An die Tiere und in den Nebenkanal geliefert: %s kg, gerechnet: %s kg.'::text, round(a.marge_kg), round(c.kanal_ausgelagert_kg))
-                ELSE NULL::text
-            END,
-            CASE
-                WHEN a.entsorgt_kg > 0::numeric THEN format('Entsorgt: %s kg, gerechneter Schimmel: %s kg.'::text, round(a.entsorgt_kg), round(c.schimmel_heute_kg))
-                ELSE NULL::text
-            END,
-            CASE
-                WHEN COALESCE(c.ueberzaehlung_kg, 0::numeric) > 0::numeric THEN format('%s kg Überzählung.'::text, round(c.ueberzaehlung_kg))
-                ELSE NULL::text
-            END))
-        END AS befund
-   FROM charge c
-     CROSS JOIN bereich b
-     CROSS JOIN ausgang a
-     CROSS JOIN vorlauf vl
-     CROSS JOIN fax f;
+create materialized view erg_koeff_fax as select * from v_koeff_fax with no data;
+create materialized view mv_koeff_rand as
+  select b.sorte,
+         least(greatest(coalesce(kv.unten::numeric, 0), 0), 0.05)   as r_unten,
+         least(greatest(coalesce(kv.oben::numeric,  0), 0), 0.05)   as r_oben,
+         least(greatest(coalesce(ka.unten::numeric, 0), 0), 1)      as klein_unten,
+         least(greatest(coalesce(ka.oben::numeric,  0), 0), 1)      as klein_oben,
+         least(greatest(coalesce(kn.unten::numeric, 0), 0), 1)      as gross_unten,
+         least(greatest(coalesce(kn.oben::numeric,  0), 0), 1)      as gross_oben,
+         least(greatest(coalesce(kf.unten::numeric, 0), 0), 1)      as fax_unten,
+         least(greatest(coalesce(kf.oben::numeric,  0), 0), 1)      as fax_oben
+    from (select distinct sorte from v_kaskade_basis) b
+    left join v_koeff_verdunstung kv on kv.sorte = b.sorte
+    left join v_koeff_ausschuss   ka on ka.sorte = b.sorte
+    left join v_koeff_nebenkanal  kn on kn.sorte = b.sorte
+    left join v_koeff_fax         kf on kf.sorte = b.sorte
+with no data;
 
 
 -- ---------------------------------------------------------------------
@@ -12940,95 +12786,6 @@ select s.gruppe, s.schluessel, s.h, s.datum, s.n_chargen, s.n_kohorten,
                               and s.kanal_bekannt and s.fax_bekannt) as vollstaendig) v
   left join rate r on r.gruppe = s.gruppe and r.schluessel = s.schluessel;
 create materialized view erg_prognose as select * from v_prognose with no data;
-
-
--- ---------------------------------------------------------------------
--- 2. Wohin ging der Kürbis — der Eingang, vollständig aufgeteilt
---
--- Zwei Identitäten, und beide gehen **nicht** von selbst auf:
---
---   Eingang + Überzählung = ausgeliefert + anderer Kanal (ausgeliefert)
---                         + verdunstet + faul + Fax + im Lager
---   im Lager = verkaufsfähig + Kanal + Fax erwartet + faul + verdunstet
---
--- `rest_kg` und `lager_rest_kg` stehen als Spalten da, damit eine doppelt
--- gezählte oder vergessene Portion nicht unsichtbar bleibt, sondern als
--- Zahl. Block 0071 der Prüfung lässt für beide 0.1 kg zu — das ist die
--- Rundung von numeric(14,2) über sechzig Gruppen, nichts weiter.
--- ---------------------------------------------------------------------
-create or replace view v_wohin with (security_invoker = true) as
-with gruppen as (
-  select 'gesamt'::text as gruppe, ''::text as schluessel, charge_nr from erg_charge
-  union all select 'sorte',  sorte,           charge_nr from erg_charge
-  union all select 'schlag', schlag,          charge_nr from erg_charge
-  union all select 'charge', charge_nr::text, charge_nr from erg_charge
-), charge as (
-  select g.gruppe, g.schluessel,
-         count(*)::int                          as n_chargen,
-         sum(c.eingang_kg)                      as eingang_kg,
-         sum(c.ueberzaehlung_kg)                as ueberzaehlung_kg,
-         sum(c.geliefert_kg)                    as geliefert_kg,
-         sum(c.kanal_ausgelagert_kg)            as kanal_ausgelagert_kg,
-         sum(c.fax_heute_kg)                    as fax_kg,
-         sum(c.im_haus_heute_kg)                as lager_gute_ware_kg,
-         sum(c.verkaufsfaehig_lager_kg)         as lager_verkaufsfaehig_kg,
-         sum(c.kanal_im_haus_kg)                as lager_kanal_kg,
-         sum(c.fax_erwartet_kg)                 as lager_fax_kg,
-         sum(c.lager_kg)                        as lager_kg,
-         bool_and(c.verlust_bekannt)            as vollstaendig
-    from gruppen g join erg_charge c on c.charge_nr = g.charge_nr
-   group by g.gruppe, g.schluessel
-), stroeme as (
-  -- kg_beobachtet ist der Teil an der ausgelieferten Ware (schon passiert),
-  -- kg_projiziert der Teil an der liegenden Ware (bis heute gerechnet).
-  select gruppe, schluessel,
-         sum(kg_beobachtet) filter (where strom = 'Verdunstung')           as verdunstet_ausgelagert_kg,
-         sum(kg_projiziert) filter (where strom = 'Verdunstung')           as lager_verdunstet_kg,
-         sum(kg_beobachtet) filter (where strom = 'Schimmel/Fäulnis')      as faul_roh_ausgelagert_kg,
-         sum(kg_projiziert) filter (where strom = 'Schimmel/Fäulnis')      as lager_faul_roh_kg,
-         sum(kg_beobachtet) filter (where strom = 'Nicht lagerbedingt')    as sockel_ausgelagert_kg,
-         sum(kg_projiziert) filter (where strom = 'Nicht lagerbedingt')    as lager_sockel_kg,
-         sum(kg_beobachtet) filter (where strom = 'Zu klein (Tierfutter)') as klein_ausgelagert_kg,
-         sum(kg_beobachtet) filter (where strom = 'Nebenkanal zu gross')   as gross_ausgelagert_kg,
-         sum(kg_projiziert) filter (where strom = 'Zu klein (Tierfutter)') as lager_klein_kg,
-         sum(kg_projiziert) filter (where strom = 'Nebenkanal zu gross')   as lager_gross_kg
-    from erg_verlust
-   group by gruppe, schluessel
-)
-select c.gruppe, c.schluessel, c.n_chargen,
-       zahl(c.eingang_kg)::numeric(14,2)                            as eingang_kg,
-       zahl(c.ueberzaehlung_kg)::numeric(14,2)                      as ueberzaehlung_kg,
-       zahl(c.geliefert_kg)::numeric(14,2)                          as geliefert_kg,
-       zahl(c.kanal_ausgelagert_kg)::numeric(14,2)                  as kanal_ausgelagert_kg,
-       zahl(s.klein_ausgelagert_kg)::numeric(14,2)                  as klein_ausgelagert_kg,
-       zahl(s.gross_ausgelagert_kg)::numeric(14,2)                  as gross_ausgelagert_kg,
-       zahl(s.verdunstet_ausgelagert_kg)::numeric(14,2)             as verdunstet_ausgelagert_kg,
-       -- „faul" enthält den Sockel (nicht lagerbedingt); er steht daneben
-       -- noch einmal für sich, weil er nie im Lager entstanden ist.
-       zahl(s.faul_roh_ausgelagert_kg + coalesce(s.sockel_ausgelagert_kg, 0))::numeric(14,2)
-                                                                    as faul_ausgelagert_kg,
-       zahl(s.sockel_ausgelagert_kg)::numeric(14,2)                 as sockel_ausgelagert_kg,
-       zahl(c.fax_kg)::numeric(14,2)                                as fax_kg,
-       zahl(c.lager_kg)::numeric(14,2)                              as lager_kg,
-       zahl(c.lager_gute_ware_kg)::numeric(14,2)                    as lager_gute_ware_kg,
-       zahl(c.lager_verkaufsfaehig_kg)::numeric(14,2)               as lager_verkaufsfaehig_kg,
-       zahl(c.lager_kanal_kg)::numeric(14,2)                        as lager_kanal_kg,
-       zahl(s.lager_klein_kg)::numeric(14,2)                        as lager_klein_kg,
-       zahl(s.lager_gross_kg)::numeric(14,2)                        as lager_gross_kg,
-       zahl(c.lager_fax_kg)::numeric(14,2)                          as lager_fax_kg,
-       zahl(s.lager_faul_roh_kg + coalesce(s.lager_sockel_kg, 0))::numeric(14,2)
-                                                                    as lager_faul_kg,
-       zahl(s.lager_sockel_kg)::numeric(14,2)                       as lager_sockel_kg,
-       zahl(s.lager_verdunstet_kg)::numeric(14,2)                   as lager_verdunstet_kg,
-       zahl(c.eingang_kg + c.ueberzaehlung_kg - c.geliefert_kg - c.kanal_ausgelagert_kg
-            - s.verdunstet_ausgelagert_kg - s.faul_roh_ausgelagert_kg
-            - coalesce(s.sockel_ausgelagert_kg, 0) - c.fax_kg - c.lager_kg)::numeric(14,2) as rest_kg,
-       zahl(c.lager_kg - c.lager_verkaufsfaehig_kg - c.lager_kanal_kg - c.lager_fax_kg
-            - s.lager_faul_roh_kg - coalesce(s.lager_sockel_kg, 0)
-            - s.lager_verdunstet_kg)::numeric(14,2)                 as lager_rest_kg,
-       c.vollstaendig
-  from charge c
-  left join stroeme s on s.gruppe = c.gruppe and s.schluessel = c.schluessel;
 create materialized view erg_verlauf as
 with tag as materialized (
   -- heute() und stichtag() **einmal** — siehe die Erklärung bei v_prognose:
@@ -13272,7 +13029,6 @@ UNION ALL
     v.verschenkt_kg IS NOT NULL AS gemessen
    FROM verkauf v
      CROSS JOIN datei d;
-create materialized view erg_wohin as select * from v_wohin with no data;
 
 -- ---------------------------------------------------------------------
 -- 6. Die Verdunstung rechnet ab dem Sortiertag, nicht ab dem Dateidatum
@@ -13538,6 +13294,472 @@ select gruppe, schluessel, sorte, h, datum, stufe_g,
        basis, n_chargen
   from zeilen
 $$;
+
+-- ---------------------------------------------------------------------
+-- 4. Der Sockel ohne Nachweis ist 0, nicht unbekannt
+-- ---------------------------------------------------------------------
+-- Die Sicht als Ganzes, wie 0064 sie gebaut hat; geändert sind zwei Zeilen
+-- in je_charge (sockel_heute_kg, verlust_bekannt). sockel_nachgewiesen bleibt
+-- der Nachweis. erg_charge, erg_bilanz und erg_massenbilanz lesen sie beim
+-- nächsten Erneuern.
+create or replace view v_hochrechnung_basis with (security_invoker = true) as
+with je_charge as (
+  select charge_nr,
+         sum(m0) filter (where portion = 'ausgelagert')                       as ausgelagert_kg,
+         sum(m0 * alter_tage) filter (where portion = 'ausgelagert')
+           / nullif(sum(m0) filter (where portion = 'ausgelagert'), 0)        as alter_ausgelagert,
+         sum(m0) filter (where portion = 'lager')                             as lager_kg,
+         sum(m0 * alter_tage) filter (where portion = 'lager')
+           / nullif(sum(m0) filter (where portion = 'lager'), 0)              as alter_lager,
+         sum(verkaufsfaehig_kg) filter (where portion = 'lager')              as verkaufsfaehig_lager_kg,
+         sum(geliefert_kg)                                                    as geliefert_kg,
+         sum(ueberzaehlung_kg)                                                as ueberzaehlung_kg,
+         sum(n_lieferungen)::int                                              as n_lieferungen,
+         min(kohorte) filter (where portion = 'lager' and m0 > 0)             as rest_von,
+         max(kohorte) filter (where portion = 'lager' and m0 > 0)             as rest_bis,
+         count(*) filter (where portion = 'lager' and m0 > 0)::int            as n_rest_kohorten,
+         sum(m0 * (kohorte - date '2000-01-01')) filter (where portion = 'lager')
+           / nullif(sum(m0) filter (where portion = 'lager'), 0)              as rest_tage_seit_epoche,
+         -- 0064: jede Stromsumme nur, wenn ihr Koeffizient gemessen ist.
+         -- Das `coalesce` innerhalb der Bedingung trennt zwei Sorten NULL:
+         -- „der Koeffizient ist unbekannt" (dann bleibt die ganze Summe NULL)
+         -- von „diese Portion gibt es nicht" — eine Charge ohne Lieferung hat
+         -- keine Zeile mit portion = 'ausgelagert', und dort ist 0 richtig.
+         case when bool_and(r_bekannt)  then coalesce(sum(verdunstung_kg), 0) end as verdunstung_heute_kg,
+         case when bool_and(f_bekannt)  then coalesce(sum(schimmel_kg), 0)    end as schimmel_heute_kg,
+         -- 0097: Der Sockel a₀ ist der Anteil, der schon am ersten Tag faul
+         -- war — er gilt nur, wenn die Daten ihn belegen (sockel_nachweis).
+         -- Solange sie es nicht tun, ist er 0, nicht unbekannt: mv_kaskade
+         -- rechnet ihn dann mit 0. Bis 0096 hing hier a0_bekannt, und weil
+         -- das Verderbsmodell mit zwölf Punkten noch nicht brauchbar war,
+         -- stand am ersten Tag mit echten Zahlen überall „Verlust bis heute —".
+         case when bool_and(f_bekannt)  then coalesce(sum(sockel_kg), 0)      end as sockel_heute_kg,
+         case when bool_and(a_klein_bekannt and a_gross_bekannt)
+              then coalesce(sum(klein_kg + nebenkanal_kg) filter (where portion = 'ausgelagert'), 0)
+              end                                                             as kanal_ausgelagert_kg,
+         case when bool_and(a_fax_bekannt)
+              then coalesce(sum(fax_kg) filter (where portion = 'ausgelagert'), 0) end as fax_heute_kg,
+         case when bool_and(a_fax_bekannt)
+              then coalesce(sum(fax_kg) filter (where portion = 'lager'), 0) end       as fax_erwartet_kg,
+         sum(m2) filter (where portion = 'lager')                             as im_haus_heute_kg,
+         case when bool_and(a_klein_bekannt and a_gross_bekannt)
+              then coalesce(sum(klein_kg + nebenkanal_kg) filter (where portion = 'lager'), 0)
+              end                                                             as kanal_im_haus_kg,
+         bool_and(r_bekannt and f_bekannt and a_fax_bekannt
+                  and a_klein_bekannt and a_gross_bekannt)                     as verlust_bekannt,
+         bool_and(r_bekannt)                                                   as verdunstung_bekannt,
+         bool_and(f_bekannt)                                                   as schimmel_bekannt,
+         bool_and(a0_bekannt)                                                  as sockel_nachgewiesen,
+         bool_and(a_fax_bekannt)                                               as fax_bekannt,
+         bool_and(a_klein_bekannt and a_gross_bekannt)                         as kanal_bekannt,
+         max(a0_var)                                                           as a0_var,
+         -- 0064: gab es zu dieser Charge überhaupt eine Kaskadenzeile?
+         count(*) > 0                                                          as gerechnet,
+         count(*) filter (where portion = 'lager') > 0                         as hat_lager
+    from mv_kaskade
+   group by charge_nr
+)
+select b.charge_nr, b.schlag, b.sorte,
+       b.eingang_kg,
+       b.n_paletten,
+       b.eingangsdatum_mittel,
+       zahl(coalesce(k.ausgelagert_kg, 0), 2, 1e12)::numeric(14,2)             as ausgelagert_kg,
+       zahl(k.alter_ausgelagert, 1, 1e5)::numeric(8,1)                         as alter_ausgelagert,
+       -- 0064: keine Kaskadenzeile → es liegt noch alles. Zeilen, aber keine
+       -- Portion „lager" → es liegt nichts mehr. Bisher hiess beides „alles".
+       zahl(case when k.gerechnet is not true then b.eingang_kg
+                 else coalesce(k.lager_kg, 0) end, 2, 1e12)::numeric(14,2)     as lager_kg,
+       zahl(coalesce(k.alter_lager, (b.stichtag - b.eingangsdatum_mittel)), 1, 1e5)::numeric(8,1)
+                                                                              as alter_lager,
+       zahl((heute() - x.rest_datum), 1, 1e5)::numeric(8,1)                    as alter_lager_heute,
+       b.weg2_anteil,
+       b.stichtag,
+       b.n_paletten_mit_netto,
+       zahl(coalesce(k.ueberzaehlung_kg, 0), 2, 1e12)::numeric(14,2)           as ueberzaehlung_kg,
+       b.sortiert_kg, b.gewaschen_kg, b.wartet_kg, b.anteil_gewaschen, b.alter_band, b.am_band_kg,
+       x.rest_datum                                                           as eingangsdatum_rest,
+       (coalesce(k.n_lieferungen, 0) > 0)                                     as rest_alter_aus_zaehlung,
+       b.eingang_von, b.eingang_bis, b.n_eingangstage,
+       coalesce(k.rest_von, b.eingang_von)                                    as rest_von,
+       coalesce(k.rest_bis, b.eingang_bis)                                    as rest_bis,
+       round(case when k.gerechnet is not true then b.eingang_kg else coalesce(k.lager_kg, 0) end
+             / nullif(b.eingang_kg / nullif(b.n_paletten, 0), 0))::int        as n_rest_paletten,
+       coalesce(k.n_rest_kohorten, b.n_eingangstage)                          as n_rest_kohorten,
+       (heute() - coalesce(k.rest_bis, b.eingang_bis))::int                   as alter_lager_von,
+       (heute() - coalesce(k.rest_von, b.eingang_von))::int                   as alter_lager_bis,
+       zahl(coalesce(k.geliefert_kg, 0), 2, 1e12)::numeric(14,2)              as geliefert_kg,
+       zahl(k.verkaufsfaehig_lager_kg, 2, 1e12)::numeric(14,2)                 as verkaufsfaehig_lager_kg,
+       coalesce(k.n_lieferungen, 0)                                           as n_lieferungen,
+       zahl(k.verdunstung_heute_kg, 2, 1e12)::numeric(14,2)                   as verdunstung_heute_kg,
+       zahl(k.schimmel_heute_kg, 2, 1e12)::numeric(14,2)                      as schimmel_heute_kg,
+       zahl(k.sockel_heute_kg, 2, 1e12)::numeric(14,2)                        as sockel_heute_kg,
+       zahl(k.fax_heute_kg, 2, 1e12)::numeric(14,2)                           as fax_heute_kg,
+       -- Der Verlust ist die Summe von vier Strömen. Fehlt einer, ist die
+       -- Summe unbekannt — nicht die Summe der übrigen.
+       zahl(k.verdunstung_heute_kg + k.schimmel_heute_kg + k.sockel_heute_kg + k.fax_heute_kg,
+            2, 1e12)::numeric(14,2)                                           as verlust_heute_kg,
+       zahl(k.kanal_ausgelagert_kg, 2, 1e12)::numeric(14,2)                   as kanal_ausgelagert_kg,
+       zahl(k.fax_erwartet_kg, 2, 1e12)::numeric(14,2)                        as fax_erwartet_kg,
+       zahl(case when k.gerechnet is not true then b.eingang_kg
+                 else coalesce(k.im_haus_heute_kg, 0) end, 2, 1e12)::numeric(14,2) as im_haus_heute_kg,
+       zahl(k.kanal_im_haus_kg, 2, 1e12)::numeric(14,2)                       as kanal_im_haus_kg,
+       coalesce(k.verlust_bekannt, false)                                     as verlust_bekannt,
+       coalesce(k.verdunstung_bekannt, false)                                 as verdunstung_bekannt,
+       coalesce(k.schimmel_bekannt, false)                                    as schimmel_bekannt,
+       coalesce(k.sockel_nachgewiesen, false)                                 as sockel_nachgewiesen,
+       coalesce(k.fax_bekannt, false)                                         as fax_bekannt,
+       coalesce(k.kanal_bekannt, false)                                       as kanal_bekannt,
+       zahl(coalesce(k.lager_kg, 0) * 1.96 * sqrt(greatest(coalesce(k.a0_var, 0), 0)), 2, 1e12)::numeric(14,2)
+                                                                              as sockel_oben_kg,
+       heute()                                                                as heute
+  from v_kaskade_basis b
+  left join je_charge k on k.charge_nr = b.charge_nr
+  cross join lateral (
+    select case when k.rest_tage_seit_epoche is not null
+                then date '2000-01-01' + round(k.rest_tage_seit_epoche)::int
+                else b.eingangsdatum_mittel end as rest_datum
+  ) x
+ where b.eingang_kg is not null;
+
+create materialized view erg_charge as
+SELECT charge_nr,
+    schlag,
+    sorte,
+    eingang_kg,
+    n_paletten,
+    eingangsdatum_mittel,
+    ausgelagert_kg,
+    alter_ausgelagert,
+    lager_kg,
+    alter_lager,
+    alter_lager_heute,
+    weg2_anteil,
+    stichtag,
+    n_paletten_mit_netto,
+    ueberzaehlung_kg,
+    sortiert_kg,
+    gewaschen_kg,
+    wartet_kg,
+    anteil_gewaschen,
+    alter_band,
+    am_band_kg,
+    eingangsdatum_rest,
+    rest_alter_aus_zaehlung,
+    eingang_von,
+    eingang_bis,
+    n_eingangstage,
+    rest_von,
+    rest_bis,
+    n_rest_paletten,
+    n_rest_kohorten,
+    alter_lager_von,
+    alter_lager_bis,
+    geliefert_kg,
+    verkaufsfaehig_lager_kg,
+    n_lieferungen,
+    verdunstung_heute_kg,
+    schimmel_heute_kg,
+    sockel_heute_kg,
+    fax_heute_kg,
+    verlust_heute_kg,
+    kanal_ausgelagert_kg,
+    fax_erwartet_kg,
+    im_haus_heute_kg,
+    kanal_im_haus_kg,
+    verlust_bekannt,
+    verdunstung_bekannt,
+    schimmel_bekannt,
+    sockel_nachgewiesen,
+    fax_bekannt,
+    kanal_bekannt,
+    sockel_oben_kg,
+    heute
+   FROM v_hochrechnung_basis
+with no data;
+
+create view v_kontrolle_vorschlag with (security_invoker = true) as
+SELECT b.charge_nr,
+    b.sorte,
+    b.schlag,
+    b.lager_kg,
+    b.alter_lager_von,
+    b.alter_lager_bis,
+    b.eingang_von,
+    b.eingang_bis,
+    COALESCE(k.n_kontrollen, 0) AS n_kontrollen,
+    k.zuletzt,
+    b.im_haus_heute_kg,
+    heute() - COALESCE(k.zuletzt, b.eingang_von) AS tage_seit_wiegung,
+    zahl(b.im_haus_heute_kg * GREATEST(heute() - COALESCE(k.zuletzt, b.eingang_von), 1)::numeric, 0, '10000000000000'::numeric)::numeric(14,0) AS informationswert
+   FROM erg_charge b
+     LEFT JOIN ( SELECT verdunstung_wiegung.charge_nr,
+            count(*) FILTER (WHERE verdunstung_wiegung.auftrag_id IS NULL)::integer AS n_kontrollen,
+            max(verdunstung_wiegung.wiege_ts)::date AS zuletzt
+           FROM verdunstung_wiegung
+          WHERE verdunstung_wiegung.gemessen
+          GROUP BY verdunstung_wiegung.charge_nr) k ON k.charge_nr = b.charge_nr
+  WHERE b.im_haus_heute_kg > 0::numeric
+  ORDER BY (zahl(b.im_haus_heute_kg * GREATEST(heute() - COALESCE(k.zuletzt, b.eingang_von), 1)::numeric, 0, '10000000000000'::numeric)::numeric(14,0)) DESC NULLS LAST, b.im_haus_heute_kg DESC
+ LIMIT 3;
+
+create view v_massenbilanz with (security_invoker = true) as
+WITH csv_anteil AS MATERIALIZED (
+         SELECT am.charge_nr,
+            COALESCE(sum(am.eingang_netto_kg) FILTER (WHERE (EXISTS ( SELECT 1
+                   FROM sortier_lauf l
+                  WHERE l.auftrag_id = am.auftrag_id))) / NULLIF(sum(am.eingang_netto_kg), 0::numeric), 0::numeric) AS anteil_mit_csv
+           FROM v_auftrag_masse am
+          WHERE (am.station = ANY (ARRAY['sortieren'::station, 'waschen_sortieren'::station])) AND am.eingang_netto_kg IS NOT NULL
+          GROUP BY am.charge_nr
+        ), gemessen AS MATERIALIZED (
+         SELECT v_sortier_lauf_masse.charge_nr,
+            sum(v_sortier_lauf_masse.masse_kg) AS gemessen_kg
+           FROM v_sortier_lauf_masse
+          GROUP BY v_sortier_lauf_masse.charge_nr
+        ), rest AS MATERIALIZED (
+         SELECT v_kaskade.charge_nr,
+            sum(v_kaskade.m2) FILTER (WHERE v_kaskade.portion = 'lager'::text) AS restbestand_kg
+           FROM v_kaskade
+          GROUP BY v_kaskade.charge_nr
+        ), modell AS MATERIALIZED (
+         SELECT b_1.charge_nr,
+            b_1.am_band_kg * power(1::numeric - LEAST(GREATEST(COALESCE(kv.mittel, 0::numeric), 0::numeric), 0.05), COALESCE(b_1.alter_band, 0::numeric)) * (1::numeric - sockel_anteil()) * (1::numeric - schimmelanteil(COALESCE(b_1.alter_band, 0::numeric))) * q.anteil_mit_csv AS am_band_modell_kg
+           FROM v_kaskade_basis b_1
+             LEFT JOIN csv_anteil q ON q.charge_nr = b_1.charge_nr
+             LEFT JOIN v_koeff_verdunstung kv ON kv.sorte = b_1.sorte
+        )
+ SELECT b.charge_nr,
+    b.sorte,
+    b.schlag,
+    b.eingang_kg,
+    b.ausgelagert_kg,
+    b.lager_kg,
+    b.n_paletten,
+    b.alter_ausgelagert,
+    b.alter_lager,
+    b.stichtag,
+    zahl(m.am_band_modell_kg, 2, '1000000000000'::numeric)::numeric(14,2) AS modell_am_band_kg,
+    c.gemessen_kg AS csv_gemessen_kg,
+    zahl(c.gemessen_kg - m.am_band_modell_kg, 2, '1000000000000'::numeric)::numeric(14,2) AS abweichung_kg,
+        CASE
+            WHEN m.am_band_modell_kg > 0::numeric THEN zahl((c.gemessen_kg - m.am_band_modell_kg) / m.am_band_modell_kg, 4, '1000000'::numeric)::numeric(10,4)
+            ELSE NULL::numeric
+        END AS abweichung_anteil,
+    zahl(r.restbestand_kg, 2, '1000000000000'::numeric)::numeric(14,2) AS restbestand_kg,
+    kb.alter_band
+   FROM erg_charge b
+     JOIN v_kaskade_basis kb ON kb.charge_nr = b.charge_nr
+     LEFT JOIN modell m ON m.charge_nr = b.charge_nr
+     LEFT JOIN gemessen c ON c.charge_nr = b.charge_nr
+     LEFT JOIN rest r ON r.charge_nr = b.charge_nr;
+
+create view v_saisonbilanz with (security_invoker = true) as
+WITH charge AS (
+         SELECT sum(erg_charge.eingang_kg) AS eingang_kg,
+            sum(erg_charge.ausgelagert_kg) AS ausgelagert_kg,
+            sum(erg_charge.geliefert_kg) AS geliefert_kg,
+            sum(erg_charge.lager_kg) AS lager_kg,
+            sum(erg_charge.wartet_kg) AS wartet_kg,
+            sum(erg_charge.ueberzaehlung_kg) AS ueberzaehlung_kg,
+            sum(erg_charge.verkaufsfaehig_lager_kg) AS verkaufsfaehig_heute_kg,
+            sum(erg_charge.im_haus_heute_kg) AS im_haus_heute_kg,
+            sum(erg_charge.kanal_im_haus_kg) AS kanal_im_haus_kg,
+            sum(erg_charge.verlust_heute_kg) AS verlust_heute_kg,
+            sum(erg_charge.verdunstung_heute_kg) AS verdunstung_heute_kg,
+            sum(erg_charge.schimmel_heute_kg) AS schimmel_heute_kg,
+            sum(erg_charge.sockel_heute_kg) AS sockel_heute_kg,
+            sum(erg_charge.fax_heute_kg) AS fax_heute_kg,
+            sum(erg_charge.fax_erwartet_kg) AS fax_erwartet_kg,
+            sum(erg_charge.kanal_ausgelagert_kg) AS kanal_ausgelagert_kg,
+            bool_and(erg_charge.verlust_bekannt) AS bekannt,
+            count(*)::integer AS n_chargen,
+            max(erg_charge.heute) AS heute
+           FROM erg_charge
+        ), bereich AS (
+         SELECT sum(erg_verlust.kg_unten) FILTER (WHERE erg_verlust.buch = ANY (ARRAY['verlust'::text, 'feld'::text])) AS verlust_unten_kg,
+            sum(erg_verlust.kg_oben) FILTER (WHERE erg_verlust.buch = ANY (ARRAY['verlust'::text, 'feld'::text])) AS verlust_oben_kg,
+            sum(erg_verlust.kg) FILTER (WHERE erg_verlust.buch = ANY (ARRAY['verlust'::text, 'feld'::text])) AS verlust_kg,
+            sum(erg_verlust.kg_unten) FILTER (WHERE erg_verlust.buch = 'marge'::text) AS kanal_unten_kg,
+            sum(erg_verlust.kg_oben) FILTER (WHERE erg_verlust.buch = 'marge'::text) AS kanal_oben_kg
+           FROM erg_verlust
+          WHERE erg_verlust.gruppe = 'gesamt'::text
+        ), vorlauf AS (
+         SELECT COALESCE(sum(charge_vorlauf.ausgang_vor_app_kg), 0::numeric) AS kg
+           FROM charge_vorlauf
+        ), ausgang AS (
+         SELECT COALESCE(sum(v_lieferung_masse.masse_kg), 0::numeric) AS kg,
+            COALESCE(sum(v_lieferung_masse.masse_kg) FILTER (WHERE v_lieferung_masse.buch = 'verkauf'::text), 0::numeric) AS verkauf_kg,
+            COALESCE(sum(v_lieferung_masse.masse_kg) FILTER (WHERE v_lieferung_masse.buch = 'marge'::text), 0::numeric) AS marge_kg,
+            COALESCE(sum(v_lieferung_masse.masse_kg) FILTER (WHERE v_lieferung_masse.buch = 'verlust'::text), 0::numeric) AS entsorgt_kg,
+            COALESCE(sum(v_lieferung_masse.masse_fehler_kg), 0::double precision) AS fehler_kg,
+            count(*)::integer AS n_lieferungen,
+            max(v_lieferung_masse.datum) AS letzte_lieferung
+           FROM v_lieferung_masse
+          WHERE v_lieferung_masse.datum <= heute()
+        ), fax AS (
+         SELECT COALESCE(sum(v_fax_beobachtung.masse_kg), 0::numeric) AS kg,
+            count(*)::integer AS n
+           FROM v_fax_beobachtung
+          WHERE v_fax_beobachtung.status = 'abgeschlossen'::auftrag_status AND v_fax_beobachtung.masse_kg IS NOT NULL
+        )
+ SELECT c.heute,
+    zahl(c.eingang_kg)::numeric(14,2) AS eingang_kg,
+    c.n_chargen,
+    zahl(a.kg + vl.kg)::numeric(14,2) AS ausgang_kg,
+    zahl(a.verkauf_kg)::numeric(14,2) AS verkauf_kg,
+    zahl(a.marge_kg)::numeric(14,2) AS marge_kg,
+    zahl(a.entsorgt_kg)::numeric(14,2) AS entsorgt_kg,
+    zahl(a.fehler_kg)::numeric(14,2) AS ausgang_fehler_kg,
+    a.n_lieferungen,
+    a.letzte_lieferung,
+    zahl(vl.kg)::numeric(14,2) AS vorlauf_kg,
+    zahl(c.geliefert_kg)::numeric(14,2) AS geliefert_kg,
+    zahl(c.ausgelagert_kg)::numeric(14,2) AS ausgelagert_kg,
+    zahl(c.verlust_heute_kg)::numeric(14,2) AS verlust_heute_kg,
+    zahl(b.verlust_unten_kg)::numeric(14,2) AS verlust_unten_kg,
+    zahl(b.verlust_oben_kg)::numeric(14,2) AS verlust_oben_kg,
+    zahl(c.verdunstung_heute_kg)::numeric(14,2) AS verdunstung_heute_kg,
+    zahl(c.schimmel_heute_kg)::numeric(14,2) AS schimmel_heute_kg,
+    zahl(c.sockel_heute_kg)::numeric(14,2) AS sockel_heute_kg,
+    zahl(c.fax_heute_kg)::numeric(14,2) AS fax_heute_kg,
+    zahl(c.fax_erwartet_kg)::numeric(14,2) AS fax_erwartet_kg,
+    zahl(c.kanal_ausgelagert_kg)::numeric(14,2) AS kanal_ausgelagert_kg,
+    zahl(b.kanal_unten_kg)::numeric(14,2) AS kanal_unten_kg,
+    zahl(b.kanal_oben_kg)::numeric(14,2) AS kanal_oben_kg,
+    zahl(c.im_haus_heute_kg)::numeric(14,2) AS im_haus_heute_kg,
+    zahl(c.verkaufsfaehig_heute_kg)::numeric(14,2) AS verkaufsfaehig_heute_kg,
+    zahl(c.kanal_im_haus_kg)::numeric(14,2) AS kanal_im_haus_kg,
+    zahl(c.lager_kg)::numeric(14,2) AS lager_kg,
+    zahl(c.wartet_kg)::numeric(14,2) AS gegenprobe_wartet_kg,
+    zahl(c.ueberzaehlung_kg)::numeric(14,2) AS ueberzaehlung_kg,
+    zahl(f.kg)::numeric(14,2) AS fax_durchsatz_kg,
+    f.n AS n_fax_arbeiten,
+    COALESCE(c.bekannt, false) AS verlust_bekannt,
+    zahl(c.eingang_kg + c.ueberzaehlung_kg - c.geliefert_kg - c.verlust_heute_kg - c.kanal_ausgelagert_kg - c.im_haus_heute_kg)::numeric(14,2) AS bilanz_rest_kg,
+    zahl(
+        CASE
+            WHEN c.eingang_kg > 0::numeric THEN (c.eingang_kg + c.ueberzaehlung_kg - c.geliefert_kg - c.verlust_heute_kg - c.kanal_ausgelagert_kg - c.im_haus_heute_kg) / c.eingang_kg
+            ELSE NULL::numeric
+        END, 4, '100000'::numeric)::numeric(10,4) AS bilanz_rest_anteil,
+    zahl(
+        CASE
+            WHEN c.eingang_kg > 0::numeric THEN (a.kg + vl.kg) / c.eingang_kg
+            ELSE NULL::numeric
+        END, 4, '100000'::numeric)::numeric(10,4) AS ausgang_deckung,
+        CASE
+            WHEN COALESCE(c.eingang_kg, 0::numeric) <= 0::numeric THEN 'Es ist kein Wareneingang erfasst. Ohne das Erntejournal gibt es '::text || 'nichts, worauf sich Verlust und Bestand beziehen könnten.'::text
+            WHEN COALESCE(c.ueberzaehlung_kg, 0::numeric) > (0.05 * c.eingang_kg) THEN format((('Hinter den Lieferungen steckt mehr Ware, als je eingelagert wurde — '::text || 'bei einigen Chargen rund %s kg zu viel. Fast immer fehlt der '::text) || 'Wareneingang dieser Chargen (Erntejournal unvollständig) oder eine '::text) || 'Lieferung ist der falschen Charge zugeordnet.'::text, round(c.ueberzaehlung_kg))
+            WHEN a.n_lieferungen = 0 AND vl.kg = 0::numeric THEN ('Kein Warenausgang erfasst — dann liegt rechnerisch noch alles im Haus, '::text || 'und der Verlust bis heute gilt für die ganze Eingangsmasse. Sobald die '::text) || 'Lieferscheine eingelesen sind, teilt sich die Ware in ausgeliefert und liegend.'::text
+            WHEN NOT COALESCE(c.bekannt, false) THEN 'Ein Verluststrom ist noch nicht gemessen — die Ursachen sind erst '::text || 'vollständig, wenn jeder Koeffizient mindestens eine Messung hat.'::text
+            ELSE format((('Bis heute (%s): %s t Eingang = %s t ausgeliefert + %s t Verlust '::text || '(Verdunstung %s t, Faules %s t, Fax %s t) + %s t anderer Kanal '::text) || '+ %s t noch im Haus (davon %s t verkaufsfähig). Die Prognose bis zum '::text) || 'Saisonende steht in der Grafik, nicht in diesen Zahlen.%s'::text, to_char(c.heute::timestamp with time zone, 'DD.MM.YYYY'::text), round(c.eingang_kg / 1000.0, 1), round(c.geliefert_kg / 1000.0, 1), round(c.verlust_heute_kg / 1000.0, 1), round(c.verdunstung_heute_kg / 1000.0, 1), round((c.schimmel_heute_kg + c.sockel_heute_kg) / 1000.0, 1), round(c.fax_heute_kg / 1000.0, 1), round(c.kanal_ausgelagert_kg / 1000.0, 1), round(c.im_haus_heute_kg / 1000.0, 1), round(c.verkaufsfaehig_heute_kg / 1000.0, 1), concat_ws(' '::text, '',
+            CASE
+                WHEN a.marge_kg > 0::numeric THEN format('An die Tiere und in den Nebenkanal geliefert: %s kg, gerechnet: %s kg.'::text, round(a.marge_kg), round(c.kanal_ausgelagert_kg))
+                ELSE NULL::text
+            END,
+            CASE
+                WHEN a.entsorgt_kg > 0::numeric THEN format('Entsorgt: %s kg, gerechneter Schimmel: %s kg.'::text, round(a.entsorgt_kg), round(c.schimmel_heute_kg))
+                ELSE NULL::text
+            END,
+            CASE
+                WHEN COALESCE(c.ueberzaehlung_kg, 0::numeric) > 0::numeric THEN format('%s kg Überzählung.'::text, round(c.ueberzaehlung_kg))
+                ELSE NULL::text
+            END))
+        END AS befund
+   FROM charge c
+     CROSS JOIN bereich b
+     CROSS JOIN ausgang a
+     CROSS JOIN vorlauf vl
+     CROSS JOIN fax f;
+
+
+-- ---------------------------------------------------------------------
+-- 2. Wohin ging der Kürbis — der Eingang, vollständig aufgeteilt
+--
+-- Zwei Identitäten, und beide gehen **nicht** von selbst auf:
+--
+--   Eingang + Überzählung = ausgeliefert + anderer Kanal (ausgeliefert)
+--                         + verdunstet + faul + Fax + im Lager
+--   im Lager = verkaufsfähig + Kanal + Fax erwartet + faul + verdunstet
+--
+-- `rest_kg` und `lager_rest_kg` stehen als Spalten da, damit eine doppelt
+-- gezählte oder vergessene Portion nicht unsichtbar bleibt, sondern als
+-- Zahl. Block 0071 der Prüfung lässt für beide 0.1 kg zu — das ist die
+-- Rundung von numeric(14,2) über sechzig Gruppen, nichts weiter.
+-- ---------------------------------------------------------------------
+create or replace view v_wohin with (security_invoker = true) as
+with gruppen as (
+  select 'gesamt'::text as gruppe, ''::text as schluessel, charge_nr from erg_charge
+  union all select 'sorte',  sorte,           charge_nr from erg_charge
+  union all select 'schlag', schlag,          charge_nr from erg_charge
+  union all select 'charge', charge_nr::text, charge_nr from erg_charge
+), charge as (
+  select g.gruppe, g.schluessel,
+         count(*)::int                          as n_chargen,
+         sum(c.eingang_kg)                      as eingang_kg,
+         sum(c.ueberzaehlung_kg)                as ueberzaehlung_kg,
+         sum(c.geliefert_kg)                    as geliefert_kg,
+         sum(c.kanal_ausgelagert_kg)            as kanal_ausgelagert_kg,
+         sum(c.fax_heute_kg)                    as fax_kg,
+         sum(c.im_haus_heute_kg)                as lager_gute_ware_kg,
+         sum(c.verkaufsfaehig_lager_kg)         as lager_verkaufsfaehig_kg,
+         sum(c.kanal_im_haus_kg)                as lager_kanal_kg,
+         sum(c.fax_erwartet_kg)                 as lager_fax_kg,
+         sum(c.lager_kg)                        as lager_kg,
+         bool_and(c.verlust_bekannt)            as vollstaendig
+    from gruppen g join erg_charge c on c.charge_nr = g.charge_nr
+   group by g.gruppe, g.schluessel
+), stroeme as (
+  -- kg_beobachtet ist der Teil an der ausgelieferten Ware (schon passiert),
+  -- kg_projiziert der Teil an der liegenden Ware (bis heute gerechnet).
+  select gruppe, schluessel,
+         sum(kg_beobachtet) filter (where strom = 'Verdunstung')           as verdunstet_ausgelagert_kg,
+         sum(kg_projiziert) filter (where strom = 'Verdunstung')           as lager_verdunstet_kg,
+         sum(kg_beobachtet) filter (where strom = 'Schimmel/Fäulnis')      as faul_roh_ausgelagert_kg,
+         sum(kg_projiziert) filter (where strom = 'Schimmel/Fäulnis')      as lager_faul_roh_kg,
+         sum(kg_beobachtet) filter (where strom = 'Nicht lagerbedingt')    as sockel_ausgelagert_kg,
+         sum(kg_projiziert) filter (where strom = 'Nicht lagerbedingt')    as lager_sockel_kg,
+         sum(kg_beobachtet) filter (where strom = 'Zu klein (Tierfutter)') as klein_ausgelagert_kg,
+         sum(kg_beobachtet) filter (where strom = 'Nebenkanal zu gross')   as gross_ausgelagert_kg,
+         sum(kg_projiziert) filter (where strom = 'Zu klein (Tierfutter)') as lager_klein_kg,
+         sum(kg_projiziert) filter (where strom = 'Nebenkanal zu gross')   as lager_gross_kg
+    from erg_verlust
+   group by gruppe, schluessel
+)
+select c.gruppe, c.schluessel, c.n_chargen,
+       zahl(c.eingang_kg)::numeric(14,2)                            as eingang_kg,
+       zahl(c.ueberzaehlung_kg)::numeric(14,2)                      as ueberzaehlung_kg,
+       zahl(c.geliefert_kg)::numeric(14,2)                          as geliefert_kg,
+       zahl(c.kanal_ausgelagert_kg)::numeric(14,2)                  as kanal_ausgelagert_kg,
+       zahl(s.klein_ausgelagert_kg)::numeric(14,2)                  as klein_ausgelagert_kg,
+       zahl(s.gross_ausgelagert_kg)::numeric(14,2)                  as gross_ausgelagert_kg,
+       zahl(s.verdunstet_ausgelagert_kg)::numeric(14,2)             as verdunstet_ausgelagert_kg,
+       -- „faul" enthält den Sockel (nicht lagerbedingt); er steht daneben
+       -- noch einmal für sich, weil er nie im Lager entstanden ist.
+       zahl(s.faul_roh_ausgelagert_kg + coalesce(s.sockel_ausgelagert_kg, 0))::numeric(14,2)
+                                                                    as faul_ausgelagert_kg,
+       zahl(s.sockel_ausgelagert_kg)::numeric(14,2)                 as sockel_ausgelagert_kg,
+       zahl(c.fax_kg)::numeric(14,2)                                as fax_kg,
+       zahl(c.lager_kg)::numeric(14,2)                              as lager_kg,
+       zahl(c.lager_gute_ware_kg)::numeric(14,2)                    as lager_gute_ware_kg,
+       zahl(c.lager_verkaufsfaehig_kg)::numeric(14,2)               as lager_verkaufsfaehig_kg,
+       zahl(c.lager_kanal_kg)::numeric(14,2)                        as lager_kanal_kg,
+       zahl(s.lager_klein_kg)::numeric(14,2)                        as lager_klein_kg,
+       zahl(s.lager_gross_kg)::numeric(14,2)                        as lager_gross_kg,
+       zahl(c.lager_fax_kg)::numeric(14,2)                          as lager_fax_kg,
+       zahl(s.lager_faul_roh_kg + coalesce(s.lager_sockel_kg, 0))::numeric(14,2)
+                                                                    as lager_faul_kg,
+       zahl(s.lager_sockel_kg)::numeric(14,2)                       as lager_sockel_kg,
+       zahl(s.lager_verdunstet_kg)::numeric(14,2)                   as lager_verdunstet_kg,
+       zahl(c.eingang_kg + c.ueberzaehlung_kg - c.geliefert_kg - c.kanal_ausgelagert_kg
+            - s.verdunstet_ausgelagert_kg - s.faul_roh_ausgelagert_kg
+            - coalesce(s.sockel_ausgelagert_kg, 0) - c.fax_kg - c.lager_kg)::numeric(14,2) as rest_kg,
+       zahl(c.lager_kg - c.lager_verkaufsfaehig_kg - c.lager_kanal_kg - c.lager_fax_kg
+            - s.lager_faul_roh_kg - coalesce(s.lager_sockel_kg, 0)
+            - s.lager_verdunstet_kg)::numeric(14,2)                 as lager_rest_kg,
+       c.vollstaendig
+  from charge c
+  left join stroeme s on s.gruppe = c.gruppe and s.schluessel = c.schluessel;
+create materialized view erg_wohin as select * from v_wohin with no data;
 
 -- Der Zusatz von 0064 als Ganzes neu, wie in 0083/0089; geändert ist der
 -- Satz „Überzählung".
@@ -14077,8 +14299,12 @@ begin
   execute format('comment on materialized view erg_wiegung is %L',
                  'Gespeichert: jede Wägung mit ihren Kennzahlen (v_wiegung_kennzahl), seit 0089 mit plausibel und grund. Schritt 4 des Rechenwerks.');
 end $$;
-
--- ---------- 3. Die fertigen Paletten tragen „voll" ----------------------
+-- erg_ausgang (0089) ebenso: die Arbeitsfenster lesen daraus je Wägung, und
+-- sie sollen dieselben Grenzen zeigen wie die Marge. Gebaut wie in 0089 —
+-- als angemeldeter Block, denn 0089 hat die Sicht so angemeldet, und der
+-- Verdichter kennt je Sicht nur einen Bauplatz: stünde hier ein nacktes
+-- create, baute setup.sql erg_ausgang zweimal (run.sh, Schritt 2, hat es
+-- gezeigt: „relation erg_ausgang already exists").
 -- verdichter: baut erg_ausgang
 do $$
 begin
@@ -14086,25 +14312,8 @@ begin
   execute 'create materialized view erg_ausgang as select * from v_ausgang_voll with no data';
   execute 'grant select on erg_ausgang to authenticated';
   execute format('comment on materialized view erg_ausgang is %L',
-                 'Gespeichert: jede gewogene fertige Palette mit ihren Kennzahlen (v_ausgang_voll) — seit 0089 mit voll, damit die Marge-Karte sagen kann, welche Wägung nicht zählt.');
+                 'Gespeichert: jede gewogene fertige Palette mit ihren Kennzahlen (v_ausgang_voll) — seit 0089 mit voll, seit 0097 mit den Grenzen ihres Bandes (band_von_g, band_bis_g).');
 end $$;
-
--- Die Kommentar-Sicht zeigt nur Gekürztes: `text` ist die Kurzfassung.
--- Dazu, neu am Ende (eine Sicht kann Spalten nur anhängen): `roh` — was die
--- Person wirklich gesagt hat (Text, sonst Transkript) — und `n`.
-create or replace view v_arbeit_kommentar with (security_invoker = true) as
-select r.auftrag_id,
-       coalesce(r.kurz_charge_nr, a.charge_nr) as charge_nr,
-       string_agg(r.kurz, ' · ' order by r.ts) as text,
-       bool_or(r.audio_ref is not null) as mit_aufnahme,
-       max(r.ts) as ts,
-       string_agg(coalesce(nullif(btrim(r.text), ''), r.transkript, '(nur Aufnahme)'), ' · ' order by r.ts) as roh,
-       count(*)::int as n
-  from auftrag_rueckmeldung r
-  join auftrag a on a.id = r.auftrag_id
- where r.art = 'ware'
-   and r.kurz is not null
- group by r.auftrag_id, coalesce(r.kurz_charge_nr, a.charge_nr);
 
 -- ---------------------------------------------------------------------
 -- Beschreibungen, Leserechte und Indizes
@@ -15645,9 +15854,6 @@ comment on view v_marge_wiegung is
   'gegen das Soll (zuviel_je_kiste = Ist − Soll). Stück: Gramm je Kürbis gegen die '
   'Bandmitte (g_ueber_bandmitte). Der Betrieb: „pro palette wissen, vlt 10x messen '
   'pro saison, dann einen durchschnittswert" (0078).';
-create unique index erg_marge_wiegung_pk
-  on erg_marge_wiegung (sorte, kistensystem, coalesce(soll_kg_pro_kiste, -1), coalesce(kaliber_idx, -1),
-                        coalesce(stueck_je_kiste, -1));
 comment on materialized view erg_marge_wiegung is
   'Gespeichert: die Marge je Wägung (v_marge_wiegung) — je Sorte und Kistensystem '
   'der Durchschnitt der gewogenen vollen fertigen Paletten, ohne Verkaufsdatei. '
@@ -15757,9 +15963,6 @@ comment on view v_marge_charge is
   'Die verschenkte Marge je Wägung, eine Ebene feiner als v_marge_wiegung: je '
   'Charge, Kistensystem und Soll bzw. Kaliber der Durchschnitt der gewogenen '
   'vollen fertigen Paletten (0086). Dieselbe Rechnung wie 0078.';
-create unique index erg_marge_charge_pk
-  on erg_marge_charge (charge_nr, kistensystem, coalesce(soll_kg_pro_kiste, -1), coalesce(kaliber_idx, -1),
-                       coalesce(stueck_je_kiste, -1));
 comment on materialized view erg_marge_charge is
   'Gespeichert: die Marge je Wägung je Charge (v_marge_charge). Schritt 4 des '
   'Rechenwerks (0086).';
@@ -15814,6 +16017,17 @@ comment on view v_arbeit_kommentar is
   'roh das, was die Person gesagt hat, charge_nr die zugeordnete Charge (kurz_charge_nr, '
   'sonst die der Arbeit).';
 grant select on v_arbeit_kommentar to authenticated;
+create index if not exists erg_ausgang_ts on erg_ausgang (ts);
+comment on materialized view erg_ausgang is
+  'Gespeichert: jede gewogene fertige Palette mit ihren Kennzahlen (v_ausgang_voll) — seit 0089 mit voll, seit 0097 mit den Grenzen ihres Bandes (band_von_g, band_bis_g).';
+grant select on erg_marge_wiegung to authenticated;
+comment on materialized view erg_marge_wiegung is
+  'Gespeichert: die verschenkte Marge je Sorte, Kistensystem und Band (0078) — seit 0097 mit den '
+  'Grenzen des Bandes aus der Fassung des Auftrags und mit jeder gewogenen Palette je Kiste (n_voll sagt, wie viele voll waren).';
+grant select on erg_marge_charge to authenticated;
+comment on materialized view erg_marge_charge is
+  'Gespeichert: die verschenkte Marge je Charge (0086) — seit 0097 mit den Grenzen des Bandes '
+  'aus der Fassung des Auftrags und mit jeder gewogenen Palette je Kiste.';
 
 
 -- =====================================================================

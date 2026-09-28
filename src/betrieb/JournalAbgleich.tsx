@@ -45,12 +45,15 @@ export function JournalAbgleich({ neuGerechnet }: { neuGerechnet?: () => void })
         if (b.paletten.length === 0) { setMeldung({ art: 'warnung', text: 'Erntejournal geholt, aber keine Palette erkannt — bitte unter Stammdaten nachsehen.' }); return }
         // Nur, was es noch nicht gibt: erst nachsehen, dann anlegen — der
         // Upsert mit ignoreDuplicates täte dasselbe, sagt aber nicht, wie viele.
-        const ids = b.paletten.map(z => z.extern_id)
+        // Runde AD: nicht mehr 500 Kennungen in einer Adresszeile (17 KB, am
+        // 28. September „Bad Request"), sondern alle Kennungen des Journals
+        // aus der Datenbank geblättert — 1000 je Anfrage, kurze Adresse.
         const bekannt = new Set<string>()
-        for (let i = 0; i < ids.length; i += 500) {
-          const { data, error } = await supabase.from('palette').select('extern_id').in('extern_id', ids.slice(i, i + 500))
+        for (let von = 0; ; von += 1000) {
+          const { data, error } = await supabase.from('palette').select('extern_id').eq('quelle', 'journal-import').range(von, von + 999)
           if (error) throw error
-          for (const z of (data ?? []) as { extern_id: string }[]) bekannt.add(z.extern_id)
+          for (const z of (data ?? []) as { extern_id: string | null }[]) if (z.extern_id) bekannt.add(z.extern_id)
+          if ((data ?? []).length < 1000) break
         }
         const neue = b.paletten.filter(z => !bekannt.has(z.extern_id))
         if (neue.length === 0) return
@@ -70,7 +73,10 @@ export function JournalAbgleich({ neuGerechnet }: { neuGerechnet?: () => void })
         const { error: e2 } = await supabase.rpc('auswertung_aktualisieren')
         if (!e2) neuGerechnet?.()
       } catch (f) {
-        if (lebt) setMeldung({ art: 'warnung', text: `Erntejournal nicht abgeglichen: ${fehlerText(f)}` })
+        // Was genau scheiterte, steht dabei — „Bad Request" allein half niemandem.
+        const e = f as { status?: number; code?: string; details?: string } | null
+        const dazu = [e?.status ? `HTTP ${e.status}` : '', e?.code ?? '', e?.details ?? ''].filter(Boolean).join(' · ')
+        if (lebt) setMeldung({ art: 'warnung', text: `Erntejournal nicht abgeglichen: ${fehlerText(f)}${dazu ? ` (${dazu})` : ''}` })
       }
     })()
     return () => { lebt = false }

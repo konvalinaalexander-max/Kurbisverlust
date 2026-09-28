@@ -687,6 +687,29 @@ letzten Rechnung nichts erfasst, sagt der Chip „aktuell". „Neu rechnen" gibt
 es nur ohne laufenden Zeitplan — mit einer ganzen Saison schafft der Knopf
 Schritt 3 nicht unter der Zeitgrenze der App.
 
+**Runde AD (0097)** — was der Betrieb am ersten Tag mit echten Zahlen
+sah: Die Marge zeigt jedes Band mit den Grenzen aus der Fassung **seines
+Auftrags** (zwei Fassungen, zwei Zeilen; die Bandmitte ist der Schwerpunkt
+der Sortierdateien in genau diesen Grenzen), und jede gewogene Palette
+zählt je Kiste — auch eine halbe. Eine Ausschuss-Art ohne Messung ist
+unbekannt, nicht 0 und keine Auffälligkeit. Ohne Nachweis ist der Sockel 0
+und der Verlust bleibt bekannt; fehlt ein Strom, nennt ihn die
+Chargen-Seite. Drei fertige Paletten sind der Rat; Pflicht ist eine, beim
+Waschen, solange das Kistengewicht des Bandes unbekannt ist — der Abschluss
+sagt warum. **Abbrechen:** Der Betriebsleiter setzt unter Stammdaten →
+Benutzer den Haken „darf laufende Arbeiten abbrechen"; wer ihn hat, wählt
+auf der Startseite Arbeiten aus (Symbol neben „Läuft gerade", Kreis an
+jeder Karte) und bricht genau die gewählten ab — die Rückfrage nennt sie,
+ohne Auswahl ist der Knopf grau. Lagermanagement: Chargen nach Feld, eine
+Tabelle am Stichtag (Wochenfeld ändert die ganze Tabelle), Sorten
+aufklappbar. Das Erntejournal blättert beim Abgleich (kein „Bad Request"
+mehr). **Zeitplan nach einem zweiten setup.sql:** Der Job bleibt jetzt
+stehen; sagt der Chip trotzdem „Zeitplan rechnet nicht", zuerst
+`select pg_reload_conf();`, dann — läuft binnen zehn Minuten nichts —
+`select pg_terminate_backend(pid) from pg_stat_activity where backend_type
+= 'pg_cron launcher';` oder das Projekt neu starten (pg_cron nimmt neue
+Jobs erst nach einem Neustart des Launchers). AB-101 bis AB-105.
+
 **Runde AB (0095, 0096)** — die Zahlen liegen fertig da: Läuft
 in der Datenbank der Zeitplan aus 0061 (pg_cron, alle zehn Minuten, nur
 bei Änderung), rechnet die App beim Öffnen nicht mehr selbst, sondern

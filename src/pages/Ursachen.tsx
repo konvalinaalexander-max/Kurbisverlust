@@ -1,6 +1,7 @@
 import { Fragment, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { datum, kg, prozent, tonnen, zahl } from '../lib/format'
+import { chargenNachFeld } from '../lib/felder'
 import { Aufklapp, Erklaerung, Herkunft, Hinweis, Karte, Leer, Segmente } from '../components/Bausteine'
 import { Anteilsbalken, Linien, type Anteilszeile, type Punkt, type Reihe, type Zone } from '../components/Diagramm'
 import { lagerstaende, prognoseBei, schimmelKurve, useAuswertung, wohinVon,
@@ -88,7 +89,12 @@ export default function Ursachen() {
                 onChange={e => setzen(e.target.value)}>
           <option value="">alle Chargen</option>
           <optgroup label="Sorte">{sorten.map(s => <option key={s} value={`sorte|${s}`}>{s}</option>)}</optgroup>
-          <optgroup label="Charge">{chargenListe.map(c => <option key={c.charge_nr} value={`charge|${c.charge_nr}`}>{c.charge_nr} · {c.sorte}</option>)}</optgroup>
+          {/* Runde AD: nach Feld, darin Sorte, dann die Nummer — wie im Lagermanagement. */}
+          {chargenNachFeld(chargenListe).map(f => (
+            <optgroup key={f.feld} label={f.feld}>
+              {f.chargen.map(c => <option key={c.charge_nr} value={`charge|${c.charge_nr}`}>{c.sorte} (Charge {c.charge_nr})</option>)}
+            </optgroup>
+          ))}
         </select>
         {filter.gruppe !== 'gesamt' && <span className="aktiv-filter">{name}</span>}
         <span>{chargen.length} {chargen.length === 1 ? 'Charge' : 'Chargen'} · {staende.length} mit Ware im Haus</span>
@@ -536,15 +542,18 @@ function Marge({ daten, filter, chargen, oeffnen }: { daten: Auswertung; filter:
     .sort((a, b) => a.sorte.localeCompare(b.sorte, 'de') || (a.soll_kg_pro_kiste ?? 0) - (b.soll_kg_pro_kiste ?? 0))
   const stueck = zeilen.filter(z => z.kistensystem === 'stueck')
     .sort((a, b) => a.sorte.localeCompare(b.sorte, 'de') || (a.kaliber_idx ?? 0) - (b.kaliber_idx ?? 0) || (a.stueck_je_kiste ?? 0) - (b.stueck_je_kiste ?? 0))
+  // 0097: derselbe Index kann in zwei Fassungen zwei Bänder sein — die
+  // Grenzen gehören zum Schlüssel, sonst fielen zwei Zeilen zusammen.
   const schluessel = (z: typeof zeilen[number]) =>
-    `${z.kistensystem}|${z.sorte}|${z.charge_nr ?? ''}|${z.soll_kg_pro_kiste ?? ''}|${z.kaliber_idx ?? ''}|${z.stueck_je_kiste ?? ''}`
+    `${z.kistensystem}|${z.sorte}|${z.charge_nr ?? ''}|${z.soll_kg_pro_kiste ?? ''}|${z.kaliber_idx ?? ''}|${z.stueck_je_kiste ?? ''}|${z.band_von_g ?? ''}|${z.band_bis_g ?? ''}`
   // Die Wägungen hinter einer Zeile — dieselbe Auswahl, die die Zeile gerechnet hat.
   const dahinter = (z: typeof zeilen[number]) => wiegungen
     .filter(w => w.sorte === z.sorte && w.kistensystem === z.kistensystem
       && (z.charge_nr === undefined || w.charge_nr === z.charge_nr)
       && (z.kistensystem === 'kiste_ab'
         ? Number(w.soll_kg_pro_kiste) === Number(z.soll_kg_pro_kiste)
-        : w.kaliber_idx === z.kaliber_idx && w.stueck_je_kiste === z.stueck_je_kiste))
+        : w.kaliber_idx === z.kaliber_idx && w.stueck_je_kiste === z.stueck_je_kiste
+          && (w.band_von_g === undefined || ((w.band_von_g ?? null) === (z.band_von_g ?? null) && (w.band_bis_g ?? null) === (z.band_bis_g ?? null)))))
     .sort((a, b) => a.charge_nr - b.charge_nr || a.ts.localeCompare(b.ts))
   const umschalten = (k: string) => setAuf(s => { const n = new Set(s); if (n.has(k)) n.delete(k); else n.add(k); return n })
   const kopf = filter.gruppe === 'charge' ? `Charge ${filter.schluessel} · ${chargen[0]?.sorte ?? ''}` : filter.gruppe === 'sorte' ? filter.schluessel : 'alle Chargen'
@@ -599,8 +608,8 @@ function Marge({ daten, filter, chargen, oeffnen }: { daten: Auswertung; filter:
                                 <td className="zahl">{w.kisten}</td>
                                 <td className="zahl">{w.kg_pro_kiste != null ? `${w.kg_pro_kiste.toFixed(2)} kg` : '—'}</td>
                                 <td className="zahl">{w.ueberfuellung_je_kiste != null ? `${w.ueberfuellung_je_kiste > 0 ? '+' : ''}${w.ueberfuellung_je_kiste.toFixed(2)} kg` : '—'}</td>
-                                <td>{w.kaliber_idx != null ? bandName(w.sorte, w.kaliber_idx) : '—'}</td>
-                                <td className="nowrap">{w.voll ? arbeitKnopf(w) : <span className="leise">halbe Palette — zählt nicht</span>}</td>
+                                <td>{bandText(w.kaliber_idx, w.band_von_g ?? z.band_von_g, w.band_bis_g ?? z.band_bis_g) ?? (w.kaliber_idx != null ? bandName(w.sorte, w.kaliber_idx) : '—')}</td>
+                                <td className="nowrap">{arbeitKnopf(w)}{!w.voll && <span className="leise"> · nicht voll</span>}</td>
                               </tr>
                             ))}</tbody>
                           </table>
@@ -615,7 +624,7 @@ function Marge({ daten, filter, chargen, oeffnen }: { daten: Auswertung; filter:
 
           <section className="marge-teil" data-block="stueck" id="urs-marge-stueck">
             <h3>x Stück je Kiste</h3>
-            <p className="leise">Der Kunde zahlt je Kürbis, nach Kaliber. Bezahlt ist die Mitte des Bandes; jedes Gramm darüber ist geschenkt: Netto der Palette ÷ (Kisten × Stück) = gewogen je Stück, minus Bandmitte.</p>
+            <p className="leise">Der Kunde zahlt je Kürbis, nach Kaliber. Bezahlt ist die Bandmitte; jedes Gramm darüber ist geschenkt: Netto der Palette ÷ (Kisten × Stück) = gewogen je Stück, minus Bandmitte. <strong>Bandmitte</strong> heisst hier nicht die Mitte der Grenzen, sondern der Schwerpunkt der Kürbisse dieser Sorte innerhalb des Bandes, aus den Sortierdateien — was der Kunde im Mittel bekommt. Das Band ist das der Fassung, mit der die Arbeit lief: Ändert der Betrieb die Fassung, kann „K1" danach ein anderes Band sein, und die Zeilen bleiben getrennt.</p>
             {stueck.length === 0 ? <p className="leise">Noch keine Palette nach Kaliber gewogen.</p> : (
               <div className="rollbar"><table className="dicht marge-tabelle">
                 <thead><tr><th>Sorte</th><th>Kaliber</th><th className="zahl">Je Kiste</th><th className="zahl">Gewogen je Stück</th><th className="zahl">Über Bandmitte</th><th>Wägungen</th></tr></thead>
@@ -626,7 +635,7 @@ function Marge({ daten, filter, chargen, oeffnen }: { daten: Auswertung; filter:
                     <Fragment key={k}>
                       <tr>
                         <td className="nowrap"><strong>{z.sorte}</strong>{z.charge_nr !== undefined && <span className="leise"> · Charge {z.charge_nr}</span>}</td>
-                        <td className="nowrap"><strong>{bandName(z.sorte, z.kaliber_idx)}</strong>{mitte != null && <span className="leise"> · Mitte {Math.round(mitte)} g</span>}</td>
+                        <td className="nowrap"><strong>{bandText(z.kaliber_idx, z.band_von_g, z.band_bis_g) ?? bandName(z.sorte, z.kaliber_idx)}</strong>{mitte != null && <span className="leise"> · Mitte {Math.round(mitte)} g</span>}</td>
                         <td className="zahl">{z.stueck_je_kiste} Stück</td>
                         <td className="zahl"><strong>{g != null ? `${Math.round(g)} g` : '—'}</strong></td>
                         <td className={`zahl ${z.g_ueber_bandmitte != null && z.g_ueber_bandmitte > 0 ? 'rot' : ''}`}>
@@ -648,7 +657,7 @@ function Marge({ daten, filter, chargen, oeffnen }: { daten: Auswertung; filter:
                                   <td className="zahl">{w.kisten}</td>
                                   <td className="zahl">{gw != null ? `${Math.round(gw)} g` : '—'}</td>
                                   <td className="zahl">{gw != null && w.band_mittel_g != null ? `${gw - w.band_mittel_g > 0 ? '+' : ''}${Math.round(gw - w.band_mittel_g)} g` : '—'}</td>
-                                  <td className="nowrap">{w.voll ? arbeitKnopf(w) : <span className="leise">halbe Palette — zählt nicht</span>}</td>
+                                  <td className="nowrap">{arbeitKnopf(w)}{!w.voll && <span className="leise"> · nicht voll</span>}</td>
                                 </tr>
                               )
                             })}</tbody>
@@ -664,14 +673,23 @@ function Marge({ daten, filter, chargen, oeffnen }: { daten: Auswertung; filter:
         </>
       )}
       <p className="hilfe">
-        Mittel aus den gewogenen vollen Paletten{von ? ` seit ${datum(von)}` : ''} <Herkunft art="gemessen" /> —
-        nicht auf verkaufte Kisten hochgerechnet. Halbe Paletten stehen in der Liste, zählen aber nicht mit.
+        Mittel aus allen gewogenen fertigen Paletten{von ? ` seit ${datum(von)}` : ''} <Herkunft art="gemessen" /> —
+        nicht auf verkaufte Kisten hochgerechnet. Eine nicht volle Palette (weniger Kisten drauf) zählt je Kiste mit; sie steht als „nicht voll" dabei.
       </p>
     </Karte>
   )
 }
 
-/** Das Kaliber beim Namen: „K2 · 900–1200 g" — aus dem Sortierschema der Sorte. */
+/** Runde AD: das Band mit den Grenzen, die die Zeile selbst trägt (aus der
+ *  Fassung des Auftrags, 0097) — „K2 · 600–1100 g"; ohne Index das eigene
+ *  Band einer Wasch-Arbeit („eigenes Band · 700–900 g"). null, wenn keine Grenzen da sind. */
+function bandText(idx: number | null | undefined, von: number | null | undefined, bis: number | null | undefined): string | null {
+  if (von == null || bis == null) return null
+  return `${idx == null ? 'eigenes Band' : `K${idx + 1}`} · ${zahl(von)}–${zahl(bis)} g`
+}
+
+/** Das Kaliber beim Namen: „K2 · 900–1200 g" — aus dem Sortierschema der Sorte.
+ *  Nur noch der Ersatz, wenn eine Zeile keine Grenzen trägt (Datenbank vor 0097). */
 function bandNamen(schemata: Schema[]): (sorte: string, idx: number | null) => string {
   return (sorte, idx) => {
     if (idx == null) return 'ohne Kaliber'

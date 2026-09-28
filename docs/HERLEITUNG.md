@@ -39,7 +39,9 @@ Je gezählter Palette (`v_auftrag_palette_masse`), in dieser Reihenfolge:
 | `charge-mittel` | nichts als die Charge | Mittel der Charge |
 
 Dann je Arbeit: die Summe der gezählten Paletten → sonst **fertige Paletten**
-(Waschen: gezählte fertige Paletten × Mittel der gewogenen; 3 reichen) →
+(Waschen: gezählte fertige Paletten × Mittel der gewogenen **vollen**; eine
+reicht, drei sind der Rat — nicht volle zählen hier nicht, in der Marge
+aber je Kiste, 0097) →
 sonst **Kaliber-Paletten × Kistengewicht des Bandes** (Waschen aus Kisten,
 Abschnitt 4) → sonst **gezählte Kisten je Kaliber × Kistengewicht** (alter
 Weg) → beim Fax **Paletten gesamt × Palettenmasse der Sorte**. Die Quelle
@@ -100,6 +102,8 @@ Handlinie die gewogenen Kisten (0088). Anteile an der Masse des Laufs.
 **Zusammenfassen:** wie die Verdunstung — je Sorte, zum Gesamtwert gezogen,
 `basis` sagt es.
 **Fehlt alles:** unbekannt.
+**Fehlt eine Art** (nur „zu gross" gewogen, „zu klein" übersprungen): diese
+Art ist unbekannt, nicht 0; die gemessene zählt; keine Auffälligkeit (0097).
 **Urteil:** ehrlich.
 
 ## 7. Faules im Lager — das Verderbsmodell (`mv_schimmel_modell`)
@@ -111,7 +115,10 @@ Lagertage (Abschnitt 3) → ein Punkt (Anteil, Tage). Nicht plausible Punkte
 **Modell:** F(t) = 1 − exp(−λ·t^k), **ein Modell für alle Sorten**, im
 Logarithmus angepasst, mit Smearing zurückgerechnet, chargen-robust
 gefehlert; dazu der Sockel a₀ (was ohne Fäulnis im Palox landet) — nur,
-wenn die Daten ihn belegen, sonst 0.
+wenn die Daten ihn belegen, sonst 0. Ohne brauchbares Modell ebenfalls 0,
+und der Verlust der Charge bleibt **bekannt** — `sockel_nachgewiesen` sagt,
+dass der Nachweis fehlt (0097). Unbekannt wird der Verlust nur, wenn ein
+Strom (Verdunstung, Faules, Fax, Ausschuss) nicht gemessen ist.
 **Fehlt eine Eingabe:** eine Arbeit ohne Nenner liefert keinen Punkt
 (Auffälligkeit „Ohne Nenner"); ein Leeren ohne Ablesung macht die Menge
 unbekannt (Auffälligkeit „Palox geleert"); ohne genügend Punkte gibt es
@@ -153,10 +160,31 @@ Eingang fehlt, Lieferschein falsch gebucht, Charge besser als das Modell.
 Koeffizient „Im Lager" zu klein rechnet (Charge 1625) — die Saisonbegleitung
 fragt danach.
 
-## 12. Was nirgends erraten wird
+## 12. Die Marge je Band (`v_marge_wiegung`, `v_marge_charge`)
+
+**Braucht:** je gewogene fertige Palette Netto, Kisten und Kürbisse je
+Kiste (`v_ausgang_kennzahl`) — und die **Grenzen des Bandes aus der Fassung
+ihres Auftrags** (`band_von_g`, `band_bis_g`; beim eigenen Band die des
+Auftrags; ohne Fassung die heute gültige Standardfassung der Sorte).
+**Bandmitte:** der Schwerpunkt der Kürbisse aus den Sortierdateien der
+Sorte innerhalb genau dieser Grenzen (`band_mittel`) — nicht die Mitte des
+Bandes und nicht die Mitte einer anderen Fassung. Derselbe Index in zwei
+Fassungen ist zwei Zeilen (0097).
+**Je Kiste:** jede gewogene Palette zählt, auch eine nicht volle; `n_voll`
+sagt, wie viele voll waren. Der Nenner des Waschens (Abschnitt 2) nimmt
+weiter nur volle.
+**Fehlt die Sortierdatei:** keine Bandmitte, kein „über der Mitte" — die
+Gramm je Kürbis stehen trotzdem da.
+**Urteil:** ehrlich seit 0097; davor nahm die Karte die Grenzen der
+neuesten Fassung zu jedem Index, was „K1 500–600 · Mitte 878 g" ergab.
+
+## 13. Was nirgends erraten wird
 
 - Eine Menge aus einer Zählung ohne Masse (AB-23).
 - Ein Netto aus einem Brutto ohne Tara („Ausschuss ohne Tara", „Tara fehlt").
 - Ein Sortiertag aus einem Dateistempel (0082).
 - Eine Verdunstung über der Grenze (0089).
 - Ein Koeffizient aus null Messungen.
+- Eine Ausschuss-Art, die niemand gewogen hat (0097).
+- Ein Sockel ohne Nachweis — er ist 0 und sagt es (0097).
+- Die Grenzen eines Bandes aus einer fremden Fassung (0097).

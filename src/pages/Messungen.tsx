@@ -149,7 +149,7 @@ export default function Messungen() {
       {m && (
         <Karte titel="Das Verderbsmodell — und was es nicht weiss" unter="Die Kurve, mit der für alle Ware im Lager gerechnet wird.">
           {!m.brauchbar ? (
-            <Hinweis art="warnung">Für eine Kurve reicht es noch nicht — nötig sind Schimmelmessungen aus mindestens drei Chargen über deutlich verschiedene Lagerdauern. Solange gilt der zuletzt gemessene Wert.</Hinweis>
+            <Hinweis art="warnung">Für eine Kurve reicht es noch nicht — nötig sind Schimmelmessungen aus mindestens drei Chargen über deutlich verschiedene Lagerdauern. Solange gilt der zuletzt gemessene Wert, und der Sockel a₀ (was schon am ersten Tag faul war) gilt als 0: Er braucht einen Nachweis. Der Verlust bis heute bleibt rechenbar. Mehr Punkte kommen mit jeder Arbeit, die den Palox abliest und ihre Paletten zählt — und mit Kontrollpaletten.</Hinweis>
           ) : (
             <div className="rollbar"><table className="dicht"><tbody>
               <tr><td>Form der Kurve (k)</td><td className="zahl"><strong>{m.k?.toFixed(2)}</strong></td><td className="leise">über 1 heisst: die Verderbrate steigt mit der Lagerdauer</td></tr>

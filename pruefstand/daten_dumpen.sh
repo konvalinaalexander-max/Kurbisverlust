@@ -25,7 +25,7 @@ for R in v_hochrechnung erg_massenbilanz erg_datenlage erg_marge erg_plausibilit
          v_palox_stand v_lieferung_masse v_auftrag_masse auswertung_stand v_kohorte_anteil v_koeff_fax \
          ausgang_quelle ausgang_artikel v_ausgang_lage v_ausgang_artikel_vorschlag \
          charge sorte_kaliber gebinde einstellung ausgang_ziel kaeufer sortierschema \
-         v_ausgang_kennzahl profil palette v_kontrolle_vorschlag v_lieferung_kohorte v_koeff_palette_netto \
+         v_ausgang_kennzahl profil palette v_kontrolle_vorschlag v_lieferung_kohorte v_koeff_palette_netto v_koeff_gebinde \
          ausgang_wiegung v_auftrag_angabe v_verkauf_lieferung v_auftrag_wasch_paletten \
          auftrag auftrag_palette auftrag_gebinde schimmel_messung ausschuss_messung \
          verdunstung_wiegung ausgang_zeile \

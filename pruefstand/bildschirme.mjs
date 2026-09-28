@@ -83,6 +83,15 @@ const BILDSCHIRME = [
   { name: 'sprache', wer: null, pfad: '/', frisch: true },
   { name: 'anmelden', wer: null, pfad: '/' },
   { name: 'start', wer: 'arbeiter', pfad: '/' },
+  // Runde AD: der Betriebsleiter (und wer die Erlaubnis hat) wählt laufende
+  // Arbeiten aus und bricht sie ab — mit der Rückfrage, die genau sie nennt.
+  { name: 'start-auswahl', wer: 'admin', pfad: '/',
+    tun: async p => {
+      await p.locator('#auswahl-an').click()
+      await p.locator('.arbeit-karte .wahlkreis').first().click()
+      await p.locator('#auswahl-abbrechen').click()
+      await p.locator('#auswahl-abbrechen-ja').waitFor()
+    } },
   // Der Assistent des Vorarbeiters, Schritt für Schritt (0060: kein Käufer, Kistensystem)
   { name: 'neu-was', wer: 'arbeiter', pfad: '/neu' },
   // Runde T: der Plan in drei Blöcken, direkt nach der Tätigkeit

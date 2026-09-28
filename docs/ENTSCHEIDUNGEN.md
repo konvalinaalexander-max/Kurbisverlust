@@ -4163,6 +4163,131 @@ Daten, dann die Annahme — nach der Korrektur nachsehen.
 nicht alles: vier mal vier gleiche Paloxen und ein Tag mit 30 Paaren bei
 13 erwarteten sind Fragen wert.
 
+## Runde AD: was der Betrieb am ersten Tag mit echten Zahlen sah (28. September, 0097)
+
+Der erste Tag mit dem echten Erntejournal, den ersten Wägungen und dem
+Zeitplan in der Datenbank. Der Betrieb ging Karte für Karte durch und
+schrieb auf, was er nicht verstand oder nicht glaubte. Jede Zeile war
+eine Aufgabe; hier steht, was dahinter war.
+
+### Die Marge: „K1 500–600 mit Mitte 878 g"
+
+Der Betrieb: „was bedeutet Mitte 970 g / 878 g … K1 500–600 mit Mitte 878
+ist verwirrend, ich vermute ein Vertippen K1/K2." Es war kein Vertippen.
+Amoro hat seit dem Betriebsstart zwei Fassungen: In der alten hiess Index 0
+„600–1100 g", in der neuen (mit 500–600 vorne dran) heisst Index 0
+„500–600 g". Die Wägung trug den Index ihres Auftrags, die Karte nahm die
+Grenzen der heute gültigen Fassung — und die Bandmitte 878 g war der
+Schwerpunkt der Sortierdateien im alten Band. Seit 0097 kennt jede Wägung
+die Grenzen des Bandes ihrer eigenen Fassung (`band_von_g`, `band_bis_g`),
+die Marge gruppiert danach, und die Karte sagt, was die Mitte ist: der
+Schwerpunkt der Kürbisse in der Sortierdatei innerhalb genau dieser
+Grenzen. Zwei Fassungen, zwei Zeilen — und keine Zeile mit fremden Grenzen.
+
+### Die halbe Palette
+
+„Warum zählt eine halbe Palette (603 kg / 43 Kisten) nicht in der Marge?"
+Weil die Marge bis 0096 nur volle Paletten nahm — die Palettenmasse ist
+der Nenner des Waschens, und eine halbe Palette verfälscht ihn. Aber die
+Marge rechnet je Kiste, nicht je Palette: 603 kg auf 43 Kisten ist eine
+saubere Messung des Kistengewichts. Seit 0097 zählt jede gewogene Palette
+je Kiste; `n_voll` sagt, wie viele voll waren, und für den Nenner des
+Waschens (`v_koeff_gebinde`, `v_auftrag_masse`) zählen weiter nur die
+vollen. Die Maske sagt es jetzt so: „nicht voll — zählt je Kiste, nicht
+als Palettenmasse".
+
+### „0 kg zu klein" ist keine Auffälligkeit
+
+Die alte Maske zog die Palettentara ab, der Arbeiter übersprang „zu klein"
+und wog nur „zu gross". Daraus wurde 0 kg zu klein — und eine Auffälligkeit
+„Ausschuss unplausibel", weil 0 als Messung galt. Leer ist nicht null: Seit
+0097 ist eine Ausschuss-Art ohne Messung unbekannt, die gemessene zählt in
+ihren Koeffizienten, und die Auffälligkeit kommt nur, wenn eine gemessene
+Art nicht plausibel ist. Die Daten des Betriebs sind so, wie sie sind,
+verwendbar — nichts musste korrigiert werden.
+
+### „Verlust bis heute —" auf jeder Charge
+
+Der Sockel a₀ (was ohne Fäulnis im Palox landet) hing am brauchbaren
+Verderbsmodell: ohne Modell kein Sockel, ohne Sockel „Verlust unbekannt".
+Das ist die falsche Kette. Ohne Nachweis ist der Sockel 0 — das sagt
+`sockel_nachgewiesen`, und die Chargen-Seite schreibt „(Sockel ohne
+Nachweis)" dazu. Unbekannt ist der Verlust nur, wenn einer der vier Ströme
+(Verdunstung, Faules, Fax, Ausschuss) für die Charge wirklich nicht
+gemessen ist — und die Seite nennt ihn: „Verlust bis heute nicht gemessen:
+Faules im Lager". Die Messungen-Seite sagt, wie die Koeffizienten zustande
+kommen und was noch fehlt.
+
+### Drei fertige Paletten: Rat statt Pflicht — mit einer Ausnahme
+
+Der Betrieb: „die pflicht weg." Und zum Nur-Waschen: „falls das der einzige
+weg ist, dann mach das im UI so für die arbeiterin klar ersichtlich dass sie
+das machen muss." Beides gilt: Drei sind der Rat. Pflicht ist eine — beim
+Waschen, und nur, wenn die Auswertung das Kistengewicht für Sorte und Band
+noch nicht kennt (`v_koeff_gebinde`). Dann ist die eine gewogene Palette
+der einzige Weg, die Masse dieser Arbeit zu kennen, und der Abschluss sagt
+genau das: „Für Amoro · 700–900 g kennt die App das Kistengewicht noch
+nicht. Erst eine gewogene fertige Palette sagt ihr, was diese Arbeit
+herausgebracht hat." Kennt sie es, bleibt die Erinnerung an drei — mehr
+Wägungen, besseres Kistengewicht.
+
+### Abbrechen, mit Erlaubnis — nie alles
+
+Der Betrieb: „seraina soll die möglichkeit haben, aufträge die gerade noch
+laufen zu löschen, auch wenn sie sie nicht gestartet hat … links vom
+auftrag so ein feld, das man anklicken kann, und dann auf löschen klicken
+… garantiere mir, dass ich nicht alles lösche." Die Erlaubnis ist kein
+Name im Code, sondern ein Haken am Profil (`darf_abbrechen`), den der
+Betriebsleiter unter Stammdaten → Benutzer setzt. Die Funktion in der
+Datenbank prüft ihn selbst — beteiligt, Betriebsleiter oder Erlaubnis,
+sonst 42501 — und bricht nur Laufendes ab. In der App gibt es den einen
+Weg: Auswahlmodus, ein Kreis an jeder Karte, der Knopf (grau ohne Auswahl),
+die Rückfrage mit genau den gewählten Arbeiten. Im Büro ersetzt dasselbe
+Symbol das „x Löschen"; der Papierkorb steht erst in der Rückfrage.
+
+### Der Zeitplan nach einem zweiten setup.sql
+
+Der Betrieb spielte setup.sql ein zweites Mal ein und sah „Zeitplan
+rechnet nicht". Der Block aus 0061 löschte den Job und legte ihn neu an —
+und pg_cron auf Supabase nimmt einen neuen Job erst nach einem Neustart
+des Launchers (zweimal beobachtet). Seit dieser Runde lässt der Block einen
+gleichlautenden Job stehen; nur ein anderer Takt wird mit `cron.alter_job`
+angepasst. Fällt es doch einmal aus: `select pg_reload_conf();`, sonst den
+Launcher beenden (`pg_terminate_backend` auf `backend_type = 'pg_cron
+launcher'`) oder das Projekt neu starten — die Anleitung steht im README.
+
+### Lagermanagement, wie der Betrieb es lesen will
+
+Die Chargenwahl nach Feld, dann Sorte, dann Nummer („Sorte (Charge Nr)");
+„Eingang kumuliert" weg aus dem Saisonverlauf; „Was ist noch im Haus" als
+eine Tabelle am Stichtag — Grundeinstellung heute, das Wochenfeld ändert
+die ganze Tabelle; die Sorte zweizeilig und aufklappbar zu ihren Chargen;
+die Ø-Marke der Glocke über den Balken, lesbar. Der Abnahmevertrag der
+Runde R (§ 8, L-04 und L-06) verlangte zwei Spaltengruppen nebeneinander;
+der Wunsch hat die Regel geändert, und `abnahme_r.mjs` prüft jetzt den
+neuen Weg mit dem Grund im Kommentar.
+
+### Erntejournal: „Bad Request Stammdaten"
+
+Der Abgleich fragte die schon eingespielten Paletten mit einem `in (…)`
+über alle Journalzeilen ab — mit dem echten Journal wurde die Adresse zu
+lang, und PostgREST antwortete „Bad Request". Der Abgleich blättert jetzt
+die Paletten der Quelle `journal-import` seitenweise durch, und die
+Fehlermeldung nennt Status, Code und Details.
+
+### Was bewusst nicht gemacht wurde
+
+- Kein Name „Seraina" im Code. Die Erlaubnis ist ein Haken am Profil; wer
+  ihn hat, entscheidet der Betriebsleiter.
+- Kein „alle abbrechen", auch nicht für den Betriebsleiter. Die Rückfrage
+  nennt jede Arbeit einzeln; ohne Auswahl ist der Knopf grau.
+- Die Marge zählt nicht volle Paletten je Kiste — der Nenner des Waschens
+  nimmt weiter nur volle. Das sind zwei Fragen, und sie bleiben getrennt.
+- Kein Modell je Sorte für den Sockel. Ohne Nachweis 0, mit Nachweis der
+  gemessene Wert — beides steht dran.
+- Die 0-kg-Zeilen des Betriebs wurden nicht korrigiert. Die Regel liest
+  sie richtig; die Daten bleiben, wie sie erfasst wurden.
+
 ## Runde AB: die Zahlen liegen fertig da (28. September, 0095, 0096)
 
 Der Betrieb: „aktuell muss ich teilweise bis zu einer Minute warten, bis

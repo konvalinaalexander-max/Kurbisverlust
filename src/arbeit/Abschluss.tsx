@@ -10,7 +10,7 @@ import { FauleMaske } from './FauleMaske'
 import { AusschussMaske } from './AusschussMaske'
 import { FertigePaletteMaske } from './FertigePaletteMaske'
 import { vorschlagTageSeitWaschen } from '../lib/taetigkeit'
-import { fertigeSoll, stationsProfil, type ArbeitDaten } from './daten'
+import { fertigeVerlangt, stationsProfil, type ArbeitDaten } from './daten'
 
 type SchrittId = 'palox' | 'geleert' | 'faule' | 'wiegen' | 'ausschuss' | 'paletten' | 'wasch_paletten' | 'ausgang' | 'fertige_gesamt' | 'charge' | 'rueckmeldung' | 'pruefen'
 
@@ -26,8 +26,9 @@ type SchrittId = 'palox' | 'geleert' | 'faule' | 'wiegen' | 'ausschuss' | 'palet
  *                       klein / zu gross Palette für Palette (Pflicht — oder
  *                       „nichts"); fertige Paletten, mindestens drei erinnert
  *  Waschen              die gezählten Kaliber-Paletten nachsehen (Pflicht);
- *                       fertige Paletten: drei verlangt, oder so viele, wie die
- *                       Arbeit hergibt
+ *                       fertige Paletten: seit Runde AD EINE verlangt, und nur,
+ *                       solange das Kistengewicht des Bandes unbekannt ist —
+ *                       drei sind der Rat („die pflicht weg")
  *  Fax                  Palettenzahl als Gesamtzahl, Tage seit dem Waschen
  *
  * Runde T: Jede Pflichtfrage ist ein eigener Schritt und blockiert sichtbar.
@@ -129,7 +130,8 @@ export function Abschluss({ d, neuLaden, zurueck, fertig }: {
   const waschKisten = d.paletten.reduce((s, x) => s + (x.kisten ?? 0), 0)
   const gewogen = d.paletten.filter(x => x.wiegung_id != null).length
   const palettenOk = Number(paletten) > 0
-  const soll = fertigeSoll(d)
+  const verlangt = fertigeVerlangt(d)
+  const soll = verlangt.soll
   const wiegenErinnern = p.wiegenSoll > 0 && gewogen < p.wiegenSoll
   // 0073: Eine einzige Ablesung ist ein Startstand, kein Messwert — die Menge
   // der Arbeit bliebe unbekannt. Also zwei: Beginn und Ende. Oder eine plus
@@ -160,7 +162,7 @@ export function Abschluss({ d, neuLaden, zurueck, fertig }: {
   const n = pos + 1, von = schritte.length
   const weiter = () => setPos(x => Math.min(x + 1, schritte.length - 1))
   const zurueckSchritt = () => (pos === 0 ? zurueck() : setPos(x => x - 1))
-  const ersetzen = (text: string, werte: Record<string, number>) =>
+  const ersetzen = (text: string, werte: Record<string, number | string>) =>
     Object.entries(werte).reduce((s, [k, v]) => s.replace(`{${k}}`, String(v)), text)
 
   // Was noch fehlt — als Sätze, nicht als gesperrter Knopf ohne Grund.
@@ -178,7 +180,7 @@ export function Abschluss({ d, neuLaden, zurueck, fertig }: {
   if (p.hatFaxPaletten && !palettenOk) fehlt.push(t('palettenGesamt'))
   if (p.hatWaschPaletten && waschKisten === 0) fehlt.push(t('palettenFehlen'))
   if (p.hatAusschuss && d.ausschuss.length === 0) fehlt.push(t('ausschussFehlt'))
-  if (p.ausgangPflicht && d.nAusgang < soll) fehlt.push(ersetzen(t('fertigeFehlen'), { n: d.nAusgang, soll }))
+  if (d.nAusgang < verlangt.mindestens) fehlt.push(ersetzen(t('fertigeFehlen'), { n: d.nAusgang, soll: verlangt.mindestens }))
   // Runde R: Beim Waschen hat der Palox nur dann einen Nenner, wenn die
   // fertigen Paletten gesamt bekannt sind — die Kaliber-Palette aus dem
   // Zwischenlager wird nicht gewogen, also rechnet die Auswertung rückwärts:
@@ -195,7 +197,7 @@ export function Abschluss({ d, neuLaden, zurueck, fertig }: {
   // Erinnerungen: nicht Pflicht, aber gesagt (Runde H).
   const erinnert: string[] = []
   if (wiegenErinnern) erinnert.push(`${t('dreiWiegen')} ${ersetzen(t('nurGewogen'), { n: gewogen, soll: p.wiegenSoll })}`)
-  if (p.hatAusgang && !p.ausgangPflicht && d.nAusgang < soll) erinnert.push(`${t('dreiFertige')} ${ersetzen(t('nurGewogen'), { n: d.nAusgang, soll })}`)
+  if (p.hatAusgang && d.nAusgang >= verlangt.mindestens && d.nAusgang < soll) erinnert.push(`${t('dreiFertige')} ${ersetzen(t('nurGewogen'), { n: d.nAusgang, soll })}`)
 
   async function palettenSpeichern() {
     if (!palettenOk || laeuft) return
@@ -375,17 +377,24 @@ export function Abschluss({ d, neuLaden, zurueck, fertig }: {
   }
 
   if (aktuell === 'ausgang') {
-    // Fertige Paletten (0060/0061): beim Waschen verlangt (drei, oder so viele,
-    // wie die Arbeit hergibt); beim Waschen + Sortieren erinnert.
+    // Fertige Paletten (0060/0061): drei sind der Rat. Runde AD: Pflicht ist
+    // nur noch EINE, beim Waschen, und nur, solange die Auswertung das
+    // Kistengewicht des Bandes nicht kennt — dann steht der Grund dabei.
     const genug = d.nAusgang >= soll
+    const pflichtOffen = d.nAusgang < verlangt.mindestens
     return (
       <Schritt nummer={n} von={von} frage={t('fertigePaletteSchritt')} zurueck={zurueckSchritt}
-               weiter={weiter} weiterMoeglich={!(p.ausgangPflicht && !genug)}
-               grund={ersetzen(t('fertigeFehlen'), { n: d.nAusgang, soll })}
+               weiter={weiter} weiterMoeglich={!pflichtOffen}
+               grund={ersetzen(t('fertigeFehlen'), { n: d.nAusgang, soll: verlangt.mindestens })}
                weiterText={genug ? t('weiter') : d.nAusgang > 0 ? t('trotzdemWeiter') : t('keineGewogen')}>
+        {pflichtOffen && (
+          <Hinweis art="warnung">
+            {ersetzen(t('kistengewichtUnbekannt'), { sorte: d.charge?.sorte ?? '?', band: d.kistengewicht.band })} {t('eineFertigePflicht')}
+          </Hinweis>
+        )}
         {genug
           ? <Hinweis art="gut">{d.nAusgang} {t('palettenGewogen')}</Hinweis>
-          : <Hinweis art={p.ausgangPflicht ? 'warnung' : 'info'}>{t('dreiFertige')} {ersetzen(t('nurGewogen'), { n: d.nAusgang, soll })}</Hinweis>}
+          : !pflichtOffen && <Hinweis art="info">{t('dreiFertige')} {ersetzen(t('nurGewogen'), { n: d.nAusgang, soll })}</Hinweis>}
         <FertigePaletteMaske d={d} gesperrt={false} melden={() => undefined} neuLaden={neuLaden} />
       </Schritt>
     )
