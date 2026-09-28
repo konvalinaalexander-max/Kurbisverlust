@@ -174,9 +174,17 @@ m += `Gerechnet: ${zeit(stand[0]?.berechnet_ts)} · Einstellungen: ${einstellung
 // alte Zahlen, die niemand als alt erkennt.
 try {
   const z = await rpc('auswertung_zeitplan')
-  m += z?.aktiv
-    ? `**Zeitplan läuft** (${z.takt ?? '?'}) · letzter Lauf ${zeit(z.letzter_start)}${z.letzter_status ? ` · ${z.letzter_status}` : ''}${z.letzte_dauer_s != null ? ` · ${z.letzte_dauer_s} s` : ''}${z.letzte_meldung ? ` · ${md(z.letzte_meldung)}` : ''}${z.rechnet_seit ? ` · rechnet gerade seit ${zeit(z.rechnet_seit)}` : ''}\n\n`
-    : `**Zeitplan fehlt** — die App rechnet beim Öffnen selbst. pg_cron im Supabase-Projekt einschalten und setup.sql einspielen (0061/0095).${z?.fehler ? ` (${md(z.fehler)})` : ''}\n\n`
+  // Eingetragen heisst nicht laufend — dieselbe Regel wie src/lib/zeitplan.ts:
+  // gelaufen innerhalb dreier Takte (unbekannter Takt: stündlich), nicht fehlgeschlagen.
+  const takt = Number(/^\*\/(\d+) \* \* \* \*$/.exec(z?.takt ?? '')?.[1] ?? 60)
+  const alterMin = z?.letzter_start ? (Date.now() - Date.parse(z.letzter_start)) / 60000 : Infinity
+  const laeuft = !!z?.aktiv && z.letzter_status !== 'failed' && alterMin <= 3 * takt
+  const lauf = `letzter Lauf ${z?.letzter_start ? zeit(z.letzter_start) : 'nie'}${z?.letzter_status ? ` · ${z.letzter_status}` : ''}${z?.letzte_dauer_s != null ? ` · ${z.letzte_dauer_s} s` : ''}${z?.letzte_meldung ? ` · ${md(z.letzte_meldung)}` : ''}`
+  m += laeuft
+    ? `**Zeitplan läuft** (${z.takt ?? '?'}) · ${lauf}${z.rechnet_seit ? ` · rechnet gerade seit ${zeit(z.rechnet_seit)}` : ''}\n\n`
+    : z?.aktiv
+      ? `**Zeitplan eingetragen, rechnet aber nicht** (${z.takt ?? '?'}) · ${lauf}. Die App rechnet beim Öffnen selbst. In Supabase \`cron.job_run_details\` ansehen.\n\n`
+      : `**Zeitplan fehlt** — die App rechnet beim Öffnen selbst. pg_cron im Supabase-Projekt einschalten und setup.sql einspielen (0061/0095).${z?.fehler ? ` (${md(z.fehler)})` : ''}\n\n`
 } catch (f) {
   m += `_Zeitplan nicht abfragbar: ${md(String(f.message ?? f))} — setup.sql auf Stand 95?_\n\n`
 }

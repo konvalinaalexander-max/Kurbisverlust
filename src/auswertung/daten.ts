@@ -4,6 +4,7 @@ import { fehlerText } from '../lib/db'
 import { SCHEMA_ERWARTET, datenbankVeraltet } from '../lib/version'
 import type { Datenlage, Hochrechnung, Massenbilanz } from '../lib/typen'
 import { heute as heuteOrtszeit } from '../lib/format'
+import { zeitplanZustand, type ZeitplanZustand } from '../lib/zeitplan'
 
 /* =========================================================================
    Die Auswertung für den Betriebsleiter — ein Datenstand für alle Reiter.
@@ -309,16 +310,19 @@ export interface Zeitplan {
   letzterStart: string | null; letzterStatus: string | null; letzteDauerS: number | null; letzteMeldung: string | null
   /** Seit wann gerade gerechnet wird — null, wenn nicht. */
   rechnetSeit: string | null
+  /** Läuft er wirklich? Eingetragen heisst nicht laufend (src/lib/zeitplan.ts). */
+  zustand: ZeitplanZustand
 }
 export function zeitplanVon(x: unknown): Zeitplan {
   const o = (x && typeof x === 'object' ? x : {}) as Record<string, unknown>
   const s = (k: string) => (typeof o[k] === 'string' ? o[k] as string : null)
-  return {
+  const z = {
     aktiv: o.aktiv === true, takt: s('takt'),
     letzterStart: s('letzter_start'), letzterStatus: s('letzter_status'),
     letzteDauerS: typeof o.letzte_dauer_s === 'number' ? o.letzte_dauer_s : null, letzteMeldung: s('letzte_meldung'),
     rechnetSeit: s('rechnet_seit'),
   }
+  return { ...z, zustand: zeitplanZustand(z) }
 }
 
 export interface Auswertung {
@@ -425,7 +429,11 @@ async function alles(erzwingen: boolean): Promise<Auswertung> {
   // rechnet immer. Scheitert das Neurechnen, wird mit dem letzten
   // gespeicherten Stand weitergearbeitet — veraltete Zahlen sind besser als
   // keine, solange dabeisteht, dass sie veraltet sind.
-  const selbstRechnen = erzwingen || (veraltet && !zeitplan.aktiv)
+  // Nachtrag am selben Tag: Es zählt, ob der Zeitplan wirklich rechnet (letzter
+  // Lauf innerhalb dreier Takte, nicht fehlgeschlagen), nicht, ob er
+  // eingetragen ist. Sonst sagt der Chip „neu bis 11:20", und um 11:20
+  // geschieht nichts.
+  const selbstRechnen = erzwingen || (veraltet && zeitplan.zustand !== 'laeuft')
   const probleme: Problem[] = selbstRechnen ? await rechnen() : []
   const { data: st2 } = await supabase.from('auswertung_stand').select('berechnet_ts, rechnet_seit').maybeSingle()
   zeitplan.rechnetSeit = st2?.rechnet_seit ?? zeitplan.rechnetSeit
@@ -634,12 +642,12 @@ export function useAuswertung() {
     if (!stand) void laden()
     return () => { hoerer.delete(h); fortschrittHoerer.delete(fh) }
   }, [laden])
-  // 0095: Läuft ein Zeitplan, sieht die App alle halbe Minute nach. Ein
+  // 0095: Läuft ein Zeitplan (wirklich, siehe zeitplanZustand), sieht die App alle halbe Minute nach. Ein
   // neuer Stand wird still nachgeladen — die Zahlen wechseln, ohne dass
   // jemand etwas drückt; „wird gerade erneuert" steht im Chip, solange
   // rechnet_seit gesetzt ist.
   useEffect(() => {
-    if (!daten?.zeitplan.aktiv) return
+    if (daten?.zeitplan.zustand !== 'laeuft') return
     const t = window.setInterval(() => {
       void (async () => {
         const { data: st } = await supabase.from('auswertung_stand').select('berechnet_ts, rechnet_seit').maybeSingle()
@@ -653,7 +661,7 @@ export function useAuswertung() {
       })()
     }, NACHSEHEN_MS)
     return () => window.clearInterval(t)
-  }, [daten?.zeitplan.aktiv])
+  }, [daten?.zeitplan.zustand])
   return { daten, laedt, fehler, fortschritt: schritt, neuRechnen: () => laden(true) }
 }
 

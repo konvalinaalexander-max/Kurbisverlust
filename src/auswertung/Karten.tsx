@@ -29,14 +29,20 @@ export function naechsterLauf(takt: string | null, jetzt = new Date()): Date | n
 
 export function Reiterkopf({ titel, zweck, stand, heute, neuRechnen, rechts, laeuft, zeitplan, veraltet }: {
   titel: string; zweck?: string; stand: string | null; heute?: string; neuRechnen?: () => void; rechts?: ReactNode; laeuft?: boolean
-  /** 0095: läuft ein Zeitplan, und ist dieser Stand veraltet, weil die App ihm das Rechnen überlässt? */
+  /** 0095: läuft ein Zeitplan (wirklich — zustand), und ist dieser Stand veraltet, weil die App ihm das Rechnen überlässt? */
   zeitplan?: Zeitplan; veraltet?: boolean
 }) {
-  const naechster = zeitplan?.aktiv ? naechsterLauf(zeitplan.takt) : null
+  const zustand = zeitplan?.zustand ?? 'fehlt'
+  const naechster = zustand === 'laeuft' ? naechsterLauf(zeitplan!.takt) : null
   const uhr = (d: Date) => d.toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' })
-  const zeitplanText = zeitplan?.aktiv
-    ? `Zeitplan läuft (${zeitplan.takt ?? 'in der Datenbank'})${zeitplan.letzterStart ? ` · letzter Lauf ${zeitpunkt(zeitplan.letzterStart)}${zeitplan.letzterStatus ? `, ${zeitplan.letzterStatus}` : ''}` : ''}`
-    : 'Kein Zeitplan in der Datenbank — die App rechnet beim Öffnen selbst (pg_cron einschalten, siehe README)'
+  const letzterLauf = zeitplan?.letzterStart
+    ? `letzter Lauf ${zeitpunkt(zeitplan.letzterStart)}${zeitplan.letzterStatus === 'failed' ? ', fehlgeschlagen' : zeitplan.letzterStatus ? `, ${zeitplan.letzterStatus}` : ''}${zeitplan.letzteMeldung && zeitplan.letzterStatus === 'failed' ? ` (${zeitplan.letzteMeldung})` : ''}`
+    : 'noch nie gelaufen'
+  const zeitplanText = zustand === 'laeuft'
+    ? `Zeitplan läuft (${zeitplan!.takt ?? 'in der Datenbank'}) · ${letzterLauf}`
+    : zustand === 'rechnet_nicht'
+      ? `Zeitplan eingetragen, rechnet aber nicht — ${letzterLauf}. Die App rechnet beim Öffnen selbst.`
+      : 'Kein Zeitplan in der Datenbank — die App rechnet beim Öffnen selbst (pg_cron einschalten, siehe README)'
   return (
     <div className="seitenkopf">
       <div>
@@ -45,13 +51,14 @@ export function Reiterkopf({ titel, zweck, stand, heute, neuRechnen, rechts, lae
       </div>
       <div className="rechts">
         {stand && (
-          <span className="stand-chip" data-zeitplan={zeitplan?.aktiv ? 'laeuft' : 'fehlt'} data-veraltet={veraltet ? 'ja' : 'nein'}
+          <span className="stand-chip" data-zeitplan={zustand} data-veraltet={veraltet ? 'ja' : 'nein'}
                 title={`Gerechnet ${zeitpunkt(stand)}${heute ? ` — Zahlen bis heute, ${datum(heute)}` : ''} · ${zeitplanText}`}>
             Stand {vorZeit(stand)}{heute ? ` · bis ${datum(heute).slice(0, 6)}` : ''}
-            {veraltet && zeitplan?.aktiv && (zeitplan.rechnetSeit
+            {veraltet && zustand === 'laeuft' && (zeitplan!.rechnetSeit
               ? <span className="leise"> · wird gerade erneuert</span>
               : <span className="leise"> · neu {naechster ? `bis ${uhr(naechster)}` : 'in Kürze'}</span>)}
-            {zeitplan && !zeitplan.aktiv && <span className="leise"> · kein Zeitplan</span>}
+            {zeitplan && zustand === 'fehlt' && <span className="leise"> · kein Zeitplan</span>}
+            {zustand === 'rechnet_nicht' && <span className="leise"> · Zeitplan rechnet nicht</span>}
           </span>
         )}
         {neuRechnen && <button type="button" className="klein" onClick={neuRechnen} disabled={laeuft}><ZAktualisieren size={15} />Neu rechnen</button>}

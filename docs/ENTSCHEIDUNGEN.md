@@ -4008,6 +4008,39 @@ an, was neu ist, und lässt stehen, was da ist — auch wenn das Journal
 inzwischen anders lautet. Sonst überschriebe ein Tippfehler im Sheet eine
 Berichtigung in der App, ohne dass jemand es sähe.
 
+## Nachtrag zu Runde AB: eingetragen heisst nicht laufend (28. September)
+
+Nach dem Einspielen in die echte Datenbank (08:09 UTC; der SQL Editor
+meldete „Load failed (api.supabase.com)", weil er nach einer Minute
+aufgibt — die Datenbank lief zu Ende, Stand 96, Auswertung in 94 s) war
+der Job `auswertung_wenn_veraltet` eingetragen und eingeschaltet. Um
+09:02 UTC hatte er noch kein einziges Mal gerechnet: kein Eintrag in
+`cron.job_run_details`. Die App aus Runde AB fragte nur „eingetragen?",
+rechnete darum beim Öffnen nicht mehr selbst und schrieb in den Chip
+„neu bis 11:20" — eine Zeit, zu der nichts geschehen würde. Das ist die
+Art Zahl, die die App nie erfinden soll.
+
+Jetzt zählt der letzte Lauf (`src/lib/zeitplan.ts`): Ist er höchstens
+drei Takte alt und nicht fehlgeschlagen, läuft der Zeitplan, und die App
+überlässt ihm das Rechnen. Sonst rechnet sie beim Öffnen selbst, wie vor
+0095, und der Chip sagt „Zeitplan rechnet nicht" mit dem letzten Lauf im
+Titel. Direkt nach dem Einspielen, vor dem ersten Lauf, rechnet die App
+also noch selbst — das ist gewollt: lieber einmal warten als einmal
+getäuscht werden. Der Betriebsabzug schreibt in `MODELLSTAND.md` dasselbe
+Urteil.
+
+Warum der Job nicht läuft, sieht man über die REST-Schnittstelle nicht
+(`cron` ist nicht freigegeben). Der Betriebsleiter schickt das Ergebnis
+einer Abfrage auf `cron.job`, `cron.job_run_details` und den pg_cron-
+Starter; dann die Ursache.
+
+### Was bewusst nicht gemacht wurde
+
+**Keine Migration.** `auswertung_zeitplan()` gibt den letzten Lauf schon
+mit; das Urteil gehört in die App, die ihn liest. **Kein Neustart des
+Projekts auf Verdacht** — mitten im Arbeitstag trennte das die Halle kurz
+von der Datenbank, und die Ursache ist noch nicht bekannt.
+
 ## Runde AC: die erste Zweitmeinung über echte Daten (28. September)
 
 Am Morgen lief der Betriebsabzug zum ersten Mal auf dem Projekt des
