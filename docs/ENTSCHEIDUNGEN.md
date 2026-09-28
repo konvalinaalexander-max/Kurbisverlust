@@ -4163,6 +4163,111 @@ Daten, dann die Annahme — nach der Korrektur nachsehen.
 nicht alles: vier mal vier gleiche Paloxen und ein Tag mit 30 Paaren bei
 13 erwarteten sind Fragen wert.
 
+## Runde AG: der Weg in die Datenbank ist zu lang (28. September, abends, 0102)
+
+23:01, der Betrieb: „Die Webseite ist immer noch down — ich bekomme nur
+diese Meldung. Beim Ausführen von diesem Setup wieder diese Fehlermeldung
+mit Load failed. Das ist definitiv ein Problem, das vorher nicht existiert
+hat. Kriegt das in den Griff." Und dazu, wie es sein soll: „Wenn man die
+Seite öffnet, klickt man auf Neu rechnen, und das wird gespeichert, sodass
+drei Stunden später immer noch diese Ansicht gilt … dass mein Chef, wenn
+er sich alle fünf Tage einloggt, gleich etwas präsentiert kriegt. Nur beim
+aktiven Neuladen wird neu geladen, kein Stau an Neuladen."
+
+### Was passiert ist
+
+Von hier aus um 21:06 UTC: Auth antwortet, die REST-API nicht (20 s ohne
+Antwort). Die Seite liefert die neue App, sie bleibt im Ladezustand, weil
+ihre erste Abfrage (das Profil) nie zurückkommt. Um 14:03 hatte die API
+kurz geantwortet: `schema_stand()` = 97. Keine der Einspielungen des Tages
+war durchgekommen — nicht 0098, nicht 0099, nicht 0101.
+
+Warum: `setup.sql` räumt das Rechenwerk weg, baut es neu und rechnete am
+Ende die Auswertung — in einer Transaktion. Mit der vollen Saison des
+Betriebs (614 t, 1638 Paletten, 840 Lieferungen) dauert das Rechnen allein
+über eine Minute; der SQL-Editor wartet nicht so lange. Er gibt auf („Load
+failed"), die Anweisung wird abgebrochen, alles zurückgerollt, und die
+Datenbank steht wieder auf 97. Solange die Transaktion lief, hielt sie
+Sperren auf jeder gespeicherten Ansicht: Der Zeitplan lief dagegen auf, die
+App dagegen, PostgREST kam beim Nachladen seines Schemas nicht durch — und
+antwortete niemandem mehr. Jeder weitere Versuch verlängerte das. Bis Stand
+97 war das Rechnen am Ende kurz genug; mit der Saison ist es das nicht mehr.
+Das README hatte gesagt, die Datenbank arbeite trotz „Load failed" zu Ende.
+Sie tut es nicht; der Satz war falsch.
+
+### Drei Dinge, die es nicht mehr gibt
+
+**Rechnen in der Einspielung.** Wo pg_cron da ist, rechnet `setup.sql` am
+Ende nicht mehr, es fordert an (`auswertung_anfordern()`): Der Sofort-Lauf
+rechnet gleich danach im Hintergrund, unter der Zeitgrenze des Zeitplans
+(15 Minuten), nicht unter der einer Browser-Anfrage. Die Datei ist in
+Sekunden durch. Ohne pg_cron (die Tests, eine Datenbank ohne Zeitplan)
+rechnet sie wie bisher — da wartet niemand im Browser. Dazu am Kopf:
+`lock_timeout = '20s'`, und laufende Rechnungen werden beendet, bevor die
+Datei auf sie warten müsste (eine Erneuerung ist eine Transaktion; sie
+bricht sauber ab, der Zeitplan holt sie nach). Lieber ein klarer Fehler
+nach 20 Sekunden als eine Sitzung, die die Datenbank festhält.
+
+**Rechnen beim Öffnen.** Die App rechnet nie mehr von sich aus. Sie zeigt
+den gespeicherten Stand — die gespeicherten Ansichten `erg_…` sind genau
+der Zwischenspeicher, den der Betrieb beschreibt —, und der Chip sagt, ob
+er aktuell ist. Bis Runde AF rechnete sie beim Öffnen selbst, sobald der
+Zeitplan nicht als laufend galt (Runde AC); das war am 28. September mittags
+der Stau. „Neu rechnen" ist eine Anforderung (0102): `auswertung_anfordern()`
+markiert die Auswertung als veraltet und trägt den Sofort-Lauf
+`auswertung_sofort` ein — alle 15 Sekunden (pg_cron ab 1.5; sonst jede
+Minute), er rechnet mit der Sperre aus 0100 und trägt sich aus, sobald der
+Stand steht oder die Anforderung 30 Minuten alt ist. Die App wartet auf den
+neuen Stand, der Chip sagt „Neu rechnen angefordert 23:12, wird gerechnet",
+der Knopf ist derweil grau. Ohne pg_cron antwortet die Anforderung „weg:
+app", und die App rechnet Schritt für Schritt wie bisher. Der Zehn-Minuten-
+Takt bleibt: Er rechnet nach, wenn in der Halle etwas erfasst wurde, im
+Hintergrund, nie doppelt (0100).
+
+**Stummes Warten.** Keine Anfrage der App wartet länger als 40 Sekunden
+(`src/lib/supabase.ts`; Aufnahmen in den Speicher ausgenommen). Kommt das
+Profil nicht, sagt die Seite „Die Datenbank antwortet nicht" mit dem Weg
+hinaus (nochmals versuchen; bleibt es so: Project Settings → General →
+Restart project) statt eines Skeletts. Und nach einem Einspielen, bevor
+der Sofort-Lauf fertig ist, sind die gespeicherten Ansichten leer
+(„materialized view … has not been populated"): Das ist ein Zustand, kein
+Fehler — die Seite sagt „wird gebaut" und lädt alle 15 Sekunden nach.
+
+Prüfblock 0102 (a–h) ohne pg_cron, fünf Mutationen — jede schlägt an;
+`test/zeitplan.test.ts` für „Anforderung offen". Die Kette fordert an und
+rechnet („weg: app").
+
+### Was der Betrieb jetzt tut
+
+1. Supabase-Dashboard → Project Settings → General → Restart project. Das
+   beendet die hängenden Sitzungen; die Daten bleiben.
+2. Die App öffnen: Sie sagt „Datenbank steht auf 0097, die App erwartet
+   0102" — und rechnet nichts.
+3. `setup.sql` einfügen, Run. Die Fertig-Zeile kommt nach Sekunden und
+   sagt „Auswertung angefordert (hh:mm Uhr): der Zeitplan rechnet sie jetzt
+   im Hintergrund".
+4. In der App F5: „wird gebaut" — nach ein bis drei Minuten stehen die
+   Zahlen, mit Stand 102.
+
+### Was bewusst nicht gemacht wurde
+
+**Die gespeicherten Ansichten beim Einspielen nicht stehen lassen.** Teil B
+räumt jede weg und baut sie neu; danach sind sie leer, bis der Sofort-Lauf
+fertig ist. Nur die unveränderten zu behalten hiesse, im Verdichter oder in
+der Datenbank Definitionen zu vergleichen — ein anderes Werkzeug, für ein
+Fenster von ein bis drei Minuten, das die App jetzt benennt.
+
+**Kein Weg über die Management-API.** Von hier aus liesse sich mit einem
+Zugangstoken der Plattform SQL ausführen und die Datenbank selbst
+entstören. Der Betrieb hat dieses Token nicht herausgegeben, und ein Weg,
+der es braucht, gehört ihm, nicht dem Werkzeug.
+
+**Der Zehn-Minuten-Takt bleibt.** Der Betrieb will nur auf Anforderung
+rechnen; der Takt rechnet nach, wenn die Halle etwas erfasst hat, ohne dass
+jemand die Seite öffnet — im Hintergrund, nie doppelt. Er erzeugt keinen
+Stau, er ist das Gegenteil davon. Sollte er stören, wird er unter Betrieb
+ausgeschaltet, nicht gelöscht.
+
 ## Runde AF: Ausgang ist nur der Lieferschein (28. September, 0101)
 
 Der Betrieb, mit der ganzen Saison im Lagermanagement (Sprachnachricht):

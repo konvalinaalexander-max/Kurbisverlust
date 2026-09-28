@@ -6,7 +6,7 @@ import { ZAktualisieren, ZHaken } from '../components/Zeichen'
 import { Bilanzzeile } from '../components/Kaskadenbild'
 import { SCHRITTE, type Befund, type Fortschritt, type Problem, type Saisonbilanz, type Schimmelpunkt, type StromSumme, type Zeitplan } from './daten'
 import { summeBekannt } from '../lib/masse'
-import { rechnetGerade } from '../lib/zeitplan'
+import { anforderungOffen, rechnetGerade } from '../lib/zeitplan'
 import { supabase } from '../lib/supabase'
 import { taetigkeitVon } from '../lib/taetigkeit'
 import { WOERTERBUCH } from '../lib/i18n'
@@ -44,8 +44,10 @@ export function Reiterkopf({ titel, zweck, stand, heute, neuRechnen, rechts, lae
   const zeitplanText = zustand === 'laeuft'
     ? `Zeitplan läuft (${zeitplan!.takt ?? 'in der Datenbank'}) · ${letzterLauf}`
     : zustand === 'rechnet_nicht'
-      ? `Zeitplan eingetragen, rechnet aber nicht — ${letzterLauf}. Die App rechnet beim Öffnen selbst.`
-      : 'Kein Zeitplan in der Datenbank — die App rechnet beim Öffnen selbst (pg_cron einschalten, siehe README)'
+      ? `Zeitplan eingetragen, rechnet aber nicht — ${letzterLauf}. „Neu rechnen" fordert einen Lauf an; bleibt er aus, unter Betrieb nachsehen.`
+      : 'Kein Zeitplan in der Datenbank — „Neu rechnen" rechnet dann in der App, Schritt für Schritt (pg_cron einschalten, siehe README)'
+  // Runde AG: eine offene Anforderung („Neu rechnen") steht im Chip, bis der Stand steht.
+  const angefordert = anforderungOffen(zeitplan?.angefordertTs, stand)
   return (
     <div className="seitenkopf">
       <div>
@@ -60,19 +62,20 @@ export function Reiterkopf({ titel, zweck, stand, heute, neuRechnen, rechts, lae
             {aktuell && <span className="leise"> · aktuell</span>}
             {/* 0100: „wird gerade erneuert" gilt für jeden, der rechnet — Zeitplan
                 oder ein anderes Fenster —, nicht nur für den laufenden Zeitplan. */}
-            {veraltet && rechnetGerade(zeitplan?.rechnetSeit) && <span className="leise"> · wird gerade erneuert</span>}
-            {veraltet && zustand === 'laeuft' && !rechnetGerade(zeitplan!.rechnetSeit)
+            {angefordert && <span className="leise"> · Neu rechnen angefordert {uhr(new Date(zeitplan!.angefordertTs!))}, wird gerechnet</span>}
+            {!angefordert && veraltet && rechnetGerade(zeitplan?.rechnetSeit) && <span className="leise"> · wird gerade erneuert</span>}
+            {!angefordert && veraltet && zustand === 'laeuft' && !rechnetGerade(zeitplan!.rechnetSeit)
               && <span className="leise"> · neu {naechster ? `bis ${uhr(naechster)}` : 'in Kürze'}</span>}
             {zeitplan && zustand === 'fehlt' && <span className="leise"> · kein Zeitplan</span>}
             {zustand === 'rechnet_nicht' && <span className="leise"> · Zeitplan rechnet nicht</span>}
           </span>
         )}
-        {/* Läuft der Zeitplan, rechnet er nach jeder Erfassung von selbst, mit
-            15 Minuten Zeitgrenze. Der Knopf rechnet dagegen unter der Grenze der
-            App (30 s je Schritt) — mit einer ganzen Saison schafft Schritt 3 das
-            nicht mehr (28. September: nach Schritt 2 abgebrochen). Also gibt es
-            ihn nur, solange kein Zeitplan rechnet. */}
-        {neuRechnen && zustand !== 'laeuft' && <button type="button" className="klein" onClick={neuRechnen} disabled={laeuft}><ZAktualisieren size={15} />Neu rechnen</button>}
+        {/* Runde AG (0102): Der Knopf rechnet nicht im Browser, er fordert an —
+            der Zeitplan rechnet im Hintergrund unter seiner Zeitgrenze (15 min),
+            und der Chip sagt „angefordert", bis der Stand steht. Darum gibt es
+            ihn immer; ohne Zeitplan rechnet die App Schritt für Schritt. */}
+        {neuRechnen && <button type="button" className="klein" onClick={neuRechnen} disabled={laeuft || angefordert}
+                               title="Fordert einen neuen Stand an — der Zeitplan rechnet ihn im Hintergrund (etwa zwei Minuten); die Seite lädt dann von selbst nach"><ZAktualisieren size={15} />Neu rechnen</button>}
         {rechts}
       </div>
     </div>
@@ -86,6 +89,7 @@ export function Rechnet({ fortschritt }: { fortschritt: Fortschritt | null }) {
       <div className="drehen" aria-hidden="true" />
       <div className="rechnen-kopf">
         {!fortschritt ? 'Auswertung wird geladen …'
+          : fortschritt.titel === 'angefordert' ? <>Neu rechnen angefordert — der Zeitplan rechnet im Hintergrund, etwa zwei Minuten. Diese Seite lädt dann von selbst nach.</>
           : fortschritt.schritt === 0 ? <>Auswertung wird gerade an anderer Stelle gerechnet — dieses Fenster wartet und lädt dann nach</>
           : <>Auswertung wird gerechnet — Schritt {fortschritt.schritt} von {fortschritt.schritte}</>}
       </div>

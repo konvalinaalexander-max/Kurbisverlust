@@ -77,3 +77,24 @@ export function rechnetGerade(rechnetSeit: string | null | undefined, jetzt: Dat
   const min = (jetzt.getTime() - t) / 60000
   return min >= -1 && min <= RECHNEN_HOECHSTENS_MIN
 }
+
+/** Wie lange eine Anforderung („Neu rechnen", 0102) als offen gilt — dieselbe
+ *  Grenze wie auswertung_sofort_lauf() in der Datenbank: danach ist sie verfallen. */
+export const ANFORDERUNG_HOECHSTENS_MIN = 30
+
+/**
+ * Ist eine Anforderung offen? Ja, solange seit „Neu rechnen" kein jüngerer
+ * Stand gerechnet wurde und die Anforderung nicht verfallen ist. Runde AG:
+ * Öffnen rechnet nie; „Neu rechnen" fordert beim Zeitplan an, und der Chip
+ * sagt, dass die Anforderung läuft, bis der Stand steht.
+ */
+export function anforderungOffen(angefordertTs: string | null | undefined, berechnetTs: string | null | undefined, jetzt: Date = new Date()): boolean {
+  if (!angefordertTs) return false
+  const a = Date.parse(angefordertTs)
+  if (Number.isNaN(a)) return false
+  if ((jetzt.getTime() - a) / 60000 > ANFORDERUNG_HOECHSTENS_MIN) return false
+  if (!berechnetTs) return true
+  const b = Date.parse(berechnetTs)
+  if (Number.isNaN(b)) return true
+  return b < a
+}

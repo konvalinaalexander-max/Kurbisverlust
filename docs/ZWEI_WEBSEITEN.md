@@ -123,12 +123,14 @@ Unten eine Tabelle mit einer Spalte `ergebnis` und einer Zeile darin:
 
 ```
 Fertig. Die Datenbank steht: 42 Chargen, 11 Sorten, 31 Tabellen,
-75 Auswertungen. Auswertung berechnet. Weiter im README bei Schritt 4.
+75 Auswertungen. Auswertung angefordert (…): der Zeitplan rechnet sie jetzt
+im Hintergrund … Weiter im README bei Schritt 4.
 ```
 
 Die Zahlen für **Tabellen** und **Auswertungen** wachsen mit dem Programm und
-sind kein Prüfmerkmal — wichtig sind die Wörter **„Fertig."** und
-**„Auswertung berechnet."**. Die 42 Chargen und 11 Sorten stehen dagegen fest:
+sind kein Prüfmerkmal — wichtig ist das Wort **„Fertig."**; die Auswertung
+rechnet der Zeitplan gleich danach im Hintergrund (seit Runde AG; ohne pg_cron
+steht dort „Auswertung berechnet."). Die 42 Chargen und 11 Sorten stehen dagegen fest:
 Das sind deine echten Chargen aus der Anbauplanung, keine Demo-Daten.
 
 Je nachdem, was das Projekt kann, steht dazwischen noch ein Satz über `pg_cron`

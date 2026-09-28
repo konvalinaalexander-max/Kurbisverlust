@@ -4,7 +4,7 @@ import { fehlerText } from '../lib/db'
 import { SCHEMA_ERWARTET, datenbankVeraltet } from '../lib/version'
 import type { Datenlage, Hochrechnung, Massenbilanz } from '../lib/typen'
 import { heute as heuteOrtszeit } from '../lib/format'
-import { istAktuell, rechnetGerade, zeitplanZustand, type ZeitplanZustand } from '../lib/zeitplan'
+import { anforderungOffen, istAktuell, rechnetGerade, zeitplanZustand, RECHNEN_HOECHSTENS_MIN, type ZeitplanZustand } from '../lib/zeitplan'
 
 /* =========================================================================
    Die Auswertung für den Betriebsleiter — ein Datenstand für alle Reiter.
@@ -317,6 +317,9 @@ export interface Zeitplan {
   letzterStart: string | null; letzterStatus: string | null; letzteDauerS: number | null; letzteMeldung: string | null
   /** Seit wann gerade gerechnet wird — null, wenn nicht. */
   rechnetSeit: string | null
+  /** 0102: wann zuletzt „Neu rechnen" angefordert wurde, und ob der Sofort-Lauf eingetragen ist. */
+  angefordertTs: string | null
+  sofort: boolean
   /** Läuft er wirklich? Eingetragen heisst nicht laufend (src/lib/zeitplan.ts). */
   zustand: ZeitplanZustand
 }
@@ -328,6 +331,7 @@ export function zeitplanVon(x: unknown): Zeitplan {
     letzterStart: s('letzter_start'), letzterStatus: s('letzter_status'),
     letzteDauerS: typeof o.letzte_dauer_s === 'number' ? o.letzte_dauer_s : null, letzteMeldung: s('letzte_meldung'),
     rechnetSeit: s('rechnet_seit'),
+    angefordertTs: s('angefordert_ts'), sofort: o.sofort === true,
   }
   return { ...z, zustand: zeitplanZustand(z) }
 }
@@ -413,28 +417,66 @@ async function rechnen(): Promise<Problem[]> {
     }
     // 0100: Rechnet schon jemand (ein anderes Fenster, der Zeitplan), rechnet
     // dieses Fenster nicht mit — es wartet, bis der Stand steht.
-    if ((data as { wartet?: boolean } | null)?.wartet) return abwarten()
+    if ((data as { wartet?: boolean } | null)?.wartet) return abwarten('laeuft')
   }
   melden(null)
   return []
 }
 
-/** Läuft in der Datenbank schon eine Rechnung, wartet die App auf ihr Ende —
- *  höchstens so lange, wie ein Lauf dauern darf (0095: 15 Minuten). Am 28.
- *  September rechneten mehrere Fenster und der Zeitplan zugleich, und die
- *  Datenbank antwortete eine halbe Stunde lang niemandem mehr. */
+/**
+ * Warten, bis die Datenbank fertig ist — auf eine laufende Rechnung
+ * (grund „laeuft": bis rechnet_seit weg ist) oder auf eine Anforderung
+ * (grund „angefordert": bis ein Stand steht, der jünger ist als sie).
+ * Höchstens so lange, wie ein Lauf dauern darf (0095: 15 Minuten); danach
+ * bleibt der letzte Stand stehen, und die Meldung sagt, wo nachzusehen ist.
+ * Am 28. September rechneten Fenster, Zeitplan und setup.sql zugleich, und
+ * die Datenbank antwortete eine halbe Stunde lang niemandem — darum wartet
+ * die App mit einer Anfrage alle fünf Sekunden, statt selbst zu rechnen.
+ */
 const WARTEN_MS = 5000
-async function abwarten(): Promise<Problem[]> {
-  melden({ schritt: 0, schritte: SCHRITTE.length, titel: 'wartet auf die laufende Rechnung' })
-  const bis = Date.now() + 15 * 60 * 1000
+async function abwarten(grund: 'laeuft' | 'angefordert'): Promise<Problem[]> {
+  melden({ schritt: 0, schritte: SCHRITTE.length, titel: grund })
+  // Der Chip soll es sofort sagen — ohne auf das Ende zu warten.
+  if (stand) {
+    stand = { ...stand, zeitplan: { ...stand.zeitplan, angefordertTs: grund === 'angefordert' ? new Date().toISOString() : stand.zeitplan.angefordertTs } }
+    hoerer.forEach(h => h())
+  }
+  const bis = Date.now() + RECHNEN_HOECHSTENS_MIN * 60 * 1000
   while (Date.now() < bis) {
-    await new Promise(r => window.setTimeout(r, WARTEN_MS))
-    const { data: st } = await supabase.from('auswertung_stand').select('rechnet_seit').maybeSingle()
-    if (!st || !rechnetGerade(st.rechnet_seit)) break
+    await new Promise(r => globalThis.setTimeout(r, WARTEN_MS))
+    const { data: st, error } = await supabase.from('auswertung_stand').select('berechnet_ts, geaendert_ts, rechnet_seit, angefordert_ts').maybeSingle()
+    if (error || !st) continue
+    const fertig = grund === 'angefordert'
+      ? !anforderungOffen(st.angefordert_ts, st.berechnet_ts)
+      : !rechnetGerade(st.rechnet_seit)
+    if (fertig) { melden(null); return [] }
   }
   melden(null)
-  return []
+  return [{ sicht: 'Neu rechnen', meldung: `Nach ${RECHNEN_HOECHSTENS_MIN} Minuten liegt noch kein neuer Stand vor — gezeigt wird der letzte. Unter Betrieb nachsehen, ob der Zeitplan läuft (pg_cron), sonst setup.sql noch einmal einspielen.` }]
 }
+
+/**
+ * „Neu rechnen" (Runde AG, 0102): kein Rechnen im Browser, sondern eine
+ * Anforderung an die Datenbank. Mit Zeitplan (pg_cron) rechnet der
+ * Sofort-Lauf im Hintergrund, unter seiner Zeitgrenze von 15 Minuten, und
+ * die App wartet auf den neuen Stand. Ohne Zeitplan (Demo, Tests) rechnet
+ * die App wie bisher Schritt für Schritt — die Datenbank sagt, welcher Weg.
+ */
+async function anfordern(): Promise<Problem[]> {
+  melden({ schritt: 0, schritte: SCHRITTE.length, titel: 'angefordert' })
+  const { data, error } = await supabase.rpc('auswertung_anfordern')
+  if (error) {
+    melden(null)
+    return [{ sicht: 'Neu rechnen (Anforderung)', meldung: error.message }]
+  }
+  const weg = (data as { weg?: string } | null)?.weg
+  if (weg !== 'zeitplan') return rechnen()
+  return abwarten('angefordert')
+}
+
+/** Der Text, an dem useAuswertung den Zustand „wird gebaut" erkennt und von selbst nachlädt. */
+export const IM_BAU = 'Die Auswertung wird gerade neu gebaut: Nach dem Einspielen von setup.sql rechnet der Zeitplan sie im Hintergrund, ein bis drei Minuten. Diese Seite lädt von selbst nach.'
+const NACHLADEN_IM_BAU_MS = 15000
 
 async function alles(erzwingen: boolean): Promise<Auswertung> {
   // 0057: Erst fragen, ob die Datenbank die Formeln hat, die diese App
@@ -445,35 +487,40 @@ async function alles(erzwingen: boolean): Promise<Auswertung> {
   if (version.error || schemaStand === null || schemaStand < SCHEMA_ERWARTET) throw new Error(datenbankVeraltet(schemaStand))
 
   const [{ data: st }, zp] = await Promise.all([
-    supabase.from('auswertung_stand').select('berechnet_ts, geaendert_ts, rechnet_seit').maybeSingle(),
+    supabase.from('auswertung_stand').select('berechnet_ts, geaendert_ts, rechnet_seit, angefordert_ts').maybeSingle(),
     supabase.rpc('auswertung_zeitplan'),
   ])
   const zeitplan = zeitplanVon(zp.data)
-  const veraltet = !st?.berechnet_ts || new Date(st.geaendert_ts) > new Date(st.berechnet_ts)
-  // 0095: Läuft in der Datenbank ein Zeitplan, rechnet die App beim Öffnen
-  // nicht mehr selbst — sie zeigt den letzten Stand, sagt, dass er erneuert
-  // wird, und lädt nach, sobald der Zeitplan fertig ist (useAuswertung).
-  // Der Betrieb: „das Rechnen muss ja nicht passieren, wenn ich die Webseite
-  // öffne." Ohne Zeitplan bleibt es beim Rechnen aus der App; „Neu rechnen"
-  // rechnet immer. Scheitert das Neurechnen, wird mit dem letzten
-  // gespeicherten Stand weitergearbeitet — veraltete Zahlen sind besser als
-  // keine, solange dabeisteht, dass sie veraltet sind.
-  // Nachtrag am selben Tag: Es zählt, ob der Zeitplan wirklich rechnet (letzter
-  // Lauf innerhalb dreier Takte, nicht fehlgeschlagen), nicht, ob er
-  // eingetragen ist. Sonst sagt der Chip „neu bis 11:20", und um 11:20
-  // geschieht nichts.
-  // 0100: Rechnet gerade jemand — der Zeitplan oder ein anderes Fenster —,
-  // rechnet dieses Fenster nie mit, auch nicht auf „Neu rechnen": es wartet.
+  // Runde AG (0102): Öffnen rechnet nie. Die App zeigt den gespeicherten
+  // Stand — den, den zuletzt jemand hat rechnen lassen —, und der Chip sagt,
+  // ob er aktuell ist. Rechnet gerade jemand (Zeitplan, ein anderes Fenster),
+  // wartet die App nicht: useAuswertung lädt nach, sobald der Stand steht.
+  // Nur „Neu rechnen" (erzwingen) tut etwas, und auch das ist eine
+  // Anforderung an den Zeitplan, kein Rechnen im Browser. Der Betrieb:
+  // „Schau einfach, dass nur beim aktiven Neuladen neu geladen wird, und
+  // dass die Resultate zwischengespeichert sind." Bis Runde AF rechnete die
+  // App beim Öffnen selbst, sobald der Zeitplan nicht als laufend galt — am
+  // 28. September rechneten so Fenster, Zeitplan und setup.sql zugleich, und
+  // die Datenbank antwortete eine halbe Stunde lang niemandem.
   const rechnetSchon = rechnetGerade(st?.rechnet_seit)
-  const selbstRechnen = !rechnetSchon && (erzwingen || (veraltet && zeitplan.zustand !== 'laeuft'))
-  const probleme: Problem[] = selbstRechnen ? await rechnen() : rechnetSchon ? await abwarten() : []
-  const { data: st2 } = await supabase.from('auswertung_stand').select('berechnet_ts, geaendert_ts, rechnet_seit').maybeSingle()
+  const probleme: Problem[] = erzwingen ? (rechnetSchon ? await abwarten('laeuft') : await anfordern()) : []
+  const { data: st2 } = await supabase.from('auswertung_stand').select('berechnet_ts, geaendert_ts, rechnet_seit, angefordert_ts').maybeSingle()
   const aktuell = istAktuell(st2?.berechnet_ts, st2?.geaendert_ts)
+  const veraltet = !st2?.berechnet_ts || new Date(st2.geaendert_ts) > new Date(st2.berechnet_ts)
   zeitplan.rechnetSeit = st2?.rechnet_seit ?? zeitplan.rechnetSeit
+  zeitplan.angefordertTs = st2?.angefordert_ts ?? zeitplan.angefordertTs
+  // Nach setup.sql sind die gespeicherten Ansichten leer, bis der Zeitplan
+  // sie gebaut hat („materialized view … has not been populated"). Das ist
+  // kein Fehler der Zahlen, sondern ein Zustand: die Seite sagt es und lädt
+  // von selbst nach (useAuswertung).
+  let imBau = false
+  const nichtGebaut = (f: { code?: string; message?: string } | null) =>
+    f?.code === '55000' || /has not been populated/i.test(f?.message ?? '')
 
   // Jede Sicht wird für sich geholt. Scheitert eine, ist *ihre* Zahl unbekannt
   // — der Rest des Bildschirms steht trotzdem.
-  const merken = (name: string, fehler: { message?: string } | null) => {
+  const merken = (name: string, fehler: { code?: string; message?: string } | null) => {
+    if (nichtGebaut(fehler)) imBau = true
     probleme.push({ sicht: name, meldung: fehler?.message ?? 'unbekannter Fehler' })
   }
   const q = async <T,>(name: string, order?: [string, boolean]): Promise<T[]> => {
@@ -512,6 +559,7 @@ async function alles(erzwingen: boolean): Promise<Auswertung> {
     q<AusgangKennzahl>('erg_ausgang', ['ts', true]),
     q<Prognose>('erg_prognose', ['h', true]), q<Wohin>('erg_wohin'),
   ])
+  if (imBau) throw new Error(IM_BAU)
   // Fax liegt auf Eis (Runde R): erg_fax, erg_fax_wartezeit und erg_koeff_fax
   // bleiben in der Datenbank, aber kein Bildschirm liest sie mehr. Ebenso
   // erg_ueberfuellung und erg_marge — die Marge hängt jetzt an den Wägungen,
@@ -532,7 +580,7 @@ async function alles(erzwingen: boolean): Promise<Auswertung> {
   const heute = sb?.heute ?? hb[0]?.heute ?? heuteOrtszeit()
   return {
     stand: st2?.berechnet_ts ?? null, heute,
-    zeitplan, veraltet: veraltet && !selbstRechnen, aktuell,
+    zeitplan, veraltet, aktuell,
     bilanz: b, lage: d, befunde: pl, kaliber: kv, kurve: sk, koeff,
     modell: mo, selektion: sel, saison: sb, punkte: pk, bestand: hb, naechste: nc,
     sorten: { verdunstung: kfv, ausschuss: kfa, nebenkanal: kfn }, wiegungen: wk, margeWiegung: mw, margeCharge: mc, kommentare: km,
@@ -691,16 +739,24 @@ export function useAuswertung() {
     if (!stand) void laden()
     return () => { hoerer.delete(h); fortschrittHoerer.delete(fh) }
   }, [laden])
+  // Runde AG: „wird gebaut" ist ein Zustand, kein Fehler — alle 15 Sekunden nachsehen.
+  useEffect(() => {
+    if (fehler !== IM_BAU) return
+    const t = window.setTimeout(() => void laden(), NACHLADEN_IM_BAU_MS)
+    return () => window.clearTimeout(t)
+  }, [fehler, laden])
   // 0095: Läuft ein Zeitplan (wirklich, siehe zeitplanZustand), sieht die App alle halbe Minute nach. Ein
   // neuer Stand wird still nachgeladen — die Zahlen wechseln, ohne dass
   // jemand etwas drückt; „wird gerade erneuert" steht im Chip, solange
   // rechnet_seit gesetzt ist.
   useEffect(() => {
-    // 0100: auch nachsehen, solange irgendwo gerechnet wird (rechnet_seit steht).
-    if (daten?.zeitplan.zustand !== 'laeuft' && !rechnetGerade(daten?.zeitplan.rechnetSeit)) return
+    // 0100: auch nachsehen, solange irgendwo gerechnet wird (rechnet_seit steht);
+    // 0102: und solange eine Anforderung offen ist.
+    if (daten?.zeitplan.zustand !== 'laeuft' && !rechnetGerade(daten?.zeitplan.rechnetSeit)
+        && !anforderungOffen(daten?.zeitplan.angefordertTs, daten?.stand)) return
     const t = window.setInterval(() => {
       void (async () => {
-        const { data: st } = await supabase.from('auswertung_stand').select('berechnet_ts, geaendert_ts, rechnet_seit').maybeSingle()
+        const { data: st } = await supabase.from('auswertung_stand').select('berechnet_ts, geaendert_ts, rechnet_seit, angefordert_ts').maybeSingle()
         if (!st || !stand) return
         if (st.berechnet_ts && st.berechnet_ts !== stand.stand) {
           try { setDaten(await auswertungNachladen()) } catch { /* beim nächsten Mal */ }
@@ -709,15 +765,16 @@ export function useAuswertung() {
           // auf „neu bis …" — ohne dass jemand die Seite neu lädt.
           const aktuell = istAktuell(st.berechnet_ts, st.geaendert_ts)
           const rechnetSeit = st.rechnet_seit ?? null
-          if (aktuell !== stand.aktuell || rechnetSeit !== stand.zeitplan.rechnetSeit) {
-            stand = { ...stand, aktuell, veraltet: !aktuell, zeitplan: { ...stand.zeitplan, rechnetSeit } }
+          const angefordertTs = st.angefordert_ts ?? null
+          if (aktuell !== stand.aktuell || rechnetSeit !== stand.zeitplan.rechnetSeit || angefordertTs !== stand.zeitplan.angefordertTs) {
+            stand = { ...stand, aktuell, veraltet: !aktuell, zeitplan: { ...stand.zeitplan, rechnetSeit, angefordertTs } }
             hoerer.forEach(x => x())
           }
         }
       })()
     }, NACHSEHEN_MS)
     return () => window.clearInterval(t)
-  }, [daten?.zeitplan.zustand, daten?.zeitplan.rechnetSeit])
+  }, [daten?.zeitplan.zustand, daten?.zeitplan.rechnetSeit, daten?.zeitplan.angefordertTs, daten?.stand])
   return { daten, laedt, fehler, fortschritt: schritt, neuRechnen: () => laden(true) }
 }
 

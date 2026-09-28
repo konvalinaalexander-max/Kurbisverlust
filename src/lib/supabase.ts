@@ -42,7 +42,26 @@ export const imDemoModus = imDemo
  */
 const ERSATZ_URL = 'https://nicht-konfiguriert.supabase.co'
 const ERSATZ_KEY = 'nicht-konfiguriert'
-const OPTIONEN = { auth: { persistSession: true, autoRefreshToken: true } }
+/**
+ * Runde AG: Keine Anfrage wartet ewig. Am 28. September antwortete die
+ * Datenbank eine halbe Stunde lang nicht, und die Seite blieb im Ladezustand
+ * — ein Skelett ohne ein Wort dazu. Nach 40 Sekunden bricht die App die
+ * Anfrage ab und sagt, was los ist (AuthProvider, useAuswertung). Aufnahmen
+ * in den Speicher (storage) dürfen länger dauern: eine Sprachaufnahme auf
+ * schlechtem Netz braucht ihre Zeit.
+ */
+export const ZEITGRENZE_MS = 40000
+export const DB_ANTWORTET_NICHT = 'Die Datenbank hat nach 40 Sekunden nicht geantwortet.'
+const fetchMitZeitgrenze: typeof fetch = (eingabe, init) => {
+  const adresse = typeof eingabe === 'string' ? eingabe : eingabe instanceof URL ? eingabe.href : eingabe.url
+  if (adresse.includes('/storage/v1/')) return fetch(eingabe, init)
+  const steuerung = new AbortController()
+  const t = globalThis.setTimeout(() => steuerung.abort(new Error(DB_ANTWORTET_NICHT)), ZEITGRENZE_MS)
+  // Ein Signal des Aufrufers bleibt wirksam: bricht er ab, brechen wir mit.
+  init?.signal?.addEventListener('abort', () => steuerung.abort(init.signal?.reason))
+  return fetch(eingabe, { ...init, signal: steuerung.signal }).finally(() => globalThis.clearTimeout(t))
+}
+const OPTIONEN = { auth: { persistSession: true, autoRefreshToken: true }, global: { fetch: fetchMitZeitgrenze } }
 
 function clientBauen() {
   if (zugangBrauchbar(url, anonKey)) {

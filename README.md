@@ -158,24 +158,34 @@ genau dieser Zeile:
 
 ```
 Fertig. Die Datenbank steht: 42 Chargen, 11 Sorten, 31 Tabellen,
-75 Auswertungen. Auswertung berechnet. Weiter im README bei Schritt 4.
+75 Auswertungen. Auswertung angefordert (23:12 Uhr): der Zeitplan rechnet
+sie jetzt im Hintergrund … Weiter im README bei Schritt 4.
 ```
 
 Wenn du das siehst, ist die komplette Datenbank fertig: Tabellen, Zugriffsrechte,
-alle 42 Chargen der Saison, alle Kaliber-Grenzen und die gesamte Auswertung.
-Die Zahlen dürfen abweichen; wichtig sind „Fertig." und „Auswertung berechnet."
+alle Chargen, alle Kaliber-Grenzen. Die Auswertung selbst rechnet der Zeitplan
+gleich danach im Hintergrund — ein bis drei Minuten; die App sagt derweil
+„wird gebaut" und lädt von selbst nach (seit Runde AG: vorher rechnete die
+Datei am Ende selbst, und mit einer vollen Saison dauerte das länger, als der
+SQL-Editor wartet). Ohne Zeitplan (pg_cron) steht dort „Auswertung berechnet."
+Die Zahlen dürfen abweichen; wichtig ist „Fertig."
 
 > **Steht dort „Auswertung NICHT berechnet (…)"?** Dann ist die Datenbank
-> trotzdem aktualisiert — nur das Durchrechnen der Saison ist an einer
-> Messung gescheitert, die in der Klammer genannt wird. Die App versucht es
-> beim nächsten Öffnen erneut; unter Messungen → Auffälligkeiten steht, was
-> zu prüfen ist. Seit 0056 rechnet `setup.sql` die Auswertung nur noch
+> trotzdem aktualisiert — nur das Durchrechnen ist an einer Messung
+> gescheitert, die in der Klammer genannt wird. In der App auf „Neu rechnen";
+> unter Messungen → Auffälligkeiten steht, was zu prüfen ist. Seit 0056 rechnet `setup.sql` die Auswertung nur noch
 > einmal, ganz am Ende, mit den heutigen Formeln — vorher konnte eine alte
 > Zwischenfassung einer Formel an den echten Daten scheitern und damit die
 > ganze Aktualisierung blockieren.
 
 Es dauert ein paar Sekunden. Es kommt **keine** Erfolgsmeldung als Popup — nur
 diese Zeile unten.
+
+> **Steht dort eine Warnung „setup.sql: 1 laufende Rechnung(en) beendet"?**
+> Das ist in Ordnung: Der Zeitplan war gerade am Rechnen, die Datei hat ihn
+> unterbrochen, statt auf ihn zu warten, und er rechnet gleich nach.
+> **„canceling statement due to lock timeout"?** Die Datenbank war gerade
+> anderweitig beschäftigt; zwei Minuten warten, dann nochmals Run.
 
 > **Zweimal geklickt?** Kein Problem, und auch kein Schaden. Beim zweiten Mal
 > erneuert das Skript nur die Auswertungen und lässt die Daten in Ruhe; bei
@@ -679,13 +689,25 @@ Eingang, Sortierläufe ohne Eingang, Lieferungen ohne Charge und offene
 Arbeiten: 35 Kandidaten, jeder mit Nummer (`test/durchgang.test.ts`, AB-100).
 Die Zweitmeinung steht in `docs/betrieb/ZWEITMEINUNG.md` — nach
 Wichtigkeit, für den Betriebsleiter. Nichts an den Daten wurde geändert.
-Nachtrag: Die App überlässt das Rechnen dem Zeitplan nur noch, wenn er
-wirklich gelaufen ist (letzter Lauf höchstens drei Takte alt, nicht
-fehlgeschlagen); sonst rechnet sie beim Öffnen selbst, und der Chip sagt
-„Zeitplan rechnet nicht" (AB-97, `src/lib/zeitplan.ts`). Wurde seit der
-letzten Rechnung nichts erfasst, sagt der Chip „aktuell". „Neu rechnen" gibt
-es nur ohne laufenden Zeitplan — mit einer ganzen Saison schafft der Knopf
-Schritt 3 nicht unter der Zeitgrenze der App.
+Nachtrag: Ob der Zeitplan wirklich läuft, sieht die App am letzten Lauf
+(höchstens drei Takte alt, nicht fehlgeschlagen), nicht am Eintrag; sonst
+sagt der Chip „Zeitplan rechnet nicht" (AB-97, `src/lib/zeitplan.ts`).
+Wurde seit der letzten Rechnung nichts erfasst, sagt der Chip „aktuell".
+Seit Runde AG rechnet die App beim Öffnen nie mehr selbst (AB-114).
+
+**Runde AG (0102)** — der Weg in die Datenbank ist zu lang: Mit der vollen
+Saison dauerte das Rechnen am Ende von `setup.sql` länger, als der
+SQL-Editor wartet („Load failed"); die Einspielung wurde zurückgerollt, und
+bis dahin hielt sie Sperren auf allem, was die App liest — die Seite blieb
+im Ladezustand. Jetzt ist `setup.sql` in Sekunden durch (Sperren-Grenze
+20 s, laufende Rechnungen werden beendet, gerechnet wird nicht mehr in der
+Datei, sondern vom Zeitplan gleich danach). Die App rechnet beim Öffnen
+nie: Sie zeigt den gespeicherten Stand; **„Neu rechnen" fordert einen Lauf
+an**, der Zeitplan rechnet im Hintergrund, der Chip sagt „angefordert",
+bis der Stand steht. Keine Anfrage wartet länger als 40 s; antwortet die
+Datenbank nicht, sagt die Seite es mit dem Weg hinaus (Restart project).
+AB-114 bis AB-116. **`setup.sql` einspielen (Stand 102)** — vorher im
+Dashboard das Projekt neu starten, wenn die Seite hängt.
 
 **Runde AF (0101)** — Ausgang ist nur der Lieferschein: Zu klein und zu
 gross, das beim Sortieren herausfällt, steht im Haus, bis ein Lieferschein
@@ -697,8 +719,7 @@ seit 0097), und der Satz nennt die Rate, die fehlt. Neuer Reiter
 was geliehen, was fehlt — und wie man es misst. Die Rückfragen (löschen,
 abbrechen, Firma entfernen) liegen als Portal über der Seite statt am
 Seitenende. Untertitel weg, Chargenwahl „Sorte (1630)", Punktdiagramme mit
-Rand, „Arbeit und Tempo" weg. AB-110 bis AB-112, AB-113 offen. **`setup.sql`
-einspielen (Stand 101).**
+Rand, „Arbeit und Tempo" weg. AB-110 bis AB-112, AB-113 offen.
 
 **Nachtrag 0100** — gerechnet wird nur an einer Stelle: Am 28. September
 rechneten mehrere Fenster und der Zeitplan zugleich (der Chip sagte bis
@@ -990,7 +1011,8 @@ Alle drei entstehen aus HTML-Quellen im selben Ordner:
 | Auswertung bleibt leer, obwohl Daten da sind | Die gespeicherte Auswertung ist noch nicht gerechnet | In der App oben auf **Neu rechnen**. Bleibt es leer: Schritt 3 nochmal ausführen. |
 | „Potentially destructive operation" | Supabase warnt bei Skripten mit `drop`/`alter` | **Run this query** klicken. In einem neuen Projekt ist nichts zu zerstören. |
 | Nach **Run** passiert nichts | Skript läuft noch | 10–20 Sekunden warten. Der Knopf zeigt solange einen Ladekreis. |
-| **„Load failed"** oder **„Failed to fetch (api.supabase.com)"** nach **Run** | Nur das Fenster des SQL Editors hat aufgegeben: Es wartet etwa eine Minute, mit einer vollen Saison braucht `setup.sql` länger (am 28. September gut anderthalb Minuten allein für die Auswertung). Die Datenbank arbeitet zu Ende, alles in einer Transaktion, also nie halb. | **Nicht noch einmal Run.** Zwei Minuten warten, dann neue Abfrage `select schema_stand();`. Steht dort die Zahl, die die App erwartet, ist alles durch. Steht noch die alte, lief es nicht durch: einmal neu einspielen. |
+| **„Load failed"** oder **„Failed to fetch (api.supabase.com)"** nach **Run** | Der SQL-Editor hat aufgegeben, und die Datenbank hat die Anweisung **abgebrochen und alles zurückgerollt** — sie ist *nicht* aktualisiert (`select schema_stand();` zeigt die alte Zahl). Bis Runde AG rechnete `setup.sql` am Ende die ganze Saison durch; mit den echten Daten dauerte das länger, als der Editor wartet, und solange hielt die Datei Sperren auf allem, was die App liest — die Seite blieb hängen. Seit Runde AG ist die Datei in Sekunden durch (das Rechnen macht der Zeitplan danach). Kommt „Load failed" trotzdem, war die Datenbank blockiert. | Im Supabase-Dashboard **Project Settings → General → Restart project**, eine Minute warten, dann `setup.sql` noch einmal: Run. Danach `select schema_stand();` — die Zahl, die die App erwartet. |
+| **Die Seite bleibt im Ladezustand** (graue Balken), oder sie sagt **„Die Datenbank antwortet nicht"** | Die Datenbank antwortet der API nicht — meist hält eine hängende Sitzung Sperren (ein abgebrochenes `setup.sql` vor Runde AG, mehrere Rechnungen zugleich). Seit Runde AG bricht die App nach 40 s ab und sagt es; die Datenbank selbst befreit das nicht. | **Project Settings → General → Restart project** im Supabase-Dashboard (die Daten bleiben), eine Minute warten, Seite neu laden. Nicht immer wieder neu laden, solange sie hängt. |
 | `syntax error at or near ""` | Beim Kopieren wurde nur ein Teil erwischt | Schritt 3a wiederholen, diesmal über **Raw** + Strg+A + Strg+C. |
 | App zeigt „Die Zugangsdaten stimmen nicht" | Die App prüft die zwei Werte beim Start und sagt im Text, welcher davon nicht passt | Meldung lesen, Schritt 5 wiederholen, bei Cloudflare korrigieren — **und danach neu bauen** (siehe Zeile unten) |
 | Anmeldung: „Invalid API key" | URL und Schlüssel stammen aus **verschiedenen** Supabase-Projekten — der häufigste Fehler beim Hin- und Herkopieren zwischen zwei Tabs | Beide Werte noch einmal aus **demselben** Supabase-Projekt holen (Schritt 5a und 5b), bei Cloudflare ersetzen — **und danach neu bauen** |

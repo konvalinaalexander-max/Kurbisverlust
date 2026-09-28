@@ -29,7 +29,7 @@ const Ausstehend = lazy(() => import('./pages/Ausstehend'))
  *  · Die Halle (Arbeiter): nur eine Kopfzeile — Marke, Name, Sprache, Abmelden.
  */
 export default function App() {
-  const { session, profil, laedt, istAdmin, abmelden } = useAuth()
+  const { session, profil, laedt, istAdmin, abmelden, verbindung, neuLaden } = useAuth()
   const { t, sprache, abfrageOffen, abfrageOeffnen } = useSprache()
   // 0072: Auf der Beispiel-Webseite steht das dauerhaft oben. Nicht als
   // Hinweis, den man wegklickt — als Band, das nicht verschwindet.
@@ -104,6 +104,20 @@ export default function App() {
 
   if (laedt) return <div className="huelle eng"><Lade /></div>
   if (!session) return <Anmelden />
+  // Runde AG: Antwortet die Datenbank nicht, sagt die Seite es — mit dem Weg
+  // hinaus — statt im Ladezustand zu bleiben (28. September, 23:01).
+  if (!profil && verbindung) return (
+    <div className="huelle eng">
+      <Hinweis art="warnung">
+        <strong>Die Datenbank antwortet nicht.</strong> {verbindung}<br />
+        Meist ist sie nur gerade beschäftigt — in einer Minute nochmals versuchen. Bleibt es so, im Supabase-Dashboard
+        das Projekt neu starten (Project Settings → General → Restart project) und dann hier nochmals.
+        <div style={{ marginTop: '.6rem' }}>
+          <button type="button" className="knopf klein" onClick={() => void neuLaden()}>Nochmals versuchen</button>
+        </div>
+      </Hinweis>
+    </div>
+  )
 
   // Sechs Reiter (Runde AF: „Messungen ausstehend" rechts vom Betrieb) — docs/UI-KONZEPT.md.
   const reiter: [string, string, (p: { size?: number }) => ReactNode][] = [

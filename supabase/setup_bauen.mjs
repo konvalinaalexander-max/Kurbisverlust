@@ -83,6 +83,40 @@ const KOPF = `-- ===============================================================
 -- ERROR durch und ist dann auch zu sehen.
 set client_min_messages = warning;
 
+-- Nie warten, nie hängen (Runde AG, 28. September).
+--
+-- Diese Datei räumt das Rechenwerk weg und baut es neu. Dafür braucht sie
+-- auf jeder gespeicherten Ansicht eine Sperre — und trifft sie auf eine
+-- laufende Rechnung (Zeitplan, „Neu rechnen"), müsste sie warten, bis die
+-- fertig ist: bis zu zwei Minuten, länger als der SQL-Editor wartet. Der
+-- Editor gibt dann auf („Load failed"), und die Sitzung hier blockiert mit
+-- ihren halb gehaltenen Sperren alles, was die App liest. Darum: Eine
+-- laufende Rechnung wird beendet (sie ist eine Transaktion, es geht nichts
+-- verloren, der Zeitplan holt sie nach), und auf keine Sperre wird länger
+-- als 20 Sekunden gewartet — lieber ein klarer Fehler („canceling statement
+-- due to lock timeout": zwei Minuten später nochmals Run) als eine Sitzung,
+-- die die Datenbank festhält, bis jemand das Projekt neu startet.
+set lock_timeout = '20s';
+do $$
+declare r record; v_n int := 0;
+begin
+  for r in select pid from pg_stat_activity
+            where datname = current_database() and pid <> pg_backend_pid()
+              and state <> 'idle'
+              and (query ilike '%auswertung_%' or query ilike '%refresh materialized view%')
+  loop
+    begin
+      if pg_terminate_backend(r.pid) then v_n := v_n + 1; end if;
+    exception when others then null;
+    end;
+  end loop;
+  if v_n > 0 then
+    raise warning 'setup.sql: % laufende Rechnung(en) beendet, damit die Einrichtung nicht auf sie wartet — der Zeitplan rechnet nach.', v_n;
+  end if;
+exception when others then
+  raise notice 'setup.sql: laufende Rechnungen nicht prüfbar (%)', sqlerrm;
+end $$;
+
 -- =====================================================================
 -- TEIL A — Tabellen, Daten, Rechte: die Geschichte
 -- =====================================================================
@@ -143,19 +177,35 @@ const FUSS = `
 notify pgrst, 'reload schema';
 
 -- =====================================================================
--- Die Auswertung einmal rechnen — hier, und nur hier
+-- Die Auswertung: rechnen lassen — oder rechnen
 -- =====================================================================
 -- Die gespeicherten Auswertungen (mv_…) werden oben ohne Inhalt angelegt.
--- Gerechnet wird einmal, am Ende, mit den heutigen Formeln. Geht das schief,
--- ist die Datenbank trotzdem aktualisiert: die Fertig-Zeile sagt es, und
--- die App rechnet beim nächsten Öffnen erneut.
+-- Bis Runde AG rechnete diese Datei sie hier zu Ende — mit der vollen
+-- Saison des Betriebs länger, als der SQL-Editor auf eine Antwort wartet
+-- („Load failed", die ganze Einspielung zurückgerollt, und bis dahin hielt
+-- die Transaktion Sperren auf allem, was die App liest). Darum: Wo ein
+-- Zeitplan da ist (pg_cron), wird nur angefordert — der Sofort-Lauf rechnet
+-- gleich nach dem Einspielen im Hintergrund, unter seiner Zeitgrenze von
+-- 15 Minuten; die App sagt derweil „wird gebaut" und lädt von selbst nach.
+-- Ohne Zeitplan (die Tests, eine Datenbank ohne pg_cron) wird hier
+-- gerechnet wie bisher: da wartet niemand im Browser.
 do $$
+declare v_erg jsonb;
 begin
+  if exists (select 1 from pg_extension where extname = 'pg_cron') then
+    v_erg := auswertung_anfordern();
+    if (v_erg ->> 'weg') = 'zeitplan' then
+      perform set_config('kuerbis.auswertung',
+        format('Auswertung angefordert (%s Uhr): der Zeitplan rechnet sie jetzt im Hintergrund, in ein bis drei Minuten steht sie — die App zeigt derweil „wird gebaut" und lädt von selbst nach.',
+               to_char(now(), 'HH24:MI')), false);
+      return;
+    end if;
+  end if;
   perform auswertung_aktualisieren();
   perform set_config('kuerbis.auswertung', 'Auswertung berechnet.', false);
 exception when others then
   perform set_config('kuerbis.auswertung',
-    format('Auswertung NICHT berechnet (%s) — die App versucht es beim nächsten Öffnen erneut; unter Messungen → Auffälligkeiten nachsehen.', sqlerrm),
+    format('Auswertung NICHT berechnet (%s) — in der App auf „Neu rechnen"; unter Messungen → Auffälligkeiten nachsehen.', sqlerrm),
     false);
 end $$;
 
@@ -164,12 +214,12 @@ end $$;
 -- =====================================================================
 -- Was der Nutzer wissen muss, steht in dieser einen Zeile — die Hinweise
 -- oben sind stummgeschaltet. Dazu gehört auch, ob pg_cron da ist: Fehlt es,
--- rechnet die App selbst nach, statt dass ein Zeitplan es tut.
+-- rechnet nur „Neu rechnen" in der App, kein Zeitplan.
 do $$
 begin
   perform set_config('kuerbis.cron',
     case when exists (select 1 from pg_extension where extname = 'pg_cron')
-         then '' else ' Ohne pg_cron rechnet die App selbst nach, wenn etwas veraltet ist.' end,
+         then '' else ' Ohne pg_cron rechnet die App nur auf „Neu rechnen" — beim Öffnen nie.' end,
     false);
   -- Liegen hier echte Erfassungsdaten (einstellung erfassung_scharf, 0072)?
   -- Dann steht es vorne in der Fertig-Zeile UND kommt als Warnung durch —

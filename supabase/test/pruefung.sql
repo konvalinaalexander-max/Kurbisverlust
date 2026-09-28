@@ -6940,3 +6940,96 @@ begin
 end $$;
 
 select '——— 0101 Zu klein und zu gross bleiben im Haus geprüft ———' as ergebnis;
+
+-- =====================================================================
+-- 0102 — Gerechnet wird auf Anforderung, im Hintergrund
+--
+-- 28. September, abends: Die Seite blieb im Ladezustand, setup.sql endete im
+-- Editor mit „Load failed", die Datenbank stand auf 97. Geprüft wird ohne
+-- pg_cron (der Weg der Tests): (a) die Anforderung macht die Auswertung
+-- veraltet, merkt sich den Zeitpunkt und sagt „weg: app"; (b) der
+-- Sofort-Lauf rechnet, wenn etwas veraltet ist; (c) erledigt heisst nichts
+-- zu tun; (d) eine alte Anforderung verfällt; (e) neben einer laufenden
+-- Rechnung wartet er (Sperre 0100); (f) der Zeitplan nennt die Anforderung;
+-- (g) anfordern darf nur der Betriebsleiter.
+-- =====================================================================
+do $$
+declare v_erg jsonb; v_st auswertung_stand; v_vorher timestamptz; v_txt text; v_modus jsonb; v_lad text;
+  v_u uuid := '00000000-0102-0000-0000-000000000001'; v_w uuid := '00000000-0102-0000-0000-000000000002';
+  v_geladen boolean := false;
+begin
+  select wert into v_modus from einstellung where schluessel = 'betriebsmodus';
+  update einstellung set wert = '"beispiel"'::jsonb where schluessel = 'betriebsmodus';
+  insert into auth.users (id, email, raw_user_meta_data) values (v_u, null, '{"name":"Prüf-0102"}');
+  update profil set rolle = 'admin' where id = v_u;
+  insert into auth.users (id, email, raw_user_meta_data) values (v_w, null, '{"name":"Prüf-0102-Arbeiterin"}');
+  update profil set rolle = 'arbeiter' where id = v_w;
+  perform set_config('request.jwt.claim.sub', v_u::text, true);
+  -- Die Demo laden, wenn sie fehlt (im Volltest ist die Datenbank hier leer);
+  -- liegt sie schon (die Entwicklungsdatenbank), bleibt sie und bleibt stehen.
+  if (select count(*) from charge) = 0 then
+    select demo_daten_laden() into v_lad; v_geladen := true;
+  end if;
+  perform auswertung_aktualisieren();
+  select * into v_st from auswertung_stand where id = 1;
+  assert v_st.berechnet_ts >= v_st.geaendert_ts, '0102 (a0): nach dem Rechnen ist nichts veraltet';
+  v_vorher := v_st.berechnet_ts;
+
+  -- (a) Anfordern ohne pg_cron: weg app, veraltet ab jetzt, Zeitpunkt gemerkt
+  v_erg := auswertung_anfordern();
+  assert (v_erg ->> 'weg') = 'app', format('0102 (a1): ohne pg_cron muss die App rechnen, Antwort: %s', v_erg);
+  select * into v_st from auswertung_stand where id = 1;
+  assert v_st.angefordert_ts is not null and v_st.angefordert_ts > v_vorher, '0102 (a2): angefordert_ts nicht gesetzt';
+  assert v_st.geaendert_ts > v_st.berechnet_ts, '0102 (a3): die Anforderung macht die Auswertung nicht veraltet';
+  assert (v_erg ->> 'angefordert_ts')::timestamptz = v_st.angefordert_ts, '0102 (a4): die Antwort nennt die Anforderung nicht';
+
+  -- (b) Der Sofort-Lauf rechnet, wenn etwas veraltet ist
+  v_txt := auswertung_sofort_lauf();
+  assert v_txt = 'gerechnet', format('0102 (b1): der Sofort-Lauf hat nicht gerechnet: %s', v_txt);
+  select * into v_st from auswertung_stand where id = 1;
+  assert v_st.berechnet_ts >= v_st.angefordert_ts, '0102 (b2): nach dem Sofort-Lauf steht kein jüngerer Stand als die Anforderung';
+  assert v_st.berechnet_ts >= v_st.geaendert_ts, '0102 (b3): nach dem Sofort-Lauf ist noch etwas veraltet';
+
+  -- (c) Erledigt: nichts zu tun, der Stand bleibt
+  v_vorher := v_st.berechnet_ts;
+  v_txt := auswertung_sofort_lauf();
+  assert v_txt = 'nichts zu tun', format('0102 (c1): %s', v_txt);
+  assert (select berechnet_ts from auswertung_stand where id = 1) = v_vorher, '0102 (c2): „nichts zu tun" hat trotzdem gerechnet';
+
+  -- (d) Verfallen: eine alte Anforderung hält den Sofort-Lauf nicht am Leben
+  update auswertung_stand set geaendert_ts = clock_timestamp(), angefordert_ts = clock_timestamp() - interval '31 minutes' where id = 1;
+  v_txt := auswertung_sofort_lauf();
+  assert v_txt = 'verfallen', format('0102 (d1): %s', v_txt);
+  assert (select berechnet_ts from auswertung_stand where id = 1) = v_vorher, '0102 (d2): verfallen — und doch gerechnet';
+
+  -- (e) Neben einer laufenden Rechnung wartet der Sofort-Lauf (Sperre aus 0100)
+  update auswertung_stand set angefordert_ts = clock_timestamp(), rechnet_seit = clock_timestamp() - interval '1 minute' where id = 1;
+  v_txt := auswertung_sofort_lauf();
+  assert v_txt = 'gewartet', format('0102 (e1): %s', v_txt);
+  assert (select berechnet_ts from auswertung_stand where id = 1) = v_vorher, '0102 (e2): gewartet — und doch gerechnet';
+  update auswertung_stand set rechnet_seit = null where id = 1;
+
+  -- (f) Der Zeitplan nennt die Anforderung
+  v_erg := auswertung_zeitplan();
+  assert (v_erg ? 'angefordert_ts') and (v_erg ? 'sofort'), '0102 (f1): auswertung_zeitplan() kennt angefordert_ts/sofort nicht';
+  assert (v_erg ->> 'angefordert_ts')::timestamptz = (select angefordert_ts from auswertung_stand where id = 1), '0102 (f2): angefordert_ts stimmt nicht';
+
+  -- (g) Anfordern darf nur der Betriebsleiter
+  perform set_config('request.jwt.claim.sub', v_w::text, true);
+  begin
+    perform auswertung_anfordern();
+    assert false, '0102 (g1): eine Arbeiterin durfte anfordern';
+  exception when insufficient_privilege then null;
+  end;
+  perform set_config('request.jwt.claim.sub', v_u::text, true);
+  assert schema_stand() >= 102, format('0102 (h1): schema_stand() = %s', schema_stand());
+
+  perform auswertung_aktualisieren();
+  if v_geladen then perform demo_daten_entfernen(); end if;
+  delete from profil where id in (v_u, v_w);
+  delete from auth.users where id in (v_u, v_w);
+  update einstellung set wert = v_modus where schluessel = 'betriebsmodus';
+  raise notice 'OK  0102 — „Neu rechnen" fordert an, der Sofort-Lauf rechnet im Hintergrund, erledigt heisst nichts zu tun, verfallen heisst verfallen, nur der Betriebsleiter';
+end $$;
+
+select '——— 0102 Gerechnet wird auf Anforderung geprüft ———' as ergebnis;

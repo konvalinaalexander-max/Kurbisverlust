@@ -58,6 +58,8 @@ async function restAntwort(route) {
     const fn = name.slice(4)
     if (fn === 'auswertung_aktualisieren') return route.fulfill({ json: new Date().toISOString() })
     if (fn === 'schema_stand') return route.fulfill({ json: SCHEMA_STAND })
+    // Runde AG: „Neu rechnen" fordert an; ohne Zeitplan antwortet die Datenbank „weg: app".
+    if (fn === 'auswertung_anfordern') return route.fulfill({ json: { weg: 'app', angefordert_ts: new Date().toISOString() } })
     if (fn === 'palox_stand_dieser_arbeit') {
       // Wie die echte Funktion (0072): der letzte Stand DERSELBEN Arbeit —
       // nie über die Arbeitsgrenze hinweg. Vor der ersten Ablesung: null,

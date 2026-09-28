@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { istAktuell, rechnetGerade, taktMinuten, zeitplanZustand, RECHNEN_HOECHSTENS_MIN, TAKTE_OHNE_LAUF } from '../src/lib/zeitplan.ts'
+import { anforderungOffen, istAktuell, rechnetGerade, taktMinuten, zeitplanZustand, ANFORDERUNG_HOECHSTENS_MIN, RECHNEN_HOECHSTENS_MIN, TAKTE_OHNE_LAUF } from '../src/lib/zeitplan.ts'
 
 const JETZT = new Date('2026-09-28T09:02:00Z')
 const vor = (min: number) => new Date(JETZT.getTime() - min * 60000).toISOString()
@@ -66,4 +66,19 @@ test('ein abgebrochener Lauf hinterlässt rechnet_seit — älter als die Zeitgr
   assert.equal(rechnetGerade(vor(RECHNEN_HOECHSTENS_MIN + 1), JETZT), false)
   assert.equal(rechnetGerade(null, JETZT), false)
   assert.equal(rechnetGerade('gestern', JETZT), false)
+})
+
+// Runde AG (0102): „Neu rechnen" ist eine Anforderung an den Zeitplan. Offen,
+// bis ein jüngerer Stand steht — und nie länger als in der Datenbank (30 min).
+test('eine Anforderung ist offen, bis ein jüngerer Stand gerechnet ist', () => {
+  assert.equal(anforderungOffen(null, vor(1), JETZT), false)
+  assert.equal(anforderungOffen(vor(2), null, JETZT), true)
+  assert.equal(anforderungOffen(vor(2), vor(5), JETZT), true, 'der Stand ist älter als die Anforderung')
+  assert.equal(anforderungOffen(vor(5), vor(2), JETZT), false, 'der Stand ist jünger — erledigt')
+})
+
+test('eine Anforderung verfällt nach der Grenze der Datenbank', () => {
+  assert.equal(anforderungOffen(vor(ANFORDERUNG_HOECHSTENS_MIN), null, JETZT), true)
+  assert.equal(anforderungOffen(vor(ANFORDERUNG_HOECHSTENS_MIN + 1), null, JETZT), false)
+  assert.equal(anforderungOffen('kein Datum', null, JETZT), false)
 })
