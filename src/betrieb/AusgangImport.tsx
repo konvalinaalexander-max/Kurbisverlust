@@ -5,11 +5,12 @@ import { pruefsumme } from '../lib/csv'
 import { xlsxLesen, type Blatt } from '../lib/xlsx'
 import {
   abgleichen, artikelSchluessel, befund, chargeAufloeser, istKuerbis, kopfLesen,
-  lieferungenBauen, quelleVorschlag, zaehltAlsKuerbis, zeilenLesen, zeilenSchluessel,
-  type Abgleich, type ArtikelBefund, type AusgangZeile, type Befund, type Bekannt, type ChargeKurz, type Lieferung,
+  lieferungenBauen, neuAbwann, quelleErkennen, quelleVorschlag, zaehltAlsKuerbis, zeilenLesen, zeilenSchluessel,
+  type Abgleich, type ArtikelBefund, type AusgangZeile, type Befund, type Bekannt, type ChargeKurz, type Lieferung, type QuelleErkennung,
 } from '../lib/warenausgang'
 import { datum, kg, tonnen, zahl, zeitpunkt } from '../lib/format'
 import { Hinweis, Karte, Kennzahl, Marke } from '../components/Bausteine'
+import { ZPapierkorb } from '../components/Zeichen'
 
 /**
  * Warenausgang einlesen: die Excel-Auswertung „Abgleich Rückverfolgbarkeit"
@@ -21,6 +22,13 @@ import { Hinweis, Karte, Kennzahl, Marke } from '../components/Bausteine'
  *
  * Entscheidungen (docs/WARENAUSGANG_BEFUND.md, 7. September): nur Zeilen ab
  * dem 1. Juli 2026, Journal L (interne Umbuchung) nicht, alles andere zählt.
+ *
+ * Runde AE (28. September): Welche Firma eine Datei ist, entscheidet ihr
+ * Inhalt (quelleErkennen) — bekannte Positionen schlagen jeden Dateinamen.
+ * Trifft nichts, wird gefragt statt still eine dritte Firma angelegt; und
+ * eine Datei, deren Inhalt zu einer anderen Firma gehört, lässt sich nicht
+ * übernehmen (die Datenbank prüft es noch einmal, 0099). Eine Firma lässt
+ * sich hier entfernen — mit allem, was aus ihr kam.
  */
 
 /** Ab wann der Warenausgang zählt — die Saison 2026 (Sommer). Ältere Zeilen
@@ -41,6 +49,8 @@ interface Datei {
   /** Der Code der Quelle — bestätigt der Betriebsleiter; '' heisst: noch offen. */
   quelle: string
   quelleName: string
+  /** Runde AE: woran die App die Firma erkannt hat — Inhalt, Name, oder gar nicht. */
+  erkennung?: QuelleErkennung
   status: 'bereit' | 'laeuft' | 'fertig' | 'fehler'
   meldung?: string
   ergebnis?: { zeilen_neu: number; zeilen_geaendert: number; lieferungen_neu: number; lieferungen_aktualisiert: number; uebergangen: { extern_id: string; kg?: number; datum?: string; kunde?: string; grund: string }[] }
@@ -62,10 +72,12 @@ async function alleZeilen<T>(tabelle: string, spalten: string, filter?: [string,
   }
 }
 
-/** Die Zeilen einer Datei, gelesen mit dem bestätigten Quellen-Code. */
+/** Die Zeilen einer Datei, gelesen mit dem bestätigten Quellen-Code — und
+ *  solange die Firma offen ist, mit einem Platzhalter: der Befund (was in der
+ *  Datei steht) braucht keine Firma, nur der Abgleich und die Übernahme. */
 function zeilenVon(blatt: Blatt | null, quelle: string): AusgangZeile[] {
-  if (!blatt || !quelle) return []
-  return zeilenLesen(blatt, quelle).zeilen
+  if (!blatt) return []
+  return zeilenLesen(blatt, quelle || 'firma-offen').zeilen
 }
 
 export default function AusgangImport({ nachUebernahme }: { nachUebernahme: () => void }) {
@@ -78,6 +90,10 @@ export default function AusgangImport({ nachUebernahme }: { nachUebernahme: () =
   const [dateien, setDateien] = useState<Datei[]>([])
   const [fehler, setFehler] = useState<string | null>(null)
   const [liest, setLiest] = useState(false)
+  /** Runde AE: die Firma, die gerade entfernt werden soll (Rückfrage), und ob es läuft. */
+  const [entfernen, setEntfernen] = useState<Lage | null>(null)
+  const [entfernt, setEntfernt] = useState(false)
+  const [entfernung, setEntfernung] = useState<string | null>(null)
 
   const laden = useCallback(async () => {
     try {
@@ -98,16 +114,31 @@ export default function AusgangImport({ nachUebernahme }: { nachUebernahme: () =
   }, [])
   useEffect(() => { void laden() }, [laden])
 
-  /** Was von dieser Quelle schon da ist — nur die Schlüssel und Fingerabdrücke. */
-  async function bekanntLaden(quelle: string) {
-    if (!quelle || bekannt.has(quelle)) return
+  /** Was schon da ist — von allen Firmen, nur Schlüssel und Fingerabdrücke.
+   *  Runde AE: alle auf einmal, denn die Firma einer Datei erkennt die App am
+   *  Inhalt, und dafür muss sie jede Firma kennen, nicht nur die vermutete. */
+  const bekanntLaden = useCallback(async () => {
     try {
       const rows = await alleZeilen<{ quelle: string; pos_id: number; charge_extern: string; lauf_nr: number; fingerabdruck: string }>(
-        'ausgang_zeile', 'quelle, pos_id, charge_extern, lauf_nr, fingerabdruck', ['quelle', quelle])
-      setBekannt(m => new Map(m).set(quelle, rows.map(r => ({
-        schluessel: `${r.quelle}|${r.pos_id}|${r.charge_extern}|${r.lauf_nr}`, fingerabdruck: r.fingerabdruck }))))
-    } catch (f) { setFehler(fehlerText(f)) }
-  }
+        'ausgang_zeile', 'quelle, pos_id, charge_extern, lauf_nr, fingerabdruck')
+      const m = new Map<string, Bekannt[]>()
+      for (const r of rows) {
+        const liste = m.get(r.quelle) ?? []
+        liste.push({ schluessel: `${r.quelle}|${r.pos_id}|${r.charge_extern}|${r.lauf_nr}`, fingerabdruck: r.fingerabdruck })
+        m.set(r.quelle, liste)
+      }
+      setBekannt(m)
+      return m
+    } catch (f) { setFehler(fehlerText(f)); return null }
+  }, [])
+  useEffect(() => { void bekanntLaden() }, [bekanntLaden])
+
+  /** Je Firma die Positionsschlüssel (ohne Firma) — das, woran der Inhalt erkannt wird. */
+  const schluesselJeFirma = useMemo(() => {
+    const m = new Map<string, Set<string>>()
+    for (const [q, liste] of bekannt) m.set(q, new Set(liste.map(b => b.schluessel.split('|').slice(1).join('|'))))
+    return m
+  }, [bekannt])
 
   async function dateienWaehlen(liste: FileList | null) {
     if (!liste) return
@@ -119,18 +150,19 @@ export default function AusgangImport({ nachUebernahme }: { nachUebernahme: () =
         const blaetter = await xlsxLesen(puffer)
         // Das erste Blatt, dessen Kopf die erwarteten Spalten trägt.
         const blatt = blaetter.find(b => kopfLesen(b.zeilen) !== null) ?? null
+        // Runde AE: erst der Inhalt, dann der Name, sonst fragen. Die Zeilen
+        // werden dafür ohne Firma gelesen — der Positionsschlüssel kennt keine.
+        const zeilen = blatt ? zeilenLesen(blatt, 'x').zeilen.filter(z => z.datum >= ZEITRAUM_AB) : []
+        const erkennung = quelleErkennen(datei.name, zeilen, quellen, schluesselJeFirma)
+        const erkannt = erkennung.code === null ? undefined : quellen.find(q => q.code === erkennung.code)
         const vorschlag = quelleVorschlag(datei.name)
-        const nameKlein = datei.name.toLowerCase()
-        const erkannt = quellen.find(q => q.dateiname_muster && nameKlein.includes(q.dateiname_muster.toLowerCase()))
-          ?? quellen.find(q => q.code === vorschlag)
         const d: Datei = {
           name: datei.name, summe: await pruefsumme(puffer), blatt,
-          quelle: erkannt?.code ?? vorschlag, quelleName: erkannt?.name ?? vorschlag,
+          quelle: erkannt?.code ?? '', quelleName: erkannt?.name ?? vorschlag, erkennung,
           status: blatt ? 'bereit' : 'fehler',
           meldung: blatt ? undefined : 'Kein Blatt mit den erwarteten Spalten (Lieferdatum, Artikel, Menge, Charge, AufPosId …). Ist das die Auswertung „Abgleich Rückverfolgbarkeit"?',
         }
         neu.push(d)
-        void bekanntLaden(d.quelle)
       }
     } catch (f) {
       setFehler(`Datei konnte nicht gelesen werden: ${fehlerText(f)}`)
@@ -140,6 +172,21 @@ export default function AusgangImport({ nachUebernahme }: { nachUebernahme: () =
 
   function aendern(i: number, teil: Partial<Datei>) {
     setDateien(ds => ds.map((d, j) => (j === i ? { ...d, ...teil } : d)))
+  }
+
+  /** Runde AE: eine Firma mit allem, was aus ihr kam, entfernen (ausgang_quelle_entfernen, 0099).
+   *  Der Fall vom 28. September: eine Datei unter falschem Namen, 35 t doppelt. */
+  async function firmaEntfernen(l: Lage) {
+    if (entfernt) return
+    setEntfernt(true); setFehler(null)
+    try {
+      const { data, error } = await supabase.rpc('ausgang_quelle_entfernen', { p_code: l.quelle })
+      if (error) throw error
+      const e = data as { zeilen: number; lieferungen: number; dateien: number }
+      setEntfernung(`Entfernt: Firma „${l.name}" mit ${zahl(e.zeilen)} Zeilen, ${zahl(e.lieferungen)} Lieferungen und ${zahl(e.dateien)} Dateien. Das Journal behält jede Lieferung.`)
+      setEntfernen(null)
+      await Promise.all([laden(), bekanntLaden()]); nachUebernahme()
+    } catch (f) { setFehler(fehlerText(f)) } finally { setEntfernt(false) }
   }
 
   async function artikelSetzen(a: ArtikelBefund, istKuerbisWert: boolean, sorte: string | null) {
@@ -162,7 +209,7 @@ export default function AusgangImport({ nachUebernahme }: { nachUebernahme: () =
         {lage.length > 0 && (
           <div className="rollbar" style={{ marginBottom: '.75rem' }}>
             <table>
-              <thead><tr><th>Firma</th><th className="zahl">Zeilen</th><th>Zeitraum</th><th>Zuletzt geladen</th><th className="zahl">Lieferungen</th><th className="zahl">Masse in der Datei</th><th className="zahl">Artikel offen</th></tr></thead>
+              <thead><tr><th>Firma</th><th className="zahl">Zeilen</th><th>Zeitraum</th><th>Zuletzt geladen</th><th className="zahl">Lieferungen</th><th className="zahl">Masse in der Datei</th><th className="zahl">Artikel offen</th><th></th></tr></thead>
               <tbody>{lage.map(l => (
                 <tr key={l.quelle}>
                   <td>{l.name}</td><td className="zahl">{zahl(l.zeilen)}</td>
@@ -170,9 +217,32 @@ export default function AusgangImport({ nachUebernahme }: { nachUebernahme: () =
                   <td>{l.zuletzt_geladen ? zeitpunkt(l.zuletzt_geladen) : '—'}</td>
                   <td className="zahl">{zahl(l.lieferungen)}</td><td className="zahl">{tonnen(l.kg)}</td>
                   <td className="zahl">{l.artikel_offen > 0 ? <Marke art="warnung">{l.artikel_offen}</Marke> : '0'}</td>
+                  <td style={{ textAlign: 'right' }}>
+                    <button type="button" className="symbolknopf" id={`firma-entfernen-${l.quelle}`} aria-label={`Firma ${l.name} entfernen`} title="Firma mit allen Zeilen und Lieferungen entfernen …"
+                            onClick={() => { setEntfernen(l); setEntfernung(null) }}><ZPapierkorb size={16} /></button>
+                  </td>
                 </tr>
               ))}</tbody>
             </table>
+          </div>
+        )}
+        {entfernung && <Hinweis art="info">{entfernung}</Hinweis>}
+        {entfernen && (
+          <div className="dialog-hinter" onClick={() => setEntfernen(null)}>
+            <div className="dialog" role="dialog" aria-modal="true" aria-label="Firma entfernen" onClick={e => e.stopPropagation()}>
+              <h2 style={{ marginTop: 0 }}>Firma „{entfernen.name}" entfernen?</h2>
+              <ul className="liste-schlicht">
+                <li>{zahl(entfernen.zeilen)} Zeilen aus {entfernen.von ? `${datum(entfernen.von)} – ${datum(entfernen.bis)}` : '—'}</li>
+                <li>{zahl(entfernen.lieferungen)} Lieferungen, {tonnen(entfernen.kg)} — sie verschwinden aus der Bilanz</li>
+              </ul>
+              <Hinweis art="warnung">Das ist der Weg, wenn dieselbe Datei unter zwei Namen gelandet ist und deshalb doppelt zählt: die überholte Firma entfernen, die vollständige behalten. Das Journal behält jede gelöschte Lieferung; die Datei selbst kannst du jederzeit wieder hochladen.</Hinweis>
+              <div className="knopf-reihe" style={{ marginTop: 'var(--a-3)' }}>
+                <button type="button" id="firma-entfernen-ja" className="knopf gefahr" disabled={entfernt} onClick={() => void firmaEntfernen(entfernen)}>
+                  <ZPapierkorb size={16} />{entfernt ? 'Entfernt …' : `Ja, „${entfernen.name}" entfernen`}
+                </button>
+                <button type="button" className="knopf" disabled={entfernt} onClick={() => setEntfernen(null)}>Abbrechen</button>
+              </div>
+            </div>
           </div>
         )}
         <label className="knopf haupt" id="ausgang-dateien">
@@ -187,9 +257,10 @@ export default function AusgangImport({ nachUebernahme }: { nachUebernahme: () =
       </Karte>
 
       {dateien.map((d, i) => (
-        <DateiKarte key={`${d.summe}-${i}`} d={d} quellen={quellen} bekannt={bekannt.get(d.quelle) ?? null}
+        <DateiKarte key={`${d.summe}-${i}`} d={d} quellen={quellen} bekannt={d.quelle ? (bekannt.get(d.quelle) ?? []) : null}
+                    bekanntBis={lage.find(l => l.quelle === d.quelle)?.bis ?? null}
                     bestaetigt={bestaetigt} chargen={chargen} sorten={sorten}
-                    quelleSetzen={(code, name) => { aendern(i, { quelle: code, quelleName: name }); void bekanntLaden(code) }}
+                    quelleSetzen={(code, name) => aendern(i, { quelle: code, quelleName: name })}
                     artikelSetzen={artikelSetzen}
                     uebernehmen={async (zeilen, lieferungen, bf, ab) => {
                       aendern(i, { status: 'laeuft', meldung: undefined })
@@ -205,8 +276,7 @@ export default function AusgangImport({ nachUebernahme }: { nachUebernahme: () =
                         if (error) throw error
                         const pruef = await supabase.from('v_ausgang_pruef').select('pos_id, datum, artikel, kunde, kg_datei, kg_lieferung, abweichung_kg').eq('quelle', d.quelle)
                         aendern(i, { status: 'fertig', ergebnis: data as Datei['ergebnis'], pruef: (pruef.data ?? []) as Pruefzeile[] })
-                        setBekannt(m => { const n = new Map(m); n.delete(d.quelle); return n })
-                        await laden(); nachUebernahme()
+                        await Promise.all([laden(), bekanntLaden()]); nachUebernahme()
                       } catch (f) {
                         aendern(i, { status: 'fehler', meldung: fehlerText(f) })
                       }
@@ -216,8 +286,8 @@ export default function AusgangImport({ nachUebernahme }: { nachUebernahme: () =
   )
 }
 
-function DateiKarte({ d, quellen, bekannt, bestaetigt, chargen, sorten, quelleSetzen, artikelSetzen, uebernehmen }: {
-  d: Datei; quellen: Quelle[]; bekannt: Bekannt[] | null
+function DateiKarte({ d, quellen, bekannt, bekanntBis, bestaetigt, chargen, sorten, quelleSetzen, artikelSetzen, uebernehmen }: {
+  d: Datei; quellen: Quelle[]; bekannt: Bekannt[] | null; bekanntBis: string | null
   bestaetigt: Map<string, Bestaetigung>; chargen: ChargeKurz[]; sorten: string[]
   quelleSetzen: (code: string, name: string) => void
   artikelSetzen: (a: ArtikelBefund, istKuerbis: boolean, sorte: string | null) => Promise<void>
@@ -263,6 +333,14 @@ function DateiKarte({ d, quellen, bekannt, bestaetigt, chargen, sorten, quelleSe
   const offen = bf.artikel.filter(a => a.urteil.startsWith('vorschlag') && a.kg > 0)
   const status = d.status
   const zeilenZumSpeichern = kuerbis
+  // Runde AE: was die Erkennung sagt — und ob die gewählte Firma ihr widerspricht.
+  const erk = d.erkennung
+  const inhaltFirma = erk?.grund === 'inhalt' ? erk.code : null
+  const widerspruch = inhaltFirma !== null && d.quelle !== '' && d.quelle !== inhaltFirma
+  const mehrdeutig = erk?.grund === 'mehrdeutig'
+  const nameVon = (code: string | null) => quellen.find(q => q.code === code)?.name ?? code ?? ''
+  const zuwachs = useMemo(() => (ab ? neuAbwann(ab, bekanntBis) : null), [ab, bekanntBis])
+  const uebernehmenMoeglich = ab !== null && d.quelle !== '' && !widerspruch && !mehrdeutig
 
   return (
     <Karte titel={d.name}
@@ -280,22 +358,39 @@ function DateiKarte({ d, quellen, bekannt, bestaetigt, chargen, sorten, quelleSe
                 <input id={`q-${d.summe}`} value={d.quelleName} disabled={status !== 'bereit'}
                        onChange={e => quelleSetzen(quelleVorschlag(e.target.value || 'neu'), e.target.value)} />
               ) : (
-                <select id={`q-${d.summe}`} value={quellen.some(q => q.code === d.quelle) ? d.quelle : '__neu__'} disabled={status !== 'bereit'}
+                <select id={`q-${d.summe}`} value={quellen.some(q => q.code === d.quelle) ? d.quelle : d.quelle === '' ? '' : '__neu__'} disabled={status !== 'bereit'}
                         onChange={e => {
-                          if (e.target.value === '__neu__') { setNeueQuelle(true); return }
+                          if (e.target.value === '') { quelleSetzen('', d.quelleName); return }
+                          if (e.target.value === '__neu__') { setNeueQuelle(true); quelleSetzen(quelleVorschlag(d.name), quelleVorschlag(d.name)); return }
                           const q = quellen.find(x => x.code === e.target.value)!
                           quelleSetzen(q.code, q.name)
                         }}>
+                  {d.quelle === '' && <option value="">— Firma wählen —</option>}
                   {quellen.map(q => <option key={q.code} value={q.code}>{q.name}</option>)}
-                  <option value="__neu__">{quellen.some(q => q.code === d.quelle) ? 'andere Firma …' : `neu: ${d.quelleName}`}</option>
+                  <option value="__neu__">neue Firma anlegen …</option>
                 </select>
               )}
             </div>
             <p className="leise" style={{ margin: 0 }}>
-              Die eine Angabe, die die App nicht raten darf: Positionsnummern sind nur innerhalb einer Firma eindeutig.
-              {!quellen.some(q => q.code === d.quelle) && <> Wird beim Übernehmen als neue Firma <strong>{d.quelleName}</strong> angelegt.</>}
+              {erk?.grund === 'inhalt' && <>Erkannt am <strong>Inhalt</strong>: {zahl(erk.treffer[0].n)} Positionen dieser Datei kennt die Datenbank schon unter <strong>{nameVon(erk.code)}</strong> — der Dateiname spielt keine Rolle.</>}
+              {erk?.grund === 'name' && <>Erkannt am <strong>Dateinamen</strong>; vom Inhalt ist noch nichts bekannt — die erste Datei dieser Firma, oder eine ganz neue Zeitspanne.</>}
+              {erk?.grund === 'offen' && <>Weder der Inhalt noch der Dateiname passen zu einer bekannten Firma ({quellen.length} bekannt). Wähle sie — oder lege bewusst eine neue an.</>}
+              {!erk && <>Die eine Angabe, die die App nicht raten darf: Positionsnummern sind nur innerhalb einer Firma eindeutig.</>}
+              {!quellen.some(q => q.code === d.quelle) && d.quelle !== '' && <> Wird beim Übernehmen als neue Firma <strong>{d.quelleName}</strong> angelegt.</>}
             </p>
           </div>
+          {mehrdeutig && erk && (
+            <Hinweis art="warnung">
+              Diese Datei enthält Positionen, die unter <strong>{erk.treffer.map(t => `${nameVon(t.code)} (${t.n})`).join(' und ')}</strong> schon bekannt sind —
+              eine Auswertung je Firma kann das nicht sein. Sie wird nicht übernommen.
+            </Hinweis>
+          )}
+          {widerspruch && erk && (
+            <Hinweis art="warnung">
+              Der Inhalt gehört zu <strong>{nameVon(inhaltFirma)}</strong>: {zahl(erk.treffer[0].n)} Positionen sind dort schon bekannt.
+              Unter einer anderen Firma übernommen stünde alles doppelt in der Bilanz — darum geht das nicht.
+            </Hinweis>
+          )}
 
           {/* 2. Befund */}
           <h3 style={{ margin: '1rem 0 .4rem' }}>Was in der Datei steht</h3>
@@ -315,13 +410,23 @@ function DateiKarte({ d, quellen, bekannt, bestaetigt, chargen, sorten, quelleSe
 
           {/* 3. Abgleich */}
           <h3 style={{ margin: '1rem 0 .4rem' }}>Bis wo hat es die Daten schon?</h3>
-          {ab === null ? <p className="leise">Vergleicht mit dem, was von dieser Firma schon eingelesen ist …</p> : (
-            <div className="spalten">
-              <Kennzahl titel="Neu" wert={zahl(ab.neu.length)} unter="Zeilen, die noch nicht da sind" />
-              <Kennzahl titel="Geändert" wert={zahl(ab.geaendert.length)} unter="im Perigon nachträglich korrigiert" />
-              <Kennzahl titel="Unverändert" wert={zahl(ab.unveraendert)} unter="schon da, gleich geblieben" />
-              <Kennzahl titel="Verschwunden" wert={zahl(ab.verschwunden.length)} unter="in der Datenbank, nicht mehr in der Datei — bleibt stehen" />
-            </div>
+          {ab === null || zuwachs === null ? <p className="leise">{d.quelle === '' ? 'Erst die Firma wählen — dann vergleicht die App mit dem, was von ihr schon da ist.' : 'Vergleicht mit dem, was von dieser Firma schon eingelesen ist …'}</p> : (
+            <>
+              <div className="spalten">
+                <Kennzahl titel="Bekannt bis" wert={zuwachs.bekanntBis ? datum(zuwachs.bekanntBis) : '—'}
+                          unter={zuwachs.bekanntBis ? 'jüngste Zeile dieser Firma in der Datenbank' : 'noch nichts von dieser Firma'} />
+                <Kennzahl titel="Neu danach" wert={zahl(zuwachs.danach.length)}
+                          unter={zuwachs.neuVon ? `Zeilen vom ${datum(zuwachs.neuVon)} bis ${datum(zuwachs.neuBis!)}` : 'kein Zuwachs'} />
+                <Kennzahl titel="Geändert" wert={zahl(ab.geaendert.length)} unter="im Perigon nachträglich korrigiert" />
+                <Kennzahl titel="Unverändert" wert={zahl(ab.unveraendert)} unter="schon da, gleich geblieben" />
+              </div>
+              {(zuwachs.davor.length > 0 || ab.verschwunden.length > 0) && (
+                <p className="leise" style={{ margin: '.4rem 0 0' }}>
+                  {zuwachs.davor.length > 0 && <>{zahl(zuwachs.davor.length)} neue Zeilen liegen <strong>vor</strong> dem bekannten Datum — im Perigon nachgetragene Positionen; sie kommen mit. </>}
+                  {ab.verschwunden.length > 0 && <>{zahl(ab.verschwunden.length)} Zeilen stehen in der Datenbank, aber nicht mehr in der Datei — sie bleiben stehen.</>}
+                </p>
+              )}
+            </>
           )}
           {ab !== null && ab.neu.length === 0 && ab.geaendert.length === 0 && status === 'bereit' && (
             <Hinweis art="gut">Nichts Neues: alles aus dieser Datei ist schon da. Übernehmen ist erlaubt, aber ändert nichts.</Hinweis>
@@ -371,8 +476,8 @@ function DateiKarte({ d, quellen, bekannt, bestaetigt, chargen, sorten, quelleSe
           {/* 6. Übernehmen */}
           {status === 'bereit' && (
             <button className="haupt" id={`uebernehmen-${d.summe.slice(0, 8)}`} style={{ width: '100%', marginTop: '1rem' }}
-                    disabled={ab === null || !d.quelle} onClick={() => void uebernehmen(zeilenZumSpeichern, gebaut.lieferungen, bf, ab!)}>
-              {ab === null ? 'Vergleicht …' : `Übernehmen: ${zahl(zeilenZumSpeichern.length)} Kürbiszeilen, ${zahl(gebaut.lieferungen.length - ohneZuordnung.length)} Lieferungen (${tonnen(gebaut.lieferungen.filter(l => !(l.charge_nr === null && l.sorte === null)).reduce((s, l) => s + l.kg, 0))})`}
+                    disabled={!uebernehmenMoeglich} onClick={() => void uebernehmen(zeilenZumSpeichern, gebaut.lieferungen, bf, ab!)}>
+              {d.quelle === '' ? 'Erst die Firma wählen' : mehrdeutig ? 'Nicht übernehmbar: Positionen zweier Firmen' : widerspruch ? `Nicht übernehmbar: gehört zu ${nameVon(inhaltFirma)}` : ab === null ? 'Vergleicht …' : `Übernehmen: ${zahl(zeilenZumSpeichern.length)} Kürbiszeilen, ${zahl(gebaut.lieferungen.length - ohneZuordnung.length)} Lieferungen (${tonnen(gebaut.lieferungen.filter(l => !(l.charge_nr === null && l.sorte === null)).reduce((s, l) => s + l.kg, 0))})`}
             </button>
           )}
           {status === 'laeuft' && <Hinweis art="info">Übernimmt … einen Moment.</Hinweis>}

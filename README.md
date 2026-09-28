@@ -687,6 +687,16 @@ letzten Rechnung nichts erfasst, sagt der Chip „aktuell". „Neu rechnen" gibt
 es nur ohne laufenden Zeitplan — mit einer ganzen Saison schafft der Knopf
 Schritt 3 nicht unter der Zeitgrenze der App.
 
+**Runde AE (0099)** — eine Datei, eine Firma: Welche Firma eine
+Warenausgangsdatei ist, erkennt die App am **Inhalt** (bekannte
+Positionen), nicht am Dateinamen; schweigt der Inhalt, zählt der Name
+(längstes Muster, ohne Umlaute und Zeichen); trifft nichts, fragt sie,
+statt still eine dritte Firma anzulegen. Die Datenbank weist eine Datei
+ab, deren Zeilen unter einer anderen Firma bekannt sind (`ausgang_uebernehmen`).
+Der Abgleich sagt „bekannt bis … · neu danach …". Eine Firma lässt sich
+mit allem, was aus ihr kam, entfernen (Papierkorb in der Tabelle,
+Rückfrage; das Journal behält jede Lieferung). AB-107, AB-108.
+
 **Runde AD (0097)** — was der Betrieb am ersten Tag mit echten Zahlen
 sah: Die Marge zeigt jedes Band mit den Grenzen aus der Fassung **seines
 Auftrags** (zwei Fassungen, zwei Zeilen; die Bandmitte ist der Schwerpunkt

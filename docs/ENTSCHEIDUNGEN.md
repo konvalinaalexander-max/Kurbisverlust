@@ -4163,6 +4163,69 @@ Daten, dann die Annahme — nach der Korrektur nachsehen.
 nicht alles: vier mal vier gleiche Paloxen und ein Tag mit 30 Paaren bei
 13 erwarteten sind Fragen wert.
 
+## Runde AE: eine Datei, eine Firma (28. September, 0099)
+
+Der Betrieb lud den Warenausgang neu hoch — wie immer beide Dateien,
+immer die ganze Geschichte. Die eine hiess diesmal „Imhof Bioprodukte
+Rückverfolgbarkeit ge…" statt „imhof-bioprodukte". Der Name traf kein
+Muster, die App legte eine dritte Firma an, und 35 t standen doppelt in
+der Bilanz — 74 Zeilen der alten Quelle, 68 davon wortgleich in der neuen.
+Der Betrieb: „stelle sicher dass er es besser checkt welche datei er
+kriegt — es gibt nur 2 … dann soll er erkennen bis wo kennt er die daten
+schon und ab wo ist neu … und lösch auch gleich die eine datei raus."
+
+### Der Inhalt entscheidet, nicht der Name
+
+Positionsnummern sind innerhalb einer Firma eindeutig — das stand schon
+in der Maske („die eine Angabe, die die App nicht raten darf"). Also
+kennt die Datenbank die Firma einer Datei, sobald sie eine ihrer
+Positionen schon hat. `quelleErkennen` vergleicht die Positionsschlüssel
+der Datei (Position, Charge, Lauf) mit denen jeder bekannten Firma:
+genau eine trifft → das ist sie, der Dateiname spielt keine Rolle; keine
+trifft → der Name, aber verglichen ohne Umlaute, Zeichen und
+Grossschreibung, und das *längste* Muster gewinnt („imhofbioprodukte"
+vor „imhofbio", sonst fiele jede Datei der langen Firma der kurzen zu);
+trifft auch der Name nichts → die Firma bleibt offen, die Maske fragt,
+und eine neue Firma ist ein bewusster Klick. Zwei Firmen treffen →
+mehrdeutig, nicht übernehmbar. Wählt jemand von Hand eine andere Firma
+als der Inhalt sagt, sagt es die Maske und sperrt den Knopf.
+
+Und die Datenbank prüft es noch einmal selbst (`ausgang_uebernehmen`,
+0099): Zeilen mit gleichem Fingerabdruck unter einer anderen Firma —
+abgewiesen, mit dem Namen der Firma, zu der sie gehören. Der Wächter
+gilt auch für Wege, die nicht durch die Maske gehen.
+
+### Bis wo bekannt, ab wo neu
+
+Der Abgleich sagte schon neu / geändert / unverändert / verschwunden.
+Jetzt sagt er auch das Datum: „bekannt bis 19.09." (die jüngste Zeile
+dieser Firma in der Datenbank), „neu danach: 25 Zeilen vom 20.09. bis
+29.09." — und getrennt davon die neuen Zeilen *vor* dem bekannten Datum,
+denn das sind im Perigon nachgetragene Positionen, kein Zuwachs.
+
+### Die doppelte Firma entfernen
+
+`ausgang_quelle_entfernen(code)`: Lieferungen (das Journal behält jede),
+Zeilen, Dateien, die Firma — nur der Betriebsleiter, in der App mit
+Rückfrage, die Zeilen, Lieferungen und Tonnen nennt. Am 28. September
+wurde die überholte Quelle „imhof-bioprodukte" (Stand 21.09., 74 Zeilen,
+69 Lieferungen, 35.4 t) entfernt — sie war in der neuen Datei
+vollständig enthalten (die sechs Zeilen, die nur sie hatte, waren
+Positionen ohne Charge, die im neuen Export ihre Charge haben) — und die
+vollständige Quelle trägt seither den Namen „imhof-bioprodukte". Der
+Code der Quelle blieb der lange; er ist innen, die Kennungen der
+Lieferungen hängen daran, und sichtbar ist nur der Name.
+
+### Was bewusst nicht gemacht wurde
+
+- Kein Umbenennen des Quellen-Codes. Die Kennung jeder Lieferung enthält
+  ihn; ein Umbau um eines schönen Codes willen wäre Risiko ohne Nutzen.
+- Verschwundene Zeilen (in der Datenbank, nicht mehr in der Datei) werden
+  weiter nur gemeldet, nicht gelöscht. Ob Perigon eine Position storniert
+  oder umgebucht hat, weiss die App nicht — der Betriebsleiter entscheidet.
+- Keine Erkennung an Kundennamen oder Artikeln. Positionen genügen, und
+  sie sind das einzige Merkmal, das je Firma wirklich eindeutig ist.
+
 ## Runde AD: was der Betrieb am ersten Tag mit echten Zahlen sah (28. September, 0097)
 
 Der erste Tag mit dem echten Erntejournal, den ersten Wägungen und dem

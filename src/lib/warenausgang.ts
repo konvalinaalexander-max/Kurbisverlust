@@ -260,6 +260,22 @@ export interface Abgleich {
   verschwunden: string[]     // war in der Datenbank, steht nicht mehr in der Datei
 }
 
+/**
+ * „Bis wo kennt er die Daten schon, ab wo ist neu?" — der Betrieb lädt immer
+ * die ganze Geschichte hoch. `bekanntBis` ist das jüngste Datum, das die
+ * Datenbank von dieser Firma hat; neue Zeilen danach sind der erwartete
+ * Zuwachs, neue Zeilen davor sind nachgetragene Positionen (und stehen
+ * deshalb getrennt). Ohne bekannte Zeilen ist alles neu.
+ */
+export function neuAbwann(ab: Abgleich, bekanntBis: string | null): {
+  bekanntBis: string | null; danach: AusgangZeile[]; davor: AusgangZeile[]; neuVon: string | null; neuBis: string | null
+} {
+  const danach = bekanntBis === null ? ab.neu : ab.neu.filter(z => z.datum > bekanntBis)
+  const davor = bekanntBis === null ? [] : ab.neu.filter(z => z.datum <= bekanntBis)
+  const daten = danach.map(z => z.datum).sort()
+  return { bekanntBis, danach, davor, neuVon: daten[0] ?? null, neuBis: daten[daten.length - 1] ?? null }
+}
+
 export function zeilenSchluessel(z: AusgangZeile): string {
   return `${z.quelle}|${z.pos_id}|${z.charge_extern}|${z.lauf_nr}`
 }
@@ -442,6 +458,65 @@ export function lieferungenBauen(
     }
   }
   return { lieferungen: out, ruecknahmen: zurueck }
+}
+
+/* ---------- Welche Firma ist das? --------------------------------------- */
+
+/**
+ * Am 28. September hiess die neue Datei der einen Firma „Imhof Bioprodukte
+ * Rückverfolgbarkeit ge…" statt „imhof-bioprodukte". Der Name traf kein
+ * Muster, die App legte eine dritte Firma an — und 35 t standen doppelt in
+ * der Bilanz. Der Betrieb: „stelle sicher dass er es besser checkt welche
+ * datei er kriegt — es gibt nur 2".
+ *
+ * Darum entscheidet der **Inhalt**, nicht der Name: Positionsnummern sind
+ * innerhalb einer Firma eindeutig. Kennt die Datenbank Positionen dieser
+ * Datei schon unter einer Firma, ist es diese Firma — der Name darf sagen,
+ * was er will. Erst wenn der Inhalt schweigt (nichts davon ist bekannt),
+ * zählt der Name; und trifft auch der nichts, wird **nicht** still eine neue
+ * Firma angelegt, sondern gefragt.
+ */
+export type QuelleGrund = 'inhalt' | 'name' | 'offen' | 'mehrdeutig'
+export interface QuelleErkennung {
+  code: string | null
+  grund: QuelleGrund
+  /** Je bekannter Firma: wie viele Positionen der Datei sie schon kennt. */
+  treffer: { code: string; n: number }[]
+}
+
+/** Dateiname und Muster, vergleichbar gemacht: klein, ohne Umlaute, ohne Zeichen. */
+export function nameNormalisiert(s: string): string {
+  return s.toLowerCase()
+    .replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss')
+    .replace(/[^a-z0-9]/g, '')
+}
+
+/** Der Schlüssel einer Zeile ohne die Firma — damit sich Dateien und Firmen vergleichen lassen. */
+export function positionsSchluessel(z: { pos_id: number; charge_extern: string; lauf_nr: number }): string {
+  return `${z.pos_id}|${z.charge_extern}|${z.lauf_nr}`
+}
+
+export function quelleErkennen(
+  dateiname: string,
+  zeilen: { pos_id: number; charge_extern: string; lauf_nr: number }[],
+  quellen: { code: string; dateiname_muster: string | null }[],
+  bekannt: Map<string, Set<string>>,       // Firma → Positionsschlüssel, die sie schon hat
+): QuelleErkennung {
+  const meine = new Set(zeilen.map(positionsSchluessel))
+  const treffer = quellen
+    .map(q => ({ code: q.code, n: [...(bekannt.get(q.code) ?? [])].filter(k => meine.has(k)).length }))
+    .filter(t => t.n > 0)
+    .sort((a, b) => b.n - a.n)
+  if (treffer.length === 1) return { code: treffer[0].code, grund: 'inhalt', treffer }
+  if (treffer.length > 1) return { code: null, grund: 'mehrdeutig', treffer }
+  // Der Inhalt schweigt: der Name — das längste Muster, das im Namen steckt
+  // („imhofbioprodukte" schlägt „imhofbio", sonst träfe die kurze Firma jede Datei der langen).
+  const name = nameNormalisiert(dateiname)
+  const passend = quellen
+    .filter(q => q.dateiname_muster && nameNormalisiert(q.dateiname_muster).length > 0 && name.includes(nameNormalisiert(q.dateiname_muster)))
+    .sort((a, b) => nameNormalisiert(b.dateiname_muster!).length - nameNormalisiert(a.dateiname_muster!).length)
+  if (passend.length > 0) return { code: passend[0].code, grund: 'name', treffer }
+  return { code: null, grund: 'offen', treffer }
 }
 
 /** Vorschlag für die Herkunft einer Datei: der Dateiname ohne Beiwerk. */

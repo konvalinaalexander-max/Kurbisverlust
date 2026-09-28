@@ -6678,3 +6678,100 @@ begin
 end $$;
 
 select '——— 0098 Der Zeitplan notiert sich selbst geprüft ———' as ergebnis;
+
+-- =====================================================================
+-- 0099 — Eine Datei, eine Firma
+--
+-- 28. September: dieselbe Warenausgangsdatei unter zwei Namen, 35 t
+-- doppelt in der Bilanz. Geprüft wird: (a–b) eine Datei, deren Zeilen
+-- unter einer Firma bekannt sind, lässt sich unter keiner zweiten
+-- übernehmen — und die zweite Firma entsteht dabei nicht; (c) eine andere
+-- Datei darf eine neue Firma sein; (d) eine Firma entfernen nimmt Zeilen,
+-- Dateien und Lieferungen mit, das Journal behält die Lieferung, und nur
+-- der Betriebsleiter darf es; (e) eine unbekannte Firma ist ein Fehler.
+-- =====================================================================
+do $$
+declare
+  v_charge int; v_sorte text; v_zeilen jsonb; v_lief jsonb; v_erg jsonb; v_lief_id bigint;
+  v_w uuid := '00000000-0099-0000-0000-000000000002';
+begin
+  perform set_config('request.jwt.claim.sub', '11111111-1111-1111-1111-111111111111', true);
+  insert into auth.users (id, email, raw_user_meta_data) values (v_w, null, '{"name":"Prüf-0099-Arbeiterin"}');
+  update profil set rolle = 'arbeiter' where id = v_w;
+  select nr, sorte into v_charge, v_sorte from charge order by nr limit 1;
+
+  v_zeilen := jsonb_build_array(
+    jsonb_build_object('pos_id', 9901, 'charge_extern', v_charge::text, 'lauf_nr', 1, 'fingerabdruck', 'ae-eins',
+                       'datum', (current_date - 3)::text, 'journal', 'A', 'kunde', 'Grosshandel',
+                       'artikel_id', 'kuerbbu', 'artikel', 'Bio Kürbis Butternut', 'einheit', 'Stk.',
+                       'menge', 10, 'gewicht_je_artikel', 1.5, 'batch_menge', 10, 'kg_position', 15, 'kg_charge', 15));
+  v_lief := jsonb_build_array(
+    jsonb_build_object('extern_id', 'ae1:9901:' || v_charge || ':1', 'datum', (current_date - 3)::text,
+                       'charge_nr', v_charge, 'sorte', v_sorte, 'kg', 15, 'gebindeart', null, 'kunde', 'Grosshandel', 'bemerkung', ''));
+
+  -- (a) Die Datei kommt unter ihrer Firma an.
+  v_erg := ausgang_uebernehmen('ae1', 'Firma eins',
+    jsonb_build_object('dateiname', 'ae1.xlsx', 'pruefsumme', 'sha-ae1', 'n_zeilen', 1, 'n_kuerbis', 1), v_zeilen, v_lief);
+  assert (v_erg ->> 'zeilen_neu')::int = 1 and (v_erg ->> 'lieferungen_neu')::int = 1, format('0099 (a1): %s', v_erg);
+
+  -- (b) Dieselbe Datei unter einem zweiten Namen: abgewiesen — und „ae2" gibt es danach nicht.
+  begin
+    perform ausgang_uebernehmen('ae2', 'Firma eins, anders benannt',
+      jsonb_build_object('dateiname', 'Firma eins Rückverfolgbarkeit.xlsx', 'pruefsumme', 'sha-ae2', 'n_zeilen', 1, 'n_kuerbis', 1),
+      v_zeilen,
+      jsonb_build_array(jsonb_build_object('extern_id', 'ae2:9901:' || v_charge || ':1', 'datum', (current_date - 3)::text,
+                                           'charge_nr', v_charge, 'sorte', v_sorte, 'kg', 15, 'gebindeart', null, 'kunde', 'Grosshandel', 'bemerkung', '')));
+    assert false, '0099 (b1): dieselbe Datei liess sich unter einem zweiten Namen übernehmen — das ist die doppelte Bilanz';
+  exception when unique_violation then
+    assert sqlerrm like '%ae1%', format('0099 (b2): die Abweisung nennt die Firma nicht, zu der die Datei gehört: %s', sqlerrm);
+  end;
+  assert not exists (select 1 from ausgang_quelle where code = 'ae2'), '0099 (b3): die zweite Firma wurde trotzdem angelegt';
+  assert (select count(*) from lieferung_import where quelle = 'ae2') = 0, '0099 (b4): Lieferungen unter der zweiten Firma';
+  assert (select count(*) from lieferung_import where quelle = 'ae1') = 1, '0099 (b5): die erste Firma hat ihre Lieferung verloren';
+
+  -- (c) Eine andere Datei (andere Positionen) darf eine neue Firma sein.
+  v_erg := ausgang_uebernehmen('ae2', 'Firma zwei',
+    jsonb_build_object('dateiname', 'ae2.xlsx', 'pruefsumme', 'sha-ae2', 'n_zeilen', 1, 'n_kuerbis', 1),
+    jsonb_build_array(jsonb_build_object('pos_id', 9902, 'charge_extern', v_charge::text, 'lauf_nr', 1, 'fingerabdruck', 'ae-zwei',
+                       'datum', (current_date - 2)::text, 'journal', 'A', 'kunde', 'Hofladen',
+                       'artikel_id', 'kuerbbu', 'artikel', 'Bio Kürbis Butternut', 'einheit', 'Stk.',
+                       'menge', 4, 'gewicht_je_artikel', 1.5, 'batch_menge', 4, 'kg_position', 6, 'kg_charge', 6)),
+    jsonb_build_array(jsonb_build_object('extern_id', 'ae2:9902:' || v_charge || ':1', 'datum', (current_date - 2)::text,
+                                         'charge_nr', v_charge, 'sorte', v_sorte, 'kg', 6, 'gebindeart', null, 'kunde', 'Hofladen', 'bemerkung', '')));
+  assert (v_erg ->> 'zeilen_neu')::int = 1, format('0099 (c1): eine andere Datei muss eine neue Firma sein dürfen: %s', v_erg);
+
+  -- (d) Entfernen: nicht die Arbeiterin; der Betriebsleiter nimmt alles mit, das Journal behält die Lieferung.
+  select i.lieferung_id into v_lief_id from lieferung_import i where i.quelle = 'ae1';
+  perform set_config('request.jwt.claim.sub', v_w::text, true);
+  begin
+    perform ausgang_quelle_entfernen('ae1');
+    assert false, '0099 (d1): eine Arbeiterin konnte eine Firma des Warenausgangs entfernen';
+  exception when insufficient_privilege then null;
+  end;
+  perform set_config('request.jwt.claim.sub', '11111111-1111-1111-1111-111111111111', true);
+  assert exists (select 1 from ausgang_quelle where code = 'ae1'), '0099 (d2): der abgewiesene Versuch hat trotzdem entfernt';
+  v_erg := ausgang_quelle_entfernen('ae1');
+  assert (v_erg ->> 'lieferungen')::int = 1 and (v_erg ->> 'zeilen')::int = 1 and (v_erg ->> 'dateien')::int = 1,
+    format('0099 (d3): Entfernen zählt falsch: %s', v_erg);
+  assert not exists (select 1 from ausgang_quelle where code = 'ae1'), '0099 (d4): die Firma steht noch';
+  assert not exists (select 1 from ausgang_zeile where quelle = 'ae1'), '0099 (d5): Zeilen stehen noch';
+  assert not exists (select 1 from lieferung where id = v_lief_id), '0099 (d6): die Lieferung steht noch — sie zählte weiter in der Bilanz';
+  assert exists (select 1 from erfassung_journal where tabelle = 'lieferung' and vorgang = 'delete' and zeile_id = v_lief_id::text),
+    '0099 (d7): das Journal hat die gelöschte Lieferung nicht';
+  assert exists (select 1 from ausgang_quelle where code = 'ae2'), '0099 (d8): Entfernen hat die falsche Firma erwischt';
+
+  -- (e) Eine Firma, die es nicht gibt, ist ein Fehler — nicht ein stilles Nichts.
+  begin
+    perform ausgang_quelle_entfernen('gibt-es-nicht');
+    assert false, '0099 (e1): eine unbekannte Firma liess sich „entfernen"';
+  exception when raise_exception then null;
+  end;
+
+  perform ausgang_quelle_entfernen('ae2');
+  delete from profil where id = v_w;
+  delete from auth.users where id = v_w;
+  perform auswertung_aktualisieren();
+  raise notice 'OK  0099 — Eine Datei unter zwei Namen wird abgewiesen, die zweite Firma entsteht nicht; Entfernen nimmt Zeilen, Dateien und Lieferungen mit und lässt sie im Journal; nur der Betriebsleiter';
+end $$;
+
+select '——— 0099 Eine Datei, eine Firma geprüft ———' as ergebnis;

@@ -295,3 +295,59 @@ test('sechsstellige Perigon-Nummern werden über charge.perigon_nr aufgelöst', 
   assert.equal(loese('198976', { artikel_id: 'kuerbu', artikel: 'Bio Kürbis Butternut Dem klein' }), 1650)
   assert.equal(loese('198976', { artikel_id: 'div', artikel: 'Bio Kürbis Mix' }), null, 'passt der Artikel zu keiner, bleibt es offen')
 })
+
+/* ---------- Welche Firma ist das? (Runde AE) ------------------------------ */
+import { quelleErkennen, neuAbwann, positionsSchluessel, nameNormalisiert } from '../src/lib/warenausgang.ts'
+
+const FIRMEN = [{ code: 'imhof-bioprodukte', dateiname_muster: 'imhof-bioprodukte' }, { code: 'imhofbio', dateiname_muster: 'imhofbio' }]
+
+test('der Inhalt entscheidet: bekannte Positionen schlagen jeden Dateinamen', async () => {
+  // Der Fall vom 28. September: die Datei hiess anders, ihre Positionen kannte die Datenbank schon.
+  const { zeilen } = await probe()
+  const bekannt = new Map([['imhof-bioprodukte', new Set(zeilen.slice(0, 3).map(positionsSchluessel))], ['imhofbio', new Set<string>()]])
+  const e = quelleErkennen('Imhof Bioprodukte Rückverfolgbarkeit ge (3).xlsx', zeilen, FIRMEN, bekannt)
+  assert.equal(e.code, 'imhof-bioprodukte'); assert.equal(e.grund, 'inhalt'); assert.equal(e.treffer[0].n, 3)
+  const f = quelleErkennen('voellig-anderer-name.xlsx', zeilen, FIRMEN, bekannt)
+  assert.equal(f.code, 'imhof-bioprodukte', 'auch ein fremder Name ändert nichts am Inhalt')
+})
+
+test('schweigt der Inhalt, zählt der Name — das längste Muster gewinnt', async () => {
+  const { zeilen } = await probe()
+  const leer = new Map([['imhof-bioprodukte', new Set<string>()], ['imhofbio', new Set<string>()]])
+  assert.equal(quelleErkennen('Imhof Bioprodukte Rückverfolgbarkeit.xlsx', zeilen, FIRMEN, leer).code, 'imhof-bioprodukte', '„imhofbioprodukte" steckt im Namen — nicht die kurze Firma nehmen')
+  assert.equal(quelleErkennen('imhofbio 2026-09-28.xlsx', zeilen, FIRMEN, leer).code, 'imhofbio')
+  assert.equal(quelleErkennen('IMHOF-BIOPRODUKTE.XLSX', zeilen, FIRMEN, leer).grund, 'name')
+})
+
+test('trifft weder Inhalt noch Name, wird gefragt — keine stille dritte Firma', async () => {
+  const { zeilen } = await probe()
+  const leer = new Map([['imhof-bioprodukte', new Set<string>()], ['imhofbio', new Set<string>()]])
+  const e = quelleErkennen('Abgleich (1).xlsx', zeilen, FIRMEN, leer)
+  assert.equal(e.code, null); assert.equal(e.grund, 'offen')
+})
+
+test('Positionen zweier Firmen in einer Datei: mehrdeutig, nicht geraten', async () => {
+  const { zeilen } = await probe()
+  const bekannt = new Map([['imhof-bioprodukte', new Set([positionsSchluessel(zeilen[0])])], ['imhofbio', new Set([positionsSchluessel(zeilen[1])])]])
+  const e = quelleErkennen('x.xlsx', zeilen, FIRMEN, bekannt)
+  assert.equal(e.code, null); assert.equal(e.grund, 'mehrdeutig'); assert.equal(e.treffer.length, 2)
+})
+
+test('Namen werden ohne Umlaute, Zeichen und Grossschreibung verglichen', () => {
+  assert.equal(nameNormalisiert('Imhof Bioprodukte Rückverfolgbarkeit ge.xlsx'), 'imhofbioprodukterueckverfolgbarkeitgexlsx')
+  assert.equal(nameNormalisiert('imhof-bioprodukte'), 'imhofbioprodukte')
+})
+
+test('bis wo bekannt, ab wo neu: der Zuwachs steht getrennt vom Nachgetragenen', async () => {
+  const { zeilen } = await probe()
+  const daten = [...new Set(zeilen.map(z => z.datum))].sort()
+  const bekanntBis = daten[Math.floor(daten.length / 2)]
+  const bekannt = zeilen.filter(z => z.datum <= bekanntBis).slice(1).map(z => ({ schluessel: zeilenSchluessel(z), fingerabdruck: z.fingerabdruck }))
+  const n = neuAbwann(abgleichen(zeilen, bekannt), bekanntBis)
+  assert.equal(n.bekanntBis, bekanntBis)
+  assert.ok(n.danach.every(z => z.datum > bekanntBis), 'danach liegt nach dem bekannten Datum')
+  assert.equal(n.davor.length, 1, 'die eine weggelassene alte Zeile ist nachgetragen, nicht Zuwachs')
+  assert.ok(n.neuVon !== null && n.neuVon > bekanntBis)
+  const alles = neuAbwann(abgleichen(zeilen, []), null)
+  assert.equal(alles.danach.length, zeilen.length); assert.equal(alles.davor.length, 0)
+})
