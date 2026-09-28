@@ -1,6 +1,6 @@
 # Plausibilitätsdurchgang
 
-_Stand 2026-09-28 · Quelle docs/betrieb/rohdaten · von `pruefstand/durchgang.mjs` geschrieben; nicht von Hand ändern._
+_Stand 2026-09-28 · Quelle docs/betrieb/rohdaten (Betriebsabzug) · von `pruefstand/durchgang.mjs` geschrieben; nicht von Hand ändern._
 
 Jede Zeile ist ein **Kandidat**, kein Urteil: eine Zahl, die so nicht sein kann oder nicht sein sollte, mit dem Grund. Die Runde am Programm liest sie, prüft die Rohzeilen und schreibt die Zweitmeinung; der Betrieb entscheidet.
 
@@ -9,14 +9,14 @@ Jede Zeile ist ein **Kandidat**, kein Urteil: eine Zahl, die so nicht sein kann 
 | Tabelle | Zeilen |
 |---|---|
 | charge | 42 |
-| palette | 1629 |
-| auftrag | 28 |
-| auftrag_palette | 102 |
+| palette | 1638 |
+| auftrag | 29 |
+| auftrag_palette | 104 |
 | auftrag_gebinde | 0 |
-| schimmel_messung | 48 |
+| schimmel_messung | 50 |
 | ausschuss_messung | 16 |
 | verdunstung_wiegung | 27 |
-| ausgang_wiegung | 27 |
+| ausgang_wiegung | 29 |
 | kontrollpalette | 0 |
 | kontrollpalette_wiegung | 0 |
 | lieferung | 587 |

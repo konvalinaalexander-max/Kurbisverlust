@@ -4,15 +4,15 @@ _Abzug vom 2026-09-28. Von `pruefstand/betrieb_abzug.mjs` geschrieben; nicht von
 
 Was die Auswertung nicht in die Rechnung nimmt, weil es nicht zu seinem Nenner passt. Für die nächste Runde: Wo entsteht das im Ablauf oder in der Maske? Was ist ein Datenfehler, der dem Betrieb gehört? Was könnte die App besser abfangen?
 
-## Nach Art (30)
+## Nach Art (31)
 
 | Art | Anzahl |
 |---|---|
 | Zettelgewicht | 12 |
 | Ausschuss | 6 |
 | Überzählung | 3 |
+| Ohne Nenner | 2 |
 | Kistengewicht | 2 |
-| Ohne Nenner | 1 |
 | Palox geleert | 1 |
 | Wägung | 1 |
 | Zetteldatum | 1 |
@@ -22,6 +22,12 @@ Was die Auswertung nicht in die Rechnung nimmt, weil es nicht zu seinem Nenner p
 
 ## Einzeln
 
+- **Ohne Nenner** · Charge 1612 — Slowgrow Uster · Butterkin · Waschen · 28.09.2026, 07:33 · läuft · Charge 1612 — Slowgrow Uster · Butterkin · Arbeit 1591
+  - 250 kg Faules erfasst, aber keine Kiste gezählt und keine Menge eingetragen — die Messung hat keinen Nenner und fliesst nirgends ein
+  - _Die geleerten Kisten am Auftrag zählen (dann rechnet die Masse sich selbst) oder die verarbeitete Menge in kg nachtragen._
+- **Kistengewicht** · Charge 1612 — Slowgrow Uster · Butterkin · Waschen · 28.09.2026, 07:33 · läuft · Charge 1612 — Slowgrow Uster · Butterkin · Arbeit 1591
+  - 3 Paletten mit 96 Kisten gezählt, aber für dieses Kaliber hat noch keine Wasch-Arbeit dieser Sorte ihre fertigen Paletten gewogen — das Kistengewicht ist unbekannt, die Menge dieser Arbeit damit auch
+  - _Bei der nächsten Wasch-Arbeit dieses Kalibers die fertigen Paletten wiegen (drei reichen) und die Kaliber-Paletten zählen — dann kennt die App das Kistengewicht des Bandes, rückwirkend auch für diese Arbeit._
 - **Ohne Nenner** · Charge 1612 — Slowgrow Uster · Butterkin · Waschen · 26.09.2026, 09:23 · läuft · Charge 1612 — Slowgrow Uster · Butterkin · Arbeit 1590
   - 173 kg Faules erfasst, aber keine Kiste gezählt und keine Menge eingetragen — die Messung hat keinen Nenner und fliesst nirgends ein
   - _Die geleerten Kisten am Auftrag zählen (dann rechnet die Masse sich selbst) oder die verarbeitete Menge in kg nachtragen._
@@ -61,9 +67,6 @@ Was die Auswertung nicht in die Rechnung nimmt, weil es nicht zu seinem Nenner p
 - **Palette fraglich** · Charge 1651 — Rümlang Sauter · Kaori Kuri · Waschen + Sortieren · 24.09.2026, 13:36 · fertig · Charge 1651 — Rümlang Sauter · Kaori Kuri · Arbeit 1584
   - Zu gross: 44.00 kg brutto in 2 Kiste(n) G2, mit Palette gewogen — davon bleiben 16 kg netto. Eine leere Palette wiegt allein 25.000 kg.
   - _Standen die Kisten direkt auf der Waage? Dann in der Korrektur „mit Palette" abwählen — das Netto rechnet sich von selbst neu._
-- **Kistengewicht** · Charge 1630 — Rümlang Keller · Kaori Kuri · Waschen · 24.09.2026, 08:55 · läuft · Charge 1630 — Rümlang Keller · Kaori Kuri · Arbeit 1583
-  - 3 Paletten mit 108 Kisten gezählt, aber für dieses Kaliber hat noch keine Wasch-Arbeit dieser Sorte ihre fertigen Paletten gewogen — das Kistengewicht ist unbekannt, die Menge dieser Arbeit damit auch
-  - _Bei der nächsten Wasch-Arbeit dieses Kalibers die fertigen Paletten wiegen (drei reichen) und die Kaliber-Paletten zählen — dann kennt die App das Kistengewicht des Bandes, rückwirkend auch für diese Arbeit._
 - **Zettelgewicht** · Charge 1632 — Andi Ball · Tiana · Waschen + Sortieren · 23.09.2026, 16:15 · fertig · Charge 1632 — Andi Ball · Tiana · Arbeit 1579
   - 1 Palette(n) mit 258.00 kg vom Zettel gezählt, aber im Wareneingang hat keine Palette dieser Charge dieses Gewicht — gerechnet wird mit den gezählten Kisten und ihrer Tara (Zettel − Kisten × Kiste − Palette)
   - _Gewicht an der Zählung prüfen (Zahlendreher?) — oder die Palette fehlt im Wareneingang (Erntejournal)._
@@ -92,7 +95,7 @@ Was die Auswertung nicht in die Rechnung nimmt, weil es nicht zu seinem Nenner p
   - Die Lieferungen dieser Charge (3684 kg) brauchen nach der gerechneten Ausbeute (77 % verkaufsfähig) 4757 kg Eingang — erfasst sind 4281 kg, also 476 kg zu wenig. Geliefert wurde nicht mehr als eingelagert; es wurde mehr geliefert, als die Rechnung aus diesem Eingang erwartet.
   - _Drei Möglichkeiten: Im Erntejournal fehlt eine Palette dieser Charge; ein Lieferschein ist auf die falsche Chargennummer gebucht; oder diese Charge hat weniger Verlust als das Modell annimmt — dann ist „Im Lager" für sie zu klein gerechnet. Die ersten zwei lassen sich nachtragen._
 - **Überzählung** · Charge 1614 — Slowgrow Uster · Kaori Kuri
-  - Die Lieferungen dieser Charge (8541 kg) brauchen nach der gerechneten Ausbeute (74 % verkaufsfähig) 11528 kg Eingang — erfasst sind 10057 kg, also 1470 kg zu wenig. Geliefert wurde nicht mehr als eingelagert; es wurde mehr geliefert, als die Rechnung aus diesem Eingang erwartet.
+  - Die Lieferungen dieser Charge (8540 kg) brauchen nach der gerechneten Ausbeute (74 % verkaufsfähig) 11527 kg Eingang — erfasst sind 10057 kg, also 1469 kg zu wenig. Geliefert wurde nicht mehr als eingelagert; es wurde mehr geliefert, als die Rechnung aus diesem Eingang erwartet.
   - _Drei Möglichkeiten: Im Erntejournal fehlt eine Palette dieser Charge; ein Lieferschein ist auf die falsche Chargennummer gebucht; oder diese Charge hat weniger Verlust als das Modell annimmt — dann ist „Im Lager" für sie zu klein gerechnet. Die ersten zwei lassen sich nachtragen._
 - **Ausschuss** · Charge 1613 — Slowgrow Uster · Tiana · Waschen + Sortieren · 26.09.2026, 08:06 · fertig · Charge 1613 — Slowgrow Uster · Tiana · Arbeit 1589
   - 0 kg zu klein / 22 kg zu gross bei 838 kg Bezugsmasse

@@ -7,14 +7,14 @@ Je Tabelle die Zeilen mit den Spalten aus `ROHTABELLEN` (`pruefstand/durchgang_p
 | Tabelle | Zeilen | Spalten |
 |---|---|---|
 | charge | 42 | nr, sorte, schlag, saison, ernte_abgeschlossen_ts |
-| palette | 1629 | id, charge_nr, eingangsdatum, brutto_kg, kisten, gebindeart, extern_id, quelle |
-| auftrag | 28 | id, weg, station, charge_nr, start_ts, ende_ts, status, abgebrochen_ts, ist_fax, kaliber_idx, kistensystem, soll_kg_pro_kiste, stueck_je_kiste, paletten_gesamt, fertige_paletten_gesamt, palox_unbekannt, tage_seit_waschen, geplante_paletten |
-| auftrag_palette | 102 | id, auftrag_id, palette_id, eingangsdatum, brutto_zettel_kg, sortierdatum, kisten, gebindeart, wiegung_id, ts |
+| palette | 1638 | id, charge_nr, eingangsdatum, brutto_kg, kisten, gebindeart, extern_id, quelle |
+| auftrag | 29 | id, weg, station, charge_nr, start_ts, ende_ts, status, abgebrochen_ts, ist_fax, kaliber_idx, kistensystem, soll_kg_pro_kiste, stueck_je_kiste, paletten_gesamt, fertige_paletten_gesamt, palox_unbekannt, tage_seit_waschen, geplante_paletten |
+| auftrag_palette | 104 | id, auftrag_id, palette_id, eingangsdatum, brutto_zettel_kg, sortierdatum, kisten, gebindeart, wiegung_id, ts |
 | auftrag_gebinde | 0 | id, auftrag_id, kaliber_idx, anzahl, sortierdatum, datum_fehlt, ts |
-| schimmel_messung | 48 | id, auftrag_id, kg, palox_stand_kg, palox_geleert, palox_nach_leeren, brutto_kg, kisten, gebindeart, mit_palette, gemessen, ts |
+| schimmel_messung | 50 | id, auftrag_id, kg, palox_stand_kg, palox_geleert, palox_nach_leeren, brutto_kg, kisten, gebindeart, mit_palette, gemessen, ts |
 | ausschuss_messung | 16 | id, auftrag_id, art, kg, brutto_kg, kisten, gebindeart, mit_palette, gemessen, ts |
 | verdunstung_wiegung | 27 | id, auftrag_id, charge_nr, palette_id, eingangsdatum, brutto_damals_kg, brutto_jetzt_kg, kisten, gebindeart, sichtbar_schimmel, gemessen, wiege_ts, kuerbisse_pro_kiste, faul_kg |
-| ausgang_wiegung | 27 | id, auftrag_id, charge_nr, brutto_kg, kisten, gebindeart, kuerbisse_pro_kiste, kaliber_idx, voll, gemessen, ts |
+| ausgang_wiegung | 29 | id, auftrag_id, charge_nr, brutto_kg, kisten, gebindeart, kuerbisse_pro_kiste, kaliber_idx, voll, gemessen, ts |
 | kontrollpalette | 0 | id, charge_nr, palette_id, kennzeichen, angelegt_ts, beendet_ts, beendet_grund, eingangsdatum, brutto_eingang_kg |
 | kontrollpalette_wiegung | 0 | id, kontrollpalette_id, brutto_kg, kisten, gebindeart, sichtbar_schimmel, wiege_ts |
 | lieferung | 587 | id, datum, charge_nr, sorte, kg, kisten, gebindeart, ziel, ts |

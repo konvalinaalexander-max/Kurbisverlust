@@ -4,4 +4,4 @@ Eine Zeile je Abzug — damit man sieht, ob die Auffälligkeiten weniger werden 
 
 | Tag | Rückmeldungen App | Rückmeldungen Ware | Auffälligkeiten | davon die häufigste |
 |---|---|---|---|---|
-| 2026-09-28 | 0 | 0 (0 zu kürzen) | 30 | Zettelgewicht (12) |
+| 2026-09-28 | 0 | 0 (0 zu kürzen) | 31 | Zettelgewicht (12) |
