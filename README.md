@@ -668,7 +668,19 @@ warum sein Deploy-Befehl `npx wrangler deploy --env beispiel` lauten **muss**
 [`docs/ZWEI_WEBSEITEN.md`](docs/ZWEI_WEBSEITEN.md). Rechne mit einer guten
 halben Stunde.
 
-**Zuletzt gebaut (Runde AB, 0095, 0096)** — die Zahlen liegen fertig da: Läuft
+**Zuletzt gebaut (Runde AC)** — die erste Zweitmeinung über echte Daten:
+Der Betriebsabzug lief zum ersten Mal auf dem Projekt des Betriebs (42
+Chargen, 1629 Paletten, 587 Lieferungen). Der Durchgang fand 546
+Kandidaten, 518 davon Zufall (gleiche Gewichte an einem Tag) — er kennt
+jetzt die Vervielfachung des Journals, Gebinde ohne Tara, die Teilpalette
+von Hand (Dreisatz) und mit vollem Zettel, die vertippte Kistenzahl, den
+doppelten Zettel, den Zettel auf der fremden Charge, Lieferungen vor dem
+Eingang, Sortierläufe ohne Eingang, Lieferungen ohne Charge und offene
+Arbeiten: 35 Kandidaten, jeder mit Nummer (`test/durchgang.test.ts`, AB-100).
+Die Zweitmeinung steht in `docs/betrieb/ZWEITMEINUNG.md` — nach
+Wichtigkeit, für den Betriebsleiter. Nichts an den Daten wurde geändert.
+
+**Runde AB (0095, 0096)** — die Zahlen liegen fertig da: Läuft
 in der Datenbank der Zeitplan aus 0061 (pg_cron, alle zehn Minuten, nur
 bei Änderung), rechnet die App beim Öffnen nicht mehr selbst, sondern
 zeigt den letzten Stand („neu bis 14:10", „wird gerade erneuert") und lädt

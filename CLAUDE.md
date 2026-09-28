@@ -43,11 +43,15 @@ Werkzeug — beginnt so:
    Regeln in `durchgang_pruefungen.mjs`): Teilpaletten, Gewicht je Kiste,
    doppelte Zeilen, Zeitfolgen, Lieferungen über dem Eingang, Zahlendreher.
    Jede Zeile ist ein Kandidat. Die Runde nimmt die Rohzeilen dazu, rechnet
-   nach und schreibt zu jedem Kandidaten die Zweitmeinung: was wohl passiert
-   ist, wie sicher, was zu prüfen ist, ob eine Datenkorrektur (Betrieb) oder
-   eine Regel (Programm) folgt. Häuft sich eine Ursache, wird die Regel die
-   erste Aufgabe. Eine Grenze in `GRENZEN` ändert man nur mit Begründung in
-   `docs/ENTSCHEIDUNGEN.md`.
+   nach und schreibt **`docs/betrieb/ZWEITMEINUNG.md`** (datiert, ersetzt
+   die vorige): zu jedem Kandidaten, was wohl passiert ist, wie sicher, was
+   zu prüfen ist, ob eine Datenkorrektur (Betrieb) oder eine Regel
+   (Programm) folgt — nach Wichtigkeit, mit Nummern, damit der
+   Betriebsleiter es abarbeiten kann. Häuft sich eine Ursache, wird die
+   Regel die erste Aufgabe. Ein Muster, das der Durchgang nicht kannte
+   (Runde AC: Teilpalette von Hand, Zettel auf fremder Charge), bekommt
+   seine Prüfung und ihren Test. Eine Grenze in `GRENZEN` ändert man nur
+   mit Begründung in `docs/ENTSCHEIDUNGEN.md`.
 
 ## 2. Regeln, die immer gelten
 

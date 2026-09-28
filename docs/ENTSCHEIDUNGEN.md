@@ -4008,6 +4008,102 @@ an, was neu ist, und lässt stehen, was da ist — auch wenn das Journal
 inzwischen anders lautet. Sonst überschriebe ein Tippfehler im Sheet eine
 Berichtigung in der App, ohne dass jemand es sähe.
 
+## Runde AC: die erste Zweitmeinung über echte Daten (28. September)
+
+Am Morgen lief der Betriebsabzug zum ersten Mal auf dem Projekt des
+Betriebs — die Secrets waren gesetzt. Damit lagen zum ersten Mal echte
+Rohdaten im Repository: 42 Chargen, 1629 Paletten, 28 Arbeiten, 587
+Lieferungen, 27 Verdunstungswägungen. Der Betrieb hatte gefragt: „kannst
+du die mal durchschauen und prüfen, welche davon wahrscheinlich falsch
+sein könnten." Das Ergebnis steht in `docs/betrieb/ZWEITMEINUNG.md`; hier
+steht, was die Runde dabei über den Durchgang gelernt hat.
+
+### Der Durchgang war laut, weil er den Zufall nicht kannte
+
+546 Kandidaten, 518 davon „Doppelte Palette". Nachgerechnet: Die Saison
+hat 750 Paare gleicher Zettel (Charge, Tag, Gewicht, Kisten), und rund
+590 davon erwartet der Zufall — bei 60 Paletten eines Tages, deren
+Gewichte zwischen 460 und 500 kg liegen, *müssen* welche zusammenfallen.
+Ein Paar ist kein Kandidat. Die Regel jetzt: je Charge und Tag die
+beobachteten Paare gegen n·(n−1)/2 durch die Spannweite (mindestens 20
+kg, weil eine Reihe identischer Gewichte keine Streuung ist, sondern
+Abschreiben); nur ein deutlicher Überschuss (mehr als das Doppelte plus
+drei) ist ein Kandidat, und zwar einer je Tag. Dazu die Vervielfachung
+des Journals: „5 Paletten à 384 kg" ist eine Journalzeile, der Import
+legt fünf an (extern_id …#2 bis #5) — die zählen gar nicht mit. Übrig:
+zwei Tage (1638 am 10.9. mit vier mal vier gleichen Paloxen, 1649 am 8.9.
+mit 30 Paaren bei 13 erwarteten).
+
+Die 18 „Gewicht je Kiste"-Kandidaten waren alle dieselbe Sache: Holz-
+Paloxen mit „1 Kiste" und 300 kg, deren Gebindeart keine Tara hat. Ein
+Urteil je Kiste ist da keins — jetzt ein Kandidat je Gebindeart ohne
+Tara, mit Paletten, Bruttomasse und Chargen.
+
+### Was der Durchgang nicht sehen konnte: warum die Datenbank den Zettel nicht findet
+
+Die Datenbank sucht zu jedem Zettel die Palette im Journal (Charge,
+Gewicht, Kisten) und meldet „Zettelgewicht", wenn sie keine findet
+(0090). Zwölf solcher Meldungen in `AUFFAELLIGKEITEN.md` — und die
+Rohdaten zeigen die Gründe, die kein Rechenfehler sind:
+
+- **Teilpalette von Hand im Dreisatz** (5×): 235 kg für 18 Kisten ist
+  470 kg × 18/36 — die Halle rechnet den Zettel selbst anteilig um. Das
+  ist die bessere der zwei Gewohnheiten: Das Netto ist nur um die
+  Palettentara zu tief (etwa 6 %).
+- **Teilpalette mit vollem Zettel** (5×): 473 kg für 16 Kisten. Das
+  Anfangsgewicht ist bis doppelt zu hoch; eine Wägung dazu ergibt „4.8 %
+  je Tag" (ausgeschlossen), zwei andere bleiben knapp unter der Grenze
+  und ziehen die Verdunstungsrate hoch. Mit Wägung ist der Kandidat
+  „hoch", und die Wägung wird nicht noch einmal als „Verdunstung zu hoch"
+  gemeldet — der Grund ist ja bekannt.
+- **Zettel auf fremder Charge** (1×): Arbeit 1589 ist auf 1613 gebucht,
+  zwei ihrer Zettel vom 15.9. passen genau auf Paletten der 1632
+  (gleiche Sorte, gleicher Tag, gleiches Gewicht, gleiche Kisten).
+- **Kistenzahl vertippt**, **Zettel doppelt** (zwei Zettel, eine
+  Palette): je einmal, zweimal.
+
+Dazu drei Prüfungen, die die Bilanz betreffen und bisher fehlten:
+**Lieferung vor Eingang** (1626: sechs Lieferungen ab 2.9., erste
+Palette am 23.9. — das ist nicht „Überzählung", das ist ein Loch im
+Journal), **Sortierlauf ohne Eingang** (1637: eine Datei mit 4522
+Kürbissen, keine Palette; die Prüfung nennt die Chargen derselben Sorte,
+zu denen sie gehören könnte) und **Lieferung ohne Charge** (13 Stück,
+1660 kg). Und **Arbeit offen**: sieben Arbeiten, die seit zwei bis sieben
+Tagen offen stehen und darum nirgends mitrechnen — zwei davon auf Chargen
+ohne Eingang, sieben Minuten nacheinander begonnen, wohl aus Versehen.
+
+Die Grenze `kistenMax` steigt von 60 auf 66: Palette 6904 hat 65 Kisten
+und 630 kg, das Gewicht je Kiste passt zu den zwölf 60er-Paletten des
+Tages — 13 Lagen kommen vor.
+
+### Warum die Teilpaletten-Regel die erste Aufgabe der nächsten Runde ist
+
+Zehn von zwölf „Zettelgewicht"-Meldungen sind Teilpaletten. Die Halle
+macht es von Hand, mal so, mal so, und die App kann beides nicht
+zuordnen. Die Regel, die der Betrieb schon in Runde AA gewünscht hat
+(„18 Kisten, 200 kg, Zettel 400 kg"), heisst in der Maske: Zettel der
+ganzen Palette, „Kisten davon", die App rechnet anteilig und findet die
+Palette im Journal; die Verdunstung rechnet mit dem richtigen
+Anfangsgewicht. Das ist eine Migration (Zettel bekommt „Kisten der
+Palette"), eine Maske, ein Prüfblock — nicht Teil dieser Runde, die
+keine Datenbank anfasst.
+
+### Was bewusst nicht gemacht wurde
+
+**Keine Datenkorrektur aus dem Repository.** Die Zweitmeinung nennt
+Zettel und Paletten mit Nummer; korrigieren tut der Betriebsleiter in
+der Maske (Korrektur, Stammdaten, Warenausgang). Ein Rückweg für Daten
+wie bei den Kurzfassungen (0094) wäre möglich — aber jede dieser
+Korrekturen braucht einen Blick ins Papierjournal, den nur er hat.
+
+**Kein Modell geändert.** Verdunstung 0.37 % je Tag liegt am oberen Rand
+der Erwartung (0.03–0.3 %), mit drei falschen Wägungen darin. Erst die
+Daten, dann die Annahme — nach der Korrektur nachsehen.
+
+**„Doppelte Palette" nicht gestrichen.** Der Zufall erklärt das meiste,
+nicht alles: vier mal vier gleiche Paloxen und ein Tag mit 30 Paaren bei
+13 erwarteten sind Fragen wert.
+
 ## Runde AB: die Zahlen liegen fertig da (28. September, 0095, 0096)
 
 Der Betrieb: „aktuell muss ich teilweise bis zu einer Minute warten, bis
