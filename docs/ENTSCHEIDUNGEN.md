@@ -4245,16 +4245,31 @@ Weg: Auswahlmodus, ein Kreis an jeder Karte, der Knopf (grau ohne Auswahl),
 die Rückfrage mit genau den gewählten Arbeiten. Im Büro ersetzt dasselbe
 Symbol das „x Löschen"; der Papierkorb steht erst in der Rückfrage.
 
-### Der Zeitplan nach einem zweiten setup.sql
+### Der Zeitplan, der „nicht rechnete" — und doch rechnete (0098)
 
-Der Betrieb spielte setup.sql ein zweites Mal ein und sah „Zeitplan
-rechnet nicht". Der Block aus 0061 löschte den Job und legte ihn neu an —
-und pg_cron auf Supabase nimmt einen neuen Job erst nach einem Neustart
-des Launchers (zweimal beobachtet). Seit dieser Runde lässt der Block einen
-gleichlautenden Job stehen; nur ein anderer Takt wird mit `cron.alter_job`
-angepasst. Fällt es doch einmal aus: `select pg_reload_conf();`, sonst den
-Launcher beenden (`pg_terminate_backend` auf `backend_type = 'pg_cron
-launcher'`) oder das Projekt neu starten — die Anleitung steht im README.
+Der Betrieb sah nach dem zweiten setup.sql „Zeitplan rechnet nicht". Die
+erste Deutung der Runde: Der Block aus 0061 löschte den Job und legte ihn
+neu an, und pg_cron übernehme einen neuen Job erst nach einem Neustart
+seines Starters. Der Block lässt seither einen gleichlautenden Job stehen
+(nur ein anderer Takt wird mit `cron.alter_job` angepasst) — das ist
+richtig so und bleibt.
+
+Aber die Deutung war falsch. Um 11:21:56 stand ein neuer Stand in
+`auswertung_stand`, Dauer 116.5 s: Start 11:20:00.3, genau der Takt. Der
+Zeitplan hatte gerechnet — den ganzen Tag über, wann immer etwas veraltet
+war. Nur `cron.job_run_details` blieb auf diesem Projekt leer, und
+`auswertung_zeitplan()` las den letzten Lauf allein dort. „Eingetragen
+heisst nicht laufend" (0095) stimmt weiter; „keine Laufgeschichte heisst
+nicht gelaufen" stimmte nicht.
+
+Darum notiert die Datenbank ab 0098 selbst, wann der Zeitplan sie ruft
+(`auswertung_stand.zeitplan_gerufen_ts`, bei jedem Aufruf, auch ohne
+Rechnung). `auswertung_zeitplan()` nimmt zuerst die Laufgeschichte von
+pg_cron und sonst diese Notiz — mit `quelle` in der Antwort und ehrlichem
+Status (running, solange `rechnet_seit` steht). Ohne Notiz bleibt der Lauf
+unbekannt; erraten wird nichts. Der Chip urteilt weiter nach dem letzten
+Lauf. Die Anleitung mit `pg_reload_conf()` und dem Starter bleibt im README
+für den Fall, dass wirklich kein Aufruf kommt — jetzt sieht man es.
 
 ### Lagermanagement, wie der Betrieb es lesen will
 
@@ -4287,6 +4302,8 @@ Fehlermeldung nennt Status, Code und Details.
   gemessene Wert — beides steht dran.
 - Die 0-kg-Zeilen des Betriebs wurden nicht korrigiert. Die Regel liest
   sie richtig; die Daten bleiben, wie sie erfasst wurden.
+- pg_cron wurde nicht umkonfiguriert (`cron.log_run` o. ä.). Die
+  Datenbank braucht die Laufgeschichte nicht, wenn sie sich selbst notiert.
 
 ## Runde AB: die Zahlen liegen fertig da (28. September, 0095, 0096)
 

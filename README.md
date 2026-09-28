@@ -703,12 +703,16 @@ jeder Karte) und bricht genau die gewählten ab — die Rückfrage nennt sie,
 ohne Auswahl ist der Knopf grau. Lagermanagement: Chargen nach Feld, eine
 Tabelle am Stichtag (Wochenfeld ändert die ganze Tabelle), Sorten
 aufklappbar. Das Erntejournal blättert beim Abgleich (kein „Bad Request"
-mehr). **Zeitplan nach einem zweiten setup.sql:** Der Job bleibt jetzt
-stehen; sagt der Chip trotzdem „Zeitplan rechnet nicht", zuerst
-`select pg_reload_conf();`, dann — läuft binnen zehn Minuten nichts —
-`select pg_terminate_backend(pid) from pg_stat_activity where backend_type
-= 'pg_cron launcher';` oder das Projekt neu starten (pg_cron nimmt neue
-Jobs erst nach einem Neustart des Launchers). AB-101 bis AB-105.
+mehr). **Zeitplan (0098):** Er rechnete den ganzen ersten Tag — nur schrieb
+pg_cron auf dem Projekt keine Laufgeschichte, und der Chip las allein
+dort. Jetzt notiert die Datenbank jeden Aufruf selbst
+(`auswertung_stand.zeitplan_gerufen_ts`); `auswertung_zeitplan()` sagt
+mit `quelle`, woher sie den letzten Lauf kennt. Der Job aus 0061 bleibt
+bei einem zweiten setup.sql stehen. Sagt der Chip trotzdem „Zeitplan
+rechnet nicht" — also kam binnen dreier Takte kein Aufruf —, zuerst
+`select pg_reload_conf();`, dann `select pg_terminate_backend(pid) from
+pg_stat_activity where backend_type = 'pg_cron launcher';` oder das
+Projekt neu starten. AB-101 bis AB-106.
 
 **Runde AB (0095, 0096)** — die Zahlen liegen fertig da: Läuft
 in der Datenbank der Zeitplan aus 0061 (pg_cron, alle zehn Minuten, nur

@@ -6631,3 +6631,50 @@ begin
 end $$;
 
 select '——— 0097 Was der Betrieb am ersten Tag sah geprüft ———' as ergebnis;
+
+-- =====================================================================
+-- 0098 — Der Zeitplan notiert sich selbst
+--
+-- Am 28. September rechnete der Zeitplan um 11:20 (Start auf dem Takt,
+-- 116 s), aber cron.job_run_details blieb leer — und der Chip sagte den
+-- ganzen Tag „rechnet nicht". Geprüft wird: der Aufruf stempelt
+-- zeitplan_gerufen_ts, auch wenn nichts veraltet ist; die App-Frage nimmt
+-- die Notiz, wenn pg_cron schweigt, mit ehrlichem Status; ohne Notiz wird
+-- nichts erraten.
+-- =====================================================================
+do $$
+declare v_z jsonb; v_vorher timestamptz; v_gerufen timestamptz;
+begin
+  -- (a) Der Aufruf stempelt — auch wenn nichts zu rechnen ist.
+  update auswertung_stand set zeitplan_gerufen_ts = null where id = 1;
+  perform auswertung_aktualisieren();                     -- nichts veraltet
+  assert not auswertung_wenn_veraltet(), '0098 (a0): nichts veraltet, aber gerechnet';
+  select zeitplan_gerufen_ts into v_gerufen from auswertung_stand where id = 1;
+  assert v_gerufen is not null and v_gerufen > now() - interval '1 minute',
+    '0098 (a1): der Zeitplan-Aufruf hat sich nicht notiert (zeitplan_gerufen_ts)';
+
+  -- (b) Ohne pg_cron (hier) gilt die Notiz: letzter Lauf = Aufruf, Status succeeded, Quelle gesagt.
+  v_z := auswertung_zeitplan();
+  assert (v_z ->> 'letzter_start')::timestamptz = v_gerufen, format('0098 (b1): letzter_start ist nicht die Notiz: %s', v_z);
+  assert (v_z ->> 'letzter_status') = 'succeeded', format('0098 (b2): Status nach fertigem Lauf: %s', v_z ->> 'letzter_status');
+  assert (v_z ->> 'quelle') = 'eigene_notiz', format('0098 (b3): die Antwort sagt nicht, woher der Lauf bekannt ist: %s', v_z);
+  assert (v_z ->> 'gerufen_ts')::timestamptz = v_gerufen, '0098 (b4): gerufen_ts fehlt in der Antwort';
+
+  -- (c) Läuft er gerade (rechnet_seit nach dem Aufruf), heisst der Status running.
+  update auswertung_stand set rechnet_seit = now() where id = 1;
+  v_z := auswertung_zeitplan();
+  assert (v_z ->> 'letzter_status') = 'running', format('0098 (c1): während des Rechnens muss der Status running sein: %s', v_z ->> 'letzter_status');
+  update auswertung_stand set rechnet_seit = null where id = 1;
+
+  -- (d) Ohne Notiz wird nichts erraten: letzter_start bleibt leer.
+  update auswertung_stand set zeitplan_gerufen_ts = null where id = 1;
+  v_z := auswertung_zeitplan();
+  assert (v_z ->> 'letzter_start') is null, format('0098 (d1): ohne Notiz und ohne pg_cron steht ein Lauf da: %s', v_z);
+  assert (v_z ->> 'quelle') is null, '0098 (d2): ohne Lauf darf keine Quelle stehen';
+
+  -- (e) Der Stand.
+  assert schema_stand() >= 98, format('0098 (e1): schema_stand() = %s, mindestens 98 erwartet', schema_stand());
+  raise notice 'OK  0098 — Der Zeitplan notiert sich selbst; die App-Frage nimmt die Notiz, wenn pg_cron schweigt, und errät ohne Notiz nichts';
+end $$;
+
+select '——— 0098 Der Zeitplan notiert sich selbst geprüft ———' as ergebnis;
