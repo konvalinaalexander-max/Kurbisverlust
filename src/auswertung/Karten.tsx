@@ -58,9 +58,11 @@ export function Reiterkopf({ titel, zweck, stand, heute, neuRechnen, rechts, lae
                 title={`Gerechnet ${zeitpunkt(stand)}${heute ? ` — Zahlen bis heute, ${datum(heute)}` : ''}${aktuell ? ' · seither nichts Neues erfasst, die Zahlen sind aktuell' : ''} · ${zeitplanText}`}>
             Stand {vorZeit(stand)}{heute ? ` · bis ${datum(heute).slice(0, 6)}` : ''}
             {aktuell && <span className="leise"> · aktuell</span>}
-            {veraltet && zustand === 'laeuft' && (rechnetGerade(zeitplan!.rechnetSeit)
-              ? <span className="leise"> · wird gerade erneuert</span>
-              : <span className="leise"> · neu {naechster ? `bis ${uhr(naechster)}` : 'in Kürze'}</span>)}
+            {/* 0100: „wird gerade erneuert" gilt für jeden, der rechnet — Zeitplan
+                oder ein anderes Fenster —, nicht nur für den laufenden Zeitplan. */}
+            {veraltet && rechnetGerade(zeitplan?.rechnetSeit) && <span className="leise"> · wird gerade erneuert</span>}
+            {veraltet && zustand === 'laeuft' && !rechnetGerade(zeitplan!.rechnetSeit)
+              && <span className="leise"> · neu {naechster ? `bis ${uhr(naechster)}` : 'in Kürze'}</span>}
             {zeitplan && zustand === 'fehlt' && <span className="leise"> · kein Zeitplan</span>}
             {zustand === 'rechnet_nicht' && <span className="leise"> · Zeitplan rechnet nicht</span>}
           </span>
@@ -83,9 +85,11 @@ export function Rechnet({ fortschritt }: { fortschritt: Fortschritt | null }) {
     <div className="rechnen">
       <div className="drehen" aria-hidden="true" />
       <div className="rechnen-kopf">
-        {fortschritt ? <>Auswertung wird gerechnet — Schritt {fortschritt.schritt} von {fortschritt.schritte}</> : 'Auswertung wird geladen …'}
+        {!fortschritt ? 'Auswertung wird geladen …'
+          : fortschritt.schritt === 0 ? <>Auswertung wird gerade an anderer Stelle gerechnet — dieses Fenster wartet und lädt dann nach</>
+          : <>Auswertung wird gerechnet — Schritt {fortschritt.schritt} von {fortschritt.schritte}</>}
       </div>
-      {fortschritt && (
+      {fortschritt && fortschritt.schritt > 0 && (
         <ol>
           {SCHRITTE.map((name, i) => {
             const nr = i + 1

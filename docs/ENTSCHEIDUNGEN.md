@@ -4163,6 +4163,52 @@ Daten, dann die Annahme — nach der Korrektur nachsehen.
 nicht alles: vier mal vier gleiche Paloxen und ein Tag mit 30 Paaren bei
 13 erwarteten sind Fragen wert.
 
+## Nachtrag 0100: gerechnet wird nur an einer Stelle (28. September)
+
+Um 12:45 antwortete die Datenbank des Betriebs niemandem mehr — eine
+halbe Stunde lang 522 und 504, auch der Betriebsleiter: „wenn ich die Seite
+neu laden möchte, passiert gar nichts". Was vorausging: Der Chip sagte bis
+zum Stand 98 „Zeitplan rechnet nicht" (zu Unrecht, siehe 0098), also
+rechnete die App bei jedem Öffnen selbst, mit der echten Saison gut zwei
+Minuten je Lauf. Die Seite wurde mehrmals neu geladen, dazu kam der
+Zeitplan nach einer Bereinigung des Warenausgangs: mehrere Rechnungen
+zugleich auf denselben Ansichten, jede wartet auf die Sperren der anderen,
+und die Verbindungen der API waren aufgebraucht.
+
+### Ein Platz, sonst warten (0100)
+
+Schritt 1 besetzt den Platz: `rechnet_seit` wird nur gesetzt, wenn er frei
+ist oder der Rest älter als 15 Minuten (0095: länger rechnet kein Lauf —
+ein älterer Rest ist ein abgebrochener). Ist er besetzt, bekommt der
+Aufrufer `wartet = true` zurück und rechnet nichts. Dazu je Schritt eine
+Sperre für die Dauer des Aufrufs (`pg_try_advisory_xact_lock`), damit
+zwei Erneuerungen derselben Ansicht zur selben Sekunde nicht vorkommen.
+Der Zeitplan-Weg (`auswertung_wenn_veraltet`) hört auf „wartet" und
+meldet, dass nichts zu tun war; der nächste Takt sieht nach.
+
+Die App rechnet nie neben einer laufenden Rechnung — auch nicht auf „Neu
+rechnen": Steht `rechnet_seit`, oder sagt ein Schritt „wartet", zeigt sie
+„wird gerade an anderer Stelle gerechnet — dieses Fenster wartet und lädt
+dann nach", sieht alle fünf Sekunden nach, bis der Platz frei ist, und
+lädt den neuen Stand. Der Chip sagt „wird gerade erneuert" für jeden, der
+rechnet, nicht nur für den Zeitplan.
+
+Geprüft in `pruefung.sql` 0100 (a–e) mit fünf Mutationen: Platz ohne
+Bedingung besetzen, Zeitgrenze 60 statt 15 Minuten, Zeitplan hört nicht
+auf wartet, Schritt 5 lässt den Platz besetzt, Antwort sagt fertig statt
+wartet — jede schlägt an.
+
+### Was bewusst nicht gemacht wurde
+
+**Kein Warten in der Datenbank.** `pg_advisory_lock` ohne `try` liesse den
+zweiten Aufruf in der Datenbank warten — bis zur Zeitgrenze der API, dann
+bricht sie ab, und die Verbindung ist so lange belegt wie vorher. Warten
+tut die App, mit einer Verbindung alle fünf Sekunden.
+
+**Keine Warteschlange.** Wer wartet, bekommt am Ende den Stand, den der
+andere gerechnet hat — mehr braucht niemand: Zwei Rechnungen hintereinander
+hätten dasselbe Ergebnis.
+
 ## Runde AE: eine Datei, eine Firma (28. September, 0099)
 
 Der Betrieb lud den Warenausgang neu hoch — wie immer beide Dateien,

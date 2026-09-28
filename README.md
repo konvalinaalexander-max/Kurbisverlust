@@ -687,6 +687,18 @@ letzten Rechnung nichts erfasst, sagt der Chip „aktuell". „Neu rechnen" gibt
 es nur ohne laufenden Zeitplan — mit einer ganzen Saison schafft der Knopf
 Schritt 3 nicht unter der Zeitgrenze der App.
 
+**Nachtrag 0100** — gerechnet wird nur an einer Stelle: Am 28. September
+rechneten mehrere Fenster und der Zeitplan zugleich (der Chip sagte bis
+Stand 98 „rechnet nicht", also rechnete die App beim Öffnen selbst), und
+die Datenbank antwortete eine halbe Stunde niemandem. Jetzt besetzt
+Schritt 1 den Platz (`auswertung_stand.rechnet_seit`); wer ihn besetzt
+findet, bekommt „wartet" und rechnet nicht mit — die App sagt „wird gerade
+an anderer Stelle gerechnet", sieht alle fünf Sekunden nach und lädt den
+neuen Stand. Ein Rest älter als 15 Minuten gilt als abgebrochen und wird
+übernommen. AB-109. **Nach diesem Stand ist `setup.sql` einzuspielen
+(Stand 100)** — solange die Datenbank Stand 99 hat, sagt die App es oben
+im Chip.
+
 **Runde AE (0099)** — eine Datei, eine Firma: Welche Firma eine
 Warenausgangsdatei ist, erkennt die App am **Inhalt** (bekannte
 Positionen), nicht am Dateinamen; schweigt der Inhalt, zählt der Name

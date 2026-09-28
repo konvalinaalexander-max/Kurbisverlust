@@ -6775,3 +6775,52 @@ begin
 end $$;
 
 select '——— 0099 Eine Datei, eine Firma geprüft ———' as ergebnis;
+
+-- =====================================================================
+-- 0100 — Gerechnet wird nur an einer Stelle
+--
+-- 28. September, 12:45: mehrere Fenster und der Zeitplan rechneten zugleich,
+-- die Datenbank antwortete eine halbe Stunde niemandem. Geprüft wird:
+-- (a) steht rechnet_seit (jung), bekommt Schritt 1 „wartet" und rührt nichts
+-- an; (b) ein Rest, älter als 15 Minuten, wird übernommen; (c) der
+-- Zeitplan-Weg rechnet nicht neben einer laufenden Rechnung; (d) ein
+-- normaler Lauf meldet wartet = false und räumt am Ende auf.
+-- =====================================================================
+do $$
+declare v_erg jsonb; v_seit timestamptz; v_vorher timestamptz; v_modus jsonb;
+begin
+  perform set_config('request.jwt.claim.sub', '11111111-1111-1111-1111-111111111111', true);
+  perform auswertung_aktualisieren();
+
+  -- (a) Es rechnet schon jemand: Schritt 1 wartet, rechnet_seit bleibt fremd.
+  v_seit := clock_timestamp() - interval '2 minutes';
+  update auswertung_stand set rechnet_seit = v_seit where id = 1;
+  v_erg := auswertung_schritt_intern(1, false);
+  assert (v_erg ->> 'wartet') = 'true', format('0100 (a1): neben einer laufenden Rechnung muss Schritt 1 warten: %s', v_erg);
+  assert (v_erg ->> 'fertig') = 'false', '0100 (a2): wartet und fertig zugleich';
+  assert (select rechnet_seit from auswertung_stand where id = 1) = v_seit, '0100 (a3): der wartende Aufruf hat rechnet_seit angefasst';
+  assert (v_erg ->> 'rechnet_seit')::timestamptz = v_seit, '0100 (a4): die Antwort sagt nicht, seit wann gerechnet wird';
+
+  -- (c) Der Zeitplan-Weg rechnet nicht mit — auch wenn etwas veraltet ist.
+  update auswertung_stand set geaendert_ts = clock_timestamp() where id = 1;   -- veraltet
+  select berechnet_ts into v_vorher from auswertung_stand where id = 1;
+  assert not auswertung_wenn_veraltet(), '0100 (c1): der Zeitplan hat neben einer laufenden Rechnung gerechnet';
+  assert (select berechnet_ts from auswertung_stand where id = 1) = v_vorher, '0100 (c2): der Zeitplan hat den Stand trotzdem erneuert';
+  assert (select rechnet_seit from auswertung_stand where id = 1) = v_seit, '0100 (c3): der Zeitplan hat rechnet_seit angefasst';
+
+  -- (b) Ein Rest, älter als die Zeitgrenze, ist ein abgebrochener Lauf: übernehmen.
+  update auswertung_stand set rechnet_seit = clock_timestamp() - interval '16 minutes' where id = 1;
+  v_erg := auswertung_schritt_intern(1, false);
+  assert (v_erg ->> 'wartet') = 'false', format('0100 (b1): ein alter Rest darf nicht sperren: %s', v_erg);
+  assert (select rechnet_seit from auswertung_stand where id = 1) > clock_timestamp() - interval '1 minute', '0100 (b2): der Platz wurde nicht neu besetzt';
+
+  -- (d) Der Lauf zu Ende: kein Warten, am Ende ist der Platz frei.
+  perform auswertung_schritt_intern(2, false); perform auswertung_schritt_intern(3, false); perform auswertung_schritt_intern(4, false);
+  v_erg := auswertung_schritt_intern(5, false);
+  assert (v_erg ->> 'wartet') = 'false' and (v_erg ->> 'fertig') = 'true', format('0100 (d1): %s', v_erg);
+  assert (select rechnet_seit is null from auswertung_stand where id = 1), '0100 (d2): rechnet_seit steht nach dem Lauf noch';
+  assert schema_stand() >= 100, format('0100 (e1): schema_stand() = %s', schema_stand());
+  raise notice 'OK  0100 — Neben einer laufenden Rechnung wartet jeder weitere Aufruf; ein alter Rest wird übernommen; der Zeitplan rechnet nie doppelt';
+end $$;
+
+select '——— 0100 Gerechnet wird nur an einer Stelle geprüft ———' as ergebnis;

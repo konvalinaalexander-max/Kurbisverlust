@@ -4,7 +4,7 @@ import { fehlerText } from '../lib/db'
 import { SCHEMA_ERWARTET, datenbankVeraltet } from '../lib/version'
 import type { Datenlage, Hochrechnung, Massenbilanz } from '../lib/typen'
 import { heute as heuteOrtszeit } from '../lib/format'
-import { istAktuell, zeitplanZustand, type ZeitplanZustand } from '../lib/zeitplan'
+import { istAktuell, rechnetGerade, zeitplanZustand, type ZeitplanZustand } from '../lib/zeitplan'
 
 /* =========================================================================
    Die Auswertung für den Betriebsleiter — ein Datenstand für alle Reiter.
@@ -404,11 +404,31 @@ function melden(f: Fortschritt | null) { fortschritt = f; fortschrittHoerer.forE
 async function rechnen(): Promise<Problem[]> {
   for (let i = 1; i <= SCHRITTE.length; i++) {
     melden({ schritt: i, schritte: SCHRITTE.length, titel: SCHRITTE[i - 1] })
-    const { error } = await supabase.rpc('auswertung_schritt', { p_schritt: i })
+    const { data, error } = await supabase.rpc('auswertung_schritt', { p_schritt: i })
     if (error) {
       melden(null)
       return [{ sicht: `Neu rechnen, Schritt ${i} von ${SCHRITTE.length} (${SCHRITTE[i - 1]})`, meldung: error.message }]
     }
+    // 0100: Rechnet schon jemand (ein anderes Fenster, der Zeitplan), rechnet
+    // dieses Fenster nicht mit — es wartet, bis der Stand steht.
+    if ((data as { wartet?: boolean } | null)?.wartet) return abwarten()
+  }
+  melden(null)
+  return []
+}
+
+/** Läuft in der Datenbank schon eine Rechnung, wartet die App auf ihr Ende —
+ *  höchstens so lange, wie ein Lauf dauern darf (0095: 15 Minuten). Am 28.
+ *  September rechneten mehrere Fenster und der Zeitplan zugleich, und die
+ *  Datenbank antwortete eine halbe Stunde lang niemandem mehr. */
+const WARTEN_MS = 5000
+async function abwarten(): Promise<Problem[]> {
+  melden({ schritt: 0, schritte: SCHRITTE.length, titel: 'wartet auf die laufende Rechnung' })
+  const bis = Date.now() + 15 * 60 * 1000
+  while (Date.now() < bis) {
+    await new Promise(r => window.setTimeout(r, WARTEN_MS))
+    const { data: st } = await supabase.from('auswertung_stand').select('rechnet_seit').maybeSingle()
+    if (!st || !rechnetGerade(st.rechnet_seit)) break
   }
   melden(null)
   return []
@@ -423,7 +443,7 @@ async function alles(erzwingen: boolean): Promise<Auswertung> {
   if (version.error || schemaStand === null || schemaStand < SCHEMA_ERWARTET) throw new Error(datenbankVeraltet(schemaStand))
 
   const [{ data: st }, zp] = await Promise.all([
-    supabase.from('auswertung_stand').select('berechnet_ts, geaendert_ts').maybeSingle(),
+    supabase.from('auswertung_stand').select('berechnet_ts, geaendert_ts, rechnet_seit').maybeSingle(),
     supabase.rpc('auswertung_zeitplan'),
   ])
   const zeitplan = zeitplanVon(zp.data)
@@ -440,8 +460,11 @@ async function alles(erzwingen: boolean): Promise<Auswertung> {
   // Lauf innerhalb dreier Takte, nicht fehlgeschlagen), nicht, ob er
   // eingetragen ist. Sonst sagt der Chip „neu bis 11:20", und um 11:20
   // geschieht nichts.
-  const selbstRechnen = erzwingen || (veraltet && zeitplan.zustand !== 'laeuft')
-  const probleme: Problem[] = selbstRechnen ? await rechnen() : []
+  // 0100: Rechnet gerade jemand — der Zeitplan oder ein anderes Fenster —,
+  // rechnet dieses Fenster nie mit, auch nicht auf „Neu rechnen": es wartet.
+  const rechnetSchon = rechnetGerade(st?.rechnet_seit)
+  const selbstRechnen = !rechnetSchon && (erzwingen || (veraltet && zeitplan.zustand !== 'laeuft'))
+  const probleme: Problem[] = selbstRechnen ? await rechnen() : rechnetSchon ? await abwarten() : []
   const { data: st2 } = await supabase.from('auswertung_stand').select('berechnet_ts, geaendert_ts, rechnet_seit').maybeSingle()
   const aktuell = istAktuell(st2?.berechnet_ts, st2?.geaendert_ts)
   zeitplan.rechnetSeit = st2?.rechnet_seit ?? zeitplan.rechnetSeit
@@ -655,7 +678,8 @@ export function useAuswertung() {
   // jemand etwas drückt; „wird gerade erneuert" steht im Chip, solange
   // rechnet_seit gesetzt ist.
   useEffect(() => {
-    if (daten?.zeitplan.zustand !== 'laeuft') return
+    // 0100: auch nachsehen, solange irgendwo gerechnet wird (rechnet_seit steht).
+    if (daten?.zeitplan.zustand !== 'laeuft' && !rechnetGerade(daten?.zeitplan.rechnetSeit)) return
     const t = window.setInterval(() => {
       void (async () => {
         const { data: st } = await supabase.from('auswertung_stand').select('berechnet_ts, geaendert_ts, rechnet_seit').maybeSingle()
@@ -675,7 +699,7 @@ export function useAuswertung() {
       })()
     }, NACHSEHEN_MS)
     return () => window.clearInterval(t)
-  }, [daten?.zeitplan.zustand])
+  }, [daten?.zeitplan.zustand, daten?.zeitplan.rechnetSeit])
   return { daten, laedt, fehler, fortschritt: schritt, neuRechnen: () => laden(true) }
 }
 
