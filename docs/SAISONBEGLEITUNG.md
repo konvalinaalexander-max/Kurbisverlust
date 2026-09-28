@@ -29,6 +29,8 @@ gedacht?), **zuletzt die Mathematik** — und jede Änderung steht in
 | Sockel a₀ | nur, wenn die Daten ihn belegen (`sockel_nachweis`), meist 0–3 % | Nachweis ohne plausiblen Grund (Erde, Hagelnarben, Schnittfehler): die frühen Arbeiten ansehen — was landet am ersten Tag im Palox? |
 | Ein Modell für alle Sorten | die Punkte der Sorten liegen um dieselbe Kurve | Eine Sorte liegt durchgehend darüber oder darunter: erst zählen, ob sie genug Punkte hat (> 15 Messungen, > 3 Chargen); dann ein Modell je Sorte erwägen — als eigene Migration mit Prüfblock, nie still |
 | Kommentare zur Ware | „Hagelschaden", „viel Faules" am Punkt (0091) erklären Ausreisser | Ein Ausreisser ohne Kommentar: die Arbeit öffnen (Klick auf den Punkt), die Palox-Ablesungen ansehen |
+| Zwei Augen | Band-Punkte (Sortieren) liegen unter den Wasch-Punkten derselben Charge: Das Band legt nur eklig Faules in den Palox, das Waschen auch Ästhetik und Schäden (Betrieb, 29. 9.) | Wasch-Punkte weit über Band-Punkten gleicher Lagertage: nicht als Verderb lesen. Die Kontrollpaletten (`quelle = lager`) sind das neutrale Auge — mehr davon. Merkposten Runde AG: Kurve nur aus Band und Kontrollpaletten, der Wasch-Palox als eigener Strom |
+| Ab Dezember | „plötzlich faul", ein klarer Anstieg (Betrieb, gehört) | Steigt die Kurve im Dezember, muss der Anstieg auch in den Kontrollpaletten stehen — sonst ist es das Auge, nicht die Ware |
 
 ## 3. Zu klein / zu gross, anderer Kanal (erg_koeff_ausschuss, erg_koeff_nebenkanal)
 

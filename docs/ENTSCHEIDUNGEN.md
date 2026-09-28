@@ -4356,6 +4356,46 @@ einen neuen Eintrag nicht übernommen), sieht man erst dort — mit der
 Diagnose. Übernimmt er ihn nicht, bleibt der Zehn-Minuten-Takt, und
 „Neu rechnen" dauert bis zu zehn Minuten statt einer.
 
+### Zwei Augen am Palox — was der Betrieb nachts noch sagte
+
+„Sortieren und die Waschgänge haben andere Auswahlkriterien für den Palox.
+An der Sortiermaschine — laut, schnell, hektisch, fünf Jungs — donnert der
+Kürbis übers Band; in den Palox kommt nur, was wirklich eklig faul ist. Beim
+Waschen und beim Waschen + Sortieren stehen zwei junge Frauen, die wissen,
+dass die Ware nach ihnen direkt in den Verkauf geht: Sie sortieren auch nach
+Ästhetik, nach kleinen Schäden, abgerissenen Stielen — nicht unbedingt faul.
+Man kann nicht sagen: beim Sortieren 0,1 % im Palox, eine Woche später beim
+Waschen 20 %, also muss es stark gefault haben. Es sind zwei sehr
+verschiedene Augen. Schliess nicht vom einen aufs andere." Und: Ab Dezember
+werde es „plötzlich faul", ein klarer Anstieg — gehört, noch nicht gesehen.
+
+Was die Mathematik heute tut, ehrlich: Sie schliesst vom einen aufs andere.
+`v_schimmel_punkte` macht aus jeder Arbeit einen Punkt „Anteil Faules gegen
+Lagertage", ohne Ansehen der Station — Sortieren und Waschen + Sortieren
+direkt (Palox durch Basis), Waschen als *aufgelaufener* Verderb: Der
+Sortierlauf-Anteil derselben Charge und der Wasch-Palox werden zu einem
+Anteil zusammengesetzt (f₂ = 1 − (1 − f₁)(1 − g)), als wären beide dasselbe
+Faule, nur später gezählt. Ein Modell F(t) über alle Punkte; die Kaskade
+rechnet damit den Verderb der Ware, die noch liegt. Die Station geht im
+Punkt verloren (`quelle` kennt nur „verarbeitung" und „lager"). Legt das
+Wasch-Auge Ästhetik und Schäden in den Palox, sieht das Modell einen
+steilen Anstieg des Faulens, der keiner ist, und trägt ihn auf jede Charge
+im Lager über — genau der Fehlschluss, den der Betrieb beschreibt. Was
+schon dagegen steht: die Kontrollpaletten (`quelle = 'lager'` — ein drittes
+Auge, neutral, immer dasselbe), der Selektionsverdacht
+(`v_selektionsverdacht` vergleicht verarbeitete und zufällig gegriffene
+Paletten) und die Plausibilitätsgrenze je Punkt.
+
+Was die nächste Runde daraus macht — kein Projekt heute, ein Merkposten:
+die Station in den Punkt tragen und im Diagramm zeigen (drei Zeichen: Band,
+Waschen, Kontrollpalette); die Verderbskurve nur aus den Augen anpassen, die
+Faules meinen (Band und Kontrollpaletten); den Wasch-Palox als eigenen Strom
+„beim Waschen aussortiert" je Sorte führen — ein Anteil des Waschschritts,
+keine Funktion der Lagertage. Ob die Halle im Wasch-Palox Faules und
+Schäden trennen will (zwei Behälter), entscheidet der Betrieb, nicht das
+Programm. Ab Dezember sind die Kontrollpaletten die einzige Messung, die
+nichts mit dem Auge zu tun hat — mehr davon, nicht weniger.
+
 ### Was bewusst nicht gemacht wurde
 
 **Die gespeicherten Ansichten beim Einspielen nicht stehen lassen.** Teil B
