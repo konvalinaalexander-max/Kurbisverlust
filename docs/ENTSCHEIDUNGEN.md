@@ -4008,6 +4008,45 @@ an, was neu ist, und lässt stehen, was da ist — auch wenn das Journal
 inzwischen anders lautet. Sonst überschriebe ein Tippfehler im Sheet eine
 Berichtigung in der App, ohne dass jemand es sähe.
 
+## Runde AA, angefangen: alle Daten auf Plausibilität (28. September)
+
+Der Betrieb: „meine Idee ist es, dass er nicht nur die Teilpaletten
+anschaut, sondern alle Daten mal auf Plausibilität testet." Zwei Dinge
+dafür, beide ohne Migration:
+
+**Der Abzug holt die Rohdaten.** Je Tabelle die Spalten aus `ROHTABELLEN`
+nach `docs/betrieb/rohdaten/` — ohne Kundennamen (`lieferung.kunde`),
+Preise (die Verkaufsdateien kommen gar nicht mit), freie Texte
+(`bemerkung`, Rückmeldungstexte stehen schon in `RUECKMELDUNGEN.md`) und
+Personen. Dabei fiel auf, dass Supabase je Anfrage 1000 Zeilen gibt: Der
+Abzug bat um 2000 Arbeiten und hätte bei einer grossen Saison
+stillschweigend ein Fünftel verloren. Jetzt blättert er.
+
+**Der Durchgang stellt die Fragen, die ein Mensch am Zettelstapel stellt.**
+`pruefstand/durchgang.mjs` läuft über die Rohdaten (oder die Demo) und
+schreibt Kandidaten nach Schwere: Teilpalette (weniger Kisten gewogen als
+am Eingang — der Fall aus dem PDF), Gewicht je Kiste ausser Rahmen,
+doppelte Paletten, Zettelgewicht gegen das Chargenmittel, Zeitfolgen
+(gewogen vor dem Eingang, Ende vor Anfang, Datum in der Zukunft),
+Verdunstung, die keine sein kann, Zahlendreher am Palox, fallende Stände,
+Ausschuss, der keine einzelne Kiste ist, Arbeiten ohne Nenner, Lieferungen
+über dem Eingang oder ohne Eingang, fertige Paletten je Kiste,
+Kontrollpaletten, die Kisten verlieren oder schwerer werden, Zetteldaten
+ohne Palette. Die Grenzen stehen als Konstanten oben (`GRENZEN`), grob
+und benannt. Es ist absichtlich nicht die Rechnung der Datenbank: Die
+meldet, was nicht in ihren Nenner passt; der Durchgang meldet, was nicht
+sein kann. Beides zusammen liest die Runde.
+
+**Was der Durchgang nicht ist:** ein Urteil. Jede Zeile heisst „Kandidat",
+und `CLAUDE.md` sagt, was die Runde damit tut — nachrechnen, Zweitmeinung,
+Regel oder Datenkorrektur vorschlagen. Auf der Demo-Saison findet er 33
+Kandidaten, vier mit Schwere hoch — alle so gebaut: der Zahlendreher
+4500 kg (Sonderfall 2), die Wasch-Arbeit ohne Nenner (Sonderfall 4) und
+zwei Chargen, deren Lieferungen über dem Eingang liegen (die Überzählung
+der Demo). Die 21 „Arbeitsdauer" (über 16 Stunden) sind Arbeiten der Demo,
+die über Nacht offen bleiben — Schwere niedrig, und ein Hinweis, dass der
+Durchsatz je Stunde dort nichts taugt.
+
 ## Runde Z: erst gelesen, dann gezeigt (26. September, 0094)
 
 ### Noch einmal: Kann ich Aufnahmen hören?

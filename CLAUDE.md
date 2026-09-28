@@ -38,6 +38,16 @@ Werkzeug — beginnt so:
 4. **`docs/HERLEITUNG.md`** — woher jede gerechnete Zahl ihre Eingaben
    nimmt und was gilt, wenn eine fehlt. Wer eine Kette ändert, ändert die
    Datei mit.
+5. **`docs/betrieb/DURCHGANG.md`** und **`docs/betrieb/rohdaten/`** — der
+   Plausibilitätsdurchgang über *alle* Rohdaten (`pruefstand/durchgang.mjs`,
+   Regeln in `durchgang_pruefungen.mjs`): Teilpaletten, Gewicht je Kiste,
+   doppelte Zeilen, Zeitfolgen, Lieferungen über dem Eingang, Zahlendreher.
+   Jede Zeile ist ein Kandidat. Die Runde nimmt die Rohzeilen dazu, rechnet
+   nach und schreibt zu jedem Kandidaten die Zweitmeinung: was wohl passiert
+   ist, wie sicher, was zu prüfen ist, ob eine Datenkorrektur (Betrieb) oder
+   eine Regel (Programm) folgt. Häuft sich eine Ursache, wird die Regel die
+   erste Aufgabe. Eine Grenze in `GRENZEN` ändert man nur mit Begründung in
+   `docs/ENTSCHEIDUNGEN.md`.
 
 ## 2. Regeln, die immer gelten
 

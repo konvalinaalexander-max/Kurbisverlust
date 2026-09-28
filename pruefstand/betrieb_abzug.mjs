@@ -30,6 +30,7 @@ import { writeFileSync, mkdirSync, existsSync, readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { eintraegePruefen, patchFuer } from './kurzfassung.mjs'
+import { ROHTABELLEN, durchgang, alsMarkdown } from './durchgang_pruefungen.mjs'
 
 const HIER = dirname(fileURLToPath(import.meta.url))
 const ZIEL = join(HIER, '..', 'docs', 'betrieb')
@@ -44,6 +45,16 @@ async function rest(pfad) {
   const r = await fetch(`${url}/rest/v1/${pfad}`, { headers: { apikey: key, Authorization: `Bearer ${key}` } })
   if (!r.ok) throw new Error(`${pfad}: ${r.status} ${await r.text()}`)
   return r.json()
+}
+// Supabase gibt je Anfrage höchstens 1000 Zeilen — wer mehr hat, blättert.
+// Ohne das fehlte einer Saison mit 1 200 Paletten stillschweigend ein Fünftel.
+async function restAlle(pfad) {
+  const alle = []
+  for (let von = 0; ; von += 1000) {
+    const teil = await rest(`${pfad}${pfad.includes('?') ? '&' : '?'}offset=${von}&limit=1000`)
+    alle.push(...teil)
+    if (teil.length < 1000) return alle
+  }
 }
 async function patch(pfad, koerper) {
   const r = await fetch(`${url}/rest/v1/${pfad}`, {
@@ -82,9 +93,9 @@ const [einstellungen, stand, chargen, profile, auftraege, rueck, befunde, kv, ka
   rest('auswertung_stand?select=*'),
   rest('charge?select=nr,sorte,schlag'),
   rest('profil?select=id,name'),
-  rest('auftrag?select=id,weg,station,ist_fax,charge_nr,start_ts,ende_ts,status,abgebrochen_ts&order=start_ts.desc&limit=2000'),
-  rest('auftrag_rueckmeldung?select=*&order=ts.desc&limit=1000'),
-  rest('erg_plausibilitaet?select=*'),
+  restAlle('auftrag?select=id,weg,station,ist_fax,charge_nr,start_ts,ende_ts,status,abgebrochen_ts&order=start_ts.desc'),
+  restAlle('auftrag_rueckmeldung?select=*&order=ts.desc'),
+  restAlle('erg_plausibilitaet?select=*'),
   rest('erg_koeff_verdunstung?select=*'),
   rest('erg_koeff_ausschuss?select=*'),
   rest('erg_koeff_nebenkanal?select=*'),
@@ -159,6 +170,29 @@ m += '## Verderbsmodell (erg_modell)\n\n' + tabelle(modell)
 m += '## Datenqualität (erg_datenqualitaet)\n\n' + tabelle(qual)
 m += '## Bilanz (erg_bilanz)\n\n' + tabelle(bilanz)
 
+// ---- 3b. Rohdaten — damit die Runde nachrechnen kann (Runde AA) ---------------
+// Der Betrieb: „nicht nur die Teilpaletten anschauen, sondern alle Daten mal
+// auf Plausibilität testen." Dafür jede Tabelle mit den Spalten aus
+// ROHTABELLEN — ohne Kundennamen, Preise, freie Texte, Personen. Eine Tabelle,
+// die es (noch) nicht gibt, wird genannt und übersprungen.
+mkdirSync(join(ZIEL, 'rohdaten'), { recursive: true })
+const roh = {}
+let rohIndex = kopf('Rohdaten der Saison')
+rohIndex += 'Je Tabelle die Zeilen mit den Spalten aus `ROHTABELLEN` (`pruefstand/durchgang_pruefungen.mjs`) — ohne Kundennamen, Preise, freie Texte und Personen. Für den Plausibilitätsdurchgang (`DURCHGANG.md`) und für jede Runde, die eine Zahl nachrechnen will.\n\n| Tabelle | Zeilen | Spalten |\n|---|---|---|\n'
+for (const [tabelle, spalten] of Object.entries(ROHTABELLEN)) {
+  try {
+    const zeilen = await restAlle(`${tabelle}?select=${spalten.join(',')}&order=${spalten[0]}`)
+    roh[tabelle] = zeilen
+    writeFileSync(join(ZIEL, 'rohdaten', `${tabelle}.json`), JSON.stringify(zeilen))
+    rohIndex += `| ${tabelle} | ${zeilen.length} | ${spalten.join(', ')} |\n`
+  } catch (f) {
+    rohIndex += `| ${tabelle} | — | nicht abgezogen: ${md(String(f.message ?? f).slice(0, 120))} |\n`
+  }
+}
+writeFileSync(join(ZIEL, 'ROHDATEN.md'), rohIndex + '\n')
+const dg = durchgang(roh, heute)
+writeFileSync(join(ZIEL, 'DURCHGANG.md'), alsMarkdown(dg, heute, 'docs/betrieb/rohdaten (Betriebsabzug)'))
+
 // ---- 4. Verlauf — eine Zeile je Abzug -----------------------------------------
 mkdirSync(ZIEL, { recursive: true })
 const verlaufPfad = join(ZIEL, 'VERLAUF.md')
@@ -172,4 +206,4 @@ writeFileSync(join(ZIEL, 'RUECKMELDUNGEN.md'), r)
 writeFileSync(join(ZIEL, 'AUFFAELLIGKEITEN.md'), b)
 writeFileSync(join(ZIEL, 'MODELLSTAND.md'), m)
 writeFileSync(verlaufPfad, v)
-console.log(`Abzug ${heute}: ${rueck.length} Rückmeldungen, ${befunde.length} Auffälligkeiten → docs/betrieb/`)
+console.log(`Abzug ${heute}: ${rueck.length} Rückmeldungen, ${befunde.length} Auffälligkeiten, ${Object.keys(roh).length} Rohtabellen, ${dg.befunde.length} Kandidaten im Durchgang → docs/betrieb/`)

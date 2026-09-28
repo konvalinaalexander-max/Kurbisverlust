@@ -668,7 +668,17 @@ warum sein Deploy-Befehl `npx wrangler deploy --env beispiel` lauten **muss**
 [`docs/ZWEI_WEBSEITEN.md`](docs/ZWEI_WEBSEITEN.md). Rechne mit einer guten
 halben Stunde.
 
-**Zuletzt gebaut (Runde Z, 0094)** — ein Kommentar zur Ware steht erst
+**Zuletzt gebaut (Runde AA, angefangen)** — der Betriebsabzug holt jetzt
+**alle Rohdaten** (ohne Kundennamen, Preise, freie Texte) nach
+`docs/betrieb/rohdaten/` und schreibt den **Plausibilitätsdurchgang**
+`docs/betrieb/DURCHGANG.md`: Teilpaletten, Gewicht je Kiste, doppelte
+Zeilen, Zeitfolgen, Lieferungen über dem Eingang, Zahlendreher — jede Zeile
+ein Kandidat mit Grund, den die Runde am Programm liest und zur Zweitmeinung
+macht (`pruefstand/durchgang.mjs`, geprüft in `test/durchgang.test.ts`).
+Dazu blättert der Abzug durch grosse Tabellen (Supabase gibt je Anfrage
+1000 Zeilen).
+
+**Runde Z (0094)** — ein Kommentar zur Ware steht erst
 im Dashboard, wenn jemand ihn gelesen und **gekürzt** hat („Hagelschaden"):
 beim Drüberfahren die Kurzfassung, beim Anklicken die Rohfassung samt
 Aufnahme. Gekürzt wird von der Runde am Programm (über

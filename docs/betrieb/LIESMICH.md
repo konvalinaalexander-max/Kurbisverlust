@@ -11,6 +11,9 @@ gesetzt sind). Sie sind der Anfang jeder Runde am Programm — siehe
 | `AUFFAELLIGKEITEN.md` | Alle Auffälligkeiten der Messungen, gezählt nach Art und einzeln mit Arbeit |
 | `MODELLSTAND.md` | Koeffizienten, Verderbsmodell, Datenqualität, Bilanz — zum Abgleich mit `docs/SAISONBEGLEITUNG.md` |
 | `VERLAUF.md` | Eine Zeile je Abzug: werden die Auffälligkeiten weniger? |
+| `rohdaten/*.json` | **Alle Rohdaten** je Tabelle (Spalten laut `ROHTABELLEN` in `pruefstand/durchgang_pruefungen.mjs`) — ohne Kundennamen, Preise, freie Texte, Personen. Damit jede Runde jede Zahl nachrechnen kann. |
+| `ROHDATEN.md` | Was davon abgezogen wurde: Tabelle, Zeilen, Spalten. |
+| `DURCHGANG.md` | Der **Plausibilitätsdurchgang** über die Rohdaten: Kandidaten mit Grund und Zahlen, nach Schwere. Kein Urteil — die Runde liest, rechnet nach, schreibt die Zweitmeinung. |
 | `kurzfassungen.json` | **Der Rückweg** (0094): die Kurzfassungen der Kommentare zur Ware, eine je Nr. — von der Runde am Programm geschrieben, vom Abzug in die Datenbank eingespielt (täglich, und sofort beim Push). Erst damit steht ein Kommentar im Dashboard. |
 
 Die `.md`-Dateien nicht von Hand ändern — der nächste Abzug überschreibt.
