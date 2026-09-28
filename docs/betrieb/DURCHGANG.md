@@ -1,0 +1,1687 @@
+# Plausibilitätsdurchgang
+
+_Stand 2026-09-28 · Quelle docs/betrieb/rohdaten (Betriebsabzug) · von `pruefstand/durchgang.mjs` geschrieben; nicht von Hand ändern._
+
+Jede Zeile ist ein **Kandidat**, kein Urteil: eine Zahl, die so nicht sein kann oder nicht sein sollte, mit dem Grund. Die Runde am Programm liest sie, prüft die Rohzeilen und schreibt die Zweitmeinung; der Betrieb entscheidet.
+
+## Tabellen
+
+| Tabelle | Zeilen |
+|---|---|
+| charge | 42 |
+| palette | 1629 |
+| auftrag | 28 |
+| auftrag_palette | 102 |
+| auftrag_gebinde | 0 |
+| schimmel_messung | 48 |
+| ausschuss_messung | 16 |
+| verdunstung_wiegung | 27 |
+| ausgang_wiegung | 27 |
+| kontrollpalette | 0 |
+| kontrollpalette_wiegung | 0 |
+| lieferung | 587 |
+| sortier_lauf | 12 |
+| gebinde | 6 |
+| auswertung_stand | 1 |
+
+## Nach Prüfung (546)
+
+| Prüfung | Anzahl |
+|---|---|
+| Doppelte Palette | 518 |
+| Eingang Gewicht je Kiste | 18 |
+| Zetteldatum ohne Palette | 3 |
+| Arbeit ohne Eingang | 2 |
+| Eingang Kisten | 1 |
+| Zettelgewicht | 1 |
+| Arbeitsdauer | 1 |
+| Verdunstung zu hoch | 1 |
+| Lieferung über Eingang | 1 |
+
+## Schwere hoch (3)
+
+- **Arbeit ohne Eingang** · Arbeit 1570 (waschen_sortieren, Charge 1599, 2026-09-21)
+  - Eine Arbeit an einer Charge, von der keine Palette im Erntejournal steht.
+  - _charge_nr = 1599_
+- **Arbeit ohne Eingang** · Arbeit 1571 (waschen_sortieren, Charge 1604, 2026-09-21)
+  - Eine Arbeit an einer Charge, von der keine Palette im Erntejournal steht.
+  - _charge_nr = 1604_
+- **Lieferung über Eingang** · Charge 1626
+  - Mehr ausgeliefert als eingegangen (5885 gegen 4862.8 kg netto). Eingang fehlt im Journal, oder Lieferungen tragen die falsche Charge.
+  - _geliefert_kg = 5885 · eingang_netto_kg = 4862.8_
+
+## Schwere mittel (24)
+
+- **Eingang Gewicht je Kiste** · Palette 7425 · Charge 1638 · 2026-09-10
+  - 291.5 kg netto je Kiste — ausserhalb von 4–30 kg. Einheit (kg statt g?), Zahlendreher oder falsche Kistenzahl.
+  - _brutto_kg = 318 · kisten = 1 · netto_je_kiste_kg = 291.5_
+- **Eingang Gewicht je Kiste** · Palette 7426 · Charge 1638 · 2026-09-10
+  - 291.5 kg netto je Kiste — ausserhalb von 4–30 kg. Einheit (kg statt g?), Zahlendreher oder falsche Kistenzahl.
+  - _brutto_kg = 318 · kisten = 1 · netto_je_kiste_kg = 291.5_
+- **Eingang Gewicht je Kiste** · Palette 7427 · Charge 1638 · 2026-09-10
+  - 291.5 kg netto je Kiste — ausserhalb von 4–30 kg. Einheit (kg statt g?), Zahlendreher oder falsche Kistenzahl.
+  - _brutto_kg = 318 · kisten = 1 · netto_je_kiste_kg = 291.5_
+- **Eingang Gewicht je Kiste** · Palette 7428 · Charge 1638 · 2026-09-10
+  - 291.5 kg netto je Kiste — ausserhalb von 4–30 kg. Einheit (kg statt g?), Zahlendreher oder falsche Kistenzahl.
+  - _brutto_kg = 318 · kisten = 1 · netto_je_kiste_kg = 291.5_
+- **Eingang Gewicht je Kiste** · Palette 7429 · Charge 1638 · 2026-09-10
+  - 288.5 kg netto je Kiste — ausserhalb von 4–30 kg. Einheit (kg statt g?), Zahlendreher oder falsche Kistenzahl.
+  - _brutto_kg = 315 · kisten = 1 · netto_je_kiste_kg = 288.5_
+- **Eingang Gewicht je Kiste** · Palette 7430 · Charge 1638 · 2026-09-10
+  - 288.5 kg netto je Kiste — ausserhalb von 4–30 kg. Einheit (kg statt g?), Zahlendreher oder falsche Kistenzahl.
+  - _brutto_kg = 315 · kisten = 1 · netto_je_kiste_kg = 288.5_
+- **Eingang Gewicht je Kiste** · Palette 7431 · Charge 1638 · 2026-09-10
+  - 288.5 kg netto je Kiste — ausserhalb von 4–30 kg. Einheit (kg statt g?), Zahlendreher oder falsche Kistenzahl.
+  - _brutto_kg = 315 · kisten = 1 · netto_je_kiste_kg = 288.5_
+- **Eingang Gewicht je Kiste** · Palette 7432 · Charge 1638 · 2026-09-10
+  - 288.5 kg netto je Kiste — ausserhalb von 4–30 kg. Einheit (kg statt g?), Zahlendreher oder falsche Kistenzahl.
+  - _brutto_kg = 315 · kisten = 1 · netto_je_kiste_kg = 288.5_
+- **Eingang Gewicht je Kiste** · Palette 7433 · Charge 1638 · 2026-09-10
+  - 273.5 kg netto je Kiste — ausserhalb von 4–30 kg. Einheit (kg statt g?), Zahlendreher oder falsche Kistenzahl.
+  - _brutto_kg = 300 · kisten = 1 · netto_je_kiste_kg = 273.5_
+- **Eingang Gewicht je Kiste** · Palette 7434 · Charge 1638 · 2026-09-10
+  - 273.5 kg netto je Kiste — ausserhalb von 4–30 kg. Einheit (kg statt g?), Zahlendreher oder falsche Kistenzahl.
+  - _brutto_kg = 300 · kisten = 1 · netto_je_kiste_kg = 273.5_
+- **Eingang Gewicht je Kiste** · Palette 7435 · Charge 1638 · 2026-09-10
+  - 273.5 kg netto je Kiste — ausserhalb von 4–30 kg. Einheit (kg statt g?), Zahlendreher oder falsche Kistenzahl.
+  - _brutto_kg = 300 · kisten = 1 · netto_je_kiste_kg = 273.5_
+- **Eingang Gewicht je Kiste** · Palette 7436 · Charge 1638 · 2026-09-10
+  - 273.5 kg netto je Kiste — ausserhalb von 4–30 kg. Einheit (kg statt g?), Zahlendreher oder falsche Kistenzahl.
+  - _brutto_kg = 300 · kisten = 1 · netto_je_kiste_kg = 273.5_
+- **Eingang Gewicht je Kiste** · Palette 7437 · Charge 1638 · 2026-09-10
+  - 286.5 kg netto je Kiste — ausserhalb von 4–30 kg. Einheit (kg statt g?), Zahlendreher oder falsche Kistenzahl.
+  - _brutto_kg = 313 · kisten = 1 · netto_je_kiste_kg = 286.5_
+- **Eingang Gewicht je Kiste** · Palette 7438 · Charge 1638 · 2026-09-10
+  - 286.5 kg netto je Kiste — ausserhalb von 4–30 kg. Einheit (kg statt g?), Zahlendreher oder falsche Kistenzahl.
+  - _brutto_kg = 313 · kisten = 1 · netto_je_kiste_kg = 286.5_
+- **Eingang Gewicht je Kiste** · Palette 7439 · Charge 1638 · 2026-09-10
+  - 286.5 kg netto je Kiste — ausserhalb von 4–30 kg. Einheit (kg statt g?), Zahlendreher oder falsche Kistenzahl.
+  - _brutto_kg = 313 · kisten = 1 · netto_je_kiste_kg = 286.5_
+- **Eingang Gewicht je Kiste** · Palette 7440 · Charge 1638 · 2026-09-10
+  - 286.5 kg netto je Kiste — ausserhalb von 4–30 kg. Einheit (kg statt g?), Zahlendreher oder falsche Kistenzahl.
+  - _brutto_kg = 313 · kisten = 1 · netto_je_kiste_kg = 286.5_
+- **Eingang Gewicht je Kiste** · Palette 7441 · Charge 1638 · 2026-09-10
+  - 292.5 kg netto je Kiste — ausserhalb von 4–30 kg. Einheit (kg statt g?), Zahlendreher oder falsche Kistenzahl.
+  - _brutto_kg = 319 · kisten = 1 · netto_je_kiste_kg = 292.5_
+- **Eingang Gewicht je Kiste** · Palette 7442 · Charge 1638 · 2026-09-10
+  - 292.5 kg netto je Kiste — ausserhalb von 4–30 kg. Einheit (kg statt g?), Zahlendreher oder falsche Kistenzahl.
+  - _brutto_kg = 319 · kisten = 1 · netto_je_kiste_kg = 292.5_
+- **Eingang Kisten** · Palette 6904 · Charge 1617 · 2026-08-25
+  - 65 Kisten auf einer Palette — das gibt es nicht; vermutlich vertippt.
+  - _kisten = 65 · brutto_kg = 630_
+- **Verdunstung zu hoch** · Wägung 244 · Arbeit 1584 (waschen_sortieren, Charge 1651, 2026-09-24) · Charge 1651
+  - 4.8 % je Tag ist keine Verdunstung. Keine Teilpalette erkennbar (keine Eingangskisten bekannt oder gleich viele) — Kisten gewechselt, Zahlendreher, oder doch eine halbe Palette ohne Verknüpfung zum Eingang?
+  - _netto_damals_kg = 424 · netto_jetzt_kg = 151 · tage = 21 · rate_je_tag = 0.048_
+- **Zetteldatum ohne Palette** · Zettel 3042 · Arbeit 1589 (waschen_sortieren, Charge 1613, 2026-09-26)
+  - An diesem Tag kam laut Journal keine Palette dieser Charge — Datum vertippt (12./21.?) oder Palette fehlt im Journal.
+  - _zetteldatum = 2026-09-15 · tage_der_charge = 2026-08-14, 2026-08-19, 2026-08-24, 2026-08-26, 2026-08-27, 2026-08-29, 2026-09-01_
+- **Zetteldatum ohne Palette** · Zettel 3043 · Arbeit 1589 (waschen_sortieren, Charge 1613, 2026-09-26)
+  - An diesem Tag kam laut Journal keine Palette dieser Charge — Datum vertippt (12./21.?) oder Palette fehlt im Journal.
+  - _zetteldatum = 2026-09-15 · tage_der_charge = 2026-08-14, 2026-08-19, 2026-08-24, 2026-08-26, 2026-08-27, 2026-08-29, 2026-09-01_
+- **Zetteldatum ohne Palette** · Zettel 3044 · Arbeit 1589 (waschen_sortieren, Charge 1613, 2026-09-26)
+  - An diesem Tag kam laut Journal keine Palette dieser Charge — Datum vertippt (12./21.?) oder Palette fehlt im Journal.
+  - _zetteldatum = 2026-09-15 · tage_der_charge = 2026-08-14, 2026-08-19, 2026-08-24, 2026-08-26, 2026-08-27, 2026-08-29, 2026-09-01_
+- **Zettelgewicht** · Zettel 3024 · Arbeit 1584 (waschen_sortieren, Charge 1651, 2026-09-24) · 2026-09-03
+  - 26.5 kg je Kiste laut Zettel gegen 10.9 kg im Mittel der Charge — Zahlendreher, oder eine Palette mit anderer Kistenzahl.
+  - _zettel_brutto_kg = 473 · kisten_angenommen = 16 · netto_je_kiste_kg = 26.5 · charge_mittel_je_kiste_kg = 10.9_
+
+## Schwere niedrig (519)
+
+- **Arbeitsdauer** · Arbeit 1580 (waschen_sortieren, Charge 1617, 2026-09-23)
+  - 20.3 Stunden — wohl über Nacht offen geblieben und erst am nächsten Tag abgeschlossen; der Durchsatz je Stunde stimmt dann nicht.
+  - _stunden = 20.3_
+- **Doppelte Palette** · Paletten 6341 und 6343 · Charge 1607 · 2026-07-24
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 384 · kisten = 32 · extern_id = 1607|2026-07-24|384#2_
+- **Doppelte Palette** · Paletten 6341 und 6344 · Charge 1607 · 2026-07-24
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 384 · kisten = 32 · extern_id = 1607|2026-07-24|384#3_
+- **Doppelte Palette** · Paletten 6341 und 6350 · Charge 1607 · 2026-07-24
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 384 · kisten = 32 · extern_id = 1607|2026-07-24|384#4_
+- **Doppelte Palette** · Paletten 6341 und 6351 · Charge 1607 · 2026-07-24
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 384 · kisten = 32 · extern_id = 1607|2026-07-24|384#5_
+- **Doppelte Palette** · Paletten 6352 und 6353 · Charge 1607 · 2026-07-24
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 395 · kisten = 32 · extern_id = 1607|2026-07-24|395#2_
+- **Doppelte Palette** · Paletten 6356 und 6358 · Charge 1605 · 2026-07-24
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 386 · kisten = 32 · extern_id = 1605|2026-07-24|386#2_
+- **Doppelte Palette** · Paletten 6357 und 6362 · Charge 1605 · 2026-07-24
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 383 · kisten = 32 · extern_id = 1605|2026-07-24|383#2_
+- **Doppelte Palette** · Paletten 6360 und 6361 · Charge 1605 · 2026-07-24
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 396 · kisten = 32 · extern_id = 1605|2026-07-24|396#2_
+- **Doppelte Palette** · Paletten 6367 und 6369 · Charge 1606 · 2026-07-24
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 351 · kisten = 32 · extern_id = 1606|2026-07-24|351#2_
+- **Doppelte Palette** · Paletten 6374 und 6379 · Charge 1615 · 2026-07-25
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 418 · kisten = 32 · extern_id = 1615|2026-07-25|418#2_
+- **Doppelte Palette** · Paletten 6377 und 6378 · Charge 1615 · 2026-07-25
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 420 · kisten = 32 · extern_id = 1615|2026-07-25|420#2_
+- **Doppelte Palette** · Paletten 6384 und 6385 · Charge 1605 · 2026-07-25
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 380 · kisten = 32 · extern_id = 1605|2026-07-25|380#2_
+- **Doppelte Palette** · Paletten 6391 und 6392 · Charge 1615 · 2026-07-27
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 422 · kisten = 32 · extern_id = 1615|2026-07-27|422#2_
+- **Doppelte Palette** · Paletten 6395 und 6403 · Charge 1615 · 2026-07-27
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 421 · kisten = 32 · extern_id = 1615|2026-07-27|421#2_
+- **Doppelte Palette** · Paletten 6396 und 6399 · Charge 1615 · 2026-07-27
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 426 · kisten = 32 · extern_id = 1615|2026-07-27|426#2_
+- **Doppelte Palette** · Paletten 6407 und 6431 · Charge 1614 · 2026-07-27
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 426 · kisten = 32 · extern_id = 1614|2026-07-27|426#2_
+- **Doppelte Palette** · Paletten 6407 und 6432 · Charge 1614 · 2026-07-27
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 426 · kisten = 32 · extern_id = 1614|2026-07-27|426#3_
+- **Doppelte Palette** · Paletten 6408 und 6409 · Charge 1614 · 2026-07-27
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 430 · kisten = 32 · extern_id = 1614|2026-07-27|430#2_
+- **Doppelte Palette** · Paletten 6408 und 6411 · Charge 1614 · 2026-07-27
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 430 · kisten = 32 · extern_id = 1614|2026-07-27|430#3_
+- **Doppelte Palette** · Paletten 6408 und 6418 · Charge 1614 · 2026-07-27
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 430 · kisten = 32 · extern_id = 1614|2026-07-27|430#4_
+- **Doppelte Palette** · Paletten 6408 und 6419 · Charge 1614 · 2026-07-27
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 430 · kisten = 32 · extern_id = 1614|2026-07-27|430#5_
+- **Doppelte Palette** · Paletten 6408 und 6435 · Charge 1614 · 2026-07-27
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 430 · kisten = 32 · extern_id = 1614|2026-07-27|430#6_
+- **Doppelte Palette** · Paletten 6438 und 6441 · Charge 1625 · 2026-07-29
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 400 · kisten = 32 · extern_id = 1625|2026-07-29|400#2_
+- **Doppelte Palette** · Paletten 6438 und 6443 · Charge 1625 · 2026-07-29
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 400 · kisten = 32 · extern_id = 1625|2026-07-29|400#3_
+- **Doppelte Palette** · Paletten 6442 und 6462 · Charge 1625 · 2026-07-29
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 406 · kisten = 32 · extern_id = 1625|2026-07-29|406#2_
+- **Doppelte Palette** · Paletten 6445 und 6448 · Charge 1625 · 2026-07-29
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 402 · kisten = 32 · extern_id = 1625|2026-07-29|402#2_
+- **Doppelte Palette** · Paletten 6446 und 6450 · Charge 1625 · 2026-07-29
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 386 · kisten = 32 · extern_id = 1625|2026-07-29|386#2_
+- **Doppelte Palette** · Paletten 6449 und 6455 · Charge 1625 · 2026-07-29
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 397 · kisten = 32 · extern_id = 1625|2026-07-29|397#2_
+- **Doppelte Palette** · Paletten 6449 und 6464 · Charge 1625 · 2026-07-29
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 397 · kisten = 32 · extern_id = 1625|2026-07-29|397#3_
+- **Doppelte Palette** · Paletten 6457 und 6461 · Charge 1625 · 2026-07-29
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 407 · kisten = 32 · extern_id = 1625|2026-07-29|407#2_
+- **Doppelte Palette** · Paletten 6467 und 6470 · Charge 1616 · 2026-07-30
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 388 · kisten = 32 · extern_id = 1616|2026-07-30|388#2_
+- **Doppelte Palette** · Paletten 6467 und 6475 · Charge 1616 · 2026-07-30
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 388 · kisten = 32 · extern_id = 1616|2026-07-30|388#3_
+- **Doppelte Palette** · Paletten 6468 und 6473 · Charge 1616 · 2026-07-30
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 387 · kisten = 32 · extern_id = 1616|2026-07-30|387#2_
+- **Doppelte Palette** · Paletten 6469 und 6493 · Charge 1616 · 2026-07-30
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 395 · kisten = 32 · extern_id = 1616|2026-07-30|395#2_
+- **Doppelte Palette** · Paletten 6471 und 6476 · Charge 1616 · 2026-07-30
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 392 · kisten = 32 · extern_id = 1616|2026-07-30|392#2_
+- **Doppelte Palette** · Paletten 6472 und 6483 · Charge 1616 · 2026-07-30
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 390 · kisten = 32 · extern_id = 1616|2026-07-30|390#2_
+- **Doppelte Palette** · Paletten 6477 und 6487 · Charge 1616 · 2026-07-30
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 402 · kisten = 32 · extern_id = 1616|2026-07-30|402#2_
+- **Doppelte Palette** · Paletten 6478 und 6484 · Charge 1616 · 2026-07-30
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 399 · kisten = 32 · extern_id = 1616|2026-07-30|399#2_
+- **Doppelte Palette** · Paletten 6479 und 6488 · Charge 1616 · 2026-07-30
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 401 · kisten = 32 · extern_id = 1616|2026-07-30|401#2_
+- **Doppelte Palette** · Paletten 6479 und 6490 · Charge 1616 · 2026-07-30
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 401 · kisten = 32 · extern_id = 1616|2026-07-30|401#3_
+- **Doppelte Palette** · Paletten 6479 und 6492 · Charge 1616 · 2026-07-30
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 401 · kisten = 32 · extern_id = 1616|2026-07-30|401#4_
+- **Doppelte Palette** · Paletten 6480 und 6486 · Charge 1616 · 2026-07-30
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 403 · kisten = 32 · extern_id = 1616|2026-07-30|403#2_
+- **Doppelte Palette** · Paletten 6480 und 6489 · Charge 1616 · 2026-07-30
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 403 · kisten = 32 · extern_id = 1616|2026-07-30|403#3_
+- **Doppelte Palette** · Paletten 6485 und 6496 · Charge 1616 · 2026-07-30
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 400 · kisten = 32 · extern_id = 1616|2026-07-30|400#2_
+- **Doppelte Palette** · Paletten 6499 und 6511 · Charge 1616 · 2026-07-31
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 400 · kisten = 32 · extern_id = 1616|2026-07-31|400#2_
+- **Doppelte Palette** · Paletten 6501 und 6509 · Charge 1616 · 2026-07-31
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 397 · kisten = 32 · extern_id = 1616|2026-07-31|397#2_
+- **Doppelte Palette** · Paletten 6502 und 6512 · Charge 1616 · 2026-07-31
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 395 · kisten = 32 · extern_id = 1616|2026-07-31|395#2_
+- **Doppelte Palette** · Paletten 6505 und 6506 · Charge 1616 · 2026-07-31
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 401 · kisten = 32 · extern_id = 1616|2026-07-31|401#2_
+- **Doppelte Palette** · Paletten 6507 und 6510 · Charge 1616 · 2026-07-31
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 406 · kisten = 32 · extern_id = 1616|2026-07-31|406#2_
+- **Doppelte Palette** · Paletten 6517 und 6524 · Charge 1616 · 2026-07-03
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 405 · kisten = 32 · extern_id = 1616|2026-07-03|405#2_
+- **Doppelte Palette** · Paletten 6519 und 6527 · Charge 1616 · 2026-07-03
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 411 · kisten = 32 · extern_id = 1616|2026-07-03|411#2_
+- **Doppelte Palette** · Paletten 6520 und 6528 · Charge 1616 · 2026-07-03
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 408 · kisten = 32 · extern_id = 1616|2026-07-03|408#2_
+- **Doppelte Palette** · Paletten 6521 und 6529 · Charge 1616 · 2026-07-03
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 406 · kisten = 32 · extern_id = 1616|2026-07-03|406#2_
+- **Doppelte Palette** · Paletten 6522 und 6534 · Charge 1616 · 2026-07-03
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 410 · kisten = 32 · extern_id = 1616|2026-07-03|410#2_
+- **Doppelte Palette** · Paletten 6525 und 6526 · Charge 1616 · 2026-07-03
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 402 · kisten = 32 · extern_id = 1616|2026-07-03|402#2_
+- **Doppelte Palette** · Paletten 6531 und 6533 · Charge 1616 · 2026-07-03
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 404 · kisten = 32 · extern_id = 1616|2026-07-03|404#2_
+- **Doppelte Palette** · Paletten 6545 und 6548 · Charge 1619 · 2026-08-04
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 415 · kisten = 32 · extern_id = 1619|2026-08-04|415#2_
+- **Doppelte Palette** · Paletten 6545 und 6550 · Charge 1619 · 2026-08-04
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 415 · kisten = 32 · extern_id = 1619|2026-08-04|415#3_
+- **Doppelte Palette** · Paletten 6546 und 6547 · Charge 1619 · 2026-08-04
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 412 · kisten = 32 · extern_id = 1619|2026-08-04|412#2_
+- **Doppelte Palette** · Paletten 6554 und 6557 · Charge 1648 · 2026-08-10
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 399 · kisten = 32 · extern_id = 1648|2026-08-10|399#2_
+- **Doppelte Palette** · Paletten 6554 und 6560 · Charge 1648 · 2026-08-10
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 399 · kisten = 32 · extern_id = 1648|2026-08-10|399#3_
+- **Doppelte Palette** · Paletten 6555 und 6563 · Charge 1648 · 2026-08-10
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 395 · kisten = 32 · extern_id = 1648|2026-08-10|395#2_
+- **Doppelte Palette** · Paletten 6565 und 6566 · Charge 1648 · 2026-08-10
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 400 · kisten = 32 · extern_id = 1648|2026-08-10|400#2_
+- **Doppelte Palette** · Paletten 6570 und 6580 · Charge 1630 · 2026-08-13
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 424 · kisten = 32 · extern_id = 1630|2026-08-13|424#2_
+- **Doppelte Palette** · Paletten 6571 und 6572 · Charge 1630 · 2026-08-13
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 425 · kisten = 32 · extern_id = 1630|2026-08-13|425#2_
+- **Doppelte Palette** · Paletten 6571 und 6575 · Charge 1630 · 2026-08-13
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 425 · kisten = 32 · extern_id = 1630|2026-08-13|425#3_
+- **Doppelte Palette** · Paletten 6571 und 6589 · Charge 1630 · 2026-08-13
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 425 · kisten = 32 · extern_id = 1630|2026-08-13|425#4_
+- **Doppelte Palette** · Paletten 6571 und 6594 · Charge 1630 · 2026-08-13
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 425 · kisten = 32 · extern_id = 1630|2026-08-13|425#5_
+- **Doppelte Palette** · Paletten 6573 und 6591 · Charge 1630 · 2026-08-13
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 416 · kisten = 32 · extern_id = 1630|2026-08-13|416#2_
+- **Doppelte Palette** · Paletten 6574 und 6577 · Charge 1630 · 2026-08-13
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 420 · kisten = 32 · extern_id = 1630|2026-08-13|420#2_
+- **Doppelte Palette** · Paletten 6574 und 6579 · Charge 1630 · 2026-08-13
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 420 · kisten = 32 · extern_id = 1630|2026-08-13|420#3_
+- **Doppelte Palette** · Paletten 6576 und 6593 · Charge 1630 · 2026-08-13
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 421 · kisten = 32 · extern_id = 1630|2026-08-13|421#2_
+- **Doppelte Palette** · Paletten 6581 und 6582 · Charge 1630 · 2026-08-13
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 403 · kisten = 32 · extern_id = 1630|2026-08-13|403#2_
+- **Doppelte Palette** · Paletten 6581 und 6586 · Charge 1630 · 2026-08-13
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 403 · kisten = 32 · extern_id = 1630|2026-08-13|403#3_
+- **Doppelte Palette** · Paletten 6595 und 6596 · Charge 1630 · 2026-08-13
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 413 · kisten = 32 · extern_id = 1630|2026-08-13|413#2_
+- **Doppelte Palette** · Paletten 6604 und 6619 · Charge 1630 · 2026-08-13
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 433 · kisten = 36 · extern_id = 1630|2026-08-13|433#2_
+- **Doppelte Palette** · Paletten 6605 und 6613 · Charge 1630 · 2026-08-13
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 444 · kisten = 36 · extern_id = 1630|2026-08-13|444#2_
+- **Doppelte Palette** · Paletten 6609 und 6612 · Charge 1630 · 2026-08-13
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 457 · kisten = 36 · extern_id = 1630|2026-08-13|457#2_
+- **Doppelte Palette** · Paletten 6611 und 6616 · Charge 1630 · 2026-08-13
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 458 · kisten = 36 · extern_id = 1630|2026-08-13|458#2_
+- **Doppelte Palette** · Paletten 6630 und 6631 · Charge 1613 · 2026-08-14
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 445 · kisten = 32 · extern_id = 1613|2026-08-14|445#2_
+- **Doppelte Palette** · Paletten 6630 und 6638 · Charge 1613 · 2026-08-14
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 445 · kisten = 32 · extern_id = 1613|2026-08-14|445#3_
+- **Doppelte Palette** · Paletten 6632 und 6633 · Charge 1613 · 2026-08-14
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 444 · kisten = 32 · extern_id = 1613|2026-08-14|444#2_
+- **Doppelte Palette** · Paletten 6635 und 6636 · Charge 1613 · 2026-08-14
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 453 · kisten = 32 · extern_id = 1613|2026-08-14|453#2_
+- **Doppelte Palette** · Paletten 6642 und 6647 · Charge 1618 · 2026-08-14
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 488 · kisten = 32 · extern_id = 1618|2026-08-14|488#2_
+- **Doppelte Palette** · Paletten 6652 und 6684 · Charge 1648 · 2026-08-18
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 508 · kisten = 40 · extern_id = journal:b23f1f2c-b6da-4f73-b315-06c47cc6b960_
+- **Doppelte Palette** · Paletten 6653 und 6654 · Charge 1648 · 2026-08-18
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 403 · kisten = 32 · extern_id = journal:ca49bc34-6734-4729-90ea-634a819e92c9_
+- **Doppelte Palette** · Paletten 6655 und 6682 · Charge 1648 · 2026-08-18
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 405 · kisten = 32 · extern_id = journal:26a618d8-1f0c-45b0-8cc3-dfef4f2fa657_
+- **Doppelte Palette** · Paletten 6655 und 6690 · Charge 1648 · 2026-08-18
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 405 · kisten = 32 · extern_id = journal:063223e2-6a92-4227-b3a7-8cce7442d4ae_
+- **Doppelte Palette** · Paletten 6657 und 6664 · Charge 1648 · 2026-08-18
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 400 · kisten = 32 · extern_id = journal:21d3a2e2-e030-4e21-9385-763a4d3c8cbc_
+- **Doppelte Palette** · Paletten 6658 und 6689 · Charge 1648 · 2026-08-18
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 401 · kisten = 32 · extern_id = journal:fcbd5a2e-0c96-4cd2-b40a-371527dfe996_
+- **Doppelte Palette** · Paletten 6658 und 6691 · Charge 1648 · 2026-08-18
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 401 · kisten = 32 · extern_id = journal:58dd3d09-4a9b-46ab-8c9d-6d527c2104c3_
+- **Doppelte Palette** · Paletten 6669 und 6672 · Charge 1648 · 2026-08-18
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 415 · kisten = 32 · extern_id = journal:a8c46695-0562-481b-b983-7b84cf8d5306_
+- **Doppelte Palette** · Paletten 6669 und 6695 · Charge 1648 · 2026-08-18
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 415 · kisten = 32 · extern_id = journal:d6ac4817-db95-4d6e-9d5d-7aec9348f3d5_
+- **Doppelte Palette** · Paletten 6670 und 6677 · Charge 1648 · 2026-08-18
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 413 · kisten = 32 · extern_id = journal:ff3f9b4f-e6f7-456d-8fcc-a68c0af4c2d5_
+- **Doppelte Palette** · Paletten 6670 und 6696 · Charge 1648 · 2026-08-18
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 413 · kisten = 32 · extern_id = journal:8ae62810-45c2-493f-9597-f697212a914b_
+- **Doppelte Palette** · Paletten 6671 und 6674 · Charge 1648 · 2026-08-18
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 409 · kisten = 32 · extern_id = journal:90387096-1519-47bf-abca-6811d3153f3a_
+- **Doppelte Palette** · Paletten 6671 und 6676 · Charge 1648 · 2026-08-18
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 409 · kisten = 32 · extern_id = journal:f6702155-8938-4db3-bfd7-342c9e9df186_
+- **Doppelte Palette** · Paletten 6671 und 6679 · Charge 1648 · 2026-08-18
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 409 · kisten = 32 · extern_id = journal:d39fd43a-ca22-4de9-aed5-2d09fe10f214_
+- **Doppelte Palette** · Paletten 6673 und 6686 · Charge 1648 · 2026-08-18
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 411 · kisten = 32 · extern_id = journal:9d01fe2f-5396-4ca8-a130-1573d4169993_
+- **Doppelte Palette** · Paletten 6678 und 6697 · Charge 1648 · 2026-08-18
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 414 · kisten = 32 · extern_id = journal:0ac67c7f-7e46-4ce3-a098-cb164f111956_
+- **Doppelte Palette** · Paletten 6681 und 6692 · Charge 1648 · 2026-08-18
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 417 · kisten = 32 · extern_id = journal:7e3ebe90-282c-4c88-83b4-2b058083a137_
+- **Doppelte Palette** · Paletten 6681 und 6693 · Charge 1648 · 2026-08-18
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 417 · kisten = 32 · extern_id = journal:3f746293-566e-4008-9859-702166cfde37_
+- **Doppelte Palette** · Paletten 6687 und 6694 · Charge 1648 · 2026-08-18
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 406 · kisten = 32 · extern_id = journal:d97c273e-3c24-468b-b988-1dc39f4bfd43_
+- **Doppelte Palette** · Paletten 6699 und 6700 · Charge 1624 · 2026-08-19
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 372 · kisten = 32 · extern_id = journal:4bae9ea2-8204-4527-98dc-8d5e00da17fe_
+- **Doppelte Palette** · Paletten 6699 und 6708 · Charge 1624 · 2026-08-19
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 372 · kisten = 32 · extern_id = journal:5cf4f5e3-7771-4bbe-9945-cbaa3cedd9ce_
+- **Doppelte Palette** · Paletten 6716 und 6723 · Charge 1613 · 2026-08-19
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 425 · kisten = 32 · extern_id = journal:bc8dec7b-a311-4c7d-a43b-399a03e36028_
+- **Doppelte Palette** · Paletten 6716 und 6727 · Charge 1613 · 2026-08-19
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 425 · kisten = 32 · extern_id = journal:26e8bc64-f2b9-4ee4-9a22-77ea94a7e324_
+- **Doppelte Palette** · Paletten 6736 und 6749 · Charge 1646 · 2026-08-20
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 381 · kisten = 32 · extern_id = journal:5ccc67c9-d8c8-4596-87c9-2a55d4fef3e6_
+- **Doppelte Palette** · Paletten 6738 und 6741 · Charge 1646 · 2026-08-20
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 371 · kisten = 32 · extern_id = journal:ac7a0026-c50f-4aca-852d-e88727b2e994_
+- **Doppelte Palette** · Paletten 6739 und 6743 · Charge 1646 · 2026-08-20
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 378 · kisten = 32 · extern_id = journal:812d7e3a-f4d6-4bb7-80d1-a6e8b45319cf_
+- **Doppelte Palette** · Paletten 6742 und 6747 · Charge 1646 · 2026-08-20
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 368 · kisten = 32 · extern_id = journal:047edf7a-804f-4f8e-944e-d343bf6660cf_
+- **Doppelte Palette** · Paletten 6754 und 6761 · Charge 1620 · 2026-08-20
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 541 · kisten = 60 · extern_id = journal:97d724f3-5c41-4576-92cc-e0db65105045_
+- **Doppelte Palette** · Paletten 6756 und 6757 · Charge 1620 · 2026-08-20
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 546 · kisten = 60 · extern_id = journal:c09cb9fd-1493-4168-9142-149f45b2fb05_
+- **Doppelte Palette** · Paletten 6756 und 6763 · Charge 1620 · 2026-08-20
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 546 · kisten = 60 · extern_id = journal:56ab3578-0b6f-45f1-b957-3ce3aa4d44e5_
+- **Doppelte Palette** · Paletten 6766 und 6776 · Charge 1613 · 2026-08-24
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 500 · kisten = 36 · extern_id = journal:6b2afc83-b8d7-4da3-ae00-13327390ae9b_
+- **Doppelte Palette** · Paletten 6767 und 6768 · Charge 1613 · 2026-08-24
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 504 · kisten = 36 · extern_id = journal:9cd81611-fc60-422d-878e-21181f63be07_
+- **Doppelte Palette** · Paletten 6769 und 6773 · Charge 1613 · 2026-08-24
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 498 · kisten = 36 · extern_id = journal:3a1b5391-026e-427d-a927-e5f3af2217a0_
+- **Doppelte Palette** · Paletten 6769 und 6806 · Charge 1613 · 2026-08-24
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 498 · kisten = 36 · extern_id = journal:65a2a2be-ff17-4b7c-b678-56edc656286e_
+- **Doppelte Palette** · Paletten 6770 und 6798 · Charge 1613 · 2026-08-24
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 484 · kisten = 36 · extern_id = journal:a90a17b4-565b-4392-9d23-a1af1885c5d7_
+- **Doppelte Palette** · Paletten 6772 und 6794 · Charge 1613 · 2026-08-24
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 488 · kisten = 36 · extern_id = journal:92cbe7a4-4e3b-4b55-884e-e70999986e4b_
+- **Doppelte Palette** · Paletten 6778 und 6797 · Charge 1613 · 2026-08-24
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 475 · kisten = 36 · extern_id = journal:abddd7d2-dbc3-4b31-8654-fe3c04b5be88_
+- **Doppelte Palette** · Paletten 6779 und 6793 · Charge 1613 · 2026-08-24
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 491 · kisten = 36 · extern_id = journal:ed09ac8e-01b2-4fdc-9cb6-b9e896af2803_
+- **Doppelte Palette** · Paletten 6782 und 6808 · Charge 1612 · 2026-08-24
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 471 · kisten = 36 · extern_id = journal:91855c36-2a18-4ee3-9f08-adc8fd7920bb_
+- **Doppelte Palette** · Paletten 6783 und 6789 · Charge 1612 · 2026-08-24
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 474 · kisten = 36 · extern_id = journal:b4349d3c-c2ce-4279-a424-a1864dfca022_
+- **Doppelte Palette** · Paletten 6786 und 6787 · Charge 1612 · 2026-08-24
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 463 · kisten = 36 · extern_id = journal:d0aac70e-286d-4abe-9d53-4d1a32f9c2ce_
+- **Doppelte Palette** · Paletten 6800 und 6803 · Charge 1613 · 2026-08-24
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 495 · kisten = 36 · extern_id = journal:42abf33e-3284-4fa9-a90c-c60db1911664_
+- **Doppelte Palette** · Paletten 6801 und 6804 · Charge 1613 · 2026-08-24
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 496 · kisten = 36 · extern_id = journal:dbf46883-f790-493d-970a-76611e1bee79_
+- **Doppelte Palette** · Paletten 6802 und 6805 · Charge 1613 · 2026-08-24
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 494 · kisten = 36 · extern_id = journal:f8b19765-5f06-4d78-b7da-78bf5fa229fe_
+- **Doppelte Palette** · Paletten 6809 und 6826 · Charge 1612 · 2026-08-25
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 470 · kisten = 36 · extern_id = journal:0122a8dd-ec28-46f6-a684-4548ee8d9785_
+- **Doppelte Palette** · Paletten 6809 und 6830 · Charge 1612 · 2026-08-25
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 470 · kisten = 36 · extern_id = journal:ce395b05-87d8-4ac2-b34e-9621dae6772e_
+- **Doppelte Palette** · Paletten 6809 und 6831 · Charge 1612 · 2026-08-25
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 470 · kisten = 36 · extern_id = journal:aef85bde-06f9-4df2-8d1a-bf41f574bf9d_
+- **Doppelte Palette** · Paletten 6810 und 6829 · Charge 1612 · 2026-08-25
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 464 · kisten = 36 · extern_id = journal:93023ce8-d8d8-4c9f-b36f-cc2e02d97e3f_
+- **Doppelte Palette** · Paletten 6810 und 6866 · Charge 1612 · 2026-08-25
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 464 · kisten = 36 · extern_id = journal:fd3f9b82-a311-4c3c-b8e9-5fb972a0f0c9_
+- **Doppelte Palette** · Paletten 6810 und 6874 · Charge 1612 · 2026-08-25
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 464 · kisten = 36 · extern_id = journal:8ddf51c3-6ea1-488f-ab1c-91fba4e52a9d_
+- **Doppelte Palette** · Paletten 6811 und 6858 · Charge 1612 · 2026-08-25
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 459 · kisten = 36 · extern_id = journal:098bd0b0-89cb-41ad-bc64-0a35f77168e3_
+- **Doppelte Palette** · Paletten 6811 und 6865 · Charge 1612 · 2026-08-25
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 459 · kisten = 36 · extern_id = journal:4b5c00ff-af3b-4101-947a-ce3d008c46e1_
+- **Doppelte Palette** · Paletten 6811 und 6902 · Charge 1612 · 2026-08-25
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 459 · kisten = 36 · extern_id = journal:c64d425b-8d52-4ceb-b35a-c5f3dba0e5a2_
+- **Doppelte Palette** · Paletten 6812 und 6877 · Charge 1612 · 2026-08-25
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 465 · kisten = 36 · extern_id = journal:2d2edbed-3d80-41c2-95f3-878cb1938b68_
+- **Doppelte Palette** · Paletten 6812 und 6881 · Charge 1612 · 2026-08-25
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 465 · kisten = 36 · extern_id = journal:a3591b2b-d629-4c87-a2a6-dc304c343cad_
+- **Doppelte Palette** · Paletten 6813 und 6817 · Charge 1612 · 2026-08-25
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 467 · kisten = 36 · extern_id = journal:68d16cf4-b21e-42fb-88aa-dd3e2664145e_
+- **Doppelte Palette** · Paletten 6813 und 6869 · Charge 1612 · 2026-08-25
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 467 · kisten = 36 · extern_id = journal:b1c4d40e-c081-4fd8-8f7b-b9a146f01954_
+- **Doppelte Palette** · Paletten 6814 und 6876 · Charge 1612 · 2026-08-25
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 455 · kisten = 36 · extern_id = journal:2d933ce8-5bac-40e9-b63d-f12825064acd_
+- **Doppelte Palette** · Paletten 6814 und 6897 · Charge 1612 · 2026-08-25
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 455 · kisten = 36 · extern_id = journal:9237d159-16ee-40c1-893a-9135be64c4fa_
+- **Doppelte Palette** · Paletten 6814 und 6903 · Charge 1612 · 2026-08-25
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 455 · kisten = 36 · extern_id = journal:933db287-54ab-4ad7-988f-0cce9a6dd4ea_
+- **Doppelte Palette** · Paletten 6816 und 6886 · Charge 1612 · 2026-08-25
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 463 · kisten = 36 · extern_id = journal:81687a9e-ee69-45b2-bbb9-5c8cc5bf047f_
+- **Doppelte Palette** · Paletten 6818 und 6860 · Charge 1612 · 2026-08-25
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 462 · kisten = 36 · extern_id = journal:76954b51-c8ae-4aaa-b041-0b26fee4d0d4_
+- **Doppelte Palette** · Paletten 6824 und 6868 · Charge 1612 · 2026-08-25
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 458 · kisten = 36 · extern_id = journal:de1bc531-d49b-4f29-8587-aaefd3fe621a_
+- **Doppelte Palette** · Paletten 6824 und 6887 · Charge 1612 · 2026-08-25
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 458 · kisten = 36 · extern_id = journal:3cf9a7d9-5074-461a-8d5a-361338bcea09_
+- **Doppelte Palette** · Paletten 6832 und 6837 · Charge 1646 · 2026-08-20
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 445 · kisten = 32 · extern_id = journal:9c01ada5-9e04-45f9-9afd-879dbff487cc_
+- **Doppelte Palette** · Paletten 6833 und 6839 · Charge 1646 · 2026-08-20
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 435 · kisten = 32 · extern_id = journal:c9f0a913-1568-4f05-a0a6-d2acb2232011_
+- **Doppelte Palette** · Paletten 6863 und 6872 · Charge 1612 · 2026-08-25
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 471 · kisten = 36 · extern_id = journal:ee920287-4db8-4c9e-a715-c7e58d97bfec_
+- **Doppelte Palette** · Paletten 6875 und 6899 · Charge 1612 · 2026-08-25
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 449 · kisten = 36 · extern_id = journal:b28fbabb-6402-42f8-b1ce-6078c3747e5b_
+- **Doppelte Palette** · Paletten 6879 und 6893 · Charge 1612 · 2026-08-25
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 447 · kisten = 36 · extern_id = journal:047c107e-0e88-4a5d-8ab1-03ad89603803_
+- **Doppelte Palette** · Paletten 6880 und 6896 · Charge 1612 · 2026-08-25
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 453 · kisten = 36 · extern_id = journal:98d82432-c20d-4f43-8f92-e1f0ee50bc42_
+- **Doppelte Palette** · Paletten 6880 und 6898 · Charge 1612 · 2026-08-25
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 453 · kisten = 36 · extern_id = journal:da4db03d-ed4b-4f36-9253-87e92aed09c6_
+- **Doppelte Palette** · Paletten 6906 und 6910 · Charge 1617 · 2026-08-25
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 590 · kisten = 60 · extern_id = journal:afab7c3e-38e9-4682-ba70-e02924ee3c43_
+- **Doppelte Palette** · Paletten 6908 und 6914 · Charge 1617 · 2026-08-25
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 584 · kisten = 60 · extern_id = journal:f71d7752-b608-47c8-b1e7-5928ca1de1b9_
+- **Doppelte Palette** · Paletten 6909 und 6916 · Charge 1617 · 2026-08-25
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 585 · kisten = 60 · extern_id = journal:6a01054c-e96a-4fcd-bb06-fc54f8abce55_
+- **Doppelte Palette** · Paletten 6926 und 6930 · Charge 1613 · 2026-08-26
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 507 · kisten = 36 · extern_id = journal:6d49e81a-5ff7-4dfc-a5e3-6b35195cca80_
+- **Doppelte Palette** · Paletten 6927 und 6928 · Charge 1613 · 2026-08-26
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 511 · kisten = 36 · extern_id = journal:734d3881-c8a9-4eeb-9b9b-014d4039513d_
+- **Doppelte Palette** · Paletten 6929 und 6934 · Charge 1613 · 2026-08-26
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 499 · kisten = 36 · extern_id = journal:cd7c2351-ae49-4a1e-94a9-238864a2dfc2_
+- **Doppelte Palette** · Paletten 6937 und 6939 · Charge 1613 · 2026-08-26
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 512 · kisten = 36 · extern_id = journal:26693b19-ce28-4634-80e6-546bb05a4da9_
+- **Doppelte Palette** · Paletten 6937 und 6940 · Charge 1613 · 2026-08-26
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 512 · kisten = 36 · extern_id = journal:4c4abd1f-0fb4-4945-9535-d20605f0a468_
+- **Doppelte Palette** · Paletten 6946 und 6948 · Charge 1617 · 2026-08-26
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 580 · kisten = 60 · extern_id = journal:9694170d-f306-406a-86d9-e2fbd5fdc443_
+- **Doppelte Palette** · Paletten 6956 und 6959 · Charge 1635 · 2026-08-27
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 522 · kisten = 36 · extern_id = journal:0bccc6a0-f2a9-4152-8890-0a478ec03776_
+- **Doppelte Palette** · Paletten 6964 und 6968 · Charge 1613 · 2026-08-27
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 500 · kisten = 36 · extern_id = journal:a1bb339b-2a72-4991-8c01-8e528d078a6b_
+- **Doppelte Palette** · Paletten 6964 und 6974 · Charge 1613 · 2026-08-27
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 500 · kisten = 36 · extern_id = journal:0c05ce69-fb68-4d5a-81b6-c87a5ff2c87e_
+- **Doppelte Palette** · Paletten 6966 und 6971 · Charge 1613 · 2026-08-27
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 506 · kisten = 36 · extern_id = journal:59938298-0482-4c99-94c6-e8713b78cce3_
+- **Doppelte Palette** · Paletten 6969 und 6976 · Charge 1613 · 2026-08-27
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 505 · kisten = 36 · extern_id = journal:68d8c7ab-05c6-47af-a43d-c12ad50ff8d9_
+- **Doppelte Palette** · Paletten 6980 und 6981 · Charge 1624 · 2026-08-27
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 428 · kisten = 36 · extern_id = journal:0e6acaaf-55bf-4be9-840b-39ca20bc681f_
+- **Doppelte Palette** · Paletten 6982 und 6987 · Charge 1624 · 2026-08-27
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 430 · kisten = 36 · extern_id = journal:e33d4b53-a283-447f-b74f-c121e38560da_
+- **Doppelte Palette** · Paletten 6983 und 6994 · Charge 1624 · 2026-08-27
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 438 · kisten = 36 · extern_id = journal:7667ecd4-7e57-4954-ab2b-504b0d35fae9_
+- **Doppelte Palette** · Paletten 6983 und 6999 · Charge 1624 · 2026-08-27
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 438 · kisten = 36 · extern_id = journal:2f09a153-3e4e-4066-8924-71e7f6b95db8_
+- **Doppelte Palette** · Paletten 6986 und 7001 · Charge 1624 · 2026-08-27
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 427 · kisten = 36 · extern_id = journal:de01a018-bf72-4b7b-b2b3-5e921ee340bd_
+- **Doppelte Palette** · Paletten 6988 und 7003 · Charge 1624 · 2026-08-27
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 416 · kisten = 36 · extern_id = journal:16dc042a-f576-4089-b39d-31fb467c2439_
+- **Doppelte Palette** · Paletten 6989 und 6990 · Charge 1624 · 2026-08-27
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 434 · kisten = 36 · extern_id = journal:8de3cc4e-e915-4022-aa72-ec32c8b9fb71_
+- **Doppelte Palette** · Paletten 6992 und 6996 · Charge 1624 · 2026-08-27
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 425 · kisten = 36 · extern_id = journal:086629cb-3192-4de8-8cad-2c6cf323a583_
+- **Doppelte Palette** · Paletten 7004 und 7007 · Charge 1624 · 2026-08-27
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 412 · kisten = 36 · extern_id = journal:82e9b174-848c-4eb5-9905-27c4fe0e976c_
+- **Doppelte Palette** · Paletten 7005 und 7011 · Charge 1624 · 2026-08-27
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 419 · kisten = 36 · extern_id = journal:fc1196e4-e6ff-4144-a78b-1ea52d3f07d1_
+- **Doppelte Palette** · Paletten 7017 und 7029 · Charge 1646 · 2026-08-27
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 420 · kisten = 36 · extern_id = journal:f7fd9980-0344-4dbc-9885-532e10103b98_
+- **Doppelte Palette** · Paletten 7021 und 7025 · Charge 1620 · 2026-08-27
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 575 · kisten = 60 · extern_id = journal:ca3f9602-b4c9-4037-8fdb-267665504f69_
+- **Doppelte Palette** · Paletten 7021 und 7026 · Charge 1620 · 2026-08-27
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 575 · kisten = 60 · extern_id = journal:8eea21bc-7b53-44ee-947b-e5fda375f68c_
+- **Doppelte Palette** · Paletten 7031 und 7053 · Charge 1623 · 2026-08-28
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 429 · kisten = 36 · extern_id = journal:2e22090e-50b8-4a95-901f-d6cf0a255704_
+- **Doppelte Palette** · Paletten 7033 und 7038 · Charge 1623 · 2026-08-28
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 444 · kisten = 36 · extern_id = journal:fc817e7a-b684-43a4-8b45-b37b7fe42dc7_
+- **Doppelte Palette** · Paletten 7033 und 7052 · Charge 1623 · 2026-08-28
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 444 · kisten = 36 · extern_id = journal:32619a0f-e40c-4a51-ab05-7170884c740d_
+- **Doppelte Palette** · Paletten 7034 und 7041 · Charge 1623 · 2026-08-28
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 438 · kisten = 36 · extern_id = journal:91b8939f-ebfa-4dc0-86bf-0358679a744d_
+- **Doppelte Palette** · Paletten 7035 und 7043 · Charge 1623 · 2026-08-28
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 437 · kisten = 36 · extern_id = journal:30c1e26a-1998-46a2-9e00-4980c790c711_
+- **Doppelte Palette** · Paletten 7035 und 7045 · Charge 1623 · 2026-08-28
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 437 · kisten = 36 · extern_id = journal:9bb7bd23-bd5f-4f6f-9305-8842800dd2c3_
+- **Doppelte Palette** · Paletten 7035 und 7046 · Charge 1623 · 2026-08-28
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 437 · kisten = 36 · extern_id = journal:04f105a7-6b05-4658-a9ea-96e34cc6bb8a_
+- **Doppelte Palette** · Paletten 7054 und 7058 · Charge 1613 · 2026-08-29
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 556 · kisten = 40 · extern_id = journal:273b06c6-9b73-4e53-aea9-1b7ea0069bc2_
+- **Doppelte Palette** · Paletten 7066 und 7068 · Charge 1613 · 2026-08-29
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 502 · kisten = 36 · extern_id = journal:b6ba24ec-bd15-4b30-aa1c-02e53a6bb201_
+- **Doppelte Palette** · Paletten 7074 und 7085 · Charge 1612 · 2026-08-31
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 426 · kisten = 36 · extern_id = journal:ce39b9d9-0ced-46b1-8573-79c35431b6a7_
+- **Doppelte Palette** · Paletten 7078 und 7081 · Charge 1612 · 2026-08-31
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 443 · kisten = 36 · extern_id = journal:6e4029bc-a614-49a7-b7eb-76bba090d91b_
+- **Doppelte Palette** · Paletten 7080 und 7134 · Charge 1612 · 2026-08-31
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 444 · kisten = 36 · extern_id = journal:c9a6f922-f859-4219-9ff8-54fdff1b3fa7_
+- **Doppelte Palette** · Paletten 7082 und 7132 · Charge 1612 · 2026-08-31
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 451 · kisten = 36 · extern_id = journal:b4cc15a9-691d-464d-a102-904f63f78acf_
+- **Doppelte Palette** · Paletten 7086 und 7092 · Charge 1623 · 2026-08-31
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 433 · kisten = 36 · extern_id = journal:9312f3cc-342e-4d8d-9276-b4e50826b550_
+- **Doppelte Palette** · Paletten 7090 und 7102 · Charge 1623 · 2026-08-31
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 429 · kisten = 36 · extern_id = journal:aaff34b5-c2b0-4711-bcc2-d3b4f1e51050_
+- **Doppelte Palette** · Paletten 7090 und 7105 · Charge 1623 · 2026-08-31
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 429 · kisten = 36 · extern_id = journal:29fb9a02-1165-43fb-8c18-13fa0e26a3bb_
+- **Doppelte Palette** · Paletten 7091 und 7104 · Charge 1623 · 2026-08-31
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 441 · kisten = 36 · extern_id = journal:f5be4c04-4f65-441c-a955-e56f82164736_
+- **Doppelte Palette** · Paletten 7093 und 7109 · Charge 1623 · 2026-08-31
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 438 · kisten = 36 · extern_id = journal:4b006a48-faa2-4cbf-b9c0-8f1a9d726f88_
+- **Doppelte Palette** · Paletten 7095 und 7106 · Charge 1623 · 2026-08-31
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 439 · kisten = 36 · extern_id = journal:29dd55a3-1ded-49d5-9b6f-6825b41380b4_
+- **Doppelte Palette** · Paletten 7095 und 7113 · Charge 1623 · 2026-08-31
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 439 · kisten = 36 · extern_id = journal:93f1f142-79dc-49c7-babe-ce4407e8ea63_
+- **Doppelte Palette** · Paletten 7097 und 7117 · Charge 1623 · 2026-08-31
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 434 · kisten = 36 · extern_id = journal:2146ffb0-fb0e-4bda-93a7-c8137feb7250_
+- **Doppelte Palette** · Paletten 7098 und 7099 · Charge 1623 · 2026-08-31
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 431 · kisten = 36 · extern_id = journal:50aab225-ec83-43c6-bc73-4c434d564ded_
+- **Doppelte Palette** · Paletten 7098 und 7101 · Charge 1623 · 2026-08-31
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 431 · kisten = 36 · extern_id = journal:51548e3e-85c8-4b4c-98dc-59e778cfbb57_
+- **Doppelte Palette** · Paletten 7100 und 7103 · Charge 1623 · 2026-08-31
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 430 · kisten = 36 · extern_id = journal:1ea68437-8bab-4480-840b-acfc5e1c0584_
+- **Doppelte Palette** · Paletten 7100 und 7112 · Charge 1623 · 2026-08-31
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 430 · kisten = 36 · extern_id = journal:0b043f2c-fbce-4a40-8372-20a173e025c9_
+- **Doppelte Palette** · Paletten 7124 und 7126 · Charge 1612 · 2026-08-31
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 467 · kisten = 36 · extern_id = journal:d32b2241-16e2-418b-a84d-6eb89a443147_
+- **Doppelte Palette** · Paletten 7124 und 7127 · Charge 1612 · 2026-08-31
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 467 · kisten = 36 · extern_id = journal:a5ffe8d5-0eec-405e-a6b9-111397ec5fd1_
+- **Doppelte Palette** · Paletten 7128 und 7130 · Charge 1612 · 2026-08-31
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 459 · kisten = 36 · extern_id = journal:f8ee794a-ebe7-4240-b7d3-f87fb1d38a17_
+- **Doppelte Palette** · Paletten 7128 und 7131 · Charge 1612 · 2026-08-31
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 459 · kisten = 36 · extern_id = journal:a9d0c20d-73a1-40d7-94cf-6452d623bc1c_
+- **Doppelte Palette** · Paletten 7128 und 7135 · Charge 1612 · 2026-08-31
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 459 · kisten = 36 · extern_id = journal:9ea12b5a-72be-4bf7-bd7a-a02c42fa78f2_
+- **Doppelte Palette** · Paletten 7136 und 7137 · Charge 1612 · 2026-09-01
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 461 · kisten = 36 · extern_id = journal:cef6b395-036d-4c14-8278-205d78f5871f_
+- **Doppelte Palette** · Paletten 7136 und 7145 · Charge 1612 · 2026-09-01
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 461 · kisten = 36 · extern_id = journal:46447822-ae39-4791-97bb-c946008b3795_
+- **Doppelte Palette** · Paletten 7138 und 7170 · Charge 1612 · 2026-09-01
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 452 · kisten = 36 · extern_id = journal:bce23b29-ddee-462a-ab05-9ed53f8d49c3_
+- **Doppelte Palette** · Paletten 7146 und 7147 · Charge 1612 · 2026-09-01
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 472 · kisten = 36 · extern_id = journal:2191d076-5d50-49d4-9e39-9ea8ea486e26_
+- **Doppelte Palette** · Paletten 7152 und 7156 · Charge 1598 · 2026-09-01
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 482 · kisten = 36 · extern_id = journal:9c156f82-c03d-4a02-910a-b031bb64c4ec_
+- **Doppelte Palette** · Paletten 7157 und 7162 · Charge 1598 · 2026-09-01
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 465 · kisten = 36 · extern_id = journal:b27eb370-0e0d-4c31-aa44-7f6a66290d60_
+- **Doppelte Palette** · Paletten 7167 und 7169 · Charge 1612 · 2026-09-01
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 458 · kisten = 36 · extern_id = journal:5ca7149e-9af7-443e-b3c1-f2346f88f708_
+- **Doppelte Palette** · Paletten 7173 und 7181 · Charge 1598 · 2026-09-02
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 492 · kisten = 36 · extern_id = journal:7b52cad6-2905-437e-82f6-c4a6f19b9e8e_
+- **Doppelte Palette** · Paletten 7174 und 7191 · Charge 1598 · 2026-09-02
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 463 · kisten = 36 · extern_id = journal:eff65b40-2307-4695-8ecc-937e099b7029_
+- **Doppelte Palette** · Paletten 7179 und 7186 · Charge 1598 · 2026-09-02
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 482 · kisten = 36 · extern_id = journal:1745930b-5064-4c6e-887c-e3fb2b13be03_
+- **Doppelte Palette** · Paletten 7182 und 7188 · Charge 1598 · 2026-09-02
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 449 · kisten = 36 · extern_id = journal:d9489948-fa53-4d51-86df-63e1ad66b49a_
+- **Doppelte Palette** · Paletten 7195 und 7200 · Charge 1628 · 2026-09-03
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 454 · kisten = 36 · extern_id = journal:b6c757dc-a456-4d50-bc69-0e4e97d1cc9e_
+- **Doppelte Palette** · Paletten 7195 und 7245 · Charge 1628 · 2026-09-03
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 454 · kisten = 36 · extern_id = journal:6062db68-cf15-4162-b433-5bbe0facf33b_
+- **Doppelte Palette** · Paletten 7196 und 7197 · Charge 1628 · 2026-09-03
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 451 · kisten = 36 · extern_id = journal:f28db3f3-94fb-4022-a22a-7fd39ee9c058_
+- **Doppelte Palette** · Paletten 7196 und 7202 · Charge 1628 · 2026-09-03
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 451 · kisten = 36 · extern_id = journal:4de3f72b-b38b-4901-8277-5d727747f47f_
+- **Doppelte Palette** · Paletten 7196 und 7237 · Charge 1628 · 2026-09-03
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 451 · kisten = 36 · extern_id = journal:ebd40c21-1e4b-4cc8-a307-d92dcb8df76f_
+- **Doppelte Palette** · Paletten 7198 und 7242 · Charge 1628 · 2026-09-03
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 459 · kisten = 36 · extern_id = journal:5072f58b-97fb-4aea-ae5b-8c6724489568_
+- **Doppelte Palette** · Paletten 7205 und 7246 · Charge 1628 · 2026-09-03
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 463 · kisten = 36 · extern_id = journal:3bf5219d-2693-429d-abac-654e6f369050_
+- **Doppelte Palette** · Paletten 7210 und 7216 · Charge 1646 · 2026-09-03
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 459 · kisten = 40 · extern_id = journal:864b38f9-7e02-4344-bb4d-77acd1f5495c_
+- **Doppelte Palette** · Paletten 7211 und 7212 · Charge 1646 · 2026-09-03
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 461 · kisten = 40 · extern_id = journal:ad3c64f3-9e62-4bec-8ed6-ba8040a523ee_
+- **Doppelte Palette** · Paletten 7214 und 7219 · Charge 1646 · 2026-09-03
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 460 · kisten = 40 · extern_id = journal:b69947c4-627c-4b40-bec4-a37a77bb236e_
+- **Doppelte Palette** · Paletten 7222 und 7229 · Charge 1651 · 2026-09-03
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 469 · kisten = 36 · extern_id = journal:7ab866e0-1137-4e4e-9683-c95cb6ba0761_
+- **Doppelte Palette** · Paletten 7222 und 7232 · Charge 1651 · 2026-09-03
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 469 · kisten = 36 · extern_id = journal:688c2669-a96e-432e-b92e-79e458c78b35_
+- **Doppelte Palette** · Paletten 7222 und 7235 · Charge 1651 · 2026-09-03
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 469 · kisten = 36 · extern_id = journal:4b362825-5633-404b-9f58-9531cb8bf8b7_
+- **Doppelte Palette** · Paletten 7225 und 7226 · Charge 1651 · 2026-09-03
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 473 · kisten = 36 · extern_id = journal:ddebd2a5-097f-49eb-adcc-30b6eedd0162_
+- **Doppelte Palette** · Paletten 7227 und 7230 · Charge 1651 · 2026-09-03
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 474 · kisten = 36 · extern_id = journal:199062fa-f46c-45fd-a014-4c76305a1c46_
+- **Doppelte Palette** · Paletten 7227 und 7261 · Charge 1651 · 2026-09-03
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 474 · kisten = 36 · extern_id = journal:7acb3b7b-e456-4cef-8556-a9581198bb92_
+- **Doppelte Palette** · Paletten 7228 und 7259 · Charge 1651 · 2026-09-03
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 482 · kisten = 36 · extern_id = journal:60835b9a-6ed2-4aa5-a08c-4d52ca61cd68_
+- **Doppelte Palette** · Paletten 7272 und 7283 · Charge 1628 · 2026-09-04
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 456 · kisten = 36 · extern_id = journal:69313685-0a5a-4915-ad7c-2e52c6af3ecb_
+- **Doppelte Palette** · Paletten 7276 und 7280 · Charge 1628 · 2026-09-04
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 458 · kisten = 36 · extern_id = journal:517cbc23-29d9-4fb4-b1c3-869a43d0fa8c_
+- **Doppelte Palette** · Paletten 7277 und 7288 · Charge 1628 · 2026-09-04
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 462 · kisten = 36 · extern_id = journal:7f6eb6fd-6894-42f2-903c-70fdbe248242_
+- **Doppelte Palette** · Paletten 7278 und 7282 · Charge 1628 · 2026-09-04
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 454 · kisten = 36 · extern_id = journal:dad0e339-e111-48d3-bae0-ce3ed15ae0e3_
+- **Doppelte Palette** · Paletten 7278 und 7286 · Charge 1628 · 2026-09-04
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 454 · kisten = 36 · extern_id = journal:05d8ea42-f3b6-4bdf-84f9-24ea4174bbbf_
+- **Doppelte Palette** · Paletten 7281 und 7285 · Charge 1628 · 2026-09-04
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 445 · kisten = 36 · extern_id = journal:8e68a856-ee6b-4814-b630-a417a1de92fe_
+- **Doppelte Palette** · Paletten 7291 und 7300 · Charge 1632 · 2026-09-04
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 469 · kisten = 36 · extern_id = journal:741dc10d-1e80-4a51-8124-d36132229b5d_
+- **Doppelte Palette** · Paletten 7293 und 7297 · Charge 1632 · 2026-09-04
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 466 · kisten = 36 · extern_id = journal:124133ff-3ba5-47e6-bb5f-023a4e795083_
+- **Doppelte Palette** · Paletten 7296 und 7302 · Charge 1632 · 2026-09-04
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 476 · kisten = 36 · extern_id = journal:16b381f0-e7e3-409a-908e-ccb8612cc73e_
+- **Doppelte Palette** · Paletten 7298 und 7299 · Charge 1632 · 2026-09-04
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 482 · kisten = 36 · extern_id = journal:be14fd3b-98bf-4fac-985e-4b5236d8ddbe_
+- **Doppelte Palette** · Paletten 7301 und 7304 · Charge 1632 · 2026-09-04
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 479 · kisten = 36 · extern_id = journal:6af4043b-2139-4c3a-a41e-6cbec7b54e80_
+- **Doppelte Palette** · Paletten 7321 und 7338 · Charge 1649 · 2026-09-07
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 448 · kisten = 36 · extern_id = journal:d7107e6a-1ecd-4ae0-9e47-bf7cace0608e_
+- **Doppelte Palette** · Paletten 7321 und 7344 · Charge 1649 · 2026-09-07
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 448 · kisten = 36 · extern_id = journal:cc030da4-a37a-4fcb-a9ff-2a7b161b02ca_
+- **Doppelte Palette** · Paletten 7323 und 7340 · Charge 1649 · 2026-09-07
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 446 · kisten = 36 · extern_id = journal:4cecaf8a-0383-495e-a592-95ea469376cd_
+- **Doppelte Palette** · Paletten 7326 und 7331 · Charge 1649 · 2026-09-07
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 443 · kisten = 36 · extern_id = journal:8b03a4be-6530-408e-b8a3-42c761b0cf04_
+- **Doppelte Palette** · Paletten 7326 und 7332 · Charge 1649 · 2026-09-07
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 443 · kisten = 36 · extern_id = journal:2d0c1945-b448-4129-81d5-3f5fcf282667_
+- **Doppelte Palette** · Paletten 7329 und 7337 · Charge 1649 · 2026-09-07
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 439 · kisten = 36 · extern_id = journal:841f7a77-bde8-4476-b851-9acdf140d625_
+- **Doppelte Palette** · Paletten 7329 und 7341 · Charge 1649 · 2026-09-07
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 439 · kisten = 36 · extern_id = journal:e7c91d15-c448-4e31-bc5c-9574e8ca8e93_
+- **Doppelte Palette** · Paletten 7330 und 7333 · Charge 1649 · 2026-09-07
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 445 · kisten = 36 · extern_id = journal:c2688c82-a63e-4ed8-a38d-5d97e9d5f1fe_
+- **Doppelte Palette** · Paletten 7330 und 7336 · Charge 1649 · 2026-09-07
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 445 · kisten = 36 · extern_id = journal:ad8fd2fc-0ec3-4ef1-a7b5-e295a8fcc133_
+- **Doppelte Palette** · Paletten 7339 und 7342 · Charge 1649 · 2026-09-07
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 442 · kisten = 36 · extern_id = journal:dd1a17ba-cd38-454b-abb1-9f80854346eb_
+- **Doppelte Palette** · Paletten 7348 und 7350 · Charge 1649 · 2026-09-07
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 488 · kisten = 40 · extern_id = journal:8a849aa4-bd27-4ff9-8abe-61dd2f10048d_
+- **Doppelte Palette** · Paletten 7357 und 7381 · Charge 1649 · 2026-09-08
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 435 · kisten = 36 · extern_id = journal:d8c71b5a-1a42-4bed-9492-06cdbdc280d2_
+- **Doppelte Palette** · Paletten 7357 und 7408 · Charge 1649 · 2026-09-08
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 435 · kisten = 36 · extern_id = journal:6c1a80d7-7ded-4610-9194-e2027c347692_
+- **Doppelte Palette** · Paletten 7358 und 7367 · Charge 1649 · 2026-09-08
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 434 · kisten = 36 · extern_id = journal:8497e46a-e3dc-41f8-b4dd-a6d6ffafa2cb_
+- **Doppelte Palette** · Paletten 7358 und 7371 · Charge 1649 · 2026-09-08
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 434 · kisten = 36 · extern_id = journal:5ec8567c-81a5-49b2-80cf-64fda8fd6eb0_
+- **Doppelte Palette** · Paletten 7358 und 7376 · Charge 1649 · 2026-09-08
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 434 · kisten = 36 · extern_id = journal:cd7b72f1-c800-4387-b726-45f27400abd6_
+- **Doppelte Palette** · Paletten 7359 und 7373 · Charge 1649 · 2026-09-08
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 445 · kisten = 36 · extern_id = journal:3f4738e4-6f91-4a7a-8c55-2fcb51c2b702_
+- **Doppelte Palette** · Paletten 7359 und 7378 · Charge 1649 · 2026-09-08
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 445 · kisten = 36 · extern_id = journal:5eb9b786-623e-4b60-b90f-77ae97041218_
+- **Doppelte Palette** · Paletten 7360 und 7361 · Charge 1649 · 2026-09-08
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 438 · kisten = 36 · extern_id = journal:2343bec6-66cd-4246-898f-7b79c8977f3e_
+- **Doppelte Palette** · Paletten 7360 und 7404 · Charge 1649 · 2026-09-08
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 438 · kisten = 36 · extern_id = journal:0d40ac0f-62e5-441b-a04b-ddb817132cf7_
+- **Doppelte Palette** · Paletten 7368 und 7377 · Charge 1649 · 2026-09-08
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 448 · kisten = 36 · extern_id = journal:4502a3a2-b477-4648-a2a3-d197fefa0b04_
+- **Doppelte Palette** · Paletten 7368 und 7380 · Charge 1649 · 2026-09-08
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 448 · kisten = 36 · extern_id = journal:54bdd8cc-45b5-407d-bb79-9279051d8f2c_
+- **Doppelte Palette** · Paletten 7368 und 7382 · Charge 1649 · 2026-09-08
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 448 · kisten = 36 · extern_id = journal:d6139f9b-d678-4ddc-aa1a-0ca09a45614d_
+- **Doppelte Palette** · Paletten 7369 und 7372 · Charge 1649 · 2026-09-08
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 446 · kisten = 36 · extern_id = journal:2b388c8f-a0a9-4215-b383-21651f10a852_
+- **Doppelte Palette** · Paletten 7369 und 7405 · Charge 1649 · 2026-09-08
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 446 · kisten = 36 · extern_id = journal:b1735033-3cb3-4bc7-bf49-c77791d5ba63_
+- **Doppelte Palette** · Paletten 7370 und 7374 · Charge 1649 · 2026-09-08
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 449 · kisten = 36 · extern_id = journal:45d87968-b237-433e-9fa1-f5541c97046a_
+- **Doppelte Palette** · Paletten 7370 und 7379 · Charge 1649 · 2026-09-08
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 449 · kisten = 36 · extern_id = journal:0aa5744a-d142-4b8f-b4f0-dbe00431f6e4_
+- **Doppelte Palette** · Paletten 7383 und 7391 · Charge 1650 · 2026-09-08
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 478 · kisten = 36 · extern_id = journal:3f088922-be3c-48b7-badf-f94e96388e47_
+- **Doppelte Palette** · Paletten 7387 und 7389 · Charge 1650 · 2026-09-08
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 477 · kisten = 36 · extern_id = journal:736a016e-6b0e-4aa2-8209-d6da63adf6f0_
+- **Doppelte Palette** · Paletten 7396 und 7397 · Charge 1649 · 2026-09-08
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 437 · kisten = 36 · extern_id = journal:ac8fd883-e59f-4fc0-bc9b-d38e7ff79a04_
+- **Doppelte Palette** · Paletten 7396 und 7406 · Charge 1649 · 2026-09-08
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 437 · kisten = 36 · extern_id = journal:03e0a869-ffa4-415e-a573-798d54c00cfa_
+- **Doppelte Palette** · Paletten 7411 und 7419 · Charge 1632 · 2026-09-09
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 467 · kisten = 36 · extern_id = journal:068e190d-e032-4fc7-9ff2-c41c59b56acb_
+- **Doppelte Palette** · Paletten 7412 und 7415 · Charge 1632 · 2026-09-09
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 476 · kisten = 36 · extern_id = journal:d94938b5-18e6-40c0-aad5-21c752be19d6_
+- **Doppelte Palette** · Paletten 7412 und 7420 · Charge 1632 · 2026-09-09
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 476 · kisten = 36 · extern_id = journal:10cdf47a-93fa-42c1-aa98-508f8a316581_
+- **Doppelte Palette** · Paletten 7425 und 7426 · Charge 1638 · 2026-09-10
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 318 · kisten = 1 · extern_id = journal:a5b921df-2fff-4d9e-89a6-bea1f13e11c8_
+- **Doppelte Palette** · Paletten 7425 und 7427 · Charge 1638 · 2026-09-10
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 318 · kisten = 1 · extern_id = journal:c9e73d79-0400-42f0-97dd-e7b87cf464c6_
+- **Doppelte Palette** · Paletten 7425 und 7428 · Charge 1638 · 2026-09-10
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 318 · kisten = 1 · extern_id = journal:db9fa3c2-e96c-4c3c-92f0-a449260f0ac1_
+- **Doppelte Palette** · Paletten 7429 und 7430 · Charge 1638 · 2026-09-10
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 315 · kisten = 1 · extern_id = journal:48d1c432-1a6e-4feb-a5f2-9dcbdae468b9_
+- **Doppelte Palette** · Paletten 7429 und 7431 · Charge 1638 · 2026-09-10
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 315 · kisten = 1 · extern_id = journal:9a6afd31-a2d2-49d3-a62b-03601458a4bb_
+- **Doppelte Palette** · Paletten 7429 und 7432 · Charge 1638 · 2026-09-10
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 315 · kisten = 1 · extern_id = journal:10343ce6-501d-4547-8021-172c592571ae_
+- **Doppelte Palette** · Paletten 7433 und 7434 · Charge 1638 · 2026-09-10
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 300 · kisten = 1 · extern_id = journal:54bef66f-0dcd-4049-a557-9ad236da03ac_
+- **Doppelte Palette** · Paletten 7433 und 7435 · Charge 1638 · 2026-09-10
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 300 · kisten = 1 · extern_id = journal:eeab76fb-2196-46c0-9b00-0b854de4bfdc_
+- **Doppelte Palette** · Paletten 7433 und 7436 · Charge 1638 · 2026-09-10
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 300 · kisten = 1 · extern_id = journal:78f19c3d-b4e5-4562-a625-f7fa42fa8a80_
+- **Doppelte Palette** · Paletten 7437 und 7438 · Charge 1638 · 2026-09-10
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 313 · kisten = 1 · extern_id = journal:10d20985-7ac8-4837-b5de-33b5f4318443_
+- **Doppelte Palette** · Paletten 7437 und 7439 · Charge 1638 · 2026-09-10
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 313 · kisten = 1 · extern_id = journal:cd11e067-a985-4b13-bfcf-8d97a4ce160c_
+- **Doppelte Palette** · Paletten 7437 und 7440 · Charge 1638 · 2026-09-10
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 313 · kisten = 1 · extern_id = journal:2d8f29f9-5788-4ab5-89ec-5d94b131414f_
+- **Doppelte Palette** · Paletten 7441 und 7442 · Charge 1638 · 2026-09-10
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 319 · kisten = 1 · extern_id = journal:d0cf8f4b-ba44-4b6d-81eb-e19b0e42efeb_
+- **Doppelte Palette** · Paletten 7444 und 7456 · Charge 1649 · 2026-09-10
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 431 · kisten = 36 · extern_id = journal:db159d88-9161-4d27-a081-9b47a3153888_
+- **Doppelte Palette** · Paletten 7445 und 7457 · Charge 1649 · 2026-09-10
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 438 · kisten = 36 · extern_id = journal:ec14eef6-79b5-49fd-ac96-e2a73233f23e_
+- **Doppelte Palette** · Paletten 7445 und 7462 · Charge 1649 · 2026-09-10
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 438 · kisten = 36 · extern_id = journal:5d9ae45d-85da-44fd-8126-b6fe823e8546_
+- **Doppelte Palette** · Paletten 7448 und 7467 · Charge 1649 · 2026-09-10
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 432 · kisten = 36 · extern_id = journal:f7354a27-a11b-4483-bd8b-aea3a8b47a10_
+- **Doppelte Palette** · Paletten 7448 und 7470 · Charge 1649 · 2026-09-10
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 432 · kisten = 36 · extern_id = journal:419065fe-68a5-4c46-96c7-40b834689e11_
+- **Doppelte Palette** · Paletten 7452 und 7454 · Charge 1649 · 2026-09-10
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 425 · kisten = 36 · extern_id = journal:55a500b8-17a3-4bba-97e4-6286665bd528_
+- **Doppelte Palette** · Paletten 7455 und 7460 · Charge 1649 · 2026-09-10
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 439 · kisten = 36 · extern_id = journal:6bd25aae-c439-4d6e-b673-4bc3ff2d1f8f_
+- **Doppelte Palette** · Paletten 7461 und 7465 · Charge 1649 · 2026-09-10
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 435 · kisten = 36 · extern_id = journal:c74e0bc1-7660-4bb6-b491-a4fe85ceaef5_
+- **Doppelte Palette** · Paletten 7463 und 7464 · Charge 1649 · 2026-09-10
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 444 · kisten = 36 · extern_id = journal:8b912566-f6e6-45ef-8851-b439a00d5951_
+- **Doppelte Palette** · Paletten 7463 und 7472 · Charge 1649 · 2026-09-10
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 444 · kisten = 36 · extern_id = journal:80503470-dd32-4518-b89d-2b842551f290_
+- **Doppelte Palette** · Paletten 7463 und 7473 · Charge 1649 · 2026-09-10
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 444 · kisten = 36 · extern_id = journal:14bdf2d6-aa6b-47b1-946b-4b9a2e123708_
+- **Doppelte Palette** · Paletten 7486 und 7487 · Charge 1650 · 2026-09-11
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 475 · kisten = 36 · extern_id = journal:8e2dd746-d9f9-48c2-872b-da2cff2266dd_
+- **Doppelte Palette** · Paletten 7491 und 7508 · Charge 1632 · 2026-09-11
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 473 · kisten = 36 · extern_id = journal:ccb522e0-d098-47b1-97e7-21a865e59d4a_
+- **Doppelte Palette** · Paletten 7492 und 7511 · Charge 1632 · 2026-09-11
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 482 · kisten = 36 · extern_id = journal:f23a06ba-7fd1-4f79-a560-98fdaa4d086c_
+- **Doppelte Palette** · Paletten 7492 und 7525 · Charge 1632 · 2026-09-11
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 482 · kisten = 36 · extern_id = journal:2739cf91-cbb1-477c-83b4-5704c06b2083_
+- **Doppelte Palette** · Paletten 7493 und 7499 · Charge 1632 · 2026-09-11
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 464 · kisten = 36 · extern_id = journal:c45b0df3-5ed6-487b-9287-9acb84b976b6_
+- **Doppelte Palette** · Paletten 7494 und 7504 · Charge 1632 · 2026-09-11
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 481 · kisten = 36 · extern_id = journal:f831a11d-70bf-4911-b05f-fe6003df4fdc_
+- **Doppelte Palette** · Paletten 7494 und 7517 · Charge 1632 · 2026-09-11
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 481 · kisten = 36 · extern_id = journal:8e90cdb2-dd19-48d8-bd01-2dfa95e3ceba_
+- **Doppelte Palette** · Paletten 7494 und 7527 · Charge 1632 · 2026-09-11
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 481 · kisten = 36 · extern_id = journal:027cf1c4-d7ba-4860-a8bf-f9007d6587ad_
+- **Doppelte Palette** · Paletten 7495 und 7530 · Charge 1632 · 2026-09-11
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 468 · kisten = 36 · extern_id = journal:a46e79b0-b0ef-4324-8335-677a620b2868_
+- **Doppelte Palette** · Paletten 7496 und 7506 · Charge 1632 · 2026-09-11
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 477 · kisten = 36 · extern_id = journal:3503e888-5bfa-4758-b344-de9c119cef70_
+- **Doppelte Palette** · Paletten 7498 und 7531 · Charge 1632 · 2026-09-11
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 458 · kisten = 36 · extern_id = journal:10ad5426-a9e3-4689-ad40-e2cd8d4ca58b_
+- **Doppelte Palette** · Paletten 7501 und 7502 · Charge 1632 · 2026-09-11
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 479 · kisten = 36 · extern_id = journal:b5c3624e-54de-4b1f-8d18-aecba575707b_
+- **Doppelte Palette** · Paletten 7503 und 7505 · Charge 1632 · 2026-09-11
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 480 · kisten = 36 · extern_id = journal:27f733cb-628a-4a51-b909-6cd496366739_
+- **Doppelte Palette** · Paletten 7503 und 7514 · Charge 1632 · 2026-09-11
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 480 · kisten = 36 · extern_id = journal:490f38f5-2c53-4f55-9447-cc0ef99ea2c3_
+- **Doppelte Palette** · Paletten 7507 und 7510 · Charge 1632 · 2026-09-11
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 483 · kisten = 36 · extern_id = journal:ea69cc7a-7691-4a38-b352-47a3117702ec_
+- **Doppelte Palette** · Paletten 7507 und 7528 · Charge 1632 · 2026-09-11
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 483 · kisten = 36 · extern_id = journal:c6c67910-5582-483e-b9d9-8e03ba755bfa_
+- **Doppelte Palette** · Paletten 7509 und 7516 · Charge 1632 · 2026-09-11
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 471 · kisten = 36 · extern_id = journal:828f30bf-fc4e-4a3c-bff8-51ee53f393a3_
+- **Doppelte Palette** · Paletten 7513 und 7526 · Charge 1632 · 2026-09-11
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 475 · kisten = 36 · extern_id = journal:3bd4c357-68e0-4f35-824d-a6f84db2437c_
+- **Doppelte Palette** · Paletten 7515 und 7518 · Charge 1632 · 2026-09-11
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 474 · kisten = 36 · extern_id = journal:aea7454b-1282-4db6-9674-2bcd09eb9884_
+- **Doppelte Palette** · Paletten 7515 und 7523 · Charge 1632 · 2026-09-11
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 474 · kisten = 36 · extern_id = journal:401da366-a2e4-46f0-98f1-246025235180_
+- **Doppelte Palette** · Paletten 7515 und 7524 · Charge 1632 · 2026-09-11
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 474 · kisten = 36 · extern_id = journal:898b862d-98e1-4af9-8954-55784d9fdd93_
+- **Doppelte Palette** · Paletten 7520 und 7533 · Charge 1632 · 2026-09-11
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 459 · kisten = 36 · extern_id = journal:28f00f5d-bfe4-4b0c-8723-4ea43b2c7302_
+- **Doppelte Palette** · Paletten 7536 und 7538 · Charge 1632 · 2026-09-12
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 478 · kisten = 36 · extern_id = journal:6c3d5fab-b7c9-4ab4-8fca-6ef759a14452_
+- **Doppelte Palette** · Paletten 7537 und 7541 · Charge 1632 · 2026-09-12
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 483 · kisten = 36 · extern_id = journal:74152abb-7590-4536-b661-c3a197d8aa4b_
+- **Doppelte Palette** · Paletten 7537 und 7545 · Charge 1632 · 2026-09-12
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 483 · kisten = 36 · extern_id = journal:2a1254c7-a366-4599-933b-9ff8547e46ba_
+- **Doppelte Palette** · Paletten 7540 und 7544 · Charge 1632 · 2026-09-12
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 476 · kisten = 36 · extern_id = journal:d32f477c-f2bd-4b8f-9b6c-5b26038bfb95_
+- **Doppelte Palette** · Paletten 7547 und 7611 · Charge 1632 · 2026-09-14
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 482 · kisten = 36 · extern_id = journal:79a505fb-51ed-4e12-8ffa-2e3db57a999b_
+- **Doppelte Palette** · Paletten 7548 und 7585 · Charge 1632 · 2026-09-14
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 474 · kisten = 36 · extern_id = journal:6cd5edee-5d1e-46da-8d48-8436f9dbca7b_
+- **Doppelte Palette** · Paletten 7548 und 7587 · Charge 1632 · 2026-09-14
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 474 · kisten = 36 · extern_id = journal:1141ae18-2e18-48b8-bf25-ca64de1091c2_
+- **Doppelte Palette** · Paletten 7549 und 7561 · Charge 1632 · 2026-09-14
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 486 · kisten = 36 · extern_id = journal:6dd5db1e-d4fe-4ae4-a43c-584dabcdf81b_
+- **Doppelte Palette** · Paletten 7549 und 7582 · Charge 1632 · 2026-09-14
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 486 · kisten = 36 · extern_id = journal:0782e17f-c5ed-4475-8d01-d3b3a1c49340_
+- **Doppelte Palette** · Paletten 7550 und 7559 · Charge 1632 · 2026-09-14
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 485 · kisten = 36 · extern_id = journal:e54c5ae2-a2d9-48ff-850f-e09d421ca980_
+- **Doppelte Palette** · Paletten 7550 und 7560 · Charge 1632 · 2026-09-14
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 485 · kisten = 36 · extern_id = journal:321d7900-b2d1-4b53-8bf2-04faed991e61_
+- **Doppelte Palette** · Paletten 7550 und 7566 · Charge 1632 · 2026-09-14
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 485 · kisten = 36 · extern_id = journal:fc3751cb-2ae0-4d14-adc3-e365cfbfd14c_
+- **Doppelte Palette** · Paletten 7550 und 7575 · Charge 1632 · 2026-09-14
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 485 · kisten = 36 · extern_id = journal:cb27432a-4011-4205-98e6-ae116b4ac685_
+- **Doppelte Palette** · Paletten 7551 und 7553 · Charge 1632 · 2026-09-14
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 480 · kisten = 36 · extern_id = journal:d594ad71-1437-4fe2-a4ce-530cf87c3d14_
+- **Doppelte Palette** · Paletten 7551 und 7568 · Charge 1632 · 2026-09-14
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 480 · kisten = 36 · extern_id = journal:2d2040d3-5add-45dc-a0d2-096f98373803_
+- **Doppelte Palette** · Paletten 7551 und 7599 · Charge 1632 · 2026-09-14
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 480 · kisten = 36 · extern_id = journal:ef9d9b37-caee-4060-8fef-845849cccadc_
+- **Doppelte Palette** · Paletten 7551 und 7608 · Charge 1632 · 2026-09-14
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 480 · kisten = 36 · extern_id = journal:ce4e6ec5-c872-455b-9a9f-77da6179e1ce_
+- **Doppelte Palette** · Paletten 7554 und 7583 · Charge 1632 · 2026-09-14
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 467 · kisten = 36 · extern_id = journal:49a6f0ec-ef48-4390-842f-cade9c601984_
+- **Doppelte Palette** · Paletten 7555 und 7593 · Charge 1632 · 2026-09-14
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 476 · kisten = 36 · extern_id = journal:906468c4-d906-4d61-9eec-bdf4af2758a7_
+- **Doppelte Palette** · Paletten 7556 und 7573 · Charge 1632 · 2026-09-14
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 478 · kisten = 36 · extern_id = journal:308e2424-7a4b-45e1-8a01-4537c77433f9_
+- **Doppelte Palette** · Paletten 7556 und 7590 · Charge 1632 · 2026-09-14
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 478 · kisten = 36 · extern_id = journal:31192906-7ed0-4814-8b41-6c98aded4d10_
+- **Doppelte Palette** · Paletten 7556 und 7600 · Charge 1632 · 2026-09-14
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 478 · kisten = 36 · extern_id = journal:e0093d8d-286a-43d7-bd3f-a128b605a016_
+- **Doppelte Palette** · Paletten 7557 und 7558 · Charge 1632 · 2026-09-14
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 479 · kisten = 36 · extern_id = journal:5fbca4d7-fd15-4f04-b3dc-3611c9762a46_
+- **Doppelte Palette** · Paletten 7557 und 7562 · Charge 1632 · 2026-09-14
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 479 · kisten = 36 · extern_id = journal:9ddb6443-5e77-46ae-8efc-3cd9f54f4d4a_
+- **Doppelte Palette** · Paletten 7557 und 7595 · Charge 1632 · 2026-09-14
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 479 · kisten = 36 · extern_id = journal:19458c95-2c6a-432c-81b7-206c29c0310e_
+- **Doppelte Palette** · Paletten 7563 und 7569 · Charge 1632 · 2026-09-14
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 487 · kisten = 36 · extern_id = journal:10d7ccd4-37a7-4b98-a0ec-ca66323cd254_
+- **Doppelte Palette** · Paletten 7565 und 7567 · Charge 1632 · 2026-09-14
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 484 · kisten = 36 · extern_id = journal:78bbb500-2f20-4166-ae06-9f147c458dfa_
+- **Doppelte Palette** · Paletten 7565 und 7574 · Charge 1632 · 2026-09-14
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 484 · kisten = 36 · extern_id = journal:2f14f8a3-2b35-4fe5-b208-dc296d631fea_
+- **Doppelte Palette** · Paletten 7565 und 7596 · Charge 1632 · 2026-09-14
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 484 · kisten = 36 · extern_id = journal:4861eb35-3073-4e19-90ec-4ee91e9439dc_
+- **Doppelte Palette** · Paletten 7565 und 7598 · Charge 1632 · 2026-09-14
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 484 · kisten = 36 · extern_id = journal:ffa4efdd-9abe-43f5-a452-939fc0516b95_
+- **Doppelte Palette** · Paletten 7572 und 7588 · Charge 1632 · 2026-09-14
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 471 · kisten = 36 · extern_id = journal:913252f3-9647-4bf6-868d-bb9808bcab4c_
+- **Doppelte Palette** · Paletten 7572 und 7607 · Charge 1632 · 2026-09-14
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 471 · kisten = 36 · extern_id = journal:3b037b24-2526-4926-8400-3d4988666c96_
+- **Doppelte Palette** · Paletten 7572 und 7610 · Charge 1632 · 2026-09-14
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 471 · kisten = 36 · extern_id = journal:1f03f75a-83f9-4c33-87c4-2b453e8a88c8_
+- **Doppelte Palette** · Paletten 7576 und 7594 · Charge 1632 · 2026-09-14
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 489 · kisten = 36 · extern_id = journal:af298729-af81-432e-a8d5-7ed0c803f7b7_
+- **Doppelte Palette** · Paletten 7576 und 7597 · Charge 1632 · 2026-09-14
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 489 · kisten = 36 · extern_id = journal:44969ada-ce11-4501-b8ec-bec4deded81a_
+- **Doppelte Palette** · Paletten 7580 und 7581 · Charge 1632 · 2026-09-14
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 468 · kisten = 36 · extern_id = journal:b2bfb8bc-d853-4dc8-8c57-355c4b800014_
+- **Doppelte Palette** · Paletten 7580 und 7586 · Charge 1632 · 2026-09-14
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 468 · kisten = 36 · extern_id = journal:aafe55da-362c-49cf-a78e-a200d2558d10_
+- **Doppelte Palette** · Paletten 7584 und 7601 · Charge 1632 · 2026-09-14
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 466 · kisten = 36 · extern_id = journal:749f3211-68a4-4a2f-b630-38df75636384_
+- **Doppelte Palette** · Paletten 7589 und 7612 · Charge 1632 · 2026-09-14
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 472 · kisten = 36 · extern_id = journal:116c0631-4b59-4fcd-b323-18184b501380_
+- **Doppelte Palette** · Paletten 7591 und 7606 · Charge 1632 · 2026-09-14
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 475 · kisten = 36 · extern_id = journal:404ccea4-7b24-46dc-b77e-9d81496169bb_
+- **Doppelte Palette** · Paletten 7602 und 7604 · Charge 1632 · 2026-09-14
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 461 · kisten = 36 · extern_id = journal:ced5f22a-6c69-41d8-bfe4-9b0d94d864dc_
+- **Doppelte Palette** · Paletten 7602 und 7614 · Charge 1632 · 2026-09-14
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 461 · kisten = 36 · extern_id = journal:ad3d8ea9-63a2-4d4b-bd7f-31e8edbb1ee3_
+- **Doppelte Palette** · Paletten 7615 und 7622 · Charge 1632 · 2026-09-15
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 480 · kisten = 36 · extern_id = journal:393f143d-f4b2-4f33-9179-6853c6521502_
+- **Doppelte Palette** · Paletten 7615 und 7633 · Charge 1632 · 2026-09-15
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 480 · kisten = 36 · extern_id = journal:f15e510d-1971-4ec2-88d4-fbed24f5918e_
+- **Doppelte Palette** · Paletten 7615 und 7638 · Charge 1632 · 2026-09-15
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 480 · kisten = 36 · extern_id = journal:1e0e5cad-2005-44e8-9db3-4093f404766c_
+- **Doppelte Palette** · Paletten 7617 und 7639 · Charge 1632 · 2026-09-15
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 471 · kisten = 36 · extern_id = journal:b21d9774-927a-434d-83ca-0aa5870418e6_
+- **Doppelte Palette** · Paletten 7617 und 7650 · Charge 1632 · 2026-09-15
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 471 · kisten = 36 · extern_id = journal:5015169e-6760-4f7f-ac91-0ad7b43dcdf9_
+- **Doppelte Palette** · Paletten 7618 und 7660 · Charge 1632 · 2026-09-15
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 466 · kisten = 36 · extern_id = journal:c9310409-fd9c-4342-8c6c-e2c531669ff8_
+- **Doppelte Palette** · Paletten 7618 und 7662 · Charge 1632 · 2026-09-15
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 466 · kisten = 36 · extern_id = journal:90c4b1ef-7c11-444b-9b00-409375169342_
+- **Doppelte Palette** · Paletten 7619 und 7666 · Charge 1632 · 2026-09-15
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 484 · kisten = 36 · extern_id = journal:5877a9a6-8b21-4d49-9611-ccdaf7f87ceb_
+- **Doppelte Palette** · Paletten 7620 und 7627 · Charge 1632 · 2026-09-15
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 473 · kisten = 36 · extern_id = journal:b5b7dff1-1c41-4149-8a9b-08770a491cc1_
+- **Doppelte Palette** · Paletten 7620 und 7663 · Charge 1632 · 2026-09-15
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 473 · kisten = 36 · extern_id = journal:aef906dd-6d32-460b-aedc-12783b63a405_
+- **Doppelte Palette** · Paletten 7621 und 7630 · Charge 1632 · 2026-09-15
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 477 · kisten = 36 · extern_id = journal:e80660b9-1494-4e5e-80c4-3dfff4b52ebf_
+- **Doppelte Palette** · Paletten 7623 und 7625 · Charge 1632 · 2026-09-15
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 475 · kisten = 36 · extern_id = journal:cedeb278-58c2-4d39-aee7-cca194bc8f97_
+- **Doppelte Palette** · Paletten 7623 und 7629 · Charge 1632 · 2026-09-15
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 475 · kisten = 36 · extern_id = journal:2d92678d-620a-4e25-b383-c4d24a15fbf0_
+- **Doppelte Palette** · Paletten 7631 und 7637 · Charge 1632 · 2026-09-15
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 487 · kisten = 36 · extern_id = journal:fd2f6ec6-c53c-4297-bedc-27715fa38f9e_
+- **Doppelte Palette** · Paletten 7632 und 7643 · Charge 1632 · 2026-09-15
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 472 · kisten = 36 · extern_id = journal:197dd56a-30c8-4b54-b9a3-4de9f3e204ab_
+- **Doppelte Palette** · Paletten 7634 und 7642 · Charge 1632 · 2026-09-15
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 479 · kisten = 36 · extern_id = journal:8b60376f-21ed-438a-b30a-0776a29ffd2c_
+- **Doppelte Palette** · Paletten 7634 und 7652 · Charge 1632 · 2026-09-15
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 479 · kisten = 36 · extern_id = journal:d6500131-c28b-446d-82d5-e9419888e850_
+- **Doppelte Palette** · Paletten 7640 und 7651 · Charge 1632 · 2026-09-15
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 478 · kisten = 36 · extern_id = journal:d210cba2-8560-496d-9ba1-238bde5a8b6f_
+- **Doppelte Palette** · Paletten 7640 und 7653 · Charge 1632 · 2026-09-15
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 478 · kisten = 36 · extern_id = journal:9e6b48b7-d26c-4f86-adaa-f7cec40b7f9e_
+- **Doppelte Palette** · Paletten 7645 und 7646 · Charge 1632 · 2026-09-15
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 476 · kisten = 36 · extern_id = journal:c8488303-f4ed-4ea1-9e74-3732fe9c00d6_
+- **Doppelte Palette** · Paletten 7647 und 7667 · Charge 1632 · 2026-09-15
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 465 · kisten = 36 · extern_id = journal:1eafcf76-f8e6-42ca-97f0-9d439ff77be2_
+- **Doppelte Palette** · Paletten 7648 und 7665 · Charge 1632 · 2026-09-15
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 474 · kisten = 36 · extern_id = journal:c39973bf-8532-4792-82e5-08559ec99478_
+- **Doppelte Palette** · Paletten 7649 und 7664 · Charge 1632 · 2026-09-15
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 464 · kisten = 36 · extern_id = journal:992238ee-e2dc-4246-b36b-d9a6df04c92e_
+- **Doppelte Palette** · Paletten 7668 und 7672 · Charge 1611 · 2026-09-17
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 487 · kisten = 36 · extern_id = journal:db54eb4c-9343-4316-bf2e-e1ce47c9bdf3_
+- **Doppelte Palette** · Paletten 7669 und 7677 · Charge 1611 · 2026-09-17
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 492 · kisten = 36 · extern_id = journal:d29d283e-6c28-48c9-99f8-e1bffc052ce0_
+- **Doppelte Palette** · Paletten 7670 und 7674 · Charge 1611 · 2026-09-17
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 494 · kisten = 36 · extern_id = journal:f7d5aad2-65b1-4256-96d7-df553625fe7f_
+- **Doppelte Palette** · Paletten 7673 und 7675 · Charge 1611 · 2026-09-17
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 496 · kisten = 36 · extern_id = journal:53d040e6-6c99-45a7-9565-6f1e137bb241_
+- **Doppelte Palette** · Paletten 7676 und 7678 · Charge 1611 · 2026-09-17
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 493 · kisten = 36 · extern_id = journal:e669f892-0ebc-4e8c-99a2-6f5149997e42_
+- **Doppelte Palette** · Paletten 7679 und 7681 · Charge 1611 · 2026-09-17
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 472 · kisten = 36 · extern_id = journal:052f001f-3490-451d-a2a5-3ea1c70b97d0_
+- **Doppelte Palette** · Paletten 7685 und 7694 · Charge 1611 · 2026-09-18
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 490 · kisten = 36 · extern_id = journal:a1effb15-c287-40b3-9750-09d6f20896e8_
+- **Doppelte Palette** · Paletten 7685 und 7713 · Charge 1611 · 2026-09-18
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 490 · kisten = 36 · extern_id = journal:844ed81b-2564-4a58-8efa-4ad85823eb32_
+- **Doppelte Palette** · Paletten 7685 und 7736 · Charge 1611 · 2026-09-18
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 490 · kisten = 36 · extern_id = journal:ae1eed67-41fd-4760-a71a-076fefb287b8_
+- **Doppelte Palette** · Paletten 7685 und 7740 · Charge 1611 · 2026-09-18
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 490 · kisten = 36 · extern_id = journal:d65b09bb-8c2e-4e3c-bf5c-4cce34d34a85_
+- **Doppelte Palette** · Paletten 7685 und 7747 · Charge 1611 · 2026-09-18
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 490 · kisten = 36 · extern_id = journal:e0b86b4a-b532-42d9-bccd-49399d1c57c8_
+- **Doppelte Palette** · Paletten 7686 und 7690 · Charge 1611 · 2026-09-18
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 485 · kisten = 36 · extern_id = journal:edd3b334-122e-4cf0-ac4e-12f461cac6de_
+- **Doppelte Palette** · Paletten 7686 und 7725 · Charge 1611 · 2026-09-18
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 485 · kisten = 36 · extern_id = journal:1fc3d264-d703-4e73-85ad-a3436d21b30b_
+- **Doppelte Palette** · Paletten 7687 und 7715 · Charge 1611 · 2026-09-18
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 488 · kisten = 36 · extern_id = journal:899a39e1-218d-4f67-bf59-30f863dce76c_
+- **Doppelte Palette** · Paletten 7688 und 7734 · Charge 1611 · 2026-09-18
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 492 · kisten = 36 · extern_id = journal:2fa5af28-c8ec-4e95-b73f-e3450fbe6c40_
+- **Doppelte Palette** · Paletten 7689 und 7735 · Charge 1611 · 2026-09-18
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 498 · kisten = 36 · extern_id = journal:9715700e-9085-4e50-bcd4-db8e365fe108_
+- **Doppelte Palette** · Paletten 7689 und 7745 · Charge 1611 · 2026-09-18
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 498 · kisten = 36 · extern_id = journal:fc584b1d-68c1-4c4a-a683-be36b2b364eb_
+- **Doppelte Palette** · Paletten 7691 und 7697 · Charge 1611 · 2026-09-18
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 491 · kisten = 36 · extern_id = journal:014a1987-f66f-4f02-b3a4-bf101bff887d_
+- **Doppelte Palette** · Paletten 7692 und 7744 · Charge 1611 · 2026-09-18
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 496 · kisten = 36 · extern_id = journal:c843d9d5-3aa5-4c67-87f2-f86ca4c6b07f_
+- **Doppelte Palette** · Paletten 7695 und 7696 · Charge 1611 · 2026-09-18
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 500 · kisten = 36 · extern_id = journal:10c81a7e-745f-411f-a983-8edd5aae6ddc_
+- **Doppelte Palette** · Paletten 7695 und 7748 · Charge 1611 · 2026-09-18
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 500 · kisten = 36 · extern_id = journal:f9056d9f-79e2-4d5b-b734-da4a13d97e5c_
+- **Doppelte Palette** · Paletten 7699 und 7708 · Charge 1611 · 2026-09-18
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 477 · kisten = 36 · extern_id = journal:1bb4cc42-1343-41d9-824a-e0fc0fec1306_
+- **Doppelte Palette** · Paletten 7699 und 7726 · Charge 1611 · 2026-09-18
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 477 · kisten = 36 · extern_id = journal:e52af10f-4b5a-4a83-ab06-a774046ac11b_
+- **Doppelte Palette** · Paletten 7701 und 7731 · Charge 1611 · 2026-09-18
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 481 · kisten = 36 · extern_id = journal:c19ab0a5-a67b-4ef5-a515-1983bf06c81e_
+- **Doppelte Palette** · Paletten 7702 und 7741 · Charge 1611 · 2026-09-18
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 479 · kisten = 36 · extern_id = journal:aaf4034e-beb1-4a24-b988-0dbcfa58927c_
+- **Doppelte Palette** · Paletten 7703 und 7711 · Charge 1611 · 2026-09-18
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 472 · kisten = 36 · extern_id = journal:9ec29652-e52e-4666-baab-11f1a514b983_
+- **Doppelte Palette** · Paletten 7703 und 7719 · Charge 1611 · 2026-09-18
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 472 · kisten = 36 · extern_id = journal:b21ea52b-2bed-4836-97d2-0febd88a8984_
+- **Doppelte Palette** · Paletten 7704 und 7724 · Charge 1611 · 2026-09-18
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 478 · kisten = 36 · extern_id = journal:d863e940-08c4-4c2c-b819-91b1186d36b7_
+- **Doppelte Palette** · Paletten 7704 und 7749 · Charge 1611 · 2026-09-18
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 478 · kisten = 36 · extern_id = journal:fca197c0-ae0f-4742-bbea-5a287c3be477_
+- **Doppelte Palette** · Paletten 7709 und 7714 · Charge 1611 · 2026-09-18
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 473 · kisten = 36 · extern_id = journal:5c4977be-c774-42d7-b9a7-062805b6cda2_
+- **Doppelte Palette** · Paletten 7709 und 7721 · Charge 1611 · 2026-09-18
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 473 · kisten = 36 · extern_id = journal:b28baa8f-894a-44f8-9371-0b540f57b6eb_
+- **Doppelte Palette** · Paletten 7710 und 7717 · Charge 1611 · 2026-09-18
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 466 · kisten = 36 · extern_id = journal:3cd801f0-e416-4969-bd4a-986a692f4dba_
+- **Doppelte Palette** · Paletten 7712 und 7718 · Charge 1611 · 2026-09-18
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 468 · kisten = 36 · extern_id = journal:7aa726e1-21cf-49b8-94bf-b5c36d72239f_
+- **Doppelte Palette** · Paletten 7716 und 7729 · Charge 1611 · 2026-09-18
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 486 · kisten = 36 · extern_id = journal:bd655ca6-a04f-4a0f-892f-2baea04075e3_
+- **Doppelte Palette** · Paletten 7716 und 7743 · Charge 1611 · 2026-09-18
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 486 · kisten = 36 · extern_id = journal:e12cc79b-c907-42f5-ad57-93ddfef3557f_
+- **Doppelte Palette** · Paletten 7730 und 7738 · Charge 1611 · 2026-09-18
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 493 · kisten = 36 · extern_id = journal:3446f960-dbf3-4f95-919a-995aa49df4a3_
+- **Doppelte Palette** · Paletten 7737 und 7742 · Charge 1611 · 2026-09-18
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 502 · kisten = 36 · extern_id = journal:66ddac04-f6ac-4931-88b3-5102320c1d70_
+- **Doppelte Palette** · Paletten 7750 und 7826 · Charge 1611 · 2026-09-19
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 488 · kisten = 36 · extern_id = journal:f4fc68e3-b20f-4d67-896a-97768b782403_
+- **Doppelte Palette** · Paletten 7751 und 7821 · Charge 1611 · 2026-09-19
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 483 · kisten = 36 · extern_id = journal:f6e999f2-33b4-45e0-88ca-67a3f26287c1_
+- **Doppelte Palette** · Paletten 7751 und 7827 · Charge 1611 · 2026-09-19
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 483 · kisten = 36 · extern_id = journal:0e5c012b-451f-4e80-8ce8-60fdc3d3b341_
+- **Doppelte Palette** · Paletten 7752 und 7756 · Charge 1611 · 2026-09-19
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 478 · kisten = 36 · extern_id = journal:d0657999-82e2-4c2c-b348-4f7bbc34fd0a_
+- **Doppelte Palette** · Paletten 7752 und 7819 · Charge 1611 · 2026-09-19
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 478 · kisten = 36 · extern_id = journal:6bbd3011-6688-4df6-8099-2a697c99f2e8_
+- **Doppelte Palette** · Paletten 7752 und 7828 · Charge 1611 · 2026-09-19
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 478 · kisten = 36 · extern_id = journal:e6126417-e4f0-4e7b-8794-c31e176eb2b3_
+- **Doppelte Palette** · Paletten 7754 und 7758 · Charge 1611 · 2026-09-19
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 481 · kisten = 36 · extern_id = journal:be74aefa-21ac-4f69-80c2-5a582a19b5d5_
+- **Doppelte Palette** · Paletten 7754 und 7823 · Charge 1611 · 2026-09-19
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 481 · kisten = 36 · extern_id = journal:0f48cc4d-80e9-4ed6-b14f-626bded6bba3_
+- **Doppelte Palette** · Paletten 7755 und 7769 · Charge 1611 · 2026-09-19
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 476 · kisten = 36 · extern_id = journal:5a6a804c-1f07-4685-b021-eb5d16137b88_
+- **Doppelte Palette** · Paletten 7755 und 7776 · Charge 1611 · 2026-09-19
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 476 · kisten = 36 · extern_id = journal:5146c384-3c63-4b1c-a244-2e88db3dbb99_
+- **Doppelte Palette** · Paletten 7757 und 7760 · Charge 1611 · 2026-09-19
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 490 · kisten = 36 · extern_id = journal:319bc505-76fe-43d5-9eeb-d5771ad9ed80_
+- **Doppelte Palette** · Paletten 7757 und 7768 · Charge 1611 · 2026-09-19
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 490 · kisten = 36 · extern_id = journal:e8c5c023-f2e7-4675-a7c5-54621b7ec84f_
+- **Doppelte Palette** · Paletten 7757 und 7774 · Charge 1611 · 2026-09-19
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 490 · kisten = 36 · extern_id = journal:8427b8f6-dc3b-4ee8-a16b-c2da0c3d6697_
+- **Doppelte Palette** · Paletten 7762 und 7829 · Charge 1611 · 2026-09-19
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 495 · kisten = 36 · extern_id = journal:738d6742-d41c-4ad7-b5d5-7470f42b6de6_
+- **Doppelte Palette** · Paletten 7764 und 7770 · Charge 1611 · 2026-09-19
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 477 · kisten = 36 · extern_id = journal:b38fe158-c5b2-423b-88ef-5c7d12e9533f_
+- **Doppelte Palette** · Paletten 7764 und 7771 · Charge 1611 · 2026-09-19
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 477 · kisten = 36 · extern_id = journal:ee010728-0d73-49ad-aa6f-ff0a000e1fbe_
+- **Doppelte Palette** · Paletten 7773 und 7824 · Charge 1611 · 2026-09-19
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 482 · kisten = 36 · extern_id = journal:7659edd0-083e-4bba-aa47-a6bf4d1908f9_
+- **Doppelte Palette** · Paletten 7777 und 7785 · Charge 1631 · 2026-09-19
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 454 · kisten = 36 · extern_id = journal:664200a6-22c0-42a2-93ac-1875dbafacf3_
+- **Doppelte Palette** · Paletten 7778 und 7786 · Charge 1631 · 2026-09-19
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 451 · kisten = 36 · extern_id = journal:893e8352-1888-4247-9756-49dd2557e638_
+- **Doppelte Palette** · Paletten 7778 und 7799 · Charge 1631 · 2026-09-19
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 451 · kisten = 36 · extern_id = journal:d05b626b-bd95-4f82-944d-f347a7494857_
+- **Doppelte Palette** · Paletten 7778 und 7858 · Charge 1631 · 2026-09-19
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 451 · kisten = 36 · extern_id = journal:6bc43579-0cba-4507-b63a-55df8b5e602b_
+- **Doppelte Palette** · Paletten 7780 und 7850 · Charge 1631 · 2026-09-19
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 458 · kisten = 36 · extern_id = journal:99c22948-f91b-487a-ac3b-95b18d4d12eb_
+- **Doppelte Palette** · Paletten 7781 und 7816 · Charge 1631 · 2026-09-19
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 465 · kisten = 36 · extern_id = journal:08983c98-47a5-4fe4-824a-0a2fa245fc67_
+- **Doppelte Palette** · Paletten 7782 und 7830 · Charge 1631 · 2026-09-19
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 444 · kisten = 36 · extern_id = journal:7e24e210-6277-4082-91df-3090c8a26bb0_
+- **Doppelte Palette** · Paletten 7783 und 7793 · Charge 1631 · 2026-09-19
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 452 · kisten = 36 · extern_id = journal:3c369cba-dd24-4375-a829-5c16a553c83f_
+- **Doppelte Palette** · Paletten 7787 und 7848 · Charge 1631 · 2026-09-19
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 457 · kisten = 36 · extern_id = journal:4e74a9e4-29fd-4797-ae62-3ccfd2976da1_
+- **Doppelte Palette** · Paletten 7787 und 7849 · Charge 1631 · 2026-09-19
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 457 · kisten = 36 · extern_id = journal:5d7f931f-90dc-41d0-befa-1dd5bbdde332_
+- **Doppelte Palette** · Paletten 7787 und 7851 · Charge 1631 · 2026-09-19
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 457 · kisten = 36 · extern_id = journal:8c0702f4-6af8-4d9d-99dc-1a3e9d655908_
+- **Doppelte Palette** · Paletten 7787 und 7857 · Charge 1631 · 2026-09-19
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 457 · kisten = 36 · extern_id = journal:0398b842-971b-4704-9693-cb8b7167589d_
+- **Doppelte Palette** · Paletten 7788 und 7796 · Charge 1631 · 2026-09-19
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 435 · kisten = 36 · extern_id = journal:ae165db1-73c3-4c51-9a70-dbcf14c1f94a_
+- **Doppelte Palette** · Paletten 7788 und 7803 · Charge 1631 · 2026-09-19
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 435 · kisten = 36 · extern_id = journal:0f606155-2a51-4c92-933f-d554b47676fc_
+- **Doppelte Palette** · Paletten 7788 und 7838 · Charge 1631 · 2026-09-19
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 435 · kisten = 36 · extern_id = journal:4d3c420e-bc24-4149-ae0c-69cc5b421ba4_
+- **Doppelte Palette** · Paletten 7789 und 7811 · Charge 1631 · 2026-09-19
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 460 · kisten = 36 · extern_id = journal:9b50304e-f313-43c4-9228-db2dddb315e6_
+- **Doppelte Palette** · Paletten 7790 und 7832 · Charge 1631 · 2026-09-19
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 441 · kisten = 36 · extern_id = journal:5e4155ed-b8c5-499b-a914-7b8435f4450e_
+- **Doppelte Palette** · Paletten 7792 und 7810 · Charge 1631 · 2026-09-19
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 461 · kisten = 36 · extern_id = journal:38a609ea-4ecf-4c2a-8ef5-9ae6f2e48c5b_
+- **Doppelte Palette** · Paletten 7792 und 7817 · Charge 1631 · 2026-09-19
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 461 · kisten = 36 · extern_id = journal:a40ec05b-dce1-45ea-8bf1-14f9a6c56e4e_
+- **Doppelte Palette** · Paletten 7794 und 7808 · Charge 1631 · 2026-09-19
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 466 · kisten = 36 · extern_id = journal:38c6a066-80b0-4f4e-93b3-63f390783db3_
+- **Doppelte Palette** · Paletten 7797 und 7845 · Charge 1631 · 2026-09-19
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 430 · kisten = 36 · extern_id = journal:7c24011f-7b50-455c-9230-deb461057841_
+- **Doppelte Palette** · Paletten 7798 und 7831 · Charge 1631 · 2026-09-19
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 450 · kisten = 36 · extern_id = journal:25498845-c42d-476e-b56d-1c37c450717d_
+- **Doppelte Palette** · Paletten 7800 und 7809 · Charge 1631 · 2026-09-19
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 459 · kisten = 36 · extern_id = journal:c6c9bafd-e96f-4bab-bb8f-543c393f264c_
+- **Doppelte Palette** · Paletten 7800 und 7859 · Charge 1631 · 2026-09-19
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 459 · kisten = 36 · extern_id = journal:6cf8aa13-6bdb-4c47-9820-6ff220169ec1_
+- **Doppelte Palette** · Paletten 7804 und 7839 · Charge 1631 · 2026-09-19
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 439 · kisten = 36 · extern_id = journal:87041e74-eaac-40de-a1c9-173f49dfa3ed_
+- **Doppelte Palette** · Paletten 7805 und 7854 · Charge 1631 · 2026-09-19
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 449 · kisten = 36 · extern_id = journal:dd1102e6-edab-452c-b091-104f8e2c84d2_
+- **Doppelte Palette** · Paletten 7805 und 7855 · Charge 1631 · 2026-09-19
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 449 · kisten = 36 · extern_id = journal:f6f572fd-3360-49fd-a1b2-901cecdcc70f_
+- **Doppelte Palette** · Paletten 7806 und 7807 · Charge 1631 · 2026-09-19
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 456 · kisten = 36 · extern_id = journal:1230b2d9-bb7a-45a9-b682-b07aeb6ed097_
+- **Doppelte Palette** · Paletten 7806 und 7815 · Charge 1631 · 2026-09-19
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 456 · kisten = 36 · extern_id = journal:7851cc14-2698-41ee-b57e-4c8fe73accfe_
+- **Doppelte Palette** · Paletten 7806 und 7860 · Charge 1631 · 2026-09-19
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 456 · kisten = 36 · extern_id = journal:a6f4c545-35d5-44c9-892e-b74eff337796_
+- **Doppelte Palette** · Paletten 7833 und 7841 · Charge 1631 · 2026-09-19
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 442 · kisten = 36 · extern_id = journal:27bf5b10-9cff-40f3-bc85-cf362236823a_
+- **Doppelte Palette** · Paletten 7834 und 7840 · Charge 1631 · 2026-09-19
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 428 · kisten = 36 · extern_id = journal:7149dc22-5a2f-46f7-8077-a1babf0333f4_
+- **Doppelte Palette** · Paletten 7834 und 7843 · Charge 1631 · 2026-09-19
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 428 · kisten = 36 · extern_id = journal:6c7274e9-384e-41e0-a1e0-3419012ee72c_
+- **Doppelte Palette** · Paletten 7837 und 7842 · Charge 1631 · 2026-09-19
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 432 · kisten = 36 · extern_id = journal:90954a83-df2f-41b7-8527-4d5fbcdcec20_
+- **Doppelte Palette** · Paletten 7861 und 7866 · Charge 1611 · 2026-09-21
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 464 · kisten = 36 · extern_id = journal:197ed27f-fa1d-484f-8ebe-3200519a984f_
+- **Doppelte Palette** · Paletten 7861 und 7873 · Charge 1611 · 2026-09-21
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 464 · kisten = 36 · extern_id = journal:0a55f250-0f07-4df3-86b8-425656964fa0_
+- **Doppelte Palette** · Paletten 7861 und 7883 · Charge 1611 · 2026-09-21
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 464 · kisten = 36 · extern_id = journal:63096073-a722-4838-8c88-32e06c01e668_
+- **Doppelte Palette** · Paletten 7863 und 7865 · Charge 1611 · 2026-09-21
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 465 · kisten = 36 · extern_id = journal:625c55c8-ab8e-4901-a6a2-a5c9e6503e99_
+- **Doppelte Palette** · Paletten 7863 und 7872 · Charge 1611 · 2026-09-21
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 465 · kisten = 36 · extern_id = journal:1494e21f-c83d-467d-b8d5-9f644bb9d447_
+- **Doppelte Palette** · Paletten 7864 und 7875 · Charge 1611 · 2026-09-21
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 473 · kisten = 36 · extern_id = journal:314efd1e-ecd0-4d92-8852-78e9368b21b3_
+- **Doppelte Palette** · Paletten 7864 und 7878 · Charge 1611 · 2026-09-21
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 473 · kisten = 36 · extern_id = journal:e4b17ae3-787a-453e-8d30-69ef535ac26d_
+- **Doppelte Palette** · Paletten 7867 und 7871 · Charge 1611 · 2026-09-21
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 472 · kisten = 36 · extern_id = journal:833d568e-1fae-463c-818c-670617e1130b_
+- **Doppelte Palette** · Paletten 7867 und 7877 · Charge 1611 · 2026-09-21
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 472 · kisten = 36 · extern_id = journal:446df66e-470a-4862-af93-ef163bd82341_
+- **Doppelte Palette** · Paletten 7868 und 7885 · Charge 1611 · 2026-09-21
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 462 · kisten = 36 · extern_id = journal:6ab38b94-786a-4743-b553-b44c695b60e2_
+- **Doppelte Palette** · Paletten 7874 und 7876 · Charge 1611 · 2026-09-21
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 463 · kisten = 36 · extern_id = journal:94341395-eff9-42df-9b40-bc29bce56cd8_
+- **Doppelte Palette** · Paletten 7879 und 7880 · Charge 1611 · 2026-09-21
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 476 · kisten = 36 · extern_id = journal:e29e622e-1982-4160-8cdd-b0172034c060_
+- **Doppelte Palette** · Paletten 7887 und 7891 · Charge 1631 · 2026-09-21
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 435 · kisten = 36 · extern_id = journal:1567b7fd-f2e3-43ca-ae4e-d9212a71a60c_
+- **Doppelte Palette** · Paletten 7888 und 7889 · Charge 1631 · 2026-09-21
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 425 · kisten = 36 · extern_id = journal:1aef1939-adce-43d8-863e-4c6b8d8d7b3a_
+- **Doppelte Palette** · Paletten 7888 und 7890 · Charge 1631 · 2026-09-21
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 425 · kisten = 36 · extern_id = journal:0612c749-e0bf-4be4-ad80-456431c0f257_
+- **Doppelte Palette** · Paletten 7893 und 7902 · Charge 1631 · 2026-09-21
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 443 · kisten = 36 · extern_id = journal:2f14bbf5-5092-48f3-9d51-40a4d6aec8a9_
+- **Doppelte Palette** · Paletten 7894 und 7898 · Charge 1631 · 2026-09-21
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 447 · kisten = 36 · extern_id = journal:72638a2a-a6b1-4ec9-86b6-eb6538e14a3d_
+- **Doppelte Palette** · Paletten 7899 und 7901 · Charge 1631 · 2026-09-21
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 442 · kisten = 36 · extern_id = journal:3e163cc1-a1bc-4bad-a0e8-e0f58321436f_
+- **Doppelte Palette** · Paletten 7904 und 7913 · Charge 1611 · 2026-09-22
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 465 · kisten = 36 · extern_id = journal:c55e35d2-9242-4f10-9352-8348f49ec702_
+- **Doppelte Palette** · Paletten 7904 und 7924 · Charge 1611 · 2026-09-22
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 465 · kisten = 36 · extern_id = journal:8f270f43-1a49-4472-86a7-dc027caec541_
+- **Doppelte Palette** · Paletten 7905 und 7920 · Charge 1611 · 2026-09-22
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 472 · kisten = 36 · extern_id = journal:6551f2a8-fc4f-4c9a-928e-92eaf066fa52_
+- **Doppelte Palette** · Paletten 7906 und 7922 · Charge 1611 · 2026-09-22
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 463 · kisten = 36 · extern_id = journal:29d0415c-495d-442b-be6e-b4af81657ea1_
+- **Doppelte Palette** · Paletten 7907 und 7909 · Charge 1611 · 2026-09-22
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 473 · kisten = 36 · extern_id = journal:6484696f-b1d2-4f4c-836b-92c446ff8e64_
+- **Doppelte Palette** · Paletten 7907 und 7916 · Charge 1611 · 2026-09-22
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 473 · kisten = 36 · extern_id = journal:c9e33a71-de8f-463b-81c6-be82bda7130a_
+- **Doppelte Palette** · Paletten 7912 und 7927 · Charge 1611 · 2026-09-22
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 462 · kisten = 36 · extern_id = journal:b3b38eb9-018a-453a-84be-fdef242828d9_
+- **Doppelte Palette** · Paletten 7912 und 7931 · Charge 1611 · 2026-09-22
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 462 · kisten = 36 · extern_id = journal:dc851a5e-96ac-483b-9c7b-b211a67ff6e4_
+- **Doppelte Palette** · Paletten 7918 und 7923 · Charge 1611 · 2026-09-22
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 471 · kisten = 36 · extern_id = journal:88eeefab-f4ae-48b4-9a6e-e64c4d5ab821_
+- **Doppelte Palette** · Paletten 7921 und 7932 · Charge 1611 · 2026-09-22
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 475 · kisten = 36 · extern_id = journal:7875d600-5cab-4d3c-b320-c4445a720afb_
+- **Doppelte Palette** · Paletten 7934 und 7942 · Charge 1631 · 2026-09-22
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 428 · kisten = 36 · extern_id = journal:43cf6208-585e-4a74-b563-426554d5d6fe_
+- **Doppelte Palette** · Paletten 7936 und 7938 · Charge 1631 · 2026-09-22
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 435 · kisten = 36 · extern_id = journal:bd35f31a-e3a8-4f9f-bd2f-b4f110567eae_
+- **Doppelte Palette** · Paletten 7937 und 7939 · Charge 1631 · 2026-09-22
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 429 · kisten = 36 · extern_id = journal:fdc44ec9-6985-46ca-bee7-6c333e7db5fb_
+- **Doppelte Palette** · Paletten 7937 und 7943 · Charge 1631 · 2026-09-22
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 429 · kisten = 36 · extern_id = journal:60bc8ee4-b3b0-4348-a301-7732f99e730b_
+- **Doppelte Palette** · Paletten 7946 und 7949 · Charge 1631 · 2026-09-22
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 432 · kisten = 36 · extern_id = journal:d453e626-0532-4c4c-ac46-2e93a895c683_
+- **Doppelte Palette** · Paletten 7965 und 7967 · Charge 1625 · 2026-09-23
+  - Zwei Paletten derselben Charge, am selben Tag, mit gleichem Gewicht und gleicher Kistenzahl — echt (zwei gleiche Zettel) oder doppelt erfasst?
+  - _brutto_kg = 433 · kisten = 32 · extern_id = journal:1f63c662-2132-4e3b-9ccb-1d186c1ef6d1_
+
