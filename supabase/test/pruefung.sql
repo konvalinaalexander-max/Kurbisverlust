@@ -2933,12 +2933,15 @@ begin
   -- eine Bilanz aus einer Unbekannten ist keine Prüfung, sondern eine Rechnung
   -- mit angenommener Null. Geprüft wird deshalb: jede rechenbare Charge geht
   -- auf, und rechenbar ist genau die, deren Koeffizienten alle gemessen sind.
+  -- Regel geändert in 0101: Zu klein und zu gross, das hinter den Lieferungen
+  -- aussortiert wurde, steht im Haus (Teil von im_haus_heute_kg) — es ist kein
+  -- eigener Term der Bilanz mehr. Der Test ändert sich mit der Regel.
   assert not exists (
     select 1 from erg_charge
      where verlust_bekannt
        and abs(eingang_kg + ueberzaehlung_kg - geliefert_kg - verlust_heute_kg
-               - kanal_ausgelagert_kg - im_haus_heute_kg) > 1),
-    'Eingang + Überzählung = geliefert + Verlust bis heute + Kanal am Ausgelagerten + im Haus';
+               - im_haus_heute_kg) > 1),
+    'Eingang + Überzählung = geliefert + Verlust bis heute + im Haus (zu klein/zu gross steht seit 0101 im Haus)';
   assert not exists (
     select 1 from erg_charge
      where verlust_bekannt
@@ -3360,13 +3363,19 @@ begin
   assert not exists (select 1 from erg_charge where charge_nr = 964003),
     'Eine Charge ohne ein einziges Nettogewicht darf keinen erfundenen Eingang haben';
 
-  -- h) Eine vollständig ausgelieferte Charge liegt nicht mehr im Haus.
+  -- h) Eine vollständig ausgelieferte Charge liegt nicht mehr im Haus — bis auf
+  --    das, was beim Sortieren als zu klein oder zu gross herausfiel: Das steht
+  --    seit 0101 im Haus, bis ein Lieferschein es holt (Regel geändert in
+  --    0101; bis dahin galt „im Haus = 0"). Verkaufsfähig liegt nichts mehr.
   insert into lieferung (datum, charge_nr, sorte, kg, ziel, erfasser)
        values ('2026-08-01', 964001, 'Prüfkürbis64', 950, 'verkauf', v_chef);
   perform auswertung_aktualisieren();
   select im_haus_heute_kg, lager_kg into v_haus, v_lager
     from erg_charge where charge_nr = 964001;
-  assert v_haus = 0, format('Alles ausgeliefert: „noch im Haus" muss 0 sein, ist %s', v_haus);
+  assert abs(v_haus - coalesce((select kanal_ausgelagert_kg from erg_charge where charge_nr = 964001), 0)) < 0.05,
+    format('Alles ausgeliefert: „noch im Haus" ist nur das Aussortierte (zu klein/zu gross), ist %s', v_haus);
+  assert coalesce((select verkaufsfaehig_lager_kg from erg_charge where charge_nr = 964001), 0) = 0,
+    'Alles ausgeliefert: verkaufsfähig im Haus muss 0 sein';
   assert v_lager = 0, format('Alles ausgeliefert: lager_kg muss 0 sein, ist %s', v_lager);
 
   -- i) Eine Charge ohne Lieferung liegt dagegen noch da — so viel, wie die
@@ -3679,12 +3688,19 @@ begin
                - coalesce((select sum(k.fax_kg) from mv_kaskade k
                             where k.charge_nr = c.charge_nr and k.portion = 'ausgelagert'), 0)) > 0.05),
     'fax_heute_kg ist das Faule am Abgepackten, nicht die Erwartung an der liegenden Ware';
+  -- Regel geändert in 0101: „im Haus" ist die liegende Portion plus das, was
+  -- hinter den Lieferungen als zu klein oder zu gross aussortiert wurde — es
+  -- steht im Haus, bis ein Lieferschein es holt. Ohne Kaskadenzeile liegt alles.
   assert not exists (
     select 1 from erg_charge c
      where abs(c.im_haus_heute_kg
-               - coalesce((select sum(k.m2) from mv_kaskade k
-                            where k.charge_nr = c.charge_nr and k.portion = 'lager'), c.eingang_kg)) > 0.05),
-    'im_haus_heute_kg ist die liegende Portion der Kaskade';
+               - case when exists (select 1 from mv_kaskade k where k.charge_nr = c.charge_nr)
+                      then coalesce((select sum(k.m2) from mv_kaskade k
+                                      where k.charge_nr = c.charge_nr and k.portion = 'lager'), 0)
+                         + coalesce((select sum(k.klein_kg + k.nebenkanal_kg) from mv_kaskade k
+                                      where k.charge_nr = c.charge_nr and k.portion = 'ausgelagert'), 0)
+                      else c.eingang_kg end) > 0.05),
+    'im_haus_heute_kg ist die liegende Portion der Kaskade plus das Aussortierte hinter den Lieferungen (0101)';
 
   perform set_config('request.jwt.claim.sub', '', true);
   raise notice 'OK  Mutationsschutz (Vorzeichen der Ableitungen, Portionsfilter der Kennzahlen)';
@@ -4047,7 +4063,9 @@ begin
     join v_prognose p on p.gruppe = 'charge' and p.schluessel = c.charge_nr::text and p.h = 0
    where abs(p.lager_kg          - c.lager_kg)                        > 0.05
       or abs(p.verkaufsfaehig_kg - coalesce(c.verkaufsfaehig_lager_kg, p.verkaufsfaehig_kg)) > 0.05
-      or abs(p.gute_ware_kg      - c.im_haus_heute_kg)                > 0.05
+      -- 0101: erg_charge.im_haus_heute_kg zählt das hinter den Lieferungen
+      -- Aussortierte mit; die Prognose beschreibt die liegende Portion allein.
+      or abs(p.gute_ware_kg + coalesce(c.kanal_ausgelagert_kg, 0) - c.im_haus_heute_kg) > 0.05
       or (c.kanal_im_haus_kg is not null and abs(p.kanal_kg - c.kanal_im_haus_kg) > 0.05)
       or (c.fax_erwartet_kg  is not null and abs(p.fax_kg   - c.fax_erwartet_kg)  > 0.05);
   assert v_n = 0, format('0071 (a): %s Charge(n) weichen bei Horizont 0 von erg_charge ab — %s', v_n, v_txt);
@@ -4058,7 +4076,7 @@ begin
    where p.gruppe = 'gesamt' and p.h = 0
      and (abs(p.lager_kg          - b.lager_kg)                > 0.05
        or abs(p.verkaufsfaehig_kg - b.verkaufsfaehig_heute_kg) > 0.05
-       or abs(p.gute_ware_kg      - b.im_haus_heute_kg)        > 0.05);
+       or abs(p.gute_ware_kg + coalesce(b.kanal_ausgelagert_kg, 0) - b.im_haus_heute_kg) > 0.05);   -- 0101, wie oben
   assert v_n = 0, '0071 (a): die Gruppe „gesamt" weicht bei Horizont 0 von erg_bilanz ab';
 
   -- ---- (b) Die Prognose in sich -------------------------------------
@@ -6824,3 +6842,101 @@ begin
 end $$;
 
 select '——— 0100 Gerechnet wird nur an einer Stelle geprüft ———' as ergebnis;
+
+-- =====================================================================
+-- 0101 — Zu klein und zu gross bleiben im Haus
+--
+-- Der Betrieb: „die stehen dann schon noch im Lager … rechne die noch nicht
+-- zum Verkauf, sondern wirklich nur die, die du mit Lieferschein hast."
+-- Geprüft wird: (a) je Charge ist „im Haus" das Liegende nach Verdunstung
+-- und Verderb plus das hinter den Lieferungen Aussortierte; (b) die Bilanz
+-- schliesst ohne einen Term „anderer Kanal"; (c) der Verlauf sagt auf heute
+-- dasselbe, mit dem Aussortierten als eigener Spalte; (d) der Befund nennt
+-- zu klein/zu gross im Haus und keinen „anderen Kanal"; (e) auf der Demo
+-- gibt es Aussortiertes — die Regel greift, nicht nur die Formel.
+-- =====================================================================
+do $$
+declare v_n int; v numeric; v2 numeric; v_txt text; v_bekannt boolean;
+  v_modus jsonb; v_lad text; v_u uuid := '00000000-0101-0000-0000-000000000001';
+begin
+  -- Wie 0097: die Demo laden — am Ende der Prüfung ist die Datenbank leer —,
+  -- und am Schluss wieder entfernen.
+  select wert into v_modus from einstellung where schluessel = 'betriebsmodus';
+  update einstellung set wert = '"beispiel"'::jsonb where schluessel = 'betriebsmodus';
+  insert into auth.users (id, email, raw_user_meta_data) values (v_u, null, '{"name":"Prüf-0101"}');
+  update profil set rolle = 'admin' where id = v_u;
+  perform set_config('request.jwt.claim.sub', v_u::text, true);
+  select demo_daten_laden() into v_lad;
+  perform auswertung_aktualisieren();
+
+  -- (a) je Charge: im Haus = Liegendes (m2) + Aussortiertes hinter den Lieferungen
+  select count(*) into v_n from erg_charge c
+   where abs(c.im_haus_heute_kg
+             - (coalesce((select sum(k.m2) from mv_kaskade k where k.charge_nr = c.charge_nr and k.portion = 'lager'), 0)
+                + coalesce((select sum(k.klein_kg + k.nebenkanal_kg) from mv_kaskade k where k.charge_nr = c.charge_nr and k.portion = 'ausgelagert'), 0))) > 0.05
+     and exists (select 1 from mv_kaskade k where k.charge_nr = c.charge_nr);
+  assert v_n = 0, format('0101 (a1): bei %s Chargen ist „im Haus" nicht Liegendes + Aussortiertes', v_n);
+  assert not exists (select 1 from erg_charge c
+                      where not exists (select 1 from mv_kaskade k where k.charge_nr = c.charge_nr)
+                        and abs(c.im_haus_heute_kg - c.eingang_kg) > 0.05), '0101 (a2): ohne Kaskadenzeile liegt alles (0064)';
+
+  -- (e) Auf der Demo gibt es Aussortiertes: die Regel greift, nicht nur die Formel.
+  select sum(kanal_ausgelagert_kg) into v from erg_charge where kanal_bekannt;
+  assert v > 0, '0101 (e1): die Demo hat nichts hinter den Lieferungen aussortiert — die Prüfung träfe nichts';
+  assert exists (select 1 from erg_charge c
+                  where c.kanal_bekannt and c.kanal_ausgelagert_kg > 0
+                    and c.im_haus_heute_kg > coalesce((select sum(k.m2) from mv_kaskade k
+                                                        where k.charge_nr = c.charge_nr and k.portion = 'lager'), 0) + 0.05),
+    '0101 (e2): keine Charge, bei der das Aussortierte „im Haus" vergrössert';
+
+  -- (b) Die Bilanz schliesst: Eingang + Überzählung = ausgeliefert + Verlust + im Haus — ohne „anderen Kanal"
+  select verlust_bekannt, eingang_kg + ueberzaehlung_kg - geliefert_kg - verlust_heute_kg - im_haus_heute_kg, bilanz_rest_kg
+    into v_bekannt, v, v2 from erg_bilanz;
+  assert v_bekannt, '0101 (b0): die Demo kennt jeden Strom — sonst prüft (b) nichts';
+  assert abs(v) < 1, format('0101 (b1): Eingang + Überzählung − ausgeliefert − Verlust − im Haus = %s kg, nicht 0', v);
+  assert abs(v2 - v) < 0.05, format('0101 (b2): bilanz_rest_kg (%s) rechnet nicht diese Bilanz (%s)', v2, v);
+  select sum(im_haus_heute_kg) into v from erg_charge;
+  assert abs(v - (select im_haus_heute_kg from erg_bilanz)) < 1, '0101 (b3): im Haus der Bilanz ist nicht die Summe der Chargen';
+
+  -- (c) Der Verlauf auf heute: im Haus wie die Bilanz, Aussortiertes wie die Chargen
+  select im_haus_kg, aussortiert_kg into v, v2 from erg_verlauf where gruppe = 'gesamt' and bis = heute();
+  assert abs(v - (select im_haus_heute_kg from erg_bilanz)) < 1,
+    format('0101 (c1): Verlauf im Haus %s ≠ Bilanz %s', v, (select im_haus_heute_kg from erg_bilanz));
+  assert abs(v2 - (select sum(kanal_ausgelagert_kg) from erg_charge where kanal_bekannt)) < 1,
+    format('0101 (c2): Verlauf aussortiert %s ≠ Chargen %s', v2, (select sum(kanal_ausgelagert_kg) from erg_charge where kanal_bekannt));
+  assert v2 > 0, '0101 (c3): der Verlauf kennt kein Aussortiertes';
+  -- Vor der ersten Lieferung ist nichts aussortiert (ein Tag Spiel: der
+  -- Liefertag der Portion ist das gerundete massegewichtete Alter).
+  assert not exists (select 1 from erg_verlauf v
+                      where v.gruppe = 'gesamt' and v.aussortiert_kg > 0.01
+                        and v.bis < (select min(datum) from v_lieferung_charge_tag) - 1),
+    '0101 (c4): Aussortiertes vor der ersten Lieferung';
+  assert not exists (select 1 from erg_verlauf where aussortiert_kg > im_haus_kg + 0.01), '0101 (c5): aussortiert grösser als im Haus';
+
+  -- (d) Der Befund
+  select befund into v_txt from erg_bilanz;
+  assert v_txt not like '%anderer Kanal%', '0101 (d1): der Befund spricht noch vom „anderen Kanal"';
+  assert v_txt like '%zu klein oder zu gross%', '0101 (d2): der Befund nennt zu klein/zu gross im Haus nicht';
+  assert v_txt like '%aussortiert%', '0101 (d3): der Befund sagt nicht, dass es aussortiert im Haus steht';
+
+  -- (g) Die Prognose kennt den Anteil ohne Sockel-Nachweis — wie erg_charge seit
+  --     0097. Auf der Demo ist der Sockel nachgewiesen, ein Verhaltenstest träfe
+  --     nichts; darum steht die Regel selbst unter Prüfung: „vollständig" ist
+  --     aus Verdunstung, Faulem, Ausschuss und Fax gebaut, nicht aus dem Sockel.
+  assert pg_get_viewdef('v_prognose'::regclass) ~ 's\.r_bekannt AND s\.f_bekannt AND s\.kanal_bekannt AND s\.fax_bekannt\) AS vollstaendig',
+    '0101 (g1): v_prognose.vollstaendig hängt nicht an genau Verdunstung, Faulem, Ausschuss und Fax';
+  assert pg_get_viewdef('v_prognose'::regclass) !~ 'sockel_bekannt AND[^)]*AS vollstaendig',
+    '0101 (g2): v_prognose.vollstaendig verlangt noch den Sockel-Nachweis';
+  assert not exists (select 1 from erg_prognose where vollstaendig <> (r_bekannt and f_bekannt and kanal_bekannt and fax_bekannt)),
+    '0101 (g3): erg_prognose.vollstaendig weicht von seinen vier Teilen ab';
+
+  assert schema_stand() >= 101, format('0101 (f1): schema_stand() = %s', schema_stand());
+
+  perform demo_daten_entfernen();
+  delete from profil where id = v_u;
+  delete from auth.users where id = v_u;
+  update einstellung set wert = v_modus where schluessel = 'betriebsmodus';
+  raise notice 'OK  0101 — Ausgang ist nur der Lieferschein; zu klein und zu gross stehen im Haus — in Bilanz, Chargen und Verlauf gleich';
+end $$;
+
+select '——— 0101 Zu klein und zu gross bleiben im Haus geprüft ———' as ergebnis;

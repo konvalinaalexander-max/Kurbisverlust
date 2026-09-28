@@ -135,7 +135,7 @@ Paletten gesamt.
 
 ## Die Betriebsleiter-Seite
 
-Fünf Reiter, je mit einem Satz darüber, was er beantwortet:
+Sechs Reiter (Runde AF: ohne den Satz darunter — der Betrieb wollte die Überschriften ohne Erklärsatz; der sechste, „Messungen ausstehend", steht rechts vom Betrieb und sagt je Sorte, welche Messung fehlt):
 
 | Reiter | Beantwortet | Woraus |
 |---|---|---|

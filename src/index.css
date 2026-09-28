@@ -477,6 +477,10 @@ details.aufklapp > summary .leise { font-weight: var(--gewicht-normal); }
 .anteil-zeile { display: grid; grid-template-columns: minmax(130px, 1fr) minmax(160px, 3fr) 4.8rem; gap: .25rem .8rem; align-items: center; padding: .4rem .4rem; border-radius: 8px; }
 @media (max-width: 560px) { .anteil-zeile { grid-template-columns: 1fr 4.8rem; } .anteil-name { grid-column: 1 / -1; } }
 .anteil-zeile.klickbar { cursor: pointer; }
+/* Runde AF: die Kopfzeile über den Balken — was die Zahl rechts ist. Eine eigene
+   Zeile, rechtsbündig, nicht in der Spalte (4.8rem), sonst schiebt sie die Seite
+   auf dem Telefon breiter als 390 px (Abnahme D-07). */
+.anteil-kopfzeile { text-align: right; font-size: var(--s-0); padding: 0 .4rem .15rem; }
 .anteil-zeile.klickbar:hover, .anteil-zeile.klickbar:focus-visible { background: var(--flaeche-2); outline: none; }
 .anteil-name { display: flex; flex-direction: column; min-width: 0; font-size: var(--s-1); line-height: 1.25; }
 .anteil-name .leise { font-size: var(--s-0); }

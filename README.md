@@ -687,6 +687,19 @@ letzten Rechnung nichts erfasst, sagt der Chip „aktuell". „Neu rechnen" gibt
 es nur ohne laufenden Zeitplan — mit einer ganzen Saison schafft der Knopf
 Schritt 3 nicht unter der Zeitgrenze der App.
 
+**Runde AF (0101)** — Ausgang ist nur der Lieferschein: Zu klein und zu
+gross, das beim Sortieren herausfällt, steht im Haus, bis ein Lieferschein
+es holt — „Noch im Haus" zählt es mit, die Bilanz hat keinen Term „anderer
+Kanal" mehr, der Verlauf trägt es als `aussortiert_kg`. Die Prognose
+kennt den verkaufsfähigen Anteil auch ohne Sockel-Nachweis (wie die Bilanz
+seit 0097), und der Satz nennt die Rate, die fehlt. Neuer Reiter
+**Messungen ausstehend** rechts vom Betrieb: je Sorte, was gemessen ist,
+was geliehen, was fehlt — und wie man es misst. Die Rückfragen (löschen,
+abbrechen, Firma entfernen) liegen als Portal über der Seite statt am
+Seitenende. Untertitel weg, Chargenwahl „Sorte (1630)", Punktdiagramme mit
+Rand, „Arbeit und Tempo" weg. AB-110 bis AB-112, AB-113 offen. **`setup.sql`
+einspielen (Stand 101).**
+
 **Nachtrag 0100** — gerechnet wird nur an einer Stelle: Am 28. September
 rechneten mehrere Fenster und der Zeitplan zugleich (der Chip sagte bis
 Stand 98 „rechnet nicht", also rechnete die App beim Öffnen selbst), und
@@ -695,9 +708,7 @@ Schritt 1 den Platz (`auswertung_stand.rechnet_seit`); wer ihn besetzt
 findet, bekommt „wartet" und rechnet nicht mit — die App sagt „wird gerade
 an anderer Stelle gerechnet", sieht alle fünf Sekunden nach und lädt den
 neuen Stand. Ein Rest älter als 15 Minuten gilt als abgebrochen und wird
-übernommen. AB-109. **Nach diesem Stand ist `setup.sql` einzuspielen
-(Stand 100)** — solange die Datenbank Stand 99 hat, sagt die App es oben
-im Chip.
+übernommen. AB-109.
 
 **Runde AE (0099)** — eine Datei, eine Firma: Welche Firma eine
 Warenausgangsdatei ist, erkennt die App am **Inhalt** (bekannte

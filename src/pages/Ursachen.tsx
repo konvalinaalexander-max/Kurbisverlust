@@ -78,7 +78,6 @@ export default function Ursachen() {
   return (
     <>
       <Reiterkopf titel="Ursachen"
-                  zweck="Wohin der Kürbis bis heute ging, wo und wann das Faule und die Verdunstung entstanden — und was die Waage verschenkt."
                   stand={daten.stand} heute={daten.heute} neuRechnen={() => void neuRechnen()} laeuft={laedt}
                   zeitplan={daten.zeitplan} veraltet={daten.veraltet} aktuell={daten.aktuell} />
       <Probleme liste={daten.probleme} />
@@ -92,7 +91,7 @@ export default function Ursachen() {
           {/* Runde AD: nach Feld, darin Sorte, dann die Nummer — wie im Lagermanagement. */}
           {chargenNachFeld(chargenListe).map(f => (
             <optgroup key={f.feld} label={f.feld}>
-              {f.chargen.map(c => <option key={c.charge_nr} value={`charge|${c.charge_nr}`}>{c.sorte} (Charge {c.charge_nr})</option>)}
+              {f.chargen.map(c => <option key={c.charge_nr} value={`charge|${c.charge_nr}`}>{c.sorte} ({c.charge_nr})</option>)}
             </optgroup>
           ))}
         </select>
@@ -143,17 +142,17 @@ const tagText = (x: number) => datum(new Date(x * TAG)).slice(0, 6)
 /** Die sechs Teile, in die der Eingang bis heute zerfällt (DESIGN_RUNDE_R § 3). */
 const WOHIN_TEILE: { name: string; farbe: string; hinweis?: string; felder: (keyof Wohin)[] }[] = [
   { name: 'noch im Lager und verkaufsfähig', farbe: 'var(--strom-rest-hell)',
-    hinweis: 'liegt und ist heute verkaufsfähig', felder: ['lager_verkaufsfaehig_kg'] },
+    felder: ['lager_verkaufsfaehig_kg'] },
   { name: 'verkauft', farbe: 'var(--strom-rest)',
-    hinweis: 'ausgeliefert — auf einem Lieferschein', felder: ['geliefert_kg'] },
+    felder: ['geliefert_kg'] },
   { name: 'verdunstet bis heute', farbe: 'var(--strom-verdunstung)',
     hinweis: 'entwichenes Wasser, draussen wie drinnen', felder: ['verdunstet_ausgelagert_kg', 'lager_verdunstet_kg'] },
   { name: 'Faules bis heute', farbe: 'var(--strom-schimmel)',
     hinweis: 'Faules im Lager, vom Feld und beim Abpacken', felder: ['faul_ausgelagert_kg', 'lager_faul_kg', 'sockel_ausgelagert_kg', 'lager_sockel_kg', 'fax_kg', 'lager_fax_kg'] },
   { name: 'zu klein', farbe: 'var(--strom-ausschuss)',
-    hinweis: 'an die Tiere — kein Verlust, nur nicht Hauptware', felder: ['klein_ausgelagert_kg', 'lager_klein_kg'] },
+    hinweis: 'beim Sortieren aussortiert — steht im Haus, bis ein Lieferschein es holt; kein Verlust', felder: ['klein_ausgelagert_kg', 'lager_klein_kg'] },
   { name: 'zu gross', farbe: 'var(--strom-nebenkanal)',
-    hinweis: 'in den Nebenkanal — kein Verlust, nur nicht Hauptware', felder: ['gross_ausgelagert_kg', 'lager_gross_kg'] },
+    hinweis: 'beim Sortieren aussortiert — steht im Haus, bis ein Lieferschein es holt; kein Verlust', felder: ['gross_ausgelagert_kg', 'lager_gross_kg'] },
 ]
 const VERLUST = new Set(['verdunstet bis heute', 'Faules bis heute'])
 
@@ -207,7 +206,7 @@ function Wohin({ daten, filter, setzen, chargeAnsehen }: {
           `${inSorte.length} Chargen · ${tonnen(wohinVon(daten.wohin, 'sorte', s)?.eingang_kg)} Eingang`, `sorte|${s}`),
         schluessel: `sorte|${s}`,
         aktion: <button type="button" className="werkzeug-knopf sorte-auf" aria-expanded={auf.has(s)} onClick={() => umschalten(s)}>
-                  <span className="chevron" aria-hidden="true" style={{ display: 'inline-flex', transition: 'transform var(--d-mittel)', transform: auf.has(s) ? 'rotate(90deg)' : undefined }}><ZChevron size={12} /></span> {auf.has(s) ? 'Chargen zu' : `${inSorte.length} Chargen`}
+                  <span className="chevron" aria-hidden="true" style={{ display: 'inline-flex', transition: 'transform var(--d-mittel)', transform: auf.has(s) ? 'rotate(90deg)' : undefined }}><ZChevron size={12} /></span> {auf.has(s) ? 'Chargen wieder zu' : `${inSorte.length} Chargen einzeln zeigen`}
                 </button>,
       }
       return { z, inSorte }
@@ -221,16 +220,18 @@ function Wohin({ daten, filter, setzen, chargeAnsehen }: {
   }
 
   return (
-    <Karte id="urs-wohin" titel="Wohin ging der Kürbis?"
-           unter="Der ganze Eingang, aufgeteilt: was noch gut liegt, was verkauft ist, was verloren ging — alles bis heute.">
+    <Karte id="urs-wohin" titel="Wohin ging der Kürbis?">
       {/* Steht darunter noch eine Liste, trägt die die Legende; steht keine da
           (eine einzelne Charge), muss der Kopfbalken sie selbst tragen — sonst
           ist der Balken bunt und niemand weiss, welcher Streifen was ist. */}
-      <Anteilsbalken zeilen={[kopf]} legende={sortiert.length === 0} />
+      {/* Runde AF: die Legende steht gleich unter dem Kopfbalken, und die Zahl
+          rechts trägt ihren Namen — der Betrieb fragte, was das Farbband ist
+          und was „20.2 %" heisst. */}
+      <Anteilsbalken zeilen={[kopf]} legende rechtsTitel="Verlust bis heute · % des Eingangs" />
       {sortiert.length > 0 && (
         <>
           <div className="tag-trenner">{unterGruppe === 'sorte' ? 'je Sorte' : 'je Charge'} <span className="leise">nach Verlustanteil</span></div>
-          <Anteilsbalken zeilen={sortiert} oeffnen={z => z.ziel && setzen(z.ziel)} />
+          <Anteilsbalken zeilen={sortiert} oeffnen={z => z.ziel && setzen(z.ziel)} legende={false} />
           <p className="fussnote">Eine Zeile anklicken macht sie zur Ansicht; „ansehen" öffnet die Charge als Fenster, ohne die Seite zu verlassen.</p>
         </>
       )}
@@ -238,10 +239,11 @@ function Wohin({ daten, filter, setzen, chargeAnsehen }: {
         <p className="fussnote">{tonnen(w?.ueberzaehlung_kg)} mehr geliefert als eingelagert — ein Zählfehler beim Eingang, nicht Ware.</p>
       )}
       <Erklaerung>
-        <p>Der Balken ist der ganze Eingang (100 %) <Herkunft art="gemessen" />. Rechts steht der Anteil <strong>echter Verlust</strong> —
-        verdunstetes Wasser und Faules; danach sind die Zeilen sortiert.</p>
-        <p><strong>Zu klein und zu gross sind kein Verlust.</strong> Die Ware ist nicht weg, nur nicht in der richtigen Grösse:
-        Sie geht an die Tiere oder in den Nebenkanal — und sie war es vom Feld an.</p>
+        <p>Jeder Balken ist der ganze Eingang der Zeile (100 %) <Herkunft art="gemessen" />, von links nach rechts in die sechs Teile der Legende
+        zerlegt: was noch verkaufsfähig liegt, was verkauft ist, was verdunstet und was verfault ist, was zu klein und was zu gross war. Rechts steht
+        der Anteil <strong>echter Verlust</strong> — verdunstetes Wasser und Faules, in Prozent des Eingangs; danach sind die Zeilen sortiert.</p>
+        <p><strong>Zu klein und zu gross sind kein Verlust.</strong> Die Ware ist nicht weg, nur nicht in der richtigen Grösse: Sie steht
+        aussortiert im Haus, bis ein Lieferschein sie holt — und sie war es vom Feld an.</p>
       </Erklaerung>
     </Karte>
   )
@@ -345,7 +347,6 @@ function Faules({ daten, filter, chargen, staende, oeffnen }: {
 
   return (
     <Karte id="urs-palox" titel="Faules im Lager"
-           unter="Jede Messung am Palox: wie viel Faules die Ware hatte, als sie an die Maschine kam — nach Datum oder nach Lagerdauer."
            aktion={<Segmente wahl={achse} setzen={setAchse} id="palox-achse"
                              teile={[['kalender', 'Kalender', 'palox-achse-kalender'], ['liegt', 'liegt seit', 'palox-achse-liegt']]} />}>
       {punkte.length === 0
@@ -452,7 +453,6 @@ function Verdunstung({ daten, filter, chargen, oeffnen }: { daten: Auswertung; f
 
   return (
     <Karte id="urs-verdunstung" titel="Verdunstung"
-           unter="Jede gewogene Palette: wie viel Wasser die Ware je Tag verlor — nach Datum oder nach Lagerdauer."
            aktion={<Segmente wahl={achse} setzen={setAchse} id="verd-achse"
                              teile={[['kalender', 'Kalender', 'verd-achse-kalender'], ['liegt', 'liegt seit', 'verd-achse-liegt']]} />}>
       {alle.length === 0
@@ -556,8 +556,6 @@ function Marge({ daten, filter, chargen, oeffnen }: { daten: Auswertung; filter:
           && (w.band_von_g === undefined || ((w.band_von_g ?? null) === (z.band_von_g ?? null) && (w.band_bis_g ?? null) === (z.band_bis_g ?? null)))))
     .sort((a, b) => a.charge_nr - b.charge_nr || a.ts.localeCompare(b.ts))
   const umschalten = (k: string) => setAuf(s => { const n = new Set(s); if (n.has(k)) n.delete(k); else n.add(k); return n })
-  const kopf = filter.gruppe === 'charge' ? `Charge ${filter.schluessel} · ${chargen[0]?.sorte ?? ''}` : filter.gruppe === 'sorte' ? filter.schluessel : 'alle Chargen'
-
   const aufknopf = (k: string, n: number) => (
     <button type="button" className="werkzeug-knopf marge-auf" aria-expanded={auf.has(k)} onClick={() => umschalten(k)}>
       <ZChevron size={14} />{n} {n === 1 ? 'Wägung' : 'Wägungen'}
@@ -568,12 +566,13 @@ function Marge({ daten, filter, chargen, oeffnen }: { daten: Auswertung; filter:
   )
 
   return (
-    <Karte id="urs-marge" titel="Verschenkte Marge"
-           unter={`Zwei Arten, Kürbis zu verkaufen — und zweimal die Frage, was die Waage über das Bezahlte hinaus in die Kiste gelegt hat. Gemessen an den gewogenen vollen fertigen Paletten · ${kopf}.`}>
+    <Karte id="urs-marge" titel="Verschenkte Marge">
       {kiste.length === 0 && stueck.length === 0
         ? <Leer titel="Noch keine fertige Palette gewogen">Sobald eine volle fertige Palette gewogen ist — „Kiste ab x kg" oder nach Kaliber —, steht sie hier.</Leer>
         : (
         <>
+          {/* Runde AF: der Untertitel ist weg; dass die Zahlen gemessen sind, sagt die Karte selbst (beschriftung.mjs R5). */}
+          <p className="leise-satz">Zwei Arten, Kürbis zu verkaufen — und zweimal die Frage, was die Waage über das Bezahlte hinaus in die Kiste gelegt hat. Gemessen <Herkunft art="gemessen" /> an den gewogenen vollen fertigen Paletten.</p>
           <section className="marge-teil" data-block="kiste_ab" id="urs-marge-kiste">
             <h3>Kiste ab x kg</h3>
             <p className="leise">Der Kunde zahlt die Kiste zu einem Mindestgewicht. Jedes Kilo darüber ist geschenkt: Netto der Palette ÷ Kisten = gewogen je Kiste, minus Soll = zu viel je Kiste. Wie viele Kürbisse in der Kiste liegen, weiss die Waage nicht — es spielt hier keine Rolle.</p>

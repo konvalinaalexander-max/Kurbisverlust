@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { supabase } from '../lib/supabase'
 import { fehlerText } from '../lib/db'
 import { pruefsumme } from '../lib/csv'
@@ -227,7 +228,10 @@ export default function AusgangImport({ nachUebernahme }: { nachUebernahme: () =
           </div>
         )}
         {entfernung && <Hinweis art="info">{entfernung}</Hinweis>}
-        {entfernen && (
+        {entfernen && createPortal(
+          /* Runde AF: als Portal an <body> — die Seite kommt mit einer Eintritts-Bewegung
+             (transform), und ein bewegter Vorfahr macht aus „fixed" ein „absolute": der
+             Dialog rutschte ans Ende der Seite, man musste scrollen. */
           <div className="dialog-hinter" onClick={() => setEntfernen(null)}>
             <div className="dialog" role="dialog" aria-modal="true" aria-label="Firma entfernen" onClick={e => e.stopPropagation()}>
               <h2 style={{ marginTop: 0 }}>Firma „{entfernen.name}" entfernen?</h2>
@@ -244,7 +248,7 @@ export default function AusgangImport({ nachUebernahme }: { nachUebernahme: () =
               </div>
             </div>
           </div>
-        )}
+        , document.body)}
         <label className="knopf haupt" id="ausgang-dateien">
           {liest ? 'Liest …' : 'Excel-Dateien wählen …'}
           <input type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" multiple hidden

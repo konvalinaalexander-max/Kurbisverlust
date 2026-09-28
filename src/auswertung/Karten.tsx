@@ -186,31 +186,34 @@ export function Kurvenherkunft({ punkte }: { punkte: Schimmelpunkt[] }) {
 }
 
 /**
- * Die Gegenprobe: Eingang = verkauft + Verlust bis heute + anderer Kanal +
- * noch im Haus. Zwei Zahlen sind gemessen (Eingang, verkauft), der Rest ist
- * gerechnet — und die Lücke ist die Überzählung.
+ * Die Gegenprobe: Eingang = ausgeliefert + Verlust bis heute + noch im Haus.
+ * Zwei Zahlen sind gemessen (Eingang, ausgeliefert), der Rest ist gerechnet —
+ * und die Lücke ist die Überzählung. Runde AF (0101): Ausgang ist nur, was
+ * auf einem Lieferschein steht; zu klein und zu gross, das beim Sortieren
+ * herausfällt, steht im Haus, bis ein Lieferschein es holt — der Betrieb:
+ * „die stehen dann schon noch im Lager".
  */
 export function Bilanz({ bilanz }: { bilanz: Saisonbilanz }) {
-  const kanalAusgelagert = bilanz.kanal_ausgelagert_kg
+  const kanalImHaus = summeBekannt([bilanz.kanal_ausgelagert_kg, bilanz.kanal_im_haus_kg])
   return (
-    <Karte titel="Geht die Rechnung auf?" unter={`Eingang + Überzählung = ausgeliefert + Verlust bis heute + anderer Kanal + noch im Haus — bis ${datum(bilanz.heute)}.`}>
+    <Karte titel="Geht die Rechnung auf?">
       <Bilanzzeile titel="Wareneingang" herkunft="gemessen" kg={bilanz.eingang_kg} eingang={bilanz.eingang_kg} farbe="var(--strom-nebenkanal)" erklaerung="Netto ab Zettel, Tara abgezogen" />
       <Bilanzzeile titel="Ausgeliefert" herkunft="gemessen" kg={bilanz.geliefert_kg} eingang={bilanz.eingang_kg} farbe="var(--strom-rest)"
-                   erklaerung={bilanz.n_lieferungen === 0 ? 'noch keine Lieferung erfasst' : `${bilanz.n_lieferungen} Lieferungen${bilanz.vorlauf_kg > 0 ? `, dazu ${tonnen(bilanz.vorlauf_kg)} vor dem Erfassungsbeginn` : ''}`} />
+                   erklaerung={bilanz.n_lieferungen === 0 ? 'noch keine Lieferung erfasst' : `${bilanz.n_lieferungen} Lieferungen ab Lieferschein${bilanz.marge_kg > 0 ? `, davon ${tonnen(bilanz.marge_kg)} an die Tiere oder in den Nebenkanal` : ''}${bilanz.vorlauf_kg > 0 ? `, dazu ${tonnen(bilanz.vorlauf_kg)} vor dem Erfassungsbeginn` : ''}`} />
       <Bilanzzeile titel="Verlust bis heute" herkunft="gerechnet" kg={bilanz.verlust_heute_kg} eingang={bilanz.eingang_kg} farbe="var(--strom-schimmel)"
                    erklaerung={`Verdunstung ${tonnen(bilanz.verdunstung_heute_kg)} · Faules im Lager ${tonnen(summeBekannt([bilanz.schimmel_heute_kg, bilanz.sockel_heute_kg]))} · Faules beim Abpacken ${tonnen(bilanz.fax_heute_kg)}`} />
-      <Bilanzzeile titel="Anderer Kanal am Ausgelagerten" herkunft="gerechnet" kg={kanalAusgelagert} eingang={bilanz.eingang_kg} farbe="var(--strom-ausschuss)"
-                   erklaerung={`zu klein und zu gross hinter den Lieferungen — kein echter Verlust${bilanz.marge_kg > 0 ? `; laut Lieferscheinen ${tonnen(bilanz.marge_kg)} dorthin geliefert` : ''}`} />
       <Bilanzzeile titel="Noch im Haus" herkunft="gerechnet" kg={bilanz.im_haus_heute_kg} eingang={bilanz.eingang_kg} farbe="var(--strom-verdunstung)"
-                   erklaerung={`davon verkaufsfähig ${tonnen(bilanz.verkaufsfaehig_heute_kg)}, zu klein oder zu gross ${tonnen(bilanz.kanal_im_haus_kg)}`} />
+                   erklaerung={`davon verkaufsfähig ${tonnen(bilanz.verkaufsfaehig_heute_kg)} · zu klein oder zu gross ${tonnen(kanalImHaus)}${kanalImHaus !== null ? ` (${tonnen(bilanz.kanal_ausgelagert_kg)} beim Sortieren hinter den Lieferungen aussortiert, ${tonnen(bilanz.kanal_im_haus_kg)} im Liegenden erwartet) — steht im Haus, bis ein Lieferschein es holt` : ''}`} />
       {bilanz.ueberzaehlung_kg > 0 && (
         <Bilanzzeile titel="Überzählung" herkunft="gemessen" kg={bilanz.ueberzaehlung_kg} eingang={bilanz.eingang_kg} farbe="var(--rot)" erklaerung="hinter den Lieferungen steckt mehr Ware, als je eingelagert wurde — meist fehlt Wareneingang" />
       )}
       <Hinweis art={bilanz.n_lieferungen === 0 ? 'warnung' : bilanz.ueberzaehlung_kg > 0.05 * bilanz.eingang_kg ? 'warnung' : 'gut'}>{bilanz.befund}</Hinweis>
       <Erklaerung titel="Warum die Rechnung von selbst aufgeht">
-        Sie geht von selbst auf, weil das Ausgelagerte aus den Lieferungen zurückgerechnet ist — bis auf Rundung, und genau darum taugt sie als Probe:
-        Solange in der Kaskade ein Kilo doppelt oder zu früh zählte, blieb ein Rest stehen. Geprüft wird an den Rändern: mehr geliefert als hereingekommen
-        (Überzählung — ein Datenfehler, kein Verlust), an die Tiere Geliefertes gegen den gerechneten Kanal, Entsorgtes gegen den gerechneten Schimmel.
+        Eingang + Überzählung = ausgeliefert + Verlust bis heute + noch im Haus, bis {datum(bilanz.heute)}. Ausgeliefert ist nur, was auf einem Lieferschein
+        steht. Sie geht von selbst auf, weil das Ausgelagerte aus den Lieferscheinen zurückgerechnet ist — bis auf Rundung, und genau darum taugt sie als Probe:
+        Solange in der Kaskade ein Kilo doppelt oder zu früh zählte, blieb ein Rest stehen. Zu klein und zu gross, das beim Sortieren herausfällt, ist kein
+        Ausgang: es steht im Haus, nicht verkaufsfähig, bis ein Lieferschein es holt. Geprüft wird an den Rändern: mehr geliefert als hereingekommen
+        (Überzählung — ein Datenfehler, kein Verlust), an die Tiere Geliefertes gegen das gerechnet Aussortierte, Entsorgtes gegen den gerechneten Schimmel.
       </Erklaerung>
     </Karte>
   )

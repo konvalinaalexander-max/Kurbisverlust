@@ -51,7 +51,7 @@ export interface Bestand {
   alter_lager_von: number | null; alter_lager_bis: number | null
   geliefert_kg: number; verkaufsfaehig_lager_kg: number | null; n_lieferungen: number
   /** 0061/0062: bis heute — die Teile des Verlusts, was im Haus liegt, was davon anderer Kanal ist.
-   *  kanal_ausgelagert_kg ist der andere Kanal, der schon passiert ist; kanal_im_haus_kg
+   *  kanal_ausgelagert_kg ist zu klein/zu gross, hinter den Lieferungen aussortiert — steht im Haus, Teil von im_haus_heute_kg (0101); kanal_im_haus_kg
    *  ist die Erwartung an der Ware, die noch unsortiert liegt.
    *  0064: **null heisst „nicht gemessen"**, nicht null Kilo. Jeder dieser Ströme ist
    *  null, solange sein Koeffizient keine Messung hat; das Kennzeichen daneben sagt,
@@ -240,6 +240,8 @@ export interface Verlaufswoche {
   schimmel_kum_kg: number; sockel_kum_kg: number
   fax_kum_kg: number; verlust_kum_kg: number; im_haus_kg: number
   lager_kg: number; verkaufsfaehig_kg: number; kanal_kg: number; fax_lager_kg: number
+  /** 0101: zu klein/zu gross hinter den Lieferungen — aussortiert, steht im Haus (Teil von im_haus_kg). */
+  aussortiert_kg: number
 }
 
 /**
@@ -539,6 +541,22 @@ async function alles(erzwingen: boolean): Promise<Auswertung> {
     prognose: pg, wohin: wo,
     probleme,
   }
+}
+
+/**
+ * Runde AF: Welche Rate fehlt? Der Betrieb las „der Anteil ist unbekannt,
+ * solange eine Rate nicht gemessen ist" und fragte zu Recht: welche. Die
+ * Prognose trägt je Gruppe die vier Flaggen; hier werden sie zu Namen. Der
+ * Sockel gehört seit 0097/0101 nicht dazu — ohne Nachweis ist er 0.
+ */
+export function fehlendeRaten(p: Pick<Prognose, 'r_bekannt' | 'f_bekannt' | 'kanal_bekannt' | 'fax_bekannt'> | null | undefined): string[] {
+  if (!p) return []
+  const f: string[] = []
+  if (!p.r_bekannt) f.push('Verdunstung')
+  if (!p.f_bekannt) f.push('Faules im Lager')
+  if (!p.kanal_bekannt) f.push('zu klein / zu gross')
+  if (!p.fax_bekannt) f.push('Faules beim Abpacken (Fax)')
+  return f
 }
 
 export function auswertungLaden(erzwingen = false): Promise<Auswertung> {

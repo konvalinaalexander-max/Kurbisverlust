@@ -1,6 +1,6 @@
 import { Suspense, lazy, type ReactNode } from 'react'
 import { NavLink, Navigate, Route, Routes, useParams } from 'react-router-dom'
-import { ZAbmelden, ZBalken, ZKuerbis, ZListe, ZLupe, ZRegler, ZSprache, ZUhr } from './components/Zeichen'
+import { ZAbmelden, ZBalken, ZKuerbis, ZListe, ZLupe, ZRegler, ZSprache, ZUhr, ZWaage } from './components/Zeichen'
 import { useAuth } from './auth/AuthProvider'
 import { SprachAuswahl, useSprache } from './sprache/SprachProvider'
 import { imDemoModus, istKonfiguriert, konfigurationsProblem } from './lib/supabase'
@@ -20,10 +20,11 @@ const Ursachen = lazy(() => import('./pages/Ursachen'))
 const Chargen = lazy(() => import('./pages/Chargen'))
 const Messungen = lazy(() => import('./pages/Messungen'))
 const Betrieb = lazy(() => import('./pages/Betrieb'))
+const Ausstehend = lazy(() => import('./pages/Ausstehend'))
 
 /**
  * Der Rahmen. Zwei Oberflächen aus einem System:
- *  · Das Büro (Betriebsleiter): Seitenleiste links mit den fünf Reitern, auf
+ *  · Das Büro (Betriebsleiter): Seitenleiste links mit den sechs Reitern, auf
  *    schmalen Bildschirmen eine Kopfzeile und die Reiter als Zeile darunter.
  *  · Die Halle (Arbeiter): nur eine Kopfzeile — Marke, Name, Sprache, Abmelden.
  */
@@ -104,13 +105,15 @@ export default function App() {
   if (laedt) return <div className="huelle eng"><Lade /></div>
   if (!session) return <Anmelden />
 
-  // Fünf Reiter, je mit einem Satz, was er beantwortet (docs/UI-KONZEPT.md).
+  // Sechs Reiter (Runde AF: „Messungen ausstehend" rechts vom Betrieb) — docs/UI-KONZEPT.md.
   const reiter: [string, string, (p: { size?: number }) => ReactNode][] = [
     ['/dashboard', 'Lagermanagement', ZBalken],
     ['/ursachen', 'Ursachen', ZLupe],
     ['/chargen', 'Chargen', ZListe],
     ['/messungen', 'Messungen', ZRegler],
     ['/betrieb', 'Betrieb', ZUhr],
+    // Runde AF: rechts vom Betrieb — welche Messung noch fehlt, je Sorte, und was sie freischaltet.
+    ['/ausstehend', 'Messungen ausstehend', ZWaage],
   ]
   const name = profil?.name ?? ''
   const kuerzel = sprache.toUpperCase()
@@ -176,6 +179,7 @@ export default function App() {
           <Route path="/chargen" element={istAdmin ? <Chargen /> : <NurAdmin />} />
           <Route path="/messungen" element={istAdmin ? <Messungen /> : <NurAdmin />} />
           <Route path="/betrieb/:teil?" element={istAdmin ? <Betrieb /> : <NurAdmin />} />
+          <Route path="/ausstehend" element={istAdmin ? <Ausstehend /> : <NurAdmin />} />
           {/* Alte Adressen laufen weiter */}
           <Route path="/csv" element={<Navigate to="/betrieb/csv" replace />} />
           <Route path="/warteschlange" element={<Navigate to="/betrieb/warteschlange" replace />} />

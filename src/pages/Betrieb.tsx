@@ -1,4 +1,5 @@
 import { Fragment, useCallback, useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import Sicherung from '../components/Sicherung'
 import { TaetZeichen, ZAuswahl, ZHaken, ZKreuz, ZMikrofon, ZNeu, ZPapierkorb, ZSprechblase } from '../components/Zeichen'
 import { Link, useNavigate, useParams } from 'react-router-dom'
@@ -32,11 +33,11 @@ export default function Betrieb() {
   const { teil } = useParams()
   const navigate = useNavigate()
   const aktiv = (TEILE.find(([t]) => t === teil)?.[0] ?? 'arbeiten') as Teil
-  const zweck = TEILE.find(([t]) => t === aktiv)?.[2]
   return (
     <>
       <div className="seitenkopf">
-        <div><h1>Betrieb</h1><p className="zweck">{zweck}</p></div>
+        {/* Runde AF: kein Untertitel mehr — der Betrieb will die Überschriften ohne Erklärsatz. */}
+        <div><h1>Betrieb</h1></div>
       </div>
       <nav className="navleiste unter" aria-label="Betrieb">
         {TEILE.map(([t, name]) => (
@@ -219,7 +220,10 @@ function Arbeiten() {
           <button type="button" id="arbeiten-loeschen-weiter" className="knopf klein gefahr" disabled={gewaehlt.size === 0} onClick={() => setFrage(true)}><ZPapierkorb size={16} />Löschen …</button>
         </div>
       )}
-      {frage && (
+      {frage && createPortal(
+        /* Runde AF: als Portal an <body> — die Seite kommt mit einer Eintritts-Bewegung
+           (transform), und ein bewegter Vorfahr macht aus „fixed" ein „absolute": der
+           Dialog rutschte ans Ende der Seite, man musste scrollen. */
         <div className="dialog-hinter" onClick={() => setFrage(false)}>
           <div className="dialog" role="dialog" aria-modal="true" aria-label="Arbeiten löschen" onClick={e => e.stopPropagation()}>
             <h2 style={{ marginTop: 0 }}>{gewaehlt.size === 1 ? 'Diese Arbeit endgültig löschen?' : `Diese ${gewaehlt.size} Arbeiten endgültig löschen?`}</h2>
@@ -238,7 +242,7 @@ function Arbeiten() {
             </div>
           </div>
         </div>
-      )}
+      , document.body)}
       <div className="filterleiste">
         <Segmente wahl={filter} setzen={setFilter} teile={[['alle', 'alle'], ['offen', 'läuft'], ['fertig', 'fertig'], ['abgebrochen', 'abgebrochen']]} />
       </div>

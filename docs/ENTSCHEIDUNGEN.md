@@ -4163,6 +4163,167 @@ Daten, dann die Annahme — nach der Korrektur nachsehen.
 nicht alles: vier mal vier gleiche Paloxen und ein Tag mit 30 Paaren bei
 13 erwarteten sind Fragen wert.
 
+## Runde AF: Ausgang ist nur der Lieferschein (28. September, 0101)
+
+Der Betrieb, mit der ganzen Saison im Lagermanagement (Sprachnachricht):
+„15,2 Tonnen anderer Kanal — wie kommst du auf diese Zahl? … die stehen
+dann schon noch im Lager, die sind dann einfach nicht mehr verkaufsfähig …
+rechne die noch nicht zum Verkauf, sondern wirklich nur die, die du mit
+Lieferschein hast." Dazu: „Anteil unbekannt, solange eine Rate nicht
+gemessen ist — welche Rate fehlt dir?", ein Reiter rechts vom Betrieb für
+die noch auszuführenden Messungen, Untertitel weg, die Chargenwahl ohne das
+Wort „Charge", das Farbband und die „20,2 %" erklären, die Randpunkte der
+Diagramme, „Stunden pro Arbeitsschritt interessiert mich nicht", und der
+Lösch-Dialog, den man erst nach dem Scrollen fand.
+
+### Zu klein und zu gross bleiben im Haus (0101)
+
+Die Kaskade rechnet aus jeder Lieferung die Eingangsmasse dahinter zurück;
+zu ihr gehört der Anteil, der beim Sortieren als zu klein oder zu gross
+herausfiel. Bis 0100 stand dieser Anteil als „anderer Kanal am
+Ausgelagerten" neben dem Ausgang, als hätte er den Betrieb verlassen. Beim
+Betrieb sind alle 587 Lieferungen Verkauf; das Buch „marge" (an die Tiere,
+in den Nebenkanal) ist leer. Die 15,2 t stehen in Paloxen im Haus.
+
+0101 ändert die Zuordnung, nicht die Kaskade: `erg_charge.im_haus_heute_kg`
+ist das Liegende nach Verdunstung und Verderb **plus** das hinter den
+Lieferungen Aussortierte; `kanal_ausgelagert_kg` bleibt als Spalte und
+heisst jetzt „aussortiert, im Haus". Die Saisonbilanz lautet Eingang +
+Überzählung = ausgeliefert + Verlust + im Haus — ohne den Term „anderer
+Kanal"; ihr Befund nennt die Tonnen zu klein/zu gross im Haus (aussortiert
+oder im Liegenden erwartet). `erg_verlauf` zählt das Aussortierte je Woche
+zu „im Haus" und trägt es als `aussortiert_kg`; auf heute ist es dieselbe
+Zahl wie die Bilanz (Prüfblock 0049 hält das seit je). Auf der Demo: 168,6 t
+Liegendes + 5,7 t Aussortiertes = 174,3 t im Haus, Bilanzrest 0.
+Prüfblock 0101 (a–e), fünf Mutationen — jede schlägt an.
+
+Ausgang war schon immer nur der Lieferschein (`geliefert_kg`); das
+Lagermanagement hängt nichts mehr daran („+ 15,2 t anderer Kanal" ist weg),
+die Bilanz-Karte hat keine Zeile „anderer Kanal" mehr, und „Noch im Haus"
+sagt, wie viel davon verkaufsfähig ist und wie viel aussortiert steht, bis
+ein Lieferschein es holt. In den Ursachen heisst zu klein/zu gross jetzt
+„beim Sortieren aussortiert — steht im Haus", nicht „an die Tiere".
+
+### Welche Rate fehlt — und der Reiter „Messungen ausstehend"
+
+„Der Anteil ist unbekannt, solange eine Rate nicht gemessen ist" stand im
+Lagermanagement, obwohl die Bilanz daneben den Verlust kannte. Der Grund:
+`v_prognose` verlangte für „vollständig" noch den Sockel-Nachweis, den 0097
+für den Verlust längst nicht mehr verlangt (ohne Nachweis ist der Sockel 0,
+nicht unbekannt). 0101 zieht die Prognose nach: vollständig ist, was
+Verdunstung, Faules, Ausschuss und Fax kennt. Prüfblock 0101 (g), mit einer
+Mutation, die den Sockel wieder hineinschreibt — sie schlägt an. Auf der
+Demo ist der Sockel nachgewiesen, ein Verhaltenstest träfe nichts; darum
+steht die Regel selbst unter Prüfung (die Sichtdefinition), und die Doku
+sagt es.
+
+Als die Datenbank des Betriebs um 14:03 wieder antwortete, bestätigte sie
+es: In `erg_prognose` sind Verdunstung, Faules, Ausschuss und Fax für
+jede Sorte bekannt (Fax „eingefroren, erwarteter Anteil 0 durch Entscheid",
+Runde R), nur `sockel_bekannt` ist falsch — das Verderbsmodell hat 13
+Punkte aus 6 Chargen und ist noch nicht brauchbar. Es fehlte also keine
+Rate; es fehlte ein Nachweis, den die Bilanz nicht mehr verlangt. Mit
+Stand 101 ist der Anteil da. Die Verdunstung ist bei allen elf Sorten aus
+den Wägungen aller Sorten geliehen (Tiana 12 eigene, Kaori Kuri und
+Butterkin je 6); der Ausschuss ist bei Tiana, Kaori Kuri und Butterkin
+eigen, sonst geliehen — genau das zeigt der neue Reiter.
+
+Der Satz nennt jetzt die Rate: „unbekannt, solange Verdunstung, Faules beim
+Abpacken (Fax) nicht gemessen ist — Messungen ausstehend" (`fehlendeRaten`
+aus den vier Flaggen der Prognose). Und rechts vom Betrieb steht der neue
+Reiter **Messungen ausstehend**: je Sorte, die grösste im Haus zuoberst,
+ob Verdunstung, Faules im Lager, zu klein/zu gross, Fax, Kistengewicht je
+Band und Leergewicht gemessen sind — „n Messungen", „geliehen (alle
+Sorten)" oder „fehlt — eine Palette zweimal wiegen"; darunter, wie jede
+Messung in der Halle gemacht wird und was sie freischaltet. Sorten ohne Ware
+im Haus stehen aufklappbar darunter.
+
+### Der Dialog, der sich versteckte
+
+„Wenn ich auf Löschen klicke, dann ist das Pop-up nicht ersichtlich …
+erst wenn ich ganz nach unten scrolle." Die drei Rückfragen (Arbeiten
+löschen, Arbeiten abbrechen, Firma entfernen) standen als `position: fixed`
+in der Seite — und die Seite kommt mit einer Eintritts-Bewegung: Ein
+bewegter Vorfahr (`transform`) macht aus „fixed" ein „absolute", der
+Dialog rutschte ans Seitenende. Jetzt werden sie als Portal an `<body>`
+gehängt; die Kette prüft die Abbrechen-Rückfrage weiter über ihre Knöpfe.
+
+### Weniger Worte
+
+Untertitel weg: unter den Reitertiteln (Lagermanagement, Ursachen, Chargen,
+Messungen, Betrieb), unter den Karten (Saison im Verlauf, Was ist noch im
+Haus, Wie schwer sind die Kürbisse, Wohin ging der Kürbis, Faules im Lager,
+Verdunstung, Marge, Arbeiten, Bilanz). Die Kennzahlen behalten eine Zeile
+(der Abnahmevertrag D-02 verlangt sie): „1638 Paletten" beim Eingang, „587
+Lieferungen ab Lieferschein" beim Ausgang. Die Chargenwahl heisst „Sorte
+(1630)". Im „Wohin ging der Kürbis" steht die Legende gleich unter dem
+Kopfbalken, die Zahl rechts hat eine Kopfzeile („Verlust bis heute · % des
+Eingangs"), das Schwebefenster zeigt die Masse ohne „Anteil am Eingang",
+und der Knopf einer Sorte sagt „3 Chargen einzeln zeigen" statt „3
+Chargen". Die Karte „Arbeit und Tempo" (Stunden je Tätigkeit) ist weg; das
+Tempo je Arbeit steht weiter unter Messungen → Durchsatz. Wo ein Untertitel
+gesagt hatte, ob eine Zahl gemessen oder gerechnet ist, sagt es jetzt der
+Kartentext — `beschriftung.mjs` hat die Stelle gefunden (Verschenkte Marge).
+
+Die Punktdiagramme (Faules im Lager, Verdunstung, Ältestes zuerst) bekommen
+links und rechts Luft — ein Tag mindestens, sonst drei Prozent der Spanne —,
+damit der Punkt bei „liegt seit 0 Tagen" nicht halb auf der Achse liegt.
+Liniendiagramme (der Verlauf) bleiben randbündig.
+
+### Die Idee: zwei Sortierläufe derselben Charge als Verdunstungsmass
+
+Der Betrieb: Eine Charge, Anfang September sortiert und Ende September noch
+einmal — das Sortierdatum steht jetzt im Dateinamen —, müsste über das
+Gewicht je Kürbis die Verdunstung zeigen, unabhängig von der
+Kontrollpalette. Durchgedacht:
+
+Was die Sortierdatei misst, ist das Gewicht jedes Kürbis am Band, gut
+20 000 Stück je Lauf. Statistisch ist das mehr als genug: Der Mittelwert
+eines Laufs ist auf etwa 0,2 % genau, die Verdunstung über drei Wochen
+liegt bei 2–4 %. Der Haken ist nicht die Zahl der Kürbisse, sondern dass es
+nicht dieselben sind. Der zweite Lauf sortiert andere Paletten — die, die
+beim ersten Mal stehen blieben. Zwischen den Paletten einer Charge
+schwankt das mittlere Gewicht um mehrere Prozent (Feldrand, Reihe,
+Erntetag), und was zuerst sortiert wird, ist selten zufällig: die
+nächststehenden, die reifsten, die grössten. Dazu fällt vor dem zweiten Lauf
+das Faule heraus, und Faules ist nicht gleich verteilt über die Grössen.
+Ein Unterschied von 3 % zwischen den Läufen kann also Verdunstung sein —
+oder Auswahl. Die Kontrollpalette wiegt dieselben Kürbisse zweimal; das ist
+die saubere Messung, und sie bleibt es.
+
+Als **Gegenprobe** ist die Idee trotzdem wertvoll: Wo die Läufe derselben
+Charge und die Kontrollpaletten dieselbe Richtung zeigen, ist die Rate
+gesichert; wo sie auseinanderlaufen, ist die Auswahl der Grund, und das
+ist selbst eine Auskunft (was zuerst ans Band kam). Gebaut wird sie, sobald
+es die erste Charge mit zwei Sortiertagen gibt — heute hat keiner der zwölf
+Sortierläufe im Abzug einen zweiten (`docs/betrieb/rohdaten/
+sortier_lauf.json`). Die Form steht: unter Ursachen → Verdunstung eine
+Karte „Gewicht je Kürbis über die Läufe" je Charge, Median und Quartile je
+Lauf, der Abstand in Prozent je Tag neben der Rate der Kontrollpalette,
+mit dem Vorbehalt der Auswahl im Text. Offen als AB-113.
+
+### Was bewusst nicht gemacht wurde
+
+**Die Kaskade nicht neu gebaut.** Das Buch „marge" (an die Tiere, in den
+Nebenkanal geliefert) wird weiter wie ein Verkauf zurückgerechnet, statt
+aus dem Aussortierten zu schöpfen. Beim Betrieb hat es keine Zeile; eine
+eigene Portion hiesse `mv_kaskade` und die ganze Ergebniskette dahinter neu
+bauen — für ein Buch ohne Zeile. Der Befund der Bilanz stellt beides
+nebeneinander, sobald es Zeilen gibt („an die Tiere geliefert: x kg; hinter
+den Lieferungen aussortiert gerechnet: y kg").
+
+**Das Aussortierte altert nicht weiter.** Es steht mit der Masse da, die es
+am Liefertag hatte. Es ist Tierfutterware; seine Verdunstung danach
+interessiert niemanden, und sie würde die Bilanz nur um eine gerechnete
+Zahl an einer Stelle ergänzen, wo keine Messung hinkommt.
+
+**Kein Sortierlauf-Vergleich gebaut** — siehe oben: erst, wenn es die
+Daten dafür gibt, und dann als Gegenprobe, nicht als Rate.
+
+**Die Untertitel der Kennzahlen bleiben** (kürzer): Der Abnahmevertrag der
+Runde R (D-02) verlangt sie, und „1638 Paletten" ist genau, was der
+Betrieb dort lesen wollte.
+
 ## Nachtrag 0100: gerechnet wird nur an einer Stelle (28. September)
 
 Um 12:45 antwortete die Datenbank des Betriebs niemandem mehr — eine
@@ -4208,6 +4369,17 @@ tut die App, mit einer Verbindung alle fünf Sekunden.
 **Keine Warteschlange.** Wer wartet, bekommt am Ende den Stand, den der
 andere gerechnet hat — mehr braucht niemand: Zwei Rechnungen hintereinander
 hätten dasselbe Ergebnis.
+
+### Was die Datenbank danach sagte
+
+Um 14:03 antwortete die API wieder (503 und „could not query the database
+for the schema cache" bis kurz davor). `schema_stand()` = 97: Die
+Einspielungen von 0098 und 0099 („Load failed" im SQL-Editor) waren nie
+durchgekommen — die Datenbank stand die ganze Zeit auf 97, mit der App
+auf 99. Letzter Stand 11:52:56 (61.6 s), geändert 12:27, `rechnet_seit`
+leer: kein hängender Lauf, nichts kaputt. Was jetzt zu tun ist:
+`setup.sql` einmal einspielen (Stand 101) — ohne die Seite dabei neu zu
+laden.
 
 ## Runde AE: eine Datei, eine Firma (28. September, 0099)
 

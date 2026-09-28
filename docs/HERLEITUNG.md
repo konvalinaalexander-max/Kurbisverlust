@@ -104,6 +104,9 @@ Handlinie die gewogenen Kisten (0088). Anteile an der Masse des Laufs.
 **Fehlt alles:** unbekannt.
 **Fehlt eine Art** (nur „zu gross" gewogen, „zu klein" übersprungen): diese
 Art ist unbekannt, nicht 0; die gemessene zählt; keine Auffälligkeit (0097).
+**Wohin:** ins Haus, nicht in den Ausgang (0101) — aussortiert steht es in
+Paloxen, bis ein Lieferschein es holt; das Buch „marge" (an die Tiere, in
+den Nebenkanal) zählt erst dann, und der Befund der Bilanz vergleicht beides.
 **Urteil:** ehrlich.
 
 ## 7. Faules im Lager — das Verderbsmodell (`mv_schimmel_modell`)
@@ -150,7 +153,12 @@ die Verdunstung nicht mit der Lesung (AB-73).
 Koeffizienten 5–9 beim Alter am Liefertag.
 **Rechnung:** ausgelagert = geliefert ÷ verkaufsfähiger Anteil; im Lager =
 Eingang − ausgelagert; auf beide dieselbe Kaskade Verdunstung → Sockel →
-Verderb → zu klein/zu gross → Fax.
+Verderb → zu klein/zu gross → Fax. **Ausgang ist nur der Lieferschein**
+(0101): Zu klein und zu gross, das hinter den Lieferungen aussortiert
+wurde, hat den Betrieb nicht verlassen — es zählt zu „im Haus", nicht
+verkaufsfähig, bis ein Lieferschein es holt (`erg_charge.im_haus_heute_kg`
+= Liegendes nach Verdunstung und Verderb + `kanal_ausgelagert_kg`). Die
+Bilanz lautet Eingang + Überzählung = ausgeliefert + Verlust + im Haus.
 **Fehlt ein Koeffizient:** er ist unbekannt; die Kaskade lässt seinen
 Schritt aus und das Dashboard sagt „nicht gemessen" — sie erfindet keinen.
 **Wenn die Rechnung nicht aufgeht:** Überzählung (die Lieferungen brauchen

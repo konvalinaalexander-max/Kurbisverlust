@@ -123,7 +123,7 @@ Charge, und nicht aus gezählten Paletten.
 
 ## 3. Wie es beim Betriebsleiter ankommt
 
-Fünf Reiter, je mit einem Satz darüber, was er beantwortet.
+Sechs Reiter (seit Runde AF ohne Erklärsatz darunter; der sechste ist „Messungen ausstehend").
 
 ### Überblick — wie viel, woran, was tun?
 

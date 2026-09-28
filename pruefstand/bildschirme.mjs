@@ -314,6 +314,8 @@ const BILDSCHIRME = [
   { name: 'messungen-charge', wer: 'admin', pfad: '/messungen',
     tun: async p => { await p.locator('.befund-kopf .charge-knopf').first().click(); await p.locator('#charge-fenster h2').waitFor() } },
   { name: 'betrieb-arbeiten', wer: 'admin', pfad: '/betrieb/arbeiten' },
+  // Runde AF: der sechste Reiter — je Sorte, welche Messung fehlt.
+  { name: 'ausstehend', wer: 'admin', pfad: '/ausstehend' },
   // Runde Z (0094): der Betriebsleiter kürzt einen ungelesenen Kommentar zur
   // Ware — erst damit steht er im Dashboard. Die Demo hat genau einen offenen;
   // seine Arbeit liegt Monate zurück, also „Ältere zeigen", bis sie da ist.

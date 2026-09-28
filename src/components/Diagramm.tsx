@@ -192,8 +192,16 @@ export function Linien({ reihen, hoehe = 280, xFormat = String, yFormat = String
     const g = xEinheit === 'tage' || xEinheit === 'kg' || xEinheit === 'stueck' ? 0 : -Infinity
     const zusatzX = senkrechte.map(s => s.x).concat(heute ? [heute.x] : []).concat(zonen.flatMap(z => [z.von, z.bis]))
       .filter(x => Number.isFinite(x) && x >= g)
-    const xMinAlle = xVon ?? Math.min(bereich.von, ...zusatzX)
-    const xMaxAlle = xBis ?? Math.max(bereich.bis, ...zusatzX)
+    // Runde AF: Ein Punktdiagramm bekommt links und rechts Luft — sonst liegt
+    // der Punkt bei „liegt seit 0 Tagen" halb auf der Achse und der von heute
+    // am rechten Rand. Ein Tag mindestens, sonst drei Prozent der Spanne;
+    // Liniendiagramme (der Verlauf) bleiben randbündig.
+    const hatPunkte = reihen.some(r => r.marker !== false && r.punkte.length > 0)
+    const xMinRoh = xVon ?? Math.min(bereich.von, ...zusatzX)
+    const xMaxRoh = xBis ?? Math.max(bereich.bis, ...zusatzX)
+    const luft = hatPunkte ? Math.max(xEinheit === 'tage' || xEinheit === 'frei' ? 1 : 0, (xMaxRoh - xMinRoh) * 0.03) : 0
+    const xMinAlle = xMinRoh - luft
+    const xMaxAlle = xMaxRoh + luft
     const ausserhalb = bereich.ausgeschlossen
     const x0 = sicht ? sicht[0] : xMinAlle, x1 = sicht ? sicht[1] : xMaxAlle
     const imFenster = (x: number) => x >= x0 && x <= x1
@@ -598,8 +606,10 @@ export interface Anteilszeile {
  * Prozent und Tonnen. So sieht man, wem anteilig am meisten fehlt — nicht,
  * wer am grössten ist.
  */
-export function Anteilsbalken({ zeilen, oeffnen, legende = true }: {
+export function Anteilsbalken({ zeilen, oeffnen, legende = true, rechtsTitel }: {
   zeilen: Anteilszeile[]; oeffnen?: (z: Anteilszeile) => void; legende?: boolean
+  /** Runde AF: was die Zahl rechts ist („Verlust bis heute · % des Eingangs") — als Kopfzeile über den Balken. */
+  rechtsTitel?: string
 }) {
   const { rahmen, ort } = useZeiger()
   const [hover, setHover] = useState<{ z: Anteilszeile; t: Anteil; ort: { x: number; y: number } } | null>(null)
@@ -607,6 +617,7 @@ export function Anteilsbalken({ zeilen, oeffnen, legende = true }: {
   const namen = [...new Map(zeilen.flatMap(z => z.teile).map(t => [t.name, t.farbe])).entries()]
   return (
     <div className="anteile" ref={rahmen}>
+      {rechtsTitel && <div className="anteil-kopfzeile leise" aria-hidden="true">{rechtsTitel}</div>}
       {zeilen.map((z, i) => {
         const summe = z.teile.reduce((s, t) => s + t.kg, 0)
         const anteil = z.bezug > 0 ? summe / z.bezug : 0
@@ -639,7 +650,7 @@ export function Anteilsbalken({ zeilen, oeffnen, legende = true }: {
       <Schwebend rahmen={rahmen} s={hover ? { x: hover.ort.x, y: hover.ort.y, inhalt: (
         <>
           <div className="schweb-kopf">{hover.z.name} · {hover.t.name}</div>
-          <div className="schweb-zeile"><span>Anteil {hover.z.bezugName ?? 'am Bezug'}</span><strong>{prozent(hover.z.bezug > 0 ? hover.t.kg / hover.z.bezug : null)}</strong></div>
+          {/* Runde AF: der Betrieb will die Masse, nicht den Anteil — „Masse genügt". */}
           <div className="schweb-zeile"><span>Masse</span><strong>{tonnen(hover.t.kg)}</strong></div>
           {hover.t.hinweis && <div className="leise" style={{ marginTop: '.15rem' }}>{hover.t.hinweis}</div>}
         </>

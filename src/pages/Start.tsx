@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { TaetKachel, ZAuswahl, ZChevron, ZHaken, ZKreuz, ZLupe, ZNeu, ZStopp } from '../components/Zeichen'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
@@ -142,7 +143,10 @@ export default function Start() {
           </button>
         </div>
       )}
-      {frage && (
+      {frage && createPortal(
+        /* Runde AF: als Portal an <body> — die Seite kommt mit einer Eintritts-Bewegung
+           (transform), und ein bewegter Vorfahr macht aus „fixed" ein „absolute": der
+           Dialog rutschte ans Ende der Seite, man musste scrollen. */
         <div className="dialog-hinter" onClick={() => setFrage(false)}>
           <div className="dialog" role="dialog" aria-modal="true" aria-label={t('gewaehlteAbbrechen')} onClick={e => e.stopPropagation()}>
             <h2 style={{ marginTop: 0 }}>{gewaehlt.size === 1 ? t('abbrechenFrage1') : mitZahl(t('abbrechenFrageN'), gewaehlt.size)}</h2>
@@ -167,7 +171,7 @@ export default function Start() {
             </div>
           </div>
         </div>
-      )}
+      , document.body)}
       {offen.length === 0 && <p className="leise" style={{ margin: '.25rem 0 .75rem' }}>{t('nichtsLaeuft')}</p>}
       {offen.map((a, i) => {
         const taet = taetigkeitVon(a.weg, a.station, a.ist_fax)

@@ -7,7 +7,7 @@ import { datum, kg, prozent, tonnen, zahl } from '../lib/format'
 import { Erklaerung, Herkunft, Hinweis, Karte, Kennzahl, Leer, Marke, Segmente } from '../components/Bausteine'
 import { Glocke, Linien, tonnenAchse, type Reihe } from '../components/Diagramm'
 import { kaliberGlockeBei, lagerKaliberBei, prognoseBei, useAuswertung, useStichtag, wohinVon,
-         type Auswertung, type Bestand, type KaliberGlocke, type LagerKaliber } from '../auswertung/daten'
+         type Auswertung, type Bestand, type KaliberGlocke, type LagerKaliber, fehlendeRaten } from '../auswertung/daten'
 import { Probleme, Rechnet, Reiterkopf } from '../auswertung/Karten'
 import { JournalAbgleich } from '../betrieb/JournalAbgleich'
 import { useZaehler } from '../design/bewegung'
@@ -74,7 +74,7 @@ export default function Lagermanagement() {
   if (!s || daten.bestand.length === 0) {
     return (
       <>
-        <Reiterkopf titel="Lagermanagement" zweck={ZWECK} stand={daten.stand} zeitplan={daten.zeitplan} veraltet={daten.veraltet} aktuell={daten.aktuell} />
+        <Reiterkopf titel="Lagermanagement" stand={daten.stand} zeitplan={daten.zeitplan} veraltet={daten.veraltet} aktuell={daten.aktuell} />
         <Probleme liste={daten.probleme} />
         <Hinweis>Noch keine auswertbaren Daten. Dafür braucht es mindestens Eingangspaletten mit hinterlegter Tara — siehe Betrieb → Stammdaten.</Hinweis>
         {/* 0081: Auch im Demo-Modus — dort erklärt die Karte, was der
@@ -87,7 +87,7 @@ export default function Lagermanagement() {
 
   return (
     <>
-      <Reiterkopf titel="Lagermanagement" zweck={ZWECK}
+      <Reiterkopf titel="Lagermanagement"
                   stand={daten.stand} heute={daten.heute} neuRechnen={() => void neuRechnen()} laeuft={laedt}
                   zeitplan={daten.zeitplan} veraltet={daten.veraltet} aktuell={daten.aktuell} />
       <JournalAbgleich neuGerechnet={() => void neuRechnen()} />
@@ -111,8 +111,6 @@ export default function Lagermanagement() {
   )
 }
 
-const ZWECK = 'Was liegt, wovon, in welchem Kaliber — heute und in ein paar Wochen.'
-
 /* ---------- Der Filter: alle, eine Sorte, eine Charge ---------------------- */
 
 function Filterleiste({ daten, filter, setzen }: { daten: Auswertung; filter: Filter; setzen: (w: string) => void }) {
@@ -130,10 +128,10 @@ function Filterleiste({ daten, filter, setzen }: { daten: Auswertung; filter: Fi
         <optgroup label="Sorte">{sorten.map(x => <option key={x} value={`sorte|${x}`}>{x}</option>)}</optgroup>
         {/* Runde AD: die Chargen nach Feld, darin nach Sorte, dann die Nummer —
             „wichtiger ist Feld und Sorte und dann die Zahl". Das Feld ist die
-            Gruppe (fett), die Zeile heisst „Sorte (Charge Nr)". */}
+            Gruppe (fett), die Zeile heisst „Sorte (Nr)" — ohne das Wort Charge (Runde AF). */}
         {felder.map(f => (
           <optgroup key={f.feld} label={f.feld}>
-            {f.chargen.map(c => <option key={c.charge_nr} value={`charge|${c.charge_nr}`}>{c.sorte} (Charge {c.charge_nr})</option>)}
+            {f.chargen.map(c => <option key={c.charge_nr} value={`charge|${c.charge_nr}`}>{c.sorte} ({c.charge_nr})</option>)}
           </optgroup>
         ))}
       </select>
@@ -175,12 +173,13 @@ function Kennzahlen({ daten, filter }: { daten: Auswertung; filter: Filter }) {
                 wert={<><Tonnen kg={w?.eingang_kg} />{ohneNetto === 0
                   ? <Herkunft art="gemessen" />
                   : <Herkunft art="gerechnet" text={`${ohneNetto} Paletten ohne Nettogewicht — für sie rechnet der Eingang mit dem Mittel der übrigen`} />}</>}
-                unter={<>{zahl(paletten)} Paletten · {w?.n_chargen ?? chargen.length} Chargen · ab Erntejournal</>} />
+                unter={<>{zahl(paletten)} Paletten</>} />
       <Kennzahl titel="Ausgang" id="kz-ausgang"
                 wert={(w?.geliefert_kg ?? 0) > 0 ? <><Tonnen kg={w?.geliefert_kg} /><Herkunft art="gemessen" /></> : '—'}
                 unter={(w?.geliefert_kg ?? 0) > 0
-                  ? <>{zahl(lieferungen)} Lieferungen ab Lieferschein{(w?.kanal_ausgelagert_kg ?? 0) > 0
-                      ? <> · + {tonnen(w?.kanal_ausgelagert_kg)} anderer Kanal (zu klein / zu gross)</> : ''}</>
+                  // Runde AF: Ausgang ist nur der Lieferschein. Zu klein und zu gross,
+                  // das beim Sortieren herausfällt, steht im Haus (0101) — nicht hier.
+                  ? <>{zahl(lieferungen)} Lieferungen ab Lieferschein</>
                   : <>noch kein Warenausgang eingelesen — <Link to="/betrieb/lieferungen">Betrieb → Warenausgang</Link></>} />
       <Kennzahl titel="Im Lager" ton="kuerbis" id="kz-lager"
                 wert={<><Tonnen kg={p0?.lager_kg} /><Herkunft art="gerechnet" /></>}
@@ -198,7 +197,8 @@ function Kennzahlen({ daten, filter }: { daten: Auswertung; filter: Filter }) {
                     ))}
                   </span>
                   {anteil === null
-                    ? <>der Anteil ist unbekannt, solange eine Rate nicht gemessen ist</>
+                    // Runde AF: der Betrieb fragte „welche Rate?" — hier steht sie, mit dem Weg zum Reiter.
+                    ? <>unbekannt, solange {fehlendeRaten(p0).join(', ') || 'eine Rate'} nicht gemessen ist — <Link to="/ausstehend">Messungen ausstehend</Link></>
                     : <>von dem, was im Lager liegt</>}
                 </>} />
     </div>
@@ -230,12 +230,10 @@ function Verlauf({ daten, filter }: { daten: Auswertung; filter: Filter }) {
       punkte: wochen.map(w => ({ x: x(w.bis), y: w.lager_kg })) },
     { name: 'Davon verkaufsfähig', farbe: 'var(--blau)', linie: true, marker: false, dick: true, prognoseAb: heute,
       punkte: wochen.map(w => ({ x: x(w.bis), y: w.verkaufsfaehig_kg,
-        text: `${prozent(anteil(w), 0)} der liegenden Ware · zu klein/zu gross ${tonnen(w.kanal_kg)}` })) },
+        text: `${prozent(anteil(w), 0)} der liegenden Ware · zu klein/zu gross ${tonnen(w.kanal_kg + w.aussortiert_kg)}${w.aussortiert_kg > 0 ? ` (davon ${tonnen(w.aussortiert_kg)} schon aussortiert, steht im Haus)` : ''}` })) },
   ]
-  const name = filter.gruppe === 'gesamt' ? 'alle Chargen' : filter.gruppe === 'charge' ? `Charge ${filter.schluessel}` : filter.schluessel
   return (
-    <Karte id="lager-verlauf" titel="Die Saison im Verlauf"
-           unter={`Je Woche für ${name}: was hereinkam, was hinausging, was noch liegt — und wie viel davon verkaufsfähig ist.`}>
+    <Karte id="lager-verlauf" titel="Die Saison im Verlauf">
       <Linien reihen={reihen} heute={{ x: heute, text: `heute, ${datum(daten.heute).slice(0, 6)}`, rechts: 'so ginge es weiter' }}
               xVon={xVon} xBis={xLetzte} hoehe={300}
               xFormat={d => datum(new Date(d * TAG)).slice(0, 5)} yFormat={tonnenAchse}
@@ -331,7 +329,6 @@ function ImHaus({ daten, filter, wochen, setzeWochen }: {
 
   return (
     <Karte id="lager-tabelle" titel="Was ist noch im Haus?"
-           unter={`Je ${jeSorte ? 'Sorte' : 'Charge'}: was liegt, und wie viel davon in welchem Kaliber verkaufsfähig ist — ${spaeter ? `in ${wochen} Wochen` : 'heute'}.${jeSorte ? ' Eine Sorte anklicken zeigt ihre Chargen.' : ''}`}
            aktion={<WochenFeld id="lager-wochen" wochen={wochen} setzen={setzeWochen} datum={spaeter ? stichtag : null} />}>
       {stand.fehler && <Hinweis art="warnung">Die Kaliber konnten nicht geladen werden: {stand.fehler}</Hinweis>}
       {zeilen.length === 0 && !stand.laedt
@@ -504,7 +501,6 @@ function Glockenkarte({ daten, filter, wochen, setzeWochen }: {
 
   return (
     <Karte id="lager-glocke" titel="Wie schwer sind die Kürbisse?"
-           unter={`Die Gewichte der sortierten Kürbisse${gruppe === 'charge' ? ` der Charge ${schluessel}` : ` der Sorte ${schluessel || '—'}`}, mit den Kalibergrenzen.`}
            aktion={<span className="reihe">
              {wochen > 0 && <Segmente wahl={wann} setzen={setWann} id="glocke-umschalter"
                        teile={[['heute', 'heute', 'glocke-heute'], ['spaeter', `in ${wochen} Wochen`, 'glocke-spaeter']]} />}
