@@ -62,6 +62,10 @@ FREIGEGEBEN=(
   # jedem Tag) — dieselben drei Notizzettel, derselbe Anfang, dasselbe Ende.
   "0096_die_demo_verkaufsdatei_stimmt_an_jedem_tag.sql:84"
   "0096_die_demo_verkaufsdatei_stimmt_an_jedem_tag.sql:1024"
+  # 0104 dasselbe noch einmal (die Demo-Halle wiegt ihre Wasch-Paletten seit
+  # Mitte August) — dieselben drei Notizzettel, derselbe Anfang, dasselbe Ende.
+  "0104_waschen_wird_gewogen.sql:661"
+  "0104_waschen_wird_gewogen.sql:1612"
 )
 
 # ---------------------------------------------------------------------

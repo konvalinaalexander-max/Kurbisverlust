@@ -229,6 +229,7 @@ export default function NeueArbeit() {
             erst später. Der Plan sagt das dann bei den betroffenen Punkten
             statt sie zu versprechen. Wer zurückblättert, hat es schon
             gewählt; dann steht der Plan endgültig da. */}
+        {station === 'waschen' && !istFax && <Hinweis art="warnung">{t('waschAnsage')}</Hinweis>}
         <Planliste station={station} istFax={istFax} rechenbar={rechenbarJetzt} />
       </Schritt>
     )
@@ -404,6 +405,9 @@ export default function NeueArbeit() {
           den fertigen Paletten oder ohne. Das ist der letzte Bildschirm vor
           dem Start — und damit der Ort, an dem „was zu tun ist" zählt. */}
       <div className="abschnitt-titel">{t('wasZuTun')}</div>
+      {/* 0104: Der Betrieb will die Waschstrasse klar angewiesen sehen — hier,
+          wo die Auftragsleitende die Arbeit anlegt, und nicht erst am Zähler. */}
+      {station === 'waschen' && !istFax && <Hinweis art="warnung">{t('waschAnsage')}</Hinweis>}
       {station && <Planliste station={station} istFax={istFax} rechenbar={rechenbarJetzt} />}
       {fehler && <Hinweis art="warnung">{fehler}</Hinweis>}
     </Schritt>

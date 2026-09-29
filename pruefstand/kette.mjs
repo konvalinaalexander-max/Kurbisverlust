@@ -568,7 +568,7 @@ await schritt('Assistent: Waschen, Charge 1613, eigenes Kaliber 700–900 g, 6 S
   await warteAuf('auftrag_teilnehmer', 'POST', 3)
 })
 
-await schritt('Waschen: Palox freiwillig, Paletten mit Sortierdatum (2 × 32 Kisten) und ohne Datum (1), drei fertige Paletten, abschliessen', async () => {
+await schritt('Waschen: Palox freiwillig, jede Palette gewogen (345/340/350 kg brutto), mit Sortierdatum (2 × 32 Kisten) und ohne Datum (1), drei fertige Paletten, abschliessen', async () => {
   await seite.locator('#check-abschluss').waitFor()      // kein Palox-Zwang nach dem Start
   await seite.locator('#check-zaehlen').click()
   if (await seite.locator('#kiste-plus-eigen').count() > 0) throw new Error('Beim Waschen werden Paletten gezählt, keine Kisten je Kaliber (0061)')
@@ -579,22 +579,36 @@ await schritt('Waschen: Palox freiwillig, Paletten mit Sortierdatum (2 × 32 Kis
   if (kisten !== '36') throw new Error(`Kisten je Palette müssen aus der Einstellung vorbelegt sein (36), ist „${kisten}"`)
   await seite.locator('#kisten-palette').fill('32')
   await seite.locator('#sortierdatum').fill('2026-09-03')
+  // 0104: Ohne das Gewicht von der Waage am Anfang der Strasse zählt die App
+  // die Palette nicht — der Betrieb: „dort immer wiegen". Und der Knopf sagt,
+  // was ihm fehlt.
+  if (!(await seite.locator('#wasch-plus').isDisabled())) throw new Error('Ohne Gewicht von der Waage darf keine Palette gezählt werden (0104)')
+  await seite.getByText('Gewicht von der Waage fehlt').waitFor()
+  const bruttos = ['345', '340', '350']
   for (let i = 1; i <= 2; i++) {
+    await seite.locator('#wasch-brutto').fill(bruttos[i - 1])
+    await seite.getByText(`≈ ${bruttos[i - 1] === '345' ? 272 : 267} kg netto`).waitFor()   // 32 × 1.5 kg G2 + 25 kg Palette
     await seite.locator('#wasch-plus').click()
     await warteAuf('auftrag_palette', 'POST', 4 + i)
   }
   await seite.locator('#kein-sortierdatum').check()
+  await seite.locator('#wasch-brutto').fill(bruttos[2])
   await seite.locator('#wasch-plus').click()
   await warteAuf('auftrag_palette', 'POST', 7)
   const g = protokoll.filter(x => x.tabelle === 'auftrag_palette').map(x => x.zeilen[0])
   if (g[4].sortierdatum !== '2026-09-03' || g[4].kisten !== 32 || g[6].sortierdatum !== null || g[6].kisten !== 32) throw new Error('Sortierdatum und Kisten je Palette kommen nicht mit')
   if (g[4].eingangsdatum !== undefined) throw new Error('Eine Kaliber-Palette hat kein Eingangsdatum')
+  if (g[4].brutto_gewogen_kg !== 345 || g[5].brutto_gewogen_kg !== 340 || g[6].brutto_gewogen_kg !== 350) throw new Error(`Das Gewicht von der Waage kommt nicht mit: ${g[4].brutto_gewogen_kg}, ${g[5].brutto_gewogen_kg}, ${g[6].brutto_gewogen_kg}`)
+  // Das Feld leert sich, sobald die Antwort da ist — nicht schon mit dem Absenden.
+  await seite.waitForFunction(() => document.getElementById('wasch-brutto')?.value === '', undefined, { timeout: 10000 })
+    .catch(() => { throw new Error('Nach dem Zählen muss das Waagefeld leer sein — die nächste Palette wiegt anders') })
   await seite.getByText('Paletten · 96 Kisten').first().waitFor()
   await seite.getByRole('button', { name: /Was zu tun ist/ }).click()
-  // Runde AD: drei sind der Rat, nicht die Pflicht. Pflicht ist EINE, weil die
-  // Auswertung für dieses Band (700–900 g, eigenes Kaliber) kein Kistengewicht
-  // kennt — und die Zeile sagt genau das, bevor die Arbeiterin die Maske öffnet.
-  await seite.getByText('Mindestens 1 fertige Palette wiegen — das Kistengewicht ist noch unbekannt.').waitFor()
+  // Runde AD verlangte EINE fertige Palette, weil die Auswertung für dieses
+  // Band (700–900 g, eigenes Kaliber) kein Kistengewicht kannte. Seit 0104
+  // sind alle Paletten dieser Arbeit am Anfang der Strasse gewogen — die
+  // Masse hinein ist bekannt, die Pflicht entfällt, drei bleiben der Rat.
+  if (await seite.getByText('Mindestens 1 fertige Palette wiegen — das Kistengewicht ist noch unbekannt.').count() > 0) throw new Error('Alle Paletten sind gewogen — die Pflicht auf eine fertige Palette darf nicht mehr stehen (0104)')
   await seite.locator('#check-ausgang').click()
   const pro = await seite.locator('#a-pro').inputValue()
   if (pro !== '6') throw new Error(`Stück je Kiste muss aus der Arbeit vorbelegt sein, ist „${pro}"`)

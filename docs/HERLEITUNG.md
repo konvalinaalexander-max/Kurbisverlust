@@ -38,6 +38,12 @@ Je gezählter Palette (`v_auftrag_palette_masse`), in dieser Reihenfolge:
 | `datum-mittel` | nur das Datum ist da | Mittel der Paletten dieses Eingangstags |
 | `charge-mittel` | nichts als die Charge | Mittel der Charge |
 
+**Beim reinen Waschen** (0104): die am Anfang der Strasse gewogenen Paletten
+— Brutto − Kisten × Kistentara − Palettentara (`v_auftrag_wasch_gewogen`,
+`gewogen_strasse`); sind nicht alle gewogen, rechnen die übrigen mit dem
+Mittel je Kiste der gewogenen (`gewogen_strasse_teils`). Erst danach die
+Ersätze, für Arbeiten von vor dem 29. September:
+
 Dann je Arbeit: die Summe der gezählten Paletten → sonst **fertige Paletten**
 (Waschen: gezählte fertige Paletten × Mittel der gewogenen **vollen**; eine
 reicht, drei sind der Rat — nicht volle zählen hier nicht, in der Marge
@@ -74,7 +80,12 @@ Masse heraus ÷ Kisten hinein. Eine solche Arbeit je Sorte und Band genügt;
 sie gilt rückwirkend, denn es ist eine Sicht. Das Faule und der Ausschuss
 des Waschgangs fehlen in der Masse heraus — das Kistengewicht ist darum
 eher etwas zu klein, nie zu gross.
-**Fehlt beides:** unbekannt, Auffälligkeit „Kistengewicht" mit dem neuen Rat.
+**Seit 0104** dazu: Masse hinein ÷ Kisten hinein aus den am Anfang der
+Waschstrasse gewogenen Paletten — direkter als Masse heraus, ohne den Abzug
+des Faulen.
+**Fehlt alles:** unbekannt, Auffälligkeit „Kistengewicht" mit dem Rat, beim
+nächsten Waschgang zu wiegen; sie schweigt, sobald die Paletten der Arbeit
+selbst gewogen sind.
 **Urteil:** jetzt ehrlich und erreichbar.
 
 ## 5. Verdunstungsrate je Sorte (`v_koeff_verdunstung`)

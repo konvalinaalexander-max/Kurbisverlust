@@ -141,7 +141,7 @@ export function ArbeitFenster({ auftragId, schliessen, messung }: { auftragId: n
               <section className="fenster-abschnitt">
                 <h3>Gezählte Paletten · {d.paletten.length}</h3>
                 <table className="dicht">
-                  <thead><tr><th>Eingangsdatum</th><th className="zahl">Zettel (kg brutto)</th><th>Sortierdatum</th><th className="zahl">Kisten</th><th>Gebinde</th><th>Gewogen</th></tr></thead>
+                  <thead><tr><th>Eingangsdatum</th><th className="zahl">Zettel (kg brutto)</th><th>Sortierdatum</th><th className="zahl">Kisten</th><th>Gebinde</th><th className="zahl">Waage (kg brutto)</th><th>Gewogen</th></tr></thead>
                   <tbody>{d.paletten.map(p => (
                     <tr key={p.id}>
                       <td>{p.eingangsdatum ? datum(p.eingangsdatum) : '—'}</td>
@@ -149,6 +149,7 @@ export function ArbeitFenster({ auftragId, schliessen, messung }: { auftragId: n
                       <td>{p.sortierdatum ? datum(p.sortierdatum) : '—'}</td>
                       <td className="zahl">{p.kisten ?? '—'}</td>
                       <td>{p.gebindeart ?? ''}</td>
+                      <td className="zahl">{p.brutto_gewogen_kg ?? '—'}</td>
                       <td>{p.wiegung_id != null ? 'ja' : ''}</td>
                     </tr>
                   ))}</tbody>

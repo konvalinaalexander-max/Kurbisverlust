@@ -50,6 +50,7 @@ export function Zaehler({ d, gesperrt, neuLaden, melden, zumWiegen }: {
   }
   const [zettel, setZettel] = useState(() => lesen(ZETTEL(d.auftrag.id)))
   const [brutto, setBrutto] = useState('')
+  const [waage, setWaage] = useState('')   // 0104: Waschen — das Brutto von der Waage, je Palette neu
   const [sortierdatum, setSortierdatum] = useState(() => lesen(SORTIERDATUM(d.auftrag.id)))
   const [ohneDatum, setOhneDatum] = useState(false)
   const [kistenPalette, setKistenPalette] = useState(() => lesen(KISTEN_PALETTE(d.auftrag.id), String(d.kistenProPalette)))
@@ -111,14 +112,28 @@ export function Zaehler({ d, gesperrt, neuLaden, melden, zumWiegen }: {
   // Waschen (0061): eine Kaliber-Palette aus dem Zwischenlager.
   const kistenZahl = Number(kistenPalette)
   const kistenOk = Number.isInteger(kistenZahl) && kistenZahl > 0
-  const waschBereit = (ohneDatum || sortierdatum !== '') && kistenOk && gebinde !== ''
+  // 0104: Beim Waschen wird jede Palette am Anfang der Strasse gewogen —
+  // brutto, mit Kisten. Ohne Gewicht zählt die App sie nicht: Die Masse
+  // hinein soll gemessen sein, nicht aus einem Kistengewicht gelernt. Was
+  // die Waage sagt, steht sofort als Netto und je Kiste da; ist es
+  // unglaubwürdig, sagt die App das — und lässt die Arbeiterin trotzdem
+  // weiter (der Betriebsleiter sieht es als Auffälligkeit „Waage").
+  const waageZahl = Number(waage)
+  const waageOk = waageZahl > 0
+  const tara = arten.find(g => g.art === gebinde)
+  const nettoWaage = waageOk && kistenOk && tara?.tara_kg_pro_kiste != null && tara.tara_kg_palette != null
+    ? waageZahl - kistenZahl * tara.tara_kg_pro_kiste - tara.tara_kg_palette : null
+  const jeKiste = nettoWaage != null && kistenOk ? nettoWaage / kistenZahl : null
+  const waageFraglich = jeKiste != null && (jeKiste < 4 || jeKiste > 30)
+  const waschBereit = (ohneDatum || sortierdatum !== '') && kistenOk && gebinde !== '' && waageOk
   async function waschPaletteZaehlen() {
     if (!waschBereit || laeuft) return
     setLaeuft(true); setFehler(null)
     const { error } = await supabase.from('auftrag_palette')
       .insert({ auftrag_id: d.auftrag.id, sortierdatum: ohneDatum ? null : sortierdatum,
-                kisten: kistenZahl, gebindeart: gebinde })
+                kisten: kistenZahl, gebindeart: gebinde, brutto_gewogen_kg: waageZahl })
     if (error) { setLaeuft(false); setFehler(fehlerText(error)); return }
+    setWaage('')   // die nächste Palette wiegt anders
     await nachladen(t('paletteGezaehlt'))
   }
 
@@ -194,6 +209,15 @@ export function Zaehler({ d, gesperrt, neuLaden, melden, zumWiegen }: {
                     onClick={() => kistenPaletteSetzen(String((Number.isFinite(kistenZahl) ? kistenZahl : 0) + 1))}><ZPlus size={24} /></button>
           </div>
         </div>
+        <div className="feld">
+          <label htmlFor="wasch-brutto">{t('waageBrutto')}</label>
+          <input id="wasch-brutto" type="number" inputMode="decimal" step="0.5" min={0} value={waage} disabled={gesperrt}
+                 onChange={e => setWaage(e.target.value)} style={{ fontSize: '1.15rem' }} />
+          {nettoWaage != null && jeKiste != null && (
+            <span className="klein-text">{t('waageNetto').replace('{netto}', String(Math.round(nettoWaage))).replace('{kg}', jeKiste.toFixed(1))}</span>
+          )}
+          {waageFraglich && jeKiste != null && <Hinweis art="warnung">{t('waageFraglich').replace('{kg}', jeKiste.toFixed(1))}</Hinweis>}
+        </div>
         <div className="zaehler-gross">
           <div className="stand neu" key={d.paletten.length}>{d.paletten.length}</div>
           <div className="einheit">{t('paletten')} · {kistenGesamt} {t('kisten')}</div>
@@ -201,13 +225,13 @@ export function Zaehler({ d, gesperrt, neuLaden, melden, zumWiegen }: {
         <button type="button" id="wasch-plus" className="haupt zaehler-plus" disabled={gesperrt || laeuft || !waschBereit}
                 onClick={() => void waschPaletteZaehlen()}>
           <span><ZPlus size={22} /> 1 {t('paletteHingestellt')}</span>
-          {waschBereit && <span className="klein-text">{ohneDatum ? t('keinSortierdatum') : datumText(sortierdatum)} · {kistenZahl} {gebinde}</span>}
+          {waschBereit && <span className="klein-text">{ohneDatum ? t('keinSortierdatum') : datumText(sortierdatum)} · {kistenZahl} {gebinde} · {waage} kg</span>}
         </button>
         {/* Runde T: statt Erklärtexten unter jedem Feld ein Satz am grauen
             Knopf, der sagt, was ihm gerade fehlt. */}
         {!waschBereit && !gesperrt && (
           <p className="zaehler-grund" role="status">
-            {!(ohneDatum || sortierdatum !== '') ? t('grundSortierdatumFehlt') : !kistenOk ? t('grundKistenFehlen') : t('gebindeFrage')}
+            {!(ohneDatum || sortierdatum !== '') ? t('grundSortierdatumFehlt') : !kistenOk ? t('grundKistenFehlen') : !waageOk ? t('grundWaageFehlt') : t('gebindeFrage')}
           </p>
         )}
         <button type="button" id="wasch-minus" className="zaehler-minus" disabled={gesperrt || laeuft || d.paletten.length === 0}

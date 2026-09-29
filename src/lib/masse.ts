@@ -77,6 +77,8 @@ const HERKUNFT_TEXT: Record<string, string> = {
   'charge-mittel': 'Mittel der Charge',
   paletten: 'aus den gezählten Eingangspaletten',
   wasch_paletten: 'aus den gewaschenen Paletten',
+  gewogen_strasse: 'gewogen am Anfang der Waschstrasse, Brutto minus Kisten und Palette',
+  gewogen_strasse_teils: 'teils gewogen am Anfang der Waschstrasse, der Rest mit deren Mittel je Kiste',
   fax_paletten: 'aus den Fax-Paletten',
   gebinde: 'aus den gezählten Kisten',
   fehlt: 'nicht bekannt',

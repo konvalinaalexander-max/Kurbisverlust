@@ -22,6 +22,8 @@ export interface AusschussZeile {
 export interface Palette {
   id: number; wiegung_id: number | null; eingangsdatum: string | null; brutto_zettel_kg: number | null
   sortierdatum: string | null; kisten: number | null; gebindeart: string | null
+  /** 0104: beim Waschen das Brutto von der Waage am Anfang der Strasse — Pflicht. */
+  brutto_gewogen_kg: number | null
 }
 /** Die Fassung, nach der die Arbeit läuft (sortierschema). */
 export interface Fassung {
@@ -74,7 +76,7 @@ export async function arbeitLaden(auftragId: number): Promise<ArbeitDaten | null
     supabase.from('auftrag').select('*').eq('id', auftragId).maybeSingle(),
     supabase.from('auftrag_teilnehmer').select('profil_id, profil(name)')
       .eq('auftrag_id', auftragId).is('verlassen_ts', null),
-    supabase.from('auftrag_palette').select('id, wiegung_id, eingangsdatum, brutto_zettel_kg, sortierdatum, kisten, gebindeart')
+    supabase.from('auftrag_palette').select('id, wiegung_id, eingangsdatum, brutto_zettel_kg, sortierdatum, kisten, gebindeart, brutto_gewogen_kg')
       .eq('auftrag_id', auftragId).order('ts'),
     supabase.from('auftrag_gebinde').select('*').eq('auftrag_id', auftragId).order('kaliber_idx').order('sortierdatum'),
     supabase.from('schimmel_messung')
@@ -172,7 +174,12 @@ async function kistengewichtLaden(a: Auftrag, sorte: string | null, baender: [nu
 export function fertigeVerlangt(d: ArbeitDaten): { mindestens: number; soll: number; grund: 'kistengewicht' | null } {
   const p = stationsProfil(d.auftrag)
   const soll = fertigeSoll(d)
-  if (p.ausgangPflicht && !d.kistengewicht.bekannt) return { mindestens: Math.min(1, soll || 1), soll, grund: 'kistengewicht' }
+  // 0104: Sind alle Wasch-Paletten dieser Arbeit am Anfang der Strasse
+  // gewogen, ist die Masse hinein gemessen — dann braucht es die fertige
+  // Palette nicht mehr als Nenner. Drei bleiben der Rat (Marge, Kistengewicht).
+  const wasch = d.paletten.filter(x => x.kisten != null)
+  const alleGewogen = wasch.length > 0 && wasch.every(x => x.brutto_gewogen_kg != null)
+  if (p.ausgangPflicht && !d.kistengewicht.bekannt && !alleGewogen) return { mindestens: Math.min(1, soll || 1), soll, grund: 'kistengewicht' }
   return { mindestens: 0, soll, grund: null }
 }
 

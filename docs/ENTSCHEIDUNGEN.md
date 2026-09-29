@@ -4163,6 +4163,141 @@ Daten, dann die Annahme — nach der Korrektur nachsehen.
 nicht alles: vier mal vier gleiche Paloxen und ein Tag mit 30 Paaren bei
 13 erwarteten sind Fragen wert.
 
+## Runde AH: beim Waschen wird gewogen (29. September, nachts, 0104)
+
+Der Betrieb, halb zwei, nach dem Abend mit dem Konvoi. Vier Dinge: drei
+Fragen an die Mathematik und eine Anweisung an die Halle.
+
+### „Vergleiche nur unter ihresgleichen"
+
+„Was du schon vergleichen kannst: Waschen + Sortieren gegen Waschen +
+Sortieren — 1639 Anfang September gewaschen und sortiert, Ende Oktober noch
+einmal: Wie haben sich die Palox-Werte verändert? Dann weisst du, wie viel
+der Palox-Schwund auf heute ist, und wie er sich entwickelt. Aber es wäre
+ein Fehler, den Palox vom Sortieren mit dem der anderen Arbeitsschritte zu
+vergleichen — auch nicht Waschen mit Waschen + Sortieren. Nur unter
+ihresgleichen."
+
+Ist das in der Mathematik? Nein, noch nicht. Es ist der Merkposten aus der
+Nacht davor („Zwei Augen", Runde AG), jetzt mit der Regel dazu: Punkte
+derselben Station gehören zusammen, Punkte verschiedener Stationen nicht.
+Und was der Betrieb beschreibt — dieselbe Charge, dieselbe Station, zwei
+Termine — ist der sauberste Schätzer, den es gibt: Die Differenz der
+Palox-Anteile zwischen den Terminen ist der Zuwachs des Faulens in dieser
+Zeit, und das Auge kürzt sich heraus, weil es dasselbe war. Die
+Verderbskurve je Station aus solchen Paaren zu bauen — und wo es kein Paar
+gibt, aus den Einzelpunkten der Station — ist die Arbeit der nächsten
+Runde. Heute bleibt das Modell, wie es ist, und der Abschnitt „Zwei Augen"
+sagt, was daran nicht stimmt.
+
+### Die Grössenverteilung derselben Charge an zwei Sortiertagen
+
+„Mega spannend: dieselbe Charge an unterschiedlichen Daten sortiert, beide
+CSV korrekt hochgeladen mit Charge und Datum — die Grössenverteilung
+vergleichen. Spannende Daten für den Schwund."
+
+Ja. Das ist AB-113 aus Runde AF: durchdacht, nicht gebaut, weil es bis zum
+28. September keine Charge mit zwei Sortiertagen gab. Median und Quartile
+des Gewichts je Kürbis je Lauf, der Abstand in Prozent je Tag neben der Rate
+der Kontrollpalette — mit dem Vorbehalt, dass es andere Paletten sind und
+das Faule vorher heraus ist. Sobald die erste Charge zwei Läufe mit Datum
+hat, wird es gebaut; der Abzug sieht es zuerst.
+
+### 0.365 bei fast allen Sorten — Zufall oder Rechenfehler?
+
+Weder noch. Die Zahl ist die Verdunstungsrate je Tag, 0,365 % — in dreissig
+Tagen gut zehn Prozent, plausibel für Kürbis im September. Sie steht bei
+fast allen Sorten gleich, weil sie bei fast allen dieselbe ist: der Wert
+aller Sorten zusammen. Die Rate je Sorte wird zum Gesamtwert gezogen
+(empirisches Bayes, HERLEITUNG § 5), und der Zug ist stark, solange eine
+Sorte wenige *Chargen* mit Wägungen hat — nicht wenige Wägungen. Der
+Betrieb hat 27 Wägungen; Tiana zwölf davon, aber aus zu wenigen Chargen,
+und steht darum bei 0,364 statt bei ihrem eigenen Wert. Die `basis` sagt es
+an jeder Zeile („Wiegungen aller Sorten (zu wenige eigene Chargen)"), und
+der Reiter „Messungen ausstehend" nennt die Sorte „geliehen". Sobald eine
+Sorte Wägungen aus drei, vier Chargen hat, löst sie sich vom Gesamtwert.
+Was zu prüfen bleibt und was diese Runde nicht anfasst: ob der Zug zu stark
+ist — ob eine Sorte mit zwölf Wägungen aus zwei Chargen nicht mehr Eigenes
+sagen dürfte. Das entscheidet man mit den Zahlen im Oktober, nicht nachts.
+
+### Von brutto auf jetzt schliessen
+
+„Weil wir den Schwund so genau kennen, können wir beim Waschen + Sortieren
+nach dem Zettel-Brutto auf das heutige Brutto schliessen — Lagerdauer mal
+täglicher Schwund — und damit den Palox-Zuwachs korrekt rechnen."
+
+Das tut die Mathematik seit 0061 genau so: Die Basis eines Palox-Punkts ist
+das Netto der gezählten Paletten mal (1 − r)^Lagertage, r die
+Verdunstungsrate der Sorte, gedeckelt bei 5 % je Tag (`basis_jetzt_kg` in
+`v_schimmel_beobachtung`); der Palox-Anteil ist das Faule durch diese Basis
+(HERLEITUNG § 2 und § 7). Vereinzelte Wägungen an der Waschstrasse gehen
+als Kontrollpaletten in dieselbe Rate ein.
+
+### Beim reinen Waschen wird gewogen (0104)
+
+„Für nur Waschen reicht das nicht: Die Palette hat kein bekanntes Gewicht,
+wir wissen, wie schwer die Kürbisse sind, aber nicht, wie viele pro Kiste —
+pure mystery. Dort wirklich zwingen zum Wägen, dass der Arbeiter in der App
+nicht weiterkommt, und die Vorarbeiter korrekt briefen: Bei nur Waschen
+muss man die Palette am Anfang der Strasse wägen. Den Schwund wissen wir
+dann zwar nicht, aber wir können den Palox-Zuwachs zuordnen. Mach das so."
+
+So war es: Beim reinen Waschen kam die Masse hinein nur über Umwege — die
+fertigen Paletten gewogen (Masse heraus, ohne das Faule und den Ausschuss
+des Waschgangs) oder Kisten mal ein gelerntes Kistengewicht des Bandes
+(0092). Die Wasch-Palette selbst wurde nie gewogen; der Zähler fragte
+Sortierdatum, Gebinde und Kisten.
+
+So ist es jetzt:
+
+- **Der Zähler verlangt das Gewicht.** Ein Feld „Gewicht der Palette auf
+  der Waage (kg brutto, mit Kisten)", je Palette neu; ohne Gewicht bleibt
+  „+" grau und sagt „Gewicht von der Waage fehlt". Sobald das Gewicht steht,
+  zeigt die App Netto und kg je Kiste (Brutto − Kisten × Kistentara −
+  Palettentara) und warnt bei weniger als 4 oder mehr als 30 kg je Kiste —
+  und lässt die Arbeiterin trotzdem weiter; der Betriebsleiter sieht es als
+  Auffälligkeit „Waage".
+- **Die Ansage.** Der Plan des Waschens beginnt mit „Jede Palette am Anfang
+  der Strasse wiegen …", und beim Anlegen der Arbeit steht die Ansage an die
+  Waschstrasse als Warnung vor dem Plan — dort, wo die Auftragsleitende ist,
+  in allen sechs Sprachen der App.
+- **Die Masse hinein ist gemessen.** `auftrag_palette.brutto_gewogen_kg`;
+  `v_auftrag_wasch_gewogen` summiert je Arbeit; `v_auftrag_masse` nimmt sie
+  vor jedem Ersatz (`gewogen_strasse`). Ist eine Palette nicht gewogen
+  (ältere Arbeiten, eine Löschung), rechnet sie mit dem Mittel je Kiste der
+  gewogenen, und die Quelle sagt „teils". Die Ersätze bleiben für alles,
+  was vor dem 29. September gewaschen wurde.
+- **Das Kistengewicht des Bandes lernt daraus**: Masse hinein durch Kisten
+  hinein — direkter als Masse heraus.
+- **Die fertige Palette ist nicht mehr Pflicht**, wenn alle Paletten der
+  Arbeit gewogen sind (Runde AD verlangte eine, weil das Kistengewicht
+  fehlte); drei bleiben der Rat, für die Marge. „Kistengewicht" fällt für
+  eine gewogene Arbeit nicht mehr auf. Korrekturfenster und Arbeitsfenster
+  zeigen das Gewicht.
+- **Verdunstung** kennt man dieser Palette weiterhin nicht — ihr Gewicht bei
+  der Ernte gab es nie. Der Palox-Zuwachs des Waschgangs hat jetzt einen
+  gemessenen Nenner; genau das wollte der Betrieb.
+
+Prüfblock 0104 (a–g) auf der Demo, sechs Mutationen; die Kette wiegt ihre
+drei Paletten (345, 340, 350 kg brutto → 816 kg hinein, 8,5 kg je Kiste) und
+prüft, dass ohne Gewicht nichts zählt.
+
+### Was bewusst nicht gemacht wurde
+
+**Die Verderbskurve je Station.** Der Merkposten bleibt Merkposten: erst die
+Punkte mit Station, dann die Paare derselben Charge, dann die Kurve — eine
+eigene Runde mit eigenem Prüfblock.
+
+**Zwei Behälter am Wasch-Palox** (Faules getrennt von Schäden): Entscheid
+des Betriebs, nicht des Programms.
+
+**Wägen auch beim Waschen + Sortieren.** Dort kommen Eingangspaletten mit
+Zettel; ihre Masse ist bekannt (Zettel mal Verdunstung). Nichts verlangen,
+was schon da ist.
+
+**Der Zug der Verdunstungsrate** (die 0.365) bleibt, wie er ist — bis die
+Oktoberzahlen sagen, ob er zu stark ist.
+
 ## Runde AG: der Weg in die Datenbank ist zu lang (28. September, abends, 0102)
 
 23:01, der Betrieb: „Die Webseite ist immer noch down — ich bekomme nur

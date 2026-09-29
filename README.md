@@ -695,6 +695,21 @@ sagt der Chip „Zeitplan rechnet nicht" (AB-97, `src/lib/zeitplan.ts`).
 Wurde seit der letzten Rechnung nichts erfasst, sagt der Chip „aktuell".
 Seit Runde AG rechnet die App beim Öffnen nie mehr selbst (AB-114).
 
+**Runde AH (0104)** — beim reinen Waschen wird jede Palette am Anfang der
+Strasse gewogen: Der Betrieb: „Die Palette hat kein bekanntes Gewicht — dort
+immer wägen, und die Auftragsleitenden klar anweisen." Der Zähler verlangt
+das Gewicht von der Waage (brutto, mit Kisten), zeigt Netto und kg je Kiste
+und warnt bei unglaubwürdigen Werten; der Plan und das Anlegen der Arbeit
+sagen es der Auftragsleitenden. Die Masse hinein ist damit gemessen
+(`gewogen_strasse`), das Kistengewicht des Bandes lernt daraus, „Waage" fällt
+auf, „Kistengewicht" schweigt, die fertige Palette ist nicht mehr Pflicht.
+Dazu die Antworten der Nacht: Vergleiche nur unter ihresgleichen (Merkposten
+für die Verderbskurve je Station), die Grössenverteilung an zwei
+Sortiertagen (AB-113, wartet auf die erste Charge), 0,365 % je Tag ist der
+Wert aller Sorten (geliehen, kein Rechenfehler), und „von brutto auf jetzt"
+rechnet die Mathematik seit 0061. AB-118. **`setup.sql` einspielen
+(Stand 104).**
+
 **Runde AG (0102)** — der Weg in die Datenbank ist zu lang: Mit der vollen
 Saison dauerte das Rechnen am Ende von `setup.sql` länger, als der
 SQL-Editor wartet („Load failed"); die Einspielung wurde zurückgerollt, und
@@ -1288,9 +1303,12 @@ gemessen in [`docs/BEFUND_RUNDE_P.md`](docs/BEFUND_RUNDE_P.md).
   abschalten, der Unterschied ist damit direkt sichtbar.
 - **Weg 1, Waschen:** Dort sind die Original-Paletten in Kaliber-Kisten
   aufgelöst, es gibt keine Palettenzahl mehr. Der Arbeiter zählt die Paletten
-  aus dem Zwischenlager mit Kistenzahl, Gebindeart und Sortierdatum; was eine
-  Kiste wiegt, misst die Auswertung am Sortieren aus Zettelgewicht und
-  Sortier-CSV. Seit Runde Q werden **keine Kisten je Kaliber** mehr gezählt —
+  aus dem Zwischenlager mit Kistenzahl, Gebindeart und Sortierdatum — und
+  seit Runde AH (0104) wiegt er jede Palette am Anfang der Strasse, brutto
+  mit Kisten, und tippt das Gewicht ein; ohne Gewicht zählt die App die
+  Palette nicht. Die Masse hinein ist damit gemessen, nicht gelernt. Für
+  ältere Arbeiten misst die Auswertung, was eine Kiste wiegt, am Sortieren
+  aus Zettelgewicht und Sortier-CSV oder aus gewogenen fertigen Paletten. Seit Runde Q werden **keine Kisten je Kaliber** mehr gezählt —
   der Betrieb: „niemand wird händisch die kisten zählen und in der app
   eintragen". Solange für ein Kaliber nichts vorliegt, bleibt die Menge
   unbekannt (nicht 0), und die Auffälligkeiten sagen, was fehlt.

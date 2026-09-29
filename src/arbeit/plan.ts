@@ -83,7 +83,7 @@ export function arbeitsplan(station: Station, istFax: boolean, rechenbar: boolea
   if (station === 'waschen') {
     return {
       vorher: [{ text: 'planPaloxStart', freiwillig: true }],
-      waehrend: [{ text: 'planZaehlenWasch' }],
+      waehrend: [{ text: 'planWaschWiegen' }, { text: 'planZaehlenWasch' }],   // 0104: erst wiegen, dann zählen
       nachher: [...fertige, { text: 'planPaloxEnde', freiwillig: true }, frage],
       mitZettel: true,
     }

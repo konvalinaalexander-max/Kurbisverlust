@@ -312,9 +312,20 @@ begin
   assert a.status = 'abgeschlossen', 'Der Abschluss der Wasch-Arbeit ist nicht angekommen — ohne Palox muss er gehen';
   assert not exists (select 1 from v_plausibilitaet where auftrag_id = a.id and art = 'Kaliber fehlt'),
     'Ein eigenes Kaliber gilt als Kaliber — „Kaliber fehlt" darf nicht auffallen';
-  assert exists (select 1 from v_plausibilitaet where auftrag_id = a.id and art = 'Kistengewicht'
-                    and befund like '%700–900 g%' and befund like '%3 Paletten mit 96 Kisten%'),
-    'Das Kistengewicht zum eigenen Kaliber ist unbekannt — das muss die Plausibilität an den gezählten Paletten sagen';
+  -- 0104: Alle drei Paletten sind am Anfang der Strasse gewogen (345, 340,
+  -- 350 kg brutto, je 32 Kisten G2 → 272 + 267 + 277 = 816 kg netto, 8.5 kg
+  -- je Kiste). Ihre Masse ist bekannt, darum schweigt „Kistengewicht" für
+  -- diese Arbeit. Bis 0104 musste der Befund hier stehen (eigenes Kaliber
+  -- 700–900 g ohne gelerntes Kistengewicht).
+  assert (select count(*) from auftrag_palette where auftrag_id = a.id and brutto_gewogen_kg in (345, 340, 350)) = 3,
+    'Die drei Gewichte von der Waage sind nicht angekommen';
+  assert (select n_gewogen = 3 and kg = 816 and kg_je_kiste = 8.5 and quelle = 'gewogen_strasse'
+            from v_auftrag_wasch_gewogen where auftrag_id = a.id),
+    format('Die Masse hinein aus der Waage stimmt nicht: %s', (select row_to_json(w) from v_auftrag_wasch_gewogen w where w.auftrag_id = a.id));
+  assert not exists (select 1 from v_plausibilitaet where auftrag_id = a.id and art = 'Kistengewicht'),
+    'Alle Paletten gewogen — „Kistengewicht" darf für diese Arbeit nicht mehr auffallen (0104)';
+  assert not exists (select 1 from v_plausibilitaet where auftrag_id = a.id and art = 'Waage'),
+    '8.5 kg je Kiste sind glaubwürdig — „Waage" darf nicht auffallen';
   -- 0079: Der Nenner des Waschens sind die fertigen Paletten. Fünf wurden es,
   -- drei davon gewogen (400 kg brutto, 32 Kisten G2). Aus ihrem Mittel und der
   -- Zahl fünf kennt die Auswertung die Masse, die herauskam — ohne ein
@@ -323,15 +334,18 @@ begin
   -- weil es für sie kein Gewicht gibt, und daran hat sich nichts geändert.
   assert (select fertige_paletten_gesamt from auftrag where id = a.id) = 5,
     'Die Zahl der fertigen Paletten gesamt ist nicht angekommen';
-  assert (select masse_quelle from v_auftrag_masse where auftrag_id = a.id) = 'fertige_paletten',
-    format('Die Masse muss aus den fertigen Paletten kommen, sie kommt aus %s',
+  -- 0104: Die Waage am Anfang der Strasse geht vor — 816 kg hinein, gemessen.
+  -- Die fertigen Paletten bleiben als Ersatz stehen (und dienen der Marge);
+  -- bis 0104 waren sie hier der Nenner (0079).
+  assert (select masse_quelle from v_auftrag_masse where auftrag_id = a.id) = 'gewogen_strasse',
+    format('Die Masse muss von der Waage am Anfang der Strasse kommen, sie kommt aus %s',
            (select masse_quelle from v_auftrag_masse where auftrag_id = a.id));
   select round(5 * avg(netto_kg)) into v from v_ausgang_voll where auftrag_id = a.id and voll;
   assert v > 0, 'Die gewogenen fertigen Paletten haben kein Nettogewicht';
-  assert (select round(eingang_netto_kg) from v_auftrag_masse where auftrag_id = a.id) = v,
-    format('Die Masse der Wasch-Arbeit ist %s kg statt %s kg (5 × das Mittel der gewogenen Paletten)',
-           (select round(eingang_netto_kg) from v_auftrag_masse where auftrag_id = a.id), v);
-  raise notice 'OK  Waschen: eigenes Kaliber, Kaliber-Paletten mit Sortierdatum und Kisten, fünf fertige Paletten (drei gewogen) als Nenner, Palox freiwillig';
+  assert (select round(eingang_netto_kg) from v_auftrag_masse where auftrag_id = a.id) = 816,
+    format('Die Masse der Wasch-Arbeit ist %s kg statt 816 kg (drei gewogene Paletten, 0104)',
+           (select round(eingang_netto_kg) from v_auftrag_masse where auftrag_id = a.id));
+  raise notice 'OK  Waschen: eigenes Kaliber, jede Palette am Anfang der Strasse gewogen (816 kg hinein, 0104), fünf fertige Paletten (drei gewogen), Palox freiwillig';
 end $$;
 
 -- ---------- Die Lagerkontrolle (0061) -------------------------------------

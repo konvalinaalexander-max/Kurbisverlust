@@ -7172,3 +7172,124 @@ begin
 end $$;
 
 select '——— 0103 Ein Zeitplan, eine Sperre geprüft ———' as ergebnis;
+
+-- =====================================================================
+-- 0104 — Beim Waschen wird die Palette am Anfang der Strasse gewogen
+--
+-- Geprüft auf der Demo (geladen, wenn die Datenbank leer ist): (a) eine
+-- Wasch-Arbeit, deren Paletten alle gewogen sind, hat ihre Masse hinein aus
+-- der Waage — Brutto minus Kisten × Kistentara minus Palettentara —, vor
+-- jedem Ersatz, Quelle „gewogen_strasse"; (b) ist eine Palette nicht
+-- gewogen, rechnet sie mit dem Mittel je Kiste der gewogenen, Quelle „teils";
+-- (c) ohne Wägung bleibt der alte Ersatz; (d) das Kistengewicht des Bandes
+-- lernt aus der Waage; (e) eine unglaubwürdige Wägung fällt auf („Waage"),
+-- eine glaubwürdige nicht, eine unter der Tara zählt nicht als Masse; (f)
+-- „Kistengewicht" schweigt, sobald die Paletten der Arbeit gewogen sind —
+-- beim eigenen Kaliber (Zusatz 0054) wie beim Band; (g) Stand 104.
+-- =====================================================================
+do $$
+declare v_modus jsonb; v_lad text; v_geladen boolean := false;
+  v_a bigint; v_kisten int; v_quelle text; v_kg numeric; v_n0 int; v_n1 int; v_sorte text; v_idx int;
+  v_neu bigint; v_neu2 bigint; v_charge int; v_weg auftrag.weg%type; v_sorte2 text; v_charge2 int; v_idx2 int;
+  v_u uuid := '00000000-0104-0000-0000-000000000001';
+begin
+  select wert into v_modus from einstellung where schluessel = 'betriebsmodus';
+  update einstellung set wert = '"beispiel"'::jsonb where schluessel = 'betriebsmodus';
+  insert into auth.users (id, email, raw_user_meta_data) values (v_u, null, '{"name":"Prüf-0104"}');
+  update profil set rolle = 'admin' where id = v_u;
+  perform set_config('request.jwt.claim.sub', v_u::text, true);
+  -- Gebraucht werden die Wasch-Arbeiten der Demo — nicht nur ihre Chargen, die
+  -- nach demo_daten_entfernen() stehen bleiben (die Prüfdatenbank am Ende der
+  -- Datei hat Chargen, aber keine Arbeiten).
+  if not exists (select 1 from auftrag where station = 'waschen' and not ist_fax and bemerkung = 'DEMO') then
+    select demo_daten_laden() into v_lad; v_geladen := true;
+  end if;
+  perform auswertung_aktualisieren();   -- die gespeicherten Massen (mv_auftrag_masse) auf den Stand der Demo
+
+  -- Eine Wasch-Arbeit der Demo, deren Masse heute aus Kisten × Kistengewicht kommt
+  select m.auftrag_id into v_a
+    from v_auftrag_masse m join auftrag a on a.id = m.auftrag_id
+   where m.station = 'waschen' and not a.ist_fax and a.abgebrochen_ts is null and m.masse_quelle = 'wasch_paletten'
+     and a.durchsatz_kg is null and a.kaliber_idx is not null
+     and (select count(*) from auftrag_palette ap join gebinde g on g.art = ap.gebindeart where ap.auftrag_id = a.id and ap.kisten > 0) >= 2
+     and not exists (select 1 from auftrag_palette ap where ap.auftrag_id = a.id and ap.kisten is not null
+                        and (ap.gebindeart is null or ap.gebindeart not in (select art from gebinde)))
+   order by m.auftrag_id limit 1;
+  assert v_a is not null, '0104 (0): keine Wasch-Arbeit mit Kaliber-Paletten und Kistengewicht in der Demo';
+  select c.sorte, a.kaliber_idx, a.charge_nr, a.weg into v_sorte, v_idx, v_charge, v_weg from auftrag a join charge c on c.nr = a.charge_nr where a.id = v_a;
+  select n into v_n0 from v_koeff_gebinde where sorte = v_sorte and kaliber_idx = v_idx;
+
+  -- (c) ohne Wägung: der alte Ersatz
+  assert (select masse_quelle from v_auftrag_masse where auftrag_id = v_a) = 'wasch_paletten', '0104 (c0)';
+  assert not exists (select 1 from v_auftrag_wasch_gewogen where auftrag_id = v_a), '0104 (c1): ohne Wägung darf es keine Masse aus der Waage geben';
+
+  -- (a) alle gewogen: Brutto so, dass je Kiste genau 10 kg netto bleiben
+  update auftrag_palette ap set brutto_gewogen_kg = g.tara_kg_palette + ap.kisten * (g.tara_kg_pro_kiste + 10)
+    from gebinde g where g.art = ap.gebindeart and ap.auftrag_id = v_a and ap.kisten > 0;
+  select sum(kisten) into v_kisten from auftrag_palette where auftrag_id = v_a and kisten > 0;
+  select quelle, kg into v_quelle, v_kg from v_auftrag_wasch_gewogen where auftrag_id = v_a;
+  assert v_quelle = 'gewogen_strasse' and v_kg = 10 * v_kisten, format('0104 (a1): %s, %s kg statt %s', v_quelle, v_kg, 10 * v_kisten);
+  assert (select kg_je_kiste from v_auftrag_wasch_gewogen where auftrag_id = v_a) = 10, '0104 (a2): 10 kg je Kiste erwartet';
+  assert (select masse_quelle from v_auftrag_masse where auftrag_id = v_a) = 'gewogen_strasse',
+    format('0104 (a3): die Waage muss vor dem Ersatz kommen: %s', (select masse_quelle from v_auftrag_masse where auftrag_id = v_a));
+  assert (select eingang_netto_kg from v_auftrag_masse where auftrag_id = v_a) = 10 * v_kisten, '0104 (a4): die Masse der Arbeit ist nicht die der Waage';
+  -- (d) das Kistengewicht des Bandes lernt daraus
+  select n into v_n1 from v_koeff_gebinde where sorte = v_sorte and kaliber_idx = v_idx;
+  assert coalesce(v_n1, 0) = coalesce(v_n0, 0) + 1, format('0104 (d1): das Kistengewicht des Bandes hat die Waage nicht gelernt (n %s → %s)', v_n0, v_n1);
+  -- (e) glaubwürdig: kein Befund
+  assert not exists (select 1 from v_plausibilitaet where auftrag_id = v_a and art = 'Waage'), '0104 (e1): 10 kg je Kiste sind glaubwürdig';
+  -- (b) eine Palette nicht gewogen: sie rechnet mit dem Mittel je Kiste der gewogenen
+  update auftrag_palette set brutto_gewogen_kg = null where id = (select min(id) from auftrag_palette where auftrag_id = v_a and kisten > 0);
+  select quelle, kg into v_quelle, v_kg from v_auftrag_wasch_gewogen where auftrag_id = v_a;
+  assert v_quelle = 'gewogen_strasse_teils' and v_kg = 10 * v_kisten, format('0104 (b1): %s, %s kg statt %s', v_quelle, v_kg, 10 * v_kisten);
+  assert (select masse_quelle from v_auftrag_masse where auftrag_id = v_a) = 'gewogen_strasse_teils', '0104 (b2): teils gewogen muss es auch sagen';
+  -- (e) unglaubwürdig: 2 kg je Kiste, und leichter als die Tara
+  update auftrag_palette ap set brutto_gewogen_kg = g.tara_kg_palette + ap.kisten * (g.tara_kg_pro_kiste + 2)
+    from gebinde g where g.art = ap.gebindeart and ap.id = (select min(id) from auftrag_palette where auftrag_id = v_a and kisten > 0);
+  assert exists (select 1 from v_plausibilitaet where auftrag_id = v_a and art = 'Waage' and befund like '%2.0 kg je Kiste%'),
+    format('0104 (e2): 2 kg je Kiste müssen auffallen: %s', coalesce((select string_agg(befund, ' | ') from v_plausibilitaet where auftrag_id = v_a and art = 'Waage'), '—'));
+  update auftrag_palette set brutto_gewogen_kg = 1 where id = (select min(id) from auftrag_palette where auftrag_id = v_a and kisten > 0);
+  assert exists (select 1 from v_plausibilitaet where auftrag_id = v_a and art = 'Waage' and befund like '%leichter als ihre Kisten%'), '0104 (e3): eine Palette leichter als ihre Tara muss auffallen';
+  assert (select quelle from v_auftrag_wasch_gewogen where auftrag_id = v_a) = 'gewogen_strasse_teils', '0104 (e4): eine Wägung unter der Tara darf nicht als Masse zählen';
+  update auftrag_palette set brutto_gewogen_kg = null where auftrag_id = v_a;   -- die Demo bleibt, wie sie war
+
+  -- (f) „Kistengewicht" schweigt, sobald die Paletten gewogen sind: eine
+  --     Wasch-Arbeit mit eigenem Kaliber, das kein Band kennt (Zusatz 0054, wie in der Kette)
+  insert into auftrag (weg, station, charge_nr, start_ts, kaliber_von_g, kaliber_bis_g, kistensystem, stueck_je_kiste)
+  values (v_weg, 'waschen', v_charge, clock_timestamp(), 701, 899, 'stueck', 6) returning id into v_neu;
+  insert into auftrag_palette (auftrag_id, sortierdatum, kisten, gebindeart) values (v_neu, current_date - 10, 32, 'G2'), (v_neu, current_date - 10, 32, 'G2');
+  assert exists (select 1 from v_plausibilitaet where auftrag_id = v_neu and art = 'Kistengewicht' and befund like '%2 Paletten mit 64 Kisten%'),
+    format('0104 (f1): ohne Wägung und ohne Band muss „Kistengewicht" auffallen: %s', coalesce((select string_agg(befund, ' | ') from v_plausibilitaet where auftrag_id = v_neu), '—'));
+  update auftrag_palette set brutto_gewogen_kg = 345 where auftrag_id = v_neu;
+  assert not exists (select 1 from v_plausibilitaet where auftrag_id = v_neu and art = 'Kistengewicht'), '0104 (f2): die Paletten sind gewogen — „Kistengewicht" muss schweigen (eigenes Kaliber)';
+  assert (select kg from v_auftrag_wasch_gewogen where auftrag_id = v_neu) = 2 * (345 - 32 * 1.5 - 25), '0104 (f3): 2 × 272 kg erwartet';
+  --     … und beim Band ohne gelerntes Kistengewicht: dort schweigt der Befund,
+  --     weil das Kistengewicht aus der Waage gelernt wird (v_koeff_gebinde) —
+  --     ohne das Lernen (Mutation M4) fiele auch (f5).
+  select c.sorte, c.nr, i into v_sorte2, v_charge2, v_idx2
+    from charge c cross join generate_series(0, 3) i
+   where not exists (select 1 from v_koeff_gebinde k where k.sorte = c.sorte and k.kaliber_idx = i)
+     and exists (select 1 from sortierschema s where s.art = 'kaliber' and s.kaliber_baender is not null and jsonb_array_length(s.kaliber_baender) > i)
+   order by c.nr, i limit 1;
+  if v_sorte2 is not null then
+    insert into auftrag (weg, station, charge_nr, start_ts, kaliber_idx, kistensystem, stueck_je_kiste)
+    values (v_weg, 'waschen', v_charge2, clock_timestamp(), v_idx2, 'stueck', 6) returning id into v_neu2;
+    insert into auftrag_palette (auftrag_id, sortierdatum, kisten, gebindeart) values (v_neu2, current_date - 10, 32, 'G2');
+    assert exists (select 1 from v_plausibilitaet where auftrag_id = v_neu2 and art = 'Kistengewicht'),
+      format('0104 (f4): Band %s der Sorte %s ohne Kistengewicht — „Kistengewicht" muss auffallen', v_idx2 + 1, v_sorte2);
+    update auftrag_palette set brutto_gewogen_kg = 345 where auftrag_id = v_neu2;
+    assert not exists (select 1 from v_plausibilitaet where auftrag_id = v_neu2 and art = 'Kistengewicht'), '0104 (f5): die Palette ist gewogen — „Kistengewicht" muss schweigen (Band)';
+    delete from auftrag_palette where auftrag_id = v_neu2; delete from auftrag where id = v_neu2;
+  else
+    raise notice '0104 (f4/f5): jede Sorte hat für jedes Band ein Kistengewicht — der Band-Zweig ist hier nicht prüfbar';
+  end if;
+  delete from auftrag_palette where auftrag_id = v_neu; delete from auftrag where id = v_neu;
+  assert schema_stand() >= 104, format('0104 (g1): schema_stand() = %s', schema_stand());
+
+  if v_geladen then perform demo_daten_entfernen(); end if;
+  delete from profil where id = v_u; delete from auth.users where id = v_u;
+  update einstellung set wert = v_modus where schluessel = 'betriebsmodus';
+  raise notice 'OK  0104 — die Waage am Anfang der Waschstrasse: Masse hinein gemessen, vor jedem Ersatz; teils gewogen rechnet mit dem Mittel; Kistengewicht lernt; Waage fällt auf, Kistengewicht schweigt';
+end $$;
+
+select '——— 0104 Beim Waschen wird gewogen geprüft ———' as ergebnis;

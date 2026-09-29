@@ -45,7 +45,7 @@ gedacht?), **zuletzt die Mathematik** — und jede Änderung steht in
 | Frage | Erwartung | Wenn nicht |
 |---|---|---|
 | Sortieren, Waschen + Sortieren | „zettel" oder „gewogen" | „zettel-charge-tara" häufig: Paletten fehlen im Erntejournal (Abgleich läuft täglich, 0090) — oder Zetteldatum/-gewicht vertippt |
-| Waschen aus Kisten | „fertige_paletten" (drei gewogen) oder „wasch_paletten" mit bekanntem Kistengewicht | „Kistengewicht unbekannt": seit 0092 lernt die App das Kistengewicht eines Bandes aus Wasch-Arbeiten, die ihre fertigen Paletten gewogen haben — eine solche Arbeit je Sorte und Band genügt |
+| Waschen aus Kisten | seit 0104 „gewogen_strasse": jede Palette am Anfang der Strasse gewogen; ältere Arbeiten „fertige_paletten" (drei gewogen) oder „wasch_paletten" mit gelerntem Kistengewicht | „wasch_paletten" oder „fertige_paletten" bei einer Arbeit nach dem 29. 9.: die Strasse hat nicht gewogen — Auftragsleitende ansprechen. Auffälligkeit „Waage": Kistenzahl, Gebinde, Waage prüfen, im Korrekturfenster berichtigen. „Kistengewicht unbekannt" nur noch bei ungewogenen Arbeiten |
 | Fax | eingefroren (Entscheid des Betriebs, 0078) | — |
 
 ## 5. Ausbeute und Bilanz (erg_bilanz, erg_charge)
