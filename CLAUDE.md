@@ -75,15 +75,29 @@ Werkzeug — beginnt so:
 
 ## 3. Was vor jedem Push grün sein muss
 
+Seit Runde AJ (29. September, Entscheid des Betriebs, `docs/ENTSCHLACKUNG.md`
+§ 4) in zwei Stufen: schnell vor jedem Push, voll einmal am Tag.
+
+**Vor jedem Push** (Minuten):
+
 ```
 npx tsc -b && npm test
 ./supabase/setup_bauen.sh              # nach jeder Migration
-./supabase/test/run.sh '<url>'         # Migrationen, setup.sql, Fingerabdruck, Lasttest
+psql '<url>' -f supabase/migrations/<neu>.sql && die Prüfblöcke der Runde mit ihren Mutationen
 node pruefstand/kette.mjs && ./pruefstand/kette_pruefen.sh '<url>'
-node pruefstand/bildschirme.mjs        # nach ./pruefstand/daten_dumpen.sh
 node pruefstand/beschriftung.mjs
+```
+
+**Einmal am Tag, oder vor einem Push, der Bildschirme oder das Rechenwerk
+breit ändert** (eine Stunde):
+
+```
+./supabase/test/run.sh '<url>'         # alle Prüfblöcke, setup.sql, Fingerabdruck, Lasttest
+node pruefstand/bildschirme.mjs        # nach ./pruefstand/daten_dumpen.sh
 node pruefstand/abnahme_r.mjs
 ```
+
+Ist die volle Stufe rot, wird nichts weiter gepusht, bis sie grün ist.
 
 Dazu: Abmachungen in `docs/ABMACHUNGEN.md` (AB-nn, mit dem Test, der sie
 hält), Entscheidungen in `docs/ENTSCHEIDUNGEN.md` (eine Runde, ein

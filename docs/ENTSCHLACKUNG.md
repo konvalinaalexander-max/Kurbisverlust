@@ -1,6 +1,8 @@
 # Entschlackung — was das Programm schwer macht, und was davon weg kann
 
-Stand 29. September 2026 (Runde AI). Der Betrieb: „Ich habe das Gefühl, unsere
+Stand 29. September 2026 (Runde AI; Entscheid des Betriebs am selben Tag:
+„ja mach" — Stufe 1 und 2 sind damit beschlossen, Runde AJ setzt sie um).
+Der Betrieb: „Ich habe das Gefühl, unsere
 Software ist extrem bloated und unnötig kompliziert. Ich staune, wie lange
 alles lädt, wie lange du brauchst zum Arbeiten. Gibt es Lösungen, das zu
 kürzen, so dass die Mathematik noch stimmt?" Und: „Das Tool soll primär ein
@@ -75,7 +77,7 @@ bleiben soll.
   im Betriebsabzug, nicht vor jedem Push. Das ist eine Änderung an
   `CLAUDE.md` — sie steht unten als Vorschlag, entschieden vom Betrieb.
 
-### Stufe 2 — der Betrieb entscheidet
+### Stufe 2 — vom Betrieb am 29. September beschlossen
 
 - **Die Kaskade auf die Stationswerte stellen.** Verderb liegender Ware =
   erwarteter Palox-Anteil der nächsten Station (Mittel der letzten vier
@@ -104,7 +106,7 @@ bleiben soll.
   Zug) und die Massen-Kette (Zettel, Waage, Tara).
 - Der Betriebsabzug und die Zweitmeinung über die Rohdaten.
 
-## 4. Vorschlag für CLAUDE.md, Abschnitt 3 (zur Entscheidung)
+## 4. CLAUDE.md, Abschnitt 3 (beschlossen am 29. September, seit Runde AJ so)
 
 Vor jedem Push: `npx tsc -b && npm test`, `./supabase/setup_bauen.sh`,
 `node pruefstand/kette.mjs && ./pruefstand/kette_pruefen.sh`, die
