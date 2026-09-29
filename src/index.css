@@ -191,6 +191,8 @@ svg { display: inline-block; vertical-align: middle; }
 .karte-kopf h2 { margin: 0; }
 .karte-unter { margin: .15rem 0 0; color: var(--text-leise); font-size: var(--s-1); }
 .karte-kopf .aktion { margin-left: auto; flex: none; display: flex; gap: .4rem; align-items: center; }
+/* 0105: mehrere Umschalter nebeneinander, auf dem Handy umbrechend */
+.segmente-reihe { display: flex; flex-wrap: wrap; gap: .4rem .8rem; align-items: center; justify-content: flex-end; }
 .karte.leise-karte { background: transparent; box-shadow: none; padding: 0; }
 .karte.hervorgehoben { box-shadow: 0 0 0 1.5px var(--kuerbis), var(--tiefe-1); }
 
@@ -733,6 +735,11 @@ details.aufklapp > summary .leise { font-weight: var(--gewicht-normal); }
    Seite seitlich aus dem Bild. Umbrechen statt hinausragen. */
 @media (max-width: 560px) {
   .karte-kopf .aktion { margin-left: 0; flex: 1 1 100%; flex-wrap: wrap; }
+  /* 0105: vier Stationen nebeneinander sind breiter als das Handy — der
+     Umschalter rollt dann in seinem Kasten, statt die Seite zu verbreitern. */
+  .karte-kopf .aktion { min-width: 0; }
+  .segmente-reihe { justify-content: flex-start; max-width: 100%; min-width: 0; flex: 1 1 100%; }
+  .segmente-reihe .umschalter { max-width: 100%; min-width: 0; overflow-x: auto; flex: 0 1 auto; }
 }
 
 /* Das Feld „in X Wochen" — zweimal derselbe Zustand (Tabelle und Glocke) */

@@ -1552,11 +1552,13 @@ begin
   -- die vierte ist noch nicht gelesen und steht darum noch nirgends.
   declare v_a1 bigint; v_a2 bigint; v_a3 bigint; v_a4 bigint;
   begin
-    -- (1) Zur Ware, an der Sortier-Arbeit mit dem meisten Faulen: die
-    --     Kurzfassung steht am Punkt der Faul-Kurve unter Ursachen.
+    -- (1) Zur Ware, an der Sortier-Arbeit der Charge 1628 (Hagel auf dem
+    --     hinteren Feld) mit dem meisten Faulen — fest an der Charge, denn die
+    --     Demo hängt am Datum, und „die Arbeit mit dem meisten Faulen" wechselt
+    --     sonst über Nacht die Charge (Runde AI, Prüfblock 0093 am 29. 9.).
     select a.id into v_a1
       from auftrag a join schimmel_messung s on s.auftrag_id = a.id
-     where a.bemerkung = 'DEMO' and a.status = 'abgeschlossen' and a.station = 'sortieren'
+     where a.bemerkung = 'DEMO' and a.status = 'abgeschlossen' and a.station = 'sortieren' and a.charge_nr = 1628
      order by s.kg desc, a.id limit 1;
     -- (2) Zur Ware, an der Arbeit mit dem falschen Zetteldatum (Sonderfall 3):
     --     die Auffälligkeit zeigt die Kurzfassung mit an.

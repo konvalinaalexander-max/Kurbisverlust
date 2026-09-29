@@ -2,10 +2,10 @@ import { Fragment, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { datum, kg, prozent, tonnen, zahl } from '../lib/format'
 import { chargenNachFeld } from '../lib/felder'
-import { Aufklapp, Erklaerung, Herkunft, Hinweis, Karte, Leer, Segmente } from '../components/Bausteine'
+import { Aufklapp, Erklaerung, Herkunft, Hinweis, Karte, Kennzahl, Leer, Segmente } from '../components/Bausteine'
 import { Anteilsbalken, Linien, type Anteilszeile, type Punkt, type Reihe, type Zone } from '../components/Diagramm'
 import { lagerstaende, prognoseBei, schimmelKurve, useAuswertung, wohinVon,
-         type Auswertung, type AusgangKennzahl, type Bestand, type Lagerstand, type MargeWiegung, type Schema, type SortenK, type Wohin } from '../auswertung/daten'
+         type Auswertung, type AusgangKennzahl, type Bestand, type Lagerstand, type MargeWiegung, type Schema, type Schimmelpunkt, type SortenK, type Wohin } from '../auswertung/daten'
 import { Probleme, Rechnet, Reiterkopf } from '../auswertung/Karten'
 import { ZChevron } from '../components/Zeichen'
 import { ArbeitFenster, type Messung } from '../betrieb/ArbeitFenster'
@@ -255,10 +255,22 @@ function Faules({ daten, filter, chargen, staende, oeffnen }: {
   daten: Auswertung; filter: Filter; chargen: Bestand[]; staende: Lagerstand[]; oeffnen: (p: Punkt, titel: string) => void
 }) {
   const [achse, setAchse] = useAchse('urs.palox.achse')
+  // 0105: „Vergleiche nur unter ihresgleichen" — die Punkte lassen sich je
+  // Station zeigen (dann zählt der eigene Anteil dieses Auges, nichts
+  // dazugerechnet), und die Chargen mit Linien verbinden: Wer denselben
+  // Hagelschaden zweimal sieht, sieht ihn als eine Linie, nicht als zwei
+  // Ausreisser.
+  const [sicht, setSicht] = useWahl<Sicht>('urs.palox.sicht', 'alle', SICHTEN.map(s => s[0]))
+  const [verbinden, setVerbinden] = useWahl<'ja' | 'nein'>('urs.palox.linien', 'nein', ['ja', 'nein'])
   const imFilter = new Set(chargen.map(c => c.charge_nr))
-  const punkte = daten.punkte.filter(p => imFilter.has(p.charge_nr))
-  const gute = punkte.filter(p => p.plausibel && p.anteil !== null)
-  const schlechte = punkte.filter(p => !p.plausibel && p.anteil !== null)
+  const punkte = daten.punkte.filter(p => imFilter.has(p.charge_nr) && (sicht === 'alle' || p.station === sicht))
+  const wert = (p: Schimmelpunkt) => sicht === 'alle' ? p.anteil : p.anteil_station
+  // Je Station urteilt die Plausibilität über den eigenen Anteil, nicht über
+  // den aufgelaufenen des Modells (45 % am Band und 10 % beim Waschen machen
+  // den Wasch-Punkt nicht unplausibel).
+  const plausibel = (p: Schimmelpunkt) => sicht === 'alle' ? p.plausibel : p.plausibel_station
+  const gute = punkte.filter(p => plausibel(p) && wert(p) !== null)
+  const schlechte = punkte.filter(p => !plausibel(p) && wert(p) !== null)
 
   // Gruppiert wird eine Ebene feiner als der Filter: alle → je Sorte,
   // eine Sorte → je Charge, eine Charge → eine Reihe.
@@ -272,10 +284,11 @@ function Faules({ daten, filter, chargen, staende, oeffnen }: {
   // Ausreisser, bevor jemand ihn sucht.
   const kommentar = new Map(daten.kommentare.map(k => [k.auftrag_id, k.text]))
   const modell = daten.modell
-  const kurve = schimmelKurve(modell)
+  const kurve = sicht === 'alle' ? schimmelKurve(modell) : null
   const tMax = modell?.t_max ?? 0
   const heute = tagVon(daten.heute)
   const p0 = prognoseBei(daten.prognose, filter.gruppe, filter.schluessel, 0)
+  const xVon = (p: Schimmelpunkt) => achse === 'kalender' ? tagVon(p.messtag) : p.lagertage
 
   // Je Gruppe die Masse: die grössten bleiben sichtbar, der Rest ist in der
   // Legende ausgeblendet — mehr als zehn Reihen liest niemand.
@@ -285,33 +298,51 @@ function Faules({ daten, filter, chargen, staende, oeffnen }: {
   const sichtbar = new Set(rang.slice(0, 10))
 
   const reihen: Reihe[] = namen.map(n => ({
-    name: `${n}${filter.gruppe === 'gesamt' ? '' : ''}`,
+    name: n,
     farbe: farbe(n), marker: true, linie: false, form: 'kreis' as const,
     ausgeblendet: !sichtbar.has(n),
     punkte: gute.filter(p => schluesselVon(p) === n).map(p => ({
-      x: achse === 'kalender' ? tagVon(p.messtag) : p.lagertage,
-      y: (p.anteil ?? 0) * 100,
+      x: xVon(p),
+      y: (wert(p) ?? 0) * 100,
       name: `Charge ${p.charge_nr} · ${p.sorte}`,
-      text: `${datum(p.messtag)} · liegt seit ${Math.round(p.lagertage)} Tagen · ${kg(p.schimmel_kg, 0)} von ${kg(p.basis_jetzt_kg, 0)} · ${quelleText(p.quelle)}${p.auftrag_id != null && kommentar.has(p.auftrag_id) ? ` · Kommentar: ${kommentar.get(p.auftrag_id)}` : ''}`,
+      text: `${datum(p.messtag)} · ${stationText(p.station)} · liegt seit ${Math.round(p.lagertage)} Tagen · ${kg(p.schimmel_kg, 0)} von ${kg(p.basis_jetzt_kg, 0)} · ${quelleText(p.quelle)}${p.auftrag_id != null && kommentar.has(p.auftrag_id) ? ` · Kommentar: ${kommentar.get(p.auftrag_id)}` : ''}`,
       auftragId: p.auftrag_id, chargeNr: p.charge_nr,
       groesse: p.auftrag_id != null && kommentar.has(p.auftrag_id) ? 6 : undefined,
     })),
   })).filter(r => r.punkte.length > 0)
 
+  // 0105: die Punkte derselben Charge verbinden — in der Reihenfolge der Achse,
+  // dünn und gestrichelt in der Farbe ihrer Gruppe, ohne eigenen Eintrag in
+  // der Legende. Nur Chargen mit zwei und mehr Punkten in dieser Sicht.
+  if (verbinden === 'ja') {
+    const jeCharge = new Map<number, Schimmelpunkt[]>()
+    for (const p of gute) jeCharge.set(p.charge_nr, [...(jeCharge.get(p.charge_nr) ?? []), p])
+    for (const [nr, ps] of jeCharge) {
+      if (ps.length < 2) continue
+      const n = schluesselVon(ps[0])
+      reihen.push({
+        name: `Charge ${nr} verbunden`, farbe: farbe(n), linie: true, marker: false, gestrichelt: true,
+        ohneLegende: true, gruppe: n,
+        punkte: ps.map(p => ({ x: xVon(p), y: (wert(p) ?? 0) * 100 })).sort((a, b) => a.x - b.x),
+      })
+    }
+  }
+
   if (schlechte.length > 0) {
     reihen.push({
       name: 'nicht plausibel — nicht in der Rechnung', farbe: 'var(--text-ganz-leise)', marker: true, linie: false,
       punkte: schlechte.map(p => ({
-        x: achse === 'kalender' ? tagVon(p.messtag) : p.lagertage,
-        y: Math.min((p.anteil ?? 0) * 100, 100),
+        x: xVon(p),
+        y: Math.min((wert(p) ?? 0) * 100, 100),
         name: `Charge ${p.charge_nr} · ${p.sorte}`,
-        text: `${datum(p.messtag)} · ${kg(p.schimmel_kg, 0)} von ${kg(p.basis_jetzt_kg, 0)} · nicht plausibel, siehe Messungen${p.auftrag_id != null && kommentar.has(p.auftrag_id) ? ` · Kommentar: ${kommentar.get(p.auftrag_id)}` : ''}`,
+        text: `${datum(p.messtag)} · ${stationText(p.station)} · ${kg(p.schimmel_kg, 0)} von ${kg(p.basis_jetzt_kg, 0)} · nicht plausibel, siehe Messungen${p.auftrag_id != null && kommentar.has(p.auftrag_id) ? ` · Kommentar: ${kommentar.get(p.auftrag_id)}` : ''}`,
         auftragId: p.auftrag_id, chargeNr: p.charge_nr,
       })),
     })
   }
 
-  // Auf der Lagerdauer-Achse: die Kurve des Modells und die Chargen von heute.
+  // Auf der Lagerdauer-Achse: die Kurve des Modells und die Chargen von heute —
+  // nur in der Sicht „alle", denn das Modell ist über alle Augen angepasst.
   let zonen: Zone[] = []
   let heuteMarke: { x: number; text?: string; rechts?: string } | undefined
   if (achse === 'liegt' && kurve) {
@@ -345,12 +376,21 @@ function Faules({ daten, filter, chargen, staende, oeffnen }: {
     }
   }
 
+  const kennzahlen = daten.paloxStationen.filter(k => k.n_arbeiten > 0 && (sicht === 'alle' || k.station === sicht))
+
   return (
     <Karte id="urs-palox" titel="Faules im Lager"
-           aktion={<Segmente wahl={achse} setzen={setAchse} id="palox-achse"
-                             teile={[['kalender', 'Kalender', 'palox-achse-kalender'], ['liegt', 'liegt seit', 'palox-achse-liegt']]} />}>
+           aktion={<div className="segmente-reihe">
+             <Segmente wahl={sicht} setzen={setSicht} id="palox-sicht" teile={[...SICHTEN]} />
+             <Segmente wahl={achse} setzen={setAchse} id="palox-achse"
+                       teile={[['kalender', 'Kalender', 'palox-achse-kalender'], ['liegt', 'liegt seit', 'palox-achse-liegt']]} />
+             <label className="ankreuzen klein-text" htmlFor="palox-linien">
+               <input id="palox-linien" type="checkbox" checked={verbinden === 'ja'} onChange={e => setVerbinden(e.target.checked ? 'ja' : 'nein')} />
+               Chargen verbinden
+             </label>
+           </div>}>
       {punkte.length === 0
-        ? <Leer titel="Noch keine Messung am Palox">Sobald eine Arbeit den Palox zweimal abgelesen hat, steht hier ihr Punkt.</Leer>
+        ? <Leer titel={sicht === 'alle' ? 'Noch keine Messung am Palox' : `Noch keine Messung am Palox: ${stationText(sicht)}`}>Sobald eine Arbeit den Palox zweimal abgelesen hat, steht hier ihr Punkt.</Leer>
         : (
         <Linien reihen={reihen} hoehe={300}
                 xTitel={achse === 'kalender' ? 'Messtag' : 'Lagertage'} yTitel="Faules je 100 kg Ware"
@@ -363,13 +403,31 @@ function Faules({ daten, filter, chargen, staende, oeffnen }: {
                 senkrechte={achse === 'liegt' && kurve && tMax > 0 ? [{ x: tMax, text: 'bis hier gemessen', farbe: 'var(--text-leise)' }] : []}
                 leer="noch keine Schimmelmessung"
                 treffer="punkt" onPunkt={p => oeffnen(p, 'Diese Messung: Faules am Palox')}
-                fuss={p0?.faul_je_tag_kg != null
+                fuss={sicht === 'alle' && p0?.faul_je_tag_kg != null
                   ? <span className="leise">Rechnung heute: {kg(p0.faul_je_tag_kg, 0)} Faules je Tag an der liegenden Ware (aus dem Modell)</span>
                   : undefined} />
       )}
+      {kennzahlen.length > 0 && (
+        <div className="kennzahlen" id="palox-stationen">
+          {kennzahlen.map(k => (
+            <Kennzahl key={k.station} id={`kz-palox-${k.station}`}
+                      titel={<>{stationText(k.station)} <Herkunft art="gerechnet" /></>}
+                      wert={k.anteil_mittel != null ? `${(k.anteil_mittel * 100).toFixed(1)} %` : '—'}
+                      unter={<span className="unter">im Mittel in den Palox, gerechnet über {k.n_arbeiten} Arbeiten und {k.n_chargen} Chargen seit {datum(k.seit)}
+                        {k.anteil_median != null && <> · Median {(k.anteil_median * 100).toFixed(1)} %</>}
+                        {k.anteil_4w != null && k.n_4w > 0 && <> · letzte vier Wochen {(k.anteil_4w * 100).toFixed(1)} % ({k.n_4w})</>}
+                        {' · '}{k.zuwachs_je_woche != null
+                          ? <>Zuwachs seit Messbeginn {k.zuwachs_je_woche >= 0 ? '+' : ''}{(k.zuwachs_je_woche * 100).toFixed(2)} Punkte je Woche</>
+                          : (k.zuwachs_text ?? 'Zuwachs: noch nicht bestimmbar')}</span>} />
+          ))}
+        </div>
+      )}
       <p className="hilfe">
         Jeder Punkt ist eine Ablesung am Palox <Herkunft art="gemessen" /> — die gestrichelte Kurve ist das Modell
-        aus allen Ablesungen <Herkunft art="gerechnet" />.{' '}
+        aus allen Ablesungen <Herkunft art="gerechnet" />, nur in der Sicht „alle".{' '}
+        Je Station zählt der Anteil dieses Auges allein: An der Sortiermaschine kommt nur eklig Faules in den Palox, an der
+        Waschstrasse auch Ästhetik und Schäden — darum werden Stationen nur unter ihresgleichen verglichen. „Chargen
+        verbinden" zieht eine Linie durch die Punkte derselben Charge.{' '}
         Die Lagerdauer ist beim Sortieren und beim Waschen + Sortieren vom Zettel abgelesen; beim Waschen hat die
         Palette aus dem Zwischenlager kein Eingangsdatum mehr — dort ist sie das mittlere Eingangsdatum der Charge,
         also geschätzt. Wie oft welches zutrifft: <Link to="/messungen">Messungen</Link>.
@@ -378,11 +436,32 @@ function Faules({ daten, filter, chargen, staende, oeffnen }: {
         <p>Gemessen wird der Palox, wenn eine Palette an die Sortiermaschine oder an die Waschstrasse kommt — bezogen auf
         die Masse, die an dem Tag aus dem Lager kam. <strong>Kalender</strong> beantwortet „ab wann ging es los",
         <strong> liegt seit</strong> beantwortet „nach wie vielen Wochen".</p>
-        <p>Auf der Lagerdauer läuft die gestrichelte Kurve des Modells mit, an die alle Ware gerechnet wird; die Rauten sind
+        <p>Die Kennzahl je Station <Herkunft art="gerechnet" /> ist das nach Masse gewichtete Mittel der plausiblen Punkte
+        dieser Station; der Zuwachs ist die Steigung einer massegewichteten Geraden über den Messtag und wird erst nach
+        vier Wochen und fünf Arbeiten gezeigt — vorher steht, was noch fehlt.</p>
+        <p>Auf der Lagerdauer läuft in der Sicht „alle" die gestrichelte Kurve des Modells mit, an die alle Ware gerechnet wird; die Rauten sind
         die Chargen mit Ware im Haus. Eine Charge ohne eigene Messung liegt auf der Kurve, weil sie wie Mittelmass gerechnet wird — das sagt ihr Feld.</p>
       </Erklaerung>
     </Karte>
   )
+}
+
+type Sicht = 'alle' | 'waschen_sortieren' | 'waschen' | 'sortieren'
+const SICHTEN = [
+  ['alle', 'alle', 'palox-sicht-alle'],
+  ['waschen_sortieren', 'Waschen + Sortieren', 'palox-sicht-ws'],
+  ['waschen', 'nur Waschen', 'palox-sicht-w'],
+  ['sortieren', 'Sortieren', 'palox-sicht-s'],
+] as const
+const stationText = (s: string) =>
+  s === 'waschen_sortieren' ? 'Waschen + Sortieren' : s === 'waschen' ? 'nur Waschen' : s === 'sortieren' ? 'Sortiermaschine' : s === 'lager' ? 'Kontrollpalette' : s
+
+/** Eine gemerkte Wahl (0105): wie useAchse, für beliebige Werte aus einer Liste. */
+function useWahl<T extends string>(schluessel: string, sonst: T, erlaubt: readonly T[]): [T, (w: T) => void] {
+  const [wert, setWert] = useState<T>(() => {
+    try { const w = localStorage.getItem(schluessel); return w !== null && (erlaubt as readonly string[]).includes(w) ? w as T : sonst } catch { return sonst }
+  })
+  return [wert, (w: T) => { setWert(w); try { localStorage.setItem(schluessel, w) } catch { /* privates Fenster */ } }]
 }
 
 const quelleText = (q: string) =>

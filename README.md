@@ -695,6 +695,15 @@ sagt der Chip „Zeitplan rechnet nicht" (AB-97, `src/lib/zeitplan.ts`).
 Wurde seit der letzten Rechnung nichts erfasst, sagt der Chip „aktuell".
 Seit Runde AG rechnet die App beim Öffnen nie mehr selbst (AB-114).
 
+**Runde AI (0105)** — Stationen unter ihresgleichen: Jeder Palox-Punkt
+kennt sein Auge und seinen eigenen Anteil; das Diagramm „Faules im Lager"
+schaltet zwischen alle · Waschen + Sortieren · nur Waschen · Sortieren um und
+verbindet auf Wunsch die Punkte derselben Charge; darunter je Station das
+Mittel „so viel in den Palox" und der Zuwachs seit Messbeginn, sobald es vier
+Wochen und fünf Arbeiten gibt. Dazu `docs/ENTSCHLACKUNG.md`: was das
+Programm schwer macht und der Plan, es zu kürzen. AB-119. **`setup.sql`
+einspielen (Stand 105).**
+
 **Runde AH (0104)** — beim reinen Waschen wird jede Palette am Anfang der
 Strasse gewogen: Der Betrieb: „Die Palette hat kein bekanntes Gewicht — dort
 immer wägen, und die Auftragsleitenden klar anweisen." Der Zähler verlangt

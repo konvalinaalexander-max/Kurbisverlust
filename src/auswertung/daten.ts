@@ -33,6 +33,19 @@ export interface Schimmelpunkt {
   /** 0079: der Betriebstag der Messung. Die Lagerdauer sagt „nach wie vielen
    *  Wochen", der Messtag „ab wann" — zwei Fragen an dieselbe Messung. */
   messtag: string
+  /** 0105: welches Auge den Punkt gesehen hat — sortieren, waschen,
+   *  waschen_sortieren, lager (Kontrollpalette) — und sein eigener Anteil,
+   *  ohne das Dazurechnen des Modells (beim Waschen: der Wasch-Palox allein). */
+  station: string
+  anteil_station: number | null
+  /** … und ob dieser eigene Anteil plausibel ist (nicht der aufgelaufene). */
+  plausibel_station: boolean
+}
+/** 0105: je Station, wie viel in den Palox geht — „Vergleiche nur unter ihresgleichen". */
+export interface PaloxStation {
+  station: string; n_arbeiten: number; n_chargen: number; seit: string; bis: string; tage: number
+  anteil_mittel: number | null; anteil_median: number | null; anteil_4w: number | null; n_4w: number
+  zuwachs_je_woche: number | null; zuwachs_text: string | null
 }
 /**
  * Je Charge (erg_charge, 0061): Eingang gemessen, geliefert gemessen,
@@ -356,6 +369,8 @@ export interface Auswertung {
   selektion: Selektion | null
   saison: Saisonbilanz | null
   punkte: Schimmelpunkt[]
+  /** 0105: die Kennzahl je Station unter dem Diagramm. */
+  paloxStationen: PaloxStation[]
   bestand: Bestand[]
   naechste: NaechsteCharge[]
   sorten: { verdunstung: SortenK[]; ausschuss: SortenK[]; nebenkanal: SortenK[] }
@@ -540,7 +555,7 @@ async function alles(erzwingen: boolean): Promise<Auswertung> {
     if (r.error) { merken(name, r.error); return null }
     return (r.data ?? null) as T | null
   }
-  const [b, d, pl, kv, sk, mo, sel, sb, pk, hb, nc, kfv, kfa, kfn, kfu, wk, mw, mc, km, gw, va, ds, dq, vl, ve, kg, ss, ko, ab, lf, ak, pg, wo] = await Promise.all([
+  const [b, d, pl, kv, sk, mo, sel, sb, pk, hb, nc, kfv, kfa, kfn, kfu, wk, mw, mc, km, gw, va, ds, dq, vl, ve, kg, ss, ko, ab, lf, ak, pg, wo, ps] = await Promise.all([
     q<Massenbilanz>('erg_massenbilanz'), q<Datenlage>('erg_datenlage'),
     q<Befund>('erg_plausibilitaet'), q<Kaliberzeile>('erg_kaliber'), q<Kurve>('erg_kurve'),
     eins<Modell>('erg_modell'), eins<Selektion>('erg_selektion'), eins<Saisonbilanz>('erg_bilanz'),
@@ -558,6 +573,7 @@ async function alles(erzwingen: boolean): Promise<Auswertung> {
     q<LieferungKurz>('erg_lieferung', ['datum', true]),
     q<AusgangKennzahl>('erg_ausgang', ['ts', true]),
     q<Prognose>('erg_prognose', ['h', true]), q<Wohin>('erg_wohin'),
+    q<PaloxStation>('v_palox_station'),
   ])
   if (imBau) throw new Error(IM_BAU)
   // Fax liegt auf Eis (Runde R): erg_fax, erg_fax_wartezeit und erg_koeff_fax
@@ -582,7 +598,7 @@ async function alles(erzwingen: boolean): Promise<Auswertung> {
     stand: st2?.berechnet_ts ?? null, heute,
     zeitplan, veraltet, aktuell,
     bilanz: b, lage: d, befunde: pl, kaliber: kv, kurve: sk, koeff,
-    modell: mo, selektion: sel, saison: sb, punkte: pk, bestand: hb, naechste: nc,
+    modell: mo, selektion: sel, saison: sb, punkte: pk, paloxStationen: ps, bestand: hb, naechste: nc,
     sorten: { verdunstung: kfv, ausschuss: kfa, nebenkanal: kfn }, wiegungen: wk, margeWiegung: mw, margeCharge: mc, kommentare: km,
     gewichte: gw, verarbeitung: va, durchsatz: ds, qualitaet: dq, verlauf: vl, verlust: ve,
     gebinde: kg, schemata: ss, kohorten: ko, ausschuss: ab, lieferungen: lf, ausgang: ak,

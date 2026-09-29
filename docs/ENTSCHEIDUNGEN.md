@@ -4163,6 +4163,95 @@ Daten, dann die Annahme — nach der Korrektur nachsehen.
 nicht alles: vier mal vier gleiche Paloxen und ein Tag mit 30 Paaren bei
 13 erwarteten sind Fragen wert.
 
+## Runde AI: Stationen unter ihresgleichen, und die Frage nach dem Ballast (29. September, 0105)
+
+Der Betrieb, drei Uhr: „Sind noch Wünsche pendent? Alles umsetzen. Schau dir
+das ganze Programm nochmal an, finde Fehler. Ich habe das Gefühl, unsere
+Software ist extrem bloated und unnötig kompliziert. Das Tool soll primär ein
+Lagermanagement-Tool werden, der Chargen-Unterreiter ist das Kernstück. Beim
+Faulen geht es nicht unbedingt um einen Zuwachs — es ist spannend
+herauszufinden, wie viel die Wasch- und Sortierstation nicht überlebt: klare
+Werte, 20 %, 10 %, whatever. Die Punkte gleicher Charge mit Linien verbinden,
+ein- und ausschaltbar. Umschalten: zusammen, nur Waschen + Sortieren, nur
+Waschen. Eine Kennzahl darunter: durchschnittlich so viel. Und der Zuwachs
+seit Messbeginn — aber erst nach vier Wochen."
+
+### Was pendent war — und jetzt da ist
+
+Der Merkposten aus zwei Nächten („Zwei Augen", „nur unter ihresgleichen")
+ist jetzt gebaut, ohne das Verderbsmodell anzufassen:
+
+- **Jeder Punkt kennt sein Auge** (`station`) und trägt seinen eigenen
+  Anteil (`anteil_station`): Beim Waschen der Wasch-Palox allein durch die
+  Masse hinein — nichts vom Sortieren dazugerechnet. Der aufgelaufene Anteil
+  des Modells (`anteil`) bleibt daneben stehen, für die Kaskade.
+- **Das Diagramm „Faules im Lager" schaltet um:** alle · Waschen +
+  Sortieren · nur Waschen · Sortieren. Je Station zählt der eigene Anteil;
+  die Modellkurve und die Rauten der liegenden Chargen gibt es nur in
+  „alle", weil das Modell über alle Augen angepasst ist. „Chargen
+  verbinden" zieht eine dünne gestrichelte Linie durch die Punkte derselben
+  Charge — wer den Hagelschaden zweimal sieht, sieht ihn als eine Linie.
+  Beide Wahlen merkt sich der Browser.
+- **Zwei Kennzahlen je Station** unter dem Diagramm
+  (`palox_station_kennzahl()`, `v_palox_station`): das massegewichtete
+  Mittel „so viel in den Palox" mit Median, Zahl der Arbeiten und Chargen
+  und Messbeginn, dazu die letzten vier Wochen; und der Zuwachs seit
+  Messbeginn als Steigung einer massegewichteten Geraden über den Messtag,
+  in Punkten je Woche — erst nach vier Wochen (`palox_trend_mindest_tage()`
+  = 28) und fünf Arbeiten, vorher steht, was fehlt („Zuwachs erst nach vier
+  Wochen Messungen (seit 14.09., 15 Tage)").
+
+Prüfblock 0105 (a–g) auf der Demo, sieben Mutationen — Auge, vier Wochen,
+fünf Arbeiten (halb und ganz), Gerade, Massegewichtung, Station —, jede
+schlägt an.
+
+Die Fehlersuche über die Runde (Code-Review, sechs Befunde) hat drei echte
+gefunden, alle behoben: Der Wasch-Punkt wurde nach dem aufgelaufenen Anteil
+des Modells auf Plausibilität geprüft, nicht nach seinem eigenen (45 % am
+Band und 10 % beim Waschen hätten ihn aus der Kennzahl geworfen) — jetzt
+`plausibel_station`; die Verbindungslinien folgten der Legende nicht (eine
+Reihe kann jetzt einer Gruppe folgen, `gruppe`); und die drei Umschalter
+hatten keine Stilregel und fielen auf dem Handy aus dem Kopf der Karte. Die
+Kennzahl-Funktion hat dazu ein Fenster (`p_ab`), damit der Prüfstand die
+Vier-Wochen- und die Fünf-Arbeiten-Regel auf der Demo vorführen kann.
+Der Volltest fand dazu einen vierten, älteren: Die Demo hängt am Datum, und
+ihre Rückmeldung „Hagelschaden" hing an „der Sortier-Arbeit mit dem meisten
+Faulen" — die über Nacht die Charge wechselte (am 29. September 1609 statt
+1628), womit Prüfblock 0093 rot wurde. Jetzt hängt sie fest an Charge 1628,
+dem hinteren Feld mit dem Hagel. Und der Bildschirm-Durchgang fand, dass
+vier Stationen nebeneinander breiter sind als ein Handy: Der Umschalter
+rollt jetzt in seinem Kasten, statt die Seite zu verbreitern.
+
+### Die Mathematik einfacher machen
+
+Der Betrieb hat recht: Wenn Stationen nur unter ihresgleichen verglichen
+werden, braucht es das Dazurechnen des Sortier-Palox zum Wasch-Palox nicht,
+und die Verderbskurve mit Sockel, Smearing und Band schrumpft auf zwei
+Zahlen je Station. Diese Runde baut die zwei Zahlen und lässt das Modell
+stehen, weil die Kaskade es heute braucht, um Verderb für liegende Ware zu
+rechnen. Der Wechsel — Kaskade auf die Stationswerte, Modell weg — steht in
+`docs/ENTSCHLACKUNG.md` als Stufe 2, zur Entscheidung des Betriebs, mit dem
+Vorschlag: Ende Oktober, wenn die Stationswerte vier Wochen Daten haben, mit
+Vorher-nachher-Bild.
+
+### Der Ballast
+
+Die Antwort auf „bloated" steht in `docs/ENTSCHLACKUNG.md`: die Zahlen (19 400
+Zeilen App, 17 200 Zeilen Rechenwerk mit 79 Sichten, 21 000 Zeilen Doku, eine
+Stunde Prüfstand je Runde, 690 Sekunden je Lauf beim Betrieb, 33 Anfragen
+beim Öffnen), die fünf Ursachen und ein Plan in drei Stufen — was ohne
+Rückfrage geht (langsame Ansichten, je Seite laden, tote Sichten weg,
+Prüfstand in zwei Stufen), was der Betrieb entscheidet (Kaskade auf
+Stationswerte, Lagermanagement mit Chargen als Kernstück nach vorn, Doku
+einfrieren), was bleibt.
+
+### Was bewusst nicht gemacht wurde
+
+**Die Kaskade nicht umgestellt** — siehe oben, Stufe 2. **Keine Sicht
+gelöscht** in dieser Runde: erst die Liste, wer was liest. **Die Prüfstände
+nicht gekürzt**: das ist eine Änderung an CLAUDE.md und damit der Entscheid
+des Betriebs; der Vorschlag steht in ENTSCHLACKUNG § 4.
+
 ## Runde AH: beim Waschen wird gewogen (29. September, nachts, 0104)
 
 Der Betrieb, halb zwei, nach dem Abend mit dem Konvoi. Vier Dinge: drei

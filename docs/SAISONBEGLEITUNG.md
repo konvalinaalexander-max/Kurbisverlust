@@ -31,6 +31,7 @@ gedacht?), **zuletzt die Mathematik** — und jede Änderung steht in
 | Kommentare zur Ware | „Hagelschaden", „viel Faules" am Punkt (0091) erklären Ausreisser | Ein Ausreisser ohne Kommentar: die Arbeit öffnen (Klick auf den Punkt), die Palox-Ablesungen ansehen |
 | Zwei Augen | Band-Punkte (Sortieren) liegen unter den Wasch-Punkten derselben Charge: Das Band legt nur eklig Faules in den Palox, das Waschen auch Ästhetik und Schäden (Betrieb, 29. 9.) | Wasch-Punkte weit über Band-Punkten gleicher Lagertage: nicht als Verderb lesen. Die Kontrollpaletten (`quelle = lager`) sind das neutrale Auge — mehr davon. Merkposten Runde AG: Kurve nur aus Band und Kontrollpaletten, der Wasch-Palox als eigener Strom |
 | Ab Dezember | „plötzlich faul", ein klarer Anstieg (Betrieb, gehört) | Steigt die Kurve im Dezember, muss der Anstieg auch in den Kontrollpaletten stehen — sonst ist es das Auge, nicht die Ware |
+| Kennzahl je Station (0105) | Waschen + Sortieren einstellig bis knapp zweistellig (Ästhetik und Schäden dabei), Sortiermaschine unter 2 % (nur eklig Faules), nur Waschen dazwischen; Zuwachs je Woche nahe null im Herbst | Zuwachs deutlich über null vor Dezember: erst die Chargen ansehen (Linien einschalten — ist es eine Charge mit Hagel?), dann die Kontrollpaletten. Zuwachs erst nach vier Wochen und fünf Arbeiten sichtbar — vorher steht, was fehlt |
 
 ## 3. Zu klein / zu gross, anderer Kanal (erg_koeff_ausschuss, erg_koeff_nebenkanal)
 

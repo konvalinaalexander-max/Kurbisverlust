@@ -7293,3 +7293,128 @@ begin
 end $$;
 
 select '——— 0104 Beim Waschen wird gewogen geprüft ———' as ergebnis;
+
+-- =====================================================================
+-- 0105 — Stationen unter ihresgleichen
+--
+-- Geprüft auf der Demo: (a) jeder Palox-Punkt kennt sein Auge (station) und
+-- seinen eigenen Anteil — beim Waschen kleiner als der aufgelaufene des
+-- Modells, sobald die Charge vorher am Band Faules verlor; an den anderen
+-- Stationen gleich; (b) die Kennzahl je Station steht für alle drei
+-- Stationen, mit Zahlen, die Sinn ergeben; (c) das Mittel ist nach Masse
+-- gewichtet; (d) der Zuwachs erst nach vier Wochen; (e) und erst ab fünf
+-- Arbeiten; (f) die Gerade ist die massegewichtete Regression über den
+-- Messtag; (g) Stand 105.
+-- =====================================================================
+do $$
+declare v_modus jsonb; v_lad text; v_geladen boolean := false; r record; v_n int; v_tage int; v_mittel numeric; v_b numeric; v_seit date; v_dritter date;
+  v_u uuid := '00000000-0105-0000-0000-000000000001';
+begin
+  select wert into v_modus from einstellung where schluessel = 'betriebsmodus';
+  update einstellung set wert = '"beispiel"'::jsonb where schluessel = 'betriebsmodus';
+  insert into auth.users (id, email, raw_user_meta_data) values (v_u, null, '{"name":"Prüf-0105"}');
+  update profil set rolle = 'admin' where id = v_u;
+  perform set_config('request.jwt.claim.sub', v_u::text, true);
+  if not exists (select 1 from auftrag where station = 'waschen_sortieren' and bemerkung = 'DEMO') then
+    select demo_daten_laden() into v_lad; v_geladen := true;
+  end if;
+  perform auswertung_aktualisieren();
+
+  -- (a) das Auge am Punkt
+  assert not exists (select 1 from erg_punkte where station is null or station not in ('sortieren', 'waschen', 'waschen_sortieren', 'lager')),
+    '0105 (a1): ein Punkt ohne Station';
+  assert not exists (select 1 from erg_punkte where station in ('sortieren', 'waschen_sortieren', 'lager') and anteil_station is distinct from anteil),
+    '0105 (a2): an Band, Handlinie und Kontrollpalette ist der eigene Anteil der Anteil';
+  assert not exists (select 1 from erg_punkte where station = 'waschen' and anteil_station > anteil + 1e-9),
+    '0105 (a3): beim Waschen darf der eigene Anteil den aufgelaufenen nie übersteigen';
+  assert exists (select 1 from erg_punkte where station = 'waschen' and anteil_station < anteil - 1e-9),
+    '0105 (a4): beim Waschen muss der eigene Anteil kleiner sein als der aufgelaufene, wo die Charge vorher am Band Faules verlor';
+  assert not exists (select 1 from erg_punkte where station <> 'waschen' and plausibel_station is distinct from plausibel),
+    '0105 (a5): ausser beim Waschen ist die Plausibilität des eigenen Anteils die des Punkts';
+  assert not exists (select 1 from erg_punkte where station = 'waschen' and plausibel_station <> (anteil_plausibel(anteil_station) and lagertage >= 0)),
+    '0105 (a6): beim Waschen urteilt plausibel_station über den eigenen Anteil';
+
+  -- (b) die Kennzahl je Station
+  select count(*) into v_n from v_palox_station where station in ('sortieren', 'waschen', 'waschen_sortieren');
+  assert v_n = 3, format('0105 (b1): drei Stationen erwartet, %s gefunden', v_n);
+  for r in select * from v_palox_station loop
+    assert r.n_arbeiten > 0 and r.n_chargen > 0 and r.n_chargen <= r.n_arbeiten, format('0105 (b2): %s: %s Arbeiten, %s Chargen', r.station, r.n_arbeiten, r.n_chargen);
+    assert r.anteil_mittel > 0 and r.anteil_mittel < 1 and r.anteil_median > 0 and r.anteil_median < 1, format('0105 (b3): %s: Mittel %s, Median %s', r.station, r.anteil_mittel, r.anteil_median);
+    assert r.seit <= r.bis and r.tage = r.bis - r.seit, format('0105 (b4): %s: seit %s bis %s, %s Tage', r.station, r.seit, r.bis, r.tage);
+  end loop;
+
+  -- (c) nach Masse gewichtet
+  select sum(basis_jetzt_kg * anteil_station) / sum(basis_jetzt_kg) into v_mittel
+    from erg_punkte where plausibel_station and station = 'waschen_sortieren' and quelle in ('verarbeitung', 'verarbeitung_gemischt') and anteil_station is not null and basis_jetzt_kg > 0;
+  assert abs((select anteil_mittel from v_palox_station where station = 'waschen_sortieren') - v_mittel) < 1e-4,
+    format('0105 (c1): Mittel %s statt massegewichtet %s', (select anteil_mittel from v_palox_station where station = 'waschen_sortieren'), v_mittel);
+
+  -- (d) der Zuwachs erst nach vier Wochen: ein Fenster ab Messbeginn, das
+  --     fünf Arbeiten hat, aber keine vier Wochen (Wasch-Arbeiten kommen in
+  --     der Demo alle paar Tage).
+  select min(messtag) into v_seit from erg_punkte where station = 'waschen' and plausibel_station and quelle in ('verarbeitung', 'verarbeitung_gemischt');
+  select min(messtag) into v_dritter
+    from (select messtag, count(*) over (order by messtag) as n from erg_punkte
+           where station = 'waschen' and plausibel_station and quelle in ('verarbeitung', 'verarbeitung_gemischt') and anteil_station is not null and basis_jetzt_kg > 0) z
+   where n >= 5;
+  assert v_dritter - v_seit < 28, format('0105 (d0): die Demo braucht %s Tage bis zur fünften Wasch-Arbeit — die Regel ist so nicht prüfbar', v_dritter - v_seit);
+  assert (select n_arbeiten >= 5 and zuwachs_je_woche is null and zuwachs_text like '%vier Wochen%' from palox_station_kennzahl(v_dritter, v_seit) where station = 'waschen'),
+    format('0105 (d1): fünf Arbeiten in %s Tagen — vor der vierten Woche darf es keinen Zuwachs geben: %s', v_dritter - v_seit,
+           (select row_to_json(k) from palox_station_kennzahl(v_dritter, v_seit) k where station = 'waschen'));
+  assert (select zuwachs_je_woche is not null and zuwachs_text is null from v_palox_station where station = 'waschen'),
+    '0105 (d2): nach einer Saison muss der Zuwachs dastehen';
+  -- (e) und erst ab fünf Arbeiten: ein Fenster über mehr als vier Wochen mit
+  --     weniger als fünf Arbeiten — die Handlinie arbeitet in der Demo selten.
+  select min(messtag) into v_seit from erg_punkte where station = 'waschen_sortieren' and plausibel_station and quelle in ('verarbeitung', 'verarbeitung_gemischt');
+  select max(messtag) into v_dritter
+    from (select messtag, count(*) over (order by messtag) as n from erg_punkte
+           where station = 'waschen_sortieren' and plausibel_station and quelle in ('verarbeitung', 'verarbeitung_gemischt') and anteil_station is not null and basis_jetzt_kg > 0) z
+   where n <= 4;
+  assert (select n_arbeiten <= 4 and zuwachs_je_woche is null and zuwachs_text like '%fünf Arbeiten%' from palox_station_kennzahl(v_dritter, v_seit) where station = 'waschen_sortieren'),
+    format('0105 (e1): mit höchstens vier Arbeiten darf es keinen Zuwachs geben: %s', (select row_to_json(k) from palox_station_kennzahl(v_dritter, v_seit) k where station = 'waschen_sortieren'));
+  -- (e2) … auch über mehr als vier Wochen: vier aufeinanderfolgende Arbeiten
+  --      der Handlinie, die weiter als 28 Tage auseinanderliegen (die Demo
+  --      wäscht und sortiert selten). Gibt es kein solches Fenster, sagt es
+  --      eine Notiz — und (e1) bleibt.
+  v_n := null;
+  for r in
+    select a.messtag as ab, b.messtag as bis
+      from (select messtag, row_number() over (order by messtag, auftrag_id) as k from erg_punkte
+             where station = 'waschen_sortieren' and plausibel_station and quelle in ('verarbeitung', 'verarbeitung_gemischt') and anteil_station is not null and basis_jetzt_kg > 0) a
+      join (select messtag, row_number() over (order by messtag, auftrag_id) as k from erg_punkte
+             where station = 'waschen_sortieren' and plausibel_station and quelle in ('verarbeitung', 'verarbeitung_gemischt') and anteil_station is not null and basis_jetzt_kg > 0) b
+        on b.k = a.k + 3
+     where b.messtag - a.messtag >= 28
+     order by a.k
+  loop
+    select n_arbeiten, tage into v_n, v_tage from palox_station_kennzahl(r.bis, r.ab) where station = 'waschen_sortieren';
+    if v_n <= 4 then
+      assert (select zuwachs_je_woche is null and zuwachs_text like '%fünf Arbeiten%' from palox_station_kennzahl(r.bis, r.ab) where station = 'waschen_sortieren'),
+        format('0105 (e2): %s Arbeiten über %s Tage — ohne fünf Arbeiten darf es keinen Zuwachs geben: %s', v_n, v_tage,
+               (select row_to_json(k) from palox_station_kennzahl(r.bis, r.ab) k where station = 'waschen_sortieren'));
+      exit;
+    end if;
+    v_n := null;
+  end loop;
+  if v_n is null then
+    raise notice '0105 (e2): kein Fenster mit vier Arbeiten über vier Wochen in der Demo — nur (e1) geprüft';
+  end if;
+
+  -- (f) die Gerade: massegewichtete Regression des eigenen Anteils über den Tag
+  with p as (
+    select basis_jetzt_kg as w, anteil_station as y, (messtag - min(messtag) over ())::numeric as t
+      from erg_punkte where plausibel_station and station = 'waschen' and quelle in ('verarbeitung', 'verarbeitung_gemischt') and anteil_station is not null and basis_jetzt_kg > 0 and messtag <= heute()
+  )
+  select (sum(w * t * y) * sum(w) - sum(w * t) * sum(w * y)) / (sum(w * t * t) * sum(w) - power(sum(w * t), 2)) * 7 into v_b from p;
+  assert abs((select zuwachs_je_woche from v_palox_station where station = 'waschen') - v_b) < 1e-4,
+    format('0105 (f1): Zuwachs %s je Woche statt %s', (select zuwachs_je_woche from v_palox_station where station = 'waschen'), v_b);
+  assert palox_trend_mindest_tage() = 28, '0105 (f2): vier Wochen sind 28 Tage';
+  assert schema_stand() >= 105, format('0105 (g1): schema_stand() = %s', schema_stand());
+
+  if v_geladen then perform demo_daten_entfernen(); end if;
+  delete from profil where id = v_u; delete from auth.users where id = v_u;
+  update einstellung set wert = v_modus where schluessel = 'betriebsmodus';
+  raise notice 'OK  0105 — jeder Punkt kennt sein Auge; die Kennzahl je Station: massegewichtet, Zuwachs erst nach vier Wochen und fünf Arbeiten, als Gerade über den Messtag';
+end $$;
+
+select '——— 0105 Stationen unter ihresgleichen geprüft ———' as ergebnis;

@@ -52,6 +52,9 @@ export interface Reihe {
   dick?: boolean
   /** In der Legende zunächst ausgeblendet. */
   ausgeblendet?: boolean
+  /** 0105: folgt in der Sichtbarkeit der Reihe dieses Namens (die Linie einer
+   *  Charge folgt ihrer Sorte) — selbst ohne Eintrag in der Legende. */
+  gruppe?: string
   /** Nicht in der Legende (Hilfsreihe). */
   ohneLegende?: boolean
 }
@@ -175,7 +178,7 @@ export function Linien({ reihen, hoehe = 280, xFormat = String, yFormat = String
   const [tabelle, setTabelle] = useState(false)
   const clipId = useMemo(() => `clip${Math.random().toString(36).slice(2, 8)}`, [])
 
-  const sichtbar = reihen.filter(r => !aus.has(r.name))
+  const sichtbar = reihen.filter(r => !aus.has(r.gruppe ?? r.name))
   const alle = sichtbar.flatMap(r => r.punkte)
   const bandwerte = sichtbar.flatMap(r => r.band ?? [])
   const oben = yTitel ? O + 12 : O

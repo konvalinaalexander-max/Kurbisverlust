@@ -137,8 +137,16 @@ Strom (Verdunstung, Faules, Fax, Ausschuss) nicht gemessen ist.
 (Auffälligkeit „Ohne Nenner"); ein Leeren ohne Ablesung macht die Menge
 unbekannt (Auffälligkeit „Palox geleert"); ohne genügend Punkte gibt es
 keine Kurve, und die Kaskade rechnet ohne Verderb — sichtbar.
+**Seit 0105 daneben, je Station** (`palox_station_kennzahl()`): der eigene
+Anteil des Auges (beim Waschen der Wasch-Palox allein durch die Masse hinein,
+nichts vom Sortieren dazugerechnet), nach Masse gemittelt, und sein Zuwachs
+seit Messbeginn als massegewichtete Gerade über den Messtag — erst nach vier
+Wochen und fünf Arbeiten. Das Modell bleibt für die Kaskade; die Kennzahl je
+Station ist, was der Betrieb liest.
 **Urteil:** ehrlich. Ein Modell je Sorte ist die offene Frage der Saison
-(`docs/SAISONBEGLEITUNG.md` § 2) — erst mit genug Punkten je Sorte.
+(`docs/SAISONBEGLEITUNG.md` § 2) — erst mit genug Punkten je Sorte; ob das
+Modell der Kaskade durch die Stationswerte ersetzt wird, entscheidet der
+Betrieb (`docs/ENTSCHLACKUNG.md`, Stufe 2).
 
 ## 8. Fax (Faules beim Abpacken)
 

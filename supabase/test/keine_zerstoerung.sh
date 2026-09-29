@@ -65,7 +65,7 @@ FREIGEGEBEN=(
   # 0104 dasselbe noch einmal (die Demo-Halle wiegt ihre Wasch-Paletten seit
   # Mitte August) — dieselben drei Notizzettel, derselbe Anfang, dasselbe Ende.
   "0104_waschen_wird_gewogen.sql:661"
-  "0104_waschen_wird_gewogen.sql:1612"
+  "0104_waschen_wird_gewogen.sql:1614"
 )
 
 # ---------------------------------------------------------------------
