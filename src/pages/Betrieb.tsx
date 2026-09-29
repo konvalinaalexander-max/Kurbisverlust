@@ -118,7 +118,8 @@ function Arbeiten() {
 
   /** Endgültig löschen — je Arbeit die Funktion aus 0013, die auch die
    *  Wägungen mitnimmt, die sonst verwaist zurückblieben. Das Journal (0072)
-   *  behält jede gelöschte Zeile. Danach rechnen die Ergebnisse neu. */
+   *  behält jede gelöschte Zeile. Neu gerechnet wird nicht (0107): heute
+   *  Nacht oder auf „Neu rechnen" — nie mehr die volle Rechnung aus dem Browser. */
   async function loeschen() {
     if (loescht || gewaehlt.size === 0) return
     setLoescht(true); setFehler(null)
@@ -131,9 +132,8 @@ function Arbeiten() {
     if (fehlgeschlagen.length) setFehler(fehlgeschlagen.join(' · '))
     loeschmodusAus()
     setLaedt(true); await laden()
-    const { error: e2 } = await supabase.rpc('auswertung_aktualisieren')
     setLoescht(false)
-    setGeloescht(`${n === 1 ? '1 Arbeit' : `${n} Arbeiten`} endgültig gelöscht — das Journal behält eine Spur.${e2 ? ' Die Ergebnisse konnten nicht neu gerechnet werden: auf dem Dashboard „Neu rechnen".' : ' Die Ergebnisse sind neu gerechnet.'}`)
+    setGeloescht(`${n === 1 ? '1 Arbeit' : `${n} Arbeiten`} endgültig gelöscht — das Journal behält eine Spur. Die Ergebnisse zählen sie ab der nächsten Rechnung nicht mehr: heute Nacht oder mit „Neu rechnen" auf dem Dashboard.`)
   }
 
   /** Eine Rückmeldung auf- oder zuklappen; beim Öffnen die Aufnahme

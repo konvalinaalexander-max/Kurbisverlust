@@ -368,7 +368,7 @@ export interface Auswertung {
   befunde: Befund[]
   kaliber: Kaliberzeile[]
   koeff: KoeffZeile[]
-  /** 0106: der erwartete Palox-Anteil je Sorte und Station (v_palox_erwartung). */
+  /** 0106: der erwartete Palox-Anteil je Sorte und Station (seit 0107 gespeichert: erg_palox_erwartung). */
   erwartung: PaloxErwartung[]
   saison: Saisonbilanz | null
   punkte: Schimmelpunkt[]
@@ -451,8 +451,8 @@ async function rechnen(): Promise<Problem[]> {
  * die Datenbank antwortete eine halbe Stunde lang niemandem — darum wartet
  * die App mit einer Anfrage alle fünf Sekunden, statt selbst zu rechnen.
  */
-const WARTEN_MS = 5000
-async function abwarten(grund: 'laeuft' | 'angefordert'): Promise<Problem[]> {
+const WARTEN_MS = 10000
+async function abwarten(grund: 'laeuft' | 'angefordert', angefordertTs?: string): Promise<Problem[]> {
   melden({ schritt: 0, schritte: SCHRITTE.length, titel: grund })
   // Der Chip soll es sofort sagen — ohne auf das Ende zu warten.
   if (stand) {
@@ -462,8 +462,14 @@ async function abwarten(grund: 'laeuft' | 'angefordert'): Promise<Problem[]> {
   const bis = Date.now() + RECHNEN_HOECHSTENS_MIN * 60 * 1000
   while (Date.now() < bis) {
     await new Promise(r => globalThis.setTimeout(r, WARTEN_MS))
-    const { data: st, error } = await supabase.from('auswertung_stand').select('berechnet_ts, geaendert_ts, rechnet_seit, angefordert_ts').maybeSingle()
+    const { data: st, error } = await supabase.from('auswertung_stand').select('berechnet_ts, geaendert_ts, rechnet_seit, angefordert_ts, fehler_ts, fehler').maybeSingle()
     if (error || !st) continue
+    // 0107: Ein gescheiterter Lauf wird nicht wiederholt — also nicht weiter warten, sondern sagen, warum.
+    const seit = angefordertTs ?? st.angefordert_ts
+    if (grund === 'angefordert' && st.fehler_ts && seit && Date.parse(st.fehler_ts) >= Date.parse(seit)) {
+      melden(null)
+      return [{ sicht: 'Neu rechnen', meldung: `Die Rechnung ist gescheitert: ${st.fehler ?? 'ohne Meldung'}. Die gezeigten Zahlen sind der letzte Stand; ein neuer Versuch mit „Neu rechnen".` }]
+    }
     const fertig = grund === 'angefordert'
       ? !anforderungOffen(st.angefordert_ts, st.berechnet_ts)
       : !rechnetGerade(st.rechnet_seit)
@@ -487,14 +493,21 @@ async function anfordern(): Promise<Problem[]> {
     melden(null)
     return [{ sicht: 'Neu rechnen (Anforderung)', meldung: error.message }]
   }
-  const weg = (data as { weg?: string } | null)?.weg
-  if (weg !== 'zeitplan') return rechnen()
-  return abwarten('angefordert')
+  const antwort = data as { weg?: string; hinweis?: string; angefordert_ts?: string } | null
+  if (antwort?.weg === 'zeitplan') return abwarten('angefordert', antwort.angefordert_ts)
+  // 0107: Nur ohne pg_cron (Demo, Prüfung) rechnet die App selbst. Ist pg_cron
+  // da, aber der Zeitplan liess sich nicht eintragen, rechnet sie nicht — die
+  // volle Rechnung aus dem Browser war, was die Datenbank am 29.9. lahmlegte.
+  if (antwort?.hinweis) {
+    melden(null)
+    return [{ sicht: 'Neu rechnen', meldung: `Der Zeitplan der Datenbank fehlt (${antwort.hinweis}) — setup.sql noch einmal einspielen.` }]
+  }
+  return rechnen()
 }
 
 /** Der Text, an dem useAuswertung den Zustand „wird gebaut" erkennt und von selbst nachlädt. */
 export const IM_BAU = 'Die Auswertung wird gerade neu gebaut: Nach dem Einspielen von setup.sql rechnet der Zeitplan sie im Hintergrund, zwei bis vier Minuten. Diese Seite lädt von selbst nach.'
-const NACHLADEN_IM_BAU_MS = 15000
+const NACHLADEN_IM_BAU_MS = 30000
 
 async function alles(erzwingen: boolean): Promise<Auswertung> {
   // 0057: Erst fragen, ob die Datenbank die Formeln hat, die diese App
@@ -583,7 +596,7 @@ async function alles(erzwingen: boolean): Promise<Auswertung> {
 
   const [b, d, kv, pe, pk, nc, kfv, kfa, kfn, kfu, wk, mw, mc, km, gw, va, ds, dq, ve, kg, ss, ko, ab, lf, ak, ps] = await Promise.all([
     q<Massenbilanz>('erg_massenbilanz'), q<Datenlage>('erg_datenlage'),
-    q<Kaliberzeile>('erg_kaliber'), q<PaloxErwartung>('v_palox_erwartung'),
+    q<Kaliberzeile>('erg_kaliber'), q<PaloxErwartung>('erg_palox_erwartung'),
     q<Schimmelpunkt>('erg_punkte'), q<NaechsteCharge>('erg_naechste_charge'),
     q<SortenK>('erg_koeff_verdunstung'), q<SortenK>('erg_koeff_ausschuss'), q<SortenK>('erg_koeff_nebenkanal'),
     q<{ n: number; kg_pro_kiste: number | null }>('erg_koeff_ueberfuellung'),
@@ -753,9 +766,6 @@ export function auswertungNachladen(): Promise<Auswertung> {
   return auswertungLaden(false)
 }
 
-/** Wie oft die App nachsieht, ob der Zeitplan einen neuen Stand hat. */
-const NACHSEHEN_MS = 30000
-
 export function useAuswertung() {
   const [daten, setDaten] = useState<Auswertung | null>(stand)
   const [laedt, setLaedt] = useState(!stand)
@@ -780,36 +790,10 @@ export function useAuswertung() {
     const t = window.setTimeout(() => void laden(), NACHLADEN_IM_BAU_MS)
     return () => window.clearTimeout(t)
   }, [fehler, laden])
-  // 0095: Läuft ein Zeitplan (wirklich, siehe zeitplanZustand), sieht die App alle halbe Minute nach. Ein
-  // neuer Stand wird still nachgeladen — die Zahlen wechseln, ohne dass
-  // jemand etwas drückt; „wird gerade erneuert" steht im Chip, solange
-  // rechnet_seit gesetzt ist.
-  useEffect(() => {
-    // 0100: auch nachsehen, solange irgendwo gerechnet wird (rechnet_seit steht);
-    // 0102: und solange eine Anforderung offen ist.
-    if (daten?.zeitplan.zustand !== 'laeuft' && !rechnetGerade(daten?.zeitplan.rechnetSeit)
-        && !anforderungOffen(daten?.zeitplan.angefordertTs, daten?.stand)) return
-    const t = window.setInterval(() => {
-      void (async () => {
-        const { data: st } = await supabase.from('auswertung_stand').select('berechnet_ts, geaendert_ts, rechnet_seit, angefordert_ts').maybeSingle()
-        if (!st || !stand) return
-        if (st.berechnet_ts && st.berechnet_ts !== stand.stand) {
-          try { setDaten(await auswertungNachladen()) } catch { /* beim nächsten Mal */ }
-        } else {
-          // Wird in der Halle etwas erfasst, wechselt der Chip von „aktuell"
-          // auf „neu bis …" — ohne dass jemand die Seite neu lädt.
-          const aktuell = istAktuell(st.berechnet_ts, st.geaendert_ts)
-          const rechnetSeit = st.rechnet_seit ?? null
-          const angefordertTs = st.angefordert_ts ?? null
-          if (aktuell !== stand.aktuell || rechnetSeit !== stand.zeitplan.rechnetSeit || angefordertTs !== stand.zeitplan.angefordertTs) {
-            stand = { ...stand, aktuell, veraltet: !aktuell, zeitplan: { ...stand.zeitplan, rechnetSeit, angefordertTs } }
-            hoerer.forEach(x => x())
-          }
-        }
-      })()
-    }, NACHSEHEN_MS)
-    return () => window.clearInterval(t)
-  }, [daten?.zeitplan.zustand, daten?.zeitplan.rechnetSeit, daten?.zeitplan.angefordertTs, daten?.stand])
+  // 0107: Keine Nachschau-Schleife mehr. Bis 0107 fragte das Dashboard alle
+  // halbe Minute nach dem Stand und lud neue Zahlen von selbst nach — Teil des
+  // „automatischen Neuladens", das der Betrieb am 29.9. nicht mehr wollte. Die
+  // Zahlen stehen, bis jemand „Neu rechnen" drückt oder die Seite neu öffnet.
   return { daten, laedt, fehler, fortschritt: schritt, neuRechnen: () => laden(true) }
 }
 

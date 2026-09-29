@@ -90,7 +90,7 @@ export default function Lagermanagement() {
       <Reiterkopf titel="Lagermanagement"
                   stand={daten.stand} heute={daten.heute} neuRechnen={() => void neuRechnen()} laeuft={laedt}
                   zeitplan={daten.zeitplan} veraltet={daten.veraltet} aktuell={daten.aktuell} />
-      <JournalAbgleich neuGerechnet={() => void neuRechnen()} />
+      <JournalAbgleich />
       <Probleme liste={daten.probleme} />
       {daten.befunde.length > 0 && (
         <div className="hinweis warnung" role="status">

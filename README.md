@@ -509,6 +509,8 @@ CSV-Upload und Stammdaten bleiben dir vorbehalten.
 > Seit Runde X holt das Dashboard das Journal beim Öffnen von selbst nach
 > (höchstens alle zehn Minuten je Gerät) und übernimmt, was neu ist — sobald
 > die veröffentlichte CSV-Adresse einmal unter Stammdaten eingetragen ist.
+> Seit 0107 zählen die neuen Paletten ab der nächsten Rechnung (nachts oder
+> „Neu rechnen"); der Abgleich rechnet nicht selbst.
 > Der Weg hier bleibt für den ersten Abgleich und für alles, was eine
 > Vorschau braucht.
 
@@ -694,6 +696,18 @@ Nachtrag: Ob der Zeitplan wirklich läuft, sieht die App am letzten Lauf
 sagt der Chip „Zeitplan rechnet nicht" (AB-97, `src/lib/zeitplan.ts`).
 Wurde seit der letzten Rechnung nichts erfasst, sagt der Chip „aktuell".
 Seit Runde AG rechnet die App beim Öffnen nie mehr selbst (AB-114).
+
+**Runde AK (0107)** — gerechnet wird nachts und auf Knopfdruck, sonst nie:
+Die Datenbank des Betriebs lag am 29. September still, weil der Zeitplan
+tagsüber alle zehn Minuten die ganze Auswertung neu rechnete (89 s je Lauf)
+und Journal-Abgleich und Löschen sie aus dem Browser mitrechneten. Jetzt
+rechnet sie auf „Neu rechnen", nachts zwischen 2 und 5 Uhr einmal und nach
+dem Einspielen; ein gescheiterter Lauf wird gemerkt und nicht jede Minute
+wiederholt; der Browser rechnet nie, wo der Zeitplan läuft; das Dashboard
+fragt nicht mehr von selbst nach. AB-123. **Der Betrieb spielt setup.sql
+einmal ein (Stand 107)** — vorher, falls die Datenbank hängt: Projekt neu
+starten und `select cron.unschedule(jobid) from cron.job where jobname like
+'auswertung%';` im SQL-Editor.
 
 **Runde AJ (0106)** — die Kaskade rechnet mit den Stationswerten: Das
 Verderbsmodell (F(t) über die Lagerdauer, Sockel, Smearing,

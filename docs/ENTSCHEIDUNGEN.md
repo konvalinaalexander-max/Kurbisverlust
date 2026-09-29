@@ -4171,6 +4171,64 @@ Daten, dann die Annahme — nach der Korrektur nachsehen.
 nicht alles: vier mal vier gleiche Paloxen und ein Tag mit 30 Paaren bei
 13 erwarteten sind Fragen wert.
 
+## Runde AK: gerechnet wird nachts und auf Knopfdruck, sonst nie (29. September, abends, 0107)
+
+Die Seite war weg, Supabase meldete die Datenbank als ungesund, IO-Wait am
+Anschlag. Der Betrieb: „seitdem du da irgendwas mit automatischem Neuladen
+probierst, crasht die Website immer wieder … schlank das Projekt runter".
+
+**Was die Datenbank tat.** Drei Wege lösten die volle Rechnung aus, ohne dass
+jemand sie verlangte: (1) der Zeitplan (seit 0103 jede Minute) rechnete,
+sobald in der Halle etwas erfasst war und die Drossel — zehn Minuten —
+abgelaufen war; eine Rechnung dauert auf dem Betrieb 89 s (Abzug vom 29.9.),
+erfasst wird ständig, also rechnete die Datenbank den ganzen Tag, bis das
+Budget der kleinen Supabase-Maschine für Plattenzugriffe aufgebraucht war;
+(2) der Erntejournal-Abgleich beim Öffnen des Dashboards und (3) das Löschen
+unter Betrieb riefen `auswertung_aktualisieren()` direkt aus dem Browser —
+unter der Acht-Sekunden-Grenze der API, also abgebrochen, nachdem die
+gespeicherten Ansichten gesperrt waren. Dazu fragte das Dashboard alle halbe
+Minute nach dem Stand. Die Rechnung selbst ist nicht falsch; falsch war, wie
+oft sie lief.
+
+**Die Regel ab 0107, eine einzige** (`auswertung_grund()`): gerechnet wird auf
+„Neu rechnen", nachts zwischen 2 und 5 Uhr einmal (wenn tagsüber etwas
+erfasst wurde) und wenn noch nie gerechnet wurde. Sonst nie. Ein
+gescheiterter Lauf (Fehler, Zeitgrenze, Sperre) lässt die alten Zahlen
+stehen, steht in `auswertung_stand.fehler_ts/fehler` und wird erst auf die
+nächste Anforderung oder in der nächsten Nacht wieder versucht — nie jede
+Minute. Der Zeitplan beendet keine fremden Sitzungen mehr; die Drossel ist
+weg. `auswertung_aktualisieren()` und `auswertung_schritt()` fordern für eine
+angemeldete Person nur noch an, wo der Zeitplan läuft — auch für eine alte
+App im Zwischenspeicher eines Handys. „Neu rechnen" trägt den Zeitplan ein,
+falls er fehlt. Die App: keine Nachschau-Schleife mehr; Journal-Abgleich und
+Löschen rechnen nicht; nach „Neu rechnen" wartet sie (alle 10 s) und hört
+bei einem Fehlschlag mit dessen Grund auf. Die Palox-Erwartung (0106) liest
+das Dashboard gespeichert (`erg_palox_erwartung`, Schritt 3) statt live.
+
+**Geprüft:** Block 0107 (a–h), elf Mutationen, alle schlagen an — die erste
+Fassung sah den sofortigen Wiederholungsversuch nicht (er scheiterte gleich
+und sah aus wie keiner); jetzt zählt, dass der Fehlschlag nicht neu
+geschrieben wird. Ebenso (d4): Sie zählte zuerst die Zeilen von `erg_charge`
+vor und nach dem Fehlschlag — im Volltest standen dort null Zeilen (Chargen
+ohne Paletten, ein Rest früherer Blöcke), und null gleich null bewies
+nichts. Jetzt lädt der Block ohne Paletten die Demo selbst und prüft, dass
+die Teilrechnung des gescheiterten Laufs zurückgerollt ist. Die Prüfungen der Drossel (0103 c, h; der Block „Nur
+rechnen, wenn veraltet") änderten sich mit der Regel und sagen es. Die Uhr
+des Zeitplans steht für den ganzen Prüflauf auf einem Dienstagnachmittag
+(`kuerbis.jetzt_test`), damit keine Prüfung davon abhängt, wann sie läuft.
+Nebenbei: Die Kette (`pruefstand/kette.mjs`) blieb auf der Startseite
+stehen, weil die neu gebaute Demo den Arbeiter Tomasz selbst kennt und die
+Nachbildung der Datenbank ihn dann doppelt lieferte; jetzt ersetzt eine
+selbst angelegte Zeile die gleiche aus dem Dump.
+
+**Was bewusst nicht gemacht wurde:** Die Rechnung selbst ist nicht kürzer
+geworden (89 s, rund vierzig gespeicherte Ansichten) — sie läuft nur nicht
+mehr ständig; weniger Ansichten und weniger Schritte sind die nächste Stufe
+der Entschlackung. Die Startseite der Halle lädt ihre kurze Liste weiter alle
+20 s (zwei kleine Abfragen, kein Rechnen). Die Zeitgrenze der Rolle postgres
+bleibt 60 min — ein Lauf, der sie reisst, wird jetzt gemerkt und nicht
+wiederholt.
+
 ## Runde AJ: die Kaskade rechnet mit den Stationswerten — das Verderbsmodell ist weg (29. September, 0106)
 
 **Entscheid des Betriebs** („ja mach", zu `docs/ENTSCHLACKUNG.md` Stufe 1 und 2):

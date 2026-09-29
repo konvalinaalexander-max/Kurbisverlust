@@ -156,7 +156,11 @@ async function restAntwort(route) {
     for (const z of roh) letzte.set(`${z.auftrag_id}|${z.schluessel}`, z)
     extra = [...extra, ...letzte.values()]
   }
-  const alle = [...(fixture(name) ?? []), ...extra]
+  // Eine Zeile aus dem Gedächtnis ersetzt die gleiche aus dem Dump (gleiche id).
+  // Seit die Demo den Arbeiter Tomasz selbst kennt (29.9.), stand er sonst
+  // doppelt da, und die Startseite („genau ein Profil") blieb stehen.
+  const eigene = new Set(extra.filter(z => z?.id != null).map(z => String(z.id)))
+  const alle = [...(fixture(name) ?? []).filter(z => z?.id == null || !eigene.has(String(z.id))), ...extra]
   const erg = blaettern(filtern(alle, url.searchParams), route.request().headers())
   if (methode === 'HEAD') {
     return route.fulfill({ status: 200, headers: {

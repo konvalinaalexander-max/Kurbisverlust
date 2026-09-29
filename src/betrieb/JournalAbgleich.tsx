@@ -21,8 +21,13 @@ const MERKZETTEL = 'journal_abgleich_zuletzt'
  * mit Vorschau bleibt unter Betrieb → Stammdaten.
  *
  * Scheitert der Abruf, sagt die Karte es leise und die Seite läuft weiter.
+ *
+ * 0107: Danach wird NICHT neu gerechnet. Bis 0107 startete der Abgleich die
+ * volle Rechnung aus dem Browser — einer der drei Wege, die die Datenbank am
+ * 29. September lahmlegten. Die neuen Paletten zählen ab der nächsten
+ * Rechnung: heute Nacht oder auf „Neu rechnen".
  */
-export function JournalAbgleich({ neuGerechnet }: { neuGerechnet?: () => void }) {
+export function JournalAbgleich() {
   const [meldung, setMeldung] = useState<{ art: 'gut' | 'warnung' | 'info'; text: string } | null>(null)
 
   useEffect(() => {
@@ -69,9 +74,7 @@ export function JournalAbgleich({ neuGerechnet }: { neuGerechnet?: () => void })
         }
         void stammdaten(true)
         if (!lebt) return
-        setMeldung({ art: 'gut', text: `${neue.length === 1 ? '1 neue Palette' : `${neue.length} neue Paletten`} aus dem Erntejournal übernommen${b.probleme.length ? ` · ${b.probleme.length} Zeilen nicht erkannt (unter Stammdaten nachsehen)` : ''}. Die Ergebnisse rechnen neu.` })
-        const { error: e2 } = await supabase.rpc('auswertung_aktualisieren')
-        if (!e2) neuGerechnet?.()
+        setMeldung({ art: 'gut', text: `${neue.length === 1 ? '1 neue Palette' : `${neue.length} neue Paletten`} aus dem Erntejournal übernommen${b.probleme.length ? ` · ${b.probleme.length} Zeilen nicht erkannt (unter Stammdaten nachsehen)` : ''}. Sie zählen ab der nächsten Rechnung — heute Nacht oder mit „Neu rechnen".` })
       } catch (f) {
         // Was genau scheiterte, steht dabei — „Bad Request" allein half niemandem.
         const e = f as { status?: number; code?: string; details?: string } | null
@@ -80,7 +83,7 @@ export function JournalAbgleich({ neuGerechnet }: { neuGerechnet?: () => void })
       }
     })()
     return () => { lebt = false }
-  }, [neuGerechnet])
+  }, [])
 
   if (!meldung) return null
   return (

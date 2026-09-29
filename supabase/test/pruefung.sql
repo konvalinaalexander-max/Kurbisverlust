@@ -13,6 +13,10 @@ set client_min_messages = notice;
 -- auswertung_schritt() trägt dieselbe Einstellung, damit das Neurechnen im
 -- Betrieb nicht daran hängenbleibt.
 set jit = off;
+-- 0107: Der Zeitplan rechnet ohne Anforderung nur nachts (2 bis 5 Uhr). Damit
+-- keine Prüfung davon abhängt, wann sie läuft, steht seine Uhr hier auf einem
+-- Dienstagnachmittag; wer „nachts" prüft, stellt sie im Block selbst (0107 c).
+set kuerbis.jetzt_test = '2026-09-29 14:00+02';
 
 -- --- Benutzer -----------------------------------------------------------
 insert into auth.users (id, email, raw_user_meta_data)
@@ -3103,16 +3107,19 @@ begin
   -- Nur rechnen, wenn veraltet
   update auswertung_stand set geaendert_ts = berechnet_ts - interval '1 second' where id = 1;
   assert auswertung_wenn_veraltet() = false, 'Nichts veraltet — nichts gerechnet';
-  -- 0103: veraltet, aber der Stand ist jünger als die Drossel und nichts
-  -- angefordert — der Zeitplan wartet (die Halle löst höchstens alle zehn
-  -- Minuten einen Lauf aus, „Neu rechnen" sofort). Erst ein Stand, der
-  -- älter als die Drossel ist, wird nachgerechnet. Bis 0103 galt: veraltet
-  -- heisst beim nächsten Tick gerechnet.
-  update auswertung_stand set geaendert_ts = berechnet_ts + interval '1 second' where id = 1;
-  assert auswertung_wenn_veraltet() = false, 'Veraltet, Stand frisch, nichts angefordert — und doch gerechnet (Drossel 0103)';
-  update auswertung_stand set berechnet_ts = berechnet_ts - auswertung_drossel(dauer_ms) - interval '1 minute',
+  -- 0107: Veraltet und nichts angefordert — tagsüber rechnet der Zeitplan
+  -- nie, wie alt der Stand auch ist; nachts einmal. Bis 0107 galt die Drossel
+  -- (0103): ein Stand, älter als zehn Minuten, wurde nachgerechnet — und die
+  -- Datenbank des Betriebs rechnete den ganzen Tag. Bis 0103: veraltet hiess
+  -- beim nächsten Tick gerechnet. Die Regel änderte sich, die Prüfung mit ihr.
+  update auswertung_stand set geaendert_ts = berechnet_ts + interval '1 second', angefordert_ts = null where id = 1;
+  assert auswertung_wenn_veraltet() = false, 'Veraltet, Stand frisch, nichts angefordert — und doch gerechnet';
+  update auswertung_stand set berechnet_ts = berechnet_ts - interval '1 day',
                               geaendert_ts = clock_timestamp() where id = 1;
-  assert auswertung_wenn_veraltet() = true, 'Veraltet, Stand älter als die Drossel — gerechnet';
+  assert auswertung_wenn_veraltet() = false, 'Stand einen Tag alt, tagsüber, nichts angefordert — und doch gerechnet (0107)';
+  perform set_config('kuerbis.jetzt_test', (((current_date + 1)::timestamp + interval '3 hours') at time zone betriebszone())::text, true);
+  assert auswertung_wenn_veraltet() = true, 'Nachts, tagsüber etwas erfasst — nicht gerechnet (0107)';
+  perform set_config('kuerbis.jetzt_test', '2026-09-29 14:00+02', true);
   -- Jede gespeicherte Sicht ist gefüllt, lesbar und analysiert
   for r in select c.relname, c.reltuples, m.ispopulated
              from pg_class c join pg_matviews m on m.matviewname = c.relname
@@ -6880,8 +6887,8 @@ begin
   assert (v_erg ->> 'rechnet_seit')::timestamptz = v_seit, '0100 (a4): die Antwort sagt nicht, seit wann gerechnet wird';
 
   -- (c) Der Zeitplan-Weg rechnet nicht mit — auch wenn etwas veraltet ist.
-  --     Seit 0103 hält ihn hier die Drossel zurück (frischer Stand, nichts
-  --     angefordert); neben einer wirklich laufenden Rechnung hält ihn die
+  --     Seit 0103 hielt ihn hier die Drossel zurück, seit 0107 die Regel
+  --     „tagsüber nur auf Anforderung"; neben einer wirklich laufenden Rechnung hält ihn die
   --     Beratungssperre, die eine einzelne Sitzung nicht vorführen kann.
   --     Die Zusicherungen bleiben dieselben: kein Lauf, kein neuer Stand,
   --     rechnet_seit unberührt.
@@ -7066,7 +7073,8 @@ begin
 
   -- (d) Eine Anforderung, die vor dem letzten Stand liegt, ist erledigt: Der
   --     Stand ist frisch, die Halle hat etwas erfasst, aber nichts ist neu
-  --     angefordert — die Drossel (0103) hält den Lauf zurück. Bis 0103 hiess
+  --     angefordert — tagsüber rechnet nur eine Anforderung (0107; 0103 bis
+  --     0107 hielt die Drossel den Lauf zurück). Bis 0103 hiess
   --     das „verfallen" (30 Minuten); ein Verfallsdatum gibt es nicht mehr,
   --     eine Anforderung nach dem Stand wird gerechnet, gleich wie alt.
   update auswertung_stand set geaendert_ts = clock_timestamp(), angefordert_ts = clock_timestamp() - interval '31 minutes' where id = 1;
@@ -7113,13 +7121,14 @@ select '——— 0102 Gerechnet wird auf Anforderung geprüft ———' as erg
 -- =====================================================================
 -- 0103 — Ein Zeitplan, eine Sperre, kein Konvoi
 --
--- Geprüft wird ohne pg_cron: (a) die Drossel — veraltet, aber Stand jünger
--- als zehn Minuten und nichts angefordert: kein Lauf, nur die Notiz; (b)
--- angefordert: Lauf; (c) Stand älter als die Drossel: Lauf; (d) nichts
+-- Geprüft wird ohne pg_cron: (a) tagsüber veraltet, nichts angefordert:
+-- kein Lauf, nur die Notiz (bis 0107: die Drossel); (b) angefordert: Lauf;
+-- (c) seit 0107 auch ein alter Stand tagsüber: kein Lauf; (d) nichts
 -- veraltet: kein Lauf, Notiz; (e) der Zeitplan-Weg fasst rechnet_seit nicht
 -- an; (f) die Anforderung ohne pg_cron sagt „app"; (g) die Diagnose nennt
--- Sitzungen, Läufe, Ansichten, Grenzen und den Stand; (h) die Drossel ist
--- zehn Minuten, mindestens aber das Dreifache des letzten Laufs; (i) Stand
+-- Sitzungen, Läufe, Ansichten, Grenzen und den Stand; (h) die Drossel gibt
+-- es seit 0107 nicht mehr (bis 0107: zehn Minuten, mindestens das Dreifache
+-- des letzten Laufs); (i) Stand
 -- 103; (j) jeder Lauf notiert je Ansicht seine Dauer, die Diagnose nennt sie.
 -- =====================================================================
 do $$
@@ -7145,7 +7154,7 @@ begin
   select * into v_st from auswertung_stand where id = 1;
   assert v_st.berechnet_ts = v_vorher and v_st.zeitplan_gerufen_ts is not null, '0103 (d2): der Aufruf wurde nicht notiert oder der Stand angefasst';
 
-  -- (a) Die Drossel: veraltet, Stand jünger als die Drossel, nichts angefordert — kein Lauf
+  -- (a) Tagsüber: veraltet, Stand frisch, nichts angefordert — kein Lauf (bis 0107: die Drossel)
   update auswertung_stand set geaendert_ts = clock_timestamp(), zeitplan_gerufen_ts = null where id = 1;
   assert not auswertung_wenn_veraltet(), '0103 (a1): die Halle hat etwas erfasst, der Stand ist frisch — gerechnet wurde trotzdem';
   select * into v_st from auswertung_stand where id = 1;
@@ -7162,22 +7171,22 @@ begin
   assert v_st.dauer_ms > 0, '0103 (b4): der Lauf hat keine Dauer notiert';
   v_vorher := v_st.berechnet_ts;
 
-  -- (c) Stand älter als die Drossel: Lauf ohne Anforderung
+  -- (c) Bis 0107: ein Stand, älter als die Drossel, wurde ohne Anforderung
+  --     nachgerechnet, und die Drossel wuchs mit der Laufdauer (c3/c4). Seit
+  --     0107 rechnet der Zeitplan tagsüber nie von selbst — nach elf Minuten
+  --     nicht und nach sechzehn nicht; nachts einmal (Prüfblock 0107 c). Die
+  --     Regel änderte sich, die Prüfung mit ihr. Gerechnet wird hier auf
+  --     Anforderung, damit (c2/c5) und (j) einen Lauf haben.
   update auswertung_stand set geaendert_ts = clock_timestamp(), angefordert_ts = null,
-         berechnet_ts = clock_timestamp() - make_interval(mins => auswertung_drossel_min() + 1) where id = 1;
-  assert auswertung_wenn_veraltet(), '0103 (c1): Stand älter als die Drossel — und nicht gerechnet';
+         berechnet_ts = clock_timestamp() - interval '11 minutes' where id = 1;
+  assert not auswertung_wenn_veraltet(), '0103 (c1): Stand elf Minuten alt, tagsüber, nichts angefordert — gerechnet (seit 0107 nie)';
+  update auswertung_stand set dauer_ms = 300000, berechnet_ts = clock_timestamp() - interval '16 minutes' where id = 1;
+  assert not auswertung_wenn_veraltet(), '0103 (c4): sechzehn Minuten nach einem Fünf-Minuten-Lauf, tagsüber — gerechnet (seit 0107 nie)';
+  update auswertung_stand set angefordert_ts = clock_timestamp() where id = 1;
+  assert auswertung_wenn_veraltet(), '0103 (c3): angefordert — und nicht gerechnet';
   select * into v_st from auswertung_stand where id = 1;
   assert v_st.berechnet_ts > v_vorher, '0103 (c2): kein neuer Stand';
-  v_vorher := v_st.berechnet_ts;
-  -- (c3/c4) Die Drossel wächst mit der Laufdauer: Nach einem Lauf von fünf
-  -- Minuten rechnet die Halle erst nach fünfzehn wieder, nicht nach zwölf.
-  update auswertung_stand set geaendert_ts = clock_timestamp(), angefordert_ts = null, dauer_ms = 300000,
-         berechnet_ts = clock_timestamp() - interval '12 minutes' where id = 1;
-  assert not auswertung_wenn_veraltet(), '0103 (c3): der letzte Lauf dauerte fünf Minuten — nach zwölf Minuten rechnet die Halle schon wieder';
-  update auswertung_stand set berechnet_ts = clock_timestamp() - interval '16 minutes' where id = 1;
-  assert auswertung_wenn_veraltet(), '0103 (c4): sechzehn Minuten nach einem Fünf-Minuten-Lauf — und nicht gerechnet';
-  select * into v_st from auswertung_stand where id = 1;
-  assert v_st.berechnet_ts > v_vorher and v_st.dauer_ms < 300000, '0103 (c5): nach dem Lauf steht nicht seine eigene Dauer';
+  assert v_st.dauer_ms < 300000, '0103 (c5): nach dem Lauf steht nicht seine eigene Dauer';
   -- (j) Je Ansicht eine Dauer, für jede gespeicherte Ansicht
   assert (select count(distinct sicht) from auswertung_laufzeit where ts >= v_vorher)
        = (select count(*) from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and c.relkind = 'm'),
@@ -7202,11 +7211,11 @@ begin
   assert jsonb_array_length(v_erg -> 'langsamste') > 0 and (v_erg -> 'langsamste' -> 0 ->> 'sicht') is not null,
     '0103 (g4): die Diagnose nennt die langsamsten Ansichten nicht';
   assert (v_erg -> 'grenzen' ->> 'statement_timeout_postgres') like '%60min%', format('0103 (g3): Zeitgrenze der Rolle postgres: %s', v_erg -> 'grenzen');
-  -- (h) Die Drossel
-  assert auswertung_drossel_min() = 10, format('0103 (h1): Drossel %s statt 10 Minuten', auswertung_drossel_min());
-  assert auswertung_drossel(8000) = interval '10 minutes', format('0103 (h2): Drossel nach acht Sekunden Lauf: %s', auswertung_drossel(8000));
-  assert auswertung_drossel(690000) = interval '2070 seconds', format('0103 (h3): Drossel nach 690 Sekunden Lauf: %s', auswertung_drossel(690000));
-  assert auswertung_drossel(null) = interval '10 minutes', '0103 (h4): Drossel ohne Dauer';
+  -- (h) Die Drossel gibt es seit 0107 nicht mehr: Tagsüber löst die Halle keine
+  --     Rechnung aus, also muss nichts gedrosselt werden. Bis 0107 prüfte (h)
+  --     ihre Werte (zehn Minuten, mindestens das Dreifache des letzten Laufs).
+  assert to_regprocedure('auswertung_drossel(integer)') is null and to_regprocedure('auswertung_drossel_min()') is null,
+    '0103 (h1): die Drossel ist noch da (seit 0107 gestrichen)';
   assert schema_stand() >= 103, format('0103 (i1): schema_stand() = %s', schema_stand());
 
   if v_geladen then perform demo_daten_entfernen(); end if;
@@ -7673,3 +7682,169 @@ begin
 end $$;
 
 select '——— 0106 Kaskade auf Stationswerten geprüft ———' as ergebnis;
+
+-- =====================================================================
+-- 0107 — Gerechnet wird nachts und auf Knopfdruck, sonst nie
+--
+-- Am 29. September lag die Datenbank des Betriebs still: Der Zeitplan
+-- rechnete tagsüber alle zehn Minuten die ganze Auswertung (89 s je Lauf),
+-- und der Browser rechnete bei Journal-Abgleich und Löschen mit. Geprüft
+-- wird ohne pg_cron:
+-- (a) tagsüber: veraltet, nichts angefordert — kein Lauf, nur die Notiz,
+--     zu keiner Stunde ausserhalb von 2 bis 5 Uhr;
+-- (b) angefordert — ein Lauf, danach nichts mehr zu tun;
+-- (c) nachts einmal: um 3 Uhr ein Lauf; ein zweiter in derselben Nacht,
+--     vor 2 und ab 5 Uhr, ohne Neues keiner; Winterzeit; frisch eingespielt;
+--     nach einem nächtlichen Fehlschlag erst in der nächsten Nacht;
+-- (d) ein gescheiterter Lauf lässt die alten Zahlen stehen, merkt sich den
+--     Fehler und wird nicht wiederholt; erst eine neue Anforderung rechnet
+--     und räumt den Fehler weg;
+-- (e) aus dem Browser mit Zeitplan wird nur angefordert, nie gerechnet —
+--     auch mit der alten App (auswertung_schritt); ohne Zeitplan wie bisher;
+-- (f) erg_palox_erwartung ist v_palox_erwartung, gerechnet in Schritt 3;
+-- (g) die Drossel ist weg, der Lauf beendet keine fremden Sitzungen;
+-- (h) Stand 107.
+-- =====================================================================
+do $$
+declare v_st auswertung_stand; v_vorher timestamptz; v_erg jsonb; v_modus jsonb; v_lad text; v_n int;
+  v_geladen boolean := false; v_u uuid := '00000000-0107-0000-0000-000000000001';
+begin
+  select wert into v_modus from einstellung where schluessel = 'betriebsmodus';
+  update einstellung set wert = '"beispiel"'::jsonb where schluessel = 'betriebsmodus';
+  insert into auth.users (id, email, raw_user_meta_data) values (v_u, null, '{"name":"Prüf-0107"}');
+  update profil set rolle = 'admin' where id = v_u;
+  perform set_config('request.jwt.claim.sub', v_u::text, true);
+  -- Ohne Paletten (im Volltest stehen hier Chargen ohne Paletten, ein Rest
+  -- früherer Blöcke) die Demo frisch laden und am Ende wieder entfernen.
+  if (select count(*) from palette) = 0 then
+    perform demo_daten_entfernen();
+    select demo_daten_laden() into v_lad; v_geladen := true;
+  end if;
+  perform set_config('request.jwt.claim.sub', '', true);
+  perform auswertung_aktualisieren();
+  update auswertung_stand set angefordert_ts = null, fehler_ts = null, fehler = null, rechnet_seit = null where id = 1;
+  perform set_config('kuerbis.jetzt_test', '2026-09-29 14:00+02', true);
+
+  -- (a) tagsüber
+  update auswertung_stand set geaendert_ts = clock_timestamp(), zeitplan_gerufen_ts = null where id = 1;
+  select berechnet_ts into v_vorher from auswertung_stand where id = 1;
+  assert not auswertung_wenn_veraltet(), '0107 (a1): tagsüber, etwas erfasst, nichts angefordert — und doch gerechnet';
+  select * into v_st from auswertung_stand where id = 1;
+  assert v_st.berechnet_ts = v_vorher, '0107 (a2): tagsüber ohne Anforderung wurde der Stand angefasst';
+  assert v_st.zeitplan_gerufen_ts is not null, '0107 (a3): der Aufruf wurde nicht notiert (0098)';
+  select count(*) into v_n from generate_series(0, 23) h
+   where h not in (2, 3, 4)
+     and auswertung_grund(('2026-09-29'::timestamp + make_interval(hours => h)) at time zone 'Europe/Zurich',
+                          '2026-09-28 20:00+02', '2026-09-29 12:00+02', null, null) is not null;
+  assert v_n = 0, format('0107 (a4): %s Stunden ausserhalb von 2 bis 5 Uhr rechnen ohne Anforderung', v_n);
+
+  -- (b) angefordert
+  v_erg := auswertung_anfordern();
+  assert (v_erg ->> 'weg') = 'app', format('0107 (b0): ohne pg_cron weg app: %s', v_erg);
+  assert auswertung_wenn_veraltet(), '0107 (b1): angefordert — und nicht gerechnet';
+  select * into v_st from auswertung_stand where id = 1;
+  assert v_st.berechnet_ts > v_vorher and v_st.berechnet_ts >= v_st.angefordert_ts, '0107 (b2): nach der Anforderung kein jüngerer Stand';
+  assert not auswertung_wenn_veraltet(), '0107 (b3): erledigt — und doch noch einmal gerechnet';
+
+  -- (c) nachts einmal
+  perform set_config('kuerbis.jetzt_test', (((current_date + 1)::timestamp + interval '3 hours') at time zone 'Europe/Zurich')::text, true);
+  update auswertung_stand set geaendert_ts = clock_timestamp() where id = 1;
+  select berechnet_ts into v_vorher from auswertung_stand where id = 1;
+  assert auswertung_wenn_veraltet(), '0107 (c1): nachts, tagsüber etwas erfasst — und nicht gerechnet';
+  assert (select berechnet_ts from auswertung_stand where id = 1) > v_vorher, '0107 (c2): der nächtliche Lauf brachte keinen neuen Stand';
+  perform set_config('kuerbis.jetzt_test', '2026-09-29 14:00+02', true);
+  assert auswertung_grund('2026-09-30 03:00+02', '2026-09-29 08:00+02', '2026-09-29 13:00+02', null, null) = 'nachts',
+    '0107 (c3): um drei Uhr, tagsüber erfasst — nicht fällig';
+  assert auswertung_grund('2026-09-30 03:10+02', '2026-09-30 03:01+02', '2026-09-30 03:05+02', null, null) is null,
+    '0107 (c4): ein zweiter Lauf in derselben Nacht';
+  assert auswertung_grund('2026-09-30 01:59+02', '2026-09-29 08:00+02', '2026-09-29 13:00+02', null, null) is null,
+    '0107 (c5): vor zwei Uhr gerechnet';
+  assert auswertung_grund('2026-09-30 05:00+02', '2026-09-29 08:00+02', '2026-09-29 13:00+02', null, null) is null,
+    '0107 (c6): ab fünf Uhr gerechnet';
+  assert auswertung_grund('2026-09-30 03:00+02', '2026-09-29 20:00+02', '2026-09-29 13:00+02', null, null) is null,
+    '0107 (c7): nachts, aber seit dem Stand nichts Neues — und doch fällig';
+  assert auswertung_grund('2026-12-01 03:00+01', '2026-11-30 08:00+01', '2026-11-30 13:00+01', null, null) = 'nachts',
+    '0107 (c8): in der Winterzeit um drei Uhr nicht fällig';
+  assert auswertung_grund('2026-09-29 14:00+02', null, null, null, null) = 'erstmals',
+    '0107 (c9): frisch eingespielt, nie gerechnet — nicht fällig';
+  assert auswertung_grund('2026-09-29 14:00+02', null, null, null, '2026-09-29 13:00+02') is null,
+    '0107 (c10): nie gerechnet und gescheitert — ohne Anforderung gleich wieder versucht';
+  assert auswertung_grund('2026-09-30 03:10+02', '2026-09-29 08:00+02', '2026-09-29 13:00+02', null, '2026-09-30 02:30+02') is null,
+    '0107 (c11): nachts gescheitert — in derselben Nacht wieder versucht';
+  assert auswertung_grund('2026-10-01 03:00+02', '2026-09-29 08:00+02', '2026-09-29 13:00+02', null, '2026-09-30 02:30+02') = 'nachts',
+    '0107 (c12): in der nächsten Nacht nicht wieder versucht';
+
+  -- (d) Ein gescheiterter Lauf
+  alter materialized view erg_bilanz rename to erg_bilanz_0107;
+  update auswertung_stand set angefordert_ts = clock_timestamp(), geaendert_ts = clock_timestamp() where id = 1;
+  select berechnet_ts into v_vorher from auswertung_stand where id = 1;
+  select count(*) into v_n from auswertung_laufzeit;
+  assert not auswertung_wenn_veraltet(), '0107 (d1): der Lauf ist gescheitert, meldet aber gerechnet';
+  select * into v_st from auswertung_stand where id = 1;
+  assert v_st.fehler_ts is not null and v_st.fehler like '%erg_bilanz%', format('0107 (d2): der Fehlschlag ist nicht gemerkt: %s', v_st.fehler);
+  assert v_st.berechnet_ts = v_vorher, '0107 (d3): ein gescheiterter Lauf hat den Stand verschoben';
+  -- Was der gescheiterte Lauf schon gerechnet hatte (Schritte 1 bis 3), ist
+  -- zurückgerollt — erkennbar an seinen Laufzeit-Notizen, die mit ihm gehen —,
+  -- und keine gespeicherte Ansicht ist leer: Die alten Zahlen stehen.
+  assert (select count(*) from auswertung_laufzeit) = v_n,
+    '0107 (d4): die Teilrechnung des gescheiterten Laufs ist nicht zurückgerollt';
+  assert not exists (select 1 from pg_matviews where schemaname = 'public' and not ispopulated),
+    '0107 (d4b): nach dem Fehlschlag ist eine gespeicherte Ansicht leer';
+  -- Ein zweiter Versuch schlüge wieder fehl und sähe von aussen gleich aus wie
+  -- keiner — darum zählt, dass der Fehlschlag nicht neu geschrieben wird.
+  assert not auswertung_wenn_veraltet(), '0107 (d5): nach dem Fehlschlag beim nächsten Takt gleich wieder versucht';
+  assert (select fehler_ts from auswertung_stand where id = 1) = v_st.fehler_ts,
+    '0107 (d5b): nach dem Fehlschlag beim nächsten Takt gleich wieder versucht (der Fehlschlag ist neu geschrieben)';
+  alter materialized view erg_bilanz_0107 rename to erg_bilanz;
+  update auswertung_stand set angefordert_ts = clock_timestamp() where id = 1;
+  assert auswertung_wenn_veraltet(), '0107 (d6): eine neue Anforderung nach dem Fehlschlag — und nicht gerechnet';
+  select * into v_st from auswertung_stand where id = 1;
+  assert v_st.fehler_ts is null and v_st.fehler is null, '0107 (d7): nach einem gelungenen Lauf steht der Fehler noch da';
+
+  -- (e) Aus dem Browser
+  perform set_config('request.jwt.claim.sub', v_u::text, true);
+  perform set_config('kuerbis.zeitplan_test', 'an', true);
+  select berechnet_ts into v_vorher from auswertung_stand where id = 1;
+  perform auswertung_aktualisieren();
+  select * into v_st from auswertung_stand where id = 1;
+  assert v_st.berechnet_ts = v_vorher, '0107 (e1): aus dem Browser mit Zeitplan wurde gerechnet';
+  assert v_st.angefordert_ts > v_st.berechnet_ts, '0107 (e2): aus dem Browser mit Zeitplan wurde nicht angefordert';
+  v_erg := auswertung_schritt(1);
+  assert (v_erg ->> 'angefordert') = 'true' and (select berechnet_ts from auswertung_stand where id = 1) = v_vorher,
+    format('0107 (e3): die alte App rechnete mit auswertung_schritt: %s', v_erg);
+  v_erg := auswertung_schritt(5);
+  assert (v_erg ->> 'fertig') = 'true' and (select berechnet_ts from auswertung_stand where id = 1) = v_vorher,
+    '0107 (e4): Schritt 5 der alten App rechnet oder meldet sich nicht fertig';
+  v_erg := auswertung_anfordern();
+  assert (v_erg ->> 'weg') = 'zeitplan', format('0107 (e5): mit Zeitplan rechnet die App selbst: %s', v_erg);
+  perform set_config('kuerbis.zeitplan_test', '', true);
+  perform auswertung_aktualisieren();
+  assert (select berechnet_ts from auswertung_stand where id = 1) > v_vorher, '0107 (e6): ohne Zeitplan rechnet auswertung_aktualisieren nicht mehr';
+  perform set_config('request.jwt.claim.sub', '', true);
+
+  -- (f) Die Palox-Erwartung gespeichert
+  assert (select count(*) from erg_palox_erwartung) > 0
+     and (select count(*) from erg_palox_erwartung) = (select count(*) from v_palox_erwartung)
+     and not exists (select * from erg_palox_erwartung except select * from v_palox_erwartung),
+    '0107 (f1): erg_palox_erwartung ist nicht v_palox_erwartung';
+  assert exists (select 1 from auswertung_laufzeit where sicht = 'erg_palox_erwartung' and schritt = 3),
+    '0107 (f2): erg_palox_erwartung wird nicht in Schritt 3 gerechnet';
+  assert exists (select 1 from auswertung_schluessel() where sicht = 'erg_palox_erwartung'),
+    '0107 (f3): erg_palox_erwartung ohne Schlüssel';
+
+  -- (g) Keine Drossel, kein Beenden
+  assert to_regprocedure('auswertung_drossel(integer)') is null and to_regprocedure('auswertung_drossel_min()') is null,
+    '0107 (g1): die Drossel ist noch da';
+  assert (select prosrc from pg_proc where proname = 'auswertung_wenn_veraltet') not like '%pg_terminate_backend%',
+    '0107 (g2): der Lauf des Zeitplans beendet fremde Sitzungen';
+  assert schema_stand() >= 107, format('0107 (h1): schema_stand() = %s', schema_stand());
+
+  update auswertung_stand set angefordert_ts = null where id = 1;
+  if v_geladen then perform demo_daten_entfernen(); end if;
+  delete from profil where id = v_u;
+  delete from auth.users where id = v_u;
+  update einstellung set wert = v_modus where schluessel = 'betriebsmodus';
+  raise notice 'OK  0107 — gerechnet wird nachts einmal und auf „Neu rechnen", sonst nie; ein gescheiterter Lauf wird nicht wiederholt; der Browser rechnet nie, wo der Zeitplan da ist';
+end $$;
+
+select '——— 0107 Gerechnet wird nachts und auf Knopfdruck geprüft ———' as ergebnis;

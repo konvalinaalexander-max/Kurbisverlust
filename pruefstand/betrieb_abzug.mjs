@@ -107,7 +107,7 @@ const [einstellungen, stand, chargen, profile, auftraege, rueck, befunde, kv, ka
   rest('erg_koeff_verdunstung?select=*'),
   rest('erg_koeff_ausschuss?select=*'),
   rest('erg_koeff_nebenkanal?select=*'),
-  rest('v_palox_erwartung?select=*&order=sorte,station'),
+  rest('erg_palox_erwartung?select=*&order=sorte,station'),
   rest('erg_datenqualitaet?select=*'),
   rest('erg_bilanz?select=*'),
 ])
@@ -192,7 +192,7 @@ m += 'Für die nächste Runde: Passen die Zahlen zu dem, was die Saison zeigen s
 m += '## Verdunstung je Sorte (erg_koeff_verdunstung)\n\n' + tabelle(kv)
 m += '## Zu klein / zu gross je Sorte (erg_koeff_ausschuss)\n\n' + tabelle(ka)
 m += '## Anderer Kanal je Sorte (erg_koeff_nebenkanal)\n\n' + tabelle(kn)
-m += '## Palox-Anteil je Sorte und Station (v_palox_erwartung, 0106)\n\n' + tabelle(erwartung)
+m += '## Palox-Anteil je Sorte und Station (erg_palox_erwartung, 0107)\n\n' + tabelle(erwartung)
 m += '## Datenqualität (erg_datenqualitaet)\n\n' + tabelle(qual)
 m += '## Bilanz (erg_bilanz)\n\n' + tabelle(bilanz)
 
