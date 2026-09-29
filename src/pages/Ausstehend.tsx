@@ -17,6 +17,8 @@ import { tonnen, zahl } from '../lib/format'
 export default function Ausstehend() {
   const { daten, laedt, fehler, fortschritt, neuRechnen } = useAuswertung()
   if (laedt && !daten) return <Rechnet fortschritt={fortschritt} />
+  // Runde AJ: die zweite Welle der Ergebnisse (dieser Reiter braucht sie) kommt nach dem Lagermanagement.
+  if (daten && !daten.vollstaendig) return <Rechnet fortschritt={fortschritt} />
   if (fehler) return <Hinweis art="warnung">{fehler}</Hinweis>
   if (!daten) return null
   const gesamt = daten.prognose.find(p => p.gruppe === 'gesamt' && p.h === 0) ?? null
@@ -50,7 +52,7 @@ export default function Ausstehend() {
           (Arbeiter-App → Kontrolle; auch der Zettel am Eingang zählt als erste Wägung). Schaltet frei: den Wasserverlust bis heute und den
           verkaufsfähigen Anteil.</p>
           <p><strong>Faules im Lager</strong> — bei jeder Arbeit den Palox leeren und das Faule wiegen (Arbeiter-App, „Palox leeren"). Das
-          Verderbsmodell braucht Messungen aus mehreren Chargen und Lagerdauern; bis dahin gilt die Treppe der bisherigen Messungen. Schaltet
+          Faule je Sorte und Station ist das Mittel der letzten vier Wochen (ab drei Arbeiten), sonst der Saison, sonst aller Sorten. Schaltet
           frei: Faules bis heute und die Prognose.</p>
           <p><strong>Zu klein / zu gross</strong> — beim Waschen + Sortieren von Hand die aussortierten Kisten wiegen (Abschluss der Arbeit,
           eine Art darf fehlen: sie bleibt dann unbekannt, nicht 0). Am Band liest die Sortierdatei es selbst. Schaltet frei: was im Haus
@@ -100,7 +102,7 @@ function SortenTabelle({ daten, sorten }: { daten: Auswertung; sorten: Prognose[
         const nSch = schimmelJe(s)
         const faul: Stand = !p.f_bekannt ? { art: 'fehlt', text: 'fehlt — beim Leeren das Faule wiegen' }
           : nSch === 0 ? { art: 'geliehen', text: 'geliehen (alle Sorten, keine eigene)' }
-          : { art: 'eigen', text: `${zahl(nSch)} ${nSch === 1 ? 'Messung' : 'Messungen'}${daten.modell?.brauchbar ? '' : ' · Modell noch nicht brauchbar'}` }
+          : { art: 'eigen', text: `${zahl(nSch)} ${nSch === 1 ? 'Messung' : 'Messungen'}` }
         const klein = daten.sorten.ausschuss.find(k => k.sorte === s), gross = daten.sorten.nebenkanal.find(k => k.sorte === s)
         const kanal: Stand = !p.kanal_bekannt ? { art: 'fehlt', text: 'fehlt — zu klein und zu gross wiegen' }
           : (klein && gross && !geliehen(klein) && !geliehen(gross))

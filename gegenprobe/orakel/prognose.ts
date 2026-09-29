@@ -7,7 +7,7 @@
  * Portion „lager", ausgewertet bei `alter + h` statt bei `alter`:
  *
  *   m1(h) = m0 · (1−r)^(t₀+h)
- *   m2(h) = m1(h) · (1−a₀) · (1−F(t₀+h))
+ *   m2(h) = m1(h) · (1−f(h))        f(h): die Stationswerte, um h Tage Zuwachs fortgeschrieben (0106)
  *   verkaufsfähig(h) = m2(h) · (1 − a_klein − a_gross) · (1 − a_fax)
  *
  * Bei h = 0 steht deshalb exakt die Zahl von heute. Das ist die Probe, die
@@ -18,9 +18,9 @@
  * exakt** — beide Teile ergeben zusammen auf den Rappen den Verlust an
  * verkaufsfähiger Ware, und keiner von beiden wird je negativ:
  *
- *   B        = m0 · (1−a₀) · (1 − a_klein − a_gross) · (1 − a_fax)
- *   Wasser   = B · (1−r)^t₀ · (1−F(t₀)) · (1 − (1−r)^h)
- *   Fäulnis  = B · (1−r)^t₀ · (1−r)^h  · (F(t₀+h) − F(t₀))
+ *   B        = m0 · (1 − a_klein − a_gross) · (1 − a_fax)
+ *   Wasser   = B · (1−r)^t₀ · (1−f(0)) · (1 − (1−r)^h)
+ *   Fäulnis  = B · (1−r)^t₀ · (1−r)^h  · (f(h) − f(0))
  *   zusammen = VF(0) − VF(h)
  *
  * Die naive Differenz „faul nachher minus faul vorher" hätte diese
@@ -39,7 +39,6 @@ export interface LagerPortion {
   alterTage: number
   m0: number
   r: number
-  a0: number
   /** Schon normiert, wie mv_kaskade sie führt. */
   aKleinN: number
   aGrossN: number
@@ -50,7 +49,6 @@ export interface Stand {
   m1: number
   m2: number
   verdunstetKg: number
-  sockelKg: number
   faulKg: number
   kanalKg: number
   faxKg: number
@@ -65,14 +63,13 @@ export interface Stand {
  */
 export function standBei(p: LagerPortion, f: number): Stand {
   const m1 = p.m0 * Math.pow(1 - p.r, p.alterTage)
-  const m2 = m1 * (1 - p.a0) * (1 - f)
+  const m2 = m1 * (1 - f)
   const kanalKg = m2 * (p.aKleinN + p.aGrossN)
   const rest = m2 * (1 - p.aKleinN - p.aGrossN)
   return {
     m1, m2,
     verdunstetKg: p.m0 - m1,
-    sockelKg: m1 * p.a0,
-    faulKg: m1 * (1 - p.a0) * f,
+    faulKg: m1 * f,
     kanalKg,
     faxKg: rest * p.aFax,
     verkaufsfaehigKg: rest * (1 - p.aFax),
@@ -96,7 +93,7 @@ export interface Verlust {
  * kostet, exakt in Wasser und Fäulnis zerlegt.
  */
 export function verlustAb(p: LagerPortion, h: number, fHeute: number, fDann: number): Verlust {
-  const basis = p.m0 * (1 - p.a0) * (1 - p.aKleinN - p.aGrossN) * (1 - p.aFax) * Math.pow(1 - p.r, p.alterTage)
+  const basis = p.m0 * (1 - p.aKleinN - p.aGrossN) * (1 - p.aFax) * Math.pow(1 - p.r, p.alterTage)
   const wasserKg = basis * (1 - fHeute) * (1 - Math.pow(1 - p.r, h))
   const faeulnisKg = basis * Math.pow(1 - p.r, h) * Math.max(fDann - fHeute, 0)
   return { wasserKg, faeulnisKg, verkaufsfaehigKg: wasserKg + faeulnisKg }
@@ -105,7 +102,6 @@ export function verlustAb(p: LagerPortion, h: number, fHeute: number, fDann: num
 /** Die Ränder der Hülle: alle Koeffizienten gleichzeitig am ungünstigsten Rand. */
 export interface Raender {
   rUnten: number; rOben: number
-  a0Unten: number; a0Oben: number
   kleinUnten: number; kleinOben: number
   grossUnten: number; grossOben: number
   faxUnten: number; faxOben: number
@@ -113,18 +109,18 @@ export interface Raender {
 
 export function huelle(p: LagerPortion, h: number, fUnten: number, fOben: number, g: Raender):
     { unten: number; oben: number } {
-  const zweig = (r: number, a0: number, klein: number, gross: number, fax: number, f: number) => {
+  const zweig = (r: number, klein: number, gross: number, fax: number, f: number) => {
     const { aKleinN, aGrossN } = normieren(klein, gross)
     // Der Deckel bei 1 ist rechnerisch überflüssig — nach der Normierung ist
     // die Summe höchstens 1 —, in Fliesskomma aber nicht: 0.8/1.4 + 0.6/1.4
     // ergibt 1.0000000000000002, und die Kante des Bandes würde negativ.
     // Die Sicht setzt denselben Deckel (`least(…, 1)`).
-    return p.m0 * Math.pow(1 - r, p.alterTage + h) * (1 - a0) * (1 - f)
+    return p.m0 * Math.pow(1 - r, p.alterTage + h) * (1 - f)
          * (1 - Math.min(aKleinN + aGrossN, 1)) * (1 - fax)
   }
   return {
-    unten: zweig(g.rOben, g.a0Oben, g.kleinOben, g.grossOben, g.faxOben, fOben),
-    oben:  zweig(g.rUnten, g.a0Unten, g.kleinUnten, g.grossUnten, g.faxUnten, fUnten),
+    unten: zweig(g.rOben, g.kleinOben, g.grossOben, g.faxOben, fOben),
+    oben:  zweig(g.rUnten, g.kleinUnten, g.grossUnten, g.faxUnten, fUnten),
   }
 }
 
@@ -137,7 +133,6 @@ export interface Zeile {
   alterVon: number
   alterBis: number
   verdunstetKg: number
-  sockelKg: number
   faulKg: number
   kanalKg: number
   faxKg: number
@@ -151,8 +146,9 @@ export interface Zeile {
   /** Anteil an der Eingangsware — leer, wenn ein Koeffizient fehlt (leer ist nicht null). */
   verkaufsfaehigAnteil: number | null
   vollstaendig: boolean
-  modellGilt: boolean
-  hochgerechnet: boolean
+  /** 0106: ein Anteil aus allen Sorten (geliehen) — und ob die Prognose mit dem Zuwachs fortschreibt. */
+  fGeliehen: boolean
+  zuwachsBekannt: boolean
 }
 
 /** Ein Teil der Summe: eine Portion an einem Horizont, mit allem, was daran hängt. */
@@ -163,10 +159,9 @@ export interface Teil {
   stand: Stand
   verlust: Verlust
   huelle: { unten: number; oben: number }
-  bekannt: { r: boolean; f: boolean; a0: boolean; kanal: boolean; fax: boolean }
-  modellGilt: boolean
-  /** Liegt t jenseits des grössten beobachteten Lagertags? */
-  ueberTMax: boolean
+  bekannt: { r: boolean; f: boolean; kanal: boolean; fax: boolean }
+  fGeliehen: boolean
+  zuwachsBekannt: boolean
 }
 
 export function summieren(teile: Teil[]): Zeile {
@@ -175,8 +170,7 @@ export function summieren(teile: Teil[]): Zeile {
   const verkaufsfaehigKg = s(x => x.stand.verkaufsfaehigKg)
   // „Vollständig" heisst: jeder Koeffizient jeder Portion ist gemessen. Fehlt
   // einer, sind die Massen eine obere Schranke und der Anteil bleibt leer.
-  const vollstaendig = teile.every(x => x.bekannt.r && x.bekannt.f && x.bekannt.a0
-                                     && x.bekannt.kanal && x.bekannt.fax)
+  const vollstaendig = teile.every(x => x.bekannt.r && x.bekannt.f && x.bekannt.kanal && x.bekannt.fax)
   return {
     lagerKg,
     nKohorten: teile.length,
@@ -184,7 +178,6 @@ export function summieren(teile: Teil[]): Zeile {
     alterVon: Math.min(...teile.map(x => x.t)),
     alterBis: Math.max(...teile.map(x => x.t)),
     verdunstetKg: s(x => x.stand.verdunstetKg),
-    sockelKg: s(x => x.stand.sockelKg),
     faulKg: s(x => x.stand.faulKg),
     kanalKg: s(x => x.stand.kanalKg),
     faxKg: s(x => x.stand.faxKg),
@@ -197,16 +190,16 @@ export function summieren(teile: Teil[]): Zeile {
     verlustVerkaufsfaehigKg: s(x => x.verlust.verkaufsfaehigKg),
     verkaufsfaehigAnteil: vollstaendig && lagerKg > 0 ? verkaufsfaehigKg / lagerKg : null,
     vollstaendig,
-    modellGilt: teile.every(x => x.modellGilt),
-    hochgerechnet: teile.some(x => x.modellGilt && x.ueberTMax),
+    fGeliehen: teile.some(x => x.fGeliehen),
+    zuwachsBekannt: teile.every(x => x.zuwachsBekannt),
   }
 }
 
 /** Die Probe: Ströme summieren sich auf die liegende Masse. */
-export function summeStimmtPrognose(z: { verdunstetKg: number; sockelKg: number; faulKg: number;
+export function summeStimmtPrognose(z: { verdunstetKg: number; faulKg: number;
                                          kanalKg: number; faxKg: number; verkaufsfaehigKg: number;
                                          lagerKg: number }): boolean {
-  const summe = z.verdunstetKg + z.sockelKg + z.faulKg + z.kanalKg + z.faxKg + z.verkaufsfaehigKg
+  const summe = z.verdunstetKg + z.faulKg + z.kanalKg + z.faxKg + z.verkaufsfaehigKg
   return Math.abs(summe - z.lagerKg) <= 1e-6 * Math.max(z.lagerKg, 1)
 }
 

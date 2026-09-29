@@ -37,7 +37,7 @@ begin
   --    „count(*)": Postgres wertet die Spaltenausdrücke sonst gar nicht aus,
   --    und genau daran ging die erste Diagnose vorbei.
   foreach v in array array['v_hochrechnung','v_massenbilanz','v_datenlage','v_plausibilitaet',
-      'v_kaliber_verteilung','v_schimmel_kurve_anzeige','v_schimmel_modell','v_selektionsverdacht',
+      'v_kaliber_verteilung','v_palox_erwartung','v_charge_weg','v_charge_palox',
       'v_saisonbilanz','v_schimmel_punkte','v_hochrechnung_basis','v_naechste_charge',
       'v_koeff_verdunstung','v_koeff_ausschuss','v_koeff_nebenkanal','v_koeff_ueberfuellung',
       'v_wiegung_kennzahl','v_marge_buch','v_gewichtsverteilung','v_verarbeitung_alter',
@@ -97,13 +97,12 @@ begin
   end;
 
   begin
-    select 'k=' || round(k, 4) || ' · var_achse=' || round(var_achse, 6)
-           || ' · var_k=' || round(var_k, 6) || ' · Sockel=' || round(sockel, 4)
-           || ' · Chargen=' || c_chargen || ' · brauchbar=' || brauchbar
-      into v_txt from v_schimmel_modell;
-    insert into diagnose (was, befund) values ('Verderbsmodell', coalesce(v_txt, 'nicht gerechnet'));
+    -- 0106: statt des Verderbsmodells die Erwartung je Sorte und Station
+    select string_agg(sorte || '/' || station || '=' || round(anteil * 100, 1) || '% (' || ebene || ', ' || n_arbeiten || ')', ' · ' order by sorte, station)
+      into v_txt from v_palox_erwartung;
+    insert into diagnose (was, befund) values ('Palox-Anteil je Station', coalesce(v_txt, 'nicht gerechnet'));
   exception when others then
-    insert into diagnose (was, befund) values ('Verderbsmodell', 'FEHLER: ' || sqlerrm);
+    insert into diagnose (was, befund) values ('Palox-Anteil je Station', 'FEHLER: ' || sqlerrm);
   end;
 
   begin

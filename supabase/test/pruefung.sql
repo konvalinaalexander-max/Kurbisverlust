@@ -232,16 +232,17 @@ begin
     'Der Anteil muss auf die verdunstete Masse bezogen sein und damit über 60/8650 liegen';
   assert v < 0.05, format('Schimmelanteil unplausibel hoch: %s', v);
 
-  -- ---- Schimmelkurve ist monoton -------------------------------------
-  assert not exists (
-    select 1 from (select anteil_mono, lag(anteil_mono) over (order by von) vor
-                     from v_schimmel_kurve) t
-     where anteil_mono < vor),
-    'Die kumulative Schimmelkurve darf nicht fallen';
-  assert schimmelanteil(200) >= schimmelanteil(10), 'schimmelanteil() muss mit dem Alter wachsen';
-  assert schimmelanteil(5) = 0, 'Ohne Beobachtung unter 14 Tagen ist der Anteil 0';
+  -- ---- Der Stationswert ist die Beobachtung (0106) ---------------------
+  -- Bis 0105 stand hier die Schimmelkurve (monoton, wächst mit dem Alter);
+  -- das Modell ist gestrichen. Was bleibt: Der eigene Palox-Anteil der
+  -- Charge am Band ist genau der beobachtete Anteil der einen Arbeit.
+  assert abs((select anteil from v_charge_palox where charge_nr = 1613 and station = 'sortieren')
+             - (select anteil from v_schimmel_beobachtung where auftrag_id = 900)) < 1e-4,
+    'Der eigene Stationswert der Charge muss die Beobachtung der Arbeit sein';
+  assert (select ebene from v_palox_erwartung where sorte = 'Tiana' and station = 'sortieren') like 'alle%',
+    'Eine Arbeit ist kein Wert der Sorte — die Erwartung muss geliehen sein';
 
-  raise notice 'OK  Verdunstung, Schimmel, Kurve';
+  raise notice 'OK  Verdunstung, Schimmel, Stationswert';
 end $$;
 
 -- =====================================================================
@@ -355,8 +356,6 @@ begin
   perform auswertung_aktualisieren();
   assert (select buch from v_verlust_ranking where strom = 'Zu klein (Tierfutter)') = 'marge',
     'Zu klein geht an die Tiere und gehört in Buch B, nicht in den Verlust';
-  assert (select buch from v_verlust_ranking where strom = 'Nicht lagerbedingt') = 'feld',
-    'Die Grundaussortierung braucht ihr eigenes Buch';
   assert exists (select 1 from v_marge_buch where posten = 'Zu klein (Tierfutter)'),
     'Zu klein muss im Marge-Buch stehen';
   assert (select kg from v_verlust_ranking order by kg desc nulls last limit 1) > 0,
@@ -583,8 +582,11 @@ begin
   assert not (select plausibel from v_schimmel_beobachtung where auftrag_id = 950),
     'Ein Schimmelanteil weit über 100 % muss als unplausibel erkannt werden';
 
-  -- Der Unsinn darf nicht in die Kurve und nicht in die Kaskade gelangen
-  assert schimmelanteil(200) <= 1, 'schimmelanteil() darf nie über 1 liegen';
+  -- Der Unsinn darf nicht in die Stationswerte und nicht in die Kaskade
+  -- gelangen (0106: statt der Kurve die Erwartung je Sorte und Station)
+  assert not exists (select 1 from v_palox_erwartung where anteil > 0.9 or anteil < 0),
+    'Ein Stationswert über der Plausibilitätsgrenze — der Unsinn ist in der Erwartung';
+  assert not exists (select 1 from mv_kaskade where f > 1 or f < 0), 'f muss zwischen 0 und 1 liegen';
   assert not exists (select 1 from v_kaskade where m2 < 0),
     'Keine negative Masse nach dem Schimmel-Schritt';
   assert not exists (select 1 from v_kaskade where verkaufsfaehig_kg < -0.01),
@@ -717,56 +719,64 @@ select a.id,
 select auswertung_aktualisieren();
 
 -- =========================================================================
--- Statistik: was die Überprüfung von 0017–0022 nachgewiesen hat, bleibt
--- nachgewiesen. Diese Blöcke prüfen keine Zahlen aus der Simulation, sondern
--- die Eigenschaften, aus denen sie folgen — die halten auch auf echten Daten.
+-- Stationswerte (0106): Bis 0105 stand hier das Verderbsmodell — steigt,
+-- korrigiert zurück (Smearing), wird beim Hochrechnen unsicherer, Sockel,
+-- t-Faktor nach Chargen. Das Modell ist gestrichen (Entscheid des Betriebs,
+-- Runde AJ). An seine Stelle tritt die Erwartung je Sorte und Station; was
+-- von den alten Eigenschaften bleibt, steht hier: Der Wert ist nach Masse
+-- gewichtet und lässt sich unabhängig nachrechnen, sein Band liegt um ihn,
+-- die Chargen zählen nicht öfter als die Arbeiten, und ein Wert aus wenigen
+-- Arbeiten ist geliehen, nicht eigen.
 -- =========================================================================
 
 do $$
-declare v_f30 numeric; v_f90 numeric; v_f200 numeric;
-        v_brauchbar boolean; v_smearing numeric;
+declare r record; v_n int := 0;
 begin
-  select brauchbar, smearing into v_brauchbar, v_smearing from v_schimmel_modell;
-  assert v_brauchbar, 'Das Verderbsmodell lässt sich mit den Testdaten nicht anpassen';
-
-  -- Der Kern von 0017: der Verlauf steigt über die längste gemessene
-  -- Lagerdauer hinaus weiter. Die alte Treppenfunktion lief hier flach —
-  -- das war die −46-%-Verzerrung bei halb vollem Lager.
-  v_f30  := schimmelanteil(30);
-  v_f90  := schimmelanteil(90);
-  v_f200 := schimmelanteil(200);
-  assert v_f30 < v_f90 and v_f90 < v_f200,
-         format('Schimmelverlauf steigt nicht: 30 T = %s, 90 T = %s, 200 T = %s',
-                v_f30, v_f90, v_f200);
-  assert v_f200 > v_f90 * 1.2,
-         format('Bei 200 Tagen kaum mehr Schimmel als bei 90 — wird wieder flach '
-                || 'fortgeschrieben? (%s vs. %s)', v_f200, v_f90);
-
-  -- Duan-Smearing: Rücktransformation aus dem Log-Raum. Unter 1 wäre falsch
-  -- herum, über 2 wäre kein Korrekturfaktor mehr, sondern ein Symptom.
-  assert v_smearing >= 1.0 and v_smearing < 2.0,
-         format('Smearing-Faktor unplausibel: %s', v_smearing);
-
-  -- Der Bereich muss dort breiter werden, wo extrapoliert wird.
-  assert (schimmelanteil(200, 'oben') - schimmelanteil(200, 'unten'))
-       > (schimmelanteil(60, 'oben') - schimmelanteil(60, 'unten')),
-         'Der Bereich wird beim Hochrechnen nicht breiter — die Unsicherheit '
-         || 'der Extrapolation fehlt';
-
-  raise notice 'OK  Verderbsmodell (steigt, korrigiert zurück, wird unsicherer)';
+  -- Die Fixtur 2001–2015 (drei Chargen, fünfmal Sortieren) gibt Bolp 5110,
+  -- Orangita und Lekor je einen eigenen Wert am Band.
+  for r in select e.*,
+                  (select sum(p.basis_jetzt_kg * p.anteil_station) / nullif(sum(p.basis_jetzt_kg), 0)
+                     from v_schimmel_punkte p
+                    where p.plausibel_station and p.anteil_station is not null and p.basis_jetzt_kg > 0
+                      and p.station = e.station and p.quelle in ('verarbeitung', 'verarbeitung_gemischt')
+                      and (e.ebene like 'alle%' or p.sorte = e.sorte)
+                      and (e.ebene like '%saison' or p.messtag > heute() - 28)) as nachgerechnet
+             from v_palox_erwartung e
+  loop
+    v_n := v_n + 1;
+    assert abs(r.anteil - r.nachgerechnet) < 1e-4,
+      format('Erwartung %s/%s (%s): %s statt nachgerechnet %s', r.sorte, r.station, r.ebene, r.anteil, r.nachgerechnet);
+    assert r.unten <= r.anteil and r.anteil <= r.oben and r.unten >= 0 and r.oben <= 1,
+      format('Das Band von %s/%s liegt nicht um den Wert (%s ≤ %s ≤ %s)', r.sorte, r.station, r.unten, r.anteil, r.oben);
+    assert r.n_chargen <= r.n_arbeiten, format('%s/%s: mehr Chargen als Arbeiten', r.sorte, r.station);
+    assert (r.ebene like 'alle%') = r.geliehen, format('%s/%s: geliehen passt nicht zur Ebene %s', r.sorte, r.station, r.ebene);
+    assert r.ebene not like 'sorte%' or r.n_arbeiten >= 3,
+      format('%s/%s: ein Wert der Sorte aus nur %s Arbeiten', r.sorte, r.station, r.n_arbeiten);
+  end loop;
+  assert v_n > 0, 'v_palox_erwartung ist leer — die Prüfung sagt dann nichts';
+  assert palox_mindest_arbeiten() = 3, 'Ein Wert der Sorte gilt ab drei Arbeiten';
+  assert (select ebene from v_palox_erwartung where sorte = 'Lekor' and station = 'sortieren') like 'sorte%'
+     and (select n_arbeiten from v_palox_erwartung where sorte = 'Lekor' and station = 'sortieren') >= 5,
+    'Lekor hat fünf Sortier-Arbeiten — der Wert muss ihr eigener sein';
+  raise notice 'OK  Stationswerte (nachgerechnet, Band, Chargen ≤ Arbeiten, geliehen ab wenigen Arbeiten)';
 end $$;
 
--- 0037: Die Grundaussortierung. Die Fixtur oben ist reiner Verderb — der
--- Sockel muss dann null sein. Dann bekommt jede Messung 2 % der Bezugsmasse
--- dazu (Erde, Hagelnarben), und das Modell muss genau das wiederfinden, ohne
--- dass sich die Kurve darunter verbiegt.
+-- 0037 (seit 0106 umgedeutet): Was in den Palox gelegt wird, kommt im
+-- Stationswert an — Punkt für Punkt. Jede Messung der Fixtur bekommt 2 %
+-- der Bezugsmasse dazu (Erde, Hagelnarben); der eigene Wert jeder Charge
+-- und die Erwartung der Sorte müssen um genau diese zwei Punkte steigen,
+-- und das Faule der Kaskade mit ihnen. Einen Sockel, der das herausrechnet,
+-- gibt es nicht mehr: Was das Auge in den Palox legt, ist Faules der Station.
 do $$
-declare v_sockel numeric; v_k numeric; v_k_vorher numeric; v_f200 numeric; v_f200_vorher numeric;
+declare v_vorher numeric; v_nachher numeric; v_kg_vorher numeric; v_kg_nachher numeric; r record;
 begin
-  select sockel, k into v_sockel, v_k_vorher from v_schimmel_modell;
-  assert v_sockel = 0,
-    format('Reiner Verderb, aber der Sockel ist %s — die Anpassung erfindet einen', v_sockel);
-  v_f200_vorher := schimmelanteil(200);
+  -- Der Stationswert, mit dem die Kaskade für die drei Chargen am Band
+  -- rechnet (f_s) — nicht das Faule in Kilo: Das ist unbekannt, solange
+  -- eine Station auf dem Weg einer anderen Charge keinen Wert hat.
+  select avg(f_s) into v_kg_vorher from mv_kaskade where charge_nr in (1603, 1604, 1606) and portion = 'lager';
+  create temp table sockel_vorher on commit drop as
+    select charge_nr, station, anteil from v_charge_palox where charge_nr in (1603, 1604, 1606) and station = 'sortieren';
+  select anteil into v_vorher from v_palox_erwartung where sorte = 'Lekor' and station = 'sortieren';
 
   -- Nur die Modell-Fixtur (2001–2015) zählt für diesen Block: Die übrigen
   -- Messungen der Prüfdaten folgen keinem Verlauf und würden den Vergleich
@@ -781,20 +791,20 @@ begin
    where b.auftrag_id = s.auftrag_id and s.auftrag_id between 2001 and 2015;
   perform auswertung_aktualisieren();
 
-  select sockel, k into v_sockel, v_k from v_schimmel_modell;
-  assert abs(v_sockel - 0.02) <= 0.0026,
-    format('Sockel von 2 %% eingebaut, geschätzt %s', v_sockel);
-  assert abs(v_k - v_k_vorher) < 0.15,
-    format('Der Sockel verbiegt die Steigung: k %s vorher, %s nachher', v_k_vorher, v_k);
-  v_f200 := schimmelanteil(200);
-  assert abs(v_f200 - v_f200_vorher) / v_f200_vorher < 0.15,
-    format('F(200) mit Sockel %s, ohne %s — der Sockel steckt noch in der Kurve',
-           v_f200, v_f200_vorher);
-  assert (select kg from v_verlust_ranking where strom = 'Nicht lagerbedingt') > 0,
-    'Die Grundaussortierung muss als eigener Strom beziffert sein';
-  assert (select sockel_oben from v_schimmel_modell) >= v_sockel
-     and (select sockel_unten from v_schimmel_modell) <= v_sockel,
-    'Der Sockel-Bereich muss den Sockel enthalten';
+  for r in select p.charge_nr, p.anteil as nachher, v.anteil as vorher
+             from v_charge_palox p join sockel_vorher v on v.charge_nr = p.charge_nr and v.station = p.station
+  loop
+    assert abs((r.nachher - r.vorher) - 0.02) < 0.0006,
+      format('Charge %s: 2 %% mehr im Palox, der eigene Wert stieg um %s', r.charge_nr, r.nachher - r.vorher);
+  end loop;
+  select anteil into v_nachher from v_palox_erwartung where sorte = 'Lekor' and station = 'sortieren';
+  assert abs((v_nachher - v_vorher) - 0.02) < 0.0006,
+    format('Die Erwartung der Sorte muss um zwei Punkte steigen: %s → %s', v_vorher, v_nachher);
+  select avg(f_s) into v_kg_nachher from mv_kaskade where charge_nr in (1603, 1604, 1606) and portion = 'lager';
+  assert abs((v_kg_nachher - v_kg_vorher) - 0.02) < 0.0006,
+    format('Mehr im Palox, aber die Kaskade rechnet nicht damit (Stationswert am Band %s → %s)', v_kg_vorher, v_kg_nachher);
+  assert not exists (select 1 from v_verlust_ranking where strom = 'Nicht lagerbedingt'),
+    'Den Strom „Nicht lagerbedingt" gibt es seit 0106 nicht mehr';
 
   -- zurück auf reinen Verderb, und die übrigen Messungen wieder an
   update schimmel_messung s
@@ -804,24 +814,7 @@ begin
    where a.id = s.auftrag_id and s.auftrag_id between 2001 and 2015;
   update schimmel_messung set gemessen = true where auftrag_id not between 2001 and 2015;
   perform auswertung_aktualisieren();
-  raise notice 'OK  Grundaussortierung (null bei reinem Verderb, 2 %% wiedergefunden, Kurve bleibt)';
-end $$;
-
-do $$
-declare v_n int; v_c int;
-begin
-  -- 0017/0018: Messungen aus derselben Charge sind keine unabhängigen
-  -- Beobachtungen. Wenn c_chargen wieder gleich n wäre, zählte jemand
-  -- Messungen statt Gruppen — das war der 31-fach zu kleine Fehler.
-  select n, c_chargen into v_n, v_c from v_schimmel_modell;
-  assert v_c <= v_n, 'Mehr Chargen als Messungen — das kann nicht sein';
-  assert v_c >= 3, format('Nur %s Chargen im Modell — der Fehler ist so nicht '
-                          || 'schätzbar', v_c);
-
-  -- Die Freiheitsgrade folgen den Chargen, nicht den Messungen.
-  assert (select t_faktor from v_schimmel_modell) = t_quantil_95(v_c - 1),
-         'Der t-Faktor passt nicht zur Zahl der Chargen';
-  raise notice 'OK  Fehler folgt den Chargen, nicht der Zahl der Messungen';
+  raise notice 'OK  Zwei Prozent mehr im Palox: eigener Wert, Erwartung und Kaskade steigen mit (0106)';
 end $$;
 
 do $$
@@ -1136,21 +1129,15 @@ begin
 end $$;
 
 do $$
-declare v_versatz numeric;
 begin
-  -- 0032: Der Selektionszuschlag darf nur feuern, wenn es Lagerkontrollen gibt
-  -- und der Unterschied grösser ist als sein eigenes Rauschen. Sonst würde
-  -- jeder Bereich grundlos aufgeblasen.
-  select selektions_versatz into v_versatz from v_schimmel_modell;
-  assert v_versatz is null,
-    'Ohne Lagerkontrollen darf es keinen Selektionszuschlag geben';
-  assert (select befund from v_selektionsverdacht) like '%nicht prüfbar%',
-    'Ohne Lagerkontrollen muss das Dashboard sagen, dass Selektion nicht prüfbar ist';
-
-  -- Und die Grenzen bleiben in der richtigen Reihenfolge, mit wie ohne Zuschlag.
+  -- 0032 bis 0105: der Selektionszuschlag (feuert nur mit Lagerkontrollen).
+  -- Seit 0106 gibt es weder Zuschlag noch Selektionsverdacht — die
+  -- Stationswerte vergleichen ein Auge nur mit sich selbst. Geblieben ist
+  -- die Ordnung der Grenzen, die der Zuschlag damals verdrehen konnte.
   assert not exists (select 1 from v_verlust_ranking where kg_unten > kg or kg > kg_oben),
-    'Der Selektionszuschlag hat die Grenzen verdreht';
-  raise notice 'OK  Selektionszuschlag (feuert nur mit Beleg)';
+    'Die Grenzen des Bereichs sind verdreht';
+  assert to_regclass('public.v_selektionsverdacht') is null, 'v_selektionsverdacht ist seit 0106 gestrichen';
+  raise notice 'OK  Bereichsgrenzen in Ordnung, kein Selektionszuschlag mehr (0106)';
 end $$;
 
 select '——— Ablauf geprüft ———' as ergebnis;
@@ -1350,7 +1337,8 @@ do $$
 declare v_auftrag bigint; v_n_vorher int; v_n_nachher int;
 begin
   perform set_config('request.jwt.claim.sub','11111111-1111-1111-1111-111111111111', true);
-  select n into v_n_vorher from v_schimmel_modell;
+  select coalesce((select n_arbeiten from v_charge_palox where charge_nr = 1613 and station = 'waschen_sortieren'), 0)
+    into v_n_vorher;
 
   -- Ein Auftrag mit Schimmel, dessen Ware aus mehreren Chargen kam
   insert into auftrag (id, weg, station, charge_nr, start_ts, ende_ts, status)
@@ -1365,9 +1353,13 @@ begin
 
   assert (select quelle from v_schimmel_punkte where auftrag_id = 2300) = 'verarbeitung_gemischt',
     'Eine gemischte Arbeit muss als verarbeitung_gemischt markiert sein';
-  select n into v_n_nachher from v_schimmel_modell;
-  assert v_n_nachher = v_n_vorher,
-    format('Der gemischte Punkt darf nicht ins Zeitmodell (%s → %s Punkte)', v_n_vorher, v_n_nachher);
+  -- 0106: Der Stationswert braucht kein Alter — das Auge hat gesehen, was
+  -- es gesehen hat. Der gemischte Punkt zählt darum im Stationswert mit
+  -- (bis 0105 blieb er dem Zeitmodell fern, weil sein Alter geraten war).
+  select coalesce((select n_arbeiten from v_charge_palox where charge_nr = 1613 and station = 'waschen_sortieren'), 0)
+    into v_n_nachher;
+  assert v_n_nachher = v_n_vorher + 1,
+    format('Der gemischte Punkt muss im Stationswert zählen (%s → %s Arbeiten)', v_n_vorher, v_n_nachher);
   -- In der Bilanz zählt die Masse weiter
   assert (select eingang_netto_kg from v_auftrag_masse where auftrag_id = 2300) > 0,
     'Die Masse der gemischten Arbeit muss in der Bilanz bleiben';
@@ -1584,10 +1576,12 @@ begin
   -- Die Funktionen, die je Zeile eingesetzt werden
   select public.palox_tara_kg() into v;
   assert v is not null, 'palox_tara_kg() muss ohne Suchpfad rechnen';
-  select public.schimmelanteil(100) into v;
-  assert v is not null, 'schimmelanteil() muss ohne Suchpfad rechnen';
-  select public.sockel_anteil() into v;
-  assert v is not null, 'sockel_anteil() muss ohne Suchpfad rechnen';
+  select public.palox_f(0.5, 1, 0.04, 0.02, 0.03) into v;
+  assert v is not null, 'palox_f() muss ohne Suchpfad rechnen';
+  select public.palox_mindest_arbeiten() into v;
+  assert v is not null, 'palox_mindest_arbeiten() muss ohne Suchpfad rechnen';
+  select count(*) into v_n from public.v_palox_erwartung;
+  assert v_n is not null, 'v_palox_erwartung muss ohne Suchpfad lesbar sein';
   perform public.klassiere((select id from public.sortierschema limit 1), 800);
   perform public.sortierschema_fuer((select sorte from public.charge limit 1), null, current_date);
 
@@ -2693,7 +2687,7 @@ do $$
 declare v text; v_n bigint; v_kaputt text[] := '{}';
 begin
   foreach v in array array['v_hochrechnung','v_massenbilanz','v_datenlage','v_plausibilitaet',
-      'v_kaliber_verteilung','v_schimmel_kurve_anzeige','v_schimmel_modell','v_selektionsverdacht',
+      'v_kaliber_verteilung','v_palox_erwartung','v_charge_weg','v_charge_palox',
       'v_saisonbilanz','v_schimmel_punkte','v_hochrechnung_basis','v_naechste_charge',
       'v_koeff_verdunstung','v_koeff_ausschuss','v_koeff_nebenkanal','v_koeff_ueberfuellung',
       'v_wiegung_kennzahl','v_marge_buch','v_gewichtsverteilung','v_verarbeitung_alter',
@@ -2897,8 +2891,8 @@ begin
 
   -- ---- Verlust bis heute: die Teile ergeben das Ganze ----------------------
   assert not exists (select 1 from erg_charge where verlust_bekannt
-                      and abs(verlust_heute_kg - (verdunstung_heute_kg + schimmel_heute_kg + sockel_heute_kg + fax_heute_kg)) > 0.05),
-    'Verlust bis heute = Verdunstung + Schimmel + nicht lagerbedingt + Fax am Abgepackten';
+                      and abs(verlust_heute_kg - (verdunstung_heute_kg + schimmel_heute_kg + fax_heute_kg)) > 0.05),
+    'Verlust bis heute = Verdunstung + Schimmel + Fax am Abgepackten (seit 0106 ohne Sockel)';
   -- 0064: NULL heisst „nicht gemessen" — und darf nur dann dastehen. Beide
   -- Richtungen, sonst deckt die Regel jede Zahl und jede Lücke gleichermassen.
   assert not exists (select 1 from erg_charge where im_haus_heute_kg is null),
@@ -2915,7 +2909,6 @@ begin
     select 1 from (values
         ('Verdunstung',              (select sum(verdunstung_heute_kg) from erg_charge)),
         ('Schimmel/Fäulnis',         (select sum(schimmel_heute_kg)    from erg_charge)),
-        ('Nicht lagerbedingt',       (select sum(sockel_heute_kg)      from erg_charge)),
         ('Faul beim Abpacken (Fax)', (select sum(fax_heute_kg)         from erg_charge))
       ) as c(strom, kg)
       join erg_verlust v on v.gruppe = 'gesamt' and v.strom = c.strom
@@ -2984,7 +2977,7 @@ begin
   -- sagt der Überblick daneben („Nicht gemessen: …"), und die Kennzahl
   -- „Verlust bis heute" bleibt unbekannt (0064).
   select sum(coalesce(verdunstung_heute_kg, 0) + coalesce(schimmel_heute_kg, 0)
-             + coalesce(sockel_heute_kg, 0) + coalesce(fax_heute_kg, 0)) into v2 from erg_charge;
+             + coalesce(fax_heute_kg, 0)) into v2 from erg_charge;
   assert abs(v - v2) <= 0.06 * greatest(v2, 1) + 5,
     format('Die letzte Woche bis heute trifft den Verlust der Chargen (%s vs %s, Wochenraster)', round(v), round(v2));
   assert abs((select sum(eingang_kum_kg) from erg_verlauf where gruppe = 'sorte' and bis = (select max(bis) from erg_verlauf))
@@ -3177,8 +3170,9 @@ begin
             join pg_namespace n on n.oid = c.relnamespace
            where n.nspname = 'public' and c.relname = 'erg_verlauf'
              and a.attnum > 0 and not a.attisdropped
-             and a.attname in ('schimmel_kum_kg', 'sockel_kum_kg')) = 2,
-    'erg_verlauf trennt Schimmel und Sockel nicht';
+             and a.attname in ('schimmel_kum_kg', 'fax_kum_kg')) = 2,
+    -- seit 0106 ohne Sockel: Faules im Lager und Faules beim Abpacken stehen getrennt
+    'erg_verlauf trennt Schimmel und Fax nicht';
 
   select nr into v_charge from charge
    where nr in (select charge_nr from v_charge_rueckgrat where eingang_netto_kg > 0)
@@ -3357,7 +3351,6 @@ begin
   assert not exists (select 1 from erg_charge
                       where (verdunstung_heute_kg is not null) <> verdunstung_bekannt
                          or (schimmel_heute_kg    is not null) <> schimmel_bekannt
-                         or (sockel_heute_kg      is not null) <> sockel_nachgewiesen
                          or (fax_heute_kg         is not null) <> fax_bekannt
                          or (kanal_ausgelagert_kg is not null) <> kanal_bekannt),
     'Jeder Strom ist genau dann eine Zahl, wenn sein Koeffizient gemessen ist (0064)';
@@ -3479,7 +3472,7 @@ begin
     format('Entsorgte Ware ist beobachtetes Faules: die ganze Masse nach Verdunstung, ist aber %s von %s', v_sch, v_m1);
 
   -- b) Die Masse bleibt erhalten, auch in der neuen Portion.
-  select verdunstung_kg + sockel_kg + schimmel_kg + klein_kg + nebenkanal_kg + fax_kg + verkaufsfaehig_kg
+  select verdunstung_kg + schimmel_kg + klein_kg + nebenkanal_kg + fax_kg + verkaufsfaehig_kg
     into v_summe from mv_kaskade where charge_nr = 965001 and portion = 'entsorgt';
   assert abs(v_summe - v_m0) < 0.01,
     format('Auch die entsorgte Portion muss ihre Masse erhalten: %s statt %s', v_summe, v_m0);
@@ -3667,9 +3660,11 @@ begin
   select count(*) into v_n from mv_kaskade
    where m0 > 0 and alter_tage > 0 and d_m1_r > 0;
   assert v_n = 0, format('%s Zeilen mit positiver Ableitung ∂m1/∂r — das Vorzeichen ist gedreht', v_n);
+  -- Seit 0106 gibt es kein η mehr; das Band des Anteils muss um ihn liegen
+  -- und die Streuung darf nicht negativ sein — sonst wäre der Bereich gedreht.
   select count(*) into v_n from mv_kaskade
-   where m0 > 0 and alter_tage > 0 and modell_gilt and d_f_eta < 0;
-  assert v_n = 0, format('%s Zeilen mit negativer Ableitung ∂f/∂η — Verderb wächst mit η, nicht umgekehrt', v_n);
+   where m0 > 0 and (f_unten > f + 1e-9 or f_oben < f - 1e-9 or f_se < 0);
+  assert v_n = 0, format('%s Zeilen, deren Band nicht um f liegt oder deren Streuung negativ ist', v_n);
 
   -- b) Jede Spalte, die eine Portion meint, enthält genau diese Portion.
   --    „Anderer Kanal am Ausgelagerten" und „Kanal an der Ware im Haus" sind
@@ -3808,29 +3803,44 @@ select '——— Der Tag des Arbeiters geprüft ———' as ergebnis;
 -- Die Zusicherung ist ein Zweizeiler. Sie gehört an die Stelle, an der die
 -- beiden Fassungen aufeinandertreffen, und nicht in eine Prüfung, die jede
 -- für sich für richtig befindet.
+-- Seit 0106 gibt es keine Kurve mehr; an derselben Stelle steht dieselbe
+-- Sorge: Der Anteil in der Kaskade muss die Zusammensetzung aus Weg und
+-- Stationswerten sein — unabhängig nachgerechnet aus v_charge_weg,
+-- v_charge_palox (Ausgelagertes) und v_palox_erwartung (Liegendes).
 do $$
 declare v_n int; v_ab int; v_max numeric;
 begin
-  select count(*), count(*) filter (where abs(k.f - schimmelanteil(k.alter_tage)) > 1e-9),
-         max(abs(k.f - schimmelanteil(k.alter_tage)))
-    into v_n, v_ab, v_max
-    from mv_kaskade k where k.f is not null;
+  with nach as (
+    select k.charge_nr, k.portion, k.kohorte, k.f, k.f_bekannt,
+           palox_f(w.p_hand, w.p_wasch,
+                   case when k.portion = 'lager' then ews.anteil else coalesce(pws.anteil, ews.anteil) end,
+                   case when k.portion = 'lager' then es.anteil  else coalesce(ps.anteil,  es.anteil)  end,
+                   case when k.portion = 'lager' then ew.anteil  else coalesce(pw.anteil,  ew.anteil)  end) as f_nach
+      from mv_kaskade k
+      join v_charge_weg w on w.charge_nr = k.charge_nr
+      left join v_palox_erwartung ews on ews.sorte = k.sorte and ews.station = 'waschen_sortieren'
+      left join v_palox_erwartung es  on es.sorte  = k.sorte and es.station  = 'sortieren'
+      left join v_palox_erwartung ew  on ew.sorte  = k.sorte and ew.station  = 'waschen'
+      left join v_charge_palox pws on pws.charge_nr = k.charge_nr and pws.station = 'waschen_sortieren'
+      left join v_charge_palox ps  on ps.charge_nr  = k.charge_nr and ps.station  = 'sortieren'
+      left join v_charge_palox pw  on pw.charge_nr  = k.charge_nr and pw.station  = 'waschen'
+  )
+  select count(*), count(*) filter (where abs(f - coalesce(f_nach, 0)) > 1e-9 or f_bekannt <> (f_nach is not null)),
+         max(abs(f - coalesce(f_nach, 0)))
+    into v_n, v_ab, v_max from nach;
 
   -- Ohne Zeilen sagt die Prüfung nichts. Das ist kein Erfolg, sondern der
   -- Fall, in dem sie blind wäre — genau die Falle, in die Runde L mit einem
   -- leeren Prüfblock gelaufen ist.
-  assert v_n > 0, 'mv_kaskade hat keine Zeile mit f — diese Zusicherung sagt dann nichts';
-
+  assert v_n > 0, 'mv_kaskade hat keine Zeile — diese Zusicherung sagt dann nichts';
   assert v_ab = 0,
-    format('Die Schimmelkurve läuft auseinander: %s von %s Kaskadenzeilen weichen von '
-           || 'schimmelanteil() ab, grösste Abweichung %s. Ein Prozentpunkt sind auf der '
-           || 'Demosaison 3038 kg.', v_ab, v_n, v_max);
-
-  raise notice 'OK  Schimmelkurve: Funktion und Kaskade sind dieselbe Kurve (% Zeilen, grösste Abweichung %)',
+    format('Der Anteil der Kaskade ist nicht die Zusammensetzung aus Weg und Stationswerten: %s von %s Zeilen '
+           || 'weichen ab, grösste Abweichung %s.', v_ab, v_n, v_max);
+  raise notice 'OK  Stationswerte: Weg, Erwartung und Kaskade sind dieselbe Zahl (% Zeilen, grösste Abweichung %)',
     v_n, v_max;
 end $$;
 
-select '——— Schimmelkurve zusammengehalten ———' as ergebnis;
+select '——— Stationswerte zusammengehalten ———' as ergebnis;
 
 -- =====================================================================
 -- 0068 — Was die Gegenrede übrig gelassen hat
@@ -3888,8 +3898,8 @@ begin
         from erg_punkte
       except
       select charge_nr, sorte, schlag, lagertage, schimmel_kg, basis_jetzt_kg, anteil, plausibel, quelle, auftrag_id
-        from mv_schimmel_punkte) x),
-    'erg_punkte und mv_schimmel_punkte haben verschiedenen Inhalt';
+        from v_schimmel_punkte) x),
+    'erg_punkte und v_schimmel_punkte haben verschiedenen Inhalt (seit 0106 ohne mv_schimmel_punkte dazwischen)';
   assert not exists (
     select 1 from pg_depend d join pg_rewrite r on r.oid = d.objid
       join pg_class c on c.oid = r.ev_class
@@ -4097,7 +4107,7 @@ begin
 
   -- Die Ströme teilen die liegende Ware vollständig auf.
   select count(*) into v_n from v_prognose
-   where abs(verdunstet_kg + sockel_kg + faul_kg + kanal_kg + fax_kg + verkaufsfaehig_kg - lager_kg) > 0.05;
+   where abs(verdunstet_kg + faul_kg + kanal_kg + fax_kg + verkaufsfaehig_kg - lager_kg) > 0.05;
   assert v_n = 0, format('0071 (b): bei %s Zeile(n) ergeben die Ströme nicht die liegende Ware', v_n);
 
   -- Verkaufsfähig wird mit der Zeit nie mehr.
@@ -6538,7 +6548,7 @@ declare
   v_u uuid := '00000000-0097-0000-0000-000000000001';
   v_w uuid := '00000000-0097-0000-0000-000000000002';   -- Arbeiterin ohne Beteiligung
   v_c int; v_s bigint; v_a bigint; v_b bigint; v_von int; v_bis int; v_mittel numeric;
-  v_alt_von int; v_id bigint; v_kg numeric; v_bekannt boolean; v_brauchbar boolean;
+  v_alt_von int; v_id bigint; v_kg numeric; v_bekannt boolean;
   v_datum date; v_brutto numeric; v_kisten int;
 begin
   select wert into v_modus from einstellung where schluessel = 'betriebsmodus';
@@ -6602,26 +6612,61 @@ begin
   assert (select count(*) from v_koeff_roh_kaliber where art = 'nebenkanal' and charge_nr = v_c) >= 1,
     '0097 (b4): die gemessene Art zählt nicht für den Koeffizienten';
 
-  -- (c) Ohne brauchbares Verderbsmodell (nur noch eine Charge mit Messungen,
-  --     keine Kontrollpalette) ist der Sockel 0 und der Verlust bekannt; der
-  --     Nachweis bleibt aus. Die Kurve gibt es weiter — aus den Punkten der
-  --     einen Charge, „solange gilt der zuletzt gemessene Wert".
+  -- (c) Bis 0105: Ohne brauchbares Verderbsmodell (nur noch eine Charge mit
+  --     Messungen, keine Kontrollpalette) ist der Sockel 0 und der Verlust
+  --     bekannt. Seit 0106 gibt es Modell und Sockel nicht mehr; was von (c)
+  --     bleibt, in der Sprache der Stationswerte: Bleibt je Station eine
+  --     einzige gemessene Arbeit (keine Kontrollpalette, keine Lagerpunkte),
+  --     rechnet die Kaskade weiter — jede Sorte leiht sich den Wert der ganzen
+  --     Saison aller Sorten, und der Verlust bleibt bekannt. „Die Messungen
+  --     einer Charge" reichen dafür nicht mehr: Eine Charge geht nicht durch
+  --     alle drei Stationen, und eine Station ohne Wert macht jede Charge
+  --     unbekannt, deren Weg sie braucht (unten, c6–c9). Die Regel hat sich
+  --     geändert, die Probe mit ihr.
   delete from kontrollpalette_wiegung;
   delete from verdunstung_wiegung where faul_kg is not null;     -- auch die Lagerpunkte der Kontrolle
   delete from schimmel_messung m using auftrag a
    where a.id = m.auftrag_id
-     and a.charge_nr <> (select a2.charge_nr from schimmel_messung m2 join auftrag a2 on a2.id = m2.auftrag_id
-                          group by a2.charge_nr order by count(*) desc limit 1);
+     and a.id not in (select distinct on (p.station) p.auftrag_id
+                        from v_schimmel_punkte p
+                       where p.plausibel_station and p.quelle in ('verarbeitung', 'verarbeitung_gemischt')
+                         and p.station in ('sortieren', 'waschen', 'waschen_sortieren')
+                       order by p.station, p.messtag desc, p.auftrag_id desc);
   perform auswertung_aktualisieren();
-  select brauchbar into v_brauchbar from erg_modell;
-  assert not v_brauchbar, '0097 (c0): das Modell ist mit zwei Chargen noch brauchbar — die Probe greift nicht';
   assert (select verdunstung_heute_kg is not null from erg_bilanz), '0097 (c0b): die Verdunstung ist nach der Probe unbekannt — die Probe hat zu viel gelöscht';
-  select verlust_bekannt, sockel_heute_kg into v_bekannt, v_kg from erg_bilanz;
-  assert v_bekannt, '0097 (c1): ohne Nachweis des Sockels gilt der ganze Verlust als unbekannt';
-  assert v_kg = 0, format('0097 (c2): der Sockel ohne Nachweis ist %s statt 0', v_kg);
-  assert (select count(*) from erg_charge where sockel_nachgewiesen) = 0, '0097 (c3): ein Sockel gilt als nachgewiesen, obwohl das Modell nicht brauchbar ist';
+  assert (select count(*) from v_palox_erwartung where ebene <> 'alle_saison' or n_arbeiten <> 1 or not geliehen) = 0,
+    '0097 (c1a): mit einer Arbeit je Station ist jeder Stationswert der geliehene Wert der ganzen Saison aus einer Arbeit';
+  assert (select count(distinct station) from v_palox_erwartung) = 3,
+    '0097 (c1b): eine gemessene Arbeit je Station muss jeder Station ihren Wert geben';
+  select verlust_bekannt, schimmel_heute_kg into v_bekannt, v_kg from erg_bilanz;
+  assert v_bekannt, '0097 (c1): mit einer gemessenen Arbeit je Station gilt der ganze Verlust als unbekannt';
+  assert v_kg is not null, '0097 (c2): das Faule ist unbekannt, obwohl jede Station gemessen ist';
+  assert exists (select 1 from erg_prognose where gruppe = 'gesamt' and h = 0 and f_geliehen),
+    '0097 (c3): mit einer Arbeit je Station muss der Anteil geliehen sein';
+  assert not exists (select 1 from information_schema.columns where table_name = 'erg_bilanz' and column_name = 'sockel_heute_kg'),
+    '0097 (c4): erg_bilanz hat noch einen Sockel';
   assert (select count(*) from erg_charge where verlust_heute_kg is null and lager_kg > 0 and verdunstung_heute_kg is not null) = 0,
-    '0097 (c4): Chargen mit gerechneter Verdunstung haben keinen Verlust bis heute';
+    '0097 (c5): Chargen mit gerechneter Verdunstung haben keinen Verlust bis heute';
+  -- Und ohne die Waschen-Arbeit: Die Station hat keinen Wert, jede Charge,
+  -- deren Bandware gewaschen wird, ist unbekannt — nicht 0 (Leer ist nicht
+  -- null); die Bilanz sagt es, das Ranking trägt null.
+  delete from schimmel_messung m using auftrag a where a.id = m.auftrag_id and a.station = 'waschen';
+  perform auswertung_aktualisieren();
+  assert not exists (select 1 from v_palox_erwartung where station = 'waschen'),
+    '0097 (c6): ohne gemessene Waschen-Arbeit darf die Station keinen Wert haben';
+  assert (select count(*) filter (where not f_bekannt) > 0
+              and count(*) filter (where not f_bekannt and not (p_hand < 1 and p_wasch > 0)) = 0
+              and count(*) filter (where f_bekannt and p_hand < 1 and p_wasch > 0) = 0
+            from mv_kaskade where portion = 'lager'),
+    '0097 (c7): unbekannt sind genau die liegenden Portionen, deren Bandware gewaschen wird';
+  assert (select count(*) from erg_charge c
+           where c.verlust_bekannt = exists (select 1 from mv_kaskade k where k.charge_nr = c.charge_nr and not k.f_bekannt)) = 0,
+    '0097 (c8a): eine Charge mit unbekanntem Anteil gilt als bekannt — oder umgekehrt';
+  assert not exists (select 1 from erg_charge where not verlust_bekannt and (schimmel_heute_kg is not null or verlust_heute_kg is not null)),
+    '0097 (c8b): eine unbekannte Charge trägt eine Zahl für Faules oder Verlust';
+  assert (select not verlust_bekannt from erg_bilanz), '0097 (c8c): die Bilanz gilt als bekannt, obwohl Chargen unbekannt sind';
+  assert (select kg is null and not bekannt from erg_verlust where gruppe = 'gesamt' and strom = 'Schimmel/Fäulnis' and buch = 'verlust'),
+    '0097 (c9): das Ranking beziffert Faules, obwohl eine Station ohne Wert ist';
 
   -- (e) Die Schlüssel der Marge-Ansichten kennen die Grenzen.
   assert (select ausdruck from auswertung_schluessel() where sicht = 'erg_marge_wiegung') like '%band_von_g%band_bis_g%',
@@ -7418,3 +7463,213 @@ begin
 end $$;
 
 select '——— 0105 Stationen unter ihresgleichen geprüft ———' as ergebnis;
+
+-- =====================================================================
+-- 0106 — Die Kaskade rechnet mit den Stationswerten
+--
+-- Geprüft auf der Demo: (a) die Zusammensetzung palox_f über den Weg der
+-- Charge, Fall für Fall, und NULL, sobald eine Station auf dem Weg keinen
+-- Wert hat; (b) der Weg je Charge — von Hand, über das Band, gewaschen —
+-- aus den eigenen Arbeiten, sonst denen der Sorte; (c) jede Zeile der
+-- Kaskade ist die Zusammensetzung aus Weg und Stationswerten, für
+-- Ausgelagertes die eigene Messung vor der Erwartung; (d) ohne eine
+-- einzige Messung ist das Faule unbekannt, nicht 0 — in Kaskade, Charge,
+-- Bilanz und Prognose; (e) die Prognose schreibt mit dem Zuwachs je
+-- Station fort, und nur, wenn die Kennzahl ihn ausweist; ohne Zuwachs
+-- steht der Anteil still, faul_je_tag_kg und die Zwei-Wochen-Zahl sind
+-- leer; (f) das Modell ist weg — Sichten, Funktionen, Spalten, Schritte;
+-- (g) erg_charge sagt, womit es rechnet und woher; (h) Stand 106.
+-- =====================================================================
+do $$
+declare v_modus jsonb; v_lad text; v_geladen boolean := false; r record; v_n int; v_ab int; v_txt text; v_bis date; v_diff numeric;
+  v_u uuid := '00000000-0106-0000-0000-000000000001';
+begin
+  select wert into v_modus from einstellung where schluessel = 'betriebsmodus';
+  update einstellung set wert = '"beispiel"'::jsonb where schluessel = 'betriebsmodus';
+  insert into auth.users (id, email, raw_user_meta_data) values (v_u, null, '{"name":"Prüf-0106"}');
+  update profil set rolle = 'admin' where id = v_u;
+  perform set_config('request.jwt.claim.sub', v_u::text, true);
+  if not exists (select 1 from auftrag where station = 'waschen_sortieren' and bemerkung = 'DEMO') then
+    select demo_daten_laden() into v_lad; v_geladen := true;
+  end if;
+  perform auswertung_aktualisieren();
+
+  -- (a) die Zusammensetzung
+  assert palox_f(1, 0, 0.05, null, null) = 0.05, '0106 (a1): nur von Hand → f_W+S';
+  assert palox_f(0, 0, null, 0.02, null) = 0.02, '0106 (a2): nur Band, ungewaschen → f_S';
+  assert abs(palox_f(0, 1, null, 0.02, 0.05) - (0.02 + 0.98 * 0.05)) < 1e-12, '0106 (a3): Band, dann gewaschen → f_S + (1 − f_S)·g_W';
+  assert abs(palox_f(0.25, 1, 0.04, 0.02, 0.05) - (0.25 * 0.04 + 0.75 * (0.02 + 0.98 * 0.05))) < 1e-12, '0106 (a4): gemischter Weg';
+  assert palox_f(null, 1, 0.04, 0.02, 0.05) is null, '0106 (a5): ohne Weg kein Anteil';
+  assert palox_f(0.5, 1, null, 0.02, 0.05) is null, '0106 (a6): Hand auf dem Weg, aber kein Handwert → unbekannt';
+  assert palox_f(0, 1, null, 0.02, null) is null, '0106 (a7): gewaschen, aber kein Waschwert → unbekannt';
+  assert palox_f(0, 0, null, 0.02, null) is not null, '0106 (a8): ungewaschen braucht keinen Waschwert';
+  assert palox_f(1, 0, 1.5, null, null) = 1, '0106 (a9): nie über 1';
+  assert abs(palox_f_nach(0, 1, 0.02, 0.02, 0.05, 0.01, 0.01, 0.01, 14) - (0.04 + 0.96 * 0.07)) < 1e-12,
+    '0106 (a10): zwei Wochen später ist jede Station um zwei Wochen Zuwachs weiter';
+  assert palox_f_nach(0, 1, null, 0.02, 0.05, null, -0.1, null, 70) = palox_f(0, 1, null, 0, 0.05),
+    '0106 (a11): ein Zuwachs führt nie unter 0';
+
+  -- (b) der Weg
+  assert exists (select 1 from v_charge_weg where p_hand = 1 and weg_quelle = 'eigenen Arbeiten'), '0106 (b1): keine Charge nur von Hand';
+  assert exists (select 1 from v_charge_weg where p_hand = 0 and p_wasch = 1 and weg_quelle = 'eigenen Arbeiten'), '0106 (b2): keine Charge über Band und Waschstrasse';
+  assert exists (select 1 from v_charge_weg where weg_quelle = 'Arbeiten der Sorte'), '0106 (b3): keine Charge, die den Weg von ihrer Sorte erbt';
+  assert not exists (select 1 from v_charge_weg where p_hand < 0 or p_hand > 1 or p_wasch not in (0, 1)), '0106 (b4): Weg ausserhalb 0..1';
+  assert not exists (select 1 from v_charge_weg w where w.p_hand = 1 and w.band_kg > 0), '0106 (b5): Bandware, aber Weg ganz von Hand';
+  -- (b10) wer den Weg von der Sorte erbt, bekommt genau ihren Anteil von Hand — nachgerechnet aus den Arbeiten
+  select count(*), count(*) filter (where abs(w.p_hand - x.p_hand) > 1e-9)
+    into v_n, v_ab
+    from v_charge_weg w
+    join lateral (
+      select sum(a.eingang_netto_kg) filter (where a.station = 'waschen_sortieren')
+             / nullif(sum(a.eingang_netto_kg) filter (where a.station in ('waschen_sortieren', 'sortieren')), 0) as p_hand
+        from v_auftrag_masse a where a.sorte = w.sorte and a.eingang_netto_kg > 0
+    ) x on true
+   where w.weg_quelle = 'Arbeiten der Sorte';
+  assert v_n > 0 and v_ab = 0, format('0106 (b10): bei %s von %s Chargen ist der geerbte Weg nicht der Weg der Sorte', v_ab, v_n);
+
+  -- (b6) die Erwartung ist das massegewichtete Mittel — unabhängig nachgerechnet
+  select count(*), count(*) filter (where abs(anteil - nachgerechnet) > 1e-4)
+    into v_n, v_ab
+    from (select e.anteil,
+                 (select sum(p.basis_jetzt_kg * p.anteil_station) / nullif(sum(p.basis_jetzt_kg), 0)
+                    from v_schimmel_punkte p
+                   where p.plausibel_station and p.anteil_station is not null and p.basis_jetzt_kg > 0
+                     and p.station = e.station and p.quelle in ('verarbeitung', 'verarbeitung_gemischt')
+                     and (e.ebene like 'alle%' or p.sorte = e.sorte)
+                     and (e.ebene like '%saison' or p.messtag > heute() - 28)) as nachgerechnet
+            from v_palox_erwartung e) x;
+  assert v_n > 0 and v_ab = 0, format('0106 (b6): %s von %s Erwartungen sind nicht das massegewichtete Mittel ihrer Ebene', v_ab, v_n);
+  assert palox_mindest_arbeiten() = 3, '0106 (b7): ein Wert der Sorte gilt ab drei Arbeiten';
+  assert not exists (select 1 from v_palox_erwartung where ebene like 'sorte%' and n_arbeiten < 3), '0106 (b8): ein Wert der Sorte aus weniger als drei Arbeiten';
+  assert not exists (select 1 from v_palox_erwartung where (ebene like 'alle%') <> geliehen), '0106 (b9): geliehen passt nicht zur Ebene';
+
+  -- (c) die Kaskade ist die Zusammensetzung
+  with nach as (
+    select k.charge_nr, k.portion, k.f, k.f_bekannt, k.schimmel_kg, k.m1,
+           palox_f(w.p_hand, w.p_wasch,
+                   case when k.portion = 'lager' then ews.anteil else coalesce(pws.anteil, ews.anteil) end,
+                   case when k.portion = 'lager' then es.anteil  else coalesce(ps.anteil,  es.anteil)  end,
+                   case when k.portion = 'lager' then ew.anteil  else coalesce(pw.anteil,  ew.anteil)  end) as f_nach
+      from mv_kaskade k
+      join v_charge_weg w on w.charge_nr = k.charge_nr
+      left join v_palox_erwartung ews on ews.sorte = k.sorte and ews.station = 'waschen_sortieren'
+      left join v_palox_erwartung es  on es.sorte  = k.sorte and es.station  = 'sortieren'
+      left join v_palox_erwartung ew  on ew.sorte  = k.sorte and ew.station  = 'waschen'
+      left join v_charge_palox pws on pws.charge_nr = k.charge_nr and pws.station = 'waschen_sortieren'
+      left join v_charge_palox ps  on ps.charge_nr  = k.charge_nr and ps.station  = 'sortieren'
+      left join v_charge_palox pw  on pw.charge_nr  = k.charge_nr and pw.station  = 'waschen'
+  )
+  select count(*), count(*) filter (where abs(f - coalesce(f_nach, 0)) > 1e-9 or f_bekannt <> (f_nach is not null)
+                                       or (portion <> 'entsorgt' and abs(schimmel_kg - m1 * f) > 1e-6))
+    into v_n, v_ab from nach;
+  assert v_n > 0 and v_ab = 0, format('0106 (c1): %s von %s Kaskadenzeilen sind nicht die Zusammensetzung aus Weg und Stationswerten', v_ab, v_n);
+  assert exists (select 1 from mv_kaskade k join v_charge_palox p on p.charge_nr = k.charge_nr
+                  where k.portion = 'ausgelagert' and k.f_quelle like '%eigene Messung%'),
+    '0106 (c2): keine ausgelagerte Portion rechnet mit der eigenen Messung';
+  assert exists (select 1 from mv_kaskade where portion = 'lager' and f_quelle like '%Sorte%'),
+    '0106 (c3): keine liegende Portion rechnet mit der Erwartung der Sorte';
+  assert not exists (select 1 from mv_kaskade where f_bekannt and f_quelle is null), '0106 (c4): ein bekannter Anteil ohne Quelle';
+
+  -- (d) ohne Messung ist das Faule unbekannt — nicht 0
+  create temp table punkte_alle on commit drop as select id from schimmel_messung where gemessen;
+  update schimmel_messung set gemessen = false;
+  perform auswertung_aktualisieren();
+  assert (select count(*) from v_palox_erwartung) = 0, '0106 (d1): ohne Messung gibt es eine Erwartung';
+  assert not exists (select 1 from mv_kaskade where f_bekannt), '0106 (d2): ohne Messung gilt ein Anteil als bekannt';
+  assert not exists (select 1 from erg_charge where schimmel_heute_kg is not null or verlust_bekannt), '0106 (d3): eine Charge kennt ihr Faules ohne Messung';
+  assert (select schimmel_heute_kg is null and not verlust_bekannt from erg_bilanz), '0106 (d4): die Bilanz kennt das Faule ohne Messung';
+  assert not exists (select 1 from erg_prognose where f_bekannt or vollstaendig), '0106 (d5): die Prognose kennt das Faule ohne Messung';
+  update schimmel_messung set gemessen = true where id in (select id from punkte_alle);
+  perform auswertung_aktualisieren();
+  assert exists (select 1 from mv_kaskade where f_bekannt), '0106 (d6): nach dem Zurückstellen ist nichts bekannt — die Probe hat Spuren hinterlassen';
+
+  -- (e) die Prognose schreibt mit dem Zuwachs fort
+  assert exists (select 1 from erg_prognose where gruppe = 'gesamt' and h = 0 and zuwachs_bekannt),
+    '0106 (e0): auf der Demo ist der Zuwachs bekannt — sonst prüft (e) nichts';
+  with nach as (
+    select k.charge_nr,
+           sum(k.m0 * power(1 - k.r, k.alter_tage + 28)
+               * coalesce(palox_f_nach(k.p_hand, k.p_wasch, k.f_ws, k.f_s, k.g_w, k.b_ws, k.b_s, k.b_w, 28), k.f)) as faul_28
+      from mv_kaskade k
+     where k.portion = 'lager' and k.m0 > 0 and k.alter_tage >= 0 and k.zuwachs_bekannt
+     group by k.charge_nr
+  )
+  select count(*), count(*) filter (where abs(p.faul_kg - n.faul_28) > 0.05)
+    into v_n, v_ab
+    from nach n join erg_prognose p on p.gruppe = 'charge' and p.schluessel = n.charge_nr::text and p.h = 28;
+  assert v_n > 0 and v_ab = 0, format('0106 (e1): bei %s von %s Chargen ist das Faule in 28 Tagen nicht der fortgeschriebene Anteil', v_ab, v_n);
+  assert (select faul_je_tag_kg is not null from erg_prognose where gruppe = 'gesamt' and h = 0), '0106 (e2): mit Zuwachs keine Rate des Faulen';
+  assert not exists (select 1 from erg_prognose where verlust_faeulnis_kg < -0.005), '0106 (e3): Fäulnis-Verlust negativ';
+  assert exists (select 1 from v_naechste_charge where schimmel_14_kg is not null and prognose_verlust_14_kg is not null),
+    '0106 (e4): mit Zuwachs keine Zwei-Wochen-Zahl';
+  -- der Verlauf: das Faule an einem Wochenende in der Prognose ist die Summe
+  -- der Portionen mit dem verschobenen Anteil — unabhängig nachgerechnet
+  select min(bis) into v_bis from erg_verlauf where bis >= heute() + 28;
+  with nach as (
+    select sum(k.m0 * power(1 - k.r, t.t) * f.f) as schimmel
+      from mv_kaskade k
+      cross join lateral (select case when k.portion = 'ausgelagert' then k.kohorte + round(k.alter_tage)::int end as liefertag) l
+      cross join lateral (select greatest(least(v_bis, coalesce(l.liefertag, v_bis)) - k.kohorte, 0) as t) t
+      cross join lateral (select case when k.zuwachs_bekannt
+                                      then coalesce(palox_f_nach(k.p_hand, k.p_wasch, k.f_ws, k.f_s, k.g_w, k.b_ws, k.b_s, k.b_w,
+                                                                 (least(v_bis, coalesce(l.liefertag, v_bis)) - coalesce(l.liefertag, heute()))::numeric), k.f)
+                                      else k.f end as f) f
+     where k.m0 > 0 and k.kohorte is not null and k.kohorte <= v_bis
+  )
+  select abs((select schimmel_kum_kg from erg_verlauf where gruppe = 'gesamt' and bis = v_bis) - schimmel)
+    into v_diff from nach;
+  assert v_diff < 1, format('0106 (e5): der Verlauf am %s weicht um %s kg vom fortgeschriebenen Faulen ab', v_bis, round(v_diff, 1));
+  -- Ohne Zuwachs (Messungen nur aus den ersten 20 Tagen je Station) steht der Anteil still.
+  create temp table punkte_spaet on commit drop as
+    select m.id from schimmel_messung m join auftrag a on a.id = m.auftrag_id
+     where m.gemessen
+       and betriebstag(a.start_ts) > (select min(betriebstag(a2.start_ts)) from auftrag a2 join schimmel_messung m2 on m2.auftrag_id = a2.id
+                                        where m2.gemessen and a2.station = a.station) + 20;
+  update schimmel_messung set gemessen = false where id in (select id from punkte_spaet);
+  perform auswertung_aktualisieren();
+  assert not exists (select 1 from v_palox_station where zuwachs_je_woche is not null), '0106 (e6): nach 20 Tagen weist die Kennzahl schon einen Zuwachs aus';
+  assert exists (select 1 from mv_kaskade where portion = 'lager' and f_bekannt), '0106 (e7): die Probe hat alle Werte gelöscht — sie trägt nicht';
+  assert not exists (select 1 from mv_kaskade where zuwachs_bekannt), '0106 (e8): ohne Zuwachs gilt er als bekannt';
+  assert (select faul_je_tag_kg is null from erg_prognose where gruppe = 'gesamt' and h = 0), '0106 (e9): ohne Zuwachs eine Rate des Faulen — erfunden';
+  assert (select verlust_faeulnis_kg = 0 and faul_kg > 0 from erg_prognose where gruppe = 'gesamt' and h = 28),
+    '0106 (e10): ohne Zuwachs steht der Anteil still — das Faule bleibt, wächst aber nicht';
+  assert not exists (select 1 from v_naechste_charge where schimmel_14_kg is not null or prognose_verlust_14_kg is not null),
+    '0106 (e11): ohne Zuwachs eine Zwei-Wochen-Zahl — erfunden';
+  update schimmel_messung set gemessen = true where id in (select id from punkte_spaet);
+  perform auswertung_aktualisieren();
+
+  -- (f) das Modell ist weg
+  foreach v_txt in array array['v_schimmel_modell', 'mv_schimmel_modell', 'v_schimmel_modell_rechnen', 'v_schimmel_kurve',
+                              'v_schimmel_kurve_anzeige', 'v_selektionsverdacht', 'v_verderb_lage', 'erg_modell', 'erg_kurve',
+                              'erg_selektion', 'mv_schimmel_punkte'] loop
+    assert to_regclass('public.' || v_txt) is null, format('0106 (f1): %s gibt es noch', v_txt);
+  end loop;
+  assert to_regprocedure('public.schimmelanteil(numeric, text)') is null and to_regprocedure('public.sockel_anteil()') is null,
+    '0106 (f2): schimmelanteil() oder sockel_anteil() gibt es noch';
+  assert not exists (select 1 from auswertung_schluessel() where sicht in ('erg_modell', 'erg_kurve', 'erg_selektion', 'mv_schimmel_modell', 'mv_schimmel_punkte')),
+    '0106 (f3): der Zeitplan kennt noch Modellsichten';
+  assert not exists (select 1 from information_schema.columns
+                      where table_name in ('erg_charge', 'erg_bilanz', 'erg_prognose', 'erg_wohin', 'erg_verlauf', 'mv_kaskade', 'mv_hochrechnung')
+                        and (column_name like 'sockel%' or column_name in ('a0', 'modell_gilt', 'hochgerechnet', 'f_extrapoliert', 'd_f_eta', 'd_eta', 'd_a0'))),
+    '0106 (f4): eine Sockel- oder Modellspalte ist noch da';
+  assert not exists (select 1 from v_verlust_ranking where strom = 'Nicht lagerbedingt' or buch = 'feld'), '0106 (f5): der Strom „Nicht lagerbedingt" steht noch';
+  assert (select count(*) from jsonb_array_elements(auswertung_diagnose() -> 'langsamste')) >= 0, '0106 (f6): die Diagnose läuft nicht mehr';
+
+  -- (g) erg_charge sagt, womit es rechnet
+  assert not exists (select 1 from erg_charge where schimmel_bekannt and lager_kg > 0 and (faul_anteil is null or faul_quelle is null)),
+    '0106 (g1): eine Charge mit Faulem, aber ohne Anteil oder Quelle';
+  assert not exists (select 1 from erg_charge where faul_anteil < 0 or faul_anteil > 1), '0106 (g2): faul_anteil ausserhalb 0..1';
+  assert not exists (select 1 from erg_charge where verlust_bekannt
+                        and abs(verlust_heute_kg - (verdunstung_heute_kg + schimmel_heute_kg + fax_heute_kg)) > 0.05),
+    '0106 (g3): Verlust bis heute ≠ Verdunstung + Faules + Fax';
+  assert (select abs(sum(schimmel_heute_kg) - (select schimmel_heute_kg from erg_bilanz)) < 1 from erg_charge), '0106 (g4): Bilanz und Chargen nennen verschiedenes Faules';
+
+  assert schema_stand() >= 106, format('0106 (h1): schema_stand() = %s', schema_stand());
+
+  if v_geladen then perform demo_daten_entfernen(); end if;
+  delete from profil where id = v_u; delete from auth.users where id = v_u;
+  update einstellung set wert = v_modus where schluessel = 'betriebsmodus';
+  raise notice 'OK  0106 — die Kaskade rechnet mit den Stationswerten: Zusammensetzung über den Weg, eigene Messung vor Erwartung, unbekannt ohne Messung, Prognose mit dem Zuwachs der Kennzahl, das Modell ist weg';
+end $$;
+
+select '——— 0106 Kaskade auf Stationswerten geprüft ———' as ergebnis;

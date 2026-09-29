@@ -2,8 +2,7 @@
  * Orakel 7 — die Unsicherheitsbänder.
  *
  * Ein Strom der Kaskade hängt an mehreren geschätzten Koeffizienten (der
- * Verdunstungsrate r, dem Schimmelanteil f über η, dem Sockel a0, den
- * Ausschussanteilen). Jeder hat eine Varianz und sie sind untereinander
+ * Verdunstungsrate r, dem Palox-Anteil f, den Ausschussanteilen). Jeder hat eine Varianz und sie sind untereinander
  * abhängig. Die Streuung einer Grösse g(θ), die aus ihnen folgt, ist nach der
  * Delta-Methode:
  *
@@ -24,7 +23,6 @@
  *
  * Es importiert nichts aus `src/` und ruft keine Datenbankfunktion.
  */
-import { klemm } from './zahlen.ts'
 
 export type Kovarianz = number[][]
 
@@ -49,17 +47,6 @@ export function deltaVarianz(ableitungen: number[], kov: Kovarianz): number {
 export function band(mittel: number, ableitungen: number[], kov: Kovarianz, t: number): { unten: number; oben: number; sigma: number } {
   const sigma = Math.sqrt(deltaVarianz(ableitungen, kov))
   return { unten: mittel - t * sigma, oben: mittel + t * sigma, sigma }
-}
-
-/**
- * Streuung von f = 1 − exp(−exp(η)) aus der Streuung von η — der nichtlineare
- * Schritt, den AUF-001 betrifft. df/dη = (1−f)·exp(η). Wer nur var(η)
- * durchreicht, ohne diese Ableitung, unterschätzt σ(f).
- */
-export function schimmelSigma(eta: number, sigmaEta: number): number {
-  const f = 1 - Math.exp(-Math.exp(klemm(eta, -40, 3)))
-  const dfdeta = (1 - f) * Math.exp(klemm(eta, -40, 3))
-  return Math.abs(dfdeta) * sigmaEta
 }
 
 /** Überdeckung: liegt die Wahrheit im Band? Für die Coverage-Messung in Phase 2. */

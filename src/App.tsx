@@ -120,10 +120,14 @@ export default function App() {
   )
 
   // Sechs Reiter (Runde AF: „Messungen ausstehend" rechts vom Betrieb) — docs/UI-KONZEPT.md.
+  // Runde AJ: Das Kernstück ist das Lagermanagement mit den Chargen — der
+  // Betrieb: „der Chargenunterreiter, das ist eigentlich das Kernstück".
+  // Darum stehen die Chargen gleich hinter dem Lagermanagement, vor den
+  // Ursachen und Messungen (zweite Ebene).
   const reiter: [string, string, (p: { size?: number }) => ReactNode][] = [
     ['/dashboard', 'Lagermanagement', ZBalken],
-    ['/ursachen', 'Ursachen', ZLupe],
     ['/chargen', 'Chargen', ZListe],
+    ['/ursachen', 'Ursachen', ZLupe],
     ['/messungen', 'Messungen', ZRegler],
     ['/betrieb', 'Betrieb', ZUhr],
     // Runde AF: rechts vom Betrieb — welche Messung noch fehlt, je Sorte, und was sie freischaltet.

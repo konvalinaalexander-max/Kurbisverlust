@@ -10,10 +10,10 @@ import { kohorten, netto, rueckgrat, type Palette, type Tara } from './masse.ts'
 import { messung, rohwerte, type Waegung } from './verdunstung.ts'
 import { schrumpfung } from './varianz.ts'
 import { gedeckelt, m0Zurueck, normieren, stroeme, summeStimmt, verkaufsfaehigAnteil } from './kaskade.ts'
-import { anpassen, anteilNachModell, treppe, type Punkt } from './schimmel.ts'
+import { erwartung, paloxF, paloxFNach, stationswert, weg, type Punkt } from './schimmel.ts'
 import { bandGeordnet, stroemeSummieren, zeitLaeuftVorwaerts } from './bilanz.ts'
 import { vergleiche } from './vergleich.ts'
-import { band, deckt, deltaVarianz, schimmelSigma } from './band.ts'
+import { band, deckt, deltaVarianz } from './band.ts'
 import { huelle, standBei, standNachTagen, summeStimmtPrognose, summieren, verlustAb,
          zerlegungStimmt, type LagerPortion, type Raender } from './prognose.ts'
 
@@ -172,22 +172,22 @@ test('Schrumpfung: streuen die Chargen innerhalb der Sorten stärker als die Sor
 
 /* ---------- kaskade --------------------------------------------------------- */
 
-const K = { r: 0.001, a0: 0.02, f: 0.05, aKlein: 0.03, aGross: 0.01, aFax: 0.02 }
+const K = { r: 0.001, f: 0.05, aKlein: 0.03, aGross: 0.01, aFax: 0.02 }
 
 test('Verkaufsanteil und Ströme summieren sich zu m0', () => {
   const anteil = verkaufsfaehigAnteil(K, 100)
-  assert.ok(nahe(anteil, Math.pow(0.999, 100) * 0.98 * 0.95 * 0.96 * 0.98))
+  assert.ok(nahe(anteil, Math.pow(0.999, 100) * 0.95 * 0.96 * 0.98))   // Verdunstung · (1 − f) · (1 − klein − gross) · (1 − Fax)
   const s = stroeme(1000, 'ausgelagert', K, 100)
   assert.ok(summeStimmt(s))
   assert.ok(nahe(s.verkaufsfaehigKg, 1000 * anteil))
   assert.ok(nahe(s.verdunstungKg, 1000 * (1 - Math.pow(0.999, 100))))
-  assert.ok(nahe(s.sockelKg, s.m1 * 0.02))
+  assert.ok(nahe(s.schimmelKg, s.m1 * 0.05))
 })
 
 test('Entsorgt: nach der Verdunstung ist alles Schimmel', () => {
   const s = stroeme(100, 'entsorgt', K, 10)
   assert.ok(summeStimmt(s))
-  assert.equal(s.verkaufsfaehigKg, 0); assert.equal(s.sockelKg, 0)
+  assert.equal(s.verkaufsfaehigKg, 0); assert.equal(s.kleinKg, 0)
   assert.ok(nahe(s.schimmelKg, 100 * Math.pow(0.999, 10)))
 })
 
@@ -205,57 +205,87 @@ test('zu klein + zu gross über 1 werden gemeinsam gestaucht', () => {
   assert.deepEqual(normieren(0.3, 0.1), { aKleinN: 0.3, aGrossN: 0.1 })
 })
 
-/* ---------- schimmel -------------------------------------------------------- */
+/* ---------- stationswerte (0106) ------------------------------------------- */
 
-const weibull = (t: number, lambda: number, k: number) => 1 - Math.exp(-lambda * Math.pow(t, k))
+const P = (sorte: string, station: Punkt['station'], chargeNr: number, messtag: string, w: number, y: number): Punkt =>
+  ({ sorte, station, chargeNr, messtag, w, y })
 
-test('Fit findet λ und k aus exakten Weibull-Punkten wieder', () => {
-  const punkte: Punkt[] = [10, 20, 40, 80, 120].map((t, i) => ({ chargeNr: i + 1, t, f: weibull(t, 0.001, 1.2), w: 1000 + i, mitSockel: false }))
-  const m = anpassen(punkte)
-  assert.equal(m.n, 5); assert.equal(m.cChargen, 5)
-  assert.ok(nahe(m.k, 1.2, 1e-9))
-  assert.ok(nahe(m.lambda, 0.001, 1e-9))
-  assert.ok(nahe(m.smearing, 1, 1e-9))
-  assert.ok(m.varAchse != null && m.varAchse < 1e-18)
-  assert.equal(m.brauchbar, true)
-  assert.equal(m.sockel, 0)
-  assert.ok(nahe(anteilNachModell(m, 40), weibull(40, 0.001, 1.2), 1e-9))
-  assert.ok(nahe(anteilNachModell(m, 40, 'oben'), weibull(40, 0.001, 1.2), 1e-6))   // ohne Streuung kein Band
+test('Stationswert: nach Masse gewichtet, Band ± t·sd/√n über die Arbeiten, Chargen gezählt', () => {
+  // 1000 kg mit 4 %, 3000 kg mit 2 %, 2000 kg mit 3 %: (40 + 60 + 60) / 6000 = 2.667 % — nicht das Mittel 3 %
+  const s = stationswert([P('Tiana', 'waschen_sortieren', 1, '2026-09-20', 1000, 0.04),
+                          P('Tiana', 'waschen_sortieren', 2, '2026-09-21', 3000, 0.02),
+                          P('Tiana', 'waschen_sortieren', 1, '2026-09-22', 2000, 0.03)])
+  assert.ok(nahe(s.anteil!, 160 / 6000, 1e-12))
+  assert.equal(s.nArbeiten, 3); assert.equal(s.nChargen, 2)
+  // sd der drei Anteile = 0.01, t(2) = 4.303 → halb = 4.303 · 0.01 / √3
+  const halb = tQuantil95(2) * 0.01 / Math.sqrt(3)
+  assert.ok(nahe(s.unten!, 160 / 6000 - halb, 1e-9)); assert.ok(nahe(s.oben!, 160 / 6000 + halb, 1e-9))
+  assert.equal(stationswert([]).anteil, null)
+  const eine = stationswert([P('Tiana', 'sortieren', 1, '2026-09-20', 500, 0.03)])
+  assert.equal(eine.unten, 0.03); assert.equal(eine.oben, 0.03)   // eine Arbeit hat kein Band
 })
 
-test('Sockel: Verarbeitungspunkte mit Grundaussortierung 5 % — das Gitter findet sie', () => {
-  const a0 = 0.05
-  // Ein Prozent Rauschen, sonst ist das Minimum der Fehlerquadrate exakt null und
-  // der Nachweis (SSE ohne Sockel ÷ kleinste SSE) hat keinen Nenner — wie in SQL: nullif(min_sse, 0).
-  const punkte: Punkt[] = [
-    ...[10, 20, 40, 80, 120].map((t, i) => ({ chargeNr: i + 1, t, f: (a0 + (1 - a0) * weibull(t, 0.001, 1.2)) * (1 + 0.01 * Math.sin(i + 1)), w: 1000, mitSockel: true })),
-    ...[15, 60].map((t, i) => ({ chargeNr: 10 + i, t, f: weibull(t, 0.001, 1.2) * (1 + 0.01 * Math.cos(i + 1)), w: 800, mitSockel: false })),
+test('Erwartung: vier Wochen der Sorte ab drei Arbeiten, sonst Saison, sonst alle Sorten — geliehen', () => {
+  const heute = '2026-09-29'
+  const punkte = [
+    // Tiana von Hand: drei junge Arbeiten (in vier Wochen) und eine alte
+    P('Tiana', 'waschen_sortieren', 1, '2026-09-25', 1000, 0.04), P('Tiana', 'waschen_sortieren', 2, '2026-09-20', 1000, 0.02),
+    P('Tiana', 'waschen_sortieren', 3, '2026-09-10', 1000, 0.03), P('Tiana', 'waschen_sortieren', 4, '2026-06-01', 1000, 0.10),
+    // Kaori am Band: zwei Arbeiten — zu wenig für die Sorte, auch in der Saison; dazu eine Tiana-Bandarbeit
+    P('Kaori Kuri', 'sortieren', 5, '2026-09-27', 500, 0.05), P('Kaori Kuri', 'sortieren', 6, '2026-08-01', 500, 0.01),
+    P('Tiana', 'sortieren', 7, '2026-08-15', 800, 0.02),
   ]
-  const m = anpassen(punkte)
-  assert.ok(Math.abs(m.sockel - a0) <= 0.0025 + 1e-12, `Sockel ${m.sockel}`)
-  assert.ok(nahe(m.k, 1.2, 2e-2))
-  assert.ok(m.sockelNachweis != null && m.sockelNachweis > (m.sockelSchwelle ?? 0), `Nachweis ${m.sockelNachweis} ≤ Schwelle ${m.sockelSchwelle}`)
-  assert.equal(m.brauchbar, true)
+  const e = erwartung(punkte, ['Tiana', 'Kaori Kuri', 'Bolp 5110'], heute)
+  const finde = (sorte: string, station: string) => e.find(x => x.sorte === sorte && x.station === station)
+  const tw = finde('Tiana', 'waschen_sortieren')!
+  assert.equal(tw.ebene, 'sorte_4w'); assert.equal(tw.nArbeiten, 3); assert.equal(tw.geliehen, false)
+  assert.ok(nahe(tw.anteil!, 0.03, 1e-12))                       // die alte Arbeit vom Juni zählt nicht
+  const ks = finde('Kaori Kuri', 'sortieren')!
+  assert.equal(ks.ebene, 'alle_saison'); assert.equal(ks.nArbeiten, 3); assert.equal(ks.geliehen, true)
+  assert.ok(nahe(ks.anteil!, (25 + 5 + 16) / 1800, 1e-12))       // 500·0.05 + 500·0.01 + 800·0.02 über 1800 kg
+  const bw = finde('Bolp 5110', 'waschen_sortieren')!
+  assert.equal(bw.ebene, 'alle_4w'); assert.equal(bw.nArbeiten, 3)      // die drei jungen Handarbeiten aller Sorten
+  assert.equal(finde('Bolp 5110', 'waschen'), undefined)          // nirgends ein Waschpunkt: kein Wert
+  assert.equal(e.length, 6)                                       // drei Sorten × zwei Stationen mit Punkten
 })
 
-test('Zu wenig Verschiedenheit in der Lagerdauer → nicht brauchbar', () => {
-  const punkte: Punkt[] = [30, 32, 35].map((t, i) => ({ chargeNr: i + 1, t, f: weibull(t, 0.001, 1.2) * (1 + i * 0.01), w: 1000, mitSockel: false }))
-  const m = anpassen(punkte)
-  assert.equal(m.brauchbar, false)      // t_max 35 ≤ 1.5 × 30
+test('palox_f: die Zusammensetzung über den Weg — und NULL, sobald eine Station auf dem Weg keinen Wert hat', () => {
+  assert.equal(paloxF(1, 0, 0.05, null, null), 0.05)                              // nur von Hand
+  assert.equal(paloxF(0, 0, null, 0.02, null), 0.02)                              // Band, ungewaschen
+  assert.ok(nahe(paloxF(0, 1, null, 0.02, 0.05)!, 0.02 + 0.98 * 0.05, 1e-12))     // Band, dann gewaschen
+  assert.ok(nahe(paloxF(0.25, 1, 0.04, 0.02, 0.05)!, 0.25 * 0.04 + 0.75 * (0.02 + 0.98 * 0.05), 1e-12))
+  assert.equal(paloxF(null, 1, 0.04, 0.02, 0.05), null)                           // ohne Weg
+  assert.equal(paloxF(0.5, 1, null, 0.02, 0.05), null)                            // Hand auf dem Weg, kein Handwert
+  assert.equal(paloxF(0, 1, null, 0.02, null), null)                              // gewaschen, kein Waschwert
+  assert.equal(paloxF(1, 0, 1.5, null, null), 1)                                  // nie über 1
 })
 
-test('Treppe: monoton, Klasse ohne Punkt erbt die vorige', () => {
-  const t = treppe([{ t: 10, schimmelKg: 2, basisKg: 100 }, { t: 20, schimmelKg: 3, basisKg: 100 }, { t: 100, schimmelKg: 1, basisKg: 100 }])
-  assert.equal(t[0].anteilMono, 0.02)
-  assert.equal(t[1].anteilMono, 0.03)
-  assert.equal(t[2].anteilMono, 0.03)   // 31–60: kein Punkt
-  assert.equal(t[4].anteilMono, 0.03)   // 91–120: 0.01 gemessen, aber Kürbisse werden nicht wieder gesund
+test('palox_f_nach: jede Station um ihren Zuwachs je Woche fortgeschrieben, nie unter 0', () => {
+  assert.ok(nahe(paloxFNach(0, 1, 0.02, 0.02, 0.05, 0.01, 0.01, 0.01, 14)!, 0.04 + 0.96 * 0.07, 1e-12))
+  assert.equal(paloxFNach(0, 1, null, 0.02, 0.05, null, -0.1, null, 70), paloxF(0, 1, null, 0, 0.05))
+  assert.equal(paloxFNach(1, 0, 0.05, null, null, null, null, null, 28), 0.05)   // ohne Zuwachs steht die Station still
+})
+
+test('Weg: eigene Arbeiten, sonst die der Sorte, sonst alle; gewaschen, sobald die Sorte gewaschen wird', () => {
+  const a = (chargeNr: number, sorte: string, station: string, kg: number) => ({ chargeNr, sorte, station, kg, istFax: false })
+  const arbeiten = [a(1, 'Tiana', 'waschen_sortieren', 3000), a(2, 'Kaori', 'sortieren', 2000), a(2, 'Kaori', 'waschen', 500), a(3, 'Kaori', 'sortieren', 1000)]
+  const w = weg(arbeiten, [1, 2, 3, 4, 5, 6].map(nr => ({ chargeNr: nr, sorte: nr === 1 || nr === 5 ? 'Tiana' : nr === 6 ? 'Bolp' : 'Kaori' })))
+  assert.deepEqual(w.get(1), { pHand: 1, pWasch: 0, quelle: 'eigenen Arbeiten' })       // Tiana: nur von Hand, nie gewaschen
+  assert.deepEqual(w.get(2), { pHand: 0, pWasch: 1, quelle: 'eigenen Arbeiten' })
+  assert.deepEqual(w.get(3), { pHand: 0, pWasch: 1, quelle: 'eigenen Arbeiten' })       // die Sorte wird gewaschen
+  assert.deepEqual(w.get(4), { pHand: 0, pWasch: 1, quelle: 'Arbeiten der Sorte' })
+  assert.deepEqual(w.get(5), { pHand: 1, pWasch: 0, quelle: 'Arbeiten der Sorte' })
+  assert.deepEqual(w.get(6), { pHand: 0.5, pWasch: 1, quelle: 'Arbeiten aller Sorten' }) // alle: 3000 von Hand, 3000 Band, gewaschen
+  assert.deepEqual(weg([], [{ chargeNr: 9, sorte: 'X' }]).get(9), { pHand: null, pWasch: null, quelle: null })
+  // Fax-Arbeiten sind kein Waschen
+  assert.deepEqual(weg([{ ...a(7, 'Bolp', 'waschen', 100), istFax: true }, a(7, 'Bolp', 'sortieren', 100)], [{ chargeNr: 7, sorte: 'Bolp' }]).get(7),
+                   { pHand: 0, pWasch: 0, quelle: 'eigenen Arbeiten' })
 })
 
 /* ---------- bilanz und vergleich -------------------------------------------- */
 
 test('K2 fängt eine Zeile, deren Ströme nicht zu m0 summieren', () => {
-  const gut = { charge_nr: 1, portion: 'lager', kohorte: '2026-09-01', m0: '100', verdunstung_kg: '10', sockel_kg: '0', schimmel_kg: '5', klein_kg: '3', nebenkanal_kg: '1', fax_kg: '1', verkaufsfaehig_kg: '80' }
+  const gut = { charge_nr: 1, portion: 'lager', kohorte: '2026-09-01', m0: '100', verdunstung_kg: '10', schimmel_kg: '5', klein_kg: '3', nebenkanal_kg: '1', fax_kg: '1', verkaufsfaehig_kg: '80' }
   assert.deepEqual(stroemeSummieren([gut]), [])
   const v = stroemeSummieren([{ ...gut, verkaufsfaehig_kg: '79' }])
   assert.equal(v.length, 1); assert.equal(v[0].regel, 'K2')
@@ -286,14 +316,6 @@ test('Band: mittel ± t·√Var; Überdeckung', () => {
   assert.equal(deckt(b.unten, b.oben, 5), false)
 })
 
-test('Schimmel-Sigma: die Ableitung df/dη = (1−f)·exp(η) darf nicht fehlen (AUF-001)', () => {
-  // η = 0 → f = 1 − e^-1 = 0.6321, df/dη = 0.3679
-  assert.ok(nahe(schimmelSigma(0, 0.1), 0.036788, 1e-5))  // 0.3679 · 0.1
-  // Wer nur σ(η) durchreicht (0.1), unterschätzt σ(f) hier nicht — aber bei
-  // grossem η wird die Ableitung klein und der Unterschied gross:
-  assert.ok(schimmelSigma(2, 0.5) < 0.5)   // f nahe 1, df/dη klein → σ(f) < σ(η)
-})
-
 test('K7 fängt den Zettel mit dem falschen Jahr — plausibel und negativ zugleich', () => {
   const punkte = [{ charge_nr: 9901, quelle: 'verarbeitung', lagertage: '-1053.0', plausibel: true },
                   { charge_nr: 9901, quelle: 'lager', lagertage: '-1054', plausibel: false },
@@ -320,9 +342,9 @@ test('vergleiche: Toleranz je Spalte, fehlende Partner auf beiden Seiten', () =>
 /* ---------- prognose: von Hand, zwei Kohorten ------------------------------ */
 
 // Zwei Kohorten derselben Charge, alles glatt gewählt, damit man mitrechnen
-// kann. r = 0.001 je Tag, kein Sockel, 4 % zu klein, 1 % zu gross, 2 % Fax.
+// kann. r = 0.001 je Tag, 4 % zu klein, 1 % zu gross, 2 % Fax.
 const P_ALT: LagerPortion = { chargeNr: 1, kohorte: '2026-08-01', alterTage: 100, m0: 10000,
-                              r: 0.001, a0: 0, aKleinN: 0.04, aGrossN: 0.01, aFax: 0.02 }
+                              r: 0.001, aKleinN: 0.04, aGrossN: 0.01, aFax: 0.02 }
 const P_JUNG: LagerPortion = { ...P_ALT, kohorte: '2026-09-10', alterTage: 30, m0: 5000 }
 
 test('Prognose: der Stand bei Alter t ist die Kaskade, und die Ströme ergeben m0', () => {
@@ -331,7 +353,7 @@ test('Prognose: der Stand bei Alter t ist die Kaskade, und die Ströme ergeben m
   assert.ok(nahe(m1, 9048.33, 1e-2, 1e-2))
   const s = standBei(P_ALT, 0.10)
   assert.ok(nahe(s.m1, m1, 1e-12))
-  assert.ok(nahe(s.m2, m1 * 0.90, 1e-12))              // kein Sockel, 10 % faul
+  assert.ok(nahe(s.m2, m1 * 0.90, 1e-12))              // 10 % faul
   assert.ok(nahe(s.faulKg, m1 * 0.10, 1e-12))
   assert.ok(nahe(s.kanalKg, m1 * 0.90 * 0.05, 1e-12))  // 4 % + 1 %
   assert.ok(nahe(s.faxKg, m1 * 0.90 * 0.95 * 0.02, 1e-12))
@@ -377,8 +399,8 @@ test('Prognose: die Summe über zwei Kohorten — Alter massegewichtet am Horizo
     stand: standNachTagen(p, h, fDann),
     verlust: verlustAb(p, h, fHeute, fDann),
     huelle: { unten: 0, oben: 0 },
-    bekannt: { r: true, f: true, a0: true, kanal: true, fax: true },
-    modellGilt: true, ueberTMax: false,
+    bekannt: { r: true, f: true, kanal: true, fax: true },
+    fGeliehen: false, zuwachsBekannt: true,
   })
   const z = summieren([teil(P_ALT, 28, 0.10, 0.13), teil(P_JUNG, 28, 0.02, 0.03)])
   assert.equal(z.lagerKg, 15000)
@@ -403,8 +425,8 @@ test('Prognose: fehlt ein Koeffizient, bleibt der Anteil leer (leer ist nicht nu
     stand: standNachTagen(P_ALT, 28, 0.13),
     verlust: verlustAb(P_ALT, 28, 0.10, 0.13),
     huelle: { unten: 0, oben: 0 },
-    bekannt: { r: true, f: true, a0: true, kanal: bekannt, fax: true },
-    modellGilt: true, ueberTMax: false,
+    bekannt: { r: true, f: true, kanal: bekannt, fax: true },
+    fGeliehen: false, zuwachsBekannt: true,
   })
   assert.equal(summieren([teil(true)]).verkaufsfaehigAnteil != null, true)
   assert.equal(summieren([teil(false)]).verkaufsfaehigAnteil, null)
@@ -412,7 +434,7 @@ test('Prognose: fehlt ein Koeffizient, bleibt der Anteil leer (leer ist nicht nu
 })
 
 test('Prognose: die Hülle schliesst den Mittelwert ein', () => {
-  const g: Raender = { rUnten: 0.0005, rOben: 0.0015, a0Unten: 0, a0Oben: 0,
+  const g: Raender = { rUnten: 0.0005, rOben: 0.0015,
                        kleinUnten: 0.03, kleinOben: 0.05, grossUnten: 0.005, grossOben: 0.02,
                        faxUnten: 0.01, faxOben: 0.03 }
   const h = huelle(P_ALT, 28, 0.11, 0.16, g)

@@ -17,9 +17,9 @@ dump() {
 # Tabellen und Ansichten, die die App liest — seit 0061 die gespeicherten
 # Ergebnisse (erg_*), dazu die Tabellen und die wenigen Sichten der Masken.
 for R in v_hochrechnung erg_massenbilanz erg_datenlage erg_marge erg_plausibilitaet \
-         erg_kaliber erg_kurve erg_koeff_verdunstung erg_koeff_ausschuss erg_koeff_nebenkanal \
+         erg_kaliber erg_koeff_verdunstung erg_koeff_ausschuss erg_koeff_nebenkanal \
          erg_koeff_ueberfuellung erg_gewichte erg_verarbeitung_alter erg_durchsatz erg_ueberfuellung \
-         erg_datenqualitaet erg_verlauf erg_verlust erg_gebinde erg_lieferung erg_modell erg_selektion \
+         erg_datenqualitaet erg_verlauf erg_verlust erg_gebinde erg_lieferung v_palox_erwartung \
          erg_bilanz erg_punkte erg_charge erg_naechste_charge erg_kohorte erg_fax erg_ausschuss erg_ausgang \
          erg_prognose erg_wohin erg_fax_wartezeit erg_koeff_fax erg_marge_wiegung v_palox_station \
          v_palox_stand v_lieferung_masse v_auftrag_masse auswertung_stand v_kohorte_anteil v_koeff_fax \

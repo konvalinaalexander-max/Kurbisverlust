@@ -58,6 +58,8 @@ export default function Chargen() {
   }, [daten, sorte, nurBestand, nach])
 
   if (laedt && !daten) return <Rechnet fortschritt={fortschritt} />
+  // Runde AJ: die zweite Welle der Ergebnisse (dieser Reiter braucht sie) kommt nach dem Lagermanagement.
+  if (daten && !daten.vollstaendig) return <Rechnet fortschritt={fortschritt} />
   if (fehler) return <Hinweis art="warnung">{fehler}</Hinweis>
   if (!daten) return null
   const sorten = [...new Set(daten.bestand.map(b => b.sorte))].sort()
@@ -214,8 +216,8 @@ function ChargeDetail({ nr, z, daten }: { nr: number; z: Zeile; daten: Auswertun
         <div><div className="titel">Paletten</div><div className="wert" style={{ fontSize: '1.2rem' }}>{zahl(b.n_paletten)}</div>{b.im_haus_heute_kg > 0 && (b.n_rest_paletten ?? 0) > 0 && <div className="unter">etwa {b.n_rest_paletten} noch im Haus (gerechnet)</div>}</div>
         <div><div className="titel">Eingang</div><div className="wert" style={{ fontSize: '1.2rem' }}>{b.eingang_von && b.eingang_bis && b.eingang_von !== b.eingang_bis ? `${datum(b.eingang_von)} – ${datum(b.eingang_bis)}` : datum(b.eingang_von ?? b.eingangsdatum_mittel)}</div>{(b.n_eingangstage ?? 0) > 1 && <div className="unter">{b.n_eingangstage} Eingangstage</div>}</div>
         <div><div className="titel">Ausgeliefert / dahinter an Eingang</div><div className="wert" style={{ fontSize: '1.2rem' }}>{kg(b.geliefert_kg, 0)} / {kg(b.ausgelagert_kg, 0)}</div>{b.ueberzaehlung_kg > 0 && <div className="unter">mehr geliefert als hereingekommen: {kg(b.ueberzaehlung_kg, 0)}</div>}</div>
-        <div><div className="titel">Verlust bis heute</div><div className="wert" style={{ fontSize: '1.2rem' }}>{kg(b.verlust_heute_kg, 0)}</div><div className="unter">Verdunstung {kg(b.verdunstung_heute_kg, 0)} · Faules {kg(summeBekannt([b.schimmel_heute_kg, b.sockel_heute_kg]), 0)}{b.schimmel_heute_kg !== null && !b.sockel_nachgewiesen && <span title="Der Sockel a₀ — was schon am ersten Tag faul war — gilt nur mit Nachweis. Ohne Nachweis ist er 0."> (Sockel ohne Nachweis)</span>}{b.verlust_heute_kg === null && <span className="leise"> · {verlustTitel(b)}</span>}</div></div>
-        {z.m?.csv_gemessen_kg != null && <div><div className="titel">Modell am Band / CSV gewogen</div><div className="wert" style={{ fontSize: '1.2rem' }}>{kg(z.m.modell_am_band_kg, 0)} / {kg(z.m.csv_gemessen_kg, 0)}</div></div>}
+        <div><div className="titel">Verlust bis heute</div><div className="wert" style={{ fontSize: '1.2rem' }}>{kg(b.verlust_heute_kg, 0)}</div><div className="unter">Verdunstung {kg(b.verdunstung_heute_kg, 0)} · Faules {kg(b.schimmel_heute_kg, 0)}{b.faul_anteil != null && <span className="leise" title={b.faul_quelle ?? ''}> · rechnet mit {prozent(b.faul_anteil)} im Palox</span>}{b.verlust_heute_kg === null && <span className="leise"> · {verlustTitel(b)}</span>}</div></div>
+        {z.m?.csv_gemessen_kg != null && <div><div className="titel">Kaskade am Band / CSV gewogen</div><div className="wert" style={{ fontSize: '1.2rem' }}>{kg(z.m.modell_am_band_kg, 0)} / {kg(z.m.csv_gemessen_kg, 0)}</div></div>}
       </div>
       <p className="leise-satz" style={{ margin: '0 0 1rem' }}>
         Eingang und Ausgeliefert <Herkunft art="gemessen" />, alles Übrige <Herkunft art="gerechnet" /> bis heute. Auffälligkeiten dieser Charge stehen unter <Link to="/messungen">Messungen</Link>.

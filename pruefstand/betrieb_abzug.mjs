@@ -10,7 +10,7 @@
  * Holt über die REST-Schnittstelle des Supabase-Projekts:
  *   - die Rückmeldungen (zur App und zur Ware) mit Arbeit und Transkript
  *   - die Auffälligkeiten (erg_plausibilitaet), gezählt und einzeln
- *   - den Stand der Modelle (Koeffizienten, Verderbsmodell, Datenqualität)
+ *   - den Stand der Rechnung (Koeffizienten, Palox-Anteile je Station, Datenqualität)
  * und schreibt docs/betrieb/*.md. Läuft täglich als GitHub-Workflow mit
  * den Secrets SUPABASE_URL und SUPABASE_SERVICE_KEY — ohne sie tut das
  * Skript nichts und sagt es. Die Audiodateien bleiben im Bucket; hier
@@ -96,7 +96,7 @@ const tag = ts => ts ? new Date(ts).toLocaleDateString('de-CH', { timeZone: 'Eur
 const md = s => String(s ?? '').replace(/\|/g, '\\|').replace(/\n+/g, ' ')
 const TAETIGKEIT = { 'sortieren': 'Sortieren', 'waschen_sortieren': 'Waschen + Sortieren', 'waschen': 'Waschen' }
 
-const [einstellungen, stand, chargen, profile, auftraege, rueck, befunde, kv, ka, kn, modell, qual, bilanz] = await Promise.all([
+const [einstellungen, stand, chargen, profile, auftraege, rueck, befunde, kv, ka, kn, erwartung, qual, bilanz] = await Promise.all([
   rest('einstellung?select=schluessel,wert&schluessel=in.(betriebsmodus,erfassung_scharf,verdunstung_rate_max_pro_tag,saison_aktuell)'),
   rest('auswertung_stand?select=*'),
   rest('charge?select=nr,sorte,schlag'),
@@ -107,7 +107,7 @@ const [einstellungen, stand, chargen, profile, auftraege, rueck, befunde, kv, ka
   rest('erg_koeff_verdunstung?select=*'),
   rest('erg_koeff_ausschuss?select=*'),
   rest('erg_koeff_nebenkanal?select=*'),
-  rest('erg_modell?select=*'),
+  rest('v_palox_erwartung?select=*&order=sorte,station'),
   rest('erg_datenqualitaet?select=*'),
   rest('erg_bilanz?select=*'),
 ])
@@ -192,7 +192,7 @@ m += 'Für die nächste Runde: Passen die Zahlen zu dem, was die Saison zeigen s
 m += '## Verdunstung je Sorte (erg_koeff_verdunstung)\n\n' + tabelle(kv)
 m += '## Zu klein / zu gross je Sorte (erg_koeff_ausschuss)\n\n' + tabelle(ka)
 m += '## Anderer Kanal je Sorte (erg_koeff_nebenkanal)\n\n' + tabelle(kn)
-m += '## Verderbsmodell (erg_modell)\n\n' + tabelle(modell)
+m += '## Palox-Anteil je Sorte und Station (v_palox_erwartung, 0106)\n\n' + tabelle(erwartung)
 m += '## Datenqualität (erg_datenqualitaet)\n\n' + tabelle(qual)
 m += '## Bilanz (erg_bilanz)\n\n' + tabelle(bilanz)
 

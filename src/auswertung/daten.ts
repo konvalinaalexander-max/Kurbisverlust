@@ -18,14 +18,13 @@ import { anforderungOffen, istAktuell, rechnetGerade, zeitplanZustand, RECHNEN_H
    gespeicherte Stand stehen — mit dem Hinweis, welcher Schritt fehlt.
    ========================================================================= */
 
-export interface Modell {
-  n: number; c_chargen: number; t_min: number; t_max: number
-  k: number | null; lambda: number | null; smearing: number | null; brauchbar: boolean
-  sockel: number | null; sockel_nachweis: number | null; sockel_schwelle: number | null
-  /** Die Anpassung im Logarithmus (erg_modell): Achse ln λ, Mittel der ln t,
-   *  die Varianzen und ihre Kovarianz, das t-Quantil — daraus das Band. */
-  ln_lambda?: number | null; x_mittel?: number | null
-  var_achse?: number | null; var_k?: number | null; kov_achse_k?: number | null; t_faktor?: number | null
+/** 0106: der erwartete Palox-Anteil je Sorte und Station — womit die Kaskade
+ *  für liegende Ware rechnet. ebene/quelle sagen, welche Stufe gilt (Sorte,
+ *  vier Wochen → Sorte, Saison → alle Sorten); geliehen = aus allen Sorten. */
+export interface PaloxErwartung {
+  sorte: string; station: string; ebene: string; quelle: string
+  anteil: number; unten: number; oben: number; n_arbeiten: number; n_chargen: number
+  seit: string; bis: string; geliehen: boolean
 }
 export interface Schimmelpunkt {
   auftrag_id: number | null; charge_nr: number; sorte: string; lagertage: number
@@ -70,17 +69,18 @@ export interface Bestand {
    *  null, solange sein Koeffizient keine Messung hat; das Kennzeichen daneben sagt,
    *  welcher. Wer hier mit `?? 0` rechnet, macht aus Unwissen eine gemessene Null. */
   verdunstung_heute_kg: number | null; schimmel_heute_kg: number | null
-  sockel_heute_kg: number | null; sockel_oben_kg: number
   fax_heute_kg: number | null; fax_erwartet_kg: number | null
   verlust_heute_kg: number | null; kanal_ausgelagert_kg: number | null
   im_haus_heute_kg: number; kanal_im_haus_kg: number | null; heute: string
   verlust_bekannt: boolean; verdunstung_bekannt: boolean; schimmel_bekannt: boolean
-  sockel_nachgewiesen: boolean; fax_bekannt: boolean; kanal_bekannt: boolean
+  fax_bekannt: boolean; kanal_bekannt: boolean
+  /** 0106: der Palox-Anteil, mit dem das Liegende rechnet, und woher er kommt. */
+  faul_anteil: number | null; faul_quelle: string | null
 }
 export interface NaechsteCharge {
   charge_nr: number; sorte: string; schlag: string; lager_kg: number; alter_tage: number
   masse_jetzt_kg: number; verdunstung_14_kg: number | null; schimmel_14_kg: number | null
-  prognose_verlust_14_kg: number | null; hochgerechnet: boolean; modell_gilt: boolean
+  prognose_verlust_14_kg: number | null; f_geliehen: boolean; zuwachs_bekannt: boolean
   alter_von: number | null; alter_bis: number | null; n_kohorten: number | null
 }
 export interface Kohorte {
@@ -108,17 +108,15 @@ export interface Saisonbilanz {
   /** 0064: null heisst „nicht gemessen" — siehe Bestand. */
   verlust_heute_kg: number | null; verlust_unten_kg: number | null; verlust_oben_kg: number | null
   verdunstung_heute_kg: number | null; schimmel_heute_kg: number | null
-  sockel_heute_kg: number | null; sockel_oben_kg: number
   fax_heute_kg: number | null; fax_erwartet_kg: number | null
   kanal_ausgelagert_kg: number | null; kanal_unten_kg: number | null; kanal_oben_kg: number | null
   im_haus_heute_kg: number; verkaufsfaehig_heute_kg: number; kanal_im_haus_kg: number | null
   lager_kg: number; gegenprobe_wartet_kg: number | null; ueberzaehlung_kg: number
   fax_durchsatz_kg: number | null; n_fax_arbeiten: number | null
   verlust_bekannt: boolean; verdunstung_bekannt: boolean; schimmel_bekannt: boolean
-  sockel_nachgewiesen: boolean; fax_bekannt: boolean; kanal_bekannt: boolean
+  fax_bekannt: boolean; kanal_bekannt: boolean
   bilanz_rest_kg: number | null; bilanz_rest_anteil: number | null; ausgang_deckung: number | null; befund: string
 }
-export interface Selektion { n_verarbeitung: number | null; n_lager: number | null; unterschied: number | null; befund: string }
 /** 0091: der Kommentar zur Ware einer Arbeit — geschrieben oder mitgeschrieben. */
 /** 0094: `text` ist die Kurzfassung (nur gelesene Kommentare kommen hier an), `roh` das Gesagte. */
 export interface Kommentar { auftrag_id: number; charge_nr: number; text: string; mit_aufnahme: boolean; ts: string; roh: string | null; n: number }
@@ -250,7 +248,7 @@ export interface Verlaufswoche {
   woche: string; bis: string; prognose: boolean
   gruppe: Gruppe; schluessel: string
   eingang_kum_kg: number; ausgang_kum_kg: number; verdunstung_kum_kg: number
-  schimmel_kum_kg: number; sockel_kum_kg: number
+  schimmel_kum_kg: number
   fax_kum_kg: number; verlust_kum_kg: number; im_haus_kg: number
   lager_kg: number; verkaufsfaehig_kg: number; kanal_kg: number; fax_lager_kg: number
   /** 0101: zu klein/zu gross hinter den Lieferungen — aussortiert, steht im Haus (Teil von im_haus_kg). */
@@ -272,15 +270,17 @@ export interface Verlaufswoche {
 export interface Prognose {
   gruppe: Gruppe; schluessel: string; h: number; datum: string
   n_chargen: number; n_kohorten: number
-  lager_kg: number; verdunstet_kg: number; sockel_kg: number; faul_kg: number
+  lager_kg: number; verdunstet_kg: number; faul_kg: number
   kanal_kg: number; fax_kg: number; verkaufsfaehig_kg: number; gute_ware_kg: number
   verlust_wasser_kg: number; verlust_faeulnis_kg: number; verlust_verkaufsfaehig_kg: number
   verkaufsfaehig_anteil: number | null
   verkaufsfaehig_unten_kg: number | null; verkaufsfaehig_oben_kg: number | null
   verkaufsfaehig_je_tag_kg: number | null; verdunstet_je_tag_kg: number | null; faul_je_tag_kg: number | null
-  r_bekannt: boolean; f_bekannt: boolean; sockel_bekannt: boolean
+  r_bekannt: boolean; f_bekannt: boolean
   kanal_bekannt: boolean; fax_bekannt: boolean; vollstaendig: boolean
-  modell_gilt: boolean; hochgerechnet: boolean
+  /** 0106: f_geliehen — ein Anteil aus allen Sorten; zuwachs_bekannt — die
+   *  Prognose schreibt das Faule mit dem Zuwachs der Kennzahl fort. */
+  f_geliehen: boolean; zuwachs_bekannt: boolean
   alter_tage: number; alter_von: number; alter_bis: number
 }
 
@@ -294,11 +294,11 @@ export interface Wohin {
   gruppe: Gruppe; schluessel: string; n_chargen: number
   eingang_kg: number; ueberzaehlung_kg: number; geliefert_kg: number
   kanal_ausgelagert_kg: number | null; klein_ausgelagert_kg: number | null; gross_ausgelagert_kg: number | null
-  verdunstet_ausgelagert_kg: number | null; faul_ausgelagert_kg: number | null; sockel_ausgelagert_kg: number | null
+  verdunstet_ausgelagert_kg: number | null; faul_ausgelagert_kg: number | null
   fax_kg: number | null
   lager_kg: number; lager_gute_ware_kg: number; lager_verkaufsfaehig_kg: number | null
   lager_kanal_kg: number | null; lager_klein_kg: number | null; lager_gross_kg: number | null
-  lager_fax_kg: number | null; lager_faul_kg: number | null; lager_sockel_kg: number | null
+  lager_fax_kg: number | null; lager_faul_kg: number | null
   lager_verdunstet_kg: number | null
   rest_kg: number | null; lager_rest_kg: number | null; vollstaendig: boolean
 }
@@ -359,14 +359,17 @@ export interface Auswertung {
   aktuell: boolean
   /** Der Tag, bis zu dem gerechnet ist (heute(), 0061). */
   heute: string
+  /** Runde AJ: Das Lagermanagement bekommt seine sechs Ergebnisse zuerst; die
+   *  übrigen kommen als zweite Welle nach. Bis dahin false — die anderen
+   *  Reiter warten darauf, das Lagermanagement nicht. */
+  vollstaendig: boolean
   bilanz: Massenbilanz[]
   lage: Datenlage[]
   befunde: Befund[]
   kaliber: Kaliberzeile[]
-  kurve: Kurve[]
   koeff: KoeffZeile[]
-  modell: Modell | null
-  selektion: Selektion | null
+  /** 0106: der erwartete Palox-Anteil je Sorte und Station (v_palox_erwartung). */
+  erwartung: PaloxErwartung[]
   saison: Saisonbilanz | null
   punkte: Schimmelpunkt[]
   /** 0105: die Kennzahl je Station unter dem Diagramm. */
@@ -555,24 +558,45 @@ async function alles(erzwingen: boolean): Promise<Auswertung> {
     if (r.error) { merken(name, r.error); return null }
     return (r.data ?? null) as T | null
   }
-  const [b, d, pl, kv, sk, mo, sel, sb, pk, hb, nc, kfv, kfa, kfn, kfu, wk, mw, mc, km, gw, va, ds, dq, vl, ve, kg, ss, ko, ab, lf, ak, pg, wo, ps] = await Promise.all([
+  // Runde AJ (Entschlackung, Stufe 1): erst die sechs Ergebnisse, die das
+  // Lagermanagement braucht — Bestand, Prognose, Bilanz, Verlauf, Wohin,
+  // Auffälligkeiten —, dann der Rest. Die erste Welle steht als Stand mit
+  // vollstaendig = false, und das Lagermanagement zeichnet; die anderen
+  // Reiter warten, bis die zweite Welle da ist. Was bisher 33 Anfragen vor
+  // dem ersten Bild waren, sind jetzt sieben.
+  const [pl, sb, hb, vl, pg, wo] = await Promise.all([
+    q<Befund>('erg_plausibilitaet'), eins<Saisonbilanz>('erg_bilanz'), q<Bestand>('erg_charge'),
+    q<Verlaufswoche>('erg_verlauf', ['woche', true]), q<Prognose>('erg_prognose', ['h', true]), q<Wohin>('erg_wohin'),
+  ])
+  if (imBau) throw new Error(IM_BAU)
+  const heute = sb?.heute ?? hb[0]?.heute ?? heuteOrtszeit()
+  const ersteWelle: Auswertung = {
+    stand: st2?.berechnet_ts ?? null, heute, zeitplan, veraltet, aktuell, vollstaendig: false,
+    bilanz: [], lage: [], befunde: pl, kaliber: [], koeff: [], erwartung: [],
+    saison: sb, punkte: [], paloxStationen: [], bestand: hb, naechste: [],
+    sorten: { verdunstung: [], ausschuss: [], nebenkanal: [] }, wiegungen: [], margeWiegung: [], margeCharge: [], kommentare: [],
+    gewichte: [], verarbeitung: [], durchsatz: [], qualitaet: null, verlauf: vl, verlust: [],
+    gebinde: [], schemata: [], kohorten: [], ausschuss: [], lieferungen: [], ausgang: [],
+    prognose: pg, wohin: wo, probleme,
+  }
+  if (!erzwingen) { stand = ersteWelle; hoerer.forEach(h => h()) }
+
+  const [b, d, kv, pe, pk, nc, kfv, kfa, kfn, kfu, wk, mw, mc, km, gw, va, ds, dq, ve, kg, ss, ko, ab, lf, ak, ps] = await Promise.all([
     q<Massenbilanz>('erg_massenbilanz'), q<Datenlage>('erg_datenlage'),
-    q<Befund>('erg_plausibilitaet'), q<Kaliberzeile>('erg_kaliber'), q<Kurve>('erg_kurve'),
-    eins<Modell>('erg_modell'), eins<Selektion>('erg_selektion'), eins<Saisonbilanz>('erg_bilanz'),
-    q<Schimmelpunkt>('erg_punkte'), q<Bestand>('erg_charge'), q<NaechsteCharge>('erg_naechste_charge'),
+    q<Kaliberzeile>('erg_kaliber'), q<PaloxErwartung>('v_palox_erwartung'),
+    q<Schimmelpunkt>('erg_punkte'), q<NaechsteCharge>('erg_naechste_charge'),
     q<SortenK>('erg_koeff_verdunstung'), q<SortenK>('erg_koeff_ausschuss'), q<SortenK>('erg_koeff_nebenkanal'),
     q<{ n: number; kg_pro_kiste: number | null }>('erg_koeff_ueberfuellung'),
     q<Wiegung>('erg_wiegung', ['wiege_ts', false]), q<MargeWiegung>('erg_marge_wiegung'), q<MargeCharge>('erg_marge_charge'), q<Kommentar>('v_arbeit_kommentar'),
     q<Gewichtsstufe>('erg_gewichte'), q<VerarbeitungAlter>('erg_verarbeitung_alter', ['tag', true]),
     q<Durchsatz>('erg_durchsatz', ['start_ts', false]),
-    eins<Datenqualitaet>('erg_datenqualitaet'), q<Verlaufswoche>('erg_verlauf', ['woche', true]),
+    eins<Datenqualitaet>('erg_datenqualitaet'),
     q<Verlustzeile>('erg_verlust'),
     q<KoeffGebinde>('erg_gebinde'), q<Schema>('sortierschema', ['gilt_ab', false]),
     q<Kohorte>('erg_kohorte', ['eingangsdatum', true]),
     q<AusschussBeobachtung>('erg_ausschuss'),
     q<LieferungKurz>('erg_lieferung', ['datum', true]),
     q<AusgangKennzahl>('erg_ausgang', ['ts', true]),
-    q<Prognose>('erg_prognose', ['h', true]), q<Wohin>('erg_wohin'),
     q<PaloxStation>('v_palox_station'),
   ])
   if (imBau) throw new Error(IM_BAU)
@@ -593,25 +617,20 @@ async function alles(erzwingen: boolean): Promise<Auswertung> {
     { was: 'Überfüllung je Kiste', n: kfu[0]?.n ?? 0, basis: 'gewogene fertige Paletten',
       wert: kfu[0]?.kg_pro_kiste == null ? '—' : `${kfu[0].kg_pro_kiste.toFixed(3)} kg` },
   ]
-  const heute = sb?.heute ?? hb[0]?.heute ?? heuteOrtszeit()
   return {
-    stand: st2?.berechnet_ts ?? null, heute,
-    zeitplan, veraltet, aktuell,
-    bilanz: b, lage: d, befunde: pl, kaliber: kv, kurve: sk, koeff,
-    modell: mo, selektion: sel, saison: sb, punkte: pk, paloxStationen: ps, bestand: hb, naechste: nc,
+    ...ersteWelle, vollstaendig: true,
+    bilanz: b, lage: d, kaliber: kv, koeff, erwartung: pe,
+    punkte: pk, paloxStationen: ps, naechste: nc,
     sorten: { verdunstung: kfv, ausschuss: kfa, nebenkanal: kfn }, wiegungen: wk, margeWiegung: mw, margeCharge: mc, kommentare: km,
-    gewichte: gw, verarbeitung: va, durchsatz: ds, qualitaet: dq, verlauf: vl, verlust: ve,
+    gewichte: gw, verarbeitung: va, durchsatz: ds, qualitaet: dq, verlust: ve,
     gebinde: kg, schemata: ss, kohorten: ko, ausschuss: ab, lieferungen: lf, ausgang: ak,
-    prognose: pg, wohin: wo,
-    probleme,
   }
 }
 
 /**
  * Runde AF: Welche Rate fehlt? Der Betrieb las „der Anteil ist unbekannt,
  * solange eine Rate nicht gemessen ist" und fragte zu Recht: welche. Die
- * Prognose trägt je Gruppe die vier Flaggen; hier werden sie zu Namen. Der
- * Sockel gehört seit 0097/0101 nicht dazu — ohne Nachweis ist er 0.
+ * Prognose trägt je Gruppe die vier Flaggen; hier werden sie zu Namen.
  */
 export function fehlendeRaten(p: Pick<Prognose, 'r_bekannt' | 'f_bekannt' | 'kanal_bekannt' | 'fax_bekannt'> | null | undefined): string[] {
   if (!p) return []
@@ -1006,35 +1025,6 @@ export function kaliberJe(zeilen: Kaliberzeile[], nach: 'sorte' | 'charge'): Kal
 /* ---------- Die Kurven, an denen die Ware heute steht ------------------------ */
 
 export interface Kurvenpunkt { mittel: number; unten: number; oben: number }
-
-/**
- * Die Verderbskurve des Modells an einer beliebigen Stelle t — dieselbe
- * Rechnung, mit der die Datenbank je Altersklasse rechnet (0061/0062):
- * F(t) = 1 − exp(−λ·t^k), zurückgerechnet mit dem Smearing-Faktor, plus der
- * Sockel a₀. Das Band kommt aus der Kovarianz der Anpassung (Delta-Methode im
- * Logarithmus): var(η) = var_achse + d²·var_k + 2·d·kov mit d = ln t − x̄.
- *
- * Gebraucht, um die Kurve **über die Messungen hinaus** zu zeichnen — dorthin,
- * wo die Ware heute liegt und wo sie in 30 oder 60 Tagen liegt. Neue Zahlen
- * entstehen hier nicht: Die Datenbank rechnet die Kaskade mit genau dieser
- * Kurve; hier wird sie nur an mehr Stellen ausgewertet als an sieben.
- */
-export function schimmelKurve(m: Modell | null): ((t: number) => Kurvenpunkt) | null {
-  if (!m || !m.brauchbar || m.lambda == null || m.k == null) return null
-  const lnLambda = m.ln_lambda ?? Math.log(m.lambda)
-  const k = m.k, sm = m.smearing ?? 1, sockel = m.sockel ?? 0
-  const xm = m.x_mittel ?? null, va = m.var_achse ?? null, vk = m.var_k ?? null, kov = m.kov_achse_k ?? 0, tf = m.t_faktor ?? 1.96
-  const f = (eta: number) => Math.min(1, sm * (1 - Math.exp(-Math.exp(eta))) + sockel)
-  return (t: number) => {
-    if (!(t > 0)) return { mittel: sockel, unten: sockel, oben: sockel }
-    const lt = Math.log(t)
-    const eta = lnLambda + k * lt
-    if (xm === null || va === null || vk === null) { const w = f(eta); return { mittel: w, unten: w, oben: w } }
-    const d = lt - xm
-    const sd = Math.sqrt(Math.max(va + d * d * vk + 2 * d * kov, 0))
-    return { mittel: f(eta), unten: f(eta - tf * sd), oben: f(eta + tf * sd) }
-  }
-}
 
 /** Die Verdunstung nach t Tagen bei einer Tagesrate r: 1 − (1 − r)^t, mit dem Bereich der Rate. */
 export function verdunstungKurve(k: SortenK | undefined): ((t: number) => Kurvenpunkt) | null {

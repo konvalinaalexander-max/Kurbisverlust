@@ -137,7 +137,8 @@ export interface Hochrechnung {
   /** Im Lager: der Eingangstag dieser Kohorte (0051). Sonst null. */
   kohorte: string | null
   alter_tage: number; eingang_kg: number; portion_kg: number
-  f_extrapoliert: boolean
+  /** 0106: der Palox-Anteil kommt aus den Arbeiten aller Sorten (geliehen). */
+  f_geliehen: boolean
   strom: string; buch: 'verlust' | 'feld' | 'marge' | 'bilanz'
   kg: number | null; basis_kg: number | null
   koeffizient: number | null; koeff_n: number | null; koeff_basis: string | null

@@ -154,7 +154,7 @@ export function rechenweg(v: StromSumme, eingang: number): [string, ReactNode][]
   ]
 }
 
-/** Woher die Schimmelkurve kommt — die Punkte mit ihrer Herkunft. */
+/** Woher die Palox-Anteile kommen — die Punkte mit ihrer Herkunft (seit 0106 die Stationswerte statt der Kurve). */
 export function Kurvenherkunft({ punkte }: { punkte: Schimmelpunkt[] }) {
   if (punkte.length === 0) return null
   const brauchbar = punkte.filter(p => p.plausibel && p.anteil !== null && p.anteil > 0)
@@ -164,11 +164,11 @@ export function Kurvenherkunft({ punkte }: { punkte: Schimmelpunkt[] }) {
       erklaerung: 'Der Palox am Band oder am Waschbecken. Welche Palette wann drankommt, hängt oft davon ab, wie sie aussieht — diese Punkte sind nicht zufällig ausgewählt.' },
     { name: 'aus Lagerkontrollen', quelle: 'lager',
       erklaerung: 'Beim Wiegen aufgemacht und nachgesehen — nur bei älteren Kontrollen, die noch „davon faul" erfasst haben. Die Lagerkontrolle ist seit Runde H eine reine Verdunstungsmessung.' },
-    { name: 'aus gemischten Chargen — nicht in der Kurve', quelle: 'verarbeitung_gemischt',
-      erklaerung: 'Beim Abschluss wurde „nicht alles aus einer Charge" gesagt. Das Alter der Ware ist dann geraten; die Menge zählt in der Bilanz, aber nicht im Verlauf.' },
+    { name: 'aus gemischten Chargen', quelle: 'verarbeitung_gemischt',
+      erklaerung: 'Beim Abschluss wurde „nicht alles aus einer Charge" gesagt. Das Alter der Ware ist dann geraten — der Stationswert braucht keines, darum zählt die Messung seit 0106 mit.' },
   ]
   return (
-    <Karte titel="Woher die Schimmelkurve kommt" unter="Welche Messungen die Kurve tragen — und welche nicht.">
+    <Karte titel="Woher die Palox-Anteile kommen" unter="Welche Messungen die Stationswerte tragen — und welche nicht.">
       <div className="rollbar"><table className="dicht">
         <thead><tr><th>Herkunft</th><th className="zahl">Punkte</th><th className="zahl">Lagertage</th></tr></thead>
         <tbody>{klassen.map(k => {
@@ -205,8 +205,13 @@ export function Bilanz({ bilanz }: { bilanz: Saisonbilanz }) {
       <Bilanzzeile titel="Wareneingang" herkunft="gemessen" kg={bilanz.eingang_kg} eingang={bilanz.eingang_kg} farbe="var(--strom-nebenkanal)" erklaerung="Netto ab Zettel, Tara abgezogen" />
       <Bilanzzeile titel="Ausgeliefert" herkunft="gemessen" kg={bilanz.geliefert_kg} eingang={bilanz.eingang_kg} farbe="var(--strom-rest)"
                    erklaerung={bilanz.n_lieferungen === 0 ? 'noch keine Lieferung erfasst' : `${bilanz.n_lieferungen} Lieferungen ab Lieferschein${bilanz.marge_kg > 0 ? `, davon ${tonnen(bilanz.marge_kg)} an die Tiere oder in den Nebenkanal` : ''}${bilanz.vorlauf_kg > 0 ? `, dazu ${tonnen(bilanz.vorlauf_kg)} vor dem Erfassungsbeginn` : ''}`} />
-      <Bilanzzeile titel="Verlust bis heute" herkunft="gerechnet" kg={bilanz.verlust_heute_kg} eingang={bilanz.eingang_kg} farbe="var(--strom-schimmel)"
-                   erklaerung={`Verdunstung ${tonnen(bilanz.verdunstung_heute_kg)} · Faules im Lager ${tonnen(summeBekannt([bilanz.schimmel_heute_kg, bilanz.sockel_heute_kg]))} · Faules beim Abpacken ${tonnen(bilanz.fax_heute_kg)}`} />
+      {/* 0106: Die Datenbank summiert nur die Chargen mit Wert; ist eine ohne
+          (eine Station ohne Stationswert, ein Koeffizient ohne Messung), sagt
+          verlust_bekannt es — und die Karte zeigt keine Teilsumme als Ganzes. */}
+      <Bilanzzeile titel="Verlust bis heute" herkunft="gerechnet" kg={bilanz.verlust_bekannt ? bilanz.verlust_heute_kg : null} eingang={bilanz.eingang_kg} farbe="var(--strom-schimmel)"
+                   erklaerung={bilanz.verlust_bekannt
+                     ? `Verdunstung ${tonnen(bilanz.verdunstung_heute_kg)} · Faules im Lager ${tonnen(bilanz.schimmel_heute_kg)} · Faules beim Abpacken ${tonnen(bilanz.fax_heute_kg)}`
+                     : `nicht für jede Charge bekannt — ein Koeffizient ohne Messung (welche Charge: Reiter Chargen; was zu messen ist: Messungen ausstehend). Nur die Chargen mit Wert: Verdunstung ${tonnen(bilanz.verdunstung_heute_kg)} · Faules im Lager ${tonnen(bilanz.schimmel_heute_kg)} · Faules beim Abpacken ${tonnen(bilanz.fax_heute_kg)}`} />
       <Bilanzzeile titel="Noch im Haus" herkunft="gerechnet" kg={bilanz.im_haus_heute_kg} eingang={bilanz.eingang_kg} farbe="var(--strom-verdunstung)"
                    erklaerung={`davon verkaufsfähig ${tonnen(bilanz.verkaufsfaehig_heute_kg)} · zu klein oder zu gross ${tonnen(kanalImHaus)}${kanalImHaus !== null ? ` (${tonnen(bilanz.kanal_ausgelagert_kg)} beim Sortieren hinter den Lieferungen aussortiert, ${tonnen(bilanz.kanal_im_haus_kg)} im Liegenden erwartet) — steht im Haus, bis ein Lieferschein es holt` : ''}`} />
       {bilanz.ueberzaehlung_kg > 0 && (

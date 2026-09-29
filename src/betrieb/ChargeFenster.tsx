@@ -87,7 +87,7 @@ export function ChargeFenster({ chargeNr, schliessen }: { chargeNr: number; schl
     { name: 'noch im Lager, verkaufsfähig', kg: wohin.lager_verkaufsfaehig_kg },
     { name: 'verkauft (auf Lieferscheinen)', kg: wohin.geliefert_kg },
     { name: 'verdunstet bis heute', kg: summe(wohin.verdunstet_ausgelagert_kg, wohin.lager_verdunstet_kg) },
-    { name: 'Faules bis heute', kg: summe(wohin.faul_ausgelagert_kg, wohin.lager_faul_kg, wohin.sockel_ausgelagert_kg, wohin.lager_sockel_kg, wohin.fax_kg, wohin.lager_fax_kg) },
+    { name: 'Faules bis heute', kg: summe(wohin.faul_ausgelagert_kg, wohin.lager_faul_kg, wohin.fax_kg, wohin.lager_fax_kg) },
     { name: 'zu klein', kg: summe(wohin.klein_ausgelagert_kg, wohin.lager_klein_kg) },
     { name: 'zu gross', kg: summe(wohin.gross_ausgelagert_kg, wohin.lager_gross_kg) },
     { name: 'Rest der Zählung', kg: summe(wohin.rest_kg, wohin.lager_rest_kg) },

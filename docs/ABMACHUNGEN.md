@@ -151,6 +151,9 @@ existiert:
   ist genau die Lücke, die AB-02 und AB-07 waren.
 - **Rückwärts:** Jede Erfassungstabelle, aus der die Auswertung liest, wird von
   der App auch geschrieben.
+| AB-120 | **Die Kaskade rechnet das Faule mit den Stationswerten, nicht mit einem Modell über die Lagerdauer.** Je Sorte und Station das massegewichtete Mittel der plausiblen Punkte (vier Wochen der Sorte ab drei Arbeiten → Saison → alle Sorten, `v_palox_erwartung`), zusammengesetzt über den Weg der Charge (`palox_f`: von Hand, oder Band und dann Waschstrasse); für Ausgelagertes die eigene Messung vor der Erwartung. Verderbsmodell, Sockel, Smearing, Selektionsverdacht und Treppe sind gestrichen (Entscheid des Betriebs, Runde AJ, 0106). | `pruefung.sql` 0106 (a–c), „Stationswerte zusammengehalten", 0037 umgedeutet (2 % mehr im Palox kommen an); Mutationen M1–M5, M11 |
+| AB-121 | **Bandware wird gewaschen, sobald die Sorte in dieser Saison gewaschen wurde** (`v_charge_weg.p_wasch`). Eine Sorte ohne Wasch-Arbeit verkauft ungewaschen und verliert nur am Band. Der Weg kommt aus den eigenen Arbeiten der Charge, sonst denen der Sorte, sonst allen — ohne jede Arbeit ist er unbekannt, und mit ihm das Faule. | `pruefung.sql` 0106 (b), (d) |
+| AB-122 | **Die Prognose schreibt das Faule nur mit dem Zuwachs fort, den die Kennzahl je Station ausweist** (vier Wochen, fünf Arbeiten; `palox_f_nach`). Vorher steht der Anteil still, `zuwachs_bekannt = false`, und `faul_je_tag_kg` wie die Zwei-Wochen-Zahl bleiben leer — keine erfundene Rate. | `pruefung.sql` 0106 (e); Mutationen M6, M7, M10 |
 
 Wer eine neue Abmachung umsetzt, trägt sie hier ein und nennt den Test. Wer eine
 Spalte anlegt, die niemand füllt, hört es beim nächsten `run.sh`.

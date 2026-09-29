@@ -4,7 +4,7 @@ import { datum, kg, prozent, tonnen, zahl } from '../lib/format'
 import { chargenNachFeld } from '../lib/felder'
 import { Aufklapp, Erklaerung, Herkunft, Hinweis, Karte, Kennzahl, Leer, Segmente } from '../components/Bausteine'
 import { Anteilsbalken, Linien, type Anteilszeile, type Punkt, type Reihe, type Zone } from '../components/Diagramm'
-import { lagerstaende, prognoseBei, schimmelKurve, useAuswertung, wohinVon,
+import { lagerstaende, prognoseBei, useAuswertung, wohinVon,
          type Auswertung, type AusgangKennzahl, type Bestand, type Lagerstand, type MargeWiegung, type Schema, type Schimmelpunkt, type SortenK, type Wohin } from '../auswertung/daten'
 import { Probleme, Rechnet, Reiterkopf } from '../auswertung/Karten'
 import { ZChevron } from '../components/Zeichen'
@@ -67,6 +67,8 @@ export default function Ursachen() {
   const staende = useMemo(() => daten ? lagerstaende(chargen, daten.naechste) : [], [chargen, daten])
 
   if (laedt && !daten) return <Rechnet fortschritt={fortschritt} />
+  // Runde AJ: die zweite Welle der Ergebnisse (dieser Reiter braucht sie) kommt nach dem Lagermanagement.
+  if (daten && !daten.vollstaendig) return <Rechnet fortschritt={fortschritt} />
   if (fehler) return <Hinweis art="warnung">{fehler}</Hinweis>
   if (!daten) return null
 
@@ -148,7 +150,7 @@ const WOHIN_TEILE: { name: string; farbe: string; hinweis?: string; felder: (key
   { name: 'verdunstet bis heute', farbe: 'var(--strom-verdunstung)',
     hinweis: 'entwichenes Wasser, draussen wie drinnen', felder: ['verdunstet_ausgelagert_kg', 'lager_verdunstet_kg'] },
   { name: 'Faules bis heute', farbe: 'var(--strom-schimmel)',
-    hinweis: 'Faules im Lager, vom Feld und beim Abpacken', felder: ['faul_ausgelagert_kg', 'lager_faul_kg', 'sockel_ausgelagert_kg', 'lager_sockel_kg', 'fax_kg', 'lager_fax_kg'] },
+    hinweis: 'Faules im Lager und beim Abpacken', felder: ['faul_ausgelagert_kg', 'lager_faul_kg', 'fax_kg', 'lager_fax_kg'] },
   { name: 'zu klein', farbe: 'var(--strom-ausschuss)',
     hinweis: 'beim Sortieren aussortiert — steht im Haus, bis ein Lieferschein es holt; kein Verlust', felder: ['klein_ausgelagert_kg', 'lager_klein_kg'] },
   { name: 'zu gross', farbe: 'var(--strom-nebenkanal)',
@@ -278,14 +280,10 @@ function Faules({ daten, filter, chargen, staende, oeffnen }: {
     filter.gruppe === 'gesamt' ? p.sorte : filter.gruppe === 'sorte' ? `Charge ${p.charge_nr}` : `Charge ${p.charge_nr}`
   const namen = [...new Set(gute.map(schluesselVon))].sort((a, b) => a.localeCompare(b, 'de', { numeric: true }))
   const farbe = farbwahl(namen)
-  const eigene = new Set(gute.map(p => p.charge_nr))
 
   // 0091: der Kommentar zur Ware am Punkt — „Hagelschaden" erklärt den
   // Ausreisser, bevor jemand ihn sucht.
   const kommentar = new Map(daten.kommentare.map(k => [k.auftrag_id, k.text]))
-  const modell = daten.modell
-  const kurve = sicht === 'alle' ? schimmelKurve(modell) : null
-  const tMax = modell?.t_max ?? 0
   const heute = tagVon(daten.heute)
   const p0 = prognoseBei(daten.prognose, filter.gruppe, filter.schluessel, 0)
   const xVon = (p: Schimmelpunkt) => achse === 'kalender' ? tagVon(p.messtag) : p.lagertage
@@ -341,38 +339,21 @@ function Faules({ daten, filter, chargen, staende, oeffnen }: {
     })
   }
 
-  // Auf der Lagerdauer-Achse: die Kurve des Modells und die Chargen von heute —
-  // nur in der Sicht „alle", denn das Modell ist über alle Augen angepasst.
+  // Auf der Lagerdauer-Achse: wo die Ware heute liegt. Seit 0106 läuft hier
+  // keine Kurve mehr mit — die Kaskade rechnet mit den Stationswerten, nicht
+  // mit dem Alter; die Zone zeigt nur, welche Lagerdauern gerade im Haus sind.
   let zonen: Zone[] = []
   let heuteMarke: { x: number; text?: string; rechts?: string } | undefined
-  if (achse === 'liegt' && kurve) {
-    const xEnde = Math.max(Math.ceil((tMax + 30) / 30) * 30, 60, ...staende.map(s => s.bis + 30))
-    const ts = Array.from({ length: 49 }, (_, i) => (xEnde * i) / 48)
-    reihen.unshift({
-      name: 'Modell (alle Sorten)', farbe: 'var(--text-leise)', linie: true, marker: false, gestrichelt: true,
-      punkte: ts.map(t => ({ x: t, y: kurve(t).mittel * 100 })),
-      band: ts.map(t => ({ x: t, unten: kurve(t).unten * 100, oben: kurve(t).oben * 100 })),
-    })
-    const von = staende.length ? Math.min(...staende.map(s => s.von)) : null
-    const bis = staende.length ? Math.max(...staende.map(s => s.bis)) : null
+  if (achse === 'liegt' && staende.length > 0) {
+    const von = Math.min(...staende.map(s => s.von))
+    const bis = Math.max(...staende.map(s => s.bis))
     if (staende.length === 1) {
       heuteMarke = { x: staende[0].alter, text: `heute · ${Math.round(staende[0].alter)} Tage im Lager`,
                      rechts: 'länger gelagert' }
-    } else if (von !== null && bis !== null) {
+    } else {
       // Rechts der Zone steht nicht die Zukunft, sondern längere Lagerdauer —
       // deshalb heisst die Marke hier nicht „Prognose" (Ursachen zeigt keine).
       zonen = [{ von, bis, text: `hier liegt die Ware heute (${Math.round(von)}–${Math.round(bis)} Tage)` }]
-    }
-    if (staende.length > 0) {
-      reihen.push({
-        name: 'Chargen heute im Lager', farbe: 'var(--kuerbis)', form: 'raute', marker: true, linie: false,
-        punkte: staende.map(s => ({
-          x: s.alter, y: kurve(s.alter).mittel * 100,
-          name: `Charge ${s.charge.charge_nr} · ${s.charge.sorte}`,
-          groesse: 3.5 + 3 * Math.sqrt(s.imHaus / Math.max(1, staende[0]?.imHaus ?? 1)),
-          text: `liegt seit ${Math.round(s.alter)} Tagen · ${kg(s.imHaus, 0)} im Haus · ${eigene.has(s.charge.charge_nr) ? 'eigene Messung' : 'wie Mittelmass — keine eigene Messung'}`,
-        })),
-      })
     }
   }
 
@@ -400,11 +381,12 @@ function Faules({ daten, filter, chargen, staende, oeffnen }: {
                 xBis={achse === 'kalender' ? heute : undefined}
                 heute={achse === 'kalender' ? { x: heute, text: `heute, ${tagText(heute)}`, rechts: '' } : heuteMarke}
                 zonen={zonen}
-                senkrechte={achse === 'liegt' && kurve && tMax > 0 ? [{ x: tMax, text: 'bis hier gemessen', farbe: 'var(--text-leise)' }] : []}
                 leer="noch keine Schimmelmessung"
                 treffer="punkt" onPunkt={p => oeffnen(p, 'Diese Messung: Faules am Palox')}
-                fuss={sicht === 'alle' && p0?.faul_je_tag_kg != null
-                  ? <span className="leise">Rechnung heute: {kg(p0.faul_je_tag_kg, 0)} Faules je Tag an der liegenden Ware (aus dem Modell)</span>
+                fuss={sicht === 'alle' && p0
+                  ? <span className="leise">{p0.faul_je_tag_kg != null
+                      ? <>Rechnung heute: {kg(p0.faul_je_tag_kg, 0)} Faules je Tag an der liegenden Ware (Stationswerte, fortgeschrieben mit dem Zuwachs je Woche)</>
+                      : <>Rechnung heute: das Faule steht auf dem Stand der Stationswerte — fortgeschrieben wird erst, wenn die Kennzahl je Station einen Zuwachs ausweist</>}</span>
                   : undefined} />
       )}
       {kennzahlen.length > 0 && (
@@ -423,8 +405,7 @@ function Faules({ daten, filter, chargen, staende, oeffnen }: {
         </div>
       )}
       <p className="hilfe">
-        Jeder Punkt ist eine Ablesung am Palox <Herkunft art="gemessen" /> — die gestrichelte Kurve ist das Modell
-        aus allen Ablesungen <Herkunft art="gerechnet" />, nur in der Sicht „alle".{' '}
+        Jeder Punkt ist eine Ablesung am Palox <Herkunft art="gemessen" />.{' '}
         Je Station zählt der Anteil dieses Auges allein: An der Sortiermaschine kommt nur eklig Faules in den Palox, an der
         Waschstrasse auch Ästhetik und Schäden — darum werden Stationen nur unter ihresgleichen verglichen. „Chargen
         verbinden" zieht eine Linie durch die Punkte derselben Charge.{' '}
@@ -439,8 +420,9 @@ function Faules({ daten, filter, chargen, staende, oeffnen }: {
         <p>Die Kennzahl je Station <Herkunft art="gerechnet" /> ist das nach Masse gewichtete Mittel der plausiblen Punkte
         dieser Station; der Zuwachs ist die Steigung einer massegewichteten Geraden über den Messtag und wird erst nach
         vier Wochen und fünf Arbeiten gezeigt — vorher steht, was noch fehlt.</p>
-        <p>Auf der Lagerdauer läuft in der Sicht „alle" die gestrichelte Kurve des Modells mit, an die alle Ware gerechnet wird; die Rauten sind
-        die Chargen mit Ware im Haus. Eine Charge ohne eigene Messung liegt auf der Kurve, weil sie wie Mittelmass gerechnet wird — das sagt ihr Feld.</p>
+        <p>Mit diesen Werten rechnet die Kaskade (seit 0106): je Sorte und Station das Mittel der letzten vier Wochen, sonst der Saison,
+        sonst aller Sorten — zusammengesetzt über den Weg der Charge (von Hand, oder Band und danach Waschstrasse). Für schon
+        ausgelagerte Ware gilt die eigene Messung der Charge. Die Tabelle je Sorte und Station steht unter <Link to="/messungen">Messungen</Link>.</p>
       </Erklaerung>
     </Karte>
   )

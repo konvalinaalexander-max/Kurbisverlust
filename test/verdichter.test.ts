@@ -72,3 +72,37 @@ test('die Reihenfolge nach Abhängigkeit bleibt erhalten', () => {
   assert.ok(text.indexOf('create view v_unten') < text.indexOf('create view v_oben'),
     'v_unten muss vor v_oben stehen — v_oben liest es')
 })
+
+test('eine Schleife ist überholt, wenn jeder ihrer Namen später neu gebaut oder endgültig weggeräumt wird (0106)', () => {
+  // 0061/0068 bauten erg_modell aus v_schimmel_modell. 0105 baut erg_punkte
+  // neu, 0106 räumt das Modell weg und baut den Rest der Schleife neu —
+  // keine einzelne spätere Anweisung deckt alle Namen der alten Schleife.
+  // Bliebe sie stehen, baute setup.sql erg_modell aus einer Sicht, die es
+  // nicht mehr gibt, und bräche ab.
+  const liste = [
+    'create view v_quelle as select 1 as a;',
+    'create view v_modell as select 2 as b;',
+    `-- verdichter: baut erg_punkte erg_modell erg_rest
+     do $$ begin
+       execute 'create materialized view erg_punkte as select * from v_quelle';
+       execute 'create materialized view erg_modell as select * from v_modell';
+       execute 'create materialized view erg_rest as select * from v_quelle';
+     end $$;`,
+    `-- verdichter: baut erg_punkte
+     do $$ begin
+       execute 'create materialized view erg_punkte as select *, 1 as station from v_quelle';
+     end $$;`,
+    'drop materialized view if exists erg_modell cascade;',
+    'drop view if exists v_modell cascade;',
+    `-- verdichter: baut erg_rest
+     do $$ begin
+       execute 'create materialized view erg_rest as select * from v_quelle';
+     end $$;`,
+  ]
+  const text = teilB(verdichten(liste))
+  assert.ok(!text.includes('erg_modell as select * from v_modell'),
+    'Die alte Schleife steht noch in setup.sql — sie baute erg_modell aus einer Sicht, die es nicht mehr gibt')
+  assert.ok(text.includes('1 as station from v_quelle'), 'die jüngere Fassung von erg_punkte fehlt')
+  assert.ok(text.includes("erg_rest as select * from v_quelle"), 'erg_rest muss die spätere Anweisung bauen')
+  assert.ok(!text.includes('create view v_modell'), 'v_modell ist weggeräumt und darf nicht mehr gebaut werden')
+})

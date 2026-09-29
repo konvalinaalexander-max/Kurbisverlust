@@ -345,9 +345,24 @@ export function verdichten(liste) {
   // jüngste Anweisung übrig, und genau die soll bauen.
   const markeStellen = [...markiert.entries()].sort((a, b) => a[0] - b[0])
   const ueberholt = (name, stelle) => markeStellen.some(([i, ns]) => i > stelle && ns.includes(name))
+  //
+  // Ein Name ist auch dann erledigt, wenn eine spätere Migration ihn
+  // endgültig wegräumt („drop materialized view if exists erg_modell") und
+  // danach niemand ihn mehr baut (0106: erg_modell, erg_kurve,
+  // erg_selektion). Sonst bliebe die alte Schleife in setup.sql stehen und
+  // baute ein Objekt aus einer Quelle, die es am Ende nicht mehr gibt.
+  // Und die Namen dürfen von verschiedenen späteren Anweisungen kommen:
+  // erg_punkte baut 0105, den Rest 0106 — die Schleife aus 0068 ist damit
+  // ganz überholt.
+  const spaeterGebaut = (name, stelle) =>
+    markeStellen.some(([j, ms]) => j > stelle && ms.includes(name))
+    || [...jeObjekt.values()].some(b => b[0].ziel === name
+         && b.some(x => x.von > stelle && info[x.von] && info[x.von].tut === 'baut'))
+  const spaeterWeg = (name, stelle) =>
+    info.some((o, j) => o && j > stelle && o.tut === 'raeumt' && o.ziel === name)
   const ueberholteMarken = new Set()
   for (const [i, ns] of markeStellen)
-    if (markeStellen.some(([j, ms]) => j > i && ns.every(n => ms.includes(n)))) ueberholteMarken.add(i)
+    if (ns.every(n => spaeterGebaut(n, i) || spaeterWeg(n, i))) ueberholteMarken.add(i)
   for (const i of ueberholteMarken) markiert.delete(i)
 
   const ausMarke = new Set([...markiert.values()].flat())

@@ -695,6 +695,21 @@ sagt der Chip „Zeitplan rechnet nicht" (AB-97, `src/lib/zeitplan.ts`).
 Wurde seit der letzten Rechnung nichts erfasst, sagt der Chip „aktuell".
 Seit Runde AG rechnet die App beim Öffnen nie mehr selbst (AB-114).
 
+**Runde AJ (0106)** — die Kaskade rechnet mit den Stationswerten: Das
+Verderbsmodell (F(t) über die Lagerdauer, Sockel, Smearing,
+Selektionsverdacht, Treppe) ist gestrichen — Entscheid des Betriebs nach
+„zwei sehr unterschiedliche Arten von Augen". Das Faule einer Charge ist die
+Zusammensetzung der Stationen auf ihrem Weg (`palox_f`), je Sorte aus den
+letzten vier Wochen (`v_palox_erwartung`), für Ausgelagertes die eigene
+Messung; die Prognose schreibt mit dem Zuwachs je Station fort, sobald die
+Kennzahl ihn ausweist (`zuwachs_bekannt`). Mit ihm gehen zwölf Sichten und
+Funktionen, der Strom „Nicht lagerbedingt" und die Spalten `sockel_*`,
+`modell_gilt`, `hochgerechnet`; neu sind `faul_anteil`/`faul_quelle` an jeder
+Charge und `f_geliehen`. Dazu die Entschlackung (Stufe 1): Laden je Seite
+(Lagermanagement zuerst), tote Sichten weg, Prüfstand in zwei Stufen
+(`CLAUDE.md` § 3, `pruefstand/schnell.sh`). **Der Betrieb spielt setup.sql
+einmal ein (Stand 106).**
+
 **Runde AI (0105)** — Stationen unter ihresgleichen: Jeder Palox-Punkt
 kennt sein Auge und seinen eigenen Anteil; das Diagramm „Faules im Lager"
 schaltet zwischen alle · Waschen + Sortieren · nur Waschen · Sortieren um und
@@ -1254,17 +1269,18 @@ Auf beide läuft dieselbe Massenkaskade, jeder Anteil bezogen auf die Masse, die
 in seinen Schritt hineingeht:
 
 ```
-Eingang ──Verdunstung──> M1 ──Sockel a₀──> ──Schimmel F(t)──> M2 ──zu klein / zu gross──> ──Fax──> verkaufsfähig
+Eingang ──Verdunstung──> M1 ──Faules (Stationswerte)──> M2 ──zu klein / zu gross──> ──Fax──> verkaufsfähig
 ```
 
 - **Verdunstung** multiplikativ: `netto_jetzt = netto_damals · (1−r)^Lagertage`.
   So kann die Hochrechnung auch über Monate nie mehr verbrauchen, als da ist.
-- **Sockel a₀** — was im Palox landet, ohne je gefault zu haben: Erde,
-  Hagelnarben, Schnittfehler. Zeitunabhängig, aus den Messungen geschätzt und
-  vom Verderb getrennt, damit er die Kurve nicht aufbläht. Nur, wenn die Daten
-  ihn belegen — sonst 0.
-- **Schimmel** als Verderbsmodell `F(t) = 1 − exp(−λ·t^k)` über die Lagerdauer,
-  an alle Messungen angepasst, chargen-robust gefehlert.
+- **Faules** als Palox-Anteil der Stationen auf dem Weg der Charge (seit
+  0106, Runde AJ): je Sorte und Station das massegewichtete Mittel der letzten
+  vier Wochen (sonst Saison, sonst alle Sorten), zusammengesetzt über
+  `p_hand · f_W+S + (1 − p_hand) · (f_S + (1 − f_S) · p_wasch · g_W)`; für
+  Ausgelagertes die eigene Messung der Charge. Kein Modell über die Lagerdauer,
+  kein Sockel mehr — was ein Auge in den Palox legt, ist Faules dieser
+  Station. Die Prognose schreibt mit dem Zuwachs je Station fort (0105).
 - **Zu klein und zu gross** als Massenanteile aus der Sortier-CSV — nach
   der Fassung der Bänder, die für den Auftrag galt. Auch die Handlinie
   sortiert nach denselben Grenzen; dort wird nichts mehr gewogen.

@@ -77,7 +77,14 @@ bleiben soll.
   im Betriebsabzug, nicht vor jedem Push. Das ist eine Änderung an
   `CLAUDE.md` — sie steht unten als Vorschlag, entschieden vom Betrieb.
 
-### Stufe 2 — vom Betrieb am 29. September beschlossen
+### Stufe 2 — vom Betrieb am 29. September beschlossen, in Runde AJ umgesetzt (0106)
+
+Umgesetzt am selben Tag: Kaskade auf Stationswerten (`docs/HERLEITUNG.md`
+§ 7, `docs/ENTSCHEIDUNGEN.md` Runde AJ), Chargen als zweiter Reiter, die
+Dokumentation eingefroren. Aus Stufe 1: Laden in zwei Wellen, die dreizehn
+Modellobjekte weg, Prüfstand in zwei Stufen (`pruefstand/schnell.sh`). Offen:
+die langsamen Ansichten des Betriebs (braucht `auswertung_laufzeit` ab Stand
+103) und `v_lager_kaliber`.
 
 - **Die Kaskade auf die Stationswerte stellen.** Verderb liegender Ware =
   erwarteter Palox-Anteil der nächsten Station (Mittel der letzten vier

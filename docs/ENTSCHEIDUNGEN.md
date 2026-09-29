@@ -3,6 +3,14 @@
 Was hier steht, geht über die Spezifikation hinaus oder weicht bewusst von ihr
 ab. Jede Entscheidung mit Begründung, damit sie sich später überstimmen lässt.
 
+**Seit Runde AJ (29. September 2026) ist diese Datei ein Archiv** (Entscheid
+des Betriebs, `docs/ENTSCHLACKUNG.md`, Stufe 2): Was unten steht, wird nicht
+mehr umgeschrieben — auch nicht, wenn eine spätere Runde es überholt; die
+spätere Runde sagt es in ihrem eigenen Abschnitt. Neue Runden hängen oben
+einen **kurzen** Abschnitt an: was, warum, was bewusst nicht gemacht wurde.
+Die lebenden Dokumente sind `docs/HERLEITUNG.md` (woher jede Zahl kommt) und
+`docs/ABMACHUNGEN.md` (was gilt, mit dem Test, der es hält).
+
 ## Abweichungen von der Spezifikation
 
 ### `sortier_gewicht` statt `sortier_kuerbis` — lauflängenkodiert
@@ -4162,6 +4170,157 @@ Daten, dann die Annahme — nach der Korrektur nachsehen.
 **„Doppelte Palette" nicht gestrichen.** Der Zufall erklärt das meiste,
 nicht alles: vier mal vier gleiche Paloxen und ein Tag mit 30 Paaren bei
 13 erwarteten sind Fragen wert.
+
+## Runde AJ: die Kaskade rechnet mit den Stationswerten — das Verderbsmodell ist weg (29. September, 0106)
+
+**Entscheid des Betriebs** („ja mach", zu `docs/ENTSCHLACKUNG.md` Stufe 1 und 2):
+Verderb liegender Ware ist nicht mehr F(t) über die Lagerdauer, sondern der
+Palox-Anteil der Stationen auf dem Weg der Charge. Der Grund kommt aus der
+Halle: fünf Jungs am Band legen nur eklig Faules in den Palox, zwei junge
+Frauen an der Waschstrasse auch Ästhetik und Schäden — „zwei sehr
+unterschiedliche Arten von Augen". Ein Modell, das alle Augen auf eine Kurve
+über die Lagerdauer legt, rechnet etwas, was es im Betrieb nicht gibt; auf den
+echten Daten war es am 29. September nicht einmal anpassbar (k = −0.49), und
+die Kaskade lief auf der Treppenfunktion.
+
+**Was gilt (0106, AB-120 bis AB-122):**
+- `v_palox_erwartung`: je Sorte und Station das massegewichtete Mittel der
+  plausiblen Punkte — vier Wochen der Sorte (ab drei Arbeiten) → Saison der
+  Sorte → alle Sorten (vier Wochen, dann Saison ab einer Arbeit); `ebene`,
+  `quelle`, `geliehen` sagen, welche Stufe gilt. Das Band ist ± t · sd/√n.
+- `v_charge_weg`: p_hand (Anteil von Hand an der verarbeiteten Masse) und
+  p_wasch (1, wenn die Sorte in dieser Saison gewaschen wird) — aus den
+  eigenen Arbeiten, sonst denen der Sorte, sonst allen; ohne Arbeit unbekannt.
+- `palox_f`: f = p_hand · f_W+S + (1 − p_hand) · (f_S + (1 − f_S) · p_wasch · g_W);
+  NULL, sobald eine Station auf dem Weg keinen Wert hat — das Faule ist dann
+  unbekannt, nicht 0. Für Ausgelagertes gilt die eigene Messung der Charge je
+  Station (`v_charge_palox`) vor der Erwartung; für Liegendes die Erwartung.
+- Die Prognose schreibt jede Station um den Zuwachs je Woche der Kennzahl
+  (0105) fort (`palox_f_nach`) — nur wenn `zuwachs_bekannt` (vier Wochen,
+  fünf Arbeiten). Sonst steht der Anteil still, `faul_je_tag_kg` und die
+  Zwei-Wochen-Zahl bleiben leer. Der Verlauf verschiebt mit demselben Zuwachs
+  zurück und voraus, vom Liefertag bzw. von heute aus.
+- Gestrichen: `v_schimmel_modell_rechnen`, `mv_schimmel_modell`,
+  `v_schimmel_modell`, `schimmelanteil()`, `sockel_anteil()`,
+  `v_schimmel_kurve`, `v_schimmel_kurve_anzeige`, `v_selektionsverdacht`,
+  `v_verderb_lage`, `erg_modell`, `erg_kurve`, `erg_selektion`,
+  `mv_schimmel_punkte` (seit 0105 ohne Leser); der Strom „Nicht
+  lagerbedingt" (Buch `feld`); die Spalten `sockel_*`, `a0*`, `modell_gilt`,
+  `hochgerechnet`, `f_extrapoliert`, `d_f_eta`, `d_eta`, `d_a0`, `u`. Neu:
+  `f_geliehen`, `zuwachs_bekannt`, `faul_anteil`, `faul_quelle` (erg_charge),
+  `f_quelle`, `f_se` (mv_kaskade). `kg_extrapoliert` in erg_verlust heisst
+  jetzt „mit geliehenem Anteil gerechnet".
+- Die Unsicherheit des Faulen kommt aus dem Band des Stationswerts (f_se je
+  Zeile, ∂kg/∂f · f_se über die Zeilen summiert — die Zeilen einer Sorte
+  teilen denselben Wert und schwanken gemeinsam), nicht mehr aus der
+  Kovarianz der Anpassung.
+
+**Vorher – nachher auf der Demo (29. September, 362 t Eingang):** Verlust bis
+heute 57.3 t → 43.3 t; Faules 30.4 t (29.5 Schimmel + 0.8 Sockel) → 16.3 t;
+verkaufsfähig im Haus 151.3 t → 164.1 t (76.0 % → 82.0 % der liegenden Ware).
+Der Unterschied ist das Modell: Mit k = 1.41 wuchs der Verderb mit dem Alter
+der Ware weiter; die Stationswerte sagen, was die Augen in den letzten vier
+Wochen tatsächlich in den Palox gelegt haben (Sortieren 3.7 %, Waschen 2.2 %
+(letzte vier Wochen 5.6 %), Waschen + Sortieren 3.8 %). Auf dem Betrieb (614 t,
+Stand 102, Treppenfunktion) stand das Faule bei 66.0 t = 10.7 % der
+Eingangsmasse; die Stationswerte dort liegen bei 6–16 % je Arbeit — die Zahl
+wird sich nach dem Einspielen ändern, in welche Richtung sagt erst der Lauf.
+
+**Prüfung:** Block 0106 (a–h) auf der Demo, mit elf Mutationen (palox_f ohne
+Waschstrasse, Mittel ohne Masse, Sorte ab einer Arbeit, Ausgelagertes mit
+Erwartung statt eigener Messung, nur Handwert, Prognose ohne Fortschreiben,
+Zuwachs immer bekannt, Verlust ohne Faules, Anteil immer bekannt, Rate ohne
+Zuwachs, Weg ohne Sorte) — jede schlägt an. Die alten Blöcke sind umgedeutet,
+nicht geschwächt: 0037 (2 % mehr im Palox kommen im Stationswert, in der
+Erwartung und in der Kaskade an), 0067 („Stationswerte zusammengehalten": die
+Kaskade ist die Zusammensetzung aus Weg und Werten, nachgerechnet), 0039 (der
+gemischte Punkt zählt im Stationswert, weil der kein Alter braucht), 0097 (c)
+(mit einer Charge bleibt der Verlust bekannt, geliehen), der Selektionsblock
+(Grenzen bleiben geordnet). Die Gegenprobe (`gegenprobe/orakel`) rechnet die
+Stationswerte, den Weg, die Kaskade, die Prognose und den Verlauf unabhängig
+nach — 52 Fälle gegen die Datenbank. Dabei kam heraus, dass K10 (der Verlauf)
+seit 0101 still rot war: Das Orakel zählte das hinter den Lieferungen
+Aussortierte nicht zu „im Haus", die Sicht seit Runde AF schon; niemand hatte
+die Gegenprobe seither laufen lassen, weil sie in keinem Ritual steht. Jetzt
+stimmt das Orakel, und die Gegenprobe gehört zur vollen Stufe.
+
+**Entschlackung, Stufe 1 (dieselbe Runde):**
+- Laden je Seite: `alles()` holt zuerst die sechs Ergebnisse des
+  Lagermanagements (Bestand, Prognose, Bilanz, Verlauf, Wohin,
+  Auffälligkeiten) und zeichnet; die übrigen 26 kommen als zweite Welle, auf
+  die nur die anderen Reiter warten (`vollstaendig`).
+- Tote Sichten: die dreizehn Modellobjekte oben. Geprüft und **behalten**:
+  `v_kontrollpalette_rate` (einziger Leser der Kontrollpaletten-Wägungen —
+  ohne sie wäre die Tabelle stumm; die Kontrollpalette selbst liest noch
+  keine Seite, das ist eine offene Frage an den Betrieb) und `v_lager_kaliber`
+  (Hülle um `lager_kaliber(0)`, nur von 0078 geprüft; fällt mit einer eigenen
+  Migration, wenn die Runde dafür Zeit hat).
+- Prüfstand in zwei Stufen: `CLAUDE.md` § 3, `pruefstand/schnell.sh`; der
+  Block der Runde liegt allein lauffähig unter `supabase/test/bloecke/`.
+- Die Chargen stehen als zweiter Reiter, gleich hinter dem Lagermanagement.
+- Die langsamen Ansichten des Betriebs: erst nach dem Einspielen von Stand
+  103+ steht in `auswertung_laufzeit`, wo die Minuten sind — der Betrieb hat
+  Stand 102 (29. September, 09:28 UTC). Nicht in dieser Runde.
+- Der Verdichter kennt jetzt endgültig weggeräumte Namen: Eine angemeldete
+  Schleife ist überholt, wenn jeder ihrer Namen später neu gebaut oder
+  weggeräumt wird (`test/verdichter.test.ts`) — sonst hätte setup.sql
+  `erg_modell` aus einer Sicht gebaut, die es nicht mehr gibt.
+- Die Stationswerte lesen `v_schimmel_punkte`, nicht die Kopie
+  `erg_punkte`: Prüfung 0068 hält seit 0079 fest, dass es die Punkte auf
+  einem Weg gibt (die Kopie ist für die App, die Auswertung liest die
+  lebenden Punkte). Die erste Fassung las die Kopie — und war rot.
+- Die Kette verlangte an ihrem Ende „Schimmel beziffert" (kg > 0). Ihre
+  Charge ging von Hand (220 kg Faules gewogen) und über das Band (15 kg),
+  ihre Bandware wurde gewaschen, aber beim Waschen war der Palox freiwillig
+  und blieb ungewogen. Mit den Stationswerten heisst das: Waschen ohne Wert,
+  das Faule der Charge unbekannt — nicht 0. Die Prüfung sagt jetzt genau das
+  (beide gewogenen Stationen kommen als Wert an, `f_quelle` nennt die
+  fehlende Station, das Ranking trägt null): die Regel hat sich geändert,
+  die Prüfung mit ihr, nicht dagegen. Für den Betrieb: Solange in einer
+  Saison keine Waschen-Arbeit einen Palox wiegt, bleibt das Faule jeder
+  gewaschenen Charge unbekannt — der Reiter „Messungen ausstehend" sagt es.
+  Dieselbe Regel traf Prüfung 0097 (c): „mit den Messungen einer Charge
+  bleibt der Verlust bekannt" galt für Modell und Sockel; eine Charge geht
+  nicht durch alle drei Stationen. Die Probe lässt jetzt je Station eine
+  gemessene Arbeit stehen (alles geliehen, Verlust bekannt) und nimmt dann
+  die Waschen-Arbeit weg: genau die liegenden Portionen mit gewaschener
+  Bandware werden unbekannt, ihre Chargen tragen keine Zahl, die Bilanz
+  sagt „nicht bekannt", das Ranking trägt null.
+- Dabei gesehen: `erg_bilanz` summiert „Verlust bis heute" über die Chargen
+  mit Wert und setzt nur `verlust_bekannt` auf falsch — die Bilanzkarte
+  zeigte die Teilsumme als Ganzes. Mit den Stationswerten kommt dieser
+  Fall öfter (Saisonanfang, eine Station ohne Wägung), darum sagt die
+  Karte jetzt „nicht gemessen" und nennt die Summe der Chargen mit Wert
+  als das, was sie ist. Der Betrieb ist heute davon nicht betroffen
+  (`verlust_bekannt` = wahr auf Stand 102).
+- Die Schleife, die die `erg_*`-Fassungen neu baut, war aus 0068 kopiert
+  und kannte `v_ausgang_voll` nicht (seit 0089 die Quelle von
+  `erg_ausgang`, mit `voll`); mit dem `drop … cascade` gingen auch die
+  acht Indexe der neu gebauten Ergebnisse und die Klartext-Kommentare von
+  0089. Prüfung 0089 (e2) fing die Quelle, der Fingerabdruck-Abgleich in
+  `run.sh` die Indexe (sechs Zeilen „nur aus setup.sql" — genau so, wie
+  0068 es vorausgesagt hatte: „wer die Schleife wieder abschreibt, schreibt
+  diesen Block mit ab"); 0106 stellt Quelle, Indexe und Kommentare wieder
+  her, beide Wege ergeben dieselben 3331 Objekte.
+- Der Lasttest (dreifache Saison) lag mit 12 109 ms knapp über der Grenze
+  von 12 000 ms. Die Zeit sass in `v_palox_erwartung`: 790 ms für 22
+  Zeilen, davon 440 ms in der Verknüpfung Sorten × Stationen × Ebenen mit
+  den Punkten — der Planer zog `heute() - 28` in den Verknüpfungsfilter
+  und rief `heute()` (liest `einstellung`) für jedes der 37 000 Paare. Mit
+  dem Stichtag in einer `materialized`-CTE: 9 ms für die Verknüpfung, 380
+  ms für die Sicht, Neuberechnen 10 100–10 500 ms. Merkposten: `heute()`
+  ist `stable` und in Verknüpfungsbedingungen teuer — einmal in eine CTE
+  legen, `materialized`, sonst inlinet der Planer den Einzeiler zurück.
+
+**Was bewusst nicht gemacht wurde:** keine Migration für `v_lager_kaliber`
+und die Marge-/Ausstehend-Reiter (der Betrieb wollte prüfen lassen, ob sie in
+den Chargen-Reiter passen — Ausstehend ist die Messliste je Sorte und bleibt
+ein Reiter; Marge ist längst Teil der Ursachen); kein Modell je Sorte über die
+Lagerdauer (die Stationswerte sind je Sorte); keine Rate des Faulen, solange
+die Kennzahl keinen Zuwachs ausweist — lieber leer als erfunden. Die alten
+Forschungswerkzeuge (`pruefwerk/`, `werkstatt/`, `supabase/test/simulation/`)
+sprechen noch vom Modell; sie laufen in keinem Ritual und bleiben als
+Geschichte stehen.
 
 ## Runde AI: Stationen unter ihresgleichen, und die Frage nach dem Ballast (29. September, 0105)
 

@@ -95,6 +95,7 @@ breit ändert** (eine Stunde):
 ./supabase/test/run.sh '<url>'         # alle Prüfblöcke, setup.sql, Fingerabdruck, Lasttest
 node pruefstand/bildschirme.mjs        # nach ./pruefstand/daten_dumpen.sh
 node pruefstand/abnahme_r.mjs
+GEGENPROBE_DBNAME=<db> node gegenprobe/lauf.mjs --db <db>   # das Orakel gegen die Demo
 ```
 
 Ist die volle Stufe rot, wird nichts weiter gepusht, bis sie grün ist.

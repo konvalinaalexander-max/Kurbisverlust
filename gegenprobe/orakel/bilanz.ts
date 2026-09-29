@@ -39,7 +39,7 @@ export function kohorteGeschlossen(kaskade: Zeile[], kohorten: Zeile[]): Verstos
 export function stroemeSummieren(kaskade: Zeile[]): Verstoss[] {
   const v: Verstoss[] = []
   for (const r of kaskade) {
-    const teile = ['verdunstung_kg', 'sockel_kg', 'schimmel_kg', 'klein_kg', 'nebenkanal_kg', 'fax_kg', 'verkaufsfaehig_kg'].map(k => z(r, k) ?? 0)
+    const teile = ['verdunstung_kg', 'schimmel_kg', 'klein_kg', 'nebenkanal_kg', 'fax_kg', 'verkaufsfaehig_kg'].map(k => z(r, k) ?? 0)
     const s = teile.reduce((a, b) => a + b, 0), m0 = z(r, 'm0') ?? 0
     if (!nahe(s, m0, 1e-6, 1e-6)) v.push({ regel: 'K2', wo: `${r.charge_nr}/${r.portion}/${r.kohorte}`, ist: s.toFixed(6), soll: m0.toFixed(6) })
   }

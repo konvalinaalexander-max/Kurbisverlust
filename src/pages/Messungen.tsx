@@ -23,9 +23,10 @@ export default function Messungen() {
   const [exportLaeuft, setExportLaeuft] = useState(false)
   const [exportFehler, setExportFehler] = useState<string | null>(null)
   if (laedt && !daten) return <Rechnet fortschritt={fortschritt} />
+  // Runde AJ: die zweite Welle der Ergebnisse (dieser Reiter braucht sie) kommt nach dem Lagermanagement.
+  if (daten && !daten.vollstaendig) return <Rechnet fortschritt={fortschritt} />
   if (fehler) return <Hinweis art="warnung">{fehler}</Hinweis>
   if (!daten) return null
-  const m = daten.modell
   const taraLuecken = daten.lage.filter(l => l.n_paletten > 0 && l.n_paletten_mit_netto < l.n_paletten)
   // Ein einzelner Ausreisser (ein vergiftetes Chargenalter aus einem Zettel in
   // der Zukunft) würde die Achse verziehen. achsenBereich() findet ihn; die
@@ -42,7 +43,7 @@ export default function Messungen() {
     setExportLaeuft(true); setExportFehler(null)
     try {
       const hochrechnung = await hochrechnungLaden()
-      const kopf = ['charge_nr', 'sorte', 'schlag', 'portion', 'alter_tage', 'strom', 'buch', 'kg', 'basis_kg', 'koeffizient', 'koeff_n', 'koeff_basis', 'f_extrapoliert', 'formel']
+      const kopf = ['charge_nr', 'sorte', 'schlag', 'portion', 'alter_tage', 'strom', 'buch', 'kg', 'basis_kg', 'koeffizient', 'koeff_n', 'koeff_basis', 'f_geliehen', 'formel']
       const zeilen = hochrechnung.filter(z => z.buch !== 'bilanz').map(z => kopf.map(k => {
         const w = (z as unknown as Record<string, unknown>)[k]; const s = w == null ? '' : String(w)
         return /[";\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
@@ -146,35 +147,35 @@ export default function Messungen() {
         )}
       </Karte>
 
-      {m && (
-        <Karte titel="Das Verderbsmodell — und was es nicht weiss" unter="Die Kurve, mit der für alle Ware im Lager gerechnet wird.">
-          {!m.brauchbar ? (
-            <Hinweis art="warnung">Für eine Kurve reicht es noch nicht — nötig sind Schimmelmessungen aus mindestens drei Chargen über deutlich verschiedene Lagerdauern. Solange gilt der zuletzt gemessene Wert, und der Sockel a₀ (was schon am ersten Tag faul war) gilt als 0: Er braucht einen Nachweis. Der Verlust bis heute bleibt rechenbar. Mehr Punkte kommen mit jeder Arbeit, die den Palox abliest und ihre Paletten zählt — und mit Kontrollpaletten.</Hinweis>
-          ) : (
-            <div className="rollbar"><table className="dicht"><tbody>
-              <tr><td>Form der Kurve (k)</td><td className="zahl"><strong>{m.k?.toFixed(2)}</strong></td><td className="leise">über 1 heisst: die Verderbrate steigt mit der Lagerdauer</td></tr>
-              <tr><td>Gemessener Bereich</td><td className="zahl"><strong>{Math.round(m.t_min)}–{Math.round(m.t_max)} Tage</strong></td><td className="leise">darüber hinaus wird gerechnet, nicht gemessen</td></tr>
-              <tr><td>Messungen</td><td className="zahl"><strong>{m.n}</strong></td><td className="leise">aus {m.c_chargen} Chargen — die Chargen zählen, nicht die Messungen</td></tr>
-              <tr><td>Rückrechnung (Smearing)</td><td className="zahl"><strong>×{m.smearing?.toFixed(3)}</strong></td><td className="leise">gleicht aus, dass die Anpassung im Logarithmus rechnet</td></tr>
-              <tr><td>Sockel a₀</td><td className="zahl"><strong>{m.sockel != null ? prozent(m.sockel) : '—'}</strong></td><td className="leise">Nachweis ×{m.sockel_nachweis?.toFixed(3) ?? '—'} bei Schwelle ×{m.sockel_schwelle?.toFixed(3) ?? '—'}</td></tr>
-            </tbody></table></div>
-          )}
-          {daten.selektion && (
-            <Hinweis art={(daten.selektion.n_lager ?? 0) < 5 ? 'warnung' : 'info'}>
-              <strong>Auswahl der gemessenen Paletten:</strong> {daten.selektion.befund}
-              {(daten.selektion.n_lager ?? 0) < 5 && <> Dagegen hilft nur eine Handvoll zufällig gegriffener Lagerpaletten je Saison — „Palette kontrollieren" auf dem Startbildschirm der Arbeiter. Zwölf je Saison genügen.</>}
-            </Hinweis>
-          )}
-        </Karte>
-      )}
+      <Karte titel="Der Palox-Anteil je Sorte und Station" unter="Womit die Kaskade für die liegende Ware rechnet — und woher der Wert kommt (0106).">
+        {daten.erwartung.length === 0
+          ? <Hinweis art="warnung">Noch keine plausible Ablesung am Palox — bis dahin ist das Faule im Lager unbekannt, nicht 0.</Hinweis>
+          : <div className="rollbar"><table className="dicht">
+              <thead><tr><th>Sorte</th><th>Station</th><th className="zahl">im Palox</th><th className="zahl">Bereich</th><th className="zahl">Arbeiten</th><th className="zahl">Chargen</th><th>Woher</th></tr></thead>
+              <tbody>{daten.erwartung.map(e => (
+                <tr key={`${e.sorte}|${e.station}`}><td>{e.sorte}</td><td>{STATION_NAME[e.station] ?? e.station}</td>
+                  <td className="zahl"><strong>{prozent(e.anteil)}</strong></td>
+                  <td className="zahl">{e.n_arbeiten >= 2 ? `${prozent(e.unten)}–${prozent(e.oben)}` : '—'}</td>
+                  <td className="zahl">{e.n_arbeiten}</td><td className="zahl">{e.n_chargen}</td>
+                  <td>{e.geliehen && <Marke art="warnung">geliehen</Marke>} <span className="leise">{e.quelle}</span></td></tr>
+              ))}</tbody>
+            </table></div>}
+        <Erklaerung>
+          <p>Je Sorte und Station das nach Masse gewichtete Mittel der plausiblen Ablesungen <Herkunft art="gerechnet" /> — zuerst die letzten vier
+          Wochen der Sorte (ab drei Arbeiten), sonst ihre ganze Saison, sonst alle Sorten („geliehen"). Der Bereich ist ± t·sd/√n über die Arbeiten.
+          Für ausgelagerte Ware gilt die eigene Messung der Charge vor dieser Erwartung; was eine Charge auf ihrem Weg verliert, ist die
+          Zusammensetzung der Stationen, durch die sie geht. Die Prognose schreibt den Anteil mit dem Zuwachs je Station fort, sobald die
+          Kennzahl unter <Link to="/ursachen">Ursachen</Link> ihn ausweist.</p>
+        </Erklaerung>
+      </Karte>
       <Kurvenherkunft punkte={daten.punkte} />
 
-      <Karte titel="Massenbilanz je Charge" unter="Die Probe aufs Exempel: das Modell sagt voraus, wie viel Masse am Sortierband ankommen müsste; die CSV hat sie gewogen."
+      <Karte titel="Massenbilanz je Charge" unter="Die Probe aufs Exempel: die Kaskade sagt voraus, wie viel Masse am Sortierband ankommen müsste; die CSV hat sie gewogen."
              aktion={<button type="button" className="klein" onClick={() => void exportieren()} disabled={exportLaeuft}><ZHerunterladen size={15} />{exportLaeuft ? 'holt die Hochrechnung …' : 'CSV exportieren'}</button>}>
         {exportFehler && <Hinweis art="warnung">{exportFehler}</Hinweis>}
-        <Aufklapp titel={<><span>Je Charge</span> <span className="leise">{daten.bilanz.filter(b => b.eingang_kg !== null).length} Chargen · Modell<Herkunft art="gerechnet" />, CSV<Herkunft art="gemessen" /></span></>}>
+        <Aufklapp titel={<><span>Je Charge</span> <span className="leise">{daten.bilanz.filter(b => b.eingang_kg !== null).length} Chargen · Kaskade<Herkunft art="gerechnet" />, CSV<Herkunft art="gemessen" /></span></>}>
         <div className="rollbar"><table className="dicht">
-          <thead><tr><th>Charge</th><th className="zahl">Eingang</th><th className="zahl">Ausgelagert</th><th className="zahl">Noch im Lager</th><th className="zahl">Modell am Band</th><th className="zahl">CSV gewogen</th><th className="zahl">Abweichung Modell ↔ CSV</th></tr></thead>
+          <thead><tr><th>Charge</th><th className="zahl">Eingang</th><th className="zahl">Ausgelagert</th><th className="zahl">Noch im Lager</th><th className="zahl">Kaskade am Band</th><th className="zahl">CSV gewogen</th><th className="zahl">Abweichung Kaskade ↔ CSV</th></tr></thead>
           <tbody>{daten.bilanz.filter(b => b.eingang_kg !== null).map(b => (
             <tr key={b.charge_nr}><td>{b.charge_nr} · {b.sorte}</td><td className="zahl">{kg(b.eingang_kg)}</td><td className="zahl">{kg(b.ausgelagert_kg)}</td><td className="zahl">{kg(b.lager_kg)}</td>
               <td className="zahl">{kg(b.modell_am_band_kg)}</td><td className="zahl">{kg(b.csv_gemessen_kg)}</td>
@@ -184,7 +185,7 @@ export default function Messungen() {
         </Aufklapp>
         <Erklaerung>
           <strong>Eingang</strong> <Herkunft art="gemessen" /> und <strong>CSV gewogen</strong> <Herkunft art="gemessen" /> stehen so in den Listen;
-          {' '}<strong>Ausgelagert</strong>, <strong>Noch im Lager</strong> und <strong>Modell am Band</strong> <Herkunft art="gerechnet" /> kommen aus der Kaskade.
+          {' '}<strong>Ausgelagert</strong>, <strong>Noch im Lager</strong> und <strong>Kaskade am Band</strong> <Herkunft art="gerechnet" /> kommen aus der Kaskade.
           Die Ware im Lager ist bis heute, <strong>{datum(daten.heute)}</strong>, gealtert — nicht bis zum Saisonende. Die Prognose bis dahin steht nur im Verlauf des Überblicks.
         </Erklaerung>
       </Karte>

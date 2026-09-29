@@ -154,11 +154,11 @@ begin
   select kg into v from v_schimmel_menge where auftrag_id = a;
   assert v = 220, format('Schimmelmenge erwartet 220 (100 vor dem Leeren + 120 danach), ist %s', v);
   assert (select schimmel_kg from v_schimmel_punkte where auftrag_id = a) = 220,
-    'Der Schimmel kommt nicht als Punkt im Modell an';
+    'Der Schimmel kommt nicht als Punkt an (v_schimmel_punkte)';
   assert not exists (select 1 from v_plausibilitaet where auftrag_id = a and art = 'Palox geleert'),
     'Ein gemessenes Leeren darf nicht als Auffälligkeit „Palox geleert" stehen (0084)';
   assert (select quelle from v_schimmel_punkte where auftrag_id = a) = 'verarbeitung',
-    'Eine Arbeit aus einer Charge gehört ins Zeitmodell';
+    'Eine Arbeit aus einer Charge ist ein Punkt aus der Verarbeitung';
   assert (select eingang_netto_kg from v_auftrag_masse where auftrag_id = a) = 3 * 865,
     'Die Bezugsmasse der drei Paletten stimmt nicht (3 × 865: Zettel 950 − 40·1.5 − 25)';
 
@@ -254,9 +254,32 @@ begin
   assert (select brutto_zettel_kg from auftrag_palette p join auftrag x on x.id = p.auftrag_id where x.station = 'sortieren') = 940,
     'Beim Sortieren steht das Zettelgewicht an der Palette (0072)';
 
-  -- Und ganz oben: die echten Verlustströme sind beziffert
+  -- Und ganz oben: die echten Verlustströme sind beziffert — oder sagen, warum nicht
   assert (select kg from v_verlust_ranking where strom = 'Verdunstung') > 0, 'Verdunstung nicht beziffert';
-  assert (select kg from v_verlust_ranking where strom = 'Schimmel/Fäulnis') > 0, 'Schimmel nicht beziffert';
+  -- Seit 0106 rechnet die Kaskade mit den Stationswerten. Die Kette wiegt beim
+  -- Waschen + Sortieren 220 kg Faules und beim Sortieren 15 kg — beide kommen
+  -- als Stationswert an. Beim Waschen war der Palox freiwillig und blieb
+  -- ungewogen; die Bandware der Charge wurde aber gewaschen. Eine Station ohne
+  -- Wert auf dem Weg heisst: das Faule ist unbekannt, nicht 0 — und die
+  -- Auswertung sagt es. Bis 0105 verlangte diese Stelle kg > 0 (das
+  -- Verderbsmodell rechnete aus den zwei Punkten); mit der Regel änderte sich
+  -- die Prüfung (Leer ist nicht null).
+  assert (select count(*) from v_palox_erwartung where sorte = 'Tiana' and station in ('waschen_sortieren', 'sortieren') and n_arbeiten = 1) = 2
+     and not exists (select 1 from v_palox_erwartung where station = 'waschen'),
+    'Stationswerte: Waschen + Sortieren und Sortieren aus je einer Arbeit, Waschen ohne Wert (0106)';
+  assert (select e.anteil from v_palox_erwartung e where e.sorte = 'Tiana' and e.station = 'sortieren')
+       = (select zahl(p.anteil_station, 5, 1) from v_schimmel_punkte p join auftrag x on x.id = p.auftrag_id
+           where x.station = 'sortieren' and p.schimmel_kg = 15),
+    'Der Stationswert Sortieren ist der Punkt der Sortier-Arbeit (15 kg Faules)';
+  assert (select e.anteil from v_palox_erwartung e where e.sorte = 'Tiana' and e.station = 'waschen_sortieren')
+       = (select zahl(p.anteil_station, 5, 1) from v_schimmel_punkte p join auftrag x on x.id = p.auftrag_id
+           where x.station = 'waschen_sortieren' and p.schimmel_kg = 220),
+    'Der Stationswert Waschen + Sortieren ist der Punkt dieser Arbeit (220 kg Faules)';
+  assert (select bool_and(not f_bekannt and f_quelle like '%Waschen: kein Wert%' and p_wasch = 1)
+            from mv_kaskade where charge_nr = 1613),
+    'Ohne Waschen-Wert ist das Faule der Charge unbekannt — und die Kaskade sagt, welche Station fehlt';
+  assert (select kg from v_verlust_ranking where strom = 'Schimmel/Fäulnis') is null,
+    'Schimmel muss unbekannt bleiben (null), nicht 0 — Leer ist nicht null';
   raise notice 'OK  Die Kette hält: jeder Wert aus den Masken kommt in der Auswertung an';
 end $$;
 

@@ -120,33 +120,44 @@ Paloxen, bis ein Lieferschein es holt; das Buch „marge" (an die Tiere, in
 den Nebenkanal) zählt erst dann, und der Befund der Bilanz vergleicht beides.
 **Urteil:** ehrlich.
 
-## 7. Faules im Lager — das Verderbsmodell (`mv_schimmel_modell`)
+## 7. Faules im Lager — die Stationswerte (`v_palox_erwartung`, `v_charge_weg`, seit 0106)
 
 **Braucht:** je Arbeit das Faule aus dem Palox (Differenz der Ablesungen,
-`v_schimmel_menge`) gegen die Masse der Arbeit (Abschnitt 2) und die
-Lagertage (Abschnitt 3) → ein Punkt (Anteil, Tage). Nicht plausible Punkte
-(Anteil zu hoch für die Basis) stehen grau und zählen nicht.
-**Modell:** F(t) = 1 − exp(−λ·t^k), **ein Modell für alle Sorten**, im
-Logarithmus angepasst, mit Smearing zurückgerechnet, chargen-robust
-gefehlert; dazu der Sockel a₀ (was ohne Fäulnis im Palox landet) — nur,
-wenn die Daten ihn belegen, sonst 0. Ohne brauchbares Modell ebenfalls 0,
-und der Verlust der Charge bleibt **bekannt** — `sockel_nachgewiesen` sagt,
-dass der Nachweis fehlt (0097). Unbekannt wird der Verlust nur, wenn ein
-Strom (Verdunstung, Faules, Fax, Ausschuss) nicht gemessen ist.
+`v_schimmel_menge`) gegen die Masse der Arbeit (Abschnitt 2) → ein Punkt
+(Anteil dieses Auges, `anteil_station`; beim Waschen der Wasch-Palox allein
+gegen die Masse hinein, 0105). Nicht plausible Punkte (Anteil über 90 %)
+stehen grau und zählen nicht.
+**Rechnung:** kein Modell über die Lagerdauer mehr (bis 0105: F(t) =
+1 − exp(−λ·t^k) mit Sockel, Smearing, Selektionszuschlag — gestrichen auf
+Entscheid des Betriebs, Runde AJ). Stattdessen je Sorte und Station der
+**erwartete Palox-Anteil**: das nach Masse gewichtete Mittel der plausiblen
+Punkte, zuerst die letzten vier Wochen der Sorte (ab drei Arbeiten,
+`palox_mindest_arbeiten()`), sonst ihre ganze Saison, sonst alle Sorten
+(vier Wochen, dann Saison; `ebene`, `quelle`, `geliehen` sagen es). Was eine
+Charge auf ihrem Weg verliert, ist die Zusammensetzung der Stationen
+(`palox_f`): f = p_hand · f_W+S + (1 − p_hand) · (f_S + (1 − f_S) · p_wasch · g_W),
+mit p_hand = Anteil von Hand an der verarbeiteten Masse und p_wasch = 1, wenn
+Bandware der Sorte in dieser Saison gewaschen wird (`v_charge_weg`: aus den
+eigenen Arbeiten, sonst denen der Sorte, sonst allen). Für **ausgelagerte**
+Ware gilt die eigene Messung der Charge je Station vor der Erwartung
+(`v_charge_palox`), für **liegende** die Erwartung der Sorte. `f_quelle`
+an jeder Kaskadenzeile sagt, welche Werte es waren.
+**Zuwachs:** die Kennzahl je Station (`palox_station_kennzahl()`, 0105)
+liefert den Zuwachs je Woche — massegewichtete Gerade über den Messtag, erst
+nach vier Wochen und fünf Arbeiten. Die Prognose schreibt jede Station um
+diesen Zuwachs fort (`palox_f_nach`) und setzt neu zusammen; der Verlauf
+verschiebt so auch zurück. Ohne Zuwachs steht der Anteil still, und
+`zuwachs_bekannt = false` sagt es: `faul_je_tag_kg` und die Zwei-Wochen-Zahl
+(`v_naechste_charge`) bleiben leer.
 **Fehlt eine Eingabe:** eine Arbeit ohne Nenner liefert keinen Punkt
 (Auffälligkeit „Ohne Nenner"); ein Leeren ohne Ablesung macht die Menge
-unbekannt (Auffälligkeit „Palox geleert"); ohne genügend Punkte gibt es
-keine Kurve, und die Kaskade rechnet ohne Verderb — sichtbar.
-**Seit 0105 daneben, je Station** (`palox_station_kennzahl()`): der eigene
-Anteil des Auges (beim Waschen der Wasch-Palox allein durch die Masse hinein,
-nichts vom Sortieren dazugerechnet), nach Masse gemittelt, und sein Zuwachs
-seit Messbeginn als massegewichtete Gerade über den Messtag — erst nach vier
-Wochen und fünf Arbeiten. Das Modell bleibt für die Kaskade; die Kennzahl je
-Station ist, was der Betrieb liest.
-**Urteil:** ehrlich. Ein Modell je Sorte ist die offene Frage der Saison
-(`docs/SAISONBEGLEITUNG.md` § 2) — erst mit genug Punkten je Sorte; ob das
-Modell der Kaskade durch die Stationswerte ersetzt wird, entscheidet der
-Betrieb (`docs/ENTSCHLACKUNG.md`, Stufe 2).
+unbekannt (Auffälligkeit „Palox geleert"); hat eine Station auf dem Weg
+keinen Wert (auch nicht geliehen), ist das Faule der Charge unbekannt
+(`f_bekannt = false`), nicht 0 — Verlust, Bilanz und Prognose sagen es.
+**Urteil:** ehrlich und aus dem Betrieb: Was ein Auge in den Palox legt, ist
+Faules dieser Station — Erde, Hagel, Schnitt eingeschlossen; einen Sockel,
+der das herausrechnet, gibt es nicht mehr. Die offene Frage der Saison ist
+der Zuwachs ab Dezember (`docs/SAISONBEGLEITUNG.md` § 2).
 
 ## 8. Fax (Faules beim Abpacken)
 
@@ -171,8 +182,9 @@ die Verdunstung nicht mit der Lesung (AB-73).
 **Braucht:** je Charge den Eingang (Abschnitt 1) und die Lieferungen; die
 Koeffizienten 5–9 beim Alter am Liefertag.
 **Rechnung:** ausgelagert = geliefert ÷ verkaufsfähiger Anteil; im Lager =
-Eingang − ausgelagert; auf beide dieselbe Kaskade Verdunstung → Sockel →
-Verderb → zu klein/zu gross → Fax. **Ausgang ist nur der Lieferschein**
+Eingang − ausgelagert; auf beide dieselbe Kaskade Verdunstung → Faules
+(Stationswerte, Abschnitt 7) → zu klein/zu gross → Fax — seit 0106 ohne
+Sockel. **Ausgang ist nur der Lieferschein**
 (0101): Zu klein und zu gross, das hinter den Lieferungen aussortiert
 wurde, hat den Betrieb nicht verlassen — es zählt zu „im Haus", nicht
 verkaufsfähig, bis ein Lieferschein es holt (`erg_charge.im_haus_heute_kg`

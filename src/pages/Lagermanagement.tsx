@@ -162,7 +162,7 @@ function Kennzahlen({ daten, filter }: { daten: Auswertung; filter: Filter }) {
   const teile = p0 ? [
     { name: 'verkaufsfähig', kg: p0.verkaufsfaehig_kg, farbe: 'var(--strom-rest)' },
     { name: 'zu klein / zu gross', kg: p0.kanal_kg, farbe: 'var(--strom-ausschuss)' },
-    { name: 'faul', kg: p0.faul_kg + p0.sockel_kg, farbe: 'var(--strom-schimmel)' },
+    { name: 'faul', kg: p0.faul_kg, farbe: 'var(--strom-schimmel)' },
     { name: 'verdunstet', kg: p0.verdunstet_kg, farbe: 'var(--strom-verdunstung)' },
   ] : []
   const summe = teile.reduce((a, t) => a + t.kg, 0)

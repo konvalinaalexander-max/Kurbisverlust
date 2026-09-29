@@ -178,8 +178,7 @@
     },
     {
       "muster": [
-        "Modell am Band",
-        "Modell"
+        "Kaskade am Band"
       ],
       "art": "gerechnet",
       "bedeutet": "Was das Kaskadenmodell für die verarbeitete Ware erwartet — die Gegenprobe zur gewogenen Zahl",
@@ -214,8 +213,8 @@
         "Vermutet vom aktuellen Lager"
       ],
       "art": "gerechnet",
-      "bedeutet": "Anteil des heutigen Lagers, den das Modell als schon faul ansieht",
-      "quelle": "mv_schimmel_modell über v_hochrechnung"
+      "bedeutet": "Anteil des heutigen Lagers, den die Kaskade nach den Stationswerten als faul ansieht (0106)",
+      "quelle": "mv_kaskade.f über v_hochrechnung"
     },
     {
       "muster": [

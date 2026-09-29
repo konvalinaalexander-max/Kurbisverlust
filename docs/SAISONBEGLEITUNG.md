@@ -21,13 +21,12 @@ gedacht?), **zuletzt die Mathematik** — und jede Änderung steht in
 | Bereich (unten–oben) | schmaler als das Mittel selbst | Breiter: zu wenige Chargen — mehr Kontrollpaletten, nicht am Modell drehen |
 | Verlauf über die Saison | Punkte im Bild *Ursachen → Verdunstung* nach Lagerdauer flach oder leicht fallend | Sichtbarer Knick im Winter: ein Befund, kein zweites Modell (AB-Regel seit Runde R). Erst wenn der Knick in zwei Saisons steht, eine Rate je Jahreszeit erwägen |
 
-## 2. Faules im Lager (erg_modell, erg_punkte)
+## 2. Faules im Lager (erg_punkte, v_palox_erwartung, v_palox_station)
 
 | Frage | Erwartung | Wenn nicht |
 |---|---|---|
-| Kurve F(t) = 1 − exp(−λ·t^k) | k zwischen 1 und 2.5 (beschleunigend), λ so, dass F(100 Tage) im einstelligen Prozentbereich liegt | k < 1 (abflachend): die späten Messungen fehlen oder die frühen sind zu hoch — Palox-Ablesungen prüfen (geleert ohne Ablesung?). λ sehr gross: Sockel a₀ prüfen |
-| Sockel a₀ | nur, wenn die Daten ihn belegen (`sockel_nachweis`), meist 0–3 % | Nachweis ohne plausiblen Grund (Erde, Hagelnarben, Schnittfehler): die frühen Arbeiten ansehen — was landet am ersten Tag im Palox? |
-| Ein Modell für alle Sorten | die Punkte der Sorten liegen um dieselbe Kurve | Eine Sorte liegt durchgehend darüber oder darunter: erst zählen, ob sie genug Punkte hat (> 15 Messungen, > 3 Chargen); dann ein Modell je Sorte erwägen — als eigene Migration mit Prüfblock, nie still |
+| Palox-Anteil je Sorte und Station (0106) | je Sorte ein eigener Wert, sobald drei Arbeiten da sind („Arbeiten dieser Sorte"); geliehene Werte (alle Sorten) nur bei Sorten, die selten drankommen | Eine Sorte mit vielen Arbeiten und trotzdem geliehen: die Punkte sind unplausibel (über 90 %) oder ohne Nenner — Auffälligkeiten ansehen |
+| Der Weg der Charge (v_charge_weg) | Tiana, Mieluna: von Hand (p_hand = 1); Kaori Kuri, Butterkin: Band, dann Waschstrasse (p_hand = 0, p_wasch = 1) | Eine Bandsorte mit p_wasch = 0 über Wochen: die Wasch-Arbeiten werden nicht erfasst — die Vorarbeiter briefen (AB-118) |
 | Kommentare zur Ware | „Hagelschaden", „viel Faules" am Punkt (0091) erklären Ausreisser | Ein Ausreisser ohne Kommentar: die Arbeit öffnen (Klick auf den Punkt), die Palox-Ablesungen ansehen |
 | Zwei Augen | Band-Punkte (Sortieren) liegen unter den Wasch-Punkten derselben Charge: Das Band legt nur eklig Faules in den Palox, das Waschen auch Ästhetik und Schäden (Betrieb, 29. 9.) | Wasch-Punkte weit über Band-Punkten gleicher Lagertage: nicht als Verderb lesen. Die Kontrollpaletten (`quelle = lager`) sind das neutrale Auge — mehr davon. Merkposten Runde AG: Kurve nur aus Band und Kontrollpaletten, der Wasch-Palox als eigener Strom |
 | Ab Dezember | „plötzlich faul", ein klarer Anstieg (Betrieb, gehört) | Steigt die Kurve im Dezember, muss der Anstieg auch in den Kontrollpaletten stehen — sonst ist es das Auge, nicht die Ware |
