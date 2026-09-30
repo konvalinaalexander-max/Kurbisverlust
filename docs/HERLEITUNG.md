@@ -13,6 +13,11 @@ aus Messungen möglich ist, bleibt die Grösse unbekannt und steht als
 Auffälligkeit da. Geprüft am 26. September; wer eine Kette ändert, ändert
 diese Datei mit.
 
+Seit 0109 steht die Formel von `v_auftrag_masse`, `v_koeff_gebinde`,
+`v_schimmel_punkte` und `v_koeff_kaliber_geschaetzt` in `<sicht>_formel`;
+die Sicht liest sie über eine Planungsgrenze (`<sicht>_zaun()`, AB-125).
+An den Ketten unten ändert das nichts — nur, wo man die Formel ändert.
+
 ## 1. Netto einer Eingangspalette (`v_palette`)
 
 **Braucht:** Brutto vom Zettel (Erntejournal), Kisten, Gebindeart → Tara je

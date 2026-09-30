@@ -258,10 +258,20 @@ const vite = await createServer({ root: join(HIER, '..'), server: { port: PORT, 
 await vite.listen()
 const browser = await chromium.launch({ executablePath: CHROMIUM })
 
-// Eine Sorte und eine Charge mit Ware im Haus, aus den Fixtures.
+// Eine Sorte und eine Charge mit Ware im Haus, aus den Fixtures — nach
+// Chargennummer, nicht nach der Lage der Zeilen in erg_charge: Die ändert
+// sich mit jedem Neurechnen. In Runde AM kam so „Tiana" nach vorn, eine
+// Sorte ohne Sortierlauf in der Demo, und L-08 suchte Gramm im Kopf, wo es
+// keine geben kann (auf Stand 108 dasselbe, nur stand Orangita vorn).
+// Genommen wird die erste Charge, deren Sorte Bänder hat; hat keine welche,
+// bleibt es bei der ersten — dann schlägt L-08 an, wie es soll.
+const mitBaendern = new Set((fixture('rpc_lager_kaliber_0') ?? [])
+  .filter(z => z.gruppe === 'sorte' && z.band_von !== null).map(z => z.schluessel))
 const bestand = (fixture('erg_charge') ?? []).filter(b => Number(b.lager_kg) > 0)
-const SORTE = bestand[0]?.sorte ?? (fixture('erg_charge') ?? [])[0]?.sorte ?? ''
-const CHARGE = bestand[0]?.charge_nr ?? (fixture('erg_charge') ?? [])[0]?.charge_nr ?? ''
+  .sort((a, b) => Number(a.charge_nr) - Number(b.charge_nr))
+const wahl = bestand.find(b => mitBaendern.has(b.sorte)) ?? bestand[0]
+const SORTE = wahl?.sorte ?? (fixture('erg_charge') ?? [])[0]?.sorte ?? ''
+const CHARGE = wahl?.charge_nr ?? (fixture('erg_charge') ?? [])[0]?.charge_nr ?? ''
 const FILTER = [
   { name: 'gesamt', lager: '/dashboard', ursachen: '/ursachen' },
   { name: 'sorte', lager: `/dashboard?sorte=${encodeURIComponent(SORTE)}`, ursachen: `/ursachen?sorte=${encodeURIComponent(SORTE)}` },

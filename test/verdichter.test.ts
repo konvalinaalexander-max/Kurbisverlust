@@ -106,3 +106,34 @@ test('eine Schleife ist überholt, wenn jeder ihrer Namen später neu gebaut ode
   assert.ok(text.includes("erg_rest as select * from v_quelle"), 'erg_rest muss die spätere Anweisung bauen')
   assert.ok(!text.includes('create view v_modell'), 'v_modell ist weggeräumt und darf nicht mehr gebaut werden')
 })
+
+test('eine PL/pgSQL-Funktion, die eine Ansicht als Rückgabetyp nennt, wandert mit nach Teil B (0109)', () => {
+  // Die Planungsgrenzen aus 0109: v_x liest v_x_zaun(), und die gibt
+  // „setof v_x_formel" zurück. Den Rumpf löst Postgres erst beim Aufruf auf,
+  // den Kopf aber beim Anlegen — stünde die Funktion in Teil A, gäbe es den
+  // Typ v_x_formel dort noch nicht, und setup.sql bräche auf einer frischen
+  // Datenbank ab.
+  const liste = [
+    'create view v_x as select 1 as a;',
+    'create function f_liest() returns bigint language plpgsql as $$ begin return (select count(*) from v_x); end $$;',
+    'create or replace view v_x_formel with (security_invoker = true) as select 1 as a;',
+    `create or replace function v_x_zaun() returns setof v_x_formel
+     language plpgsql stable set search_path = public set jit = off as $$
+     begin return query select * from v_x_formel; end $$;`,
+    'revoke all on function v_x_zaun() from public;',
+    'create or replace view v_x with (security_invoker = true) as select * from v_x_zaun();',
+    'create view v_oben as select * from v_x;',
+  ]
+  const v = verdichten(liste)
+  const a = v.teilA.join('\n'), b = teilB(v)
+  const formel = b.indexOf('create or replace view v_x_formel')
+  const zaun = b.indexOf('create or replace function v_x_zaun')
+  const sicht = b.indexOf('create or replace view v_x with')
+  const oben = b.indexOf('create view v_oben')
+  assert.ok(!a.includes('function v_x_zaun'), 'v_x_zaun() steht in Teil A — dort gibt es v_x_formel noch nicht')
+  assert.ok(formel >= 0 && zaun > formel, 'die Grenze muss hinter ihrer Formel stehen')
+  assert.ok(sicht > zaun, 'die Sicht muss hinter der Grenze stehen, die sie liest')
+  assert.ok(oben > sicht, 'was die Sicht liest, steht dahinter')
+  // Die Gegenprobe: Wer eine Ansicht nur im Rumpf liest, bleibt, wo er ist.
+  assert.ok(a.includes('function f_liest'), 'f_liest() liest v_x nur im Rumpf und gehört nach Teil A')
+})

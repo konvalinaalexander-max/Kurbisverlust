@@ -305,15 +305,17 @@ export function verdichten(liste) {
   // Alle Ansichten. Dazu jede Funktion in SQL, deren Rumpf eine gewanderte
   // Ansicht liest: Postgres prüft SQL-Rümpfe beim Anlegen, sie kann also nicht
   // vorher stehen. Funktionen in PL/pgSQL dürfen bleiben — ihr Rumpf wird
-  // erst beim Aufruf aufgelöst.
+  // erst beim Aufruf aufgelöst. Ihr Kopf aber nicht: Wer eine gewanderte
+  // Ansicht als Rückgabetyp nennt („returns setof v_auftrag_masse_formel",
+  // die Planungsgrenzen aus 0109), braucht sie beim Anlegen und wandert mit.
   const wandert = new Set()
   for (const [k, b] of jeObjekt) if (b[0].art === 'view' || b[0].art === 'matview') wandert.add(k)
   for (let runde = 0; runde < 10; runde++) {
     const namen = [...wandert].map(k => jeObjekt.get(k)[0].ziel)
     let neu = false
     for (const [k, b] of jeObjekt) {
-      if (wandert.has(k) || !b.some(x => x.sql)) continue
-      const text = b.map(x => kerne.slice(x.von, x.bis + 1).join(' ')).join(' ')
+      if (wandert.has(k) || b[0].art !== 'funktion') continue
+      const text = b.map(x => (x.sql ? kerne : jetzt).slice(x.von, x.bis + 1).join(' ')).join(' ')
       if (namen.some(n => new RegExp(`\\b${n}\\b`).test(text))) { wandert.add(k); neu = true }
     }
     if (!neu) break

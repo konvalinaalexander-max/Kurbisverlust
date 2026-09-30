@@ -697,6 +697,18 @@ sagt der Chip „Zeitplan rechnet nicht" (AB-97, `src/lib/zeitplan.ts`).
 Wurde seit der letzten Rechnung nichts erfasst, sagt der Chip „aktuell".
 Seit Runde AG rechnet die App beim Öffnen nie mehr selbst (AB-114).
 
+**Runde AM (0109)** — die Rechnung plant klein: Das Planen einer
+Auswertung brauchte bis zu 1 GB Arbeitsspeicher (`mv_kaskade`), weil
+Postgres die Knoten-Sichten in jede Abfrage darüber einsetzte — auf einer
+kleinen Supabase-Maschine heisst das Auslagern und IO-Wait. Vier Sichten
+(`v_auftrag_masse`, `v_koeff_gebinde`, `v_schimmel_punkte`,
+`v_koeff_kaliber_geschaetzt`) lesen ihre Formel jetzt über eine
+Planungsgrenze; die Zahlen sind dieselben, gespeichert wird nichts.
+Planungsspeicher höchstens rund 100 MB, die Rechnung auf den Daten des
+Betriebs 1,6 statt 4,3 Sekunden. Eine Formel dieser vier ändert man in
+`<sicht>_formel`. AB-125. **Der Betrieb spielt setup.sql einmal ein
+(Stand 109)** — es enthält 0108 und 0109.
+
 **Runde AL (0108)** — ein abgebrochener Lauf wird nicht wiederholt: Nach
 einem Neustart begann die Rechnung bis 0107 sofort von vorn, weil ein
 abgebrochener Lauf nichts von sich wusste. Jetzt zieht jeder Lauf beim

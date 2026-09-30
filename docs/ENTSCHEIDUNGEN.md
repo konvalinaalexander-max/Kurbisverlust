@@ -4171,6 +4171,63 @@ Daten, dann die Annahme — nach der Korrektur nachsehen.
 nicht alles: vier mal vier gleiche Paloxen und ein Tag mit 30 Paaren bei
 13 erwarteten sind Fragen wert.
 
+## Runde AM: die Rechnung plant klein (30. September, früh, 0109)
+
+Nach dem Neustart antwortete die Datenbank des Betriebs wieder, aber
+zwischen 1 und 20 Sekunden je Abfrage, ohne dass etwas rechnete. Stand 107
+war eingespielt; sein Lauf um drei Uhr war nach 15 Minuten an der
+Zeitgrenze gescheitert und wurde (richtig) nicht wiederholt. Die letzte
+gelungene Rechnung hatte 370 s gedauert.
+
+**Was die Rechnung tat.** Die Rohtabellen des Betriebs (lesend geholt, nur
+im Arbeitsordner, nichts eingecheckt) lokal eingespielt: 25 Arbeiten, 1650
+Paletten — weniger als die Demo. Dieselbe Rechnung braucht hier 4,3 s, und
+davon den grössten Teil zum **Planen**: `mv_kaskade` 1,0 s Planen gegen
+0,3 s Rechnen. Das Planen braucht Speicher — `mv_kaskade` 1 GB,
+`mv_koeff_rand` 590 MB, `erg_massenbilanz` 520 MB —, weil Postgres jede
+Sicht dort einsetzt, wo sie gelesen wird, und `v_auftrag_masse` in neun
+Sichten steckt, die wieder in anderen stecken (6915 Planknoten). Eine kleine
+Supabase-Maschine hat 0,5 bis 1 GB für alles; was nicht passt, lagert sie
+auf die Platte aus. Das passt zu dem IO-Wait, das der Betrieb sah, und zu
+der Rechnung, die dort das Achtzigfache der lokalen Zeit brauchte. Die
+Planer-Grenzen (`join_collapse_limit`, `from_collapse_limit` = 1) ändern
+daran nichts; gemessen.
+
+**0109:** Vier Knoten-Sichten — `v_koeff_gebinde`, `v_auftrag_masse`,
+`v_schimmel_punkte`, `v_koeff_kaliber_geschaetzt` — stehen hinter einer
+Planungsgrenze: die Formel unverändert in `<sicht>_formel`, eine
+PL/pgSQL-Funktion `<sicht>_zaun()` liest sie, die Sicht liest die Funktion.
+Der Planer setzt eine PL/pgSQL-Funktion nie ein; er plant sie einmal für
+sich. Gespeichert wird nichts, die Sicht bleibt live, mit denselben
+Spalten, Zeilen und Rechten. Lokal gemessen, alle 41 gespeicherten
+Ergebnisse Zeile für Zeile gleich:
+
+| | Rechnung | Planungsspeicher je Auswertung |
+|---|---|---|
+| Betriebsdaten | 4,3 s → 1,6 s | bis 1 GB → höchstens 67 MB |
+| Demo (volle Saison) | 6,9 s → 6,3 s | bis 1 GB → höchstens 104 MB |
+
+Der Verdichter lernt dazu: Eine PL/pgSQL-Funktion, deren **Kopf** eine
+Ansicht nennt (`returns setof v_…_formel`), braucht sie beim Anlegen und
+wandert mit ihr nach Teil B (Test in `test/verdichter.test.ts`; setup.sql
+für Stand 108 blieb damit byte-gleich). Block 0109 mit zwölf Mutationen,
+alle schlagen an; er hält auch, dass keine Auswertung mit mehr als 1000
+Knoten plant (Stand 108: 6915). Nebenbei: Die Abnahme nahm als Beispielsorte
+die erste Zeile aus `erg_charge`, ohne Ordnung; nach dem Neurechnen war das
+„Tiana", eine Demo-Sorte ohne Sortierlauf, und L-08 suchte Bandgrenzen, wo
+keine sein können. Jetzt die erste Charge nach Nummer, deren Sorte Bänder
+hat (`pruefstand/abnahme_r.mjs`, mit Kommentar).
+
+**Was bewusst nicht gemacht wurde:** Keine gespeicherten Zwischenstände
+(`erg_auftrag_masse` o. ä.): Die Prüfblöcke lesen diese Sichten an rund 70
+Stellen live, und die Masken auch — eine Kopie wäre zwischen zwei Läufen
+veraltet. Keine Grenze an `v_kaskade_basis`: Eine Grenze heisst, die Sicht
+wird bei jedem Lesen ganz gerechnet; `v_kaskade_basis` wird je Auswertung
+bis zu fünfmal gelesen, mit Grenze war die Demo 10 % langsamer, ohne sie
+schneller als vorher. Die Grösse der Maschine im Betrieb kennt dieses
+Repository nicht; ob sie wirklich ausgelagert hat, zeigt nur Supabase
+(Reports → Memory).
+
 ## Runde AL: ein abgebrochener Lauf wird nicht wiederholt (30. September, nachts, 0108)
 
 Die Datenbank des Betriebs blieb auch nach dem Neustart „unhealthy". Der
