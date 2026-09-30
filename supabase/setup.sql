@@ -8971,155 +8971,6 @@ comment on function palox_f_nach(numeric, numeric, numeric, numeric, numeric, nu
 revoke all on function palox_f_nach(numeric, numeric, numeric, numeric, numeric, numeric, numeric, numeric, numeric) from public;
 grant execute on function palox_f_nach(numeric, numeric, numeric, numeric, numeric, numeric, numeric, numeric, numeric) to authenticated;
 
--- ---------------------------------------------------------------------
--- 12. Der Zeitplan rechnet kein Modell mehr
--- ---------------------------------------------------------------------
--- Schritt 2 („Arbeiten") ohne mv_schimmel_punkte, mv_schimmel_modell,
--- erg_modell, erg_kurve, erg_selektion. Alles andere wie 0103.
-
-CREATE OR REPLACE FUNCTION public.auswertung_schritt_intern(p_schritt integer, p_nebenlaeufig boolean)
- RETURNS jsonb
- LANGUAGE plpgsql
- SECURITY DEFINER
- SET search_path TO 'public'
- SET jit TO 'off'
-AS $function$
-declare
-  v_start timestamptz := clock_timestamp();
-  v_namen text[];
-  v_name text;
-  v_titel text;
-  v_ausdruck text;
-  v_eindeutig boolean;
-  v_gefuellt boolean;
-  v_seit timestamptz;
-  v_t timestamptz;
-begin
-  if auth.uid() is not null and not ist_admin() then
-    raise exception 'Neu rechnen darf nur der Betriebsleiter.' using errcode = '42501';
-  end if;
-  -- Je Aufruf eine Beratungssperre (0100): zwei Erneuerungen derselben
-  -- Ansicht zur selben Sekunde gibt es nicht. Im Zeitplan-Weg hält der
-  -- ganze Lauf sie (eine Transaktion); ein Schritt aus der App, der sie
-  -- nicht bekommt, geht sofort mit „wartet".
-  if not pg_try_advisory_xact_lock(hashtext('auswertung_schritt')) then
-    return jsonb_build_object('schritt', p_schritt, 'schritte', 5, 'titel', 'wartet', 'dauer_ms', 0,
-                              'fertig', false, 'nebenlaeufig', p_nebenlaeufig, 'wartet', true,
-                              'rechnet_seit', (select rechnet_seit from auswertung_stand where id = 1));
-  end if;
-  -- Der App-Weg (fünf einzelne Aufrufe, je eine Transaktion) merkt sich in
-  -- rechnet_seit, dass er läuft (0100). Der Zeitplan-Weg tut das nicht: Ein
-  -- Update hier hielte die Zeile bis zum Ende des Laufs gesperrt, und jedes
-  -- „Neu rechnen" bliebe daran hängen (0103).
-  if p_schritt = 1 and not p_nebenlaeufig then
-    update auswertung_stand
-       set rechnet_seit = clock_timestamp()
-     where id = 1 and (rechnet_seit is null or rechnet_seit < clock_timestamp() - interval '15 minutes')
-    returning rechnet_seit into v_seit;
-    if v_seit is null then
-      select rechnet_seit into v_seit from auswertung_stand where id = 1;
-      return jsonb_build_object('schritt', 1, 'schritte', 5, 'titel', 'wartet', 'dauer_ms', 0,
-                                'fertig', false, 'nebenlaeufig', p_nebenlaeufig, 'wartet', true, 'rechnet_seit', v_seit);
-    end if;
-  end if;
-  case p_schritt
-    when 1 then
-      v_titel := 'Rohdaten';
-      v_namen := array['mv_sortier_lauf_masse', 'mv_kaliber_verteilung', 'mv_sortier_eingang',
-                       'erg_gewichte', 'erg_kaliber', 'erg_gebinde', 'erg_ausgang',
-                       'erg_lieferung', 'erg_kohorte', 'erg_ueberfuellung'];
-    when 2 then
-      v_titel := 'Arbeiten';
-      v_namen := array['mv_auftrag_masse', 'erg_punkte',
-                       'erg_koeff_verdunstung', 'erg_koeff_ausschuss', 'erg_koeff_nebenkanal',
-                       'erg_koeff_fax', 'erg_koeff_ueberfuellung', 'mv_koeff_rand',
-                       'erg_wiegung', 'erg_fax', 'erg_ausschuss',
-                       'erg_fax_wartezeit', 'erg_verarbeitung_alter', 'erg_durchsatz'];
-    when 3 then
-      v_titel := 'Kaskade';
-      v_namen := array['mv_kaskade', 'mv_hochrechnung', 'erg_charge'];
-    when 4 then
-      v_titel := 'Ergebnis';
-      v_namen := array['erg_verlust', 'erg_prognose', 'erg_wohin', 'erg_verlauf', 'erg_bilanz',
-                       'erg_marge', 'erg_massenbilanz', 'erg_naechste_charge', 'erg_datenlage',
-                       'erg_marge_wiegung', 'erg_marge_charge'];
-    when 5 then
-      v_titel := 'Befunde';
-      v_namen := array['erg_plausibilitaet', 'erg_datenqualitaet'];
-    else
-      raise exception 'auswertung_schritt: Schritt % gibt es nicht (1 bis 5).', p_schritt;
-  end case;
-
-  if p_schritt = 1 then
-    for v_name in
-      select c.relname from pg_class c join pg_namespace n on n.oid = c.relnamespace
-       where n.nspname = 'public' and c.relkind = 'r' order by c.relname
-    loop
-      execute format('analyze %I', v_name);
-    end loop;
-    delete from auswertung_laufzeit where ts < clock_timestamp() - interval '7 days';
-  end if;
-
-  foreach v_name in array v_namen loop
-    v_t := clock_timestamp();
-    v_eindeutig := false;
-    if p_nebenlaeufig then
-      select s.ausdruck into v_ausdruck from auswertung_schluessel() s where s.sicht = v_name;
-      select c.relispopulated into v_gefuellt from pg_class c join pg_namespace n on n.oid = c.relnamespace
-       where n.nspname = 'public' and c.relname = v_name;
-      if v_ausdruck is not null and coalesce(v_gefuellt, false) then
-        begin
-          if not exists (select 1 from pg_index i join pg_class c on c.oid = i.indrelid
-                          where c.relname = v_name and i.indisunique and i.indexprs is null and i.indpred is null) then
-            execute format('create unique index %I on %I (%s) nulls not distinct', v_name || '_eindeutig', v_name, v_ausdruck);
-          end if;
-          v_eindeutig := true;
-        exception when others then
-          raise notice 'auswertung_schritt: % bekommt keinen eindeutigen Index (%) — wird normal erneuert', v_name, sqlerrm;
-        end;
-      end if;
-    end if;
-    if v_eindeutig then
-      begin
-        execute format('refresh materialized view concurrently %I', v_name);
-      exception when others then
-        raise notice 'auswertung_schritt: % nicht nebenläufig erneuert (%) — normal erneuert', v_name, sqlerrm;
-        execute format('refresh materialized view %I', v_name);
-      end;
-    else
-      execute format('refresh materialized view %I', v_name);
-    end if;
-    execute format('analyze %I', v_name);
-    -- 0103: Wo die Minuten hingehen, sagt jeder Lauf selbst.
-    insert into auswertung_laufzeit (schritt, sicht, nebenlaeufig, dauer_ms)
-    values (p_schritt, v_name, v_eindeutig, (extract(epoch from clock_timestamp() - v_t) * 1000)::int);
-  end loop;
-
-  if p_schritt = 5 then
-    update auswertung_stand
-       set berechnet_ts = clock_timestamp(),
-           rechnet_seit = null,
-           dauer_ms = case when p_nebenlaeufig then null else coalesce(dauer_ms, 0) end
-                      + (extract(epoch from clock_timestamp() - v_start) * 1000)::int
-     where id = 1;
-  elsif not p_nebenlaeufig then
-    if p_schritt = 1 then
-      update auswertung_stand
-         set dauer_ms = (extract(epoch from clock_timestamp() - v_start) * 1000)::int
-       where id = 1;
-    else
-      update auswertung_stand
-         set dauer_ms = coalesce(dauer_ms, 0) + (extract(epoch from clock_timestamp() - v_start) * 1000)::int
-       where id = 1;
-    end if;
-  end if;
-
-  return jsonb_build_object(
-    'schritt', p_schritt, 'schritte', 5, 'titel', v_titel,
-    'dauer_ms', (extract(epoch from clock_timestamp() - v_start) * 1000)::int,
-    'fertig', p_schritt = 5, 'nebenlaeufig', p_nebenlaeufig, 'wartet', false);
-end $function$;
-
 
 create or replace function auswertung_schluessel()
 returns table (sicht text, ausdruck text) language sql immutable set search_path = public as $$
@@ -9224,264 +9075,9 @@ comment on function auswertung_jetzt() is
 revoke all on function auswertung_jetzt() from public;
 grant execute on function auswertung_jetzt() to authenticated;
 
-create or replace function auswertung_grund(p_jetzt timestamptz, p_berechnet timestamptz, p_geaendert timestamptz,
-                                            p_angefordert timestamptz, p_fehler timestamptz)
-returns text language sql stable set search_path = public as $$
-  with z as (
-    select (p_jetzt at time zone betriebszone())                                        as lokal,
-           ((date_trunc('day', p_jetzt at time zone betriebszone()) + interval '2 hours')
-              at time zone betriebszone())                                             as heute_nacht
-  )
-  select case
-    -- „Neu rechnen": jünger als der Stand und als der letzte Fehlschlag
-    when p_angefordert is not null
-         and p_angefordert > coalesce(p_berechnet, '-infinity')
-         and p_angefordert > coalesce(p_fehler, '-infinity')                           then 'angefordert'
-    -- frisch eingespielt: noch nie gerechnet, noch nie gescheitert
-    when p_berechnet is null and p_fehler is null                                      then 'erstmals'
-    -- nachts einmal: 2 bis 5 Uhr Ortszeit, tagsüber etwas erfasst, heute Nacht
-    -- weder gerechnet noch gescheitert
-    when extract(hour from z.lokal) >= 2 and extract(hour from z.lokal) < 5
-         and p_geaendert > coalesce(p_berechnet, '-infinity')
-         and coalesce(p_berechnet, '-infinity') < z.heute_nacht
-         and coalesce(p_fehler, '-infinity') < z.heute_nacht                           then 'nachts'
-  end
-  from z
-$$;
-comment on function auswertung_grund(timestamptz, timestamptz, timestamptz, timestamptz, timestamptz) is
-  'Warum jetzt gerechnet wird (0107) — ''angefordert'', ''erstmals'', ''nachts'' — oder null: dann nicht. '
-  'Die eine Regel des Zeitplans; tagsüber löst die Halle nie eine Rechnung aus.';
-revoke all on function auswertung_grund(timestamptz, timestamptz, timestamptz, timestamptz, timestamptz) from public;
-grant execute on function auswertung_grund(timestamptz, timestamptz, timestamptz, timestamptz, timestamptz) to authenticated;
-
--- Ist der Zeitplan da und eingeschaltet? Nur dann rechnet die Datenbank im
--- Hintergrund, und nur dann darf der Browser nicht selbst rechnen. Für die
--- Prüfung (ohne pg_cron) lässt er sich vortäuschen: kuerbis.zeitplan_test = 'an'.
-create or replace function auswertung_zeitplan_aktiv() returns boolean
-language plpgsql stable security definer set search_path = public as $$
-declare v boolean := false;
-begin
-  if current_setting('kuerbis.zeitplan_test', true) = 'an' then
-    return true;
-  end if;
-  if not exists (select 1 from pg_extension where extname = 'pg_cron') then
-    return false;
-  end if;
-  begin
-    execute $q$select coalesce(bool_or(active), false) from cron.job where jobname = 'auswertung_wenn_veraltet'$q$ into v;
-  exception when others then
-    v := false;
-  end;
-  return coalesce(v, false);
-end $$;
-comment on function auswertung_zeitplan_aktiv() is
-  'Ob der Zeitplan (pg_cron, auswertung_wenn_veraltet) eingetragen und eingeschaltet ist (0107).';
-revoke all on function auswertung_zeitplan_aktiv() from public;
-grant execute on function auswertung_zeitplan_aktiv() to authenticated;
-
--- Der Lauf des Zeitplans. Jede Minute ein Blick auf eine Zeile; gerechnet
--- wird nur, wenn auswertung_grund() es sagt. Kein Beenden fremder
--- Sitzungen, kein Wiederholen nach einem Fehlschlag.
-create or replace function auswertung_wenn_veraltet()
-returns boolean language plpgsql security definer
-set search_path = public set jit = off as $$
-declare v_stand auswertung_stand; i int; v_erg jsonb; v_start timestamptz := clock_timestamp(); v_grund text;
-begin
-  -- Die Sperre vor allem anderen: nie zwei Läufe.
-  if not pg_try_advisory_xact_lock(hashtext('auswertung_schritt')) then
-    return false;
-  end if;
-  select * into v_stand from auswertung_stand where id = 1;
-  v_grund := auswertung_grund(auswertung_jetzt(), v_stand.berechnet_ts, v_stand.geaendert_ts,
-                              v_stand.angefordert_ts, v_stand.fehler_ts);
-  if v_grund is null then
-    update auswertung_stand set zeitplan_gerufen_ts = now() where id = 1;   -- nur die Notiz (0098)
-    return false;
-  end if;
-  perform set_config('lock_timeout', '30s', true);
-  begin
-    for i in 1..5 loop
-      v_erg := auswertung_schritt_intern(i, true);
-      if (v_erg ->> 'wartet') = 'true' then
-        raise exception 'Schritt % wartet auf eine Sperre', i;
-      end if;
-    end loop;
-  exception when query_canceled or others then
-    -- Zurückgerollt ist, was dieser Lauf gerechnet hatte; die alten Zahlen
-    -- bleiben stehen. Gemerkt wird der Fehlschlag — wiederholt wird erst auf
-    -- die nächste Anforderung oder in der nächsten Nacht.
-    update auswertung_stand
-       set fehler_ts = clock_timestamp(), fehler = left(sqlerrm, 500), zeitplan_gerufen_ts = now()
-     where id = 1;
-    raise warning 'Auswertung (%) nicht gerechnet: %', v_grund, sqlerrm;
-    return false;
-  end;
-  update auswertung_stand
-     set zeitplan_gerufen_ts = now(), fehler_ts = null, fehler = null,
-         dauer_ms = (extract(epoch from clock_timestamp() - v_start) * 1000)::int
-   where id = 1;
-  -- Nachts auch das Protokoll von pg_cron kürzen (eine Zeile je Minute).
-  if v_grund = 'nachts' then
-    begin
-      execute $q$delete from cron.job_run_details where end_time < now() - interval '7 days'$q$;
-    exception when others then
-      null;
-    end;
-  end if;
-  return true;
-end $$;
-comment on function auswertung_wenn_veraltet() is
-  'Rechnet neu, wenn seit der letzten Berechnung etwas geschrieben wurde — sonst '
-  'nichts. Für einen Zeitplan (pg_cron), damit die App fertige Zahlen vorfindet (0061).';
-revoke all on function auswertung_wenn_veraltet() from public;
-grant execute on function auswertung_wenn_veraltet() to authenticated;
-comment on function auswertung_wenn_veraltet() is
-  'Rechnet neu, wenn seit der letzten Berechnung etwas geschrieben wurde — sonst nichts. '
-  'Für den Zeitplan (pg_cron, 0061); seit 0095 nebenläufig, damit die App während des '
-  'Rechnens die alten Zahlen liest statt zu warten.';
-revoke all on function auswertung_wenn_veraltet() from public;
-grant execute on function auswertung_wenn_veraltet() to authenticated;
-comment on function auswertung_wenn_veraltet() is
-  'Rechnet neu, wenn seit der letzten Berechnung etwas geschrieben wurde — sonst nichts. '
-  'Für den Zeitplan (pg_cron, 0061); seit 0095 nebenläufig; seit 0098 mit eigener Notiz '
-  'des Aufrufs (auswertung_stand.zeitplan_gerufen_ts).';
-revoke all on function auswertung_wenn_veraltet() from public;
-grant execute on function auswertung_wenn_veraltet() to authenticated;
-comment on function auswertung_wenn_veraltet() is
-  'Der Lauf des Zeitplans (pg_cron, jede Minute): rechnet nur, wenn auswertung_grund() es sagt — '
-  '„Neu rechnen", nachts einmal, oder noch nie gerechnet (0107). Scheitert der Lauf, stehen fehler_ts/fehler '
-  'im Stand, und es wird erst auf die nächste Anforderung oder in der nächsten Nacht wieder versucht.';
-revoke all on function auswertung_wenn_veraltet() from public;
-grant execute on function auswertung_wenn_veraltet() to authenticated;
-
 -- Die Drossel (0103) gibt es nicht mehr: tagsüber rechnet die Halle nie.
 drop function if exists auswertung_drossel(int);
 drop function if exists auswertung_drossel_min();
-
--- ---------- 4. Aus dem Browser wird nicht gerechnet ----------------------
--- „Neu rechnen" fordert an; fehlt der Zeitplan, trägt die Anforderung ihn ein
--- (er rechnet ja nur noch, wenn jemand fragt oder nachts).
-create or replace function auswertung_anfordern() returns jsonb
-language plpgsql security definer set search_path = public as $$
-declare v_ts timestamptz; v_id bigint; v_aktiv boolean; v_takt text;
-begin
-  if auth.uid() is not null and not ist_admin() then
-    raise exception 'Neu rechnen darf nur der Betriebsleiter.' using errcode = '42501';
-  end if;
-  update auswertung_stand
-     set geaendert_ts = clock_timestamp(), angefordert_ts = clock_timestamp()
-   where id = 1
-  returning angefordert_ts into v_ts;
-  if current_setting('kuerbis.zeitplan_test', true) = 'an' then
-    return jsonb_build_object('weg', 'zeitplan', 'takt', '*/1 * * * *', 'angefordert_ts', v_ts);
-  end if;
-  if not exists (select 1 from pg_extension where extname = 'pg_cron') then
-    return jsonb_build_object('weg', 'app', 'angefordert_ts', v_ts);
-  end if;
-  begin
-    execute $q$select jobid, active, schedule from cron.job where jobname = 'auswertung_wenn_veraltet' order by jobid limit 1$q$
-       into v_id, v_aktiv, v_takt;
-    if v_id is null then
-      execute $q$select cron.schedule('auswertung_wenn_veraltet', '*/1 * * * *', 'select public.auswertung_wenn_veraltet()')$q$;
-      v_takt := '*/1 * * * *';
-    elsif not v_aktiv then
-      execute format($q$select cron.alter_job(job_id => %s, active => true)$q$, v_id);
-    end if;
-  exception when others then
-    return jsonb_build_object('weg', 'app', 'angefordert_ts', v_ts, 'hinweis', sqlerrm);
-  end;
-  return jsonb_build_object('weg', 'zeitplan', 'takt', coalesce(v_takt, '*/1 * * * *'), 'angefordert_ts', v_ts);
-end $$;
-comment on function auswertung_anfordern() is
-  '„Neu rechnen" (0102): markiert die Auswertung als veraltet und trägt, wo pg_cron da ist, den '
-  'Sofort-Lauf „auswertung_sofort" ein (weg: zeitplan). Ohne pg_cron antwortet sie weg: app — dann '
-  'rechnet die App selbst mit auswertung_schritt. Nur für den Betriebsleiter oder ohne Anmeldung.';
-revoke all on function auswertung_anfordern() from public;
-grant execute on function auswertung_anfordern() to authenticated;
-comment on function auswertung_anfordern() is
-  '„Neu rechnen" (0102/0103): markiert die Auswertung als veraltet und angefordert; der Zeitplan '
-  '(jede Minute) rechnet beim nächsten Tick (weg: zeitplan). Ohne pg_cron oder ohne aktiven Eintrag '
-  'antwortet sie weg: app — dann rechnet die App selbst. Nur für den Betriebsleiter oder ohne Anmeldung.';
-revoke all on function auswertung_anfordern() from public;
-grant execute on function auswertung_anfordern() to authenticated;
-comment on function auswertung_anfordern() is
-  '„Neu rechnen" (0102, 0107): merkt die Anforderung; wo pg_cron da ist, rechnet der Zeitplan sie beim nächsten '
-  'Takt (weg: zeitplan) und wird eingetragen, falls er fehlt. Ohne pg_cron (Prüfung, Demo) weg: app. '
-  'Nur für den Betriebsleiter oder ohne Anmeldung.';
-revoke all on function auswertung_anfordern() from public;
-grant execute on function auswertung_anfordern() to authenticated;
-
-create or replace function auswertung_aktualisieren() returns timestamptz
-language plpgsql security definer set search_path = public set jit = 'off'
-as $$
-declare i int;
-begin
-  if auth.uid() is not null and not ist_admin() then
-    raise exception 'Neu rechnen darf nur der Betriebsleiter.'
-      using errcode = '42501';
-  end if;
-  -- Aus dem Browser (angemeldet) mit Zeitplan: nur anfordern — die volle
-  -- Rechnung überschritte die Grenze der API und sperrte die Ansichten (0107).
-  if auth.uid() is not null and auswertung_zeitplan_aktiv() then
-    perform auswertung_anfordern();
-    return now();
-  end if;
-  for i in 1..5 loop
-    perform auswertung_schritt_intern(i, false);
-  end loop;
-  return now();
-end $$;
-
-comment on function auswertung_aktualisieren is
-  'Rechnet die Auswertung neu. Dauert je nach Datenmenge einige Sekunden — '
-  'währenddessen sind die drei gespeicherten Ansichten kurz gesperrt.';
-
-grant execute on function auswertung_aktualisieren() to authenticated;
-revoke execute on function auswertung_aktualisieren() from public;
-grant execute on function auswertung_aktualisieren() to authenticated;
-comment on function auswertung_aktualisieren() is
-  'Alle fünf Schritte des Neurechnens nacheinander. Nur für den Betriebsleiter — '
-  'oder ohne Anmeldung, also für die Prüfstände als Eigentümer (0068).';
-comment on function auswertung_aktualisieren() is
-  'Alle fünf Schritte des Neurechnens nacheinander — für die Prüfstände und Einspielungen ohne Anmeldung. '
-  'Aus dem Browser mit Zeitplan fordert sie nur an (0107). Nur für den Betriebsleiter.';
-revoke all on function auswertung_aktualisieren() from public;
-grant execute on function auswertung_aktualisieren() to authenticated;
-
-create or replace function auswertung_schritt(p_schritt integer)
-returns jsonb language plpgsql security definer set search_path = public as $$
-begin
-  if auth.uid() is not null and auswertung_zeitplan_aktiv() then
-    if p_schritt = 1 then
-      perform auswertung_anfordern();
-    end if;
-    return jsonb_build_object('schritt', p_schritt, 'schritte', 5, 'titel', 'angefordert', 'dauer_ms', 0,
-                              'fertig', p_schritt = 5, 'nebenlaeufig', true, 'wartet', false, 'angefordert', true);
-  end if;
-  return auswertung_schritt_intern(p_schritt, false);
-end $$;
-comment on function auswertung_schritt(integer) is
-  'Ein Schritt des Neurechnens. Nur für den Betriebsleiter — oder ohne Anmeldung, '
-  'also für die Prüfstände als Eigentümer. Ein Lauf sperrt jede gespeicherte Ansicht '
-  'für rund drei Sekunden (0068).';
-comment on function auswertung_schritt(integer) is
-  'Ein Schritt des Neurechnens. Nur für den Betriebsleiter — oder ohne Anmeldung, '
-  'also für die Prüfstände als Eigentümer. Ein Lauf sperrt jede gespeicherte '
-  'Ansicht für rund drei Sekunden (0068, 0071).';
-comment on function auswertung_schritt(integer) is
-  'Ein Schritt des Neurechnens. Nur für den Betriebsleiter — oder ohne Anmeldung, '
-  'also für die Prüfstände als Eigentümer. Ein Lauf sperrt jede gespeicherte '
-  'Ansicht für rund drei Sekunden (0068, 0071, 0078).';
-comment on function auswertung_schritt(integer) is
-  'Ein Schritt des Neurechnens aus der App (0078) — nicht nebenläufig. Der Zeitplan '
-  'nimmt auswertung_schritt_intern(…, true) (0095).';
-revoke execute on function auswertung_schritt(integer) from public;
-grant execute on function auswertung_schritt(integer) to authenticated;
-comment on function auswertung_schritt(integer) is
-  'Ein Schritt des Neurechnens aus der App — nur ohne Zeitplan (Demo, Prüfung). Mit Zeitplan fordert Schritt 1 '
-  'an und alle Schritte melden sich sofort zurück (0107); gerechnet wird im Hintergrund.';
-revoke execute on function auswertung_schritt(integer) from public;
-grant execute on function auswertung_schritt(integer) to authenticated;
 
 -- ---------- 5. Schritt 3 mit erg_palox_erwartung --------------------------
 CREATE OR REPLACE FUNCTION public.auswertung_schritt_intern(p_schritt integer, p_nebenlaeufig boolean)
@@ -9699,8 +9295,354 @@ exception when others then
   raise notice 'Zeitplan nicht angepasst (%)', sqlerrm;
 end $$;
 
+
+-- =====================================================================
+-- aus 0108_ein_abgebrochener_lauf_wird_nicht_wiederholt.sql
+-- =====================================================================
+
+-- =====================================================================
+-- 0108 — Ein abgebrochener Lauf wird nicht wiederholt
+--
+-- 29./30. September, nachts: Die Datenbank des Betriebs blieb auch nach dem
+-- Neustart „unhealthy". Der Grund, den die Gegenprüfung von 0107 fand: Wird
+-- ein Lauf von aussen abgebrochen — Neustart, Absturz, beendete Sitzung —,
+-- rollt er ganz zurück, auch das, was er über sich selbst notieren wollte.
+-- Der nächste Takt findet dieselbe Anforderung (oder dieselbe Nacht, oder
+-- „noch nie gerechnet") und beginnt von vorn: Neustart → Rechnung →
+-- Plattenlast → Neustart. 0107 merkte sich nur Fehler, die es fangen konnte.
+--
+-- Ab 0108 zählt ein Lauf, sobald er anfängt: Er zieht eine Nummer aus der
+-- Folge auswertung_versuch. Eine Folge rollt nicht zurück — auch nicht bei
+-- einem Absturz. Endet der Lauf (gelungen oder gefangen), schreibt er seine
+-- Nummer in auswertung_stand.versuch_fertig. Findet der nächste Takt eine
+-- gezogene Nummer, die nie fertig wurde, notiert er den Abbruch als
+-- Fehlschlag und rechnet nicht: wieder erst auf „Neu rechnen" oder in der
+-- nächsten Nacht.
+--
+-- Dazu, aus derselben Gegenprüfung, alles klein:
+--   * Die Nacht beginnt um Mitternacht, nicht um zwei Uhr — in der Nacht der
+--     Umstellung auf Winterzeit (25.10.) gibt es zwei Uhr zweimal, und ein
+--     gescheiterter Nachtlauf wäre bis zur zweiten Stunde wiederholt worden.
+--   * berechnet_ts ist der Beginn des Laufs, nicht sein Ende: Was während
+--     des Laufs erfasst wird, gilt nicht als gerechnet.
+--   * „Neu rechnen" schaltet einen abgeschalteten Zeitplan nicht wieder ein
+--     (ein Notaus hält); der Browser rechnet nie, wo pg_cron da ist.
+--   * Ein Lauf darf höchstens 15 Minuten dauern (statt 60).
+--   * Das Protokoll von pg_cron wird stündlich gekürzt (sieben Tage).
+-- =====================================================================
+
+-- ---------- 1. Jeder Lauf zieht eine Nummer ------------------------------
+create sequence if not exists auswertung_versuch;
+comment on sequence auswertung_versuch is
+  'Je Lauf des Zeitplans eine Nummer, gezogen beim Anfang (0108). Eine Folge rollt nicht zurück: Eine Nummer über '
+  'auswertung_stand.versuch_fertig heisst, ein Lauf hat angefangen und nie aufgehört.';
+alter table auswertung_stand add column if not exists versuch_fertig bigint;
+comment on column auswertung_stand.versuch_fertig is
+  'Die Nummer (auswertung_versuch) des letzten Laufs, der zu Ende kam — gelungen oder mit gefangenem Fehler (0108).';
+
+-- ---------- 2. Die Nacht beginnt um Mitternacht --------------------------
+create or replace function auswertung_grund(p_jetzt timestamptz, p_berechnet timestamptz, p_geaendert timestamptz,
+                                            p_angefordert timestamptz, p_fehler timestamptz)
+returns text language sql stable set search_path = public as $$
+  with z as (
+    select (p_jetzt at time zone betriebszone())                                        as lokal,
+           (date_trunc('day', p_jetzt at time zone betriebszone()) at time zone betriebszone()) as mitternacht
+  )
+  select case
+    -- „Neu rechnen": jünger als der Stand und als der letzte Fehlschlag
+    when p_angefordert is not null
+         and p_angefordert > coalesce(p_berechnet, '-infinity')
+         and p_angefordert > coalesce(p_fehler, '-infinity')                           then 'angefordert'
+    -- frisch eingespielt: noch nie gerechnet, noch nie gescheitert
+    when p_berechnet is null and p_fehler is null                                      then 'erstmals'
+    -- nachts einmal: 2 bis 5 Uhr Ortszeit, tagsüber etwas erfasst, seit
+    -- Mitternacht weder gerechnet noch gescheitert (Mitternacht gibt es in
+    -- Europe/Zurich nie zweimal, zwei Uhr in der Umstellungsnacht schon)
+    when extract(hour from z.lokal) >= 2 and extract(hour from z.lokal) < 5
+         and p_geaendert > coalesce(p_berechnet, '-infinity')
+         and coalesce(p_berechnet, '-infinity') < z.mitternacht
+         and coalesce(p_fehler, '-infinity') < z.mitternacht                           then 'nachts'
+  end
+  from z
+$$;
+comment on function auswertung_grund(timestamptz, timestamptz, timestamptz, timestamptz, timestamptz) is
+  'Warum jetzt gerechnet wird (0107) — ''angefordert'', ''erstmals'', ''nachts'' — oder null: dann nicht. '
+  'Die eine Regel des Zeitplans; tagsüber löst die Halle nie eine Rechnung aus.';
+revoke all on function auswertung_grund(timestamptz, timestamptz, timestamptz, timestamptz, timestamptz) from public;
+grant execute on function auswertung_grund(timestamptz, timestamptz, timestamptz, timestamptz, timestamptz) to authenticated;
+comment on function auswertung_grund(timestamptz, timestamptz, timestamptz, timestamptz, timestamptz) is
+  'Warum jetzt gerechnet wird (0107, 0108) — ''angefordert'', ''erstmals'', ''nachts'' — oder null: dann nicht. '
+  'Die eine Regel des Zeitplans; tagsüber löst die Halle nie eine Rechnung aus.';
+revoke all on function auswertung_grund(timestamptz, timestamptz, timestamptz, timestamptz, timestamptz) from public;
+grant execute on function auswertung_grund(timestamptz, timestamptz, timestamptz, timestamptz, timestamptz) to authenticated;
+
+-- ---------- 3. Ist pg_cron da? -------------------------------------------
+-- Wo pg_cron da ist, rechnet der Browser nie — auch nicht, wenn der
+-- Zeitplan abgeschaltet ist (Notaus). Für die Prüfung vortäuschbar.
+create or replace function auswertung_cron_da() returns boolean
+language sql stable set search_path = public as $$
+  select current_setting('kuerbis.zeitplan_test', true) = 'an'
+      or exists (select 1 from pg_extension where extname = 'pg_cron')
+$$;
+comment on function auswertung_cron_da() is
+  'Ob pg_cron installiert ist (0108) — dann rechnet nur der Zeitplan, nie der Browser. In der Prüfung: kuerbis.zeitplan_test = ''an''.';
+revoke all on function auswertung_cron_da() from public;
+grant execute on function auswertung_cron_da() to authenticated;
+
+-- ---------- 4. Der Lauf des Zeitplans ------------------------------------
+create or replace function auswertung_wenn_veraltet()
+returns boolean language plpgsql security definer
+set search_path = public set jit = off as $$
+declare v_stand auswertung_stand; i int; v_erg jsonb; v_start timestamptz := clock_timestamp(); v_grund text;
+  v_letzter bigint; v_versuch bigint;
+begin
+  -- Die Sperre vor allem anderen: nie zwei Läufe. Wer sie hält, lebt —
+  -- darum wird ein Abbruch erst hinter der Sperre festgestellt.
+  if not pg_try_advisory_xact_lock(hashtext('auswertung_schritt')) then
+    return false;
+  end if;
+  select * into v_stand from auswertung_stand where id = 1;
+  -- Ein Lauf hat angefangen und ist nie fertig geworden: abgebrochen
+  -- (Neustart, Absturz, beendet). Gemerkt wie ein Fehlschlag, nicht wiederholt.
+  select case when is_called then last_value else 0 end into v_letzter from auswertung_versuch;
+  if v_letzter > coalesce(v_stand.versuch_fertig, 0) then
+    update auswertung_stand
+       set fehler_ts = clock_timestamp(),
+           fehler = 'Lauf abgebrochen (Neustart, Absturz oder beendet) — nicht wiederholt',
+           versuch_fertig = v_letzter, zeitplan_gerufen_ts = now()
+     where id = 1;
+    raise warning 'Auswertung: der letzte Lauf wurde abgebrochen — nicht wiederholt';
+    return false;
+  end if;
+  v_grund := auswertung_grund(auswertung_jetzt(), v_stand.berechnet_ts, v_stand.geaendert_ts,
+                              v_stand.angefordert_ts, v_stand.fehler_ts);
+  if v_grund is null then
+    update auswertung_stand set zeitplan_gerufen_ts = now() where id = 1;   -- nur die Notiz (0098)
+    -- Einmal je Stunde das Protokoll von pg_cron kürzen (eine Zeile je Minute).
+    if extract(minute from clock_timestamp()) = 0 then
+      begin
+        execute $q$delete from cron.job_run_details where end_time < now() - interval '7 days'$q$;
+      exception when others then
+        null;
+      end;
+    end if;
+    return false;
+  end if;
+  -- Ab hier zählt der Lauf: Die Nummer bleibt gezogen, was auch geschieht.
+  v_versuch := nextval('auswertung_versuch');
+  perform set_config('lock_timeout', '30s', true);
+  begin
+    for i in 1..5 loop
+      v_erg := auswertung_schritt_intern(i, true);
+      if (v_erg ->> 'wartet') = 'true' then
+        raise exception 'Schritt % wartet auf eine Sperre', i;
+      end if;
+    end loop;
+  exception when query_canceled or others then
+    update auswertung_stand
+       set fehler_ts = clock_timestamp(), fehler = left(sqlerrm, 500), zeitplan_gerufen_ts = now(),
+           versuch_fertig = v_versuch
+     where id = 1;
+    raise warning 'Auswertung (%) nicht gerechnet: %', v_grund, sqlerrm;
+    return false;
+  end;
+  -- Der Stand ist der Beginn des Laufs: Was währenddessen erfasst wurde,
+  -- zählt als neu (nachts wird es nachgeholt, der Chip sagt es).
+  update auswertung_stand
+     set berechnet_ts = v_start, zeitplan_gerufen_ts = now(), fehler_ts = null, fehler = null,
+         versuch_fertig = v_versuch,
+         dauer_ms = (extract(epoch from clock_timestamp() - v_start) * 1000)::int
+   where id = 1;
+  return true;
+end $$;
+comment on function auswertung_wenn_veraltet() is
+  'Rechnet neu, wenn seit der letzten Berechnung etwas geschrieben wurde — sonst '
+  'nichts. Für einen Zeitplan (pg_cron), damit die App fertige Zahlen vorfindet (0061).';
+revoke all on function auswertung_wenn_veraltet() from public;
+grant execute on function auswertung_wenn_veraltet() to authenticated;
+comment on function auswertung_wenn_veraltet() is
+  'Rechnet neu, wenn seit der letzten Berechnung etwas geschrieben wurde — sonst nichts. '
+  'Für den Zeitplan (pg_cron, 0061); seit 0095 nebenläufig, damit die App während des '
+  'Rechnens die alten Zahlen liest statt zu warten.';
+revoke all on function auswertung_wenn_veraltet() from public;
+grant execute on function auswertung_wenn_veraltet() to authenticated;
+comment on function auswertung_wenn_veraltet() is
+  'Rechnet neu, wenn seit der letzten Berechnung etwas geschrieben wurde — sonst nichts. '
+  'Für den Zeitplan (pg_cron, 0061); seit 0095 nebenläufig; seit 0098 mit eigener Notiz '
+  'des Aufrufs (auswertung_stand.zeitplan_gerufen_ts).';
+revoke all on function auswertung_wenn_veraltet() from public;
+grant execute on function auswertung_wenn_veraltet() to authenticated;
+comment on function auswertung_wenn_veraltet() is
+  'Der Lauf des Zeitplans (pg_cron, jede Minute): rechnet nur, wenn auswertung_grund() es sagt — '
+  '„Neu rechnen", nachts einmal, oder noch nie gerechnet (0107). Scheitert der Lauf, stehen fehler_ts/fehler '
+  'im Stand, und es wird erst auf die nächste Anforderung oder in der nächsten Nacht wieder versucht.';
+revoke all on function auswertung_wenn_veraltet() from public;
+grant execute on function auswertung_wenn_veraltet() to authenticated;
+comment on function auswertung_wenn_veraltet() is
+  'Der Lauf des Zeitplans (pg_cron, jede Minute): rechnet nur, wenn auswertung_grund() es sagt — „Neu rechnen", nachts '
+  'einmal, oder noch nie gerechnet (0107). Jeder Lauf zieht beim Anfang eine Nummer (auswertung_versuch, 0108); ein '
+  'Lauf, der nie fertig wurde, gilt als Fehlschlag und wird nicht wiederholt. Der Stand ist der Beginn des Laufs.';
+revoke all on function auswertung_wenn_veraltet() from public;
+grant execute on function auswertung_wenn_veraltet() to authenticated;
+
+-- ---------- 5. „Neu rechnen" und der Notaus -----------------------------
+create or replace function auswertung_anfordern() returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare v_ts timestamptz; v_id bigint; v_aktiv boolean; v_takt text;
+begin
+  if auth.uid() is not null and not ist_admin() then
+    raise exception 'Neu rechnen darf nur der Betriebsleiter.' using errcode = '42501';
+  end if;
+  update auswertung_stand
+     set geaendert_ts = clock_timestamp(), angefordert_ts = clock_timestamp()
+   where id = 1
+  returning angefordert_ts into v_ts;
+  if current_setting('kuerbis.zeitplan_test', true) = 'an' then
+    return jsonb_build_object('weg', 'zeitplan', 'takt', '*/1 * * * *', 'angefordert_ts', v_ts);
+  end if;
+  if not exists (select 1 from pg_extension where extname = 'pg_cron') then
+    return jsonb_build_object('weg', 'app', 'angefordert_ts', v_ts);
+  end if;
+  begin
+    execute $q$select jobid, active, schedule from cron.job where jobname = 'auswertung_wenn_veraltet' order by jobid limit 1$q$
+       into v_id, v_aktiv, v_takt;
+    if v_id is null then
+      -- Fehlt der Eintrag ganz (ausgetragen), trägt „Neu rechnen" ihn ein.
+      execute $q$select cron.schedule('auswertung_wenn_veraltet', '*/1 * * * *', 'select public.auswertung_wenn_veraltet()')$q$;
+      v_takt := '*/1 * * * *';
+    elsif not v_aktiv then
+      -- Abgeschaltet (Notaus): bleibt abgeschaltet. Die Anforderung steht und
+      -- wird gerechnet, sobald jemand den Zeitplan wieder einschaltet.
+      return jsonb_build_object('weg', 'aus', 'angefordert_ts', v_ts,
+        'hinweis', 'Der Zeitplan der Datenbank ist abgeschaltet (Notaus) — gerechnet wird, sobald er wieder eingeschaltet ist');
+    end if;
+  exception when others then
+    return jsonb_build_object('weg', 'aus', 'angefordert_ts', v_ts, 'hinweis', 'Zeitplan nicht lesbar: ' || sqlerrm);
+  end;
+  return jsonb_build_object('weg', 'zeitplan', 'takt', coalesce(v_takt, '*/1 * * * *'), 'angefordert_ts', v_ts);
+end $$;
+comment on function auswertung_anfordern() is
+  '„Neu rechnen" (0102): markiert die Auswertung als veraltet und trägt, wo pg_cron da ist, den '
+  'Sofort-Lauf „auswertung_sofort" ein (weg: zeitplan). Ohne pg_cron antwortet sie weg: app — dann '
+  'rechnet die App selbst mit auswertung_schritt. Nur für den Betriebsleiter oder ohne Anmeldung.';
+revoke all on function auswertung_anfordern() from public;
+grant execute on function auswertung_anfordern() to authenticated;
+comment on function auswertung_anfordern() is
+  '„Neu rechnen" (0102/0103): markiert die Auswertung als veraltet und angefordert; der Zeitplan '
+  '(jede Minute) rechnet beim nächsten Tick (weg: zeitplan). Ohne pg_cron oder ohne aktiven Eintrag '
+  'antwortet sie weg: app — dann rechnet die App selbst. Nur für den Betriebsleiter oder ohne Anmeldung.';
+revoke all on function auswertung_anfordern() from public;
+grant execute on function auswertung_anfordern() to authenticated;
+comment on function auswertung_anfordern() is
+  '„Neu rechnen" (0102, 0107): merkt die Anforderung; wo pg_cron da ist, rechnet der Zeitplan sie beim nächsten '
+  'Takt (weg: zeitplan) und wird eingetragen, falls er fehlt. Ohne pg_cron (Prüfung, Demo) weg: app. '
+  'Nur für den Betriebsleiter oder ohne Anmeldung.';
+revoke all on function auswertung_anfordern() from public;
+grant execute on function auswertung_anfordern() to authenticated;
+comment on function auswertung_anfordern() is
+  '„Neu rechnen" (0102, 0107, 0108): merkt die Anforderung; wo pg_cron da ist, rechnet der Zeitplan sie beim nächsten '
+  'Takt. Fehlt der Eintrag, wird er angelegt; ist er abgeschaltet (Notaus), bleibt er es (weg: aus). Ohne pg_cron '
+  '(Prüfung, Demo) weg: app. Nur für den Betriebsleiter oder ohne Anmeldung.';
+revoke all on function auswertung_anfordern() from public;
+grant execute on function auswertung_anfordern() to authenticated;
+
+create or replace function auswertung_aktualisieren() returns timestamptz
+language plpgsql security definer set search_path = public set jit = 'off'
+as $$
+declare i int;
+begin
+  if auth.uid() is not null and not ist_admin() then
+    raise exception 'Neu rechnen darf nur der Betriebsleiter.'
+      using errcode = '42501';
+  end if;
+  -- Aus dem Browser (angemeldet), wo pg_cron da ist: nur anfordern (0107, 0108).
+  if auth.uid() is not null and auswertung_cron_da() then
+    perform auswertung_anfordern();
+    return now();
+  end if;
+  for i in 1..5 loop
+    perform auswertung_schritt_intern(i, false);
+  end loop;
+  return now();
+end $$;
+
+comment on function auswertung_aktualisieren is
+  'Rechnet die Auswertung neu. Dauert je nach Datenmenge einige Sekunden — '
+  'währenddessen sind die drei gespeicherten Ansichten kurz gesperrt.';
+
+grant execute on function auswertung_aktualisieren() to authenticated;
+revoke execute on function auswertung_aktualisieren() from public;
+grant execute on function auswertung_aktualisieren() to authenticated;
+comment on function auswertung_aktualisieren() is
+  'Alle fünf Schritte des Neurechnens nacheinander. Nur für den Betriebsleiter — '
+  'oder ohne Anmeldung, also für die Prüfstände als Eigentümer (0068).';
+comment on function auswertung_aktualisieren() is
+  'Alle fünf Schritte des Neurechnens nacheinander — für die Prüfstände und Einspielungen ohne Anmeldung. '
+  'Aus dem Browser mit Zeitplan fordert sie nur an (0107). Nur für den Betriebsleiter.';
+revoke all on function auswertung_aktualisieren() from public;
+grant execute on function auswertung_aktualisieren() to authenticated;
+comment on function auswertung_aktualisieren() is
+  'Alle fünf Schritte des Neurechnens nacheinander — für die Prüfstände und Einspielungen ohne Anmeldung. '
+  'Aus dem Browser fordert sie nur an, wo pg_cron da ist (0107, 0108). Nur für den Betriebsleiter.';
+revoke all on function auswertung_aktualisieren() from public;
+grant execute on function auswertung_aktualisieren() to authenticated;
+
+create or replace function auswertung_schritt(p_schritt integer)
+returns jsonb language plpgsql security definer set search_path = public as $$
+begin
+  if auth.uid() is not null and auswertung_cron_da() then
+    if p_schritt = 1 then
+      perform auswertung_anfordern();
+    end if;
+    return jsonb_build_object('schritt', p_schritt, 'schritte', 5, 'titel', 'angefordert', 'dauer_ms', 0,
+                              'fertig', p_schritt = 5, 'nebenlaeufig', true, 'wartet', false, 'angefordert', true);
+  end if;
+  return auswertung_schritt_intern(p_schritt, false);
+end $$;
+comment on function auswertung_schritt(integer) is
+  'Ein Schritt des Neurechnens. Nur für den Betriebsleiter — oder ohne Anmeldung, '
+  'also für die Prüfstände als Eigentümer. Ein Lauf sperrt jede gespeicherte Ansicht '
+  'für rund drei Sekunden (0068).';
+comment on function auswertung_schritt(integer) is
+  'Ein Schritt des Neurechnens. Nur für den Betriebsleiter — oder ohne Anmeldung, '
+  'also für die Prüfstände als Eigentümer. Ein Lauf sperrt jede gespeicherte '
+  'Ansicht für rund drei Sekunden (0068, 0071).';
+comment on function auswertung_schritt(integer) is
+  'Ein Schritt des Neurechnens. Nur für den Betriebsleiter — oder ohne Anmeldung, '
+  'also für die Prüfstände als Eigentümer. Ein Lauf sperrt jede gespeicherte '
+  'Ansicht für rund drei Sekunden (0068, 0071, 0078).';
+comment on function auswertung_schritt(integer) is
+  'Ein Schritt des Neurechnens aus der App (0078) — nicht nebenläufig. Der Zeitplan '
+  'nimmt auswertung_schritt_intern(…, true) (0095).';
+revoke execute on function auswertung_schritt(integer) from public;
+grant execute on function auswertung_schritt(integer) to authenticated;
+comment on function auswertung_schritt(integer) is
+  'Ein Schritt des Neurechnens aus der App — nur ohne Zeitplan (Demo, Prüfung). Mit Zeitplan fordert Schritt 1 '
+  'an und alle Schritte melden sich sofort zurück (0107); gerechnet wird im Hintergrund.';
+revoke execute on function auswertung_schritt(integer) from public;
+grant execute on function auswertung_schritt(integer) to authenticated;
+comment on function auswertung_schritt(integer) is
+  'Ein Schritt des Neurechnens aus der App — nur ohne pg_cron (Demo ohne Zeitplan, Prüfung). Wo pg_cron da ist, fordert '
+  'Schritt 1 an und alle Schritte melden sich sofort zurück (0107, 0108); gerechnet wird im Hintergrund.';
+revoke execute on function auswertung_schritt(integer) from public;
+grant execute on function auswertung_schritt(integer) to authenticated;
+
+drop function if exists auswertung_zeitplan_aktiv();
+
+-- ---------- 6. Ein Lauf dauert höchstens 15 Minuten ---------------------
+-- Normal sind 89 s (Betrieb, Stand 102). Was länger dauert, scheitert
+-- sichtbar, statt eine Stunde lang die Platte zu belegen; seit 0108 wird es
+-- nicht wiederholt. Gilt auch im SQL-Editor — setup.sql braucht Sekunden.
+do $$
+begin
+  execute 'alter role postgres set statement_timeout = ''15min''';
+  raise notice 'Zeitgrenze der Rolle postgres: 15 Minuten (0108).';
+exception when others then
+  raise notice 'Zeitgrenze der Rolle nicht gesetzt (%)', sqlerrm;
+end $$;
+
 create or replace function schema_stand() returns int
-language sql immutable set search_path = public as $$ select 107 $$;
+language sql immutable set search_path = public as $$ select 108 $$;
 comment on function schema_stand is
   'Nummer der jüngsten eingespielten Migration. Die App vergleicht sie mit '
   'SCHEMA_ERWARTET (src/lib/version.ts) und verlangt bei Abweichung, setup.sql '

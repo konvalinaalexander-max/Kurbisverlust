@@ -4171,6 +4171,42 @@ Daten, dann die Annahme — nach der Korrektur nachsehen.
 nicht alles: vier mal vier gleiche Paloxen und ein Tag mit 30 Paaren bei
 13 erwarteten sind Fragen wert.
 
+## Runde AL: ein abgebrochener Lauf wird nicht wiederholt (30. September, nachts, 0108)
+
+Die Datenbank des Betriebs blieb auch nach dem Neustart „unhealthy". Der
+Betrieb: „es lief doch ohne Probleme, bis wir mit diesen komischen Dingern
+begonnen haben — mach es unkomplizierter statt komplizierter". Eine
+Gegenprüfung (vier Prüfer, je ein Gegenprüfer) fand den Grund, und er galt
+auch für 0107: Wird ein Lauf von aussen abgebrochen (Neustart, Absturz,
+beendete Sitzung), rollt er ganz zurück — auch seine Notiz über sich
+selbst. Der nächste Takt fand dieselbe Anforderung, dieselbe Nacht oder
+„noch nie gerechnet" und begann von vorn: Neustart → Rechnung →
+Plattenlast → Neustart.
+
+**0108:** Jeder Lauf zieht beim Anfang eine Nummer aus der Folge
+`auswertung_versuch` und hakt sie am Ende ab (`versuch_fertig`). Eine Folge
+rollt nicht zurück; eine gezogene, nie abgehakte Nummer heisst: abgebrochen.
+Das gilt als Fehlschlag und wird nicht wiederholt — erst auf „Neu rechnen"
+oder in der nächsten Nacht. Kleiner, aus derselben Prüfung: Die Nacht
+beginnt um Mitternacht (in der Umstellungsnacht am 25.10. gibt es zwei Uhr
+zweimal); der Stand ist der Beginn des Laufs; „Neu rechnen" schaltet einen
+abgeschalteten Zeitplan nicht wieder ein (Notaus hält) und der Browser
+rechnet nie, wo pg_cron da ist; ein Lauf darf 15 statt 60 Minuten dauern;
+das Protokoll von pg_cron wird stündlich auf sieben Tage gekürzt; die
+Lagerkontroll-Korrektur fordert keine Rechnung mehr an; eine noch leere
+Auswertung hält die Seiten nicht im Ladekreis fest; das Dashboard holt drei
+Ergebnisse nicht mehr, die kein Bildschirm zeigt (`erg_kaliber`,
+`erg_gewichte`, `erg_lieferung`); der Abzug meldet einen gescheiterten Lauf.
+Block 0108, acht Mutationen, alle schlagen an; 0103 (g3) prüft jetzt 15
+statt 60 Minuten und sagt es.
+
+**Was bewusst nicht gemacht wurde:** Die Rechnung selbst ist nicht kürzer.
+Die Gegenprüfung maß, dass `mv_kaskade` und `mv_koeff_rand` nachrechnen, was
+im selben Lauf schon gespeichert ist (Demo: 7,2 s → 4,4 s bei gleichen
+Zahlen) — das ändert einen Grundsatz und kommt nach den Laufzeiten des
+Betriebs. Vier gespeicherte Ansichten ohne Leser (`erg_fax`,
+`erg_fax_wartezeit`, `erg_ueberfuellung`, `erg_marge`) bleiben noch stehen.
+
 ## Runde AK: gerechnet wird nachts und auf Knopfdruck, sonst nie (29. September, abends, 0107)
 
 Die Seite war weg, Supabase meldete die Datenbank als ungesund, IO-Wait am

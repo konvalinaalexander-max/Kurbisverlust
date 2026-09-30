@@ -304,7 +304,7 @@ export function Korrektur({ d, neuLaden, zurueck }: { d: ArbeitDaten; neuLaden: 
         das Abgeleitete rechnet die Datenbank neu. Löschen nur, was wirklich nicht gemessen wurde.
         {a.status === 'abgeschlossen' && ' Die Arbeit ist abgeschlossen — Änderungen fliessen beim nächsten Rechnen ein.'}
       </p>
-      {gespeichert && <Hinweis art="gut">Gespeichert — die Auswertung rechnet beim nächsten Aufruf neu.</Hinweis>}
+      {gespeichert && <Hinweis art="gut">Gespeichert — zählt ab der nächsten Rechnung: heute Nacht oder mit „Neu rechnen".</Hinweis>}
 
       <div className="karte">
         <div className="karte-kopf"><div className="karte-titel">
@@ -357,6 +357,8 @@ const KONTROLLE: Tabelle = {
   ],
 }
 
-export function Kontrollkorrektur({ geaendert }: { geaendert: () => Promise<void> }) {
-  return <Tabellenblock t={KONTROLLE} wo={{ spalte: 'auftrag_id', wert: null }} gesperrt={false} geaendert={geaendert} />
+/** 0108: Eine Berichtigung fordert keine Rechnung an — sie zählt ab der
+ *  nächsten: heute Nacht oder mit „Neu rechnen" (wie Löschen und Journal, 0107). */
+export function Kontrollkorrektur() {
+  return <Tabellenblock t={KONTROLLE} wo={{ spalte: 'auftrag_id', wert: null }} gesperrt={false} geaendert={async () => {}} />
 }

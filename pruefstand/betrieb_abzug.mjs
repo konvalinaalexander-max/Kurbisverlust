@@ -169,7 +169,12 @@ const tabelle = zeilen => {
   return t + '\n'
 }
 let m = kopf('Stand der Modelle')
-m += `Gerechnet: ${zeit(stand[0]?.berechnet_ts)} · Einstellungen: ${einstellungen.map(e => `${e.schluessel} = ${JSON.stringify(e.wert)}`).join(' · ')}\n\n`
+m += `Gerechnet: ${zeit(stand[0]?.berechnet_ts)}${stand[0]?.dauer_ms != null ? ` (${Math.round(stand[0].dauer_ms / 1000)} s)` : ''} · Einstellungen: ${einstellungen.map(e => `${e.schluessel} = ${JSON.stringify(e.wert)}`).join(' · ')}\n\n`
+// 0108: Ein gescheiterter oder abgebrochener Lauf steht im Stand (fehler_ts,
+// fehler) — pg_cron verbucht ihn als gelungen, weil der Lauf den Fehler fängt.
+if (stand[0]?.fehler_ts && (!stand[0]?.berechnet_ts || Date.parse(stand[0].fehler_ts) > Date.parse(stand[0].berechnet_ts))) {
+  m += `**Die Rechnung scheitert** seit ${zeit(stand[0].fehler_ts)}: ${md(String(stand[0].fehler ?? '').slice(0, 200))}. Neu versucht wird erst auf „Neu rechnen" oder in der nächsten Nacht.\n\n`
+}
 // 0095: Läuft der Zeitplan? Ein stiller Ausfall wäre der schlimmste Fall —
 // alte Zahlen, die niemand als alt erkennt.
 try {
@@ -183,8 +188,8 @@ try {
   m += laeuft
     ? `**Zeitplan läuft** (${z.takt ?? '?'}) · ${lauf}${z.rechnet_seit ? ` · rechnet gerade seit ${zeit(z.rechnet_seit)}` : ''}\n\n`
     : z?.aktiv
-      ? `**Zeitplan eingetragen, rechnet aber nicht** (${z.takt ?? '?'}) · ${lauf}. Die App rechnet beim Öffnen selbst. In Supabase \`cron.job_run_details\` ansehen.\n\n`
-      : `**Zeitplan fehlt** — die App rechnet beim Öffnen selbst. pg_cron im Supabase-Projekt einschalten und setup.sql einspielen (0061/0095).${z?.fehler ? ` (${md(z.fehler)})` : ''}\n\n`
+      ? `**Zeitplan eingetragen, tickt aber nicht** (${z.takt ?? '?'}) · ${lauf}. Gerechnet wird nur auf „Neu rechnen" und nachts — ohne Takt gar nicht. In Supabase \`cron.job_run_details\` ansehen.\n\n`
+      : `**Zeitplan fehlt oder ist abgeschaltet** — gerechnet wird nicht. setup.sql einspielen (legt ihn an) oder den Notaus aufheben.${z?.fehler ? ` (${md(z.fehler)})` : ''}\n\n`
 } catch (f) {
   m += `_Zeitplan nicht abfragbar: ${md(String(f.message ?? f))} — setup.sql auf Stand 95?_\n\n`
 }

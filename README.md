@@ -697,6 +697,17 @@ sagt der Chip „Zeitplan rechnet nicht" (AB-97, `src/lib/zeitplan.ts`).
 Wurde seit der letzten Rechnung nichts erfasst, sagt der Chip „aktuell".
 Seit Runde AG rechnet die App beim Öffnen nie mehr selbst (AB-114).
 
+**Runde AL (0108)** — ein abgebrochener Lauf wird nicht wiederholt: Nach
+einem Neustart begann die Rechnung bis 0107 sofort von vorn, weil ein
+abgebrochener Lauf nichts von sich wusste. Jetzt zieht jeder Lauf beim
+Anfang eine Nummer, die nicht zurückrollt; eine nie abgehakte Nummer gilt
+als Fehlschlag. Ein abgeschalteter Zeitplan bleibt abgeschaltet, ein Lauf
+dauert höchstens 15 Minuten. AB-124. **Notaus**, falls die Datenbank je
+wieder nur rechnet: im SQL-Editor
+`select cron.alter_job(jobid, active => false) from cron.job where jobname = 'auswertung_wenn_veraltet';`
+— wieder einschalten mit `active => true`. **Der Betrieb spielt setup.sql
+einmal ein (Stand 108).**
+
 **Runde AK (0107)** — gerechnet wird nachts und auf Knopfdruck, sonst nie:
 Die Datenbank des Betriebs lag am 29. September still, weil der Zeitplan
 tagsüber alle zehn Minuten die ganze Auswertung neu rechnete (89 s je Lauf)

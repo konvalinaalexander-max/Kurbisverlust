@@ -39,6 +39,11 @@ begin
   perform set_config('request.jwt.claim.sub', '', true);
   perform auswertung_aktualisieren();
   update auswertung_stand set angefordert_ts = null, fehler_ts = null, fehler = null, rechnet_seit = null where id = 1;
+  -- Seit 0108 zählt jeder begonnene Lauf; ein Rest aus einer früheren,
+  -- gescheiterten Prüfung darf hier nicht als Abbruch gelten.
+  if to_regclass('auswertung_versuch') is not null then
+    execute 'update auswertung_stand set versuch_fertig = (select case when is_called then last_value else 0 end from auswertung_versuch) where id = 1';
+  end if;
   perform set_config('kuerbis.jetzt_test', '2026-09-29 14:00+02', true);
 
   -- (a) tagsüber

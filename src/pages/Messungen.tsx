@@ -206,7 +206,7 @@ export default function Messungen() {
             Es wird kein Kürbis entnommen, also ist der Unterschied entwichenes Wasser. Das Warnzeichen heisst: Es lag sichtbar Faules auf der Palette; dann zählt die Wägung nicht in die Verdunstungsrate, weil Faules schneller Wasser verliert.
           </Erklaerung>
           <Aufklapp titel="Lagerkontrollen berichtigen">
-            <Kontrollkorrektur geaendert={neuRechnen} />
+            <Kontrollkorrektur />
           </Aufklapp>
         </Karte>
       )}

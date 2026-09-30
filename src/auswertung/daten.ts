@@ -500,13 +500,13 @@ async function anfordern(): Promise<Problem[]> {
   // volle Rechnung aus dem Browser war, was die Datenbank am 29.9. lahmlegte.
   if (antwort?.hinweis) {
     melden(null)
-    return [{ sicht: 'Neu rechnen', meldung: `Der Zeitplan der Datenbank fehlt (${antwort.hinweis}) — setup.sql noch einmal einspielen.` }]
+    return [{ sicht: 'Neu rechnen', meldung: antwort.hinweis }]
   }
   return rechnen()
 }
 
 /** Der Text, an dem useAuswertung den Zustand „wird gebaut" erkennt und von selbst nachlädt. */
-export const IM_BAU = 'Die Auswertung wird gerade neu gebaut: Nach dem Einspielen von setup.sql rechnet der Zeitplan sie im Hintergrund, zwei bis vier Minuten. Diese Seite lädt von selbst nach.'
+export const IM_BAU = 'Die Auswertung wird gerade neu gebaut: Nach dem Einspielen von setup.sql rechnet der Zeitplan sie im Hintergrund. Diese Seite lädt von selbst nach.'
 const NACHLADEN_IM_BAU_MS = 30000
 
 async function alles(erzwingen: boolean): Promise<Auswertung> {
@@ -535,7 +535,7 @@ async function alles(erzwingen: boolean): Promise<Auswertung> {
   // die Datenbank antwortete eine halbe Stunde lang niemandem.
   const rechnetSchon = rechnetGerade(st?.rechnet_seit)
   const probleme: Problem[] = erzwingen ? (rechnetSchon ? await abwarten('laeuft') : await anfordern()) : []
-  const { data: st2 } = await supabase.from('auswertung_stand').select('berechnet_ts, geaendert_ts, rechnet_seit, angefordert_ts').maybeSingle()
+  const { data: st2 } = await supabase.from('auswertung_stand').select('berechnet_ts, geaendert_ts, rechnet_seit, angefordert_ts, fehler_ts, fehler').maybeSingle()
   const aktuell = istAktuell(st2?.berechnet_ts, st2?.geaendert_ts)
   const veraltet = !st2?.berechnet_ts || new Date(st2.geaendert_ts) > new Date(st2.berechnet_ts)
   zeitplan.rechnetSeit = st2?.rechnet_seit ?? zeitplan.rechnetSeit
@@ -581,6 +581,11 @@ async function alles(erzwingen: boolean): Promise<Auswertung> {
     q<Befund>('erg_plausibilitaet'), eins<Saisonbilanz>('erg_bilanz'), q<Bestand>('erg_charge'),
     q<Verlaufswoche>('erg_verlauf', ['woche', true]), q<Prognose>('erg_prognose', ['h', true]), q<Wohin>('erg_wohin'),
   ])
+  // 0108: Ist der Bau gescheitert (fehler_ts nach dem letzten Stand), wartet
+  // die Seite nicht auf etwas, das nicht kommt, sondern sagt es.
+  if (imBau && st2?.fehler_ts && (!st2.berechnet_ts || new Date(st2.fehler_ts) > new Date(st2.berechnet_ts))) {
+    throw new Error(`Die Auswertung konnte nicht gerechnet werden: ${st2.fehler ?? 'ohne Meldung'}. Die Datenbank versucht es nicht von selbst wieder — heute Nacht oder mit „Neu rechnen".`)
+  }
   if (imBau) throw new Error(IM_BAU)
   const heute = sb?.heute ?? hb[0]?.heute ?? heuteOrtszeit()
   const ersteWelle: Auswertung = {
@@ -594,25 +599,29 @@ async function alles(erzwingen: boolean): Promise<Auswertung> {
   }
   if (!erzwingen) { stand = ersteWelle; hoerer.forEach(h => h()) }
 
-  const [b, d, kv, pe, pk, nc, kfv, kfa, kfn, kfu, wk, mw, mc, km, gw, va, ds, dq, ve, kg, ss, ko, ab, lf, ak, ps] = await Promise.all([
+  // 0108: erg_kaliber, erg_gewichte und erg_lieferung liest kein Bildschirm —
+  // nicht mehr geholt (erg_gewichte war die drittgrösste Antwort).
+  const [b, d, pe, pk, nc, kfv, kfa, kfn, kfu, wk, mw, mc, km, va, ds, dq, ve, kg, ss, ko, ab, ak, ps] = await Promise.all([
     q<Massenbilanz>('erg_massenbilanz'), q<Datenlage>('erg_datenlage'),
-    q<Kaliberzeile>('erg_kaliber'), q<PaloxErwartung>('erg_palox_erwartung'),
+    q<PaloxErwartung>('erg_palox_erwartung'),
     q<Schimmelpunkt>('erg_punkte'), q<NaechsteCharge>('erg_naechste_charge'),
     q<SortenK>('erg_koeff_verdunstung'), q<SortenK>('erg_koeff_ausschuss'), q<SortenK>('erg_koeff_nebenkanal'),
     q<{ n: number; kg_pro_kiste: number | null }>('erg_koeff_ueberfuellung'),
     q<Wiegung>('erg_wiegung', ['wiege_ts', false]), q<MargeWiegung>('erg_marge_wiegung'), q<MargeCharge>('erg_marge_charge'), q<Kommentar>('v_arbeit_kommentar'),
-    q<Gewichtsstufe>('erg_gewichte'), q<VerarbeitungAlter>('erg_verarbeitung_alter', ['tag', true]),
+    q<VerarbeitungAlter>('erg_verarbeitung_alter', ['tag', true]),
     q<Durchsatz>('erg_durchsatz', ['start_ts', false]),
     eins<Datenqualitaet>('erg_datenqualitaet'),
     q<Verlustzeile>('erg_verlust'),
     q<KoeffGebinde>('erg_gebinde'), q<Schema>('sortierschema', ['gilt_ab', false]),
     q<Kohorte>('erg_kohorte', ['eingangsdatum', true]),
     q<AusschussBeobachtung>('erg_ausschuss'),
-    q<LieferungKurz>('erg_lieferung', ['datum', true]),
     q<AusgangKennzahl>('erg_ausgang', ['ts', true]),
     q<PaloxStation>('v_palox_station'),
   ])
-  if (imBau) throw new Error(IM_BAU)
+  // 0108: Eine noch ungefüllte Sicht der zweiten Welle steht in probleme
+  // (ihre Zahl ist unbekannt, nie 0) — die Seiten zeichnen, was da ist,
+  // statt im Ladekreis zu warten. Bis 0108: IM_BAU, und Chargen, Ursachen,
+  // Messungen und Ausstehend drehten, bis jemand neu lud.
   // Fax liegt auf Eis (Runde R): erg_fax, erg_fax_wartezeit und erg_koeff_fax
   // bleiben in der Datenbank, aber kein Bildschirm liest sie mehr. Ebenso
   // erg_ueberfuellung und erg_marge — die Marge hängt jetzt an den Wägungen,
@@ -632,11 +641,11 @@ async function alles(erzwingen: boolean): Promise<Auswertung> {
   ]
   return {
     ...ersteWelle, vollstaendig: true,
-    bilanz: b, lage: d, kaliber: kv, koeff, erwartung: pe,
+    bilanz: b, lage: d, koeff, erwartung: pe,
     punkte: pk, paloxStationen: ps, naechste: nc,
     sorten: { verdunstung: kfv, ausschuss: kfa, nebenkanal: kfn }, wiegungen: wk, margeWiegung: mw, margeCharge: mc, kommentare: km,
-    gewichte: gw, verarbeitung: va, durchsatz: ds, qualitaet: dq, verlust: ve,
-    gebinde: kg, schemata: ss, kohorten: ko, ausschuss: ab, lieferungen: lf, ausgang: ak,
+    verarbeitung: va, durchsatz: ds, qualitaet: dq, verlust: ve,
+    gebinde: kg, schemata: ss, kohorten: ko, ausschuss: ab, ausgang: ak,
   }
 }
 
