@@ -4171,6 +4171,32 @@ Daten, dann die Annahme — nach der Korrektur nachsehen.
 nicht alles: vier mal vier gleiche Paloxen und ein Tag mit 30 Paaren bei
 13 erwarteten sind Fragen wert.
 
+## Runde AN: rechnen auf PostgreSQL 17 (30. September, morgens, 0110)
+
+Nach dem Einspielen von Stand 109 scheiterte der erste Lauf im Betrieb nach
+acht Sekunden: „function palox_f(numeric, …) does not exist". Die Funktion
+gibt es. Der Betrieb läuft auf PostgreSQL 17, und seit 17 frischt Postgres
+gespeicherte Ansichten mit dem Suchpfad `pg_catalog, pg_temp` auf, nicht
+mit dem des Aufrufers. `palox_f_nach()` (0106) nannte `palox_f()` ohne
+`public.` und ohne eigenen Suchpfad — damit ist seit 0106 im Betrieb keine
+Rechnung mehr durchgelaufen (die letzte ist vom 29.9., Stand 105). Alle
+Prüfstände liefen auf PostgreSQL 16 und konnten es nicht sehen.
+
+**0110:** `palox_f_nach()` nennt `public.palox_f()`, wie `palox_tara_kg()`
+und `sortierschema_fuer()` es schon tun; sie bleibt eine einsetzbare
+SQL-Funktion ohne SET. Block 0110 rechnet jede gespeicherte Ansicht mit dem
+Suchpfad von 17 nach (auch wenn die Prüfung auf 16 läuft) und fand den
+Fehler auf Stand 109 sofort; fünf Mutationen, alle schlagen an. Die CI läuft
+jetzt auf `postgres:17`, lokal lief `run.sh` auf 17.11 durch. Auf den
+Betriebsdaten rechnet 17 in 1,8 s dieselben 41 Ergebnisse wie 16.
+
+**Was bewusst nicht gemacht wurde:** Kein fester Suchpfad für alle
+Funktionen. Vier Funktionen der App (`csv_lauf_speichern`,
+`csv_sammel_speichern`, `lauf_neu_klassieren`, `lesung_als_sammel`) nennen
+Tabellen ohne Schema, laufen aber nur über die Schnittstelle, deren
+Suchpfad `public` enthält; die kleinen SQL-Helfer ohne SET bleiben
+einsetzbar. Was beim Auffrischen gebraucht wird, prüft Block 0110.
+
 ## Runde AM: die Rechnung plant klein (30. September, früh, 0109)
 
 Nach dem Neustart antwortete die Datenbank des Betriebs wieder, aber

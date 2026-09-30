@@ -697,6 +697,14 @@ sagt der Chip „Zeitplan rechnet nicht" (AB-97, `src/lib/zeitplan.ts`).
 Wurde seit der letzten Rechnung nichts erfasst, sagt der Chip „aktuell".
 Seit Runde AG rechnet die App beim Öffnen nie mehr selbst (AB-114).
 
+**Runde AN (0110)** — rechnen auf PostgreSQL 17: Der Betrieb läuft auf
+PostgreSQL 17, und dort frischt Postgres gespeicherte Ansichten mit einem
+eingeschränkten Suchpfad auf. `palox_f_nach()` fand deshalb `palox_f()` nicht,
+und die Rechnung scheiterte nach dem Einspielen von 109. Sie nennt die
+Funktion jetzt mit Schema; die Prüfungen laufen auf 17. AB-126. **Der Betrieb
+spielt setup.sql einmal ein (Stand 110)** — danach rechnet der Zeitplan von
+selbst einmal.
+
 **Runde AM (0109)** — die Rechnung plant klein: Das Planen einer
 Auswertung brauchte bis zu 1 GB Arbeitsspeicher (`mv_kaskade`), weil
 Postgres die Knoten-Sichten in jede Abfrage darüber einsetzte — auf einer
@@ -1120,7 +1128,7 @@ Das genügt fast immer zur Klärung.
 
 | Teil | Ort | Zustand |
 |---|---|---|
-| Datenbankschema, Rollen, Stammdaten | `supabase/migrations/0001`–`0003` | gegen Postgres 16 getestet |
+| Datenbankschema, Rollen, Stammdaten | `supabase/migrations/0001`–`0003` | gegen Postgres 17 getestet (wie der Betrieb) |
 | Reinigung, Klassierung, CSV-Zuordnung | `supabase/migrations/0004`, `src/lib/csv.ts` | mit Tests |
 | Auswertung und Hochrechnung | `supabase/migrations/0005`–`0007` | Massenbilanz schließt im Test auf 0.1 % |
 | Kennzahlen aus den neuen Erfassungspunkten | `supabase/migrations/0049` | Gewichtsverteilung, Reihenfolge, Durchsatz, Überfüllung je Käufer, Datenqualität, Saisonverlauf |
