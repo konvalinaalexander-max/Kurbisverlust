@@ -1,6 +1,6 @@
 # Rohdaten der Saison
 
-_Abzug vom 2026-10-02. Von `pruefstand/betrieb_abzug.mjs` geschrieben; nicht von Hand ändern._
+_Abzug vom 2026-10-03. Von `pruefstand/betrieb_abzug.mjs` geschrieben; nicht von Hand ändern._
 
 Je Tabelle die Zeilen mit den Spalten aus `ROHTABELLEN` (`pruefstand/durchgang_pruefungen.mjs`) — ohne Kundennamen, Preise, freie Texte und Personen. Für den Plausibilitätsdurchgang (`DURCHGANG.md`) und für jede Runde, die eine Zahl nachrechnen will.
 
