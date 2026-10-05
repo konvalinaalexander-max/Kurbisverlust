@@ -11,3 +11,4 @@ Eine Zeile je Abzug — damit man sieht, ob die Auffälligkeiten weniger werden 
 | 2026-10-02 | 1 | 2 (2 zu kürzen) | 36 | Zettelgewicht (19) |
 | 2026-10-03 | 1 | 2 (2 zu kürzen) | 36 | Zettelgewicht (19) |
 | 2026-10-04 | 1 | 2 (2 zu kürzen) | 36 | Zettelgewicht (19) |
+| 2026-10-05 | 1 | 2 (2 zu kürzen) | 36 | Zettelgewicht (19) |
