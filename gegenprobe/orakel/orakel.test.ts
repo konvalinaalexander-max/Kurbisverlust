@@ -8,9 +8,9 @@ import assert from 'node:assert/strict'
 import { anteilPlausibel, nahe, runden, tQuantil95, tageZwischen, zahl } from './zahlen.ts'
 import { kohorten, netto, rueckgrat, type Palette, type Tara } from './masse.ts'
 import { messung, rohwerte, type Waegung } from './verdunstung.ts'
-import { schrumpfung } from './varianz.ts'
+import { schaetzung } from './varianz.ts'
 import { gedeckelt, m0Zurueck, normieren, stroeme, summeStimmt, verkaufsfaehigAnteil } from './kaskade.ts'
-import { erwartung, paloxF, paloxFNach, stationswert, weg, type Punkt } from './schimmel.ts'
+import { anstieg, erwartung, paloxAnstieg, paloxF, paloxFNach, stationswert, weg, type Punkt } from './schimmel.ts'
 import { bandGeordnet, stroemeSummieren, zeitLaeuftVorwaerts } from './bilanz.ts'
 import { vergleiche } from './vergleich.ts'
 import { band, deckt, deltaVarianz } from './band.ts'
@@ -126,48 +126,41 @@ test('Nicht verwendbar: Zettel im falschen Jahr, schwerer geworden, ohne Kisten'
   assert.equal(rohwerte([falschesJahr, schwerer, ohneKisten]).length, 0)
 })
 
-/* ---------- varianz (Schrumpfung) ------------------------------------------- */
+/* ---------- varianz (der Schätzer je Sorte, seit 0111 schlicht) ------------ */
 
-test('Schrumpfung, von Hand: zwei Sorten mit klar getrennten Mitteln bleiben fast bei sich', () => {
-  // A: Chargen 1, 2 mit Anteil 0.10, 0.12 (Gewicht 1)   → sw = 2, mittel 0.11
-  //    var_A = Σ_c (swa_c − mittel·sw_c)² / sw² · c/(c−1) = (0.01² + 0.01²) / 4 · 2 = 0.0001
-  //    (der Nenner ist das Gewicht der **Ebene**, nicht der Charge — das ist die Varianz des Mittels)
-  // B: Chargen 3, 4 mit Anteil 0.50, 0.52               → mittel 0.51, var 0.0001
-  // gesamt: sw = 4, mittel 0.31, var = (0.21² + 0.19² + 0.19² + 0.21²) / 16 · 4/3 = 0.1604/16 · 4/3 = 0.01336667
-  // tau² = Σ_s sw_s (mittel_s − 0.31)² / Σ sw_s − ⌀ var_s = (2·0.2² + 2·0.2²)/4 − 0.0001 = 0.04 − 0.0001 = 0.0399
-  // b_A = 0.0399 / (0.0399 + 0.0001) = 0.9975
-  // mittel_A = 0.9975·0.11 + 0.0025·0.31 = 0.1105
-  // varianz_A = 0.9975·0.0001 + 0.0025²·0.01336667 = 0.00009975 + 0.0000000835417 = 0.0000998335417
-  // df_A = max(round(0.9975·2 + 0.0025·4) − 1, 1) = round(2.005) − 1 = 1  → t = 12.706
-  const s = schrumpfung([
+test('Schätzer, von Hand: ab drei Messungen das eigene Mittel, darunter das aller Sorten', () => {
+  // A: 0.10 (1 kg), 0.12 (1 kg), 0.14 (2 kg)  → n = 3, eigen
+  //    mittel_A = (0.10 + 0.12 + 0.28) / 4 = 0.125
+  //    var_A    = [1·0.025² + 1·0.005² + 2·0.015²] / 4 / (3 − 1) = 0.0011 / 8 = 0.0001375
+  //    df = 2 → t = 4.303
+  // B: 0.50, 0.52 (je 1 kg) → n = 2, geliehen: das Mittel aller Sorten
+  // gesamt: Σw = 6, Σw·a = 1.52 → 0.25333…; df = 5 − 1 = 4
+  // C: keine Messung → n = 0, geliehen
+  const s = schaetzung([
     { sorte: 'A', chargeNr: 1, anteil: 0.10, gewicht: 1 }, { sorte: 'A', chargeNr: 2, anteil: 0.12, gewicht: 1 },
+    { sorte: 'A', chargeNr: 2, anteil: 0.14, gewicht: 2 },
     { sorte: 'B', chargeNr: 3, anteil: 0.50, gewicht: 1 }, { sorte: 'B', chargeNr: 4, anteil: 0.52, gewicht: 1 },
   ], ['A', 'B', 'C'])
-  const a = s.find(z => z.sorte === 'A')!, c = s.find(z => z.sorte === 'C')!, g = s.find(z => z.sorte === null)!
-  assert.ok(nahe(a.varianzRoh, 0.0001))
-  assert.ok(nahe(g.mittel, 0.31))
-  assert.ok(nahe(g.varianz, 0.1604 / 16 * 4 / 3))
-  assert.ok(nahe(a.tau2, 0.0399))
-  assert.ok(nahe(a.b, 0.9975))
-  assert.ok(nahe(a.mittel, 0.1105))
-  assert.ok(nahe(a.varianz, 0.0000998335417, 1e-8))
-  assert.equal(a.df, 1)
-  assert.ok(nahe(a.unten, 0.1105 - 12.706 * Math.sqrt(0.0000998335417), 1e-6))
-  // Sorte ohne Beobachtung: b = 0, sie trägt den Gesamtwert und dessen Streuung
-  assert.equal(c.b, 0); assert.ok(nahe(c.mittel, 0.31)); assert.ok(nahe(c.varianz, g.varianz))
+  const a = s.find(z => z.sorte === 'A')!, b = s.find(z => z.sorte === 'B')!, c = s.find(z => z.sorte === 'C')!, g = s.find(z => z.sorte === null)!
+  assert.equal(a.b, 1); assert.equal(a.n, 3); assert.equal(a.cChargen, 2)
+  assert.ok(nahe(a.mittel, 0.125)); assert.ok(nahe(a.varianz, 0.0001375)); assert.equal(a.df, 2)
+  assert.ok(nahe(a.unten, 0.125 - tQuantil95(2) * Math.sqrt(0.0001375), 1e-12))
+  assert.equal(a.tau2, null)                                     // kein Zug zum Gesamtwert mehr
+  assert.equal(b.b, 0); assert.equal(b.n, 2); assert.ok(nahe(b.mittelRoh, 0.51))
+  assert.ok(nahe(b.mittel, 1.52 / 6)); assert.ok(nahe(b.varianz, g.varianz)); assert.equal(b.df, 4)
+  assert.equal(c.b, 0); assert.equal(c.n, 0); assert.ok(nahe(c.mittel, 1.52 / 6))
+  assert.equal(g.b, 1); assert.equal(g.n, 5); assert.ok(nahe(g.mittel, 1.52 / 6))
 })
 
-test('Schrumpfung: streuen die Chargen innerhalb der Sorten stärker als die Sorten untereinander, gilt nur der Gesamtwert (tau² = 0)', () => {
-  // A: 0.1, 0.5 (mittel 0.3, var_A = (0.2² + 0.2²)/4·2 = 0.04);  B: 0.3, 0.7 (mittel 0.5, var 0.04)
-  // zwischen: (2·0.1² + 2·0.1²)/4 = 0.01;  innen ⌀ 0.04  →  tau² = max(0.01 − 0.04, 0) = 0
-  const s = schrumpfung([
-    { sorte: 'A', chargeNr: 1, anteil: 0.1, gewicht: 1 }, { sorte: 'A', chargeNr: 2, anteil: 0.5, gewicht: 1 },
-    { sorte: 'B', chargeNr: 3, anteil: 0.3, gewicht: 1 }, { sorte: 'B', chargeNr: 4, anteil: 0.7, gewicht: 1 },
-  ], ['A', 'B'])
-  const a = s.find(z => z.sorte === 'A')!
-  assert.equal(a.tau2, 0)
-  assert.equal(a.b, 0)
-  assert.ok(nahe(a.mittel, 0.4))
+test('Schätzer: zwei Messungen reichen nicht, drei schon — die Schwelle', () => {
+  const zwei = schaetzung([{ sorte: 'A', chargeNr: 1, anteil: 0.1, gewicht: 1 }, { sorte: 'A', chargeNr: 1, anteil: 0.3, gewicht: 1 },
+                           { sorte: 'B', chargeNr: 2, anteil: 0.5, gewicht: 2 }], ['A', 'B'])
+  assert.equal(zwei.find(z => z.sorte === 'A')!.b, 0)
+  assert.ok(nahe(zwei.find(z => z.sorte === 'A')!.mittel, (0.1 + 0.3 + 1.0) / 4))
+  const drei = schaetzung([{ sorte: 'A', chargeNr: 1, anteil: 0.1, gewicht: 1 }, { sorte: 'A', chargeNr: 1, anteil: 0.3, gewicht: 1 },
+                           { sorte: 'A', chargeNr: 1, anteil: 0.2, gewicht: 1 }, { sorte: 'B', chargeNr: 2, anteil: 0.5, gewicht: 2 }], ['A', 'B'])
+  assert.equal(drei.find(z => z.sorte === 'A')!.b, 1)
+  assert.ok(nahe(drei.find(z => z.sorte === 'A')!.mittel, 0.2))
 })
 
 /* ---------- kaskade --------------------------------------------------------- */
@@ -207,8 +200,8 @@ test('zu klein + zu gross über 1 werden gemeinsam gestaucht', () => {
 
 /* ---------- stationswerte (0106) ------------------------------------------- */
 
-const P = (sorte: string, station: Punkt['station'], chargeNr: number, messtag: string, w: number, y: number): Punkt =>
-  ({ sorte, station, chargeNr, messtag, w, y })
+const P = (sorte: string, station: Punkt['station'], chargeNr: number, messtag: string, w: number, y: number, t = 0): Punkt =>
+  ({ sorte, station, chargeNr, messtag, w, y, t })
 
 test('Stationswert: nach Masse gewichtet, Band ± t·sd/√n über die Arbeiten, Chargen gezählt', () => {
   // 1000 kg mit 4 %, 3000 kg mit 2 %, 2000 kg mit 3 %: (40 + 60 + 60) / 6000 = 2.667 % — nicht das Mittel 3 %
@@ -225,28 +218,57 @@ test('Stationswert: nach Masse gewichtet, Band ± t·sd/√n über die Arbeiten,
   assert.equal(eine.unten, 0.03); assert.equal(eine.oben, 0.03)   // eine Arbeit hat kein Band
 })
 
-test('Erwartung: vier Wochen der Sorte ab drei Arbeiten, sonst Saison, sonst alle Sorten — geliehen', () => {
-  const heute = '2026-09-29'
-  const punkte = [
-    // Tiana von Hand: drei junge Arbeiten (in vier Wochen) und eine alte
-    P('Tiana', 'waschen_sortieren', 1, '2026-09-25', 1000, 0.04), P('Tiana', 'waschen_sortieren', 2, '2026-09-20', 1000, 0.02),
-    P('Tiana', 'waschen_sortieren', 3, '2026-09-10', 1000, 0.03), P('Tiana', 'waschen_sortieren', 4, '2026-06-01', 1000, 0.10),
-    // Kaori am Band: zwei Arbeiten — zu wenig für die Sorte, auch in der Saison; dazu eine Tiana-Bandarbeit
-    P('Kaori Kuri', 'sortieren', 5, '2026-09-27', 500, 0.05), P('Kaori Kuri', 'sortieren', 6, '2026-08-01', 500, 0.01),
-    P('Tiana', 'sortieren', 7, '2026-08-15', 800, 0.02),
-  ]
-  const e = erwartung(punkte, ['Tiana', 'Kaori Kuri', 'Bolp 5110'], heute)
-  const finde = (sorte: string, station: string) => e.find(x => x.sorte === sorte && x.station === station)
-  const tw = finde('Tiana', 'waschen_sortieren')!
-  assert.equal(tw.ebene, 'sorte_4w'); assert.equal(tw.nArbeiten, 3); assert.equal(tw.geliehen, false)
-  assert.ok(nahe(tw.anteil!, 0.03, 1e-12))                       // die alte Arbeit vom Juni zählt nicht
-  const ks = finde('Kaori Kuri', 'sortieren')!
-  assert.equal(ks.ebene, 'alle_saison'); assert.equal(ks.nArbeiten, 3); assert.equal(ks.geliehen, true)
-  assert.ok(nahe(ks.anteil!, (25 + 5 + 16) / 1800, 1e-12))       // 500·0.05 + 500·0.01 + 800·0.02 über 1800 kg
-  const bw = finde('Bolp 5110', 'waschen_sortieren')!
-  assert.equal(bw.ebene, 'alle_4w'); assert.equal(bw.nArbeiten, 3)      // die drei jungen Handarbeiten aller Sorten
-  assert.equal(finde('Bolp 5110', 'waschen'), undefined)          // nirgends ein Waschpunkt: kein Wert
-  assert.equal(e.length, 6)                                       // drei Sorten × zwei Stationen mit Punkten
+// Seit 0111: Grundausschuss + Anstieg je Woche Lagerdauer (bis 0110: Mittel der letzten vier Wochen).
+const W = 'waschen_sortieren' as const
+const STATION = [
+  // X: zwei Arbeiten, 10 und 31 Tage — Mitte 20.5 Tage, 6.5 %
+  P('X', W, 1, '2026-09-10', 1, 0.05, 10), P('X', W, 2, '2026-10-01', 1, 0.08, 31),
+  // Y: drei Arbeiten, 20 / 30 / 40 Tage — Mitte 30 Tage, 31 % (viel Grünes, aber das ist kein Anstieg)
+  P('Y', W, 3, '2026-09-20', 1, 0.30, 20), P('Y', W, 4, '2026-09-30', 1, 0.31, 30), P('Y', W, 5, '2026-10-10', 1, 0.32, 40),
+  // Z: eine Arbeit, alt und hoch — trägt zur Steigung nichts bei
+  P('Z', W, 6, '2026-10-05', 1, 0.90, 50),
+]
+
+test('Anstieg, von Hand: innerhalb der Sorten, über die Lagerdauer — eine Sorte mit viel Grünem zählt nicht als Anstieg', () => {
+  // X: Σ w·(t − 20.5)·(y − 0.065) = 2 · 10.5 · 0.015 = 0.315;  Σ w·(t − 20.5)² = 2 · 110.25 = 220.5
+  // Y: Σ = 10·0.01 + 10·0.01 = 0.2;                            Σ = 100 + 100 = 200
+  // b = 0.515 / 420.5 je Tag → × 7 = 0.0085731 je Woche (0.86 Punkte)
+  const a = anstieg(STATION)
+  assert.ok(nahe(a.roh, 0.515 / 420.5 * 7, 1e-12))
+  assert.equal(a.nPaar, 5); assert.equal(a.spanne, 21)
+  assert.equal(a.gilt, runden(0.515 / 420.5 * 7, 5))            // fünf Arbeiten, drei Wochen: gilt
+  // Über alle Sorten zusammen (ohne die Mitte je Sorte) zöge Z mit 90 % bei 50 Tagen die Gerade steil hoch.
+  const gepoolt = (() => {
+    const sw = STATION.length, st = STATION.reduce((s, p) => s + p.t, 0), sy = STATION.reduce((s, p) => s + p.y, 0)
+    const sty = STATION.reduce((s, p) => s + p.t * p.y, 0), stt = STATION.reduce((s, p) => s + p.t * p.t, 0)
+    return (sty * sw - st * sy) / (stt * sw - st * st) * 7
+  })()
+  assert.ok(gepoolt > 5 * a.roh!, `gepoolt ${gepoolt} — der Vergleich innerhalb der Sorten muss viel kleiner sein`)
+})
+
+test('Anstieg: unter fünf Arbeiten oder drei Wochen leer, negativ gilt als 0', () => {
+  assert.equal(paloxAnstieg(0.012, 5, 21), 0.012)
+  assert.equal(paloxAnstieg(-0.008, 5, 21), 0)
+  assert.equal(paloxAnstieg(0.012, 4, 60), null)
+  assert.equal(paloxAnstieg(0.012, 30, 20), null)
+  assert.equal(paloxAnstieg(null, 30, 60), null)
+  assert.equal(anstieg(STATION.slice(0, 4)).gilt, null)          // X und eine Y-Arbeit: zu wenig
+})
+
+test('Grundausschuss, von Hand: das Mittel um den Anstieg auf null Tage zurückgelegt — eigen ab drei, sonst alle', () => {
+  const b = runden(0.515 / 420.5 * 7, 5)                          // 0.00857
+  const e = erwartung(STATION, ['X', 'Y', 'Z', 'Leer'], '2026-10-12')
+  const y = e.find(x => x.sorte === 'Y')!
+  assert.equal(y.ebene, 'sorte'); assert.equal(y.geliehen, false); assert.equal(y.nArbeiten, 3)
+  assert.ok(nahe(y.mittel, 0.31, 1e-12)); assert.ok(nahe(y.lagerMittel, 30, 1e-12))
+  assert.ok(nahe(y.anteil, 0.31 - b * 30 / 7, 1e-12))            // 31 % − 0.857 Punkte × 30/7 Wochen
+  const x = e.find(z => z.sorte === 'X')!                         // zwei Arbeiten: aller Sorten
+  assert.equal(x.ebene, 'alle'); assert.equal(x.geliehen, true); assert.equal(x.nArbeiten, 6)
+  assert.ok(nahe(x.anteil, 1.96 / 6 - b * (181 / 6) / 7, 1e-12))
+  assert.ok(nahe(e.find(z => z.sorte === 'Leer')!.anteil, x.anteil, 1e-12))   // ohne eigene Arbeit: dasselbe
+  // Ohne bekannten Anstieg ist der Grundausschuss das Mittel selbst
+  const ohne = erwartung(STATION.slice(2, 5), ['Y'], '2026-10-12').find(z => z.sorte === 'Y')!
+  assert.ok(nahe(ohne.anteil, 0.31, 1e-12)); assert.equal(ohne.anstiegJeWoche, null)
 })
 
 test('palox_f: die Zusammensetzung über den Weg — und NULL, sobald eine Station auf dem Weg keinen Wert hat', () => {

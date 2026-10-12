@@ -31,6 +31,53 @@ for (const f of dateien) {
 
 const v = verdichten(anweisungen(quelle))
 
+/**
+ * Ohne Erklär-Kommentare (Runde AO, 12. Oktober). Mit 0111 wurde setup.sql
+ * 1 003 233 Bytes gross — über der Grenze des SQL-Editors (1 MB, gemessen in
+ * Bytes; die Umlaute zählen doppelt). Gut 290 KB davon waren Kommentar-
+ * zeilen: die Begründungen der Migrationen, die in supabase/migrations/
+ * stehen bleiben und dort gelesen werden. In setup.sql fallen die Zeilen
+ * weg, die nur Kommentar sind, und Kommentare am Zeilenende — aber nur
+ * ausserhalb von Zeichenketten und Rümpfen ($$ … $$): Was in einer Funktion
+ * steht, gehört zu ihrem Quelltext, und der Fingerabdruck (run.sh, Stufe 2)
+ * vergleicht ihn Zeichen für Zeichen mit den Migrationen. Stehen bleibt je
+ * Migration die Zeile „-- aus <datei>", damit man in setup.sql sieht, woher
+ * eine Anweisung stammt.
+ */
+function ohneKommentare(sql) {
+  let aus = '', i = 0, dollar = null
+  const n = sql.length
+  while (i < n) {
+    if (dollar) {
+      const e = sql.indexOf(dollar, i)
+      if (e < 0) { aus += sql.slice(i); break }
+      aus += sql.slice(i, e + dollar.length); i = e + dollar.length; dollar = null; continue
+    }
+    const c = sql[i]
+    if (c === '$') {
+      const m = /^\$[A-Za-z_]*\$/.exec(sql.slice(i, i + 64))
+      if (m) { dollar = m[0]; aus += m[0]; i += m[0].length; continue }
+    }
+    if (c === "'" || c === '"') {
+      let j = i + 1
+      while (j < n) { if (sql[j] === c) { if (sql[j + 1] === c) { j += 2; continue } break } j++ }
+      aus += sql.slice(i, j + 1); i = j + 1; continue
+    }
+    if (c === '-' && sql[i + 1] === '-') {
+      const e = sql.indexOf('\n', i)
+      const kommentar = sql.slice(i, e < 0 ? n : e)
+      if (/^-- aus \S+\.sql$/.test(kommentar)) aus += kommentar
+      i = e < 0 ? n : e; continue
+    }
+    aus += c; i++
+  }
+  // Zeilen, die nur noch Leerraum sind, fallen weg; höchstens eine Leerzeile bleibt.
+  return aus.split('\n').map(z => z.replace(/\s+$/, '')).join('\n').replace(/\n{3,}/g, '\n\n')
+}
+v.teilA = v.teilA.map(ohneKommentare)
+v.bauen = v.bauen.map(ohneKommentare)
+v.anhang = v.anhang.map(ohneKommentare)
+
 const KOPF = `-- =====================================================================
 -- Kürbis-Verlust-Tracking — setup.sql: das komplette Setup in einer Datei
 --
@@ -290,11 +337,15 @@ writeFileSync(ZIEL, inhalt)
 const kb = n => (n / 1024).toFixed(0) + ' KB'
 const summe = a => a.reduce((s, x) => s + x.length, 0)
 const roh = summe(anweisungen(quelle))
-console.log(`supabase/setup.sql geschrieben — ${inhalt.split('\n').length} Zeilen, ${kb(inhalt.length)}`)
+const bytes = Buffer.byteLength(inhalt, 'utf8')
+console.log(`supabase/setup.sql geschrieben — ${inhalt.split('\n').length} Zeilen, ${kb(bytes)} (${bytes} Bytes)`)
 console.log(`  Teil A: ${v.teilA.length} Anweisungen, ${kb(summe(v.teilA))}`)
 console.log(`  Teil B: ${v.reihe.length} Objekte, ${kb(summe(v.bauen) + summe(v.anhang))}`)
 console.log(`  verdichtet aus ${dateien.length} Migrationen (${kb(roh)}) — ${(100 - 100 * inhalt.length / roh).toFixed(0)} % kleiner`)
-if (inhalt.length > 1000000) {
-  console.error(`  FEHLER: ${kb(inhalt.length)} — der Supabase-SQL-Editor nimmt höchstens 1 MB.`)
+// In Bytes, wie run.sh und der Editor messen — bis Runde AO zählte hier die
+// Zeichenzahl, und eine Datei mit 973 K Zeichen ging durch, obwohl sie
+// 1 003 233 Bytes hatte.
+if (bytes > 1000000) {
+  console.error(`  FEHLER: ${bytes} Bytes — der Supabase-SQL-Editor nimmt höchstens 1 MB.`)
   process.exit(1)
 }

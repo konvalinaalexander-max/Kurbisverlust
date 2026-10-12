@@ -14,9 +14,9 @@ import assert from 'node:assert/strict'
 import { DB_URL, bericht, dbErreichbar, frage, vergleiche } from './vergleich.ts'
 import { kohorten, rueckgrat, type Palette, type Tara } from './masse.ts'
 import { messung, rohwerte, type Waegung } from './verdunstung.ts'
-import { schrumpfung } from './varianz.ts'
+import { schaetzung } from './varianz.ts'
 import { stroeme, summeStimmt, verkaufsfaehigAnteil, m0Zurueck, type Portion } from './kaskade.ts'
-import { erwartung, paloxF, paloxFNach, weg, type Punkt, type Station } from './schimmel.ts'
+import { anstieg, erwartung, paloxF, paloxFNach, weg, type Punkt, type Station } from './schimmel.ts'
 import { geliefertNichtMehrAlsEingang, kohorteGeschlossen, nichtsUnmoeglich, stroemeSummieren, zeitLaeuftVorwaerts } from './bilanz.ts'
 import { huelle, standNachTagen, summeStimmtPrognose, summieren, verlustAb, zerlegungStimmt,
          type LagerPortion, type Raender, type Teil } from './prognose.ts'
@@ -56,11 +56,13 @@ test('Verdunstung: Netto, Lagertage, Rate und verwendbar je Wägung', { skip }, 
            (a.id is not null and a.abgebrochen_ts is not null) as abgebrochen
       from verdunstung_wiegung w join charge c on c.nr = w.charge_nr left join auftrag a on a.id = w.auftrag_id`)
   const g = gebinde()
+  // Die Grenze „zu schnell" (0089) aus der Einstellung — gelesen, nicht gerechnet.
+  const rateMax = Number(frage<{ w: string | null }>("select wert #>> '{}' as w from einstellung where schluessel = 'verdunstung_rate_max_pro_tag'")[0]?.w ?? 0.01)
   const orakel = roh.map<Waegung>(w => ({ id: Number(w.id), chargeNr: Number(w.charge_nr), sorte: String(w.sorte),
     eingangsdatum: String(w.eingangsdatum), wiegeTag: String(w.wiege_tag), bruttoDamalsKg: n(w.brutto_damals_kg),
     bruttoJetztKg: n(w.brutto_jetzt_kg), kisten: n(w.kisten), gebindeart: w.gebindeart == null ? null : String(w.gebindeart),
     sichtbarSchimmel: Boolean(w.sichtbar_schimmel), gemessen: Boolean(w.gemessen), abgebrochen: Boolean(w.abgebrochen) }))
-    .map(w => messung(w, g)).map(m => ({ ...m, verwendbar: m.verwendbar ? 1 : 0 }))
+    .map(w => messung(w, g, rateMax)).map(m => ({ ...m, verwendbar: m.verwendbar ? 1 : 0 }))
   const db = frage('select id, netto_damals_kg, netto_jetzt_kg, lagertage, rate_pro_tag, verwendbar::int as verwendbar from v_verdunstung_messung')
   const ab = vergleiche(db, orakel, { db: a => String(a.id), orakel: b => String(b.id) },
     [{ db: 'netto_damals_kg', orakel: 'nettoDamalsKg', abs: 1e-6 }, { db: 'netto_jetzt_kg', orakel: 'nettoJetztKg', abs: 1e-6 },
@@ -68,13 +70,14 @@ test('Verdunstung: Netto, Lagertage, Rate und verwendbar je Wägung', { skip }, 
   assert.equal(ab.length, 0, bericht('v_verdunstung_messung', ab, db.length))
 })
 
-test('Schrumpfung: Ausschuss, Nebenkanal, Fax und Verdunstung je Sorte', { skip }, () => {
+// Seit 0111 schlicht: das Mittel der Sorte ab drei Messungen, sonst aller Sorten (bis 0110: empirischer Bayes).
+test('Schätzer: Ausschuss, Nebenkanal, Fax und Verdunstung je Sorte', { skip }, () => {
   const sorten = frage<{ sorte: string }>('select sorte from sorte_kaliber').map(s => s.sorte)
   for (const [rohSicht, geschaetzt] of [['v_koeff_roh_kaliber', 'v_koeff_kaliber_geschaetzt'], ['v_koeff_roh_verdunstung', 'v_koeff_verdunstung_geschaetzt']]) {
     const roh = frage<{ art: string; sorte: string; charge_nr: string; anteil: string; gewicht: string }>(`select art, sorte, charge_nr, anteil, gewicht from ${rohSicht} where anteil is not null and gewicht > 0`)
     const db = frage(`select art, sorte, n, c_chargen, mittel_roh, varianz_roh, mittel_gesamt, tau2, b, mittel, varianz, df from ${geschaetzt}`)
     for (const art of new Set(roh.map(r => r.art))) {
-      const orakel = schrumpfung(roh.filter(r => r.art === art).map(r => ({ sorte: r.sorte, chargeNr: Number(r.charge_nr), anteil: Number(r.anteil), gewicht: Number(r.gewicht) })), sorten)
+      const orakel = schaetzung(roh.filter(r => r.art === art).map(r => ({ sorte: r.sorte, chargeNr: Number(r.charge_nr), anteil: Number(r.anteil), gewicht: Number(r.gewicht) })), sorten)
         .map(s => ({ ...s, art }))
       const ab = vergleiche(db.filter(d => d.art === art), orakel,
         { db: a => `${a.art}|${a.sorte ?? '∅'}`, orakel: b => `${b.art}|${b.sorte ?? '∅'}` },
@@ -87,24 +90,41 @@ test('Schrumpfung: Ausschuss, Nebenkanal, Fax und Verdunstung je Sorte', { skip 
   }
 })
 
-test('Stationswerte: v_palox_erwartung und v_charge_weg gegen das Orakel (0106)', { skip }, () => {
+test('Stationswerte: Anstieg je Station, Grundausschuss je Sorte, Weg je Charge (0106, 0111)', { skip }, () => {
   const punkte = frage<Record<string, unknown>>(`
-    select sorte, station, charge_nr, messtag::text as messtag, basis_jetzt_kg as w, anteil_station as y
+    select sorte, station, charge_nr, messtag::text as messtag, basis_jetzt_kg as w, anteil_station as y, lagertage as t
       from erg_punkte
-     where plausibel_station and anteil_station is not null and basis_jetzt_kg > 0
+     where plausibel_station and anteil_station is not null and basis_jetzt_kg > 0 and lagertage is not null
        and station in ('waschen_sortieren', 'sortieren', 'waschen') and quelle in ('verarbeitung', 'verarbeitung_gemischt')`)
     .map<Punkt>(p => ({ sorte: String(p.sorte), station: String(p.station) as Station, chargeNr: Number(p.charge_nr),
-                        messtag: String(p.messtag), w: Number(p.w), y: Number(p.y) }))
+                        messtag: String(p.messtag), w: Number(p.w), y: Number(p.y), t: Number(p.t) }))
   const sorten = frage<{ sorte: string }>('select distinct sorte from v_kaskade_basis').map(s => s.sorte)
   const [{ heute }] = frage<{ heute: string }>('select heute()::text as heute')
+
+  // Der Anstieg je Station: innerhalb der Sorten, über die Lagerdauer
+  const stationen = (['waschen_sortieren', 'sortieren', 'waschen'] as Station[]).map(station => {
+    const a = anstieg(punkte.filter(p => p.station === station && p.messtag <= heute))
+    return { station, roh: a.roh, nPaar: a.nPaar, spanne: a.spanne, gilt: a.gilt }
+  })
+  const dbSt = frage<Record<string, unknown>>('select station, anstieg_roh, n_paar, spanne_tage, zuwachs_je_woche from v_palox_station')
+  const abSt = vergleiche(dbSt, stationen, { db: a => String(a.station), orakel: b => b.station },
+    [{ db: 'anstieg_roh', orakel: 'roh', abs: 5e-6 }, { db: 'n_paar', orakel: 'nPaar' }, { db: 'spanne_tage', orakel: 'spanne', abs: 0.5 },
+     { db: 'zuwachs_je_woche', orakel: 'gilt', abs: 5e-6 }])
+  assert.equal(abSt.length, 0, bericht('v_palox_station (Anstieg)', abSt, dbSt.length))
+
   const orakel = erwartung(punkte, sorten, heute).map(o => ({ ...o, schluessel: `${o.sorte}|${o.station}`, geliehen: o.geliehen ? 1 : 0 }))
   const db = frage<Record<string, unknown>>(
-    'select sorte, station, ebene, anteil, unten, oben, n_arbeiten, n_chargen, geliehen::int as geliehen from v_palox_erwartung')
+    'select sorte, station, ebene, anteil, unten, oben, n_arbeiten, n_chargen, geliehen::int as geliehen, mittel, lager_mittel, anstieg_je_woche from v_palox_erwartung')
     .map(z => ({ ...z, schluessel: `${z.sorte}|${z.station}` }))
   assert.ok(db.length > 0, 'v_palox_erwartung ist leer')
+  // anteil = Mittel − Anstieg × Lagerwochen; der Anstieg kommt auf fünf Stellen
+  // gerundet aus der Kennzahl (beide Seiten runden ihn gleich), das Ergebnis
+  // auf fünf Stellen (zahl(…, 5)) — darum 1e-5.
   const ab = vergleiche(db, orakel, { db: a => String(a.schluessel), orakel: b => b.schluessel },
     [{ db: 'anteil', orakel: 'anteil', abs: 1e-5 }, { db: 'unten', orakel: 'unten', abs: 1e-5 }, { db: 'oben', orakel: 'oben', abs: 1e-5 },
-     { db: 'n_arbeiten', orakel: 'nArbeiten' }, { db: 'n_chargen', orakel: 'nChargen' }, { db: 'geliehen', orakel: 'geliehen' }])
+     { db: 'n_arbeiten', orakel: 'nArbeiten' }, { db: 'n_chargen', orakel: 'nChargen' }, { db: 'geliehen', orakel: 'geliehen' },
+     { db: 'mittel', orakel: 'mittel', abs: 1e-5 }, { db: 'lager_mittel', orakel: 'lagerMittel', abs: 0.05 },
+     { db: 'anstieg_je_woche', orakel: 'anstiegJeWoche', abs: 1e-9 }])
   assert.equal(ab.length, 0, bericht('v_palox_erwartung', ab, db.length))
   // Die Ebene ist ein Wort — der Vergleich oben kennt nur Zahlen.
   const ebenen = new Map(orakel.map(o => [o.schluessel, o.ebene]))
@@ -157,6 +177,24 @@ test('Kaskade: Verkaufsanteil, m0 und alle Ströme je Zeile — und die Invarian
     return !nahe(Number(z.f), f ?? 0, 1e-9, 1e-9) || (Number(z.f_bekannt) === 1) !== (f != null)
   })
   assert.deepEqual(zusammen.map(z => `${z.charge_nr}/${z.portion}/${z.kohorte}`), [], 'mv_kaskade: f ist nicht palox_f(Weg, Stationswerte)')
+
+  // 0111: jeder Stationswert einer liegenden Portion ist Grundausschuss + Anstieg × alter_tage / 7 —
+  // aus den gespeicherten Erwartungen und dem Anstieg der Station nachgerechnet.
+  const grund = new Map(frage<Record<string, unknown>>('select sorte, station, anteil from erg_palox_erwartung')
+    .map(e => [`${e.sorte}|${e.station}`, Number(e.anteil)]))
+  const steigung = new Map(frage<Record<string, unknown>>('select station, zuwachs_je_woche from v_palox_station')
+    .map(s => [String(s.station), s.zuwachs_je_woche == null ? 0 : Number(s.zuwachs_je_woche)]))
+  const beimAlter = frage<Record<string, unknown>>(
+    "select charge_nr, sorte, kohorte, alter_tage, f_ws, f_s, g_w from mv_kaskade where portion = 'lager'")
+  const schiefAlter = beimAlter.flatMap(z => (['waschen_sortieren', 'sortieren', 'waschen'] as const).flatMap((st, i) => {
+    const ist = [z.f_ws, z.f_s, z.g_w][i]
+    const a = grund.get(`${z.sorte}|${st}`)
+    if (ist == null || a == null) return []
+    const soll = klemm(a + (steigung.get(st) ?? 0) * Number(z.alter_tage) / 7, 0, 1)
+    return nahe(Number(ist), soll, 1e-9, 1e-9) ? [] : [`${z.charge_nr}/${z.kohorte}/${st}: ${ist} statt ${soll}`]
+  }))
+  assert.ok(beimAlter.length > 0, 'mv_kaskade hat keine liegende Portion')
+  assert.deepEqual(schiefAlter.slice(0, 10), [], 'mv_kaskade: ein Stationswert liegt nicht beim Alter der Portion')
 
   // Wer die Ströme summiert, muss auf m0 kommen; wer die Kohorte summiert, auf ihren Eingang.
   const kohortenDb = frage('select k.charge_nr, k.eingangsdatum, b.eingang_kg * k.anteil as eingang_kg from v_kohorte_anteil k join v_kaskade_basis b using (charge_nr)')
@@ -304,7 +342,10 @@ test('K9 — v_wohin: der Eingang, vollständig aufgeteilt', { skip }, () => {
       - z(r, 'kanal_ausgelagert_kg') - z(r, 'verdunstet_ausgelagert_kg') - z(r, 'faul_ausgelagert_kg')
       - z(r, 'fax_kg') - z(r, 'lager_kg')
     if (Math.abs(rest - z(r, 'rest_kg')) > 0.02) schief.push(`${wo}: Rest ${z(r, 'rest_kg')} statt ${rest.toFixed(2)}`)
-    if (Math.abs(rest) > 0.1) schief.push(`${wo}: die erste Identität lässt ${rest.toFixed(2)} kg offen`)
+    // Die Kohorten-Anteile stehen auf sechs Stellen (v_kohorte_anteil): Über n Kohorten
+    // kann ihre Summe um n · 5e-7 neben 1 liegen — bei 82.6 t in sechs Kohorten (Charge 1632,
+    // Betriebsdaten 12. Oktober) 0.17 kg. Die Grenze ist deshalb 0.1 kg plus 5 ppm des Eingangs.
+    if (Math.abs(rest) > 0.1 + 5e-6 * z(r, 'eingang_kg')) schief.push(`${wo}: die erste Identität lässt ${rest.toFixed(2)} kg offen`)
     // Zweite Identität: was liegt, ist verkaufsfähig oder schon verloren.
     const lagerRest = z(r, 'lager_kg') - z(r, 'lager_verkaufsfaehig_kg') - z(r, 'lager_kanal_kg')
       - z(r, 'lager_fax_kg') - z(r, 'lager_faul_kg') - z(r, 'lager_verdunstet_kg')
@@ -331,7 +372,7 @@ test('K10 — erg_verlauf: die Saison Woche für Woche, unabhängig nachgerechne
   assert.ok(wochen.length > 4, `erg_verlauf hat nur ${wochen.length} Woche(n)`)
   const portionen = frage<Record<string, unknown>>(`
     select charge_nr, portion, kohorte, m0, r, f, f_ws, f_s, g_w, p_hand, p_wasch, b_ws, b_s, b_w, zuwachs_bekannt::int as zuwachs_bekannt,
-           a_klein_n, a_gross_n, a_fax,
+           a_klein_n, a_gross_n, a_fax, alter_tage,
            case when portion = 'ausgelagert' then kohorte + round(alter_tage)::int end as liefertag,
            case when portion = 'ausgelagert' then fax_kg else 0 end as fax_kg
       from mv_kaskade where m0 > 0 and kohorte is not null`)
@@ -357,8 +398,16 @@ test('K10 — erg_verlauf: die Saison Woche für Woche, unabhängig nachgerechne
                           gebindeart: x.gebindeart == null ? null : String(x.gebindeart) }))
   const eingang = kohorten(paletten, gebinde())
     .map(k => ({ eingangsdatum: k.eingangsdatum, kg: String(k.eingangKg) }))
+  // Lieferungen einer Charge ohne Eingang (Betriebsdaten: 1627, 168 kg am 23.9.) gehören
+  // nicht in den Massenfluss — es gibt keine Masse, aus der sie kommen. Sie dürfen aber nicht
+  // still verschwinden: Jede steht als Auffälligkeit „Lieferung ohne Eingang" da.
+  const ohneEingang = frage<{ charge_nr: string }>(
+    'select distinct charge_nr from v_lieferung_charge_tag where charge_nr is not null and charge_nr not in (select charge_nr from v_kaskade_basis where eingang_kg > 0)')
+  const gemeldet = new Set(frage<{ charge_nr: string }>("select distinct charge_nr from v_plausibilitaet where art = 'Lieferung ohne Eingang'").map(r => String(r.charge_nr)))
+  assert.deepEqual(ohneEingang.map(r => String(r.charge_nr)).filter(nr => !gemeldet.has(nr)), [],
+    'eine Lieferung ohne Eingang steht nicht unter den Auffälligkeiten')
   const ausgang = frage<{ datum: string; kg: string }>(
-    'select datum, sum(masse_kg) as kg from v_lieferung_charge_tag group by datum')
+    'select datum, sum(masse_kg) as kg from v_lieferung_charge_tag where charge_nr in (select charge_nr from v_kaskade_basis where eingang_kg > 0) group by datum')
 
   const orakel = wochen.map(w => {
     const bis = tag(w.bis)
@@ -368,7 +417,9 @@ test('K10 — erg_verlauf: die Saison Woche für Woche, unabhängig nachgerechne
       const koh = tag(String(p.kohorte))
       if (koh > bis) continue
       const lief = p.liefertag == null ? null : tag(String(p.liefertag))
-      const t = Math.max(Math.min(bis, lief ?? bis) - koh, 0)
+      // Ab dem Liefertag mit dem genauen Alter der Lieferung, wie die Kaskade (0111) —
+      // vorher lag die Ware und alterte Tag für Tag.
+      const t = lief != null && lief <= bis ? Number(p.alter_tage) : Math.max(Math.min(bis, lief ?? bis) - koh, 0)
       const m0 = Number(p.m0), r = Number(p.r)
       const ft = fBei(p, Math.min(bis, lief ?? bis) - (lief ?? tag(heuteStr)))
       const nachWasser = m0 * Math.pow(1 - r, t)

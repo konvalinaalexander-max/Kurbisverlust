@@ -731,6 +731,12 @@ select auswertung_aktualisieren();
 -- gewichtet und lässt sich unabhängig nachrechnen, sein Band liegt um ihn,
 -- die Chargen zählen nicht öfter als die Arbeiten, und ein Wert aus wenigen
 -- Arbeiten ist geliehen, nicht eigen.
+--
+-- Seit 0111 ist der Wert der Grundausschuss: das massegewichtete Mittel der
+-- Sorte (oder aller Sorten), um den Anstieg der Station über die mittlere
+-- Lagerdauer auf null Tage zurückgelegt, nie unter 0; die Vier-Wochen-
+-- Fenster sind weg (die Lagerdauer sagt das Alter, nicht der Kalender).
+-- Die Nachrechnung folgt der Regel.
 -- =========================================================================
 
 do $$
@@ -739,12 +745,14 @@ begin
   -- Die Fixtur 2001–2015 (drei Chargen, fünfmal Sortieren) gibt Bolp 5110,
   -- Orangita und Lekor je einen eigenen Wert am Band.
   for r in select e.*,
-                  (select sum(p.basis_jetzt_kg * p.anteil_station) / nullif(sum(p.basis_jetzt_kg), 0)
+                  (select greatest(sum(p.basis_jetzt_kg * p.anteil_station) / nullif(sum(p.basis_jetzt_kg), 0)
+                                   - coalesce((select k.zuwachs_je_woche from v_palox_station k where k.station = e.station), 0)
+                                     * sum(p.basis_jetzt_kg * p.lagertage) / nullif(sum(p.basis_jetzt_kg), 0) / 7.0, 0)
                      from v_schimmel_punkte p
                     where p.plausibel_station and p.anteil_station is not null and p.basis_jetzt_kg > 0
+                      and p.lagertage is not null
                       and p.station = e.station and p.quelle in ('verarbeitung', 'verarbeitung_gemischt')
-                      and (e.ebene like 'alle%' or p.sorte = e.sorte)
-                      and (e.ebene like '%saison' or p.messtag > heute() - 28)) as nachgerechnet
+                      and (e.ebene like 'alle%' or p.sorte = e.sorte)) as nachgerechnet
              from v_palox_erwartung e
   loop
     v_n := v_n + 1;
@@ -765,34 +773,37 @@ begin
   raise notice 'OK  Stationswerte (nachgerechnet, Band, Chargen ≤ Arbeiten, geliehen ab wenigen Arbeiten)';
 end $$;
 
--- 0037 (seit 0106 umgedeutet): Was in den Palox gelegt wird, kommt im
--- Stationswert an — Punkt für Punkt. Jede Messung der Fixtur bekommt 2 %
--- der Bezugsmasse dazu (Erde, Hagelnarben); der eigene Wert jeder Charge
--- und die Erwartung der Sorte müssen um genau diese zwei Punkte steigen,
--- und das Faule der Kaskade mit ihnen. Einen Sockel, der das herausrechnet,
--- gibt es nicht mehr: Was das Auge in den Palox legt, ist Faules der Station.
+-- 0037 (seit 0106 umgedeutet, seit 0111 mit dem Anstieg): Was in den Palox
+-- gelegt wird, kommt im Stationswert an — Punkt für Punkt. Jede Arbeit
+-- bekommt 2 % ihrer Bezugsmasse dazu (Erde, Hagelnarben, ein fester Mangel).
+-- Der eigene Wert jeder Charge und das Mittel der Sorte müssen um genau
+-- diese zwei Punkte steigen, und weil ein fester Aufschlag kein Faulen über
+-- die Zeit ist, gehört er ganz in den Grundausschuss: Der Anstieg der
+-- Station bleibt, wie er war, und die Kaskade steigt um genau so viel wie
+-- der Grundausschuss. Bis 0110 schaltete dieser Block die übrigen Messungen
+-- ab und verlangte zwei Punkte auch im gehaltenen Wert; seit 0111 läge
+-- darin der Anstieg aller Sorten mit drin, und ein auf 0 gehaltener
+-- Grundausschuss steigt nur um den Teil über 0 — die Prüfung folgt der Regel.
 do $$
-declare v_vorher numeric; v_nachher numeric; v_kg_vorher numeric; v_kg_nachher numeric; r record;
+declare v_vorher record; v_nachher record; v_b_vorher numeric; v_b_nachher numeric;
+  v_kg_vorher numeric; v_kg_nachher numeric; r record;
 begin
-  -- Der Stationswert, mit dem die Kaskade für die drei Chargen am Band
-  -- rechnet (f_s) — nicht das Faule in Kilo: Das ist unbekannt, solange
-  -- eine Station auf dem Weg einer anderen Charge keinen Wert hat.
+  -- Die Stationswerte, mit denen die Kaskade für die drei Chargen am Band
+  -- rechnet (f_s) — nicht das Faule in Kilo.
   select avg(f_s) into v_kg_vorher from mv_kaskade where charge_nr in (1603, 1604, 1606) and portion = 'lager';
   create temp table sockel_vorher on commit drop as
     select charge_nr, station, anteil from v_charge_palox where charge_nr in (1603, 1604, 1606) and station = 'sortieren';
-  select anteil into v_vorher from v_palox_erwartung where sorte = 'Lekor' and station = 'sortieren';
+  select anteil, mittel, mittel - coalesce(anstieg_je_woche, 0) * lager_mittel / 7.0 as roh
+    into v_vorher from v_palox_erwartung where sorte = 'Lekor' and station = 'sortieren';
+  select zuwachs_je_woche into v_b_vorher from v_palox_station where station = 'sortieren';
+  create temp table kg_vorher on commit drop as select id, kg from schimmel_messung;
 
-  -- Nur die Modell-Fixtur (2001–2015) zählt für diesen Block: Die übrigen
-  -- Messungen der Prüfdaten folgen keinem Verlauf und würden den Vergleich
-  -- verwässern. Ein Sockel gilt im Betrieb für jede Verarbeitungsmessung —
-  -- also muss er hier für alle Punkte gelten, nicht für einen Teil.
-  update schimmel_messung set gemessen = false
-   where auftrag_id not between 2001 and 2015;
-  -- 2 % Sockel obendrauf, bezogen auf die Masse nach Verdunstung
+  -- 2 % obendrauf, je Arbeit einmal, bezogen auf die Masse nach Verdunstung
   update schimmel_messung s
      set kg = s.kg + round(b.basis_jetzt_kg * 0.02)
     from v_schimmel_beobachtung b
-   where b.auftrag_id = s.auftrag_id and s.auftrag_id between 2001 and 2015;
+   where b.auftrag_id = s.auftrag_id
+     and s.id = (select min(x.id) from schimmel_messung x where x.auftrag_id = s.auftrag_id and x.gemessen);
   perform auswertung_aktualisieren();
 
   for r in select p.charge_nr, p.anteil as nachher, v.anteil as vorher
@@ -801,24 +812,28 @@ begin
     assert abs((r.nachher - r.vorher) - 0.02) < 0.0006,
       format('Charge %s: 2 %% mehr im Palox, der eigene Wert stieg um %s', r.charge_nr, r.nachher - r.vorher);
   end loop;
-  select anteil into v_nachher from v_palox_erwartung where sorte = 'Lekor' and station = 'sortieren';
-  assert abs((v_nachher - v_vorher) - 0.02) < 0.0006,
-    format('Die Erwartung der Sorte muss um zwei Punkte steigen: %s → %s', v_vorher, v_nachher);
+  select anteil, mittel, mittel - coalesce(anstieg_je_woche, 0) * lager_mittel / 7.0 as roh
+    into v_nachher from v_palox_erwartung where sorte = 'Lekor' and station = 'sortieren';
+  assert abs((v_nachher.mittel - v_vorher.mittel) - 0.02) < 0.0006,
+    format('Das Mittel der Sorte muss um zwei Punkte steigen: %s → %s', v_vorher.mittel, v_nachher.mittel);
+  select zuwachs_je_woche into v_b_nachher from v_palox_station where station = 'sortieren';
+  assert v_b_vorher is not null and abs(v_b_nachher - v_b_vorher) < 0.0005,
+    format('Ein fester Aufschlag ist kein Anstieg: der Anstieg am Band ging von %s auf %s', v_b_vorher, v_b_nachher);
+  assert abs((v_nachher.roh - v_vorher.roh) - 0.02) < 0.0006
+     and abs(v_nachher.anteil - greatest(v_nachher.roh, 0)) < 0.0001,   -- die Spalten sind gerundet (lager_mittel auf 0,1 Tage)
+    format('Der Grundausschuss muss die zwei Punkte tragen: %s → %s (gehalten %s → %s)', v_vorher.roh, v_nachher.roh, v_vorher.anteil, v_nachher.anteil);
   select avg(f_s) into v_kg_nachher from mv_kaskade where charge_nr in (1603, 1604, 1606) and portion = 'lager';
-  assert abs((v_kg_nachher - v_kg_vorher) - 0.02) < 0.0006,
-    format('Mehr im Palox, aber die Kaskade rechnet nicht damit (Stationswert am Band %s → %s)', v_kg_vorher, v_kg_nachher);
+  assert v_nachher.anteil > v_vorher.anteil
+     and abs((v_kg_nachher - v_kg_vorher) - (v_nachher.anteil - v_vorher.anteil)) < 0.0006,
+    format('Mehr im Palox, aber die Kaskade rechnet nicht damit (Stationswert am Band %s → %s, Grundausschuss %s → %s)',
+           v_kg_vorher, v_kg_nachher, v_vorher.anteil, v_nachher.anteil);
   assert not exists (select 1 from v_verlust_ranking where strom = 'Nicht lagerbedingt'),
     'Den Strom „Nicht lagerbedingt" gibt es seit 0106 nicht mehr';
 
-  -- zurück auf reinen Verderb, und die übrigen Messungen wieder an
-  update schimmel_messung s
-     set kg = round(6 * 865 * power(1 - 0.0006, t.tage)
-                    * (1 - exp(-0.0000107 * power(t.tage, 1.6))))
-    from auftrag a cross join lateral (select (a.start_ts::date - date '2026-09-01') as tage) t
-   where a.id = s.auftrag_id and s.auftrag_id between 2001 and 2015;
-  update schimmel_messung set gemessen = true where auftrag_id not between 2001 and 2015;
+  -- zurück, wie es war
+  update schimmel_messung s set kg = v.kg from kg_vorher v where v.id = s.id and s.kg is distinct from v.kg;
   perform auswertung_aktualisieren();
-  raise notice 'OK  Zwei Prozent mehr im Palox: eigener Wert, Erwartung und Kaskade steigen mit (0106)';
+  raise notice 'OK  Zwei Prozent mehr im Palox: eigener Wert und Mittel steigen mit, der Anstieg bleibt, Grundausschuss und Kaskade tragen den Aufschlag (0106, 0111)';
 end $$;
 
 do $$
@@ -3814,20 +3829,29 @@ select '——— Der Tag des Arbeiters geprüft ———' as ergebnis;
 -- Sorge: Der Anteil in der Kaskade muss die Zusammensetzung aus Weg und
 -- Stationswerten sein — unabhängig nachgerechnet aus v_charge_weg,
 -- v_charge_palox (Ausgelagertes) und v_palox_erwartung (Liegendes).
+-- Seit 0111 gilt jeder Stationswert beim Alter der Portion: Grundausschuss
+-- + Anstieg der Station (v_palox_station) × alter_tage / 7, zwischen 0 und 1;
+-- die eigene Messung einer ausgelagerten Portion gilt ohne Anstieg.
 do $$
 declare v_n int; v_ab int; v_max numeric;
 begin
   with nach as (
     select k.charge_nr, k.portion, k.kohorte, k.f, k.f_bekannt,
            palox_f(w.p_hand, w.p_wasch,
-                   case when k.portion = 'lager' then ews.anteil else coalesce(pws.anteil, ews.anteil) end,
-                   case when k.portion = 'lager' then es.anteil  else coalesce(ps.anteil,  es.anteil)  end,
-                   case when k.portion = 'lager' then ew.anteil  else coalesce(pw.anteil,  ew.anteil)  end) as f_nach
+                   case when k.portion <> 'lager' and pws.anteil is not null then pws.anteil
+                        else least(greatest(ews.anteil + coalesce(bws.zuwachs_je_woche, 0) * k.alter_tage / 7.0, 0), 1) end,
+                   case when k.portion <> 'lager' and ps.anteil is not null then ps.anteil
+                        else least(greatest(es.anteil + coalesce(bs.zuwachs_je_woche, 0) * k.alter_tage / 7.0, 0), 1) end,
+                   case when k.portion <> 'lager' and pw.anteil is not null then pw.anteil
+                        else least(greatest(ew.anteil + coalesce(bw.zuwachs_je_woche, 0) * k.alter_tage / 7.0, 0), 1) end) as f_nach
       from mv_kaskade k
       join v_charge_weg w on w.charge_nr = k.charge_nr
       left join v_palox_erwartung ews on ews.sorte = k.sorte and ews.station = 'waschen_sortieren'
       left join v_palox_erwartung es  on es.sorte  = k.sorte and es.station  = 'sortieren'
       left join v_palox_erwartung ew  on ew.sorte  = k.sorte and ew.station  = 'waschen'
+      left join v_palox_station bws on bws.station = 'waschen_sortieren'
+      left join v_palox_station bs  on bs.station  = 'sortieren'
+      left join v_palox_station bw  on bw.station  = 'waschen'
       left join v_charge_palox pws on pws.charge_nr = k.charge_nr and pws.station = 'waschen_sortieren'
       left join v_charge_palox ps  on ps.charge_nr  = k.charge_nr and ps.station  = 'sortieren'
       left join v_charge_palox pw  on pw.charge_nr  = k.charge_nr and pw.station  = 'waschen'
@@ -4482,13 +4506,17 @@ begin
   assert to_regclass('public.erg_lager_kaliber') is null,
     '0078 (b1b): keine gespeicherte Fassung im Rechenwerk — der Lasttest liegt an seiner Grenze, der Bildschirm ruft die Funktion';
   -- Über alle Horizonte, per Funktion: die Summe der Bänder ist die Kaskade.
+  -- Seit 0111 stehen neben den Bändern Unter- und Überkaliber (zu klein, zu
+  -- gross); die Bänder allein sind das Verkaufsfähige der Prognose — was
+  -- unter das kleinste Band geschrumpft ist, zählt im kleinsten Band.
   select count(*) into v_n from (
     select k.gruppe, k.schluessel, k.h
       from (select distinct h from erg_prognose) hh
       cross join lateral lager_kaliber(hh.h) k
       join erg_prognose p on p.gruppe = k.gruppe and p.schluessel = k.schluessel and p.h = k.h
      group by k.gruppe, k.schluessel, k.h
-    having abs(sum(k.kg) - max(p.verkaufsfaehig_kg)) > 0.05) x;
+    having abs(coalesce(sum(k.kg) filter (where k.klasse = 'kaliber'), 0)
+               - max(p.verkaufsfaehig_kg)) > 0.05) x;
   assert v_n = 0,
     format('0078 (b2): %s Gruppen × Horizonte, deren Bänder nicht auf verkaufsfaehig_kg summieren — zweite Mathematik', v_n);
   assert (select count(*) from v_lager_kaliber) = (select count(*) from lager_kaliber(0)),
@@ -4507,8 +4535,9 @@ begin
   assert v_n = 0, format('0078 (b4): %s Verteilungen, deren Anteile nicht 1 ergeben', v_n);
   assert not exists (select 1 from lager_kaliber(196) where kg < 0 or anteil < 0),
     '0078 (b5): negative Kilo oder Anteile';
+  -- (seit 0111 neben Unter- und Überkaliber, die auch ohne CSV ihre Zeile haben)
   assert not exists (select 1 from v_lager_kaliber
-                      where basis = 'keine' and (kaliber_idx is not null or kg <> verkaufsfaehig_kg)),
+                      where basis = 'keine' and klasse = 'kaliber' and (kaliber_idx is not null or kg <> verkaufsfaehig_kg)),
     '0078 (b6): basis „keine" muss eine Zeile ohne Band mit der ganzen Masse sein — leer ist nicht null';
   assert not exists (select 1 from v_lager_kaliber where basis <> 'keine' and kaliber_idx is null),
     '0078 (b7): Band-Zeile ohne kaliber_idx';
@@ -4516,8 +4545,10 @@ begin
     '0078 (b8): ein Band ohne Grenzen';
 
   -- ---- (c) Die Wanderung: schrumpfende Ware fällt nach unten ----------
-  -- Für Chargen mit eigener CSV, einem Sortierlauf und r > 0: das
-  -- Unter-Kaliber wächst von h=0 nach h=196, das oberste Band schrumpft.
+  -- Für Chargen mit eigener CSV, einem Sortierlauf und r > 0: was unter das
+  -- kleinste Band geschrumpft ist, wächst von h=0 nach h=196, das oberste
+  -- Band schrumpft. (Seit 0111 zählt das Geschrumpfte im kleinsten Band und
+  -- steht als geschrumpft_kg daneben; bis 0110 war es die Zeile −1.)
   create temp table t78 on commit drop as
     select * from lager_kaliber(0) union all select * from lager_kaliber(196);
   select count(*) into v_n from (
@@ -4527,8 +4558,8 @@ begin
        and exists (select 1 from mv_kaskade m where m.portion = 'lager' and m.charge_nr = k.schluessel::int and m.r > 0)
        and (select count(*) from sortier_lauf l where l.charge_nr = k.schluessel::int) = 1
      group by k.schluessel
-    having coalesce(sum(k.anteil) filter (where k.h = 196 and k.kaliber_idx = -1), 0)
-         < coalesce(sum(k.anteil) filter (where k.h = 0 and k.kaliber_idx = -1), 0) - 1e-6) x;
+    having coalesce(max(k.geschrumpft_kg / nullif(k.verkaufsfaehig_kg, 0)) filter (where k.h = 196), 0)
+         < coalesce(max(k.geschrumpft_kg / nullif(k.verkaufsfaehig_kg, 0)) filter (where k.h = 0), 0) - 1e-6) x;
   assert v_n = 0, format('0078 (c1): bei %s Chargen schrumpft das Unter-Kaliber mit der Zeit', v_n);
   select count(*) into v_n from (
     select k.schluessel
@@ -4717,12 +4748,17 @@ begin
   assert v_n > 0, '0079 (c3): kaliber_glocke(0) ist leer';
   -- Dieselbe Masse: die Stufen einer Gruppe summieren auf die Masse ihrer
   -- Bänder in lager_kaliber — für heute und für zwei Stichtage danach.
+  -- Seit 0111 stehen in der Tabelle neben den Bändern zu klein und zu gross;
+  -- verglichen werden die Bänder (klasse 'kaliber') — das unter das
+  -- kleinste Band Geschrumpfte zählt dort im kleinsten Band, die Glocke
+  -- zeigt es links davon.
   select count(*) into v_n from (
     select g.gruppe, g.schluessel, g.h
       from (values (0), (28), (196)) hh(h)
       cross join lateral kaliber_glocke(hh.h) g
      group by g.gruppe, g.schluessel, g.h
-    having abs(sum(g.masse_kg) - coalesce((select sum(k.kg) from lager_kaliber(g.h) k
+    having abs(sum(g.masse_kg) - coalesce((select sum(k.kg) filter (where k.klasse = 'kaliber')
+                                             from lager_kaliber(g.h) k
                                             where k.gruppe = g.gruppe and k.schluessel = g.schluessel
                                               and k.basis <> 'keine'), 0)) > 0.05) x;
   assert v_n = 0,
@@ -6641,7 +6677,8 @@ begin
                        order by p.station, p.messtag desc, p.auftrag_id desc);
   perform auswertung_aktualisieren();
   assert (select verdunstung_heute_kg is not null from erg_bilanz), '0097 (c0b): die Verdunstung ist nach der Probe unbekannt — die Probe hat zu viel gelöscht';
-  assert (select count(*) from v_palox_erwartung where ebene <> 'alle_saison' or n_arbeiten <> 1 or not geliehen) = 0,
+  -- (seit 0111 heisst die Ebene aller Sorten „alle" — ohne Vier-Wochen-Fenster gibt es nur noch die Saison)
+  assert (select count(*) from v_palox_erwartung where ebene <> 'alle' or n_arbeiten <> 1 or not geliehen) = 0,
     '0097 (c1a): mit einer Arbeit je Station ist jeder Stationswert der geliehene Wert der ganzen Saison aus einer Arbeit';
   assert (select count(distinct station) from v_palox_erwartung) = 3,
     '0097 (c1b): eine gemessene Arbeit je Station muss jeder Station ihren Wert geben';
@@ -7406,18 +7443,30 @@ begin
   assert abs((select anteil_mittel from v_palox_station where station = 'waschen_sortieren') - v_mittel) < 1e-4,
     format('0105 (c1): Mittel %s statt massegewichtet %s', (select anteil_mittel from v_palox_station where station = 'waschen_sortieren'), v_mittel);
 
-  -- (d) der Zuwachs erst nach vier Wochen: ein Fenster ab Messbeginn, das
-  --     fünf Arbeiten hat, aber keine vier Wochen (Wasch-Arbeiten kommen in
-  --     der Demo alle paar Tage).
-  select min(messtag) into v_seit from erg_punkte where station = 'waschen' and plausibel_station and quelle in ('verarbeitung', 'verarbeitung_gemischt');
-  select min(messtag) into v_dritter
-    from (select messtag, count(*) over (order by messtag) as n from erg_punkte
-           where station = 'waschen' and plausibel_station and quelle in ('verarbeitung', 'verarbeitung_gemischt') and anteil_station is not null and basis_jetzt_kg > 0) z
-   where n >= 5;
-  assert v_dritter - v_seit < 28, format('0105 (d0): die Demo braucht %s Tage bis zur fünften Wasch-Arbeit — die Regel ist so nicht prüfbar', v_dritter - v_seit);
-  assert (select n_arbeiten >= 5 and zuwachs_je_woche is null and zuwachs_text like '%vier Wochen%' from palox_station_kennzahl(v_dritter, v_seit) where station = 'waschen'),
-    format('0105 (d1): fünf Arbeiten in %s Tagen — vor der vierten Woche darf es keinen Zuwachs geben: %s', v_dritter - v_seit,
-           (select row_to_json(k) from palox_station_kennzahl(v_dritter, v_seit) k where station = 'waschen'));
+  -- (d) Bis 0110: der Zuwachs erst nach vier Wochen Messtagen. Seit 0111
+  --     ist es der Anstieg über die Lagerdauer, und er gilt erst, wenn die
+  --     Lagerdauern innerhalb einer Sorte drei Wochen auseinanderliegen
+  --     (palox_anstieg_mindest_tage). Gesucht wird ein Fenster der Demo mit
+  --     fünf Arbeiten in Sorten mit zwei Arbeiten, aber weniger Spanne — dort
+  --     darf kein Anstieg gelten, und der Text sagt warum. Die Regel selbst
+  --     prüft Block 0111 (b5) an gebauten Fällen.
+  v_dritter := null;
+  for r in select d::date as ab, (d + interval '28 days')::date as bis
+             from generate_series(date '2026-01-01', date '2027-06-30', interval '7 days') d loop
+    if exists (select 1 from palox_station_kennzahl(r.bis, r.ab) k
+                where k.n_paar >= 5 and k.spanne_tage < palox_anstieg_mindest_tage()) then
+      v_seit := r.ab; v_dritter := r.bis; exit;
+    end if;
+  end loop;
+  if v_dritter is not null then
+    assert not exists (select 1 from palox_station_kennzahl(v_dritter, v_seit) k
+                        where k.n_paar >= 5 and k.spanne_tage < palox_anstieg_mindest_tage()
+                          and (k.zuwachs_je_woche is not null or k.zuwachs_text not like '%Tage auseinanderliegen%')),
+      format('0105 (d1): fünf Arbeiten, aber keine drei Wochen Spanne der Lagerdauern — ein Anstieg darf nicht gelten: %s',
+             (select json_agg(k) from palox_station_kennzahl(v_dritter, v_seit) k));
+  else
+    raise notice '0105 (d1): kein Fenster mit fünf Arbeiten unter drei Wochen Spanne in der Demo — die Regel prüft 0111 (b5)';
+  end if;
   assert (select zuwachs_je_woche is not null and zuwachs_text is null from v_palox_station where station = 'waschen'),
     '0105 (d2): nach einer Saison muss der Zuwachs dastehen';
   -- (e) und erst ab fünf Arbeiten: ein Fenster über mehr als vier Wochen mit
@@ -7457,21 +7506,28 @@ begin
     raise notice '0105 (e2): kein Fenster mit vier Arbeiten über vier Wochen in der Demo — nur (e1) geprüft';
   end if;
 
-  -- (f) die Gerade: massegewichtete Regression des eigenen Anteils über den Tag
+  -- (f) die Gerade. Bis 0110: massegewichtete Regression über den Messtag,
+  --     alle Sorten zusammen. Seit 0111 über die Lagerdauer und innerhalb der
+  --     Sorten (jede Sorte um ihre eigene Mitte), nie negativ — die
+  --     Nachrechnung folgt der Regel.
   with p as (
-    select basis_jetzt_kg as w, anteil_station as y, (messtag - min(messtag) over ())::numeric as t
-      from erg_punkte where plausibel_station and station = 'waschen' and quelle in ('verarbeitung', 'verarbeitung_gemischt') and anteil_station is not null and basis_jetzt_kg > 0 and messtag <= heute()
+    select sorte, basis_jetzt_kg as w, anteil_station as y, lagertage::numeric as t
+      from erg_punkte where plausibel_station and station = 'waschen' and quelle in ('verarbeitung', 'verarbeitung_gemischt')
+       and anteil_station is not null and basis_jetzt_kg > 0 and lagertage is not null and messtag <= heute()
+  ), m as (
+    select sorte, sum(w * t) / sum(w) as tm, sum(w * y) / sum(w) as ym from p group by sorte
   )
-  select (sum(w * t * y) * sum(w) - sum(w * t) * sum(w * y)) / (sum(w * t * t) * sum(w) - power(sum(w * t), 2)) * 7 into v_b from p;
+  select greatest(sum(p.w * (p.t - m.tm) * (p.y - m.ym)) / sum(p.w * power(p.t - m.tm, 2)) * 7, 0) into v_b
+    from p join m using (sorte);
   assert abs((select zuwachs_je_woche from v_palox_station where station = 'waschen') - v_b) < 1e-4,
-    format('0105 (f1): Zuwachs %s je Woche statt %s', (select zuwachs_je_woche from v_palox_station where station = 'waschen'), v_b);
-  assert palox_trend_mindest_tage() = 28, '0105 (f2): vier Wochen sind 28 Tage';
+    format('0105 (f1): Anstieg %s je Woche statt %s', (select zuwachs_je_woche from v_palox_station where station = 'waschen'), v_b);
+  assert palox_anstieg_mindest_tage() = 21, '0105 (f2): die Spanne der Lagerdauern ist drei Wochen (seit 0111; bis 0110: vier Wochen Messtage)';
   assert schema_stand() >= 105, format('0105 (g1): schema_stand() = %s', schema_stand());
 
   if v_geladen then perform demo_daten_entfernen(); end if;
   delete from profil where id = v_u; delete from auth.users where id = v_u;
   update einstellung set wert = v_modus where schluessel = 'betriebsmodus';
-  raise notice 'OK  0105 — jeder Punkt kennt sein Auge; die Kennzahl je Station: massegewichtet, Zuwachs erst nach vier Wochen und fünf Arbeiten, als Gerade über den Messtag';
+  raise notice 'OK  0105 — jeder Punkt kennt sein Auge; die Kennzahl je Station: massegewichtet, Anstieg erst ab drei Wochen Spanne und fünf Arbeiten, als Gerade über die Lagerdauer innerhalb der Sorten (0111)';
 end $$;
 
 select '——— 0105 Stationen unter ihresgleichen geprüft ———' as ergebnis;
@@ -7555,18 +7611,26 @@ begin
   assert not exists (select 1 from v_palox_erwartung where ebene like 'sorte%' and n_arbeiten < 3), '0106 (b8): ein Wert der Sorte aus weniger als drei Arbeiten';
   assert not exists (select 1 from v_palox_erwartung where (ebene like 'alle%') <> geliehen), '0106 (b9): geliehen passt nicht zur Ebene';
 
-  -- (c) die Kaskade ist die Zusammensetzung
+  -- (c) die Kaskade ist die Zusammensetzung — seit 0111 jeder Stationswert
+  --     beim Alter der Portion (Grundausschuss + Anstieg × alter_tage / 7),
+  --     die eigene Messung ausgelagerter Ware ohne Anstieg
   with nach as (
     select k.charge_nr, k.portion, k.f, k.f_bekannt, k.schimmel_kg, k.m1,
            palox_f(w.p_hand, w.p_wasch,
-                   case when k.portion = 'lager' then ews.anteil else coalesce(pws.anteil, ews.anteil) end,
-                   case when k.portion = 'lager' then es.anteil  else coalesce(ps.anteil,  es.anteil)  end,
-                   case when k.portion = 'lager' then ew.anteil  else coalesce(pw.anteil,  ew.anteil)  end) as f_nach
+                   case when k.portion <> 'lager' and pws.anteil is not null then pws.anteil
+                        else least(greatest(ews.anteil + coalesce(bws.zuwachs_je_woche, 0) * k.alter_tage / 7.0, 0), 1) end,
+                   case when k.portion <> 'lager' and ps.anteil is not null then ps.anteil
+                        else least(greatest(es.anteil + coalesce(bs.zuwachs_je_woche, 0) * k.alter_tage / 7.0, 0), 1) end,
+                   case when k.portion <> 'lager' and pw.anteil is not null then pw.anteil
+                        else least(greatest(ew.anteil + coalesce(bw.zuwachs_je_woche, 0) * k.alter_tage / 7.0, 0), 1) end) as f_nach
       from mv_kaskade k
       join v_charge_weg w on w.charge_nr = k.charge_nr
       left join v_palox_erwartung ews on ews.sorte = k.sorte and ews.station = 'waschen_sortieren'
       left join v_palox_erwartung es  on es.sorte  = k.sorte and es.station  = 'sortieren'
       left join v_palox_erwartung ew  on ew.sorte  = k.sorte and ew.station  = 'waschen'
+      left join v_palox_station bws on bws.station = 'waschen_sortieren'
+      left join v_palox_station bs  on bs.station  = 'sortieren'
+      left join v_palox_station bw  on bw.station  = 'waschen'
       left join v_charge_palox pws on pws.charge_nr = k.charge_nr and pws.station = 'waschen_sortieren'
       left join v_charge_palox ps  on ps.charge_nr  = k.charge_nr and ps.station  = 'sortieren'
       left join v_charge_palox pw  on pw.charge_nr  = k.charge_nr and pw.station  = 'waschen'
@@ -7621,7 +7685,9 @@ begin
     select sum(k.m0 * power(1 - k.r, t.t) * f.f) as schimmel
       from mv_kaskade k
       cross join lateral (select case when k.portion = 'ausgelagert' then k.kohorte + round(k.alter_tage)::int end as liefertag) l
-      cross join lateral (select greatest(least(v_bis, coalesce(l.liefertag, v_bis)) - k.kohorte, 0) as t) t
+      -- seit 0111: ab dem Liefertag mit dem genauen Alter der Lieferung, wie die Kaskade
+      cross join lateral (select case when l.liefertag is not null and l.liefertag <= v_bis then k.alter_tage
+                                      else greatest(least(v_bis, coalesce(l.liefertag, v_bis)) - k.kohorte, 0) end as t) t
       cross join lateral (select case when k.zuwachs_bekannt
                                       then coalesce(palox_f_nach(k.p_hand, k.p_wasch, k.f_ws, k.f_s, k.g_w, k.b_ws, k.b_s, k.b_w,
                                                                  (least(v_bis, coalesce(l.liefertag, v_bis)) - coalesce(l.liefertag, heute()))::numeric), k.f)
@@ -7631,17 +7697,25 @@ begin
   select abs((select schimmel_kum_kg from erg_verlauf where gruppe = 'gesamt' and bis = v_bis) - schimmel)
     into v_diff from nach;
   assert v_diff < 1, format('0106 (e5): der Verlauf am %s weicht um %s kg vom fortgeschriebenen Faulen ab', v_bis, round(v_diff, 1));
-  -- Ohne Zuwachs (Messungen nur aus den ersten 20 Tagen je Station) steht der Anteil still.
+  -- Ohne Zuwachs steht der Anteil still. Bis 0110 hiess „ohne Zuwachs":
+  -- Messungen nur aus den ersten 20 Tagen je Station. Seit 0111 hängt der
+  -- Anstieg an fünf Arbeiten und drei Wochen Spanne der Lagerdauern — also
+  -- bleiben je Station nur die ersten vier Arbeiten mit Messung.
   create temp table punkte_spaet on commit drop as
     select m.id from schimmel_messung m join auftrag a on a.id = m.auftrag_id
      where m.gemessen
-       and betriebstag(a.start_ts) > (select min(betriebstag(a2.start_ts)) from auftrag a2 join schimmel_messung m2 on m2.auftrag_id = a2.id
-                                        where m2.gemessen and a2.station = a.station) + 20;
+       and a.id not in (select x.id from (
+                          select a2.id, row_number() over (partition by a2.station order by a2.start_ts, a2.id) as nr
+                            from auftrag a2
+                           where exists (select 1 from schimmel_messung m2 where m2.auftrag_id = a2.id and m2.gemessen)) x
+                         where x.nr <= 4);
   update schimmel_messung set gemessen = false where id in (select id from punkte_spaet);
   perform auswertung_aktualisieren();
-  assert not exists (select 1 from v_palox_station where zuwachs_je_woche is not null), '0106 (e6): nach 20 Tagen weist die Kennzahl schon einen Zuwachs aus';
+  assert not exists (select 1 from v_palox_station where zuwachs_je_woche is not null), '0106 (e6): mit vier Arbeiten je Station weist die Kennzahl schon einen Anstieg aus';
   assert exists (select 1 from mv_kaskade where portion = 'lager' and f_bekannt), '0106 (e7): die Probe hat alle Werte gelöscht — sie trägt nicht';
-  assert not exists (select 1 from mv_kaskade where zuwachs_bekannt), '0106 (e8): ohne Zuwachs gilt er als bekannt';
+  -- (seit 0111 schreibt eine ausgelagerte Portion mit eigener Messung nicht fort — ihr Anstieg ist 0 und bekannt;
+  --  ohne Anstieg der Station darf nur keine liegende Portion als fortschreibbar gelten)
+  assert not exists (select 1 from mv_kaskade where zuwachs_bekannt and portion = 'lager'), '0106 (e8): ohne Zuwachs gilt er als bekannt';
   assert (select faul_je_tag_kg is null from erg_prognose where gruppe = 'gesamt' and h = 0), '0106 (e9): ohne Zuwachs eine Rate des Faulen — erfunden';
   assert (select verlust_faeulnis_kg = 0 and faul_kg > 0 from erg_prognose where gruppe = 'gesamt' and h = 28),
     '0106 (e10): ohne Zuwachs steht der Anteil still — das Faule bleibt, wächst aber nicht';
@@ -8131,3 +8205,306 @@ begin
 end $$;
 
 select '——— 0110 Rechnen auf PostgreSQL 17 geprüft ———' as ergebnis;
+
+-- =====================================================================
+-- 0111 — Palox: Grundausschuss und Anstieg; jeder Anteil schlicht
+--
+-- Geprüft auf der Demo, jede Zahl ein zweites Mal anders gerechnet:
+-- (a) der Schätzer je Sorte — eigenes Mittel ab drei Messungen, sonst das
+--     aller Sorten; kein Zug zum Gesamtwert; die Basis sagt die Ebene;
+-- (b) die Regel des Anstiegs (palox_anstieg) an gebauten Fällen, auch
+--     negativ und knapp unter den Schwellen;
+-- (c) der Anstieg je Station, innerhalb der Sorten nachgerechnet, und die
+--     Kennzahl hält sich an die Regel;
+-- (d) der Grundausschuss je Sorte und Station: das Mittel, um den Anstieg
+--     auf null Tage zurückgelegt; geliehen unter drei eigenen Arbeiten;
+-- (e) die Kaskade nimmt jeden Stationswert beim Alter seiner Portion,
+--     Ausgelagertes mit eigener Messung ohne Anstieg;
+-- (f) die Prognose trennt zu klein und zu gross;
+-- (g) lager_kaliber: Unterkaliber (zu klein), Bänder, Überkaliber (zu
+--     gross) — die Bänder sind das Verkaufsfähige, das Geschrumpfte zählt
+--     im kleinsten Band;
+-- (h) zwei Läufe derselben Charge: Median und Rate stimmen;
+-- (i) Stand 111.
+-- =====================================================================
+do $$
+declare v_modus jsonb; v_lad text; v_geladen boolean := false; v_n int; v_ab int; v_x int;
+  v_u uuid := '00000000-0111-0000-0000-000000000001';
+begin
+  select wert into v_modus from einstellung where schluessel = 'betriebsmodus';
+  update einstellung set wert = '"beispiel"'::jsonb where schluessel = 'betriebsmodus';
+  insert into auth.users (id, email, raw_user_meta_data) values (v_u, null, '{"name":"Prüf-0111"}');
+  update profil set rolle = 'admin' where id = v_u;
+  perform set_config('request.jwt.claim.sub', v_u::text, true);
+  if not exists (select 1 from auftrag where station = 'waschen_sortieren' and bemerkung = 'DEMO') then
+    select demo_daten_laden() into v_lad; v_geladen := true;
+  end if;
+  perform auswertung_aktualisieren();
+
+  -- (a) Der Schätzer je Sorte: ab drei eigenen Messungen das eigene Mittel
+  assert anteil_mindest_messungen() = 3, '0111 (a1): die Schwelle ist nicht mehr drei Messungen';
+  -- (a2) b ist 1 genau ab drei eigenen Messungen, sonst 0 — für alle vier Anteile
+  select count(*), count(*) filter (where g.b <> case when g.sorte is null or g.n >= 3 then 1 else 0 end)
+    into v_n, v_ab
+    from (select art, sorte, n, b from v_koeff_verdunstung_geschaetzt
+          union all select art, sorte, n, b from v_koeff_kaliber_geschaetzt) g;
+  assert v_n > 0 and v_ab = 0, format('0111 (a2): %s von %s Zeilen nehmen die falsche Ebene', v_ab, v_n);
+  assert exists (select 1 from v_koeff_kaliber_geschaetzt where n = 2 and b = 0)
+     and exists (select 1 from v_koeff_kaliber_geschaetzt where n = 3 and b = 1),
+    '0111 (a3): die Demo prüft die Schwelle nicht mehr (zwei Messungen geliehen, drei eigen)';
+  -- (a4) das Mittel, nachgerechnet aus den Rohwerten: eigen → Mittel der Sorte, sonst aller Sorten
+  select count(*), count(*) filter (where abs(g.mittel - x.soll) > 1e-12)
+    into v_n, v_ab
+    from (select art, sorte, b, mittel from v_koeff_verdunstung_geschaetzt
+          union all select art, sorte, b, mittel from v_koeff_kaliber_geschaetzt) g
+    join lateral (
+      select sum(r.anteil * r.gewicht) / sum(r.gewicht) as soll
+        from (select art, sorte, anteil, gewicht from v_koeff_roh_verdunstung
+              union all select art, sorte, anteil, gewicht from v_koeff_roh_kaliber) r
+       where r.art = g.art and r.anteil is not null and r.gewicht > 0
+         and (g.b = 0 or g.sorte is null or r.sorte = g.sorte)) x on true
+   where x.soll is not null;
+  assert v_n > 0 and v_ab = 0, format('0111 (a4): %s von %s Mitteln weichen vom nachgerechneten ab', v_ab, v_n);
+  -- (a5) die Unsicherheit des eigenen Mittels: Σ w (a − m)² / Σ w / (n − 1)
+  select count(*), count(*) filter (where abs(g.varianz - x.soll) > 1e-15)
+    into v_n, v_ab
+    from v_koeff_kaliber_geschaetzt g
+    join lateral (
+      select sum(r.gewicht * power(r.anteil - g.mittel, 2)) / sum(r.gewicht) / (count(*) - 1) as soll
+        from v_koeff_roh_kaliber r
+       where r.art = g.art and r.sorte = g.sorte and r.anteil is not null and r.gewicht > 0) x on true
+   where g.b = 1 and g.sorte is not null and g.n >= 3;
+  assert v_n > 0 and v_ab = 0, format('0111 (a5): %s von %s Varianzen weichen ab', v_ab, v_n);
+  assert not exists (select 1 from v_koeff_verdunstung_geschaetzt where tau2 is not null)
+     and not exists (select 1 from v_koeff_kaliber_geschaetzt where tau2 is not null),
+    '0111 (a6): es wird wieder zum Gesamtwert gezogen (tau2)';
+  -- (a7) die Basis sagt die Ebene — und der Bildschirm erkennt „geliehen" an „alle(r) Sorten"
+  select count(*), count(*) filter (where (k.basis ~ 'dieser Sorte') <> (g.b = 1) or (g.b = 0 and k.basis !~ 'alle(r)? Sorten'))
+    into v_n, v_ab
+    from v_koeff_verdunstung k
+    join v_koeff_verdunstung_geschaetzt g on g.art = 'verdunstung' and g.sorte = k.sorte;
+  assert v_n > 0 and v_ab = 0, format('0111 (a7): %s von %s Basis-Texten der Verdunstung sagen die falsche Ebene', v_ab, v_n);
+  select count(*), count(*) filter (where (k.basis ~ 'dieser Sorte') <> (g.b = 1))
+    into v_n, v_ab
+    from v_koeff_ausschuss k
+    join v_koeff_kaliber_geschaetzt g on g.art = 'ausschuss' and g.sorte = k.sorte
+   where g.n_gesamt > 0;
+  assert v_n > 0 and v_ab = 0, format('0111 (a8): %s von %s Basis-Texten von zu klein sagen die falsche Ebene', v_ab, v_n);
+  assert to_regclass('public.v_koeff_verdunstung_geschaetzt') is not null, '0111 (a9): v_koeff_verdunstung_geschaetzt fehlt';
+
+  -- (b) Die Regel des Anstiegs, an gebauten Fällen
+  assert palox_anstieg_mindest_tage() = 21, '0111 (b1): die Spanne ist nicht mehr drei Wochen';
+  assert palox_anstieg(0.012, 5, 21) = 0.012, '0111 (b2): fünf Arbeiten und drei Wochen — der Anstieg gilt';
+  assert palox_anstieg(-0.008, 5, 21) = 0, '0111 (b3): ein negativer Anstieg gilt als 0, nicht als Heilen';
+  assert palox_anstieg(0.012, 4, 60) is null, '0111 (b4): unter fünf Arbeiten ist der Anstieg unbekannt';
+  assert palox_anstieg(0.012, 30, 20) is null, '0111 (b5): unter drei Wochen Spanne ist der Anstieg unbekannt';
+  assert palox_anstieg(null, 30, 60) is null, '0111 (b6): ohne Steigung kein Anstieg';
+
+  -- (c) Der Anstieg je Station, innerhalb der Sorten nachgerechnet —
+  -- anders als die Kennzahl: mit group by statt Fensterfunktionen.
+  select count(*), count(*) filter (where abs(k.anstieg_roh - round(x.b * 7, 5)) > 1e-5 or k.n_paar <> x.n_paar or k.spanne_tage <> x.spanne)
+    into v_n, v_ab
+    from v_palox_station k
+    join lateral (
+      select sum(p.basis_jetzt_kg * (p.lagertage - m.t) * (p.anteil_station - m.y))
+             / nullif(sum(p.basis_jetzt_kg * power(p.lagertage - m.t, 2)), 0) as b,
+             count(*) filter (where m.n >= 2)::int as n_paar,
+             max(m.spanne)::int as spanne
+        from erg_punkte p
+        join (select q.sorte, sum(q.basis_jetzt_kg * q.lagertage) / sum(q.basis_jetzt_kg) as t,
+                     sum(q.basis_jetzt_kg * q.anteil_station) / sum(q.basis_jetzt_kg) as y,
+                     count(*) as n, max(q.lagertage) - min(q.lagertage) as spanne
+                from erg_punkte q
+               where q.station = k.station and q.plausibel_station and q.anteil_station is not null
+                 and q.basis_jetzt_kg > 0 and q.lagertage is not null and q.messtag <= heute()
+                 and q.quelle in ('verarbeitung', 'verarbeitung_gemischt')
+               group by q.sorte) m on m.sorte = p.sorte
+       where p.station = k.station and p.plausibel_station and p.anteil_station is not null
+         and p.basis_jetzt_kg > 0 and p.lagertage is not null and p.messtag <= heute()
+         and p.quelle in ('verarbeitung', 'verarbeitung_gemischt')) x on true;
+  assert v_n = 3 and v_ab = 0, format('0111 (c1): bei %s von %s Stationen weicht der Anstieg vom nachgerechneten ab', v_ab, v_n);
+  select count(*), count(*) filter (where k.zuwachs_je_woche is distinct from round(palox_anstieg(k.anstieg_roh, k.n_paar, k.spanne_tage), 5))
+    into v_n, v_ab
+    from v_palox_station k;
+  assert v_n = 3 and v_ab = 0, format('0111 (c2): %s von %s Stationen halten sich nicht an die Regel des Anstiegs', v_ab, v_n);
+  assert exists (select 1 from v_palox_station where zuwachs_je_woche > 0 and zuwachs_text is null),
+    '0111 (c3): die Demo hat keine Station mit gemessenem Anstieg mehr';
+  -- (c4) früh in der Saison: zu wenige Arbeiten — der gemessene Anstieg steht
+  -- (anstieg_roh), aber er gilt nicht (zuwachs_je_woche leer), und der Text sagt warum
+  select count(*) filter (where k.zuwachs_text like 'Anstieg erst ab fünf Arbeiten%'),
+         count(*) filter (where k.zuwachs_text like 'Anstieg erst ab fünf Arbeiten%' and k.zuwachs_je_woche is not null),
+         count(*) filter (where k.zuwachs_text like 'Anstieg erst ab fünf Arbeiten%' and k.anstieg_roh is not null)
+    into v_n, v_ab, v_x
+    from palox_station_kennzahl(date '2026-09-12', date '2026-08-08') k;
+  assert v_n >= 1 and v_ab = 0 and v_x >= 1,
+    format('0111 (c4): ohne fünf Arbeiten gilt ein gemessener Anstieg (%s von %s Stationen), oder der Text sagt nicht warum', v_ab, v_n);
+  -- (c5) der Anstieg wird über die Lagerdauer gemessen, nicht über den Messtag
+  assert exists (select 1 from v_palox_station where lager_von is not null and lager_bis > lager_von),
+    '0111 (c5): die Kennzahl kennt die Lagerdauern ihrer Arbeiten nicht';
+  -- (c6) der Grundausschuss der Station: Mittel − Anstieg × mittlere Lagerdauer / 7
+  select count(*), count(*) filter (where abs(k.grund - round(greatest(x.mittel - coalesce(k.zuwachs_je_woche, 0) * x.t / 7.0, 0), 5)) > 2e-5
+                                       or abs(k.lager_mittel - round(x.t, 1)) > 0.051)
+    into v_n, v_ab
+    from v_palox_station k
+    join lateral (select sum(p.basis_jetzt_kg * p.anteil_station) / sum(p.basis_jetzt_kg) as mittel,
+                         sum(p.basis_jetzt_kg * p.lagertage) / sum(p.basis_jetzt_kg) as t
+                    from erg_punkte p
+                   where p.station = k.station and p.plausibel_station and p.anteil_station is not null
+                     and p.basis_jetzt_kg > 0 and p.lagertage is not null and p.messtag <= heute()
+                     and p.quelle in ('verarbeitung', 'verarbeitung_gemischt')) x on true;
+  assert v_n = 3 and v_ab = 0, format('0111 (c6): bei %s von %s Stationen ist der Grundausschuss nicht Mittel − Anstieg × Lagerwochen', v_ab, v_n);
+
+  -- (d) Der Grundausschuss je Sorte und Station
+  select count(*), count(*) filter (where abs(e.anteil - round(greatest(x.mittel - coalesce(k.zuwachs_je_woche, 0) * x.t / 7.0, 0), 5)) > 1e-5
+                                       or abs(e.mittel - round(x.mittel, 5)) > 1e-5)
+    into v_n, v_ab
+    from erg_palox_erwartung e
+    join v_palox_station k on k.station = e.station
+    join lateral (
+      select sum(p.basis_jetzt_kg * p.anteil_station) / sum(p.basis_jetzt_kg) as mittel,
+             sum(p.basis_jetzt_kg * p.lagertage) / sum(p.basis_jetzt_kg) as t
+        from v_schimmel_punkte p
+       where p.station = e.station and (e.geliehen or p.sorte = e.sorte)
+         and p.plausibel_station and p.anteil_station is not null and p.basis_jetzt_kg > 0
+         and p.lagertage is not null and p.quelle in ('verarbeitung', 'verarbeitung_gemischt')) x on true;
+  assert v_n > 0 and v_ab = 0, format('0111 (d1): %s von %s Grundausschüssen sind nicht Mittel − Anstieg × Lagerwochen', v_ab, v_n);
+  select count(*), count(*) filter (where e.geliehen <> (x.n < 3))
+    into v_n, v_ab
+    from erg_palox_erwartung e
+    join lateral (select count(*) as n from v_schimmel_punkte p
+                   where p.station = e.station and p.sorte = e.sorte and p.plausibel_station
+                     and p.anteil_station is not null and p.basis_jetzt_kg > 0 and p.lagertage is not null
+                     and p.quelle in ('verarbeitung', 'verarbeitung_gemischt')) x on true;
+  assert v_n > 0 and v_ab = 0, format('0111 (d2): %s von %s Erwartungen leihen falsch (unter drei eigenen Arbeiten: alle Sorten)', v_ab, v_n);
+  assert exists (select 1 from erg_palox_erwartung where anstieg_je_woche > 0 and anteil < mittel),
+    '0111 (d3): kein Grundausschuss liegt unter dem Mittel, obwohl die Station ansteigt';
+
+  -- (e) Die Kaskade nimmt jeden Stationswert beim Alter seiner Portion
+  select count(*), count(*) filter (where abs(k.f_ws - least(greatest(e.anteil + coalesce(z.zuwachs_je_woche, 0) * k.alter_tage / 7.0, 0), 1)) > 1e-9)
+    into v_n, v_ab
+    from mv_kaskade k
+    join erg_palox_erwartung e on e.sorte = k.sorte and e.station = 'waschen_sortieren'
+    join v_palox_station z on z.station = 'waschen_sortieren'
+   where k.portion = 'lager' and k.f_ws is not null;
+  assert v_n > 0 and v_ab = 0, format('0111 (e1): bei %s von %s liegenden Portionen ist W+S nicht Grundausschuss + Anstieg × Alter', v_ab, v_n);
+  select count(*), count(*) filter (where abs(k.g_w - least(greatest(e.anteil + coalesce(z.zuwachs_je_woche, 0) * k.alter_tage / 7.0, 0), 1)) > 1e-9)
+    into v_n, v_ab
+    from mv_kaskade k
+    join erg_palox_erwartung e on e.sorte = k.sorte and e.station = 'waschen'
+    join v_palox_station z on z.station = 'waschen'
+   where k.portion = 'lager' and k.g_w is not null;
+  assert v_n > 0 and v_ab = 0, format('0111 (e2): bei %s von %s liegenden Portionen ist Waschen nicht Grundausschuss + Anstieg × Alter', v_ab, v_n);
+  -- (e3) Ausgelagertes mit eigener Messung: genau die Messung, kein Anstieg
+  select count(*), count(*) filter (where abs(k.f_s - c.anteil) > 1e-9 or k.b_s <> 0)
+    into v_n, v_ab
+    from mv_kaskade k
+    join v_charge_palox c on c.charge_nr = k.charge_nr and c.station = 'sortieren'
+   where k.portion = 'ausgelagert';
+  assert v_n > 0 and v_ab = 0, format('0111 (e3): %s von %s ausgelagerten Portionen mit eigener Messung schreiben fort', v_ab, v_n);
+  -- (e4) und ohne eigene Messung beim Alter am Liefertag
+  select count(*), count(*) filter (where abs(k.g_w - least(greatest(e.anteil + coalesce(z.zuwachs_je_woche, 0) * k.alter_tage / 7.0, 0), 1)) > 1e-9
+                                       or k.b_w is distinct from z.zuwachs_je_woche)
+    into v_n, v_ab
+    from mv_kaskade k
+    join erg_palox_erwartung e on e.sorte = k.sorte and e.station = 'waschen'
+    join v_palox_station z on z.station = 'waschen'
+   where k.portion = 'ausgelagert' and k.g_w is not null
+     and not exists (select 1 from v_charge_palox c where c.charge_nr = k.charge_nr and c.station = 'waschen');
+  assert v_n > 0 and v_ab = 0, format('0111 (e4): %s von %s ausgelagerten Portionen ohne eigene Messung nehmen nicht das Alter am Liefertag', v_ab, v_n);
+  -- (e5) f bleibt die Zusammensetzung der Stationswerte über den Weg
+  select count(*), count(*) filter (where abs(k.f - palox_f(k.p_hand, k.p_wasch, k.f_ws, k.f_s, k.g_w)) > 1e-9)
+    into v_n, v_ab
+    from mv_kaskade k where k.f_bekannt and k.portion <> 'entsorgt';
+  assert v_n > 0 and v_ab = 0, format('0111 (e5): %s von %s Zeilen: f ist nicht palox_f über die Stationswerte', v_ab, v_n);
+
+  -- (f) Die Prognose trennt zu klein und zu gross
+  select count(*), count(*) filter (where abs(klein_kg + gross_kg - kanal_kg) > 0.02)
+    into v_n, v_ab from erg_prognose;
+  assert v_n > 0 and v_ab = 0, format('0111 (f1): %s von %s Zeilen: zu klein + zu gross ≠ kanal_kg', v_ab, v_n);
+  assert exists (select 1 from erg_prognose where klein_kg > 0) and exists (select 1 from erg_prognose where gross_kg > 0),
+    '0111 (f2): zu klein oder zu gross ist überall leer';
+  select count(*), count(*) filter (where abs(p.klein_kg - x.klein) > 0.02)
+    into v_n, v_ab
+    from erg_prognose p
+    join lateral (select sum(k.m2 * k.a_klein_n) as klein from mv_kaskade k
+                   where k.charge_nr = p.schluessel::int and k.portion = 'lager' and k.m0 > 0 and k.alter_tage >= 0) x on true
+   where p.gruppe = 'charge' and p.h = 0;
+  assert v_n > 0 and v_ab = 0, format('0111 (f3): %s von %s Chargen: zu klein heute ist nicht Masse nach Palox × Anteil zu klein', v_ab, v_n);
+
+  -- (g) lager_kaliber: Unterkaliber = zu klein, Bänder = verkaufsfähig,
+  -- Überkaliber = zu gross — dieselben Zahlen wie die Prognose (die Kachel
+  -- „davon verkaufsfähig" und die Tabelle dürfen nicht auseinanderlaufen).
+  select count(*),
+         count(*) filter (where abs(coalesce(b.baender, 0) - c.verkaufsfaehig_kg) > 0.05
+                             or abs(u.kg - c.klein_kg) > 0.02
+                             or abs(u.kg - p.klein_kg) > 0.02
+                             or abs(o.kg - c.gross_kg) > 0.02
+                             or abs(c.verkaufsfaehig_kg - p.verkaufsfaehig_kg) > 0.05)
+    into v_n, v_ab
+    from (select distinct on (schluessel) * from lager_kaliber(0) where gruppe = 'charge') c
+    join erg_prognose p on p.gruppe = 'charge' and p.schluessel = c.schluessel and p.h = 0
+    left join lateral (select sum(z.kg) as baender from lager_kaliber(0) z
+                        where z.gruppe = 'charge' and z.schluessel = c.schluessel and z.klasse = 'kaliber') b on true
+    left join lateral (select z.kg from lager_kaliber(0) z where z.gruppe = 'charge' and z.schluessel = c.schluessel and z.klasse = 'unter') u on true
+    left join lateral (select z.kg from lager_kaliber(0) z where z.gruppe = 'charge' and z.schluessel = c.schluessel and z.klasse = 'ueber') o on true
+   where c.klein_kg is not null;
+  assert v_n > 0 and v_ab = 0, format('0111 (g1): %s von %s Chargen: Bänder, Unter- oder Überkaliber gehen nicht auf', v_ab, v_n);
+  assert not exists (select 1 from lager_kaliber(0) where klasse = 'kaliber' and kaliber_idx < 0),
+    '0111 (g2): eine Band-Zeile unter dem kleinsten Band — das Geschrumpfte gehört ins kleinste Band';
+  -- Das Geschrumpfte ist ein Teil des kleinsten Bandes, nie mehr; und es
+  -- gibt es (die Demo hat Chargen mit eigener CSV und Verdunstung; ihr
+  -- „heute" ist das Saisonende, darum am Stichtag heute).
+  select count(*), count(*) filter (where c.geschrumpft_kg > coalesce(k0.kg, 0) + 0.02 or c.geschrumpft_kg < 0)
+    into v_n, v_ab
+    from (select distinct on (schluessel) * from lager_kaliber(0) where gruppe = 'charge' and basis <> 'keine') c
+    left join lateral (select z.kg from lager_kaliber(0) z
+                        where z.gruppe = 'charge' and z.schluessel = c.schluessel and z.klasse = 'kaliber' and z.kaliber_idx = 0) k0 on true;
+  assert v_n > 0 and v_ab = 0, format('0111 (g2b): bei %s von %s Chargen ist das Geschrumpfte nicht Teil des kleinsten Bandes', v_ab, v_n);
+  assert exists (select 1 from lager_kaliber(0) where gruppe = 'charge' and geschrumpft_kg > 0),
+    '0111 (g2c): kein einziger Kürbis ist unter das kleinste Band geschrumpft — die Prüfung wäre blind';
+  assert exists (select 1 from lager_kaliber(0) where klasse = 'unter' and kg > 0)
+     and exists (select 1 from lager_kaliber(0) where klasse = 'ueber' and kg > 0),
+    '0111 (g3): Unter- oder Überkaliber fehlt';
+  select count(*), count(*) filter (where abs(s.kg - x.kg) > 0.05)
+    into v_n, v_ab
+    from lager_kaliber(28) s
+    join lateral (select sum(z.kg) as kg from lager_kaliber(28) z
+                   where z.gruppe = 'charge' and z.sorte = s.schluessel and z.klasse = s.klasse
+                     and z.kaliber_idx is not distinct from s.kaliber_idx) x on true
+   where s.gruppe = 'sorte';
+  assert v_n > 0 and v_ab = 0, format('0111 (g4): %s von %s Sortenzeilen sind nicht die Summe ihrer Chargen', v_ab, v_n);
+
+  -- (h) Zwei Läufe derselben Charge: Median nachgerechnet, Rate aus dem Median
+  select count(*), count(*) filter (where v.median_g <> x.median or v.n_kuerbis <> x.n)
+    into v_n, v_ab
+    from v_lauf_vergleich v
+    join lateral (
+      select sum(g.anzahl)::int as n,
+             (select g2.gewicht_g from sortier_gewicht g2
+               where g2.lauf_id = v.lauf_id and g2.klasse <> 'unklassiert' and g2.anzahl > 0 and g2.gewicht_g > 0
+                 and (select sum(g3.anzahl) from sortier_gewicht g3
+                       where g3.lauf_id = v.lauf_id and g3.klasse <> 'unklassiert' and g3.anzahl > 0 and g3.gewicht_g > 0
+                         and g3.gewicht_g <= g2.gewicht_g) >= 0.5 * sum(g.anzahl)
+               order by g2.gewicht_g limit 1) as median
+        from sortier_gewicht g
+       where g.lauf_id = v.lauf_id and g.klasse <> 'unklassiert' and g.anzahl > 0 and g.gewicht_g > 0) x on true;
+  assert v_n > 0 and v_ab = 0, format('0111 (h1): %s von %s Läufen: Median oder Stückzahl weichen ab', v_ab, v_n);
+  select count(*), count(*) filter (where abs(v.rate_median - (1 - power(v.median_g::numeric / e.median_g, 1.0 / v.tage_seit_erstem))) > 1e-6)
+    into v_n, v_ab
+    from v_lauf_vergleich v
+    join v_lauf_vergleich e on e.lauf_id = v.erster_lauf_id
+   where v.tage_seit_erstem >= 7;
+  assert v_n > 0 and v_ab = 0, format('0111 (h2): %s von %s Laufpaaren: die Rate ist nicht 1 − (Median/Median)^(1/Tage)', v_ab, v_n);
+  assert not exists (select 1 from v_lauf_vergleich where tage_seit_erstem < 7 and rate_median is not null),
+    '0111 (h3): unter sieben Tagen Abstand steht eine Rate';
+
+  -- (i) Stand
+  assert schema_stand() >= 111, format('0111 (i1): schema_stand() = %s', schema_stand());
+
+  if v_geladen then perform demo_daten_entfernen(); end if;
+  delete from profil where id = v_u; delete from auth.users where id = v_u;
+  update einstellung set wert = v_modus where schluessel = 'betriebsmodus';
+  raise notice 'OK  0111 — jeder Anteil je Sorte ist das eigene Mittel ab drei Messungen; der Palox ist Grundausschuss + Anstieg je Woche Lagerdauer, beim Alter jeder Portion; zu klein und zu gross getrennt; Unter- und Überkaliber; Läufe derselben Charge nebeneinander';
+end $$;
+
+select '——— 0111 Palox: Grundausschuss und Anstieg geprüft ———' as ergebnis;

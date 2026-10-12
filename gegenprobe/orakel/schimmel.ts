@@ -7,16 +7,24 @@
  *
  *   f = p_hand · f_W+S + (1 − p_hand) · (f_S + (1 − f_S) · p_wasch · g_W)
  *
- * Jeder Stationswert ist das nach Masse gewichtete Mittel der plausiblen
- * Palox-Punkte dieser Station — zuerst die letzten vier Wochen der Sorte
- * (ab drei Arbeiten), sonst ihre ganze Saison, sonst alle Sorten (vier
- * Wochen, dann Saison ab einer Arbeit). Der Weg kommt aus den eigenen
- * Arbeiten der Charge, sonst denen der Sorte, sonst allen.
+ * Seit 0111 ist jeder Stationswert eine Gerade über die Lagerdauer:
  *
- * Gegenstücke: `v_palox_erwartung`, `v_charge_weg`, `palox_f()`,
- * `palox_f_nach()`, `v_charge_palox`.
+ *   Anteil(t) = Grundausschuss der Sorte + Anstieg der Station × t / 7
+ *
+ * Der Anstieg je Station wird innerhalb der Sorten gemessen (jede Sorte um
+ * ihre eigene, nach Masse gewichtete Mitte von Lagerdauer und Anteil) und
+ * gilt ab fünf Arbeiten in Sorten mit mindestens zwei Arbeiten und drei
+ * Wochen Spanne der Lagerdauern innerhalb einer Sorte; er ist nie negativ.
+ * Der Grundausschuss ist das massegewichtete Mittel der Sorte (ab drei
+ * Arbeiten, sonst aller Sorten), um den Anstieg auf null Tage zurückgelegt.
+ * Der Weg kommt aus den eigenen Arbeiten der Charge, sonst denen der Sorte,
+ * sonst allen.
+ *
+ * Gegenstücke: `palox_station_kennzahl`/`v_palox_station`, `palox_anstieg`,
+ * `v_palox_erwartung`, `v_charge_weg`, `palox_f()`, `palox_f_nach()`,
+ * `v_charge_palox`.
  */
-import { klemm, tQuantil95 } from './zahlen.ts'
+import { klemm, runden, tQuantil95 } from './zahlen.ts'
 
 export type Station = 'waschen_sortieren' | 'sortieren' | 'waschen'
 export const STATIONEN: Station[] = ['waschen_sortieren', 'sortieren', 'waschen']
@@ -31,6 +39,8 @@ export interface Punkt {
   w: number
   /** Der eigene Anteil des Auges (anteil_station). */
   y: number
+  /** Die Lagertage der verarbeiteten Ware (seit 0111 die Achse des Anstiegs). */
+  t: number
 }
 
 export interface Stationswert {
@@ -54,39 +64,91 @@ export function stationswert(punkte: Punkt[]): Stationswert {
            nArbeiten: n, nChargen: new Set(punkte.map(p => p.chargeNr)).size }
 }
 
-export type Ebene = 'sorte_4w' | 'sorte_saison' | 'alle_4w' | 'alle_saison'
+/** Ab so vielen Arbeiten gilt der Wert der Sorte (palox_mindest_arbeiten). */
+export const PALOX_MINDEST_ARBEITEN = 3
+/** So weit müssen die Lagerdauern innerhalb einer Sorte auseinanderliegen (palox_anstieg_mindest_tage). */
+export const ANSTIEG_MINDEST_TAGE = 21
+
+/** Wann ein gemessener Anstieg gilt (palox_anstieg): sonst leer, und nie negativ. */
+export function paloxAnstieg(roh: number | null, nPaar: number, spanne: number): number | null {
+  return roh != null && nPaar >= 5 && spanne >= ANSTIEG_MINDEST_TAGE ? Math.max(roh, 0) : null
+}
+
+export interface Anstieg {
+  /** Die Steigung je Woche, wie gemessen (auch negativ); leer ohne Spanne. */
+  roh: number | null
+  /** Arbeiten in Sorten mit mindestens zwei Arbeiten an der Station. */
+  nPaar: number
+  /** Die grösste Spanne der Lagerdauern innerhalb einer Sorte. */
+  spanne: number
+  /** Was gilt — auf fünf Stellen gerundet, wie die Kennzahl es weitergibt. */
+  gilt: number | null
+}
+
+/** Der Anstieg je Woche Lagerdauer an einer Station, innerhalb der Sorten — die Punkte einer Station. */
+export function anstieg(punkte: Punkt[]): Anstieg {
+  const jeSorte = new Map<string, Punkt[]>()
+  for (const p of punkte) jeSorte.set(p.sorte, [...(jeSorte.get(p.sorte) ?? []), p])
+  let sxy = 0, sxx = 0, nPaar = 0, spanne = 0
+  for (const ps of jeSorte.values()) {
+    const sw = ps.reduce((s, p) => s + p.w, 0)
+    const tm = ps.reduce((s, p) => s + p.w * p.t, 0) / sw
+    const ym = ps.reduce((s, p) => s + p.w * p.y, 0) / sw
+    for (const p of ps) { sxy += p.w * (p.t - tm) * (p.y - ym); sxx += p.w * (p.t - tm) ** 2 }
+    if (ps.length >= 2) nPaar += ps.length
+    spanne = Math.max(spanne, Math.max(...ps.map(p => p.t)) - Math.min(...ps.map(p => p.t)))
+  }
+  const roh = sxx > 0 ? sxy / sxx * 7 : null
+  const gilt = paloxAnstieg(roh, nPaar, spanne)
+  return { roh, nPaar, spanne, gilt: gilt == null ? null : runden(gilt, 5) }
+}
+
+export type Ebene = 'sorte' | 'alle'
 
 export interface Erwartung extends Stationswert {
   sorte: string
   station: Station
   ebene: Ebene
   geliehen: boolean
+  /** Das massegewichtete Mittel, wie gemessen. */
+  mittel: number | null
+  /** Die mittlere Lagerdauer, nach Masse gewichtet. */
+  lagerMittel: number | null
+  /** Der Anstieg der Station, mit dem zurückgelegt wurde. */
+  anstiegJeWoche: number | null
 }
 
-const tag = (s: string) => Math.round(Date.parse(s + 'T00:00:00Z') / 86400000)
-
 /**
- * Je Sorte und Station die Erwartung — die erste Ebene, die genug Arbeiten
- * hat (Sorte: mindest, alle Sorten in vier Wochen: mindest, alle Sorten in
- * der Saison: eine). Sorten ohne Punkte an einer Station bekommen den Wert
- * aller Sorten (geliehen), oder keinen.
+ * Je Sorte und Station der Grundausschuss — aus den Punkten der Sorte (ab
+ * mindest Arbeiten), sonst aus allen Punkten der Station (ab einer, geliehen):
+ * das Mittel um den Anstieg der Station auf null Tage zurückgelegt, nie unter
+ * 0; das Band ± t·sd/√n um diesen Wert. `bisHeute` begrenzt die Punkte des
+ * Anstiegs wie palox_station_kennzahl(heute()).
  */
-export function erwartung(punkte: Punkt[], sorten: string[], heute: string, mindest = 3): Erwartung[] {
-  const h = tag(heute)
+export function erwartung(punkte: Punkt[], sorten: string[], bisHeute: string, mindest = PALOX_MINDEST_ARBEITEN): Erwartung[] {
   const alleSorten = [...new Set([...sorten, ...punkte.map(p => p.sorte)])]
   const aus: Erwartung[] = []
-  for (const sorte of alleSorten) for (const station of STATIONEN) {
+  for (const station of STATIONEN) {
     const st = punkte.filter(p => p.station === station)
-    const ebenen: [Ebene, Punkt[], number][] = [
-      ['sorte_4w',     st.filter(p => p.sorte === sorte && tag(p.messtag) > h - 28), mindest],
-      ['sorte_saison', st.filter(p => p.sorte === sorte), mindest],
-      ['alle_4w',      st.filter(p => tag(p.messtag) > h - 28), mindest],
-      ['alle_saison',  st, 1],
-    ]
-    for (const [ebene, drin, min] of ebenen) {
-      if (drin.length < min) continue
-      aus.push({ sorte, station, ebene, geliehen: ebene.startsWith('alle'), ...stationswert(drin) })
-      break
+    const b = anstieg(st.filter(p => p.messtag <= bisHeute)).gilt
+    for (const sorte of alleSorten) {
+      const ebenen: [Ebene, Punkt[], number][] = [['sorte', st.filter(p => p.sorte === sorte), mindest], ['alle', st, 1]]
+      for (const [ebene, drin, min] of ebenen) {
+        if (drin.length < min) continue
+        const sw = drin.reduce((s, p) => s + p.w, 0)
+        const mittel = drin.reduce((s, p) => s + p.w * p.y, 0) / sw
+        const lagerMittel = drin.reduce((s, p) => s + p.w * p.t, 0) / sw
+        const grund = Math.max(mittel - (b ?? 0) * lagerMittel / 7, 0)
+        const n = drin.length
+        const y = drin.reduce((s, p) => s + p.y, 0) / n
+        const sd = n >= 2 ? Math.sqrt(drin.reduce((s, p) => s + (p.y - y) ** 2, 0) / (n - 1)) : null
+        const halb = sd == null ? 0 : tQuantil95(n - 1) * sd / Math.sqrt(n)
+        aus.push({ sorte, station, ebene, geliehen: ebene === 'alle', anteil: grund,
+                   unten: klemm(grund - halb, 0, 1), oben: klemm(grund + halb, 0, 1),
+                   nArbeiten: n, nChargen: new Set(drin.map(p => p.chargeNr)).size,
+                   mittel, lagerMittel, anstiegJeWoche: b })
+        break
+      }
     }
   }
   return aus

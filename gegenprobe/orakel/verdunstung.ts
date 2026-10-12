@@ -6,8 +6,12 @@
  *
  *   rate = 1 − (netto_jetzt / netto_damals)^(1 / lagertage)
  *
+ * Schneller als `rateMax` je Tag (einstellung verdunstung_rate_max_pro_tag,
+ * Vorgabe 1 %, 0089) ist keine Verdunstung, sondern ein Fehler im Zettel oder
+ * an der Waage — nicht verwendbar.
+ *
  * Gegenstücke: `v_verdunstung_messung`, `v_koeff_roh_verdunstung`,
- * `v_koeff_verdunstung` (die Schrumpfung steht in varianz.ts).
+ * `v_koeff_verdunstung` (der Schätzer je Sorte steht in varianz.ts).
  */
 import { netto, type Tara } from './masse.ts'
 import { tageZwischen, zahl } from './zahlen.ts'
@@ -42,7 +46,7 @@ export interface Messung {
   gruende: string[]
 }
 
-export function messung(w: Waegung, gebinde: Map<string, Tara>): Messung {
+export function messung(w: Waegung, gebinde: Map<string, Tara>, rateMax = 0.01): Messung {
   const tara = w.gebindeart ? gebinde.get(w.gebindeart) ?? null : null
   const damals = netto(w.bruttoDamalsKg, w.kisten, tara)
   const jetzt = netto(w.bruttoJetztKg, w.kisten, tara)
@@ -57,6 +61,7 @@ export function messung(w: Waegung, gebinde: Map<string, Tara>): Messung {
     if (!(damals > 0 && jetzt > 0)) gruende.push('Netto nicht positiv')
     else if (jetzt > damals * 1.01) gruende.push('Palette mehr als 1 % schwerer als beim Eingang')
     else if (jetzt === damals) gruende.push('kein Gramm verloren — Eingangsgewicht wohl kopiert (sortierte Palette ohne echtes Zettelgewicht)')
+    else if (rate != null && rate > rateMax) gruende.push(`zu schnell — ${(rate * 100).toFixed(2)} % je Tag ist keine Verdunstung`)
   }
   if (lagertage <= 0) gruende.push(lagertage < 0 ? 'Wiegetag vor dem Eingang (Zettel falsch?)' : 'am Eingangstag gewogen')
   if (w.abgebrochen) gruende.push('Arbeit abgebrochen')

@@ -237,6 +237,20 @@ export function marke(s) {
 }
 
 /**
+ * Soll diese Anweisung in Teil A stehen bleiben, auch wenn sie wie eine
+ * überholte Fassung aussieht? Gebraucht für ein Wegräumen, ohne das die
+ * nächste Fassung nicht angelegt werden kann: 0111 gibt
+ * palox_station_kennzahl() neue Spalten, und „create" legt eine Funktion
+ * mit anderen Spalten nicht über die alte. Zwischen dem „drop" und dem
+ * neuen „create" nennt niemand die Funktion — ohne Angabe fiele das „drop"
+ * als überholt weg, und setup.sql bräche ab. Angabe in der Migration:
+ *   -- verdichter: bleibt
+ */
+export function bleibt(s) {
+  return /^\s*--\s*verdichter:\s*bleibt\b/im.test(s)
+}
+
+/**
  * Baut diese Anweisung eine Ansicht aus zusammengesetztem SQL?
  *
  * Nur das Anlegen zählt. Wer dynamisch wegräumt — wie das Aufräumen ganz am
@@ -452,6 +466,7 @@ export function verdichten(liste) {
     let entfernt = 0, bytes = 0
     for (let j = 0; j < b.length - 1; j++) {
       let gebraucht = false
+      for (let i = b[j].von; i <= b[j].bis && !gebraucht; i++) if (bleibt(liste[i])) gebraucht = true
       for (let i = b[j].bis + 1; i < b[j + 1].von && !gebraucht; i++)
         if (!weg.has(i) && !nachB.has(i) && treffer.test(kerne[i])) gebraucht = true
       if (gebraucht) continue

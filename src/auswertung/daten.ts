@@ -21,10 +21,19 @@ import { anforderungOffen, istAktuell, rechnetGerade, zeitplanZustand, RECHNEN_H
 /** 0106: der erwartete Palox-Anteil je Sorte und Station — womit die Kaskade
  *  für liegende Ware rechnet. ebene/quelle sagen, welche Stufe gilt (Sorte,
  *  vier Wochen → Sorte, Saison → alle Sorten); geliehen = aus allen Sorten. */
+/**
+ * Je Sorte und Station (erg_palox_erwartung, seit 0111): `anteil` ist der
+ * Grundausschuss — das massegewichtete Mittel der Arbeiten (`mittel`), um den
+ * Anstieg der Station auf null Lagertage zurückgelegt; `lager_mittel` die
+ * mittlere Lagerdauer dahinter, `anstieg_je_woche` der Anstieg, mit dem
+ * zurückgelegt wurde (leer: noch keiner messbar). Ebene 'sorte' ab drei
+ * eigenen Arbeiten, sonst 'alle' (geliehen).
+ */
 export interface PaloxErwartung {
   sorte: string; station: string; ebene: string; quelle: string
   anteil: number; unten: number; oben: number; n_arbeiten: number; n_chargen: number
   seit: string; bis: string; geliehen: boolean
+  mittel: number | null; lager_mittel: number | null; anstieg_je_woche: number | null
 }
 export interface Schimmelpunkt {
   auftrag_id: number | null; charge_nr: number; sorte: string; lagertage: number
@@ -41,10 +50,20 @@ export interface Schimmelpunkt {
   plausibel_station: boolean
 }
 /** 0105: je Station, wie viel in den Palox geht — „Vergleiche nur unter ihresgleichen". */
+/**
+ * Je Station (v_palox_station, seit 0111): `zuwachs_je_woche` ist der Anstieg
+ * des Palox-Anteils je Woche Lagerdauer, innerhalb der Sorten gemessen — leer,
+ * solange er nicht gilt (fünf Arbeiten in Sorten mit mindestens zwei, drei
+ * Wochen Spanne der Lagerdauern), nie negativ. `anstieg_roh` mit Band ist,
+ * was gemessen wurde; `grund` der Grundausschuss der Station bei null Tagen.
+ */
 export interface PaloxStation {
   station: string; n_arbeiten: number; n_chargen: number; seit: string; bis: string; tage: number
   anteil_mittel: number | null; anteil_median: number | null; anteil_4w: number | null; n_4w: number
   zuwachs_je_woche: number | null; zuwachs_text: string | null
+  anstieg_roh: number | null; anstieg_unten: number | null; anstieg_oben: number | null
+  n_paar: number; spanne_tage: number | null
+  lager_von: number | null; lager_bis: number | null; lager_mittel: number | null; grund: number | null
 }
 /**
  * Je Charge (erg_charge, 0061): Eingang gemessen, geliefert gemessen,
@@ -202,6 +221,11 @@ export interface LagerKaliber {
   kaliber_idx: number | null; band_von: number | null; band_bis: number | null
   kg: number | null; anteil: number | null; basis: 'charge' | 'sorte' | 'keine' | 'gemischt'
   n_kuerbis: number | null; verkaufsfaehig_kg: number; lager_kg: number; n_chargen: number
+  /** 0111: 'unter' (zu klein, kaliber_idx −1), 'kaliber' (die Bänder), 'ueber' (zu gross, −2). */
+  klasse: 'unter' | 'kaliber' | 'ueber'
+  klein_kg: number | null; gross_kg: number | null
+  /** Der Teil des kleinsten Bandes, der seit der Sortierung darunter geschrumpft ist (zur Auskunft). */
+  geschrumpft_kg: number | null
 }
 
 /** Dieselben Kürbisse in 50-Gramm-Stufen (kaliber_glocke(h), 0079). */
@@ -272,6 +296,8 @@ export interface Prognose {
   n_chargen: number; n_kohorten: number
   lager_kg: number; verdunstet_kg: number; faul_kg: number
   kanal_kg: number; fax_kg: number; verkaufsfaehig_kg: number; gute_ware_kg: number
+  /** 0111: kanal_kg getrennt — zu klein und zu gross. */
+  klein_kg: number; gross_kg: number
   verlust_wasser_kg: number; verlust_faeulnis_kg: number; verlust_verkaufsfaehig_kg: number
   verkaufsfaehig_anteil: number | null
   verkaufsfaehig_unten_kg: number | null; verkaufsfaehig_oben_kg: number | null
