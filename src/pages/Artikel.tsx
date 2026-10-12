@@ -374,9 +374,10 @@ function Kunden({ kunden, heute, gruppen }: { kunden: KundeTag[]; heute: string;
             <table className="dicht kundentabelle">
               <thead><tr>
                 <th>Kunde</th>
-                <th className="zahl">geliefert {saisonText(saison)} bis heute<Herkunft art="gemessen" /></th>
-                <th className="zahl">geliefert {saisonText(saison - 1)} bis {datum(heute).slice(0, 6)}<Herkunft art="gemessen" /></th>
-                <th className="zahl">geliefert {saisonText(saison - 1)} ganze Saison<Herkunft art="gemessen" /></th>
+                {/* Zweizeilig: einzeilig lief die Tabelle schon am Bildschirm im Büro über den Rand. */}
+                <th className="zahl">geliefert{' '}<br />{saisonText(saison)} bis heute<Herkunft art="gemessen" /></th>
+                <th className="zahl">geliefert{' '}<br />{saisonText(saison - 1)} bis {datum(heute).slice(0, 6)}<Herkunft art="gemessen" /></th>
+                <th className="zahl">geliefert{' '}<br />{saisonText(saison - 1)} ganze Saison<Herkunft art="gemessen" /></th>
                 <th>schon erreicht</th>
               </tr></thead>
               <tbody>{kurven.map(k => {
