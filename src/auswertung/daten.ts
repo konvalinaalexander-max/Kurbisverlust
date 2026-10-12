@@ -371,6 +371,16 @@ export interface Wohin {
   rest_kg: number | null; lager_rest_kg: number | null; vollstaendig: boolean
 }
 
+/**
+ * Die Lieferscheine je Gruppe (v_lieferung_gruppe, 0114): jeder einmal, auch
+ * wenn er ohne Chargennummer auf alle Chargen seiner Sorte verteilt ist. Bis
+ * 0114 zählte die App die Lieferungen der Chargen zusammen — und die
+ * Datenbank jede einmal je Eingangstag: „4'836 Lieferungen" bei 1'133.
+ */
+export interface LieferungGruppe {
+  gruppe: Gruppe; schluessel: string; n_lieferungen: number; n_ohne_charge: number
+}
+
 /** Das Faule beim Abpacken nach Tagen seit dem Waschen (erg_fax_wartezeit, 0071). */
 export interface FaxWartezeit {
   gruppe: 'alle' | 'sorte'; sorte: string | null
@@ -461,6 +471,8 @@ export interface Auswertung {
   prognose: Prognose[]
   /** Der ganze Eingang je Gruppe aufgeteilt (0071). */
   wohin: Wohin[]
+  /** Die Lieferscheine je Gruppe, jeder einmal (0114). */
+  lieferungGruppe: LieferungGruppe[]
   gebinde: KoeffGebinde[]
   schemata: Schema[]
   kohorten: Kohorte[]
@@ -645,9 +657,10 @@ async function alles(erzwingen: boolean): Promise<Auswertung> {
   // vollstaendig = false, und das Lagermanagement zeichnet; die anderen
   // Reiter warten, bis die zweite Welle da ist. Was bisher 33 Anfragen vor
   // dem ersten Bild waren, sind jetzt sieben.
-  const [pl, sb, hb, vl, pg, wo] = await Promise.all([
+  const [pl, sb, hb, vl, pg, wo, lg] = await Promise.all([
     q<Befund>('erg_plausibilitaet'), eins<Saisonbilanz>('erg_bilanz'), q<Bestand>('erg_charge'),
     q<Verlaufswoche>('erg_verlauf', ['woche', true]), q<Prognose>('erg_prognose', ['h', true]), q<Wohin>('erg_wohin'),
+    q<LieferungGruppe>('v_lieferung_gruppe'),
   ])
   // 0108: Ist der Bau gescheitert (fehler_ts nach dem letzten Stand), wartet
   // die Seite nicht auf etwas, das nicht kommt, sondern sagt es.
@@ -663,7 +676,7 @@ async function alles(erzwingen: boolean): Promise<Auswertung> {
     sorten: { verdunstung: [], ausschuss: [], nebenkanal: [] }, wiegungen: [], margeWiegung: [], margeCharge: [], kommentare: [],
     gewichte: [], verarbeitung: [], durchsatz: [], qualitaet: null, verlauf: vl, verlust: [],
     gebinde: [], schemata: [], kohorten: [], ausschuss: [], lieferungen: [], ausgang: [],
-    prognose: pg, wohin: wo, probleme,
+    prognose: pg, wohin: wo, lieferungGruppe: lg, probleme,
   }
   if (!erzwingen) { stand = ersteWelle; hoerer.forEach(h => h()) }
 
@@ -1004,6 +1017,12 @@ export function anteilBei(zeilen: Prognose[], gruppe: Gruppe, schluessel: string
 
 /** Die Zerlegung des Eingangs einer Gruppe (erg_wohin). */
 export function wohinVon(zeilen: Wohin[], gruppe: Gruppe, schluessel = ''): Wohin | null {
+  const k = gruppe === 'gesamt' ? '' : schluessel
+  return zeilen.find(z => z.gruppe === gruppe && z.schluessel === k) ?? null
+}
+
+/** Die Lieferscheine einer Gruppe, jeder einmal (v_lieferung_gruppe, 0114) — null, wenn keiner da ist. */
+export function lieferungenVon(zeilen: LieferungGruppe[], gruppe: Gruppe, schluessel = ''): LieferungGruppe | null {
   const k = gruppe === 'gesamt' ? '' : schluessel
   return zeilen.find(z => z.gruppe === gruppe && z.schluessel === k) ?? null
 }

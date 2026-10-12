@@ -115,6 +115,9 @@ export function ArbeitFenster({ auftragId, schliessen, messung }: { auftragId: n
   const a = d?.auftrag
   const ta = a ? taetigkeitVon(a.weg, a.station, a.ist_fax) : null
   const gebietsschema = 'de-CH'
+  const mitSortierdatum = d?.paletten.some(p => p.sortierdatum) ?? false
+  const mitWaage = d?.paletten.some(p => p.brutto_gewogen_kg != null) ?? false
+  const mitWiegung = d?.paletten.some(p => p.wiegung_id != null) ?? false
 
   return (
     <div className="dialog-hinter" onClick={schliessen}>
@@ -158,20 +161,22 @@ export function ArbeitFenster({ auftragId, schliessen, messung }: { auftragId: n
             {d.paletten.length > 0 && (
               <section className="fenster-abschnitt">
                 <h3>Gezählte Paletten · {d.paletten.length}</h3>
-                <table className="dicht">
-                  <thead><tr><th>Eingangsdatum</th><th className="zahl">Zettel (kg brutto)</th><th>Sortierdatum</th><th className="zahl">Kisten</th><th>Gebinde</th><th className="zahl">Waage (kg brutto)</th><th>Gewogen</th></tr></thead>
+                {/* Runde AQ: Spalten, in denen keine Palette etwas hat (Sortierdatum seit Runde AP, oft die Waage), fallen weg —
+                    sonst lief die Tabelle über den Rand des Fensters. */}
+                <div className="rollbar"><table className="dicht">
+                  <thead><tr><th>Eingangsdatum</th><th className="zahl">Zettel (kg brutto)</th>{mitSortierdatum && <th>Sortierdatum</th>}<th className="zahl">Kisten</th><th>Gebinde</th>{mitWaage && <th className="zahl">Waage (kg brutto)</th>}{mitWiegung && <th>Gewogen</th>}</tr></thead>
                   <tbody>{d.paletten.map(p => (
                     <tr key={p.id}>
                       <td>{p.eingangsdatum ? datum(p.eingangsdatum) : '—'}</td>
                       <td className="zahl">{p.brutto_zettel_kg ?? '—'}</td>
-                      <td>{p.sortierdatum ? datum(p.sortierdatum) : '—'}</td>
+                      {mitSortierdatum && <td>{p.sortierdatum ? datum(p.sortierdatum) : '—'}</td>}
                       <td className="zahl">{p.kisten ?? '—'}</td>
                       <td>{p.gebindeart ?? ''}</td>
-                      <td className="zahl">{p.brutto_gewogen_kg ?? '—'}</td>
-                      <td>{p.wiegung_id != null ? 'ja' : ''}</td>
+                      {mitWaage && <td className="zahl">{p.brutto_gewogen_kg ?? '—'}</td>}
+                      {mitWiegung && <td>{p.wiegung_id != null ? 'ja' : ''}</td>}
                     </tr>
                   ))}</tbody>
-                </table>
+                </table></div>
               </section>
             )}
 

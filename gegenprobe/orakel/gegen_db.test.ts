@@ -409,6 +409,25 @@ test('K10 — erg_verlauf: die Saison Woche für Woche, unabhängig nachgerechne
     'eine Lieferung ohne Eingang steht nicht unter den Auffälligkeiten')
   const ausgang = frage<{ datum: string; kg: string }>(
     'select datum, sum(masse_kg) as kg from v_lieferung_charge_tag where charge_nr in (select charge_nr from v_kaskade_basis where eingang_kg > 0) group by datum')
+  // 0114: Der gelieferte Teil einer Portion geht an den Tagen aus dem Lager, an
+  // denen die Charge geliefert hat — je Woche der Teil q, den ihre verkauften
+  // Lieferungen bis dahin ausmachen (nach Masse). Bis 0113 ging er auf einmal,
+  // am Liefertag (Eingangstag + gerundetes mittleres Alter): q war 0 oder 1, und
+  // „im Lager" sackte auf den Daten des Betriebs Mitte September um 44 t ab.
+  // Die Regel änderte sich, die Nachrechnung mit ihr; mit q aus 0 und 1 ist sie
+  // die alte.
+  const lieferTage = new Map<string, { tag: number; kg: number }[]>()
+  for (const l of frage<{ charge_nr: string; datum: string; kg: string }>(
+    "select charge_nr, datum, sum(masse_kg) as kg from v_lieferung_charge_tag where buch in ('verkauf', 'marge') group by charge_nr, datum")) {
+    const liste = lieferTage.get(String(l.charge_nr)) ?? []
+    liste.push({ tag: tag(String(l.datum)), kg: Number(l.kg) })
+    lieferTage.set(String(l.charge_nr), liste)
+  }
+  const gelieferterTeil = (charge: string, bis: number): number | null => {
+    const liste = lieferTage.get(charge) ?? []
+    const alle = liste.reduce((a, l) => a + l.kg, 0)
+    return alle > 0 ? liste.filter(l => l.tag <= bis).reduce((a, l) => a + l.kg, 0) / alle : null
+  }
 
   const orakel = wochen.map(w => {
     const bis = tag(w.bis)
@@ -418,28 +437,30 @@ test('K10 — erg_verlauf: die Saison Woche für Woche, unabhängig nachgerechne
       const koh = tag(String(p.kohorte))
       if (koh > bis) continue
       const lief = p.liefertag == null ? null : tag(String(p.liefertag))
-      // Ab dem Liefertag mit dem genauen Alter der Lieferung, wie die Kaskade (0111) —
-      // vorher lag die Ware und alterte Tag für Tag.
-      const t = lief != null && lief <= bis ? Number(p.alter_tage) : Math.max(Math.min(bis, lief ?? bis) - koh, 0)
+      const q = lief == null ? 0
+        : Math.min(Math.max(gelieferterTeil(String(p.charge_nr), bis) ?? (lief <= bis ? 1 : 0), 0), 1)
       const m0 = Number(p.m0), r = Number(p.r)
-      const ft = fBei(p, Math.min(bis, lief ?? bis) - (lief ?? tag(heuteStr)))
-      const nachWasser = m0 * Math.pow(1 - r, t)
-      verdunstung += m0 * (1 - Math.pow(1 - r, t))
-      schimmel += nachWasser * ft
-      if (lief != null && lief <= bis) {
-        fax += Number(p.fax_kg)
-        // 0101: zu klein und zu gross, hinter den Lieferungen aussortiert, steht im Haus
-        aussortiert += nachWasser * (1 - ft) * (Number(p.a_klein_n) + Number(p.a_gross_n))
-      }
-      if (lief == null || lief > bis) {
-        const gut = nachWasser * (1 - ft)
-        const kn = Number(p.a_klein_n) + Number(p.a_gross_n)
-        lager += m0
-        imHaus += gut
-        kanal += gut * kn
-        faxLager += gut * (1 - kn) * Number(p.a_fax)
-        verkaufsfaehig += gut * (1 - kn) * (1 - Number(p.a_fax))
-      }
+      const kn = Number(p.a_klein_n) + Number(p.a_gross_n)
+      // Geliefert: mit dem genauen Alter der Lieferungen, wie die Kaskade (0111).
+      const nD = m0 * Math.pow(1 - r, Number(p.alter_tage))
+      const fD = fBei(p, 0)
+      // Noch da: lag und alterte Tag für Tag — höchstens bis zum Alter der
+      // Lieferungen, danach ist der Rest so alt wie das Gelieferte.
+      const tU = lief == null || p.alter_tage == null ? Math.max(bis - koh, 0)
+        : Math.min(Math.max(bis - koh, 0), Number(p.alter_tage))
+      const nU = m0 * Math.pow(1 - r, tU)
+      const fU = fBei(p, Math.min(bis, lief ?? bis) - (lief ?? tag(heuteStr)))
+      verdunstung += q * (m0 - nD) + (1 - q) * (m0 - nU)
+      schimmel += q * nD * fD + (1 - q) * nU * fU
+      fax += q * Number(p.fax_kg)
+      // 0101: zu klein und zu gross, hinter den Lieferungen aussortiert, steht im Haus
+      aussortiert += q * nD * (1 - fD) * kn
+      const gut = (1 - q) * nU * (1 - fU)
+      lager += (1 - q) * m0
+      imHaus += gut
+      kanal += gut * kn
+      faxLager += gut * (1 - kn) * Number(p.a_fax)
+      verkaufsfaehig += gut * (1 - kn) * (1 - Number(p.a_fax))
     }
     const summe = (zeilen: { kg: string }[], datum: (z: never) => string) =>
       zeilen.filter(z => tag(datum(z as never)) <= bis).reduce((a, z) => a + Number(z.kg), 0)

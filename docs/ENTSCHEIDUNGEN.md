@@ -4171,6 +4171,162 @@ Daten, dann die Annahme — nach der Korrektur nachsehen.
 nicht alles: vier mal vier gleiche Paloxen und ein Tag mit 30 Paaren bei
 13 erwarteten sind Fragen wert.
 
+## Runde AQ: jede Zeile der langen Nachricht am echten Bildschirm — eine Lieferung ist eine Lieferung (12. Oktober, abends, 0114)
+
+Der Betrieb nach Runde AP: „ich hab dir in der Nachricht von vorhin … extrem
+viel über das UI des Admins gesagt — was ist damit passiert? … dass die
+Graphen bei Lager nach Artikel zu klein sind … schau, dass du tatsächlich
+alles davon umsetzt."
+
+**Wie geprüft wurde.** Die lange Nachricht aus Runde AO und die Punkte aus AP
+als Liste (50 Punkte: Lager nach Charge, Chargen, Ursachen, Messungen,
+Betrieb, Lager nach Artikel, Perigon). Jede Seite mit einer frischen Kopie der
+Betriebsdaten (Stand 113, gerechnet) aufgenommen und Punkt für Punkt
+angesehen — nicht mit der Demo, die die Fehler unten nicht zeigt. Was schon
+stand, steht im Bericht an den Betrieb; was fehlte oder falsch war, steht hier.
+
+**Eine Lieferung ist eine Lieferung (0114).** „Ausgang 208.1 t — 4'836
+Lieferungen ab Lieferschein", eingelesen sind 1'133. Die Kaskade teilt jede
+Lieferung auf die Eingangstage der Charge und zählt sie in jeder Kohorte —
+dort richtig. `v_hochrechnung_basis` zählte die Kohorten zusammen (1632 mit
+sechs Eingangstagen: 6 × 55 = 330), die Seite danach die Chargen, und eine
+Lieferung ohne Chargennummer zählte einmal je Charge ihrer Sorte. Jetzt steht
+die Regel, wie eine Lieferung auf Chargen fällt, mit der Lieferung da
+(`v_lieferung_charge`; `v_lieferung_charge_tag` rechnet darauf, mit denselben
+Zahlen — der Prüfblock schreibt die Regel aus 0071 aus und vergleicht).
+`erg_charge.n_lieferungen` zählt jeden Lieferschein einmal (1632: 55, davon 15
+ohne Nummer, die die Maske jetzt nennt — die Liste darunter hat 40), und
+`v_lieferung_gruppe` je Gruppe: auf den Betriebsdaten 1'126; die vier übrigen
+gehören zu Chargen ohne Wareneingang (1627, 1637). Der Ausgang vor der App ist
+Masse, kein Lieferschein. Gebaut als eigene Sicht und nicht als Spalte von
+`erg_wohin`: diese gespeicherte Sicht hätte neu angelegt werden müssen und
+wäre nach dem Einspielen bis zum nächsten „Neu rechnen" leer gewesen.
+
+**Eine zu schnelle Wägung steht einmal da (0114).** 4 der 76 Auffälligkeiten
+waren doppelt: als „Verdunstung" mit Rate und Grenze und noch einmal als
+„Wägung … nicht verwertbar" ohne Grund. Jetzt 72.
+
+**„Im Lager" fällt, wenn geliefert wird (0114).** Im Verlauf mit den
+Betriebsdaten stand Amoro bis zum 6.9. bei 15.1 t im Lager, obwohl 2.6 t
+schon geliefert waren, und fiel in der Woche danach auf 6.6 t; „gesamt"
+sackte in der Woche bis zum 13.9. um 44 t ab und stieg danach wieder.
+`erg_verlauf` nahm die gelieferte Portion eines Eingangstags an einem
+einzigen Tag aus dem Lager: am Eingangstag plus dem mittleren Alter ihrer
+Lieferungen. Jetzt geht je Woche der Teil, den die Lieferungen der Charge
+bis dahin ausmachen (nach Masse). Das Gelieferte rechnet weiter mit dem
+Alter der Lieferungen wie die Kaskade; das Liegende altert bis zum
+Wochenende, höchstens bis zu diesem Alter — sonst fiele die Verdunstung
+kumuliert zurück. Mit q aus 0 und 1 ist es die alte Formel, und ab dem
+letzten Liefertag ist q = 1: Heute, die Vorschau und die Saisonbilanz
+bleiben Zahl für Zahl, wie sie waren (auf der Demo und den Betriebsdaten
+nachgeprüft, 0 Abweichungen ab heute). Neu gerechnet sind nur die Wochen
+davor. Das Orakel (K10) rechnet die neue Regel unabhängig nach und schlägt
+mit der alten Formel an.
+
+**Das Waagefeld verliert keine Zahl mehr (Arbeiter-App).** Die Kette blieb
+zweimal beim Waschen hängen: zweite Palette gewogen, „≈ 267 kg netto" kam
+nie. Das Feld leerte sich erst mit der Antwort auf die erste Palette — was
+für die nächste schon getippt war, löschte die späte Antwort. Bei schlechtem
+Netz in der Halle passiert das der Arbeiterin genauso. Jetzt leeren das
+Waagefeld und „Fertige Palette" (Gewicht, Kisten) beim Absenden, wie der
+Zettel seit Runde T; scheitert das Schreiben, steht der Wert wieder da. Die
+Kette lässt die Antworten dafür 1.5 s warten und verlangt, dass die Felder
+sofort leer sind — mit dem alten Code schlägt sie an, in beiden Masken.
+
+**Prüfblock 0107 baute die Nacht aus dem UTC-Datum.** Der Volltest schlug um
+halb eins nachts (Schweizer Zeit) bei 0107 (c1) an. Die Prüfung stellt die
+Uhr auf drei Uhr „in der nächsten Nacht" — gerechnet aus `current_date`, und
+das ist zwischen Mitternacht und zwei Uhr noch der Vortag in UTC. Die Nacht
+lag dann vor dem Lauf, den die Prüfung eben gemacht hatte. Jetzt die Nacht
+nach dem Ortstag des Laufs; die Behauptung ist dieselbe (der alte Block
+schlägt zur selben Uhrzeit an, der neue nicht).
+
+**„Erfasst" im Warenausgang zählte nur die neuesten 200.** „Masse aller
+Lieferungen 27.7 t" bei 209.7 t: Die Kennzahlen rechneten über die Liste, und
+die Liste holte nur 200 Zeilen. Jetzt seitenweise alle; die Liste zeigt die
+neuesten 200 und auf Knopfdruck alle (AB-143, mit einer Prüfung im
+Bildschirm-Prüfstand).
+
+**Wie viel ist von welchem Artikel noch da (neu, AB-141).** „… mit einer
+Grafik, nach Artikeln sortiert, noch im Lager, also Eingang, Ausgang, noch im
+Lager. Und dann vielleicht schon auch noch mit Tabelle." Je Artikelgruppe ×
+Label ein Balken, so lang wie sein Eingang, alle auf einem Massstab: grau die
+Eingangsware hinter den Lieferungen (beschriftet mit den gelieferten Kilo),
+orange, was im Lager liegt, blau darin das Verkaufsfähige nach Grösse (klein,
+gross, lose); rechts gross das Verkaufsfähige der gewählten Grösse. Darunter
+dieselben Zahlen als Tabelle. Eingang und ausgeliefert gibt es nur je Gruppe —
+beim Eingang ist noch nichts sortiert. Die Rechnung steht ohne React in
+`src/auswertung/artikel.ts` (`test/artikel.test.ts`). Das Kundendiagramm ist
+grösser (440 statt 340 px); die Tabelle „in Kisten" heisst so.
+
+**Die Zeitachse liest sich wie ein Kalender (AB-142).** Der Verlauf stand bei
+27.05 · 04.09 · 13.12 · 23.03 (schöne Zahlen von Tagen, je hundert) und
+begann im April, drei Monate vor dem ersten Eingang — „heute" stand absichtlich
+in der Mitte. Jetzt Monatsnamen mit einer feinen Linie je Monat, gezoomt
+Montage oder einzelne Tage (`kalenderStriche`); der Verlauf beginnt mit der
+ersten Woche mit Ware; die Null der Tonnen-Achse heisst „0" statt „0 kg".
+Dasselbe in allen Zeitdiagrammen (Palox und Verdunstung im Kalender, die
+Reihenfolge der Verarbeitung, die Kunden).
+
+**Masken.** Untertitel weg, wo sie noch standen (Auffälligkeiten, Arbeiten,
+Palox-Herkunft, Warenausgang, Stammdaten), und keine Entwickler-Verweise mehr
+(„Runde H", „seit 0106", „docs/ABMACHUNGEN.md", „Join-Schlüssel", „(seit 0104
+Pflicht in der App)"). Tempo ganz weg: die Karte „Durchsatz je Arbeit" und die
+Spalte kg/h — „Arbeit und Tempo … komplett weglassen". Messungen → Arbeiten
+steht zuoberst, die Sicherung darunter; die Tabellen der Tage haben feste
+Spalten und stehen untereinander; „0.0 h" heisst „1 min", „0 Paletten" beim
+Waschen „—". Auffälligkeiten lassen sich nach Art filtern (45 Zettelgewicht
+verdeckten alles andere), und ihre Sätze aus der Datenbank stehen da wie jede
+Zahl der App: „1 Palette mit 312 kg" statt „1 Palette(n) mit 312.00 kg"
+(`lesbar()`). Chargen: alle Spaltenköpfe gleich gesetzt, die Eingangstabelle
+läuft nicht mehr in die Ausgangstabelle, „Ziel" nur, wenn nicht alles
+Lieferschein ist, „1 Sortierlauf", die lange Herkunft des Palox-Anteils im
+Hinweis statt im Satz. Arbeitsfenster ohne leere Spalten (Sortierdatum,
+Waage) — die Tabelle passt ins Fenster. Unter Ursachen stehen die drei
+Palox-Stationen und die Verdunstung als Kacheln nebeneinander. Die
+Vorbelegung der Sortierschemata heisst „Vorgabe".
+
+**Die Auffälligkeiten (M2/M3).** Auf den Daten vom 12. Oktober: 45
+Zettelgewicht, 9 Wägung (4 davon die doppelten), je 4 Verdunstung,
+Überzählung und Zetteldatum, 3 Lieferung in der Zukunft, 2 Lieferung ohne
+Eingang, je 1 Ohne Nenner, Palox geleert, Palette fraglich, Kistengewicht,
+Tara fehlt. Alle Zettelgewicht- und Zetteldatum-Fälle stammen vom 21.9. bis
+10.10. — vor den Prüfungen in der Maske aus Runde AO, die seit dem 12.10. beim
+Zettel sagen, ob es die Palette so im Wareneingang gibt. Die drei
+„Lieferung in der Zukunft" sind vordatierte Lieferscheine aus Perigon, kein
+Fehler der Halle; sie verschwinden am Liefertag von selbst.
+
+**Mutationen.** Block 0114, 21 Mutationen, alle erkannt: die Summe über die
+Kohorten, der Vorlauf als Lieferschein je Charge und nur die eigenen
+Lieferungen je Charge (b1), der Vorlauf je Gruppe (b3), die Gruppe ohne
+distinct (c1), Sorte nach Schlag (c2), ohne Nummer verkehrt oder nie (c3),
+der Anteil 1 % zu gross, ohne Nummer nicht verteilt, der Tag ohne Anteil (a1),
+die zu schnelle Wägung wieder doppelt (d1), gar keine Wägung mehr (d2),
+Stand 113 (e1); im Verlauf je Behauptung einzeln gezählt: die alte
+Umschaltung am Liefertag (f1, f2, f3), der Liefertag erst am Tag danach (f1–f4),
+das Liegende geht mit (f1, f4), der Rest altert ohne Grenze (f6),
+verkaufsfähig ohne den gelieferten Teil (f4, f5), das Lager ganz bis zum
+Liefertag (f1, f2, f3, f5), der Anteil einer anderen Charge (f1, f2, f3). Der
+Fax geht mit q wie das Lager; er ist in der Demo und beim Betrieb überall 0,
+eine Mutation dort bliebe unsichtbar — geprüft wird er im Orakel.
+
+**Was bewusst nicht gemacht wurde:** Die Texte der Auffälligkeiten bleiben in
+der Datenbank, wie sie sind — der Betriebsabzug und die Runden lesen sie;
+`lesbar()` schreibt sie nur in der Maske. Kein Abhaken von Auffälligkeiten:
+Eine verschwindet, wenn ihre Daten korrigiert sind, nicht wenn jemand sie
+wegklickt. An der Arbeiter-App nur das Waagefeld: Die Hinweise aus Runde AO
+(Zettel gegen den Wareneingang, Palox dreimal, Sortierdatum fünfmal) laufen
+erst seit dem 12.10.; ob sie die Auffälligkeiten senken, zeigt der nächste
+Abzug. Zwei Fassungen mit der Bemerkung „DEMO" (Tiana in der
+8-kg-Kiste, je für einen Käufer) in den Sortierschemata des Betriebs sind
+Daten des Betriebs; sie stehen im Bericht, nicht in einer Migration. Die Kaskade verteilt eine Lieferung
+weiter auf alle Eingangstage ihrer Charge, auch auf einen, der erst danach
+kam (mit Alter 0), und der Verlauf übernimmt das: Kommt eine Charge in zwei
+Schüben, fällt beim zweiten Eingang ein kleiner Teil gleich wieder weg.
+Lieferungen nur auf schon Eingegangenes zu verteilen, änderte die Kaskade
+selbst — eine eigene Runde, mit der Saisonbegleitung. Die Überfüllung in der Rechnung
+(Frage aus Runde AP) wartet auf die Antwort des Betriebs.
+
 ## Runde AP: einmal Demeter ist Demeter, Artikel mit Grösse, der Anstieg erst, wenn er sicher ist (12. Oktober, nachmittags, 0113)
 
 Der Betrieb nach dem Einspielen von 0112, mit zwei neuen Perigon-Dateien.

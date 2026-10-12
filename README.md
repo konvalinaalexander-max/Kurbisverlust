@@ -727,6 +727,24 @@ und zu gross rechts von „gesamt". Die Arbeiter-App sagt jeder Person fünfmal,
 dass das Sortierdatum nicht mehr auf den Zettel muss (AB-138). **Der Betrieb
 spielt setup.sql einmal ein (Stand 113)** und drückt danach „Neu rechnen".
 
+**Runde AQ (0114)** — jede Zeile der langen Nachricht am echten Bildschirm.
+Eine Lieferung zählt einmal: „4'836 Lieferungen" waren 1'126 Lieferscheine,
+je Eingangstag mehrfach gezählt (AB-139); eine zu schnelle Wägung steht nur
+noch als Verdunstung unter den Auffälligkeiten (AB-140); „Erfasst" im
+Warenausgang zählt alle Lieferungen, nicht die neuesten 200 (AB-143). Neu
+unter **Lagermanagement nach Artikel**: „Wie viel ist von welchem Artikel
+noch da?" — je Artikel ein Balken (Eingang, ausgeliefert, im Lager,
+verkaufsfähig nach Grösse) und dieselben Zahlen als Tabelle (AB-141); das
+Kundendiagramm ist grösser. Zeitachsen zeigen Monate, gezoomt Wochen und
+Tage, und der Verlauf beginnt mit der ersten Ware (AB-142). Im Verlauf fällt
+„im Lager" mit den Lieferungen, nicht an einem gemittelten Liefertag — die
+Delle von 44 t Mitte September gab es im Lager nie (AB-144). In der
+Arbeiter-App geht ein getipptes Gewicht nicht mehr an eine späte Antwort
+verloren (AB-145). Tempo (kg/h) ist ganz weg, Untertitel und
+Entwickler-Verweise auch; Auffälligkeiten lassen sich nach Art filtern.
+**Der Betrieb spielt setup.sql einmal ein (Stand 114)** und drückt danach
+„Neu rechnen".
+
 **Runde AN (0110)** — rechnen auf PostgreSQL 17: Der Betrieb läuft auf
 PostgreSQL 17, und dort frischt Postgres gespeicherte Ansichten mit einem
 eingeschränkten Suchpfad auf. `palox_f_nach()` fand deshalb `palox_f()` nicht,

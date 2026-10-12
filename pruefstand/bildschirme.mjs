@@ -327,7 +327,15 @@ const BILDSCHIRME = [
   // Runde AF: je Sorte, welche Messung fehlt — seit Runde AO der vierte Reiter unter Messungen.
   { name: 'ausstehend', wer: 'admin', pfad: '/messungen/ausstehend' },
   // Runde AO (0112): das Lager nach Artikel, und je Kunde die Saison gegen die Vorjahre.
-  { name: 'artikel', wer: 'admin', pfad: '/artikel' },
+  // Runde AQ: „Wie viel ist von welchem Artikel noch da?" — je Artikel ein
+  // Balken, und die Tabelle hat dieselben Zeilen.
+  { name: 'artikel', wer: 'admin', pfad: '/artikel',
+    tun: async p => {
+      await p.locator('#artikel-uebersicht .uebersicht-zeile').first().waitFor()
+      const balken = await p.locator('#artikel-uebersicht .uebersicht-zeile').count()
+      const zeilen = await p.locator('#artikel-uebersicht-tabelle tbody tr').count()
+      if (balken < 2 || balken !== zeilen) throw new Error(`Übersicht: ${balken} Balken, ${zeilen} Tabellenzeilen`)
+    } },
   // Runde AP (0113): „Wie viel Knirps klein haben wir noch, das wir als Demeter
   // verkaufen können?" — oben gewählt, die Chargen dahinter aufgeklappt.
   { name: 'artikel-knirps-klein-demeter', wer: 'admin', pfad: '/artikel',
@@ -337,6 +345,9 @@ const BILDSCHIRME = [
       await p.locator('#artikel-label-d').click()
       await p.locator('#artikel-chargen-knopf').click()
       await p.locator('#artikel-chargen-wahl table tbody tr').first().waitFor()
+      // Runde AQ: gewählt Knirps · Demeter — die Übersicht zeigt nur diesen einen Artikel.
+      const balken = await p.locator('#artikel-uebersicht .uebersicht-zeile').count()
+      if (balken !== 1) throw new Error(`Übersicht bei Knirps · Demeter: ${balken} Balken statt einem`)
     } },
   // … und ein Kunde allein im grossen Diagramm, per Klick in der Tabelle.
   { name: 'artikel-kunde', wer: 'admin', pfad: '/artikel',
@@ -374,7 +385,16 @@ const BILDSCHIRME = [
       await p.locator('#arbeiten-loeschen-weiter').click()
       await p.locator('#arbeiten-loeschen-ja').waitFor()
     } },
-  { name: 'betrieb-lieferungen', wer: 'admin', pfad: '/betrieb/lieferungen' },
+  // Runde AQ: „Erfasst" zählt alle Lieferungen — bis hier nur die neuesten 200
+  // der Liste (beim Betrieb 27.7 t statt 209.7 t).
+  { name: 'betrieb-lieferungen', wer: 'admin', pfad: '/betrieb/lieferungen',
+    tun: async p => {
+      const alle = (fixture('v_lieferung_masse') ?? []).length
+      const k = p.locator('.kennzahl', { hasText: 'Lieferungen' }).first().locator('.gross-zahl')
+      await k.waitFor()
+      const gezeigt = Number((await k.textContent()).replace(/[’'\s]/g, ''))
+      if (gezeigt !== alle) throw new Error(`„Lieferungen" zeigt ${gezeigt}, eingelesen sind ${alle}`)
+    } },
   // Warenausgang einlesen (0055): die Probedatei wählen, Befund und Abgleich lesen
   { name: 'betrieb-import', wer: 'admin', pfad: '/betrieb/lieferungen',
     tun: async p => {

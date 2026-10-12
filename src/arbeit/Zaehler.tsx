@@ -135,12 +135,20 @@ export function Zaehler({ d, gesperrt, neuLaden, melden, zumWiegen }: {
   const waschBereit = kistenOk && gebinde !== '' && waageOk
   async function waschPaletteZaehlen() {
     if (!waschBereit || laeuft) return
-    setLaeuft(true); setFehler(null)
+    // Runde AQ: Das Gewicht sofort leeren, wie beim Zettel — die nächste
+    // Palette wiegt anders. Bis hier leerte es erst die Antwort: Wer die
+    // nächste Palette schon gewogen und eingetippt hatte, während die erste
+    // noch unterwegs war, verlor die Zahl (im Prüfstand zweimal so gesehen).
+    const waageWert = waage
+    setLaeuft(true); setFehler(null); setWaage('')
     const { error } = await supabase.from('auftrag_palette')
       .insert({ auftrag_id: d.auftrag.id, sortierdatum: sortierdatum === '' ? null : sortierdatum,
                 kisten: kistenZahl, gebindeart: gebinde, brutto_gewogen_kg: waageZahl })
-    if (error) { setLaeuft(false); setFehler(fehlerText(error)); return }
-    setWaage('')   // die nächste Palette wiegt anders
+    if (error) {
+      setLaeuft(false); setFehler(fehlerText(error))
+      setWaage(w => (w === '' ? waageWert : w))   // nichts verloren: der Wert steht wieder da
+      return
+    }
     await nachladen(t('paletteGezaehlt'))
   }
 

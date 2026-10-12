@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase'
 import { fehlerText } from '../lib/db'
 import { taetigkeitVon } from '../lib/taetigkeit'
 import { WOERTERBUCH } from '../lib/i18n'
-import { datum, kg, prozent, zeitpunkt } from '../lib/format'
+import { datum, kg, prozent, zahl, zeitpunkt } from '../lib/format'
 import { Hinweis, Lade, Marke } from '../components/Bausteine'
 import { TaetZeichen, ZKreuz } from '../components/Zeichen'
 import type { Bestand, Wohin } from '../auswertung/daten'
@@ -128,7 +128,7 @@ export function ChargeFenster({ chargeNr, schliessen }: { chargeNr: number; schl
                   <dt>Eingang</dt><dd>{kg(bestand.eingang_kg, 0)} netto · {bestand.n_paletten} Paletten{bestand.ueberzaehlung_kg > 0 ? ` · ${kg(bestand.ueberzaehlung_kg, 0)} mehr geliefert als eingelagert` : ''}</dd>
                   <dt>Im Haus heute</dt><dd>{kg(bestand.im_haus_heute_kg, 0)}{bestand.verkaufsfaehig_lager_kg != null ? ` · davon verkaufsfähig ${kg(bestand.verkaufsfaehig_lager_kg, 0)}` : ' · verkaufsfähig: nicht gemessen'}</dd>
                   <dt>Verarbeitet</dt><dd>{kg(bestand.ausgelagert_kg, 0)} ausgelagert · {kg(bestand.sortiert_kg, 0)} sortiert · {kg(bestand.gewaschen_kg, 0)} gewaschen</dd>
-                  <dt>Geliefert</dt><dd>{kg(bestand.geliefert_kg, 0)} · {bestand.n_lieferungen} {bestand.n_lieferungen === 1 ? 'Lieferung' : 'Lieferungen'}</dd>
+                  <dt>Geliefert</dt><dd>{kg(bestand.geliefert_kg, 0)} · {zahl(bestand.n_lieferungen)} {bestand.n_lieferungen === 1 ? 'Lieferung' : 'Lieferungen'}</dd>
                   <dt>Lagerdauer</dt><dd>{Math.round(bestand.alter_lager_heute)} Tage im Mittel{bestand.alter_lager_von != null && bestand.alter_lager_bis != null ? ` (${Math.round(bestand.alter_lager_von)}–${Math.round(bestand.alter_lager_bis)})` : ''}</dd>
                 </dl>
               ) : <p className="leise">Die Auswertung kennt diese Charge noch nicht — „Neu rechnen" auf dem Dashboard.</p>}

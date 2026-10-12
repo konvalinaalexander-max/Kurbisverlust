@@ -83,7 +83,6 @@ function Messwerte({ daten }: { daten: Auswertung }) {
   const drausx = new Set(achsenBereich(alterRoh.map(v => v.differenz ?? 0), 'frei').ausgeschlossen)
   const alter = alterRoh.filter(v => !drausx.has(v.differenz ?? 0))
   const alterAusreisser = alterRoh.length - alter.length
-  const stationen = [...new Set(daten.durchsatz.map(d => d.station))]
 
   // Die volle Hochrechnung wird erst hier geholt, beim Klick — sie ist einige Megabyte gross.
   async function exportieren() {
@@ -110,7 +109,7 @@ function Messwerte({ daten }: { daten: Auswertung }) {
       {daten.qualitaet && <Qualitaet q={daten.qualitaet} />}
 
       {taraLuecken.length > 0 && (
-        <Hinweis art="warnung"><strong>Fehlende Tara verzerrt alles darüber.</strong> Bei {taraLuecken.length} Chargen fehlt für einen Teil der Paletten das Leergewicht des Gebindes; diese Paletten zählen nicht in die Eingangsmasse. Unter <Link to="/betrieb/stammdaten">Betrieb → Stammdaten → Gebinde</Link> nachtragen.</Hinweis>
+        <Hinweis art="warnung"><strong>Fehlende Tara verzerrt alles darüber.</strong> Bei {taraLuecken.length === 1 ? 'einer Charge' : `${taraLuecken.length} Chargen`} fehlt für einen Teil der Paletten das Leergewicht des Gebindes; diese Paletten zählen nicht in die Eingangsmasse. Unter <Link to="/betrieb/stammdaten">Betrieb → Stammdaten → Gebinde</Link> nachtragen.</Hinweis>
       )}
 
       <Karte titel="Wo fehlen Messungen?">
@@ -129,7 +128,7 @@ function Messwerte({ daten }: { daten: Auswertung }) {
       <Karte titel="Wird das Älteste zuerst verarbeitet?">
         <Linien reihen={[{ name: 'Arbeit', farbe: 'var(--strom-schimmel)',
                              punkte: alter.map(v => ({ x: Date.parse(v.tag) / TAG, y: v.differenz ?? 0, text: `Charge ${v.charge_nr} · ${STATION_NAME[v.station] ?? v.station} · ${v.n_paletten} Paletten` })) }]}
-                  xFormat={d => datum(new Date(d * TAG)).slice(0, 5)} yFormat={y => `${y > 0 ? '+' : ''}${Math.round(y)} d`} xTitel="Tag" yTitel="Tage gegenüber dem Durchschnitt"
+                  xFormat={d => datum(new Date(d * TAG)).slice(0, 6)} xKalender={0} yFormat={y => `${y > 0 ? '+' : ''}${Math.round(y)} d`} yTitel="Tage gegenüber dem Durchschnitt"
                   waagrechte={[{ y: 0, text: 'Durchschnitt der Charge' }]}
                   leer="noch keine Arbeit mit datierten Paletten" />
         {alter.length > 2 && (
@@ -147,27 +146,7 @@ function Messwerte({ daten }: { daten: Auswertung }) {
         </Erklaerung>
       </Karte>
 
-      {daten.durchsatz.length > 0 && (
-        <Karte titel="Durchsatz je Arbeit">
-          <div className="zahlenzeile">
-            {stationen.map(s => {
-              const eigene = daten.durchsatz.filter(d => d.station === s && d.kg_pro_h !== null)
-              const mittel = eigene.length ? eigene.reduce((a, d) => a + (d.kg_pro_h ?? 0), 0) / eigene.length : null
-              return <div key={s}><div className="titel">Tempo {STATION_NAME[s] ?? s}</div><div className="wert">{mittel === null ? '—' : `${zahl(Math.round(mittel))} kg/h`}</div><div className="unter">{eigene.length} Arbeiten mit Masse</div></div>
-            })}
-          </div>
-          <Aufklapp titel={<><span>Die letzten Arbeiten</span> <span className="leise">{Math.min(daten.durchsatz.length, 40)} von {daten.durchsatz.length}</span></>}>
-          <div className="rollbar"><table className="dicht">
-            <thead><tr><th>Start</th><th>Arbeit</th><th>Charge</th><th className="zahl">Dauer</th><th className="zahl">Bewegte Masse</th><th className="zahl">kg/h</th><th className="zahl">Leute</th></tr></thead>
-            <tbody>{daten.durchsatz.slice(0, 40).map(d => (
-              <tr key={d.auftrag_id}><td>{datum(d.start_ts)}</td><td>{STATION_NAME[d.station] ?? d.station}{d.ist_fax ? ' (Fax)' : ''}</td><td>{d.charge_nr} · {d.sorte}</td>
-                <td className="zahl">{d.dauer_h.toFixed(1)} h</td><td className="zahl">{d.masse_kg != null ? kg(d.masse_kg, 0) : <span className="leise">unbekannt</span>}</td>
-                <td className="zahl">{d.kg_pro_h != null ? zahl(d.kg_pro_h) : '—'}</td><td className="zahl">{d.n_teilnehmer}</td></tr>
-            ))}</tbody>
-          </table></div>
-          </Aufklapp>
-        </Karte>
-      )}
+      {/* Runde AQ: „Durchsatz je Arbeit" (Tempo, kg/h) ist weg — „Arbeit und Tempo … nicht wichtig, komplett weglassen". */}
 
       <Karte titel="Die vier Koeffizienten">
         <div className="rollbar"><table className="dicht">
@@ -300,7 +279,7 @@ function Qualitaet({ q }: { q: Datenqualitaet }) {
   const gesamtAnteil = zeilen.filter(z => z.von > 0)
   const erfuellt = gesamtAnteil.filter(z => z.ist / z.von >= 0.95).length
   return (
-    <Karte titel="Wie vollständig wird erfasst?" unter={`Je Zeile eine Absprache aus der Halle (docs/ABMACHUNGEN.md) und wie oft sie eingehalten wurde — ${erfuellt} von ${gesamtAnteil.length} zu über 95 %.`}>
+    <Karte titel="Wie vollständig wird erfasst?" unter={`${erfuellt} von ${gesamtAnteil.length} Absprachen mit der Halle zu über 95 % eingehalten`}>
       <div className="gitter" style={{ gap: '.5rem 1.5rem', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))' }}>
         {zeilen.map(z => {
           const anteil = z.von > 0 ? z.ist / z.von : null
@@ -320,7 +299,7 @@ function Qualitaet({ q }: { q: Datenqualitaet }) {
       </div>
       <p className="leise-satz">
         Lagerkontrollen: <strong>{q.lagerkontrollen}</strong> gewogene Paletten — jede ist ein Punkt in der Verdunstungskurve; die App schlägt vor, wo eine Wägung am meisten bringt.
-        {unbekannt > 0 && <> Bei <strong>{unbekannt}</strong> Arbeiten fiel der Palox-Stand zwischendurch (geleert ohne Ablesung) — ihr Faules ist unbekannt und fehlt in der Kurve; die Arbeiten stehen unter Auffälligkeiten.</>}
+        {unbekannt > 0 && <> Bei <strong>{unbekannt === 1 ? 'einer Arbeit' : `${unbekannt} Arbeiten`}</strong> fiel der Palox-Stand zwischendurch (geleert ohne Ablesung) — {unbekannt === 1 ? 'ihr' : 'deren'} Faules ist unbekannt und fehlt in der Kurve; {unbekannt === 1 ? 'sie steht' : 'sie stehen'} unter Auffälligkeiten.</>}
       </p>
     </Karte>
   )

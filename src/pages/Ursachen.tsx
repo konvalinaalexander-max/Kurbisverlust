@@ -400,7 +400,7 @@ function Faules({ daten, filter, chargen, staende, oeffnen }: {
           du Ausschuss"); mit sicherem Anstieg der Ausschuss bei frischer Ware und
           der Anstieg je Woche im Lager. Kein „+ 0,0 Punkte" mehr. */}
       {kennzahlen.length > 0 && (
-        <div className="kennzahlen" id="palox-stationen">
+        <div className="kennzahl-kacheln" id="palox-stationen">
           {kennzahlen.map(k => {
             const steigt = k.zuwachs_je_woche != null && k.zuwachs_je_woche > 0
             const tage = k.lager_mittel != null ? <> bei Ø {Math.round(k.lager_mittel)} Tagen Lagerdauer</> : null
@@ -427,6 +427,7 @@ function Faules({ daten, filter, chargen, staende, oeffnen }: {
         <Linien reihen={reihen} hoehe={300}
                 xTitel={achse === 'kalender' ? 'Messtag' : 'Lagertage'} yTitel="Palox je 100 kg Ware"
                 xFormat={achse === 'kalender' ? tagText : x => `${Math.round(x)}`}
+                xKalender={achse === 'kalender' ? 0 : undefined}
                 yFormat={y => `${y.toFixed(1)} %`}
                 xEinheit={achse === 'kalender' ? 'frei' : 'tage'} yEinheit="prozent" yVon={0}
                 xBis={achse === 'kalender' ? heute : undefined}
@@ -583,13 +584,14 @@ function Verdunstung({ daten, filter, chargen, oeffnen }: { daten: Auswertung; f
     <Karte id="urs-verdunstung" titel="Verdunstung"
            aktion={<Segmente wahl={achse} setzen={setAchse} id="verd-achse"
                              teile={[['kalender', 'Kalender', 'verd-achse-kalender'], ['liegt', 'liegt seit', 'verd-achse-liegt']]} />}>
-      {kopfzahl && <div className="kennzahlen" id="verdunstung-kopf">{kopfzahl}</div>}
+      {kopfzahl && <div className="kennzahl-kacheln" id="verdunstung-kopf">{kopfzahl}</div>}
       {alle.length === 0
         ? <Leer titel="Noch keine Palette zweimal gewogen">Die Verdunstung misst, wer dieselbe Palette später noch einmal auf die Waage stellt.</Leer>
         : (
         <Linien reihen={reihen} hoehe={300}
                 xTitel={achse === 'kalender' ? 'Wiegetag' : 'Lagertage'} yTitel="Verdunstung je Tag"
                 xFormat={achse === 'kalender' ? tagText : x => `${Math.round(x)}`}
+                xKalender={achse === 'kalender' ? 0 : undefined}
                 yFormat={y => `${y.toFixed(2)} %`}
                 xEinheit={achse === 'kalender' ? 'frei' : 'tage'} yEinheit="prozent" yVon={0}
                 xBis={achse === 'kalender' ? heute : undefined}

@@ -10,7 +10,7 @@ import {
   type Abgleich, type ArtikelBefund, type AusgangZeile, type Befund, type Bekannt, type ChargeKurz, type Lieferung, type QuelleErkennung,
 } from '../lib/warenausgang'
 import { datum, kg, tonnen, zahl, zeitpunkt } from '../lib/format'
-import { Hinweis, Karte, Kennzahl, Marke } from '../components/Bausteine'
+import { Erklaerung, Hinweis, Karte, Kennzahl, Marke } from '../components/Bausteine'
 import { ZPapierkorb } from '../components/Zeichen'
 
 /**
@@ -227,12 +227,8 @@ export default function AusgangImport({ nachUebernahme }: { nachUebernahme: () =
   return (
     <>
       <Karte titel="Warenausgang einlesen">
-        <p className="leise">
-          Die Excel-Auswertung <strong>„Abgleich Rückverfolgbarkeit"</strong> aus dem Perigon — je Firma eine Datei,
-          immer die ganze. Die App erkennt selbst, was sie schon hat, was neu ist und was im Perigon nachträglich
-          korrigiert wurde, und schreibt daraus Lieferungen. Gezählt wird ab dem {datum(ZEITRAUM_AB)} (Saison 2026);
-          Journal {JOURNAL_INTERN} (interne Umbuchung) bleibt draussen. Gerechnet wird im Browser, geschrieben erst auf Knopfdruck.
-        </p>
+        {/* Runde AQ: ein Satz statt vier — der Rest steht unter „Wie das Einlesen rechnet". */}
+        <p className="leise">Die Perigon-Auswertung <strong>„Abgleich Rückverfolgbarkeit"</strong>, je Firma eine Datei, immer die ganze.</p>
         {lage.length > 0 && (
           <div className="rollbar" style={{ marginBottom: '.75rem' }}>
             <table>
@@ -252,6 +248,12 @@ export default function AusgangImport({ nachUebernahme }: { nachUebernahme: () =
               ))}</tbody>
             </table>
           </div>
+        )}
+        {lage.some(l => l.artikel_offen > 0) && (
+          <p className="leise" style={{ margin: '0 0 .75rem' }}>
+            <strong>Artikel unbestätigt</strong>: Perigon-Artikel, bei denen noch niemand gesagt hat, ob sie Kürbis sind und welche Sorte —
+            bis dahin zählt die App einen Artikel als Kürbis, wenn „Kürbis" im Namen steht. Bestätigen beim nächsten Einlesen der Datei.
+          </p>
         )}
         {entfernung && <Hinweis art="info">{entfernung}</Hinweis>}
         {entfernen && createPortal(
@@ -280,10 +282,13 @@ export default function AusgangImport({ nachUebernahme }: { nachUebernahme: () =
           <input type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" multiple hidden
                  disabled={liest} onChange={e => { void dateienWaehlen(e.target.files); e.target.value = '' }} />
         </label>
-        <p className="leise" style={{ margin: '.6rem 0 0' }}>
-          Beide Dateien auf einmal geht; eine allein geht auch. Jede wird einzeln geprüft und einzeln übernommen.
-        </p>
         {fehler && <Hinweis art="warnung">{fehler}</Hinweis>}
+        <Erklaerung titel="Wie das Einlesen rechnet">
+          <p>Die App erkennt selbst, was sie schon hat, was neu ist und was im Perigon nachträglich korrigiert wurde, und schreibt
+          daraus Lieferungen. Gezählt wird ab dem {datum(ZEITRAUM_AB)} (Saison 2026); Journal {JOURNAL_INTERN} (interne Umbuchung)
+          bleibt draussen. Gerechnet wird im Browser, geschrieben erst auf Knopfdruck. Beide Dateien auf einmal geht, eine allein auch —
+          jede wird einzeln geprüft und einzeln übernommen.</p>
+        </Erklaerung>
       </Karte>
 
       {dateien.map((d, i) => (

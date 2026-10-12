@@ -392,10 +392,6 @@ function Chargen() {
                     unter={<>{zahl(mitDaten)} mit Eingang · {zahl(imHaus.size)} mit Ware im Haus
                       {ohneEingang > 0 && <> · {zahl(ohneEingang)} angelegt, aber noch ohne Palette</>}</>} />
         </div>
-        <p className="leise">
-          Das ist die bisher eingelagerte Menge — sie wächst mit jedem Import aus
-          dem Google Sheet. Die genaue Verlust-Auswertung steht im Dashboard.
-        </p>
         {/* Q9: ein Schalter, keine Rechnerei. Die App kann nicht wissen, ob
             zwischen zwei Lieferungen drei Tage Regen liegen oder die Saison
             vorbei ist — das weiss nur der Betrieb. */}
@@ -414,12 +410,8 @@ function Chargen() {
       </Karte>
 
     <Karte titel={`Chargen (${chargen.length})`}>
-      <p className="leise">
-        Die Chargennummer ist der Join-Schlüssel des ganzen Systems — sie kommt
-        aus dem Erntejournal und wird hier nicht neu vergeben. Demeter oder Knospe
-        kommt aus der Perigon-Datei (wie die Charge geliefert wurde); wer es hier
-        setzt, sticht Perigon — für „Lagermanagement nach Artikel".
-      </p>
+      {/* Runde AQ: ein Satz statt vier, ohne „Join-Schlüssel". */}
+      <p className="leise">Die Nummern kommen aus dem Erntejournal. Demeter oder Knospe hier setzen geht vor Perigon.</p>
       <div className="rollbar">
         <table>
           <thead><tr><th>Nr</th><th>Schlag</th><th>Sorte</th>
@@ -586,13 +578,7 @@ function Kaliber() {
   return (
     <>
       <Karte titel="Sortierschemata">
-        <p className="leise">
-          Was zu klein, was Kaliber und was zu gross ist, gilt ab einem Datum.
-          Eine Fassung wird nie geändert: Es kommt eine neue dazu, damit jede alte
-          Sortier-CSV nach den Regeln klassiert bleibt, die an ihrem Tag galten.
-          Jeder Auftrag merkt sich seine Fassung. Neue Fassungen gelten je Sorte;
-          bei älteren steht noch der Käufer, für den sie damals galten.
-        </p>
+        <p className="leise">Was zu klein, was Kaliber und was zu gross ist, gilt ab einem Datum — „Ändern" legt eine neue Fassung an, die alten bleiben für die alten Sortier-CSV.</p>
         {fehler && <Hinweis art="warnung">{fehler}</Hinweis>}
         {meldung && <Hinweis art="gut">{meldung}</Hinweis>}
         {/* Je Sorte ein Block (alte Fassungen mit Käufer je eigener), je Fassung
@@ -612,7 +598,7 @@ function Kaliber() {
                   <span>{z.gilt_ab <= '2000-01-01' ? 'seit immer' : `ab ${datum(z.gilt_ab)}`}</span>
                   <span>
                     {schemaText(z)}
-                    {z.bemerkung ? <span className="leise"> — {z.bemerkung}</span> : null}
+                    {bemerkungKurz(z.bemerkung) ? <span className="leise"> — {bemerkungKurz(z.bemerkung)}</span> : null}
                   </span>
                 </div>
               ))}
@@ -711,6 +697,19 @@ function Kaliber() {
       </Karte>
     </>
   )
+}
+
+/**
+ * Runde AQ: Die Vorbelegungen beim Einrichten tragen eine Entwickler-Bemerkung
+ * („Ausgangswert aus der Spezifikation (§6)", „Standard beim Einrichten —
+ * Sollgewicht aus der Einstellung. Echtes Sollgewicht je Sorte: …"), die bei
+ * jeder Sorte zweimal dastand. In der Liste heisst sie „Vorgabe"; was der
+ * Betrieb selbst schreibt, bleibt Wort für Wort.
+ */
+function bemerkungKurz(b: string | null | undefined): string | null {
+  if (!b) return null
+  if (/^Ausgangswert aus der Spezifikation/.test(b) || /^Standard beim Einrichten/.test(b)) return 'Vorgabe'
+  return b
 }
 
 /* ------------------------------------------------------------------ */

@@ -227,6 +227,30 @@ Eingang fehlt, Lieferschein falsch gebucht, Charge besser als das Modell.
 **Urteil:** ehrlich; die Ausbeute ist die Stelle, an der ein zu hoher
 Koeffizient „Im Lager" zu klein rechnet (Charge 1625) — die Saisonbegleitung
 fragt danach.
+**Wie viele Lieferungen (seit 0114):** Wie eine Lieferung auf die Chargen
+fällt, steht in `v_lieferung_charge` (mit Nummer ganz, ohne Nummer nach dem
+Eingang auf die Chargen der Sorte, der Ausgang vor der App am
+Erfassungsbeginn). `erg_charge.n_lieferungen` zählt die Lieferscheine
+(Verkauf, Marge, bis heute), die von der Charge genommen haben, jeden einmal;
+`v_lieferung_gruppe` dasselbe je Gruppe — eine Lieferung ohne Nummer einmal,
+nicht einmal je Charge ihrer Sorte. Der Ausgang vor der App ist Masse, kein
+Lieferschein. Bis 0114 stand in `n_lieferungen` jede Lieferung einmal je
+Eingangstag (die Kohorten der Kaskade, zusammengezählt) — beim Betrieb
+„4'836 Lieferungen" bei 1'133.
+**Der Verlauf Woche für Woche (`erg_verlauf`, seit 0114):** Braucht die
+Portionen der Kaskade und die Liefertage der Charge (`v_lieferung_charge_tag`,
+Verkauf und Marge). Je Woche ist von der gelieferten Portion eines
+Eingangstags der Teil q weg, den die Lieferungen der Charge bis zum
+Wochenende ausmachen (nach Masse); „im Lager" ist der Rest, und das
+Liegende altert bis zum Wochenende, höchstens bis zum Alter der Lieferungen.
+Das Gelieferte rechnet mit dem Alter der Lieferungen wie die Kaskade. Bis
+0114 ging die ganze Portion an einem Tag (Eingangstag + mittleres Alter) —
+beim Betrieb stand Amoro bis zum 6.9. bei 15.1 t, obwohl 2.6 t geliefert
+waren, und „gesamt" sackte Mitte September um 44 t ab und stieg wieder. Ab
+dem letzten Liefertag ist q = 1: heute und die Vorschau sind, was sie waren,
+und sagen dasselbe wie die Saisonbilanz. **Fehlt** einer gelieferten Portion
+die Lieferzeile (nach der Kaskade unmöglich), gilt die alte Umschaltung am
+Liefertag — kein q aus dem Nichts.
 
 ## 12. Die Marge je Band (`v_marge_wiegung`, `v_marge_charge`)
 
@@ -281,6 +305,13 @@ nichts wird verschluckt, die Summe bleibt das Verkaufsfähige.
 Perigon-Position aller Saisons, 1. Juli – 30. Juni), nur Kürbis
 (`ist_kuerbis_vorschlag`, sonst die Bestätigung des Betriebsleiters), ohne
 interne Umbuchung (Journal L). Geht in keine Bilanz ein.
+**Wie viel von welchem Artikel noch da ist (Runde AQ):** je Artikelgruppe ×
+Label die Chargen zusammengezählt (`src/auswertung/artikel.ts`,
+`uebersichtszeilen`): Eingang, ausgelagert und geliefert, im Lager und
+verkaufsfähig aus `erg_charge`, das Verkaufsfähige nach Grösse aus
+`artikel_lager_charge(0)`. Ausgelagert + im Lager = Eingang — der Balken ist
+so lang wie der Eingang. Ein unbekanntes Verkaufsfähiges zählt als Lücke,
+nicht als 0. Eingang und ausgeliefert gibt es nur je Gruppe, nicht je Grösse.
 **Urteil:** ehrlich; dieselbe Zahl wie überall, nur anders geteilt.
 
 ## 13. Was nirgends erraten wird

@@ -45,6 +45,7 @@ const fixture = name => {
 // gezählten Paletten. Also merken wir uns Einfügungen und liefern sie mit.
 const eingefuegt = {}          // tabelle → Zeilen
 const protokoll = []           // jede Schreibanfrage der Reihe nach
+const bremse = {}              // tabelle → ms, die die Antwort auf ein POST auf sich warten lässt (Runde AQ)
 let naechsteId = 90001
 
 async function restAntwort(route) {
@@ -139,6 +140,8 @@ async function restAntwort(route) {
       eingefuegt[name] = (eingefuegt[name] ?? []).map(z =>
         String(z.id) === id ? { ...z, ...zeilen[0], ...auslöser } : z)
     }
+    // Runde AQ: schlechtes Netz in der Halle — die Anfrage ist da, die Antwort noch nicht.
+    if (methode === 'POST' && bremse[name]) await new Promise(r => setTimeout(r, bremse[name]))
     return route.fulfill({ status: 201, json: einzeln ? antwort[0] : antwort })
   }
   if (methode === 'DELETE') {
@@ -644,10 +647,17 @@ await schritt('Waschen: Palox freiwillig, jede Palette gewogen (345/340/350 kg b
   if (!(await seite.locator('#wasch-plus').isDisabled())) throw new Error('Ohne Gewicht von der Waage darf keine Palette gezählt werden (0104)')
   await seite.getByText('Gewicht von der Waage fehlt').waitFor()
   const bruttos = ['345', '340', '350']
+  // Runde AQ: Die Antworten kommen hier 1.5 s spät, wie bei schlechtem Netz in
+  // der Halle. Das Gewicht muss trotzdem sofort leer sein — bis hier leerte es
+  // erst die Antwort und löschte damit, was für die nächste Palette schon
+  // getippt war (die Kette blieb zweimal bei „≈ 267 kg netto" hängen).
+  bremse.auftrag_palette = 1500
   for (let i = 1; i <= 2; i++) {
     await seite.locator('#wasch-brutto').fill(bruttos[i - 1])
     await seite.getByText(`≈ ${bruttos[i - 1] === '345' ? 272 : 267} kg netto`).waitFor()   // 32 × 1.5 kg G2 + 25 kg Palette
     await seite.locator('#wasch-plus').click()
+    await seite.waitForFunction(() => document.getElementById('wasch-brutto')?.value === '', undefined, { timeout: 1000 })
+      .catch(() => { throw new Error('Das Waagefeld muss beim Zählen sofort leer sein, nicht erst mit der Antwort (Runde AQ)') })
     await warteAuf('auftrag_palette', 'POST', 4 + i)
   }
   await seite.locator('#sortierdatum-leeren').click()    // Runde AO: kein Datum auf dem Zettel — ein Tipp leert das Feld
@@ -655,11 +665,15 @@ await schritt('Waschen: Palox freiwillig, jede Palette gewogen (345/340/350 kg b
   await seite.locator('#wasch-brutto').fill(bruttos[2])
   await seite.locator('#wasch-plus').click()
   await warteAuf('auftrag_palette', 'POST', 7)
+  delete bremse.auftrag_palette
   const g = protokoll.filter(x => x.tabelle === 'auftrag_palette').map(x => x.zeilen[0])
   if (g[4].sortierdatum !== '2026-09-03' || g[4].kisten !== 32 || g[6].sortierdatum !== null || g[6].kisten !== 32) throw new Error('Sortierdatum und Kisten je Palette kommen nicht mit')
   if (g[4].eingangsdatum !== undefined) throw new Error('Eine Kaliber-Palette hat kein Eingangsdatum')
   if (g[4].brutto_gewogen_kg !== 345 || g[5].brutto_gewogen_kg !== 340 || g[6].brutto_gewogen_kg !== 350) throw new Error(`Das Gewicht von der Waage kommt nicht mit: ${g[4].brutto_gewogen_kg}, ${g[5].brutto_gewogen_kg}, ${g[6].brutto_gewogen_kg}`)
-  // Das Feld leert sich, sobald die Antwort da ist — nicht schon mit dem Absenden.
+  // Runde AQ: Das Feld leert sich schon beim Absenden, wie beim Zettel. Bis
+  // hier leerte es erst die Antwort — und löschte damit die nächste Zahl, wenn
+  // sie schon getippt war: Genau daran blieb diese Kette zweimal hängen
+  // (beim zweiten Wiegen wartete sie vergeblich auf „≈ 267 kg netto").
   await seite.waitForFunction(() => document.getElementById('wasch-brutto')?.value === '', undefined, { timeout: 10000 })
     .catch(() => { throw new Error('Nach dem Zählen muss das Waagefeld leer sein — die nächste Palette wiegt anders') })
   await seite.getByText('Paletten · 96 Kisten').first().waitFor()
@@ -672,15 +686,22 @@ await schritt('Waschen: Palox freiwillig, jede Palette gewogen (345/340/350 kg b
   await seite.locator('#check-ausgang').click()
   const pro = await seite.locator('#a-pro').inputValue()
   if (pro !== '6') throw new Error(`Stück je Kiste muss aus der Arbeit vorbelegt sein, ist „${pro}"`)
+  // Runde AQ: auch hier kommen die Antworten spät, und die nächste Palette
+  // wird getippt, während die vorige noch unterwegs ist. Bis hier leerte die
+  // Maske Gewicht und Kisten erst mit der Antwort — diese Kette wartete
+  // darum vor jedem Tippen, bis die Felder leer waren; die Arbeiterin nicht.
+  bremse.ausgang_wiegung = 1500
   for (let i = 1; i <= 3; i++) {                              // drei fertige Paletten (Runde H)
-    // Die Maske leert die Felder erst nach dem Nachladen — vorher nicht tippen
-    await seite.waitForFunction(() => document.querySelector('#a-brutto')?.value === '')
     await seite.locator('#a-brutto').fill('400')
     await seite.locator('#a-kisten').fill('32')
     await seite.locator('#a-art').selectOption('G2')
-    await seite.locator('#a-eintragen').click()
+    await seite.locator('#a-eintragen').click()                // wartet, bis die vorige nachgeladen ist
+    await seite.waitForFunction(() => document.querySelector('#a-brutto')?.value === '' && document.querySelector('#a-kisten')?.value === '',
+                                undefined, { timeout: 1000 })
+      .catch(() => { throw new Error('Gewicht und Kisten müssen beim Eintragen sofort leer sein, nicht erst mit der Antwort (Runde AQ)') })
     await warteAuf('ausgang_wiegung', 'POST', 1 + i)
   }
+  delete bremse.ausgang_wiegung
   await seite.getByRole('button', { name: /Zurück/ }).click()
   await seite.locator('#check-abschluss').click()
   await seite.locator('#palox-ohne').click()                     // freiwillig beim Waschen (0060)

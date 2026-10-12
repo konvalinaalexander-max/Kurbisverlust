@@ -71,16 +71,24 @@ export function FertigePaletteMaske({ d, gesperrt, melden, neuLaden }: {
 
   async function speichern() {
     if (!(n > 0 && b > 0 && art) || !kaliberOk || !proKisteOk || laeuft) return
-    setLaeuft(true)
+    // Runde AQ: Gewicht und Kisten sofort leeren, wie beim Zählen. Bis hier
+    // leerte sie erst die Antwort: Wer die nächste Palette schon eintippte,
+    // während die erste noch unterwegs war, verlor sie.
+    const vorher = { brutto, kisten, voll }
+    setLaeuft(true); setBrutto(''); setKisten(''); setVoll(true); setFehler(null)
     const { error } = await supabase.from('ausgang_wiegung').insert({
       auftrag_id: d.auftrag.id, charge_nr: d.auftrag.charge_nr,
       brutto_kg: b, kisten: n, gebindeart: art,
       kuerbisse_pro_kiste: proKiste === '' ? null : Number(proKiste),
       kaliber_idx: stueck ? kaliberIdx : null,
-      voll,
+      voll: vorher.voll,
     })
-    if (error) { setLaeuft(false); setFehler(fehlerText(error)); return }
-    setBrutto(''); setKisten(''); setVoll(true); setFehler(null)
+    if (error) {
+      setLaeuft(false); setFehler(fehlerText(error))
+      // nichts verloren: was nicht schon neu getippt ist, steht wieder da
+      setBrutto(x => (x === '' ? vorher.brutto : x)); setKisten(x => (x === '' ? vorher.kisten : x)); setVoll(vorher.voll)
+      return
+    }
     melden(t('gespeichert'))
     try { await laden(); await neuLaden() } finally { setLaeuft(false) }
   }

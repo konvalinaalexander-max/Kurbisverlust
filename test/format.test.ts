@@ -15,7 +15,7 @@
  */
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { SORTIERTAG_QUELLE_NAME, sortiertagText, tagAnfang, tagEnde, tagVon }
+import { SORTIERTAG_QUELLE_NAME, lesbar, sortiertagText, tagAnfang, tagEnde, tagVon }
   from '../src/lib/format.ts'
 
 const ZONE = process.env.TZ
@@ -110,4 +110,29 @@ test('die Herkunft des Sortiertags heisst überall gleich', async () => {
   }
   assert.equal(sortiertagText(null), 'nicht bekannt')
   assert.equal(sortiertagText('was-anderes'), 'nicht bekannt')
+})
+
+// Runde AQ: die Sätze aus der Datenbank, geschrieben wie jede andere Zahl der App.
+// Das Tausender-Zeichen ist das der Laufzeit (Node: ', Browser: ’) — wie zahl().
+const T = (n: number) => n.toLocaleString('de-CH')
+test('lesbar: Einzahl und Mehrzahl statt „Palette(n)"', () => {
+  assert.equal(lesbar('1 Palette(n) mit Zetteldatum 15.09.2026 gezählt'), '1 Palette mit Zetteldatum 15.09.2026 gezählt')
+  assert.equal(lesbar('4 Palette(n) mit Zetteldatum 15.09.2026 gezählt'), '4 Paletten mit Zetteldatum 15.09.2026 gezählt')
+  assert.equal(lesbar('3 Lieferung(en) mit 1416 kg an Charge 1627'), `3 Lieferungen mit ${T(1416)} kg an Charge 1627`)
+  assert.equal(lesbar('44.00 kg brutto in 2 Kiste(n) G2'), '44 kg brutto in 2 Kisten G2')
+})
+
+test('lesbar: Kilo ohne angehängte Nullen, mit Tausender-Hochkomma; Datum und Prozent bleiben', () => {
+  assert.equal(lesbar('Der Waagenstand fiel von 229.00 auf 55.00 kg'), 'Der Waagenstand fiel von 229 auf 55 kg')
+  assert.equal(lesbar('fiel von 1229.00 auf 55.00 kg'), `fiel von ${T(1229)} auf 55 kg`)
+  assert.equal(lesbar('Eine leere Palette wiegt allein 25.000 kg.'), 'Eine leere Palette wiegt allein 25 kg.')
+  assert.equal(lesbar('mit 312.50 kg vom Zettel'), 'mit 312.5 kg vom Zettel')
+  assert.equal(lesbar('Bis heute: 11230 kg Überzählung.'), `Bis heute: ${T(11230)} kg Überzählung.`)
+  assert.equal(lesbar('4.80 % je Tag: 424 kg → 151 kg in 21 Tagen'), '4.80 % je Tag: 424 kg → 151 kg in 21 Tagen')
+  assert.equal(lesbar(null), '')
+})
+
+test('lesbar: Entwickler-Verweise fallen weg', () => {
+  assert.equal(lesbar('jede Palette am Anfang der Strasse wiegen (seit 0104 Pflicht in der App) — daraus kennt die App'),
+               'jede Palette am Anfang der Strasse wiegen — daraus kennt die App')
 })

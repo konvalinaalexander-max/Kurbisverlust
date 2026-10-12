@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { kg as kgText, prozent, tonnen, zahl } from '../lib/format'
-import { achsenBereich, type Einheit } from '../lib/achse'
+import { achsenBereich, kalenderStriche, type Einheit } from '../lib/achse'
 import { ZMinus, ZPlus, ZTabelle, ZZoomAus } from './Zeichen'
 
 /**
@@ -137,7 +137,7 @@ export function Linien({ reihen, hoehe = 280, xFormat = String, yFormat = String
                          yVon, yBis, xVon, xBis, xEinheit = 'frei', yEinheit = 'frei',
                          senkrechte = [], waagrechte = [], zonen = [], heute, leer = 'keine Messung',
                          ausgeschlossenText, zoom = true, tabelle: tabelleErlaubt = true, kompakt = false, fuss,
-                         treffer = 'spalte', onPunkt }: {
+                         treffer = 'spalte', onPunkt, xKalender }: {
   reihen: Reihe[]; hoehe?: number
   /** Was der Zeiger trifft: die x-Stelle über alle Reihen (Zeitreihe) oder
    *  den einen Punkt darunter (Messbild, Runde W). */
@@ -166,6 +166,10 @@ export function Linien({ reihen, hoehe = 280, xFormat = String, yFormat = String
   kompakt?: boolean
   /** Etwas, das links im Fuss neben der Legende steht. */
   fuss?: ReactNode
+  /** Runde AQ: x ist eine Zeit in Tagen, x = 0 ist dieser Zeitpunkt (ms, UTC) —
+   *  die Achse zeigt Monate, gezoomt Wochen und Tage (kalenderStriche), statt
+   *  „schöner Zahlen" von Tagen. 0 heisst „Tage seit 1970". */
+  xKalender?: number
 }) {
   const { rahmen, ort } = useZeiger()
   const [aus, setAus] = useState<Set<string>>(() => new Set(reihen.filter(r => r.ausgeblendet).map(r => r.name)))
@@ -223,16 +227,21 @@ export function Linien({ reihen, hoehe = 280, xFormat = String, yFormat = String
     const y1 = yBis ?? yMaxRoh
     const yt = yBis === undefined ? schoenMitLuft(y0, y1) : schoen(y0, y1)
     const yMax = Math.max(y1, yt[yt.length - 1]), yMin = Math.min(y0, yt[0])
-    const xt = schoen(x0, x1, kompakt ? 4 : 6).filter(t => t >= x0 && t <= x1)
+    const xt: { x: number; text: string }[] = xKalender !== undefined
+      ? kalenderStriche(x0, x1, xKalender, kompakt ? 5 : 8)
+      : schoen(x0, x1, kompakt ? 4 : 6).filter(t => t >= x0 && t <= x1).map(t => ({ x: t, text: xFormat(t) }))
     const sx = (x: number) => L + (x1 > x0 ? (x - x0) / (x1 - x0) : 0.5) * (B - L - R)
     const sy = (y: number) => hoehe - U - (yMax > yMin ? (y - yMin) / (yMax - yMin) : 0.5) * (hoehe - oben - U)
     const xVonPx = (px: number) => x0 + ((px - L) / (B - L - R)) * (x1 - x0)
     return { x0, x1, xMinAlle, xMaxAlle, yMin, yMax, sx, sy, xt, yt, xVonPx, ausserhalb }
-  }, [reihen, alle, bandwerte, senkrechte, waagrechte, zonen, heute, xVon, xBis, xEinheit, yVon, yBis, hoehe, oben, sicht, kompakt])
+  }, [reihen, alle, bandwerte, senkrechte, waagrechte, zonen, heute, xVon, xBis, xEinheit, yVon, yBis, hoehe, oben, sicht, kompakt, xKalender, xFormat])
 
   if (reihen.every(r => r.punkte.length === 0)) return <p className="leise">{leer}</p>
 
   const { x0, x1, sx, sy, xt, yt, yMin, xVonPx, ausserhalb } = m
+  // Runde AQ: die Null der Masse-Achse heisst „0" — „0 kg" unter „100 t" las
+  // sich wie eine andere Einheit. Im Hinweis beim Zeigen bleibt die Einheit.
+  const yStrich = (t: number) => { const s = yFormat(t); return t === 0 && /^0([.,]0+)?\s*(kg|t)$/.test(s) ? '0' : s }
 
   // Zeigerposition im SVG-Raster (B × hoehe), aus der Bildschirmposition
   const raster = (e: { clientX: number; clientY: number; currentTarget: SVGSVGElement }) => {
@@ -436,7 +445,7 @@ export function Linien({ reihen, hoehe = 280, xFormat = String, yFormat = String
       )}
       <div className="rollbar">
         <svg viewBox={`0 0 ${B} ${hoehe}`} style={{ width: '100%', minWidth: kompakt ? 320 : 420, height: 'auto', display: 'block', cursor: zieh ? 'col-resize' : treffer === 'punkt' && onPunkt && hover?.werte[0]?.p.auftragId != null ? 'pointer' : zoom ? 'crosshair' : 'default', touchAction: 'pan-y' }}
-             role="img" aria-label={yTitel ?? ''} data-x-einheit={xEinheit} data-y-einheit={yEinheit}
+             role="img" aria-label={yTitel ?? ''} data-x-einheit={xKalender !== undefined ? 'datum' : xEinheit} data-y-einheit={yEinheit}
              onPointerMove={zeigen} onPointerDown={e => { zeigen(e); druecken(e) }} onPointerUp={loslassen}
              onPointerLeave={() => { setHover(null); setZieh(null) }} onDoubleClick={() => setSicht(null)} onWheel={rad}>
           <defs>
@@ -450,11 +459,15 @@ export function Linien({ reihen, hoehe = 280, xFormat = String, yFormat = String
           {yt.map(t => (
             <g key={`y${t}`}>
               <line x1={L} x2={B - R} y1={sy(t)} y2={sy(t)} stroke="var(--rand-leise)" strokeWidth="1" />
-              <text className="strich" x={L - 8} y={sy(t) + 4} fontSize="11" textAnchor="end" fill="var(--text-leise)">{yFormat(t)}</text>
+              <text className="strich" x={L - 8} y={sy(t) + 4} fontSize="11" textAnchor="end" fill="var(--text-leise)">{yStrich(t)}</text>
             </g>
           ))}
           {xt.map(t => (
-            <text key={`x${t}`} className="strich" x={sx(t)} y={hoehe - U + 17} fontSize="11" textAnchor="middle" fill="var(--text-leise)">{xFormat(t)}</text>
+            <g key={`x${t.x}`}>
+              {/* Runde AQ: auf der Zeitachse eine feine Linie je Monat (gezoomt je Woche) — man liest ab, wo ein Monat beginnt. */}
+              {xKalender !== undefined && <line x1={sx(t.x)} x2={sx(t.x)} y1={oben} y2={hoehe - U} stroke="var(--rand-leise)" strokeWidth="1" />}
+              <text className="strich" x={sx(t.x)} y={hoehe - U + 17} fontSize="11" textAnchor="middle" fill="var(--text-leise)">{t.text}</text>
+            </g>
           ))}
           <line x1={L} x2={B - R} y1={sy(Math.max(yMin, 0))} y2={sy(Math.max(yMin, 0))} stroke="var(--rand)" strokeWidth="1" />
           {xTitel && <text x={B - R} y={hoehe - 4} fontSize="11" textAnchor="end" fill="var(--text-leise)">{xTitel}</text>}

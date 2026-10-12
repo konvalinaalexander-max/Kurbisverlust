@@ -85,3 +85,56 @@ export function achsenBereich(werte: number[], einheit: Einheit = 'frei', vorgab
   if (!(bis > von)) bis = von + 1
   return { von, bis, ausgeschlossen }
 }
+
+/* ---------- Kalenderstriche (Runde AQ) ------------------------------------- */
+
+const MONATE = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez']
+const TAG_MS = 86400000
+
+export interface Kalenderstrich { x: number; text: string }
+
+/**
+ * Die Striche einer Zeitachse, wie man einen Kalender liest — nicht „schöne
+ * Zahlen" von Tagen. Der Betrieb, 12. Oktober: „mach es professioneller";
+ * die Achse des Verlaufs stand bei 27.05 · 04.09 · 13.12 · 23.03, je hundert
+ * Tage, mitten in den Monaten.
+ *
+ *   - über zweieinhalb Monate: Monatsanfänge („Jul", „Aug", … im Januar mit
+ *     Jahr, „Jan 27"), bei langen Spannen jeder zweite, dritte oder sechste;
+ *   - kürzer (hineingezoomt): Montage, je eine oder zwei Wochen („7.9."),
+ *     ganz kurz einzelne Tage.
+ *
+ * x ist in Tagen; ursprungMs ist der Zeitpunkt von x = 0 (UTC) — 0 für
+ * „Tage seit 1970", Date.UTC(saison, 6, 1) für „Tage seit dem 1. Juli".
+ * Es kommen nur Striche im Bereich [x0, x1] zurück.
+ */
+export function kalenderStriche(x0: number, x1: number, ursprungMs = 0, hoechstens = 8): Kalenderstrich[] {
+  const spanne = x1 - x0
+  if (!(spanne > 0) || !Number.isFinite(spanne)) return []
+  const zuX = (ms: number) => (ms - ursprungMs) / TAG_MS
+  const start = new Date(ursprungMs + x0 * TAG_MS)
+  const striche: Kalenderstrich[] = []
+  if (spanne >= 75) {
+    // Monatsnamen sind kurz: bis zu vier mehr als Datumsstriche haben Platz.
+    const monate = spanne / 30.44
+    const schritt = [1, 2, 3, 6, 12].find(s => monate / s <= hoechstens + 4) ?? 12
+    let j = start.getUTCFullYear(), m = start.getUTCMonth()
+    if (zuX(Date.UTC(j, m, 1)) < x0) m += 1
+    while (((m % 12) + 12) % 12 % schritt !== 0) m += 1
+    for (let ms = Date.UTC(j, m, 1); zuX(ms) <= x1; m += schritt, ms = Date.UTC(j, m, 1)) {
+      const d = new Date(ms)
+      const mi = d.getUTCMonth()
+      striche.push({ x: zuX(ms), text: mi === 0 ? `${MONATE[0]} ${String(d.getUTCFullYear()).slice(2)}` : MONATE[mi] })
+    }
+    return striche
+  }
+  const schritt = [1, 2, 7, 14].find(s => spanne / s <= hoechstens) ?? 28
+  let ms = Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate())
+  if (zuX(ms) < x0) ms += TAG_MS
+  if (schritt >= 7) while (new Date(ms).getUTCDay() !== 1) ms += TAG_MS
+  for (; zuX(ms) <= x1; ms += schritt * TAG_MS) {
+    const d = new Date(ms)
+    striche.push({ x: zuX(ms), text: `${d.getUTCDate()}.${d.getUTCMonth() + 1}.` })
+  }
+  return striche
+}

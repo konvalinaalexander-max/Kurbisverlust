@@ -21,6 +21,14 @@ import type { Auftrag, Charge, Rueckmeldung } from '../lib/typen'
 
 const TAGE_ZUERST = 14
 
+/** Runde AQ: die Dauer lesbar — „0.0 h" stand bei jeder Arbeit, die in Minuten erfasst war. */
+export function dauerText(h: number): string {
+  const min = Math.round(h * 60)
+  if (min < 1) return '< 1 min'
+  if (min < 60) return `${min} min`
+  return h < 10 ? `${h.toFixed(1)} h` : `${Math.round(h)} h`
+}
+
 /**
  * Die Arbeiten — nach Tag gruppiert, die neuesten oben. Zuerst die letzten
  * zwei Wochen; „ältere zeigen" holt die nächsten. Kein Bildschirm mit
@@ -144,8 +152,8 @@ export default function Arbeiten() {
 
   return (
     <>
-    <Sicherung />
-    <Karte titel="Arbeiten" unter={`${gezeigt.length} Arbeiten an ${alleTage.length} Tagen — die neuesten zuerst.`}
+    {/* Runde AQ: die Arbeiten zuoberst — „mega wichtig, dass man einen Überblick hat"; die Sicherung steht darunter. */}
+    <Karte titel="Arbeiten" unter={`${gezeigt.length} Arbeiten an ${alleTage.length} Tagen`}
            aktion={loeschmodus
              ? <button type="button" id="arbeiten-loeschen-aus" className="symbolknopf an" aria-label="Auswahl beenden" title="Auswahl beenden" onClick={loeschmodusAus}><ZKreuz size={18} /></button>
              : <>
@@ -193,8 +201,10 @@ export default function Arbeiten() {
           {sichtbareTage.map(tag => (
             <div key={tag}>
               <div className="tag-trenner">{tagName(tag)} <span className="leise">· {gruppen.get(tag)!.length} Arbeiten</span></div>
-              <div className="rollbar"><table className="dicht">
-                <thead><tr>{loeschmodus && <th></th>}<th>Start</th><th>Arbeit</th><th>Charge</th><th>Status</th><th className="zahl">Paletten</th><th className="zahl">Bewegte Masse</th><th className="zahl">Dauer</th><th className="zahl">kg/h</th><th className="zahl">Leute</th><th>Rückmeldung</th><th></th></tr></thead>
+              {/* Runde AQ: feste Spaltenbreiten — die Tabellen der Tage stehen genau untereinander. Ohne kg/h: „Arbeit und Tempo … komplett weglassen". */}
+              <div className="rollbar"><table className="dicht arbeiten-tabelle">
+                <colgroup>{loeschmodus && <col className="sp-wahl" />}<col className="sp-start" /><col className="sp-arbeit" /><col /><col className="sp-status" /><col className="sp-zahl" /><col className="sp-masse" /><col className="sp-zahl" /><col className="sp-leute" /><col className="sp-rueck" /><col className="sp-oeffnen" /></colgroup>
+                <thead><tr>{loeschmodus && <th></th>}<th>Start</th><th>Arbeit</th><th>Charge</th><th>Status</th><th className="zahl">Paletten</th><th className="zahl">Bewegte Masse</th><th className="zahl">Dauer</th><th className="zahl">Leute</th><th>Rückmeldung</th><th></th></tr></thead>
                 <tbody>{gruppen.get(tag)!.map(a => {
                   const ta = taetigkeitVon(a.weg, a.station, a.ist_fax); const d = durchsatz.get(a.id)
                   const rm = rueckmeldungen.get(a.id) ?? []
@@ -214,10 +224,9 @@ export default function Arbeiten() {
                       <td className="nowrap"><TaetZeichen id={ta?.id} /> {ta ? t(ta.text) : ''}</td>
                       <td>{chargeText(chargen.find(c => c.nr === a.charge_nr))}</td>
                       <td>{a.abgebrochen_ts ? <Marke art="warnung">abgebrochen</Marke> : a.status === 'offen' ? <Marke art="offen">läuft</Marke> : <Marke art="fertig">fertig</Marke>}</td>
-                      <td className="zahl">{d ? zahl(d.n_paletten) : ''}</td>
+                      <td className="zahl">{d && d.n_paletten > 0 ? zahl(d.n_paletten) : <span className="leise">—</span>}</td>
                       <td className="zahl">{d?.masse_kg != null ? kg(d.masse_kg, 0) : ''}</td>
-                      <td className="zahl">{d ? `${d.dauer_h.toFixed(1)} h` : ''}</td>
-                      <td className="zahl">{d?.kg_pro_h != null ? zahl(d.kg_pro_h) : ''}</td>
+                      <td className="zahl">{d ? dauerText(d.dauer_h) : ''}</td>
                       <td className="zahl">{d ? d.n_teilnehmer : ''}</td>
                       <td className="nowrap">{rm.length > 0 && (
                         // 0085: Die Zeichen sagen, was da ist — Text, Ton oder beides.
@@ -231,7 +240,7 @@ export default function Arbeiten() {
                     </tr>
                     {offen.has(a.id) && rm.map(r => (
                       <tr key={`r${r.id}`} className="rueckmeldung-zeile">
-                        <td colSpan={loeschmodus ? 12 : 11}>
+                        <td colSpan={loeschmodus ? 11 : 10}>
                           <div className="leise" style={{ marginBottom: '.3rem' }}>
                             {namen.get(r.erfasser) || 'jemand'} · {zeitpunkt(r.ts)}
                             {r.audio_sekunden != null && <> · {Math.floor(r.audio_sekunden / 60)}:{String(r.audio_sekunden % 60).padStart(2, '0')} Aufnahme</>}
@@ -278,6 +287,7 @@ export default function Arbeiten() {
         </>
       )}
     </Karte>
+    <Sicherung />
     </>
   )
 }

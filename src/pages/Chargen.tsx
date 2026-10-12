@@ -6,7 +6,7 @@ import { taetigkeitVon } from '../lib/taetigkeit'
 import { WOERTERBUCH } from '../lib/i18n'
 import { datum, kg, prozent, tonnen, zahl, zeitpunkt } from '../lib/format'
 import { Erklaerung, Herkunft, Hinweis, Karte, Lade, Marke } from '../components/Bausteine'
-import { anteilBei, useAuswertung, type Auswertung } from '../auswertung/daten'
+import { anteilBei, lieferungenVon, useAuswertung, type Auswertung } from '../auswertung/daten'
 import { Probleme, Rechnet, Reiterkopf } from '../auswertung/Karten'
 import type { Auftrag } from '../lib/typen'
 import { herkunftText, summeBekannt } from '../lib/masse'
@@ -71,7 +71,7 @@ export default function Chargen() {
     return (
       <th className={zahlspalte ? 'zahl' : undefined}>
         <button type="button" onClick={() => setNach(id)} aria-pressed={nach === id}
-                style={{ font: 'inherit', color: 'inherit', background: 'none', border: 0, padding: 0, cursor: 'pointer' }}>
+                style={{ font: 'inherit', color: 'inherit', textTransform: 'inherit', letterSpacing: 'inherit', textAlign: 'inherit', background: 'none', border: 0, padding: 0, cursor: 'pointer' }}>
           {children}{nach === id && <span aria-hidden="true"> {auf ? '↑' : '↓'}</span>}
         </button>
       </th>
@@ -211,13 +211,19 @@ function ChargeDetail({ nr, z, daten }: { nr: number; z: Zeile; daten: Auswertun
   const t = (id: keyof typeof WOERTERBUCH.de) => WOERTERBUCH.de[id]
   if (laedt) return <Lade zeilen={2} />
   const b = z.b
+  // 0114: Lieferscheine ohne Chargennummer nehmen anteilig von jeder Charge
+  // ihrer Sorte — sie zählen hier mit, stehen aber nicht in der Liste unten.
+  const ohneNummer = lieferungenVon(daten.lieferungGruppe, 'charge', String(nr))?.n_ohne_charge ?? 0
+  const einZiel = lieferungen.every(l => l.ziel_name === lieferungen[0]?.ziel_name)
+  const mz = (n: number, ein: string, mehr: string) => `${zahl(n)} ${n === 1 ? ein : mehr}`
   return (
     <div className="wechsel">
       {/* Runde AO: keine zweite Zahlenreihe mehr — die Zahlen stehen in der
           Zeile darüber; hier steht in Sätzen, was sie heissen. */}
       <ul className="erklaer-liste">
         {b.n_lieferungen > 0 && (
-          <li><strong>Ausgeliefert {kg(b.geliefert_kg, 0)}</strong> in {zahl(b.n_lieferungen)} Lieferungen <Herkunft art="gemessen" />.
+          <li><strong>Ausgeliefert {kg(b.geliefert_kg, 0)}</strong> in {zahl(b.n_lieferungen)} {b.n_lieferungen === 1 ? 'Lieferung' : 'Lieferungen'} <Herkunft art="gemessen" />
+            {ohneNummer > 0 && <> — {zahl(ohneNummer)} davon ohne Chargennummer, nach dem Eingang auf die Chargen der Sorte verteilt (sie fehlen unten in der Liste)</>}.
             Dafür gingen {kg(b.ausgelagert_kg, 0)} Eingangsware aus dem Lager <Herkunft art="gerechnet" /> — die Differenz
             von {kg(Math.max(b.ausgelagert_kg - b.geliefert_kg, 0), 0)} ist unterwegs verdunstet, im Palox gelandet oder als zu klein / zu gross aussortiert.
             {b.ueberzaehlung_kg > 0 && <> Geliefert wurde {kg(b.ueberzaehlung_kg, 0)} mehr, als hereingekommen ist — ein Zettel oder eine Zuordnung stimmt nicht.</>}</li>
@@ -231,8 +237,8 @@ function ChargeDetail({ nr, z, daten }: { nr: number; z: Zeile; daten: Auswertun
           {b.verlust_heute_kg !== null
             ? <> = Verdunstung {kg(b.verdunstung_heute_kg, 0)} + Palox {kg(b.schimmel_heute_kg, 0)} + Faules beim Abpacken {kg(b.fax_heute_kg, 0)}</>
             : <> — {verlustTitel(b)}</>}
-          {b.faul_anteil != null && <span className="leise" title={b.faul_quelle ?? ''}> · rechnet mit {prozent(b.faul_anteil)} im Palox ({b.faul_quelle ?? 'Quelle unbekannt'})</span>}.</li>
-        {z.l && <li className="leise">Messungen dieser Charge: {zahl(z.l.n_wiegungen)} Palettenwägungen · {zahl(z.l.n_schimmel)} Palox-Ablesungen · {zahl(z.l.n_sortierlaeufe)} Sortierläufe (CSV).
+          {b.faul_anteil != null && <span className="leise" title={b.faul_quelle ?? 'Quelle unbekannt'}> · rechnet mit {prozent(b.faul_anteil)} im Palox</span>}.</li>
+        {z.l && <li className="leise">Messungen dieser Charge: {mz(z.l.n_wiegungen, 'Palettenwägung', 'Palettenwägungen')} · {mz(z.l.n_schimmel, 'Palox-Ablesung', 'Palox-Ablesungen')} · {mz(z.l.n_sortierlaeufe, 'Sortierlauf', 'Sortierläufe')} (CSV).
           Auffälligkeiten stehen unter <Link to="/messungen/auffaelligkeiten">Messungen</Link>.</li>}
       </ul>
 
@@ -246,7 +252,7 @@ function ChargeDetail({ nr, z, daten }: { nr: number; z: Zeile; daten: Auswertun
                 <tr key={k.eingangsdatum}>
                   <td>{datum(k.eingangsdatum)}</td><td className="zahl">{k.alter_heute} d</td>
                   <td className="zahl">{k.n_paletten}</td><td className="zahl">{k.eingang_kg != null ? kg(k.eingang_kg, 0) : <span className="leise">—</span>}</td>
-                  <td className="zahl">{k.n_verarbeitet}{k.n_verarbeitet > k.n_paletten && <> <Marke art="warnung">mehr gezählt als gekommen</Marke></>}</td>
+                  <td className="zahl">{k.n_verarbeitet}{k.n_verarbeitet > k.n_paletten && <span className="zelle-unter"><Marke art="warnung">mehr gezählt als gekommen</Marke></span>}</td>
                 </tr>
               ))}</tbody>
             </table></div>
@@ -254,12 +260,13 @@ function ChargeDetail({ nr, z, daten }: { nr: number; z: Zeile; daten: Auswertun
         </div>
 
         <div>
-          <h3 className="oben-0">2 · Ausgang <span className="leise">· {lieferungen.length} Lieferungen</span></h3>
+          {/* Runde AQ: die Spalte „Ziel" nur, wenn nicht alles derselbe Weg ist — sonst stand 40-mal „Verkauf (Lieferschein)" da. */}
+          <h3 className="oben-0">2 · Ausgang <span className="leise">· {lieferungen.length} {lieferungen.length === 1 ? 'Lieferung' : 'Lieferungen'}{einZiel && lieferungen.length > 0 ? ` · ${lieferungen[0].ziel_name}` : ''}</span></h3>
           {lieferungen.length === 0 ? <p className="leise">noch keine dieser Charge zugeordnet</p> : (
             <div className="rollbar"><table className="dicht">
-              <thead><tr><th>Datum</th><th>Ziel</th><th>Kunde</th><th className="zahl">Masse der Lieferung</th></tr></thead>
+              <thead><tr><th>Datum</th>{!einZiel && <th>Ziel</th>}<th>Kunde</th><th className="zahl">Masse der Lieferung</th></tr></thead>
               <tbody>{lieferungen.map(l => (
-                <tr key={l.id}><td>{datum(l.datum)}</td><td>{l.ziel_name}</td><td>{l.kunde ?? ''}</td>
+                <tr key={l.id}><td>{datum(l.datum)}</td>{!einZiel && <td>{l.ziel_name}</td>}<td>{l.kunde ?? ''}</td>
                   <td className="zahl">{kg(l.masse_kg, 0)}{l.masse_quelle !== 'gewogen' && <span className="leise"> ({herkunftText(l.masse_quelle)})</span>}</td></tr>
               ))}</tbody>
             </table></div>
@@ -270,7 +277,7 @@ function ChargeDetail({ nr, z, daten }: { nr: number; z: Zeile; daten: Auswertun
       <h3>3 · Arbeiten <span className="leise">· {arbeiten.length}</span></h3>
       {arbeiten.length === 0 ? <p className="leise">noch keine</p> : (
         <div className="rollbar"><table className="dicht">
-          <thead><tr><th>Start</th><th>Arbeit</th><th>Status</th><th className="zahl">Bewegte Masse</th><th className="zahl">Alter verarbeitet</th><th></th></tr></thead>
+          <thead><tr><th>Start</th><th>Arbeit</th><th>Status</th><th className="zahl">Bewegte Masse</th><th className="zahl" title="Wie alt die verarbeitete Ware war — in Klammern: Tage älter (+) oder jünger (−) als der Durchschnitt der Charge an dem Tag">Alter der Ware</th><th></th></tr></thead>
           <tbody>
             {arbeiten.map(a => {
               const ta = taetigkeitVon(a.weg, a.station, a.ist_fax)
@@ -281,7 +288,7 @@ function ChargeDetail({ nr, z, daten }: { nr: number; z: Zeile; daten: Auswertun
                   <td><TaetZeichen id={ta?.id} /> {ta ? t(ta.text) : ''}</td>
                   <td>{a.abgebrochen_ts ? <Marke art="warnung">abgebrochen</Marke> : a.status === 'offen' ? <Marke art="offen">läuft</Marke> : <Marke art="fertig">fertig</Marke>}</td>
                   <td className="zahl">{a.masse_kg != null ? kg(a.masse_kg, 0) : <span className="leise">unbekannt</span>}{a.masse_quelle && a.masse_quelle !== 'fehlt' && <span className="leise"> ({herkunftText(a.masse_quelle)})</span>}</td>
-                  <td className="zahl">{va ? `${Math.round(va.alter_verarbeitet)} d${va.differenz != null ? ` (${va.differenz > 0 ? '+' : ''}${Math.round(va.differenz)})` : ''}` : ''}</td>
+                  <td className="zahl" title={va?.differenz != null ? `${Math.abs(Math.round(va.differenz))} Tage ${va.differenz >= 0 ? 'älter' : 'jünger'} als der Durchschnitt der Charge an dem Tag` : undefined}>{va ? `${Math.round(va.alter_verarbeitet)} d${va.differenz != null ? ` (${va.differenz > 0 ? '+' : ''}${Math.round(va.differenz)})` : ''}` : ''}</td>
                   <td className="rechts-buendig"><Link to={`/arbeit/${a.id}`}>öffnen</Link></td>
                 </tr>
               )

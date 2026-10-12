@@ -25,8 +25,13 @@ interface Ziel { code: string; name: string; buch: string; reihenfolge: number }
 
 const heute = heuteOrtszeit
 
+/** So viele Lieferungen stehen zuerst in der Liste; die Zahlen darüber zählen alle. */
+const ZUERST = 200
+const SEITE = 1000
+
 export default function Lieferungen() {
-  const [zeilen, setZeilen] = useState<Zeile[]>([])
+  const [alle, setAlle] = useState<Zeile[]>([])
+  const [zeigeAlle, setZeigeAlle] = useState(false)
   const [ziele, setZiele] = useState<Ziel[]>([])
   const [sorten, setSorten] = useState<string[]>([])
   const [chargen, setChargen] = useState<{ nr: number; sorte: string; schlag: string }[]>([])
@@ -42,14 +47,26 @@ export default function Lieferungen() {
   const [kunde, setKunde] = useState('')
 
   const laden = useCallback(async () => {
+    // Runde AQ: alle Lieferungen, seitenweise — bis hier nur die neuesten 200,
+    // und „Masse aller Lieferungen" zählte nur diese (27.7 t statt 209.7 t).
+    const holeAlle = async () => {
+      const da: Zeile[] = []
+      for (let von = 0; ; von += SEITE) {
+        const r = await supabase.from('v_lieferung_masse').select('*')
+          .order('datum', { ascending: false }).order('id', { ascending: false }).range(von, von + SEITE - 1)
+        if (r.error) { setFehler(fehlerText(r.error)); return da }
+        const teil = (r.data ?? []) as Zeile[]
+        da.push(...teil)
+        if (teil.length < SEITE) return da
+      }
+    }
     const [l, z, s, c] = await Promise.all([
-      supabase.from('v_lieferung_masse').select('*').order('datum', { ascending: false }).limit(200),
+      holeAlle(),
       supabase.from('ausgang_ziel').select('*').order('reihenfolge'),
       supabase.from('sorte_kaliber').select('sorte').order('sorte'),
       supabase.from('charge').select('nr, sorte, schlag').order('nr'),
     ])
-    if (l.error) setFehler(fehlerText(l.error))
-    setZeilen((l.data ?? []) as Zeile[])
+    setAlle(l)
     setZiele((z.data ?? []) as Ziel[])
     setSorten(((s.data ?? []) as { sorte: string }[]).map(x => x.sorte))
     setChargen((c.data ?? []) as typeof chargen)
@@ -88,20 +105,15 @@ export default function Lieferungen() {
   // Leer ist nicht null: Zeilen ohne Masse (das Kistengewicht ist noch
   // unbekannt) gehen nicht als 0 kg in die Summe, sondern zählen nicht mit —
   // wie viele es sind, steht unter der Kennzahl und im Hinweis darunter.
-  const massen = zeilen.flatMap(z => z.masse_kg !== null ? [z.masse_kg] : [])
+  const massen = alle.flatMap(z => z.masse_kg !== null ? [z.masse_kg] : [])
   const summe = massen.reduce((s, m) => s + m, 0)
-  const ohneMasse = zeilen.length - massen.length
-  const ohneKistengewicht = zeilen.some(z => z.masse_quelle === 'Kistengewicht unbekannt')
+  const ohneMasse = alle.length - massen.length
+  const ohneKistengewicht = alle.some(z => z.masse_quelle === 'Kistengewicht unbekannt')
+  const zeilen = zeigeAlle ? alle : alle.slice(0, ZUERST)
 
   return (
     <>
       <h1>Warenausgang</h1>
-      <p className="leise">
-        Was den Betrieb verlassen hat — neben dem Wareneingang die einzige Zahl,
-        die vollständig ist. Der Weg dorthin ist die Excel-Auswertung aus dem
-        Perigon; von Hand eintragen bleibt für das, was dort nicht steht
-        (Hofladen, Tierfutter, Kompost).
-      </p>
 
       <AusgangImport nachUebernahme={() => void laden()} />
 
@@ -173,7 +185,7 @@ export default function Lieferungen() {
 
       <Karte titel="Erfasst">
         <div className="spalten">
-          <Kennzahl titel="Lieferungen" wert={String(zeilen.length)} />
+          <Kennzahl titel="Lieferungen" wert={zahl(alle.length)} />
           <Kennzahl titel="Masse aller Lieferungen" wert={`${(summe / 1000).toFixed(1)} t`}
                     unter={ohneMasse > 0 ? `${ohneMasse} ohne Masse — nicht mitgezählt` : undefined} />
         </div>
@@ -184,10 +196,18 @@ export default function Lieferungen() {
             viel eine Kiste wiegt. Diese Zeilen zählen noch nicht mit.
           </Hinweis>
         )}
-        {zeilen.length === 0 ? (
+        {alle.length === 0 ? (
           <p className="leise">Noch nichts erfasst.</p>
         ) : (
           <div className="rollbar">
+            {alle.length > ZUERST && (
+              <p className="leise">
+                {zeigeAlle ? `Alle ${zahl(alle.length)} Lieferungen, die neuesten zuerst.` : `Die neuesten ${ZUERST} von ${zahl(alle.length)}.`}{' '}
+                <button type="button" className="werkzeug-knopf" onClick={() => setZeigeAlle(a => !a)}>
+                  {zeigeAlle ? `nur die neuesten ${ZUERST}` : 'alle zeigen'}
+                </button>
+              </p>
+            )}
             <table>
               <thead>
                 <tr><th>Datum</th><th>Sorte</th><th>Charge</th><th className="zahl">Angabe auf dem Lieferschein</th>
@@ -203,7 +223,7 @@ export default function Lieferungen() {
                       {z.kg !== null ? kgText(z.kg, 0) : `${zahl(z.kisten)} Kisten`}
                     </td>
                     <td className="zahl">
-                      {z.masse_kg === null ? '—' : `${Math.round(z.masse_kg)} kg`}
+                      {z.masse_kg === null ? '—' : kgText(z.masse_kg, 0)}
                       {z.masse_fehler_kg ? (
                         <span className="leise"> ±{Math.round(z.masse_fehler_kg)}</span>
                       ) : null}

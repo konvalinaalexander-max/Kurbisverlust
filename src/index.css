@@ -977,6 +977,36 @@ tr.marge-dahinter table { margin: 0; }
 .kundentabelle tr.aktiv td { background: var(--kuerbis-flaeche); }
 .kundentabelle { margin-top: var(--a-4); }
 #artikel-dahinter { margin-top: var(--a-3); }
+/* Runde AQ: Wie viel ist von welchem Artikel noch da? Ein Balken je Artikel,
+   so lang wie sein Eingang (alle auf demselben Massstab): grau, was hinter den
+   Lieferungen steckt, orange, was noch im Lager liegt, blau darin das
+   Verkaufsfähige nach Grösse. */
+.uebersicht { display: grid; gap: .15rem; margin-bottom: var(--a-3); }
+.uebersicht-zeile { display: grid; grid-template-columns: minmax(150px, 13rem) minmax(0, 1fr) 8.5rem; gap: .2rem 1rem; align-items: center; padding: .45rem .25rem; border-bottom: 1px solid var(--rand-leise); }
+.uebersicht-zeile:last-child { border-bottom: 0; }
+.uebersicht-name { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; font-size: var(--s-1); }
+.uebersicht-name .leise { font-size: var(--s-0); }
+.uebersicht-bahn { display: flex; align-items: center; gap: .5rem; min-width: 0; }
+.uebersicht-spur { display: flex; flex: none; height: 26px; min-width: 4px; max-width: calc(100% - 7.5rem); border-radius: 6px; overflow: hidden; background: var(--flaeche-2); }
+.uebersicht-teil { display: flex; align-items: center; height: 100%; min-width: 0; overflow: hidden; }
+.uebersicht-teil.ausgeliefert { background: var(--text-leise); }
+.uebersicht-teil.ausgeliefert em { font-style: normal; font-size: var(--s-0); font-weight: var(--gewicht-stark); color: #fff; padding: 0 .45rem; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.uebersicht-lagertext { font-size: var(--s-0); color: var(--text-leise); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.uebersicht-teil.gedimmt { opacity: .28; }
+.uebersicht-lager { display: flex; height: 100%; background: color-mix(in srgb, var(--kuerbis) 30%, var(--flaeche)); }
+.uebersicht-teil.rest { background: transparent; }
+.uebersicht-chip-rest { background: color-mix(in srgb, var(--kuerbis) 30%, var(--flaeche)); }
+.uebersicht-wert { display: flex; flex-direction: column; align-items: flex-end; text-align: right; font-variant-numeric: tabular-nums; line-height: 1.2; }
+.uebersicht-wert strong { font-size: var(--s-3); }
+.uebersicht-wert .leise { font-size: var(--s-0); }
+.uebersicht-legende { margin: .25rem 0 var(--a-3); }
+.uebersicht-tabelle td .zelle-unter { display: block; }
+.uebersicht-tabelle td:first-child strong { white-space: nowrap; }
+@media (max-width: 600px) {
+  .uebersicht-zeile { grid-template-columns: minmax(0, 1fr) auto; }
+  .uebersicht-name { grid-column: 1 / -1; }
+  .uebersicht-spur { height: 20px; }
+}
 .chargenliste .marke { margin-top: .2rem; }
 /* Auf dem Handy: Sorte und Feld brechen um, die Zahlenspalten werden schmal —
    das Kilo bleibt im Bild, ohne seitlich zu rollen. */
@@ -995,3 +1025,30 @@ tr.marge-dahinter table { margin: 0; }
 .erreicht-balken > span.voll { background: color-mix(in srgb, var(--rot) 50%, transparent); }
 .erreicht-balken > em { position: relative; display: block; text-align: center; font-style: normal; font-size: var(--s-0); line-height: 1.15rem; font-variant-numeric: tabular-nums; }
 .filter-klein select { min-height: 32px; padding: .15rem .4rem; font-size: var(--s-0); }
+
+/* Runde AQ: die Arbeiten, Tag für Tag in eigenen Tabellen — mit festen
+   Spaltenbreiten stehen sie genau untereinander. */
+.arbeiten-tabelle { table-layout: fixed; width: 100%; min-width: 860px; }
+.arbeiten-tabelle col.sp-wahl { width: 2.6rem; }
+.arbeiten-tabelle col.sp-start { width: 3.9rem; }
+.arbeiten-tabelle col.sp-arbeit { width: 10.6rem; }
+.arbeiten-tabelle col.sp-status { width: 6.2rem; }
+.arbeiten-tabelle col.sp-zahl { width: 5rem; }
+.arbeiten-tabelle col.sp-masse { width: 7.2rem; }
+.arbeiten-tabelle col.sp-leute { width: 3.8rem; }
+.arbeiten-tabelle col.sp-rueck { width: 7rem; }
+.arbeiten-tabelle col.sp-oeffnen { width: 4.2rem; }
+.arbeiten-tabelle td, .arbeiten-tabelle th { overflow-wrap: anywhere; }
+
+/* Runde AQ: die Auffälligkeiten nach Art — ein Knopf je Art mit ihrer Zahl. */
+.befund-arten { display: flex; flex-wrap: wrap; gap: .35rem; margin: 0 0 var(--a-3); }
+.befund-art { min-height: 32px; padding: .2rem .7rem; border-radius: 999px; border: 1px solid var(--rand); background: var(--flaeche); font-size: var(--s-1); cursor: pointer; }
+.befund-art .leise { margin-left: .25rem; font-variant-numeric: tabular-nums; }
+.befund-art.an { background: var(--text); border-color: var(--text); color: var(--flaeche); }
+.befund-art.an .leise { color: color-mix(in srgb, var(--flaeche) 75%, transparent); }
+
+/* Runde AQ: Kennzahlen innerhalb einer Karte als Kacheln nebeneinander — die
+   drei Palox-Stationen standen untereinander und verschwammen mit dem Text. */
+.kennzahl-kacheln { display: grid; gap: var(--a-3); grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); margin-bottom: var(--a-4); }
+.kennzahl-kacheln > .kennzahl { background: var(--flaeche-2); border: 1px solid var(--rand-leise); border-radius: 10px; padding: .85rem 1rem; }
+.kennzahl-kacheln > .kennzahl .neben-zahl { display: block; font-size: var(--s-1); margin-top: .1rem; }

@@ -17,6 +17,37 @@ export function zahl(wert: number | null | undefined, stellen = 0): string {
   return wert.toLocaleString(ORT, { minimumFractionDigits: stellen, maximumFractionDigits: stellen })
 }
 
+/**
+ * Runde AQ: Befunde und Ratschläge aus der Datenbank lesbar — sie kommen als
+ * fertige Sätze aus SQL („1 Palette(n) mit 312.00 kg", „16825 kg"). Hier
+ * werden sie so geschrieben wie jede andere Zahl der App: „1 Palette mit
+ * 312 kg", „16’825 kg". Was die Datenbank meint, bleibt Wort für Wort; nur
+ * Schreibweise, Einzahl/Mehrzahl und Entwickler-Hinweise wie „(seit 0104 …)"
+ * ändern sich.
+ */
+export function lesbar(text: string | null | undefined): string {
+  if (!text) return ''
+  let s = text
+  // Einzahl und Mehrzahl: „1 Palette(n)" → „1 Palette", „4 Palette(n)" → „4 Paletten".
+  const formen: [string, string, string][] = [['Palette', 'Palette', 'Paletten'], ['Kiste', 'Kiste', 'Kisten'],
+    ['Lieferung', 'Lieferung', 'Lieferungen'], ['Arbeit', 'Arbeit', 'Arbeiten'], ['Charge', 'Charge', 'Chargen']]
+  for (const [stamm, ein, mehr] of formen) {
+    s = s.replace(new RegExp(`(\\d+) ${stamm}\\((?:n|en)\\)`, 'g'), (_, n: string) => `${n} ${Number(n) === 1 ? ein : mehr}`)
+    s = s.replace(new RegExp(`${stamm}\\((?:n|en)\\)`, 'g'), mehr)
+  }
+  // Kilo: ohne angehängte Nullen („229.00 kg" → „229 kg", „44.50 kg" → „44.5 kg"),
+  // mit Tausender-Hochkomma („16825 kg" → „16’825 kg").
+  s = s.replace(/(\d+)(?:\.(\d+))?(?= ?kg\b)/g, (_, ganz: string, nach?: string) => {
+    const rest = (nach ?? '').replace(/0+$/, '')
+    return rest ? `${zahl(Number(ganz))}.${rest}` : zahl(Number(ganz))
+  })
+  // „von 229.00 auf 55 kg": die erste Zahl gehört zu denselben Kilo.
+  s = s.replace(/(\d+)\.0+(?= auf \d)/g, (_, ganz: string) => zahl(Number(ganz)))
+  // Entwickler-Verweise gehören nicht in die Halle: „(seit 0104 Pflicht in der App)".
+  s = s.replace(/\s*\(seit \d{4}[^)]*\)/g, '')
+  return s
+}
+
 export function prozent(anteil: number | null | undefined, stellen = 1): string {
   if (anteil === null || anteil === undefined || Number.isNaN(anteil)) return '—'
   return `${(anteil * 100).toLocaleString(ORT, { minimumFractionDigits: stellen, maximumFractionDigits: stellen })} %`

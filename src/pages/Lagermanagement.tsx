@@ -6,7 +6,7 @@ import DemoDaten from '../components/DemoDaten'
 import { datum, kg, prozent, tonnen, zahl } from '../lib/format'
 import { Erklaerung, Herkunft, Hinweis, Karte, Kennzahl, Leer, Marke, Segmente } from '../components/Bausteine'
 import { Glocke, Linien, tonnenAchse, type Reihe } from '../components/Diagramm'
-import { kaliberGlockeBei, lagerKaliberBei, prognoseBei, useAuswertung, useStichtag, wohinVon,
+import { kaliberGlockeBei, lagerKaliberBei, lieferungenVon, prognoseBei, useAuswertung, useStichtag, wohinVon,
          type Auswertung, type Bestand, type KaliberGlocke, type LagerKaliber, fehlendeRaten } from '../auswertung/daten'
 import { Probleme, Rechnet, Reiterkopf } from '../auswertung/Karten'
 import { JournalAbgleich } from '../betrieb/JournalAbgleich'
@@ -156,7 +156,10 @@ function Kennzahlen({ daten, filter }: { daten: Auswertung; filter: Filter }) {
   const chargen = chargenIm(daten.bestand, filter)
   const paletten = chargen.reduce((a, b) => a + b.n_paletten, 0)
   const ohneNetto = chargen.reduce((a, b) => a + (b.n_paletten - b.n_paletten_mit_netto), 0)
-  const lieferungen = chargen.reduce((a, b) => a + b.n_lieferungen, 0)
+  // 0114: jeder Lieferschein einmal — die Summe über die Chargen zählte einen
+  // ohne Chargennummer einmal je Charge seiner Sorte (und die Datenbank jeden
+  // einmal je Eingangstag: „4'836 Lieferungen" bei 1'133).
+  const lieferungen = lieferungenVon(daten.lieferungGruppe, filter.gruppe, filter.schluessel)?.n_lieferungen ?? null
   const anteil = p0?.verkaufsfaehig_anteil ?? null
   // Die liegende Ware, zerlegt: derselbe Balken, den die Kaskade rechnet.
   const teile = p0 ? [
@@ -179,7 +182,7 @@ function Kennzahlen({ daten, filter }: { daten: Auswertung; filter: Filter }) {
                 unter={(w?.geliefert_kg ?? 0) > 0
                   // Runde AF: Ausgang ist nur der Lieferschein. Zu klein und zu gross,
                   // das beim Sortieren herausfällt, steht im Haus (0101) — nicht hier.
-                  ? <>{zahl(lieferungen)} Lieferungen ab Lieferschein</>
+                  ? <>{lieferungen !== null ? <>{zahl(lieferungen)} {lieferungen === 1 ? 'Lieferung' : 'Lieferungen'} ab Lieferschein</> : 'ab Lieferschein'}</>
                   : <>noch kein Warenausgang eingelesen — <Link to="/betrieb/lieferungen">Betrieb → Warenausgang</Link></>} />
       <Kennzahl titel="Im Lager" ton="kuerbis" id="kz-lager"
                 wert={<><Tonnen kg={p0?.lager_kg} /><Herkunft art="gerechnet" /></>}
@@ -216,7 +219,10 @@ function Verlauf({ daten, filter }: { daten: Auswertung; filter: Filter }) {
   const heute = x(daten.heute)
   const bisHeute = wochen.filter(w => !w.prognose)
   const xErste = x(wochen[0].woche), xLetzte = x(wochen[wochen.length - 1].bis)
-  const xVon = Math.min(xErste, 2 * heute - xLetzte)
+  // Runde AQ: die Achse beginnt mit der ersten Woche, die Ware hatte. Bis hier
+  // stand „heute" in der Mitte, und vor dem ersten Eingang lagen Monate leer
+  // (beim Betrieb ab April, der erste Eingang war am 3. Juli).
+  const xVon = xErste
   const anteil = (w: typeof wochen[number]) => w.lager_kg > 0 ? w.verkaufsfaehig_kg / w.lager_kg : null
   // Runde AD: „Eingang kumuliert" ist weg — der Eingang steht als Zahl in der
   // Kennzahl oben; als Linie war er ausgeblendet und hat nur die Legende gefüllt.
@@ -237,9 +243,9 @@ function Verlauf({ daten, filter }: { daten: Auswertung; filter: Filter }) {
   return (
     <Karte id="lager-verlauf" titel="Die Saison im Verlauf">
       <Linien reihen={reihen} heute={{ x: heute, text: `heute, ${datum(daten.heute).slice(0, 6)}`, rechts: 'so ginge es weiter' }}
-              xVon={xVon} xBis={xLetzte} hoehe={300}
-              xFormat={d => datum(new Date(d * TAG)).slice(0, 5)} yFormat={tonnenAchse}
-              xTitel="Woche" yTitel="Tonnen" yEinheit="kg"
+              xVon={xVon} xBis={xLetzte} hoehe={320} xKalender={0}
+              xFormat={d => `Woche bis ${datum(new Date(d * TAG)).slice(0, 6)}`} yFormat={tonnenAchse}
+              yTitel="Tonnen" yEinheit="kg"
               fuss={<span className="leise">verkaufsfähig ab heute gestrichelt: wenn die liegende Ware liegen bleibt</span>} />
       <Erklaerung>
         <p>Eingang und Ausgang sind <Herkunft art="gemessen" /> und enden heute.

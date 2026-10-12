@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { datum, kg, prozent, tonnen, vorZeit, zeitpunkt } from '../lib/format'
+import { datum, kg, lesbar, prozent, tonnen, vorZeit, zeitpunkt } from '../lib/format'
 import { Erklaerung, Herkunft, Hinweis, Karte, Marke } from '../components/Bausteine'
 import { ZAktualisieren, ZHaken } from '../components/Zeichen'
 import { Bilanzzeile } from '../components/Kaskadenbild'
@@ -163,12 +163,12 @@ export function Kurvenherkunft({ punkte }: { punkte: Schimmelpunkt[] }) {
     { name: 'aus der Verarbeitung', quelle: 'verarbeitung',
       erklaerung: 'Der Palox am Band oder am Waschbecken. Welche Palette wann drankommt, hängt oft davon ab, wie sie aussieht — diese Punkte sind nicht zufällig ausgewählt.' },
     { name: 'aus Lagerkontrollen', quelle: 'lager',
-      erklaerung: 'Beim Wiegen aufgemacht und nachgesehen — nur bei älteren Kontrollen, die noch „davon faul" erfasst haben. Die Lagerkontrolle ist seit Runde H eine reine Verdunstungsmessung.' },
+      erklaerung: 'Beim Wiegen aufgemacht und nachgesehen — nur bei älteren Kontrollen, die noch „davon faul" erfasst haben; heute misst die Lagerkontrolle nur die Verdunstung.' },
     { name: 'aus gemischten Chargen', quelle: 'verarbeitung_gemischt',
-      erklaerung: 'Beim Abschluss wurde „nicht alles aus einer Charge" gesagt. Das Alter der Ware ist dann geraten — der Stationswert braucht keines, darum zählt die Messung seit 0106 mit.' },
+      erklaerung: 'Beim Abschluss wurde „nicht alles aus einer Charge" gesagt. Das Alter der Ware ist dann geraten — der Stationswert braucht keines, darum zählt die Messung mit.' },
   ]
   return (
-    <Karte titel="Woher die Palox-Anteile kommen" unter="Welche Messungen die Stationswerte tragen — und welche nicht.">
+    <Karte titel="Woher die Palox-Anteile kommen">
       <div className="rollbar"><table className="dicht">
         <thead><tr><th>Herkunft</th><th className="zahl">Punkte</th><th className="zahl">Lagertage</th></tr></thead>
         <tbody>{klassen.map(k => {
@@ -217,7 +217,7 @@ export function Bilanz({ bilanz }: { bilanz: Saisonbilanz }) {
       {bilanz.ueberzaehlung_kg > 0 && (
         <Bilanzzeile titel="Überzählung" herkunft="gemessen" kg={bilanz.ueberzaehlung_kg} eingang={bilanz.eingang_kg} farbe="var(--rot)" erklaerung="hinter den Lieferungen steckt mehr Ware, als je eingelagert wurde — meist fehlt Wareneingang" />
       )}
-      <Hinweis art={bilanz.n_lieferungen === 0 ? 'warnung' : bilanz.ueberzaehlung_kg > 0.05 * bilanz.eingang_kg ? 'warnung' : 'gut'}>{bilanz.befund}</Hinweis>
+      <Hinweis art={bilanz.n_lieferungen === 0 ? 'warnung' : bilanz.ueberzaehlung_kg > 0.05 * bilanz.eingang_kg ? 'warnung' : 'gut'}>{lesbar(bilanz.befund)}</Hinweis>
       <Erklaerung titel="Warum die Rechnung von selbst aufgeht">
         Eingang + Überzählung = ausgeliefert + Verlust bis heute + noch im Haus, bis {datum(bilanz.heute)}. Ausgeliefert ist nur, was auf einem Lieferschein
         steht. Sie geht von selbst auf, weil das Ausgelagerte aus den Lieferscheinen zurückgerechnet ist — bis auf Rundung, und genau darum taugt sie als Probe:
@@ -255,6 +255,8 @@ export function Auffaelligkeiten({ befunde, kurz = false }: { befunde: Befund[];
   const [fenster, setFenster] = useState<number | null>(null)
   /** Runde Z: die Charge hinter der Auffälligkeit, als Fenster. */
   const [chargeFenster, setChargeFenster] = useState<number | null>(null)
+  /** Runde AQ: nach Art filtern — 45 „Zettelgewicht" untereinander verdeckten die übrigen. */
+  const [art, setArt] = useState('')
   const ids = [...new Set(befunde.map(b => b.auftrag_id).filter((x): x is number => x !== null))]
   const schluessel = ids.join(',')
   useEffect(() => {
@@ -283,19 +285,31 @@ export function Auffaelligkeiten({ befunde, kurz = false }: { befunde: Befund[];
       <div className="hinweis gut" style={{ margin: 0 }}><span className="hinweis-zeichen"><ZHaken size={18} /></span><div className="hinweis-text">Keine — jede Messung passt zu ihrem Nenner.</div></div>
     </Karte>
   )
-  const liste = kurz ? befunde.slice(0, 3) : befunde
+  const arten = [...befunde.reduce((m, b) => m.set(b.art, (m.get(b.art) ?? 0) + 1), new Map<string, number>()).entries()]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'de'))
+  const gefiltert = art && arten.some(([a]) => a === art) ? befunde.filter(b => b.art === art) : befunde
+  const liste = kurz ? befunde.slice(0, 3) : gefiltert
   return (
     <Karte titel={`Auffälligkeiten (${befunde.length})`}
-           unter="Diese Werte fliessen nicht in die Rechnung ein — fast immer ist ein Tippfehler zu korrigieren oder etwas nachzutragen."
            aktion={kurz && befunde.length > 3 ? <Link to="/messungen/auffaelligkeiten" className="knopf klein">alle {befunde.length} ansehen</Link> : undefined}>
+      {!kurz && arten.length > 1 && (
+        <div className="befund-arten" role="group" aria-label="nach Art zeigen">
+          <button type="button" className={`befund-art${art === '' ? ' an' : ''}`} aria-pressed={art === ''} onClick={() => setArt('')}>alle <span className="leise">{befunde.length}</span></button>
+          {arten.map(([a, n]) => (
+            <button key={a} type="button" className={`befund-art${art === a ? ' an' : ''}`} aria-pressed={art === a} onClick={() => setArt(art === a ? '' : a)}>
+              {a} <span className="leise">{n}</span>
+            </button>
+          ))}
+        </div>
+      )}
       <div className="befunde">
         {liste.map((b, i) => (
           <div key={i} className={`befund ${befundTon(b.art)}`}>
             <div className="befund-kopf"><Marke art="warnung" punkt={false}>{b.art}</Marke> <button type="button" className="werkzeug-knopf charge-knopf" onClick={() => setChargeFenster(b.charge_nr)} title="Charge ansehen">Charge {b.charge_nr} · {b.sorte}</button></div>
             {b.auftrag_id && <div className="befund-arbeit">{arbeitText(b.auftrag_id)}</div>}
             {b.auftrag_id && kommentare.has(b.auftrag_id) && <div className="befund-arbeit"><strong>Kommentar zur Ware:</strong> {kommentare.get(b.auftrag_id)}</div>}
-            <div className="befund-text">{b.befund}</div>
-            <div className="befund-rat">{b.rat}</div>
+            <div className="befund-text">{lesbar(b.befund)}</div>
+            <div className="befund-rat">{lesbar(b.rat)}</div>
             {b.auftrag_id && (
               <div className="befund-aktion knopf-reihe" style={{ display: 'flex' }}>
                 <button type="button" className="knopf klein" onClick={() => setFenster(b.auftrag_id)}>Arbeit ansehen</button>

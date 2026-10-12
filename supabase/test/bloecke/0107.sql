@@ -67,8 +67,12 @@ begin
   assert v_st.berechnet_ts > v_vorher and v_st.berechnet_ts >= v_st.angefordert_ts, '0107 (b2): nach der Anforderung kein jüngerer Stand';
   assert not auswertung_wenn_veraltet(), '0107 (b3): erledigt — und doch noch einmal gerechnet';
 
-  -- (c) nachts einmal
-  perform set_config('kuerbis.jetzt_test', (((current_date + 1)::timestamp + interval '3 hours') at time zone 'Europe/Zurich')::text, true);
+  -- (c) nachts einmal — in der Nacht nach dem Ortstag des Laufs aus (b).
+  -- Runde AQ: Bis hier war es die Nacht nach current_date, und das ist der
+  -- Tag in UTC. Zwischen Mitternacht und zwei Uhr Schweizer Zeit ist UTC
+  -- noch beim Vortag; die Nacht lag dann vor dem Lauf aus (b), der schon nach
+  -- Mitternacht stand, und (c1) schlug an, ohne dass die Regel falsch war.
+  perform set_config('kuerbis.jetzt_test', ((((clock_timestamp() at time zone 'Europe/Zurich')::date + 1)::timestamp + interval '3 hours') at time zone 'Europe/Zurich')::text, true);
   update auswertung_stand set geaendert_ts = clock_timestamp() where id = 1;
   select berechnet_ts into v_vorher from auswertung_stand where id = 1;
   assert auswertung_wenn_veraltet(), '0107 (c1): nachts, tagsüber etwas erfasst — und nicht gerechnet';
