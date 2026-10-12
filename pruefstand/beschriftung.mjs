@@ -365,16 +365,29 @@ for (const seite of SEITEN) {
   })
 
   await blatt.goto(`http://localhost:5197${seite.pfad}`, { waitUntil: 'networkidle' })
-  // Anmelden, falls der Login-Schirm steht — die Auswertung sieht nur der Betriebsleiter
+  // Anmelden — die Auswertung sieht nur der Betriebsleiter. Runde AP: Hier
+  // stand `isVisible()`, das nicht wartet, sondern im selben Augenblick
+  // nachsieht, und nach dem Klick `networkidle` — derselbe Trugschluss, den
+  // bildschirme.mjs (anmelden) beschreibt. Stand der Anmeldeschirm im
+  // Augenblick der Frage noch nicht, blieb die Seite ohne Anmeldung, der
+  // Klickweg wartete 60 s auf den Filter, und die Ernte war leer: in der CI
+  // am 12. Oktober „lager-sorte" und „ursachen-sorte", einen Lauf vorher und
+  // lokal grün. Jetzt wird auf den Anmeldeschirm gewartet und auf den Beweis,
+  // dass die Anmeldung gegriffen hat (das E-Mail-Feld ist weg); kommt einer
+  // von beiden nicht, steht das mit Namen in der Liste.
   const login = blatt.getByRole('button', { name: 'Betriebsleiter' })
-  if (await login.isVisible().catch(() => false)) {
+  const email = blatt.getByLabel('E-Mail')
+  let angemeldet = false
+  try {
+    await login.waitFor({ state: 'visible', timeout: 30000 })
     await login.click()
-    await blatt.getByLabel('E-Mail').fill('chef@hof.test')
+    await email.fill('chef@hof.test')
     await blatt.getByLabel('Passwort').fill('pruefstand')
     await blatt.getByRole('button', { name: 'Anmelden', exact: true }).click()
-    await blatt.waitForLoadState('networkidle')
-    await blatt.goto(`http://localhost:5197${seite.pfad}`, { waitUntil: 'networkidle' })
-  }
+    await email.waitFor({ state: 'hidden', timeout: 30000 })
+    angemeldet = true
+  } catch (f) { konsole.push(`Anmeldung: ${f}`) }
+  if (angemeldet) await blatt.goto(`http://localhost:5197${seite.pfad}`, { waitUntil: 'networkidle' })
   await blatt.waitForTimeout(900)
   try { await seite.tun?.(blatt) } catch (f) { konsole.push(`Klickweg: ${f}`) }
   await blatt.waitForTimeout(300)
