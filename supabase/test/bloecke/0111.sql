@@ -7,8 +7,9 @@
 --     aller Sorten; kein Zug zum Gesamtwert; die Basis sagt die Ebene;
 -- (b) die Regel des Anstiegs (palox_anstieg) an gebauten Fällen, auch
 --     negativ und knapp unter den Schwellen;
--- (c) der Anstieg je Station, innerhalb der Sorten nachgerechnet, und die
---     Kennzahl hält sich an die Regel;
+-- (c) der Anstieg je Station, innerhalb der Sorten nachgerechnet — über die
+--     Saison und in Sechswochenfenstern, wo gepoolt und innerhalb sich
+--     trennen —, und die Kennzahl hält sich an die Regel;
 -- (d) der Grundausschuss je Sorte und Station: das Mittel, um den Anstieg
 --     auf null Tage zurückgelegt; geliehen unter drei eigenen Arbeiten;
 -- (e) die Kaskade nimmt jeden Stationswert beim Alter seiner Portion,
@@ -21,7 +22,7 @@
 -- (i) Stand 111.
 -- =====================================================================
 do $$
-declare v_modus jsonb; v_lad text; v_geladen boolean := false; v_n int; v_ab int; v_x int;
+declare v_modus jsonb; v_lad text; v_geladen boolean := false; v_n int; v_ab int; v_x int; v_d numeric; v_bis date;
   v_u uuid := '00000000-0111-0000-0000-000000000001';
 begin
   select wert into v_modus from einstellung where schluessel = 'betriebsmodus';
@@ -116,6 +117,45 @@ begin
          and p.basis_jetzt_kg > 0 and p.lagertage is not null and p.messtag <= heute()
          and p.quelle in ('verarbeitung', 'verarbeitung_gemischt')) x on true;
   assert v_n = 3 and v_ab = 0, format('0111 (c1): bei %s von %s Stationen weicht der Anstieg vom nachgerechneten ab', v_ab, v_n);
+  -- (c1b) Dasselbe in Sechswochenfenstern. Über die ganze Saison liegen die
+  -- Sorten der Demo so gleichmässig über die Lagerdauer, dass die Steigung
+  -- über alle Sorten hinweg (gepoolt) bis auf die fünfte Stelle dieselbe ist
+  -- wie die innerhalb der Sorten — (c1) allein merkte nicht, wenn die
+  -- Kennzahl die Sorten vermischt (Mutation M11, Runde AO). In kürzeren
+  -- Fenstern kommen die Sorten verschieden alt an, und dort trennt es. Dass
+  -- es trennt, wird mitgeprüft: sonst prüfte der Block nichts mehr. Die
+  -- Fenster hängen am letzten Messtag, nicht an heute(): Im Gesamtlauf steht
+  -- der Prüftag aus einem früheren Block auf dem Saisonende, Monate nach der
+  -- letzten Arbeit der Demo.
+  select max(e.messtag) into v_bis from erg_punkte e
+   where e.messtag <= heute() and e.quelle in ('verarbeitung', 'verarbeitung_gemischt')
+     and e.station in ('sortieren', 'waschen', 'waschen_sortieren');
+  select count(*), count(*) filter (where abs(k.anstieg_roh - round(x.b * 7, 5)) > 1e-5),
+         max(abs(x.b - x.b_gepoolt)) * 7
+    into v_n, v_ab, v_d
+    from generate_series(0, 12) f(i)
+    cross join lateral palox_station_kennzahl(v_bis - f.i * 14, v_bis - f.i * 14 - 41) k
+    join lateral (
+      with q as (
+        select e.sorte, e.lagertage::numeric as t, e.anteil_station as y, e.basis_jetzt_kg as w
+          from erg_punkte e
+         where e.station = k.station and e.plausibel_station and e.anteil_station is not null
+           and e.basis_jetzt_kg > 0 and e.lagertage is not null
+           and e.messtag between v_bis - f.i * 14 - 41 and v_bis - f.i * 14
+           and e.quelle in ('verarbeitung', 'verarbeitung_gemischt')
+      ), m as (
+        select q.sorte, sum(q.w * q.t) / sum(q.w) as t, sum(q.w * q.y) / sum(q.w) as y from q group by q.sorte
+      )
+      select sum(q.w * (q.t - m.t) * (q.y - m.y)) / nullif(sum(q.w * power(q.t - m.t, 2)), 0) as b,
+             (sum(q.w * q.t * q.y) * sum(q.w) - sum(q.w * q.t) * sum(q.w * q.y))
+               / nullif(sum(q.w * q.t * q.t) * sum(q.w) - power(sum(q.w * q.t), 2), 0) as b_gepoolt
+        from q join m on m.sorte = q.sorte
+    ) x on true
+   where k.anstieg_roh is not null;
+  assert v_n >= 20 and v_ab = 0,
+    format('0111 (c1b): in %s von %s Fenstern weicht der Anstieg vom innerhalb der Sorten nachgerechneten ab', v_ab, v_n);
+  assert v_d > 0.001,
+    format('0111 (c1b): gepoolt und innerhalb der Sorten trennen sich in keinem Fenster der Demo mehr (höchstens %s je Woche) — der Block sähe eine vermischte Steigung nicht', round(v_d, 5));
   select count(*), count(*) filter (where k.zuwachs_je_woche is distinct from round(palox_anstieg(k.anstieg_roh, k.n_paar, k.spanne_tage), 5))
     into v_n, v_ab
     from v_palox_station k;
@@ -244,15 +284,27 @@ begin
   assert v_n > 0 and v_ab = 0, format('0111 (g1): %s von %s Chargen: Bänder, Unter- oder Überkaliber gehen nicht auf', v_ab, v_n);
   assert not exists (select 1 from lager_kaliber(0) where klasse = 'kaliber' and kaliber_idx < 0),
     '0111 (g2): eine Band-Zeile unter dem kleinsten Band — das Geschrumpfte gehört ins kleinste Band';
-  -- Das Geschrumpfte ist ein Teil des kleinsten Bandes, nie mehr; und es
-  -- gibt es (die Demo hat Chargen mit eigener CSV und Verdunstung; ihr
-  -- „heute" ist das Saisonende, darum am Stichtag heute).
-  select count(*), count(*) filter (where c.geschrumpft_kg > coalesce(k0.kg, 0) + 0.02 or c.geschrumpft_kg < 0)
+  -- Das Geschrumpfte, nachgerechnet: der Massenanteil der Verteilung am
+  -- Stichtag unter der unteren Grenze des kleinsten Bandes × verkaufsfähig;
+  -- und es ist ein Teil des kleinsten Bandes, nie mehr. Die Demo hat Chargen
+  -- mit eigener CSV und Verdunstung (ihr „heute" ist das Saisonende, darum
+  -- am Stichtag heute).
+  select count(*), count(*) filter (where abs(c.geschrumpft_kg - c.verkaufsfaehig_kg * x.anteil) > 0.05
+                                       or c.geschrumpft_kg > coalesce(k0.kg, 0) + 0.02)
     into v_n, v_ab
     from (select distinct on (schluessel) * from lager_kaliber(0) where gruppe = 'charge' and basis <> 'keine') c
+    join lager_schluessel() q on q.charge_nr = c.schluessel::int
+    join lateral (
+      select coalesce(sum(w.anzahl * w.g) filter (where w.g < u.grenze), 0) / nullif(sum(w.anzahl * w.g), 0) as anteil
+        from kuerbis_stichtag(0) w
+       cross join (select ((s.kaliber_baender -> 0) ->> 0)::numeric as grenze
+                     from sortierschema s
+                    where s.sorte = c.sorte and s.art = 'kaliber' and s.gilt_ab <= heute()
+                    order by s.gilt_ab desc, s.id desc limit 1) u
+       where w.basis = q.basis and w.schluessel = q.schluessel) x on true
     left join lateral (select z.kg from lager_kaliber(0) z
                         where z.gruppe = 'charge' and z.schluessel = c.schluessel and z.klasse = 'kaliber' and z.kaliber_idx = 0) k0 on true;
-  assert v_n > 0 and v_ab = 0, format('0111 (g2b): bei %s von %s Chargen ist das Geschrumpfte nicht Teil des kleinsten Bandes', v_ab, v_n);
+  assert v_n > 0 and v_ab = 0, format('0111 (g2b): bei %s von %s Chargen ist das Geschrumpfte nicht der Anteil unter dem kleinsten Band (oder mehr als das Band)', v_ab, v_n);
   assert exists (select 1 from lager_kaliber(0) where gruppe = 'charge' and geschrumpft_kg > 0),
     '0111 (g2c): kein einziger Kürbis ist unter das kleinste Band geschrumpft — die Prüfung wäre blind';
   assert exists (select 1 from lager_kaliber(0) where klasse = 'unter' and kg > 0)

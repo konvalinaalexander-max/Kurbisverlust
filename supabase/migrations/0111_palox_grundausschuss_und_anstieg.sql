@@ -43,8 +43,10 @@
 --    wo die Charge selbst gemessen ist, gilt ihre Messung ohne Anstieg.
 --    Prognose und Verlauf schreiben von dort mit dem Anstieg fort.
 -- 4. v_prognose trennt zu klein und zu gross; lager_kaliber() zeigt
---    Unterkaliber (zu klein + seit der Sortierung unter das kleinste Band
---    geschrumpft) und Überkaliber (zu gross) neben den Bändern.
+--    Unterkaliber (zu klein) und Überkaliber (zu gross) neben den Bändern,
+--    und die Bänder sind das Verkaufsfähige — dieselbe Zahl wie überall.
+--    Was seit der Sortierung unter das kleinste Band geschrumpft ist, zählt
+--    im kleinsten Band (geschrumpft_kg sagt, wie viel).
 -- 5. v_lauf_vergleich stellt Sortierläufe derselben Charge nebeneinander
 --    (AB-113) — Gegenprobe der Verdunstung, nicht Teil der Rate.
 --
@@ -2735,54 +2737,6 @@ comment on view v_verlust_je_gruppe is
 grant select on v_verlust_je_gruppe to authenticated;
 
 
--- ---------- erg_massenbilanz ----------
-create materialized view erg_massenbilanz as
- SELECT charge_nr,
-    sorte,
-    schlag,
-    eingang_kg,
-    ausgelagert_kg,
-    lager_kg,
-    n_paletten,
-    alter_ausgelagert,
-    alter_lager,
-    stichtag,
-    modell_am_band_kg,
-    csv_gemessen_kg,
-    abweichung_kg,
-    abweichung_anteil,
-    restbestand_kg,
-    alter_band
-   FROM v_massenbilanz
-with no data;
-comment on materialized view erg_massenbilanz is
-  'v_massenbilanz, gespeichert für die App Erneuert mit auswertung_schritt().';
-grant select on erg_massenbilanz to authenticated;
-
-
--- ---------- erg_naechste_charge ----------
-create materialized view erg_naechste_charge as
- SELECT charge_nr,
-    sorte,
-    schlag,
-    lager_kg,
-    alter_tage,
-    masse_jetzt_kg,
-    verdunstung_14_kg,
-    schimmel_14_kg,
-    prognose_verlust_14_kg,
-    f_geliehen,
-    zuwachs_bekannt,
-    alter_von,
-    alter_bis,
-    n_kohorten
-   FROM v_naechste_charge
-with no data;
-comment on materialized view erg_naechste_charge is
-  'v_naechste_charge, gespeichert für die App Erneuert mit auswertung_schritt().';
-grant select on erg_naechste_charge to authenticated;
-
-
 -- ---------- erg_verlust ----------
 create materialized view erg_verlust as
  SELECT gruppe,
@@ -3114,22 +3068,6 @@ comment on view v_plausibilitaet is
 grant select on v_plausibilitaet to authenticated;
 
 
--- ---------- erg_plausibilitaet ----------
-create materialized view erg_plausibilitaet as
- SELECT art,
-    auftrag_id,
-    charge_nr,
-    sorte,
-    start_ts,
-    befund,
-    rat
-   FROM v_plausibilitaet
-with no data;
-comment on materialized view erg_plausibilitaet is
-  'v_plausibilitaet, gespeichert für die App Erneuert mit auswertung_schritt().';
-grant select on erg_plausibilitaet to authenticated;
-
-
 -- ---------- v_marge_buch ----------
 create view v_marge_buch with (security_invoker = true) as
  WITH verkauf AS (
@@ -3392,66 +3330,6 @@ comment on view v_wohin is
 grant select on v_wohin to authenticated;
 
 
--- ---------- erg_bilanz ----------
-create materialized view erg_bilanz as
- SELECT heute,
-    eingang_kg,
-    n_chargen,
-    ausgang_kg,
-    verkauf_kg,
-    marge_kg,
-    entsorgt_kg,
-    ausgang_fehler_kg,
-    n_lieferungen,
-    letzte_lieferung,
-    vorlauf_kg,
-    geliefert_kg,
-    ausgelagert_kg,
-    verlust_heute_kg,
-    verlust_unten_kg,
-    verlust_oben_kg,
-    verdunstung_heute_kg,
-    schimmel_heute_kg,
-    fax_heute_kg,
-    fax_erwartet_kg,
-    kanal_ausgelagert_kg,
-    kanal_unten_kg,
-    kanal_oben_kg,
-    im_haus_heute_kg,
-    verkaufsfaehig_heute_kg,
-    kanal_im_haus_kg,
-    lager_kg,
-    gegenprobe_wartet_kg,
-    ueberzaehlung_kg,
-    fax_durchsatz_kg,
-    n_fax_arbeiten,
-    verlust_bekannt,
-    bilanz_rest_kg,
-    bilanz_rest_anteil,
-    ausgang_deckung,
-    befund
-   FROM v_saisonbilanz
-with no data;
-comment on materialized view erg_bilanz is
-  'v_saisonbilanz, gespeichert für die App Erneuert mit auswertung_schritt().';
-grant select on erg_bilanz to authenticated;
-
-
--- ---------- erg_marge ----------
-create materialized view erg_marge as
- SELECT posten,
-    kg,
-    kg_unten,
-    kg_oben,
-    erlaeuterung,
-    gemessen
-   FROM v_marge_buch
-with no data;
-comment on materialized view erg_marge is
-  'v_marge_buch, gespeichert für die App Erneuert mit auswertung_schritt().';
-grant select on erg_marge to authenticated;
-
-
 -- ---------- erg_wohin ----------
 create materialized view erg_wohin as
  SELECT gruppe,
@@ -3485,6 +3363,37 @@ comment on materialized view erg_wohin is
   'v_wohin, gespeichert für die App (0071). Erneuert mit auswertung_schritt().';
 grant select on erg_wohin to authenticated;
 
+
+-- ---------- die fünf gespeicherten Ergebnisse aus der Schleife ----------
+-- erg_bilanz, erg_marge, erg_massenbilanz, erg_naechste_charge und
+-- erg_plausibilitaet baut die Schleife aus 0106 (select * aus ihrer Sicht).
+-- „drop … cascade" oben hat sie mitgerissen; hier baut dieselbe Schleife sie
+-- wieder — nicht ausgeschriebenes SQL. Ausgeschrieben stünden sie in
+-- setup.sql zweimal, einmal aus der Schleife von 0106 und einmal von hier,
+-- und das zweite „create" bräche auf einer leeren Datenbank ab: Der
+-- Verdichter kennt Namen aus einer Schleife nur über die Angabe darüber.
+-- Die Spalten sind dieselben wie die ihrer Sicht (geprüft auf dem Stand
+-- nach 0111), es entsteht also genau das, was ausgeschrieben stand.
+-- verdichter: baut erg_bilanz erg_marge erg_massenbilanz erg_naechste_charge erg_plausibilitaet
+do $$
+declare
+  paar text[];
+  paare text[][] := array[
+    ['erg_bilanz',          'v_saisonbilanz'],
+    ['erg_marge',           'v_marge_buch'],
+    ['erg_massenbilanz',    'v_massenbilanz'],
+    ['erg_naechste_charge', 'v_naechste_charge'],
+    ['erg_plausibilitaet',  'v_plausibilitaet']
+  ];
+begin
+  foreach paar slice 1 in array paare loop
+    execute format('drop materialized view if exists %I cascade', paar[1]);
+    execute format('create materialized view %I as select * from %I with no data', paar[1], paar[2]);
+    execute format('grant select on %I to authenticated', paar[1]);
+    execute format('comment on materialized view %I is %L', paar[1],
+                   format('%s, gespeichert für die App Erneuert mit auswertung_schritt().', paar[2]));
+  end loop;
+end $$;
 
 -- =====================================================================
 -- 6. Was ist noch im Haus: Unterkaliber, die Bänder, Überkaliber

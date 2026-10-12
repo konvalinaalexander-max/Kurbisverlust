@@ -45,6 +45,8 @@ psql "$U" -v ON_ERROR_STOP=1 -q -c \
   "update einstellung set wert = '\"beispiel\"'::jsonb where schluessel = 'betriebsmodus'"
 
 psql "$U" -v ON_ERROR_STOP=1 -qtA -c "select demo_daten_laden()" >/dev/null
+# Seit 0112: Labels und zwei Vorjahre für „Lager nach Artikel" — wie die App, eigener Aufruf.
+psql "$U" -v ON_ERROR_STOP=1 -qtA -c "select demo_vorjahre_laden()" >/dev/null
 # Seit 0055 rechnet demo_daten_laden() nicht mehr selbst — wie die App: eigener Aufruf.
 psql "$U" -v ON_ERROR_STOP=1 -qtA -c "select auswertung_aktualisieren()" >/dev/null
 

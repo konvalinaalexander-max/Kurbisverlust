@@ -34,6 +34,9 @@
 -- Supabase nach acht Sekunden abbricht — die App ruft es getrennt auf. Hier
 -- erzwingt LATERAL die Reihenfolge: das Rechnen sieht das Ergebnis des Ladens
 -- und läuft deshalb danach.
-select a.ergebnis
+-- Seit 0112 kommen Labels und zwei Vorjahre für „Lager nach Artikel" dazu
+-- (demo_vorjahre_laden), gleich nach der Saison und vor dem Rechnen.
+select b.ergebnis
   from (select demo_daten_laden() as ergebnis) a
-  cross join lateral (select auswertung_aktualisieren() where a.ergebnis is not null) b;
+  cross join lateral (select a.ergebnis || ' · ' || demo_vorjahre_laden() as ergebnis where a.ergebnis is not null) b
+  cross join lateral (select auswertung_aktualisieren() where b.ergebnis is not null) c;
