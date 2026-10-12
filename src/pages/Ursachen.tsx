@@ -375,7 +375,8 @@ function Faules({ daten, filter, chargen, staende, oeffnen }: {
       const x0 = Math.max(Math.min(...xs) - 3, 0), x1 = Math.max(...xs) + 3
       const y = (t: number) => (grund + (b ?? 0) * t / 7) * 100
       reihen.push({
-        name: `Rechnung: ${prozent(grund)} Grundausschuss${b != null ? ` + ${(b * 100).toFixed(1)} Punkte je Woche` : ''}`,
+        // Runde AP: „Punkte je Woche" und „+ 0,0" sagten dem Betrieb nichts.
+        name: `Rechnung: ${prozent(grund)}${b != null && b > 0 ? ` + ${(b * 100).toFixed(1)} % je Woche im Lager` : ' bei jeder Lagerdauer'}`,
         farbe: 'var(--text-2)', linie: true, marker: false, gestrichelt: true,
         punkte: [{ x: x0, y: y(x0) }, { x: x1, y: y(x1) }],
       })
@@ -393,20 +394,31 @@ function Faules({ daten, filter, chargen, staende, oeffnen }: {
                Chargen verbinden
              </label>
            </div>}>
-      {/* Runde AO: zuerst die zwei Zahlen, mit denen gerechnet wird — je Station
-          der Grundausschuss (was die Ware vom Feld mitbringt: Hagel, Stiele,
-          Mängel) und der Anstieg je Woche Lagerdauer (das Faule). */}
+      {/* Runde AP (0113): je Station die Zahl, mit der gerechnet wird. Ohne
+          sicheren Anstieg ist es das gemessene Mittel, für frische wie für lange
+          gelagerte Ware („selbst wenn du heute erntest und morgen sortierst, hast
+          du Ausschuss"); mit sicherem Anstieg der Ausschuss bei frischer Ware und
+          der Anstieg je Woche im Lager. Kein „+ 0,0 Punkte" mehr. */}
       {kennzahlen.length > 0 && (
         <div className="kennzahlen" id="palox-stationen">
-          {kennzahlen.map(k => (
-            <Kennzahl key={k.station} id={`kz-palox-${k.station}`}
-                      titel={<>{stationText(k.station)} <Herkunft art="gerechnet" /></>}
-                      wert={<>{k.grund != null ? `${(k.grund * 100).toFixed(1)} %` : '—'}
-                        <span className="neben-zahl"> {k.zuwachs_je_woche != null ? `+ ${(k.zuwachs_je_woche * 100).toFixed(1)} Pkt./Woche` : '+ kein Anstieg'}</span></>}
-                      unter={<span className="unter">Grundausschuss {k.zuwachs_je_woche != null ? 'und Anstieg je Woche Lagerdauer' : `— ${anstiegText(k)}`}
-                        {' · '}gemessen im Mittel {k.anteil_mittel != null ? `${(k.anteil_mittel * 100).toFixed(1)} %` : '—'}
-                        {k.lager_mittel != null && <> bei {Math.round(k.lager_mittel)} Tagen Lagerdauer</>}, {k.n_arbeiten} Arbeiten</span>} />
-          ))}
+          {kennzahlen.map(k => {
+            const steigt = k.zuwachs_je_woche != null && k.zuwachs_je_woche > 0
+            const tage = k.lager_mittel != null ? <> bei Ø {Math.round(k.lager_mittel)} Tagen Lagerdauer</> : null
+            // Zurückgerechnet unter 0 (der Anstieg ist steiler, als das Mittel
+            // trägt): Die Rechnung nimmt 0 — das steht dann auch so da, sonst
+            // ginge „0 % + Anstieg × Wochen" nicht auf das Mittel auf.
+            const gekappt = steigt && k.anteil_mittel != null && k.lager_mittel != null
+              && k.anteil_mittel - k.zuwachs_je_woche! * k.lager_mittel / 7 < 0
+            return (
+              <Kennzahl key={k.station} id={`kz-palox-${k.station}`}
+                        titel={<>{stationText(k.station)} <Herkunft art="gerechnet" /></>}
+                        wert={<>{k.grund != null ? `${(k.grund * 100).toFixed(1)} %` : '—'}
+                          <span className="neben-zahl"> {steigt ? `+ ${(k.zuwachs_je_woche! * 100).toFixed(1)} % je Woche im Lager` : 'bei jeder Lagerdauer'}</span></>}
+                        unter={<span className="unter">{steigt
+                          ? <>bei frischer Ware{gekappt ? ' (zurückgerechnet unter 0 — gilt als 0)' : ''}; der Anstieg ist sicher gemessen · im Mittel {k.anteil_mittel != null ? `${(k.anteil_mittel * 100).toFixed(1)} %` : '—'}{tage}, {k.n_arbeiten} Arbeiten</>
+                          : <>gemessenes Mittel{tage}, {k.n_arbeiten} Arbeiten · {anstiegText(k)}</>}</span>} />
+            )
+          })}
         </div>
       )}
       {punkte.length === 0
@@ -425,25 +437,27 @@ function Faules({ daten, filter, chargen, staende, oeffnen }: {
                 fuss={sicht === 'alle' && p0
                   ? <span className="leise">{p0.faul_je_tag_kg != null && p0.faul_je_tag_kg > 0
                       ? <>Rechnung heute: an der liegenden Ware kommen {kg(p0.faul_je_tag_kg, 0)} je Tag in den Palox dazu (der Anstieg)</>
-                      : <>Rechnung heute: der Palox-Anteil der liegenden Ware wächst nicht — ein Anstieg gilt erst, wenn er gemessen ist</>}
+                      : <>Rechnung heute: der Palox-Anteil der liegenden Ware wächst nicht — ein Anstieg gilt erst, wenn er sicher gemessen ist</>}
                       {achse === 'liegt' && <> · eine Station wählen zeigt die Rechnung als Linie</>}</span>
                   : undefined} />
       )}
       <p className="hilfe">
         Jeder Punkt ist eine Ablesung am Palox <Herkunft art="gemessen" />, je Station nur unter ihresgleichen verglichen:
         an der Sortiermaschine kommt nur Faules in den Palox, beim Waschen auch Schäden und Ästhetik.
-        Die gestrichelte Linie (eine Station, „liegt seit") ist die Rechnung: Grundausschuss + Anstieg × Wochen.
+        Die gestrichelte Linie (eine Station, „liegt seit") ist die Rechnung: Grundausschuss, und der Anstieg × Wochen, wenn einer sicher ist.
       </p>
       <Erklaerung>
         <p>Der Palox ist vor allem <strong>Aussortieren</strong>: Hagelschaden, falsch geschnittene Stiele, andere Mängel — ein
         <strong> Grundausschuss</strong>, den die Ware vom Feld mitbringt und der nicht mit dem Lager wächst. Dazu kommt mit der
         Lagerdauer das Faule: der <strong>Anstieg</strong> je Woche.</p>
         <p>Der Anstieg wird je Station gemessen, und zwar innerhalb der Sorten: Arbeiten an länger gelagerter Ware gegen
-        Arbeiten an kürzer gelagerter Ware derselben Sorte, nach Masse gewichtet. Er gilt ab fünf solchen Arbeiten und drei Wochen
-        Unterschied in der Lagerdauer; ein gemessenes Sinken wird nicht als Besserung gerechnet, sondern als „kein Anstieg".
-        Der Grundausschuss je Sorte ist ihr gemessenes Mittel, um den Anstieg auf null Lagertage zurückgerechnet (ab drei
-        Arbeiten der Sorte, sonst aller Sorten — „geliehen").</p>
-        <p>Die Kaskade rechnet für Ware mit t Lagertagen Grundausschuss + Anstieg × t / 7, zusammengesetzt über den Weg der Charge
+        Arbeiten an kürzer gelagerter Ware derselben Sorte, nach Masse gewichtet. Gemessen wird er ab fünf solchen Arbeiten und
+        drei Wochen Unterschied in der Lagerdauer — und <strong>gelten</strong> tut er erst, wenn er sicher ist: Der Bereich, in dem er
+        mit 95 % Sicherheit liegt, muss ganz über null liegen. Bis dahin rechnet die Kaskade ohne Anstieg, und der Grundausschuss ist
+        das gemessene Mittel — für frische wie für lange gelagerte Ware. Ein gemessenes Sinken wird nicht als Besserung gerechnet.
+        Gilt ein Anstieg, ist der Grundausschuss je Sorte ihr gemessenes Mittel, um den Anstieg auf null Lagertage zurückgerechnet
+        (ab drei Arbeiten der Sorte, sonst aller Sorten — „geliehen").</p>
+        <p>Die Kaskade rechnet für Ware mit t Lagertagen Grundausschuss + Anstieg × t / 7 (ohne sicheren Anstieg: den Grundausschuss), zusammengesetzt über den Weg der Charge
         (von Hand, oder Band und danach Waschstrasse). Für schon ausgelagerte Ware gilt die eigene Messung der Charge.
         Die Lagerdauer ist beim Sortieren und beim Waschen + Sortieren vom Zettel; beim Waschen ist es das mittlere
         Eingangsdatum der Charge. Die Tabelle je Sorte und Station: <Link to="/messungen/messwerte">Messungen → Messwerte</Link>.</p>
@@ -543,10 +557,33 @@ function Verdunstung({ daten, filter, chargen, oeffnen }: { daten: Auswertung; f
     .filter(k => k.n > 0 && (filter.gruppe === 'gesamt' || sortenImBild.includes(k.sorte)))
     .sort((a, b) => (a.mittel ?? 0) - (b.mittel ?? 0))
 
+  // Runde AP: die Rate je Tag gross, wie beim Palox („die durchschnittliche
+  // Verdunstungsrate pro Tag prominent"). Über alles das Mittel der Wägungen
+  // im Filter, nach der Masse gewichtet wie die Rate der Sorte
+  // (v_koeff_roh_verdunstung: netto jetzt); bei einer Sorte oder Charge die
+  // Rate der Sorte, mit der die Kaskade rechnet. Dazu, was das in 30 Tagen
+  // ausmacht: 1 − (1 − Rate)^30, wie die Kaskade die Tage aufeinander rechnet.
+  const masseGut = gute.reduce((s, w) => s + (w.netto_jetzt_kg ?? 0), 0)
+  const mittelGemessen = masseGut > 0 ? gute.reduce((s, w) => s + (w.rate_pro_tag ?? 0) * (w.netto_jetzt_kg ?? 0), 0) / masseGut : null
+  const eineSorte = filter.gruppe !== 'gesamt' && sortenImBild.length === 1 ? rate(sortenImBild[0]) : undefined
+  const in30 = (r: number) => 1 - Math.pow(1 - r, 30)
+  const kopfzahl = eineSorte?.mittel != null
+    ? <Kennzahl id="kz-verdunstung" titel={<>Verdunstung je Tag · {sortenImBild[0]} <Herkunft art="gemessen" /></>}
+                wert={<>{prozent(eineSorte.mittel, 3)}<span className="neben-zahl"> ≈ {prozent(in30(eineSorte.mittel), 1)} in 30 Tagen</span></>}
+                unter={<span className="unter">die Rate der Sorte, mit der gerechnet wird · {eineSorte.n} Wägungen
+                  {eineSorte.unten != null && eineSorte.oben != null ? ` · Bereich ${prozent(eineSorte.unten, 3)}–${prozent(eineSorte.oben, 3)}` : ''}
+                  {' · '}{eineSorte.basis}</span>} />
+    : mittelGemessen != null
+      ? <Kennzahl id="kz-verdunstung" titel={<>Verdunstung je Tag <Herkunft art="gemessen" /></>}
+                  wert={<>{prozent(mittelGemessen, 3)}<span className="neben-zahl"> ≈ {prozent(in30(mittelGemessen), 1)} in 30 Tagen</span></>}
+                  unter={<span className="unter">Mittel aus {gute.length} {gute.length === 1 ? 'Wägung' : 'Wägungen'}, nach Masse gewichtet · gerechnet wird je Sorte mit ihrer eigenen Rate (Tabelle unten)</span>} />
+      : null
+
   return (
     <Karte id="urs-verdunstung" titel="Verdunstung"
            aktion={<Segmente wahl={achse} setzen={setAchse} id="verd-achse"
                              teile={[['kalender', 'Kalender', 'verd-achse-kalender'], ['liegt', 'liegt seit', 'verd-achse-liegt']]} />}>
+      {kopfzahl && <div className="kennzahlen" id="verdunstung-kopf">{kopfzahl}</div>}
       {alle.length === 0
         ? <Leer titel="Noch keine Palette zweimal gewogen">Die Verdunstung misst, wer dieselbe Palette später noch einmal auf die Waage stellt.</Leer>
         : (

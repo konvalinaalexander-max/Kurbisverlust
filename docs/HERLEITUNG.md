@@ -141,12 +141,18 @@ ist der Palox-Anteil eine Gerade über die Lagerdauer t:
 Anteil(t) = Grundausschuss der Sorte + Anstieg der Station × t / 7.
 Der **Anstieg** je Woche ist die massegewichtete Steigung der plausiblen
 Punkte über ihre Lagerdauer, **innerhalb der Sorten** gemessen (jede Sorte um
-ihre eigene Mitte — eine Sorte mit viel Grünem ist kein Anstieg); er gilt ab
-fünf Arbeiten (`n_paar`) und drei Wochen Spanne der Lagerdauern innerhalb
-einer Sorte (`palox_anstieg_mindest_tage()`) und ist nie negativ
-(`palox_anstieg()`). Der **Grundausschuss** ist das Mittel der Sorte, um den
-Anstieg auf null Tage zurückgelegt: Mittel − Anstieg × mittlere Lagerdauer / 7
-(nie unter 0) — eigen ab drei Arbeiten (`palox_mindest_arbeiten()`), sonst
+ihre eigene Mitte — eine Sorte mit viel Grünem ist kein Anstieg); gemessen
+wird er ab fünf Arbeiten (`n_paar`) und drei Wochen Spanne der Lagerdauern
+innerhalb einer Sorte (`palox_anstieg_mindest_tage()`), und er ist nie
+negativ (`palox_anstieg()`). **Gelten** tut er seit 0113 erst, wenn er
+sicher ist: wenn die untere Grenze seines 95-%-Bereichs (`anstieg_unten`,
+Standardfehler der gemeinsamen Steigung, je Sorte eine eigene Höhe) über 0
+liegt (`palox_anstieg` mit vier Werten); sonst gilt 0, und `zuwachs_text`
+sagt, warum. Der **Grundausschuss** ist das Mittel der Sorte, um den
+geltenden Anstieg auf null Tage zurückgelegt: Mittel − Anstieg × mittlere
+Lagerdauer / 7 (nie unter 0); gilt keiner, ist er das Mittel selbst — für
+frische wie für lange gelagerte Ware („selbst wenn du heute erntest und
+morgen sortierst, wirst du einen Ausschuss haben") — eigen ab drei Arbeiten (`palox_mindest_arbeiten()`), sonst
 der aller Sorten (`ebene`, `quelle`, `geliehen` sagen es;
 `erg_palox_erwartung.anstieg_je_woche`, `lager_mittel`). Bis 0110 war es ein
 Anteil je Sorte und Station (Mittel der letzten vier Wochen), gleich für
@@ -165,9 +171,12 @@ an jeder Kaskadenzeile sagt, welche Werte es waren.
 Anstieg fort (`palox_f_nach`) und setzen neu zusammen. Ohne Anstieg (zu
 wenige Arbeiten, zu kurze Spanne, gemessen ≤ 0) steht der Anteil still, und
 `zuwachs_bekannt = false` sagt es: `faul_je_tag_kg` und die Zwei-Wochen-Zahl
-(`v_naechste_charge`) bleiben leer. Auf den Betriebsdaten (12. Oktober):
-Waschen + Sortieren 9,3 %, kein Anstieg messbar; Waschen 10,2 % mit
-+1,4 Punkten je Woche; Sortieren 2,5 %, Spanne noch zu kurz.
+(`v_naechste_charge`) bleiben leer. Auf den Betriebsdaten (12. Oktober,
+Stand 113): Waschen + Sortieren 9,2 % (gemessen −0,8 % je Woche, kein
+Anstieg), Waschen 10,5 % (gemessen +1,6 % je Woche, Bereich −2,5 bis +5,8 —
+noch nicht sicher, gilt als 0), Sortieren 2,5 % (Spanne noch zu kurz) — je
+bei jeder Lagerdauer. Bis 0112 galt beim Waschen der gemessene Anstieg, und
+der Grundausschuss fiel auf 2 %.
 **Fehlt eine Eingabe:** eine Arbeit ohne Nenner liefert keinen Punkt
 (Auffälligkeit „Ohne Nenner"); ein Leeren ohne Ablesung macht die Menge
 unbekannt (Auffälligkeit „Palox geleert"); hat eine Station auf dem Weg
@@ -253,13 +262,21 @@ Daneben stehen Unterkaliber (= zu klein, `klein_kg`) und Überkaliber
 (darunter/darüber), lose (Gruppe ohne Kaliber), ohne Verteilung (kein
 Sortierlauf). Artikelgruppe aus der Sorte (`v_sorte_artikelgruppe`:
 Stammdaten, sonst die meistverkaufte), Label aus der Charge
-(`v_charge_label`: Stammdaten, sonst die Mehrheit der Perigon-Lieferungen;
-DU → D, CH-K/KZ → K). Stück = kg × 1000 / Ø-Gewicht der Verteilung in
-diesem Kaliber, Kisten = Stück / Stück je Kiste.
+(`v_charge_label`, seit 0113: Stammdaten; sonst Demeter, sobald Perigon sie
+einmal als Demeter geliefert hat — ohne Lieferlabel: verkauft —; sonst
+Knospe aus Perigon; sonst wie die anderen Chargen desselben Produzenten;
+sonst Knospe, angenommen; `quelle` sagt welches, `n_widerspruch` zählt
+Zeilen, die als Demeter verkauft, aber als Knospe geliefert wurden;
+Preisgruppen D, DU → D; K, KZ, CH-K, KAdR → K; bis 0112 entschied die
+Mehrheit). Stück = kg × 1000 / Ø-Gewicht der Verteilung in diesem Kaliber,
+Kisten = Stück / Stück je Kiste. **Je Charge:** `artikel_lager_charge(h)`
+hat dieselben Teile ungerundet (`artikel_lager_teile`), `artikel_lager(h)`
+zählt daraus zusammen — die Chargen hinter „Knirps klein · Demeter" ergeben
+genau dessen Zahl.
 **Fehlt eine Eingabe:** ohne Verteilung „ohne Grösse" (Masse ja, Stück
 nein); ohne Artikelgruppe „Artikelgruppe unbekannt"; ohne Label „Label
-unbekannt", mit den Chargen dazu — nichts wird verschluckt, die Summe bleibt
-das Verkaufsfähige.
+unbekannt" (seit 0113 nur noch ohne die Migration), mit den Chargen dazu —
+nichts wird verschluckt, die Summe bleibt das Verkaufsfähige.
 **Kunden gegen Vorjahre:** `v_kunde_tag` aus `ausgang_position` (jede
 Perigon-Position aller Saisons, 1. Juli – 30. Juni), nur Kürbis
 (`ist_kuerbis_vorschlag`, sonst die Bestätigung des Betriebsleiters), ohne

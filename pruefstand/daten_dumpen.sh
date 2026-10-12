@@ -43,6 +43,7 @@ for H in 0 7 14 21 28 35 42 56 84; do
   dump "rpc_lager_kaliber_$H"  "select * from lager_kaliber($H)"
   dump "rpc_kaliber_glocke_$H" "select * from kaliber_glocke($H)"
   dump "rpc_artikel_lager_$H"  "select * from artikel_lager($H)"     # 0112: Lager nach Artikel
+  dump "rpc_artikel_lager_charge_$H" "select * from artikel_lager_charge($H)"   # 0113: je Charge und Artikel
 done
 
 # Eingebettete Abfrage: auftrag_teilnehmer mit profil(name)

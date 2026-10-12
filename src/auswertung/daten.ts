@@ -26,8 +26,9 @@ import { anforderungOffen, istAktuell, rechnetGerade, zeitplanZustand, RECHNEN_H
  * Grundausschuss — das massegewichtete Mittel der Arbeiten (`mittel`), um den
  * Anstieg der Station auf null Lagertage zurückgelegt; `lager_mittel` die
  * mittlere Lagerdauer dahinter, `anstieg_je_woche` der Anstieg, mit dem
- * zurückgelegt wurde (leer: noch keiner messbar). Ebene 'sorte' ab drei
- * eigenen Arbeiten, sonst 'alle' (geliehen).
+ * zurückgelegt wurde (leer: noch keiner messbar; 0: keiner sicher, seit 0113 —
+ * dann ist `anteil` das Mittel). Ebene 'sorte' ab drei eigenen Arbeiten,
+ * sonst 'alle' (geliehen).
  */
 export interface PaloxErwartung {
   sorte: string; station: string; ebene: string; quelle: string
@@ -53,9 +54,11 @@ export interface Schimmelpunkt {
 /**
  * Je Station (v_palox_station, seit 0111): `zuwachs_je_woche` ist der Anstieg
  * des Palox-Anteils je Woche Lagerdauer, innerhalb der Sorten gemessen — leer,
- * solange er nicht gilt (fünf Arbeiten in Sorten mit mindestens zwei, drei
- * Wochen Spanne der Lagerdauern), nie negativ. `anstieg_roh` mit Band ist,
- * was gemessen wurde; `grund` der Grundausschuss der Station bei null Tagen.
+ * solange er nicht messbar ist (fünf Arbeiten in Sorten mit mindestens zwei,
+ * drei Wochen Spanne der Lagerdauern), 0, solange er nicht sicher ist (seit
+ * 0113: die untere Grenze `anstieg_unten` über 0), nie negativ; `zuwachs_text`
+ * sagt dann, warum. `anstieg_roh` mit Band ist, was gemessen wurde; `grund`
+ * der Grundausschuss der Station bei null Tagen (ohne Anstieg: das Mittel).
  */
 export interface PaloxStation {
   station: string; n_arbeiten: number; n_chargen: number; seit: string; bis: string; tage: number
@@ -240,12 +243,30 @@ export interface ArtikelLager {
   kg: number; stueck: number | null; kisten: number | null; g_mittel: number | null
   n_chargen: number; chargen: number[]; h: number; datum: string
 }
-/** Demeter oder Knospe je Charge (v_charge_label, 0112) — und woher. */
-export interface ChargeLabel { charge_nr: number; label: 'D' | 'K' | null; quelle: string | null; gemischt: boolean; n_d: number; n_k: number }
+/**
+ * Demeter oder Knospe je Charge (v_charge_label) — und woher. Seit 0113 nach
+ * der Regel des Betriebs: einmal als Demeter geliefert ist Demeter, sonst
+ * Knospe; `quelle` Stammdaten · Perigon · Produzent · angenommen;
+ * `n_widerspruch` Zeilen, die als Demeter verkauft, aber als Knospe
+ * geliefert wurden — zum Prüfen.
+ */
+export interface ChargeLabel {
+  charge_nr: number; label: 'D' | 'K' | null; quelle: string | null; gemischt: boolean; n_d: number; n_k: number
+  n_widerspruch?: number
+}
 /** Die Artikelgruppe je Sorte (v_sorte_artikelgruppe, 0112) — und woher. */
 export interface SorteGruppe { sorte: string; artikelgruppe: string | null; quelle: string | null; gruppe_verkauft: string | null }
 /** Was gross und klein je Artikelgruppe heisst (artikel_kaliber, 0112). */
 export interface ArtikelKaliber { gruppe: string; groesse: string; von_g: number; bis_g: number; stueck_je_kiste: number | null; bemerkung: string | null }
+/**
+ * Das Verkaufsfähige am Stichtag je Charge und Artikel (artikel_lager_charge,
+ * 0113) — dieselben Teile wie artikel_lager, nur nicht zusammengezählt.
+ */
+export interface ArtikelLagerCharge {
+  charge_nr: number; sorte: string; artikelgruppe: string | null; label: 'D' | 'K' | null; groesse: string
+  von_g: number | null; bis_g: number | null; stueck_je_kiste: number | null
+  kg: number; stueck: number | null; kisten: number | null; g_mittel: number | null; h: number; datum: string
+}
 /** Geliefert je Kunde, Saison, Tag und Artikel (v_kunde_tag, 0112). */
 export interface KundeTag { kunde: string; saison: number; datum: string; gruppe: string | null; groesse: string; label: string | null; kg: number; positionen: number }
 
@@ -715,7 +736,7 @@ export function auswertungLaden(erzwingen = false): Promise<Auswertung> {
   if (stand && !erzwingen) return Promise.resolve(stand)
   if (!ladeVersprechen || erzwingen) {
     // Wird neu gerechnet, sind auch die geholten Stichtage von gestern.
-    if (erzwingen) { kaliberJeStichtag.clear(); glockeJeStichtag.clear(); artikelJeStichtag.clear() }
+    if (erzwingen) { kaliberJeStichtag.clear(); glockeJeStichtag.clear(); artikelJeStichtag.clear(); artikelChargeJeStichtag.clear() }
     const v: Promise<Auswertung> = alles(erzwingen)
       .then(a => { stand = a; ladeVersprechen = null; hoerer.forEach(h => h()); return a })
       .catch((f: unknown) => { ladeVersprechen = null; melden(null); throw f })
@@ -762,6 +783,7 @@ export async function hochrechnungLaden(): Promise<Hochrechnung[]> {
 const kaliberJeStichtag = new Map<number, LagerKaliber[]>()
 const glockeJeStichtag = new Map<number, KaliberGlocke[]>()
 const artikelJeStichtag = new Map<number, ArtikelLager[]>()
+const artikelChargeJeStichtag = new Map<number, ArtikelLagerCharge[]>()
 
 async function rpcStichtag<T>(fn: string, h: number, halde: Map<number, T[]>): Promise<T[]> {
   const da = halde.get(h)
@@ -776,6 +798,7 @@ async function rpcStichtag<T>(fn: string, h: number, halde: Map<number, T[]>): P
 export const lagerKaliberBei = (h: number) => rpcStichtag<LagerKaliber>('lager_kaliber', h, kaliberJeStichtag)
 export const kaliberGlockeBei = (h: number) => rpcStichtag<KaliberGlocke>('kaliber_glocke', h, glockeJeStichtag)
 export const artikelLagerBei = (h: number) => rpcStichtag<ArtikelLager>('artikel_lager', h, artikelJeStichtag)
+export const artikelLagerChargeBei = (h: number) => rpcStichtag<ArtikelLagerCharge>('artikel_lager_charge', h, artikelChargeJeStichtag)
 
 /** Ein Sortierlauf neben den anderen Läufen derselben Charge (v_lauf_vergleich, 0111, AB-113). */
 export interface LaufVergleich {
@@ -812,7 +835,7 @@ export async function laufVergleich(): Promise<LaufVergleich[]> {
  */
 export async function artikelGrundlagen(): Promise<{ labels: ChargeLabel[]; gruppen: SorteGruppe[]; kaliber: ArtikelKaliber[]; kunden: KundeTag[] }> {
   const [l, g, k] = await Promise.all([
-    supabase.from('v_charge_label').select('charge_nr, label, quelle, gemischt, n_d, n_k'),
+    supabase.from('v_charge_label').select('charge_nr, label, quelle, gemischt, n_d, n_k, n_widerspruch'),
     supabase.from('v_sorte_artikelgruppe').select('*'),
     supabase.from('artikel_kaliber').select('gruppe, groesse, von_g, bis_g, stueck_je_kiste, bemerkung'),
   ])
@@ -845,6 +868,7 @@ export function auswertungVergessen() {
   kaliberJeStichtag.clear()
   glockeJeStichtag.clear()
   artikelJeStichtag.clear()
+  artikelChargeJeStichtag.clear()
 }
 
 /**

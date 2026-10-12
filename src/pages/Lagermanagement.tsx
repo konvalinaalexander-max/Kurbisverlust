@@ -346,19 +346,20 @@ function ImHaus({ daten, filter, wochen, setzeWochen }: {
                     über heute hinaus — je nach Wochenfeld die ganze Tabelle. */}
                 <th rowSpan={2} className="haftend">{jeSorte ? 'Sorte' : 'Charge'}</th>
                 <th rowSpan={2} className="zahl">im Lager<Herkunft art={herkunft} /></th>
-                {/* Runde AO: links und rechts der Bänder, was nicht ins Band passt —
-                    Unterkaliber (zu klein) und Überkaliber (zu gross), beide gleich ruhig. */}
-                <th rowSpan={2} className="zahl neben-kaliber">unter Kaliber<span className="kopf-unter">zu klein</span></th>
+                {/* Runde AP, Wunsch des Betriebs: im Lager, die Kaliber, gesamt
+                    verkaufsfähig — dann, was nicht ins Band passt: zu klein, zu gross.
+                    „gesamt" enthält beide nicht. */}
                 <th colSpan={spalten.length + 1} className={`gruppe${spaeter ? ' spaeter' : ''}`}>
                   verkaufsfähig {spaeter ? `in ${wochen} Wochen` : 'heute'}
                   {spaeter && stichtag ? <span className="leise"> · {datum(stichtag).slice(0, 6)}</span> : null}
                   <Herkunft art={herkunft} />
                 </th>
-                <th rowSpan={2} className="zahl neben-kaliber">über Kaliber<span className="kopf-unter">zu gross</span></th>
+                <th rowSpan={2} className="zahl neben-kaliber erste">zu klein<span className="kopf-unter">unter Kaliber</span></th>
+                <th rowSpan={2} className="zahl neben-kaliber">zu gross<span className="kopf-unter">über Kaliber</span></th>
               </tr>
               <tr>
                 {spalten.map(sp => <th key={sp.idx} className="zahl">{sp.kopf}</th>)}
-                <th className="zahl">gesamt</th>
+                <th className="zahl summe">gesamt<span className="kopf-unter">ohne zu klein, zu gross</span></th>
               </tr>
             </thead>
             <tbody>
@@ -373,10 +374,10 @@ function ImHaus({ daten, filter, wochen, setzeWochen }: {
                       {z.basis === 'sorte' && <Marke art="neutral" punkt={false}>aus der Sorte</Marke>}
                     </th>
                     <td className="zahl"><strong>{masse(z.lager)}</strong></td>
-                    <Nebenzelle zeile={z} idx={UNTER} spaeter={spaeter} />
                     {spalten.map(s => <Bandzelle key={s.idx} zeile={z} idx={s.idx} filter={filter} spaeter={spaeter} />)}
                     <td className="zahl summe"><strong>{masse(z.verkaufsfaehig)}</strong>
                       {z.anteil !== null && <span className="leise"> {prozent(z.anteil, 0)}</span>}</td>
+                    <Nebenzelle zeile={z} idx={UNTER} spaeter={spaeter} />
                     <Nebenzelle zeile={z} idx={UEBER} spaeter={spaeter} />
                   </tr>
                   {jeSorte && auf.has(z.schluessel) && chargenVon(z.sorte).map(c => (
@@ -386,9 +387,9 @@ function ImHaus({ daten, filter, wochen, setzeWochen }: {
                         <span className="zeilenunter leise">{c.unter}</span>
                       </th>
                       <td className="zahl">{masse(c.lager)}</td>
-                      <Nebenzelle zeile={c} idx={UNTER} spaeter={spaeter} />
                       {spalten.map(s => <Bandzelle key={s.idx} zeile={c} idx={s.idx} filter={{ gruppe: 'sorte', schluessel: z.sorte }} spaeter={spaeter} />)}
                       <td className="zahl summe">{masse(c.verkaufsfaehig)}{c.anteil !== null && <span className="leise"> {prozent(c.anteil, 0)}</span>}</td>
+                      <Nebenzelle zeile={c} idx={UNTER} spaeter={spaeter} />
                       <Nebenzelle zeile={c} idx={UEBER} spaeter={spaeter} />
                     </tr>
                   ))}
@@ -400,9 +401,9 @@ function ImHaus({ daten, filter, wochen, setzeWochen }: {
                 <tr>
                   <th scope="row" className="haftend">Summe</th>
                   <td className="zahl"><strong>{masse(summe(z => z.lager))}</strong></td>
-                  <td className="zahl neben-kaliber">{nebenSumme(zeilen, UNTER)}</td>
                   {spalten.map(s => <td key={s.idx} className="zahl"><strong>{masse(summe(z => z.kg.get(s.idx) ?? 0))}</strong></td>)}
                   <td className="zahl summe"><strong>{masse(summe(z => z.verkaufsfaehig))}</strong></td>
+                  <td className="zahl neben-kaliber erste">{nebenSumme(zeilen, UNTER)}</td>
                   <td className="zahl neben-kaliber">{nebenSumme(zeilen, UEBER)}</td>
                 </tr>
               </tfoot>
@@ -411,13 +412,14 @@ function ImHaus({ daten, filter, wochen, setzeWochen }: {
         </div>
       )}
       <p className="hilfe">
-        Im Lager = unter Kaliber + verkaufsfähig + über Kaliber + was verdunstet oder im Palox gelandet ist.
+        Im Lager = verkaufsfähig gesamt + zu klein + zu gross + was verdunstet oder im Palox gelandet ist.
+        „gesamt" ist nur, was in ein Kaliber passt.
       </p>
       <Erklaerung>
         <p><strong>Im Lager</strong> ist Eingangsware, die nicht ausgeliefert ist <Herkunft art="gerechnet" />.
         <strong> Verkaufsfähig</strong> zieht davon ab, was bis zum Stichtag verdunstet oder im Palox gelandet ist und was zu klein oder zu gross ist —
         dieselbe Zahl wie oben in der Kachel und in den Chargen.</p>
-        <p><strong>Unter Kaliber</strong> (zu klein) und <strong>über Kaliber</strong> (zu gross) sind der gemessene Anteil der Sorte an der liegenden Ware:
+        <p><strong>Zu klein</strong> (unter dem kleinsten Kaliber) und <strong>zu gross</strong> (über dem grössten) sind der gemessene Anteil der Sorte an der liegenden Ware:
         aus den Sortierläufen und den Handmessungen beim Waschen und Sortieren. Ist er für eine Sorte noch nicht gemessen, steht ein Strich — unbekannt, nicht null.</p>
         <p>Die Bänder sind keine zweite Rechnung: Jeder Kürbis der Sortier-CSV wird um die gemessene Verdunstung seiner Charge
         geschrumpft und neu in sein Band gelegt; die Massenanteile der Bänder mal der verkaufsfähigen Masse ergeben die Kilo.
@@ -459,7 +461,7 @@ function Bandzelle({ zeile, idx, filter, laedt = false, spaeter = false }: {
 
 /** Unter- oder Überkaliber einer Zeile: gemessen, sonst ein Strich. */
 function Nebenzelle({ zeile, idx, spaeter = false }: { zeile: Bandzeile; idx: number; spaeter?: boolean }) {
-  const klasse = `zahl neben-kaliber${spaeter ? ' spaeter' : ''}`
+  const klasse = `zahl neben-kaliber${idx === UNTER ? ' erste' : ''}${spaeter ? ' spaeter' : ''}`
   const wert = zeile.kg.get(idx)
   const was = idx === UNTER ? 'zu klein' : 'zu gross'
   if (wert === undefined || wert === null) {

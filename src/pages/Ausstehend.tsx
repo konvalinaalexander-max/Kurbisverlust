@@ -43,7 +43,7 @@ export function AusstehendInhalt({ daten }: { daten: Auswertung }) {
           verkaufsfähigen Anteil.</p>
           <p><strong>Palox</strong> — bei jeder Arbeit den Palox am Anfang und am Ende ablesen, und jedes Leeren zwischendurch eintragen
           (Arbeiter-App, „Palox leeren"). Je Sorte und Station gilt ihr Grundausschuss ab drei Arbeiten, sonst der aller Sorten; der Anstieg
-          je Woche Lagerdauer kommt aus allen Sorten der Station. Schaltet frei: den Palox bis heute und die Prognose.</p>
+          je Woche Lagerdauer kommt aus allen Sorten der Station und gilt erst, wenn er sicher ist. Schaltet frei: den Palox bis heute und die Prognose.</p>
           <p><strong>Zu klein / zu gross</strong> — beim Waschen + Sortieren von Hand die aussortierten Kisten wiegen (Abschluss der Arbeit,
           eine Art darf fehlen: sie bleibt dann unbekannt, nicht 0). Am Band liest die Sortierdatei es selbst. Schaltet frei: was im Haus
           nicht verkaufsfähig ist, und den verkaufsfähigen Anteil.</p>

@@ -310,8 +310,8 @@
         "Label unbekannt"
       ],
       "art": "gerechnet|prognose",
-      "bedeutet": "Das Verkaufsfähige im Lager, geteilt nach dem Label der Charge — Demeter oder Knospe aus den Stammdaten, sonst wie Perigon die Charge geliefert hat; „Label unbekannt“, solange keins von beiden bekannt ist (Runde AO). In Wochen gerechnet ist es Prognose.",
-      "quelle": "artikel_lager(h) · v_charge_label"
+      "bedeutet": "Das Verkaufsfähige im Lager, geteilt nach dem Label der Charge — Demeter oder Knospe aus den Stammdaten; sonst Demeter, sobald Perigon die Charge einmal als Demeter geliefert hat, sonst Knospe (aus Perigon, vom Produzenten oder angenommen — „Knospe ist alles, was nicht Demeter ist\", Runde AP, 0113); „Label unbekannt“ nur noch ohne setup.sql 113. In Wochen gerechnet ist es Prognose.",
+      "quelle": "artikel_lager_charge(h) · artikel_lager(h) · v_charge_label"
     },
     {
       "muster": [

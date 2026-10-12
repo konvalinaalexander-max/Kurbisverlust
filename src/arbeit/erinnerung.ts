@@ -25,12 +25,36 @@ export function gesehenLesen(roh: string | null): number[] {
   } catch { return [] }
 }
 
-/** Steht der Hinweis in dieser Arbeit? */
+/** Steht ein Hinweis in dieser Arbeit? — in höchstens `mal` verschiedenen Arbeiten je Person. */
+export function hinweisZeigen(gesehen: number[], auftragId: number, mal: number): boolean {
+  return !gesehen.includes(auftragId) && gesehen.length < mal
+}
+
+/** Steht der Palox-Hinweis in dieser Arbeit? */
 export function paloxHinweisZeigen(gesehen: number[], auftragId: number): boolean {
-  return !gesehen.includes(auftragId) && gesehen.length < PALOX_HINWEIS_MAL
+  return hinweisZeigen(gesehen, auftragId, PALOX_HINWEIS_MAL)
 }
 
 /** Nach „Verstanden": diese Arbeit dazu, jede nur einmal. */
 export function paloxHinweisGesehen(gesehen: number[], auftragId: number): number[] {
   return gesehen.includes(auftragId) ? gesehen : [...gesehen, auftragId]
 }
+
+/**
+ * Der Sortierdatum-Hinweis, fünfmal je Person (Runde AP).
+ *
+ * Der Betrieb: „wenn ein Waschvorgang startet … pro Benutzer die ersten drei
+ * Mal oder die ersten fünf Mal vielleicht sogar, bis das wirklich im Kopf
+ * drin ist: beim Sortieren musst du das Sortierdatum nicht mehr aufschreiben."
+ * Seit Runde AO wird beim Waschen jede Kaliber-Palette gewogen; das Datum auf
+ * dem Zettel braucht es dafür nicht mehr. Er steht beim Waschen und beim
+ * Sortieren — dort, wo das Datum bisher geschrieben und gelesen wurde —,
+ * gezählt wie der Palox-Hinweis: je Person in verschiedenen Arbeiten.
+ */
+export const SORTIERDATUM_HINWEIS_MAL = 5
+
+export const sortierdatumHinweisSchluessel = (profilId: string) => `sortierdatum_hinweis_${profilId}`
+
+/** An welchen Stationen der Sortierdatum-Hinweis steht. */
+export const sortierdatumHinweisBei = (station: string, istFax: boolean) =>
+  !istFax && (station === 'waschen' || station === 'sortieren')

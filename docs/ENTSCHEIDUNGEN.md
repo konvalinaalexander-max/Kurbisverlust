@@ -4171,6 +4171,104 @@ Daten, dann die Annahme — nach der Korrektur nachsehen.
 nicht alles: vier mal vier gleiche Paloxen und ein Tag mit 30 Paaren bei
 13 erwarteten sind Fragen wert.
 
+## Runde AP: einmal Demeter ist Demeter, Artikel mit Grösse, der Anstieg erst, wenn er sicher ist (12. Oktober, nachmittags, 0113)
+
+Der Betrieb nach dem Einspielen von 0112, mit zwei neuen Perigon-Dateien.
+
+**Das Label je Charge (0113).** „Lager nach Artikel … 0 kg Demeter, 0 kg
+Knospe, Label unbekannt 354 t." Drei Gründe: Die Labels kamen erst mit dem
+Einlesen an die Zeilen (14:59), gerechnet war um 14:52; die Mehrheit der
+Zeilen entschied; und 16 der 42 Chargen sind noch nie verkauft worden. Die
+Regel des Betriebs: „Wir haben einen Artikel verkauft als Demeter … und es
+kommt von dieser Charge. Dann ist diese Charge ein Demeter-Feld … Knospe ist
+einfach alles bei uns, das nicht Demeter ist." `v_charge_label`: Stammdaten
+vor allem; sonst Demeter, sobald Perigon die Charge einmal als Demeter
+geliefert hat (ohne Lieferlabel: verkauft); sonst Knospe aus Perigon; sonst
+wie die anderen Chargen desselben Produzenten; sonst Knospe, angenommen —
+und es heisst so. Als Demeter verkauft, aber als Knospe geliefert, bleibt
+Knospe und steht als Widerspruch da. Auf den Daten des Betriebs
+nachgerechnet: 15 Demeter und 11 Knospe aus Perigon, 3 Demeter vom
+Produzenten, 13 Knospe angenommen; ein Widerspruch (1651). Dazu liest
+`artikel_einordnen` die Preisgruppen, wie Perigon sie schreibt: CH-K, KAdR
+und Kz sind Knospe — CH-K blieb vorher unbekannt.
+
+**Lager nach Artikel, neu gebaut.** „Knirps klein, Knirps gross, das sind
+zwei unterschiedliche Sachen … wie viel haben wir Knirps klein noch da, das
+wir als Demeter verkaufen können? … und dann kann ich darauf klicken, und
+dann sagst du mir im Dropdown die Chargen." Oben wählt man Artikel, Grösse
+(beide, klein, gross) und Label (beide, Demeter, Knospe); die Kennzahl sagt
+das Verkaufsfähige der Wahl mit Kisten, ein Klick zeigt die Chargen dahinter
+(`artikel_lager_charge(h)`: dieselben Teile wie `artikel_lager(h)`, das
+jetzt daraus zusammenzählt). Die Tabelle hat je Artikel — Gruppe × Grösse ×
+Label, wie Perigon „Bio Kürbis Knirps Dem klein" führt — eine Zeile, die zu
+ihren Chargen aufklappt. Statt zehn kleiner Kundenbilder ein grosses
+Diagramm für die Wahl oben: alle Kunden zusammen oder einer (Auswahl oder
+Klick in der Tabelle), diese Saison gegen die zwei davor. Lose verkaufte
+Ware („Butternut lose") zählt dort nur bei „beide Grössen".
+
+**Lager nach Charge.** Die Spalten in der Reihenfolge des Betriebs: im
+Lager, die Kaliber, gesamt — dann zu klein, zu gross, ohne Grau. „Gesamt"
+enthielt zu klein und zu gross schon bisher nicht; jetzt steht es im Kopf.
+
+**Palox: der Anstieg gilt erst, wenn er sicher ist (0113).** „Bei nur
+Waschen hast du 2 % plus 1,6 Punkte pro Woche … wie du auf diese 2 % kommst,
+macht null Sinn" — und: „selbst wenn du heute erntest, heute ins Lager tust
+und morgen sortierst, wirst du einen Ausschuss haben." Die 2 % waren das
+Mittel (10,5 % bei 36 Tagen Lagerdauer), um einen Anstieg auf null Tage
+zurückgerechnet, dessen 95-%-Bereich von −2,5 bis +5,8 % je Woche reichte:
+Ob das Waschen mit der Zeit mehr aussortiert, ist noch nicht zu sehen.
+Jetzt gilt ein Anstieg erst, wenn die untere Grenze seines Bereichs über 0
+liegt; sonst gilt keiner, und der Grundausschuss ist das gemessene Mittel —
+für frische wie für lange gelagerte Ware. Auf den Daten des Betriebs:
+Waschen + Sortieren 9,2 %, Waschen 10,5 %, Sortieren 2,5 %, je bei jeder
+Lagerdauer; verkaufsfähig 357,1 statt 354,9 t (lokale Kopie vom 11.
+Oktober). Die Demo ändert sich nicht, ihre Anstiege sind sicher. Ursachen
+zeigt je Station diese Zahl mit „bei jeder Lagerdauer" — oder, wenn ein
+Anstieg gilt, „+ x % je Woche im Lager" —, und darunter, warum keiner gilt;
+„Punkte je Woche" und „+ 0,0" sind weg. Die Verdunstung hat oben eine grosse
+Zahl: die Rate je Tag (über alles das Mittel der Wägungen nach Masse, bei
+einer Sorte ihre Rate) und was das in 30 Tagen ausmacht.
+
+**Die Halle.** Beim Waschen und beim Sortieren steht jeder Person in ihren
+ersten fünf Arbeiten „Sortierdatum nicht mehr aufschreiben — beim Waschen
+wird jede Palette gewogen" („die ersten drei Mal oder die ersten fünf Mal
+vielleicht sogar, bis das wirklich im Kopf drin ist"), in allen sechs
+Sprachen, gezählt wie der Palox-Hinweis.
+
+**Prüfungen.** Block 0113 mit 26 Mutationen; alle schlagen an der Stelle
+an, für die sie gebaut sind. Die Zeitfenster in (d) verlangen sichere und
+unsichere Anstiege zugleich (die Demo hat 16 unsichere und 105 sichere),
+sonst wäre der Block blind. 0112 (c4) erwartete die Mehrheit (Knospe) und
+erwartet jetzt Demeter; 0111 (c2) prüft die Regel mit der vierten Eingabe —
+beide sagen es im Kommentar. Das Orakel rechnet die untere Grenze selbst
+(`gegenprobe/orakel/schimmel.ts`) und hält sie gegen die Datenbank: auf der
+Demo 55 von 55, auf den Daten des Betriebs alle zehn Abgleiche.
+
+**Verschenkte Marge — gezählt, aber noch nicht in der Kette.** Der Betrieb
+fragte, ob die App rechnet, dass 100 kg auf dem Lieferschein rund 105 kg auf
+der Palette waren — und was deshalb in die Waschstrasse und an den
+Wareneingang musste. Gezählt wird es (`v_ueberfuellung_verkauf`, in der
+Marge „Überfüllung der Kisten": 1,1 t bis 12. Oktober, im Mittel 0,36 kg je
+Kiste, nur bei Kistenware; lose Ware geht gewogen hinaus). Die Kaskade aber
+rechnet vom Lieferschein zurück: m0 = geliefert ÷ Anteil verkaufsfähig. Die
+Überfüllung fehlt damit im Ausgelagerten und steht weiter als Lager — rund
+1,4 t Eingangsware, gut 0,3 % der 464 t im Lager. Richtig wäre, jede
+Lieferung um die gemessene Überfüllung ihres Artikels zu erhöhen, bevor
+zurückgerechnet wird, und das Orakel ebenso — eine eigene Runde mit eigener
+Prüfung, weil es jede Charge, das Lager und die Prognose bewegt.
+
+**Was bewusst nicht gemacht wurde:** Kein Umbuchen von Labels: Was als
+Demeter verkauft, aber als Knospe geliefert wurde, bleibt Knospe und wird
+gezeigt — entscheiden tut der Betrieb in den Stammdaten. Die Überfüllung
+nicht in dieser Runde (oben). Kein Boden unter dem Grundausschuss: Gilt
+einmal ein sicherer Anstieg, ist er das Mittel minus Anstieg ×
+Lagerwochen, auch wenn das wenig ergibt (die Demo kommt so auf 0) — ob es
+einen Mindestwert braucht, entscheidet der Betrieb, wenn es so weit ist.
+Keine Sorte im Artikelfilter: Perigon verkauft nach Artikel; die Sorten
+stehen in der Chargenliste. Die 72 Auffälligkeiten nicht angefasst — 45
+davon sind das alte Zettelgewicht, das der Betriebsleiter selbst ansehen
+will; die Masken prüfen es seit Runde AO schon in der Halle.
+
 ## Runde AO: Palox mit Grundausschuss, Lagermanagement nach Artikel, die Halle prüft mit (12. Oktober, 0111, 0112)
 
 Der Betrieb nach drei Wochen echter Arbeiten, in einer langen Nachricht:

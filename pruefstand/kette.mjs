@@ -304,6 +304,8 @@ await schritt('Nach dem Start steht der Palox als erstes — und ohne Ablesung g
   await seite.locator('#palox-erinnerung', { hasText: '1/3' }).waitFor()
   await seite.locator('#palox-erinnerung-ok').click()
   if (await seite.locator('#palox-erinnerung').count() > 0) throw new Error('Nach „Verstanden" muss der Palox-Hinweis in dieser Arbeit weg sein')
+  // Runde AP: Beim Waschen + Sortieren wurde nie ein Sortierdatum geschrieben — kein Hinweis.
+  if (await seite.locator('#sortierdatum-erinnerung').count() > 0) throw new Error('Der Sortierdatum-Hinweis gehört nicht zu Waschen + Sortieren')
 })
 
 await schritt('Palox mittendrin leeren (0084): vorher 265 (→ 100 kg), leeren, leere Box 165 → neuer Anfang; die Menge bleibt bekannt', async () => {
@@ -536,6 +538,11 @@ await schritt('Sortieren: Palox direkt nach dem Start (60, dann 75 am Ende → 1
   // Runde AO: die zweite Arbeit mit Palox, der zweite Hinweis
   await seite.locator('#palox-erinnerung', { hasText: '2/3' }).waitFor()
   await seite.locator('#palox-erinnerung-ok').click()
+  // Runde AP: „beim Sortieren musst du das Sortierdatum nicht mehr
+  // aufschreiben" — fünfmal je Person; das hier ist das erste Mal.
+  await seite.locator('#sortierdatum-erinnerung', { hasText: '1/5' }).waitFor()
+  await seite.locator('#sortierdatum-erinnerung-ok').click()
+  if (await seite.locator('#sortierdatum-erinnerung').count() > 0) throw new Error('Nach „Verstanden" muss der Sortierdatum-Hinweis in dieser Arbeit weg sein')
   await seite.locator('#check-zaehlen').click()
   await seite.locator('#zettel').fill('2026-09-05')
   // Runde AO: Am 5.9. kam keine Palette von 1613 (Wareneingang: 1.–4.9.) —
@@ -613,6 +620,9 @@ await schritt('Assistent: Waschen, Charge 1613, eigenes Kaliber 700–900 g, 6 S
 
 await schritt('Waschen: Palox freiwillig, jede Palette gewogen (345/340/350 kg brutto), mit Sortierdatum (2 × 32 Kisten) und ohne Datum (1), drei fertige Paletten, abschliessen', async () => {
   await seite.locator('#check-abschluss').waitFor()      // kein Palox-Zwang nach dem Start
+  // Runde AP: dieselbe Person, die zweite Arbeit — der zweite Sortierdatum-Hinweis.
+  await seite.locator('#sortierdatum-erinnerung', { hasText: '2/5' }).waitFor()
+  await seite.locator('#sortierdatum-erinnerung-ok').click()
   await seite.locator('#check-zaehlen').click()
   if (await seite.locator('#kiste-plus-eigen').count() > 0) throw new Error('Beim Waschen werden Paletten gezählt, keine Kisten je Kaliber (0061)')
   // Runde AO: Die Regel hat sich geändert, die Prüfung mit ihr. Bis hierher

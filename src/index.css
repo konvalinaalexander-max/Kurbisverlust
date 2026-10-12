@@ -765,9 +765,10 @@ details.aufklapp > summary .leise { font-weight: var(--gewicht-normal); }
   background: color-mix(in srgb, var(--flaeche-2) 55%, transparent);
 }
 .lagertabelle td.summe, .lagertabelle th.zahl.summe { border-left: 1px solid var(--rand-leise); }
-/* Runde AO: Unter- und Überkaliber gleich ruhig neben den Bändern — keine
-   Signalfarbe, sie sind kein Alarm, nur nicht verkaufsfähig. */
-.lagertabelle .neben-kaliber { color: var(--text-2); background: var(--flaeche-2); }
+/* Runde AP: zu klein und zu gross stehen rechts von „gesamt", durch eine
+   Linie getrennt — ohne Grau (der Betrieb: „die graue Färbung würde ich
+   wegnehmen"), keine Signalfarbe: kein Alarm, nur nicht verkaufsfähig. */
+.lagertabelle td.neben-kaliber.erste, .lagertabelle th.neben-kaliber.erste { border-left: 1px solid var(--rand-leise); }
 .lagertabelle th.neben-kaliber { font-weight: var(--gewicht-normal); }
 .lagertabelle .kopf-unter { display: block; font-size: var(--s-0); color: var(--text-leise); font-weight: var(--gewicht-normal); }
 .lagertabelle td .band-unter { display: block; font-size: var(--s-0); color: var(--text-leise); font-weight: var(--gewicht-normal); }
@@ -963,14 +964,30 @@ tr.marge-dahinter table { margin: 0; }
 .artikeltabelle .zeilenunter.label-D { color: var(--gruen, var(--text-2)); }
 .artikeltabelle .zeilenunter.label-K { color: var(--blau, var(--text-2)); }
 .artikeltabelle .zeilenunter.label-x { color: var(--text-leise); font-style: italic; }
-.artikeltabelle tr.klickbar .chevron { display: inline-flex; color: var(--text-leise); transition: transform var(--d-mittel); margin-right: .2rem; vertical-align: -2px; }
+.artikeltabelle tr.klickbar .chevron { display: inline-flex; float: left; margin: .15rem .35rem 0 0; color: var(--text-leise); transition: transform var(--d-mittel); }
 .artikeltabelle tr.klickbar.offen .chevron { transform: rotate(90deg); }
 .artikeltabelle tr.artikel-chargen > td { background: color-mix(in srgb, var(--flaeche-2) 55%, transparent); padding: .5rem .75rem .75rem; }
 .artikeltabelle tr.artikel-chargen table { margin: 0; }
-.artikel-balken { display: flex; width: 100%; min-width: 4rem; margin-top: .3rem; }
-.kunden-gitter { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 330px), 1fr)); gap: var(--a-4); margin-top: var(--a-4); }
-.kunde-bild { padding: var(--a-3); border-radius: var(--radius-klein); box-shadow: var(--kontur); background: var(--flaeche); min-width: 0; }
-.kunde-bild h3 { margin: 0 0 .3rem; font-size: var(--s-1); font-weight: var(--gewicht-stark); }
+/* Runde AP: oben die Wahl (Artikel, Grösse, Label), ein Klick auf die
+   Kennzahl zeigt die Chargen, ein Klick auf einen Kunden zeigt nur ihn. */
+.artikel-wahl .wahl-teil { display: inline-flex; align-items: center; gap: .4rem; }
+.kennzahl .kennzahl-knopf { display: inline-flex; align-items: center; margin-left: .25rem; padding: 0 .4rem; min-height: 24px; color: var(--kuerbis); }
+.kennzahl .kennzahl-knopf[aria-expanded="true"] svg { transform: rotate(90deg); }
+.kundentabelle tr.klickbar { cursor: pointer; }
+.kundentabelle tr.aktiv td { background: var(--kuerbis-flaeche); }
+.kundentabelle { margin-top: var(--a-4); }
+#artikel-dahinter { margin-top: var(--a-3); }
+.chargenliste .marke { margin-top: .2rem; }
+/* Auf dem Handy: Sorte und Feld brechen um, die Zahlenspalten werden schmal —
+   das Kilo bleibt im Bild, ohne seitlich zu rollen. */
+.chargenliste .zelle-unter { white-space: normal; }
+@media (max-width: 600px) {
+  .artikeltabelle td.zahl { min-width: 0; }
+  .artikeltabelle th.haftend { min-width: 7rem; }
+  .artikeltabelle thead th { white-space: normal; }
+  .chargenliste td, .chargenliste th { padding-left: .35rem; padding-right: .35rem; }
+  .chargenliste thead th { white-space: normal; }
+}
 .kundentabelle td.erreicht { min-width: 9rem; }
 .erreicht-balken { position: relative; display: block; height: 1.15rem; border-radius: 999px; background: var(--flaeche-2); overflow: hidden; }
 .erreicht-balken > span { position: absolute; left: 0; top: 0; bottom: 0; background: color-mix(in srgb, var(--blau) 45%, transparent); }

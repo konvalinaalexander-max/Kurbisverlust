@@ -713,6 +713,20 @@ Messwerte, ausstehend). **Der Betrieb spielt setup.sql einmal ein (Stand
 Warenausgang): Erst dann kennt die App die Labels der Lieferungen und die
 Vorjahre je Kunde.
 
+**Runde AP (0113)** — einmal Demeter ist Demeter, Artikel mit Grösse, und
+der Palox-Anstieg gilt erst, wenn er sicher ist. Das Label je Charge folgt
+der Regel des Betriebs: einmal als Demeter geliefert ist Demeter, sonst
+Knospe (aus Perigon, vom Produzenten oder angenommen — und es heisst so,
+AB-136). **Lagermanagement nach Artikel** wählt oben Artikel, Grösse und
+Label; hinter jeder Zahl stehen ihre Chargen, und ein grosses Diagramm zeigt
+die Saison gegen die Vorjahre, für alle Kunden oder einen (AB-137). Ohne
+sicheren Anstieg ist der Palox-Grundausschuss das gemessene Mittel, für
+frische wie für alte Ware (AB-135); Ursachen sagt es ohne „Punkte je Woche"
+und zeigt die Verdunstung je Tag gross. Im Lager nach Charge stehen zu klein
+und zu gross rechts von „gesamt". Die Arbeiter-App sagt jeder Person fünfmal,
+dass das Sortierdatum nicht mehr auf den Zettel muss (AB-138). **Der Betrieb
+spielt setup.sql einmal ein (Stand 113)** und drückt danach „Neu rechnen".
+
 **Runde AN (0110)** — rechnen auf PostgreSQL 17: Der Betrieb läuft auf
 PostgreSQL 17, und dort frischt Postgres gespeicherte Ansichten mit einem
 eingeschränkten Suchpfad auf. `palox_f_nach()` fand deshalb `palox_f()` nicht,

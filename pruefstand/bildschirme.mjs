@@ -328,6 +328,22 @@ const BILDSCHIRME = [
   { name: 'ausstehend', wer: 'admin', pfad: '/messungen/ausstehend' },
   // Runde AO (0112): das Lager nach Artikel, und je Kunde die Saison gegen die Vorjahre.
   { name: 'artikel', wer: 'admin', pfad: '/artikel' },
+  // Runde AP (0113): „Wie viel Knirps klein haben wir noch, das wir als Demeter
+  // verkaufen können?" — oben gewählt, die Chargen dahinter aufgeklappt.
+  { name: 'artikel-knirps-klein-demeter', wer: 'admin', pfad: '/artikel',
+    tun: async p => {
+      await p.locator('#artikel-gruppe').selectOption('Knirps')
+      await p.locator('#artikel-groesse-klein').click()
+      await p.locator('#artikel-label-d').click()
+      await p.locator('#artikel-chargen-knopf').click()
+      await p.locator('#artikel-chargen-wahl table tbody tr').first().waitFor()
+    } },
+  // … und ein Kunde allein im grossen Diagramm, per Klick in der Tabelle.
+  { name: 'artikel-kunde', wer: 'admin', pfad: '/artikel',
+    tun: async p => {
+      await p.locator('.kundentabelle tbody tr').first().click()
+      await p.locator('.kundentabelle tbody tr.aktiv').waitFor()
+    } },
   // Runde Z (0094): der Betriebsleiter kürzt einen ungelesenen Kommentar zur
   // Ware — erst damit steht er im Dashboard. Die Demo hat genau einen offenen;
   // seine Arbeit liegt Monate zurück, also „Ältere zeigen", bis sie da ist.

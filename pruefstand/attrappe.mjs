@@ -87,7 +87,7 @@ export async function restAntwort(route) {
     // Fixture (rpc_<fn>_<h>.json). Wer einen Stichtag ohne Datei anfragt,
     // bekommt leer und steht auf der Fehlliste — nicht die Zahlen von heute,
     // sonst sähe „in 6 Wochen" aus wie heute und niemand merkte es.
-    if (fn === 'lager_kaliber' || fn === 'kaliber_glocke' || fn === 'artikel_lager') {
+    if (fn === 'lager_kaliber' || fn === 'kaliber_glocke' || fn === 'artikel_lager' || fn === 'artikel_lager_charge') {
       const body = JSON.parse(route.request().postData() ?? '{}')
       const h = Number(body.p_h ?? 0)
       const f = fixture(`rpc_${fn}_${h}`)

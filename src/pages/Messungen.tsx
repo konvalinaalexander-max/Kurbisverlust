@@ -202,7 +202,9 @@ function Messwerte({ daten }: { daten: Auswertung }) {
                   <td className="zahl">{e.n_arbeiten >= 2 ? `${prozent(e.unten)}–${prozent(e.oben)}` : '—'}</td>
                   <td className="zahl">{prozent(e.mittel)}</td>
                   <td className="zahl">{e.lager_mittel != null ? `${Math.round(e.lager_mittel)} d` : '—'}</td>
-                  <td className="zahl">{e.anstieg_je_woche != null ? `+${(e.anstieg_je_woche * 100).toFixed(1)} Pkt.` : <span className="leise">keiner messbar</span>}</td>
+                  <td className="zahl">{e.anstieg_je_woche != null && e.anstieg_je_woche > 0
+                    ? `+${(e.anstieg_je_woche * 100).toFixed(1)} % je Woche`
+                    : <span className="leise">{e.anstieg_je_woche === 0 ? 'keiner sicher' : 'keiner messbar'}</span>}</td>
                   <td className="zahl">{e.n_arbeiten}</td>
                   <td>{e.geliehen && <Marke art="warnung">geliehen</Marke>} <span className="leise">{e.quelle}</span></td></tr>
               ))}</tbody>
@@ -210,9 +212,10 @@ function Messwerte({ daten }: { daten: Auswertung }) {
         <Erklaerung>
           <p>Der Palox ist vor allem Aussortieren: Hagelschaden, falsch geschnittene Stiele, andere Mängel — ein <strong>Grundausschuss</strong>, den
           die Ware vom Feld mitbringt. Dazu kommt mit der Lagerdauer das Faule: der <strong>Anstieg</strong> je Woche, gemessen je Station über alle Sorten
-          (innerhalb jeder Sorte: die länger gelagerten Arbeiten gegen die kürzer gelagerten).</p>
-          <p>Grundausschuss = das nach Masse gewichtete Mittel der Ablesungen der Sorte (ab drei Arbeiten, sonst aller Sorten — „geliehen"), um den
-          Anstieg auf null Lagertage zurückgelegt <Herkunft art="gerechnet" />. Für Ware mit t Lagertagen rechnet die Kaskade
+          (innerhalb jeder Sorte: die länger gelagerten Arbeiten gegen die kürzer gelagerten). Er gilt erst, wenn er sicher ist — der Bereich,
+          in dem er mit 95 % Sicherheit liegt, ganz über null; sonst „keiner sicher", und es wird ohne Anstieg gerechnet.</p>
+          <p>Grundausschuss = das nach Masse gewichtete Mittel der Ablesungen der Sorte (ab drei Arbeiten, sonst aller Sorten — „geliehen"), um einen
+          sicheren Anstieg auf null Lagertage zurückgelegt <Herkunft art="gerechnet" />; ohne sicheren Anstieg ist er das Mittel selbst. Für Ware mit t Lagertagen rechnet die Kaskade
           Grundausschuss + Anstieg × t / 7; was eine Charge auf ihrem Weg verliert, ist die Zusammensetzung der Stationen, durch die sie geht.
           Der Anstieg und seine Messung stehen unter <Link to="/ursachen">Ursachen</Link>.</p>
         </Erklaerung>

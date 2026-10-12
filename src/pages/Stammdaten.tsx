@@ -328,19 +328,21 @@ function Chargen() {
   const [ernteFertig, setErnteFertig] = useState<boolean | null>(null)
   const [speichert, setSpeichert] = useState(false)
   const [fehler, setFehler] = useState<string | null>(null)
-  /** Runde AO: wie viele noch Ware im Haus haben, und das Label aus Perigon als Vorschlag. */
+  /** Runde AO: wie viele noch Ware im Haus haben, und das Label aus Perigon als Vorschlag.
+   *  Seit 0113 auch, woher es sonst kommt: vom Produzenten oder angenommen. */
   const [imHaus, setImHaus] = useState<Set<number>>(new Set())
-  const [perigon, setPerigon] = useState<Map<number, { label: string | null; gemischt: boolean }>>(new Map())
+  const [perigon, setPerigon] = useState<Map<number, { label: string | null; quelle: string | null; gemischt: boolean; widerspruch: boolean }>>(new Map())
   useEffect(() => {
     void einstellung<boolean>('ernte_abgeschlossen', false).then(w => setErnteFertig(!!w))
     void (async () => {
       const [b, l] = await Promise.all([
         supabase.from('erg_charge').select('charge_nr, lager_kg'),
-        supabase.from('v_charge_label').select('charge_nr, label, quelle, gemischt'),
+        supabase.from('v_charge_label').select('charge_nr, label, quelle, gemischt, n_widerspruch'),
       ])
       setImHaus(new Set(((b.data ?? []) as { charge_nr: number; lager_kg: number }[]).filter(x => x.lager_kg > 0).map(x => x.charge_nr)))
-      setPerigon(new Map(((l.data ?? []) as { charge_nr: number; label: string | null; quelle: string | null; gemischt: boolean }[])
-        .filter(x => x.quelle === 'Perigon').map(x => [x.charge_nr, { label: x.label, gemischt: x.gemischt }])))
+      setPerigon(new Map(((l.data ?? []) as { charge_nr: number; label: string | null; quelle: string | null; gemischt: boolean; n_widerspruch?: number }[])
+        .filter(x => x.quelle !== 'Stammdaten')
+        .map(x => [x.charge_nr, { label: x.label, quelle: x.quelle, gemischt: x.gemischt, widerspruch: (x.n_widerspruch ?? 0) > 0 }])))
     })()
   }, [])
   async function labelSetzen(c: Charge, label: 'D' | 'K' | null) {
@@ -433,11 +435,14 @@ function Chargen() {
                   <td className="nowrap">
                     <select value={c.label ?? ''} aria-label={`Label der Charge ${c.nr}`}
                             onChange={e => void labelSetzen(c, (e.target.value || null) as 'D' | 'K' | null)}>
-                      <option value="">{p?.label ? `aus Perigon: ${p.label === 'D' ? 'Demeter' : 'Knospe'}` : '— unbekannt'}</option>
+                      <option value="">{p?.label
+                        ? `${p.quelle === 'Perigon' ? 'aus Perigon' : p.quelle === 'Produzent' ? 'vom Produzenten' : 'angenommen'}: ${p.label === 'D' ? 'Demeter' : 'Knospe'}`
+                        : '— unbekannt'}</option>
                       <option value="D">Demeter</option>
                       <option value="K">Knospe</option>
                     </select>
-                    {p?.gemischt && <> <Marke art="warnung">Perigon liefert D und K</Marke></>}
+                    {p?.gemischt && <> <Marke art="neutral">Perigon liefert D und K — gilt als Demeter</Marke></>}
+                    {p?.widerspruch && <> <Marke art="warnung">als Demeter verkauft, als Knospe geliefert</Marke></>}
                   </td>
                 </tr>
               )
