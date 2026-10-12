@@ -1,6 +1,6 @@
 import { Suspense, lazy, type ReactNode } from 'react'
 import { NavLink, Navigate, Route, Routes, useParams } from 'react-router-dom'
-import { ZAbmelden, ZBalken, ZKuerbis, ZListe, ZLupe, ZRegler, ZSprache, ZUhr, ZWaage } from './components/Zeichen'
+import { ZAbmelden, ZBalken, ZKiste, ZKuerbis, ZListe, ZLupe, ZRegler, ZSprache, ZUhr } from './components/Zeichen'
 import { useAuth } from './auth/AuthProvider'
 import { SprachAuswahl, useSprache } from './sprache/SprachProvider'
 import { imDemoModus, istKonfiguriert, konfigurationsProblem } from './lib/supabase'
@@ -20,7 +20,7 @@ const Ursachen = lazy(() => import('./pages/Ursachen'))
 const Chargen = lazy(() => import('./pages/Chargen'))
 const Messungen = lazy(() => import('./pages/Messungen'))
 const Betrieb = lazy(() => import('./pages/Betrieb'))
-const Ausstehend = lazy(() => import('./pages/Ausstehend'))
+const Artikel = lazy(() => import('./pages/Artikel'))
 
 /**
  * Der Rahmen. Zwei Oberflächen aus einem System:
@@ -119,19 +119,23 @@ export default function App() {
     </div>
   )
 
-  // Sechs Reiter (Runde AF: „Messungen ausstehend" rechts vom Betrieb) — docs/UI-KONZEPT.md.
-  // Runde AJ: Das Kernstück ist das Lagermanagement mit den Chargen — der
-  // Betrieb: „der Chargenunterreiter, das ist eigentlich das Kernstück".
-  // Darum stehen die Chargen gleich hinter dem Lagermanagement, vor den
-  // Ursachen und Messungen (zweite Ebene).
-  const reiter: [string, string, (p: { size?: number }) => ReactNode][] = [
-    ['/dashboard', 'Lagermanagement', ZBalken],
+  // Sechs Reiter — docs/UI-KONZEPT.md. Runde AJ: Das Kernstück ist das
+  // Lagermanagement mit den Chargen („der Chargenunterreiter, das ist
+  // eigentlich das Kernstück"). Runde AO (12. Oktober): das Lager zweimal —
+  // nach Charge (agronomisch: welche Charge fällt, welche verdunstet) und
+  // nach Artikel (der Verkauf denkt in Artikeln und Kunden); die Arbeiten
+  // und „Messungen ausstehend" stehen als Reiter unter Messungen.
+  // Die Namen wie der Betrieb sie gab: „den oberen nennen Lagermanagement
+  // nach Charge, den unteren Lagermanagement nach Artikel". In der
+  // Seitenleiste steht der Zusatz als zweite Zeile, in der schmalen
+  // Kopfleiste kurz „Lager nach …" — sonst passen sechs Reiter nicht.
+  const reiter: [string, string, (p: { size?: number }) => ReactNode, string?][] = [
+    ['/dashboard', 'Lagermanagement', ZBalken, 'nach Charge'],
+    ['/artikel', 'Lagermanagement', ZKiste, 'nach Artikel'],
     ['/chargen', 'Chargen', ZListe],
     ['/ursachen', 'Ursachen', ZLupe],
     ['/messungen', 'Messungen', ZRegler],
     ['/betrieb', 'Betrieb', ZUhr],
-    // Runde AF: rechts vom Betrieb — welche Messung noch fehlt, je Sorte, und was sie freischaltet.
-    ['/ausstehend', 'Messungen ausstehend', ZWaage],
   ]
   const name = profil?.name ?? ''
   const kuerzel = sprache.toUpperCase()
@@ -153,16 +157,20 @@ export default function App() {
         <aside className="seitenleiste kein-druck">
           {marke}
           <nav className="navleiste" aria-label="Bereiche">
-            {reiter.map(([pfad, name, Zeichen]) => (
+            {reiter.map(([pfad, name, Zeichen, zusatz]) => (
               <NavLink key={pfad} to={pfad} className={({ isActive }) => (isActive ? 'aktiv' : '')}>
-                <Zeichen size={18} />{name}
+                <Zeichen size={18} />
+                {zusatz
+                  ? <span className="nav-text"><span className="lang">{name}</span><span className="kurz">Lager</span> <span className="zusatz">{zusatz}</span></span>
+                  : name}
               </NavLink>
             ))}
           </nav>
           <div className="seitenleiste-fuss">
             <div className="seitenleiste-wer">
               <Avatar name={name || '?'} />
-              <span className="name">{name}<span className="rolle">Betriebsleiter</span></span>
+              {/* Runde AO: nur der Name — „ich bin nicht der Betriebsleiter, einfach nur Alexander". */}
+              <span className="name">{name}</span>
             </div>
             <button type="button" onClick={abfrageOeffnen}><ZSprache size={17} />Sprache · {kuerzel}</button>
             <button type="button" onClick={abmelden}><ZAbmelden size={17} />{t('abmelden')}</button>
@@ -195,9 +203,11 @@ export default function App() {
           <Route path="/dashboard" element={istAdmin ? <Lagermanagement /> : <NurAdmin />} />
           <Route path="/ursachen" element={istAdmin ? <Ursachen /> : <NurAdmin />} />
           <Route path="/chargen" element={istAdmin ? <Chargen /> : <NurAdmin />} />
-          <Route path="/messungen" element={istAdmin ? <Messungen /> : <NurAdmin />} />
+          <Route path="/messungen/:teil?" element={istAdmin ? <Messungen /> : <NurAdmin />} />
+          <Route path="/artikel" element={istAdmin ? <Artikel /> : <NurAdmin />} />
           <Route path="/betrieb/:teil?" element={istAdmin ? <Betrieb /> : <NurAdmin />} />
-          <Route path="/ausstehend" element={istAdmin ? <Ausstehend /> : <NurAdmin />} />
+          {/* Runde AO: „Messungen ausstehend" ist ein Reiter unter Messungen. */}
+          <Route path="/ausstehend" element={<Navigate to="/messungen/ausstehend" replace />} />
           {/* Alte Adressen laufen weiter */}
           <Route path="/csv" element={<Navigate to="/betrieb/csv" replace />} />
           <Route path="/warteschlange" element={<Navigate to="/betrieb/warteschlange" replace />} />

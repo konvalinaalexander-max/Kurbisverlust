@@ -1,10 +1,10 @@
-import { Fragment, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { datum, kg, prozent, tonnen, zahl } from '../lib/format'
 import { chargenNachFeld } from '../lib/felder'
-import { Aufklapp, Erklaerung, Herkunft, Hinweis, Karte, Kennzahl, Leer, Segmente } from '../components/Bausteine'
+import { Aufklapp, Erklaerung, Herkunft, Hinweis, Karte, Kennzahl, Leer, Marke, Segmente } from '../components/Bausteine'
 import { Anteilsbalken, Linien, type Anteilszeile, type Punkt, type Reihe, type Zone } from '../components/Diagramm'
-import { lagerstaende, prognoseBei, useAuswertung, wohinVon,
+import { lagerstaende, laufVergleich, prognoseBei, useAuswertung, wohinVon, type LaufVergleich,
          type Auswertung, type AusgangKennzahl, type Bestand, type Lagerstand, type MargeWiegung, type Schema, type Schimmelpunkt, type SortenK, type Wohin } from '../auswertung/daten'
 import { Probleme, Rechnet, Reiterkopf } from '../auswertung/Karten'
 import { ZChevron } from '../components/Zeichen'
@@ -60,8 +60,8 @@ export default function Ursachen() {
   const [chargeFenster, setChargeFenster] = useState<number | null>(null)
   const punktOeffnen = (p: Punkt, titel: string) => {
     const zeilen = (p.text ?? '').split(' · ')
-    if (p.auftragId != null) setFenster({ auftragId: p.auftragId, messung: { titel, name: p.name ?? '', zeilen } })
-    else setPunkt({ titel, name: p.name ?? '', zeilen, chargeNr: p.chargeNr })
+    if (p.auftragId != null) setFenster({ auftragId: p.auftragId, messung: { titel, name: p.name ?? '', zeilen, kern: p.kern } })
+    else setPunkt({ titel, name: p.name ?? '', zeilen, chargeNr: p.chargeNr, kern: p.kern })
   }
   const chargen = useMemo(() => daten ? chargenIm(daten.bestand, filter) : [], [daten, filter])
   const staende = useMemo(() => daten ? lagerstaende(chargen, daten.naechste) : [], [chargen, daten])
@@ -149,14 +149,14 @@ const WOHIN_TEILE: { name: string; farbe: string; hinweis?: string; felder: (key
     felder: ['geliefert_kg'] },
   { name: 'verdunstet bis heute', farbe: 'var(--strom-verdunstung)',
     hinweis: 'entwichenes Wasser, draussen wie drinnen', felder: ['verdunstet_ausgelagert_kg', 'lager_verdunstet_kg'] },
-  { name: 'Faules bis heute', farbe: 'var(--strom-schimmel)',
-    hinweis: 'Faules im Lager und beim Abpacken', felder: ['faul_ausgelagert_kg', 'lager_faul_kg', 'fax_kg', 'lager_fax_kg'] },
+  { name: 'Palox und Faules bis heute', farbe: 'var(--strom-schimmel)',
+    hinweis: 'im Palox aussortiert (Mängel und Faules) und beim Abpacken faul', felder: ['faul_ausgelagert_kg', 'lager_faul_kg', 'fax_kg', 'lager_fax_kg'] },
   { name: 'zu klein', farbe: 'var(--strom-ausschuss)',
     hinweis: 'beim Sortieren aussortiert — steht im Haus, bis ein Lieferschein es holt; kein Verlust', felder: ['klein_ausgelagert_kg', 'lager_klein_kg'] },
   { name: 'zu gross', farbe: 'var(--strom-nebenkanal)',
     hinweis: 'beim Sortieren aussortiert — steht im Haus, bis ein Lieferschein es holt; kein Verlust', felder: ['gross_ausgelagert_kg', 'lager_gross_kg'] },
 ]
-const VERLUST = new Set(['verdunstet bis heute', 'Faules bis heute'])
+const VERLUST = new Set(['verdunstet bis heute', 'Palox und Faules bis heute'])
 
 function wohinZeile(w: Wohin | null, name: string, untertitel: string, ziel?: string): Anteilszeile & { verlust: number } {
   const teile = WOHIN_TEILE.map(t => ({
@@ -251,7 +251,7 @@ function Wohin({ daten, filter, setzen, chargeAnsehen }: {
   )
 }
 
-/* ---------- U2: Faules im Lager --------------------------------------------- */
+/* ---------- U2: Palox-Ausschuss --------------------------------------------- */
 
 function Faules({ daten, filter, chargen, staende, oeffnen }: {
   daten: Auswertung; filter: Filter; chargen: Bestand[]; staende: Lagerstand[]; oeffnen: (p: Punkt, titel: string) => void
@@ -304,6 +304,7 @@ function Faules({ daten, filter, chargen, staende, oeffnen }: {
       y: (wert(p) ?? 0) * 100,
       name: `Charge ${p.charge_nr} · ${p.sorte}`,
       text: `${datum(p.messtag)} · ${stationText(p.station)} · liegt seit ${Math.round(p.lagertage)} Tagen · ${kg(p.schimmel_kg, 0)} von ${kg(p.basis_jetzt_kg, 0)} · ${quelleText(p.quelle)}${p.auftrag_id != null && kommentar.has(p.auftrag_id) ? ` · Kommentar: ${kommentar.get(p.auftrag_id)}` : ''}`,
+      kern: { wert: `${((wert(p) ?? 0) * 100).toFixed(1)} % in den Palox`, unter: `${kg(p.schimmel_kg, 0)} von ${kg(p.basis_jetzt_kg, 0)}` },
       auftragId: p.auftrag_id, chargeNr: p.charge_nr,
       groesse: p.auftrag_id != null && kommentar.has(p.auftrag_id) ? 6 : undefined,
     })),
@@ -334,6 +335,7 @@ function Faules({ daten, filter, chargen, staende, oeffnen }: {
         y: Math.min((wert(p) ?? 0) * 100, 100),
         name: `Charge ${p.charge_nr} · ${p.sorte}`,
         text: `${datum(p.messtag)} · ${stationText(p.station)} · ${kg(p.schimmel_kg, 0)} von ${kg(p.basis_jetzt_kg, 0)} · nicht plausibel, siehe Messungen${p.auftrag_id != null && kommentar.has(p.auftrag_id) ? ` · Kommentar: ${kommentar.get(p.auftrag_id)}` : ''}`,
+        kern: { wert: `${((wert(p) ?? 0) * 100).toFixed(1)} % — nicht plausibel`, unter: `${kg(p.schimmel_kg, 0)} von ${kg(p.basis_jetzt_kg, 0)}` },
         auftragId: p.auftrag_id, chargeNr: p.charge_nr,
       })),
     })
@@ -359,8 +361,29 @@ function Faules({ daten, filter, chargen, staende, oeffnen }: {
 
   const kennzahlen = daten.paloxStationen.filter(k => k.n_arbeiten > 0 && (sicht === 'alle' || k.station === sicht))
 
+  // Runde AO (0111): die Rechnung als Linie über der Lagerdauer — je Station
+  // Grundausschuss + Anstieg × Tage / 7. Bei einer Sorte (oder Charge) ihr
+  // eigener Grundausschuss, sonst der der Station über alle Sorten.
+  if (achse === 'liegt' && sicht !== 'alle') {
+    const k = daten.paloxStationen.find(x => x.station === sicht)
+    const sorte = filter.gruppe === 'gesamt' ? null : chargen[0]?.sorte ?? null
+    const e = sorte ? daten.erwartung.find(x => x.station === sicht && x.sorte === sorte) : undefined
+    const grund = e ? e.anteil : k?.grund ?? null
+    const b = k?.zuwachs_je_woche ?? null
+    const xs = gute.map(p => p.lagertage).concat(staende.flatMap(s => [s.von, s.bis]))
+    if (grund != null && xs.length > 0) {
+      const x0 = Math.max(Math.min(...xs) - 3, 0), x1 = Math.max(...xs) + 3
+      const y = (t: number) => (grund + (b ?? 0) * t / 7) * 100
+      reihen.push({
+        name: `Rechnung: ${prozent(grund)} Grundausschuss${b != null ? ` + ${(b * 100).toFixed(1)} Punkte je Woche` : ''}`,
+        farbe: 'var(--text-2)', linie: true, marker: false, gestrichelt: true,
+        punkte: [{ x: x0, y: y(x0) }, { x: x1, y: y(x1) }],
+      })
+    }
+  }
+
   return (
-    <Karte id="urs-palox" titel="Faules im Lager"
+    <Karte id="urs-palox" titel="Palox-Ausschuss"
            aktion={<div className="segmente-reihe">
              <Segmente wahl={sicht} setzen={setSicht} id="palox-sicht" teile={[...SICHTEN]} />
              <Segmente wahl={achse} setzen={setAchse} id="palox-achse"
@@ -370,62 +393,68 @@ function Faules({ daten, filter, chargen, staende, oeffnen }: {
                Chargen verbinden
              </label>
            </div>}>
+      {/* Runde AO: zuerst die zwei Zahlen, mit denen gerechnet wird — je Station
+          der Grundausschuss (was die Ware vom Feld mitbringt: Hagel, Stiele,
+          Mängel) und der Anstieg je Woche Lagerdauer (das Faule). */}
+      {kennzahlen.length > 0 && (
+        <div className="kennzahlen" id="palox-stationen">
+          {kennzahlen.map(k => (
+            <Kennzahl key={k.station} id={`kz-palox-${k.station}`}
+                      titel={<>{stationText(k.station)} <Herkunft art="gerechnet" /></>}
+                      wert={<>{k.grund != null ? `${(k.grund * 100).toFixed(1)} %` : '—'}
+                        <span className="neben-zahl"> {k.zuwachs_je_woche != null ? `+ ${(k.zuwachs_je_woche * 100).toFixed(1)} Pkt./Woche` : '+ kein Anstieg'}</span></>}
+                      unter={<span className="unter">Grundausschuss {k.zuwachs_je_woche != null ? 'und Anstieg je Woche Lagerdauer' : `— ${anstiegText(k)}`}
+                        {' · '}gemessen im Mittel {k.anteil_mittel != null ? `${(k.anteil_mittel * 100).toFixed(1)} %` : '—'}
+                        {k.lager_mittel != null && <> bei {Math.round(k.lager_mittel)} Tagen Lagerdauer</>}, {k.n_arbeiten} Arbeiten</span>} />
+          ))}
+        </div>
+      )}
       {punkte.length === 0
         ? <Leer titel={sicht === 'alle' ? 'Noch keine Messung am Palox' : `Noch keine Messung am Palox: ${stationText(sicht)}`}>Sobald eine Arbeit den Palox zweimal abgelesen hat, steht hier ihr Punkt.</Leer>
         : (
         <Linien reihen={reihen} hoehe={300}
-                xTitel={achse === 'kalender' ? 'Messtag' : 'Lagertage'} yTitel="Faules je 100 kg Ware"
+                xTitel={achse === 'kalender' ? 'Messtag' : 'Lagertage'} yTitel="Palox je 100 kg Ware"
                 xFormat={achse === 'kalender' ? tagText : x => `${Math.round(x)}`}
                 yFormat={y => `${y.toFixed(1)} %`}
                 xEinheit={achse === 'kalender' ? 'frei' : 'tage'} yEinheit="prozent" yVon={0}
                 xBis={achse === 'kalender' ? heute : undefined}
                 heute={achse === 'kalender' ? { x: heute, text: `heute, ${tagText(heute)}`, rechts: '' } : heuteMarke}
                 zonen={zonen}
-                leer="noch keine Schimmelmessung"
-                treffer="punkt" onPunkt={p => oeffnen(p, 'Diese Messung: Faules am Palox')}
+                leer="noch keine Ablesung am Palox"
+                treffer="punkt" onPunkt={p => oeffnen(p, 'Diese Messung: am Palox')}
                 fuss={sicht === 'alle' && p0
-                  ? <span className="leise">{p0.faul_je_tag_kg != null
-                      ? <>Rechnung heute: {kg(p0.faul_je_tag_kg, 0)} Faules je Tag an der liegenden Ware (Stationswerte, fortgeschrieben mit dem Zuwachs je Woche)</>
-                      : <>Rechnung heute: das Faule steht auf dem Stand der Stationswerte — fortgeschrieben wird erst, wenn die Kennzahl je Station einen Zuwachs ausweist</>}</span>
+                  ? <span className="leise">{p0.faul_je_tag_kg != null && p0.faul_je_tag_kg > 0
+                      ? <>Rechnung heute: an der liegenden Ware kommen {kg(p0.faul_je_tag_kg, 0)} je Tag in den Palox dazu (der Anstieg)</>
+                      : <>Rechnung heute: der Palox-Anteil der liegenden Ware wächst nicht — ein Anstieg gilt erst, wenn er gemessen ist</>}
+                      {achse === 'liegt' && <> · eine Station wählen zeigt die Rechnung als Linie</>}</span>
                   : undefined} />
       )}
-      {kennzahlen.length > 0 && (
-        <div className="kennzahlen" id="palox-stationen">
-          {kennzahlen.map(k => (
-            <Kennzahl key={k.station} id={`kz-palox-${k.station}`}
-                      titel={<>{stationText(k.station)} <Herkunft art="gerechnet" /></>}
-                      wert={k.anteil_mittel != null ? `${(k.anteil_mittel * 100).toFixed(1)} %` : '—'}
-                      unter={<span className="unter">im Mittel in den Palox, gerechnet über {k.n_arbeiten} Arbeiten und {k.n_chargen} Chargen seit {datum(k.seit)}
-                        {k.anteil_median != null && <> · Median {(k.anteil_median * 100).toFixed(1)} %</>}
-                        {k.anteil_4w != null && k.n_4w > 0 && <> · letzte vier Wochen {(k.anteil_4w * 100).toFixed(1)} % ({k.n_4w})</>}
-                        {' · '}{k.zuwachs_je_woche != null
-                          ? <>Zuwachs seit Messbeginn {k.zuwachs_je_woche >= 0 ? '+' : ''}{(k.zuwachs_je_woche * 100).toFixed(2)} Punkte je Woche</>
-                          : (k.zuwachs_text ?? 'Zuwachs: noch nicht bestimmbar')}</span>} />
-          ))}
-        </div>
-      )}
       <p className="hilfe">
-        Jeder Punkt ist eine Ablesung am Palox <Herkunft art="gemessen" />.{' '}
-        Je Station zählt der Anteil dieses Auges allein: An der Sortiermaschine kommt nur eklig Faules in den Palox, an der
-        Waschstrasse auch Ästhetik und Schäden — darum werden Stationen nur unter ihresgleichen verglichen. „Chargen
-        verbinden" zieht eine Linie durch die Punkte derselben Charge.{' '}
-        Die Lagerdauer ist beim Sortieren und beim Waschen + Sortieren vom Zettel abgelesen; beim Waschen hat die
-        Palette aus dem Zwischenlager kein Eingangsdatum mehr — dort ist sie das mittlere Eingangsdatum der Charge,
-        also geschätzt. Wie oft welches zutrifft: <Link to="/messungen">Messungen</Link>.
+        Jeder Punkt ist eine Ablesung am Palox <Herkunft art="gemessen" />, je Station nur unter ihresgleichen verglichen:
+        an der Sortiermaschine kommt nur Faules in den Palox, beim Waschen auch Schäden und Ästhetik.
+        Die gestrichelte Linie (eine Station, „liegt seit") ist die Rechnung: Grundausschuss + Anstieg × Wochen.
       </p>
       <Erklaerung>
-        <p>Gemessen wird der Palox, wenn eine Palette an die Sortiermaschine oder an die Waschstrasse kommt — bezogen auf
-        die Masse, die an dem Tag aus dem Lager kam. <strong>Kalender</strong> beantwortet „ab wann ging es los",
-        <strong> liegt seit</strong> beantwortet „nach wie vielen Wochen".</p>
-        <p>Die Kennzahl je Station <Herkunft art="gerechnet" /> ist das nach Masse gewichtete Mittel der plausiblen Punkte
-        dieser Station; der Zuwachs ist die Steigung einer massegewichteten Geraden über den Messtag und wird erst nach
-        vier Wochen und fünf Arbeiten gezeigt — vorher steht, was noch fehlt.</p>
-        <p>Mit diesen Werten rechnet die Kaskade (seit 0106): je Sorte und Station das Mittel der letzten vier Wochen, sonst der Saison,
-        sonst aller Sorten — zusammengesetzt über den Weg der Charge (von Hand, oder Band und danach Waschstrasse). Für schon
-        ausgelagerte Ware gilt die eigene Messung der Charge. Die Tabelle je Sorte und Station steht unter <Link to="/messungen">Messungen</Link>.</p>
+        <p>Der Palox ist vor allem <strong>Aussortieren</strong>: Hagelschaden, falsch geschnittene Stiele, andere Mängel — ein
+        <strong> Grundausschuss</strong>, den die Ware vom Feld mitbringt und der nicht mit dem Lager wächst. Dazu kommt mit der
+        Lagerdauer das Faule: der <strong>Anstieg</strong> je Woche.</p>
+        <p>Der Anstieg wird je Station gemessen, und zwar innerhalb der Sorten: Arbeiten an länger gelagerter Ware gegen
+        Arbeiten an kürzer gelagerter Ware derselben Sorte, nach Masse gewichtet. Er gilt ab fünf solchen Arbeiten und drei Wochen
+        Unterschied in der Lagerdauer; ein gemessenes Sinken wird nicht als Besserung gerechnet, sondern als „kein Anstieg".
+        Der Grundausschuss je Sorte ist ihr gemessenes Mittel, um den Anstieg auf null Lagertage zurückgerechnet (ab drei
+        Arbeiten der Sorte, sonst aller Sorten — „geliehen").</p>
+        <p>Die Kaskade rechnet für Ware mit t Lagertagen Grundausschuss + Anstieg × t / 7, zusammengesetzt über den Weg der Charge
+        (von Hand, oder Band und danach Waschstrasse). Für schon ausgelagerte Ware gilt die eigene Messung der Charge.
+        Die Lagerdauer ist beim Sortieren und beim Waschen + Sortieren vom Zettel; beim Waschen ist es das mittlere
+        Eingangsdatum der Charge. Die Tabelle je Sorte und Station: <Link to="/messungen/messwerte">Messungen → Messwerte</Link>.</p>
       </Erklaerung>
     </Karte>
   )
+}
+
+/** Warum (noch) kein Anstieg gilt — der Text kommt aus der Kennzahl (0111). */
+function anstiegText(k: { zuwachs_text: string | null }): string {
+  return k.zuwachs_text ?? 'noch nicht messbar'
 }
 
 type Sicht = 'alle' | 'waschen_sortieren' | 'waschen' | 'sortieren'
@@ -479,6 +508,7 @@ function Verdunstung({ daten, filter, chargen, oeffnen }: { daten: Auswertung; f
       y: (w.rate_pro_tag ?? 0) * 100,
       name: `Charge ${w.charge_nr} · ${w.sorte}`,
       text: `${datum(w.wiege_ts)} · liegt seit ${Math.round(w.lagertage)} Tagen · ${kg(w.netto_damals_kg, 0)} → ${kg(w.netto_jetzt_kg, 0)}${w.auftrag_id != null && kommentar.has(w.auftrag_id) ? ` · Kommentar: ${kommentar.get(w.auftrag_id)}` : ''}`,
+      kern: { wert: `${((w.rate_pro_tag ?? 0) * 100).toFixed(2)} % je Tag verdunstet`, unter: `${kg(w.netto_damals_kg, 0)} → ${kg(w.netto_jetzt_kg, 0)}` },
       auftragId: w.auftrag_id, chargeNr: w.charge_nr,
       groesse: w.auftrag_id != null && kommentar.has(w.auftrag_id) ? 6 : undefined,
     })),
@@ -495,6 +525,7 @@ function Verdunstung({ daten, filter, chargen, oeffnen }: { daten: Auswertung; f
         y: Math.max((w.rate_pro_tag ?? 0) * 100, 0),
         name: `Charge ${w.charge_nr} · ${w.sorte}`,
         text: `${datum(w.wiege_ts)} · ${kg(w.netto_damals_kg, 0)} → ${kg(w.netto_jetzt_kg, 0)} · ${w.grund ?? 'zählt nicht in die Rate'}${w.plausibel ? '' : ' — unter Messungen berichtigen'}`,
+        kern: { wert: 'zählt nicht in die Rate', unter: `${kg(w.netto_damals_kg, 0)} → ${kg(w.netto_jetzt_kg, 0)}` },
         auftragId: w.auftrag_id, chargeNr: w.charge_nr,
       })),
     })
@@ -547,6 +578,7 @@ function Verdunstung({ daten, filter, chargen, oeffnen }: { daten: Auswertung; f
           </table></div>
         </Aufklapp>
       )}
+      <Laeufe filter={filter} sortenImBild={sortenImBild} />
       <Erklaerung>
         <p>Gewogen wird dieselbe Palette zweimal: beim Eingang und später noch einmal. Die Tagesrate ist
         <em> (1 − Netto jetzt / Netto damals)</em> auf einen Tag heruntergerechnet <Herkunft art="gemessen" /> —
@@ -558,6 +590,46 @@ function Verdunstung({ daten, filter, chargen, oeffnen }: { daten: Auswertung; f
         steht unter Messungen → Auffälligkeiten zum Berichtigen.</p>
       </Erklaerung>
     </Karte>
+  )
+}
+
+/**
+ * Die Gegenprobe aus den Sortierdateien (Runde AO, v_lauf_vergleich, AB-113):
+ * Wird eine Charge ein zweites Mal sortiert, steht hier, wie sich ihr
+ * Gewicht je Kürbis seit dem ersten Lauf verändert hat — als Rate je Tag
+ * neben der Rate der Wägungen ihrer Sorte. Beobachtet, nicht Teil der Rate:
+ * Es sind andere Kürbisse derselben Charge, und was vorher als Faules oder
+ * zu klein herausging, fehlt im zweiten Lauf.
+ */
+function Laeufe({ filter, sortenImBild }: { filter: Filter; sortenImBild: string[] }) {
+  const [laeufe, setLaeufe] = useState<LaufVergleich[] | null>(null)
+  useEffect(() => { laufVergleich().then(setLaeufe).catch(() => setLaeufe([])) }, [])
+  if (laeufe === null) return null
+  const sichtbar = laeufe.filter(l => filter.gruppe === 'gesamt' || (filter.gruppe === 'sorte' ? sortenImBild.includes(l.sorte) : String(l.charge_nr) === filter.schluessel))
+  const chargen = [...new Set(sichtbar.map(l => l.charge_nr))]
+  return (
+    <Aufklapp titel={<><span>Gegenprobe: Sortierdateien derselben Charge</span> <span className="leise">{chargen.length === 0 ? 'noch keine Charge zweimal sortiert' : `${chargen.length} ${chargen.length === 1 ? 'Charge' : 'Chargen'}`}</span></>}>
+      {chargen.length === 0
+        ? <p className="leise">Sobald eine Charge ein zweites Mal sortiert ist (Datum im Dateinamen), steht hier, wie sich ihr Gewicht je Kürbis verändert hat.</p>
+        : (
+          <div className="rollbar"><table className="dicht">
+            <thead><tr><th>Charge</th><th>Sortiert am</th><th className="zahl">Kürbisse</th><th className="zahl">Median je Kürbis</th><th className="zahl">Tage seit dem ersten Lauf</th><th className="zahl">leichter je Tag (Median)</th><th className="zahl">Rate der Wägungen der Sorte</th></tr></thead>
+            <tbody>{sichtbar.map(l => (
+              <tr key={l.lauf_id}>
+                <td>{l.charge_nr} · {l.sorte}</td>
+                <td>{datum(l.sortiertag)}</td>
+                <td className="zahl">{zahl(l.n_kuerbis)}</td>
+                <td className="zahl">{l.median_g != null ? `${zahl(l.median_g)} g` : '—'}</td>
+                <td className="zahl">{l.tage_seit_erstem > 0 ? l.tage_seit_erstem : <span className="leise">erster Lauf</span>}</td>
+                <td className="zahl">{l.rate_median != null ? <strong>{prozent(l.rate_median, 2)}</strong> : <span className="leise">—</span>}</td>
+                <td className="zahl"><span className="leise">{l.rate_wiegungen != null ? prozent(l.rate_wiegungen, 2) : '—'}</span></td>
+              </tr>
+            ))}</tbody>
+          </table></div>
+        )}
+      <p className="leise">Gemessen <Herkunft art="gemessen" />, aber nicht dieselben Kürbisse: Was vor dem zweiten Lauf als Faules oder zu klein
+      herausging, fehlt darin — darum zählt diese Zahl nicht in die Rate. Ab sieben Tagen Abstand steht sie da.</p>
+    </Aufklapp>
   )
 }
 
@@ -632,11 +704,11 @@ function Marge({ daten, filter, chargen, oeffnen }: { daten: Auswertung; filter:
         ? <Leer titel="Noch keine fertige Palette gewogen">Sobald eine volle fertige Palette gewogen ist — „Kiste ab x kg" oder nach Kaliber —, steht sie hier.</Leer>
         : (
         <>
-          {/* Runde AF: der Untertitel ist weg; dass die Zahlen gemessen sind, sagt die Karte selbst (beschriftung.mjs R5). */}
-          <p className="leise-satz">Zwei Arten, Kürbis zu verkaufen — und zweimal die Frage, was die Waage über das Bezahlte hinaus in die Kiste gelegt hat. Gemessen <Herkunft art="gemessen" /> an den gewogenen vollen fertigen Paletten.</p>
+          {/* Runde AO (12. Oktober): „zu viel Erklär-Infos … die beiden Kästen besser
+              trennen und die Titel hervorheben". Zwei Kästen, je ein Titel und eine
+              Zeile, was gemessen wird; die Herleitung steht unten in der Erklärung. */}
           <section className="marge-teil" data-block="kiste_ab" id="urs-marge-kiste">
-            <h3>Kiste ab x kg</h3>
-            <p className="leise">Der Kunde zahlt die Kiste zu einem Mindestgewicht. Jedes Kilo darüber ist geschenkt: Netto der Palette ÷ Kisten = gewogen je Kiste, minus Soll = zu viel je Kiste. Wie viele Kürbisse in der Kiste liegen, weiss die Waage nicht — es spielt hier keine Rolle.</p>
+            <h3>Kiste ab x kg <span className="marge-was">zu viel je Kiste über dem Soll <Herkunft art="gemessen" /></span></h3>
             {kiste.length === 0 ? <p className="leise">Noch keine Palette „Kiste ab x kg" gewogen.</p> : (
               <div className="rollbar"><table className="dicht marge-tabelle">
                 {/* Die Spalten heissen wie im Begriffslexikon (pruefstand/begriffe.json). */}
@@ -683,31 +755,37 @@ function Marge({ daten, filter, chargen, oeffnen }: { daten: Auswertung; filter:
           </section>
 
           <section className="marge-teil" data-block="stueck" id="urs-marge-stueck">
-            <h3>x Stück je Kiste</h3>
-            <p className="leise">Der Kunde zahlt je Kürbis, nach Kaliber. Bezahlt ist die Bandmitte; jedes Gramm darüber ist geschenkt: Netto der Palette ÷ (Kisten × Stück) = gewogen je Stück, minus Bandmitte. <strong>Bandmitte</strong> heisst hier nicht die Mitte der Grenzen, sondern der Schwerpunkt der Kürbisse dieser Sorte innerhalb des Bandes, aus den Sortierdateien — was der Kunde im Mittel bekommt. Das Band ist das der Fassung, mit der die Arbeit lief: Ändert der Betrieb die Fassung, kann „K1" danach ein anderes Band sein, und die Zeilen bleiben getrennt.</p>
+            <h3>x Stück je Kiste <span className="marge-was">gewogen je Stück gegen den Durchschnitt des Bandes laut Sortierung <Herkunft art="gemessen" /></span></h3>
             {stueck.length === 0 ? <p className="leise">Noch keine Palette nach Kaliber gewogen.</p> : (
               <div className="rollbar"><table className="dicht marge-tabelle">
-                <thead><tr><th>Sorte</th><th>Kaliber</th><th className="zahl">Je Kiste</th><th className="zahl">Gewogen je Stück</th><th className="zahl">Über Bandmitte</th><th>Wägungen</th></tr></thead>
+                <thead><tr><th>Sorte</th><th>Kaliber</th><th className="zahl">Je Kiste</th><th className="zahl">Ø laut Sortierung</th><th className="zahl">Gewogen je Stück</th><th className="zahl">Unterschied</th><th>Wägungen</th></tr></thead>
                 <tbody>{stueck.map(z => {
                   const k = schluessel(z), ws = dahinter(z)
                   const mitte = z.band_mittel_g ?? null, g = z.g_je_kuerbis ?? null
+                  const grenzMitte = z.band_von_g != null && z.band_bis_g != null ? (z.band_von_g + z.band_bis_g) / 2 : null
+                  // Runde AO: ein Stückgewicht unter der unteren Bandgrenze heisst,
+                  // in der Kiste liegt im Mittel ein kleineres Kaliber (Kaori Kuri K2: 1008 g bei 1100–1600 g).
+                  const unterBand = g != null && z.band_von_g != null && g < z.band_von_g
                   return (
                     <Fragment key={k}>
                       <tr>
                         <td className="nowrap"><strong>{z.sorte}</strong>{z.charge_nr !== undefined && <span className="leise"> · Charge {z.charge_nr}</span>}</td>
-                        <td className="nowrap"><strong>{bandText(z.kaliber_idx, z.band_von_g, z.band_bis_g) ?? bandName(z.sorte, z.kaliber_idx)}</strong>{mitte != null && <span className="leise"> · Mitte {Math.round(mitte)} g</span>}</td>
+                        <td className="nowrap"><strong>{bandText(z.kaliber_idx, z.band_von_g, z.band_bis_g) ?? bandName(z.sorte, z.kaliber_idx)}</strong></td>
                         <td className="zahl">{z.stueck_je_kiste} Stück</td>
-                        <td className="zahl"><strong>{g != null ? `${Math.round(g)} g` : '—'}</strong></td>
+                        <td className="zahl" title={`Der Durchschnitt aller Kürbisse dieser Sorte, die die Sortiermaschine in dieses Band gelegt hat${grenzMitte != null ? ` — die Mitte der Grenzen wäre ${Math.round(grenzMitte)} g` : ''}. So schwer ist ein Kürbis dieses Bandes im Mittel.`}>
+                          {mitte != null ? `${Math.round(mitte)} g` : '—'}</td>
+                        <td className="zahl"><strong>{g != null ? `${Math.round(g)} g` : '—'}</strong>
+                          {unterBand && <> <Marke art="warnung">unter {zahl(z.band_von_g)} g</Marke></>}</td>
                         <td className={`zahl ${z.g_ueber_bandmitte != null && z.g_ueber_bandmitte > 0 ? 'rot' : ''}`}>
-                          {z.g_ueber_bandmitte != null ? `${z.g_ueber_bandmitte > 0 ? '+' : ''}${Math.round(z.g_ueber_bandmitte)} g` : '—'}
-                          {z.g_ueber_bandmitte != null && mitte ? <span className="leise"> {prozent(z.g_ueber_bandmitte / mitte, 0)}</span> : null}
+                          {z.g_ueber_bandmitte != null ? unterschiedText(z.g_ueber_bandmitte) : '—'}
+                          {z.g_ueber_bandmitte != null && mitte ? <span className="leise"> {z.g_ueber_bandmitte > 0 ? '+' : '−'}{prozent(Math.abs(z.g_ueber_bandmitte) / mitte, 0)}</span> : null}
                         </td>
                         <td className="nowrap">{aufknopf(k, z.n_wiegungen)}<span className="leise"> · {zahl(z.kisten)} Kisten</span></td>
                       </tr>
                       {auf.has(k) && (
-                        <tr className="marge-dahinter"><td colSpan={6}>
+                        <tr className="marge-dahinter"><td colSpan={7}>
                           <table className="dicht">
-                            <thead><tr><th>Datum</th><th>Charge</th><th className="zahl">Kisten</th><th className="zahl">Gewogen je Stück</th><th className="zahl">Über Bandmitte</th><th></th></tr></thead>
+                            <thead><tr><th>Datum</th><th>Charge</th><th className="zahl">Kisten</th><th className="zahl">Gewogen je Stück</th><th className="zahl">Unterschied</th><th></th></tr></thead>
                             <tbody>{ws.map(w => {
                               const gw = w.kg_pro_kuerbis != null ? w.kg_pro_kuerbis * 1000 : null
                               return (
@@ -716,7 +794,7 @@ function Marge({ daten, filter, chargen, oeffnen }: { daten: Auswertung; filter:
                                   <td>Charge {w.charge_nr}</td>
                                   <td className="zahl">{w.kisten}</td>
                                   <td className="zahl">{gw != null ? `${Math.round(gw)} g` : '—'}</td>
-                                  <td className="zahl">{gw != null && w.band_mittel_g != null ? `${gw - w.band_mittel_g > 0 ? '+' : ''}${Math.round(gw - w.band_mittel_g)} g` : '—'}</td>
+                                  <td className="zahl">{gw != null && w.band_mittel_g != null ? unterschiedText(gw - w.band_mittel_g) : '—'}</td>
                                   <td className="nowrap">{arbeitKnopf(w)}{!w.voll && <span className="leise"> · nicht voll</span>}</td>
                                 </tr>
                               )
@@ -733,9 +811,20 @@ function Marge({ daten, filter, chargen, oeffnen }: { daten: Auswertung; filter:
         </>
       )}
       <p className="hilfe">
-        Mittel aus allen gewogenen fertigen Paletten{von ? ` seit ${datum(von)}` : ''} <Herkunft art="gemessen" /> —
-        nicht auf verkaufte Kisten hochgerechnet. Eine nicht volle Palette (weniger Kisten drauf) zählt je Kiste mit; sie steht als „nicht voll" dabei.
+        Mittel aus allen gewogenen fertigen Paletten{von ? ` seit ${datum(von)}` : ''} <Herkunft art="gemessen" />, nicht auf verkaufte Kisten hochgerechnet.
       </p>
+      <Erklaerung>
+        <p><strong>Kiste ab x kg:</strong> Der Kunde zahlt die Kiste zu einem Mindestgewicht; jedes Kilo darüber ist geschenkt.
+        Netto der Palette ÷ Kisten = gewogen je Kiste, minus Soll = zu viel je Kiste.</p>
+        <p><strong>x Stück je Kiste:</strong> Der Kunde zahlt je Kürbis eines Kalibers. Netto der Palette ÷ (Kisten × Stück) = gewogen
+        je Stück. Verglichen wird mit dem <strong>Durchschnitt laut Sortierung</strong>: wie schwer die Kürbisse dieser Sorte im Mittel
+        sind, die die Sortiermaschine in dieses Band gelegt hat — nicht die Mitte der Grenzen. Liegen die meisten Kürbisse im
+        oberen Teil des Bandes, ist ihr Durchschnitt höher als die Mitte (der Zeiger über der Zahl nennt beide). Schwerer als dieser
+        Durchschnitt heisst: In den Kisten liegen grössere Kürbisse, als das Band im Mittel hergibt — Marge verschenkt. Leichter
+        heisst: kleinere. Liegt das Stückgewicht sogar unter der unteren Grenze, liegt im Mittel ein kleineres Kaliber in der Kiste.</p>
+        <p>Eine nicht volle Palette (weniger Kisten drauf) zählt je Kiste mit und steht als „nicht voll" dabei. Das Band ist das der
+        Fassung, mit der die Arbeit lief — ändert der Betrieb die Fassung, bleiben die Zeilen getrennt.</p>
+      </Erklaerung>
     </Karte>
   )
 }
@@ -759,6 +848,9 @@ function bandNamen(schemata: Schema[]): (sorte: string, idx: number | null) => s
     return band ? `K${idx + 1} · ${zahl(band[0])}–${zahl(band[1])} g` : `K${idx + 1}`
   }
 }
+
+/** Runde AO: „86 g leichter" statt „−86 g über Bandmitte". */
+const unterschiedText = (d: number) => Math.round(d) === 0 ? 'gleich' : `${zahl(Math.abs(Math.round(d)))} g ${d > 0 ? 'schwerer' : 'leichter'}`
 
 const tonVon = (zuviel: number | null, soll: number | null) =>
   zuviel == null || !soll ? '' : zuviel / soll > 0.05 ? 'rot' : zuviel < 0 ? 'gruen' : ''

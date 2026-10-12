@@ -59,7 +59,7 @@
         "Verlust bis "
       ],
       "art": "gerechnet",
-      "bedeutet": "Echter Verlust bis zum Stichtag: Verdunstung + Faules im Lager (Kurve und Sockel) + Faules beim Abpacken. Ohne den anderen Kanal, ohne Prognose",
+      "bedeutet": "Echter Verlust bis zum Stichtag: Verdunstung + Faules (Palox: Grundausschuss + Anstieg je Station, seit 0111) + Faules beim Abpacken. Ohne zu klein / zu gross, ohne Prognose",
       "quelle": "erg_bilanz.verlust_heute_kg · erg_charge.verlust_heute_kg · erg_verlauf.verlust_kum_kg"
     },
     {
@@ -78,8 +78,8 @@
         "Faules im Lager"
       ],
       "art": "gerechnet",
-      "bedeutet": "Faule Ware der liegenden Portion: die Verderbkurve F(t) über die Lagerdauer, dazu der Sockel a₀ (schon beim Einlagern faul, nicht lagerbedingt)",
-      "quelle": "erg_bilanz.schimmel_heute_kg + erg_bilanz.sockel_heute_kg · schimmel_messung"
+      "bedeutet": "Was in den Palox geht, bis heute: je Station der Grundausschuss der Sorte plus der Anstieg je Woche Lagerdauer, beim Alter der Portion (seit 0111; bis 0105 eine Verderbkurve mit Sockel). Gemessene Chargen mit ihrer eigenen Messung",
+      "quelle": "erg_bilanz.schimmel_heute_kg · erg_palox_erwartung · schimmel_messung"
     },
     {
       "muster": [
@@ -302,6 +302,24 @@
       "art": "gerechnet",
       "bedeutet": "Bei Kisten nach Stück je Kaliber: die Masse über der Unterkante des Kalibers, die unbezahlt mitgeht (Rahmen, nicht Verlust), und wo im Band die gewogene Ware liegt — 0 ist die Unterkante, 1 die Oberkante",
       "quelle": "erg_ueberfuellung.spielraum_kg · .lage_im_band"
+    },
+    {
+      "muster": [
+        "davon Demeter",
+        "davon Knospe",
+        "Label unbekannt"
+      ],
+      "art": "gerechnet|prognose",
+      "bedeutet": "Das Verkaufsfähige im Lager, geteilt nach dem Label der Charge — Demeter oder Knospe aus den Stammdaten, sonst wie Perigon die Charge geliefert hat; „Label unbekannt“, solange keins von beiden bekannt ist (Runde AO). In Wochen gerechnet ist es Prognose.",
+      "quelle": "artikel_lager(h) · v_charge_label"
+    },
+    {
+      "muster": [
+        "geliefert"
+      ],
+      "art": "gemessen",
+      "bedeutet": "Kürbis-Lieferungen an einen Kunden laut den Perigon-Dateien, kumuliert über die Saison (1. Juli – 30. Juni); die Vorjahre zum Vergleich, bis zum selben Tag und ganz. Ohne interne Umbuchung (Journal L). Geht in keine Bilanz ein (Runde AO).",
+      "quelle": "v_kunde_tag · ausgang_position"
     }
   ]
 }

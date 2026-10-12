@@ -29,10 +29,22 @@ test('Waschen: der Palox ist freiwillig — und steht trotzdem im Plan, als frei
   assert.ok(!texte(p).includes('planAusschuss'), 'zu klein / zu gross gibt es nur von Hand')
 })
 
-test('Sortieren: das Sortierdatum auf den Zettel steht im Plan — sonst fragt das Waschen später ins Leere', () => {
+// Runde AO: Die Regel hat sich geändert, der Test mit ihr. Bis hierher
+// verlangte der Plan beim Sortieren das Sortierdatum auf jedem Zettel, weil
+// das Waschen danach fragte. Seit 0104 wird beim Waschen jede Palette
+// gewogen — das Datum ist dort freiwillig, also verlangt es der Plan nicht
+// mehr. Dafür kündigt er das Leeren des Palox an, an jeder Palox-Station.
+test('Sortieren: kein Sortierdatum mehr im Plan, dafür das Leeren des Palox', () => {
   const p = arbeitsplan('sortieren', false, null)
-  assert.ok(p.waehrend.some(x => x.text === 'planSortierdatum'))
+  assert.ok(!(texte(p) as string[]).includes('planSortierdatum'), 'das Sortierdatum ist beim Waschen freiwillig (Runde AO)')
+  assert.ok(p.waehrend.some(x => x.text === 'planPaloxLeeren' && !x.freiwillig), 'am Sortierband ist der Palox Pflicht, also auch das Leeren mit Ablesung')
   assert.ok(!texte(p).includes('planDreiFertige'), 'beim Sortieren werden keine fertigen Paletten gewogen')
+})
+
+test('Palox leeren steht im Plan, wo es einen Palox gibt — freiwillig dort, wo der Palox freiwillig ist', () => {
+  assert.ok(arbeitsplan('waschen_sortieren', false, null).waehrend.some(x => x.text === 'planPaloxLeeren' && !x.freiwillig))
+  assert.ok(arbeitsplan('waschen', false, null).waehrend.some(x => x.text === 'planPaloxLeeren' && x.freiwillig))
+  assert.ok(!texte(arbeitsplan('waschen', true, null)).includes('planPaloxLeeren'), 'beim Fax gibt es keinen Palox')
 })
 
 test('Kistensystem „anderes": die fertigen Paletten verschwinden aus dem Plan — wie aus der Checkliste', () => {

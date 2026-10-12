@@ -30,7 +30,8 @@ for R in v_hochrechnung erg_massenbilanz erg_datenlage erg_marge erg_plausibilit
          auftrag auftrag_palette auftrag_gebinde schimmel_messung ausschuss_messung \
          verdunstung_wiegung ausgang_zeile \
          kontrollpalette kontrollpalette_wiegung v_kontrollpalette_vorschlag v_ausgang_voll \
-         sortier_lauf v_sortier_lesung v_charge_rueckgrat auftrag_rueckmeldung erg_marge_charge v_auftrag_palette_masse v_arbeit_kommentar lieferung auswertung_stand; do
+         sortier_lauf v_sortier_lesung v_charge_rueckgrat auftrag_rueckmeldung erg_marge_charge v_auftrag_palette_masse v_arbeit_kommentar lieferung auswertung_stand \
+         artikel_kaliber v_charge_label v_kunde_tag v_sorte_artikelgruppe v_lauf_vergleich; do
   dump "$R" "select * from $R"
 done
 dump erg_wiegung "select * from erg_wiegung order by wiege_ts desc"
@@ -41,6 +42,7 @@ dump erg_wiegung "select * from erg_wiegung order by wiege_ts desc"
 for H in 0 7 14 21 28 35 42 56 84; do
   dump "rpc_lager_kaliber_$H"  "select * from lager_kaliber($H)"
   dump "rpc_kaliber_glocke_$H" "select * from kaliber_glocke($H)"
+  dump "rpc_artikel_lager_$H"  "select * from artikel_lager($H)"     # 0112: Lager nach Artikel
 done
 
 # Eingebettete Abfrage: auftrag_teilnehmer mit profil(name)

@@ -87,7 +87,7 @@ export async function restAntwort(route) {
     // Fixture (rpc_<fn>_<h>.json). Wer einen Stichtag ohne Datei anfragt,
     // bekommt leer und steht auf der Fehlliste — nicht die Zahlen von heute,
     // sonst sähe „in 6 Wochen" aus wie heute und niemand merkte es.
-    if (fn === 'lager_kaliber' || fn === 'kaliber_glocke') {
+    if (fn === 'lager_kaliber' || fn === 'kaliber_glocke' || fn === 'artikel_lager') {
       const body = JSON.parse(route.request().postData() ?? '{}')
       const h = Number(body.p_h ?? 0)
       const f = fixture(`rpc_${fn}_${h}`)
@@ -96,6 +96,7 @@ export async function restAntwort(route) {
     }
     if (fn === 'demo_daten_laden') return route.fulfill({ json: 'Demo-Saison steht.' })
     if (fn === 'demo_daten_entfernen') return route.fulfill({ json: 'Demo-Daten entfernt.' })
+    if (fn === 'demo_vorjahre_laden') return route.fulfill({ json: 'Demo: Lieferungen in zwei Vorjahren.' })
     return route.fulfill({ json: fixture(`rpc_${fn}`) ?? null })
   }
 

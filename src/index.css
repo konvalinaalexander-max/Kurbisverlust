@@ -141,6 +141,12 @@ svg { display: inline-block; vertical-align: middle; }
 .navleiste a:hover { background: var(--flaeche-2); color: var(--text); }
 .navleiste a.aktiv { background: var(--kuerbis-flaeche); color: var(--kuerbis); font-weight: var(--gewicht-stark); }
 .navleiste a.aktiv svg { opacity: 1; }
+/* Runde AO: „Lagermanagement" mit dem Zusatz als zweite Zeile in der
+   Seitenleiste; in der schmalen Kopfleiste kurz „Lager nach …". */
+.navleiste .nav-text { display: flex; flex-direction: column; line-height: 1.15; min-width: 0; }
+.navleiste .nav-text .kurz { display: none; }
+.navleiste .nav-text .zusatz { font-size: var(--s-0); color: var(--text-leise); font-weight: var(--gewicht-normal); }
+.navleiste a.aktiv .nav-text .zusatz { color: var(--kuerbis); }
 
 @media (max-width: 1023px) {
   .app.buero { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto minmax(0, 1fr); grid-template-areas: 'kopf' 'seite' 'inhalt'; }
@@ -155,6 +161,10 @@ svg { display: inline-block; vertical-align: middle; }
   /* Fünf Reiter nebeneinander, ohne Wischen: gleich verteilt, etwas kleiner;
      unter 600 px ohne Zeichen, das Wort reicht. */
   .navleiste a { min-height: 38px; padding: .35rem .5rem; flex: 1 0 auto; justify-content: center; font-size: .86rem; gap: .3rem; }
+  .navleiste .nav-text { display: inline; }
+  .navleiste .nav-text .lang { display: none; }
+  .navleiste .nav-text .kurz { display: inline; }
+  .navleiste .nav-text .zusatz { font-size: inherit; color: inherit; font-weight: inherit; }
 }
 @media (max-width: 600px) { .navleiste:not(.unter) { gap: .1rem; } .navleiste:not(.unter) a svg { display: none; } .navleiste:not(.unter) a { padding: .35rem .25rem; font-size: .8rem; letter-spacing: -.01em; } }
 
@@ -164,6 +174,10 @@ svg { display: inline-block; vertical-align: middle; }
 .navleiste.unter a:hover { background: var(--flaeche-2); }
 .navleiste.unter a.aktiv { background: var(--text); color: var(--flaeche); box-shadow: none; }
 @media (prefers-color-scheme: dark) { .navleiste.unter a.aktiv { background: var(--text); color: var(--grund); } }
+/* Runde AO: die Zahl am Reiter (Auffälligkeiten) — klein, rund, ruhig. */
+.reiter-zahl { display: inline-block; margin-left: .4rem; min-width: 1.4em; padding: 0 .35em; border-radius: 999px;
+  font-size: var(--s-0); line-height: 1.5; text-align: center; background: var(--flaeche-2); color: var(--text-2); }
+.navleiste.unter a.aktiv .reiter-zahl { background: color-mix(in srgb, var(--flaeche) 25%, transparent); color: inherit; }
 
 /* ---------- Der Seitenkopf -------------------------------------------------- */
 .seitenkopf { display: flex; flex-wrap: wrap; align-items: flex-end; gap: .5rem 1rem; margin: var(--a-8) 0 var(--a-5); }
@@ -473,6 +487,20 @@ details.aufklapp > summary .leise { font-weight: var(--gewicht-normal); }
 .werkzeug-knopf { min-height: 30px; padding: .15rem .55rem; font-size: var(--s-0); border-radius: 8px; gap: .3rem; color: var(--text-leise); background: transparent; border-color: transparent; box-shadow: none; }
 .werkzeug-knopf:hover:not(:disabled) { background: var(--flaeche-2); color: var(--text); }
 .diagramm-ausserhalb { font-size: var(--s-0); color: var(--text-leise); margin: .35rem 0 0; }
+/* Runde AO: Ziehen zum Vergrössern markiert keinen Text mehr, + und − oben
+   rechts, und vergrössert eine Bildlaufleiste unter der x-Achse. */
+.diagramm svg { user-select: none; -webkit-user-select: none; }
+.zoom-leiste { position: absolute; top: 0; right: 0; z-index: 2; display: inline-flex; gap: 2px; padding: 2px;
+  background: var(--flaeche); border-radius: 9px; box-shadow: var(--kontur); }
+.zoom-knopf { min-height: 26px; min-width: 26px; padding: 0; justify-content: center; border-radius: 7px;
+  background: transparent; border-color: transparent; box-shadow: none; color: var(--text-2); }
+.zoom-knopf:hover:not(:disabled) { background: var(--flaeche-2); color: var(--text); }
+.zoom-knopf:disabled { opacity: .35; }
+.bildlauf { margin-top: .15rem; }
+.bildlauf-spur { position: relative; height: 12px; border-radius: 999px; background: var(--flaeche-2); cursor: pointer; touch-action: none; }
+.bildlauf-griff { position: absolute; top: 2px; bottom: 2px; border-radius: 999px; background: var(--text-leise); opacity: .55; cursor: grab; touch-action: none; }
+.bildlauf-griff:hover, .bildlauf-griff:focus-visible { opacity: .85; outline: none; }
+.bildlauf-griff:active { cursor: grabbing; opacity: .9; }
 
 /* Anteilsbalken: alle Zeilen gleich lang (100 % = Eingang), die Teile farbig */
 .anteile { position: relative; }
@@ -608,6 +636,22 @@ details.aufklapp > summary .leise { font-weight: var(--gewicht-normal); }
 .check button.haupt .zustand { border-color: rgb(255 255 255 / 55%); color: #fff; background: transparent; }
 .check button.haupt .text .unter { color: rgb(255 255 255 / 85%); }
 .check button.haupt .pfeil { color: rgb(255 255 255 / 85%); }
+/* Runde AO: Palox leeren — gelb umrandet, mit der Kiste; und der Hinweis,
+   den jede Person in drei Arbeiten sieht. */
+.check button.palox-leeren { border: 2px solid var(--gelb); }
+.check .zustand.palox { border-color: var(--gelb); color: var(--gelb); background: var(--gelb-flaeche); }
+.palox-erinnerung {
+  margin: 0 0 var(--a-3); padding: .85rem 1rem; border-radius: 14px;
+  background: var(--gelb-flaeche); border: 2px solid var(--gelb); box-shadow: var(--tiefe-1);
+}
+.palox-erinnerung-kopf { display: flex; align-items: center; gap: .5rem; color: var(--gelb); font-size: 1.08rem; }
+.palox-erinnerung-kopf strong { color: var(--text); }
+.palox-erinnerung p { margin: .45rem 0 .7rem; line-height: 1.45; }
+.palox-erinnerung button { width: 100%; min-height: 48px; }
+/* Runde AO: die Zettel-Prüfung unter dem Gewicht vom Zettel */
+.zettel-pruefung { margin: -.35rem 0 .8rem; }
+.zettel-pruefung.gut { color: var(--gruen); font-weight: var(--gewicht-stark); font-size: var(--s-1); display: flex; align-items: center; gap: .35rem; }
+.zettel-pruefung.leise { font-size: var(--s-1); }
 
 /* Der Zähler — die eine Sache des Zählers */
 .zaehler { display: flex; align-items: center; gap: 1.25rem; justify-content: center; margin: 1rem 0; }
@@ -721,7 +765,11 @@ details.aufklapp > summary .leise { font-weight: var(--gewicht-normal); }
   background: color-mix(in srgb, var(--flaeche-2) 55%, transparent);
 }
 .lagertabelle td.summe, .lagertabelle th.zahl.summe { border-left: 1px solid var(--rand-leise); }
-.lagertabelle td.unter-kaliber { color: var(--gelb); }
+/* Runde AO: Unter- und Überkaliber gleich ruhig neben den Bändern — keine
+   Signalfarbe, sie sind kein Alarm, nur nicht verkaufsfähig. */
+.lagertabelle .neben-kaliber { color: var(--text-2); background: var(--flaeche-2); }
+.lagertabelle th.neben-kaliber { font-weight: var(--gewicht-normal); }
+.lagertabelle .kopf-unter { display: block; font-size: var(--s-0); color: var(--text-leise); font-weight: var(--gewicht-normal); }
 .lagertabelle td .band-unter { display: block; font-size: var(--s-0); color: var(--text-leise); font-weight: var(--gewicht-normal); }
 .lagertabelle td.zahl { min-width: 5.5rem; }
 /* Während „in X Wochen" nachgeladen wird, bleiben die alten Zahlen blass
@@ -832,9 +880,13 @@ tr.gewaehlt td { background: color-mix(in srgb, var(--kuerbis) 10%, transparent)
 .fenster-kopf .schliessen { margin-left: auto; }
 .fenster-abschnitt { margin-top: var(--a-4); }
 .fenster-abschnitt h3 { font-size: var(--s-0); text-transform: uppercase; letter-spacing: .06em; color: var(--text-leise); margin: 0 0 .35rem; }
-.marge-teil { margin-top: var(--a-4); padding-top: var(--a-3); border-top: 1px solid var(--rand-leise); }
-.marge-teil:first-of-type { margin-top: 0; padding-top: 0; border-top: 0; }
-.marge-teil > h3 { margin: 0 0 .2rem; font-size: var(--s-2, 1.05rem); }
+/* Runde AO: zwei klar getrennte Kästen in der Karte, jeder mit einem
+   betonten Titel und einer Zeile, was gemessen wird. */
+.marge-teil { margin-top: var(--a-4); padding: var(--a-3) var(--a-4) var(--a-4); border-radius: var(--radius-klein, 10px);
+  background: color-mix(in srgb, var(--flaeche-2) 60%, transparent); box-shadow: var(--kontur); }
+.marge-teil:first-of-type { margin-top: 0; }
+.marge-teil > h3 { margin: 0 0 var(--a-3); font-size: 1.12rem; font-weight: var(--gewicht-stark); color: var(--text); }
+.marge-teil > h3 .marge-was { display: block; margin-top: .15rem; font-size: var(--s-0); font-weight: var(--gewicht-normal); color: var(--text-leise); }
 .marge-teil > .leise { margin: 0 0 var(--a-3); }
 .marge-auf { display: inline-flex; align-items: center; gap: .3rem; }
 .marge-auf svg { transition: transform var(--d-mittel); }
@@ -856,6 +908,16 @@ tr.marge-dahinter table { margin: 0; }
 .kurz-block[data-stand="gekuerzt"] { border-left-color: var(--gruen, var(--kuerbis)); }
 .messung-voran { padding: .6rem .8rem; border-radius: var(--radius-klein); background: var(--flaeche-2); border-left: 3px solid var(--kuerbis); }
 .messung-voran h3 { color: var(--kuerbis); }
+/* Runde AO: die Kernzahl der Messung gross obenan („24.7 % in den Palox"),
+   darunter wovon („250 kg von 1014 kg"); Ort, Tag und Lagerdauer als ruhige
+   Merkmale in einer Zeile; ein Kommentar aus der Halle eigens. */
+.messung-voran .kern { display: flex; flex-wrap: wrap; align-items: baseline; gap: .2rem .7rem; margin: .1rem 0 .15rem; }
+.messung-voran .kern-wert { font-size: 1.55rem; font-weight: var(--gewicht-stark); letter-spacing: -.01em; color: var(--text); font-variant-numeric: tabular-nums; }
+.messung-voran .kern-unter { font-size: var(--s-2, 1rem); color: var(--text-2); font-variant-numeric: tabular-nums; }
+.messung-voran .kern-name { margin: 0 0 .35rem; font-weight: var(--gewicht-stark); color: var(--text-2); }
+.messung-voran .merkmale { display: flex; flex-wrap: wrap; gap: .3rem; margin: 0; padding: 0; list-style: none; }
+.messung-voran .merkmale li { padding: .1rem .5rem; border-radius: 999px; background: var(--flaeche); box-shadow: var(--kontur); font-size: var(--s-0); color: var(--text-2); }
+.messung-voran .kern-kommentar { margin: .5rem 0 0; font-style: italic; color: var(--text); }
 .liste-schlicht { margin: 0; padding-left: 1.1rem; }
 .liste-schlicht li { margin: .1rem 0; }
 .charge-knopf { font: inherit; font-weight: inherit; color: inherit; text-decoration: underline dotted; text-underline-offset: .2em; padding: 0 .2rem; min-height: 0; }
@@ -889,3 +951,30 @@ tr.marge-dahinter table { margin: 0; }
 .arbeit-karte .kopfzeile .wahlkreis { flex: none; width: 26px; height: 26px; min-height: 0; margin: 0; font-size: 1rem; border-radius: 50%; }
 .arbeit-karte.gewaehlt { outline: 2px solid var(--kuerbis); background: color-mix(in srgb, var(--kuerbis) 7%, var(--flaeche)); }
 .loesch-leiste .symbolknopf { margin-left: auto; }
+
+/* Runde AO: Chargen — eine Tabelle; die kleine zweite Zeile in einer Zelle
+   („aus … Eingang", „≈ … Paletten") und die erklärenden Sätze im Aufgeklappten. */
+.zelle-unter { display: block; font-size: var(--s-0); color: var(--text-leise); font-weight: var(--gewicht-normal); white-space: nowrap; }
+.chargentabelle tr.aufgeklappt > td.detail { background: color-mix(in srgb, var(--flaeche-2) 45%, transparent); }
+.erklaer-liste { margin: .25rem 0 1.1rem; padding-left: 1.1rem; display: grid; gap: .35rem; line-height: 1.5; }
+.erklaer-liste li::marker { color: var(--text-leise); }
+
+/* Runde AO (0112): Lager nach Artikel. */
+.artikeltabelle .zeilenunter.label-D { color: var(--gruen, var(--text-2)); }
+.artikeltabelle .zeilenunter.label-K { color: var(--blau, var(--text-2)); }
+.artikeltabelle .zeilenunter.label-x { color: var(--text-leise); font-style: italic; }
+.artikeltabelle tr.klickbar .chevron { display: inline-flex; color: var(--text-leise); transition: transform var(--d-mittel); margin-right: .2rem; vertical-align: -2px; }
+.artikeltabelle tr.klickbar.offen .chevron { transform: rotate(90deg); }
+.artikeltabelle tr.artikel-chargen > td { background: color-mix(in srgb, var(--flaeche-2) 55%, transparent); padding: .5rem .75rem .75rem; }
+.artikeltabelle tr.artikel-chargen table { margin: 0; }
+.artikel-balken { display: flex; width: 100%; min-width: 4rem; margin-top: .3rem; }
+.kunden-gitter { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 330px), 1fr)); gap: var(--a-4); margin-top: var(--a-4); }
+.kunde-bild { padding: var(--a-3); border-radius: var(--radius-klein); box-shadow: var(--kontur); background: var(--flaeche); min-width: 0; }
+.kunde-bild h3 { margin: 0 0 .3rem; font-size: var(--s-1); font-weight: var(--gewicht-stark); }
+.kundentabelle td.erreicht { min-width: 9rem; }
+.erreicht-balken { position: relative; display: block; height: 1.15rem; border-radius: 999px; background: var(--flaeche-2); overflow: hidden; }
+.erreicht-balken > span { position: absolute; left: 0; top: 0; bottom: 0; background: color-mix(in srgb, var(--blau) 45%, transparent); }
+.erreicht-balken > span.fast { background: color-mix(in srgb, var(--kuerbis) 55%, transparent); }
+.erreicht-balken > span.voll { background: color-mix(in srgb, var(--rot) 50%, transparent); }
+.erreicht-balken > em { position: relative; display: block; text-align: center; font-style: normal; font-size: var(--s-0); line-height: 1.15rem; font-variant-numeric: tabular-nums; }
+.filter-klein select { min-height: 32px; padding: .15rem .4rem; font-size: var(--s-0); }

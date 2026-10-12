@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { imDemoModus, supabase } from '../lib/supabase'
 import { einstellung, fehlerText, stammdaten } from '../lib/db'
 import { importErkennen, type ImportBericht } from '../lib/import'
@@ -6,19 +6,21 @@ import { STATION_NAME, datum, heute as heuteOrtszeit, kg, tonnen, zahl, zeitpunk
 import { Hinweis, Karte, Kennzahl, Lade, Marke } from '../components/Bausteine'
 import { useBetriebsmodus } from '../lib/betriebsmodus'
 import DemoDaten from '../components/DemoDaten'
-import { ZHaken } from '../components/Zeichen'
+import { ZHaken, ZStift } from '../components/Zeichen'
 import ErfassungLeeren from '../components/ErfassungLeeren'
 import type { Charge, Gebinde, Kaeufer, Profil, Sortierschema } from '../lib/typen'
 
 export default function Stammdaten() {
   const modus = useBetriebsmodus()
-  const [teil, setTeil] = useState<'gebinde' | 'paletten' | 'chargen' | 'kaliber'
+  const [teil, setTeil] = useState<'gebinde' | 'paletten' | 'chargen' | 'kaliber' | 'artikel'
     | 'abgebrochen' | 'benutzer' | 'einstellungen' | 'vorlauf' | 'demo' | 'leeren'>('gebinde')
   const teile: [typeof teil, string][] = [
     ['gebinde', 'Gebinde & Tara'],
     ['paletten', 'Paletten-Import'],
     ['chargen', 'Chargen'],
     ['kaliber', 'Sortierschemata'],
+    // Runde AO (0112): welche Sorte als welcher Artikel geht, und was gross und klein heisst.
+    ['artikel', 'Sorten und Artikel'],
     ['abgebrochen', 'Abgebrochene Arbeiten'],
     ['benutzer', 'Benutzer'],
     ['einstellungen', 'Einstellungen'],
@@ -40,6 +42,7 @@ export default function Stammdaten() {
       {teil === 'paletten' && <PalettenImport />}
       {teil === 'chargen' && <Chargen />}
       {teil === 'kaliber' && <Kaliber />}
+      {teil === 'artikel' && <SortenArtikel />}
       {teil === 'abgebrochen' && <Abgebrochene />}
       {teil === 'benutzer' && <Benutzer />}
       {teil === 'einstellungen' && <Einstellungen />}
@@ -325,9 +328,27 @@ function Chargen() {
   const [ernteFertig, setErnteFertig] = useState<boolean | null>(null)
   const [speichert, setSpeichert] = useState(false)
   const [fehler, setFehler] = useState<string | null>(null)
+  /** Runde AO: wie viele noch Ware im Haus haben, und das Label aus Perigon als Vorschlag. */
+  const [imHaus, setImHaus] = useState<Set<number>>(new Set())
+  const [perigon, setPerigon] = useState<Map<number, { label: string | null; gemischt: boolean }>>(new Map())
   useEffect(() => {
     void einstellung<boolean>('ernte_abgeschlossen', false).then(w => setErnteFertig(!!w))
+    void (async () => {
+      const [b, l] = await Promise.all([
+        supabase.from('erg_charge').select('charge_nr, lager_kg'),
+        supabase.from('v_charge_label').select('charge_nr, label, quelle, gemischt'),
+      ])
+      setImHaus(new Set(((b.data ?? []) as { charge_nr: number; lager_kg: number }[]).filter(x => x.lager_kg > 0).map(x => x.charge_nr)))
+      setPerigon(new Map(((l.data ?? []) as { charge_nr: number; label: string | null; quelle: string | null; gemischt: boolean }[])
+        .filter(x => x.quelle === 'Perigon').map(x => [x.charge_nr, { label: x.label, gemischt: x.gemischt }])))
+    })()
   }, [])
+  async function labelSetzen(c: Charge, label: 'D' | 'K' | null) {
+    setFehler(null)
+    const { error } = await supabase.from('charge').update({ label }).eq('nr', c.nr)
+    if (error) { setFehler(fehlerText(error)); return }
+    setChargen(cs => cs.map(x => x.nr === c.nr ? { ...x, label } : x))
+  }
   async function ernteSetzen(wert: boolean) {
     setSpeichert(true); setFehler(null)
     const { error } = await supabase.from('einstellung').upsert(
@@ -355,6 +376,7 @@ function Chargen() {
   const gesamtPaletten = Object.values(zahlen).reduce((s, z) => s + z.n, 0)
   const gesamtKg = Object.values(zahlen).reduce((s, z) => s + (z.kg ?? 0), 0)
   const mitDaten = Object.values(zahlen).filter(z => z.n > 0).length
+  const ohneEingang = chargen.length - mitDaten
 
   return (
     <>
@@ -363,7 +385,10 @@ function Chargen() {
           <Kennzahl titel="Netto insgesamt" wert={tonnen(gesamtKg)}
                     unter="aus dem Erntejournal übernommen" />
           <Kennzahl titel="Paletten" wert={zahl(gesamtPaletten)} />
-          <Kennzahl titel="Chargen mit Ware" wert={`${mitDaten} von ${chargen.length}`} />
+          {/* Runde AO: „31 von 42" war nicht zu verstehen — die drei Zahlen getrennt. */}
+          <Kennzahl titel="Chargen" wert={`${zahl(chargen.length)} angelegt`}
+                    unter={<>{zahl(mitDaten)} mit Eingang · {zahl(imHaus.size)} mit Ware im Haus
+                      {ohneEingang > 0 && <> · {zahl(ohneEingang)} angelegt, aber noch ohne Palette</>}</>} />
         </div>
         <p className="leise">
           Das ist die bisher eingelagerte Menge — sie wächst mit jedem Import aus
@@ -389,20 +414,34 @@ function Chargen() {
     <Karte titel={`Chargen (${chargen.length})`}>
       <p className="leise">
         Die Chargennummer ist der Join-Schlüssel des ganzen Systems — sie kommt
-        aus dem Erntejournal und wird hier nicht neu vergeben.
+        aus dem Erntejournal und wird hier nicht neu vergeben. Demeter oder Knospe
+        kommt aus der Perigon-Datei (wie die Charge geliefert wurde); wer es hier
+        setzt, sticht Perigon — für „Lagermanagement nach Artikel".
       </p>
       <div className="rollbar">
         <table>
           <thead><tr><th>Nr</th><th>Schlag</th><th>Sorte</th>
-            <th className="zahl">Paletten</th><th className="zahl">Eingang</th></tr></thead>
+            <th className="zahl">Paletten</th><th className="zahl">Eingang</th><th>Demeter / Knospe</th></tr></thead>
           <tbody>
-            {chargen.map(c => (
-              <tr key={c.nr}>
-                <td>{c.nr}</td><td>{c.schlag}</td><td>{c.sorte}</td>
-                <td className="zahl">{zahlen[c.nr]?.n ?? 0}</td>
-                <td className="zahl">{kg(zahlen[c.nr]?.kg)}</td>
-              </tr>
-            ))}
+            {chargen.map(c => {
+              const p = perigon.get(c.nr)
+              return (
+                <tr key={c.nr}>
+                  <td>{c.nr}</td><td>{c.schlag}</td><td>{c.sorte}</td>
+                  <td className="zahl">{zahlen[c.nr]?.n ?? 0}</td>
+                  <td className="zahl">{kg(zahlen[c.nr]?.kg)}</td>
+                  <td className="nowrap">
+                    <select value={c.label ?? ''} aria-label={`Label der Charge ${c.nr}`}
+                            onChange={e => void labelSetzen(c, (e.target.value || null) as 'D' | 'K' | null)}>
+                      <option value="">{p?.label ? `aus Perigon: ${p.label === 'D' ? 'Demeter' : 'Knospe'}` : '— unbekannt'}</option>
+                      <option value="D">Demeter</option>
+                      <option value="K">Knospe</option>
+                    </select>
+                    {p?.gemischt && <> <Marke art="warnung">Perigon liefert D und K</Marke></>}
+                  </td>
+                </tr>
+              )
+            })}
           </tbody>
         </table>
       </div>
@@ -446,6 +485,18 @@ function Kaliber() {
   const [fBemerkung, setFBemerkung] = useState('')
   // Neuer Käufer
   const [kName, setKName] = useState('')
+  /** Runde AO: „Ändern" füllt das Formular mit der geltenden Fassung. */
+  const formular = useRef<HTMLDivElement | null>(null)
+  function aendern(z: Sortierschema) {
+    setFSorte(z.sorte); setFKaeufer(z.kaeufer ?? ''); setFGiltAb(heuteOrtszeit())
+    setFArt(z.art === 'kiste' ? 'kiste' : 'kaliber')
+    setFVerlust(z.verlust_unter == null ? '' : String(z.verlust_unter))
+    setFBaender((z.kaliber_baender ?? []).map(([a, b]) => `${a}–${b}`).join(' · '))
+    setFKanal(z.kanal_ab == null ? '2000' : String(z.kanal_ab))
+    setFSoll(z.soll_kg_pro_kiste == null ? '8' : String(z.soll_kg_pro_kiste))
+    setFBemerkung(''); setMeldung(null); setFehler(null)
+    formular.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
 
   const laden = useCallback(async () => {
     const [sc, k, st] = await Promise.all([
@@ -490,9 +541,16 @@ function Kaliber() {
       if (fSoll === '') { setFehler('Soll je Kiste fehlt.'); return }
       Object.assign(zeile, { soll_kg_pro_kiste: Number(fSoll) })
     }
-    const { error } = await supabase.from('sortierschema').insert(zeile)
+    // Runde AO: Gibt es für denselben Tag schon eine Fassung, wird sie
+    // berichtigt statt eine zweite angelegt — ältere Tage bleiben, wie sie waren.
+    const gleicherTag = zeilen.find(z => z.sorte === fSorte && (z.kaeufer ?? '') === fKaeufer && z.gilt_ab === fGiltAb)
+    const { error } = gleicherTag
+      ? await supabase.from('sortierschema').update(zeile).eq('id', gleicherTag.id)
+      : await supabase.from('sortierschema').insert(zeile)
     if (error) { setFehler(fehlerText(error)); return }
-    setMeldung(`Neue Fassung für ${fSorte}${fKaeufer ? ` / ${fKaeufer}` : ''} ab ${datum(fGiltAb)} angelegt.`)
+    setMeldung(gleicherTag
+      ? `Fassung für ${fSorte}${fKaeufer ? ` / ${fKaeufer}` : ''} ab ${datum(fGiltAb)} berichtigt.`
+      : `Neue Fassung für ${fSorte}${fKaeufer ? ` / ${fKaeufer}` : ''} ab ${datum(fGiltAb)} angelegt.`)
     setFBaender(''); setFVerlust(''); setFBemerkung('')
     void laden()
   }
@@ -541,6 +599,8 @@ function Kaliber() {
               <div className="kopf">
                 <strong>{fassungen[0].sorte}</strong>
                 <span className="leise">{kaeuferName(fassungen[0].kaeufer)}</span>
+                <button type="button" className="werkzeug-knopf" style={{ marginLeft: 'auto' }}
+                        onClick={() => aendern(fassungen[0])}><ZStift size={14} />Ändern</button>
               </div>
               {fassungen.map((z, i) => (
                 <div key={z.id} className={`fassung${i === 0 ? '' : ' leise'}`}>
@@ -556,7 +616,12 @@ function Kaliber() {
         </div>
       </Karte>
 
-      <Karte titel="Neue Fassung anlegen">
+      <div ref={formular} />
+      <Karte titel="Fassung ändern oder neu anlegen">
+        <p className="leise" style={{ marginTop: 0 }}>
+          „Ändern" oben füllt dieses Formular mit der geltenden Fassung. Gespeichert gilt sie ab dem gewählten Tag;
+          was vorher sortiert wurde, behält seine Grenzen. Am selben Tag nochmals speichern berichtigt die Fassung dieses Tages.
+        </p>
         <div className="spalten">
           <div className="feld">
             <label htmlFor="f-sorte">Sorte</label>
@@ -612,7 +677,7 @@ function Kaliber() {
           <label htmlFor="f-bem">Bemerkung <span className="leise">(freiwillig)</span></label>
           <input id="f-bem" value={fBemerkung} onChange={e => setFBemerkung(e.target.value)} />
         </div>
-        <button className="haupt" onClick={fassungAnlegen}>Fassung anlegen</button>
+        <button className="haupt" onClick={fassungAnlegen}>Fassung speichern</button>
         <p className="leise" style={{ marginTop: '.5rem' }}>
           Bereits eingelesene Läufe bleiben nach ihrer alten Fassung klassiert. Soll
           ein Lauf nach einer anderen Fassung gerechnet werden, ordne ihn unter
@@ -638,6 +703,110 @@ function Kaliber() {
             {kaeufer.map(k => k.name).join(' · ')}
           </p>
         )}
+      </Karte>
+    </>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/* Sorten und Artikel (Runde AO, 0112)                                  */
+/* ------------------------------------------------------------------ */
+/**
+ * Als welcher Artikel eine Sorte verkauft wird, und was der Artikel gross
+ * und klein nennt. Beides braucht „Lagermanagement nach Artikel": die Gruppe fasst die
+ * Sorten zusammen (Kaori Kuri, Amoro, … sind alle Knirps), die Kaliber teilen
+ * das Verkaufsfähige in gross und klein. Vorbelegt aus den Verkäufen 2026 und
+ * den Coop-Artikeldaten 2026; leer heisst: die Gruppe, als die die Sorte am
+ * meisten verkauft wurde.
+ */
+const ARTIKELGRUPPEN = ['Knirps', 'Butternut', 'Butterkin/Muskat', 'Kabocha', 'Mandarin', 'Mix', 'andere']
+
+function SortenArtikel() {
+  const [sorten, setSorten] = useState<{ sorte: string; artikelgruppe: string | null; gruppe_verkauft: string | null }[]>([])
+  const [eigene, setEigene] = useState<Map<string, string | null>>(new Map())
+  const [kaliber, setKaliber] = useState<{ gruppe: string; groesse: string; von_g: number; bis_g: number; stueck_je_kiste: number | null; bemerkung: string | null }[]>([])
+  const [entwurf, setEntwurf] = useState<Map<string, { von: string; bis: string; stueck: string }>>(new Map())
+  const [fehler, setFehler] = useState<string | null>(null)
+  const [meldung, setMeldung] = useState<string | null>(null)
+  const laden = useCallback(async () => {
+    const [v, sk, k] = await Promise.all([
+      supabase.from('v_sorte_artikelgruppe').select('sorte, artikelgruppe, gruppe_verkauft').order('sorte'),
+      supabase.from('sorte_kaliber').select('sorte, artikelgruppe'),
+      supabase.from('artikel_kaliber').select('gruppe, groesse, von_g, bis_g, stueck_je_kiste, bemerkung').order('gruppe').order('von_g'),
+    ])
+    for (const r of [v, sk, k]) if (r.error) { setFehler(fehlerText(r.error)); return }
+    setSorten((v.data ?? []) as typeof sorten)
+    setEigene(new Map(((sk.data ?? []) as { sorte: string; artikelgruppe: string | null }[]).map(x => [x.sorte, x.artikelgruppe])))
+    setKaliber((k.data ?? []) as typeof kaliber)
+  }, [])
+  useEffect(() => { void laden() }, [laden])
+
+  async function gruppeSetzen(sorte: string, gruppe: string | null) {
+    setFehler(null); setMeldung(null)
+    const { error } = await supabase.from('sorte_kaliber').update({ artikelgruppe: gruppe }).eq('sorte', sorte)
+    if (error) { setFehler(fehlerText(error)); return }
+    setMeldung(`${sorte}: ${gruppe ?? 'wie verkauft'}`)
+    void laden()
+  }
+  async function kaliberSpeichern(k: typeof kaliber[number]) {
+    const e = entwurf.get(`${k.gruppe}|${k.groesse}`)
+    if (!e) return
+    setFehler(null); setMeldung(null)
+    const von = Number(e.von), bis = Number(e.bis), stueck = e.stueck === '' ? null : Number(e.stueck)
+    if (!(von >= 0) || !(bis > von)) { setFehler('Das Kaliber braucht „von" kleiner als „bis".'); return }
+    const { error } = await supabase.from('artikel_kaliber').update({ von_g: von, bis_g: bis, stueck_je_kiste: stueck })
+      .eq('gruppe', k.gruppe).eq('groesse', k.groesse)
+    if (error) { setFehler(fehlerText(error)); return }
+    setEntwurf(m => { const n = new Map(m); n.delete(`${k.gruppe}|${k.groesse}`); return n })
+    setMeldung(`${k.gruppe} ${k.groesse}: ${von}–${bis} g gespeichert`)
+    void laden()
+  }
+  const wert = (k: typeof kaliber[number]) => entwurf.get(`${k.gruppe}|${k.groesse}`)
+    ?? { von: String(k.von_g), bis: String(k.bis_g), stueck: k.stueck_je_kiste == null ? '' : String(k.stueck_je_kiste) }
+  const setze = (k: typeof kaliber[number], teil: Partial<{ von: string; bis: string; stueck: string }>) =>
+    setEntwurf(m => new Map(m).set(`${k.gruppe}|${k.groesse}`, { ...wert(k), ...teil }))
+
+  return (
+    <>
+      {fehler && <Hinweis art="warnung">{fehler}</Hinweis>}
+      {meldung && <Hinweis art="gut">{meldung}</Hinweis>}
+      <Karte titel="Als welcher Artikel geht die Sorte?">
+        <div className="rollbar"><table className="dicht">
+          <thead><tr><th>Sorte</th><th>Artikelgruppe</th><th>verkauft als</th></tr></thead>
+          <tbody>{sorten.map(x => (
+            <tr key={x.sorte}>
+              <td>{x.sorte}</td>
+              <td>
+                <select value={eigene.get(x.sorte) ?? ''} aria-label={`Artikelgruppe von ${x.sorte}`}
+                        onChange={e => void gruppeSetzen(x.sorte, e.target.value || null)}>
+                  <option value="">{x.gruppe_verkauft ? `wie verkauft (${x.gruppe_verkauft})` : '— unbekannt'}</option>
+                  {ARTIKELGRUPPEN.map(g => <option key={g} value={g}>{g}</option>)}
+                </select>
+              </td>
+              <td className="leise">{x.gruppe_verkauft ?? '—'}
+                {x.gruppe_verkauft && eigene.get(x.sorte) && x.gruppe_verkauft !== eigene.get(x.sorte) && <> <Marke art="warnung">anders als eingetragen</Marke></>}</td>
+            </tr>
+          ))}</tbody>
+        </table></div>
+        <p className="leise">„verkauft als" kommt aus dem Warenausgang: als welcher Artikel die Chargen der Sorte geliefert wurden.</p>
+      </Karte>
+      <Karte titel="Was gross und klein heisst">
+        <div className="rollbar"><table className="dicht">
+          <thead><tr><th>Artikelgruppe</th><th>Grösse</th><th className="zahl">von (g)</th><th className="zahl">bis (g)</th><th className="zahl">Stück je Kiste</th><th></th></tr></thead>
+          <tbody>{kaliber.map(k => {
+            const w = wert(k), geaendert = entwurf.has(`${k.gruppe}|${k.groesse}`)
+            return (
+              <tr key={`${k.gruppe}|${k.groesse}`}>
+                <td>{k.gruppe}</td><td>{k.groesse === 'stueck' ? 'eine Grösse' : k.groesse}</td>
+                <td className="zahl"><input type="number" min={0} value={w.von} style={{ width: '5.5rem' }} aria-label={`${k.gruppe} ${k.groesse} von`} onChange={e => setze(k, { von: e.target.value })} /></td>
+                <td className="zahl"><input type="number" min={0} value={w.bis} style={{ width: '5.5rem' }} aria-label={`${k.gruppe} ${k.groesse} bis`} onChange={e => setze(k, { bis: e.target.value })} /></td>
+                <td className="zahl"><input type="number" min={1} value={w.stueck} style={{ width: '4.5rem' }} aria-label={`${k.gruppe} ${k.groesse} Stück je Kiste`} onChange={e => setze(k, { stueck: e.target.value })} /></td>
+                <td>{geaendert && <button type="button" className="klein" onClick={() => void kaliberSpeichern(k)}><ZHaken size={14} />speichern</button>}</td>
+              </tr>
+            )
+          })}</tbody>
+        </table></div>
+        <p className="leise">Vorbelegt aus den Coop-Artikeldaten 2026. Ein Kürbis zählt klein, wenn er von ≤ Gewicht &lt; bis wiegt; was in kein Kaliber passt, steht in „Lagermanagement nach Artikel" als ausserhalb (lose verkäuflich).</p>
       </Karte>
     </>
   )

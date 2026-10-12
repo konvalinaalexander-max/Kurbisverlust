@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { TaetKachel, TaetZeichen, ZChevron, ZHaken, ZStift, ZZurueck } from '../components/Zeichen'
+import { TaetKachel, TaetZeichen, ZChevron, ZHaken, ZKiste, ZStift, ZZurueck } from '../components/Zeichen'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../auth/AuthProvider'
@@ -19,6 +19,7 @@ import { PaloxLeerenMaske } from '../arbeit/PaloxLeerenMaske'
 import { FertigePaletteMaske } from '../arbeit/FertigePaletteMaske'
 import { Abschluss } from '../arbeit/Abschluss'
 import { Korrektur } from '../arbeit/Korrektur'
+import { PaloxErinnerung } from '../arbeit/PaloxErinnerung'
 
 type Ansicht = 'liste' | 'zaehler' | 'palox' | 'palox_leeren' | 'faule' | 'wiegen' | 'ausschuss' | 'ausgang' | 'abschluss' | 'korrektur'
 
@@ -185,12 +186,22 @@ export default function Arbeit() {
   const ausschussSumme = d.ausschuss.reduce((s, z) => s + z.kg, 0)
   const verlangt = fertigeVerlangt(d)
   const soll = verlangt.soll
+  // 0084: Der Palox wird mittendrin geleert — mit Ablesung davor und danach
+  // bleibt die Menge bekannt. Erst sinnvoll, wenn ein Anfang abgelesen ist;
+  // sinnlos, wenn die Menge ohnehin unbekannt ist. Runde AO: der Knopf steht
+  // auch beim Zähler, nicht nur in der Checkliste — geleert wird der Palox
+  // von dem, der gerade daneben steht.
+  const leerenMoeglich = p.hatPalox && d.ablesungen.some(x => x.palox_stand_kg !== null) && !a.palox_unbekannt
+  const geleerte = d.ablesungen.filter(x => x.palox_nach_leeren)
+  const leerenUnter = geleerte.length > 0
+    ? `${geleerte.length}× ${t('paloxGeleertUm')} ${geleerte.map(g => uhrzeit(g.ts, gebietsschema)).join(', ')}`
+    : t('paloxLeerenKurz')
   const ersetzen = (text: string, werte: Record<string, number | string>) =>
     Object.entries(werte).reduce((s, [k, v]) => s.replace(`{${k}}`, String(v)), text)
 
   // Der Betriebsleiter berichtigt Messungen — auch an einer fertigen Arbeit.
   if (ansicht === 'korrektur' && istAdmin) {
-    return <Korrektur d={d} neuLaden={laden} zurueck={() => (gesperrt ? navigate('/messungen') : setAnsicht(heim))} />
+    return <Korrektur d={d} neuLaden={laden} zurueck={() => (gesperrt ? navigate('/messungen/auffaelligkeiten') : setAnsicht(heim))} />
   }
 
   // Fertige Arbeit: nur noch lesen.
@@ -276,7 +287,7 @@ export default function Arbeit() {
   if (ansicht === 'palox_leeren') {
     // 0084: vor dem Leeren ablesen, leeren, die leere Box ablesen — die
     // Menge bleibt bekannt. Zurück in die Checkliste, wenn beides steht.
-    return <>{maske(t('paloxLeeren'), <PaloxLeerenMaske d={d} fertig={async () => { await laden(); melden(t('gespeichert')); setAnsicht('liste') }} />)}<Bestaetigt text={meldung} /></>
+    return <>{maske(t('paloxLeeren'), <PaloxLeerenMaske d={d} fertig={async () => { await laden(); melden(t('gespeichert')); setAnsicht(heim) }} />)}<Bestaetigt text={meldung} /></>
   }
   if (ansicht === 'ausschuss') {
     return <>{maske(t('ausschussWiegenSchritt'), <AusschussMaske d={d} gesperrt={false} melden={melden} neuLaden={laden} />)}<Bestaetigt text={meldung} /></>
@@ -306,8 +317,21 @@ export default function Arbeit() {
             <span className="stand"><TaetZeichen id={taet?.id} /> {chargeText(d.charge)}</span>
           </div>
         ) : kopf}
+        {leerenMoeglich && <PaloxErinnerung profilId={session?.user.id} auftragId={auftragId} />}
         <Zaehler d={d} gesperrt={false} neuLaden={laden} melden={melden}
                  zumWiegen={(brutto, kisten, gebinde) => { setWiegenStart({ brutto, kisten, gebinde }); setAnsicht('wiegen') }} />
+        {leerenMoeglich && (
+          <div className="check abstand-oben">
+            <button type="button" id="zaehler-palox-leeren" className="palox-leeren" onClick={() => setAnsicht('palox_leeren')}>
+              <span className="zustand palox" aria-hidden="true"><ZKiste size={18} /></span>
+              <span className="text">
+                <span className="name">{t('paloxLeeren')}</span>
+                <span className="unter">{leerenUnter}</span>
+              </span>
+              <span className="pfeil"><ZChevron size={20} /></span>
+            </button>
+          </div>
+        )}
         {!fuehrt && (
           <p className="rolle-wechsel">
             <button type="button" className="leise-knopf" onClick={() => rolleWechseln(true)}>{t('ichFuehre')}</button>
@@ -320,7 +344,6 @@ export default function Arbeit() {
 
   // liste — die Checkliste des Vorarbeiters
   const erste = d.ablesungen[0]
-  const geleerte = d.ablesungen.filter(x => x.palox_nach_leeren)
   const zaehlStand = [
     p.hatPaletten ? `${d.paletten.length} ${t('paletten')}${gewogen > 0 ? ` · ${gewogen} ${t('gewogen')}` : ''}` : '',
     p.hatWaschPaletten ? `${d.paletten.length} ${t('paletten')} · ${waschKisten} ${t('kisten')}` : '',
@@ -339,6 +362,7 @@ export default function Arbeit() {
   return (
     <>
       {kopf}
+      {leerenMoeglich && <PaloxErinnerung profilId={session?.user.id} auftragId={auftragId} />}
       {p.hatPalox && <div className="abschnitt-titel">{t('vorDerArbeit')}</div>}
       {p.hatPalox && (
         <div className="check eintritt">
@@ -364,17 +388,14 @@ export default function Arbeit() {
           <span className="pfeil"><ZChevron size={20} /></span>
         </button>
 
-        {/* 0084: Der Palox wird mittendrin geleert — mit Ablesung davor und
-            danach bleibt die Menge bekannt. Erst sinnvoll, wenn ein Anfang
-            abgelesen ist; sinnlos, wenn die Menge ohnehin unbekannt ist. */}
-        {p.hatPalox && d.ablesungen.some(x => x.palox_stand_kg !== null) && !a.palox_unbekannt && (
-          <button type="button" id="check-palox-leeren" onClick={() => setAnsicht('palox_leeren')}>
-            <Zustand art="frei" />
+        {/* Runde AO: gelb umrandet, mit der Kiste statt eines Punkts — der
+            eine Knopf, der während der Arbeit nicht vergessen werden darf. */}
+        {leerenMoeglich && (
+          <button type="button" id="check-palox-leeren" className="palox-leeren" onClick={() => setAnsicht('palox_leeren')}>
+            <span className="zustand palox" aria-hidden="true"><ZKiste size={18} /></span>
             <span className="text">
               <span className="name">{t('paloxLeeren')}</span>
-              <span className="unter">{geleerte.length > 0
-                ? `${geleerte.length}× ${t('paloxGeleertUm')} ${geleerte.map(g => uhrzeit(g.ts, gebietsschema)).join(', ')}`
-                : t('paloxLeerenKurz')}</span>
+              <span className="unter">{leerenUnter}</span>
             </span>
             <span className="pfeil"><ZChevron size={20} /></span>
           </button>
@@ -417,6 +438,19 @@ export default function Arbeit() {
             </span>
             <span className="pfeil"><ZChevron size={20} /></span>
           </button>
+        )}
+
+        {/* Runde AO, Rückmeldung Nr. 3 („Keine fertige paletten auf
+            schreiben?"): Beim Füllen „anders" fehlt der Schritt nicht aus
+            Versehen — die Zeile sagt es, statt still wegzubleiben. */}
+        {!p.istFax && a.station !== 'sortieren' && !p.kistensystemRechenbar && (
+          <div className="zeile" id="check-ausgang-nicht-noetig">
+            <Zustand art="frei" />
+            <span className="text">
+              <span className="name">{t('fertigePaletteSchritt')}</span>
+              <span className="unter">{t('fertigeNichtNoetig')}</span>
+            </span>
+          </div>
         )}
 
         <button type="button" id="check-abschluss" className="haupt" onClick={() => setAnsicht('abschluss')}>

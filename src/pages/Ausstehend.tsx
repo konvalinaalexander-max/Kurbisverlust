@@ -1,11 +1,11 @@
 import { Link } from 'react-router-dom'
-import { Aufklapp, Erklaerung, Hinweis, Karte, Marke } from '../components/Bausteine'
-import { fehlendeRaten, useAuswertung, type Auswertung, type Prognose, type SortenK } from '../auswertung/daten'
-import { Probleme, Rechnet, Reiterkopf } from '../auswertung/Karten'
+import { Aufklapp, Erklaerung, Herkunft, Hinweis, Karte, Marke } from '../components/Bausteine'
+import { fehlendeRaten, type Auswertung, type Prognose, type SortenK } from '../auswertung/daten'
 import { tonnen, zahl } from '../lib/format'
 
 /**
- * Messungen ausstehend — der Reiter rechts vom Betrieb (Runde AF).
+ * Messungen ausstehend — seit Runde AO der vierte Reiter unter Messungen
+ * (Runde AF: ein eigener Reiter rechts vom Betrieb).
  *
  * Der Betrieb: „Anteil unbekannt, solange eine Rate nicht gemessen ist —
  * welche Rate fehlt dir? … einen Reiter rechts vom Betrieb: noch
@@ -14,13 +14,7 @@ import { tonnen, zahl } from '../lib/format'
  * mit dem Satz, was in der Halle dafür zu tun ist, und was die Messung
  * freischaltet. Die Sorten mit Ware im Haus zuerst, die grösste oben.
  */
-export default function Ausstehend() {
-  const { daten, laedt, fehler, fortschritt, neuRechnen } = useAuswertung()
-  if (laedt && !daten) return <Rechnet fortschritt={fortschritt} />
-  // Runde AJ: die zweite Welle der Ergebnisse (dieser Reiter braucht sie) kommt nach dem Lagermanagement.
-  if (daten && !daten.vollstaendig) return <Rechnet fortschritt={fortschritt} />
-  if (fehler) return <Hinweis art="warnung">{fehler}</Hinweis>
-  if (!daten) return null
+export function AusstehendInhalt({ daten }: { daten: Auswertung }) {
   const gesamt = daten.prognose.find(p => p.gruppe === 'gesamt' && p.h === 0) ?? null
   const fehlt = fehlendeRaten(gesamt)
   const sorten = daten.prognose.filter(p => p.gruppe === 'sorte' && p.h === 0)
@@ -30,10 +24,6 @@ export default function Ausstehend() {
 
   return (
     <>
-      <Reiterkopf titel="Messungen ausstehend" stand={daten.stand} heute={daten.heute} neuRechnen={() => void neuRechnen()} laeuft={laedt}
-                  zeitplan={daten.zeitplan} veraltet={daten.veraltet} aktuell={daten.aktuell} />
-      <Probleme liste={daten.probleme} />
-
       {gesamt && (fehlt.length === 0
         ? <Hinweis art="gut">Alle vier Raten sind gemessen — der verkaufsfähige Anteil und der Verlust bis heute sind für alle Chargen bekannt.
             Was unten noch fehlt, macht einzelne Sorten genauer: Dort rechnet die Auswertung derweil mit dem Wert aller Sorten.</Hinweis>
@@ -51,9 +41,9 @@ export default function Ausstehend() {
           <p><strong>Verdunstung</strong> — Kontrollpalette: eine Palette der Sorte heute wiegen und in ein bis zwei Wochen noch einmal
           (Arbeiter-App → Kontrolle; auch der Zettel am Eingang zählt als erste Wägung). Schaltet frei: den Wasserverlust bis heute und den
           verkaufsfähigen Anteil.</p>
-          <p><strong>Faules im Lager</strong> — bei jeder Arbeit den Palox leeren und das Faule wiegen (Arbeiter-App, „Palox leeren"). Das
-          Faule je Sorte und Station ist das Mittel der letzten vier Wochen (ab drei Arbeiten), sonst der Saison, sonst aller Sorten. Schaltet
-          frei: Faules bis heute und die Prognose.</p>
+          <p><strong>Palox</strong> — bei jeder Arbeit den Palox am Anfang und am Ende ablesen, und jedes Leeren zwischendurch eintragen
+          (Arbeiter-App, „Palox leeren"). Je Sorte und Station gilt ihr Grundausschuss ab drei Arbeiten, sonst der aller Sorten; der Anstieg
+          je Woche Lagerdauer kommt aus allen Sorten der Station. Schaltet frei: den Palox bis heute und die Prognose.</p>
           <p><strong>Zu klein / zu gross</strong> — beim Waschen + Sortieren von Hand die aussortierten Kisten wiegen (Abschluss der Arbeit,
           eine Art darf fehlen: sie bleibt dann unbekannt, nicht 0). Am Band liest die Sortierdatei es selbst. Schaltet frei: was im Haus
           nicht verkaufsfähig ist, und den verkaufsfähigen Anteil.</p>
@@ -62,7 +52,7 @@ export default function Ausstehend() {
           <p><strong>Kistengewicht je Band</strong> — beim Waschen eine fertige Palette des Bandes wiegen (Abschluss). Das ändert keinen Verlust,
           aber die Marge je Kiste (Lagermanagement → Wie schwer sind die Kürbisse).</p>
           <p>Fehlt einer Sorte eine eigene Messung, rechnet die Auswertung mit dem Wert aller Sorten und sagt es („geliehen"). Welche Chargen
-          ohne jede Stichprobe sind, steht unter <Link to="/messungen">Messungen → Wo fehlen Messungen?</Link>.</p>
+          ohne jede Stichprobe sind, steht unter <Link to="/messungen/messwerte">Messungen → Messwerte → Wo fehlen Messungen?</Link>.</p>
         </Erklaerung>
       </Karte>
     </>
@@ -93,8 +83,8 @@ function SortenTabelle({ daten, sorten }: { daten: Auswertung; sorten: Prognose[
   return (
     <div className="rollbar"><table className="dicht">
       <thead><tr>
-        <th>Sorte</th><th className="zahl">im Haus</th>
-        <th>Verdunstung</th><th>Faules im Lager</th><th>zu klein / zu gross</th><th>Fax</th><th>Kistengewicht je Band</th><th>Leergewicht</th>
+        <th>Sorte</th><th className="zahl">im Lager<Herkunft art="gerechnet" /></th>
+        <th>Verdunstung</th><th>Palox</th><th>zu klein / zu gross</th><th>Fax</th><th>Kistengewicht je Band</th><th>Leergewicht</th>
       </tr></thead>
       <tbody>{sorten.map(p => {
         const s = p.schluessel

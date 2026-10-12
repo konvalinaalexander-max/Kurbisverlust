@@ -1,32 +1,80 @@
-import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useState, type ReactNode } from 'react'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { datum, kg, prozent, zahl } from '../lib/format'
 import { Aufklapp, Erklaerung, Herkunft, Hinweis, Karte, Marke } from '../components/Bausteine'
 import { Linien } from '../components/Diagramm'
 import { achsenBereich } from '../lib/achse'
-import { hochrechnungLaden, useAuswertung, type Datenqualitaet } from '../auswertung/daten'
+import { hochrechnungLaden, useAuswertung, type Auswertung, type Datenqualitaet } from '../auswertung/daten'
 import { Auffaelligkeiten, Bilanz, Kurvenherkunft, Probleme, Rechnet, Reiterkopf } from '../auswertung/Karten'
 import { Kontrollkorrektur } from '../arbeit/Korrektur'
 import { STATION_NAME } from '../lib/format'
 import { ZHerunterladen, ZWarnung } from '../components/Zeichen'
+import Arbeiten from '../betrieb/Arbeiten'
+import { AusstehendInhalt } from './Ausstehend'
 
 const TAG = 86400000
 
-/**
- * Messungen: Was weiss die Auswertung — und was nicht? Wie vollständig wird
- * erfasst, wo fehlen Messungen, welche sehen nicht richtig aus, worauf
- * beruhen die Koeffizienten, und was das Modell nicht weiss.
+/*
+ * Messungen — seit Runde AO (12. Oktober) mit vier Reitern: Arbeiten (bis
+ * dahin unter Betrieb), Auffälligkeiten, Messwerte (alles, was bisher unter
+ * den Auffälligkeiten stand) und Ausstehend (bis dahin ein eigener Reiter
+ * rechts vom Betrieb). Der Betrieb: „innerhalb von Messungen erster Reiter
+ * Arbeiten, zweiter Reiter Auffälligkeiten, dritter Reiter dort die ganzen
+ * Informationen, die du dort noch hast". Keine Untertitel.
  */
+type Teil = 'arbeiten' | 'auffaelligkeiten' | 'messwerte' | 'ausstehend'
+const TEILE: [Teil, string][] = [
+  ['arbeiten', 'Arbeiten'],
+  ['auffaelligkeiten', 'Auffälligkeiten'],
+  ['messwerte', 'Messwerte'],
+  ['ausstehend', 'Ausstehend'],
+]
+
 export default function Messungen() {
-  const { daten, laedt, fehler, fortschritt, neuRechnen } = useAuswertung()
-  // Vor jedem vorzeitigen Rückgeben: React zählt die Hooks je Render.
-  const [exportLaeuft, setExportLaeuft] = useState(false)
-  const [exportFehler, setExportFehler] = useState<string | null>(null)
+  const { teil } = useParams()
+  const navigate = useNavigate()
+  const aktiv = (TEILE.find(([t]) => t === teil)?.[0] ?? 'arbeiten') as Teil
+  const a = useAuswertung()
+  const { daten } = a
+  return (
+    <>
+      {daten
+        ? <Reiterkopf titel="Messungen" stand={daten.stand} heute={daten.heute} neuRechnen={() => void a.neuRechnen()} laeuft={a.laedt}
+                      zeitplan={daten.zeitplan} veraltet={daten.veraltet} aktuell={daten.aktuell} />
+        : <div className="seitenkopf"><div><h1>Messungen</h1></div></div>}
+      <nav className="navleiste unter" aria-label="Messungen">
+        {TEILE.map(([t, name]) => (
+          <a key={t} href={`/messungen/${t}`} className={aktiv === t ? 'aktiv' : ''}
+             onClick={e => { e.preventDefault(); navigate(`/messungen/${t}`) }}>
+            {name}{t === 'auffaelligkeiten' && daten?.vollstaendig && daten.befunde.length > 0 && <span className="reiter-zahl">{daten.befunde.length}</span>}
+          </a>
+        ))}
+      </nav>
+      <div className="wechsel" key={aktiv}>
+        {aktiv === 'arbeiten' && <Arbeiten />}
+        {aktiv === 'auffaelligkeiten' && <MitAuswertung a={a}>{d => <Auffaelligkeiten befunde={d.befunde} />}</MitAuswertung>}
+        {aktiv === 'messwerte' && <MitAuswertung a={a}>{d => <Messwerte daten={d} />}</MitAuswertung>}
+        {aktiv === 'ausstehend' && <MitAuswertung a={a}>{d => <AusstehendInhalt daten={d} />}</MitAuswertung>}
+      </div>
+    </>
+  )
+}
+
+/** Die Reiter, die die Ergebnisse brauchen: warten, bis die zweite Welle da ist. */
+function MitAuswertung({ a, children }: { a: ReturnType<typeof useAuswertung>; children: (d: Auswertung) => ReactNode }) {
+  const { daten, laedt, fehler, fortschritt } = a
   if (laedt && !daten) return <Rechnet fortschritt={fortschritt} />
-  // Runde AJ: die zweite Welle der Ergebnisse (dieser Reiter braucht sie) kommt nach dem Lagermanagement.
+  // Runde AJ: die zweite Welle der Ergebnisse (diese Reiter brauchen sie) kommt nach dem Lagermanagement.
   if (daten && !daten.vollstaendig) return <Rechnet fortschritt={fortschritt} />
   if (fehler) return <Hinweis art="warnung">{fehler}</Hinweis>
   if (!daten) return null
+  return <><Probleme liste={daten.probleme} />{children(daten)}</>
+}
+
+/** Alles, was bis Runde AN unter den Auffälligkeiten stand. */
+function Messwerte({ daten }: { daten: Auswertung }) {
+  const [exportLaeuft, setExportLaeuft] = useState(false)
+  const [exportFehler, setExportFehler] = useState<string | null>(null)
   const taraLuecken = daten.lage.filter(l => l.n_paletten > 0 && l.n_paletten_mit_netto < l.n_paletten)
   // Ein einzelner Ausreisser (ein vergiftetes Chargenalter aus einem Zettel in
   // der Zukunft) würde die Achse verziehen. achsenBereich() findet ihn; die
@@ -59,19 +107,13 @@ export default function Messungen() {
 
   return (
     <>
-      <Reiterkopf titel="Messungen" zweck="Was weiss die Auswertung — und was nicht? Auffälligkeiten zum Korrigieren, Vollständigkeit, Lücken, Koeffizienten, Modell."
-                  stand={daten.stand} heute={daten.heute} neuRechnen={() => void neuRechnen()} laeuft={laedt}
-                  zeitplan={daten.zeitplan} veraltet={daten.veraltet} aktuell={daten.aktuell} />
-      <Probleme liste={daten.probleme} />
-
-      <Auffaelligkeiten befunde={daten.befunde} />
       {daten.qualitaet && <Qualitaet q={daten.qualitaet} />}
 
       {taraLuecken.length > 0 && (
         <Hinweis art="warnung"><strong>Fehlende Tara verzerrt alles darüber.</strong> Bei {taraLuecken.length} Chargen fehlt für einen Teil der Paletten das Leergewicht des Gebindes; diese Paletten zählen nicht in die Eingangsmasse. Unter <Link to="/betrieb/stammdaten">Betrieb → Stammdaten → Gebinde</Link> nachtragen.</Hinweis>
       )}
 
-      <Karte titel="Wo fehlen Messungen?" unter="Nach Eingangsmasse sortiert: die grössten Chargen ohne Stichprobe kosten am meisten Genauigkeit.">
+      <Karte titel="Wo fehlen Messungen?">
         <div className="rollbar"><table className="dicht">
           <thead><tr><th>Charge</th><th className="zahl">Eingang</th><th className="zahl">Paletten</th><th className="zahl">Wiegungen</th><th className="zahl">Schimmel</th><th className="zahl">CSV-Läufe</th></tr></thead>
           <tbody>{[...daten.lage].sort((a, b) => (b.eingang_kg ?? 0) - (a.eingang_kg ?? 0)).slice(0, 20).map(l => (
@@ -84,7 +126,7 @@ export default function Messungen() {
 
       {daten.saison && <Bilanz bilanz={daten.saison} />}
 
-      <Karte titel="Wird das Älteste zuerst verarbeitet?" unter="Je Arbeit: das Alter der gezählten Paletten gegen das mittlere Alter der Charge an dem Tag. Über null heisst: älter als der Durchschnitt.">
+      <Karte titel="Wird das Älteste zuerst verarbeitet?">
         <Linien reihen={[{ name: 'Arbeit', farbe: 'var(--strom-schimmel)',
                              punkte: alter.map(v => ({ x: Date.parse(v.tag) / TAG, y: v.differenz ?? 0, text: `Charge ${v.charge_nr} · ${STATION_NAME[v.station] ?? v.station} · ${v.n_paletten} Paletten` })) }]}
                   xFormat={d => datum(new Date(d * TAG)).slice(0, 5)} yFormat={y => `${y > 0 ? '+' : ''}${Math.round(y)} d`} xTitel="Tag" yTitel="Tage gegenüber dem Durchschnitt"
@@ -106,7 +148,7 @@ export default function Messungen() {
       </Karte>
 
       {daten.durchsatz.length > 0 && (
-        <Karte titel="Durchsatz je Arbeit" unter="Aus Start, Ende und Masse. Ohne bekannte Masse gibt es keine Rate — die Zeile bleibt stehen, damit man sieht, warum.">
+        <Karte titel="Durchsatz je Arbeit">
           <div className="zahlenzeile">
             {stationen.map(s => {
               const eigene = daten.durchsatz.filter(d => d.station === s && d.kg_pro_h !== null)
@@ -127,7 +169,7 @@ export default function Messungen() {
         </Karte>
       )}
 
-      <Karte titel="Die vier Koeffizienten" unter="Das Innenleben der Hochrechnung: Jede Zahl entsteht als Koeffizient × bekannte Grösse.">
+      <Karte titel="Die vier Koeffizienten">
         <div className="rollbar"><table className="dicht">
           <thead><tr><th>Koeffizient</th><th className="zahl">Gemessener Wert</th><th className="zahl">Messungen</th><th>Herkunft</th></tr></thead>
           <tbody>{daten.koeff.map(k => (
@@ -147,30 +189,37 @@ export default function Messungen() {
         )}
       </Karte>
 
-      <Karte titel="Der Palox-Anteil je Sorte und Station" unter="Womit die Kaskade für die liegende Ware rechnet — und woher der Wert kommt (0106).">
+      <Karte titel="Der Palox-Ausschuss je Sorte und Station">
         {daten.erwartung.length === 0
-          ? <Hinweis art="warnung">Noch keine plausible Ablesung am Palox — bis dahin ist das Faule im Lager unbekannt, nicht 0.</Hinweis>
+          ? <Hinweis art="warnung">Noch keine plausible Ablesung am Palox — bis dahin ist der Palox-Ausschuss unbekannt, nicht 0.</Hinweis>
           : <div className="rollbar"><table className="dicht">
-              <thead><tr><th>Sorte</th><th>Station</th><th className="zahl">im Palox</th><th className="zahl">Bereich</th><th className="zahl">Arbeiten</th><th className="zahl">Chargen</th><th>Woher</th></tr></thead>
+              <thead><tr><th>Sorte</th><th>Station</th><th className="zahl">Grundausschuss</th><th className="zahl">Bereich</th>
+                <th className="zahl">gemessen Ø</th><th className="zahl">bei Ø Lagerdauer</th><th className="zahl">Anstieg je Woche</th>
+                <th className="zahl">Arbeiten</th><th>Woher</th></tr></thead>
               <tbody>{daten.erwartung.map(e => (
                 <tr key={`${e.sorte}|${e.station}`}><td>{e.sorte}</td><td>{STATION_NAME[e.station] ?? e.station}</td>
                   <td className="zahl"><strong>{prozent(e.anteil)}</strong></td>
                   <td className="zahl">{e.n_arbeiten >= 2 ? `${prozent(e.unten)}–${prozent(e.oben)}` : '—'}</td>
-                  <td className="zahl">{e.n_arbeiten}</td><td className="zahl">{e.n_chargen}</td>
+                  <td className="zahl">{prozent(e.mittel)}</td>
+                  <td className="zahl">{e.lager_mittel != null ? `${Math.round(e.lager_mittel)} d` : '—'}</td>
+                  <td className="zahl">{e.anstieg_je_woche != null ? `+${(e.anstieg_je_woche * 100).toFixed(1)} Pkt.` : <span className="leise">keiner messbar</span>}</td>
+                  <td className="zahl">{e.n_arbeiten}</td>
                   <td>{e.geliehen && <Marke art="warnung">geliehen</Marke>} <span className="leise">{e.quelle}</span></td></tr>
               ))}</tbody>
             </table></div>}
         <Erklaerung>
-          <p>Je Sorte und Station das nach Masse gewichtete Mittel der plausiblen Ablesungen <Herkunft art="gerechnet" /> — zuerst die letzten vier
-          Wochen der Sorte (ab drei Arbeiten), sonst ihre ganze Saison, sonst alle Sorten („geliehen"). Der Bereich ist ± t·sd/√n über die Arbeiten.
-          Für ausgelagerte Ware gilt die eigene Messung der Charge vor dieser Erwartung; was eine Charge auf ihrem Weg verliert, ist die
-          Zusammensetzung der Stationen, durch die sie geht. Die Prognose schreibt den Anteil mit dem Zuwachs je Station fort, sobald die
-          Kennzahl unter <Link to="/ursachen">Ursachen</Link> ihn ausweist.</p>
+          <p>Der Palox ist vor allem Aussortieren: Hagelschaden, falsch geschnittene Stiele, andere Mängel — ein <strong>Grundausschuss</strong>, den
+          die Ware vom Feld mitbringt. Dazu kommt mit der Lagerdauer das Faule: der <strong>Anstieg</strong> je Woche, gemessen je Station über alle Sorten
+          (innerhalb jeder Sorte: die länger gelagerten Arbeiten gegen die kürzer gelagerten).</p>
+          <p>Grundausschuss = das nach Masse gewichtete Mittel der Ablesungen der Sorte (ab drei Arbeiten, sonst aller Sorten — „geliehen"), um den
+          Anstieg auf null Lagertage zurückgelegt <Herkunft art="gerechnet" />. Für Ware mit t Lagertagen rechnet die Kaskade
+          Grundausschuss + Anstieg × t / 7; was eine Charge auf ihrem Weg verliert, ist die Zusammensetzung der Stationen, durch die sie geht.
+          Der Anstieg und seine Messung stehen unter <Link to="/ursachen">Ursachen</Link>.</p>
         </Erklaerung>
       </Karte>
       <Kurvenherkunft punkte={daten.punkte} />
 
-      <Karte titel="Massenbilanz je Charge" unter="Die Probe aufs Exempel: die Kaskade sagt voraus, wie viel Masse am Sortierband ankommen müsste; die CSV hat sie gewogen."
+      <Karte titel="Massenbilanz je Charge"
              aktion={<button type="button" className="klein" onClick={() => void exportieren()} disabled={exportLaeuft}><ZHerunterladen size={15} />{exportLaeuft ? 'holt die Hochrechnung …' : 'CSV exportieren'}</button>}>
         {exportFehler && <Hinweis art="warnung">{exportFehler}</Hinweis>}
         <Aufklapp titel={<><span>Je Charge</span> <span className="leise">{daten.bilanz.filter(b => b.eingang_kg !== null).length} Chargen · Kaskade<Herkunft art="gerechnet" />, CSV<Herkunft art="gemessen" /></span></>}>
@@ -191,7 +240,7 @@ export default function Messungen() {
       </Karte>
 
       {daten.wiegungen.length > 0 && (
-        <Karte titel={`Gewogene Paletten (${daten.wiegungen.length})`} unter="Netto damals minus Netto jetzt, beide auf der Waage — entwichenes Wasser, keine Hochrechnung.">
+        <Karte titel={`Gewogene Paletten (${daten.wiegungen.length})`}>
           <Aufklapp titel={<><span>Die letzten Wägungen</span> <span className="leise">{Math.min(daten.wiegungen.length, 40)} von {daten.wiegungen.length} · Verdunstet<Herkunft art="gemessen" /></span></>}>
           <div className="rollbar"><table className="dicht">
             <thead><tr><th>Charge</th><th className="zahl">Lagertage</th><th className="zahl">Netto damals</th><th className="zahl">Netto jetzt</th><th className="zahl">Verdunstet</th><th className="zahl">kg/Kiste</th><th className="zahl">kg/Kürbis</th></tr></thead>
@@ -217,18 +266,24 @@ export default function Messungen() {
 /** Wie vollständig wird erfasst? Ein Balken je Absprache. */
 function Qualitaet({ q }: { q: Datenqualitaet }) {
   const zeilen: { name: string; ab: string; ist: number; von: number; hinweis: string }[] = [
-    { name: 'Datum vom Zettel bei gezählten Paletten', ab: 'AB-11', ist: q.paletten_mit_datum, von: q.paletten_gezaehlt, hinweis: 'ohne Datum kein Alter der Ware' },
+    // Runde AO: Nenner sind die Eingangspaletten (Sortieren, Waschen +
+    // Sortieren) — die Paletten aus dem Zwischenlager tragen nie ein
+    // Eingangsdatum und drückten die Zeile bisher grundlos nach unten.
+    { name: 'Datum vom Zettel bei gezählten Eingangspaletten', ab: 'AB-11', ist: q.paletten_mit_datum, von: q.eingangspaletten, hinweis: 'ohne Datum kein Alter der Ware' },
     { name: 'Palox abgelesen (mindestens einmal)', ab: 'AB-02', ist: q.arbeiten_mit_ablesung, von: q.arbeiten_fertig, hinweis: 'sonst landet der Schimmel auf der nächsten Arbeit' },
     { name: 'Palox zu Beginn und am Ende abgelesen', ab: 'AB-02', ist: q.arbeiten_mit_zwei_ablesungen, von: q.arbeiten_fertig, hinweis: 'zwei Ablesungen trennen die Arbeiten sauber' },
     { name: 'Abschlussfrage „alles aus einer Charge?" beantwortet', ab: 'AB-04', ist: q.arbeiten_mit_antwort, von: q.arbeiten_fertig, hinweis: 'ohne Antwort ist das Alter geraten' },
     { name: 'Sortier-CSV einer Arbeit zugeordnet', ab: '—', ist: q.sortierlaeufe_zugeordnet, von: q.sortierlaeufe, hinweis: 'unzugeordnet: Betrieb → Warteschlange' },
     { name: 'Kisten am Sortieren gezählt', ab: 'AB-12', ist: q.sortier_arbeiten_mit_kisten, von: q.sortier_arbeiten, hinweis: 'daraus entsteht das Kistengewicht' },
-    { name: 'Waschen: Paletten gezählt (Kisten und Sortierdatum, mit Kaliber)', ab: 'AB-31', ist: q.wasch_arbeiten_mit_kisten, von: q.wasch_arbeiten, hinweis: 'sonst hat das Faule am Waschbecken keinen Nenner' },
+    { name: 'Waschen: Paletten gezählt (Kisten, mit Kaliber)', ab: 'AB-33', ist: q.wasch_arbeiten_mit_kisten, von: q.wasch_arbeiten, hinweis: 'sonst hat das Faule am Waschbecken keinen Nenner' },
     // Fax (AB-24, 0051): seit Runde R eingefroren — die zwei Zeilen dazu sind
     // weg, die Zähler in v_datenqualitaet bleiben.
     { name: 'Waschen + Sortieren: Gewicht vom Zettel bei gezählten Paletten', ab: 'AB-25', ist: q.ws_paletten_mit_zettelgewicht, von: q.ws_paletten_gezaehlt, hinweis: 'ohne Zettelgewicht hat der Palox keinen Nenner' },
     { name: 'Kistensystem nach dem Waschen beantwortet', ab: 'AB-26', ist: q.arbeiten_mit_kistensystem, von: q.arbeiten_nach_waschen, hinweis: 'sonst weiss die Auswertung nicht, ob eine Kiste rechenbar ist' },
-    { name: 'Waschen: Sortierdatum je gezählter Palette', ab: 'AB-31', ist: q.wasch_kisten_mit_sortierdatum, von: q.wasch_kisten_gezaehlt, hinweis: 'das Datum auf dem Zettel sagt, wie lange die Ware nach dem Sortieren stand' },
+    // Runde AO: „Waschen: Sortierdatum je gezählter Palette" ist weg — das
+    // Datum ist freiwillig, seit die Waage am Anfang der Strasse die Menge
+    // misst (0104). Eine Absprache, die es nicht mehr gibt, misst man nicht.
+    // Der Zähler wasch_kisten_mit_sortierdatum bleibt in v_datenqualitaet.
     // Runde Q: die Kistenzahl auf der Eingangspalette. Ohne sie hat die
     // Palette kein Netto (die Tara hängt am Gebinde) — und ohne Netto keine
     // Masse. Die Zeile sagt, wie oft dieser Weg wirklich trägt.

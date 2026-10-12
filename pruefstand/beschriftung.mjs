@@ -73,9 +73,14 @@ const SEITEN = [
       await zeile.waitFor({ state: 'visible', timeout: 60000 })
       await zeile.click(); await p.waitForTimeout(400)
     } },
-  { name: 'messungen', pfad: '/messungen' },
-  { name: 'messungen-aufgeklappt', pfad: '/messungen', tun: async p => { await aufklappen(p) } },
-  { name: 'betrieb-arbeiten', pfad: '/betrieb/arbeiten' },
+  // Runde AO: Messungen hat Reiter; Arbeiten (vorher unter Betrieb) und
+  // Ausstehend (vorher ein eigener Reiter) stehen darunter.
+  { name: 'messungen', pfad: '/messungen/arbeiten' },
+  { name: 'messungen-auffaelligkeiten', pfad: '/messungen/auffaelligkeiten', tun: async p => { await aufklappen(p) } },
+  { name: 'messungen-messwerte', pfad: '/messungen/messwerte', tun: async p => { await aufklappen(p) } },
+  { name: 'messungen-ausstehend', pfad: '/messungen/ausstehend' },
+  // Runde AO (0112): das Lager nach Artikel.
+  { name: 'artikel', pfad: '/artikel' },
   { name: 'betrieb-lieferungen', pfad: '/betrieb/lieferungen' },
 ]
 /** Die erste Sorte oder Charge im Filterfeld wählen. */

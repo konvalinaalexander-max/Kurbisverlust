@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { kg as kgText, prozent, tonnen, zahl } from '../lib/format'
 import { achsenBereich, type Einheit } from '../lib/achse'
-import { ZTabelle, ZZoomAus } from './Zeichen'
+import { ZMinus, ZPlus, ZTabelle, ZZoomAus } from './Zeichen'
 
 /**
  * Diagramme von Hand als SVG — Linien, Glocke (Verteilung), Anteilsbalken.
@@ -29,6 +29,8 @@ export interface Punkt {
   auftragId?: number | null
   /** Runde Z: die Charge des Punkts — für das Messungsfenster, wenn keine Arbeit dahintersteht. */
   chargeNr?: number
+  /** Runde AO: die Kernzahl für das Fenster, das der Punkt öffnet („24.7 % in den Palox", „250 kg von 1014 kg"). */
+  kern?: { wert: string; unter?: string }
 }
 export interface Reihe {
   name: string
@@ -177,6 +179,9 @@ export function Linien({ reihen, hoehe = 280, xFormat = String, yFormat = String
   const [zeigerOrt, setZeigerOrt] = useState<{ x: number; y: number } | null>(null)
   const [tabelle, setTabelle] = useState(false)
   const clipId = useMemo(() => `clip${Math.random().toString(36).slice(2, 8)}`, [])
+  // Die Bildlaufleiste (Runde AO) — hier oben, weil weiter unten früh zurückgegeben wird.
+  const spur = useRef<HTMLDivElement | null>(null)
+  const griffZug = useRef<{ start: number; a: number; b: number } | null>(null)
 
   const sichtbar = reihen.filter(r => !aus.has(r.gruppe ?? r.name))
   const alle = sichtbar.flatMap(r => r.punkte)
@@ -281,6 +286,10 @@ export function Linien({ reihen, hoehe = 280, xFormat = String, yFormat = String
     if (!zoom || e.button !== 0 || e.pointerType !== 'mouse') return
     const { mx } = raster(e)
     if (mx < L || mx > B - R) return
+    // Runde AO: Ziehen markierte bisher den Text der ganzen Seite blau mit —
+    // der Zeiger gehört jetzt dem Diagramm, bis die Taste los ist.
+    e.preventDefault()
+    try { e.currentTarget.setPointerCapture(e.pointerId) } catch { /* alter Browser */ }
     setZieh({ von: mx, bis: mx })
   }
   // Ein Klick (kein Ziehen) auf einen getroffenen Punkt öffnet, was dahinter
@@ -301,6 +310,13 @@ export function Linien({ reihen, hoehe = 280, xFormat = String, yFormat = String
   }
   function rad(e: React.WheelEvent<SVGSVGElement>) {
     // Rad allein rollt die Seite; mit Ctrl/⌘ vergrössert es um den Zeiger.
+    // Quer gewischt (Touchpad) oder mit Shift verschiebt es den Ausschnitt.
+    if (zoom && sicht && !(e.ctrlKey || e.metaKey) && (e.shiftKey || Math.abs(e.deltaX) > Math.abs(e.deltaY))) {
+      e.preventDefault()
+      const d = (e.shiftKey ? e.deltaY : e.deltaX) / (B - L - R) * (x1 - x0)
+      verschieben(d)
+      return
+    }
     if (!zoom || !(e.ctrlKey || e.metaKey)) return
     e.preventDefault()
     const { mx } = raster(e)
@@ -310,6 +326,53 @@ export function Linien({ reihen, hoehe = 280, xFormat = String, yFormat = String
     a = Math.max(a, m.xMinAlle); b = Math.min(b, m.xMaxAlle)
     if (b - a <= 0) return
     setSicht(a <= m.xMinAlle && b >= m.xMaxAlle ? null : [a, b])
+  }
+
+  // Runde AO: Vergrössern mit + und −, Verschieben wie mit einer Bildlaufleiste.
+  // Der Ausschnitt bleibt immer innerhalb der ganzen Spanne; wer ganz heraus
+  // ist, hat wieder das ganze Bild (sicht = null).
+  const ganz = m.xMaxAlle - m.xMinAlle
+  function fenster(a: number, b: number) {
+    const w = b - a
+    if (!(w > 0) || w >= ganz * 0.999) { setSicht(null); return }
+    if (a < m.xMinAlle) { a = m.xMinAlle; b = a + w }
+    if (b > m.xMaxAlle) { b = m.xMaxAlle; a = b - w }
+    setSicht([a, b])
+  }
+  function zoomen(faktor: number) {
+    const mitte = (x0 + x1) / 2, w = (x1 - x0) * faktor
+    fenster(mitte - w / 2, mitte + w / 2)
+  }
+  function verschieben(d: number) { if (sicht) fenster(x0 + d, x1 + d) }
+
+  // Die Bildlaufleiste: Griff ziehen wie beim Browser, in die Spur klicken
+  // springt um fast einen Ausschnitt.
+  function griffDruecken(e: React.PointerEvent<HTMLDivElement>) {
+    e.preventDefault(); e.stopPropagation()
+    try { e.currentTarget.setPointerCapture(e.pointerId) } catch { /* alter Browser */ }
+    griffZug.current = { start: e.clientX, a: x0, b: x1 }
+  }
+  function griffZiehen(e: React.PointerEvent<HTMLDivElement>) {
+    const z = griffZug.current, s = spur.current
+    if (!z || !s) return
+    const d = (e.clientX - z.start) / Math.max(s.getBoundingClientRect().width, 1) * ganz
+    fenster(z.a + d, z.b + d)
+  }
+  function griffLoslassen() { griffZug.current = null }
+  function spurDruecken(e: React.PointerEvent<HTMLDivElement>) {
+    const s = spur.current
+    if (!s) return
+    e.preventDefault()
+    const box = s.getBoundingClientRect()
+    const x = m.xMinAlle + (e.clientX - box.left) / Math.max(box.width, 1) * ganz
+    verschieben(x < x0 ? -(x1 - x0) * 0.9 : (x1 - x0) * 0.9)
+  }
+  function griffTaste(e: React.KeyboardEvent<HTMLDivElement>) {
+    const schritt = (x1 - x0) * 0.2
+    if (e.key === 'ArrowLeft') { e.preventDefault(); verschieben(-schritt) }
+    else if (e.key === 'ArrowRight') { e.preventDefault(); verschieben(schritt) }
+    else if (e.key === 'Home') { e.preventDefault(); fenster(m.xMinAlle, m.xMinAlle + (x1 - x0)) }
+    else if (e.key === 'End') { e.preventDefault(); fenster(m.xMaxAlle - (x1 - x0), m.xMaxAlle) }
   }
 
   const imFenster = (p: { x: number }) => p.x >= x0 && p.x <= x1
@@ -361,6 +424,16 @@ export function Linien({ reihen, hoehe = 280, xFormat = String, yFormat = String
   const kopfText = hoverTeile.find(w => w.p.name)?.p.name
   return (
     <div className="diagramm" ref={rahmen}>
+      {zoom && (
+        <div className="zoom-leiste" role="group" aria-label="Ausschnitt">
+          <button type="button" className="zoom-knopf" title="Vergrössern" aria-label="Vergrössern"
+                  onClick={() => zoomen(0.6)}><ZPlus size={14} /></button>
+          <button type="button" className="zoom-knopf" title="Verkleinern" aria-label="Verkleinern"
+                  disabled={!sicht} onClick={() => zoomen(1 / 0.6)}><ZMinus size={14} /></button>
+          {sicht && <button type="button" className="zoom-knopf" title="Ganzes Bild" aria-label="Ganzes Bild"
+                            onClick={() => setSicht(null)}><ZZoomAus size={14} /></button>}
+        </div>
+      )}
       <div className="rollbar">
         <svg viewBox={`0 0 ${B} ${hoehe}`} style={{ width: '100%', minWidth: kompakt ? 320 : 420, height: 'auto', display: 'block', cursor: zieh ? 'col-resize' : treffer === 'punkt' && onPunkt && hover?.werte[0]?.p.auftragId != null ? 'pointer' : zoom ? 'crosshair' : 'default', touchAction: 'pan-y' }}
              role="img" aria-label={yTitel ?? ''} data-x-einheit={xEinheit} data-y-einheit={yEinheit}
@@ -400,14 +473,24 @@ export function Linien({ reihen, hoehe = 280, xFormat = String, yFormat = String
                 <text x={sx(s.x) + 3} y={oben + 10} fontSize="10" fill={s.farbe ?? 'var(--text-leise)'}>{s.text}</text>
               </g>
             ))}
-            {heute && imFenster(heute) && (
-              <g>
-                <rect x={sx(heute.x)} y={oben} width={Math.max(sx(x1) - sx(heute.x), 0)} height={hoehe - oben - U} fill="var(--flaeche-2)" opacity=".6" />
-                <line x1={sx(heute.x)} x2={sx(heute.x)} y1={oben} y2={hoehe - U} stroke="var(--kuerbis)" strokeWidth="1.5" strokeDasharray="4 3" />
-                <text x={sx(heute.x) + 4} y={oben + 10} fontSize="10.5" fontWeight="600" fill="var(--kuerbis)">{heute.text ?? 'heute'}</text>
-                {sx(x1) - sx(heute.x) > 70 && <text x={sx(x1) - 4} y={oben + 10} fontSize="10" textAnchor="end" fill="var(--text-leise)">{heute.rechts ?? 'Prognose'}</text>}
-              </g>
-            )}
+            {heute && imFenster(heute) && (() => {
+              // Runde AO: „heute" nicht mehr orange (das ist die Farbe der Ware
+              // im Lager), sondern ein ruhiger, dunkler Strich mit einem
+              // Etikett oben — wie ein Lesezeichen im Bild.
+              const etikett = heute.text ?? 'heute'
+              const breite = etikett.length * 5.9 + 14
+              const x = sx(heute.x)
+              const links = x + breite > B - R
+              return (
+                <g className="heute-marke">
+                  <rect x={x} y={oben} width={Math.max(sx(x1) - x, 0)} height={hoehe - oben - U} fill="var(--flaeche-2)" opacity=".55" />
+                  <line x1={x} x2={x} y1={oben} y2={hoehe - U} stroke="var(--text-2)" strokeWidth="1.25" />
+                  <rect x={links ? x - breite : x} y={oben - 1} width={breite} height={17} rx={8.5} fill="var(--text)" />
+                  <text x={links ? x - breite / 2 : x + breite / 2} y={oben + 11} fontSize="10.5" fontWeight="600" textAnchor="middle" fill="var(--flaeche)">{etikett}</text>
+                  {!links && sx(x1) - x - breite > 70 && <text x={sx(x1) - 4} y={oben + 11} fontSize="10" textAnchor="end" fill="var(--text-leise)">{heute.rechts ?? 'Prognose'}</text>}
+                </g>
+              )
+            })()}
             {beschriftungenVersetzt(waagrechte.map(w => ({ ...w, py: sy(w.y) }))).map(w => (
               <g key={`w${w.text}`}>
                 <line x1={L} x2={B - R} y1={w.py} y2={w.py} stroke={w.farbe ?? 'var(--text-leise)'} strokeWidth="1.5" strokeDasharray="6 4" opacity=".8" />
@@ -438,6 +521,18 @@ export function Linien({ reihen, hoehe = 280, xFormat = String, yFormat = String
           </g>
         </svg>
       </div>
+      {zoom && sicht && (
+        <div className="bildlauf" style={{ marginLeft: `${(L / B) * 100}%`, marginRight: `${(R / B) * 100}%` }}>
+          <div className="bildlauf-spur" ref={spur} onPointerDown={spurDruecken}>
+            <div className="bildlauf-griff" role="scrollbar" tabIndex={0} aria-orientation="horizontal"
+                 aria-label="Ausschnitt verschieben" aria-valuemin={0} aria-valuemax={100}
+                 aria-valuenow={Math.round(((x0 - m.xMinAlle) / Math.max(ganz - (x1 - x0), 1e-9)) * 100)}
+                 style={{ left: `${((x0 - m.xMinAlle) / ganz) * 100}%`, width: `${Math.max(((x1 - x0) / ganz) * 100, 4)}%` }}
+                 onPointerDown={griffDruecken} onPointerMove={griffZiehen} onPointerUp={griffLoslassen}
+                 onPointerCancel={griffLoslassen} onKeyDown={griffTaste} />
+          </div>
+        </div>
+      )}
         <Schwebend rahmen={rahmen} s={hover && zeigerOrt && hoverTeile.length ? { x: zeigerOrt.x, y: zeigerOrt.y, inhalt: (
           <>
             <div className="schweb-kopf">{kopfText ?? <>{xFormat(hover.x)}{xTitel ? ` ${xTitel}` : ''}</>}{heute && hover.x > heute.x ? ' · Prognose' : ''}</div>
@@ -476,7 +571,6 @@ export function Linien({ reihen, hoehe = 280, xFormat = String, yFormat = String
         )}
         {fuss}
         <span className="diagramm-werkzeuge">
-          {sicht && <button type="button" className="werkzeug-knopf" onClick={() => setSicht(null)}><ZZoomAus size={15} />Ausschnitt zurück</button>}
           {tabelleErlaubt && <button type="button" className="werkzeug-knopf" onClick={() => setTabelle(t => !t)}><ZTabelle size={15} />{tabelle ? 'Tabelle ausblenden' : 'Als Tabelle'}</button>}
         </span>
       </div>

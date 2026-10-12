@@ -6,7 +6,7 @@ import { pruefsumme } from '../lib/csv'
 import { xlsxLesen, type Blatt } from '../lib/xlsx'
 import {
   abgleichen, artikelSchluessel, befund, chargeAufloeser, istKuerbis, kopfLesen,
-  lieferungenBauen, neuAbwann, quelleErkennen, quelleVorschlag, zaehltAlsKuerbis, zeilenLesen, zeilenSchluessel,
+  lieferungenBauen, neuAbwann, positionenAllerSaisons, quelleErkennen, quelleVorschlag, zaehltAlsKuerbis, zeilenLesen, zeilenSchluessel,
   type Abgleich, type ArtikelBefund, type AusgangZeile, type Befund, type Bekannt, type ChargeKurz, type Lieferung, type QuelleErkennung,
 } from '../lib/warenausgang'
 import { datum, kg, tonnen, zahl, zeitpunkt } from '../lib/format'
@@ -56,6 +56,32 @@ interface Datei {
   meldung?: string
   ergebnis?: { zeilen_neu: number; zeilen_geaendert: number; lieferungen_neu: number; lieferungen_aktualisiert: number; uebergangen: { extern_id: string; kg?: number; datum?: string; kunde?: string; grund: string }[] }
   pruef?: Pruefzeile[]
+  /** 0112: was für den Vergleich mit den Vorjahren mitging — oder warum nicht. */
+  historie?: { positionen: number; je_saison: Record<string, number>; labels_gesetzt: number } | { fehler: string }
+}
+
+/** Runde AO (0112): jede Kürbis-Position aller Saisons, in Paketen zu tausend — und die Labels an die Zeilen. */
+async function historieUebernehmen(d: Datei, zeilen: AusgangZeile[], bestaetigt: Map<string, Bestaetigung>): Promise<NonNullable<Datei['historie']>> {
+  const karte = new Map([...bestaetigt.entries()].map(([k, v]) => [k, v.ist_kuerbis]))
+  const alle = zeilenVon(d.blatt, d.quelle)
+  const positionen = positionenAllerSaisons(alle, z => zaehltAlsKuerbis(istKuerbis(z, karte)))
+  const lose = zeilen.map(z => ({ pos_id: z.pos_id, charge_extern: z.charge_extern, lauf_nr: z.lauf_nr,
+                                  liefer_label: z.liefer_label, preisgruppe: z.preisgruppe }))
+  const summe = { positionen: 0, je_saison: {} as Record<string, number>, labels_gesetzt: 0 }
+  try {
+    for (let von = 0; von < Math.max(positionen.length, 1); von += 1000) {
+      const { data, error } = await supabase.rpc('ausgang_historie_uebernehmen', {
+        p_quelle: d.quelle, p_positionen: positionen.slice(von, von + 1000), p_lose: von === 0 ? lose : [],
+      })
+      if (error) throw error
+      const r = data as typeof summe
+      summe.positionen += r.positionen; summe.labels_gesetzt += r.labels_gesetzt
+      for (const [k, n] of Object.entries(r.je_saison ?? {})) summe.je_saison[k] = (summe.je_saison[k] ?? 0) + n
+    }
+    return summe
+  } catch (f) {
+    return { fehler: fehlerText(f) }
+  }
 }
 
 /** Alle Zeilen einer Tabelle, seitenweise — PostgREST gibt sonst höchstens tausend. */
@@ -210,7 +236,7 @@ export default function AusgangImport({ nachUebernahme }: { nachUebernahme: () =
         {lage.length > 0 && (
           <div className="rollbar" style={{ marginBottom: '.75rem' }}>
             <table>
-              <thead><tr><th>Firma</th><th className="zahl">Zeilen</th><th>Zeitraum</th><th>Zuletzt geladen</th><th className="zahl">Lieferungen</th><th className="zahl">Masse in der Datei</th><th className="zahl">Artikel offen</th><th></th></tr></thead>
+              <thead><tr><th>Firma</th><th className="zahl">Zeilen</th><th>Zeitraum</th><th>Zuletzt geladen</th><th className="zahl">Lieferungen</th><th className="zahl">Masse in der Datei</th><th className="zahl" title={'Artikel, bei denen noch niemand bestätigt hat, ob sie Kürbis sind (und welche Sorte) — bis dahin zählt der Vorschlag der App: Kürbis, wenn der Name „Kürbis“ enthält'}>Artikel unbestätigt</th><th></th></tr></thead>
               <tbody>{lage.map(l => (
                 <tr key={l.quelle}>
                   <td>{l.name}</td><td className="zahl">{zahl(l.zeilen)}</td>
@@ -278,8 +304,12 @@ export default function AusgangImport({ nachUebernahme }: { nachUebernahme: () =
                           p_lieferungen: lieferungen,
                         })
                         if (error) throw error
+                        // Runde AO (0112): alle Saisons der Datei für den Vergleich je Kunde,
+                        // und die Labels (Preisgruppe, LiefPrsGrpName) an die Zeilen. Geht das
+                        // schief, steht die Übernahme trotzdem — es fehlt nur der Vergleich.
+                        const historie = await historieUebernehmen(d, zeilen, bestaetigt)
                         const pruef = await supabase.from('v_ausgang_pruef').select('pos_id, datum, artikel, kunde, kg_datei, kg_lieferung, abweichung_kg').eq('quelle', d.quelle)
-                        aendern(i, { status: 'fertig', ergebnis: data as Datei['ergebnis'], pruef: (pruef.data ?? []) as Pruefzeile[] })
+                        aendern(i, { status: 'fertig', ergebnis: data as Datei['ergebnis'], pruef: (pruef.data ?? []) as Pruefzeile[], historie })
                         await Promise.all([laden(), bekanntLaden()]); nachUebernahme()
                       } catch (f) {
                         aendern(i, { status: 'fehler', meldung: fehlerText(f) })
@@ -493,6 +523,14 @@ function DateiKarte({ d, quellen, bekannt, bekanntBis, bestaetigt, chargen, sort
                 {d.ergebnis.uebergangen.length > 0 && <> {d.ergebnis.uebergangen.length} nicht übernommen (unten).</>}
               </Hinweis>
               {d.pruef && d.pruef.length === 0 && <Hinweis art="gut">Probe bestanden: jedes Kilo dieser Firma steht genau einmal als Lieferung.</Hinweis>}
+              {/* Runde AO (0112): was für „Lagermanagement nach Artikel" mitging. */}
+              {d.historie && ('fehler' in d.historie
+                ? <Hinweis art="warnung">Der Vergleich mit den Vorjahren ist nicht übernommen: {d.historie.fehler}. Die Lieferungen oben stehen trotzdem.</Hinweis>
+                : <p className="leise" style={{ margin: '.4rem 0 0' }}>
+                    Für den Vergleich mit den Vorjahren (Lagermanagement nach Artikel): {zahl(d.historie.positionen)} Kürbis-Positionen
+                    {Object.keys(d.historie.je_saison).length > 0 && <> ({Object.entries(d.historie.je_saison).sort().map(([j, n]) => `Saison ${j}/${String(Number(j) + 1).slice(2)}: ${zahl(n)}`).join(', ')})</>}
+                    {' '}· Demeter/Knospe an {zahl(d.historie.labels_gesetzt)} Zeilen nachgetragen.
+                  </p>)}
               {d.pruef && d.pruef.length > 0 && (
                 <Hinweis art="warnung">
                   Probe: {d.pruef.length} Positionen, deren Lieferungen nicht die Masse der Datei ergeben — meist Artikel ohne Sorte.

@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useState } from 'react'
+import { Fragment, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useBetriebsmodus } from '../lib/betriebsmodus'
 import { imDemoModus } from '../lib/supabase'
@@ -13,10 +13,10 @@ import { JournalAbgleich } from '../betrieb/JournalAbgleich'
 import { useZaehler } from '../design/bewegung'
 import { ZWarnung, ZChevron } from '../components/Zeichen'
 import { chargenNachFeld } from '../lib/felder'
+import { WOCHEN_MAX, WochenFeld } from '../components/WochenFeld'
 
 const TAG = 86400000
 /** Wie weit der Betriebsleiter vorausschauen darf: eine Saison. */
-const WOCHEN_MAX = 28
 const STUFE_G = 50
 
 /** Der Filter dieser Seite: alles, eine Sorte oder eine Charge — kein Schlag. */
@@ -74,7 +74,7 @@ export default function Lagermanagement() {
   if (!s || daten.bestand.length === 0) {
     return (
       <>
-        <Reiterkopf titel="Lagermanagement" stand={daten.stand} zeitplan={daten.zeitplan} veraltet={daten.veraltet} aktuell={daten.aktuell} />
+        <Reiterkopf titel="Lagermanagement nach Charge" stand={daten.stand} zeitplan={daten.zeitplan} veraltet={daten.veraltet} aktuell={daten.aktuell} />
         <Probleme liste={daten.probleme} />
         <Hinweis>Noch keine auswertbaren Daten. Dafür braucht es mindestens Eingangspaletten mit hinterlegter Tara — siehe Betrieb → Stammdaten.</Hinweis>
         {/* 0081: Auch im Demo-Modus — dort erklärt die Karte, was der
@@ -87,7 +87,7 @@ export default function Lagermanagement() {
 
   return (
     <>
-      <Reiterkopf titel="Lagermanagement"
+      <Reiterkopf titel="Lagermanagement nach Charge"
                   stand={daten.stand} heute={daten.heute} neuRechnen={() => void neuRechnen()} laeuft={laedt}
                   zeitplan={daten.zeitplan} veraltet={daten.veraltet} aktuell={daten.aktuell} />
       <JournalAbgleich />
@@ -97,7 +97,7 @@ export default function Lagermanagement() {
           <span className="hinweis-zeichen"><ZWarnung size={18} /></span>
           <div className="hinweis-text">
             <strong>{daten.befunde.length} Auffälligkeiten</strong> — Messungen, die nicht in die Rechnung eingehen, meist ein Tippfehler.{' '}
-            <Link to="/messungen">Ansehen und korrigieren</Link>
+            <Link to="/messungen/auffaelligkeiten">Ansehen und korrigieren</Link>
           </div>
         </div>
       )}
@@ -162,7 +162,7 @@ function Kennzahlen({ daten, filter }: { daten: Auswertung; filter: Filter }) {
   const teile = p0 ? [
     { name: 'verkaufsfähig', kg: p0.verkaufsfaehig_kg, farbe: 'var(--strom-rest)' },
     { name: 'zu klein / zu gross', kg: p0.kanal_kg, farbe: 'var(--strom-ausschuss)' },
-    { name: 'faul', kg: p0.faul_kg, farbe: 'var(--strom-schimmel)' },
+    { name: 'Palox', kg: p0.faul_kg, farbe: 'var(--strom-schimmel)' },
     { name: 'verdunstet', kg: p0.verdunstet_kg, farbe: 'var(--strom-verdunstung)' },
   ] : []
   const summe = teile.reduce((a, t) => a + t.kg, 0)
@@ -183,7 +183,7 @@ function Kennzahlen({ daten, filter }: { daten: Auswertung; filter: Filter }) {
                   : <>noch kein Warenausgang eingelesen — <Link to="/betrieb/lieferungen">Betrieb → Warenausgang</Link></>} />
       <Kennzahl titel="Im Lager" ton="kuerbis" id="kz-lager"
                 wert={<><Tonnen kg={p0?.lager_kg} /><Herkunft art="gerechnet" /></>}
-                unter={<>Eingangsware, die nicht ausgeliefert ist · {chargen.filter(b => b.lager_kg > 0).length} Chargen</>} />
+                unter={<>Eingangsware, die nicht ausgeliefert ist</>} />
       <Kennzahl titel="Davon verkaufsfähig" ton="gruen" id="kz-verkaufsfaehig"
                 wert={<>
                   {anteil === null && <span className="mini-wort">höchstens </span>}
@@ -198,7 +198,7 @@ function Kennzahlen({ daten, filter }: { daten: Auswertung; filter: Filter }) {
                   </span>
                   {anteil === null
                     // Runde AF: der Betrieb fragte „welche Rate?" — hier steht sie, mit dem Weg zum Reiter.
-                    ? <>unbekannt, solange {fehlendeRaten(p0).join(', ') || 'eine Rate'} nicht gemessen ist — <Link to="/ausstehend">Messungen ausstehend</Link></>
+                    ? <>unbekannt, solange {fehlendeRaten(p0).join(', ') || 'eine Rate'} nicht gemessen ist — <Link to="/messungen/ausstehend">Messungen → Ausstehend</Link></>
                     : <>von dem, was im Lager liegt</>}
                 </>} />
     </div>
@@ -226,8 +226,10 @@ function Verlauf({ daten, filter }: { daten: Auswertung; filter: Filter }) {
     // Umgebung, kein Vergleich, und steht darum in Grau.
     { name: 'Ausgang kumuliert', farbe: 'var(--text-leise)', linie: true, marker: false,
       punkte: bisHeute.map(w => ({ x: x(w.bis), y: w.ausgang_kum_kg })) },
-    { name: 'Im Lager', farbe: 'var(--kuerbis)', linie: true, marker: false, dick: true, prognoseAb: heute,
-      punkte: wochen.map(w => ({ x: x(w.bis), y: w.lager_kg })) },
+    // Runde AO: „Im Lager" endet heute wie der Ausgang — was liegt, steht
+    // ohne Lieferung still; vorhergesagt wird nur, was davon verkaufsfähig bleibt.
+    { name: 'Im Lager', farbe: 'var(--kuerbis)', linie: true, marker: false, dick: true,
+      punkte: bisHeute.map(w => ({ x: x(w.bis), y: w.lager_kg })) },
     { name: 'Davon verkaufsfähig', farbe: 'var(--blau)', linie: true, marker: false, dick: true, prognoseAb: heute,
       punkte: wochen.map(w => ({ x: x(w.bis), y: w.verkaufsfaehig_kg,
         text: `${prozent(anteil(w), 0)} der liegenden Ware · zu klein/zu gross ${tonnen(w.kanal_kg + w.aussortiert_kg)}${w.aussortiert_kg > 0 ? ` (davon ${tonnen(w.aussortiert_kg)} schon aussortiert, steht im Haus)` : ''}` })) },
@@ -238,10 +240,10 @@ function Verlauf({ daten, filter }: { daten: Auswertung; filter: Filter }) {
               xVon={xVon} xBis={xLetzte} hoehe={300}
               xFormat={d => datum(new Date(d * TAG)).slice(0, 5)} yFormat={tonnenAchse}
               xTitel="Woche" yTitel="Tonnen" yEinheit="kg"
-              fuss={<span className="leise">ab heute gestrichelt: wenn die liegende Ware liegen bleibt</span>} />
+              fuss={<span className="leise">verkaufsfähig ab heute gestrichelt: wenn die liegende Ware liegen bleibt</span>} />
       <Erklaerung>
         <p>Eingang und Ausgang sind <Herkunft art="gemessen" /> und enden heute.
-        <strong> Im Lager</strong> ist die Eingangsware, die an diesem Stichtag noch nicht ausgeliefert war — sie fällt, wenn geliefert wird, und steht danach still.
+        <strong> Im Lager</strong> ist die Eingangsware, die an diesem Stichtag noch nicht ausgeliefert war — sie fällt, wenn geliefert wird, und endet heute.
         <strong> Davon verkaufsfähig</strong> ist <Herkunft art="gerechnet" /> und fällt auch dann weiter, wenn nichts geliefert wird: Die liegende Ware altert.</p>
       </Erklaerung>
     </Karte>
@@ -250,13 +252,18 @@ function Verlauf({ daten, filter }: { daten: Auswertung; filter: Filter }) {
 
 /* ---------- Die Bänder einer Gruppe ----------------------------------------- */
 
+/** Runde AO: −1 ist Unterkaliber (zu klein), −2 Überkaliber (zu gross). */
+const UNTER = -1, UEBER = -2
+
 interface Bandzeile {
   schluessel: string; name: string; unter: string; sorte: string
   lager: number; verkaufsfaehig: number; anteil: number | null
   basis: string; nKuerbis: number | null
-  /** Kilo je Kaliber-Index; −1 ist „unter Kaliber". */
-  kg: Map<number, number>
+  /** Kilo je Kaliber-Index; UNTER und UEBER daneben — leer heisst nicht gemessen. */
+  kg: Map<number, number | null>
   band: Map<number, string>
+  /** Der Teil des kleinsten Bandes, der seit der Sortierung darunter geschrumpft ist. */
+  geschrumpft: number | null
 }
 
 /** Aus den Zeilen von `lager_kaliber(h)` die Zeilen der Tabelle. */
@@ -276,12 +283,15 @@ function bandzeilen(zeilen: LagerKaliber[], filter: Filter, bestand: Bestand[]):
         schluessel: z.schluessel,
         name: gruppe === 'charge' ? `Charge ${z.schluessel}` : z.schluessel,
         unter: gruppe === 'charge' ? `${z.sorte}${c ? ` · ${c.schlag}` : ''}` : `${z.n_chargen} ${z.n_chargen === 1 ? 'Charge' : 'Chargen'}`,
-        sorte: z.sorte, lager: z.lager_kg, verkaufsfaehig: z.verkaufsfaehig_kg, anteil: z.anteil,
-        basis: z.basis, nKuerbis: z.n_kuerbis, kg: new Map(), band: new Map(),
+        sorte: z.sorte, lager: z.lager_kg, verkaufsfaehig: z.verkaufsfaehig_kg, anteil: null,
+        basis: z.basis, nKuerbis: z.n_kuerbis, kg: new Map(), band: new Map(), geschrumpft: z.geschrumpft_kg,
       }
       map.set(z.schluessel, e)
     }
-    if (z.kaliber_idx !== null) {
+    if (z.klasse === 'unter' || z.klasse === 'ueber') {
+      // Zu klein / zu gross: eine Zahl je Zeile, leer, solange nicht gemessen.
+      e.kg.set(z.klasse === 'unter' ? UNTER : UEBER, z.kg)
+    } else if (z.kaliber_idx !== null) {
       e.kg.set(z.kaliber_idx, (e.kg.get(z.kaliber_idx) ?? 0) + (z.kg ?? 0))
       if (z.band_von !== null && z.band_bis !== null) e.band.set(z.kaliber_idx, `${z.band_von}–${z.band_bis} g`)
     }
@@ -291,19 +301,13 @@ function bandzeilen(zeilen: LagerKaliber[], filter: Filter, bestand: Bestand[]):
   return [...map.values()].sort((a, b) => b.lager - a.lager)
 }
 
-/** Welche Spalten die Tabelle hat: die Bänder, die irgendeine Zeile trägt. */
+/** Welche Bänder die Tabelle hat: die, die irgendeine Zeile trägt. */
 function bandspalten(zeilen: Bandzeile[]): { idx: number; kopf: string; unter: string }[] {
-  const idxe = [...new Set(zeilen.flatMap(z => [...z.kg.keys()]))].sort((a, b) => a - b)
-  const mitBand = idxe.filter(i => i >= 0)
-  const spalten = mitBand.map(i => {
+  const idxe = [...new Set(zeilen.flatMap(z => [...z.kg.keys()]))].filter(i => i >= 0).sort((a, b) => a - b)
+  return idxe.map(i => {
     const baender = [...new Set(zeilen.map(z => z.band.get(i)).filter(Boolean))] as string[]
     return { idx: i, kopf: baender.length === 1 ? baender[0] : `Kaliber ${i + 1}`, unter: baender.length === 1 ? '' : 'je Sorte eigene Grenzen' }
   })
-  // „unter Kaliber" nur, wenn dort etwas steht — sonst eine Spalte aus Nullen.
-  if (idxe.includes(-1) && zeilen.some(z => (z.kg.get(-1) ?? 0) > 0.5)) {
-    spalten.push({ idx: -1, kopf: 'unter Kaliber', unter: 'geschrumpft' })
-  }
-  return spalten
 }
 
 /* ---------- L3: Was ist noch im Haus? --------------------------------------- */
@@ -342,11 +346,15 @@ function ImHaus({ daten, filter, wochen, setzeWochen }: {
                     über heute hinaus — je nach Wochenfeld die ganze Tabelle. */}
                 <th rowSpan={2} className="haftend">{jeSorte ? 'Sorte' : 'Charge'}</th>
                 <th rowSpan={2} className="zahl">im Lager<Herkunft art={herkunft} /></th>
+                {/* Runde AO: links und rechts der Bänder, was nicht ins Band passt —
+                    Unterkaliber (zu klein) und Überkaliber (zu gross), beide gleich ruhig. */}
+                <th rowSpan={2} className="zahl neben-kaliber">unter Kaliber<span className="kopf-unter">zu klein</span></th>
                 <th colSpan={spalten.length + 1} className={`gruppe${spaeter ? ' spaeter' : ''}`}>
                   verkaufsfähig {spaeter ? `in ${wochen} Wochen` : 'heute'}
                   {spaeter && stichtag ? <span className="leise"> · {datum(stichtag).slice(0, 6)}</span> : null}
                   <Herkunft art={herkunft} />
                 </th>
+                <th rowSpan={2} className="zahl neben-kaliber">über Kaliber<span className="kopf-unter">zu gross</span></th>
               </tr>
               <tr>
                 {spalten.map(sp => <th key={sp.idx} className="zahl">{sp.kopf}</th>)}
@@ -365,9 +373,11 @@ function ImHaus({ daten, filter, wochen, setzeWochen }: {
                       {z.basis === 'sorte' && <Marke art="neutral" punkt={false}>aus der Sorte</Marke>}
                     </th>
                     <td className="zahl"><strong>{masse(z.lager)}</strong></td>
+                    <Nebenzelle zeile={z} idx={UNTER} spaeter={spaeter} />
                     {spalten.map(s => <Bandzelle key={s.idx} zeile={z} idx={s.idx} filter={filter} spaeter={spaeter} />)}
                     <td className="zahl summe"><strong>{masse(z.verkaufsfaehig)}</strong>
                       {z.anteil !== null && <span className="leise"> {prozent(z.anteil, 0)}</span>}</td>
+                    <Nebenzelle zeile={z} idx={UEBER} spaeter={spaeter} />
                   </tr>
                   {jeSorte && auf.has(z.schluessel) && chargenVon(z.sorte).map(c => (
                     <tr key={c.schluessel} className="charge-zeile">
@@ -376,8 +386,10 @@ function ImHaus({ daten, filter, wochen, setzeWochen }: {
                         <span className="zeilenunter leise">{c.unter}</span>
                       </th>
                       <td className="zahl">{masse(c.lager)}</td>
+                      <Nebenzelle zeile={c} idx={UNTER} spaeter={spaeter} />
                       {spalten.map(s => <Bandzelle key={s.idx} zeile={c} idx={s.idx} filter={{ gruppe: 'sorte', schluessel: z.sorte }} spaeter={spaeter} />)}
                       <td className="zahl summe">{masse(c.verkaufsfaehig)}{c.anteil !== null && <span className="leise"> {prozent(c.anteil, 0)}</span>}</td>
+                      <Nebenzelle zeile={c} idx={UEBER} spaeter={spaeter} />
                     </tr>
                   ))}
                 </Fragment>
@@ -388,8 +400,10 @@ function ImHaus({ daten, filter, wochen, setzeWochen }: {
                 <tr>
                   <th scope="row" className="haftend">Summe</th>
                   <td className="zahl"><strong>{masse(summe(z => z.lager))}</strong></td>
+                  <td className="zahl neben-kaliber">{nebenSumme(zeilen, UNTER)}</td>
                   {spalten.map(s => <td key={s.idx} className="zahl"><strong>{masse(summe(z => z.kg.get(s.idx) ?? 0))}</strong></td>)}
                   <td className="zahl summe"><strong>{masse(summe(z => z.verkaufsfaehig))}</strong></td>
+                  <td className="zahl neben-kaliber">{nebenSumme(zeilen, UEBER)}</td>
                 </tr>
               </tfoot>
             )}
@@ -397,15 +411,18 @@ function ImHaus({ daten, filter, wochen, setzeWochen }: {
         </div>
       )}
       <p className="hilfe">
-        Die Summe der Bänder ist die verkaufsfähige Masse der Rechnung; die Bänder kommen aus der Sortier-CSV,
-        jeder Kürbis um die gemessene Verdunstung geschrumpft — fällt einer unter das kleinste Band, steht er in „unter Kaliber".
+        Im Lager = unter Kaliber + verkaufsfähig + über Kaliber + was verdunstet oder im Palox gelandet ist.
       </p>
       <Erklaerung>
         <p><strong>Im Lager</strong> ist Eingangsware, die nicht ausgeliefert ist <Herkunft art="gerechnet" />.
-        <strong> Verkaufsfähig</strong> zieht davon ab, was bis zum Stichtag verdunstet oder verdorben ist und was zu klein oder zu gross war.</p>
-        <p>Die Aufteilung auf die Kaliber ist keine zweite Rechnung: Jeder Kürbis der Sortier-CSV wird um die
-        gemessene Verdunstung seiner Charge geschrumpft und neu in sein Band gelegt; die Massenanteile der Bänder
-        mal der verkaufsfähigen Masse ergeben die Kilo. Über alle Bänder summiert steht wieder genau diese Masse.</p>
+        <strong> Verkaufsfähig</strong> zieht davon ab, was bis zum Stichtag verdunstet oder im Palox gelandet ist und was zu klein oder zu gross ist —
+        dieselbe Zahl wie oben in der Kachel und in den Chargen.</p>
+        <p><strong>Unter Kaliber</strong> (zu klein) und <strong>über Kaliber</strong> (zu gross) sind der gemessene Anteil der Sorte an der liegenden Ware:
+        aus den Sortierläufen und den Handmessungen beim Waschen und Sortieren. Ist er für eine Sorte noch nicht gemessen, steht ein Strich — unbekannt, nicht null.</p>
+        <p>Die Bänder sind keine zweite Rechnung: Jeder Kürbis der Sortier-CSV wird um die gemessene Verdunstung seiner Charge
+        geschrumpft und neu in sein Band gelegt; die Massenanteile der Bänder mal der verkaufsfähigen Masse ergeben die Kilo.
+        Wer seit der Sortierung knapp unter das kleinste Band geschrumpft ist, zählt weiter im kleinsten Band — ein sortierter
+        Kürbis bleibt in seiner Kiste (der Zeiger über der Zahl sagt, wie viel es ist).</p>
         <p>„aus der Sorte" heisst: Diese Charge hat keine eigene Sortier-CSV — sie bekommt die Verteilung aller
         sortierten Kürbisse ihrer Sorte. Fehlt auch die, bleiben die Bänder leer: unbekannt, nicht null.</p>
       </Erklaerung>
@@ -420,48 +437,52 @@ const masse = (v: number | null | undefined) =>
 function Bandzelle({ zeile, idx, filter, laedt = false, spaeter = false }: {
   zeile: Bandzeile | undefined; idx: number; filter: Filter; laedt?: boolean; spaeter?: boolean
 }) {
-  const klasse = `zahl${spaeter ? ' spaeter' : ''}${laedt ? ' laedt' : ''}${idx === -1 ? ' unter-kaliber' : ''}`
+  const klasse = `zahl${spaeter ? ' spaeter' : ''}${laedt ? ' laedt' : ''}`
   if (!zeile) return <td className={klasse}>—</td>
   if (zeile.basis === 'keine') {
     return <td className={klasse} title="keine Sortier-CSV für diese Sorte — die Verteilung ist unbekannt, nicht null">—</td>
   }
   const wert = zeile.kg.get(idx)
-  if (wert === undefined) return <td className={klasse} />
+  if (wert === undefined || wert === null) return <td className={klasse} />
   const band = zeile.band.get(idx)
+  const kleinstes = idx === Math.min(...[...zeile.kg.keys()].filter(i => i >= 0))
+  const darunter = kleinstes && (zeile.geschrumpft ?? 0) >= 1
+    ? ` · davon ${kg(zeile.geschrumpft, 0)} seit der Sortierung knapp unter ${band?.split('–')[0] ?? 'das Band'} g geschrumpft`
+    : ''
   return (
-    <td className={klasse} title={idx === -1
-      ? 'laut Rechnung noch verkaufsfähig, aber unter das kleinste Band geschrumpft'
-      : `${band ?? ''} · ${zeile.sorte}`}>
+    <td className={klasse} title={`${band ?? ''} · ${zeile.sorte}${darunter}`}>
       {masse(wert)}
       {band && filter.gruppe === 'gesamt' && <span className="band-unter">{band}</span>}
     </td>
   )
 }
 
-/** Das Feld „in X Wochen" — ein Zustand, zwei Felder (Tabelle und Glocke). */
-function WochenFeld({ id, wochen, setzen, datum: stichtag }: {
-  id: string; wochen: number; setzen: (n: number) => void; datum?: string | null
-}) {
-  const [text, setText] = useState(String(wochen))
-  useEffect(() => { setText(String(wochen)) }, [wochen])
-  // Erst nach einer kurzen Pause übernehmen: Wer „12" tippt, soll nicht bei
-  // „1" einen Aufruf auslösen.
-  useEffect(() => {
-    const n = Number(text)
-    if (!Number.isFinite(n) || n < 0 || n > WOCHEN_MAX || n === wochen) return
-    const uhr = setTimeout(() => setzen(Math.round(n)), 300)
-    return () => clearTimeout(uhr)
-  }, [text, wochen, setzen])
-  // Runde AD: 0 ist erlaubt und die Grundeinstellung — „heute".
-  const gueltig = Number(text) >= 0 && Number(text) <= WOCHEN_MAX
+/** Unter- oder Überkaliber einer Zeile: gemessen, sonst ein Strich. */
+function Nebenzelle({ zeile, idx, spaeter = false }: { zeile: Bandzeile; idx: number; spaeter?: boolean }) {
+  const klasse = `zahl neben-kaliber${spaeter ? ' spaeter' : ''}`
+  const wert = zeile.kg.get(idx)
+  const was = idx === UNTER ? 'zu klein' : 'zu gross'
+  if (wert === undefined || wert === null) {
+    return <td className={klasse} title={`${was} ist für ${zeile.sorte} noch nicht gemessen — unbekannt, nicht null`}>—</td>
+  }
   return (
-    <span className="wochenfeld">
-      <label htmlFor={id}>in</label>
-      <input id={id} type="number" inputMode="numeric" min={0} max={WOCHEN_MAX} step={1}
-             value={text} aria-invalid={!gueltig} onChange={e => setText(e.target.value)} />
-      <span>Wochen{wochen === 0 ? <span className="leise"> · heute</span> : stichtag ? <span className="leise"> · {datum(stichtag).slice(0, 6)}</span> : null}</span>
-    </span>
+    <td className={klasse} title={idx === UNTER
+      ? `zu klein für das kleinste Band — geht an die Tiere (gemessener Anteil der Sorte)`
+      : `zu gross für das grösste Band — anderer Kanal (gemessener Anteil der Sorte)`}>
+      {masse(wert)}
+    </td>
   )
+}
+
+/** Die Summe einer Nebenspalte — ein Strich, sobald eine Zeile unbekannt ist. */
+function nebenSumme(zeilen: Bandzeile[], idx: number): string {
+  let s = 0
+  for (const z of zeilen) {
+    const w = z.kg.get(idx)
+    if (w === undefined || w === null) return '—'
+    s += w
+  }
+  return masse(s)
 }
 
 /* ---------- L4: Wie schwer sind die Kürbisse? -------------------------------- */
@@ -496,8 +517,12 @@ function Glockenkarte({ daten, filter, wochen, setzeWochen }: {
   const grenzen = [...new Map(bandzeilenH.filter(z => z.band_von !== null)
     .map(z => [z.band_von!, { x: z.band_von!, text: `K${(z.kaliber_idx ?? 0) + 1}` }])).values()].sort((a, b) => a.x - b.x)
   const unterstes = grenzen[0]?.x ?? null
-  const anteile = bandzeilenH.filter(z => z.kaliber_idx !== null && (z.anteil ?? 0) > 0.001)
+  const anteile = bandzeilenH.filter(z => z.klasse === 'kaliber' && z.kaliber_idx !== null && (z.anteil ?? 0) > 0.001)
     .sort((a, b) => (a.kaliber_idx ?? 0) - (b.kaliber_idx ?? 0))
+  // Runde AO: was unter das kleinste Band geschrumpft ist, zählt dort mit — als Anteil gesagt.
+  const ersteZeile = bandzeilenH[0]
+  const darunter = ersteZeile && ersteZeile.geschrumpft_kg !== null && ersteZeile.verkaufsfaehig_kg > 0
+    ? ersteZeile.geschrumpft_kg / ersteZeile.verkaufsfaehig_kg : null
 
   return (
     <Karte id="lager-glocke" titel="Wie schwer sind die Kürbisse?"
@@ -521,21 +546,24 @@ function Glockenkarte({ daten, filter, wochen, setzeWochen }: {
         <>
           <Glocke stufen={stufen} breite={STUFE_G} grenzen={grenzen} hoehe={200}
                   xFormat={x => `${x}`} mittel={mittel}
-                  klassenfarbe={x => unterstes !== null && x + STUFE_G <= unterstes ? 'var(--gelb)' : 'var(--kuerbis)'} />
+                  klassenfarbe={x => unterstes !== null && x + STUFE_G <= unterstes ? 'var(--text-leise)' : 'var(--kuerbis)'} />
           <p className="leise">
             {zahl(gesamt)} gewogen{wann === 'heute' || wochen === 0
               ? <Herkunft art="gemessen" text="die Gewichte aus der Sortier-CSV" />
               : <Herkunft art="gerechnet" text="dieselben Kürbisse, um die Verdunstung bis zum Stichtag leichter" />}
             {' · '}{basis === 'charge' ? 'eigene Messung' : basis === 'sorte' ? 'aus der Sorte' : 'gemischt'}
             {mittel !== null && <> · Schwerpunkt {Math.round(mittel)} g</>}
-            {anteile.map(z => <span key={z.kaliber_idx}> · {z.kaliber_idx === -1 ? 'unter Kaliber' : `K${(z.kaliber_idx ?? 0) + 1}`} {prozent(z.anteil, 0)}</span>)}
+            {anteile.map(z => <span key={z.kaliber_idx}> · K{(z.kaliber_idx ?? 0) + 1} {prozent(z.anteil, 0)}</span>)}
+            {darunter !== null && darunter >= 0.005 && unterstes !== null &&
+              <span> · {prozent(darunter, 0)} inzwischen unter {unterstes} g (grau, zählen in K1)</span>}
           </p>
         </>
       )}
       <Erklaerung titel="Was die Glocke sagt">
         Dieselben Kürbisse wie in der Tabelle darüber, nur in 50-Gramm-Stufen statt in Bändern — und am selben Stichtag.
         Bezahlt wird je Stück innerhalb eines Kalibers: Wer weiss, wo eine Sorte liegt, kann ein engeres Band liefern.
-        Mit der Lagerdauer wandert die Glocke nach links; was unter das kleinste Band fällt, steht in der Tabelle als „unter Kaliber".
+        Mit der Lagerdauer wandert die Glocke nach links; was unter das kleinste Band fällt, ist grau — in der Tabelle zählt es
+        weiter im kleinsten Band, denn ein sortierter Kürbis bleibt in seiner Kiste.
       </Erklaerung>
     </Karte>
   )

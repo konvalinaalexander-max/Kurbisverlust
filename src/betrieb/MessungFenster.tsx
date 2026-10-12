@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { ZKreuz } from '../components/Zeichen'
 import { ChargeFenster } from './ChargeFenster'
+import { MessungKasten } from './ArbeitFenster'
 
-/** Was ein Punkt im Diagramm über seine Messung weiss — Zeile für Zeile. */
-export interface PunktInfo { titel: string; name: string; zeilen: string[]; chargeNr?: number }
+/** Was ein Punkt im Diagramm über seine Messung weiss — Zeile für Zeile, und seine Kernzahl. */
+export interface PunktInfo { titel: string; name: string; zeilen: string[]; chargeNr?: number; kern?: { wert: string; unter?: string } }
 
 /**
  * Die Messung hinter einem Punkt, der zu keiner Arbeit gehört (Runde Z) —
@@ -31,10 +32,8 @@ export function MessungFenster({ info, schliessen }: { info: PunktInfo; schliess
           </div>
           <button type="button" className="klein schliessen" onClick={schliessen} aria-label="schliessen"><ZKreuz size={16} /></button>
         </div>
-        <section className="fenster-abschnitt messung-voran">
-          <ul className="liste-schlicht">{info.zeilen.map((z, i) => <li key={i}>{z}</li>)}</ul>
-          <p className="leise" style={{ margin: '.5rem 0 0' }}>Diese Messung gehört zu keiner Arbeit — eine Kontrollwägung im Lager.</p>
-        </section>
+        <MessungKasten messung={{ titel: 'Die Messung', name: info.name, zeilen: info.zeilen, kern: info.kern }}
+                       fuss={<p className="leise" style={{ margin: '.5rem 0 0' }}>Diese Messung gehört zu keiner Arbeit — eine Kontrollwägung im Lager.</p>} />
         {info.chargeNr != null && (
           <div className="knopf-reihe" style={{ marginTop: 'var(--a-4)' }}>
             <button type="button" className="knopf" onClick={() => setCharge(info.chargeNr!)}>Charge {info.chargeNr} ansehen</button>

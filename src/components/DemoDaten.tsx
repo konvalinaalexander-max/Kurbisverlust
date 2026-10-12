@@ -48,6 +48,12 @@ export default function DemoDaten({ kompakt = false, nachAenderung }: {
     const { data, error } = await supabase.rpc(
       was === 'entfernen' ? 'demo_daten_entfernen' : 'demo_daten_laden')
     if (error) { setLaeuft(null); setFehler(fehlerText(error)); await stand(); return }
+    // 0112: dazu die Labels und zwei Vorjahre für „Lagermanagement nach Artikel" — ein
+    // eigener Aufruf, damit demo_daten_laden() nicht neu geschrieben werden muss.
+    if (was !== 'entfernen') {
+      const vorjahre = await supabase.rpc('demo_vorjahre_laden')
+      if (vorjahre.error) { setLaeuft(null); setFehler(fehlerText(vorjahre.error)); await stand(); return }
+    }
     // Die Auswertung rechnet die Funktion nicht selbst — ein API-Aufruf hat bei
     // Supabase acht Sekunden, und das Rechnen ist der teuerste Teil. Darum
     // hier als eigener Aufruf, sonst stünde die Auswertung als veraltet da.

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { chargeText, fehlerText } from '../lib/db'
@@ -11,8 +11,32 @@ import { arbeitLaden, uhrzeit, type ArbeitDaten } from '../arbeit/daten'
 import type { Rueckmeldung } from '../lib/typen'
 import { ChargeFenster } from './ChargeFenster'
 
-/** Runde Z: die Messung, von der aus das Fenster geöffnet wurde — steht voran. */
-export interface Messung { titel: string; name: string; zeilen: string[] }
+/** Runde Z: die Messung, von der aus das Fenster geöffnet wurde — steht voran.
+ *  Runde AO: mit ihrer Kernzahl gross obenan, der Rest als ruhige Merkmale darunter. */
+export interface Messung { titel: string; name: string; zeilen: string[]; kern?: { wert: string; unter?: string } }
+
+/** Der Kasten „diese Messung" — im Arbeits- und im Messungsfenster gleich. */
+export function MessungKasten({ messung, id, fuss }: { messung: Messung; id?: string; fuss?: ReactNode }) {
+  // Was in der Kernzahl steht, steht nicht noch einmal in den Merkmalen; ein
+  // Kommentar aus der Halle bekommt seine eigene Zeile.
+  const kommentar = messung.zeilen.find(z => z.startsWith('Kommentar: '))
+  const merkmale = messung.zeilen.filter(z => z !== messung.kern?.unter && z !== kommentar)
+  return (
+    <section className="fenster-abschnitt messung-voran" id={id}>
+      <h3>{messung.titel}</h3>
+      {messung.kern && (
+        <div className="kern">
+          <span className="kern-wert">{messung.kern.wert}</span>
+          {messung.kern.unter && <span className="kern-unter">{messung.kern.unter}</span>}
+        </div>
+      )}
+      <p className="kern-name">{messung.name}</p>
+      {merkmale.length > 0 && <ul className="merkmale">{merkmale.map((z, i) => <li key={i}>{z}</li>)}</ul>}
+      {kommentar && <p className="kern-kommentar">„{kommentar.slice('Kommentar: '.length)}"</p>}
+      {fuss}
+    </section>
+  )
+}
 
 interface Wiegung {
   id: number; wiege_ts: string; eingangsdatum: string; brutto_damals_kg: number; brutto_jetzt_kg: number
@@ -112,13 +136,7 @@ export function ArbeitFenster({ auftragId, schliessen, messung }: { auftragId: n
               <button type="button" className="klein schliessen" onClick={schliessen} aria-label="schliessen"><ZKreuz size={16} /></button>
             </div>
 
-            {messung && (
-              <section className="fenster-abschnitt messung-voran" id="fenster-messung">
-                <h3>{messung.titel}</h3>
-                <p style={{ margin: '0 0 .3rem', fontWeight: 600 }}>{messung.name}</p>
-                <ul className="liste-schlicht">{messung.zeilen.map((z, i) => <li key={i}>{z}</li>)}</ul>
-              </section>
-            )}
+            {messung && <MessungKasten messung={messung} id="fenster-messung" />}
 
             {d.ablesungen.length > 0 && (
               <section className="fenster-abschnitt">

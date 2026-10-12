@@ -13,6 +13,8 @@ export interface Charge {
   nr: number; schlag: string; sorte: string; saison: number
   /** Dieselbe Ware im Perigon der Firma AG (sechsstellig, 0051). Nicht eindeutig. */
   perigon_nr: number | null
+  /** 0112: Demeter (D) oder Knospe (K) — leer, solange es niemand sagt (dann gilt das Label aus Perigon). */
+  label?: 'D' | 'K' | null
 }
 export interface SorteKaliber {
   sorte: string; verlust_unter: number; kaliber_baender: [number, number][]; kanal_ab: number

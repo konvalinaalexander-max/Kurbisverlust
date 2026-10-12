@@ -53,9 +53,12 @@ const PUNKTE = [
       await sichtbar(p, 'nav a:has-text("Lagermanagement")', 'Reiter Lagermanagement')
       if (await p.locator('nav a:has-text("Überblick")').count()) throw new Error('„Überblick" ist noch ein Reiter')
     } },
-  { id: 'N-02', wo: 'lager', nur: 'gesamt', satz: 'Fünf Reiter: Lagermanagement, Ursachen, Chargen, Messungen, Betrieb',
+  // Runde AO: Die Regel hat sich geändert, die Prüfung mit ihr — sechs
+  // Reiter statt fünf. Das Lager steht zweimal („den oberen nennen
+  // Lagermanagement nach Charge, den unteren Lagermanagement nach Artikel").
+  { id: 'N-02', wo: 'lager', nur: 'gesamt', satz: 'Sechs Reiter: Lagermanagement nach Charge und nach Artikel, Chargen, Ursachen, Messungen, Betrieb',
     pruefe: async p => {
-      for (const r of ['Lagermanagement', 'Ursachen', 'Chargen', 'Messungen', 'Betrieb']) await sichtbar(p, `nav a:has-text("${r}")`, `Reiter ${r}`)
+      for (const r of ['nach Charge', 'nach Artikel', 'Ursachen', 'Chargen', 'Messungen', 'Betrieb']) await sichtbar(p, `nav a:has-text("${r}")`, `Reiter ${r}`)
     } },
 
   // ---- Lagermanagement ------------------------------------------------------

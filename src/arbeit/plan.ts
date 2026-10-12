@@ -72,10 +72,17 @@ export function arbeitsplan(station: Station, istFax: boolean, rechenbar: boolea
       mitZettel: false,
     }
   }
+  // Runde AO: Das Sortierdatum auf dem Zettel fällt weg — seit 0104 wird
+  // beim Waschen jede Palette gewogen, die Menge hängt nicht mehr am Datum
+  // („muss eigentlich das Sortierdatum ja nicht mehr drauf sein"). Dafür
+  // steht das Leeren des Palox im Plan: ein geleerter Palox ohne die zwei
+  // Ablesungen ist Faules, das niemand mehr kennt (Auffälligkeit „Palox
+  // geleert", 1650).
+  const leeren: PlanPunkt = { text: 'planPaloxLeeren' }
   if (station === 'sortieren') {
     return {
       vorher: [{ text: 'planPaloxStart' }],
-      waehrend: [{ text: 'planZaehlenEingang' }, { text: 'planSortierdatum' }],
+      waehrend: [{ text: 'planZaehlenEingang' }, leeren],
       nachher: [{ text: 'planPaloxEnde' }, frage],
       mitZettel: true,
     }
@@ -83,7 +90,7 @@ export function arbeitsplan(station: Station, istFax: boolean, rechenbar: boolea
   if (station === 'waschen') {
     return {
       vorher: [{ text: 'planPaloxStart', freiwillig: true }],
-      waehrend: [{ text: 'planWaschWiegen' }, { text: 'planZaehlenWasch' }],   // 0104: erst wiegen, dann zählen
+      waehrend: [{ text: 'planWaschWiegen' }, { text: 'planZaehlenWasch' }, { ...leeren, freiwillig: true }],   // 0104: erst wiegen, dann zählen
       nachher: [...fertige, { text: 'planPaloxEnde', freiwillig: true }, frage],
       mitZettel: true,
     }
@@ -91,7 +98,7 @@ export function arbeitsplan(station: Station, istFax: boolean, rechenbar: boolea
   // waschen_sortieren
   return {
     vorher: [{ text: 'planPaloxStart' }],
-    waehrend: [{ text: 'planZaehlenEingang' }, { text: 'planDreiWiegen' }],
+    waehrend: [{ text: 'planZaehlenEingang' }, { text: 'planDreiWiegen' }, leeren],
     nachher: [{ text: 'planPaloxEnde' }, { text: 'planAusschuss' }, ...fertige, frage],
     mitZettel: true,
   }

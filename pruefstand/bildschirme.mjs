@@ -287,7 +287,7 @@ const BILDSCHIRME = [
   { name: 'ursachen-punkt', wer: 'admin', pfad: '/ursachen',
     tun: async p => {
       await p.locator('#urs-palox circle.marker[data-auftrag]').first().click({ force: true })
-      await p.locator('#fenster-messung', { hasText: 'Faules am Palox' }).waitFor()
+      await p.locator('#fenster-messung .kern-wert', { hasText: 'in den Palox' }).waitFor()
     } },
   { name: 'ursachen-messung-ohne-arbeit', wer: 'admin', pfad: '/ursachen',
     tun: async p => {
@@ -303,23 +303,35 @@ const BILDSCHIRME = [
       await p.locator('#charge-fenster h2', { hasText: 'Charge' }).waitFor()
       await p.locator('#charge-fenster table').first().waitFor()
     } },
+  // Runde AO: die Gegenprobe der Verdunstung aus den Sortierdateien derselben Charge (v_lauf_vergleich).
+  { name: 'ursachen-laeufe', wer: 'admin', pfad: '/ursachen',
+    tun: async p => {
+      await p.getByText('Gegenprobe: Sortierdateien derselben Charge').click()
+      await p.locator('#urs-verdunstung details[open] table').waitFor()
+    } },
   { name: 'chargen', wer: 'admin', pfad: '/chargen' },
   { name: 'chargen-offen', wer: 'admin', pfad: '/chargen',
     tun: async p => { await p.locator('tbody tr').first().click() } },
+  // Runde AO: Messungen mit vier Reitern — Arbeiten (vorher unter Betrieb),
+  // Auffälligkeiten, Messwerte, Ausstehend (vorher ein eigener Reiter).
   { name: 'messungen', wer: 'admin', pfad: '/messungen' },
+  { name: 'messungen-auffaelligkeiten', wer: 'admin', pfad: '/messungen/auffaelligkeiten' },
+  { name: 'messungen-messwerte', wer: 'admin', pfad: '/messungen/messwerte' },
   // Runde X: jede Auffälligkeit nennt ihre Arbeit und öffnet sie als Fenster.
-  { name: 'messungen-arbeit', wer: 'admin', pfad: '/messungen',
+  { name: 'messungen-arbeit', wer: 'admin', pfad: '/messungen/auffaelligkeiten',
     tun: async p => { await p.getByRole('button', { name: 'Arbeit ansehen' }).first().click(); await p.locator('#arbeit-fenster h2').waitFor() } },
   // Runde Z: von der Auffälligkeit zur Charge.
-  { name: 'messungen-charge', wer: 'admin', pfad: '/messungen',
+  { name: 'messungen-charge', wer: 'admin', pfad: '/messungen/auffaelligkeiten',
     tun: async p => { await p.locator('.befund-kopf .charge-knopf').first().click(); await p.locator('#charge-fenster h2').waitFor() } },
-  { name: 'betrieb-arbeiten', wer: 'admin', pfad: '/betrieb/arbeiten' },
-  // Runde AF: der sechste Reiter — je Sorte, welche Messung fehlt.
-  { name: 'ausstehend', wer: 'admin', pfad: '/ausstehend' },
+  { name: 'messungen-arbeiten', wer: 'admin', pfad: '/messungen/arbeiten' },
+  // Runde AF: je Sorte, welche Messung fehlt — seit Runde AO der vierte Reiter unter Messungen.
+  { name: 'ausstehend', wer: 'admin', pfad: '/messungen/ausstehend' },
+  // Runde AO (0112): das Lager nach Artikel, und je Kunde die Saison gegen die Vorjahre.
+  { name: 'artikel', wer: 'admin', pfad: '/artikel' },
   // Runde Z (0094): der Betriebsleiter kürzt einen ungelesenen Kommentar zur
   // Ware — erst damit steht er im Dashboard. Die Demo hat genau einen offenen;
   // seine Arbeit liegt Monate zurück, also „Ältere zeigen", bis sie da ist.
-  { name: 'betrieb-kurzfassung', wer: 'admin', pfad: '/betrieb/arbeiten',
+  { name: 'betrieb-kurzfassung', wer: 'admin', pfad: '/messungen/arbeiten',
     tun: async p => {
       const rm = (fixture('auftrag_rueckmeldung') ?? []).find(r => r.art === 'ware' && !r.kurz)
       if (!rm) throw new Error('auftrag_rueckmeldung.json kennt keinen ungelesenen Kommentar — daten_dumpen.sh nach 0094 neu laufen lassen')
@@ -338,7 +350,7 @@ const BILDSCHIRME = [
       await p.locator(`.kurz-block[data-stand="gekuerzt"]`, { hasText: 'Kleine Ware' }).waitFor()
     } },
   // Runde W: der Löschmodus — Kreise an den Zeilen, dann die Rückfrage.
-  { name: 'betrieb-arbeiten-loeschen', wer: 'admin', pfad: '/betrieb/arbeiten',
+  { name: 'betrieb-arbeiten-loeschen', wer: 'admin', pfad: '/messungen/arbeiten',
     tun: async p => {
       await p.locator('#arbeiten-loeschen').click()
       await p.locator('.wahlkreis').first().click()
@@ -371,6 +383,9 @@ const BILDSCHIRME = [
     } },
   { name: 'betrieb-schemata', wer: 'admin', pfad: '/betrieb/stammdaten',
     tun: async p => { await p.getByRole('link', { name: 'Sortierschemata' }).click() } },
+  // Runde AO (0112): welche Sorte als welcher Artikel geht, und was gross und klein heisst.
+  { name: 'betrieb-artikel', wer: 'admin', pfad: '/betrieb/stammdaten',
+    tun: async p => { await p.getByRole('link', { name: 'Sorten und Artikel' }).click() } },
   { name: 'betrieb-zugang', wer: 'admin', pfad: '/betrieb/zugang' },
 ]
 

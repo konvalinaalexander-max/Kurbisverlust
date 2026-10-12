@@ -228,6 +228,27 @@ export interface LagerKaliber {
   geschrumpft_kg: number | null
 }
 
+/**
+ * Das Verkaufsfähige je Artikel (artikel_lager(h), 0112): dieselbe Masse wie
+ * lager_kaliber(h), nach den Kalibern des Artikels geteilt (klein, gross,
+ * stueck); 'darunter'/'darueber' passen in kein Artikelkaliber, 'lose' heisst
+ * die Gruppe hat keine Kaliber, 'ohne Verteilung' keine Sortier-CSV.
+ */
+export interface ArtikelLager {
+  artikelgruppe: string | null; label: 'D' | 'K' | null; groesse: string
+  von_g: number | null; bis_g: number | null; stueck_je_kiste: number | null
+  kg: number; stueck: number | null; kisten: number | null; g_mittel: number | null
+  n_chargen: number; chargen: number[]; h: number; datum: string
+}
+/** Demeter oder Knospe je Charge (v_charge_label, 0112) — und woher. */
+export interface ChargeLabel { charge_nr: number; label: 'D' | 'K' | null; quelle: string | null; gemischt: boolean; n_d: number; n_k: number }
+/** Die Artikelgruppe je Sorte (v_sorte_artikelgruppe, 0112) — und woher. */
+export interface SorteGruppe { sorte: string; artikelgruppe: string | null; quelle: string | null; gruppe_verkauft: string | null }
+/** Was gross und klein je Artikelgruppe heisst (artikel_kaliber, 0112). */
+export interface ArtikelKaliber { gruppe: string; groesse: string; von_g: number; bis_g: number; stueck_je_kiste: number | null; bemerkung: string | null }
+/** Geliefert je Kunde, Saison, Tag und Artikel (v_kunde_tag, 0112). */
+export interface KundeTag { kunde: string; saison: number; datum: string; gruppe: string | null; groesse: string; label: string | null; kg: number; positionen: number }
+
 /** Dieselben Kürbisse in 50-Gramm-Stufen (kaliber_glocke(h), 0079). */
 export interface KaliberGlocke {
   gruppe: 'charge' | 'sorte'; schluessel: string; sorte: string; h: number; datum: string
@@ -684,7 +705,7 @@ export function fehlendeRaten(p: Pick<Prognose, 'r_bekannt' | 'f_bekannt' | 'kan
   if (!p) return []
   const f: string[] = []
   if (!p.r_bekannt) f.push('Verdunstung')
-  if (!p.f_bekannt) f.push('Faules im Lager')
+  if (!p.f_bekannt) f.push('Palox')
   if (!p.kanal_bekannt) f.push('zu klein / zu gross')
   if (!p.fax_bekannt) f.push('Faules beim Abpacken (Fax)')
   return f
@@ -694,7 +715,7 @@ export function auswertungLaden(erzwingen = false): Promise<Auswertung> {
   if (stand && !erzwingen) return Promise.resolve(stand)
   if (!ladeVersprechen || erzwingen) {
     // Wird neu gerechnet, sind auch die geholten Stichtage von gestern.
-    if (erzwingen) { kaliberJeStichtag.clear(); glockeJeStichtag.clear() }
+    if (erzwingen) { kaliberJeStichtag.clear(); glockeJeStichtag.clear(); artikelJeStichtag.clear() }
     const v: Promise<Auswertung> = alles(erzwingen)
       .then(a => { stand = a; ladeVersprechen = null; hoerer.forEach(h => h()); return a })
       .catch((f: unknown) => { ladeVersprechen = null; melden(null); throw f })
@@ -740,6 +761,7 @@ export async function hochrechnungLaden(): Promise<Hochrechnung[]> {
  */
 const kaliberJeStichtag = new Map<number, LagerKaliber[]>()
 const glockeJeStichtag = new Map<number, KaliberGlocke[]>()
+const artikelJeStichtag = new Map<number, ArtikelLager[]>()
 
 async function rpcStichtag<T>(fn: string, h: number, halde: Map<number, T[]>): Promise<T[]> {
   const da = halde.get(h)
@@ -753,6 +775,58 @@ async function rpcStichtag<T>(fn: string, h: number, halde: Map<number, T[]>): P
 
 export const lagerKaliberBei = (h: number) => rpcStichtag<LagerKaliber>('lager_kaliber', h, kaliberJeStichtag)
 export const kaliberGlockeBei = (h: number) => rpcStichtag<KaliberGlocke>('kaliber_glocke', h, glockeJeStichtag)
+export const artikelLagerBei = (h: number) => rpcStichtag<ArtikelLager>('artikel_lager', h, artikelJeStichtag)
+
+/** Ein Sortierlauf neben den anderen Läufen derselben Charge (v_lauf_vergleich, 0111, AB-113). */
+export interface LaufVergleich {
+  charge_nr: number; sorte: string; lauf_id: number; datei_name: string | null
+  sortiertag: string; n_laeufe: number; n_kuerbis: number
+  mittel_g: number | null; median_g: number | null; q1_g: number | null; q3_g: number | null
+  tage_seit_erstem: number; rate_median: number | null; rate_wiegungen: number | null
+}
+
+/**
+ * Die Sortierläufe der Chargen, die mehr als einmal sortiert wurden — die
+ * Gegenprobe der Verdunstung aus den Sortierdateien (Runde AO: „anhand des
+ * sortiert CSVs könnte man eigentlich auch die Verdunstung berechnen").
+ * Beobachtet, nicht Teil der Rate: Es sind nicht dieselben Kürbisse.
+ */
+export async function laufVergleich(): Promise<LaufVergleich[]> {
+  const { data, error } = await supabase.from('v_lauf_vergleich').select('*').gte('n_laeufe', 2)
+    .order('charge_nr').order('sortiertag')
+  if (error) throw new Error(error.message)
+  const zahl = (v: unknown) => (v === null || v === undefined ? null : Number(v))
+  return ((data ?? []) as Record<string, unknown>[]).map(z => ({
+    charge_nr: Number(z.charge_nr), sorte: String(z.sorte), lauf_id: Number(z.lauf_id),
+    datei_name: (z.datei_name as string | null) ?? null, sortiertag: String(z.sortiertag),
+    n_laeufe: Number(z.n_laeufe), n_kuerbis: Number(z.n_kuerbis),
+    mittel_g: zahl(z.mittel_g), median_g: zahl(z.median_g), q1_g: zahl(z.q1_g), q3_g: zahl(z.q3_g),
+    tage_seit_erstem: Number(z.tage_seit_erstem), rate_median: zahl(z.rate_median), rate_wiegungen: zahl(z.rate_wiegungen),
+  }))
+}
+
+/**
+ * Was „Lagermanagement nach Artikel" ausser der Auswertung braucht (0112): Label je
+ * Charge, Gruppe je Sorte, die Artikelkaliber und die Lieferungen je Kunde
+ * aller Saisons. Klein bis auf die Kundentage — die kommen seitenweise.
+ */
+export async function artikelGrundlagen(): Promise<{ labels: ChargeLabel[]; gruppen: SorteGruppe[]; kaliber: ArtikelKaliber[]; kunden: KundeTag[] }> {
+  const [l, g, k] = await Promise.all([
+    supabase.from('v_charge_label').select('charge_nr, label, quelle, gemischt, n_d, n_k'),
+    supabase.from('v_sorte_artikelgruppe').select('*'),
+    supabase.from('artikel_kaliber').select('gruppe, groesse, von_g, bis_g, stueck_je_kiste, bemerkung'),
+  ])
+  for (const r of [l, g, k]) if (r.error) throw new Error(r.error.message)
+  const kunden: KundeTag[] = []
+  for (let von = 0; ; von += SEITE) {
+    const r = await supabase.from('v_kunde_tag').select('*').order('datum').range(von, von + SEITE - 1)
+    if (r.error) throw new Error(r.error.message)
+    const teil = (r.data ?? []) as KundeTag[]
+    kunden.push(...teil)
+    if (teil.length < SEITE) break
+  }
+  return { labels: (l.data ?? []) as ChargeLabel[], gruppen: (g.data ?? []) as SorteGruppe[], kaliber: (k.data ?? []) as ArtikelKaliber[], kunden }
+}
 
 /**
  * Den gemerkten Stand vergessen (0080).
@@ -770,6 +844,7 @@ export function auswertungVergessen() {
   ladeVersprechen = null
   kaliberJeStichtag.clear()
   glockeJeStichtag.clear()
+  artikelJeStichtag.clear()
 }
 
 /**
@@ -929,7 +1004,8 @@ export const STROMFARBE: Record<string, string> = {
 /** Kurze Namen für Beschriftungen — die Ströme heissen im Modell länger. */
 export const STROMKURZ: Record<string, string> = {
   'Verdunstung': 'Verdunstung',
-  'Schimmel/Fäulnis': 'Faules im Lager',
+  // Runde AO: der Palox ist vor allem Aussortieren (Hagel, Stiele), dazu das Faule.
+  'Schimmel/Fäulnis': 'Palox',
   'Nicht lagerbedingt': 'Faules vom Feld',
   'Zu klein (Tierfutter)': 'zu klein',
   'Nebenkanal zu gross': 'zu gross',

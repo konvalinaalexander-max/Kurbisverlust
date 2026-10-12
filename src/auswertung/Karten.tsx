@@ -210,8 +210,8 @@ export function Bilanz({ bilanz }: { bilanz: Saisonbilanz }) {
           verlust_bekannt es — und die Karte zeigt keine Teilsumme als Ganzes. */}
       <Bilanzzeile titel="Verlust bis heute" herkunft="gerechnet" kg={bilanz.verlust_bekannt ? bilanz.verlust_heute_kg : null} eingang={bilanz.eingang_kg} farbe="var(--strom-schimmel)"
                    erklaerung={bilanz.verlust_bekannt
-                     ? `Verdunstung ${tonnen(bilanz.verdunstung_heute_kg)} · Faules im Lager ${tonnen(bilanz.schimmel_heute_kg)} · Faules beim Abpacken ${tonnen(bilanz.fax_heute_kg)}`
-                     : `nicht für jede Charge bekannt — ein Koeffizient ohne Messung (welche Charge: Reiter Chargen; was zu messen ist: Messungen ausstehend). Nur die Chargen mit Wert: Verdunstung ${tonnen(bilanz.verdunstung_heute_kg)} · Faules im Lager ${tonnen(bilanz.schimmel_heute_kg)} · Faules beim Abpacken ${tonnen(bilanz.fax_heute_kg)}`} />
+                     ? `Verdunstung ${tonnen(bilanz.verdunstung_heute_kg)} · Palox ${tonnen(bilanz.schimmel_heute_kg)} · Faules beim Abpacken ${tonnen(bilanz.fax_heute_kg)}`
+                     : `nicht für jede Charge bekannt — ein Koeffizient ohne Messung (welche Charge: Reiter Chargen; was zu messen ist: Messungen ausstehend). Nur die Chargen mit Wert: Verdunstung ${tonnen(bilanz.verdunstung_heute_kg)} · Palox ${tonnen(bilanz.schimmel_heute_kg)} · Faules beim Abpacken ${tonnen(bilanz.fax_heute_kg)}`} />
       <Bilanzzeile titel="Noch im Haus" herkunft="gerechnet" kg={bilanz.im_haus_heute_kg} eingang={bilanz.eingang_kg} farbe="var(--strom-verdunstung)"
                    erklaerung={`davon verkaufsfähig ${tonnen(bilanz.verkaufsfaehig_heute_kg)} · zu klein oder zu gross ${tonnen(kanalImHaus)}${kanalImHaus !== null ? ` (${tonnen(bilanz.kanal_ausgelagert_kg)} beim Sortieren hinter den Lieferungen aussortiert, ${tonnen(bilanz.kanal_im_haus_kg)} im Liegenden erwartet) — steht im Haus, bis ein Lieferschein es holt` : ''}`} />
       {bilanz.ueberzaehlung_kg > 0 && (
@@ -287,7 +287,7 @@ export function Auffaelligkeiten({ befunde, kurz = false }: { befunde: Befund[];
   return (
     <Karte titel={`Auffälligkeiten (${befunde.length})`}
            unter="Diese Werte fliessen nicht in die Rechnung ein — fast immer ist ein Tippfehler zu korrigieren oder etwas nachzutragen."
-           aktion={kurz && befunde.length > 3 ? <Link to="/messungen" className="knopf klein">alle {befunde.length} ansehen</Link> : undefined}>
+           aktion={kurz && befunde.length > 3 ? <Link to="/messungen/auffaelligkeiten" className="knopf klein">alle {befunde.length} ansehen</Link> : undefined}>
       <div className="befunde">
         {liste.map((b, i) => (
           <div key={i} className={`befund ${befundTon(b.art)}`}>

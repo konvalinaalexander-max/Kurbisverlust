@@ -177,6 +177,14 @@ const ARBEITER = '22222222-2222-2222-2222-222222222222'
 // die Erlaubnis für Unbeteiligte ohne Rolle prüft pruefung.sql (0097 f).
 eingefuegt['profil'] = [{ id: ARBEITER, name: 'Tomasz', rolle: 'arbeiter', aktiv: true, anonym: true,
                           darf_abbrechen: true, erstellt_ts: '2026-09-01T08:00:00Z' }]
+// Runde AO: der Wareneingang, gegen den die Maske den Zettel prüft — dieselben
+// zwölf Paletten wie in kette_pruefen.sh (1613, 1.–4.9., je 950 kg), dazu eine
+// der Nachbarcharge 1614 am 1.9. mit 960 kg: der Fall 1626/1623 aus dem Betrieb.
+eingefuegt['palette'] = [
+  ...Array.from({ length: 12 }, (_, i) => ({ id: 80001 + i, charge_nr: 1613, eingangsdatum: `2026-09-0${1 + ((i + 1) % 4)}`,
+                                            brutto_kg: 950, kisten: 40, gebindeart: 'G2', extern_id: `kette-${i + 1}` })),
+  { id: 80013, charge_nr: 1614, eingangsdatum: '2026-09-01', brutto_kg: 960, kisten: 40, gebindeart: 'G2', extern_id: 'kette-fremd' },
+]
 const jwt = (id, name) => {
   const teil = o => Buffer.from(JSON.stringify(o)).toString('base64url')
   return `${teil({ alg: 'none' })}.${teil({ sub: id, role: 'authenticated',
@@ -291,6 +299,11 @@ await schritt('Nach dem Start steht der Palox als erstes — und ohne Ablesung g
   await warteAuf('schimmel_messung')
   await seite.locator('#check-abschluss').waitFor()
   await seite.locator('#check-ausschuss').waitFor()      // zu klein / zu gross am Ende, je Palette (0061)
+  // Runde AO: „dass jede Person … noch dreimal die Infos kriegt" — der gelbe
+  // Kasten steht, sobald der Palox abgelesen ist, und zählt mit.
+  await seite.locator('#palox-erinnerung', { hasText: '1/3' }).waitFor()
+  await seite.locator('#palox-erinnerung-ok').click()
+  if (await seite.locator('#palox-erinnerung').count() > 0) throw new Error('Nach „Verstanden" muss der Palox-Hinweis in dieser Arbeit weg sein')
 })
 
 await schritt('Palox mittendrin leeren (0084): vorher 265 (→ 100 kg), leeren, leere Box 165 → neuer Anfang; die Menge bleibt bekannt', async () => {
@@ -335,10 +348,27 @@ await schritt('AB-02: ohne die zweite Ablesung kommt der Abschluss nicht an der 
   await seite.locator('#check-abschluss').waitFor()
 })
 
-await schritt('Zähler: zwei Paletten mit Datum und Gewicht vom Zettel (950 kg), „+" zählt sofort', async () => {
+await schritt('Zähler: zwei Paletten mit Datum und Gewicht vom Zettel (950 kg), „+" zählt sofort — und der Zettel wird gegen den Wareneingang geprüft', async () => {
   await seite.locator('#check-zaehlen').click()
   await seite.locator('#zettel').fill('2026-09-01')
   if (!(await seite.locator('#zaehlen-plus').isDisabled())) throw new Error('Ohne Gewicht vom Zettel darf „+" nicht gehen (0060)')
+  // Runde AO: Die Nachbarcharge hat am 1.9. eine Palette mit 960 kg — die
+  // Maske sagt es, solange die Palette noch vor einem steht, und hält nicht auf.
+  await seite.locator('#zettel-brutto').fill('960')
+  await seite.locator('#zettel-pruefung', { hasText: /gehört diese Palette zu Charge 1614/ }).waitFor()
+  if (await seite.locator('#zaehlen-plus').isDisabled()) throw new Error('Die Zettel-Prüfung ist ein Hinweis, kein Tor')
+  // Datum und Gewicht passen, die Kisten nicht: im Wareneingang hat die
+  // Palette 40 Kisten, die Maske steht auf der Vorbelegung 36 — das Muster
+  // hinter 11 von 16 solchen Zetteln im Betrieb. „Übernehmen" setzt 40; der
+  // Prüfstand stellt danach 36 zurück und zählt wie bisher (Teilpalette).
+  await seite.locator('#zettel-brutto').fill('950')
+  await seite.locator('#zettel-pruefung', { hasText: /hat diese Palette 40 Kisten, hier stehen 36/ }).waitFor()
+  await seite.locator('#zettel-kisten-uebernehmen').click()
+  if (await seite.locator('#kisten-palette').inputValue() !== '40') throw new Error('„40 Kisten übernehmen" muss die Kisten auf 40 setzen')
+  await seite.locator('#zettel-pruefung', { hasText: 'Steht so im Wareneingang' }).waitFor()
+  await seite.locator('#kisten-palette').fill('36')
+  // Der Palox lässt sich auch aus dem Zähler heraus leeren, nicht nur aus der Checkliste
+  await seite.locator('#zaehler-palox-leeren').waitFor()
   for (let i = 0; i < 2; i++) {
     await seite.locator('#zettel-brutto').fill('950')
     await seite.locator('#zaehlen-plus').click()
@@ -481,7 +511,10 @@ await schritt('Assistent: Sortieren, Charge 1613 eingetippt, Bänder angepasst (
   await seite.goto('http://localhost:5198/', { waitUntil: 'networkidle' })
   await seite.getByRole('button', { name: /Neue Arbeit/ }).click()
   await seite.locator('#taet-sortieren').click()
-  await seite.getByText('Auf jeden Zettel das Sortierdatum schreiben').waitFor()   // Runde T: der Plan
+  // Runde T: der Plan. Runde AO: kein Sortierdatum mehr auf den Zettel (das
+  // Waschen wiegt jede Palette), dafür das Leeren des Palox mit Ablesung.
+  await seite.getByText(/Vor dem Leeren in der App/).waitFor()
+  if (await seite.getByText('Auf jeden Zettel das Sortierdatum schreiben').count() > 0) throw new Error('Das Sortierdatum steht nicht mehr im Plan (Runde AO)')
   await seite.getByRole('button', { name: 'Weiter' }).click()
   await seite.locator('#charge').fill('1613')
   await seite.getByRole('button', { name: 'Weiter' }).click()
@@ -500,12 +533,18 @@ await schritt('Sortieren: Palox direkt nach dem Start (60, dann 75 am Ende → 1
   await seite.locator('#palox').fill('60')                    // Startstand dieser Arbeit (0072), keine Menge
   await seite.locator('#palox-eintragen').click()
   await warteAuf('schimmel_messung', 'POST', 5)
+  // Runde AO: die zweite Arbeit mit Palox, der zweite Hinweis
+  await seite.locator('#palox-erinnerung', { hasText: '2/3' }).waitFor()
+  await seite.locator('#palox-erinnerung-ok').click()
   await seite.locator('#check-zaehlen').click()
   await seite.locator('#zettel').fill('2026-09-05')
+  // Runde AO: Am 5.9. kam keine Palette von 1613 (Wareneingang: 1.–4.9.) —
+  // die Auffälligkeit „Zetteldatum", jetzt schon in der Maske.
+  await seite.locator('#zettel-pruefung', { hasText: /kam keine Palette dieser Charge/ }).waitFor()
   // 0072: auch beim Sortieren steht das Zettelgewicht — „anzahl paletten mit
   // total vom brutto gewicht - dann weisst du wieviel sortiert worden ist".
   await seite.locator('#zettel-brutto').fill('940')
-  await seite.locator('#zaehlen-plus').click()                // ohne Wiegen zählt „+" direkt
+  await seite.locator('#zaehlen-plus').click()                // ohne Wiegen zählt „+" direkt — auch mit Hinweis
   await warteAuf('auftrag_palette', 'POST', 4)
   // Kisten je Kaliber werden seit Runde Q nicht mehr gezählt (ENTSCHEIDUNGEN
   // „Kisten je Kaliber zählen: gestrichen") — die Masse je Band kommt aus
@@ -576,7 +615,13 @@ await schritt('Waschen: Palox freiwillig, jede Palette gewogen (345/340/350 kg b
   await seite.locator('#check-abschluss').waitFor()      // kein Palox-Zwang nach dem Start
   await seite.locator('#check-zaehlen').click()
   if (await seite.locator('#kiste-plus-eigen').count() > 0) throw new Error('Beim Waschen werden Paletten gezählt, keine Kisten je Kaliber (0061)')
-  if (!(await seite.locator('#wasch-plus').isDisabled())) throw new Error('Ohne Sortierdatum darf keine Palette gezählt werden')
+  // Runde AO: Die Regel hat sich geändert, die Prüfung mit ihr. Bis hierher
+  // stand hier „Ohne Sortierdatum darf keine Palette gezählt werden" — seit
+  // die Waage am Anfang der Strasse die Menge misst (0104), ist das Datum
+  // freiwillig. Gesperrt ist der Knopf jetzt nur noch, weil das Gewicht fehlt.
+  if (await seite.locator('#kein-sortierdatum').count() > 0) throw new Error('Das Sortierdatum ist freiwillig — das Kästchen „Kein Datum" gibt es nicht mehr (Runde AO)')
+  if (!(await seite.locator('#wasch-plus').isDisabled())) throw new Error('Ohne Gewicht von der Waage darf keine Palette gezählt werden (0104)')
+  await seite.getByText('Gewicht von der Waage fehlt').waitFor()
   // 0072: „teilweise sinds 32 und teilweise 36" — die Einstellung belegt 36
   // vor, gefragt wird je Palette. Hier stehen 32 auf der Palette.
   const kisten = await seite.locator('#kisten-palette').inputValue()
@@ -595,7 +640,8 @@ await schritt('Waschen: Palox freiwillig, jede Palette gewogen (345/340/350 kg b
     await seite.locator('#wasch-plus').click()
     await warteAuf('auftrag_palette', 'POST', 4 + i)
   }
-  await seite.locator('#kein-sortierdatum').check()
+  await seite.locator('#sortierdatum-leeren').click()    // Runde AO: kein Datum auf dem Zettel — ein Tipp leert das Feld
+  if (await seite.locator('#sortierdatum').inputValue() !== '') throw new Error('„Kein Datum auf dem Zettel" muss das Sortierdatum leeren')
   await seite.locator('#wasch-brutto').fill(bruttos[2])
   await seite.locator('#wasch-plus').click()
   await warteAuf('auftrag_palette', 'POST', 7)

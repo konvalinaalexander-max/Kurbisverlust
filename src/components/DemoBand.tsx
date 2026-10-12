@@ -34,6 +34,9 @@ export default function DemoBand() {
     if (weg.error) { setLaeuft(null); setFehler(fehlerText(weg.error)); return }
     const neu = await supabase.rpc('demo_daten_laden')
     if (neu.error) { setLaeuft(null); setFehler(fehlerText(neu.error)); return }
+    // 0112: Labels und zwei Vorjahre für „Lagermanagement nach Artikel".
+    const vorjahre = await supabase.rpc('demo_vorjahre_laden')
+    if (vorjahre.error) { setLaeuft(null); setFehler(fehlerText(vorjahre.error)); return }
     setLaeuft('rechnen')
     for (let i = 1; i <= SCHRITTE.length; i++) {
       setSchritt(i)

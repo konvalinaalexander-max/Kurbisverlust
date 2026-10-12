@@ -54,6 +54,10 @@ export const SPALTEN = {
   pos_id: 'AufPosId',
   gewicht_je_artikel: 'GewichtProArtikel',
   gewicht_total: 'TotalGewicht',
+  // Runde AO (0112): als welches Label der Artikel verkauft wurde (D, K, …)
+  // und mit welchem die Charge geliefert wurde (LiefPrsGrpName: D, K, CH-K).
+  preisgruppe: 'AuftragsPrsGrpBez',
+  liefer_label: 'LiefPrsGrpName',
 } as const
 export type SpaltenName = keyof typeof SPALTEN
 
@@ -110,6 +114,9 @@ export interface AusgangZeile {
   gebinde_inhalt: number | null
   produzent: string | null
   erloes: number | null
+  /** 0112: AuftragsPrsGrpBez — das Label, als das verkauft wurde; LiefPrsGrpName — das der gelieferten Charge. */
+  preisgruppe: string | null
+  liefer_label: string | null
   zeile_nr: number               // Zeile in der Datei, für die Fehlermeldung
 }
 
@@ -205,8 +212,13 @@ export function zeilenLesen(blatt: Blatt, quelle: string): {
       gebinde_inhalt: zahl(w(r, 'gebinde_inhalt')),
       produzent: wort(w(r, 'produzent')) || null,
       erloes: zahl(w(r, 'erloes')),
+      preisgruppe: wort(w(r, 'preisgruppe')) || null,
+      liefer_label: wort(w(r, 'liefer_label')) || null,
       zeile_nr: i + 1,
     }
+    // Die zwei Felder aus 0112 (Preisgruppe, Label) gehören bewusst nicht in den
+    // Fingerabdruck: sonst stünde nach dem Update jede bekannte Zeile als „geändert" da.
+    // Sie gehen mit ausgang_historie_uebernehmen an die Zeilen, jedes Mal.
     z.fingerabdruck = fingerabdruck([
       z.datum, z.journal, z.kunde, z.artikel_id, z.artikel, z.einheit,
       z.menge, z.gewicht_je_artikel, z.batch_menge,
@@ -215,6 +227,32 @@ export function zeilenLesen(blatt: Blatt, quelle: string): {
     zeilen.push(z)
   }
   return { zeilen, kopf, uebersprungen }
+}
+
+/* ---------- Alle Saisons: die Positionen für den Vergleich je Kunde (0112) -- */
+
+export interface Position {
+  pos_id: number; datum: string; journal: string; kunde: string; artikel_id: string; artikel: string
+  preisgruppe: string | null; einheit: string; menge: number; gewicht_je_artikel: number
+  gebindeart: string | null; gebinde_menge: number | null
+}
+
+/**
+ * Jede Position der Datei einmal — alle Saisons, nicht nur ab dem 1. Juli
+ * 2026. Sie gehen nicht in die Bilanz, nur in den Vergleich je Kunde mit den
+ * Vorjahren (Lagermanagement nach Artikel). Mitgenommen wird, was Kürbis ist und keine
+ * interne Umbuchung (Journal L).
+ */
+export function positionenAllerSaisons(zeilen: AusgangZeile[], istWare: (z: AusgangZeile) => boolean): Position[] {
+  const proPos = new Map<number, AusgangZeile>()
+  for (const z of zeilen) if (!proPos.has(z.pos_id)) proPos.set(z.pos_id, z)
+  return [...proPos.values()]
+    .filter(z => z.journal !== 'L' && istWare(z))
+    .map(z => ({
+      pos_id: z.pos_id, datum: z.datum, journal: z.journal, kunde: z.kunde, artikel_id: z.artikel_id, artikel: z.artikel,
+      preisgruppe: z.preisgruppe, einheit: z.einheit, menge: z.menge, gewicht_je_artikel: z.gewicht_je_artikel,
+      gebindeart: z.gebindeart, gebinde_menge: z.gebinde_menge,
+    }))
 }
 
 /* ---------- Kürbis oder nicht? -------------------------------------------- */

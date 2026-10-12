@@ -5,6 +5,7 @@ import { fehlerText, stammdaten } from '../lib/db'
 import { Hinweis } from '../components/Bausteine'
 import { ZMinus, ZPlus, ZRueckgaengig, ZWaage } from '../components/Zeichen'
 import { stationsProfil, type ArbeitDaten } from './daten'
+import { ZettelPruefung } from './ZettelPruefung'
 import type { Gebinde } from '../lib/typen'
 import { heute } from '../lib/format'
 
@@ -22,8 +23,14 @@ const GEBINDE = (id: number) => `gebinde_palette_${id}`
  * Sortieren dazu das Gewicht vom Zettel (0060), je Palette neu. „Wägst du
  * diese Palette?" führt zur Wägung, sonst zählt „+" sofort.
  *
- * Kaliber-Paletten (Waschen, 0061): Sortierdatum vom Zettel (oder ausdrücklich
- * keines) und die Kisten darauf; beides bleibt für die nächste stehen.
+ * Kaliber-Paletten (Waschen, 0061): die Kisten darauf und das Gewicht von
+ * der Waage (0104); das Sortierdatum vom Zettel nur, wenn es draufsteht —
+ * seit Runde AO freiwillig, weil die Waage die Menge misst. Kisten und Datum
+ * bleiben für die nächste stehen.
+ *
+ * Runde AO: Unter dem Gewicht vom Zettel steht, ob es die Palette so im
+ * Wareneingang gibt (ZettelPruefung) — solange sie noch vor einem steht,
+ * statt Tage später als Auffälligkeit im Büro.
  *
  * Kisten je Kaliber gibt es seit Runde Q nicht mehr: „niemand wird händisch
  * die kisten zählen und in der app eintragen". Die Masse je Kaliberband
@@ -52,7 +59,6 @@ export function Zaehler({ d, gesperrt, neuLaden, melden, zumWiegen }: {
   const [brutto, setBrutto] = useState('')
   const [waage, setWaage] = useState('')   // 0104: Waschen — das Brutto von der Waage, je Palette neu
   const [sortierdatum, setSortierdatum] = useState(() => lesen(SORTIERDATUM(d.auftrag.id)))
-  const [ohneDatum, setOhneDatum] = useState(false)
   const [kistenPalette, setKistenPalette] = useState(() => lesen(KISTEN_PALETTE(d.auftrag.id), String(d.kistenProPalette)))
   // Das Gebinde klebt wie Datum und Kistenzahl: es kommen Dutzende Paletten
   // im selben. Vorbelegt aus der letzten Palette dieser Arbeit, sonst aus
@@ -67,10 +73,7 @@ export function Zaehler({ d, gesperrt, neuLaden, melden, zumWiegen }: {
   const [laeuft, setLaeuft] = useState(false)
 
   function zettelSetzen(w: string) { setZettel(w); merken(ZETTEL(d.auftrag.id), w) }
-  function sortierdatumSetzen(w: string) {
-    setSortierdatum(w); if (w) setOhneDatum(false)
-    merken(SORTIERDATUM(d.auftrag.id), w)
-  }
+  function sortierdatumSetzen(w: string) { setSortierdatum(w); merken(SORTIERDATUM(d.auftrag.id), w) }
   function kistenPaletteSetzen(w: string) { setKistenPalette(w); merken(KISTEN_PALETTE(d.auftrag.id), w) }
   function gebindeSetzen(w: string) { setGebinde(w); merken(GEBINDE(d.auftrag.id), w) }
   useEffect(() => { void stammdaten().then(s => setArten(s.gebinde)) }, [])
@@ -125,12 +128,16 @@ export function Zaehler({ d, gesperrt, neuLaden, melden, zumWiegen }: {
     ? waageZahl - kistenZahl * tara.tara_kg_pro_kiste - tara.tara_kg_palette : null
   const jeKiste = nettoWaage != null && kistenOk ? nettoWaage / kistenZahl : null
   const waageFraglich = jeKiste != null && (jeKiste < 4 || jeKiste > 30)
-  const waschBereit = (ohneDatum || sortierdatum !== '') && kistenOk && gebinde !== '' && waageOk
+  // Runde AO: ohne Sortierdatum zählt die Palette auch — „wenn wir es jetzt
+  // ja sowieso messen müssen, muss eigentlich das Sortierdatum ja nicht mehr
+  // drauf sein". Die Waage misst die Menge; das Datum sagt nur noch, wie
+  // lange die Ware im Zwischenlager stand, und fehlt dann eben.
+  const waschBereit = kistenOk && gebinde !== '' && waageOk
   async function waschPaletteZaehlen() {
     if (!waschBereit || laeuft) return
     setLaeuft(true); setFehler(null)
     const { error } = await supabase.from('auftrag_palette')
-      .insert({ auftrag_id: d.auftrag.id, sortierdatum: ohneDatum ? null : sortierdatum,
+      .insert({ auftrag_id: d.auftrag.id, sortierdatum: sortierdatum === '' ? null : sortierdatum,
                 kisten: kistenZahl, gebindeart: gebinde, brutto_gewogen_kg: waageZahl })
     if (error) { setLaeuft(false); setFehler(fehlerText(error)); return }
     setWaage('')   // die nächste Palette wiegt anders
@@ -183,13 +190,16 @@ export function Zaehler({ d, gesperrt, neuLaden, melden, zumWiegen }: {
       <div className="karte">
         {kaliberFehlt && <Hinweis art="warnung">{t('kistenOhneKaliber')}</Hinweis>}
         <div className="feld">
-          <label htmlFor="sortierdatum">{t('sortierdatumZettel')}</label>
-          <input id="sortierdatum" type="date" value={ohneDatum ? '' : sortierdatum} disabled={gesperrt || ohneDatum}
+          <label htmlFor="sortierdatum">{t('sortierdatumZettel')} <span className="leise">({t('freiwillig')})</span></label>
+          <input id="sortierdatum" type="date" value={sortierdatum} disabled={gesperrt}
                  onChange={e => sortierdatumSetzen(e.target.value)} style={{ fontSize: '1.15rem' }} />
-          <label className="ankreuzen" style={{ marginTop: '.4rem' }}>
-            <input id="kein-sortierdatum" type="checkbox" checked={ohneDatum} disabled={gesperrt} onChange={e => setOhneDatum(e.target.checked)} />
-            {t('keinSortierdatum')}
-          </label>
+          {/* Das Datum bleibt für die nächste Palette stehen; trägt deren
+              Zettel keines, leert ein Tipp das Feld — ein Datumsfeld leert
+              sich auf dem Handy sonst nur umständlich. */}
+          {sortierdatum !== '' && !gesperrt && (
+            <button type="button" id="sortierdatum-leeren" className="leise-knopf" style={{ marginTop: '.3rem' }}
+                    onClick={() => sortierdatumSetzen('')}>{t('keinSortierdatum')}</button>
+          )}
         </div>
         <div className="feld">
           <label htmlFor="gebinde-palette">{t('gebindeFrage')}</label>
@@ -225,13 +235,13 @@ export function Zaehler({ d, gesperrt, neuLaden, melden, zumWiegen }: {
         <button type="button" id="wasch-plus" className="haupt zaehler-plus" disabled={gesperrt || laeuft || !waschBereit}
                 onClick={() => void waschPaletteZaehlen()}>
           <span><ZPlus size={22} /> 1 {t('paletteHingestellt')}</span>
-          {waschBereit && <span className="klein-text">{ohneDatum ? t('keinSortierdatum') : datumText(sortierdatum)} · {kistenZahl} {gebinde} · {waage} kg</span>}
+          {waschBereit && <span className="klein-text">{sortierdatum !== '' ? `${datumText(sortierdatum)} · ` : ''}{kistenZahl} {gebinde} · {waage} kg</span>}
         </button>
         {/* Runde T: statt Erklärtexten unter jedem Feld ein Satz am grauen
             Knopf, der sagt, was ihm gerade fehlt. */}
         {!waschBereit && !gesperrt && (
           <p className="zaehler-grund" role="status">
-            {!(ohneDatum || sortierdatum !== '') ? t('grundSortierdatumFehlt') : !kistenOk ? t('grundKistenFehlen') : !waageOk ? t('grundWaageFehlt') : t('gebindeFrage')}
+            {!kistenOk ? t('grundKistenFehlen') : !waageOk ? t('grundWaageFehlt') : t('gebindeFrage')}
           </p>
         )}
         <button type="button" id="wasch-minus" className="zaehler-minus" disabled={gesperrt || laeuft || d.paletten.length === 0}
@@ -262,6 +272,9 @@ export function Zaehler({ d, gesperrt, neuLaden, melden, zumWiegen }: {
                      onChange={e => setBrutto(e.target.value)} style={{ fontSize: '1.15rem' }} />
             </div>
           )}
+          <ZettelPruefung chargeNr={d.auftrag.charge_nr} datum={zettel}
+                          brutto={p.zettelGewichtPflicht && Number(brutto) > 0 ? Number(brutto) : null}
+                          kisten={kistenOk ? kistenZahl : null} kistenSetzen={n => kistenPaletteSetzen(String(n))} />
           {/* Kisten je Eingangspalette (Runde Q): vorbelegt mit 36, immer
               änderbar — der Betrieb sagt „teilweise sinds 32 und teilweise
               36". Zusammen mit dem Zettelgewicht ergibt das die Masse, die
