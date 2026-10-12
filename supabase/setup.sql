@@ -6966,8 +6966,152 @@ values ('Migros Kiste U', 2.43, 25.0, 'Rückmeldung aus der Halle, 10.10.2026 (0
        ('Plastik Palox', 35.0, 0, 'Rückmeldung aus der Halle, 10.10.2026 (0112): eine Palox = ein Gebinde, Tara 35 kg, keine Palette')
 on conflict (art) do nothing;
 
+-- aus 0113_demeter_wenn_je_demeter.sql
+
+create or replace function artikel_einordnen(p_artikel text, p_preisgruppe text default null)
+returns table (gruppe text, groesse text, label text)
+language sql immutable set search_path = public as $$
+  select case when a ~ '(knirps|potimarron|hokkaido|kuri)' then 'Knirps'
+              when a ~ 'butternu' then 'Butternut'
+              when a ~ '(butterkin|muskat|muscat)' then 'Butterkin/Muskat'
+              when a ~ '(kobocha|kabocha)' then 'Kabocha'
+              when a ~ 'mandarin' then 'Mandarin'
+              when a ~ '\mmix\M' then 'Mix'
+              when a ~ 'k(ü|u|ue)rb' then 'andere'
+         end,
+         case when a ~ '(gross|\mgros\M|\mgr\.)' then 'gross'
+              when a ~ '(klein|\mkl\.)' then 'klein'
+              else 'lose' end,
+         -- Die Preisgruppe des Auftrags zuerst: D, DU (Demeter); K, KZ, CH-K,
+         -- KAdR (Knospe). Andere (SG …) sagen nichts — dann der Name.
+         case when upper(coalesce(p_preisgruppe, '')) like 'D%' then 'D'
+              when upper(coalesce(p_preisgruppe, '')) ~ '^(K|CH-K)' then 'K'
+              when a ~ '(demeter|\mdem\M)' then 'D'
+              when a ~ 'knospe' then 'K'
+         end
+    from (select lower(coalesce(p_artikel, '')) as a) t
+$$;
+comment on function artikel_einordnen(text, text) is
+  'Ein Verkaufsartikel aus Perigon eingeordnet: Artikelgruppe, Grösse (gross, klein, lose) und Label (D/K, aus der Preisgruppe — D…: Demeter; K…, CH-K: Knospe —, sonst aus dem Namen) — 0112, Preisgruppen seit 0113.';
+revoke all on function artikel_einordnen(text, text) from public;
+grant execute on function artikel_einordnen(text, text) to authenticated;
+
+create or replace function palox_anstieg(p_roh numeric, p_n_paar int, p_spanne int, p_unten numeric) returns numeric
+language sql immutable as $$
+  select case when public.palox_anstieg(p_roh, p_n_paar, p_spanne) is null then null
+              when p_roh > 0 and p_unten > 0 then p_roh
+              else 0 end
+$$;
+comment on function palox_anstieg(numeric, integer, integer, numeric) is
+  'Der Anstieg je Woche, der gilt (seit 0113): leer wie palox_anstieg(roh, n, spanne); sonst der gemessene, wenn er positiv und sicher ist (untere Grenze des 95-%-Bereichs über 0), sonst 0.';
+revoke all on function palox_anstieg(numeric, integer, integer, numeric) from public;
+grant execute on function palox_anstieg(numeric, integer, integer, numeric) to authenticated;
+
+create or replace function palox_station_kennzahl(p_bis date, p_ab date default null)
+returns table(station text, n_arbeiten int, n_chargen int, seit date, bis date, tage int,
+              anteil_mittel numeric, anteil_median numeric, anteil_4w numeric, n_4w int,
+              zuwachs_je_woche numeric, zuwachs_text text,
+              anstieg_roh numeric, anstieg_unten numeric, anstieg_oben numeric,
+              n_paar int, spanne_tage int, lager_von int, lager_bis int,
+              lager_mittel numeric, grund numeric)
+language plpgsql stable set search_path = public as $$
+#variable_conflict use_column
+begin
+  return query
+  with p as (
+    select e.station, e.sorte, e.charge_nr, e.messtag, e.lagertage::numeric as t,
+           e.basis_jetzt_kg as w, e.anteil_station as y
+      from erg_punkte e
+     where e.plausibel_station and e.anteil_station is not null and e.basis_jetzt_kg > 0
+       and e.lagertage is not null
+       and e.station in ('sortieren', 'waschen', 'waschen_sortieren')
+       and e.quelle in ('verarbeitung', 'verarbeitung_gemischt')
+       and e.messtag <= p_bis and (p_ab is null or e.messtag >= p_ab)
+  ), s as (
+    -- Je Sorte und Station die eigene Mitte: verglichen wird nur innerhalb der Sorte.
+    select p.*,
+           sum(p.w * p.t) over ws / sum(p.w) over ws as t_s,
+           sum(p.w * p.y) over ws / sum(p.w) over ws as y_s,
+           count(*) over ws                         as n_s,
+           max(p.t) over ws - min(p.t) over ws      as spanne_s
+      from p
+    window ws as (partition by p.station, p.sorte)
+  ), je as (
+    select station,
+           count(*)::int as n_arbeiten, count(distinct charge_nr)::int as n_chargen,
+           min(messtag) as seit, max(messtag) as bis, (max(messtag) - min(messtag))::int as tage,
+           sum(w * y) / nullif(sum(w), 0) as anteil_mittel,
+           percentile_cont(0.5) within group (order by y) as anteil_median,
+           sum(w * y) filter (where messtag > p_bis - 28) / nullif(sum(w) filter (where messtag > p_bis - 28), 0) as anteil_4w,
+           count(*) filter (where messtag > p_bis - 28)::int as n_4w,
+           count(*) filter (where n_s >= 2)::int as n_paar,
+           count(distinct sorte) filter (where n_s >= 2)::int as n_sorten_paar,
+           coalesce(max(spanne_s), 0)::int as spanne_tage,
+           min(t)::int as lager_von, max(t)::int as lager_bis,
+           sum(w * t) / nullif(sum(w), 0) as lager_mittel,
+           avg(w) filter (where n_s >= 2) as w_mittel,
+           sum(w * (t - t_s) * (y - y_s)) / nullif(sum(w * power(t - t_s, 2)), 0) as b_tag
+      from s
+     group by station
+  ), streuung as (
+    -- Wie weit die Arbeiten um ihre Geraden streuen (je Sorte eine eigene
+    -- Höhe, eine gemeinsame Steigung): daraus der Standardfehler der Steigung.
+    select s.station,
+           sum(s.w / j.w_mittel * power((s.y - s.y_s) - j.b_tag * (s.t - s.t_s), 2)) as sse,
+           sum(s.w / j.w_mittel * power(s.t - s.t_s, 2)) as sxx,
+           j.n_paar - j.n_sorten_paar - 1 as df
+      from s join je j on j.station = s.station
+     where s.n_s >= 2 and j.b_tag is not null
+     group by s.station, j.n_paar, j.n_sorten_paar
+  ), fertig as (
+    select j.*,
+           case when st.df >= 1 and st.sxx > 0 then sqrt(st.sse / st.df / st.sxx) end as se_tag,
+           st.df,
+           palox_anstieg(j.b_tag * 7, j.n_paar, j.spanne_tage) is not null as bekannt
+      from je j left join streuung st on st.station = j.station
+  ), regel as (
+    -- Seit 0113: Der Anstieg gilt erst, wenn er sicher ist — die untere
+    -- Grenze seines 95-%-Bereichs liegt über 0. Sonst gilt 0, und der
+    -- Grundausschuss ist das gemessene Mittel (der Betrieb: „du musst nicht
+    -- denken, dass wenn ich es heute ins Lager tue und morgen verkaufe, dass
+    -- ich null Ausschuss habe").
+    select f.*,
+           case when f.se_tag is not null then (f.b_tag - t_quantil_95(f.df) * f.se_tag) * 7 end as unten_woche,
+           palox_anstieg(f.b_tag * 7, f.n_paar, f.spanne_tage,
+                         case when f.se_tag is not null then (f.b_tag - t_quantil_95(f.df) * f.se_tag) * 7 end) as gilt
+      from fertig f
+  )
+  select f.station, f.n_arbeiten, f.n_chargen, f.seit, f.bis, f.tage,
+         zahl(f.anteil_mittel, 5, 1)::numeric(10,5), zahl(f.anteil_median::numeric, 5, 1)::numeric(10,5),
+         zahl(f.anteil_4w, 5, 1)::numeric(10,5), f.n_4w,
+         zahl(f.gilt, 5, 1)::numeric(10,5) as zuwachs_je_woche,
+         case when f.gilt > 0 then null
+              when f.bekannt and f.b_tag > 0 then format('Anstieg noch nicht sicher (gemessen +%s %% je Woche, Bereich %s bis +%s %%) — gilt als 0',
+                                         replace(to_char(f.b_tag * 700, 'FM990.0'), '.', ','),
+                                         replace(replace(to_char(coalesce(f.unten_woche * 100, -99.9), 'FM990.0'), '.', ','), '-', '−'),
+                                         replace(to_char((f.b_tag + t_quantil_95(f.df) * coalesce(f.se_tag, 0)) * 700, 'FM990.0'), '.', ','))
+              when f.bekannt then format('kein Anstieg (gemessen %s %% je Woche — gilt als 0)',
+                                         replace(replace(to_char(f.b_tag * 700, 'FM990.0'), '.', ','), '-', '−'))
+              when f.n_paar < 5 then format('Anstieg erst ab fünf Arbeiten in Sorten mit mindestens zwei Arbeiten (%s bis jetzt)', f.n_paar)
+              else format('Anstieg erst, wenn die Lagerdauern einer Sorte %s Tage auseinanderliegen (bis jetzt %s)',
+                          palox_anstieg_mindest_tage(), f.spanne_tage) end as zuwachs_text,
+         zahl(f.b_tag * 7, 5, 1)::numeric(10,5) as anstieg_roh,
+         zahl((f.b_tag - t_quantil_95(f.df) * f.se_tag) * 7, 5, 1)::numeric(10,5) as anstieg_unten,
+         zahl((f.b_tag + t_quantil_95(f.df) * f.se_tag) * 7, 5, 1)::numeric(10,5) as anstieg_oben,
+         f.n_paar, f.spanne_tage, f.lager_von, f.lager_bis,
+         zahl(f.lager_mittel, 1, 100000)::numeric(10,1) as lager_mittel,
+         zahl(greatest(f.anteil_mittel - coalesce(f.gilt, 0) * f.lager_mittel / 7.0, 0), 5, 1)::numeric(10,5) as grund
+    from regel f
+   order by case f.station when 'waschen_sortieren' then 1 when 'waschen' then 2 else 3 end;
+end $$;
+
+comment on function palox_station_kennzahl(date, date) is
+  'Die Kennzahl je Station (0105, Anstieg seit 0111): Mittel, Median, letzte vier Wochen, und der Anstieg des Palox-Anteils je Woche Lagerdauer — innerhalb der Sorten gerechnet, nie negativ, bekannt ab fünf Arbeiten in Sorten mit zwei Arbeiten und drei Wochen Spanne der Lagerdauern; seit 0113 gilt er erst, wenn er sicher ist (sonst 0, der Grundausschuss ist dann das Mittel).';
+revoke all on function palox_station_kennzahl(date, date) from public;
+grant execute on function palox_station_kennzahl(date, date) to authenticated;
+
 create or replace function schema_stand() returns int
-language sql immutable set search_path = public as $$ select 112 $$;
+language sql immutable set search_path = public as $$ select 113 $$;
 comment on function schema_stand is
   'Nummer der jüngsten eingespielten Migration. Die App vergleicht sie mit '
   'SCHEMA_ERWARTET (src/lib/version.ts) und verlangt bei Abweichung, setup.sql '
@@ -7061,7 +7205,7 @@ comment on function schema_stand() is
 -- TEIL B — Das Rechenwerk: die Formeln, wie sie heute lauten
 -- =====================================================================
 -- Ab hier steht jede Ansicht und jede darauf rechnende Funktion genau
--- einmal — in 142 Schritten, in der Reihenfolge, in der eine auf der
+-- einmal — in 144 Schritten, in der Reihenfolge, in der eine auf der
 -- anderen steht. Die Reihenfolge ist ausgerechnet, nicht geraten:
 -- setup_bauen.sh sortiert topologisch und bricht ab, wenn sie nicht
 -- kreisfrei wäre.
@@ -12437,31 +12581,52 @@ select s.sorte,
   left join haupt h on h.sorte = s.sorte;
 
 create or replace view v_charge_label with (security_invoker = true) as
-with perigon as (
+with zeile as (
+
   select l.charge_nr,
-         count(*) filter (where k.label = 'D')::int as n_d,
-         count(*) filter (where k.label = 'K')::int as n_k
+         case when upper(coalesce(z.liefer_label, '')) like 'D%' then 'D'
+              when upper(coalesce(z.liefer_label, '')) ~ '^(K|CH-K)' then 'K' end as geliefert,
+         e.label as verkauft
     from lieferung l
     join lieferung_import li on li.lieferung_id = l.id
     join ausgang_zeile z on z.id = li.zeile_id
-   cross join lateral (select case when upper(z.liefer_label) in ('D', 'DU') then 'D'
-                                   when upper(z.liefer_label) in ('K', 'CH-K', 'KZ') then 'K' end as label) k
-   where l.charge_nr is not null and k.label is not null
-   group by l.charge_nr
-)
-select c.nr as charge_nr,
-       coalesce(c.label, case when p.n_d > p.n_k then 'D' when p.n_k > p.n_d then 'K' end) as label,
-       case when c.label is not null then 'Stammdaten'
-            when p.n_d <> p.n_k then 'Perigon' end as quelle,
-       case when p.n_d > 0 and p.n_k > 0 then true else false end as gemischt,
-       coalesce(p.n_d, 0) as n_d, coalesce(p.n_k, 0) as n_k
-  from charge c
-  left join perigon p on p.charge_nr = c.nr;
+   cross join lateral artikel_einordnen(z.artikel, z.preisgruppe) e
+   where l.charge_nr is not null
+), perigon as (
+  select charge_nr,
+         count(*) filter (where coalesce(geliefert, verkauft) = 'D')::int as n_d,
+         count(*) filter (where coalesce(geliefert, verkauft) = 'K')::int as n_k,
+         count(*) filter (where geliefert = 'K' and verkauft = 'D')::int as n_widerspruch
+    from zeile
+   group by charge_nr
+), eigen as (
+  select c.nr as charge_nr, c.schlag,
+         coalesce(c.label, case when p.n_d > 0 then 'D' when p.n_k > 0 then 'K' end) as label,
+         case when c.label is not null then 'Stammdaten'
+              when p.n_d > 0 or p.n_k > 0 then 'Perigon' end as quelle,
+         p.n_d, p.n_k, p.n_widerspruch
+    from charge c
+    left join perigon p on p.charge_nr = c.nr
+), produzent as (
 
-create or replace function artikel_lager(p_h integer)
-returns table (artikelgruppe text, label text, groesse text, von_g int, bis_g int, stueck_je_kiste int,
-               kg numeric, stueck numeric, kisten numeric, g_mittel numeric,
-               n_chargen int, chargen int[], h int, datum date)
+  select schlag, case when bool_or(label = 'D') then 'D' else 'K' end as label
+    from eigen
+   where label is not null and nullif(trim(schlag), '') is not null
+   group by schlag
+)
+select e.charge_nr,
+       coalesce(e.label, pr.label, 'K') as label,
+       coalesce(e.quelle, case when pr.label is not null then 'Produzent' else 'angenommen' end) as quelle,
+       coalesce(e.n_d, 0) > 0 and coalesce(e.n_k, 0) > 0 as gemischt,
+       coalesce(e.n_d, 0) as n_d,
+       coalesce(e.n_k, 0) as n_k,
+       coalesce(e.n_widerspruch, 0) as n_widerspruch
+  from eigen e
+  left join produzent pr on pr.schlag = e.schlag;
+
+create or replace function artikel_lager_teile(p_h integer)
+returns table (charge_nr int, sorte text, artikelgruppe text, label text, groesse text,
+               kg numeric, g_mittel numeric, h int, datum date)
 language sql stable security definer set search_path = public as $$
 with prognose as (
   select p.schluessel::int as charge_nr, c.sorte, p.h, p.datum, p.verkaufsfaehig_kg,
@@ -12497,14 +12662,35 @@ with prognose as (
          sum(m.anzahl * m.g) / nullif(sum(m.anzahl), 0) as g_mittel
     from mit_klasse m
    group by m.basis, m.schluessel, m.groesse
-), je_charge as (
-  select z.charge_nr, z.artikelgruppe, z.label, z.h, z.datum,
-         coalesce(a.groesse, 'ohne Verteilung') as groesse,
-         case when a.anteil is null then z.verkaufsfaehig_kg else z.verkaufsfaehig_kg * a.anteil end as kg,
-         a.g_mittel
-    from zuordnung z
-    left join anteile a on a.basis = z.basis and a.schluessel = z.q_schluessel
 )
+select z.charge_nr, z.sorte, z.artikelgruppe, z.label,
+       coalesce(a.groesse, 'ohne Verteilung') as groesse,
+       case when a.anteil is null then z.verkaufsfaehig_kg else z.verkaufsfaehig_kg * a.anteil end as kg,
+       a.g_mittel, z.h, z.datum
+  from zuordnung z
+  left join anteile a on a.basis = z.basis and a.schluessel = z.q_schluessel
+$$;
+
+create or replace function artikel_lager_charge(p_h integer)
+returns table (charge_nr int, sorte text, artikelgruppe text, label text, groesse text,
+               von_g int, bis_g int, stueck_je_kiste int,
+               kg numeric, stueck numeric, kisten numeric, g_mittel numeric, h int, datum date)
+language sql stable security definer set search_path = public as $$
+  select t.charge_nr, t.sorte, t.artikelgruppe, t.label, t.groesse, k.von_g, k.bis_g, k.stueck_je_kiste,
+         zahl(t.kg, 2, 1e12)::numeric(14,2),
+         zahl(t.kg * 1000 / nullif(t.g_mittel, 0), 0, 1e12)::numeric(14,0),
+         zahl(t.kg * 1000 / nullif(t.g_mittel, 0) / nullif(k.stueck_je_kiste, 0), 0, 1e12)::numeric(14,0),
+         zahl(t.g_mittel, 0, 1e6)::numeric(10,0),
+         t.h, t.datum
+    from artikel_lager_teile(p_h) t
+    left join artikel_kaliber k on k.gruppe = t.artikelgruppe and k.groesse = t.groesse
+$$;
+
+create or replace function artikel_lager(p_h integer)
+returns table (artikelgruppe text, label text, groesse text, von_g int, bis_g int, stueck_je_kiste int,
+               kg numeric, stueck numeric, kisten numeric, g_mittel numeric,
+               n_chargen int, chargen int[], h int, datum date)
+language sql stable security definer set search_path = public as $$
 select j.artikelgruppe, j.label, j.groesse, k.von_g, k.bis_g, k.stueck_je_kiste,
        zahl(sum(j.kg), 2, 1e12)::numeric(14,2),
        zahl(sum(j.kg * 1000 / nullif(j.g_mittel, 0)), 0, 1e12)::numeric(14,0),
@@ -12512,7 +12698,7 @@ select j.artikelgruppe, j.label, j.groesse, k.von_g, k.bis_g, k.stueck_je_kiste,
        zahl(sum(j.kg) * 1000 / nullif(sum(j.kg * 1000 / nullif(j.g_mittel, 0)), 0), 0, 1e6)::numeric(10,0),
        count(distinct j.charge_nr)::int, array_agg(distinct j.charge_nr order by j.charge_nr),
        max(j.h)::int, max(j.datum)
-  from je_charge j
+  from artikel_lager_teile(p_h) j
   left join artikel_kaliber k on k.gruppe = j.artikelgruppe and k.groesse = j.groesse
  group by j.artikelgruppe, j.label, j.groesse, k.von_g, k.bis_g, k.stueck_je_kiste
 $$;
@@ -14325,6 +14511,20 @@ comment on view v_charge_label is
 grant select on v_charge_label to authenticated;
 comment on function artikel_lager(integer) is
   'Das Verkaufsfähige in h Tagen je Artikelgruppe, Label (D/K) und Grösse (klein, gross, stueck; darunter/darueber: in keinem Artikelkaliber; lose: Gruppe ohne Kaliber; ohne Verteilung: keine Sortier-CSV) — dieselbe Masse wie lager_kaliber(h), nach den Artikelkalibern geteilt; Stück = kg ÷ mittleres Gewicht der Klasse (0112).';
+revoke all on function artikel_lager(integer) from public;
+grant execute on function artikel_lager(integer) to authenticated;
+comment on view v_charge_label is
+  'Je Charge Demeter (D) oder Knospe (K) — seit 0113 nach der Regel des Betriebs: Stammdaten; sonst D, sobald Perigon sie einmal als Demeter geliefert (oder, ohne Lieferlabel, verkauft) hat; sonst K aus Perigon; sonst wie die anderen Chargen desselben Schlags (Produzent); sonst K, angenommen („Knospe ist alles, das nicht Demeter ist"). gemischt: beide geliefert; n_widerspruch: als Demeter verkauft, aber als Knospe geliefert — zum Prüfen.';
+grant select on v_charge_label to authenticated;
+comment on function artikel_lager_teile(integer) is
+  'Die ungerundeten Teile hinter artikel_lager und artikel_lager_charge: je Charge das Verkaufsfähige in h Tagen, nach den Artikelkalibern ihrer Gruppe geteilt (0113; bis 0112 im Innern von artikel_lager).';
+revoke all on function artikel_lager_teile(integer) from public;
+comment on function artikel_lager_charge(integer) is
+  'Das Verkaufsfähige in h Tagen je Charge und Artikel (Gruppe, Label, Grösse) — dieselben Teile wie artikel_lager(h), nur nicht zusammengezählt: woraus „Knirps klein · Demeter" besteht (0113).';
+revoke all on function artikel_lager_charge(integer) from public;
+grant execute on function artikel_lager_charge(integer) to authenticated;
+comment on function artikel_lager(integer) is
+  'Das Verkaufsfähige in h Tagen je Artikelgruppe, Label (D/K) und Grösse (klein, gross, stueck; darunter/darueber: in keinem Artikelkaliber; lose: Gruppe ohne Kaliber; ohne Verteilung: keine Sortier-CSV) — dieselbe Masse wie lager_kaliber(h), nach den Artikelkalibern geteilt; Stück = kg ÷ mittleres Gewicht der Klasse (0112). Seit 0113 aus artikel_lager_teile, wie artikel_lager_charge.';
 revoke all on function artikel_lager(integer) from public;
 grant execute on function artikel_lager(integer) to authenticated;
 

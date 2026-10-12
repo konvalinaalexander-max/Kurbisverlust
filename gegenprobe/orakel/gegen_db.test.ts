@@ -104,11 +104,12 @@ test('Stationswerte: Anstieg je Station, Grundausschuss je Sorte, Weg je Charge 
   // Der Anstieg je Station: innerhalb der Sorten, über die Lagerdauer
   const stationen = (['waschen_sortieren', 'sortieren', 'waschen'] as Station[]).map(station => {
     const a = anstieg(punkte.filter(p => p.station === station && p.messtag <= heute))
-    return { station, roh: a.roh, nPaar: a.nPaar, spanne: a.spanne, gilt: a.gilt }
+    return { station, roh: a.roh, nPaar: a.nPaar, spanne: a.spanne, unten: a.unten, gilt: a.gilt }
   })
-  const dbSt = frage<Record<string, unknown>>('select station, anstieg_roh, n_paar, spanne_tage, zuwachs_je_woche from v_palox_station')
+  const dbSt = frage<Record<string, unknown>>('select station, anstieg_roh, anstieg_unten, n_paar, spanne_tage, zuwachs_je_woche from v_palox_station')
   const abSt = vergleiche(dbSt, stationen, { db: a => String(a.station), orakel: b => b.station },
-    [{ db: 'anstieg_roh', orakel: 'roh', abs: 5e-6 }, { db: 'n_paar', orakel: 'nPaar' }, { db: 'spanne_tage', orakel: 'spanne', abs: 0.5 },
+    [{ db: 'anstieg_roh', orakel: 'roh', abs: 5e-6 }, { db: 'anstieg_unten', orakel: 'unten', abs: 5e-6 },
+     { db: 'n_paar', orakel: 'nPaar' }, { db: 'spanne_tage', orakel: 'spanne', abs: 0.5 },
      { db: 'zuwachs_je_woche', orakel: 'gilt', abs: 5e-6 }])
   assert.equal(abSt.length, 0, bericht('v_palox_station (Anstieg)', abSt, dbSt.length))
 

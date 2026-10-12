@@ -156,7 +156,10 @@ begin
     format('0111 (c1b): in %s von %s Fenstern weicht der Anstieg vom innerhalb der Sorten nachgerechneten ab', v_ab, v_n);
   assert v_d > 0.001,
     format('0111 (c1b): gepoolt und innerhalb der Sorten trennen sich in keinem Fenster der Demo mehr (höchstens %s je Woche) — der Block sähe eine vermischte Steigung nicht', round(v_d, 5));
-  select count(*), count(*) filter (where k.zuwachs_je_woche is distinct from round(palox_anstieg(k.anstieg_roh, k.n_paar, k.spanne_tage), 5))
+  -- Seit 0113 gilt der Anstieg erst, wenn er sicher ist (die untere Grenze
+  -- seines 95-%-Bereichs über 0, sonst 0) — die Prüfung nimmt die Regel mit
+  -- dieser vierten Eingabe; die Fälle dazu stehen in 0113 (d).
+  select count(*), count(*) filter (where k.zuwachs_je_woche is distinct from round(palox_anstieg(k.anstieg_roh, k.n_paar, k.spanne_tage, k.anstieg_unten), 5))
     into v_n, v_ab
     from v_palox_station k;
   assert v_n = 3 and v_ab = 0, format('0111 (c2): %s von %s Stationen halten sich nicht an die Regel des Anstiegs', v_ab, v_n);

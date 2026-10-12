@@ -13,10 +13,14 @@
  *
  * Der Anstieg je Station wird innerhalb der Sorten gemessen (jede Sorte um
  * ihre eigene, nach Masse gewichtete Mitte von Lagerdauer und Anteil) und
- * gilt ab fünf Arbeiten in Sorten mit mindestens zwei Arbeiten und drei
- * Wochen Spanne der Lagerdauern innerhalb einer Sorte; er ist nie negativ.
+ * ist bekannt ab fünf Arbeiten in Sorten mit mindestens zwei Arbeiten und
+ * drei Wochen Spanne der Lagerdauern innerhalb einer Sorte; er ist nie
+ * negativ. Seit 0113 gilt er erst, wenn er sicher ist — die untere Grenze
+ * seines 95-%-Bereichs (Standardfehler der gemeinsamen Steigung, je Sorte
+ * eine eigene Höhe) liegt über 0 —, sonst gilt 0.
  * Der Grundausschuss ist das massegewichtete Mittel der Sorte (ab drei
- * Arbeiten, sonst aller Sorten), um den Anstieg auf null Tage zurückgelegt.
+ * Arbeiten, sonst aller Sorten), um den Anstieg, der gilt, auf null Tage
+ * zurückgelegt — gilt keiner, ist er das Mittel selbst.
  * Der Weg kommt aus den eigenen Arbeiten der Charge, sonst denen der Sorte,
  * sonst allen.
  *
@@ -69,9 +73,19 @@ export const PALOX_MINDEST_ARBEITEN = 3
 /** So weit müssen die Lagerdauern innerhalb einer Sorte auseinanderliegen (palox_anstieg_mindest_tage). */
 export const ANSTIEG_MINDEST_TAGE = 21
 
-/** Wann ein gemessener Anstieg gilt (palox_anstieg): sonst leer, und nie negativ. */
+/** Wann ein gemessener Anstieg bekannt ist (palox_anstieg mit drei Werten, 0111): sonst leer, und nie negativ. */
 export function paloxAnstieg(roh: number | null, nPaar: number, spanne: number): number | null {
   return roh != null && nPaar >= 5 && spanne >= ANSTIEG_MINDEST_TAGE ? Math.max(roh, 0) : null
+}
+
+/**
+ * Was gilt (palox_anstieg mit vier Werten, seit 0113): leer wie oben; sonst
+ * der gemessene Anstieg, wenn er positiv und sicher ist (die untere Grenze
+ * des 95-%-Bereichs über 0), sonst 0 — auch ohne Bereich.
+ */
+export function paloxAnstiegSicher(roh: number | null, nPaar: number, spanne: number, unten: number | null): number | null {
+  if (paloxAnstieg(roh, nPaar, spanne) == null) return null
+  return roh! > 0 && unten != null && unten > 0 ? roh : 0
 }
 
 export interface Anstieg {
@@ -81,6 +95,8 @@ export interface Anstieg {
   nPaar: number
   /** Die grösste Spanne der Lagerdauern innerhalb einer Sorte. */
   spanne: number
+  /** Die untere Grenze des 95-%-Bereichs je Woche; leer ohne Freiheitsgrad. */
+  unten: number | null
   /** Was gilt — auf fünf Stellen gerundet, wie die Kennzahl es weitergibt. */
   gilt: number | null
 }
@@ -89,18 +105,30 @@ export interface Anstieg {
 export function anstieg(punkte: Punkt[]): Anstieg {
   const jeSorte = new Map<string, Punkt[]>()
   for (const p of punkte) jeSorte.set(p.sorte, [...(jeSorte.get(p.sorte) ?? []), p])
-  let sxy = 0, sxx = 0, nPaar = 0, spanne = 0
+  let sxy = 0, sxx = 0, nPaar = 0, nSortenPaar = 0, spanne = 0
+  const mitten: { p: Punkt, tm: number, ym: number }[] = []
   for (const ps of jeSorte.values()) {
     const sw = ps.reduce((s, p) => s + p.w, 0)
     const tm = ps.reduce((s, p) => s + p.w * p.t, 0) / sw
     const ym = ps.reduce((s, p) => s + p.w * p.y, 0) / sw
     for (const p of ps) { sxy += p.w * (p.t - tm) * (p.y - ym); sxx += p.w * (p.t - tm) ** 2 }
-    if (ps.length >= 2) nPaar += ps.length
+    if (ps.length >= 2) { nPaar += ps.length; nSortenPaar += 1; for (const p of ps) mitten.push({ p, tm, ym }) }
     spanne = Math.max(spanne, Math.max(...ps.map(p => p.t)) - Math.min(...ps.map(p => p.t)))
   }
-  const roh = sxx > 0 ? sxy / sxx * 7 : null
-  const gilt = paloxAnstieg(roh, nPaar, spanne)
-  return { roh, nPaar, spanne, gilt: gilt == null ? null : runden(gilt, 5) }
+  const bTag = sxx > 0 ? sxy / sxx : null
+  const roh = bTag == null ? null : bTag * 7
+  // Der Standardfehler der gemeinsamen Steigung: die Streuung um die Geraden
+  // (je Sorte eine eigene Höhe), nach Masse gewichtet; je Sorte geht ein
+  // Freiheitsgrad für die Höhe weg, einer für die Steigung.
+  const df = nPaar - nSortenPaar - 1
+  let unten: number | null = null
+  if (bTag != null && df >= 1) {
+    let sse = 0, qxx = 0
+    for (const { p, tm, ym } of mitten) { sse += p.w * ((p.y - ym) - bTag * (p.t - tm)) ** 2; qxx += p.w * (p.t - tm) ** 2 }
+    if (qxx > 0) unten = (bTag - tQuantil95(df) * Math.sqrt(sse / df / qxx)) * 7
+  }
+  const gilt = paloxAnstiegSicher(roh, nPaar, spanne, unten)
+  return { roh, nPaar, spanne, unten, gilt: gilt == null ? null : runden(gilt, 5) }
 }
 
 export type Ebene = 'sorte' | 'alle'

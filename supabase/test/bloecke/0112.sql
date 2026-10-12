@@ -8,7 +8,8 @@
 --     wiederholbar; die Labels an den Zeilen; nur der Betriebsleiter;
 --     v_verkauf_position zählt keine Position doppelt;
 -- (c) Artikelgruppe je Sorte und Label je Charge: Stammdaten vor Perigon,
---     Perigon nach der Mehrheit, CH-K ist Knospe;
+--     Perigon (seit 0113: ein einziges Demeter genügt; bis dahin die
+--     Mehrheit), CH-K ist Knospe;
 -- (d) artikel_lager(h): dieselbe Masse wie das Verkaufsfähige, je Charge
 --     nach den Artikelkalibern geteilt (nachgerechnet), Stück und Kisten;
 --     ohne CSV und ohne Artikelgruppe geht nichts verloren;
@@ -135,7 +136,7 @@ begin
            (select artikelgruppe || '|' || coalesce(quelle, '') from v_sorte_artikelgruppe where sorte = 'Kaori Kuri'));
   update sorte_kaliber set artikelgruppe = 'Knirps' where sorte = 'Kaori Kuri';
   update sorte_kaliber set artikelgruppe = v_alt where sorte = v_sorte;
-  -- Label: Perigon nach der Mehrheit; CH-K ist K; Stammdaten gehen vor
+  -- Label: aus Perigon; CH-K ist K; Stammdaten gehen vor
   select l.charge_nr into v_charge from lieferung l join lieferung_import li on li.lieferung_id = l.id
    where l.charge_nr is not null and l.bemerkung = 'DEMO'
    group by l.charge_nr having count(*) >= 3 order by l.charge_nr limit 1;
@@ -150,9 +151,12 @@ begin
      and z.id = (select min(z2.id) from ausgang_zeile z2 join lieferung_import li2 on li2.zeile_id = z2.id
                   join lieferung l2 on l2.id = li2.lieferung_id where l2.charge_nr = v_charge);
   select count(*) into v_n from lieferung_import li join lieferung l on l.id = li.lieferung_id where l.charge_nr = v_charge;
+  -- Bis 0113 entschied die Mehrheit, hier also Knospe. Seit 0113 (Entscheid
+  -- des Betriebs vom 12. Oktober) macht ein einziges Demeter die Charge zu
+  -- Demeter: „dann ist es ein Demeter-Feld" — die Prüfung folgt der Regel.
   assert (select gemischt from v_charge_label where charge_nr = v_charge)
-     and (select label from v_charge_label where charge_nr = v_charge) = 'K',
-    format('0112 (c4): gemischte Labels (1 × D, %s × K) nicht nach der Mehrheit', v_n - 1);
+     and (select label from v_charge_label where charge_nr = v_charge) = 'D',
+    format('0112 (c4): gemischte Labels (1 × D, %s × K) — das eine Demeter macht die Charge nicht zu Demeter', v_n - 1);
   update charge set label = 'D' where nr = v_charge;
   assert (select label || '|' || quelle from v_charge_label where charge_nr = v_charge) = 'D|Stammdaten',
     '0112 (c5): das Label der Stammdaten gilt nicht';

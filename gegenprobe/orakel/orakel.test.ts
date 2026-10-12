@@ -10,7 +10,7 @@ import { kohorten, netto, rueckgrat, type Palette, type Tara } from './masse.ts'
 import { messung, rohwerte, type Waegung } from './verdunstung.ts'
 import { schaetzung } from './varianz.ts'
 import { gedeckelt, m0Zurueck, normieren, stroeme, summeStimmt, verkaufsfaehigAnteil } from './kaskade.ts'
-import { anstieg, erwartung, paloxAnstieg, paloxF, paloxFNach, stationswert, weg, type Punkt } from './schimmel.ts'
+import { anstieg, erwartung, paloxAnstieg, paloxAnstiegSicher, paloxF, paloxFNach, stationswert, weg, type Punkt } from './schimmel.ts'
 import { bandGeordnet, stroemeSummieren, zeitLaeuftVorwaerts } from './bilanz.ts'
 import { vergleiche } from './vergleich.ts'
 import { band, deckt, deltaVarianz } from './band.ts'
@@ -253,6 +253,32 @@ test('Anstieg: unter fünf Arbeiten oder drei Wochen leer, negativ gilt als 0', 
   assert.equal(paloxAnstieg(0.012, 30, 20), null)
   assert.equal(paloxAnstieg(null, 30, 60), null)
   assert.equal(anstieg(STATION.slice(0, 4)).gilt, null)          // X und eine Y-Arbeit: zu wenig
+})
+
+test('Anstieg seit 0113: er gilt erst, wenn er sicher ist — sonst 0, und der Grundausschuss ist das Mittel', () => {
+  // Die Regel selbst
+  assert.equal(paloxAnstiegSicher(0.012, 5, 21, 0.001), 0.012)
+  assert.equal(paloxAnstiegSicher(0.012, 5, 21, -0.001), 0)       // positiv, aber nicht sicher
+  assert.equal(paloxAnstiegSicher(0.012, 5, 21, null), 0)         // ohne Bereich nicht sicher
+  assert.equal(paloxAnstiegSicher(-0.008, 5, 21, -0.02), 0)
+  assert.equal(paloxAnstiegSicher(0.012, 4, 60, 0.005), null)     // unter fünf Arbeiten unbekannt, wie bisher
+  // Von Hand, STATION: b = 0.515 / 420.5 je Tag; die Reste um die Geraden je Sorte
+  // X: ±(0.015 − 10.5·b), Y: ±(0.01 − 10·b) (die Mitte liegt genau drauf);
+  // df = 5 Arbeiten − 2 Sorten − 1 = 2, t = 4.303
+  const b = 0.515 / 420.5
+  const sse = 2 * (0.015 - 10.5 * b) ** 2 + 2 * (0.01 - 10 * b) ** 2
+  const unten = (b - 4.303 * Math.sqrt(sse / 2 / 420.5)) * 7
+  const a = anstieg(STATION)
+  assert.ok(nahe(a.unten, unten, 1e-12)); assert.ok(unten > 0)    // sicher: er gilt
+  assert.equal(a.gilt, runden(b * 7, 5))
+  // Y streut: 30 %, 36 %, 30 % — gemessen steigt es noch (X), aber der Bereich reicht unter 0
+  const streut = STATION.map(q => q.chargeNr === 4 ? { ...q, y: 0.36 } : q)
+  const s = anstieg(streut)
+  assert.ok(s.roh! > 0 && s.unten! < 0, `roh ${s.roh}, unten ${s.unten}`)
+  assert.equal(s.gilt, 0)
+  const y = erwartung(streut, ['Y'], '2026-10-12').find(z => z.sorte === 'Y')!
+  assert.equal(y.anstiegJeWoche, 0)
+  assert.ok(nahe(y.anteil, y.mittel, 1e-12))                     // Grundausschuss = gemessenes Mittel
 })
 
 test('Grundausschuss, von Hand: das Mittel um den Anstieg auf null Tage zurückgelegt — eigen ab drei, sonst alle', () => {
