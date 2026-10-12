@@ -1,166 +1,193 @@
 # Zweitmeinung zu den Daten der Saison 2026
 
-_Stand 28. September 2026, über den Betriebsabzug vom selben Morgen
-(`rohdaten/`, `DURCHGANG.md`, `AUFFAELLIGKEITEN.md`, `MODELLSTAND.md`).
-Von der Runde am Programm geschrieben, nicht vom Abzug — die nächste
-Zweitmeinung ersetzt diese. Jede Zeile sagt: was ich sehe, was ich
-vermute, was zu prüfen ist. Geändert habe ich nichts; das entscheidet der
-Betrieb._
+_Stand 12. Oktober 2026, über den Betriebsabzug vom 12. Oktober
+(`rohdaten/`, `DURCHGANG.md`, `AUFFAELLIGKEITEN.md`, `MODELLSTAND.md`) und
+die beiden Perigon-Dateien (gelesen, nicht eingecheckt). Von der Runde am
+Programm geschrieben, nicht vom Abzug — ersetzt die Zweitmeinung vom
+28. September. Jede Nummer sagt: was ich sehe, was ich vermute, wie sicher,
+was zu prüfen ist, und ob eine **Datenkorrektur** (Betrieb) oder eine
+**Regel** (Programm) folgt. Geändert habe ich an den Daten nichts._
 
-Die Saison in Zahlen: 42 Chargen, 1629 Paletten im Erntejournal
-(611 t Eingang), 28 Arbeiten, 587 Lieferungen (119 t), 27
-Verdunstungswägungen, 12 Sortierdateien, keine Kontrollpalette.
+Die Saison in Zahlen: 42 Chargen, 1756 Zeilen im Erntejournal (794 t
+brutto; 310 davon Vervielfachungen „n Paletten gleich"), 59 Arbeiten
+(33 Waschen + Sortieren, 18 Waschen, 8 Sortieren; 8 noch offen), 772
+Lieferungen (155 t; 16 ohne Charge), 98 Verdunstungswägungen, 12
+Sortierdateien, keine Kontrollpalette. Auffälligkeiten: 69, davon 45
+„Zettelgewicht" — gerechnet am 11. Oktober; die sechs Arbeiten vom
+12. Oktober rechnet erst die nächste Nacht. Durchgang: 83 Kandidaten, einer
+davon neu (3.2, 1635).
 
-## 1. Was die Rechnung am meisten verzerrt — in dieser Reihenfolge
+**Was sich seit dem 28. September geändert hat:** Die meisten
+Zettel-Fehler entstehen beim Zählen, und die Maske sagt es jetzt dort
+(Runde AO): Unter dem Gewicht vom Zettel steht, ob es die Palette so im
+Wareneingang gibt, bei welcher anderen Charge, oder mit wie vielen Kisten.
+Was unten steht, ist vorher entstanden.
 
-### 1626 (Tiana): geliefert, bevor die erste Palette kam
+## 1. Zettel auf der falschen Charge — die Hälfte der Auffälligkeiten
 
-Sechs Lieferungen vom 2. bis 17. September (5885 kg). Im Journal steht
-die erste Palette dieser Charge am **23. September** (13 Paletten, 4863
-kg netto). Was vor dem 23. geliefert wurde, kann aus diesem Eingang
-nicht stammen. Zwei Möglichkeiten: Die Ernte dieser Charge vor dem 23.
-fehlt im Journal — oder die sechs Lieferscheine tragen die falsche
-Chargennummer (eine andere Tiana-Charge lieferte im September: 1613,
-1632, 1650). **Prüfen:** Erntejournal 1626 vor dem 23.9.; sonst die
-Lieferscheine 2.–17.9. Solange das offen ist, meldet das Dashboard für
-1626 „Überzählung" (121 % des Eingangs geliefert) und rechnet die Charge
-mit Verlust null.
+### 1.1 Arbeit 1619 (8.10., Waschen + Sortieren, gebucht auf 1626 Tiana): die Paletten waren 1623 Mieluna
 
-### 1637 (Amoro): eine Sortierdatei zu einer Charge ohne Eingang
+Acht Zettel mit Eingangsdatum 31. August. An dem Tag kam für 1626 nichts
+(ihre erste Palette ist vom 23.9.). Fünf der acht passen auf Datum und Kilo
+genau zu Paletten von **1623 Mieluna** — demselben Produzenten (Agasul
+Rüegg); zwei passen zu 1612 Butterkin oder 1623, einer zu keiner.
+**Vermutung:** Gewaschen und sortiert wurde Mieluna 1623, gebucht auf
+Tiana 1626. **Sicher:** ziemlich (fünf genaue Treffer am selben Tag).
+**Prüfen:** Was lag am 8.10. an der Waschstrasse? **Folgt:**
+Datenkorrektur — die Arbeit auf 1623 umhängen (Messungen → Arbeiten,
+Arbeit 1619 öffnen, „Messungen korrigieren", Feld „Charge"). Damit
+verschwinden acht der 45 „Zettelgewicht".
 
-Die Sortierdatei vom 5. September (4522 Kürbisse) ist auf Charge 1637
-gebucht. Von 1637 steht keine Palette im Journal, es gibt keine Arbeit
-und keine Lieferung. Entweder fehlt die Ernte im Journal, oder die Datei
-gehört zu einer der zwei Amoro-Chargen mit Eingang: 1625 (35 Paletten
-seit dem 29. Juli) oder 1607 (19 Paletten vom 24./25. Juli). **Prüfen:** Was wurde am 5.9. sortiert? Die Zuordnung
-lässt sich in der Warteschlange umhängen.
+### 1.2 1626 Tiana: geliefert, bevor die erste Palette kam
 
-### Arbeit 1589 (26.9.): auf 1613 gebucht, gezählt wurden Paletten der 1632
+Sieben Lieferungen vom 2. bis 22. September (7156 kg), die erste Palette
+von 1626 kam am 23. September; insgesamt 7444 kg geliefert gegen 4863 kg
+Eingang. Das stand schon am 28.9. hier und ist offen. Mit 1.1 zusammen
+liegt nahe, dass auch auf dem Lieferschein **1623 und 1626 verwechselt**
+wurden (beide gehen als Butternut). **Sicher:** mittel. **Prüfen:**
+Lieferscheine 2.–22.9. mit Charge 1626. **Folgt:** Datenkorrektur in
+Perigon oder im Erntejournal.
 
-Drei Zettel mit Eingangsdatum 15.9. — an dem Tag kam für 1613 nichts
-(letzter Eingang 1.9.). Zwei der drei passen aber **genau** auf Paletten
-der Charge 1632 vom 15.9.: 468 kg/36 Kisten (Palette 7659) und 505 kg/40
-Kisten (Palette 7655). Beide sind Tiana, 1613 vom Schlag Slowgrow Uster,
-1632 von Andi Ball. Die Arbeit gehört wohl auf 1632 — oder die Halle hat
-an dem Tag Paletten der 1632 unter 1613 gewaschen. Die Verdunstungswägung
-248 (468 → 455 kg) zählt dann für die falsche Charge. **Prüfen und
-umbuchen** (Charge der Arbeit oder Zettel korrigieren).
+### 1.3 Tiana-Paletten verschiedener Produzenten in einer Arbeit
 
-### Teilpaletten: die Halle rechnet von Hand um — mal so, mal so
+| Arbeit | gebucht auf | Zettel passen genau zu |
+|---|---|---|
+| 1589 (26.9., W+S) | 1613 Tiana (Slowgrow Uster) | 1632 Tiana (Andi Ball): 468 und 505 kg vom 15.9. |
+| 1596 (30.9., Sortieren) | 1611 Tiana (Negi Thalheim) | 1632: 471 kg vom 14.9. |
+| 1597 (30.9., Sortieren) | 1611 | 1649 Butterkin (Rümlang Sauter): 502 kg vom 8.9. |
+| 1617 (8.10., Sortieren) | 1632 Tiana | 1650 Tiana (Rümlang Sauter): 466 kg vom 11.9. |
+| 1585 (24.9., W+S) | 1650 Tiana | 1649 Butterkin: 456 kg vom 8.9. |
 
-Der Betrieb hat es vorausgesagt („18 Kisten, 200 kg, Zettel 400 kg"). In
-den Daten steht es in zwei Formen:
+**Vermutung:** Im Lager stehen Tiana-Paletten mehrerer Produzenten
+nebeneinander, und eine Arbeit nimmt, was vorne steht — die Arbeit läuft auf
+einer Charge. **Sicher:** hoch für die Tatsache, offen für den Grund.
+**Folgt:** keine Korrektur einzelner Zettel (die Masse stimmt ungefähr,
+nur die Charge nicht); eine **Regel** ist seit Runde AO da: Die Maske nennt
+beim Zählen die fremde Charge. Wenn es oft vorkommt: eine Arbeit je
+Charge, oder die Antwort „nicht alles aus einer Charge" am Ende ehrlich
+geben — dann rechnet die Auswertung das Alter nicht aus diesem Zettel.
 
-| Form | Zettel | So im Journal | Folge |
-|---|---|---|---|
-| **Dreisatz von Hand** (5×): 235 kg für 18 Kisten | 2950, 2958, 3000, 3025, 3029 | 470 kg × 18/36 | Die App findet die Palette nicht, rechnet Kisten × Tara. Netto etwa 6 % zu tief (die Palettentara wird ganz abgezogen). Verträglich. |
-| **Voller Zettel, weniger Kisten** (5×): 473 kg für 16 Kisten | 3024 (mit Wägung 244), 3041 (Wägung 247), 2986 (Wägung 233), 2973, 2985 | Palette 473 kg/36 Kisten | Anfangsgewicht bis doppelt zu hoch. Wägung 244 ergibt „4.8 % je Tag" (ausgeschlossen); 247 und 233 sind knapp unter der Grenze und **zählen in die Verdunstungsrate** — zu hoch. |
+### 1.4 1638 Kaori Kuri (Klaus Böhler): Paloxen mit dem Datum 15.9.
 
-**Prüfen (drei Zettel):** 3024 (1651, Arbeit 1584): 16 Kisten der
-Palette 7225 — anteilig 210 kg. 3041 (1617, Arbeit 1588): 56 von 60
-Kisten der Palette 6943 — anteilig 542 kg. 2986 (1632, Arbeit 1576): 36
-von 40 Kisten der Palette 7656 — anteilig 459 kg, oder die Kistenzahl ist
-vertippt. Nach der Korrektur rechnet sich die Verdunstung neu.
+Arbeit 1609 (6.10.) zählt vier Paloxen vom 15.9. (298–313 kg), an dem Tag
+kam für 1638 nichts; zwei Gewichte gibt es bei 1638 am 10.9. Arbeit 1613
+(7.10.) zählt fünf Paloxen vom 10.9., deren Gewichte im Journal nicht
+stehen. Die Rückmeldung zu 1609 sagt: „Hagelschaden bei einer Palox,
+Mischung von Amoro und Kaori Kuri" — Amoro vom selben Produzenten ist
+**1637**, und von 1637 steht weiterhin **keine Palette im Journal** (nur
+die Sortierdatei vom 5.9.). **Vermutung:** Ein Teil der 1637-Ernte steht als
+Paloxen im Lager, ohne Wareneingang, und wird mit 1638 verarbeitet.
+**Sicher:** mittel. **Prüfen:** Erntejournal 1637 und die Holz-Paloxen von
+Klaus Böhler (Datum, Gewicht). **Folgt:** Datenkorrektur im Journal; dazu
+die Tara „Holz Palox" in den Stammdaten nachtragen (18 Paletten, 5,6 t, ohne
+Leergewicht — ihr Netto ist geschätzt).
 
-**Für die Halle, bis die App es kann:** Bei einer Teilpalette das
-Zettelgewicht im Dreisatz umrechnen (Zettel × gezählte Kisten ÷ Kisten
-der Palette) — so, wie es meistens schon gemacht wird. Nie den vollen
-Zettel zu weniger Kisten schreiben.
+### 1.5 1627 Fictor: gearbeitet und geliefert, nie eingegangen
 
-**Für die App (erste Aufgabe der nächsten Runde):** Die Maske fragt bei
-einer Palette „Kisten davon" — der Zettel bleibt der ganze Zettel, die
-App rechnet anteilig, findet die Palette im Journal und rechnet die
-Verdunstung mit dem richtigen Anfangsgewicht. Bis dahin sagt der
-Durchgang zu jedem Zettel ohne Palette, welche Form es ist.
+Arbeit 1602 (1.10., Waschen + Sortieren) mit fünf Zetteln vom 22.9., und
+168 kg geliefert — von 1627 steht keine Palette im Erntejournal, und keiner
+der fünf Zettel passt zu einer anderen Charge an jenem Tag. **Vermutung:**
+Die Ernte von 1627 fehlt im Journal. **Sicher:** hoch. **Folgt:**
+Datenkorrektur (Erntejournal 1627 nachtragen). Bis dahin rechnet die
+Auswertung 1627 ohne Eingang.
 
-### 1638 (Kaori Kuri): 18 Holz-Paloxen ohne Leergewicht
+## 2. Kisten auf dem Zettel: die stehen gelassene 36
 
-18 Paletten vom 10.9. sind Holz-Paloxen (300–319 kg brutto, „1 Kiste").
-Die Stammdaten kennen für „Holz Palox" keine Tara. Der Eingang dieser
-Charge ist zu 7.4 von 13.2 t **geschätzt** (mit dem Mittel der übrigen
-Paletten), nicht gewogen. **Prüfen:** Unter Betrieb → Stammdaten die
-Tara des Holz-Palox eintragen (das leere Palox wiegen; es zählt als eine
-Kiste mit seinem Leergewicht, Palettentara 0). Danach rechnet sich 1638
-von selbst neu. Auffällig dazu: die 18 Paloxen haben nur fünf
-verschiedene Gewichte (4 × 318, 4 × 315, 4 × 300, 4 × 313, 2 × 319) —
-gewogen sieht anders aus. Abgeschrieben, oder je vier gleich beladen?
+16 Zettel passen auf Datum und Gewicht genau zu einer Palette ihrer Charge,
+aber mit anderen Kisten; bei 11 davon stand **36** (die Vorbelegung), die
+Palette hat 40, 32 oder 34 (Arbeit 1623 / 1616 Lekor fünfmal 36 statt 40;
+1607 / 1648 zweimal 36 statt 32; 1616 / 1635 zweimal 36 statt 32). Am
+12. Oktober dasselbe andersherum: In Arbeit 1626 (1635 Kaori Kuri) passte
+der erste Zettel mit 32 Kisten, und die 32 blieben für den zweiten stehen
+(521 kg vom 27.8. — die Palette 6957 hat 36). Die Maske merkt sich die
+Kistenzahl je Arbeit; was einmal getippt ist, ist die nächste Vorbelegung. Das
+Netto rechnet dann mit vier Kisten Tara zu viel oder zu wenig (rund 6 kg je
+Palette), und der Durchgang meldet „Teilpalette mit vollem Zettel".
+**Sicher:** hoch. **Folgt:** keine Korrektur nötig (1–2 % je Palette);
+eine **Regel** ist da: Die Maske zeigt die Kisten aus dem Wareneingang und
+bietet „übernehmen" an. Bleibt die Zahl absichtlich anders (Teilpalette),
+stimmt sie.
 
-### 13 Lieferungen ohne Charge (1660 kg, 15.–21. September)
+## 3. Wägungen, die nicht in die Verdunstung zählen
 
-Orangita, Butterkin, Kaori Kuri, Tiana — jede ohne Chargennummer. Sie
-fehlen in jeder Chargenbilanz und im „Wohin" je Sorte. **Prüfen:** Unter
-Betrieb → Warenausgang die Charge nachtragen.
+### 3.1 1648 Orange Summer, Arbeit 1605: drei Paletten 58–65 kg schwerer
 
-### Sieben Arbeiten stehen offen — zwei davon auf Chargen ohne Eingang
+Zettel 412–415 kg (32 Kisten), gewogen 471–478 kg. 1648 hat Paletten mit
+32 Kisten (~400 kg) und mit 40 Kisten (~485 kg). **Vermutung:** Gewogen
+wurden Paletten mit 40 Kisten, getippt die Zettel von Paletten mit 32.
+**Sicher:** ziemlich. **Folgt:** nichts zu korrigieren — die Wägungen
+zählen nicht und sollen nicht zählen; die Maske warnt jetzt, wenn eine
+Palette schwerer ist als beim Eingang.
 
-| Arbeit | Charge | Seit | Vermutung |
-|---|---|---|---|
-| 1570, 1571 | 1599, 1604 (Orangita, Illnau) | 21.9., 14:59 und 15:06 | Sieben Minuten nacheinander begonnen, je eine Ablesung, keine Palette dieser Chargen im Journal: versehentlich begonnen oder Probe. **Abbrechen.** |
-| 1566 | 1649 | 21.9. | Sieben Tage offen; 1567 an derselben Charge wurde anderthalb Stunden später begonnen und abgeschlossen. **Abbrechen oder abschliessen.** |
-| 1568 | 1613 | 21.9. | Waschen, vier Paletten gezählt, nie abgeschlossen. **Abschliessen** — sonst fehlt die Arbeit in der Rechnung. |
-| 1578 | 1638 | 23.9. | Eine Ablesung, sonst nichts. |
-| 1583 | 1630 | 24.9. | Drei Paletten gezählt. |
-| 1590 | 1612 | 26.9. | 173 kg Faules abgelesen, zwei Paletten mit 58 Kisten — Menge ohne Nenner, solange nicht abgeschlossen. |
+### 3.2 Teilpaletten mit dem Gewicht der ganzen Palette
 
-Eine offene Arbeit rechnet nirgends mit. Wer sie schliesst, gibt der
-Rechnung die Menge zurück.
+1651 (Arbeit 1584): 16 von 36 Kisten gewogen (200 kg), Zettel 473 kg →
+4,8 % je Tag. 1632 (Arbeit 1600): 28 Kisten, 460 → 355 kg → 1,8 % je Tag.
+1623 (Arbeit 1603): 4 Kisten, 89 → 69 kg. Neu am 12. Oktober: 1635 Kaori
+Kuri (Arbeit 1626, Zettel 3293): 521 kg vom 27.8. mit 32 statt 36 Kisten,
+gewogen 341 kg — 1,1 % je Tag, mit 36 Kisten ebenso, und auch anteilig
+(32 von 36) noch 0,8 %. Hier passt keine der beiden Lesarten; **prüfen**,
+welche Palette auf der Waage stand. **Sicher:** hoch. **Folgt:**
+nichts; die Maske sagt bei solchen Zahlen jetzt „so schnell verdunstet kein
+Kürbis — fehlen Kisten?". Wer eine Teilpalette wiegt, rechnet das
+Eingangsgewicht anteilig (Kisten ÷ Kisten der Palette).
 
-### Kleineres, mit Nummer
+### 3.3 1611 (Arbeit 1611) und 1635 (Arbeit 1616)
 
-- **Zettel doppelt** — Arbeit 1577 (1630, Sortieren 23.9.): zweimal 530
-  kg, einmal mit 40 Kisten, einmal mit 32. Im Journal gibt es die
-  530-kg-Palette einmal (40 Kisten). Der zweite Zettel (2973) ist wohl
-  dieselbe Palette, vertippt.
-- **Kistenzahl** — Zettel 2947 (1650): 445 kg mit 36 Kisten, die
-  Palette hat 34. Zettel 3044 (1589): 505 kg/40 — die 505-kg-Palette der
-  1613 hat 36 Kisten und kam am 24.8.; die der 1632 hat 40 und kam am
-  15.9. (siehe oben: falsche Charge).
-- **1649 am 8.9.** — 46 Paletten, 30 Paare gleicher Gewichte, wo der
-  Zufall etwa 13 erwarten liesse (viermal 434, viermal 448 …). Wurden die
-  Zettel abgeschrieben statt gewogen? Kein Fehler in der Bilanz, aber die
-  Streuung je Palette ist dann keine.
-- **Palette 6904** (1617, 25.8.): 65 Kisten, 630 kg. Sieht echt aus —
-  die anderen zwölf Paletten des Tages haben 60 Kisten und 571–592 kg,
-  das Gewicht je Kiste passt. Der Durchgang meldete es vorher als
-  „gibt es nicht"; er lässt jetzt bis 66 Kisten zu.
-- **Arbeit 1580** (1617): 20 Stunden — über Nacht offen geblieben,
-  Durchsatz je Stunde stimmt nicht. Nur eine Notiz.
-- **Wägung 241** (1651): Zettel 498 kg — die Charge hat keine
-  498-kg-Palette (schwerste 493). Vertippt (489?), oder eine Palette
-  einer anderen Charge.
+442 → 474 kg (IFCO, Zettelgewicht im Journal nicht zu finden) und 428 →
+433 kg. **Vermutung:** ein vertippter Zettel bzw. Waagenrauschen.
+**Folgt:** nichts.
 
-## 2. Die Modelle gegen die Saison (`docs/SAISONBEGLEITUNG.md`)
+## 4. Verkauf und Labels
 
-| Grösse | Stand | Erwartet | Urteil |
-|---|---|---|---|
-| Verdunstung je Tag | 0.37 % (alle Sorten gemeinsam, 26 Wägungen; keine Sorte hat genug eigene) | 0.03–0.3 % im Herbst | Am oberen Rand. Drei der Wägungen sind Teilpaletten mit vollem Zettel (oben) und drücken die Rate nach oben. Nach der Korrektur nachsehen; **kein Grund, das Modell zu ändern**. Frisch geerntete, warme Kürbisse verlieren in den ersten Wochen am meisten. |
-| Verderbsmodell | nicht brauchbar (11 Punkte, 5 Chargen, k = −0.5) | k zwischen 1 und 2.5 (beschleunigend) | Ein negatives k heisst: die frühen Messungen sind zu hoch oder die späten fehlen — der Leitfaden sagt, dann die Palox-Ablesungen ansehen. Mit elf Punkten aus den ersten drei Wochen ist es vor allem: zu früh. **Keine Kontrollpalette angelegt.** Je eine je Hauptsorte (Tiana, Butterkin, Kaori Kuri) anlegen und alle zwei Wochen wiegen — das ist der Weg zur Verderbskurve. |
-| Zu klein / zu gross | Kaori Kuri 3.5 %, Tiana 0.3 %, Butterkin 0.3 %; Rest aus allen Sorten (1.6 %) | zu klein 3–15 %, zu gross 0–10 % (aus den Sortierläufen) | **Unter der Erwartung — und an der Handlinie ist „zu klein" immer 0 kg** (alle sechs Ausschuss-Auffälligkeiten: „0 kg zu klein / 22 … 154 kg zu gross"). Der Leitfaden nennt genau das: bleibt es bei 0, wird nichts gewogen. Frage an die Halle: Wo bleiben die Kleinen beim Waschen + Sortieren? |
-| Anderer Kanal | Butterkin 11 %, Orangita 7 % (aus allen), Tiana 4 % | keine Erwartung im Leitfaden | Dünn (zwei bis drei Messungen je Sorte). Nur beobachten. |
-| Ausbeute / Überzählung | 1614: 85 % des Eingangs geliefert, 1619: 86 %, 1626: 121 % | 60–80 % verkaufsfähig, Überzählung 0 | 1626 ist der Journalfehler oben. 1614 und 1619 (Kaori Kuri): entweder fehlen Paletten im Journal, oder die Chargen sind besser als das Modell (74–77 %) — bei einer Sorte mit 3.5 % Ausschuss aus fünf Messungen ist das Modell noch grob. Beobachten. |
-| Bilanz | 611 t Eingang, 119 t geliefert (19.5 %), 372 t „im Haus" gerechnet, 461 t Eingangsmasse hinter noch nicht gelieferter Ware | — | „Ein Verluststrom ist noch nicht gemessen": es gibt keine Kontrollpalette und keine Fax-Arbeit. Das Dashboard sagt es selbst. |
-| Sortierdateien | 12, keine einer Arbeit zugeordnet | jede einer Arbeit | Frage an den Betrieb: ist das so gewollt? Ohne Zuordnung kennt die App zu keiner Maschinen-Arbeit ihre Kaliberverteilung aus der Datei. |
+### 4.1 1624 Butterkin (Agasul Rüegg, Knospe) einmal als „Butterkin Demeter" verkauft
 
-## 3. Was der Durchgang gelernt hat (Runde AC)
+In den Perigon-Dateien wird 1624 mit Label K (Knospe) geliefert; eine
+Position seit Juli trägt den Artikel „Bio-Kürbis Butterkin Demeter".
+Demeter darf als Knospe gehen, nicht umgekehrt. **Sicher:** die Zeile ist
+so in der Datei; ob der Artikel oder das Label falsch ist, weiss ich nicht.
+**Prüfen:** Lieferschein dieser Position. **Folgt:** Datenkorrektur in
+Perigon, falls der Artikel falsch war.
 
-Der erste Durchgang über echte Daten hatte 546 Kandidaten; 518 davon
-waren „Doppelte Palette" — und fast alle davon Zufall: bei 60 Paletten
-eines Tages zwischen 460 und 500 kg *müssen* Gewichte zusammenfallen
-(750 Paare in der Saison, rund 590 erwartet der Zufall). Ein Paar ist
-darum kein Kandidat mehr; ein Tag mit deutlich mehr Paaren als erwartet
-ist einer (1638 am 10.9., 1649 am 8.9.). Vervielfachungen des Journals
-(„5 Paletten à 384 kg", eine Zeile) zählen nicht. Die 18 „Gewicht je
-Kiste"-Kandidaten waren Paloxen ohne Tara — jetzt ein Kandidat je
-Gebinde. Neu erkennt der Durchgang die Teilpalette von Hand (Dreisatz)
-und mit vollem Zettel, die vertippte Kistenzahl, den doppelten Zettel,
-den Zettel auf der fremden Charge derselben Sorte, Lieferungen vor dem
-ersten Eingang, Sortierläufe ohne Eingang, Lieferungen ohne Charge und
-Arbeiten, die offen bleiben. Heute: 35 Kandidaten, jeder mit Nummer.
+### 4.2 Perigon-Nummer 198977 gehört wohl zu 1650 Tiana
 
-## 4. Was ich nicht beurteilen kann
+Die Planungsdatei gibt 1649 Butterkin und 1650 Tiana (beide Rümlang
+Sauter) dieselbe Nummer 198976. Unter **198977** verkauft Perigon seit Juli
+neunmal „Bio Kürbis Butternut lose" — eine Nummer, die das Programm nicht
+kennt; diese Positionen stehen ohne Charge (16 Lieferungen ohne Charge,
+12 davon Tiana). **Vermutung:** 198977 ist 1650. **Sicher:** mittel (die
+einzige Butternut-Charge von Rümlang Sauter). **Prüfen:** Planungsdatei.
+**Folgt:** Datenkorrektur — im SQL-Editor
+`update charge set perigon_nr = 198977 where nr = 1650;`, danach die
+Perigon-Datei noch einmal einlesen.
 
-- Ob die Ernte der 1626 vor dem 23.9. und die der 1637 wirklich fehlen
-  oder nie stattfand — das weiss nur das Journal auf Papier.
-- Kundennamen und Preise sehe ich nicht (bleiben draussen), Aufnahmen
-  höre ich nicht. Rückmeldungen aus der Halle: bis heute keine.
-- Ob die 13 Lieferungen ohne Charge zu einer oder vielen Chargen gehören.
+## 5. Kleineres
+
+- **Orangita 1617, Arbeit 1595 (offen seit 29.9.):** zwei Ablesungen, beide
+  239 kg — 0 kg Palox. Vermutlich die zweite Ablesung vergessen und die
+  erste wiederholt. Arbeit abschliessen oder abbrechen.
+- **Sechs Arbeiten vom 12. Oktober** (1624–1629) sind in wenigen Minuten
+  nachgetragen. Der Palox-Stand geht sauber von Arbeit zu Arbeit weiter
+  (48 → 110 → 142 → 226 → 254 → 334 kg) — so ist es gedacht. Arbeit 1624
+  (Waschen 1630, am Morgen erfasst) hat keine Palox-Ablesung: Ihr Faules ist
+  unbekannt, nicht 0. Wenn der Stand vom Morgen noch bekannt ist, als
+  Messung nachtragen.
+- **Acht Arbeiten offen** (1578, 1583, 1590, 1591, 1593, 1595, 1596, 1611),
+  die älteste seit dem 23.9. Offene Arbeiten zählen nicht in die Stationswerte.
+  Abschliessen oder abbrechen (Startseite → auswählen).
+- **1637 Amoro, Sortierdatei vom 5.9.:** weiterhin ohne Eingang (siehe 1.4).
+- **Arbeit 1577 (1630, Sortieren):** derselbe 530-kg-Zettel zweimal — eine
+  Palette doppelt gezählt? Prüfen, sonst nichts.
+- **Rückmeldung zur App „Oettli als Produzent":** Produzenten kommen mit den
+  Chargen aus dem Erntejournal (`schlag`); eine eigene Liste gibt es im
+  Programm nicht. Oettli erscheint, sobald eine Charge von ihm im Journal
+  steht.
+
+## Reihenfolge für den Betriebsleiter
+
+1. Arbeit 1619 auf 1623 umhängen (1.1) — acht Auffälligkeiten weniger.
+2. Lieferscheine 1626 vom 2.–22.9. prüfen (1.2).
+3. Erntejournal: 1627 Fictor und 1637 Amoro nachtragen (1.5, 1.4); Tara
+   „Holz Palox" in den Stammdaten.
+4. Perigon-Nummer 198977 → 1650 (4.2) und den Artikel bei 1624 (4.1).
+5. Offene Arbeiten schliessen (5).

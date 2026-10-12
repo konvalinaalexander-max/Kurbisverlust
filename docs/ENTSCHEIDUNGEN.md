@@ -4171,6 +4171,119 @@ Daten, dann die Annahme — nach der Korrektur nachsehen.
 nicht alles: vier mal vier gleiche Paloxen und ein Tag mit 30 Paaren bei
 13 erwarteten sind Fragen wert.
 
+## Runde AO: Palox mit Grundausschuss, Lagermanagement nach Artikel, die Halle prüft mit (12. Oktober, 0111, 0112)
+
+Der Betrieb nach drei Wochen echter Arbeiten, in einer langen Nachricht:
+Meinung zum Stand, die Mathematik besprechen, viele Masken einfacher, ein
+neuer Reiter — „Mach diesen zweiten Reiter schon mal."
+
+**Palox: Grundausschuss + Anstieg (0111).** „Primär ist Palox einfach
+Aussortieren … eine Sorte hat einen grundlegenden Ausschuss von 10 %, und im
+Dezember sind es vielleicht 15 %." Der Palox-Anteil je Station ist jetzt
+eine Gerade über die Lagerdauer: Grundausschuss der Sorte + Anstieg der
+Station × Wochen. Der Anstieg wird innerhalb der Sorten gemessen (jede um
+ihre Mitte), gilt ab fünf Arbeiten und drei Wochen Spanne und ist nie
+negativ; die Kaskade nimmt jeden Wert beim Alter seiner Portion. Auf den
+Betriebsdaten: Waschen + Sortieren 9,3 % (25 Arbeiten, kein Anstieg
+messbar, gemessen −0,8 Punkte je Woche), Waschen 10,2 % mit +1,4 Punkten
+je Woche (11 Arbeiten, Band −4,1 bis +6,8), Sortieren 2,5 % (Anstieg erst,
+wenn die Lagerdauern einer Sorte 21 Tage auseinanderliegen; bis jetzt 16).
+
+**Jeder Anteil schlicht (0111).** Verdunstung, zu klein, zu gross, Fax: das
+massegewichtete Mittel der eigenen Messungen der Sorte ab drei, sonst das
+aller Sorten, und es heisst so. Kein Zug zum Gesamtwert mehr (empirischer
+Bayes), weil ihn niemand nachrechnen konnte. Verdunstung nur aus Paaren
+Gewicht damals / jetzt / Tage, wie der Betrieb es beschrieben hat.
+
+**Verkaufsfähig ist überall dieselbe Zahl (0111).** Die Bänder in „Was ist
+noch im Haus" summieren sich jetzt zum Verkaufsfähigen der Kennzahl und der
+Charge; was seit der Sortierung unter das kleinste Band geschrumpft ist,
+zählt im kleinsten Band (`geschrumpft_kg` sagt, wie viel). Daneben stehen
+Unterkaliber (zu klein) und Überkaliber (zu gross) — vorher fehlte das
+Überkaliber, und die Bänder ergaben eine andere Zahl als die Kennzahl.
+
+**Das Lager nach Artikel (0112).** „Im Verkauf denken wir nach Artikeln …
+gross oder klein, und dann Demeter oder Knospe." Ein Artikel ist
+Artikelgruppe (aus der Sorte; vorbelegt aus den Verkäufen, in den
+Stammdaten änderbar) × Label (aus der Charge; sonst das Label, mit dem
+Perigon sie geliefert hat) × Grösse (die Kaliber der Coop-Artikeldaten
+2026). `artikel_lager(h)` teilt dieselbe Masse wie `lager_kaliber(h)` nach
+diesen Kalibern, mit Stück und Kisten; die Summe ist das Verkaufsfähige,
+auf das Kilo. Der neue Reiter „Lagermanagement nach Artikel" zeigt
+Eingang, ausgeliefert und Lager je Artikel, und je Kunde die Saison gegen
+die Vorjahre (gestrichelt, auch über heute hinaus: „die vergangene
+Zukunft"). Die Vorjahre kommen aus den Perigon-Dateien (`ausgang_position`,
+alle Saisons, Saison 1. Juli – 30. Juni) und gehen in keine Bilanz ein.
+
+**Die Halle prüft mit.** 45 der 69 Auffälligkeiten im Abzug vom 11. Oktober
+sind „Zettelgewicht", vier „Zetteldatum", acht „Wägung" — gehäuft bei
+Nachbarchargen desselben Produzenten (1626/1623, 1638/1637, 1650/1649). Die
+Masken sagen es jetzt, solange die Palette noch vor einem steht: unter dem
+Gewicht vom Zettel, ob es die Palette so im Wareneingang gibt, an einem
+anderen Tag, oder bei einer anderen Charge — und ob sie dort andere Kisten
+hat: 11 der 16 Zettel mit abweichender Kistenzahl trugen die stehen
+gelassene Vorbelegung 36 bei Paletten mit 40, 32 oder 34 Kisten; ein Tipp
+übernimmt die Zahl aus dem Wareneingang. In der Wägung, ob die Palette
+schwerer wurde oder schneller leichter, als ein Kürbis verdunstet —
+dieselben Regeln wie die Auffälligkeiten (`src/arbeit/zettel.ts`). Der
+Palox-Hinweis kommt jeder Person in drei Arbeiten („dass jede Person … noch
+dreimal die Infos kriegt"), und „Palox leeren" steht auch beim Zähler, gelb
+umrandet, und im Plan vor der Arbeit. Das Sortierdatum ist beim Waschen
+freiwillig: Seit 0104 misst die Waage die Menge („muss eigentlich das
+Sortierdatum ja nicht mehr drauf sein"). Beim Füllen „anders" sagt die
+Checkliste, dass keine fertige Palette nötig ist (Rückmeldung Nr. 3).
+
+**Masken.** Messungen mit drei Reitern (Arbeiten, Auffälligkeiten,
+Messwerte; „ausstehend" als vierter); Betrieb ohne Arbeiten; keine
+Untertitel; Chargen als eine Tabelle mit aufklappbaren Zeilen; der Verlauf
+mit Zoom, Bildlaufleiste und „Im Lager" nur bis heute; das Arbeitsfenster
+mit der Kernzahl zuerst („250 kg von 1014 kg in den Palox"); die Marge in
+zwei getrennten Kästen, mit dem Ø laut Sortierung statt der „Mitte". Die
+zwei oberen Reiter heissen, wie der Betrieb es vorschlug, „Lagermanagement
+nach Charge" und „Lagermanagement nach Artikel". Unter Ursachen stehen die
+Läufe derselben Charge nebeneinander (Median je Lauf, Abstand in % je Tag
+neben der Rate der Wägungen, AB-113) — die Karte erscheint erst, wenn eine
+Charge zweimal sortiert ist; auf den Daten vom 12. Oktober noch keine.
+
+**Ein Fund beim Einspielen.** 0111 hatte fünf gespeicherte Ergebnisse
+(`erg_bilanz`, `erg_marge`, `erg_massenbilanz`, `erg_naechste_charge`,
+`erg_plausibilitaet`) ausgeschrieben neu angelegt, die die Schleife aus 0106
+schon baut. In `setup.sql` stand jedes damit zweimal, und eine leere
+Datenbank brach beim zweiten „create" ab; auf einer bestehenden lief 0111
+durch, darum fiel es erst `kette_pruefen.sh` auf. Jetzt baut sie dieselbe
+Schleife mit der Angabe `-- verdichter: baut …` (die Spalten sind dieselben
+wie die ihrer Sicht, geprüft).
+
+**Mutationen.** Block 0111 und Block 0112 mit je eigener Mutationsliste;
+in 0112 schlagen 26 von 28 an. Die zwei stillen (M20: die Vorjahre zweimal
+laden; M20b: ohne „on conflict") sind gleichwertig — jede allein ändert
+nichts, weil die andere Sicherung greift; beide zusammen (M20c) schlagen an.
+In 0111 blieb zuerst eine still, und die war wichtig: M11 rechnet die
+Steigung über alle Sorten hinweg statt innerhalb — genau der Fehler, vor dem
+die Rechnung innerhalb der Sorten schützen soll. (c1) merkte es nicht, weil
+die Sorten der Demo über die ganze Saison gleichmässig über die Lagerdauer
+liegen: gepoolt 0,00417, innerhalb 0,00416. Auf den Betriebsdaten trennt es
+stark (Sortieren: −0,2 innerhalb, +0,8 Punkte je Woche gepoolt). Neu rechnet
+(c1b) den Anstieg in dreizehn Sechswochenfenstern nach, wo die Sorten
+verschieden alt ankommen, und verlangt, dass gepoolt und innerhalb sich dort
+um mehr als 0,1 Punkte je Woche trennen — sonst prüfte der Block nichts. Die
+Fenster hängen am letzten Messtag, nicht an `heute()`: Im Gesamtlauf steht
+der Prüftag auf dem Saisonende, Monate nach der letzten Arbeit der Demo, und
+die erste Fassung von (c1b) fand dort nur drei Fenster. Jetzt schlagen in
+0111 alle 32 an.
+
+**Was bewusst nicht gemacht wurde:** Die Zettel-Prüfung hält nicht auf —
+der Wareneingang kann selbst eine Lücke haben (1627 steht gar nicht drin),
+und eine Arbeit wird nicht auf eine andere Charge umgebucht; das bleibt dem
+Betriebsleiter. Der Palox-Hinweis ist auf dem Gerät gemerkt, je Profil, nicht
+in der Datenbank: Wer das Handy wechselt, sieht ihn dort noch einmal — ein
+Hinweis zu viel kostet einen Tipp. Grundausschuss und Anstieg sind kein
+zweiter Strom durch die Bilanzen. Die Läufe derselben Charge (AB-113) gehen
+nicht in die Verdunstungsrate ein; das entscheidet der Betrieb, sobald es
+Paare gibt. Welcher Kunde zu welcher Kette gehört, steht nicht im Programm;
+Preise werden weder gelesen noch gespeichert. Ein Demeter-Kürbis darf als
+Knospe gehen — die App sagt es, rechnet aber nicht um.
+
 ## Runde AN: rechnen auf PostgreSQL 17 (30. September, morgens, 0110)
 
 Nach dem Einspielen von Stand 109 scheiterte der erste Lauf im Betrieb nach

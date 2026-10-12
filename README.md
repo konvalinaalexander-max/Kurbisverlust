@@ -472,13 +472,12 @@ werden — danach vergibst du alle weiteren Rollen bequem in der App.
 **Woran du merkst, dass es geklappt hat**
 
 Zurück im App-Tab die Seite neu laden (**F5**). Aus der Hallen-Ansicht wird
-die Büro-Ansicht mit fünf Reitern: **Lagermanagement**, **Ursachen**,
-**Chargen**, **Messungen**, **Betrieb**.
+die Büro-Ansicht mit sechs Reitern: **Lagermanagement nach Charge**,
+**Lagermanagement nach Artikel**, **Chargen**, **Ursachen**, **Messungen**,
+**Betrieb** (seit Runde AO).
 
-Am Computer stehen sie links in einer Seitenleiste, ganz unten darin dein Name
-mit dem Zusatz **Betriebsleiter**. Auf dem Handy stehen sie als Zeile unter der
-Kopfzeile, der Zusatz „Betriebsleiter" fehlt dort — die fünf Reiter sind das
-Merkmal, nicht der Zusatz.
+Am Computer stehen sie links in einer Seitenleiste, ganz unten darin dein
+Name. Auf dem Handy stehen sie als Zeile unter der Kopfzeile.
 
 Sortier-CSV, Warteschlange, Lieferungen, Stammdaten und der QR-Zugang liegen
 alle unter **Betrieb**.
@@ -696,6 +695,23 @@ Nachtrag: Ob der Zeitplan wirklich läuft, sieht die App am letzten Lauf
 sagt der Chip „Zeitplan rechnet nicht" (AB-97, `src/lib/zeitplan.ts`).
 Wurde seit der letzten Rechnung nichts erfasst, sagt der Chip „aktuell".
 Seit Runde AG rechnet die App beim Öffnen nie mehr selbst (AB-114).
+
+**Runde AO (0111, 0112)** — der Palox als Grundausschuss + Anstieg, das
+Lager nach Artikel, und die Halle prüft mit. Der Palox-Anteil je Sorte und
+Station ist ihr Grundausschuss plus ein Anstieg je Woche Lagerdauer (AB-127);
+jeder Anteil je Sorte ist das Mittel ihrer eigenen Messungen ab drei, sonst
+das aller Sorten (AB-128); verkaufsfähig ist überall dieselbe Zahl, mit
+Unter- und Überkaliber daneben (AB-129). Neu: **Lagermanagement nach
+Artikel** — Artikelgruppe × Demeter/Knospe × gross/klein, Eingang,
+ausgeliefert und Lager je Artikel, je Kunde die Saison gegen die Vorjahre
+(AB-130, AB-131). In der Arbeiter-App prüft die Maske den Zettel gegen den
+Wareneingang und die Wägung gegen die Verdunstung, jede Person bekommt den
+Palox-Hinweis in drei Arbeiten, und das Sortierdatum ist beim Waschen
+freiwillig (AB-132–134). Messungen hat Reiter (Arbeiten, Auffälligkeiten,
+Messwerte, ausstehend). **Der Betrieb spielt setup.sql einmal ein (Stand
+112)** und liest danach **beide Perigon-Dateien noch einmal ein** (Betrieb →
+Warenausgang): Erst dann kennt die App die Labels der Lieferungen und die
+Vorjahre je Kunde.
 
 **Runde AN (0110)** — rechnen auf PostgreSQL 17: Der Betrieb läuft auf
 PostgreSQL 17, und dort frischt Postgres gespeicherte Ansichten mit einem
@@ -1050,15 +1066,16 @@ Vermerk `DEMO`, Paletten mit `demo-…`, Sortierdateien `DEMO-…`).
 [`supabase/demo_daten_entfernen.sql`](supabase/demo_daten_entfernen.sql)
 einspielen wie in Schritt 3. Dieselben Funktionen, dieselbe Saison.
 
-### Was die fünf Reiter zeigen
+### Was die Reiter zeigen
 
 | Reiter | Die Frage, die er beantwortet |
 |---|---|
-| **Lagermanagement** | Was **jetzt** im Lager liegt — und zwar genau. Vier Zahlen (Eingang, Ausgang, im Lager, davon verkaufsfähig), der Verlauf je Woche, die Tabelle „Was ist noch im Haus?" (je Sorte oder Charge, wie viel in welchem Kaliberband verkaufsfähig ist — **heute und in X Wochen**, X ist ein Feld) und die Glocke der Gewichte am selben Stichtag. Alles über morgen steht hier, nirgends sonst. |
-| **Ursachen** | Wohin der Kürbis **bis heute** ging. Der ganze Eingang als ein Balken in sechs Teilen (verkaufsfähig liegend, verkauft, verdunstet, Faules, zu klein, zu gross), darunter je Sorte oder Charge nach Verlustanteil. Dann Faules im Lager und Verdunstung als Messpunkte — wahlweise nach **Kalender** („ab wann ging es los") oder nach **Lagerdauer** („nach wie vielen Wochen"). Zuletzt die verschenkte Marge, gegliedert wie der Filter oben (alle Chargen → je Sorte mit den Chargen aufklappbar; eine Sorte → ihre Chargen; eine Charge → ihre Wägungen): was die Kiste über dem Soll hat, und wie schwer der einzelne Kürbis gegen die Mitte seines Kalibers ist — das Kaliber mit seinem Band in Gramm. Keine Prognose. |
-| **Chargen** | Wo welche Charge steht: Im Lager, verkaufsfähig heute, in vier Wochen, wie lange sie liegt, was zwei Wochen längeres Liegen kosten. Nach „In 4 Wochen" sortiert steht oben, was zuerst raus sollte. |
-| **Messungen** | Die Rohbeobachtungen und die Auffälligkeiten — was nicht zusammenpasst, mit dem Sprung zur Korrektur. |
-| **Betrieb** | Stammdaten, Warenausgang einlesen, Zugang für die Arbeiter, Tempo der Halle. |
+| **Lagermanagement nach Charge** | Was **jetzt** im Lager liegt — und zwar genau. Vier Zahlen (Eingang, Ausgang, im Lager, davon verkaufsfähig), der Verlauf je Woche, die Tabelle „Was ist noch im Haus?" (je Sorte oder Charge, wie viel in welchem Kaliberband verkaufsfähig ist — **heute und in X Wochen**, X ist ein Feld) und die Glocke der Gewichte am selben Stichtag. Alles über morgen steht hier, nirgends sonst. |
+| **Lagermanagement nach Artikel** | Dasselbe Verkaufsfähige nach Artikel: Artikelgruppe × Demeter/Knospe × gross/klein, mit Stück und Kisten; Eingang, ausgeliefert und Lager je Artikel; je Kunde die Saison gegen die Vorjahre (Runde AO). |
+| **Chargen** | Wo welche Charge steht: eine Tabelle mit Eingang (kg, Paletten, Tag), ausgeliefert, im Lager, davon verkaufsfähig und Verlust bis heute; eine Zeile klappt auf zu Eingangstagen, Lieferungen und Arbeiten der Charge (seit Runde AO ohne „in vier Wochen“ und „zwei Wochen länger“ — die Zukunft steht im Lagermanagement). |
+| **Ursachen** | Wohin der Kürbis **bis heute** ging. Der ganze Eingang als ein Balken in sechs Teilen (verkaufsfähig liegend, verkauft, verdunstet, Faules, zu klein, zu gross), darunter je Sorte oder Charge nach Verlustanteil. Dann Faules im Lager und Verdunstung als Messpunkte — wahlweise nach **Kalender** („ab wann ging es los") oder nach **Lagerdauer** („nach wie vielen Wochen"). Zuletzt die verschenkte Marge, gegliedert wie der Filter oben (alle Chargen → je Sorte mit den Chargen aufklappbar; eine Sorte → ihre Chargen; eine Charge → ihre Wägungen): was die Kiste über dem Soll hat, und wie schwer der einzelne Kürbis gegen die Mitte seines Kalibers ist — das Kaliber mit seinem Band in Gramm. Und, sobald eine Charge zweimal sortiert ist, die Läufe derselben Charge nebeneinander — Median je Lauf und Abstand in % je Tag, als Gegenprobe der Verdunstung (AB-113). Keine Prognose. |
+| **Messungen** | Vier Reiter: die Arbeiten, die Auffälligkeiten (was nicht zusammenpasst, mit dem Sprung zur Korrektur), die Messwerte, und welche Messung je Sorte noch aussteht. |
+| **Betrieb** | Stammdaten, Warenausgang einlesen, Sortierdateien, Zugang für die Arbeiter. |
 
 Der Anteil bezieht sich immer auf **die liegende Eingangsware** — heute und
 über jeden Horizont derselbe Nenner. Fehlt eine Messung, bleibt der Anteil

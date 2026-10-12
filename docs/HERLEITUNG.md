@@ -101,11 +101,15 @@ Netto damals, Netto jetzt, Lagertage → Rate je Tag = 1 − (jetzt/damals)^(1/T
 kein Schimmel sichtbar, Arbeit nicht abgebrochen, und seit 0089 unter der
 Grenze `verdunstung_rate_max_pro_tag` (Vorgabe 1 % je Tag). Jede Wägung,
 die nicht zählt, sagt warum (`grund`).
-**Zusammenfassen:** je Charge das nach Masse gewichtete Mittel → je Sorte →
-zum Gesamtwert aller Sorten gezogen (empirisches Bayes: der Zug ist stark,
-wenn die Sorte wenige Chargen hat, schwach, wenn sie viele hat). Die
-`basis` sagt es: „Wiegungen dieser Sorte" (b ≥ 0.67) · „…, zum Gesamtwert
-gezogen" · „Wiegungen aller Sorten" · „keine Wiegung vorhanden".
+**Zusammenfassen (seit 0111):** je Sorte das nach Masse gewichtete Mittel
+ihrer eigenen verwendbaren Wägungen, ab drei (`anteil_mindest_messungen()`);
+darunter das Mittel aller Sorten. Kein Zug zum Gesamtwert mehr (bis 0110:
+empirisches Bayes — niemand konnte es nachrechnen). Die `basis` sagt es:
+„Wiegungen dieser Sorte" · „Wiegungen aller Sorten (eigene: n, gilt ab 3)" ·
+„keine Wiegung vorhanden".
+**Gegenprobe, nicht Teil der Rate:** zwei Sortierläufe derselben Charge
+(`v_lauf_vergleich`, AB-113) — Median und Abstand je Tag; es sind andere
+Kürbisse, darum zählen sie nicht in die Rate.
 **Fehlt alles:** unbekannt, nicht null — die Kaskade rechnet dann ohne
 Verdunstung und das Dashboard sagt „nicht gemessen".
 **Urteil:** ehrlich; die Grenze (0089) war die Lücke.
@@ -115,8 +119,8 @@ Verdunstung und das Dashboard sagt „nicht gemessen".
 **Braucht:** je Sortierlauf die Masse unter dem kleinsten und über dem
 grössten Band (CSV, klassiert nach der Fassung des Auftrags) — und von der
 Handlinie die gewogenen Kisten (0088). Anteile an der Masse des Laufs.
-**Zusammenfassen:** wie die Verdunstung — je Sorte, zum Gesamtwert gezogen,
-`basis` sagt es.
+**Zusammenfassen:** wie die Verdunstung (seit 0111) — das Mittel der Sorte
+ab drei eigenen Messungen, sonst aller Sorten; `basis` sagt es.
 **Fehlt alles:** unbekannt.
 **Fehlt eine Art** (nur „zu gross" gewogen, „zu klein" übersprungen): diese
 Art ist unbekannt, nicht 0; die gemessene zählt; keine Auffälligkeit (0097).
@@ -132,37 +136,48 @@ den Nebenkanal) zählt erst dann, und der Befund der Bilanz vergleicht beides.
 (Anteil dieses Auges, `anteil_station`; beim Waschen der Wasch-Palox allein
 gegen die Masse hinein, 0105). Nicht plausible Punkte (Anteil über 90 %)
 stehen grau und zählen nicht.
-**Rechnung:** kein Modell über die Lagerdauer mehr (bis 0105: F(t) =
-1 − exp(−λ·t^k) mit Sockel, Smearing, Selektionszuschlag — gestrichen auf
-Entscheid des Betriebs, Runde AJ). Stattdessen je Sorte und Station der
-**erwartete Palox-Anteil**: das nach Masse gewichtete Mittel der plausiblen
-Punkte, zuerst die letzten vier Wochen der Sorte (ab drei Arbeiten,
-`palox_mindest_arbeiten()`), sonst ihre ganze Saison, sonst alle Sorten
-(vier Wochen, dann Saison; `ebene`, `quelle`, `geliehen` sagen es). Was eine
+**Rechnung (seit 0111): Grundausschuss + Anstieg.** Je Sorte und Station
+ist der Palox-Anteil eine Gerade über die Lagerdauer t:
+Anteil(t) = Grundausschuss der Sorte + Anstieg der Station × t / 7.
+Der **Anstieg** je Woche ist die massegewichtete Steigung der plausiblen
+Punkte über ihre Lagerdauer, **innerhalb der Sorten** gemessen (jede Sorte um
+ihre eigene Mitte — eine Sorte mit viel Grünem ist kein Anstieg); er gilt ab
+fünf Arbeiten (`n_paar`) und drei Wochen Spanne der Lagerdauern innerhalb
+einer Sorte (`palox_anstieg_mindest_tage()`) und ist nie negativ
+(`palox_anstieg()`). Der **Grundausschuss** ist das Mittel der Sorte, um den
+Anstieg auf null Tage zurückgelegt: Mittel − Anstieg × mittlere Lagerdauer / 7
+(nie unter 0) — eigen ab drei Arbeiten (`palox_mindest_arbeiten()`), sonst
+der aller Sorten (`ebene`, `quelle`, `geliehen` sagen es;
+`erg_palox_erwartung.anstieg_je_woche`, `lager_mittel`). Bis 0110 war es ein
+Anteil je Sorte und Station (Mittel der letzten vier Wochen), gleich für
+frische und alte Ware; bis 0105 ein Modell F(t) = 1 − exp(−λ·t^k) mit
+Sockel. Was eine
 Charge auf ihrem Weg verliert, ist die Zusammensetzung der Stationen
 (`palox_f`): f = p_hand · f_W+S + (1 − p_hand) · (f_S + (1 − f_S) · p_wasch · g_W),
 mit p_hand = Anteil von Hand an der verarbeiteten Masse und p_wasch = 1, wenn
 Bandware der Sorte in dieser Saison gewaschen wird (`v_charge_weg`: aus den
 eigenen Arbeiten, sonst denen der Sorte, sonst allen). Für **ausgelagerte**
 Ware gilt die eigene Messung der Charge je Station vor der Erwartung
-(`v_charge_palox`), für **liegende** die Erwartung der Sorte. `f_quelle`
+(`v_charge_palox`, ohne Anstieg), sonst die Gerade **beim Alter am
+Liefertag**; für **liegende** die Gerade beim heutigen Alter. `f_quelle`
 an jeder Kaskadenzeile sagt, welche Werte es waren.
-**Zuwachs:** die Kennzahl je Station (`palox_station_kennzahl()`, 0105)
-liefert den Zuwachs je Woche — massegewichtete Gerade über den Messtag, erst
-nach vier Wochen und fünf Arbeiten. Die Prognose schreibt jede Station um
-diesen Zuwachs fort (`palox_f_nach`) und setzt neu zusammen; der Verlauf
-verschiebt so auch zurück. Ohne Zuwachs steht der Anteil still, und
+**Fortschreiben:** Prognose und Verlauf schreiben jede Station mit ihrem
+Anstieg fort (`palox_f_nach`) und setzen neu zusammen. Ohne Anstieg (zu
+wenige Arbeiten, zu kurze Spanne, gemessen ≤ 0) steht der Anteil still, und
 `zuwachs_bekannt = false` sagt es: `faul_je_tag_kg` und die Zwei-Wochen-Zahl
-(`v_naechste_charge`) bleiben leer.
+(`v_naechste_charge`) bleiben leer. Auf den Betriebsdaten (12. Oktober):
+Waschen + Sortieren 9,3 %, kein Anstieg messbar; Waschen 10,2 % mit
++1,4 Punkten je Woche; Sortieren 2,5 %, Spanne noch zu kurz.
 **Fehlt eine Eingabe:** eine Arbeit ohne Nenner liefert keinen Punkt
 (Auffälligkeit „Ohne Nenner"); ein Leeren ohne Ablesung macht die Menge
 unbekannt (Auffälligkeit „Palox geleert"); hat eine Station auf dem Weg
 keinen Wert (auch nicht geliehen), ist das Faule der Charge unbekannt
 (`f_bekannt = false`), nicht 0 — Verlust, Bilanz und Prognose sagen es.
 **Urteil:** ehrlich und aus dem Betrieb: Was ein Auge in den Palox legt, ist
-Faules dieser Station — Erde, Hagel, Schnitt eingeschlossen; einen Sockel,
-der das herausrechnet, gibt es nicht mehr. Die offene Frage der Saison ist
-der Zuwachs ab Dezember (`docs/SAISONBEGLEITUNG.md` § 2).
+Faules dieser Station — Erde, Hagel, Schnitt eingeschlossen; „primär ist
+Palox einfach Aussortieren" (12. Oktober), darum der Grundausschuss. Die
+offene Frage der Saison ist der Anstieg ab Dezember
+(`docs/SAISONBEGLEITUNG.md` § 2).
 
 ## 8. Fax (Faules beim Abpacken)
 
@@ -221,6 +236,35 @@ weiter nur volle.
 Gramm je Kürbis stehen trotzdem da.
 **Urteil:** ehrlich seit 0097; davor nahm die Karte die Grenzen der
 neuesten Fassung zu jedem Index, was „K1 500–600 · Mitte 878 g" ergab.
+
+## 12a. Was im Haus ist — nach Kaliber und nach Artikel (`lager_kaliber`, `artikel_lager`, 0111, 0112)
+
+**Braucht:** je Charge das Verkaufsfähige am Stichtag (Kaskade, Abschnitt
+11; `kuerbis_stichtag(h)`) und die Gewichtsverteilung des jüngsten
+Sortierlaufs der Charge, sonst der Sorte (`lager_schluessel()`).
+**Nach Kaliber:** das Verkaufsfähige je Band der Fassung, im Verhältnis der
+Verteilung. Was seit der Sortierung unter das kleinste Band geschrumpft ist,
+zählt **im kleinsten Band** (`geschrumpft_kg` sagt, wie viel) — so summieren
+sich die Bänder genau zum Verkaufsfähigen der Kennzahl und der Charge.
+Daneben stehen Unterkaliber (= zu klein, `klein_kg`) und Überkaliber
+(= zu gross, `gross_kg`) aus der Kaskade.
+**Nach Artikel:** dieselbe Masse, nach den Kalibern der Artikelgruppe geteilt
+(`artikel_kaliber`, Coop-Artikeldaten 2026): klein, gross, ausserhalb
+(darunter/darüber), lose (Gruppe ohne Kaliber), ohne Verteilung (kein
+Sortierlauf). Artikelgruppe aus der Sorte (`v_sorte_artikelgruppe`:
+Stammdaten, sonst die meistverkaufte), Label aus der Charge
+(`v_charge_label`: Stammdaten, sonst die Mehrheit der Perigon-Lieferungen;
+DU → D, CH-K/KZ → K). Stück = kg × 1000 / Ø-Gewicht der Verteilung in
+diesem Kaliber, Kisten = Stück / Stück je Kiste.
+**Fehlt eine Eingabe:** ohne Verteilung „ohne Grösse" (Masse ja, Stück
+nein); ohne Artikelgruppe „Artikelgruppe unbekannt"; ohne Label „Label
+unbekannt", mit den Chargen dazu — nichts wird verschluckt, die Summe bleibt
+das Verkaufsfähige.
+**Kunden gegen Vorjahre:** `v_kunde_tag` aus `ausgang_position` (jede
+Perigon-Position aller Saisons, 1. Juli – 30. Juni), nur Kürbis
+(`ist_kuerbis_vorschlag`, sonst die Bestätigung des Betriebsleiters), ohne
+interne Umbuchung (Journal L). Geht in keine Bilanz ein.
+**Urteil:** ehrlich; dieselbe Zahl wie überall, nur anders geteilt.
 
 ## 13. Was nirgends erraten wird
 

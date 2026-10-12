@@ -1,4 +1,50 @@
 {
   "erklaerung": "Kurzfassungen der Rückmeldungen zur Ware — eine je Nr. aus RUECKMELDUNGEN.md. Der Betriebsabzug spielt sie in die Datenbank ein: täglich, und sofort, wenn diese Datei gepusht wird (Workflow betrieb_abzug.yml). Felder je Eintrag: id (Pflicht, die Nr.), kurz (die Kurzfassung — oder null, um sie zurückzunehmen), charge_nr (wenn der Kommentar zu einer anderen Charge gehört), art ('ware' oder 'app', wenn er falsch einsortiert war), auftrag_id (wenn er zu einer anderen Arbeit gehört), ueberschreiben (true nur, wenn der Betriebsleiter seine eigene Kurzfassung ersetzt haben will), warum (frei, für den Leser). Eine Kurzfassung des Betriebsleiters bleibt sonst immer stehen. Eingespielte Einträge dürfen stehen bleiben — der Abzug schickt nur, was sich unterscheidet.",
-  "eintraege": []
+  "eintraege": [
+    {
+      "id": 1,
+      "kurz": "Viele unter 600 g, etwa 4 Kisten à 12 kg",
+      "warum": "Runde AO, 12.10.: Waschen, Charge 1646 Butterkin, Arbeit 1599 — Charge und Arbeit passen."
+    },
+    {
+      "id": 2,
+      "kurz": "Viele grüne",
+      "warum": "Runde AO: „Viel güne“ — gemeint ist grün (unreif). Charge 1627 Fictor, Arbeit 1602; die Charge steht nicht im Wareneingang (Zweitmeinung)."
+    },
+    {
+      "id": 4,
+      "kurz": "Viele unreife (grün)",
+      "warum": "Runde AO: Charge 1631 Mieluna, Arbeit 1608."
+    },
+    {
+      "id": 5,
+      "kurz": "Hagelschaden; ein Palox Amoro und Kaori Kuri gemischt",
+      "warum": "Runde AO: Charge 1638 Kaori Kuri, Arbeit 1609. Die Mischung erklärt die Zettel der Nachbarcharge 1637 (Zweitmeinung) — die Charge der Arbeit bleibt 1638."
+    },
+    {
+      "id": 6,
+      "kurz": "Viele kleine braune Flecken",
+      "warum": "Runde AO: „über den ganzen Kürbis verteilt“. Charge 1611 Tiana, Arbeit 1612."
+    },
+    {
+      "id": 7,
+      "kurz": "Viele lange und abgebrochene Stiele",
+      "warum": "Runde AO: Charge 1638 Kaori Kuri, Arbeit 1613."
+    },
+    {
+      "id": 8,
+      "kurz": "Grosse ab 1600 g für Bio genommen (19 Kisten)",
+      "warum": "Runde AO: Charge 1648 Orange Summer, Arbeit 1621 — Überkaliber, das nicht in den Palox ging."
+    },
+    {
+      "id": 10,
+      "kurz": "Viele unter 300 g, in den Palox",
+      "warum": "Runde AO: Charge 1620 Orangita, Arbeit 1622."
+    },
+    {
+      "id": 11,
+      "kurz": "Viel Faules",
+      "warum": "Runde AO: Sortieren, Charge 1616 Lekor, Arbeit 1623."
+    }
+  ]
 }
