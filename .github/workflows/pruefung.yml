@@ -38,6 +38,14 @@ jobs:
   bildschirme:
     name: Bildschirme und Begriffe
     runs-on: ubuntu-latest
+    # Die Prüfstände fangen jede Anfrage an Supabase ab; die App braucht nur
+    # eine Adresse und einen Schlüssel, die sie für gültig hält. Lokal stehen
+    # sie in .env.local, hier gibt es die Datei nicht — ohne diese zwei Zeilen
+    # zeigte jede Seite den Hinweis „nicht verbunden" und keine einzige Zahl,
+    # und der Job war rot (gefunden in Runde AO).
+    env:
+      VITE_SUPABASE_URL: https://attrappe.supabase.co
+      VITE_SUPABASE_ANON_KEY: eyJattrappe
     services:
       postgres:
         image: postgres:17

@@ -4254,6 +4254,15 @@ durch, darum fiel es erst `kette_pruefen.sh` auf. Jetzt baut sie dieselbe
 Schleife mit der Angabe `-- verdichter: baut …` (die Spalten sind dieselben
 wie die ihrer Sicht, geprüft).
 
+**Und einer in der CI.** Der Job „Bildschirme und Begriffe" auf GitHub war
+seit Wochen rot, lokal grün. Lokal liegt eine `.env.local` mit Adresse und
+Schlüssel; auf GitHub fehlt sie, die App zeigte jeder Seite den Hinweis
+„nicht verbunden", und der Begriffs-Prüfstand erntete null Zahlen. Die
+Prüfstände fangen jede Anfrage ab, sie brauchen nur Platzhalter, die die
+App für gültig hält — die stehen jetzt im Workflow
+(`https://attrappe.supabase.co`, `eyJattrappe`). Lokal ohne `.env.local`
+nachgestellt: rot ohne, grün mit den Platzhaltern.
+
 **Mutationen.** Block 0111 und Block 0112 mit je eigener Mutationsliste;
 in 0112 schlagen 26 von 28 an. Die zwei stillen (M20: die Vorjahre zweimal
 laden; M20b: ohne „on conflict") sind gleichwertig — jede allein ändert
