@@ -1,12 +1,12 @@
 # Rückmeldungen aus der Halle
 
-_Abzug vom 2026-10-13. Von `pruefstand/betrieb_abzug.mjs` geschrieben; nicht von Hand ändern._
+_Abzug vom 2026-10-14. Von `pruefstand/betrieb_abzug.mjs` geschrieben; nicht von Hand ändern._
 
 Was die Person am Ende einer Arbeit gesagt hat — geschrieben, oder mitgeschrieben vom Handy (Transkript, ungeprüft = so wie die Spracherkennung es verstand). Die Aufnahmen liegen im Bucket `rueckmeldungen` des Projekts; hier steht, was sich lesen lässt.
 
 **Zur Ware gilt seit 0094:** Ein Kommentar steht erst im Dashboard, wenn jemand ihn gelesen, verstanden und gekürzt hat („Hagelschaden"). Kürzen heisst: ein Eintrag je Nr. in `docs/betrieb/kurzfassungen.json` (der Abzug spielt ihn ein — täglich, und sofort beim Push der Datei), oder der Betriebsleiter tut es unter Betrieb → Arbeiten. Was der Betriebsleiter gekürzt hat, bleibt. Nur Aufnahme, kein Transkript: das kann hier niemand hören — anhören und kürzen kann nur der Betriebsleiter.
 
-**Noch zu kürzen: 1** — Nr. 12.
+**Noch zu kürzen: 2** — Nr. 13, 12.
 
 ## Zur App — für die nächste Runde (2)
 
@@ -15,8 +15,11 @@ Was die Person am Ende einer Arbeit gesagt hat — geschrieben, oder mitgeschrie
 - **Nr. 3** · 01.10.2026 · Waschen + Sortieren · 01.10.2026, 15:21 · fertig · Charge 1627 — Agasul Rüegg · Fictor · Arbeit 1602 · Seraina
   - „Keine fertige paletten auf schreiben?"
 
-## Zur Ware — für den Betriebsleiter (10)
+## Zur Ware — für den Betriebsleiter (11)
 
+- **Nr. 13** · 13.10.2026 · Waschen · 13.10.2026, 15:42 · fertig · Charge 1646 — Gossau Eberhard · Butterkin · Arbeit 1634 · Seraina
+  - **noch nicht gekürzt** — steht noch nicht im Dashboard
+  - „Beim drücken gibt es schnell nach(unten)"
 - **Nr. 12** · 13.10.2026 · Waschen · 13.10.2026, 08:19 · fertig · Charge 1612 — Slowgrow Uster · Butterkin · Arbeit 1630 · Seraina
   - **noch nicht gekürzt** — steht noch nicht im Dashboard
   - „Viele kleine kaputte stellen"

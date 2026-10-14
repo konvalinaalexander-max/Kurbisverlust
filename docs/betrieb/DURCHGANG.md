@@ -1,6 +1,6 @@
 # Plausibilitätsdurchgang
 
-_Stand 2026-10-13 · Quelle docs/betrieb/rohdaten (Betriebsabzug) · von `pruefstand/durchgang.mjs` geschrieben; nicht von Hand ändern._
+_Stand 2026-10-14 · Quelle docs/betrieb/rohdaten (Betriebsabzug) · von `pruefstand/durchgang.mjs` geschrieben; nicht von Hand ändern._
 
 Jede Zeile ist ein **Kandidat**, kein Urteil: eine Zahl, die so nicht sein kann oder nicht sein sollte, mit dem Grund. Die Runde am Programm liest sie, prüft die Rohzeilen und schreibt die Zweitmeinung; der Betrieb entscheidet.
 
@@ -10,13 +10,13 @@ Jede Zeile ist ein **Kandidat**, kein Urteil: eine Zahl, die so nicht sein kann 
 |---|---|
 | charge | 42 |
 | palette | 1756 |
-| auftrag | 61 |
-| auftrag_palette | 334 |
+| auftrag | 64 |
+| auftrag_palette | 348 |
 | auftrag_gebinde | 0 |
-| schimmel_messung | 128 |
-| ausschuss_messung | 42 |
-| verdunstung_wiegung | 100 |
-| ausgang_wiegung | 78 |
+| schimmel_messung | 135 |
+| ausschuss_messung | 44 |
+| verdunstung_wiegung | 105 |
+| ausgang_wiegung | 83 |
 | kontrollpalette | 0 |
 | kontrollpalette_wiegung | 0 |
 | lieferung | 1133 |
@@ -26,13 +26,13 @@ Jede Zeile ist ein **Kandidat**, kein Urteil: eine Zahl, die so nicht sein kann 
 
 _310 Paletten sind Vervielfachungen einer Journalzeile („n Paletten gleich", extern_id …#n) — keine Kandidaten._
 
-## Nach Prüfung (88)
+## Nach Prüfung (89)
 
 | Prüfung | Anzahl |
 |---|---|
 | Zetteldatum ohne Palette | 19 |
 | Zettelgewicht | 14 |
-| Teilpalette mit vollem Zettel | 13 |
+| Teilpalette mit vollem Zettel | 14 |
 | Arbeit offen | 8 |
 | Zettel Kistenzahl | 6 |
 | Teilpalette von Hand umgerechnet | 6 |
@@ -49,7 +49,7 @@ _310 Paletten sind Vervielfachungen einer Journalzeile („n Paletten gleich", e
 | Sortierlauf ohne Eingang | 1 |
 | Lieferung ohne Charge | 1 |
 
-## Schwere hoch (12)
+## Schwere hoch (13)
 
 - **Arbeit ohne Eingang** · Arbeit 1602 (waschen_sortieren, Charge 1627, 2026-10-01)
   - Eine Arbeit an einer Charge, von der keine Palette im Erntejournal steht.
@@ -87,6 +87,9 @@ _310 Paletten sind Vervielfachungen einer Journalzeile („n Paletten gleich", e
 - **Teilpalette mit vollem Zettel** · Zettel 3303 · Arbeit 1631 (waschen_sortieren, Charge 1623, 2026-10-13) · 2026-08-13
   - 26 von 36 Kisten der Palette 7040, aber das Zettelgewicht der ganzen Palette (447 kg). Anteilig wären es 322.8 kg — oder die Kistenzahl ist vertippt. Die Verdunstungswägung dazu rechnet mit zu viel Anfangsgewicht und zählt so nicht.
   - _zettel_kg = 447 · kisten_zettel = 26 · palette = 7040 · kisten_palette = 36 · anteilig_kg = 322.8_
+- **Teilpalette mit vollem Zettel** · Zettel 3309 · Arbeit 1631 (waschen_sortieren, Charge 1623, 2026-10-13) · 2026-08-28
+  - 28 von 36 Kisten der Palette 7047, aber das Zettelgewicht der ganzen Palette (432 kg). Anteilig wären es 336 kg — oder die Kistenzahl ist vertippt. Die Verdunstungswägung dazu rechnet mit zu viel Anfangsgewicht und zählt so nicht.
+  - _zettel_kg = 432 · kisten_zettel = 28 · palette = 7047 · kisten_palette = 36 · anteilig_kg = 336_
 
 ## Schwere mittel (62)
 
@@ -280,29 +283,29 @@ _310 Paletten sind Vervielfachungen einer Journalzeile („n Paletten gleich", e
 ## Schwere niedrig (14)
 
 - **Arbeit offen** · Arbeit 1578 (waschen_sortieren, Charge 1638, 2026-09-23)
+  - Seit 21 Tagen offen — vergessen abzuschliessen (dann fehlt die Arbeit in der Rechnung) oder aus Versehen begonnen (dann abbrechen).
+  - _tage_offen = 21_
+- **Arbeit offen** · Arbeit 1583 (waschen, Charge 1630, 2026-09-24)
   - Seit 20 Tagen offen — vergessen abzuschliessen (dann fehlt die Arbeit in der Rechnung) oder aus Versehen begonnen (dann abbrechen).
   - _tage_offen = 20_
-- **Arbeit offen** · Arbeit 1583 (waschen, Charge 1630, 2026-09-24)
-  - Seit 19 Tagen offen — vergessen abzuschliessen (dann fehlt die Arbeit in der Rechnung) oder aus Versehen begonnen (dann abbrechen).
-  - _tage_offen = 19_
 - **Arbeit offen** · Arbeit 1590 (waschen, Charge 1612, 2026-09-26)
-  - Seit 17 Tagen offen — vergessen abzuschliessen (dann fehlt die Arbeit in der Rechnung) oder aus Versehen begonnen (dann abbrechen).
-  - _tage_offen = 17_
+  - Seit 18 Tagen offen — vergessen abzuschliessen (dann fehlt die Arbeit in der Rechnung) oder aus Versehen begonnen (dann abbrechen).
+  - _tage_offen = 18_
 - **Arbeit offen** · Arbeit 1591 (waschen, Charge 1612, 2026-09-28)
-  - Seit 15 Tagen offen — vergessen abzuschliessen (dann fehlt die Arbeit in der Rechnung) oder aus Versehen begonnen (dann abbrechen).
-  - _tage_offen = 15_
+  - Seit 16 Tagen offen — vergessen abzuschliessen (dann fehlt die Arbeit in der Rechnung) oder aus Versehen begonnen (dann abbrechen).
+  - _tage_offen = 16_
 - **Arbeit offen** · Arbeit 1593 (waschen_sortieren, Charge 1650, 2026-09-28)
+  - Seit 16 Tagen offen — vergessen abzuschliessen (dann fehlt die Arbeit in der Rechnung) oder aus Versehen begonnen (dann abbrechen).
+  - _tage_offen = 16_
+- **Arbeit offen** · Arbeit 1595 (waschen_sortieren, Charge 1617, 2026-09-29)
   - Seit 15 Tagen offen — vergessen abzuschliessen (dann fehlt die Arbeit in der Rechnung) oder aus Versehen begonnen (dann abbrechen).
   - _tage_offen = 15_
-- **Arbeit offen** · Arbeit 1595 (waschen_sortieren, Charge 1617, 2026-09-29)
+- **Arbeit offen** · Arbeit 1596 (sortieren, Charge 1611, 2026-09-30)
   - Seit 14 Tagen offen — vergessen abzuschliessen (dann fehlt die Arbeit in der Rechnung) oder aus Versehen begonnen (dann abbrechen).
   - _tage_offen = 14_
-- **Arbeit offen** · Arbeit 1596 (sortieren, Charge 1611, 2026-09-30)
-  - Seit 13 Tagen offen — vergessen abzuschliessen (dann fehlt die Arbeit in der Rechnung) oder aus Versehen begonnen (dann abbrechen).
-  - _tage_offen = 13_
 - **Arbeit offen** · Arbeit 1611 (waschen_sortieren, Charge 1611, 2026-10-06)
-  - Seit 7 Tagen offen — vergessen abzuschliessen (dann fehlt die Arbeit in der Rechnung) oder aus Versehen begonnen (dann abbrechen).
-  - _tage_offen = 7_
+  - Seit 8 Tagen offen — vergessen abzuschliessen (dann fehlt die Arbeit in der Rechnung) oder aus Versehen begonnen (dann abbrechen).
+  - _tage_offen = 8_
 - **Arbeitsdauer** · Arbeit 1580 (waschen_sortieren, Charge 1617, 2026-09-23)
   - 20.3 Stunden — wohl über Nacht offen geblieben und erst am nächsten Tag abgeschlossen; der Durchsatz je Stunde stimmt dann nicht.
   - _stunden = 20.3_
