@@ -105,10 +105,11 @@ export interface AusgangZeile {
   artikel: string
   einheit: string
   menge: number                  // Positionsmenge in der Artikeleinheit
-  gewicht_je_artikel: number     // kg je Stück; bei Einheit kg ist das 1
+  gewicht_je_artikel: number     // kg je Stück; bei Einheit kg 1 — oder, falsch gepflegt, 0
   batch_menge: number            // Anteil dieser Charge an der Position
-  kg_position: number
-  kg_charge: number
+  /** Runde AR: leer (null), wenn Perigon die Masse nicht hergibt — ein Stückartikel ohne Stückgewicht. Nie 0 dafür. */
+  kg_position: number | null
+  kg_charge: number | null
   gebindeart: string | null
   gebinde_menge: number | null
   gebinde_inhalt: number | null
@@ -121,6 +122,24 @@ export interface AusgangZeile {
 }
 
 const runden = (n: number) => Math.round(n * 1000) / 1000
+
+/**
+ * Die Masse einer Perigon-Menge, in kg — dieselbe Regel wie `perigon_kg()` in
+ * der Datenbank (0115):
+ *   - Gewicht je Artikel > 0: Menge × Gewicht je Artikel (Stück × kg je Stück,
+ *     bei kg-Artikeln × 1);
+ *   - sonst, bei Einheit kg: die Menge selbst — sie ist schon das Gewicht;
+ *   - sonst (Stück ohne Stückgewicht): unbekannt, null — nicht 0.
+ * Runde AR: Bis hier galt Menge × Gewicht je Artikel ohne Ausnahme. Im
+ * Perigon-Artikelstamm stand bei vielen kg-Artikeln 0 statt 1 — bei Imhof
+ * BioProdukte 2024/25 86.7 t, die im Vergleich mit den Vorjahren als 0 kg
+ * zählten, und diese Saison 340 kg, die nie eine Lieferung wurden.
+ */
+export function perigonKg(menge: number, gewichtJeArtikel: number | null, einheit: string): number | null {
+  if (gewichtJeArtikel !== null && gewichtJeArtikel > 0) return runden(menge * gewichtJeArtikel)
+  if (/^kg/i.test(einheit.trim())) return runden(menge)
+  return null
+}
 
 function zahl(z: Zelle): number | null {
   if (typeof z === 'number') return Number.isFinite(z) ? z : null
@@ -205,8 +224,8 @@ export function zeilenLesen(blatt: Blatt, quelle: string): {
       menge,
       gewicht_je_artikel: gja,
       batch_menge: batch,
-      kg_position: runden(menge * gja),
-      kg_charge: runden(batch * gja),
+      kg_position: perigonKg(menge, gja, wort(w(r, 'einheit'))),
+      kg_charge: perigonKg(batch, gja, wort(w(r, 'einheit'))),
       gebindeart: wort(w(r, 'gebinde')) || null,
       gebinde_menge: zahl(w(r, 'gebinde_menge')),
       gebinde_inhalt: zahl(w(r, 'gebinde_inhalt')),
@@ -358,6 +377,8 @@ export interface Befund {
   kg_position: number
   kg_charge: number
   kg_ohne_charge: number
+  /** Runde AR: Positionen, deren Masse Perigon nicht hergibt (Stück ohne Stückgewicht) — nicht in kg_position. */
+  ohne_gewicht: { positionen: number; menge: number }
   chargen: { charge_extern: string; kg: number }[]
   artikel: ArtikelBefund[]
   journale: { journal: string; zeilen: number; kg: number }[]
@@ -371,11 +392,12 @@ export function befund(zeilen: AusgangZeile[], bestaetigt?: Map<string, boolean>
   const k = zeilen.filter(z => zaehltAlsKuerbis(istKuerbis(z, bestaetigt)))
   const positionen = new Map<string, AusgangZeile>()
   for (const z of k) positionen.set(`${z.quelle}|${z.pos_id}`, z)
-  const kgPos = [...positionen.values()].reduce((s, z) => s + z.kg_position, 0)
+  const kgPos = [...positionen.values()].reduce((s, z) => s + (z.kg_position ?? 0), 0)
+  const ohneGewicht = [...positionen.values()].filter(z => z.kg_position === null && z.menge !== 0)
   const proCharge = new Map<string, number>()
   let kgCharge = 0
   for (const z of k) {
-    if (!z.charge_extern || z.kg_charge === 0) continue
+    if (!z.charge_extern || !z.kg_charge) continue
     proCharge.set(z.charge_extern, (proCharge.get(z.charge_extern) ?? 0) + z.kg_charge)
     kgCharge += z.kg_charge
   }
@@ -387,14 +409,14 @@ export function befund(zeilen: AusgangZeile[], bestaetigt?: Map<string, boolean>
       urteil: istKuerbis(z, bestaetigt), zeilen: 0, kg: 0,
     }
     e.zeilen++
-    e.kg = runden(e.kg + z.kg_charge)
+    e.kg = runden(e.kg + (z.kg_charge ?? 0))
     proArtikel.set(s, e)
   }
   const proJournal = new Map<string, { journal: string; zeilen: number; kg: number }>()
   for (const z of k) {
     const e = proJournal.get(z.journal) ?? { journal: z.journal, zeilen: 0, kg: 0 }
     e.zeilen++
-    e.kg = runden(e.kg + z.kg_charge)
+    e.kg = runden(e.kg + (z.kg_charge ?? 0))
     proJournal.set(z.journal, e)
   }
   const daten = k.map(z => z.datum).filter(Boolean).sort()
@@ -407,6 +429,7 @@ export function befund(zeilen: AusgangZeile[], bestaetigt?: Map<string, boolean>
     kg_position: runden(kgPos),
     kg_charge: runden(kgCharge),
     kg_ohne_charge: runden(Math.max(kgPos - kgCharge, 0)),
+    ohne_gewicht: { positionen: ohneGewicht.length, menge: runden(ohneGewicht.reduce((s, z) => s + z.menge, 0)) },
     chargen: [...proCharge.entries()]
       .map(([charge_extern, kg]) => ({ charge_extern, kg: runden(kg) }))
       .sort((a, b) => b.kg - a.kg),
@@ -443,12 +466,17 @@ export interface Lieferung {
  * jemand sehen muss. In den Dateien des Betriebs sind es zwei Zeilen in zwei
  * Jahren — hätte der Import sie einfach weggelassen, wäre die Bilanz um vier
  * Tonnen danebengelegen, ohne dass es irgendwo aufgefallen wäre.
+ *
+ * Runde AR: Eine Position, deren Masse Perigon nicht hergibt (Stück ohne
+ * Stückgewicht), wird keine Lieferung — sie kommt mit `ohneGewicht` zurück und
+ * steht beim Einlesen da, statt still als 0 kg zu verschwinden.
  */
+export interface OhneGewicht { extern_id: string; datum: string; kunde: string; artikel: string; menge: number; einheit: string }
 export function lieferungenBauen(
   zeilen: AusgangZeile[],
   chargeVon: (extern: string, zeile: AusgangZeile) => number | null,
   sorteVon: (z: AusgangZeile) => string | null,
-): { lieferungen: Lieferung[]; ruecknahmen: Lieferung[] } {
+): { lieferungen: Lieferung[]; ruecknahmen: Lieferung[]; ohneGewicht: OhneGewicht[] } {
   const proPos = new Map<string, AusgangZeile[]>()
   for (const z of zeilen) {
     const s = `${z.quelle}|${z.pos_id}`
@@ -457,9 +485,17 @@ export function lieferungenBauen(
   }
   const out: Lieferung[] = []
   const zurueck: Lieferung[] = []
+  const ohneGewicht: OhneGewicht[] = []
   for (const gruppe of proPos.values()) {
     const erste = gruppe[0]
     const gesamt = erste.kg_position
+    if (gesamt === null) {
+      if (erste.menge !== 0) ohneGewicht.push({
+        extern_id: `${erste.quelle}:${erste.pos_id}`, datum: erste.datum, kunde: erste.kunde,
+        artikel: erste.artikel, menge: erste.menge, einheit: erste.einheit,
+      })
+      continue
+    }
     if (gesamt < 0) {
       zurueck.push({
         extern_id: `${erste.quelle}:${erste.pos_id}:rueckgabe`,
@@ -472,7 +508,7 @@ export function lieferungenBauen(
     }
     let zugeordnet = 0
     for (const z of gruppe) {
-      if (!z.charge_extern || z.kg_charge <= 0) continue
+      if (!z.charge_extern || z.kg_charge === null || z.kg_charge <= 0) continue
       const kg = runden(Math.min(z.kg_charge, Math.max(gesamt - zugeordnet, 0)))
       if (kg <= 0) continue
       zugeordnet = runden(zugeordnet + kg)
@@ -495,7 +531,7 @@ export function lieferungenBauen(
       })
     }
   }
-  return { lieferungen: out, ruecknahmen: zurueck }
+  return { lieferungen: out, ruecknahmen: zurueck, ohneGewicht }
 }
 
 /* ---------- Welche Firma ist das? --------------------------------------- */

@@ -351,3 +351,53 @@ test('bis wo bekannt, ab wo neu: der Zuwachs steht getrennt vom Nachgetragenen',
   const alles = neuAbwann(abgleichen(zeilen, []), null)
   assert.equal(alles.danach.length, zeilen.length); assert.equal(alles.davor.length, 0)
 })
+
+/* ---------- Runde AR (0115): das Kilo kommt aus der Menge ------------------ */
+
+import { perigonKg, SPALTEN } from '../src/lib/warenausgang.ts'
+
+test('perigonKg: Menge × Gewicht; bei kg ohne Gewicht die Menge; Stück ohne Gewicht unbekannt', () => {
+  assert.equal(perigonKg(160, 1.5, 'Stk.'), 240, 'Stück × kg je Stück')
+  assert.equal(perigonKg(5, 1, 'kg'), 5, 'kg × 1')
+  assert.equal(perigonKg(256, 0, 'kg'), 256, 'Perigon führt 0 statt 1 — die Menge ist das Gewicht')
+  assert.equal(perigonKg(256, null, ' KG '), 256, 'Einheit in anderer Schreibweise')
+  assert.equal(perigonKg(3, 10, 'kg'), 30, 'ein Gewicht je Artikel > 0 gilt, auch bei kg')
+  assert.equal(perigonKg(-344, 1, 'kg'), -344, 'eine Rücknahme bleibt negativ')
+  assert.equal(perigonKg(7, 0, 'Stk.'), null, 'Stück ohne Stückgewicht: unbekannt, nicht 0')
+  assert.equal(perigonKg(12, 0, ''), null, 'ohne Einheit und ohne Gewicht: unbekannt')
+})
+
+/** Eine kleine Perigon-Tabelle aus Feldern — die Spaltennamen wie in der echten Datei. */
+function blatt(zeilen: Partial<Record<keyof typeof SPALTEN, string | number | Date | null>>[]) {
+  const namen = Object.keys(SPALTEN) as (keyof typeof SPALTEN)[]
+  return { name: 'Tabelle S. 1', zeilen: [namen.map(n => SPALTEN[n]), ...zeilen.map(z => namen.map(n => z[n] ?? null))] }
+}
+
+test('Runde AR: ein kg-Artikel mit Gewicht je Artikel 0 wird eine Lieferung mit seiner Menge', () => {
+  const b = blatt([
+    { pos_id: 7001, lieferdatum: '12.10.2026', journal: 'A', kunde: 'Kunde A', artikel_id: 'kürbma', artikel: 'Bio-Kürbis Mandarin',
+      einheit: 'kg', menge: 256, gewicht_je_artikel: 0, charge: '1617', batch_menge: 256 },
+    { pos_id: 7002, lieferdatum: '13.10.2026', journal: 'A', kunde: 'Kunde B', artikel_id: 'kürbmudkl', artikel: 'Bio Kürbis Muscade Dem klein',
+      einheit: 'Stk.', menge: 120, gewicht_je_artikel: 0, charge: '', batch_menge: null },
+    { pos_id: 7003, lieferdatum: '13.10.2026', journal: 'A', kunde: 'Kunde B', artikel_id: 'kürbo', artikel: 'Bio Kürbis Oranger Knirps',
+      einheit: 'Stk.', menge: 10, gewicht_je_artikel: 0.85, charge: '1614', batch_menge: 10 },
+  ])
+  const { zeilen } = zeilenLesen(b, 'probe')
+  const kg = zeilen.find(z => z.pos_id === 7001)!, stk = zeilen.find(z => z.pos_id === 7002)!
+  assert.equal(kg.kg_position, 256, 'bis Runde AR: 0')
+  assert.equal(kg.kg_charge, 256)
+  assert.equal(stk.kg_position, null, 'Stück ohne Stückgewicht: unbekannt')
+  assert.equal(zeilen.find(z => z.pos_id === 7003)!.kg_position, 8.5)
+
+  const { lieferungen, ohneGewicht } = lieferungenBauen(zeilen, chargeVon, () => null)
+  const l = lieferungen.find(x => x.extern_id.startsWith('probe:7001:'))
+  assert.ok(l, 'die 256 kg werden eine Lieferung')
+  assert.equal(l.kg, 256)
+  assert.equal(l.charge_nr, 1617)
+  assert.ok(!lieferungen.some(x => x.extern_id.startsWith('probe:7002')), 'keine Lieferung mit erfundener Masse')
+  assert.deepEqual(ohneGewicht.map(o => [o.extern_id, o.menge, o.einheit]), [['probe:7002', 120, 'Stk.']], 'sie steht beim Einlesen da')
+
+  const bf = befund(zeilen)
+  assert.equal(bf.kg_position, 256 + 8.5, 'die Masse der Datei zählt nur, was bekannt ist')
+  assert.deepEqual(bf.ohne_gewicht, { positionen: 1, menge: 120 })
+})

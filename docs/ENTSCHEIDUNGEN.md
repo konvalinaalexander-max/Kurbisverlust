@@ -4171,6 +4171,86 @@ Daten, dann die Annahme — nach der Korrektur nachsehen.
 nicht alles: vier mal vier gleiche Paloxen und ein Tag mit 30 Paaren bei
 13 erwarteten sind Fragen wert.
 
+## Runde AR: das Kilo kommt aus der Menge (15. Oktober, 0115)
+
+Der Betrieb nach der Prüfung der Perigon-Dateien Zeile für Zeile: „Gewicht je
+Artikel = 0 im Perigon-Artikelstamm … dadurch ist das Gesamtgewicht 0 … Das
+trifft eure App: Der Vergleich je Kunde mit den Vorjahren rechnet kg = Menge
+× Gewicht je Artikel. BioProdukte 2024/25 zählt deshalb 81.6 t statt
+mindestens 168.3 t … Das ist ein Fehler im Programm, nicht bei euch."
+
+**Die Regel (AB-146).** Bei einem kg-Artikel ist die Menge schon das
+Gewicht; Perigon führt dort im Artikelstamm oft 0 statt 1. Die App rechnete
+trotzdem Menge × Gewicht und bekam 0 — beim Einlesen (Masse je Zeile, daraus
+die Lieferungen) wie in der Datenbank (`ausgang_historie_uebernehmen`, die
+Positionen aller Saisons). Jetzt an beiden Stellen dieselbe Regel
+(`perigonKg`, `perigon_kg`): Gewicht > 0 → Menge × Gewicht; sonst bei Einheit
+kg die Menge; sonst — Stück ohne Stückgewicht — unbekannt. Unbekannt heisst
+leer: Die 12'322 Stück Muscade und Kabocha, die Imhofbio 2024/25 ohne
+Stückgewicht führt, stehen nicht als 0 kg in der Linie, sondern als Stück
+daneben (`v_kunde_tag.stueck_ohne_gewicht`, Hinweis unter dem Diagramm); beim
+Einlesen nennt die App solche Positionen. Was schon gespeichert war, rechnet
+die Migration nach — auf der Kopie der Betriebsdaten: BioProdukte 2024/25
+81.6 → 168.3 t, 2023/24 13.9 → 25.9 t; 212 Imhofbio-Positionen 2024/25 sind
+jetzt leer statt 0. Diese Saison betraf es 13 Zeilen: 11 Positionen mit
+340 kg waren nie eine Lieferung geworden (Mandarin 256 kg am 12.10.,
+Oranger Knirps in 7- und 14-kg-Posten).
+
+**Doppelte Lieferungen (AB-147).** Beim Nachrechnen fiel ein zweiter Fehler
+auf: Kam eine Position zuerst ohne Charge und trug Perigon die Charge später
+nach, legte das Einlesen eine neue Lieferung an — die alte „ohne
+Chargenbezug" blieb stehen. 4 Positionen, 520 kg doppelt (Oranger Knirps
+216 kg, Butternut 168 kg, Mix 56 kg am 15.9.; Butternut Demeter 80 kg am
+29.9.), dazu 1 kg Rest bei einer fünften. Jetzt entfernt `ausgang_uebernehmen`
+für jede Position der Datei die Lieferungen, die die Datei nicht mehr ergibt;
+Positionen ausserhalb der Datei, andere Firmen und Lieferungen von Hand
+bleiben, und das Journal behält jede entfernte. Der Warenausgang warnt oben,
+solange Positionen nicht zu ihren Lieferungen passen.
+
+**Nachgespielt.** Auf einer Kopie der Betriebsdaten (Stand 113) setup.sql
+(6.6 s), dann beide Perigon-Dateien mit dem Code der App eingelesen: 11
+Lieferungen neu, 5 ersetzt, danach keine Position mehr mit Abweichung
+(vorher 16, +181 kg = 521 kg doppelt − 340 kg fehlend).
+
+**Ein Fehler, den der Prüfblock fand.** Der Löschschritt nannte die Tabelle
+`l` — so heisst in `ausgang_uebernehmen` schon die Schleifenvariable, und
+PL/pgSQL nahm sie: Jedes Einlesen wäre mit „record l has no field id"
+abgebrochen. Der Alias heisst jetzt anders.
+
+**Zwei Nebenfunde der vollen Stufe.** Prüfblock 0111 (c6) schlug am 15.10.
+an, auch ohne diese Runde: Er rechnete den Grundausschuss mit dem auf 5
+Stellen gezeigten Anstieg nach, die Sicht rechnet ungerundet — bei 96
+Lagertagen trennt das bis 7·10⁻⁵, die Grenze war fest 2·10⁻⁵. Die Regel war
+richtig, die Grenze nicht; sie folgt jetzt der Rundung (1·10⁻⁵ + 0.5·10⁻⁵ ×
+Lagerwochen), ein falscher Divisor (6 statt 7) schlägt weiter an. Und der
+Stand-Chip oben brach auf dem Handy nicht um: Ist die letzte Rechnung von
+einem früheren Tag und läuft kein Zeitplan (so beim Betrieb), steht „Stand …
+· bis 12.10. · aktuell · kein Zeitplan" — 17 px breiter als ein Handy, die
+ganze Seite liess sich seitlich schieben. Unter 640 px bricht er jetzt um.
+
+**Mutationen.** Block 0115, 15 Mutationen, alle erkannt: die alte Formel
+(a2), Stück ohne Gewicht als 0 (a3), kg vor dem Gewicht je Artikel (a1),
+die Einheit nur klein geschrieben (a2), die alte Formel beim Einlesen aller
+Saisons (b2), nichts ersetzen (c2), alle Positionen der Firma ersetzen (c2),
+alle Firmen (c2), die gesendeten Lieferungen vergessen (c1), Stück ohne
+Gewicht über alle Positionen (b3), Positionen ohne Gewicht als 0 (b3), die
+Demo ohne Stück (b5), Stand 114 (e1); auf der Kopie der Betriebsdaten die
+fehlende Nachrechnung der Positionen und der Zeilen (d1). In der App vier:
+ohne die kg-Regel, Stück als 0, kg vor dem Gewicht, „ohne Gewicht" nie
+gemeldet.
+
+**Was bewusst nicht gemacht wurde:** Kein geschätztes Stückgewicht für
+Muscade und Kabocha — ein Stückgewicht aus dem Coop-Artikelblatt oder aus
+der Sortierung wäre eine Annahme über Ware, die niemand gewogen hat; die
+Stück stehen da, bis Perigon das Gewicht kennt. Die Fehler in den
+Perigon-Daten selbst (falsche Lose, Lieferungen vor dem Eingang, 198977 ohne
+Charge, Demeter als Knospe verkauft) gehören dem Betrieb und stehen im
+Bericht; die App korrigiert keine Perigon-Buchung. Die Masse einer Zeile
+rechnet weiter die App beim Einlesen, nicht die Datenbank — wie die
+Lieferungen; `perigon_kg` hält dieselbe Regel für die Positionen aller
+Saisons, und Test und Prüfblock halten beide gleich. Die Überfüllung in der
+Rechnung (Frage aus Runde AP) wartet weiter auf die Antwort des Betriebs.
+
 ## Runde AQ: jede Zeile der langen Nachricht am echten Bildschirm — eine Lieferung ist eine Lieferung (12. Oktober, abends, 0114)
 
 Der Betrieb nach Runde AP: „ich hab dir in der Nachricht von vorhin … extrem

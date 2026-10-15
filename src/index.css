@@ -187,6 +187,9 @@ svg { display: inline-block; vertical-align: middle; }
 .stand-chip { display: inline-flex; align-items: center; gap: .4rem; font-size: var(--s-0); color: var(--text-leise); background: var(--flaeche); box-shadow: var(--kontur); padding: .3rem .65rem; border-radius: 999px; white-space: nowrap; }
 .stand-chip::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--gruen); }
 .stand-chip.veraltet::before { background: var(--gelb); }
+/* Runde AR: Ist die Rechnung von einem früheren Tag und läuft kein Zeitplan, wird
+   der Chip länger als ein Handy breit („· bis 12.10. · aktuell · kein Zeitplan") — dann bricht er um. */
+@media (max-width: 640px) { .stand-chip { white-space: normal; flex-wrap: wrap; row-gap: .1rem; max-width: 100%; border-radius: 1rem; } }
 @media (max-width: 640px) { .seitenkopf { margin-top: var(--a-5); } .seitenkopf .rechts { margin-left: 0; width: 100%; } }
 
 /* ---------- Karten ------------------------------------------------------------ */

@@ -745,6 +745,18 @@ Entwickler-Verweise auch; Auffälligkeiten lassen sich nach Art filtern.
 **Der Betrieb spielt setup.sql einmal ein (Stand 114)** und drückt danach
 „Neu rechnen".
 
+**Runde AR (0115)** — das Kilo kommt aus der Menge. Bei kg-Artikeln, für die
+der Perigon-Artikelstamm „Gewicht je Artikel" 0 führt, zählt die Menge als
+Gewicht; Stück ohne Stückgewicht sind unbekannt, nicht 0, und stehen im
+Vergleich je Kunde als Stück neben der Linie (AB-146). Imhof BioProdukte
+2024/25 hat damit 168.3 t statt 81.6 t. Trägt Perigon bei einer Position die
+Charge nach, ersetzt das Einlesen die alte Lieferung, statt sie doppelt zu
+zählen; der Warenausgang warnt, solange Positionen nicht zu ihren
+Lieferungen passen (AB-147). **Der Betrieb spielt setup.sql einmal ein
+(Stand 115), liest danach beide Perigon-Dateien noch einmal ein** (Betrieb →
+Warenausgang) und drückt „Neu rechnen": Erst dann entstehen die fehlenden
+Lieferungen (340 kg), und die doppelten (521 kg) verschwinden.
+
 **Runde AN (0110)** — rechnen auf PostgreSQL 17: Der Betrieb läuft auf
 PostgreSQL 17, und dort frischt Postgres gespeicherte Ansichten mit einem
 eingeschränkten Suchpfad auf. `palox_f_nach()` fand deshalb `palox_f()` nicht,

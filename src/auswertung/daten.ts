@@ -268,7 +268,13 @@ export interface ArtikelLagerCharge {
   kg: number; stueck: number | null; kisten: number | null; g_mittel: number | null; h: number; datum: string
 }
 /** Geliefert je Kunde, Saison, Tag und Artikel (v_kunde_tag, 0112). */
-export interface KundeTag { kunde: string; saison: number; datum: string; gruppe: string | null; groesse: string; label: string | null; kg: number; positionen: number }
+export interface KundeTag {
+  kunde: string; saison: number; datum: string; gruppe: string | null; groesse: string; label: string | null
+  /** Runde AR (0115): leer, wenn keine Position des Tages eine bekannte Masse hat. */
+  kg: number | null; positionen: number
+  /** 0115: Stück, deren Masse Perigon nicht hergibt (kein Stückgewicht) — nicht in kg. */
+  stueck_ohne_gewicht: number | null; positionen_ohne_gewicht: number | null
+}
 
 /** Dieselben Kürbisse in 50-Gramm-Stufen (kaliber_glocke(h), 0079). */
 export interface KaliberGlocke {

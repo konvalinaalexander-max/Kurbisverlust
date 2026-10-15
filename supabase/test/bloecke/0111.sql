@@ -177,8 +177,15 @@ begin
   -- (c5) der Anstieg wird über die Lagerdauer gemessen, nicht über den Messtag
   assert exists (select 1 from v_palox_station where lager_von is not null and lager_bis > lager_von),
     '0111 (c5): die Kennzahl kennt die Lagerdauern ihrer Arbeiten nicht';
-  -- (c6) der Grundausschuss der Station: Mittel − Anstieg × mittlere Lagerdauer / 7
-  select count(*), count(*) filter (where abs(k.grund - round(greatest(x.mittel - coalesce(k.zuwachs_je_woche, 0) * x.t / 7.0, 0), 5)) > 2e-5
+  -- (c6) der Grundausschuss der Station: Mittel − Anstieg × mittlere Lagerdauer / 7.
+  -- Die Sicht rechnet mit dem ungerundeten Anstieg, zeigt ihn aber auf 5 Stellen;
+  -- nachgerechnet mit dem gezeigten weicht es bis zu 0.5e-5 × Lagerwochen ab, dazu
+  -- die Rundung von grund selbst. Bis Runde AR stand hier fest 2e-5 — am 15.10.
+  -- schlug das bei Waschen (96 Lagertage) um 3e-5 an, ohne dass die Regel falsch
+  -- war. Die Grenze folgt jetzt der Rundung; ein falscher Divisor (6 statt 7
+  -- Tage je Woche) weicht dort um 3e-4 ab und schlägt weiter an.
+  select count(*), count(*) filter (where abs(k.grund - round(greatest(x.mittel - coalesce(k.zuwachs_je_woche, 0) * x.t / 7.0, 0), 5))
+                                            > 1e-5 + 0.5e-5 * x.t / 7.0
                                        or abs(k.lager_mittel - round(x.t, 1)) > 0.051)
     into v_n, v_ab
     from v_palox_station k

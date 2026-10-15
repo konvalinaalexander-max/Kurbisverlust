@@ -54,7 +54,7 @@ interface Datei {
   erkennung?: QuelleErkennung
   status: 'bereit' | 'laeuft' | 'fertig' | 'fehler'
   meldung?: string
-  ergebnis?: { zeilen_neu: number; zeilen_geaendert: number; lieferungen_neu: number; lieferungen_aktualisiert: number; uebergangen: { extern_id: string; kg?: number; datum?: string; kunde?: string; grund: string }[] }
+  ergebnis?: { zeilen_neu: number; zeilen_geaendert: number; lieferungen_neu: number; lieferungen_aktualisiert: number; lieferungen_ersetzt?: number; uebergangen: { extern_id: string; kg?: number; datum?: string; kunde?: string; grund: string }[] }
   pruef?: Pruefzeile[]
   /** 0112: was für den Vergleich mit den Vorjahren mitging — oder warum nicht. */
   historie?: { positionen: number; je_saison: Record<string, number>; labels_gesetzt: number } | { fehler: string }
@@ -121,17 +121,21 @@ export default function AusgangImport({ nachUebernahme }: { nachUebernahme: () =
   const [entfernen, setEntfernen] = useState<Lage | null>(null)
   const [entfernt, setEntfernt] = useState(false)
   const [entfernung, setEntfernung] = useState<string | null>(null)
+  /** Runde AR: Positionen, deren Lieferungen nicht die Masse der Datei ergeben (v_ausgang_pruef). */
+  const [abweichung, setAbweichung] = useState<Pruefzeile[]>([])
 
   const laden = useCallback(async () => {
     try {
-      const [q, l, a, c, s] = await Promise.all([
+      const [q, l, a, c, s, p] = await Promise.all([
         supabase.from('ausgang_quelle').select('code, name, dateiname_muster').eq('aktiv', true).order('name'),
         supabase.from('v_ausgang_lage').select('*'),
         alleZeilen<{ artikel_id: string; artikel: string; ist_kuerbis: boolean; sorte: string | null }>('ausgang_artikel', 'artikel_id, artikel, ist_kuerbis, sorte'),
         supabase.from('charge').select('nr, sorte, perigon_nr').order('nr'),
         supabase.from('sorte_kaliber').select('sorte').order('sorte'),
+        supabase.from('v_ausgang_pruef').select('pos_id, datum, artikel, kunde, kg_datei, kg_lieferung, abweichung_kg'),
       ])
       if (q.error) throw q.error
+      setAbweichung((p.data ?? []) as Pruefzeile[])
       setQuellen((q.data ?? []) as Quelle[])
       setLage((l.data ?? []) as Lage[])
       setBestaetigt(new Map(a.map(x => [artikelSchluessel(x), { ist_kuerbis: x.ist_kuerbis, sorte: x.sorte }])))
@@ -255,6 +259,20 @@ export default function AusgangImport({ nachUebernahme }: { nachUebernahme: () =
             bis dahin zählt die App einen Artikel als Kürbis, wenn „Kürbis" im Namen steht. Bestätigen beim nächsten Einlesen der Datei.
           </p>
         )}
+        {abweichung.length > 0 && (() => {
+          // Runde AR: nicht erst nach dem nächsten Einlesen zeigen — eine Position, deren Lieferungen nicht die Masse der
+          // Datei ergeben, steht falsch in jeder Rechnung (z.B. nach 0115: kg-Artikel, die bis hier als 0 kg galten).
+          const zuWenig = abweichung.filter(a => a.abweichung_kg < 0), zuViel = abweichung.filter(a => a.abweichung_kg > 0)
+          return (
+            <div id="ausgang-abweichung"><Hinweis art="warnung">
+              <strong>{zahl(abweichung.length)} {abweichung.length === 1 ? 'Position stimmt' : 'Positionen stimmen'} nicht mit den Lieferungen überein</strong>
+              {zuWenig.length > 0 && <> · {zahl(zuWenig.length)} mit {kg(-zuWenig.reduce((s, a) => s + a.abweichung_kg, 0), 0)} zu wenig</>}
+              {zuViel.length > 0 && <> · {zahl(zuViel.length)} mit {kg(zuViel.reduce((s, a) => s + a.abweichung_kg, 0), 0)} zu viel</>}.
+              {' '}Beide Perigon-Dateien neu einlesen: Die App legt fehlende Lieferungen an und ersetzt, was die Datei heute anders
+              auf Chargen aufteilt — eine von Hand korrigierte Lieferung bekommt dabei wieder die Masse der Datei.
+            </Hinweis></div>
+          )
+        })()}
         {entfernung && <Hinweis art="info">{entfernung}</Hinweis>}
         {entfernen && createPortal(
           /* Runde AF: als Portal an <body> — die Seite kommt mit einer Eintritts-Bewegung
@@ -438,7 +456,7 @@ function DateiKarte({ d, quellen, bekannt, bekanntBis, bestaetigt, chargen, sort
             <Kennzahl titel="Kürbiszeilen" wert={zahl(bf.kuerbiszeilen)} unter={`${zahl(bf.positionen)} Lieferscheinpositionen`} />
             <Kennzahl titel="Zeitraum" wert={bf.von ? `${datum(bf.von)} – ${datum(bf.bis)}` : '—'} unter="Lieferdatum" />
             <Kennzahl titel="Masse in der Datei" wert={tonnen(bf.kg_position)}
-                      unter={`${tonnen(gebaut.lieferungen.filter(l => l.charge_nr !== null).reduce((s, l) => s + l.kg, 0))} einer Charge zugeordnet · ${tonnen(gebaut.lieferungen.filter(l => l.charge_nr === null).reduce((s, l) => s + l.kg, 0))} ohne Chargenbezug`} />
+                      unter={`${tonnen(gebaut.lieferungen.filter(l => l.charge_nr !== null).reduce((s, l) => s + l.kg, 0))} einer Charge zugeordnet · ${tonnen(gebaut.lieferungen.filter(l => l.charge_nr === null).reduce((s, l) => s + l.kg, 0))} ohne Chargenbezug${bf.ohne_gewicht.positionen > 0 ? ` · ${zahl(bf.ohne_gewicht.positionen)} Positionen ohne Gewicht` : ''}`} />
           </div>
           {bf.chargen.length > 0 && (
             <p className="leise" style={{ margin: '.5rem 0 0' }}>
@@ -493,7 +511,7 @@ function DateiKarte({ d, quellen, bekannt, bekanntBis, bestaetigt, chargen, sort
           )}
 
           {/* 5. Was nicht übernommen wird */}
-          {(gebaut.ruecknahmen.length > 0 || ohneZuordnung.length > 0) && (
+          {(gebaut.ruecknahmen.length > 0 || ohneZuordnung.length > 0 || gebaut.ohneGewicht.length > 0) && (
             <>
               <h3 style={{ margin: '1rem 0 .4rem' }}>Was nicht übernommen wird</h3>
               {gebaut.ruecknahmen.length > 0 && (
@@ -501,6 +519,15 @@ function DateiKarte({ d, quellen, bekannt, bekanntBis, bestaetigt, chargen, sort
                   <strong>{gebaut.ruecknahmen.length} Rücknahmen</strong> (negative Menge — Gutschrift, zurückgekommene Ware):{' '}
                   {gebaut.ruecknahmen.map(r => `${datum(r.datum)} ${r.kunde} ${kg(r.kg, 0)}`).join('; ')}. Sie stehen hier, damit sie
                   niemand übersieht; die Bilanz kennt keine negative Lieferung — bei Bedarf von Hand als Wareneingang behandeln.
+                </p>
+              )}
+              {gebaut.ohneGewicht.length > 0 && (
+                <p className="leise" style={{ margin: '0 0 .4rem' }} id={`ohne-gewicht-${d.summe.slice(0, 8)}`}>
+                  <strong>{gebaut.ohneGewicht.length} {gebaut.ohneGewicht.length === 1 ? 'Position' : 'Positionen'} ohne Gewicht</strong>{' '}
+                  (Stückartikel, bei denen im Perigon-Artikelstamm kein Stückgewicht steht):{' '}
+                  {gebaut.ohneGewicht.slice(0, 6).map(o => `${datum(o.datum)} ${o.kunde} ${zahl(o.menge)} ${o.einheit} ${o.artikel}`).join('; ')}
+                  {gebaut.ohneGewicht.length > 6 && ' …'}. Ihre Masse ist unbekannt — sie werden keine Lieferung, bis das
+                  Stückgewicht in Perigon steht. Bei kg-Artikeln ist die Menge selbst das Gewicht; die kommen mit.
                 </p>
               )}
               {ohneZuordnung.length > 0 && (
@@ -524,7 +551,8 @@ function DateiKarte({ d, quellen, bekannt, bekanntBis, bestaetigt, chargen, sort
             <>
               <Hinweis art="gut">
                 Übernommen: {d.ergebnis.zeilen_neu} Zeilen neu, {d.ergebnis.zeilen_geaendert} schon bekannt (davon Korrekturen übernommen) ·{' '}
-                {d.ergebnis.lieferungen_neu} Lieferungen neu, {d.ergebnis.lieferungen_aktualisiert} aktualisiert.
+                {d.ergebnis.lieferungen_neu} Lieferungen neu, {d.ergebnis.lieferungen_aktualisiert} aktualisiert
+                {(d.ergebnis.lieferungen_ersetzt ?? 0) > 0 && <>, {d.ergebnis.lieferungen_ersetzt} ersetzt (die Datei teilt diese Positionen heute anders auf Chargen auf)</>}.
                 {d.ergebnis.uebergangen.length > 0 && <> {d.ergebnis.uebergangen.length} nicht übernommen (unten).</>}
               </Hinweis>
               {d.pruef && d.pruef.length === 0 && <Hinweis art="gut">Probe bestanden: jedes Kilo dieser Firma steht genau einmal als Lieferung.</Hinweis>}

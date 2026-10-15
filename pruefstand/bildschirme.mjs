@@ -335,6 +335,12 @@ const BILDSCHIRME = [
       const balken = await p.locator('#artikel-uebersicht .uebersicht-zeile').count()
       const zeilen = await p.locator('#artikel-uebersicht-tabelle tbody tr').count()
       if (balken < 2 || balken !== zeilen) throw new Error(`Übersicht: ${balken} Balken, ${zeilen} Tabellenzeilen`)
+      // Runde AR (0115): Stück, für die Perigon kein Stückgewicht kennt, stehen
+      // nicht in der Linie, aber sie stehen da — die Demo hat 400 im Vorjahr.
+      const stueck = (fixture('v_kunde_tag') ?? []).filter(k => k.saison === 2025).reduce((s, k) => s + Number(k.stueck_ohne_gewicht ?? 0), 0)
+      if (stueck <= 0) throw new Error('v_kunde_tag.json kennt keine Stück ohne Gewicht — daten_dumpen.sh nach 0115 neu laufen lassen')
+      const hinweis = await p.locator('#artikel-ohne-gewicht').innerText()
+      if (!hinweis.includes(`${stueck} Stück`)) throw new Error(`Hinweis Stück ohne Gewicht: „${hinweis}" — erwartet ${stueck} Stück`)
     } },
   // Runde AP (0113): „Wie viel Knirps klein haben wir noch, das wir als Demeter
   // verkaufen können?" — oben gewählt, die Chargen dahinter aufgeklappt.
@@ -348,6 +354,8 @@ const BILDSCHIRME = [
       // Runde AQ: gewählt Knirps · Demeter — die Übersicht zeigt nur diesen einen Artikel.
       const balken = await p.locator('#artikel-uebersicht .uebersicht-zeile').count()
       if (balken !== 1) throw new Error(`Übersicht bei Knirps · Demeter: ${balken} Balken statt einem`)
+      // Runde AR: die Stück ohne Gewicht sind Muscade, nicht Knirps — der Hinweis folgt der Wahl.
+      if (await p.locator('#artikel-ohne-gewicht').count()) throw new Error('Bei Knirps steht der Hinweis auf Muscade-Stück ohne Gewicht')
     } },
   // … und ein Kunde allein im grossen Diagramm, per Klick in der Tabelle.
   { name: 'artikel-kunde', wer: 'admin', pfad: '/artikel',
@@ -398,6 +406,12 @@ const BILDSCHIRME = [
   // Warenausgang einlesen (0055): die Probedatei wählen, Befund und Abgleich lesen
   { name: 'betrieb-import', wer: 'admin', pfad: '/betrieb/lieferungen',
     tun: async p => {
+      // Runde AR (0115): was nicht zu den Lieferungen passt, steht oben, bevor jemand etwas wählt
+      // (die Demo hat zwei solche Positionen, 0081).
+      const n = (fixture('v_ausgang_pruef') ?? []).length
+      if (n < 1) throw new Error('v_ausgang_pruef.json ist leer — daten_dumpen.sh nach 0115 neu laufen lassen')
+      const warnung = await p.locator('#ausgang-abweichung').innerText()
+      if (!warnung.includes(`${n} Positionen stimmen nicht`)) throw new Error(`Abweichung: „${warnung}" — erwartet ${n} Positionen`)
       await p.locator('#ausgang-dateien input[type=file]').setInputFiles('test/daten/warenausgang-probe.xlsx')
       await p.getByText('Bis wo hat es die Daten schon?').waitFor()
     } },

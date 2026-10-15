@@ -304,7 +304,9 @@ nichts wird verschluckt, die Summe bleibt das Verkaufsfähige.
 **Kunden gegen Vorjahre:** `v_kunde_tag` aus `ausgang_position` (jede
 Perigon-Position aller Saisons, 1. Juli – 30. Juni), nur Kürbis
 (`ist_kuerbis_vorschlag`, sonst die Bestätigung des Betriebsleiters), ohne
-interne Umbuchung (Journal L). Geht in keine Bilanz ein.
+interne Umbuchung (Journal L). Geht in keine Bilanz ein. Die Masse je
+Position nach Abschnitt 12b; Stück ohne Stückgewicht zählen nicht in kg,
+stehen aber als `stueck_ohne_gewicht` da (seit 0115).
 **Wie viel von welchem Artikel noch da ist (Runde AQ):** je Artikelgruppe ×
 Label die Chargen zusammengezählt (`src/auswertung/artikel.ts`,
 `uebersichtszeilen`): Eingang, ausgelagert und geliefert, im Lager und
@@ -313,6 +315,31 @@ verkaufsfähig aus `erg_charge`, das Verkaufsfähige nach Grösse aus
 so lang wie der Eingang. Ein unbekanntes Verkaufsfähiges zählt als Lücke,
 nicht als 0. Eingang und ausgeliefert gibt es nur je Gruppe, nicht je Grösse.
 **Urteil:** ehrlich; dieselbe Zahl wie überall, nur anders geteilt.
+
+## 12b. Die Masse einer Perigon-Position (`perigon_kg`, `perigonKg`, 0115)
+
+**Braucht:** aus der Perigon-Datei je Zeile die Menge (`AufPosQuantity`,
+je Charge `AufPosBatchQuantity`), das Gewicht je Artikel
+(`GewichtProArtikel`) und die Einheit.
+**Rechnet:** Gewicht je Artikel > 0 → Menge × Gewicht. Sonst bei Einheit kg
+→ die Menge selbst (der Perigon-Artikelstamm führt bei kg-Artikeln oft 0
+statt 1). Sonst — Stück ohne Stückgewicht — **unbekannt (leer), nie 0**.
+Dieselbe Regel in der App (`src/lib/warenausgang.ts`, beim Einlesen: Masse
+je Zeile und je Charge, daraus die Lieferungen) und in der Datenbank
+(`perigon_kg()`, für die Positionen aller Saisons); `test/warenausgang.test.ts`
+und Prüfblock 0115 halten beide fest.
+**Lieferungen daraus:** je Position und Charge eine Lieferung, der Rest
+ohne Charge als `…:rest`. Seit 0115 entfernt das Einlesen für jede Position
+der Datei die Lieferungen, die die Datei nicht mehr ergibt (Charge
+nachgetragen, anders aufgeteilt, keine Masse mehr) — Positionen ausserhalb
+der Datei, andere Firmen und Lieferungen von Hand bleiben; das Journal
+behält jede entfernte.
+**Fehlt eine Eingabe:** ohne Stückgewicht keine Lieferung und keine Masse —
+die Position steht beim Einlesen unter „ohne Gewicht" und im Vergleich je
+Kunde als Stück. `v_ausgang_pruef` zeigt jede Position, deren Lieferungen
+nicht die Masse der Datei ergeben; der Warenausgang warnt oben.
+**Urteil:** ehrlich. Bis 0115 zählten kg-Artikel mit Gewicht 0 als 0 kg
+(BioProdukte 2024/25: 81.6 t statt 168.3 t).
 
 ## 13. Was nirgends erraten wird
 
@@ -324,3 +351,4 @@ nicht als 0. Eingang und ausgeliefert gibt es nur je Gruppe, nicht je Grösse.
 - Eine Ausschuss-Art, die niemand gewogen hat (0097).
 - Ein Sockel ohne Nachweis — er ist 0 und sagt es (0097).
 - Die Grenzen eines Bandes aus einer fremden Fassung (0097).
+- Ein Stückgewicht, das der Perigon-Artikelstamm nicht kennt (0115).

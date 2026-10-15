@@ -594,7 +594,7 @@ function useVerkauf(kunden: KundeTag[], heute: string, wahl: Wahl) {
       .sort((a, b) => Math.max(b.summe.get(saison - 1) ?? 0, b.summe.get(saison) ?? 0)
                     - Math.max(a.summe.get(saison - 1) ?? 0, a.summe.get(saison) ?? 0))
   }, [passend, saison, tagHeute])
-  return { saison, tagHeute, alle, jeKunde, mitVorjahr: kunden.some(k => k.saison < saison) }
+  return { saison, tagHeute, alle, jeKunde, passend, mitVorjahr: kunden.some(k => k.saison < saison) }
 }
 
 function VerkauftKennzahl({ kunden, heute, wahl }: { kunden: KundeTag[]; heute: string; wahl: Wahl }) {
@@ -612,9 +612,18 @@ function VerkauftKennzahl({ kunden, heute, wahl }: { kunden: KundeTag[]; heute: 
 
 function Verlauf({ kunden, heute, wahl }: { kunden: KundeTag[]; heute: string; wahl: Wahl }) {
   const [kunde, setKunde] = useState('')
-  const { saison, tagHeute, alle, jeKunde, mitVorjahr } = useVerkauf(kunden, heute, wahl)
+  const { saison, tagHeute, alle, jeKunde, passend, mitVorjahr } = useVerkauf(kunden, heute, wahl)
   const gewaehlt = kunde ? jeKunde.find(k => k.kunde === kunde) : alle
   const leer = jeKunde.length === 0
+  // Runde AR (0115): Stück, für die Perigon kein Stückgewicht kennt, stehen nicht in der Linie — aber sie stehen da.
+  const ohneGewicht = useMemo(() => {
+    const m = new Map<number, number>()
+    for (const k of passend) {
+      if (kunde && k.kunde !== kunde) continue
+      if (Number(k.stueck_ohne_gewicht ?? 0) > 0) m.set(k.saison, (m.get(k.saison) ?? 0) + Number(k.stueck_ohne_gewicht))
+    }
+    return [...m.entries()].sort((a, b) => b[0] - a[0])
+  }, [passend, kunde])
 
   return (
     <Karte id="artikel-verlauf" titel={<>Wie ist es gegangen? {wahlName(wahl)}</>}
@@ -643,6 +652,13 @@ function Verlauf({ kunden, heute, wahl }: { kunden: KundeTag[]; heute: string; w
                       heute={{ x: tagHeute, text: 'heute', rechts: '' }} leer="keine Lieferung"
                       fuss={<span className="leise">Ausgezogen diese Saison bis heute, gestrichelt die Vorjahre bis zum Saisonende — was nach heute noch kam.</span>} />
             : <Leer titel={`${kunde}: keine Lieferung`}>{kunde} hat {wahlName(wahl)} in den letzten drei Saisons nicht bekommen.</Leer>}
+          {ohneGewicht.length > 0 && (
+            <div id="artikel-ohne-gewicht"><Hinweis art="info">
+              Nicht in den Linien, weil Perigon kein Stückgewicht kennt:{' '}
+              {ohneGewicht.map(([s, n]) => `${saisonText(s)} ${zahl(n)} Stück`).join(' · ')}.
+              Steht das Stückgewicht im Perigon-Artikelstamm, die Datei neu einlesen.
+            </Hinweis></div>
+          )}
           <div className="rollbar">
             <table className="dicht kundentabelle">
               <thead><tr>
