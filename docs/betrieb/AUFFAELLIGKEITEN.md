@@ -1,14 +1,14 @@
 # Auffälligkeiten der Messungen
 
-_Abzug vom 2026-10-15. Von `pruefstand/betrieb_abzug.mjs` geschrieben; nicht von Hand ändern._
+_Abzug vom 2026-10-16. Von `pruefstand/betrieb_abzug.mjs` geschrieben; nicht von Hand ändern._
 
 Was die Auswertung nicht in die Rechnung nimmt, weil es nicht zu seinem Nenner passt. Für die nächste Runde: Wo entsteht das im Ablauf oder in der Maske? Was ist ein Datenfehler, der dem Betrieb gehört? Was könnte die App besser abfangen?
 
-## Nach Art (69)
+## Nach Art (70)
 
 | Art | Anzahl |
 |---|---|
-| Zettelgewicht | 46 |
+| Zettelgewicht | 47 |
 | Wägung | 6 |
 | Zetteldatum | 4 |
 | Verdunstung | 4 |
@@ -20,6 +20,9 @@ Was die Auswertung nicht in die Rechnung nimmt, weil es nicht zu seinem Nenner p
 
 ## Einzeln
 
+- **Zettelgewicht** · Charge 1631 — Rümlang Keller · Mieluna · Waschen + Sortieren · 15.10.2026, 15:30 · fertig · Charge 1631 — Rümlang Keller · Mieluna · Arbeit 1635
+  - 2 Palette(n) mit 425.00 kg vom Zettel und Eingangsdatum 22.09.2026 gezählt. Eine Palette dieses Gewichts gibt es in der Charge, aber an einem anderen Tag — gerechnet wird deshalb mit der mittleren Tara der Charge, nicht mit ihrer eigenen.
+  - _Eingangsdatum an der Zählung prüfen — oder das Datum der Palette im Wareneingang._
 - **Wägung** · Charge 1623 — Agasul Rüegg · Mieluna · Waschen + Sortieren · 13.10.2026, 08:22 · fertig · Charge 1623 — Agasul Rüegg · Mieluna · Arbeit 1631
   - Palette gewogen, aber sie wiegt jetzt 20 kg mehr als beim Eingang, und im Lager wird keine Palette schwerer — sie zählt nicht in die Verdunstungsrate
   - _Gebindeart, Kistenzahl und beide Gewichte prüfen — meist stimmt die Tara nicht oder eine Zahl ist verdreht._
@@ -197,12 +200,12 @@ Was die Auswertung nicht in die Rechnung nimmt, weil es nicht zu seinem Nenner p
 - **Zettelgewicht** · Charge 1630 — Rümlang Keller · Kaori Kuri · Sortieren · 23.09.2026, 13:32 · fertig · Charge 1630 — Rümlang Keller · Kaori Kuri · Arbeit 1577
   - 1 Palette(n) mit 429.00 kg vom Zettel gezählt, aber im Wareneingang hat keine Palette dieser Charge dieses Gewicht — gerechnet wird mit den gezählten Kisten und ihrer Tara (Zettel − Kisten × Kiste − Palette)
   - _Gewicht an der Zählung prüfen (Zahlendreher?) — oder die Palette fehlt im Wareneingang (Erntejournal)._
-- **Überzählung** · Charge 1626 — Agasul Rüegg · Tiana
-  - Die Lieferungen dieser Charge (7497 kg) brauchen nach der gerechneten Ausbeute (94 % verkaufsfähig) 7974 kg Eingang — erfasst sind 4863 kg, also 3112 kg zu wenig. Geliefert wurde nicht mehr als eingelagert; es wurde mehr geliefert, als die Rechnung aus diesem Eingang erwartet.
-  - _Drei Möglichkeiten: Im Erntejournal fehlt eine Palette dieser Charge; ein Lieferschein ist auf die falsche Chargennummer gebucht; oder diese Charge hat weniger Verlust als das Modell annimmt — dann ist „Im Lager" für sie zu klein gerechnet. Die ersten zwei lassen sich nachtragen._
 - **Lieferung ohne Eingang** · Charge 1627 — Agasul Rüegg · Fictor
   - 3 Lieferung(en) mit 1416 kg an Charge 1627, aber im Wareneingang steht keine Palette dieser Charge
   - _Wareneingang der Charge nachtragen (Erntejournal) — oder die Lieferung gehört zu einer anderen Charge._
+- **Überzählung** · Charge 1626 — Agasul Rüegg · Tiana
+  - Die Lieferungen dieser Charge (7497 kg) brauchen nach der gerechneten Ausbeute (94 % verkaufsfähig) 7974 kg Eingang — erfasst sind 4863 kg, also 3112 kg zu wenig. Geliefert wurde nicht mehr als eingelagert; es wurde mehr geliefert, als die Rechnung aus diesem Eingang erwartet.
+  - _Drei Möglichkeiten: Im Erntejournal fehlt eine Palette dieser Charge; ein Lieferschein ist auf die falsche Chargennummer gebucht; oder diese Charge hat weniger Verlust als das Modell annimmt — dann ist „Im Lager" für sie zu klein gerechnet. Die ersten zwei lassen sich nachtragen._
 - **Zettelgewicht** · Charge 1651 — Rümlang Sauter · Kaori Kuri · Waschen + Sortieren · 22.09.2026, 07:36 · fertig · Charge 1651 — Rümlang Sauter · Kaori Kuri · Arbeit 1573
   - 1 Palette(n) mit 237.00 kg vom Zettel gezählt, aber im Wareneingang hat keine Palette dieser Charge dieses Gewicht — gerechnet wird mit den gezählten Kisten und ihrer Tara (Zettel − Kisten × Kiste − Palette)
   - _Gewicht an der Zählung prüfen (Zahlendreher?) — oder die Palette fehlt im Wareneingang (Erntejournal)._
@@ -219,7 +222,7 @@ Was die Auswertung nicht in die Rechnung nimmt, weil es nicht zu seinem Nenner p
   - 18 von 32 Paletten der Charge haben kein Nettogewicht (5622 kg brutto): für die Gebindeart ist kein Kistengewicht hinterlegt. Für sie rechnet der Eingang mit dem Mittel der übrigen: 7421 der 13193 kg Eingang sind hochgerechnet, nicht gewogen.
   - _Unter Betrieb → Stammdaten die Tara dieser Gebindeart eintragen. Die Zahlen rechnen sich danach von selbst neu._
 - **Überzählung** · Charge 1624 — Agasul Rüegg · Butterkin
-  - Die Lieferungen dieser Charge (16825 kg) brauchen nach der gerechneten Ausbeute (73 % verkaufsfähig) 23196 kg Eingang — erfasst sind 16788 kg, also 6407 kg zu wenig. Geliefert wurde nicht mehr als eingelagert; es wurde mehr geliefert, als die Rechnung aus diesem Eingang erwartet.
+  - Die Lieferungen dieser Charge (16825 kg) brauchen nach der gerechneten Ausbeute (73 % verkaufsfähig) 23080 kg Eingang — erfasst sind 16788 kg, also 6291 kg zu wenig. Geliefert wurde nicht mehr als eingelagert; es wurde mehr geliefert, als die Rechnung aus diesem Eingang erwartet.
   - _Drei Möglichkeiten: Im Erntejournal fehlt eine Palette dieser Charge; ein Lieferschein ist auf die falsche Chargennummer gebucht; oder diese Charge hat weniger Verlust als das Modell annimmt — dann ist „Im Lager" für sie zu klein gerechnet. Die ersten zwei lassen sich nachtragen._
 - **Überzählung** · Charge 1619 — Gossau Eberhard · Kaori Kuri
   - Die Lieferungen dieser Charge (3681 kg) brauchen nach der gerechneten Ausbeute (78 % verkaufsfähig) 4701 kg Eingang — erfasst sind 4281 kg, also 420 kg zu wenig. Geliefert wurde nicht mehr als eingelagert; es wurde mehr geliefert, als die Rechnung aus diesem Eingang erwartet.

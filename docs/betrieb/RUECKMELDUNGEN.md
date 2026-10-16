@@ -1,12 +1,10 @@
 # Rückmeldungen aus der Halle
 
-_Abzug vom 2026-10-15. Von `pruefstand/betrieb_abzug.mjs` geschrieben; nicht von Hand ändern._
+_Abzug vom 2026-10-16. Von `pruefstand/betrieb_abzug.mjs` geschrieben; nicht von Hand ändern._
 
 Was die Person am Ende einer Arbeit gesagt hat — geschrieben, oder mitgeschrieben vom Handy (Transkript, ungeprüft = so wie die Spracherkennung es verstand). Die Aufnahmen liegen im Bucket `rueckmeldungen` des Projekts; hier steht, was sich lesen lässt.
 
 **Zur Ware gilt seit 0094:** Ein Kommentar steht erst im Dashboard, wenn jemand ihn gelesen, verstanden und gekürzt hat („Hagelschaden"). Kürzen heisst: ein Eintrag je Nr. in `docs/betrieb/kurzfassungen.json` (der Abzug spielt ihn ein — täglich, und sofort beim Push der Datei), oder der Betriebsleiter tut es unter Betrieb → Arbeiten. Was der Betriebsleiter gekürzt hat, bleibt. Nur Aufnahme, kein Transkript: das kann hier niemand hören — anhören und kürzen kann nur der Betriebsleiter.
-
-**Noch zu kürzen: 2** — Nr. 13, 12.
 
 ## Zur App — für die nächste Runde (2)
 
@@ -18,10 +16,10 @@ Was die Person am Ende einer Arbeit gesagt hat — geschrieben, oder mitgeschrie
 ## Zur Ware — für den Betriebsleiter (11)
 
 - **Nr. 13** · 13.10.2026 · Waschen · 13.10.2026, 15:42 · fertig · Charge 1646 — Gossau Eberhard · Butterkin · Arbeit 1634 · Seraina
-  - **noch nicht gekürzt** — steht noch nicht im Dashboard
+  - **gekürzt** (Runde, 15.10.2026): „Weich: gibt beim Drücken schnell nach"
   - „Beim drücken gibt es schnell nach(unten)"
 - **Nr. 12** · 13.10.2026 · Waschen · 13.10.2026, 08:19 · fertig · Charge 1612 — Slowgrow Uster · Butterkin · Arbeit 1630 · Seraina
-  - **noch nicht gekürzt** — steht noch nicht im Dashboard
+  - **gekürzt** (Runde, 15.10.2026): „Viele kleine kaputte Stellen"
   - „Viele kleine kaputte stellen"
 - **Nr. 11** · 10.10.2026 · Sortieren · 10.10.2026, 11:56 · fertig · Charge 1616 — Slowgrow Uster · Lekor · Arbeit 1623 · Seraina
   - **gekürzt** (Runde, 12.10.2026): „Viel Faules"
