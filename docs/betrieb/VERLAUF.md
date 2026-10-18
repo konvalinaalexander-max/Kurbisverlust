@@ -24,3 +24,4 @@ Eine Zeile je Abzug — damit man sieht, ob die Auffälligkeiten weniger werden 
 | 2026-10-15 | 2 | 11 (2 zu kürzen) | 69 | Zettelgewicht (46) |
 | 2026-10-16 | 2 | 11 (0 zu kürzen) | 70 | Zettelgewicht (47) |
 | 2026-10-17 | 2 | 11 (0 zu kürzen) | 72 | Zettelgewicht (48) |
+| 2026-10-18 | 2 | 11 (0 zu kürzen) | 75 | Zettelgewicht (51) |
