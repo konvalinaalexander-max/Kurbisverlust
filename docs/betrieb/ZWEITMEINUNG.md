@@ -153,8 +153,24 @@ Die acht Wägungen 308–315 zählen bei Tiana; Wägung 310 ist eine Teilpalette
 (1.2). **Sicher:** wahrscheinlich (gleicher Produzent Agasul Rüegg, fünf
 genaue Treffer). **Prüfen:** Was lag am 8.10. an der Waschstrasse? Waren es
 sieben oder acht Paletten? **Folgt:** Datenkorrektur — Arbeit 1619 auf 1623
-umhängen (Messungen → Arbeiten → „Messungen korrigieren", Feld „Charge"),
-einen der beiden 437-kg-Zettel löschen, falls doppelt.
+umhängen, einen der beiden 437-kg-Zettel löschen, falls doppelt. Die Charge
+einer Arbeit lässt sich in der App nicht ändern (Korrektur kennt das Feld
+nicht — Vorschlag P8); im SQL-Editor, an der Kopie der Betriebsdaten
+geprüft (die Arbeit, ihre acht Wägungen und das Sortierschema der Sorte):
+
+```sql
+begin;
+update auftrag set charge_nr = 1623,
+       sortierschema_id = (select sortierschema_fuer(c.sorte, auftrag.kaeufer, auftrag.start_ts::date, 'kaliber')
+                             from charge c where c.nr = 1623)
+ where id = 1619 and charge_nr = 1626;
+update verdunstung_wiegung set charge_nr = 1623 where auftrag_id = 1619 and charge_nr = 1626;
+update ausgang_wiegung     set charge_nr = 1623 where auftrag_id = 1619 and charge_nr = 1626;
+update sortier_lauf        set charge_nr = 1623 where auftrag_id = 1619 and charge_nr = 1626;
+commit;
+```
+
+Danach „Neu rechnen".
 
 ### 2.2 1626 Tiana: geliefert, bevor die erste Palette kam
 
@@ -487,3 +503,8 @@ Grenze in `GRENZEN` ändert sich nur mit Begründung in `docs/ENTSCHEIDUNGEN.md`
   Verdunstung, die Stationswerte nicht — so gewollt?
 - **P7. Ende = letzter Eintrag** (8, klein). Wird eine Arbeit erst am nächsten
   Tag abgeschlossen, die Zeit des letzten Eintrags als Ende vorschlagen.
+- **P8. Die Charge einer Arbeit in der Korrektur** (2.1). Wer eine Arbeit auf
+  der falschen Charge eröffnet, kann sie heute nur im SQL-Editor umhängen.
+  Ein Feld „Charge" im Kopf der Korrektur, das die Wägungen, fertigen
+  Paletten und Sortierläufe der Arbeit mitnimmt und das Sortierschema der
+  neuen Sorte setzt — mit Prüfblock.
