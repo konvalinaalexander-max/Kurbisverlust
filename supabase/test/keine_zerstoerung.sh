@@ -66,6 +66,11 @@ FREIGEGEBEN=(
   # Mitte August) — dieselben drei Notizzettel, derselbe Anfang, dasselbe Ende.
   "0104_waschen_wird_gewogen.sql:661"
   "0104_waschen_wird_gewogen.sql:1614"
+  # 0116 dasselbe noch einmal (die Demo zeigt Hagel, einen Ausreisser, eine
+  # Kundengruppe, einen Plan und eine Perigon-Auffälligkeit) — dieselben drei
+  # Notizzettel, derselbe Anfang, dasselbe Ende.
+  "0116_die_groesse_kommt_aus_der_sortierdatei.sql:4070"
+  "0116_die_groesse_kommt_aus_der_sortierdatei.sql:5070"
 )
 
 # ---------------------------------------------------------------------

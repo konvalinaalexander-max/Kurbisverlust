@@ -10,6 +10,9 @@ import { anteilBei, lieferungenVon, useAuswertung, type Auswertung } from '../au
 import { Probleme, Rechnet, Reiterkopf } from '../auswertung/Karten'
 import type { Auftrag } from '../lib/typen'
 import { herkunftText, summeBekannt } from '../lib/masse'
+import { LieferungFenster } from '../betrieb/LieferungFenster'
+import { useAuth } from '../auth/AuthProvider'
+import { fehlerText } from '../lib/db'
 
 /** Wonach die Tabelle sortiert ist — der Betriebsleiter wählt es mit einem Klick auf den Kopf. */
 type Sortierung = 'lager' | 'verkaufsfaehig' | 'eingang'
@@ -33,6 +36,13 @@ export default function Chargen() {
   const [nurBestand, setNurBestand] = useState(false)
   const [nach, setNach] = useState<Sortierung>('lager')
   const offen = Number(suche.get('charge') ?? 0) || null
+  // Runde AS (0116): der Hagelschaden je Charge, vom Betriebsleiter gesetzt
+  const { istAdmin } = useAuth()
+  const [hagel, setHagel] = useState<Map<number, number>>(new Map())
+  const hagelLaden = () => void supabase.from('charge').select('nr, hagel_anteil').not('hagel_anteil', 'is', null).then(r => {
+    if (!r.error) setHagel(new Map(((r.data ?? []) as { nr: number; hagel_anteil: number }[]).map(c => [c.nr, Number(c.hagel_anteil)])))
+  })
+  useEffect(hagelLaden, [])
 
   const zeilen = useMemo(() => {
     if (!daten) return []
@@ -109,12 +119,14 @@ export default function Chargen() {
                 <Kopf id="lager">Im Lager</Kopf>
                 <Kopf id="verkaufsfaehig">Davon verkaufsfähig</Kopf>
                 <th className="zahl">Verlust bis heute</th>
+                <th className="zahl" title="Hagelschaden der Charge in Prozent des Eingangs — kommt beim Waschen und Sortieren in den Palox">Hagel</th>
               </tr>
             </thead>
             <tbody>
               {zeilen.map(z => (
                 <ChargenZeile key={z.b.charge_nr} z={z} offen={offen === z.b.charge_nr} daten={daten}
-                              oeffnen={() => setSuche(offen === z.b.charge_nr ? {} : { charge: String(z.b.charge_nr) })} />
+                              oeffnen={() => setSuche(offen === z.b.charge_nr ? {} : { charge: String(z.b.charge_nr) })}
+                              hagel={<HagelZelle nr={z.b.charge_nr} anteil={hagel.get(z.b.charge_nr) ?? null} darf={istAdmin} neu={hagelLaden} />} />
               ))}
             </tbody>
           </table>
@@ -128,6 +140,49 @@ export default function Chargen() {
         </Erklaerung>
       </Karte>
     </>
+  )
+}
+
+/**
+ * Hagelschaden je Charge (Runde AS, 0116). Der Betrieb: „ein Kästchen, und
+ * wenn ich das Kreuz mache, ein Feld, wo ich die Prozent eingebe … wenn 20 %
+ * Hagelschaden, dann ist 20 % vom Wareneingang nicht mehr verfügbar." Der
+ * Hagel kommt beim Waschen und Sortieren in den Palox; die Rechnung zählt ihn
+ * dort, wo noch keine Messung der Charge ihn schon enthält — ab der nächsten
+ * Rechnung.
+ */
+function HagelZelle({ nr, anteil, darf, neu }: { nr: number; anteil: number | null; darf: boolean; neu: () => void }) {
+  const [offen, setOffen] = useState(false)
+  const [wert, setWert] = useState(anteil != null ? String(Math.round(anteil * 1000) / 10) : '')
+  const [fehler, setFehler] = useState<string | null>(null)
+  const prozentWert = Number(wert.replace(',', '.'))
+  const gueltig = wert.trim() !== '' && Number.isFinite(prozentWert) && prozentWert > 0 && prozentWert <= 100
+  async function speichern(neuerAnteil: number | null) {
+    setFehler(null)
+    const r = await supabase.from('charge').update({ hagel_anteil: neuerAnteil, hagel_ts: new Date().toISOString() }).eq('nr', nr)
+    if (r.error) { setFehler(fehlerText(r.error)); return }
+    setOffen(false); neu()
+  }
+  return (
+    <td className="zahl hagel-zelle" onClick={e => e.stopPropagation()}>
+      {darf && (
+        <input type="checkbox" aria-label={`Hagelschaden an Charge ${nr}`} checked={anteil != null || offen}
+               onChange={e => { if (e.target.checked) setOffen(true); else if (anteil != null) void speichern(null); else setOffen(false) }} />
+      )}
+      {!offen && anteil != null && (
+        <button type="button" className="werkzeug-knopf" disabled={!darf} onClick={() => setOffen(true)} title="Hagelschaden ändern">{prozent(anteil, 0)}</button>
+      )}
+      {!offen && anteil == null && !darf && <span className="leise">—</span>}
+      {offen && (
+        <form className="hagel-feld" onSubmit={e => { e.preventDefault(); if (gueltig) void speichern(prozentWert / 100) }}>
+          <input type="text" inputMode="decimal" autoFocus value={wert} onChange={e => setWert(e.target.value)} aria-label="Hagelschaden in Prozent"
+                 onKeyDown={e => { if (e.key === 'Escape') setOffen(false) }} />
+          <span className="leise">%</span>
+          <button type="submit" className="werkzeug-knopf" disabled={!gueltig}>speichern</button>
+        </form>
+      )}
+      {fehler && <span className="zelle-unter fehler-text">{fehler}</span>}
+    </td>
   )
 }
 
@@ -155,7 +210,7 @@ function eingangSpanne(b: Auswertung['bestand'][number]): string {
   return b.eingang_bis && b.eingang_bis !== von ? `${kurz(von)} – ${kurz(b.eingang_bis)}` : kurz(von)
 }
 
-function ChargenZeile({ z, offen, oeffnen, daten }: { z: Zeile; offen: boolean; oeffnen: () => void; daten: Auswertung }) {
+function ChargenZeile({ z, offen, oeffnen, daten, hagel }: { z: Zeile; offen: boolean; oeffnen: () => void; daten: Auswertung; hagel: ReactNode }) {
   const { b } = z
   const liegt = b.lager_kg > 0
   return (
@@ -177,9 +232,10 @@ function ChargenZeile({ z, offen, oeffnen, daten }: { z: Zeile; offen: boolean; 
           ? <>{kg(b.verkaufsfaehig_lager_kg, 0)}{z.heute !== null && <span className="leise"> · {prozent(z.heute, 0)}</span>}</>
           : <span className="leise">—</span>}</td>
         <td className="zahl" title={verlustTitel(b)}>{kg(b.verlust_heute_kg, 0)}</td>
+        {hagel}
       </tr>
       {offen && (
-        <tr className="aufgeklappt"><td colSpan={10} className="detail"><ChargeDetail nr={b.charge_nr} z={z} daten={daten} /></td></tr>
+        <tr className="aufgeklappt"><td colSpan={11} className="detail"><ChargeDetail nr={b.charge_nr} z={z} daten={daten} /></td></tr>
       )}
     </>
   )
@@ -189,6 +245,8 @@ function ChargeDetail({ nr, z, daten }: { nr: number; z: Zeile; daten: Auswertun
   const [arbeiten, setArbeiten] = useState<(Auftrag & { masse_kg: number | null; masse_quelle: string | null })[]>([])
   const [lieferungen, setLieferungen] = useState<{ id: number; datum: string; ziel_name: string; kunde: string | null; masse_kg: number | null; masse_quelle: string }[]>([])
   const [laedt, setLaedt] = useState(true)
+  // Runde AS: die Lieferung als Fenster — die ganze Perigon-Zeile und die Rechnung der Masse
+  const [lieferung, setLieferung] = useState<number | null>(null)
   useEffect(() => {
     let weg = false
     void (async () => {
@@ -260,7 +318,7 @@ function ChargeDetail({ nr, z, daten }: { nr: number; z: Zeile; daten: Auswertun
             <div className="rollbar"><table className="dicht">
               <thead><tr><th>Datum</th>{!einZiel && <th>Ziel</th>}<th>Kunde</th><th className="zahl">Masse der Lieferung</th></tr></thead>
               <tbody>{lieferungen.map(l => (
-                <tr key={l.id}><td>{datum(l.datum)}</td>{!einZiel && <td>{l.ziel_name}</td>}<td>{l.kunde ?? ''}</td>
+                <tr key={l.id} className="klickbar" onClick={() => setLieferung(l.id)} title="die ganze Zeile der Perigon-Datei zeigen"><td>{datum(l.datum)}</td>{!einZiel && <td>{l.ziel_name}</td>}<td>{l.kunde ?? ''}</td>
                   <td className="zahl">{kg(l.masse_kg, 0)}{l.masse_quelle !== 'gewogen' && <span className="leise"> ({herkunftText(l.masse_quelle)})</span>}</td></tr>
               ))}</tbody>
             </table></div>
@@ -290,6 +348,7 @@ function ChargeDetail({ nr, z, daten }: { nr: number; z: Zeile; daten: Auswertun
           </tbody>
         </table></div>
       )}
+      {lieferung !== null && <LieferungFenster lieferungId={lieferung} schliessen={() => setLieferung(null)} />}
     </div>
   )
 }

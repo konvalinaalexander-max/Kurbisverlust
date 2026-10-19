@@ -2,15 +2,19 @@ import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { datum, kg, prozent, tonnen, zahl } from '../lib/format'
 import { fehlerText } from '../lib/db'
-import { Erklaerung, Herkunft, Hinweis, Karte, Kennzahl, Leer, Marke, Segmente } from '../components/Bausteine'
+import { supabase } from '../lib/supabase'
+import { useAuth } from '../auth/AuthProvider'
+import { Erklaerung, Herkunft, Hinweis, Karte, Kennzahl, Lade, Leer, Marke, Segmente } from '../components/Bausteine'
 import { Linien, tonnenAchse, type Reihe } from '../components/Diagramm'
 import { artikelGrundlagen, artikelLagerChargeBei, useAuswertung, useStichtag,
-         type ArtikelKaliber, type ArtikelLagerCharge, type Bestand, type ChargeLabel, type KundeTag, type SorteGruppe } from '../auswertung/daten'
+         type ArtikelKaliber, type ArtikelLagerCharge, type Bestand, type ChargeLabel, type KundeGruppe, type KundeTag, type PerigonPruefung,
+         type SorteGruppe, type Verlaufswoche } from '../auswertung/daten'
 import { Probleme, Rechnet, Reiterkopf } from '../auswertung/Karten'
 import { WochenFeld } from '../components/WochenFeld'
-import { ZChevron } from '../components/Zeichen'
-import { KLASSEN, OFFEN, klasseVon, passtGruppe, passtKlasse, passtLabel, rang, uebersichtszeilen,
-         type Klasse, type RestTeile, type Uebersichtszeile, type Wahl } from '../auswertung/artikel'
+import { ZChevron, ZStift } from '../components/Zeichen'
+import { KLASSEN, OFFEN, klasseVon, kundenGruppe, nochZuLiefern, passtGruppe, passtKlasse, passtLabel, passtVerkauf, planSchluessel, rang,
+         uebersichtszeilen, type Klasse, type KundePlan, type RestTeile, type Uebersichtszeile, type Wahl } from '../auswertung/artikel'
+import { LieferungFenster } from '../betrieb/LieferungFenster'
 
 const TAG = 86400000
 
@@ -56,9 +60,6 @@ const labelName = (l: string | null) => l === 'D' ? 'Demeter' : l === 'K' ? 'Kno
 const klasseName = (k: Klasse) =>
   k === 'stueck' ? 'je Stück' : k === 'ausserhalb' ? 'lose' : k === 'ohne' ? 'Grösse offen' : k
 
-/** Verkauft: KundeTag.groesse ist gross, klein oder lose — lose zählt nur bei „beide". */
-const passtVerkauf = (w: Wahl, g: string) => w.groesse === 'beide' || g === w.groesse
-
 const wahlName = (w: Wahl) =>
   `${w.gruppe ? (w.gruppe === 'Knirps' ? 'Knirps' : w.gruppe) : 'alle Artikel'}${w.groesse === 'beide' ? '' : ` ${w.groesse}`}`
   + `${w.label === 'beide' ? '' : ` · ${labelName(w.label)}`}`
@@ -73,7 +74,10 @@ function wahlLesen(): Wahl {
   return OFFEN
 }
 
-interface Grundlagen { labels: ChargeLabel[]; gruppen: SorteGruppe[]; kaliber: ArtikelKaliber[]; kunden: KundeTag[] }
+interface Grundlagen {
+  labels: ChargeLabel[]; gruppen: SorteGruppe[]; kaliber: ArtikelKaliber[]; kunden: KundeTag[]
+  kundeGruppe: KundeGruppe[]; plaene: KundePlan[]; pruefung: PerigonPruefung[]
+}
 
 export default function Artikel() {
   const { daten, laedt, fehler, fortschritt, neuRechnen } = useAuswertung()
@@ -84,6 +88,8 @@ export default function Artikel() {
   const [grund, setGrund] = useState<Grundlagen | null>(null)
   const [grundFehler, setGrundFehler] = useState<string | null>(null)
   const [wahl, setWahlRoh] = useState<Wahl>(wahlLesen)
+  const { istAdmin } = useAuth()
+  const [ladeNr, setLadeNr] = useState(0)
   const setWahl = (w: Wahl) => {
     setWahlRoh(w)
     try { localStorage.setItem(WAHL_SCHLUESSEL, JSON.stringify(w)) } catch { /* privates Fenster */ }
@@ -94,7 +100,7 @@ export default function Artikel() {
       .then(g => { if (gilt) setGrund(g) })
       .catch((f: unknown) => { if (gilt) setGrundFehler(fehlerText(f)) })
     return () => { gilt = false }
-  }, [])
+  }, [ladeNr])
 
   // Runde AS: der Rest des Lagers je Charge, wie die Kaskade ihn teilt (heute) — für die Farben des Balkens.
   const rest = useMemo(() => new Map<number, RestTeile>((daten?.prognose ?? [])
@@ -127,8 +133,10 @@ export default function Artikel() {
           <NochDa bestand={daten.bestand} grund={grund} teile={lager.zeilen} wochen={wochen} wahl={wahl} heute={daten.heute}
                   uebersicht={<Uebersicht bestand={daten.bestand} grund={grund} teileHeute={lagerHeute.zeilen} teile={lager.zeilen} wahl={wahl}
                                           wochen={wochen} setzeWochen={setWochen} stichtag={lager.zeilen[0]?.datum ?? null}
-                                          laedt={lager.laedt} lagerFehler={lager.fehler} rest={rest} />} />
-          <Verlauf kunden={grund.kunden} heute={daten.heute} wahl={wahl} />
+                                          laedt={lager.laedt} lagerFehler={lager.fehler} rest={rest} heute={daten.heute} />} />
+          <Verlauf grund={grund} heute={daten.heute} wahl={wahl} lagerHeute={lagerHeute.zeilen} verlauf={daten.verlauf}
+                   bestand={daten.bestand} istAdmin={istAdmin} neuLaden={() => setLadeNr(n => n + 1)} />
+          <PerigonPruefungen liste={grund.pruefung} />
         </>
       )}
       {!grund && !grundFehler && <Rechnet fortschritt={null} />}
@@ -303,10 +311,10 @@ const REST: { feld: 'kanal' | 'faul' | 'verdunstet'; name: string; farbe: string
 /** Was „lose" heisst, in einem Satz — der Betrieb fragte genau das. */
 const LOSE_TEXT = 'verkaufsfähig nach der Sortierung, aber leichter oder schwerer als die Kaliber der Artikel klein und gross — geht nur lose'
 
-function Uebersicht({ bestand, grund, teileHeute, teile, wahl, wochen, setzeWochen, stichtag, laedt, lagerFehler, rest }: {
+function Uebersicht({ bestand, grund, teileHeute, teile, wahl, wochen, setzeWochen, stichtag, laedt, lagerFehler, rest, heute }: {
   bestand: Bestand[]; grund: Grundlagen; teileHeute: ArtikelLagerCharge[]; teile: ArtikelLagerCharge[]; wahl: Wahl
   wochen: number; setzeWochen: (n: number) => void; stichtag: string | null; laedt: boolean; lagerFehler: string | null
-  rest: Map<number, RestTeile>
+  rest: Map<number, RestTeile>; heute: string
 }) {
   const [auf, setAuf] = useState<Set<string>>(new Set())
   const labelVon = useMemo(() => new Map(grund.labels.map(l => [l.charge_nr, l])), [grund.labels])
@@ -327,6 +335,10 @@ function Uebersicht({ bestand, grund, teileHeute, teile, wahl, wochen, setzeWoch
   const restDa = REST.filter(r => zeilen.some(z => z.rest[r.feld] + (r.feld === 'faul' ? z.rest.fax : 0) > 0))
   const offenDa = zeilen.some(z => z.rest.offen > 0)
   const name = (z: Uebersichtszeile) => `${z.gruppe === 'Knirps' ? 'Knirps' : gruppeName(z.gruppe)} · ${labelName(z.label)}`
+  // Runde AS: „Reicht, was da ist?" — je Artikel, was die Kunden nach Plan (ohne Plan: das Vorjahr) noch bekommen
+  const saison = saisonVon(heute)
+  const noch = (z: Uebersichtszeile) => z.gruppe === null ? null
+    : nochZuLiefern(grund.kunden, grund.plaene, saison, { gruppe: z.gruppe, groesse: wahl.groesse, label: z.label ?? 'beide' }).kg
   const umschalten = (k: string) => setAuf(a => { const n = new Set(a); if (n.has(k)) n.delete(k); else n.add(k); return n })
   // Woher Demeter oder Knospe der Chargen mit Ware kommt.
   const quellen = new Map<string, number>()
@@ -413,6 +425,8 @@ function Uebersicht({ bestand, grund, teileHeute, teile, wahl, wochen, setzeWoch
                 verkaufsfähig {spaeter ? `in ${wochen} Wochen` : 'heute'}<Herkunft art={herkunft} />
                 {spaeter && stichtag ? <span className="leise"> · {datum(stichtag).slice(0, 6)}</span> : null}
               </th>
+              <th rowSpan={2} className="zahl" title="Was die Kunden diese Saison nach Plan noch bekommen (ohne Plan: das ganze Vorjahr), weniger das schon Gelieferte">
+                noch zu{' '}<br />liefern</th>
             </tr>
             <tr>
               <th className={`zahl summe${spaeter ? ' spaeter' : ''}`}>gesamt</th>
@@ -444,9 +458,18 @@ function Uebersicht({ bestand, grund, teileHeute, teile, wahl, wochen, setzeWoch
                       return <td key={kl} className={`zahl${spaeter ? ' spaeter' : ''}`}>{v > 0 ? masse(v) : <span className="leise">—</span>}
                         {k && v > 0 && <span className="zelle-unter">{zahl(k.von_g)}–{zahl(k.bis_g)} g</span>}</td>
                     })}
+                    {(() => {
+                      const n = noch(z), vf = z.lager > 0 ? vfSpaeter(z) : 0
+                      if (n === null) return <td className="zahl"><span className="leise">—</span></td>
+                      if (n <= 0) return <td className="zahl" title="nach Plan schon alles geliefert"><span className="leise">0</span></td>
+                      const fehlt = n - vf
+                      return <td className={`zahl${fehlt > 0 ? ' reicht-nicht' : ''}`} title={fehlt > 0 ? `es fehlen ${masse(fehlt)}` : 'reicht'}>
+                        {fehlt > 0 && <span className="ausruf" aria-label="reicht nicht">!</span>}{masse(n)}
+                        {fehlt > 0 && <span className="zelle-unter">fehlen {masse(fehlt)}</span>}</td>
+                    })()}
                   </tr>
                   {offen && (
-                    <tr className="artikel-chargen"><td colSpan={5 + spalten.length}>
+                    <tr className="artikel-chargen"><td colSpan={6 + spalten.length}>
                       {zc.length === 0 ? <p className="leise unten-0">Keine Charge mit verkaufsfähiger Ware{wahl.groesse === 'beide' ? '' : ` ${wahl.groesse}`}.</p>
                         : <Chargenliste chargen={zc} labelVon={labelVon} chargeVon={chargeVon} mitGroesse={wahl.groesse === 'beide'} />}
                     </td></tr>
@@ -463,6 +486,7 @@ function Uebersicht({ bestand, grund, teileHeute, teile, wahl, wochen, setzeWoch
               <td className="zahl">{masse(summe(z => z.lager))}</td>
               <td className={`zahl summe${spaeter ? ' spaeter' : ''}`}><strong>{masse(summe(vfSpaeter))}</strong></td>
               {spalten.map(kl => <td key={kl} className={`zahl${spaeter ? ' spaeter' : ''}`}>{masse(summe(z => z.klassenSpaeter.get(kl) ?? 0))}</td>)}
+              <td className="zahl">{masse(summe(z => noch(z) ?? 0))}</td>
             </tr></tfoot>
           )}
         </table>
@@ -605,30 +629,149 @@ function VerkauftKennzahl({ kunden, heute, wahl }: { kunden: KundeTag[]; heute: 
   )
 }
 
-function Verlauf({ kunden, heute, wahl }: { kunden: KundeTag[]; heute: string; wahl: Wahl }) {
-  const [kunde, setKunde] = useState('')
-  const { saison, tagHeute, alle, jeKunde, passend, mitVorjahr } = useVerkauf(kunden, heute, wahl)
-  const gewaehlt = kunde ? jeKunde.find(k => k.kunde === kunde) : alle
-  const leer = jeKunde.length === 0
-  // Runde AR (0115): Stück, für die Perigon kein Stückgewicht kennt, stehen nicht in der Linie — aber sie stehen da.
-  const ohneGewicht = useMemo(() => {
-    const m = new Map<number, number>()
-    for (const k of passend) {
-      if (kunde && k.kunde !== kunde) continue
-      if (Number(k.stueck_ohne_gewicht ?? 0) > 0) m.set(k.saison, (m.get(k.saison) ?? 0) + Number(k.stueck_ohne_gewicht))
-    }
-    return [...m.entries()].sort((a, b) => b[0] - a[0])
-  }, [passend, kunde])
+/** Eine Position der Liste je Kunde (v_kunde_position, 0116). */
+interface KundePosition {
+  quelle: string; pos_id: number; datum: string; saison: number; gruppe: string | null; groesse: string; label: string | null
+  artikel: string; menge: number | null; einheit: string | null; kg: number | null
+}
 
+/**
+ * Wie ist es gegangen — und reicht, was da ist? (Runde AO, umgebaut in Runde AS)
+ *
+ *   „[der grösste Einzelkunde], Migros, Coop und Kleinkunden … dass ich Coop als Ganzes sehe,
+ *    und wenn ich klicke, die einzelnen Kunden." — „Wir möchten mit
+ *    Planmengen arbeiten … ein Stift, und ich gebe die Planmenge ein; solange
+ *    keine steht, nimm das Vorjahr, aber grau." — „Reicht, was da ist?" —
+ *    „beim Kunden-Diagramm den Lagerbestand des Artikels als eigene Linie."
+ *
+ * Die Tabelle: je Gruppe eine Zeile (aufklappbar zu den Kunden), dazu Plan,
+ * erreicht und noch zu liefern; darunter die Summe gegen das Verkaufsfähige
+ * im Lager. Das Diagramm zeigt, was gewählt ist — alle, eine Gruppe oder
+ * einen Kunden —, und auf Wunsch das Verkaufsfähige des Artikels über die
+ * Saison. Unter einem gewählten Kunden stehen seine Lieferungen; ein Klick
+ * zeigt die ganze Perigon-Zeile.
+ */
+function Verlauf({ grund, heute, wahl, lagerHeute, verlauf, bestand, istAdmin, neuLaden }: {
+  grund: Grundlagen; heute: string; wahl: Wahl; lagerHeute: ArtikelLagerCharge[]; verlauf: Verlaufswoche[]; bestand: Bestand[]
+  istAdmin: boolean; neuLaden: () => void
+}) {
+  const kunden = grund.kunden
+  const [auswahl, setAuswahl] = useState('')          // '' alle · 'g:Gruppe' · 'k:Kunde'
+  const [auf, setAuf] = useState<Set<string>>(new Set())
+  const [lagerLinie, setLagerLinie] = useState(true)
+  const [planOffen, setPlanOffen] = useState<string | null>(null)
+  const [gruppeOffen, setGruppeOffen] = useState<string | null>(null)
+  const [fehler, setFehler] = useState<string | null>(null)
+  const { saison, tagHeute, alle, jeKunde, passend, mitVorjahr } = useVerkauf(kunden, heute, wahl)
+  const gesetzt = useMemo(() => new Map(grund.kundeGruppe.map(g => [g.kunde, g.gruppe])), [grund.kundeGruppe])
+  const gruppeVon = (k: string) => kundenGruppe(k, gesetzt)
+  const offenJe = useMemo(() => nochZuLiefern(kunden, grund.plaene, saison, wahl).jeKunde, [kunden, grund.plaene, saison, wahl])
+
+  // Die Gruppen mit ihren Kunden, die grösste zuerst (wie die Kunden: nach Vorjahr oder dieser Saison)
+  const gruppen = useMemo(() => {
+    const m = new Map<string, Kurve[]>()
+    const namen = new Set([...jeKunde.map(k => k.kunde), ...offenJe.keys()])
+    for (const n of namen) {
+      const k = jeKunde.find(x => x.kunde === n) ?? { kunde: n, saisons: new Map(), summe: new Map(), bisHeute: new Map() }
+      m.set(gruppeVon(n), [...(m.get(gruppeVon(n)) ?? []), k])
+    }
+    const groesse = (ks: Kurve[]) => ks.reduce((a, k) => a + Math.max(k.summe.get(saison - 1) ?? 0, k.summe.get(saison) ?? 0), 0)
+    return [...m.entries()].map(([name, ks]) => ({ name, kunden: ks, kurve: kurveAus(name, passend.filter(p => ks.some(k => k.kunde === p.kunde)), saison, tagHeute) }))
+      .sort((a, b) => groesse(b.kunden) - groesse(a.kunden))
+  }, [jeKunde, offenJe, passend, saison, tagHeute, gesetzt])  // eslint-disable-line react-hooks/exhaustive-deps
+
+  const gewaehlt = auswahl.startsWith('k:') ? jeKunde.find(k => k.kunde === auswahl.slice(2)) ?? null
+    : auswahl.startsWith('g:') ? gruppen.find(g => g.name === auswahl.slice(2))?.kurve ?? null : alle
+  const titel = auswahl ? auswahl.slice(2) : 'alle Kunden'
+  const leer = jeKunde.length === 0 && offenJe.size === 0
+
+  // Das Verkaufsfähige des Artikels heute, und über die Saison (orange Linie)
+  const vfHeute = useMemo(() => lagerHeute.filter(t => passtGruppe(wahl, t.artikelgruppe) && passtLabel(wahl, t.label) && passtKlasse(wahl, klasseVon(t.groesse)))
+    .reduce((a, t) => a + Number(t.kg), 0), [lagerHeute, wahl])
+  const lagerReihe = useMemo(() => lagerUeberSaison(verlauf, lagerHeute, bestand, grund, wahl, saison, tagHeute),
+                             [verlauf, lagerHeute, bestand, grund, wahl, saison, tagHeute])
+  const summeOffen = [...offenJe.values()].reduce((a, k) => a + k.offen, 0)
+
+  async function planSetzen(kunde: string, kg: number | null) {
+    setFehler(null)
+    const s = planSchluessel(wahl)
+    const r = kg === null
+      ? await supabase.from('kunde_plan').delete().match({ saison, kunde, ...s })
+      : await supabase.from('kunde_plan').upsert({ saison, kunde, ...s, kg }, { onConflict: 'saison,kunde,artikelgruppe,groesse,label' })
+    if (r.error) setFehler(fehlerText(r.error)); else { setPlanOffen(null); neuLaden() }
+  }
+  async function gruppeSetzen(kunde: string, gruppe: string | null) {
+    setFehler(null)
+    const r = gruppe === null
+      ? await supabase.from('kunde_gruppe').delete().eq('kunde', kunde)
+      : await supabase.from('kunde_gruppe').upsert({ kunde, gruppe }, { onConflict: 'kunde' })
+    if (r.error) setFehler(fehlerText(r.error)); else { setGruppeOffen(null); neuLaden() }
+  }
+
+  const zeile = (k: Kurve, art: 'gruppe' | 'kunde' | 'summe', name: string, mitglieder: string[]) => {
+    const jetzt = k.bisHeute.get(saison) ?? 0
+    const vorjahrBis = k.bisHeute.get(saison - 1) ?? 0
+    const planKg = mitglieder.reduce((a, n) => a + (offenJe.get(n)?.plan ?? 0), 0)
+    const eigen = mitglieder.map(n => offenJe.get(n)?.eigen ?? false)
+    const alleEigen = eigen.every(e => e === true), keinEigen = eigen.every(e => e === false)
+    const offen = mitglieder.reduce((a, n) => a + (offenJe.get(n)?.offen ?? 0), 0)
+    const erreicht = planKg > 0 ? jetzt / planKg : null
+    const schl = art === 'summe' ? '' : `${art === 'gruppe' ? 'g' : 'k'}:${name}`
+    const aktiv = auswahl === schl
+    const aufgeklappt = art === 'gruppe' && auf.has(name)
+    return (
+      <tr key={schl} className={`klickbar${aktiv ? ' aktiv' : ''}${art === 'kunde' ? ' kunde-in-gruppe' : ' kundengruppe'}`} aria-selected={aktiv}
+          aria-expanded={art === 'gruppe' ? aufgeklappt : undefined}
+          onClick={() => {
+            setAuswahl(aktiv ? '' : schl)
+            if (art === 'gruppe') setAuf(a => { const n = new Set(a); if (n.has(name)) n.delete(name); else n.add(name); return n })
+          }}
+          title={art === 'gruppe' ? 'die Kunden der Gruppe zeigen und die Gruppe im Diagramm' : aktiv ? 'wieder alle Kunden zeigen' : 'im Diagramm zeigen, darunter seine Lieferungen'}>
+        <td>
+          {art === 'summe' ? <strong>{name}</strong>
+            : art === 'gruppe'
+            ? <><span className="chevron" aria-hidden="true"><ZChevron size={14} /></span><strong>{name}</strong>
+                <span className="leise"> · {mitglieder.length} {mitglieder.length === 1 ? 'Kunde' : 'Kunden'}</span></>
+            : <span className="kunde-name">{name}
+                {istAdmin && <button type="button" className="werkzeug-knopf" aria-label={`Gruppe von ${name} ändern`} title="Gruppe ändern"
+                                     onClick={e => { e.stopPropagation(); setGruppeOffen(gruppeOffen === name ? null : name) }}>{gruppeVon(name)}</button>}
+              </span>}
+          {art === 'kunde' && gruppeOffen === name && (
+            <GruppeWahl kunde={name} jetzt={gruppeVon(name)} gesetzt={gesetzt.has(name)} gruppen={[...new Set<string>(['Migros', 'Coop', 'Kleinkunden', ...gesetzt.values()])]}
+                        setzen={g => void gruppeSetzen(name, g)} abbrechen={() => setGruppeOffen(null)} />
+          )}
+        </td>
+        <td className="zahl"><strong>{masse(jetzt)}</strong></td>
+        <td className="zahl">{vorjahrBis > 0 ? masse(vorjahrBis) : '—'}
+          {vorjahrBis > 0 && jetzt > 0 && <span className="leise"> · {jetzt >= vorjahrBis ? '+' : '−'}{prozent(Math.abs(jetzt / vorjahrBis - 1), 0)}</span>}</td>
+        <td className={`zahl plan${keinEigen ? ' plan-vorjahr' : ''}`}>
+          {planOffen === name && art === 'kunde'
+            ? <PlanFeld kg={planKg} eigen={!keinEigen} setzen={kg => void planSetzen(name, kg)} abbrechen={() => setPlanOffen(null)} />
+            : <>{planKg > 0 ? masse(planKg) : '—'}
+                {art === 'kunde' && istAdmin && (
+                  <button type="button" className="werkzeug-knopf stift" aria-label={`Plan für ${name} setzen`} title="Planmenge eintragen"
+                          onClick={e => { e.stopPropagation(); setPlanOffen(name) }}><ZStift size={14} /></button>
+                )}
+                {keinEigen && planKg > 0 && <span className="zelle-unter">Vorjahr</span>}
+                {!keinEigen && !alleEigen && <span className="zelle-unter">teils Plan</span>}</>}
+        </td>
+        <td className="erreicht">{erreicht === null ? <span className="leise">kein Plan</span> : (
+          <span className="erreicht-balken" title={`${prozent(erreicht, 0)} des Plans`}>
+            <span style={{ width: `${Math.min(erreicht, 1) * 100}%` }} className={erreicht >= 1 ? 'voll' : erreicht >= 0.8 ? 'fast' : ''} />
+            <em>{prozent(erreicht, 0)}</em>
+          </span>)}</td>
+        <td className="zahl">{offen > 0 ? masse(offen) : <span className="leise">—</span>}</td>
+      </tr>
+    )
+  }
+
+  const reicht = vfHeute >= summeOffen
   return (
     <Karte id="artikel-verlauf" titel={<>Wie ist es gegangen? {wahlName(wahl)}</>}
-           aktion={<span className="reihe filter-klein">
-             <select id="artikel-kunde" value={kunde} onChange={e => setKunde(e.target.value)} aria-label="Kunde">
-               <option value="">alle Kunden</option>
-               {jeKunde.map(k => <option key={k.kunde} value={k.kunde}>{k.kunde}</option>)}
-               {kunde && !jeKunde.some(k => k.kunde === kunde) && <option value={kunde}>{kunde}</option>}
-             </select>
-           </span>}>
+           aktion={<label className="reihe filter-klein lager-linie-wahl">
+             <input type="checkbox" checked={lagerLinie} onChange={e => setLagerLinie(e.target.checked)} /> Lager zeigen
+           </label>}>
+      {fehler && <Hinweis art="warnung">{fehler}</Hinweis>}
       {leer
         ? <Leer titel={kunden.length === 0 ? 'Noch kein Warenausgang' : `Keine Lieferung: ${wahlName(wahl)}`}>
             {kunden.length === 0 ? 'Sobald die Perigon-Dateien eingelesen sind, steht hier je Kunde die Saison.' : 'Oben einen anderen Artikel, eine andere Grösse oder ein anderes Label wählen.'}
@@ -640,20 +783,15 @@ function Verlauf({ kunden, heute, wahl }: { kunden: KundeTag[]; heute: string; w
               <Link to="/betrieb/lieferungen">Betrieb → Warenausgang</Link>, dann stehen die zwei Saisons davor gestrichelt daneben.</Hinweis>
           )}
           {gewaehlt
-            ? <Linien reihen={kurvenReihen(gewaehlt, saison)} hoehe={440} zoom={false}
+            ? <Linien reihen={[...kurvenReihen(gewaehlt, saison), ...(lagerLinie && lagerReihe ? [lagerReihe] : [])]} hoehe={440} zoom={false}
                       xVon={0} xBis={364} yVon={0} xKalender={Date.UTC(saison, 6, 1)}
                       xFormat={tagText(saison)} yFormat={tonnenAchse} xTitel={`Saison ${saisonText(saison)}`}
-                      yTitel={`geliefert, kumuliert — ${kunde || 'alle Kunden'}`} yEinheit="kg"
+                      yTitel={`geliefert, kumuliert — ${titel}`} yEinheit="kg"
                       heute={{ x: tagHeute, text: 'heute', rechts: '' }} leer="keine Lieferung"
-                      fuss={<span className="leise">Ausgezogen diese Saison bis heute, gestrichelt die Vorjahre bis zum Saisonende — was nach heute noch kam.</span>} />
-            : <Leer titel={`${kunde}: keine Lieferung`}>{kunde} hat {wahlName(wahl)} in den letzten drei Saisons nicht bekommen.</Leer>}
-          {ohneGewicht.length > 0 && (
-            <div id="artikel-ohne-gewicht"><Hinweis art="info">
-              Nicht in den Linien, weil Perigon kein Stückgewicht kennt:{' '}
-              {ohneGewicht.map(([s, n]) => `${saisonText(s)} ${zahl(n)} Stück`).join(' · ')}.
-              Steht das Stückgewicht im Perigon-Artikelstamm, die Datei neu einlesen.
-            </Hinweis></div>
-          )}
+                      fuss={<span className="leise">Ausgezogen diese Saison bis heute, gestrichelt die Vorjahre bis zum Saisonende
+                        {lagerLinie && lagerReihe ? '; orange das Verkaufsfähige dieses Artikels im Lager (nach heute die Prognose)' : ''}.</span>} />
+            : <Leer titel={`${titel}: keine Lieferung`}>{titel} hat {wahlName(wahl)} in den letzten drei Saisons nicht bekommen.</Leer>}
+          <OhneGewicht passend={passend} auswahl={auswahl} gruppeVon={gruppeVon} />
           <div className="rollbar">
             <table className="dicht kundentabelle">
               <thead><tr>
@@ -661,46 +799,183 @@ function Verlauf({ kunden, heute, wahl }: { kunden: KundeTag[]; heute: string; w
                 {/* Zweizeilig: einzeilig lief die Tabelle schon am Bildschirm im Büro über den Rand. */}
                 <th className="zahl">geliefert{' '}<br />{saisonText(saison)} bis heute<Herkunft art="gemessen" /></th>
                 <th className="zahl">geliefert{' '}<br />{saisonText(saison - 1)} bis {datum(heute).slice(0, 6)}<Herkunft art="gemessen" /></th>
-                <th className="zahl">geliefert{' '}<br />{saisonText(saison - 1)} ganze Saison<Herkunft art="gemessen" /></th>
+                <th className="zahl">Plan {saisonText(saison)}{' '}<br />ganze Saison</th>
                 <th>schon erreicht</th>
+                <th className="zahl">noch{' '}<br />zu liefern</th>
               </tr></thead>
-              <tbody>{jeKunde.map(k => {
-                const jetzt = k.bisHeute.get(saison) ?? 0
-                const vorjahrBis = k.bisHeute.get(saison - 1) ?? 0
-                const vorjahrGanz = k.summe.get(saison - 1) ?? 0
-                const erreicht = vorjahrGanz > 0 ? jetzt / vorjahrGanz : null
-                const aktiv = k.kunde === kunde
-                return (
-                  <tr key={k.kunde} className={`klickbar${aktiv ? ' aktiv' : ''}`} aria-selected={aktiv}
-                      onClick={() => setKunde(aktiv ? '' : k.kunde)} title={aktiv ? 'wieder alle Kunden zeigen' : 'im Diagramm zeigen'}>
-                    <td>{k.kunde}</td>
-                    <td className="zahl"><strong>{masse(jetzt)}</strong></td>
-                    <td className="zahl">{vorjahrBis > 0 ? masse(vorjahrBis) : '—'}
-                      {vorjahrBis > 0 && jetzt > 0 && <span className="leise"> · {jetzt >= vorjahrBis ? '+' : '−'}{prozent(Math.abs(jetzt / vorjahrBis - 1), 0)}</span>}</td>
-                    <td className="zahl">{vorjahrGanz > 0 ? masse(vorjahrGanz) : '—'}</td>
-                    <td className="erreicht">{erreicht === null ? <span className="leise">kein Vorjahr</span> : (
-                      <span className="erreicht-balken" title={`${prozent(erreicht, 0)} der ganzen Vorjahressaison`}>
-                        <span style={{ width: `${Math.min(erreicht, 1) * 100}%` }} className={erreicht >= 1 ? 'voll' : erreicht >= 0.8 ? 'fast' : ''} />
-                        <em>{prozent(erreicht, 0)}</em>
-                      </span>)}</td>
-                  </tr>
-                )
-              })}</tbody>
+              <tbody>{gruppen.map(g => (
+                <Fragment key={g.name}>
+                  {zeile(g.kurve, 'gruppe', g.name, g.kunden.map(k => k.kunde))}
+                  {auf.has(g.name) && g.kunden.map(k => zeile(k, 'kunde', k.kunde, [k.kunde]))}
+                </Fragment>
+              ))}</tbody>
+              <tfoot>
+                {zeile(alle, 'summe', 'alle Kunden', [...offenJe.keys()])}
+              </tfoot>
             </table>
           </div>
+          {/* Ein Satz, keine Zelle: unter der Spalte „Kunde" hätte er geheissen, was er nicht ist. */}
+          <p className={`reicht-zeile${reicht ? '' : ' fehlt'}`} id="artikel-reicht">
+            {reicht
+              ? <>Verkaufsfähig im Lager heute <strong>{masse(vfHeute)}</strong> <Herkunft art="gerechnet" /> — reicht für die{' '}
+                  {masse(summeOffen)}, die nach Plan noch zu liefern sind.</>
+              : <><span className="ausruf" aria-label="reicht nicht">!</span> Noch zu liefern <strong>{masse(summeOffen)}</strong>, verkaufsfähig im
+                  Lager heute nur {masse(vfHeute)} <Herkunft art="gerechnet" /> — es fehlen <strong>{masse(summeOffen - vfHeute)}</strong>.</>}
+          </p>
+          {auswahl.startsWith('k:') && <Lieferungen kunde={auswahl.slice(2)} saison={saison} wahl={wahl} />}
         </>
       )}
       <Erklaerung>
         <p>Die Kürbis-Lieferungen der Perigon-Dateien <Herkunft art="gemessen" />, kumuliert über die Saison vom 1. Juli bis zum
         30. Juni — für den Artikel, die Grösse und das Label oben, so wie der Artikel verkauft wurde (lose verkaufte Ware zählt nur
-        bei „beide Grössen"). Die laufende Saison endet heute; die Vorjahre laufen gestrichelt bis zum Saisonende weiter — so sieht
-        man, was im Vorjahr nach heute noch kam.</p>
-        <p>Ein Klick auf einen Kunden zeigt nur ihn im Diagramm, ein zweiter wieder alle. „Schon erreicht" ist diese Saison bis heute
-        geteilt durch die ganze Vorjahressaison: Wer bei 100 % steht, hat schon so viel wie im ganzen letzten Jahr. Kunden sind die
-        Lieferadressen der Datei — zwei Adressen derselben Kette stehen getrennt. Interne Umbuchungen (Journal L) zählen nicht.</p>
+        bei „beide Grössen"). Die laufende Saison endet heute; die Vorjahre laufen gestrichelt bis zum Saisonende weiter.</p>
+        <p><strong>Gruppen:</strong> Migros, Coop (auch RVZ/RZV) und Kleinkunden nach dem Namen — ein anderer Kunde lässt sich mit einem
+        Klick auf seine Gruppe einer anderen oder einer neuen zuordnen. Ein Klick auf die Gruppe zeigt ihre Kunden und die Gruppe im
+        Diagramm, ein Klick auf einen Kunden ihn allein und darunter seine Lieferungen.</p>
+        <p><strong>Plan:</strong> mit dem Stift die Planmenge der Saison für genau diese Wahl (Artikel, Grösse, Label); grau steht, solange
+        keine eingetragen ist, die ganze Vorjahressaison. „Schon erreicht" ist diese Saison bis heute geteilt durch den Plan,
+        <strong> noch zu liefern</strong> der Plan weniger das schon Gelieferte. Darunter steht, ob das Verkaufsfähige im Lager dafür
+        reicht.</p>
       </Erklaerung>
     </Karte>
   )
+}
+
+/** Runde AR (0115): Stück, für die Perigon kein Stückgewicht kennt, stehen nicht in der Linie — aber sie stehen da. */
+function OhneGewicht({ passend, auswahl, gruppeVon }: { passend: KundeTag[]; auswahl: string; gruppeVon: (k: string) => string }) {
+  const m = new Map<number, number>()
+  for (const k of passend) {
+    if (auswahl.startsWith('k:') && k.kunde !== auswahl.slice(2)) continue
+    if (auswahl.startsWith('g:') && gruppeVon(k.kunde) !== auswahl.slice(2)) continue
+    if (Number(k.stueck_ohne_gewicht ?? 0) > 0) m.set(k.saison, (m.get(k.saison) ?? 0) + Number(k.stueck_ohne_gewicht))
+  }
+  if (m.size === 0) return null
+  return (
+    <div id="artikel-ohne-gewicht"><Hinweis art="info">
+      Nicht in den Linien, weil Perigon kein Stückgewicht kennt:{' '}
+      {[...m.entries()].sort((a, b) => b[0] - a[0]).map(([s, n]) => `${saisonText(s)} ${zahl(n)} Stück`).join(' · ')}.
+      Steht das Stückgewicht im Perigon-Artikelstamm, die Datei neu einlesen.
+    </Hinweis></div>
+  )
+}
+
+/** Die Planmenge eintragen — leer heisst: wieder das Vorjahr. */
+function PlanFeld({ kg, eigen, setzen, abbrechen }: { kg: number; eigen: boolean; setzen: (kg: number | null) => void; abbrechen: () => void }) {
+  const [wert, setWert] = useState(eigen ? String(Math.round(kg)) : '')
+  const zahlWert = wert.trim() === '' ? null : Number(wert.replace(/'/g, '').replace(',', '.'))
+  const gueltig = zahlWert === null || (Number.isFinite(zahlWert) && zahlWert >= 0)
+  return (
+    <form className="plan-feld" onClick={e => e.stopPropagation()} onSubmit={e => { e.preventDefault(); if (gueltig) setzen(zahlWert) }}>
+      <input type="text" inputMode="decimal" autoFocus aria-label="Planmenge in kg" placeholder={`Vorjahr ${Math.round(kg)}`} value={wert}
+             onChange={e => setWert(e.target.value)} onKeyDown={e => { if (e.key === 'Escape') { e.stopPropagation(); abbrechen() } }} />
+      <span className="leise">kg</span>
+      <button type="submit" className="werkzeug-knopf" disabled={!gueltig}>{zahlWert === null ? 'Vorjahr' : 'speichern'}</button>
+    </form>
+  )
+}
+
+/** Die Gruppe eines Kunden setzen — oder zurück zur Regel nach dem Namen. */
+function GruppeWahl({ kunde, jetzt, gesetzt, gruppen, setzen, abbrechen }: {
+  kunde: string; jetzt: string; gesetzt: boolean; gruppen: string[]; setzen: (g: string | null) => void; abbrechen: () => void
+}) {
+  const [neu, setNeu] = useState('')
+  return (
+    <div className="gruppe-wahl" onClick={e => e.stopPropagation()} role="group" aria-label={`Gruppe von ${kunde}`}>
+      {gruppen.filter(g => g !== jetzt).map(g => <button key={g} type="button" className="werkzeug-knopf" onClick={() => setzen(g)}>{g}</button>)}
+      <form onSubmit={e => { e.preventDefault(); if (neu.trim()) setzen(neu.trim()) }}>
+        <input type="text" value={neu} onChange={e => setNeu(e.target.value)} placeholder="neue Gruppe" aria-label="neue Gruppe" />
+      </form>
+      {gesetzt && <button type="button" className="werkzeug-knopf" onClick={() => setzen(null)}>nach dem Namen</button>}
+      <button type="button" className="werkzeug-knopf" onClick={abbrechen}>abbrechen</button>
+    </div>
+  )
+}
+
+/** Die Lieferungen eines Kunden (diese und letzte Saison) — ein Klick zeigt die ganze Perigon-Zeile (Runde AS). */
+function Lieferungen({ kunde, saison, wahl }: { kunde: string; saison: number; wahl: Wahl }) {
+  const [zeilen, setZeilen] = useState<KundePosition[] | null>(null)
+  const [fehler, setFehler] = useState<string | null>(null)
+  const [offen, setOffen] = useState<{ quelle: string; posId: number } | null>(null)
+  useEffect(() => {
+    let gilt = true
+    setZeilen(null)
+    void supabase.from('v_kunde_position').select('quelle, pos_id, datum, saison, gruppe, groesse, label, artikel, menge, einheit, kg')
+      .eq('kunde', kunde).gte('saison', saison - 1).order('datum', { ascending: false }).limit(500)
+      .then(r => { if (!gilt) return; if (r.error) setFehler(fehlerText(r.error)); else setZeilen((r.data ?? []) as KundePosition[]) })
+    return () => { gilt = false }
+  }, [kunde, saison])
+  const passend = (zeilen ?? []).filter(z => passtGruppe(wahl, z.gruppe) && passtLabel(wahl, z.label) && passtVerkauf(wahl, z.groesse))
+  return (
+    <section id="kunde-lieferungen" className="kunde-lieferungen">
+      <h3>Lieferungen an {kunde} <span className="leise">· {saisonText(saison - 1)} und {saisonText(saison)} · {wahlName(wahl)}</span></h3>
+      {fehler && <Hinweis art="warnung">{fehler}</Hinweis>}
+      {zeilen === null && !fehler && <Lade zeilen={2} />}
+      {zeilen !== null && passend.length === 0 && <p className="leise">keine</p>}
+      {passend.length > 0 && (
+        <div className="rollbar"><table className="dicht">
+          <thead><tr><th>Datum</th><th>Artikel</th><th className="zahl">Menge</th><th className="zahl">Masse</th><th>Label</th></tr></thead>
+          <tbody>{passend.map(z => (
+            <tr key={`${z.quelle}:${z.pos_id}`} className="klickbar" onClick={() => setOffen({ quelle: z.quelle, posId: z.pos_id })}
+                title="die ganze Zeile der Perigon-Datei zeigen">
+              <td>{datum(z.datum)}</td><td>{z.artikel}</td>
+              <td className="zahl">{z.menge != null ? `${zahl(z.menge)} ${z.einheit ?? ''}` : '—'}</td>
+              <td className="zahl">{z.kg != null ? kg(z.kg, 0) : <span className="leise">unbekannt</span>}</td>
+              <td>{labelName(z.label)}</td>
+            </tr>
+          ))}</tbody>
+        </table></div>
+      )}
+      {offen && <LieferungFenster quelle={offen.quelle} posId={offen.posId} schliessen={() => setOffen(null)} />}
+    </section>
+  )
+}
+
+/**
+ * Das Verkaufsfähige des gewählten Artikels über die Saison (Runde AS: „den
+ * Lagerbestand als eigene Linie"). Je Woche das Verkaufsfähige der Chargen
+ * des Artikels (erg_verlauf, je Charge; nach heute die Prognose), nach Label
+ * und Artikelgruppe gewählt; die Grösse mit dem Anteil, den sie heute an der
+ * Charge hat (artikel_lager_charge) — ohne Ware heute mit dem Anteil der
+ * Artikelgruppe. Bei „beide Grössen" zählt alles.
+ */
+function lagerUeberSaison(verlauf: Verlaufswoche[], lagerHeute: ArtikelLagerCharge[], bestand: Bestand[], grund: Grundlagen,
+                          wahl: Wahl, saison: number, tagHeute: number): Reihe | null {
+  const gruppeVon = new Map(grund.gruppen.map(g => [g.sorte, g.artikelgruppe]))
+  const labelVon = new Map(grund.labels.map(l => [l.charge_nr, l.label]))
+  const sorteVon = new Map(bestand.map(b => [b.charge_nr, b.sorte]))
+  // Anteil der gewählten Grösse je Charge (heute), und je Artikelgruppe als Ersatz
+  const jeCharge = new Map<number, { teil: number; alle: number }>()
+  const jeGruppe = new Map<string, { teil: number; alle: number }>()
+  for (const t of lagerHeute) {
+    const passt = passtKlasse(wahl, klasseVon(t.groesse)) ? Number(t.kg) : 0
+    const c = jeCharge.get(t.charge_nr) ?? { teil: 0, alle: 0 }
+    c.teil += passt; c.alle += Number(t.kg); jeCharge.set(t.charge_nr, c)
+    const g = jeGruppe.get(t.artikelgruppe ?? '') ?? { teil: 0, alle: 0 }
+    g.teil += passt; g.alle += Number(t.kg); jeGruppe.set(t.artikelgruppe ?? '', g)
+  }
+  const anteil = (nr: number, gruppe: string | null) => {
+    if (wahl.groesse === 'beide') return 1
+    const c = jeCharge.get(nr)
+    if (c && c.alle > 0) return c.teil / c.alle
+    const g = jeGruppe.get(gruppe ?? '')
+    return g && g.alle > 0 ? g.teil / g.alle : null
+  }
+  const proTag = new Map<number, number>()
+  for (const v of verlauf) {
+    if (v.gruppe !== 'charge') continue
+    const nr = Number(v.schluessel)
+    const sorte = sorteVon.get(nr) ?? null
+    const gruppe = sorte ? gruppeVon.get(sorte) ?? null : null
+    if (!passtGruppe(wahl, gruppe) || !passtLabel(wahl, labelVon.get(nr) ?? null)) continue
+    const a = anteil(nr, gruppe)
+    if (a === null) continue
+    const t = saisonTag(v.bis, saison)
+    if (t < 0 || t > 364) continue
+    proTag.set(t, (proTag.get(t) ?? 0) + Number(v.verkaufsfaehig_kg ?? 0) * a)
+  }
+  if (proTag.size < 2) return null
+  return { name: 'verkaufsfähig im Lager', farbe: 'var(--kuerbis)', linie: true, marker: false, dick: true, prognoseAb: tagHeute,
+           punkte: [...proTag.entries()].sort((a, b) => a[0] - b[0]).map(([x, y]) => ({ x, y })) }
 }
 
 function kurvenReihen(k: Kurve, saison: number): Reihe[] {
@@ -715,4 +990,56 @@ function kurvenReihen(k: Kurve, saison: number): Reihe[] {
              punkte: p.map(x => ({ x: x.tag, y: x.kum })) })
   }
   return r
+}
+
+/* ---------- 3. Was in den Perigon-Dateien auffällt (Runde AS) ------------------ */
+
+/**
+ * Der Betrieb: „solche Infos, dass du das Perigon durchscannst — hervorragend.
+ * Das darfst du gerne erweitern." Je Art, wie oft, und aufgeklappt jede Zeile
+ * mit dem Satz, was zu tun ist (v_perigon_pruefung, 0116); ein Klick zeigt
+ * die ganze Zeile der Datei.
+ */
+function PerigonPruefungen({ liste }: { liste: PerigonPruefung[] }) {
+  const [auf, setAuf] = useState<string | null>(null)
+  const [offen, setOffen] = useState<{ quelle: string; posId: number } | null>(null)
+  const arten = useMemo(() => {
+    const m = new Map<string, PerigonPruefung[]>()
+    for (const p of liste) m.set(p.art, [...(m.get(p.art) ?? []), p])
+    return [...m.entries()].sort((a, b) => b[1].length - a[1].length)
+  }, [liste])
+  if (liste.length === 0) return null
+  return (
+    <Karte id="perigon-pruefung" titel="Was in den Perigon-Dateien auffällt">
+      <div className="rollbar">
+        <table className="dicht perigon-pruefung">
+          <thead><tr><th>Art</th><th className="zahl">Zeilen</th><th className="zahl">Masse in der Datei</th></tr></thead>
+          <tbody>{arten.map(([art, zeilen]) => (
+            <Fragment key={art}>
+              <tr className={`klickbar${auf === art ? ' offen' : ''}`} aria-expanded={auf === art} onClick={() => setAuf(auf === art ? null : art)}>
+                <td><span className="chevron" aria-hidden="true"><ZChevron size={14} /></span><Marke art="warnung">{art}</Marke></td>
+                <td className="zahl">{zahl(zeilen.length)}</td>
+                <td className="zahl">{masse(zeilen.reduce((a, z) => a + Number(z.kg ?? 0), 0))}</td>
+              </tr>
+              {auf === art && zeilen.map(z => (
+                <tr key={`${z.quelle}:${z.pos_id}:${z.charge_nr ?? ''}:${z.befund}`} className="klickbar unterzeile"
+                    onClick={() => setOffen({ quelle: z.quelle, posId: z.pos_id })} title="die ganze Zeile der Perigon-Datei zeigen">
+                  <td colSpan={3}>
+                    <span className="leise">{datum(z.datum)} · {z.kunde ?? 'ohne Kunde'} · {z.artikel}{z.kg != null ? ` · ${kg(z.kg, 0)}` : ''}</span>
+                    <br />{z.befund}
+                  </td>
+                </tr>
+              ))}
+            </Fragment>
+          ))}</tbody>
+        </table>
+      </div>
+      <Erklaerung>
+        <p>Jede Zeile der laufenden Saison wird beim Rechnen durchgesehen: eine Charge, die Perigon nennt, die Lieferung aber nicht trägt; ein
+        Artikel, dessen Gruppe nicht zur Sorte der gelieferten Charge passt; als Demeter verkauft, aber als Knospe geliefert; eine Lieferung vor
+        dem ersten Eingang ihrer Charge. Ein Klick auf die Art zeigt die Zeilen, ein Klick auf eine Zeile die ganze Zeile der Datei.</p>
+      </Erklaerung>
+      {offen && <LieferungFenster quelle={offen.quelle} posId={offen.posId} schliessen={() => setOffen(null)} />}
+    </Karte>
+  )
 }

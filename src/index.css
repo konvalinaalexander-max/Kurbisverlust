@@ -1080,3 +1080,42 @@ tr.marge-dahinter table { margin: 0; }
   margin: 0 0 var(--a-4); padding: var(--a-3); border-radius: var(--radius-klein); background: var(--flaeche-2); }
 .charge-anlegen .knopf-reihe, .charge-anlegen .hinweis { grid-column: 1 / -1; }
 #charge-anlegen-auf { margin-bottom: var(--a-3); }
+
+/* ---------- Runde AS: Kunden in Gruppen, Plan, reicht es?, Lieferung, Perigon-Prüfungen ---------- */
+.kundentabelle tr.kundengruppe .chevron,
+.perigon-pruefung tr.klickbar .chevron { display: inline-flex; margin-right: .35rem; color: var(--text-leise); vertical-align: -2px; transition: transform var(--d-mittel); }
+.kundentabelle tr.kundengruppe[aria-expanded="true"] .chevron,
+.perigon-pruefung tr.offen .chevron { transform: rotate(90deg); }
+.kundentabelle tr.kunde-in-gruppe td:first-child { padding-left: 2.1rem; }
+.kundentabelle .kunde-name { display: inline-flex; flex-wrap: wrap; align-items: center; gap: .3rem; }
+.kundentabelle .kunde-name .werkzeug-knopf { min-height: 22px; padding: 0 .4rem; font-size: var(--s-00, .75rem); }
+.kundentabelle td.plan { white-space: nowrap; }
+.kundentabelle td.plan-vorjahr { color: var(--text-leise); }
+.kundentabelle td.plan .stift { min-height: 22px; padding: 0 .25rem; margin-left: .2rem; vertical-align: -3px; }
+.kundentabelle td.plan .zelle-unter { display: block; font-size: var(--s-00, .75rem); }
+.plan-feld { display: inline-flex; align-items: center; gap: .3rem; }
+.plan-feld input { width: 6.5rem; min-height: 30px; padding: .1rem .4rem; text-align: right; }
+.gruppe-wahl { display: flex; flex-wrap: wrap; gap: .25rem; align-items: center; margin-top: .35rem; }
+.gruppe-wahl input { width: 9rem; min-height: 28px; padding: .1rem .4rem; }
+.kundentabelle tfoot td { border-top: 1.5px solid var(--rand); }
+.reicht-zeile { margin: .5rem 0 0; color: var(--text-2); }
+.reicht-zeile.fehlt { color: var(--rot); }
+.ausruf { display: inline-grid; place-items: center; width: 1.2em; height: 1.2em; margin-right: .3rem; border-radius: 50%;
+          background: var(--rot); color: #fff; font-weight: var(--gewicht-stark); font-size: .85em; line-height: 1; }
+.uebersicht-tabelle td.reicht-nicht { color: var(--rot); }
+.lager-linie-wahl { gap: .35rem; align-items: center; color: var(--text-2); }
+.kunde-lieferungen { margin-top: var(--a-5); }
+.lieferung-deutung ul { margin: .2rem 0 .4rem; padding-left: 1.2rem; }
+.lieferung-deutung li { margin: .15rem 0; }
+table.lieferung-zeile td:first-child { color: var(--text-2); white-space: nowrap; }
+table.lieferung-zeile td { font-variant-numeric: tabular-nums; }
+.perigon-pruefung tr.unterzeile td { padding-left: 2.1rem; font-size: var(--s-0); }
+.benutzen { margin-top: .7rem; padding: .5rem .75rem; border-radius: var(--radius-klein); background: var(--flaeche-2); }
+.benutzen label { display: inline-flex; align-items: center; gap: .35rem; font-weight: var(--gewicht-stark); }
+.fehler-text { color: var(--rot); }
+.hagel-zelle { white-space: nowrap; }
+.hagel-zelle input[type="checkbox"] { vertical-align: middle; margin-right: .25rem; }
+.hagel-feld { display: inline-flex; align-items: center; gap: .25rem; }
+.hagel-feld input { width: 3.6rem; min-height: 28px; padding: .1rem .35rem; text-align: right; }
+.hagel-zelle .werkzeug-knopf { min-height: 24px; padding: 0 .2rem; }
+.chargentabelle th:last-child, .chargentabelle td.hagel-zelle { padding-left: .3rem; padding-right: .3rem; }

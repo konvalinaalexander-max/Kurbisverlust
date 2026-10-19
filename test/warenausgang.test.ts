@@ -354,7 +354,7 @@ test('bis wo bekannt, ab wo neu: der Zuwachs steht getrennt vom Nachgetragenen',
 
 /* ---------- Runde AR (0115): das Kilo kommt aus der Menge ------------------ */
 
-import { perigonKg, SPALTEN } from '../src/lib/warenausgang.ts'
+import { lieferungDeutung, perigonKg, positionenAllerSaisons, rohZeile, SPALTEN } from '../src/lib/warenausgang.ts'
 
 test('perigonKg: Menge × Gewicht; bei kg ohne Gewicht die Menge; Stück ohne Gewicht unbekannt', () => {
   assert.equal(perigonKg(160, 1.5, 'Stk.'), 240, 'Stück × kg je Stück')
@@ -400,4 +400,52 @@ test('Runde AR: ein kg-Artikel mit Gewicht je Artikel 0 wird eine Lieferung mit 
   const bf = befund(zeilen)
   assert.equal(bf.kg_position, 256 + 8.5, 'die Masse der Datei zählt nur, was bekannt ist')
   assert.deepEqual(bf.ohne_gewicht, { positionen: 1, menge: 120 })
+})
+
+test('Runde AS: jede Zeile trägt die ganze Zeile der Datei, jede Position alle ihre Zeilen', () => {
+  const b = blatt([
+    { pos_id: 8001, lieferdatum: '14.10.2026', journal: 'A', kunde: 'Kunde A', artikel_id: 'kürbkn', artikel: 'Bio Kürbis Knirps Dem klein',
+      einheit: 'Stk.', menge: 160, gewicht_je_artikel: 1.5, charge: '1630', batch_menge: 100, preisgruppe: 'D' },
+    { pos_id: 8001, lieferdatum: '14.10.2026', journal: 'A', kunde: 'Kunde A', artikel_id: 'kürbkn', artikel: 'Bio Kürbis Knirps Dem klein',
+      einheit: 'Stk.', menge: 160, gewicht_je_artikel: 1.5, charge: '1635', batch_menge: 60, preisgruppe: 'D' },
+  ])
+  // eine Spalte, die die App nicht kennt, steht trotzdem in der ganzen Zeile
+  b.zeilen[0].push('Bemerkung intern'); b.zeilen[1].push('dringend'); b.zeilen[2].push(null)
+  const { zeilen } = zeilenLesen(b, 'probe')
+  const roh = zeilen[0].roh!
+  assert.equal(roh[SPALTEN.kunde], 'Kunde A')
+  assert.equal(roh[SPALTEN.menge], 160)
+  assert.equal(roh['Bemerkung intern'], 'dringend')
+  assert.equal(zeilen[1].roh!['Bemerkung intern'], null, 'leer bleibt leer, nicht 0 und nicht ""')
+  assert.equal(Object.keys(roh).length, Object.keys(SPALTEN).length + 1, 'alle Spalten, auch die unbekannte')
+  // nicht im Fingerabdruck: dieselbe Zeile mit anderem Inhalt einer unbekannten Spalte ist nicht „geändert"
+  const ohne = zeilenLesen(blatt([{ pos_id: 8001, lieferdatum: '14.10.2026', journal: 'A', kunde: 'Kunde A', artikel_id: 'kürbkn',
+    artikel: 'Bio Kürbis Knirps Dem klein', einheit: 'Stk.', menge: 160, gewicht_je_artikel: 1.5, charge: '1630', batch_menge: 100, preisgruppe: 'D' }]), 'probe')
+  assert.equal(ohne.zeilen[0].fingerabdruck, zeilen[0].fingerabdruck)
+  const [p] = positionenAllerSaisons(zeilen, () => true)
+  assert.equal(p.roh.length, 2, 'eine Position mit zwei Chargenzeilen hat zwei ganze Zeilen')
+  assert.deepEqual(p.roh.map(r => r[SPALTEN.charge]), ['1630', '1635'])
+})
+
+test('Runde AS: rohZeile — Datum als Tag, doppelte Spaltennamen getrennt, Zahlen bleiben Zahlen', () => {
+  const r = rohZeile(['A', 'A', 'Datum', ''], [1, 'x', new Date(Date.UTC(2026, 9, 14)), 2.5])
+  assert.deepEqual(r, { A: 1, 'A (2)': 'x', Datum: '2026-10-14', 'Spalte 4': 2.5 })
+})
+
+test('Runde AS: die Deutung einer Lieferung rechnet wie perigonKg und sagt, was fehlt', () => {
+  assert.deepEqual(lieferungDeutung({ menge: 160, einheit: 'Stk.', gewicht_je_artikel: 1.5, kg: 240, preisgruppe: 'D' },
+    [{ charge_extern: '1630', batch_menge: 100, kg_charge: 150, liefer_label: 'K' }, { charge_extern: '1635', batch_menge: 60, kg_charge: 90, liefer_label: 'D' }]), [
+    '160 Stk. × 1.5 kg je Stk. = 240 kg.',
+    'Charge 1630: 100 Stk. → 150 kg, geliefert als Knospe.',
+    'Charge 1635: 60 Stk. → 90 kg, geliefert als Demeter.',
+    'Verkauft als Demeter (Preisgruppe D).',
+  ])
+  const kgOhne = lieferungDeutung({ menge: 256, einheit: 'kg', gewicht_je_artikel: 0, kg: 256 }, [])
+  assert.match(kgOhne[0], /die Menge das Gewicht: 256 kg/)
+  assert.match(kgOhne[1], /Keine Charge genannt/)
+  const stueck = lieferungDeutung({ menge: 120, einheit: 'Stk.', gewicht_je_artikel: 0, kg: null }, [])
+  assert.match(stueck[0], /unbekannt, nicht 0/)
+  // ein Teil ohne Charge
+  const teil = lieferungDeutung({ menge: 300, einheit: 'kg', gewicht_je_artikel: 1, kg: 300 }, [{ charge_extern: '1617', batch_menge: 200, kg_charge: 200, liefer_label: null }])
+  assert.deepEqual(teil, ['Menge 300 kg — die Menge ist schon das Gewicht.', 'Charge 1617: 200 kg → 200 kg.', '100 kg der Position nennen keine Charge — sie zählen im Warenausgang, aber keiner Charge.'])
 })

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { Benutzen, type Ausschluss } from './Benutzen'
 import { createPortal } from 'react-dom'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
@@ -14,7 +15,11 @@ import { ChargeFenster } from './ChargeFenster'
 
 /** Runde Z: die Messung, von der aus das Fenster geöffnet wurde — steht voran.
  *  Runde AO: mit ihrer Kernzahl gross obenan, der Rest als ruhige Merkmale darunter. */
-export interface Messung { titel: string; name: string; zeilen: string[]; kern?: { wert: string; unter?: string } }
+export interface Messung {
+  titel: string; name: string; zeilen: string[]; kern?: { wert: string; unter?: string }
+  /** Runde AS (0116): diese Messung von Hand aus der Rechnung nehmen — „benutzen" an oder aus. */
+  ausschluss?: Ausschluss
+}
 
 /** Der Kasten „diese Messung" — im Arbeits- und im Messungsfenster gleich. */
 export function MessungKasten({ messung, id, fuss }: { messung: Messung; id?: string; fuss?: ReactNode }) {
@@ -34,6 +39,7 @@ export function MessungKasten({ messung, id, fuss }: { messung: Messung; id?: st
       <p className="kern-name">{messung.name}</p>
       {merkmale.length > 0 && <ul className="merkmale">{merkmale.map((z, i) => <li key={i}>{z}</li>)}</ul>}
       {kommentar && <p className="kern-kommentar">„{kommentar.slice('Kommentar: '.length)}"</p>}
+      {messung.ausschluss && <Benutzen ausschluss={messung.ausschluss} />}
       {fuss}
     </section>
   )

@@ -288,11 +288,21 @@ const BILDSCHIRME = [
     tun: async p => {
       await p.locator('#urs-palox circle.marker[data-auftrag]').first().click({ force: true })
       await p.locator('#fenster-messung .kern-wert', { hasText: 'in den Palox' }).waitFor()
+      // Runde AS: im Fenster „benutzen" — ein gezählter Punkt steht angekreuzt da
+      await p.locator('#messung-benutzen input:checked').waitFor()
+    } },
+  // Runde AS (0116): der Betriebsleiter nimmt einen Ausreisser aus der Rechnung.
+  { name: 'ursachen-ausschliessen', wer: 'admin', pfad: '/ursachen',
+    tun: async p => {
+      await p.locator('#urs-palox circle.marker[data-auftrag]').first().click({ force: true })
+      await p.locator('#messung-benutzen input').uncheck()
+      await p.locator('#messung-benutzen', { hasText: 'gilt ab der nächsten Rechnung' }).waitFor()
     } },
   { name: 'ursachen-messung-ohne-arbeit', wer: 'admin', pfad: '/ursachen',
     tun: async p => {
       await p.locator('#urs-verdunstung circle.marker:not([data-auftrag])').first().click({ force: true })
       await p.locator('#messung-fenster h2', { hasText: 'Diese Wägung' }).waitFor()
+      await p.locator('#messung-fenster #messung-benutzen').waitFor()
     } },
   // Runde Z: eine Sorte aufklappen, eine Charge als Fenster.
   { name: 'ursachen-charge', wer: 'admin', pfad: '/ursachen',
@@ -312,6 +322,23 @@ const BILDSCHIRME = [
   { name: 'chargen', wer: 'admin', pfad: '/chargen' },
   { name: 'chargen-offen', wer: 'admin', pfad: '/chargen',
     tun: async p => { await p.locator('tbody tr').first().click() } },
+  // Runde AS (0116): der Hagel je Charge — die Demo hat 20 % an einer Charge;
+  // ein Kreuz an einer anderen öffnet das Feld für die Prozent.
+  { name: 'chargen-hagel', wer: 'admin', pfad: '/chargen',
+    tun: async p => {
+      await p.locator('.hagel-zelle button', { hasText: '20 %' }).first().waitFor()
+      await p.locator('.hagel-zelle input[type="checkbox"]:not(:checked)').first().check()
+      await p.locator('.hagel-feld input').waitFor()
+    } },
+  // Runde AS: eine Lieferung der geöffneten Charge als Fenster.
+  { name: 'chargen-lieferung', wer: 'admin', pfad: '/chargen',
+    tun: async p => {
+      const mitLieferung = (fixture('erg_lieferung') ?? []).find(l => l.charge_nr != null)
+      if (!mitLieferung) throw new Error('erg_lieferung.json kennt keine Lieferung mit Charge')
+      await p.locator('.chargentabelle tbody tr', { hasText: String(mitLieferung.charge_nr) }).first().click()
+      await p.locator('tr.klickbar[title="die ganze Zeile der Perigon-Datei zeigen"]').first().click()
+      await p.locator('#lieferung-fenster #lieferung-deutung').waitFor()
+    } },
   // Runde AS: die Spaltentitel kleben, solange die Tabelle zu sehen ist —
   // halb hinausgerollt steht der Kopf oben im Bild; ist die Tabelle ganz
   // hinaus, geht er mit ihr (src/design/haftkopf.ts).
@@ -412,6 +439,33 @@ const BILDSCHIRME = [
     tun: async p => {
       await p.locator('.kundentabelle tbody tr').first().click()
       await p.locator('.kundentabelle tbody tr.aktiv').waitFor()
+    } },
+  // Runde AS: die Gruppe aufgeklappt, ein Kunde gewählt, seine Lieferungen,
+  // und eine davon als Fenster — die Rechnung der Masse und die ganze Zeile.
+  { name: 'artikel-lieferung', wer: 'admin', pfad: '/artikel',
+    tun: async p => {
+      await p.locator('.kundentabelle tbody tr.kundengruppe').first().click()
+      await p.locator('.kundentabelle tbody tr.kunde-in-gruppe').first().click()
+      await p.locator('#kunde-lieferungen tbody tr').first().waitFor()
+      await p.locator('#kunde-lieferungen tbody tr', { hasText: '.2025' }).first().click()
+      await p.locator('#lieferung-fenster #lieferung-deutung li').first().waitFor()
+      await p.locator('#lieferung-fenster table.lieferung-zeile td', { hasText: 'AuftragsArtikelMenge' }).waitFor()
+    } },
+  // Runde AS: eine Planmenge mit dem Stift — danach steht sie fett, nicht mehr grau als Vorjahr.
+  { name: 'artikel-plan', wer: 'admin', pfad: '/artikel',
+    tun: async p => {
+      await p.locator('.kundentabelle tbody tr.kundengruppe').first().click()
+      await p.locator('.kundentabelle tr.kunde-in-gruppe .stift').first().click()
+      await p.locator('.plan-feld input').fill('12500')
+      await p.locator('.plan-feld button[type="submit"]').click()
+      await p.locator('.kundentabelle tr.kunde-in-gruppe td.plan:not(.plan-vorjahr)', { hasText: '12.5 t' }).first().waitFor()
+      await p.locator('#artikel-reicht').waitFor()
+    } },
+  // Runde AS: was in den Perigon-Dateien auffällt, aufgeklappt.
+  { name: 'artikel-perigon', wer: 'admin', pfad: '/artikel',
+    tun: async p => {
+      await p.locator('#perigon-pruefung tbody tr').first().click()
+      await p.locator('#perigon-pruefung tr.unterzeile').first().waitFor()
     } },
   // Runde Z (0094): der Betriebsleiter kürzt einen ungelesenen Kommentar zur
   // Ware — erst damit steht er im Dashboard. Die Demo hat genau einen offenen;

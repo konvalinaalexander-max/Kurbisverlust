@@ -1,6 +1,6 @@
 /**
  * Der Filter des Mini-PostgREST — von bildschirme.mjs und kette.mjs geteilt.
- * Versteht eq/in/is/not.is/like, order, limit. Mehr braucht die App nicht.
+ * Versteht eq/in/is/not.is/like/gte/lte, order, limit. Mehr braucht die App nicht.
  */
 /* ---------- Mini-PostgREST: eq/in/is/like/not-Filter, order, limit ------- */
 export function filtern(zeilen, params) {
@@ -18,6 +18,11 @@ export function filtern(zeilen, params) {
         erg = erg.filter(z => z[k] === null || z[k] === undefined)
       } else if (v === 'not.is.null') {
         erg = erg.filter(z => z[k] !== null && z[k] !== undefined)
+      } else if (v.startsWith('gte.') || v.startsWith('lte.')) {
+        // Runde AS: die Lieferungen eines Kunden ab der letzten Saison (saison >= …)
+        const w = v.slice(4), gross = v.startsWith('gte.')
+        const vgl = (x) => { const a = Number(x), b = Number(w); return Number.isFinite(a) && Number.isFinite(b) ? a - b : String(x).localeCompare(w) }
+        erg = erg.filter(z => z[k] != null && (gross ? vgl(z[k]) >= 0 : vgl(z[k]) <= 0))
       } else if (v.startsWith('like.')) {
         const muster = new RegExp('^' + v.slice(5).replace(/[.+?^${}()|[\]\\]/g, '\\$&')
           .replace(/%/g, '.*').replace(/\*/g, '.*') + '$')

@@ -10,6 +10,7 @@ import { Hinweis, Lade, Marke } from '../components/Bausteine'
 import { TaetZeichen, ZKreuz } from '../components/Zeichen'
 import type { Bestand, Wohin } from '../auswertung/daten'
 import { ArbeitFenster } from './ArbeitFenster'
+import { LieferungFenster } from './LieferungFenster'
 
 interface ChargeZeile { nr: number; schlag: string; sorte: string; saison: number; ernte_abgeschlossen_ts: string | null }
 interface ArbeitKurz { id: number; weg: string; station: string; ist_fax: boolean; start_ts: string; ende_ts: string | null; status: string; abgebrochen_ts: string | null }
@@ -43,8 +44,9 @@ export function ChargeFenster({ chargeNr, schliessen }: { chargeNr: number; schl
   const [geladen, setGeladen] = useState(false)
   const [fehler, setFehler] = useState<string | null>(null)
   const [arbeit, setArbeit] = useState<number | null>(null)
+  const [lieferung, setLieferung] = useState<number | null>(null)
   const kindOffen = useRef(false)
-  kindOffen.current = arbeit !== null
+  kindOffen.current = arbeit !== null || lieferung !== null
   const t = (id: keyof typeof WOERTERBUCH.de) => WOERTERBUCH.de[id]
 
   useEffect(() => {
@@ -176,8 +178,9 @@ export function ChargeFenster({ chargeNr, schliessen }: { chargeNr: number; schl
               {lieferungen.length === 0 ? <p className="leise">noch keine</p> : (
                 <table className="dicht">
                   <thead><tr><th>Datum</th><th className="zahl">kg</th><th>Ziel</th><th>Buch</th></tr></thead>
+                  {/* Runde AS: ein Klick zeigt die ganze Perigon-Zeile und wie daraus die Masse wird */}
                   <tbody>{lieferungen.slice(0, 6).map(l => (
-                    <tr key={l.id}><td>{datum(l.datum)}</td><td className="zahl">{l.masse_kg != null ? kg(l.masse_kg, 0) : '—'}</td><td>{l.ziel_name ?? ''}</td><td className="leise">{l.buch ?? ''}</td></tr>
+                    <tr key={l.id} className="klickbar" onClick={() => setLieferung(l.id)} title="die ganze Zeile der Perigon-Datei zeigen"><td>{datum(l.datum)}</td><td className="zahl">{l.masse_kg != null ? kg(l.masse_kg, 0) : '—'}</td><td>{l.ziel_name ?? ''}</td><td className="leise">{l.buch ?? ''}</td></tr>
                   ))}</tbody>
                 </table>
               )}
@@ -213,6 +216,7 @@ export function ChargeFenster({ chargeNr, schliessen }: { chargeNr: number; schl
         )}
       </div>
       {arbeit !== null && <div onClick={e => e.stopPropagation()}><ArbeitFenster auftragId={arbeit} schliessen={() => setArbeit(null)} /></div>}
+      {lieferung !== null && <div onClick={e => e.stopPropagation()}><LieferungFenster lieferungId={lieferung} schliessen={() => setLieferung(null)} /></div>}
     </div>,
     document.body,
   )

@@ -60,7 +60,9 @@ interface Datei {
   historie?: { positionen: number; je_saison: Record<string, number>; labels_gesetzt: number } | { fehler: string }
 }
 
-/** Runde AO (0112): jede Kürbis-Position aller Saisons, in Paketen zu tausend — und die Labels an die Zeilen. */
+/** Runde AO (0112): jede Kürbis-Position aller Saisons, in Paketen — und die Labels an die Zeilen.
+ *  Runde AS (0116): mit der ganzen Zeile der Datei je Position; darum Pakete zu dreihundert statt tausend. */
+const PAKET = 300
 async function historieUebernehmen(d: Datei, zeilen: AusgangZeile[], bestaetigt: Map<string, Bestaetigung>): Promise<NonNullable<Datei['historie']>> {
   const karte = new Map([...bestaetigt.entries()].map(([k, v]) => [k, v.ist_kuerbis]))
   const alle = zeilenVon(d.blatt, d.quelle)
@@ -69,9 +71,9 @@ async function historieUebernehmen(d: Datei, zeilen: AusgangZeile[], bestaetigt:
                                   liefer_label: z.liefer_label, preisgruppe: z.preisgruppe }))
   const summe = { positionen: 0, je_saison: {} as Record<string, number>, labels_gesetzt: 0 }
   try {
-    for (let von = 0; von < Math.max(positionen.length, 1); von += 1000) {
+    for (let von = 0; von < Math.max(positionen.length, 1); von += PAKET) {
       const { data, error } = await supabase.rpc('ausgang_historie_uebernehmen', {
-        p_quelle: d.quelle, p_positionen: positionen.slice(von, von + 1000), p_lose: von === 0 ? lose : [],
+        p_quelle: d.quelle, p_positionen: positionen.slice(von, von + PAKET), p_lose: von === 0 ? lose : [],
       })
       if (error) throw error
       const r = data as typeof summe
@@ -323,7 +325,8 @@ export default function AusgangImport({ nachUebernahme }: { nachUebernahme: () =
                           p_datei: { dateiname: d.name, pruefsumme: d.summe, n_zeilen: bf.zeilen, n_kuerbis: bf.kuerbiszeilen,
                                      n_neu: ab.neu.length, n_geaendert: ab.geaendert.length, n_unveraendert: ab.unveraendert,
                                      von_datum: bf.von || null, bis_datum: bf.bis || null },
-                          p_zeilen: zeilen.map(z => ({ ...z, quelle: undefined, zeile_nr: undefined })),
+                          // die ganze Zeile (roh) geht nur mit den Positionen, nicht mit den Zeilen der Bilanz
+                          p_zeilen: zeilen.map(z => ({ ...z, quelle: undefined, zeile_nr: undefined, roh: undefined })),
                           p_lieferungen: lieferungen,
                         })
                         if (error) throw error

@@ -5173,6 +5173,86 @@ comment on function demo_daten_entfernen is
   'Löscht restlos alles, was demo_daten_laden() angelegt hat — samt Kontrollpaletten, Verkaufsdateien, dem Erntestand und (seit 0116) dem Hagel, den Ausschlüssen, Kundengruppen und Plänen der Demo. Echte Daten bleiben unberührt; erkannt wird die Demo an bemerkung = ''DEMO'', extern_id ''demo-…'' und datei_name ''DEMO-…'' (0081).';
 grant execute on function demo_daten_entfernen() to authenticated;
 
+-- Die Vorjahre der Demo (0115) mit der ganzen Zeile je Position (0116).
+create or replace function demo_vorjahre_laden() returns text
+language plpgsql security definer set search_path = public as $fn$
+declare
+  v_saison int;
+  v_erste date;
+  v_n int := 0;
+begin
+  if auth.uid() is not null and not ist_admin() then
+    raise exception 'Demo-Daten darf nur der Betriebsleiter laden.';
+  end if;
+  if not exists (select 1 from ausgang_quelle where code = 'DEMO') then
+    return 'Keine Demo-Verkaufsdatei — keine Vorjahre.';
+  end if;
+  -- Das Label der gelieferten Charge, wie Perigon es führt: jede vierte Knospe.
+  update ausgang_zeile z
+     set liefer_label = case when z.charge_extern ~ '^[0-9]+$' and z.charge_extern::int % 4 = 1 then 'K' else 'D' end,
+         preisgruppe  = case when z.charge_extern ~ '^[0-9]+$' and z.charge_extern::int % 4 = 1 then 'K' else 'D' end
+   where z.quelle = 'DEMO' and z.liefer_label is null;
+  -- Die laufende Saison ist die der jüngsten Demo-Lieferung. Die Demo beginnt
+  -- im Frühling davor — was vor ihrer ersten Lieferung liegt, kommt dazu.
+  select saison_von(max(datum)), min(datum) into v_saison, v_erste from ausgang_zeile where quelle = 'DEMO';
+  if v_saison is null then return 'Keine Demo-Lieferungen — keine Vorjahre.'; end if;
+  delete from ausgang_position where quelle = 'DEMO' and saison < v_saison;
+  -- Je Kunde und Vorjahr eine Lieferung je Woche, nach einer Glocke über
+  -- die Saison (Höhepunkt im Oktober), Grösse je Kunde aus der laufenden Saison.
+  insert into ausgang_position (quelle, pos_id, datum, saison, journal, kunde, artikel_id, artikel, preisgruppe,
+                                einheit, menge, gewicht_je_artikel, kg, gebindeart, gebinde_menge)
+  select 'DEMO', 900000000 + j.jahr * 100000 + k.nr * 1000 + w.woche,
+         make_date(v_saison - j.jahr, 7, 1) + (w.woche * 7),
+         v_saison - j.jahr, 'Lieferschein', k.kunde, k.artikel_id, k.artikel, 'D', 'kg',
+         x.kg, 1, x.kg, 'IFCO', null
+    from (select row_number() over (order by z.kunde)::int as nr, z.kunde,
+                 min(z.artikel_id) as artikel_id, min(z.artikel) as artikel,
+                 greatest(sum(z.kg_position) / greatest(count(distinct date_trunc('week', z.datum)), 1), 50) as je_woche
+            from ausgang_zeile z where z.quelle = 'DEMO' and z.kunde is not null group by z.kunde) k
+   cross join (values (1, 1.0), (2, 0.8)) j(jahr, faktor)
+   cross join generate_series(0, 51) w(woche)
+   cross join lateral (select round(k.je_woche * j.faktor * (0.6 + 0.08 * k.nr)
+                                    * exp(-power((w.woche - 15) / 9.0, 2))
+                                    * (0.8 + 0.4 * ((k.nr * 7 + w.woche * 13 + j.jahr * 5) % 10) / 10.0)) as kg) x
+   where x.kg >= 20
+     and make_date(v_saison - j.jahr, 7, 1) + (w.woche * 7) < v_erste
+  on conflict (quelle, pos_id) do nothing;
+  get diagnostics v_n = row_count;
+  -- 0115: Wie beim Betrieb 2024/25 (Muscade, 12'322 Stück): ein Kunde bekam
+  -- im Vorjahr auch Stück, für die Perigon kein Stückgewicht kennt. Sie
+  -- stehen ohne kg da — nicht 0, nicht geschätzt.
+  insert into ausgang_position (quelle, pos_id, datum, saison, journal, kunde, artikel_id, artikel, preisgruppe,
+                                einheit, menge, gewicht_je_artikel, kg, gebindeart, gebinde_menge)
+  select 'DEMO', 900000000 + 100000 + k.nr * 1000 + 500 + w.woche,
+         make_date(v_saison - 1, 7, 1) + (w.woche * 7), v_saison - 1, 'Lieferschein', k.kunde,
+         'kürbmudkl', 'Bio Kürbis Muscade Dem klein', 'D', 'Stk.', 40 + 20 * (w.woche % 3), 0,
+         perigon_kg(40 + 20 * (w.woche % 3), 0, 'Stk.'), 'IFCO', null
+    from (select row_number() over (order by z.kunde)::int as nr, z.kunde
+            from ausgang_zeile z where z.quelle = 'DEMO' and z.kunde is not null group by z.kunde) k
+   cross join generate_series(12, 18) w(woche)
+   where k.nr = 1 and make_date(v_saison - 1, 7, 1) + (w.woche * 7) < v_erste
+  on conflict (quelle, pos_id) do nothing;
+  -- 0116: die ganze Zeile, wie sie in der Perigon-Datei stünde — damit das
+  -- Lieferungs-Fenster auch in der Beispieldatenbank zeigt, was es kann.
+  -- Ohne Erlös: Preise gehören nicht in die Demo.
+  update ausgang_position p
+     set roh = jsonb_build_array(jsonb_build_object(
+           'AuftragsJournal', p.journal, 'AuftragsLieferDatum', to_char(p.datum, 'DD.MM.YYYY'),
+           'AuftragsLieferant', p.kunde, 'AufPosId', p.pos_id, 'AuftragsArtId', p.artikel_id, 'AuftragsArtikel', p.artikel,
+           'AuftragsArtikelMenge', p.menge, 'AuftragsArtikelEinheit', p.einheit, 'GewichtProArtikel', p.gewicht_je_artikel,
+           'AuftragsChargeManuell', null, 'AufPosBatchQuantity Charge', null, 'AuftragsGebBez', p.gebindeart,
+           'AuftragsGebindemenge', p.gebinde_menge, 'AuftragsPrsGrpBez', p.preisgruppe, 'LiefPrsGrpName', p.preisgruppe,
+           'AuftragsErloesTotExkl', null))
+   where p.quelle = 'DEMO' and p.roh is null;
+  return format('Demo: %s Lieferungen in zwei Vorjahren, Labels an den Demo-Verkaufszeilen.', v_n);
+end $fn$;
+comment on function demo_vorjahre_laden() is
+  'Ergänzt die Demo um das Perigon-Label je Verkaufszeile und zwei Vorjahre je Demo-Kunde (ausgang_position, quelle DEMO) — für Lager nach Artikel (0112); seit 0115 mit ein paar Stück ohne Stückgewicht im Vorjahr (kg leer), seit 0116 mit der ganzen Zeile (roh). Gleich nach demo_daten_laden() aufrufen; demo_daten_entfernen() räumt es mit der Demo-Firma weg.';
+-- security definer: ohne das „revoke" könnte sie jeder rufen, auch ohne
+-- Anmeldung (auth.uid() ist dann leer und die Sperre oben greift nicht).
+revoke all on function demo_vorjahre_laden() from public;
+grant execute on function demo_vorjahre_laden() to authenticated;
+
 -- =====================================================================
 -- 9. Stand
 -- =====================================================================

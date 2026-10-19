@@ -757,6 +757,24 @@ Lieferungen passen (AB-147). **Der Betrieb spielt setup.sql einmal ein
 Warenausgang) und drückt „Neu rechnen": Erst dann entstehen die fehlenden
 Lieferungen (340 kg), und die doppelten (521 kg) verschwinden.
 
+**Runde AS (0116)** — die Grösse kommt aus der Sortierdatei. Zu klein und zu
+gross rechnen aus den Sortierdateien: jeder Kürbis auf den Eingangstag
+zurück, für jedes Alter wieder vor — junge Ware mehr zu gross, alte mehr zu
+klein; die Handmessung gilt nur noch, wo die Sorte keine Datei hat
+(AB-148). Beim Sortieren ist das Zetteldatum zu Beginn Pflicht. Neu unter
+**Chargen** die Spalte „Hagel" (AB-149), in den Fenstern der Messungen
+„Diese Messung benutzen" (AB-150); Holz-Palox 45 kg und Plastik-Palox 35 kg
+Tara, und wo Kisten gezählt sind, wird je Kiste gerechnet (AB-151). Unter
+**Lagermanagement nach Artikel**: Kunden in Gruppen (aufklappbar), Pläne je
+Kunde mit dem Stift, „noch zu liefern" und rot, wenn das Verkaufsfähige
+nicht reicht (AB-154); je Kunde die Lieferungen, und jede Lieferung zeigt
+die ganze Perigon-Zeile mit der Rechnung (AB-153); was in den Dateien
+auffällt (AB-155). Lange Tabellen behalten ihre Spaltentitel (AB-156).
+**Der Betrieb spielt setup.sql einmal ein (Stand 116), liest danach beide
+Perigon-Dateien noch einmal ein** (Betrieb → Warenausgang — erst dann steht
+die ganze Zeile da), setzt unter Lager nach Artikel einmal die Gruppen der
+Kunden, die nicht Migros oder Coop heissen, und drückt „Neu rechnen".
+
 **Runde AN (0110)** — rechnen auf PostgreSQL 17: Der Betrieb läuft auf
 PostgreSQL 17, und dort frischt Postgres gespeicherte Ansichten mit einem
 eingeschränkten Suchpfad auf. `palox_f_nach()` fand deshalb `palox_f()` nicht,

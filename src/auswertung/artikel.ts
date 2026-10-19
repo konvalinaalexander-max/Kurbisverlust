@@ -103,3 +103,82 @@ export function uebersichtszeilen(bestand: Bestand[], labelVon: Map<number, Char
     .sort((a, b) => rang(a.gruppe) - rang(b.gruppe) || (a.gruppe ?? '').localeCompare(b.gruppe ?? '')
                     || (a.label ?? 'Z').localeCompare(b.label ?? 'Z'))
 }
+
+/* ---------- Runde AS: Kundengruppen, Planmengen, reicht es? ---------------- */
+
+/** Verkauft: KundeTag.groesse ist gross, klein oder lose — lose zählt nur bei „beide". */
+export const passtVerkauf = (w: Wahl, g: string) => w.groesse === 'beide' || g === w.groesse
+
+/**
+ * Zu welcher Gruppe ein Kunde gehört (Runde AS). Der Betrieb: „dass ich Coop
+ * als Ganzes sehe … Migros, Coop, und dann alles andere sind Kleinkunden."
+ * Was der Betriebsleiter gesetzt hat (kunde_gruppe), gilt; sonst ordnet der
+ * Name: Migros, Coop (auch die Verteilzentralen RVZ/RZV), sonst Kleinkunden.
+ */
+export function kundenGruppe(kunde: string, gesetzt: Map<string, string>): string {
+  const g = gesetzt.get(kunde)
+  if (g) return g
+  if (/migros/i.test(kunde)) return 'Migros'
+  if (/\bcoop\b|^r[vz][vz]\b/i.test(kunde)) return 'Coop'
+  return 'Kleinkunden'
+}
+
+/** Eine Planmenge (kunde_plan, 0116): je Saison und Kunde, für eine Wahl — '' heisst alle. */
+export interface KundePlan { saison: number; kunde: string; artikelgruppe: string; groesse: string; label: string; kg: number }
+
+/** Unter welchem Schlüssel ein Plan für diese Wahl steht. */
+export const planSchluessel = (w: Wahl) =>
+  ({ artikelgruppe: w.gruppe, groesse: w.groesse === 'beide' ? '' : w.groesse, label: w.label === 'beide' ? '' : w.label })
+
+/**
+ * Der Plan eines Kunden für eine Saison und eine Wahl. Ein eingetragener Plan
+ * gilt genau für die Wahl, für die er steht; ohne ihn ist der Plan die ganze
+ * Vorjahressaison (`vorjahr`). Bei „Demeter und Knospe" zählen eingetragene
+ * Pläne je Label zusammen — das fehlende Label mit seinem Vorjahr. `eigen`
+ * sagt, ob der Betrieb ihn gesetzt hat (true), teils (eines der Labels) oder
+ * nicht (false — dann ist es das Vorjahr).
+ */
+export function planFuer(kunde: string, saison: number, w: Wahl, plaene: KundePlan[],
+                         vorjahr: (label: LabelWahl) => number): { kg: number; eigen: boolean | 'teils' } {
+  const s = planSchluessel(w)
+  const finde = (label: string) => plaene.find(p => p.saison === saison && p.kunde === kunde && p.artikelgruppe === s.artikelgruppe
+                                                   && p.groesse === s.groesse && p.label === label)
+  const genau = finde(s.label)
+  if (genau) return { kg: Number(genau.kg), eigen: true }
+  if (w.label === 'beide') {
+    const d = finde('D'), k = finde('K')
+    if (d || k) {
+      const ohneLabel = Math.max(vorjahr('beide') - vorjahr('D') - vorjahr('K'), 0)
+      return { kg: (d ? Number(d.kg) : vorjahr('D')) + (k ? Number(k.kg) : vorjahr('K')) + ohneLabel, eigen: d && k ? true : 'teils' }
+    }
+  }
+  return { kg: vorjahr(w.label), eigen: false }
+}
+
+/**
+ * Was diese Saison noch zu liefern ist — je Kunde der Plan weniger das schon
+ * Gelieferte, nie unter null —, über alle Kunden, die den Artikel im Vorjahr
+ * oder in dieser Saison bekamen oder einen Plan haben (Runde AS: „Reicht, was
+ * da ist?").
+ */
+export function nochZuLiefern(kunden: { kunde: string; saison: number; gruppe: string | null; groesse: string; label: string | null; kg: number | null }[],
+                              plaene: KundePlan[], saison: number, w: Wahl, nurKunden?: Set<string>): { kg: number; jeKunde: Map<string, { plan: number; eigen: boolean | 'teils'; geliefert: number; offen: number }> } {
+  const passt = (k: typeof kunden[number], l: LabelWahl) => passtGruppe(w, k.gruppe) && passtVerkauf(w, k.groesse) && passtLabel({ ...w, label: l }, k.label)
+  const namen = new Set<string>()
+  for (const k of kunden) if ((k.saison === saison || k.saison === saison - 1) && passt(k, w.label)) namen.add(k.kunde)
+  const s = planSchluessel(w)
+  for (const p of plaene) if (p.saison === saison && p.artikelgruppe === s.artikelgruppe && p.groesse === s.groesse) namen.add(p.kunde)
+  const jeKunde = new Map<string, { plan: number; eigen: boolean | 'teils'; geliefert: number; offen: number }>()
+  let summe = 0
+  for (const n of namen) {
+    if (nurKunden && !nurKunden.has(n)) continue
+    const summeVon = (sai: number, l: LabelWahl) =>
+      kunden.filter(k => k.kunde === n && k.saison === sai && passt(k, l)).reduce((a, k) => a + Number(k.kg ?? 0), 0)
+    const plan = planFuer(n, saison, w, plaene, l => summeVon(saison - 1, l))
+    const geliefert = summeVon(saison, w.label)
+    const offen = Math.max(plan.kg - geliefert, 0)
+    jeKunde.set(n, { plan: plan.kg, eigen: plan.eigen, geliefert, offen })
+    summe += offen
+  }
+  return { kg: summe, jeKunde }
+}

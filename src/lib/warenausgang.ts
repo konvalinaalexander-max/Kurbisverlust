@@ -119,6 +119,28 @@ export interface AusgangZeile {
   preisgruppe: string | null
   liefer_label: string | null
   zeile_nr: number               // Zeile in der Datei, für die Fehlermeldung
+  /** Runde AS: die ganze Zeile, wie sie in der Datei steht — Spaltenname → Wert, alle Spalten. Nur für die Anzeige
+   *  (ausgang_position.roh), nicht im Fingerabdruck und nicht in ausgang_uebernehmen. */
+  roh?: RohZeile
+}
+
+/** Eine Zeile der Datei, wie sie dasteht: Spaltenname → Wert (Datum als JJJJ-MM-TT, leer als null). */
+export type RohZeile = Record<string, string | number | null>
+
+/** Runde AS: „eine Replika der Excel-Zeile, alle Spalten" — die Kopfzeile gibt die Namen. Doppelte Namen bekommen ihre Spaltennummer. */
+export function rohZeile(kopfzeile: Zelle[], r: Zelle[]): RohZeile {
+  const roh: RohZeile = {}
+  const n = Math.max(kopfzeile.length, r.length)
+  for (let j = 0; j < n; j++) {
+    const name = String(kopfzeile[j] ?? '').trim() || `Spalte ${j + 1}`
+    const schl = name in roh ? `${name} (${j + 1})` : name
+    const z = r[j] ?? null
+    roh[schl] = z === null || z === '' ? null
+      : z instanceof Date ? z.toISOString().slice(0, 10)
+      : typeof z === 'number' ? (Number.isFinite(z) ? z : null)
+      : String(z).trim() === '' ? null : String(z).trim()
+  }
+  return roh
 }
 
 const runden = (n: number) => Math.round(n * 1000) / 1000
@@ -234,6 +256,7 @@ export function zeilenLesen(blatt: Blatt, quelle: string): {
       preisgruppe: wort(w(r, 'preisgruppe')) || null,
       liefer_label: wort(w(r, 'liefer_label')) || null,
       zeile_nr: i + 1,
+      roh: rohZeile(blatt.zeilen[kopf.zeile], r),
     }
     // Die zwei Felder aus 0112 (Preisgruppe, Label) gehören bewusst nicht in den
     // Fingerabdruck: sonst stünde nach dem Update jede bekannte Zeile als „geändert" da.
@@ -254,6 +277,8 @@ export interface Position {
   pos_id: number; datum: string; journal: string; kunde: string; artikel_id: string; artikel: string
   preisgruppe: string | null; einheit: string; menge: number; gewicht_je_artikel: number
   gebindeart: string | null; gebinde_menge: number | null
+  /** Runde AS (0116): alle Zeilen der Datei zu dieser Position (eine je Chargenzeile), mit allen Spalten. */
+  roh: RohZeile[]
 }
 
 /**
@@ -264,13 +289,17 @@ export interface Position {
  */
 export function positionenAllerSaisons(zeilen: AusgangZeile[], istWare: (z: AusgangZeile) => boolean): Position[] {
   const proPos = new Map<number, AusgangZeile>()
-  for (const z of zeilen) if (!proPos.has(z.pos_id)) proPos.set(z.pos_id, z)
+  const rohJe = new Map<number, RohZeile[]>()
+  for (const z of zeilen) {
+    if (!proPos.has(z.pos_id)) proPos.set(z.pos_id, z)
+    if (z.roh) rohJe.set(z.pos_id, [...(rohJe.get(z.pos_id) ?? []), z.roh])
+  }
   return [...proPos.values()]
     .filter(z => z.journal !== 'L' && istWare(z))
     .map(z => ({
       pos_id: z.pos_id, datum: z.datum, journal: z.journal, kunde: z.kunde, artikel_id: z.artikel_id, artikel: z.artikel,
       preisgruppe: z.preisgruppe, einheit: z.einheit, menge: z.menge, gewicht_je_artikel: z.gewicht_je_artikel,
-      gebindeart: z.gebindeart, gebinde_menge: z.gebinde_menge,
+      gebindeart: z.gebindeart, gebinde_menge: z.gebinde_menge, roh: rohJe.get(z.pos_id) ?? [],
     }))
 }
 
@@ -640,4 +669,46 @@ export function chargeAufloeser(
     }
     return null
   }
+}
+
+/* ---------- Eine Lieferung erklären (Runde AS) ----------------------------- */
+
+/** Was das Lieferungs-Fenster über eine Position weiss — aus ausgang_position und den Zeilen der Datei. */
+export interface PositionKurz {
+  menge: number | null; einheit: string | null; gewicht_je_artikel: number | null; kg: number | null
+  preisgruppe?: string | null
+}
+export interface ChargenzeileKurz { charge_extern: string; batch_menge: number | null; kg_charge: number | null; liefer_label: string | null }
+
+const zahlText = (n: number) => n.toLocaleString('de-CH', { maximumFractionDigits: 3 })
+const labelText = (l: string | null | undefined) => {
+  const u = (l ?? '').toUpperCase()
+  return u.startsWith('D') ? 'Demeter' : /^(K|CH-K)/.test(u) ? 'Knospe' : null
+}
+
+/**
+ * Die Deutung einer Perigon-Position in ganzen Sätzen — „160 Stk. × 1.5 kg je
+ * Stück = 240 kg" —, nach derselben Regel wie perigonKg und perigon_kg (0115).
+ * Der Betrieb: „eine kurze Interpretation, wie du daraus die Kilos berechnest".
+ */
+export function lieferungDeutung(p: PositionKurz, zeilen: ChargenzeileKurz[]): string[] {
+  const s: string[] = []
+  const menge = p.menge ?? 0, e = (p.einheit ?? '').trim(), gja = p.gewicht_je_artikel
+  const istKg = /^kg/i.test(e)
+  if (gja !== null && gja > 0 && istKg && gja === 1) s.push(`Menge ${zahlText(menge)} kg — die Menge ist schon das Gewicht.`)
+  else if (gja !== null && gja > 0) s.push(`${zahlText(menge)} ${e || 'Stück'} × ${zahlText(gja)} kg je ${istKg ? 'kg' : (e || 'Stück')} = ${zahlText(perigonKg(menge, gja, e) ?? 0)} kg.`)
+  else if (istKg) s.push(`Menge ${zahlText(menge)} kg; das Gewicht je Artikel steht in Perigon auf ${gja ?? 'leer'} — bei einem kg-Artikel ist die Menge das Gewicht: ${zahlText(menge)} kg.`)
+  else s.push(`${zahlText(menge)} ${e || 'Stück'}, aber Perigon kennt kein Stückgewicht — die Masse ist unbekannt, nicht 0. Steht es im Perigon-Artikelstamm, die Datei neu einlesen.`)
+  const mitCharge = zeilen.filter(z => z.charge_extern !== '')
+  for (const z of mitCharge) {
+    const kgC = z.kg_charge ?? (z.batch_menge != null ? perigonKg(z.batch_menge, gja, e) : null)
+    s.push(`Charge ${z.charge_extern}: ${z.batch_menge != null ? `${zahlText(z.batch_menge)} ${e || 'Stück'}` : 'Menge offen'}`
+      + `${kgC != null ? ` → ${zahlText(kgC)} kg` : ' → Masse unbekannt'}${labelText(z.liefer_label) ? `, geliefert als ${labelText(z.liefer_label)}` : ''}.`)
+  }
+  const zugeordnet = mitCharge.reduce((a, z) => a + (z.kg_charge ?? 0), 0)
+  if (mitCharge.length === 0) s.push('Keine Charge genannt — die Masse zählt im Warenausgang, aber keiner Charge.')
+  else if (p.kg != null && p.kg - zugeordnet > 0.005) s.push(`${zahlText(Math.round((p.kg - zugeordnet) * 1000) / 1000)} kg der Position nennen keine Charge — sie zählen im Warenausgang, aber keiner Charge.`)
+  const verkauft = labelText(p.preisgruppe), geliefert = [...new Set(mitCharge.map(z => labelText(z.liefer_label)).filter(Boolean))]
+  if (verkauft) s.push(`Verkauft als ${verkauft} (Preisgruppe ${p.preisgruppe})${geliefert.length > 0 && !geliefert.includes(verkauft) ? ` — geliefert als ${geliefert.join(' und ')}` : ''}.`)
+  return s
 }

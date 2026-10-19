@@ -27,6 +27,12 @@ Kiste und Palette (`gebinde`).
 dem Mittel der Paletten, die ein Netto haben, mal Anzahl aller Paletten
 (`v_charge_rueckgrat`); das Dashboard sagt „n Paletten ohne Nettogewicht —
 für sie rechnet der Eingang mit dem Mittel der übrigen".
+**Gebinde ohne Palette (0116):** Holz-Palox 45 kg, Plastik-Palox 35 kg Tara
+— eine Palox ist ein Gebinde, eine „Kiste", keine Palette darunter. Bis
+0116 hatte „Holz Palox" keine Tara: ihr Netto blieb null, und die Charge
+zählte sie mit dem Mittel ihrer übrigen Paletten (auf der Kopie der
+Betriebsdaten 18 Holz-Palox, jetzt 4.8 t statt 7.4 t; Eingang 656.5 t →
+653.9 t).
 **Urteil:** ehrlich. Ein Ersatz aus derselben Charge, sichtbar benannt.
 
 ## 2. Die Masse einer Arbeit — der Nenner (`v_auftrag_masse`)
@@ -38,10 +44,19 @@ Je gezählter Palette (`v_auftrag_palette_masse`), in dieser Reihenfolge:
 | `gewogen` | die Palette wurde in dieser Arbeit gewogen | ihr eigenes Netto (Zettel-Brutto minus ihre Tara) |
 | `zettel` | Zettelgewicht und -datum finden die Palette im Wareneingang | das Netto dieser Palette |
 | `zettel-kisten` (0090) | kein Treffer, aber Kisten und Gebinde gezählt | Zettel − Kisten × Kistentara − Palette |
+| `zettel-kisten-charge` (0116) | kein Treffer, Kisten gezählt, das Gebinde hat keine Tara | Zettel − Kisten × Tara je Kiste der Charge |
 | `zettel-charge-tara` | kein Treffer, keine Kisten | Zettel − mittlere Tara der Charge |
 | `palette` | die Palette ist über ihre Nummer verknüpft | ihr Netto |
+| `datum-je-kiste` (0116) | kein Gewicht, Datum und Kisten | Netto je Kiste dieses Eingangstags × Kisten |
 | `datum-mittel` | nur das Datum ist da | Mittel der Paletten dieses Eingangstags |
+| `charge-je-kiste` (0116) | kein Gewicht, kein Datum, Kisten | Netto je Kiste der Charge × Kisten |
 | `charge-mittel` | nichts als die Charge | Mittel der Charge |
+
+Seit 0116 gilt: Wo Kisten gezählt sind, wird je Kiste gerechnet — nie ein
+Mittel ganzer Paletten für eine halbe Palette oder eine einzelne Palox (der
+Betrieb: „schau, dass du das auf die Kiste anpasst"; vorher rechneten die
+Holz-Palox der Charge 1638 mit 79 kg Tara, der einer G2-Palette mit 36
+Kisten).
 
 **Beim reinen Waschen** (0104): die am Anfang der Strasse gewogenen Paletten
 — Brutto − Kisten × Kistentara − Palettentara (`v_auftrag_wasch_gewogen`,
@@ -99,8 +114,11 @@ selbst gewogen sind.
 Netto damals, Netto jetzt, Lagertage → Rate je Tag = 1 − (jetzt/damals)^(1/Tage).
 **Zählt nur:** `verwendbar` — nicht schwerer geworden, nicht unverändert,
 kein Schimmel sichtbar, Arbeit nicht abgebrochen, und seit 0089 unter der
-Grenze `verdunstung_rate_max_pro_tag` (Vorgabe 1 % je Tag). Jede Wägung,
-die nicht zählt, sagt warum (`grund`).
+Grenze `verdunstung_rate_max_pro_tag` (Vorgabe 1 % je Tag), und seit 0116
+nicht von Hand ausgeschlossen (`messung_ausschluss`, Kästchen „Diese
+Messung benutzen" im Fenster der Messung, nur der Betriebsleiter). Jede
+Wägung, die nicht zählt, sagt warum (`grund`); eine ausgeschlossene bleibt
+im Bild.
 **Zusammenfassen (seit 0111):** je Sorte das nach Masse gewichtete Mittel
 ihrer eigenen verwendbaren Wägungen, ab drei (`anteil_mindest_messungen()`);
 darunter das Mittel aller Sorten. Kein Zug zum Gesamtwert mehr (bis 0110:
@@ -114,20 +132,58 @@ Kürbisse, darum zählen sie nicht in die Rate.
 Verdunstung und das Dashboard sagt „nicht gemessen".
 **Urteil:** ehrlich; die Grenze (0089) war die Lücke.
 
-## 6. Zu klein, zu gross, anderer Kanal (`v_koeff_ausschuss`, `v_koeff_nebenkanal`)
+## 6. Zu klein, zu gross (seit 0116 aus der Sortierdatei), anderer Kanal
 
-**Braucht:** je Sortierlauf die Masse unter dem kleinsten und über dem
-grössten Band (CSV, klassiert nach der Fassung des Auftrags) — und von der
-Handlinie die gewogenen Kisten (0088). Anteile an der Masse des Laufs.
-**Zusammenfassen:** wie die Verdunstung (seit 0111) — das Mittel der Sorte
-ab drei eigenen Messungen, sonst aller Sorten; `basis` sagt es.
+**Zuerst die Sortierdatei (0116, `mv_kaliber_quelle`, `kaliber_anteil`).**
+Der Betrieb: „primär solltest du die Information aus den Sortier-CSVs
+nehmen … beim Waschen und Sortieren werden viele Kürbisse dabei sein, die
+unter das Limit fallen oder darüber, und sie werden von Auge nicht erkannt."
+**Braucht:** die gewogenen Kürbisse jedes Sortierlaufs (`sortier_gewicht`),
+den Sortiertag, das Alter der Ware beim Sortieren, die Verdunstungsrate der
+Sorte (Abschnitt 5) und die Grenzen der gültigen Fassung der Sorte
+(`v_kaliber_fassung`: unter der ersten Bandgrenze zu klein, über der
+letzten zu gross).
+**Das Alter beim Sortieren (`v_kaliber_lauf`):** aus den Zetteldaten der
+Arbeit, zu der die Datei gehört, nach Netto gewichtet (eine Palette ohne
+Netto zählt 1) — `alter_quelle = zettel`; ist die Datei keiner Arbeit
+zugeordnet, aus den Paletten der Charge, die am Sortiertag schon da waren,
+nach Netto (sonst Brutto) gewichtet — `eingang`. Ohne Sortiertag oder ohne
+eine Palette davor hat der Lauf kein Alter und zählt nicht.
+**Rückrechnung (`mv_kaliber_eingang`):** jeder Kürbis g0 = g / (1 − r)^Alter
+(r = Verdunstung der Sorte je Tag, auf 0–5 % begrenzt; ist nirgends eine
+gemessen, 0 — wie die Kaskade, die dann ohne Verdunstung rechnet). Das
+ergibt je Charge und je Sorte die Gewichtsverteilung beim Eingang.
+**Je Portion der Kaskade** (Alter a, für Prognose und Verlauf das Alter am
+Stichtag) wird sie um q = (1 − r)^a geschrumpft: zu klein ist der
+Massenanteil mit g0 < lo / q, zu gross der mit g0 > hi / q. Junge Ware hat
+mehr zu gross, alte mehr zu klein — und was zu gross war, kann in die
+Bänder hineintrocknen und verkaufsfähig werden. In der Prognose zählt das
+in „Wasser": Es ist (1 − f) · (Basis jetzt · Anteil jetzt − Basis später ·
+Anteil später) und kann deshalb negativ sein, wenn mehr Übergrösse in die
+Bänder schrumpft, als Wasser verloren geht; die Summe aus Wasser und
+Fäulnis bleibt genau der Verlust an Verkaufsfähigem.
+**Ersatzweg, in dieser Reihenfolge:** die Läufe der Charge → die Läufe der
+Sorte (`ebene`, `basis` sagen es) → der gemessene Anteil der Sorte wie bis
+0115: Sortierläufe und Handmessungen (gewogene Kisten zu klein / zu gross
+beim Waschen, 0088) gleich gezählt, das Mittel der Sorte ab drei eigenen
+Messungen, sonst aller Sorten (`v_koeff_ausschuss`, `v_koeff_nebenkanal`).
+Die Handmessungen gelten also nur noch, wo die Sorte keine Sortierdatei hat.
+Auf der Kopie der Betriebsdaten (12. Oktober): 12 Läufe vom 17.8. bis
+10.9., keiner einer Arbeit zugeordnet (Alter aus dem Eingang, im Mittel 19
+Tage); 11 Chargen rechnen mit eigenen Läufen, 13 mit denen der Sorte, die
+übrigen mit dem gemessenen Anteil. Zu klein und zu gross der liegenden
+Ware 20.7 t → 16.5 t, verkaufsfähig 308.9 t → 312.2 t (mit der Tara der
+Holz-Palox, Abschnitt 1).
 **Fehlt alles:** unbekannt.
 **Fehlt eine Art** (nur „zu gross" gewogen, „zu klein" übersprungen): diese
 Art ist unbekannt, nicht 0; die gemessene zählt; keine Auffälligkeit (0097).
 **Wohin:** ins Haus, nicht in den Ausgang (0101) — aussortiert steht es in
 Paloxen, bis ein Lieferschein es holt; das Buch „marge" (an die Tiere, in
 den Nebenkanal) zählt erst dann, und der Befund der Bilanz vergleicht beides.
-**Urteil:** ehrlich.
+**Urteil:** ehrlich. Die Rückrechnung nimmt an, dass alle Kürbisse einer
+Sorte gleich schnell trocknen; ein eigenes Unsicherheitsband hat der
+Anteil aus der Sortierdatei nicht (Runde AS, „Was bewusst nicht gemacht
+wurde").
 
 ## 7. Faules im Lager — die Stationswerte (`v_palox_erwartung`, `v_charge_weg`, seit 0106)
 
@@ -177,6 +233,21 @@ Anstieg), Waschen 10,5 % (gemessen +1,6 % je Woche, Bereich −2,5 bis +5,8 —
 noch nicht sicher, gilt als 0), Sortieren 2,5 % (Spanne noch zu kurz) — je
 bei jeder Lagerdauer. Bis 0112 galt beim Waschen der gemessene Anstieg, und
 der Grundausschuss fiel auf 2 %.
+**Von Hand ausgeschlossen (0116):** Eine Arbeit (`messung_ausschluss.art =
+palox`, im Fenster der Messung) oder eine Kontrollwägung (`palox_lager`,
+bisher nur in der Datenbank), die der Betriebsleiter nicht benutzen will, steht grau im Bild und zählt in keinen Anteil und
+keinen Anstieg — wie ein nicht plausibler Punkt, mit dem Grund „von Hand
+ausgeschlossen".
+**Hagel (0116, `charge.hagel_anteil`, `hagel_f`):** Hagelschaden kommt beim
+Waschen und Sortieren in den Palox. Er erhöht den Palox-Anteil einer Charge
+dort, wo keine ihrer Messungen ihn schon enthält: f = 1 − (1 − f) · (1 − h)
+für alles, was liegt, und für Ausgelagertes ohne eigene Messung der Charge
+(`f_eigen`) — nie doppelt. 100 % heisst: nichts davon verkaufsfähig, auch
+wenn f selbst unbekannt ist. Eine Charge mit Hagel zählt nicht in die
+geteilten Anteile der Sorte und der Station (`v_palox_erwartung`,
+`palox_station_kennzahl`) — sonst trüge jede andere Charge ihren Hagel mit.
+Entsorgtes bleibt, wie es gewogen wurde. `mv_kaskade.hagel` sagt, welcher
+Hagel angewandt wurde.
 **Fehlt eine Eingabe:** eine Arbeit ohne Nenner liefert keinen Punkt
 (Auffälligkeit „Ohne Nenner"); ein Leeren ohne Ablesung macht die Menge
 unbekannt (Auffälligkeit „Palox geleert"); hat eine Station auf dem Weg
@@ -314,6 +385,23 @@ verkaufsfähig aus `erg_charge`, das Verkaufsfähige nach Grösse aus
 `artikel_lager_charge(0)`. Ausgelagert + im Lager = Eingang — der Balken ist
 so lang wie der Eingang. Ein unbekanntes Verkaufsfähiges zählt als Lücke,
 nicht als 0. Eingang und ausgeliefert gibt es nur je Gruppe, nicht je Grösse.
+**Kundengruppen und Pläne (Runde AS, `kunde_gruppe`, `kunde_plan`):** Ein
+Kunde gehört zur Gruppe, die der Betriebsleiter gesetzt hat; ohne Eintrag
+ordnet die App nach dem Namen (Migros, Coop samt RVZ/RZV, sonst
+Kleinkunden). Die Gruppe ist die Summe ihrer Kunden. **Plan** ist die
+eingetragene Menge der ganzen Saison, je Artikelgruppe, Grösse und Label
+oder für alle; ohne Eintrag gilt, grau, die ganze Vorjahressaison des
+Kunden. **Noch zu liefern** = Plan − diese Saison geliefert, je Kunde nie
+unter null, über die Kunden summiert. **Reicht es?** Das Verkaufsfähige im
+Lager heute (je Artikel, wie oben) gegen „noch zu liefern"; fehlt etwas,
+steht es rot mit „!" in der Artikeltabelle und unter den Kunden.
+**Die ganze Perigon-Zeile (0116, `ausgang_position.roh`):** beim Einlesen
+jede Zeile mit allen Spalten, wie sie in der Datei stand — nur zum Zeigen
+(„Lieferung"-Fenster), nicht zum Rechnen; Positionen von vor 0116 haben sie
+erst nach dem nächsten Einlesen. `v_perigon_pruefung` sieht jede Zeile der
+laufenden Saison durch: Charge nicht zugeordnet, Artikel passt nicht zur
+Sorte, als Demeter verkauft und als Knospe geliefert, Lieferung vor dem
+ersten Eingang.
 **Urteil:** ehrlich; dieselbe Zahl wie überall, nur anders geteilt.
 
 ## 12b. Die Masse einer Perigon-Position (`perigon_kg`, `perigonKg`, 0115)
@@ -352,3 +440,7 @@ nicht die Masse der Datei ergeben; der Warenausgang warnt oben.
 - Ein Sockel ohne Nachweis — er ist 0 und sagt es (0097).
 - Die Grenzen eines Bandes aus einer fremden Fassung (0097).
 - Ein Stückgewicht, das der Perigon-Artikelstamm nicht kennt (0115).
+- Ein Hagelschaden, den niemand eingetragen hat — ohne Eintrag kein Hagel
+  (0116).
+- Ein Mittel ganzer Paletten für eine Palette, deren Kisten gezählt sind
+  (0116).

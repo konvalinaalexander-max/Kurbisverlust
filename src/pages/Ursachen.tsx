@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { datum, kg, prozent, tonnen, zahl } from '../lib/format'
+import { supabase } from '../lib/supabase'
 import { chargenNachFeld } from '../lib/felder'
 import { Aufklapp, Erklaerung, Herkunft, Hinweis, Karte, Kennzahl, Leer, Marke, Segmente } from '../components/Bausteine'
 import { Anteilsbalken, Linien, type Anteilszeile, type Punkt, type Reihe, type Zone } from '../components/Diagramm'
@@ -60,9 +61,18 @@ export default function Ursachen() {
   const [chargeFenster, setChargeFenster] = useState<number | null>(null)
   const punktOeffnen = (p: Punkt, titel: string) => {
     const zeilen = (p.text ?? '').split(' · ')
-    if (p.auftragId != null) setFenster({ auftragId: p.auftragId, messung: { titel, name: p.name ?? '', zeilen, kern: p.kern } })
-    else setPunkt({ titel, name: p.name ?? '', zeilen, chargeNr: p.chargeNr, kern: p.kern })
+    if (p.auftragId != null) setFenster({ auftragId: p.auftragId, messung: { titel, name: p.name ?? '', zeilen, kern: p.kern, ausschluss: p.ausschluss } })
+    else setPunkt({ titel, name: p.name ?? '', zeilen, chargeNr: p.chargeNr, kern: p.kern, ausschluss: p.ausschluss })
   }
+  // Runde AS (0116): die von Hand ausgeschlossenen Messungen — das Fenster eines Punkts zeigt „benutzen" an oder aus.
+  const [ausgeschlossen, setAusgeschlossen] = useState<Set<string>>(new Set())
+  useEffect(() => {
+    let gilt = true
+    void supabase.from('messung_ausschluss').select('art, bezug_id').then(r => {
+      if (gilt && !r.error) setAusgeschlossen(new Set(((r.data ?? []) as { art: string; bezug_id: number }[]).map(x => `${x.art}:${x.bezug_id}`)))
+    })
+    return () => { gilt = false }
+  }, [fenster, punkt])
   const chargen = useMemo(() => daten ? chargenIm(daten.bestand, filter) : [], [daten, filter])
   const staende = useMemo(() => daten ? lagerstaende(chargen, daten.naechste) : [], [chargen, daten])
 
@@ -103,8 +113,8 @@ export default function Ursachen() {
       </div>
 
       <Wohin daten={daten} filter={filter} setzen={setzen} chargeAnsehen={setChargeFenster} />
-      <Faules daten={daten} filter={filter} chargen={chargen} staende={staende} oeffnen={punktOeffnen} />
-      <Verdunstung daten={daten} filter={filter} chargen={chargen} oeffnen={punktOeffnen} />
+      <Faules daten={daten} filter={filter} chargen={chargen} staende={staende} oeffnen={punktOeffnen} ausgeschlossen={ausgeschlossen} />
+      <Verdunstung daten={daten} filter={filter} chargen={chargen} oeffnen={punktOeffnen} ausgeschlossen={ausgeschlossen} />
       <Marge daten={daten} filter={filter} chargen={chargen} oeffnen={id => setFenster({ auftragId: id })} />
       {fenster !== null && <ArbeitFenster auftragId={fenster.auftragId} messung={fenster.messung} schliessen={() => setFenster(null)} />}
       {punkt !== null && <MessungFenster info={punkt} schliessen={() => setPunkt(null)} />}
@@ -253,8 +263,9 @@ function Wohin({ daten, filter, setzen, chargeAnsehen }: {
 
 /* ---------- U2: Palox-Ausschuss --------------------------------------------- */
 
-function Faules({ daten, filter, chargen, staende, oeffnen }: {
+function Faules({ daten, filter, chargen, staende, oeffnen, ausgeschlossen }: {
   daten: Auswertung; filter: Filter; chargen: Bestand[]; staende: Lagerstand[]; oeffnen: (p: Punkt, titel: string) => void
+  ausgeschlossen: Set<string>
 }) {
   const [achse, setAchse] = useAchse('urs.palox.achse')
   // 0105: „Vergleiche nur unter ihresgleichen" — die Punkte lassen sich je
@@ -273,6 +284,9 @@ function Faules({ daten, filter, chargen, staende, oeffnen }: {
   const plausibel = (p: Schimmelpunkt) => sicht === 'alle' ? p.plausibel : p.plausibel_station
   const gute = punkte.filter(p => plausibel(p) && wert(p) !== null)
   const schlechte = punkte.filter(p => !plausibel(p) && wert(p) !== null)
+  // Runde AS: eine Arbeit lässt sich aus der Rechnung nehmen (und wieder hinein) — Kontrollwägungen über ihre Verdunstungs-Wägung
+  const paloxAusschluss = (p: Schimmelpunkt) => p.auftrag_id != null && p.quelle !== 'lager'
+    ? { art: 'palox' as const, bezugId: p.auftrag_id, aus: ausgeschlossen.has(`palox:${p.auftrag_id}`) } : undefined
 
   // Gruppiert wird eine Ebene feiner als der Filter: alle → je Sorte,
   // eine Sorte → je Charge, eine Charge → eine Reihe.
@@ -305,7 +319,7 @@ function Faules({ daten, filter, chargen, staende, oeffnen }: {
       name: `Charge ${p.charge_nr} · ${p.sorte}`,
       text: `${datum(p.messtag)} · ${stationText(p.station)} · liegt seit ${Math.round(p.lagertage)} Tagen · ${kg(p.schimmel_kg, 0)} von ${kg(p.basis_jetzt_kg, 0)} · ${quelleText(p.quelle)}${p.auftrag_id != null && kommentar.has(p.auftrag_id) ? ` · Kommentar: ${kommentar.get(p.auftrag_id)}` : ''}`,
       kern: { wert: `${((wert(p) ?? 0) * 100).toFixed(1)} % in den Palox`, unter: `${kg(p.schimmel_kg, 0)} von ${kg(p.basis_jetzt_kg, 0)}` },
-      auftragId: p.auftrag_id, chargeNr: p.charge_nr,
+      auftragId: p.auftrag_id, chargeNr: p.charge_nr, ausschluss: paloxAusschluss(p),
       groesse: p.auftrag_id != null && kommentar.has(p.auftrag_id) ? 6 : undefined,
     })),
   })).filter(r => r.punkte.length > 0)
@@ -335,8 +349,9 @@ function Faules({ daten, filter, chargen, staende, oeffnen }: {
         y: Math.min((wert(p) ?? 0) * 100, 100),
         name: `Charge ${p.charge_nr} · ${p.sorte}`,
         text: `${datum(p.messtag)} · ${stationText(p.station)} · ${kg(p.schimmel_kg, 0)} von ${kg(p.basis_jetzt_kg, 0)} · nicht plausibel, siehe Messungen${p.auftrag_id != null && kommentar.has(p.auftrag_id) ? ` · Kommentar: ${kommentar.get(p.auftrag_id)}` : ''}`,
-        kern: { wert: `${((wert(p) ?? 0) * 100).toFixed(1)} % — nicht plausibel`, unter: `${kg(p.schimmel_kg, 0)} von ${kg(p.basis_jetzt_kg, 0)}` },
-        auftragId: p.auftrag_id, chargeNr: p.charge_nr,
+        kern: { wert: `${((wert(p) ?? 0) * 100).toFixed(1)} % — ${p.auftrag_id != null && ausgeschlossen.has(`palox:${p.auftrag_id}`) ? 'von Hand ausgeschlossen' : 'nicht plausibel'}`,
+                unter: `${kg(p.schimmel_kg, 0)} von ${kg(p.basis_jetzt_kg, 0)}` },
+        auftragId: p.auftrag_id, chargeNr: p.charge_nr, ausschluss: paloxAusschluss(p),
       })),
     })
   }
@@ -495,7 +510,9 @@ const quelleText = (q: string) =>
 
 /* ---------- U3: Verdunstung -------------------------------------------------- */
 
-function Verdunstung({ daten, filter, chargen, oeffnen }: { daten: Auswertung; filter: Filter; chargen: Bestand[]; oeffnen: (p: Punkt, titel: string) => void }) {
+function Verdunstung({ daten, filter, chargen, oeffnen, ausgeschlossen }: {
+  daten: Auswertung; filter: Filter; chargen: Bestand[]; oeffnen: (p: Punkt, titel: string) => void; ausgeschlossen: Set<string>
+}) {
   const [achse, setAchse] = useAchse('urs.verd.achse')
   const imFilter = new Set(chargen.map(c => c.charge_nr))
   const alle = daten.wiegungen.filter(w => imFilter.has(w.charge_nr) && w.lagertage > 0 && w.rate_pro_tag !== null)
@@ -525,6 +542,7 @@ function Verdunstung({ daten, filter, chargen, oeffnen }: { daten: Auswertung; f
       text: `${datum(w.wiege_ts)} · liegt seit ${Math.round(w.lagertage)} Tagen · ${kg(w.netto_damals_kg, 0)} → ${kg(w.netto_jetzt_kg, 0)}${w.auftrag_id != null && kommentar.has(w.auftrag_id) ? ` · Kommentar: ${kommentar.get(w.auftrag_id)}` : ''}`,
       kern: { wert: `${((w.rate_pro_tag ?? 0) * 100).toFixed(2)} % je Tag verdunstet`, unter: `${kg(w.netto_damals_kg, 0)} → ${kg(w.netto_jetzt_kg, 0)}` },
       auftragId: w.auftrag_id, chargeNr: w.charge_nr,
+      ausschluss: { art: 'verdunstung' as const, bezugId: w.id, aus: ausgeschlossen.has(`verdunstung:${w.id}`) },
       groesse: w.auftrag_id != null && kommentar.has(w.auftrag_id) ? 6 : undefined,
     })),
   })).filter(r => r.punkte.length > 0)
@@ -540,8 +558,9 @@ function Verdunstung({ daten, filter, chargen, oeffnen }: { daten: Auswertung; f
         y: Math.max((w.rate_pro_tag ?? 0) * 100, 0),
         name: `Charge ${w.charge_nr} · ${w.sorte}`,
         text: `${datum(w.wiege_ts)} · ${kg(w.netto_damals_kg, 0)} → ${kg(w.netto_jetzt_kg, 0)} · ${w.grund ?? 'zählt nicht in die Rate'}${w.plausibel ? '' : ' — unter Messungen berichtigen'}`,
-        kern: { wert: 'zählt nicht in die Rate', unter: `${kg(w.netto_damals_kg, 0)} → ${kg(w.netto_jetzt_kg, 0)}` },
+        kern: { wert: w.grund === 'von Hand ausgeschlossen' ? 'von Hand ausgeschlossen' : 'zählt nicht in die Rate', unter: `${kg(w.netto_damals_kg, 0)} → ${kg(w.netto_jetzt_kg, 0)}` },
         auftragId: w.auftrag_id, chargeNr: w.charge_nr,
+        ausschluss: { art: 'verdunstung' as const, bezugId: w.id, aus: w.grund === 'von Hand ausgeschlossen' || ausgeschlossen.has(`verdunstung:${w.id}`) },
       })),
     })
   }

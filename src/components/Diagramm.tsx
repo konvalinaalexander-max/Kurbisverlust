@@ -31,6 +31,8 @@ export interface Punkt {
   chargeNr?: number
   /** Runde AO: die Kernzahl für das Fenster, das der Punkt öffnet („24.7 % in den Palox", „250 kg von 1014 kg"). */
   kern?: { wert: string; unter?: string }
+  /** Runde AS: welche Messung hinter dem Punkt steht, damit das Fenster sie aus der Rechnung nehmen kann. */
+  ausschluss?: { art: 'palox' | 'palox_lager' | 'verdunstung'; bezugId: number; aus: boolean }
 }
 export interface Reihe {
   name: string

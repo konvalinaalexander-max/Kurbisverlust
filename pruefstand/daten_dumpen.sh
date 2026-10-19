@@ -31,7 +31,8 @@ for R in v_hochrechnung erg_massenbilanz erg_datenlage erg_marge erg_plausibilit
          verdunstung_wiegung ausgang_zeile \
          kontrollpalette kontrollpalette_wiegung v_kontrollpalette_vorschlag v_ausgang_voll \
          sortier_lauf v_sortier_lesung v_charge_rueckgrat auftrag_rueckmeldung erg_marge_charge v_auftrag_palette_masse v_arbeit_kommentar lieferung auswertung_stand \
-         artikel_kaliber v_charge_label v_kunde_tag v_sorte_artikelgruppe v_lauf_vergleich v_lieferung_gruppe v_ausgang_pruef; do
+         artikel_kaliber v_charge_label v_kunde_tag v_sorte_artikelgruppe v_lauf_vergleich v_lieferung_gruppe v_ausgang_pruef \
+         kunde_gruppe kunde_plan v_perigon_pruefung v_kunde_position ausgang_position lieferung_import messung_ausschluss; do
   dump "$R" "select * from $R"
 done
 dump erg_wiegung "select * from erg_wiegung order by wiege_ts desc"

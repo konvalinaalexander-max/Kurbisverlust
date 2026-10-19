@@ -89,3 +89,45 @@ test('Übersicht: die Grössen am Stichtag der Tabelle getrennt von heute', () =
   const [ohne] = uebersichtszeilen(bestand, labelVon, gruppeVon, teile, OFFEN)
   assert.deepEqual([...ohne.klassenSpaeter], [...ohne.klassen], 'ohne Stichtag dieselben Teile')
 })
+
+/* ---------- Runde AS: Kundengruppen, Planmengen, reicht es? ---------------- */
+import { kundenGruppe, nochZuLiefern, planFuer, type KundePlan } from '../src/auswertung/artikel.ts'
+
+test('Runde AS: die Kundengruppe — gesetzt vor dem Namen; Migros, Coop (auch RVZ), sonst Kleinkunden', () => {
+  const gesetzt = new Map([['Hofladen Muster', 'Grosshandel']])
+  assert.equal(kundenGruppe('Hofladen Muster', gesetzt), 'Grosshandel')
+  assert.equal(kundenGruppe('Migros Prüfstadt', gesetzt), 'Migros')
+  assert.equal(kundenGruppe('Coop Genossenschaft', gesetzt), 'Coop')
+  assert.equal(kundenGruppe('RVZ Prüfstadt', gesetzt), 'Coop')
+  assert.equal(kundenGruppe('RZV Musterdorf', gesetzt), 'Coop')
+  assert.equal(kundenGruppe('Scoop Bar', gesetzt), 'Kleinkunden', 'nicht jedes „coop" im Wort ist Coop')
+})
+
+const w = (gruppe: string, groesse: 'beide' | 'klein' | 'gross', label: 'beide' | 'D' | 'K') => ({ gruppe, groesse, label })
+const plan = (kunde: string, label: string, kg: number, gruppe = 'Knirps', groesse = ''): KundePlan =>
+  ({ saison: 2026, kunde, artikelgruppe: gruppe, groesse, label, kg })
+
+test('Runde AS: der Plan gilt genau für seine Wahl; ohne Plan das ganze Vorjahr; bei beiden Labels zählen die Pläne je Label zusammen', () => {
+  const vorjahr = (l: 'beide' | 'D' | 'K') => ({ beide: 1000, D: 600, K: 300 })[l]   // 100 kg ohne Label
+  assert.deepEqual(planFuer('A', 2026, w('Knirps', 'beide', 'D'), [plan('A', 'D', 800)], vorjahr), { kg: 800, eigen: true })
+  assert.deepEqual(planFuer('A', 2026, w('Knirps', 'beide', 'K'), [plan('A', 'D', 800)], vorjahr), { kg: 300, eigen: false })
+  assert.deepEqual(planFuer('A', 2026, w('Knirps', 'beide', 'beide'), [plan('A', 'D', 800)], vorjahr), { kg: 800 + 300 + 100, eigen: 'teils' })
+  assert.deepEqual(planFuer('A', 2026, w('Knirps', 'beide', 'beide'), [plan('A', 'D', 800), plan('A', 'K', 200)], vorjahr), { kg: 1100, eigen: true })
+  assert.deepEqual(planFuer('A', 2026, w('Knirps', 'beide', 'beide'), [plan('A', '', 1500)], vorjahr), { kg: 1500, eigen: true })
+  assert.deepEqual(planFuer('A', 2026, w('Knirps', 'klein', 'D'), [plan('A', 'D', 800)], vorjahr), { kg: 600, eigen: false }, 'ein Plan für beide Grössen gilt nicht für klein allein')
+  assert.deepEqual(planFuer('A', 2027, w('Knirps', 'beide', 'D'), [plan('A', 'D', 800)], vorjahr), { kg: 600, eigen: false }, 'ein Plan gilt nur für seine Saison')
+})
+
+test('Runde AS: noch zu liefern — Plan weniger geliefert, nie unter null, über alle Kunden mit Vorjahr, Lieferung oder Plan', () => {
+  const tag = (kunde: string, saison: number, kg: number, label: string | null = 'D', groesse = 'klein') =>
+    ({ kunde, saison, gruppe: 'Knirps', groesse, label, kg })
+  const kunden = [tag('A', 2025, 1000), tag('A', 2026, 400),          // Plan = Vorjahr 1000 → noch 600
+                  tag('B', 2025, 200), tag('B', 2026, 500),           // schon mehr als im Vorjahr → 0, nicht −300
+                  tag('C', 2025, 300, 'K')]                           // anderes Label — zählt bei Demeter nicht
+  const r = nochZuLiefern(kunden, [plan('N', 'D', 250)], 2026, w('Knirps', 'beide', 'D'))
+  assert.equal(r.kg, 600 + 0 + 250)
+  assert.deepEqual([...r.jeKunde.keys()].sort(), ['A', 'B', 'N'])
+  assert.deepEqual(r.jeKunde.get('B'), { plan: 200, eigen: false, geliefert: 500, offen: 0 })
+  assert.equal(nochZuLiefern(kunden, [], 2026, w('Knirps', 'beide', 'beide')).kg, 600 + 0 + 300)
+  assert.equal(nochZuLiefern(kunden, [], 2026, w('Knirps', 'beide', 'D'), new Set(['A'])).kg, 600, 'nur die Kunden einer Gruppe')
+})

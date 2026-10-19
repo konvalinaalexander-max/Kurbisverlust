@@ -28,6 +28,15 @@
     },
     {
       "muster": [
+        "Plan",
+        "noch zu liefern"
+      ],
+      "art": "gemessen",
+      "bedeutet": "Plan: die Menge, die der Betrieb einem Kunden für die ganze Saison eingetragen hat (Runde AS); ohne Eintrag gilt, grau, die ganze Vorjahressaison des Kunden aus den Perigon-Dateien. Noch zu liefern: der Plan weniger das diese Saison schon Gelieferte, nie unter null",
+      "quelle": "kunde_plan.kg · ausgang_zeile.kg"
+    },
+    {
+      "muster": [
         "Ausgelagert"
       ],
       "art": "gerechnet",

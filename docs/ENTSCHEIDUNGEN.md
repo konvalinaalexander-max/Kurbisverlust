@@ -4171,6 +4171,106 @@ Daten, dann die Annahme — nach der Korrektur nachsehen.
 nicht alles: vier mal vier gleiche Paloxen und ein Tag mit 30 Paaren bei
 13 erwarteten sind Fragen wert.
 
+## Runde AS: die Grösse kommt aus der Sortierdatei (19. Oktober, 0116)
+
+Eine lange Sprachnachricht, 23 Punkte, als Liste abgearbeitet (AS-01 bis
+AS-23). Hier nur, was eine Entscheidung brauchte; die Ketten stehen in
+`docs/HERLEITUNG.md` (§ 1, 2, 5, 6, 7, 12a), die Abmachungen als AB-148 bis
+AB-156.
+
+**Zu klein und zu gross (AB-148).** Bis hier war es ein Anteil je Sorte, das
+gleichgewichtete Mittel aus Sortierläufen und Handmessungen, gleich für
+jedes Alter. Auf der Kopie der Betriebsdaten lag „zu gross" aus der Datei
+bei 7.4 %, von Hand bei 3.4 % — die Handmessung halbierte das Überkaliber,
+wie der Betrieb vermutet hatte („von Auge nicht erkannt"). Der Vorschlag des
+Betriebs ist umgesetzt, wie er ihn sagte: jeden Kürbis einer Datei um die
+gemessene Verdunstung über sein Alter beim Sortieren auf den Eingangstag
+zurück, je Charge eine Verteilung beim Eingang, und für jedes Alter wieder
+vor. So wird junge Ware mehr zu gross, alte mehr zu klein, ohne eine
+weitere Annahme. Erst die Läufe der Charge, dann die der Sorte, dann wie
+bisher. Das Alter kommt aus den Zetteldaten der Arbeit — darum ist das
+Zetteldatum beim Sortieren jetzt zu Beginn Pflicht, mit einem Hinweis die
+ersten fünf Male (AS-03) —, sonst aus den Paletten, die schon da waren. Auf
+der Kopie: 12 Läufe (17.8.–10.9.), keiner einer Arbeit zugeordnet; zu klein
+und zu gross der liegenden Ware 20.7 → 16.5 t. Die Sortierdateien seit dem
+23. September fehlen in der Datenbank — mit ihnen trägt die Rechnung mehr.
+
+**Wasser in der Prognose kann negativ sein.** Was zu gross ist, trocknet in
+die Bänder hinein; über ein paar Wochen kann das mehr Verkaufsfähiges
+bringen, als Wasser kostet. Die Zerlegung „Wasser / Fäulnis" bleibt exakt
+(Summe = Verlust an Verkaufsfähigem), „Wasser" ist dann kleiner als null.
+Das Orakel (K8) hält die Grenze: nie mehr Gewinn als das Überkaliber, das
+in der Zeit hineinschrumpft. Eine künstliche Untergrenze bei 0 hätte die
+Summe falsch gemacht.
+
+**Hagel (AB-149).** Der Betrieb: „wenn 20 % Hagelschaden, dann ist 20 % vom
+Wareneingang nicht mehr verfügbar … schau, dass du das nicht doppelt
+zählst." Hagelware landet beim Waschen und Sortieren im Palox — also wirkt
+der Hagel auf den Palox-Anteil, multiplikativ (1 − (1 − f)(1 − h)), und nur
+dort, wo keine Messung der Charge ihn schon enthält: auf alles, was liegt,
+und auf Ausgelagertes ohne eigene Messung. Eine Charge mit Hagel zählt
+nicht in die geteilten Anteile der Sorte und der Station — sonst trüge
+jede andere Charge ihren Hagel mit. Gesetzt unter Chargen (Kästchen, dann
+Prozent), nur vom Betriebsleiter.
+
+**Ausreisser von Hand (AB-150).** Ein Kästchen „Diese Messung benutzen" im
+Fenster der Palox-Messung einer Arbeit und der Verdunstungsmessung. Ausgeschlossen heisst: steht
+grau im Bild, zählt in keine Rate. Gelöscht wird nichts, und der
+Ausschluss ist eine eigene Tabelle (`messung_ausschluss`) statt einer
+Spalte an jeder Messung — eine Stelle, die jede Rate fragt.
+
+**Je Kiste statt je Palette (AB-151, AS-13, AS-23).** Die Fälle, die der
+Betrieb gesehen hatte, waren die Holz-Palox der Charge 1638: ohne Tara des
+Gebindes rechnete der Zettel mit der mittleren Tara der Charge — 79 kg,
+die einer G2-Palette mit 36 Kisten, für eine Palox. Jetzt Holz-Palox 45 kg,
+Plastik-Palox 35 kg, und wo eine Tara fehlt, die Tara je Kiste der Charge
+mal die Kisten. Auf der Kopie: Eingang 656.5 → 653.9 t.
+
+**Kunden, Pläne, ob es reicht (AB-154).** Gruppen und Pläne sind Tabellen
+des Betriebs, nicht Regeln im Code: Ein Kundenname darf nicht ins
+Repository (CLAUDE.md), darum ordnet die App ohne Eintrag nur nach Migros,
+Coop (auch RVZ) und sonst Kleinkunden; jede andere Gruppe — auch die des
+grössten Einzelkunden — setzt der Betriebsleiter einmal mit dem Stift. Ein
+Plan gilt genau für seine Wahl (Artikelgruppe, Grösse, Label); ohne Plan
+steht grau das ganze Vorjahr. Das Verkaufsfähige gegen „noch zu liefern"
+steht je Artikel in der Tabelle, rot mit „!", wenn es nicht reicht.
+
+**Die ganze Perigon-Zeile (AB-153, AB-155).** Beim Einlesen jede Zeile mit
+allen Spalten (`ausgang_position.roh`), zum Zeigen, nicht zum Rechnen; die
+Preisspalten bleiben in der Datenbank des Betriebs und kommen nie ins
+Repository. Die Demo trägt eine Zeile ohne Preis. Auf der Kopie fand die
+erweiterte Prüfung 14 Zeilen ohne Charge (11 davon die unbekannte 198977,
+drei, die nach einem Neu-Einlesen ihre Charge bekommen), 7 Lieferungen der
+Charge 1626 vor ihrem ersten Eingang, zwei als Mandarin verkaufte Kaori
+Kuri und eine Demeter-Zeile mit Knospe-Label.
+
+**Mutationen.** Block 0116, 25 Mutationen, alle erkannt — darunter die
+Fassung mit dem ersten statt dem letzten Band, das Alter nur aus dem
+Eingang, keine Rückrechnung, zu klein und zu gross ohne Alter, ohne
+Sortenebene, der Hagel addiert statt multipliziert, der Hagel auf
+gemessener Ware, der Hagel in den geteilten Anteilen, jeder der drei
+Ausschlüsse wirkungslos, die Halle darf ausschliessen, Pläne und Hagel
+setzen, die ganze Zeile geht beim nächsten Einlesen verloren, die Liste
+je Kunde ohne Kürbisfilter, die Lieferung vor dem Eingang übersehen, die
+Demo hinterlässt Ausschlüsse, die Prognose verschweigt den Kaliberwechsel.
+Dabei fiel auf, dass 0106 (c1) und 0111 (c, d, e5) den Palox-Anteil einer
+Charge ohne Hagel geprüft hatten; die Zusicherungen rechnen den Hagel jetzt
+mit und sagen es im Kommentar.
+
+**Was bewusst nicht gemacht wurde.** Kein eigenes Unsicherheitsband für den
+Anteil aus der Sortierdatei — die Datei ist eine Vollerhebung des Laufs,
+die Unsicherheit liegt im Alter und in der Rate, und beide stehen da. Keine
+eigene Verdunstung je Kürbisgrösse: alle Kürbisse einer Sorte trocknen
+gleich schnell, bis eine Messung anderes zeigt. Den Ausschluss einer
+Kontrollwägung (`palox_lager`) kennt die Datenbank, die Maske noch nicht:
+Der Punkt einer Kontrollwägung in `erg_punkte` trägt die Nummer seiner
+Wägung nicht, und dafür eine Sicht umzubauen, lohnt erst, wenn ein
+Ausreisser es verlangt. Die Positionen der
+laufenden Saison in der Demo haben keine ganze Zeile — die Demo liest keine
+Datei. Kein Kundenname im Code, auch nicht als Vorgabe einer Gruppe. Die
+Überfüllung in der Rechnung (Frage aus Runde AP) wartet weiter auf die
+Antwort des Betriebs.
+
 ## Runde AR: das Kilo kommt aus der Menge (15. Oktober, 0115)
 
 Der Betrieb nach der Prüfung der Perigon-Dateien Zeile für Zeile: „Gewicht je

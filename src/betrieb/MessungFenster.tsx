@@ -3,9 +3,10 @@ import { createPortal } from 'react-dom'
 import { ZKreuz } from '../components/Zeichen'
 import { ChargeFenster } from './ChargeFenster'
 import { MessungKasten } from './ArbeitFenster'
+import type { Ausschluss } from './Benutzen'
 
 /** Was ein Punkt im Diagramm über seine Messung weiss — Zeile für Zeile, und seine Kernzahl. */
-export interface PunktInfo { titel: string; name: string; zeilen: string[]; chargeNr?: number; kern?: { wert: string; unter?: string } }
+export interface PunktInfo { titel: string; name: string; zeilen: string[]; chargeNr?: number; kern?: { wert: string; unter?: string }; ausschluss?: Ausschluss }
 
 /**
  * Die Messung hinter einem Punkt, der zu keiner Arbeit gehört (Runde Z) —
@@ -33,7 +34,7 @@ export function MessungFenster({ info, schliessen }: { info: PunktInfo; schliess
           </div>
           <button type="button" className="klein schliessen" onClick={schliessen} aria-label="schliessen"><ZKreuz size={16} /></button>
         </div>
-        <MessungKasten messung={{ titel: 'Die Messung', name: info.name, zeilen: info.zeilen, kern: info.kern }}
+        <MessungKasten messung={{ titel: 'Die Messung', name: info.name, zeilen: info.zeilen, kern: info.kern, ausschluss: info.ausschluss }}
                        fuss={<p className="leise" style={{ margin: '.5rem 0 0' }}>Diese Messung gehört zu keiner Arbeit — eine Kontrollwägung im Lager.</p>} />
         {info.chargeNr != null && (
           <div className="knopf-reihe" style={{ marginTop: 'var(--a-4)' }}>

@@ -9519,7 +9519,7 @@ select '——— 0115 Das Kilo kommt aus der Menge; was Perigon nicht mehr sagt
 --     mitschickt; die Positionen je Kunde summieren sich zum Vergleich je
 --     Kunde; die Prüfungen der Perigon-Zeilen finden jede ihrer Arten;
 -- (h) die Demo zeigt Hagel, Ausreisser, Gruppe und Plan und nimmt sie beim
---     Entfernen mit; (i) Stand 116.
+--     Entfernen mit; ihre Vorjahre tragen die ganze Zeile; (i) Stand 116.
 -- =====================================================================
 do $$
 declare v_modus jsonb; v_lad text; v_geladen boolean := false; v_n int; v_n2 int; v_ab int; v_j jsonb;
@@ -9803,6 +9803,10 @@ begin
   v_ok := false;
   begin insert into kunde_plan (saison, kunde, kg) values (2026, 'Prüfkunde 116', 1); exception when insufficient_privilege then v_ok := true; end;
   assert v_ok, '0116 (f4): eine Arbeiterin konnte eine Planmenge setzen';
+  -- Der Hagel steht an der Charge; die Zeile wird für die Halle nur gefiltert, nicht verweigert.
+  update charge set hagel_anteil = 0.5 where nr = (select min(nr) from charge);
+  get diagnostics v_n = row_count;
+  assert v_n = 0, '0116 (f7): eine Arbeiterin konnte den Hagel einer Charge setzen';
   assert (select count(*) from kunde_gruppe) > 0, '0116 (f5): eine Arbeiterin sieht die Kundengruppen nicht';
   perform set_config('request.jwt.claim.sub', v_u::text, true);
   insert into kunde_gruppe (kunde, gruppe) values ('Prüfkunde 116', 'Prüfgruppe');
@@ -9892,6 +9896,12 @@ begin
      and (select count(*) from messung_ausschluss where grund like 'DEMO%') = 2
      and (select count(*) from kunde_gruppe) >= 2 and (select count(*) from kunde_plan) >= 1,
     '0116 (h1): die Demo zeigt Hagel, Ausreisser, Kundengruppe oder Plan nicht';
+  -- (h3) die Vorjahre der Demo tragen die ganze Zeile — ohne Preis
+  perform demo_vorjahre_laden();
+  assert exists (select 1 from ausgang_position where quelle = 'DEMO')
+     and not exists (select 1 from ausgang_position where quelle = 'DEMO'
+                      and (roh is null or (roh -> 0 ->> 'AufPosId')::bigint <> pos_id or roh -> 0 ->> 'AuftragsErloesTotExkl' is not null)),
+    '0116 (h3): die Demo-Vorjahre tragen nicht die ganze Zeile (oder eine mit Preis)';
   -- (Nur, wenn der Block die Demo selbst geladen hat — sonst bliebe sie weg.)
   if v_geladen then
     perform demo_daten_entfernen();
