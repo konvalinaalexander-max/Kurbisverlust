@@ -49,10 +49,19 @@
   --strom-ausschuss:   #eda100;
   --strom-nebenkanal:  #e87ba4;
   --strom-fax:         #7c56d8;
-  --strom-rest:        #1f8a3a;
-  /* Runde R: derselbe Strom heller — „liegt noch und ist verkaufsfähig" gegen
-     „schon verkauft". Zwei Nachbarn im Band, eine Familie. */
-  --strom-rest-hell:   #62c07a;
+  /* Runde AT: ein Farbsystem für Lager nach Charge, nach Artikel und Ursachen.
+     Der Betrieb: „verkauft grau … im Lager klein und gross hell und dunkel grün,
+     und bei Ursachen ein Grünton in der Mitte." Verkauft ist grau (erledigt,
+     nicht mehr im Haus); das Verkaufsfähige ist eine Grünfamilie: ungeteilt die
+     Mitte, nach Grösse hell (klein) und dunkel (gross). Geprüft mit dem
+     Palettenprüfer, hell und dunkel, auch für Farbfehlsichtige. */
+  --strom-verkauft:    #c2c5ca;
+  --strom-vf-klein:    #62c07a;
+  --strom-vf:          #2e8f4e;
+  --strom-vf-gross:    #1f6d38;
+  /* Die alten Namen zeigen auf die neuen — wer sie noch braucht, bleibt im System. */
+  --strom-rest:        var(--strom-vf);
+  --strom-rest-hell:   var(--strom-vf-klein);
 
   /* Reihen: Sorten und Chargen in Diagrammen (Runde R). Nicht die
      Stromfarben — sonst sähe „Tiana" aus wie „Verdunstung". Die Zuordnung
@@ -130,8 +139,10 @@
     --strom-ausschuss:   #d99a17;
     --strom-nebenkanal:  #e0679a;
     --strom-fax:         #9b7ce8;
-    --strom-rest:        #3aa653;
-    --strom-rest-hell:   #6fd18a;
+    --strom-verkauft:    #5d6269;
+    --strom-vf-klein:    #63bf7d;
+    --strom-vf:          #3e9f5c;
+    --strom-vf-gross:    #2b7a44;
 
     --reihe-1: #7ea1ea;  --reihe-2: #f0a054;  --reihe-3: #5ec99a;  --reihe-4: #d98acb;
     --reihe-5: #e5c94a;  --reihe-6: #5ccbe0;  --reihe-7: #c98a6b;  --reihe-8: #a6a6a6;

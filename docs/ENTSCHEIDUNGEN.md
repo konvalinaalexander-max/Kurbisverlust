@@ -4171,6 +4171,113 @@ Daten, dann die Annahme — nach der Korrektur nachsehen.
 nicht alles: vier mal vier gleiche Paloxen und ein Tag mit 30 Paaren bei
 13 erwarteten sind Fragen wert.
 
+## Runde AT: Kunden in der Reihenfolge des Betriebs, eine Farbe heisst überall dasselbe (19. Oktober, abends, 0117)
+
+Eine Nachricht nach Runde AS, acht Punkte (AT-01 bis AT-08). Abmachungen
+AB-157 bis AB-161, die Kette in `docs/HERLEITUNG.md` § 12a.
+
+**Reihenfolge und Zugehörigkeit sind Daten (AB-157).** Der Betrieb will die
+Gruppen in seiner Reihenfolge: der grösste Einzelkunde, Coop (mit einem
+Verteilzentrum, das nicht Coop heisst), Migros, ein Grosshändler, dann der
+Rest als Kleinkunden. Keiner dieser Namen darf ins Repository. Darum gibt
+es eine Tabelle der Reihenfolge (`kunde_gruppe_rang`), gesetzt mit zwei
+Pfeilen in der Gruppenzeile; welcher Kunde zu welcher Gruppe gehört, bleibt
+in `kunde_gruppe` (0116), gesetzt am Kunden. Ohne Reihenfolge stehen die
+Gruppen nach Menge, Kleinkunden zuletzt — so wie bis hier. Ein Pfeil
+schreibt die ganze Reihenfolge neu, damit nie zwei Gruppen denselben Rang
+haben und keine Lücke entsteht.
+
+**Ein Plan für die ganze Gruppe zählt als Ganzes (AB-158).** Zwei Lesarten
+waren möglich: der Gruppenplan als Ganzes, neben dem die Kundenpläne nicht
+mehr zählen, oder als Rest für die Kunden ohne eigenen Plan. Der Betrieb
+sagte „der gesamten Gruppe eine Planmenge geben" — also das Erste: noch zu
+liefern der Gruppe = Gruppenplan − alles, was ihre Kunden bekommen haben.
+Die Pläne der Kunden darin bleiben stehen (der Betriebsleiter sieht, wer
+wie weit ist), zählen in der Gruppe und in „Reicht es?" aber nicht noch
+einmal. Die Zelle sagt, woher die Zahl kommt: „Plan der Gruppe", „Summe der
+Kunden", „teils Plan", „Vorjahr"; unter einem Kunden in einer Gruppe mit
+Plan „Gruppenplan gilt". Eigene Tabelle (`gruppe_plan`) statt der Gruppe
+als Schein-Kunde in `kunde_plan` — sonst wäre ein Kunde, der so heisst wie
+eine Gruppe, nicht von ihr zu unterscheiden.
+
+**Die Lieferung wie in Excel (AB-153 erweitert).** Das Fenster zeigt zuerst
+die Zeile der Perigon-Datei so, wie der Betriebsleiter sie kennt: oben die
+Spaltennamen, darunter die Einträge, Zahlen rechts, leere Zellen leer;
+seitlich rollbar, wenn die Datei breit ist. Darunter, wie daraus die Kilos
+werden.
+
+**Die Lieferungen unter dem Kunden (AB-159).** Bis hier standen sie als
+eigene Karte unter der Tabelle — weit weg vom Kunden, den man angeklickt
+hatte. Jetzt öffnen sie sich als Zeile direkt unter ihm, eingerückt, mit
+einer orangen Linie links; der Kunde trägt einen Pfeil, der sich dreht. Ein
+zweiter Klick schliesst. Lange Listen rollen in sich, mit ihren
+Spaltentiteln — der klebende Kopf der grossen Tabelle lässt die innere in
+Ruhe (`haftkopf.ts`).
+
+**Regeln für eine geführte Maske (AT-05).** Der Betrieb fand die Seite
+„noch nicht benutzerfreundlich" und bat um Regeln. Diese gelten ab hier für
+jede Seite, die man anfasst:
+
+1. *Eine Karte, eine Frage.* Der Titel ist die Frage („Reicht, was da ist?"),
+   der Inhalt die Antwort; Erklärungen stehen in „Wie diese Zahlen
+   entstehen", nicht im Weg.
+2. *Drei Ebenen, sofort erkennbar.* Gruppe (Fläche, fett), Eintrag (normal,
+   eingerückt), Detail (eingerückt mit Linie). Was zusammengehört, steht
+   beieinander — das Detail unter seinem Eintrag, nicht am Ende der Seite.
+3. *Was man anklicken kann, sieht so aus.* Ein Pfeil zeigt „öffnet sich",
+   der Klick öffnet, der zweite schliesst, der Zustand ist sichtbar
+   (`aria-expanded`).
+4. *Werkzeuge am Gegenstand.* Stift und Pfeile stehen in der Zeile, die sie
+   ändern; die Pfeile der Reihenfolge bleiben leise, bis man darüberfährt —
+   man braucht sie einmal im Jahr.
+5. *Zahlen rechtsbündig, mit Einheit, Summen fett.* Eine Zelle sagt in
+   einer zweiten, kleinen Zeile, woher ihre Zahl kommt, statt eine weitere
+   Spalte aufzumachen.
+6. *Nichts verschwindet am Rand.* Bei 1440 px passt jede Tabelle in ihre
+   Karte; der Prüfstand misst es (AB-161, „ZU BREIT"). Lieber ein Wort in
+   die zweite Zeile als eine Spalte, die man suchen muss.
+7. *Eine Farbe heisst überall dasselbe* (AB-160, unten).
+8. *Kontrast reicht.* Text mindestens 4.5:1 gegen seinen Grund; Farbe ist nie
+   das einzige Zeichen — Segmente tragen Beschriftung, Warnungen ein „!".
+
+Angewendet auf Lager nach Artikel: die Tabelle der Kunden mit
+Gruppenzeilen, Summe als Fusszeile, „Reicht es?" als Satz darunter, die
+Spaltentitel in zwei Zeilen, die Planzelle mit Zahl und Stift auf einer
+Zeile; auf Ursachen die Marge-Tabellen ohne Überbreite (Kistenzahl als
+zweite Zeile). Der Prüfstand fand Überbreite auf zwei der vier Seiten
+(Ursachen, Artikel); sie ist weg, und die Prüfung bleibt.
+
+**Ein Farbsystem (AB-160).** Bisher hiess Hellgrün auf der einen Seite
+„verkauft", auf der anderen „klein". Der Vorschlag des Betriebs ist
+umgesetzt: verkauft grau, überall; im Lager verkaufsfähig grün — klein
+hell, gross dunkel, ungeteilt (Ursachen, Lager nach Charge) der Ton
+dazwischen. Vier neue Tokens (`--strom-verkauft`, `--strom-vf-klein`,
+`--strom-vf`, `--strom-vf-gross`), hell und dunkel je eigens gewählt und mit
+dem Palettenprüfer gegen die Fläche gemessen: die drei Grün als Stufen einer
+Reihe (hell → dunkel), Grau als Neutral. Zu klein, zu gross, Palox und
+Verdunstung behalten ihre Farben.
+
+**Ø-Spalten weg (AT-08).** „Ø laut Sortierung" und „Unterschied zum Ø"
+standen neben „Mitte des Kalibers" und sagten fast dasselbe anders. Es
+bleibt: gewogen je Stück gegen die Mitte des Kalibers — die Zahl, die der
+Betrieb nachrechnen kann.
+
+**Mutationen.** Block 0117, 11 Mutationen, alle erkannt: Zeilenschutz aus
+auf der Reihenfolge oder auf dem Plan, die Halle darf ordnen, die Halle
+darf planen, die Halle sieht den Plan nicht, derselbe Plan doppelt,
+negative Kilo, ein beliebiges Label, eine Gruppe ohne Namen, die
+Reihenfolge ohne Erfasser, `schema_stand` nicht nachgezogen.
+
+**Was bewusst nicht gemacht wurde.** Kein Kundenname im Code, auch nicht als
+Vorgabe für die Reihenfolge oder als Zuordnung eines Verteilzentrums — der
+Betriebsleiter setzt es einmal (Pfeile, Gruppe am Kunden), es steht danach
+in der Datenbank. Kein Ziehen mit der Maus zum Umordnen: zwei Pfeile reichen
+für fünf Gruppen und gehen mit der Tastatur. Die Verlaufslinie unter Lager
+nach Charge bleibt blau (Runde V) und die Lagerlinie im Kundendiagramm
+orange (AS-19) — sie sind Linien über die Zeit, keine Teile eines Ganzen;
+das Farbsystem gilt für Anteile und Segmente. Kein Gruppenplan je Woche
+oder Monat: der Plan gilt für die ganze Saison, wie der je Kunde.
+
 ## Runde AS: die Grösse kommt aus der Sortierdatei (19. Oktober, 0116)
 
 Eine lange Sprachnachricht, 23 Punkte, als Liste abgearbeitet (AS-01 bis

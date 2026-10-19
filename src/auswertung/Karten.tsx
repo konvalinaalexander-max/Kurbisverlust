@@ -203,7 +203,7 @@ export function Bilanz({ bilanz }: { bilanz: Saisonbilanz }) {
   return (
     <Karte titel="Geht die Rechnung auf?">
       <Bilanzzeile titel="Wareneingang" herkunft="gemessen" kg={bilanz.eingang_kg} eingang={bilanz.eingang_kg} farbe="var(--strom-nebenkanal)" erklaerung="Netto ab Zettel, Tara abgezogen" />
-      <Bilanzzeile titel="Ausgeliefert" herkunft="gemessen" kg={bilanz.geliefert_kg} eingang={bilanz.eingang_kg} farbe="var(--strom-rest)"
+      <Bilanzzeile titel="Ausgeliefert" herkunft="gemessen" kg={bilanz.geliefert_kg} eingang={bilanz.eingang_kg} farbe="var(--strom-verkauft)"
                    erklaerung={bilanz.n_lieferungen === 0 ? 'noch keine Lieferung erfasst' : `${bilanz.n_lieferungen} Lieferungen ab Lieferschein${bilanz.marge_kg > 0 ? `, davon ${tonnen(bilanz.marge_kg)} an die Tiere oder in den Nebenkanal` : ''}${bilanz.vorlauf_kg > 0 ? `, dazu ${tonnen(bilanz.vorlauf_kg)} vor dem Erfassungsbeginn` : ''}`} />
       {/* 0106: Die Datenbank summiert nur die Chargen mit Wert; ist eine ohne
           (eine Station ohne Stationswert, ein Koeffizient ohne Messung), sagt

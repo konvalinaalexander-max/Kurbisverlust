@@ -153,18 +153,20 @@ const tagText = (x: number) => datum(new Date(x * TAG)).slice(0, 6)
 
 /** Die sechs Teile, in die der Eingang bis heute zerfällt (DESIGN_RUNDE_R § 3). */
 const WOHIN_TEILE: { name: string; farbe: string; hinweis?: string; felder: (keyof Wohin)[] }[] = [
-  { name: 'noch im Lager und verkaufsfähig', farbe: 'var(--strom-rest-hell)',
+  // Runde AT: dieselben Farben wie im Lagermanagement — verkauft grau, verkaufsfähig das mittlere Grün;
+  // was im Haus bleibt (zu klein, zu gross) vor dem Verlust, der Verlust zuletzt, neben seiner Prozentzahl.
+  { name: 'noch im Lager und verkaufsfähig', farbe: 'var(--strom-vf)',
     felder: ['lager_verkaufsfaehig_kg'] },
-  { name: 'verkauft', farbe: 'var(--strom-rest)',
+  { name: 'verkauft', farbe: 'var(--strom-verkauft)',
     felder: ['geliefert_kg'] },
-  { name: 'verdunstet bis heute', farbe: 'var(--strom-verdunstung)',
-    hinweis: 'entwichenes Wasser, draussen wie drinnen', felder: ['verdunstet_ausgelagert_kg', 'lager_verdunstet_kg'] },
-  { name: 'Palox und Faules bis heute', farbe: 'var(--strom-schimmel)',
-    hinweis: 'im Palox aussortiert (Mängel und Faules) und beim Abpacken faul', felder: ['faul_ausgelagert_kg', 'lager_faul_kg', 'fax_kg', 'lager_fax_kg'] },
   { name: 'zu klein', farbe: 'var(--strom-ausschuss)',
     hinweis: 'beim Sortieren aussortiert — steht im Haus, bis ein Lieferschein es holt; kein Verlust', felder: ['klein_ausgelagert_kg', 'lager_klein_kg'] },
   { name: 'zu gross', farbe: 'var(--strom-nebenkanal)',
     hinweis: 'beim Sortieren aussortiert — steht im Haus, bis ein Lieferschein es holt; kein Verlust', felder: ['gross_ausgelagert_kg', 'lager_gross_kg'] },
+  { name: 'verdunstet bis heute', farbe: 'var(--strom-verdunstung)',
+    hinweis: 'entwichenes Wasser, draussen wie drinnen', felder: ['verdunstet_ausgelagert_kg', 'lager_verdunstet_kg'] },
+  { name: 'Palox und Faules bis heute', farbe: 'var(--strom-schimmel)',
+    hinweis: 'im Palox aussortiert (Mängel und Faules) und beim Abpacken faul', felder: ['faul_ausgelagert_kg', 'lager_faul_kg', 'fax_kg', 'lager_fax_kg'] },
 ]
 const VERLUST = new Set(['verdunstet bis heute', 'Palox und Faules bis heute'])
 
@@ -785,7 +787,7 @@ function Marge({ daten, filter, chargen, oeffnen }: { daten: Auswertung; filter:
                           {z.zuviel_je_kiste != null && z.soll_kg_pro_kiste
                             ? <span className="leise"> {prozent(z.zuviel_je_kiste / z.soll_kg_pro_kiste, 0)}</span> : null}
                         </td>
-                        <td className="nowrap">{aufknopf(k, z.n_wiegungen)}<span className="leise"> · {zahl(z.kisten)} Kisten</span></td>
+                        <td className="nowrap">{aufknopf(k, z.n_wiegungen)}<span className="zelle-unter">{zahl(z.kisten)} Kisten</span></td>
                       </tr>
                       {auf.has(k) && (
                         <tr className="marge-dahinter"><td colSpan={5}>
@@ -813,16 +815,17 @@ function Marge({ daten, filter, chargen, oeffnen }: { daten: Auswertung; filter:
           </section>
 
           <section className="marge-teil" data-block="stueck" id="urs-marge-stueck">
-            <h3>x Stück je Kiste <span className="marge-was">gewogen je Stück gegen den Durchschnitt des Bandes laut Sortierung <Herkunft art="gemessen" /></span></h3>
+            <h3>x Stück je Kiste <span className="marge-was">gewogen je Stück gegen die Mitte des Kalibers <Herkunft art="gemessen" /></span></h3>
             {stueck.length === 0 ? <p className="leise">Noch keine Palette nach Kaliber gewogen.</p> : (
               <div className="rollbar"><table className="dicht marge-tabelle">
                 {/* Runde AS: „was mich eigentlich interessiert … die Mitte vom Kaliber. Wenn ich dem Kunden sage,
                     ich liefere 600 bis 1200 Gramm, dann wäre die Mitte 900 Gramm. Darüber verschenke ich, darunter
-                    freut mich das." — die Mitte der Grenzen steht neben dem Gewogenen; die alten Spalten bleiben. */}
-                <thead><tr><th>Sorte</th><th>Kaliber</th><th className="zahl">Je Kiste</th><th className="zahl">Ø laut Sortierung</th><th className="zahl">Gewogen je Stück</th><th className="zahl">Mitte des Kalibers</th><th className="zahl">gegen die Mitte</th><th className="zahl">Unterschied zum Ø</th><th>Wägungen</th></tr></thead>
+                    freut mich das." — die Mitte der Grenzen steht neben dem Gewogenen. Runde AT: „Ø laut Sortierung" und
+                    „Unterschied zum Ø" brauchte es nicht mehr; der Vergleich ist die Mitte. */}
+                <thead><tr><th>Sorte</th><th>Kaliber</th><th className="zahl">Je Kiste</th><th className="zahl">Gewogen je Stück</th><th className="zahl">Mitte des Kalibers</th><th className="zahl">gegen die Mitte</th><th>Wägungen</th></tr></thead>
                 <tbody>{stueck.map(z => {
                   const k = schluessel(z), ws = dahinter(z)
-                  const mitte = z.band_mittel_g ?? null, g = z.g_je_kuerbis ?? null
+                  const g = z.g_je_kuerbis ?? null
                   const grenzMitte = z.band_von_g != null && z.band_bis_g != null ? (z.band_von_g + z.band_bis_g) / 2 : null
                   // Runde AO: ein Stückgewicht unter der unteren Bandgrenze heisst,
                   // in der Kiste liegt im Mittel ein kleineres Kaliber (Kaori Kuri K2: 1008 g bei 1100–1600 g).
@@ -833,22 +836,16 @@ function Marge({ daten, filter, chargen, oeffnen }: { daten: Auswertung; filter:
                         <td className="nowrap"><strong>{z.sorte}</strong>{z.charge_nr !== undefined && <span className="leise"> · Charge {z.charge_nr}</span>}</td>
                         <td className="nowrap"><strong>{bandText(z.kaliber_idx, z.band_von_g, z.band_bis_g) ?? bandName(z.sorte, z.kaliber_idx)}</strong></td>
                         <td className="zahl">{z.stueck_je_kiste} Stück</td>
-                        <td className="zahl" title={`Der Durchschnitt aller Kürbisse dieser Sorte, die die Sortiermaschine in dieses Band gelegt hat${grenzMitte != null ? ` — die Mitte der Grenzen wäre ${Math.round(grenzMitte)} g` : ''}. So schwer ist ein Kürbis dieses Bandes im Mittel.`}>
-                          {mitte != null ? `${Math.round(mitte)} g` : '—'}</td>
                         <td className="zahl"><strong>{g != null ? `${Math.round(g)} g` : '—'}</strong>
                           {unterBand && <> <Marke art="warnung">unter {zahl(z.band_von_g)} g</Marke></>}</td>
                         <td className="zahl">{grenzMitte != null ? `${zahl(Math.round(grenzMitte))} g` : '—'}</td>
                         <td className="zahl">{gegenMitte(g, grenzMitte)}</td>
-                        <td className={`zahl ${z.g_ueber_bandmitte != null && z.g_ueber_bandmitte > 0 ? 'rot' : ''}`}>
-                          {z.g_ueber_bandmitte != null ? unterschiedText(z.g_ueber_bandmitte) : '—'}
-                          {z.g_ueber_bandmitte != null && mitte ? <span className="leise"> {z.g_ueber_bandmitte > 0 ? '+' : '−'}{prozent(Math.abs(z.g_ueber_bandmitte) / mitte, 0)}</span> : null}
-                        </td>
-                        <td className="nowrap">{aufknopf(k, z.n_wiegungen)}<span className="leise"> · {zahl(z.kisten)} Kisten</span></td>
+                        <td className="nowrap">{aufknopf(k, z.n_wiegungen)}<span className="zelle-unter">{zahl(z.kisten)} Kisten</span></td>
                       </tr>
                       {auf.has(k) && (
-                        <tr className="marge-dahinter"><td colSpan={9}>
+                        <tr className="marge-dahinter"><td colSpan={7}>
                           <table className="dicht">
-                            <thead><tr><th>Datum</th><th>Charge</th><th className="zahl">Kisten</th><th className="zahl">Gewogen je Stück</th><th className="zahl">gegen die Mitte</th><th className="zahl">Unterschied zum Ø</th><th></th></tr></thead>
+                            <thead><tr><th>Datum</th><th>Charge</th><th className="zahl">Kisten</th><th className="zahl">Gewogen je Stück</th><th className="zahl">gegen die Mitte</th><th></th></tr></thead>
                             <tbody>{ws.map(w => {
                               const gw = w.kg_pro_kuerbis != null ? w.kg_pro_kuerbis * 1000 : null
                               return (
@@ -858,7 +855,6 @@ function Marge({ daten, filter, chargen, oeffnen }: { daten: Auswertung; filter:
                                   <td className="zahl">{w.kisten}</td>
                                   <td className="zahl">{gw != null ? `${Math.round(gw)} g` : '—'}</td>
                                   <td className="zahl">{gegenMitte(gw, grenzMitte)}</td>
-                                  <td className="zahl">{gw != null && w.band_mittel_g != null ? unterschiedText(gw - w.band_mittel_g) : '—'}</td>
                                   <td className="nowrap">{arbeitKnopf(w)}{!w.voll && <span className="leise"> · nicht voll</span>}</td>
                                 </tr>
                               )
@@ -881,13 +877,10 @@ function Marge({ daten, filter, chargen, oeffnen }: { daten: Auswertung; filter:
         <p><strong>Kiste ab x kg:</strong> Der Kunde zahlt die Kiste zu einem Mindestgewicht; jedes Kilo darüber ist geschenkt.
         Netto der Palette ÷ Kisten = gewogen je Kiste, minus Soll = zu viel je Kiste.</p>
         <p><strong>x Stück je Kiste:</strong> Der Kunde zahlt je Kürbis eines Kalibers. Netto der Palette ÷ (Kisten × Stück) = gewogen
-        je Stück. Verglichen wird mit dem <strong>Durchschnitt laut Sortierung</strong>: wie schwer die Kürbisse dieser Sorte im Mittel
-        sind, die die Sortiermaschine in dieses Band gelegt hat — nicht die Mitte der Grenzen. Liegen die meisten Kürbisse im
-        oberen Teil des Bandes, ist ihr Durchschnitt höher als die Mitte (der Zeiger über der Zahl nennt beide). Schwerer als dieser
-        Durchschnitt heisst: In den Kisten liegen grössere Kürbisse, als das Band im Mittel hergibt — Marge verschenkt. Leichter
-        heisst: kleinere. Liegt das Stückgewicht sogar unter der unteren Grenze, liegt im Mittel ein kleineres Kaliber in der Kiste.</p>
-        <p><strong>Mitte des Kalibers</strong> ist die Mitte der Grenzen, die der Kunde kauft — 600–1200 g heisst 900 g. Gewogen je Stück
-        darüber: <span className="rot">verschenkt</span>, im Mittel mehr Kürbis je Stück, als bezahlt wird; darunter: <span className="gruen">gut</span>.</p>
+        je Stück. Verglichen wird mit der <strong>Mitte des Kalibers</strong>, der Mitte der Grenzen, die der Kunde kauft — 600–1200 g
+        heisst 900 g. Gewogen je Stück darüber: <span className="rot">verschenkt</span>, im Mittel mehr Kürbis je Stück, als bezahlt
+        wird; darunter: <span className="gruen">gut</span>. Liegt das Stückgewicht sogar unter der unteren Grenze, liegt im Mittel ein
+        kleineres Kaliber in der Kiste.</p>
         <p>Eine nicht volle Palette (weniger Kisten drauf) zählt je Kiste mit und steht als „nicht voll" dabei. Das Band ist das der
         Fassung, mit der die Arbeit lief — ändert der Betrieb die Fassung, bleiben die Zeilen getrennt.</p>
       </Erklaerung>
@@ -925,7 +918,6 @@ function gegenMitte(g: number | null, mitte: number | null): ReactNode {
     ? <span className="rot" title="Schwerer als die Mitte des Kalibers: im Mittel mehr Kürbis je Stück, als der Kunde zahlt">+{zahl(d)} g · verschenkt</span>
     : <span className="gruen" title="Leichter als die Mitte des Kalibers: noch im Band, und weniger Ware je Stück">−{zahl(-d)} g · gut</span>
 }
-const unterschiedText = (d: number) => Math.round(d) === 0 ? 'gleich' : `${zahl(Math.abs(Math.round(d)))} g ${d > 0 ? 'schwerer' : 'leichter'}`
 
 const tonVon = (zuviel: number | null, soll: number | null) =>
   zuviel == null || !soll ? '' : zuviel / soll > 0.05 ? 'rot' : zuviel < 0 ? 'gruen' : ''

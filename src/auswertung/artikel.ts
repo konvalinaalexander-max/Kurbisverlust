@@ -155,30 +155,79 @@ export function planFuer(kunde: string, saison: number, w: Wahl, plaene: KundePl
   return { kg: vorjahr(w.label), eigen: false }
 }
 
+/** Die Planmenge einer ganzen Kundengruppe (gruppe_plan, 0117) — gleiche Schlüssel wie KundePlan. */
+export interface GruppePlan { saison: number; gruppe: string; artikelgruppe: string; groesse: string; label: string; kg: number }
+
+/** Wo eine Gruppe steht (kunde_gruppe_rang, 0117): kleiner Rang zuerst. */
+export interface GruppeRang { gruppe: string; rang: number }
+
+/**
+ * Die Reihenfolge der Kundengruppen (Runde AT): was der Betriebsleiter
+ * geordnet hat, zuerst und in seiner Folge; danach die übrigen nach ihrer
+ * Menge, die grösste zuerst — Kleinkunden ohne Rang immer zuletzt.
+ */
+export function gruppenFolge(gruppen: { name: string; menge: number }[], rang: GruppeRang[]): string[] {
+  const r = new Map(rang.map(x => [x.gruppe, Number(x.rang)]))
+  const stufe = (g: { name: string }) => r.has(g.name) ? 0 : g.name === 'Kleinkunden' ? 2 : 1
+  return [...gruppen].sort((a, b) => stufe(a) - stufe(b) || (r.get(a.name) ?? 0) - (r.get(b.name) ?? 0)
+                                     || b.menge - a.menge || a.name.localeCompare(b.name, 'de')).map(g => g.name)
+}
+
+export interface Offen { plan: number; eigen: boolean | 'teils'; geliefert: number; offen: number }
+
 /**
  * Was diese Saison noch zu liefern ist — je Kunde der Plan weniger das schon
  * Gelieferte, nie unter null —, über alle Kunden, die den Artikel im Vorjahr
  * oder in dieser Saison bekamen oder einen Plan haben (Runde AS: „Reicht, was
  * da ist?").
+ *
+ * Runde AT: mit `gruppen` auch je Gruppe. Hat eine Gruppe einen eigenen Plan
+ * (gruppe_plan), gilt er für die Gruppe als Ganzes: Plan weniger das
+ * Gelieferte aller ihrer Kunden; die Pläne der Kunden darin zählen dann nicht
+ * noch einmal. Ohne Gruppenplan ist die Gruppe die Summe ihrer Kunden. `kg`
+ * ist dann die Summe über die Gruppen.
  */
 export function nochZuLiefern(kunden: { kunde: string; saison: number; gruppe: string | null; groesse: string; label: string | null; kg: number | null }[],
-                              plaene: KundePlan[], saison: number, w: Wahl, nurKunden?: Set<string>): { kg: number; jeKunde: Map<string, { plan: number; eigen: boolean | 'teils'; geliefert: number; offen: number }> } {
+                              plaene: KundePlan[], saison: number, w: Wahl, nurKunden?: Set<string>,
+                              gruppen?: { von: (kunde: string) => string; plaene: GruppePlan[] }):
+    { kg: number; jeKunde: Map<string, Offen>; jeGruppe: Map<string, Offen & { gruppenplan: boolean }> } {
   const passt = (k: typeof kunden[number], l: LabelWahl) => passtGruppe(w, k.gruppe) && passtVerkauf(w, k.groesse) && passtLabel({ ...w, label: l }, k.label)
   const namen = new Set<string>()
   for (const k of kunden) if ((k.saison === saison || k.saison === saison - 1) && passt(k, w.label)) namen.add(k.kunde)
   const s = planSchluessel(w)
   for (const p of plaene) if (p.saison === saison && p.artikelgruppe === s.artikelgruppe && p.groesse === s.groesse) namen.add(p.kunde)
-  const jeKunde = new Map<string, { plan: number; eigen: boolean | 'teils'; geliefert: number; offen: number }>()
+  const jeKunde = new Map<string, Offen>()
+  const summeVon = (n: string, sai: number, l: LabelWahl) =>
+    kunden.filter(k => k.kunde === n && k.saison === sai && passt(k, l)).reduce((a, k) => a + Number(k.kg ?? 0), 0)
+  const planVon = (n: string, l: LabelWahl) => planFuer(n, saison, { ...w, label: l }, plaene, l2 => summeVon(n, saison - 1, l2))
   let summe = 0
   for (const n of namen) {
     if (nurKunden && !nurKunden.has(n)) continue
-    const summeVon = (sai: number, l: LabelWahl) =>
-      kunden.filter(k => k.kunde === n && k.saison === sai && passt(k, l)).reduce((a, k) => a + Number(k.kg ?? 0), 0)
-    const plan = planFuer(n, saison, w, plaene, l => summeVon(saison - 1, l))
-    const geliefert = summeVon(saison, w.label)
+    const plan = planVon(n, w.label)
+    const geliefert = summeVon(n, saison, w.label)
     const offen = Math.max(plan.kg - geliefert, 0)
     jeKunde.set(n, { plan: plan.kg, eigen: plan.eigen, geliefert, offen })
     summe += offen
   }
-  return { kg: summe, jeKunde }
+  const jeGruppe = new Map<string, Offen & { gruppenplan: boolean }>()
+  if (!gruppen) return { kg: summe, jeKunde, jeGruppe }
+
+  // Je Gruppe: ihr eigener Plan, sonst die Summe ihrer Kunden.
+  const mitglieder = new Map<string, string[]>()
+  for (const n of jeKunde.keys()) mitglieder.set(gruppen.von(n), [...(mitglieder.get(gruppen.von(n)) ?? []), n])
+  for (const p of gruppen.plaene) if (p.saison === saison && p.artikelgruppe === s.artikelgruppe && p.groesse === s.groesse && !mitglieder.has(p.gruppe))
+    if (!nurKunden) mitglieder.set(p.gruppe, [])
+  summe = 0
+  for (const [g, ns] of mitglieder) {
+    const geliefert = ns.reduce((a, n) => a + (jeKunde.get(n)?.geliefert ?? 0), 0)
+    const ohneGruppenplan = (l: LabelWahl) => ns.reduce((a, n) => a + planVon(n, l).kg, 0)
+    const gp = planFuer(g, saison, w, gruppen.plaene.map(p => ({ ...p, kunde: p.gruppe })), ohneGruppenplan)
+    const eigenKunden = ns.map(n => jeKunde.get(n)?.eigen ?? false)
+    const eigen: boolean | 'teils' = gp.eigen !== false ? gp.eigen
+      : eigenKunden.length > 0 && eigenKunden.every(e => e === true) ? true : eigenKunden.some(e => e !== false) ? 'teils' : false
+    const offen = gp.eigen !== false ? Math.max(gp.kg - geliefert, 0) : ns.reduce((a, n) => a + (jeKunde.get(n)?.offen ?? 0), 0)
+    jeGruppe.set(g, { plan: gp.kg, eigen, geliefert, offen, gruppenplan: gp.eigen !== false })
+    summe += offen
+  }
+  return { kg: summe, jeKunde, jeGruppe }
 }

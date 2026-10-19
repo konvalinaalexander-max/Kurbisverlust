@@ -231,7 +231,7 @@ svg { display: inline-block; vertical-align: middle; }
 .kennzahl-reihe > .kennzahl::after { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 3px; background: var(--kennzahl-farbe, transparent); }
 .kennzahl.ton-kuerbis { --kennzahl-farbe: var(--kuerbis); }
 .kennzahl.ton-rot { --kennzahl-farbe: var(--strom-schimmel); }
-.kennzahl.ton-gruen { --kennzahl-farbe: var(--strom-rest); }
+.kennzahl.ton-gruen { --kennzahl-farbe: var(--strom-vf); }
 .kennzahl .titel { font-size: .72rem; font-weight: var(--gewicht-stark); letter-spacing: .06em; text-transform: uppercase; color: var(--text-leise); margin-bottom: .3rem; }
 .gross-zahl { font-size: var(--s-6); font-weight: var(--gewicht-stark); line-height: 1.05; letter-spacing: -.02em; display: flex; flex-wrap: wrap; align-items: baseline; gap: .35rem .5rem; }
 .gross-zahl .herkunft { transform: translateY(-.35em); }
@@ -1002,8 +1002,8 @@ tr.marge-dahinter table { margin: 0; }
 .uebersicht-bahn { display: flex; align-items: center; gap: .5rem; min-width: 0; }
 .uebersicht-spur { display: flex; flex: none; height: 26px; min-width: 4px; max-width: calc(100% - 7.5rem); border-radius: 6px; overflow: hidden; background: var(--flaeche-2); }
 .uebersicht-teil { display: flex; align-items: center; height: 100%; min-width: 0; overflow: hidden; }
-.uebersicht-teil.ausgeliefert { background: var(--text-leise); }
-.uebersicht-teil.ausgeliefert em { font-style: normal; font-size: var(--s-0); font-weight: var(--gewicht-stark); color: #fff; padding: 0 .45rem; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.uebersicht-teil.ausgeliefert { background: var(--strom-verkauft); }
+.uebersicht-teil.ausgeliefert em { font-style: normal; font-size: var(--s-0); font-weight: var(--gewicht-stark); color: var(--text); padding: 0 .45rem; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .uebersicht-lagertext { font-size: var(--s-0); color: var(--text-leise); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .uebersicht-teil.gedimmt { opacity: .28; }
 /* Runde AS: das Lager ganz in den Farben des Lagermanagements nach Charge
@@ -1042,9 +1042,9 @@ tr.marge-dahinter table { margin: 0; }
 }
 .kundentabelle td.erreicht { min-width: 9rem; }
 .erreicht-balken { position: relative; display: block; height: 1.15rem; border-radius: 999px; background: var(--flaeche-2); overflow: hidden; }
-.erreicht-balken > span { position: absolute; left: 0; top: 0; bottom: 0; background: color-mix(in srgb, var(--blau) 45%, transparent); }
-.erreicht-balken > span.fast { background: color-mix(in srgb, var(--kuerbis) 55%, transparent); }
-.erreicht-balken > span.voll { background: color-mix(in srgb, var(--rot) 50%, transparent); }
+/* Runde AT: erreicht ist geliefert — im Grau von „verkauft"; der volle Plan im Grün des Systems. */
+.erreicht-balken > span { position: absolute; left: 0; top: 0; bottom: 0; background: var(--strom-verkauft); }
+.erreicht-balken > span.voll { background: color-mix(in srgb, var(--strom-vf) 55%, transparent); }
 .erreicht-balken > em { position: relative; display: block; text-align: center; font-style: normal; font-size: var(--s-0); line-height: 1.15rem; font-variant-numeric: tabular-nums; }
 .filter-klein select { min-height: 32px; padding: .15rem .4rem; font-size: var(--s-0); }
 
@@ -1091,7 +1091,8 @@ tr.marge-dahinter table { margin: 0; }
 .kundentabelle .kunde-name .werkzeug-knopf { min-height: 22px; padding: 0 .4rem; font-size: var(--s-00, .75rem); }
 .kundentabelle td.plan { white-space: nowrap; }
 .kundentabelle td.plan-vorjahr { color: var(--text-leise); }
-.kundentabelle td.plan .stift { min-height: 22px; padding: 0 .25rem; margin-left: .2rem; vertical-align: -3px; }
+.kundentabelle td.plan .plan-wert { display: inline-flex; align-items: center; gap: .15rem; }
+.kundentabelle td.plan .stift { min-height: 22px; padding: 0 .25rem; }
 .kundentabelle td.plan .zelle-unter { display: block; font-size: var(--s-00, .75rem); }
 .plan-feld { display: inline-flex; align-items: center; gap: .3rem; }
 .plan-feld input { width: 6.5rem; min-height: 30px; padding: .1rem .4rem; text-align: right; }
@@ -1104,11 +1105,37 @@ tr.marge-dahinter table { margin: 0; }
           background: var(--rot); color: #fff; font-weight: var(--gewicht-stark); font-size: .85em; line-height: 1; }
 .uebersicht-tabelle td.reicht-nicht { color: var(--rot); }
 .lager-linie-wahl { gap: .35rem; align-items: center; color: var(--text-2); }
-.kunde-lieferungen { margin-top: var(--a-5); }
+/* Runde AT: Gruppe, Kunde, Lieferungen — drei Ebenen, auf einen Blick zu unterscheiden. */
+.kundentabelle tr.kundengruppe > td { background: var(--flaeche-2); border-top: 1px solid var(--rand); }
+.kundentabelle tr.kundengruppe.aktiv > td { background: var(--kuerbis-flaeche); }
+.kundentabelle .gruppe-kopf { display: inline-flex; align-items: center; gap: .45rem; }
+.kundentabelle .gruppe-kopf .chevron { margin-right: 0; }
+.kundentabelle .reihenfolge { display: inline-flex; gap: 2px; margin-left: .3rem; opacity: .55; }
+.kundentabelle tr:hover .reihenfolge, .kundentabelle .reihenfolge:focus-within { opacity: 1; }
+.kundentabelle .reihenfolge .werkzeug-knopf { min-height: 22px; padding: 0 .15rem; }
+.kundentabelle tr.kunde-in-gruppe .chevron { display: inline-flex; color: var(--text-ganz-leise); transition: transform var(--d-mittel); }
+.kundentabelle tr.kunde-in-gruppe[aria-expanded="true"] .chevron { transform: rotate(90deg); color: var(--kuerbis); }
+.kundentabelle tr.kunde-in-gruppe[aria-expanded="true"] > td { border-bottom-color: transparent; }
+.kundentabelle tr.lieferungen-zeile > td { padding: 0 0 .7rem 2.1rem; }
+.kundentabelle tr.lieferungen-zeile:hover > td { background: none; }
+.kunde-lieferungen { margin: 0 0 0 .55rem; padding: .55rem .8rem .65rem; border-left: 3px solid var(--kuerbis);
+                     background: var(--flaeche-2); border-radius: 0 var(--radius-klein) var(--radius-klein) 0; }
+.kunde-lieferungen-kopf { margin: 0 0 .35rem; font-size: var(--s-0); font-weight: var(--gewicht-stark); color: var(--text-2); }
+.kunde-lieferungen table { background: var(--flaeche); }
+.kunde-lieferungen .innen-rollt { max-height: 22rem; overflow-y: auto; }
+.innen-rollt thead th { position: sticky; top: 0; z-index: 1; background: var(--flaeche); box-shadow: inset 0 -1px 0 var(--rand); }
+.kundentabelle tfoot tr.summe > td { font-weight: var(--gewicht-stark); }
 .lieferung-deutung ul { margin: .2rem 0 .4rem; padding-left: 1.2rem; }
 .lieferung-deutung li { margin: .15rem 0; }
-table.lieferung-zeile td:first-child { color: var(--text-2); white-space: nowrap; }
-table.lieferung-zeile td { font-variant-numeric: tabular-nums; }
+/* Runde AT: die Perigon-Zeile wie in Excel — Gitter, grauer Kopf, nichts umgebrochen. */
+.excel-rahmen { border: 1px solid var(--rand); border-radius: 4px; }
+table.excel { border-collapse: collapse; width: max-content; min-width: 100%; font-size: .8rem; background: var(--flaeche); }
+table.excel th, table.excel td { border: 1px solid var(--rand); padding: .2rem .45rem; white-space: nowrap; text-align: left; vertical-align: top; }
+table.excel th { background: var(--flaeche-2); color: var(--text); font-weight: var(--gewicht-stark); text-transform: none; letter-spacing: 0; font-size: .8rem; }
+table.excel td { font-variant-numeric: tabular-nums; }
+table.excel td.zahl { text-align: right; }
+table.excel tr > :first-child { border-left: 0; } table.excel tr > :last-child { border-right: 0; }
+table.excel thead th { border-top: 0; } table.excel tbody tr:last-child td { border-bottom: 0; }
 .perigon-pruefung tr.unterzeile td { padding-left: 2.1rem; font-size: var(--s-0); }
 .benutzen { margin-top: .7rem; padding: .5rem .75rem; border-radius: var(--radius-klein); background: var(--flaeche-2); }
 .benutzen label { display: inline-flex; align-items: center; gap: .35rem; font-weight: var(--gewicht-stark); }
@@ -1119,3 +1146,6 @@ table.lieferung-zeile td { font-variant-numeric: tabular-nums; }
 .hagel-feld input { width: 3.6rem; min-height: 28px; padding: .1rem .35rem; text-align: right; }
 .hagel-zelle .werkzeug-knopf { min-height: 24px; padding: 0 .2rem; }
 .chargentabelle th:last-child, .chargentabelle td.hagel-zelle { padding-left: .3rem; padding-right: .3rem; }
+/* Runde AT: die Artikeltabelle passt in die Karte — „noch zu liefern" darf nicht hinter dem Rand verschwinden. */
+.uebersicht-tabelle td.zahl { min-width: 4.4rem; }
+.uebersicht-tabelle th, .uebersicht-tabelle td { padding-left: .4rem; padding-right: .4rem; }

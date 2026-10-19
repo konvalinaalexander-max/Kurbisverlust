@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import type { KundePlan } from './artikel'
+import type { GruppePlan, GruppeRang, KundePlan } from './artikel'
 import { supabase } from '../lib/supabase'
 import { fehlerText } from '../lib/db'
 import { SCHEMA_ERWARTET, datenbankVeraltet } from '../lib/version'
@@ -861,8 +861,9 @@ export async function laufVergleich(): Promise<LaufVergleich[]> {
  * aller Saisons. Klein bis auf die Kundentage — die kommen seitenweise.
  */
 export async function artikelGrundlagen(): Promise<{ labels: ChargeLabel[]; gruppen: SorteGruppe[]; kaliber: ArtikelKaliber[]; kunden: KundeTag[]
-                                                    kundeGruppe: KundeGruppe[]; plaene: KundePlan[]; pruefung: PerigonPruefung[] }> {
-  const [l, g, k, kg, kp, pp] = await Promise.all([
+                                                    kundeGruppe: KundeGruppe[]; plaene: KundePlan[]; pruefung: PerigonPruefung[]
+                                                    gruppenRang: GruppeRang[]; gruppenPlaene: GruppePlan[] }> {
+  const [l, g, k, kg, kp, pp, gr, gp] = await Promise.all([
     supabase.from('v_charge_label').select('charge_nr, label, quelle, gemischt, n_d, n_k, n_widerspruch'),
     supabase.from('v_sorte_artikelgruppe').select('*'),
     supabase.from('artikel_kaliber').select('gruppe, groesse, von_g, bis_g, stueck_je_kiste, bemerkung'),
@@ -870,8 +871,11 @@ export async function artikelGrundlagen(): Promise<{ labels: ChargeLabel[]; grup
     supabase.from('kunde_gruppe').select('kunde, gruppe'),
     supabase.from('kunde_plan').select('saison, kunde, artikelgruppe, groesse, label, kg'),
     supabase.from('v_perigon_pruefung').select('art, quelle, pos_id, datum, kunde, artikel, charge_nr, kg, befund').order('datum', { ascending: false }),
+    // Runde AT (0117): die Reihenfolge der Gruppen und der Plan einer ganzen Gruppe
+    supabase.from('kunde_gruppe_rang').select('gruppe, rang'),
+    supabase.from('gruppe_plan').select('saison, gruppe, artikelgruppe, groesse, label, kg'),
   ])
-  for (const r of [l, g, k, kg, kp, pp]) if (r.error) throw new Error(r.error.message)
+  for (const r of [l, g, k, kg, kp, pp, gr, gp]) if (r.error) throw new Error(r.error.message)
   const kunden: KundeTag[] = []
   for (let von = 0; ; von += SEITE) {
     const r = await supabase.from('v_kunde_tag').select('*').order('datum').range(von, von + SEITE - 1)
@@ -881,7 +885,8 @@ export async function artikelGrundlagen(): Promise<{ labels: ChargeLabel[]; grup
     if (teil.length < SEITE) break
   }
   return { labels: (l.data ?? []) as ChargeLabel[], gruppen: (g.data ?? []) as SorteGruppe[], kaliber: (k.data ?? []) as ArtikelKaliber[], kunden,
-           kundeGruppe: (kg.data ?? []) as KundeGruppe[], plaene: (kp.data ?? []) as KundePlan[], pruefung: (pp.data ?? []) as PerigonPruefung[] }
+           kundeGruppe: (kg.data ?? []) as KundeGruppe[], plaene: (kp.data ?? []) as KundePlan[], pruefung: (pp.data ?? []) as PerigonPruefung[],
+           gruppenRang: (gr.data ?? []) as GruppeRang[], gruppenPlaene: (gp.data ?? []) as GruppePlan[] }
 }
 
 /**

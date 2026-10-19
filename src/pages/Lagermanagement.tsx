@@ -163,7 +163,7 @@ function Kennzahlen({ daten, filter }: { daten: Auswertung; filter: Filter }) {
   const anteil = p0?.verkaufsfaehig_anteil ?? null
   // Die liegende Ware, zerlegt: derselbe Balken, den die Kaskade rechnet.
   const teile = p0 ? [
-    { name: 'verkaufsfähig', kg: p0.verkaufsfaehig_kg, farbe: 'var(--strom-rest)' },
+    { name: 'verkaufsfähig', kg: p0.verkaufsfaehig_kg, farbe: 'var(--strom-vf)' },
     { name: 'zu klein / zu gross', kg: p0.kanal_kg, farbe: 'var(--strom-ausschuss)' },
     { name: 'Palox', kg: p0.faul_kg, farbe: 'var(--strom-schimmel)' },
     { name: 'verdunstet', kg: p0.verdunstet_kg, farbe: 'var(--strom-verdunstung)' },

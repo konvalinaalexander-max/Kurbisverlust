@@ -392,7 +392,14 @@ Kleinkunden). Die Gruppe ist die Summe ihrer Kunden. **Plan** ist die
 eingetragene Menge der ganzen Saison, je Artikelgruppe, Grösse und Label
 oder für alle; ohne Eintrag gilt, grau, die ganze Vorjahressaison des
 Kunden. **Noch zu liefern** = Plan − diese Saison geliefert, je Kunde nie
-unter null, über die Kunden summiert. **Reicht es?** Das Verkaufsfähige im
+unter null, über die Kunden summiert. **Seit 0117** gibt es auch den Plan
+einer ganzen Gruppe (`gruppe_plan`, Stift in der Gruppenzeile): Hat eine Gruppe
+einen, ist „noch zu liefern" der Gruppe dieser Plan weniger das Gelieferte
+aller ihrer Kunden — die Pläne der Kunden darin stehen da, zählen aber nicht
+noch einmal; ohne Gruppenplan ist die Gruppe die Summe ihrer Kunden. Die
+Reihenfolge der Gruppen setzt der Betriebsleiter (`kunde_gruppe_rang`,
+Pfeile in der Gruppenzeile); ohne sie stehen die Gruppen nach Menge,
+Kleinkunden zuletzt. **Reicht es?** Das Verkaufsfähige im
 Lager heute (je Artikel, wie oben) gegen „noch zu liefern"; fehlt etwas,
 steht es rot mit „!" in der Artikeltabelle und unter den Kunden.
 **Die ganze Perigon-Zeile (0116, `ausgang_position.roh`):** beim Einlesen

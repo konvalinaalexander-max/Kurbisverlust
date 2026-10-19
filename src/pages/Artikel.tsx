@@ -11,9 +11,10 @@ import { artikelGrundlagen, artikelLagerChargeBei, useAuswertung, useStichtag,
          type SorteGruppe, type Verlaufswoche } from '../auswertung/daten'
 import { Probleme, Rechnet, Reiterkopf } from '../auswertung/Karten'
 import { WochenFeld } from '../components/WochenFeld'
-import { ZChevron, ZStift } from '../components/Zeichen'
-import { KLASSEN, OFFEN, klasseVon, kundenGruppe, nochZuLiefern, passtGruppe, passtKlasse, passtLabel, passtVerkauf, planSchluessel, rang,
-         uebersichtszeilen, type Klasse, type KundePlan, type RestTeile, type Uebersichtszeile, type Wahl } from '../auswertung/artikel'
+import { ZChevron, ZHoch, ZRunter, ZStift } from '../components/Zeichen'
+import { KLASSEN, OFFEN, gruppenFolge, klasseVon, kundenGruppe, nochZuLiefern, passtGruppe, passtKlasse, passtLabel, passtVerkauf, planSchluessel, rang,
+         uebersichtszeilen, type GruppePlan, type GruppeRang, type Klasse, type KundePlan, type RestTeile, type Uebersichtszeile,
+         type Wahl } from '../auswertung/artikel'
 import { LieferungFenster } from '../betrieb/LieferungFenster'
 
 const TAG = 86400000
@@ -77,6 +78,7 @@ function wahlLesen(): Wahl {
 interface Grundlagen {
   labels: ChargeLabel[]; gruppen: SorteGruppe[]; kaliber: ArtikelKaliber[]; kunden: KundeTag[]
   kundeGruppe: KundeGruppe[]; plaene: KundePlan[]; pruefung: PerigonPruefung[]
+  gruppenRang: GruppeRang[]; gruppenPlaene: GruppePlan[]
 }
 
 export default function Artikel() {
@@ -294,14 +296,16 @@ function NochDa({ bestand, grund, teile, wochen, wahl, heute, uebersicht }: {
 /**
  * Runde AS: dieselben Farben wie im Lagermanagement nach Charge — „hier ist
  * es plötzlich grau, blau und pink. Beim anderen war es grün und blau."
- * Grün das Verkaufsfähige (kräftig klein, hell gross, blass lose), gelb zu
- * klein / zu gross, orange der Palox, blau das Verdunstete; grau, was
- * ausgeliefert ist, wie der Ausgang im Verlauf.
+ * Grün das Verkaufsfähige, gelb zu klein / zu gross, orange der Palox, blau
+ * das Verdunstete; grau, was ausgeliefert ist. Runde AT: „verkauft grau …
+ * klein und gross hell und dunkel grün, bei Ursachen ein Grünton in der
+ * Mitte" — hell klein, dunkel gross, blass lose (src/design/tokens.css).
  */
 const KLASSE_FARBE: Record<Klasse, string> = {
-  klein: 'var(--strom-rest)', gross: 'var(--strom-rest-hell)', stueck: 'var(--strom-rest)',
-  ausserhalb: 'color-mix(in srgb, var(--strom-rest-hell) 45%, var(--flaeche))',
-  ohne: 'color-mix(in srgb, var(--strom-rest) 22%, var(--flaeche))',
+  // Runde AT: hell klein, dunkel gross, die Mitte je Stück — dieselbe Grünfamilie wie Ursachen und Lager nach Charge.
+  klein: 'var(--strom-vf-klein)', gross: 'var(--strom-vf-gross)', stueck: 'var(--strom-vf)',
+  ausserhalb: 'color-mix(in srgb, var(--strom-vf) 40%, var(--flaeche))',
+  ohne: 'color-mix(in srgb, var(--strom-vf) 18%, var(--flaeche))',
 }
 const REST: { feld: 'kanal' | 'faul' | 'verdunstet'; name: string; farbe: string }[] = [
   { feld: 'kanal', name: 'zu klein / zu gross', farbe: 'var(--strom-ausschuss)' },
@@ -337,8 +341,10 @@ function Uebersicht({ bestand, grund, teileHeute, teile, wahl, wochen, setzeWoch
   const name = (z: Uebersichtszeile) => `${z.gruppe === 'Knirps' ? 'Knirps' : gruppeName(z.gruppe)} · ${labelName(z.label)}`
   // Runde AS: „Reicht, was da ist?" — je Artikel, was die Kunden nach Plan (ohne Plan: das Vorjahr) noch bekommen
   const saison = saisonVon(heute)
+  const gesetztGruppe = new Map(grund.kundeGruppe.map(g => [g.kunde, g.gruppe]))
   const noch = (z: Uebersichtszeile) => z.gruppe === null ? null
-    : nochZuLiefern(grund.kunden, grund.plaene, saison, { gruppe: z.gruppe, groesse: wahl.groesse, label: z.label ?? 'beide' }).kg
+    : nochZuLiefern(grund.kunden, grund.plaene, saison, { gruppe: z.gruppe, groesse: wahl.groesse, label: z.label ?? 'beide' }, undefined,
+                    { von: k => kundenGruppe(k, gesetztGruppe), plaene: grund.gruppenPlaene }).kg
   const umschalten = (k: string) => setAuf(a => { const n = new Set(a); if (n.has(k)) n.delete(k); else n.add(k); return n })
   // Woher Demeter oder Knospe der Chargen mit Ware kommt.
   const quellen = new Map<string, number>()
@@ -394,7 +400,7 @@ function Uebersicht({ bestand, grund, teileHeute, teile, wahl, wochen, setzeWoch
         })}
       </div>
       <div className="legende uebersicht-legende">
-        <span><span className="chip" style={{ background: 'var(--text-leise)' }} />ausgeliefert</span>
+        <span><span className="chip" style={{ background: 'var(--strom-verkauft)' }} />ausgeliefert</span>
         {klassenBalken.map(kl => (
           <span key={kl} title={kl === 'ausserhalb' ? LOSE_TEXT : kl === 'ohne' ? 'keine Sortier-CSV der Charge oder Sorte — die Grösse ist offen' : undefined}>
             <span className="chip" style={{ background: KLASSE_FARBE[kl] }} />verkaufsfähig {klasseName(kl)}</span>
@@ -665,9 +671,13 @@ function Verlauf({ grund, heute, wahl, lagerHeute, verlauf, bestand, istAdmin, n
   const { saison, tagHeute, alle, jeKunde, passend, mitVorjahr } = useVerkauf(kunden, heute, wahl)
   const gesetzt = useMemo(() => new Map(grund.kundeGruppe.map(g => [g.kunde, g.gruppe])), [grund.kundeGruppe])
   const gruppeVon = (k: string) => kundenGruppe(k, gesetzt)
-  const offenJe = useMemo(() => nochZuLiefern(kunden, grund.plaene, saison, wahl).jeKunde, [kunden, grund.plaene, saison, wahl])
+  // Runde AT: je Kunde und je Gruppe — eine Gruppe mit eigenem Plan gilt als Ganzes.
+  const ziel = useMemo(() => nochZuLiefern(kunden, grund.plaene, saison, wahl, undefined, { von: gruppeVon, plaene: grund.gruppenPlaene }),
+                       [kunden, grund.plaene, grund.gruppenPlaene, saison, wahl, gesetzt])  // eslint-disable-line react-hooks/exhaustive-deps
+  const offenJe = ziel.jeKunde
 
-  // Die Gruppen mit ihren Kunden, die grösste zuerst (wie die Kunden: nach Vorjahr oder dieser Saison)
+  // Die Gruppen mit ihren Kunden — in der Reihenfolge des Betriebsleiters (kunde_gruppe_rang, 0117),
+  // sonst die grösste zuerst, Kleinkunden zuletzt; die Kunden einer Gruppe die grössten zuerst.
   const gruppen = useMemo(() => {
     const m = new Map<string, Kurve[]>()
     const namen = new Set([...jeKunde.map(k => k.kunde), ...offenJe.keys()])
@@ -675,29 +685,38 @@ function Verlauf({ grund, heute, wahl, lagerHeute, verlauf, bestand, istAdmin, n
       const k = jeKunde.find(x => x.kunde === n) ?? { kunde: n, saisons: new Map(), summe: new Map(), bisHeute: new Map() }
       m.set(gruppeVon(n), [...(m.get(gruppeVon(n)) ?? []), k])
     }
-    const groesse = (ks: Kurve[]) => ks.reduce((a, k) => a + Math.max(k.summe.get(saison - 1) ?? 0, k.summe.get(saison) ?? 0), 0)
-    return [...m.entries()].map(([name, ks]) => ({ name, kunden: ks, kurve: kurveAus(name, passend.filter(p => ks.some(k => k.kunde === p.kunde)), saison, tagHeute) }))
-      .sort((a, b) => groesse(b.kunden) - groesse(a.kunden))
-  }, [jeKunde, offenJe, passend, saison, tagHeute, gesetzt])  // eslint-disable-line react-hooks/exhaustive-deps
+    for (const g of ziel.jeGruppe.keys()) if (!m.has(g)) m.set(g, [])
+    const menge = (ks: Kurve[]) => ks.reduce((a, k) => a + Math.max(k.summe.get(saison - 1) ?? 0, k.summe.get(saison) ?? 0), 0)
+    const folge = gruppenFolge([...m.entries()].map(([name, ks]) => ({ name, menge: menge(ks) })), grund.gruppenRang)
+    return folge.map(name => {
+      const ks = m.get(name) ?? []
+      return { name, kunden: ks, kurve: kurveAus(name, passend.filter(p => ks.some(k => k.kunde === p.kunde)), saison, tagHeute) }
+    })
+  }, [jeKunde, offenJe, ziel, passend, saison, tagHeute, gesetzt, grund.gruppenRang])  // eslint-disable-line react-hooks/exhaustive-deps
 
   const gewaehlt = auswahl.startsWith('k:') ? jeKunde.find(k => k.kunde === auswahl.slice(2)) ?? null
     : auswahl.startsWith('g:') ? gruppen.find(g => g.name === auswahl.slice(2))?.kurve ?? null : alle
   const titel = auswahl ? auswahl.slice(2) : 'alle Kunden'
-  const leer = jeKunde.length === 0 && offenJe.size === 0
+  const leer = jeKunde.length === 0 && offenJe.size === 0 && ziel.jeGruppe.size === 0
 
   // Das Verkaufsfähige des Artikels heute, und über die Saison (orange Linie)
   const vfHeute = useMemo(() => lagerHeute.filter(t => passtGruppe(wahl, t.artikelgruppe) && passtLabel(wahl, t.label) && passtKlasse(wahl, klasseVon(t.groesse)))
     .reduce((a, t) => a + Number(t.kg), 0), [lagerHeute, wahl])
   const lagerReihe = useMemo(() => lagerUeberSaison(verlauf, lagerHeute, bestand, grund, wahl, saison, tagHeute),
                              [verlauf, lagerHeute, bestand, grund, wahl, saison, tagHeute])
-  const summeOffen = [...offenJe.values()].reduce((a, k) => a + k.offen, 0)
+  const summeOffen = ziel.kg
 
-  async function planSetzen(kunde: string, kg: number | null) {
+  /** Den Plan eines Kunden oder einer ganzen Gruppe setzen — leer heisst: wieder ohne. */
+  async function planSetzen(art: 'kunde' | 'gruppe', name: string, kgWert: number | null) {
     setFehler(null)
     const s = planSchluessel(wahl)
-    const r = kg === null
-      ? await supabase.from('kunde_plan').delete().match({ saison, kunde, ...s })
-      : await supabase.from('kunde_plan').upsert({ saison, kunde, ...s, kg }, { onConflict: 'saison,kunde,artikelgruppe,groesse,label' })
+    const r = art === 'kunde'
+      ? (kgWert === null
+          ? await supabase.from('kunde_plan').delete().match({ saison, kunde: name, ...s })
+          : await supabase.from('kunde_plan').upsert({ saison, kunde: name, ...s, kg: kgWert }, { onConflict: 'saison,kunde,artikelgruppe,groesse,label' }))
+      : (kgWert === null
+          ? await supabase.from('gruppe_plan').delete().match({ saison, gruppe: name, ...s })
+          : await supabase.from('gruppe_plan').upsert({ saison, gruppe: name, ...s, kg: kgWert }, { onConflict: 'saison,gruppe,artikelgruppe,groesse,label' }))
     if (r.error) setFehler(fehlerText(r.error)); else { setPlanOffen(null); neuLaden() }
   }
   async function gruppeSetzen(kunde: string, gruppe: string | null) {
@@ -707,63 +726,124 @@ function Verlauf({ grund, heute, wahl, lagerHeute, verlauf, bestand, istAdmin, n
       : await supabase.from('kunde_gruppe').upsert({ kunde, gruppe }, { onConflict: 'kunde' })
     if (r.error) setFehler(fehlerText(r.error)); else { setGruppeOffen(null); neuLaden() }
   }
+  /** Runde AT: eine Gruppe eine Stelle nach oben oder unten — gespeichert wird die ganze Reihenfolge. */
+  async function verschieben(name: string, schritt: -1 | 1) {
+    const folge = gruppen.map(g => g.name)
+    const i = folge.indexOf(name), j = i + schritt
+    if (i < 0 || j < 0 || j >= folge.length) return
+    ;[folge[i], folge[j]] = [folge[j], folge[i]]
+    setFehler(null)
+    const r = await supabase.from('kunde_gruppe_rang').upsert(folge.map((gruppe, k) => ({ gruppe, rang: k + 1 })), { onConflict: 'gruppe' })
+    if (r.error) setFehler(fehlerText(r.error)); else neuLaden()
+  }
 
-  const zeile = (k: Kurve, art: 'gruppe' | 'kunde' | 'summe', name: string, mitglieder: string[]) => {
+  /** Die Zahlen einer Zeile: diese Saison, Vorjahr bis heute, Plan, erreicht, noch zu liefern. */
+  const zahlen = (k: Kurve, plan: { plan: number; eigen: boolean | 'teils'; offen: number } | undefined) => {
     const jetzt = k.bisHeute.get(saison) ?? 0
     const vorjahrBis = k.bisHeute.get(saison - 1) ?? 0
-    const planKg = mitglieder.reduce((a, n) => a + (offenJe.get(n)?.plan ?? 0), 0)
-    const eigen = mitglieder.map(n => offenJe.get(n)?.eigen ?? false)
-    const alleEigen = eigen.every(e => e === true), keinEigen = eigen.every(e => e === false)
-    const offen = mitglieder.reduce((a, n) => a + (offenJe.get(n)?.offen ?? 0), 0)
-    const erreicht = planKg > 0 ? jetzt / planKg : null
-    const schl = art === 'summe' ? '' : `${art === 'gruppe' ? 'g' : 'k'}:${name}`
-    const aktiv = auswahl === schl
-    const aufgeklappt = art === 'gruppe' && auf.has(name)
+    const planKg = plan?.plan ?? 0
+    return { jetzt, vorjahrBis, planKg, eigen: plan?.eigen ?? false, offen: plan?.offen ?? 0, erreicht: planKg > 0 ? jetzt / planKg : null }
+  }
+  const zellen = (z: ReturnType<typeof zahlen>, planZelle: ReactNode) => (
+    <>
+      <td className="zahl"><strong>{masse(z.jetzt)}</strong></td>
+      <td className="zahl">{z.vorjahrBis > 0 ? masse(z.vorjahrBis) : '—'}
+        {z.vorjahrBis > 0 && z.jetzt > 0 && <span className="zelle-unter">{z.jetzt >= z.vorjahrBis ? '+' : '−'}{prozent(Math.abs(z.jetzt / z.vorjahrBis - 1), 0)}</span>}</td>
+      {planZelle}
+      <td className="erreicht">{z.erreicht === null ? <span className="leise">kein Plan</span> : (
+        <span className="erreicht-balken" title={`${prozent(z.erreicht, 0)} des Plans`}>
+          <span style={{ width: `${Math.min(z.erreicht, 1) * 100}%` }} className={z.erreicht >= 1 ? 'voll' : ''} />
+          <em>{prozent(z.erreicht, 0)}</em>
+        </span>)}</td>
+      <td className="zahl">{z.offen > 0 ? <strong>{masse(z.offen)}</strong> : <span className="leise">0</span>}</td>
+    </>
+  )
+  const planZelle = (art: 'kunde' | 'gruppe', name: string, z: ReturnType<typeof zahlen>, unter: string | null, ungezaehlt = false) => (
+    <td className={`zahl plan${z.eigen === false || ungezaehlt ? ' plan-vorjahr' : ''}`}>
+      {planOffen === `${art}:${name}`
+        ? <PlanFeld kg={z.planKg} eigen={z.eigen !== false} setzen={kgWert => void planSetzen(art, name, kgWert)} abbrechen={() => setPlanOffen(null)} />
+        : <><span className="plan-wert">{z.planKg > 0 ? masse(z.planKg) : '—'}
+            {istAdmin && (
+              <button type="button" className="werkzeug-knopf stift" aria-label={`Plan für ${art === 'gruppe' ? 'die Gruppe ' : ''}${name} setzen`}
+                      title={art === 'gruppe' ? 'Planmenge für die ganze Gruppe eintragen' : 'Planmenge eintragen'}
+                      onClick={e => { e.stopPropagation(); setPlanOffen(`${art}:${name}`) }}><ZStift size={14} /></button>
+            )}</span>
+            {unter && <span className="zelle-unter">{unter}</span>}</>}
+    </td>
+  )
+  const planUnter = (eigen: boolean | 'teils', planKg: number) =>
+    planKg <= 0 ? null : eigen === false ? 'Vorjahr' : eigen === 'teils' ? 'teils Plan' : null
+
+  const gruppenZeile = (g: (typeof gruppen)[number], i: number) => {
+    const offenG = ziel.jeGruppe.get(g.name)
+    const z = zahlen(g.kurve, offenG)
+    const schl = `g:${g.name}`
+    const auf_ = auf.has(g.name)
     return (
-      <tr key={schl} className={`klickbar${aktiv ? ' aktiv' : ''}${art === 'kunde' ? ' kunde-in-gruppe' : ' kundengruppe'}`} aria-selected={aktiv}
-          aria-expanded={art === 'gruppe' ? aufgeklappt : undefined}
+      <tr key={schl} className={`klickbar kundengruppe${auswahl === schl ? ' aktiv' : ''}`} aria-expanded={auf_} aria-selected={auswahl === schl}
           onClick={() => {
-            setAuswahl(aktiv ? '' : schl)
-            if (art === 'gruppe') setAuf(a => { const n = new Set(a); if (n.has(name)) n.delete(name); else n.add(name); return n })
+            setAuswahl(auswahl === schl ? '' : schl)
+            setAuf(a => { const n = new Set(a); if (n.has(g.name)) n.delete(g.name); else n.add(g.name); return n })
           }}
-          title={art === 'gruppe' ? 'die Kunden der Gruppe zeigen und die Gruppe im Diagramm' : aktiv ? 'wieder alle Kunden zeigen' : 'im Diagramm zeigen, darunter seine Lieferungen'}>
+          title="die Kunden der Gruppe zeigen und die Gruppe im Diagramm">
         <td>
-          {art === 'summe' ? <strong>{name}</strong>
-            : art === 'gruppe'
-            ? <><span className="chevron" aria-hidden="true"><ZChevron size={14} /></span><strong>{name}</strong>
-                <span className="leise"> · {mitglieder.length} {mitglieder.length === 1 ? 'Kunde' : 'Kunden'}</span></>
-            : <span className="kunde-name">{name}
-                {istAdmin && <button type="button" className="werkzeug-knopf" aria-label={`Gruppe von ${name} ändern`} title="Gruppe ändern"
-                                     onClick={e => { e.stopPropagation(); setGruppeOffen(gruppeOffen === name ? null : name) }}>{gruppeVon(name)}</button>}
-              </span>}
-          {art === 'kunde' && gruppeOffen === name && (
-            <GruppeWahl kunde={name} jetzt={gruppeVon(name)} gesetzt={gesetzt.has(name)} gruppen={[...new Set<string>(['Migros', 'Coop', 'Kleinkunden', ...gesetzt.values()])]}
-                        setzen={g => void gruppeSetzen(name, g)} abbrechen={() => setGruppeOffen(null)} />
-          )}
+          <span className="gruppe-kopf">
+            <span className="chevron" aria-hidden="true"><ZChevron size={14} /></span>
+            <strong>{g.name}</strong>
+            <span className="leise">{g.kunden.length} {g.kunden.length === 1 ? 'Kunde' : 'Kunden'}</span>
+            {istAdmin && gruppen.length > 1 && (
+              <span className="reihenfolge" onClick={e => e.stopPropagation()}>
+                <button type="button" className="werkzeug-knopf" disabled={i === 0} aria-label={`${g.name} nach oben`} title="eine Stelle nach oben"
+                        onClick={() => void verschieben(g.name, -1)}><ZHoch size={14} /></button>
+                <button type="button" className="werkzeug-knopf" disabled={i === gruppen.length - 1} aria-label={`${g.name} nach unten`} title="eine Stelle nach unten"
+                        onClick={() => void verschieben(g.name, 1)}><ZRunter size={14} /></button>
+              </span>
+            )}
+          </span>
         </td>
-        <td className="zahl"><strong>{masse(jetzt)}</strong></td>
-        <td className="zahl">{vorjahrBis > 0 ? masse(vorjahrBis) : '—'}
-          {vorjahrBis > 0 && jetzt > 0 && <span className="leise"> · {jetzt >= vorjahrBis ? '+' : '−'}{prozent(Math.abs(jetzt / vorjahrBis - 1), 0)}</span>}</td>
-        <td className={`zahl plan${keinEigen ? ' plan-vorjahr' : ''}`}>
-          {planOffen === name && art === 'kunde'
-            ? <PlanFeld kg={planKg} eigen={!keinEigen} setzen={kg => void planSetzen(name, kg)} abbrechen={() => setPlanOffen(null)} />
-            : <>{planKg > 0 ? masse(planKg) : '—'}
-                {art === 'kunde' && istAdmin && (
-                  <button type="button" className="werkzeug-knopf stift" aria-label={`Plan für ${name} setzen`} title="Planmenge eintragen"
-                          onClick={e => { e.stopPropagation(); setPlanOffen(name) }}><ZStift size={14} /></button>
-                )}
-                {keinEigen && planKg > 0 && <span className="zelle-unter">Vorjahr</span>}
-                {!keinEigen && !alleEigen && <span className="zelle-unter">teils Plan</span>}</>}
-        </td>
-        <td className="erreicht">{erreicht === null ? <span className="leise">kein Plan</span> : (
-          <span className="erreicht-balken" title={`${prozent(erreicht, 0)} des Plans`}>
-            <span style={{ width: `${Math.min(erreicht, 1) * 100}%` }} className={erreicht >= 1 ? 'voll' : erreicht >= 0.8 ? 'fast' : ''} />
-            <em>{prozent(erreicht, 0)}</em>
-          </span>)}</td>
-        <td className="zahl">{offen > 0 ? masse(offen) : <span className="leise">—</span>}</td>
+        {zellen(z, planZelle('gruppe', g.name, z, offenG?.gruppenplan ? 'Plan der Gruppe' : z.planKg > 0 ? (z.eigen === false ? 'Vorjahr' : 'Summe der Kunden') : null))}
       </tr>
     )
   }
+
+  const kundenZeile = (k: Kurve, gruppenplan: boolean) => {
+    const z = zahlen(k, offenJe.get(k.kunde))
+    const schl = `k:${k.kunde}`
+    const offen = auswahl === schl
+    return (
+      <Fragment key={schl}>
+        <tr className={`klickbar kunde-in-gruppe${offen ? ' aktiv' : ''}`} aria-expanded={offen} aria-selected={offen}
+            onClick={() => setAuswahl(offen ? '' : schl)}
+            title={offen ? 'Lieferungen schliessen' : 'im Diagramm zeigen und darunter die Lieferungen'}>
+          <td>
+            <span className="kunde-name">
+              <span className="chevron klein" aria-hidden="true"><ZChevron size={12} /></span>
+              {k.kunde}
+              {istAdmin && <button type="button" className="werkzeug-knopf gruppe-knopf" aria-label={`Gruppe von ${k.kunde} ändern`} title="Gruppe ändern"
+                                   onClick={e => { e.stopPropagation(); setGruppeOffen(gruppeOffen === k.kunde ? null : k.kunde) }}>{gruppeVon(k.kunde)}</button>}
+            </span>
+            {gruppeOffen === k.kunde && (
+              <GruppeWahl kunde={k.kunde} jetzt={gruppeVon(k.kunde)} gesetzt={gesetzt.has(k.kunde)}
+                          gruppen={[...new Set<string>([...gruppen.map(g => g.name), 'Migros', 'Coop', 'Kleinkunden', ...gesetzt.values()])]}
+                          setzen={g => void gruppeSetzen(k.kunde, g)} abbrechen={() => setGruppeOffen(null)} />
+            )}
+          </td>
+          {zellen(z,
+                  planZelle('kunde', k.kunde, z, gruppenplan && z.planKg > 0 ? 'Gruppenplan gilt' : planUnter(z.eigen, z.planKg), gruppenplan))}
+        </tr>
+        {offen && (
+          <tr className="lieferungen-zeile">
+            <td colSpan={6}><Lieferungen kunde={k.kunde} saison={saison} wahl={wahl} /></td>
+          </tr>
+        )}
+      </Fragment>
+    )
+  }
+
+  const summenZahlen = zahlen(alle, { plan: [...ziel.jeGruppe.values()].reduce((a, g) => a + g.plan, 0),
+                                      eigen: [...ziel.jeGruppe.values()].every(g => g.eigen === true) ? true
+                                        : [...ziel.jeGruppe.values()].some(g => g.eigen !== false) ? 'teils' : false,
+                                      offen: summeOffen })
 
   const reicht = vfHeute >= summeOffen
   return (
@@ -800,17 +880,23 @@ function Verlauf({ grund, heute, wahl, lagerHeute, verlauf, bestand, istAdmin, n
                 <th className="zahl">geliefert{' '}<br />{saisonText(saison)} bis heute<Herkunft art="gemessen" /></th>
                 <th className="zahl">geliefert{' '}<br />{saisonText(saison - 1)} bis {datum(heute).slice(0, 6)}<Herkunft art="gemessen" /></th>
                 <th className="zahl">Plan {saisonText(saison)}{' '}<br />ganze Saison</th>
-                <th>schon erreicht</th>
+                <th>erreicht</th>
                 <th className="zahl">noch{' '}<br />zu liefern</th>
               </tr></thead>
-              <tbody>{gruppen.map(g => (
+              <tbody>{gruppen.map((g, i) => (
                 <Fragment key={g.name}>
-                  {zeile(g.kurve, 'gruppe', g.name, g.kunden.map(k => k.kunde))}
-                  {auf.has(g.name) && g.kunden.map(k => zeile(k, 'kunde', k.kunde, [k.kunde]))}
+                  {gruppenZeile(g, i)}
+                  {auf.has(g.name) && g.kunden.map(k => kundenZeile(k, !!ziel.jeGruppe.get(g.name)?.gruppenplan))}
                 </Fragment>
               ))}</tbody>
               <tfoot>
-                {zeile(alle, 'summe', 'alle Kunden', [...offenJe.keys()])}
+                <tr className="summe">
+                  <td><strong>alle Kunden</strong></td>
+                  {zellen(summenZahlen, <td className={`zahl plan${summenZahlen.eigen === false ? ' plan-vorjahr' : ''}`}>
+                    {summenZahlen.planKg > 0 ? masse(summenZahlen.planKg) : '—'}
+                    {planUnter(summenZahlen.eigen, summenZahlen.planKg) && <span className="zelle-unter">{planUnter(summenZahlen.eigen, summenZahlen.planKg)}</span>}
+                  </td>)}
+                </tr>
               </tfoot>
             </table>
           </div>
@@ -822,7 +908,6 @@ function Verlauf({ grund, heute, wahl, lagerHeute, verlauf, bestand, istAdmin, n
               : <><span className="ausruf" aria-label="reicht nicht">!</span> Noch zu liefern <strong>{masse(summeOffen)}</strong>, verkaufsfähig im
                   Lager heute nur {masse(vfHeute)} <Herkunft art="gerechnet" /> — es fehlen <strong>{masse(summeOffen - vfHeute)}</strong>.</>}
           </p>
-          {auswahl.startsWith('k:') && <Lieferungen kunde={auswahl.slice(2)} saison={saison} wahl={wahl} />}
         </>
       )}
       <Erklaerung>
@@ -907,12 +992,14 @@ function Lieferungen({ kunde, saison, wahl }: { kunde: string; saison: number; w
   const passend = (zeilen ?? []).filter(z => passtGruppe(wahl, z.gruppe) && passtLabel(wahl, z.label) && passtVerkauf(wahl, z.groesse))
   return (
     <section id="kunde-lieferungen" className="kunde-lieferungen">
-      <h3>Lieferungen an {kunde} <span className="leise">· {saisonText(saison - 1)} und {saisonText(saison)} · {wahlName(wahl)}</span></h3>
+      {/* Runde AT: direkt unter dem Kunden, eingerückt — der Name steht schon in der Zeile darüber. */}
+      <p className="kunde-lieferungen-kopf">Lieferungen {saisonText(saison - 1)} und {saisonText(saison)} · {wahlName(wahl)}
+        <span className="leise"> — eine Zeile anklicken zeigt sie wie in der Perigon-Datei</span></p>
       {fehler && <Hinweis art="warnung">{fehler}</Hinweis>}
       {zeilen === null && !fehler && <Lade zeilen={2} />}
       {zeilen !== null && passend.length === 0 && <p className="leise">keine</p>}
       {passend.length > 0 && (
-        <div className="rollbar"><table className="dicht">
+        <div className="rollbar innen-rollt"><table className="dicht">
           <thead><tr><th>Datum</th><th>Artikel</th><th className="zahl">Menge</th><th className="zahl">Masse</th><th>Label</th></tr></thead>
           <tbody>{passend.map(z => (
             <tr key={`${z.quelle}:${z.pos_id}`} className="klickbar" onClick={() => setOffen({ quelle: z.quelle, posId: z.pos_id })}

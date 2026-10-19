@@ -58,6 +58,8 @@ export const ZPunkt = ({ size }: P) => <Z size={size} strich={3}><path d="M12 12
 /* ---------- Richtung, Bedienung ---------------------------------------------- */
 export const ZPfeilRechts = ({ size }: P) => <Z size={size}><path d="M5 12h14M13 6l6 6-6 6" /></Z>
 export const ZChevron = ({ size }: P) => <Z size={size} strich={2}><path d="m9 6 6 6-6 6" /></Z>
+export const ZHoch = ({ size }: P) => <Z size={size} strich={2}><path d="m6 15 6-6 6 6" /></Z>
+export const ZRunter = ({ size }: P) => <Z size={size} strich={2}><path d="m6 9 6 6 6-6" /></Z>
 export const ZZurueck = ({ size }: P) => <Z size={size} strich={2}><path d="m15 6-6 6 6 6" /></Z>
 export const ZPlus = ({ size }: P) => <Z size={size} strich={2.2}><path d="M12 5v14M5 12h14" /></Z>
 export const ZMinus = ({ size }: P) => <Z size={size} strich={2.2}><path d="M5 12h14" /></Z>

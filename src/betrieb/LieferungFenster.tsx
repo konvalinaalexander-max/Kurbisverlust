@@ -134,22 +134,18 @@ export function LieferungFenster({ lieferungId, quelle, posId, schliessen }: {
         )}
         {geladen && ziel && (
           <>
-            <section id="lieferung-deutung" className="lieferung-deutung">
-              <h3 className="oben-0">So wird daraus die Masse</h3>
-              {deutung.length > 0 ? <ul>{deutung.map((d, i) => <li key={i}>{d}</li>)}</ul>
-                : <p className="leise">Die Position steht in keiner eingelesenen Datei mehr.</p>}
-              {lieferungen.length > 0 && (
-                <p className="leise">In der Rechnung: {lieferungen.map(l => `${kg(l.kg, 1)}${l.charge_nr != null ? ` aus Charge ${l.charge_nr}` : ' ohne Charge'}`).join(' · ')}.</p>
-              )}
-            </section>
+            {/* Runde AT: „wirklich gleich dargestellt wie in der Excel — erste Zeile die Spaltennamen, zweite einfach
+                die Einträge." Gitterlinien, grauer Kopf, seitlich rollbar; je Charge der Position eine Zeile. */}
             <section id="lieferung-zeile">
-              <h3>Die ganze Zeile der Datei</h3>
+              <h3 className="oben-0">Die Zeile in der Perigon-Datei</h3>
               {spalten.length > 0 ? (
-                <div className="rollbar">
-                  <table className="dicht lieferung-zeile">
-                    <thead><tr><th>Spalte</th>{roh!.map((_, i) => <th key={i}>{roh!.length === 1 ? 'Wert' : `Zeile ${i + 1}`}</th>)}</tr></thead>
-                    <tbody>{spalten.map(s => (
-                      <tr key={s}><td>{s}</td>{roh!.map((r, i) => <td key={i}>{r[s] == null ? <span className="leise">leer</span> : String(r[s])}</td>)}</tr>
+                <div className="rollbar excel-rahmen">
+                  <table className="excel lieferung-zeile">
+                    <thead><tr>{spalten.map(sp => <th key={sp}>{sp}</th>)}</tr></thead>
+                    <tbody>{roh!.map((r, i) => (
+                      <tr key={i}>{spalten.map(sp => (
+                        <td key={sp} className={typeof r[sp] === 'number' ? 'zahl' : undefined}>{r[sp] == null ? '' : String(r[sp])}</td>
+                      ))}</tr>
                     ))}</tbody>
                   </table>
                 </div>
@@ -157,6 +153,14 @@ export function LieferungFenster({ lieferungId, quelle, posId, schliessen }: {
                 <Hinweis art="info">Die ganze Zeile steht hier, sobald die Perigon-Datei einmal neu eingelesen ist
                   (<Link to="/betrieb/lieferungen" onClick={schliessen}>Betrieb → Warenausgang</Link>) — bis Runde AS speicherte die App
                   nur die Spalten, mit denen sie rechnet.</Hinweis>
+              )}
+            </section>
+            <section id="lieferung-deutung" className="lieferung-deutung">
+              <h3>So wird daraus die Masse</h3>
+              {deutung.length > 0 ? <ul>{deutung.map((d, i) => <li key={i}>{d}</li>)}</ul>
+                : <p className="leise">Die Position steht in keiner eingelesenen Datei mehr.</p>}
+              {lieferungen.length > 0 && (
+                <p className="leise">In der Rechnung: {lieferungen.map(l => `${kg(l.kg, 1)}${l.charge_nr != null ? ` aus Charge ${l.charge_nr}` : ' ohne Charge'}`).join(' · ')}.</p>
               )}
             </section>
           </>

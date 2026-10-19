@@ -131,3 +131,38 @@ test('Runde AS: noch zu liefern — Plan weniger geliefert, nie unter null, übe
   assert.equal(nochZuLiefern(kunden, [], 2026, w('Knirps', 'beide', 'beide')).kg, 600 + 0 + 300)
   assert.equal(nochZuLiefern(kunden, [], 2026, w('Knirps', 'beide', 'D'), new Set(['A'])).kg, 600, 'nur die Kunden einer Gruppe')
 })
+
+/* ---------- Runde AT: Reihenfolge der Gruppen, Plan einer ganzen Gruppe ----- */
+import { gruppenFolge, type GruppePlan } from '../src/auswertung/artikel.ts'
+
+test('Runde AT: die Gruppen in der Reihenfolge des Betriebsleiters, die übrigen nach Menge, Kleinkunden zuletzt', () => {
+  const g = [{ name: 'Kleinkunden', menge: 900 }, { name: 'Migros', menge: 500 }, { name: 'Coop', menge: 700 },
+             { name: 'Gross', menge: 300 }, { name: 'Vierte', menge: 100 }]
+  assert.deepEqual(gruppenFolge(g, []), ['Coop', 'Migros', 'Gross', 'Vierte', 'Kleinkunden'], 'ohne Rang: nach Menge, Kleinkunden zuletzt')
+  assert.deepEqual(gruppenFolge(g, [{ gruppe: 'Gross', rang: 1 }, { gruppe: 'Coop', rang: 2 }, { gruppe: 'Migros', rang: 3 }, { gruppe: 'Vierte', rang: 4 }]),
+                   ['Gross', 'Coop', 'Migros', 'Vierte', 'Kleinkunden'], 'die Folge des Betriebs')
+  assert.deepEqual(gruppenFolge(g, [{ gruppe: 'Vierte', rang: 1 }]), ['Vierte', 'Coop', 'Migros', 'Gross', 'Kleinkunden'], 'nur eine gesetzt: sie zuerst')
+  assert.deepEqual(gruppenFolge(g, [{ gruppe: 'Kleinkunden', rang: 1 }]), ['Kleinkunden', 'Coop', 'Migros', 'Gross', 'Vierte'], 'auch Kleinkunden lässt sich setzen')
+})
+
+test('Runde AT: ein Plan für die ganze Gruppe gilt als Ganzes — die Kundenpläne darin zählen dann nicht noch einmal', () => {
+  const tag = (kunde: string, saison: number, kg: number) => ({ kunde, saison, gruppe: 'Knirps', groesse: 'klein', label: 'D', kg })
+  const kunden = [tag('A', 2025, 1000), tag('A', 2026, 400), tag('B', 2025, 500), tag('B', 2026, 100), tag('C', 2025, 200)]
+  const von = (k: string) => (k === 'C' ? 'Klein' : 'Gruppe')
+  const gp = (gruppe: string, kg: number, label = 'D'): GruppePlan => ({ saison: 2026, gruppe, artikelgruppe: 'Knirps', groesse: '', label, kg })
+  // ohne Gruppenplan: die Gruppe ist die Summe ihrer Kunden (A: 1000 − 400, B: 500 − 100)
+  const ohne = nochZuLiefern(kunden, [], 2026, w('Knirps', 'beide', 'D'), undefined, { von, plaene: [] })
+  assert.deepEqual(ohne.jeGruppe.get('Gruppe'), { plan: 1500, eigen: false, geliefert: 500, offen: 1000, gruppenplan: false })
+  assert.equal(ohne.kg, 1000 + 200)
+  // mit Gruppenplan 1200: noch 1200 − 500 = 700, auch wenn A einen eigenen Plan hat
+  const mit = nochZuLiefern(kunden, [plan('A', 'D', 5000)], 2026, w('Knirps', 'beide', 'D'), undefined, { von, plaene: [gp('Gruppe', 1200)] })
+  assert.deepEqual(mit.jeGruppe.get('Gruppe'), { plan: 1200, eigen: true, geliefert: 500, offen: 700, gruppenplan: true })
+  assert.equal(mit.kg, 700 + 200, 'der Plan des Kunden A zählt nicht dazu')
+  assert.equal(mit.jeKunde.get('A')?.plan, 5000, 'er steht aber beim Kunden')
+  // geliefert über dem Gruppenplan: 0, nie darunter
+  assert.equal(nochZuLiefern(kunden, [], 2026, w('Knirps', 'beide', 'D'), undefined, { von, plaene: [gp('Gruppe', 300)] }).jeGruppe.get('Gruppe')?.offen, 0)
+  // ein Gruppenplan für ein anderes Label gilt hier nicht
+  assert.equal(nochZuLiefern(kunden, [], 2026, w('Knirps', 'beide', 'D'), undefined, { von, plaene: [gp('Gruppe', 300, 'K')] }).jeGruppe.get('Gruppe')?.gruppenplan, false)
+  // eine Gruppe nur mit Plan, noch ohne Kunden: sie steht da, mit ihrem ganzen Plan
+  assert.equal(nochZuLiefern(kunden, [], 2026, w('Knirps', 'beide', 'D'), undefined, { von, plaene: [gp('Neu', 800)] }).jeGruppe.get('Neu')?.offen, 800)
+})

@@ -757,6 +757,19 @@ Lieferungen passen (AB-147). **Der Betrieb spielt setup.sql einmal ein
 Warenausgang) und drückt „Neu rechnen": Erst dann entstehen die fehlenden
 Lieferungen (340 kg), und die doppelten (521 kg) verschwinden.
 
+**Runde AT (0117)** — Kunden in der Reihenfolge des Betriebs. Unter
+**Lagermanagement nach Artikel** ordnen zwei Pfeile in der Gruppenzeile die
+Gruppen (AB-157), der Stift in der Gruppenzeile gibt der ganzen Gruppe einen
+Plan (AB-158); ein Klick auf einen Kunden öffnet seine Lieferungen direkt
+unter ihm, ein zweiter schliesst sie (AB-159), und eine Lieferung zeigt ihre
+Perigon-Zeile wie in Excel: oben die Spaltennamen, darunter die Einträge.
+Verkauft ist überall grau, verkaufsfähig grün — klein hell, gross dunkel,
+ungeteilt dazwischen (AB-160); keine Tabelle ragt im Büro über den Rand
+(AB-161). Unter Ursachen → Stück je Kiste nur noch gewogen gegen die Mitte
+des Kalibers. **Der Betrieb spielt setup.sql einmal ein (Stand 117)**, setzt
+unter Lager nach Artikel einmal die Gruppen am Kunden und die Reihenfolge
+mit den Pfeilen.
+
 **Runde AS (0116)** — die Grösse kommt aus der Sortierdatei. Zu klein und zu
 gross rechnen aus den Sortierdateien: jeder Kürbis auf den Eingangstag
 zurück, für jedes Alter wieder vor — junge Ware mehr zu gross, alte mehr zu

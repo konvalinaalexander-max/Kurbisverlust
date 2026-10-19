@@ -446,10 +446,49 @@ const BILDSCHIRME = [
     tun: async p => {
       await p.locator('.kundentabelle tbody tr.kundengruppe').first().click()
       await p.locator('.kundentabelle tbody tr.kunde-in-gruppe').first().click()
-      await p.locator('#kunde-lieferungen tbody tr').first().waitFor()
+      // Runde AT: die Lieferungen stehen direkt unter dem Kunden, eingerückt in seiner Tabelle.
+      await p.locator('.kundentabelle tr.kunde-in-gruppe[aria-expanded="true"] + tr.lieferungen-zeile #kunde-lieferungen tbody tr').first().waitFor()
       await p.locator('#kunde-lieferungen tbody tr', { hasText: '.2025' }).first().click()
       await p.locator('#lieferung-fenster #lieferung-deutung li').first().waitFor()
-      await p.locator('#lieferung-fenster table.lieferung-zeile td', { hasText: 'AuftragsArtikelMenge' }).waitFor()
+      // Runde AT: wie in Excel — die Spaltennamen sind die Kopfzeile, die Einträge die Zeile darunter
+      // (bis Runde AS standen die Namen untereinander in der ersten Spalte; der Test ging mit der Regel mit).
+      await p.locator('#lieferung-fenster table.excel thead th', { hasText: 'AuftragsArtikelMenge' }).waitFor()
+      const form = await p.evaluate(() => {
+        const t = document.querySelector('#lieferung-fenster table.excel')
+        const sections = [...document.querySelectorAll('#lieferung-fenster section')].map(x => x.id)
+        return { kopf: t.querySelectorAll('thead tr').length, spalten: t.querySelectorAll('thead th').length,
+                 zellen: t.querySelector('tbody tr').children.length, sections }
+      })
+      if (form.kopf !== 1 || form.spalten < 5 || form.zellen !== form.spalten || form.sections[0] !== 'lieferung-zeile')
+        throw new Error(`Perigon-Zeile nicht wie Excel: ${JSON.stringify(form)}`)
+    } },
+  // Runde AT: ein zweiter Klick auf den Kunden schliesst seine Lieferungen wieder.
+  { name: 'artikel-lieferung-zu', wer: 'admin', pfad: '/artikel',
+    tun: async p => {
+      await p.locator('.kundentabelle tbody tr.kundengruppe').first().click()
+      const kunde = p.locator('.kundentabelle tbody tr.kunde-in-gruppe').first()
+      await kunde.click()
+      await p.locator('tr.lieferungen-zeile #kunde-lieferungen').waitFor()
+      await kunde.click()
+      await p.locator('tr.lieferungen-zeile').waitFor({ state: 'detached' })
+    } },
+  // Runde AT: ein Plan für die ganze Gruppe — er gilt für die Gruppe als Ganzes.
+  { name: 'artikel-gruppenplan', wer: 'admin', pfad: '/artikel',
+    tun: async p => {
+      await p.locator('.kundentabelle tr.kundengruppe .stift').first().click()
+      await p.locator('.plan-feld input').fill('99000')
+      await p.locator('.plan-feld button[type="submit"]').click()
+      await p.locator('.kundentabelle tr.kundengruppe td.plan', { hasText: '99 t' }).first().waitFor()
+      await p.locator('.kundentabelle tr.kundengruppe td.plan .zelle-unter', { hasText: 'Plan der Gruppe' }).first().waitFor()
+    } },
+  // Runde AT: die Reihenfolge der Gruppen — die erste eine Stelle nach unten.
+  { name: 'artikel-reihenfolge', wer: 'admin', pfad: '/artikel',
+    tun: async p => {
+      const erste = await p.locator('.kundentabelle tr.kundengruppe .gruppe-kopf strong').first().textContent()
+      await p.locator('.kundentabelle tr.kundengruppe .reihenfolge button[aria-label$="nach unten"]').first().click()
+      await p.waitForFunction(alt => document.querySelector('.kundentabelle tr.kundengruppe .gruppe-kopf strong')?.textContent !== alt, erste)
+      const zweite = await p.locator('.kundentabelle tr.kundengruppe .gruppe-kopf strong').nth(1).textContent()
+      if (zweite !== erste) throw new Error(`erwartet ${erste} an zweiter Stelle, steht ${zweite}`)
     } },
   // Runde AS: eine Planmenge mit dem Stift — danach steht sie fett, nicht mehr grau als Vorjahr.
   { name: 'artikel-plan', wer: 'admin', pfad: '/artikel',
@@ -737,6 +776,14 @@ for (const geraet of GERAETE) {
             .map(e => `${e.tagName.toLowerCase()}${e.className && typeof e.className === 'string' ? '.' + e.className.trim().split(/\s+/).join('.') : ''}→${Math.round(e.getBoundingClientRect().right)}`)
         })
         zeile.push(`ÜBERLAUF ${ueberlauf}px (${taeter.join(', ') || 'kein Element ragt hinaus'})`)
+      }
+      // Runde AT: auf dem Bildschirm im Büro (1440 px) verschwindet auf den vier Hauptseiten keine
+      // Spalte hinter dem Kartenrand — eine Tabelle, die dort seitlich rollen muss, ist zu breit gebaut.
+      if (geraet.name === 'desktop' && ['lager', 'ursachen', 'chargen', 'artikel'].includes(schirm.name)) {
+        const zuBreit = await seite.evaluate(() => [...document.querySelectorAll('.rollbar > table')]
+          .filter(t => !t.closest('.dialog') && t.scrollWidth > t.parentElement.clientWidth + 1)
+          .map(t => `table.${t.className.trim().split(/\s+/).slice(0, 2).join('.')} ${t.scrollWidth}/${t.parentElement.clientWidth}px`))
+        if (zuBreit.length) { fehler++; zeile.push(`ZU BREIT: ${zuBreit.join(', ')}`) }
       }
       if (meldungen.length) { fehler++; zeile.push(`KONSOLE: ${meldungen[0]}`) }
       if (zeile.length > 1) console.log('  ✗ ' + zeile.join(' — '))
