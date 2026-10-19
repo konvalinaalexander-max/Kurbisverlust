@@ -1,10 +1,10 @@
 # Stand der Modelle
 
-_Abzug vom 2026-10-18. Von `pruefstand/betrieb_abzug.mjs` geschrieben; nicht von Hand ändern._
+_Abzug vom 2026-10-19. Von `pruefstand/betrieb_abzug.mjs` geschrieben; nicht von Hand ändern._
 
 Gerechnet: 18.10.2026, 02:00 (10 s) · Einstellungen: saison_aktuell = 2026 · betriebsmodus = "echt" · erfassung_scharf = false · verdunstung_rate_max_pro_tag = 0.01
 
-**Zeitplan läuft** (*/1 * * * *) · letzter Lauf 18.10.2026, 10:53 · succeeded · 0 s · 1 row
+**Zeitplan läuft** (*/1 * * * *) · letzter Lauf 19.10.2026, 11:57 · succeeded · 0 s · 1 row
 
 Für die nächste Runde: Passen die Zahlen zu dem, was die Saison zeigen sollte (docs/SAISONBEGLEITUNG.md)? Wo steht ein Koeffizient auf „Wiegungen aller Sorten", weil die eigenen fehlen? Wo ist ein Band leer, wo ist die Basis dünn?
 
