@@ -21,6 +21,7 @@ import { geliefertNichtMehrAlsEingang, kohorteGeschlossen, nichtsUnmoeglich, str
 import { huelle, standNachTagen, summeStimmtPrognose, summieren, verlustAb, zerlegungStimmt,
          type LagerPortion, type Raender, type Teil } from './prognose.ts'
 import { klemm, nahe } from './zahlen.ts'
+import { alterBeimSortieren, anteilBeimAlter, anteilBis, hagelF, verteilungBeimEingang, type Gewicht, type Lauf, type Stufe } from './kaliber.ts'
 
 const skip = dbErreichbar() ? false : `keine Datenbank unter ${DB_URL}`
 const n = (x: unknown) => x == null ? null : Number(x)
@@ -58,11 +59,14 @@ test('Verdunstung: Netto, Lagertage, Rate und verwendbar je Wägung', { skip }, 
   const g = gebinde()
   // Die Grenze „zu schnell" (0089) aus der Einstellung — gelesen, nicht gerechnet.
   const rateMax = Number(frage<{ w: string | null }>("select wert #>> '{}' as w from einstellung where schluessel = 'verdunstung_rate_max_pro_tag'")[0]?.w ?? 0.01)
+  const ausgeschlossen = new Set(frage<{ id: string }>("select bezug_id as id from messung_ausschluss where art = 'verdunstung'").map(x => Number(x.id)))
   const orakel = roh.map<Waegung>(w => ({ id: Number(w.id), chargeNr: Number(w.charge_nr), sorte: String(w.sorte),
     eingangsdatum: String(w.eingangsdatum), wiegeTag: String(w.wiege_tag), bruttoDamalsKg: n(w.brutto_damals_kg),
     bruttoJetztKg: n(w.brutto_jetzt_kg), kisten: n(w.kisten), gebindeart: w.gebindeart == null ? null : String(w.gebindeart),
     sichtbarSchimmel: Boolean(w.sichtbar_schimmel), gemessen: Boolean(w.gemessen), abgebrochen: Boolean(w.abgebrochen) }))
-    .map(w => messung(w, g, rateMax)).map(m => ({ ...m, verwendbar: m.verwendbar ? 1 : 0 }))
+    .map(w => messung(w, g, rateMax))
+    // 0116: eine Wägung, die der Betriebsleiter von Hand ausschliesst, zählt nicht — was sie sonst wäre, gleichgültig.
+    .map(m => ({ ...m, verwendbar: m.verwendbar && !ausgeschlossen.has(m.id) ? 1 : 0 }))
   const db = frage('select id, netto_damals_kg, netto_jetzt_kg, lagertage, rate_pro_tag, verwendbar::int as verwendbar from v_verdunstung_messung')
   const ab = vergleiche(db, orakel, { db: a => String(a.id), orakel: b => String(b.id) },
     [{ db: 'netto_damals_kg', orakel: 'nettoDamalsKg', abs: 1e-6 }, { db: 'netto_jetzt_kg', orakel: 'nettoJetztKg', abs: 1e-6 },
@@ -95,7 +99,9 @@ test('Stationswerte: Anstieg je Station, Grundausschuss je Sorte, Weg je Charge 
     select sorte, station, charge_nr, messtag::text as messtag, basis_jetzt_kg as w, anteil_station as y, lagertage as t
       from erg_punkte
      where plausibel_station and anteil_station is not null and basis_jetzt_kg > 0 and lagertage is not null
-       and station in ('waschen_sortieren', 'sortieren', 'waschen') and quelle in ('verarbeitung', 'verarbeitung_gemischt')`)
+       and station in ('waschen_sortieren', 'sortieren', 'waschen') and quelle in ('verarbeitung', 'verarbeitung_gemischt')
+       -- 0116: eine Charge mit Hagel trägt ihren Hagel nicht in die geteilten Anteile
+       and charge_nr not in (select nr from charge where hagel_anteil > 0)`)
     .map<Punkt>(p => ({ sorte: String(p.sorte), station: String(p.station) as Station, chargeNr: Number(p.charge_nr),
                         messtag: String(p.messtag), w: Number(p.w), y: Number(p.y), t: Number(p.t) }))
   const sorten = frage<{ sorte: string }>('select distinct sorte from v_kaskade_basis').map(s => s.sorte)
@@ -151,7 +157,7 @@ test('Stationswerte: Anstieg je Station, Grundausschuss je Sorte, Weg je Charge 
 test('Kaskade: Verkaufsanteil, m0 und alle Ströme je Zeile — und die Invarianten K1–K4', { skip }, () => {
   const zeilen = frage<Record<string, unknown>>(`
     select charge_nr, portion, kohorte, alter_tage, m0, m1, m2, r, f, f_ws, f_s, g_w, p_hand, p_wasch, f_bekannt::int as f_bekannt,
-           a_klein_n, a_gross_n, a_fax, verkaufsfaehig_anteil,
+           hagel, a_klein_n, a_gross_n, a_fax, verkaufsfaehig_anteil,
            verdunstung_kg, schimmel_kg, klein_kg, nebenkanal_kg, fax_kg, verkaufsfaehig_kg, geliefert_kg, ueberzaehlung_kg
       from mv_kaskade`)
   assert.ok(zeilen.length > 0, 'mv_kaskade ist leer')
@@ -172,9 +178,10 @@ test('Kaskade: Verkaufsanteil, m0 und alle Ströme je Zeile — und die Invarian
      { db: 'fax_kg', orakel: 'faxKg', rel: 1e-9, abs: 1e-9 }, { db: 'verkaufsfaehig_kg', orakel: 'verkaufsfaehigKg', rel: 1e-9, abs: 1e-9 }])
   assert.equal(ab.length, 0, bericht('mv_kaskade', ab, zeilen.length))
   // 0106: f jeder Zeile ist die Zusammensetzung ihrer eigenen Stationswerte über ihren Weg —
-  // und f_bekannt sagt genau dann ja, wenn die Zusammensetzung einen Wert hat.
+  // und f_bekannt sagt genau dann ja, wenn die Zusammensetzung einen Wert hat. Seit 0116
+  // mit dem Hagel der Portion darauf (welche Portion ihn trägt, prüft der Kaliber-Fall unten).
   const zusammen = zeilen.filter(z => {
-    const f = paloxF(n(z.p_hand), n(z.p_wasch), n(z.f_ws), n(z.f_s), n(z.g_w))
+    const f = hagelF(paloxF(n(z.p_hand), n(z.p_wasch), n(z.f_ws), n(z.f_s), n(z.g_w)), n(z.hagel))
     return !nahe(Number(z.f), f ?? 0, 1e-9, 1e-9) || (Number(z.f_bekannt) === 1) !== (f != null)
   })
   assert.deepEqual(zusammen.map(z => `${z.charge_nr}/${z.portion}/${z.kohorte}`), [], 'mv_kaskade: f ist nicht palox_f(Weg, Stationswerte)')
@@ -205,6 +212,131 @@ test('Kaskade: Verkaufsanteil, m0 und alle Ströme je Zeile — und die Invarian
                         ['r', 'f', 'a_klein_n', 'a_gross_n', 'a_fax', 'verkaufsfaehig_anteil'], r => `${r.charge_nr}/${r.portion}/${r.kohorte}`),
   ]
   assert.deepEqual(verstoesse, [], `Invarianten verletzt:\n  ${verstoesse.slice(0, 15).map(v => `${v.regel} ${v.wo}: ${v.ist} — soll ${v.soll}`).join('\n  ')}`)
+})
+
+/* ===================== Runde AS (0116): zu klein / zu gross aus der Sortierdatei, Hagel ============ */
+
+interface KaliberQuelle { ebene: 'charge' | 'sorte'; schluessel: string; lo: number; hi: number; nLaeufe: number; v: Stufe[] }
+
+/**
+ * Je Charge die Verteilung beim Eingang und die Grenzen der gültigen Fassung —
+ * aus den Rohdaten: Sortierschema, Sortierläufe mit ihren Gewichten, die
+ * Paletten der Arbeit (Zetteldaten) oder der Charge, die Verdunstungsrate.
+ */
+function kaliberAusRohdaten() {
+  const [{ heute }] = frage<{ heute: string }>('select heute()::text as heute')
+  const tag = (x: string) => Math.round(Date.parse(x + 'T00:00:00Z') / 86400000)
+  const fassung = new Map<string, { lo: number; hi: number }>()
+  for (const f of frage<{ sorte: string; baender: [number, number][] }>(`
+      select distinct on (sorte) sorte, kaliber_baender as baender from sortierschema
+       where art = 'kaliber' and kaeufer is null and gilt_ab <= '${heute}'::date
+         and kaliber_baender is not null and jsonb_array_length(kaliber_baender) > 0
+       order by sorte, gilt_ab desc`))
+    fassung.set(f.sorte, { lo: Number(f.baender[0][0]), hi: Number(f.baender[f.baender.length - 1][1]) })
+  const rate = new Map(frage<{ sorte: string; mittel: string | null }>('select sorte, mittel from v_koeff_verdunstung')
+    .map(k => [k.sorte, klemm(Number(k.mittel ?? 0), 0, 0.05)]))
+  const gewichte = frage<Record<string, unknown>>('select lauf_id, gewicht_g, anzahl from sortier_gewicht')
+    .map<Gewicht>(g => ({ laufId: Number(g.lauf_id), gewichtG: Number(g.gewicht_g), anzahl: Number(g.anzahl) }))
+  const mitGewicht = new Set(gewichte.filter(g => g.anzahl > 0 && g.gewichtG > 0).map(g => g.laufId))
+  const zettel = new Map<number, { tag: number; masse: number }[]>()
+  for (const m of frage<Record<string, unknown>>('select auftrag_id, netto_kg, eingangsdatum from v_auftrag_palette_masse where eingangsdatum is not null')) {
+    const l = zettel.get(Number(m.auftrag_id)) ?? []
+    l.push({ tag: tag(String(m.eingangsdatum)), masse: m.netto_kg == null ? 1 : Number(m.netto_kg) })
+    zettel.set(Number(m.auftrag_id), l)
+  }
+  const eingang = new Map<number, { tag: number; masse: number }[]>()
+  for (const p of frage<Record<string, unknown>>('select charge_nr, eingangsdatum, coalesce(netto_kg, brutto_kg) as kg from v_palette where coalesce(netto_kg, brutto_kg) is not null')) {
+    const l = eingang.get(Number(p.charge_nr)) ?? []
+    l.push({ tag: tag(String(p.eingangsdatum)), masse: Number(p.kg) })
+    eingang.set(Number(p.charge_nr), l)
+  }
+  const laeufe = frage<Record<string, unknown>>(`
+    select l.id, l.charge_nr, c.sorte, l.sortiertag, l.auftrag_id
+      from sortier_lauf l join charge c on c.nr = l.charge_nr left join auftrag a on a.id = l.auftrag_id
+     where l.sortiertag is not null and (a.id is null or a.abgebrochen_ts is null)`)
+    .filter(l => mitGewicht.has(Number(l.id)))
+    .map(l => {
+      const st = tag(String(l.sortiertag))
+      const ausZettel = l.auftrag_id == null ? null : alterBeimSortieren(st, zettel.get(Number(l.auftrag_id)) ?? [])
+      const alter = ausZettel ?? alterBeimSortieren(st, eingang.get(Number(l.charge_nr)) ?? [])
+      return { laufId: Number(l.id), chargeNr: Number(l.charge_nr), sorte: String(l.sorte), r: rate.get(String(l.sorte)) ?? 0,
+               alterTage: alter ?? NaN, quelle: ausZettel != null ? 'zettel' : alter != null ? 'eingang' : null }
+    })
+  const gilt = (l: Lauf) => Number.isFinite(l.alterTage) && l.alterTage >= 0
+  const verteilung = new Map<string, Stufe[]>()
+  for (const l of laeufe.filter(gilt)) {
+    for (const k of [`charge|${l.chargeNr}`, `sorte|${l.sorte}`])
+      if (!verteilung.has(k)) {
+        const wahl = laeufe.filter(x => gilt(x) && (k.startsWith('charge') ? `charge|${x.chargeNr}` : `sorte|${x.sorte}`) === k)
+        verteilung.set(k, verteilungBeimEingang(wahl, gewichte.filter(g => wahl.some(x => x.laufId === g.laufId))))
+      }
+  }
+  const quelle = new Map<number, KaliberQuelle>()
+  for (const b of frage<{ charge_nr: string; sorte: string }>('select charge_nr, sorte from v_kaskade_basis')) {
+    const f = fassung.get(b.sorte)
+    if (!f) continue
+    const eigene = laeufe.filter(l => gilt(l) && l.chargeNr === Number(b.charge_nr)).length
+    const derSorte = laeufe.filter(l => gilt(l) && l.sorte === b.sorte).length
+    if (eigene > 0) quelle.set(Number(b.charge_nr), { ebene: 'charge', schluessel: String(b.charge_nr), ...f, nLaeufe: eigene, v: verteilung.get(`charge|${b.charge_nr}`)! })
+    else if (derSorte > 0) quelle.set(Number(b.charge_nr), { ebene: 'sorte', schluessel: b.sorte, ...f, nLaeufe: derSorte, v: verteilung.get(`sorte|${b.sorte}`)! })
+  }
+  return { laeufe, verteilung, quelle, fassung }
+}
+
+test('Kaliber: Fassung, Alter je Lauf, Verteilung beim Eingang und zu klein / zu gross jeder Kaskadenzeile', { skip }, () => {
+  const { laeufe, verteilung, quelle, fassung } = kaliberAusRohdaten()
+  assert.ok(quelle.size > 0, 'keine Charge mit Sortierdatei — die Prüfung trägt nicht')
+
+  const dbF = frage('select sorte, lo, hi from v_kaliber_fassung')
+  const abF = vergleiche(dbF, [...fassung].map(([sorte, f]) => ({ sorte, ...f })), { db: a => String(a.sorte), orakel: b => b.sorte },
+    [{ db: 'lo', orakel: 'lo' }, { db: 'hi', orakel: 'hi' }])
+  assert.equal(abF.length, 0, bericht('v_kaliber_fassung', abF, dbF.length))
+
+  const dbL = frage('select lauf_id, alter_tage, r, alter_quelle from v_kaliber_lauf')
+  const abL = vergleiche(dbL, laeufe.map(l => ({ ...l, alterTage: Number.isFinite(l.alterTage) ? l.alterTage : null })),
+    { db: a => String(a.lauf_id), orakel: b => String(b.laufId) },
+    [{ db: 'alter_tage', orakel: 'alterTage', abs: 1e-9 }, { db: 'r', orakel: 'r', abs: 1e-12 }])
+  assert.equal(abL.length, 0, bericht('v_kaliber_lauf', abL, dbL.length))
+  const quelleL = new Map(laeufe.map(l => [String(l.laufId), l.quelle]))
+  assert.deepEqual(dbL.filter(z => (z.alter_quelle ?? null) !== quelleL.get(String(z.lauf_id))).map(z => `${z.lauf_id}: ${z.alter_quelle}`), [],
+    'v_kaliber_lauf: woher das Alter kommt, stimmt nicht')
+
+  const dbE = frage('select ebene, schluessel, g0, anteil_bis from mv_kaliber_eingang')
+  const orakelE = [...verteilung].flatMap(([k, v]) => anteilBis(v).map(s => ({ schluessel: `${k}|${s.g0}`, anteilBis: s.anteilBis })))
+  const abE = vergleiche(dbE, orakelE, { db: a => `${a.ebene}|${a.schluessel}|${a.g0}`, orakel: b => b.schluessel },
+    [{ db: 'anteil_bis', orakel: 'anteilBis', abs: 1e-9 }])
+  assert.equal(abE.length, 0, bericht('mv_kaliber_eingang', abE, dbE.length))
+
+  const dbQ = frage('select charge_nr, ebene, schluessel, lo, hi, n_laeufe from mv_kaliber_quelle')
+  const abQ = vergleiche(dbQ, [...quelle].map(([nr, q]) => ({ nr, ...q, ebeneZahl: 0 })), { db: a => `${a.charge_nr}|${a.ebene}|${a.schluessel}`, orakel: b => `${b.nr}|${b.ebene}|${b.schluessel}` },
+    [{ db: 'lo', orakel: 'lo' }, { db: 'hi', orakel: 'hi' }, { db: 'n_laeufe', orakel: 'nLaeufe' }])
+  assert.equal(abQ.length, 0, bericht('mv_kaliber_quelle', abQ, dbQ.length))
+
+  // Jede Kaskadenzeile: aus der Sortierdatei beim Alter der Portion, sonst der gemessene Anteil der Sorte.
+  const sorte = (sicht: string) => new Map(frage<{ sorte: string; mittel: string | null }>(`select sorte, mittel from ${sicht}`)
+    .map(k => [k.sorte, klemm(Number(k.mittel ?? 0), 0, 1)]))
+  const klein = sorte('v_koeff_ausschuss'), gross = sorte('v_koeff_nebenkanal')
+  const zeilen = frage<Record<string, unknown>>('select charge_nr, sorte, portion, kohorte, alter_tage, r, a_klein_n, a_gross_n from mv_kaskade')
+  const orakelK = zeilen.map(z => {
+    const q = quelle.get(Number(z.charge_nr))
+    const a = q && z.alter_tage != null ? anteilBeimAlter(q.v, q.lo, q.hi, Math.pow(1 - Number(z.r), Number(z.alter_tage))) : null
+    const k = klein.get(String(z.sorte)) ?? 0, g = gross.get(String(z.sorte)) ?? 0, f = Math.max(k + g, 1)
+    return { schluessel: `${z.charge_nr}|${z.portion}|${z.kohorte}`, klein: a?.klein ?? k / f, gross: a?.gross ?? g / f }
+  })
+  const abK = vergleiche(zeilen, orakelK, { db: a => `${a.charge_nr}|${a.portion}|${a.kohorte}`, orakel: b => b.schluessel },
+    [{ db: 'a_klein_n', orakel: 'klein', abs: 1e-9 }, { db: 'a_gross_n', orakel: 'gross', abs: 1e-9 }])
+  assert.equal(abK.length, 0, bericht('mv_kaskade (zu klein / zu gross)', abK, zeilen.length))
+
+  // Der Hagel trifft, was liegt, und Ausgelagertes ohne eigene Messung der Charge — nie Entsorgtes.
+  const hagel = new Map(frage<{ nr: string; h: string }>('select nr, hagel_anteil as h from charge where hagel_anteil > 0').map(c => [Number(c.nr), Number(c.h)]))
+  const eigen = new Set(frage<{ charge_nr: string }>('select distinct charge_nr from v_charge_palox where anteil is not null').map(c => Number(c.charge_nr)))
+  const schiefH = frage<Record<string, unknown>>('select charge_nr, portion, kohorte, hagel, f_eigen from mv_kaskade').filter(z => {
+    const h = hagel.get(Number(z.charge_nr)) ?? 0
+    const gemessen = z.portion === 'ausgelagert' && eigen.has(Number(z.charge_nr))
+    const soll = z.portion === 'entsorgt' ? 0 : z.portion === 'lager' ? h : (gemessen ? 0 : h)
+    return !nahe(Number(z.hagel ?? 0), soll, 0, 1e-12) || Boolean(z.f_eigen) !== gemessen
+  })
+  assert.deepEqual(schiefH.map(z => `${z.charge_nr}/${z.portion}/${z.kohorte}: ${z.hagel}`), [], 'mv_kaskade: der Hagel trifft die falsche Portion')
 })
 
 test('Zeit: kein plausibler Schimmelpunkt und keine Arbeit mit negativen Lagertagen (K7)', { skip }, () => {
@@ -239,7 +371,7 @@ function raenderJeSorte(): Map<string, Raender> {
 test('K8 — v_prognose: dieselbe Kaskade, ein paar Wochen später', { skip }, () => {
   const portionen = frage<Record<string, unknown>>(`
     select charge_nr, sorte, schlag, kohorte, alter_tage, m0, r, f, f_unten, f_oben, f_ws, f_s, g_w, p_hand, p_wasch,
-           b_ws, b_s, b_w, a_klein_n, a_gross_n, a_fax,
+           b_ws, b_s, b_w, a_klein_n, a_gross_n, a_fax, hagel,
            r_bekannt, f_bekannt, a_klein_bekannt, a_gross_bekannt, a_fax_bekannt, f_geliehen, zuwachs_bekannt
       from mv_kaskade
      where portion = 'lager' and m0 > 0 and alter_tage >= 0`)
@@ -249,36 +381,47 @@ test('K8 — v_prognose: dieselbe Kaskade, ein paar Wochen später', { skip }, (
 
   // 0106: der Anteil am Horizont ist die Zusammensetzung der um den Zuwachs
   // fortgeschriebenen Stationswerte — nur wenn die Kennzahl ihn ausweist.
+  // 0116: mit dem Hagel darauf; zu klein und zu gross beim Alter am Horizont,
+  // wo es eine Sortierdatei gibt (dann ohne eigenes Band).
   const raender = raenderJeSorte()
+  const { quelle: kaliber } = kaliberAusRohdaten()
 
   // Je Portion und Horizont ein Teil; dann über die vier Gruppenebenen rollen.
   const teileJeZeile = new Map<string, Teil[]>()
+  // 0116: was zu grosse Kürbisse beim Eintrocknen an verkaufsfähiger Ware dazugeben — je Zeile
+  const gewinnJeZeile = new Map<string, number>()
   for (const z of portionen) {
     const p: LagerPortion = { chargeNr: Number(z.charge_nr), kohorte: String(z.kohorte),
       alterTage: Number(z.alter_tage), m0: Number(z.m0), r: Number(z.r),
       aKleinN: Number(z.a_klein_n), aGrossN: Number(z.a_gross_n), aFax: Number(z.a_fax) }
-    const g = raender.get(String(z.sorte))!
+    const g0 = raender.get(String(z.sorte))!
     const fHeute = Number(z.f), zb = Boolean(z.zuwachs_bekannt)
+    const kq = kaliber.get(p.chargeNr)
     for (const h of horizonte) {
       const t = Math.trunc(p.alterTage + h)
-      const fDann = zb ? (paloxFNach(n(z.p_hand), n(z.p_wasch), n(z.f_ws), n(z.f_s), n(z.g_w), n(z.b_ws), n(z.b_s), n(z.b_w), h) ?? fHeute) : fHeute
+      const fDann = zb ? (hagelF(paloxFNach(n(z.p_hand), n(z.p_wasch), n(z.f_ws), n(z.f_s), n(z.g_w), n(z.b_ws), n(z.b_s), n(z.b_w), h), n(z.hagel)) ?? fHeute) : fHeute
+      const a = kq ? anteilBeimAlter(kq.v, kq.lo, kq.hi, Math.pow(1 - p.r, p.alterTage + h)) : null
+      const ph: LagerPortion = a ? { ...p, aKleinN: a.klein ?? p.aKleinN, aGrossN: a.gross ?? p.aGrossN } : p
+      const g: Raender = a ? { ...g0, kleinUnten: ph.aKleinN, kleinOben: ph.aKleinN, grossUnten: ph.aGrossN, grossOben: ph.aGrossN } : g0
       // das Band wandert mit dem Anteil mit
       const fU = klemm(Number(z.f_unten) + (fDann - fHeute), 0, 1), fO = klemm(Number(z.f_oben) + (fDann - fHeute), 0, 1)
       const teil: Teil = {
-        p, t,
-        stand: standNachTagen(p, h, fDann),
-        verlust: verlustAb(p, h, fHeute, fDann),
-        huelle: huelle(p, h, fU, fO, g),
+        p: ph, t,
+        stand: standNachTagen(ph, h, fDann),
+        verlust: verlustAb(ph, h, fHeute, fDann, p),
+        huelle: huelle(ph, h, fU, fO, g),
         bekannt: { r: Boolean(z.r_bekannt), f: Boolean(z.f_bekannt),
                    kanal: Boolean(z.a_klein_bekannt) && Boolean(z.a_gross_bekannt), fax: Boolean(z.a_fax_bekannt) },
         fGeliehen: Boolean(z.f_geliehen),
         zuwachsBekannt: zb,
       }
+      const gewinn = (1 - fHeute) * p.m0 * Math.pow(1 - p.r, p.alterTage + h) * (1 - p.aFax) * Math.max(p.aGrossN - ph.aGrossN, 0)
       for (const [gruppe, schluessel] of [['gesamt', ''], ['sorte', String(z.sorte)],
                                           ['schlag', String(z.schlag)], ['charge', String(z.charge_nr)]] as const) {
         const k = `${gruppe}|${schluessel}|${h}`
         if (!teileJeZeile.has(k)) teileJeZeile.set(k, [])
         teileJeZeile.get(k)!.push(teil)
+        gewinnJeZeile.set(k, (gewinnJeZeile.get(k) ?? 0) + gewinn)
       }
     }
   }
@@ -320,11 +463,16 @@ test('K8 — v_prognose: dieselbe Kaskade, ein paar Wochen später', { skip }, (
   assert.equal(ab.length, 0, bericht('v_prognose', ab, db.length))
 
   // Die Zerlegung ist exakt: Wasser + Fäulnis = was der Horizont an
-  // verkaufsfähiger Ware kostet — und beide Teile sind nie negativ.
+  // verkaufsfähiger Ware kostet. Die Fäulnis ist nie negativ. Das Wasser war
+  // es bis 0115 auch nie; seit 0116 trägt es, was beim Eintrocknen über die
+  // Kalibergrenzen wandert — trocknen zu grosse Kürbisse in den verkaufsfähigen
+  // Bereich, kann das mehr bringen, als das Wasser kostet (Demo: Charge 1610,
+  // −1.2 kg in einer Woche). Weiter unter null als dieser Gewinn darf es nie.
+  // Die Regel änderte sich, die Probe mit ihr.
   const beiNull = new Map(orakel.filter(o => o.h === 0).map(o => [`${o.gruppe}|${o.schluesselWert}`, o.verkaufsfaehigKg]))
   const schief = orakel.filter(o => {
     const vf0 = beiNull.get(`${o.gruppe}|${o.schluesselWert}`)!
-    return o.verlustWasserKg < -1e-9 || o.verlustFaeulnisKg < -1e-9
+    return o.verlustWasserKg < -(gewinnJeZeile.get(o.schluessel) ?? 0) - 1e-9 || o.verlustFaeulnisKg < -1e-9
         || !zerlegungStimmt(vf0, o.verkaufsfaehigKg,
              { wasserKg: o.verlustWasserKg, faeulnisKg: o.verlustFaeulnisKg, verkaufsfaehigKg: o.verlustVerkaufsfaehigKg })
   })
@@ -373,7 +521,7 @@ test('K10 — erg_verlauf: die Saison Woche für Woche, unabhängig nachgerechne
   assert.ok(wochen.length > 4, `erg_verlauf hat nur ${wochen.length} Woche(n)`)
   const portionen = frage<Record<string, unknown>>(`
     select charge_nr, portion, kohorte, m0, r, f, f_ws, f_s, g_w, p_hand, p_wasch, b_ws, b_s, b_w, zuwachs_bekannt::int as zuwachs_bekannt,
-           a_klein_n, a_gross_n, a_fax, alter_tage,
+           a_klein_n, a_gross_n, a_fax, alter_tage, hagel,
            case when portion = 'ausgelagert' then kohorte + round(alter_tage)::int end as liefertag,
            case when portion = 'ausgelagert' then fax_kg else 0 end as fax_kg
       from mv_kaskade where m0 > 0 and kohorte is not null`)
@@ -385,8 +533,10 @@ test('K10 — erg_verlauf: die Saison Woche für Woche, unabhängig nachgerechne
   const tag = (s: string) => Math.round(Date.parse(s + 'T00:00:00Z') / 86400000)
   const [{ heute: heuteStr }] = frage<{ heute: string }>('select heute()::text as heute')
   const fBei = (p: Record<string, unknown>, d: number) => Number(p.zuwachs_bekannt) === 1
-    ? (paloxFNach(n(p.p_hand), n(p.p_wasch), n(p.f_ws), n(p.f_s), n(p.g_w), n(p.b_ws), n(p.b_s), n(p.b_w), d) ?? Number(p.f))
+    ? (hagelF(paloxFNach(n(p.p_hand), n(p.p_wasch), n(p.f_ws), n(p.f_s), n(p.g_w), n(p.b_ws), n(p.b_s), n(p.b_w), d), n(p.hagel)) ?? Number(p.f))
     : Number(p.f)
+  // 0116: was noch liegt, hat zu klein und zu gross beim Alter am Wochenende (Sortierdatei)
+  const { quelle: kaliber } = kaliberAusRohdaten()
 
   // Der Eingang kommt aus den Kohorten des Orakels, nicht aus v_palette:
   // Paletten ohne Nettogewicht werden dort mit dem Mittel der übrigen
@@ -449,6 +599,9 @@ test('K10 — erg_verlauf: die Saison Woche für Woche, unabhängig nachgerechne
       const tU = lief == null || p.alter_tage == null ? Math.max(bis - koh, 0)
         : Math.min(Math.max(bis - koh, 0), Number(p.alter_tage))
       const nU = m0 * Math.pow(1 - r, tU)
+      const kq = kaliber.get(Number(p.charge_nr))
+      const aU = kq ? anteilBeimAlter(kq.v, kq.lo, kq.hi, Math.pow(1 - r, tU)) : null
+      const knU = aU && aU.klein != null && aU.gross != null ? aU.klein + aU.gross : kn
       const fU = fBei(p, Math.min(bis, lief ?? bis) - (lief ?? tag(heuteStr)))
       verdunstung += q * (m0 - nD) + (1 - q) * (m0 - nU)
       schimmel += q * nD * fD + (1 - q) * nU * fU
@@ -458,9 +611,9 @@ test('K10 — erg_verlauf: die Saison Woche für Woche, unabhängig nachgerechne
       const gut = (1 - q) * nU * (1 - fU)
       lager += (1 - q) * m0
       imHaus += gut
-      kanal += gut * kn
-      faxLager += gut * (1 - kn) * Number(p.a_fax)
-      verkaufsfaehig += gut * (1 - kn) * (1 - Number(p.a_fax))
+      kanal += gut * knU
+      faxLager += gut * (1 - knU) * Number(p.a_fax)
+      verkaufsfaehig += gut * (1 - knU) * (1 - Number(p.a_fax))
     }
     const summe = (zeilen: { kg: string }[], datum: (z: never) => string) =>
       zeilen.filter(z => tag(datum(z as never)) <= bis).reduce((a, z) => a + Number(z.kg), 0)

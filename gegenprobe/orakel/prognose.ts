@@ -23,6 +23,16 @@
  *   Fäulnis  = B · (1−r)^t₀ · (1−r)^h  · (f(h) − f(0))
  *   zusammen = VF(0) − VF(h)
  *
+ * Seit 0116 hängen zu klein und zu gross am Alter (Sortierdatei, Orakel
+ * kaliber.ts): a(h) statt a. Was beim Eintrocknen unter die Grenze rutscht,
+ * gehört zum Wasser — mit B(0) aus den Anteilen von heute und B(h) aus denen
+ * am Horizont:
+ *
+ *   Wasser   = (1−f(0)) · (B(0) · (1−r)^t₀ − B(h) · (1−r)^(t₀+h))
+ *   Fäulnis  = B(h) · (1−r)^(t₀+h) · (f(h) − f(0))
+ *
+ * Mit a(h) = a ist das die Zerlegung oben.
+ *
  * Die naive Differenz „faul nachher minus faul vorher" hätte diese
  * Eigenschaft nicht: Bei einer Charge, deren Verderb schon gesättigt ist,
  * verliert auch das Faule Wasser, und die Differenz würde negativ.
@@ -90,11 +100,16 @@ export interface Verlust {
 
 /**
  * Was das Liegen ab heute bis zum Horizont h an verkaufsfähiger Ware
- * kostet, exakt in Wasser und Fäulnis zerlegt.
+ * kostet, exakt in Wasser und Fäulnis zerlegt. `p` trägt die Anteile zu
+ * klein / zu gross am Horizont, `heute` die von heute (seit 0116; ohne
+ * Sortierdatei dieselben).
  */
-export function verlustAb(p: LagerPortion, h: number, fHeute: number, fDann: number): Verlust {
-  const basis = p.m0 * (1 - p.aKleinN - p.aGrossN) * (1 - p.aFax) * Math.pow(1 - p.r, p.alterTage)
-  const wasserKg = basis * (1 - fHeute) * (1 - Math.pow(1 - p.r, h))
+export function verlustAb(p: LagerPortion, h: number, fHeute: number, fDann: number,
+                          heute: { aKleinN: number; aGrossN: number } = p): Verlust {
+  const w = Math.pow(1 - p.r, p.alterTage)
+  const basis = p.m0 * (1 - p.aKleinN - p.aGrossN) * (1 - p.aFax) * w
+  const basisHeute = p.m0 * (1 - heute.aKleinN - heute.aGrossN) * (1 - p.aFax) * w
+  const wasserKg = (1 - fHeute) * (basisHeute - basis * Math.pow(1 - p.r, h))
   const faeulnisKg = basis * Math.pow(1 - p.r, h) * Math.max(fDann - fHeute, 0)
   return { wasserKg, faeulnisKg, verkaufsfaehigKg: wasserKg + faeulnisKg }
 }

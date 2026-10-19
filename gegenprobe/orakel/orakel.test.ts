@@ -16,6 +16,7 @@ import { vergleiche } from './vergleich.ts'
 import { band, deckt, deltaVarianz } from './band.ts'
 import { huelle, standBei, standNachTagen, summeStimmtPrognose, summieren, verlustAb,
          zerlegungStimmt, type LagerPortion, type Raender } from './prognose.ts'
+import { alterBeimSortieren, anteilBeimAlter, anteilBis, hagelF, verteilungBeimEingang } from './kaliber.ts'
 
 const G2: Tara = { kistenKg: 1.5, paletteKg: 25 }
 const GEBINDE = new Map<string, Tara>([['G2', G2], ['IFCO 6416', { kistenKg: 1.68, paletteKg: 25 }]])
@@ -492,4 +493,57 @@ test('Prognose: die Hülle schliesst den Mittelwert ein', () => {
   // Die Normierung greift, wenn zu klein und zu gross zusammen über 1 gehen.
   const extrem = huelle(P_ALT, 0, 0, 0, { ...g, kleinOben: 0.8, grossOben: 0.6 })
   assert.ok(extrem.unten >= 0, 'die untere Kante darf nie negativ werden')
+})
+
+/* ===================== Runde AS (0116): Kaliber aus der Sortierdatei, Hagel ============ */
+
+test('Hagel: 1 − (1 − f) · (1 − Hagel); ohne Hagel f, 100 % Hagel 1, sonst bleibt unbekannt unbekannt', () => {
+  assert.equal(hagelF(0.1, null), 0.1)
+  assert.equal(hagelF(0.1, 0), 0.1)
+  assert.ok(nahe(hagelF(0.1, 0.2)!, 0.28, 1e-12))
+  assert.equal(hagelF(null, 1), 1)
+  assert.equal(hagelF(null, 0.5), null)
+  assert.equal(hagelF(1.5, 0.2), 1)
+})
+
+test('Kaliber: beim Alter des Laufs ist der Anteil wieder der der Datei, später rutscht mehr unter die Grenze', () => {
+  // Ein Lauf, 10 Tage nach dem Eingang sortiert, 1 % Verdunstung je Tag.
+  const lauf = { laufId: 1, chargeNr: 1, sorte: 'S', alterTage: 10, r: 0.01 }
+  const gewichte = [{ laufId: 1, gewichtG: 550, anzahl: 2 }, { laufId: 1, gewichtG: 640, anzahl: 1 },
+                    { laufId: 1, gewichtG: 900, anzahl: 3 }, { laufId: 1, gewichtG: 2100, anzahl: 1 }]
+  const v = verteilungBeimEingang([lauf], gewichte)
+  const ql = Math.pow(0.99, 10)
+  assert.deepEqual(v.map(s => s.g0), [Math.floor(550 / ql + 0.5), Math.floor(640 / ql + 0.5), Math.floor(900 / ql + 0.5), Math.floor(2100 / ql + 0.5)])
+  // beim Alter des Laufs: unter 600 g waren 2 × 550 g, über 2000 g 1 × 2100 g — nach Masse
+  const masse = 2 * 550 + 640 + 3 * 900 + 2100
+  const beimLauf = anteilBeimAlter(v, 600, 2000, ql)
+  assert.ok(nahe(beimLauf.klein!, 1100 / masse, 1e-12) && nahe(beimLauf.gross!, 2100 / masse, 1e-12))
+  // 10 Tage später (q = 0.99^20): 640 g sind auf 640 · 0.99^10 = 578.8 g geschrumpft — jetzt zu klein
+  const spaeter = anteilBeimAlter(v, 600, 2000, Math.pow(0.99, 20))
+  assert.ok(nahe(spaeter.klein!, (1100 + 640) / masse, 1e-12), `zu klein später ${spaeter.klein}`)
+  // beim Eingang (q = 1): 2100 / 0.99^10 über 2000, 550 / 0.99^10 = 608 g nicht mehr zu klein
+  const eingang = anteilBeimAlter(v, 600, 2000, 1)
+  assert.equal(eingang.klein, 0)
+  // die Stufen summieren sich zu 1
+  assert.ok(nahe(anteilBis(v).at(-1)!.anteilBis, 1, 1e-12))
+  // ohne Verteilung: leer, nicht 0
+  assert.deepEqual(anteilBeimAlter([], 600, 2000, 1), { klein: null, gross: null })
+})
+
+test('Kaliber: das Alter beim Sortieren ist nach Masse gewichtet, spätere Paletten zählen nicht', () => {
+  assert.equal(alterBeimSortieren(100, [{ tag: 80, masse: 300 }, { tag: 90, masse: 100 }, { tag: 101, masse: 500 }]), (300 * 20 + 100 * 10) / 400)
+  assert.equal(alterBeimSortieren(100, [{ tag: 101, masse: 500 }]), null)
+})
+
+test('Prognose: rutschen Kürbisse beim Eintrocknen unter die Grenze, zählt das zum Wasser — die Zerlegung bleibt genau', () => {
+  const heute = { ...P_ALT }
+  const amHorizont = { ...P_ALT, aKleinN: 0.07 }          // 3 Punkte mehr zu klein in 28 Tagen
+  const vf0 = standBei(heute, 0.10).verkaufsfaehigKg
+  const vfH = standNachTagen(amHorizont, 28, 0.13).verkaufsfaehigKg
+  const v = verlustAb(amHorizont, 28, 0.10, 0.13, heute)
+  assert.equal(zerlegungStimmt(vf0, vfH, v), true)
+  // mehr Wasser als ohne den Kaliberwechsel, gleich viel Fäulnis wie mit den Anteilen am Horizont
+  const ohne = verlustAb(amHorizont, 28, 0.10, 0.13)
+  assert.ok(v.wasserKg > ohne.wasserKg)
+  assert.equal(v.faeulnisKg, ohne.faeulnisKg)
 })

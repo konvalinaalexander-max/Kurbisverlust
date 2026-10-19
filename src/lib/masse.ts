@@ -71,9 +71,14 @@ const HERKUNFT_TEXT: Record<string, string> = {
   gewogen: 'gewogen',
   zettel: 'vom Zettel, Palette im Wareneingang gefunden',
   'zettel-kisten': 'vom Zettel, minus die gezählten Kisten und ihre Tara',
-  'zettel-charge-tara': 'vom Zettel, mit der mittleren Tara der Charge',
+  // Runde AS (0116): ohne Tara des Gebindes zuerst die Tara je Kiste der Charge
+  // mal die gezählten Kisten; nur ohne Kistenzahl die mittlere Tara ganzer Paletten.
+  'zettel-kisten-charge': 'vom Zettel, minus die gezählten Kisten mal die Tara je Kiste der Charge',
+  'zettel-charge-tara': 'vom Zettel, mit der mittleren Tara der Charge (Kisten nicht gezählt)',
   palette: 'aus dem Wareneingang',
+  'datum-je-kiste': 'Netto je Kiste des Eingangstags mal die Kisten',
   'datum-mittel': 'Mittel des Eingangstags',
+  'charge-je-kiste': 'Netto je Kiste der Charge mal die Kisten',
   'charge-mittel': 'Mittel der Charge',
   paletten: 'aus den gezählten Eingangspaletten',
   wasch_paletten: 'aus den gewaschenen Paletten',
