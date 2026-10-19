@@ -449,3 +449,50 @@ test('Runde AS: die Deutung einer Lieferung rechnet wie perigonKg und sagt, was 
   const teil = lieferungDeutung({ menge: 300, einheit: 'kg', gewicht_je_artikel: 1, kg: 300 }, [{ charge_extern: '1617', batch_menge: 200, kg_charge: 200, liefer_label: null }])
   assert.deepEqual(teil, ['Menge 300 kg — die Menge ist schon das Gewicht.', 'Charge 1617: 200 kg → 200 kg.', '100 kg der Position nennen keine Charge — sie zählen im Warenausgang, aber keiner Charge.'])
 })
+
+/* ---------- Runde AT: die Zeile, wie Excel sie zeigt ------------------------ */
+import { excelAnsicht, excelWert, PERIGON_ANSICHT, spaltenBuchstabe } from '../src/lib/warenausgang.ts'
+
+test('Runde AT: die Spalten stehen in der Folge der Datei (A bis AF), auch wenn die Datenbank sie anders zurückgibt', () => {
+  // So gibt jsonb die Schlüssel zurück: nach Länge, dann nach Zeichen — nicht in der Folge der Datei.
+  const namen = PERIGON_ANSICHT.map(s => s.name === 'AuftragsArtikelMengeSoll' ? 'AuftragsArtikelmengeSoll' : s.name)
+  const jsonb = [...namen, 'Neue Spalte'].sort((a, b) => a.length - b.length || (a < b ? -1 : 1))
+  const roh = Object.fromEntries(jsonb.map(n => [n, null]))
+  const a = excelAnsicht([roh])
+  assert.deepEqual(a.spalten.map(s => s.name), [...namen, 'Neue Spalte'], 'Folge der Datei; die Schreibweise der Datei bleibt; Unbekanntes dahinter')
+  assert.equal(a.spalten[0].buchstabe, 'A')
+  assert.equal(a.spalten[31].buchstabe, 'AF')
+  assert.equal(a.spalten[32].buchstabe, null, 'eine Spalte, die die Auswertung nicht kennt, hat keinen Buchstaben')
+  assert.equal(spaltenBuchstabe(26), 'AA')
+  assert.equal(a.zeilen[0].length, 33, 'eine Zelle je Spalte')
+  assert.ok(a.zeilen[0].every(w => w === ''), 'leer bleibt leer, nie 0')
+})
+
+test('Runde AT: jeder Wert im Format seiner Spalte, wie Excel ihn zeigt', () => {
+  const a = excelAnsicht([{
+    AufPosId: 134781, KundenAuftragsNr: 20861, AuftragsLieferDatum: '2026-10-12', AuftragsRuestDatum: '12.10.2026',
+    AuftragsArtikelMenge: 864, GewichtProArtikel: 12, TotalGewicht: 10368, AuftragsGebindemenge: 0,
+    AuftragsGebindemengeSoll: 72, AuftragsErloesExkl: 3.0499999999999998, AuftragsChargeManuell: '1638',
+    AuftragsArtikelEinheit: 'Schalen',
+  }])
+  const wert = (n: string) => a.zeilen[0][a.spalten.findIndex(s => s.name === n)]
+  assert.equal(wert('AufPosId'), '134781', '0;-0 — ohne Tausender')
+  assert.equal(wert('KundenAuftragsNr'), '20861')
+  assert.equal(wert('AuftragsLieferDatum'), '12.10.2026', 'dd.MM.yyyy')
+  assert.equal(wert('AuftragsRuestDatum'), '12.10.2026', 'ein Datum, das schon so dasteht, bleibt')
+  assert.match(wert('TotalGewicht'), /^10\D368\.00$/, '#,##0.00')
+  assert.equal(wert('GewichtProArtikel'), '12.00')
+  assert.match(wert('AuftragsArtikelMenge'), /^864\.00$/)
+  assert.equal(wert('AuftragsGebindemenge'), '.00', '#,###.00 — Excel zeigt 0 als „.00"')
+  assert.equal(wert('AuftragsGebindemengeSoll'), '72.00', '0.00')
+  assert.equal(wert('AuftragsErloesExkl'), '3.05')
+  assert.equal(wert('AuftragsChargeManuell'), '1638', 'Text bleibt Text')
+  assert.equal(wert('AuftragsArtikelEinheit'), 'Schalen')
+  assert.equal(excelWert(1638, 'tausend_ganz').replace(/\D/g, ''), '1638')
+  assert.equal(excelWert(-0.5, 'tausend_ohne_null'), '-.50')
+  // Ausrichtung wie in der Datei: Zahlen rechts, aber die letzten Mengen links
+  const rechts = (n: string) => a.spalten.find(s => s.name === n)!.rechts
+  assert.equal(rechts('AufPosId'), true)
+  assert.equal(rechts('TotalGewicht'), false)
+  assert.equal(rechts('AuftragsArtikelEinheit'), false)
+})

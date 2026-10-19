@@ -4206,6 +4206,22 @@ Spaltennamen, darunter die Einträge, Zahlen rechts, leere Zellen leer;
 seitlich rollbar, wenn die Datei breit ist. Darunter, wie daraus die Kilos
 werden.
 
+*Nachtrag, gleicher Abend.* Der Betrieb: „ich glaube, die Zeile mit den
+Spaltennamen ist anders." Sie war es: Die Datenbank (`jsonb`) merkt sich die
+Folge der Spalten nicht, und das Fenster stellte die Spalten, mit denen die
+App rechnet, nach vorn, den Rest dahinter. Jetzt steht in
+`src/lib/warenausgang.ts` die Auswertung „Abgleich Rückverfolgbarkeit" so,
+wie Perigon sie schreibt (`PERIGON_ANSICHT`, Spalten A bis AF), und
+`excelAnsicht` ordnet danach — die Namen in der Schreibweise der Datei, jeder
+Wert im Format, das die Datei seiner Spalte gibt (Datum 12.10.2026, 0.00,
+10'368.00, und wie Excel „.00" für 0 bei `#,###.00`), linksbündig, wo die
+Datei es so setzt, mit den Spaltenbreiten der Datei, Arial 10, grauer Kopf
+mit Umbruch. Neu einlesen muss der Betrieb dafür nichts: Die Werte waren
+schon da, nur die Folge fehlte. Eine Spalte, die Perigon später dazunimmt,
+steht hinten, bis sie in die Liste kommt. Geprüft mit einer echten Zeile aus
+beiden Dateien (nur lokal) und mit einem Test, der die Schlüssel so
+durcheinander übergibt, wie `jsonb` sie zurückgibt.
+
 **Die Lieferungen unter dem Kunden (AB-159).** Bis hier standen sie als
 eigene Karte unter der Tabelle — weit weg vom Kunden, den man angeklickt
 hatte. Jetzt öffnen sie sich als Zeile direkt unter ihm, eingerückt, mit

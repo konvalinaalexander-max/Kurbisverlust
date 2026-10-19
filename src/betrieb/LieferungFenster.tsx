@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { fehlerText } from '../lib/db'
 import { datum, kg } from '../lib/format'
-import { SPALTEN, lieferungDeutung, type ChargenzeileKurz, type RohZeile } from '../lib/warenausgang'
+import { excelAnsicht, lieferungDeutung, type ChargenzeileKurz, type RohZeile } from '../lib/warenausgang'
 import { Hinweis, Lade } from '../components/Bausteine'
 import { ZKreuz } from '../components/Zeichen'
 
@@ -19,6 +19,11 @@ interface ZeileDerDatei extends ChargenzeileKurz {
 }
 interface LieferungZeile { id: number; datum: string; charge_nr: number | null; sorte: string | null; kg: number; kunde: string | null; bemerkung: string | null }
 interface Einordnung { gruppe: string | null; groesse: string; label: string | null }
+
+/** Eine Spaltenbreite in Excel-Zeichen als Bildpunkte (Arial 10: 7 Punkte je Zeichen und 5 Rand, wie Excel). */
+function excelPx(zeichen: number): number {
+  return Math.round(zeichen * 7 + 5)
+}
 
 /** Wo die Lieferung herkommt: Firma und Position aus der Kennung „Firma:Position:…". */
 function positionAus(externId: string | null | undefined): { quelle: string; posId: number } | null {
@@ -104,11 +109,9 @@ export function LieferungFenster({ lieferungId, quelle, posId, schliessen }: {
                                    gewicht_je_artikel: z0.gewicht_je_artikel, kg: z0.kg_position, preisgruppe: z0.preisgruppe, roh: null } : null)
   const deutung = kopf ? lieferungDeutung(kopf, zeilen) : []
   const roh = position?.roh ?? null
-  // Die Datenbank (jsonb) merkt sich die Reihenfolge der Spalten nicht: die bekannten Perigon-Spalten
-  // in der Folge der Datei, dahinter alle anderen.
-  const alleNamen = roh && roh.length > 0 ? [...new Set(roh.flatMap(r => Object.keys(r)))] : []
-  const bekannt: string[] = Object.values(SPALTEN)
-  const spalten = [...bekannt.filter(n => alleNamen.includes(n)), ...alleNamen.filter(n => !bekannt.includes(n))]
+  // Die Datenbank (jsonb) merkt sich die Folge der Spalten nicht: excelAnsicht stellt sie in die Folge der
+  // Datei (A bis AF) und zeigt jeden Wert im Format seiner Spalte.
+  const ansicht = roh && roh.length > 0 ? excelAnsicht(roh) : null
 
   return createPortal(
     <div className="dialog-hinter" onClick={schliessen}>
@@ -135,17 +138,20 @@ export function LieferungFenster({ lieferungId, quelle, posId, schliessen }: {
         {geladen && ziel && (
           <>
             {/* Runde AT: „wirklich gleich dargestellt wie in der Excel — erste Zeile die Spaltennamen, zweite einfach
-                die Einträge." Gitterlinien, grauer Kopf, seitlich rollbar; je Charge der Position eine Zeile. */}
+                die Einträge." Spalten in der Folge der Datei, Breiten, Formate und Ausrichtung aus der Datei, grauer
+                Kopf mit Umbruch; seitlich rollbar; je Charge der Position eine Zeile. */}
             <section id="lieferung-zeile">
               <h3 className="oben-0">Die Zeile in der Perigon-Datei</h3>
-              {spalten.length > 0 ? (
+              {ansicht ? (
                 <div className="rollbar excel-rahmen">
-                  <table className="excel lieferung-zeile">
-                    <thead><tr>{spalten.map(sp => <th key={sp}>{sp}</th>)}</tr></thead>
-                    <tbody>{roh!.map((r, i) => (
-                      <tr key={i}>{spalten.map(sp => (
-                        <td key={sp} className={typeof r[sp] === 'number' ? 'zahl' : undefined}>{r[sp] == null ? '' : String(r[sp])}</td>
-                      ))}</tr>
+                  <table className="excel lieferung-zeile" style={{ width: ansicht.spalten.reduce((a, sp) => a + excelPx(sp.breite), 0) }}>
+                    <colgroup>{ansicht.spalten.map(sp => <col key={sp.name} style={{ width: excelPx(sp.breite) }} />)}</colgroup>
+                    <thead><tr>{ansicht.spalten.map(sp => (
+                      <th key={sp.name} data-spalte={sp.buchstabe ?? undefined}
+                          title={sp.buchstabe ? `Spalte ${sp.buchstabe} in der Datei` : undefined}>{sp.name}</th>
+                    ))}</tr></thead>
+                    <tbody>{ansicht.zeilen.map((z, i) => (
+                      <tr key={i}>{z.map((w, j) => <td key={j} className={ansicht.spalten[j].rechts ? 'rechts' : undefined}>{w}</td>)}</tr>
                     ))}</tbody>
                   </table>
                 </div>

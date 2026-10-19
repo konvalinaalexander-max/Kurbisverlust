@@ -1,4 +1,5 @@
 import type { Blatt, Zelle } from './xlsx'
+import { zahl as alsZahlText } from './format.ts'
 
 /**
  * Der Warenausgang aus dem Warenwirtschaftssystem (Perigon), Auswertung
@@ -141,6 +142,111 @@ export function rohZeile(kopfzeile: Zelle[], r: Zelle[]): RohZeile {
       : String(z).trim() === '' ? null : String(z).trim()
   }
   return roh
+}
+
+/* ---------- Die Zeile, wie Excel sie zeigt (Runde AT) --------------------- */
+
+/** Die Zahlenformate, die die Perigon-Auswertung ihren Spalten gibt. */
+export type ExcelFormat =
+  | 'text'               // Text (@)
+  | 'ganz'               // 0;-0
+  | 'datum'              // dd.MM.yyyy
+  | 'zwei'               // 0.00
+  | 'tausend'            // #,##0.00
+  | 'tausend_ohne_null'  // #,###.00 — Excel zeigt 0 als „.00"
+  | 'tausend_ganz'       // #,##0
+
+/**
+ * Runde AT: Die Spalten der Auswertung „Abgleich Rückverfolgbarkeit" in der Folge der Datei (A bis AF), mit
+ * Zahlenformat, Ausrichtung und Breite (in Excel-Zeichen), wie die Datei sie setzt. Der Betrieb: „die Zeile
+ * mit den Spaltennamen ist anders" — die Datenbank (jsonb) merkt sich die Folge der Spalten nicht, und das
+ * Fenster hatte nach den Spalten geordnet, mit denen die App rechnet, den Rest dahinter.
+ */
+export const PERIGON_ANSICHT: { name: string; format: ExcelFormat; rechts: boolean; breite: number }[] = [
+  { name: 'AuftragsErfasser', format: 'text', rechts: false, breite: 21.1 },
+  { name: 'AuftragsJournal', format: 'text', rechts: false, breite: 14.27 },
+  { name: 'KundenAuftragsNr', format: 'ganz', rechts: true, breite: 14.27 },
+  { name: 'AuftragsReferenz', format: 'text', rechts: false, breite: 14.27 },
+  { name: 'AuftragsRuestDatum', format: 'datum', rechts: true, breite: 12 },
+  { name: 'AuftragsLieferDatum', format: 'datum', rechts: true, breite: 12 },
+  { name: 'AuftragsLieferant', format: 'text', rechts: false, breite: 27.92 },
+  { name: 'AuftragsArtId', format: 'text', rechts: false, breite: 14.27 },
+  { name: 'AuftragsArtikel', format: 'text', rechts: false, breite: 38.59 },
+  { name: 'Textlinie1', format: 'text', rechts: false, breite: 37.02 },
+  { name: 'AuftragsPrsGrpBez', format: 'text', rechts: false, breite: 14.27 },
+  { name: 'AuftragsGebBez', format: 'text', rechts: false, breite: 23.38 },
+  { name: 'AuftragsGebindemengeSoll', format: 'zwei', rechts: true, breite: 14.27 },
+  { name: 'AuftragsArtikelMengeSoll', format: 'zwei', rechts: true, breite: 14.27 },
+  { name: 'AuftragsGebindemenge', format: 'tausend_ohne_null', rechts: true, breite: 9.72 },
+  { name: 'AuftragsGebindeinhalt', format: 'tausend', rechts: true, breite: 14.27 },
+  { name: 'AuftragsArtikelMenge', format: 'tausend', rechts: true, breite: 14.27 },
+  { name: 'AufPosBatchPackageQuantity Charge', format: 'zwei', rechts: true, breite: 14.27 },
+  { name: 'AufPosBatchQuantity Charge', format: 'zwei', rechts: true, breite: 14.27 },
+  { name: 'AuftragsArtikelEinheit', format: 'text', rechts: false, breite: 14.27 },
+  { name: 'AuftragsErloesExkl', format: 'zwei', rechts: true, breite: 14.27 },
+  { name: 'AuftragsErloesTotExkl', format: 'zwei', rechts: true, breite: 14.27 },
+  { name: 'AuftragsChargeManuell', format: 'tausend_ganz', rechts: true, breite: 14.27 },
+  { name: 'LiefProdAdrName', format: 'text', rechts: false, breite: 14.27 },
+  { name: 'LiefHerkunft', format: 'text', rechts: false, breite: 14.27 },
+  { name: 'LiefPrsGrpName', format: 'text', rechts: false, breite: 14.27 },
+  { name: 'LiefCoopRegion', format: 'text', rechts: false, breite: 14.27 },
+  // So steht es in der Datei: die nächsten beiden Mengen linksbündig.
+  { name: 'LiefInitialMenge', format: 'tausend', rechts: false, breite: 14.27 },
+  { name: 'LiefVerfügbareMenge', format: 'zwei', rechts: false, breite: 14.27 },
+  { name: 'AufPosId', format: 'ganz', rechts: true, breite: 14.27 },
+  { name: 'GewichtProArtikel', format: 'tausend', rechts: false, breite: 14.27 },
+  { name: 'TotalGewicht', format: 'tausend', rechts: false, breite: 14.27 },
+]
+
+/** Der Spaltenbuchstabe in Excel: 0 → A, 25 → Z, 26 → AA. */
+export function spaltenBuchstabe(i: number): string {
+  return i < 26 ? String.fromCharCode(65 + i) : spaltenBuchstabe(Math.floor(i / 26) - 1) + String.fromCharCode(65 + (i % 26))
+}
+
+/** Ein Wert so, wie Excel ihn mit dem Format der Spalte zeigt. Text bleibt Text, leer bleibt leer. */
+export function excelWert(wert: string | number | null | undefined, format: ExcelFormat): string {
+  if (wert == null) return ''
+  if (typeof wert === 'string') {
+    const iso = format === 'datum' ? /^(\d{4})-(\d{2})-(\d{2})/.exec(wert) : null
+    return iso ? `${iso[3]}.${iso[2]}.${iso[1]}` : wert
+  }
+  switch (format) {
+    case 'ganz': return String(Math.round(wert))
+    case 'zwei': return wert.toFixed(2)
+    case 'tausend': return alsZahlText(wert, 2)
+    case 'tausend_ganz': return alsZahlText(wert, 0)
+    case 'tausend_ohne_null': return alsZahlText(wert, 2).replace(/^(-?)0(?=\.)/, '$1')
+    default: return String(wert)
+  }
+}
+
+export interface ExcelAnsicht {
+  spalten: { name: string; buchstabe: string | null; rechts: boolean; breite: number }[]
+  zeilen: string[][]
+}
+
+/**
+ * Runde AT: Die gespeicherten Zeilen einer Position, wie Excel sie zeigt — Spalten in der Folge der Datei
+ * (Namen so geschrieben, wie sie in der Datei stehen), Werte im Format ihrer Spalte. Spalten, die die
+ * Auswertung heute nicht hat, kommen dahinter, in der Folge, in der sie gespeichert sind, als Text oder Zahl.
+ */
+export function excelAnsicht(roh: RohZeile[]): ExcelAnsicht {
+  const namen = [...new Set(roh.flatMap(r => Object.keys(r)))]
+  const bekannt = new Map(PERIGON_ANSICHT.map((s, i) => [schluessel(s.name), { ...s, i }]))
+  const reihe = namen.map(n => ({ n, b: bekannt.get(schluessel(n)) }))
+  const geordnet = [
+    ...reihe.filter(x => x.b).sort((x, y) => x.b!.i - y.b!.i),
+    ...reihe.filter(x => !x.b),
+  ]
+  return {
+    spalten: geordnet.map(({ n, b }) => ({
+      name: n, buchstabe: b ? spaltenBuchstabe(b.i) : null, rechts: b ? b.rechts : false, breite: b ? b.breite : 14.27,
+    })),
+    zeilen: roh.map(r => geordnet.map(({ n, b }) => {
+      const w = r[n]
+      return excelWert(w, b ? b.format : 'text')
+    })),
+  }
 }
 
 const runden = (n: number) => Math.round(n * 1000) / 1000

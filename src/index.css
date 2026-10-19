@@ -1128,13 +1128,19 @@ tr.marge-dahinter table { margin: 0; }
 .lieferung-deutung ul { margin: .2rem 0 .4rem; padding-left: 1.2rem; }
 .lieferung-deutung li { margin: .15rem 0; }
 /* Runde AT: die Perigon-Zeile wie in Excel — Gitter, grauer Kopf, nichts umgebrochen. */
-.excel-rahmen { border: 1px solid var(--rand); border-radius: 4px; }
-table.excel { border-collapse: collapse; width: max-content; min-width: 100%; font-size: .8rem; background: var(--flaeche); }
-table.excel th, table.excel td { border: 1px solid var(--rand); padding: .2rem .45rem; white-space: nowrap; text-align: left; vertical-align: top; }
-table.excel th { background: var(--flaeche-2); color: var(--text); font-weight: var(--gewicht-stark); text-transform: none; letter-spacing: 0; font-size: .8rem; }
-table.excel td { font-variant-numeric: tabular-nums; }
-table.excel td.zahl { text-align: right; }
-table.excel tr > :first-child { border-left: 0; } table.excel tr > :last-child { border-right: 0; }
+/* Runde AT: die Perigon-Zeile, wie Excel sie zeigt — so, wie die Datei es setzt: Arial 10, Kopf grau (#ccc)
+   und oben links mit Umbruch, Gitter #b4b4b4, Zeilenhöhen 54 und 19.5 Punkt, Breiten und Ausrichtung je
+   Spalte. Ein Stück Excel: darum auch im dunklen Modus schwarz auf weiss. */
+.rollbar.excel-rahmen { border: 1px solid #b4b4b4; background: #fff; margin: 0; padding: 0; }
+table.excel { border-collapse: collapse; table-layout: fixed; min-width: 0; background: #fff; color: #000;
+  font-family: Arial, Helvetica, sans-serif; font-size: 10pt; line-height: 1.2; }
+table.excel th, table.excel td { border: 1px solid #b4b4b4; padding: 1px 3px; text-align: left; vertical-align: top;
+  white-space: normal; overflow-wrap: anywhere; overflow: hidden; }
+table.excel th { background: #ccc; color: #000; font-weight: normal; text-transform: none; letter-spacing: 0;
+  font-size: 10pt; height: 72px; }
+table.excel td { height: 26px; }
+table.excel td.rechts { text-align: right; }
+table.excel tr > :first-child { border-left: 0; }
 table.excel thead th { border-top: 0; } table.excel tbody tr:last-child td { border-bottom: 0; }
 .perigon-pruefung tr.unterzeile td { padding-left: 2.1rem; font-size: var(--s-0); }
 .benutzen { margin-top: .7rem; padding: .5rem .75rem; border-radius: var(--radius-klein); background: var(--flaeche-2); }

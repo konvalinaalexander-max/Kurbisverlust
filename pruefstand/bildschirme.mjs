@@ -456,10 +456,17 @@ const BILDSCHIRME = [
       const form = await p.evaluate(() => {
         const t = document.querySelector('#lieferung-fenster table.excel')
         const sections = [...document.querySelectorAll('#lieferung-fenster section')].map(x => x.id)
+        // Runde AT, zweiter Teil: die Spalten in der Folge der Datei (A, B, … AF), der Kopf grau wie in Excel.
+        const zahl = b => [...b].reduce((n, c) => n * 26 + c.charCodeAt(0) - 64, 0)
+        const folge = [...t.querySelectorAll('thead th[data-spalte]')].map(th => zahl(th.dataset.spalte))
         return { kopf: t.querySelectorAll('thead tr').length, spalten: t.querySelectorAll('thead th').length,
-                 zellen: t.querySelector('tbody tr').children.length, sections }
+                 zellen: t.querySelector('tbody tr').children.length, sections,
+                 inFolge: folge.length >= 5 && folge.every((x, i) => i === 0 || x > folge[i - 1]),
+                 erste: t.querySelector('thead th').textContent,
+                 kopfGrau: getComputedStyle(t.querySelector('thead th')).backgroundColor }
       })
-      if (form.kopf !== 1 || form.spalten < 5 || form.zellen !== form.spalten || form.sections[0] !== 'lieferung-zeile')
+      if (form.kopf !== 1 || form.spalten < 5 || form.zellen !== form.spalten || form.sections[0] !== 'lieferung-zeile'
+          || !form.inFolge || form.erste !== 'AuftragsJournal' || form.kopfGrau !== 'rgb(204, 204, 204)')
         throw new Error(`Perigon-Zeile nicht wie Excel: ${JSON.stringify(form)}`)
     } },
   // Runde AT: ein zweiter Klick auf den Kunden schliesst seine Lieferungen wieder.
