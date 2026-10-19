@@ -7,6 +7,7 @@ import { imDemoModus, istKonfiguriert, konfigurationsProblem } from './lib/supab
 import { Avatar, Hinweis, Lade } from './components/Bausteine'
 import { useBetriebsmodus } from './lib/betriebsmodus'
 import { demoVerlassen } from './lib/demo'
+import { useHaftendeKoepfe } from './design/haftkopf'
 import DemoBand from './components/DemoBand'
 import Anmelden from './pages/Anmelden'
 import Start from './pages/Start'
@@ -40,6 +41,8 @@ export default function App() {
   const modus = useBetriebsmodus()
   const band: 'demo' | 'beispiel' | null =
     imDemoModus ? 'demo' : modus === 'beispiel' ? 'beispiel' : null
+  // Runde AS: im Büro kleben die Spaltentitel je Tabelle, solange sie zu sehen ist.
+  useHaftendeKoepfe(istAdmin)
 
   if (konfigurationsProblem) {
     // Im Demo-Modus geht es um die zwei DEMO-Werte, nicht um die des

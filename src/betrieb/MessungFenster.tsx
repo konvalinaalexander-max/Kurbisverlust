@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { ZKreuz } from '../components/Zeichen'
 import { ChargeFenster } from './ChargeFenster'
 import { MessungKasten } from './ArbeitFenster'
@@ -22,7 +23,7 @@ export function MessungFenster({ info, schliessen }: { info: PunktInfo; schliess
     window.addEventListener('keydown', h)
     return () => window.removeEventListener('keydown', h)
   }, [schliessen])
-  return (
+  return createPortal(
     <div className="dialog-hinter" onClick={schliessen}>
       <div className="dialog" role="dialog" aria-modal="true" aria-label="Messung" id="messung-fenster" onClick={e => e.stopPropagation()}>
         <div className="fenster-kopf">
@@ -41,6 +42,7 @@ export function MessungFenster({ info, schliessen }: { info: PunktInfo; schliess
         )}
       </div>
       {charge !== null && <div onClick={e => e.stopPropagation()}><ChargeFenster chargeNr={charge} schliessen={() => setCharge(null)} /></div>}
-    </div>
+    </div>,
+    document.body,
   )
 }

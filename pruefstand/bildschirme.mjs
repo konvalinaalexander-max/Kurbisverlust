@@ -312,14 +312,45 @@ const BILDSCHIRME = [
   { name: 'chargen', wer: 'admin', pfad: '/chargen' },
   { name: 'chargen-offen', wer: 'admin', pfad: '/chargen',
     tun: async p => { await p.locator('tbody tr').first().click() } },
+  // Runde AS: die Spaltentitel kleben, solange die Tabelle zu sehen ist —
+  // halb hinausgerollt steht der Kopf oben im Bild; ist die Tabelle ganz
+  // hinaus, geht er mit ihr (src/design/haftkopf.ts).
+  { name: 'chargen-kopf-klebt', wer: 'admin', pfad: '/chargen',
+    tun: async p => {
+      await p.locator('.chargentabelle tbody tr').first().click()
+      const lage = await p.evaluate(async () => {
+        const warten = () => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))
+        const t = document.querySelector('.chargentabelle'), k = t.querySelector('thead')
+        window.scrollBy(0, t.getBoundingClientRect().top + t.offsetHeight / 2)
+        await warten()
+        const mitten = { klebt: k.classList.contains('klebt'), oben: k.getBoundingClientRect().top }
+        window.scrollBy(0, t.getBoundingClientRect().bottom + 200)
+        await warten()
+        return { mitten, danach: { unten: k.getBoundingClientRect().bottom, tabelle: t.getBoundingClientRect().bottom } }
+      })
+      if (!lage.mitten.klebt || lage.mitten.oben < -1 || lage.mitten.oben > 200) throw new Error(`Kopf der Chargentabelle klebt nicht: ${JSON.stringify(lage.mitten)}`)
+      if (lage.danach.unten > lage.danach.tabelle + 1) throw new Error(`Kopf bleibt nach der Tabelle stehen: ${JSON.stringify(lage.danach)}`)
+      await p.evaluate(() => window.scrollBy(0, -(document.querySelector('.chargentabelle').getBoundingClientRect().bottom) - innerHeight / 2))
+    } },
   // Runde AO: Messungen mit vier Reitern — Arbeiten (vorher unter Betrieb),
   // Auffälligkeiten, Messwerte, Ausstehend (vorher ein eigener Reiter).
   { name: 'messungen', wer: 'admin', pfad: '/messungen' },
   { name: 'messungen-auffaelligkeiten', wer: 'admin', pfad: '/messungen/auffaelligkeiten' },
   { name: 'messungen-messwerte', wer: 'admin', pfad: '/messungen/messwerte' },
   // Runde X: jede Auffälligkeit nennt ihre Arbeit und öffnet sie als Fenster.
+  // Runde AS: das Fenster geht im sichtbaren Bildschirm auf, auch bei der
+  // letzten Auffälligkeit unten in der langen Liste — vorher hing es an der
+  // Karte (Einblend-Animation) und stand mitten in der Liste.
   { name: 'messungen-arbeit', wer: 'admin', pfad: '/messungen/auffaelligkeiten',
-    tun: async p => { await p.getByRole('button', { name: 'Arbeit ansehen' }).first().click(); await p.locator('#arbeit-fenster h2').waitFor() } },
+    tun: async p => {
+      const knopf = p.getByRole('button', { name: 'Arbeit ansehen' }).last()
+      await knopf.scrollIntoViewIfNeeded()
+      await knopf.click()
+      await p.locator('#arbeit-fenster h2').waitFor()
+      const box = await p.locator('#arbeit-fenster').boundingBox()
+      const hoehe = p.viewportSize().height
+      if (!box || box.y < -1 || box.y > hoehe - 40) throw new Error(`Arbeitsfenster nicht im Bildschirm: y=${box?.y}, Bildschirm ${hoehe}px hoch`)
+    } },
   // Runde Z: von der Auffälligkeit zur Charge.
   { name: 'messungen-charge', wer: 'admin', pfad: '/messungen/auffaelligkeiten',
     tun: async p => { await p.locator('.befund-kopf .charge-knopf').first().click(); await p.locator('#charge-fenster h2').waitFor() } },
@@ -341,6 +372,25 @@ const BILDSCHIRME = [
       if (stueck <= 0) throw new Error('v_kunde_tag.json kennt keine Stück ohne Gewicht — daten_dumpen.sh nach 0115 neu laufen lassen')
       const hinweis = await p.locator('#artikel-ohne-gewicht').innerText()
       if (!hinweis.includes(`${stueck} Stück`)) throw new Error(`Hinweis Stück ohne Gewicht: „${hinweis}" — erwartet ${stueck} Stück`)
+    } },
+  // Runde AS: eine Tabelle statt zwei, ohne Kisten; der Wochenregler verschiebt
+  // nur sie, die Balken bleiben heute; der Balken trägt die Farben des
+  // Lagermanagements nach Charge, und eine Zeile klappt ihre Chargen auf.
+  { name: 'artikel-tabelle', wer: 'admin', pfad: '/artikel',
+    tun: async p => {
+      await p.locator('#artikel-uebersicht-tabelle tbody tr').first().waitFor()
+      if (await p.locator('#artikel-bestand').count()) throw new Error('Die zweite Tabelle „in Kisten" ist noch da')
+      if (/Kisten/.test(await p.locator('#artikel-uebersicht').innerText())) throw new Error('Die Übersicht spricht noch von Kisten')
+      const legende = await p.locator('.uebersicht-legende').innerText()
+      for (const w of ['ausgeliefert', 'verkaufsfähig klein', 'zu klein / zu gross', 'Palox', 'verdunstet'])
+        if (!legende.includes(w)) throw new Error(`Legende ohne „${w}": ${legende}`)
+      const vorher = await p.locator('#artikel-uebersicht .uebersicht-wert strong').first().innerText()
+      await p.locator('#artikel-wochen').fill('4')
+      await p.locator('#artikel-uebersicht-tabelle th.gruppe', { hasText: 'in 4 Wochen' }).waitFor()
+      const nachher = await p.locator('#artikel-uebersicht .uebersicht-wert strong').first().innerText()
+      if (vorher !== nachher) throw new Error(`Der Balken folgt dem Wochenregler: ${vorher} → ${nachher}`)
+      await p.locator('#artikel-uebersicht-tabelle tbody tr.klickbar').first().click()
+      await p.locator('#artikel-uebersicht-tabelle tr.artikel-chargen table tbody tr').first().waitFor()
     } },
   // Runde AP (0113): „Wie viel Knirps klein haben wir noch, das wir als Demeter
   // verkaufen können?" — oben gewählt, die Chargen dahinter aufgeklappt.

@@ -59,3 +59,33 @@ test('Übersicht: die Wahl oben filtert nach Artikel und Label', () => {
   assert.deepEqual(uebersichtszeilen(bestand, labelVon, gruppeVon, teile, { ...OFFEN, gruppe: 'Knirps' }).map(x => x.label), ['D'])
   assert.deepEqual(uebersichtszeilen(bestand, labelVon, gruppeVon, teile, { ...OFFEN, gruppe: 'Kabocha' }), [])
 })
+
+// Runde AS: „Schaut doch, dass da hier die gleichen Farben verwendet werden" —
+// der Balken teilt das Lager wie im Lagermanagement nach Charge, und die eine
+// Tabelle darunter trägt den Wochenregler.
+test('Übersicht: der Rest des Lagers wie die Kaskade ihn teilt — Lager = verkaufsfähig + Rest', () => {
+  // Charge 1: 400 kg im Lager, 300 verkaufsfähig — die Kaskade teilt die übrigen 100.
+  const rest = new Map([[1, { kanal: 20, faul: 50, verdunstet: 25, fax: 5 }], [2, { kanal: 1, faul: 1, verdunstet: 1, fax: 0 }]])
+  const [knirps] = uebersichtszeilen(bestand, labelVon, gruppeVon, teile, OFFEN, { rest })
+  assert.deepEqual(knirps.rest, { kanal: 20, faul: 50, verdunstet: 25, fax: 5, offen: 500 },
+    'Charge 2 kennt ihr Verkaufsfähiges nicht: ihre 500 kg sind offen, nicht geteilt')
+  const r = knirps.rest
+  assert.equal(knirps.vf + r.kanal + r.faul + r.verdunstet + r.fax + r.offen, knirps.lager)
+  assert.deepEqual(knirps.chargen, [1, 2])
+})
+
+test('Übersicht: ohne Teilung der Kaskade ist der Rest offen, nicht null', () => {
+  const [knirps] = uebersichtszeilen(bestand, labelVon, gruppeVon, teile, OFFEN)
+  assert.equal(knirps.rest.kanal + knirps.rest.faul + knirps.rest.verdunstet + knirps.rest.fax, 0)
+  assert.equal(knirps.rest.offen, 100 + 500)
+})
+
+test('Übersicht: die Grössen am Stichtag der Tabelle getrennt von heute', () => {
+  const spaeter = [teil(1, 'klein', 150), teil(1, 'gross', 60), teil(1, 'unter 600 g', 20)]
+  const [knirps] = uebersichtszeilen(bestand, labelVon, gruppeVon, teile, OFFEN, { spaeter })
+  assert.equal(knirps.klassen.get('klein'), 200, 'der Balken bleibt heute')
+  assert.equal(knirps.klassenSpaeter.get('klein'), 150)
+  assert.equal(knirps.klassenSpaeter.get('ausserhalb'), 20)
+  const [ohne] = uebersichtszeilen(bestand, labelVon, gruppeVon, teile, OFFEN)
+  assert.deepEqual([...ohne.klassenSpaeter], [...ohne.klassen], 'ohne Stichtag dieselben Teile')
+})

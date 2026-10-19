@@ -219,27 +219,21 @@ function ChargeDetail({ nr, z, daten }: { nr: number; z: Zeile; daten: Auswertun
   return (
     <div className="wechsel">
       {/* Runde AO: keine zweite Zahlenreihe mehr — die Zahlen stehen in der
-          Zeile darüber; hier steht in Sätzen, was sie heissen. */}
+          Zeile darüber. Runde AS: und auch keine Sätze mehr („16 davon ohne
+          Chargennummer … verteilt — What?"): drei Zeilen, nur was die Zeile
+          nicht schon sagt; die Erklärung steht im Hinweis unter der Maus. */}
       <ul className="erklaer-liste">
         {b.n_lieferungen > 0 && (
-          <li><strong>Ausgeliefert {kg(b.geliefert_kg, 0)}</strong> in {zahl(b.n_lieferungen)} {b.n_lieferungen === 1 ? 'Lieferung' : 'Lieferungen'} <Herkunft art="gemessen" />
-            {ohneNummer > 0 && <> — {zahl(ohneNummer)} davon ohne Chargennummer, nach dem Eingang auf die Chargen der Sorte verteilt (sie fehlen unten in der Liste)</>}.
-            Dafür gingen {kg(b.ausgelagert_kg, 0)} Eingangsware aus dem Lager <Herkunft art="gerechnet" /> — die Differenz
-            von {kg(Math.max(b.ausgelagert_kg - b.geliefert_kg, 0), 0)} ist unterwegs verdunstet, im Palox gelandet oder als zu klein / zu gross aussortiert.
-            {b.ueberzaehlung_kg > 0 && <> Geliefert wurde {kg(b.ueberzaehlung_kg, 0)} mehr, als hereingekommen ist — ein Zettel oder eine Zuordnung stimmt nicht.</>}</li>
+          <li><strong>Ausgeliefert {kg(b.geliefert_kg, 0)}</strong> in {mz(b.n_lieferungen, 'Lieferung', 'Lieferungen')}
+            {ohneNummer > 0 && <span className="leise" title="Lieferscheine ohne Chargennummer nehmen anteilig von jeder Charge ihrer Sorte, die schon da war. Sie zählen hier mit, stehen aber nicht in der Liste unten. Unter Betrieb → Warenausgang lässt sich die Charge nachtragen."> (davon {zahl(ohneNummer)} ohne Chargennummer, anteilig)</span>}
+            {' '}· <span title="So viel Eingangsware ging dafür aus dem Lager — mehr als geliefert, weil unterwegs verdunstet, im Palox gelandet oder als zu klein / zu gross aussortiert">aus {kg(b.ausgelagert_kg, 0)} Eingangsware</span> <Herkunft art="gerechnet" /></li>
         )}
-        {b.lager_kg > 0 && (
-          <li><strong>Im Lager {kg(b.lager_kg, 0)}</strong>{(b.n_rest_paletten ?? 0) > 0 && <> — etwa {zahl(b.n_rest_paletten)} von {zahl(b.n_paletten)} Paletten</>},
-            {' '}heute noch {kg(b.im_haus_heute_kg, 0)} schwer <Herkunft art="gerechnet" />
-            {b.verkaufsfaehig_lager_kg !== null && <>, davon verkaufsfähig {kg(b.verkaufsfaehig_lager_kg, 0)}{z.heute !== null && <> ({prozent(z.heute, 0)})</>}</>}.</li>
-        )}
+        {b.ueberzaehlung_kg > 0 && <li><Marke art="warnung">{kg(b.ueberzaehlung_kg, 0)} mehr geliefert als gekommen</Marke> — ein Zettel oder eine Zuordnung stimmt nicht.</li>}
         <li><strong>Verlust bis heute {kg(b.verlust_heute_kg, 0)}</strong>
           {b.verlust_heute_kg !== null
-            ? <> = Verdunstung {kg(b.verdunstung_heute_kg, 0)} + Palox {kg(b.schimmel_heute_kg, 0)} + Faules beim Abpacken {kg(b.fax_heute_kg, 0)}</>
-            : <> — {verlustTitel(b)}</>}
-          {b.faul_anteil != null && <span className="leise" title={b.faul_quelle ?? 'Quelle unbekannt'}> · rechnet mit {prozent(b.faul_anteil)} im Palox</span>}.</li>
-        {z.l && <li className="leise">Messungen dieser Charge: {mz(z.l.n_wiegungen, 'Palettenwägung', 'Palettenwägungen')} · {mz(z.l.n_schimmel, 'Palox-Ablesung', 'Palox-Ablesungen')} · {mz(z.l.n_sortierlaeufe, 'Sortierlauf', 'Sortierläufe')} (CSV).
-          Auffälligkeiten stehen unter <Link to="/messungen/auffaelligkeiten">Messungen</Link>.</li>}
+            ? <> = Verdunstung {kg(b.verdunstung_heute_kg, 0)} + Palox <span title={b.faul_anteil != null ? `rechnet mit ${prozent(b.faul_anteil)} im Palox — ${b.faul_quelle ?? 'Quelle unbekannt'}` : undefined}>{kg(b.schimmel_heute_kg, 0)}</span> + Faules beim Abpacken {kg(b.fax_heute_kg, 0)}</>
+            : <> — {verlustTitel(b)}</>}</li>
+        {z.l && <li className="leise">Gemessen: {mz(z.l.n_wiegungen, 'Palettenwägung', 'Palettenwägungen')} · {mz(z.l.n_schimmel, 'Palox-Ablesung', 'Palox-Ablesungen')} · {mz(z.l.n_sortierlaeufe, 'Sortierlauf', 'Sortierläufe')}</li>}
       </ul>
 
       <div className="gitter">

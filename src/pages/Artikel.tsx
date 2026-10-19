@@ -10,7 +10,7 @@ import { Probleme, Rechnet, Reiterkopf } from '../auswertung/Karten'
 import { WochenFeld } from '../components/WochenFeld'
 import { ZChevron } from '../components/Zeichen'
 import { KLASSEN, OFFEN, klasseVon, passtGruppe, passtKlasse, passtLabel, rang, uebersichtszeilen,
-         type Klasse, type Uebersichtszeile, type Wahl } from '../auswertung/artikel'
+         type Klasse, type RestTeile, type Uebersichtszeile, type Wahl } from '../auswertung/artikel'
 
 const TAG = 86400000
 
@@ -51,8 +51,10 @@ const gruppeName = (g: string | null) =>
 const labelName = (l: string | null) => l === 'D' ? 'Demeter' : l === 'K' ? 'Knospe' : 'Label unbekannt'
 
 
+// Runde AS: „Was genau ist Verkauf lose?" — lose heisst: verkaufsfähig, aber in
+// keinem Kaliber der Artikel; „Grösse offen": keine Sortier-CSV.
 const klasseName = (k: Klasse) =>
-  k === 'stueck' ? 'je Stück' : k === 'ausserhalb' ? 'ausserhalb der Kaliber' : k === 'ohne' ? 'ohne Grösse' : k
+  k === 'stueck' ? 'je Stück' : k === 'ausserhalb' ? 'lose' : k === 'ohne' ? 'Grösse offen' : k
 
 /** Verkauft: KundeTag.groesse ist gross, klein oder lose — lose zählt nur bei „beide". */
 const passtVerkauf = (w: Wahl, g: string) => w.groesse === 'beide' || g === w.groesse
@@ -94,6 +96,12 @@ export default function Artikel() {
     return () => { gilt = false }
   }, [])
 
+  // Runde AS: der Rest des Lagers je Charge, wie die Kaskade ihn teilt (heute) — für die Farben des Balkens.
+  const rest = useMemo(() => new Map<number, RestTeile>((daten?.prognose ?? [])
+    .filter(p => p.gruppe === 'charge' && p.h === 0)
+    .map(p => [Number(p.schluessel), { kanal: Number(p.kanal_kg), faul: Number(p.faul_kg), verdunstet: Number(p.verdunstet_kg), fax: Number(p.fax_kg) }])),
+  [daten?.prognose])
+
   const gruppen = useMemo(() => {
     const s = new Set<string>()
     for (const g of grund?.gruppen ?? []) if (g.artikelgruppe) s.add(g.artikelgruppe)
@@ -116,9 +124,10 @@ export default function Artikel() {
       {grund && (
         <>
           <Wahlleiste wahl={wahl} setzen={setWahl} gruppen={gruppen} />
-          <NochDa bestand={daten.bestand} grund={grund} teile={lager.zeilen} laedt={lager.laedt} lagerFehler={lager.fehler}
-                  wochen={wochen} setzeWochen={setWochen} wahl={wahl} heute={daten.heute}
-                  uebersicht={<Uebersicht bestand={daten.bestand} grund={grund} teile={lagerHeute.zeilen} wahl={wahl} />} />
+          <NochDa bestand={daten.bestand} grund={grund} teile={lager.zeilen} wochen={wochen} wahl={wahl} heute={daten.heute}
+                  uebersicht={<Uebersicht bestand={daten.bestand} grund={grund} teileHeute={lagerHeute.zeilen} teile={lager.zeilen} wahl={wahl}
+                                          wochen={wochen} setzeWochen={setWochen} stichtag={lager.zeilen[0]?.datum ?? null}
+                                          laedt={lager.laedt} lagerFehler={lager.fehler} rest={rest} />} />
           <Verlauf kunden={grund.kunden} heute={daten.heute} wahl={wahl} />
         </>
       )}
@@ -201,11 +210,10 @@ function jeCharge(teile: ArtikelLagerCharge[]): Chargenteil[] {
   return [...m.values()].sort((a, b) => b.kg - a.kg)
 }
 
-function NochDa({ bestand, grund, teile, laedt, lagerFehler, wochen, setzeWochen, wahl, heute, uebersicht }: {
-  bestand: Bestand[]; grund: Grundlagen; teile: ArtikelLagerCharge[]; laedt: boolean; lagerFehler: string | null
-  wochen: number; setzeWochen: (n: number) => void; wahl: Wahl; heute: string; uebersicht: ReactNode
+function NochDa({ bestand, grund, teile, wochen, wahl, heute, uebersicht }: {
+  bestand: Bestand[]; grund: Grundlagen; teile: ArtikelLagerCharge[]
+  wochen: number; wahl: Wahl; heute: string; uebersicht: ReactNode
 }) {
-  const [auf, setAuf] = useState<Set<string>>(new Set())
   const [zeigeChargen, setZeigeChargen] = useState(false)
   const labelVon = useMemo(() => new Map(grund.labels.map(l => [l.charge_nr, l])), [grund.labels])
   const gruppeVon = useMemo(() => new Map(grund.gruppen.map(g => [g.sorte, g])), [grund.gruppen])
@@ -218,18 +226,10 @@ function NochDa({ bestand, grund, teile, laedt, lagerFehler, wochen, setzeWochen
   const herkunft = spaeter ? 'prognose' : 'gerechnet'
   const gesamt = zeilen.reduce((a, z) => a + z.kg, 0)
   const jeLabel = (l: 'D' | 'K') => zeilen.filter(z => z.label === l).reduce((a, z) => a + z.kg, 0)
-  // Kisten nur, wenn jede Zeile der Auswahl in Kisten geht (klein, gross).
-  const kisten = zeilen.length > 0 && zeilen.every(z => z.kisten != null) ? zeilen.reduce((a, z) => a + (z.kisten ?? 0), 0) : null
-  const umschalten = (k: string) => setAuf(a => { const n = new Set(a); if (n.has(k)) n.delete(k); else n.add(k); return n })
 
   // Die Chargen dahinter, über alle Grössen: Eingang, ausgeliefert, im Lager.
   const dahinter = bestand.filter(b => passtGruppe(wahl, gruppeVon.get(b.sorte)?.artikelgruppe ?? null)
                                     && passtLabel(wahl, labelVon.get(b.charge_nr)?.label ?? null))
-  const quellen = new Map<string, number>()
-  for (const b of dahinter) if (b.lager_kg > 0) {
-    const q = labelVon.get(b.charge_nr)?.quelle ?? 'unbekannt'
-    quellen.set(q, (quellen.get(q) ?? 0) + 1)
-  }
   const widerspruch = dahinter.filter(b => (labelVon.get(b.charge_nr)?.n_widerspruch ?? 0) > 0)
   const ohneGruppe = [...new Set(bestand.filter(b => b.lager_kg > 0 && !gruppeVon.get(b.sorte)?.artikelgruppe).map(b => b.sorte))]
 
@@ -240,7 +240,7 @@ function NochDa({ bestand, grund, teile, laedt, lagerFehler, wochen, setzeWochen
                   titel={<>{wahlName(wahl)}: verkaufsfähig {spaeter ? `in ${wochen} Wochen` : 'heute'} <Herkunft art={herkunft} /></>}
                   wert={tonnen(gesamt)}
                   unter={<>
-                    noch da{kisten != null ? <>, ≈ {zahl(Math.round(kisten))} Kisten</> : null}
+                    noch da
                     {spaeter && stichtag ? <> · am {datum(stichtag).slice(0, 6)}</> : null}
                     {chargen.length > 0 && (
                       <button type="button" className="werkzeug-knopf kennzahl-knopf" id="artikel-chargen-knopf"
@@ -277,125 +277,63 @@ function NochDa({ bestand, grund, teile, laedt, lagerFehler, wochen, setzeWochen
       )}
 
       {uebersicht}
-
-      <Karte id="artikel-bestand" titel="Je Artikel und Grösse — in Kisten"
-             aktion={<WochenFeld id="artikel-wochen" wochen={wochen} setzen={setzeWochen} datum={spaeter ? stichtag : null} />}>
-        {lagerFehler && <Hinweis art="warnung">Das Lager je Artikel liess sich nicht laden: {lagerFehler}</Hinweis>}
-        {zeilen.length === 0
-          ? <Leer titel={teile.length === 0 ? 'Nichts im Lager' : `Kein ${wahlName(wahl)} im Lager`}>
-              {teile.length === 0 ? 'Sobald Ware eingelagert ist, steht hier, welcher Artikel daraus wird.' : 'Oben einen anderen Artikel, eine andere Grösse oder ein anderes Label wählen.'}
-            </Leer>
-          : (
-          <div className="rollbar">
-            <table className={`dicht umbruch lagertabelle artikeltabelle${laedt ? ' laedt' : ''}`}>
-              <thead>
-                <tr>
-                  <th className="haftend">Artikel</th>
-                  <th className="zahl">verkaufsfähig {spaeter ? `in ${wochen} Wochen` : 'heute'}<Herkunft art={herkunft} /></th>
-                  <th className="zahl">≈ Kisten / Stück</th>
-                </tr>
-              </thead>
-              <tbody>
-                {zeilen.map(z => {
-                  const offen = auf.has(z.schluessel)
-                  const zc = jeCharge(z.teile)
-                  return (
-                    <Fragment key={z.schluessel}>
-                      <tr className={`klickbar${offen ? ' offen' : ''}`} onClick={() => umschalten(z.schluessel)} aria-expanded={offen}>
-                        <th scope="row" className="haftend">
-                          <span className="chevron" aria-hidden="true"><ZChevron size={14} /></span>
-                          <span className="zeilenname">{z.gruppe === 'Knirps' ? 'Knirps' : gruppeName(z.gruppe)} {klasseName(z.klasse)}</span>
-                          <span className={`zeilenunter label-${z.label ?? 'x'}`}>{labelName(z.label)}
-                            {z.vonG != null && z.bisG != null && (z.klasse === 'klein' || z.klasse === 'gross') && <span className="leise"> · {zahl(z.vonG)}–{zahl(z.bisG)} g</span>}
-                            {z.klasse === 'ausserhalb' && <span className="leise"> · lose verkäuflich</span>}
-                            {z.klasse === 'ohne' && <span className="leise"> · keine Sortier-CSV</span>}
-                            <span className="leise"> · {zc.length} {zc.length === 1 ? 'Charge' : 'Chargen'}</span>
-                          </span>
-                        </th>
-                        <td className="zahl"><strong>{masse(z.kg)}</strong></td>
-                        <td className="zahl">{z.kisten != null
-                          ? <>≈ {zahl(Math.round(z.kisten))} Kisten<span className="zelle-unter">à {z.stueckJeKiste} Stück</span></>
-                          : z.stueck != null && z.klasse !== 'ohne' ? <>≈ {zahl(Math.round(z.stueck))} Stück</> : <span className="leise">—</span>}</td>
-                      </tr>
-                      {offen && (
-                        <tr className="artikel-chargen"><td colSpan={3}>
-                          <Chargenliste chargen={zc} labelVon={labelVon} chargeVon={chargeVon} mitGroesse={false} />
-                        </td></tr>
-                      )}
-                    </Fragment>
-                  )
-                })}
-              </tbody>
-              {zeilen.length > 1 && (
-                <tfoot>
-                  <tr>
-                    <th scope="row" className="haftend">Summe</th>
-                    <td className="zahl"><strong>{masse(gesamt)}</strong></td>
-                    <td className="zahl">{kisten != null ? <>≈ {zahl(Math.round(kisten))} Kisten</> : ''}
-                      <span className="zelle-unter">{chargen.length} {chargen.length === 1 ? 'Charge' : 'Chargen'}</span></td>
-                  </tr>
-                </tfoot>
-              )}
-            </table>
-          </div>
-        )}
-        {/* Runde AQ: Eingang, ausgeliefert und im Lager der Chargen dahinter stehen jetzt in der Übersicht oben. */}
-        {quellen.size > 0 && (
-          <p className="hilfe" id="artikel-dahinter">
-            Demeter oder Knospe der Chargen mit Ware: {[...quellen.entries()].map(([q, n]) => `${n} ${quelleText(q)}`).join(', ')}.
-          </p>
-        )}
-        <Erklaerung>
-          <p><strong>Artikel</strong> heisst hier, was Perigon verkauft: Artikelgruppe × Grösse × Label — „Knirps klein · Demeter" ist ein
-          anderer Artikel als „Knirps gross · Demeter". Die Gruppe kommt aus der Sorte (Kaori Kuri, Amoro, … gehen als Knirps; änderbar in den
-          Stammdaten), das Label aus der Charge.</p>
-          <p><strong>Demeter oder Knospe</strong> je Charge: Hat Perigon die Charge auch nur einmal als Demeter geliefert, ist sie Demeter —
-          ein Demeter-Feld, auch wenn ein Teil als Knospe verkauft wird. Sonst ist sie Knospe („Knospe ist alles, was nicht Demeter ist").
-          Eine Charge, die noch nie verkauft wurde, nimmt das Label der anderen Chargen ihres Produzenten; kennt Perigon den Produzenten
-          nicht, gilt Knospe, angenommen. Die Stammdaten gehen allem vor.</p>
-          <p><strong>Verkaufsfähig</strong> ist dieselbe Zahl wie im Lagermanagement nach Charge: je Charge, was nach Verdunstung, Palox und
-          zu klein/zu gross bleibt <Herkunft art={herkunft} />. Geteilt wird es nach der Sortier-CSV der Charge (oder ihrer Sorte), jeder
-          Kürbis um die gemessene Verdunstung bis zum Stichtag geschrumpft: Wiegt er so viel wie ein kleiner Artikel, zählt er klein, wie ein
-          grosser, gross; dazwischen, darunter oder darüber heisst <em>ausserhalb der Kaliber</em> — lose verkäuflich. Kaliber und Kisten
-          (Coop 2026): {grund.kaliber.filter(k => k.groesse !== 'stueck').slice(0, 2).map(k => `${k.gruppe} ${k.groesse} ${zahl(k.von_g)}–${zahl(k.bis_g)} g`).join(', ')} …;
-          Kisten zu {[...new Set(grund.kaliber.map(k => k.stueck_je_kiste).filter(Boolean))].sort().join(' bzw. ')} Stück.
-          Stück = Kilo ÷ mittleres Gewicht der Klasse, Kisten = Stück ÷ Stück je Kiste.</p>
-        </Erklaerung>
-      </Karte>
     </>
   )
 }
 
 /* ---------- 1. Wie viel ist von welchem Artikel noch da? -------------------- */
 
-/** „klein 7.4 t · gross 3.4 t · lose 0.6 t" — das Verkaufsfähige nach Grösse, in einer Zeile. */
-function groessenText(kl: Map<Klasse, number>): string {
-  const lose = (kl.get('ausserhalb') ?? 0) + (kl.get('ohne') ?? 0)
-  return [['klein', kl.get('klein') ?? 0], ['gross', kl.get('gross') ?? 0], ['je Stück', kl.get('stueck') ?? 0], ['lose', lose]]
-    .filter(([, v]) => Number(v) > 0).map(([n, v]) => `${n} ${masse(Number(v))}`).join(' · ')
-}
-
-/** Die Farben der Grössen im Verkaufsfähigen — eine Familie, vom kräftigen Blau zum hellen. */
+/**
+ * Runde AS: dieselben Farben wie im Lagermanagement nach Charge — „hier ist
+ * es plötzlich grau, blau und pink. Beim anderen war es grün und blau."
+ * Grün das Verkaufsfähige (kräftig klein, hell gross, blass lose), gelb zu
+ * klein / zu gross, orange der Palox, blau das Verdunstete; grau, was
+ * ausgeliefert ist, wie der Ausgang im Verlauf.
+ */
 const KLASSE_FARBE: Record<Klasse, string> = {
-  klein: 'var(--blau)', gross: 'color-mix(in srgb, var(--blau) 62%, var(--flaeche))', stueck: 'var(--blau)',
-  ausserhalb: 'color-mix(in srgb, var(--blau) 35%, var(--flaeche))', ohne: 'color-mix(in srgb, var(--blau) 35%, var(--flaeche))',
+  klein: 'var(--strom-rest)', gross: 'var(--strom-rest-hell)', stueck: 'var(--strom-rest)',
+  ausserhalb: 'color-mix(in srgb, var(--strom-rest-hell) 45%, var(--flaeche))',
+  ohne: 'color-mix(in srgb, var(--strom-rest) 22%, var(--flaeche))',
 }
+const REST: { feld: 'kanal' | 'faul' | 'verdunstet'; name: string; farbe: string }[] = [
+  { feld: 'kanal', name: 'zu klein / zu gross', farbe: 'var(--strom-ausschuss)' },
+  { feld: 'faul', name: 'Palox', farbe: 'var(--strom-schimmel)' },
+  { feld: 'verdunstet', name: 'verdunstet', farbe: 'var(--strom-verdunstung)' },
+]
+/** Was „lose" heisst, in einem Satz — der Betrieb fragte genau das. */
+const LOSE_TEXT = 'verkaufsfähig nach der Sortierung, aber leichter oder schwerer als die Kaliber der Artikel klein und gross — geht nur lose'
 
-function Uebersicht({ bestand, grund, teile, wahl }: { bestand: Bestand[]; grund: Grundlagen; teile: ArtikelLagerCharge[]; wahl: Wahl }) {
+function Uebersicht({ bestand, grund, teileHeute, teile, wahl, wochen, setzeWochen, stichtag, laedt, lagerFehler, rest }: {
+  bestand: Bestand[]; grund: Grundlagen; teileHeute: ArtikelLagerCharge[]; teile: ArtikelLagerCharge[]; wahl: Wahl
+  wochen: number; setzeWochen: (n: number) => void; stichtag: string | null; laedt: boolean; lagerFehler: string | null
+  rest: Map<number, RestTeile>
+}) {
+  const [auf, setAuf] = useState<Set<string>>(new Set())
   const labelVon = useMemo(() => new Map(grund.labels.map(l => [l.charge_nr, l])), [grund.labels])
   const gruppeVon = useMemo(() => new Map(grund.gruppen.map(g => [g.sorte, g])), [grund.gruppen])
-  const zeilen = useMemo(() => uebersichtszeilen(bestand, labelVon, gruppeVon, teile, wahl), [bestand, labelVon, gruppeVon, teile, wahl])
-  if (zeilen.length === 0) return null
+  const chargeVon = useMemo(() => new Map(bestand.map(b => [b.charge_nr, b])), [bestand])
+  const zeilen = useMemo(() => uebersichtszeilen(bestand, labelVon, gruppeVon, teileHeute, wahl, { spaeter: teile, rest }),
+                         [bestand, labelVon, gruppeVon, teileHeute, teile, wahl, rest])
+  if (zeilen.length === 0) return lagerFehler ? <Hinweis art="warnung">Das Lager je Artikel liess sich nicht laden: {lagerFehler}</Hinweis> : null
+  const spaeter = wochen > 0
+  const herkunft = spaeter ? 'prognose' : 'gerechnet'
   const max = Math.max(...zeilen.map(z => z.ausgelagert + z.lager), 1)
   const gewaehlt = (kl: Klasse) => passtKlasse(wahl, kl)
-  const vfGewaehlt = (z: Uebersichtszeile) => wahl.groesse === 'beide' ? z.vf
-    : [...z.klassen.entries()].filter(([kl]) => gewaehlt(kl)).reduce((a, [, v]) => a + v, 0)
   const summe = (f: (z: Uebersichtszeile) => number) => zeilen.reduce((a, z) => a + f(z), 0)
-  const klassenDa = KLASSEN.filter(kl => zeilen.some(z => (z.klassen.get(kl) ?? 0) > 0))
+  // Die Grössenspalten der Tabelle: nur, was die Wahl zeigt und was es am Stichtag gibt.
+  const spalten = KLASSEN.filter(kl => gewaehlt(kl) && zeilen.some(z => (z.klassenSpaeter.get(kl) ?? 0) > 0))
+  const vfSpaeter = (z: Uebersichtszeile) => spalten.reduce((a, kl) => a + (z.klassenSpaeter.get(kl) ?? 0), 0)
+  const klassenBalken = KLASSEN.filter(kl => zeilen.some(z => (z.klassen.get(kl) ?? 0) > 0))
+  const restDa = REST.filter(r => zeilen.some(z => z.rest[r.feld] + (r.feld === 'faul' ? z.rest.fax : 0) > 0))
+  const offenDa = zeilen.some(z => z.rest.offen > 0)
   const name = (z: Uebersichtszeile) => `${z.gruppe === 'Knirps' ? 'Knirps' : gruppeName(z.gruppe)} · ${labelName(z.label)}`
-  const summeKlassen = new Map<Klasse, number>()
-  for (const z of zeilen) for (const [kl, v] of z.klassen) summeKlassen.set(kl, (summeKlassen.get(kl) ?? 0) + v)
-  const groesseText = wahl.groesse === 'beide' ? '' : ` ${wahl.groesse}`
+  const umschalten = (k: string) => setAuf(a => { const n = new Set(a); if (n.has(k)) n.delete(k); else n.add(k); return n })
+  // Woher Demeter oder Knospe der Chargen mit Ware kommt.
+  const quellen = new Map<string, number>()
+  for (const z of zeilen) for (const nr of z.chargen) if ((chargeVon.get(nr)?.lager_kg ?? 0) > 0) {
+    const q = labelVon.get(nr)?.quelle ?? 'unbekannt'
+    quellen.set(q, (quellen.get(q) ?? 0) + 1)
+  }
 
   return (
     <Karte id="artikel-uebersicht" titel="Wie viel ist von welchem Artikel noch da?">
@@ -404,7 +342,8 @@ function Uebersicht({ bestand, grund, teile, wahl }: { bestand: Bestand[]; grund
           const ganz = z.ausgelagert + z.lager
           const anteil = (v: number, von: number) => `${von > 0 ? Math.max(Math.min((v / von) * 100, 100), 0) : 0}%`
           const vfKlassen = KLASSEN.map(kl => [kl, z.klassen.get(kl) ?? 0] as const).filter(([, v]) => v > 0)
-          const rest = Math.max(z.lager - vfKlassen.reduce((a, [, v]) => a + v, 0), 0)
+          const restTeile = REST.map(r => [r, z.rest[r.feld] + (r.feld === 'faul' ? z.rest.fax : 0)] as const).filter(([, v]) => v > 0)
+          const vfHeute = (wahl.groesse === 'beide' ? z.vf : vfKlassen.filter(([kl]) => gewaehlt(kl)).reduce((a, [, v]) => a + v, 0))
           return (
             <div key={z.schluessel} className="uebersicht-zeile" role="listitem">
               <div className="uebersicht-name">
@@ -418,21 +357,25 @@ function Uebersicht({ bestand, grund, teile, wahl }: { bestand: Bestand[]; grund
                         title={`ausgeliefert ${masse(z.geliefert)} — dafür gingen ${masse(z.ausgelagert)} Eingangsware aus dem Lager`}>
                     {z.ausgelagert / max >= 0.09 && <em>{masse(z.geliefert)}</em>}
                   </span>
-                  <span className="uebersicht-lager" style={{ width: anteil(z.lager, ganz) }}
-                        title={`im Lager ${masse(z.lager)} Eingangsware — davon verkaufsfähig ${masse(z.vf)}, der Rest ist verdunstet, im Palox oder zu klein / zu gross`}>
+                  <span className="uebersicht-lager" style={{ width: anteil(z.lager, ganz) }}>
                     {vfKlassen.map(([kl, v]) => (
                       <span key={kl} className={`uebersicht-teil${gewaehlt(kl) ? '' : ' gedimmt'}`}
                             style={{ width: anteil(v, z.lager), background: KLASSE_FARBE[kl] }}
                             title={`verkaufsfähig ${klasseName(kl)}: ${masse(v)}`} />
                     ))}
-                    {rest > 0 && <span className="uebersicht-teil rest" style={{ width: anteil(rest, z.lager) }} />}
+                    {restTeile.map(([r, v]) => (
+                      <span key={r.feld} className="uebersicht-teil" style={{ width: anteil(v, z.lager), background: r.farbe }}
+                            title={`${r.name}: ${masse(v)}`} />
+                    ))}
+                    {z.rest.offen > 0 && <span className="uebersicht-teil offen" style={{ width: anteil(z.rest.offen, z.lager) }}
+                                               title={`${masse(z.rest.offen)} ohne Teilung — Verkaufsfähiges unbekannt`} />}
                   </span>
                 </div>
                 {z.lager > 0 && <span className="uebersicht-lagertext">im Lager {masse(z.lager)}</span>}
               </div>
               <div className="uebersicht-wert">
-                <strong>{masse(vfGewaehlt(z))}</strong>
-                <span className="leise">verkaufsfähig{groesseText}{z.luecke > 0 ? ` · ${z.luecke} ohne Zahl` : ''}</span>
+                <strong>{masse(vfHeute)}</strong>
+                <span className="leise">verkaufsfähig{wahl.groesse === 'beide' ? '' : ` ${wahl.groesse}`}{z.luecke > 0 ? ` · ${z.luecke} ohne Zahl` : ''}</span>
               </div>
             </div>
           )
@@ -440,56 +383,108 @@ function Uebersicht({ bestand, grund, teile, wahl }: { bestand: Bestand[]; grund
       </div>
       <div className="legende uebersicht-legende">
         <span><span className="chip" style={{ background: 'var(--text-leise)' }} />ausgeliefert</span>
-        {klassenDa.filter(kl => kl === 'klein' || kl === 'gross' || kl === 'stueck').map(kl => (
-          <span key={kl}><span className="chip" style={{ background: KLASSE_FARBE[kl] }} />verkaufsfähig {klasseName(kl)}</span>
+        {klassenBalken.map(kl => (
+          <span key={kl} title={kl === 'ausserhalb' ? LOSE_TEXT : kl === 'ohne' ? 'keine Sortier-CSV der Charge oder Sorte — die Grösse ist offen' : undefined}>
+            <span className="chip" style={{ background: KLASSE_FARBE[kl] }} />verkaufsfähig {klasseName(kl)}</span>
         ))}
-        {klassenDa.some(kl => kl === 'ausserhalb' || kl === 'ohne') && (
-          <span><span className="chip" style={{ background: KLASSE_FARBE.ohne }} />verkaufsfähig, lose (ausserhalb der Kaliber oder ohne Sortier-CSV)</span>
-        )}
-        <span><span className="chip uebersicht-chip-rest" />im Lager, nicht mehr verkaufsfähig</span>
+        {restDa.map(r => <span key={r.feld}><span className="chip" style={{ background: r.farbe }} />{r.name}</span>)}
+        {offenDa && <span><span className="chip uebersicht-chip-offen" />im Lager, Teilung unbekannt</span>}
         <span className="leise">· jeder Balken ist so lang wie der Eingang des Artikels</span>
       </div>
 
+      {/* Runde AS: eine Tabelle statt zwei — „du hast einerseits Knirps und
+          Demeter oben … und dann unten nochmal Knirps und Demeter, aber
+          einfach klein und gross und ausserhalb. Mach das doch gleich
+          zusammen." Der Wochenregler gehört nur ihr; die Balken zeigen heute. */}
+      <div className="tabellen-kopf">
+        <h3>Je Artikel</h3>
+        <WochenFeld id="artikel-wochen" wochen={wochen} setzen={setzeWochen} datum={spaeter ? stichtag : null} />
+      </div>
+      {lagerFehler && <Hinweis art="warnung">Das Lager je Artikel liess sich nicht laden: {lagerFehler}</Hinweis>}
       <div className="rollbar">
-        <table className="dicht uebersicht-tabelle" id="artikel-uebersicht-tabelle">
-          <thead><tr>
-            <th>Artikel</th>
-            <th className="zahl">Eingang<Herkunft art="gemessen" /></th>
-            <th className="zahl">ausgeliefert<Herkunft art="gemessen" /></th>
-            <th className="zahl">im Lager<Herkunft art="gerechnet" /></th>
-            <th className="zahl">verkaufsfähig<Herkunft art="gerechnet" /></th>
-          </tr></thead>
-          <tbody>{zeilen.map(z => (
-            <tr key={z.schluessel}>
-              <td><strong>{name(z)}</strong><span className="zelle-unter">{z.n} {z.n === 1 ? 'Charge' : 'Chargen'}</span></td>
-              <td className="zahl">{masse(z.eingang)}</td>
-              <td className="zahl">{z.geliefert > 0 ? masse(z.geliefert) : <span className="leise">—</span>}</td>
-              <td className="zahl">{z.lager > 0 ? masse(z.lager) : <span className="leise">—</span>}</td>
-              <td className="zahl"><strong>{z.lager > 0 ? masse(z.vf) : '—'}</strong>
-                {groessenText(z.klassen) && <span className="zelle-unter">{groessenText(z.klassen)}</span>}
-                {z.luecke > 0 && <span className="zelle-unter">{z.luecke} {z.luecke === 1 ? 'Charge' : 'Chargen'} ohne Zahl</span>}</td>
+        <table className={`dicht umbruch lagertabelle artikeltabelle uebersicht-tabelle${laedt ? ' laedt' : ''}`} id="artikel-uebersicht-tabelle">
+          <thead>
+            <tr>
+              <th rowSpan={2} className="haftend">Artikel</th>
+              <th rowSpan={2} className="zahl">Eingang<Herkunft art="gemessen" /></th>
+              <th rowSpan={2} className="zahl">ausgeliefert<Herkunft art="gemessen" /></th>
+              <th rowSpan={2} className="zahl">im Lager<Herkunft art="gerechnet" /></th>
+              <th colSpan={spalten.length + 1} className={`gruppe${spaeter ? ' spaeter' : ''}`}>
+                verkaufsfähig {spaeter ? `in ${wochen} Wochen` : 'heute'}<Herkunft art={herkunft} />
+                {spaeter && stichtag ? <span className="leise"> · {datum(stichtag).slice(0, 6)}</span> : null}
+              </th>
             </tr>
-          ))}</tbody>
+            <tr>
+              <th className={`zahl summe${spaeter ? ' spaeter' : ''}`}>gesamt</th>
+              {spalten.map(kl => (
+                <th key={kl} className={`zahl${spaeter ? ' spaeter' : ''}`} title={kl === 'ausserhalb' ? LOSE_TEXT : undefined}>{klasseName(kl)}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {zeilen.map(z => {
+              const offen = auf.has(z.schluessel)
+              const zc = jeCharge(teile.filter(t => z.chargen.includes(t.charge_nr) && passtKlasse(wahl, klasseVon(t.groesse)) && Number(t.kg) > 0))
+              return (
+                <Fragment key={z.schluessel}>
+                  <tr className={`klickbar${offen ? ' offen' : ''}`} onClick={() => umschalten(z.schluessel)} aria-expanded={offen}>
+                    <th scope="row" className="haftend">
+                      <span className="chevron" aria-hidden="true"><ZChevron size={14} /></span>
+                      <span className="zeilenname">{z.gruppe === 'Knirps' ? 'Knirps' : gruppeName(z.gruppe)}</span>
+                      <span className={`zeilenunter label-${z.label ?? 'x'}`}>{labelName(z.label)}<span className="leise"> · {z.n} {z.n === 1 ? 'Charge' : 'Chargen'}</span></span>
+                    </th>
+                    <td className="zahl">{masse(z.eingang)}</td>
+                    <td className="zahl">{z.geliefert > 0 ? masse(z.geliefert) : <span className="leise">—</span>}</td>
+                    <td className="zahl">{z.lager > 0 ? masse(z.lager) : <span className="leise">—</span>}</td>
+                    <td className={`zahl summe${spaeter ? ' spaeter' : ''}`}><strong>{z.lager > 0 ? masse(vfSpaeter(z)) : '—'}</strong>
+                      {z.luecke > 0 && <span className="zelle-unter">{z.luecke} {z.luecke === 1 ? 'Charge' : 'Chargen'} ohne Zahl</span>}</td>
+                    {spalten.map(kl => {
+                      const v = z.klassenSpaeter.get(kl) ?? 0
+                      const k = grund.kaliber.find(x => x.gruppe === z.gruppe && x.groesse === kl)
+                      return <td key={kl} className={`zahl${spaeter ? ' spaeter' : ''}`}>{v > 0 ? masse(v) : <span className="leise">—</span>}
+                        {k && v > 0 && <span className="zelle-unter">{zahl(k.von_g)}–{zahl(k.bis_g)} g</span>}</td>
+                    })}
+                  </tr>
+                  {offen && (
+                    <tr className="artikel-chargen"><td colSpan={5 + spalten.length}>
+                      {zc.length === 0 ? <p className="leise unten-0">Keine Charge mit verkaufsfähiger Ware{wahl.groesse === 'beide' ? '' : ` ${wahl.groesse}`}.</p>
+                        : <Chargenliste chargen={zc} labelVon={labelVon} chargeVon={chargeVon} mitGroesse={wahl.groesse === 'beide'} />}
+                    </td></tr>
+                  )}
+                </Fragment>
+              )
+            })}
+          </tbody>
           {zeilen.length > 1 && (
             <tfoot><tr>
-              <th scope="row">Summe</th>
+              <th scope="row" className="haftend">Summe</th>
               <td className="zahl">{masse(summe(z => z.eingang))}</td>
               <td className="zahl">{masse(summe(z => z.geliefert))}</td>
               <td className="zahl">{masse(summe(z => z.lager))}</td>
-              <td className="zahl"><strong>{masse(summe(z => z.vf))}</strong>
-                {groessenText(summeKlassen) && <span className="zelle-unter">{groessenText(summeKlassen)}</span>}</td>
+              <td className={`zahl summe${spaeter ? ' spaeter' : ''}`}><strong>{masse(summe(vfSpaeter))}</strong></td>
+              {spalten.map(kl => <td key={kl} className={`zahl${spaeter ? ' spaeter' : ''}`}>{masse(summe(z => z.klassenSpaeter.get(kl) ?? 0))}</td>)}
             </tr></tfoot>
           )}
         </table>
       </div>
+      {quellen.size > 0 && (
+        <p className="hilfe" id="artikel-dahinter">
+          Demeter oder Knospe der Chargen mit Ware: {[...quellen.entries()].map(([q, n]) => `${n} ${quelleText(q)}`).join(', ')}.
+        </p>
+      )}
       <Erklaerung titel="Wie diese Zahlen entstehen">
         <p>Ein Artikel ist hier die Artikelgruppe mit dem Label der Charge — „Knirps · Demeter" sind alle Demeter-Chargen, deren Sorte als
-        Knirps verkauft wird. <strong>Eingang</strong> und <strong>ausgeliefert</strong> sind gewogen bzw. vom Lieferschein <Herkunft art="gemessen" />,
-        <strong> im Lager</strong> ist die Eingangsware, die noch nicht ausgeliefert ist, und <strong>verkaufsfähig</strong> das, was davon nach
-        Verdunstung, Palox und zu klein/zu gross bleibt <Herkunft art="gerechnet" /> — dieselben Zahlen wie im Lagermanagement nach Charge.</p>
-        <p>Der graue Teil eines Balkens ist die Eingangsware hinter den Lieferungen: etwas mehr als geliefert, weil unterwegs verdunstet, im Palox
-        gelandet oder aussortiert. Das Blaue ist nach der Sortier-CSV der Chargen auf klein und gross geteilt (Kaliber der Coop-Artikeldaten);
-        Eingang und ausgeliefert gibt es nur je Artikelgruppe, nicht je Grösse — beim Eingang ist noch nichts sortiert.</p>
+        Knirps verkauft wird; ein Klick auf die Zeile zeigt sie. <strong>Eingang</strong> und <strong>ausgeliefert</strong> sind gewogen bzw.
+        vom Lieferschein <Herkunft art="gemessen" />, <strong>im Lager</strong> ist die Eingangsware, die noch nicht ausgeliefert ist, und
+        <strong> verkaufsfähig</strong> das, was davon nach Verdunstung, Palox und zu klein/zu gross bleibt <Herkunft art="gerechnet" /> —
+        dieselben Zahlen und Farben wie im Lagermanagement nach Charge.</p>
+        <p>Das Verkaufsfähige ist nach der Sortier-CSV der Charge (oder ihrer Sorte) auf die Kaliber der Artikel geteilt, jeder Kürbis um die
+        gemessene Verdunstung bis zum Stichtag geschrumpft: Wiegt er so viel wie ein kleiner Artikel, zählt er klein, wie ein grosser, gross.
+        <strong> Lose</strong> heisst {LOSE_TEXT} — es gehört weder zu „zu klein / zu gross" (das fällt beim Sortieren heraus) noch zu den
+        Artikeln. <strong>Grösse offen</strong>: für die Charge und ihre Sorte gibt es keine Sortier-CSV. Kaliber (Coop 2026):{' '}
+        {grund.kaliber.filter(k => k.groesse !== 'stueck').slice(0, 2).map(k => `${k.gruppe} ${k.groesse} ${zahl(k.von_g)}–${zahl(k.bis_g)} g`).join(', ')} …</p>
+        <p>Die Balken zeigen heute; der Wochenregler verschiebt nur die Spalten „verkaufsfähig" der Tabelle. Eingang und ausgeliefert gibt es nur
+        je Artikelgruppe, nicht je Grösse — beim Eingang ist noch nichts sortiert.</p>
       </Erklaerung>
     </Karte>
   )

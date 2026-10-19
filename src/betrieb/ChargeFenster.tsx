@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { fehlerText } from '../lib/db'
@@ -102,7 +103,7 @@ export function ChargeFenster({ chargeNr, schliessen }: { chargeNr: number; schl
   for (const b of befunde) jeArt.set(b.art, (jeArt.get(b.art) ?? 0) + 1)
   const geliefert = summe(...lieferungen.map(l => l.masse_kg))
 
-  return (
+  return createPortal(
     <div className="dialog-hinter" onClick={schliessen}>
       <div className="dialog breit" role="dialog" aria-modal="true" aria-label="Charge" id="charge-fenster" onClick={e => e.stopPropagation()}>
         {fehler && <Hinweis art="warnung">{fehler}</Hinweis>}
@@ -212,6 +213,7 @@ export function ChargeFenster({ chargeNr, schliessen }: { chargeNr: number; schl
         )}
       </div>
       {arbeit !== null && <div onClick={e => e.stopPropagation()}><ArbeitFenster auftragId={arbeit} schliessen={() => setArbeit(null)} /></div>}
-    </div>
+    </div>,
+    document.body,
   )
 }

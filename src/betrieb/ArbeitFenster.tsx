@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { chargeText, fehlerText } from '../lib/db'
@@ -54,6 +55,12 @@ interface Ausgang {
  * geöffnet wird, als Pop-up. Ich bleibe noch auf der Seite … und ich kann
  * alle Zahlen nachschauen dort drin." Also alles, was die Arbeit erfasst
  * hat, zum Lesen; berichtigt wird auf der Arbeitsseite (Korrektur).
+ *
+ * Runde AS: per Portal an die Seite gehängt, wie der Lösch-Dialog seit
+ * Runde AF — in einer Karte mit Einblend-Animation (.eintritt, .wechsel)
+ * band position: fixed das Fenster an die Karte, und es ging mitten in
+ * der langen Tabelle auf statt im sichtbaren Bildschirm. Charge- und
+ * Messungsfenster ebenso.
  */
 export function ArbeitFenster({ auftragId, schliessen, messung }: { auftragId: number; schliessen: () => void; messung?: Messung }) {
   const [d, setD] = useState<ArbeitDaten | null>(null)
@@ -119,7 +126,7 @@ export function ArbeitFenster({ auftragId, schliessen, messung }: { auftragId: n
   const mitWaage = d?.paletten.some(p => p.brutto_gewogen_kg != null) ?? false
   const mitWiegung = d?.paletten.some(p => p.wiegung_id != null) ?? false
 
-  return (
+  return createPortal(
     <div className="dialog-hinter" onClick={schliessen}>
       <div className="dialog breit" role="dialog" aria-modal="true" aria-label="Arbeit" id="arbeit-fenster" onClick={e => e.stopPropagation()}>
         {fehler && <Hinweis art="warnung">{fehler}</Hinweis>}
@@ -283,6 +290,7 @@ export function ArbeitFenster({ auftragId, schliessen, messung }: { auftragId: n
         )}
       </div>
       {chargeFenster !== null && <div onClick={e => e.stopPropagation()}><ChargeFenster chargeNr={chargeFenster} schliessen={() => setChargeFenster(null)} /></div>}
-    </div>
+    </div>,
+    document.body,
   )
 }
