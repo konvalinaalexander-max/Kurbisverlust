@@ -1074,3 +1074,9 @@ tr.marge-dahinter table { margin: 0; }
 .kennzahl-kacheln { display: grid; gap: var(--a-3); grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); margin-bottom: var(--a-4); }
 .kennzahl-kacheln > .kennzahl { background: var(--flaeche-2); border: 1px solid var(--rand-leise); border-radius: 10px; padding: .85rem 1rem; }
 .kennzahl-kacheln > .kennzahl .neben-zahl { display: block; font-size: var(--s-1); margin-top: .1rem; }
+
+/* Runde AS: eine neue Charge in den Stammdaten — vier Felder in einer Zeile, auf dem Handy untereinander. */
+.charge-anlegen { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: .25rem .75rem; align-items: end;
+  margin: 0 0 var(--a-4); padding: var(--a-3); border-radius: var(--radius-klein); background: var(--flaeche-2); }
+.charge-anlegen .knopf-reihe, .charge-anlegen .hinweis { grid-column: 1 / -1; }
+#charge-anlegen-auf { margin-bottom: var(--a-3); }

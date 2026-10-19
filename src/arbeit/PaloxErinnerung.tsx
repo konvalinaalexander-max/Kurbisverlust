@@ -1,8 +1,8 @@
 import { useState, type ReactNode } from 'react'
 import { useSprache } from '../sprache/SprachProvider'
 import { ZKiste, ZInfo } from '../components/Zeichen'
-import { PALOX_HINWEIS_MAL, SORTIERDATUM_HINWEIS_MAL, gesehenLesen, hinweisZeigen, paloxHinweisGesehen,
-         paloxHinweisSchluessel, sortierdatumHinweisSchluessel } from './erinnerung'
+import { PALOX_HINWEIS_MAL, SORTIERDATUM_HINWEIS_MAL, ZETTELDATUM_HINWEIS_MAL, gesehenLesen, hinweisZeigen, paloxHinweisGesehen,
+         paloxHinweisSchluessel, sortierdatumHinweisSchluessel, zetteldatumHinweisSchluessel } from './erinnerung'
 
 /**
  * Ein gelber Kasten oben in der Arbeit, der je Person in einigen Arbeiten
@@ -52,4 +52,12 @@ export function SortierdatumErinnerung({ profilId, auftragId }: { profilId: stri
   return <Erinnerung profilId={profilId} auftragId={auftragId} schluessel={sortierdatumHinweisSchluessel} mal={SORTIERDATUM_HINWEIS_MAL}
                      id="sortierdatum-erinnerung" zeichen={<ZInfo size={22} />}
                      titel={t('sortierdatumHinweisTitel')} text={t('sortierdatumHinweisText')} ok={t('paloxHinweisOk')} />
+}
+
+/** Runde AS: beim Sortieren zu jeder Palette das Eingangsdatum vom Zettel — fünfmal je Person, mit dem Warum. */
+export function ZetteldatumErinnerung({ profilId, auftragId }: { profilId: string | undefined; auftragId: number }) {
+  const { t } = useSprache()
+  return <Erinnerung profilId={profilId} auftragId={auftragId} schluessel={zetteldatumHinweisSchluessel} mal={ZETTELDATUM_HINWEIS_MAL}
+                     id="zetteldatum-erinnerung" zeichen={<ZInfo size={22} />}
+                     titel={t('zetteldatumHinweisTitel')} text={t('zetteldatumHinweisText')} ok={t('paloxHinweisOk')} />
 }

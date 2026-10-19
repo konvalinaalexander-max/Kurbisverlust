@@ -481,6 +481,22 @@ const BILDSCHIRME = [
              .getByRole('link', { name: 'Chargen' }).click()
       await p.locator('#ernte-fertig').waitFor()
     } },
+  // Runde AS: eine neue Charge anlegen (Oettli 1719) — eine schon vergebene
+  // Nummer sperrt den Knopf und sagt es; eine neue mit Schlag und Sorte gibt ihn frei.
+  { name: 'betrieb-charge-anlegen', wer: 'admin', pfad: '/betrieb/stammdaten',
+    tun: async p => {
+      await p.locator('nav.navleiste:not([aria-label="Bereiche"])').getByRole('link', { name: 'Chargen' }).click()
+      await p.locator('#charge-anlegen-auf').click()
+      const vorhanden = (fixture('charge') ?? [])[0]?.nr
+      if (!vorhanden) throw new Error('charge.json ist leer — daten_dumpen.sh laufen lassen')
+      await p.locator('#neu-nr').fill(String(vorhanden))
+      await p.locator('#charge-anlegen .hinweis', { hasText: `Charge ${vorhanden} gibt es schon` }).waitFor()
+      if (await p.locator('#charge-anlegen-ok').isEnabled()) throw new Error('Eine vergebene Nummer lässt sich anlegen')
+      await p.locator('#neu-nr').fill('1719')
+      await p.locator('#neu-schlag').fill('Oettli')
+      await p.locator('#neu-sorte').fill('Butternut')
+      if (!(await p.locator('#charge-anlegen-ok').isEnabled())) throw new Error('Charge 1719 mit Schlag und Sorte lässt sich nicht anlegen')
+    } },
   { name: 'betrieb-schemata', wer: 'admin', pfad: '/betrieb/stammdaten',
     tun: async p => { await p.getByRole('link', { name: 'Sortierschemata' }).click() } },
   // Runde AO (0112): welche Sorte als welcher Artikel geht, und was gross und klein heisst.

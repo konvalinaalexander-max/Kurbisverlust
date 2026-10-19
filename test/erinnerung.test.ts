@@ -2,8 +2,9 @@
 // „dass jede Person, die sich einloggt, noch dreimal die Infos kriegt".
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { PALOX_HINWEIS_MAL, SORTIERDATUM_HINWEIS_MAL, gesehenLesen, hinweisZeigen, paloxHinweisGesehen, paloxHinweisZeigen,
-         paloxHinweisSchluessel, sortierdatumHinweisBei, sortierdatumHinweisSchluessel } from '../src/arbeit/erinnerung.ts'
+import { PALOX_HINWEIS_MAL, SORTIERDATUM_HINWEIS_MAL, ZETTELDATUM_HINWEIS_MAL, gesehenLesen, hinweisZeigen, paloxHinweisGesehen, paloxHinweisZeigen,
+         paloxHinweisSchluessel, sortierdatumHinweisBei, sortierdatumHinweisSchluessel,
+         zetteldatumHinweisBei, zetteldatumHinweisSchluessel } from '../src/arbeit/erinnerung.ts'
 import { WOERTERBUCH, SPRACHEN } from '../src/lib/i18n.ts'
 
 test('dreimal, in drei verschiedenen Arbeiten — dann nicht mehr', () => {
@@ -63,5 +64,20 @@ test('der Sortierdatum-Hinweis steht in allen sechs Sprachen', () => {
   for (const { code } of SPRACHEN) {
     const wb = WOERTERBUCH[code] as Record<string, string>
     for (const id of ['sortierdatumHinweisTitel', 'sortierdatumHinweisText']) assert.ok(wb[id], `${code}.${id} fehlt`)
+  }
+})
+
+// Runde AS: „dass am Anfang vor dem Sortieren das Zetteldatum aufgeschrieben
+// wird … mit einem Info-Pop-up, wenn man zum ersten Mal sortiert".
+test('Zetteldatum-Hinweis: nur beim Sortieren, fünfmal je Person, mit eigenem Zähler, in allen Sprachen', () => {
+  assert.ok(zetteldatumHinweisBei('sortieren', false))
+  assert.ok(!zetteldatumHinweisBei('waschen', false))
+  assert.ok(!zetteldatumHinweisBei('waschen_sortieren', false))
+  assert.ok(!zetteldatumHinweisBei('sortieren', true))
+  assert.equal(ZETTELDATUM_HINWEIS_MAL, 5)
+  assert.notEqual(zetteldatumHinweisSchluessel('p1'), sortierdatumHinweisSchluessel('p1'))
+  for (const { code } of SPRACHEN) {
+    const wb = WOERTERBUCH[code] as Record<string, string>
+    for (const id of ['zetteldatumHinweisTitel', 'zetteldatumHinweisText']) assert.ok(wb[id], `${code}.${id} fehlt`)
   }
 })

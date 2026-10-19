@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { datum, kg, prozent, tonnen, zahl } from '../lib/format'
 import { chargenNachFeld } from '../lib/felder'
@@ -797,7 +797,10 @@ function Marge({ daten, filter, chargen, oeffnen }: { daten: Auswertung; filter:
             <h3>x Stück je Kiste <span className="marge-was">gewogen je Stück gegen den Durchschnitt des Bandes laut Sortierung <Herkunft art="gemessen" /></span></h3>
             {stueck.length === 0 ? <p className="leise">Noch keine Palette nach Kaliber gewogen.</p> : (
               <div className="rollbar"><table className="dicht marge-tabelle">
-                <thead><tr><th>Sorte</th><th>Kaliber</th><th className="zahl">Je Kiste</th><th className="zahl">Ø laut Sortierung</th><th className="zahl">Gewogen je Stück</th><th className="zahl">Unterschied</th><th>Wägungen</th></tr></thead>
+                {/* Runde AS: „was mich eigentlich interessiert … die Mitte vom Kaliber. Wenn ich dem Kunden sage,
+                    ich liefere 600 bis 1200 Gramm, dann wäre die Mitte 900 Gramm. Darüber verschenke ich, darunter
+                    freut mich das." — die Mitte der Grenzen steht neben dem Gewogenen; die alten Spalten bleiben. */}
+                <thead><tr><th>Sorte</th><th>Kaliber</th><th className="zahl">Je Kiste</th><th className="zahl">Ø laut Sortierung</th><th className="zahl">Gewogen je Stück</th><th className="zahl">Mitte des Kalibers</th><th className="zahl">gegen die Mitte</th><th className="zahl">Unterschied zum Ø</th><th>Wägungen</th></tr></thead>
                 <tbody>{stueck.map(z => {
                   const k = schluessel(z), ws = dahinter(z)
                   const mitte = z.band_mittel_g ?? null, g = z.g_je_kuerbis ?? null
@@ -815,6 +818,8 @@ function Marge({ daten, filter, chargen, oeffnen }: { daten: Auswertung; filter:
                           {mitte != null ? `${Math.round(mitte)} g` : '—'}</td>
                         <td className="zahl"><strong>{g != null ? `${Math.round(g)} g` : '—'}</strong>
                           {unterBand && <> <Marke art="warnung">unter {zahl(z.band_von_g)} g</Marke></>}</td>
+                        <td className="zahl">{grenzMitte != null ? `${zahl(Math.round(grenzMitte))} g` : '—'}</td>
+                        <td className="zahl">{gegenMitte(g, grenzMitte)}</td>
                         <td className={`zahl ${z.g_ueber_bandmitte != null && z.g_ueber_bandmitte > 0 ? 'rot' : ''}`}>
                           {z.g_ueber_bandmitte != null ? unterschiedText(z.g_ueber_bandmitte) : '—'}
                           {z.g_ueber_bandmitte != null && mitte ? <span className="leise"> {z.g_ueber_bandmitte > 0 ? '+' : '−'}{prozent(Math.abs(z.g_ueber_bandmitte) / mitte, 0)}</span> : null}
@@ -822,9 +827,9 @@ function Marge({ daten, filter, chargen, oeffnen }: { daten: Auswertung; filter:
                         <td className="nowrap">{aufknopf(k, z.n_wiegungen)}<span className="leise"> · {zahl(z.kisten)} Kisten</span></td>
                       </tr>
                       {auf.has(k) && (
-                        <tr className="marge-dahinter"><td colSpan={7}>
+                        <tr className="marge-dahinter"><td colSpan={9}>
                           <table className="dicht">
-                            <thead><tr><th>Datum</th><th>Charge</th><th className="zahl">Kisten</th><th className="zahl">Gewogen je Stück</th><th className="zahl">Unterschied</th><th></th></tr></thead>
+                            <thead><tr><th>Datum</th><th>Charge</th><th className="zahl">Kisten</th><th className="zahl">Gewogen je Stück</th><th className="zahl">gegen die Mitte</th><th className="zahl">Unterschied zum Ø</th><th></th></tr></thead>
                             <tbody>{ws.map(w => {
                               const gw = w.kg_pro_kuerbis != null ? w.kg_pro_kuerbis * 1000 : null
                               return (
@@ -833,6 +838,7 @@ function Marge({ daten, filter, chargen, oeffnen }: { daten: Auswertung; filter:
                                   <td>Charge {w.charge_nr}</td>
                                   <td className="zahl">{w.kisten}</td>
                                   <td className="zahl">{gw != null ? `${Math.round(gw)} g` : '—'}</td>
+                                  <td className="zahl">{gegenMitte(gw, grenzMitte)}</td>
                                   <td className="zahl">{gw != null && w.band_mittel_g != null ? unterschiedText(gw - w.band_mittel_g) : '—'}</td>
                                   <td className="nowrap">{arbeitKnopf(w)}{!w.voll && <span className="leise"> · nicht voll</span>}</td>
                                 </tr>
@@ -861,6 +867,8 @@ function Marge({ daten, filter, chargen, oeffnen }: { daten: Auswertung; filter:
         oberen Teil des Bandes, ist ihr Durchschnitt höher als die Mitte (der Zeiger über der Zahl nennt beide). Schwerer als dieser
         Durchschnitt heisst: In den Kisten liegen grössere Kürbisse, als das Band im Mittel hergibt — Marge verschenkt. Leichter
         heisst: kleinere. Liegt das Stückgewicht sogar unter der unteren Grenze, liegt im Mittel ein kleineres Kaliber in der Kiste.</p>
+        <p><strong>Mitte des Kalibers</strong> ist die Mitte der Grenzen, die der Kunde kauft — 600–1200 g heisst 900 g. Gewogen je Stück
+        darüber: <span className="rot">verschenkt</span>, im Mittel mehr Kürbis je Stück, als bezahlt wird; darunter: <span className="gruen">gut</span>.</p>
         <p>Eine nicht volle Palette (weniger Kisten drauf) zählt je Kiste mit und steht als „nicht voll" dabei. Das Band ist das der
         Fassung, mit der die Arbeit lief — ändert der Betrieb die Fassung, bleiben die Zeilen getrennt.</p>
       </Erklaerung>
@@ -889,6 +897,15 @@ function bandNamen(schemata: Schema[]): (sorte: string, idx: number | null) => s
 }
 
 /** Runde AO: „86 g leichter" statt „−86 g über Bandmitte". */
+/** Runde AS: gewogen je Stück gegen die Mitte der Kalibergrenzen — darüber verschenkt, darunter gut für den Betrieb. */
+function gegenMitte(g: number | null, mitte: number | null): ReactNode {
+  if (g == null || mitte == null) return '—'
+  const d = Math.round(g - mitte)
+  if (d === 0) return 'genau'
+  return d > 0
+    ? <span className="rot" title="Schwerer als die Mitte des Kalibers: im Mittel mehr Kürbis je Stück, als der Kunde zahlt">+{zahl(d)} g · verschenkt</span>
+    : <span className="gruen" title="Leichter als die Mitte des Kalibers: noch im Band, und weniger Ware je Stück">−{zahl(-d)} g · gut</span>
+}
 const unterschiedText = (d: number) => Math.round(d) === 0 ? 'gleich' : `${zahl(Math.abs(Math.round(d)))} g ${d > 0 ? 'schwerer' : 'leichter'}`
 
 const tonVon = (zuviel: number | null, soll: number | null) =>

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { imDemoModus, supabase } from '../lib/supabase'
-import { einstellung, fehlerText, stammdaten } from '../lib/db'
+import { chargenAnlegen, einstellung, fehlerText, stammdaten } from '../lib/db'
 import { importErkennen, type ImportBericht } from '../lib/import'
 import { STATION_NAME, datum, heute as heuteOrtszeit, kg, tonnen, zahl, zeitpunkt } from '../lib/format'
 import { Hinweis, Karte, Kennzahl, Lade, Marke } from '../components/Bausteine'
@@ -192,6 +192,8 @@ function PalettenImport() {
     try {
       // Gebindearten anlegen, falls eine im Journal steht, die es noch nicht gibt.
       // Die Tara ist über Migration 0010 bereits gesetzt; hier nichts überschreiben.
+      // Runde AS: neue Chargen aus dem Journal zuerst — sonst hätten ihre Paletten keine Charge.
+      const angelegt = await chargenAnlegen(bericht.neueChargen)
       const arten = [...new Set(bericht.paletten.map(z => z.gebindeart).filter(Boolean))] as string[]
       if (arten.length) {
         const { error } = await supabase.from('gebinde')
@@ -213,7 +215,7 @@ function PalettenImport() {
           .upsert(ohneLeere.slice(i, i + 500), { onConflict: 'extern_id' })
         if (error) throw error
       }
-      setMeldung(`${bericht.paletten.length} Paletten übernommen.`)
+      setMeldung(`${bericht.paletten.length} Paletten übernommen${angelegt ? `, ${angelegt === 1 ? 'eine Charge' : `${angelegt} Chargen`} neu angelegt (${bericht.neueChargen.map(c => c.nr).join(', ')})` : ''}.`)
       setBericht(null); setText('')
       void stammdaten(true)
     } catch (f) { setFehler(fehlerText(f)) } finally { setLaeuft(false) }
@@ -284,6 +286,12 @@ function PalettenImport() {
                 Eingangsmasse verschwand lautlos. */}
             {ohneGebinde > 0 && ` · ${ohneGebinde} ohne Gebindeart — ohne sie gibt es für diese Paletten kein Nettogewicht`}
           </p>
+          {bericht.neueChargen.length > 0 && (
+            <Hinweis art="info">
+              <strong>{bericht.neueChargen.length === 1 ? 'Eine neue Charge' : `${bericht.neueChargen.length} neue Chargen`}</strong> — werden mit den Paletten angelegt:{' '}
+              {bericht.neueChargen.map(c => `${c.nr} ${c.schlag} · ${c.sorte}`).join(', ')}.
+            </Hinweis>
+          )}
           <div className="rollbar">
             <table>
               <thead><tr><th>Charge</th><th>Datum</th><th className="zahl">Brutto</th>
@@ -412,6 +420,7 @@ function Chargen() {
     <Karte titel={`Chargen (${chargen.length})`}>
       {/* Runde AQ: ein Satz statt vier, ohne „Join-Schlüssel". */}
       <p className="leise">Die Nummern kommen aus dem Erntejournal. Demeter oder Knospe hier setzen geht vor Perigon.</p>
+      <ChargeAnlegen chargen={chargen} angelegt={c => setChargen(alt => [...alt, c].sort((a, b) => a.nr - b.nr))} />
       <div className="rollbar">
         <table>
           <thead><tr><th>Nr</th><th>Schlag</th><th>Sorte</th>
@@ -444,6 +453,62 @@ function Chargen() {
       </div>
     </Karte>
     </>
+  )
+}
+
+/**
+ * Runde AS: „neue Chargen, Ötli 1719 und Trüb 1763 … schau, dass du damit
+ * umgehen kannst". Das Erntejournal ordnet über Schlag und Sorte zu — eine
+ * Charge, die es noch nicht gibt, legt der Betriebsleiter hier an, mit der
+ * Nummer aus Perigon und Schlag und Sorte genau wie im Journal. Danach finden
+ * Journal und Perigon sie von selbst.
+ */
+function ChargeAnlegen({ chargen, angelegt }: { chargen: Charge[]; angelegt: (c: Charge) => void }) {
+  const [offen, setOffen] = useState(false)
+  const [nr, setNr] = useState('')
+  const [schlag, setSchlag] = useState('')
+  const [sorte, setSorte] = useState('')
+  const [saison, setSaison] = useState(String(new Date().getFullYear()))
+  const [fehler, setFehler] = useState<string | null>(null)
+  const [laeuft, setLaeuft] = useState(false)
+  const n = Number(nr)
+  const nrOk = Number.isInteger(n) && n > 0 && n < 100000
+  const doppelt = nrOk && chargen.some(c => c.nr === n)
+  const bereit = nrOk && !doppelt && schlag.trim() !== '' && sorte.trim() !== '' && Number.isInteger(Number(saison))
+  const sorten = [...new Set(chargen.map(c => c.sorte))].sort((a, b) => a.localeCompare(b, 'de'))
+  const schlaege = [...new Set(chargen.map(c => c.schlag))].sort((a, b) => a.localeCompare(b, 'de'))
+  async function anlegen() {
+    if (!bereit || laeuft) return
+    setLaeuft(true); setFehler(null)
+    const neu = { nr: n, schlag: schlag.trim(), sorte: sorte.trim(), saison: Number(saison) }
+    const { data, error } = await supabase.from('charge').insert(neu).select('*').single()
+    setLaeuft(false)
+    if (error) { setFehler(fehlerText(error)); return }
+    angelegt(data as Charge)
+    void stammdaten(true)
+    setNr(''); setSchlag(''); setSorte(''); setOffen(false)
+  }
+  if (!offen) return <button type="button" className="knopf klein" id="charge-anlegen-auf" onClick={() => setOffen(true)}>Charge anlegen</button>
+  return (
+    <div className="charge-anlegen" id="charge-anlegen">
+      <div className="feld"><label htmlFor="neu-nr">Nummer</label>
+        <input id="neu-nr" inputMode="numeric" value={nr} onChange={e => setNr(e.target.value)} placeholder="1719" aria-invalid={nr !== '' && (!nrOk || doppelt)} /></div>
+      <div className="feld"><label htmlFor="neu-schlag">Schlag (wie im Journal)</label>
+        <input id="neu-schlag" list="neu-schlaege" value={schlag} onChange={e => setSchlag(e.target.value)} placeholder="Oettli" /></div>
+      <div className="feld"><label htmlFor="neu-sorte">Sorte</label>
+        <input id="neu-sorte" list="neu-sorten" value={sorte} onChange={e => setSorte(e.target.value)} /></div>
+      <div className="feld"><label htmlFor="neu-saison">Saison</label>
+        <input id="neu-saison" inputMode="numeric" value={saison} onChange={e => setSaison(e.target.value)} /></div>
+      <datalist id="neu-sorten">{sorten.map(x => <option key={x} value={x} />)}</datalist>
+      <datalist id="neu-schlaege">{schlaege.map(x => <option key={x} value={x} />)}</datalist>
+      {doppelt && <Hinweis art="warnung">Charge {n} gibt es schon.</Hinweis>}
+      {fehler && <Hinweis art="warnung">{fehler}</Hinweis>}
+      <div className="knopf-reihe" style={{ display: 'flex' }}>
+        <button type="button" className="haupt" id="charge-anlegen-ok" onClick={() => void anlegen()} disabled={!bereit || laeuft}>
+          {laeuft ? 'Legt an …' : 'Anlegen'}</button>
+        <button type="button" onClick={() => setOffen(false)}>Abbrechen</button>
+      </div>
+    </div>
   )
 }
 

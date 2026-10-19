@@ -30,6 +30,9 @@ export interface ImportBericht {
   probleme: string[]
   quelle: 'chargennummer' | 'schlag-sorte' | null
   kopf: string[]
+  /** Runde AS: Chargen, die das Journal mit Nummer, Schlag und Sorte nennt, die App aber noch nicht kennt —
+   *  sie werden vor den Paletten angelegt (Saison = Jahr der ersten Palette). */
+  neueChargen: (ChargeRef & { saison: number })[]
 }
 
 /** Erkennt den Trenner und zerlegt in Zellen; einfache Anführungszeichen-Regel. */
@@ -123,17 +126,25 @@ export function datumLesen(roh: string): string | null {
   return `${jahr}-${p(m[2])}-${p(m[1])}`
 }
 
-/** Leere Gebindeart = Standard „G2" (so ist die Spalte im Journal gemeint). */
+/** Leere Gebindeart = Standard „G2" (so ist die Spalte im Journal gemeint).
+ *  Runde AS: Paloxen, wie man sie schreibt („Holzpalox", „Palox Holz", „Plastik-Palox"),
+ *  heissen wie in der Gebinde-Tabelle — sonst hätte jede Schreibweise ihr eigenes Gebinde ohne Tara. */
 export function gebindeNormalisieren(roh: string | null | undefined): string {
   const t = (roh ?? '').trim()
-  return t === '' ? 'G2' : t
+  if (t === '') return 'G2'
+  const k = t.toLowerCase().replace(/[^a-zäöü]+/g, '')
+  if (/pal+o[xcks]+/.test(k)) {
+    if (/holz/.test(k)) return 'Holz Palox'
+    if (/plastik|kunststoff/.test(k)) return 'Plastik Palox'
+  }
+  return t
 }
 
 export function importErkennen(text: string, chargen: ChargeRef[]): ImportBericht {
   const zeilen = tabelleLesen(text)
   if (zeilen.length < 2) {
     return { paletten: [], probleme: ['Zu wenig Zeilen — Kopf und mindestens eine Datenzeile nötig.'],
-             quelle: null, kopf: [] }
+             quelle: null, kopf: [], neueChargen: [] }
   }
 
   const kopfIdx = findeKopf(zeilen)
@@ -144,7 +155,7 @@ export function importErkennen(text: string, chargen: ChargeRef[]): ImportBerich
   const perSchlagSorte = idx.schlag !== -1 && idx.sorte !== -1
   if (idx.eingangsdatum === -1 || idx.brutto_kg === -1 || (!perCharge && !perSchlagSorte)) {
     return {
-      paletten: [], quelle: null, kopf,
+      paletten: [], quelle: null, kopf, neueChargen: [],
       probleme: [`Nötige Spalten nicht gefunden. Erkannt: ${kopf.join(', ')}. `
         + 'Gebraucht werden Datum, Brutto und entweder eine Chargennummer oder Schlag + Sorte.'],
     }
@@ -158,6 +169,7 @@ export function importErkennen(text: string, chargen: ChargeRef[]): ImportBerich
   const paletten: RohPalette[] = []
   const probleme: string[] = []
   const laufNr = new Map<string, number>()
+  const neu = new Map<number, ChargeRef & { saison: number }>()
 
   for (let r = kopfIdx + 1; r < zeilen.length; r++) {
     const f = zeilen[r]
@@ -170,13 +182,33 @@ export function importErkennen(text: string, chargen: ChargeRef[]): ImportBerich
     let chargeNr: number | null = null
     if (perCharge) {
       const nr = Number((f[idx.chargennummer] ?? '').trim())
-      if (bekannteNr.has(nr)) chargeNr = nr
+      if (bekannteNr.has(nr) || neu.has(nr)) chargeNr = nr
+      // Runde AS (Oettli 1719, Trüb 1763): eine neue Nummer mit Schlag und
+      // Sorte ist eine neue Charge — sie wird angelegt, statt die Zeile zu
+      // verwerfen. Ohne Schlag oder Sorte bleibt sie ein Problem: anlegen
+      // kann sie dann nur der Betriebsleiter unter Stammdaten → Chargen.
+      // Kennt die App Schlag und Sorte schon unter einer anderen Nummer, ist
+      // es eher ein Tippfehler in der Nummer: dann wie bisher über Schlag und
+      // Sorte zuordnen, nie eine zweite Charge daneben anlegen.
+      else if (Number.isInteger(nr) && nr > 0 && nr < 100000
+               && !chargeVon.has(`${norm((idx.schlag !== -1 ? f[idx.schlag] : '') ?? '')}|${norm((idx.sorte !== -1 ? f[idx.sorte] : '') ?? '')}`)) {
+        const schlag = (idx.schlag !== -1 ? f[idx.schlag] ?? '' : '').trim()
+        const sorte = (idx.sorte !== -1 ? f[idx.sorte] ?? '' : '').trim()
+        const datum = datumLesen(f[idx.eingangsdatum] ?? '')
+        if (schlag && sorte && datum) {
+          neu.set(nr, { nr, schlag, sorte, saison: Number(datum.slice(0, 4)) })
+          chargeNr = nr
+        } else {
+          probleme.push(`Zeile ${zeileNr}: Charge ${nr} ist neu — ${!schlag || !sorte ? 'Schlag oder Sorte fehlt im Journal' : 'Datum nicht lesbar'}; unter Stammdaten → Chargen anlegen`)
+          continue
+        }
+      }
     }
     if (chargeNr === null && perSchlagSorte) {
       const schlag = f[idx.schlag] ?? '', sorte = f[idx.sorte] ?? ''
       chargeNr = chargeVon.get(`${norm(schlag)}|${norm(sorte)}`) ?? null
       if (chargeNr === null && (schlag.trim() || sorte.trim())) {
-        probleme.push(`Zeile ${zeileNr}: keine Charge für „${schlag.trim()} · ${sorte.trim()}"`)
+        probleme.push(`Zeile ${zeileNr}: keine Charge für „${schlag.trim()} · ${sorte.trim()}" — unter Stammdaten → Chargen mit Nummer anlegen, Schlag und Sorte wie hier`)
         continue
       }
     }
@@ -221,7 +253,7 @@ export function importErkennen(text: string, chargen: ChargeRef[]): ImportBerich
                     kisten, gebindeart: gebinde, extern_id: extern })
   }
 
-  return { paletten, probleme, kopf,
+  return { paletten, probleme, kopf, neueChargen: [...neu.values()],
            quelle: perCharge ? 'chargennummer' : 'schlag-sorte' }
 }
 

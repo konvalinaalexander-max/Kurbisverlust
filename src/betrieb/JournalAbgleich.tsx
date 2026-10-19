@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { einstellung, fehlerText, stammdaten } from '../lib/db'
+import { chargenAnlegen, einstellung, fehlerText, stammdaten } from '../lib/db'
 import { importErkennen } from '../lib/import'
 import { Hinweis } from '../components/Bausteine'
 
@@ -62,6 +62,9 @@ export function JournalAbgleich() {
         }
         const neue = b.paletten.filter(z => !bekannt.has(z.extern_id))
         if (neue.length === 0) return
+        // Runde AS: eine Charge, die das Journal neu nennt, zuerst anlegen.
+        const nrNeu = new Set(neue.map(z => z.charge_nr))
+        const angelegt = await chargenAnlegen(b.neueChargen.filter(c => nrNeu.has(c.nr)))
         const arten = [...new Set(neue.map(z => z.gebindeart).filter(Boolean))] as string[]
         if (arten.length) {
           const { error } = await supabase.from('gebinde').upsert(arten.map(art => ({ art })), { onConflict: 'art', ignoreDuplicates: true })
@@ -74,7 +77,7 @@ export function JournalAbgleich() {
         }
         void stammdaten(true)
         if (!lebt) return
-        setMeldung({ art: 'gut', text: `${neue.length === 1 ? '1 neue Palette' : `${neue.length} neue Paletten`} aus dem Erntejournal übernommen${b.probleme.length ? ` · ${b.probleme.length} Zeilen nicht erkannt (unter Stammdaten nachsehen)` : ''}. Sie zählen ab der nächsten Rechnung — heute Nacht oder mit „Neu rechnen".` })
+        setMeldung({ art: 'gut', text: `${neue.length === 1 ? '1 neue Palette' : `${neue.length} neue Paletten`} aus dem Erntejournal übernommen${angelegt ? ` · ${angelegt === 1 ? 'eine neue Charge' : `${angelegt} neue Chargen`} angelegt (${b.neueChargen.filter(c => nrNeu.has(c.nr)).map(c => c.nr).join(', ')})` : ''}${b.probleme.length ? ` · ${b.probleme.length} Zeilen nicht erkannt (unter Stammdaten nachsehen)` : ''}. Sie zählen ab der nächsten Rechnung — heute Nacht oder mit „Neu rechnen".` })
       } catch (f) {
         // Was genau scheiterte, steht dabei — „Bad Request" allein half niemandem.
         const e = f as { status?: number; code?: string; details?: string } | null

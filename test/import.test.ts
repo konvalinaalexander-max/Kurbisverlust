@@ -98,3 +98,48 @@ test('gebindeNormalisieren macht aus leer G2', () => {
   assert.equal(gebindeNormalisieren('  '), 'G2')
   assert.equal(gebindeNormalisieren('IFCO 6416'), 'IFCO 6416')
 })
+
+// Runde AS: „neue Chargen, Ötli 1719 und Trüb 1763 … schau, dass du damit
+// umgehen kannst". Steht die Nummer mit Schlag und Sorte im Journal, legt der
+// Import die Charge an; sonst sagt er, wo man sie anlegt.
+const MIT_NUMMER = [
+  'Charge;Datum;Schlag;Sorte;Gewicht brutto [kg];Anzahl Gebinde;Gebindeart (leer = G2);ID (App)',
+  '1613;01.09.2026;Slowgrow Uster;Tiana;950;40;;n-1',
+  '1719;15.10.2026;Oettli;Butternut;300;1;Holzpalox;n-2',
+  '1719;16.10.2026;Oettli;Butternut;310;1;Palox Holz;n-3',
+  '1763;16.10.2026;Trüb;Muscade;280;1;Plastik-Palox;n-4',
+].join('\n')
+
+test('eine neue Chargennummer mit Schlag und Sorte wird angelegt, einmal, mit der Saison ihres ersten Eingangs', () => {
+  const b = importErkennen(MIT_NUMMER, CHARGEN)
+  assert.deepEqual(b.probleme, [])
+  assert.deepEqual(b.neueChargen, [
+    { nr: 1719, schlag: 'Oettli', sorte: 'Butternut', saison: 2026 },
+    { nr: 1763, schlag: 'Trüb', sorte: 'Muscade', saison: 2026 }])
+  assert.deepEqual(b.paletten.map(p => p.charge_nr), [1613, 1719, 1719, 1763])
+})
+
+test('eine falsche Nummer zu bekanntem Schlag und Sorte legt keine zweite Charge an', () => {
+  const tipp = 'Charge;Datum;Schlag;Sorte;Gewicht brutto [kg]\n1631;01.09.2026;Slowgrow Uster;Tiana;950'
+  const b = importErkennen(tipp, CHARGEN)
+  assert.deepEqual(b.neueChargen, [])
+  assert.equal(b.paletten[0].charge_nr, 1613, 'wie bisher über Schlag und Sorte')
+})
+
+test('eine neue Nummer ohne Sorte bleibt ein Problem mit dem Weg zu den Stammdaten', () => {
+  const ohne = 'Charge;Datum;Schlag;Sorte;Gewicht brutto [kg]\n1719;15.10.2026;Oettli;;300'
+  const b = importErkennen(ohne, CHARGEN)
+  assert.deepEqual(b.neueChargen, [])
+  assert.equal(b.paletten.length, 0)
+  assert.match(b.probleme[0], /Charge 1719 ist neu.*Stammdaten/)
+})
+
+test('Paloxen heissen wie in der Gebinde-Tabelle, gleich wie man sie schreibt', () => {
+  for (const roh of ['Holzpalox', 'Holz Palox', 'Palox Holz', 'holz-palox', 'Holzpaloxe'])
+    assert.equal(gebindeNormalisieren(roh), 'Holz Palox', roh)
+  for (const roh of ['Plastikpalox', 'Plastik-Palox', 'Kunststoff Palox', 'Palox Plastik'])
+    assert.equal(gebindeNormalisieren(roh), 'Plastik Palox', roh)
+  assert.equal(gebindeNormalisieren('Palox'), 'Palox', 'ohne Holz oder Plastik bleibt es, wie es steht')
+  const b = importErkennen(MIT_NUMMER, CHARGEN)
+  assert.deepEqual(b.paletten.map(p => p.gebindeart), ['G2', 'Holz Palox', 'Holz Palox', 'Plastik Palox'])
+})

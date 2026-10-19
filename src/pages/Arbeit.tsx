@@ -19,8 +19,8 @@ import { PaloxLeerenMaske } from '../arbeit/PaloxLeerenMaske'
 import { FertigePaletteMaske } from '../arbeit/FertigePaletteMaske'
 import { Abschluss } from '../arbeit/Abschluss'
 import { Korrektur } from '../arbeit/Korrektur'
-import { PaloxErinnerung, SortierdatumErinnerung } from '../arbeit/PaloxErinnerung'
-import { sortierdatumHinweisBei } from '../arbeit/erinnerung'
+import { PaloxErinnerung, SortierdatumErinnerung, ZetteldatumErinnerung } from '../arbeit/PaloxErinnerung'
+import { sortierdatumHinweisBei, zetteldatumHinweisBei } from '../arbeit/erinnerung'
 
 type Ansicht = 'liste' | 'zaehler' | 'palox' | 'palox_leeren' | 'faule' | 'wiegen' | 'ausschuss' | 'ausgang' | 'abschluss' | 'korrektur'
 
@@ -320,6 +320,7 @@ export default function Arbeit() {
         ) : kopf}
         {leerenMoeglich && <PaloxErinnerung profilId={session?.user.id} auftragId={auftragId} />}
         {sortierdatumHinweisBei(a.station, p.istFax) && <SortierdatumErinnerung profilId={session?.user.id} auftragId={auftragId} />}
+        {zetteldatumHinweisBei(a.station, p.istFax) && <ZetteldatumErinnerung profilId={session?.user.id} auftragId={auftragId} />}
         <Zaehler d={d} gesperrt={false} neuLaden={laden} melden={melden}
                  zumWiegen={(brutto, kisten, gebinde) => { setWiegenStart({ brutto, kisten, gebinde }); setAnsicht('wiegen') }} />
         {leerenMoeglich && (
@@ -367,6 +368,8 @@ export default function Arbeit() {
       {leerenMoeglich && <PaloxErinnerung profilId={session?.user.id} auftragId={auftragId} />}
       {/* Runde AP: fünfmal je Person, beim Waschen und Sortieren. */}
       {sortierdatumHinweisBei(a.station, p.istFax) && <SortierdatumErinnerung profilId={session?.user.id} auftragId={auftragId} />}
+      {/* Runde AS: beim Sortieren das Eingangsdatum vom Zettel — und wozu. */}
+      {zetteldatumHinweisBei(a.station, p.istFax) && <ZetteldatumErinnerung profilId={session?.user.id} auftragId={auftragId} />}
       {p.hatPalox && <div className="abschnitt-titel">{t('vorDerArbeit')}</div>}
       {p.hatPalox && (
         <div className="check eintritt">

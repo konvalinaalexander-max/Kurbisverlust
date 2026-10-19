@@ -58,3 +58,19 @@ export const sortierdatumHinweisSchluessel = (profilId: string) => `sortierdatum
 /** An welchen Stationen der Sortierdatum-Hinweis steht. */
 export const sortierdatumHinweisBei = (station: string, istFax: boolean) =>
   !istFax && (station === 'waschen' || station === 'sortieren')
+
+/**
+ * Der Zetteldatum-Hinweis beim Sortieren, fünfmal je Person (Runde AS).
+ *
+ * Der Betrieb: „dass am Anfang vor dem Sortieren das Zetteldatum
+ * aufgeschrieben wird … vielleicht noch mit einem Info-Pop-up, wenn man zum
+ * ersten Mal sortiert". Das Datum ist beim Sortieren schon Pflicht (ohne es
+ * zählt keine Palette); der Hinweis sagt, wozu: Mit dem Eingangsdatum und der
+ * Sortierdatei rechnet die App die Kürbisgrösse auf den Eingangstag zurück.
+ */
+export const ZETTELDATUM_HINWEIS_MAL = 5
+
+export const zetteldatumHinweisSchluessel = (profilId: string) => `zetteldatum_hinweis_${profilId}`
+
+/** Nur beim Sortieren — dort entsteht die Sortierdatei. */
+export const zetteldatumHinweisBei = (station: string, istFax: boolean) => !istFax && station === 'sortieren'
