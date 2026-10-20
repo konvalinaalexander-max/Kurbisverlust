@@ -1,6 +1,6 @@
 # Plausibilitätsdurchgang
 
-_Stand 2026-10-19 · Quelle docs/betrieb/rohdaten (Betriebsabzug) · von `pruefstand/durchgang.mjs` geschrieben; nicht von Hand ändern._
+_Stand 2026-10-20 · Quelle docs/betrieb/rohdaten (Betriebsabzug) · von `pruefstand/durchgang.mjs` geschrieben; nicht von Hand ändern._
 
 Jede Zeile ist ein **Kandidat**, kein Urteil: eine Zahl, die so nicht sein kann oder nicht sein sollte, mit dem Grund. Die Runde am Programm liest sie, prüft die Rohzeilen und schreibt die Zweitmeinung; der Betrieb entscheidet.
 
@@ -13,25 +13,26 @@ Jede Zeile ist ein **Kandidat**, kein Urteil: eine Zahl, die so nicht sein kann 
 | auftrag | 74 |
 | auftrag_palette | 428 |
 | auftrag_gebinde | 0 |
-| schimmel_messung | 154 |
+| schimmel_messung | 155 |
 | ausschuss_messung | 48 |
 | verdunstung_wiegung | 118 |
 | ausgang_wiegung | 96 |
 | kontrollpalette | 0 |
 | kontrollpalette_wiegung | 0 |
-| lieferung | 1133 |
+| lieferung | 1262 |
 | sortier_lauf | 12 |
 | gebinde | 8 |
 | auswertung_stand | 1 |
 
 _310 Paletten sind Vervielfachungen einer Journalzeile („n Paletten gleich", extern_id …#n) — keine Kandidaten._
 
-## Nach Prüfung (107)
+## Nach Prüfung (124)
 
 | Prüfung | Anzahl |
 |---|---|
 | Teilpalette mit vollem Zettel | 29 |
 | Zetteldatum ohne Palette | 19 |
+| Eingang Gewicht je Kiste | 18 |
 | Zettelgewicht | 15 |
 | Arbeit offen | 8 |
 | Zettel Kistenzahl | 7 |
@@ -41,7 +42,6 @@ _310 Paletten sind Vervielfachungen einer Journalzeile („n Paletten gleich", e
 | Doppelte Palette | 2 |
 | Zettel doppelt | 2 |
 | Lieferung ohne Eingang | 2 |
-| Gebinde ohne Tara | 1 |
 | Verdunstung zu hoch | 1 |
 | Lieferung über Eingang | 1 |
 | Arbeit ohne Eingang | 1 |
@@ -97,14 +97,65 @@ _310 Paletten sind Vervielfachungen einer Journalzeile („n Paletten gleich", e
   - 27 von 36 Kisten der Palette 6955, aber das Zettelgewicht der ganzen Palette (519 kg). Anteilig wären es 389.3 kg — oder die Kistenzahl ist vertippt. Die Verdunstungswägung dazu rechnet mit zu viel Anfangsgewicht und zählt so nicht.
   - _zettel_kg = 519 · kisten_zettel = 27 · palette = 6955 · kisten_palette = 36 · anteilig_kg = 389.3_
 
-## Schwere mittel (78)
+## Schwere mittel (95)
 
-- **Gebinde ohne Tara** · Gebindeart Holz Palox
-  - 18 Paletten (5622 kg brutto) in einem Gebinde, dessen Leergewicht die Stammdaten nicht kennen — ihr Netto ist geschätzt, nicht gewogen. Unter Betrieb → Stammdaten die Tara eintragen; ein Palox zählt als eine „Kiste" mit seinem eigenen Leergewicht.
-  - _paletten = 18 · brutto_kg = 5622 · chargen = 1638_
+- **Eingang Gewicht je Kiste** · Palette 7425 · Charge 1638 · 2026-09-10
+  - 273 kg netto je Kiste — ausserhalb von 4–30 kg. Einheit (kg statt g?), Zahlendreher oder falsche Kistenzahl.
+  - _brutto_kg = 318 · kisten = 1 · netto_je_kiste_kg = 273_
+- **Eingang Gewicht je Kiste** · Palette 7426 · Charge 1638 · 2026-09-10
+  - 273 kg netto je Kiste — ausserhalb von 4–30 kg. Einheit (kg statt g?), Zahlendreher oder falsche Kistenzahl.
+  - _brutto_kg = 318 · kisten = 1 · netto_je_kiste_kg = 273_
+- **Eingang Gewicht je Kiste** · Palette 7427 · Charge 1638 · 2026-09-10
+  - 273 kg netto je Kiste — ausserhalb von 4–30 kg. Einheit (kg statt g?), Zahlendreher oder falsche Kistenzahl.
+  - _brutto_kg = 318 · kisten = 1 · netto_je_kiste_kg = 273_
+- **Eingang Gewicht je Kiste** · Palette 7428 · Charge 1638 · 2026-09-10
+  - 273 kg netto je Kiste — ausserhalb von 4–30 kg. Einheit (kg statt g?), Zahlendreher oder falsche Kistenzahl.
+  - _brutto_kg = 318 · kisten = 1 · netto_je_kiste_kg = 273_
+- **Eingang Gewicht je Kiste** · Palette 7429 · Charge 1638 · 2026-09-10
+  - 270 kg netto je Kiste — ausserhalb von 4–30 kg. Einheit (kg statt g?), Zahlendreher oder falsche Kistenzahl.
+  - _brutto_kg = 315 · kisten = 1 · netto_je_kiste_kg = 270_
+- **Eingang Gewicht je Kiste** · Palette 7430 · Charge 1638 · 2026-09-10
+  - 270 kg netto je Kiste — ausserhalb von 4–30 kg. Einheit (kg statt g?), Zahlendreher oder falsche Kistenzahl.
+  - _brutto_kg = 315 · kisten = 1 · netto_je_kiste_kg = 270_
+- **Eingang Gewicht je Kiste** · Palette 7431 · Charge 1638 · 2026-09-10
+  - 270 kg netto je Kiste — ausserhalb von 4–30 kg. Einheit (kg statt g?), Zahlendreher oder falsche Kistenzahl.
+  - _brutto_kg = 315 · kisten = 1 · netto_je_kiste_kg = 270_
+- **Eingang Gewicht je Kiste** · Palette 7432 · Charge 1638 · 2026-09-10
+  - 270 kg netto je Kiste — ausserhalb von 4–30 kg. Einheit (kg statt g?), Zahlendreher oder falsche Kistenzahl.
+  - _brutto_kg = 315 · kisten = 1 · netto_je_kiste_kg = 270_
+- **Eingang Gewicht je Kiste** · Palette 7433 · Charge 1638 · 2026-09-10
+  - 255 kg netto je Kiste — ausserhalb von 4–30 kg. Einheit (kg statt g?), Zahlendreher oder falsche Kistenzahl.
+  - _brutto_kg = 300 · kisten = 1 · netto_je_kiste_kg = 255_
+- **Eingang Gewicht je Kiste** · Palette 7434 · Charge 1638 · 2026-09-10
+  - 255 kg netto je Kiste — ausserhalb von 4–30 kg. Einheit (kg statt g?), Zahlendreher oder falsche Kistenzahl.
+  - _brutto_kg = 300 · kisten = 1 · netto_je_kiste_kg = 255_
+- **Eingang Gewicht je Kiste** · Palette 7435 · Charge 1638 · 2026-09-10
+  - 255 kg netto je Kiste — ausserhalb von 4–30 kg. Einheit (kg statt g?), Zahlendreher oder falsche Kistenzahl.
+  - _brutto_kg = 300 · kisten = 1 · netto_je_kiste_kg = 255_
+- **Eingang Gewicht je Kiste** · Palette 7436 · Charge 1638 · 2026-09-10
+  - 255 kg netto je Kiste — ausserhalb von 4–30 kg. Einheit (kg statt g?), Zahlendreher oder falsche Kistenzahl.
+  - _brutto_kg = 300 · kisten = 1 · netto_je_kiste_kg = 255_
+- **Eingang Gewicht je Kiste** · Palette 7437 · Charge 1638 · 2026-09-10
+  - 268 kg netto je Kiste — ausserhalb von 4–30 kg. Einheit (kg statt g?), Zahlendreher oder falsche Kistenzahl.
+  - _brutto_kg = 313 · kisten = 1 · netto_je_kiste_kg = 268_
+- **Eingang Gewicht je Kiste** · Palette 7438 · Charge 1638 · 2026-09-10
+  - 268 kg netto je Kiste — ausserhalb von 4–30 kg. Einheit (kg statt g?), Zahlendreher oder falsche Kistenzahl.
+  - _brutto_kg = 313 · kisten = 1 · netto_je_kiste_kg = 268_
+- **Eingang Gewicht je Kiste** · Palette 7439 · Charge 1638 · 2026-09-10
+  - 268 kg netto je Kiste — ausserhalb von 4–30 kg. Einheit (kg statt g?), Zahlendreher oder falsche Kistenzahl.
+  - _brutto_kg = 313 · kisten = 1 · netto_je_kiste_kg = 268_
+- **Eingang Gewicht je Kiste** · Palette 7440 · Charge 1638 · 2026-09-10
+  - 268 kg netto je Kiste — ausserhalb von 4–30 kg. Einheit (kg statt g?), Zahlendreher oder falsche Kistenzahl.
+  - _brutto_kg = 313 · kisten = 1 · netto_je_kiste_kg = 268_
+- **Eingang Gewicht je Kiste** · Palette 7441 · Charge 1638 · 2026-09-10
+  - 274 kg netto je Kiste — ausserhalb von 4–30 kg. Einheit (kg statt g?), Zahlendreher oder falsche Kistenzahl.
+  - _brutto_kg = 319 · kisten = 1 · netto_je_kiste_kg = 274_
+- **Eingang Gewicht je Kiste** · Palette 7442 · Charge 1638 · 2026-09-10
+  - 274 kg netto je Kiste — ausserhalb von 4–30 kg. Einheit (kg statt g?), Zahlendreher oder falsche Kistenzahl.
+  - _brutto_kg = 319 · kisten = 1 · netto_je_kiste_kg = 274_
 - **Lieferung ohne Charge** · Lieferungen
-  - 23 Lieferungen ohne Chargennummer — sie fehlen in jeder Chargenbilanz und im „Wohin" je Sorte. Unter Betrieb → Warenausgang die Charge nachtragen.
-  - _lieferungen = 23 · kg = 3071.8 · von = 2026-09-05 · bis = 2026-10-14_
+  - 20 Lieferungen ohne Chargennummer — sie fehlen in jeder Chargenbilanz und im „Wohin" je Sorte. Unter Betrieb → Warenausgang die Charge nachtragen.
+  - _lieferungen = 20 · kg = 3591.2 · von = 2026-09-05 · bis = 2026-10-18_
 - **Schwerer geworden** · Wägung 268 · Arbeit 1605 (waschen_sortieren, Charge 1648, 2026-10-05) · Charge 1648
   - Die Palette ist schwerer geworden — Zettel und Waage vertauscht, oder eine andere Palette gewogen.
   - _netto_damals_kg = 340 · netto_jetzt_kg = 405 · tage = 48_
@@ -295,35 +346,35 @@ _310 Paletten sind Vervielfachungen einer Journalzeile („n Paletten gleich", e
   - 14.5 kg je Kiste laut Zettel gegen 9.9 kg im Mittel der Charge — Zahlendreher, oder eine Palette mit anderer Kistenzahl.
   - _zettel_brutto_kg = 89 · kisten_angenommen = 4 · netto_je_kiste_kg = 14.5 · charge_mittel_je_kiste_kg = 9.9_
 - **Zettelgewicht** · Zettel 3132 · Arbeit 1609 (waschen_sortieren, Charge 1638, 2026-10-06) · 2026-09-15
-  - 286.5 kg je Kiste laut Zettel gegen 11.5 kg im Mittel der Charge — Zahlendreher, oder eine Palette mit anderer Kistenzahl.
-  - _zettel_brutto_kg = 313 · kisten_angenommen = 1 · netto_je_kiste_kg = 286.5 · charge_mittel_je_kiste_kg = 11.5_
+  - 268 kg je Kiste laut Zettel gegen 11.5 kg im Mittel der Charge — Zahlendreher, oder eine Palette mit anderer Kistenzahl.
+  - _zettel_brutto_kg = 313 · kisten_angenommen = 1 · netto_je_kiste_kg = 268 · charge_mittel_je_kiste_kg = 11.5_
 - **Zettelgewicht** · Zettel 3133 · Arbeit 1609 (waschen_sortieren, Charge 1638, 2026-10-06) · 2026-09-15
-  - 273.5 kg je Kiste laut Zettel gegen 11.5 kg im Mittel der Charge — Zahlendreher, oder eine Palette mit anderer Kistenzahl.
-  - _zettel_brutto_kg = 300 · kisten_angenommen = 1 · netto_je_kiste_kg = 273.5 · charge_mittel_je_kiste_kg = 11.5_
+  - 255 kg je Kiste laut Zettel gegen 11.5 kg im Mittel der Charge — Zahlendreher, oder eine Palette mit anderer Kistenzahl.
+  - _zettel_brutto_kg = 300 · kisten_angenommen = 1 · netto_je_kiste_kg = 255 · charge_mittel_je_kiste_kg = 11.5_
 - **Zettelgewicht** · Zettel 3134 · Arbeit 1609 (waschen_sortieren, Charge 1638, 2026-10-06) · 2026-09-15
-  - 271.5 kg je Kiste laut Zettel gegen 11.5 kg im Mittel der Charge — Zahlendreher, oder eine Palette mit anderer Kistenzahl.
-  - _zettel_brutto_kg = 298 · kisten_angenommen = 1 · netto_je_kiste_kg = 271.5 · charge_mittel_je_kiste_kg = 11.5_
+  - 253 kg je Kiste laut Zettel gegen 11.5 kg im Mittel der Charge — Zahlendreher, oder eine Palette mit anderer Kistenzahl.
+  - _zettel_brutto_kg = 298 · kisten_angenommen = 1 · netto_je_kiste_kg = 253 · charge_mittel_je_kiste_kg = 11.5_
 - **Zettelgewicht** · Zettel 3135 · Arbeit 1609 (waschen_sortieren, Charge 1638, 2026-10-06) · 2026-09-15
-  - 285.5 kg je Kiste laut Zettel gegen 11.5 kg im Mittel der Charge — Zahlendreher, oder eine Palette mit anderer Kistenzahl.
-  - _zettel_brutto_kg = 312 · kisten_angenommen = 1 · netto_je_kiste_kg = 285.5 · charge_mittel_je_kiste_kg = 11.5_
+  - 267 kg je Kiste laut Zettel gegen 11.5 kg im Mittel der Charge — Zahlendreher, oder eine Palette mit anderer Kistenzahl.
+  - _zettel_brutto_kg = 312 · kisten_angenommen = 1 · netto_je_kiste_kg = 267 · charge_mittel_je_kiste_kg = 11.5_
 - **Zettelgewicht** · Zettel 3162 · Arbeit 1613 (waschen_sortieren, Charge 1638, 2026-10-07) · 2026-09-10
-  - 271.5 kg je Kiste laut Zettel gegen 11.5 kg im Mittel der Charge — Zahlendreher, oder eine Palette mit anderer Kistenzahl.
-  - _zettel_brutto_kg = 298 · kisten_angenommen = 1 · netto_je_kiste_kg = 271.5 · charge_mittel_je_kiste_kg = 11.5_
+  - 253 kg je Kiste laut Zettel gegen 11.5 kg im Mittel der Charge — Zahlendreher, oder eine Palette mit anderer Kistenzahl.
+  - _zettel_brutto_kg = 298 · kisten_angenommen = 1 · netto_je_kiste_kg = 253 · charge_mittel_je_kiste_kg = 11.5_
 - **Zettelgewicht** · Zettel 3163 · Arbeit 1613 (waschen_sortieren, Charge 1638, 2026-10-07) · 2026-09-10
-  - 279.5 kg je Kiste laut Zettel gegen 11.5 kg im Mittel der Charge — Zahlendreher, oder eine Palette mit anderer Kistenzahl.
-  - _zettel_brutto_kg = 306 · kisten_angenommen = 1 · netto_je_kiste_kg = 279.5 · charge_mittel_je_kiste_kg = 11.5_
+  - 261 kg je Kiste laut Zettel gegen 11.5 kg im Mittel der Charge — Zahlendreher, oder eine Palette mit anderer Kistenzahl.
+  - _zettel_brutto_kg = 306 · kisten_angenommen = 1 · netto_je_kiste_kg = 261 · charge_mittel_je_kiste_kg = 11.5_
 - **Zettelgewicht** · Zettel 3164 · Arbeit 1613 (waschen_sortieren, Charge 1638, 2026-10-07) · 2026-09-10
-  - 133.5 kg je Kiste laut Zettel gegen 11.5 kg im Mittel der Charge — Zahlendreher, oder eine Palette mit anderer Kistenzahl.
-  - _zettel_brutto_kg = 160 · kisten_angenommen = 1 · netto_je_kiste_kg = 133.5 · charge_mittel_je_kiste_kg = 11.5_
+  - 115 kg je Kiste laut Zettel gegen 11.5 kg im Mittel der Charge — Zahlendreher, oder eine Palette mit anderer Kistenzahl.
+  - _zettel_brutto_kg = 160 · kisten_angenommen = 1 · netto_je_kiste_kg = 115 · charge_mittel_je_kiste_kg = 11.5_
 - **Zettelgewicht** · Zettel 3165 · Arbeit 1613 (waschen_sortieren, Charge 1638, 2026-10-07) · 2026-09-10
-  - 288.5 kg je Kiste laut Zettel gegen 11.5 kg im Mittel der Charge — Zahlendreher, oder eine Palette mit anderer Kistenzahl.
-  - _zettel_brutto_kg = 315 · kisten_angenommen = 1 · netto_je_kiste_kg = 288.5 · charge_mittel_je_kiste_kg = 11.5_
+  - 270 kg je Kiste laut Zettel gegen 11.5 kg im Mittel der Charge — Zahlendreher, oder eine Palette mit anderer Kistenzahl.
+  - _zettel_brutto_kg = 315 · kisten_angenommen = 1 · netto_je_kiste_kg = 270 · charge_mittel_je_kiste_kg = 11.5_
 - **Zettelgewicht** · Zettel 3166 · Arbeit 1613 (waschen_sortieren, Charge 1638, 2026-10-07) · 2026-09-10
-  - 289.5 kg je Kiste laut Zettel gegen 11.5 kg im Mittel der Charge — Zahlendreher, oder eine Palette mit anderer Kistenzahl.
-  - _zettel_brutto_kg = 316 · kisten_angenommen = 1 · netto_je_kiste_kg = 289.5 · charge_mittel_je_kiste_kg = 11.5_
+  - 271 kg je Kiste laut Zettel gegen 11.5 kg im Mittel der Charge — Zahlendreher, oder eine Palette mit anderer Kistenzahl.
+  - _zettel_brutto_kg = 316 · kisten_angenommen = 1 · netto_je_kiste_kg = 271 · charge_mittel_je_kiste_kg = 11.5_
 - **Zettelgewicht** · Zettel 3167 · Arbeit 1613 (waschen_sortieren, Charge 1638, 2026-10-07) · 2026-09-10
-  - 277.5 kg je Kiste laut Zettel gegen 11.5 kg im Mittel der Charge — Zahlendreher, oder eine Palette mit anderer Kistenzahl.
-  - _zettel_brutto_kg = 304 · kisten_angenommen = 1 · netto_je_kiste_kg = 277.5 · charge_mittel_je_kiste_kg = 11.5_
+  - 259 kg je Kiste laut Zettel gegen 11.5 kg im Mittel der Charge — Zahlendreher, oder eine Palette mit anderer Kistenzahl.
+  - _zettel_brutto_kg = 304 · kisten_angenommen = 1 · netto_je_kiste_kg = 259 · charge_mittel_je_kiste_kg = 11.5_
 - **Zettelgewicht** · Zettel 3174 · Arbeit 1616 (waschen_sortieren, Charge 1635, 2026-10-08) · 2026-09-07
   - 5.8 kg je Kiste laut Zettel gegen 11.8 kg im Mittel der Charge — Zahlendreher, oder eine Palette mit anderer Kistenzahl.
   - _zettel_brutto_kg = 200 · kisten_angenommen = 24 · netto_je_kiste_kg = 5.8 · charge_mittel_je_kiste_kg = 11.8_
@@ -337,29 +388,29 @@ _310 Paletten sind Vervielfachungen einer Journalzeile („n Paletten gleich", e
 ## Schwere niedrig (14)
 
 - **Arbeit offen** · Arbeit 1578 (waschen_sortieren, Charge 1638, 2026-09-23)
+  - Seit 27 Tagen offen — vergessen abzuschliessen (dann fehlt die Arbeit in der Rechnung) oder aus Versehen begonnen (dann abbrechen).
+  - _tage_offen = 27_
+- **Arbeit offen** · Arbeit 1583 (waschen, Charge 1630, 2026-09-24)
   - Seit 26 Tagen offen — vergessen abzuschliessen (dann fehlt die Arbeit in der Rechnung) oder aus Versehen begonnen (dann abbrechen).
   - _tage_offen = 26_
-- **Arbeit offen** · Arbeit 1583 (waschen, Charge 1630, 2026-09-24)
-  - Seit 25 Tagen offen — vergessen abzuschliessen (dann fehlt die Arbeit in der Rechnung) oder aus Versehen begonnen (dann abbrechen).
-  - _tage_offen = 25_
 - **Arbeit offen** · Arbeit 1590 (waschen, Charge 1612, 2026-09-26)
-  - Seit 23 Tagen offen — vergessen abzuschliessen (dann fehlt die Arbeit in der Rechnung) oder aus Versehen begonnen (dann abbrechen).
-  - _tage_offen = 23_
+  - Seit 24 Tagen offen — vergessen abzuschliessen (dann fehlt die Arbeit in der Rechnung) oder aus Versehen begonnen (dann abbrechen).
+  - _tage_offen = 24_
 - **Arbeit offen** · Arbeit 1591 (waschen, Charge 1612, 2026-09-28)
-  - Seit 21 Tagen offen — vergessen abzuschliessen (dann fehlt die Arbeit in der Rechnung) oder aus Versehen begonnen (dann abbrechen).
-  - _tage_offen = 21_
+  - Seit 22 Tagen offen — vergessen abzuschliessen (dann fehlt die Arbeit in der Rechnung) oder aus Versehen begonnen (dann abbrechen).
+  - _tage_offen = 22_
 - **Arbeit offen** · Arbeit 1593 (waschen_sortieren, Charge 1650, 2026-09-28)
+  - Seit 22 Tagen offen — vergessen abzuschliessen (dann fehlt die Arbeit in der Rechnung) oder aus Versehen begonnen (dann abbrechen).
+  - _tage_offen = 22_
+- **Arbeit offen** · Arbeit 1595 (waschen_sortieren, Charge 1617, 2026-09-29)
   - Seit 21 Tagen offen — vergessen abzuschliessen (dann fehlt die Arbeit in der Rechnung) oder aus Versehen begonnen (dann abbrechen).
   - _tage_offen = 21_
-- **Arbeit offen** · Arbeit 1595 (waschen_sortieren, Charge 1617, 2026-09-29)
+- **Arbeit offen** · Arbeit 1596 (sortieren, Charge 1611, 2026-09-30)
   - Seit 20 Tagen offen — vergessen abzuschliessen (dann fehlt die Arbeit in der Rechnung) oder aus Versehen begonnen (dann abbrechen).
   - _tage_offen = 20_
-- **Arbeit offen** · Arbeit 1596 (sortieren, Charge 1611, 2026-09-30)
-  - Seit 19 Tagen offen — vergessen abzuschliessen (dann fehlt die Arbeit in der Rechnung) oder aus Versehen begonnen (dann abbrechen).
-  - _tage_offen = 19_
 - **Arbeit offen** · Arbeit 1611 (waschen_sortieren, Charge 1611, 2026-10-06)
-  - Seit 13 Tagen offen — vergessen abzuschliessen (dann fehlt die Arbeit in der Rechnung) oder aus Versehen begonnen (dann abbrechen).
-  - _tage_offen = 13_
+  - Seit 14 Tagen offen — vergessen abzuschliessen (dann fehlt die Arbeit in der Rechnung) oder aus Versehen begonnen (dann abbrechen).
+  - _tage_offen = 14_
 - **Arbeitsdauer** · Arbeit 1580 (waschen_sortieren, Charge 1617, 2026-09-23)
   - 20.3 Stunden — wohl über Nacht offen geblieben und erst am nächsten Tag abgeschlossen; der Durchsatz je Stunde stimmt dann nicht.
   - _stunden = 20.3_
