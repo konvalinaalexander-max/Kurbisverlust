@@ -6020,159 +6020,6 @@ comment on function hagel_f(numeric, numeric) is
 revoke all on function hagel_f(numeric, numeric) from public;
 grant execute on function hagel_f(numeric, numeric) to authenticated;
 
-CREATE OR REPLACE FUNCTION public.auswertung_schritt_intern(p_schritt integer, p_nebenlaeufig boolean)
- RETURNS jsonb
- LANGUAGE plpgsql
- SECURITY DEFINER
- SET search_path TO 'public'
- SET jit TO 'off'
-AS $function$
-declare
-  v_start timestamptz := clock_timestamp();
-  v_namen text[];
-  v_name text;
-  v_titel text;
-  v_ausdruck text;
-  v_eindeutig boolean;
-  v_gefuellt boolean;
-  v_seit timestamptz;
-  v_t timestamptz;
-begin
-  if auth.uid() is not null and not ist_admin() then
-    raise exception 'Neu rechnen darf nur der Betriebsleiter.' using errcode = '42501';
-  end if;
-  -- Je Aufruf eine Beratungssperre (0100): zwei Erneuerungen derselben
-  -- Ansicht zur selben Sekunde gibt es nicht. Im Zeitplan-Weg hält der
-  -- ganze Lauf sie (eine Transaktion); ein Schritt aus der App, der sie
-  -- nicht bekommt, geht sofort mit „wartet".
-  if not pg_try_advisory_xact_lock(hashtext('auswertung_schritt')) then
-    return jsonb_build_object('schritt', p_schritt, 'schritte', 5, 'titel', 'wartet', 'dauer_ms', 0,
-                              'fertig', false, 'nebenlaeufig', p_nebenlaeufig, 'wartet', true,
-                              'rechnet_seit', (select rechnet_seit from auswertung_stand where id = 1));
-  end if;
-  -- Der App-Weg (fünf einzelne Aufrufe, je eine Transaktion) merkt sich in
-  -- rechnet_seit, dass er läuft (0100). Der Zeitplan-Weg tut das nicht: Ein
-  -- Update hier hielte die Zeile bis zum Ende des Laufs gesperrt, und jedes
-  -- „Neu rechnen" bliebe daran hängen (0103).
-  if p_schritt = 1 and not p_nebenlaeufig then
-    update auswertung_stand
-       set rechnet_seit = clock_timestamp()
-     where id = 1 and (rechnet_seit is null or rechnet_seit < clock_timestamp() - interval '15 minutes')
-    returning rechnet_seit into v_seit;
-    if v_seit is null then
-      select rechnet_seit into v_seit from auswertung_stand where id = 1;
-      return jsonb_build_object('schritt', 1, 'schritte', 5, 'titel', 'wartet', 'dauer_ms', 0,
-                                'fertig', false, 'nebenlaeufig', p_nebenlaeufig, 'wartet', true, 'rechnet_seit', v_seit);
-    end if;
-  end if;
-  case p_schritt
-    when 1 then
-      v_titel := 'Rohdaten';
-      v_namen := array['mv_sortier_lauf_masse', 'mv_kaliber_verteilung', 'mv_sortier_eingang',
-                       'erg_gewichte', 'erg_kaliber', 'erg_gebinde', 'erg_ausgang',
-                       'erg_lieferung', 'erg_kohorte', 'erg_ueberfuellung'];
-    when 2 then
-      v_titel := 'Arbeiten';
-      v_namen := array['mv_auftrag_masse', 'erg_punkte',
-                       'erg_koeff_verdunstung', 'erg_koeff_ausschuss', 'erg_koeff_nebenkanal',
-                       'erg_koeff_fax', 'erg_koeff_ueberfuellung', 'mv_koeff_rand',
-                       'erg_wiegung', 'erg_fax', 'erg_ausschuss',
-                       'erg_fax_wartezeit', 'erg_verarbeitung_alter', 'erg_durchsatz'];
-    when 3 then
-      v_titel := 'Kaskade';
-      -- 0116: die Gewichtsverteilung beim Eingang vor der Kaskade, die sie liest.
-      v_namen := array['erg_palox_erwartung', 'mv_kaliber_eingang', 'mv_kaliber_quelle', 'mv_kaskade', 'mv_hochrechnung', 'erg_charge'];
-    when 4 then
-      v_titel := 'Ergebnis';
-      v_namen := array['erg_verlust', 'erg_prognose', 'erg_wohin', 'erg_verlauf', 'erg_bilanz',
-                       'erg_marge', 'erg_massenbilanz', 'erg_naechste_charge', 'erg_datenlage',
-                       'erg_marge_wiegung', 'erg_marge_charge'];
-    when 5 then
-      v_titel := 'Befunde';
-      v_namen := array['erg_plausibilitaet', 'erg_datenqualitaet'];
-    else
-      raise exception 'auswertung_schritt: Schritt % gibt es nicht (1 bis 5).', p_schritt;
-  end case;
-
-  if p_schritt = 1 then
-    for v_name in
-      select c.relname from pg_class c join pg_namespace n on n.oid = c.relnamespace
-       where n.nspname = 'public' and c.relkind = 'r' order by c.relname
-    loop
-      execute format('analyze %I', v_name);
-    end loop;
-    delete from auswertung_laufzeit where ts < clock_timestamp() - interval '7 days';
-  end if;
-
-  foreach v_name in array v_namen loop
-    v_t := clock_timestamp();
-    v_eindeutig := false;
-    if p_nebenlaeufig then
-      select s.ausdruck into v_ausdruck from auswertung_schluessel() s where s.sicht = v_name;
-      select c.relispopulated into v_gefuellt from pg_class c join pg_namespace n on n.oid = c.relnamespace
-       where n.nspname = 'public' and c.relname = v_name;
-      if v_ausdruck is not null and coalesce(v_gefuellt, false) then
-        begin
-          if not exists (select 1 from pg_index i join pg_class c on c.oid = i.indrelid
-                          where c.relname = v_name and i.indisunique and i.indexprs is null and i.indpred is null) then
-            execute format('create unique index %I on %I (%s) nulls not distinct', v_name || '_eindeutig', v_name, v_ausdruck);
-          end if;
-          v_eindeutig := true;
-        exception when others then
-          raise notice 'auswertung_schritt: % bekommt keinen eindeutigen Index (%) — wird normal erneuert', v_name, sqlerrm;
-        end;
-      end if;
-    end if;
-    if v_eindeutig then
-      begin
-        execute format('refresh materialized view concurrently %I', v_name);
-      exception when others then
-        raise notice 'auswertung_schritt: % nicht nebenläufig erneuert (%) — normal erneuert', v_name, sqlerrm;
-        execute format('refresh materialized view %I', v_name);
-      end;
-    else
-      execute format('refresh materialized view %I', v_name);
-    end if;
-    execute format('analyze %I', v_name);
-    -- 0103: Wo die Minuten hingehen, sagt jeder Lauf selbst.
-    insert into auswertung_laufzeit (schritt, sicht, nebenlaeufig, dauer_ms)
-    values (p_schritt, v_name, v_eindeutig, (extract(epoch from clock_timestamp() - v_t) * 1000)::int);
-  end loop;
-
-  if p_schritt = 5 then
-    update auswertung_stand
-       set berechnet_ts = clock_timestamp(),
-           rechnet_seit = null,
-           dauer_ms = case when p_nebenlaeufig then null else coalesce(dauer_ms, 0) end
-                      + (extract(epoch from clock_timestamp() - v_start) * 1000)::int
-     where id = 1;
-  elsif not p_nebenlaeufig then
-    if p_schritt = 1 then
-      update auswertung_stand
-         set dauer_ms = (extract(epoch from clock_timestamp() - v_start) * 1000)::int
-       where id = 1;
-    else
-      update auswertung_stand
-         set dauer_ms = coalesce(dauer_ms, 0) + (extract(epoch from clock_timestamp() - v_start) * 1000)::int
-       where id = 1;
-    end if;
-  end if;
-
-  return jsonb_build_object(
-    'schritt', p_schritt, 'schritte', 5, 'titel', v_titel,
-    'dauer_ms', (extract(epoch from clock_timestamp() - v_start) * 1000)::int,
-    'fertig', p_schritt = 5, 'nebenlaeufig', p_nebenlaeufig, 'wartet', false);
-end $function$;
-comment on function auswertung_schritt_intern(integer, boolean) is
-  'Ein Schritt des Neurechnens (0078), wahlweise nebenläufig (0095): dann bleibt jede '
-  'Ansicht lesbar, bis ihre neue Fassung steht. Nur für den Betriebsleiter oder ohne Anmeldung.';
-revoke execute on function auswertung_schritt_intern(integer, boolean) from public;
-grant execute on function auswertung_schritt_intern(integer, boolean) to authenticated;
-comment on function auswertung_schritt_intern(integer, boolean) is
-  'Ein Schritt des Neurechnens (0078), wahlweise nebenläufig (0095). Beratungssperre je Aufruf (0100); der App-Weg merkt '
-  'sich rechnet_seit, der Zeitplan-Weg fasst auswertung_stand erst am Ende an; je Ansicht wird die Dauer notiert '
-  '(auswertung_laufzeit, 0103). Schritt 3 rechnet seit 0107 auch erg_palox_erwartung, seit 0116 vor der Kaskade die Gewichtsverteilung beim Eingang (mv_kaliber_eingang, mv_kaliber_quelle). Nur für den Betriebsleiter oder ohne Anmeldung.';
-
 create or replace function ausgang_historie_uebernehmen(p_quelle text, p_positionen jsonb, p_lose jsonb default '[]'::jsonb)
 returns jsonb language plpgsql security invoker set search_path = public as $fn$
 declare
@@ -7575,8 +7422,241 @@ create policy gruppe_plan_lesen on gruppe_plan for select to authenticated using
 create policy gruppe_plan_admin on gruppe_plan for all to authenticated using (ist_admin()) with check (ist_admin());
 grant select, insert, update, delete on gruppe_plan to authenticated;
 
+-- aus 0119_zwei_sortierschemata_halten_die_rechnung_nicht_an.sql
+
+create table if not exists auswertung_index_entfernt (
+  id     bigint generated by default as identity primary key,
+  sicht  text not null,
+  grund  text not null,
+  ts     timestamptz not null default now()
+);
+comment on table auswertung_index_entfernt is
+  'Wenn beim Erneuern ein eindeutiger Index die Daten nicht mehr hergab (0119): welche Ansicht, warum, wann. Die Rechnung lief weiter; der Index wurde entfernt (bei erg_* entsteht er in der nächsten Nacht aus auswertung_schluessel neu — und fällt wieder hier auf, wenn der Schlüssel falsch ist).';
+alter table auswertung_index_entfernt enable row level security;
+drop policy if exists auswertung_index_entfernt_lesen on auswertung_index_entfernt;
+create policy auswertung_index_entfernt_lesen on auswertung_index_entfernt for select to authenticated using (ist_admin());
+grant select on auswertung_index_entfernt to authenticated;
+
+create or replace function auswertung_schluessel()
+returns table (sicht text, ausdruck text) language sql immutable set search_path = public as $$
+  values
+    ('erg_ausgang',            'id'),
+    ('erg_bilanz',             'heute'),
+    ('erg_charge',             'charge_nr'),
+    ('erg_datenlage',          'charge_nr'),
+    ('erg_datenqualitaet',     'paletten_gezaehlt'),
+    ('erg_durchsatz',          'auftrag_id'),
+    ('erg_fax',                'auftrag_id'),
+    ('erg_fax_wartezeit',      'gruppe, sorte, klasse'),
+    ('erg_gebinde',            'sorte, kaliber_idx'),
+    ('erg_gewichte',           'charge_nr, stufe_g'),
+    ('erg_kaliber',            'charge_nr, klasse, kaliber_idx, band_von, band_bis'),
+    ('erg_koeff_ausschuss',    'sorte'),
+    ('erg_koeff_fax',          'sorte'),
+    ('erg_koeff_nebenkanal',   'sorte'),
+    ('erg_koeff_ueberfuellung','n'),
+    ('erg_koeff_verdunstung',  'sorte'),
+    ('erg_kohorte',            'charge_nr, eingangsdatum'),
+    ('erg_lieferung',          'id'),
+    ('erg_marge',              'posten'),
+    ('erg_marge_charge',       'charge_nr, kistensystem, soll_kg_pro_kiste, kaliber_idx, stueck_je_kiste, band_von_g, band_bis_g'),
+    ('erg_marge_wiegung',      'sorte, kistensystem, soll_kg_pro_kiste, kaliber_idx, stueck_je_kiste, band_von_g, band_bis_g'),
+    ('erg_massenbilanz',       'charge_nr'),
+    ('erg_naechste_charge',    'charge_nr'),
+    ('erg_palox_erwartung',    'sorte, station'),
+    ('erg_plausibilitaet',     'art, charge_nr, auftrag_id, befund'),
+    ('erg_prognose',           'gruppe, schluessel, h'),
+    ('erg_punkte',             'charge_nr, auftrag_id, quelle, messtag, lagertage'),
+    ('erg_ueberfuellung',      'gruppe, sorte, charge_nr, kistensystem, soll_kg_pro_kiste, kaliber_idx, stueck_je_kiste'),
+    ('erg_verarbeitung_alter', 'auftrag_id'),
+    ('erg_verlauf',            'woche, bis, gruppe, schluessel'),
+    ('erg_verlust',            'gruppe, schluessel, strom, buch'),
+    ('erg_wiegung',            'id'),
+    ('erg_wohin',              'gruppe, schluessel'),
+    ('mv_hochrechnung',        'charge_nr, portion, strom, buch, kohorte')
+$$;
+
+drop index if exists erg_kaliber_eindeutig;
+drop index if exists erg_ausschuss_eindeutig;
+
+CREATE OR REPLACE FUNCTION public.auswertung_schritt_intern(p_schritt integer, p_nebenlaeufig boolean)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+ SET jit TO 'off'
+AS $function$
+declare
+  v_start timestamptz := clock_timestamp();
+  v_namen text[];
+  v_name text;
+  v_titel text;
+  v_ausdruck text;
+  v_eindeutig boolean;
+  v_gefuellt boolean;
+  v_seit timestamptz;
+  v_t timestamptz;
+  v_index text;
+begin
+  if auth.uid() is not null and not ist_admin() then
+    raise exception 'Neu rechnen darf nur der Betriebsleiter.' using errcode = '42501';
+  end if;
+  -- Je Aufruf eine Beratungssperre (0100): zwei Erneuerungen derselben
+  -- Ansicht zur selben Sekunde gibt es nicht. Im Zeitplan-Weg hält der
+  -- ganze Lauf sie (eine Transaktion); ein Schritt aus der App, der sie
+  -- nicht bekommt, geht sofort mit „wartet".
+  if not pg_try_advisory_xact_lock(hashtext('auswertung_schritt')) then
+    return jsonb_build_object('schritt', p_schritt, 'schritte', 5, 'titel', 'wartet', 'dauer_ms', 0,
+                              'fertig', false, 'nebenlaeufig', p_nebenlaeufig, 'wartet', true,
+                              'rechnet_seit', (select rechnet_seit from auswertung_stand where id = 1));
+  end if;
+  -- Der App-Weg (fünf einzelne Aufrufe, je eine Transaktion) merkt sich in
+  -- rechnet_seit, dass er läuft (0100). Der Zeitplan-Weg tut das nicht: Ein
+  -- Update hier hielte die Zeile bis zum Ende des Laufs gesperrt, und jedes
+  -- „Neu rechnen" bliebe daran hängen (0103).
+  if p_schritt = 1 and not p_nebenlaeufig then
+    update auswertung_stand
+       set rechnet_seit = clock_timestamp()
+     where id = 1 and (rechnet_seit is null or rechnet_seit < clock_timestamp() - interval '15 minutes')
+    returning rechnet_seit into v_seit;
+    if v_seit is null then
+      select rechnet_seit into v_seit from auswertung_stand where id = 1;
+      return jsonb_build_object('schritt', 1, 'schritte', 5, 'titel', 'wartet', 'dauer_ms', 0,
+                                'fertig', false, 'nebenlaeufig', p_nebenlaeufig, 'wartet', true, 'rechnet_seit', v_seit);
+    end if;
+  end if;
+  case p_schritt
+    when 1 then
+      v_titel := 'Rohdaten';
+      v_namen := array['mv_sortier_lauf_masse', 'mv_kaliber_verteilung', 'mv_sortier_eingang',
+                       'erg_gewichte', 'erg_kaliber', 'erg_gebinde', 'erg_ausgang',
+                       'erg_lieferung', 'erg_kohorte', 'erg_ueberfuellung'];
+    when 2 then
+      v_titel := 'Arbeiten';
+      v_namen := array['mv_auftrag_masse', 'erg_punkte',
+                       'erg_koeff_verdunstung', 'erg_koeff_ausschuss', 'erg_koeff_nebenkanal',
+                       'erg_koeff_fax', 'erg_koeff_ueberfuellung', 'mv_koeff_rand',
+                       'erg_wiegung', 'erg_fax', 'erg_ausschuss',
+                       'erg_fax_wartezeit', 'erg_verarbeitung_alter', 'erg_durchsatz'];
+    when 3 then
+      v_titel := 'Kaskade';
+      -- 0116: die Gewichtsverteilung beim Eingang vor der Kaskade, die sie liest.
+      v_namen := array['erg_palox_erwartung', 'mv_kaliber_eingang', 'mv_kaliber_quelle', 'mv_kaskade', 'mv_hochrechnung', 'erg_charge'];
+    when 4 then
+      v_titel := 'Ergebnis';
+      v_namen := array['erg_verlust', 'erg_prognose', 'erg_wohin', 'erg_verlauf', 'erg_bilanz',
+                       'erg_marge', 'erg_massenbilanz', 'erg_naechste_charge', 'erg_datenlage',
+                       'erg_marge_wiegung', 'erg_marge_charge'];
+    when 5 then
+      v_titel := 'Befunde';
+      v_namen := array['erg_plausibilitaet', 'erg_datenqualitaet'];
+    else
+      raise exception 'auswertung_schritt: Schritt % gibt es nicht (1 bis 5).', p_schritt;
+  end case;
+
+  if p_schritt = 1 then
+    for v_name in
+      select c.relname from pg_class c join pg_namespace n on n.oid = c.relnamespace
+       where n.nspname = 'public' and c.relkind = 'r' order by c.relname
+    loop
+      execute format('analyze %I', v_name);
+    end loop;
+    delete from auswertung_laufzeit where ts < clock_timestamp() - interval '7 days';
+  end if;
+
+  foreach v_name in array v_namen loop
+    v_t := clock_timestamp();
+    v_eindeutig := false;
+    if p_nebenlaeufig then
+      select s.ausdruck into v_ausdruck from auswertung_schluessel() s where s.sicht = v_name;
+      select c.relispopulated into v_gefuellt from pg_class c join pg_namespace n on n.oid = c.relnamespace
+       where n.nspname = 'public' and c.relname = v_name;
+      if v_ausdruck is not null and coalesce(v_gefuellt, false) then
+        begin
+          if not exists (select 1 from pg_index i join pg_class c on c.oid = i.indrelid
+                          where c.relname = v_name and i.indisunique and i.indexprs is null and i.indpred is null) then
+            execute format('create unique index %I on %I (%s) nulls not distinct', v_name || '_eindeutig', v_name, v_ausdruck);
+          end if;
+          v_eindeutig := true;
+        exception when others then
+          raise notice 'auswertung_schritt: % bekommt keinen eindeutigen Index (%) — wird normal erneuert', v_name, sqlerrm;
+        end;
+      end if;
+    end if;
+    if v_eindeutig then
+      begin
+        execute format('refresh materialized view concurrently %I', v_name);
+      exception when others then
+        raise notice 'auswertung_schritt: % nicht nebenläufig erneuert (%) — normal erneuert', v_name, sqlerrm;
+        v_eindeutig := false;
+      end;
+    end if;
+    if not v_eindeutig then
+      begin
+        execute format('refresh materialized view %I', v_name);
+      exception when unique_violation then
+        -- 0119: Ein eindeutiger Index, den die Daten nicht mehr hergeben, hält die
+        -- Rechnung nicht an. Er geht weg (die Ansicht wird dann normal erneuert,
+        -- nicht nebenläufig), die Rechnung läuft weiter, und der Lauf sagt es.
+        raise notice 'auswertung_schritt: % — ein eindeutiger Index passt nicht mehr zu den Daten (%); entfernt, normal erneuert', v_name, sqlerrm;
+        for v_index in
+          select i.relname from pg_index x join pg_class i on i.oid = x.indexrelid join pg_class c on c.oid = x.indrelid
+           join pg_namespace n on n.oid = c.relnamespace
+           where n.nspname = 'public' and c.relname = v_name and x.indisunique
+        loop
+          execute format('drop index if exists %I', v_index);
+        end loop;
+        insert into auswertung_index_entfernt (sicht, grund) values (v_name, sqlerrm);
+        execute format('refresh materialized view %I', v_name);
+      end;
+    end if;
+    execute format('analyze %I', v_name);
+    -- 0103: Wo die Minuten hingehen, sagt jeder Lauf selbst.
+    insert into auswertung_laufzeit (schritt, sicht, nebenlaeufig, dauer_ms)
+    values (p_schritt, v_name, v_eindeutig, (extract(epoch from clock_timestamp() - v_t) * 1000)::int);
+  end loop;
+
+  if p_schritt = 5 then
+    update auswertung_stand
+       set berechnet_ts = clock_timestamp(),
+           rechnet_seit = null,
+           dauer_ms = case when p_nebenlaeufig then null else coalesce(dauer_ms, 0) end
+                      + (extract(epoch from clock_timestamp() - v_start) * 1000)::int
+     where id = 1;
+  elsif not p_nebenlaeufig then
+    if p_schritt = 1 then
+      update auswertung_stand
+         set dauer_ms = (extract(epoch from clock_timestamp() - v_start) * 1000)::int
+       where id = 1;
+    else
+      update auswertung_stand
+         set dauer_ms = coalesce(dauer_ms, 0) + (extract(epoch from clock_timestamp() - v_start) * 1000)::int
+       where id = 1;
+    end if;
+  end if;
+
+  return jsonb_build_object(
+    'schritt', p_schritt, 'schritte', 5, 'titel', v_titel,
+    'dauer_ms', (extract(epoch from clock_timestamp() - v_start) * 1000)::int,
+    'fertig', p_schritt = 5, 'nebenlaeufig', p_nebenlaeufig, 'wartet', false);
+end $function$;
+comment on function auswertung_schritt_intern(integer, boolean) is
+  'Ein Schritt des Neurechnens (0078), wahlweise nebenläufig (0095): dann bleibt jede '
+  'Ansicht lesbar, bis ihre neue Fassung steht. Nur für den Betriebsleiter oder ohne Anmeldung.';
+revoke execute on function auswertung_schritt_intern(integer, boolean) from public;
+grant execute on function auswertung_schritt_intern(integer, boolean) to authenticated;
+comment on function auswertung_schritt_intern(integer, boolean) is
+  'Ein Schritt des Neurechnens (0078), wahlweise nebenläufig (0095). Beratungssperre je Aufruf (0100); der App-Weg merkt '
+  'sich rechnet_seit, der Zeitplan-Weg fasst auswertung_stand erst am Ende an; je Ansicht wird die Dauer notiert '
+  '(auswertung_laufzeit, 0103). Schritt 3 rechnet seit 0107 auch erg_palox_erwartung, seit 0116 vor der Kaskade die Gewichtsverteilung beim Eingang (mv_kaliber_eingang, mv_kaliber_quelle). Nur für den Betriebsleiter oder ohne Anmeldung.';
+
+comment on function auswertung_schritt_intern(integer, boolean) is
+  'Ein Schritt des Neurechnens (0078), wahlweise nebenläufig (0095). Beratungssperre je Aufruf (0100); der App-Weg merkt '
+  'sich rechnet_seit, der Zeitplan-Weg fasst auswertung_stand erst am Ende an; je Ansicht wird die Dauer notiert '
+  '(auswertung_laufzeit, 0103). Schritt 3 rechnet seit 0107 auch erg_palox_erwartung, seit 0116 vor der Kaskade die Gewichtsverteilung beim Eingang (mv_kaliber_eingang, mv_kaliber_quelle). Seit 0119 hält ein eindeutiger Index, den die Daten nicht mehr hergeben, die Rechnung nicht an: er wird entfernt und in auswertung_index_entfernt notiert. Nur für den Betriebsleiter oder ohne Anmeldung.';
+
 create or replace function schema_stand() returns int
-language sql immutable set search_path = public as $$ select 117 $$;
+language sql immutable set search_path = public as $$ select 119 $$;
 comment on function schema_stand is
   'Nummer der jüngsten eingespielten Migration. Die App vergleicht sie mit '
   'SCHEMA_ERWARTET (src/lib/version.ts) und verlangt bei Abweichung, setup.sql '
@@ -7670,7 +7750,7 @@ comment on function schema_stand() is
 -- TEIL B — Das Rechenwerk: die Formeln, wie sie heute lauten
 -- =====================================================================
 -- Ab hier steht jede Ansicht und jede darauf rechnende Funktion genau
--- einmal — in 153 Schritten, in der Reihenfolge, in der eine auf der
+-- einmal — in 154 Schritten, in der Reihenfolge, in der eine auf der
 -- anderen steht. Die Reihenfolge ist ausgerechnet, nicht geraten:
 -- setup_bauen.sh sortiert topologisch und bricht ab, wenn sie nicht
 -- kreisfrei wäre.
@@ -7683,6 +7763,9 @@ comment on function schema_stand() is
 -- wird am Ende dieser Datei neu berechnet.
 -- =====================================================================
 
+drop materialized view if exists erg_kaliber cascade;
+drop view if exists v_kaliber_verteilung cascade;
+drop materialized view if exists mv_kaliber_verteilung cascade;
 drop view if exists v_perigon_pruefung cascade;
 drop view if exists v_kunde_position cascade;
 drop materialized view if exists erg_wohin cascade;
@@ -7811,8 +7894,6 @@ drop view if exists v_dubletten_pruefung cascade;
 drop view if exists v_auftrag_sortierart cascade;
 drop view if exists v_ausschuss_pruef cascade;
 drop view if exists v_auftrag_angabe cascade;
-drop view if exists v_kaliber_verteilung cascade;
-drop materialized view if exists mv_kaliber_verteilung cascade;
 drop view if exists v_sortier_lauf_masse cascade;
 drop materialized view if exists mv_sortier_lauf_masse cascade;
 
@@ -7844,22 +7925,6 @@ select l.id as lauf_id, l.charge_nr, c.sorte, c.schlag, l.auftrag_id,
 
 create or replace view v_sortier_lauf_masse with (security_invoker = true) as
 select * from mv_sortier_lauf_masse;
-create materialized view mv_kaliber_verteilung as
-select l.charge_nr, c.sorte, g.klasse, g.kaliber_idx,
-       (s.kaliber_baender -> g.kaliber_idx ->> 0)::int as band_von,
-       (s.kaliber_baender -> g.kaliber_idx ->> 1)::int as band_bis,
-       sum(g.anzahl)                                                 as n_kuerbis,
-       (sum(g.anzahl::bigint * g.gewicht_g) / 1000.0)::numeric(12,2) as masse_kg
-  from sortier_gewicht g
-  join sortier_lauf l on l.id = g.lauf_id
-  join charge c on c.nr = l.charge_nr
-  left join sortierschema s on s.id = l.sortierschema_id
- group by l.charge_nr, c.sorte, g.klasse, g.kaliber_idx,
-          (s.kaliber_baender -> g.kaliber_idx ->> 0)::int,
-          (s.kaliber_baender -> g.kaliber_idx ->> 1)::int with no data;
-
-create or replace view v_kaliber_verteilung with (security_invoker = true) as
-select * from mv_kaliber_verteilung;
 
 create or replace view v_auftrag_angabe with (security_invoker = true) as
 select distinct on (auftrag_id, schluessel)
@@ -13274,44 +13339,6 @@ create view v_saisonbilanz with (security_invoker = true) as
      CROSS JOIN vorlauf vl
      CROSS JOIN fax f;
 
-do $$
-declare
-  paar text[];
-  paare text[][] := array[
-    -- [erg-Name, Quelle]
-    ['erg_gewichte',           'v_gewichtsverteilung'],
-    ['erg_kaliber',            'v_kaliber_verteilung'],
-    ['erg_gebinde',            'v_koeff_gebinde'],
-    ['erg_ausgang',            'v_ausgang_voll'],        -- seit 0089 mit voll
-    ['erg_lieferung',          'v_lieferung_masse'],
-    ['erg_kohorte',            'v_charge_kohorte'],
-    ['erg_koeff_verdunstung',  'v_koeff_verdunstung'],
-    ['erg_koeff_ausschuss',    'v_koeff_ausschuss'],
-    ['erg_koeff_nebenkanal',   'v_koeff_nebenkanal'],
-    ['erg_koeff_ueberfuellung','v_koeff_ueberfuellung'],
-    ['erg_wiegung',            'v_wiegung_kennzahl'],
-    ['erg_fax',                'v_fax_beobachtung'],
-    ['erg_ausschuss',          'v_ausschuss_beobachtung'],
-    ['erg_verarbeitung_alter', 'v_verarbeitung_alter'],
-    ['erg_durchsatz',          'v_durchsatz'],
-    ['erg_bilanz',             'v_saisonbilanz'],
-    ['erg_marge',              'v_marge_buch'],
-    ['erg_massenbilanz',       'v_massenbilanz'],
-    ['erg_naechste_charge',    'v_naechste_charge'],
-    ['erg_datenlage',          'v_datenlage'],
-    ['erg_plausibilitaet',     'v_plausibilitaet'],
-    ['erg_datenqualitaet',     'v_datenqualitaet']
-  ];
-begin
-  foreach paar slice 1 in array paare loop
-    execute format('drop materialized view if exists %I cascade', paar[1]);
-    execute format('create materialized view %I as select * from %I with no data', paar[1], paar[2]);
-    execute format('grant select on %I to authenticated', paar[1]);
-    execute format('comment on materialized view %I is %L', paar[1],
-                   format('%s, gespeichert für die App Erneuert mit auswertung_schritt().', paar[2]));
-  end loop;
-end $$;
-
 create view v_wohin with (security_invoker = true) as
  WITH gruppen AS (
          SELECT 'gesamt'::text AS gruppe,
@@ -13420,6 +13447,125 @@ create materialized view erg_wohin as
    FROM v_wohin
 with no data;
 
+create or replace view v_kunde_position with (security_invoker = true) as
+select v.quelle, v.pos_id, v.kunde, v.saison, v.datum, e.gruppe, e.groesse, e.label,
+       v.artikel_id, v.artikel, v.preisgruppe, v.menge, v.einheit, v.kg, v.herkunft
+  from v_verkauf_position v
+  left join ausgang_artikel a on a.artikel_id = v.artikel_id and a.artikel = v.artikel
+ cross join lateral artikel_einordnen(v.artikel, v.preisgruppe) e
+ where coalesce(v.journal, '') <> 'L'
+   and coalesce(a.ist_kuerbis, ist_kuerbis_vorschlag(v.artikel_id, v.artikel))
+   and v.kunde is not null and v.kunde <> '';
+
+-- aus 0118_rest_ohne_charge_ist_kein_unbekannte_charge.sql
+
+create or replace view v_perigon_pruefung with (security_invoker = true) as
+with zeile as (
+  select z.id, z.quelle, z.pos_id, z.datum, z.kunde, z.artikel, z.charge_extern, z.kg_charge, z.liefer_label,
+         l.id as lieferung_id, l.charge_nr, l.kg as kg_lieferung, c.sorte, sk.artikelgruppe as gruppe_charge,
+         e.gruppe as gruppe_artikel, e.label as label_verkauft,
+         case when upper(coalesce(z.liefer_label, '')) like 'D%' then 'D'
+              when upper(coalesce(z.liefer_label, '')) ~ '^(K|CH-K)' then 'K' end as label_geliefert,
+         li.extern_id like '%:rest' as rest,
+         regexp_replace(z.charge_extern, '\D', '', 'g') as ziffern
+    from ausgang_zeile z
+    join lieferung_import li on li.zeile_id = z.id
+    join lieferung l on l.id = li.lieferung_id
+    left join charge c on c.nr = l.charge_nr
+    left join sorte_kaliber sk on sk.sorte = c.sorte
+   cross join lateral artikel_einordnen(z.artikel, z.preisgruppe) e
+)
+select 'Charge nicht zugeordnet'::text as art, z.quelle, z.pos_id, z.datum, z.kunde, z.artikel, z.charge_nr, z.kg_charge as kg,
+       format('Perigon nennt die Charge %s, die Lieferung hat keine — %s', z.charge_extern,
+              case when exists (select 1 from charge x where x.nr::text = z.ziffern)
+                   then 'die Charge gibt es; die Datei unter Betrieb → Warenausgang neu einlesen'
+                   when (select count(*) from charge x where x.perigon_nr::text = z.ziffern) = 1
+                   then format('die Perigon-Nummer steht an Charge %s; die Datei unter Betrieb → Warenausgang neu einlesen',
+                               (select x.nr from charge x where x.perigon_nr::text = z.ziffern))
+                   when (select count(*) from charge x where x.perigon_nr::text = z.ziffern) > 1
+                   then 'die Perigon-Nummer steht an mehreren Chargen, und der Artikel sagt nicht, welche Sorte'
+                   else 'die Nummer steht an keiner Charge; unter Stammdaten → Chargen die Perigon-Nr. eintragen (oder die Charge anlegen), dann neu einlesen' end) as befund
+  from zeile z
+ where z.charge_extern <> '' and z.charge_nr is null and not z.rest
+union all
+select 'Teil ohne Charge', z.quelle, z.pos_id, z.datum, z.kunde, z.artikel, null::int, zahl(z.kg_lieferung, 3, 1e11)::numeric(14,3),
+       format('%s kg der Position nennen in der Datei keine Charge — Spalte S schreibt der Charge %s weniger zu, als geliefert wurde. Der Rest zählt im Warenausgang, aber bei keiner Charge; der Teil mit Charge zählt richtig. Zu prüfen in Perigon, nicht in der App.',
+              trim(to_char(z.kg_lieferung, 'FM999999990.0')), z.charge_extern)
+  from zeile z
+ where z.rest and z.charge_extern <> ''
+union all
+select 'Artikel passt nicht zur Sorte', z.quelle, z.pos_id, z.datum, z.kunde, z.artikel, z.charge_nr, z.kg_charge,
+       format('als %s verkauft, geliefert aus Charge %s (%s, geht als %s)', z.gruppe_artikel, z.charge_nr, z.sorte, z.gruppe_charge)
+  from zeile z
+ where z.gruppe_artikel is not null and z.gruppe_charge is not null
+   and z.gruppe_artikel not in ('Mix', 'andere') and z.gruppe_artikel <> z.gruppe_charge
+union all
+select 'Als Demeter verkauft, als Knospe geliefert', z.quelle, z.pos_id, z.datum, z.kunde, z.artikel, z.charge_nr, z.kg_charge,
+       format('Preisgruppe Demeter, Lieferlabel %s (Charge %s)', z.liefer_label, z.charge_nr)
+  from zeile z
+ where z.label_verkauft = 'D' and z.label_geliefert = 'K' and not z.rest
+union all
+select 'Lieferung vor dem Eingang', z.quelle, z.pos_id, z.datum, z.kunde, z.artikel, z.charge_nr, z.kg_charge,
+       format('geliefert am %s, die Charge %s kam erst am %s', to_char(z.datum, 'DD.MM.YYYY'), z.charge_nr,
+              to_char(e.erst, 'DD.MM.YYYY'))
+  from zeile z
+  join (select charge_nr, min(eingangsdatum) as erst from palette group by charge_nr) e on e.charge_nr = z.charge_nr
+ where z.datum < e.erst;
+create materialized view mv_kaliber_verteilung as
+select l.charge_nr, c.sorte, g.klasse, g.kaliber_idx,
+       (s.kaliber_baender -> g.kaliber_idx ->> 0)::int as band_von,
+       (s.kaliber_baender -> g.kaliber_idx ->> 1)::int as band_bis,
+       sum(g.anzahl)                                                 as n_kuerbis,
+       (sum(g.anzahl::bigint * g.gewicht_g) / 1000.0)::numeric(12,2) as masse_kg
+  from sortier_gewicht g
+  join sortier_lauf l on l.id = g.lauf_id
+  join charge c on c.nr = l.charge_nr
+  left join sortierschema s on s.id = l.sortierschema_id
+ group by l.charge_nr, c.sorte, g.klasse, g.kaliber_idx,
+          (s.kaliber_baender -> g.kaliber_idx ->> 0)::int,
+          (s.kaliber_baender -> g.kaliber_idx ->> 1)::int with no data;
+
+create or replace view v_kaliber_verteilung with (security_invoker = true) as
+select * from mv_kaliber_verteilung;
+
+do $$
+declare
+  paar text[];
+  paare text[][] := array[
+    -- [erg-Name, Quelle]
+    ['erg_gewichte',           'v_gewichtsverteilung'],
+    ['erg_kaliber',            'v_kaliber_verteilung'],
+    ['erg_gebinde',            'v_koeff_gebinde'],
+    ['erg_ausgang',            'v_ausgang_voll'],        -- seit 0089 mit voll
+    ['erg_lieferung',          'v_lieferung_masse'],
+    ['erg_kohorte',            'v_charge_kohorte'],
+    ['erg_koeff_verdunstung',  'v_koeff_verdunstung'],
+    ['erg_koeff_ausschuss',    'v_koeff_ausschuss'],
+    ['erg_koeff_nebenkanal',   'v_koeff_nebenkanal'],
+    ['erg_koeff_ueberfuellung','v_koeff_ueberfuellung'],
+    ['erg_wiegung',            'v_wiegung_kennzahl'],
+    ['erg_fax',                'v_fax_beobachtung'],
+    ['erg_ausschuss',          'v_ausschuss_beobachtung'],
+    ['erg_verarbeitung_alter', 'v_verarbeitung_alter'],
+    ['erg_durchsatz',          'v_durchsatz'],
+    ['erg_bilanz',             'v_saisonbilanz'],
+    ['erg_marge',              'v_marge_buch'],
+    ['erg_massenbilanz',       'v_massenbilanz'],
+    ['erg_naechste_charge',    'v_naechste_charge'],
+    ['erg_datenlage',          'v_datenlage'],
+    ['erg_plausibilitaet',     'v_plausibilitaet'],
+    ['erg_datenqualitaet',     'v_datenqualitaet']
+  ];
+begin
+  foreach paar slice 1 in array paare loop
+    execute format('drop materialized view if exists %I cascade', paar[1]);
+    execute format('create materialized view %I as select * from %I with no data', paar[1], paar[2]);
+    execute format('grant select on %I to authenticated', paar[1]);
+    execute format('comment on materialized view %I is %L', paar[1],
+                   format('%s, gespeichert für die App Erneuert mit auswertung_schritt().', paar[2]));
+  end loop;
+end $$;
+
 do $$
 declare
   paar text[];
@@ -13440,57 +13586,7 @@ begin
   end loop;
 end $$;
 
-create or replace view v_kunde_position with (security_invoker = true) as
-select v.quelle, v.pos_id, v.kunde, v.saison, v.datum, e.gruppe, e.groesse, e.label,
-       v.artikel_id, v.artikel, v.preisgruppe, v.menge, v.einheit, v.kg, v.herkunft
-  from v_verkauf_position v
-  left join ausgang_artikel a on a.artikel_id = v.artikel_id and a.artikel = v.artikel
- cross join lateral artikel_einordnen(v.artikel, v.preisgruppe) e
- where coalesce(v.journal, '') <> 'L'
-   and coalesce(a.ist_kuerbis, ist_kuerbis_vorschlag(v.artikel_id, v.artikel))
-   and v.kunde is not null and v.kunde <> '';
-
-create or replace view v_perigon_pruefung with (security_invoker = true) as
-with zeile as (
-  select z.id, z.quelle, z.pos_id, z.datum, z.kunde, z.artikel, z.charge_extern, z.kg_charge, z.liefer_label,
-         l.id as lieferung_id, l.charge_nr, c.sorte, sk.artikelgruppe as gruppe_charge,
-         e.gruppe as gruppe_artikel, e.label as label_verkauft,
-         case when upper(coalesce(z.liefer_label, '')) like 'D%' then 'D'
-              when upper(coalesce(z.liefer_label, '')) ~ '^(K|CH-K)' then 'K' end as label_geliefert
-    from ausgang_zeile z
-    join lieferung_import li on li.zeile_id = z.id
-    join lieferung l on l.id = li.lieferung_id
-    left join charge c on c.nr = l.charge_nr
-    left join sorte_kaliber sk on sk.sorte = c.sorte
-   cross join lateral artikel_einordnen(z.artikel, z.preisgruppe) e
-)
-select 'Charge nicht zugeordnet'::text as art, z.quelle, z.pos_id, z.datum, z.kunde, z.artikel, z.charge_nr, z.kg_charge as kg,
-       format('Perigon nennt die Charge %s, die Lieferung hat keine — %s', z.charge_extern,
-              case when exists (select 1 from charge x where x.nr::text = regexp_replace(z.charge_extern, '\D', '', 'g'))
-                   then 'die Charge gibt es; die Datei unter Betrieb → Warenausgang neu einlesen'
-                   when (select count(*) from charge x where x.perigon_nr::text = regexp_replace(z.charge_extern, '\D', '', 'g')) > 1
-                   then 'die Perigon-Nummer steht an mehreren Chargen, und der Artikel sagt nicht, welche Sorte'
-                   else 'die Nummer kennt die App nicht; unter Stammdaten → Chargen anlegen, dann neu einlesen' end) as befund
-  from zeile z
- where z.charge_extern <> '' and z.charge_nr is null
-union all
-select 'Artikel passt nicht zur Sorte', z.quelle, z.pos_id, z.datum, z.kunde, z.artikel, z.charge_nr, z.kg_charge,
-       format('als %s verkauft, geliefert aus Charge %s (%s, geht als %s)', z.gruppe_artikel, z.charge_nr, z.sorte, z.gruppe_charge)
-  from zeile z
- where z.gruppe_artikel is not null and z.gruppe_charge is not null
-   and z.gruppe_artikel not in ('Mix', 'andere') and z.gruppe_artikel <> z.gruppe_charge
-union all
-select 'Als Demeter verkauft, als Knospe geliefert', z.quelle, z.pos_id, z.datum, z.kunde, z.artikel, z.charge_nr, z.kg_charge,
-       format('Preisgruppe Demeter, Lieferlabel %s (Charge %s)', z.liefer_label, z.charge_nr)
-  from zeile z
- where z.label_verkauft = 'D' and z.label_geliefert = 'K'
-union all
-select 'Lieferung vor dem Eingang', z.quelle, z.pos_id, z.datum, z.kunde, z.artikel, z.charge_nr, z.kg_charge,
-       format('geliefert am %s, die Charge %s kam erst am %s', to_char(z.datum, 'DD.MM.YYYY'), z.charge_nr,
-              to_char(e.erst, 'DD.MM.YYYY'))
-  from zeile z
-  join (select charge_nr, min(eingangsdatum) as erst from palette group by charge_nr) e on e.charge_nr = z.charge_nr
- where z.datum < e.erst;
+create materialized view if not exists erg_kaliber as select * from v_kaliber_verteilung with no data;
 
 -- ---------------------------------------------------------------------
 -- Beschreibungen, Leserechte und Indizes
@@ -13763,9 +13859,6 @@ comment on view v_saisonbilanz is
   'verlust_modell_kg ist alles, was physisch weg ist (Lagerverlust plus '
   'Grundaussortierung); lagerverlust_kg und feld_kg zerlegen es. Zu klein '
   'und zu gross sind kein Verlust: sie verlassen den Betrieb als Ausgang.';
-
-create unique index if not exists mv_kaliber_pk
-  on mv_kaliber_verteilung (charge_nr, klasse, coalesce(kaliber_idx, -1), coalesce(band_von, -1));
 grant select on mv_kaliber_verteilung, v_kaliber_verteilung, v_ausgang_kennzahl to authenticated;
 grant select on v_auftrag_angabe to authenticated;
 
@@ -15424,6 +15517,22 @@ grant select on v_kunde_position to authenticated;
 comment on view v_perigon_pruefung is
   'Was beim Durchsehen der Perigon-Zeilen der laufenden Saison auffällt (0116), je Zeile mit dem Satz, was zu tun ist: Charge nicht zugeordnet, Artikel passt nicht zur Sorte der gelieferten Charge, als Demeter verkauft und als Knospe geliefert, Lieferung vor dem ersten Eingang.';
 grant select on v_perigon_pruefung to authenticated;
+comment on view v_perigon_pruefung is
+  'Was beim Durchsehen der Perigon-Zeilen der laufenden Saison auffällt (0116, 0118), je Zeile mit dem Satz, was zu tun ist: Charge nicht zugeordnet (eine Nummer, die die App nicht auflösen kann), Teil ohne Charge (die Datei schreibt den Chargen weniger zu, als die Position geliefert hat — 0118), Artikel passt nicht zur Sorte der gelieferten Charge, als Demeter verkauft und als Knospe geliefert, Lieferung vor dem ersten Eingang.';
+grant select on v_perigon_pruefung to authenticated;
+create unique index if not exists mv_kaliber_pk
+  on mv_kaliber_verteilung (charge_nr, klasse, coalesce(kaliber_idx, -1), coalesce(band_von, -1), coalesce(band_bis, -1));
+comment on materialized view mv_kaliber_verteilung is
+  'v_kaliber_verteilung, gespeichert. Inhaltlich gleich; erneuert von '
+  'auswertung_schritt(2).';
+grant select on mv_kaliber_verteilung to authenticated;
+comment on view v_kaliber_verteilung is
+  'Wie sich die sortierte Ware je Charge auf die Kaliberbänder verteilt: '
+  'Stückzahl und Masse je Band, dazu die Klassen "zu klein" und '
+  '"Nebenkanal". Gewogen aus den Sortierläufen.';
+grant select on v_kaliber_verteilung to authenticated;
+grant select on erg_kaliber to authenticated;
+comment on materialized view erg_kaliber is 'v_kaliber_verteilung, gespeichert für die App Erneuert mit auswertung_schritt().';
 
 
 -- =====================================================================

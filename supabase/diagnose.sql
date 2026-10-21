@@ -143,6 +143,13 @@ begin
     into v_txt;
   insert into diagnose (was, befund) values ('Sollgewicht je Kiste (Einstellung)', v_txt);
 
+  -- 0119: Indizes, die die Rechnung entfernen musste, weil die Daten sie nicht mehr hergaben.
+  if to_regclass('auswertung_index_entfernt') is not null then
+    execute $q$select coalesce(string_agg(format('%s (%s, %s)', sicht, grund, to_char(ts, 'DD.MM. HH24:MI')), ' · ' order by ts desc), 'keine')
+                 from (select * from auswertung_index_entfernt order by ts desc limit 5) x$q$ into v_txt;
+    insert into diagnose (was, befund) values ('Eindeutige Indizes, die die Rechnung entfernen musste (zuletzt)', v_txt);
+  end if;
+
   -- Zusagen, die wegen vorhandener Zeilen unbestätigt bleiben.
   --
   -- Vier Prüfbedingungen sind **nach** den Daten ins Schema gekommen. Für

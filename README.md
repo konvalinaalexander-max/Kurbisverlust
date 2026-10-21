@@ -757,6 +757,15 @@ Lieferungen passen (AB-147). **Der Betrieb spielt setup.sql einmal ein
 Warenausgang) und drückt „Neu rechnen": Erst dann entstehen die fehlenden
 Lieferungen (340 kg), und die doppelten (521 kg) verschwinden.
 
+**Nachtrag (0118)** — unter „Was in den Perigon-Dateien auffällt" steht ein
+Rest, den die Datei keiner Charge zuschreibt, als „Teil ohne Charge" und
+nicht mehr als unbekannte Charge; unter Stammdaten → Chargen lässt sich die
+6-stellige Perigon-Nr. eintragen (AB-162). **0119:** Sortierdateien, die eine
+Charge in mehreren Sortierschemata sortiert zeigen, halten „Neu rechnen"
+nicht mehr an („could not create unique index erg_kaliber_eindeutig", AB-163).
+**Der Betrieb spielt setup.sql einmal ein (Stand 119) und drückt „Neu
+rechnen".**
+
 **Runde AT (0117)** — Kunden in der Reihenfolge des Betriebs. Unter
 **Lagermanagement nach Artikel** ordnen zwei Pfeile in der Gruppenzeile die
 Gruppen (AB-157), der Stift in der Gruppenzeile gibt der ganzen Gruppe einen

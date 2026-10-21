@@ -4171,6 +4171,94 @@ Daten, dann die Annahme — nach der Korrektur nachsehen.
 nicht alles: vier mal vier gleiche Paloxen und ein Tag mit 30 Paaren bei
 13 erwarteten sind Fragen wert.
 
+## Nachtrag zu Runde AT: zwei Sortierschemata für eine Charge halten die Rechnung nicht an (21. Oktober, 0119)
+
+Der Betrieb las zum ersten Mal Sortierdateien mit Datum ein; danach brach
+„Neu rechnen" ab: „could not create unique index erg_kaliber_eindeutig". Mit
+dem Datum findet jede Datei ihre Arbeit und mit ihr das Sortierschema des
+Käufers — eine Charge hat dann Läufe mit verschiedenen Bandgrenzen (Kaliber 1
+einmal 600–1100 g, einmal 600–1200 g). `mv_kaliber_verteilung` zählt sie zu
+Recht getrennt. Der Schlüssel, mit dem `erg_kaliber` nachts nebenläufig
+erneuert wird, kannte die Bandgrenzen nicht; der Index stand aus einer
+früheren Nacht da, und das normale Erneuern baute ihn neu — zwei Zeilen für
+denselben Schlüssel, die ganze Rechnung stand. Nachgestellt in der
+Beispieldatenbank, genau dieser Fehler.
+
+Jetzt (0119): Der Schlüssel von `erg_kaliber` trägt die Bandgrenzen, der von
+`mv_kaliber_verteilung` auch die obere. `erg_ausschuss` hat eine Zeile je
+Sortierlauf — eine Arbeit kann zwei Dateien haben, eine Charge mehrere Läufe
+ohne Arbeit —, also keinen Schlüssel (Weg, Charge, Arbeit); es wird ohne Index
+erneuert. Und allgemein: Gibt ein eindeutiger Index die Daten beim Erneuern
+nicht mehr her, wird er entfernt, die Ansicht normal erneuert, die Rechnung
+läuft weiter, und `auswertung_index_entfernt` (auch in `diagnose.sql`) sagt,
+welcher. Ein falscher Schlüssel soll auffallen, nicht die Zahlen anhalten.
+
+Geprüft wurde jeder Schlüssel aus `auswertung_schluessel` gegen die Kopie der
+Betriebsdaten und gegen die nachgestellte Demo: nur `erg_kaliber` und
+`erg_ausschuss` hatten doppelte Schlüssel.
+
+**Mutationen.** Block 0119, 8 Mutationen, alle erkannt: jeder der drei alten
+Schlüssel, ohne Netz, das Netz ohne Notiz, das Netz nur für den Index mit
+`_eindeutig`, die Halle liest die Notiz, Stand nicht nachgezogen. Ohne 0119
+schlägt der Block beim Nachstellen an (a1).
+
+**0105 (f1) mit der Hagel-Regel.** Beim vollen Prüflauf am 21.10. war 0105
+(f1) rot — auch auf dem schon gepushten Stand, ohne 0118/0119: Seit 0116 trägt
+eine Charge mit Hagel ihren Hagel nicht in den Anteil der Station, die
+Nachrechnung im Test kannte die Regel nicht. Es fiel erst auf, als die
+Waschpunkte der Hagel-Charge der Demo zum ersten Mal vor „heute" lagen. Der
+Test folgt jetzt der Regel und sagt es im Kommentar; ohne die Regel in
+`palox_station_kennzahl` schlägt er an (Mutation geprüft).
+
+**Was bewusst nicht gemacht wurde.** Kein Schlüssel für `erg_ausschuss` aus
+einer neuen Spalte (Lauf): Die Ansicht ist klein, normal erneuern kostet
+nichts, und eine neue Spalte hiesse eine neue Sicht für nichts. Das Netz
+entfernt einen Index, statt die Daten zu „reparieren" — doppelte Zeilen sind
+hier richtig, falsch war der Schlüssel.
+
+## Nachtrag zu Runde AT: ein Rest ohne Charge ist keine unbekannte Charge (21. Oktober, 0118)
+
+Der Betrieb, zu „Was in den Perigon-Dateien auffällt": „warum du bei diesen
+Zeilen mäckerst — aber nicht bei allen anderen? In der einen Datei steht
+ja auch nirgends die Chargennummer." Sie steht dort, in Spalte W, als
+6-stellige Perigon-Nummer (997 von 1004 Kürbiszeilen dieser Saison); die
+App übersetzt sie über die Perigon-Nr. an der Charge (aus der
+Planungsdatei, 42 Chargen). Die BioProdukte-Datei nennt in derselben Spalte
+die eigene 4-stellige Nummer.
+
+Unter „Charge nicht zugeordnet" standen aber zwei verschiedene Dinge mit
+demselben Satz. Echt: eine Nummer, die an keiner Charge steht (198977,
+Butternut, auf der Kopie 11 Zeilen, 2.5 t). Falsch: ein Rest — schreibt
+Spalte S der Charge weniger zu, als die Position geliefert hat, wird der
+Rest eine Lieferung ohne Charge, und die hängt an der ersten Zeile der
+Position, die eine Charge nennt. Die Prüfung sah „Perigon nennt 198951,
+Lieferung ohne Charge" und schrieb „kennt die App nicht", obwohl 198951 an
+Charge 1620 steht; dazu zeigte sie die Masse der Chargenzeile statt die
+des Rests. Auf der Kopie: 3 solche Reste, 20 kg, gemeldet mit 2 t.
+
+Jetzt (0118) steht ein Rest als „Teil ohne Charge", grau, mit seiner Masse
+und dem Satz, dass er in Perigon zu prüfen ist. Steht eine Nummer an genau
+einer Charge und die Lieferung trägt sie trotzdem nicht (Nummer nach dem
+Einlesen eingetragen), sagt der Satz das und verlangt nur das neue Einlesen.
+„Demeter verkauft, Knospe geliefert" zählt den Rest nicht noch einmal. Und
+weil der Satz verlangt, die Perigon-Nr. unter Stammdaten → Chargen
+einzutragen, gibt es dort jetzt das Feld dafür — bis hier stand sie nur in
+der Datenbank, aus der Planungsdatei von 0051.
+
+**Mutationen.** Block 0118, 9 Mutationen, alle erkannt: der Rest wieder als
+unbekannte Charge, der Rest fehlt, mit der falschen Masse, ohne seine
+Charge im Satz; die unbekannte Nummer mit dem alten Satz; die Nummer an
+genau einer Charge ungenannt; Demeter/Knospe doppelt; der Betriebsleiter
+darf die Perigon-Nr. nicht schreiben; Stand nicht nachgezogen. Ohne 0118
+schlägt der Block beim Fehlalarm an (a1).
+
+**Was bewusst nicht gemacht wurde.** Das Butternut mit der Nummer 198977 und
+der Knirps mit 199156 bleiben gemeldet: Ob sie zu einer Charge im Lager
+gehören oder zugekaufte Ware sind, weiss nur der Betrieb. Keine Nummer
+geraten. Der Rest selbst bleibt, wie er ist — er zählt im Warenausgang und
+bei keiner Charge; ihn einer Charge zuzuschlagen, hiesse raten, wo Perigon
+nichts sagt.
+
 ## Runde AT: Kunden in der Reihenfolge des Betriebs, eine Farbe heisst überall dasselbe (19. Oktober, abends, 0117)
 
 Eine Nachricht nach Runde AS, acht Punkte (AT-01 bis AT-08). Abmachungen

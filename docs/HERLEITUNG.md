@@ -408,7 +408,13 @@ jede Zeile mit allen Spalten, wie sie in der Datei stand — nur zum Zeigen
 erst nach dem nächsten Einlesen. `v_perigon_pruefung` sieht jede Zeile der
 laufenden Saison durch: Charge nicht zugeordnet, Artikel passt nicht zur
 Sorte, als Demeter verkauft und als Knospe geliefert, Lieferung vor dem
-ersten Eingang.
+ersten Eingang. **Welche Charge (Spalte W):** die BioProdukte-Datei nennt
+die eigene, 4-stellige Nummer; die Datei der anderen Firma ihre 6-stellige
+Perigon-Nummer, die über `charge.perigon_nr` (Stammdaten → Chargen) zur
+eigenen wird. Spalte S sagt, wie viel der Position aus dieser Charge kam;
+was die Zeilen zusammen nicht abdecken, wird ein Rest ohne Charge (zählt im
+Warenausgang, bei keiner Charge) und steht seit 0118 als „Teil ohne
+Charge", nicht als unbekannte Charge.
 **Urteil:** ehrlich; dieselbe Zahl wie überall, nur anders geteilt.
 
 ## 12b. Die Masse einer Perigon-Position (`perigon_kg`, `perigonKg`, 0115)

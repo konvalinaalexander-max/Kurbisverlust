@@ -359,6 +359,17 @@ function Chargen() {
     if (error) { setFehler(fehlerText(error)); return }
     setChargen(cs => cs.map(x => x.nr === c.nr ? { ...x, label } : x))
   }
+  /** Runde AT (0118): die Perigon-Nummer der anderen Firma (6-stellig), damit ihre Datei die Charge findet. Leer = keine. */
+  async function perigonSetzen(c: Charge, text: string) {
+    setFehler(null)
+    const t = text.trim()
+    const wert = t === '' ? null : Number(t)
+    if (wert !== null && !(Number.isInteger(wert) && wert > 0 && wert < 10000000)) { setFehler(`„${t}" ist keine Perigon-Nummer.`); return }
+    if (wert === c.perigon_nr) return
+    const { error } = await supabase.from('charge').update({ perigon_nr: wert }).eq('nr', c.nr)
+    if (error) { setFehler(fehlerText(error)); return }
+    setChargen(cs => cs.map(x => x.nr === c.nr ? { ...x, perigon_nr: wert } : x))
+  }
   async function ernteSetzen(wert: boolean) {
     setSpeichert(true); setFehler(null)
     const { error } = await supabase.from('einstellung').upsert(
@@ -419,12 +430,13 @@ function Chargen() {
 
     <Karte titel={`Chargen (${chargen.length})`}>
       {/* Runde AQ: ein Satz statt vier, ohne „Join-Schlüssel". */}
-      <p className="leise">Die Nummern kommen aus dem Erntejournal. Demeter oder Knospe hier setzen geht vor Perigon.</p>
+      <p className="leise">Die Nummern kommen aus dem Erntejournal. Demeter oder Knospe hier setzen geht vor Perigon.
+        Die Perigon-Nr. ist die 6-stellige Nummer, unter der die Perigon-Datei der anderen Firma dieselbe Charge führt.</p>
       <ChargeAnlegen chargen={chargen} angelegt={c => setChargen(alt => [...alt, c].sort((a, b) => a.nr - b.nr))} />
       <div className="rollbar">
         <table>
           <thead><tr><th>Nr</th><th>Schlag</th><th>Sorte</th>
-            <th className="zahl">Paletten</th><th className="zahl">Eingang</th><th>Demeter / Knospe</th></tr></thead>
+            <th className="zahl">Paletten</th><th className="zahl">Eingang</th><th>Perigon-Nr.</th><th>Demeter / Knospe</th></tr></thead>
           <tbody>
             {chargen.map(c => {
               const p = perigon.get(c.nr)
@@ -433,6 +445,12 @@ function Chargen() {
                   <td>{c.nr}</td><td>{c.schlag}</td><td>{c.sorte}</td>
                   <td className="zahl">{zahlen[c.nr]?.n ?? 0}</td>
                   <td className="zahl">{kg(zahlen[c.nr]?.kg)}</td>
+                  <td>
+                    <input key={`${c.nr}-${c.perigon_nr ?? ''}`} defaultValue={c.perigon_nr ?? ''} inputMode="numeric" placeholder="—"
+                           style={{ width: '6.5rem' }} aria-label={`Perigon-Nr. der Charge ${c.nr}`} className="perigon-nr"
+                           onBlur={e => void perigonSetzen(c, e.target.value)}
+                           onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }} />
+                  </td>
                   <td className="nowrap">
                     <select value={c.label ?? ''} aria-label={`Label der Charge ${c.nr}`}
                             onChange={e => void labelSetzen(c, (e.target.value || null) as 'D' | 'K' | null)}>

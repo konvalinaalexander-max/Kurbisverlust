@@ -6455,9 +6455,13 @@ declare
   v_modus jsonb; v_txt text; v_n int; v_fehlt text; v_z jsonb; v_vorher timestamptz;
 begin
   -- (a) Jede erg_-Ansicht hat einen Schlüssel — wer eine neue anlegt, trägt ihn ein.
+  --     Ausnahme seit 0119: erg_ausschuss hat eine Zeile je Sortierlauf und keinen
+  --     Schlüssel aus seinen Spalten (eine Arbeit kann zwei Dateien haben); es wird
+  --     ohne Index erneuert. Die Regel hat sich geändert, der Test mit ihr.
   select string_agg(m.matviewname, ', ' order by m.matviewname) into v_fehlt
     from pg_matviews m
    where m.schemaname = 'public' and m.matviewname like 'erg\_%'
+     and m.matviewname not in ('erg_ausschuss')
      and not exists (select 1 from auswertung_schluessel() s where s.sicht = m.matviewname);
   assert v_fehlt is null, format('0095 (a1): ohne Schlüssel in auswertung_schluessel(): %s', v_fehlt);
   select string_agg(s.sicht, ', ') into v_fehlt from auswertung_schluessel() s
@@ -7521,6 +7525,10 @@ begin
     select sorte, basis_jetzt_kg as w, anteil_station as y, lagertage::numeric as t
       from erg_punkte where plausibel_station and station = 'waschen' and quelle in ('verarbeitung', 'verarbeitung_gemischt')
        and anteil_station is not null and basis_jetzt_kg > 0 and lagertage is not null and messtag <= heute()
+       -- Seit 0116 trägt eine Charge mit Hagel ihren Hagel nicht in den Anteil der Station
+       -- (palox_station_kennzahl); die Nachrechnung folgt der Regel. Aufgefallen am 21.10.,
+       -- als die Waschpunkte der Hagel-Charge der Demo zum ersten Mal vor „heute" lagen.
+       and not exists (select 1 from charge hc where hc.nr = erg_punkte.charge_nr and hc.hagel_anteil > 0)
   ), m as (
     select sorte, sum(w * t) / sum(w) as tm, sum(w * y) / sum(w) as ym from p group by sorte
   )
@@ -9997,3 +10005,228 @@ begin
 end $$;
 
 select '——— 0117 Kundengruppen in Reihe und mit Plan ———' as ergebnis;
+
+-- =====================================================================
+-- 0118 — Ein Rest ohne Charge ist keine unbekannte Charge
+--
+-- (a) ein Rest (die Datei schreibt der Charge weniger zu, als die Position
+--     geliefert hat) steht als „Teil ohne Charge" mit seiner Masse, nicht als
+--     „Charge nicht zugeordnet"; (b) eine Nummer, die an keiner Charge steht,
+--     bleibt „Charge nicht zugeordnet" und sagt, was zu tun ist; (c) steht die
+--     Perigon-Nummer an genau einer Charge, nennt der Satz sie und verlangt
+--     nur das neue Einlesen; (d) ein Rest meldet „Demeter verkauft, Knospe
+--     geliefert" nicht noch einmal; (e) Stand 118.
+-- =====================================================================
+do $$
+declare v_modus jsonb; v_lad text; v_geladen boolean := false;
+  v_u uuid := '00000000-0118-0000-0000-000000000001';
+  v_c int; v_sorte text; v_c2 int; v_alt int; v_txt text;
+begin
+  select wert into v_modus from einstellung where schluessel = 'betriebsmodus';
+  update einstellung set wert = '"beispiel"'::jsonb where schluessel = 'betriebsmodus';
+  insert into auth.users (id, email, raw_user_meta_data) values (v_u, null, '{"name":"Prüf-0118"}');
+  update profil set rolle = 'admin' where id = v_u;
+  perform set_config('request.jwt.claim.sub', v_u::text, true);
+  if not exists (select 1 from charge) then
+    select demo_daten_laden() into v_lad; v_geladen := true;
+  end if;
+  select c.nr, c.sorte into v_c, v_sorte from charge c order by c.nr limit 1;
+  -- eine zweite Charge ohne Perigon-Nummer, für (c)
+  select c.nr, c.perigon_nr into v_c2, v_alt from charge c where c.nr <> v_c order by c.nr limit 1;
+  -- (c0) der Betriebsleiter trägt die Perigon-Nummer selbst ein (Stammdaten → Chargen)
+  set local role authenticated;
+  begin update charge set perigon_nr = 991180 where nr = v_c2; exception when insufficient_privilege then null; end;
+  reset role;
+  assert (select perigon_nr = 991180 from charge where nr = v_c2),
+    '0118 (c0): der Betriebsleiter konnte die Perigon-Nummer einer Charge nicht eintragen';
+
+  insert into ausgang_quelle (code, name, dateiname_muster) values ('PRUEF118', 'Prüffirma 0118', 'PRUEF118')
+  on conflict (code) do nothing;
+  -- 801: 50 kg geliefert, der Charge v_c nur 40 zugeschrieben → 10 kg Rest, verkauft als Demeter, geliefert als Knospe
+  -- 802: eine Nummer, die an keiner Charge steht
+  -- 803: die Perigon-Nummer 991180 steht an Charge v_c2, die Lieferung trägt sie (noch) nicht
+  perform ausgang_uebernehmen('PRUEF118', 'Prüffirma 0118', '{"dateiname": "p118.xlsx", "pruefsumme": "p118"}'::jsonb,
+    jsonb_build_array(
+      jsonb_build_object('pos_id', 801, 'charge_extern', v_c::text, 'lauf_nr', 1, 'fingerabdruck', 'p118-801',
+        'datum', heute(), 'journal', 'A', 'kunde', 'Prüfkunde 118', 'artikel_id', 'kürbp118x', 'artikel', 'Bio Kürbis Prüf',
+        'einheit', 'kg', 'menge', 50, 'gewicht_je_artikel', 1, 'batch_menge', 40, 'kg_position', 50, 'kg_charge', 40,
+        'liefer_label', 'K', 'preisgruppe', 'D'),
+      jsonb_build_object('pos_id', 802, 'charge_extern', '991181', 'lauf_nr', 1, 'fingerabdruck', 'p118-802',
+        'datum', heute(), 'journal', 'A', 'kunde', 'Prüfkunde 118', 'artikel_id', 'kürbp118x', 'artikel', 'Bio Kürbis Prüf',
+        'einheit', 'kg', 'menge', 20, 'gewicht_je_artikel', 1, 'batch_menge', 20, 'kg_position', 20, 'kg_charge', 20),
+      jsonb_build_object('pos_id', 803, 'charge_extern', '991180', 'lauf_nr', 1, 'fingerabdruck', 'p118-803',
+        'datum', heute(), 'journal', 'A', 'kunde', 'Prüfkunde 118', 'artikel_id', 'kürbp118x', 'artikel', 'Bio Kürbis Prüf',
+        'einheit', 'kg', 'menge', 30, 'gewicht_je_artikel', 1, 'batch_menge', 30, 'kg_position', 30, 'kg_charge', 30)),
+    jsonb_build_array(
+      jsonb_build_object('extern_id', format('PRUEF118:801:%s:1', v_c), 'datum', heute(), 'charge_nr', v_c, 'sorte', v_sorte, 'kg', 40, 'kunde', 'Prüfkunde 118'),
+      jsonb_build_object('extern_id', 'PRUEF118:801:rest', 'datum', heute(), 'charge_nr', null, 'sorte', v_sorte, 'kg', 10, 'kunde', 'Prüfkunde 118'),
+      jsonb_build_object('extern_id', 'PRUEF118:802:991181:1', 'datum', heute(), 'charge_nr', null, 'sorte', v_sorte, 'kg', 20, 'kunde', 'Prüfkunde 118'),
+      jsonb_build_object('extern_id', 'PRUEF118:803:991180:1', 'datum', heute(), 'charge_nr', null, 'sorte', v_sorte, 'kg', 30, 'kunde', 'Prüfkunde 118')));
+  perform ausgang_historie_uebernehmen('PRUEF118', '[]'::jsonb,
+    jsonb_build_array(jsonb_build_object('pos_id', 801, 'charge_extern', v_c::text, 'lauf_nr', 1, 'liefer_label', 'K', 'preisgruppe', 'D')));
+  assert (select count(*) from lieferung_import where quelle = 'PRUEF118' and zeile_id is not null) = 4,
+    format('0118 (vorab): %s von 4 Lieferungen hängen an ihrer Zeile', (select count(*) from lieferung_import where quelle = 'PRUEF118' and zeile_id is not null));
+
+  -- (a) der Rest
+  assert not exists (select 1 from v_perigon_pruefung where quelle = 'PRUEF118' and pos_id = 801 and art = 'Charge nicht zugeordnet'),
+    '0118 (a1): der Rest einer Position steht als „Charge nicht zugeordnet" da, obwohl ihre Charge bekannt ist';
+  select befund into v_txt from v_perigon_pruefung where quelle = 'PRUEF118' and pos_id = 801 and art = 'Teil ohne Charge' and kg = 10;
+  assert v_txt like '10.0 kg der Position%' and v_txt like format('%%Charge %s weniger zu%%', v_c),
+    format('0118 (a2): der Rest steht nicht als „Teil ohne Charge" mit 10 kg und seiner Charge: %s',
+           coalesce(v_txt, (select string_agg(format('%s %s kg', art, kg), '; ') from v_perigon_pruefung where quelle = 'PRUEF118' and pos_id = 801)));
+  -- (b) die unbekannte Nummer
+  assert (select befund like '%steht an keiner Charge%unter Stammdaten%' from v_perigon_pruefung
+           where quelle = 'PRUEF118' and pos_id = 802 and art = 'Charge nicht zugeordnet'),
+    '0118 (b1): eine Nummer, die an keiner Charge steht, fällt nicht auf oder sagt nicht, was zu tun ist';
+  -- (c) die Perigon-Nummer an genau einer Charge
+  assert (select befund like format('%%steht an Charge %s;%%neu einlesen', v_c2) from v_perigon_pruefung
+           where quelle = 'PRUEF118' and pos_id = 803 and art = 'Charge nicht zugeordnet'),
+    format('0118 (c1): die Nummer an genau einer Charge sagt „%s"',
+           (select befund from v_perigon_pruefung where quelle = 'PRUEF118' and pos_id = 803));
+  -- (d) Demeter/Knospe einmal, nicht noch einmal für den Rest
+  assert (select count(*) from v_perigon_pruefung where quelle = 'PRUEF118' and pos_id = 801
+           and art = 'Als Demeter verkauft, als Knospe geliefert') = 1,
+    format('0118 (d1): „Demeter verkauft, Knospe geliefert" steht %s-mal für eine Position mit Rest',
+           (select count(*) from v_perigon_pruefung where quelle = 'PRUEF118' and pos_id = 801 and art = 'Als Demeter verkauft, als Knospe geliefert'));
+
+  delete from lieferung where id in (select lieferung_id from lieferung_import where quelle = 'PRUEF118');
+  delete from ausgang_zeile where quelle = 'PRUEF118';
+  delete from ausgang_datei where quelle = 'PRUEF118';
+  delete from ausgang_position where quelle = 'PRUEF118';
+  delete from ausgang_quelle where code = 'PRUEF118';
+  update charge set perigon_nr = v_alt where nr = v_c2;
+  if v_geladen then perform demo_daten_entfernen(); end if;
+
+  -- (e) Stand
+  assert schema_stand() >= 118, format('0118 (e1): schema_stand() = %s', schema_stand());
+
+  delete from profil where id = v_u; delete from auth.users where id = v_u;
+  update einstellung set wert = v_modus where schluessel = 'betriebsmodus';
+  raise notice 'OK  0118 — ein Rest ohne Charge steht als „Teil ohne Charge", nicht als unbekannte Charge; eine Nummer an keiner Charge sagt, was zu tun ist; eine Perigon-Nummer an genau einer Charge nennt sie; Demeter/Knospe nicht doppelt';
+end $$;
+
+select '——— 0118 Ein Rest ohne Charge ist keine unbekannte Charge ———' as ergebnis;
+
+-- =====================================================================
+-- 0119 — Zwei Sortierschemata für eine Charge halten die Rechnung nicht an
+--
+-- Nachgestellt, was der Betrieb sah: Eine Nacht rechnet nebenläufig und legt
+-- die eindeutigen Indizes an; danach bekommt eine Charge Sortierläufe mit
+-- zwei anderen Schemata (andere untere Grenze; gleiche untere, andere obere)
+-- und eine Arbeit eine zweite Datei; dann „Neu rechnen".
+-- (a) „Neu rechnen" läuft durch; (b) erg_kaliber zeigt jedes Band für sich;
+-- (c) die nächste Nacht legt den Index von erg_kaliber mit den Bandgrenzen
+--     an, erg_ausschuss bekommt keinen; (d) ein Index, den die Daten nicht
+--     hergeben, hält die Rechnung nicht an — er geht weg und steht in
+--     auswertung_index_entfernt; (e) das liest nur der Betriebsleiter;
+--     (f) Stand 119.
+-- =====================================================================
+do $$
+declare v_modus jsonb; v_lad text; v_geladen boolean := false;
+  v_u uuid := '00000000-0119-0000-0000-000000000001';
+  v_w uuid := '00000000-0119-0000-0000-000000000002';
+  v_c int; v_sorte text; v_lauf bigint; v_auftrag bigint; v_k text; v_s int; v_fehler text; v_n int;
+begin
+  select wert into v_modus from einstellung where schluessel = 'betriebsmodus';
+  update einstellung set wert = '"beispiel"'::jsonb where schluessel = 'betriebsmodus';
+  insert into auth.users (id, email, raw_user_meta_data) values (v_u, null, '{"name":"Prüf-0119"}');
+  update profil set rolle = 'admin' where id = v_u;
+  insert into auth.users (id, email, raw_user_meta_data) values (v_w, null, '{"name":"Prüf-0119 Halle"}');
+  update profil set rolle = 'arbeiter' where id = v_w;
+  perform set_config('request.jwt.claim.sub', v_u::text, true);
+  if not exists (select 1 from sortier_lauf) then
+    select demo_daten_laden() into v_lad; v_geladen := true;
+  end if;
+
+  -- Zwei Nächte: nebenläufig; die erste füllt, was leer ist, die zweite legt die eindeutigen Indizes an
+  --   (so stand es beim Betrieb, bevor die neuen Dateien kamen)
+  update auswertung_stand set rechnet_seit = null where id = 1;
+  for v_s in 1..5 loop perform auswertung_schritt_intern(v_s, true); end loop;
+  for v_s in 1..5 loop perform auswertung_schritt_intern(v_s, true); end loop;
+  assert to_regclass('erg_kaliber_eindeutig') is not null, '0119 (vorab): nach zwei Nächten hat erg_kaliber keinen eindeutigen Index';
+
+  -- Die Sortierdateien mit Datum: eine Charge mit Läufen in zwei weiteren Schemata, eine Arbeit mit zwei Dateien
+  select l.id, l.charge_nr, c.sorte, l.auftrag_id into v_lauf, v_c, v_sorte, v_auftrag
+    from sortier_lauf l join charge c on c.nr = l.charge_nr
+   where l.auftrag_id is not null and exists (select 1 from sortier_gewicht g where g.lauf_id = l.id and g.klasse = 'kaliber' and g.kaliber_idx = 0)
+   order by l.id limit 1;
+  select code into v_k from kaeufer order by code limit 1;
+  insert into sortierschema (id, sorte, kaeufer, gilt_ab, art, verlust_unter, kaliber_baender, kanal_ab) values
+    (911901, v_sorte, v_k, date '2001-01-01', 'kaliber', 300, '[[411, 911], [911, 2000]]'::jsonb, 2000),
+    (911902, v_sorte, v_k, date '2001-01-02', 'kaliber', 300, '[[411, 999], [999, 2000]]'::jsonb, 2000);
+  insert into sortier_lauf
+  select (jsonb_populate_record(null::sortier_lauf, to_jsonb(l) || jsonb_build_object(
+            'id', 911900 + n, 'sortierschema_id', 911900 + n, 'datei_name', format('pruef-0119-%s.csv', n),
+            'roh_pruefsumme', format('pruef-0119-%s', n), 'vorgaenger_id', null))).*
+    from sortier_lauf l cross join generate_series(1, 2) n where l.id = v_lauf;
+  insert into sortier_gewicht (lauf_id, gewicht_g, anzahl, klasse, kaliber_idx)
+  select 911900 + n, g, 4, 'kaliber', i from generate_series(1, 2) n, (values (700, 0), (1200, 1)) x(g, i);
+
+  -- (a) „Neu rechnen" — der Weg aus der App, fünf Schritte, nicht nebenläufig
+  begin
+    for v_s in 1..5 loop perform auswertung_schritt_intern(v_s, false); end loop;
+  exception when others then v_fehler := sqlerrm;
+  end;
+  assert v_fehler is null, format('0119 (a1): „Neu rechnen" bricht ab: %s', v_fehler);
+  -- (b) jedes Band für sich
+  assert (select count(*) from erg_kaliber where charge_nr = v_c and klasse = 'kaliber' and kaliber_idx = 0) >= 3
+     and exists (select 1 from erg_kaliber where charge_nr = v_c and kaliber_idx = 0 and band_von = 411 and band_bis = 911)
+     and exists (select 1 from erg_kaliber where charge_nr = v_c and kaliber_idx = 0 and band_von = 411 and band_bis = 999),
+    format('0119 (b1): erg_kaliber zeigt die Bänder der Charge %s nicht getrennt: %s', v_c,
+           (select string_agg(format('%s–%s', band_von, band_bis), ', ') from erg_kaliber where charge_nr = v_c and kaliber_idx = 0));
+  assert not exists (select 1 from auswertung_index_entfernt where sicht in ('erg_kaliber', 'erg_ausschuss', 'mv_kaliber_verteilung')),
+    format('0119 (a2): der Lauf musste einen Index entfernen, den der Schlüssel hätte tragen sollen: %s',
+           (select string_agg(sicht, ', ') from auswertung_index_entfernt));
+
+  -- (c) die nächste Nacht
+  for v_s in 1..5 loop perform auswertung_schritt_intern(v_s, true); end loop;
+  assert coalesce((select pg_get_indexdef(indexrelid) like '%(charge_nr, klasse, kaliber_idx, band_von, band_bis)%'
+                     from pg_index where indexrelid = to_regclass('erg_kaliber_eindeutig')), false),
+    '0119 (c1): erg_kaliber bekommt nachts keinen Index mit den Bandgrenzen';
+  assert to_regclass('erg_ausschuss_eindeutig') is null,
+    '0119 (c2): erg_ausschuss bekommt wieder einen Schlüssel, den es nicht hat (Weg, Charge, Arbeit)';
+  assert coalesce((select pg_get_indexdef(indexrelid) like '%band_bis%' from pg_index where indexrelid = to_regclass('mv_kaliber_pk')), false),
+    '0119 (c3): der Index von mv_kaliber_verteilung kennt die obere Bandgrenze nicht';
+
+  -- (d) ein Index, den die Daten nicht hergeben: heute passt er (je Band eine obere Grenze),
+  --     nach der nächsten Datei nicht mehr (zwei Bänder enden bei 911 g)
+  delete from auswertung_index_entfernt;
+  execute 'create unique index erg_kaliber_falsch on erg_kaliber (charge_nr, klasse, kaliber_idx, band_bis) nulls not distinct where kaliber_idx = 0';
+  update sortierschema set kaliber_baender = '[[500, 911], [911, 2000]]'::jsonb where id = 911902;
+  v_fehler := null;
+  begin
+    for v_s in 1..5 loop perform auswertung_schritt_intern(v_s, false); end loop;
+  exception when others then v_fehler := sqlerrm;
+  end;
+  assert v_fehler is null, format('0119 (d1): ein Index, den die Daten nicht hergeben, hält die Rechnung an: %s', v_fehler);
+  assert to_regclass('erg_kaliber_falsch') is null
+     and exists (select 1 from auswertung_index_entfernt where sicht = 'erg_kaliber' and grund like '%erg_kaliber_falsch%'),
+    format('0119 (d2): der Index blieb stehen oder ist nicht notiert: %s',
+           (select string_agg(sicht || ': ' || grund, '; ') from auswertung_index_entfernt));
+
+  -- (e) das liest nur der Betriebsleiter
+  set local role authenticated;
+  perform set_config('request.jwt.claim.sub', v_w::text, true);
+  select count(*) into v_n from auswertung_index_entfernt;
+  perform set_config('request.jwt.claim.sub', v_u::text, true);
+  reset role;
+  assert v_n = 0, '0119 (e1): die Halle liest, welche Indizes die Rechnung entfernt hat';
+
+  -- aufräumen und den Stand ohne Prüfdaten wieder rechnen
+  delete from sortier_gewicht where lauf_id in (911901, 911902);
+  delete from sortier_lauf where id in (911901, 911902);
+  delete from sortierschema where id in (911901, 911902);
+  delete from auswertung_index_entfernt;
+  update auswertung_stand set rechnet_seit = null where id = 1;
+  for v_s in 1..5 loop perform auswertung_schritt_intern(v_s, false); end loop;
+  if v_geladen then perform demo_daten_entfernen(); end if;
+
+  -- (f) Stand
+  assert schema_stand() >= 119, format('0119 (f1): schema_stand() = %s', schema_stand());
+
+  delete from profil where id in (v_u, v_w); delete from auth.users where id in (v_u, v_w);
+  update einstellung set wert = v_modus where schluessel = 'betriebsmodus';
+  raise notice 'OK  0119 — eine Charge mit Läufen in mehreren Sortierschemata rechnet durch, jedes Band für sich; erg_kaliber trägt die Bandgrenzen im Schlüssel, erg_ausschuss keinen falschen; ein Index, den die Daten nicht hergeben, wird entfernt und notiert, statt die Rechnung anzuhalten';
+end $$;
+
+select '——— 0119 Zwei Sortierschemata für eine Charge halten die Rechnung nicht an ———' as ergebnis;

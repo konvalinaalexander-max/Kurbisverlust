@@ -1104,7 +1104,7 @@ function PerigonPruefungen({ liste }: { liste: PerigonPruefung[] }) {
           <tbody>{arten.map(([art, zeilen]) => (
             <Fragment key={art}>
               <tr className={`klickbar${auf === art ? ' offen' : ''}`} aria-expanded={auf === art} onClick={() => setAuf(auf === art ? null : art)}>
-                <td><span className="chevron" aria-hidden="true"><ZChevron size={14} /></span><Marke art="warnung">{art}</Marke></td>
+                <td><span className="chevron" aria-hidden="true"><ZChevron size={14} /></span><Marke art={art === 'Teil ohne Charge' ? 'neutral' : 'warnung'}>{art}</Marke></td>
                 <td className="zahl">{zahl(zeilen.length)}</td>
                 <td className="zahl">{masse(zeilen.reduce((a, z) => a + Number(z.kg ?? 0), 0))}</td>
               </tr>
