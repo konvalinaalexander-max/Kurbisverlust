@@ -99,3 +99,33 @@ export function anforderungOffen(angefordertTs: string | null | undefined, berec
   if (Number.isNaN(b)) return true
   return b < a
 }
+
+export type BauZustand = 'im_bau' | 'gescheitert' | 'haengt'
+
+/**
+ * Die Ansichten sind leer (nach setup.sql): Wird gebaut, oder ist der Bau
+ * gescheitert? (21. Oktober)
+ *
+ * Gescheitert heisst: Der letzte Fehlschlag ist jünger als der letzte Stand
+ * UND jünger als die letzte Anforderung. Fordert nach dem Fehlschlag jemand
+ * neu an — „Neu rechnen", oder setup.sql selbst am Ende —, rechnet der
+ * Zeitplan wieder (dieselbe Regel wie auswertung_grund, 0107), und die Seite
+ * wartet. Bis hier galt jeder Fehlschlag nach dem letzten Stand als
+ * endgültig: Der Betrieb spielte setup.sql (Stand 119) ein, die Ansichten
+ * waren leer, und die App zeigte den Fehler von vor dem Einspielen —
+ * „konnte nicht gerechnet werden … versucht es nicht von selbst wieder" —,
+ * während der Zeitplan schon mit der neuen Fassung rechnete.
+ *
+ * Hängt heisst: angefordert, aber nach ANFORDERUNG_HOECHSTENS_MIN weder ein
+ * Stand noch ein neuer Fehlschlag — dann läuft der Zeitplan nicht.
+ */
+export function bauZustand(
+  st: { berechnet_ts?: string | null; angefordert_ts?: string | null; fehler_ts?: string | null } | null | undefined,
+  jetzt: Date = new Date(),
+): BauZustand {
+  const t = (s: string | null | undefined) => { const z = s ? Date.parse(s) : NaN; return Number.isNaN(z) ? -Infinity : z }
+  const b = t(st?.berechnet_ts), a = t(st?.angefordert_ts), f = t(st?.fehler_ts)
+  if (a > b && a > f) return anforderungOffen(st?.angefordert_ts, st?.berechnet_ts, jetzt) ? 'im_bau' : 'haengt'
+  if (f > b) return 'gescheitert'
+  return 'im_bau'
+}

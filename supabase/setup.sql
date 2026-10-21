@@ -15565,6 +15565,9 @@ notify pgrst, 'reload schema';
 -- Vorher noch einmal: Läufe, die während dieser Datei begonnen haben und
 -- auf ihre Sperren warten (mit dem Stand von vor dieser Datei im Bauch),
 -- werden beendet — sonst rechnete gleich nach dem Abschluss noch ein alter.
+-- Ob ein Zeitplan da ist, sagt auswertung_cron_da() (0108): pg_cron, oder in
+-- der Prüfung kuerbis.zeitplan_test = 'an' — so spielt run.sh (3c) den Weg
+-- des Betriebs nach, ohne pg_cron.
 do $$
 declare v_erg jsonb; r record;
 begin
@@ -15580,7 +15583,7 @@ begin
     exception when others then null;
     end;
   end loop;
-  if exists (select 1 from pg_extension where extname = 'pg_cron') then
+  if auswertung_cron_da() then
     v_erg := auswertung_anfordern();
     if (v_erg ->> 'weg') = 'zeitplan' then
       perform set_config('kuerbis.auswertung',

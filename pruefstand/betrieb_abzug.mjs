@@ -172,8 +172,17 @@ let m = kopf('Stand der Modelle')
 m += `Gerechnet: ${zeit(stand[0]?.berechnet_ts)}${stand[0]?.dauer_ms != null ? ` (${Math.round(stand[0].dauer_ms / 1000)} s)` : ''} · Einstellungen: ${einstellungen.map(e => `${e.schluessel} = ${JSON.stringify(e.wert)}`).join(' · ')}\n\n`
 // 0108: Ein gescheiterter oder abgebrochener Lauf steht im Stand (fehler_ts,
 // fehler) — pg_cron verbucht ihn als gelungen, weil der Lauf den Fehler fängt.
-if (stand[0]?.fehler_ts && (!stand[0]?.berechnet_ts || Date.parse(stand[0].fehler_ts) > Date.parse(stand[0].berechnet_ts))) {
-  m += `**Die Rechnung scheitert** seit ${zeit(stand[0].fehler_ts)}: ${md(String(stand[0].fehler ?? '').slice(0, 200))}. Neu versucht wird erst auf „Neu rechnen" oder in der nächsten Nacht.\n\n`
+// 21. Oktober: Gescheitert ist er nur, wenn danach nichts angefordert wurde —
+// dieselbe Regel wie bauZustand in src/lib/zeitplan.ts (setup.sql fordert am
+// Ende selbst an; der Fehler von vorher ist dann Geschichte).
+{
+  const t = s => { const z = s ? Date.parse(s) : NaN; return Number.isNaN(z) ? -Infinity : z }
+  const b = t(stand[0]?.berechnet_ts), a = t(stand[0]?.angefordert_ts), f = t(stand[0]?.fehler_ts)
+  if (a > b && a > f && f > b) {
+    m += `Nach dem Fehlschlag von ${zeit(stand[0].fehler_ts)} (${md(String(stand[0].fehler ?? '').slice(0, 200))}) ist die Rechnung seit ${zeit(stand[0].angefordert_ts)} neu angefordert — der Zeitplan rechnet sie.\n\n`
+  } else if (f > b) {
+    m += `**Die Rechnung scheitert** seit ${zeit(stand[0].fehler_ts)}: ${md(String(stand[0].fehler ?? '').slice(0, 200))}. Neu versucht wird erst auf „Neu rechnen" oder in der nächsten Nacht.\n\n`
+  }
 }
 // 0095: Läuft der Zeitplan? Ein stiller Ausfall wäre der schlimmste Fall —
 // alte Zahlen, die niemand als alt erkennt.

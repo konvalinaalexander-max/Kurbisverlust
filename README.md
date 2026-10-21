@@ -765,6 +765,9 @@ Charge in mehreren Sortierschemata sortiert zeigen, halten „Neu rechnen"
 nicht mehr an („could not create unique index erg_kaliber_eindeutig", AB-163).
 **Der Betrieb spielt setup.sql einmal ein (Stand 119) und drückt „Neu
 rechnen".**
+Danach zeigte die App noch den Fehler von vor dem Einspielen, obwohl der
+Zeitplan schon rechnete; jetzt steht „wird gebaut", bis die Zahlen da sind
+(AB-164). Dafür ist kein neues Einspielen nötig.
 
 **Runde AT (0117)** — Kunden in der Reihenfolge des Betriebs. Unter
 **Lagermanagement nach Artikel** ordnen zwei Pfeile in der Gruppenzeile die

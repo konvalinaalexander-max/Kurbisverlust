@@ -5,6 +5,7 @@
 #      (alles als ein Query, also eine Transaktion)
 #   3. setup.sql ein zweites Mal — muss durchlaufen und dieselbe DB hinterlassen
 #  3b. Aktualisierung: alter Stand mit Daten, dann die heutige setup.sql drüber
+#  3c. setup.sql über eine gescheiterte Rechnung, mit Zeitplan (21. Oktober)
 #   4. setup.sql gegen die Migrationen abgleichen (kein Auseinanderdriften)
 #
 #   ./supabase/test/run.sh 'postgresql://…'   (Default: lokaler Cluster)
@@ -211,6 +212,37 @@ diff -q "$FRISCH" "$FRISCH.alt" >/dev/null \
        diff "$FRISCH" "$FRISCH.alt" | head -20; exit 1; }
 echo "   Daten erhalten, Auswertung rufbar, Schema wie frisch eingerichtet"
 rm -f "$FRISCH" "$FRISCH.zwei" "$FRISCH.alt"
+
+echo
+echo "── 3c. setup.sql über eine gescheiterte Rechnung ─────────────"
+# Der Betrieb, 21. Oktober: neue Sortierdateien, „Neu rechnen" scheitert
+# („could not create unique index"), setup.sql (Stand 119) eingespielt — und
+# die App zeigte weiter den Fehler. Er war der von vorher; setup.sql hatte
+# schon neu angefordert. Diese Stufe spielt den Weg nach, mit Zeitplan wie
+# beim Betrieb (kuerbis.zeitplan_test statt pg_cron): Stand 118 mit Daten,
+# zwei Nächte, Läufe in zwei weiteren Schemata, die Rechnung scheitert;
+# dann setup.sql, dann der Zeitplan.
+zuruecksetzen
+for f in "$HIER"/../migrations/*.sql; do
+  [ "$((10#$(basename "$f" | cut -c1-4)))" -le 118 ] || continue
+  PGOPTIONS='-c client_min_messages=warning' psql "$URL" -v ON_ERROR_STOP=1 -q -f "$f"
+done
+psql "$URL" -v ON_ERROR_STOP=1 -q -c "
+  insert into auth.users (id, email, raw_user_meta_data)
+  values ('11111111-1111-1111-1111-111111111111', 'chef@hof.test', '{\"name\":\"Chef\"}');
+  update profil set rolle = 'admin' where id = '11111111-1111-1111-1111-111111111111';
+  update einstellung set wert = '\"beispiel\"'::jsonb where schluessel = 'betriebsmodus';"
+PGOPTIONS='-c client_min_messages=warning' psql "$URL" -v ON_ERROR_STOP=1 -q -1 -f "$HIER/../demo_daten.sql" >/dev/null
+psql "$URL" -v ON_ERROR_STOP=1 -q -f "$HIER/fehlschlag_vorher.sql"
+echo "   Stand 118: die Rechnung scheitert wie beim Betrieb"
+if ! NACH="$(PGOPTIONS='-c kuerbis.zeitplan_test=an' psql "$URL" -v ON_ERROR_STOP=1 -qtA -1 -f "$HIER/../setup.sql" 2>&1)"; then
+  echo "   FEHLER: setup.sql über die gescheiterte Rechnung bricht ab:"
+  echo "$NACH" | grep -iE 'error|fehler' | head -10; exit 1
+fi
+echo "$NACH" | tail -1 | grep -q 'Auswertung angefordert' \
+  || { echo "   FEHLER: setup.sql fordert mit Zeitplan nicht an:"; echo "$NACH" | tail -1; exit 1; }
+psql "$URL" -v ON_ERROR_STOP=1 -q -f "$HIER/fehlschlag_nachher.sql"
+echo "   setup.sql fordert an, der Zeitplan rechnet durch, der zweite Lauf legt den Index mit den Bandgrenzen an"
 
 zuruecksetzen
 psql "$URL" -v ON_ERROR_STOP=1 -q -1 -f "$HIER/../setup.sql" >/dev/null

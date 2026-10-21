@@ -4,8 +4,8 @@ import { supabase } from '../lib/supabase'
 import { fehlerText } from '../lib/db'
 import { SCHEMA_ERWARTET, datenbankVeraltet } from '../lib/version'
 import type { Datenlage, Hochrechnung, Massenbilanz } from '../lib/typen'
-import { heute as heuteOrtszeit } from '../lib/format'
-import { anforderungOffen, istAktuell, rechnetGerade, zeitplanZustand, RECHNEN_HOECHSTENS_MIN, type ZeitplanZustand } from '../lib/zeitplan'
+import { heute as heuteOrtszeit, zeitpunkt } from '../lib/format'
+import { anforderungOffen, bauZustand, istAktuell, rechnetGerade, zeitplanZustand, ANFORDERUNG_HOECHSTENS_MIN, RECHNEN_HOECHSTENS_MIN, type ZeitplanZustand } from '../lib/zeitplan'
 
 /* =========================================================================
    Die Auswertung für den Betriebsleiter — ein Datenstand für alle Reiter.
@@ -677,11 +677,20 @@ async function alles(erzwingen: boolean): Promise<Auswertung> {
     q<LieferungGruppe>('v_lieferung_gruppe'),
   ])
   // 0108: Ist der Bau gescheitert (fehler_ts nach dem letzten Stand), wartet
-  // die Seite nicht auf etwas, das nicht kommt, sondern sagt es.
-  if (imBau && st2?.fehler_ts && (!st2.berechnet_ts || new Date(st2.fehler_ts) > new Date(st2.berechnet_ts))) {
-    throw new Error(`Die Auswertung konnte nicht gerechnet werden: ${st2.fehler ?? 'ohne Meldung'}. Die Datenbank versucht es nicht von selbst wieder — heute Nacht oder mit „Neu rechnen".`)
+  // die Seite nicht auf etwas, das nicht kommt, sondern sagt es. Seit dem
+  // 21. Oktober nur, wenn danach nichts mehr angefordert wurde: setup.sql
+  // fordert am Ende selbst an, und der Fehler von vorher ist dann Geschichte
+  // (bauZustand, src/lib/zeitplan.ts).
+  if (imBau) {
+    const bau = bauZustand(st2)
+    if (bau === 'gescheitert') {
+      throw new Error(`Die Auswertung konnte nicht gerechnet werden: ${st2?.fehler ?? 'ohne Meldung'}. Die Datenbank versucht es nicht von selbst wieder — heute Nacht oder mit „Neu rechnen".`)
+    }
+    if (bau === 'haengt') {
+      throw new Error(`Die Auswertung ist seit ${zeitpunkt(st2?.angefordert_ts)} angefordert, aber nach ${ANFORDERUNG_HOECHSTENS_MIN} Minuten noch nicht gebaut — der Zeitplan der Datenbank rechnet nicht. Unter Betrieb nachsehen, ob er läuft (pg_cron), sonst setup.sql noch einmal einspielen.`)
+    }
+    throw new Error(IM_BAU)
   }
-  if (imBau) throw new Error(IM_BAU)
   const heute = sb?.heute ?? hb[0]?.heute ?? heuteOrtszeit()
   const ersteWelle: Auswertung = {
     stand: st2?.berechnet_ts ?? null, heute, zeitplan, veraltet, aktuell, vollstaendig: false,

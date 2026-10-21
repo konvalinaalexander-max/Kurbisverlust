@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { anforderungOffen, istAktuell, rechnetGerade, taktMinuten, zeitplanZustand, ANFORDERUNG_HOECHSTENS_MIN, RECHNEN_HOECHSTENS_MIN, TAKTE_OHNE_LAUF } from '../src/lib/zeitplan.ts'
+import { anforderungOffen, bauZustand, istAktuell, rechnetGerade, taktMinuten, zeitplanZustand, ANFORDERUNG_HOECHSTENS_MIN, RECHNEN_HOECHSTENS_MIN, TAKTE_OHNE_LAUF } from '../src/lib/zeitplan.ts'
 
 const JETZT = new Date('2026-09-28T09:02:00Z')
 const vor = (min: number) => new Date(JETZT.getTime() - min * 60000).toISOString()
@@ -81,4 +81,33 @@ test('eine Anforderung verfällt nach der Grenze der Datenbank', () => {
   assert.equal(anforderungOffen(vor(ANFORDERUNG_HOECHSTENS_MIN), null, JETZT), true)
   assert.equal(anforderungOffen(vor(ANFORDERUNG_HOECHSTENS_MIN + 1), null, JETZT), false)
   assert.equal(anforderungOffen('kein Datum', null, JETZT), false)
+})
+
+// 21. Oktober: setup.sql (Stand 119) über eine gescheiterte Rechnung. Die
+// Ansichten sind leer, der Fehler von 11:20 ist jünger als der letzte Stand
+// (02:00) — aber setup.sql hat danach selbst angefordert. Die App zeigte den
+// alten Fehler als endgültig, während der Zeitplan schon neu rechnete.
+test('nach setup.sql über einen Fehlschlag: wird gebaut, nicht gescheitert', () => {
+  const st = { berechnet_ts: vor(600), fehler_ts: vor(60), angefordert_ts: vor(1) }
+  assert.equal(bauZustand(st, JETZT), 'im_bau')
+})
+
+test('gescheitert ist nur, was nach der letzten Anforderung scheiterte', () => {
+  // „Neu rechnen" 11:18, gescheitert 11:20, seither nichts angefordert
+  assert.equal(bauZustand({ berechnet_ts: vor(600), angefordert_ts: vor(62), fehler_ts: vor(60) }, JETZT), 'gescheitert')
+  // noch nie gerechnet, gescheitert, nichts angefordert
+  assert.equal(bauZustand({ berechnet_ts: null, angefordert_ts: null, fehler_ts: vor(5) }, JETZT), 'gescheitert')
+  // ein Stand nach dem Fehlschlag: kein Fehler mehr
+  assert.equal(bauZustand({ berechnet_ts: vor(2), angefordert_ts: vor(62), fehler_ts: vor(60) }, JETZT), 'im_bau')
+})
+
+test('frisch eingespielt, noch nie gerechnet und nie gescheitert: wird gebaut', () => {
+  assert.equal(bauZustand({ berechnet_ts: null, angefordert_ts: null, fehler_ts: null }, JETZT), 'im_bau')
+  assert.equal(bauZustand(null, JETZT), 'im_bau')
+})
+
+test('angefordert, aber nach der Grenze weder Stand noch Fehlschlag: der Zeitplan hängt', () => {
+  const st = { berechnet_ts: vor(600), fehler_ts: vor(120), angefordert_ts: vor(ANFORDERUNG_HOECHSTENS_MIN + 1) }
+  assert.equal(bauZustand(st, JETZT), 'haengt')
+  assert.equal(bauZustand({ ...st, angefordert_ts: vor(ANFORDERUNG_HOECHSTENS_MIN) }, JETZT), 'im_bau')
 })

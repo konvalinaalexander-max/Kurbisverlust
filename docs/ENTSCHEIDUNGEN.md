@@ -4171,6 +4171,42 @@ Daten, dann die Annahme — nach der Korrektur nachsehen.
 nicht alles: vier mal vier gleiche Paloxen und ein Tag mit 30 Paaren bei
 13 erwarteten sind Fragen wert.
 
+## Nachtrag zu 0119: nach setup.sql zeigte die App den Fehler von vorher (21. Oktober)
+
+Der Betrieb spielte setup.sql (Stand 119) ein und las danach weiter: „Die
+Auswertung konnte nicht gerechnet werden: could not create unique index
+erg_kaliber_eindeutig. Die Datenbank versucht es nicht von selbst wieder."
+Nachgestellt (Stand 118 mit Daten, zwei Nächte, Läufe in zwei weiteren
+Schemata, die Rechnung scheitert, dann setup.sql mit Zeitplan): Die Datenbank
+war in Ordnung. setup.sql fordert am Ende selbst eine Rechnung an, der
+Zeitplan rechnet sie mit der neuen Fassung durch, und der Lauf danach legt
+den Index mit den Bandgrenzen an. Falsch war die App: Nach dem Einspielen sind
+die Ansichten leer, und sie hielt jeden Fehlschlag, der jünger ist als der
+letzte Stand, für endgültig — auch den von 11:20, vor dem Einspielen,
+obwohl danach schon neu angefordert war. Sie sagte „versucht es nicht von
+selbst wieder" und lud nicht nach; die Rechnung lief derweil.
+
+Jetzt: `bauZustand` (`src/lib/zeitplan.ts`) nimmt die Regel des Zeitplans
+(`auswertung_grund`, 0107): Gescheitert ist nur, was nach der letzten
+Anforderung scheiterte. Ist nach dem Fehlschlag angefordert worden, heisst
+es „wird gebaut", und die Seite lädt alle 30 Sekunden nach; ist die
+Anforderung älter als 30 Minuten und weder ein Stand noch ein neuer Fehler
+da, sagt die Seite, dass der Zeitplan nicht rechnet. Der Betriebsabzug
+schrieb aus demselben Grund „Die Rechnung scheitert" und hält sich jetzt an
+dieselbe Regel. Damit run.sh den Weg des Betriebs nachspielen kann, fragt das
+Ende von setup.sql `auswertung_cron_da()` statt nur nach pg_cron — beim
+Betrieb dasselbe, in der Prüfung mit `kuerbis.zeitplan_test`. Neu: run.sh 3c.
+
+**Mutationen.** 8, alle erkannt: in `bauZustand` die Anforderung nach dem
+Fehlschlag übergangen, der Fehlschlag nach der Anforderung übergangen, nie
+„hängt", nie „gescheitert" (Unit-Tests); in setup.sql das Ende wieder nur mit
+pg_cron, der alte Schlüssel für `erg_kaliber`, `mv_kaliber_pk` ohne obere
+Bandgrenze, das Anfordern ohne `angefordert_ts` (3c).
+
+**Was bewusst nicht gemacht wurde.** setup.sql löscht den alten Fehler nicht:
+Er ist Geschichte und bleibt im Stand stehen, bis ein Lauf gelingt; die neue
+Anforderung sagt genug. Keine neue Migration — die Datenbank war richtig.
+
 ## Nachtrag zu Runde AT: zwei Sortierschemata für eine Charge halten die Rechnung nicht an (21. Oktober, 0119)
 
 Der Betrieb las zum ersten Mal Sortierdateien mit Datum ein; danach brach
