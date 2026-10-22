@@ -1,25 +1,40 @@
 import { supabase } from './supabase'
 import type { Charge, Gebinde, SorteKaliber } from './typen'
 
-/** Stammdaten ändern sich während einer Sitzung praktisch nie. */
+/**
+ * Stammdaten ändern sich selten — aber nicht nie. Am 22. Oktober kamen Oettli
+ * (1719) und Trüeb (1763) mit setup.sql dazu; ein Handy, auf dem die App seit
+ * dem Vortag offen war, kannte sie nicht und hätte „Diese Charge gibt es
+ * (noch) nicht" gesagt. Darum gilt das Gemerkte fünf Minuten; danach holt der
+ * nächste Aufruf neu. Ohne Netz bleibt das Gemerkte — die Halle arbeitet
+ * weiter, nur ohne die neueste Charge.
+ */
+const STAMM_HOECHSTENS_MS = 5 * 60 * 1000
 let stammCache: { chargen: Charge[]; kaliber: SorteKaliber[]; gebinde: Gebinde[] } | null = null
+let stammZeit = 0
 
 export async function stammdaten(neu = false) {
-  if (stammCache && !neu) return stammCache
-  const [c, k, g] = await Promise.all([
-    supabase.from('charge').select('*').order('nr'),
-    supabase.from('sorte_kaliber').select('*').order('sorte'),
-    supabase.from('gebinde').select('*').order('art'),
-  ])
-  if (c.error) throw c.error
-  if (k.error) throw k.error
-  if (g.error) throw g.error
-  stammCache = {
-    chargen: (c.data ?? []) as Charge[],
-    kaliber: (k.data ?? []) as SorteKaliber[],
-    gebinde: (g.data ?? []) as Gebinde[],
+  if (stammCache && !neu && Date.now() - stammZeit < STAMM_HOECHSTENS_MS) return stammCache
+  try {
+    const [c, k, g] = await Promise.all([
+      supabase.from('charge').select('*').order('nr'),
+      supabase.from('sorte_kaliber').select('*').order('sorte'),
+      supabase.from('gebinde').select('*').order('art'),
+    ])
+    if (c.error) throw c.error
+    if (k.error) throw k.error
+    if (g.error) throw g.error
+    stammCache = {
+      chargen: (c.data ?? []) as Charge[],
+      kaliber: (k.data ?? []) as SorteKaliber[],
+      gebinde: (g.data ?? []) as Gebinde[],
+    }
+    stammZeit = Date.now()
+    return stammCache
+  } catch (f) {
+    if (stammCache && !neu) return stammCache
+    throw f
   }
-  return stammCache
 }
 
 /**
