@@ -754,7 +754,22 @@ for (const geraet of GERAETE) {
           meldungen.push('Anmeldung: hat nicht gegriffen, der Anmeldeschirm steht noch')
           return
         }
-        await seite.goto(`http://localhost:5199${pfad}`, { waitUntil: 'networkidle' })
+        // 22. Oktober: Auf dem CI-Läufer lief dieser Aufruf zweimal über 30 s
+        // (20.10. /neu, 22.10. /kontrolle) — lokal nicht nachzustellen, auch
+        // nicht mit leerem Vite-Zwischenspeicher (1 s). Der Fehler beendete den
+        // ganzen Lauf, ohne zu sagen, welcher Bildschirm. Jetzt ein zweiter
+        // Versuch; scheitert auch er, ist es der Befund dieses Bildschirms.
+        for (let versuch = 1; ; versuch++) {
+          try {
+            await seite.goto(`http://localhost:5199${pfad}`, { waitUntil: 'networkidle' })
+            break
+          } catch (f) {
+            if (versuch >= 2) {
+              meldungen.push(`Anmeldung: die Seite lud nach der Anmeldung zweimal nicht (${String(f).split('\n')[0]})`)
+              return
+            }
+          }
+        }
       }
 
       if (schirm.wer === 'admin') {
