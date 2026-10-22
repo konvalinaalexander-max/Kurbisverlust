@@ -605,10 +605,13 @@ const BILDSCHIRME = [
       await p.locator('#neu-nr').fill(String(vorhanden))
       await p.locator('#charge-anlegen .hinweis', { hasText: `Charge ${vorhanden} gibt es schon` }).waitFor()
       if (await p.locator('#charge-anlegen-ok').isEnabled()) throw new Error('Eine vergebene Nummer lässt sich anlegen')
-      await p.locator('#neu-nr').fill('1719')
-      await p.locator('#neu-schlag').fill('Oettli')
-      await p.locator('#neu-sorte').fill('Butternut')
-      if (!(await p.locator('#charge-anlegen-ok').isEnabled())) throw new Error('Charge 1719 mit Schlag und Sorte lässt sich nicht anlegen')
+      // Seit 0120 steht 1719 (Oettli) im Register: die freie Nummer kommt aus
+      // dem Register selbst, nicht aus einer festen Zahl.
+      const frei = Math.max(...(fixture('charge') ?? []).map(c => c.nr)) + 1
+      await p.locator('#neu-nr').fill(String(frei))
+      await p.locator('#neu-schlag').fill('Neuer Schlag')
+      await p.locator('#neu-sorte').fill('Kaori Kuri')
+      if (!(await p.locator('#charge-anlegen-ok').isEnabled())) throw new Error(`Charge ${frei} mit Schlag und Sorte lässt sich nicht anlegen`)
     } },
   { name: 'betrieb-schemata', wer: 'admin', pfad: '/betrieb/stammdaten',
     tun: async p => { await p.getByRole('link', { name: 'Sortierschemata' }).click() } },
