@@ -134,6 +134,15 @@ begin
   end;
   perform set_config('request.jwt.claim.sub', v_u::text, true);
   assert v_fehler = 'verweigert', '0121 (f1): die Halle durfte eine Umbuchung zurücknehmen';
+  -- (f1b) die Regel selbst laufen lassen darf die Halle auch nicht (sie ist für den Rechenlauf da)
+  v_fehler := null;
+  perform set_config('request.jwt.claim.sub', v_w::text, true);
+  begin
+    perform paletten_zuordnen();
+  exception when insufficient_privilege then v_fehler := 'verweigert';
+  end;
+  perform set_config('request.jwt.claim.sub', v_u::text, true);
+  assert v_fehler = 'verweigert', '0121 (f1b): die Halle durfte die Zuordnung laufen lassen';
   perform palette_zuordnung_setzen(array(select palette_id from palette_zuordnung where nach_charge_nr = v_b), 'zurueckgenommen');
   assert (select count(*) from palette where extern_id like 'pruef-0121-a%' and charge_nr = v_b) = 0,
     '0121 (f2): zurückgenommen, aber die Paletten liegen noch bei B';

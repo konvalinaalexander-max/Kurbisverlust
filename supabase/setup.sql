@@ -7541,6 +7541,9 @@ begin
 end $$;
 comment on function palette_charge_halten() is
   'Hält eine angewandte Umbuchung (palette_zuordnung) über jeden Abgleich mit dem Journal: charge_nr_journal bekommt, was der Abgleich schreibt; charge_nr die Charge der Arbeit, solange das Journal die alte Charge nennt (0121).';
+
+revoke all on function palette_charge_halten() from public;
+grant execute on function palette_charge_halten() to authenticated;
 drop trigger if exists palette_charge_halten on palette;
 create trigger palette_charge_halten before insert or update of charge_nr on palette
   for each row execute function palette_charge_halten();
@@ -7557,6 +7560,10 @@ declare
   v_treffer bigint[]; v_zettel text[];
   v_anteil numeric; v_geliefert numeric; v_eingang numeric; v_stand text; v_n int := 0;
 begin
+  -- Der Rechenlauf ruft sie (Zeitplan: ohne Anmeldung); von Hand nur der Betriebsleiter.
+  if auth.uid() is not null and not ist_admin() then
+    raise exception 'Paletten zuordnen darf nur der Betriebsleiter.' using errcode = '42501';
+  end if;
   if to_regclass('pg_temp.zuordnung_neu') is null then
     create temp table zuordnung_neu (
       palette_id bigint primary key, von_charge_nr int, nach_charge_nr int, auftrag_id bigint,
@@ -7696,6 +7703,7 @@ end $$;
 comment on function paletten_zuordnen() is
   'Die Regel aus 0121: Paletten zur Charge der Arbeit, die sie nachweislich verarbeitet hat (Zettel aufs Kilo, 80 %, die Charge der Arbeit lieferte mehr, als sie bekam; dazu der Rest einer Fuhre). Schwächerer Beleg bleibt Vorschlag. Läuft zu Beginn jedes Rechenlaufs; gibt zurück, wie viele Paletten die Charge gewechselt haben.';
 revoke all on function paletten_zuordnen() from public;
+grant execute on function paletten_zuordnen() to authenticated;
 
 create or replace function palette_zuordnung_setzen(p_palette_ids bigint[], p_stand text) returns int
 language plpgsql security definer set search_path = public as $$
@@ -7724,6 +7732,9 @@ create or replace function lieferungen_nachordnen() returns int
 language plpgsql security definer set search_path = public as $$
 declare v_n int;
 begin
+  if auth.uid() is not null and not ist_admin() then
+    raise exception 'Lieferscheine nachordnen darf nur der Betriebsleiter.' using errcode = '42501';
+  end if;
   with offen as (
     select l.id, regexp_replace(z.charge_extern, '\D', '', 'g') as ziffern
       from lieferung l
@@ -7747,6 +7758,7 @@ end $$;
 comment on function lieferungen_nachordnen() is
   'Gibt Lieferscheinen ohne Charge ihre Charge, sobald die Nummer der Datei eine kennt (eigene Nummer, sonst eine Perigon-Nummer an genau einer Charge) — läuft zu Beginn jedes Rechenlaufs; gibt zurück, wie viele es waren (0121).';
 revoke all on function lieferungen_nachordnen() from public;
+grant execute on function lieferungen_nachordnen() to authenticated;
 
 CREATE OR REPLACE FUNCTION public.auswertung_schritt_intern(p_schritt integer, p_nebenlaeufig boolean)
  RETURNS jsonb
@@ -8029,7 +8041,7 @@ comment on function schema_stand() is
 -- TEIL B — Das Rechenwerk: die Formeln, wie sie heute lauten
 -- =====================================================================
 -- Ab hier steht jede Ansicht und jede darauf rechnende Funktion genau
--- einmal — in 156 Schritten, in der Reihenfolge, in der eine auf der
+-- einmal — in 157 Schritten, in der Reihenfolge, in der eine auf der
 -- anderen steht. Die Reihenfolge ist ausgerechnet, nicht geraten:
 -- setup_bauen.sh sortiert topologisch und bricht ab, wenn sie nicht
 -- kreisfrei wäre.
@@ -8042,12 +8054,13 @@ comment on function schema_stand() is
 -- wird am Ende dieser Datei neu berechnet.
 -- =====================================================================
 
+drop view if exists v_perigon_pruefung cascade;
+drop view if exists v_ungereimtheit cascade;
 drop view if exists v_ohne_charge cascade;
 drop view if exists v_lager_ausweis cascade;
 drop materialized view if exists erg_kaliber cascade;
 drop view if exists v_kaliber_verteilung cascade;
 drop materialized view if exists mv_kaliber_verteilung cascade;
-drop view if exists v_perigon_pruefung cascade;
 drop view if exists v_kunde_position cascade;
 drop materialized view if exists erg_wohin cascade;
 drop view if exists v_wohin cascade;
@@ -13737,61 +13750,6 @@ select v.quelle, v.pos_id, v.kunde, v.saison, v.datum, e.gruppe, e.groesse, e.la
  where coalesce(v.journal, '') <> 'L'
    and coalesce(a.ist_kuerbis, ist_kuerbis_vorschlag(v.artikel_id, v.artikel))
    and v.kunde is not null and v.kunde <> '';
-
--- aus 0118_rest_ohne_charge_ist_kein_unbekannte_charge.sql
-
-create or replace view v_perigon_pruefung with (security_invoker = true) as
-with zeile as (
-  select z.id, z.quelle, z.pos_id, z.datum, z.kunde, z.artikel, z.charge_extern, z.kg_charge, z.liefer_label,
-         l.id as lieferung_id, l.charge_nr, l.kg as kg_lieferung, c.sorte, sk.artikelgruppe as gruppe_charge,
-         e.gruppe as gruppe_artikel, e.label as label_verkauft,
-         case when upper(coalesce(z.liefer_label, '')) like 'D%' then 'D'
-              when upper(coalesce(z.liefer_label, '')) ~ '^(K|CH-K)' then 'K' end as label_geliefert,
-         li.extern_id like '%:rest' as rest,
-         regexp_replace(z.charge_extern, '\D', '', 'g') as ziffern
-    from ausgang_zeile z
-    join lieferung_import li on li.zeile_id = z.id
-    join lieferung l on l.id = li.lieferung_id
-    left join charge c on c.nr = l.charge_nr
-    left join sorte_kaliber sk on sk.sorte = c.sorte
-   cross join lateral artikel_einordnen(z.artikel, z.preisgruppe) e
-)
-select 'Charge nicht zugeordnet'::text as art, z.quelle, z.pos_id, z.datum, z.kunde, z.artikel, z.charge_nr, z.kg_charge as kg,
-       format('Perigon nennt die Charge %s, die Lieferung hat keine — %s', z.charge_extern,
-              case when exists (select 1 from charge x where x.nr::text = z.ziffern)
-                   then 'die Charge gibt es; die Datei unter Betrieb → Warenausgang neu einlesen'
-                   when (select count(*) from charge x where x.perigon_nr::text = z.ziffern) = 1
-                   then format('die Perigon-Nummer steht an Charge %s; die Datei unter Betrieb → Warenausgang neu einlesen',
-                               (select x.nr from charge x where x.perigon_nr::text = z.ziffern))
-                   when (select count(*) from charge x where x.perigon_nr::text = z.ziffern) > 1
-                   then 'die Perigon-Nummer steht an mehreren Chargen, und der Artikel sagt nicht, welche Sorte'
-                   else 'die Nummer steht an keiner Charge; unter Stammdaten → Chargen die Perigon-Nr. eintragen (oder die Charge anlegen), dann neu einlesen' end) as befund
-  from zeile z
- where z.charge_extern <> '' and z.charge_nr is null and not z.rest
-union all
-select 'Teil ohne Charge', z.quelle, z.pos_id, z.datum, z.kunde, z.artikel, null::int, zahl(z.kg_lieferung, 3, 1e11)::numeric(14,3),
-       format('%s kg der Position nennen in der Datei keine Charge — Spalte S schreibt der Charge %s weniger zu, als geliefert wurde. Der Rest zählt im Warenausgang, aber bei keiner Charge; der Teil mit Charge zählt richtig. Zu prüfen in Perigon, nicht in der App.',
-              trim(to_char(z.kg_lieferung, 'FM999999990.0')), z.charge_extern)
-  from zeile z
- where z.rest and z.charge_extern <> ''
-union all
-select 'Artikel passt nicht zur Sorte', z.quelle, z.pos_id, z.datum, z.kunde, z.artikel, z.charge_nr, z.kg_charge,
-       format('als %s verkauft, geliefert aus Charge %s (%s, geht als %s)', z.gruppe_artikel, z.charge_nr, z.sorte, z.gruppe_charge)
-  from zeile z
- where z.gruppe_artikel is not null and z.gruppe_charge is not null
-   and z.gruppe_artikel not in ('Mix', 'andere') and z.gruppe_artikel <> z.gruppe_charge
-union all
-select 'Als Demeter verkauft, als Knospe geliefert', z.quelle, z.pos_id, z.datum, z.kunde, z.artikel, z.charge_nr, z.kg_charge,
-       format('Preisgruppe Demeter, Lieferlabel %s (Charge %s)', z.liefer_label, z.charge_nr)
-  from zeile z
- where z.label_verkauft = 'D' and z.label_geliefert = 'K' and not z.rest
-union all
-select 'Lieferung vor dem Eingang', z.quelle, z.pos_id, z.datum, z.kunde, z.artikel, z.charge_nr, z.kg_charge,
-       format('geliefert am %s, die Charge %s kam erst am %s', to_char(z.datum, 'DD.MM.YYYY'), z.charge_nr,
-              to_char(e.erst, 'DD.MM.YYYY'))
-  from zeile z
-  join (select charge_nr, min(eingangsdatum) as erst from palette group by charge_nr) e on e.charge_nr = z.charge_nr
- where z.datum < e.erst;
 create materialized view mv_kaliber_verteilung as
 select l.charge_nr, c.sorte, g.klasse, g.kaliber_idx,
        (s.kaliber_baender -> g.kaliber_idx ->> 0)::int as band_von,
@@ -13925,12 +13883,12 @@ select m.charge_nr, m.sorte, m.schlag,
        zahl(m.verdunstet_je_tag_kg, 2, 1e12)::numeric(14,2) as verdunstet_je_tag_kg,
        zahl(m.faul_mit_hagel_kg - coalesce(m.unique_kg, 0), 2, 1e12)::numeric(14,2) as faul_kg,
        zahl(m.unique_kg, 2, 1e12)::numeric(14,2) as unique_kg,
-       nullif(m.h, 0)::numeric(5,4) as hagel_anteil,
+       zahl(nullif(m.h, 0), 4, 1e1)::numeric(5,4) as hagel_anteil,
        zahl(m.klein_kg, 2, 1e12)::numeric(14,2) as zu_klein_kg,
        zahl(m.gross_kg, 2, 1e12)::numeric(14,2) as zu_gross_kg,
        zahl(m.fax_kg, 2, 1e12)::numeric(14,2) as fax_kg,
        zahl(m.verkaufsfaehig_kg, 2, 1e12)::numeric(14,2) as verkaufsfaehig_kg,
-       m.marge_anteil::numeric(8,5) as marge_anteil,
+       zahl(m.marge_anteil, 5, 1e3)::numeric(8,5) as marge_anteil,
        m.marge_quelle,
        zahl(m.verkaufsfaehig_kg * m.marge_anteil / (1 + m.marge_anteil), 2, 1e12)::numeric(14,2) as marge_kg,
        zahl(m.verkaufsfaehig_kg / (1 + m.marge_anteil), 2, 1e12)::numeric(14,2) as verrechenbar_kg,
@@ -13964,6 +13922,109 @@ select l.sorte,
           from je_charge j where j.sorte is not distinct from l.sorte) as verteilt_auf
   from l
  group by l.sorte;
+
+create or replace view v_ungereimtheit with (security_invoker = true) as
+with lief as (
+  select l.charge_nr, l.datum, l.masse_kg from v_lieferung_masse l
+   where l.charge_nr is not null and l.masse_kg > 0 and l.buch in ('verkauf', 'marge') and l.datum <= heute()
+), eingang as (
+  select charge_nr, min(eingangsdatum) as erst, count(*)::int as n from palette group by charge_nr
+)
+select 'ohne_eingang'::text as art, c.nr as charge_nr, c.sorte, c.schlag,
+       zahl(sum(l.masse_kg), 2, 1e12)::numeric(14,2) as kg, count(*)::int as n, min(l.datum) as von, max(l.datum) as bis,
+       null::jsonb as mehr
+  from lief l join charge c on c.nr = l.charge_nr
+ where not exists (select 1 from eingang e where e.charge_nr = l.charge_nr)
+ group by c.nr, c.sorte, c.schlag
+union all
+select 'vor_eingang', c.nr, c.sorte, c.schlag,
+       zahl(sum(l.masse_kg), 2, 1e12)::numeric(14,2), count(*)::int, min(l.datum), max(l.datum),
+       jsonb_build_object('erster_eingang', e.erst)
+  from lief l join eingang e on e.charge_nr = l.charge_nr join charge c on c.nr = l.charge_nr
+ where l.datum < e.erst
+ group by c.nr, c.sorte, c.schlag, e.erst
+union all
+select 'ueberzaehlung', b.charge_nr, b.sorte, b.schlag,
+       zahl(b.ueberzaehlung_kg, 2, 1e12)::numeric(14,2), b.n_lieferungen, null::date, null::date,
+       jsonb_build_object('geliefert_kg', round(b.geliefert_kg), 'eingang_kg', round(b.eingang_kg), 'ausgelagert_kg', round(b.ausgelagert_kg),
+                          'eingang_von', b.eingang_von, 'eingang_bis', b.eingang_bis)
+
+  from erg_charge b where b.ueberzaehlung_kg > greatest(100, 0.03 * b.eingang_kg)
+union all
+select 'ohne_charge', null::int, o.sorte, null::text,
+       o.kg, o.n_lieferungen, o.erste, o.letzte,
+       jsonb_build_object('kg_vor_eingang', o.kg_vor_eingang, 'kg_ohne_ziel', o.kg_ohne_ziel, 'verteilt_auf', o.verteilt_auf)
+  from v_ohne_charge o
+union all
+select case z.stand when 'angewandt' then 'umgebucht' else 'vorschlag' end, z.nach_charge_nr, c.sorte, c.schlag,
+       zahl(sum(vp.netto_kg), 2, 1e12)::numeric(14,2), count(*)::int, min(p.eingangsdatum), max(p.eingangsdatum),
+       jsonb_build_object('von_charge_nr', z.von_charge_nr, 'auftrag_id', z.auftrag_id,
+                          'grund', min(z.grund) filter (where z.art = 'zettel'),
+                          'paletten', jsonb_agg(z.palette_id order by z.palette_id),
+                          'von_betriebsleiter', bool_or(z.geaendert_ts is not null))
+  from palette_zuordnung z
+  join palette p on p.id = z.palette_id
+  join v_palette vp on vp.id = z.palette_id
+  join charge c on c.nr = z.nach_charge_nr
+ where z.stand in ('angewandt', 'vorschlag')
+ group by z.stand, z.nach_charge_nr, z.von_charge_nr, z.auftrag_id, c.sorte, c.schlag;
+
+create or replace view v_perigon_pruefung with (security_invoker = true) as
+with zeile as (
+  select z.id, z.quelle, z.pos_id, z.datum, z.kunde, z.artikel, z.charge_extern, z.kg_charge, z.liefer_label,
+         l.id as lieferung_id, l.charge_nr, l.kg as kg_lieferung, c.sorte, sk.artikelgruppe as gruppe_charge,
+         e.gruppe as gruppe_artikel, e.label as label_verkauft,
+         case when upper(coalesce(z.liefer_label, '')) like 'D%' then 'D'
+              when upper(coalesce(z.liefer_label, '')) ~ '^(K|CH-K)' then 'K' end as label_geliefert,
+         li.extern_id like '%:rest' as rest,
+         regexp_replace(z.charge_extern, '\D', '', 'g') as ziffern,
+         coalesce((select x.nr from charge x where x.nr::text = regexp_replace(z.charge_extern, '\D', '', 'g')),
+                  (select min(x.nr) from charge x where x.perigon_nr::text = regexp_replace(z.charge_extern, '\D', '', 'g')
+                   having count(*) = 1)) as bekannt
+    from ausgang_zeile z
+    join lieferung_import li on li.zeile_id = z.id
+    join lieferung l on l.id = li.lieferung_id
+    left join charge c on c.nr = l.charge_nr
+    left join sorte_kaliber sk on sk.sorte = c.sorte
+   cross join lateral artikel_einordnen(z.artikel, z.preisgruppe) e
+)
+select 'Charge nicht zugeordnet'::text as art, z.quelle, z.pos_id, z.datum, z.kunde, z.artikel, z.charge_nr, z.kg_charge as kg,
+
+       case when z.bekannt is not null
+            then format('Auf dem Lieferschein steht %s; die Nummer steht an Charge %s; beim Einlesen kannte die App sie noch nicht. '
+                        || 'Beim nächsten Rechnen bekommt der Lieferschein seine Charge von selbst.', z.charge_extern, z.bekannt)
+            when (select count(*) from charge x where x.perigon_nr::text = z.ziffern) > 1
+            then format('Auf dem Lieferschein steht die Perigon-Nummer %s; sie steht an mehreren Chargen, und der Artikel sagt nicht, '
+                        || 'welche Sorte es ist. Die Datei unter Betrieb → Warenausgang neu einlesen, dort entscheidet der Artikel.', z.charge_extern)
+            else format('Auf dem Lieferschein steht die Charge %s; diese Nummer steht an keiner Charge der App. Die Nummer unter Stammdaten → '
+                        || 'Chargen anlegen oder bei der richtigen Charge als Perigon-Nr. eintragen; beim nächsten Rechnen bekommt der '
+                        || 'Lieferschein sie von selbst.', z.charge_extern) end as befund
+  from zeile z
+ where z.charge_extern <> '' and z.charge_nr is null and not z.rest
+union all
+select 'Teil ohne Charge', z.quelle, z.pos_id, z.datum, z.kunde, z.artikel, null::int, zahl(z.kg_lieferung, 3, 1e11)::numeric(14,3),
+       format('%s kg der Position haben keine Charge: Spalte S („AufPosBatchQuantity Charge") schreibt der Charge %s weniger zu, als die Position geliefert hat. Diese Kilo zählen im Warenausgang, aber bei keiner Charge — dort bleibt die Ware im Lager stehen. In Perigon die Menge je Charge nachtragen.',
+              trim(to_char(z.kg_lieferung, 'FM999999990.0')), z.charge_extern)
+  from zeile z
+ where z.rest and z.charge_extern <> ''
+union all
+select 'Artikel passt nicht zur Sorte', z.quelle, z.pos_id, z.datum, z.kunde, z.artikel, z.charge_nr, z.kg_charge,
+       format('Verkauft als %s, aber die Charge %s ist %s — und %s geht als %s. Entweder steht der falsche Artikel oder die falsche Charge auf dem Lieferschein.', z.gruppe_artikel, z.charge_nr, z.sorte, z.sorte, z.gruppe_charge)
+  from zeile z
+ where z.gruppe_artikel is not null and z.gruppe_charge is not null
+   and z.gruppe_artikel not in ('Mix', 'andere') and z.gruppe_artikel <> z.gruppe_charge
+union all
+select 'Als Demeter verkauft, als Knospe geliefert', z.quelle, z.pos_id, z.datum, z.kunde, z.artikel, z.charge_nr, z.kg_charge,
+       format('Verkauft zum Demeter-Preis (Preisgruppe), aber die Ware der Charge %s trägt das Lieferlabel %s — das ist Knospe.', z.charge_nr, z.liefer_label)
+  from zeile z
+ where z.label_verkauft = 'D' and z.label_geliefert = 'K' and not z.rest
+union all
+select 'Lieferung vor dem Eingang', z.quelle, z.pos_id, z.datum, z.kunde, z.artikel, z.charge_nr, z.kg_charge,
+       format('Geliefert am %s, aber die Charge %s kam laut Erntejournal erst am %s an — von ihr kann die Ware nicht sein.', to_char(z.datum, 'DD.MM.YYYY'), z.charge_nr,
+              to_char(e.erst, 'DD.MM.YYYY'))
+  from zeile z
+  join (select charge_nr, min(eingangsdatum) as erst from palette group by charge_nr) e on e.charge_nr = z.charge_nr
+ where z.datum < e.erst;
 
 -- ---------------------------------------------------------------------
 -- Beschreibungen, Leserechte und Indizes
@@ -15916,6 +15977,12 @@ grant select on v_lager_ausweis to authenticated;
 comment on view v_ohne_charge is
   'Lieferscheine ohne Chargennummer bis heute (Verkauf, Marge), je Sorte (0121): wie viele, wie viel, von wann bis wann; auf welche Chargen die Rechnung sie verteilt (verteilt_auf, nach dem Eingang, 0114); kg_vor_eingang: was davon hinausging, bevor die Charge, die es tragen soll, eingegangen war; kg_ohne_ziel: was auf keine Charge fällt, weil keine Charge der Sorte Eingang hat (oder die Sorte fehlt).';
 grant select on v_ohne_charge to authenticated;
+comment on view v_ungereimtheit is
+  'Was zwischen Perigon, Erntejournal und Lager nicht zusammenpasst, je Charge oder Sorte, mit den Kilo, um die es geht (0121): ohne_eingang, vor_eingang, ueberzaehlung, ohne_charge, umgebucht, vorschlag. Die Zeilen der Perigon-Dateien stehen in v_perigon_pruefung.';
+grant select on v_ungereimtheit to authenticated;
+comment on view v_perigon_pruefung is
+  'Seit 0121 in Sätzen, die ohne Perigon-Kenntnis zu lesen sind; eine Nummer, die die App inzwischen kennt, holt der nächste Rechenlauf nach. Was beim Durchsehen der Perigon-Zeilen der laufenden Saison auffällt (0116, 0118), je Zeile mit dem Satz, was zu tun ist: Charge nicht zugeordnet (eine Nummer, die die App nicht auflösen kann), Teil ohne Charge (die Datei schreibt den Chargen weniger zu, als die Position geliefert hat — 0118), Artikel passt nicht zur Sorte der gelieferten Charge, als Demeter verkauft und als Knospe geliefert, Lieferung vor dem ersten Eingang.';
+grant select on v_perigon_pruefung to authenticated;
 
 
 -- =====================================================================

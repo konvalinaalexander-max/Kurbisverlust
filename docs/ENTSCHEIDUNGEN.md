@@ -4290,6 +4290,19 @@ Bildschirme `lager-ungereimt`, `lager-kette`, `chargen-ungereimt`,
   zählen ist.
 - Die Demo bekommt keinen Fall wie 1627; die Bildschirme merken ihn vor.
 
+**Nachtrag, nach der vollen Stufe.** Die volle Prüfung (`run.sh`) fand drei Dinge,
+die der Prüfblock allein nicht sah: Die Trigger-Funktion stand PUBLIC offen und
+`paletten_zuordnen`/`lieferungen_nachordnen` waren für Angemeldete gar nicht
+erreichbar (jetzt wie überall: nicht für Nichtangemeldete, für Angemeldete ja,
+von Hand nur der Betriebsleiter — Prüfblock 0121 (f1b), Mutation erkannt); zwei
+Casts in `v_lager_ausweis` liefen nicht über `zahl()`. Und 0118 (c1) verlangte
+für eine Nummer, die die App inzwischen kennt, „neu einlesen" — genau das ist
+mit `lieferungen_nachordnen` nicht mehr nötig. Die Regel hat sich geändert,
+der Test mit ihr: Er verlangt weiter die Charge im Satz und jetzt den Hinweis
+aufs nächste Rechnen (Mutation erkannt). Die übrigen Sätze von 0116/0118
+(„steht an keiner Charge … unter Stammdaten", „10.0 kg der Position …
+weniger zu") gelten unverändert.
+
 ## Nachtrag: die Arbeit auf der fremden Charge (22. Oktober)
 
 Der Betrieb: „Mein Mitarbeiter meint, Amoro von Rüegg hat's keine mehr — wie

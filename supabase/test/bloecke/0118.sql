@@ -71,7 +71,11 @@ begin
            where quelle = 'PRUEF118' and pos_id = 802 and art = 'Charge nicht zugeordnet'),
     '0118 (b1): eine Nummer, die an keiner Charge steht, fällt nicht auf oder sagt nicht, was zu tun ist';
   -- (c) die Perigon-Nummer an genau einer Charge
-  assert (select befund like format('%%steht an Charge %s;%%neu einlesen', v_c2) from v_perigon_pruefung
+  -- 0121: Eine Nummer, die die App inzwischen kennt, ordnet der nächste
+  -- Rechenlauf selbst zu (lieferungen_nachordnen) — „neu einlesen" ist dafür
+  -- nicht mehr nötig. Die Regel hat sich geändert, der Satz mit ihr: Er nennt
+  -- weiter die Charge und sagt jetzt, dass das nächste Rechnen genügt.
+  assert (select befund like format('%%steht an Charge %s;%%nächsten Rechnen%%', v_c2) from v_perigon_pruefung
            where quelle = 'PRUEF118' and pos_id = 803 and art = 'Charge nicht zugeordnet'),
     format('0118 (c1): die Nummer an genau einer Charge sagt „%s"',
            (select befund from v_perigon_pruefung where quelle = 'PRUEF118' and pos_id = 803));

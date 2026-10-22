@@ -119,6 +119,9 @@ begin
 end $$;
 comment on function palette_charge_halten() is
   'Hält eine angewandte Umbuchung (palette_zuordnung) über jeden Abgleich mit dem Journal: charge_nr_journal bekommt, was der Abgleich schreibt; charge_nr die Charge der Arbeit, solange das Journal die alte Charge nennt (0121).';
+-- Wie jede Funktion hier: nicht für Nichtangemeldete (pruefung.sql, Funktionsrechte).
+revoke all on function palette_charge_halten() from public;
+grant execute on function palette_charge_halten() to authenticated;
 drop trigger if exists palette_charge_halten on palette;
 create trigger palette_charge_halten before insert or update of charge_nr on palette
   for each row execute function palette_charge_halten();
@@ -138,6 +141,10 @@ declare
   v_treffer bigint[]; v_zettel text[];
   v_anteil numeric; v_geliefert numeric; v_eingang numeric; v_stand text; v_n int := 0;
 begin
+  -- Der Rechenlauf ruft sie (Zeitplan: ohne Anmeldung); von Hand nur der Betriebsleiter.
+  if auth.uid() is not null and not ist_admin() then
+    raise exception 'Paletten zuordnen darf nur der Betriebsleiter.' using errcode = '42501';
+  end if;
   if to_regclass('pg_temp.zuordnung_neu') is null then
     create temp table zuordnung_neu (
       palette_id bigint primary key, von_charge_nr int, nach_charge_nr int, auftrag_id bigint,
@@ -277,6 +284,7 @@ end $$;
 comment on function paletten_zuordnen() is
   'Die Regel aus 0121: Paletten zur Charge der Arbeit, die sie nachweislich verarbeitet hat (Zettel aufs Kilo, 80 %, die Charge der Arbeit lieferte mehr, als sie bekam; dazu der Rest einer Fuhre). Schwächerer Beleg bleibt Vorschlag. Läuft zu Beginn jedes Rechenlaufs; gibt zurück, wie viele Paletten die Charge gewechselt haben.';
 revoke all on function paletten_zuordnen() from public;
+grant execute on function paletten_zuordnen() to authenticated;
 
 -- Der Betriebsleiter nimmt eine Umbuchung zurück — oder bucht einen Vorschlag.
 create or replace function palette_zuordnung_setzen(p_palette_ids bigint[], p_stand text) returns int
@@ -309,6 +317,9 @@ create or replace function lieferungen_nachordnen() returns int
 language plpgsql security definer set search_path = public as $$
 declare v_n int;
 begin
+  if auth.uid() is not null and not ist_admin() then
+    raise exception 'Lieferscheine nachordnen darf nur der Betriebsleiter.' using errcode = '42501';
+  end if;
   with offen as (
     select l.id, regexp_replace(z.charge_extern, '\D', '', 'g') as ziffern
       from lieferung l
@@ -332,6 +343,7 @@ end $$;
 comment on function lieferungen_nachordnen() is
   'Gibt Lieferscheinen ohne Charge ihre Charge, sobald die Nummer der Datei eine kennt (eigene Nummer, sonst eine Perigon-Nummer an genau einer Charge) — läuft zu Beginn jedes Rechenlaufs; gibt zurück, wie viele es waren (0121).';
 revoke all on function lieferungen_nachordnen() from public;
+grant execute on function lieferungen_nachordnen() to authenticated;
 
 -- =====================================================================
 -- 3. Der Rechenlauf ordnet zuerst zu (Schritt 1) — sonst wie 0119
@@ -578,12 +590,12 @@ select m.charge_nr, m.sorte, m.schlag,
        zahl(m.verdunstet_je_tag_kg, 2, 1e12)::numeric(14,2) as verdunstet_je_tag_kg,
        zahl(m.faul_mit_hagel_kg - coalesce(m.unique_kg, 0), 2, 1e12)::numeric(14,2) as faul_kg,
        zahl(m.unique_kg, 2, 1e12)::numeric(14,2) as unique_kg,
-       nullif(m.h, 0)::numeric(5,4) as hagel_anteil,
+       zahl(nullif(m.h, 0), 4, 1e1)::numeric(5,4) as hagel_anteil,
        zahl(m.klein_kg, 2, 1e12)::numeric(14,2) as zu_klein_kg,
        zahl(m.gross_kg, 2, 1e12)::numeric(14,2) as zu_gross_kg,
        zahl(m.fax_kg, 2, 1e12)::numeric(14,2) as fax_kg,
        zahl(m.verkaufsfaehig_kg, 2, 1e12)::numeric(14,2) as verkaufsfaehig_kg,
-       m.marge_anteil::numeric(8,5) as marge_anteil,
+       zahl(m.marge_anteil, 5, 1e3)::numeric(8,5) as marge_anteil,
        m.marge_quelle,
        zahl(m.verkaufsfaehig_kg * m.marge_anteil / (1 + m.marge_anteil), 2, 1e12)::numeric(14,2) as marge_kg,
        zahl(m.verkaufsfaehig_kg / (1 + m.marge_anteil), 2, 1e12)::numeric(14,2) as verrechenbar_kg,
@@ -709,7 +721,10 @@ with zeile as (
          case when upper(coalesce(z.liefer_label, '')) like 'D%' then 'D'
               when upper(coalesce(z.liefer_label, '')) ~ '^(K|CH-K)' then 'K' end as label_geliefert,
          li.extern_id like '%:rest' as rest,
-         regexp_replace(z.charge_extern, '\D', '', 'g') as ziffern
+         regexp_replace(z.charge_extern, '\D', '', 'g') as ziffern,
+         coalesce((select x.nr from charge x where x.nr::text = regexp_replace(z.charge_extern, '\D', '', 'g')),
+                  (select min(x.nr) from charge x where x.perigon_nr::text = regexp_replace(z.charge_extern, '\D', '', 'g')
+                   having count(*) = 1)) as bekannt
     from ausgang_zeile z
     join lieferung_import li on li.zeile_id = z.id
     join lieferung l on l.id = li.lieferung_id
@@ -720,19 +735,21 @@ with zeile as (
 select 'Charge nicht zugeordnet'::text as art, z.quelle, z.pos_id, z.datum, z.kunde, z.artikel, z.charge_nr, z.kg_charge as kg,
        -- 0121: Kennt die App die Nummer inzwischen, holt der nächste Rechenlauf
        -- die Charge von selbst nach (lieferungen_nachordnen) — kein Neu-Einlesen mehr.
-       format('Auf dem Lieferschein steht die Charge %s, aber in der App gibt es keine Charge mit dieser Nummer — %s', z.charge_extern,
-              case when exists (select 1 from charge x where x.nr::text = z.ziffern)
-                     or (select count(*) from charge x where x.perigon_nr::text = z.ziffern) = 1
-                   then 'inzwischen schon: beim nächsten Rechnen bekommt der Lieferschein seine Charge von selbst'
-                   when (select count(*) from charge x where x.perigon_nr::text = z.ziffern) > 1
-                   then 'die Perigon-Nummer steht an mehreren Chargen, und der Artikel sagt nicht, welche Sorte es ist; die Datei unter Betrieb → Warenausgang neu einlesen, dort entscheidet der Artikel'
-                   else 'die Nummer unter Stammdaten → Chargen anlegen (oder bei der richtigen Charge als Perigon-Nr. eintragen); beim nächsten Rechnen bekommt der Lieferschein sie von selbst' end) as befund
+       case when z.bekannt is not null
+            then format('Auf dem Lieferschein steht %s; die Nummer steht an Charge %s; beim Einlesen kannte die App sie noch nicht. '
+                        || 'Beim nächsten Rechnen bekommt der Lieferschein seine Charge von selbst.', z.charge_extern, z.bekannt)
+            when (select count(*) from charge x where x.perigon_nr::text = z.ziffern) > 1
+            then format('Auf dem Lieferschein steht die Perigon-Nummer %s; sie steht an mehreren Chargen, und der Artikel sagt nicht, '
+                        || 'welche Sorte es ist. Die Datei unter Betrieb → Warenausgang neu einlesen, dort entscheidet der Artikel.', z.charge_extern)
+            else format('Auf dem Lieferschein steht die Charge %s; diese Nummer steht an keiner Charge der App. Die Nummer unter Stammdaten → '
+                        || 'Chargen anlegen oder bei der richtigen Charge als Perigon-Nr. eintragen; beim nächsten Rechnen bekommt der '
+                        || 'Lieferschein sie von selbst.', z.charge_extern) end as befund
   from zeile z
  where z.charge_extern <> '' and z.charge_nr is null and not z.rest
 union all
 select 'Teil ohne Charge', z.quelle, z.pos_id, z.datum, z.kunde, z.artikel, null::int, zahl(z.kg_lieferung, 3, 1e11)::numeric(14,3),
-       format('Die Position lieferte mehr, als sie der Charge %s zuschreibt (Spalte S, „AufPosBatchQuantity Charge"): %s kg haben keine Charge. Sie zählen im Warenausgang, aber bei keiner Charge — dort bleibt die Ware im Lager stehen. Zu prüfen in Perigon.',
-              z.charge_extern, trim(to_char(z.kg_lieferung, 'FM999999990.0')))
+       format('%s kg der Position haben keine Charge: Spalte S („AufPosBatchQuantity Charge") schreibt der Charge %s weniger zu, als die Position geliefert hat. Diese Kilo zählen im Warenausgang, aber bei keiner Charge — dort bleibt die Ware im Lager stehen. In Perigon die Menge je Charge nachtragen.',
+              trim(to_char(z.kg_lieferung, 'FM999999990.0')), z.charge_extern)
   from zeile z
  where z.rest and z.charge_extern <> ''
 union all

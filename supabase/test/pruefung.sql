@@ -10083,7 +10083,11 @@ begin
            where quelle = 'PRUEF118' and pos_id = 802 and art = 'Charge nicht zugeordnet'),
     '0118 (b1): eine Nummer, die an keiner Charge steht, fällt nicht auf oder sagt nicht, was zu tun ist';
   -- (c) die Perigon-Nummer an genau einer Charge
-  assert (select befund like format('%%steht an Charge %s;%%neu einlesen', v_c2) from v_perigon_pruefung
+  -- 0121: Eine Nummer, die die App inzwischen kennt, ordnet der nächste
+  -- Rechenlauf selbst zu (lieferungen_nachordnen) — „neu einlesen" ist dafür
+  -- nicht mehr nötig. Die Regel hat sich geändert, der Satz mit ihr: Er nennt
+  -- weiter die Charge und sagt jetzt, dass das nächste Rechnen genügt.
+  assert (select befund like format('%%steht an Charge %s;%%nächsten Rechnen%%', v_c2) from v_perigon_pruefung
            where quelle = 'PRUEF118' and pos_id = 803 and art = 'Charge nicht zugeordnet'),
     format('0118 (c1): die Nummer an genau einer Charge sagt „%s"',
            (select befund from v_perigon_pruefung where quelle = 'PRUEF118' and pos_id = 803));
@@ -10396,6 +10400,15 @@ begin
   end;
   perform set_config('request.jwt.claim.sub', v_u::text, true);
   assert v_fehler = 'verweigert', '0121 (f1): die Halle durfte eine Umbuchung zurücknehmen';
+  -- (f1b) die Regel selbst laufen lassen darf die Halle auch nicht (sie ist für den Rechenlauf da)
+  v_fehler := null;
+  perform set_config('request.jwt.claim.sub', v_w::text, true);
+  begin
+    perform paletten_zuordnen();
+  exception when insufficient_privilege then v_fehler := 'verweigert';
+  end;
+  perform set_config('request.jwt.claim.sub', v_u::text, true);
+  assert v_fehler = 'verweigert', '0121 (f1b): die Halle durfte die Zuordnung laufen lassen';
   perform palette_zuordnung_setzen(array(select palette_id from palette_zuordnung where nach_charge_nr = v_b), 'zurueckgenommen');
   assert (select count(*) from palette where extern_id like 'pruef-0121-a%' and charge_nr = v_b) = 0,
     '0121 (f2): zurückgenommen, aber die Paletten liegen noch bei B';
