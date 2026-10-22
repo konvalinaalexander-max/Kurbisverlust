@@ -173,11 +173,14 @@ export function durchgang(d, heute) {
   // Charge läuft das Eingangsdatum darum vorwärts: Saison 2026 hatte über
   // 1869 Paletten genau zwei Rücksprünge, beide um Wochen — 1616 (31.07. →
   // 03.07.) und 1719 (22.10. → 02.10., 50 Paloxe, am 22.10. zwischen 08:33
-  // und 08:38 erfasst). Gemeldet wird je Rücksprung einmal, mit allen
-  // Paletten, die so weit zurück liegen, und dem Datum davor und danach:
-  // Unterscheidet sich das Datum von einem der beiden in einer Ziffer, ist
-  // es wohl vertippt. Berichtigt wird im Journal; der Abgleich beim Öffnen
-  // des Dashboards lässt bestehende Paletten stehen, „Jetzt vom Sheet holen"
+  // und 08:38 erfasst). 1719 stimmt: Die Paloxe kamen am 2. Oktober, als die
+  // App noch nicht bereit war, und wurden vom Papier nachgetragen (Betrieb,
+  // 22.10.). Ein Rücksprung ist also ein Nachtrag oder ein Tippfehler; die
+  // Meldung nennt beides. Gemeldet wird je Rücksprung einmal, mit allen
+  // Paletten, die so weit zurück liegen, und dem Datum davor und danach —
+  // eine Ziffer Unterschied zu einem der beiden spricht für einen
+  // Tippfehler. Berichtigt wird im Journal; der Abgleich beim Öffnen des
+  // Dashboards lässt bestehende Paletten stehen, „Jetzt vom Sheet holen"
   // unter Stammdaten übernimmt die Berichtigung über die ID (App).
   const eineZiffer = (a, b) => !!a && !!b && a.length === b.length && [...a].filter((z, i) => z !== b[i]).length === 1
   const jeChargeNachId = new Map()
@@ -201,8 +204,9 @@ export function durchgang(d, heute) {
         `Charge ${nr} · ${n === 1 ? `Palette ${lauf[0].id}` : `Palette ${lauf[0].id}–${lauf[n - 1].id}`}`,
         { paletten: n, eingang: daten.join(', '), davor, palette_davor: l[i - 1].id, danach, tage_zurueck: tage(davor, daten[0]), wohl },
         `${n === 1 ? '1 Palette' : `${n} Paletten`} mit Eingang ${daten.join(', ')}, erfasst nach Paletten vom ${davor} — ${tage(davor, daten[0])} Tage früher.`
-        + (wohl ? ` Eine Ziffer Unterschied zum ${wohl}: wohl vertippt.` : '')
-        + ' Im Journal berichtigen, dann unter Stammdaten „Jetzt vom Sheet holen".')
+        + ' Vom Papier nachgetragen? Dann stimmt es.'
+        + (wohl ? ` Sonst wohl vertippt (eine Ziffer Unterschied zum ${wohl}):` : ' Sonst')
+        + ' im Journal berichtigen, dann unter Stammdaten „Jetzt vom Sheet holen".')
       i = j
     }
   }

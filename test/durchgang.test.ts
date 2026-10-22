@@ -140,7 +140,9 @@ test('Eingangsdatum springt zurück: 02.10. nach 22.10. ist eine Ziffer — 03.0
   assert.equal(oe.werte.paletten, 3)
   assert.equal(oe.werte.tage_zurueck, 20)
   assert.equal(oe.werte.wohl, '2026-10-22')
-  assert.match(oe.warum, /3 Paletten mit Eingang 2026-10-02, erfasst nach Paletten vom 2026-10-22 — 20 Tage früher\. Eine Ziffer Unterschied zum 2026-10-22: wohl vertippt\./)
+  // Text geändert (22. Oktober): Die 50 Oettli-Paloxe vom 02.10. waren vom
+  // Papier nachgetragen, das Datum stimmte. Die Meldung nennt jetzt beides.
+  assert.match(oe.warum, /3 Paletten mit Eingang 2026-10-02, erfasst nach Paletten vom 2026-10-22 — 20 Tage früher\. Vom Papier nachgetragen\? Dann stimmt es\. Sonst wohl vertippt \(eine Ziffer Unterschied zum 2026-10-22\):/)
   assert.match(oe.warum, /Jetzt vom Sheet holen/)
   const sg = z.find(b => b.wo.startsWith('Charge 1616'))!
   assert.equal(sg.wo, 'Charge 1616 · Palette 11–12')
@@ -149,6 +151,7 @@ test('Eingangsdatum springt zurück: 02.10. nach 22.10. ist eine Ziffer — 03.0
   assert.equal(ohne.wo, 'Charge 1631 · Palette 31')
   assert.equal(ohne.werte.wohl, null)
   assert.doesNotMatch(ohne.warum, /vertippt/)
+  assert.match(ohne.warum, /Vom Papier nachgetragen\? Dann stimmt es\. Sonst im Journal berichtigen/)
   const zwei = z.filter(b => b.wo.startsWith('Charge 1650'))
   assert.equal(zwei.length, 1)
   assert.equal(zwei[0].wo, 'Charge 1650 · Palette 41–42')

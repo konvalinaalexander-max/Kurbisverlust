@@ -4198,11 +4198,19 @@ zurück, beide Male um Wochen: 1616 (25 Paletten 03.07. nach 31.07.) und
 erfasst). Kein einziger Rücksprung um einen oder zwei Tage — darum
 `datumZurueckTage` 3: Ein Nachtrag von gestern ist keiner, drei Tage
 zurück schon. Gemeldet wird je Lauf einmal, mit dem Datum davor und danach;
-unterscheidet es sich von einem der beiden in einer Ziffer, steht „wohl
-vertippt" dabei. Berichtigen kann nur der Betrieb, im Journal; der
+unterscheidet es sich von einem der beiden in einer Ziffer, spricht das für
+einen Tippfehler. Berichtigen kann nur der Betrieb, im Journal; der
 Abgleich beim Öffnen des Dashboards lässt bestehende Paletten stehen,
 „Jetzt vom Sheet holen" unter Stammdaten übernimmt die Berichtigung über
 die ID (App). Der Durchgang über den Abzug: 209 Kandidaten → 111.
+
+Der Betrieb zu 1719: „Das stimmt so — sie kamen rein, aber die App war noch
+nicht ready, deswegen waren sie zuerst auf Papier erfasst." Die 50 Paloxe
+kamen am 2. Oktober und wurden am 22. nachgetragen; das Datum stimmt, und
+auch die gleichen Gewichte hintereinander („zuerst von Hand erfasst, wird
+wohl stimmen"). Die erste Fassung der Meldung sagte bei einer Ziffer
+Unterschied „wohl vertippt" — hier falsch. Jetzt nennt sie beides: vom
+Papier nachgetragen, dann stimmt es; sonst vertippt.
 
 Dazu in der App: Die Stammdaten (Chargen, Gebinde, Kaliber) gelten auf dem
 Gerät fünf Minuten statt bis zum Neuladen. Ein Handy, das seit dem Vortag
@@ -4214,13 +4222,12 @@ Rücksprung zählt, nur die erste Palette des Laufs, Lauf nicht
 übersprungen (ein Lauf mit zwei Daten doppelt gemeldet).
 
 **Was bewusst nicht gemacht wurde.** Kein Datum berichtigt — die Daten
-gehören dem Betrieb. Die „Doppelte Palette" bleibt für Paloxe, wie sie ist:
-Bei 1637, 1638 und 1719 stehen auffällig oft zwei gleiche Gewichte direkt
-hintereinander (22 von 61 Nachbarn bei 1719, keiner bei den IFCO von
-1763). Zwei Paloxe zusammen gewogen und halbiert, oder doppelt erfasst —
-das weiss nur der Betrieb; je nach Antwort wird es eine Regel. Ebenso
-offen: Eine im Journal gelöschte Zeile bleibt in der App, kein Abgleich
-entfernt eine Palette.
+gehören dem Betrieb, und bei 1719 stimmen sie. Die „Doppelte Palette" bleibt
+für Paloxe, wie sie ist: Bei 1637, 1638 und 1719 stehen auffällig oft zwei
+gleiche Gewichte direkt hintereinander (22 von 61 Nachbarn bei 1719, keiner
+bei den IFCO von 1763); für 1719 sagt der Betrieb, es stimme. Kein Abgleich,
+der im Journal gelöschte Zeilen aus der App entfernt — der Betrieb: „lass
+es". Eine gelöschte Journalzeile bleibt also in der App.
 
 ## Nachtrag: Oettli und Trüeb kommen aus dem Erntejournal an (22. Oktober, 0120)
 

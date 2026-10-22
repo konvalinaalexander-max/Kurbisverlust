@@ -102,10 +102,10 @@ _310 Paletten sind Vervielfachungen einer Journalzeile („n Paletten gleich", e
 ## Schwere mittel (80)
 
 - **Eingangsdatum springt zurück** · Charge 1616 · Palette 6513–6537
-  - 25 Paletten mit Eingang 2026-07-03, erfasst nach Paletten vom 2026-07-31 — 28 Tage früher. Im Journal berichtigen, dann unter Stammdaten „Jetzt vom Sheet holen".
+  - 25 Paletten mit Eingang 2026-07-03, erfasst nach Paletten vom 2026-07-31 — 28 Tage früher. Vom Papier nachgetragen? Dann stimmt es. Sonst im Journal berichtigen, dann unter Stammdaten „Jetzt vom Sheet holen".
   - _paletten = 25 · eingang = 2026-07-03 · davor = 2026-07-31 · palette_davor = 6512 · danach = — · tage_zurueck = 28 · wohl = —_
 - **Eingangsdatum springt zurück** · Charge 1719 · Palette 8160–8209
-  - 50 Paletten mit Eingang 2026-10-02, erfasst nach Paletten vom 2026-10-22 — 20 Tage früher. Eine Ziffer Unterschied zum 2026-10-22: wohl vertippt. Im Journal berichtigen, dann unter Stammdaten „Jetzt vom Sheet holen".
+  - 50 Paletten mit Eingang 2026-10-02, erfasst nach Paletten vom 2026-10-22 — 20 Tage früher. Vom Papier nachgetragen? Dann stimmt es. Sonst wohl vertippt (eine Ziffer Unterschied zum 2026-10-22): im Journal berichtigen, dann unter Stammdaten „Jetzt vom Sheet holen".
   - _paletten = 50 · eingang = 2026-10-02 · davor = 2026-10-22 · palette_davor = 8159 · danach = — · tage_zurueck = 20 · wohl = 2026-10-22_
 - **Lieferung ohne Charge** · Lieferungen
   - 23 Lieferungen ohne Chargennummer — sie fehlen in jeder Chargenbilanz und im „Wohin" je Sorte. Unter Betrieb → Warenausgang die Charge nachtragen.
