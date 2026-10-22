@@ -171,7 +171,7 @@ test('Arbeit auf fremder Charge: fünf Zettel passen aufs Kilo zu einer anderen 
     ({ id, station: 'waschen_sortieren', charge_nr, start_ts: '2026-10-01T13:00:00Z', ende_ts: '2026-10-01T14:00:00Z', status: 'abgeschlossen' })
   const d = { ...leer(), gebinde,
     charge: [{ nr: 1625, schlag: 'Agasul Rüegg', sorte: 'Amoro' }, { nr: 1627, schlag: 'Agasul Rüegg', sorte: 'Fictor' },
-             { nr: 1630, schlag: 'Rümlang Keller', sorte: 'Kaori Kuri' }, { nr: 1631, schlag: 'Rümlang Keller', sorte: 'Mieluna' }],
+             { nr: 1630, schlag: 'Feld Ost', sorte: 'Kaori Kuri' }, { nr: 1631, schlag: 'Feld Ost', sorte: 'Mieluna' }],
     palette: [
       pal(1, 1625, 448), pal(2, 1625, 433), pal(3, 1625, 444), pal(4, 1625, 433), pal(5, 1625, 380), pal(6, 1625, 340),
       pal(10, 1630, 400, '2026-09-01'), pal(11, 1631, 401, '2026-09-01'), pal(12, 1631, 402, '2026-09-01'),
