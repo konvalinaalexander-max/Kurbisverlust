@@ -91,7 +91,12 @@ const SPALTEN: Record<string, string[]> = {
   extern_id: ['id app', 'id', 'palettenkennung', 'kennung'],
 }
 
-const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim()
+/** Vergleichsform: klein, Satzzeichen weg, Umlaute bleiben Umlaute (22. Oktober). Bis hier
+ *  wurde jeder Buchstabe ausserhalb a–z ein Leerzeichen: Ein ü, das als u + Trema ankommt
+ *  (je nach Tastatur oder Programm), wurde „tru eb" statt „tr eb", und die Zeile von Trüeb
+ *  fand ihre Charge nicht; „Trüb" und „Tröb" waren dasselbe. Jetzt erst NFC, dann alle
+ *  Buchstaben behalten. */
+const norm = (s: string) => s.normalize('NFC').toLowerCase().replace(/[^\p{L}\p{N} ]+/gu, ' ').replace(/\s+/g, ' ').trim()
 
 function findeSpalte(kopf: string[], feld: string): number {
   const namen = SPALTEN[feld]
@@ -208,7 +213,7 @@ export function importErkennen(text: string, chargen: ChargeRef[]): ImportBerich
       const schlag = f[idx.schlag] ?? '', sorte = f[idx.sorte] ?? ''
       chargeNr = chargeVon.get(`${norm(schlag)}|${norm(sorte)}`) ?? null
       if (chargeNr === null && (schlag.trim() || sorte.trim())) {
-        probleme.push(`Zeile ${zeileNr}: keine Charge für „${schlag.trim()} · ${sorte.trim()}" — unter Stammdaten → Chargen mit Nummer anlegen, Schlag und Sorte wie hier`)
+        probleme.push(`Zeile ${zeileNr}: keine Charge für „${schlag.trim()} · ${sorte.trim()}" — unter Stammdaten → Chargen mit Nummer anlegen, Schlag und Sorte wie im Journal`)
         continue
       }
     }
@@ -263,4 +268,27 @@ function zahl(roh: string | undefined): number | null {
   if (t === '') return null
   const n = Number(t)
   return Number.isFinite(n) ? n : null
+}
+
+/**
+ * Was der Abgleich beim Öffnen des Dashboards sagt (22. Oktober). Der Betrieb:
+ * „Ötli und Trüeb … im Google Sheet sind sie drin, aber sie kommen nicht in der
+ * Kürbis-App an." Gab es keine neue Palette, schwieg der Abgleich — auch wenn
+ * Zeilen keiner Charge zugeordnet werden konnten. Jetzt sagt er es, mit dem
+ * ersten Grund (ohne Zeilennummer, gleiche Gründe einmal).
+ */
+export function abgleichMeldung(neu: number, angelegt: number[], probleme: string[]): { art: 'gut' | 'warnung'; text: string } | null {
+  const gruende = [...new Set(probleme.map(p => p.replace(/^Zeile \d+:\s*/, '')))]
+  const beispiel = gruende.length ? ` (${gruende[0]}${gruende.length === 2 ? ' — und ein weiterer Grund' : gruende.length > 2 ? ` — und ${gruende.length - 1} weitere Gründe` : ''})` : ''
+  const zeilen = (n: number) => n === 1 ? 'eine Zeile' : `${n} Zeilen`
+  if (neu > 0) {
+    return { art: 'gut', text: `${neu === 1 ? '1 neue Palette' : `${neu} neue Paletten`} aus dem Erntejournal übernommen`
+      + (angelegt.length ? ` · ${angelegt.length === 1 ? 'eine neue Charge' : `${angelegt.length} neue Chargen`} angelegt (${angelegt.join(', ')})` : '')
+      + (probleme.length ? ` · ${zeilen(probleme.length)} ohne Charge${beispiel}` : '')
+      + '. Sie zählen ab der nächsten Rechnung — heute Nacht oder mit „Neu rechnen".' }
+  }
+  if (probleme.length) {
+    return { art: 'warnung', text: `Im Erntejournal ${probleme.length === 1 ? 'steht eine Zeile' : `stehen ${probleme.length} Zeilen`}, die die App keiner Charge zuordnen kann${beispiel}. ${probleme.length === 1 ? 'Sie kommt' : 'Sie kommen'} erst an, wenn es die Charge gibt.` }
+  }
+  return null
 }

@@ -34,6 +34,12 @@ zählte sie mit dem Mittel ihrer übrigen Paletten (auf der Kopie der
 Betriebsdaten 18 Holz-Palox, jetzt 4.8 t statt 7.4 t; Eingang 656.5 t →
 653.9 t).
 **Urteil:** ehrlich. Ein Ersatz aus derselben Charge, sichtbar benannt.
+**Welche Charge (0120):** Das Erntejournal führt keine Chargennummer; die
+Zeile findet ihre Charge über Schlag und Sorte im Register (`charge`, aus
+0003, Oettli und Trüeb aus 0120), verglichen ohne Gross/klein und Satzzeichen,
+Umlaute als Umlaute (`src/lib/import.ts`). Findet sie keine, wird sie nicht
+übernommen — nie einer geratenen Charge zugeschlagen —, und der Abgleich beim
+Öffnen des Dashboards sagt, welche Zeilen warten.
 
 ## 2. Die Masse einer Arbeit — der Nenner (`v_auftrag_masse`)
 

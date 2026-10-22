@@ -768,6 +768,11 @@ rechnen".**
 Danach zeigte die App noch den Fehler von vor dem Einspielen, obwohl der
 Zeitplan schon rechnete; jetzt steht „wird gebaut", bis die Zahlen da sind
 (AB-164). Dafür ist kein neues Einspielen nötig.
+**0120:** Oettli (1719, Kaori Kuri) und Trüeb (1763, Amoro) stehen im
+Chargenregister, geschrieben wie im Erntejournal; Journalzeilen, die keiner
+Charge zuzuordnen sind, meldet der Abgleich beim Öffnen (AB-165). **Der
+Betrieb spielt setup.sql einmal ein (Stand 120) und öffnet das Dashboard** —
+die Paletten kommen von selbst; danach „Neu rechnen".
 
 **Runde AT (0117)** — Kunden in der Reihenfolge des Betriebs. Unter
 **Lagermanagement nach Artikel** ordnen zwei Pfeile in der Gruppenzeile die

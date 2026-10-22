@@ -4171,6 +4171,56 @@ Daten, dann die Annahme — nach der Korrektur nachsehen.
 nicht alles: vier mal vier gleiche Paloxen und ein Tag mit 30 Paaren bei
 13 erwarteten sind Fragen wert.
 
+## Nachtrag: Oettli und Trüeb kommen aus dem Erntejournal an (22. Oktober, 0120)
+
+Der Betrieb: „Ötli und Trüb … in der Journal-App hinzugefügt, die
+Wareneingänge gemacht, im Google Sheet sind sie drin — aber sie kommen nicht
+in der Kürbis-App an. … Ich glaube, das Google Sheet hat gar keine
+Chargennummer. Wie erkennst du die Chargennummer?"
+
+Gar nicht aus dem Journal: Eine Journalzeile findet ihre Charge über Schlag
+und Sorte im Register (seit 0003). Die Nummern der neuen Schläge hatte der
+Betrieb in Runde AS genannt (Oettli 1719, Trüeb 1763); Runde AS hatte darauf
+den Import gelehrt, neue Chargen anzulegen, wenn das Journal eine Nummer
+führt — tut es nicht. Im Register standen die zwei nicht (Abzug vom 21.10.:
+42 Chargen), also blieben ihre Zeilen ohne Charge. Und der Abgleich beim
+Öffnen des Dashboards schwieg dazu: Gab es sonst keine neue Palette, kam
+keine Meldung.
+
+Auf die Frage nach der Sorte: Oettli liefert Kaori Kuri, Trüeb Amoro —
+beides Sorten, die die App kennt. Jetzt (0120) stehen 1719 = Oettli · Kaori
+Kuri und 1763 = Trüeb · Amoro im Register, geschrieben wie im Journal („so
+steht's im Journal, dann in der Kürbis-App auch so"). Hat der Betrieb eine
+der Nummern schon von Hand angelegt (etwa als „Trüb"), bekommt sie Schlag
+und Sorte des Journals; hält eine andere Nummer schon denselben Schlag mit
+derselben Sorte, bleibt alles, und setup.sql warnt. Nach dem Einspielen holt
+der Abgleich beim Öffnen des Dashboards die Zeilen von selbst.
+
+Dazu zwei Stellen, an denen die App verschlucken konnte: Der Abgleich sagt
+jetzt auch ohne neue Paletten, wie viele Journalzeilen keiner Charge
+zuzuordnen sind und warum (`abgleichMeldung`). Und Namen werden mit Umlauten
+verglichen: Bis hier wurde jedes ü ein Leerzeichen — ein ü, das als u +
+Trema ankommt, fand seine Charge nicht, und „Trüb" und „Tröb" waren
+dasselbe. Die bekannten Schläge (Rümlang, Rüegg) treffen wie bisher.
+
+**Mutationen.** Block 0120, 7 Mutationen, alle erkannt: „Trüb" statt
+„Trüeb", „Ötli" statt „Oettli", falsche Sorte, 1763 fehlt, falsche Saison,
+eine von Hand angelegte Schreibweise bleibt stehen, Stand nicht nachgezogen;
+dazu ohne Mutation: von Hand als „Trüb" angelegt, berichtigt. App: 6
+Mutationen, alle erkannt — ohne NFC, Umlaute wieder Leerzeichen, Meldung
+schweigt ohne Neues, Zeilennummer bleibt drin (`test/import.test.ts`);
+Abgleich wieder stumm, nur Zeilen ohne Charge melden „keine Palette erkannt"
+(Bildschirm `lager-journal-ohne-charge`). Block 0080 (e1) zählte fest 42
+Chargen; er vergleicht jetzt mit dem Register vor dem Leeren und sagt es im
+Kommentar.
+
+**Was bewusst nicht gemacht wurde.** Keine Charge aus der Journalzeile
+erraten: Ein neuer Schlag braucht seine Nummer vom Betrieb (Perigon), und
+eine neue Sorte ihre Grenzen. Die Perigon-Nr. der zwei Chargen ist nicht
+bekannt — nennt die Perigon-Datei sie mit einer 6-stelligen Nummer,
+steht sie unter „Charge nicht zugeordnet", bis sie unter Stammdaten →
+Chargen eingetragen ist.
+
 ## Nachtrag zu 0119: nach setup.sql zeigte die App den Fehler von vorher (21. Oktober)
 
 Der Betrieb spielte setup.sql (Stand 119) ein und las danach weiter: „Die

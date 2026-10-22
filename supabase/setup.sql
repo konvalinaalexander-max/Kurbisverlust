@@ -7655,8 +7655,29 @@ comment on function auswertung_schritt_intern(integer, boolean) is
   'sich rechnet_seit, der Zeitplan-Weg fasst auswertung_stand erst am Ende an; je Ansicht wird die Dauer notiert '
   '(auswertung_laufzeit, 0103). Schritt 3 rechnet seit 0107 auch erg_palox_erwartung, seit 0116 vor der Kaskade die Gewichtsverteilung beim Eingang (mv_kaliber_eingang, mv_kaliber_quelle). Seit 0119 hält ein eindeutiger Index, den die Daten nicht mehr hergeben, die Rechnung nicht an: er wird entfernt und in auswertung_index_entfernt notiert. Nur für den Betriebsleiter oder ohne Anmeldung.';
 
+-- aus 0120_oettli_und_trueeb_im_chargenregister.sql
+
+do $$
+declare r record; v_andere int;
+begin
+  for r in select * from (values (1719, 'Oettli', 'Kaori Kuri', 2026),
+                                 (1763, 'Trüeb',  'Amoro',      2026)) v(nr, schlag, sorte, saison)
+  loop
+    select nr into v_andere from charge
+     where schlag = r.schlag and sorte = r.sorte and saison = r.saison and nr <> r.nr;
+    if v_andere is not null then
+      raise warning 'Chargenregister: % · % (%) steht schon unter Charge %, nicht unter % — nichts geändert; unter Stammdaten → Chargen klären.',
+        r.schlag, r.sorte, r.saison, v_andere, r.nr;
+      continue;
+    end if;
+    insert into charge (nr, schlag, sorte, saison) values (r.nr, r.schlag, r.sorte, r.saison)
+    on conflict (nr) do update set schlag = excluded.schlag, sorte = excluded.sorte
+     where (charge.schlag, charge.sorte) is distinct from (excluded.schlag, excluded.sorte);
+  end loop;
+end $$;
+
 create or replace function schema_stand() returns int
-language sql immutable set search_path = public as $$ select 119 $$;
+language sql immutable set search_path = public as $$ select 120 $$;
 comment on function schema_stand is
   'Nummer der jüngsten eingespielten Migration. Die App vergleicht sie mit '
   'SCHEMA_ERWARTET (src/lib/version.ts) und verlangt bei Abweichung, setup.sql '

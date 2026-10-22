@@ -20,7 +20,7 @@ begin
   perform set_config('request.jwt.claims', json_build_object('sub', v_wer)::text, false);
 end $$;
 
--- ---------- Eingangspaletten: alle 42 Chargen, je ~120 -------------------
+-- ---------- Eingangspaletten: alle Chargen des Registers, je ~120 --------
 insert into palette (charge_nr, eingangsdatum, brutto_kg, kisten, gebindeart, extern_id)
 select c.nr,
        date '2026-09-01' + (i % 45),

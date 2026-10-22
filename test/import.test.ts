@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { importErkennen, tabelleLesen, datumLesen, gebindeNormalisieren } from '../src/lib/import.ts'
+import { abgleichMeldung, importErkennen, tabelleLesen, datumLesen, gebindeNormalisieren } from '../src/lib/import.ts'
 
 // Ausschnitt der echten Charge-Registry (§7)
 const CHARGEN = [
@@ -142,4 +142,59 @@ test('Paloxen heissen wie in der Gebinde-Tabelle, gleich wie man sie schreibt', 
   assert.equal(gebindeNormalisieren('Palox'), 'Palox', 'ohne Holz oder Plastik bleibt es, wie es steht')
   const b = importErkennen(MIT_NUMMER, CHARGEN)
   assert.deepEqual(b.paletten.map(p => p.gebindeart), ['G2', 'Holz Palox', 'Holz Palox', 'Plastik Palox'])
+})
+
+// 22. Oktober: „Ötli und Trüeb … im Google Sheet sind sie drin, aber sie kommen
+// nicht in der Kürbis-App an." Das Journal hat keine Chargennummer; 0120 trägt
+// Oettli · Kaori Kuri = 1719 und Trüeb · Amoro = 1763 ins Register ein,
+// geschrieben wie im Journal.
+const REGISTER_0120 = [...CHARGEN,
+  { nr: 1719, schlag: 'Oettli', sorte: 'Kaori Kuri' },
+  { nr: 1763, schlag: 'Trüeb', sorte: 'Amoro' }]
+const NEUE_SCHLAEGE = [
+  'Datum;Person;Schlag;Sorte;Gewicht brutto [kg];Anzahl Gebinde;Gebindeart (leer = G2);ID (App)',
+  '20.10.2026;Hans;Slowgrow Uster;Tiana;950;40;;o-1',
+  '20.10.2026;Hans;Oettli;Kaori Kuri;420;1;Holzpalox;o-2',
+  '21.10.2026;Eva;Trüeb;Amoro;380;1;Plastik-Palox;o-3',
+].join('\n')
+
+test('Oettli und Trüeb finden ihre Charge über Schlag und Sorte, wie im Journal geschrieben', () => {
+  const b = importErkennen(NEUE_SCHLAEGE, REGISTER_0120)
+  assert.deepEqual(b.probleme, [])
+  assert.deepEqual(b.paletten.map(p => p.charge_nr), [1613, 1719, 1763])
+  assert.deepEqual(b.neueChargen, [], 'die Chargen stehen im Register, angelegt wird nichts')
+})
+
+test('ein ü, das als u + Trema ankommt, ist dasselbe ü', () => {
+  const zerlegt = NEUE_SCHLAEGE.replace('Trüeb', 'Tru\u0308eb')
+  assert.notEqual(zerlegt, NEUE_SCHLAEGE)
+  const b = importErkennen(zerlegt, REGISTER_0120)
+  assert.deepEqual(b.probleme, [])
+  assert.equal(b.paletten[2].charge_nr, 1763)
+  // und ein anderer Umlaut ist ein anderer Schlag
+  const anders = importErkennen(NEUE_SCHLAEGE.replace('Trüeb', 'Tröeb'), REGISTER_0120)
+  assert.equal(anders.paletten.length, 2)
+  assert.match(anders.probleme[0], /Tröeb · Amoro/)
+})
+
+test('ohne Register-Eintrag schweigt der Abgleich nicht, auch wenn sonst nichts neu ist', () => {
+  const b = importErkennen(NEUE_SCHLAEGE, CHARGEN)
+  assert.equal(b.probleme.length, 2)
+  const m = abgleichMeldung(0, [], b.probleme)
+  assert.equal(m?.art, 'warnung')
+  assert.match(m?.text ?? '', /stehen 2 Zeilen, die die App keiner Charge zuordnen kann/)
+  assert.match(m?.text ?? '', /Oettli · Kaori Kuri/)
+  assert.match(m?.text ?? '', /und ein weiterer Grund/)
+  assert.doesNotMatch(m?.text ?? '', /Zeile \d+:/, 'die Zeilennummer gehört nicht in die Meldung beim Öffnen')
+  assert.match(m?.text ?? '', /Sie kommen erst an/)
+  assert.match(abgleichMeldung(0, [], [b.probleme[0]])?.text ?? '', /steht eine Zeile.*Sie kommt erst an/)
+})
+
+test('der Abgleich sagt, was neu ist, und nichts, wenn nichts ist', () => {
+  assert.equal(abgleichMeldung(0, [], []), null)
+  const gut = abgleichMeldung(3, [1719], [])
+  assert.equal(gut?.art, 'gut')
+  assert.match(gut?.text ?? '', /^3 neue Paletten aus dem Erntejournal übernommen · eine neue Charge angelegt \(1719\)\./)
+  const beides = abgleichMeldung(1, [], ['Zeile 7: keine Charge für „X · Y"'])
+  assert.match(beides?.text ?? '', /^1 neue Palette .* · eine Zeile ohne Charge \(keine Charge für „X · Y"\)/)
 })

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { chargenAnlegen, einstellung, fehlerText, stammdaten } from '../lib/db'
-import { importErkennen } from '../lib/import'
+import { abgleichMeldung, importErkennen } from '../lib/import'
 import { Hinweis } from '../components/Bausteine'
 
 /** Nicht öfter als alle zehn Minuten je Gerät — das Sheet ist geduldig, aber nicht unendlich. */
@@ -47,7 +47,8 @@ export function JournalAbgleich() {
         const b = importErkennen(csv, chargen)
         try { localStorage.setItem(MERKZETTEL, String(Date.now())) } catch { /* dann eben jedes Mal */ }
         if (!lebt) return
-        if (b.paletten.length === 0) { setMeldung({ art: 'warnung', text: 'Erntejournal geholt, aber keine Palette erkannt — bitte unter Stammdaten nachsehen.' }); return }
+        // 22. Oktober: Stehen nur Zeilen ohne Charge da, sagt das die Meldung unten mit dem Grund.
+        if (b.paletten.length === 0 && b.probleme.length === 0) { setMeldung({ art: 'warnung', text: 'Erntejournal geholt, aber keine Palette erkannt — bitte unter Stammdaten nachsehen.' }); return }
         // Nur, was es noch nicht gibt: erst nachsehen, dann anlegen — der
         // Upsert mit ignoreDuplicates täte dasselbe, sagt aber nicht, wie viele.
         // Runde AD: nicht mehr 500 Kennungen in einer Adresszeile (17 KB, am
@@ -61,7 +62,8 @@ export function JournalAbgleich() {
           if ((data ?? []).length < 1000) break
         }
         const neue = b.paletten.filter(z => !bekannt.has(z.extern_id))
-        if (neue.length === 0) return
+        // 22. Oktober: nichts Neues heisst nicht nichts zu sagen — Zeilen ohne Charge kommen sonst nie an.
+        if (neue.length === 0) { if (lebt) setMeldung(abgleichMeldung(0, [], b.probleme)); return }
         // Runde AS: eine Charge, die das Journal neu nennt, zuerst anlegen.
         const nrNeu = new Set(neue.map(z => z.charge_nr))
         const angelegt = await chargenAnlegen(b.neueChargen.filter(c => nrNeu.has(c.nr)))
@@ -77,7 +79,7 @@ export function JournalAbgleich() {
         }
         void stammdaten(true)
         if (!lebt) return
-        setMeldung({ art: 'gut', text: `${neue.length === 1 ? '1 neue Palette' : `${neue.length} neue Paletten`} aus dem Erntejournal übernommen${angelegt ? ` · ${angelegt === 1 ? 'eine neue Charge' : `${angelegt} neue Chargen`} angelegt (${b.neueChargen.filter(c => nrNeu.has(c.nr)).map(c => c.nr).join(', ')})` : ''}${b.probleme.length ? ` · ${b.probleme.length} Zeilen nicht erkannt (unter Stammdaten nachsehen)` : ''}. Sie zählen ab der nächsten Rechnung — heute Nacht oder mit „Neu rechnen".` })
+        setMeldung(abgleichMeldung(neue.length, angelegt ? b.neueChargen.filter(c => nrNeu.has(c.nr)).map(c => c.nr) : [], b.probleme))
       } catch (f) {
         // Was genau scheiterte, steht dabei — „Bad Request" allein half niemandem.
         const e = f as { status?: number; code?: string; details?: string } | null

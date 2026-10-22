@@ -4856,12 +4856,14 @@ select '——— Vorbelegung kisten_pro_palette geprüft ———' as ergebnis
 do $$
 declare
   v_charge    int;
+  v_chargen0  bigint;
   v_pal       bigint; v_auf bigint; v_lief bigint;
   v_journal0  bigint; v_journal1 bigint;
   v_txt       text;
   v_fehler    text;
 begin
   select nr into v_charge from charge order by nr limit 1;
+  select count(*) into v_chargen0 from charge;
 
   -- (a) Etwas zu löschen anlegen — eine Palette, eine Arbeit, eine Lieferung.
   insert into palette (charge_nr, eingangsdatum, kisten, brutto_kg, gebindeart)
@@ -4931,8 +4933,10 @@ begin
 
   -- (e) Die Stammdaten sind unberührt. Ohne sie wäre die App nach dem
   --     Leeren nicht leer, sondern kaputt.
-  assert (select count(*) from charge) = 42,
-    format('0080 (e1): von 42 Chargen sind %s übrig', (select count(*) from charge));
+  -- Seit 0120 stehen 44 Chargen im Register (Oettli 1719, Trüeb 1763), nicht
+  -- mehr 42: verglichen wird mit dem Register vor dem Leeren, nicht mit einer Zahl.
+  assert v_chargen0 >= 44 and (select count(*) from charge) = v_chargen0,
+    format('0080 (e1): von %s Chargen sind %s übrig', v_chargen0, (select count(*) from charge));
   assert (select count(*) from sorte_kaliber) > 0, '0080 (e2): die Sorten sind weg';
   assert (select count(*) from gebinde) > 0,       '0080 (e3): die Gebinde sind weg';
   assert (select count(*) from profil) > 0,        '0080 (e4): die Konten sind weg';
@@ -10230,3 +10234,28 @@ begin
 end $$;
 
 select '——— 0119 Zwei Sortierschemata für eine Charge halten die Rechnung nicht an ———' as ergebnis;
+
+-- =====================================================================
+-- 0120 — Oettli und Trüeb im Chargenregister
+--
+-- Das Erntejournal führt keine Chargennummer; die App findet die Charge
+-- einer Journalzeile über Schlag und Sorte (src/lib/import.ts, Tests in
+-- test/import.test.ts). Hier: (a) die zwei neuen Schläge stehen im Register,
+-- mit Nummer, Sorte und Saison und geschrieben wie im Journal — sonst fände
+-- der Abgleich ihre Zeilen nicht; (b) Stand 120.
+-- =====================================================================
+do $$
+declare r record;
+begin
+  for r in select * from (values (1719, 'Oettli', 'Kaori Kuri'), (1763, 'Trüeb', 'Amoro')) v(nr, schlag, sorte) loop
+    assert exists (select 1 from charge c where c.nr = r.nr and c.schlag = r.schlag and c.sorte = r.sorte and c.saison = 2026),
+      format('0120 (a1): Charge %s ist nicht %s · %s (2026), sondern %s', r.nr, r.schlag, r.sorte,
+             coalesce((select format('%s · %s (%s)', c.schlag, c.sorte, c.saison) from charge c where c.nr = r.nr), 'nicht im Register'));
+    assert (select count(*) from charge c where c.schlag = r.schlag and c.sorte = r.sorte and c.saison = 2026) = 1,
+      format('0120 (a2): %s · %s steht mehr als einmal im Register — der Abgleich wüsste nicht, welche Charge', r.schlag, r.sorte);
+  end loop;
+  assert schema_stand() >= 120, format('0120 (b1): schema_stand() = %s', schema_stand());
+  raise notice 'OK  0120 — Oettli · Kaori Kuri = 1719 und Trüeb · Amoro = 1763 stehen im Register, geschrieben wie im Journal';
+end $$;
+
+select '——— 0120 Oettli und Trüeb im Chargenregister ———' as ergebnis;

@@ -48,6 +48,8 @@ let geschrieben = {}
 let naechsteId = 90001
 /** Vor jedem Bildschirm: das Gedächtnis leeren, damit nur die Fixtures gelten. */
 export function vergessen() { geschrieben = {} }
+/** Für einen Bildschirm Zeilen vormerken, als hätte die App sie geschrieben (22. Oktober: die Journal-Adresse). */
+export function vormerken(name, zeilen) { geschrieben[name] = [...(geschrieben[name] ?? []), ...zeilen] }
 
 /** Welche Tabellen ein Lauf angefragt hat, ohne dass es ein Fixture gab. */
 export const fehlendeFixtures = new Set()

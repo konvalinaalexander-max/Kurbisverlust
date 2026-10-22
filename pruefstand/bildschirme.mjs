@@ -19,7 +19,7 @@ import { createServer } from 'vite'
 import { mkdirSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { CHROMIUM, authAntwort, fehlendeFixtures, fixture, restAntwort, vergessen } from './attrappe.mjs'
+import { CHROMIUM, authAntwort, fehlendeFixtures, fixture, restAntwort, vergessen, vormerken } from './attrappe.mjs'
 
 const HIER = dirname(fileURLToPath(import.meta.url))
 const BILDER = join(HIER, 'bilder')
@@ -229,6 +229,19 @@ const BILDSCHIRME = [
   // rufen `lager_kaliber(h)` und `kaliber_glocke(h)` je Stichtag; die Attrappe
   // hat dafür eigene Fixtures, damit „in 6 Wochen" nicht heute zeigt.
   { name: 'lager', wer: 'admin', pfad: '/dashboard' },
+  // 22. Oktober: „Ötli und Trüeb … im Google Sheet sind sie drin, aber sie kommen
+  // nicht in der Kürbis-App an." Eine Journalzeile, die keiner Charge zuzuordnen
+  // ist, meldet der Abgleich beim Öffnen — auch wenn sonst nichts neu ist.
+  // (Ein erfundener Schlag, damit das Bild nicht vom Stand der Fixtures abhängt.)
+  { name: 'lager-journal-ohne-charge', wer: 'admin', pfad: '/dashboard',
+    journal: ['Datum;Person;Schlag;Sorte;Gewicht brutto [kg];Anzahl Gebinde;Gebindeart (leer = G2);ID (App)',
+              '20.10.2026;Hans;Neuer Schlag;Kaori Kuri;420;1;Holzpalox;pruef-j-1'].join('\n'),
+    tun: async p => {
+      const h = p.locator('.hinweis', { hasText: 'keiner Charge zuordnen' })
+      await h.waitFor({ timeout: 15000 })
+      const t = await h.innerText()
+      if (!t.includes('Neuer Schlag · Kaori Kuri') || /Zeile \d+:/.test(t)) throw new Error(`Journal-Hinweis: „${t}"`)
+    } },
   { name: 'lager-sorte', wer: 'admin', pfad: '/dashboard',
     tun: async p => { await waehleGruppe(p, 'sorte', 'lager-filter') } },
   { name: 'lager-charge', wer: 'admin', pfad: '/dashboard',
@@ -679,6 +692,11 @@ for (const geraet of GERAETE) {
       await seite.route('**/rest/v1/**', r => restAntwort(r).catch(() => r.abort()))
       await seite.route('**/auth/v1/**', r => authAntwort(r, schirm.wer).catch(() => r.abort()))
       await seite.route('**/storage/v1/**', r => r.fulfill({ json: {} }))
+      // 22. Oktober: ein Erntejournal für den Abgleich beim Öffnen, wo der Bildschirm eines mitbringt
+      if (schirm.journal) {
+        vormerken('einstellung', [{ schluessel: 'journal_csv_url', wert: 'https://journal.pruefstand.test/ertragsjournal.csv' }])
+        await seite.route('https://journal.pruefstand.test/**', r => r.fulfill({ status: 200, contentType: 'text/csv', body: schirm.journal }))
+      }
 
       // Sprache + Anmeldung vorbereiten, bevor die App lädt
       await seite.addInitScript(({ wer, frisch, sprache }) => {
