@@ -4171,6 +4171,57 @@ Daten, dann die Annahme — nach der Korrektur nachsehen.
 nicht alles: vier mal vier gleiche Paloxen und ein Tag mit 30 Paaren bei
 13 erwarteten sind Fragen wert.
 
+## Nachtrag: der Durchgang kennt den Palox und das Datum, das zurückspringt (22. Oktober)
+
+Nach 0120 kamen die Oettli- und Trüeb-Zeilen an (Abzug vom 22.10.: 62
+Paloxe auf 1719, 8 IFCO-Paletten auf 1763, Gebinde und Kisten wie im
+Journal). Der Durchgang darüber zeigte zwei Stellen, an denen das Programm
+falsch oder gar nicht hinsah.
+
+**Ein Palox ist keine Kiste.** Die Grenze „4–30 kg netto je Kiste" gilt für
+G2 und IFCO. Solange die Paloxe keine Tara hatten, blieben sie aussen vor
+(„Gebinde ohne Tara"); seit Runde AS (Holz 45 kg, Plastik 35 kg) mass die
+Kistengrenze jeden Palox — 100 Meldungen im Abzug, alle Palox (1637, 1638,
+1719), keine einzige ein Fehler. Jetzt hat ein Palox seinen eigenen Rahmen
+in `GRENZEN`: `paloxNettoMin` 50 kg (darunter ist er kaum belegt — die Tara
+allein gewogen, oder eine Ziffer fehlt: 31 statt 311) und oben `paloxKgMax`
+1000 kg, die Grenze, die schon für das Faule im Palox galt. Die Saison zeigt
+253–341 kg netto je Palox. Ins Kistenmittel der Charge (Zettel gegen
+Charge) zählt ein Palox nicht: Der Zettel zählt Kisten, und 1637/1638 haben
+beides.
+
+**Ein Eingangsdatum, das zurückspringt.** Das Journal wird der Reihe nach
+erfasst, der Abgleich legt die Paletten in dieser Reihenfolge an. Über 1869
+Paletten der Saison springt das Datum innerhalb einer Charge genau zweimal
+zurück, beide Male um Wochen: 1616 (25 Paletten 03.07. nach 31.07.) und
+1719 (50 Paloxe 02.10. nach 22.10., am 22.10. zwischen 08:33 und 08:38
+erfasst). Kein einziger Rücksprung um einen oder zwei Tage — darum
+`datumZurueckTage` 3: Ein Nachtrag von gestern ist keiner, drei Tage
+zurück schon. Gemeldet wird je Lauf einmal, mit dem Datum davor und danach;
+unterscheidet es sich von einem der beiden in einer Ziffer, steht „wohl
+vertippt" dabei. Berichtigen kann nur der Betrieb, im Journal; der
+Abgleich beim Öffnen des Dashboards lässt bestehende Paletten stehen,
+„Jetzt vom Sheet holen" unter Stammdaten übernimmt die Berichtigung über
+die ID (App). Der Durchgang über den Abzug: 209 Kandidaten → 111.
+
+Dazu in der App: Die Stammdaten (Chargen, Gebinde, Kaliber) gelten auf dem
+Gerät fünf Minuten statt bis zum Neuladen. Ein Handy, das seit dem Vortag
+offen war, kannte 1719 und 1763 nicht.
+
+**Mutationen.** 6, alle erkannt (`test/durchgang.test.ts`): Palox wieder
+mit der Kistengrenze, Palox im Kistenmittel, Ziffer nie erkannt, jeder
+Rücksprung zählt, nur die erste Palette des Laufs, Lauf nicht
+übersprungen (ein Lauf mit zwei Daten doppelt gemeldet).
+
+**Was bewusst nicht gemacht wurde.** Kein Datum berichtigt — die Daten
+gehören dem Betrieb. Die „Doppelte Palette" bleibt für Paloxe, wie sie ist:
+Bei 1637, 1638 und 1719 stehen auffällig oft zwei gleiche Gewichte direkt
+hintereinander (22 von 61 Nachbarn bei 1719, keiner bei den IFCO von
+1763). Zwei Paloxe zusammen gewogen und halbiert, oder doppelt erfasst —
+das weiss nur der Betrieb; je nach Antwort wird es eine Regel. Ebenso
+offen: Eine im Journal gelöschte Zeile bleibt in der App, kein Abgleich
+entfernt eine Palette.
+
 ## Nachtrag: Oettli und Trüeb kommen aus dem Erntejournal an (22. Oktober, 0120)
 
 Der Betrieb: „Ötli und Trüb … in der Journal-App hinzugefügt, die

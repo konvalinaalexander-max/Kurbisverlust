@@ -96,6 +96,66 @@ test('Gebinde ohne Tara: ein Holz-Palox mit 318 kg ist keine 291-kg-Kiste, sonde
   assert.equal(g.find(b => b.wo === 'Gebindeart Holz Palox')!.werte.paletten, 2)
 })
 
+test('Palox mit Tara: 311 kg brutto sind 276 kg in einem Palox, keine 276-kg-Kiste — 31 kg sind vertippt; ins Kistenmittel zählt er nicht', () => {
+  // Regel geändert (22. Oktober): Seit die Paloxe ihre Tara haben (Runde AS),
+  // mass sie die Kistengrenze 4–30 kg — 100 Meldungen im Abzug, alle Palox.
+  // Ein Palox hat jetzt seinen eigenen Rahmen (50–1000 kg netto).
+  const d = { ...leer(), gebinde: [...gebinde, { art: 'Plastik Palox', tara_kg_pro_kiste: 35, tara_kg_palette: 0 }, { art: 'Holz Palox', tara_kg_pro_kiste: 45, tara_kg_palette: 0 }],
+    palette: [
+      { id: 1, charge_nr: 1719, eingangsdatum: '2026-10-22', brutto_kg: 311, kisten: 1, gebindeart: 'Plastik Palox' },
+      { id: 2, charge_nr: 1637, eingangsdatum: '2026-10-22', brutto_kg: 304, kisten: 1, gebindeart: 'Holz Palox' },
+      { id: 3, charge_nr: 1719, eingangsdatum: '2026-10-22', brutto_kg: 31, kisten: 1, gebindeart: 'Plastik Palox' },   // 311 ohne die 1
+      // dieselbe Charge auch in G2: 470 kg auf 36 Kisten, 11.4 kg je Kiste
+      { id: 4, charge_nr: 1637, eingangsdatum: '2026-10-21', brutto_kg: 470, kisten: 36, gebindeart: 'G2' },
+    ],
+    auftrag: [{ id: 1, station: 'sortieren', charge_nr: 1637, start_ts: '2026-10-22T08:00:00Z', ende_ts: '2026-10-22T09:00:00Z', status: 'abgeschlossen' }],
+    auftrag_palette: [{ id: 1, auftrag_id: 1, palette_id: null, brutto_zettel_kg: 470, kisten: 36, gebindeart: 'G2', eingangsdatum: '2026-10-21' }],
+  }
+  const erg = durchgang(d, '2026-10-22')
+  const g = erg.befunde.filter(b => b.pruefung === 'Eingang Gewicht je Kiste')
+  assert.equal(g.length, 1)
+  assert.equal(g[0].wo, 'Palette 3 · Charge 1719 · 2026-10-22')
+  assert.match(g[0].warum, /je Palox — ausserhalb von 50–1000 kg/)
+  // Der Holz-Palox (259 kg netto) zieht das Kistenmittel von 1637 nicht hoch:
+  // der G2-Zettel trifft es genau.
+  assert.ok(!arten(erg).includes('Zettelgewicht'))
+})
+
+test('Eingangsdatum springt zurück: 02.10. nach 22.10. ist eine Ziffer — 03.07. zwischen 31.07. und 03.08. auch; ein Tag Nachtrag ist keiner', () => {
+  const p = (id: number, charge_nr: number, eingangsdatum: string) => ({ id, charge_nr, eingangsdatum, brutto_kg: 470, kisten: 36, gebindeart: 'G2' })
+  const d = { ...leer(), gebinde,
+    palette: [
+      p(1, 1719, '2026-10-22'), p(2, 1719, '2026-10-22'), p(3, 1719, '2026-10-02'), p(4, 1719, '2026-10-02'), p(5, 1719, '2026-10-02'),
+      p(10, 1616, '2026-07-31'), p(11, 1616, '2026-07-03'), p(12, 1616, '2026-07-03'), p(13, 1616, '2026-08-03'),
+      p(20, 1630, '2026-09-10'), p(21, 1630, '2026-09-09'), p(22, 1630, '2026-09-11'),   // gestern nachgetragen: normal
+      p(30, 1631, '2026-09-20'), p(31, 1631, '2026-08-28'), p(32, 1631, '2026-09-21'),   // drei Wochen, mehr als eine Ziffer
+      p(40, 1650, '2026-10-22'), p(41, 1650, '2026-10-12'), p(42, 1650, '2026-10-02'),   // ein Lauf mit zwei Daten: einmal gemeldet
+    ],
+  }
+  const erg = durchgang(d, '2026-10-22')
+  const z = erg.befunde.filter(b => b.pruefung === 'Eingangsdatum springt zurück')
+  assert.equal(z.length, 4)
+  const oe = z.find(b => b.wo.startsWith('Charge 1719'))!
+  assert.equal(oe.wo, 'Charge 1719 · Palette 3–5')
+  assert.equal(oe.werte.paletten, 3)
+  assert.equal(oe.werte.tage_zurueck, 20)
+  assert.equal(oe.werte.wohl, '2026-10-22')
+  assert.match(oe.warum, /3 Paletten mit Eingang 2026-10-02, erfasst nach Paletten vom 2026-10-22 — 20 Tage früher\. Eine Ziffer Unterschied zum 2026-10-22: wohl vertippt\./)
+  assert.match(oe.warum, /Jetzt vom Sheet holen/)
+  const sg = z.find(b => b.wo.startsWith('Charge 1616'))!
+  assert.equal(sg.wo, 'Charge 1616 · Palette 11–12')
+  assert.equal(sg.werte.wohl, '2026-08-03')
+  const ohne = z.find(b => b.wo.startsWith('Charge 1631'))!
+  assert.equal(ohne.wo, 'Charge 1631 · Palette 31')
+  assert.equal(ohne.werte.wohl, null)
+  assert.doesNotMatch(ohne.warum, /vertippt/)
+  const zwei = z.filter(b => b.wo.startsWith('Charge 1650'))
+  assert.equal(zwei.length, 1)
+  assert.equal(zwei[0].wo, 'Charge 1650 · Palette 41–42')
+  assert.equal(zwei[0].werte.eingang, '2026-10-02, 2026-10-12')
+  assert.equal(zwei[0].werte.wohl, null)
+})
+
 const chargen = [{ nr: 1613, sorte: 'Tiana' }, { nr: 1632, sorte: 'Tiana' }, { nr: 1651, sorte: 'Kaori Kuri' }]
 const arbeit = (id: number, charge: number) => ({ id, weg: 'hand', station: 'waschen_sortieren', charge_nr: charge, start_ts: '2026-09-24T08:00:00Z', ende_ts: '2026-09-24T12:00:00Z', status: 'abgeschlossen' })
 

@@ -60,7 +60,9 @@ export const GRENZEN = {
   zettelAbweichung: 0.4,                   // Zettelgewicht gegen das Chargenmittel
   rateMaxProTag: 0.01,                     // Verdunstung: darüber ist es keine
   schwererAb: 0.005,                       // mehr als ein halbes Prozent schwerer: keine Verdunstung, ein Fehler
-  paloxKgMax: 1000,                        // mehr Faules hat kein Palox
+  paloxKgMax: 1000,                        // mehr Faules hat kein Palox — und mehr Kürbis auch nicht
+  paloxNettoMin: 50,                       // ein Palox am Eingang: darunter ist er kaum belegt — Tara allein gewogen oder vertippt
+  datumZurueckTage: 3,                     // Eingang einer Charge, der so weit hinter die Palette davor fällt: vertippt
   ausschussKisteMax: 60,                   // eine einzelne Kiste
   arbeitStundenMax: 16,
   saisonVorlaufTage: 60,
@@ -89,6 +91,8 @@ function taraVon(gebinde) {
 const journalBasis = p => { const m = /^(.*)#\d+$/.exec(String(p?.extern_id ?? '')); return m ? m[1] : null }
 const netto = (brutto, kisten, t, mitPalette = true) =>
   brutto == null || kisten == null ? null : Number(brutto) - Number(kisten) * t.kiste - (mitPalette ? t.palette : 0)
+/** Ein Palox ist ein Gebinde ohne Palette, eine „Kiste" mit 250–350 kg (Runde AS). */
+const istPalox = art => /palox/i.test(String(art ?? ''))
 
 /**
  * Alle Prüfungen über die Tabellen. `heute` als ISO-Tag, damit der Durchgang
@@ -141,11 +145,20 @@ export function durchgang(d, heute) {
         `${p.kisten} Kisten auf einer Palette — das gibt es nicht; vermutlich vertippt.`)
     } else if (n != null && p.kisten > 0) {
       const je = n / p.kisten
-      if (je < GRENZEN.kgJeKisteMin || je > GRENZEN.kgJeKisteMax) {
+      // Ein Palox hat seinen eigenen Rahmen. Bis Runde AS fehlte seine Tara und
+      // er blieb hier aussen vor; seit er sie hat, mass ihn die Kistengrenze
+      // 4–30 kg — der Abzug vom 22. Oktober meldete 100 Paloxe (1637, 1638,
+      // 1719), keinen einzigen Fehler. Ins Kistenmittel der Charge (Abschnitt 4,
+      // Zettel gegen Charge) gehört er nicht: Der Zettel zählt Kisten.
+      const palox = istPalox(p.gebindeart)
+      const [min, max] = palox ? [GRENZEN.paloxNettoMin, GRENZEN.paloxKgMax] : [GRENZEN.kgJeKisteMin, GRENZEN.kgJeKisteMax]
+      if (je < min || je > max) {
         melden('Eingang Gewicht je Kiste', 'mittel', `Palette ${p.id} · Charge ${p.charge_nr} · ${tag(p.eingangsdatum)}`,
-          { brutto_kg: Number(p.brutto_kg), kisten: p.kisten, netto_je_kiste_kg: r1(je) },
-          `${r1(je)} kg netto je Kiste — ausserhalb von ${GRENZEN.kgJeKisteMin}–${GRENZEN.kgJeKisteMax} kg. Einheit (kg statt g?), Zahlendreher oder falsche Kistenzahl.`)
-      } else {
+          { brutto_kg: Number(p.brutto_kg), kisten: p.kisten, gebindeart: p.gebindeart ?? null, netto_je_kiste_kg: r1(je) },
+          palox
+            ? `${r1(je)} kg netto je Palox — ausserhalb von ${min}–${max} kg. Einheit (kg statt g?), Zahlendreher oder falsche Anzahl Gebinde.`
+            : `${r1(je)} kg netto je Kiste — ausserhalb von ${min}–${max} kg. Einheit (kg statt g?), Zahlendreher oder falsche Kistenzahl.`)
+      } else if (!palox) {
         const l = kgJeKisteJeCharge.get(p.charge_nr) ?? []; l.push(je); kgJeKisteJeCharge.set(p.charge_nr, l)
       }
     }
@@ -153,6 +166,46 @@ export function durchgang(d, heute) {
   for (const [art, o] of ohneTara)
     melden('Gebinde ohne Tara', 'mittel', `Gebindeart ${art}`, { paletten: o.n, brutto_kg: r1(o.brutto_kg), chargen: [...o.chargen].join(', ') },
       `${o.n} Paletten (${r1(o.brutto_kg)} kg brutto) in einem Gebinde, dessen Leergewicht die Stammdaten nicht kennen — ihr Netto ist geschätzt, nicht gewogen. Unter Betrieb → Stammdaten die Tara eintragen; ein Palox zählt als eine „Kiste" mit seinem eigenen Leergewicht.`)
+
+  // ---- 2b. Eingangsdatum springt zurück -----------------------------------
+  // Das Journal wird der Reihe nach erfasst, und der Abgleich legt die
+  // Paletten in dieser Reihenfolge an (aufsteigende id). Innerhalb einer
+  // Charge läuft das Eingangsdatum darum vorwärts: Saison 2026 hatte über
+  // 1869 Paletten genau zwei Rücksprünge, beide um Wochen — 1616 (31.07. →
+  // 03.07.) und 1719 (22.10. → 02.10., 50 Paloxe, am 22.10. zwischen 08:33
+  // und 08:38 erfasst). Gemeldet wird je Rücksprung einmal, mit allen
+  // Paletten, die so weit zurück liegen, und dem Datum davor und danach:
+  // Unterscheidet sich das Datum von einem der beiden in einer Ziffer, ist
+  // es wohl vertippt. Berichtigt wird im Journal; der Abgleich beim Öffnen
+  // des Dashboards lässt bestehende Paletten stehen, „Jetzt vom Sheet holen"
+  // unter Stammdaten übernimmt die Berichtigung über die ID (App).
+  const eineZiffer = (a, b) => !!a && !!b && a.length === b.length && [...a].filter((z, i) => z !== b[i]).length === 1
+  const jeChargeNachId = new Map()
+  for (const p of [...T('palette')].sort((a, b) => a.id - b.id)) {
+    if (!tag(p.eingangsdatum)) continue
+    const l = jeChargeNachId.get(p.charge_nr) ?? []; l.push(p); jeChargeNachId.set(p.charge_nr, l)
+  }
+  for (const [nr, l] of jeChargeNachId) {
+    for (let i = 1; i < l.length; i++) {
+      const davor = tag(l[i - 1].eingangsdatum)
+      const zurueck = q => tage(davor, q.eingangsdatum) >= GRENZEN.datumZurueckTage
+      if (!zurueck(l[i])) continue
+      let j = i
+      while (j + 1 < l.length && zurueck(l[j + 1])) j++
+      const lauf = l.slice(i, j + 1)
+      const danach = j + 1 < l.length ? tag(l[j + 1].eingangsdatum) : null
+      const daten = [...new Set(lauf.map(p => tag(p.eingangsdatum)))].sort()
+      const wohl = daten.length === 1 ? [davor, danach].find(x => eineZiffer(x, daten[0])) ?? null : null
+      const n = lauf.length
+      melden('Eingangsdatum springt zurück', 'mittel',
+        `Charge ${nr} · ${n === 1 ? `Palette ${lauf[0].id}` : `Palette ${lauf[0].id}–${lauf[n - 1].id}`}`,
+        { paletten: n, eingang: daten.join(', '), davor, palette_davor: l[i - 1].id, danach, tage_zurueck: tage(davor, daten[0]), wohl },
+        `${n === 1 ? '1 Palette' : `${n} Paletten`} mit Eingang ${daten.join(', ')}, erfasst nach Paletten vom ${davor} — ${tage(davor, daten[0])} Tage früher.`
+        + (wohl ? ` Eine Ziffer Unterschied zum ${wohl}: wohl vertippt.` : '')
+        + ' Im Journal berichtigen, dann unter Stammdaten „Jetzt vom Sheet holen".')
+      i = j
+    }
+  }
 
   // ---- 3. Doppelte Eingangspaletten — mehr Gleichstände, als der Zufall erklärt ----
   // Bei 60 Paletten eines Tages mit Gewichten zwischen 460 und 500 kg sind
