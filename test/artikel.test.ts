@@ -74,6 +74,30 @@ test('Übersicht: der Rest des Lagers wie die Kaskade ihn teilt — Lager = verk
   assert.deepEqual(knirps.chargen, [1, 2])
 })
 
+// 22. Oktober: „wie viel ist noch hier, im Lager, Anzahl Paletten, auch ohne
+// Verdunstung und ohne Palox, und dann wie viel ist verkaufsfähig" — im Lager
+// ist die liegende Eingangsmasse ohne das Verdunstete und das Faule.
+test('Übersicht: im Lager ohne Verdunstetes und Faules; ohne Teilung höchstens die ganze liegende Masse; Paletten zusammengezählt', () => {
+  const mitPal = bestand.map(b => ({ ...b, n_rest_paletten: b.charge_nr === 1 ? 1 : b.charge_nr === 2 ? 2 : 0 }) as Bestand)
+  const rest = new Map([[1, { kanal: 20, faul: 50, verdunstet: 25, fax: 5, bekannt: true }]])
+  const [knirps] = uebersichtszeilen(mitPal, labelVon, gruppeVon, teile, OFFEN, { rest })
+  // Charge 1: 400 − 25 verdunstet − 50 faul = 325; Charge 2 ohne Teilung: ihre ganzen 500, höchstens
+  assert.equal(knirps.imLager, 325 + 500)
+  assert.equal(knirps.imLagerHoechstens, true)
+  assert.equal(knirps.paletten, 3)
+  const r = knirps.rest
+  assert.equal(knirps.vf + r.kanal + r.fax + r.offen, knirps.imLager, 'im Lager = verkaufsfähig + zu klein/zu gross + beim Abpacken faul + offen')
+  assert.equal(knirps.imLager + r.faul + r.verdunstet, knirps.lager, 'was nicht mehr im Lager ist, steht hinter dem Lager — der Balken bleibt so lang wie der Eingang')
+  const [nur1] = uebersichtszeilen(mitPal.filter(b => b.charge_nr === 1), labelVon, gruppeVon, teile, OFFEN, { rest })
+  assert.equal(nur1.imLager, 325); assert.equal(nur1.imLagerHoechstens, false)
+  const ungemessen = new Map([[1, { kanal: 20, faul: 50, verdunstet: 25, fax: 5, bekannt: false }]])
+  const [ohneRate] = uebersichtszeilen(mitPal.filter(b => b.charge_nr === 1), labelVon, gruppeVon, teile, OFFEN, { rest: ungemessen })
+  assert.equal(ohneRate.imLagerHoechstens, true, 'eine Rate ohne Messung: obere Schranke')
+  // Charge 3 hat nichts mehr im Lager — und ohne Zahl bleibt die Palettenzahl leer, nicht 0
+  const [, butternut] = uebersichtszeilen(bestand, labelVon, gruppeVon, teile, OFFEN)
+  assert.equal(butternut.paletten, null)
+})
+
 test('Übersicht: ohne Teilung der Kaskade ist der Rest offen, nicht null', () => {
   const [knirps] = uebersichtszeilen(bestand, labelVon, gruppeVon, teile, OFFEN)
   assert.equal(knirps.rest.kanal + knirps.rest.faul + knirps.rest.verdunstet + knirps.rest.fax, 0)

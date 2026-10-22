@@ -254,7 +254,15 @@
         "Masse im Lager"
       ],
       "art": "gerechnet",
-      "bedeutet": "Eingangsware, die nicht ausgeliefert ist — Eingang minus die Eingangsmasse hinter den Lieferungen. Sie ändert sich nur durch Liefern, nicht durch Liegen; deshalb ist sie der Nenner, an dem der verkaufsfähige Anteil über die Zeit gemessen wird",
+      "bedeutet": "Was auf den Paletten liegt: Eingangsware, die nicht ausgeliefert ist, ohne das, was seither verdunstet oder faul geworden ist — die gute Ware der Kaskade; darin das Verkaufsfähige und zu klein / zu gross. Dazu die Eingangspaletten, die noch da sind (≈). Seit dem 22. Oktober; bis dahin die Eingangsmasse ohne Abzug (heute „Liegend“)",
+      "quelle": "erg_prognose.gute_ware_kg · erg_verlauf.im_haus_kg − aussortiert_kg · erg_charge.im_haus_heute_kg − kanal_ausgelagert_kg · erg_charge.n_rest_paletten"
+    },
+    {
+      "muster": [
+        "Liegend"
+      ],
+      "art": "gerechnet",
+      "bedeutet": "Eingangsmasse, die nicht ausgeliefert ist — Eingang minus die Eingangsmasse hinter den Lieferungen, vor Verdunstung und Faulem. Sie ändert sich nur durch Liefern; der Nenner der Kaskade",
       "quelle": "erg_bilanz.lager_kg · erg_charge.lager_kg · erg_prognose.lager_kg · erg_verlauf.lager_kg"
     },
     {

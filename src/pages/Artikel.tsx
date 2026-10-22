@@ -10,6 +10,7 @@ import { artikelGrundlagen, artikelLagerChargeBei, useAuswertung, useStichtag,
          type ArtikelKaliber, type ArtikelLagerCharge, type Bestand, type ChargeLabel, type KundeGruppe, type KundeTag, type PerigonPruefung,
          type SorteGruppe, type Verlaufswoche } from '../auswertung/daten'
 import { Probleme, Rechnet, Reiterkopf } from '../auswertung/Karten'
+import { IM_LAGER_TEXT, palettenText } from '../auswertung/lager'
 import { WochenFeld } from '../components/WochenFeld'
 import { ZChevron, ZHoch, ZRunter, ZStift } from '../components/Zeichen'
 import { KLASSEN, OFFEN, gruppenFolge, klasseVon, kundenGruppe, nochZuLiefern, passtGruppe, passtKlasse, passtLabel, passtVerkauf, planSchluessel, rang,
@@ -107,7 +108,8 @@ export default function Artikel() {
   // Runde AS: der Rest des Lagers je Charge, wie die Kaskade ihn teilt (heute) — für die Farben des Balkens.
   const rest = useMemo(() => new Map<number, RestTeile>((daten?.prognose ?? [])
     .filter(p => p.gruppe === 'charge' && p.h === 0)
-    .map(p => [Number(p.schluessel), { kanal: Number(p.kanal_kg), faul: Number(p.faul_kg), verdunstet: Number(p.verdunstet_kg), fax: Number(p.fax_kg) }])),
+    .map(p => [Number(p.schluessel), { kanal: Number(p.kanal_kg), faul: Number(p.faul_kg), verdunstet: Number(p.verdunstet_kg), fax: Number(p.fax_kg),
+                                       bekannt: p.r_bekannt && p.f_bekannt }])),
   [daten?.prognose])
 
   const gruppen = useMemo(() => {
@@ -307,10 +309,20 @@ const KLASSE_FARBE: Record<Klasse, string> = {
   ausserhalb: 'color-mix(in srgb, var(--strom-vf) 40%, var(--flaeche))',
   ohne: 'color-mix(in srgb, var(--strom-vf) 18%, var(--flaeche))',
 }
-const REST: { feld: 'kanal' | 'faul' | 'verdunstet'; name: string; farbe: string }[] = [
-  { feld: 'kanal', name: 'zu klein / zu gross', farbe: 'var(--strom-ausschuss)' },
-  { feld: 'faul', name: 'Palox', farbe: 'var(--strom-schimmel)' },
-  { feld: 'verdunstet', name: 'verdunstet', farbe: 'var(--strom-verdunstung)' },
+// 22. Oktober: „Wieso nimmt es die Paloxe noch zum Lager dazu? … vielleicht
+// einfach klarer ausweisen — wie viel ist noch hier, im Lager, Anzahl
+// Paletten, auch ohne Verdunstung und ohne Palox, und dann wie viel ist
+// verkaufsfähig." Der Teil hiess „Palox" — gemeint war das Faule, das beim
+// Waschen in den Palox geht; seit Oettli in Paloxen liefert, las man es als
+// Gebinde. Jetzt steht das Faule und das Verdunstete hinter dem Lager, blass:
+// Es gehört zum Eingang, aber nicht mehr zu dem, was auf den Paletten liegt.
+const IM_LAGER: { feld: 'kanal' | 'fax'; name: string; farbe: string; heisst: string }[] = [
+  { feld: 'kanal', name: 'zu klein / zu gross', farbe: 'var(--strom-ausschuss)', heisst: 'liegt auf den Paletten, fällt beim Sortieren als zu klein oder zu gross heraus' },
+  { feld: 'fax', name: 'faul beim Abpacken', farbe: 'var(--strom-schimmel)', heisst: 'liegt auf den Paletten, wird beim Abpacken als faul aussortiert' },
+]
+const WEG: { feld: 'faul' | 'verdunstet'; name: string; farbe: string; heisst: string }[] = [
+  { feld: 'faul', name: 'faul', farbe: 'var(--strom-schimmel)', heisst: 'seit dem Eingang faul geworden — geht beim Waschen in den Palox, zählt nicht mehr zum Lager' },
+  { feld: 'verdunstet', name: 'verdunstet', farbe: 'var(--strom-verdunstung)', heisst: 'Wasser, das die Ware seit dem Eingang verloren hat — zählt nicht mehr zum Lager' },
 ]
 /** Was „lose" heisst, in einem Satz — der Betrieb fragte genau das. */
 const LOSE_TEXT = 'verkaufsfähig nach der Sortierung, aber leichter oder schwerer als die Kaliber der Artikel klein und gross — geht nur lose'
@@ -336,7 +348,8 @@ function Uebersicht({ bestand, grund, teileHeute, teile, wahl, wochen, setzeWoch
   const spalten = KLASSEN.filter(kl => gewaehlt(kl) && zeilen.some(z => (z.klassenSpaeter.get(kl) ?? 0) > 0))
   const vfSpaeter = (z: Uebersichtszeile) => spalten.reduce((a, kl) => a + (z.klassenSpaeter.get(kl) ?? 0), 0)
   const klassenBalken = KLASSEN.filter(kl => zeilen.some(z => (z.klassen.get(kl) ?? 0) > 0))
-  const restDa = REST.filter(r => zeilen.some(z => z.rest[r.feld] + (r.feld === 'faul' ? z.rest.fax : 0) > 0))
+  const imLagerDa = IM_LAGER.filter(r => zeilen.some(z => z.rest[r.feld] > 0))
+  const wegDa = WEG.filter(r => zeilen.some(z => z.rest[r.feld] > 0))
   const offenDa = zeilen.some(z => z.rest.offen > 0)
   const name = (z: Uebersichtszeile) => `${z.gruppe === 'Knirps' ? 'Knirps' : gruppeName(z.gruppe)} · ${labelName(z.label)}`
   // Runde AS: „Reicht, was da ist?" — je Artikel, was die Kunden nach Plan (ohne Plan: das Vorjahr) noch bekommen
@@ -360,7 +373,9 @@ function Uebersicht({ bestand, grund, teileHeute, teile, wahl, wochen, setzeWoch
           const ganz = z.ausgelagert + z.lager
           const anteil = (v: number, von: number) => `${von > 0 ? Math.max(Math.min((v / von) * 100, 100), 0) : 0}%`
           const vfKlassen = KLASSEN.map(kl => [kl, z.klassen.get(kl) ?? 0] as const).filter(([, v]) => v > 0)
-          const restTeile = REST.map(r => [r, z.rest[r.feld] + (r.feld === 'faul' ? z.rest.fax : 0)] as const).filter(([, v]) => v > 0)
+          const lagerTeile = IM_LAGER.map(r => [r, z.rest[r.feld]] as const).filter(([, v]) => v > 0)
+          const wegTeile = WEG.map(r => [r, z.rest[r.feld]] as const).filter(([, v]) => v > 0)
+          const lagerText = `${z.imLagerHoechstens ? 'höchstens ' : ''}${masse(z.imLager)}`
           const vfHeute = (wahl.groesse === 'beide' ? z.vf : vfKlassen.filter(([kl]) => gewaehlt(kl)).reduce((a, [, v]) => a + v, 0))
           return (
             <div key={z.schluessel} className="uebersicht-zeile" role="listitem">
@@ -370,26 +385,31 @@ function Uebersicht({ bestand, grund, teileHeute, teile, wahl, wochen, setzeWoch
               </div>
               <div className="uebersicht-bahn">
                 <div className="uebersicht-spur" style={{ width: anteil(ganz, max) }}
-                     aria-label={`Eingang ${masse(z.eingang)}, ausgeliefert ${masse(z.geliefert)}, im Lager ${masse(z.lager)}, verkaufsfähig ${masse(z.vf)}`}>
+                     aria-label={`Eingang ${masse(z.eingang)}, ausgeliefert ${masse(z.geliefert)}, im Lager ${lagerText}, verkaufsfähig ${masse(z.vf)}, seit Eingang verdunstet oder faul ${masse(z.rest.faul + z.rest.verdunstet)}`}>
                   <span className="uebersicht-teil ausgeliefert" style={{ width: anteil(z.ausgelagert, ganz) }}
                         title={`ausgeliefert ${masse(z.geliefert)} — dafür gingen ${masse(z.ausgelagert)} Eingangsware aus dem Lager`}>
                     {z.ausgelagert / max >= 0.09 && <em>{masse(z.geliefert)}</em>}
                   </span>
-                  <span className="uebersicht-lager" style={{ width: anteil(z.lager, ganz) }}>
+                  <span className="uebersicht-lager" style={{ width: anteil(z.imLager, ganz) }} title={`im Lager ${lagerText}: ${IM_LAGER_TEXT}`}>
                     {vfKlassen.map(([kl, v]) => (
                       <span key={kl} className={`uebersicht-teil${gewaehlt(kl) ? '' : ' gedimmt'}`}
-                            style={{ width: anteil(v, z.lager), background: KLASSE_FARBE[kl] }}
+                            style={{ width: anteil(v, z.imLager), background: KLASSE_FARBE[kl] }}
                             title={`verkaufsfähig ${klasseName(kl)}: ${masse(v)}`} />
                     ))}
-                    {restTeile.map(([r, v]) => (
-                      <span key={r.feld} className="uebersicht-teil" style={{ width: anteil(v, z.lager), background: r.farbe }}
-                            title={`${r.name}: ${masse(v)}`} />
+                    {lagerTeile.map(([r, v]) => (
+                      <span key={r.feld} className="uebersicht-teil" style={{ width: anteil(v, z.imLager), background: r.farbe }}
+                            title={`${r.name}: ${masse(v)} — ${r.heisst}`} />
                     ))}
-                    {z.rest.offen > 0 && <span className="uebersicht-teil offen" style={{ width: anteil(z.rest.offen, z.lager) }}
+                    {z.rest.offen > 0 && <span className="uebersicht-teil offen" style={{ width: anteil(z.rest.offen, z.imLager) }}
                                                title={`${masse(z.rest.offen)} ohne Teilung — Verkaufsfähiges unbekannt`} />}
                   </span>
+                  {wegTeile.map(([r, v]) => (
+                    <span key={r.feld} className="uebersicht-teil weg" style={{ width: anteil(v, ganz), background: r.farbe }}
+                          title={`${r.name}: ${masse(v)} — ${r.heisst}`} />
+                  ))}
                 </div>
-                {z.lager > 0 && <span className="uebersicht-lagertext">im Lager {masse(z.lager)}</span>}
+                {z.lager > 0 && <span className="uebersicht-lagertext" title={`Im Lager ist ${IM_LAGER_TEXT}`}>
+                  im Lager {lagerText}{z.paletten !== null ? ` · ${palettenText(z.paletten)}` : ''}</span>}
               </div>
               <div className="uebersicht-wert">
                 <strong>{masse(vfHeute)}</strong>
@@ -405,8 +425,10 @@ function Uebersicht({ bestand, grund, teileHeute, teile, wahl, wochen, setzeWoch
           <span key={kl} title={kl === 'ausserhalb' ? LOSE_TEXT : kl === 'ohne' ? 'keine Sortier-CSV der Charge oder Sorte — die Grösse ist offen' : undefined}>
             <span className="chip" style={{ background: KLASSE_FARBE[kl] }} />verkaufsfähig {klasseName(kl)}</span>
         ))}
-        {restDa.map(r => <span key={r.feld}><span className="chip" style={{ background: r.farbe }} />{r.name}</span>)}
+        {imLagerDa.map(r => <span key={r.feld} title={r.heisst}><span className="chip" style={{ background: r.farbe }} />{r.name}</span>)}
         {offenDa && <span><span className="chip uebersicht-chip-offen" />im Lager, Teilung unbekannt</span>}
+        {wegDa.length > 0 && <span className="leise">· nicht mehr im Lager:</span>}
+        {wegDa.map(r => <span key={r.feld} title={r.heisst}><span className="chip weg" style={{ background: r.farbe }} />{r.name}</span>)}
         <span className="leise">· jeder Balken ist so lang wie der Eingang des Artikels</span>
       </div>
 
@@ -426,7 +448,7 @@ function Uebersicht({ bestand, grund, teileHeute, teile, wahl, wochen, setzeWoch
               <th rowSpan={2} className="haftend">Artikel</th>
               <th rowSpan={2} className="zahl">Eingang<Herkunft art="gemessen" /></th>
               <th rowSpan={2} className="zahl">ausgeliefert<Herkunft art="gemessen" /></th>
-              <th rowSpan={2} className="zahl">im Lager<Herkunft art="gerechnet" /></th>
+              <th rowSpan={2} className="zahl" title={`Im Lager ist ${IM_LAGER_TEXT}`}>im Lager<Herkunft art="gerechnet" /></th>
               <th colSpan={spalten.length + 1} className={`gruppe${spaeter ? ' spaeter' : ''}`}>
                 verkaufsfähig {spaeter ? `in ${wochen} Wochen` : 'heute'}<Herkunft art={herkunft} />
                 {spaeter && stichtag ? <span className="leise"> · {datum(stichtag).slice(0, 6)}</span> : null}
@@ -455,7 +477,10 @@ function Uebersicht({ bestand, grund, teileHeute, teile, wahl, wochen, setzeWoch
                     </th>
                     <td className="zahl">{masse(z.eingang)}</td>
                     <td className="zahl">{z.geliefert > 0 ? masse(z.geliefert) : <span className="leise">—</span>}</td>
-                    <td className="zahl">{z.lager > 0 ? masse(z.lager) : <span className="leise">—</span>}</td>
+                    <td className="zahl">{z.lager > 0
+                      ? <>{z.imLagerHoechstens && <span className="mini-wort">höchstens </span>}{masse(z.imLager)}
+                          {z.paletten !== null && <span className="zelle-unter">{palettenText(z.paletten)}</span>}</>
+                      : <span className="leise">—</span>}</td>
                     <td className={`zahl summe${spaeter ? ' spaeter' : ''}`}><strong>{z.lager > 0 ? masse(vfSpaeter(z)) : '—'}</strong>
                       {z.luecke > 0 && <span className="zelle-unter">{z.luecke} {z.luecke === 1 ? 'Charge' : 'Chargen'} ohne Zahl</span>}</td>
                     {spalten.map(kl => {
@@ -489,7 +514,8 @@ function Uebersicht({ bestand, grund, teileHeute, teile, wahl, wochen, setzeWoch
               <th scope="row" className="haftend">Summe</th>
               <td className="zahl">{masse(summe(z => z.eingang))}</td>
               <td className="zahl">{masse(summe(z => z.geliefert))}</td>
-              <td className="zahl">{masse(summe(z => z.lager))}</td>
+              <td className="zahl">{zeilen.some(z => z.imLagerHoechstens && z.lager > 0) && <span className="mini-wort">höchstens </span>}{masse(summe(z => z.imLager))}
+                {zeilen.some(z => z.paletten !== null) && <span className="zelle-unter">{palettenText(summe(z => z.paletten ?? 0))}</span>}</td>
               <td className={`zahl summe${spaeter ? ' spaeter' : ''}`}><strong>{masse(summe(vfSpaeter))}</strong></td>
               {spalten.map(kl => <td key={kl} className={`zahl${spaeter ? ' spaeter' : ''}`}>{masse(summe(z => z.klassenSpaeter.get(kl) ?? 0))}</td>)}
               <td className="zahl">{masse(summe(z => noch(z) ?? 0))}</td>

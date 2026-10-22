@@ -287,8 +287,8 @@ die Verdunstung nicht mit der Lesung (AB-73).
 
 **Braucht:** je Charge den Eingang (Abschnitt 1) und die Lieferungen; die
 Koeffizienten 5–9 beim Alter am Liefertag.
-**Rechnung:** ausgelagert = geliefert ÷ verkaufsfähiger Anteil; im Lager =
-Eingang − ausgelagert; auf beide dieselbe Kaskade Verdunstung → Faules
+**Rechnung:** ausgelagert = geliefert ÷ verkaufsfähiger Anteil; liegend
+(`lager_kg`) = Eingang − ausgelagert; auf beide dieselbe Kaskade Verdunstung → Faules
 (Stationswerte, Abschnitt 7) → zu klein/zu gross → Fax — seit 0106 ohne
 Sockel. **Ausgang ist nur der Lieferschein**
 (0101): Zu klein und zu gross, das hinter den Lieferungen aussortiert
@@ -384,12 +384,30 @@ Perigon-Position aller Saisons, 1. Juli – 30. Juni), nur Kürbis
 interne Umbuchung (Journal L). Geht in keine Bilanz ein. Die Masse je
 Position nach Abschnitt 12b; Stück ohne Stückgewicht zählen nicht in kg,
 stehen aber als `stueck_ohne_gewicht` da (seit 0115).
+**Was „im Lager" heisst (seit 22. Oktober, `src/auswertung/lager.ts`):** an
+jeder Stelle dasselbe — was auf den Paletten liegt: die liegende
+Eingangsmasse ohne das, was seither verdunstet oder faul geworden ist, also
+die gute Ware der Kaskade (`erg_prognose.gute_ware_kg`; je Woche
+`erg_verlauf.im_haus_kg − aussortiert_kg`; je Charge
+`im_haus_heute_kg − kanal_ausgelagert_kg`, dieselbe Zahl). Darin das
+Verkaufsfähige und zu klein / zu gross; nicht darin, was hinter den
+Lieferungen schon aussortiert in Paloxen steht (die Bilanz zählt es weiter
+„noch im Haus"). Dazu die **Paletten**: `n_rest_paletten` = liegende
+Eingangsmasse ÷ mittlere Eingangspalette der Charge — Verdunstung und
+Faules leeren keine Palette, und ohne Lieferung bleibt die Zahl gleich;
+gerundet 0 heisst „< 1 Palette". **Fehlt eine Rate** (Verdunstung
+oder Faules), ist die Zahl eine obere Schranke und steht mit „höchstens".
+Bis zum 22. Oktober war „im Lager" die liegende Eingangsmasse selbst
+(`lager_kg`, heute „Liegend") — mit dem Verdunsteten und dem Faulen darin.
 **Wie viel von welchem Artikel noch da ist (Runde AQ):** je Artikelgruppe ×
 Label die Chargen zusammengezählt (`src/auswertung/artikel.ts`,
 `uebersichtszeilen`): Eingang, ausgelagert und geliefert, im Lager und
 verkaufsfähig aus `erg_charge`, das Verkaufsfähige nach Grösse aus
-`artikel_lager_charge(0)`. Ausgelagert + im Lager = Eingang — der Balken ist
-so lang wie der Eingang. Ein unbekanntes Verkaufsfähiges zählt als Lücke,
+`artikel_lager_charge(0)`. Ausgelagert + liegend = Eingang — der Balken ist
+so lang wie der Eingang; das Liegende teilt sich in im Lager (verkaufsfähig,
+zu klein / zu gross, beim Abpacken faul, Teilung unbekannt) und, blass
+dahinter, seit dem Eingang verdunstet oder faul. Eine Charge ohne Teilung
+zählt ganz ins Lager, und die Zeile sagt „höchstens". Ein unbekanntes Verkaufsfähiges zählt als Lücke,
 nicht als 0. Eingang und ausgeliefert gibt es nur je Gruppe, nicht je Grösse.
 **Kundengruppen und Pläne (Runde AS, `kunde_gruppe`, `kunde_plan`):** Ein
 Kunde gehört zur Gruppe, die der Betriebsleiter gesetzt hat; ohne Eintrag

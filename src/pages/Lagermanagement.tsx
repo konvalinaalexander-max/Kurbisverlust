@@ -7,7 +7,8 @@ import { datum, kg, prozent, tonnen, zahl } from '../lib/format'
 import { Erklaerung, Herkunft, Hinweis, Karte, Kennzahl, Leer, Marke, Segmente } from '../components/Bausteine'
 import { Glocke, Linien, tonnenAchse, type Reihe } from '../components/Diagramm'
 import { kaliberGlockeBei, lagerKaliberBei, lieferungenVon, prognoseBei, useAuswertung, useStichtag, wohinVon,
-         type Auswertung, type Bestand, type KaliberGlocke, type LagerKaliber, fehlendeRaten } from '../auswertung/daten'
+         type Auswertung, type Bestand, type KaliberGlocke, type LagerKaliber, type Prognose, fehlendeRaten } from '../auswertung/daten'
+import { IM_LAGER_TEXT, imLagerBei, palettenIm, palettenText } from '../auswertung/lager'
 import { Probleme, Rechnet, Reiterkopf } from '../auswertung/Karten'
 import { JournalAbgleich } from '../betrieb/JournalAbgleich'
 import { useZaehler } from '../design/bewegung'
@@ -160,13 +161,18 @@ function Kennzahlen({ daten, filter }: { daten: Auswertung; filter: Filter }) {
   // ohne Chargennummer einmal je Charge seiner Sorte (und die Datenbank jeden
   // einmal je Eingangstag: „4'836 Lieferungen" bei 1'133).
   const lieferungen = lieferungenVon(daten.lieferungGruppe, filter.gruppe, filter.schluessel)?.n_lieferungen ?? null
-  const anteil = p0?.verkaufsfaehig_anteil ?? null
-  // Die liegende Ware, zerlegt: derselbe Balken, den die Kaskade rechnet.
+  // 22. Oktober: Im Lager ist, was auf den Paletten liegt — ohne das
+  // Verdunstete und das Faule (src/auswertung/lager.ts). Bis hier war es die
+  // Eingangsmasse, die nicht ausgeliefert ist, und der Balken darunter zeigte
+  // Verdunstetes und „Palox" als Teil des Lagers.
+  const lager = imLagerBei(daten.prognose, filter.gruppe, filter.schluessel, 0)
+  const restPaletten = palettenIm(chargen)
+  const anteil = p0 && p0.verkaufsfaehig_anteil !== null && lager.kg ? p0.verkaufsfaehig_kg / lager.kg : null
+  // Die Ware auf den Paletten, zerlegt: derselbe Balken, den die Kaskade rechnet.
   const teile = p0 ? [
     { name: 'verkaufsfähig', kg: p0.verkaufsfaehig_kg, farbe: 'var(--strom-vf)' },
     { name: 'zu klein / zu gross', kg: p0.kanal_kg, farbe: 'var(--strom-ausschuss)' },
-    { name: 'Palox', kg: p0.faul_kg, farbe: 'var(--strom-schimmel)' },
-    { name: 'verdunstet', kg: p0.verdunstet_kg, farbe: 'var(--strom-verdunstung)' },
+    { name: 'faul beim Abpacken', kg: p0.fax_kg, farbe: 'var(--strom-schimmel)' },
   ] : []
   const summe = teile.reduce((a, t) => a + t.kg, 0)
 
@@ -185,8 +191,9 @@ function Kennzahlen({ daten, filter }: { daten: Auswertung; filter: Filter }) {
                   ? <>{lieferungen !== null ? <>{zahl(lieferungen)} {lieferungen === 1 ? 'Lieferung' : 'Lieferungen'} ab Lieferschein</> : 'ab Lieferschein'}</>
                   : <>noch kein Warenausgang eingelesen — <Link to="/betrieb/lieferungen">Betrieb → Warenausgang</Link></>} />
       <Kennzahl titel="Im Lager" ton="kuerbis" id="kz-lager"
-                wert={<><Tonnen kg={p0?.lager_kg} /><Herkunft art="gerechnet" /></>}
-                unter={<>Eingangsware, die nicht ausgeliefert ist</>} />
+                wert={<>{lager.hoechstens && <span className="mini-wort">höchstens </span>}<Tonnen kg={lager.kg} />
+                  <Herkunft art="gerechnet" text={`Im Lager ist ${IM_LAGER_TEXT}`} /></>}
+                unter={<>{palettenText(restPaletten) || 'auf den Paletten'} · ohne Verdunstetes und Faules</>} />
       <Kennzahl titel="Davon verkaufsfähig" ton="gruen" id="kz-verkaufsfaehig"
                 wert={<>
                   {anteil === null && <span className="mini-wort">höchstens </span>}
@@ -223,7 +230,8 @@ function Verlauf({ daten, filter }: { daten: Auswertung; filter: Filter }) {
   // stand „heute" in der Mitte, und vor dem ersten Eingang lagen Monate leer
   // (beim Betrieb ab April, der erste Eingang war am 3. Juli).
   const xVon = xErste
-  const anteil = (w: typeof wochen[number]) => w.lager_kg > 0 ? w.verkaufsfaehig_kg / w.lager_kg : null
+  const imLagerWoche = (w: typeof wochen[number]) => Math.max(Number(w.im_haus_kg) - Number(w.aussortiert_kg), 0)
+  const anteil = (w: typeof wochen[number]) => imLagerWoche(w) > 0 ? w.verkaufsfaehig_kg / imLagerWoche(w) : null
   // Runde AD: „Eingang kumuliert" ist weg — der Eingang steht als Zahl in der
   // Kennzahl oben; als Linie war er ausgeblendet und hat nur die Legende gefüllt.
   const reihen: Reihe[] = [
@@ -232,13 +240,15 @@ function Verlauf({ daten, filter }: { daten: Auswertung; filter: Filter }) {
     // Umgebung, kein Vergleich, und steht darum in Grau.
     { name: 'Ausgang kumuliert', farbe: 'var(--text-leise)', linie: true, marker: false,
       punkte: bisHeute.map(w => ({ x: x(w.bis), y: w.ausgang_kum_kg })) },
-    // Runde AO: „Im Lager" endet heute wie der Ausgang — was liegt, steht
-    // ohne Lieferung still; vorhergesagt wird nur, was davon verkaufsfähig bleibt.
+    // Runde AO: „Im Lager" endet heute wie der Ausgang; vorhergesagt wird nur,
+    // was davon verkaufsfähig bleibt. 22. Oktober: Im Lager ist, was auf den
+    // Paletten liegt — im Haus ohne das schon Aussortierte (dieselbe Zahl wie
+    // die gute Ware der Prognose), nicht mehr die Eingangsmasse.
     { name: 'Im Lager', farbe: 'var(--kuerbis)', linie: true, marker: false, dick: true,
-      punkte: bisHeute.map(w => ({ x: x(w.bis), y: w.lager_kg })) },
+      punkte: bisHeute.map(w => ({ x: x(w.bis), y: imLagerWoche(w) })) },
     { name: 'Davon verkaufsfähig', farbe: 'var(--blau)', linie: true, marker: false, dick: true, prognoseAb: heute,
       punkte: wochen.map(w => ({ x: x(w.bis), y: w.verkaufsfaehig_kg,
-        text: `${prozent(anteil(w), 0)} der liegenden Ware · zu klein/zu gross ${tonnen(w.kanal_kg + w.aussortiert_kg)}${w.aussortiert_kg > 0 ? ` (davon ${tonnen(w.aussortiert_kg)} schon aussortiert, steht im Haus)` : ''}` })) },
+        text: `${prozent(anteil(w), 0)} von dem, was im Lager liegt · zu klein/zu gross ${tonnen(w.kanal_kg)}${w.aussortiert_kg > 0 ? ` · dazu ${tonnen(w.aussortiert_kg)} schon aussortiert, in Paloxen im Haus` : ''}` })) },
   ]
   return (
     <Karte id="lager-verlauf" titel="Die Saison im Verlauf">
@@ -249,7 +259,8 @@ function Verlauf({ daten, filter }: { daten: Auswertung; filter: Filter }) {
               fuss={<span className="leise">verkaufsfähig ab heute gestrichelt: wenn die liegende Ware liegen bleibt</span>} />
       <Erklaerung>
         <p>Eingang und Ausgang sind <Herkunft art="gemessen" /> und enden heute.
-        <strong> Im Lager</strong> ist die Eingangsware, die an diesem Stichtag noch nicht ausgeliefert war — sie fällt, wenn geliefert wird, und endet heute.
+        <strong> Im Lager</strong> ist, was an diesem Stichtag auf den Paletten lag: die Eingangsware, die nicht ausgeliefert war,
+        ohne das, was bis dahin verdunstet oder faul geworden ist — sie fällt mit jeder Lieferung und mit dem Alter, und endet heute.
         <strong> Davon verkaufsfähig</strong> ist <Herkunft art="gerechnet" /> und fällt auch dann weiter, wenn nichts geliefert wird: Die liegende Ware altert.</p>
       </Erklaerung>
     </Karte>
@@ -263,7 +274,8 @@ const UNTER = -1, UEBER = -2
 
 interface Bandzeile {
   schluessel: string; name: string; unter: string; sorte: string
-  lager: number; verkaufsfaehig: number; anteil: number | null
+  /** Im Lager am Stichtag: was auf den Paletten liegt (src/auswertung/lager.ts); null, wenn die Prognose fehlt. */
+  lager: number | null; paletten: number | null; verkaufsfaehig: number; anteil: number | null
   basis: string; nKuerbis: number | null
   /** Kilo je Kaliber-Index; UNTER und UEBER daneben — leer heisst nicht gemessen. */
   kg: Map<number, number | null>
@@ -272,8 +284,8 @@ interface Bandzeile {
   geschrumpft: number | null
 }
 
-/** Aus den Zeilen von `lager_kaliber(h)` die Zeilen der Tabelle. */
-function bandzeilen(zeilen: LagerKaliber[], filter: Filter, bestand: Bestand[]): Bandzeile[] {
+/** Aus den Zeilen von `lager_kaliber(h)` die Zeilen der Tabelle — „im Lager" aus der Prognose beim selben Horizont. */
+function bandzeilen(zeilen: LagerKaliber[], filter: Filter, bestand: Bestand[], prognose: Prognose[], h: number): Bandzeile[] {
   const gruppe = filter.gruppe === 'gesamt' ? 'sorte' : 'charge'
   const chargen = new Map(bestand.map(b => [String(b.charge_nr), b]))
   const map = new Map<string, Bandzeile>()
@@ -289,7 +301,8 @@ function bandzeilen(zeilen: LagerKaliber[], filter: Filter, bestand: Bestand[]):
         schluessel: z.schluessel,
         name: gruppe === 'charge' ? `Charge ${z.schluessel}` : z.schluessel,
         unter: gruppe === 'charge' ? `${z.sorte}${c ? ` · ${c.schlag}` : ''}` : `${z.n_chargen} ${z.n_chargen === 1 ? 'Charge' : 'Chargen'}`,
-        sorte: z.sorte, lager: z.lager_kg, verkaufsfaehig: z.verkaufsfaehig_kg, anteil: null,
+        sorte: z.sorte, lager: imLagerBei(prognose, gruppe, z.schluessel, h).kg, verkaufsfaehig: z.verkaufsfaehig_kg, anteil: null,
+        paletten: gruppe === 'charge' ? (c?.n_rest_paletten ?? null) : palettenIm(bestand.filter(b => b.sorte === z.schluessel)),
         basis: z.basis, nKuerbis: z.n_kuerbis, kg: new Map(), band: new Map(), geschrumpft: z.geschrumpft_kg,
       }
       map.set(z.schluessel, e)
@@ -302,9 +315,9 @@ function bandzeilen(zeilen: LagerKaliber[], filter: Filter, bestand: Bestand[]):
       if (z.band_von !== null && z.band_bis !== null) e.band.set(z.kaliber_idx, `${z.band_von}–${z.band_bis} g`)
     }
     // Der Anteil am Lager gehört der Zeile, nicht dem Band.
-    e.anteil = e.lager > 0 ? e.verkaufsfaehig / e.lager : null
+    e.anteil = e.lager !== null && e.lager > 0 ? e.verkaufsfaehig / e.lager : null
   }
-  return [...map.values()].sort((a, b) => b.lager - a.lager)
+  return [...map.values()].sort((a, b) => (b.lager ?? 0) - (a.lager ?? 0))
 }
 
 /** Welche Bänder die Tabelle hat: die, die irgendeine Zeile trägt. */
@@ -325,7 +338,8 @@ function ImHaus({ daten, filter, wochen, setzeWochen }: {
   // Vorher standen heute und der Stichtag nebeneinander, doppelt so breit,
   // mit Rollbalken im Block. Jetzt ändert das Wochenfeld die ganze Tabelle.
   const stand = useStichtag(lagerKaliberBei, 7 * wochen)
-  const zeilen = useMemo(() => bandzeilen(stand.zeilen, filter, daten.bestand), [stand.zeilen, filter, daten.bestand])
+  const zeilen = useMemo(() => bandzeilen(stand.zeilen, filter, daten.bestand, daten.prognose, 7 * wochen),
+                         [stand.zeilen, filter, daten.bestand, daten.prognose, wochen])
   const spalten = bandspalten(zeilen)
   const stichtag = stand.zeilen[0]?.datum ?? null
   const spaeter = wochen > 0
@@ -333,8 +347,9 @@ function ImHaus({ daten, filter, wochen, setzeWochen }: {
   // Eine Sorte aufklappen: ihre Chargen darunter, aus derselben Rechnung.
   const [auf, setAuf] = useState<Set<string>>(new Set())
   const umschalten = (k: string) => setAuf(a => { const n = new Set(a); if (n.has(k)) n.delete(k); else n.add(k); return n })
-  const chargenVon = (sorte: string) => bandzeilen(stand.zeilen, { gruppe: 'sorte', schluessel: sorte }, daten.bestand)
+  const chargenVon = (sorte: string) => bandzeilen(stand.zeilen, { gruppe: 'sorte', schluessel: sorte }, daten.bestand, daten.prognose, 7 * wochen)
   const summe = (f: (z: Bandzeile) => number) => zeilen.reduce((a, z) => a + f(z), 0)
+  const summePaletten = palettenIm(daten.bestand.filter(b => zeilen.some(z => jeSorte ? z.sorte === b.sorte : z.schluessel === String(b.charge_nr))))
   const herkunft = spaeter ? 'prognose' : 'gerechnet'
 
   return (
@@ -351,7 +366,7 @@ function ImHaus({ daten, filter, wochen, setzeWochen }: {
                 {/* Die Herkunftsmarke steht im Kopf: bis heute gerechnet, oder
                     über heute hinaus — je nach Wochenfeld die ganze Tabelle. */}
                 <th rowSpan={2} className="haftend">{jeSorte ? 'Sorte' : 'Charge'}</th>
-                <th rowSpan={2} className="zahl">im Lager<Herkunft art={herkunft} /></th>
+                <th rowSpan={2} className="zahl" title={`Im Lager ist ${IM_LAGER_TEXT}`}>im Lager<Herkunft art={herkunft} /></th>
                 {/* Runde AP, Wunsch des Betriebs: im Lager, die Kaliber, gesamt
                     verkaufsfähig — dann, was nicht ins Band passt: zu klein, zu gross.
                     „gesamt" enthält beide nicht. */}
@@ -379,7 +394,8 @@ function ImHaus({ daten, filter, wochen, setzeWochen }: {
                       <span className="zeilenunter leise">{z.unter}</span>
                       {z.basis === 'sorte' && <Marke art="neutral" punkt={false}>aus der Sorte</Marke>}
                     </th>
-                    <td className="zahl"><strong>{masse(z.lager)}</strong></td>
+                    <td className="zahl"><strong>{masse(z.lager)}</strong>
+                      {z.paletten !== null && <span className="zelle-unter">{palettenText(z.paletten)}</span>}</td>
                     {spalten.map(s => <Bandzelle key={s.idx} zeile={z} idx={s.idx} filter={filter} spaeter={spaeter} />)}
                     <td className="zahl summe"><strong>{masse(z.verkaufsfaehig)}</strong>
                       {z.anteil !== null && <span className="leise"> {prozent(z.anteil, 0)}</span>}</td>
@@ -392,7 +408,7 @@ function ImHaus({ daten, filter, wochen, setzeWochen }: {
                         <span className="zeilenname">{c.name}</span>
                         <span className="zeilenunter leise">{c.unter}</span>
                       </th>
-                      <td className="zahl">{masse(c.lager)}</td>
+                      <td className="zahl">{masse(c.lager)}{c.paletten !== null && <span className="zelle-unter">{palettenText(c.paletten)}</span>}</td>
                       {spalten.map(s => <Bandzelle key={s.idx} zeile={c} idx={s.idx} filter={{ gruppe: 'sorte', schluessel: z.sorte }} spaeter={spaeter} />)}
                       <td className="zahl summe">{masse(c.verkaufsfaehig)}{c.anteil !== null && <span className="leise"> {prozent(c.anteil, 0)}</span>}</td>
                       <Nebenzelle zeile={c} idx={UNTER} spaeter={spaeter} />
@@ -406,7 +422,8 @@ function ImHaus({ daten, filter, wochen, setzeWochen }: {
               <tfoot>
                 <tr>
                   <th scope="row" className="haftend">Summe</th>
-                  <td className="zahl"><strong>{masse(summe(z => z.lager))}</strong></td>
+                  <td className="zahl"><strong>{masse(summe(z => z.lager ?? 0))}</strong>
+                    {summePaletten !== null && <span className="zelle-unter">{palettenText(summePaletten)}</span>}</td>
                   {spalten.map(s => <td key={s.idx} className="zahl"><strong>{masse(summe(z => z.kg.get(s.idx) ?? 0))}</strong></td>)}
                   <td className="zahl summe"><strong>{masse(summe(z => z.verkaufsfaehig))}</strong></td>
                   <td className="zahl neben-kaliber erste">{nebenSumme(zeilen, UNTER)}</td>
@@ -418,12 +435,14 @@ function ImHaus({ daten, filter, wochen, setzeWochen }: {
         </div>
       )}
       <p className="hilfe">
-        Im Lager = verkaufsfähig gesamt + zu klein + zu gross + was verdunstet oder im Palox gelandet ist.
-        „gesamt" ist nur, was in ein Kaliber passt.
+        Im Lager = was auf den Paletten liegt: verkaufsfähig gesamt + zu klein + zu gross.
+        Was seit dem Eingang verdunstet oder faul geworden ist, liegt nicht mehr da. „gesamt" ist nur, was in ein Kaliber passt.
       </p>
       <Erklaerung>
-        <p><strong>Im Lager</strong> ist Eingangsware, die nicht ausgeliefert ist <Herkunft art="gerechnet" />.
-        <strong> Verkaufsfähig</strong> zieht davon ab, was bis zum Stichtag verdunstet oder im Palox gelandet ist und was zu klein oder zu gross ist —
+        <p><strong>Im Lager</strong> ist, was auf den Paletten liegt <Herkunft art="gerechnet" />: die Eingangsware, die nicht ausgeliefert ist,
+        ohne das, was bis zum Stichtag verdunstet oder faul geworden ist. Die Paletten darunter sind die Eingangspaletten, die noch da sind —
+        Verdunstung und Faules leeren keine Palette, und ohne Lieferung bleibt ihre Zahl auch in ein paar Wochen gleich.
+        <strong> Verkaufsfähig</strong> zieht davon ab, was zu klein oder zu gross ist —
         dieselbe Zahl wie oben in der Kachel und in den Chargen.</p>
         <p><strong>Zu klein</strong> (unter dem kleinsten Kaliber) und <strong>zu gross</strong> (über dem grössten) sind der gemessene Anteil der Sorte an der liegenden Ware:
         aus den Sortierläufen und den Handmessungen beim Waschen und Sortieren. Ist er für eine Sorte noch nicht gemessen, steht ein Strich — unbekannt, nicht null.</p>

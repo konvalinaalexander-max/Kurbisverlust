@@ -106,7 +106,8 @@ function SortenTabelle({ daten, sorten }: { daten: Auswertung; sorten: Prognose[
         return (
           <tr key={s}>
             <td><strong>{s}</strong></td>
-            <td className="zahl">{p.lager_kg > 0 ? tonnen(p.lager_kg) : <span className="leise">—</span>}</td>
+            {/* 22. Oktober: im Lager heisst überall, was auf den Paletten liegt (src/auswertung/lager.ts). */}
+            <td className="zahl">{p.lager_kg > 0 ? <>{!(p.r_bekannt && p.f_bekannt) && <span className="mini-wort">höchstens </span>}{tonnen(p.gute_ware_kg)}</> : <span className="leise">—</span>}</td>
             <td><Zelle s={verd} /></td><td><Zelle s={faul} /></td><td><Zelle s={kanal} /></td><td><Zelle s={fax} /></td><td><Zelle s={band} /></td><td><Zelle s={leer} /></td>
           </tr>
         )

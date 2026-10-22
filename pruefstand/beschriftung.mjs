@@ -333,7 +333,11 @@ function sollzahlen() {
     // Seit Runde P stehen oben „Im Lager" und „davon verkaufsfähig" statt
     // Verlust und „im Haus": Das ist die Frage des Betriebsleiters, und nur
     // diese zwei Zahlen hängen direkt an dem, was er verkaufen kann.
-    lager: z(bilanz.lager_kg),
+    // 22. Oktober: „Im Lager" ist, was auf den Paletten liegt — im Haus ohne
+    // das schon Aussortierte. Die Kachel nimmt es aus der Prognose (gute Ware),
+    // die Gegenprobe aus der Bilanz: zwei Wege, eine Zahl. Bis hier war es
+    // bilanz.lager_kg, die Eingangsmasse mit Verdunstetem und Faulem.
+    lager: z(bilanz.im_haus_heute_kg) - z(bilanz.kanal_ausgelagert_kg),
     verkaufsfaehig: z(bilanz.verkaufsfaehig_heute_kg),
   }
 }

@@ -7,6 +7,7 @@ import { WOERTERBUCH } from '../lib/i18n'
 import { datum, kg, prozent, tonnen, zahl, zeitpunkt } from '../lib/format'
 import { Erklaerung, Herkunft, Hinweis, Karte, Lade, Marke } from '../components/Bausteine'
 import { anteilBei, lieferungenVon, useAuswertung, type Auswertung } from '../auswertung/daten'
+import { IM_LAGER_TEXT, imLagerCharge, palettenText } from '../auswertung/lager'
 import { Probleme, Rechnet, Reiterkopf } from '../auswertung/Karten'
 import type { Auftrag } from '../lib/typen'
 import { herkunftText, summeBekannt } from '../lib/masse'
@@ -46,11 +47,19 @@ export default function Chargen() {
 
   const zeilen = useMemo(() => {
     if (!daten) return []
-    const liste = daten.bestand.map(b => ({
-      b,
-      l: daten.lage.find(x => x.charge_nr === b.charge_nr),
-      heute: anteilBei(daten.prognose, 'charge', String(b.charge_nr), 0),
-    })).filter(z => (!sorte || z.b.sorte === sorte) && (!nurBestand || z.b.lager_kg > 0))
+    // 22. Oktober: Im Lager ist, was auf den Paletten liegt — ohne das
+    // Verdunstete und das Faule (src/auswertung/lager.ts); der Anteil
+    // verkaufsfähig ist der an dieser Zahl. Ist eine Rate nicht gemessen,
+    // bleibt der Anteil leer wie bisher.
+    const liste = daten.bestand.map(b => {
+      const lager = b.lager_kg > 0 ? imLagerCharge(b, daten.prognose) : 0
+      const anteil = anteilBei(daten.prognose, 'charge', String(b.charge_nr), 0)
+      return {
+        b, lager,
+        l: daten.lage.find(x => x.charge_nr === b.charge_nr),
+        heute: anteil === null || b.verkaufsfaehig_lager_kg === null || !(lager > 0) ? null : Math.min(b.verkaufsfaehig_lager_kg / lager, 1),
+      }
+    }).filter(z => (!sorte || z.b.sorte === sorte) && (!nurBestand || z.b.lager_kg > 0))
     // Beim Anteil steht der **schlechteste** oben: Das ist die Charge, die
     // zuerst raus sollte. Eine Charge ohne Zahl steht in jedem Fall hinten —
     // „unbekannt" ist weder gut noch schlecht.
@@ -58,7 +67,7 @@ export default function Chargen() {
     return liste.sort((a, c) => {
       if (nach === 'verkaufsfaehig') return hinten(a.heute) - hinten(c.heute)
       if (nach === 'eingang') return (a.b.eingang_von ?? '9999').localeCompare(c.b.eingang_von ?? '9999')
-      return c.b.lager_kg - a.b.lager_kg
+      return c.lager - a.lager
     })
   }, [daten, sorte, nurBestand, nach])
 
@@ -68,7 +77,7 @@ export default function Chargen() {
   if (fehler) return <Hinweis art="warnung">{fehler}</Hinweis>
   if (!daten) return null
   const sorten = [...new Set(daten.bestand.map(b => b.sorte))].sort()
-  const summeLager = zeilen.reduce((a, z) => a + z.b.lager_kg, 0)
+  const summeLager = zeilen.reduce((a, z) => a + z.lager, 0)
   const summeVerkaufsfaehig = summeBekannt(zeilen.map(z => z.b.verkaufsfaehig_lager_kg))
   const summeGeliefert = zeilen.reduce((a, z) => a + z.b.geliefert_kg, 0)
   /**
@@ -116,7 +125,7 @@ export default function Chargen() {
                 <th className="zahl">Eingang</th><th className="zahl">Paletten</th>
                 <Kopf id="eingang" zahlspalte={false}>Eingang am</Kopf>
                 <th className="zahl">Ausgeliefert</th>
-                <Kopf id="lager">Im Lager</Kopf>
+                <Kopf id="lager"><span title={`Im Lager ist ${IM_LAGER_TEXT}`}>Im Lager</span></Kopf>
                 <Kopf id="verkaufsfaehig">Davon verkaufsfähig</Kopf>
                 <th className="zahl">Verlust bis heute</th>
                 <th className="zahl" title="Hagelschaden der Charge in Prozent des Eingangs — kommt beim Waschen und Sortieren in den Palox">Hagel</th>
@@ -134,9 +143,10 @@ export default function Chargen() {
         <Erklaerung>
           <p>Eingang und ausgeliefert sind <Herkunft art="gemessen" />. <strong>Ausgeliefert</strong> ist die Masse der Lieferscheine; darunter steht,
           wie viel Eingangsware dafür aus dem Lager ging — mehr, weil unterwegs Wasser verdunstet, Faules in den Palox geht und zu Kleines oder zu Grosses aussortiert wird.</p>
-          <p><strong>Im Lager</strong> ist Eingangsware, die nicht ausgeliefert ist (in Eingangskilo); sie ändert sich nur durch Liefern.
-          <strong> Davon verkaufsfähig</strong> zieht ab, was bis heute verdunstet oder im Palox gelandet ist und was zu klein oder zu gross ist <Herkunft art="gerechnet" />;
-          der Prozentsatz ist der Anteil an der liegenden Ware. Ein Klick auf einen Spaltenkopf sortiert danach — nach „davon verkaufsfähig" steht oben, was am wenigsten übersteht.</p>
+          <p><strong>Im Lager</strong> ist, was heute auf den Paletten liegt <Herkunft art="gerechnet" />: die Eingangsware, die nicht ausgeliefert ist,
+          ohne das, was seither verdunstet oder faul geworden ist. Darunter die Paletten, die noch da sind — so viele triffst du im Lager etwa an.
+          <strong> Davon verkaufsfähig</strong> zieht noch ab, was zu klein oder zu gross ist; der Prozentsatz ist der Anteil an dem, was im Lager liegt.
+          Ein Klick auf einen Spaltenkopf sortiert danach — nach „davon verkaufsfähig" steht oben, was am wenigsten übersteht.</p>
         </Erklaerung>
       </Karte>
     </>
@@ -190,17 +200,17 @@ function HagelZelle({ nr, anteil, darf, neu }: { nr: number; anteil: number | nu
  *  der Betrieb fragte „warum?". Vier Ströme, jeder mit Koeffizient; fehlt
  *  einer, ist die Summe unbekannt, nicht die Summe der übrigen (0064). */
 function verlustTitel(b: Auswertung['bestand'][number]): string {
-  if (b.verlust_heute_kg !== null) return 'Verdunstung + Palox (Faules und Mängel im Lager) + Faules beim Abpacken, gerechnet bis heute'
+  if (b.verlust_heute_kg !== null) return 'Verdunstung + Faules im Palox (Faules und Mängel im Lager) + Faules beim Abpacken, gerechnet bis heute'
   const fehlt = [
     !b.verdunstung_bekannt && 'Verdunstung (keine Wägung einer Palette nach Lagerung)',
-    !b.schimmel_bekannt && 'Palox (keine Ablesung mit Nenner)',
+    !b.schimmel_bekannt && 'Faules im Palox (keine Ablesung mit Nenner)',
     !b.fax_bekannt && 'Faules beim Abpacken',
     !b.kanal_bekannt && 'zu klein / zu gross',
   ].filter(Boolean)
   return `unbekannt, solange nicht gemessen: ${fehlt.join(' · ') || 'ein Koeffizient ohne Messung'}`
 }
 
-type Zeile = { b: Auswertung['bestand'][number]; l?: Auswertung['lage'][number]; heute: number | null }
+type Zeile = { b: Auswertung['bestand'][number]; lager: number; l?: Auswertung['lage'][number]; heute: number | null }
 
 /** Der Eingang als Spanne: „2.9. – 18.9." oder ein Tag. */
 function eingangSpanne(b: Auswertung['bestand'][number]): string {
@@ -226,7 +236,7 @@ function ChargenZeile({ z, offen, oeffnen, daten, hagel }: { z: Zeile; offen: bo
           ? <>{kg(b.geliefert_kg, 0)}{b.ausgelagert_kg > 0 && <span className="zelle-unter" title="So viel Eingangsware ging für diese Lieferungen aus dem Lager — mehr als geliefert, weil unterwegs verdunstet, im Palox gelandet oder aussortiert">aus {kg(b.ausgelagert_kg, 0)} Eingang</span>}</>
           : <span className="leise">—</span>}</td>
         <td className="zahl">{liegt
-          ? <><strong>{kg(b.lager_kg, 0)}</strong>{(b.n_rest_paletten ?? 0) > 0 && <span className="zelle-unter" title="gerechnet aus den Eingangstagen und den gezählten Arbeiten">≈ {zahl(b.n_rest_paletten)} Paletten</span>}</>
+          ? <><strong>{kg(z.lager, 0)}</strong>{b.n_rest_paletten != null && <span className="zelle-unter" title="die Eingangspaletten, die noch da sind: Eingangsmasse, die nicht ausgeliefert ist, durch die mittlere Eingangspalette der Charge">{palettenText(b.n_rest_paletten)}</span>}</>
           : <span className="leise">—</span>}</td>
         <td className="zahl">{liegt && b.verkaufsfaehig_lager_kg !== null
           ? <>{kg(b.verkaufsfaehig_lager_kg, 0)}{z.heute !== null && <span className="leise"> · {prozent(z.heute, 0)}</span>}</>
@@ -289,7 +299,7 @@ function ChargeDetail({ nr, z, daten }: { nr: number; z: Zeile; daten: Auswertun
         {b.ueberzaehlung_kg > 0 && <li><Marke art="warnung">{kg(b.ueberzaehlung_kg, 0)} mehr geliefert als gekommen</Marke> — ein Zettel oder eine Zuordnung stimmt nicht.</li>}
         <li><strong>Verlust bis heute {kg(b.verlust_heute_kg, 0)}</strong>
           {b.verlust_heute_kg !== null
-            ? <> = Verdunstung {kg(b.verdunstung_heute_kg, 0)} + Palox <span title={b.faul_anteil != null ? `rechnet mit ${prozent(b.faul_anteil)} im Palox — ${b.faul_quelle ?? 'Quelle unbekannt'}` : undefined}>{kg(b.schimmel_heute_kg, 0)}</span> + Faules beim Abpacken {kg(b.fax_heute_kg, 0)}</>
+            ? <> = Verdunstung {kg(b.verdunstung_heute_kg, 0)} + Faules im Palox <span title={b.faul_anteil != null ? `rechnet mit ${prozent(b.faul_anteil)} im Palox — ${b.faul_quelle ?? 'Quelle unbekannt'}` : undefined}>{kg(b.schimmel_heute_kg, 0)}</span> + Faules beim Abpacken {kg(b.fax_heute_kg, 0)}</>
             : <> — {verlustTitel(b)}</>}</li>
         {z.l && <li className="leise">Gemessen: {mz(z.l.n_wiegungen, 'Palettenwägung', 'Palettenwägungen')} · {mz(z.l.n_schimmel, 'Palox-Ablesung', 'Palox-Ablesungen')} · {mz(z.l.n_sortierlaeufe, 'Sortierlauf', 'Sortierläufe')}</li>}
       </ul>

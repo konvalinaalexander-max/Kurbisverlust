@@ -36,16 +36,25 @@ export const passtLabel = (w: Wahl, l: string | null) => w.label === 'beide' || 
 export const passtKlasse = (w: Wahl, k: Klasse) => w.groesse === 'beide' || k === w.groesse
 
 /**
- * Was vom Lager einer Charge nicht mehr verkaufsfähig ist — so geteilt, wie
- * die Kaskade es tut (erg_prognose, h = 0): zu klein / zu gross, Palox,
- * verdunstet, Faules beim Abpacken. Lager = verkaufsfähig + diese vier.
+ * Was von der liegenden Eingangsmasse einer Charge nicht verkaufsfähig ist —
+ * so geteilt, wie die Kaskade es tut (erg_prognose, h = 0): zu klein / zu
+ * gross, faul (in den Palox), verdunstet, Faules beim Abpacken. Liegende
+ * Eingangsmasse = verkaufsfähig + diese vier. `bekannt`: Verdunstung und
+ * Faules sind gemessen — sonst ist, was im Lager liegt, eine obere Schranke.
  */
-export interface RestTeile { kanal: number; faul: number; verdunstet: number; fax: number }
+export interface RestTeile { kanal: number; faul: number; verdunstet: number; fax: number; bekannt?: boolean }
 
 /** Ein Artikel ohne Grösse (Gruppe × Label), mit allem, was seine Chargen bis heute erlebt haben. */
 export interface Uebersichtszeile {
   schluessel: string; gruppe: string | null; label: 'D' | 'K' | null; n: number
-  eingang: number; ausgelagert: number; geliefert: number; lager: number
+  eingang: number; ausgelagert: number; geliefert: number
+  /** Die liegende Eingangsmasse: Eingang − ausgelagert (der Balken ist so lang wie der Eingang). */
+  lager: number
+  /** 22. Oktober: im Lager — was auf den Paletten liegt, ohne Verdunstetes und Faules (src/auswertung/lager.ts).
+   *  imLagerHoechstens: eine Charge ohne Teilung oder ohne gemessene Rate — die Zahl ist eine obere Schranke. */
+  imLager: number; imLagerHoechstens: boolean
+  /** Die Eingangspaletten, die noch da sind (Σ n_rest_paletten); null, wenn keine Charge eine Zahl hat. */
+  paletten: number | null
   /** Das Verkaufsfähige heute; luecke: Chargen mit Ware, deren Verkaufsfähiges unbekannt ist (nie 0). */
   vf: number; luecke: number
   /** Das Verkaufsfähige nach Grösse, heute und am Stichtag der Tabelle (Runde AS: Wochenregler nur dort). */
@@ -67,7 +76,8 @@ export function uebersichtszeilen(bestand: Bestand[], labelVon: Map<number, Char
     const k = `${gruppe ?? ''}|${label ?? ''}`
     let z = m.get(k)
     if (!z) {
-      z = { schluessel: k, gruppe, label, n: 0, eingang: 0, ausgelagert: 0, geliefert: 0, lager: 0, vf: 0, luecke: 0,
+      z = { schluessel: k, gruppe, label, n: 0, eingang: 0, ausgelagert: 0, geliefert: 0, lager: 0, imLager: 0, imLagerHoechstens: false,
+            paletten: null, vf: 0, luecke: 0,
             klassen: new Map(), klassenSpaeter: new Map(), rest: { kanal: 0, faul: 0, verdunstet: 0, fax: 0, offen: 0 }, chargen: [] }
       m.set(k, z)
     }
@@ -78,9 +88,15 @@ export function uebersichtszeilen(bestand: Bestand[], labelVon: Map<number, Char
     if (b.lager_kg > 0) {
       if (b.verkaufsfaehig_lager_kg === null) z.luecke += 1
       else z.vf += Number(b.verkaufsfaehig_lager_kg)
+      if (b.n_rest_paletten != null) z.paletten = (z.paletten ?? 0) + Number(b.n_rest_paletten)
       // Der Rest nur, wo die Kaskade ihn geteilt hat und das Verkaufsfähige bekannt ist —
       // sonst liegt die ganze Ware dieser Charge als „offen" im Balken, nie als 0.
       const r = weiter.rest?.get(b.charge_nr)
+      // Im Lager: die liegende Eingangsmasse ohne das Verdunstete und das Faule.
+      // Ohne Teilung der Kaskade ist es höchstens die ganze liegende Masse —
+      // abgezogen wird nur, was gerechnet ist, nie etwas erfunden.
+      z.imLager += r ? Math.max(Number(b.lager_kg) - r.verdunstet - r.faul, 0) : Number(b.lager_kg)
+      if (!r || r.bekannt === false) z.imLagerHoechstens = true
       if (r && b.verkaufsfaehig_lager_kg !== null) {
         z.rest.kanal += r.kanal; z.rest.faul += r.faul; z.rest.verdunstet += r.verdunstet; z.rest.fax += r.fax
         z.rest.offen += Math.max(Number(b.lager_kg) - Number(b.verkaufsfaehig_lager_kg) - r.kanal - r.faul - r.verdunstet - r.fax, 0)

@@ -812,6 +812,7 @@ thead.klebt th { background: var(--flaeche); box-shadow: inset 0 -1px 0 var(--ra
 
 /* Kleine Wörter an einer grossen Zahl */
 .gross-zahl .mini-wort { font-size: .45em; white-space: nowrap; color: var(--text-leise); }
+td.zahl .mini-wort { font-size: var(--s-0); white-space: nowrap; color: var(--text-leise); }
 .gross-zahl .neben-zahl { font-size: .55em; white-space: nowrap; }
 
 /* ---------- Ursachen: die beiden Marge-Karten (Runde R) --------------------- */
@@ -1010,6 +1011,14 @@ tr.marge-dahinter table { margin: 0; }
    geteilt; was die Kaskade nicht teilen kann (Verkaufsfähiges unbekannt),
    ist gestreift — nie eine Farbe, die eine Zahl behauptet. */
 .uebersicht-lager { display: flex; height: 100%; background: var(--flaeche-2); }
+/* 22. Oktober: was seit dem Eingang verdunstet oder faul geworden ist, steht
+   hinter dem Lager, blass und gestreift — Teil des Eingangs, nicht mehr dessen,
+   was auf den Paletten liegt. */
+.uebersicht-lager + .uebersicht-teil.weg { border-left: 2px solid var(--flaeche); }
+.uebersicht-teil.weg, .chip.weg {
+  opacity: .45;
+  background-image: repeating-linear-gradient(135deg, transparent 0 4px, color-mix(in srgb, var(--flaeche) 60%, transparent) 4px 6px);
+}
 .uebersicht-teil.offen, .uebersicht-chip-offen {
   background: repeating-linear-gradient(135deg, var(--flaeche-2) 0 4px, color-mix(in srgb, var(--text-leise) 35%, var(--flaeche)) 4px 6px);
 }

@@ -206,7 +206,7 @@ function Messwerte({ daten }: { daten: Auswertung }) {
         {exportFehler && <Hinweis art="warnung">{exportFehler}</Hinweis>}
         <Aufklapp titel={<><span>Je Charge</span> <span className="leise">{daten.bilanz.filter(b => b.eingang_kg !== null).length} Chargen · Kaskade<Herkunft art="gerechnet" />, CSV<Herkunft art="gemessen" /></span></>}>
         <div className="rollbar"><table className="dicht">
-          <thead><tr><th>Charge</th><th className="zahl">Eingang</th><th className="zahl">Ausgelagert</th><th className="zahl">Noch im Lager</th><th className="zahl">Kaskade am Band</th><th className="zahl">CSV gewogen</th><th className="zahl">Abweichung Kaskade ↔ CSV</th></tr></thead>
+          <thead><tr><th>Charge</th><th className="zahl">Eingang</th><th className="zahl">Ausgelagert</th><th className="zahl" title="Eingang − ausgelagert, in Eingangskilo — vor Verdunstung und Faulem: der Nenner der Kaskade. Was davon heute auf den Paletten liegt, steht im Lagermanagement unter „Im Lager“.">Liegend (Eingangskilo)</th><th className="zahl">Kaskade am Band</th><th className="zahl">CSV gewogen</th><th className="zahl">Abweichung Kaskade ↔ CSV</th></tr></thead>
           <tbody>{daten.bilanz.filter(b => b.eingang_kg !== null).map(b => (
             <tr key={b.charge_nr}><td>{b.charge_nr} · {b.sorte}</td><td className="zahl">{kg(b.eingang_kg)}</td><td className="zahl">{kg(b.ausgelagert_kg)}</td><td className="zahl">{kg(b.lager_kg)}</td>
               <td className="zahl">{kg(b.modell_am_band_kg)}</td><td className="zahl">{kg(b.csv_gemessen_kg)}</td>
@@ -216,7 +216,8 @@ function Messwerte({ daten }: { daten: Auswertung }) {
         </Aufklapp>
         <Erklaerung>
           <strong>Eingang</strong> <Herkunft art="gemessen" /> und <strong>CSV gewogen</strong> <Herkunft art="gemessen" /> stehen so in den Listen;
-          {' '}<strong>Ausgelagert</strong>, <strong>Noch im Lager</strong> und <strong>Kaskade am Band</strong> <Herkunft art="gerechnet" /> kommen aus der Kaskade.
+          {' '}<strong>Ausgelagert</strong>, <strong>Liegend</strong> und <strong>Kaskade am Band</strong> <Herkunft art="gerechnet" /> kommen aus der Kaskade.
+          Liegend ist die Eingangsmasse, die nicht ausgeliefert ist, vor Verdunstung und Faulem — im Lager liegt davon weniger.
           Die Ware im Lager ist bis heute, <strong>{datum(daten.heute)}</strong>, gealtert — nicht bis zum Saisonende. Die Prognose bis dahin steht nur im Verlauf des Überblicks.
         </Erklaerung>
       </Karte>

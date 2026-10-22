@@ -4171,6 +4171,85 @@ Daten, dann die Annahme — nach der Korrektur nachsehen.
 nicht alles: vier mal vier gleiche Paloxen und ein Tag mit 30 Paaren bei
 13 erwarteten sind Fragen wert.
 
+## Nachtrag: „im Lager" ist, was auf den Paletten liegt (22. Oktober)
+
+Der Betrieb, zur Artikelansicht: „Wieso nimmt es die Paloxe noch zum Lager
+dazu? Ev. Paloxe umbenennen." Und dann: „Vielleicht einfach klarer
+ausweisen — wie viel ist noch hier, im Lager, Anzahl Paletten, auch ohne
+Verdunstung und ohne Palox, und dann wie viel ist verkaufsfähig. … Wenn du
+jetzt ins Lager gehst, so viele Paletten wirst du wohl noch antreffen — und
+in Kilo: so viel kannst du tatsächlich noch verkaufen. Mach das für Artikel
+und Chargen, schau, wie das überall gemacht wird."
+
+„Im Lager" war die liegende Eingangsmasse (`lager_kg`, Eingang −
+ausgelagert) — darin, was seither verdunstet ist und was faul in den Palox
+geht. Der Balken der Artikel zeigte das Faule als „Palox" mitten im Lager;
+seit Oettli in Paloxen liefert, las man es als Gebinde. Jetzt heisst „im
+Lager" an jeder Stelle die gute Ware der Kaskade: was auf den Paletten
+liegt, ohne Verdunstetes und Faules (`src/auswertung/lager.ts`, eine
+Regel für alle Seiten). Daneben „≈ n Paletten" (`n_rest_paletten`, die
+Eingangspaletten, die noch da sind) und darunter das Verkaufsfähige als
+Anteil davon. Keine neue Rechnung, keine Migration: Die Zahl stand schon in
+`erg_prognose.gute_ware_kg`, `erg_verlauf` und `erg_charge` — sie war nur
+nicht die, die oben stand.
+
+Wo: Lagermanagement nach Charge (Kachel, Verlauf, „Was ist noch im
+Haus?" auch in N Wochen), Chargen (Spalte, Summe, Sortierung, Anteil),
+Artikel (Balken: ausgeliefert | im Lager | blass dahinter verdunstet und
+faul; Text, Tabelle, Summe), Messungen → Ausstehend. Die Kaskadentabelle
+unter Messungen zeigt weiter die Eingangsmasse, jetzt als „Liegend
+(Eingangskilo)" — dort ist sie der Nenner. Das Faule heisst überall „faul"
+oder „Faules im Palox", nie nackt „Palox". Fehlt Verdunstung oder Faules
+einer Sorte, steht „höchstens" — eine Charge ohne Teilung zählt ganz.
+
+**Mutationen.** 6, alle erkannt (`test/lager.test.ts`,
+`test/artikel.test.ts`): Faules bleibt im Lager, ohne Teilung 0 statt der
+ganzen Masse, nie „höchstens" (Artikel und Lager), ausgelieferte Charge
+zählt Paletten, Aussortiertes zählt mit. Die Gegenprobe der Beschriftung
+rechnet „Im Lager" unabhängig aus der Bilanz (im Haus − aussortiert).
+
+**Dazu, gefragt am selben Tag: „Amoro von Rüegg hat's keine mehr — wie
+könnte so was sein?"** (1625, Agasul Rüegg · Amoro). Aus dem Abzug vom
+22.10.: Eingang 11.6 t netto (29 Paletten am 29.07., 6 IFCO am 23.09.),
+Lieferscheine mit 1625 7.4 t, alle vom 3. bis 23.09. — seither keiner. 1607
+(Illnau Gross · Amoro, 5.6 t seit 24./25.07.) hat keinen einzigen
+Lieferschein. Gleichzeitig melden drei Kaori-Kuri-Chargen Überzählung (1630
+4.5 t, 1614 2.0 t, 1619 0.5 t, zusammen rund 7 t) — ungefähr das, was bei
+Amoro (1607 und der Rest von 1625, rund 6 t) nach der App noch liegt. Amoro
+und Kaori Kuri gehen in Perigon über denselben Artikel hinaus (die App
+ordnet ihn Kaori Kuri zu); nur die Chargennummer trennt sie, und
+Lieferungen ohne Nummer verteilt die App auf Kaori Kuri. Wahrscheinlich
+ging Amoro unter Kaori-Kuri-Nummern hinaus. Dazu, aus den beiden
+Perigon-Dateien vom 12.10.: Am 23.09. wechselt eine Lieferung mitten in der
+Position von 1625 auf 1627 (Agasul Rüegg · Fictor), und bis 5.10. gehen
+1.4 t auf 1627 — eine Charge ohne einen einzigen Eingang im Journal; das ist
+sehr wahrscheinlich Amoro aus 1625. Mit ihnen gingen 8.8 von 11.6 t hinaus
+(76 %), also wohl alles, was verkaufsfähig war. Kleiner, in dieselbe
+Richtung: Amoro hat keine eigene Messung (Verdunstung 0.27 % je Tag
+geliehen, Kaori Kuri misst 0.43 %), und eine „Kiste ab 8 kg" wiegt gewogen
+8.34 kg (Kaori Kuri 9, Tiana 19 volle Paletten) — eine erste Schätzung
+hier hatte 8.6 kg genannt, mit Stück-Kisten vermischt. Ein Befund für den
+Betrieb, keine Korrektur aus dem Repository.
+
+**Was bewusst nicht gemacht wurde.** Die Kontrolle in der Arbeiter-App
+nennt weiter „im Haus" aus ihrer Sicht (mit dem schon Aussortierten, ein
+paar Prozent) — dafür bräuchte die Sicht eine Migration. „Im Lager" im
+Verlauf endet weiter heute; vorhergesagt wird nur das Verkaufsfähige
+(Runde AO). Keine Regel „Überzählung und eine Charge derselben
+Artikelgruppe ohne Lieferschein" — erst die Antwort aus dem Lager zu 1607
+und 1625; stimmt die Vermutung, ist das die nächste Prüfung.
+
+**Vorgemerkt: die Masse, die wirklich hinausgeht.** Die Kaskade rechnet vom
+Lieferschein zurück. Bei Kistenware („Kiste ab 8 kg") ist das die
+Nennmasse — gewogen 8.34 kg je Kiste (Kaori Kuri 9, Tiana 20 Paletten),
++4 %; bei Stückware Stück × Stückgewicht aus dem Perigon-Artikelstamm, und
+das ist bei „gross" zu schwer (Kaori Kuri 1.35 gegen 1.27 kg, Tiana 1.55
+gegen 1.50, Butterkin 1.50 gegen 1.43). Nachgerechnet über die Saison bis
+12.10. mit den Messungen der eigenen Sorte (ab 3 Paletten): Kistenware
++1.2 t, Stückware −1.4 t, netto −0.2 t von 207.6 t. Richtig wäre beides in
+der Kaskade, im Verlauf, in der Bilanz und im Orakel; bei dieser Grösse hat
+der Betrieb entschieden (22.10.): später, die Chargennummern zuerst.
+
 ## Nachtrag: der Durchgang kennt den Palox und das Datum, das zurückspringt (22. Oktober)
 
 Nach 0120 kamen die Oettli- und Trüeb-Zeilen an (Abzug vom 22.10.: 62

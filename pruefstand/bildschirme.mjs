@@ -422,8 +422,11 @@ const BILDSCHIRME = [
       if (await p.locator('#artikel-bestand').count()) throw new Error('Die zweite Tabelle „in Kisten" ist noch da')
       if (/Kisten/.test(await p.locator('#artikel-uebersicht').innerText())) throw new Error('Die Übersicht spricht noch von Kisten')
       const legende = await p.locator('.uebersicht-legende').innerText()
-      for (const w of ['ausgeliefert', 'verkaufsfähig klein', 'zu klein / zu gross', 'Palox', 'verdunstet'])
+      // 22. Oktober: der faule Teil heisst „faul", nicht mehr „Palox" — seit
+      // Oettli in Paloxen liefert, las der Betrieb ihn als Gebinde im Lager.
+      for (const w of ['ausgeliefert', 'verkaufsfähig klein', 'zu klein / zu gross', 'faul', 'verdunstet'])
         if (!legende.includes(w)) throw new Error(`Legende ohne „${w}": ${legende}`)
+      if (/Palox/.test(legende)) throw new Error(`Die Legende sagt noch „Palox" für das Faule: ${legende}`)
       const vorher = await p.locator('#artikel-uebersicht .uebersicht-wert strong').first().innerText()
       await p.locator('#artikel-wochen').fill('4')
       await p.locator('#artikel-uebersicht-tabelle th.gruppe', { hasText: 'in 4 Wochen' }).waitFor()
