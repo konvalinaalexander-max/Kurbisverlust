@@ -466,6 +466,47 @@ nicht die Masse der Datei ergeben; der Warenausgang warnt oben.
 **Urteil:** ehrlich. Bis 0115 zählten kg-Artikel mit Gewicht 0 als 0 kg
 (BioProdukte 2024/25: 81.6 t statt 168.3 t).
 
+## 12c. Was im Lager liegt, Schritt für Schritt (`v_lager_ausweis`, 0121)
+
+**Braucht:** je Charge die Prognose von heute (`erg_prognose`, h = 0: liegende
+Eingangsmasse, verdunstet, faul, gute Ware, zu klein, zu gross, Faules beim
+Abpacken, verkaufsfähig), die Restpaletten (`erg_charge.n_rest_paletten`), den
+angewandten Hagel der Kaskade (`mv_kaskade.hagel`) und die Überfüllung
+(`erg_marge_charge`: zu viel je Kiste und Soll).
+**Rechnet:** eingang_kg − verdunstet − faul − Unique − zu klein − zu gross −
+Faules beim Abpacken = verkaufsfähig. Unique = gute Ware · h/(1 − h), wo die
+Kaskade den Hagel h angewandt hat; faul = Faules der Kaskade − Unique. Marge =
+verkaufsfähig · a/(1 + a), a = Σ zu viel ÷ Σ Soll der gewogenen Kisten der Charge,
+sonst der Sorte; Stück-Kisten haben kein Soll: a = 0. Verrechenbar = verkaufsfähig
+− Marge. Die App zählt über die Chargen der Auswahl zusammen
+(`src/auswertung/ausweis.ts`); die Rate je Tag ist dort verdunstet ÷ Eingang ÷
+mittleres Alter (nach Masse).
+**Fehlt eine Eingabe:** ohne gemessene Rate fehlt die Charge in den Abzügen und
+wird als Lücke gezählt („n von m Chargen fehlen") — nie 0. Ohne gewogene Kisten
+weder der Charge noch der Sorte: Marge unbekannt, „verrechenbar" steht nicht da.
+**Urteil:** ehrlich; ändert keine Zahl der Kaskade, legt sie nur hin.
+
+## 12d. Die Charge einer Palette (`paletten_zuordnen`, 0121)
+
+**Braucht:** Paletten mit der Charge des Journals (`charge_nr_journal`), Zettel
+der Arbeiten (`auftrag_palette`: Brutto, Eingangsdatum), Lieferungen je Charge
+(`v_lieferung_masse`), Netto der Paletten (`v_palette`).
+**Rechnet:** siehe ENTSCHEIDUNGEN, Runde AW, 1: aufs Kilo, ±3 Tage, die eigene
+Charge zuerst; umgebucht ab 2 Zetteln und 80 %, wenn die Charge der Arbeit mehr
+lieferte, als sie bekam; der Rest einer Fuhre mit. `palette.charge_nr` ist danach
+die Charge, mit der alles gerechnet wird.
+**Fehlt eine Eingabe:** ein Zettel ohne Eingangsdatum oder Brutto belegt nichts;
+ohne Beleg bleibt die Charge des Journals.
+**Urteil:** eng mit Absicht — ein Vorschlag wird angezeigt, nicht gebucht.
+
+## 12e. Lieferscheine ohne Charge (`v_ohne_charge`, `lieferungen_nachordnen`, 0121)
+
+**Rechnet:** je Sorte die Lieferscheine ohne Chargennummer und wie die Rechnung
+sie verteilt (0114: nach Eingang auf die Chargen der Sorte); was davon vor dem
+Eingang der tragenden Charge lag und was auf keine fällt. Eine Nummer der Datei,
+die die App inzwischen kennt (eigene Nummer, sonst eine Perigon-Nummer an genau
+einer Charge), bekommt der Lieferschein im nächsten Rechenlauf.
+
 ## 13. Was nirgends erraten wird
 
 - Eine Menge aus einer Zählung ohne Masse (AB-23).

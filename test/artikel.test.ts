@@ -190,3 +190,19 @@ test('Runde AT: ein Plan für die ganze Gruppe gilt als Ganzes — die Kundenpl�
   // eine Gruppe nur mit Plan, noch ohne Kunden: sie steht da, mit ihrem ganzen Plan
   assert.equal(nochZuLiefern(kunden, [], 2026, w('Knirps', 'beide', 'D'), undefined, { von, plaene: [gp('Neu', 800)] }).jeGruppe.get('Neu')?.offen, 800)
 })
+
+// 0121 — „was mit Hagelschaden ist … das wird anders verkauft, Unique, wie ein
+// eigener Artikel, nur Knospe — eine dritte Kategorie: gross, klein, unique."
+test('Übersicht: Unique geht in die Knospe-Zeile der Artikelgruppe, auch von einer Demeter-Charge; bei Demeter allein nicht', () => {
+  const rest = new Map([[1, { kanal: 20, faul: 50, verdunstet: 25, fax: 5, unique: 30, bekannt: true }]])
+  const zeilen = uebersichtszeilen(bestand, labelVon, gruppeVon, teile, OFFEN, { rest })
+  const knospe = zeilen.find(z => z.gruppe === 'Knirps' && z.label === 'K')
+  const demeter = zeilen.find(z => z.gruppe === 'Knirps' && z.label === 'D')!
+  assert.ok(knospe, 'eine Knospe-Zeile für die Unique-Ware, auch ohne eigene Knospe-Charge')
+  assert.equal(knospe!.klassen.get('unique'), 30)
+  assert.equal(demeter.klassen.get('unique'), undefined)
+  // Charge 1 liegt 400 − 25 − 50 = 325 auf den Paletten, davon gehen 30 als Unique zu Knospe
+  assert.equal(demeter.imLager + knospe!.imLager, 325 + 500)
+  assert.equal(knospe!.imLager, 30)
+  assert.equal(uebersichtszeilen(bestand, labelVon, gruppeVon, teile, { ...OFFEN, label: 'D' }, { rest }).some(z => (z.klassen.get('unique') ?? 0) > 0), false)
+})

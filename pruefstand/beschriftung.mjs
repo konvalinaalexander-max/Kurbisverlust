@@ -122,7 +122,12 @@ const ERNTEN = () => {
 
   // 1. Kennzahlen und Zahlenzeilen: Titel steht daneben
   for (const e of document.querySelectorAll('.kennzahl, .zahlenzeile > div')) {
-    const wert = text(e.querySelector('.gross-zahl, .wert'))
+    // 0121: „Im Lager" zeigt gross die Paletten („≈ 470 Paletten") und die
+    // Masse in der Zeile darunter („164.4 t darauf"). Dann ist die Zeile
+    // darunter die Zahl mit Einheit, die ein Mensch zur Kachel liest — sie
+    // wird geerntet und gegengeprüft wie vorher die grosse Zahl.
+    const gross = text(e.querySelector('.gross-zahl, .wert'))
+    const wert = ZAHL.test(gross) ? gross : text(e.querySelector('.unter'))
     if (!ZAHL.test(wert)) continue
     raus.push({ art: 'kennzahl', beschriftung: text(e.querySelector('.titel')),
                 wert, unter: text(e.querySelector('.unter')),

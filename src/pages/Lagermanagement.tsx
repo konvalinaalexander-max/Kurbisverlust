@@ -9,6 +9,9 @@ import { Glocke, Linien, tonnenAchse, type Reihe } from '../components/Diagramm'
 import { kaliberGlockeBei, lagerKaliberBei, lieferungenVon, prognoseBei, useAuswertung, useStichtag, wohinVon,
          type Auswertung, type Bestand, type KaliberGlocke, type LagerKaliber, type Prognose, fehlendeRaten } from '../auswertung/daten'
 import { IM_LAGER_TEXT, imLagerBei, palettenIm, palettenText } from '../auswertung/lager'
+import { Ungereimtheiten } from '../auswertung/Ungereimtheiten'
+import { summiere } from '../auswertung/ausweis'
+import { LagerLeiste, LagerRechnung } from '../auswertung/LagerKette'
 import { Probleme, Rechnet, Reiterkopf } from '../auswertung/Karten'
 import { JournalAbgleich } from '../betrieb/JournalAbgleich'
 import { useZaehler } from '../design/bewegung'
@@ -93,6 +96,7 @@ export default function Lagermanagement() {
                   zeitplan={daten.zeitplan} veraltet={daten.veraltet} aktuell={daten.aktuell} />
       <JournalAbgleich />
       <Probleme liste={daten.probleme} />
+      <Ungereimtheiten daten={daten} />
       {daten.befunde.length > 0 && (
         <div className="hinweis warnung" role="status">
           <span className="hinweis-zeichen"><ZWarnung size={18} /></span>
@@ -105,6 +109,7 @@ export default function Lagermanagement() {
 
       <Filterleiste daten={daten} filter={filter} setzen={setzen} />
       <Kennzahlen daten={daten} filter={filter} />
+      <VomLagerZumVerkauf daten={daten} filter={filter} />
       <Verlauf daten={daten} filter={filter} />
       <ImHaus daten={daten} filter={filter} wochen={wochen} setzeWochen={setzeWochen} />
       <Glockenkarte daten={daten} filter={filter} wochen={wochen} setzeWochen={setzeWochen} />
@@ -143,6 +148,31 @@ function Filterleiste({ daten, filter, setzen }: { daten: Auswertung; filter: Fi
   )
 }
 
+/**
+ * 0121: Vom Lager zum Verkaufsfähigen, Schritt für Schritt (v_lager_ausweis) —
+ * der Betrieb: „minus Verdunstung (mit Lagerdauer und täglicher Rate), minus
+ * Palox, minus zu klein, zu gross … und vielleicht minus verschenkte Marge.
+ * Kommunizier das clever, in Worten." Für die Auswahl oben, über ihre Chargen.
+ */
+function VomLagerZumVerkauf({ daten, filter }: { daten: Auswertung; filter: Filter }) {
+  const nrn = new Set(chargenIm(daten.bestand, filter).map(b => b.charge_nr))
+  const s = summiere(daten.ausweis.filter(a => nrn.has(a.charge_nr)))
+  if (!(s.eingang > 0)) return null
+  return (
+    <Karte id="lager-kette" titel="Vom Lager zum Verkaufsfähigen" unter="was auf den Paletten lag, was seither wegging, was die Sortiermaschine herausnimmt">
+      <LagerRechnung s={s} />
+      <Erklaerung titel="Was die Schritte heissen">
+        <p><strong>Verdunstet</strong>: Wasser, das die Kürbisse seit dem Eingang verloren haben — gerechnet aus der Lagerdauer und der gewogenen
+        Rate je Tag. <strong>Faul (Palox)</strong>: was beim Waschen und Sortieren faul in den Palox geht. <strong>Unique</strong>: Hagelware —
+        nicht faul, sie wird als Knospe verkauft, wie ein eigener Artikel. <strong>Zu klein / zu gross</strong>: was die Sortiermaschine unter dem
+        kleinsten und über dem obersten Band herausnimmt; das Zu-Grosse steht auf den Paletten „+2000 g" und geht in einen anderen Kanal.
+        <strong> Überfüllung</strong>: was in den Kisten über dem Sollgewicht mitgeht und nicht verrechnet wird — nur bei Kisten mit Sollgewicht,
+        aus den gewogenen fertigen Paletten.</p>
+      </Erklaerung>
+    </Karte>
+  )
+}
+
 function chargenIm(bestand: Bestand[], f: Filter): Bestand[] {
   if (f.gruppe === 'charge') return bestand.filter(b => String(b.charge_nr) === f.schluessel)
   if (f.gruppe === 'sorte') return bestand.filter(b => b.sorte === f.schluessel)
@@ -175,6 +205,8 @@ function Kennzahlen({ daten, filter }: { daten: Auswertung; filter: Filter }) {
     { name: 'faul beim Abpacken', kg: p0.fax_kg, farbe: 'var(--strom-schimmel)' },
   ] : []
   const summe = teile.reduce((a, t) => a + t.kg, 0)
+  const nrn = new Set(chargen.map(b => b.charge_nr))
+  const kette = summiere(daten.ausweis.filter(a => nrn.has(a.charge_nr)))
 
   return (
     <div className="kennzahl-reihe">
@@ -190,10 +222,12 @@ function Kennzahlen({ daten, filter }: { daten: Auswertung; filter: Filter }) {
                   // das beim Sortieren herausfällt, steht im Haus (0101) — nicht hier.
                   ? <>{lieferungen !== null ? <>{zahl(lieferungen)} {lieferungen === 1 ? 'Lieferung' : 'Lieferungen'} ab Lieferschein</> : 'ab Lieferschein'}</>
                   : <>noch kein Warenausgang eingelesen — <Link to="/betrieb/lieferungen">Betrieb → Warenausgang</Link></>} />
+      {/* 0121: zuerst die Paletten — „so viele wirst du im Lager wohl antreffen" —, darunter die Kilo darauf. */}
       <Kennzahl titel="Im Lager" ton="kuerbis" id="kz-lager"
-                wert={<>{lager.hoechstens && <span className="mini-wort">höchstens </span>}<Tonnen kg={lager.kg} />
-                  <Herkunft art="gerechnet" text={`Im Lager ist ${IM_LAGER_TEXT}`} /></>}
-                unter={<>{palettenText(restPaletten) || 'auf den Paletten'} · ohne Verdunstetes und Faules</>} />
+                wert={restPaletten !== null && restPaletten > 0
+                  ? <>{palettenText(restPaletten)}<Herkunft art="gerechnet" text="die Eingangspaletten, die noch da sind: Eingangsmasse, die nicht ausgeliefert ist, durch die mittlere Eingangspalette" /></>
+                  : <>{lager.hoechstens && <span className="mini-wort">höchstens </span>}<Tonnen kg={lager.kg} /><Herkunft art="gerechnet" text={`Im Lager ist ${IM_LAGER_TEXT}`} /></>}
+                unter={<>{lager.hoechstens && 'höchstens '}{tonnen(lager.kg)} darauf · ohne Verdunstetes und Faules</>} />
       <Kennzahl titel="Davon verkaufsfähig" ton="gruen" id="kz-verkaufsfaehig"
                 wert={<>
                   {anteil === null && <span className="mini-wort">höchstens </span>}
@@ -201,11 +235,13 @@ function Kennzahlen({ daten, filter }: { daten: Auswertung; filter: Filter }) {
                   {anteil !== null && <span className="neben-zahl"> · {prozent(anteil, 0)}</span>}
                   <Herkunft art="gerechnet" /></>}
                 unter={<>
-                  <span className="mini-anteile" aria-hidden="true">
-                    {teile.filter(t => t.kg > 0).map(t => (
-                      <span key={t.name} style={{ width: `${(t.kg / Math.max(summe, 1)) * 100}%`, background: t.farbe }} />
-                    ))}
-                  </span>
+                  {/* 0121: dieselbe Leiste wie überall — die Ware, wie sie einging, bis zum Verkaufsfähigen (Schritte darunter). */}
+                  {kette.eingang > 0 ? <LagerLeiste s={kette} /> : (
+                    <span className="mini-anteile" aria-hidden="true">
+                      {teile.filter(t => t.kg > 0).map(t => (
+                        <span key={t.name} style={{ width: `${(t.kg / Math.max(summe, 1)) * 100}%`, background: t.farbe }} />
+                      ))}
+                    </span>)}
                   {anteil === null
                     // Runde AF: der Betrieb fragte „welche Rate?" — hier steht sie, mit dem Weg zum Reiter.
                     ? <>unbekannt, solange {fehlendeRaten(p0).join(', ') || 'eine Rate'} nicht gemessen ist — <Link to="/messungen/ausstehend">Messungen → Ausstehend</Link></>

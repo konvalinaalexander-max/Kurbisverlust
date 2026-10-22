@@ -136,6 +136,7 @@
     {
       "muster": [
         "Verschenkt",
+        "Überfüllung",
         "Zu viel je Kiste",
         "An der ausgelieferten Ware"
       ],
@@ -337,6 +338,22 @@
       "art": "gemessen",
       "bedeutet": "Kürbis-Lieferungen an einen Kunden laut den Perigon-Dateien, kumuliert über die Saison (1. Juli – 30. Juni); die Vorjahre zum Vergleich, bis zum selben Tag und ganz. Ohne interne Umbuchung (Journal L). Geht in keine Bilanz ein (Runde AO).",
       "quelle": "v_kunde_tag · ausgang_position"
+    },
+    {
+      "muster": [
+        "Unique"
+      ],
+      "art": "gerechnet",
+      "bedeutet": "Ware mit Hagelschaden: nicht faul, wird als eigener Artikel (nur Knospe) verkauft — gute Ware × Hagelanteil, wo die Kaskade Hagel angewandt hat (0121)",
+      "quelle": "v_lager_ausweis.unique_kg · mv_kaskade.hagel"
+    },
+    {
+      "muster": [
+        "verrechenbar"
+      ],
+      "art": "gerechnet",
+      "bedeutet": "Verkaufsfähig ohne die Überfüllung in den Kisten: was der Kunde bezahlt (0121)",
+      "quelle": "v_lager_ausweis.verrechenbar_kg · erg_marge_charge"
     }
   ]
 }

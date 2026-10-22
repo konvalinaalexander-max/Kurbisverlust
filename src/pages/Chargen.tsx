@@ -9,6 +9,11 @@ import { Erklaerung, Herkunft, Hinweis, Karte, Lade, Marke } from '../components
 import { anteilBei, lieferungenVon, useAuswertung, type Auswertung } from '../auswertung/daten'
 import { IM_LAGER_TEXT, imLagerCharge, palettenText } from '../auswertung/lager'
 import { Probleme, Rechnet, Reiterkopf } from '../auswertung/Karten'
+import { Ungereimtheiten } from '../auswertung/Ungereimtheiten'
+import { ungereimtheiten, vonCharge, type Ungereimtheit } from '../auswertung/ungereimt'
+import { ausweisVon, summiere } from '../auswertung/ausweis'
+import { LagerLeiste, LagerRechnung } from '../auswertung/LagerKette'
+import { ZWarnung } from '../components/Zeichen'
 import type { Auftrag } from '../lib/typen'
 import { herkunftText, summeBekannt } from '../lib/masse'
 import { LieferungFenster } from '../betrieb/LieferungFenster'
@@ -75,6 +80,14 @@ export default function Chargen() {
     })
   }, [daten, sorte, nurBestand, nach, finden])
 
+  // 0121: was zwischen Perigon und Lager nicht passt — je Charge ein Zeichen in der Zeile, und
+  // Chargen, die verkauft haben, ohne je eine Palette zu bekommen, stehen als eigene Zeile da.
+  const ungereimt = useMemo(() => daten ? ungereimtheiten(daten.ungereimt, daten.perigon) : [], [daten])
+  const ohneEingang = useMemo(() => (daten?.ungereimt ?? [])
+    .filter(u => u.art === 'ohne_eingang' && u.charge_nr != null && !daten?.bestand.some(b => b.charge_nr === u.charge_nr))
+    .filter(u => (!sorte || u.sorte === sorte) && !nurBestand && passt({ charge_nr: u.charge_nr!, schlag: u.schlag, sorte: u.sorte ?? '' }, finden)),
+  [daten, sorte, nurBestand, finden])
+
   if (laedt && !daten) return <Rechnet fortschritt={fortschritt} />
   // Runde AJ: die zweite Welle der Ergebnisse (dieser Reiter braucht sie) kommt nach dem Lagermanagement.
   if (daten && !daten.vollstaendig) return <Rechnet fortschritt={fortschritt} />
@@ -107,6 +120,7 @@ export default function Chargen() {
                   stand={daten.stand} heute={daten.heute} neuRechnen={() => void neuRechnen()} laeuft={laedt}
                   zeitplan={daten.zeitplan} veraltet={daten.veraltet} aktuell={daten.aktuell} />
       <Probleme liste={daten.probleme} />
+      <Ungereimtheiten daten={daten} />
       <Karte>
         <div className="filterleiste">
           <input type="search" value={finden} onChange={e => setFinden(e.target.value)} aria-label="Charge finden"
@@ -138,10 +152,14 @@ export default function Chargen() {
               </tr>
             </thead>
             <tbody>
-              {zeilen.map(z => (
-                <ChargenZeile key={z.b.charge_nr} z={z} offen={offen === z.b.charge_nr} daten={daten}
-                              oeffnen={() => setSuche(offen === z.b.charge_nr ? {} : { charge: String(z.b.charge_nr) })}
-                              hagel={<HagelZelle nr={z.b.charge_nr} anteil={hagel.get(z.b.charge_nr) ?? null} darf={istAdmin} neu={hagelLaden} />} />
+              {mischen(zeilen, ohneEingang, nach === 'nr').map(e => e.z ? (
+                <ChargenZeile key={e.z.b.charge_nr} z={e.z} offen={offen === e.z.b.charge_nr} daten={daten}
+                              ungereimt={vonCharge(ungereimt, e.z.b.charge_nr)}
+                              oeffnen={() => setSuche(offen === e.z!.b.charge_nr ? {} : { charge: String(e.z!.b.charge_nr) })}
+                              hagel={<HagelZelle nr={e.z.b.charge_nr} anteil={hagel.get(e.z.b.charge_nr) ?? null} darf={istAdmin} neu={hagelLaden} />} />
+              ) : (
+                <OhneEingangZeile key={`ohne-${e.u!.charge_nr}`} u={e.u!} offen={offen === e.u!.charge_nr} daten={daten}
+                                  oeffnen={() => setSuche(offen === e.u!.charge_nr ? {} : { charge: String(e.u!.charge_nr) })} />
               ))}
             </tbody>
           </table>
@@ -149,9 +167,10 @@ export default function Chargen() {
         <Erklaerung>
           <p>Eingang und ausgeliefert sind <Herkunft art="gemessen" />. <strong>Ausgeliefert</strong> ist die Masse der Lieferscheine; darunter steht,
           wie viel Eingangsware dafür aus dem Lager ging — mehr, weil unterwegs Wasser verdunstet, Faules in den Palox geht und zu Kleines oder zu Grosses aussortiert wird.</p>
-          <p><strong>Im Lager</strong> ist, was heute auf den Paletten liegt <Herkunft art="gerechnet" />: die Eingangsware, die nicht ausgeliefert ist,
-          ohne das, was seither verdunstet oder faul geworden ist. Darunter die Paletten, die noch da sind — so viele triffst du im Lager etwa an.
-          <strong> Davon verkaufsfähig</strong> zieht noch ab, was zu klein oder zu gross ist; der Prozentsatz ist der Anteil an dem, was im Lager liegt.
+          <p><strong>Im Lager</strong> sind die Paletten, die noch da sind — so viele triffst du im Lager etwa an —, darunter die Kilo, die heute
+          auf ihnen liegen <Herkunft art="gerechnet" /> (ohne das, was seither verdunstet oder faul geworden ist).
+          <strong> Davon verkaufsfähig</strong> zieht noch ab, was die Sortiermaschine als zu klein oder zu gross herausnimmt und was Hagel ist (Unique,
+          wird als Knospe verkauft); die Leiste darunter zeigt den Weg von der Ware, wie sie einging, zum Verkaufsfähigen. Aufgeklappt steht er Schritt für Schritt.
           Ein Klick auf einen Spaltenkopf sortiert danach — nach „davon verkaufsfähig" steht oben, was am wenigsten übersteht.</p>
         </Erklaerung>
       </Karte>
@@ -234,14 +253,47 @@ function eingangSpanne(b: Auswertung['bestand'][number]): string {
   return b.eingang_bis && b.eingang_bis !== von ? `${kurz(von)} – ${kurz(b.eingang_bis)}` : kurz(von)
 }
 
-function ChargenZeile({ z, offen, oeffnen, daten, hagel }: { z: Zeile; offen: boolean; oeffnen: () => void; daten: Auswertung; hagel: ReactNode }) {
+/** Die Zeilen der Tabelle: Chargen mit Eingang und solche ohne — nach Nummer gemischt, sonst die ohne Eingang zuerst (sie sind ein Fehler). */
+function mischen(zeilen: Zeile[], ohne: Auswertung['ungereimt'], nachNummer: boolean): { z?: Zeile; u?: Auswertung['ungereimt'][number] }[] {
+  const a = zeilen.map(z => ({ nr: z.b.charge_nr, z })), o = ohne.map(u => ({ nr: u.charge_nr ?? 0, u }))
+  return nachNummer ? [...a, ...o].sort((x, y) => x.nr - y.nr) : [...o, ...a]
+}
+
+/** Das Zeichen hinter der Nummer, wenn Perigon und Lager bei dieser Charge nicht zusammenpassen. */
+function UngereimtMal({ liste }: { liste: Ungereimtheit[] }) {
+  const ernst = liste.filter(u => u.schwere !== 'info')
+  if (ernst.length === 0) return null
+  return <span className={`ungereimt-mal${ernst.some(u => u.schwere === 'rot') ? '' : ' gelb'}`} title={ernst.map(u => u.titel).join('\n')}
+               aria-label="Perigon und Lager passen nicht zusammen"><ZWarnung size={14} /></span>
+}
+
+/** Eine Charge, die verkauft hat, aber im Erntejournal nie eine Palette bekam (wie 1627 vor der Umbuchung). */
+function OhneEingangZeile({ u, offen, oeffnen, daten }: { u: Auswertung['ungereimt'][number]; offen: boolean; oeffnen: () => void; daten: Auswertung }) {
+  return (
+    <>
+      <tr onClick={oeffnen} className={`klickbar ohne-eingang${offen ? ' offen' : ''}`} aria-expanded={offen}>
+        <td><span className="chevron" style={{ display: 'inline-flex', color: 'var(--text-leise)', transform: offen ? 'rotate(90deg)' : undefined }}><ZChevron size={16} /></span></td>
+        <td><strong>{u.charge_nr}</strong><span className="ungereimt-mal" aria-label="verkauft, nie eingegangen"><ZWarnung size={14} /></span> <span className="leise nowrap">{u.schlag}</span></td>
+        <td>{u.sorte}</td>
+        <td className="zahl" colSpan={3}><Marke art="warnung">kein Eingang im Erntejournal</Marke></td>
+        <td className="zahl">{kg(u.kg, 0)}</td>
+        <td className="zahl" colSpan={4}><span className="leise">verkauft, aber nie eingegangen</span></td>
+      </tr>
+      {offen && <tr className="aufgeklappt"><td colSpan={11} className="detail"><Ungereimtheiten daten={daten} charge={u.charge_nr ?? undefined} /></td></tr>}
+    </>
+  )
+}
+
+function ChargenZeile({ z, offen, oeffnen, daten, hagel, ungereimt }: { z: Zeile; offen: boolean; oeffnen: () => void; daten: Auswertung; hagel: ReactNode; ungereimt: Ungereimtheit[] }) {
   const { b } = z
   const liegt = b.lager_kg > 0
+  const ausweis = ausweisVon(daten.ausweis, b.charge_nr)
+  const kette = ausweis ? summiere([ausweis]) : null
   return (
     <>
       <tr onClick={oeffnen} className={`klickbar${offen ? ' offen' : ''}`} aria-expanded={offen}>
         <td><span className="chevron" style={{ display: 'inline-flex', color: 'var(--text-leise)', transition: 'transform var(--d-mittel)', transform: offen ? 'rotate(90deg)' : undefined }}><ZChevron size={16} /></span></td>
-        <td><strong>{b.charge_nr}</strong> <span className="leise nowrap">{b.schlag}</span></td>
+        <td><strong>{b.charge_nr}</strong><UngereimtMal liste={ungereimt} /> <span className="leise nowrap">{b.schlag}</span></td>
         <td>{b.sorte}</td>
         <td className="zahl">{kg(b.eingang_kg, 0)}</td>
         <td className="zahl">{zahl(b.n_paletten)}</td>
@@ -249,17 +301,25 @@ function ChargenZeile({ z, offen, oeffnen, daten, hagel }: { z: Zeile; offen: bo
         <td className="zahl">{b.n_lieferungen > 0
           ? <>{kg(b.geliefert_kg, 0)}{b.ausgelagert_kg > 0 && <span className="zelle-unter" title="So viel Eingangsware ging für diese Lieferungen aus dem Lager — mehr als geliefert, weil unterwegs verdunstet, im Palox gelandet oder aussortiert">aus {kg(b.ausgelagert_kg, 0)} Eingang</span>}</>
           : <span className="leise">—</span>}</td>
+        {/* 0121: zuerst die Paletten — „so viele wirst du im Lager wohl antreffen" —, darunter die Kilo darauf. */}
         <td className="zahl">{liegt
-          ? <><strong>{kg(z.lager, 0)}</strong>{b.n_rest_paletten != null && <span className="zelle-unter" title="die Eingangspaletten, die noch da sind: Eingangsmasse, die nicht ausgeliefert ist, durch die mittlere Eingangspalette der Charge">{palettenText(b.n_rest_paletten)}</span>}</>
+          ? <>{b.n_rest_paletten != null
+                ? <strong title="die Eingangspaletten, die noch da sind: Eingangsmasse, die nicht ausgeliefert ist, durch die mittlere Eingangspalette der Charge">{palettenText(b.n_rest_paletten)}</strong>
+                : <strong>{kg(z.lager, 0)}</strong>}
+              {b.n_rest_paletten != null && <span className="zelle-unter" title={`Im Lager ist ${IM_LAGER_TEXT}`}>{kg(z.lager, 0)}</span>}</>
           : <span className="leise">—</span>}</td>
         <td className="zahl">{liegt && b.verkaufsfaehig_lager_kg !== null
-          ? <>{kg(b.verkaufsfaehig_lager_kg, 0)}{z.heute !== null && <span className="leise"> · {prozent(z.heute, 0)}</span>}</>
+          ? <>{kg(b.verkaufsfaehig_lager_kg, 0)}{z.heute !== null && <span className="leise"> · {prozent(z.heute, 0)}</span>}
+              {kette && <span className="zelle-leiste"><LagerLeiste s={kette} /></span>}</>
           : <span className="leise">—</span>}</td>
         <td className="zahl" title={verlustTitel(b)}>{kg(b.verlust_heute_kg, 0)}</td>
         {hagel}
       </tr>
       {offen && (
-        <tr className="aufgeklappt"><td colSpan={11} className="detail"><ChargeDetail nr={b.charge_nr} z={z} daten={daten} /></td></tr>
+        <tr className="aufgeklappt"><td colSpan={11} className="detail">
+          {ungereimt.length > 0 && <Ungereimtheiten daten={daten} charge={b.charge_nr} />}
+          <ChargeDetail nr={b.charge_nr} z={z} daten={daten} />
+        </td></tr>
       )}
     </>
   )
@@ -298,8 +358,18 @@ function ChargeDetail({ nr, z, daten }: { nr: number; z: Zeile; daten: Auswertun
   const ohneNummer = lieferungenVon(daten.lieferungGruppe, 'charge', String(nr))?.n_ohne_charge ?? 0
   const einZiel = lieferungen.every(l => l.ziel_name === lieferungen[0]?.ziel_name)
   const mz = (n: number, ein: string, mehr: string) => `${zahl(n)} ${n === 1 ? ein : mehr}`
+  // 0121: der Weg von der Ware, wie sie einging, zum Verkaufsfähigen — Schritt für Schritt.
+  const aw = ausweisVon(daten.ausweis, nr)
+  const hagelBisHeute = aw?.hagel_bis_heute_kg != null ? Number(aw.hagel_bis_heute_kg) : 0
   return (
     <div className="wechsel">
+      {aw && Number(aw.eingang_kg) > 0 && (
+        <section className="detail-kette">
+          <h3 className="oben-0">Was im Lager liegt — und was davon verkaufsfähig ist</h3>
+          <LagerRechnung s={summiere([aw])}
+                         fuss={aw.marge_anteil != null && Number(aw.marge_kg) > 0.5 ? <p className="leise unten-0">Überfüllung: {aw.marge_quelle}.</p> : undefined} />
+        </section>
+      )}
       {/* Runde AO: keine zweite Zahlenreihe mehr — die Zahlen stehen in der
           Zeile darüber. Runde AS: und auch keine Sätze mehr („16 davon ohne
           Chargennummer … verteilt — What?"): drei Zeilen, nur was die Zeile
@@ -313,7 +383,8 @@ function ChargeDetail({ nr, z, daten }: { nr: number; z: Zeile; daten: Auswertun
         {b.ueberzaehlung_kg > 0 && <li><Marke art="warnung">{kg(b.ueberzaehlung_kg, 0)} mehr geliefert als gekommen</Marke> — ein Zettel oder eine Zuordnung stimmt nicht.</li>}
         <li><strong>Verlust bis heute {kg(b.verlust_heute_kg, 0)}</strong>
           {b.verlust_heute_kg !== null
-            ? <> = Verdunstung {kg(b.verdunstung_heute_kg, 0)} + Faules im Palox <span title={b.faul_anteil != null ? `rechnet mit ${prozent(b.faul_anteil)} im Palox — ${b.faul_quelle ?? 'Quelle unbekannt'}` : undefined}>{kg(b.schimmel_heute_kg, 0)}</span> + Faules beim Abpacken {kg(b.fax_heute_kg, 0)}</>
+            ? <> = Verdunstung {kg(b.verdunstung_heute_kg, 0)} + Faules im Palox <span title={b.faul_anteil != null ? `rechnet mit ${prozent(b.faul_anteil)} im Palox — ${b.faul_quelle ?? 'Quelle unbekannt'}` : undefined}>{kg(b.schimmel_heute_kg, 0)}</span> + Faules beim Abpacken {kg(b.fax_heute_kg, 0)}
+                {hagelBisHeute > 0.5 && <span className="leise"> · im Palox stecken {kg(hagelBisHeute, 0)} Hagel — Unique, wird als Knospe verkauft, kein Verlust</span>}</>
             : <> — {verlustTitel(b)}</>}</li>
         {z.l && <li className="leise">Gemessen: {mz(z.l.n_wiegungen, 'Palettenwägung', 'Palettenwägungen')} · {mz(z.l.n_schimmel, 'Palox-Ablesung', 'Palox-Ablesungen')} · {mz(z.l.n_sortierlaeufe, 'Sortierlauf', 'Sortierläufe')}</li>}
       </ul>

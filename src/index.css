@@ -977,6 +977,8 @@ tr.marge-dahinter table { margin: 0; }
    („aus … Eingang", „≈ … Paletten") und die erklärenden Sätze im Aufgeklappten. */
 .zelle-unter { display: block; font-size: var(--s-0); color: var(--text-leise); font-weight: var(--gewicht-normal); white-space: nowrap; }
 .chargentabelle tr.aufgeklappt > td.detail { background: color-mix(in srgb, var(--flaeche-2) 45%, transparent); }
+/* 0121: die Paletten stehen jetzt vorn in „Im Lager" (breiter als die Kilo) — etwas weniger Rand, damit die Tabelle am Bildschirm ohne Bildlauf passt. */
+.chargentabelle > thead > tr > th, .chargentabelle > tbody > tr > td { padding-left: .5rem; padding-right: .5rem; }
 .erklaer-liste { margin: .25rem 0 1.1rem; padding-left: 1.1rem; display: grid; gap: .35rem; line-height: 1.5; }
 .erklaer-liste li::marker { color: var(--text-leise); }
 
@@ -1170,3 +1172,69 @@ table.excel thead th { border-top: 0; } table.excel tbody tr:last-child td { bor
 /* Runde AT: die Artikeltabelle passt in die Karte — „noch zu liefern" darf nicht hinter dem Rand verschwinden. */
 .uebersicht-tabelle td.zahl { min-width: 4.4rem; }
 .uebersicht-tabelle th, .uebersicht-tabelle td { padding-left: .4rem; padding-right: .4rem; }
+
+/* ---------- 0121: Ungereimtheiten zwischen Perigon und Lager --------------- */
+/* Der Betrieb: „das darf wichtig sein … wirklich prominent". Oben auf jeder
+   Lagerseite eine Leiste mit Rand in der Farbe des Schwersten; aufgeklappt je
+   Sache drei Zeilen (Was, Warum es zählt, Was tun). */
+.ungereimt { border: 1px solid var(--rand); border-left: 5px solid var(--gelb); border-radius: var(--radius);
+  background: var(--flaeche); margin: 0 0 var(--a-3); }
+.ungereimt.u-rot { border-left-color: var(--rot); background: color-mix(in srgb, var(--rot) 5%, var(--flaeche)); }
+.ungereimt.u-info { border-left-color: var(--blau, var(--strom-verdunstung)); }
+.ungereimt-kopf { display: flex; align-items: flex-start; gap: .6rem; width: 100%; text-align: left; background: none; border: 0;
+  padding: .7rem .9rem; cursor: pointer; color: var(--text); font: inherit; min-height: var(--ziel-min); }
+.ungereimt-zeichen { color: var(--gelb); flex: none; padding-top: .1rem; }
+.ungereimt.u-rot .ungereimt-zeichen { color: var(--rot); }
+.ungereimt.u-info .ungereimt-zeichen { color: var(--blau); }
+.ungereimt-titel { flex: 1; min-width: 0; }
+.ungereimt-chips { display: flex; flex-wrap: wrap; gap: .3rem; margin-top: .35rem; }
+.ungereimt-chip { font-size: var(--s-0); padding: .1rem .5rem; border-radius: 99px; background: var(--flaeche-2); color: var(--text-2); }
+.ungereimt-kopf .chevron { flex: none; color: var(--text-leise); transition: transform var(--d-mittel); padding-top: .15rem; }
+.ungereimt-liste { padding: 0 .9rem .8rem; }
+.ungereimt-sache { border-top: 1px solid var(--rand-leise); padding: .65rem 0 .5rem; }
+.ungereimt-sache h4 { margin: 0 0 .35rem; font-size: var(--s-2, 1rem); display: flex; align-items: baseline; gap: .45rem; flex-wrap: wrap; }
+.ungereimt-sache .punkt { width: .6rem; height: .6rem; border-radius: 50%; flex: none; align-self: center; background: var(--gelb); }
+.ungereimt-sache .punkt.s-rot { background: var(--rot); }
+.ungereimt-sache .punkt.s-info { background: var(--blau); }
+.ungereimt-sache dl { display: grid; grid-template-columns: 8.5rem 1fr; gap: .2rem .8rem; margin: 0; }
+.ungereimt-sache dt { color: var(--text-leise); font-size: var(--s-0); text-transform: uppercase; letter-spacing: .05em; padding-top: .15rem; }
+.ungereimt-sache dd { margin: 0; }
+.ungereimt-aktion { display: flex; flex-wrap: wrap; gap: .5rem 1rem; align-items: center; margin-top: .45rem; font-size: var(--s-1); }
+.ungereimt-zeilen { margin: .4rem 0 0; padding-left: 1.1rem; font-size: var(--s-1); }
+.ungereimt-zeilen li { margin: .25rem 0; }
+button.link { background: none; border: 0; padding: 0; min-height: 0; color: var(--kuerbis); text-decoration: underline; cursor: pointer; font: inherit; text-align: left; }
+@media (max-width: 640px) {
+  .ungereimt-sache dl { grid-template-columns: 1fr; }
+  .ungereimt-sache dt { padding-top: .35rem; }
+}
+/* Das Zeichen in der Zeile einer Charge, bei der Perigon und Lager nicht passen. */
+.ungereimt-mal { color: var(--rot); display: inline-flex; vertical-align: -2px; margin-left: .3rem; }
+.ungereimt-mal.gelb { color: var(--gelb); }
+tr.ohne-eingang > td { background: color-mix(in srgb, var(--rot) 6%, transparent); }
+
+/* ---------- 0121: Lager-Ausweis — Leiste und Rechnung --------------------- */
+.lager-leiste { display: flex; height: 6px; border-radius: 3px; overflow: hidden; background: var(--flaeche-3); margin-top: .3rem; min-width: 5rem; }
+.lager-leiste.dick { height: 12px; border-radius: 4px; margin: .2rem 0 .6rem; }
+.lager-leiste > span { display: block; height: 100%; }
+.lager-leiste > span + span { box-shadow: inset 2px 0 0 var(--flaeche); }
+.zelle-leiste { display: block; margin-left: auto; width: 100%; min-width: 4rem; }
+.zelle-leiste .lager-leiste { min-width: 0; }
+.lager-rechnung { max-width: 46rem; }
+dl.kette { display: grid; grid-template-columns: minmax(0, 1fr) auto 3.2rem; margin: 0; font-size: var(--s-1); }
+dl.kette > dt, dl.kette > dd { margin: 0; padding: .22rem 0; }
+dl.kette > dt { grid-column: 1; position: relative; padding-left: 1.5rem; }
+dl.kette > dt::before { content: attr(data-zeichen); position: absolute; left: .25rem; color: var(--text-leise); font-weight: var(--gewicht-stark); }
+dl.kette > dt .chip { display: inline-block; width: .65rem; height: .65rem; border-radius: 2px; margin-right: .45rem; vertical-align: -1px; }
+dl.kette > dd.kette-kg { grid-column: 2; text-align: right; padding-left: .8rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+dl.kette > dd.kette-anteil { grid-column: 3; text-align: right; color: var(--text-leise); font-variant-numeric: tabular-nums; }
+dl.kette > dd.kette-wie { grid-column: 1 / -1; padding: 0 0 .3rem 2.6rem; margin-top: -.15rem; color: var(--text-leise); font-size: var(--s-0); }
+dl.kette > .kette-start { font-weight: var(--gewicht-stark); border-bottom: 1px solid var(--rand-leise); }
+dl.kette > .kette-ergebnis:not(.kette-wie) { font-weight: var(--gewicht-stark); border-top: 1px solid var(--rand); font-size: var(--s-2, 1rem); }
+dl.kette > .kette-davon { color: var(--text-2); }
+dl.kette > dt.kette-davon { padding-left: 3rem; }
+dl.kette > dd.kette-davon.kette-wie { padding-left: 3rem; }
+
+/* ---------- 0121: die Zelle der Perigon-Zeile, die nicht stimmt ----------- */
+table.excel td.falsch, table.excel th.falsch { outline: 2px solid #d12f2f; outline-offset: -2px; background: #fff1f1; }
+.lieferung-falsch { margin: 0 0 .6rem; padding: .55rem .8rem; border-left: 4px solid var(--rot); background: color-mix(in srgb, var(--rot) 7%, var(--flaeche)); border-radius: var(--radius-klein); }
+.lieferung-falsch ul { margin: .25rem 0 0; padding-left: 1.1rem; }

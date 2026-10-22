@@ -4171,6 +4171,125 @@ Daten, dann die Annahme — nach der Korrektur nachsehen.
 nicht alles: vier mal vier gleiche Paloxen und ein Tag mit 30 Paaren bei
 13 erwarteten sind Fragen wert.
 
+## Runde AW: Perigon und Lager — was nicht zusammenpasst, steht oben; die Palette geht mit ihrer Arbeit (22. Oktober, abends, 0121)
+
+Der Betrieb, an einem Abend: „aktuell zeigt's mir Rüegg Amoro immer noch
+1 Tonne als verkaufsfähig — lösche das nur raus, wenn du dir sicher bist, also
+nicht löschen, aber erzwinge es nicht, ausser es ist plausibel." — „so etwas wie
+1627, das hat Ausgang, aber keinen Eingang — weis in der App auffällig darauf
+hin; generell sollte das wirklich prominent sein." — „so, dass ich als Laie die
+Problematik erkenne, zu meinem Chef gehen kann und sagen: schau, das macht keinen
+Sinn." — „es kennt Charge 1719 nicht, aber inzwischen sollte es das ja kennen."
+— „wie viele Kilo im Lager sind, als Paletten … daneben davon verkaufsfähig,
+minus Verdunstung (mit Lagerdauer und täglicher Rate), minus Palox, minus zu
+klein, zu gross … vielleicht minus verschenkte Marge." — „was mit Hagelschaden
+ist, wird nicht fortgeschmissen und ist auch nicht faul … Unique, wie ein eigener
+Artikel, nur Knospe." Dazu zwei Kleinigkeiten: der klebende Tabellenkopf deckte
+in Safari nicht, und die Chargen standen nicht nach Nummer.
+
+**1. Die Palette geht mit ihrer Arbeit, wenn der Beleg reicht (`paletten_zuordnen`).**
+Zu Beginn jedes Rechenlaufs (Schritt 1) sucht die Datenbank Zettel einer Arbeit,
+die in der eigenen Charge keine Palette finden, aber aufs Kilo zu Paletten einer
+anderen Charge desselben Schlags passen (Eingang ±3 Tage, die nächste zuerst, jede
+Palette einmal; eine Palette, die ein Zettel ihrer eigenen Charge schon gezählt
+hat, ist vergeben — wie der Durchgang, 4c). Umgebucht wird nur, wenn mindestens
+zwei und mindestens 80 % dieser Zettel passen **und** die Charge der Arbeit mehr
+ausgeliefert hat, als sie laut Journal je bekam. Kamen die Paletten als eine
+Fuhre (selber Tag, selbes Gebinde, mindestens drei) und liegen 80 % davon
+nachweislich in der Arbeit, geht der Rest mit. Was schwächer belegt ist (die
+Hälfte und mehr), bleibt ein Vorschlag: nichts wird gebucht, die App zeigt es.
+Auf den Rohdaten vom 22.10.: Arbeit 1602 bucht die sechs IFCO-Paletten vom 23.9.
+von 1625 zu 1627 (fünf per Zettel, eine als Rest der Fuhre); Arbeit 1619 (Tiana
+mit Mieluna-Zetteln) bleibt Vorschlag — 6 von 8, weil einer der Zettel eine
+Palette meint, die eine Arbeit auf 1623 schon gezählt hat, und die Gewichte um
+430 kg dort fünfzigfach vorkommen. Nachgerechnet (Rohdaten mit Messungen): 1625
+von „1.1 t verkaufsfähig" auf rund eine Palette, 1627 leer.
+
+Nichts wird gelöscht. Die Charge des Journals bleibt in `palette.charge_nr_journal`
+(neu), jede Umbuchung mit Grund in `palette_zuordnung` (neu). Ein Abgleich mit dem
+Journal überschreibt sie nicht (Trigger `palette_charge_halten`); nennt das Journal
+aber eine andere Charge als die, von der umgebucht wurde, hat der Betrieb dort
+berichtigt — dann gilt das Journal. Der Betriebsleiter nimmt eine Umbuchung zurück
+oder bucht einen Vorschlag (`palette_zuordnung_setzen`); die Regel legt eine
+zurückgenommene nicht wieder an.
+
+**2. Was im Lager liegt, Schritt für Schritt (`v_lager_ausweis`).** Je Charge,
+heute, aus den Zahlen der Kaskade: die Eingangsmasse auf den Paletten, die noch
+liegen − verdunstet − faul (Palox) − Unique (Hagel) − zu klein − zu gross
+(Bänder der Sortiermaschine) − Faules beim Abpacken = verkaufsfähig; davon die
+Überfüllung in den Kisten (zu viel ÷ Soll, gewogen je Charge, sonst je Sorte;
+Stück-Kisten haben kein Soll und darum keine Überfüllung), der Rest verrechenbar.
+Die App zeigt es überall gleich: Paletten als Hauptzahl („so viele triffst du
+an"), die Kilo darunter, beim Verkaufsfähigen eine schmale Leiste (verkaufsfähig
+links, dann was wegging) und aufgeklappt die Rechnung wie ein Kassenzettel, mit
+Lagerdauer und Rate je Tag. Neu: die Karte „Vom Lager zum Verkaufsfähigen" im
+Lagermanagement, die Rechnung in der aufgeklappten Charge.
+
+**Der Hagel ist Unique, nicht faul.** Die Kaskade zählt ihn weiter im
+Palox-Anteil (0116: f = 1 − (1 − f₀)·(1 − h)), so steht er in jeder Messung
+einer Hagel-Charge; aus derselben Formel folgt der Hagel-Teil genau als gute
+Ware · h/(1 − h). Der Ausweis nimmt ihn aus dem Faulen heraus und zeigt ihn als
+Unique; „Verlust bis heute" sagt, wie viel davon Hagel ist. Unter Artikel ist
+Unique eine dritte Grösse neben klein und gross, nur Knospe — auch Hagelware
+einer Demeter-Charge steht in der Knospe-Zeile ihrer Artikelgruppe.
+
+**Charge und Artikel sortieren anders aus.** Unter Charge gelten die Bänder der
+Sortiermaschine (zu klein: Tierfutter; zu gross: steht auf den Paletten „+2000 g",
+anderer Kanal). Unter Artikel gelten die Kaliber der Artikel: Was die Maschine
+durchliess, aber in keinen Artikel passt, heisst jetzt „passt in keinen Artikel"
+(bisher „lose") und steht rechts vom Gesamt — es zählt nicht mehr darin, also
+auch nicht in „Reicht, was da ist?".
+
+**3. Ungereimtheiten zwischen Perigon und Lager (`v_ungereimtheit`).** Eine Zeile je
+Sache, die das Lager verfälscht, mit den Kilo: verkauft, nie eingegangen; vor dem
+Eingang verkauft; mehr verkauft, als der Eingang hergibt (ab 100 kg und 3 %);
+Lieferscheine ohne Charge je Sorte (auf welche Chargen sie fallen, wie viel davon
+vor deren Eingang oder auf gar keine — `v_ohne_charge`); umgebucht; Vorschlag. Dazu
+die Zeilen der Perigon-Prüfung, deren Sätze jetzt ohne Perigon-Kenntnis zu lesen
+sind. Oben auf Lagermanagement nach Charge, nach Artikel und Chargen eine Leiste
+(„Perigon und Lager passen an n Stellen nicht zusammen · betrifft x t"),
+aufgeklappt je Sache: Was, Warum es zählt, Was tun — mit „Charge öffnen", den
+Perigon-Zeilen und, für den Betriebsleiter, Umbuchen und Zurücknehmen. Unter
+Chargen ein Zeichen hinter der Nummer; eine Charge, die verkauft hat, ohne je eine
+Palette zu bekommen, steht als eigene Zeile da (bis hier fehlte sie ganz). Im
+Fenster einer Lieferung steht über der Excel-Zeile, was an ihr nicht stimmt, und
+die Zellen dazu sind rot umrandet.
+
+**4. Die Charge, die die App inzwischen kennt (`lieferungen_nachordnen`).** Ein
+Lieferschein, dessen Nummer beim Einlesen keiner Charge gehörte (1719 vor 0120),
+blieb ohne Charge, bis jemand die Datei neu einlas. Jetzt löst jeder Rechenlauf
+solche Nummern noch einmal auf — die eigene Nummer, sonst eine Perigon-Nummer an
+genau einer Charge, wie beim Einlesen; an mehreren entscheidet weiter der Artikel
+beim Einlesen. Der Rest ohne Charge (Spalte S) bleibt ohne.
+
+**5. Kleinigkeiten (faf3836).** Der klebende Kopf verschiebt seine Zellen, nicht
+den thead — in WebKit hat ein thead keine eigene Ebene, die aufgeklappte Zeile
+malte darüber. Chargen stehen zuerst nach Nummer, mit Suchfeld.
+
+**Geprüft.** Prüfblock 0121 (a–j) mit 13 Mutationen, alle schlagen an (Trigger,
+Schwelle 50 %, ohne Überlieferung, eigene Palette, Unique = gute·h, vor Eingang
+verkehrt, Rechenlauf ohne Zuordnung, ohne Fuhre, Halle darf umbuchen, Regel
+überschreibt Zurückgenommenes, mehrdeutige Perigon-Nummer, Rest bekommt Charge,
+ohne Nachordnen); auf den Rohdaten vom 22.10. nachgerechnet (siehe 1). Tests
+`test/ungereimt.test.ts`, `test/ausweis.test.ts`, `test/artikel.test.ts` (Unique);
+Bildschirme `lager-ungereimt`, `lager-kette`, `chargen-ungereimt`,
+`chargen-ohne-eingang`, `lieferung-falsch`, `chargen-offen` (Rechnung).
+
+**Was bewusst nicht gemacht wurde.**
+- Der Hagel bleibt in der Kaskade im Palox-Anteil. Ihn dort herauszunehmen, hiesse
+  jede Messung einer Hagel-Charge neu zu deuten und die Ausbeute der Lieferungen
+  zu ändern; der Ausweis trennt ihn genau ab, ohne die Rechnung zu verschieben.
+- Die Marge geht nicht vom Verkaufsfähigen ab, das überall steht. Sie ist der
+  letzte Schritt („davon Überfüllung, verrechenbar"): Bei Stück-Kisten gibt es
+  sie nicht, und „verkaufsfähig" heisst überall dasselbe.
+- Arbeit 1619 wird nicht umgebucht (Vorschlag). Bei Butternut Rüegg ist die
+  Frage nicht, welche Paletten Tiana waren, sondern wie viele Rüegg-Butternut
+  noch stehen — das sagt nur das Zählen.
+- Eine Überzählung wird nicht einfach der Schwester-Charge abgezogen. Ohne Zettel
+  ist das eine Vermutung; sie steht als Ungereimtheit da, mit dem Satz, was zu
+  zählen ist.
+- Die Demo bekommt keinen Fall wie 1627; die Bildschirme merken ihn vor.
+
 ## Nachtrag: die Arbeit auf der fremden Charge (22. Oktober)
 
 Der Betrieb: „Mein Mitarbeiter meint, Amoro von Rüegg hat's keine mehr — wie

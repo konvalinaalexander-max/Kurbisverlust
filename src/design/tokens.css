@@ -49,6 +49,7 @@
   --strom-ausschuss:   #eda100;
   --strom-nebenkanal:  #e87ba4;
   --strom-fax:         #7c56d8;
+  --strom-unique:      #b0569f;   /* 0121: Hagelware, als Knospe verkauft — weder faul noch klein/gross */
   /* Runde AT: ein Farbsystem für Lager nach Charge, nach Artikel und Ursachen.
      Der Betrieb: „verkauft grau … im Lager klein und gross hell und dunkel grün,
      und bei Ursachen ein Grünton in der Mitte." Verkauft ist grau (erledigt,
@@ -139,6 +140,7 @@
     --strom-ausschuss:   #d99a17;
     --strom-nebenkanal:  #e0679a;
     --strom-fax:         #9b7ce8;
+    --strom-unique:      #d27cc2;
     --strom-verkauft:    #5d6269;
     --strom-vf-klein:    #63bf7d;
     --strom-vf:          #3e9f5c;

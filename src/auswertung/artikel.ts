@@ -26,8 +26,16 @@ export const OFFEN: Wahl = { gruppe: '', groesse: 'beide', label: 'beide' }
  * nach den Kalibern des Artikels, Mandarin je Stück; was in kein Kaliber
  * passt, ist „ausserhalb" (lose verkäuflich); ohne Sortier-CSV „ohne Grösse".
  */
-export type Klasse = 'klein' | 'gross' | 'stueck' | 'ausserhalb' | 'ohne'
-export const KLASSEN: Klasse[] = ['klein', 'gross', 'stueck', 'ausserhalb', 'ohne']
+export type Klasse = 'klein' | 'gross' | 'stueck' | 'unique' | 'ausserhalb' | 'ohne'
+export const KLASSEN: Klasse[] = ['klein', 'gross', 'stueck', 'unique', 'ausserhalb', 'ohne']
+/**
+ * 0121: Was als Artikel verkauft wird — alles ausser „passt in keinen Artikel"
+ * (ausserhalb): Das ist verkaufsfähig nach der Sortiermaschine, liegt aber
+ * zwischen oder ausserhalb der Kaliber der Artikel und geht nur lose. Unique
+ * (Hagelware) ist ein eigener Artikel, nur Knospe — der Betrieb: „wie nicht
+ * gross oder klein, eine dritte Kategorie: gross, klein, unique".
+ */
+export const ARTIKEL_KLASSEN: Klasse[] = KLASSEN.filter(k => k !== 'ausserhalb')
 export const klasseVon = (g: string): Klasse =>
   g === 'klein' || g === 'gross' || g === 'stueck' ? g : g === 'ohne Verteilung' ? 'ohne' : 'ausserhalb'
 
@@ -42,7 +50,9 @@ export const passtKlasse = (w: Wahl, k: Klasse) => w.groesse === 'beide' || k ==
  * Eingangsmasse = verkaufsfähig + diese vier. `bekannt`: Verdunstung und
  * Faules sind gemessen — sonst ist, was im Lager liegt, eine obere Schranke.
  */
-export interface RestTeile { kanal: number; faul: number; verdunstet: number; fax: number; bekannt?: boolean }
+export interface RestTeile { kanal: number; faul: number; verdunstet: number; fax: number; bekannt?: boolean
+  /** 0121: Hagelware (Unique) — nicht faul; wird als Knospe verkauft. faul ist dann das Faule ohne Hagel. */
+  unique?: number }
 
 /** Ein Artikel ohne Grösse (Gruppe × Label), mit allem, was seine Chargen bis heute erlebt haben. */
 export interface Uebersichtszeile {
@@ -99,10 +109,31 @@ export function uebersichtszeilen(bestand: Bestand[], labelVon: Map<number, Char
       if (!r || r.bekannt === false) z.imLagerHoechstens = true
       if (r && b.verkaufsfaehig_lager_kg !== null) {
         z.rest.kanal += r.kanal; z.rest.faul += r.faul; z.rest.verdunstet += r.verdunstet; z.rest.fax += r.fax
-        z.rest.offen += Math.max(Number(b.lager_kg) - Number(b.verkaufsfaehig_lager_kg) - r.kanal - r.faul - r.verdunstet - r.fax, 0)
+        z.rest.offen += Math.max(Number(b.lager_kg) - Number(b.verkaufsfaehig_lager_kg) - r.kanal - r.faul - r.verdunstet - r.fax - (r.unique ?? 0), 0)
       } else z.rest.offen += Math.max(Number(b.lager_kg) - Number(b.verkaufsfaehig_lager_kg ?? 0), 0)
     }
     zuZeile.set(b.charge_nr, z)
+  }
+  // 0121: Unique (Hagel) geht als Knospe — in die Knospe-Zeile der Artikelgruppe, auch wenn die Charge Demeter ist.
+  for (const b of bestand) {
+    const u = weiter.rest?.get(b.charge_nr)?.unique ?? 0
+    if (!(u > 0) || !(b.lager_kg > 0)) continue
+    const gruppe = gruppeVon.get(b.sorte)?.artikelgruppe ?? null
+    if (!passtGruppe(wahl, gruppe) || !passtLabel(wahl, 'K')) continue
+    const k = `${gruppe ?? ''}|K`
+    let z = m.get(k)
+    if (!z) {
+      z = { schluessel: k, gruppe, label: 'K', n: 0, eingang: 0, ausgelagert: 0, geliefert: 0, lager: 0, imLager: 0, imLagerHoechstens: false,
+            paletten: null, vf: 0, luecke: 0,
+            klassen: new Map(), klassenSpaeter: new Map(), rest: { kanal: 0, faul: 0, verdunstet: 0, fax: 0, offen: 0 }, chargen: [] }
+      m.set(k, z)
+    }
+    const eigen = zuZeile.get(b.charge_nr)
+    if (eigen && eigen !== z) eigen.imLager = Math.max(eigen.imLager - u, 0)
+    if (eigen !== z) z.imLager += u
+    z.klassen.set('unique', (z.klassen.get('unique') ?? 0) + u)
+    z.klassenSpaeter.set('unique', (z.klassenSpaeter.get('unique') ?? 0) + u)
+    if (!z.chargen.includes(b.charge_nr)) z.chargen.push(b.charge_nr)
   }
   // Das Verkaufsfähige nach Grösse: heute für den Balken, am Stichtag für die Tabelle.
   const zuteilen = (liste: ArtikelLagerCharge[], feld: 'klassen' | 'klassenSpaeter') => {
@@ -115,7 +146,7 @@ export function uebersichtszeilen(bestand: Bestand[], labelVon: Map<number, Char
   }
   zuteilen(teile, 'klassen')
   zuteilen(weiter.spaeter ?? teile, 'klassenSpaeter')
-  return [...m.values()].filter(z => z.eingang > 0)
+  return [...m.values()].filter(z => z.eingang > 0 || (z.klassen.get('unique') ?? 0) > 0)
     .sort((a, b) => rang(a.gruppe) - rang(b.gruppe) || (a.gruppe ?? '').localeCompare(b.gruppe ?? '')
                     || (a.label ?? 'Z').localeCompare(b.label ?? 'Z'))
 }

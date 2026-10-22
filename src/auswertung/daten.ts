@@ -284,6 +284,33 @@ export interface PerigonPruefung {
   art: string; quelle: string; pos_id: number; datum: string; kunde: string | null; artikel: string; charge_nr: number | null; kg: number | null; befund: string
 }
 
+/**
+ * Was im Lager liegt, Schritt für Schritt, je Charge heute (v_lager_ausweis,
+ * 0121): eingang_kg (auf den Paletten, die noch liegen, wie eingegangen) −
+ * verdunstet − faul (Palox, ohne Hagel) − unique (Hagel, als Knospe verkauft)
+ * − zu klein − zu gross (Sortiermaschine) − Faules beim Abpacken =
+ * verkaufsfähig; davon marge_kg Überfüllung, verrechenbar_kg der Rest. Leer
+ * heisst unbekannt (eine Rate nicht gemessen), nie 0.
+ */
+export interface LagerAusweis {
+  charge_nr: number; sorte: string; schlag: string; paletten: number | null
+  eingang_kg: number | null; alter_tage: number | null
+  verdunstet_kg: number | null; verdunstet_je_tag_kg: number | null; faul_kg: number | null
+  unique_kg: number | null; hagel_anteil: number | null
+  zu_klein_kg: number | null; zu_gross_kg: number | null; fax_kg: number | null; verkaufsfaehig_kg: number | null
+  marge_anteil: number | null; marge_quelle: string; marge_kg: number | null; verrechenbar_kg: number | null
+  hagel_bis_heute_kg: number | null
+  r_bekannt: boolean; f_bekannt: boolean; kanal_bekannt: boolean; fax_bekannt: boolean
+}
+
+/** Was zwischen Perigon, Erntejournal und Lager nicht zusammenpasst (v_ungereimtheit, 0121). */
+export interface UngereimtZeile {
+  art: 'ohne_eingang' | 'vor_eingang' | 'ueberzaehlung' | 'ohne_charge' | 'umgebucht' | 'vorschlag'
+  charge_nr: number | null; sorte: string | null; schlag: string | null
+  kg: number | null; n: number; von: string | null; bis: string | null
+  mehr: Record<string, unknown> | null
+}
+
 /** Dieselben Kürbisse in 50-Gramm-Stufen (kaliber_glocke(h), 0079). */
 export interface KaliberGlocke {
   gruppe: 'charge' | 'sorte'; schluessel: string; sorte: string; h: number; datum: string
@@ -487,6 +514,11 @@ export interface Auswertung {
   wohin: Wohin[]
   /** Die Lieferscheine je Gruppe, jeder einmal (0114). */
   lieferungGruppe: LieferungGruppe[]
+  /** 0121: was im Lager liegt, Schritt für Schritt, je Charge (erste Welle). */
+  ausweis: LagerAusweis[]
+  /** 0121: was zwischen Perigon und Lager nicht passt, und die Perigon-Zeilen dazu (zweite Welle). */
+  ungereimt: UngereimtZeile[]
+  perigon: PerigonPruefung[]
   gebinde: KoeffGebinde[]
   schemata: Schema[]
   kohorten: Kohorte[]
@@ -671,10 +703,10 @@ async function alles(erzwingen: boolean): Promise<Auswertung> {
   // vollstaendig = false, und das Lagermanagement zeichnet; die anderen
   // Reiter warten, bis die zweite Welle da ist. Was bisher 33 Anfragen vor
   // dem ersten Bild waren, sind jetzt sieben.
-  const [pl, sb, hb, vl, pg, wo, lg] = await Promise.all([
+  const [pl, sb, hb, vl, pg, wo, lg, aw] = await Promise.all([
     q<Befund>('erg_plausibilitaet'), eins<Saisonbilanz>('erg_bilanz'), q<Bestand>('erg_charge'),
     q<Verlaufswoche>('erg_verlauf', ['woche', true]), q<Prognose>('erg_prognose', ['h', true]), q<Wohin>('erg_wohin'),
-    q<LieferungGruppe>('v_lieferung_gruppe'),
+    q<LieferungGruppe>('v_lieferung_gruppe'), q<LagerAusweis>('v_lager_ausweis'),
   ])
   // 0108: Ist der Bau gescheitert (fehler_ts nach dem letzten Stand), wartet
   // die Seite nicht auf etwas, das nicht kommt, sondern sagt es. Seit dem
@@ -699,7 +731,7 @@ async function alles(erzwingen: boolean): Promise<Auswertung> {
     sorten: { verdunstung: [], ausschuss: [], nebenkanal: [] }, wiegungen: [], margeWiegung: [], margeCharge: [], kommentare: [],
     gewichte: [], verarbeitung: [], durchsatz: [], qualitaet: null, verlauf: vl, verlust: [],
     gebinde: [], schemata: [], kohorten: [], ausschuss: [], lieferungen: [], ausgang: [],
-    prognose: pg, wohin: wo, lieferungGruppe: lg, probleme,
+    prognose: pg, wohin: wo, lieferungGruppe: lg, ausweis: aw, ungereimt: [], perigon: [], probleme,
   }
   if (!erzwingen) { stand = ersteWelle; hoerer.forEach(h => h()) }
 
@@ -722,6 +754,8 @@ async function alles(erzwingen: boolean): Promise<Auswertung> {
     q<AusgangKennzahl>('erg_ausgang', ['ts', true]),
     q<PaloxStation>('v_palox_station'),
   ])
+  // 0121: was zwischen Perigon und Lager nicht passt — für den Hinweis oben auf jeder Lagerseite.
+  const [ug, pp] = await Promise.all([q<UngereimtZeile>('v_ungereimtheit'), q<PerigonPruefung>('v_perigon_pruefung', ['datum', false])])
   // 0108: Eine noch ungefüllte Sicht der zweiten Welle steht in probleme
   // (ihre Zahl ist unbekannt, nie 0) — die Seiten zeichnen, was da ist,
   // statt im Ladekreis zu warten. Bis 0108: IM_BAU, und Chargen, Ursachen,
@@ -750,6 +784,7 @@ async function alles(erzwingen: boolean): Promise<Auswertung> {
     sorten: { verdunstung: kfv, ausschuss: kfa, nebenkanal: kfn }, wiegungen: wk, margeWiegung: mw, margeCharge: mc, kommentare: km,
     verarbeitung: va, durchsatz: ds, qualitaet: dq, verlust: ve,
     gebinde: kg, schemata: ss, kohorten: ko, ausschuss: ab, ausgang: ak,
+    ungereimt: ug, perigon: pp,
   }
 }
 

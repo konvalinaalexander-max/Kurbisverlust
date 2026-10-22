@@ -79,6 +79,22 @@ const wahl = async (p, id) => {
   await p.getByRole('button', { name: T('weiter') }).click()
 }
 
+/**
+ * 0121: Was die Demo von selbst nicht hat — eine Charge, die verkauft hat, ohne
+ * je eine Palette zu bekommen (wie 1627 beim Betrieb), Paletten, die die App
+ * mit Beleg umgebucht hat, und ein Vorschlag mit zu schwachem Beleg. Die
+ * Nummern sind erfunden, damit das Bild nicht vom Stand der Fixtures abhängt.
+ */
+function ungereimtVormerken() {
+  vormerken('v_ungereimtheit', [
+    { art: 'ohne_eingang', charge_nr: 99127, sorte: 'Fictor', schlag: 'Prüfschlag', kg: 1416, n: 3, von: '2026-09-23', bis: '2026-10-05', mehr: null },
+    { art: 'umgebucht', charge_nr: 99128, sorte: 'Fictor', schlag: 'Prüfschlag', kg: 2012, n: 6, von: '2026-09-23', bis: '2026-09-23',
+      mehr: { von_charge_nr: 99126, auftrag_id: 1, grund: '5 von 5 Zetteln der Arbeit 1 (Charge 99128) ohne eigene Palette passen aufs Kilo zu Paletten von Charge 99126 (448 kg, 444 kg, 433 kg, 433 kg, 380 kg); Charge 99128 lieferte 1416 kg bei 0 kg Eingang', paletten: [1, 2, 3, 4, 5, 6], von_betriebsleiter: false } },
+    { art: 'vorschlag', charge_nr: 99129, sorte: 'Tiana', schlag: 'Prüfschlag', kg: 2136, n: 6, von: '2026-08-28', bis: '2026-08-31',
+      mehr: { von_charge_nr: 99125, auftrag_id: 2, grund: '6 von 8 Zetteln der Arbeit 2 (Charge 99129) ohne eigene Palette passen aufs Kilo zu Paletten von Charge 99125 (428 kg, 434 kg, 444 kg, 430 kg, 437 kg, 437 kg); Charge 99129 lieferte 7444 kg bei 4863 kg Eingang', paletten: [7, 8, 9, 10, 11, 12], von_betriebsleiter: false } },
+  ])
+}
+
 const BILDSCHIRME = [
   { name: 'sprache', wer: null, pfad: '/', frisch: true },
   { name: 'anmelden', wer: null, pfad: '/' },
@@ -229,6 +245,24 @@ const BILDSCHIRME = [
   // rufen `lager_kaliber(h)` und `kaliber_glocke(h)` je Stichtag; die Attrappe
   // hat dafür eigene Fixtures, damit „in 6 Wochen" nicht heute zeigt.
   { name: 'lager', wer: 'admin', pfad: '/dashboard' },
+  // 0121: „so etwas wie 1627 — das hat Ausgang, aber keinen Eingang — weis in
+  // der App auffällig darauf hin." Oben auf der Seite die Ungereimtheiten,
+  // aufgeklappt — mit einer Charge, die nie einging, einer Umbuchung und einem
+  // Vorschlag, die die Demo nicht von selbst hat.
+  { name: 'lager-ungereimt', wer: 'admin', pfad: '/dashboard', vorher: ungereimtVormerken,
+    tun: async p => {
+      await p.locator('#ungereimt .ungereimt-kopf').click()
+      await p.locator('#ungereimt .ungereimt-sache').first().waitFor()
+      const n = await p.locator('#ungereimt .ungereimt-sache').count()
+      if (n < 4) throw new Error(`nur ${n} Ungereimtheiten aufgeklappt`)
+      if (!(await p.locator('#ungereimt .ungereimt-sache', { hasText: 'hat verkauft, aber nie etwas bekommen' }).count())) throw new Error('die Charge ohne Eingang fehlt')
+    } },
+  // 0121: vom Lager zum Verkaufsfähigen, Schritt für Schritt
+  { name: 'lager-kette', wer: 'admin', pfad: '/dashboard',
+    tun: async p => {
+      await p.locator('#lager-kette dl.kette dt.kette-ergebnis').waitFor()
+      await p.locator('#lager-kette').scrollIntoViewIfNeeded()
+    } },
   // 22. Oktober: „Ötli und Trüeb … im Google Sheet sind sie drin, aber sie kommen
   // nicht in der Kürbis-App an." Eine Journalzeile, die keiner Charge zuzuordnen
   // ist, meldet der Abgleich beim Öffnen — auch wenn sonst nichts neu ist.
@@ -334,7 +368,11 @@ const BILDSCHIRME = [
     } },
   { name: 'chargen', wer: 'admin', pfad: '/chargen' },
   { name: 'chargen-offen', wer: 'admin', pfad: '/chargen',
-    tun: async p => { await p.locator('tbody tr').first().click() } },
+    tun: async p => {
+      await p.locator('tbody tr').first().click()
+      // 0121: aufgeklappt steht der Weg vom Lager zum Verkaufsfähigen, Schritt für Schritt
+      await p.locator('.chargentabelle .detail-kette dl.kette dt.kette-ergebnis').first().waitFor()
+    } },
   // Runde AS (0116): der Hagel je Charge — die Demo hat 20 % an einer Charge;
   // ein Kreuz an einer anderen öffnet das Feld für die Prozent.
   { name: 'chargen-hagel', wer: 'admin', pfad: '/chargen',
@@ -351,6 +389,18 @@ const BILDSCHIRME = [
       await p.locator('.chargentabelle tbody tr', { hasText: String(mitLieferung.charge_nr) }).first().click()
       await p.locator('tr.klickbar[title="die ganze Zeile der Perigon-Datei zeigen"]').first().click()
       await p.locator('#lieferung-fenster #lieferung-deutung').waitFor()
+    } },
+  // 0121: eine Charge, bei der Perigon und Lager nicht passen — das Zeichen in
+  // der Zeile, aufgeklappt die Sache und die Rechnung vom Lager zum Verkaufsfähigen.
+  { name: 'chargen-ungereimt', wer: 'admin', pfad: '/chargen', vorher: ungereimtVormerken,
+    tun: async p => {
+      await p.locator('.chargentabelle tbody tr', { has: p.locator('.ungereimt-mal') }).first().click()
+      await p.locator('.chargentabelle .ungereimt-sache').first().waitFor()
+    } },
+  { name: 'chargen-ohne-eingang', wer: 'admin', pfad: '/chargen?charge=99127', vorher: ungereimtVormerken,
+    tun: async p => {
+      await p.locator('tr.ohne-eingang').waitFor()
+      await p.locator('.chargentabelle .ungereimt-sache', { hasText: 'nie etwas bekommen' }).waitFor()
     } },
   // Runde AS: die Spaltentitel kleben, solange die Tabelle zu sehen ist —
   // halb hinausgerollt steht der Kopf oben im Bild; ist die Tabelle ganz
@@ -405,6 +455,15 @@ const BILDSCHIRME = [
   // Runde AO (0112): das Lager nach Artikel, und je Kunde die Saison gegen die Vorjahre.
   // Runde AQ: „Wie viel ist von welchem Artikel noch da?" — je Artikel ein
   // Balken, und die Tabelle hat dieselben Zeilen.
+  // 0121: eine Perigon-Zeile, die nicht stimmt — im Fenster rot umrandet, darüber in Worten.
+  { name: 'lieferung-falsch', wer: 'admin', pfad: '/dashboard',
+    tun: async p => {
+      await p.locator('#ungereimt .ungereimt-kopf').click()
+      const knopf = p.locator('#ungereimt .ungereimt-sache button', { hasText: 'Perigon-Zeile' }).first()
+      await knopf.click()
+      await p.locator('#ungereimt .ungereimt-zeilen button.link').first().click()
+      await p.locator('#lieferung-fenster #lieferung-falsch').waitFor()
+    } },
   { name: 'artikel', wer: 'admin', pfad: '/artikel',
     tun: async p => {
       await p.locator('#artikel-uebersicht .uebersicht-zeile').first().waitFor()
@@ -708,6 +767,8 @@ for (const geraet of GERAETE) {
         vormerken('einstellung', [{ schluessel: 'journal_csv_url', wert: 'https://journal.pruefstand.test/ertragsjournal.csv' }])
         await seite.route('https://journal.pruefstand.test/**', r => r.fulfill({ status: 200, contentType: 'text/csv', body: schirm.journal }))
       }
+      // 0121: Zeilen, die die Demo nicht hat (eine Charge wie 1627), vor dem Laden vormerken
+      schirm.vorher?.()
 
       // Sprache + Anmeldung vorbereiten, bevor die App lädt
       await seite.addInitScript(({ wer, frisch, sprache }) => {

@@ -4,7 +4,8 @@ import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { fehlerText } from '../lib/db'
 import { datum, kg } from '../lib/format'
-import { excelAnsicht, lieferungDeutung, type ChargenzeileKurz, type RohZeile } from '../lib/warenausgang'
+import { excelAnsicht, lieferungDeutung, schluessel, type ChargenzeileKurz, type RohZeile } from '../lib/warenausgang'
+import { FALSCHE_SPALTEN } from '../auswertung/ungereimt'
 import { Hinweis, Lade } from '../components/Bausteine'
 import { ZKreuz } from '../components/Zeichen'
 
@@ -50,6 +51,8 @@ export function LieferungFenster({ lieferungId, quelle, posId, schliessen }: {
   const [zeilen, setZeilen] = useState<ZeileDerDatei[]>([])
   const [lieferungen, setLieferungen] = useState<LieferungZeile[]>([])
   const [einordnung, setEinordnung] = useState<Einordnung | null>(null)
+  // 0121: was an dieser Zeile nicht stimmt (v_perigon_pruefung) — die Zellen dazu stehen rot umrandet.
+  const [falsch, setFalsch] = useState<{ art: string; befund: string }[]>([])
   const [ziel, setZiel] = useState<{ quelle: string; posId: number } | null>(quelle && posId != null ? { quelle, posId } : null)
   const [geladen, setGeladen] = useState(false)
   const [fehler, setFehler] = useState<string | null>(null)
@@ -80,6 +83,8 @@ export function LieferungFenster({ lieferungId, quelle, posId, schliessen }: {
             supabase.from('v_kunde_position').select('gruppe, groesse, label').eq('quelle', wo.quelle).eq('pos_id', wo.posId),
           ])
           for (const x of [p, z, imp, e]) if (x.error) throw x.error
+          const pr = await supabase.from('v_perigon_pruefung').select('art, befund').eq('quelle', wo.quelle).eq('pos_id', wo.posId)
+          if (lebt && !pr.error) setFalsch((pr.data ?? []) as { art: string; befund: string }[])
           const ids = ((imp.data ?? []) as { lieferung_id: number }[]).map(x => x.lieferung_id)
           const li = ids.length > 0
             ? await supabase.from('lieferung').select('id, datum, charge_nr, sorte, kg, kunde, bemerkung').in('id', ids).order('charge_nr')
@@ -112,6 +117,10 @@ export function LieferungFenster({ lieferungId, quelle, posId, schliessen }: {
   // Die Datenbank (jsonb) merkt sich die Folge der Spalten nicht: excelAnsicht stellt sie in die Folge der
   // Datei (A bis AF) und zeigt jeden Wert im Format seiner Spalte.
   const ansicht = roh && roh.length > 0 ? excelAnsicht(roh) : null
+  // Eine Lieferung ohne Charge, deren Zeile auch keine nennt: die Chargenspalte ist leer.
+  const ohneCharge = lieferungen.some(l => l.charge_nr == null) && zeilen.length > 0 && zeilen.every(x => !x.charge_extern?.trim())
+  const meldungen = [...falsch, ...(ohneCharge && !falsch.length ? [{ art: 'ohne_charge', befund: 'Auf dem Lieferschein steht keine Chargennummer. Die App verteilt die Menge darum nach Eingang auf alle Chargen derselben Sorte — für die einzelne Charge stimmt das nicht.' }] : [])]
+  const roteSpalten = new Set(meldungen.flatMap(m => FALSCHE_SPALTEN[m.art] ?? []).map(schluessel))
 
   return createPortal(
     <div className="dialog-hinter" onClick={schliessen}>
@@ -142,16 +151,22 @@ export function LieferungFenster({ lieferungId, quelle, posId, schliessen }: {
                 Kopf mit Umbruch; seitlich rollbar; je Charge der Position eine Zeile. */}
             <section id="lieferung-zeile">
               <h3 className="oben-0">Die Zeile in der Perigon-Datei</h3>
+              {meldungen.length > 0 && (
+                <div className="lieferung-falsch" id="lieferung-falsch">
+                  <strong>Was an dieser Zeile nicht stimmt</strong>{ansicht && roteSpalten.size > 0 ? <span className="leise"> — die Zellen dazu sind rot umrandet</span> : null}
+                  <ul>{meldungen.map((m, i) => <li key={i}>{m.befund}</li>)}</ul>
+                </div>
+              )}
               {ansicht ? (
                 <div className="rollbar excel-rahmen">
                   <table className="excel lieferung-zeile" style={{ width: ansicht.spalten.reduce((a, sp) => a + excelPx(sp.breite), 0) }}>
                     <colgroup>{ansicht.spalten.map(sp => <col key={sp.name} style={{ width: excelPx(sp.breite) }} />)}</colgroup>
                     <thead><tr>{ansicht.spalten.map(sp => (
-                      <th key={sp.name} data-spalte={sp.buchstabe ?? undefined}
+                      <th key={sp.name} data-spalte={sp.buchstabe ?? undefined} className={roteSpalten.has(schluessel(sp.name)) ? 'falsch' : undefined}
                           title={sp.buchstabe ? `Spalte ${sp.buchstabe} in der Datei` : undefined}>{sp.name}</th>
                     ))}</tr></thead>
                     <tbody>{ansicht.zeilen.map((z, i) => (
-                      <tr key={i}>{z.map((w, j) => <td key={j} className={ansicht.spalten[j].rechts ? 'rechts' : undefined}>{w}</td>)}</tr>
+                      <tr key={i}>{z.map((w, j) => <td key={j} className={[ansicht.spalten[j].rechts ? 'rechts' : '', roteSpalten.has(schluessel(ansicht.spalten[j].name)) ? 'falsch' : ''].filter(Boolean).join(' ') || undefined}>{w}</td>)}</tr>
                     ))}</tbody>
                   </table>
                 </div>
