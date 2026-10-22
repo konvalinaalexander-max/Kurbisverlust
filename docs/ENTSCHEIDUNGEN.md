@@ -4171,6 +4171,50 @@ Daten, dann die Annahme — nach der Korrektur nachsehen.
 nicht alles: vier mal vier gleiche Paloxen und ein Tag mit 30 Paaren bei
 13 erwarteten sind Fragen wert.
 
+## Nachtrag: die Arbeit auf der fremden Charge (22. Oktober)
+
+Der Betrieb: „Mein Mitarbeiter meint, Amoro von Rüegg hat's keine mehr — wie
+könnte so was sein?" (1625). Die Antwort stand in den Zetteln: Arbeit 1602
+(Waschen + Sortieren, 1.10.) lief auf 1627, Agasul Rüegg · Fictor — eine
+Charge ohne eine einzige Palette im Journal. Ihre fünf Zettel tragen 380,
+448, 433, 444 und 433 kg; genau diese Gewichte haben die sechs IFCO-Paletten,
+die das Journal am 23.09. als 1625 · Amoro führt. Danach gingen 1.4 t auf
+1627 hinaus (Perigon, 23.09. bis 5.10.). Die App rechnet diese Paletten
+deshalb noch zu 1625. Dasselbe Muster ein zweites Mal bei Rüegg: Arbeit
+1619 (8.10.) auf 1626 · Tiana, deren acht Zettel (31.08., G2, 36 Kisten) zu
+sieben Paletten passen, die das Journal als 1623 · Mieluna führt (28./31.08.)
+— und 1626 hat 7.2 t Lieferungen vor ihrem ersten Eingang am 23.09.
+
+Der Durchgang kannte seit Runde AC den einzelnen „Zettel auf fremder Charge"
+(gleiche Sorte, gleiche Kisten, gleiches Datum) und sah beides nicht: Hier
+weichen Sorte, Kistenzahl oder Datum ab, nur die Kilo stimmen. Neu ist
+„Arbeit auf fremder Charge": Die Arbeit als Ganzes — passen mindestens zwei
+und mindestens 80 % ihrer Zettel ohne eigene Palette aufs Kilo zu
+verschiedenen Paletten einer anderen Charge, je Zettel die Palette mit dem
+nächsten Datum. Zwei neue Grenzen in `GRENZEN`: `fremdeChargeTage` 3 (der
+Zettel von 1602 trägt den 22.09., das Journal den 23.09.; ein Zettel wird
+oft am Tag danach ins Journal übertragen) und `fremdeChargeAnteil` 0.8 (bei
+dichten Gewichten wie 418–456 kg an einem Tag trifft der Zufall einzelne
+Zettel; fast alle trifft er nicht). Über den Abzug vom 22.10.: genau diese
+zwei Arbeiten, mit ±1 Tag nur 1602.
+
+**Mutationen.** 5: Datum egal, Anteil egal, eine Palette zählt mehrfach,
+auch Zettel mit eigener Palette — erkannt; „ein Treffer genügt" ist bei 80 %
+gleichwertig (zwei Zettel ohne Palette verlangen dann ohnehin zwei Treffer),
+die Schwelle bleibt als Schutz, falls der Anteil sinkt. Eine Zeile, die die
+eigene Charge ausnahm, ist weg — sie konnte nie greifen.
+
+**Was der Betrieb klären muss** (Daten, nicht Programm): Waren die sechs
+IFCO-Paletten von Rüegg am 23.09. Fictor (Zettel, Arbeit und Lieferscheine
+sagen 1627) oder Amoro (das Journal)? Und welche Paletten der Rüegg-Lieferung
+Ende August waren Tiana statt Mieluna? Die Berichtigung gehört ins Journal
+(Sorte der Zeile), danach „Jetzt vom Sheet holen" — die Paletten wechseln
+über die ID (App) die Charge.
+
+**Was bewusst nicht gemacht wurde.** Noch keine Auffälligkeit in der App
+dafür — erst der Durchgang, mit seinen zwei Treffern; die App-Seite braucht
+eine Migration und ist der nächste Schritt, wenn der Betrieb es so will.
+
 ## Nachtrag: „im Lager" ist, was auf den Paletten liegt (22. Oktober)
 
 Der Betrieb, zur Artikelansicht: „Wieso nimmt es die Paloxe noch zum Lager

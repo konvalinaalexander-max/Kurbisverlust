@@ -63,6 +63,8 @@ export const GRENZEN = {
   paloxKgMax: 1000,                        // mehr Faules hat kein Palox — und mehr Kürbis auch nicht
   paloxNettoMin: 50,                       // ein Palox am Eingang: darunter ist er kaum belegt — Tara allein gewogen oder vertippt
   datumZurueckTage: 3,                     // Eingang einer Charge, der so weit hinter die Palette davor fällt: vertippt
+  fremdeChargeTage: 3,                     // Zettel einer Arbeit gegen Paletten einer anderen Charge: so weit darf das Datum abweichen
+  fremdeChargeAnteil: 0.8,                 // … und so viele der Zettel ohne eigene Palette müssen aufs Kilo passen
   ausschussKisteMax: 60,                   // eine einzelne Kiste
   arbeitStundenMax: 16,
   saisonVorlaufTage: 60,
@@ -320,6 +322,57 @@ export function durchgang(d, heute) {
         { zettel_kg: kg, kisten: z.kisten, zetteldatum: tag(z.eingangsdatum), charge_der_arbeit: a.charge_nr, passt_auf: fremd.map(p => `Palette ${p.id} (Charge ${p.charge_nr})`).join(', ') },
         `In Charge ${a.charge_nr} gibt es diese Palette nicht — in Charge ${fremd[0].charge_nr} (gleiche Sorte) aber genau: ${kg} kg, ${z.kisten} Kisten, ${tag(z.eingangsdatum)}. Die Arbeit ist wohl auf die falsche Charge gebucht, oder die Halle hat Paletten der anderen Charge verarbeitet.`)
   }
+  // ---- 4c. Arbeit auf fremder Charge: die Zettel passen als Ganzes woandershin ----
+  // Runde AC kannte den einzelnen Zettel auf fremder Charge — gleiche Sorte,
+  // gleiche Kisten, gleiches Datum. Der Betrieb, 22. Oktober: „Amoro von
+  // Rüegg hat's keine mehr." Arbeit 1602 lief am 1.10. auf 1627 (Rüegg ·
+  // Fictor, ohne Eingang); ihre fünf Zettel tragen 380, 448, 433, 444 und
+  // 433 kg — genau die IFCO-Paletten, die das Journal am 23.09. als 1625
+  // (Rüegg · Amoro) führt, nur mit anderer Kistenzahl und einem Tag früher.
+  // Die Einzelregel sah das nicht. Hier zählt die Arbeit als Ganzes: Passen
+  // mindestens zwei und fast alle ihrer Zettel ohne eigene Palette aufs Kilo
+  // zu verschiedenen Paletten EINER anderen Charge (±3 Tage), ist die Arbeit
+  // wohl auf die falsche Charge gebucht — oder das Journal führt die Paletten
+  // unter der falschen Sorte. Sorte und Kistenzahl dürfen abweichen.
+  const zettelJeArbeit = new Map()
+  for (const z of T('auftrag_palette')) {
+    if (z.brutto_zettel_kg == null || !auftraege.has(z.auftrag_id)) continue
+    const l = zettelJeArbeit.get(z.auftrag_id) ?? []; l.push(z); zettelJeArbeit.set(z.auftrag_id, l)
+  }
+  for (const [aid, zz] of zettelJeArbeit) {
+    const a = auftraege.get(aid)
+    const eigene = palJeCharge.get(a.charge_nr) ?? []
+    const ohne = zz.filter(z => !eigene.some(p => Number(p.brutto_kg) === Number(z.brutto_zettel_kg)))
+    if (ohne.length < 2) continue
+    let best = null
+    // Die eigene Charge muss nicht ausgenommen werden: Zettel mit eigener
+    // Palette desselben Gewichts sind oben schon weg.
+    for (const [nr, l] of palJeCharge) {
+      const frei = [...l], treffer = []
+      for (const z of ohne) {
+        // Bei gleichem Gewicht die Palette mit dem nächsten Datum — der Zettel nennt seinen Eingangstag.
+        const abstand = p => tag(z.eingangsdatum) ? Math.abs(tage(p.eingangsdatum, z.eingangsdatum)) : 0
+        let i = -1
+        frei.forEach((p, k) => {
+          if (Number(p.brutto_kg) !== Number(z.brutto_zettel_kg) || abstand(p) > GRENZEN.fremdeChargeTage) return
+          if (i < 0 || abstand(p) < abstand(frei[i])) i = k
+        })
+        if (i >= 0) { treffer.push({ z, p: frei[i] }); frei.splice(i, 1) }
+      }
+      if (!best || treffer.length > best.treffer.length) best = { nr, treffer }
+    }
+    if (!best || best.treffer.length < 2 || best.treffer.length < GRENZEN.fremdeChargeAnteil * ohne.length) continue
+    const c = chargen.get(best.nr), eigen = chargen.get(a.charge_nr)
+    const tageP = [...new Set(best.treffer.map(t => tag(t.p.eingangsdatum)))].sort()
+    const gleicheKisten = best.treffer.filter(t => t.z.kisten === t.p.kisten).length
+    melden('Arbeit auf fremder Charge', 'hoch', `${arbeitText(aid)}`,
+      { zettel: zz.length, ohne_eigene_palette: ohne.length, passen: best.treffer.length, charge: best.nr,
+        paletten: best.treffer.map(t => t.p.id).join(', '), eingang: tageP.join(', '), gleiche_kisten: gleicheKisten },
+      `${best.treffer.length} von ${ohne.length} Zetteln ohne Palette in Charge ${a.charge_nr}${eigen ? ` (${eigen.schlag} · ${eigen.sorte})` : ''} passen aufs Kilo zu Paletten von Charge ${best.nr}`
+      + `${c ? ` (${c.schlag} · ${c.sorte})` : ''}, Eingang ${tageP.join(', ')}${gleicheKisten === best.treffer.length ? ', auch in der Kistenzahl' : ''}.`
+      + ` Die Arbeit ist wohl auf die falsche Charge gebucht — oder das Journal führt diese Paletten unter der falschen Sorte.`)
+  }
+
   for (const [zk, n] of zettelJeArbeitKg) {
     if (n < 2) continue
     const [aid, kg] = zk.split('|'); const a = auftraege.get(Number(aid)); if (!a) continue

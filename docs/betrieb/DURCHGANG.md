@@ -26,7 +26,7 @@ Jede Zeile ist ein **Kandidat**, kein Urteil: eine Zahl, die so nicht sein kann 
 
 _310 Paletten sind Vervielfachungen einer Journalzeile („n Paletten gleich", extern_id …#n) — keine Kandidaten._
 
-## Nach Prüfung (111)
+## Nach Prüfung (113)
 
 | Prüfung | Anzahl |
 |---|---|
@@ -40,6 +40,7 @@ _310 Paletten sind Vervielfachungen einer Journalzeile („n Paletten gleich", e
 | Arbeitsdauer | 4 |
 | Doppelte Palette | 3 |
 | Eingangsdatum springt zurück | 2 |
+| Arbeit auf fremder Charge | 2 |
 | Zettel doppelt | 2 |
 | Lieferung vor Eingang | 2 |
 | Verdunstung zu hoch | 1 |
@@ -48,8 +49,14 @@ _310 Paletten sind Vervielfachungen einer Journalzeile („n Paletten gleich", e
 | Arbeit ohne Eingang | 1 |
 | Lieferung ohne Charge | 1 |
 
-## Schwere hoch (16)
+## Schwere hoch (18)
 
+- **Arbeit auf fremder Charge** · Arbeit 1602 (waschen_sortieren, Charge 1627, 2026-10-01)
+  - 5 von 5 Zetteln ohne Palette in Charge 1627 (Agasul Rüegg · Fictor) passen aufs Kilo zu Paletten von Charge 1625 (Agasul Rüegg · Amoro), Eingang 2026-09-23. Die Arbeit ist wohl auf die falsche Charge gebucht — oder das Journal führt diese Paletten unter der falschen Sorte.
+  - _zettel = 5 · ohne_eigene_palette = 5 · passen = 5 · charge = 1625 · paletten = 7969, 7964, 7965, 7966, 7967 · eingang = 2026-09-23 · gleiche_kisten = 0_
+- **Arbeit auf fremder Charge** · Arbeit 1619 (waschen_sortieren, Charge 1626, 2026-10-08)
+  - 7 von 8 Zetteln ohne Palette in Charge 1626 (Agasul Rüegg · Tiana) passen aufs Kilo zu Paletten von Charge 1623 (Agasul Rüegg · Mieluna), Eingang 2026-08-28, 2026-08-31, auch in der Kistenzahl. Die Arbeit ist wohl auf die falsche Charge gebucht — oder das Journal führt diese Paletten unter der falschen Sorte.
+  - _zettel = 8 · ohne_eigene_palette = 8 · passen = 7 · charge = 1623 · paletten = 7096, 7097, 7033, 7100, 7047, 7115, 7035 · eingang = 2026-08-28, 2026-08-31 · gleiche_kisten = 7_
 - **Arbeit ohne Eingang** · Arbeit 1602 (waschen_sortieren, Charge 1627, 2026-10-01)
   - Eine Arbeit an einer Charge, von der keine Palette im Erntejournal steht.
   - _charge_nr = 1627_

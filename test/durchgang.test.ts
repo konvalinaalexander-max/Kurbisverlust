@@ -159,6 +159,54 @@ test('Eingangsdatum springt zurück: 02.10. nach 22.10. ist eine Ziffer — 03.0
   assert.equal(zwei[0].werte.wohl, null)
 })
 
+// 22. Oktober: Arbeit 1602 lief auf 1627 (Rüegg · Fictor, ohne Eingang); ihre
+// fünf Zettel sind aufs Kilo die IFCO-Paletten, die das Journal als 1625
+// (Rüegg · Amoro) führt — andere Sorte, andere Kistenzahl, ein Tag daneben.
+test('Arbeit auf fremder Charge: fünf Zettel passen aufs Kilo zu einer anderen Charge — Sorte, Kisten und ein Tag dürfen abweichen', () => {
+  const pal = (id: number, charge_nr: number, kg: number, tag = '2026-09-23', kisten = 32) =>
+    ({ id, charge_nr, eingangsdatum: tag, brutto_kg: kg, kisten, gebindeart: 'G2' })
+  const zettel = (id: number, auftrag_id: number, kg: number, tag = '2026-09-22', kisten = 36) =>
+    ({ id, auftrag_id, palette_id: null, brutto_zettel_kg: kg, kisten, gebindeart: 'G2', eingangsdatum: tag })
+  const arbeit = (id: number, charge_nr: number) =>
+    ({ id, station: 'waschen_sortieren', charge_nr, start_ts: '2026-10-01T13:00:00Z', ende_ts: '2026-10-01T14:00:00Z', status: 'abgeschlossen' })
+  const d = { ...leer(), gebinde,
+    charge: [{ nr: 1625, schlag: 'Agasul Rüegg', sorte: 'Amoro' }, { nr: 1627, schlag: 'Agasul Rüegg', sorte: 'Fictor' },
+             { nr: 1630, schlag: 'Rümlang Keller', sorte: 'Kaori Kuri' }, { nr: 1631, schlag: 'Rümlang Keller', sorte: 'Mieluna' }],
+    palette: [
+      pal(1, 1625, 448), pal(2, 1625, 433), pal(3, 1625, 444), pal(4, 1625, 433), pal(5, 1625, 380), pal(6, 1625, 340),
+      pal(10, 1630, 400, '2026-09-01'), pal(11, 1631, 401, '2026-09-01'), pal(12, 1631, 402, '2026-09-01'),
+      pal(20, 1631, 500, '2026-08-01'), pal(21, 1631, 501, '2026-08-01'),
+      pal(30, 1630, 448), pal(31, 1630, 433),   // 1630 hat selbst Paletten mit 448 und 433 kg
+    ],
+    auftrag: [arbeit(1602, 1627), arbeit(2, 1630), arbeit(3, 1630), arbeit(4, 1630), arbeit(5, 1627), arbeit(6, 1630), arbeit(7, 1630)],
+    auftrag_palette: [
+      zettel(1, 1602, 380), zettel(2, 1602, 448), zettel(3, 1602, 433), zettel(4, 1602, 444), zettel(5, 1602, 433),
+      // nur 1 von 3 passt woandershin: kein Kandidat
+      zettel(10, 2, 401, '2026-09-01'), zettel(11, 2, 777, '2026-09-01'), zettel(12, 2, 778, '2026-09-01'),
+      // passt aufs Kilo, aber zwei Monate daneben: kein Kandidat
+      zettel(20, 3, 500, '2026-10-01'), zettel(21, 3, 501, '2026-10-01'),
+      // die Zettel haben ihre eigene Palette: kein Kandidat
+      zettel(30, 4, 400, '2026-09-01'), zettel(31, 4, 400, '2026-09-01'),
+      // zweimal 340 kg, aber 1625 hat nur eine Palette mit 340 kg: eine Palette zählt einmal
+      zettel(40, 5, 340), zettel(41, 5, 340),
+      // 2 von 5 passen zu 1631 — unter 80 %: kein Kandidat
+      zettel(50, 6, 401, '2026-09-01'), zettel(51, 6, 402, '2026-09-01'), zettel(52, 6, 777, '2026-09-01'), zettel(53, 6, 778, '2026-09-01'), zettel(54, 6, 779, '2026-09-01'),
+      // 448 und 433 kg hat 1630 selbst — dass 1625 sie auch hat, macht die Arbeit nicht fremd
+      zettel(60, 7, 448), zettel(61, 7, 433),
+    ],
+  }
+  const erg = durchgang(d, '2026-10-22')
+  const f = erg.befunde.filter(b => b.pruefung === 'Arbeit auf fremder Charge')
+  assert.equal(f.length, 1)
+  assert.match(f[0].wo, /Arbeit 1602/)
+  assert.equal(f[0].werte.charge, 1625)
+  assert.equal(f[0].werte.passen, 5)
+  assert.equal(f[0].werte.ohne_eigene_palette, 5)
+  assert.equal(f[0].werte.gleiche_kisten, 0)
+  assert.match(f[0].warum, /5 von 5 Zetteln ohne Palette in Charge 1627 \(Agasul Rüegg · Fictor\) passen aufs Kilo zu Paletten von Charge 1625 \(Agasul Rüegg · Amoro\), Eingang 2026-09-23\./)
+  assert.doesNotMatch(f[0].warum, /auch in der Kistenzahl/)
+})
+
 const chargen = [{ nr: 1613, sorte: 'Tiana' }, { nr: 1632, sorte: 'Tiana' }, { nr: 1651, sorte: 'Kaori Kuri' }]
 const arbeit = (id: number, charge: number) => ({ id, weg: 'hand', station: 'waschen_sortieren', charge_nr: charge, start_ts: '2026-09-24T08:00:00Z', ende_ts: '2026-09-24T12:00:00Z', status: 'abgeschlossen' })
 
