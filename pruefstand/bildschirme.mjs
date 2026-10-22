@@ -360,15 +360,20 @@ const BILDSCHIRME = [
       await p.locator('.chargentabelle tbody tr').first().click()
       const lage = await p.evaluate(async () => {
         const warten = () => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))
-        const t = document.querySelector('.chargentabelle'), k = t.querySelector('thead')
+        // 22. Oktober: verschoben werden die Kopfzellen, nicht der thead — gemessen wird darum eine Zelle.
+        const t = document.querySelector('.chargentabelle'), k = t.querySelector('thead'), zelle = k.querySelector('th:nth-child(2)')
         window.scrollBy(0, t.getBoundingClientRect().top + t.offsetHeight / 2)
         await warten()
-        const mitten = { klebt: k.classList.contains('klebt'), oben: k.getBoundingClientRect().top }
+        // Und der Kopf liegt oben: wo seine Zelle steht, trifft ein Klick den Kopf, nicht die Zeile darunter.
+        const r = zelle.getBoundingClientRect()
+        const getroffen = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)
+        const mitten = { klebt: k.classList.contains('klebt'), oben: r.top, zuoberst: !!getroffen && k.contains(getroffen) }
         window.scrollBy(0, t.getBoundingClientRect().bottom + 200)
         await warten()
-        return { mitten, danach: { unten: k.getBoundingClientRect().bottom, tabelle: t.getBoundingClientRect().bottom } }
+        return { mitten, danach: { unten: zelle.getBoundingClientRect().bottom, tabelle: t.getBoundingClientRect().bottom } }
       })
       if (!lage.mitten.klebt || lage.mitten.oben < -1 || lage.mitten.oben > 200) throw new Error(`Kopf der Chargentabelle klebt nicht: ${JSON.stringify(lage.mitten)}`)
+      if (!lage.mitten.zuoberst) throw new Error(`Kopf der Chargentabelle liegt unter den Zeilen: ${JSON.stringify(lage.mitten)}`)
       if (lage.danach.unten > lage.danach.tabelle + 1) throw new Error(`Kopf bleibt nach der Tabelle stehen: ${JSON.stringify(lage.danach)}`)
       await p.evaluate(() => window.scrollBy(0, -(document.querySelector('.chargentabelle').getBoundingClientRect().bottom) - innerHeight / 2))
     } },

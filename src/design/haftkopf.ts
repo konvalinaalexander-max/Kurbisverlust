@@ -18,6 +18,14 @@ import { useEffect } from 'react'
  * der äusseren. Seitlich rollt der Kopf mit seiner Tabelle, weil er in ihr
  * bleibt. In Fenstern (.dialog) rollt das Fenster, nicht die Seite — dort
  * nichts.
+ *
+ * 22. Oktober: Verschoben werden die Kopfzellen, nicht der thead. Der Betrieb
+ * schickte ein Bild aus Safari: der klebende Kopf lag *unter* der aufgeklappten
+ * Zeile, ihr Text stand mitten in den Spaltentiteln. WebKit gibt einem thead
+ * keine eigene Ebene (z-index wirkt dort nicht) — die Zeilen danach malen
+ * darüber. Einer Zelle mit position: relative gibt jeder Browser eine. Der
+ * Versatz steht darum als --kopf-versatz am thead, und index.css schiebt jede
+ * Zelle (thead.klebt th).
  */
 export function useHaftendeKoepfe(an: boolean) {
   useEffect(() => {
@@ -40,11 +48,11 @@ export function useHaftendeKoepfe(an: boolean) {
         const h = kopf.offsetHeight
         const versatz = Math.max(0, Math.min(grenze - r.top, r.height - h * 2))
         if (versatz > 0.5) {
-          kopf.style.transform = `translateY(${versatz}px)`
+          kopf.style.setProperty('--kopf-versatz', `${versatz}px`)
           kopf.classList.add('klebt')
           unterkante.set(tabelle, grenze + h)
         } else if (kopf.classList.contains('klebt')) {
-          kopf.style.transform = ''
+          kopf.style.removeProperty('--kopf-versatz')
           kopf.classList.remove('klebt')
         }
       }
@@ -61,7 +69,7 @@ export function useHaftendeKoepfe(an: boolean) {
       window.removeEventListener('resize', planen)
       beobachter.disconnect()
       if (raf) cancelAnimationFrame(raf)
-      for (const kopf of document.querySelectorAll<HTMLElement>('thead.klebt')) { kopf.style.transform = ''; kopf.classList.remove('klebt') }
+      for (const kopf of document.querySelectorAll<HTMLElement>('thead.klebt')) { kopf.style.removeProperty('--kopf-versatz'); kopf.classList.remove('klebt') }
     }
   }, [an])
 }

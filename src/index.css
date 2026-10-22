@@ -765,10 +765,16 @@ details.aufklapp > summary .leise { font-weight: var(--gewicht-normal); }
 .lagertabelle thead th.haftend { background: var(--flaeche); color: var(--text-leise); font-size: .68rem; text-transform: uppercase; letter-spacing: .06em; }
 .lagertabelle tfoot th.haftend { background: var(--flaeche); }
 /* Runde AS: ein Tabellenkopf, der beim Rollen klebt (src/design/haftkopf.ts) —
-   deckend und über den Zeilen, auch über der haftenden ersten Spalte. */
-thead.klebt { position: relative; z-index: 4; background: var(--flaeche); }
-thead.klebt tr { background: var(--flaeche); }
-thead.klebt th { background: var(--flaeche); box-shadow: inset 0 -1px 0 var(--rand); }
+   deckend und über den Zeilen, auch über der haftenden ersten Spalte.
+   22. Oktober: die Zellen tragen Versatz und Ebene, nicht der thead — in Safari
+   malte die aufgeklappte Zeile sonst über den Kopf (ein thead hat dort keine
+   eigene Ebene). Die haftende erste Spalte bleibt sticky und liegt zuoberst. */
+thead.klebt th {
+  transform: translateY(var(--kopf-versatz, 0px));
+  position: relative; z-index: 4;
+  background: var(--flaeche); box-shadow: inset 0 -1px 0 var(--rand);
+}
+thead.klebt th.haftend { position: sticky; z-index: 5; }
 .lagertabelle .zeilenname { font-weight: var(--gewicht-stark); }
 .lagertabelle th.gruppe {
   text-align: center; border-bottom: 2px solid var(--rand);

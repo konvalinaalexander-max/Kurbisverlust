@@ -16,7 +16,7 @@ import { useAuth } from '../auth/AuthProvider'
 import { fehlerText } from '../lib/db'
 
 /** Wonach die Tabelle sortiert ist — der Betriebsleiter wählt es mit einem Klick auf den Kopf. */
-type Sortierung = 'lager' | 'verkaufsfaehig' | 'eingang'
+type Sortierung = 'nr' | 'lager' | 'verkaufsfaehig' | 'eingang'
 
 /**
  * Chargen: eine Zeile je Charge — Eingang (Kilo, Paletten, von–bis),
@@ -35,7 +35,10 @@ export default function Chargen() {
   const [suche, setSuche] = useSearchParams()
   const [sorte, setSorte] = useState('')
   const [nurBestand, setNurBestand] = useState(false)
-  const [nach, setNach] = useState<Sortierung>('lager')
+  // 22. Oktober, der Betrieb: „why the hell sind die nicht nach Nummer geordnet — das ist so ein Pain,
+  // dort eine Charge zu finden." Zuerst nach Nummer; die Masse sortiert ein Klick auf ihren Kopf.
+  const [nach, setNach] = useState<Sortierung>('nr')
+  const [finden, setFinden] = useState('')
   const offen = Number(suche.get('charge') ?? 0) || null
   // Runde AS (0116): der Hagelschaden je Charge, vom Betriebsleiter gesetzt
   const { istAdmin } = useAuth()
@@ -59,17 +62,18 @@ export default function Chargen() {
         l: daten.lage.find(x => x.charge_nr === b.charge_nr),
         heute: anteil === null || b.verkaufsfaehig_lager_kg === null || !(lager > 0) ? null : Math.min(b.verkaufsfaehig_lager_kg / lager, 1),
       }
-    }).filter(z => (!sorte || z.b.sorte === sorte) && (!nurBestand || z.b.lager_kg > 0))
+    }).filter(z => (!sorte || z.b.sorte === sorte) && (!nurBestand || z.b.lager_kg > 0) && passt(z.b, finden))
     // Beim Anteil steht der **schlechteste** oben: Das ist die Charge, die
     // zuerst raus sollte. Eine Charge ohne Zahl steht in jedem Fall hinten —
     // „unbekannt" ist weder gut noch schlecht.
     const hinten = (x: number | null) => x === null ? Infinity : x
     return liste.sort((a, c) => {
+      if (nach === 'nr') return a.b.charge_nr - c.b.charge_nr
       if (nach === 'verkaufsfaehig') return hinten(a.heute) - hinten(c.heute)
       if (nach === 'eingang') return (a.b.eingang_von ?? '9999').localeCompare(c.b.eingang_von ?? '9999')
       return c.lager - a.lager
     })
-  }, [daten, sorte, nurBestand, nach])
+  }, [daten, sorte, nurBestand, nach, finden])
 
   if (laedt && !daten) return <Rechnet fortschritt={fortschritt} />
   // Runde AJ: die zweite Welle der Ergebnisse (dieser Reiter braucht sie) kommt nach dem Lagermanagement.
@@ -86,7 +90,7 @@ export default function Chargen() {
    * das Dringende —, beim Eingang das Älteste.
    */
   const Kopf = ({ id, children, zahlspalte = true }: { id: Sortierung; children: ReactNode; zahlspalte?: boolean }) => {
-    const auf = id === 'verkaufsfaehig' || id === 'eingang'
+    const auf = id === 'nr' || id === 'verkaufsfaehig' || id === 'eingang'
     return (
       <th className={zahlspalte ? 'zahl' : undefined}>
         <button type="button" onClick={() => setNach(id)} aria-pressed={nach === id}
@@ -105,6 +109,8 @@ export default function Chargen() {
       <Probleme liste={daten.probleme} />
       <Karte>
         <div className="filterleiste">
+          <input type="search" value={finden} onChange={e => setFinden(e.target.value)} aria-label="Charge finden"
+                 placeholder="Nr. oder Schlag" style={{ width: '11rem', minHeight: 36 }} />
           <select value={sorte} onChange={e => setSorte(e.target.value)} aria-label="Sorte">
             <option value="">alle Sorten</option>{sorten.map(s => <option key={s}>{s}</option>)}
           </select>
@@ -121,7 +127,7 @@ export default function Chargen() {
             <thead>
               <tr>
                 <th style={{ width: 28 }} aria-label="aufklappen" />
-                <th>Charge</th><th>Sorte</th>
+                <Kopf id="nr" zahlspalte={false}>Charge</Kopf><th>Sorte</th>
                 <th className="zahl">Eingang</th><th className="zahl">Paletten</th>
                 <Kopf id="eingang" zahlspalte={false}>Eingang am</Kopf>
                 <th className="zahl">Ausgeliefert</th>
@@ -211,6 +217,14 @@ function verlustTitel(b: Auswertung['bestand'][number]): string {
 }
 
 type Zeile = { b: Auswertung['bestand'][number]; lager: number; l?: Auswertung['lage'][number]; heute: number | null }
+
+/** Das Suchfeld: eine Zahl sucht im Anfang der Nummer („16" → 1601 … 1699), sonst im Schlag und in der Sorte. */
+function passt(b: { charge_nr: number; schlag: string | null; sorte: string }, finden: string): boolean {
+  const f = finden.trim().toLowerCase()
+  if (!f) return true
+  if (/^\d+$/.test(f)) return String(b.charge_nr).startsWith(f)
+  return (b.schlag ?? '').toLowerCase().includes(f) || b.sorte.toLowerCase().includes(f)
+}
 
 /** Der Eingang als Spanne: „2.9. – 18.9." oder ein Tag. */
 function eingangSpanne(b: Auswertung['bestand'][number]): string {
