@@ -4210,9 +4210,9 @@ dazu ohne Mutation: von Hand als „Trüb" angelegt, berichtigt. App: 6
 Mutationen, alle erkannt — ohne NFC, Umlaute wieder Leerzeichen, Meldung
 schweigt ohne Neues, Zeilennummer bleibt drin (`test/import.test.ts`);
 Abgleich wieder stumm, nur Zeilen ohne Charge melden „keine Palette erkannt"
-(Bildschirm `lager-journal-ohne-charge`). Block 0080 (e1) zählte fest 42
-Chargen; er vergleicht jetzt mit dem Register vor dem Leeren und sagt es im
-Kommentar.
+(Bildschirm `lager-journal-ohne-charge`). Block 0080 (e1) und run.sh
+Schritt 3 (zweiter Durchlauf von setup.sql) zählten fest 42 Chargen; sie
+vergleichen jetzt mit dem Register vorher und sagen es im Kommentar.
 
 **Was bewusst nicht gemacht wurde.** Keine Charge aus der Journalzeile
 erraten: Ein neuer Schlag braucht seine Nummer vom Betrieb (Perigon), und

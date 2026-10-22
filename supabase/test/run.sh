@@ -132,6 +132,9 @@ echo "── 3. setup.sql ein zweites Mal ────────────�
 # die Stammdaten-Maske nur den Wert setzen, dann setup.sql laufen lassen.
 psql "$URL" -v ON_ERROR_STOP=1 -q -c \
   "update einstellung set wert = '32'::jsonb where schluessel = 'kisten_pro_palette';"
+# Seit 0120 stehen 44 Chargen im Register, nicht mehr 42: verglichen wird mit
+# dem Stand vor dem zweiten Durchlauf, nicht mit einer festen Zahl.
+CHARGEN_VORHER="$(psql "$URL" -qtA -c 'select count(*) from charge')"
 if ! ZWEITE="$(psql "$URL" -v ON_ERROR_STOP=1 -qtA -1 -f "$HIER/../setup.sql" 2>&1)"; then
   echo "   FEHLER: der zweite Durchlauf ist gescheitert:"
   echo "$ZWEITE" | grep -iE 'error|fehler' | head -10; exit 1
@@ -140,7 +143,7 @@ echo "   $(echo "$ZWEITE" | tail -1)"
 echo "$ZWEITE" | tail -1 | grep -q 'Auswertung berechnet' \
   || { echo "   FEHLER: die Auswertung wurde am Ende nicht berechnet"; exit 1; }
 VERBLIEBEN="$(psql "$URL" -qtA -c 'select count(*) from charge')"
-[ "$VERBLIEBEN" = "42" ] || { echo "   FEHLER: Daten beschädigt ($VERBLIEBEN Chargen)"; exit 1; }
+[ "$CHARGEN_VORHER" -ge 44 ] && [ "$VERBLIEBEN" = "$CHARGEN_VORHER" ] || { echo "   FEHLER: Daten beschädigt ($VERBLIEBEN Chargen, vorher $CHARGEN_VORHER)"; exit 1; }
 psql "$URL" -v ON_ERROR_STOP=1 -f "$HIER/fingerabdruck.sql" > "$FRISCH.zwei"
 diff -q "$FRISCH" "$FRISCH.zwei" >/dev/null \
   || { echo "   FEHLER: das Schema hat sich beim zweiten Durchlauf verändert:";
