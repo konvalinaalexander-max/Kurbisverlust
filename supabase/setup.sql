@@ -7951,6 +7951,10 @@ comment on function auswertung_schritt_intern(integer, boolean) is
 do $$
 declare r record; v_ist int; v_neu int := 0;
 begin
+  -- Die Berichtigung vom 23. Oktober: 1650 ist 198977, nicht 198976 — nur,
+  -- wo noch die alte Nummer der Planungsdatei (0051) steht.
+  update charge set perigon_nr = 198977 where nr = 1650 and perigon_nr = 198976;
+  if found then raise notice 'Charge 1650: Perigon-Nr. 198976 → 198977 (Liste vom 23. Oktober, berichtigt).'; end if;
   for r in select * from (values
     (1598, 198876), (1599, 198877), (1601, 198888), (1603, 198915), (1604, 198916),
     (1605, 198917), (1606, 198919), (1607, 198889), (1608, 198920), (1609, 198918),
@@ -7960,7 +7964,7 @@ begin
     (1627, 198959), (1628, 198970), (1630, 198969), (1631, 198968), (1632, 198960),
     (1633, 198961), (1634, 198962), (1635, 198963), (1636, 198966), (1637, 198964),
     (1638, 198965), (1646, 198952), (1647, 198953), (1648, 198974), (1649, 198976),
-    (1650, 198976), (1651, 198975), (1719, 199156), (1763, 199158)) v(nr, p)
+    (1650, 198977), (1651, 198975), (1719, 199156), (1763, 199158)) v(nr, p)
   loop
     select c.perigon_nr into v_ist from charge c where c.nr = r.nr;
     if not found then continue; end if;
@@ -7973,6 +7977,11 @@ begin
   end loop;
   if v_neu > 0 then raise notice 'Perigon-Nummern der Liste vom 23. Oktober: % eingetragen.', v_neu; end if;
 end $$;
+comment on column charge.perigon_nr is
+  'Chargennummer derselben Ware im Perigon der Firma AG (sechsstellig). Aus der '
+  'Planungsdatei des Betriebs (0051), ergänzt und berichtigt mit der Liste vom '
+  '23. Oktober (0122). Gehört zu genau einer Charge; steht sie an zweien, sagt '
+  'es v_stammdaten_pruefung.';
 
 create or replace function name_norm(p text) returns text
 language sql immutable set search_path = public as $$

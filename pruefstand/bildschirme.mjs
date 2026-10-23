@@ -99,6 +99,12 @@ function ungereimtVormerken() {
       mehr: { von_charge_nr: 99126, auftrag_id: 1, grund: '5 von 5 Zetteln der Arbeit 1 (Charge 99128) ohne eigene Palette passen aufs Kilo zu Paletten von Charge 99126 (448 kg, 444 kg, 433 kg, 433 kg, 380 kg); Charge 99128 lieferte 1416 kg bei 0 kg Eingang', paletten: [1, 2, 3, 4, 5, 6], von_betriebsleiter: false } },
     { art: 'vorschlag', charge_nr: 99129, sorte: 'Tiana', schlag: 'Prüfschlag', kg: 2136, n: 6, von: '2026-08-28', bis: '2026-08-31',
       mehr: { von_charge_nr: 99125, auftrag_id: 2, grund: '6 von 8 Zetteln der Arbeit 2 (Charge 99129) ohne eigene Palette passen aufs Kilo zu Paletten von Charge 99125 (428 kg, 434 kg, 444 kg, 430 kg, 437 kg, 437 kg); Charge 99129 lieferte 7444 kg bei 4863 kg Eingang', paletten: [7, 8, 9, 10, 11, 12], von_betriebsleiter: false } },
+    // Eine Perigon-Nummer an zwei Chargen — so stand 198976 bei 1649 und 1650,
+    // bis der Betrieb die Liste berichtigte; seither nicht mehr in der Demo.
+    { art: 'stammdaten', charge_nr: 99130, sorte: 'Butterkin', schlag: 'Prüfschlag', kg: null, n: 2, von: null, bis: null,
+      mehr: { pruefung: 'perigon_doppelt', chargen_nr: [99130, 99131], perigon_nr: 991980, zeilen_mit_nummer: 4,
+        chargen: [{ charge_nr: 99130, schlag: 'Prüfschlag', sorte: 'Butterkin' }, { charge_nr: 99131, schlag: 'Prüfschlag', sorte: 'Tiana' }],
+        verwandte: [{ nummer: '991981', n: 11, produzent: 'Prüfhof', gruppe: 'Butternut', charge_nr: 99131 }] } },
   ])
   const spur = (charge_nr, sorte, x) => ({ charge_nr, schlag: 'Prüfschlag', sorte, artikelgruppe: sorte === 'Tiana' ? 'Butternut' : 'Knirps',
     journal_paletten: 0, journal_kg: null, journal_von: null, journal_bis: null, paletten: 0, eingang_kg: null, weg: null, her: null,
@@ -289,7 +295,8 @@ const BILDSCHIRME = [
   // 0122: „Was war jetzt von welcher Charge — Eingang, Arbeit, Warenausgang;
   // was hast du schon umgebucht, was noch nicht, was würdest du wie umbuchen?"
   // Unter der Sache der Weg der Ware je Charge, dazu Stand und Vorschlag; eine
-  // Perigon-Nummer an zwei Chargen (1649/1650 in der Demo wie im Betrieb).
+  // Perigon-Nummer an zwei Chargen (erfunden: seit der berichtigten Liste
+  // vom 23. Oktober gibt es in der Demo keine doppelte mehr).
   { name: 'lager-ungereimt-spur', wer: 'admin', pfad: '/dashboard', vorher: ungereimtVormerken,
     tun: async p => {
       await p.locator('#ungereimt .ungereimt-kopf').click()
@@ -307,7 +314,9 @@ const BILDSCHIRME = [
       const nach = p.locator('#ungereimt .ungereimt-sache', { hasText: 'mit der Nummer 991977' })
       await nach.locator('button', { hasText: 'Bei 99129 Perigon-Nr. 991977 eintragen' }).waitFor()
       if (!(await nach.locator('.spur-tabelle', { hasText: 'davon als Kabocha' }).count())) throw new Error('der fremde Artikel beim Ausgang fehlt')
-      await p.locator('#ungereimt .ungereimt-sache', { hasText: 'Perigon-Nr. 198976 steht an 2 Chargen: 1649 und 1650' }).waitFor()
+      const doppelt = p.locator('#ungereimt .ungereimt-sache', { hasText: 'Perigon-Nr. 991980 steht an 2 Chargen: 99130 und 99131' })
+      await doppelt.locator('dd', { hasText: 'Wohl hat 99131 die Nummer 991981' }).waitFor()
+      await doppelt.locator('button', { hasText: 'Bei 99131 Perigon-Nr. 991981 eintragen' }).waitFor()
     } },
   // 0121: vom Lager zum Verkaufsfähigen, Schritt für Schritt
   { name: 'lager-kette', wer: 'admin', pfad: '/dashboard',
@@ -733,14 +742,26 @@ const BILDSCHIRME = [
       if (!(await p.locator('#charge-anlegen-ok').isEnabled())) throw new Error(`Charge ${frei} mit Schlag und Sorte lässt sich nicht anlegen`)
     } },
   // 0122: „Oettli heisst im Bio-Perigon Inauen … Trüb ist Trüeb." Die zweiten
-  // Namen unter Stammdaten → Chargen; eine Perigon-Nummer an zwei Chargen ist markiert.
+  // Namen unter Stammdaten → Chargen; eine Perigon-Nummer an zwei Chargen ist
+  // markiert — erfunden (99132 mit der Nummer von 1649), seit der Betrieb die
+  // Liste berichtigt hat und 1650 die 198977 trägt.
   { name: 'betrieb-wer-wie-heisst', wer: 'admin', pfad: '/betrieb/stammdaten',
+    vorher: () => {
+      const c = (fixture('charge') ?? []).find(x => x.nr === 1649)
+      if (c) vormerken('charge', [{ ...c, nr: 99132, schlag: 'Prüfschlag', sorte: 'Tiana' }])
+    },
     tun: async p => {
       await p.locator('nav.navleiste:not([aria-label="Bereiche"])').getByRole('link', { name: 'Chargen' }).click()
       const karte = p.locator('.karte', { hasText: 'Wer wie heisst' })
       await karte.locator('td', { hasText: 'Inauen' }).first().waitFor()
       if (!(await karte.locator('tr', { hasText: 'Trüb' }).count())) throw new Error('Trüb → Trüeb fehlt')
-      await p.locator('tr', { hasText: 'Rümlang Sauter' }).locator('.marke-klein', { hasText: 'auch bei 1650' }).waitFor()
+      // Mit Fixtures von vor der Berichtigung steht dort „auch bei 1650, 99132".
+      await p.locator('tr', { hasText: 'Rümlang Sauter' }).locator('.marke-klein', { hasText: /auch bei (.*, )?99132/ }).first().waitFor()
+      // Seit der berichtigten Liste trägt 1650 die 198977 — dann darf dort keine doppelte mehr stehen.
+      const c1650 = (fixture('charge') ?? []).find(x => x.nr === 1650)
+      if (c1650?.perigon_nr === 198977
+          && await p.locator('tr', { hasText: 'Rümlang Sauter' }).locator('.marke-klein', { hasText: 'auch bei 1650' }).count())
+        throw new Error('1649 und 1650 tragen wieder dieselbe Perigon-Nummer')
       await karte.scrollIntoViewIfNeeded()
     } },
   { name: 'betrieb-schemata', wer: 'admin', pfad: '/betrieb/stammdaten',

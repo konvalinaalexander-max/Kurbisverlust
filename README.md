@@ -776,8 +776,10 @@ die Paletten kommen von selbst; danach „Neu rechnen".
 **0122:** Inauen ist Oettli, Trüb ist Trüeb — unter Stammdaten → Chargen
 „Wer wie heisst" (AB-170); die Perigon-Nummern der Liste vom 23. Oktober
 stehen im Register. Ein Lieferschein mit unbekannter Nummer bekommt seine
-Charge über den Produzenten, wenn es eindeutig ist (198977 → 1650), und eine
-Perigon-Nummer an zwei Chargen steht als Ungereimtheit da (AB-171). Jede
+Charge über den Produzenten, wenn es eindeutig ist, und eine
+Perigon-Nummer an zwei Chargen steht als Ungereimtheit da (AB-171) — so
+198976 an 1649 und 1650, bis der Betrieb die Liste berichtigt hat: 1650 ist
+198977. Jede
 Ungereimtheit sagt, ob schon umgebucht ist, was die App vorschlägt, und
 zeigt den Weg der Ware je Charge: herein, Halle, hinaus (AB-172). **Der
 Betrieb spielt setup.sql einmal ein (Stand 122) und drückt „Neu rechnen".**

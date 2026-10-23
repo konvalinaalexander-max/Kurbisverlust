@@ -198,7 +198,8 @@ export function ausZeile(z: UngereimtZeile, perigon: PerigonPruefung[]): Ungerei
  * 0122: Was im Chargenregister selbst nicht stimmt (v_stammdaten_pruefung).
  * Der Betrieb, 23. Oktober: „Rümlang Sauter 198976 1649 Butterkin, Rümlang
  * Sauter 198976 1650 Tiana — das sollte nicht sein; such auch nach solcher Art
- * von Ungereimtheiten." Die App ändert das Register nie selbst; sie sagt,
+ * von Ungereimtheiten." (Am selben Tag berichtigt: 1650 ist 198977.) Die App
+ * ändert das Register nie selbst; sie sagt,
  * was sie vermutet, und der Betriebsleiter übernimmt es mit einem Klick.
  */
 function ausStammdaten(z: UngereimtZeile, basis: Omit<Ungereimtheit, 'schwere' | 'titel' | 'was' | 'warum' | 'tun'>): Ungereimtheit {

@@ -440,7 +440,7 @@ function Chargen() {
           <tbody>
             {chargen.map(c => {
               const p = perigon.get(c.nr)
-              // 0122: eine Perigon-Nummer gehört zu genau einer Charge (198976 stand bei 1649 und 1650)
+              // 0122: eine Perigon-Nummer gehört zu genau einer Charge (198976 stand bei 1649 und 1650, bis die Liste berichtigt war)
               const gleich = c.perigon_nr == null ? [] : chargen.filter(x => x.nr !== c.nr && x.perigon_nr === c.perigon_nr).map(x => x.nr)
               return (
                 <tr key={c.nr}>

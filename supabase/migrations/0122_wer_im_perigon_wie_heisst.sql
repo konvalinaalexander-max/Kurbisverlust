@@ -11,7 +11,10 @@
 --    (Oettli) = 199156 und 1763 (Trüeb) = 199158. Eingetragen wird, wo noch
 --    keine Nummer steht; steht eine andere, sagt setup.sql es als Warnung —
 --    vielleicht hat der Betriebsleiter sie unter Stammdaten schon berichtigt.
---    198976 steht in der Liste weiter bei 1649 und 1650 (siehe 3).
+--    In der ersten Fassung stand 198976 bei 1649 und bei 1650. Am selben Tag
+--    hat der Betrieb die Liste berichtigt: „198976 1649, 198977 1650". Steht
+--    bei 1650 noch die alte 198976 (aus 0051), wird sie zu 198977; eine
+--    andere Nummer, die der Betriebsleiter gesetzt hat, bleibt.
 --
 --    Ein Name, zwei Schreibweisen: schlag_alias hält, wie ein Schlag
 --    anderswo heisst (Inauen, „Oettli, Inauen", Ötli → Oettli; Trüb, Trueb →
@@ -30,9 +33,10 @@
 --    gehört zu genau einem Schlag, und dieser Schlag hat in der Saison genau
 --    eine Charge, deren Sorte zum Artikel passt. So die 11 Lieferscheine
 --    „Butternut lose" mit 198977 (Produzent Sauter): Rümlang Sauter hat genau
---    eine Butternut-Charge, 1650. Jede solche Zuordnung steht mit ihrem Grund
---    in lieferung_nachordnung und als Hinweis in v_ungereimtheit
---    („nachgeordnet") — der Betriebsleiter sieht sie und trägt die Nummer
+--    eine Butternut-Charge, 1650 — die berichtigte Liste hat es bestätigt,
+--    seither findet die Nummer selbst ihre Charge. Jede solche Zuordnung
+--    steht mit ihrem Grund in lieferung_nachordnung und als Hinweis in
+--    v_ungereimtheit („nachgeordnet") — der Betriebsleiter sieht sie und trägt die Nummer
 --    unter Stammdaten ein, dann steht es fest.
 --
 -- 4. Der Betrieb: „Aktuell ist noch nicht ganz klar, was jetzt von welcher
@@ -56,6 +60,10 @@
 do $$
 declare r record; v_ist int; v_neu int := 0;
 begin
+  -- Die Berichtigung vom 23. Oktober: 1650 ist 198977, nicht 198976 — nur,
+  -- wo noch die alte Nummer der Planungsdatei (0051) steht.
+  update charge set perigon_nr = 198977 where nr = 1650 and perigon_nr = 198976;
+  if found then raise notice 'Charge 1650: Perigon-Nr. 198976 → 198977 (Liste vom 23. Oktober, berichtigt).'; end if;
   for r in select * from (values
     (1598, 198876), (1599, 198877), (1601, 198888), (1603, 198915), (1604, 198916),
     (1605, 198917), (1606, 198919), (1607, 198889), (1608, 198920), (1609, 198918),
@@ -65,7 +73,7 @@ begin
     (1627, 198959), (1628, 198970), (1630, 198969), (1631, 198968), (1632, 198960),
     (1633, 198961), (1634, 198962), (1635, 198963), (1636, 198966), (1637, 198964),
     (1638, 198965), (1646, 198952), (1647, 198953), (1648, 198974), (1649, 198976),
-    (1650, 198976), (1651, 198975), (1719, 199156), (1763, 199158)) v(nr, p)
+    (1650, 198977), (1651, 198975), (1719, 199156), (1763, 199158)) v(nr, p)
   loop
     select c.perigon_nr into v_ist from charge c where c.nr = r.nr;
     if not found then continue; end if;
@@ -78,6 +86,11 @@ begin
   end loop;
   if v_neu > 0 then raise notice 'Perigon-Nummern der Liste vom 23. Oktober: % eingetragen.', v_neu; end if;
 end $$;
+comment on column charge.perigon_nr is
+  'Chargennummer derselben Ware im Perigon der Firma AG (sechsstellig). Aus der '
+  'Planungsdatei des Betriebs (0051), ergänzt und berichtigt mit der Liste vom '
+  '23. Oktober (0122). Gehört zu genau einer Charge; steht sie an zweien, sagt '
+  'es v_stammdaten_pruefung.';
 
 -- =====================================================================
 -- 2. Ein Name, zwei Schreibweisen
@@ -358,7 +371,8 @@ grant select on v_charge_spur to authenticated;
 --   perigon_doppelt — eine Perigon-Nummer an mehreren Chargen; dazu, ob sie in
 --     den Dateien überhaupt vorkommt, und welche Nummern dort stehen, die an
 --     keiner Charge stehen, aber nah daneben liegen (±2) oder vom Produzenten
---     dieser Chargen kommen (verwandte) — bei 198976 ist das 198977.
+--     dieser Chargen kommen (verwandte) — bei 198976 war das 198977, und
+--     genau so hat der Betrieb die Liste am selben Tag berichtigt.
 --   ohne_perigon_nr — eine Charge der laufenden Saison mit Ware (Paletten oder
 --     Lieferscheine), aber ohne Perigon-Nummer: Lieferscheine, die die
 --     Perigon-Nummer tragen (die Datei der zweiten Firma), findet die App nicht.

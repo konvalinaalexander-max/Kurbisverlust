@@ -748,9 +748,10 @@ export interface ChargeKurz { nr: number; sorte: string; perigon_nr: number | nu
  * Löst die Chargennummer einer Zeile auf: vierstellig ist die eigene Nummer,
  * sechsstellig die Nummer derselben Ware im Perigon der anderen Firma
  * (charge.perigon_nr, aus der Planungsdatei). Eine Perigon-Nummer kann an
- * zwei Chargen stehen (198976: Butterkin und Tiana in Rümlang) — dann
- * entscheidet die Sorte, die der Artikel nahelegt; ohne sie bleibt die Zeile
- * ohne Chargenbezug, damit nichts geraten wird.
+ * zwei Chargen stehen (198976 stand bei Butterkin und Tiana in Rümlang, bis
+ * der Betrieb die Liste am 23. Oktober berichtigte) — dann entscheidet die
+ * Sorte, die der Artikel nahelegt; ohne sie bleibt die Zeile ohne
+ * Chargenbezug, damit nichts geraten wird.
  */
 export function chargeAufloeser(
   chargen: ChargeKurz[], sorteVonArtikel: (z: { artikel_id: string; artikel: string }) => string | null = () => null,

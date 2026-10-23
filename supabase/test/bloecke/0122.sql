@@ -1,8 +1,8 @@
 -- =====================================================================
 -- 0122 — Wer im Perigon wie heisst; der Weg der Ware je Charge
 --
--- (a) Die Liste vom 23. Oktober: 1719 = 199156, 1763 = 199158; 198976
---     bleibt an 1649 und 1650, wie die Liste es sagt.
+-- (a) Die Liste vom 23. Oktober: 1719 = 199156, 1763 = 199158; berichtigt
+--     am selben Tag: 198976 ist 1649, 198977 ist 1650.
 -- (b) Ein Name, zwei Schreibweisen: Inauen und „Oettli, Inauen" sind
 --     Oettli, Trüb (auch als u + Trema) ist Trüeb, Trüeb ist Trüeb; ein
 --     unbekannter Name ist niemand.
@@ -21,7 +21,8 @@
 -- (i) Das Chargenregister selbst: eine Perigon-Nummer an zwei Chargen (mit
 --     den verwandten Nummern der Dateien: nah daneben oder vom selben
 --     Produzenten), eine Charge mit Ware ohne Perigon-Nummer, ein Schlag
---     unter zwei Namen — und nichts davon, wo alles stimmt.
+--     unter zwei Namen — und nichts davon, wo alles stimmt (1649/1650 seit
+--     der berichtigten Liste).
 -- (h) Stand 122.
 -- =====================================================================
 do $$
@@ -52,8 +53,11 @@ begin
     format('0122 (a1): 1719 trägt die Perigon-Nr. %s statt 199156', (select perigon_nr from charge where nr = 1719));
   assert (select perigon_nr from charge where nr = 1763) = 199158,
     format('0122 (a2): 1763 trägt die Perigon-Nr. %s statt 199158', (select perigon_nr from charge where nr = 1763));
-  assert (select count(*) from charge where perigon_nr = 198976 and nr in (1649, 1650)) = 2,
-    '0122 (a3): 198976 steht in der Liste an 1649 und 1650 — die App hat es eigenmächtig geändert';
+  -- Die erste Fassung der Liste nannte 198976 zweimal; der Betrieb hat sie berichtigt.
+  -- Der Test folgt der Liste: vorher „bleibt an beiden", jetzt 1649 = 198976, 1650 = 198977.
+  assert (select perigon_nr from charge where nr = 1649) = 198976 and (select perigon_nr from charge where nr = 1650) = 198977,
+    format('0122 (a3): 1649/1650 tragen %s/%s statt 198976/198977 (Liste vom 23. Oktober, berichtigt)',
+           (select perigon_nr from charge where nr = 1649), (select perigon_nr from charge where nr = 1650));
 
   -- (b) Namen
   assert schlag_von_produzent('Inauen') = 'Oettli', format('0122 (b1): Inauen ist %s', schlag_von_produzent('Inauen'));
@@ -215,10 +219,10 @@ begin
   assert exists (select 1 from v_ungereimtheit where art = 'stammdaten' and mehr->>'pruefung' = 'perigon_doppelt'
                     and mehr->'chargen_nr' @> '[99221, 99222]'::jsonb),
     '0122 (i3): die doppelte Perigon-Nummer steht nicht unter den Ungereimtheiten';
-  if exists (select 1 from charge where nr = 1649 and perigon_nr = 198976) and exists (select 1 from charge where nr = 1650 and perigon_nr = 198976) then
-    assert exists (select 1 from v_stammdaten_pruefung where pruefung = 'perigon_doppelt' and chargen = array[1649, 1650]),
-      '0122 (i4): 198976 an 1649 und 1650 fällt nicht auf';
-  end if;
+  -- (i4) Bis zur berichtigten Liste stand hier: 198976 an 1649 und 1650 fällt auf.
+  -- Seither trägt 1650 die 198977 — und dort fällt nichts mehr auf.
+  assert not exists (select 1 from v_stammdaten_pruefung where pruefung = 'perigon_doppelt' and chargen && array[1649, 1650]),
+    '0122 (i4): an 1649 oder 1650 steht nach der berichtigten Liste noch eine doppelte Perigon-Nummer';
   assert exists (select 1 from v_stammdaten_pruefung where pruefung = 'ohne_perigon_nr' and chargen = array[99224]),
     '0122 (i5): eine Charge mit Lieferscheinen, aber ohne Perigon-Nummer fällt nicht auf';
   assert not exists (select 1 from v_stammdaten_pruefung where pruefung = 'ohne_perigon_nr' and chargen && array[99221, 99222, 99223]),

@@ -1169,9 +1169,12 @@ table.excel thead th { border-top: 0; } table.excel tbody tr:last-child td { bor
 .hagel-feld input { width: 3.6rem; min-height: 28px; padding: .1rem .35rem; text-align: right; }
 .hagel-zelle .werkzeug-knopf { min-height: 24px; padding: 0 .2rem; }
 .chargentabelle th:last-child, .chargentabelle td.hagel-zelle { padding-left: .3rem; padding-right: .3rem; }
-/* Runde AT: die Artikeltabelle passt in die Karte — „noch zu liefern" darf nicht hinter dem Rand verschwinden. */
-.uebersicht-tabelle td.zahl { min-width: 4.4rem; }
-.uebersicht-tabelle th, .uebersicht-tabelle td { padding-left: .4rem; padding-right: .4rem; }
+/* Runde AT: die Artikeltabelle passt in die Karte — „noch zu liefern" darf nicht hinter dem Rand verschwinden.
+   23. Oktober: mit Unique als eigener Spalte (Hagelware in der Demo) wurde sie 24 px zu breit —
+   die Mindestbreite je Zahl ist schmaler; breite Zahlen machen ihre Spalte selbst breit. */
+.uebersicht-tabelle td.zahl { min-width: 3.6rem; }
+/* table.dicht setzt .5rem — die Artikeltabelle braucht dieselbe Spezifität, um schmaler zu sein. */
+table.uebersicht-tabelle th, table.uebersicht-tabelle td { padding-left: .32rem; padding-right: .32rem; }
 
 /* ---------- 0121: Ungereimtheiten zwischen Perigon und Lager --------------- */
 /* Der Betrieb: „das darf wichtig sein … wirklich prominent". Oben auf jeder

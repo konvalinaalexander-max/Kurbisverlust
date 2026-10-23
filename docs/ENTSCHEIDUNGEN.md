@@ -4202,13 +4202,20 @@ Rümlang Sauter hat genau eine Butternut-Charge: 1650. Der Rechenlauf gibt die
 Lieferscheine darum 1650, schreibt den Grund dazu und zeigt es als Hinweis,
 bis der Betriebsleiter 198977 bei 1650 einträgt (ein Knopf an der Stelle).
 Zusammen mit 198976 an 1649 *und* 1650 heisst das wohl: 1650 ist 198977, 1649
-behält 198976 — das sagt die App als Vorschlag, entscheiden tut der Betrieb.
+behält 198976 — das sagte die App als Vorschlag, und noch am selben Tag hat
+der Betrieb die Liste so berichtigt: „198976 1649, 198977 1650". 0122 trägt
+198977 bei 1650 ein, wo noch die alte 198976 aus 0051 steht; seither finden
+die elf Lieferscheine ihre Charge über die Nummer, nicht mehr über den
+Produzenten, und 198976 steht nur noch an 1649.
 
 **4. Was im Register nicht stimmt (`v_stammdaten_pruefung`).** Eine
 Perigon-Nummer an mehreren Chargen (mit den Nummern der Dateien, die daneben
 liegen oder vom selben Produzenten kommen), eine Charge der Saison mit Ware
 ohne Perigon-Nummer, ein Schlag unter zwei Namen. Auf den Daten vom 22.10.
-nur 198976.
+nur 198976 — nach der berichtigten Liste nichts mehr. Der Prüfblock zu 0051
+erwartet jetzt 198976 nur an 1649 und 198977 an 1650 (bis hier: „bleibt an
+beiden"); 0122 (i4) erwartet dort keine doppelte Nummer mehr. Die Bildschirme
+zeigen die doppelte Nummer mit erfundenen Chargen (99130/99131, 99132).
 
 **5. Stand, Vorschlag, Weg der Ware.** Jede Ungereimtheit sagt jetzt, ob schon
 umgebucht ist (und von wem) oder nicht, und was die App täte. Bei Ware ohne
@@ -4226,8 +4233,10 @@ Zuordnung Produzent → Schlag einmal statt je Nummer gerechnet wird). Tests
 `lager-ungereimt-spur`, `betrieb-wer-wie-heisst`.
 
 **Was bewusst nicht gemacht wurde.**
-- 198976 wird nicht von der App umgeschrieben. Die Liste nennt sie zweimal;
-  welche Charge welche Nummer hat, weiss das Büro.
+- 198976 schrieb die App nicht von sich aus um — die erste Liste nannte sie
+  zweimal, und welche Charge welche Nummer hat, weiss das Büro. Umgeschrieben
+  wurde erst, als der Betrieb es gesagt hat. Läuft setup.sql wieder, gilt die
+  Berichtigung wieder: Sie greift nur, wo bei 1650 noch 198976 steht.
 - Die Kandidaten buchen nichts. Ohne Zettel ist „wohl von 1719" eine
   Vermutung — der Satz sagt, was zu zählen ist.
 - Kein Abgleich, ob der Produzent zur Charge auf dem Lieferschein passt. Der
