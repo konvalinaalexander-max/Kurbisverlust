@@ -7986,10 +7986,15 @@ grant execute on function name_norm(text) to authenticated;
 create table if not exists schlag_alias (
   alias       text primary key,
   schlag      text not null,
-  angelegt_ts timestamptz not null default now(),
-  constraint schlag_alias_namen check (name_norm(alias) is not null and name_norm(schlag) is not null),
-  constraint schlag_alias_nicht_sich_selbst check (name_norm(alias) <> name_norm(schlag))
+  angelegt_ts timestamptz not null default now()
 );
+
+do $$ begin
+  alter table schlag_alias add constraint schlag_alias_namen check (name_norm(alias) is not null and name_norm(schlag) is not null);
+exception when duplicate_object then null; end $$;
+do $$ begin
+  alter table schlag_alias add constraint schlag_alias_nicht_sich_selbst check (name_norm(alias) <> name_norm(schlag));
+exception when duplicate_object then null; end $$;
 comment on table schlag_alias is
   'Wie ein Schlag anderswo heisst — im Erntejournal oder in Perigon Spalte X (Produzent): Inauen ist Oettli, Trüb ist Trüeb (0122). Der Abgleich mit dem Journal und die Zuordnung über den Produzenten lesen sie; der Betriebsleiter pflegt sie unter Stammdaten.';
 create unique index if not exists schlag_alias_norm on schlag_alias (name_norm(alias));

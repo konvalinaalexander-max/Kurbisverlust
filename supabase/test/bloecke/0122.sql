@@ -80,6 +80,20 @@ begin
   reset role;
   assert schlag_von_produzent('Leiter 0122') = 'Oettli', '0122 (c2): der Betriebsleiter konnte keinen Namen verknüpfen';
   delete from schlag_alias where alias = 'Leiter 0122';
+  -- (c3) ein Name ist nicht sein eigener zweiter Name, und leer ist kein Name —
+  -- auch nach erneutem Einspielen von setup.sql (die Bedingungen hängen an name_norm())
+  begin
+    insert into schlag_alias (alias, schlag) values ('OETTLI', 'Oettli');
+    v_fehler := 'angenommen';
+  exception when check_violation then v_fehler := 'abgewiesen';
+  end;
+  assert v_fehler = 'abgewiesen', '0122 (c3): „OETTLI" als zweiter Name von Oettli wurde angenommen';
+  begin
+    insert into schlag_alias (alias, schlag) values (' … ', 'Oettli');
+    v_fehler := 'angenommen';
+  exception when check_violation then v_fehler := 'abgewiesen';
+  end;
+  assert v_fehler = 'abgewiesen', '0122 (c3): ein Name nur aus Satzzeichen wurde angenommen';
 
   -- (d) Zuordnung über den Produzenten
   -- 99221 und 99222 teilen sich eine Perigon-Nummer wie 1649 und 1650 (für (i))

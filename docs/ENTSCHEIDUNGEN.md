@@ -4241,7 +4241,11 @@ des Faulen in 28 Tagen und im Verlauf kannte den Hagel nicht, den 0116 auf den
 fortgeschriebenen Anteil legt. Die Demo hängt am echten Datum; am 23. Oktober
 hatte die Hagel-Charge 1628 zum ersten Mal liegende Ware mit bekanntem Anstieg
 (113 kg Abweichung). Mit dem Hagel stimmt es auf 0.005 kg — die Regel gilt seit
-0116, die Nachrechnung zieht nach, gleich streng.
+0116, die Nachrechnung zieht nach, gleich streng. Und beim zweiten Einspielen
+von setup.sql fehlten die Prüfbedingungen von `schlag_alias`: setup.sql räumt
+jede Funktion mit cascade weg und nahm die Bedingungen mit, die `name_norm()`
+benutzen. Sie stehen jetzt für sich und werden jedes Mal angelegt (wie
+`charge_hagel_anteil` in 0116); Prüfblock 0122 (c3) prüft, dass sie wirken.
 
 ## Runde AW: Perigon und Lager — was nicht zusammenpasst, steht oben; die Palette geht mit ihrer Arbeit (22. Oktober, abends, 0121)
 
