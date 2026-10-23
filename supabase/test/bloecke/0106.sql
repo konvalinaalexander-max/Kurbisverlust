@@ -119,12 +119,18 @@ begin
   assert exists (select 1 from mv_kaskade where f_bekannt), '0106 (d6): nach dem Zurückstellen ist nichts bekannt — die Probe hat Spuren hinterlassen';
 
   -- (e) die Prognose schreibt mit dem Zuwachs fort
+  -- 0116: Auf den fortgeschriebenen Palox-Anteil kommt der Hagel der Charge
+  -- (hagel_f). Die Nachrechnung hier kannte ihn nicht; solange die Hagel-
+  -- Charge der Demo (1628) keine liegende Ware mit bekanntem Anstieg hatte,
+  -- fiel das nicht auf. Am 23. Oktober hatte sie welche, und (e1) war rot,
+  -- obwohl die Prognose richtig rechnet. Die Regel gilt seit 0116, die
+  -- Nachrechnung zieht nach — genau wie vorher, nur mit dem Hagel.
   assert exists (select 1 from erg_prognose where gruppe = 'gesamt' and h = 0 and zuwachs_bekannt),
     '0106 (e0): auf der Demo ist der Zuwachs bekannt — sonst prüft (e) nichts';
   with nach as (
     select k.charge_nr,
            sum(k.m0 * power(1 - k.r, k.alter_tage + 28)
-               * coalesce(palox_f_nach(k.p_hand, k.p_wasch, k.f_ws, k.f_s, k.g_w, k.b_ws, k.b_s, k.b_w, 28), k.f)) as faul_28
+               * coalesce(hagel_f(palox_f_nach(k.p_hand, k.p_wasch, k.f_ws, k.f_s, k.g_w, k.b_ws, k.b_s, k.b_w, 28), k.hagel), k.f)) as faul_28
       from mv_kaskade k
      where k.portion = 'lager' and k.m0 > 0 and k.alter_tage >= 0 and k.zuwachs_bekannt
      group by k.charge_nr
@@ -145,9 +151,10 @@ begin
       from mv_kaskade k
       cross join lateral (select case when k.portion = 'ausgelagert' then k.kohorte + round(k.alter_tage)::int end as liefertag) l
       cross join lateral (select greatest(least(v_bis, coalesce(l.liefertag, v_bis)) - k.kohorte, 0) as t) t
+      -- 0116: der Hagel kommt auf den fortgeschriebenen Anteil, wie in (e1)
       cross join lateral (select case when k.zuwachs_bekannt
-                                      then coalesce(palox_f_nach(k.p_hand, k.p_wasch, k.f_ws, k.f_s, k.g_w, k.b_ws, k.b_s, k.b_w,
-                                                                 (least(v_bis, coalesce(l.liefertag, v_bis)) - coalesce(l.liefertag, heute()))::numeric), k.f)
+                                      then coalesce(hagel_f(palox_f_nach(k.p_hand, k.p_wasch, k.f_ws, k.f_s, k.g_w, k.b_ws, k.b_s, k.b_w,
+                                                                 (least(v_bis, coalesce(l.liefertag, v_bis)) - coalesce(l.liefertag, heute()))::numeric), k.hagel), k.f)
                                       else k.f end as f) f
      where k.m0 > 0 and k.kohorte is not null and k.kohorte <= v_bis
   )
