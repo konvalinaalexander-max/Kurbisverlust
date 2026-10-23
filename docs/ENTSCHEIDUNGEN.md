@@ -4234,6 +4234,15 @@ Zuordnung Produzent → Schlag einmal statt je Nummer gerechnet wird). Tests
   eigene Betrieb steht bei allen eigenen Feldern als Produzent; das gäbe mehr
   Rauschen als Befund.
 
+**Nachtrag, nach der vollen Stufe.** Sie fand zwei Dinge. Ein `null::numeric(14,2)`
+in `v_ungereimtheit` zählte als harter Cast (Regel 0059) — jetzt über `zahl()`.
+Und 0106 (e1, e5) war rot, auch auf dem Stand vor dieser Runde: Die Nachrechnung
+des Faulen in 28 Tagen und im Verlauf kannte den Hagel nicht, den 0116 auf den
+fortgeschriebenen Anteil legt. Die Demo hängt am echten Datum; am 23. Oktober
+hatte die Hagel-Charge 1628 zum ersten Mal liegende Ware mit bekanntem Anstieg
+(113 kg Abweichung). Mit dem Hagel stimmt es auf 0.005 kg — die Regel gilt seit
+0116, die Nachrechnung zieht nach, gleich streng.
+
 ## Runde AW: Perigon und Lager — was nicht zusammenpasst, steht oben; die Palette geht mit ihrer Arbeit (22. Oktober, abends, 0121)
 
 Der Betrieb, an einem Abend: „aktuell zeigt's mir Rüegg Amoro immer noch
