@@ -321,7 +321,7 @@ function ChargenZeile({ z, offen, oeffnen, daten, hagel, ungereimt }: { z: Zeile
               {/* Runde BA: „du hast von der Charge noch 7 Paletten — dann kann ich nachschauen gehen":
                   was davon unsortiert dasteht (gezählt beim Sortieren) und was sortiert in Kisten liegt. */}
               {b.n_rest_paletten != null && palettenStandText(z.stand) && (
-                <span className={`zelle-unter${z.stand.widerspruch ? ' gelb' : ''}`} title={PALETTEN_STAND_TEXT}>{palettenStandText(z.stand)}</span>)}
+                <span className={`zelle-unter stand${z.stand.widerspruch ? ' gelb' : ''}`} title={PALETTEN_STAND_TEXT}>{palettenStandText(z.stand)}</span>)}
               {b.n_rest_paletten != null && <span className="zelle-unter" title={`Im Lager ist ${IM_LAGER_TEXT}`}>{kg(z.lager, 0)}</span>}</>
           : <span className="leise">—</span>}</td>
         <td className="zahl">{liegt && z.vf !== null

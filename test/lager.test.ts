@@ -69,7 +69,8 @@ test('Runde BA: palettenStand — unsortierte Eingangspaletten (nachzählbar) un
 test('Runde BA: mehr unsortierte Paletten gezählt, als laut Lieferscheinen noch da wären — gesagt, nicht verrechnet', () => {
   const s = palettenStand(b(1601, 7262, 6000, 0, 19), kohorten)
   assert.equal(s.unsortiert, 21); assert.equal(s.inKisten, 0); assert.equal(s.widerspruch, true)
-  assert.match(palettenStandText(s), /^21 unsortiert — mehr/)
+  // Runde BA: der Satz nennt beide Zahlen, kurz genug für die Zelle im Chargen-Reiter.
+  assert.equal(palettenStandText(s), '21 unsortiert — laut Lieferscheinen nur ≈ 19 da')
 })
 
 test('Runde BA: ohne Eingangstage oder ohne Ware bleibt der Stand leer, nie 0', () => {

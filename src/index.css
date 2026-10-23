@@ -792,6 +792,8 @@ thead.klebt th.haftend { position: sticky; z-index: 5; }
 .lagertabelle .kopf-unter { display: block; font-size: var(--s-0); color: var(--text-leise); font-weight: var(--gewicht-normal); }
 .lagertabelle td .band-unter { display: block; font-size: var(--s-0); color: var(--text-leise); font-weight: var(--gewicht-normal); }
 .lagertabelle td.zahl { min-width: 5.5rem; }
+/* Runde BA: je Artikel sind es bis zu zwölf Zahlenspalten — etwas weniger Mindestbreite, damit „noch zu liefern" ohne Bildlauf sichtbar bleibt. */
+.artikeltabelle td.zahl { min-width: 4.75rem; }
 /* Während „in X Wochen" nachgeladen wird, bleiben die alten Zahlen blass
    stehen — ein Sprung auf leer bei jedem Tastendruck wäre unruhiger. */
 .lagertabelle .laedt { opacity: .45; transition: opacity var(--d-kurz); }
@@ -981,6 +983,9 @@ tr.marge-dahinter table { margin: 0; }
 .chargentabelle tr.aufgeklappt > td.detail { background: color-mix(in srgb, var(--flaeche-2) 45%, transparent); }
 /* 0121: die Paletten stehen jetzt vorn in „Im Lager" (breiter als die Kilo) — etwas weniger Rand, damit die Tabelle am Bildschirm ohne Bildlauf passt. */
 .chargentabelle > thead > tr > th, .chargentabelle > tbody > tr > td { padding-left: .5rem; padding-right: .5rem; }
+/* Runde BA: der Satz „n unsortiert · ≈ m in Kisten" darf umbrechen — sonst macht ein Widerspruch die Tabelle breiter als den Bildschirm. */
+.chargentabelle .zelle-unter.stand { white-space: normal; max-width: 12rem; margin-left: auto; }
+.chargentabelle .zelle-unter.stand.gelb { color: var(--gelb); } /* der Widerspruch — .zelle-unter setzt sonst die leise Farbe durch */
 .erklaer-liste { margin: .25rem 0 1.1rem; padding-left: 1.1rem; display: grid; gap: .35rem; line-height: 1.5; }
 .erklaer-liste li::marker { color: var(--text-leise); }
 

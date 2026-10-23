@@ -298,6 +298,14 @@
     },
     {
       "muster": [
+        "Grösse oder Gruppe"
+      ],
+      "art": "gerechnet",
+      "bedeutet": "Je Artikel: die gemeinsame Spalte „offen“, wenn es Grösse offen und Artikelgruppe offen zugleich gibt — Verkaufsfähiges, das die App keinem Artikel zuordnen kann; der Grund steht in der Zelle (Runde BA)",
+      "quelle": "v_lager_ausweis.groesse_offen_kg + gruppe_offen_kg · artikel_lager_teile(0)"
+    },
+    {
+      "muster": [
         "Artikelgruppe offen"
       ],
       "art": "gerechnet",

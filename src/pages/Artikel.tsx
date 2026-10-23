@@ -70,6 +70,10 @@ const OHNE_VF_WORT: Klasse[] = ['ausserhalb', 'unique', 'gruppe']
 const GRUPPE_TEXT = 'die Sorte hat keine Artikelgruppe in den Stammdaten (Stammdaten → Sorten) — als was sie verkauft wird, ist offen; zählt als obere Schranke'
 const LOSE_KLASSE_TEXT = 'ein Artikel, dessen Gruppe keine Gewichte hat — verkaufsfähig, ohne Teilung in klein und gross'
 const UNIQUE_TEXT = 'Hagelware — nicht faul, nicht klein oder gross: ein eigener Artikel, wird als Knospe verkauft'
+const OHNE_TEXT = 'keine Sortier-CSV der Charge oder Sorte — ob die Ware in die Gewichte der Artikel passt, ist offen; zählt als obere Schranke'
+/** Runde BA: die zwei Klassen, bei denen die App nicht sagen kann, als was die Ware geht — in der Tabelle eine Spalte. */
+const OFFEN_KLASSEN: Klasse[] = ['ohne', 'gruppe']
+type Spalte = Klasse | 'offen'
 
 const wahlName = (w: Wahl) =>
   `${w.gruppe ? (w.gruppe === 'Knirps' ? 'Knirps' : w.gruppe) : 'alle Artikel'}${w.groesse === 'beide' ? '' : ` ${w.groesse}`}`
@@ -368,6 +372,17 @@ function Uebersicht({ bestand, grund, teileHeute, teile, wahl, wochen, setzeWoch
   const summe = (f: (z: Uebersichtszeile) => number) => zeilen.reduce((a, z) => a + f(z), 0)
   // Die Grössenspalten der Tabelle: nur, was die Wahl zeigt und was es am Stichtag gibt.
   const spalten = KLASSEN.filter(kl => gewaehlt(kl) && zeilen.some(z => (z.klassenSpaeter.get(kl) ?? 0) > 0))
+  // Runde BA: „Grösse offen" und „Artikelgruppe offen" teilen sich eine Spalte — beides heisst, die App kann die
+  // Ware keinem Artikel zuordnen; gibt es nur eine der beiden, heisst die Spalte so, sonst „offen" mit dem Grund
+  // in der Zelle. Zwölf Zahlenspalten passten nicht mehr neben „noch zu liefern".
+  const offenKl = spalten.filter(kl => OFFEN_KLASSEN.includes(kl))
+  const spaltenTab: Spalte[] = [...spalten.filter(kl => !OFFEN_KLASSEN.includes(kl)), ...(offenKl.length ? ['offen' as const] : [])]
+  const offenName = offenKl.length === 1 ? klasseName(offenKl[0]) : 'offen'
+  const offenTitel = offenKl.map(kl => kl === 'ohne' ? `Grösse offen: ${OHNE_TEXT}` : `Artikelgruppe offen: ${GRUPPE_TEXT}`).join(' · ')
+  const offenKg = (z: Uebersichtszeile) => offenKl.reduce((a, kl) => a + (z.klassenSpaeter.get(kl) ?? 0), 0)
+  const offenGrund = (z: Uebersichtszeile) => offenKl.length > 1
+    ? offenKl.filter(kl => (z.klassenSpaeter.get(kl) ?? 0) > 0).map(kl => kl === 'ohne' ? 'Grösse' : 'Artikelgruppe').join(' · ') : ''
+  const spalteKlasse = (kl: Spalte) => `zahl${spaeter ? ' spaeter' : ''}${kl === 'ausserhalb' ? ' neben-kaliber erste' : ''}`
   // 0121: das Gesamt der Artikel ohne „passt in keinen Artikel" — das steht rechts davon, durch eine Linie getrennt.
   const vfSpaeter = (z: Uebersichtszeile) => spalten.filter(kl => ARTIKEL_KLASSEN.includes(kl)).reduce((a, kl) => a + (z.klassenSpaeter.get(kl) ?? 0), 0)
   const klassenBalken = KLASSEN.filter(kl => zeilen.some(z => (z.klassen.get(kl) ?? 0) > 0))
@@ -439,7 +454,7 @@ function Uebersicht({ bestand, grund, teileHeute, teile, wahl, wochen, setzeWoch
       <div className="legende uebersicht-legende">
         <span><span className="chip" style={{ background: 'var(--strom-verkauft)' }} />ausgeliefert</span>
         {klassenBalken.map(kl => (
-          <span key={kl} title={kl === 'ausserhalb' ? LOSE_TEXT : kl === 'unique' ? UNIQUE_TEXT : kl === 'ohne' ? 'keine Sortier-CSV der Charge oder Sorte — die Grösse ist offen'
+          <span key={kl} title={kl === 'ausserhalb' ? LOSE_TEXT : kl === 'unique' ? UNIQUE_TEXT : kl === 'ohne' ? OHNE_TEXT
                                 : kl === 'gruppe' ? GRUPPE_TEXT : kl === 'lose' ? LOSE_KLASSE_TEXT : undefined}>
             <span className="chip" style={{ background: KLASSE_FARBE[kl] }} />{OHNE_VF_WORT.includes(kl) ? klasseName(kl) : `verkaufsfähig ${klasseName(kl)}`}</span>
         ))}
@@ -465,7 +480,7 @@ function Uebersicht({ bestand, grund, teileHeute, teile, wahl, wochen, setzeWoch
               <th rowSpan={2} className="zahl">Eingang<Herkunft art="gemessen" /></th>
               <th rowSpan={2} className="zahl">ausgeliefert<Herkunft art="gemessen" /></th>
               <th rowSpan={2} className="zahl" title={`Im Lager ist ${IM_LAGER_TEXT}`}>im Lager<Herkunft art="gerechnet" /></th>
-              <th colSpan={spalten.length + 1} className={`gruppe${spaeter ? ' spaeter' : ''}`}>
+              <th colSpan={spaltenTab.length + 1} className={`gruppe${spaeter ? ' spaeter' : ''}`}>
                 verkaufsfähig {spaeter ? `in ${wochen} Wochen` : 'heute'}<Herkunft art={herkunft} />
                 {spaeter && stichtag ? <span className="leise"> · {datum(stichtag).slice(0, 6)}</span> : null}
               </th>
@@ -474,10 +489,11 @@ function Uebersicht({ bestand, grund, teileHeute, teile, wahl, wochen, setzeWoch
             </tr>
             <tr>
               <th className={`zahl summe${spaeter ? ' spaeter' : ''}`}>gesamt</th>
-              {spalten.map(kl => (
-                <th key={kl} className={`zahl${spaeter ? ' spaeter' : ''}${kl === 'ausserhalb' ? ' neben-kaliber erste' : ''}`}
-                    title={kl === 'ausserhalb' ? LOSE_TEXT : kl === 'unique' ? UNIQUE_TEXT : kl === 'gruppe' ? GRUPPE_TEXT : kl === 'lose' ? LOSE_KLASSE_TEXT : undefined}>{klasseName(kl)}{kl === 'unique' && <span className="kopf-unter">nur Knospe</span>}</th>
-              ))}
+              {spaltenTab.map(kl => kl === 'offen'
+                ? <th key={kl} className={spalteKlasse(kl)} title={offenTitel}>{offenName}{offenKl.length > 1 && <span className="kopf-unter">Grösse oder Gruppe</span>}</th>
+                : <th key={kl} className={spalteKlasse(kl)}
+                      title={kl === 'ausserhalb' ? LOSE_TEXT : kl === 'unique' ? UNIQUE_TEXT : kl === 'lose' ? LOSE_KLASSE_TEXT : undefined}>{klasseName(kl)}{kl === 'unique' && <span className="kopf-unter">nur Knospe</span>}</th>
+              )}
             </tr>
           </thead>
           <tbody>
@@ -501,10 +517,15 @@ function Uebersicht({ bestand, grund, teileHeute, teile, wahl, wochen, setzeWoch
                       : (z.klassen.get('unique') ?? 0) > 0 ? <span className="leise" title={UNIQUE_TEXT}>Unique</span> : <span className="leise">—</span>}</td>
                     <td className={`zahl summe${spaeter ? ' spaeter' : ''}`}><strong>{z.lager > 0 ? masse(vfSpaeter(z)) : '—'}</strong>
                       {z.luecke > 0 && <span className="zelle-unter">{z.luecke} {z.luecke === 1 ? 'Charge' : 'Chargen'} ohne Zahl</span>}</td>
-                    {spalten.map(kl => {
+                    {spaltenTab.map(kl => {
+                      if (kl === 'offen') {
+                        const v = offenKg(z)
+                        return <td key={kl} className={spalteKlasse(kl)}>{v > 0 ? masse(v) : <span className="leise">—</span>}
+                          {v > 0 && offenGrund(z) && <span className="zelle-unter">{offenGrund(z)}</span>}</td>
+                      }
                       const v = z.klassenSpaeter.get(kl) ?? 0
                       const k = grund.kaliber.find(x => x.gruppe === z.gruppe && x.groesse === kl)
-                      return <td key={kl} className={`zahl${spaeter ? ' spaeter' : ''}${kl === 'ausserhalb' ? ' neben-kaliber erste' : ''}`}>{v > 0 ? masse(v) : <span className="leise">—</span>}
+                      return <td key={kl} className={spalteKlasse(kl)}>{v > 0 ? masse(v) : <span className="leise">—</span>}
                         {k && v > 0 && <span className="zelle-unter">{zahl(k.von_g)}–{zahl(k.bis_g)} g</span>}</td>
                     })}
                     {(() => {
@@ -518,7 +539,7 @@ function Uebersicht({ bestand, grund, teileHeute, teile, wahl, wochen, setzeWoch
                     })()}
                   </tr>
                   {offen && (
-                    <tr className="artikel-chargen"><td colSpan={6 + spalten.length}>
+                    <tr className="artikel-chargen"><td colSpan={6 + spaltenTab.length}>
                       {zc.length === 0 ? <p className="leise unten-0">Keine Charge mit verkaufsfähiger Ware{wahl.groesse === 'beide' ? '' : ` ${wahl.groesse}`}.</p>
                         : <Chargenliste chargen={zc} labelVon={labelVon} chargeVon={chargeVon} mitGroesse={wahl.groesse === 'beide'} />}
                     </td></tr>
@@ -535,7 +556,7 @@ function Uebersicht({ bestand, grund, teileHeute, teile, wahl, wochen, setzeWoch
               <td className="zahl">{masse(summe(z => z.imLager))}
                 {zeilen.some(z => z.paletten !== null) && <span className="zelle-unter">{palettenText(summe(z => z.paletten ?? 0))}</span>}</td>
               <td className={`zahl summe${spaeter ? ' spaeter' : ''}`}><strong>{masse(summe(vfSpaeter))}</strong></td>
-              {spalten.map(kl => <td key={kl} className={`zahl${spaeter ? ' spaeter' : ''}${kl === 'ausserhalb' ? ' neben-kaliber erste' : ''}`}>{masse(summe(z => z.klassenSpaeter.get(kl) ?? 0))}</td>)}
+              {spaltenTab.map(kl => <td key={kl} className={spalteKlasse(kl)}>{masse(summe(z => kl === 'offen' ? offenKg(z) : z.klassenSpaeter.get(kl) ?? 0))}</td>)}
               <td className="zahl">{masse(summe(z => noch(z) ?? 0))}</td>
             </tr></tfoot>
           )}
@@ -559,7 +580,7 @@ function Uebersicht({ bestand, grund, teileHeute, teile, wahl, wochen, setzeWoch
         <strong> Lose</strong> heisst {LOSE_TEXT} — es gehört weder zu „zu klein / zu gross" (das fällt beim Sortieren heraus) noch zu den
         Artikeln. <strong>Grösse offen</strong>: für die Charge und ihre Sorte gibt es keine Sortier-CSV. <strong>Artikelgruppe offen</strong>: die
         Sorte hat in den Stammdaten keine Artikelgruppe — als was sie verkauft wird, weiss die App nicht; sie zählt als obere Schranke, nicht als
-        „passt in keinen Artikel". <strong>Lose (ohne Grösse)</strong>: ein Artikel, dessen Gruppe keine Gewichte hat. Kaliber (Coop 2026):{' '}
+        „passt in keinen Artikel". Kommt beides vor, teilen sich die zwei eine Spalte „offen", der Grund steht in der Zelle. <strong>Lose (ohne Grösse)</strong>: ein Artikel, dessen Gruppe keine Gewichte hat. Kaliber (Coop 2026):{' '}
         {grund.kaliber.filter(k => k.groesse !== 'stueck').slice(0, 2).map(k => `${k.gruppe} ${k.groesse} ${zahl(k.von_g)}–${zahl(k.bis_g)} g`).join(', ')} …</p>
         <p>Die Balken zeigen heute; der Wochenregler verschiebt nur die Spalten „verkaufsfähig" der Tabelle. Eingang und ausgeliefert gibt es nur
         je Artikelgruppe, nicht je Grösse — beim Eingang ist noch nichts sortiert.</p>

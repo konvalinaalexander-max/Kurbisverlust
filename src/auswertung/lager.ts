@@ -106,7 +106,8 @@ export function palettenStandSumme(chargen: Bestand[], kohorten: Kohorte[]): Pal
 export function palettenStandText(s: PalettenStand): string {
   if (s.unsortiert === null || s.inKisten === null) return ''
   const u = `${s.unsortiert} unsortiert`
-  if (s.widerspruch) return `${u} — mehr, als laut Lieferscheinen noch da wäre`
+  // Runde BA: kurz, damit die Zelle im Chargen-Reiter nicht breiter als der Bildschirm wird — was der Widerspruch heisst, steht im Zeiger.
+  if (s.widerspruch) return `${u} — laut Lieferscheinen nur ≈ ${s.aequivalent} da`
   if (s.unsortiert === 0) return `alles sortiert · ≈ ${s.inKisten} in Kisten`
   if (s.inKisten === 0) return `alle ${u}`
   return `${u} · ≈ ${s.inKisten} in Kisten`

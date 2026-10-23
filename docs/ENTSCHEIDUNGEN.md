@@ -4206,9 +4206,11 @@ gezählt wurden — die stehen wirklich da) und **≈ in Kisten** (der Rest des
 „Im Lager" des Lagermanagements und im Fenster der Charge
 (`src/auswertung/lager.ts`: `palettenStand`, `palettenStandSumme`,
 `palettenStandText`; `test/lager.test.ts`). Zählt die Halle mehr unsortierte
-Paletten, als laut Lieferscheinen noch da wären, sagt es die Zeile („mehr, als
-laut Lieferscheinen noch da wäre") — gelb, nicht verrechnet: ein Zettel oder
-eine Lieferung stimmt nicht. Und „Davon verkaufsfähig" sagt im Spaltenkopf und
+Paletten, als laut Lieferscheinen noch da wären, sagt es die Zeile („7
+unsortiert — laut Lieferscheinen nur ≈ 2 da") — gelb, nicht verrechnet: ein
+Zettel oder eine Lieferung stimmt nicht. Der Satz darf in der Zelle umbrechen;
+die erste Fassung („mehr, als laut Lieferscheinen noch da wäre") machte die
+Chargentabelle breiter als den Bildschirm. Und „Davon verkaufsfähig" sagt im Spaltenkopf und
 in der Kachel, was es für den Betrieb ist: so viel lässt sich heute auf
 Lieferscheine schreiben.
 
@@ -4232,8 +4234,13 @@ Sorte?" ist in der neuen aufgegangen.
 **3. Durchsicht je Reiter, aus dieser Sicht.** Lagermanagement nach Charge:
 Kacheln Eingang · Ausgang · Im Lager (Paletten) · Davon verkaufsfähig, darunter
 die Kette — das ist die Frage des Betriebs, in seiner Reihenfolge. Nach
-Artikel: dieselbe Kette je Artikel, Paletten zuerst. Chargen: eine Zeile je
-Charge mit denselben vier Zahlen, aufgeklappt Eingang → Ausgang → Arbeiten.
+Artikel: dieselbe Kette je Artikel, Paletten zuerst — und in der Tabelle „Je
+Artikel" teilen sich „Grösse offen" und „Artikelgruppe offen" eine Spalte
+„offen" (Grund in der Zelle), wenn es beides gibt: mit zwölf Zahlenspalten
+war „noch zu liefern" hinter dem Bildlauf verschwunden, und beides heisst für
+den Betrieb dasselbe — die App kann die Ware keinem Artikel zuordnen.
+Chargen: eine Zeile je Charge mit denselben vier Zahlen, aufgeklappt
+Eingang → Ausgang → Arbeiten.
 Ursachen: je Block zuerst die Zahl, dann die Kurve. Messungen und Betrieb: wo
 etwas fehlt, steht der Satz, was in der Halle zu tun ist. Dieselben Farben,
 dieselben Begriffe, dieselben Herkunftsmarken auf allen Reitern. Gefunden und
