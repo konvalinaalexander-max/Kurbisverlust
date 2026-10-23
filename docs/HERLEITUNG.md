@@ -443,8 +443,8 @@ Charge", nicht als unbekannte Charge.
 
 ## 12b. Die Masse einer Perigon-Position (`perigon_kg`, `perigonKg`, 0115)
 
-**Braucht:** aus der Perigon-Datei je Zeile die Menge (`AufPosQuantity`,
-je Charge `AufPosBatchQuantity`), das Gewicht je Artikel
+**Braucht:** aus der Perigon-Datei je Zeile die Menge (`AuftragsArtikelMenge`,
+je Charge `AufPosBatchQuantity Charge`), das Gewicht je Artikel
 (`GewichtProArtikel`) und die Einheit.
 **Rechnet:** Gewicht je Artikel > 0 → Menge × Gewicht. Sonst bei Einheit kg
 → die Menge selbst (der Perigon-Artikelstamm führt bei kg-Artikeln oft 0
@@ -510,6 +510,22 @@ Fenster der Charge und (je Artikel) unter Artikel. Der Verlauf über die Wochen
 kennt nur das Verkaufsfähige der Sortiermaschine — dort steht der heutige
 Wert als eigener Punkt daneben.
 
+**Seit 0124 (Runde AZ) — was der Ausweis nicht wissen kann, sagt er.** Eine
+Sorte ohne Artikelgruppe in den Stammdaten zählt nicht mehr als „passt in
+keinen Artikel", sondern als offen: `gruppe_offen_kg`, nicht abgezogen,
+`verkaufbar_offen` „Artikelgruppe fehlt (Stammdaten → Sorten)" — das
+Verkaufbare ist dann eine obere Schranke. Eine Artikelgruppe ohne Gewichte
+(`artikel_kaliber` leer) ist ein Artikel ohne Grösse (lose) und zählt als
+verkaufbar. Ohne Sortier-CSV ist `keinen_artikel_kg` leer, nicht 0; ohne
+Verkaufsfähiges sind auch `groesse_offen_kg` und `gruppe_offen_kg` leer. Hagel
+100 %: `faul_kg`, `unique_kg`, `hagel_bis_heute_kg` und `verkaufbar_kg` leer
+(die Kaskade kann Unique und Faules nicht trennen), Grund „Hagel 100 %".
+Gewogene Paletten, deren Arbeit kein Kistensystem oder kein Sollgewicht hat
+(`v_ausgang_kennzahl`): `marge_quelle` nennt die Zahl und die Stelle zum
+Nachtragen, `verkaufbar_offen` „Überfüllung offen …" statt „nicht gewogen".
+**Urteil:** ehrlich — jede Zahl, die der Ausweis nicht hat, fehlt sichtbar und
+mit Grund (Prüfblock 0124 b1–b6, sieben Mutationen).
+
 ## 12d. Die Charge einer Palette (`paletten_zuordnen`, 0121)
 
 **Braucht:** Paletten mit der Charge des Journals (`charge_nr_journal`), Zettel
@@ -556,7 +572,9 @@ Hinweis da, bis der Betriebsleiter die Nummer bei der Charge einträgt.
 **Rechnet:** je Charge herein (Paletten der Charge, die das Journal nennt, und die
 die App jetzt zählt — der Unterschied sind Umbuchungen), bearbeitet (Arbeiten,
 nicht abgebrochen), hinaus (Lieferscheine bis heute, nach Artikelgruppe, davon
-nachgeordnet), noch da (≈ Paletten aus der Kaskade). Bei Ware, die hinausging,
+nachgeordnet; seit 0124 steht, was keine Perigon-Zeile hat — von Hand
+erfasst —, als eigener Teil „ohne Perigon-Zeile", damit die Teile auf
+`geliefert_kg` aufgehen), noch da (≈ Paletten aus der Kaskade). Bei Ware, die hinausging,
 ohne dass die Charge sie hatte, die Chargen, von denen sie wohl kam: derselbe
 Artikel, laut App noch ≥ 1 Palette, höchstens die Hälfte verkauft, eingegangen
 vor dem letzten Lieferschein; derselbe Schlag, dann dieselbe Sorte zuerst,
@@ -578,6 +596,11 @@ Kandidaten sagt der Vorschlag, dass keiner passt.
 - Eine Ausschuss-Art, die niemand gewogen hat (0097).
 - Ein Sockel ohne Nachweis — er ist 0 und sagt es (0097).
 - Die Grenzen eines Bandes aus einer fremden Fassung (0097).
+- Eine Artikelgruppe für eine Sorte, die in den Stammdaten keine hat — sie
+  ist offen, nicht „lose" (0124).
+- Was in kein Artikelgewicht passt, ohne Sortier-CSV — leer, nicht 0 (0124).
+- Ein Faul-Gewicht in der Halle ohne Ablesung des Palox — „unbekannt", nicht
+  0 kg (`faulesKg`, Runde AZ).
 - Ein Stückgewicht, das der Perigon-Artikelstamm nicht kennt (0115).
 - Ein Hagelschaden, den niemand eingetragen hat — ohne Eintrag kein Hagel
   (0116).

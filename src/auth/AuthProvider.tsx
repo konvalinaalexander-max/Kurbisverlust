@@ -58,7 +58,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     istAdmin: profil?.rolle === 'admin',
     istAnonym: profil?.anonym ?? session?.user.is_anonymous ?? false,
     neuLaden: async () => { if (session) await profilLaden(session.user.id) },
-    abmelden: async () => { await supabase.auth.signOut() },
+    abmelden: async () => {
+      // AB-60: Wer geht, trägt sich aus — auch über „Abmelden". Ein anonymer
+      // Nutzer kommt nie als derselbe zurück und könnte sich sonst nie mehr aus
+      // „Dabei" austragen (Runde AZ). Scheitert es, geht das Abmelden trotzdem.
+      if (session) {
+        await supabase.from('auftrag_teilnehmer').update({ verlassen_ts: new Date().toISOString() })
+          .eq('profil_id', session.user.id).is('verlassen_ts', null)
+      }
+      await supabase.auth.signOut()
+    },
   }
   return <Kontext.Provider value={wert}>{children}</Kontext.Provider>
 }

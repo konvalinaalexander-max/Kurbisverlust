@@ -1,5 +1,8 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { readFileSync, readdirSync } from 'node:fs'
+import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { SPRACHEN, WOERTERBUCH, uebersetze, GEBIETSSCHEMA, type Sprache } from '../src/lib/i18n.ts'
 import { TAETIGKEITEN, taetigkeitVon } from '../src/lib/taetigkeit.ts'
 
@@ -24,6 +27,27 @@ test('keine Sprache hat unbenutzte Extra-Texte', () => {
     assert.deepEqual(extra, [], `${code} hat zu viel: ${extra.join(', ')}`)
   }
 })
+
+// Runde AZ: zehn Tasten standen sechsmal im Wörterbuch, und kein Bildschirm
+// las sie (kistenJePalette, kpTitel, kaeufer, …). Eine Taste gilt als benutzt,
+// wenn ihr Name als Zeichenkette irgendwo in src/ ausserhalb des Wörterbuchs
+// steht — so kommt sie bei t('…'), in Tätigkeitslisten (text: '…') und in
+// Tabellen von Text-Tasten vor.
+test('jede Taste des Wörterbuchs wird von einem Bildschirm gebraucht', () => {
+  const quelle = alleDateien(new URL('../src/', import.meta.url))
+    .filter(p => !p.endsWith('/lib/i18n.ts'))
+    .map(p => readFileSync(p, 'utf8')).join('\n')
+  const unbenutzt = Object.keys(WOERTERBUCH.de).filter(k => !new RegExp(`['"\`]${k}['"\`]`).test(quelle))
+  assert.deepEqual(unbenutzt, [], `niemand liest: ${unbenutzt.join(', ')}`)
+})
+
+function alleDateien(ordner: URL): string[] {
+  const pfad = fileURLToPath(ordner)
+  return readdirSync(pfad, { withFileTypes: true }).flatMap(e => {
+    const voll = join(pfad, e.name)
+    return e.isDirectory() ? alleDateien(new URL(`${e.name}/`, ordner)) : /\.(ts|tsx)$/.test(e.name) ? [voll] : []
+  })
+}
 
 test('kein Text ist versehentlich deutsch geblieben', () => {
   // Stichprobe der Texte, die der Arbeiter zuerst sieht — sie müssen sich

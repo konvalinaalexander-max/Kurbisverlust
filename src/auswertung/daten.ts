@@ -111,13 +111,6 @@ export interface Kohorte {
   netto_je_palette: number | null; rest_kg: number | null; alter_heute: number
   eingang_kg: number | null
 }
-export interface FaxBeobachtung {
-  auftrag_id: number; charge_nr: number; sorte: string; schlag: string; kaeufer: string | null
-  start_ts: string; ende_ts: string | null; status: string
-  masse_kg: number | null; masse_quelle: string | null; kisten: number
-  faul_kg: number; faul_erfasst: boolean; anteil: number | null; plausibel: boolean
-  paletten_gesamt: number | null; tage_seit_waschen: number | null; kistensystem: string | null
-}
 export interface AusschussBeobachtung {
   weg: string; charge_nr: number; sorte: string; auftrag_id: number | null
   basis_kg: number; klein_kg: number | null; gross_kg: number | null; plausibel: boolean
@@ -153,11 +146,6 @@ export interface Wiegung {
    *  Wägung nicht zählt: warum nicht — in Worten. */
   plausibel: boolean; grund: string | null
 }
-export interface Kurve { altersklasse: string; von: number; bis: number; messungen: number; gemessen: number | null; verwendet: number | null; unten: number | null; oben: number | null; erlaeuterung: string }
-export interface Kaliberzeile { charge_nr: number; sorte: string; klasse: string; band_von: number | null; band_bis: number | null; n_kuerbis: number; masse_kg: number }
-export interface LieferungKurz { charge_nr: number | null; sorte: string | null; datum: string; masse_kg: number | null; buch: string; ziel_name: string }
-export interface Marge { posten: string; kg: number | null; kg_unten: number | null; kg_oben: number | null; erlaeuterung: string; gemessen: boolean }
-export interface Gewichtsstufe { sorte: string; schlag: string; charge_nr: number; stufe_g: number; n: number }
 export interface VerarbeitungAlter {
   auftrag_id: number; charge_nr: number; sorte: string; schlag: string; station: string; weg: string
   tag: string; n_paletten: number; alter_verarbeitet: number; alter_charge: number | null; differenz: number | null
@@ -166,28 +154,6 @@ export interface Durchsatz {
   auftrag_id: number; charge_nr: number; sorte: string; station: string; weg: string; ist_fax: boolean
   start_ts: string; ende_ts: string; dauer_h: number; masse_kg: number | null; masse_quelle: string | null
   n_paletten: number; kg_pro_h: number | null; n_teilnehmer: number
-}
-/**
- * Verkauft gegen gewogen, je Sorte oder Charge und Kistensystem
- * (erg_ueberfuellung, 0061). verschenkt_kg nur, wo beides da ist: gewogene
- * Kisten desselben Systems und verkaufte Kisten aus der Verkaufsdatei.
- */
-export interface Ueberfuellung {
-  gruppe: 'sorte' | 'charge'; sorte: string; charge_nr: number | null
-  kistensystem: 'kiste_ab' | 'stueck' | 'unbekannt'
-  soll_kg_pro_kiste: number | null; stueck_je_kiste: number | null; kaliber_idx: number | null
-  band_von_g: number | null; band_bis_g: number | null; nenn_g: number | null
-  n_lieferungen: number; kg_verkauft: number | null; kisten_verkauft: number | null; n_anteilig: number
-  stueck_verkauft: number | null; von: string | null; bis: string | null
-  n_wiegungen: number; kisten_gewogen: number | null; kg_je_kiste: number | null; sd_je_kiste: number | null
-  zuviel_je_kiste: number | null; zuviel_gewogen_kg: number | null
-  verschenkt_kg: number | null; verschenkt_fehler_kg: number | null
-  g_je_kuerbis: number | null; band_mittel_g: number | null
-  /** 0071, nur bei „x Stück je Kaliber": Wo im Kaliberband liegt die gewogene
-   *  Ware? 0 = Unterkante, 1 = Oberkante, über 1 heisst, die Wägung passt
-   *  nicht zu ihrem Kaliber. spielraum_kg ist die Masse über der Unterkante,
-   *  die unbezahlt mitgeht — Rahmen, nicht Verlust. */
-  lage_im_band: number | null; spielraum_kg: number | null
 }
 /**
  * Die verschenkte Marge je Wägung (erg_marge_wiegung, 0078) — ohne
@@ -233,18 +199,6 @@ export interface LagerKaliber {
 }
 
 /**
- * Das Verkaufsfähige je Artikel (artikel_lager(h), 0112): dieselbe Masse wie
- * lager_kaliber(h), nach den Kalibern des Artikels geteilt (klein, gross,
- * stueck); 'darunter'/'darueber' passen in kein Artikelkaliber, 'lose' heisst
- * die Gruppe hat keine Kaliber, 'ohne Verteilung' keine Sortier-CSV.
- */
-export interface ArtikelLager {
-  artikelgruppe: string | null; label: 'D' | 'K' | null; groesse: string
-  von_g: number | null; bis_g: number | null; stueck_je_kiste: number | null
-  kg: number; stueck: number | null; kisten: number | null; g_mittel: number | null
-  n_chargen: number; chargen: number[]; h: number; datum: string
-}
-/**
  * Demeter oder Knospe je Charge (v_charge_label) — und woher. Seit 0113 nach
  * der Regel des Betriebs: einmal als Demeter geliefert ist Demeter, sonst
  * Knospe; `quelle` Stammdaten · Perigon · Produzent · angenommen;
@@ -261,7 +215,12 @@ export interface SorteGruppe { sorte: string; artikelgruppe: string | null; quel
 export interface ArtikelKaliber { gruppe: string; groesse: string; von_g: number; bis_g: number; stueck_je_kiste: number | null; bemerkung: string | null }
 /**
  * Das Verkaufsfähige am Stichtag je Charge und Artikel (artikel_lager_charge,
- * 0113) — dieselben Teile wie artikel_lager, nur nicht zusammengezählt.
+ * 0113): dieselbe Masse wie lager_kaliber(h), nach den Kalibern des Artikels
+ * geteilt (klein, gross, stueck); 'darunter'/'darueber'/'dazwischen' passen in
+ * kein Artikelkaliber, 'lose' heisst die Gruppe hat keine Kaliber, 'ohne
+ * Verteilung' keine Sortier-CSV. Die App zählt selbst zusammen
+ * (src/auswertung/artikel.ts); artikel_lager(h) in der Datenbank tut dasselbe
+ * für die Prüfblöcke.
  */
 export interface ArtikelLagerCharge {
   charge_nr: number; sorte: string; artikelgruppe: string | null; label: 'D' | 'K' | null; groesse: string
@@ -307,6 +266,8 @@ export interface LagerAusweis {
   r_bekannt: boolean; f_bekannt: boolean; kanal_bekannt: boolean; fax_bekannt: boolean
   keinen_artikel_kg: number | null; groesse_offen_kg: number | null; ueberfuellung_kg: number | null
   verkaufbar_kg: number | null; verkaufbar_offen: string | null
+  /** 0124: Ware einer Sorte ohne Artikelgruppe — als was sie verkauft wird, ist offen; nicht abgezogen. */
+  gruppe_offen_kg: number | null
 }
 
 /** Was zwischen Perigon, Erntejournal und Lager nicht zusammenpasst (v_ungereimtheit, 0121; 0122: nachgeordnet, stammdaten). */
@@ -449,23 +410,6 @@ export interface LieferungGruppe {
   gruppe: Gruppe; schluessel: string; n_lieferungen: number; n_ohne_charge: number
 }
 
-/** Das Faule beim Abpacken nach Tagen seit dem Waschen (erg_fax_wartezeit, 0071). */
-export interface FaxWartezeit {
-  gruppe: 'alle' | 'sorte'; sorte: string | null
-  klasse: string; reihenfolge: number
-  n: number; masse_kg: number | null; faul_kg: number | null
-  anteil: number | null; unten: number | null; oben: number | null
-}
-/** Ein Strom einer Gruppe mit Bereich (erg_verlust, 0061) — vorgerechnet für gesamt, jede Sorte, jeden Schlag, jede Charge. */
-export interface Verlustzeile {
-  gruppe: 'gesamt' | 'sorte' | 'schlag' | 'charge'; schluessel: string
-  strom: string; buch: 'verlust' | 'feld' | 'marge' | 'bilanz'
-  kg: number | null; kg_unten: number | null; kg_oben: number | null
-  kg_beobachtet: number | null; kg_projiziert: number | null; kg_extrapoliert: number | null; kg_erwartet: number | null
-  koeff_n_min: number | null; streuung_kg: number | null; df: number | null
-  basis_kg: number | null; koeff_basis: string | null; koeff_art: string | null; formel: string; bekannt: boolean
-  eingang_kg: number; n_chargen: number
-}
 export interface KoeffGebinde { sorte: string; kaliber_idx: number; n: number; kg_je_gebinde: number; sd: number | null; unten: number | null; oben: number | null }
 export interface KoeffZeile { was: string; wert: string; n: number; basis: string }
 export interface Schema { sorte: string; kaeufer: string | null; art: string; gilt_ab: string; kaliber_baender: [number, number][] | null; verlust_unter: number | null; kanal_ab: number | null }
@@ -512,7 +456,6 @@ export interface Auswertung {
   bilanz: Massenbilanz[]
   lage: Datenlage[]
   befunde: Befund[]
-  kaliber: Kaliberzeile[]
   koeff: KoeffZeile[]
   /** 0106: der erwartete Palox-Anteil je Sorte und Station (seit 0107 gespeichert: erg_palox_erwartung). */
   erwartung: PaloxErwartung[]
@@ -529,12 +472,9 @@ export interface Auswertung {
   margeCharge: MargeCharge[]
   /** 0091: Kommentare zur Ware, je Arbeit — hängen an den Messungen. */
   kommentare: Kommentar[]
-  gewichte: Gewichtsstufe[]
   verarbeitung: VerarbeitungAlter[]
-  durchsatz: Durchsatz[]
   qualitaet: Datenqualitaet | null
   verlauf: Verlaufswoche[]
-  verlust: Verlustzeile[]
   /** Die Prognose je Gruppe und Horizont (0071) — h = 0 ist heute. */
   prognose: Prognose[]
   /** Der ganze Eingang je Gruppe aufgeteilt (0071). */
@@ -552,7 +492,6 @@ export interface Auswertung {
   schemata: Schema[]
   kohorten: Kohorte[]
   ausschuss: AusschussBeobachtung[]
-  lieferungen: LieferungKurz[]
   ausgang: AusgangKennzahl[]
   /**
    * Sichten, die sich nicht lesen liessen, und Schritte, die nicht rechneten.
@@ -755,18 +694,20 @@ async function alles(erzwingen: boolean): Promise<Auswertung> {
   const heute = sb?.heute ?? hb[0]?.heute ?? heuteOrtszeit()
   const ersteWelle: Auswertung = {
     stand: st2?.berechnet_ts ?? null, heute, zeitplan, veraltet, aktuell, vollstaendig: false,
-    bilanz: [], lage: [], befunde: pl, kaliber: [], koeff: [], erwartung: [],
+    bilanz: [], lage: [], befunde: pl, koeff: [], erwartung: [],
     saison: sb, punkte: [], paloxStationen: [], bestand: hb, naechste: [],
     sorten: { verdunstung: [], ausschuss: [], nebenkanal: [] }, wiegungen: [], margeWiegung: [], margeCharge: [], kommentare: [],
-    gewichte: [], verarbeitung: [], durchsatz: [], qualitaet: null, verlauf: vl, verlust: [],
-    gebinde: [], schemata: [], kohorten: [], ausschuss: [], lieferungen: [], ausgang: [],
+    verarbeitung: [], qualitaet: null, verlauf: vl,
+    gebinde: [], schemata: [], kohorten: [], ausschuss: [], ausgang: [],
     prognose: pg, wohin: wo, lieferungGruppe: lg, ausweis: aw, ungereimt: [], perigon: [], spur: [], probleme,
   }
   if (!erzwingen) { stand = ersteWelle; hoerer.forEach(h => h()) }
 
   // 0108: erg_kaliber, erg_gewichte und erg_lieferung liest kein Bildschirm —
-  // nicht mehr geholt (erg_gewichte war die drittgrösste Antwort).
-  const [b, d, pe, pk, nc, kfv, kfa, kfn, kfu, wk, mw, mc, km, va, ds, dq, ve, kg, ss, ko, ab, ak, ps] = await Promise.all([
+  // nicht mehr geholt (erg_gewichte war die drittgrösste Antwort). Runde AZ:
+  // ebenso erg_verlust (die Ströme mit Bereich — seit Runde AJ las sie kein
+  // Reiter mehr) und erg_durchsatz (Messungen → Arbeiten holt es selbst).
+  const [b, d, pe, pk, nc, kfv, kfa, kfn, kfu, wk, mw, mc, km, va, dq, kg, ss, ko, ab, ak, ps] = await Promise.all([
     q<Massenbilanz>('erg_massenbilanz'), q<Datenlage>('erg_datenlage'),
     q<PaloxErwartung>('erg_palox_erwartung'),
     q<Schimmelpunkt>('erg_punkte'), q<NaechsteCharge>('erg_naechste_charge'),
@@ -774,9 +715,7 @@ async function alles(erzwingen: boolean): Promise<Auswertung> {
     q<{ n: number; kg_pro_kiste: number | null }>('erg_koeff_ueberfuellung'),
     q<Wiegung>('erg_wiegung', ['wiege_ts', false]), q<MargeWiegung>('erg_marge_wiegung'), q<MargeCharge>('erg_marge_charge'), q<Kommentar>('v_arbeit_kommentar'),
     q<VerarbeitungAlter>('erg_verarbeitung_alter', ['tag', true]),
-    q<Durchsatz>('erg_durchsatz', ['start_ts', false]),
     eins<Datenqualitaet>('erg_datenqualitaet'),
-    q<Verlustzeile>('erg_verlust'),
     q<KoeffGebinde>('erg_gebinde'), q<Schema>('sortierschema', ['gilt_ab', false]),
     q<Kohorte>('erg_kohorte', ['eingangsdatum', true]),
     q<AusschussBeobachtung>('erg_ausschuss'),
@@ -813,7 +752,7 @@ async function alles(erzwingen: boolean): Promise<Auswertung> {
     bilanz: b, lage: d, koeff, erwartung: pe,
     punkte: pk, paloxStationen: ps, naechste: nc,
     sorten: { verdunstung: kfv, ausschuss: kfa, nebenkanal: kfn }, wiegungen: wk, margeWiegung: mw, margeCharge: mc, kommentare: km,
-    verarbeitung: va, durchsatz: ds, qualitaet: dq, verlust: ve,
+    verarbeitung: va, qualitaet: dq,
     gebinde: kg, schemata: ss, kohorten: ko, ausschuss: ab, ausgang: ak,
     ungereimt: ug, perigon: pp, spur: sp,
   }
@@ -838,7 +777,7 @@ export function auswertungLaden(erzwingen = false): Promise<Auswertung> {
   if (stand && !erzwingen) return Promise.resolve(stand)
   if (!ladeVersprechen || erzwingen) {
     // Wird neu gerechnet, sind auch die geholten Stichtage von gestern.
-    if (erzwingen) { kaliberJeStichtag.clear(); glockeJeStichtag.clear(); artikelJeStichtag.clear(); artikelChargeJeStichtag.clear() }
+    if (erzwingen) { kaliberJeStichtag.clear(); glockeJeStichtag.clear(); artikelChargeJeStichtag.clear() }
     const v: Promise<Auswertung> = alles(erzwingen)
       .then(a => { stand = a; ladeVersprechen = null; hoerer.forEach(h => h()); return a })
       .catch((f: unknown) => { ladeVersprechen = null; melden(null); throw f })
@@ -884,7 +823,6 @@ export async function hochrechnungLaden(): Promise<Hochrechnung[]> {
  */
 const kaliberJeStichtag = new Map<number, LagerKaliber[]>()
 const glockeJeStichtag = new Map<number, KaliberGlocke[]>()
-const artikelJeStichtag = new Map<number, ArtikelLager[]>()
 const artikelChargeJeStichtag = new Map<number, ArtikelLagerCharge[]>()
 
 async function rpcStichtag<T>(fn: string, h: number, halde: Map<number, T[]>): Promise<T[]> {
@@ -899,7 +837,6 @@ async function rpcStichtag<T>(fn: string, h: number, halde: Map<number, T[]>): P
 
 export const lagerKaliberBei = (h: number) => rpcStichtag<LagerKaliber>('lager_kaliber', h, kaliberJeStichtag)
 export const kaliberGlockeBei = (h: number) => rpcStichtag<KaliberGlocke>('kaliber_glocke', h, glockeJeStichtag)
-export const artikelLagerBei = (h: number) => rpcStichtag<ArtikelLager>('artikel_lager', h, artikelJeStichtag)
 export const artikelLagerChargeBei = (h: number) => rpcStichtag<ArtikelLagerCharge>('artikel_lager_charge', h, artikelChargeJeStichtag)
 
 /** Ein Sortierlauf neben den anderen Läufen derselben Charge (v_lauf_vergleich, 0111, AB-113). */
@@ -980,7 +917,6 @@ export function auswertungVergessen() {
   ladeVersprechen = null
   kaliberJeStichtag.clear()
   glockeJeStichtag.clear()
-  artikelJeStichtag.clear()
   artikelChargeJeStichtag.clear()
 }
 
@@ -1004,13 +940,6 @@ export function useStichtag<T>(holen: (h: number) => Promise<T[]>, h: number) {
     return () => { gilt = false }
   }, [holen, h])
   return { zeilen, laedt, fehler }
-}
-
-/** 0095: den Stand vergessen und still neu holen — ohne zu rechnen, wenn er
- *  frisch ist. Der Weg, sobald der Zeitplan fertig gerechnet hat. */
-export function auswertungNachladen(): Promise<Auswertung> {
-  stand = null; ladeVersprechen = null
-  return auswertungLaden(false)
 }
 
 export function useAuswertung() {
@@ -1044,42 +973,9 @@ export function useAuswertung() {
   return { daten, laedt, fehler, fortschritt: schritt, neuRechnen: () => laden(true) }
 }
 
-/* ---------- Die Ströme einer Gruppe ---------------------------------------- */
-
-/** Ein Strom, über die Chargen einer Gruppe summiert, mit Bereich — aus erg_verlust. */
-export interface StromSumme {
-  strom: string; buch: string
-  mittel: number; unten: number; oben: number
-  // 0066: die Teilbeträge sind null, solange der Strom nicht gemessen ist —
-  // dann gehört „nicht gemessen" hin, keine 0 kg.
-  beobachtet: number | null; projiziert: number | null; extrapoliert: number | null
-  erwartet: number | null; basis: number | null
-  koeffN: number | null; koeffBasis: string | null; formel: string
-  bereichBekannt: boolean; bekannt: boolean
-  eingang: number; nChargen: number
-}
+/* ---------- Die Prognose: eine Zeile finden, einen Anteil lesen ------------ */
 
 export type Gruppe = 'gesamt' | 'sorte' | 'schlag' | 'charge'
-
-/** Die Ströme einer Gruppe: gesamt, eine Sorte, ein Schlag oder eine Charge — vorgerechnet, nicht summiert. */
-export function stroemeVon(zeilen: Verlustzeile[], gruppe: Gruppe, schluessel = ''): StromSumme[] {
-  return zeilen.filter(z => z.gruppe === gruppe && z.schluessel === (gruppe === 'gesamt' ? '' : schluessel)).map(z => ({
-    strom: z.strom, buch: z.buch,
-    // Diese drei hängen an der Flagge daneben: `bekannt` ist nur wahr, wenn kg
-    // gemessen ist, `bereichBekannt` nur, wenn unten und oben da sind. Jede
-    // Anzeigestelle fragt erst die Flagge — die 0 hier wird nie gelesen.
-    mittel: z.kg ?? 0, unten: z.kg_unten ?? 0, oben: z.kg_oben ?? 0,
-    // Die Teilbeträge haben keine solche Flagge und bleiben darum, was sie
-    // sind (0066): Zahlen, wenn der Strom gemessen ist, sonst null.
-    beobachtet: z.kg_beobachtet, projiziert: z.kg_projiziert, extrapoliert: z.kg_extrapoliert,
-    erwartet: z.kg_erwartet, basis: z.basis_kg,
-    koeffN: z.koeff_n_min, koeffBasis: z.koeff_basis, formel: z.formel,
-    bereichBekannt: z.kg_unten !== null && z.kg_oben !== null, bekannt: z.bekannt && z.kg !== null,
-    eingang: z.eingang_kg, nChargen: z.n_chargen,
-  }))
-}
-
-/* ---------- Die Prognose: eine Zeile finden, einen Anteil lesen ------------ */
 
 /**
  * Die Prognosezeile einer Gruppe bei einem Horizont. `h` muss eine
@@ -1090,29 +986,6 @@ export function stroemeVon(zeilen: Verlustzeile[], gruppe: Gruppe, schluessel = 
 export function prognoseBei(zeilen: Prognose[], gruppe: Gruppe, schluessel: string, h: number): Prognose | null {
   const k = gruppe === 'gesamt' ? '' : schluessel
   return zeilen.find(z => z.gruppe === gruppe && z.schluessel === k && z.h === h) ?? null
-}
-
-/** Der letzte Horizont einer Gruppe — das Saisonende, bis zu dem geplant wird. */
-export function prognoseEnde(zeilen: Prognose[], gruppe: Gruppe, schluessel = ''): Prognose | null {
-  const k = gruppe === 'gesamt' ? '' : schluessel
-  let letzte: Prognose | null = null
-  for (const z of zeilen) if (z.gruppe === gruppe && z.schluessel === k && (!letzte || z.h > letzte.h)) letzte = z
-  return letzte
-}
-
-/** Alle Horizonte einer Gruppe, aufsteigend — die x-Achse der Prognose. */
-export function prognoseReihe(zeilen: Prognose[], gruppe: Gruppe, schluessel = ''): Prognose[] {
-  const k = gruppe === 'gesamt' ? '' : schluessel
-  return zeilen.filter(z => z.gruppe === gruppe && z.schluessel === k).sort((a, b) => a.h - b.h)
-}
-
-/**
- * Der verkaufsfähige Anteil bei einem Horizont — oder null, wenn die Zeile
- * fehlt oder ein Koeffizient nicht gemessen ist. Nie 0 als Ersatz: „unbekannt"
- * und „nichts mehr verkaufsfähig" sind zwei verschiedene Aussagen.
- */
-export function anteilBei(zeilen: Prognose[], gruppe: Gruppe, schluessel: string, h: number): number | null {
-  return prognoseBei(zeilen, gruppe, schluessel, h)?.verkaufsfaehig_anteil ?? null
 }
 
 /** Die Zerlegung des Eingangs einer Gruppe (erg_wohin). */
@@ -1127,150 +1000,7 @@ export function lieferungenVon(zeilen: LieferungGruppe[], gruppe: Gruppe, schlue
   return zeilen.find(z => z.gruppe === gruppe && z.schluessel === k) ?? null
 }
 
-/** Alle Schlüssel einer Gruppe, die es vorgerechnet gibt (Sorten, Schläge, Chargen). */
-export function gruppenSchluessel(zeilen: Verlustzeile[], gruppe: Gruppe): string[] {
-  return [...new Set(zeilen.filter(z => z.gruppe === gruppe).map(z => z.schluessel))]
-    .sort((a, b) => gruppe === 'charge' ? Number(a) - Number(b) : a.localeCompare(b, 'de'))
-}
-
-/** Die Farben der Ströme — überall dieselbe je Ursache (index.css). */
-export const STROMFARBE: Record<string, string> = {
-  'Verdunstung': 'var(--strom-verdunstung)',
-  'Schimmel/Fäulnis': 'var(--strom-schimmel)',
-  'Nicht lagerbedingt': 'var(--strom-feld)',
-  'Zu klein (Tierfutter)': 'var(--strom-ausschuss)',
-  'Nebenkanal zu gross': 'var(--strom-nebenkanal)',
-  'Faul beim Abpacken (Fax)': 'var(--strom-fax)',
-  'Palox (Faules)': 'var(--strom-schimmel)',
-}
-
-/** Kurze Namen für Beschriftungen — die Ströme heissen im Modell länger. */
-export const STROMKURZ: Record<string, string> = {
-  'Verdunstung': 'Verdunstung',
-  // Runde AO: der Palox ist vor allem Aussortieren (Hagel, Stiele), dazu das Faule.
-  'Schimmel/Fäulnis': 'Palox',
-  'Nicht lagerbedingt': 'Faules vom Feld',
-  'Zu klein (Tierfutter)': 'zu klein',
-  'Nebenkanal zu gross': 'zu gross',
-  'Faul beim Abpacken (Fax)': 'Faules beim Abpacken',
-}
-
-
-/** „liegt seit 128–161 Tagen" — die Spanne der noch liegenden Paletten, nie
- *  nur ein Mittel: Eingang und Ausgang verteilen sich über Wochen (0051). */
-export function alterSpanne(von: number | null | undefined, bis: number | null | undefined, mittel?: number | null): string {
-  if (von != null && bis != null) {
-    const a = Math.round(Math.min(von, bis)), b = Math.round(Math.max(von, bis))
-    return a === b ? `${a} Tagen` : `${a}–${b} Tagen`
-  }
-  return mittel != null ? `${Math.round(mittel)} Tagen` : '—'
-}
-
-/* ---------- Kaliber je Sorte oder Charge ------------------------------------ */
-
-export interface Kaliberklasse { name: string; klasse: string; von: number | null; bis: number | null; n: number; kg: number }
-export interface KaliberGruppe {
-  schluessel: string
-  sorte: string
-  /** Die Bänder dieser Gruppe, lesbar („600–1100 · 1100–1600 · 1600–2000"). */
-  baender: string
-  /** Die Sorte wurde nach mehr als einer Bänder-Fassung sortiert — dann gibt es mehrere Gruppen. */
-  mehrere: boolean
-  n: number; kg: number; klassen: Kaliberklasse[]
-}
-
-/**
- * Die Kaliber-Verteilung je Sorte (oder je Charge), über alle Sortierläufe
- * gebündelt: die Sicht liefert je Charge eine Zeile je Band. Gebündelt wird
- * je Sorte und je Bänder-Fassung, sonst stünden zwei Fassungen ineinander
- * verschränkt. Reihenfolge: zu klein, die Bänder aufsteigend, zu gross.
- */
-/**
- * Die Glocke vorbereiten — für den Überblick und für die Ursachen dasselbe.
- * Beide Seiten zeigen dieselbe Gewichtsverteilung mit denselben Grenzen und
- * denselben Farben; die Rechnung stand bis Runde I zweimal im Code, Zeile für
- * Zeile gleich. Zwei Kopien einer Klassierung laufen früher oder später
- * auseinander, und dann färbt die eine Seite als „zu klein", was die andere
- * noch als Kaliber zeichnet.
- *
- * Die Grenzen kommen aus der jüngsten Kaliberfassung der Sorte. Ältere
- * Fassungen tragen noch einen Käufer (bis 0060); ohne Käufer geht vor, weil
- * das die heute gültige Regel ist.
- */
-export interface Glockendaten {
-  stufen: { x: number; n: number }[]
-  grenzen: { x: number; text: string }[]
-  gesamt: number
-  mittel: number | null
-  klassenfarbe: (x: number) => string
-  schema: Schema | undefined
-}
-
-export function glockeVorbereiten(gewichte: Gewichtsstufe[], schemata: Schema[], sorte: string, breite: number): Glockendaten {
-  const stufenMap = new Map<number, number>()
-  for (const g of gewichte) { const x = Math.floor(g.stufe_g / breite) * breite; stufenMap.set(x, (stufenMap.get(x) ?? 0) + g.n) }
-  const stufen = [...stufenMap.entries()].map(([x, n]) => ({ x, n })).sort((a, b) => a.x - b.x)
-  const schema = schemata.find(s => s.sorte === sorte && s.art === 'kaliber' && s.kaeufer === null)
-    ?? schemata.find(s => s.sorte === sorte && s.art === 'kaliber')
-  const grenzen: { x: number; text: string }[] = []
-  if (schema?.verlust_unter != null) grenzen.push({ x: schema.verlust_unter, text: 'zu klein <' })
-  ;(schema?.kaliber_baender ?? []).forEach(([a], i) => { if (i > 0) grenzen.push({ x: a, text: `K${i + 1}` }) })
-  if (schema?.kanal_ab != null) grenzen.push({ x: schema.kanal_ab, text: 'zu gross ≥' })
-  const gesamt = gewichte.reduce((a, g) => a + g.n, 0)
-  // Die Rohstufen sind 25 g breit; als Gewicht einer Stufe gilt ihre Mitte.
-  const mittel = gesamt > 0 ? gewichte.reduce((a, g) => a + (g.stufe_g + 12.5) * g.n, 0) / gesamt : null
-  const klassenfarbe = (x: number) => schema?.verlust_unter != null && x + breite <= schema.verlust_unter ? 'var(--strom-ausschuss)'
-    : schema?.kanal_ab != null && x >= schema.kanal_ab ? 'var(--strom-nebenkanal)' : 'var(--kuerbis)'
-  return { stufen, grenzen, gesamt, mittel, klassenfarbe, schema }
-}
-
-export function kaliberJe(zeilen: Kaliberzeile[], nach: 'sorte' | 'charge'): KaliberGruppe[] {
-  const proCharge = new Map<number, Kaliberzeile[]>()
-  for (const z of zeilen) proCharge.set(z.charge_nr, [...(proCharge.get(z.charge_nr) ?? []), z])
-  const fassung = new Map<number, string>()
-  for (const [nr, rows] of proCharge) {
-    const b = [...new Set(rows.filter(r => r.klasse === 'kaliber' && r.band_von !== null).map(r => `${r.band_von}–${r.band_bis}`))]
-      .sort((x, y) => Number(x.split('–')[0]) - Number(y.split('–')[0]))
-    fassung.set(nr, b.join(' · '))
-  }
-  const gruppen = new Map<string, { schluessel: string; sorte: string; baender: string; klassen: Map<string, Kaliberklasse> }>()
-  for (const z of zeilen) {
-    const baender = fassung.get(z.charge_nr) ?? ''
-    const schluessel = nach === 'sorte' ? z.sorte : String(z.charge_nr)
-    const key = `${schluessel}|${baender}`
-    let g = gruppen.get(key)
-    if (!g) { g = { schluessel, sorte: z.sorte, baender, klassen: new Map() }; gruppen.set(key, g) }
-    const kk = z.klasse === 'kaliber' ? `k|${z.band_von}|${z.band_bis}` : z.klasse
-    let k = g.klassen.get(kk)
-    if (!k) {
-      k = { klasse: z.klasse, von: z.band_von, bis: z.band_bis, n: 0, kg: 0,
-            name: z.klasse === 'verlust_klein' ? 'zu klein' : z.klasse === 'nebenkanal' ? 'zu gross' : `${z.band_von}–${z.band_bis} g` }
-      g.klassen.set(kk, k)
-    }
-    k.n += z.n_kuerbis; k.kg += z.masse_kg
-  }
-  const rang = (k: Kaliberklasse) => k.klasse === 'verlust_klein' ? -1 : k.klasse === 'nebenkanal' ? 1e9 : (k.von ?? 0)
-  const proSchluessel = new Map<string, number>()
-  for (const g of gruppen.values()) proSchluessel.set(g.schluessel, (proSchluessel.get(g.schluessel) ?? 0) + 1)
-  return [...gruppen.values()].map(g => {
-    const liste = [...g.klassen.values()].sort((a, b) => rang(a) - rang(b))
-    return { schluessel: g.schluessel, sorte: g.sorte, baender: g.baender, mehrere: (proSchluessel.get(g.schluessel) ?? 0) > 1, klassen: liste,
-             n: liste.reduce((s, k) => s + k.n, 0), kg: liste.reduce((s, k) => s + k.kg, 0) }
-  }).sort((a, b) => b.n - a.n)
-}
-
-
-/* ---------- Die Kurven, an denen die Ware heute steht ------------------------ */
-
-export interface Kurvenpunkt { mittel: number; unten: number; oben: number }
-
-/** Die Verdunstung nach t Tagen bei einer Tagesrate r: 1 − (1 − r)^t, mit dem Bereich der Rate. */
-export function verdunstungKurve(k: SortenK | undefined): ((t: number) => Kurvenpunkt) | null {
-  if (!k || k.mittel == null) return null
-  const r = k.mittel, u = k.unten ?? r, o = k.oben ?? r
-  const f = (rate: number, t: number) => 1 - Math.pow(1 - rate, Math.max(t, 0))
-  return (t: number) => ({ mittel: f(r, t), unten: f(u, t), oben: f(o, t) })
-}
+/* ---------- Wo die Ware heute steht ------------------------------------------ */
 
 /**
  * Wo die Ware **heute** auf einer Lagertage-Achse steht: je Charge im Filter

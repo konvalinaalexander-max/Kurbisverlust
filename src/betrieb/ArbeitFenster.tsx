@@ -277,7 +277,7 @@ export function ArbeitFenster({ auftragId, schliessen, messung }: { auftragId: n
                     </p>
                     {r.art === 'ware' && (r.kurz
                       ? <p className="rueckmeldung-kurz"><strong>Im Dashboard:</strong> {r.kurz} <span className="leise">· gekürzt {r.kurz_quelle === 'betriebsleiter' ? 'vom Betriebsleiter' : 'von der Runde am Programm'}{r.kurz_ts ? `, ${datum(r.kurz_ts)}` : ''}{r.kurz_charge_nr != null ? ` · zugeordnet zu Charge ${r.kurz_charge_nr}` : ''}</span></p>
-                      : <p className="rueckmeldung-kurz leise">Noch nicht gelesen — steht noch nicht im Dashboard. Kürzen unter Betrieb → Arbeiten.</p>)}
+                      : <p className="rueckmeldung-kurz leise">Noch nicht gelesen — steht noch nicht im Dashboard. Kürzen unter Messungen → Arbeiten.</p>)}
                     {r.text && <p className="rueckmeldung-text">„{r.text}"</p>}
                     {r.transkript && <p className="rueckmeldung-text leise">mitgeschrieben{r.transkript_quelle === 'hand' ? ', geprüft' : ' (ungeprüft)'}: „{r.transkript}"</p>}
                     {r.audio_ref && (tonUrl.has(r.id)

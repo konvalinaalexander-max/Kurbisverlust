@@ -123,7 +123,15 @@ Charge, und nicht aus gezählten Paletten.
 
 ## 3. Wie es beim Betriebsleiter ankommt
 
-Sechs Reiter (seit Runde AF ohne Erklärsatz darunter; der sechste ist „Messungen ausstehend").
+Sechs Reiter in der Seitenleiste (Stand Runde AZ, ohne Erklärsatz darunter):
+**Lagermanagement nach Charge**, **Lagermanagement nach Artikel**, **Chargen**,
+**Ursachen**, **Messungen** (Unterreiter Arbeiten, Auffälligkeiten, Messwerte,
+Ausstehend) und **Betrieb** (Warenausgang, Sortier-CSV, Warteschlange,
+Stammdaten, Zugang). Die Abschnitte unten beschreiben, was jeder Reiter
+beantwortet; die Begriffe sind seit 0123 überall dieselben: *im Lager* = die
+Eingangspaletten, die noch stehen, mit dem Gewicht beim Eingang;
+*verkaufsfähig* = was davon als Artikel verkauft werden kann (`verkaufbar_kg`).
+Was die Auswertung nicht weiss, steht als „—" oder „höchstens", nie als 0.
 
 ### Überblick — wie viel, woran, was tun?
 

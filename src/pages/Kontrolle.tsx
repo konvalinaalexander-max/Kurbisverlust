@@ -83,6 +83,7 @@ export default function Kontrolle() {
       einstellung<number>('kontrollpalette_tage_anfang', ABSTAND_VORGABE.anfang),
       einstellung<number>('kontrollpalette_tage_spaeter', ABSTAND_VORGABE.spaeter),
     ]).then(([a, b]) => setAbstand({ anfang: Number(a) || ABSTAND_VORGABE.anfang, spaeter: Number(b) || ABSTAND_VORGABE.spaeter }))
+      .catch(() => { /* Ist der Abstand nicht zu lesen, bleibt die Vorgabe — ein Vorschlag, kein Messwert. */ })
   }, [])
 
   async function kpLaden() {
@@ -317,7 +318,7 @@ export default function Kontrolle() {
               {netto !== null && netto > 0 && (
                 <p style={{ margin: '.4rem 0 .6rem' }}><strong>{netto.toFixed(1)} kg</strong> {t('netto')}</p>
               )}
-              {fehlt && <Hinweis art="warnung">{fehlt}</Hinweis>}
+              {fehlt && <Hinweis art="warnung">{t(fehlt)}</Hinweis>}
               {fehler && <Hinweis art="warnung">{fehler}</Hinweis>}
               <button type="button" id="kp-eintragen" className="haupt voll" style={{ minHeight: 54 }}
                       disabled={laeuft || !kpVollstaendig} onClick={() => void kpWiegen()}>{t('eintragen')}</button>
@@ -381,7 +382,7 @@ export default function Kontrolle() {
           <p style={{ margin: '0 0 .6rem' }}><strong>{netto.toFixed(1)} kg</strong> {t('netto')}</p>
         )}
 
-        {fehlt && <Hinweis art="warnung">{fehlt} Ohne sie lässt sich das Nettogewicht nicht ausrechnen — die Angabe gehört in die Stammdaten.</Hinweis>}
+        {fehlt && <Hinweis art="warnung">{t(fehlt)} {t('taraOhneNetto')}</Hinweis>}
         {fehler && <Hinweis art="warnung">{fehler}</Hinweis>}
         <div className="knopf-reihe">
           <button type="button" id="k-eintragen" className="haupt" style={{ minHeight: 54, flex: 2 }}

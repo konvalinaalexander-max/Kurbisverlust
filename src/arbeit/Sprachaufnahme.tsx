@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { useSprache } from '../sprache/SprachProvider'
 import { Hinweis } from '../components/Bausteine'
 import { ZKreuz, ZMikrofon, ZStopp } from '../components/Zeichen'
@@ -76,8 +76,11 @@ export function Sprachaufnahme({ wert, setzen }: { wert: Aufnahme | null; setzen
   const erkennung = useRef<Erkennung | null>(null)
   const mitgeschrieben = useRef<string[]>([])
 
-  // Die Objekt-URL einer verworfenen Aufnahme wieder freigeben.
-  useEffect(() => () => { if (wert) URL.revokeObjectURL(wert.url) }, [wert])
+  // Die Objekt-URL einer verworfenen Aufnahme geben `onstop` (beim Ersetzen) und
+  // `loeschen` frei — nicht ein Aufräumen beim Verlassen: Runde AZ fand, dass
+  // der Abschluss die Aufnahme über den Schrittwechsel behält und <audio> dann
+  // eine tote Adresse hatte. Was bis zum Abschicken übrig bleibt, räumt der
+  // Browser mit der Seite auf.
 
   async function starten() {
     setFehler(null)

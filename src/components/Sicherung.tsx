@@ -30,7 +30,9 @@ export default function Sicherung() {
 
   useEffect(() => {
     void einstellung<string | null>('letzte_sicherung', null).then(w => setWann(w ?? null))
+      .catch(f => setFehler(fehlerText(f)))
     void einstellung<boolean>('erfassung_scharf', false).then(s => setScharf(Boolean(s)))
+      .catch(f => setFehler(fehlerText(f)))
   }, [])
 
   async function vermerken() {

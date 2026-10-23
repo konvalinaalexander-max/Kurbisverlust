@@ -2,8 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { ZWarnung } from '../components/Zeichen'
 import { supabase } from '../lib/supabase'
 import { einstellung, fehlerText, stammdaten } from '../lib/db'
-import { REINIGUNG_STANDARD, csvReinigen, deltaTrichter, histogrammAbziehen, masseKg,
-         pruefsumme, trichter,
+import { REINIGUNG_STANDARD, csvReinigen, masseKg, pruefsumme, trichter,
          type ReinigungsParameter, type Reinigungsergebnis } from '../lib/csv'
 import { dateinamenLesen, type Dateiart } from '../lib/dateiname'
 import { kg, lokalFuerInput, sortiertagText, tagAnfang, tagEnde, zahl,
@@ -65,10 +64,12 @@ export default function CsvUpload() {
 
   useEffect(() => {
     void (async () => {
-      const s = await stammdaten()
-      setChargen(s.chargen)
-      setSaison(await einstellung('saison_aktuell', new Date().getFullYear()))
-      setParameter(await einstellung<ReinigungsParameter>('reinigung_standard', REINIGUNG_STANDARD))
+      try {
+        const s = await stammdaten()
+        setChargen(s.chargen)
+        setSaison(await einstellung('saison_aktuell', new Date().getFullYear()))
+        setParameter(await einstellung<ReinigungsParameter>('reinigung_standard', REINIGUNG_STANDARD))
+      } catch (f) { setFehler(`Stammdaten nicht geladen: ${fehlerText(f)}`) }
     })()
   }, [])
 
@@ -196,8 +197,9 @@ export default function CsvUpload() {
         p_datei_zeit_quelle: d.ausDemNamen ? 'dateiname' : 'manuell',
       })
       if (error) throw error
-      const { data: lauf } = await supabase.from('sortier_lauf')
+      const { data: lauf, error: el } = await supabase.from('sortier_lauf')
         .select('zuordnung, auftrag_id').eq('id', data as number).maybeSingle()
+      if (el) throw el
       aendern(i, {
         status: 'fertig',
         meldung: lauf?.zuordnung === 'auto'
@@ -263,13 +265,14 @@ export default function CsvUpload() {
 
       {dateien.map((d, i) => {
         const bereit = d.status === 'bereit'
-        // Vorschau des Deltas: Was in der Datei steht, abzüglich dessen, was
-        // für diese Charge schon als Sammel-Lesung gespeichert ist.
+        // Runde AZ: Die Vorschau sagt nur, was sie weiss — wie viele Kürbisse
+        // in der Datei stehen und wie viele dieser Charge schon als
+        // Sammel-Lesung da sind. Was davon neu ist, rechnet die Datenbank
+        // Gewicht für Gewicht beim Einlesen (0082); hier stand bis dahin eine
+        // „Delta"-Zahl, die die Summe von einer erfundenen Stufe abzog.
+        const inDatei = d.ergebnis.histogramm.reduce((s, [, n]) => s + n, 0)
         const vorschau = d.art === 'sammel' && d.bekannt !== null
-          ? histogrammAbziehen(d.ergebnis.histogramm,
-              // Nur die Summe ist bekannt, nicht das Histogramm — für die
-              // Anzeige genügt eine einzige Stufe mit dieser Summe.
-              d.bekannt > 0 ? [[0, d.bekannt]] : [])
+          ? { inDatei, bekannt: d.bekannt, nichtsNeues: inDatei <= d.bekannt }
           : null
         return (
           <Karte key={`${d.summe}-${i}`} titel={d.datei.name}
@@ -327,9 +330,11 @@ export default function CsvUpload() {
             ) : (
               <>
                 {vorschau && (
-                  <Hinweis art={vorschau.n_neu > 0 ? 'gut' : 'warnung'}>
-                    {deltaTrichter(vorschau)}
-                    {vorschau.n_neu === 0 && ' — es gäbe nichts einzulesen.'}
+                  <Hinweis art={vorschau.nichtsNeues ? 'warnung' : 'info'}>
+                    {zahl(vorschau.inDatei)} Kürbisse in der Datei, {zahl(vorschau.bekannt)} dieser Charge schon aus Sammeldateien bekannt
+                    {vorschau.nichtsNeues
+                      ? ' — die Datei hat nicht mehr Zeilen als schon da sind; vermutlich gäbe es nichts einzulesen.'
+                      : ' — was davon neu ist, rechnet die Datenbank beim Einlesen Gewicht für Gewicht und sagt es danach.'}
                   </Hinweis>
                 )}
                 <div className="spalten">
@@ -379,12 +384,14 @@ function Letzte() {
   const [zeilen, setZeilen] = useState<{ id: number; datei_name: string; charge_nr: number
     art: string; n_gueltig: number; sortiertag: string | null; sortiertag_text: string
     zuordnung: string; gelesen_ts: string }[]>([])
+  const [fehler, setFehler] = useState<string | null>(null)
   useEffect(() => {
     void supabase.from('v_sortier_lesung')
       .select('id, datei_name, charge_nr, art, n_gueltig, sortiertag, sortiertag_text, zuordnung, gelesen_ts')
       .order('gelesen_ts', { ascending: false }).limit(15)
-      .then(({ data }) => setZeilen((data ?? []) as typeof zeilen))
+      .then(({ data, error }) => { setFehler(error ? fehlerText(error) : null); setZeilen((data ?? []) as typeof zeilen) })
   }, [])
+  if (fehler) return <Karte titel="Zuletzt eingelesen"><Hinweis art="warnung">Die Liste ist nicht zu laden: {fehler}</Hinweis></Karte>
   if (zeilen.length === 0) return null
   return (
     <Karte titel="Zuletzt eingelesen">

@@ -6,7 +6,7 @@ import { taetigkeitVon } from '../lib/taetigkeit'
 import { WOERTERBUCH } from '../lib/i18n'
 import { datum, kg, prozent, tonnen, zahl, zeitpunkt } from '../lib/format'
 import { Erklaerung, Herkunft, Hinweis, Karte, Lade, Marke } from '../components/Bausteine'
-import { anteilBei, lieferungenVon, useAuswertung, type Auswertung } from '../auswertung/daten'
+import { lieferungenVon, useAuswertung, type Auswertung } from '../auswertung/daten'
 import { IM_LAGER_TEXT, imLagerCharge, palettenText } from '../auswertung/lager'
 import { Probleme, Rechnet, Reiterkopf } from '../auswertung/Karten'
 import { Ungereimtheiten } from '../auswertung/Ungereimtheiten'
@@ -58,17 +58,16 @@ export default function Chargen() {
     // 23. Oktober: Im Lager sind die Paletten vom Eingang, die noch stehen, mit
     // dem Gewicht beim Eingang (src/auswertung/lager.ts); verkaufsfähig ist,
     // was davon als Artikel verkauft werden kann (v_lager_ausweis.verkaufbar_kg,
-    // 0123), der Anteil der an dieser Zahl. Ist eine Rate nicht gemessen,
-    // bleibt beides leer wie bisher.
+    // 0123), der Anteil der an dieser Zahl. Ist eine Rate nicht gemessen oder
+    // fehlt der Ausweis, bleibt es leer — nie der Wert der Sortiermaschine.
     const liste = daten.bestand.map(b => {
       const lager = b.lager_kg > 0 ? imLagerCharge(b) : 0
-      const anteil = anteilBei(daten.prognose, 'charge', String(b.charge_nr), 0)
       const aw = ausweisVon(daten.ausweis, b.charge_nr)
-      const vf = b.verkaufsfaehig_lager_kg === null ? null : aw?.verkaufbar_kg != null ? Number(aw.verkaufbar_kg) : Number(b.verkaufsfaehig_lager_kg)
+      const vf = aw?.verkaufbar_kg != null ? Number(aw.verkaufbar_kg) : null
       return {
         b, lager, vf, offen: aw?.verkaufbar_offen ?? null,
         l: daten.lage.find(x => x.charge_nr === b.charge_nr),
-        heute: anteil === null || vf === null || !(lager > 0) ? null : Math.min(vf / lager, 1),
+        heute: vf === null || !(lager > 0) ? null : Math.min(vf / lager, 1),
       }
     }).filter(z => (!sorte || z.b.sorte === sorte) && (!nurBestand || z.b.lager_kg > 0) && passt(z.b, finden))
     // Beim Anteil steht der **schlechteste** oben: Das ist die Charge, die
@@ -98,7 +97,9 @@ export default function Chargen() {
   if (!daten) return null
   const sorten = [...new Set(daten.bestand.map(b => b.sorte))].sort()
   const summeLager = zeilen.reduce((a, z) => a + z.lager, 0)
-  const summeVerkaufsfaehig = summeBekannt(zeilen.map(z => z.vf))
+  // Die Summe nur über Chargen mit Ware: eine ausgelieferte Charge hat keinen Ausweis, aber auch nichts zu verkaufen.
+  const summeVerkaufsfaehig = summeBekannt(zeilen.filter(z => z.lager > 0).map(z => z.vf))
+  const summeHoechstens = zeilen.some(z => z.lager > 0 && z.offen)
   const summeGeliefert = zeilen.reduce((a, z) => a + z.b.geliefert_kg, 0)
   /**
    * Ein Spaltenkopf, der sortiert. Der Pfeil zeigt, wohin: Bei der Masse
@@ -135,7 +136,7 @@ export default function Chargen() {
             <input type="checkbox" checked={nurBestand} onChange={e => setNurBestand(e.target.checked)} /> nur mit Bestand
           </label>
           <span className="nach-rechts">
-            {zeilen.length} Chargen · ausgeliefert <strong>{tonnen(summeGeliefert)}</strong> · im Lager <strong>{tonnen(summeLager)}</strong> · davon verkaufsfähig <strong>{tonnen(summeVerkaufsfaehig)}</strong>
+            {zeilen.length} Chargen · ausgeliefert <strong>{tonnen(summeGeliefert)}</strong> · im Lager <strong>{tonnen(summeLager)}</strong> · davon verkaufsfähig <strong>{summeHoechstens && summeVerkaufsfaehig !== null ? 'höchstens ' : ''}{tonnen(summeVerkaufsfaehig)}</strong>
           </span>
           <span className="herkunft-legende">Eingang, ausgeliefert<Herkunft art="gemessen" /> · im Lager, verkaufsfähig, Verlust<Herkunft art="gerechnet" /></span>
         </div>

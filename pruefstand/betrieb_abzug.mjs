@@ -125,7 +125,7 @@ const kopf = titel => `# ${titel}\n\n_Abzug vom ${heute}${modus === 'beispiel' ?
 // ---- 1. Rückmeldungen -------------------------------------------------------
 let r = kopf('Rückmeldungen aus der Halle')
 r += 'Was die Person am Ende einer Arbeit gesagt hat — geschrieben, oder mitgeschrieben vom Handy (Transkript, ungeprüft = so wie die Spracherkennung es verstand). Die Aufnahmen liegen im Bucket `rueckmeldungen` des Projekts; hier steht, was sich lesen lässt.\n\n'
-r += '**Zur Ware gilt seit 0094:** Ein Kommentar steht erst im Dashboard, wenn jemand ihn gelesen, verstanden und gekürzt hat („Hagelschaden"). Kürzen heisst: ein Eintrag je Nr. in `docs/betrieb/kurzfassungen.json` (der Abzug spielt ihn ein — täglich, und sofort beim Push der Datei), oder der Betriebsleiter tut es unter Betrieb → Arbeiten. Was der Betriebsleiter gekürzt hat, bleibt. Nur Aufnahme, kein Transkript: das kann hier niemand hören — anhören und kürzen kann nur der Betriebsleiter.\n\n'
+r += '**Zur Ware gilt seit 0094:** Ein Kommentar steht erst im Dashboard, wenn jemand ihn gelesen, verstanden und gekürzt hat („Hagelschaden"). Kürzen heisst: ein Eintrag je Nr. in `docs/betrieb/kurzfassungen.json` (der Abzug spielt ihn ein — täglich, und sofort beim Push der Datei), oder der Betriebsleiter tut es unter Messungen → Arbeiten. Was der Betriebsleiter gekürzt hat, bleibt. Nur Aufnahme, kein Transkript: das kann hier niemand hören — anhören und kürzen kann nur der Betriebsleiter.\n\n'
 const offen = rueck.filter(x => x.art === 'ware' && !x.kurz)
 if (offen.length) r += `**Noch zu kürzen: ${offen.length}** — Nr. ${offen.map(x => x.id).join(', ')}.\n\n`
 for (const art of ['app', 'ware']) {
@@ -138,7 +138,7 @@ for (const art of ['app', 'ware']) {
     r += `- **Nr. ${x.id}** · ${tag(x.ts)} · ${arbeitText(x.auftrag_id)} · ${name(x.erfasser)}\n`
     if (art === 'ware') {
       if (x.kurz) r += `  - **gekürzt** (${x.kurz_quelle === 'betriebsleiter' ? 'Betriebsleiter' : 'Runde'}, ${tag(x.kurz_ts)}): „${md(x.kurz)}"${x.kurz_charge_nr ? ` — zugeordnet zu Charge ${chargeText(x.kurz_charge_nr)}` : ''}\n`
-      else if (!t && !tr && x.audio_ref) r += '  - **nur Aufnahme, kein Transkript** — steht noch nicht im Dashboard; Betriebsleiter: anhören und unter Betrieb → Arbeiten kürzen\n'
+      else if (!t && !tr && x.audio_ref) r += '  - **nur Aufnahme, kein Transkript** — steht noch nicht im Dashboard; Betriebsleiter: anhören und unter Messungen → Arbeiten kürzen\n'
       else r += '  - **noch nicht gekürzt** — steht noch nicht im Dashboard\n'
     }
     if (t) r += `  - „${md(t)}"\n`

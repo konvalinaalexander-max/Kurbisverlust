@@ -9,7 +9,7 @@ gesetzt sind). Sie sind der Anfang jeder Runde am Programm — siehe
 |---|---|
 | `RUECKMELDUNGEN.md` | Rückmeldungen zur App (Aufgaben für die nächste Runde) und zur Ware (für den Betriebsleiter), mit Transkript der Aufnahmen |
 | `AUFFAELLIGKEITEN.md` | Alle Auffälligkeiten der Messungen, gezählt nach Art und einzeln mit Arbeit |
-| `MODELLSTAND.md` | Koeffizienten, Verderbsmodell, Datenqualität, Bilanz — zum Abgleich mit `docs/SAISONBEGLEITUNG.md` |
+| `MODELLSTAND.md` | Koeffizienten (Verdunstung, Palox je Station, zu klein / zu gross, Fax), Datenqualität, Bilanz — zum Abgleich mit `docs/SAISONBEGLEITUNG.md` |
 | `VERLAUF.md` | Eine Zeile je Abzug: werden die Auffälligkeiten weniger? |
 | `rohdaten/*.json` | **Alle Rohdaten** je Tabelle (Spalten laut `ROHTABELLEN` in `pruefstand/durchgang_pruefungen.mjs`) — ohne Kundennamen, Preise, freie Texte, Personen. Damit jede Runde jede Zahl nachrechnen kann. |
 | `ROHDATEN.md` | Was davon abgezogen wurde: Tabelle, Zeilen, Spalten. |

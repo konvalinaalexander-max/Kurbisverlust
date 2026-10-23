@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase'
 import { useSprache } from '../sprache/SprachProvider'
 import { fehlerText } from '../lib/db'
 import { Hinweis } from '../components/Bausteine'
-import { uhrzeit, type ArbeitDaten } from './daten'
+import { faulesKg, uhrzeit, type ArbeitDaten } from './daten'
 
 /**
  * Den Palox ablesen (AB-02, AB-10, 0073).
@@ -35,6 +35,9 @@ export function PaloxMaske({ d, gesperrt, gespeichert, unveraendertErlaubt = fal
 }) {
   const { t, gebietsschema } = useSprache()
   const [vorher, setVorher] = useState<number | null>(null)
+  // Runde AZ: Antwortet die Datenbank nicht, ist der vorige Stand unbekannt —
+  // nicht „keiner" (sonst hiesse jede Ablesung „Startstand" und schriebe 0 kg).
+  const [vorherFehler, setVorherFehler] = useState<string | null>(null)
   const [stand, setStand] = useState('')
   const [fehler, setFehler] = useState<string | null>(null)
   const [laeuft, setLaeuft] = useState(false)
@@ -45,7 +48,10 @@ export function PaloxMaske({ d, gesperrt, gespeichert, unveraendertErlaubt = fal
     // sich in der Differenz heraus, und der Satz dazu verwirrte mehr, als er
     // half („rechnet es minus 445?"). Der Arbeiter tippt ab, was die Waage zeigt.
     void supabase.rpc('palox_stand_dieser_arbeit', { p_auftrag_id: d.auftrag.id })
-      .then(v => setVorher(typeof v.data === 'number' ? v.data : null))
+      .then(v => {
+        if (v.error) { setVorherFehler(fehlerText(v.error)); setVorher(null); return }
+        setVorherFehler(null); setVorher(typeof v.data === 'number' ? v.data : null)
+      })
   }, [d.auftrag.id, d.ablesungen.length])
 
   const n = stand === '' ? null : Number(stand)
@@ -87,10 +93,12 @@ export function PaloxMaske({ d, gesperrt, gespeichert, unveraendertErlaubt = fal
   }
 
   const letzte = d.ablesungen[d.ablesungen.length - 1]
-  const summe = d.ablesungen.reduce((s, z) => s + z.kg, 0)
+  // „bisher": die Menge, wie die Datenbank sie rechnet — unbekannt, solange nur ein Stand da ist (Leer ist nicht null).
+  const bisher = faulesKg(d)
 
   return (
     <div className="karte">
+      {vorherFehler && <Hinweis art="warnung">{vorherFehler}</Hinweis>}
       {!erste && (
         <p className="leise unten-0">{t('paloxBeiBeginn')}: <strong>{vorher} kg</strong></p>
       )}
@@ -138,7 +146,7 @@ export function PaloxMaske({ d, gesperrt, gespeichert, unveraendertErlaubt = fal
         </>
       ) : (
         <button type="button" id="palox-eintragen" className="haupt gross voll"
-                onClick={() => void speichern('normal')} disabled={gesperrt || laeuft || n === null || n < 0}>
+                onClick={() => void speichern('normal')} disabled={gesperrt || laeuft || n === null || n < 0 || vorherFehler !== null}>
           {t('eintragen')}
         </button>
       )}
@@ -151,7 +159,7 @@ export function PaloxMaske({ d, gesperrt, gespeichert, unveraendertErlaubt = fal
       )}
       {d.ablesungen.length > 0 && (
         <p className="leise abstand-oben unten-0">
-          {t('zuletztAbgelesen')} {uhrzeit(letzte.ts, gebietsschema)} · {t('bisher')}: {summe} kg
+          {t('zuletztAbgelesen')} {uhrzeit(letzte.ts, gebietsschema)} · {t('bisher')}: {bisher === null ? t('faulesUnbekannt') : `${bisher} kg`}
           {' '}({d.ablesungen.length} {t('ablesungen')})
         </p>
       )}

@@ -10,7 +10,7 @@ import { kaliberGlockeBei, lagerKaliberBei, lieferungenVon, prognoseBei, useAusw
          type Auswertung, type Bestand, type KaliberGlocke, type LagerKaliber, type Prognose, fehlendeRaten } from '../auswertung/daten'
 import { IM_LAGER_TEXT, imLagerBei, palettenIm, palettenText } from '../auswertung/lager'
 import { Ungereimtheiten } from '../auswertung/Ungereimtheiten'
-import { offenText, summiere } from '../auswertung/ausweis'
+import { offenText, summiere, type AusweisSumme } from '../auswertung/ausweis'
 import { LagerLeiste, LagerRechnung } from '../auswertung/LagerKette'
 import { Probleme, Rechnet, Reiterkopf } from '../auswertung/Karten'
 import { JournalAbgleich } from '../betrieb/JournalAbgleich'
@@ -89,6 +89,11 @@ export default function Lagermanagement() {
     )
   }
 
+  // 0123: der Lager-Ausweis der Auswahl — einmal zusammengezählt, dieselbe
+  // Kette für die Kachel, den Rechenweg und den Punkt im Verlauf.
+  const nrn = new Set(chargenIm(daten.bestand, filter).map(b => b.charge_nr))
+  const kette = summiere(daten.ausweis.filter(a => nrn.has(a.charge_nr)))
+
   return (
     <>
       <Reiterkopf titel="Lagermanagement nach Charge"
@@ -108,9 +113,9 @@ export default function Lagermanagement() {
       )}
 
       <Filterleiste daten={daten} filter={filter} setzen={setzen} />
-      <Kennzahlen daten={daten} filter={filter} />
-      <VomLagerZumVerkauf daten={daten} filter={filter} />
-      <Verlauf daten={daten} filter={filter} />
+      <Kennzahlen daten={daten} filter={filter} kette={kette} />
+      <VomLagerZumVerkauf kette={kette} />
+      <Verlauf daten={daten} filter={filter} kette={kette} />
       <ImHaus daten={daten} filter={filter} wochen={wochen} setzeWochen={setzeWochen} />
       <Glockenkarte daten={daten} filter={filter} wochen={wochen} setzeWochen={setzeWochen} />
     </>
@@ -156,9 +161,7 @@ function Filterleiste({ daten, filter, setzen }: { daten: Auswertung; filter: Fi
  * 0123: bis zu dem, was als Artikel verkauft werden kann — mit „passt in
  * keinen Artikel" und der Überfüllung als Abzug.
  */
-function VomLagerZumVerkauf({ daten, filter }: { daten: Auswertung; filter: Filter }) {
-  const nrn = new Set(chargenIm(daten.bestand, filter).map(b => b.charge_nr))
-  const s = summiere(daten.ausweis.filter(a => nrn.has(a.charge_nr)))
+function VomLagerZumVerkauf({ kette: s }: { kette: AusweisSumme }) {
   if (!(s.eingang > 0)) return null
   return (
     <Karte id="lager-kette" titel="Vom Lager zum Verkaufsfähigen" unter="was im Lager steht, was davon abgeht, was als Artikel verkauft werden kann">
@@ -187,7 +190,7 @@ function chargenIm(bestand: Bestand[], f: Filter): Bestand[] {
 
 /* ---------- L1: Vier Zahlen ------------------------------------------------ */
 
-function Kennzahlen({ daten, filter }: { daten: Auswertung; filter: Filter }) {
+function Kennzahlen({ daten, filter, kette }: { daten: Auswertung; filter: Filter; kette: AusweisSumme }) {
   const w = wohinVon(daten.wohin, filter.gruppe, filter.schluessel)
   const p0 = prognoseBei(daten.prognose, filter.gruppe, filter.schluessel, 0)
   const chargen = chargenIm(daten.bestand, filter)
@@ -205,25 +208,22 @@ function Kennzahlen({ daten, filter }: { daten: Auswertung; filter: Filter }) {
   // (v_lager_ausweis.verkaufbar_kg, 0123) — und der Anteil an genau diesem
   // Lager. Bis hier teilte die Kachel das Verkaufsfähige der Sortiermaschine
   // durch die gute Ware („96 %"), die Leiste darunter rechnete vom Eingang.
-  const lager = imLagerBei(daten.prognose, filter.gruppe, filter.schluessel, 0)
+  const lagerKg = kette.eingang > 0 ? kette.eingang : imLagerBei(daten.prognose, filter.gruppe, filter.schluessel, 0)
   const restPaletten = palettenIm(chargen)
-  const nrn = new Set(chargen.map(b => b.charge_nr))
-  const kette = summiere(daten.ausweis.filter(a => nrn.has(a.charge_nr)))
-  const lagerKg = kette.eingang > 0 ? kette.eingang : lager.kg
+  const liegt = chargen.some(b => b.lager_kg > 0)
+  // Eine Definition, kein stiller Rückfall: Fehlt der Ausweis oder fehlt jeder
+  // Charge eine Rate, ist das Verkaufsfähige unbekannt — nicht die Zahl der
+  // Sortiermaschine aus der Prognose (Leer ist nicht null).
   const bekannt = kette.eingang > 0 && kette.luecken < kette.n
   // Offen (Überfüllung nicht gewogen, keine Sortier-CSV): höchstens so viel. Eine Charge ohne Rate fehlt
   // in der Summe ganz — das sagt der Zeiger, nicht „höchstens".
-  const hoechstens = !bekannt || kette.offen.size > 0
+  const hoechstens = bekannt && kette.offen.size > 0
   const herkunftText = [kette.offen.size > 0 ? `Höchstens, weil noch offen: ${offenText(kette)}` : '',
     kette.luecken > 0 ? `${kette.luecken} von ${kette.n} Chargen fehlen darin — eine Rate ist nicht gemessen` : ''].filter(Boolean).join('. ')
   const anteil = bekannt && lagerKg ? kette.verkaufbar / lagerKg : null
-  // Ohne Ausweis (alte Datenbank): die Teile der Kaskade, wie bisher.
-  const teile = p0 ? [
-    { name: 'verkaufsfähig', kg: p0.verkaufsfaehig_kg, farbe: 'var(--strom-vf)' },
-    { name: 'zu klein / zu gross', kg: p0.kanal_kg, farbe: 'var(--strom-ausschuss)' },
-    { name: 'faul beim Abpacken', kg: p0.fax_kg, farbe: 'var(--strom-schimmel)' },
-  ] : []
-  const summe = teile.reduce((a, t) => a + t.kg, 0)
+  const warumUnbekannt = !liegt ? 'nichts mehr im Lager'
+    : kette.n === 0 ? <>der Lager-Ausweis liess sich nicht laden — siehe die Meldung oben</>
+    : <>unbekannt, solange {fehlendeRaten(p0).join(', ') || 'eine Rate'} nicht gemessen ist — <Link to="/messungen/ausstehend">Messungen → Ausstehend</Link></>
 
   return (
     <div className="kennzahl-reihe">
@@ -246,31 +246,25 @@ function Kennzahlen({ daten, filter }: { daten: Auswertung; filter: Filter }) {
                   : <><Tonnen kg={lagerKg} /><Herkunft art="gerechnet" text={`Im Lager ist ${IM_LAGER_TEXT}`} /></>}
                 unter={<>{tonnen(lagerKg)} beim Eingang · vor Verdunstung, Palox und Arbeit</>} />
       <Kennzahl titel="Davon verkaufsfähig" ton="gruen" id="kz-verkaufsfaehig"
-                wert={<>
+                wert={bekannt ? <>
                   {hoechstens && <span className="mini-wort">höchstens </span>}
-                  <Tonnen kg={bekannt ? kette.verkaufbar : p0?.verkaufsfaehig_kg} />
+                  <Tonnen kg={kette.verkaufbar} />
                   {anteil !== null && <span className="neben-zahl"> · {prozent(anteil, 0)}</span>}
-                  <Herkunft art="gerechnet" text={bekannt && herkunftText ? herkunftText : undefined} /></>}
-                unter={<>
+                  <Herkunft art="gerechnet" text={herkunftText || undefined} /></>
+                  : !liegt ? <>{tonnen(0)}<Herkunft art="gerechnet" /></>
+                  : <>—<Herkunft art="gerechnet" text="unbekannt — leer ist nicht null" /></>}
+                unter={bekannt ? <>
                   {/* 0121: dieselbe Leiste wie überall — die Ware, wie sie einging, bis zum Verkaufsfähigen (Schritte darunter). */}
-                  {kette.eingang > 0 ? <LagerLeiste s={kette} /> : (
-                    <span className="mini-anteile" aria-hidden="true">
-                      {teile.filter(t => t.kg > 0).map(t => (
-                        <span key={t.name} style={{ width: `${(t.kg / Math.max(summe, 1)) * 100}%`, background: t.farbe }} />
-                      ))}
-                    </span>)}
-                  {anteil === null
-                    // Runde AF: der Betrieb fragte „welche Rate?" — hier steht sie, mit dem Weg zum Reiter.
-                    ? <>unbekannt, solange {fehlendeRaten(p0).join(', ') || 'eine Rate'} nicht gemessen ist — <Link to="/messungen/ausstehend">Messungen → Ausstehend</Link></>
-                    : <>als Artikel verkaufbar — von dem, was im Lager steht</>}
-                </>} />
+                  <LagerLeiste s={kette} />
+                  als Artikel verkaufbar — von dem, was im Lager steht
+                </> : warumUnbekannt} />
     </div>
   )
 }
 
 /* ---------- L2: Die Saison im Verlauf --------------------------------------- */
 
-function Verlauf({ daten, filter }: { daten: Auswertung; filter: Filter }) {
+function Verlauf({ daten, filter, kette }: { daten: Auswertung; filter: Filter; kette: AusweisSumme }) {
   const k = filter.gruppe === 'gesamt' ? '' : filter.schluessel
   const wochen = daten.verlauf.filter(w => w.gruppe === filter.gruppe && w.schluessel === k)
     .sort((a, b) => a.bis.localeCompare(b.bis))
@@ -287,8 +281,6 @@ function Verlauf({ daten, filter }: { daten: Auswertung; filter: Filter }) {
   const imLagerWoche = (w: typeof wochen[number]) => Math.max(Number(w.lager_kg), 0)
   const anteil = (w: typeof wochen[number]) => imLagerWoche(w) > 0 ? w.verkaufsfaehig_kg / imLagerWoche(w) : null
   // Was als Artikel verkauft werden kann, gibt es nur für heute (v_lager_ausweis) — ein Punkt, dieselbe Zahl wie die Kachel.
-  const nrn = new Set(chargenIm(daten.bestand, filter).map(b => b.charge_nr))
-  const kette = summiere(daten.ausweis.filter(a => nrn.has(a.charge_nr)))
   // Runde AD: „Eingang kumuliert" ist weg — der Eingang steht als Zahl in der
   // Kennzahl oben; als Linie war er ausgeblendet und hat nur die Legende gefüllt.
   const reihen: Reihe[] = [
@@ -365,7 +357,7 @@ function bandzeilen(zeilen: LagerKaliber[], filter: Filter, bestand: Bestand[], 
         schluessel: z.schluessel,
         name: gruppe === 'charge' ? `Charge ${z.schluessel}` : z.schluessel,
         unter: gruppe === 'charge' ? `${z.sorte}${c ? ` · ${c.schlag}` : ''}` : `${z.n_chargen} ${z.n_chargen === 1 ? 'Charge' : 'Chargen'}`,
-        sorte: z.sorte, lager: imLagerBei(prognose, gruppe, z.schluessel, h).kg, verkaufsfaehig: z.verkaufsfaehig_kg, anteil: null,
+        sorte: z.sorte, lager: imLagerBei(prognose, gruppe, z.schluessel, h), verkaufsfaehig: z.verkaufsfaehig_kg, anteil: null,
         paletten: gruppe === 'charge' ? (c?.n_rest_paletten ?? null) : palettenIm(bestand.filter(b => b.sorte === z.schluessel)),
         basis: z.basis, nKuerbis: z.n_kuerbis, kg: new Map(), band: new Map(), geschrumpft: z.geschrumpft_kg,
       }

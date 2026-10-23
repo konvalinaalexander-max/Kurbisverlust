@@ -6,7 +6,7 @@ import { pruefsumme } from '../lib/csv'
 import { xlsxLesen, type Blatt } from '../lib/xlsx'
 import {
   abgleichen, artikelSchluessel, befund, chargeAufloeser, istKuerbis, kopfLesen,
-  lieferungenBauen, neuAbwann, positionenAllerSaisons, quelleErkennen, quelleVorschlag, zaehltAlsKuerbis, zeilenLesen, zeilenSchluessel,
+  lieferungenBauen, neuAbwann, positionenAllerSaisons, quelleErkennen, quelleVorschlag, zaehltAlsKuerbis, zeilenLesen,
   type Abgleich, type ArtikelBefund, type AusgangZeile, type Befund, type Bekannt, type ChargeKurz, type Lieferung, type QuelleErkennung,
 } from '../lib/warenausgang'
 import { datum, kg, tonnen, zahl, zeitpunkt } from '../lib/format'
@@ -136,7 +136,9 @@ export default function AusgangImport({ nachUebernahme }: { nachUebernahme: () =
         supabase.from('sorte_kaliber').select('sorte').order('sorte'),
         supabase.from('v_ausgang_pruef').select('pos_id, datum, artikel, kunde, kg_datei, kg_lieferung, abweichung_kg'),
       ])
-      if (q.error) throw q.error
+      // Runde AZ: jeder Fehler zählt — ohne Chargenliste stünde sonst jede
+      // Perigon-Charge als „unbekannt" da, ohne Lage jede Datei als neu.
+      for (const r of [q, l, c, s, p]) if (r.error) throw r.error
       setAbweichung((p.data ?? []) as Pruefzeile[])
       setQuellen((q.data ?? []) as Quelle[])
       setLage((l.data ?? []) as Lage[])
@@ -335,6 +337,7 @@ export default function AusgangImport({ nachUebernahme }: { nachUebernahme: () =
                         // schief, steht die Übernahme trotzdem — es fehlt nur der Vergleich.
                         const historie = await historieUebernehmen(d, zeilen, bestaetigt)
                         const pruef = await supabase.from('v_ausgang_pruef').select('pos_id, datum, artikel, kunde, kg_datei, kg_lieferung, abweichung_kg').eq('quelle', d.quelle)
+                        if (pruef.error) throw pruef.error
                         aendern(i, { status: 'fertig', ergebnis: data as Datei['ergebnis'], pruef: (pruef.data ?? []) as Pruefzeile[], historie })
                         await Promise.all([laden(), bekanntLaden()]); nachUebernahme()
                       } catch (f) {
@@ -618,6 +621,3 @@ function ArtikelZeile({ a, sorten, vorschlag, sperren, setzen }: {
     </tr>
   )
 }
-
-/** Für Prüfstand und Tests: der Schlüssel einer Zeile, wie ihn die Datenbank bildet. */
-export { zeilenSchluessel }

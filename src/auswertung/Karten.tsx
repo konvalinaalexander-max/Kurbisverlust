@@ -1,10 +1,10 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { datum, kg, lesbar, prozent, tonnen, vorZeit, zeitpunkt } from '../lib/format'
-import { Erklaerung, Herkunft, Hinweis, Karte, Marke } from '../components/Bausteine'
+import { datum, lesbar, tonnen, vorZeit, zeitpunkt } from '../lib/format'
+import { Erklaerung, Hinweis, Karte, Marke } from '../components/Bausteine'
 import { ZAktualisieren, ZHaken } from '../components/Zeichen'
 import { Bilanzzeile } from '../components/Kaskadenbild'
-import { SCHRITTE, type Befund, type Fortschritt, type Problem, type Saisonbilanz, type Schimmelpunkt, type StromSumme, type Zeitplan } from './daten'
+import { SCHRITTE, type Befund, type Fortschritt, type Problem, type Saisonbilanz, type Schimmelpunkt, type Zeitplan } from './daten'
 import { summeBekannt } from '../lib/masse'
 import { anforderungOffen, rechnetGerade } from '../lib/zeitplan'
 import { supabase } from '../lib/supabase'
@@ -17,17 +17,6 @@ import { ChargeFenster } from '../betrieb/ChargeFenster'
  * Kopfzeile eines Reiters: Name, der eine Satz, wozu er da ist; rechts der
  * Stand der Rechnung als Chip („vor 12 min") und „Neu rechnen".
  */
-/** Wann der Zeitplan das nächste Mal dran ist — aus einem Takt „alle N Minuten" (cron-Schreibweise Stern-Schrägstrich-N). */
-export function naechsterLauf(takt: string | null, jetzt = new Date()): Date | null {
-  const m = /^\*\/(\d+) \* \* \* \*$/.exec(takt ?? '')
-  if (!m) return null
-  const schritt = Number(m[1])
-  const d = new Date(jetzt)
-  d.setSeconds(0, 0)
-  d.setMinutes(Math.floor(d.getMinutes() / schritt) * schritt + schritt)
-  return d
-}
-
 export function Reiterkopf({ titel, zweck, stand, heute, neuRechnen, rechts, laeuft, zeitplan, veraltet, aktuell }: {
   titel: string; zweck?: string; stand: string | null; heute?: string; neuRechnen?: () => void; rechts?: ReactNode; laeuft?: boolean
   /** 0095: läuft ein Zeitplan (wirklich — zustand), und ist dieser Stand veraltet, weil die App ihm das Rechnen überlässt? */
@@ -126,32 +115,6 @@ export function Probleme({ liste }: { liste: Problem[] }) {
       SQL-Editor. Meist steht die Ursache auch unter Messungen → Auffälligkeiten.</span>
     </Hinweis>
   )
-}
-
-/** Der Rechenweg zu einem Strom — jede Zahl sagt, woher sie kommt. */
-export function rechenweg(v: StromSumme, eingang: number): [string, ReactNode][] {
-  return [
-    ['Formel', v.formel],
-    ['Bezugsmasse', kg(v.basis, 0)],
-    ['Koeffizient', v.koeffBasis ? `${v.koeffBasis}${v.koeffN !== null ? ` · ${v.koeffN} Messungen` : ''}` : '—'],
-    ['Ergebnis bis heute', v.bekannt
-      ? `${kg(v.mittel, 0)} (${prozent(eingang > 0 ? v.mittel / eingang : null)} der Eingangsmasse)`
-      : 'nicht gemessen — der Koeffizient hat keine einzige Messung'],
-    ['Bereich', v.bereichBekannt
-      ? `${kg(v.unten, 0)} – ${kg(v.oben, 0)} (95 %, aus den Messfehlern fortgepflanzt)` : '—'],
-    // 0066: Die vier Teilbeträge sind null, solange der Strom nicht gemessen
-    // ist — und sonst Zahlen, auch wenn ihre Portion leer ist.
-    ['Davon an ausgelieferter Ware', v.beobachtet === null
-      ? 'nicht gemessen' : `${kg(v.beobachtet, 0)} — beim Alter am Liefertag`],
-    ['Davon an der Ware im Haus', v.projiziert === null
-      ? 'nicht gemessen' : `${kg(v.projiziert, 0)} — beim Alter heute`],
-    ['Davon jenseits der Messungen', v.extrapoliert === null
-      ? 'nicht gemessen'
-      : v.extrapoliert > 0
-        ? `${kg(v.extrapoliert, 0)} — liegt länger als die längste gemessene Lagerdauer, der Verlauf ist dorthin verlängert`
-        : 'nichts — alle Lagerdauern sind durch Messungen abgedeckt'],
-    ...(v.erwartet !== null && v.erwartet > 0 ? [['Erwartung, nicht Verlust', `${kg(v.erwartet, 0)} — was beim Abpacken der Ware im Haus noch anfallen dürfte; steht nicht in der Zahl`] as [string, ReactNode]] : []),
-  ]
 }
 
 /** Woher die Palox-Anteile kommen — die Punkte mit ihrer Herkunft (seit 0106 die Stationswerte statt der Kurve). */
@@ -324,5 +287,3 @@ export function Auffaelligkeiten({ befunde, kurz = false }: { befunde: Befund[];
     </Karte>
   )
 }
-
-export { Herkunft }

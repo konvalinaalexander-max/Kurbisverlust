@@ -187,6 +187,10 @@ test('Der Weg der Ware: umgebucht und vorgeschlagen beim Eingang, fremder Artike
   assert.equal(leer.ohneEingang, false, 'nichts herein und nichts hinaus ist keine Ungereimtheit')
   assert.equal(spurText(spur({ journal_paletten: 0, paletten: 0 })).ohneEingang, true, 'verkauft ohne Eingang ist es')
   assert.ok(spurText(spur({ nach_artikel: [{ gruppe: 'andere', kg: 50 }] })).hinaus.includes('davon als anderer Artikel 50 kg'))
+  // 0124: eine Lieferung ohne Perigon-Zeile (von Hand erfasst) ist ein eigener Teil, kein fremder Artikel
+  const hand = spurText(spur({ nach_artikel: [{ gruppe: 'Butternut', kg: 7000 }, { gruppe: 'ohne Perigon-Zeile', kg: 444 }] })).hinaus
+  assert.ok(hand.includes('444 kg davon ohne Perigon-Zeile (von Hand erfasst)'), hand.join(' | '))
+  assert.ok(!hand.some(h => h.startsWith('davon als')), 'nicht als fremder Artikel genannt')
   assert.equal(spanneKurz('2026-10-02', '2026-10-02'), '2.10.')
   assert.equal(spanneKurz(null, null), '')
 })

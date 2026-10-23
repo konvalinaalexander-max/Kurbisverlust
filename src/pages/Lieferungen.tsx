@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { ZKreuz } from '../components/Zeichen'
 import { supabase } from '../lib/supabase'
 import { fehlerText } from '../lib/db'
-import { datum as datumText, heute as heuteOrtszeit, kg as kgText, zahl } from '../lib/format'
+import { datum as datumText, heute as heuteOrtszeit, kg as kgText, tonnen, zahl } from '../lib/format'
 import { Hinweis, Karte, Kennzahl, Lade } from '../components/Bausteine'
 import AusgangImport from '../betrieb/AusgangImport'
 
@@ -67,6 +67,7 @@ export default function Lieferungen() {
       supabase.from('charge').select('nr, sorte, schlag').order('nr'),
     ])
     setAlle(l)
+    for (const r of [z, s, c]) if (r.error) setFehler(fehlerText(r.error))
     setZiele((z.data ?? []) as Ziel[])
     setSorten(((s.data ?? []) as { sorte: string }[]).map(x => x.sorte))
     setChargen((c.data ?? []) as typeof chargen)
@@ -186,7 +187,7 @@ export default function Lieferungen() {
       <Karte titel="Erfasst">
         <div className="spalten">
           <Kennzahl titel="Lieferungen" wert={zahl(alle.length)} />
-          <Kennzahl titel="Masse aller Lieferungen" wert={`${(summe / 1000).toFixed(1)} t`}
+          <Kennzahl titel="Masse aller Lieferungen" wert={tonnen(summe)}
                     unter={ohneMasse > 0 ? `${ohneMasse} ohne Masse — nicht mitgezählt` : undefined} />
         </div>
         {ohneKistengewicht && (
@@ -225,7 +226,7 @@ export default function Lieferungen() {
                     <td className="zahl">
                       {z.masse_kg === null ? '—' : kgText(z.masse_kg, 0)}
                       {z.masse_fehler_kg ? (
-                        <span className="leise"> ±{Math.round(z.masse_fehler_kg)}</span>
+                        <span className="leise"> ± {kgText(z.masse_fehler_kg, 0)}</span>
                       ) : null}
                       <div className="leise" style={{ fontSize: '.75rem' }}>{z.masse_quelle}</div>
                     </td>

@@ -12,6 +12,10 @@ import type { Bestand, Prognose } from '../src/auswertung/daten.ts'
 // schmeissen … und vor der Verdunstung." Im Lager ist jetzt die Eingangsmasse
 // auf den Paletten, die noch stehen (lager_kg), ohne Abzug; was abgeht, steht
 // im Verkaufsfähigen (test/ausweis.test.ts).
+// Runde AZ: die Form hat sich geändert, nicht die Regel — `hoechstens` war
+// seit dem 23. Oktober immer falsch (die Eingangsmasse hängt an keiner Rate)
+// und ist weg; imLagerBei gibt die Kilo direkt, imLagerCharge braucht keine
+// Prognose mehr.
 
 const p = (gruppe: Prognose['gruppe'], schluessel: string, h: number, gute: number, r = true, f = true) =>
   ({ gruppe, schluessel, h, lager_kg: 26834, verdunstet_kg: 2243, faul_kg: 2717, gute_ware_kg: gute, r_bekannt: r, f_bekannt: f } as unknown as Prognose)
@@ -20,17 +24,17 @@ const b = (nr: number, lager: number, im_haus: number, kanal_ausgelagert: number
 
 test('imLagerBei: die Eingangsmasse auf den Paletten beim Horizont — ohne Abzug, auch wenn eine Rate nicht gemessen ist', () => {
   const prognose = [p('gesamt', '', 0, 21874), { ...p('gesamt', '', 28, 20100), lager_kg: 25000 } as Prognose, p('sorte', 'Amoro', 0, 900, true, false)]
-  assert.deepEqual(imLagerBei(prognose, 'gesamt', '', 0), { kg: 26834, hoechstens: false }, 'lager_kg, nicht die gute Ware 21874')
-  assert.deepEqual(imLagerBei(prognose, 'gesamt', 'egal', 28), { kg: 25000, hoechstens: false }, 'gesamt hat keinen Schlüssel')
-  assert.deepEqual(imLagerBei(prognose, 'sorte', 'Amoro', 0), { kg: 26834, hoechstens: false }, 'die Eingangsmasse hängt an keiner Rate')
-  assert.deepEqual(imLagerBei(prognose, 'sorte', 'Tiana', 0), { kg: null, hoechstens: false }, 'ohne Zeile leer, nicht 0')
+  assert.equal(imLagerBei(prognose, 'gesamt', '', 0), 26834, 'lager_kg, nicht die gute Ware 21874')
+  assert.equal(imLagerBei(prognose, 'gesamt', 'egal', 28), 25000, 'gesamt hat keinen Schlüssel')
+  assert.equal(imLagerBei(prognose, 'sorte', 'Amoro', 0), 26834, 'die Eingangsmasse hängt an keiner Rate — kein „höchstens"')
+  assert.equal(imLagerBei(prognose, 'sorte', 'Tiana', 0), null, 'ohne Zeile leer, nicht 0')
 })
 
 test('imLagerCharge: die Eingangsmasse der Paletten, die noch stehen — nicht die gute Ware, nicht das Haus ohne Aussortiertes', () => {
-  const prognose = [p('charge', '1632', 0, 21874)]
-  assert.equal(imLagerCharge(b(1632, 26834, 22335, 461, 68), prognose), 26834)
-  assert.equal(imLagerCharge(b(1611, 25977, 21884, 704, 65), prognose), 25977)
-  assert.equal(imLagerCharge(b(1625, 1600, 1300, null, 4)), 1600, 'ohne Prognose dasselbe')
+  assert.equal(imLagerCharge(b(1632, 26834, 22335, 461, 68)), 26834)
+  assert.equal(imLagerCharge(b(1611, 25977, 21884, 704, 65)), 25977)
+  assert.equal(imLagerCharge(b(1625, 1600, 1300, null, 4)), 1600)
+  assert.equal(imLagerCharge(b(1, -5, 0, null, null)), 0, 'eine Überzählung macht kein negatives Lager')
 })
 
 test('palettenIm: die Paletten der Chargen, die noch liegen — leer, wenn keine eine Zahl hat', () => {

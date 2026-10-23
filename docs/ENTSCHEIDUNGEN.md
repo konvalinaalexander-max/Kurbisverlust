@@ -4171,6 +4171,127 @@ Daten, dann die Annahme — nach der Korrektur nachsehen.
 nicht alles: vier mal vier gleiche Paloxen und ein Tag mit 30 Paaren bei
 13 erwarteten sind Fragen wert.
 
+## Runde AZ: die Durchsicht — ein Programm aus einem Guss (23. Oktober, 0124)
+
+Der Betrieb: „review the entire code — there was lots of changes and small
+fixes, make it all to one final sensible product … make sure to fully
+understand the project first." Und, als die Runde lief: „versteh uns erst
+mal — wie denken wir, was wollen wir, wie machen wir unsere Entscheidungen
+auf dem Betrieb — und dann liefer mir die Info … bei allen Reitern
+ähnliches Design, ähnliche Art, Infos darzustellen, simpel und
+straightforward … nicht komplett überarbeiten, wir sind schon zu 90 % dort."
+Zuerst das Verstehen (Doku, Datenfluss, Rechenwerk, App, Prüfstände), dann
+drei getrennte Durchsichten (Datenbank; Halle und Sprachen; Büro,
+Betrieb-Seiten, Prüfstände, Doku), zuletzt die Behebung in einer Runde. Was
+gefunden wurde, und was daraus geworden ist:
+
+**1. Eine Definition, nicht zwei.** Seit 0123 heisst „im Lager" die
+Eingangsmasse der Paletten, die noch stehen, und „verkaufsfähig" das
+Verkaufbare als Artikel. Mehrere Stellen fielen noch auf den Wert der
+Sortiermaschine zurück, wenn der Ausweis fehlte („höchstens", `bekannt`),
+obwohl die App eine Datenbank unter Stand 123 gar nicht mehr annimmt. Die
+Rückfälle sind weg: Was unbekannt ist, steht als „—" oder „unbekannt", nie
+als eine andere Zahl (`src/auswertung/lager.ts`, `ausweis.ts`, `artikel.ts`,
+Lagermanagement, Chargen, Fenster der Charge, Messungen ausstehend). Unter
+Ursachen heisst der grüne Teil, was er ist — „nach der Sortiermaschine
+verkaufsfähig": `erg_wohin` kennt die Artikelgewichte nicht. Unter Messungen
+sind „Liegend" und „Im Lager" ausdrücklich dieselbe Zahl.
+
+**2. Was die Datenbank nicht wissen kann, sagt sie (0124).** Eine Sorte ohne
+Artikelgruppe (Bolp 5110 in der Demo) galt als „passt in keinen Artikel" —
+eine Annahme; der Betrieb hat nie gesagt, dass sie lose geht. Jetzt ist sie
+offen: `gruppe_offen_kg`, nicht abgezogen, Grund „Artikelgruppe fehlt
+(Stammdaten → Sorten)", das Verkaufbare eine obere Schranke; eine
+Artikelgruppe ohne Gewichte ist ein Artikel ohne Grösse (lose). Ohne
+Sortier-CSV ist `keinen_artikel_kg` leer, nicht 0. Hagel 100 %: Faules,
+Unique und Verkaufbares leer (die Kaskade kann sie nicht trennen), mit
+Grund. Gewogene Paletten einer Arbeit ohne Kistensystem oder Sollgewicht:
+der Grund sagt es, nicht „nicht gewogen". `v_charge_spur` führt Lieferungen
+ohne Perigon-Zeile als eigenen Teil — die Teile gehen auf `geliefert_kg`
+auf. Die Liste der Perigon-Nummern (0122) läuft nur einmal (Marke in
+`einstellung`); sonst trüge jedes Einspielen von setup.sql eine bewusst
+gelöschte Nummer wieder ein. Sieben Funktionen in PL/pgSQL bekommen einen
+festen Suchpfad (die anderen hatten ihn), der Prüfblock verlangt ihn für
+jede. Die 19 Funktionen in SQL ohne SET bleiben so — bewusst: Postgres setzt
+sie in die Abfragen der Kaskade ein, eine Funktion mit SET nie; 0110 (b2)
+verlangt das, und run.sh hat den ersten Entwurf, der auch dort den Suchpfad
+setzte, genau daran abgefangen. Sicher sind sie trotzdem: 0110 (a1) rechnet
+jede gespeicherte Ansicht mit dem Suchpfad von PostgreSQL 17, also nennt jede
+dieser Funktionen ihre Tabellen mit Schema. Die Beschreibung von
+`v_koeff_kaliber_geschaetzt` behauptete noch das „empirische Bayes" von vor
+0111.
+
+**3. Die Halle sagt, was sie nicht weiss.** „Faules: 0 kg" stand da, wenn der
+Palox nicht abgelesen war — jetzt „unbekannt" (`faulesKg`, in Abschluss und
+Arbeit). Ein Fehler beim Lesen des Palox-Stands, beim Löschen einer Wägung
+oder beim Beitreten einer Arbeit wird gezeigt statt verschluckt; die
+Ausschuss-Maske merkt sich Kistenart und Kisten zusammen; das Band einer
+fertigen Palette ist ein Wert, kein deutscher Satz in sechs Sprachen; die
+Tara-Hinweise sind übersetzt (vier neue Tasten). Zehn Tasten, die kein
+Bildschirm las, sind weg, und `test/i18n.test.ts` hält fest, dass jede
+Taste gebraucht wird. Beim Abmelden endet die Teilnahme an der Arbeit; das
+Laden der Arbeit läuft einmal, nicht zweimal.
+
+**4. Betrieb-Seiten.** `einstellung()` wirft bei einem Datenbankfehler, statt
+still den Ersatz zu liefern — sonst hielt das Leeren-Fenster eine scharfe
+Datenbank für eine Übung, und die Stammdaten zeigten ein leeres Feld, als
+wäre nichts gespeichert; wo ein Ersatz nur ein Vorschlag ist (Tage, Soll,
+Abstand), bleibt er, mit Kommentar. Jeder Leseaufruf prüft seinen Fehler
+(Warenausgang, Lieferungen, Arbeiten, Stammdaten, Sortier-CSV). Die
+Sammeldatei-Vorschau sagte „n neu" aus einer erfundenen Stufe — jetzt sagt
+sie, was sie weiss (in der Datei, schon bekannt); das Delta rechnet die
+Datenbank (0082). Texte: „Messungen → Arbeiten" statt „Betrieb → Arbeiten"
+(seit Runde AO), die Schreibweise im Journal-Abgleich (Gross/klein und
+Satzzeichen zählen nicht, Aliase gelten), Tonnen und Einheiten unter
+Warenausgang.
+
+**5. Totes und Veraltetes weg.** Nicht gelesene Ergebnisse aus dem Laden der
+Auswertung (`erg_verlust`, `erg_durchsatz`), tote Exporte und Typen
+(`daten.ts`, `Karten.tsx`, das Stapel-Diagramm, ein Re-Export in
+`AusgangImport`), 57 MB alte Bildschirmabzüge (`pruefstand/bilder_vorher_p`,
+nirgends gelesen), 27 Begriffe im Lexikon, die auf keinem Bildschirm mehr
+stehen (und zwei Texte berichtigt: zu klein / zu gross bleiben seit 0101 im
+Haus). `setup.sql` trägt je Objekt nur noch die jüngste Beschreibung
+(`verdichten.mjs`): 923 KB → 797 KB, 673 → 321 Beschreibungszeilen; der
+Fingerabdruck in `run.sh` beweist, dass dieselbe Datenbank entsteht. Ein
+Modellname in `docs/PROMPT_PRUEFWERK.md` ist weg.
+
+**Geprüft.** Prüfblock 0124 (a–e) mit sieben Mutationen, alle schlagen an;
+0123 (a1, b1, b2, c4) mit der Regel geändert, mit Kommentar. Tests neu für
+die Klassen (`artikel`), den Ausweis, die Spur, den Verdichter und die
+Tasten. Schnelle und volle Stufe nach CLAUDE.md §3.
+
+**Was als Nächstes kommt (Runde BA), aus dem Gespräch mit dem Betrieb.** „Warum
+will ich wissen, wie viel im Lager ist, in Paletten — so dass mir die App
+sagt: du hast von der Charge noch 7 Paletten, und dann kann ich nachschauen
+gehen." Die ≈-Paletten sind ein Paletten-Äquivalent aus Eingang minus den
+Eingangskilo hinter den Lieferscheinen; sortierte, noch nicht verkaufte Ware
+steht aber in Kisten. Die Halle zählt jede Eingangspalette beim Verarbeiten
+(`auftrag_palette`) — also kann die App beides sagen: unberührte
+Eingangspaletten (nachzählbar) und das Äquivalent in Kisten. Und: je Sorte
+an einem Ort die Bänder der Sortiermaschine und die Artikelgewichte klein /
+gross, mit dem, was dazwischen fällt. Beides ist notiert, nicht gebaut.
+
+**Was bewusst nicht gemacht wurde.**
+- Acht `erg_*`-Tabellen, die kein Bildschirm liest (erg_kaliber,
+  erg_gewichte, erg_verlust, erg_fax, erg_fax_wartezeit, erg_koeff_fax,
+  erg_ueberfuellung, erg_marge), bleiben: Prüfstände und Orakel lesen sie,
+  und nie wird eine Tabelle gelöscht. Ebenso fünf Sichten ohne Leser
+  (v_kontrollpalette_rate, v_lager_kaliber, schlag_von_produzent,
+  auswertung_sofort_lauf, auswertung_diagnose).
+- `paletten_zuordnen` vergleicht den Schlag wörtlich, ohne Alias — die
+  Umbuchung kommt mit Beleg vom Betriebsleiter, nicht aus einem
+  Namensvergleich.
+- Die Überfüllung der Sorte gilt weiter als Rückfall für eine Charge ohne
+  Wägung, auch wenn ihr Kistensystem ein anderes sein könnte; `marge_quelle`
+  sagt, woher der Wert kommt.
+- Die Vorbelegung des Namens beim Anmelden und eine verwaiste Aufnahme nach
+  einem abgebrochenen Abschluss: bekannt, klein, keine Zahl betroffen.
+- `pruefstand/schwarzprobe.mjs` bleibt als Prüfstand für den schwarzen
+  Bildschirm bei kaputten Zugangsdaten, ausserhalb der CI; README nennt ihn.
+- Fünf doppelte Spalten- und Tabellenbeschreibungen in setup.sql bleiben:
+  Tabellen sind keine Objekte des Verdichters, und die letzte gilt.
+
 ## Runde AY: im Lager steht, was vom Eingang dasteht; verkaufsfähig ist, was als Artikel geht (23. Oktober, 0123)
 
 Der Betrieb, zur Kachel „davon verkaufsfähig 285.6 t · 96 %": „96 % von was?

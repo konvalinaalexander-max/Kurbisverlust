@@ -120,7 +120,7 @@ man falsch machen kann.
    das Symbol **Copy raw file** — zwei übereinanderliegende Rechtecke. Wenn du
    mit der Maus darüber fährst, erscheint der Text „Copy raw file".
 
-   Kurz blitzt ein Häkchen auf. Damit liegen jetzt rund 6 000 Zeilen SQL in der
+   Kurz blitzt ein Häkchen auf. Damit liegen jetzt rund 15 000 Zeilen SQL (800 KB) in der
    Zwischenablage — der ganze Inhalt, nicht nur der sichtbare Ausschnitt.
 
    *Symbol nicht gefunden?* Klicke stattdessen auf den Knopf **Raw**. Es öffnet
@@ -157,7 +157,7 @@ Unten im Ergebnisfenster erscheint eine Tabelle mit einer Spalte `ergebnis` und
 genau dieser Zeile:
 
 ```
-Fertig. Die Datenbank steht: 42 Chargen, 11 Sorten, 31 Tabellen,
+Fertig. Die Datenbank steht: 44 Chargen, 11 Sorten, 31 Tabellen,
 75 Auswertungen. Auswertung angefordert (23:12 Uhr): der Zeitplan rechnet
 sie jetzt im Hintergrund … Weiter im README bei Schritt 4.
 ```
@@ -789,6 +789,15 @@ Artikel verkauft werden kann: ohne Verdunstung, Palox, zu klein/zu gross, was
 in kein Artikelgewicht passt und die Überfüllung in den Kisten (AB-173). Der
 Anteil bezieht sich auf das, was im Lager steht. **Setup.sql einmal einspielen
 (Stand 123), dann „Neu rechnen".**
+**0124 (Runde AZ, die Durchsicht):** Was der Lager-Ausweis nicht wissen kann,
+sagt er — eine Sorte ohne Artikelgruppe ist „Artikelgruppe offen" (nicht
+„passt in keinen Artikel"), ohne Sortier-CSV bleibt dieser Teil leer, bei
+Hagel 100 % bleiben Faules und Verkaufbares leer, gewogene Paletten ohne
+Kistensystem werden als das genannt; der Weg der Ware geht auf (Lieferungen
+ohne Perigon-Zeile als eigener Teil); jede PL/pgSQL-Funktion hat einen
+festen Suchpfad; die Perigon-Liste läuft nur einmal (AB-174 bis AB-176). Dazu die
+Halle: Faules ohne Ablesung ist „unbekannt", Fehler werden gezeigt. **Setup.sql
+einmal einspielen (Stand 124), dann „Neu rechnen".**
 
 **Runde AT (0117)** — Kunden in der Reihenfolge des Betriebs. Unter
 **Lagermanagement nach Artikel** ordnen zwei Pfeile in der Gruppenzeile die
@@ -1011,7 +1020,7 @@ im Dashboard, wenn jemand ihn gelesen und **gekürzt** hat („Hagelschaden"):
 beim Drüberfahren die Kurzfassung, beim Anklicken die Rohfassung samt
 Aufnahme. Gekürzt wird von der Runde am Programm (über
 `docs/betrieb/kurzfassungen.json`, der Abzug spielt es ein — der Rückweg)
-oder vom Betriebsleiter unter Betrieb → Arbeiten; seine Kurzfassung bleibt.
+oder vom Betriebsleiter unter Messungen → Arbeiten; seine Kurzfassung bleibt.
 Dazu mehr Klickwege: ein Punkt öffnet seine Messung (auch eine
 Kontrollwägung ohne Arbeit), jede Chargennummer ihre Charge als Fenster,
 die Wohin-Karte klappt je Sorte zu ihren Chargen auf. AB-94 bis AB-96.
@@ -1041,7 +1050,7 @@ beim Öffnen des Dashboards von selbst nach. AB-84 bis AB-88,
 Antworten auf die Fragen zu den Messungen.
 
 **Runde W (0089)** — der Betriebsleiter löscht Arbeiten
-(Betrieb → Arbeiten → „Löschen", Kreise, Rückfrage, endgültig). Die
+(Messungen → Arbeiten → „Löschen", Kreise, Rückfrage, endgültig). Die
 verschenkte Marge sind zwei Blöcke — „Kiste ab x kg" und „x Stück je Kiste"
 —, jeder erklärt sich in einem Satz, und jede Zeile zeigt aufgeklappt nur
 ihre Wägungen. Im Messbild trifft der Zeiger nur den Punkt, und ein Klick
@@ -1059,7 +1068,7 @@ unter null wird abgewiesen statt versteckt. Der Palox lässt sich **mitten in de
 die Faul-Menge verloren geht (ablesen, leeren, die leere Box ablesen). Am
 Ende jeder Arbeit fragt die App, ob alles gut lief — **Textfeld und
 Mikrofon-Knopf**; die Aufnahme liegt im Speicher des Supabase-Projekts
-(Bucket `rueckmeldungen`), und unter Betrieb → Arbeiten trägt die Arbeit ein
+(Bucket `rueckmeldungen`), und unter Messungen → Arbeiten trägt die Arbeit ein
 Zeichen dafür. Die verschenkte Marge auf Ursachen ist eine Karte, gegliedert
 wie der Filter, mit dem Kaliber in Gramm. Die Entscheidungen dazu in
 [`docs/ENTSCHEIDUNGEN.md`](docs/ENTSCHEIDUNGEN.md) („Runde V"), die
@@ -1106,7 +1115,7 @@ nebeneinander betreibt, steht in
 [`docs/ZWEI_WEBSEITEN.md`](docs/ZWEI_WEBSEITEN.md).
 
 Du bekommst die ganze Anbauplanung 2026: rund 360 t Eingang, 950 Paletten in
-allen 42 Chargen, gut 370 Arbeiten (Sortieren mit CSV und gezählten Kisten,
+allen 44 Chargen, gut 370 Arbeiten (Sortieren mit CSV und gezählten Kisten,
 Waschen je Kaliber, Waschen + Sortieren von Hand, knapp 200 Fax), 40
 Sortierläufe, 220 Lieferungen und sechs monatliche Verkaufsdateien mit Erlös.
 Kein FIFO: die Paletten einer Charge kommen über Tage bis Wochen herein und
@@ -1150,7 +1159,7 @@ Die Abnehmer der Demo sind erfunden (*Nordmarkt*, *Talhof*, *Grünwerk*,
 3. **Betrieb → Stammdaten → Demo-Daten → „Demo-Saison laden"** antippen.
    Nach zwei bis vier Sekunden steht die Meldung „Demo-Saison steht: …".
 4. **Lagermanagement** öffnen — die Auswertung rechnet beim ersten Aufruf einmal
-   durch (ein paar Sekunden), danach sind alle fünf Reiter gefüllt.
+   durch (ein paar Sekunden), danach sind alle Reiter gefüllt.
 5. Zum Anschauen der Arbeiter-Masken: auf einem Handy den QR-Code aus
    **Betrieb → Zugang** öffnen, Namen eintippen, und eine der drei laufenden
    Arbeiten antippen — oder „Neue Arbeit starten" und den Assistenten
@@ -1241,6 +1250,8 @@ Alle drei entstehen aus HTML-Quellen im selben Ordner:
 | Messungen warnt „Fehlende Tara" | Für manche Gebinde fehlt das Leergewicht | *Betrieb → Stammdaten → Gebinde & Tara* ausfüllen. |
 | Supabase: „Project is paused" | Gratis-Projekte pausieren nach 7 Tagen ohne Nutzung | Grüner Knopf **Restore project**, ein bis zwei Minuten warten. Während der Saison passiert das durch die normale Nutzung nicht. |
 | Cloudflare-Build schlägt fehl | Meist das Build command falsch oder leer | In der Konsole nach der ersten roten Zeile suchen. Build command muss `npm run build`, Deploy command `npx wrangler deploy` sein. |
+| **Der Bildschirm bleibt schwarz** (auch beim Demo-Knopf), nichts zu klicken | Die zwei Zugangswerte sind so vertippt, dass die App beim Laden abbricht — bis Runde U kam dann nur die leere Seite | Seit Runde U sagt die App, welcher Wert nicht passt, und bietet „Demo verlassen" an. Nachstellen lässt sich das lokal mit `node pruefstand/schwarzprobe.mjs` (baut die App mit absichtlich kaputten Werten und prüft im Browser, dass die Meldung kommt). |
+| Der Chip sagt **„Zeitplan rechnet nicht"**, die Zahlen bleiben alt | pg_cron ist im Supabase-Projekt nicht eingeschaltet, oder der Lauf bricht ab | `supabase/abfragen/zeitplan_pruefen.sql` im SQL-Editor ausführen: zeigt die Zeitplan-Einträge, den letzten Lauf und seinen Fehler. Fehlt pg_cron: Database → Extensions → pg_cron einschalten, dann `setup.sql` noch einmal. |
 
 Kommst du nicht weiter: Fehlermeldung wörtlich notieren, dazu welcher Schritt.
 Das genügt fast immer zur Klärung.
@@ -1315,7 +1326,7 @@ npm test                    # Reinigung und Dateinamen-Parser, ohne Datenbank
 node pruefstand/bildschirme.mjs
 SPRACHE=hu node pruefstand/bildschirme.mjs arbeit    # Arbeiter-Masken in der Sprache mit den längsten Wörtern
 
-# Begriffs-Prüfstand: Sagt jede Zahl, was sie ist? Rendert die zwölf Ansichten
+# Begriffs-Prüfstand: Sagt jede Zahl, was sie ist? Rendert alle Ansichten
 # des Betriebsleiters, erntet jede Zahl mit Einheit samt ihrer Beschriftung und
 # prüft: beschriftet, im Begriffslexikon (pruefstand/begriffe.json), „Verlust"
 # nie ohne Zusatz, gerechnete Grössen mit ihrer Herkunftsmarke, Prozente mit
@@ -1341,7 +1352,7 @@ node pruefstand/kette.mjs && ./pruefstand/kette_pruefen.sh 'postgresql://…'
 # 390 px und im dunklen Thema). 59 Punkte, alle grün seit Runde R.
 node pruefstand/abnahme_r.mjs
 
-# Die fünf PDFs neu bauen (aus docs/*.html, Schrift eingebettet). Meldet
+# Die sieben PDFs neu bauen (aus docs/*.html, Schrift eingebettet). Meldet
 # waagerechten Überlauf — im PDF heisst das eine abgeschnittene Tabelle.
 node docs/pdf_bauen.mjs
 
@@ -1402,13 +1413,14 @@ auch bei dreifacher Saisongrösse unter Supabases Zeitlimit bleibt; und dass
 
 Die Fachlogik-Prüfung (`supabase/test/pruefung.sql`) stellt dabei auch die
 Kette gegen die Rohtabellen: jedes erfasste Kilo Faules steht entweder als
-Punkt im Verderbsmodell oder als Befund unter „Auffälligkeiten" — ein drittes
-Schicksal gibt es nicht; ein Koeffizient ohne einzige Messung ist NULL, nicht
-0; der Restbestand ist die Masse nach Verdunstung und Verderb; ein Sockel im
-Palox wird wiedergefunden, ein erfundener nicht; eine Sortier-CSV bleibt nach
-der Fassung klassiert, die für ihren Auftrag galt; und die Menge am
-Waschbecken folgt aus gezählten Kisten mal gemessenem Kistengewicht, solange
-dieses Gewicht je gemessen wurde — sonst bleibt sie unbekannt.
+Stationswert des Palox (Grundausschuss und Anstieg, 0111) oder als Befund
+unter „Auffälligkeiten" — ein drittes Schicksal gibt es nicht; ein
+Koeffizient ohne einzige Messung ist NULL, nicht 0; im Lager steht, was vom
+Eingang noch dasteht, verkaufsfähig ist, was als Artikel geht (0123, 0124);
+eine Sortier-CSV bleibt nach der Fassung klassiert, die für ihren Auftrag
+galt; und die Menge am Waschbecken folgt aus gezählten Kisten mal gemessenem
+Kistengewicht, solange dieses Gewicht je gemessen wurde — sonst bleibt sie
+unbekannt.
 
 Der Objekt-für-Objekt-Vergleich läuft über `supabase/test/fingerabdruck.sql`:
 jede Spalte, Ansicht, Funktion, Regel und Bedingung als sortierte Textliste,
@@ -1511,22 +1523,13 @@ gemessen in [`docs/BEFUND_RUNDE_P.md`](docs/BEFUND_RUNDE_P.md).
   Zwischenlager trägt kein Eingangsdatum mehr. Gerechnet wird mit dem
   massegewichteten mittleren Eingangsdatum der Charge; die Streuung der
   Erntedaten ist die Unsicherheit. Jede Zahl sagt, welches von beidem sie ist.
-- **Der Verderb wird noch nicht je Sorte geschrumpft.** Es gilt **eine** Kurve
-  für alles; je Sorte steht, auf wie vielen eigenen Messpunkten sie dort ruht.
-  Die Schrumpfung ist der einzige offene Punkt, der die Kaskade bewegt, und
-  bekommt deshalb eine eigene Runde (`docs/BEFUND_RUNDE_Q.md`, Abschnitt 9).
-- **Überfüllung:** Die Hochrechnung auf Kisten nimmt an, dass alle Weg-2-Ware
-  in Kisten mit dem Soll aus den Einstellungen geht. Der Betrieb hat gesagt,
-  die 8-kg-Kiste gilt nur für eine Sorte — welche, ist offen. Die Rechnung nimmt
-  das Kistenmass seit 0040 je Sorte aus dem Sortierschema, sobald dort eine
-  Kisten-Fassung steht; bis dahin aus der Einstellung. Der Rechenweg sagt, für
-  wie viele Chargen schon ein Schema gilt.
-- **Der Sockel im Palox** wird aus dem Zeitverlauf geschätzt, und das reicht
-  nicht: Die Simulation sieht einen echten Sockel von 2 % in der Saisonmitte
-  in knapp jeder zweiten Saison, am Saisonende nie — dort sieht er genauso aus
-  wie „Schlechtes zuerst verarbeitet". Bleibt er unerkannt, ist der Schimmel um
-  23–48 % zu hoch (`docs/STATISTIK_BEFUND.md`, vierte Runde). Eine Angabe beim
-  Leeren des Palox, wie viel davon nicht faul war, wäre die Messung, die das
-  entscheidet (`docs/FRAGEN.md`, Frage 5). Lagerkontrollen ersetzen sie nicht —
-  nachgemessen: Sie erkennen den Sockel nicht, machen aber den ausgewiesenen
-  Bereich ehrlich (Überdeckung 0 → 100 %). Zwölf je Saison genügen dafür.
+- **Das Faule im Palox** ist seit 0111 je Sorte und Station der
+  Grundausschuss plus der Anstieg je Woche Lagerdauer (Runde AJ hat das
+  Verderbsmodell mit Kurve, Sockel und Selektionsverdacht abgelöst,
+  `docs/ENTSCHEIDUNGEN.md`). Je Sorte gilt ihr eigener Wert ab drei Arbeiten,
+  sonst der aller Sorten — und die Auswertung sagt, welcher gilt.
+- **Überfüllung:** Das Soll je Kiste kommt seit 0060 von der Arbeit
+  (Kistensystem „Kiste ab x kg" oder „x Stück"), sonst von der Fassung der
+  Sorte. Gewogen wird sie an den fertigen Paletten; eine Charge ohne gewogene
+  Palette (und ohne gewogene Sorte) hat keine Überfüllung, sondern „offen"
+  (0123, 0124) — nie 0.

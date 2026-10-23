@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { TaetKachel, TaetZeichen, ZChevron, ZHaken, ZKiste, ZStift, ZZurueck } from '../components/Zeichen'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
@@ -9,7 +9,7 @@ import { taetigkeitVon } from '../lib/taetigkeit'
 import { fuehrungSetzen, istVorarbeiter } from '../lib/rolle'
 import { Hinweis, Lade, Marke } from '../components/Bausteine'
 import { Bestaetigt } from '../components/Schritte'
-import { arbeitLaden, fertigeVerlangt, stationsProfil, uhrzeit, type ArbeitDaten } from '../arbeit/daten'
+import { arbeitLaden, faulesKg, fertigeVerlangt, stationsProfil, uhrzeit, type ArbeitDaten } from '../arbeit/daten'
 import { Zaehler } from '../arbeit/Zaehler'
 import { PaloxMaske } from '../arbeit/PaloxMaske'
 import { FauleMaske } from '../arbeit/FauleMaske'
@@ -81,11 +81,16 @@ export default function Arbeit() {
   // Halle soll niemanden aus der Arbeit werfen.
   const [fragtVerlassen, setFragtVerlassen] = useState(false)
 
+  // Runde AZ: Die Rolle wird einmal beim ersten Laden bestimmt — über eine
+  // Referenz, nicht über den Zustand: Hing `laden` an `fuehrt`, feuerte der
+  // Effekt nach dem ersten Lauf gleich noch einmal (elf Abfragen doppelt).
+  const rolleBestimmt = useRef(false)
   const laden = useCallback(async () => {
     try {
       const daten = await arbeitLaden(auftragId)
       setD(daten); setFehler(null)
-      if (daten && fuehrt === null) {
+      if (daten && !rolleBestimmt.current) {
+        rolleBestimmt.current = true
         const f = istVorarbeiter(auftragId, daten.auftrag.eroeffnet_von, session?.user.id)
         setFuehrt(f)
         if (istAdmin && suche.get('korrigieren') === '1') setAnsicht('korrektur')
@@ -95,8 +100,8 @@ export default function Arbeit() {
         else setAnsicht(f ? (paloxSperre(daten) ? 'palox' : 'liste') : 'zaehler')
       }
     } catch (f) { setFehler(fehlerText(f)) } finally { setLaedt(false) }
-  }, [auftragId, session?.user.id, fuehrt, suche, istAdmin])
-  useEffect(() => { void laden() }, [laden])
+  }, [auftragId, session?.user.id, suche, istAdmin])
+  useEffect(() => { rolleBestimmt.current = false; void laden() }, [laden])
 
   function melden(text: string) {
     setMeldung(text)
@@ -183,7 +188,8 @@ export default function Arbeit() {
   const kistenGezaehlt = d.gebinde.reduce((s, g) => s + g.anzahl, 0)
   const waschKisten = d.paletten.reduce((s, x) => s + (x.kisten ?? 0), 0)
   const gewogen = d.paletten.filter(x => x.wiegung_id != null).length
-  const faulSumme = d.ablesungen.reduce((s, z) => s + z.kg, 0)
+  // Leer ist nicht null: ein Startstand allein oder ein geleerter Palox ohne Ablesung ist keine Menge (Runde AZ).
+  const faulSumme = faulesKg(d)
   const ausschussSumme = d.ausschuss.reduce((s, z) => s + z.kg, 0)
   const verlangt = fertigeVerlangt(d)
   const soll = verlangt.soll
@@ -221,7 +227,7 @@ export default function Arbeit() {
                 einmal gezählt WURDE, bleibt sichtbar. Nicht mehr erheben ist
                 etwas anderes als verschweigen. */}
             {kistenGezaehlt > 0 && <><dt>{t('kaliberKisten')}</dt><dd>{kistenGezaehlt}</dd></>}
-            <dt>{t('faule')}</dt><dd>{faulSumme} kg</dd>
+            <dt>{t('faule')}</dt><dd>{faulSumme === null ? t('faulesUnbekannt') : `${faulSumme} kg`}</dd>
             {p.hatAusschuss && <><dt>{t('ausschussWiegenSchritt')}</dt><dd>{d.ausschuss.length > 0 ? `${ausschussSumme} kg` : '—'}</dd></>}
             {p.hatAusgang && <><dt>{t('fertigePalette')}</dt><dd>{d.nAusgang > 0 ? `${d.nAusgang} ${t('gewogen')}` : t('keineGewogen')}</dd></>}
           </dl>

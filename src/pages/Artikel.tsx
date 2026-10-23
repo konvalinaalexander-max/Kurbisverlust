@@ -63,7 +63,12 @@ const labelName = (l: string | null) => l === 'D' ? 'Demeter' : l === 'K' ? 'Kno
 // keinem Kaliber der Artikel; „Grösse offen": keine Sortier-CSV.
 // 0121: „lose" heisst jetzt, was es ist — „passt in keinen Artikel"; Unique ist die Hagelware (nur Knospe).
 const klasseName = (k: Klasse) =>
-  k === 'stueck' ? 'je Stück' : k === 'ausserhalb' ? 'passt in keinen Artikel' : k === 'ohne' ? 'Grösse offen' : k === 'unique' ? 'Unique' : k
+  k === 'stueck' ? 'je Stück' : k === 'lose' ? 'lose (ohne Grösse)' : k === 'ausserhalb' ? 'passt in keinen Artikel'
+  : k === 'ohne' ? 'Grösse offen' : k === 'gruppe' ? 'Artikelgruppe offen' : k === 'unique' ? 'Unique' : k
+/** 0124: Klassen, die nicht „verkaufsfähig …" heissen — sie sind kein Artikel oder noch keiner. */
+const OHNE_VF_WORT: Klasse[] = ['ausserhalb', 'unique', 'gruppe']
+const GRUPPE_TEXT = 'die Sorte hat keine Artikelgruppe in den Stammdaten (Stammdaten → Sorten) — als was sie verkauft wird, ist offen; zählt als obere Schranke'
+const LOSE_KLASSE_TEXT = 'ein Artikel, dessen Gruppe keine Gewichte hat — verkaufsfähig, ohne Teilung in klein und gross'
 const UNIQUE_TEXT = 'Hagelware — nicht faul, nicht klein oder gross: ein eigener Artikel, wird als Knospe verkauft'
 
 const wahlName = (w: Wahl) =>
@@ -114,7 +119,7 @@ export default function Artikel() {
   const rest = useMemo(() => new Map<number, RestTeile>((daten?.ausweis ?? [])
     .filter(a => a.verdunstet_kg != null && a.faul_kg != null)
     .map(a => [a.charge_nr, { kanal: Number(a.zu_klein_kg ?? 0) + Number(a.zu_gross_kg ?? 0), faul: Number(a.faul_kg), verdunstet: Number(a.verdunstet_kg),
-                              fax: Number(a.fax_kg ?? 0), unique: Number(a.unique_kg ?? 0), bekannt: a.r_bekannt && a.f_bekannt,
+                              fax: Number(a.fax_kg ?? 0), unique: Number(a.unique_kg ?? 0),
                               marge: a.marge_anteil == null ? null : Number(a.marge_anteil) }])),
   [daten?.ausweis])
 
@@ -196,7 +201,7 @@ interface Artikelzeile {
 function artikelzeilen(teile: ArtikelLagerCharge[], wahl: Wahl): Artikelzeile[] {
   const m = new Map<string, Artikelzeile>()
   for (const t of teile) {
-    const klasse = klasseVon(t.groesse)
+    const klasse = klasseVon(t.groesse, t.artikelgruppe)
     if (!(Number(t.kg) > 0) || !passtGruppe(wahl, t.artikelgruppe) || !passtLabel(wahl, t.label) || !passtKlasse(wahl, klasse)) continue
     const k = `${t.artikelgruppe ?? ''}|${klasse}|${t.label ?? ''}`
     let z = m.get(k)
@@ -320,9 +325,11 @@ function NochDa({ bestand, grund, teile, rest, wochen, wahl, heute, uebersicht }
  */
 const KLASSE_FARBE: Record<Klasse, string> = {
   // Runde AT: hell klein, dunkel gross, die Mitte je Stück — dieselbe Grünfamilie wie Ursachen und Lager nach Charge.
-  klein: 'var(--strom-vf-klein)', gross: 'var(--strom-vf-gross)', stueck: 'var(--strom-vf)', unique: 'var(--strom-unique)',
+  klein: 'var(--strom-vf-klein)', gross: 'var(--strom-vf-gross)', stueck: 'var(--strom-vf)', lose: 'var(--strom-vf)', unique: 'var(--strom-unique)',
   ausserhalb: 'color-mix(in srgb, var(--strom-vf) 40%, var(--flaeche))',
   ohne: 'color-mix(in srgb, var(--strom-vf) 18%, var(--flaeche))',
+  // 0124: die offene Artikelgruppe — noch blasser als „Grösse offen": hier fehlt nicht die Grösse, sondern der Artikel
+  gruppe: 'color-mix(in srgb, var(--strom-vf) 10%, var(--flaeche))',
 }
 // 22. Oktober: „Wieso nimmt es die Paloxe noch zum Lager dazu? … vielleicht
 // einfach klarer ausweisen — wie viel ist noch hier, im Lager, Anzahl
@@ -432,8 +439,9 @@ function Uebersicht({ bestand, grund, teileHeute, teile, wahl, wochen, setzeWoch
       <div className="legende uebersicht-legende">
         <span><span className="chip" style={{ background: 'var(--strom-verkauft)' }} />ausgeliefert</span>
         {klassenBalken.map(kl => (
-          <span key={kl} title={kl === 'ausserhalb' ? LOSE_TEXT : kl === 'unique' ? UNIQUE_TEXT : kl === 'ohne' ? 'keine Sortier-CSV der Charge oder Sorte — die Grösse ist offen' : undefined}>
-            <span className="chip" style={{ background: KLASSE_FARBE[kl] }} />{kl === 'ausserhalb' || kl === 'unique' ? klasseName(kl) : `verkaufsfähig ${klasseName(kl)}`}</span>
+          <span key={kl} title={kl === 'ausserhalb' ? LOSE_TEXT : kl === 'unique' ? UNIQUE_TEXT : kl === 'ohne' ? 'keine Sortier-CSV der Charge oder Sorte — die Grösse ist offen'
+                                : kl === 'gruppe' ? GRUPPE_TEXT : kl === 'lose' ? LOSE_KLASSE_TEXT : undefined}>
+            <span className="chip" style={{ background: KLASSE_FARBE[kl] }} />{OHNE_VF_WORT.includes(kl) ? klasseName(kl) : `verkaufsfähig ${klasseName(kl)}`}</span>
         ))}
         {imLagerDa.map(r => <span key={r.feld} title={r.heisst}><span className="chip" style={{ background: r.farbe }} />{r.name}</span>)}
         {offenDa && <span><span className="chip uebersicht-chip-offen" />im Lager, Teilung unbekannt</span>}
@@ -468,7 +476,7 @@ function Uebersicht({ bestand, grund, teileHeute, teile, wahl, wochen, setzeWoch
               <th className={`zahl summe${spaeter ? ' spaeter' : ''}`}>gesamt</th>
               {spalten.map(kl => (
                 <th key={kl} className={`zahl${spaeter ? ' spaeter' : ''}${kl === 'ausserhalb' ? ' neben-kaliber erste' : ''}`}
-                    title={kl === 'ausserhalb' ? LOSE_TEXT : kl === 'unique' ? UNIQUE_TEXT : undefined}>{klasseName(kl)}{kl === 'unique' && <span className="kopf-unter">nur Knospe</span>}</th>
+                    title={kl === 'ausserhalb' ? LOSE_TEXT : kl === 'unique' ? UNIQUE_TEXT : kl === 'gruppe' ? GRUPPE_TEXT : kl === 'lose' ? LOSE_KLASSE_TEXT : undefined}>{klasseName(kl)}{kl === 'unique' && <span className="kopf-unter">nur Knospe</span>}</th>
               ))}
             </tr>
           </thead>
@@ -549,7 +557,9 @@ function Uebersicht({ bestand, grund, teileHeute, teile, wahl, wochen, setzeWoch
         <p>Das Verkaufsfähige ist nach der Sortier-CSV der Charge (oder ihrer Sorte) auf die Kaliber der Artikel geteilt, jeder Kürbis um die
         gemessene Verdunstung bis zum Stichtag geschrumpft: Wiegt er so viel wie ein kleiner Artikel, zählt er klein, wie ein grosser, gross.
         <strong> Lose</strong> heisst {LOSE_TEXT} — es gehört weder zu „zu klein / zu gross" (das fällt beim Sortieren heraus) noch zu den
-        Artikeln. <strong>Grösse offen</strong>: für die Charge und ihre Sorte gibt es keine Sortier-CSV. Kaliber (Coop 2026):{' '}
+        Artikeln. <strong>Grösse offen</strong>: für die Charge und ihre Sorte gibt es keine Sortier-CSV. <strong>Artikelgruppe offen</strong>: die
+        Sorte hat in den Stammdaten keine Artikelgruppe — als was sie verkauft wird, weiss die App nicht; sie zählt als obere Schranke, nicht als
+        „passt in keinen Artikel". <strong>Lose (ohne Grösse)</strong>: ein Artikel, dessen Gruppe keine Gewichte hat. Kaliber (Coop 2026):{' '}
         {grund.kaliber.filter(k => k.groesse !== 'stueck').slice(0, 2).map(k => `${k.gruppe} ${k.groesse} ${zahl(k.von_g)}–${zahl(k.bis_g)} g`).join(', ')} …</p>
         <p>Die Balken zeigen heute; der Wochenregler verschiebt nur die Spalten „verkaufsfähig" der Tabelle. Eingang und ausgeliefert gibt es nur
         je Artikelgruppe, nicht je Grösse — beim Eingang ist noch nichts sortiert.</p>

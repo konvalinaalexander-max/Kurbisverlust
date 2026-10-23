@@ -81,7 +81,7 @@ const TABELLEN: Tabelle[] = [
       { name: 'kaliber_idx', label: 'Kaliber-Index', typ: 'ganz' },
     ] },
   { tabelle: 'auftrag_palette', titel: 'Gezählte Paletten',
-    erklaerung: 'Eingangspaletten (Datum, Zettelgewicht) oder Kaliber-Paletten beim Waschen (Sortierdatum, Kisten, seit 0104 das Brutto von der Waage am Anfang der Strasse).',
+    erklaerung: 'Eingangspaletten (Datum, Zettelgewicht) oder Kaliber-Paletten beim Waschen (Sortierdatum, Kisten, das Brutto von der Waage am Anfang der Strasse).',
     felder: [
       { name: 'eingangsdatum', label: 'Eingangsdatum', typ: 'datum' },
       { name: 'brutto_zettel_kg', label: 'Zettel (kg)', typ: 'zahl' },

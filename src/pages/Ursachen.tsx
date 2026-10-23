@@ -155,8 +155,10 @@ const tagText = (x: number) => datum(new Date(x * TAG)).slice(0, 6)
 const WOHIN_TEILE: { name: string; farbe: string; hinweis?: string; felder: (keyof Wohin)[] }[] = [
   // Runde AT: dieselben Farben wie im Lagermanagement — verkauft grau, verkaufsfähig das mittlere Grün;
   // was im Haus bleibt (zu klein, zu gross) vor dem Verlust, der Verlust zuletzt, neben seiner Prozentzahl.
-  { name: 'noch im Lager und verkaufsfähig', farbe: 'var(--strom-vf)',
-    felder: ['lager_verkaufsfaehig_kg'] },
+  // Runde AZ: erg_wohin kennt nur die Sortiermaschine (Kaliberbänder der Sorte), nicht die
+  // Artikelgewichte — darum nicht „verkaufsfähig" wie im Lagermanagement, sondern genau das.
+  { name: 'noch im Lager, nach der Sortiermaschine verkaufsfähig', farbe: 'var(--strom-vf)',
+    hinweis: 'was die Kaliberbänder der Sorte durchlassen — ob es in die Gewichte der Artikel passt, sagt das Lagermanagement', felder: ['lager_verkaufsfaehig_kg'] },
   { name: 'verkauft', farbe: 'var(--strom-verkauft)',
     felder: ['geliefert_kg'] },
   { name: 'zu klein', farbe: 'var(--strom-ausschuss)',
@@ -254,7 +256,7 @@ function Wohin({ daten, filter, setzen, chargeAnsehen }: {
       )}
       <Erklaerung>
         <p>Jeder Balken ist der ganze Eingang der Zeile (100 %) <Herkunft art="gemessen" />, von links nach rechts in die sechs Teile der Legende
-        zerlegt: was noch verkaufsfähig liegt, was verkauft ist, was verdunstet und was verfault ist, was zu klein und was zu gross war. Rechts steht
+        zerlegt: was noch liegt und durch die Sortiermaschine geht, was verkauft ist, was verdunstet und was verfault ist, was zu klein und was zu gross war. Rechts steht
         der Anteil <strong>echter Verlust</strong> — verdunstetes Wasser und Faules, in Prozent des Eingangs; danach sind die Zeilen sortiert.</p>
         <p><strong>Zu klein und zu gross sind kein Verlust.</strong> Die Ware ist nicht weg, nur nicht in der richtigen Grösse: Sie steht
         aussortiert im Haus, bis ein Lieferschein sie holt — und sie war es vom Feld an.</p>

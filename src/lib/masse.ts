@@ -32,11 +32,16 @@ export function nettoKg(
   return brutto - kisten * tara.tara_kg_pro_kiste - (mitPalette ? tara.tara_kg_palette! : 0)
 }
 
-/** Was der Maske fehlt, in einem Satz für den Arbeiter — oder null. */
-export function taraFehlt(tara: Tara | null | undefined, mitPalette = true): string | null {
-  if (!tara) return 'Für diese Gebindeart stehen keine Gewichte in den Stammdaten.'
-  if (tara.tara_kg_pro_kiste == null) return 'Für diese Gebindeart ist kein Kistengewicht hinterlegt.'
-  if (mitPalette && tara.tara_kg_palette == null) return 'Für diese Gebindeart ist kein Palettengewicht hinterlegt.'
+/**
+ * Was der Maske fehlt — als Text-Taste für den Arbeiter (sechs Sprachen,
+ * src/lib/i18n.ts) oder null. Runde AZ: bis hier ein deutscher Satz, der in
+ * jeder Sprache deutsch blieb.
+ */
+export type TaraFehlt = 'taraKeineStammdaten' | 'taraKeinKistengewicht' | 'taraKeinPalettengewicht'
+export function taraFehlt(tara: Tara | null | undefined, mitPalette = true): TaraFehlt | null {
+  if (!tara) return 'taraKeineStammdaten'
+  if (tara.tara_kg_pro_kiste == null) return 'taraKeinKistengewicht'
+  if (mitPalette && tara.tara_kg_palette == null) return 'taraKeinPalettengewicht'
   return null
 }
 

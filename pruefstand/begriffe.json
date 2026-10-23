@@ -4,8 +4,7 @@
   "begriffe": [
     {
       "muster": [
-        "Eingang",
-        "Hereingekommen"
+        "Eingang"
       ],
       "art": "gemessen",
       "bedeutet": "Nettomasse der eingelagerten Paletten laut Erntejournal, Tara abgezogen",
@@ -15,7 +14,6 @@
       "muster": [
         "Ausgeliefert",
         "Ausgang",
-        "Bisher hinaus",
         "Masse der Lieferung",
         "Masse aller Lieferungen",
         "Angabe auf dem Lieferschein",
@@ -45,9 +43,7 @@
     },
     {
       "muster": [
-        "Noch im Haus",
-        "Noch im Lager",
-        "Vermutet noch im Lager"
+        "Noch im Haus"
       ],
       "art": "gerechnet",
       "bedeutet": "Eingang minus die Eingangsware hinter den Lieferungen minus der Verlust der liegenden Ware bis heute",
@@ -92,8 +88,7 @@
     },
     {
       "muster": [
-        "Faules beim Abpacken",
-        "Abgepackt"
+        "Faules beim Abpacken"
       ],
       "art": "gerechnet",
       "bedeutet": "Was beim Abpacken (Fax) aussortiert wurde — echter Verlust, aber nicht lagerbedingt",
@@ -105,7 +100,7 @@
         "zu klein"
       ],
       "art": "gerechnet",
-      "bedeutet": "Ware unter der kleinsten Kalibergrenze. Kein echter Verlust: sie verlässt den Betrieb an die Tiere, nur nicht zum besten Preis",
+      "bedeutet": "Ware unter der kleinsten Kalibergrenze. Kein echter Verlust: Sie steht aussortiert im Haus, bis ein Lieferschein sie holt (seit 0101) — nur nicht zum besten Preis",
       "quelle": "erg_verlust strom='klein' · erg_bilanz.kanal_* · sortier_gewicht"
     },
     {
@@ -114,16 +109,8 @@
         "zu gross"
       ],
       "art": "gerechnet",
-      "bedeutet": "Ware über der grössten Kalibergrenze. Kein echter Verlust: sie geht in den Nebenkanal",
+      "bedeutet": "Ware über der grössten Kalibergrenze. Kein echter Verlust: Sie steht aussortiert im Haus, bis ein Lieferschein sie holt (seit 0101)",
       "quelle": "erg_verlust strom='nebenkanal' · erg_bilanz.kanal_* · sortier_gewicht"
-    },
-    {
-      "muster": [
-        "Anderer Kanal"
-      ],
-      "art": "gerechnet",
-      "bedeutet": "zu klein und zu gross zusammen — Ware, die den Betrieb verlässt, aber nicht als Hauptware",
-      "quelle": "erg_bilanz.kanal_ausgelagert_kg · erg_bilanz.kanal_im_haus_kg"
     },
     {
       "muster": [
@@ -137,8 +124,7 @@
       "muster": [
         "Verschenkt",
         "Überfüllung",
-        "Zu viel je Kiste",
-        "An der ausgelieferten Ware"
+        "Zu viel je Kiste"
       ],
       "art": "gemessen|gerechnet",
       "bedeutet": "Was über dem Soll in der Kiste liegt. In der Wägungstabelle der Ursachen die gemessene Differenz an den gewogenen vollen Paletten (erg_marge_wiegung, 0078); wo sie auf verkaufte Kisten hochgerechnet wird, gerechnet.",
@@ -204,14 +190,6 @@
     },
     {
       "muster": [
-        "Gewogene Masse"
-      ],
-      "art": "gemessen",
-      "bedeutet": "Masse der Kürbisse dieser Kaliberklasse, jedes Stück an der Sortieranlage gewogen",
-      "quelle": "erg_kaliber.kg · sortier_gewicht"
-    },
-    {
-      "muster": [
         "Gemessener Wert"
       ],
       "art": "gemessen",
@@ -220,16 +198,7 @@
     },
     {
       "muster": [
-        "Vermutet vom aktuellen Lager"
-      ],
-      "art": "gerechnet",
-      "bedeutet": "Anteil des heutigen Lagers, den die Kaskade nach den Stationswerten als faul ansieht (0106)",
-      "quelle": "mv_kaskade.f über v_hochrechnung"
-    },
-    {
-      "muster": [
-        "Tempo",
-        "kg je Stunde"
+        "Tempo"
       ],
       "art": "gemessen",
       "bedeutet": "Bewegte Masse je Stunde einer Tätigkeit — aus Start, Ende und der gezählten Masse abgeschlossener Arbeiten",
@@ -237,13 +206,8 @@
     },
     {
       "muster": [
-        "Erwartung für die Ware im Haus",
         "Prognose",
-        "in 14 Tagen",
-        "14 Tage länger",
-        "Zwei Wochen länger",
-        "Zwei Wochen",
-        "Prognose: zwei Wochen länger"
+        "Zwei Wochen"
       ],
       "art": "prognose",
       "bedeutet": "Was über heute hinaus erwartet wird, wenn die Ware weiterliegt — keine Messung und kein Stand von heute",
@@ -251,8 +215,7 @@
     },
     {
       "muster": [
-        "Im Lager",
-        "Masse im Lager"
+        "Im Lager"
       ],
       "art": "gerechnet",
       "bedeutet": "Die Eingangspaletten, die noch dastehen (≈), mit dem Gewicht beim Eingang — vor Verdunstung, Palox und Arbeit (seit dem 23. Oktober). Vom 22. auf den 23. Oktober war es die gute Ware der Kaskade (ohne Verdunstetes und Faules)",
@@ -268,58 +231,12 @@
     },
     {
       "muster": [
-        "Gute Ware",
-        "Im Haus gesamt"
-      ],
-      "art": "gerechnet",
-      "bedeutet": "Was von der liegenden Ware nach Verdunstung und Faulem übrig ist — mehr als verkaufsfähig, weil zu klein und zu gross noch drinstecken",
-      "quelle": "erg_bilanz.im_haus_heute_kg · erg_charge.im_haus_heute_kg · erg_verlauf.im_haus_kg"
-    },
-    {
-      "muster": [
-        "Verkaufsfähig heute"
-      ],
-      "art": "gerechnet",
-      "bedeutet": "Die liegende Eingangsware nach Verdunstung, Faulem, zu klein, zu gross und dem beim Abpacken erwarteten Faulen — bis heute gerechnet",
-      "quelle": "erg_bilanz.verkaufsfaehig_heute_kg · erg_prognose.verkaufsfaehig_kg (h = 0)"
-    },
-    {
-      "muster": [
-        "verkaufsfähig in"
-      ],
-      "art": "prognose",
-      "bedeutet": "Verkaufsfähige Masse an einem Stichtag über heute hinaus, je Kaliberband — dieselbe Kaskade wie heute, nur an einem späteren Tag ausgewertet (lager_kaliber(h), 0079)",
-      "quelle": "lager_kaliber(h).masse_kg · erg_prognose.verkaufsfaehig_kg"
-    },
-    {
-      "muster": [
-        "In 4 Wochen",
-        "Am Saisonende",
-        "Verkaufsfähig je Tag",
-        "Weiterer Verlust je Tag"
-      ],
-      "art": "prognose",
-      "bedeutet": "Dieselbe Kaskade, nur 28 Tage oder bis zum Saisonende später ausgewertet — wenn die heute liegende Ware bis dahin liegen bleibt und nichts Neues hereinkommt",
-      "quelle": "erg_prognose.verkaufsfaehig_anteil · .verkaufsfaehig_je_tag_kg · .verlust_verkaufsfaehig_kg"
-    },
-    {
-      "muster": [
         "Masse",
-        "Anteil am Eingang",
         "Bereich"
       ],
       "art": "gerechnet",
-      "bedeutet": "In der Rangfolge unter „Wohin geht der Kuerbis“: die Masse eines Stroms bis heute, ihr Anteil am Eingang der Auswahl und der Bereich, in dem sie nach der Messunsicherheit liegt",
+      "bedeutet": "Die Masse einer Zeile — in der Lieferungsliste eines Kunden (Perigon, gemessen) und im Zeiger des Verlaufs (gerechnet)",
       "quelle": "erg_verlust.kg · .kg_unten · .kg_oben · .eingang_kg"
-    },
-    {
-      "muster": [
-        "Spielraum",
-        "Lage im Band"
-      ],
-      "art": "gerechnet",
-      "bedeutet": "Bei Kisten nach Stück je Kaliber: die Masse über der Unterkante des Kalibers, die unbezahlt mitgeht (Rahmen, nicht Verlust), und wo im Band die gewogene Ware liegt — 0 ist die Unterkante, 1 die Oberkante",
-      "quelle": "erg_ueberfuellung.spielraum_kg · .lage_im_band"
     },
     {
       "muster": [
@@ -370,6 +287,30 @@
       "art": "gerechnet",
       "bedeutet": "Verkaufsfähiges einer Charge ohne Sortier-CSV (auch keine ihrer Sorte): ob es in die Gewichte der Artikel passt, ist offen — das Verkaufsfähige ist dann höchstens so gross (0123)",
       "quelle": "v_lager_ausweis.groesse_offen_kg · artikel_lager_teile(0)"
+    },
+    {
+      "muster": [
+        "nach der Sortiermaschine verkaufsfähig"
+      ],
+      "art": "gerechnet",
+      "bedeutet": "Unter „Wohin geht der Kürbis\": was von der liegenden Ware die Kaliberbänder der Sorte durchlassen — nach Verdunstung und Faulem, ohne zu klein und zu gross. Ob es in die Gewichte der Artikel passt, weiss erg_wohin nicht; das sagt das Lagermanagement (verkaufbar_kg)",
+      "quelle": "erg_wohin.lager_verkaufsfaehig_kg"
+    },
+    {
+      "muster": [
+        "Artikelgruppe offen"
+      ],
+      "art": "gerechnet",
+      "bedeutet": "Verkaufsfähiges einer Sorte ohne Artikelgruppe in den Stammdaten (Stammdaten → Sorten): ob und als welcher Artikel es verkauft wird, ist offen — es zählt nicht als „passt in keinen Artikel\", das Verkaufbare ist eine obere Schranke (0124)",
+      "quelle": "v_lager_ausweis.verkaufbar_offen · artikel_lager_teile(0) groesse=lose"
+    },
+    {
+      "muster": [
+        "lose (ohne Grösse)"
+      ],
+      "art": "gerechnet",
+      "bedeutet": "Ein Artikel, dessen Gruppe keine Gewichte hat (artikel_kaliber leer): verkaufsfähig, ohne Teilung in klein und gross (0124)",
+      "quelle": "artikel_lager_teile(0) groesse=lose mit Artikelgruppe"
     }
   ]
 }

@@ -28,7 +28,7 @@ export function LagerLeiste({ s, dick = false, titel }: { s: AusweisSumme; dick?
   )
 }
 
-const ZEICHEN: Record<Schritt['art'], string> = { start: '', weg: '−', aussortiert: '−', unique: '', ergebnis: '=', davon: '' }
+const ZEICHEN: Record<Schritt['art'], string> = { start: '', weg: '−', aussortiert: '−', ergebnis: '=', davon: '' }
 
 /**
  * Die Rechnung: auf den Paletten − … = verkaufsfähig, mit einem Halbsatz je

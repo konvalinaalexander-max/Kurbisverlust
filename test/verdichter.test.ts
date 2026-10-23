@@ -137,3 +137,27 @@ test('eine PL/pgSQL-Funktion, die eine Ansicht als Rückgabetyp nennt, wandert m
   // Die Gegenprobe: Wer eine Ansicht nur im Rumpf liest, bleibt, wo er ist.
   assert.ok(a.includes('function f_liest'), 'f_liest() liest v_x nur im Rumpf und gehört nach Teil A')
 })
+
+// Runde AZ: Von einer Beschreibung gilt nur die jüngste. Bis dahin blieben die
+// Beschreibungen aller Fassungen stehen — über tausend Zeilen in setup.sql, die
+// eine nach der anderen geschrieben und sofort überschrieben wurden.
+test('von mehreren Beschreibungen desselben Objekts bleibt nur die jüngste — eine, die nur in einer alten Fassung steht, bleibt', () => {
+  const liste = [
+    'create view v_a as select 1 as a;',
+    "comment on view v_a is 'alt';",
+    'create or replace view v_a as select 1 as a, 2 as b;',
+    "comment on view v_a is 'neu';",
+    'create view v_b as select 1 as x;',
+    "comment on view v_b is 'einmal gesagt';",
+    'create or replace view v_b as select 1 as x, 2 as y;',
+    'create function f_c() returns int language sql as $$ select 1 $$;',
+    "comment on function f_c() is 'erste';",
+    'create or replace function f_c() returns int language sql as $$ select 2 $$;',
+    "comment on function f_c() is 'zweite';",
+  ]
+  const text = teilB(verdichten(liste)) + '\n' + verdichten(liste).teilA.join('\n')
+  assert.ok(!text.includes("is 'alt'"), 'die überholte Beschreibung von v_a steht noch da')
+  assert.ok(text.includes("is 'neu'"), 'die jüngste Beschreibung von v_a fehlt')
+  assert.ok(text.includes("is 'einmal gesagt'"), 'die einzige Beschreibung von v_b ist verloren')
+  assert.ok(!text.includes("is 'erste'") && text.includes("is 'zweite'"), 'bei f_c gilt nicht die jüngste Beschreibung')
+})

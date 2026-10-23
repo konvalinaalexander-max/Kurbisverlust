@@ -503,7 +503,7 @@ verbogen.
   `git -c user.name="Alexander Konvalina" -c user.email="konvalina.alexander@gmail.com"`
   und dem Anhang:
   ```
-  Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+  Co-Authored-By: Claude <noreply@anthropic.com>
   Claude-Session: <Session-Link>
   ```
 - **Keinen Test abschalten, überspringen oder aufweichen**, um grün zu werden.

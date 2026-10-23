@@ -25,6 +25,8 @@ import type { ArbeitDaten } from './daten'
 export function PaloxLeerenMaske({ d, fertig }: { d: ArbeitDaten; fertig: () => Promise<void> }) {
   const { t } = useSprache()
   const [vorher, setVorher] = useState<number | null>(null)
+  // Runde AZ: ein Fehler der Datenbank ist kein fehlender Stand — er wird gesagt.
+  const [vorherFehler, setVorherFehler] = useState<string | null>(null)
   const [leergewicht, setLeergewicht] = useState<number | null>(null)
   const [schritt, setSchritt] = useState<'vor' | 'nach'>('vor')
   const [stand, setStand] = useState('')
@@ -34,9 +36,15 @@ export function PaloxLeerenMaske({ d, fertig }: { d: ArbeitDaten; fertig: () => 
 
   useEffect(() => {
     void supabase.rpc('palox_stand_dieser_arbeit', { p_auftrag_id: d.auftrag.id })
-      .then(v => setVorher(typeof v.data === 'number' ? v.data : null))
+      .then(v => {
+        if (v.error) { setVorherFehler(fehlerText(v.error)); setVorher(null); return }
+        setVorherFehler(null); setVorher(typeof v.data === 'number' ? v.data : null)
+      })
+    // Runde AZ: Ist das Leergewicht nicht zu lesen, bleibt es unbekannt — die
+    // Maske sagt es, statt mit einer Annahme zu rechnen.
     void einstellung<number | null>('palox_tara_kg', null)
       .then(v => setLeergewicht(typeof v === 'number' && v > 0 ? v : null))
+      .catch(() => setLeergewicht(null))
   }, [d.auftrag.id])
 
   const n = stand === '' ? null : Number(stand)
@@ -75,6 +83,9 @@ export function PaloxLeerenMaske({ d, fertig }: { d: ArbeitDaten; fertig: () => 
     await fertig()
   }
 
+  if (vorherFehler) {
+    return <div className="karte"><Hinweis art="warnung">{vorherFehler}</Hinweis></div>
+  }
   if (vorher === null) {
     return <div className="karte"><Hinweis art="info">{t('paloxVorAbschluss')}</Hinweis></div>
   }

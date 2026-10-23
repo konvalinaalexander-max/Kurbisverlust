@@ -53,7 +53,9 @@ export function WiegenMaske({ d, zettelDatum, zettelBrutto = '', kistenVorbelegt
   useEffect(() => {
     void stammdaten().then(s => { setGebinde(s.gebinde); setArt(a => a || s.gebinde[0]?.art || '') })
     // Dieselbe Grenze wie die Auffälligkeit „Verdunstung" (verdunstung_rate_max, Vorgabe 1 % je Tag)
+    // Ist sie nicht zu lesen, bleibt die Vorgabe — die Grenze ist nur ein Hinweis, kein Messwert.
     void einstellung<number>('verdunstung_rate_max_pro_tag', 0.01).then(g => { if (Number(g) > 0) setGrenze(Number(g)) })
+      .catch(() => { /* Vorgabe 1 % je Tag bleibt */ })
   }, [])
 
   const vollstaendig = datum !== '' && damals !== '' && jetzt !== '' && kisten !== '' && art !== ''
@@ -94,8 +96,13 @@ export function WiegenMaske({ d, zettelDatum, zettelBrutto = '', kistenVorbelegt
       kisten: pr.hatPaletten ? Number(kisten) : null,
       gebindeart: pr.hatPaletten ? art : null,
     })
+    if (f2) {
+      // Runde AZ: Scheitert die Palette, bleibt keine Wägung ohne Palette stehen —
+      // sonst schriebe „Eintragen" beim zweiten Versuch eine zweite Wägung.
+      await supabase.from('verdunstung_wiegung').delete().eq('id', (data as { id: number }).id)
+      setLaeuft(false); setFehler(fehlerText(f2)); return
+    }
     setLaeuft(false)
-    if (f2) { setFehler(fehlerText(f2)); return }
     await fertig()
   }
 
@@ -143,7 +150,7 @@ export function WiegenMaske({ d, zettelDatum, zettelBrutto = '', kistenVorbelegt
           )}
         </p>
       )}
-      {fehlt && <Hinweis art="warnung">{fehlt}</Hinweis>}
+      {fehlt && <Hinweis art="warnung">{t(fehlt)}</Hinweis>}
       {befundText && <div id="wiegung-pruefung"><Hinweis art="warnung">{befundText}</Hinweis></div>}
       {fehler && <Hinweis art="warnung">{fehler}</Hinweis>}
       <button type="button" className="haupt gross voll" onClick={() => void speichern()}

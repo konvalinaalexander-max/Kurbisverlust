@@ -106,7 +106,7 @@ export function FauleMaske({ d, gesperrt, melden, neuLaden }: {
           {t('nichtsFaules')}
         </button>
       )}
-      {fehlt && <Hinweis art="warnung">{fehlt}</Hinweis>}
+      {fehlt && <Hinweis art="warnung">{t(fehlt)}</Hinweis>}
       {fehler && <Hinweis art="warnung">{fehler}</Hinweis>}
       {d.ablesungen.length > 0 && (
         <>

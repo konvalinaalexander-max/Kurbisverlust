@@ -21,7 +21,10 @@ let gemerkt: Betriebsmodus | null = null
 
 export async function betriebsmodusHolen(): Promise<Betriebsmodus> {
   if (gemerkt) return gemerkt
-  const wert = await einstellung<string>('betriebsmodus', 'echt')
+  // Runde AZ: Ist der Modus nicht zu lesen, gilt „echt" — die sichere Seite —,
+  // und wird nicht gemerkt, damit der nächste Aufruf es noch einmal versucht.
+  let wert: string
+  try { wert = await einstellung<string>('betriebsmodus', 'echt') } catch { return 'echt' }
   gemerkt = wert === 'beispiel' ? 'beispiel' : 'echt'
   return gemerkt
 }

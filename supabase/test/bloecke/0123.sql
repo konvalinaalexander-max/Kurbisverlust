@@ -37,12 +37,14 @@ begin
   -- (a) woher
   select count(*) into v_n
     from v_lager_ausweis a
+    -- 0124: „lose" ohne Artikelgruppe ist offen (gruppe_offen_kg), nicht „passt in keinen
+    -- Artikel"; ohne Sortier-CSV ist keinen_artikel_kg leer — darum coalesce(…, 0).
     left join (select t.charge_nr,
-                      sum(t.kg) filter (where t.groesse in ('darunter', 'darueber', 'dazwischen', 'lose')) as kein,
+                      sum(t.kg) filter (where t.groesse in ('darunter', 'darueber', 'dazwischen')) as kein,
                       sum(t.kg) filter (where t.groesse = 'ohne Verteilung') as offen
                  from artikel_lager_teile(0) t group by t.charge_nr) t on t.charge_nr = a.charge_nr
    where a.verkaufsfaehig_kg > 0
-     and (abs(a.keinen_artikel_kg - coalesce(t.kein, 0)) > 0.05 or abs(a.groesse_offen_kg - coalesce(t.offen, 0)) > 0.05);
+     and (abs(coalesce(a.keinen_artikel_kg, 0) - coalesce(t.kein, 0)) > 0.05 or abs(a.groesse_offen_kg - coalesce(t.offen, 0)) > 0.05);
   assert v_n = 0, format('0123 (a1): bei %s Chargen passen keinen_artikel_kg oder groesse_offen_kg nicht zu artikel_lager_teile(0)', v_n);
   assert (select sum(keinen_artikel_kg) from v_lager_ausweis) > 0,
     '0123 (a2): in der Demo passt nichts ausserhalb der Artikelgewichte — die Prüfung prüft nichts';
@@ -61,12 +63,13 @@ begin
   -- (b) die Rechnung
   select count(*) into v_n from v_lager_ausweis a
    where a.verkaufsfaehig_kg is not null
-     and abs(a.verkaufbar_kg - (a.verkaufsfaehig_kg - a.keinen_artikel_kg - coalesce(a.ueberfuellung_kg, 0) + coalesce(a.unique_kg, 0))) > 0.05;
+     -- 0124: keinen_artikel_kg ist ohne Sortier-CSV leer (kein Abzug); Hagel 100 % lässt verkaufbar leer
+     and abs(a.verkaufbar_kg - (a.verkaufsfaehig_kg - coalesce(a.keinen_artikel_kg, 0) - coalesce(a.ueberfuellung_kg, 0) + coalesce(a.unique_kg, 0))) > 0.05;
   assert v_n = 0, format('0123 (b1): bei %s Chargen ist verkaufbar nicht verkaufsfähig − passt in keinen Artikel − Überfüllung + Unique', v_n);
   select count(*) into v_n from v_lager_ausweis a
    where a.marge_anteil is not null and a.verkaufsfaehig_kg is not null
      -- marge_anteil steht auf 5 Stellen gerundet da: bis 0.00001 · verkaufsfähig Spiel
-     and abs(a.ueberfuellung_kg - (a.verkaufsfaehig_kg - a.keinen_artikel_kg) * a.marge_anteil / (1 + a.marge_anteil)) > 0.05 + 0.00001 * a.verkaufsfaehig_kg;
+     and abs(a.ueberfuellung_kg - (a.verkaufsfaehig_kg - coalesce(a.keinen_artikel_kg, 0)) * a.marge_anteil / (1 + a.marge_anteil)) > 0.05 + 0.00001 * a.verkaufsfaehig_kg;
   assert v_n = 0, format('0123 (b2): bei %s Chargen ist die Überfüllung nicht die auf dem Teil, der als Artikel geht', v_n);
   select count(*) into v_n from v_lager_ausweis a
    where a.verkaufbar_kg > a.eingang_kg - a.verdunstet_kg - a.faul_kg + 0.05;
@@ -118,7 +121,9 @@ begin
    where a.groesse_offen_kg > 0 and coalesce(a.verkaufbar_offen, '') not like '%Grösse offen%';
   assert v_n = 0, format('0123 (c3): %s Chargen ohne Sortier-CSV sagen nicht, dass die Grösse offen ist', v_n);
   select count(*) into v_n from v_lager_ausweis a
-   where a.verkaufbar_offen is not null and a.marge_anteil is not null and coalesce(a.groesse_offen_kg, 0) = 0;
+   where a.verkaufbar_offen is not null and a.marge_anteil is not null and coalesce(a.groesse_offen_kg, 0) = 0
+     -- 0124: zwei weitere Gründe, die nichts mit dem Messen zu tun haben
+     and coalesce(a.gruppe_offen_kg, 0) = 0 and coalesce(a.hagel_anteil, 0) < 1;
   assert v_n = 0, format('0123 (c4): %s Chargen nennen etwas offen, obwohl alles gemessen ist', v_n);
 
   select * into v_x from v_lager_ausweis where charge_nr = 1609;

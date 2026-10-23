@@ -135,7 +135,18 @@ Paletten gesamt.
 
 ## Die Betriebsleiter-Seite
 
-Sechs Reiter (Runde AF: ohne den Satz darunter — der Betrieb wollte die Überschriften ohne Erklärsatz; der sechste, „Messungen ausstehend", steht rechts vom Betrieb und sagt je Sorte, welche Messung fehlt):
+Sechs Reiter in der Seitenleiste (Stand Runde AZ; Runde AF hat den Erklärsatz unter den Überschriften entfernt, Runde AO die Unterreiter unter Messungen und Betrieb eingeführt):
+
+| Reiter | Beantwortet | Woraus |
+|---|---|---|
+| **Lagermanagement nach Charge** | Was steht im Lager (Paletten, Eingangsmasse), was davon kann ich verkaufen — und woran fehlt der Rest? | Die Kachel „im Lager" (Eingangspaletten, die noch stehen) und „davon verkaufsfähig" (`v_lager_ausweis.verkaufbar_kg`, AB-173) mit der Kette Schritt für Schritt darunter; der Verlauf; „Was ist noch im Haus?" je Sorte mit Kalibern; die Chargenwahl nach Feld, Sorte, Nummer |
+| **Lagermanagement nach Artikel** | Wie viel habe ich von welchem Artikel (Gruppe × klein/gross × Demeter/Knospe), reicht es für die Pläne der Kunden? | `artikel_lager_teile`, Perigon-Lieferungen je Kunde, Planmengen (AB-157 ff.) |
+| **Chargen** | Wo steht welche Charge, wie viel davon kann ich noch auf Lieferscheine schreiben? | Eine Zeile je Charge: im Lager (≈ Paletten), verkaufsfähig, Verlust bis heute; aufgeklappt Eingang → Ausgang → Arbeiten |
+| **Ursachen** | Warum fehlt Ware — und wie sicher ist das? | Je Block zuerst die Zahl: Verdunstung (Kontrollpaletten), Palox (Stationswerte, 0111), zu klein / zu gross, Überfüllung je Kistensystem; „Wohin geht der Kürbis" je Sorte und Charge |
+| **Messungen** (Arbeiten · Auffälligkeiten · Messwerte · Ausstehend) | Was weiss die Auswertung, was nicht — und was ist in der Halle zu tun? | Arbeiten mit Rückmeldungen und Sicherung; Auffälligkeiten mit „korrigieren" (AB-38); Messwerte und Bilanz; je Sorte, welche Rate fehlt und was sie freischaltet |
+| **Betrieb** (Warenausgang · Sortier-CSV · Warteschlange · Stammdaten · Zugang) | Wie kommen Perigon, Sortierdateien und Stammdaten hinein, wer darf hinein? | Excel einlesen (0115), Sortier-CSV je Lauf oder Sammeldatei (0082), Läufe zuordnen, Chargen/Sorten/Artikel/Gebinde/Sortierschemata/Vorlauf pflegen, QR-Zugang |
+
+Die Tabelle darunter ist die Fassung von Runde AF, als Vergleich, was sich seither verschoben hat:
 
 | Reiter | Beantwortet | Woraus |
 |---|---|---|

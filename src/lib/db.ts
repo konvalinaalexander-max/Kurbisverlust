@@ -57,8 +57,16 @@ export async function chargenAnlegen(neu: { nr: number; schlag: string; sorte: s
   return neu.length
 }
 
+/**
+ * Eine Einstellung lesen — der Ersatz gilt, wenn es den Schlüssel nicht gibt
+ * oder sein Wert leer ist. Runde AZ: Antwortet die Datenbank gar nicht
+ * (Netz, Rechte), fliegt der Fehler, statt still der Ersatz zu gelten. Sonst
+ * hielte das Leeren-Fenster eine scharfe Datenbank für eine Übung und die
+ * Stammdaten zeigten ein leeres Feld, als wäre nichts gespeichert.
+ */
 export async function einstellung<T>(schluessel: string, ersatz: T): Promise<T> {
-  const { data } = await supabase.from('einstellung').select('wert').eq('schluessel', schluessel).maybeSingle()
+  const { data, error } = await supabase.from('einstellung').select('wert').eq('schluessel', schluessel).maybeSingle()
+  if (error) throw error
   return (data?.wert as T) ?? ersatz
 }
 

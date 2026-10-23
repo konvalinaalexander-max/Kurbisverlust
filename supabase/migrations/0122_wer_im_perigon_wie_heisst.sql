@@ -60,6 +60,11 @@
 do $$
 declare r record; v_ist int; v_neu int := 0;
 begin
+  -- 0124: Die Liste läuft genau einmal. setup.sql spielt jede Migration bei
+  -- jedem Einspielen neu ein; ohne Marke trüge sie eine Nummer, die der
+  -- Betriebsleiter unter Stammdaten bewusst gelöscht hat, beim nächsten Mal
+  -- wieder ein — und warnte bei jeder bewusst geänderten jedes Mal von neuem.
+  if exists (select 1 from einstellung where schluessel = 'perigon_liste_2026_10_23') then return; end if;
   -- Die Berichtigung vom 23. Oktober: 1650 ist 198977, nicht 198976 — nur,
   -- wo noch die alte Nummer der Planungsdatei (0051) steht.
   update charge set perigon_nr = 198977 where nr = 1650 and perigon_nr = 198976;
@@ -85,6 +90,10 @@ begin
     end if;
   end loop;
   if v_neu > 0 then raise notice 'Perigon-Nummern der Liste vom 23. Oktober: % eingetragen.', v_neu; end if;
+  insert into einstellung (schluessel, wert, bemerkung)
+  values ('perigon_liste_2026_10_23', 'true'::jsonb,
+          'Die Perigon-Nummern der Planungsliste vom 23. Oktober sind eingetragen (0122). Die Liste läuft nicht noch einmal (0124); Nummern pflegt der Betriebsleiter unter Stammdaten → Chargen.')
+  on conflict (schluessel) do nothing;
 end $$;
 comment on column charge.perigon_nr is
   'Chargennummer derselben Ware im Perigon der Firma AG (sechsstellig). Aus der '

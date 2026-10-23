@@ -76,19 +76,25 @@ export default function ErfassungLeeren({ nachAenderung }: { nachAenderung?: () 
     // Zuerst zurücksetzen: sonst bleibt eine einmalige Störung von vorhin als
     // rote Warnung stehen, auch wenn dieser Lauf sauber durchgeht.
     setFehler(null)
-    const [u, o, j, s, w] = await Promise.all([
-      supabase.rpc('erfassung_umfang'),
-      supabase.from('auftrag').select('id', { count: 'exact', head: true })
-        .eq('status', 'offen').is('abgebrochen_ts', null),
-      supabase.from('erfassung_journal').select('id', { count: 'exact', head: true }),
-      einstellung<boolean>('erfassung_scharf', false),
-      einstellung<string | null>('letzte_sicherung', null),
-    ])
-    if (u.error) { setFehler(fehlerText(u.error)); setUmfang([]) } else setUmfang((u.data ?? []) as Umfang[])
-    setOffene(o.count ?? 0)
-    setJournal(j.count ?? null)
-    setScharf(s === true)
-    setSicherung(w ?? null)
+    try {
+      const [u, o, j, s, w] = await Promise.all([
+        supabase.rpc('erfassung_umfang'),
+        supabase.from('auftrag').select('id', { count: 'exact', head: true })
+          .eq('status', 'offen').is('abgebrochen_ts', null),
+        supabase.from('erfassung_journal').select('id', { count: 'exact', head: true }),
+        einstellung<boolean>('erfassung_scharf', false),
+        einstellung<string | null>('letzte_sicherung', null),
+      ])
+      if (u.error) { setFehler(fehlerText(u.error)); setUmfang([]) } else setUmfang((u.data ?? []) as Umfang[])
+      setOffene(o.count ?? 0)
+      setJournal(j.count ?? null)
+      setScharf(s === true)
+      setSicherung(w ?? null)
+    } catch (f) {
+      // Runde AZ: Ist nicht zu lesen, ob die Datenbank scharf ist, gilt sie
+      // als scharf — lieber eine Warnung zu viel als echte Daten ohne.
+      setFehler(fehlerText(f)); setUmfang([]); setScharf(true)
+    }
   }, [])
   useEffect(() => { void laden() }, [laden])
 
@@ -211,7 +217,7 @@ export default function ErfassungLeeren({ nachAenderung }: { nachAenderung?: () 
               Diese Datenbank ist als <strong>scharf</strong> markiert: Auf ihr liegen echte
               Erfassungsdaten aus dem Betrieb, keine Übung. Letzte vermerkte Sicherung:{' '}
               {sicherung ? datum(sicherung) : 'noch keine'}. Wenn heute kein Testtag ist,
-              zieh vorher eine Sicherung (Betrieb → Arbeiten, Karte „Sicherung").
+              zieh vorher eine Sicherung (Messungen → Arbeiten, Karte „Sicherung").
             </Hinweis>
           )}
 

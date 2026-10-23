@@ -39,7 +39,8 @@ const gleicheBaender = (a: Band[], b: Band[]) => a.length === b.length && a.ever
  *  Waschen:              Charge · welches Kaliber wird gewaschen · Kistensystem
  *  Waschen + Sortieren:  Charge · Kistensystem (Kiste ab x kg / x Stück je
  *                        Kiste / anderes) · bei Stück: welche Kaliber
- *  Fax:                  Charge · Kistensystem
+ *  Fax:                  Charge · Kistensystem — seit Runde R eingefroren
+ *                        (AB-61), wird nicht mehr angeboten
  *
  * Bänder und Sollgewicht kommen als Vorschlag „wie zuletzt"; wer sie ändert,
  * legt damit eine neue, datierte Fassung an (sortierschema_festlegen, 0051).
@@ -71,7 +72,9 @@ export default function NeueArbeit() {
     void stammdaten().then(s => setChargen(s.chargen))
     void supabase.from('sortierschema').select('*').order('gilt_ab', { ascending: false })
       .then(({ data }) => setSchemata((data ?? []) as Sortierschema[]))
+    // Ist die Vorgabe nicht zu lesen, bleiben 8 kg — ein Vorschlag, den die Person ohnehin prüft.
     void einstellung<number>('soll_kg_pro_kiste', 8).then(v => setSollVorgabe(Number(v) > 0 ? Number(v) : 8))
+      .catch(() => { /* Vorschlag 8 kg bleibt */ })
   }, [])
 
   const gewaehlt = TAETIGKEITEN.find(a => a.id === taetigkeit)
@@ -195,9 +198,11 @@ export default function NeueArbeit() {
       .select('id').single()
     if (error) { setLaeuft(false); setFehler(fehlerText(error)); return }
     const id = (data as { id: number }).id
-    // Wer eröffnet, ist dabei — und führt.
-    await supabase.from('auftrag_teilnehmer').insert({ auftrag_id: id })
-    fuehrungSetzen(id, session?.user.id, true)
+    // Wer eröffnet, ist dabei — und führt. Runde AZ: Scheitert der Eintrag
+    // (ausser 23505, „steht schon"), führt er nicht stumm trotzdem — die Arbeit
+    // ist angelegt, und auf ihrer Seite steht „Mitmachen".
+    const { error: et } = await supabase.from('auftrag_teilnehmer').insert({ auftrag_id: id })
+    if (!et || (et as { code?: string }).code === '23505') fuehrungSetzen(id, session?.user.id, true)
     setLaeuft(false)
     navigate(`/arbeit/${id}?neu=1`, { replace: true })
   }

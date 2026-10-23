@@ -58,9 +58,11 @@ export default function Start() {
       const liste = (a.data ?? []) as Auftrag[]
       setChargen(chargen); setOffen(liste); setHeuteFertig(f.count ?? 0)
       if (liste.length) {
-        const { data } = await supabase.from('auftrag_teilnehmer').select('auftrag_id, profil_id, profil(name)')
+        const { data, error } = await supabase.from('auftrag_teilnehmer').select('auftrag_id, profil_id, profil(name)')
           .in('auftrag_id', liste.map(x => x.id)).is('verlassen_ts', null)
-        type Z = { auftrag_id: number; profil_id: string; profil: { name: string } | { name: string }[] | null }
+        // Runde AZ: ein Fehler hier hiess stumm „niemand dabei" — jetzt steht er da.
+        if (error) throw error
+        type Z ={ auftrag_id: number; profil_id: string; profil: { name: string } | { name: string }[] | null }
         const map: typeof dabei = {}
         for (const z of ((data ?? []) as unknown as Z[])) {
           const name = (Array.isArray(z.profil) ? z.profil[0]?.name : z.profil?.name) ?? '?'

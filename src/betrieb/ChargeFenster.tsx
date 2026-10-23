@@ -140,9 +140,11 @@ export function ChargeFenster({ chargeNr, schliessen }: { chargeNr: number; schl
                   {/* 23. Oktober: im Lager sind die Paletten vom Eingang, die noch stehen, mit dem Gewicht beim Eingang;
                       verkaufsfähig ist, was davon als Artikel verkauft werden kann (0123). */}
                   <dt>Im Lager heute</dt><dd>{ausweis?.paletten != null ? `${palettenText(Number(ausweis.paletten))} · ` : ''}{kg(bestand.lager_kg, 0)} beim Eingang
+                    {/* Eine Definition, nie ein stiller Rückfall auf das Verkaufsfähige der Sortiermaschine:
+                        fehlt der Ausweis oder eine Rate, steht „unbekannt" — leer ist nicht null. */}
                     {ausweis?.verkaufbar_kg != null
                       ? ` · davon verkaufsfähig ${ausweis.verkaufbar_offen ? 'höchstens ' : ''}${kg(Number(ausweis.verkaufbar_kg), 0)}`
-                      : bestand.verkaufsfaehig_lager_kg != null ? ` · davon verkaufsfähig ${kg(bestand.verkaufsfaehig_lager_kg, 0)}` : ' · verkaufsfähig: nicht gemessen'}</dd>
+                      : bestand.lager_kg > 0 ? ' · verkaufsfähig: unbekannt (eine Rate ist nicht gemessen)' : ''}</dd>
                   <dt>Verarbeitet</dt><dd>{kg(bestand.ausgelagert_kg, 0)} ausgelagert · {kg(bestand.sortiert_kg, 0)} sortiert · {kg(bestand.gewaschen_kg, 0)} gewaschen</dd>
                   <dt>Geliefert</dt><dd>{kg(bestand.geliefert_kg, 0)} · {zahl(bestand.n_lieferungen)} {bestand.n_lieferungen === 1 ? 'Lieferung' : 'Lieferungen'}</dd>
                   <dt>Lagerdauer</dt><dd>{Math.round(bestand.alter_lager_heute)} Tage im Mittel{bestand.alter_lager_von != null && bestand.alter_lager_bis != null ? ` (${Math.round(bestand.alter_lager_von)}–${Math.round(bestand.alter_lager_bis)})` : ''}</dd>
@@ -181,7 +183,7 @@ export function ChargeFenster({ chargeNr, schliessen }: { chargeNr: number; schl
                       )
                     })}</tbody>
                   </table>
-                  {arbeiten.length > 8 && <p className="leise" style={{ margin: '.3rem 0 0' }}>… und {arbeiten.length - 8} weitere unter Betrieb → Arbeiten</p>}
+                  {arbeiten.length > 8 && <p className="leise" style={{ margin: '.3rem 0 0' }}>… und {arbeiten.length - 8} weitere unter Messungen → Arbeiten</p>}
                 </>
               )}
             </section>

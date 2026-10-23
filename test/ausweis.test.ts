@@ -13,7 +13,8 @@ const a = (nr: number, x: Partial<LagerAusweis> = {}): LagerAusweis => ({
   zu_klein_kg: 40, zu_gross_kg: 60, fax_kg: 0, verkaufsfaehig_kg: 1650,
   marge_anteil: 0.05, marge_quelle: 'gewogen', marge_kg: 78.57, verrechenbar_kg: 1571.43, hagel_bis_heute_kg: 0,
   r_bekannt: true, f_bekannt: true, kanal_bekannt: true, fax_bekannt: true,
-  keinen_artikel_kg: 0, groesse_offen_kg: 0, ueberfuellung_kg: 78.57, verkaufbar_kg: 1571.43, verkaufbar_offen: null, ...x })
+  keinen_artikel_kg: 0, groesse_offen_kg: 0, ueberfuellung_kg: 78.57, verkaufbar_kg: 1571.43, verkaufbar_offen: null,
+  gruppe_offen_kg: 0, ...x })
 
 test('summiere: die Kette geht auf; Paletten zusammengezählt; die Rate je Tag aus Lagerdauer und Verdunstung', () => {
   const s = summiere([a(1), a(2, { eingang_kg: 1000, paletten: 2, verdunstet_kg: 40, faul_kg: 60, zu_klein_kg: 20, zu_gross_kg: 30, verkaufsfaehig_kg: 850, alter_tage: 20, marge_kg: 40 })])
@@ -24,12 +25,19 @@ test('summiere: die Kette geht auf; Paletten zusammengezählt; die Rate je Tag a
   assert.equal(s.rateJeTag!.toFixed(5), (140 / 3000 / 40).toFixed(5))
 })
 
+// Runde AZ: `marge`/`margeBekannt` (0121) las seit 0123 niemand mehr und sind
+// weg — „ohne Marge keine Marge" heisst jetzt: eine nicht gewogene Charge
+// zieht keine Überfüllung ab und steht als offen da (nie 0).
 test('Leer ist nicht null: eine Charge ohne Rate fehlt in den Abzügen und wird gezählt; ohne Marge keine Marge', () => {
-  const s = summiere([a(1), a(2, { verkaufsfaehig_kg: null, faul_kg: null }), a(3, { marge_kg: null })])
+  const s = summiere([a(1), a(2, { verkaufsfaehig_kg: null, faul_kg: null }),
+                      a(3, { marge_anteil: null, marge_kg: null, ueberfuellung_kg: null, verkaufbar_kg: 1650, verkaufbar_offen: 'Überfüllung nicht gewogen' })])
   assert.equal(s.luecken, 1)
   assert.equal(s.verkaufsfaehig, 3300)
-  assert.equal(s.margeBekannt, false)
+  assert.equal(s.ueberfuellung, 78.57, 'nur die gewogene Charge')
+  assert.equal(s.offen.get('Überfüllung nicht gewogen'), 1)
   assert.equal(schritte(s).some(x => x.name === 'verrechenbar'), false)
+  // Ein Ausweis, dessen verkaufbar_kg leer ist, obwohl die Sortiermaschine eine Zahl hat, ist eine Lücke — keine 0.
+  assert.equal(summiere([a(4, { verkaufbar_kg: null })]).luecken, 1)
 })
 
 // 0123 — die Regel hat sich geändert, der Test mit ihr: Die Kette endet nicht
@@ -70,4 +78,20 @@ test('0123 — Leer ist nicht null: nicht gewogene Überfüllung und Grösse ohn
   assert.equal(s.offen.get('Grösse offen (keine Sortier-CSV)'), 1)
   assert.equal(s.ueberfuellung, 78.57, 'nur die gewogene Charge zieht Überfüllung ab — die anderen nicht mit 0, sondern als offen')
   assert.ok(schritte(s).some(x => x.name === 'davon Grösse offen' && x.kg === 1650))
+})
+
+test('0124 — eine Sorte ohne Artikelgruppe ist offen, nicht „passt in keinen Artikel": nicht abgezogen, als „davon" genannt', () => {
+  const s = summiere([a(1), a(2, { gruppe_offen_kg: 438, verkaufbar_kg: 1571.43, verkaufbar_offen: 'Artikelgruppe fehlt (Stammdaten → Sorten)' })])
+  assert.equal(s.gruppeOffen, 438)
+  assert.equal(s.keinenArtikel, 0, 'die offene Gruppe zählt nicht als passt in keinen Artikel')
+  assert.equal(s.offen.get('Artikelgruppe fehlt (Stammdaten → Sorten)'), 1)
+  assert.ok(schritte(s).some(x => x.art === 'davon' && x.name === 'davon Artikelgruppe offen' && x.kg === 438))
+})
+
+test('0124 — Hagel 100 %: die Datenbank lässt Faules, Unique und Verkaufbares leer; die Charge ist eine Lücke, nie 0', () => {
+  const s = summiere([a(1), a(2, { faul_kg: null, unique_kg: null, verkaufbar_kg: null, hagel_anteil: 1,
+                                   verkaufbar_offen: 'Hagel 100 %: Unique und Faules nicht trennbar' })])
+  assert.equal(s.luecken, 1)
+  assert.equal(s.verkaufbar, 1571.43, 'nur die messbare Charge steht in der Summe')
+  assert.equal(s.faul, 150)
 })

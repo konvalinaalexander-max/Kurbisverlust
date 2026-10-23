@@ -143,7 +143,7 @@ function PalettenImport() {
   const [holt, setHolt] = useState(false)
 
   useEffect(() => {
-    void einstellung<string>('journal_csv_url', '').then(setCsvUrl)
+    void einstellung<string>('journal_csv_url', '').then(setCsvUrl).catch(f => setFehler(fehlerText(f)))
   }, [])
 
   async function pruefen(roh: string) {
@@ -268,8 +268,10 @@ function PalettenImport() {
             {bericht.probleme.length > 12 && <li>… und {bericht.probleme.length - 12} weitere</li>}
           </ul>
           <p className="leise" style={{ margin: '.4rem 0 0' }}>
-            Meist ein Schlag oder eine Sorte, die anders geschrieben ist als in der
-            Chargen-Liste. Die Schreibweise muss zeichengenau übereinstimmen.
+            Meist ein Schlag oder eine Sorte, die anders heisst als in der
+            Chargen-Liste. Gross- und Kleinschreibung, Satzzeichen und doppelte
+            Leerzeichen spielen keine Rolle; ein anderer Name für denselben Schlag
+            (Inauen für Oettli) gehört als Alias in die Datenbank (0122).
           </p>
         </Hinweis>
       )}
@@ -341,12 +343,13 @@ function Chargen() {
   const [imHaus, setImHaus] = useState<Set<number>>(new Set())
   const [perigon, setPerigon] = useState<Map<number, { label: string | null; quelle: string | null; gemischt: boolean; widerspruch: boolean }>>(new Map())
   useEffect(() => {
-    void einstellung<boolean>('ernte_abgeschlossen', false).then(w => setErnteFertig(!!w))
+    void einstellung<boolean>('ernte_abgeschlossen', false).then(w => setErnteFertig(!!w)).catch(f => setFehler(fehlerText(f)))
     void (async () => {
       const [b, l] = await Promise.all([
         supabase.from('erg_charge').select('charge_nr, lager_kg'),
         supabase.from('v_charge_label').select('charge_nr, label, quelle, gemischt, n_widerspruch'),
       ])
+      for (const r of [b, l]) if (r.error) { setFehler(fehlerText(r.error)); return }
       setImHaus(new Set(((b.data ?? []) as { charge_nr: number; lager_kg: number }[]).filter(x => x.lager_kg > 0).map(x => x.charge_nr)))
       setPerigon(new Map(((l.data ?? []) as { charge_nr: number; label: string | null; quelle: string | null; gemischt: boolean; n_widerspruch?: number }[])
         .filter(x => x.quelle !== 'Stammdaten')
@@ -382,10 +385,12 @@ function Chargen() {
   }
   useEffect(() => {
     void (async () => {
-      const s = await stammdaten(true)
+      let s: Awaited<ReturnType<typeof stammdaten>>
+      try { s = await stammdaten(true) } catch (f) { setFehler(fehlerText(f)); return }
       setChargen(s.chargen)
-      const { data } = await supabase.from('v_charge_rueckgrat')
+      const { data, error } = await supabase.from('v_charge_rueckgrat')
         .select('charge_nr, n_paletten, eingang_netto_kg')
+      if (error) { setFehler(fehlerText(error)); return }
       const map: Record<number, { n: number; kg: number | null }> = {}
       for (const r of (data ?? []) as { charge_nr: number; n_paletten: number
         eingang_netto_kg: number | null }[]) {
@@ -652,6 +657,7 @@ function Kaliber() {
       stammdaten(),
     ])
     if (sc.error) setFehler(fehlerText(sc.error))
+    if (k.error) setFehler(fehlerText(k.error))
     setZeilen((sc.data ?? []) as Sortierschema[])
     setKaeufer((k.data ?? []) as Kaeufer[])
     setSorten(st.kaliber.map(x => x.sorte))
@@ -1146,18 +1152,21 @@ function Vorlauf() {
   const [gespeichert, setGespeichert] = useState<number | 'beginn' | null>(null)
 
   const laden = useCallback(async () => {
-    const [s, b, v] = await Promise.all([
-      stammdaten(),
-      einstellung<string | null>('erfassungsbeginn', null),
-      supabase.from('charge_vorlauf').select('charge_nr, ausgang_vor_app_kg'),
-    ])
-    setChargen(s.chargen)
-    setBeginn(b ?? '')
-    const map: Record<number, string> = {}
-    for (const r of (v.data ?? []) as { charge_nr: number; ausgang_vor_app_kg: number }[]) {
-      map[r.charge_nr] = String(r.ausgang_vor_app_kg)
-    }
-    setWerte(map)
+    try {
+      const [s, b, v] = await Promise.all([
+        stammdaten(),
+        einstellung<string | null>('erfassungsbeginn', null),
+        supabase.from('charge_vorlauf').select('charge_nr, ausgang_vor_app_kg'),
+      ])
+      if (v.error) throw v.error
+      setChargen(s.chargen)
+      setBeginn(b ?? '')
+      const map: Record<number, string> = {}
+      for (const r of (v.data ?? []) as { charge_nr: number; ausgang_vor_app_kg: number }[]) {
+        map[r.charge_nr] = String(r.ausgang_vor_app_kg)
+      }
+      setWerte(map)
+    } catch (f) { setFehler(fehlerText(f)) }
   }, [])
   useEffect(() => { void laden() }, [laden])
 
@@ -1171,7 +1180,8 @@ function Vorlauf() {
   async function vorlaufSpeichern(nr: number) {
     const kg = werte[nr]
     if (kg === undefined || kg === '') {
-      await supabase.from('charge_vorlauf').delete().eq('charge_nr', nr)
+      const { error } = await supabase.from('charge_vorlauf').delete().eq('charge_nr', nr)
+      if (error) { setFehler(fehlerText(error)); return }
     } else {
       const { error } = await supabase.from('charge_vorlauf')
         .upsert({ charge_nr: nr, ausgang_vor_app_kg: Number(kg) }, { onConflict: 'charge_nr' })

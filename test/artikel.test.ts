@@ -28,7 +28,7 @@ const gruppeVon = new Map<string, SorteGruppe>([
   ['Kaori Kuri', { sorte: 'Kaori Kuri', artikelgruppe: 'Knirps' } as SorteGruppe],
   ['Amoro', { sorte: 'Amoro', artikelgruppe: 'Knirps' } as SorteGruppe],
   ['Tiana', { sorte: 'Tiana', artikelgruppe: 'Butternut' } as SorteGruppe]])
-const teil = (nr: number, groesse: string, kg: number) => ({ charge_nr: nr, groesse, kg } as ArtikelLagerCharge)
+const teil = (nr: number, groesse: string, kg: number, artikelgruppe: string | null = null) => ({ charge_nr: nr, groesse, kg, artikelgruppe } as ArtikelLagerCharge)
 const teile = [teil(1, 'klein', 200), teil(1, 'gross', 90), teil(1, 'ohne Verteilung', 10), teil(9, 'klein', 999), teil(1, 'klein', 0)]
 
 test('Übersicht: je Artikelgruppe × Label die Chargen zusammengezählt, nach der Reihenfolge des Verkaufs', () => {
@@ -52,6 +52,22 @@ test('Übersicht: die Grössen aus denselben Teilen wie die Tabelle — fremde C
   assert.equal(knirps.klassen.get('klein'), 200)
   assert.equal(knirps.klassen.get('gross'), 90)
   assert.equal(knirps.klassen.get(klasseVon('ohne Verteilung')), 10)
+})
+
+// 0124: „lose" ist zweierlei — eine Artikelgruppe ohne Gewichte ist ein Artikel ohne Grösse;
+// eine Sorte ohne Artikelgruppe ist offen (als was sie verkauft wird, weiss niemand).
+test('0124: lose mit Artikelgruppe ist ein Artikel, lose ohne Artikelgruppe ist „Artikelgruppe offen" — eine obere Schranke', () => {
+  assert.equal(klasseVon('lose', 'Spaghetti'), 'lose')
+  assert.equal(klasseVon('lose', null), 'gruppe')
+  assert.equal(klasseVon('lose'), 'gruppe')
+  assert.equal(klasseVon('dazwischen', 'Knirps'), 'ausserhalb')
+  const mitGruppe = alsArtikel(teil(1, 'lose', 100, 'Spaghetti'), new Map([[1, { kanal: 0, faul: 0, verdunstet: 0, fax: 0, marge: 0.05 }]]))
+  assert.deepEqual(mitGruppe, { kg: 100, ueberfuellung: 0, offen: false }, 'lose geht nicht in Kisten mit Soll — keine Überfüllung')
+  const ohneGruppe = alsArtikel(teil(1, 'lose', 100), new Map([[1, { kanal: 0, faul: 0, verdunstet: 0, fax: 0, marge: 0.05 }]]))
+  assert.deepEqual(ohneGruppe, { kg: 100, ueberfuellung: 0, offen: true })
+  const [knirps] = uebersichtszeilen(bestand, labelVon, gruppeVon, [...teile, teil(1, 'lose', 5)], OFFEN)
+  assert.equal(knirps.klassen.get('gruppe'), 5)
+  assert.equal(knirps.vfHoechstens, true, 'die offene Gruppe macht das Verkaufsfähige zur oberen Schranke')
 })
 
 test('Übersicht: die Wahl oben filtert nach Artikel und Label', () => {
@@ -82,20 +98,21 @@ test('Übersicht: der Rest des Lagers wie die Kaskade ihn teilt — Lager = verk
 // ich, was wirklich steht — Paletten, bevor wir etwas in den Palox schmeissen …
 // und vor der Verdunstung." Im Lager ist die liegende Eingangsmasse ohne Abzug;
 // Verdunstetes und Faules stehen als Teil davon im Balken.
+// Runde AZ: `imLagerHoechstens` (seit dem 23. Oktober immer false) und
+// `RestTeile.bekannt` (las niemand) sind weg — die Form, nicht die Regel.
 test('Übersicht: im Lager die Eingangsmasse der Paletten, die noch stehen — ohne Abzug; Paletten zusammengezählt', () => {
   const mitPal = bestand.map(b => ({ ...b, n_rest_paletten: b.charge_nr === 1 ? 1 : b.charge_nr === 2 ? 2 : 0 }) as Bestand)
-  const rest = new Map([[1, { kanal: 20, faul: 50, verdunstet: 25, fax: 5, bekannt: true }]])
+  const rest = new Map([[1, { kanal: 20, faul: 50, verdunstet: 25, fax: 5 }]])
   const [knirps] = uebersichtszeilen(mitPal, labelVon, gruppeVon, teile, OFFEN, { rest })
   // Charge 1: 400, Charge 2: 500 — wie sie eingingen, auch ohne Teilung der Kaskade
-  assert.equal(knirps.imLager, 400 + 500)
-  assert.equal(knirps.imLagerHoechstens, false, 'die Eingangsmasse hängt an keiner Rate')
+  assert.equal(knirps.imLager, 400 + 500, 'die Eingangsmasse hängt an keiner Rate — kein „höchstens"')
   assert.equal(knirps.paletten, 3)
   const r = knirps.rest
   assert.equal(knirps.vf + r.kanal + r.fax + r.faul + r.verdunstet + r.offen, knirps.imLager,
     'im Lager = verkaufsfähig + zu klein/zu gross + Faules (Palox, beim Abpacken) + Verdunstetes + offen')
   assert.equal(knirps.imLager, knirps.lager, 'der Lager-Teil des Balkens ist die liegende Eingangsmasse')
   const [nur1] = uebersichtszeilen(mitPal.filter(b => b.charge_nr === 1), labelVon, gruppeVon, teile, OFFEN, { rest })
-  assert.equal(nur1.imLager, 400); assert.equal(nur1.imLagerHoechstens, false)
+  assert.equal(nur1.imLager, 400)
   // Charge 3 hat nichts mehr im Lager — und ohne Zahl bleibt die Palettenzahl leer, nicht 0
   const [, butternut] = uebersichtszeilen(bestand, labelVon, gruppeVon, teile, OFFEN)
   assert.equal(butternut.paletten, null)
@@ -197,7 +214,7 @@ test('Runde AT: ein Plan für die ganze Gruppe gilt als Ganzes — die Kundenpl�
 // 0121 — „was mit Hagelschaden ist … das wird anders verkauft, Unique, wie ein
 // eigener Artikel, nur Knospe — eine dritte Kategorie: gross, klein, unique."
 test('Übersicht: Unique geht in die Knospe-Zeile der Artikelgruppe, auch von einer Demeter-Charge; bei Demeter allein nicht', () => {
-  const rest = new Map([[1, { kanal: 20, faul: 50, verdunstet: 25, fax: 5, unique: 30, bekannt: true }]])
+  const rest = new Map([[1, { kanal: 20, faul: 50, verdunstet: 25, fax: 5, unique: 30 }]])
   const zeilen = uebersichtszeilen(bestand, labelVon, gruppeVon, teile, OFFEN, { rest })
   const knospe = zeilen.find(z => z.gruppe === 'Knirps' && z.label === 'K')
   const demeter = zeilen.find(z => z.gruppe === 'Knirps' && z.label === 'D')!

@@ -36,7 +36,8 @@ const GEBINDE = (id: number) => `gebinde_palette_${id}`
  * die kisten zählen und in der app eintragen". Die Masse je Kaliberband
  * kommt stattdessen aus Zettelgewicht × Kistenzahl der Eingangspaletten und
  * der Sortier-CSV — beides fällt ohnehin an.
- * Fax: die Palettenzahl als Gesamtzahl (0060) — eine Zahl, nicht Klicks.
+ * Fax (eingefroren, AB-61 — alte Arbeiten bleiben lesbar): die Palettenzahl
+ * als Gesamtzahl (0060) — eine Zahl, nicht Klicks.
  */
 export function Zaehler({ d, gesperrt, neuLaden, melden, zumWiegen }: {
   d: ArbeitDaten; gesperrt: boolean
@@ -76,7 +77,15 @@ export function Zaehler({ d, gesperrt, neuLaden, melden, zumWiegen }: {
   function sortierdatumSetzen(w: string) { setSortierdatum(w); merken(SORTIERDATUM(d.auftrag.id), w) }
   function kistenPaletteSetzen(w: string) { setKistenPalette(w); merken(KISTEN_PALETTE(d.auftrag.id), w) }
   function gebindeSetzen(w: string) { setGebinde(w); merken(GEBINDE(d.auftrag.id), w) }
-  useEffect(() => { void stammdaten().then(s => setArten(s.gebinde)) }, [])
+  useEffect(() => {
+    void stammdaten().then(s => {
+      setArten(s.gebinde)
+      // Runde AZ: Nennt die Einstellung oder der Merkzettel ein Gebinde, das es
+      // nicht (mehr) gibt, zeigte das Feld die erste Art, gespeichert wurde die
+      // unbekannte — und der Fremdschlüssel wies sie mit roher Meldung ab.
+      setGebinde(g => (g && s.gebinde.some(x => x.art === g)) ? g : (s.gebinde[0]?.art ?? ''))
+    })
+  }, [])
 
   const bruttoOk = !p.zettelGewichtPflicht || Number(brutto) > 0
   const datumText = (iso: string) => iso ? new Date(iso + 'T00:00:00').toLocaleDateString(gebietsschema, { day: '2-digit', month: '2-digit' }) : ''
@@ -155,8 +164,13 @@ export function Zaehler({ d, gesperrt, neuLaden, melden, zumWiegen }: {
   async function paletteZurueck() {
     const letzte = d.paletten[d.paletten.length - 1]
     if (!letzte || laeuft) return
-    setLaeuft(true)
-    if (letzte.wiegung_id) await supabase.from('verdunstung_wiegung').delete().eq('id', letzte.wiegung_id)
+    setLaeuft(true); setFehler(null)
+    if (letzte.wiegung_id) {
+      // Runde AZ: Geht das Löschen der Wägung schief, bleibt auch die Palette —
+      // sonst stünde eine Wägung ohne Palette in der Verdunstungsrechnung.
+      const { error: ew } = await supabase.from('verdunstung_wiegung').delete().eq('id', letzte.wiegung_id)
+      if (ew) { setLaeuft(false); setFehler(fehlerText(ew)); return }
+    }
     const { error } = await supabase.from('auftrag_palette').delete().eq('id', letzte.id)
     if (error) { setLaeuft(false); setFehler(fehlerText(error)); return }
     await nachladen(t('rueckgaengig'))

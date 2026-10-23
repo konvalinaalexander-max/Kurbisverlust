@@ -66,8 +66,22 @@ export interface Kistengewicht {
   kgJeKiste: number | null
   /** Aus wie vielen Arbeiten oder Sortierläufen es stammt. */
   n: number
-  /** Das Band als Text für die Maske: „700–900 g", „Kiste ab 8 kg" oder „Band 2". */
-  band: string
+  /** Das Band für die Maske — ohne Sprache; `bandAlsText` macht daraus „700–900 g", „Kiste ab 8 kg" oder „Kaliber 2". */
+  band: Band
+}
+
+/** Runde AZ: Das Band ohne Worte, damit die Maske es in der Sprache des Arbeiters sagt (vorher hart deutsch). */
+export type Band =
+  | { art: 'kiste_ab'; soll: number | null }
+  | { art: 'gramm'; von: number; bis: number }
+  | { art: 'index'; idx: number }
+  | { art: 'unbekannt' }
+
+export function bandAlsText(b: Band, t: (id: 'systemKisteAb' | 'kaliber') => string): string {
+  if (b.art === 'kiste_ab') return t('systemKisteAb').replace('x', String(b.soll ?? '?'))
+  if (b.art === 'gramm') return `${b.von}–${b.bis} g`
+  if (b.art === 'index') return `${t('kaliber')} ${b.idx + 1}`
+  return '?'
 }
 
 export async function arbeitLaden(auftragId: number): Promise<ArbeitDaten | null> {
@@ -146,12 +160,12 @@ export function kistengewichtIdx(a: Auftrag, baender: [number, number][]): numbe
   return i >= 0 ? i : null
 }
 
-export function bandText(a: Auftrag, baender: [number, number][]): string {
-  if (a.kistensystem === 'kiste_ab') return `Kiste ab ${a.soll_kg_pro_kiste ?? '?'} kg`
+export function bandText(a: Auftrag, baender: [number, number][]): Band {
+  if (a.kistensystem === 'kiste_ab') return { art: 'kiste_ab', soll: a.soll_kg_pro_kiste }
   const band = a.kaliber_idx !== null ? baender[a.kaliber_idx] : null
   const von = band ? band[0] : a.kaliber_von_g, bis = band ? band[1] : a.kaliber_bis_g
-  if (von !== null && bis !== null) return `${von}–${bis} g`
-  return a.kaliber_idx !== null ? `Band ${a.kaliber_idx + 1}` : '?'
+  if (von !== null && bis !== null) return { art: 'gramm', von, bis }
+  return a.kaliber_idx !== null ? { art: 'index', idx: a.kaliber_idx } : { art: 'unbekannt' }
 }
 
 async function kistengewichtLaden(a: Auftrag, sorte: string | null, baender: [number, number][]): Promise<Kistengewicht> {
@@ -195,18 +209,23 @@ export const WIEGEN_SOLL = 3
  * Zwei Stationen: Sortiermaschine und Waschstrasse. „Waschen + Sortieren" ist
  * die Waschstrasse mit Sortieren von Hand am Band dahinter — derselbe Palox.
  *
- *  Sortieren            Eingangspaletten mit Datum, Kisten je Kaliber, Palox (Pflicht)
+ *  Sortieren            Eingangspaletten mit Datum und Gewicht vom Zettel (Pflicht,
+ *                       Runde Q), Palox (Pflicht); Kisten je Kaliber seit Runde Q
+ *                       nicht mehr (AB-52)
  *  Waschen + Sortieren  Eingangspaletten mit Datum und Gewicht vom Zettel (Pflicht),
  *                       mindestens drei davon gewogen (erinnert), Palox (Pflicht),
- *                       am Ende zu klein / zu gross je Palette gewogen und
- *                       fertige Paletten (mindestens drei, erinnert)
- *  Waschen              Kaliber-Paletten aus dem Zwischenlager: Sortierdatum vom
- *                       Zettel und Kisten je Palette (Pflicht — die Menge), Palox
- *                       gefragt, nicht Pflicht; am Ende fertige Paletten (verlangt)
- *  Fax                  Faules kistenweise gewogen, Paletten als Gesamtzahl
+ *                       am Ende zu klein / zu gross Kiste für Kiste gewogen (AB-80)
+ *                       und fertige Paletten (mindestens drei, erinnert)
+ *  Waschen              Kaliber-Paletten aus dem Zwischenlager: Kisten je Palette und
+ *                       Gewicht von der Waage (Pflicht — die Menge, 0104), das
+ *                       Sortierdatum nur, wenn es draufsteht (AB-134); Palox gefragt,
+ *                       nicht Pflicht; am Ende fertige Paletten (eine verlangt, drei
+ *                       der Rat)
+ *  Fax                  eingefroren (AB-61): wird nicht mehr angeboten; alte Arbeiten
+ *                       bleiben lesbar — Faules kistenweise gewogen, Paletten gesamt
  *
  * Zu klein / zu gross am Band kommt aus der Sortier-CSV; von Hand (Waschen +
- * Sortieren) wird es am Ende je Palette gewogen — dort gibt es keine CSV.
+ * Sortieren) wird es am Ende Kiste für Kiste gewogen — dort gibt es keine CSV.
  */
 export function stationsProfil(a: Auftrag) {
   const fax = a.ist_fax
@@ -259,6 +278,23 @@ export function stationsProfil(a: Auftrag) {
     hatFaxPaletten: fax,
     kistensystemRechenbar: rechenbar,
   }
+}
+
+/**
+ * Das Faule dieser Arbeit, wie die Datenbank es rechnet (v_schimmel_menge,
+ * 0073/0084): die Palox-Differenzen — nur, wenn mindestens zwei Stände da sind
+ * (ein Startstand allein ist keine Menge) und der Palox nicht als unbekannt
+ * erklärt ist (gefallener Stand ohne Ablesung davor); gewogene Kisten (Fax)
+ * mit ihrem Netto. Ohne eine einzige Messung: unbekannt. null heisst
+ * unbekannt — nie 0 (Leer ist nicht null). Bis Runde AZ summierte die Halle
+ * die kg-Spalte und zeigte „Faule: 0 kg", wo die Menge unbekannt war.
+ */
+export function faulesKg(d: ArbeitDaten): number | null {
+  if (d.auftrag.palox_unbekannt) return null
+  const staende = d.ablesungen.filter(z => z.palox_stand_kg !== null)
+  const kisten = d.ablesungen.filter(z => z.palox_stand_kg === null)
+  if (staende.length === 1 || (staende.length === 0 && kisten.length === 0)) return null
+  return staende.reduce((s, z) => s + z.kg, 0) + kisten.reduce((s, z) => s + z.kg, 0)
 }
 
 /** Wie viele fertige Paletten diese Arbeit mindestens gewogen haben soll:

@@ -10,7 +10,7 @@ import { FauleMaske } from './FauleMaske'
 import { AusschussMaske } from './AusschussMaske'
 import { FertigePaletteMaske } from './FertigePaletteMaske'
 import { vorschlagTageSeitWaschen } from '../lib/taetigkeit'
-import { fertigeVerlangt, stationsProfil, type ArbeitDaten } from './daten'
+import { bandAlsText, faulesKg, fertigeVerlangt, stationsProfil, type ArbeitDaten } from './daten'
 
 type SchrittId = 'palox' | 'geleert' | 'faule' | 'wiegen' | 'ausschuss' | 'paletten' | 'wasch_paletten' | 'ausgang' | 'fertige_gesamt' | 'charge' | 'rueckmeldung' | 'pruefen'
 
@@ -29,7 +29,8 @@ type SchrittId = 'palox' | 'geleert' | 'faule' | 'wiegen' | 'ausschuss' | 'palet
  *                       fertige Paletten: seit Runde AD EINE verlangt, und nur,
  *                       solange das Kistengewicht des Bandes unbekannt ist —
  *                       drei sind der Rat („die pflicht weg")
- *  Fax                  Palettenzahl als Gesamtzahl, Tage seit dem Waschen
+ *  Fax                  Palettenzahl als Gesamtzahl, Tage seit dem Waschen —
+ *                       eingefroren (AB-61), nur noch für alte Arbeiten
  *
  * Runde T: Jede Pflichtfrage ist ein eigener Schritt und blockiert sichtbar.
  * „Wurde der Palox zwischendurch geleert?" stand unter der Ablesemaske —
@@ -49,8 +50,8 @@ export function Abschluss({ d, neuLaden, zurueck, fertig }: {
   // 0072: Wie viele fertige Paletten es insgesamt geworden sind. Die App
   // kennt sonst nur die gewogenen — und ohne die Gesamtzahl ist „3 Paletten
   // rein, 4 raus" nicht rechenbar. Nicht Pflicht: der Betrieb sagt, die
-  // fertigen Paletten werden eher nicht gezählt. Vorbelegt mit dem, was
-  // gewogen wurde, damit im Normalfall ein Tippen genügt.
+  // fertigen Paletten werden eher nicht gezählt. Die gewogenen stehen als
+  // Platzhalter im Feld — gespeichert wird nur, was getippt ist (leer bleibt leer).
   const [fertigeGesamt, setFertigeGesamt] = useState(String(d.auftrag.fertige_paletten_gesamt ?? ''))
   /** „Palox zwischendurch geleert?" — beim Abschluss gefragt (0072). Was
    *  die Ablesemaske schon gesetzt hat (gefallener Stand → geleert), gilt. */
@@ -118,7 +119,9 @@ export function Abschluss({ d, neuLaden, zurueck, fertig }: {
       // gehen wir einfach von durchschnitt von 4 tagen aus". Sie wird
       // ausdrücklich als Annahme gekennzeichnet, nicht als Messung — an der
       // Fax gibt es kein Waschdatum auf der Palette (Antwort 11a).
-      const v = await einstellung<number>('fax_tage_vorgabe', 4)
+      // Runde AZ: Ist die Vorgabe nicht zu lesen, wird nichts vorgeschlagen —
+      // die Person trägt die Tage selbst ein, statt dass still 4 dastünden.
+      const v = await einstellung<number>('fax_tage_vorgabe', 4).catch(() => null)
       if (weg || !(Number(v) > 0)) return
       setTage(String(Number(v)))
       setTageVorgeschlagen('annahme')
@@ -389,7 +392,7 @@ export function Abschluss({ d, neuLaden, zurueck, fertig }: {
                weiterText={genug ? t('weiter') : d.nAusgang > 0 ? t('trotzdemWeiter') : t('keineGewogen')}>
         {pflichtOffen && (
           <Hinweis art="warnung">
-            {ersetzen(t('kistengewichtUnbekannt'), { sorte: d.charge?.sorte ?? '?', band: d.kistengewicht.band })} {t('eineFertigePflicht')}
+            {ersetzen(t('kistengewichtUnbekannt'), { sorte: d.charge?.sorte ?? '?', band: bandAlsText(d.kistengewicht.band, t) })} {t('eineFertigePflicht')}
           </Hinweis>
         )}
         {genug
@@ -493,7 +496,8 @@ export function Abschluss({ d, neuLaden, zurueck, fertig }: {
           {p.hatFaxPaletten && <><dt>{t('palettenGesamt')}</dt><dd>{paletten || '—'}{tage !== '' && <span className="leise"> · {tage} {t('tageSeitWaschen')}</span>}</dd></>}
           {/* Altarbeiten zeigen weiter, was sie gezählt haben (Runde Q). */}
           {kistenGezaehlt > 0 && <><dt>{t('kaliberKisten')}</dt><dd>{kistenGezaehlt}</dd></>}
-          <dt>{t('faule')}</dt><dd>{d.ablesungen.reduce((s, z) => s + z.kg, 0)} kg · {d.ablesungen.length} {p.istFax ? t('kisten') : t('ablesungen')}{geleertGemessen && <span className="leise"> · {d.ablesungen.filter(x => x.palox_nach_leeren).length}× {t('geleertWort')}</span>}</dd>
+          {/* Leer ist nicht null: ein Startstand allein ist keine Menge, ein geleerter Palox ohne Ablesung auch nicht (Runde AZ). */}
+          <dt>{t('faule')}</dt><dd>{faulesKg(d) === null ? t('faulesUnbekannt') : `${faulesKg(d)} kg`} · {d.ablesungen.length} {p.istFax ? t('kisten') : t('ablesungen')}{geleertGemessen && <span className="leise"> · {d.ablesungen.filter(x => x.palox_nach_leeren).length}× {t('geleertWort')}</span>}</dd>
           {p.hatAusschuss && <><dt>{t('ausschussWiegenSchritt')}</dt><dd>{d.ausschuss.length > 0 ? `${t('zuKlein')} ${ausschussSumme('zu_klein')} kg · ${t('zuGross')} ${ausschussSumme('zu_gross')} kg` : '—'}</dd></>}
           {p.hatAusgang && <><dt>{t('fertigePalette')}</dt><dd>{d.nAusgang > 0 ? d.nAusgang : t('keineGewogen')}</dd></>}
           <dt>{t('eineChargeFrage')}</dt>

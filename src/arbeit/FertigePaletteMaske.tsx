@@ -142,7 +142,7 @@ export function FertigePaletteMaske({ d, gesperrt, melden, neuLaden }: {
       )}
       <button type="button" id="a-eintragen" className="haupt gross voll" onClick={() => void speichern()}
               disabled={gesperrt || laeuft || x === null || !kaliberOk || !proKisteOk}>{t('eintragen')}</button>
-      {fehlt && <Hinweis art="warnung">{fehlt}</Hinweis>}
+      {fehlt && <Hinweis art="warnung">{t(fehlt)}</Hinweis>}
       {fehler && <Hinweis art="warnung">{fehler}</Hinweis>}
       {zeilen.length > 0 && (
         <>

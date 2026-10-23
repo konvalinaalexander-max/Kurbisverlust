@@ -19,6 +19,25 @@ const KEINE_EINZELNE_KISTE_AB_KG = 60
 
 /** Die noch nicht eingetragenen Kisten überleben ein zugeklapptes Handy. */
 const merkzettel = (auftragId: number) => `ausschuss_kisten_${auftragId}`
+const LEER = (): Record<Art, number[]> => ({ zu_klein: [], zu_gross: [] })
+
+/**
+ * Runde AZ: Der Merkzettel trägt die Kistenart mit. Bis hier standen nur die
+ * Bruttos darin — nach dem Neuladen war die Art wieder G2, das Auswahlfeld
+ * gesperrt (Liste nicht leer), und drei IFCO-Kisten gingen mit der G2-Tara in
+ * die Datenbank. Ein alter Merkzettel (nur die Kisten) wird noch gelesen; was
+ * keine Zahl ist, fällt weg, statt die Maske zum Absturz zu bringen.
+ */
+function merkLesen(auftragId: number): { gart: string; kisten: Record<Art, number[]> } | null {
+  try {
+    const roh = JSON.parse(localStorage.getItem(merkzettel(auftragId)) ?? 'null') as unknown
+    if (!roh || typeof roh !== 'object') return null
+    const o = roh as Record<string, unknown>
+    const k = (o.kisten && typeof o.kisten === 'object' ? o.kisten : o) as Record<string, unknown>
+    const zahlen = (x: unknown) => (Array.isArray(x) ? x.filter((n): n is number => typeof n === 'number' && Number.isFinite(n) && n > 0) : [])
+    return { gart: typeof o.gart === 'string' ? o.gart : '', kisten: { zu_klein: zahlen(k.zu_klein), zu_gross: zahlen(k.zu_gross) } }
+  } catch { return null }
+}
 
 /**
  * Zu klein / zu gross beim Waschen + Sortieren (0061), seit 0088 **Kiste für
@@ -45,12 +64,10 @@ export function AusschussMaske({ d, gesperrt, melden, neuLaden }: {
   const { t, gebietsschema } = useSprache()
   const [gebinde, setGebinde] = useState<Gebinde[]>([])
   const [art, setArt] = useState<Art>('zu_klein')
-  const [gart, setGart] = useState('')
+  const [gemerkt] = useState(() => merkLesen(d.auftrag.id))
+  const [gart, setGart] = useState(gemerkt?.gart ?? '')
   const [brutto, setBrutto] = useState('')
-  const [kisten, setKisten] = useState<Record<Art, number[]>>(() => {
-    try { return JSON.parse(localStorage.getItem(merkzettel(d.auftrag.id)) ?? '') as Record<Art, number[]> }
-    catch { return { zu_klein: [], zu_gross: [] } }
-  })
+  const [kisten, setKisten] = useState<Record<Art, number[]>>(gemerkt?.kisten ?? LEER())
   const [fehler, setFehler] = useState<string | null>(null)
   const [laeuft, setLaeuft] = useState(false)
   const feld = useRef<HTMLInputElement>(null)
@@ -58,12 +75,19 @@ export function AusschussMaske({ d, gesperrt, melden, neuLaden }: {
   useEffect(() => {
     void stammdaten().then(s => {
       setGebinde(s.gebinde)
-      setGart(a => a || (s.gebinde.some(g => g.art === KISTE_VORGABE) ? KISTE_VORGABE : s.gebinde[0]?.art ?? ''))
+      const vorgabe = s.gebinde.some(g => g.art === KISTE_VORGABE) ? KISTE_VORGABE : s.gebinde[0]?.art ?? ''
+      setGart(a => {
+        if (a && s.gebinde.some(g => g.art === a)) return a
+        // Eine gemerkte Art, die es nicht mehr gibt: die gemerkten Kisten gelten
+        // dann nicht mehr — ihre Tara wäre die falsche.
+        if (a) setKisten(LEER())
+        return vorgabe
+      })
     })
   }, [])
   useEffect(() => {
-    try { localStorage.setItem(merkzettel(d.auftrag.id), JSON.stringify(kisten)) } catch { /* privates Fenster: dann eben nicht */ }
-  }, [kisten, d.auftrag.id])
+    try { localStorage.setItem(merkzettel(d.auftrag.id), JSON.stringify({ gart, kisten })) } catch { /* privates Fenster: dann eben nicht */ }
+  }, [kisten, gart, d.auftrag.id])
 
   const tara = gebinde.find(g => g.art === gart)
   const taraKiste = tara?.tara_kg_pro_kiste ?? null

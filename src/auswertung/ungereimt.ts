@@ -373,9 +373,12 @@ export function spurText(s: ChargeSpur): SpurText {
   const hinaus = s.lieferscheine > 0
     ? [`${stueck(s.lieferscheine, 'Lieferschein', 'Lieferscheine')} · ${tonnen(n(s.geliefert_kg))}`, spanneKurz(s.lief_von, s.lief_bis)]
     : ['kein Lieferschein']
+  // 0124: was keine Perigon-Zeile hat (von Hand erfasst), ist ein eigener Teil — kein fremder Artikel
+  const hand = (s.nach_artikel ?? []).find(a => a.gruppe === 'ohne Perigon-Zeile')
   // Ware unter einem anderen Artikel als die Sorte der Charge (Mix ist gemischt, nicht fremd)
-  const fremd = (s.nach_artikel ?? []).filter(a => s.artikelgruppe && a.gruppe !== s.artikelgruppe && a.gruppe !== 'Mix')
+  const fremd = (s.nach_artikel ?? []).filter(a => s.artikelgruppe && a.gruppe !== s.artikelgruppe && a.gruppe !== 'Mix' && a.gruppe !== 'ohne Perigon-Zeile')
   if (fremd.length) hinaus.push(`davon als ${fremd.map(a => `${a.gruppe === 'andere' ? 'anderer Artikel' : a.gruppe} ${tonnen(a.kg)}`).join(', ')}`)
+  if (hand) hinaus.push(`${tonnen(hand.kg)} davon ohne Perigon-Zeile (von Hand erfasst)`)
   const prod = (s.nachgeordnet ?? []).find(x => x.weg === 'produzent')
   if (prod) hinaus.push(`${prod.n} davon über den Produzenten zugeordnet`)
 

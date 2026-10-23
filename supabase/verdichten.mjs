@@ -404,6 +404,22 @@ export function verdichten(liste) {
    */
   const nachtragen = t => /^(comment|grant|revoke)\b/.test(t)
 
+  /**
+   * Von einer Beschreibung gilt nur die jüngste — je Objekt (bei Funktionen:
+   * je Unterschrift). Runde AZ: Bis dahin blieben alle Beschreibungen aller
+   * Fassungen stehen, über tausend Zeilen, die eine nach der anderen in die
+   * Datenbank geschrieben und sofort überschrieben wurden; am Ende galt zwar
+   * die letzte, aber setup.sql trug ein Zehntel Überflüssiges. Eine Beschreibung,
+   * die nur in einer alten Fassung steht, bleibt die jüngste — und bleibt.
+   */
+  const beschreibt = t => {
+    const m = /^comment\s+on\s+(?:materialized\s+view|view|function)\s+([a-z_][a-z0-9_.]*)\s*(\(([^)]*)\))?/.exec(t)
+    return m ? `${blank(m[1])}${m[2] ? `(${normTyp(m[3])})` : ''}` : null
+  }
+  const juengste = new Map()
+  kerne.forEach((t, i) => { const k = beschreibt(t); if (k) juengste.set(k, i) })
+  const giltNoch = i => { const k = beschreibt(kerne[i]); return !k || juengste.get(k) === i }
+
   /** Zeigt diese Anweisung auf eine Funktion, die es so nicht mehr gibt? */
   const veraltet = i => {
     const u = funktionsUnterschrift(kerne[i])
@@ -444,7 +460,7 @@ export function verdichten(liste) {
         const letzter = j === b.length - 1
         for (let i = b[j].von; i <= b[j].bis; i++) {
           const behalten = (letzter || nachtragen(kerne[i]))
-            && !veraltet(i)
+            && !veraltet(i) && giltNoch(i)
             && (existiert || info[i].tut !== 'anhang')
           if (behalten) nachB.add(i); else weg.add(i)
         }
@@ -471,7 +487,7 @@ export function verdichten(liste) {
         if (!weg.has(i) && !nachB.has(i) && treffer.test(kerne[i])) gebraucht = true
       if (gebraucht) continue
       for (let i = b[j].von; i <= b[j].bis; i++) {
-        if (hinter !== null && nachtragen(kerne[i]) && !veraltet(i) && amEnde.has(k)) {
+        if (hinter !== null && nachtragen(kerne[i]) && !veraltet(i) && giltNoch(i) && amEnde.has(k)) {
           if (!nachtrag.has(hinter)) nachtrag.set(hinter, [])
           nachtrag.get(hinter).push(liste[i])
         }
@@ -498,7 +514,7 @@ export function verdichten(liste) {
     // Nennt es eine Ansicht, die es am Ende nicht mehr gibt, oder eine
     // Funktion mit einer Unterschrift von damals, wäre es in Teil B ein
     // Fehler — dann fällt es weg, wie es heute auch endet.
-    if (genannt.every(n => lebt.has(n)) && !veraltet(i)) nachB.add(i); else weg.add(i)
+    if (genannt.every(n => lebt.has(n)) && !veraltet(i) && giltNoch(i)) nachB.add(i); else weg.add(i)
   })
 
   // ---- 4. Zusicherung: Teil A darf nichts Gewandertes brauchen ------------
@@ -590,13 +606,16 @@ export function verdichten(liste) {
   }
 
   // ---- 6. Zusammensetzen --------------------------------------------------
+  // Eine überholte Beschreibung fällt überall weg — auch in einem Block, der
+  // als Ganzes in Teil A bleibt, weil dieselbe Funktion zweimal nacheinander
+  // angelegt und beschrieben wird.
   const teilA = []
   liste.forEach((s2, i) => {
-    if (!weg.has(i) && !nachB.has(i) && !markiert.has(i)) teilA.push(s2)
+    if (!weg.has(i) && !nachB.has(i) && !markiert.has(i) && giltNoch(i)) teilA.push(s2)
     if (nachtrag.has(i)) teilA.push(...nachtrag.get(i))
   })
   const anhang = []
-  liste.forEach((_, i) => { if (nachB.has(i) && info[i]?.tut === 'anhang') anhang.push(liste[i]) })
+  liste.forEach((_, i) => { if (nachB.has(i) && info[i]?.tut === 'anhang' && giltNoch(i)) anhang.push(liste[i]) })
 
   const raeumen = reihe
     .filter(x => x.art === 'view' || x.art === 'matview')

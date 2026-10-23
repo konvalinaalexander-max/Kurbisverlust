@@ -69,7 +69,7 @@ export default function Arbeiten() {
           supabase.from('auftrag_rueckmeldung').select('*').order('ts', { ascending: false }).limit(1000),
           supabase.from('profil').select('id, name'),
         ])
-        if (a.error) throw a.error
+        for (const x of [a, d, r, pr]) if (x.error) throw x.error
         setChargen(chargen); setAuftraege((a.data ?? []) as Auftrag[])
         setDurchsatz(new Map(((d.data ?? []) as Durchsatz[]).map(x => [x.auftrag_id, x])))
         const m = new Map<number, Rueckmeldung[]>()

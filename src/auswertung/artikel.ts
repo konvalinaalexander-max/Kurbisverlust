@@ -23,21 +23,29 @@ export const OFFEN: Wahl = { gruppe: '', groesse: 'beide', label: 'beide' }
 
 /**
  * Die Grösse einer Lagerzeile, wie der Verkauf sie kennt: klein und gross
- * nach den Kalibern des Artikels, Mandarin je Stück; was in kein Kaliber
- * passt, ist „ausserhalb" (lose verkäuflich); ohne Sortier-CSV „ohne Grösse".
+ * nach den Kalibern des Artikels, Mandarin je Stück; „lose": ein Artikel,
+ * dessen Gruppe keine Gewichte hat; was in kein Kaliber passt, ist
+ * „ausserhalb"; ohne Sortier-CSV „ohne Grösse"; „gruppe" (0124): die Sorte
+ * hat keine Artikelgruppe in den Stammdaten — als was sie verkauft wird, ist
+ * offen, nicht „passt in keinen Artikel".
  */
-export type Klasse = 'klein' | 'gross' | 'stueck' | 'unique' | 'ausserhalb' | 'ohne'
-export const KLASSEN: Klasse[] = ['klein', 'gross', 'stueck', 'unique', 'ausserhalb', 'ohne']
+export type Klasse = 'klein' | 'gross' | 'stueck' | 'lose' | 'unique' | 'ausserhalb' | 'ohne' | 'gruppe'
+export const KLASSEN: Klasse[] = ['klein', 'gross', 'stueck', 'lose', 'unique', 'ausserhalb', 'ohne', 'gruppe']
 /**
  * 0121: Was als Artikel verkauft wird — alles ausser „passt in keinen Artikel"
  * (ausserhalb): Das ist verkaufsfähig nach der Sortiermaschine, liegt aber
  * zwischen oder ausserhalb der Kaliber der Artikel und geht nur lose. Unique
  * (Hagelware) ist ein eigener Artikel, nur Knospe — der Betrieb: „wie nicht
- * gross oder klein, eine dritte Kategorie: gross, klein, unique".
+ * gross oder klein, eine dritte Kategorie: gross, klein, unique". Die offene
+ * Artikelgruppe zählt mit — als obere Schranke (vfHoechstens), wie im
+ * Lager-Ausweis (gruppe_offen_kg wird nicht abgezogen).
  */
 export const ARTIKEL_KLASSEN: Klasse[] = KLASSEN.filter(k => k !== 'ausserhalb')
-export const klasseVon = (g: string): Klasse =>
-  g === 'klein' || g === 'gross' || g === 'stueck' ? g : g === 'ohne Verteilung' ? 'ohne' : 'ausserhalb'
+export const klasseVon = (g: string, artikelgruppe: string | null = null): Klasse =>
+  g === 'klein' || g === 'gross' || g === 'stueck' ? g
+  : g === 'ohne Verteilung' ? 'ohne'
+  : g === 'lose' ? (artikelgruppe ? 'lose' : 'gruppe')
+  : 'ausserhalb'
 
 /**
  * 0123: Ein Teil des Verkaufsfähigen, wie viel davon als Artikel bezahlt wird —
@@ -47,9 +55,13 @@ export const klasseVon = (g: string): Klasse =>
  * die Zahl höchstens so gross.
  */
 export function alsArtikel(t: ArtikelLagerCharge, rest?: Map<number, RestTeile>): { kg: number; ueberfuellung: number; offen: boolean } {
-  const kl = klasseVon(t.groesse)
+  const kl = klasseVon(t.groesse, t.artikelgruppe)
   const kg = Number(t.kg)
   if (kl === 'ausserhalb' || kl === 'unique') return { kg, ueberfuellung: 0, offen: false }
+  // 0124: lose geht nicht in Kisten mit Soll — keine Überfüllung; eine offene
+  // Artikelgruppe zählt ganz, aber nur als obere Schranke.
+  if (kl === 'lose') return { kg, ueberfuellung: 0, offen: false }
+  if (kl === 'gruppe') return { kg, ueberfuellung: 0, offen: true }
   const a = rest?.get(t.charge_nr)?.marge
   const netto = a != null ? kg / (1 + a) : kg
   return { kg: netto, ueberfuellung: kg - netto, offen: a === null || kl === 'ohne' }
@@ -61,12 +73,12 @@ export const passtKlasse = (w: Wahl, k: Klasse) => w.groesse === 'beide' || k ==
 
 /**
  * Was von der liegenden Eingangsmasse einer Charge nicht verkaufsfähig ist —
- * so geteilt, wie die Kaskade es tut (erg_prognose, h = 0): zu klein / zu
+ * so geteilt, wie die Kaskade es tut (v_lager_ausweis, heute): zu klein / zu
  * gross, faul (in den Palox), verdunstet, Faules beim Abpacken. Liegende
- * Eingangsmasse = verkaufsfähig + diese vier. `bekannt`: Verdunstung und
- * Faules sind gemessen — sonst ist, was im Lager liegt, eine obere Schranke.
+ * Eingangsmasse = verkaufsfähig + diese vier (+ Unique). Eine Charge ohne
+ * gemessene Rate hat keinen Eintrag — ihre Ware steht dann als „offen" da.
  */
-export interface RestTeile { kanal: number; faul: number; verdunstet: number; fax: number; bekannt?: boolean
+export interface RestTeile { kanal: number; faul: number; verdunstet: number; fax: number
   /** 0121: Hagelware (Unique) — nicht faul; wird als Knospe verkauft. faul ist dann das Faule ohne Hagel. */
   unique?: number
   /** 0123: Überfüllung je Soll (zu viel ÷ Soll) der Charge; null = nicht gewogen; fehlt = kein Ausweis. */
@@ -78,9 +90,9 @@ export interface Uebersichtszeile {
   eingang: number; ausgelagert: number; geliefert: number
   /** Die liegende Eingangsmasse: Eingang − ausgelagert (der Balken ist so lang wie der Eingang). */
   lager: number
-  /** 23. Oktober: im Lager — die Paletten vom Eingang, die noch stehen, mit dem Gewicht beim Eingang (src/auswertung/lager.ts).
-   *  imLagerHoechstens: seit dem 23. Oktober immer false — die Eingangsmasse hängt an keiner Rate. */
-  imLager: number; imLagerHoechstens: boolean
+  /** 23. Oktober: im Lager — die Paletten vom Eingang, die noch stehen, mit dem Gewicht beim Eingang (src/auswertung/lager.ts);
+   *  die Unique-Ware einer Demeter-Charge steht in der Knospe-Zeile, sonst ist es `lager`. */
+  imLager: number
   /** 0123: das Verkaufsfähige ist eine obere Schranke — eine Charge ohne gewogene Überfüllung oder ohne Sortier-CSV. */
   vfHoechstens: boolean
   /** Die Eingangspaletten, die noch da sind (Σ n_rest_paletten); null, wenn keine Charge eine Zahl hat. */
@@ -107,7 +119,7 @@ export function uebersichtszeilen(bestand: Bestand[], labelVon: Map<number, Char
     const k = `${gruppe ?? ''}|${label ?? ''}`
     let z = m.get(k)
     if (!z) {
-      z = { schluessel: k, gruppe, label, n: 0, eingang: 0, ausgelagert: 0, geliefert: 0, lager: 0, imLager: 0, imLagerHoechstens: false,
+      z = { schluessel: k, gruppe, label, n: 0, eingang: 0, ausgelagert: 0, geliefert: 0, lager: 0, imLager: 0,
             vfHoechstens: false, paletten: null, vf: 0, luecke: 0,
             klassen: new Map(), klassenSpaeter: new Map(), rest: { kanal: 0, faul: 0, verdunstet: 0, fax: 0, offen: 0, ueberfuellung: 0 }, chargen: [] }
       m.set(k, z)
@@ -142,7 +154,7 @@ export function uebersichtszeilen(bestand: Bestand[], labelVon: Map<number, Char
     const k = `${gruppe ?? ''}|K`
     let z = m.get(k)
     if (!z) {
-      z = { schluessel: k, gruppe, label: 'K', n: 0, eingang: 0, ausgelagert: 0, geliefert: 0, lager: 0, imLager: 0, imLagerHoechstens: false,
+      z = { schluessel: k, gruppe, label: 'K', n: 0, eingang: 0, ausgelagert: 0, geliefert: 0, lager: 0, imLager: 0,
             vfHoechstens: false, paletten: null, vf: 0, luecke: 0,
             klassen: new Map(), klassenSpaeter: new Map(), rest: { kanal: 0, faul: 0, verdunstet: 0, fax: 0, offen: 0, ueberfuellung: 0 }, chargen: [] }
       m.set(k, z)
@@ -162,7 +174,7 @@ export function uebersichtszeilen(bestand: Bestand[], labelVon: Map<number, Char
     for (const t of liste) {
       const z = zuZeile.get(t.charge_nr)
       if (!z || !(Number(t.kg) > 0)) continue
-      const kl = klasseVon(t.groesse)
+      const kl = klasseVon(t.groesse, t.artikelgruppe)
       const n = alsArtikel(t, weiter.rest)
       if (n.offen) z.vfHoechstens = true
       if (feld === 'klassen') z.rest.ueberfuellung += n.ueberfuellung

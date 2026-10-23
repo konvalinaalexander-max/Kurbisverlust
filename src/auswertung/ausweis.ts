@@ -1,6 +1,6 @@
 /**
  * Was im Lager liegt und was davon verkaufsfähig ist — Schritt für Schritt,
- * an jeder Stelle gleich (0121, v_lager_ausweis).
+ * an jeder Stelle gleich (0121, 0123, v_lager_ausweis).
  *
  * Der Betrieb, 22. Oktober: „bei Artikel und bei Chargen jeweils ausweisen,
  * wie viele Kilo im Lager sind — als Paletten … und daneben davon
@@ -30,13 +30,12 @@ export interface AusweisSumme {
   fax: number
   /** Was die Sortiermaschine durchlässt (verkaufsfaehig_kg) — noch ohne die Artikelgewichte und die Überfüllung. */
   verkaufsfaehig: number
-  /** Überfüllung in den Kisten auf dem ganzen Verkaufsfähigen (0121) — nur über Chargen mit gewogener Marge. */
-  marge: number
-  margeBekannt: boolean
-  /** 0123: was in kein Artikelgewicht passt (darunter, darüber, dazwischen, Sorte ohne Artikel). */
+  /** 0123: was in kein Artikelgewicht passt (darunter, darüber, dazwischen); ohne Sortier-CSV leer und nicht gezählt. */
   keinenArtikel: number
   /** 0123: ohne Sortier-CSV — ob es in ein Artikelgewicht passt, ist offen. */
   groesseOffen: number
+  /** 0124: Sorte ohne Artikelgruppe — als was sie verkauft wird, ist offen; zählt im Verkaufbaren als obere Schranke. */
+  gruppeOffen: number
   /** 0123: die Überfüllung auf dem Teil, der als Artikel geht — in den Kisten verschenkt; nur über gewogene Chargen. */
   ueberfuellung: number
   /** 0123: was wir als Artikel tatsächlich verkaufen können (verkaufbar_kg), mit Unique. */
@@ -55,7 +54,7 @@ const z = (x: number | null | undefined) => (x === null || x === undefined ? nul
 /** Die Kette über mehrere Chargen. */
 export function summiere(liste: LagerAusweis[]): AusweisSumme {
   const s: AusweisSumme = { n: 0, paletten: null, eingang: 0, verdunstet: 0, faul: 0, unique: 0, klein: 0, gross: 0, fax: 0,
-    verkaufsfaehig: 0, marge: 0, margeBekannt: true, keinenArtikel: 0, groesseOffen: 0, ueberfuellung: 0, verkaufbar: 0,
+    verkaufsfaehig: 0, keinenArtikel: 0, groesseOffen: 0, gruppeOffen: 0, ueberfuellung: 0, verkaufbar: 0,
     offen: new Map(), luecken: 0, alterTage: null, rateJeTag: null }
   let alterMal = 0, alterMasse = 0
   for (const a of liste) {
@@ -64,8 +63,11 @@ export function summiere(liste: LagerAusweis[]): AusweisSumme {
     s.n += 1
     s.eingang += ein
     if (a.paletten != null) s.paletten = (s.paletten ?? 0) + Number(a.paletten)
-    const vf = z(a.verkaufsfaehig_kg)
-    if (vf === null || z(a.faul_kg) === null || z(a.verdunstet_kg) === null) { s.luecken += 1; continue }
+    // Eine Rate nicht gemessen: die Datenbank lässt verkaufsfaehig_kg, verdunstet_kg
+    // oder faul_kg leer — und damit auch verkaufbar_kg. Die Charge fehlt dann in
+    // den Abzügen und wird als Lücke gezählt, nie als 0.
+    const vf = z(a.verkaufsfaehig_kg), verkaufbar = z(a.verkaufbar_kg)
+    if (vf === null || verkaufbar === null || z(a.faul_kg) === null || z(a.verdunstet_kg) === null) { s.luecken += 1; continue }
     s.verdunstet += z(a.verdunstet_kg) ?? 0
     s.faul += z(a.faul_kg) ?? 0
     s.unique += z(a.unique_kg) ?? 0
@@ -73,13 +75,12 @@ export function summiere(liste: LagerAusweis[]): AusweisSumme {
     s.gross += z(a.zu_gross_kg) ?? 0
     s.fax += z(a.fax_kg) ?? 0
     s.verkaufsfaehig += vf
-    const m = z(a.marge_kg)
-    if (m === null) s.margeBekannt = false
-    else s.marge += m
     s.keinenArtikel += z(a.keinen_artikel_kg) ?? 0
     s.groesseOffen += z(a.groesse_offen_kg) ?? 0
+    s.gruppeOffen += z(a.gruppe_offen_kg) ?? 0
+    // Nicht gewogene Überfüllung ist leer, nicht 0: Sie zieht nichts ab und steht als „offen" da.
     s.ueberfuellung += z(a.ueberfuellung_kg) ?? 0
-    s.verkaufbar += z(a.verkaufbar_kg) ?? vf + (z(a.unique_kg) ?? 0)
+    s.verkaufbar += verkaufbar
     for (const grund of (a.verkaufbar_offen ?? '').split(', ').filter(Boolean)) s.offen.set(grund, (s.offen.get(grund) ?? 0) + 1)
     if (a.alter_tage != null) { alterMal += Number(a.alter_tage) * ein; alterMasse += ein }
   }
@@ -92,7 +93,7 @@ export function summiere(liste: LagerAusweis[]): AusweisSumme {
 
 /** Ein Schritt der Kette: Name, Kilo (− abgezogen, = Ergebnis), und ein Halbsatz, woher. */
 export interface Schritt {
-  art: 'start' | 'weg' | 'aussortiert' | 'unique' | 'ergebnis' | 'davon'
+  art: 'start' | 'weg' | 'aussortiert' | 'ergebnis' | 'davon'
   name: string
   kg: number
   wie?: string
@@ -135,6 +136,8 @@ export function schritte(s: AusweisSumme): Schritt[] {
   if (s.unique > 0.5) r.push({ art: 'davon', name: 'davon Unique (Hagel)', kg: s.unique, farbe: 'var(--strom-unique)', wie: 'nicht faul — wird als Knospe verkauft' })
   if (s.groesseOffen > 0.5) r.push({ art: 'davon', name: 'davon Grösse offen', kg: s.groesseOffen, farbe: 'var(--strom-vf)',
            wie: 'keine Sortier-CSV — ob es in die Gewichte der Artikel passt, ist offen' })
+  if (s.gruppeOffen > 0.5) r.push({ art: 'davon', name: 'davon Artikelgruppe offen', kg: s.gruppeOffen, farbe: 'var(--strom-vf)',
+           wie: 'die Sorte hat keine Artikelgruppe (Stammdaten → Sorten) — als was sie verkauft wird, ist offen' })
   return r
 }
 

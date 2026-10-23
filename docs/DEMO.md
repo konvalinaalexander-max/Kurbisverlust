@@ -79,7 +79,7 @@ Zurück zum Supabase-Tab (`kurbis-demo`).
 4. Unten rechts auf **Run** (oder Strg + Enter).
 
 > **Du siehst:** nach etwa 30 Sekunden erscheint unten ein Ergebnis mit
-> einer Zeile, die so anfängt: **„Fertig. Die Datenbank steht: 42 Chargen,
+> einer Zeile, die so anfängt: **„Fertig. Die Datenbank steht: 44 Chargen,
 > 11 Sorten, …"**
 >
 > Kommt stattdessen eine rote Fehlermeldung: du hast beim Kopieren nicht
@@ -271,7 +271,7 @@ Auf dem leeren Lagermanagement steht eine Karte **„Erst mal anschauen, wie
 es aussieht"**. Darin ein Knopf **„Demo-Saison laden"**. Drück ihn.
 
 > **Du siehst:** nach ein, zwei Sekunden eine Meldung „Demo-Saison steht:
-> 951 Paletten in 42 Chargen, 377 Arbeiten …". Danach rechnet die App etwa
+> 951 Paletten in 44 Chargen, 377 Arbeiten …". Danach rechnet die App etwa
 > zehn Sekunden.
 
 **Fertig.** Lade die Seite einmal neu — jetzt ist jeder Bildschirm gefüllt:

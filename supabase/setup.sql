@@ -736,11 +736,6 @@ begin
   return v_lauf_id;
 end $$;
 
-comment on function csv_lauf_speichern is
-  'Nimmt einen gereinigten Sortierlauf auf. Die Rohdatei liegt unverändert im '
-  'Storage-Bucket "rohdaten"; p_reinigung hält fest, mit welchen Parametern '
-  'gereinigt wurde, damit das Ergebnis reproduzierbar bleibt.';
-
 -- aus 0008_rechte.sql
 
 grant usage on schema public to anon, authenticated;
@@ -876,10 +871,6 @@ begin
      set auftrag_id = null, zuordnung = 'offen'
    where auftrag_id = p_auftrag_id;
 end $$;
-
-comment on function auftrag_abbrechen is
-  'Verwirft eine Arbeit. Die Erfassungen bleiben als Spur stehen, zählen aber '
-  'nirgends mehr mit; zugeordnete Sortier-CSVs gehen zurück in die Warteschlange.';
 
 create or replace function auftrag_endgueltig_loeschen(p_auftrag_id bigint)
 returns void language plpgsql as $$
@@ -2102,10 +2093,6 @@ as $$
   select case when p_wert is not null and abs(p_wert) < p_grenze
               then round(p_wert, p_stellen) end
 $$;
-comment on function zahl(numeric, int, numeric) is
-  'Rundet auf p_stellen und gibt NULL, wenn der Wert nicht in die Zielspalte '
-  'passt (0058). Eine einzelne unmögliche Zahl macht damit eine Spalte '
-  'unbekannt, statt die ganze Sicht abbrechen zu lassen.';
 revoke all on function zahl(numeric, int, numeric) from public;
 grant execute on function zahl(numeric, int, numeric) to anon, authenticated;
 
@@ -2360,10 +2347,6 @@ begin
     'dauer_ms', (extract(epoch from clock_timestamp() - v_start) * 1000)::int,
     'fertig', p_schritt = 5);
 end $$;
-comment on function auswertung_schritt(int) is
-  'Ein Schritt der Neuberechnung (1 Rohdaten, 2 Arbeiten, 3 Kaskade, 4 Ergebnis, '
-  '5 Befunde). Die App ruft die fünf nacheinander; jeder erneuert und analysiert '
-  'seine gespeicherten Sichten. Schritt 5 setzt den Stand (0061).';
 revoke all on function auswertung_schritt(int) from public;
 grant execute on function auswertung_schritt(int) to authenticated;
 
@@ -2377,9 +2360,6 @@ begin
   end loop;
   return now();
 end $$;
-comment on function auswertung_aktualisieren() is
-  'Die fünf Schritte der Neuberechnung nacheinander (0061). Die App ruft sie '
-  'einzeln (auswertung_schritt), damit keiner ins Zeitlimit läuft.';
 
 do $$
 declare v_id bigint; v_gleich boolean;
@@ -3569,10 +3549,6 @@ begin
   return new;
 end $$;
 comment on function ausschuss_netto_setzen() is
-  'Setzt kg auf das Netto aus Brutto, Kistenzahl und hinterlegter Tara. '
-  'Fehlt eine der drei Angaben, gibt es kein Netto: die Zeile bleibt stehen, '
-  'gemessen wird false, und v_plausibilitaet meldet „Ausschuss ohne Tara" (0066).';
-comment on function ausschuss_netto_setzen() is
   'Setzt kg auf das Netto aus Brutto, Kistenzahl und hinterlegter Tara — die '
   'Palettentara nur, wenn mit_palette (0083). Fehlt eine Angabe, gibt es kein '
   'Netto: die Zeile bleibt stehen, gemessen wird false (0066). Ein negatives '
@@ -3608,11 +3584,6 @@ begin
   end if;
   return new;
 end $$;
-comment on function schimmel_netto_setzen() is
-  'Setzt kg auf das Netto aus Brutto, Kistenzahl und hinterlegter Tara (die '
-  'Palettentara nur, wenn die Palette mitgewogen wurde). Fehlt eine nötige '
-  'Angabe, gibt es kein Netto: die Zeile bleibt stehen und gemessen wird '
-  'false — v_schimmel_menge liest nur Gemessenes (0066).';
 comment on function schimmel_netto_setzen() is
   'Setzt kg auf das Netto aus Brutto, Kistenzahl und hinterlegter Tara (die '
   'Palettentara nur, wenn die Palette mitgewogen wurde). Fehlt eine nötige '
@@ -4119,10 +4090,6 @@ begin
     'dauer_ms', (extract(epoch from clock_timestamp() - v_start) * 1000)::int,
     'fertig', p_schritt = 5, 'nebenlaeufig', p_nebenlaeufig, 'wartet', false);
 end $$;
-comment on function auswertung_schritt_intern(integer, boolean) is
-  'Ein Schritt des Neurechnens (0078), wahlweise nebenläufig (0095): dann bleibt jede '
-  'Ansicht lesbar, bis ihre neue Fassung steht. Seit 0100 rechnet nur einer: ein zweiter '
-  'Aufruf bekommt wartet = true. Nur für den Betriebsleiter oder ohne Anmeldung.';
 revoke execute on function auswertung_schritt_intern(integer, boolean) from public;
 grant execute on function auswertung_schritt_intern(integer, boolean) to authenticated;
 
@@ -4146,10 +4113,6 @@ begin
   end loop;
   return true;
 end $$;
-comment on function auswertung_wenn_veraltet() is
-  'Rechnet neu, wenn seit der letzten Berechnung etwas geschrieben wurde — sonst nichts. '
-  'Für den Zeitplan (pg_cron, 0061); seit 0095 nebenläufig; seit 0098 mit eigener Notiz '
-  'des Aufrufs; seit 0100 nie neben einer laufenden Rechnung.';
 revoke all on function auswertung_wenn_veraltet() from public;
 grant execute on function auswertung_wenn_veraltet() to authenticated;
 
@@ -4206,17 +4169,8 @@ begin
   v := v || jsonb_build_object('sofort', v_sofort);
   return v;
 end $$;
-comment on function auswertung_zeitplan() is
-  'Läuft der Zeitplan (pg_cron-Job auswertung_wenn_veraltet)? Mit Takt, letztem Lauf, '
-  'Status, Dauer — und ob gerade gerechnet wird (rechnet_seit). Läuft er, rechnet die App '
-  'beim Öffnen nicht mehr selbst (0095).';
 revoke execute on function auswertung_zeitplan() from public;
 grant execute on function auswertung_zeitplan() to authenticated;
-comment on function auswertung_zeitplan() is
-  'Läuft der Zeitplan (pg_cron-Job auswertung_wenn_veraltet)? Mit Takt, letztem Lauf, '
-  'Status, Dauer — und ob gerade gerechnet wird (rechnet_seit). Läuft er, rechnet die App '
-  'beim Öffnen nicht mehr selbst (0095). Seit 0098 kennt sie den letzten Lauf auch aus der '
-  'eigenen Notiz der Datenbank (quelle: pg_cron oder eigene_notiz).';
 revoke execute on function auswertung_zeitplan() from public;
 grant execute on function auswertung_zeitplan() to authenticated;
 comment on function auswertung_zeitplan() is
@@ -4382,11 +4336,6 @@ begin
     'dauer_ms', (extract(epoch from clock_timestamp() - v_start) * 1000)::int,
     'fertig', p_schritt = 5, 'nebenlaeufig', p_nebenlaeufig, 'wartet', false);
 end $$;
-comment on function auswertung_schritt_intern(integer, boolean) is
-  'Ein Schritt des Neurechnens (0078), wahlweise nebenläufig (0095). Beratungssperre je Aufruf '
-  '(0100); der App-Weg merkt sich rechnet_seit, der Zeitplan-Weg fasst auswertung_stand erst am '
-  'Ende an; je Ansicht wird die Dauer notiert (auswertung_laufzeit, 0103). Nur für den '
-  'Betriebsleiter oder ohne Anmeldung.';
 revoke execute on function auswertung_schritt_intern(integer, boolean) from public;
 grant execute on function auswertung_schritt_intern(integer, boolean) to authenticated;
 
@@ -4473,11 +4422,6 @@ begin
    where id = 1;
   return true;
 end $$;
-comment on function auswertung_wenn_veraltet() is
-  'Der Lauf des Zeitplans (pg_cron, jede Minute seit 0103): rechnet, wenn etwas veraltet ist und '
-  'entweder „Neu rechnen" angefordert wurde oder der Stand älter als auswertung_drossel() ist. '
-  'Beratungssperre vor allem anderen (nie ein zweiter Lauf, nie ein Konvoi), beendet fremde '
-  'Rechnungsreste, wartet auf keine Sperre länger als 30 s, fasst auswertung_stand erst am Ende an.';
 revoke all on function auswertung_wenn_veraltet() from public;
 grant execute on function auswertung_wenn_veraltet() to authenticated;
 
@@ -4491,10 +4435,6 @@ begin
   v_erg := auswertung_wenn_veraltet();
   return case when v_erg then 'gerechnet' else 'nichts zu tun' end;
 end $$;
-comment on function auswertung_sofort_lauf() is
-  'Ein Tick des Sofort-Laufs (0102): rechnet, wenn etwas veraltet ist (auswertung_wenn_veraltet, '
-  'mit der Sperre aus 0100), und trägt den Eintrag „auswertung_sofort" aus, sobald der Stand steht '
-  'oder die Anforderung 30 Minuten alt ist.';
 revoke all on function auswertung_sofort_lauf() from public;
 grant execute on function auswertung_sofort_lauf() to authenticated;
 comment on function auswertung_sofort_lauf() is
@@ -4647,11 +4587,6 @@ begin
     from je
    order by case je.station when 'waschen_sortieren' then 1 when 'waschen' then 2 else 3 end;
 end $$;
-comment on function palox_station_kennzahl(date, date) is
-  'Je Station (0105): wie viel im Mittel in den Palox geht (massegewichtet, Median), seit wann, wie viele Arbeiten und '
-  'Chargen, die letzten vier Wochen, und der Zuwachs je Woche seit Messbeginn (massegewichtete Gerade über den Messtag) — '
-  'erst ab vier Wochen und fünf Arbeiten, vorher sagt zuwachs_text, was fehlt. Nur Punkte, deren eigener Anteil plausibel '
-  'ist; p_ab grenzt das Fenster nach unten ab (Prüfstand).';
 revoke all on function palox_station_kennzahl(date, date) from public;
 grant execute on function palox_station_kennzahl(date, date) to authenticated;
 
@@ -4928,11 +4863,6 @@ returns table (sicht text, ausdruck text) language sql immutable set search_path
     ('mv_hochrechnung',        'charge_nr, portion, strom, buch, kohorte')
 $$;
 
-comment on function auswertung_schritt_intern(integer, boolean) is
-  'Ein Schritt des Neurechnens (0078), wahlweise nebenläufig (0095). Beratungssperre je Aufruf (0100); der App-Weg merkt '
-  'sich rechnet_seit, der Zeitplan-Weg fasst auswertung_stand erst am Ende an; je Ansicht wird die Dauer notiert '
-  '(auswertung_laufzeit, 0103). Schritt 3 rechnet seit 0107 auch erg_palox_erwartung. Nur für den Betriebsleiter oder ohne Anmeldung.';
-
 do $$
 declare v_id bigint; v_takt text;
 begin
@@ -4986,9 +4916,6 @@ returns text language sql stable set search_path = public as $$
   end
   from z
 $$;
-comment on function auswertung_grund(timestamptz, timestamptz, timestamptz, timestamptz, timestamptz) is
-  'Warum jetzt gerechnet wird (0107) — ''angefordert'', ''erstmals'', ''nachts'' — oder null: dann nicht. '
-  'Die eine Regel des Zeitplans; tagsüber löst die Halle nie eine Rechnung aus.';
 revoke all on function auswertung_grund(timestamptz, timestamptz, timestamptz, timestamptz, timestamptz) from public;
 grant execute on function auswertung_grund(timestamptz, timestamptz, timestamptz, timestamptz, timestamptz) to authenticated;
 comment on function auswertung_grund(timestamptz, timestamptz, timestamptz, timestamptz, timestamptz) is
@@ -5072,27 +4999,12 @@ begin
    where id = 1;
   return true;
 end $$;
-comment on function auswertung_wenn_veraltet() is
-  'Rechnet neu, wenn seit der letzten Berechnung etwas geschrieben wurde — sonst '
-  'nichts. Für einen Zeitplan (pg_cron), damit die App fertige Zahlen vorfindet (0061).';
 revoke all on function auswertung_wenn_veraltet() from public;
 grant execute on function auswertung_wenn_veraltet() to authenticated;
-comment on function auswertung_wenn_veraltet() is
-  'Rechnet neu, wenn seit der letzten Berechnung etwas geschrieben wurde — sonst nichts. '
-  'Für den Zeitplan (pg_cron, 0061); seit 0095 nebenläufig, damit die App während des '
-  'Rechnens die alten Zahlen liest statt zu warten.';
 revoke all on function auswertung_wenn_veraltet() from public;
 grant execute on function auswertung_wenn_veraltet() to authenticated;
-comment on function auswertung_wenn_veraltet() is
-  'Rechnet neu, wenn seit der letzten Berechnung etwas geschrieben wurde — sonst nichts. '
-  'Für den Zeitplan (pg_cron, 0061); seit 0095 nebenläufig; seit 0098 mit eigener Notiz '
-  'des Aufrufs (auswertung_stand.zeitplan_gerufen_ts).';
 revoke all on function auswertung_wenn_veraltet() from public;
 grant execute on function auswertung_wenn_veraltet() to authenticated;
-comment on function auswertung_wenn_veraltet() is
-  'Der Lauf des Zeitplans (pg_cron, jede Minute): rechnet nur, wenn auswertung_grund() es sagt — '
-  '„Neu rechnen", nachts einmal, oder noch nie gerechnet (0107). Scheitert der Lauf, stehen fehler_ts/fehler '
-  'im Stand, und es wird erst auf die nächste Anforderung oder in der nächsten Nacht wieder versucht.';
 revoke all on function auswertung_wenn_veraltet() from public;
 grant execute on function auswertung_wenn_veraltet() to authenticated;
 comment on function auswertung_wenn_veraltet() is
@@ -5137,22 +5049,10 @@ begin
   end;
   return jsonb_build_object('weg', 'zeitplan', 'takt', coalesce(v_takt, '*/1 * * * *'), 'angefordert_ts', v_ts);
 end $$;
-comment on function auswertung_anfordern() is
-  '„Neu rechnen" (0102): markiert die Auswertung als veraltet und trägt, wo pg_cron da ist, den '
-  'Sofort-Lauf „auswertung_sofort" ein (weg: zeitplan). Ohne pg_cron antwortet sie weg: app — dann '
-  'rechnet die App selbst mit auswertung_schritt. Nur für den Betriebsleiter oder ohne Anmeldung.';
 revoke all on function auswertung_anfordern() from public;
 grant execute on function auswertung_anfordern() to authenticated;
-comment on function auswertung_anfordern() is
-  '„Neu rechnen" (0102/0103): markiert die Auswertung als veraltet und angefordert; der Zeitplan '
-  '(jede Minute) rechnet beim nächsten Tick (weg: zeitplan). Ohne pg_cron oder ohne aktiven Eintrag '
-  'antwortet sie weg: app — dann rechnet die App selbst. Nur für den Betriebsleiter oder ohne Anmeldung.';
 revoke all on function auswertung_anfordern() from public;
 grant execute on function auswertung_anfordern() to authenticated;
-comment on function auswertung_anfordern() is
-  '„Neu rechnen" (0102, 0107): merkt die Anforderung; wo pg_cron da ist, rechnet der Zeitplan sie beim nächsten '
-  'Takt (weg: zeitplan) und wird eingetragen, falls er fehlt. Ohne pg_cron (Prüfung, Demo) weg: app. '
-  'Nur für den Betriebsleiter oder ohne Anmeldung.';
 revoke all on function auswertung_anfordern() from public;
 grant execute on function auswertung_anfordern() to authenticated;
 comment on function auswertung_anfordern() is
@@ -5189,12 +5089,6 @@ comment on function auswertung_aktualisieren is
 grant execute on function auswertung_aktualisieren() to authenticated;
 revoke execute on function auswertung_aktualisieren() from public;
 grant execute on function auswertung_aktualisieren() to authenticated;
-comment on function auswertung_aktualisieren() is
-  'Alle fünf Schritte des Neurechnens nacheinander. Nur für den Betriebsleiter — '
-  'oder ohne Anmeldung, also für die Prüfstände als Eigentümer (0068).';
-comment on function auswertung_aktualisieren() is
-  'Alle fünf Schritte des Neurechnens nacheinander — für die Prüfstände und Einspielungen ohne Anmeldung. '
-  'Aus dem Browser mit Zeitplan fordert sie nur an (0107). Nur für den Betriebsleiter.';
 revoke all on function auswertung_aktualisieren() from public;
 grant execute on function auswertung_aktualisieren() to authenticated;
 comment on function auswertung_aktualisieren() is
@@ -5215,26 +5109,8 @@ begin
   end if;
   return auswertung_schritt_intern(p_schritt, false);
 end $$;
-comment on function auswertung_schritt(integer) is
-  'Ein Schritt des Neurechnens. Nur für den Betriebsleiter — oder ohne Anmeldung, '
-  'also für die Prüfstände als Eigentümer. Ein Lauf sperrt jede gespeicherte Ansicht '
-  'für rund drei Sekunden (0068).';
-comment on function auswertung_schritt(integer) is
-  'Ein Schritt des Neurechnens. Nur für den Betriebsleiter — oder ohne Anmeldung, '
-  'also für die Prüfstände als Eigentümer. Ein Lauf sperrt jede gespeicherte '
-  'Ansicht für rund drei Sekunden (0068, 0071).';
-comment on function auswertung_schritt(integer) is
-  'Ein Schritt des Neurechnens. Nur für den Betriebsleiter — oder ohne Anmeldung, '
-  'also für die Prüfstände als Eigentümer. Ein Lauf sperrt jede gespeicherte '
-  'Ansicht für rund drei Sekunden (0068, 0071, 0078).';
-comment on function auswertung_schritt(integer) is
-  'Ein Schritt des Neurechnens aus der App (0078) — nicht nebenläufig. Der Zeitplan '
-  'nimmt auswertung_schritt_intern(…, true) (0095).';
 revoke execute on function auswertung_schritt(integer) from public;
 grant execute on function auswertung_schritt(integer) to authenticated;
-comment on function auswertung_schritt(integer) is
-  'Ein Schritt des Neurechnens aus der App — nur ohne Zeitplan (Demo, Prüfung). Mit Zeitplan fordert Schritt 1 '
-  'an und alle Schritte melden sich sofort zurück (0107); gerechnet wird im Hintergrund.';
 revoke execute on function auswertung_schritt(integer) from public;
 grant execute on function auswertung_schritt(integer) to authenticated;
 comment on function auswertung_schritt(integer) is
@@ -5263,8 +5139,6 @@ returns numeric language sql immutable as $$
                  case when f_s  is null then null else least(greatest(f_s  + coalesce(b_s,  0) * d_tage / 7.0, 0), 1) end,
                  case when g_w  is null then null else least(greatest(g_w  + coalesce(g_b,  0) * d_tage / 7.0, 0), 1) end)
 $$;
-comment on function palox_f_nach(numeric, numeric, numeric, numeric, numeric, numeric, numeric, numeric, numeric) is
-  'palox_f() d Tage später: jede Station um ihren Zuwachs je Woche (Kennzahl 0105) fortgeschrieben (0106).';
 revoke all on function palox_f_nach(numeric, numeric, numeric, numeric, numeric, numeric, numeric, numeric, numeric) from public;
 grant execute on function palox_f_nach(numeric, numeric, numeric, numeric, numeric, numeric, numeric, numeric, numeric) to authenticated;
 comment on function palox_f_nach(numeric, numeric, numeric, numeric, numeric, numeric, numeric, numeric, numeric) is
@@ -5385,8 +5259,6 @@ begin
     from fertig f
    order by case f.station when 'waschen_sortieren' then 1 when 'waschen' then 2 else 3 end;
 end $$;
-comment on function palox_station_kennzahl(date, date) is
-  'Die Kennzahl je Station (0105, Anstieg seit 0111): Mittel, Median, letzte vier Wochen, und der Anstieg des Palox-Anteils je Woche Lagerdauer — innerhalb der Sorten gerechnet, nie negativ, bekannt ab fünf Arbeiten in Sorten mit zwei Arbeiten und drei Wochen Spanne der Lagerdauern.';
 revoke all on function palox_station_kennzahl(date, date) from public;
 grant execute on function palox_station_kennzahl(date, date) to authenticated;
 
@@ -5472,8 +5344,6 @@ language sql immutable set search_path = public as $$
          end
     from (select lower(coalesce(p_artikel, '')) as a) t
 $$;
-comment on function artikel_einordnen(text, text) is
-  'Ein Verkaufsartikel aus Perigon eingeordnet: Artikelgruppe, Grösse (gross, klein, lose) und Label (D/K, aus der Preisgruppe, sonst aus dem Namen) — 0112.';
 
 revoke all on function artikel_einordnen(text, text) from public;
 grant execute on function artikel_einordnen(text, text) to authenticated;
@@ -5789,29 +5659,10 @@ begin
     'uebergangen', v_uebergangen);
 end $fn$;
 
-comment on function ausgang_uebernehmen is
-  'Schreibt eine hochgeladene Warenausgangsdatei in einem Zug: Quelle (falls neu), '
-  'Datei (Prüfsumme), Rohzeilen (Upsert, geaendert_ts bei anderem Fingerabdruck) und '
-  'Lieferungen (Upsert über lieferung_import.extern_id). Löscht nichts. Gibt zurück, '
-  'was neu, was aktualisiert und was nicht übernommen wurde (mit Grund).';
-
 revoke all on function ausgang_uebernehmen(text, text, jsonb, jsonb, jsonb) from public;
 grant execute on function ausgang_uebernehmen(text, text, jsonb, jsonb, jsonb) to authenticated;
-comment on function ausgang_uebernehmen is
-  'Schreibt eine hochgeladene Warenausgangsdatei in einem Zug: Quelle (falls neu), '
-  'Datei (Prüfsumme), Rohzeilen (Upsert, geaendert_ts bei anderem Fingerabdruck, seit '
-  '0061 mit Kisten je Chargenzeile) und Lieferungen (Upsert über lieferung_import.extern_id, '
-  'mit ihrer Zeile verbunden). Löscht nichts. Gibt zurück, was neu, was aktualisiert '
-  'und was nicht übernommen wurde (mit Grund).';
 revoke all on function ausgang_uebernehmen(text, text, jsonb, jsonb, jsonb) from public;
 grant execute on function ausgang_uebernehmen(text, text, jsonb, jsonb, jsonb) to authenticated;
-comment on function ausgang_uebernehmen is
-  'Schreibt eine hochgeladene Warenausgangsdatei in einem Zug: Quelle (falls neu), '
-  'Datei (Prüfsumme), Rohzeilen (Upsert, geaendert_ts bei anderem Fingerabdruck, seit '
-  '0061 mit Kisten je Chargenzeile) und Lieferungen (Upsert über lieferung_import.extern_id, '
-  'mit ihrer Zeile verbunden). Löscht nichts. Seit 0099 abgewiesen, wenn die Zeilen unter '
-  'einer anderen Firma schon bekannt sind (sonst doppelte Bilanz). Gibt zurück, was neu, '
-  'was aktualisiert und was nicht übernommen wurde (mit Grund).';
 revoke all on function ausgang_uebernehmen(text, text, jsonb, jsonb, jsonb) from public;
 grant execute on function ausgang_uebernehmen(text, text, jsonb, jsonb, jsonb) to authenticated;
 comment on function ausgang_uebernehmen is
@@ -6079,12 +5930,8 @@ begin
 
   return jsonb_build_object('positionen', v_pos, 'je_saison', v_saisons, 'labels_gesetzt', v_lose);
 end $fn$;
-comment on function ausgang_historie_uebernehmen(text, jsonb, jsonb) is
-  'Schreibt beim Einlesen der Perigon-Datei jede Position aller Saisons nach ausgang_position und die Labels (LiefPrsGrpName, Preisgruppe) an die Zeilen der laufenden Saison (0112). Nur der Betriebsleiter.';
 revoke all on function ausgang_historie_uebernehmen(text, jsonb, jsonb) from public;
 grant execute on function ausgang_historie_uebernehmen(text, jsonb, jsonb) to authenticated;
-comment on function ausgang_historie_uebernehmen(text, jsonb, jsonb) is
-  'Schreibt beim Einlesen der Perigon-Datei jede Position aller Saisons nach ausgang_position und die Labels (LiefPrsGrpName, Preisgruppe) an die Zeilen der laufenden Saison (0112). Die Masse nach perigon_kg (0115): bei kg-Artikeln ohne Gewicht je Artikel die Menge, bei Stück ohne Stückgewicht leer. Nur der Betriebsleiter.';
 revoke all on function ausgang_historie_uebernehmen(text, jsonb, jsonb) from public;
 grant execute on function ausgang_historie_uebernehmen(text, jsonb, jsonb) to authenticated;
 comment on function ausgang_historie_uebernehmen(text, jsonb, jsonb) is
@@ -7174,31 +7021,13 @@ begin
   );
 end $fn$;
 
-comment on function demo_daten_laden is
-  'Legt die erfundene Demo-Saison an (Aufträge mit bemerkung = ''DEMO'', Paletten mit extern_id ''demo-…'', Sortierdateien ''DEMO-…''). Echte Daten bleiben unberührt.';
-
 grant execute on function demo_daten_laden() to authenticated;
-
-comment on function demo_daten_laden is
-  'Legt die erfundene Demo-Saison an (Aufträge mit bemerkung = ''DEMO'', Paletten mit extern_id ''demo-…'', Sortierdateien ''DEMO-…'', Lieferungen ''DEMO''). Echte Daten bleiben unberührt. Deterministisch.';
 grant execute on function demo_daten_laden() to authenticated;
-
-comment on function demo_daten_laden is
-  'Legt die erfundene Demo-Saison an (Arbeiten mit bemerkung = ''DEMO'', Paletten mit extern_id ''demo-…'', Sortierdateien ''DEMO-…'', Lieferungen und Verkaufsdateien ''DEMO'', Kontrollpaletten mit bemerkung ''DEMO''). Echte Daten bleiben unberührt; im Echtmodus lässt sie sich gar nicht laden (0072). Deterministisch: zweimal laden gibt zweimal dieselbe Saison (0081).';
 grant execute on function demo_daten_laden() to authenticated;
-
-comment on function demo_daten_laden is
-  'Legt die erfundene Demo-Saison an (Arbeiten mit bemerkung = ''DEMO'', Paletten mit extern_id ''demo-…'', Sortierdateien ''DEMO-…'', Lieferungen und Verkaufsdateien ''DEMO'', Kontrollpaletten mit bemerkung ''DEMO''). Echte Daten bleiben unberührt; im Echtmodus lässt sie sich gar nicht laden (0072). Seit 0093 mit den Rückmeldungen aus der Halle. Deterministisch: zweimal laden gibt zweimal dieselbe Saison (0081).';
 revoke execute on function demo_daten_laden() from public;
 grant execute on function demo_daten_laden() to authenticated;
-
-comment on function demo_daten_laden is
-  'Legt die erfundene Demo-Saison an (Arbeiten mit bemerkung = ''DEMO'', Paletten mit extern_id ''demo-…'', Sortierdateien ''DEMO-…'', Lieferungen und Verkaufsdateien ''DEMO'', Kontrollpaletten mit bemerkung ''DEMO''). Echte Daten bleiben unberührt; im Echtmodus lässt sie sich gar nicht laden (0072). Seit 0093 mit den Rückmeldungen aus der Halle, seit 0094 mit ihren Kurzfassungen. Deterministisch: zweimal laden gibt zweimal dieselbe Saison (0081).';
 revoke execute on function demo_daten_laden() from public;
 grant execute on function demo_daten_laden() to authenticated;
-
-comment on function demo_daten_laden is
-  'Legt die erfundene Demo-Saison an (Arbeiten mit bemerkung = ''DEMO'', Paletten mit extern_id ''demo-…'', Sortierdateien ''DEMO-…'', Lieferungen und Verkaufsdateien ''DEMO'', Kontrollpaletten mit bemerkung ''DEMO''). Echte Daten bleiben unberührt; im Echtmodus lässt sie sich gar nicht laden (0072). Seit 0093 mit den Rückmeldungen aus der Halle, seit 0094 mit ihren Kurzfassungen; seit 0096 stimmt die nachkorrigierte Verkaufsdatei an jedem Tag des Jahres. Deterministisch: zweimal laden gibt zweimal dieselbe Saison (0081).';
 revoke execute on function demo_daten_laden() from public;
 grant execute on function demo_daten_laden() to authenticated;
 
@@ -7279,17 +7108,8 @@ begin
   );
 end $fn$;
 
-comment on function demo_daten_entfernen is
-  'Löscht restlos alles, was demo_daten_laden() angelegt hat. Echte Daten bleiben unberührt — erkannt wird die Demo an bemerkung = ''DEMO'', extern_id ''demo-…'' und datei_name ''DEMO-…''.';
-
 grant execute on function demo_daten_entfernen() to authenticated;
-
-comment on function demo_daten_entfernen is
-  'Löscht restlos alles, was demo_daten_laden() angelegt hat. Echte Daten bleiben unberührt — erkannt wird die Demo an bemerkung = ''DEMO'', extern_id ''demo-…'' und datei_name ''DEMO-…''.';
 grant execute on function demo_daten_entfernen() to authenticated;
-
-comment on function demo_daten_entfernen is
-  'Löscht restlos alles, was demo_daten_laden() angelegt hat — samt Kontrollpaletten, Verkaufsdateien und dem Erntestand, den die Demo an den Chargen gesetzt hat. Echte Daten bleiben unberührt; erkannt wird die Demo an bemerkung = ''DEMO'', extern_id ''demo-…'' und datei_name ''DEMO-…'' (0081).';
 grant execute on function demo_daten_entfernen() to authenticated;
 
 comment on function demo_daten_entfernen is
@@ -7368,13 +7188,9 @@ begin
    where p.quelle = 'DEMO' and p.roh is null;
   return format('Demo: %s Lieferungen in zwei Vorjahren, Labels an den Demo-Verkaufszeilen.', v_n);
 end $fn$;
-comment on function demo_vorjahre_laden() is
-  'Ergänzt die Demo um das Perigon-Label je Verkaufszeile und zwei Vorjahre je Demo-Kunde (ausgang_position, quelle DEMO) — für Lager nach Artikel (0112). Gleich nach demo_daten_laden() aufrufen; demo_daten_entfernen() räumt es mit der Demo-Firma weg.';
 
 revoke all on function demo_vorjahre_laden() from public;
 grant execute on function demo_vorjahre_laden() to authenticated;
-comment on function demo_vorjahre_laden() is
-  'Ergänzt die Demo um das Perigon-Label je Verkaufszeile und zwei Vorjahre je Demo-Kunde (ausgang_position, quelle DEMO) — für Lager nach Artikel (0112); seit 0115 mit ein paar Stück ohne Stückgewicht im Vorjahr (kg leer). Gleich nach demo_daten_laden() aufrufen; demo_daten_entfernen() räumt es mit der Demo-Firma weg.';
 
 revoke all on function demo_vorjahre_laden() from public;
 grant execute on function demo_vorjahre_laden() to authenticated;
@@ -7755,8 +7571,6 @@ begin
   get diagnostics v_n = row_count;
   return v_n;
 end $$;
-comment on function lieferungen_nachordnen() is
-  'Gibt Lieferscheinen ohne Charge ihre Charge, sobald die Nummer der Datei eine kennt (eigene Nummer, sonst eine Perigon-Nummer an genau einer Charge) — läuft zu Beginn jedes Rechenlaufs; gibt zurück, wie viele es waren (0121).';
 revoke all on function lieferungen_nachordnen() from public;
 grant execute on function lieferungen_nachordnen() to authenticated;
 
@@ -7926,20 +7740,8 @@ begin
     'dauer_ms', (extract(epoch from clock_timestamp() - v_start) * 1000)::int,
     'fertig', p_schritt = 5, 'nebenlaeufig', p_nebenlaeufig, 'wartet', false);
 end $function$;
-comment on function auswertung_schritt_intern(integer, boolean) is
-  'Ein Schritt des Neurechnens (0078), wahlweise nebenläufig (0095): dann bleibt jede '
-  'Ansicht lesbar, bis ihre neue Fassung steht. Nur für den Betriebsleiter oder ohne Anmeldung.';
 revoke execute on function auswertung_schritt_intern(integer, boolean) from public;
 grant execute on function auswertung_schritt_intern(integer, boolean) to authenticated;
-comment on function auswertung_schritt_intern(integer, boolean) is
-  'Ein Schritt des Neurechnens (0078), wahlweise nebenläufig (0095). Beratungssperre je Aufruf (0100); der App-Weg merkt '
-  'sich rechnet_seit, der Zeitplan-Weg fasst auswertung_stand erst am Ende an; je Ansicht wird die Dauer notiert '
-  '(auswertung_laufzeit, 0103). Schritt 3 rechnet seit 0107 auch erg_palox_erwartung, seit 0116 vor der Kaskade die Gewichtsverteilung beim Eingang (mv_kaliber_eingang, mv_kaliber_quelle). Nur für den Betriebsleiter oder ohne Anmeldung.';
-
-comment on function auswertung_schritt_intern(integer, boolean) is
-  'Ein Schritt des Neurechnens (0078), wahlweise nebenläufig (0095). Beratungssperre je Aufruf (0100); der App-Weg merkt '
-  'sich rechnet_seit, der Zeitplan-Weg fasst auswertung_stand erst am Ende an; je Ansicht wird die Dauer notiert '
-  '(auswertung_laufzeit, 0103). Schritt 3 rechnet seit 0107 auch erg_palox_erwartung, seit 0116 vor der Kaskade die Gewichtsverteilung beim Eingang (mv_kaliber_eingang, mv_kaliber_quelle). Seit 0119 hält ein eindeutiger Index, den die Daten nicht mehr hergeben, die Rechnung nicht an: er wird entfernt und in auswertung_index_entfernt notiert. Nur für den Betriebsleiter oder ohne Anmeldung.';
 
 comment on function auswertung_schritt_intern(integer, boolean) is
   'Ein Schritt des Neurechnens (0078), wahlweise nebenläufig (0095). Beratungssperre je Aufruf (0100); der App-Weg merkt '
@@ -7951,6 +7753,11 @@ comment on function auswertung_schritt_intern(integer, boolean) is
 do $$
 declare r record; v_ist int; v_neu int := 0;
 begin
+  -- 0124: Die Liste läuft genau einmal. setup.sql spielt jede Migration bei
+  -- jedem Einspielen neu ein; ohne Marke trüge sie eine Nummer, die der
+  -- Betriebsleiter unter Stammdaten bewusst gelöscht hat, beim nächsten Mal
+  -- wieder ein — und warnte bei jeder bewusst geänderten jedes Mal von neuem.
+  if exists (select 1 from einstellung where schluessel = 'perigon_liste_2026_10_23') then return; end if;
   -- Die Berichtigung vom 23. Oktober: 1650 ist 198977, nicht 198976 — nur,
   -- wo noch die alte Nummer der Planungsdatei (0051) steht.
   update charge set perigon_nr = 198977 where nr = 1650 and perigon_nr = 198976;
@@ -7976,6 +7783,10 @@ begin
     end if;
   end loop;
   if v_neu > 0 then raise notice 'Perigon-Nummern der Liste vom 23. Oktober: % eingetragen.', v_neu; end if;
+  insert into einstellung (schluessel, wert, bemerkung)
+  values ('perigon_liste_2026_10_23', 'true'::jsonb,
+          'Die Perigon-Nummern der Planungsliste vom 23. Oktober sind eingetragen (0122). Die Liste läuft nicht noch einmal (0124); Nummern pflegt der Betriebsleiter unter Stammdaten → Chargen.')
+  on conflict (schluessel) do nothing;
 end $$;
 comment on column charge.perigon_nr is
   'Chargennummer derselben Ware im Perigon der Firma AG (sechsstellig). Aus der '
@@ -8121,92 +7932,22 @@ comment on function lieferungen_nachordnen() is
 revoke all on function lieferungen_nachordnen() from public;
 grant execute on function lieferungen_nachordnen() to authenticated;
 
+alter function auftrag_schema_setzen() set search_path = public;
+alter function ausschuss_netto_setzen() set search_path = public;
+alter function csv_lauf_speichern(int, text, text, text, timestamptz, text, jsonb, int, int, int, int, jsonb) set search_path = public;
+alter function csv_sammel_speichern(int, text, text, text, jsonb, int, int, int, int, jsonb, timestamptz, timestamptz) set search_path = public;
+alter function lauf_neu_klassieren(bigint) set search_path = public;
+alter function lesung_als_sammel(bigint, timestamptz, timestamptz) set search_path = public;
+alter function schimmel_netto_setzen() set search_path = public;
+
 create or replace function schema_stand() returns int
-language sql immutable set search_path = public as $$ select 123 $$;
+language sql immutable set search_path = public as $$ select 124 $$;
 comment on function schema_stand is
   'Nummer der jüngsten eingespielten Migration. Die App vergleicht sie mit '
   'SCHEMA_ERWARTET (src/lib/version.ts) und verlangt bei Abweichung, setup.sql '
   'erneut auszuführen. Jede Migration setzt sie auf ihre eigene Nummer.';
 revoke all on function schema_stand() from public;
 grant execute on function schema_stand() to anon, authenticated;
-comment on function schema_stand() is
-  'Die Nummer der höchsten eingespielten Migration. Die App vergleicht sie mit '
-  'SCHEMA_ERWARTET und verlangt setup.sql, wenn sie auseinanderliegen (0057).';
-comment on function schema_stand() is
-  'Die Nummer der höchsten eingespielten Migration. Die App vergleicht sie mit '
-  'SCHEMA_ERWARTET und verlangt setup.sql, wenn sie auseinanderliegen (0057).';
-comment on function schema_stand() is
-  'Die Nummer der höchsten eingespielten Migration. Die App vergleicht sie mit '
-  'SCHEMA_ERWARTET und verlangt setup.sql, wenn sie auseinanderliegen (0057).';
-comment on function schema_stand() is
-  'Die Nummer der höchsten eingespielten Migration. Die App vergleicht sie mit '
-  'SCHEMA_ERWARTET und verlangt setup.sql, wenn sie auseinanderliegen (0057).';
-comment on function schema_stand() is
-  'Die Nummer der höchsten eingespielten Migration. Die App vergleicht sie mit '
-  'SCHEMA_ERWARTET und verlangt setup.sql, wenn sie auseinanderliegen (0057).';
-comment on function schema_stand() is
-  'Die Nummer der höchsten eingespielten Migration. Die App vergleicht sie mit '
-  'SCHEMA_ERWARTET und verlangt setup.sql, wenn sie auseinanderliegen (0057).';
-comment on function schema_stand() is
-  'Die Nummer der höchsten eingespielten Migration. Die App vergleicht sie mit '
-  'SCHEMA_ERWARTET und verlangt setup.sql, wenn sie auseinanderliegen (0057).';
-comment on function schema_stand() is
-  'Die Nummer der höchsten eingespielten Migration. Die App vergleicht sie mit '
-  'SCHEMA_ERWARTET und verlangt setup.sql, wenn sie auseinanderliegen (0057).';
-comment on function schema_stand() is
-  'Die Nummer der höchsten eingespielten Migration. Die App vergleicht sie mit '
-  'SCHEMA_ERWARTET und verlangt setup.sql, wenn sie auseinanderliegen (0057).';
-comment on function schema_stand() is
-  'Die Nummer der höchsten eingespielten Migration. Die App vergleicht sie mit '
-  'SCHEMA_ERWARTET und verlangt setup.sql, wenn sie auseinanderliegen (0057).';
-comment on function schema_stand() is
-  'Die Nummer der höchsten eingespielten Migration. Die App vergleicht sie mit '
-  'SCHEMA_ERWARTET und verlangt setup.sql, wenn sie auseinanderliegen (0057).';
-comment on function schema_stand() is
-  'Die Nummer der höchsten eingespielten Migration. Die App vergleicht sie mit '
-  'SCHEMA_ERWARTET und verlangt setup.sql, wenn sie auseinanderliegen (0057).';
-comment on function schema_stand() is
-  'Die Nummer der höchsten eingespielten Migration. Die App vergleicht sie mit '
-  'SCHEMA_ERWARTET und verlangt setup.sql, wenn sie auseinanderliegen (0057).';
-comment on function schema_stand() is
-  'Die Nummer der höchsten eingespielten Migration. Die App vergleicht sie mit '
-  'SCHEMA_ERWARTET und verlangt setup.sql, wenn sie auseinanderliegen (0057).';
-comment on function schema_stand() is
-  'Die Nummer der höchsten eingespielten Migration. Die App vergleicht sie mit '
-  'SCHEMA_ERWARTET und verlangt setup.sql, wenn sie auseinanderliegen (0057).';
-comment on function schema_stand() is
-  'Die Nummer der höchsten eingespielten Migration. Die App vergleicht sie mit '
-  'SCHEMA_ERWARTET und verlangt setup.sql, wenn sie auseinanderliegen (0057).';
-comment on function schema_stand() is
-  'Die Nummer der höchsten eingespielten Migration. Die App vergleicht sie mit '
-  'SCHEMA_ERWARTET und verlangt setup.sql, wenn sie auseinanderliegen (0057).';
-comment on function schema_stand() is
-  'Die Nummer der höchsten eingespielten Migration. Die App vergleicht sie mit '
-  'SCHEMA_ERWARTET und verlangt setup.sql, wenn sie auseinanderliegen (0057).';
-comment on function schema_stand() is
-  'Die Nummer der höchsten eingespielten Migration. Die App vergleicht sie mit '
-  'SCHEMA_ERWARTET und verlangt setup.sql, wenn sie auseinanderliegen (0057).';
-comment on function schema_stand() is
-  'Die Nummer der höchsten eingespielten Migration. Die App vergleicht sie mit '
-  'SCHEMA_ERWARTET und verlangt setup.sql, wenn sie auseinanderliegen (0057).';
-comment on function schema_stand() is
-  'Die Nummer der höchsten eingespielten Migration. Die App vergleicht sie mit '
-  'SCHEMA_ERWARTET und verlangt setup.sql, wenn sie auseinanderliegen (0057).';
-comment on function schema_stand() is
-  'Die Nummer der höchsten eingespielten Migration. Die App vergleicht sie mit '
-  'SCHEMA_ERWARTET und verlangt setup.sql, wenn sie auseinanderliegen (0057).';
-comment on function schema_stand() is
-  'Die Nummer der höchsten eingespielten Migration. Die App vergleicht sie mit '
-  'SCHEMA_ERWARTET und verlangt setup.sql, wenn sie auseinanderliegen (0057).';
-comment on function schema_stand() is
-  'Die Nummer der höchsten eingespielten Migration. Die App vergleicht sie mit '
-  'SCHEMA_ERWARTET und verlangt setup.sql, wenn sie auseinanderliegen (0057).';
-comment on function schema_stand() is
-  'Die Nummer der höchsten eingespielten Migration. Die App vergleicht sie mit '
-  'SCHEMA_ERWARTET und verlangt setup.sql, wenn sie auseinanderliegen (0057).';
-comment on function schema_stand() is
-  'Die Nummer der höchsten eingespielten Migration. Die App vergleicht sie mit '
-  'SCHEMA_ERWARTET und verlangt setup.sql, wenn sie auseinanderliegen (0057).';
 comment on function schema_stand() is
   'Die Nummer der höchsten eingespielten Migration. Die App vergleicht sie mit '
   'SCHEMA_ERWARTET und verlangt setup.sql, wenn sie auseinanderliegen (0057).';
@@ -8229,10 +7970,10 @@ comment on function schema_stand() is
 -- wird am Ende dieser Datei neu berechnet.
 -- =====================================================================
 
+drop view if exists v_charge_spur cascade;
 drop view if exists v_lager_ausweis cascade;
 drop view if exists v_ungereimtheit cascade;
 drop view if exists v_stammdaten_pruefung cascade;
-drop view if exists v_charge_spur cascade;
 drop view if exists v_perigon_produzent cascade;
 drop view if exists v_perigon_pruefung cascade;
 drop view if exists v_ohne_charge cascade;
@@ -14117,73 +13858,6 @@ language sql stable security invoker set search_path = public as $$
     (select min(c.schlag) from charge c where name_norm(c.schlag) = name_norm(p)))
 $$;
 
-create or replace view v_charge_spur with (security_invoker = true) as
-with journal as (
-  select coalesce(p.charge_nr_journal, p.charge_nr) as nr, count(*)::int as n,
-         sum(vp.netto_kg) as kg, min(p.eingangsdatum) as von, max(p.eingangsdatum) as bis
-    from palette p join v_palette vp on vp.id = p.id
-   group by 1
-), jetzt as (
-  select p.charge_nr as nr, count(*)::int as n, sum(vp.netto_kg) as kg
-    from palette p join v_palette vp on vp.id = p.id
-   group by 1
-), zuordnung as (
-  select z.von_charge_nr, z.nach_charge_nr, z.stand, count(*)::int as n, sum(vp.netto_kg) as kg
-    from palette_zuordnung z join v_palette vp on vp.id = z.palette_id
-   where z.stand in ('angewandt', 'vorschlag')
-   group by 1, 2, 3
-), arbeit as (
-  select a.charge_nr as nr, count(*)::int as n,
-         min((a.start_ts at time zone 'Europe/Zurich')::date) as von,
-         max((a.start_ts at time zone 'Europe/Zurich')::date) as bis,
-         jsonb_agg(jsonb_build_object('id', a.id, 'datum', (a.start_ts at time zone 'Europe/Zurich')::date,
-                                      'station', a.station, 'zettel', (select count(*) from auftrag_palette ap where ap.auftrag_id = a.id))
-                   order by a.start_ts) as liste
-    from auftrag a
-   where a.abgebrochen_ts is null
-   group by a.charge_nr
-), lief as (
-  select l.charge_nr as nr, count(*)::int as n, sum(l.masse_kg) as kg, min(l.datum) as von, max(l.datum) as bis
-    from v_lieferung_masse l
-   where l.charge_nr is not null and l.masse_kg > 0 and l.buch in ('verkauf', 'marge') and l.datum <= heute()
-   group by l.charge_nr
-), artikel as (
-  select l.charge_nr as nr, (artikel_einordnen(z.artikel, z.preisgruppe)).gruppe as gruppe, sum(l.masse_kg) as kg
-    from v_lieferung_masse l
-    join lieferung_import li on li.lieferung_id = l.id
-    join ausgang_zeile z on z.id = li.zeile_id
-   where l.charge_nr is not null and l.masse_kg > 0 and l.buch in ('verkauf', 'marge') and l.datum <= heute()
-   group by 1, 2
-), nach as (
-  select n.charge_nr as nr, n.weg, count(*)::int as n, sum(l.masse_kg) as kg
-    from lieferung_nachordnung n join v_lieferung_masse l on l.id = n.lieferung_id
-   group by 1, 2
-)
-select c.nr as charge_nr, c.schlag, c.sorte, sk.artikelgruppe,
-       coalesce(j.n, 0) as journal_paletten, zahl(j.kg, 2, 1e12)::numeric(14,2) as journal_kg, j.von as journal_von, j.bis as journal_bis,
-       coalesce(t.n, 0) as paletten, zahl(t.kg, 2, 1e12)::numeric(14,2) as eingang_kg,
-       (select jsonb_agg(jsonb_build_object('charge_nr', z.nach_charge_nr, 'stand', z.stand, 'paletten', z.n, 'kg', round(z.kg))
-                         order by z.stand, z.nach_charge_nr)
-          from zuordnung z where z.von_charge_nr = c.nr) as weg,
-       (select jsonb_agg(jsonb_build_object('charge_nr', z.von_charge_nr, 'stand', z.stand, 'paletten', z.n, 'kg', round(z.kg))
-                         order by z.stand, z.von_charge_nr)
-          from zuordnung z where z.nach_charge_nr = c.nr) as her,
-       coalesce(a.n, 0) as arbeiten, a.von as arbeit_von, a.bis as arbeit_bis, a.liste as arbeit_liste,
-       coalesce(f.n, 0) as lieferscheine, zahl(f.kg, 2, 1e12)::numeric(14,2) as geliefert_kg, f.von as lief_von, f.bis as lief_bis,
-       (select jsonb_agg(jsonb_build_object('gruppe', coalesce(x.gruppe, 'andere'), 'kg', round(x.kg)) order by x.kg desc)
-          from artikel x where x.nr = c.nr) as nach_artikel,
-       (select jsonb_agg(jsonb_build_object('weg', x.weg, 'n', x.n, 'kg', round(x.kg)) order by x.weg)
-          from nach x where x.nr = c.nr) as nachgeordnet,
-       zahl(b.n_rest_paletten, 1, 1e6)::numeric(7,1) as rest_paletten
-  from charge c
-  left join sorte_kaliber sk on sk.sorte = c.sorte
-  left join journal j on j.nr = c.nr
-  left join jetzt t on t.nr = c.nr
-  left join arbeit a on a.nr = c.nr
-  left join lief f on f.nr = c.nr
-  left join erg_charge b on b.charge_nr = c.nr
- where j.n is not null or t.n is not null or a.n is not null or f.n is not null;
-
 create or replace view v_stammdaten_pruefung with (security_invoker = true) as
 with saison as (
   select max(c.saison) as s from charge c where exists (select 1 from palette p where p.charge_nr = c.nr)
@@ -14320,7 +13994,7 @@ select 'stammdaten', s.chargen[1], c.sorte, c.schlag, zahl(null::numeric, 2, 1e1
   from v_stammdaten_pruefung s
   join charge c on c.nr = s.chargen[1];
 
--- aus 0123_verkaufsfaehig_ist_was_als_artikel_geht.sql
+-- aus 0124_was_der_ausweis_nicht_weiss_sagt_er.sql
 
 create or replace view v_lager_ausweis with (security_invoker = true) as
 with hagel_lager as (
@@ -14341,6 +14015,13 @@ with hagel_lager as (
          sum(m.n_wiegungen) filter (where m.soll_kg_pro_kiste > 0 and m.zuviel_je_kiste is not null)::int as n_kg,
          bool_or(m.kistensystem = 'stueck') as stueck
     from erg_marge_charge m group by m.sorte
+), ohne_system as (
+
+  select k.charge_nr, count(*)::int as n
+    from v_ausgang_kennzahl k
+   where k.kistensystem is null
+      or (k.kistensystem = 'kiste_ab' and coalesce(k.soll_kg_pro_kiste, 0) <= 0)
+   group by k.charge_nr
 ), basis as (
   select c.charge_nr, c.sorte, c.schlag, c.n_rest_paletten as paletten, c.lager_kg as liegend_kg,
          p.lager_kg, p.alter_tage, p.verdunstet_kg, p.verdunstet_je_tag_kg, p.faul_kg as faul_mit_hagel_kg,
@@ -14356,12 +14037,16 @@ with hagel_lager as (
               when mc.stueck then 'Stück-Kisten: ohne Sollgewicht keine Überfüllung'
               when ms.a is not null then format('Sorte %s: %s gewogene %s', c.sorte, ms.n_kg, case when ms.n_kg = 1 then 'Palette' else 'Paletten' end)
               when ms.stueck then 'Stück-Kisten: ohne Sollgewicht keine Überfüllung'
-              else 'nicht gewogen' end as marge_quelle
+              when os.n > 0 then format('%s gewogene %s, aber die Arbeit hat kein Kistensystem oder kein Sollgewicht — keine Überfüllung zu rechnen (Messungen → Arbeiten → korrigieren)',
+                                        os.n, case when os.n = 1 then 'Palette' else 'Paletten' end)
+              else 'nicht gewogen' end as marge_quelle,
+         coalesce(os.n, 0) as n_ohne_system
     from erg_charge c
     left join erg_prognose p on p.gruppe = 'charge' and p.schluessel = c.charge_nr::text and p.h = 0
     left join hagel_lager hl on hl.charge_nr = c.charge_nr
     left join marge_charge mc on mc.charge_nr = c.charge_nr
     left join marge_sorte ms on ms.sorte = c.sorte
+    left join ohne_system os on os.charge_nr = c.charge_nr
 ), mit_hagel as (
   select b.*,
          case when b.gute_ware_kg is null then null
@@ -14372,22 +14057,28 @@ with hagel_lager as (
 ), artikel as (
 
   select t.charge_nr,
-         sum(t.kg) filter (where t.groesse in ('darunter', 'darueber', 'dazwischen', 'lose')) as keinen_artikel_kg,
+         sum(t.kg) filter (where t.groesse in ('darunter', 'darueber', 'dazwischen')) as keinen_artikel_kg,
+         sum(t.kg) filter (where t.groesse = 'lose' and t.artikelgruppe is null) as gruppe_offen_kg,
          sum(t.kg) filter (where t.groesse = 'ohne Verteilung') as groesse_offen_kg
     from artikel_lager_teile(0) t
    group by t.charge_nr
 ), verkaufbar as (
   select m.*,
+
          case when m.verkaufsfaehig_kg is null then null
               when m.verkaufsfaehig_kg <= 0 then 0::numeric
+              when coalesce(a.groesse_offen_kg, 0) > 0 then null
               else coalesce(a.keinen_artikel_kg, 0) end as keinen_artikel_kg,
-         case when m.verkaufsfaehig_kg > 0 then coalesce(a.groesse_offen_kg, 0) else 0::numeric end as groesse_offen_kg
+         case when m.verkaufsfaehig_kg is null then null
+              when m.verkaufsfaehig_kg > 0 then coalesce(a.groesse_offen_kg, 0) else 0::numeric end as groesse_offen_kg,
+         case when m.verkaufsfaehig_kg is null then null
+              when m.verkaufsfaehig_kg > 0 then coalesce(a.gruppe_offen_kg, 0) else 0::numeric end as gruppe_offen_kg
     from mit_hagel m
     left join artikel a on a.charge_nr = m.charge_nr
 ), netto as (
   select v.*,
-         v.verkaufsfaehig_kg - v.keinen_artikel_kg as als_artikel_kg,
-         (v.verkaufsfaehig_kg - v.keinen_artikel_kg) * v.marge_anteil / (1 + v.marge_anteil) as ueberfuellung_kg
+         v.verkaufsfaehig_kg - coalesce(v.keinen_artikel_kg, 0) as als_artikel_kg,
+         (v.verkaufsfaehig_kg - coalesce(v.keinen_artikel_kg, 0)) * v.marge_anteil / (1 + v.marge_anteil) as ueberfuellung_kg
     from verkaufbar v
 )
 select m.charge_nr, m.sorte, m.schlag,
@@ -14396,7 +14087,8 @@ select m.charge_nr, m.sorte, m.schlag,
        m.alter_tage,
        zahl(m.verdunstet_kg, 2, 1e12)::numeric(14,2) as verdunstet_kg,
        zahl(m.verdunstet_je_tag_kg, 2, 1e12)::numeric(14,2) as verdunstet_je_tag_kg,
-       zahl(m.faul_mit_hagel_kg - coalesce(m.unique_kg, 0), 2, 1e12)::numeric(14,2) as faul_kg,
+
+       zahl(case when m.h >= 1 then null else m.faul_mit_hagel_kg - coalesce(m.unique_kg, 0) end, 2, 1e12)::numeric(14,2) as faul_kg,
        zahl(m.unique_kg, 2, 1e12)::numeric(14,2) as unique_kg,
        zahl(nullif(m.h, 0), 4, 1e1)::numeric(5,4) as hagel_anteil,
        zahl(m.klein_kg, 2, 1e12)::numeric(14,2) as zu_klein_kg,
@@ -14407,18 +14099,100 @@ select m.charge_nr, m.sorte, m.schlag,
        m.marge_quelle,
        zahl(m.verkaufsfaehig_kg * m.marge_anteil / (1 + m.marge_anteil), 2, 1e12)::numeric(14,2) as marge_kg,
        zahl(m.verkaufsfaehig_kg / (1 + m.marge_anteil), 2, 1e12)::numeric(14,2) as verrechenbar_kg,
-       zahl(m.hagel_ausgelagert + coalesce(m.unique_kg, 0), 2, 1e12)::numeric(14,2) as hagel_bis_heute_kg,
+       zahl(case when m.h >= 1 then null else m.hagel_ausgelagert + coalesce(m.unique_kg, 0) end, 2, 1e12)::numeric(14,2) as hagel_bis_heute_kg,
        coalesce(m.r_bekannt, false) as r_bekannt, coalesce(m.f_bekannt, false) as f_bekannt,
        coalesce(m.kanal_bekannt, false) as kanal_bekannt, coalesce(m.fax_bekannt, false) as fax_bekannt,
 
        zahl(m.keinen_artikel_kg, 2, 1e12)::numeric(14,2) as keinen_artikel_kg,
        zahl(m.groesse_offen_kg, 2, 1e12)::numeric(14,2) as groesse_offen_kg,
        zahl(m.ueberfuellung_kg, 2, 1e12)::numeric(14,2) as ueberfuellung_kg,
-       zahl(m.als_artikel_kg - coalesce(m.ueberfuellung_kg, 0) + coalesce(m.unique_kg, 0), 2, 1e12)::numeric(14,2) as verkaufbar_kg,
+       zahl(case when m.h >= 1 then null
+                 else m.als_artikel_kg - coalesce(m.ueberfuellung_kg, 0) + coalesce(m.unique_kg, 0) end, 2, 1e12)::numeric(14,2) as verkaufbar_kg,
        nullif(concat_ws(', ',
-         case when m.verkaufsfaehig_kg > 0 and m.marge_anteil is null then 'Überfüllung nicht gewogen' end,
-         case when m.groesse_offen_kg > 0 then 'Grösse offen (keine Sortier-CSV)' end), '') as verkaufbar_offen
+         case when m.h >= 1 then 'Hagel 100 %: Unique und Faules nicht trennbar' end,
+         case when m.verkaufsfaehig_kg > 0 and m.marge_anteil is null then
+                case when m.n_ohne_system > 0 then 'Überfüllung offen: Paletten gewogen, aber die Arbeit hat kein Kistensystem oder kein Sollgewicht'
+                     else 'Überfüllung nicht gewogen' end end,
+         case when m.groesse_offen_kg > 0 then 'Grösse offen (keine Sortier-CSV)' end,
+         case when m.gruppe_offen_kg > 0 then 'Artikelgruppe fehlt (Stammdaten → Sorten)' end), '') as verkaufbar_offen,
+
+       zahl(m.gruppe_offen_kg, 2, 1e12)::numeric(14,2) as gruppe_offen_kg
   from netto m;
+
+create or replace view v_charge_spur with (security_invoker = true) as
+with journal as (
+  select coalesce(p.charge_nr_journal, p.charge_nr) as nr, count(*)::int as n,
+         sum(vp.netto_kg) as kg, min(p.eingangsdatum) as von, max(p.eingangsdatum) as bis
+    from palette p join v_palette vp on vp.id = p.id
+   group by 1
+), jetzt as (
+  select p.charge_nr as nr, count(*)::int as n, sum(vp.netto_kg) as kg
+    from palette p join v_palette vp on vp.id = p.id
+   group by 1
+), zuordnung as (
+  select z.von_charge_nr, z.nach_charge_nr, z.stand, count(*)::int as n, sum(vp.netto_kg) as kg
+    from palette_zuordnung z join v_palette vp on vp.id = z.palette_id
+   where z.stand in ('angewandt', 'vorschlag')
+   group by 1, 2, 3
+), arbeit as (
+  select a.charge_nr as nr, count(*)::int as n,
+         min((a.start_ts at time zone 'Europe/Zurich')::date) as von,
+         max((a.start_ts at time zone 'Europe/Zurich')::date) as bis,
+         jsonb_agg(jsonb_build_object('id', a.id, 'datum', (a.start_ts at time zone 'Europe/Zurich')::date,
+                                      'station', a.station, 'zettel', (select count(*) from auftrag_palette ap where ap.auftrag_id = a.id))
+                   order by a.start_ts) as liste
+    from auftrag a
+   where a.abgebrochen_ts is null
+   group by a.charge_nr
+), lief as (
+  select l.charge_nr as nr, count(*)::int as n, sum(l.masse_kg) as kg, min(l.datum) as von, max(l.datum) as bis
+    from v_lieferung_masse l
+   where l.charge_nr is not null and l.masse_kg > 0 and l.buch in ('verkauf', 'marge') and l.datum <= heute()
+   group by l.charge_nr
+), artikel as (
+  select l.charge_nr as nr, (artikel_einordnen(z.artikel, z.preisgruppe)).gruppe as gruppe, sum(l.masse_kg) as kg
+    from v_lieferung_masse l
+    join lieferung_import li on li.lieferung_id = l.id
+    join ausgang_zeile z on z.id = li.zeile_id
+   where l.charge_nr is not null and l.masse_kg > 0 and l.buch in ('verkauf', 'marge') and l.datum <= heute()
+   group by 1, 2
+), nach_artikel as (
+
+  select x.nr, coalesce(x.gruppe, 'andere') as gruppe, x.kg from artikel x
+  union all
+  select f.nr, 'ohne Perigon-Zeile', f.kg - coalesce(a.kg, 0)
+    from lief f
+    left join (select x.nr, sum(x.kg) as kg from artikel x group by x.nr) a on a.nr = f.nr
+   where f.kg - coalesce(a.kg, 0) > 0.5
+), nach as (
+  select n.charge_nr as nr, n.weg, count(*)::int as n, sum(l.masse_kg) as kg
+    from lieferung_nachordnung n join v_lieferung_masse l on l.id = n.lieferung_id
+   group by 1, 2
+)
+select c.nr as charge_nr, c.schlag, c.sorte, sk.artikelgruppe,
+       coalesce(j.n, 0) as journal_paletten, zahl(j.kg, 2, 1e12)::numeric(14,2) as journal_kg, j.von as journal_von, j.bis as journal_bis,
+       coalesce(t.n, 0) as paletten, zahl(t.kg, 2, 1e12)::numeric(14,2) as eingang_kg,
+       (select jsonb_agg(jsonb_build_object('charge_nr', z.nach_charge_nr, 'stand', z.stand, 'paletten', z.n, 'kg', round(z.kg))
+                         order by z.stand, z.nach_charge_nr)
+          from zuordnung z where z.von_charge_nr = c.nr) as weg,
+       (select jsonb_agg(jsonb_build_object('charge_nr', z.von_charge_nr, 'stand', z.stand, 'paletten', z.n, 'kg', round(z.kg))
+                         order by z.stand, z.von_charge_nr)
+          from zuordnung z where z.nach_charge_nr = c.nr) as her,
+       coalesce(a.n, 0) as arbeiten, a.von as arbeit_von, a.bis as arbeit_bis, a.liste as arbeit_liste,
+       coalesce(f.n, 0) as lieferscheine, zahl(f.kg, 2, 1e12)::numeric(14,2) as geliefert_kg, f.von as lief_von, f.bis as lief_bis,
+       (select jsonb_agg(jsonb_build_object('gruppe', x.gruppe, 'kg', round(x.kg)) order by x.kg desc)
+          from nach_artikel x where x.nr = c.nr) as nach_artikel,
+       (select jsonb_agg(jsonb_build_object('weg', x.weg, 'n', x.n, 'kg', round(x.kg)) order by x.weg)
+          from nach x where x.nr = c.nr) as nachgeordnet,
+       zahl(b.n_rest_paletten, 1, 1e6)::numeric(7,1) as rest_paletten
+  from charge c
+  left join sorte_kaliber sk on sk.sorte = c.sorte
+  left join journal j on j.nr = c.nr
+  left join jetzt t on t.nr = c.nr
+  left join arbeit a on a.nr = c.nr
+  left join lief f on f.nr = c.nr
+  left join erg_charge b on b.charge_nr = c.nr
+ where j.n is not null or t.n is not null or a.n is not null or f.n is not null;
 
 -- ---------------------------------------------------------------------
 -- Beschreibungen, Leserechte und Indizes
@@ -14428,52 +14202,16 @@ select m.charge_nr, m.sorte, m.schlag,
 -- ---------------------------------------------------------------------
 
 
-comment on view v_charge_rueckgrat is
-  'Das für jede Charge sicher Bekannte. Grundlage jeder Hochrechnung.';
-
-comment on view v_schimmel_beobachtung is
-  'Bekannte kleine Verzerrung: der Palox wird heute gewogen, die faulen '
-  'Kürbisse haben also selbst schon Wasser verloren. Der wahre Anteil liegt '
-  'geringfügig höher als hier ausgewiesen.';
-
-comment on view v_massenbilanz is
-  'abweichung_anteil nahe 0 heißt: die Koeffizienten treffen die Realität. '
-  'Systematisch positiv → Verluste überschätzt, negativ → unterschätzt. '
-  'Nur aussagekräftig für Chargen mit Sortier-CSV.';
-
 grant select on all tables in schema public to authenticated;
 
 grant usage, select on all sequences in schema public to authenticated;
 grant execute on all functions in schema public to authenticated;
 
-comment on view v_plausibilitaet is
-  'Messungen, die die Auswertung bewusst nicht verwendet. Nicht ignorieren: '
-  'fast immer ein Tippfehler, der sich korrigieren lässt.';
-
 grant select on v_plausibilitaet to authenticated;
-
-comment on view v_wiegung_kennzahl is
-  'Je gewogener Palette: Netto damals und jetzt, Gewichtsverlust, kg je Kiste '
-  'und — falls die Kürbisse je Kiste erfasst wurden — kg je Kürbis.';
 
 grant select on v_wiegung_kennzahl to authenticated;
 
-comment on view v_ausgang_kennzahl is
-  'Je fertiger Palette: tatsächliche Kilo je Kiste und der Überschuss über die '
-  'Fixpreis-Grenze. Der Überschuss ist kein Verlust — die Ware ist verkauft, '
-  'nur nicht bezahlt.';
-
 grant select on v_ausgang_kennzahl to authenticated;
-
-comment on view v_massenbilanz is
-  'abweichung_anteil nahe 0 heißt: die Koeffizienten treffen die Realität. '
-  'Systematisch positiv → Verluste überschätzt, negativ → unterschätzt. '
-  'Nur aussagekräftig für Chargen mit Sortier-CSV.';
-
-comment on view v_massenbilanz is
-  'abweichung_anteil nahe 0 heißt: die Koeffizienten treffen die Realität. '
-  'Systematisch positiv → Verluste überschätzt, negativ → unterschätzt. '
-  'Nur aussagekräftig für Chargen mit Sortier-CSV.';
 
 create unique index if not exists mv_sortier_lauf_masse_pk on mv_sortier_lauf_masse (lauf_id);
 create index if not exists mv_sortier_lauf_masse_charge on mv_sortier_lauf_masse (charge_nr);
@@ -14484,49 +14222,13 @@ create index if not exists mv_auftrag_masse_station on mv_auftrag_masse (station
 grant select on mv_sortier_lauf_masse, mv_auftrag_masse, mv_kaskade,
                 mv_kaliber_verteilung to authenticated;
 
-comment on view v_massenbilanz is
-  'abweichung_anteil nahe 0 heißt: die Koeffizienten treffen die Realität. '
-  'Systematisch positiv → Verluste überschätzt, negativ → unterschätzt. '
-  'Nur aussagekräftig für Chargen mit Sortier-CSV.';
-
-comment on view v_koeff_roh_kaliber is
-  'Koeffizienten-Rohwerte in einheitlicher Form: Anteil, die Masse, die er '
-  'vertritt, und die Charge, aus der er stammt.';
-
-comment on view v_koeff_kaliber_geschaetzt is
-  'Massegewichteter Anteil je Sorte, chargen-robust gefehlert und per '
-  'empirischem Bayes zum Gesamtwert gezogen. b = 1 heisst: die Sorte trägt '
-  'sich selbst, b = 0: es gilt der Gesamtwert.';
-
 grant select on v_koeff_roh_verdunstung, v_koeff_roh_kaliber,
                v_koeff_verdunstung_geschaetzt, v_koeff_kaliber_geschaetzt to authenticated;
 
-comment on view v_koeff_unsicherheit is
-  'Je Koeffizient und Sorte: der eigene Fehleranteil, das Gewicht auf dem '
-  'gemeinsamen Gesamtwert und dessen Fehler. Getrennt, weil der Gesamtwert '
-  'für alle Sorten derselbe ist und seine Fehler sich nicht wegmitteln.';
-
 grant select on v_koeff_unsicherheit to authenticated;
-
-comment on view v_verlust_ranking is
-  'kg_unten/kg_oben sind ein fortgepflanztes 95-%-Intervall: die '
-  'Empfindlichkeit jedes Stroms gegenüber jedem Koeffizienten mal dessen '
-  'Fehler, zusammengesetzt nach der tatsächlichen Korrelation. Nicht drei '
-  'Szenarien — die standen bei nachgelagerten Strömen in der falschen '
-  'Reihenfolge.';
-
-comment on view v_massenbilanz is
-  'abweichung_anteil nahe 0 heißt: die Koeffizienten treffen die Realität. '
-  'Systematisch positiv → Verluste überschätzt, negativ → unterschätzt. '
-  'Nur aussagekräftig für Chargen mit Sortier-CSV.';
 
 grant select on v_kaskade, v_hochrechnung, v_verlust_ranking,
                v_marge_buch, v_massenbilanz to authenticated;
-
-comment on view v_schimmel_punkte is
-  'Alle Schimmelbeobachtungen. quelle = lager heisst: die Palette wurde nicht '
-  'danach ausgewählt, wie sie aussah — nur diese Punkte sind frei von der '
-  'Selektionsverzerrung der Verarbeitungsreihenfolge.';
 
 comment on view v_charge_rueckgrat is
   'eingang_netto_kg ist auf alle Paletten der Charge hochgerechnet; '
@@ -14534,47 +14236,14 @@ comment on view v_charge_rueckgrat is
   'Weichen die beiden ab, fehlt bei n_paletten − n_paletten_mit_netto '
   'Paletten die Gebindeart.';
 
-comment on view v_hochrechnung_basis is
-  'ueberzaehlung_kg > 0 heisst: es wurde mehr Masse ausgelagert als je '
-  'eingelagert. Der Lagerbestand wird dann auf 0 gekappt — die Zahl hier ist '
-  'die einzige Spur, die eine Doppelzählung hinterlässt.';
-
 grant select on v_charge_rueckgrat, v_hochrechnung_basis to authenticated;
-
-comment on view v_verlust_ranking is
-  'kg_unten/kg_oben sind ein fortgepflanztes 95-%-Intervall: die '
-  'Empfindlichkeit jedes Stroms gegenüber jedem Koeffizienten mal dessen '
-  'Fehler, zusammengesetzt nach der tatsächlichen Korrelation.';
 grant select on v_verlust_ranking, v_marge_buch to authenticated;
 
-comment on view v_auftrag_masse is
-  'Masse und Lagerdauer je Arbeit. Wasch-Aufträge auf Weg 1 zählen keine '
-  'Paletten — ihre Lagerdauer wird aus dem Wareneingang der sortierten Ware '
-  'abgeleitet, sonst fiele Schimmel #2 aus der Auswertung.';
-
-comment on view v_hochrechnung_basis is
-  'ausgelagert_kg ist die Masse, die den letzten Verarbeitungsschritt hinter '
-  'sich hat — auf Weg 1 also erst nach dem Waschen. wartet_kg steht sortiert '
-  'in Kaliber-Kisten und altert weiter. ueberzaehlung_kg > 0 heisst: mehr '
-  'ausgelagert als je eingelagert, also Paletten doppelt gezählt.';
-
 grant select on v_auftrag_masse, v_hochrechnung_basis to authenticated;
-
-comment on view v_schimmel_punkte is
-  'Alle Schimmelbeobachtungen als *kumulativer* Anteil F(t). Der Palox am '
-  'Waschbecken enthält nur den Zuwachs seit dem Sortieren; daraus wird über '
-  'die bedingte Überlebensrate der kumulative Wert gebildet, ohne Kilo '
-  'umzurechnen. quelle = lager heisst: zufällig gegriffen, also frei von der '
-  'Selektionsverzerrung der Verarbeitungsreihenfolge.';
 
 grant select on v_schimmel_punkte to authenticated;
 
 create unique index if not exists mv_sortier_eingang_pk on mv_sortier_eingang (charge_nr);
-
-comment on view v_palox_stand is
-  'Die Waagenstände der Reihe nach mit der jeweils daraus folgenden Menge. '
-  'zwischendurch_geleert = true heisst: der Stand ist gefallen, der Palox '
-  'wurde also geleert — dann gilt der neue Stand selbst als Menge.';
 
 grant select on v_palox_stand to authenticated;
 
@@ -14584,33 +14253,10 @@ comment on view v_lieferung_masse is
 
 grant select on lieferung, ausgang_ziel, v_lieferung_masse to authenticated;
 
-comment on view v_saisonbilanz is
-  'Die Gegenprobe aus Spec §9: Eingang = Verlust + Ausgang + Restbestand. '
-  'luecke_kg ist die einzige Grösse im System, die misst, was das Modell '
-  'nicht sieht. Nur aussagekräftig, soweit der Ausgang erfasst ist — '
-  'ausgang_deckung sagt, wie weit das ist.';
-
 grant select on v_saisonbilanz to authenticated;
 
-comment on view v_massenbilanz is
-  'Modell gegen Sortier-CSV, beide zum selben Zeitpunkt: dem Tag am Band. '
-  'abweichung_anteil nahe 0 heisst, die Koeffizienten treffen die Realität. '
-  'Nur aussagekräftig für Chargen mit CSV — und sie prüft die Koeffizienten, '
-  'nicht die Verluste: die CSV wiegt, was ankommt, nicht was verschwand.';
-
 grant select on v_hochrechnung_basis, v_massenbilanz to authenticated;
-
-comment on view v_palox_stand is
-  'Die Waagenstände je Station der Reihe nach, mit der jeweils daraus '
-  'folgenden Menge. zwischendurch_geleert: der Stand ist gefallen oder der '
-  'Arbeiter hat das Leeren gemeldet — dann gilt der neue Stand als Menge.';
 grant select on v_palox_stand to authenticated;
-
-comment on view v_naechste_charge is
-  'Was kostet es, jede Charge zwei weitere Wochen liegen zu lassen? Die '
-  'Reihenfolge beantwortet, was als nächstes verarbeitet gehört. '
-  'schimmel_14_kg ist NULL, solange das Verlaufsmodell nicht trägt — dann '
-  'steht die Antwort nur auf der Verdunstung.';
 
 grant select on v_naechste_charge to authenticated;
 
@@ -14618,316 +14264,58 @@ grant select on v_naechste_charge to authenticated;
 
 revoke execute on all functions in schema public from public;
 
-comment on view v_palox_stand is
-  'Die Waagenstände je Station der Reihe nach, mit der daraus abgeleiteten '
-  'Menge. Wo der Stand selbst die Menge ist (erste Ablesung, geleert), wird '
-  'die Palox-Tara abgezogen — die Waage zeigt brutto.';
-
-comment on view v_schimmel_menge is
-  'Faules je Arbeit. Wo der Waagenstand erfasst ist, gilt die daraus '
-  'abgeleitete Menge (mit Tara), nicht der damals gespeicherte Kilo-Wert.';
-
 grant select on v_palox_stand, v_schimmel_menge to authenticated;
-
-comment on view v_hochrechnung_basis is
-  'ausgelagert_kg ist die Masse, die den letzten Verarbeitungsschritt hinter '
-  'sich hat — auf Weg 1 also erst nach dem Waschen. alter_lager läuft ab dem '
-  'Eingangsdatum der noch liegenden Paletten (eingangsdatum_rest), nicht ab '
-  'dem Mittel der ganzen Charge. ueberzaehlung_kg > 0 heisst: mehr ausgelagert '
-  'als je eingelagert, also Paletten doppelt gezählt.';
-
-comment on view v_hochrechnung is
-  'Ein Strom je Charge und Portion. kg ist NULL, wenn der Koeffizient dahinter '
-  'nie gemessen wurde — koeff_bekannt sagt es. Die Kaskade rechnet dann so, '
-  'als würde nichts abgezogen; koeff_basis nennt den Grund.';
-
-comment on view v_verlust_ranking is
-  'kg_unten/kg_oben sind ein fortgepflanztes 95-%-Intervall. kg ist NULL, '
-  'wenn der Koeffizient hinter dem Strom nie gemessen wurde — dann ist der '
-  'Strom unbekannt, nicht null.';
-
-comment on view v_massenbilanz is
-  'Modell gegen Sortier-CSV, beide zum selben Zeitpunkt: dem Tag am Band. '
-  'restbestand_kg ist die Masse, die nach Verdunstung und Verderb noch im '
-  'Haus liegt — ohne die Aufteilung in zu klein/zu gross, die erst beim '
-  'Verarbeiten stattfindet.';
-
-comment on view v_saisonbilanz is
-  'Die Gegenprobe aus Spec §9: Eingang = Verlust + Ausgang + Restbestand. '
-  'Der Restbestand ist die Masse, die nach Verdunstung und Verderb noch im '
-  'Haus liegt. luecke_kg misst, was das Modell nicht sieht — nur soweit der '
-  'Ausgang erfasst ist (ausgang_deckung).';
-
-comment on view v_plausibilitaet is
-  'Messungen, die die Auswertung bewusst nicht verwendet — und Messungen, '
-  'die sie gar nicht verwenden kann, weil ihnen der Nenner fehlt. Nicht '
-  'ignorieren: fast immer ist etwas nachzutragen oder ein Tippfehler zu '
-  'korrigieren.';
 
 grant select on v_kaskade, v_hochrechnung, v_verlust_ranking, v_marge_buch,
                v_massenbilanz, v_saisonbilanz, v_plausibilitaet,
                v_hochrechnung_basis, v_koeff_ueberfuellung to authenticated;
-
-comment on view v_hochrechnung is
-  'Ein Strom je Charge und Portion. Bücher: verlust (Lagerverlust: Verdunstung, '
-  'Schimmel), feld (nicht lagerbedingt: Grundaussortierung), marge (anderer '
-  'Kanal: zu klein, zu gross), bilanz (verkaufsfähig). kg ist NULL, wenn der '
-  'Koeffizient dahinter nie gemessen wurde.';
-
-comment on view v_verlust_ranking is
-  'Alle Ströme mit fortgepflanztem 95-%-Bereich. buch = verlust ist der '
-  'Lagerverlust (Verdunstung, Schimmel), feld die Grundaussortierung, marge '
-  'der andere Kanal (zu klein, zu gross). kg ist NULL, wenn der Koeffizient '
-  'nie gemessen wurde.';
-
-comment on view v_massenbilanz is
-  'Modell gegen Sortier-CSV, beide zum selben Zeitpunkt: dem Tag am Band. '
-  'Das Modell zieht Verdunstung, Sockel und Verderb bis dahin ab. '
-  'restbestand_kg ist die Masse, die nach Verdunstung und Verderb noch im '
-  'Haus liegt.';
-
-comment on view v_saisonbilanz is
-  'Die Gegenprobe aus Spec §9: Eingang = Verlust + Ausgang + Restbestand. '
-  'verlust_modell_kg ist alles, was physisch weg ist (Lagerverlust plus '
-  'Grundaussortierung); lagerverlust_kg und feld_kg zerlegen es. Zu klein '
-  'und zu gross sind kein Verlust: sie verlassen den Betrieb als Ausgang.';
 grant select on mv_kaliber_verteilung, v_kaliber_verteilung, v_ausgang_kennzahl to authenticated;
 grant select on v_auftrag_angabe to authenticated;
 
-comment on view v_schimmel_punkte is
-  'Alle Schimmelbeobachtungen als kumulativer Anteil F(t). quelle: '
-  'verarbeitung (Palox, nach Aussehen ausgewählt), lager (zufällig gegriffene '
-  'Palette), verarbeitung_gemischt (mehrere Chargen im Palox — das Alter ist '
-  'geraten, der Punkt bleibt dem Zeitmodell fern).';
-
-comment on view v_marge_buch is
-  'Buch B: Ware, die den Betrieb über einen anderen Kanal verlässt, plus die '
-  'verschenkte Marge aus überfüllten Kisten. Das Kistenmass kommt je Sorte aus '
-  'dem Sortierschema (art = kiste), sonst aus der Einstellung soll_kg_pro_kiste.';
-
 grant select on v_marge_buch to authenticated;
-
-comment on view v_koeff_gebinde is
-  'Wie viel eine Kaliber-Kiste wiegt, je Sorte und Kaliber — gemessen am '
-  'Sortieren aus CSV-Masse und gezählten Kisten. Ohne Messung steht hier keine '
-  'Zeile; die Masse am Waschbecken ist dann unbekannt, nicht null.';
 grant select on v_koeff_gebinde to authenticated;
-
-comment on view v_auftrag_gebinde_masse is
-  'Verarbeitete Menge einer Wascharbeit aus gezählten Kisten mal gemessenem '
-  'Kistengewicht. kg ist NULL, solange das Kaliber nie am Sortieren gezählt '
-  'wurde — dann fehlt der Nenner weiterhin.';
 grant select on v_auftrag_gebinde_masse to authenticated;
 
-comment on view v_auftrag_masse is
-  'Masse je Arbeit aus drei Quellen, in dieser Reihenfolge: gewogene Paletten, '
-  'eingetippter Durchsatz, gezählte Kisten mal gemessenem Kistengewicht. '
-  'masse_quelle sagt, welche es war; fehlt sie ganz, ist eine dort erfasste '
-  'Messung ohne Nenner.';
-
-comment on view v_plausibilitaet is
-  'Messungen, die die Auswertung bewusst nicht verwendet — und Messungen, '
-  'die sie gar nicht verwenden kann, weil ihnen der Nenner fehlt. Nicht '
-  'ignorieren: fast immer ist etwas nachzutragen oder ein Tippfehler zu '
-  'korrigieren.';
-
 grant select on v_plausibilitaet to authenticated;
-
-comment on view v_ausgang_kennzahl is
-  'Je fertiger Palette: tatsächliche Kilo je Kiste und der Überschuss über das '
-  'Sollgewicht. Der Überschuss ist NULL, wenn die Arbeit nach Kaliber lief — '
-  'dann gibt es kein Sollgewicht und nichts zu verschenken.';
-
-comment on view v_marge_buch is
-  'Buch B: Ware, die den Betrieb über einen anderen Kanal verlässt, plus die '
-  'verschenkte Marge aus überfüllten Kisten. Die Überfüllung zählt nur die '
-  'Masse aus Arbeiten, die als „Kiste ab x kg" liefen.';
 grant select on v_marge_buch to authenticated;
-
-comment on view v_koeff_ueberfuellung is
-  'Überschuss je Kiste über dem Sollgewicht. Gezählt werden nur Wägungen, aus '
-  'denen sich überhaupt ein Überschuss ergibt — Arbeiten nach Kaliber haben '
-  'kein Sollgewicht und zählen nicht mit.';
 grant select on v_koeff_ueberfuellung to authenticated;
-
-comment on view v_saisonbilanz is
-  'Die Gegenprobe aus Spec §9: Eingang = Verlust + Ausgang + Restbestand. Der '
-  'Ausgang enthält den vor dem Erfassungsbeginn ausgelieferten Vorlauf '
-  '(charge_vorlauf), damit die Lücke nicht den späten Start der App misst.';
 grant select on v_saisonbilanz to authenticated;
-
-comment on view v_koeff_ueberfuellung is
-  'Überschuss je Kiste über dem Sollgewicht, aus den Wägungen fertiger Paletten. '
-  'Gezählt werden nur Wägungen, aus denen sich überhaupt ein Überschuss ergibt — '
-  'Arbeiten nach Kaliber haben kein Sollgewicht und zählen nicht mit.';
-
-comment on view v_plausibilitaet is
-  'Messungen, die die Auswertung bewusst nicht verwendet — und Messungen, '
-  'die sie gar nicht verwenden kann, weil ihnen der Nenner fehlt. Nicht '
-  'ignorieren: fast immer ist etwas nachzutragen oder ein Tippfehler zu '
-  'korrigieren.';
 
 grant select on v_plausibilitaet to authenticated;
 comment on view v_gewichtsverteilung is
   'Kürbisse je 25-g-Stufe aus den Sortier-CSVs, je Charge (mit Sorte und Schlag). '
   'Eine Aussage über den Anbau, nicht über das Lager.';
 grant select on v_gewichtsverteilung to authenticated;
-comment on view v_verarbeitung_alter is
-  'Je Arbeit mit gezählten, datierten Paletten: mittleres Alter der verarbeiteten '
-  'Ware gegen das mittlere Alter aller Paletten der Charge an dem Tag. '
-  'differenz > 0: älter als der Durchschnitt verarbeitet.';
 grant select on v_verarbeitung_alter to authenticated;
-comment on view v_durchsatz is
-  'Abgeschlossene Arbeiten mit Dauer, Masse und Kilo je Stunde. kg_pro_h ist NULL, '
-  'wenn die Masse unbekannt ist oder die Arbeit kürzer als eine Viertelstunde war.';
 grant select on v_durchsatz to authenticated;
-comment on view v_datenqualitaet is
-  'Zähler zur Vollständigkeit der Erfassung: datierte Paletten, Palox-Ablesungen je '
-  'Arbeit, beantwortete Abschlussfragen, gewogener Ausschuss, Lagerkontrollen, '
-  'zugeordnete CSVs, gezählte Kisten. Anteile rechnet die Oberfläche.';
 grant select on v_datenqualitaet to authenticated;
-
-comment on view v_ausgang_artikel_vorschlag is
-  'Jeder Artikel aus den Importzeilen mit Vorschlag und Bestätigung. Die '
-  'vorgeschlagene Sorte stammt aus den Zeilen, die eine eigene Chargennummer '
-  'tragen — beobachtet, nicht geraten.';
 grant select on v_ausgang_artikel_vorschlag to authenticated;
-
-comment on view v_ausgang_pruef is
-  'Kürbis-Positionen, deren übernommene Lieferungen nicht die Masse der Datei '
-  'ergeben. Leer ist der Normalfall; jede Zeile hier ist ein Kilo zu viel oder '
-  'zu wenig. Eine vergessene Position steht hier mit ihrer vollen Masse.';
 grant select on v_ausgang_pruef to authenticated;
-
-comment on view v_ausgang_lage is
-  'Je Quelle: wie viel eingelesen ist, bis wann, und wie viele Artikel noch '
-  'auf ihre Bestätigung warten.';
 grant select on v_ausgang_lage to authenticated;
-comment on view v_koeff_gebinde is
-  'Wie viel eine Kiste wiegt, je Sorte und Kaliber — gemessen am Sortieren aus '
-  'CSV-Masse und gezählten Kisten. Kaliber −1: Kisten nach Sollgewicht, gemessen '
-  'an den gewogenen fertigen Paletten. Ohne Messung steht hier keine Zeile.';
-comment on view v_auftrag_masse is
-  'Masse je Arbeit aus drei Quellen: gewogene Paletten, eingetippter Durchsatz, '
-  'gezählte Kisten mal gemessenem Kistengewicht. ist_fax: die Arbeit ist ein Fax '
-  '(Abpacken), kein Waschgang — sie zählt nicht als gewaschen.';
-comment on view v_schimmel_punkte is
-  'Die Punkte des Verderbsmodells: aus der Verarbeitung (Palox) und aus '
-  'Lagerkontrollen. Fax-Faules fehlt hier absichtlich — es hängt nicht an der '
-  'Lagerdauer (v_fax_beobachtung).';
-comment on view v_fax_beobachtung is
-  'Je Fax-Arbeit: gemachte Kisten, daraus die Masse, das gewogene Faule und sein '
-  'Anteil an dem, was durch die Hände ging (Masse + Faules). Grundlage des Stroms '
-  '„Faul beim Abpacken".';
 grant select on v_fax_beobachtung to authenticated;
-comment on view v_koeff_roh_kaliber is
-  'Koeffizienten-Rohwerte in einheitlicher Form: Anteil, die Masse, die er '
-  'vertritt, und die Charge, aus der er stammt. ausschuss, nebenkanal, fax.';
-comment on view v_koeff_fax is
-  'Anteil Faules beim Abpacken (Fax), je Sorte — bezogen auf die Masse, die durch '
-  'das Fax ging. NULL, solange keine Fax-Arbeit Faules gewogen hat: unbekannt, nicht 0.';
 grant select on v_koeff_fax to authenticated;
-comment on view v_charge_kohorte is
-  'Je Charge und Eingangstag: wie viele Paletten kamen, wie viele davon wurden '
-  'seither mit diesem Zetteldatum gezählt, wie viele liegen also noch. Kein FIFO — '
-  'die gezählten Daten sagen, welche Paletten weg sind.';
 grant select on v_charge_kohorte to authenticated;
 grant select on v_kohorte_anteil to authenticated;
-comment on view v_hochrechnung_basis is
-  'ausgelagert_kg ist die Masse, die den letzten Verarbeitungsschritt hinter '
-  'sich hat — auf Weg 1 also erst nach dem Waschen; Fax zählt nicht als Waschen. '
-  'alter_lager ist das massegewichtete Alter der noch liegenden Paletten; '
-  'alter_lager_von/bis die Spanne (jüngste bis älteste Kohorte). Die Kaskade '
-  'rechnet je Kohorte (v_kohorte_anteil), nicht mit dem Mittel.';
-comment on view v_kaskade is
-  'Die Massenkaskade je Charge und Portion; der Lagerbestand je Eingangstag '
-  '(kohorte). Fax: Faules beim Abpacken, bezogen auf die verkaufsfähige Masse.';
-comment on view v_hochrechnung is
-  'Ein Strom je Charge, Portion und (im Lager) Eingangstag. kg ist NULL, wenn '
-  'der Koeffizient dahinter nie gemessen wurde — koeff_bekannt sagt es. Der '
-  'Fax-Strom ist unbekannt, bis die erste Fax-Arbeit Faules gewogen hat.';
-comment on view v_verlust_ranking is
-  'kg_unten/kg_oben sind ein fortgepflanztes 95-%-Intervall. kg ist NULL, '
-  'wenn der Koeffizient hinter dem Strom nie gemessen wurde — dann ist der '
-  'Strom unbekannt, nicht null.';
-comment on view v_marge_buch is
-  'Buch B: Ware, die den Betrieb über einen anderen Kanal verlässt, plus die '
-  'verschenkte Marge aus überfüllten Kisten. Die Aufschlüsselung je Sorte, Charge '
-  'und Käufer steht in v_hochrechnung (buch = marge) und v_ueberfuellung_kaeufer.';
-comment on view v_massenbilanz is
-  'Modell gegen Sortier-CSV, beide zum selben Zeitpunkt: dem Tag am Band. '
-  'restbestand_kg ist die Masse, die nach Verdunstung und Verderb noch im '
-  'Haus liegt — über alle Eingangstage summiert.';
-comment on view v_saisonbilanz is
-  'Die Gegenprobe aus Spec §9: Eingang = Verlust + Ausgang + Restbestand + gewaschene '
-  'Ware, die noch auf eine Bestellung wartet (gewaschen_offen_kg, nur wenn das Fax '
-  'erfasst wird). Der Verlust enthält das Faule beim Abpacken (Fax).';
-comment on view v_naechste_charge is
-  'Was kostet es, jede Charge zwei weitere Wochen liegen zu lassen? Je Eingangstag '
-  'gerechnet und je Charge summiert. alter_tage ist das massegewichtete Mittel, '
-  'alter_von/bis die Spanne der liegenden Kohorten.';
-comment on view v_datenqualitaet is
-  'Zähler zur Vollständigkeit der Erfassung. Fax-Arbeiten zählen getrennt: Kisten '
-  'gezählt, Faules gewogen (auch „nichts Faules" ist eine Messung).';
-comment on view v_plausibilitaet is
-  'Messungen, die die Auswertung bewusst nicht verwendet — und Messungen, die '
-  'sie nicht verwenden kann, weil ihnen der Nenner fehlt. Neu (0051): Fax-Anteile, '
-  'Zetteldaten ohne Palette, Kisten nach Sollgewicht ohne gewogene Palette.';
 
 grant select on v_kaskade, v_hochrechnung, v_verlust_ranking, v_marge_buch,
                v_massenbilanz, v_saisonbilanz, v_plausibilitaet, v_datenqualitaet,
                v_hochrechnung_basis, v_naechste_charge, v_koeff_gebinde,
                v_auftrag_masse, v_schimmel_beobachtung, v_schimmel_punkte,
                v_koeff_roh_kaliber, v_ausgang_artikel_vorschlag to authenticated;
-comment on view v_auftrag_gebinde_masse is
-  'Verarbeitete Menge einer Wascharbeit aus gezählten Kisten mal gemessenem '
-  'Kistengewicht. kg ist NULL, solange das Kaliber nie am Sortieren gezählt '
-  'wurde — dann fehlt der Nenner weiterhin. Index −2 (eigenes Kaliber) findet '
-  'sein Gewicht über die Bandgrenzen in einer Fassung der Sorte (0054).';
 grant select on v_plausibilitaet_0054_zusatz to authenticated;
-comment on view v_verdunstung_messung is
-  'Jede Verdunstungswägung mit Netto damals und jetzt, Lagertagen und Tagesrate. '
-  'verwendbar: gemessen, ohne sichtbaren Schimmel, positive Nettos, Wiegedatum nach '
-  'dem Eingang, Arbeit nicht abgebrochen — und die Palette höchstens 1 % schwerer '
-  'als beim Eingang (0056). Was nicht verwendbar ist, steht in v_plausibilitaet.';
-comment on view v_koeff_verdunstung is
-  'Verdunstungsrate je Tag und Sorte, gepoolt über die verwendbaren Wägungen und '
-  'bei wenigen eigenen Chargen zum Gesamtwert gezogen. Nie negativ (0056); NULL, '
-  'solange keine Wägung vorliegt.';
-comment on view v_schimmel_beobachtung is
-  'Schimmel je Arbeit gegen die Masse, die am Tag der Arbeit noch da war: Eingang '
-  'abzüglich Verdunstung mit der gedeckelten Rate (0056). Fax-Faules bleibt '
-  'beobachtbar, geht aber nicht in die Verderbskurve.';
 
 grant select on v_verdunstung_messung, v_koeff_verdunstung, v_schimmel_beobachtung,
                 v_plausibilitaet to authenticated;
-comment on view v_ausschuss_beobachtung is
-  'Zu klein und zu gross je Arbeit gegen ihre Basis: am Band die CSV-Masse, von '
-  'Hand der Eingang abzüglich Verdunstung (gedeckelte Rate, 0057) und Schimmel.';
 grant select on v_ausschuss_beobachtung to authenticated;
-comment on view v_hochrechnung is
-  'Ein Strom je Charge, Portion und (im Lager) Eingangstag. kg ist NULL, wenn '
-  'der Koeffizient dahinter nie gemessen wurde — koeff_bekannt sagt es. Jeder '
-  'Koeffizient ist ein Anteil (0 … 1), jede Masse ist nie negativ (0058).';
 grant select on v_hochrechnung to authenticated;
-comment on view v_saisonbilanz is
-  'Die Gegenprobe: Eingang = Verlust + Ausgang + Restbestand + gewaschene Ware, '
-  'die noch auf eine Bestellung wartet. Eine Zahl, die nicht darstellbar ist, '
-  'steht als NULL da und bricht die Bilanz nicht mehr ab (0058).';
 grant select on v_saisonbilanz to authenticated;
-comment on view v_marge_buch is
-  'Buch B: Ware, die den Betrieb über einen anderen Kanal verlässt, plus die '
-  'verschenkte Marge aus überfüllten Kisten. Ohne brauchbares Sollgewicht je '
-  'Kiste bleibt die Überfüllung unbekannt statt unmöglich gross (0058).';
 grant select on v_marge_buch to authenticated;
 comment on view v_auftrag_gebinde_masse is 'Verarbeitete Menge einer Wascharbeit aus gezählten Kisten mal gemessenem Kistengewicht. kg ist NULL, solange das Kaliber nie am Sortieren gezählt wurde — dann fehlt der Nenner weiterhin. Index −2 (eigenes Kaliber) findet sein Gewicht über die Bandgrenzen in einer Fassung der Sorte (0054).';
 grant select on v_auftrag_gebinde_masse to authenticated;
-comment on view v_auftrag_masse is 'Masse je Arbeit aus drei Quellen: gewogene Paletten, eingetippter Durchsatz, gezählte Kisten mal gemessenem Kistengewicht. ist_fax: die Arbeit ist ein Fax (Abpacken), kein Waschgang — sie zählt nicht als gewaschen.';
 grant select on v_auftrag_masse to authenticated;
 grant select on v_auftrag_palette_masse to authenticated;
 comment on view v_ausgang_artikel_vorschlag is 'Jeder Artikel aus den Importzeilen mit Vorschlag und Bestätigung. Die vorgeschlagene Sorte stammt aus den Zeilen, die eine eigene Chargennummer tragen — beobachtet, nicht geraten.';
 grant select on v_ausgang_artikel_vorschlag to authenticated;
-comment on view v_ausgang_kennzahl is 'Je fertiger Palette: tatsächliche Kilo je Kiste und der Überschuss über das Sollgewicht. Der Überschuss ist NULL, wenn die Arbeit nach Kaliber lief — dann gibt es kein Sollgewicht und nichts zu verschenken.';
 grant select on v_ausgang_kennzahl to authenticated;
 comment on view v_ausgang_lage is 'Je Quelle: wie viel eingelesen ist, bis wann, und wie viele Artikel noch auf ihre Bestätigung warten.';
 grant select on v_ausgang_lage to authenticated;
@@ -14935,58 +14323,29 @@ comment on view v_ausgang_pruef is 'Kürbis-Positionen, deren übernommene Liefe
 grant select on v_ausgang_pruef to authenticated;
 comment on view v_ausschuss_beobachtung is 'Zu klein und zu gross je Arbeit gegen ihre Basis: am Band die CSV-Masse, von Hand der Eingang abzüglich Verdunstung (gedeckelte Rate, 0057) und Schimmel.';
 grant select on v_ausschuss_beobachtung to authenticated;
-comment on view v_charge_kohorte is 'Je Charge und Eingangstag: wie viele Paletten kamen, wie viele davon wurden seither mit diesem Zetteldatum gezählt, wie viele liegen also noch. Kein FIFO — die gezählten Daten sagen, welche Paletten weg sind.';
 grant select on v_charge_kohorte to authenticated;
 comment on view v_durchsatz is 'Abgeschlossene Arbeiten mit Dauer, Masse und Kilo je Stunde. kg_pro_h ist NULL, wenn die Masse unbekannt ist oder die Arbeit kürzer als eine Viertelstunde war.';
 grant select on v_durchsatz to authenticated;
-comment on view v_fax_beobachtung is 'Je Fax-Arbeit: gemachte Kisten, daraus die Masse, das gewogene Faule und sein Anteil an dem, was durch die Hände ging (Masse + Faules). Grundlage des Stroms „Faul beim Abpacken".';
 grant select on v_fax_beobachtung to authenticated;
-comment on view v_hochrechnung is 'Ein Strom je Charge, Portion und (im Lager) Eingangstag. kg ist NULL, wenn der Koeffizient dahinter nie gemessen wurde — koeff_bekannt sagt es. Jeder Koeffizient ist ein Anteil (0 … 1), jede Masse ist nie negativ (0058).';
 grant select on v_hochrechnung to authenticated;
-comment on view v_koeff_gebinde is 'Wie viel eine Kiste wiegt, je Sorte und Kaliber — gemessen am Sortieren aus CSV-Masse und gezählten Kisten. Kaliber −1: Kisten nach Sollgewicht, gemessen an den gewogenen fertigen Paletten. Ohne Messung steht hier keine Zeile.';
 grant select on v_koeff_gebinde to authenticated;
 comment on view v_koeff_roh_kaliber is 'Koeffizienten-Rohwerte in einheitlicher Form: Anteil, die Masse, die er vertritt, und die Charge, aus der er stammt. ausschuss, nebenkanal, fax.';
 grant select on v_koeff_roh_kaliber to authenticated;
 comment on view v_koeff_ueberfuellung is 'Überschuss je Kiste über dem Sollgewicht, aus den Wägungen fertiger Paletten. Gezählt werden nur Wägungen, aus denen sich überhaupt ein Überschuss ergibt — Arbeiten nach Kaliber haben kein Sollgewicht und zählen nicht mit.';
 grant select on v_koeff_ueberfuellung to authenticated;
 grant select on v_kohorte_anteil to authenticated;
-comment on view v_massenbilanz is 'Modell gegen Sortier-CSV, beide zum selben Zeitpunkt: dem Tag am Band. restbestand_kg ist die Masse, die nach Verdunstung und Verderb noch im Haus liegt — über alle Eingangstage summiert.';
 grant select on v_massenbilanz to authenticated;
-comment on view v_naechste_charge is 'Was kostet es, jede Charge zwei weitere Wochen liegen zu lassen? Je Eingangstag gerechnet und je Charge summiert. alter_tage ist das massegewichtete Mittel, alter_von/bis die Spanne der liegenden Kohorten.';
 grant select on v_naechste_charge to authenticated;
 comment on view v_schimmel_beobachtung is 'Schimmel je Arbeit gegen die Masse, die am Tag der Arbeit noch da war: Eingang abzüglich Verdunstung mit der gedeckelten Rate (0056). Fax-Faules bleibt beobachtbar, geht aber nicht in die Verderbskurve.';
 grant select on v_schimmel_beobachtung to authenticated;
-comment on view v_verarbeitung_alter is 'Je Arbeit mit gezählten, datierten Paletten: mittleres Alter der verarbeiteten Ware gegen das mittlere Alter aller Paletten der Charge an dem Tag. differenz > 0: älter als der Durchschnitt verarbeitet.';
 grant select on v_verarbeitung_alter to authenticated;
-comment on view v_verdunstung_messung is 'Jede Verdunstungswägung mit Netto damals und jetzt, Lagertagen und Tagesrate. verwendbar: gemessen, ohne sichtbaren Schimmel, positive Nettos, Wiegedatum nach dem Eingang, Arbeit nicht abgebrochen — und die Palette höchstens 1 % schwerer als beim Eingang (0056). Was nicht verwendbar ist, steht in v_plausibilitaet.';
 grant select on v_verdunstung_messung to authenticated;
-comment on view v_wiegung_kennzahl is 'Je gewogener Palette: Netto damals und jetzt, Gewichtsverlust, kg je Kiste und — falls die Kürbisse je Kiste erfasst wurden — kg je Kürbis.';
 grant select on v_wiegung_kennzahl to authenticated;
-comment on view v_palox_stand is
-  'Die Waagenstände je Palox der Reihe nach (Sortiermaschine, Waschstrasse). '
-  'differenz ist die Menge seit der letzten Ablesung; ist der Stand gefallen, '
-  'ist sie unbekannt (NULL) — der Palox wurde geleert, ohne dass jemand die '
-  'Menge davor kennt (0060).';
-comment on view v_schimmel_menge is
-  'Faules je Arbeit. Palox-Ablesungen werden als Differenz gerechnet, '
-  'Kistenwägungen als Netto. Eine Arbeit, bei der eine Ablesung unbekannt '
-  'ist (Stand gefallen), hat hier keine Zeile: ihre Menge ist unbekannt (0060).';
-comment on view v_auftrag_palette_masse is
-  'Netto je gezählter Palette. Quellen der Reihe nach: gewogen, Brutto vom Zettel '
-  '(über den Wareneingang gefunden oder mit der mittleren Tara der Charge), die '
-  'bekannte Palette, das Tagesmittel, das Chargenmittel (0060).';
 comment on view v_ausgang_kennzahl is
   'Je fertiger Palette: Kilo je Kiste, der Überschuss über das Sollgewicht (nur '
   'Kiste ab x kg — sonst NULL) und bei Stück-Kisten die Erwartung je Kiste aus '
   'dem mittleren Stückgewicht des Kalibers in der Sortier-CSV (0060).';
-comment on view v_koeff_palette_netto is
-  'Nettomasse einer fertigen Palette je Sorte und Kistensystem (kistensystem NULL: '
-  'alle Systeme der Sorte). Daraus die Masse einer Fax-Arbeit: Paletten × Netto (0060).';
 grant select on v_koeff_palette_netto to authenticated;
-comment on view v_auftrag_masse is
-  'Masse je Arbeit aus vier Quellen: gewogene Paletten (oder Zettel), '
-  'eingetippter Durchsatz, gezählte Kisten mal gemessenem Kistengewicht, beim '
-  'Fax die Palettenzahl mal gemessener Palettenmasse (0060). ist_fax: kein Waschgang.';
 comment on view v_charge_kohorte is
   'Je Charge und Eingangstag: wie viele Paletten kamen (eingang_kg), wie viele '
   'davon in der App mit diesem Zetteldatum gezählt wurden (n_verarbeitet — '
@@ -14995,122 +14354,36 @@ comment on view v_kohorte_anteil is
   'Der Anteil jedes Eingangstags am Eingang der Charge — und damit am Bestand '
   'und an jeder Lieferung: es gibt kein Zuerst-rein-zuerst-raus, und die App '
   'weiss nicht, welche Palette gegangen ist (0060).';
-comment on view v_lieferung_kohorte is
-  'Gelieferte Masse je Charge, Eingangstag und Buch (verkauf, marge), mit dem '
-  'massegewichteten Alter am Liefertag. Grundlage der Rückrechnung in der '
-  'Kaskade: was hinter einer Lieferung an Eingangsmasse steckt (0060).';
 grant select on v_lieferung_kohorte to authenticated;
-comment on view v_kaskade_basis is
-  'Eingang je Charge (vollständig, aus dem Erntejournal) und die Gegenproben aus '
-  'den erfassten Arbeiten. Was ausgelagert ist und was liegt, steht hier nicht '
-  'mehr — das rechnet die Kaskade aus den Lieferungen (v_hochrechnung_basis, 0060).';
 grant select on v_kaskade_basis to authenticated;
 grant select on mv_kaskade to authenticated;
-comment on view v_kaskade is
-  'Die Massenkaskade je Charge, Portion und Eingangstag. „ausgelagert" ist die '
-  'Eingangsmasse hinter den verkauften Lieferungen (zurückgerechnet über den '
-  'verkaufsfähigen Anteil beim Alter am Liefertag); „lager" der Rest des '
-  'Eingangstags. Keine Arbeit muss gezählt worden sein (0060).';
 grant select on v_kaskade to authenticated;
-comment on view v_hochrechnung_basis is
-  'Je Charge: Eingang (gemessen), geliefert (gemessen), ausgelagert (die '
-  'Eingangsmasse hinter den Lieferungen, zurückgerechnet), im Lager (Eingang '
-  'minus ausgelagert), dazu das Alter als Spanne über die Eingangstage. Keine '
-  'Zahl hier stammt aus einer gezählten Arbeit (0060). rest_alter_aus_zaehlung '
-  'heisst jetzt: der Bestand ist über Lieferungen bestimmt, nicht nur vermutet.';
 grant select on v_hochrechnung_basis to authenticated;
 grant select on mv_hochrechnung to authenticated;
-comment on view v_hochrechnung is
-  'Ein Strom je Charge, Portion und Eingangstag. kg ist NULL, wenn der '
-  'Koeffizient dahinter nie gemessen wurde — koeff_bekannt sagt es. Jeder '
-  'Koeffizient ist ein Anteil (0 … 1), jede Masse nie negativ (0058). Die '
-  'Portionen kommen seit 0060 aus den Lieferungen, nicht aus gezählten Arbeiten.';
 grant select on v_hochrechnung to authenticated;
-comment on view v_verlust_ranking is
-  'kg_unten/kg_oben sind ein fortgepflanztes 95-%-Intervall. kg ist NULL, '
-  'wenn der Koeffizient hinter dem Strom nie gemessen wurde — dann ist der '
-  'Strom unbekannt, nicht null.';
 grant select on v_verlust_ranking to authenticated;
-comment on view v_saisonbilanz is
-  'Eingang = Verlust + anderer Kanal + verkauft + verkaufsfähig im Haus. Seit 0060 '
-  'geht sie per Konstruktion auf (das Ausgelagerte kommt aus den Lieferungen); '
-  'Gegenproben sind Überzählung, gelieferter Kanal und Entsorgung. '
-  'gewaschen_offen_kg gibt es nicht mehr: gewaschene, nicht gelieferte Ware liegt.';
 grant select on v_saisonbilanz to authenticated;
-comment on view v_marge_buch is
-  'Kein echter Verlust: Ware, die den Betrieb über einen anderen Kanal verlässt, '
-  'und die verschenkte Marge aus überfüllten Kisten — hochgerechnet auf die '
-  'verkaufte Masse, nicht auf gezählte Arbeiten (0060).';
 grant select on v_marge_buch to authenticated;
-comment on view v_massenbilanz is
-  'Modell gegen Sortier-CSV, beide zum selben Zeitpunkt: dem Tag am Band — die '
-  'eine Gegenprobe, die an gezählten Arbeiten hängt (und nur dort gilt). '
-  'ausgelagert_kg und lager_kg stammen aus den Lieferungen (0060).';
 grant select on v_massenbilanz to authenticated;
-comment on view v_naechste_charge is
-  'Was kostet es, jede Charge zwei weitere Wochen liegen zu lassen? Je Eingangstag '
-  'gerechnet und je Charge summiert; der Bestand kommt aus den Lieferungen (0060).';
 grant select on v_naechste_charge to authenticated;
 comment on view v_fax_beobachtung is
   'Je Fax-Arbeit: die Masse (Paletten × gemessene Palettenmasse, oder gezählte '
   'Kisten), das gewogene Faule und sein Anteil an dem, was durch die Hände ging. '
   'Dazu die Tage seit dem Waschen, wenn der Vorarbeiter sie kannte (0060).';
-comment on view v_kontrolle_vorschlag is
-  'Drei Vorschläge für die Lagerkontrolle: die Chargen mit dem meisten Bestand '
-  'und den wenigsten Kontrollen. Wer eine andere Palette greift, trägt ihre '
-  'Charge selbst ein (0060).';
 grant select on v_kontrolle_vorschlag to authenticated;
-comment on view v_datenqualitaet is
-  'Zähler zur Vollständigkeit der Erfassung. Seit 0060 auch: Zettelgewicht beim '
-  'Waschen + Sortieren, Kistensystem nach dem Waschen, Sortierdatum je Kiste, '
-  'Fax-Paletten, und Arbeiten mit unbekannter Palox-Menge (Stand gefallen).';
-comment on view v_auftrag_palette_masse is
-  'Netto je gezählter Eingangspalette: gewogen, vom Zettel, aus dem Wareneingang, '
-  'oder das Mittel des Eingangstags / der Charge. Beim Waschen gezählte Paletten '
-  '(mit Kisten) stehen nicht hier — ihre Masse rechnet v_auftrag_wasch_paletten (0061).';
-comment on view v_auftrag_wasch_paletten is
-  'Beim Waschen gezählte Paletten: Kisten gesamt, Masse = Kisten × gemessenes '
-  'Kistengewicht des Kalibers, Tage im Zwischenlager aus dem Sortierdatum (0061).';
 grant select on v_auftrag_wasch_paletten to authenticated;
-comment on view v_auftrag_masse is
-  'Masse je Arbeit: gewogene Paletten oder Zettel, beim Waschen gezählte Paletten '
-  '(Kisten × Kistengewicht, 0061), sonst gezählte Kisten, beim Fax die Palettenzahl '
-  'mal gemessener Palettenmasse. ist_fax: kein Waschgang.';
 comment on view v_kaskade_basis is
   'Eingang je Charge (vollständig, aus dem Erntejournal) und die Gegenproben aus '
   'den erfassten Arbeiten. stichtag ist seit 0061 heute(): die Ware im Haus altert '
   'bis heute, nicht bis zum Saisonende; saison_ende ist nur der Horizont der Prognose.';
-comment on view v_hochrechnung_basis is
-  'Je Charge, alles bis heute (0061): Eingang und geliefert (gemessen), '
-  'ausgelagert (Eingangsmasse hinter den Lieferungen), lager_kg (Eingang minus '
-  'ausgelagert, in Eingangskilo), verlust_heute_kg (Verdunstung + Schimmel + Sockel bis '
-  'heute + Fax am Abgepackten; fax_erwartet_kg steht daneben), '
-  'im_haus_heute_kg (was heute nach Verdunstung und Verderb noch da ist), '
-  'verkaufsfaehig_lager_kg (davon in der richtigen Grösse). Keine Prognose.';
 grant select on erg_verlauf to authenticated;
-comment on materialized view erg_verlauf is
-  'Je Woche (und je Sorte; sorte NULL = alles): Eingang und Ausgang kumuliert '
-  '(gemessen, Ausgang: alle Lieferungen), der Verlust kumuliert (gerechnet, bis heute), '
-  'danach als Prognose bis zum Saisonende (prognose = true). im_haus_kg: je Portion, '
-  'was nach Verdunstung und Verderb noch da ist, solange sie nicht ausgeliefert ist (0061).';
-comment on view v_verlust_je_gruppe is
-  'Jeder Strom mit fortgepflanztem 95-%-Bereich für jede Gruppe: gesamt, je Sorte, '
-  'je Schlag, je Charge (0061). kg NULL = Koeffizient nie gemessen. Alles bis heute: '
-  'kg_beobachtet ist die ausgelieferte Ware, kg_projiziert die Ware im Haus bis heute; '
-  'kg_erwartet (nur Fax) ist, was beim Abpacken der Ware im Haus noch anfallen dürfte — nicht in kg.';
 grant select on v_verlust_je_gruppe to authenticated;
 grant select on erg_verlust to authenticated;
-comment on materialized view erg_verlust is
-  'Das Ergebnis für die App: die Ströme je Gruppe, gespeichert (0061). Wird mit '
-  'auswertung_schritt(4) erneuert.';
 comment on function verlust_ranking(text, text, int) is
   'Alle Ströme mit Bereich, wahlweise je Charge, Sorte oder Schlag — aus erg_verlust '
   'gelesen, nicht gerechnet (0061). Eine Kombination der Filter gibt es nicht mehr.';
 revoke all on function verlust_ranking(text, text, int) from public;
 grant execute on function verlust_ranking(text, text, int) to authenticated;
-comment on view v_verlust_ranking is
-  'kg_unten/kg_oben sind ein fortgepflanztes 95-%-Intervall; kg NULL heisst: der '
-  'Koeffizient wurde nie gemessen. Bis heute, nicht bis zum Saisonende (0061).';
 grant select on v_verlust_ranking to authenticated;
 comment on view v_verkauf_lieferung is
   'Jede importierte Verkaufslieferung mit dem Kistensystem aus der Datei (Einheit × '
@@ -15118,47 +14391,13 @@ comment on view v_verkauf_lieferung is
   'kisten aus der Chargenzeile (zeile), dem Rest der Position (rest) oder anteilig '
   'an der Position (anteil). Von Hand erfasste Lieferungen stehen nicht hier (0061).';
 grant select on v_verkauf_lieferung to authenticated;
-comment on view v_ueberfuellung_verkauf is
-  'Je Sorte (gruppe sorte) und je Charge (gruppe charge), je Kistensystem: verkaufte '
-  'Kisten und Kilo aus der Verkaufsdatei, gewogene Kisten und Kilo je Kiste aus den '
-  'fertigen Paletten. verschenkt_kg = Überschuss je gewogener Kiste × verkaufte Kisten, '
-  'nur bei „Kiste ab x kg" und nur, wo beides gemessen ist. Stück-Kisten: gemessenes '
-  'Stückgewicht neben dem Nenngewicht, keine Marge (0061).';
 grant select on v_ueberfuellung_verkauf to authenticated;
 grant select on erg_ueberfuellung to authenticated;
-comment on materialized view erg_ueberfuellung is
-  'v_ueberfuellung_verkauf, gespeichert für die App (0061). Erneuert mit auswertung_schritt(1).';
 grant select on erg_charge to authenticated;
-comment on materialized view erg_charge is
-  'v_hochrechnung_basis, gespeichert: je Charge Eingang, ausgelagert, im Haus und '
-  'Verlust bis heute (0061). Erneuert mit auswertung_schritt(3).';
-comment on view v_massenbilanz is
-  'Modell gegen Sortier-CSV, beide zum selben Zeitpunkt: dem Tag am Band — die '
-  'eine Gegenprobe, die an gezählten Arbeiten hängt (und nur dort gilt). '
-  'Die Charge kommt aus erg_charge (0061).';
-comment on view v_naechste_charge is
-  'Was kostet es, jede Charge zwei weitere Wochen liegen zu lassen? Je Eingangstag '
-  'ab heute() gerechnet und je Charge summiert; der Bestand aus erg_charge (0061).';
-comment on view v_kontrolle_vorschlag is
-  'Drei Vorschläge für die Lagerkontrolle: die Chargen, bei denen eine Wägung am '
-  'meisten Information bringt — Bestand heute × Tage seit der letzten Wägung (0061). '
-  'Wer eine andere Palette greift, trägt ihre Charge selbst ein.';
 grant select on v_kontrolle_vorschlag to authenticated;
-comment on view v_saisonbilanz is
-  'Eingang = verkauft + Verlust bis heute + anderer Kanal + noch im Haus (0061). '
-  'Alles bis heute(); nichts davon ist Prognose. luecke_kg ist die Überzählung '
-  '(Lieferungen, hinter denen kein Eingang steht), sonst null.';
 grant select on v_saisonbilanz to authenticated;
-comment on view v_marge_buch is
-  'Kein echter Verlust: Ware, die den Betrieb über einen anderen Kanal verlässt, '
-  'und die verschenkte Marge aus überfüllten Kisten — verkaufte Kisten aus der '
-  'Verkaufsdatei mal gewogenem Überschuss je Kiste; ohne Datei oder Wägung NULL (0061).';
 grant select on v_marge_buch to authenticated;
 grant select on v_plausibilitaet_0054_zusatz to authenticated;
-comment on view v_datenqualitaet is
-  'Zähler zur Vollständigkeit der Erfassung. Seit 0061 zählen beim Waschen die '
-  'gezählten Paletten (Kisten mit Sortierdatum) mit; die Lagerkontrolle zählt '
-  'als Verdunstungsmessung, ohne Faul-Angabe.';
 
 create index if not exists erg_gewichte_sorte     on erg_gewichte (sorte);
 create index if not exists erg_ausgang_ts         on erg_ausgang (ts);
@@ -15170,75 +14409,28 @@ create index if not exists erg_fax_start          on erg_fax (start_ts);
 create index if not exists erg_durchsatz_start    on erg_durchsatz (start_ts);
 create index if not exists erg_verarbeitung_tag   on erg_verarbeitung_alter (tag);
 create index if not exists erg_verlauf_woche      on erg_verlauf (woche);
-comment on view v_lieferung_kohorte is
-  'Gelieferte Masse je Charge, Eingangstag und Buch (verkauf, marge), mit dem '
-  'massegewichteten Alter am Liefertag; nur Lieferungen bis heute() (0062). '
-  'Grundlage der Rückrechnung in der Kaskade.';
 grant select on v_lieferung_kohorte to authenticated;
 grant select on mv_kaskade to authenticated;
-comment on materialized view mv_kaskade is
-  'Die Massenkaskade je Charge, Eingangstag und Portion (ausgelagert / lager). '
-  'Ausgelagert ist, was hinter den Lieferungen beider Bücher steckt — verkauft '
-  'und in den anderen Kanal (0062); der Rest liegt und altert bis heute().';
 grant select on v_kaskade to authenticated;
 grant select on mv_hochrechnung to authenticated;
 grant select on v_hochrechnung to authenticated;
-comment on view v_hochrechnung_basis is
-  'Je Charge, alles bis heute (0061): Eingang und geliefert (gemessen), '
-  'ausgelagert (Eingangsmasse hinter den Lieferungen), lager_kg (Eingang minus '
-  'ausgelagert, in Eingangskilo), verlust_heute_kg (Verdunstung + Schimmel + Sockel bis '
-  'heute + Fax am Abgepackten; fax_erwartet_kg steht daneben), '
-  'im_haus_heute_kg (was heute nach Verdunstung und Verderb noch da ist), '
-  'verkaufsfaehig_lager_kg (davon in der richtigen Grösse). Keine Prognose. '
-  '0062: kanal_ausgelagert_kg ist der andere Kanal, der schon passiert ist; '
-  'kanal_im_haus_kg ist die Erwartung an der liegenden Ware. verlust_bekannt '
-  'prüft alle sechs Koeffizienten, je Strom steht ein eigenes Flag daneben; '
-  'sockel_oben_kg ist die obere Klammer des Sockels — 0 heisst nicht nachweisbar.';
 
 grant select on v_hochrechnung_basis to authenticated;
 grant select on erg_charge to authenticated;
-comment on materialized view erg_charge is 'v_hochrechnung_basis, gespeichert für die App (0062). Erneuert mit auswertung_schritt().';
 grant select on v_verlust_je_gruppe to authenticated;
 grant select on erg_verlust to authenticated;
-comment on materialized view erg_verlust is 'v_verlust_je_gruppe, gespeichert für die App (0062). Erneuert mit auswertung_schritt().';
 grant select on v_marge_buch to authenticated;
 grant select on v_massenbilanz to authenticated;
-comment on view v_naechste_charge is
-  'Was kostet es, jede Charge zwei weitere Wochen liegen zu lassen? Je Eingangstag '
-  'ab heute() gerechnet und je Charge summiert; der Bestand aus erg_charge (0061). '
-  'prognose_verlust_14_kg ist Verdunstung + Verderb der nächsten 14 Tage — reine '
-  'Prognose, nicht im Verlust bis heute enthalten, und leer, wo das Modell nicht '
-  'gilt. Sockel und Fax stecken nicht darin (0062).';
 
 grant select on v_naechste_charge to authenticated;
 grant select on v_kontrolle_vorschlag to authenticated;
-comment on view v_saisonbilanz is
-  'Eingang + Überzählung = ausgeliefert + Verlust bis heute + anderer Kanal am '
-  'Ausgelagerten + noch im Haus (0062). Alles bis heute(); nichts davon ist '
-  'Prognose. bilanz_rest_kg ist der Rest dieser Gleichung — Erwartungswert null; '
-  'die Überzählung (Lieferungen, hinter denen kein Eingang steht) steht als '
-  'eigene Spalte. fax_durchsatz_kg ist die am Fax abgepackte Masse, nicht das '
-  'Faule dabei (fax_heute_kg).';
 grant select on v_saisonbilanz to authenticated;
 
 grant select on v_saisonbilanz to authenticated;
 grant select on erg_verlauf to authenticated;
-comment on materialized view erg_verlauf is
-  'Je Woche (und je Sorte; sorte NULL = alles), mit einer Stützstelle genau auf '
-  'heute() (0062): Eingang und Ausgang kumuliert '
-  '(gemessen, Ausgang: alle Lieferungen), der Verlust kumuliert (gerechnet, bis heute), '
-  'danach als Prognose bis zum Saisonende (prognose = true). im_haus_kg: je Portion, '
-  'was nach Verdunstung und Verderb noch da ist, solange sie nicht ausgeliefert ist. '
-  'schimmel_kum_kg und sockel_kum_kg stehen getrennt: der Sockel war nie faul (0062).';
 grant select on erg_verlauf to authenticated;
-comment on view v_wiegung_kennzahl is
-  'Je gewogener Palette: Netto damals und jetzt, die Verdunstung dazwischen '
-  '(0062 — vorher verlust_kg), kg je Kiste und je Kürbis.';
 grant select on v_wiegung_kennzahl to authenticated;
 grant select on v_plausibilitaet_0054_zusatz to authenticated;
-
-comment on materialized view erg_ueberfuellung is
-  'v_ueberfuellung_verkauf, gespeichert für die App (0061). Erneuert mit auswertung_schritt(1).';
 
 comment on view v_verlust_ranking is
   'Alle Ströme der Kaskade für eine Gruppe, absteigend nach Masse — nicht nur '
@@ -15249,11 +14441,6 @@ comment on view v_verlust_ranking is
 -- aus 0063_jede_sicht_sagt_was_sie_ist.sql
 
 revoke execute on all functions in schema public from public;
-
-comment on view v_palette is
-  'Jede Eingangspalette mit ihrem Nettogewicht: Brutto minus Tara der '
-  'Gebindeart mal Kistenzahl. netto_kg ist leer, solange die Gebindeart '
-  'fehlt — leer heisst hier "nicht bekannt", nicht "null Kilo".';
 
 comment on view v_auftrag_angabe is
   'Die freien Angaben zu einer Arbeit (Palox-Stand, Kistensystem, Notizen) '
@@ -15277,64 +14464,6 @@ comment on view v_datenlage is
   'Netto, Wiegungen, Schimmelmessungen, Sortierläufe, Arbeiten. Die Zahlen '
   'sagen, wie belastbar alles andere zu dieser Charge ist.';
 
-comment on view v_kaskade is
-  'Der Massenfluss je Charge, Eingangstag und Portion: Was eingelagert wurde '
-  '(eingang_kg) verteilt sich auf Verdunstung, Palox-Sockel, Schimmel, zu '
-  'klein, Nebenkanal, Fax und verkaufsfähige Ware. Die Ströme addieren sich '
-  'zum Eingang. "Verlust" ist hier nur, was wirklich verloren ist: '
-  'verdunstung_kg, sockel_kg, schimmel_kg. klein_kg und nebenkanal_kg sind '
-  'kein Verlust, sondern ein anderer Kanal; ueberzaehlung_kg ist kein '
-  'Verlust, sondern ein Erfassungsfehler.';
-
-comment on materialized view mv_kaskade is
-  'v_kaskade, gespeichert. Inhaltlich gleich; erneuert von '
-  'auswertung_schritt(3).';
-
-comment on view v_hochrechnung is
-  'Die Kaskade auseinandergelegt: eine Zeile je Charge, Portion und Strom, '
-  'mit dem verwendeten Koeffizienten, seiner Herkunft (koeff_art), der Zahl '
-  'der Messungen dahinter (koeff_n) und der Formel. koeff_bekannt = false '
-  'heisst: geschätzt, nicht gemessen.';
-
-comment on materialized view mv_hochrechnung is
-  'v_hochrechnung, gespeichert. Inhaltlich gleich; erneuert von '
-  'auswertung_schritt(3).';
-
-comment on view v_verlust_je_gruppe is
-  'Dieselben Ströme, zusammengefasst nach Gruppe (gesamt, Sorte, Schlag, '
-  'Charge). kg_beobachtet ist gemessen, kg_projiziert auf noch nicht '
-  'Gemessenes übertragen, kg_extrapoliert über den Messbereich hinaus '
-  'gerechnet — drei verschiedene Sicherheiten, darum drei Spalten.';
-
-comment on view v_marge_buch is
-  'Buch B: Ware, die den Betrieb verlassen hat, ohne verkaufsfähig zu sein — '
-  'zu klein, Nebenkanal, Überfüllung. Kein Verlust im Sinne von verdorben, '
-  'sondern Masse in einem anderen Kanal. kg_unten und kg_oben spannen den '
-  'Bereich auf, gemessen sagt, ob dahinter Messungen oder Schätzungen '
-  'stehen.';
-
-comment on view v_massenbilanz is
-  'Die Probe aufs Exempel je Charge: Was das Modell am Band erwartet '
-  '(modell_am_band_kg) gegen das, was die Sortier-Datei gewogen hat '
-  '(csv_gemessen_kg). abweichung_anteil nahe 0 heisst, die Koeffizienten '
-  'treffen die Wirklichkeit; systematisch positiv heisst, die Verluste sind '
-  'überschätzt. Nur für Chargen mit Sortier-Datei aussagekräftig.';
-
-comment on view v_kontrolle_vorschlag is
-  'Welche Charge als Nächstes kontrolliert werden sollte. informationswert '
-  'gewichtet, wie viel noch im Haus liegt, wie lange die letzte Wiegung her '
-  'ist und wie unsicher die Charge bisher ist — eine Reihenfolge, kein '
-  'Befehl.';
-
-comment on view v_kaliber_verteilung is
-  'Wie sich die sortierte Ware je Charge auf die Kaliberbänder verteilt: '
-  'Stückzahl und Masse je Band, dazu die Klassen "zu klein" und '
-  '"Nebenkanal". Gewogen aus den Sortierläufen.';
-
-comment on materialized view mv_kaliber_verteilung is
-  'v_kaliber_verteilung, gespeichert. Inhaltlich gleich; erneuert von '
-  'auswertung_schritt(2).';
-
 comment on materialized view mv_auftrag_masse is
   'Je Arbeit die Eingangsmasse und woher sie kommt (masse_quelle: gewogen, '
   'aus Paletten gerechnet oder geschätzt), dazu Station, Dauer und '
@@ -15344,64 +14473,13 @@ comment on view v_koeff_roh_verdunstung is
   'Die einzelnen Verdunstungsmessungen, bevor gemittelt wird: je Charge ein '
   'Anteil und sein Gewicht in der Mittelung. Die Rohdaten zu '
   'v_koeff_verdunstung — hier steht, worauf der Koeffizient beruht.';
-
-comment on view v_koeff_verdunstung_geschaetzt is
-  'Der Verdunstungs-Koeffizient je Sorte, gepoolt: eigener Mittelwert und '
-  'Gesamtmittel, gewichtet nach Streuung (tau2, b). Sorten mit wenigen '
-  'Messungen rücken damit näher an den Gesamtwert, statt an einem Ausreisser '
-  'zu hängen.';
-
-comment on view v_koeff_ausschuss is
-  'Der Ausschuss-Koeffizient je Sorte mit Bereich (unten, oben), Zahl der '
-  'Messungen (n) und Bezugsgrösse (basis). Anteil der Eingangsmasse, die '
-  'beim Verarbeiten als Ausschuss anfällt.';
-
-comment on view v_koeff_nebenkanal is
-  'Der Nebenkanal-Koeffizient je Sorte mit Bereich, Zahl der Messungen und '
-  'Bezugsgrösse. Anteil der Masse, der weder verkaufsfähig noch Verlust ist, '
-  'sondern in einen anderen Kanal geht.';
-
-comment on view v_plausibilitaet_0054_zusatz is
-  'Zusatzprüfungen zu v_plausibilitaet, die seit 0054 dazugekommen sind — '
-  'je Auffälligkeit Art, betroffene Arbeit, Befund und Rat. Wird von '
-  'v_plausibilitaet mitgelesen; einzeln braucht sie niemand.';
 comment on view v_palette is
   'Jede Eingangspalette mit ihrem Nettogewicht: brutto − Kisten × Kistentara − '
   'Palettentara. netto_kg ist NULL, sobald eine der drei Angaben fehlt (0064) — '
   'eine fehlende Kistenzahl heisst nicht „null Kisten". Wie viele Paletten einer '
   'Charge ein Netto haben, steht als n_paletten_mit_netto in v_kaskade_basis.';
-comment on view v_verdunstung_messung is
-  'Jede Verdunstungswägung mit Netto damals und jetzt, Lagertagen und Tagesrate. '
-  'verwendbar: gemessen, ohne sichtbaren Schimmel, positive Nettos, Wiegedatum nach '
-  'dem Eingang, Arbeit nicht abgebrochen — und die Palette höchstens 1 % schwerer als '
-  'beim Eingang (0056). Ohne Kistenzahl oder ohne hinterlegte Tara gibt es kein Netto '
-  'und damit keine Rate (0064). Was nicht verwendbar ist, steht in v_plausibilitaet.';
 grant select on v_verdunstung_messung to authenticated;
-comment on view v_wiegung_kennzahl is
-  'Je gewogener Palette: Netto damals und jetzt, die Verdunstung dazwischen '
-  '(0062 — vorher verlust_kg), kg je Kiste und je Kürbis. Ohne Kistenzahl oder '
-  'hinterlegte Tara gibt es kein Netto (0064).';
 grant select on v_wiegung_kennzahl to authenticated;
-comment on view v_auftrag_palette_masse is
-  'Netto je gezählter Eingangspalette: gewogen, vom Zettel, aus dem Wareneingang, '
-  'oder das Mittel des Eingangstags / der Charge; masse_quelle sagt, welcher Weg es '
-  'war. Beim Waschen gezählte Paletten (mit Kisten) stehen nicht hier — ihre Masse '
-  'rechnet v_auftrag_wasch_paletten (0061). Ohne Kistenzahl kein gewogenes Netto (0064).';
-comment on view v_hochrechnung_basis is
-  'Je Charge, alles bis heute: Eingang und geliefert (gemessen), ausgelagert '
-  '(Eingangsmasse hinter den Lieferungen), lager_kg (Eingang minus ausgelagert, in '
-  'Eingangskilo), verlust_heute_kg (Verdunstung + Schimmel + Sockel + Fax am '
-  'Abgepackten), im_haus_heute_kg (Eingangsmasse, die noch liegt, nach Verdunstung '
-  'und Verderb). Keine Prognose. 0064: Jede Stromsumme ist NULL, solange ihr '
-  'Koeffizient keine Messung hat — leer ist nicht null; die Kennzeichen daneben '
-  'sagen, welche. Ohne Messung ist im_haus_heute_kg die Eingangsmasse, die noch '
-  'liegt, und damit eine obere Schranke. Fehlt zu einer Charge jede Kaskadenzeile, '
-  'liegt noch alles; fehlt nur die Portion „lager", liegt nichts mehr — bisher '
-  'hiess beides „alles".';
-comment on view v_plausibilitaet_0064_zusatz is
-  'Drei Auffälligkeiten aus Runde L: eine Gebindeart ohne hinterlegte Tara (die '
-  'Paletten fehlen im Eingang), eine Charge mit mehr Ausgang als Eingang, und ein '
-  'Zettelgewicht, das zur Charge passt, aber nicht zum Eingangstag.';
 grant select on v_plausibilitaet_0064_zusatz to authenticated;
 comment on view v_lieferung_kohorte is
   'Gelieferte Masse je Charge, Eingangstag und Buch (verkauf, marge, verlust), '
@@ -15410,70 +14488,18 @@ comment on view v_lieferung_kohorte is
   'was in den Kompost ging, hat den Betrieb verlassen und gehört aus dem Lager.';
 grant select on v_lieferung_kohorte to authenticated;
 grant select on mv_kaskade to authenticated;
-comment on materialized view mv_kaskade is
-  'Die Massenkaskade je Charge, Eingangstag und Portion. Drei Portionen: '
-  '„ausgelagert" ist die Eingangsmasse hinter den verkauften und in den '
-  'Nebenkanal gegangenen Lieferungen, „entsorgt" die hinter dem Kompost '
-  '(0065 — nur um die Verdunstung zurückgerechnet, weil entsorgte Ware selbst '
-  'das Faule ist), „lager" der Rest, der noch liegt. Je Portion die Ströme '
-  'Verdunstung, Sockel, Schimmel, zu klein, Nebenkanal, Fax und verkaufsfähig; '
-  'sie summieren sich zu m0. Ohne Messung ist der Koeffizient 0 und das '
-  'Kennzeichen daneben falsch — wer die Ströme summiert, muss es lesen.';
-comment on materialized view erg_verlauf is
-  'Je Woche (und je Sorte; sorte NULL = alles), mit einer Stützstelle genau auf heute() (0062): Eingang und Ausgang kumuliert (gemessen, Ausgang: alle Lieferungen), der Verlust kumuliert (gerechnet, bis heute), danach als Prognose bis zum Saisonende (prognose = true). im_haus_kg: je Portion, was nach Verdunstung und Verderb noch da ist, solange sie nicht ausgeliefert ist. schimmel_kum_kg und sockel_kum_kg stehen getrennt: der Sockel war nie faul (0062).';
-comment on view v_hochrechnung_basis is
-  'Je Charge, alles bis heute: Eingang und geliefert (gemessen), ausgelagert '
-  '(Eingangsmasse hinter den Lieferungen), lager_kg (Eingang minus ausgelagert, in '
-  'Eingangskilo), verlust_heute_kg (Verdunstung + Schimmel + Sockel + Fax am '
-  'Abgepackten), im_haus_heute_kg (Eingangsmasse, die noch liegt, nach Verdunstung '
-  'und Verderb). Keine Prognose. 0064: Jede Stromsumme ist NULL, solange ihr '
-  'Koeffizient keine Messung hat — leer ist nicht null; die Kennzeichen daneben '
-  'sagen, welche. Ohne Messung ist im_haus_heute_kg die Eingangsmasse, die noch '
-  'liegt, und damit eine obere Schranke. Fehlt zu einer Charge jede Kaskadenzeile, '
-  'liegt noch alles; fehlt nur die Portion „lager", liegt nichts mehr — bisher '
-  'hiess beides „alles".';
 grant select on v_hochrechnung_basis to authenticated;
-comment on materialized view erg_charge is
-  'v_hochrechnung_basis, gespeichert für die App (0062). Erneuert mit auswertung_schritt().';
 grant select on v_kaskade to authenticated;
-comment on view v_kaskade is
-  'Der Massenfluss je Charge, Eingangstag und Portion: Was eingelagert wurde (eingang_kg) verteilt sich auf Verdunstung, Palox-Sockel, Schimmel, zu klein, Nebenkanal, Fax und verkaufsfähige Ware. Die Ströme addieren sich zum Eingang. "Verlust" ist hier nur, was wirklich verloren ist: verdunstung_kg, sockel_kg, schimmel_kg. klein_kg und nebenkanal_kg sind kein Verlust, sondern ein anderer Kanal; ueberzaehlung_kg ist kein Verlust, sondern ein Erfassungsfehler.';
-comment on materialized view mv_hochrechnung is
-  'v_hochrechnung, gespeichert. Inhaltlich gleich; erneuert von auswertung_schritt(3).';
 grant select on v_hochrechnung to authenticated;
-comment on view v_hochrechnung is
-  'Die Kaskade auseinandergelegt: eine Zeile je Charge, Portion und Strom, mit dem verwendeten Koeffizienten, seiner Herkunft (koeff_art), der Zahl der Messungen dahinter (koeff_n) und der Formel. koeff_bekannt = false heisst: geschätzt, nicht gemessen.';
 grant select on v_kontrolle_vorschlag to authenticated;
-comment on view v_kontrolle_vorschlag is
-  'Welche Charge als Nächstes kontrolliert werden sollte. informationswert gewichtet, wie viel noch im Haus liegt, wie lange die letzte Wiegung her ist und wie unsicher die Charge bisher ist — eine Reihenfolge, kein Befehl.';
 grant select on v_massenbilanz to authenticated;
-comment on view v_massenbilanz is
-  'Die Probe aufs Exempel je Charge: Was das Modell am Band erwartet (modell_am_band_kg) gegen das, was die Sortier-Datei gewogen hat (csv_gemessen_kg). abweichung_anteil nahe 0 heisst, die Koeffizienten treffen die Wirklichkeit; systematisch positiv heisst, die Verluste sind überschätzt. Nur für Chargen mit Sortier-Datei aussagekräftig.';
 grant select on v_naechste_charge to authenticated;
-comment on view v_naechste_charge is
-  'Was kostet es, jede Charge zwei weitere Wochen liegen zu lassen? Je Eingangstag ab heute() gerechnet und je Charge summiert; der Bestand aus erg_charge (0061). prognose_verlust_14_kg ist Verdunstung + Verderb der nächsten 14 Tage — reine Prognose, nicht im Verlust bis heute enthalten, und leer, wo das Modell nicht gilt. Sockel und Fax stecken nicht darin (0062).';
-comment on view v_plausibilitaet_0064_zusatz is
-  'Drei Auffälligkeiten aus Runde L: eine Gebindeart ohne hinterlegte Tara (die '
-  'Paletten fehlen im Eingang), eine Charge mit mehr Ausgang als Eingang, und ein '
-  'Zettelgewicht, das zur Charge passt, aber nicht zum Eingangstag.';
 grant select on v_plausibilitaet_0064_zusatz to authenticated;
 grant select on v_plausibilitaet_0054_zusatz to authenticated;
-comment on view v_plausibilitaet_0054_zusatz is
-  'Zusatzprüfungen zu v_plausibilitaet, die seit 0054 dazugekommen sind — je Auffälligkeit Art, betroffene Arbeit, Befund und Rat. Wird von v_plausibilitaet mitgelesen; einzeln braucht sie niemand.';
 grant select on v_plausibilitaet to authenticated;
-comment on view v_plausibilitaet is
-  'Messungen, die die Auswertung bewusst nicht verwendet — und Messungen, die sie nicht verwenden kann, weil ihnen der Nenner fehlt. Neu (0051): Fax-Anteile, Zetteldaten ohne Palette, Kisten nach Sollgewicht ohne gewogene Palette.';
 grant select on v_verlust_je_gruppe to authenticated;
-comment on view v_verlust_je_gruppe is
-  'Dieselben Ströme, zusammengefasst nach Gruppe (gesamt, Sorte, Schlag, Charge). kg_beobachtet ist gemessen, kg_projiziert auf noch nicht Gemessenes übertragen, kg_extrapoliert über den Messbereich hinaus gerechnet — drei verschiedene Sicherheiten, darum drei Spalten.';
-comment on materialized view erg_verlust is
-  'v_verlust_je_gruppe, gespeichert für die App (0062). Erneuert mit auswertung_schritt().';
 grant select on v_marge_buch to authenticated;
-comment on view v_marge_buch is
-  'Buch B: Ware, die den Betrieb verlassen hat, ohne verkaufsfähig zu sein — zu klein, Nebenkanal, Überfüllung. Kein Verlust im Sinne von verdorben, sondern Masse in einem anderen Kanal. kg_unten und kg_oben spannen den Bereich auf, gemessen sagt, ob dahinter Messungen oder Schätzungen stehen.';
 grant select on v_saisonbilanz to authenticated;
-comment on view v_saisonbilanz is
-  'Eingang + Überzählung = ausgeliefert + Verlust bis heute + anderer Kanal am Ausgelagerten + noch im Haus (0062). Alles bis heute(); nichts davon ist Prognose. bilanz_rest_kg ist der Rest dieser Gleichung — Erwartungswert null; die Überzählung (Lieferungen, hinter denen kein Eingang steht) steht als eigene Spalte. fax_durchsatz_kg ist die am Fax abgepackte Masse, nicht das Faule dabei (fax_heute_kg).';
 
 create index if not exists erg_gewichte_sorte     on erg_gewichte (sorte);
 create index if not exists erg_ausgang_ts         on erg_ausgang (ts);
@@ -15485,26 +14511,12 @@ create index if not exists erg_fax_start          on erg_fax (start_ts);
 create index if not exists erg_durchsatz_start    on erg_durchsatz (start_ts);
 create index if not exists erg_verarbeitung_tag   on erg_verarbeitung_alter (tag);
 grant select on v_verlust_je_gruppe to authenticated;
-comment on view v_verlust_je_gruppe is
-  'Dieselben Ströme, zusammengefasst nach Gruppe (gesamt, Sorte, Schlag, Charge). kg_beobachtet ist gemessen, kg_projiziert auf noch nicht Gemessenes übertragen, kg_extrapoliert über den Messbereich hinaus gerechnet — drei verschiedene Sicherheiten, darum drei Spalten. Ist der Strom gemessen (bekannt), sind alle vier Teilbeträge Zahlen und kg_beobachtet + kg_projiziert = kg; ist er es nicht, sind alle vier NULL (0066).';
 grant select on v_plausibilitaet to authenticated;
-comment on view v_plausibilitaet is
-  'Messungen, die die Auswertung bewusst nicht verwendet — und Messungen, die sie nicht verwenden kann, weil ihnen der Nenner fehlt. Neu (0051): Fax-Anteile, Zetteldaten ohne Palette, Kisten nach Sollgewicht ohne gewogene Palette. 0066: „Ausschuss-Tara" rechnet nur nach, wo Kistenzahl und hinterlegte Tara da sind; fehlt eine, steht die Lücke als „Ausschuss ohne Tara" daneben.';
 grant select on v_auftrag_wasch_paletten to authenticated;
-comment on view v_auftrag_wasch_paletten is
-  'Beim Waschen gezählte Paletten: Kisten gesamt, Masse = Kisten × gemessenes Kistengewicht des Kalibers, Tage im Zwischenlager aus dem Sortierdatum (0061).';
 grant select on v_auftrag_masse to authenticated;
-comment on view v_auftrag_masse is
-  'Masse je Arbeit: gewogene Paletten oder Zettel, beim Waschen gezählte Paletten (Kisten × Kistengewicht, 0061), sonst gezählte Kisten, beim Fax die Palettenzahl mal gemessener Palettenmasse. ist_fax: kein Waschgang.';
 grant select on v_verarbeitung_alter to authenticated;
-comment on view v_verarbeitung_alter is
-  'Je Arbeit mit gezählten, datierten Paletten: mittleres Alter der verarbeiteten Ware gegen das mittlere Alter aller Paletten der Charge an dem Tag. differenz > 0: älter als der Durchschnitt verarbeitet.';
 grant select on v_verdunstung_messung to authenticated;
-comment on view v_verdunstung_messung is
-  'Jede Verdunstungswägung mit Netto damals und jetzt, Lagertagen und Tagesrate. verwendbar: gemessen, ohne sichtbaren Schimmel, positive Nettos, Wiegedatum nach dem Eingang, Arbeit nicht abgebrochen — und die Palette höchstens 1 % schwerer als beim Eingang (0056). Ohne Kistenzahl oder ohne hinterlegte Tara gibt es kein Netto und damit keine Rate (0064). Was nicht verwendbar ist, steht in v_plausibilitaet.';
 grant select on v_wiegung_kennzahl to authenticated;
-comment on view v_wiegung_kennzahl is
-  'Je gewogener Palette: Netto damals und jetzt, die Verdunstung dazwischen (0062 — vorher verlust_kg), kg je Kiste und je Kürbis. Ohne Kistenzahl oder hinterlegte Tara gibt es kein Netto (0064).';
 
 create index if not exists erg_gewichte_sorte     on erg_gewichte (sorte);
 create index if not exists erg_ausgang_ts         on erg_ausgang (ts);
@@ -15515,25 +14527,15 @@ create index if not exists erg_wiegung_ts         on erg_wiegung (wiege_ts);
 create index if not exists erg_fax_start          on erg_fax (start_ts);
 create index if not exists erg_durchsatz_start    on erg_durchsatz (start_ts);
 create index if not exists erg_verarbeitung_tag   on erg_verarbeitung_alter (tag);
-comment on materialized view erg_punkte is
-  'v_schimmel_punkte, gespeichert für die App Erneuert mit auswertung_schritt(). '
-  'Seit 0068 eine Kopie von mv_schimmel_punkte statt einer zweiten Rechnung — '
-  'gemessen 103 ms und 120 kB je Neurechnen.';
 grant select on v_auftrag_wasch_paletten to authenticated;
 comment on view v_auftrag_wasch_paletten is
   'Beim Waschen gezählte Paletten: Kisten gesamt, Masse = Kisten × gemessenes Kistengewicht des Kalibers, Tage im Zwischenlager aus dem Sortierdatum (0061).';
 grant select on v_auftrag_masse to authenticated;
-comment on view v_auftrag_masse is
-  'Masse je Arbeit: gewogene Paletten oder Zettel, beim Waschen gezählte Paletten (Kisten × Kistengewicht, 0061), sonst gezählte Kisten, beim Fax die Palettenzahl mal gemessener Palettenmasse. ist_fax: kein Waschgang.';
 grant select on v_verarbeitung_alter to authenticated;
 comment on view v_verarbeitung_alter is
   'Je Arbeit mit gezählten, datierten Paletten: mittleres Alter der verarbeiteten Ware gegen das mittlere Alter aller Paletten der Charge an dem Tag. differenz > 0: älter als der Durchschnitt verarbeitet.';
 grant select on v_verdunstung_messung to authenticated;
-comment on view v_verdunstung_messung is
-  'Jede Verdunstungswägung mit Netto damals und jetzt, Lagertagen und Tagesrate. verwendbar: gemessen, ohne sichtbaren Schimmel, positive Nettos, Wiegedatum nach dem Eingang, Arbeit nicht abgebrochen — und die Palette höchstens 1 % schwerer als beim Eingang (0056). Ohne Kistenzahl oder ohne hinterlegte Tara gibt es kein Netto und damit keine Rate (0064). Was nicht verwendbar ist, steht in v_plausibilitaet.';
 grant select on v_wiegung_kennzahl to authenticated;
-comment on view v_wiegung_kennzahl is
-  'Je gewogener Palette: Netto damals und jetzt, die Verdunstung dazwischen (0062 — vorher verlust_kg), kg je Kiste und je Kürbis. Ohne Kistenzahl oder hinterlegte Tara gibt es kein Netto (0064).';
 create unique index if not exists erg_koeff_fax_pk on erg_koeff_fax (sorte);
 grant select on erg_koeff_fax to authenticated;
 comment on materialized view erg_koeff_fax is
@@ -15544,54 +14546,11 @@ comment on materialized view mv_koeff_rand is
   'Die Ränder der Koeffizienten je Sorte (Verdunstung, zu klein, zu gross, '
   'Fax), geklammert wie in der Kaskade — die Grundlage der Hülle in '
   'v_prognose. Erneuert mit auswertung_schritt(2) (0071).';
-
-comment on view v_prognose is
-  'Was aus der heute liegenden Ware wird, wenn sie liegen bleibt — je Gruppe '
-  '(gesamt, Sorte, Schlag, Charge) und je Horizont h Tage, von heute bis zum '
-  'Saisonende in Wochenschritten (7/14/28 immer dabei). Es ist die Kaskade '
-  '(mv_kaskade, Portion „lager") bei alter_tage + h, mit denselben Formeln: '
-  'bei h = 0 stehen deshalb genau die Zahlen von erg_charge. Der Nenner ist '
-  'lager_kg, die liegende Eingangsware — er ändert sich über den Horizont '
-  'nicht. verkaufsfaehig_unten/oben ist eine Hülle (alle Koeffizienten '
-  'gleichzeitig am ungünstigsten Rand), kein gemeinsames 95-%%-Intervall. '
-  'Fehlt ein Koeffizient, bleiben Anteil und Hülle leer — die Massen sind '
-  'dann eine obere Schranke (0064).';
 grant select on v_prognose to authenticated;
 grant select on erg_prognose to authenticated;
-comment on materialized view erg_prognose is
-  'v_prognose, gespeichert für die App (0071). Erneuert mit auswertung_schritt().';
-
-comment on view v_wohin is
-  'Wohin ging der Kürbis — je Gruppe (gesamt, Sorte, Schlag, Charge) der ganze '
-  'Eingang aufgeteilt: ausgeliefert, anderer Kanal, verdunstet und faul an der '
-  'ausgelieferten Ware, Faules beim Abpacken, und was noch liegt (davon '
-  'verkaufsfähig, Kanal, Fax erwartet, faul, verdunstet). rest_kg und '
-  'lager_rest_kg sind die zwei Identitäten: beide haben den Erwartungswert '
-  'null, und eine doppelt gezählte Portion bleibt darin stehen (0071).';
 grant select on v_wohin to authenticated;
-
-comment on view v_lieferung_charge_tag is
-  'Gelieferte Masse je Charge, Tag und Buch — nur Lieferungen bis heute(). '
-  'Eine Lieferung ohne Chargennummer wird nach dem Eingangsanteil auf die '
-  'Chargen ihrer Sorte verteilt; der Vorlauf zählt am Erfassungsbeginn. '
-  'Diese Regel gibt es nur hier: v_lieferung_kohorte rechnet darauf (0071).';
 grant select on v_lieferung_charge_tag to authenticated;
 grant select on erg_verlauf to authenticated;
-comment on materialized view erg_verlauf is
-  'Je Woche und Gruppe (gesamt, Sorte, Schlag, Charge): Eingang und Ausgang '
-  'kumuliert (gemessen), im Lager (Eingangsware, die noch nicht hinter einer '
-  'Lieferung steckt) und davon verkaufsfähig (gerechnet) — ab heute als '
-  'Prognose bis zum Saisonende (prognose = true). Der Verlust ist der Abstand '
-  'zwischen im Lager und verkaufsfähig; seine Teile stehen weiter als eigene '
-  'Spalten (0071).';
-
-comment on view v_naechste_charge is
-  'Was kostet es, jede Charge zwei weitere Wochen liegen zu lassen? Gerechnet '
-  'aus v_prognose (Horizont 14 gegen Horizont 0) — dieselbe Formel wie die '
-  'Kaskade, damit es im ganzen Programm nur eine Zwei-Wochen-Zahl gibt. '
-  'prognose_verlust_14_kg ist, was an **verkaufsfähiger** Ware verloren geht, '
-  'und verdunstung_14_kg + schimmel_14_kg ergeben es auf den Rappen: die '
-  'Zerlegung ist multiplikativ exakt und beide Teile sind nie negativ (0071).';
 
 comment on view v_fax_wartezeit is
   'Faules beim Abpacken nach Tagen zwischen Waschen und Fax — je Klasse '
@@ -15610,30 +14569,15 @@ comment on view v_ueberfuellung_verkauf is
   'spielraum_kg ist die Masse über der Unterkante, die unbezahlt mitgeht — '
   'Rahmen, nicht Verlust: niemand sortiert auf die Kante (0061, 0071).';
 grant select on v_marge_buch to authenticated;
-comment on view v_marge_buch is
-  'Buch B: Ware, die den Betrieb verlassen hat, ohne verkaufsfähig zu sein — zu '
-  'klein, Nebenkanal, Überfüllung. Kein Verlust im Sinne von verdorben, sondern '
-  'Masse in einem anderen Kanal. kg_unten und kg_oben spannen den Bereich auf, '
-  'gemessen sagt, ob dahinter Messungen oder Schätzungen stehen.';
 create index if not exists erg_ueberfuellung_gruppe on erg_ueberfuellung (gruppe, sorte, charge_nr);
 grant select on erg_ueberfuellung to authenticated;
 comment on materialized view erg_ueberfuellung is
   'v_ueberfuellung_verkauf, gespeichert für die App (0061, 0071). Erneuert mit auswertung_schritt().';
 grant select on erg_wohin to authenticated;
-comment on materialized view erg_wohin is
-  'v_wohin, gespeichert für die App (0071). Erneuert mit auswertung_schritt().';
 create unique index if not exists erg_fax_wartezeit_pk on erg_fax_wartezeit (gruppe, coalesce(sorte, ''), klasse);
 grant select on erg_fax_wartezeit to authenticated;
 comment on materialized view erg_fax_wartezeit is
   'v_fax_wartezeit, gespeichert für die App (0071). Erneuert mit auswertung_schritt().';
-
-comment on view v_palox_stand is
-  'Die Palox-Ablesungen mit der Differenz zur vorigen Ablesung DERSELBEN '
-  'Arbeit. Arbeitsschritte werden nie über Nacht pausiert; zwischen zwei '
-  'Arbeiten liegt unbekannt viel, deshalb darf kein Stand über die '
-  'Arbeitsgrenze hinweg verrechnet werden (0073). Die erste Ablesung ist der '
-  'Nullpunkt, nicht eine Menge. Die Tara kommt nicht vor — sie kürzt sich in '
-  'der Differenz weg.';
 
 comment on view v_schimmel_menge is
   'Wie viel Faules eine Arbeit ergeben hat. Aus Palox-Ablesungen die Summe der '
@@ -15648,14 +14592,6 @@ comment on view v_charge_erntespanne is
   'die Unsicherheit jeder Altersangabe, die über das Chargenmittel läuft. '
   'Solange die Ernte läuft, wandert der Mittelwert mit jedem Import — '
   'ernte_fertig sagt, ob er steht (0073).';
-
-comment on view v_auftrag_masse is
-  'Masse und Alter je Arbeit. alter_quelle sagt, ob das Alter gemessen ist '
-  '(Eingangsdatum je Zettel abgelesen — Sortieren und Waschen + Sortieren) '
-  'oder geschätzt (Waschen: die Kaliber-Palette hat kein eigenes '
-  'Eingangsdatum). alter_spanne_tage ist die Streuung der Erntedaten der '
-  'Charge, also die Unsicherheit der Schätzung. Eine geschätzte Zahl darf auf '
-  'dem Bildschirm nicht aussehen wie eine gemessene (0073).';
 
 comment on view v_kontrollpalette_rate is
   'Je zwei aufeinanderfolgende Wägungen einer Kontrollpalette eine '
@@ -15679,48 +14615,13 @@ comment on view v_koeff_palette_netto is
   'Was eine VOLLE fertige Palette wiegt, je Sorte und Kistensystem. Nicht '
   'volle Paletten bleiben draussen — sonst zieht die halbvolle letzte Palette '
   'jeder Arbeit den Mittelwert nach unten und von dort die Fax-Masse (0073).';
-
-comment on view v_datenqualitaet is
-  'Zähler zur Vollständigkeit der Erfassung. Seit 0061 zählen beim Waschen die '
-  'gezählten Paletten (Kisten mit Sortierdatum) mit; die Lagerkontrolle zählt '
-  'als Verdunstungsmessung, ohne Faul-Angabe. Seit 0073 neu angelegt, weil '
-  '`select a.*` die Spaltenliste einfriert (0072 gab auftrag zwei Spalten).';
-comment on view v_auftrag_palette_masse is
-  'Netto je gezählter Eingangspalette: gewogen, vom Zettel, aus dem Wareneingang, '
-  'oder das Mittel des Eingangstags / der Charge; masse_quelle sagt, welcher Weg es '
-  'war. Beim Waschen gezählte Kaliber-Paletten stehen nicht hier — ihre Masse '
-  'rechnet v_auftrag_wasch_paletten (0061). Getrennt wird seit 0074 nach der '
-  'STATION statt nach „hat eine Kistenzahl": seit der Zähler beim Sortieren die '
-  'Kisten je Eingangspalette erfasst, wäre das alte Merkmal die Löschtaste für '
-  'jede Sortierarbeit gewesen.';
-
-comment on view v_datenqualitaet is
-  'Zähler zur Vollständigkeit der Erfassung. Seit 0061 zählen beim Waschen die '
-  'gezählten Paletten (Kisten mit Sortierdatum) mit; die Lagerkontrolle zählt '
-  'als Verdunstungsmessung, ohne Faul-Angabe. Seit 0073 neu angelegt, weil '
-  '`select a.*` die Spaltenliste einfriert (0072 gab auftrag zwei Spalten). '
-  'Seit 0076 zusätzlich die Kistenzahl auf der Eingangspalette — ohne sie hat '
-  'die Palette kein Netto und fehlt in der Masse (AB-49).';
 comment on view v_koeff_fax is
   'Anteil Faules beim Abpacken (Fax), je Sorte — bezogen auf die Masse, die durch '
   'das Fax ging. NULL, solange keine Fax-Arbeit Faules gewogen hat: unbekannt, nicht 0. '
   'Steht einstellung.fax_eingefroren auf true (Runde R), ist der Anteil 0 durch '
   'Entscheid — bekannt, Basis „eingefroren" (0078).';
-comment on function lager_kaliber(integer) is
-  'Die verkaufsfähige Masse je Charge/Sorte am Horizont p_h (Tage, ein Wert aus '
-  'erg_prognose: 0, 7, 14 … 196, 198), aufgeteilt auf die Kaliberbänder der Sorte. '
-  'Die Summe über die Bänder ist erg_prognose.verkaufsfaehig_kg — eine Formel, eine '
-  'Aufteilung. Die Aufteilung ist die Sortier-CSV der Charge (basis charge) oder der '
-  'Sorte (basis sorte), jeder Kürbis um (1 − r)^Tage geschrumpft und neu in sein Band '
-  'gelegt; kaliber_idx −1 heisst unter dem kleinsten Band. basis keine: keine CSV, '
-  'keine Aufteilung, eine Zeile mit der ganzen Masse und kaliber_idx null (0078).';
 revoke all on function lager_kaliber(integer) from public;
 grant execute on function lager_kaliber(integer) to authenticated;
-comment on view v_lager_kaliber is
-  'lager_kaliber(0): das Lager nach Kaliber heute — zum Nachschauen im SQL-Editor. '
-  'Der Bildschirm ruft lager_kaliber(0) und lager_kaliber(7·X) direkt; im '
-  'Rechenwerk (auswertung_schritt) steht keine gespeicherte Fassung, weil das '
-  'Neurechnen bei dreifacher Saison an seiner Zwölf-Sekunden-Grenze liegt (0078).';
 grant select on v_lager_kaliber to authenticated;
 comment on view v_marge_wiegung is
   'Die verschenkte Marge je Wägung, ohne Verkaufsdatei: je Sorte und Kistensystem '
@@ -15728,24 +14629,10 @@ comment on view v_marge_wiegung is
   'gegen das Soll (zuviel_je_kiste = Ist − Soll). Stück: Gramm je Kürbis gegen die '
   'Bandmitte (g_ueber_bandmitte). Der Betrieb: „pro palette wissen, vlt 10x messen '
   'pro saison, dann einen durchschnittswert" (0078).';
-comment on materialized view erg_marge_wiegung is
-  'Gespeichert: die Marge je Wägung (v_marge_wiegung) — je Sorte und Kistensystem '
-  'der Durchschnitt der gewogenen vollen fertigen Paletten, ohne Verkaufsdatei. '
-  'Schritt 4 des Rechenwerks (0078).';
 grant select on v_marge_wiegung to authenticated;
 grant select on erg_marge_wiegung to authenticated;
-comment on function lager_schluessel() is
-  'Je Charge mit liegender Ware: woher ihre Gewichtsverteilung kommt (eigene '
-  'Sortier-CSV, die der Sorte, oder keine) und mit welcher Verdunstungsrate '
-  'geschrumpft wird. Die gemeinsame Auskunft für lager_kaliber(h) und '
-  'kaliber_glocke(h) — beide teilen dieselbe Ware auf (0079).';
 revoke all on function lager_schluessel() from public;
 grant execute on function lager_schluessel() to authenticated;
-comment on function kuerbis_stichtag(integer) is
-  'Jeder sortierte Kürbis (Klasse „kaliber"), wie er am Stichtag heute + p_h '
-  'wiegt: g = g_sortiert · (1 − r)^(Stichtag − Sortiertag). Je '
-  'Verteilungsschlüssel einmal. Die gemeinsame Grundlage von lager_kaliber(h) '
-  'und kaliber_glocke(h) — eine Rechnung, zwei Bilder (0079).';
 revoke all on function kuerbis_stichtag(integer) from public;
 grant execute on function kuerbis_stichtag(integer) to authenticated;
 comment on function kaliber_glocke(integer) is
@@ -15758,38 +14645,19 @@ comment on function kaliber_glocke(integer) is
 revoke all on function kaliber_glocke(integer) from public;
 grant execute on function kaliber_glocke(integer) to authenticated;
 
-comment on view v_schimmel_punkte is
-  'Jede Faul-Messung als Punkt: die Lagerdauer (wie lange lag die Ware?) und '
-  'seit 0079 der Messtag (wann wurde gemessen?). Zwei Achsen für zwei Fragen — '
-  '„faulen sie nach N Wochen" und „ab wann ging es los". Der Messtag ist der '
-  'Betriebstag, nie ts::date (0067/0070).';
-
 create index if not exists erg_punkte_charge on erg_punkte (charge_nr);
-comment on materialized view erg_punkte is
-  'v_schimmel_punkte mit dem Messtag, gespeichert für die App (0079). Die '
-  'Auswertung steht auf mv_schimmel_punkte; diese Fassung liest nur der '
-  'Bildschirm. Erneuert mit auswertung_schritt().';
 comment on view v_wiegung_kennzahl is
   'Je gewogener Palette: Netto damals und jetzt, die Verdunstung dazwischen '
   '(0062 — vorher verlust_kg), kg je Kiste und je Kürbis, und seit 0079 die '
   'Tagesrate aus v_verdunstung_messung samt der Marke, ob sie verwendbar ist. '
   'Ohne Kistenzahl oder hinterlegte Tara gibt es kein Netto (0064).';
 create index if not exists erg_wiegung_ts on erg_wiegung (wiege_ts);
-comment on materialized view erg_wiegung is
-  'v_wiegung_kennzahl mit der Tagesrate, gespeichert für die App (0079). '
-  'Erneuert mit auswertung_schritt().';
 comment on view v_auftrag_fertige_masse is
   'Beim Waschen die Masse, die herauskam: fertige Paletten gesamt mal der '
   'mittleren Masse der eigenen gewogenen vollen Paletten, hilfsweise der ihrer '
   'Sorte und ihres Kistensystems (0079). Nur Zeilen, für die beides bekannt '
   'ist — fehlt eine Angabe, gibt es keine Zeile: unbekannt, nicht null.';
 grant select on v_auftrag_fertige_masse to authenticated;
-comment on view v_auftrag_masse is
-  'Die Masse einer Arbeit und ihr Alter. Die Masse in dieser Reihenfolge: '
-  'gewogene oder vom Zettel gelesene Eingangspaletten; beim Waschen die '
-  'fertigen Paletten dieser Arbeit (0079, „fertige_paletten"); die gezählten '
-  'Kisten der Kaliber-Paletten („wasch_paletten"); gezählte Gebinde; bei Fax '
-  'die Palettenzahl. Fehlt alles, ist die Masse unbekannt — nicht null.';
 comment on function lager_schluessel() is
   'Je Charge mit liegender Ware: woher ihre Gewichtsverteilung kommt (eigene '
   'Sortier-CSV, die der Sorte, oder keine) und mit welcher Verdunstungsrate '
@@ -15825,19 +14693,8 @@ comment on view v_marge_charge is
   'Die verschenkte Marge je Wägung, eine Ebene feiner als v_marge_wiegung: je '
   'Charge, Kistensystem und Soll bzw. Kaliber der Durchschnitt der gewogenen '
   'vollen fertigen Paletten (0086). Dieselbe Rechnung wie 0078.';
-comment on materialized view erg_marge_charge is
-  'Gespeichert: die Marge je Wägung je Charge (v_marge_charge). Schritt 4 des '
-  'Rechenwerks (0086).';
 grant select on v_marge_charge to authenticated;
 grant select on erg_marge_charge to authenticated;
-comment on view v_plausibilitaet is
-  'Messungen, die die Auswertung bewusst nicht verwendet — und Messungen, die '
-  'sie nicht verwenden kann, weil ihnen der Nenner fehlt. Neu (0051): '
-  'Fax-Anteile, Zetteldaten ohne Palette, Kisten nach Sollgewicht ohne gewogene '
-  'Palette. 0066: „Ausschuss-Tara" rechnet nur nach, wo Kistenzahl und '
-  'hinterlegte Tara da sind; fehlt eine, steht die Lücke als „Ausschuss ohne '
-  'Tara" daneben. 0087: die Nachrechnung zieht die Palette nur ab, wenn sie '
-  'mitgewogen wurde, und klemmt nichts auf null.';
 grant select on v_plausibilitaet to authenticated;
 comment on view v_verdunstung_messung is
   'Je Wägung derselben Palette: Netto damals und jetzt, Lagertage, die Tagesrate — '
@@ -15847,12 +14704,7 @@ comment on view v_verdunstung_messung is
 grant select on v_verdunstung_messung to authenticated;
 grant select on v_wiegung_kennzahl to authenticated;
 create index if not exists erg_wiegung_ts on erg_wiegung (wiege_ts);
-
-comment on materialized view erg_wiegung is
-  'Gespeichert: jede Wägung mit ihren Kennzahlen (v_wiegung_kennzahl), seit 0089 mit plausibel und grund. Schritt 4 des Rechenwerks.';
 create index if not exists erg_ausgang_ts on erg_ausgang (ts);
-comment on materialized view erg_ausgang is
-  'Gespeichert: jede gewogene fertige Palette mit ihren Kennzahlen (v_ausgang_voll) — seit 0089 mit voll, damit die Marge-Karte sagen kann, welche Wägung nicht zählt.';
 grant select on v_plausibilitaet_0064_zusatz to authenticated;
 comment on view v_auftrag_palette_masse is
   'Je gezählter Palette einer Arbeit ihr Netto und woher es stammt (masse_quelle): '
@@ -15861,14 +14713,7 @@ comment on view v_auftrag_palette_masse is
 grant select on v_auftrag_palette_masse to authenticated;
 grant select on v_plausibilitaet to authenticated;
 grant select on v_plausibilitaet_0064_zusatz to authenticated;
-comment on view v_arbeit_kommentar is
-  'Je Arbeit der Kommentar zur Ware (art = ware): der geschriebene Text, sonst das '
-  'Transkript der Aufnahme. Das Dashboard hängt ihn an die Messungen dieser Arbeit (0091).';
 grant select on v_arbeit_kommentar to authenticated;
-comment on view v_koeff_gebinde is
-  'Das Kistengewicht je Sorte und Kaliberband: aus Wasch-Arbeiten, die hinein '
-  'gezählt und heraus gewogen haben (0092), und aus Sortierläufen mit gezählten '
-  'Kisten (0060). kaliber_idx −1: Sollgewicht-Kisten aus gewogenen fertigen Paletten.';
 grant select on v_koeff_gebinde to authenticated;
 grant select on v_plausibilitaet to authenticated;
 grant select on v_plausibilitaet_0054_zusatz to authenticated;
@@ -15879,8 +14724,6 @@ comment on view v_arbeit_kommentar is
   'sonst die der Arbeit).';
 grant select on v_arbeit_kommentar to authenticated;
 create index if not exists erg_ausgang_ts on erg_ausgang (ts);
-comment on materialized view erg_ausgang is
-  'Gespeichert: jede gewogene fertige Palette mit ihren Kennzahlen (v_ausgang_voll) — seit 0089 mit voll, seit 0097 mit den Grenzen ihres Bandes (band_von_g, band_bis_g).';
 grant select on erg_marge_wiegung to authenticated;
 comment on materialized view erg_marge_wiegung is
   'Gespeichert: die verschenkte Marge je Sorte, Kistensystem und Band (0078) — seit 0097 mit den '
@@ -15894,25 +14737,6 @@ create unique index if not exists erg_verlauf_pk on erg_verlauf (woche, bis, gru
 create index if not exists erg_verlauf_gruppe on erg_verlauf (gruppe, schluessel, bis);
 create index if not exists erg_verlauf_woche on erg_verlauf (woche);
 grant select on erg_verlauf to authenticated;
-comment on materialized view erg_verlauf is
-  'Je Woche und Gruppe (gesamt, Sorte, Schlag, Charge): Eingang und Ausgang '
-  'kumuliert (gemessen), im Lager (Eingangsware, die noch nicht hinter einer '
-  'Lieferung steckt) und davon verkaufsfähig (gerechnet) — ab heute als '
-  'Prognose bis zum Saisonende (prognose = true). Der Verlust ist der Abstand '
-  'zwischen im Lager und verkaufsfähig; seine Teile stehen weiter als eigene '
-  'Spalten (0071). im_haus_kg: Liegendes nach Verdunstung und Verderb plus '
-  'aussortiert_kg — zu klein und zu gross hinter den Lieferungen, das im Haus '
-  'steht, bis ein Lieferschein es holt (0101).';
-
-comment on materialized view erg_charge is
-  'v_hochrechnung_basis, gespeichert für die App (0062). Erneuert mit auswertung_schritt(). '
-  'Seit 0101 zählt im_haus_heute_kg das hinter den Lieferungen Aussortierte mit '
-  '(kanal_ausgelagert_kg: zu klein und zu gross, im Haus, nicht verkaufsfähig).';
-comment on view v_saisonbilanz is
-  'Die Saison bis heute in einer Zeile (erg_bilanz). Seit 0101: Eingang + Überzählung '
-  '= ausgeliefert (Lieferscheine) + Verlust bis heute + im Haus — zu klein und zu gross '
-  'sind Teil von im Haus (kanal_ausgelagert_kg aussortiert, kanal_im_haus_kg im '
-  'Liegenden erwartet), nicht Ausgang.';
 comment on view v_auftrag_wasch_gewogen is
   'Waschen (0104): die Masse hinein aus den am Anfang der Strasse gewogenen Paletten — Brutto minus Kisten × '
   'Kistentara minus Palettentara. Nicht gewogene Paletten rechnen mit dem Mittel je Kiste der gewogenen (quelle „teils").';
@@ -15921,13 +14745,7 @@ grant select on v_auftrag_wasch_gewogen to authenticated;
 comment on materialized view erg_punkte is
   'v_schimmel_punkte mit dem Messtag (0079) und seit 0105 mit Station und eigenem Anteil, '
   'gespeichert für die App. Erneuert mit auswertung_schritt().';
-comment on view v_palox_station is 'Die Kennzahl je Station bis heute (0105) — unter dem Diagramm „Faules im Lager".';
 grant select on v_palox_station to authenticated;
-comment on view v_palox_erwartung is
-  'Je Sorte und Station der erwartete Palox-Anteil (0106): das nach Masse gewichtete Mittel der plausiblen Punkte — '
-  'zuerst die letzten vier Wochen der Sorte, dann ihre Saison, dann alle Sorten (ab palox_mindest_arbeiten() Arbeiten, '
-  'die ganze Saison aller Sorten ab einer). ebene/quelle sagen, welche Stufe gilt; geliehen = aus allen Sorten. '
-  'unten/oben: ± t · sd/√n über die Arbeiten.';
 grant select on v_palox_erwartung to authenticated;
 comment on view v_charge_palox is
   'Je Charge und Station ihr eigener Palox-Anteil (0106), massegewichtet über ihre plausiblen Arbeiten — gilt für die '
@@ -15938,118 +14756,28 @@ comment on view v_charge_weg is
   'Masse, p_wasch = 1, wenn Bandware dieser Sorte gewaschen wird. Aus den eigenen Arbeiten, sonst denen der Sorte, sonst '
   'allen (weg_quelle); ohne jede Arbeit NULL.';
 grant select on v_charge_weg to authenticated;
-comment on materialized view mv_kaskade is
-  'Die Massenkaskade je Charge, Eingangstag und Portion. Drei Portionen: „ausgelagert" ist die Eingangsmasse hinter '
-  'den verkauften und in den Nebenkanal gegangenen Lieferungen, „entsorgt" die hinter dem Kompost (0065 — nur um die '
-  'Verdunstung zurückgerechnet, weil entsorgte Ware selbst das Faule ist), „lager" der Rest, der noch liegt. Je Portion '
-  'die Ströme Verdunstung, Faules, zu klein, Nebenkanal, Fax und verkaufsfähig. Seit 0106 ist f der Palox-Anteil über '
-  'den Weg der Charge (palox_f: p_hand, p_wasch, f_ws, f_s, g_w) — für Ausgelagertes die eigene Messung, für Liegendes '
-  'die Erwartung der Sorte (f_quelle sagt es; f_geliehen: aus allen Sorten). b_ws/b_s/b_w sind die Zuwächse je Woche '
-  'der Kennzahl (0105), zuwachs_bekannt sagt, ob die Prognose fortschreiben darf. Kein Sockel mehr.';
 grant select on mv_kaskade to authenticated;
-comment on view v_kaskade is
-  'Der Massenfluss je Charge, Eingangstag und Portion: Was eingelagert wurde (eingang_kg) verteilt sich auf Verdunstung, '
-  'Faules, zu klein, Nebenkanal, Fax und verkaufsfähige Ware. Die Ströme addieren sich zum Eingang. "Verlust" ist hier '
-  'nur, was wirklich verloren ist: verdunstung_kg, schimmel_kg. klein_kg und nebenkanal_kg sind kein Verlust, sondern ein '
-  'anderer Kanal. Seit 0106 ohne Sockel; f kommt aus den Stationswerten (f_quelle).';
 grant select on v_kaskade to authenticated;
-comment on materialized view mv_hochrechnung is
-  'v_hochrechnung, gespeichert. Inhaltlich gleich; erneuert von auswertung_schritt(3).';
 grant select on mv_hochrechnung to authenticated;
-comment on view v_hochrechnung is
-  'Die Kaskade auseinandergelegt: eine Zeile je Charge, Portion und Strom, mit dem verwendeten Koeffizienten, seiner '
-  'Herkunft (koeff_art, beim Faulen koeff_basis = f_quelle), der Zahl der Messungen dahinter (koeff_n) und der Formel. '
-  'koeff_bekannt = false heisst: geschätzt, nicht gemessen. f_geliehen: der Palox-Anteil kommt aus den Arbeiten aller '
-  'Sorten (0106).';
 grant select on v_hochrechnung to authenticated;
-comment on view v_verlust_je_gruppe is
-  'Dieselben Ströme, zusammengefasst nach Gruppe (gesamt, Sorte, Schlag, Charge). kg_beobachtet ist gemessen, '
-  'kg_projiziert auf noch nicht Gemessenes übertragen, kg_extrapoliert seit 0106 mit einem aus allen Sorten geliehenen '
-  'Palox-Anteil gerechnet — drei verschiedene Sicherheiten, darum drei Spalten. Ist der Strom gemessen (bekannt), sind '
-  'alle vier Teilbeträge Zahlen und kg_beobachtet + kg_projiziert = kg. Das Band kg_unten/kg_oben kommt aus der '
-  'Unsicherheit der Koeffizienten, beim Faulen aus dem Band des Stationswerts (f_se).';
 grant select on v_verlust_je_gruppe to authenticated;
-comment on materialized view erg_verlust is
-  'v_verlust_je_gruppe, gespeichert für die App (0062). Erneuert mit auswertung_schritt().';
 grant select on erg_verlust to authenticated;
 grant select on v_verlust_ranking to authenticated;
 grant select on v_schimmel_punkte to authenticated;
-comment on view v_marge_buch is
-  'Buch B: Ware, die den Betrieb verlassen hat, ohne verkaufsfähig zu sein — zu klein, Nebenkanal, Überfüllung. Kein '
-  'Verlust im Sinne von verdorben, sondern Masse in einem anderen Kanal. kg_unten und kg_oben spannen den Bereich auf, '
-  'gemessen sagt, ob dahinter Messungen oder Schätzungen stehen.';
 grant select on v_marge_buch to authenticated;
-comment on view v_hochrechnung_basis is
-  'Je Charge, alles bis heute: Eingang und geliefert (gemessen), ausgelagert (Eingangsmasse hinter den Lieferungen), '
-  'lager_kg (Eingang minus ausgelagert, in Eingangskilo), verlust_heute_kg (Verdunstung + Faules + Fax am Abgepackten), '
-  'im_haus_heute_kg (Eingangsmasse, die noch liegt, nach Verdunstung und Verderb, plus hinter den Lieferungen '
-  'Aussortiertes, 0101). Keine Prognose. 0064: Jede Stromsumme ist NULL, solange ihr Koeffizient keine Messung hat. '
-  'Seit 0106 ohne Sockel; faul_anteil und faul_quelle sagen, womit das Liegende rechnet und woher es kommt.';
 grant select on v_hochrechnung_basis to authenticated;
-comment on materialized view erg_charge is
-  'v_hochrechnung_basis, gespeichert für die App (0062). Erneuert mit auswertung_schritt(). Seit 0101 zählt '
-  'im_haus_heute_kg das hinter den Lieferungen Aussortierte mit (kanal_ausgelagert_kg: zu klein und zu gross, im Haus, '
-  'nicht verkaufsfähig). Seit 0106 ohne Sockel, mit faul_anteil und faul_quelle.';
 grant select on erg_charge to authenticated;
-comment on view v_kontrolle_vorschlag is
-  'Welche Charge als Nächstes kontrolliert werden sollte. informationswert gewichtet, wie viel noch im Haus liegt, '
-  'wie lange die letzte Wiegung her ist und wie unsicher die Charge bisher ist — eine Reihenfolge, kein Befehl.';
 grant select on v_kontrolle_vorschlag to authenticated;
-comment on view v_massenbilanz is
-  'Die Probe aufs Exempel je Charge: Was die Kaskade am Band erwartet (modell_am_band_kg: Bandarbeiten nach Verdunstung '
-  'und Palox-Anteil der Sortierstation, 0106) gegen das, was die Sortier-Datei gewogen hat (csv_gemessen_kg). '
-  'abweichung_anteil nahe 0 heisst, die Koeffizienten treffen die Wirklichkeit; systematisch positiv heisst, die '
-  'Verluste sind überschätzt. Nur für Chargen mit Sortier-Datei aussagekräftig.';
 grant select on v_massenbilanz to authenticated;
-comment on view v_saisonbilanz is
-  'Die Saison bis heute in einer Zeile (erg_bilanz). Seit 0101: Eingang + Überzählung = ausgeliefert (Lieferscheine) '
-  '+ Verlust bis heute + im Haus — zu klein und zu gross sind Teil von im Haus (kanal_ausgelagert_kg aussortiert, '
-  'kanal_im_haus_kg im Liegenden erwartet), nicht Ausgang. Seit 0106 ohne Sockel.';
 grant select on v_saisonbilanz to authenticated;
-comment on view v_prognose is
-  'Was aus der heute liegenden Ware wird, wenn sie liegen bleibt — je Gruppe (gesamt, Sorte, Schlag, Charge) und je '
-  'Horizont h Tage, von heute bis zum Saisonende in Wochenschritten (7/14/28 immer dabei). Es ist die Kaskade '
-  '(mv_kaskade, Portion „lager") bei alter_tage + h, mit denselben Formeln: bei h = 0 stehen deshalb genau die Zahlen '
-  'von erg_charge. Seit 0106 wächst das Faule mit dem Zuwachs je Station der Kennzahl (0105) — nur wenn zuwachs_bekannt; '
-  'sonst bleibt der Anteil von heute stehen und faul_je_tag_kg ist leer. f_geliehen: ein Anteil aus allen Sorten. '
-  'Der Nenner ist lager_kg, die Eingangsware, die noch nicht hinter einer Lieferung steckt; vollstaendig heisst: '
-  'Verdunstung, Faules, Ausschuss und Fax gemessen.';
 grant select on v_prognose to authenticated;
-comment on materialized view erg_prognose is
-  'v_prognose, gespeichert für die App (0071). Erneuert mit auswertung_schritt().';
 grant select on erg_prognose to authenticated;
-comment on view v_naechste_charge is
-  'Was kostet es, jede Charge zwei weitere Wochen liegen zu lassen? Gerechnet aus v_prognose (Horizont 14 gegen '
-  'Horizont 0) — dieselbe Formel wie die Kaskade, damit es im ganzen Programm nur eine Zwei-Wochen-Zahl gibt. '
-  'prognose_verlust_14_kg ist, was an **verkaufsfähiger** Ware verloren geht, und verdunstung_14_kg + schimmel_14_kg '
-  'ergeben es auf den Rappen. Seit 0106 leer, solange die Kennzahl je Station keinen Zuwachs ausweist '
-  '(zuwachs_bekannt = false).';
 grant select on v_naechste_charge to authenticated;
-comment on materialized view erg_verlauf is
-  'Je Woche und Gruppe (gesamt, Sorte, Schlag, Charge): Eingang und Ausgang kumuliert (gemessen), im Lager '
-  '(Eingangsware, die noch nicht hinter einer Lieferung steckt) und davon verkaufsfähig (gerechnet) — ab heute als '
-  'Prognose bis zum Saisonende (prognose = true). Der Verlust ist der Abstand zwischen im Lager und verkaufsfähig; '
-  'seine Teile stehen weiter als eigene Spalten (0071). Seit 0106 ohne Sockel: das Faule ist der Palox-Anteil der '
-  'Stationen, mit dem Zuwachs je Woche zurück und voraus verschoben, wo die Kennzahl ihn ausweist.';
 grant select on erg_verlauf to authenticated;
-comment on view v_wohin is
-  'Wohin ging der Kürbis — je Gruppe (gesamt, Sorte, Schlag, Charge) der ganze Eingang aufgeteilt: ausgeliefert, '
-  'anderer Kanal, verdunstet und faul an der ausgelieferten Ware, Faules beim Abpacken, und was noch liegt (davon '
-  'verkaufsfähig, Kanal, Fax erwartet, faul, verdunstet). rest_kg und lager_rest_kg sind die zwei Identitäten: beide '
-  'haben den Erwartungswert null, und eine doppelt gezählte Portion bliebe darin stehen. Seit 0106 ohne Sockel.';
 grant select on v_wohin to authenticated;
-comment on materialized view erg_wohin is
-  'v_wohin, gespeichert für die App (0071). Erneuert mit auswertung_schritt().';
 grant select on erg_wohin to authenticated;
-comment on view v_plausibilitaet_0064_zusatz is
-  'Drei Auffälligkeiten aus Runde L: eine Gebindeart ohne hinterlegte Tara (die Paletten fehlen im Eingang), eine '
-  'Charge mit mehr Ausgang als Eingang, und ein Zettelgewicht, das zur Charge passt, aber nicht zum Eingangstag.';
 grant select on v_plausibilitaet_0064_zusatz to authenticated;
-comment on view v_plausibilitaet_0054_zusatz is
-  'Zusatzprüfungen zu v_plausibilitaet, die seit 0054 dazugekommen sind — je Auffälligkeit Art, betroffene Arbeit, '
-  'Befund und Rat. Wird von v_plausibilitaet mitgelesen; einzeln braucht sie niemand.';
 grant select on v_plausibilitaet_0054_zusatz to authenticated;
-comment on view v_plausibilitaet is 'Messungen, die die Auswertung bewusst nicht verwendet — und Messungen, die sie nicht verwenden kann, weil ihnen der Nenner fehlt. Neu (0051): Fax-Anteile, Zetteldaten ohne Palette, Kisten nach Sollgewicht ohne gewogene Palette. 0066: „Ausschuss-Tara" rechnet nur nach, wo Kistenzahl und hinterlegte Tara da sind; fehlt eine, steht die Lücke als „Ausschuss ohne Tara" daneben. 0087: die Nachrechnung zieht die Palette nur ab, wenn sie mitgewogen wurde, und klemmt nichts auf null.';
 grant select on v_plausibilitaet to authenticated;
 
 create index if not exists erg_gewichte_sorte     on erg_gewichte (sorte);
@@ -16065,9 +14793,6 @@ comment on materialized view erg_ausgang is
 comment on materialized view erg_wiegung is
   'Gespeichert: jede Wägung mit ihren Kennzahlen (v_wiegung_kennzahl), seit 0089 mit plausibel und grund. Schritt 4 des Rechenwerks.';
 grant select on erg_palox_erwartung to authenticated;
-comment on materialized view erg_palox_erwartung is
-  'v_palox_erwartung, gespeichert (0107): der erwartete Palox-Anteil je Sorte und Station — das Dashboard und der '
-  'Betriebsabzug lesen diese Fassung statt die Kette bei jedem Öffnen live zu rechnen. Schritt 3.';
 comment on view v_koeff_gebinde_formel is
   'Das Kistengewicht je Sorte und Kaliberband: aus Wasch-Arbeiten, die hinein gezählt und heraus gewogen haben (0092), und aus Sortierläufen mit gezählten Kisten (0060). kaliber_idx −1: Sollgewicht-Kisten aus gewogenen fertigen Paletten. — Die Formel (0109); gelesen wird sie über die gleichnamige Sicht ohne _formel.';
 grant select on v_koeff_gebinde_formel to authenticated;
@@ -16095,19 +14820,13 @@ revoke all on function v_schimmel_punkte_zaun() from public;
 grant execute on function v_schimmel_punkte_zaun() to authenticated;
 comment on view v_schimmel_punkte is
   'Jede Faul-Messung als Punkt: die Lagerdauer (wie lange lag die Ware?) und seit 0079 der Messtag (wann wurde gemessen?). Zwei Achsen für zwei Fragen — „faulen sie nach N Wochen" und „ab wann ging es los". Der Messtag ist der Betriebstag, nie ts::date (0067/0070). Seit 0109 über die Planungsgrenze v_schimmel_punkte_zaun(); die Formel steht in v_schimmel_punkte_formel.';
-comment on view v_koeff_kaliber_geschaetzt_formel is
-  'Massegewichteter Anteil je Sorte, chargen-robust gefehlert und per empirischem Bayes zum Gesamtwert gezogen. b = 1 heisst: die Sorte trägt sich selbst, b = 0: es gilt der Gesamtwert. — Die Formel (0109); gelesen wird sie über die gleichnamige Sicht ohne _formel.';
 grant select on v_koeff_kaliber_geschaetzt_formel to authenticated;
 comment on function v_koeff_kaliber_geschaetzt_zaun() is
   'Planungsgrenze (0109): liest v_koeff_kaliber_geschaetzt_formel. Der Planer setzt eine PL/pgSQL-Funktion nicht in die Abfrage darüber ein.';
 revoke all on function v_koeff_kaliber_geschaetzt_zaun() from public;
 grant execute on function v_koeff_kaliber_geschaetzt_zaun() to authenticated;
-comment on view v_koeff_kaliber_geschaetzt is
-  'Massegewichteter Anteil je Sorte, chargen-robust gefehlert und per empirischem Bayes zum Gesamtwert gezogen. b = 1 heisst: die Sorte trägt sich selbst, b = 0: es gilt der Gesamtwert. Seit 0109 über die Planungsgrenze v_koeff_kaliber_geschaetzt_zaun(); die Formel steht in v_koeff_kaliber_geschaetzt_formel.';
 comment on view v_koeff_verdunstung_geschaetzt is
   'Die Verdunstungsrate je Sorte (0111): das massegewichtete Mittel der verwendbaren Wägungen der Sorte, ab anteil_mindest_messungen() Wägungen; sonst das Mittel aller Sorten (b = 0, geliehen). Bis 0110 wurde der Sortenwert per empirischem Bayes zum Gesamtwert gezogen; tau2 bleibt deshalb leer. varianz = Unsicherheit des Mittels, df = n − 1 der geltenden Ebene.';
-comment on view v_koeff_kaliber_geschaetzt_formel is
-  'Die Formel hinter v_koeff_kaliber_geschaetzt (Planungsgrenze 0109): zu klein (ausschuss), zu gross (nebenkanal) und Fax je Sorte — seit 0111 das massegewichtete Mittel der eigenen Messungen ab anteil_mindest_messungen(), sonst das Mittel aller Sorten (b = 0). Kein Zug zum Gesamtwert mehr; tau2 bleibt leer.';
 comment on view v_koeff_verdunstung is
   'Die Verdunstungsrate je Tag je Sorte, wie die Kaskade sie nimmt (0111): Mittel der eigenen Wägungen ab drei, sonst aller Sorten; nie negativ, das Band ± t · √varianz. basis sagt die Ebene („dieser Sorte" / „aller Sorten").';
 
@@ -16126,68 +14845,26 @@ grant select on v_palox_erwartung to authenticated;
 comment on materialized view erg_palox_erwartung is
   'v_palox_erwartung, gespeichert (0107): der Grundausschuss je Sorte und Station mit dem Anstieg der Station (0111) — das Dashboard und der Betriebsabzug lesen diese Fassung. Schritt 3.';
 grant select on erg_palox_erwartung to authenticated;
-comment on materialized view mv_kaskade is
-  'Die Massenkaskade je Charge, Eingangstag und Portion. Drei Portionen: „ausgelagert" ist die Eingangsmasse hinter den verkauften und in den Nebenkanal gegangenen Lieferungen, „entsorgt" die hinter dem Kompost (0065 — nur um die Verdunstung zurückgerechnet, weil entsorgte Ware selbst das Faule ist), „lager" der Rest, der noch liegt. Je Portion die Ströme Verdunstung, Palox-Ausschuss, zu klein, zu gross, Fax und verkaufsfähig. f ist der Palox-Anteil über den Weg der Charge (palox_f: p_hand, p_wasch, f_ws, f_s, g_w). Seit 0111 gilt jeder Stationswert für das Alter der Portion: Grundausschuss der Sorte (v_palox_erwartung) + Anstieg der Station je Woche Lagerdauer (v_palox_station) × alter_tage / 7; für Ausgelagertes mit eigener Messung gilt diese, ohne Anstieg. f_quelle sagt, woher; f_geliehen: aus allen Sorten. b_ws/b_s/b_w ist der Anstieg, mit dem Prognose und Verlauf fortschreiben (0 bei eigener Messung), zuwachs_bekannt sagt, ob sie es dürfen.';
 grant select on mv_kaskade to authenticated;
-comment on materialized view erg_verlauf is
-  'Je Woche und Gruppe (gesamt, Sorte, Schlag, Charge): Eingang und Ausgang kumuliert (gemessen), im Lager (Eingangsware, die noch nicht hinter einer Lieferung steckt) und davon verkaufsfähig (gerechnet) — ab heute als Prognose bis zum Saisonende (prognose = true). Der Verlust ist der Abstand zwischen im Lager und verkaufsfähig; seine Teile stehen weiter als eigene Spalten (0071). Seit 0106 ohne Sockel: das Faule ist der Palox-Anteil der Stationen, mit dem Zuwachs je Woche zurück und voraus verschoben, wo die Kennzahl ihn ausweist.';
 grant select on erg_verlauf to authenticated;
-comment on view v_hochrechnung_basis is
-  'Je Charge, alles bis heute: Eingang und geliefert (gemessen), ausgelagert (Eingangsmasse hinter den Lieferungen), lager_kg (Eingang minus ausgelagert, in Eingangskilo), verlust_heute_kg (Verdunstung + Faules + Fax am Abgepackten), im_haus_heute_kg (Eingangsmasse, die noch liegt, nach Verdunstung und Verderb, plus hinter den Lieferungen Aussortiertes, 0101). Keine Prognose. 0064: Jede Stromsumme ist NULL, solange ihr Koeffizient keine Messung hat. Seit 0106 ohne Sockel; faul_anteil und faul_quelle sagen, womit das Liegende rechnet und woher es kommt.';
 grant select on v_hochrechnung_basis to authenticated;
-comment on view v_kaskade is
-  'Der Massenfluss je Charge, Eingangstag und Portion: Was eingelagert wurde (eingang_kg) verteilt sich auf Verdunstung, Faules, zu klein, Nebenkanal, Fax und verkaufsfähige Ware. Die Ströme addieren sich zum Eingang. "Verlust" ist hier nur, was wirklich verloren ist: verdunstung_kg, schimmel_kg. klein_kg und nebenkanal_kg sind kein Verlust, sondern ein anderer Kanal. Seit 0106 ohne Sockel; f kommt aus den Stationswerten (f_quelle).';
 grant select on v_kaskade to authenticated;
-comment on view v_prognose is
-  'Was aus der heute liegenden Ware wird, wenn sie liegen bleibt — je Gruppe (gesamt, Sorte, Schlag, Charge) und je Horizont h Tage, von heute bis zum Saisonende in Wochenschritten (7/14/28 immer dabei). Es ist die Kaskade (mv_kaskade, Portion „lager") bei alter_tage + h, mit denselben Formeln: bei h = 0 stehen deshalb genau die Zahlen von erg_charge. Der Palox-Anteil wächst je Station um ihren Anstieg je Woche Lagerdauer (0111) — nur wenn zuwachs_bekannt; sonst bleibt der Anteil von heute stehen und faul_je_tag_kg ist leer. kanal_kg = klein_kg + gross_kg (zu klein, zu gross; getrennt seit 0111). f_geliehen: ein Anteil aus allen Sorten. Der Nenner ist lager_kg, die Eingangsware, die noch nicht hinter einer Lieferung steckt; vollstaendig heisst: Verdunstung, Palox, Ausschuss und Fax gemessen.';
 grant select on v_prognose to authenticated;
-comment on materialized view erg_charge is
-  'v_hochrechnung_basis, gespeichert für die App (0062). Erneuert mit auswertung_schritt(). Seit 0101 zählt im_haus_heute_kg das hinter den Lieferungen Aussortierte mit (kanal_ausgelagert_kg: zu klein und zu gross, im Haus, nicht verkaufsfähig). Seit 0106 ohne Sockel, mit faul_anteil und faul_quelle.';
 grant select on erg_charge to authenticated;
-comment on materialized view erg_prognose is
-  'v_prognose, gespeichert für die App (0071). Erneuert mit auswertung_schritt().';
 grant select on erg_prognose to authenticated;
-comment on materialized view mv_hochrechnung is
-  'v_hochrechnung, gespeichert. Inhaltlich gleich; erneuert von auswertung_schritt(3).';
 grant select on mv_hochrechnung to authenticated;
-comment on view v_plausibilitaet_0064_zusatz is
-  'Drei Auffälligkeiten aus Runde L: eine Gebindeart ohne hinterlegte Tara (die Paletten fehlen im Eingang), eine Charge mit mehr Ausgang als Eingang, und ein Zettelgewicht, das zur Charge passt, aber nicht zum Eingangstag.';
 grant select on v_plausibilitaet_0064_zusatz to authenticated;
-comment on view v_hochrechnung is
-  'Die Kaskade auseinandergelegt: eine Zeile je Charge, Portion und Strom, mit dem verwendeten Koeffizienten, seiner Herkunft (koeff_art, beim Faulen koeff_basis = f_quelle), der Zahl der Messungen dahinter (koeff_n) und der Formel. koeff_bekannt = false heisst: geschätzt, nicht gemessen. f_geliehen: der Palox-Anteil kommt aus den Arbeiten aller Sorten (0106).';
 grant select on v_hochrechnung to authenticated;
-comment on view v_kontrolle_vorschlag is
-  'Welche Charge als Nächstes kontrolliert werden sollte. informationswert gewichtet, wie viel noch im Haus liegt, wie lange die letzte Wiegung her ist und wie unsicher die Charge bisher ist — eine Reihenfolge, kein Befehl.';
 grant select on v_kontrolle_vorschlag to authenticated;
-comment on view v_massenbilanz is
-  'Die Probe aufs Exempel je Charge: Was die Kaskade am Band erwartet (modell_am_band_kg: Bandarbeiten nach Verdunstung und Palox-Anteil der Sortierstation, 0106) gegen das, was die Sortier-Datei gewogen hat (csv_gemessen_kg). abweichung_anteil nahe 0 heisst, die Koeffizienten treffen die Wirklichkeit; systematisch positiv heisst, die Verluste sind überschätzt. Nur für Chargen mit Sortier-Datei aussagekräftig.';
 grant select on v_massenbilanz to authenticated;
-comment on view v_naechste_charge is
-  'Was kostet es, jede Charge zwei weitere Wochen liegen zu lassen? Gerechnet aus v_prognose (Horizont 14 gegen Horizont 0) — dieselbe Formel wie die Kaskade, damit es im ganzen Programm nur eine Zwei-Wochen-Zahl gibt. prognose_verlust_14_kg ist, was an **verkaufsfähiger** Ware verloren geht, und verdunstung_14_kg + schimmel_14_kg ergeben es auf den Rappen. Seit 0106 leer, solange die Kennzahl je Station keinen Zuwachs ausweist (zuwachs_bekannt = false).';
 grant select on v_naechste_charge to authenticated;
-comment on view v_plausibilitaet_0054_zusatz is
-  'Zusatzprüfungen zu v_plausibilitaet, die seit 0054 dazugekommen sind — je Auffälligkeit Art, betroffene Arbeit, Befund und Rat. Wird von v_plausibilitaet mitgelesen; einzeln braucht sie niemand.';
 grant select on v_plausibilitaet_0054_zusatz to authenticated;
-comment on view v_verlust_je_gruppe is
-  'Dieselben Ströme, zusammengefasst nach Gruppe (gesamt, Sorte, Schlag, Charge). kg_beobachtet ist gemessen, kg_projiziert auf noch nicht Gemessenes übertragen, kg_extrapoliert seit 0106 mit einem aus allen Sorten geliehenen Palox-Anteil gerechnet — drei verschiedene Sicherheiten, darum drei Spalten. Ist der Strom gemessen (bekannt), sind alle vier Teilbeträge Zahlen und kg_beobachtet + kg_projiziert = kg. Das Band kg_unten/kg_oben kommt aus der Unsicherheit der Koeffizienten, beim Faulen aus dem Band des Stationswerts (f_se).';
 grant select on v_verlust_je_gruppe to authenticated;
-comment on materialized view erg_verlust is
-  'v_verlust_je_gruppe, gespeichert für die App (0062). Erneuert mit auswertung_schritt().';
 grant select on erg_verlust to authenticated;
-comment on view v_plausibilitaet is
-  'Messungen, die die Auswertung bewusst nicht verwendet — und Messungen, die sie nicht verwenden kann, weil ihnen der Nenner fehlt. Neu (0051): Fax-Anteile, Zetteldaten ohne Palette, Kisten nach Sollgewicht ohne gewogene Palette. 0066: „Ausschuss-Tara" rechnet nur nach, wo Kistenzahl und hinterlegte Tara da sind; fehlt eine, steht die Lücke als „Ausschuss ohne Tara" daneben. 0087: die Nachrechnung zieht die Palette nur ab, wenn sie mitgewogen wurde, und klemmt nichts auf null.';
 grant select on v_plausibilitaet to authenticated;
-comment on view v_marge_buch is
-  'Buch B: Ware, die den Betrieb verlassen hat, ohne verkaufsfähig zu sein — zu klein, Nebenkanal, Überfüllung. Kein Verlust im Sinne von verdorben, sondern Masse in einem anderen Kanal. kg_unten und kg_oben spannen den Bereich auf, gemessen sagt, ob dahinter Messungen oder Schätzungen stehen.';
 grant select on v_marge_buch to authenticated;
-comment on view v_saisonbilanz is
-  'Die Saison bis heute in einer Zeile (erg_bilanz). Seit 0101: Eingang + Überzählung = ausgeliefert (Lieferscheine) + Verlust bis heute + im Haus — zu klein und zu gross sind Teil von im Haus (kanal_ausgelagert_kg aussortiert, kanal_im_haus_kg im Liegenden erwartet), nicht Ausgang. Seit 0106 ohne Sockel.';
 grant select on v_saisonbilanz to authenticated;
-comment on view v_wohin is
-  'Wohin ging der Kürbis — je Gruppe (gesamt, Sorte, Schlag, Charge) der ganze Eingang aufgeteilt: ausgeliefert, anderer Kanal, verdunstet und faul an der ausgelieferten Ware, Faules beim Abpacken, und was noch liegt (davon verkaufsfähig, Kanal, Fax erwartet, faul, verdunstet). rest_kg und lager_rest_kg sind die zwei Identitäten: beide haben den Erwartungswert null, und eine doppelt gezählte Portion bliebe darin stehen. Seit 0106 ohne Sockel.';
 grant select on v_wohin to authenticated;
-comment on materialized view erg_wohin is
-  'v_wohin, gespeichert für die App (0071). Erneuert mit auswertung_schritt().';
 grant select on erg_wohin to authenticated;
 comment on function lager_kaliber(integer) is
   'Was in h Tagen noch im Haus ist, je Charge und je Sorte, nach Kaliber (0079, Unter-/Überkaliber seit 0111): klasse ''unter'' (kaliber_idx −1: zu klein), ''kaliber'' (die Bänder; ohne Sortier-CSV eine Zeile ohne Band), ''ueber'' (kaliber_idx −2: zu gross). verkaufsfaehig_kg = Summe der Bänder = Verkaufsfähiges der Prognose. geschrumpft_kg: der Teil des kleinsten Bandes, der seit der Sortierung darunter geschrumpft ist (zur Auskunft). anteil: Anteil des Bandes am Verkaufsfähigen.';
@@ -16199,20 +14876,12 @@ grant select on v_lager_kaliber to authenticated;
 comment on view v_lauf_vergleich is
   'Sortierläufe derselben Charge nebeneinander (AB-113, 0111): je Lauf Median, Quartile und Mittel des Gewichts je Kürbis; gegen den ersten Lauf der Charge die Tage dazwischen und die Rate je Tag aus Median und Mittel (ab sieben Tagen), daneben die Rate aus den Palettenwägungen der Sorte. Gegenprobe, nicht Teil der Rate: Es sind andere Kürbisse.';
 grant select on v_lauf_vergleich to authenticated;
-comment on view v_verkauf_position is
-  'Je Lieferscheinposition: Datum, Saison, Kunde, Artikel, kg — aus ausgang_position (alle Saisons), ergänzt um die Positionen der laufenden Saison, die nur in ausgang_zeile stehen (0112).';
 grant select on v_verkauf_position to authenticated;
-comment on view v_kunde_tag is
-  'Geliefert je Kunde, Saison, Tag und Artikel (Gruppe, Grösse, Label) — nur Kürbis, ohne interne Umbuchung (Journal L). Für den Vergleich mit den Vorjahren (0112).';
 grant select on v_kunde_tag to authenticated;
 comment on view v_sorte_artikelgruppe is
   'Je Sorte die Artikelgruppe: aus den Stammdaten, sonst die meistverkaufte Gruppe ihrer Lieferungen; gruppe_verkauft zum Vergleich (0112).';
 grant select on v_sorte_artikelgruppe to authenticated;
-comment on view v_charge_label is
-  'Je Charge Demeter (D) oder Knospe (K): aus den Stammdaten, sonst das Label, mit dem Perigon sie geliefert hat (Mehrheit der Zeilen); gemischt, wenn beide vorkommen (0112).';
 grant select on v_charge_label to authenticated;
-comment on function artikel_lager(integer) is
-  'Das Verkaufsfähige in h Tagen je Artikelgruppe, Label (D/K) und Grösse (klein, gross, stueck; darunter/darueber: in keinem Artikelkaliber; lose: Gruppe ohne Kaliber; ohne Verteilung: keine Sortier-CSV) — dieselbe Masse wie lager_kaliber(h), nach den Artikelkalibern geteilt; Stück = kg ÷ mittleres Gewicht der Klasse (0112).';
 revoke all on function artikel_lager(integer) from public;
 grant execute on function artikel_lager(integer) to authenticated;
 comment on view v_charge_label is
@@ -16238,14 +14907,8 @@ grant select on v_lieferung_charge_tag to authenticated;
 comment on view v_lieferung_gruppe is
   'Je Gruppe (gesamt, Sorte, Schlag, Charge) die Lieferscheine bis heute (Verkauf, Marge), die von ihren Chargen genommen haben — jeder einmal, auch wenn er ohne Chargennummer auf mehrere Chargen verteilt ist; n_ohne_charge: wie viele davon keine Chargennummer trugen. Der Ausgang vor der App ist Masse, kein Lieferschein, und zählt hier nicht. Nur Chargen mit Eingang, wie erg_charge (0114).';
 grant select on v_lieferung_gruppe to authenticated;
-comment on view v_hochrechnung_basis is
-  'Je Charge, alles bis heute: Eingang und geliefert (gemessen), ausgelagert (Eingangsmasse hinter den Lieferungen), lager_kg (Eingang minus ausgelagert, in Eingangskilo), verlust_heute_kg (Verdunstung + Faules + Fax am Abgepackten), im_haus_heute_kg (Eingangsmasse, die noch liegt, nach Verdunstung und Verderb, plus hinter den Lieferungen Aussortiertes, 0101). Keine Prognose. 0064: Jede Stromsumme ist NULL, solange ihr Koeffizient keine Messung hat. Seit 0106 ohne Sockel; faul_anteil und faul_quelle sagen, womit das Liegende rechnet und woher es kommt. Seit 0114 zählt n_lieferungen jeden Lieferschein, der von der Charge genommen hat, einmal (bis dahin einmal je Eingangstag; der Ausgang vor der App zählt in der Masse, nicht als Lieferschein).';
 grant select on v_hochrechnung_basis to authenticated;
-comment on view v_plausibilitaet is
-  'Messungen, die die Auswertung bewusst nicht verwendet — und Messungen, die sie nicht verwenden kann, weil ihnen der Nenner fehlt. Neu (0051): Fax-Anteile, Zetteldaten ohne Palette, Kisten nach Sollgewicht ohne gewogene Palette. 0066: „Ausschuss-Tara" rechnet nur nach, wo Kistenzahl und hinterlegte Tara da sind; fehlt eine, steht die Lücke als „Ausschuss ohne Tara" daneben. 0087: die Nachrechnung zieht die Palette nur ab, wenn sie mitgewogen wurde, und klemmt nichts auf null. 0114: eine zu schnell leichter gewordene Wägung steht nur als „Verdunstung" da, nicht noch einmal als „Wägung".';
 grant select on v_plausibilitaet to authenticated;
-comment on materialized view erg_verlauf is
-  'Je Woche und Gruppe (gesamt, Sorte, Schlag, Charge): Eingang und Ausgang kumuliert (gemessen), im Lager (Eingangsware, die noch nicht hinter einer Lieferung steckt) und davon verkaufsfähig (gerechnet) — ab heute als Prognose bis zum Saisonende (prognose = true). Der Verlust ist der Abstand zwischen im Lager und verkaufsfähig; seine Teile stehen weiter als eigene Spalten (0071). Seit 0106 ohne Sockel: das Faule ist der Palox-Anteil der Stationen, mit dem Zuwachs je Woche zurück und voraus verschoben, wo die Kennzahl ihn ausweist. Seit 0114 fällt „im Lager" mit den Lieferungen: je Woche der Teil, den die Lieferungen der Charge bis dahin ausmachen, nicht alles am mittleren Liefertag.';
 grant select on erg_verlauf to authenticated;
 comment on view v_verkauf_position is
   'Je Lieferscheinposition: Datum, Saison, Kunde, Artikel, kg — aus ausgang_position (alle Saisons), ergänzt um die Positionen der laufenden Saison, die nur in ausgang_zeile stehen (0112). Seit 0115 mit Menge und Einheit: kg ist leer, wo Perigon die Masse nicht hergibt.';
@@ -16346,11 +15009,7 @@ grant select on erg_wohin to authenticated;
 comment on view v_kunde_position is
   'Jede Kürbis-Position je Kunde (0116), eingeordnet nach Artikelgruppe, Grösse und Label — dieselbe Auswahl wie v_kunde_tag, nur nicht zusammengezählt. Für die Liste der Lieferungen eines Kunden; die ganze Zeile steht in ausgang_position.roh.';
 grant select on v_kunde_position to authenticated;
-comment on view v_perigon_pruefung is
-  'Was beim Durchsehen der Perigon-Zeilen der laufenden Saison auffällt (0116), je Zeile mit dem Satz, was zu tun ist: Charge nicht zugeordnet, Artikel passt nicht zur Sorte der gelieferten Charge, als Demeter verkauft und als Knospe geliefert, Lieferung vor dem ersten Eingang.';
 grant select on v_perigon_pruefung to authenticated;
-comment on view v_perigon_pruefung is
-  'Was beim Durchsehen der Perigon-Zeilen der laufenden Saison auffällt (0116, 0118), je Zeile mit dem Satz, was zu tun ist: Charge nicht zugeordnet (eine Nummer, die die App nicht auflösen kann), Teil ohne Charge (die Datei schreibt den Chargen weniger zu, als die Position geliefert hat — 0118), Artikel passt nicht zur Sorte der gelieferten Charge, als Demeter verkauft und als Knospe geliefert, Lieferung vor dem ersten Eingang.';
 grant select on v_perigon_pruefung to authenticated;
 create unique index if not exists mv_kaliber_pk
   on mv_kaliber_verteilung (charge_nr, klasse, coalesce(kaliber_idx, -1), coalesce(band_von, -1), coalesce(band_bis, -1));
@@ -16365,14 +15024,10 @@ comment on view v_kaliber_verteilung is
 grant select on v_kaliber_verteilung to authenticated;
 grant select on erg_kaliber to authenticated;
 comment on materialized view erg_kaliber is 'v_kaliber_verteilung, gespeichert für die App Erneuert mit auswertung_schritt().';
-comment on view v_lager_ausweis is
-  'Was im Lager liegt, Schritt für Schritt, je Charge heute (0121): eingang_kg (Eingangsmasse auf den Paletten, die noch liegen) − verdunstet − faul (Palox, ohne Hagel) − unique (Hagel, wird als Knospe verkauft) − zu klein − zu gross (Sortiermaschine) − Faules beim Abpacken = verkaufsfähig; davon marge_kg Überfüllung in den Kisten (marge_anteil = zu viel ÷ Soll, gewogen je Charge, sonst je Sorte; Stück-Kisten 0), verrechenbar_kg der Rest. hagel_bis_heute_kg: der Hagel-Teil im Faulen bis heute, kein Verlust. Aus erg_prognose (h = 0), erg_charge, mv_kaskade, erg_marge_charge.';
 grant select on v_lager_ausweis to authenticated;
 comment on view v_ohne_charge is
   'Lieferscheine ohne Chargennummer bis heute (Verkauf, Marge), je Sorte (0121): wie viele, wie viel, von wann bis wann; auf welche Chargen die Rechnung sie verteilt (verteilt_auf, nach dem Eingang, 0114); kg_vor_eingang: was davon hinausging, bevor die Charge, die es tragen soll, eingegangen war; kg_ohne_ziel: was auf keine Charge fällt, weil keine Charge der Sorte Eingang hat (oder die Sorte fehlt).';
 grant select on v_ohne_charge to authenticated;
-comment on view v_ungereimtheit is
-  'Was zwischen Perigon, Erntejournal und Lager nicht zusammenpasst, je Charge oder Sorte, mit den Kilo, um die es geht (0121): ohne_eingang, vor_eingang, ueberzaehlung, ohne_charge, umgebucht, vorschlag. Die Zeilen der Perigon-Dateien stehen in v_perigon_pruefung.';
 grant select on v_ungereimtheit to authenticated;
 comment on view v_perigon_pruefung is
   'Seit 0121 in Sätzen, die ohne Perigon-Kenntnis zu lesen sind; eine Nummer, die die App inzwischen kennt, holt der nächste Rechenlauf nach. Was beim Durchsehen der Perigon-Zeilen der laufenden Saison auffällt (0116, 0118), je Zeile mit dem Satz, was zu tun ist: Charge nicht zugeordnet (eine Nummer, die die App nicht auflösen kann), Teil ohne Charge (die Datei schreibt den Chargen weniger zu, als die Position geliefert hat — 0118), Artikel passt nicht zur Sorte der gelieferten Charge, als Demeter verkauft und als Knospe geliefert, Lieferung vor dem ersten Eingang.';
@@ -16384,8 +15039,6 @@ comment on function schlag_von_produzent(text) is
   'Der Schlag der App zu einem Namen aus Perigon Spalte X oder dem Journal: zuerst schlag_alias, dann gelernt, dann ein Schlag gleichen Namens; sonst null (0122).';
 revoke all on function schlag_von_produzent(text) from public;
 grant execute on function schlag_von_produzent(text) to authenticated;
-comment on view v_charge_spur is
-  'Der Weg der Ware je Charge (0122): herein laut Erntejournal (journal_*: die Charge, die das Journal nennt) und wie die App jetzt zählt (paletten, eingang_kg), was umgebucht ist oder vorgeschlagen (weg: von hier weg, her: hierher), bearbeitet in der Halle (Arbeiten, mit Zahl der Zettel), hinaus laut Perigon (Lieferscheine, nach Artikelgruppe, davon nachgeordnet), und was laut App noch da ist (rest_paletten).';
 grant select on v_charge_spur to authenticated;
 comment on view v_stammdaten_pruefung is
   'Was im Chargenregister selbst nicht stimmt (0122): perigon_doppelt (eine Perigon-Nummer an mehreren Chargen, mit den verwandten Nummern aus den Dateien), ohne_perigon_nr (Charge der laufenden Saison mit Ware, ohne Perigon-Nummer), schlag_zweimal (ein Schlag unter zwei Namen).';
@@ -16397,10 +15050,19 @@ grant execute on function ungereimt_kandidaten(int, date) to authenticated;
 comment on view v_ungereimtheit is
   'Was zwischen Perigon, Erntejournal und Lager nicht zusammenpasst, je Charge oder Sorte, mit den Kilo, um die es geht (0121, 0122): ohne_eingang, vor_eingang, ueberzaehlung (mit kandidaten: Chargen, von denen die Ware wohl kam), ohne_charge, umgebucht, vorschlag, nachgeordnet (über den Produzenten zugeordnet), stammdaten (was im Chargenregister nicht stimmt, v_stammdaten_pruefung). Die Zeilen der Perigon-Dateien stehen in v_perigon_pruefung; der Weg der Ware je Charge in v_charge_spur.';
 grant select on v_ungereimtheit to authenticated;
+grant select on v_lager_ausweis to authenticated;
 
 comment on view v_lager_ausweis is
-  'Was im Lager liegt, Schritt für Schritt, je Charge heute (0121, 0123): eingang_kg (Eingangsmasse auf den Paletten, die noch stehen — „im Lager") − verdunstet − faul (Palox, ohne Hagel) − unique (Hagel, wird als Knospe verkauft) − zu klein − zu gross (Sortiermaschine) − Faules beim Abpacken = verkaufsfaehig_kg (nach der Sortiermaschine); davon marge_kg Überfüllung (marge_anteil = zu viel ÷ Soll, gewogen je Charge, sonst je Sorte; Stück-Kisten 0), verrechenbar_kg der Rest. 0123: verkaufbar_kg = verkaufsfaehig_kg − keinen_artikel_kg (passt in kein Artikelgewicht, artikel_lager_teile) − ueberfuellung_kg (auf dem Teil, der als Artikel geht) + unique_kg — was als Artikel tatsächlich verkauft werden kann; groesse_offen_kg ohne Sortier-CSV; verkaufbar_offen sagt, was fehlt (dann ist verkaufbar_kg eine obere Schranke). hagel_bis_heute_kg: der Hagel-Teil im Faulen bis heute, kein Verlust. Aus erg_prognose (h = 0), erg_charge, mv_kaskade, erg_marge_charge, artikel_lager_teile(0).';
+  'Was im Lager liegt, Schritt für Schritt, je Charge heute (0121, 0123, 0124): eingang_kg (Eingangsmasse auf den Paletten, die noch stehen — „im Lager") − verdunstet − faul (Palox, ohne Hagel) − unique (Hagel, wird als Knospe verkauft) − zu klein − zu gross (Sortiermaschine) − Faules beim Abpacken = verkaufsfaehig_kg (nach der Sortiermaschine); davon marge_kg Überfüllung (marge_anteil = zu viel ÷ Soll, gewogen je Charge, sonst je Sorte; Stück-Kisten 0), verrechenbar_kg der Rest. verkaufbar_kg = verkaufsfaehig_kg − keinen_artikel_kg (leichter oder schwerer als die Artikelgewichte, artikel_lager_teile; leer ohne Sortier-CSV) − ueberfuellung_kg (auf dem Teil, der als Artikel geht) + unique_kg — was als Artikel tatsächlich verkauft werden kann. groesse_offen_kg: ohne Sortier-CSV; gruppe_offen_kg: Sorte ohne Artikelgruppe (0124) — beides nicht abgezogen, verkaufbar_kg ist dann eine obere Schranke, und verkaufbar_offen sagt, was fehlt. Hagel 100 %: faul_kg, unique_kg und verkaufbar_kg leer (nicht trennbar). hagel_bis_heute_kg: der Hagel-Teil im Faulen bis heute, kein Verlust. Aus erg_prognose (h = 0), erg_charge, mv_kaskade, erg_marge_charge, v_ausgang_kennzahl, artikel_lager_teile(0).';
 grant select on v_lager_ausweis to authenticated;
+comment on view v_charge_spur is
+  'Der Weg der Ware je Charge (0122): herein laut Erntejournal (journal_*: die Charge, die das Journal nennt) und wie die App jetzt zählt (paletten, eingang_kg), was umgebucht ist oder vorgeschlagen (weg: von hier weg, her: hierher), bearbeitet in der Halle (Arbeiten, mit Zahl der Zettel), hinaus laut Lieferscheinen (Lieferscheine; nach_artikel: je Artikelgruppe aus den Perigon-Zeilen, der Rest als „ohne Perigon-Zeile" — die Teile gehen auf geliefert_kg auf (0124); davon nachgeordnet), und was laut App noch da ist (rest_paletten).';
+grant select on v_charge_spur to authenticated;
+
+comment on view v_koeff_kaliber_geschaetzt_formel is
+  'Zu klein (ausschuss), zu gross (nebenkanal) und Fax je Sorte: seit 0111 das massegewichtete Mittel der eigenen Messungen ab anteil_mindest_messungen() Messungen, sonst das Mittel aller Sorten (b = 0, geliehen); b = 1 heisst: die Sorte trägt sich selbst. Kein Zug zum Gesamtwert mehr; tau2 bleibt leer. — Die Formel (0109); gelesen wird sie über die gleichnamige Sicht ohne _formel.';
+comment on view v_koeff_kaliber_geschaetzt is
+  'Zu klein (ausschuss), zu gross (nebenkanal) und Fax je Sorte: seit 0111 das massegewichtete Mittel der eigenen Messungen ab anteil_mindest_messungen() Messungen, sonst das Mittel aller Sorten (b = 0, geliehen); b = 1 heisst: die Sorte trägt sich selbst. Seit 0109 über die Planungsgrenze v_koeff_kaliber_geschaetzt_zaun(); die Formel steht in v_koeff_kaliber_geschaetzt_formel.';
 
 
 -- =====================================================================
