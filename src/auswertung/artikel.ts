@@ -315,3 +315,45 @@ export function nochZuLiefern(kunden: { kunde: string; saison: number; gruppe: s
   }
   return { kg: summe, jeKunde, jeGruppe }
 }
+
+/* ---------- Runde BA: je Sorte — Maschine, Artikel, und was dazwischen fällt ---------- */
+
+/**
+ * Der Betrieb, 23. Oktober: „irgendwo in den Einstellungen pro Sorte angenehm
+ * einstellen: wie sind die Sortiergrössen bei der Sortiermaschine — aber auch,
+ * wie ist für diese Sorte Artikel klein und gross definiert; und dann weisst
+ * du, was zwar nicht im Palox landet, aber doch nicht in den Artikeln verkauft
+ * wird — das auch ausweisen."
+ *
+ * Die Gramm, die die Sortiermaschine durchlässt (ab „zu klein" bis „zu
+ * gross"), aber in kein Gewicht eines Artikels passen: Lücken unter dem
+ * kleinsten Artikel, zwischen den Artikeln, über dem grössten. Leer heisst:
+ * nichts fällt dazwischen; null heisst: ohne Fassung der Maschine nicht zu
+ * sagen. Ohne Artikelgewichte ist das ganze Fenster die Lücke — ob das
+ * „Artikelgruppe fehlt" oder „ein Artikel ohne Grösse" ist, sagt der Aufrufer.
+ */
+export interface MaschinenFenster { verlust_unter: number | null; kanal_ab: number | null; kaliber_baender: [number, number][] | null }
+export function grammOhneArtikel(schema: MaschinenFenster | null, kaliber: { von_g: number; bis_g: number }[]): [number, number][] | null {
+  if (!schema) return null
+  const baender = schema.kaliber_baender ?? []
+  const von = schema.verlust_unter ?? (baender.length ? Math.min(...baender.map(b => b[0])) : null)
+  const bis = schema.kanal_ab ?? (baender.length ? Math.max(...baender.map(b => b[1])) : null)
+  if (von === null || bis === null || !(bis > von)) return null
+  const deckt = [...kaliber].map(k => [Math.max(k.von_g, von), Math.min(k.bis_g, bis)] as [number, number])
+    .filter(([a, b]) => b > a).sort((a, b) => a[0] - b[0])
+  const luecken: [number, number][] = []
+  let stand = von
+  for (const [a, b] of deckt) {
+    if (a > stand) luecken.push([stand, a])
+    stand = Math.max(stand, b)
+  }
+  if (stand < bis) luecken.push([stand, bis])
+  return luecken
+}
+
+/** „600–700 g, 1800–2000 g" — oder „—", wenn nichts dazwischen fällt. */
+export function grammText(luecken: [number, number][] | null): string {
+  if (luecken === null) return 'keine Fassung der Sortiermaschine'
+  if (luecken.length === 0) return '—'
+  return luecken.map(([a, b]) => `${a}–${b} g`).join(', ')
+}

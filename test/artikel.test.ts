@@ -241,3 +241,26 @@ test('0123: verkaufsfähig ohne Überfüllung — nur auf dem Teil, der als Arti
   assert.deepEqual(alsArtikel(t(1, 'klein', 210), ungewogen), { kg: 210, ueberfuellung: 0, offen: true })
   assert.equal(alsArtikel(t(1, 'ohne Verteilung', 100), gewogen).offen, true, 'ohne Sortier-CSV ist die Grösse offen')
 })
+
+// Runde BA — der Betrieb: „pro Sorte … wie sind die Sortiergrössen bei der
+// Sortiermaschine, und wie ist Artikel klein und gross definiert; und dann
+// weisst du, was zwar nicht im Palox landet, aber nicht in den Artikeln
+// verkauft wird." Die Gramm dazwischen, aus Fassung und Artikelgewichten.
+import { grammOhneArtikel, grammText } from '../src/auswertung/artikel.ts'
+
+test('Runde BA: grammOhneArtikel — die Lücken zwischen dem, was die Maschine durchlässt, und den Artikelgewichten', () => {
+  const knirps = [{ von_g: 600, bis_g: 1100 }, { von_g: 1100, bis_g: 1600 }]
+  const fassung = { verlust_unter: 600, kanal_ab: 2000, kaliber_baender: [[600, 1100], [1100, 1600], [1600, 2000]] as [number, number][] }
+  assert.deepEqual(grammOhneArtikel(fassung, knirps), [[1600, 2000]], 'über dem grössten Artikel, unter „zu gross"')
+  assert.equal(grammText(grammOhneArtikel(fassung, knirps)), '1600–2000 g')
+  const mitLuecke = [{ von_g: 700, bis_g: 1100 }, { von_g: 1200, bis_g: 2000 }]
+  assert.deepEqual(grammOhneArtikel(fassung, mitLuecke), [[600, 700], [1100, 1200]], 'darunter und dazwischen')
+  assert.deepEqual(grammOhneArtikel(fassung, [{ von_g: 500, bis_g: 2500 }]), [], 'die Artikel decken alles — nichts dazwischen')
+  assert.equal(grammText([]), '—')
+  assert.deepEqual(grammOhneArtikel(fassung, []), [[600, 2000]], 'ohne Artikelgewichte ist das ganze Fenster die Lücke')
+  assert.equal(grammOhneArtikel(null, knirps), null, 'ohne Fassung nicht zu sagen')
+  assert.equal(grammText(null), 'keine Fassung der Sortiermaschine')
+  assert.deepEqual(grammOhneArtikel({ verlust_unter: null, kanal_ab: null, kaliber_baender: [[600, 1100], [1100, 1600]] }, knirps), [],
+    'ohne Grenzen gilt das Fenster der Bänder')
+  assert.equal(grammOhneArtikel({ verlust_unter: null, kanal_ab: null, kaliber_baender: null }, knirps), null, 'Kisten-Fassung ohne Bänder: kein Fenster')
+})

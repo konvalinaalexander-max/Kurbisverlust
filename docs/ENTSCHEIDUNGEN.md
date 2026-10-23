@@ -4171,6 +4171,85 @@ Daten, dann die Annahme — nach der Korrektur nachsehen.
 nicht alles: vier mal vier gleiche Paloxen und ein Tag mit 30 Paaren bei
 13 erwarteten sind Fragen wert.
 
+## Runde BA: wie der Betrieb denkt — Paletten zum Nachzählen, Sorten an einem Ort (23. Oktober)
+
+Der Betrieb, mitten in der Durchsicht: „Was ich vor allem will: dass du beim
+Rework verstehst, wie wir denken, was wir wollen, wie wir unsere Entscheidungen
+auf dem Betrieb machen — und dass du im UI des Betriebsleiters die Infos so
+anzeigst, wie ich sie will und brauche. Bei allen Reitern ähnliches Design,
+ähnliche Art, Infos darzustellen, simpel und straightforward. Nicht komplett
+überarbeiten, wir sind schon zu 90 % dort — aber vielleicht findest du Sachen,
+bei denen die Info zwar da ist, aber falsch ankommt oder unsere Frage nicht
+beantwortet."
+
+**So denkt der Betrieb (festgehalten, damit jede Runde es weiss).** *Im Lager*
+heisst: was physisch dasteht, in Paletten — eine Zahl, die man im Lager
+nachzählen kann. *Verkaufsfähig* heisst: so viel darf ich heute auf
+Lieferscheine schreiben, alles Abgehende schon abgezogen. Die Rechnung dahinter
+ist wichtig, aber auf den zweiten Blick: zuerst die Antwort, darunter der Weg.
+Einstellungen gehören dorthin, wo man denkt: je Sorte, an einem Ort.
+
+**1. Paletten zum Nachzählen.** „Warum will ich wissen, wie viel im Lager ist,
+in Paletten — so dass mir die App sagt: du hast von der Charge noch 7 Paletten,
+und dann kann ich nachschauen gehen, ob da wirklich 7 stehen." Die ≈-Paletten
+(`n_rest_paletten`) sind ein Äquivalent: Eingang minus die Eingangskilo hinter
+den Lieferscheinen, durch die mittlere Eingangspalette — so, wie der Betrieb es
+selbst hergeleitet hat („du weisst, wie viel verkauft wird laut Lieferschein,
+daraus wie viele Kilo am Eingang das waren, die Differenz ist die
+Palettenzahl"). Eine Nuance fehlte: Ware, die schon sortiert, aber nicht
+verkauft ist, steht in Kisten, nicht mehr auf Eingangspaletten. Die Halle
+zählt jede Eingangspalette beim Sortieren (`auftrag_palette`;
+`erg_kohorte.n_rest` = gekommen − gezählt je Eingangstag). Also sagt die App
+jetzt beides: **unsortiert** (Eingangspaletten, die beim Sortieren noch nie
+gezählt wurden — die stehen wirklich da) und **≈ in Kisten** (der Rest des
+Äquivalents). Unter Chargen als Zeile unter den ≈-Paletten, in der Kachel
+„Im Lager" des Lagermanagements und im Fenster der Charge
+(`src/auswertung/lager.ts`: `palettenStand`, `palettenStandSumme`,
+`palettenStandText`; `test/lager.test.ts`). Zählt die Halle mehr unsortierte
+Paletten, als laut Lieferscheinen noch da wären, sagt es die Zeile („mehr, als
+laut Lieferscheinen noch da wäre") — gelb, nicht verrechnet: ein Zettel oder
+eine Lieferung stimmt nicht. Und „Davon verkaufsfähig" sagt im Spaltenkopf und
+in der Kachel, was es für den Betrieb ist: so viel lässt sich heute auf
+Lieferscheine schreiben.
+
+**2. Je Sorte an einem Ort.** „Irgendwo in den Einstellungen pro Sorte
+angenehm einstellen: wie sind die Sortiergrössen bei der Sortiermaschine —
+aber auch, wie ist für diese Sorte Artikel klein und gross definiert; und
+dann weisst du, was zwar nicht im Palox landet, aber nicht in den Artikeln
+verkauft wird — das auch ausweisen." Die Bänder der Maschine standen unter
+Stammdaten → Sortierschemata, die Artikelgewichte unter Sorten und Artikel.
+Jetzt steht unter Sorten und Artikel oben je Sorte eine Zeile: die geltende
+Standard-Fassung der Maschine (zu klein, Bänder, zu gross; Fassungen je Käufer
+gezählt; „ändern" führt zu den Sortierschemata), die Artikelgruppe (hier zu
+setzen), die Artikelgewichte klein / gross, die **Gramm, die die Maschine
+durchlässt, aber in kein Artikelgewicht passen** (`grammOhneArtikel` in
+`src/auswertung/artikel.ts`, `test/artikel.test.ts`), und **wie viel davon
+heute im Lager liegt** (aus `artikel_lager_charge(0)`, dieselbe Zahl wie
+„passt in keinen Artikel" im Lagermanagement). Die Tabelle mit den Gewichten
+zum Ändern bleibt darunter; die alte Karte „Als welcher Artikel geht die
+Sorte?" ist in der neuen aufgegangen.
+
+**3. Durchsicht je Reiter, aus dieser Sicht.** Lagermanagement nach Charge:
+Kacheln Eingang · Ausgang · Im Lager (Paletten) · Davon verkaufsfähig, darunter
+die Kette — das ist die Frage des Betriebs, in seiner Reihenfolge. Nach
+Artikel: dieselbe Kette je Artikel, Paletten zuerst. Chargen: eine Zeile je
+Charge mit denselben vier Zahlen, aufgeklappt Eingang → Ausgang → Arbeiten.
+Ursachen: je Block zuerst die Zahl, dann die Kurve. Messungen und Betrieb: wo
+etwas fehlt, steht der Satz, was in der Halle zu tun ist. Dieselben Farben,
+dieselben Begriffe, dieselben Herkunftsmarken auf allen Reitern. Gefunden und
+behoben wurde darum nur, was oben steht; alles andere stimmt mit dem Denken
+des Betriebs überein.
+
+**Was bewusst nicht gemacht wurde.**
+- Die Kaskade rechnet weiter mit dem Äquivalent; „unsortiert" ist eine
+  Zählung der Halle, keine Masse. Fehlt die Zählung (eine Charge ohne
+  Eingangstage), steht nichts — nie 0.
+- Die Fassungen je Käufer werden in der Sorten-Zeile nur gezählt; ihre Bänder
+  stehen weiter unter Sortierschemata. Zwei Käufer mit verschiedenen Bändern
+  in einer Zeile wären nicht mehr „simpel".
+- Kein neuer Reiter, keine Umordnung der Reiter — „wir sind schon zu 90 %
+  dort."
+
 ## Runde AZ: die Durchsicht — ein Programm aus einem Guss (23. Oktober, 0124)
 
 Der Betrieb: „review the entire code — there was lots of changes and small

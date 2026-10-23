@@ -311,6 +311,14 @@
       "art": "gerechnet",
       "bedeutet": "Ein Artikel, dessen Gruppe keine Gewichte hat (artikel_kaliber leer): verkaufsfähig, ohne Teilung in klein und gross (0124)",
       "quelle": "artikel_lager_teile(0) groesse=lose mit Artikelgruppe"
+    },
+    {
+      "muster": [
+        "davon heute im Lager"
+      ],
+      "art": "gerechnet",
+      "bedeutet": "Unter Stammdaten → Sorten und Artikel: das Verkaufsfähige der Sorte im Lager heute, das in kein Artikelgewicht passt (darunter, darüber, dazwischen) — nach der Sortier-CSV, um die Verdunstung geschrumpft (Runde BA)",
+      "quelle": "artikel_lager_charge(0) groesse in (darunter, darueber, dazwischen)"
     }
   ]
 }

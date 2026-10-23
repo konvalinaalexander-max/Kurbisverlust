@@ -9,6 +9,8 @@ import DemoDaten from '../components/DemoDaten'
 import { ZHaken, ZStift } from '../components/Zeichen'
 import ErfassungLeeren from '../components/ErfassungLeeren'
 import type { Charge, Gebinde, Kaeufer, Profil, Sortierschema } from '../lib/typen'
+import { grammOhneArtikel, grammText } from '../auswertung/artikel'
+import type { ArtikelLagerCharge } from '../auswertung/daten'
 
 export default function Stammdaten() {
   const modus = useBetriebsmodus()
@@ -42,7 +44,7 @@ export default function Stammdaten() {
       {teil === 'paletten' && <PalettenImport />}
       {teil === 'chargen' && <Chargen />}
       {teil === 'kaliber' && <Kaliber />}
-      {teil === 'artikel' && <SortenArtikel />}
+      {teil === 'artikel' && <SortenArtikel zuSchemata={() => setTeil('kaliber')} />}
       {teil === 'abgebrochen' && <Abgebrochene />}
       {teil === 'benutzer' && <Benutzer />}
       {teil === 'einstellungen' && <Einstellungen />}
@@ -881,25 +883,63 @@ function bemerkungKurz(b: string | null | undefined): string | null {
  */
 const ARTIKELGRUPPEN = ['Knirps', 'Butternut', 'Butterkin/Muskat', 'Kabocha', 'Mandarin', 'Mix', 'andere']
 
-function SortenArtikel() {
+/**
+ * Runde BA — der Betrieb: „pro Sorte angenehm einstellen: wie sind die
+ * Sortiergrössen bei der Sortiermaschine, und wie ist für diese Sorte Artikel
+ * klein und gross definiert; und dann weisst du, was zwar nicht im Palox
+ * landet, aber nicht in den Artikeln verkauft wird — das auch ausweisen."
+ * Darum oben je Sorte eine Zeile: die geltende Fassung der Maschine, die
+ * Artikelgruppe (hier zu setzen), die Artikelgewichte, die Gramm dazwischen —
+ * und was davon heute im Lager liegt. Die Gewichte selbst ändert die Tabelle
+ * darunter, die Fassung der Maschine der Reiter „Sortierschemata".
+ */
+function SortenArtikel({ zuSchemata }: { zuSchemata: () => void }) {
   const [sorten, setSorten] = useState<{ sorte: string; artikelgruppe: string | null; gruppe_verkauft: string | null }[]>([])
   const [eigene, setEigene] = useState<Map<string, string | null>>(new Map())
   const [kaliber, setKaliber] = useState<{ gruppe: string; groesse: string; von_g: number; bis_g: number; stueck_je_kiste: number | null; bemerkung: string | null }[]>([])
+  const [schemata, setSchemata] = useState<Sortierschema[]>([])
+  const [teile, setTeile] = useState<ArtikelLagerCharge[] | null>(null)
   const [entwurf, setEntwurf] = useState<Map<string, { von: string; bis: string; stueck: string }>>(new Map())
   const [fehler, setFehler] = useState<string | null>(null)
   const [meldung, setMeldung] = useState<string | null>(null)
   const laden = useCallback(async () => {
-    const [v, sk, k] = await Promise.all([
+    const [v, sk, k, sc, t] = await Promise.all([
       supabase.from('v_sorte_artikelgruppe').select('sorte, artikelgruppe, gruppe_verkauft').order('sorte'),
       supabase.from('sorte_kaliber').select('sorte, artikelgruppe'),
       supabase.from('artikel_kaliber').select('gruppe, groesse, von_g, bis_g, stueck_je_kiste, bemerkung').order('gruppe').order('von_g'),
+      supabase.from('sortierschema').select('*').order('gilt_ab', { ascending: false }),
+      // heute im Lager, je Charge und Grösse — daraus je Sorte, was in kein Artikelgewicht passt
+      supabase.rpc('artikel_lager_charge', { p_h: 0 }),
     ])
-    for (const r of [v, sk, k]) if (r.error) { setFehler(fehlerText(r.error)); return }
+    for (const r of [v, sk, k, sc]) if (r.error) { setFehler(fehlerText(r.error)); return }
     setSorten((v.data ?? []) as typeof sorten)
     setEigene(new Map(((sk.data ?? []) as { sorte: string; artikelgruppe: string | null }[]).map(x => [x.sorte, x.artikelgruppe])))
     setKaliber((k.data ?? []) as typeof kaliber)
+    setSchemata((sc.data ?? []) as Sortierschema[])
+    // Die Lagerteile sind eine Zugabe: fehlen sie (noch nicht gerechnet), steht „—", nie 0.
+    setTeile(t.error ? null : ((t.data ?? []) as ArtikelLagerCharge[]))
   }, [])
   useEffect(() => { void laden() }, [laden])
+
+  // Die geltende Standard-Fassung je Sorte (ohne Käufer, ab heute oder früher, die jüngste);
+  // Fassungen je Käufer zählt die Zeile nur.
+  const heute = heuteOrtszeit()
+  const fassungVon = (sorte: string) => schemata.find(z => z.sorte === sorte && z.kaeufer === null && z.gilt_ab <= heute) ?? null
+  const kaeuferFassungen = (sorte: string) => new Set(schemata.filter(z => z.sorte === sorte && z.kaeufer !== null).map(z => z.kaeufer)).size
+  const maschineText = (z: Sortierschema | null) => !z ? null
+    : z.art === 'kiste' ? `Kiste ab ${z.soll_kg_pro_kiste} kg — keine Bänder`
+    : `< ${zahl(z.verlust_unter)} g zu klein · ${(z.kaliber_baender ?? []).map(([a, b]) => `${a}–${b}`).join(' · ')} · ≥ ${zahl(z.kanal_ab)} g zu gross`
+  const artikelText = (gruppe: string | null) => {
+    if (!gruppe) return null
+    const k = kaliber.filter(x => x.gruppe === gruppe)
+    if (!k.length) return 'ein Artikel ohne Grösse (lose)'
+    return k.map(x => `${x.groesse === 'stueck' ? 'eine Grösse' : x.groesse} ${x.von_g}–${x.bis_g} g`).join(' · ')
+  }
+  // Heute im Lager je Sorte: was in kein Artikelgewicht passt (darunter, darüber, dazwischen).
+  const keinenArtikelKg = (sorte: string) => teile === null ? null
+    : teile.filter(t => t.sorte === sorte && (t.groesse === 'darunter' || t.groesse === 'darueber' || t.groesse === 'dazwischen'))
+           .reduce((a, t) => a + Number(t.kg), 0)
+  const imLagerKg = (sorte: string) => teile === null ? null : teile.filter(t => t.sorte === sorte).reduce((a, t) => a + Number(t.kg), 0)
 
   async function gruppeSetzen(sorte: string, gruppe: string | null) {
     setFehler(null); setMeldung(null)
@@ -930,25 +970,53 @@ function SortenArtikel() {
     <>
       {fehler && <Hinweis art="warnung">{fehler}</Hinweis>}
       {meldung && <Hinweis art="gut">{meldung}</Hinweis>}
-      <Karte titel="Als welcher Artikel geht die Sorte?">
+      <Karte titel="Je Sorte: was die Maschine sortiert, als was es verkauft wird — und was dazwischen fällt">
         <div className="rollbar"><table className="dicht">
-          <thead><tr><th>Sorte</th><th>Artikelgruppe</th><th>verkauft als</th></tr></thead>
-          <tbody>{sorten.map(x => (
-            <tr key={x.sorte}>
-              <td>{x.sorte}</td>
-              <td>
-                <select value={eigene.get(x.sorte) ?? ''} aria-label={`Artikelgruppe von ${x.sorte}`}
-                        onChange={e => void gruppeSetzen(x.sorte, e.target.value || null)}>
-                  <option value="">{x.gruppe_verkauft ? `wie verkauft (${x.gruppe_verkauft})` : '— unbekannt'}</option>
-                  {ARTIKELGRUPPEN.map(g => <option key={g} value={g}>{g}</option>)}
-                </select>
-              </td>
-              <td className="leise">{x.gruppe_verkauft ?? '—'}
-                {x.gruppe_verkauft && eigene.get(x.sorte) && x.gruppe_verkauft !== eigene.get(x.sorte) && <> <Marke art="warnung">anders als eingetragen</Marke></>}</td>
-            </tr>
-          ))}</tbody>
+          <thead><tr>
+            <th>Sorte</th>
+            <th>Sortiermaschine <span className="leise">(Standard-Fassung)</span></th>
+            <th>Artikelgruppe</th>
+            <th>Artikel <span className="leise">(klein / gross)</span></th>
+            <th title="Gramm, die die Maschine durchlässt, die aber in kein Artikelgewicht passen — zu leicht, zu schwer oder zwischen klein und gross">passt in keinen Artikel</th>
+            <th className="zahl" title="Verkaufsfähiges der Sorte im Lager heute, das in kein Artikelgewicht passt — nach der Sortier-CSV, um die Verdunstung geschrumpft">davon heute im Lager</th>
+          </tr></thead>
+          <tbody>{sorten.map(x => {
+            const gruppe = eigene.get(x.sorte) ?? x.artikelgruppe ?? null
+            const fassung = fassungVon(x.sorte)
+            const nK = kaeuferFassungen(x.sorte)
+            const gewichte = gruppe ? kaliber.filter(k => k.gruppe === gruppe) : []
+            const luecken = gruppe && gewichte.length ? grammOhneArtikel(fassung, gewichte) : null
+            const kein = keinenArtikelKg(x.sorte), lager = imLagerKg(x.sorte)
+            return (
+              <tr key={x.sorte}>
+                <td><strong>{x.sorte}</strong></td>
+                <td>{fassung
+                  ? <>{maschineText(fassung)}<span className="zelle-unter">ab {fassung.gilt_ab <= '2000-01-01' ? 'immer' : datum(fassung.gilt_ab)}{nK > 0 ? ` · ${nK} ${nK === 1 ? 'Fassung' : 'Fassungen'} je Käufer` : ''} · <a href="#" onClick={e => { e.preventDefault(); zuSchemata() }}>ändern</a></span></>
+                  : <span className="leise">keine Fassung — <a href="#" onClick={e => { e.preventDefault(); zuSchemata() }}>anlegen</a></span>}</td>
+                <td>
+                  <select value={eigene.get(x.sorte) ?? ''} aria-label={`Artikelgruppe von ${x.sorte}`}
+                          onChange={e => void gruppeSetzen(x.sorte, e.target.value || null)}>
+                    <option value="">{x.gruppe_verkauft ? `wie verkauft (${x.gruppe_verkauft})` : '— fehlt'}</option>
+                    {ARTIKELGRUPPEN.map(g => <option key={g} value={g}>{g}</option>)}
+                  </select>
+                  {x.gruppe_verkauft && eigene.get(x.sorte) && x.gruppe_verkauft !== eigene.get(x.sorte)
+                    && <span className="zelle-unter"><Marke art="warnung">verkauft als {x.gruppe_verkauft}</Marke></span>}
+                </td>
+                <td>{gruppe ? artikelText(gruppe) : <Marke art="warnung">Artikelgruppe fehlt — die Ware ist „offen"</Marke>}</td>
+                <td>{!gruppe ? <span className="leise">—</span>
+                  : !gewichte.length ? <span className="leise">nichts — ein Artikel ohne Grösse</span>
+                  : <span className={luecken && luecken.length ? '' : 'leise'}>{grammText(luecken)}</span>}</td>
+                <td className="zahl">{kein === null || lager === null ? <span className="leise">—</span>
+                  : !(lager > 0) ? <span className="leise">nichts im Lager</span>
+                  : kein > 0.5 ? <>{kg(kein, 0)}<span className="zelle-unter">von {kg(lager, 0)} verkaufsfähig</span></>
+                  : <span className="leise">0 kg</span>}</td>
+              </tr>
+            )
+          })}</tbody>
         </table></div>
-        <p className="leise">„verkauft als" kommt aus dem Warenausgang: als welcher Artikel die Chargen der Sorte geliefert wurden.</p>
+        <p className="leise">Die Maschine sortiert nach den Bändern der Fassung; verkauft wird nach den Gewichten der Artikel. Was die Maschine
+          durchlässt, aber in kein Artikelgewicht passt, ist weder faul noch zu klein — es steht im Lagermanagement als „passt in keinen Artikel".
+          „verkauft als" kommt aus dem Warenausgang: als welcher Artikel die Chargen der Sorte geliefert wurden.</p>
       </Karte>
       <Karte titel="Was gross und klein heisst">
         <div className="rollbar"><table className="dicht">

@@ -8,9 +8,9 @@ import { WOERTERBUCH } from '../lib/i18n'
 import { datum, kg, prozent, zahl, zeitpunkt } from '../lib/format'
 import { Hinweis, Lade, Marke } from '../components/Bausteine'
 import { TaetZeichen, ZKreuz } from '../components/Zeichen'
-import type { Bestand, Wohin } from '../auswertung/daten'
+import type { Bestand, Kohorte, Wohin } from '../auswertung/daten'
 import { ArbeitFenster } from './ArbeitFenster'
-import { palettenText } from '../auswertung/lager'
+import { PALETTEN_STAND_TEXT, palettenStand, palettenStandText, palettenText } from '../auswertung/lager'
 
 /** 0123: aus v_lager_ausweis, was das Fenster braucht. */
 interface AusweisKurz { paletten: number | null; eingang_kg: number | null; verkaufbar_kg: number | null; verkaufbar_offen: string | null }
@@ -41,6 +41,8 @@ export function ChargeFenster({ chargeNr, schliessen }: { chargeNr: number; schl
   const [charge, setCharge] = useState<ChargeZeile | null>(null)
   const [bestand, setBestand] = useState<Bestand | null>(null)
   const [ausweis, setAusweis] = useState<AusweisKurz | null>(null)
+  /** Runde BA: die Eingangstage mit dem, was davon beim Sortieren gezählt wurde — für „unsortiert · in Kisten". */
+  const [kohorten, setKohorten] = useState<Kohorte[]>([])
   const [wohin, setWohin] = useState<Wohin | null>(null)
   const [arbeiten, setArbeiten] = useState<ArbeitKurz[]>([])
   const [lieferungen, setLieferungen] = useState<LieferungKurz[]>([])
@@ -69,8 +71,10 @@ export function ChargeFenster({ chargeNr, schliessen }: { chargeNr: number; schl
           // 0123: was als Artikel verkauft werden kann — dieselbe Zahl wie in den Chargen und im Lagermanagement.
           supabase.from('v_lager_ausweis').select('paletten, eingang_kg, verkaufbar_kg, verkaufbar_offen').eq('charge_nr', chargeNr),
         ])
+        const ko = await supabase.from('erg_kohorte').select('charge_nr, eingangsdatum, n_paletten, n_verarbeitet, n_rest').eq('charge_nr', chargeNr)
         if (!lebt) return
-        for (const x of [c, b, w, a, l, p, k]) if (x.error) throw x.error
+        for (const x of [c, b, w, a, l, p, k, ko]) if (x.error) throw x.error
+        setKohorten((ko.data ?? []) as Kohorte[])
         setCharge(((c.data ?? []) as ChargeZeile[])[0] ?? null)
         setBestand(((b.data ?? []) as Bestand[])[0] ?? null)
         setWohin(((w.data ?? []) as Wohin[])[0] ?? null)
@@ -139,7 +143,8 @@ export function ChargeFenster({ chargeNr, schliessen }: { chargeNr: number; schl
                   <dt>Eingang</dt><dd>{kg(bestand.eingang_kg, 0)} netto · {bestand.n_paletten} Paletten{bestand.ueberzaehlung_kg > 0 ? ` · ${kg(bestand.ueberzaehlung_kg, 0)} mehr geliefert als eingelagert` : ''}</dd>
                   {/* 23. Oktober: im Lager sind die Paletten vom Eingang, die noch stehen, mit dem Gewicht beim Eingang;
                       verkaufsfähig ist, was davon als Artikel verkauft werden kann (0123). */}
-                  <dt>Im Lager heute</dt><dd>{ausweis?.paletten != null ? `${palettenText(Number(ausweis.paletten))} · ` : ''}{kg(bestand.lager_kg, 0)} beim Eingang
+                  <dt>Im Lager heute</dt><dd>{ausweis?.paletten != null ? <>{palettenText(Number(ausweis.paletten))}
+                      {palettenStandText(palettenStand(bestand, kohorten)) && <span className="leise" title={PALETTEN_STAND_TEXT}> ({palettenStandText(palettenStand(bestand, kohorten))})</span>} · </> : ''}{kg(bestand.lager_kg, 0)} beim Eingang
                     {/* Eine Definition, nie ein stiller Rückfall auf das Verkaufsfähige der Sortiermaschine:
                         fehlt der Ausweis oder eine Rate, steht „unbekannt" — leer ist nicht null. */}
                     {ausweis?.verkaufbar_kg != null

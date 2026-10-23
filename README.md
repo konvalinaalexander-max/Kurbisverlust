@@ -798,6 +798,14 @@ ohne Perigon-Zeile als eigener Teil); jede PL/pgSQL-Funktion hat einen
 festen Suchpfad; die Perigon-Liste läuft nur einmal (AB-174 bis AB-176). Dazu die
 Halle: Faules ohne Ablesung ist „unbekannt", Fehler werden gezeigt. **Setup.sql
 einmal einspielen (Stand 124), dann „Neu rechnen".**
+**Runde BA** — wie der Betrieb denkt: „du hast von der Charge noch 7 Paletten
+— dann kann ich nachschauen gehen." Unter den ≈-Paletten steht jetzt, wie viele
+Eingangspaletten noch **unsortiert** dastehen (nachzählbar) und wie viel
+sortiert **in Kisten** liegt (AB-177); „davon verkaufsfähig" heisst: so viel
+lässt sich heute auf Lieferscheine schreiben. Unter Stammdaten → Sorten und
+Artikel steht je Sorte an einem Ort, was die Maschine sortiert, als welcher
+Artikel es verkauft wird, welche Gramm dazwischen fallen und wie viel davon
+heute im Lager liegt (AB-178). Keine Migration.
 
 **Runde AT (0117)** — Kunden in der Reihenfolge des Betriebs. Unter
 **Lagermanagement nach Artikel** ordnen zwei Pfeile in der Gruppenzeile die

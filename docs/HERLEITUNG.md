@@ -526,6 +526,18 @@ Nachtragen, `verkaufbar_offen` „Überfüllung offen …" statt „nicht gewoge
 **Urteil:** ehrlich — jede Zahl, die der Ausweis nicht hat, fehlt sichtbar und
 mit Grund (Prüfblock 0124 b1–b6, sieben Mutationen).
 
+**Runde BA — die Paletten zum Nachzählen.** **Braucht:** je Charge die
+≈-Paletten (`erg_charge.n_rest_paletten`) und je Eingangstag, wie viele
+Paletten kamen und wie viele davon beim Sortieren gezählt wurden
+(`erg_kohorte.n_paletten`, `n_verarbeitet`, `n_rest`; 0060). **Rechnet:**
+unsortiert = Σ `n_rest` der Eingangstage (Eingangspaletten, die nie gezählt
+wurden — die stehen wirklich da); in Kisten = ≈-Paletten − unsortiert, nie
+unter 0. Ist unsortiert grösser als die ≈-Paletten, ist das ein Widerspruch
+(gezählt steht mehr da, als laut Lieferscheinen noch da sein kann) und wird
+gesagt, nicht verrechnet. **Fehlt eine Eingabe:** ohne Eingangstage oder ohne
+Palettenzahl steht nichts, nie 0. **Urteil:** ehrlich — zwei Zahlen, die der
+Betriebsleiter im Lager prüfen kann (`src/auswertung/lager.ts`).
+
 ## 12d. Die Charge einer Palette (`paletten_zuordnen`, 0121)
 
 **Braucht:** Paletten mit der Charge des Journals (`charge_nr_journal`), Zettel

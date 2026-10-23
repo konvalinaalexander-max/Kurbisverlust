@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { imLagerBei, imLagerCharge, palettenIm, palettenText } from '../src/auswertung/lager.ts'
-import type { Bestand, Prognose } from '../src/auswertung/daten.ts'
+import { imLagerBei, imLagerCharge, palettenIm, palettenStand, palettenStandSumme, palettenStandText, palettenText } from '../src/auswertung/lager.ts'
+import type { Bestand, Kohorte, Prognose } from '../src/auswertung/daten.ts'
 
 // 22. Oktober: „Wenn du jetzt ins Lager gehst — so viele Paletten wirst du wohl
 // noch antreffen — und in Kilo: so viel kannst du tatsächlich noch verkaufen."
@@ -44,4 +44,44 @@ test('palettenIm: die Paletten der Chargen, die noch liegen — leer, wenn keine
   assert.equal(palettenText(68), '≈ 68 Paletten')
   assert.equal(palettenText(null), '')
   assert.equal(palettenText(0), '< 1 Palette', 'Ware da, aber keine ganze Palette — nicht „≈ 0"')
+})
+
+// Runde BA — der Betrieb: „du hast von der Charge noch 7 Paletten — dann kann ich
+// nachschauen gehen, ob da wirklich 7 Paletten stehen." Die ≈-Paletten sind ein
+// Äquivalent aus den Lieferscheinen; was wirklich dasteht, sind die Eingangs-
+// paletten, die beim Sortieren noch nie gezählt wurden (erg_kohorte.n_rest).
+const ko = (nr: number, tag: string, n: number, verarbeitet: number) =>
+  ({ charge_nr: nr, eingangsdatum: tag, n_paletten: n, n_verarbeitet: verarbeitet, n_rest: Math.max(n - verarbeitet, 0) } as Kohorte)
+const kohorten = [ko(1611, '2026-04-13', 50, 40), ko(1611, '2026-04-17', 46, 24), ko(1598, '2026-03-31', 4, 4), ko(1598, '2026-04-01', 2, 2),
+                  ko(1601, '2026-04-21', 20, 3), ko(1601, '2026-04-22', 6, 2)]
+
+test('Runde BA: palettenStand — unsortierte Eingangspaletten (nachzählbar) und das Äquivalent in Kisten', () => {
+  const s = palettenStand(b(1611, 25977, 21884, 704, 65), kohorten)
+  assert.deepEqual(s, { aequivalent: 65, unsortiert: 32, inKisten: 33, widerspruch: false })
+  assert.equal(palettenStandText(s), '32 unsortiert · ≈ 33 in Kisten')
+  const sortiert = palettenStand(b(1598, 774, 600, 0, 2), kohorten)
+  assert.deepEqual(sortiert, { aequivalent: 2, unsortiert: 0, inKisten: 2, widerspruch: false })
+  assert.equal(palettenStandText(sortiert), 'alles sortiert · ≈ 2 in Kisten')
+  const unberuehrt = palettenStand(b(1601, 7262, 6000, 0, 21), kohorten)
+  assert.equal(palettenStandText(unberuehrt), 'alle 21 unsortiert', 'nichts in Kisten')
+})
+
+test('Runde BA: mehr unsortierte Paletten gezählt, als laut Lieferscheinen noch da wären — gesagt, nicht verrechnet', () => {
+  const s = palettenStand(b(1601, 7262, 6000, 0, 19), kohorten)
+  assert.equal(s.unsortiert, 21); assert.equal(s.inKisten, 0); assert.equal(s.widerspruch, true)
+  assert.match(palettenStandText(s), /^21 unsortiert — mehr/)
+})
+
+test('Runde BA: ohne Eingangstage oder ohne Ware bleibt der Stand leer, nie 0', () => {
+  assert.deepEqual(palettenStand(b(1632, 26834, 22335, 461, 68), kohorten), { aequivalent: 68, unsortiert: null, inKisten: null, widerspruch: false })
+  assert.equal(palettenStandText(palettenStand(b(1632, 26834, 22335, 461, 68), kohorten)), '')
+  assert.equal(palettenStand(b(1598, 0, 0, 0, 0), kohorten).aequivalent, null, 'nichts im Lager')
+  assert.equal(palettenStand(b(1598, 500, 400, 0, null), kohorten).aequivalent, null, 'ohne Palettenzahl')
+})
+
+test('Runde BA: palettenStandSumme zählt nur Chargen mit Ware zusammen und trägt einen Widerspruch weiter', () => {
+  const liste = [b(1611, 25977, 21884, 704, 65), b(1598, 774, 600, 0, 2), b(1632, 0, 0, 0, 68), b(1601, 7262, 6000, 0, 19)]
+  const s = palettenStandSumme(liste, kohorten)
+  assert.deepEqual(s, { aequivalent: 86, unsortiert: 53, inKisten: 35, widerspruch: true })
+  assert.deepEqual(palettenStandSumme([b(1632, 0, 0, 0, 68)], kohorten), { aequivalent: null, unsortiert: null, inKisten: null, widerspruch: false })
 })
