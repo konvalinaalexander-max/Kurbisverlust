@@ -1,10 +1,12 @@
 # Rückmeldungen aus der Halle
 
-_Abzug vom 2026-10-22. Von `pruefstand/betrieb_abzug.mjs` geschrieben; nicht von Hand ändern._
+_Abzug vom 2026-10-23. Von `pruefstand/betrieb_abzug.mjs` geschrieben; nicht von Hand ändern._
 
 Was die Person am Ende einer Arbeit gesagt hat — geschrieben, oder mitgeschrieben vom Handy (Transkript, ungeprüft = so wie die Spracherkennung es verstand). Die Aufnahmen liegen im Bucket `rueckmeldungen` des Projekts; hier steht, was sich lesen lässt.
 
 **Zur Ware gilt seit 0094:** Ein Kommentar steht erst im Dashboard, wenn jemand ihn gelesen, verstanden und gekürzt hat („Hagelschaden"). Kürzen heisst: ein Eintrag je Nr. in `docs/betrieb/kurzfassungen.json` (der Abzug spielt ihn ein — täglich, und sofort beim Push der Datei), oder der Betriebsleiter tut es unter Betrieb → Arbeiten. Was der Betriebsleiter gekürzt hat, bleibt. Nur Aufnahme, kein Transkript: das kann hier niemand hören — anhören und kürzen kann nur der Betriebsleiter.
+
+**Noch zu kürzen: 2** — Nr. 16, 15.
 
 ## Zur App — für die nächste Runde (2)
 
@@ -13,8 +15,14 @@ Was die Person am Ende einer Arbeit gesagt hat — geschrieben, oder mitgeschrie
 - **Nr. 3** · 01.10.2026 · Waschen + Sortieren · 01.10.2026, 15:21 · fertig · Charge 1627 — Agasul Rüegg · Fictor · Arbeit 1602 · Seraina
   - „Keine fertige paletten auf schreiben?"
 
-## Zur Ware — für den Betriebsleiter (11)
+## Zur Ware — für den Betriebsleiter (13)
 
+- **Nr. 16** · 22.10.2026 · Waschen · 22.10.2026, 17:57 · fertig · Charge 1719 — Oettli · Kaori Kuri · Arbeit 1662 · Seraina
+  - **noch nicht gekürzt** — steht noch nicht im Dashboard
+  - „Sehr viele abgebrochene stiele(alt) Grüne(virus) Sind eher klein"
+- **Nr. 15** · 22.10.2026 · Waschen · 22.10.2026, 14:58 · fertig · Charge 1616 — Slowgrow Uster · Lekor · Arbeit 1660 · Seraina
+  - **noch nicht gekürzt** — steht noch nicht im Dashboard
+  - „Viel faules"
 - **Nr. 13** · 13.10.2026 · Waschen · 13.10.2026, 15:42 · fertig · Charge 1646 — Gossau Eberhard · Butterkin · Arbeit 1634 · Seraina
   - **gekürzt** (Runde, 15.10.2026): „Weich: gibt beim Drücken schnell nach"
   - „Beim drücken gibt es schnell nach(unten)"

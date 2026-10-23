@@ -1,6 +1,6 @@
 # Plausibilitätsdurchgang
 
-_Stand 2026-10-22 · Quelle docs/betrieb/rohdaten (Betriebsabzug) · von `pruefstand/durchgang.mjs` geschrieben; nicht von Hand ändern._
+_Stand 2026-10-23 · Quelle docs/betrieb/rohdaten (Betriebsabzug) · von `pruefstand/durchgang.mjs` geschrieben; nicht von Hand ändern._
 
 Jede Zeile ist ein **Kandidat**, kein Urteil: eine Zahl, die so nicht sein kann oder nicht sein sollte, mit dem Grund. Die Runde am Programm liest sie, prüft die Rohzeilen und schreibt die Zweitmeinung; der Betrieb entscheidet.
 
@@ -9,14 +9,14 @@ Jede Zeile ist ein **Kandidat**, kein Urteil: eine Zahl, die so nicht sein kann 
 | Tabelle | Zeilen |
 |---|---|
 | charge | 44 |
-| palette | 1869 |
-| auftrag | 84 |
-| auftrag_palette | 466 |
+| palette | 1891 |
+| auftrag | 90 |
+| auftrag_palette | 480 |
 | auftrag_gebinde | 0 |
-| schimmel_messung | 173 |
-| ausschuss_messung | 61 |
-| verdunstung_wiegung | 151 |
-| ausgang_wiegung | 103 |
+| schimmel_messung | 185 |
+| ausschuss_messung | 63 |
+| verdunstung_wiegung | 154 |
+| ausgang_wiegung | 109 |
 | kontrollpalette | 0 |
 | kontrollpalette_wiegung | 0 |
 | lieferung | 1317 |
@@ -26,43 +26,32 @@ Jede Zeile ist ein **Kandidat**, kein Urteil: eine Zahl, die so nicht sein kann 
 
 _310 Paletten sind Vervielfachungen einer Journalzeile („n Paletten gleich", extern_id …#n) — keine Kandidaten._
 
-## Nach Prüfung (113)
+## Nach Prüfung (121)
 
 | Prüfung | Anzahl |
 |---|---|
 | Teilpalette mit vollem Zettel | 31 |
-| Zetteldatum ohne Palette | 19 |
+| Zetteldatum ohne Palette | 24 |
 | Zettelgewicht | 16 |
+| Zettel Kistenzahl | 13 |
 | Arbeit offen | 8 |
-| Zettel Kistenzahl | 7 |
 | Teilpalette von Hand umgerechnet | 6 |
 | Schwerer geworden | 6 |
 | Arbeitsdauer | 4 |
 | Doppelte Palette | 3 |
 | Eingangsdatum springt zurück | 2 |
-| Arbeit auf fremder Charge | 2 |
 | Zettel doppelt | 2 |
 | Lieferung vor Eingang | 2 |
+| Arbeit auf fremder Charge | 1 |
 | Verdunstung zu hoch | 1 |
 | Lieferung über Eingang | 1 |
-| Lieferung ohne Eingang | 1 |
-| Arbeit ohne Eingang | 1 |
 | Lieferung ohne Charge | 1 |
 
-## Schwere hoch (18)
+## Schwere hoch (15)
 
-- **Arbeit auf fremder Charge** · Arbeit 1602 (waschen_sortieren, Charge 1627, 2026-10-01)
-  - 5 von 5 Zetteln ohne Palette in Charge 1627 (Agasul Rüegg · Fictor) passen aufs Kilo zu Paletten von Charge 1625 (Agasul Rüegg · Amoro), Eingang 2026-09-23. Die Arbeit ist wohl auf die falsche Charge gebucht — oder das Journal führt diese Paletten unter der falschen Sorte.
-  - _zettel = 5 · ohne_eigene_palette = 5 · passen = 5 · charge = 1625 · paletten = 7969, 7964, 7965, 7966, 7967 · eingang = 2026-09-23 · gleiche_kisten = 0_
 - **Arbeit auf fremder Charge** · Arbeit 1619 (waschen_sortieren, Charge 1626, 2026-10-08)
   - 7 von 8 Zetteln ohne Palette in Charge 1626 (Agasul Rüegg · Tiana) passen aufs Kilo zu Paletten von Charge 1623 (Agasul Rüegg · Mieluna), Eingang 2026-08-28, 2026-08-31, auch in der Kistenzahl. Die Arbeit ist wohl auf die falsche Charge gebucht — oder das Journal führt diese Paletten unter der falschen Sorte.
   - _zettel = 8 · ohne_eigene_palette = 8 · passen = 7 · charge = 1623 · paletten = 7096, 7097, 7033, 7100, 7047, 7115, 7035 · eingang = 2026-08-28, 2026-08-31 · gleiche_kisten = 7_
-- **Arbeit ohne Eingang** · Arbeit 1602 (waschen_sortieren, Charge 1627, 2026-10-01)
-  - Eine Arbeit an einer Charge, von der keine Palette im Erntejournal steht.
-  - _charge_nr = 1627_
-- **Lieferung ohne Eingang** · Charge 1627
-  - Lieferungen für eine Charge, von der keine Palette im Erntejournal steht — Journal unvollständig oder falsche Chargennummer auf dem Lieferschein.
-  - _geliefert_kg = 1416_
 - **Lieferung über Eingang** · Charge 1626
   - Mehr ausgeliefert als eingegangen (7444 gegen 4862.8 kg netto). Eingang fehlt im Journal, oder Lieferungen tragen die falsche Charge.
   - _geliefert_kg = 7444 · eingang_netto_kg = 4862.8_
@@ -106,7 +95,7 @@ _310 Paletten sind Vervielfachungen einer Journalzeile („n Paletten gleich", e
   - 14 von 32 Kisten der Palette 6657, aber das Zettelgewicht der ganzen Palette (400 kg). Anteilig wären es 175 kg — oder die Kistenzahl ist vertippt. Die Verdunstungswägung dazu rechnet mit zu viel Anfangsgewicht und zählt so nicht.
   - _zettel_kg = 400 · kisten_zettel = 14 · palette = 6657 · kisten_palette = 32 · anteilig_kg = 175_
 
-## Schwere mittel (80)
+## Schwere mittel (91)
 
 - **Eingangsdatum springt zurück** · Charge 1616 · Palette 6513–6537
   - 25 Paletten mit Eingang 2026-07-03, erfasst nach Paletten vom 2026-07-31 — 28 Tage früher. Vom Papier nachgetragen? Dann stimmt es. Sonst im Journal berichtigen, dann unter Stammdaten „Jetzt vom Sheet holen".
@@ -115,8 +104,8 @@ _310 Paletten sind Vervielfachungen einer Journalzeile („n Paletten gleich", e
   - 50 Paletten mit Eingang 2026-10-02, erfasst nach Paletten vom 2026-10-22 — 20 Tage früher. Vom Papier nachgetragen? Dann stimmt es. Sonst wohl vertippt (eine Ziffer Unterschied zum 2026-10-22): im Journal berichtigen, dann unter Stammdaten „Jetzt vom Sheet holen".
   - _paletten = 50 · eingang = 2026-10-02 · davor = 2026-10-22 · palette_davor = 8159 · danach = — · tage_zurueck = 20 · wohl = 2026-10-22_
 - **Lieferung ohne Charge** · Lieferungen
-  - 23 Lieferungen ohne Chargennummer — sie fehlen in jeder Chargenbilanz und im „Wohin" je Sorte. Unter Betrieb → Warenausgang die Charge nachtragen.
-  - _lieferungen = 23 · kg = 6933 · von = 2026-09-05 · bis = 2026-10-21_
+  - 21 Lieferungen ohne Chargennummer — sie fehlen in jeder Chargenbilanz und im „Wohin" je Sorte. Unter Betrieb → Warenausgang die Charge nachtragen.
+  - _lieferungen = 21 · kg = 3514 · von = 2026-09-05 · bis = 2026-10-21_
 - **Schwerer geworden** · Wägung 268 · Arbeit 1605 (waschen_sortieren, Charge 1648, 2026-10-05) · Charge 1648
   - Die Palette ist schwerer geworden — Zettel und Waage vertauscht, oder eine andere Palette gewogen.
   - _netto_damals_kg = 340 · netto_jetzt_kg = 405 · tage = 48_
@@ -228,6 +217,21 @@ _310 Paletten sind Vervielfachungen einer Journalzeile („n Paletten gleich", e
 - **Zettel Kistenzahl** · Zettel 3044 · Arbeit 1589 (waschen_sortieren, Charge 1613, 2026-09-26) · 2026-09-15
   - Gleiches Gewicht wie Palette 6764 (2026-08-24), aber 40 statt 36 Kisten — Kistenzahl vertippt?
   - _zettel_kg = 505 · kisten_zettel = 40 · palette = 6764 · kisten_palette = 36_
+- **Zettel Kistenzahl** · Zettel 3093 · Arbeit 1602 (waschen_sortieren, Charge 1627, 2026-10-01) · 2026-09-22
+  - Gleiches Gewicht wie Palette 7969 (2026-09-23), aber 33 statt 30 Kisten — Kistenzahl vertippt?
+  - _zettel_kg = 380 · kisten_zettel = 33 · palette = 7969 · kisten_palette = 30_
+- **Zettel Kistenzahl** · Zettel 3094 · Arbeit 1602 (waschen_sortieren, Charge 1627, 2026-10-01) · 2026-09-22
+  - Gleiches Gewicht wie Palette 7964 (2026-09-23), aber 36 statt 32 Kisten — Kistenzahl vertippt?
+  - _zettel_kg = 448 · kisten_zettel = 36 · palette = 7964 · kisten_palette = 32_
+- **Zettel Kistenzahl** · Zettel 3095 · Arbeit 1602 (waschen_sortieren, Charge 1627, 2026-10-01) · 2026-09-22
+  - Gleiches Gewicht wie Palette 7965 (2026-09-23), aber 36 statt 32 Kisten — Kistenzahl vertippt?
+  - _zettel_kg = 433 · kisten_zettel = 36 · palette = 7965 · kisten_palette = 32_
+- **Zettel Kistenzahl** · Zettel 3096 · Arbeit 1602 (waschen_sortieren, Charge 1627, 2026-10-01) · 2026-09-22
+  - Gleiches Gewicht wie Palette 7966 (2026-09-23), aber 36 statt 32 Kisten — Kistenzahl vertippt?
+  - _zettel_kg = 444 · kisten_zettel = 36 · palette = 7966 · kisten_palette = 32_
+- **Zettel Kistenzahl** · Zettel 3097 · Arbeit 1602 (waschen_sortieren, Charge 1627, 2026-10-01) · 2026-09-22
+  - Gleiches Gewicht wie Palette 7965 (2026-09-23), aber 36 statt 32 Kisten — Kistenzahl vertippt?
+  - _zettel_kg = 433 · kisten_zettel = 36 · palette = 7965 · kisten_palette = 32_
 - **Zettel Kistenzahl** · Zettel 3118 · Arbeit 1607 (waschen_sortieren, Charge 1648, 2026-10-05) · 2026-08-18
   - Gleiches Gewicht wie Palette 6673 (2026-08-18), aber 36 statt 32 Kisten — Kistenzahl vertippt?
   - _zettel_kg = 411 · kisten_zettel = 36 · palette = 6673 · kisten_palette = 32_
@@ -243,6 +247,9 @@ _310 Paletten sind Vervielfachungen einer Journalzeile („n Paletten gleich", e
 - **Zettel Kistenzahl** · Zettel 3346 · Arbeit 1640 (sortieren, Charge 1646, 2026-10-17) · 2026-09-03
   - Gleiches Gewicht wie Palette 6835 (2026-08-20), aber 36 statt 32 Kisten — Kistenzahl vertippt?
   - _zettel_kg = 440 · kisten_zettel = 36 · palette = 6835 · kisten_palette = 32_
+- **Zettel Kistenzahl** · Zettel 3451 · Arbeit 1658 (waschen_sortieren, Charge 1635, 2026-10-22) · 2026-08-27
+  - Gleiches Gewicht wie Palette 6958 (2026-08-27), aber 38 statt 36 Kisten — Kistenzahl vertippt?
+  - _zettel_kg = 513 · kisten_zettel = 38 · palette = 6958 · kisten_palette = 36_
 - **Zetteldatum ohne Palette** · Zettel 3042 · Arbeit 1589 (waschen_sortieren, Charge 1613, 2026-09-26)
   - An diesem Tag kam laut Journal keine Palette dieser Charge — Datum vertippt (12./21.?) oder Palette fehlt im Journal.
   - _zetteldatum = 2026-09-15 · tage_der_charge = 2026-08-14, 2026-08-19, 2026-08-24, 2026-08-26, 2026-08-27, 2026-08-29, 2026-09-01, 2026-09-29, 2026-10-02_
@@ -258,6 +265,21 @@ _310 Paletten sind Vervielfachungen einer Journalzeile („n Paletten gleich", e
 - **Zetteldatum ohne Palette** · Zettel 3077 · Arbeit 1597 (sortieren, Charge 1611, 2026-09-30)
   - An diesem Tag kam laut Journal keine Palette dieser Charge — Datum vertippt (12./21.?) oder Palette fehlt im Journal.
   - _zetteldatum = 2026-09-08 · tage_der_charge = 2026-09-17, 2026-09-18, 2026-09-19, 2026-09-21, 2026-09-22, 2026-10-20_
+- **Zetteldatum ohne Palette** · Zettel 3093 · Arbeit 1602 (waschen_sortieren, Charge 1627, 2026-10-01)
+  - An diesem Tag kam laut Journal keine Palette dieser Charge — Datum vertippt (12./21.?) oder Palette fehlt im Journal.
+  - _zetteldatum = 2026-09-22 · tage_der_charge = 2026-09-23_
+- **Zetteldatum ohne Palette** · Zettel 3094 · Arbeit 1602 (waschen_sortieren, Charge 1627, 2026-10-01)
+  - An diesem Tag kam laut Journal keine Palette dieser Charge — Datum vertippt (12./21.?) oder Palette fehlt im Journal.
+  - _zetteldatum = 2026-09-22 · tage_der_charge = 2026-09-23_
+- **Zetteldatum ohne Palette** · Zettel 3095 · Arbeit 1602 (waschen_sortieren, Charge 1627, 2026-10-01)
+  - An diesem Tag kam laut Journal keine Palette dieser Charge — Datum vertippt (12./21.?) oder Palette fehlt im Journal.
+  - _zetteldatum = 2026-09-22 · tage_der_charge = 2026-09-23_
+- **Zetteldatum ohne Palette** · Zettel 3096 · Arbeit 1602 (waschen_sortieren, Charge 1627, 2026-10-01)
+  - An diesem Tag kam laut Journal keine Palette dieser Charge — Datum vertippt (12./21.?) oder Palette fehlt im Journal.
+  - _zetteldatum = 2026-09-22 · tage_der_charge = 2026-09-23_
+- **Zetteldatum ohne Palette** · Zettel 3097 · Arbeit 1602 (waschen_sortieren, Charge 1627, 2026-10-01)
+  - An diesem Tag kam laut Journal keine Palette dieser Charge — Datum vertippt (12./21.?) oder Palette fehlt im Journal.
+  - _zetteldatum = 2026-09-22 · tage_der_charge = 2026-09-23_
 - **Zetteldatum ohne Palette** · Zettel 3132 · Arbeit 1609 (waschen_sortieren, Charge 1638, 2026-10-06)
   - An diesem Tag kam laut Journal keine Palette dieser Charge — Datum vertippt (12./21.?) oder Palette fehlt im Journal.
   - _zetteldatum = 2026-09-15 · tage_der_charge = 2026-08-20, 2026-08-25, 2026-09-10_
@@ -352,29 +374,29 @@ _310 Paletten sind Vervielfachungen einer Journalzeile („n Paletten gleich", e
 ## Schwere niedrig (15)
 
 - **Arbeit offen** · Arbeit 1578 (waschen_sortieren, Charge 1638, 2026-09-23)
+  - Seit 30 Tagen offen — vergessen abzuschliessen (dann fehlt die Arbeit in der Rechnung) oder aus Versehen begonnen (dann abbrechen).
+  - _tage_offen = 30_
+- **Arbeit offen** · Arbeit 1583 (waschen, Charge 1630, 2026-09-24)
   - Seit 29 Tagen offen — vergessen abzuschliessen (dann fehlt die Arbeit in der Rechnung) oder aus Versehen begonnen (dann abbrechen).
   - _tage_offen = 29_
-- **Arbeit offen** · Arbeit 1583 (waschen, Charge 1630, 2026-09-24)
-  - Seit 28 Tagen offen — vergessen abzuschliessen (dann fehlt die Arbeit in der Rechnung) oder aus Versehen begonnen (dann abbrechen).
-  - _tage_offen = 28_
 - **Arbeit offen** · Arbeit 1590 (waschen, Charge 1612, 2026-09-26)
-  - Seit 26 Tagen offen — vergessen abzuschliessen (dann fehlt die Arbeit in der Rechnung) oder aus Versehen begonnen (dann abbrechen).
-  - _tage_offen = 26_
+  - Seit 27 Tagen offen — vergessen abzuschliessen (dann fehlt die Arbeit in der Rechnung) oder aus Versehen begonnen (dann abbrechen).
+  - _tage_offen = 27_
 - **Arbeit offen** · Arbeit 1591 (waschen, Charge 1612, 2026-09-28)
-  - Seit 24 Tagen offen — vergessen abzuschliessen (dann fehlt die Arbeit in der Rechnung) oder aus Versehen begonnen (dann abbrechen).
-  - _tage_offen = 24_
+  - Seit 25 Tagen offen — vergessen abzuschliessen (dann fehlt die Arbeit in der Rechnung) oder aus Versehen begonnen (dann abbrechen).
+  - _tage_offen = 25_
 - **Arbeit offen** · Arbeit 1593 (waschen_sortieren, Charge 1650, 2026-09-28)
+  - Seit 25 Tagen offen — vergessen abzuschliessen (dann fehlt die Arbeit in der Rechnung) oder aus Versehen begonnen (dann abbrechen).
+  - _tage_offen = 25_
+- **Arbeit offen** · Arbeit 1595 (waschen_sortieren, Charge 1617, 2026-09-29)
   - Seit 24 Tagen offen — vergessen abzuschliessen (dann fehlt die Arbeit in der Rechnung) oder aus Versehen begonnen (dann abbrechen).
   - _tage_offen = 24_
-- **Arbeit offen** · Arbeit 1595 (waschen_sortieren, Charge 1617, 2026-09-29)
+- **Arbeit offen** · Arbeit 1596 (sortieren, Charge 1611, 2026-09-30)
   - Seit 23 Tagen offen — vergessen abzuschliessen (dann fehlt die Arbeit in der Rechnung) oder aus Versehen begonnen (dann abbrechen).
   - _tage_offen = 23_
-- **Arbeit offen** · Arbeit 1596 (sortieren, Charge 1611, 2026-09-30)
-  - Seit 22 Tagen offen — vergessen abzuschliessen (dann fehlt die Arbeit in der Rechnung) oder aus Versehen begonnen (dann abbrechen).
-  - _tage_offen = 22_
 - **Arbeit offen** · Arbeit 1611 (waschen_sortieren, Charge 1611, 2026-10-06)
-  - Seit 16 Tagen offen — vergessen abzuschliessen (dann fehlt die Arbeit in der Rechnung) oder aus Versehen begonnen (dann abbrechen).
-  - _tage_offen = 16_
+  - Seit 17 Tagen offen — vergessen abzuschliessen (dann fehlt die Arbeit in der Rechnung) oder aus Versehen begonnen (dann abbrechen).
+  - _tage_offen = 17_
 - **Arbeitsdauer** · Arbeit 1580 (waschen_sortieren, Charge 1617, 2026-09-23)
   - 20.3 Stunden — wohl über Nacht offen geblieben und erst am nächsten Tag abgeschlossen; der Durchsatz je Stunde stimmt dann nicht.
   - _stunden = 20.3_
