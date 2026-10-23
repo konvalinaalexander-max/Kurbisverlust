@@ -527,16 +527,15 @@ Nachtragen, `verkaufbar_offen` „Überfüllung offen …" statt „nicht gewoge
 mit Grund (Prüfblock 0124 b1–b6, sieben Mutationen).
 
 **Runde BA — die Paletten zum Nachzählen.** **Braucht:** je Charge die
-≈-Paletten (`erg_charge.n_rest_paletten`) und je Eingangstag, wie viele
-Paletten kamen und wie viele davon beim Sortieren gezählt wurden
-(`erg_kohorte.n_paletten`, `n_verarbeitet`, `n_rest`; 0060). **Rechnet:**
-unsortiert = Σ `n_rest` der Eingangstage (Eingangspaletten, die nie gezählt
-wurden — die stehen wirklich da); in Kisten = ≈-Paletten − unsortiert, nie
-unter 0. Ist unsortiert grösser als die ≈-Paletten, ist das ein Widerspruch
-(gezählt steht mehr da, als laut Lieferscheinen noch da sein kann) und wird
-gesagt, nicht verrechnet. **Fehlt eine Eingabe:** ohne Eingangstage oder ohne
-Palettenzahl steht nichts, nie 0. **Urteil:** ehrlich — zwei Zahlen, die der
-Betriebsleiter im Lager prüfen kann (`src/auswertung/lager.ts`).
+≈-Paletten (`erg_charge.n_rest_paletten`: Eingang minus die Eingangskilo
+hinter den Lieferscheinen, durch die mittlere Eingangspalette). **Rechnet:**
+nichts weiter — eine Zahl, Paletten gesamt, sortiert oder nicht; der
+Kontrollgang zählt, was steht. Eine Trennung in unsortierte Eingangspaletten
+(aus `erg_kohorte.n_rest`) und sortierte in Kisten stand einen Tag lang da und
+wurde vom Betrieb zurückgenommen: nicht jedes Sortieren läuft über die App,
+also weiss sie nicht, welche Palette durch die Maschine ging. **Fehlt eine
+Eingabe:** ohne Palettenzahl steht nichts, nie 0. **Urteil:** ehrlich — eine
+Zahl, die der Betriebsleiter im Lager prüfen kann (`src/auswertung/lager.ts`).
 
 ## 12d. Die Charge einer Palette (`paletten_zuordnen`, 0121)
 

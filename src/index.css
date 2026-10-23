@@ -983,9 +983,6 @@ tr.marge-dahinter table { margin: 0; }
 .chargentabelle tr.aufgeklappt > td.detail { background: color-mix(in srgb, var(--flaeche-2) 45%, transparent); }
 /* 0121: die Paletten stehen jetzt vorn in „Im Lager" (breiter als die Kilo) — etwas weniger Rand, damit die Tabelle am Bildschirm ohne Bildlauf passt. */
 .chargentabelle > thead > tr > th, .chargentabelle > tbody > tr > td { padding-left: .5rem; padding-right: .5rem; }
-/* Runde BA: der Satz „n unsortiert · ≈ m in Kisten" darf umbrechen — sonst macht ein Widerspruch die Tabelle breiter als den Bildschirm. */
-.chargentabelle .zelle-unter.stand { white-space: normal; max-width: 12rem; margin-left: auto; }
-.chargentabelle .zelle-unter.stand.gelb { color: var(--gelb); } /* der Widerspruch — .zelle-unter setzt sonst die leise Farbe durch */
 .erklaer-liste { margin: .25rem 0 1.1rem; padding-left: 1.1rem; display: grid; gap: .35rem; line-height: 1.5; }
 .erklaer-liste li::marker { color: var(--text-leise); }
 

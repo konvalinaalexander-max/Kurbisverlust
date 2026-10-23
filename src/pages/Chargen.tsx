@@ -7,7 +7,7 @@ import { WOERTERBUCH } from '../lib/i18n'
 import { datum, kg, prozent, tonnen, zahl, zeitpunkt } from '../lib/format'
 import { Erklaerung, Herkunft, Hinweis, Karte, Lade, Marke } from '../components/Bausteine'
 import { lieferungenVon, useAuswertung, type Auswertung } from '../auswertung/daten'
-import { IM_LAGER_TEXT, PALETTEN_STAND_TEXT, imLagerCharge, palettenStand, palettenStandText, palettenText, type PalettenStand } from '../auswertung/lager'
+import { IM_LAGER_TEXT, imLagerCharge, palettenText } from '../auswertung/lager'
 import { Probleme, Rechnet, Reiterkopf } from '../auswertung/Karten'
 import { Ungereimtheiten } from '../auswertung/Ungereimtheiten'
 import { ungereimtheiten, vonCharge, type Ungereimtheit } from '../auswertung/ungereimt'
@@ -66,8 +66,6 @@ export default function Chargen() {
       const vf = aw?.verkaufbar_kg != null ? Number(aw.verkaufbar_kg) : null
       return {
         b, lager, vf, offen: aw?.verkaufbar_offen ?? null,
-        // Runde BA: was davon noch unsortiert dasteht (nachzählbar) und was sortiert in Kisten liegt
-        stand: palettenStand(b, daten.kohorten),
         l: daten.lage.find(x => x.charge_nr === b.charge_nr),
         heute: vf === null || !(lager > 0) ? null : Math.min(vf / lager, 1),
       }
@@ -175,9 +173,9 @@ export default function Chargen() {
           <p>Eingang und ausgeliefert sind <Herkunft art="gemessen" />. <strong>Ausgeliefert</strong> ist die Masse der Lieferscheine; darunter steht,
           wie viel Eingangsware dafür aus dem Lager ging — mehr, weil unterwegs Wasser verdunstet, Faules in den Palox geht und zu Kleines oder zu Grosses aussortiert wird.</p>
           <p><strong>Im Lager</strong> sind die Paletten vom Eingang, die noch dastehen — so viele triffst du im Lager etwa an —, darunter ihr
-          Gewicht beim Eingang <Herkunft art="gerechnet" />, vor Verdunstung, Palox und Arbeit. Dazwischen steht, was davon
-          <strong> unsortiert</strong> ist — diese Eingangspaletten stehen wirklich noch da und lassen sich zählen (die Halle zählt jede beim
-          Sortieren) — und was schon sortiert <strong>in Kisten</strong> liegt.
+          Gewicht beim Eingang <Herkunft art="gerechnet" />, vor Verdunstung, Palox und Arbeit. Die Paletten sind eine Zahl, sortiert oder
+          nicht — zum Nachzählen beim Kontrollgang; ob eine Palette sortiert ist, kann die App nicht wissen, weil nicht jedes Sortieren
+          über sie läuft.
           <strong> Davon verkaufsfähig</strong> ist, was davon als Artikel verkauft werden kann — so viel lässt sich heute auf Lieferscheine
           schreiben: ohne Verdunstetes, Faules, zu klein und zu gross,
           ohne was in kein Artikelgewicht passt und ohne Überfüllung in den Kisten; Unique (Hagel, als Knospe verkauft) zählt mit. „höchstens":
@@ -247,7 +245,7 @@ function verlustTitel(b: Auswertung['bestand'][number]): string {
   return `unbekannt, solange nicht gemessen: ${fehlt.join(' · ') || 'ein Koeffizient ohne Messung'}`
 }
 
-type Zeile = { b: Auswertung['bestand'][number]; lager: number; vf: number | null; offen: string | null; stand: PalettenStand; l?: Auswertung['lage'][number]; heute: number | null }
+type Zeile = { b: Auswertung['bestand'][number]; lager: number; vf: number | null; offen: string | null; l?: Auswertung['lage'][number]; heute: number | null }
 
 /** Das Suchfeld: eine Zahl sucht im Anfang der Nummer („16" → 1601 … 1699), sonst im Schlag und in der Sorte. */
 function passt(b: { charge_nr: number; schlag: string | null; sorte: string }, finden: string): boolean {
@@ -318,10 +316,6 @@ function ChargenZeile({ z, offen, oeffnen, daten, hagel, ungereimt }: { z: Zeile
           ? <>{b.n_rest_paletten != null
                 ? <strong title="die Eingangspaletten, die noch da sind: Eingangsmasse, die nicht ausgeliefert ist, durch die mittlere Eingangspalette der Charge">{palettenText(b.n_rest_paletten)}</strong>
                 : <strong>{kg(z.lager, 0)}</strong>}
-              {/* Runde BA: „du hast von der Charge noch 7 Paletten — dann kann ich nachschauen gehen":
-                  was davon unsortiert dasteht (gezählt beim Sortieren) und was sortiert in Kisten liegt. */}
-              {b.n_rest_paletten != null && palettenStandText(z.stand) && (
-                <span className={`zelle-unter stand${z.stand.widerspruch ? ' gelb' : ''}`} title={PALETTEN_STAND_TEXT}>{palettenStandText(z.stand)}</span>)}
               {b.n_rest_paletten != null && <span className="zelle-unter" title={`Im Lager ist ${IM_LAGER_TEXT}`}>{kg(z.lager, 0)}</span>}</>
           : <span className="leise">—</span>}</td>
         <td className="zahl">{liegt && z.vf !== null

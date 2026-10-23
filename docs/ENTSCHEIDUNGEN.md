@@ -4196,22 +4196,22 @@ und dann kann ich nachschauen gehen, ob da wirklich 7 stehen." Die ≈-Paletten
 den Lieferscheinen, durch die mittlere Eingangspalette — so, wie der Betrieb es
 selbst hergeleitet hat („du weisst, wie viel verkauft wird laut Lieferschein,
 daraus wie viele Kilo am Eingang das waren, die Differenz ist die
-Palettenzahl"). Eine Nuance fehlte: Ware, die schon sortiert, aber nicht
-verkauft ist, steht in Kisten, nicht mehr auf Eingangspaletten. Die Halle
-zählt jede Eingangspalette beim Sortieren (`auftrag_palette`;
-`erg_kohorte.n_rest` = gekommen − gezählt je Eingangstag). Also sagt die App
-jetzt beides: **unsortiert** (Eingangspaletten, die beim Sortieren noch nie
-gezählt wurden — die stehen wirklich da) und **≈ in Kisten** (der Rest des
-Äquivalents). Unter Chargen als Zeile unter den ≈-Paletten, in der Kachel
-„Im Lager" des Lagermanagements und im Fenster der Charge
-(`src/auswertung/lager.ts`: `palettenStand`, `palettenStandSumme`,
-`palettenStandText`; `test/lager.test.ts`). Zählt die Halle mehr unsortierte
-Paletten, als laut Lieferscheinen noch da wären, sagt es die Zeile („7
-unsortiert — laut Lieferscheinen nur ≈ 2 da") — gelb, nicht verrechnet: ein
-Zettel oder eine Lieferung stimmt nicht. Der Satz darf in der Zelle umbrechen;
-die erste Fassung („mehr, als laut Lieferscheinen noch da wäre") machte die
-Chargentabelle breiter als den Bildschirm. Und „Davon verkaufsfähig" sagt im Spaltenkopf und
-in der Kachel, was es für den Betrieb ist: so viel lässt sich heute auf
+Palettenzahl"). Genau das sind die ≈-Paletten — **eine Zahl, Paletten
+gesamt, sortiert oder nicht**, zum Nachzählen beim Kontrollgang. Die erste
+Fassung dieser Runde trennte sie noch: „unsortiert" (Eingangspaletten, die
+beim Sortieren nie gezählt wurden, aus `erg_kohorte.n_rest`) und „≈ in
+Kisten" (der Rest), mit gelbem Widerspruch, wenn die Halle mehr unsortierte
+zählte, als laut Lieferscheinen da wären. Der Betrieb nahm das am selben Tag
+zurück: „nicht trennen zwischen unsortiert und sortiert, weil das kannst du
+gar nicht wissen — es wird nicht jedes Mal beim Sortieren die App verwendet.
+Gib einfach Paletten gesamt an, und wir gehen beim Kontrollgang durch und
+schauen, wie viele Paletten es hat, unabhängig ob sortiert oder nicht." Die
+Zählung der Halle ist also keine verlässliche Quelle dafür, was unsortiert
+steht; eine Zahl, die der Betrieb nicht prüfen kann, gehört nicht ins
+Dashboard. `palettenStand` samt Tests ging wieder heraus; `erg_kohorte`
+bleibt, wo es schon war (aufgeklappte Charge: gekommen / gezählt je
+Eingangstag). Und „Davon verkaufsfähig" sagt im Spaltenkopf und in der
+Kachel, was es für den Betrieb ist: so viel lässt sich heute auf
 Lieferscheine schreiben.
 
 **2. Je Sorte an einem Ort.** „Irgendwo in den Einstellungen pro Sorte
@@ -4248,9 +4248,10 @@ behoben wurde darum nur, was oben steht; alles andere stimmt mit dem Denken
 des Betriebs überein.
 
 **Was bewusst nicht gemacht wurde.**
-- Die Kaskade rechnet weiter mit dem Äquivalent; „unsortiert" ist eine
-  Zählung der Halle, keine Masse. Fehlt die Zählung (eine Charge ohne
-  Eingangstage), steht nichts — nie 0.
+- Keine Trennung der Paletten in unsortiert und sortiert (siehe 1.): die
+  App weiss nicht, welche Palette durch die Maschine ging, weil nicht jedes
+  Sortieren über sie läuft. Die ≈-Paletten bleiben ein Äquivalent aus den
+  Lieferscheinen — die Zahl, die der Kontrollgang prüft.
 - Die Fassungen je Käufer werden in der Sorten-Zeile nur gezählt; ihre Bänder
   stehen weiter unter Sortierschemata. Zwei Käufer mit verschiedenen Bändern
   in einer Zeile wären nicht mehr „simpel".
@@ -4353,10 +4354,12 @@ sagt: du hast von der Charge noch 7 Paletten, und dann kann ich nachschauen
 gehen." Die ≈-Paletten sind ein Paletten-Äquivalent aus Eingang minus den
 Eingangskilo hinter den Lieferscheinen; sortierte, noch nicht verkaufte Ware
 steht aber in Kisten. Die Halle zählt jede Eingangspalette beim Verarbeiten
-(`auftrag_palette`) — also kann die App beides sagen: unberührte
-Eingangspaletten (nachzählbar) und das Äquivalent in Kisten. Und: je Sorte
-an einem Ort die Bänder der Sortiermaschine und die Artikelgewichte klein /
-gross, mit dem, was dazwischen fällt. Beides ist notiert, nicht gebaut.
+(`auftrag_palette`) — also könnte die App beides sagen: unberührte
+Eingangspaletten (nachzählbar) und das Äquivalent in Kisten (gebaut und am
+selben Tag vom Betrieb zurückgenommen — nicht jedes Sortieren läuft über die
+App; siehe Runde BA). Und: je Sorte an einem Ort die Bänder der
+Sortiermaschine und die Artikelgewichte klein / gross, mit dem, was
+dazwischen fällt. Beides ist notiert, nicht gebaut.
 
 **Was bewusst nicht gemacht wurde.**
 - Acht `erg_*`-Tabellen, die kein Bildschirm liest (erg_kaliber,

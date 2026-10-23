@@ -799,9 +799,10 @@ festen Suchpfad; die Perigon-Liste läuft nur einmal (AB-174 bis AB-176). Dazu d
 Halle: Faules ohne Ablesung ist „unbekannt", Fehler werden gezeigt. **Setup.sql
 einmal einspielen (Stand 124), dann „Neu rechnen".**
 **Runde BA** — wie der Betrieb denkt: „du hast von der Charge noch 7 Paletten
-— dann kann ich nachschauen gehen." Unter den ≈-Paletten steht jetzt, wie viele
-Eingangspaletten noch **unsortiert** dastehen (nachzählbar) und wie viel
-sortiert **in Kisten** liegt (AB-177); „davon verkaufsfähig" heisst: so viel
+— dann kann ich nachschauen gehen." Die ≈-Paletten sind diese Zahl: Paletten
+gesamt, sortiert oder nicht, zum Nachzählen beim Kontrollgang (AB-177; eine
+Trennung in unsortiert / in Kisten wurde am selben Tag zurückgenommen — nicht
+jedes Sortieren läuft über die App); „davon verkaufsfähig" heisst: so viel
 lässt sich heute auf Lieferscheine schreiben. Unter Stammdaten → Sorten und
 Artikel steht je Sorte an einem Ort, was die Maschine sortiert, als welcher
 Artikel es verkauft wird, welche Gramm dazwischen fallen und wie viel davon

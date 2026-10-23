@@ -8,7 +8,7 @@ import { Erklaerung, Herkunft, Hinweis, Karte, Kennzahl, Leer, Marke, Segmente }
 import { Glocke, Linien, tonnenAchse, type Reihe } from '../components/Diagramm'
 import { kaliberGlockeBei, lagerKaliberBei, lieferungenVon, prognoseBei, useAuswertung, useStichtag, wohinVon,
          type Auswertung, type Bestand, type KaliberGlocke, type LagerKaliber, type Prognose, fehlendeRaten } from '../auswertung/daten'
-import { IM_LAGER_TEXT, PALETTEN_STAND_TEXT, imLagerBei, palettenIm, palettenStandSumme, palettenStandText, palettenText } from '../auswertung/lager'
+import { IM_LAGER_TEXT, imLagerBei, palettenIm, palettenText } from '../auswertung/lager'
 import { Ungereimtheiten } from '../auswertung/Ungereimtheiten'
 import { offenText, summiere, type AusweisSumme } from '../auswertung/ausweis'
 import { LagerLeiste, LagerRechnung } from '../auswertung/LagerKette'
@@ -209,11 +209,9 @@ function Kennzahlen({ daten, filter, kette }: { daten: Auswertung; filter: Filte
   // Lager. Bis hier teilte die Kachel das Verkaufsfähige der Sortiermaschine
   // durch die gute Ware („96 %"), die Leiste darunter rechnete vom Eingang.
   const lagerKg = kette.eingang > 0 ? kette.eingang : imLagerBei(daten.prognose, filter.gruppe, filter.schluessel, 0)
+  // Runde BA: „dann kann ich nachschauen gehen, ob da wirklich 7 Paletten stehen" — eine Zahl,
+  // sortiert oder nicht; der Kontrollgang zählt, was steht.
   const restPaletten = palettenIm(chargen)
-  // Runde BA: „dann kann ich nachschauen gehen, ob da wirklich 7 Paletten stehen" —
-  // was davon unsortiert dasteht (nachzählbar) und was sortiert in Kisten liegt.
-  const stand = palettenStandSumme(chargen, daten.kohorten)
-  const standText = restPaletten !== null && restPaletten > 0 ? palettenStandText(stand) : ''
   const liegt = chargen.some(b => b.lager_kg > 0)
   // Eine Definition, kein stiller Rückfall: Fehlt der Ausweis oder fehlt jeder
   // Charge eine Rate, ist das Verkaufsfähige unbekannt — nicht die Zahl der
@@ -248,9 +246,7 @@ function Kennzahlen({ daten, filter, kette }: { daten: Auswertung; filter: Filte
                 wert={restPaletten !== null && restPaletten > 0
                   ? <>{palettenText(restPaletten)}<Herkunft art="gerechnet" text="die Eingangspaletten, die noch dastehen: Eingangsmasse, die nicht ausgeliefert ist, durch die mittlere Eingangspalette" /></>
                   : <><Tonnen kg={lagerKg} /><Herkunft art="gerechnet" text={`Im Lager ist ${IM_LAGER_TEXT}`} /></>}
-                unter={<>{tonnen(lagerKg)} beim Eingang{standText
-                  ? <> · <span className={stand.widerspruch ? 'gelb' : undefined} title={PALETTEN_STAND_TEXT}>{standText}</span></>
-                  : <> · vor Verdunstung, Palox und Arbeit</>}</>} />
+                unter={<>{tonnen(lagerKg)} beim Eingang · vor Verdunstung, Palox und Arbeit</>} />
       <Kennzahl titel="Davon verkaufsfähig" ton="gruen" id="kz-verkaufsfaehig"
                 wert={bekannt ? <>
                   {hoechstens && <span className="mini-wort">höchstens </span>}
