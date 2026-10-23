@@ -289,8 +289,12 @@ export interface PerigonPruefung {
  * 0121): eingang_kg (auf den Paletten, die noch liegen, wie eingegangen) −
  * verdunstet − faul (Palox, ohne Hagel) − unique (Hagel, als Knospe verkauft)
  * − zu klein − zu gross (Sortiermaschine) − Faules beim Abpacken =
- * verkaufsfähig; davon marge_kg Überfüllung, verrechenbar_kg der Rest. Leer
- * heisst unbekannt (eine Rate nicht gemessen), nie 0.
+ * verkaufsfaehig_kg; davon marge_kg Überfüllung, verrechenbar_kg der Rest.
+ * 0123: verkaufbar_kg ist, was wir als Artikel tatsächlich verkaufen können —
+ * verkaufsfaehig_kg ohne, was in kein Artikelgewicht passt, und ohne die
+ * Überfüllung darauf, mit Unique; verkaufbar_offen sagt, was dafür fehlt (dann
+ * ist es eine obere Schranke). Leer heisst unbekannt (eine Rate nicht
+ * gemessen), nie 0.
  */
 export interface LagerAusweis {
   charge_nr: number; sorte: string; schlag: string; paletten: number | null
@@ -301,6 +305,8 @@ export interface LagerAusweis {
   marge_anteil: number | null; marge_quelle: string; marge_kg: number | null; verrechenbar_kg: number | null
   hagel_bis_heute_kg: number | null
   r_bekannt: boolean; f_bekannt: boolean; kanal_bekannt: boolean; fax_bekannt: boolean
+  keinen_artikel_kg: number | null; groesse_offen_kg: number | null; ueberfuellung_kg: number | null
+  verkaufbar_kg: number | null; verkaufbar_offen: string | null
 }
 
 /** Was zwischen Perigon, Erntejournal und Lager nicht zusammenpasst (v_ungereimtheit, 0121; 0122: nachgeordnet, stammdaten). */

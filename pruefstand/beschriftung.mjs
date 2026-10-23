@@ -339,11 +339,18 @@ function sollzahlen() {
     // Verlust und „im Haus": Das ist die Frage des Betriebsleiters, und nur
     // diese zwei Zahlen hängen direkt an dem, was er verkaufen kann.
     // 22. Oktober: „Im Lager" ist, was auf den Paletten liegt — im Haus ohne
-    // das schon Aussortierte. Die Kachel nimmt es aus der Prognose (gute Ware),
-    // die Gegenprobe aus der Bilanz: zwei Wege, eine Zahl. Bis hier war es
-    // bilanz.lager_kg, die Eingangsmasse mit Verdunstetem und Faulem.
-    lager: z(bilanz.im_haus_heute_kg) - z(bilanz.kanal_ausgelagert_kg),
-    verkaufsfaehig: z(bilanz.verkaufsfaehig_heute_kg),
+    // das schon Aussortierte. 23. Oktober, die Regel hat sich geändert und die
+    // Gegenprobe mit ihr: „Im Lager will ich, was wirklich steht — Paletten,
+    // bevor wir etwas in den Palox schmeissen … und vor der Verdunstung." Im
+    // Lager ist wieder bilanz.lager_kg, die Eingangsmasse der Paletten, die
+    // noch stehen; die Kachel nimmt sie aus dem Lager-Ausweis — zwei Wege.
+    lager: z(bilanz.lager_kg),
+    // 0123: verkaufsfähig ist, was als Artikel verkauft werden kann — Σ
+    // verkaufbar_kg der Chargen mit Ware und bekannter Rate, unabhängig von der
+    // Summe in der App (src/auswertung/ausweis.ts) gerechnet.
+    verkaufsfaehig: (fixture('v_lager_ausweis') ?? [])
+      .filter(a => z(a.eingang_kg) > 0 && a.verkaufsfaehig_kg !== null && a.faul_kg !== null && a.verdunstet_kg !== null)
+      .reduce((s, a) => s + z(a.verkaufbar_kg ?? a.verkaufsfaehig_kg), 0),
   }
 }
 const tonnen = kg => `${(Math.round(kg / 100) / 10).toLocaleString('de-CH')} t`

@@ -819,6 +819,8 @@ thead.klebt th.haftend { position: sticky; z-index: 5; }
 /* Kleine Wörter an einer grossen Zahl */
 .gross-zahl .mini-wort { font-size: .45em; white-space: nowrap; color: var(--text-leise); }
 td.zahl .mini-wort { font-size: var(--s-0); white-space: nowrap; color: var(--text-leise); }
+/* 0123: „höchstens" über der Zahl statt daneben — die Chargentabelle bleibt so breit wie vorher. */
+td.zahl .mini-wort.zelle-oben { display: block; line-height: 1.1; }
 .gross-zahl .neben-zahl { font-size: .55em; white-space: nowrap; }
 
 /* ---------- Ursachen: die beiden Marge-Karten (Runde R) --------------------- */

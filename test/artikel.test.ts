@@ -11,7 +11,7 @@
  */
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { OFFEN, klasseVon, uebersichtszeilen } from '../src/auswertung/artikel.ts'
+import { OFFEN, alsArtikel, klasseVon, uebersichtszeilen } from '../src/auswertung/artikel.ts'
 import type { ArtikelLagerCharge, Bestand, ChargeLabel, SorteGruppe } from '../src/auswertung/daten.ts'
 
 const charge = (nr: number, sorte: string, eingang: number, ausgelagert: number, geliefert: number, vf: number | null) =>
@@ -67,7 +67,8 @@ test('Übersicht: der Rest des Lagers wie die Kaskade ihn teilt — Lager = verk
   // Charge 1: 400 kg im Lager, 300 verkaufsfähig — die Kaskade teilt die übrigen 100.
   const rest = new Map([[1, { kanal: 20, faul: 50, verdunstet: 25, fax: 5 }], [2, { kanal: 1, faul: 1, verdunstet: 1, fax: 0 }]])
   const [knirps] = uebersichtszeilen(bestand, labelVon, gruppeVon, teile, OFFEN, { rest })
-  assert.deepEqual(knirps.rest, { kanal: 20, faul: 50, verdunstet: 25, fax: 5, offen: 500 },
+  // 0123: dazu die Überfüllung — ohne gewogene Marge (rest ohne marge) wird nichts abgezogen.
+  assert.deepEqual(knirps.rest, { kanal: 20, faul: 50, verdunstet: 25, fax: 5, offen: 500, ueberfuellung: 0 },
     'Charge 2 kennt ihr Verkaufsfähiges nicht: ihre 500 kg sind offen, nicht geteilt')
   const r = knirps.rest
   assert.equal(knirps.vf + r.kanal + r.faul + r.verdunstet + r.fax + r.offen, knirps.lager)
@@ -76,23 +77,25 @@ test('Übersicht: der Rest des Lagers wie die Kaskade ihn teilt — Lager = verk
 
 // 22. Oktober: „wie viel ist noch hier, im Lager, Anzahl Paletten, auch ohne
 // Verdunstung und ohne Palox, und dann wie viel ist verkaufsfähig" — im Lager
-// ist die liegende Eingangsmasse ohne das Verdunstete und das Faule.
-test('Übersicht: im Lager ohne Verdunstetes und Faules; ohne Teilung höchstens die ganze liegende Masse; Paletten zusammengezählt', () => {
+// war die liegende Eingangsmasse ohne das Verdunstete und das Faule.
+// 23. Oktober, die Regel hat sich geändert und der Test mit ihr: „Im Lager will
+// ich, was wirklich steht — Paletten, bevor wir etwas in den Palox schmeissen …
+// und vor der Verdunstung." Im Lager ist die liegende Eingangsmasse ohne Abzug;
+// Verdunstetes und Faules stehen als Teil davon im Balken.
+test('Übersicht: im Lager die Eingangsmasse der Paletten, die noch stehen — ohne Abzug; Paletten zusammengezählt', () => {
   const mitPal = bestand.map(b => ({ ...b, n_rest_paletten: b.charge_nr === 1 ? 1 : b.charge_nr === 2 ? 2 : 0 }) as Bestand)
   const rest = new Map([[1, { kanal: 20, faul: 50, verdunstet: 25, fax: 5, bekannt: true }]])
   const [knirps] = uebersichtszeilen(mitPal, labelVon, gruppeVon, teile, OFFEN, { rest })
-  // Charge 1: 400 − 25 verdunstet − 50 faul = 325; Charge 2 ohne Teilung: ihre ganzen 500, höchstens
-  assert.equal(knirps.imLager, 325 + 500)
-  assert.equal(knirps.imLagerHoechstens, true)
+  // Charge 1: 400, Charge 2: 500 — wie sie eingingen, auch ohne Teilung der Kaskade
+  assert.equal(knirps.imLager, 400 + 500)
+  assert.equal(knirps.imLagerHoechstens, false, 'die Eingangsmasse hängt an keiner Rate')
   assert.equal(knirps.paletten, 3)
   const r = knirps.rest
-  assert.equal(knirps.vf + r.kanal + r.fax + r.offen, knirps.imLager, 'im Lager = verkaufsfähig + zu klein/zu gross + beim Abpacken faul + offen')
-  assert.equal(knirps.imLager + r.faul + r.verdunstet, knirps.lager, 'was nicht mehr im Lager ist, steht hinter dem Lager — der Balken bleibt so lang wie der Eingang')
+  assert.equal(knirps.vf + r.kanal + r.fax + r.faul + r.verdunstet + r.offen, knirps.imLager,
+    'im Lager = verkaufsfähig + zu klein/zu gross + Faules (Palox, beim Abpacken) + Verdunstetes + offen')
+  assert.equal(knirps.imLager, knirps.lager, 'der Lager-Teil des Balkens ist die liegende Eingangsmasse')
   const [nur1] = uebersichtszeilen(mitPal.filter(b => b.charge_nr === 1), labelVon, gruppeVon, teile, OFFEN, { rest })
-  assert.equal(nur1.imLager, 325); assert.equal(nur1.imLagerHoechstens, false)
-  const ungemessen = new Map([[1, { kanal: 20, faul: 50, verdunstet: 25, fax: 5, bekannt: false }]])
-  const [ohneRate] = uebersichtszeilen(mitPal.filter(b => b.charge_nr === 1), labelVon, gruppeVon, teile, OFFEN, { rest: ungemessen })
-  assert.equal(ohneRate.imLagerHoechstens, true, 'eine Rate ohne Messung: obere Schranke')
+  assert.equal(nur1.imLager, 400); assert.equal(nur1.imLagerHoechstens, false)
   // Charge 3 hat nichts mehr im Lager — und ohne Zahl bleibt die Palettenzahl leer, nicht 0
   const [, butternut] = uebersichtszeilen(bestand, labelVon, gruppeVon, teile, OFFEN)
   assert.equal(butternut.paletten, null)
@@ -201,8 +204,23 @@ test('Übersicht: Unique geht in die Knospe-Zeile der Artikelgruppe, auch von ei
   assert.ok(knospe, 'eine Knospe-Zeile für die Unique-Ware, auch ohne eigene Knospe-Charge')
   assert.equal(knospe!.klassen.get('unique'), 30)
   assert.equal(demeter.klassen.get('unique'), undefined)
-  // Charge 1 liegt 400 − 25 − 50 = 325 auf den Paletten, davon gehen 30 als Unique zu Knospe
-  assert.equal(demeter.imLager + knospe!.imLager, 325 + 500)
+  // Charge 1 liegt 400 im Lager, wie sie einging (seit dem 23. Oktober ohne Abzug), davon gehen 30 als Unique zu Knospe
+  assert.equal(demeter.imLager + knospe!.imLager, 400 + 500)
   assert.equal(knospe!.imLager, 30)
   assert.equal(uebersichtszeilen(bestand, labelVon, gruppeVon, teile, { ...OFFEN, label: 'D' }, { rest }).some(z => (z.klassen.get('unique') ?? 0) > 0), false)
+})
+
+// 0123 — „verkaufsfähig … minus allem: innerhalb der Artikelgewichte, verschenkte
+// Marge abgezogen." Je Charge die Überfüllung a/(1+a) auf dem Teil, der als
+// Artikel geht; nicht gewogen heisst höchstens, nicht null.
+test('0123: verkaufsfähig ohne Überfüllung — nur auf dem Teil, der als Artikel geht; nicht gewogen ist höchstens', () => {
+  const t = (charge_nr: number, groesse: string, kg: number) =>
+    ({ charge_nr, sorte: 'Amoro', artikelgruppe: 'Knirps', label: 'D', groesse, kg, stueck: null, g_mittel: null, h: 0, datum: '2026-10-23',
+       von_g: null, bis_g: null, stueck_je_kiste: null, kisten: null } as unknown as ArtikelLagerCharge)
+  const gewogen = new Map([[1, { kanal: 0, faul: 0, verdunstet: 0, fax: 0, marge: 0.05 }]])
+  assert.deepEqual(alsArtikel(t(1, 'klein', 210), gewogen), { kg: 200, ueberfuellung: 10, offen: false })
+  assert.deepEqual(alsArtikel(t(1, 'darueber', 50), gewogen), { kg: 50, ueberfuellung: 0, offen: false }, 'was in keinen Artikel passt, geht nicht in Kisten mit Soll')
+  const ungewogen = new Map([[1, { kanal: 0, faul: 0, verdunstet: 0, fax: 0, marge: null }]])
+  assert.deepEqual(alsArtikel(t(1, 'klein', 210), ungewogen), { kg: 210, ueberfuellung: 0, offen: true })
+  assert.equal(alsArtikel(t(1, 'ohne Verteilung', 100), gewogen).offen, true, 'ohne Sortier-CSV ist die Grösse offen')
 })

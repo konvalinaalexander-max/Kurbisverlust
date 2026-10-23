@@ -60,6 +60,11 @@
   --strom-vf-klein:    #62c07a;
   --strom-vf:          #2e8f4e;
   --strom-vf-gross:    #1f6d38;
+  /* 0123: was die Maschine durchlässt, aber in kein Artikelgewicht passt (blasses
+     Grün, wie „lose" unter Artikel), und die Überfüllung, die mit der verkauften
+     Ware hinausgeht (Grau mit einem Hauch Grün). Aus den geprüften Farben gemischt. */
+  --strom-keinen-artikel: color-mix(in srgb, var(--strom-vf) 40%, var(--flaeche));
+  --strom-ueberfuellung:  color-mix(in srgb, var(--strom-verkauft) 65%, var(--strom-vf));
   /* Die alten Namen zeigen auf die neuen — wer sie noch braucht, bleibt im System. */
   --strom-rest:        var(--strom-vf);
   --strom-rest-hell:   var(--strom-vf-klein);

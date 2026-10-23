@@ -10,6 +10,10 @@ import { Hinweis, Lade, Marke } from '../components/Bausteine'
 import { TaetZeichen, ZKreuz } from '../components/Zeichen'
 import type { Bestand, Wohin } from '../auswertung/daten'
 import { ArbeitFenster } from './ArbeitFenster'
+import { palettenText } from '../auswertung/lager'
+
+/** 0123: aus v_lager_ausweis, was das Fenster braucht. */
+interface AusweisKurz { paletten: number | null; eingang_kg: number | null; verkaufbar_kg: number | null; verkaufbar_offen: string | null }
 import { LieferungFenster } from './LieferungFenster'
 
 interface ChargeZeile { nr: number; schlag: string; sorte: string; saison: number; ernte_abgeschlossen_ts: string | null }
@@ -36,6 +40,7 @@ function summe(...teile: (number | null | undefined)[]): number | null {
 export function ChargeFenster({ chargeNr, schliessen }: { chargeNr: number; schliessen: () => void }) {
   const [charge, setCharge] = useState<ChargeZeile | null>(null)
   const [bestand, setBestand] = useState<Bestand | null>(null)
+  const [ausweis, setAusweis] = useState<AusweisKurz | null>(null)
   const [wohin, setWohin] = useState<Wohin | null>(null)
   const [arbeiten, setArbeiten] = useState<ArbeitKurz[]>([])
   const [lieferungen, setLieferungen] = useState<LieferungKurz[]>([])
@@ -53,7 +58,7 @@ export function ChargeFenster({ chargeNr, schliessen }: { chargeNr: number; schl
     let lebt = true
     void (async () => {
       try {
-        const [c, b, w, a, l, p, k] = await Promise.all([
+        const [c, b, w, a, l, p, k, aw] = await Promise.all([
           supabase.from('charge').select('nr, schlag, sorte, saison, ernte_abgeschlossen_ts').eq('nr', chargeNr),
           supabase.from('erg_charge').select('*').eq('charge_nr', chargeNr),
           supabase.from('erg_wohin').select('*').eq('gruppe', 'charge').eq('schluessel', String(chargeNr)),
@@ -61,6 +66,8 @@ export function ChargeFenster({ chargeNr, schliessen }: { chargeNr: number; schl
           supabase.from('erg_lieferung').select('id, datum, masse_kg, ziel_name, buch').eq('charge_nr', chargeNr).order('datum', { ascending: false }),
           supabase.from('erg_plausibilitaet').select('art, befund, auftrag_id').eq('charge_nr', chargeNr),
           supabase.from('v_arbeit_kommentar').select('auftrag_id, text, roh, ts').eq('charge_nr', chargeNr).order('ts', { ascending: false }),
+          // 0123: was als Artikel verkauft werden kann — dieselbe Zahl wie in den Chargen und im Lagermanagement.
+          supabase.from('v_lager_ausweis').select('paletten, eingang_kg, verkaufbar_kg, verkaufbar_offen').eq('charge_nr', chargeNr),
         ])
         if (!lebt) return
         for (const x of [c, b, w, a, l, p, k]) if (x.error) throw x.error
@@ -71,6 +78,7 @@ export function ChargeFenster({ chargeNr, schliessen }: { chargeNr: number; schl
         setLieferungen((l.data ?? []) as LieferungKurz[])
         setBefunde((p.data ?? []) as BefundKurz[])
         setKommentare((k.data ?? []) as KommentarKurz[])
+        setAusweis(aw.error ? null : ((aw.data ?? []) as AusweisKurz[])[0] ?? null)
         setGeladen(true)
       } catch (f) { if (lebt) setFehler(fehlerText(f)) }
     })()
@@ -129,7 +137,12 @@ export function ChargeFenster({ chargeNr, schliessen }: { chargeNr: number; schl
               {bestand ? (
                 <dl className="zusammenfassung">
                   <dt>Eingang</dt><dd>{kg(bestand.eingang_kg, 0)} netto · {bestand.n_paletten} Paletten{bestand.ueberzaehlung_kg > 0 ? ` · ${kg(bestand.ueberzaehlung_kg, 0)} mehr geliefert als eingelagert` : ''}</dd>
-                  <dt>Im Haus heute</dt><dd>{kg(bestand.im_haus_heute_kg, 0)}{bestand.verkaufsfaehig_lager_kg != null ? ` · davon verkaufsfähig ${kg(bestand.verkaufsfaehig_lager_kg, 0)}` : ' · verkaufsfähig: nicht gemessen'}</dd>
+                  {/* 23. Oktober: im Lager sind die Paletten vom Eingang, die noch stehen, mit dem Gewicht beim Eingang;
+                      verkaufsfähig ist, was davon als Artikel verkauft werden kann (0123). */}
+                  <dt>Im Lager heute</dt><dd>{ausweis?.paletten != null ? `${palettenText(Number(ausweis.paletten))} · ` : ''}{kg(bestand.lager_kg, 0)} beim Eingang
+                    {ausweis?.verkaufbar_kg != null
+                      ? ` · davon verkaufsfähig ${ausweis.verkaufbar_offen ? 'höchstens ' : ''}${kg(Number(ausweis.verkaufbar_kg), 0)}`
+                      : bestand.verkaufsfaehig_lager_kg != null ? ` · davon verkaufsfähig ${kg(bestand.verkaufsfaehig_lager_kg, 0)}` : ' · verkaufsfähig: nicht gemessen'}</dd>
                   <dt>Verarbeitet</dt><dd>{kg(bestand.ausgelagert_kg, 0)} ausgelagert · {kg(bestand.sortiert_kg, 0)} sortiert · {kg(bestand.gewaschen_kg, 0)} gewaschen</dd>
                   <dt>Geliefert</dt><dd>{kg(bestand.geliefert_kg, 0)} · {zahl(bestand.n_lieferungen)} {bestand.n_lieferungen === 1 ? 'Lieferung' : 'Lieferungen'}</dd>
                   <dt>Lagerdauer</dt><dd>{Math.round(bestand.alter_lager_heute)} Tage im Mittel{bestand.alter_lager_von != null && bestand.alter_lager_bis != null ? ` (${Math.round(bestand.alter_lager_von)}–${Math.round(bestand.alter_lager_bis)})` : ''}</dd>

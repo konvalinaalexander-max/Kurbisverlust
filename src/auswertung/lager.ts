@@ -1,5 +1,5 @@
 /**
- * Was „im Lager" heisst — an jeder Stelle dasselbe (22. Oktober).
+ * Was „im Lager" heisst — an jeder Stelle dasselbe (22. Oktober, 23. Oktober).
  *
  * Der Betrieb: „Wieso nimmt es die Paloxe noch zum Lager dazu? … vielleicht
  * einfach klarer ausweisen — wie viel ist noch hier, im Lager, Anzahl
@@ -21,6 +21,16 @@
  * Verdunstung und Faules leeren keine Palette, darum rechnet sie mit der
  * Eingangsmasse; und ohne Lieferung bleibt sie auch in ein paar Wochen gleich.
  */
+/*
+ * 23. Oktober, der Betrieb noch einmal: „Im Lager will ich eigentlich, was
+ * wirklich steht — Paletten, bevor wir etwas in den Palox schmeissen, bevor es
+ * Arbeiten erlebt, und vor der Verdunstung: wie viele Paletten vom Eingang
+ * noch im Lager stehen." Darum ist „im Lager" jetzt die Eingangsmasse auf den
+ * Paletten, die noch dastehen (`lager_kg`), ohne Abzug — und alles, was abgeht
+ * (Verdunstung, Palox, zu klein / zu gross, passt in keinen Artikel,
+ * Überfüllung), steht im Verkaufsfähigen (src/auswertung/ausweis.ts, 0123).
+ * Die gute Ware der Kaskade (`gute_ware_kg`) heisst nicht mehr „im Lager".
+ */
 // Nur Typen aus daten.ts — wie artikel.ts, damit test/lager.test.ts ohne Datenbank läuft.
 import type { Bestand, Gruppe, Prognose } from './daten'
 
@@ -31,9 +41,9 @@ function zeileBei(prognose: Prognose[], gruppe: Gruppe, schluessel: string, h: n
 }
 
 export interface ImLager {
-  /** Kilo auf den Paletten; null, wenn die Rechnung für die Gruppe fehlt. */
+  /** Kilo auf den Paletten, wie sie eingingen; null, wenn die Rechnung für die Gruppe fehlt. */
   kg: number | null
-  /** Eine Rate (Verdunstung oder Faules) ist nicht gemessen — die Zahl ist eine obere Schranke. */
+  /** Seit dem 23. Oktober immer false: Die Eingangsmasse hängt an keiner Rate. Bleibt, damit die Stellen, die es lesen, gleich bleiben. */
   hoechstens: boolean
 }
 
@@ -41,18 +51,12 @@ export interface ImLager {
 export function imLagerBei(prognose: Prognose[], gruppe: Gruppe, schluessel: string, h: number): ImLager {
   const p = zeileBei(prognose, gruppe, schluessel, h)
   if (!p) return { kg: null, hoechstens: false }
-  return { kg: Number(p.gute_ware_kg), hoechstens: !(p.r_bekannt && p.f_bekannt) }
+  return { kg: Number(p.lager_kg), hoechstens: false }
 }
 
-/**
- * Im Lager einer Charge heute. Aus der Prognose der Charge; fehlt sie, aus der
- * Charge selbst: im Haus weniger das schon Aussortierte. (Ein nicht gemessener
- * Kanal steht dort leer — dann ist auch nichts davon im Haus gezählt.)
- */
-export function imLagerCharge(b: Bestand, prognose: Prognose[]): number {
-  const p = zeileBei(prognose, 'charge', String(b.charge_nr), 0)
-  if (p) return Number(p.gute_ware_kg)
-  return Math.max(Number(b.im_haus_heute_kg) - Number(b.kanal_ausgelagert_kg ?? 0), 0)
+/** Im Lager einer Charge heute: die Eingangsmasse auf den Paletten, die noch stehen. */
+export function imLagerCharge(b: Bestand, _prognose?: Prognose[]): number {
+  return Math.max(Number(b.lager_kg), 0)
 }
 
 /** Wie viele Paletten die Chargen noch haben — null, wenn keine eine Zahl hat. */
@@ -71,4 +75,4 @@ export function palettenText(n: number | null): string {
 
 /** Was „im Lager" heisst, in einem Satz — für Kopf, Kachel und Zeiger. */
 export const IM_LAGER_TEXT =
-  'was auf den Paletten liegt: Eingangsware, die nicht ausgeliefert ist, ohne das, was seither verdunstet oder faul geworden ist'
+  'was an Paletten vom Eingang noch dasteht, mit dem Gewicht beim Eingang — vor Verdunstung, Palox und Arbeit'

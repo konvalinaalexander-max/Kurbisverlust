@@ -55,17 +55,20 @@ export default function Chargen() {
 
   const zeilen = useMemo(() => {
     if (!daten) return []
-    // 22. Oktober: Im Lager ist, was auf den Paletten liegt — ohne das
-    // Verdunstete und das Faule (src/auswertung/lager.ts); der Anteil
-    // verkaufsfähig ist der an dieser Zahl. Ist eine Rate nicht gemessen,
-    // bleibt der Anteil leer wie bisher.
+    // 23. Oktober: Im Lager sind die Paletten vom Eingang, die noch stehen, mit
+    // dem Gewicht beim Eingang (src/auswertung/lager.ts); verkaufsfähig ist,
+    // was davon als Artikel verkauft werden kann (v_lager_ausweis.verkaufbar_kg,
+    // 0123), der Anteil der an dieser Zahl. Ist eine Rate nicht gemessen,
+    // bleibt beides leer wie bisher.
     const liste = daten.bestand.map(b => {
-      const lager = b.lager_kg > 0 ? imLagerCharge(b, daten.prognose) : 0
+      const lager = b.lager_kg > 0 ? imLagerCharge(b) : 0
       const anteil = anteilBei(daten.prognose, 'charge', String(b.charge_nr), 0)
+      const aw = ausweisVon(daten.ausweis, b.charge_nr)
+      const vf = b.verkaufsfaehig_lager_kg === null ? null : aw?.verkaufbar_kg != null ? Number(aw.verkaufbar_kg) : Number(b.verkaufsfaehig_lager_kg)
       return {
-        b, lager,
+        b, lager, vf, offen: aw?.verkaufbar_offen ?? null,
         l: daten.lage.find(x => x.charge_nr === b.charge_nr),
-        heute: anteil === null || b.verkaufsfaehig_lager_kg === null || !(lager > 0) ? null : Math.min(b.verkaufsfaehig_lager_kg / lager, 1),
+        heute: anteil === null || vf === null || !(lager > 0) ? null : Math.min(vf / lager, 1),
       }
     }).filter(z => (!sorte || z.b.sorte === sorte) && (!nurBestand || z.b.lager_kg > 0) && passt(z.b, finden))
     // Beim Anteil steht der **schlechteste** oben: Das ist die Charge, die
@@ -95,7 +98,7 @@ export default function Chargen() {
   if (!daten) return null
   const sorten = [...new Set(daten.bestand.map(b => b.sorte))].sort()
   const summeLager = zeilen.reduce((a, z) => a + z.lager, 0)
-  const summeVerkaufsfaehig = summeBekannt(zeilen.map(z => z.b.verkaufsfaehig_lager_kg))
+  const summeVerkaufsfaehig = summeBekannt(zeilen.map(z => z.vf))
   const summeGeliefert = zeilen.reduce((a, z) => a + z.b.geliefert_kg, 0)
   /**
    * Ein Spaltenkopf, der sortiert. Der Pfeil zeigt, wohin: Bei der Masse
@@ -167,10 +170,12 @@ export default function Chargen() {
         <Erklaerung>
           <p>Eingang und ausgeliefert sind <Herkunft art="gemessen" />. <strong>Ausgeliefert</strong> ist die Masse der Lieferscheine; darunter steht,
           wie viel Eingangsware dafür aus dem Lager ging — mehr, weil unterwegs Wasser verdunstet, Faules in den Palox geht und zu Kleines oder zu Grosses aussortiert wird.</p>
-          <p><strong>Im Lager</strong> sind die Paletten, die noch da sind — so viele triffst du im Lager etwa an —, darunter die Kilo, die heute
-          auf ihnen liegen <Herkunft art="gerechnet" /> (ohne das, was seither verdunstet oder faul geworden ist).
-          <strong> Davon verkaufsfähig</strong> zieht noch ab, was die Sortiermaschine als zu klein oder zu gross herausnimmt und was Hagel ist (Unique,
-          wird als Knospe verkauft); die Leiste darunter zeigt den Weg von der Ware, wie sie einging, zum Verkaufsfähigen. Aufgeklappt steht er Schritt für Schritt.
+          <p><strong>Im Lager</strong> sind die Paletten vom Eingang, die noch dastehen — so viele triffst du im Lager etwa an —, darunter ihr
+          Gewicht beim Eingang <Herkunft art="gerechnet" />, vor Verdunstung, Palox und Arbeit.
+          <strong> Davon verkaufsfähig</strong> ist, was davon als Artikel verkauft werden kann: ohne Verdunstetes, Faules, zu klein und zu gross,
+          ohne was in kein Artikelgewicht passt und ohne Überfüllung in den Kisten; Unique (Hagel, als Knospe verkauft) zählt mit. „höchstens":
+          die Überfüllung ist nicht gewogen oder die Sortier-CSV fehlt. Die Leiste darunter zeigt den Weg von der Ware, wie sie einging, zum
+          Verkaufsfähigen. Aufgeklappt steht er Schritt für Schritt.
           Ein Klick auf einen Spaltenkopf sortiert danach — nach „davon verkaufsfähig" steht oben, was am wenigsten übersteht.</p>
         </Erklaerung>
       </Karte>
@@ -235,7 +240,7 @@ function verlustTitel(b: Auswertung['bestand'][number]): string {
   return `unbekannt, solange nicht gemessen: ${fehlt.join(' · ') || 'ein Koeffizient ohne Messung'}`
 }
 
-type Zeile = { b: Auswertung['bestand'][number]; lager: number; l?: Auswertung['lage'][number]; heute: number | null }
+type Zeile = { b: Auswertung['bestand'][number]; lager: number; vf: number | null; offen: string | null; l?: Auswertung['lage'][number]; heute: number | null }
 
 /** Das Suchfeld: eine Zahl sucht im Anfang der Nummer („16" → 1601 … 1699), sonst im Schlag und in der Sorte. */
 function passt(b: { charge_nr: number; schlag: string | null; sorte: string }, finden: string): boolean {
@@ -308,8 +313,8 @@ function ChargenZeile({ z, offen, oeffnen, daten, hagel, ungereimt }: { z: Zeile
                 : <strong>{kg(z.lager, 0)}</strong>}
               {b.n_rest_paletten != null && <span className="zelle-unter" title={`Im Lager ist ${IM_LAGER_TEXT}`}>{kg(z.lager, 0)}</span>}</>
           : <span className="leise">—</span>}</td>
-        <td className="zahl">{liegt && b.verkaufsfaehig_lager_kg !== null
-          ? <>{kg(b.verkaufsfaehig_lager_kg, 0)}{z.heute !== null && <span className="leise"> · {prozent(z.heute, 0)}</span>}
+        <td className="zahl">{liegt && z.vf !== null
+          ? <>{z.offen && <span className="mini-wort zelle-oben" title={`noch offen: ${z.offen}`}>höchstens</span>}{kg(z.vf, 0)}{z.heute !== null && <span className="leise"> · {prozent(z.heute, 0)}</span>}
               {kette && <span className="zelle-leiste"><LagerLeiste s={kette} /></span>}</>
           : <span className="leise">—</span>}</td>
         <td className="zahl" title={verlustTitel(b)}>{kg(b.verlust_heute_kg, 0)}</td>
@@ -365,9 +370,9 @@ function ChargeDetail({ nr, z, daten }: { nr: number; z: Zeile; daten: Auswertun
     <div className="wechsel">
       {aw && Number(aw.eingang_kg) > 0 && (
         <section className="detail-kette">
-          <h3 className="oben-0">Was im Lager liegt — und was davon verkaufsfähig ist</h3>
+          <h3 className="oben-0">Was im Lager steht — und was davon verkaufsfähig ist</h3>
           <LagerRechnung s={summiere([aw])}
-                         fuss={aw.marge_anteil != null && Number(aw.marge_kg) > 0.5 ? <p className="leise unten-0">Überfüllung: {aw.marge_quelle}.</p> : undefined} />
+                         fuss={aw.marge_anteil != null && Number(aw.ueberfuellung_kg) > 0.5 ? <p className="leise unten-0">Überfüllung: {aw.marge_quelle}.</p> : undefined} />
         </section>
       )}
       {/* Runde AO: keine zweite Zahlenreihe mehr — die Zahlen stehen in der

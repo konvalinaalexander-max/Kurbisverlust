@@ -486,6 +486,30 @@ wird als Lücke gezählt („n von m Chargen fehlen") — nie 0. Ohne gewogene K
 weder der Charge noch der Sorte: Marge unbekannt, „verrechenbar" steht nicht da.
 **Urteil:** ehrlich; ändert keine Zahl der Kaskade, legt sie nur hin.
 
+**Seit 0123 (23. Oktober) — im Lager und verkaufsfähig, an jeder Stelle gleich.**
+*Im Lager* ist die Eingangsmasse der Paletten, die noch stehen (`eingang_kg` =
+`erg_charge.lager_kg` = `erg_prognose.lager_kg`), mit den Restpaletten — ohne
+Abzug, vor Verdunstung, Palox und Arbeit. *Verkaufsfähig* ist `verkaufbar_kg`:
+**Braucht** dazu `artikel_lager_teile(0)` (das Verkaufsfähige der Kaskade nach
+den Gewichten der Artikel geteilt, aus der Sortier-CSV, jeder Kürbis um die
+gemessene Verdunstung geschrumpft) und die Überfüllung a wie oben.
+**Rechnet:** passt in keinen Artikel = Σ der Teile darunter, darüber, dazwischen
+und der Sorten ohne Artikel; Grösse offen = Σ ohne Verteilung; als Artikel =
+verkaufsfähig − passt in keinen Artikel; Überfüllung = als Artikel · a/(1 + a);
+verkaufbar = als Artikel − Überfüllung + Unique. Die Kette geht auf:
+eingang − verdunstet − faul − zu klein − zu gross − Faules beim Abpacken −
+passt in keinen Artikel − Überfüllung = verkaufbar. Der Anteil in der Kachel
+ist verkaufbar ÷ im Lager.
+**Fehlt eine Eingabe:** keine gewogene Überfüllung (Charge und Sorte): nichts
+abgezogen, aber „höchstens", und `verkaufbar_offen` sagt „Überfüllung nicht
+gewogen"; keine Sortier-CSV: dasselbe mit „Grösse offen" — nie 0. Die Spalten
+von 0121 (`verkaufsfaehig_kg`, `marge_kg`, `verrechenbar_kg`) bleiben, wie sie
+waren: das Verkaufsfähige der Sortiermaschine.
+**Urteil:** ehrlich; die Zahl der Kachel ist dieselbe wie unter Chargen, im
+Fenster der Charge und (je Artikel) unter Artikel. Der Verlauf über die Wochen
+kennt nur das Verkaufsfähige der Sortiermaschine — dort steht der heutige
+Wert als eigener Punkt daneben.
+
 ## 12d. Die Charge einer Palette (`paletten_zuordnen`, 0121)
 
 **Braucht:** Paletten mit der Charge des Journals (`charge_nr_journal`), Zettel

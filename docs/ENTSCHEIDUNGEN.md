@@ -4171,6 +4171,67 @@ Daten, dann die Annahme — nach der Korrektur nachsehen.
 nicht alles: vier mal vier gleiche Paloxen und ein Tag mit 30 Paaren bei
 13 erwarteten sind Fragen wert.
 
+## Runde AY: im Lager steht, was vom Eingang dasteht; verkaufsfähig ist, was als Artikel geht (23. Oktober, 0123)
+
+Der Betrieb, zur Kachel „davon verkaufsfähig 285.6 t · 96 %": „96 % von was?
+Kann ja nicht sein, dass von allem, was im Lager ist, 96 % verkaufsfähig sind."
+Und genauer: „Im Lager will ich, was wirklich steht — Paletten, bevor wir etwas
+in den Palox schmeissen, bevor es Arbeiten erlebt, und vor der Verdunstung …
+und verkaufsfähig sollst du wirklich das machen, was wir verkaufen können —
+minus allem: innerhalb der Artikelgewichte, verschenkte Marge abgezogen,
+Palox, Verdunstung. Wie viele Kilo können wir tatsächlich verkaufen."
+
+**Was die 96 % waren.** Das Verkaufsfähige der Kaskade geteilt durch die gute
+Ware (was nach Verdunstung und Faulem noch auf den Paletten liegt; so hatte es
+die Runde vom 22. Oktober als „im Lager" festgelegt). Abgezogen war davon nur,
+was die Sortiermaschine als zu klein oder zu gross herausnimmt — auf den
+Rohdaten vom 22. Oktober 13.7 t von 342.8 t. Die Leiste darunter rechnete vom
+Eingang her (dort 81 %). Zwei Bezüge in einer Kachel, und keiner davon hiess so.
+
+**1. Im Lager** ist wieder die Eingangsmasse der Paletten, die noch stehen
+(`lager_kg`), mit den Restpaletten — ohne Abzug. Die Entscheidung vom 22.
+Oktober („ohne Verdunstetes und Faules") ist damit zurückgenommen, auf Wunsch
+des Betriebs; was abgeht, steht jetzt im Verkaufsfähigen.
+
+**2. Verkaufsfähig** ist `v_lager_ausweis.verkaufbar_kg` (0123): das
+Verkaufsfähige der Sortiermaschine, ohne was in kein Artikelgewicht passt
+(aus `artikel_lager_teile`: darunter, darüber, dazwischen, Sorte ohne Artikel)
+und ohne die Überfüllung auf dem Teil, der als Artikel geht; Unique zählt mit.
+Die Kette geht vom Eingang bis dahin auf. Die Spalten von 0121 bleiben
+unverändert daneben (nie eine Spalte löschen).
+
+**3. Leer ist nicht null.** Ohne gewogene Überfüllung (Charge und Sorte) und
+ohne Sortier-CSV wird nichts erfunden: Die Zahl steht als „höchstens" da, und
+`verkaufbar_offen` sagt, was fehlt. Der tägliche Abzug enthält die
+Einzelgewichte der Sortier-CSV nicht; in der lokalen Datenbank aus dem Abzug
+steht darum jede Charge als „höchstens". Im Betrieb wird die Zahl mit jeder
+Sortier-CSV und jeder gewogenen fertigen Palette genauer.
+
+**4. Überall dieselbe Zahl.** Kachel und Rechenweg im Lagermanagement, Spalte
+und aufgeklappte Charge unter Chargen, das Fenster der Charge, unter Artikel
+die Kopfzahl, der Balken und die Tabelle (je Grösse ohne Überfüllung). Im
+Verlauf heisst die Linie jetzt, was sie ist — „nach der Sortiermaschine
+verkaufsfähig" —, und der heutige Wert als Artikel steht als Punkt daneben.
+Die Tabelle „Was ist noch im Haus?" bleibt die Sicht der Maschine (Bänder).
+
+**Geprüft.** Prüfblock 0123 (a–e) mit 12 Mutationen, alle schlagen an — zwei
+erst, nachdem der Block gebaute Fälle bekam: eine Lücke zwischen den
+Knirps-Gewichten (Ware dazwischen) und eine Tiana-Charge mit Sortier-CSV und
+gewogener Überfüllung, weil die Demo beides nicht hat. Tests
+`test/ausweis.test.ts`, `test/lager.test.ts`, `test/artikel.test.ts` — die
+Regel hat sich geändert, die Tests mit ihr, und sie sagen es. Die Gegenprobe
+der Kopfzahlen (`beschriftung.mjs`) rechnet „im Lager" aus `erg_bilanz.lager_kg`
+und „verkaufsfähig" aus Σ `verkaufbar_kg`.
+
+**Was bewusst nicht gemacht wurde.**
+- Die Kaskade rechnet nicht auf Artikelgewichte um. Die Prognose in Wochen und
+  der Verlauf bleiben beim Verkaufsfähigen der Maschine; eine Umrechnung der
+  vergangenen Wochen mit dem heutigen Anteil wäre erfunden.
+- Keine geschätzte Überfüllung für Chargen ohne gewogene Palette — auch nicht
+  das Mittel der anderen Sorten.
+- Was in keinen Artikel passt, wird nicht als „lose verkäuflich" mitgezählt;
+  der Betrieb hat es ausdrücklich aus dem Verkaufsfähigen genommen.
+
 ## Runde AX: wer im Perigon wie heisst, und der Weg der Ware (23. Oktober, 0122)
 
 Der Betrieb, mit der Liste der Perigon-Nummern: „Oettli heisst leider im

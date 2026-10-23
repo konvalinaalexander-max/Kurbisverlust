@@ -783,6 +783,12 @@ Perigon-Nummer an zwei Chargen steht als Ungereimtheit da (AB-171) — so
 Ungereimtheit sagt, ob schon umgebucht ist, was die App vorschlägt, und
 zeigt den Weg der Ware je Charge: herein, Halle, hinaus (AB-172). **Der
 Betrieb spielt setup.sql einmal ein (Stand 122) und drückt „Neu rechnen".**
+**0123:** „96 % von was?" — Im Lager sind jetzt die Paletten vom Eingang, die
+noch dastehen, mit dem Gewicht beim Eingang; verkaufsfähig ist, was davon als
+Artikel verkauft werden kann: ohne Verdunstung, Palox, zu klein/zu gross, was
+in kein Artikelgewicht passt und die Überfüllung in den Kisten (AB-173). Der
+Anteil bezieht sich auf das, was im Lager steht. **Setup.sql einmal einspielen
+(Stand 123), dann „Neu rechnen".**
 
 **Runde AT (0117)** — Kunden in der Reihenfolge des Betriebs. Unter
 **Lagermanagement nach Artikel** ordnen zwei Pfeile in der Gruppenzeile die

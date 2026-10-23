@@ -39,6 +39,22 @@ export const ARTIKEL_KLASSEN: Klasse[] = KLASSEN.filter(k => k !== 'ausserhalb')
 export const klasseVon = (g: string): Klasse =>
   g === 'klein' || g === 'gross' || g === 'stueck' ? g : g === 'ohne Verteilung' ? 'ohne' : 'ausserhalb'
 
+/**
+ * 0123: Ein Teil des Verkaufsfähigen, wie viel davon als Artikel bezahlt wird —
+ * ohne die Überfüllung in den Kisten (a = zu viel ÷ Soll der Charge, aus dem
+ * Lager-Ausweis). Was in keinen Artikel passt und Unique bleiben, wie sie sind.
+ * `offen`: die Überfüllung ist nicht gewogen oder die Grösse offen — dann ist
+ * die Zahl höchstens so gross.
+ */
+export function alsArtikel(t: ArtikelLagerCharge, rest?: Map<number, RestTeile>): { kg: number; ueberfuellung: number; offen: boolean } {
+  const kl = klasseVon(t.groesse)
+  const kg = Number(t.kg)
+  if (kl === 'ausserhalb' || kl === 'unique') return { kg, ueberfuellung: 0, offen: false }
+  const a = rest?.get(t.charge_nr)?.marge
+  const netto = a != null ? kg / (1 + a) : kg
+  return { kg: netto, ueberfuellung: kg - netto, offen: a === null || kl === 'ohne' }
+}
+
 export const passtGruppe = (w: Wahl, g: string | null) => w.gruppe === '' || g === w.gruppe
 export const passtLabel = (w: Wahl, l: string | null) => w.label === 'beide' || l === w.label
 export const passtKlasse = (w: Wahl, k: Klasse) => w.groesse === 'beide' || k === w.groesse
@@ -52,7 +68,9 @@ export const passtKlasse = (w: Wahl, k: Klasse) => w.groesse === 'beide' || k ==
  */
 export interface RestTeile { kanal: number; faul: number; verdunstet: number; fax: number; bekannt?: boolean
   /** 0121: Hagelware (Unique) — nicht faul; wird als Knospe verkauft. faul ist dann das Faule ohne Hagel. */
-  unique?: number }
+  unique?: number
+  /** 0123: Überfüllung je Soll (zu viel ÷ Soll) der Charge; null = nicht gewogen; fehlt = kein Ausweis. */
+  marge?: number | null }
 
 /** Ein Artikel ohne Grösse (Gruppe × Label), mit allem, was seine Chargen bis heute erlebt haben. */
 export interface Uebersichtszeile {
@@ -60,17 +78,20 @@ export interface Uebersichtszeile {
   eingang: number; ausgelagert: number; geliefert: number
   /** Die liegende Eingangsmasse: Eingang − ausgelagert (der Balken ist so lang wie der Eingang). */
   lager: number
-  /** 22. Oktober: im Lager — was auf den Paletten liegt, ohne Verdunstetes und Faules (src/auswertung/lager.ts).
-   *  imLagerHoechstens: eine Charge ohne Teilung oder ohne gemessene Rate — die Zahl ist eine obere Schranke. */
+  /** 23. Oktober: im Lager — die Paletten vom Eingang, die noch stehen, mit dem Gewicht beim Eingang (src/auswertung/lager.ts).
+   *  imLagerHoechstens: seit dem 23. Oktober immer false — die Eingangsmasse hängt an keiner Rate. */
   imLager: number; imLagerHoechstens: boolean
+  /** 0123: das Verkaufsfähige ist eine obere Schranke — eine Charge ohne gewogene Überfüllung oder ohne Sortier-CSV. */
+  vfHoechstens: boolean
   /** Die Eingangspaletten, die noch da sind (Σ n_rest_paletten); null, wenn keine Charge eine Zahl hat. */
   paletten: number | null
   /** Das Verkaufsfähige heute; luecke: Chargen mit Ware, deren Verkaufsfähiges unbekannt ist (nie 0). */
   vf: number; luecke: number
   /** Das Verkaufsfähige nach Grösse, heute und am Stichtag der Tabelle (Runde AS: Wochenregler nur dort). */
   klassen: Map<Klasse, number>; klassenSpaeter: Map<Klasse, number>
-  /** Runde AS: der Rest des Lagers wie im Lagermanagement nach Charge; offen — Chargen ohne Teilung (nie 0 statt unbekannt). */
-  rest: RestTeile & { offen: number }
+  /** Runde AS: der Rest des Lagers wie im Lagermanagement nach Charge; offen — Chargen ohne Teilung (nie 0 statt unbekannt).
+   *  0123: ueberfuellung — was in den Kisten über dem Soll verschenkt wird, auf dem Teil, der als Artikel geht (heute). */
+  rest: RestTeile & { offen: number; ueberfuellung: number }
   chargen: number[]
 }
 
@@ -87,8 +108,8 @@ export function uebersichtszeilen(bestand: Bestand[], labelVon: Map<number, Char
     let z = m.get(k)
     if (!z) {
       z = { schluessel: k, gruppe, label, n: 0, eingang: 0, ausgelagert: 0, geliefert: 0, lager: 0, imLager: 0, imLagerHoechstens: false,
-            paletten: null, vf: 0, luecke: 0,
-            klassen: new Map(), klassenSpaeter: new Map(), rest: { kanal: 0, faul: 0, verdunstet: 0, fax: 0, offen: 0 }, chargen: [] }
+            vfHoechstens: false, paletten: null, vf: 0, luecke: 0,
+            klassen: new Map(), klassenSpaeter: new Map(), rest: { kanal: 0, faul: 0, verdunstet: 0, fax: 0, offen: 0, ueberfuellung: 0 }, chargen: [] }
       m.set(k, z)
     }
     z.n += 1
@@ -102,11 +123,9 @@ export function uebersichtszeilen(bestand: Bestand[], labelVon: Map<number, Char
       // Der Rest nur, wo die Kaskade ihn geteilt hat und das Verkaufsfähige bekannt ist —
       // sonst liegt die ganze Ware dieser Charge als „offen" im Balken, nie als 0.
       const r = weiter.rest?.get(b.charge_nr)
-      // Im Lager: die liegende Eingangsmasse ohne das Verdunstete und das Faule.
-      // Ohne Teilung der Kaskade ist es höchstens die ganze liegende Masse —
-      // abgezogen wird nur, was gerechnet ist, nie etwas erfunden.
-      z.imLager += r ? Math.max(Number(b.lager_kg) - r.verdunstet - r.faul, 0) : Number(b.lager_kg)
-      if (!r || r.bekannt === false) z.imLagerHoechstens = true
+      // 23. Oktober: Im Lager ist die Eingangsmasse der Paletten, die noch stehen — ohne Abzug.
+      // Was verdunstet und faul ist, steht als Teil des Lagers im Balken, nicht daneben.
+      z.imLager += Number(b.lager_kg)
       if (r && b.verkaufsfaehig_lager_kg !== null) {
         z.rest.kanal += r.kanal; z.rest.faul += r.faul; z.rest.verdunstet += r.verdunstet; z.rest.fax += r.fax
         z.rest.offen += Math.max(Number(b.lager_kg) - Number(b.verkaufsfaehig_lager_kg) - r.kanal - r.faul - r.verdunstet - r.fax - (r.unique ?? 0), 0)
@@ -124,8 +143,8 @@ export function uebersichtszeilen(bestand: Bestand[], labelVon: Map<number, Char
     let z = m.get(k)
     if (!z) {
       z = { schluessel: k, gruppe, label: 'K', n: 0, eingang: 0, ausgelagert: 0, geliefert: 0, lager: 0, imLager: 0, imLagerHoechstens: false,
-            paletten: null, vf: 0, luecke: 0,
-            klassen: new Map(), klassenSpaeter: new Map(), rest: { kanal: 0, faul: 0, verdunstet: 0, fax: 0, offen: 0 }, chargen: [] }
+            vfHoechstens: false, paletten: null, vf: 0, luecke: 0,
+            klassen: new Map(), klassenSpaeter: new Map(), rest: { kanal: 0, faul: 0, verdunstet: 0, fax: 0, offen: 0, ueberfuellung: 0 }, chargen: [] }
       m.set(k, z)
     }
     const eigen = zuZeile.get(b.charge_nr)
@@ -136,12 +155,18 @@ export function uebersichtszeilen(bestand: Bestand[], labelVon: Map<number, Char
     if (!z.chargen.includes(b.charge_nr)) z.chargen.push(b.charge_nr)
   }
   // Das Verkaufsfähige nach Grösse: heute für den Balken, am Stichtag für die Tabelle.
+  // 0123: ohne die Überfüllung — was als Artikel geht, in Kisten über dem Soll, ist zu
+  // a/(1+a) verschenkt (a aus den gewogenen Paletten der Charge, sonst ihrer Sorte).
+  // Nicht gewogen: nichts abgezogen, aber die Zahl ist höchstens so gross.
   const zuteilen = (liste: ArtikelLagerCharge[], feld: 'klassen' | 'klassenSpaeter') => {
     for (const t of liste) {
       const z = zuZeile.get(t.charge_nr)
       if (!z || !(Number(t.kg) > 0)) continue
       const kl = klasseVon(t.groesse)
-      z[feld].set(kl, (z[feld].get(kl) ?? 0) + Number(t.kg))
+      const n = alsArtikel(t, weiter.rest)
+      if (n.offen) z.vfHoechstens = true
+      if (feld === 'klassen') z.rest.ueberfuellung += n.ueberfuellung
+      z[feld].set(kl, (z[feld].get(kl) ?? 0) + n.kg)
     }
   }
   zuteilen(teile, 'klassen')

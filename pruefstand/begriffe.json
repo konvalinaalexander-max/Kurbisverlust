@@ -59,8 +59,8 @@
         "davon verkaufsfähig"
       ],
       "art": "gerechnet",
-      "bedeutet": "Von der Ware im Haus das, was nach Abzug von zu klein und zu gross in den Hauptkanal geht",
-      "quelle": "erg_bilanz.verkaufsfaehig_heute_kg · erg_charge.verkaufsfaehig_lager_kg"
+      "bedeutet": "Was als Artikel tatsächlich verkauft werden kann: die Ware im Lager, wie sie einging, ohne Verdunstetes, Faules, zu klein, zu gross, Faules beim Abpacken, was in kein Artikelgewicht passt und die Überfüllung in den Kisten; Unique zählt mit (0123). „höchstens“, wo die Überfüllung nicht gewogen oder die Sortier-CSV offen ist. Bis zum 23. Oktober: nur ohne zu klein und zu gross",
+      "quelle": "v_lager_ausweis.verkaufbar_kg · erg_bilanz.verkaufsfaehig_heute_kg · erg_charge.verkaufsfaehig_lager_kg"
     },
     {
       "muster": [
@@ -255,8 +255,8 @@
         "Masse im Lager"
       ],
       "art": "gerechnet",
-      "bedeutet": "Was auf den Paletten liegt: Eingangsware, die nicht ausgeliefert ist, ohne das, was seither verdunstet oder faul geworden ist — die gute Ware der Kaskade; darin das Verkaufsfähige und zu klein / zu gross. Dazu die Eingangspaletten, die noch da sind (≈). Seit dem 22. Oktober; bis dahin die Eingangsmasse ohne Abzug (heute „Liegend“)",
-      "quelle": "erg_prognose.gute_ware_kg · erg_verlauf.im_haus_kg − aussortiert_kg · erg_charge.im_haus_heute_kg − kanal_ausgelagert_kg · erg_charge.n_rest_paletten"
+      "bedeutet": "Die Eingangspaletten, die noch dastehen (≈), mit dem Gewicht beim Eingang — vor Verdunstung, Palox und Arbeit (seit dem 23. Oktober). Vom 22. auf den 23. Oktober war es die gute Ware der Kaskade (ohne Verdunstetes und Faules)",
+      "quelle": "erg_charge.lager_kg · erg_prognose.lager_kg · erg_verlauf.lager_kg · v_lager_ausweis.eingang_kg · erg_charge.n_rest_paletten"
     },
     {
       "muster": [
@@ -354,6 +354,22 @@
       "art": "gerechnet",
       "bedeutet": "Verkaufsfähig ohne die Überfüllung in den Kisten: was der Kunde bezahlt (0121)",
       "quelle": "v_lager_ausweis.verrechenbar_kg · erg_marge_charge"
+    },
+    {
+      "muster": [
+        "passt in keinen Artikel"
+      ],
+      "art": "gerechnet",
+      "bedeutet": "Was die Sortiermaschine durchlässt, aber leichter oder schwerer als die Gewichte der Artikel ist (darunter, darüber, dazwischen, Sorte ohne Artikel) — geht nicht als Artikel; aus der Sortier-CSV, jeder Kürbis um die gemessene Verdunstung geschrumpft (0123)",
+      "quelle": "v_lager_ausweis.keinen_artikel_kg · artikel_lager_teile(0)"
+    },
+    {
+      "muster": [
+        "Grösse offen"
+      ],
+      "art": "gerechnet",
+      "bedeutet": "Verkaufsfähiges einer Charge ohne Sortier-CSV (auch keine ihrer Sorte): ob es in die Gewichte der Artikel passt, ist offen — das Verkaufsfähige ist dann höchstens so gross (0123)",
+      "quelle": "v_lager_ausweis.groesse_offen_kg · artikel_lager_teile(0)"
     }
   ]
 }

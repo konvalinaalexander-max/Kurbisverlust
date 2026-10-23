@@ -10,7 +10,7 @@ import { kaliberGlockeBei, lagerKaliberBei, lieferungenVon, prognoseBei, useAusw
          type Auswertung, type Bestand, type KaliberGlocke, type LagerKaliber, type Prognose, fehlendeRaten } from '../auswertung/daten'
 import { IM_LAGER_TEXT, imLagerBei, palettenIm, palettenText } from '../auswertung/lager'
 import { Ungereimtheiten } from '../auswertung/Ungereimtheiten'
-import { summiere } from '../auswertung/ausweis'
+import { offenText, summiere } from '../auswertung/ausweis'
 import { LagerLeiste, LagerRechnung } from '../auswertung/LagerKette'
 import { Probleme, Rechnet, Reiterkopf } from '../auswertung/Karten'
 import { JournalAbgleich } from '../betrieb/JournalAbgleich'
@@ -153,21 +153,27 @@ function Filterleiste({ daten, filter, setzen }: { daten: Auswertung; filter: Fi
  * der Betrieb: „minus Verdunstung (mit Lagerdauer und täglicher Rate), minus
  * Palox, minus zu klein, zu gross … und vielleicht minus verschenkte Marge.
  * Kommunizier das clever, in Worten." Für die Auswahl oben, über ihre Chargen.
+ * 0123: bis zu dem, was als Artikel verkauft werden kann — mit „passt in
+ * keinen Artikel" und der Überfüllung als Abzug.
  */
 function VomLagerZumVerkauf({ daten, filter }: { daten: Auswertung; filter: Filter }) {
   const nrn = new Set(chargenIm(daten.bestand, filter).map(b => b.charge_nr))
   const s = summiere(daten.ausweis.filter(a => nrn.has(a.charge_nr)))
   if (!(s.eingang > 0)) return null
   return (
-    <Karte id="lager-kette" titel="Vom Lager zum Verkaufsfähigen" unter="was auf den Paletten lag, was seither wegging, was die Sortiermaschine herausnimmt">
+    <Karte id="lager-kette" titel="Vom Lager zum Verkaufsfähigen" unter="was im Lager steht, was davon abgeht, was als Artikel verkauft werden kann">
       <LagerRechnung s={s} />
       <Erklaerung titel="Was die Schritte heissen">
-        <p><strong>Verdunstet</strong>: Wasser, das die Kürbisse seit dem Eingang verloren haben — gerechnet aus der Lagerdauer und der gewogenen
-        Rate je Tag. <strong>Faul (Palox)</strong>: was beim Waschen und Sortieren faul in den Palox geht. <strong>Unique</strong>: Hagelware —
-        nicht faul, sie wird als Knospe verkauft, wie ein eigener Artikel. <strong>Zu klein / zu gross</strong>: was die Sortiermaschine unter dem
-        kleinsten und über dem obersten Band herausnimmt; das Zu-Grosse steht auf den Paletten „+2000 g" und geht in einen anderen Kanal.
-        <strong> Überfüllung</strong>: was in den Kisten über dem Sollgewicht mitgeht und nicht verrechnet wird — nur bei Kisten mit Sollgewicht,
-        aus den gewogenen fertigen Paletten.</p>
+        <p><strong>Im Lager</strong>: die Eingangspaletten, die noch dastehen, mit dem Gewicht beim Eingang — vor Verdunstung, Palox und Arbeit.
+        <strong> Verdunstet</strong>: Wasser, das die Kürbisse seit dem Eingang verloren haben — gerechnet aus der Lagerdauer und der gewogenen
+        Rate je Tag. <strong>Faul (Palox)</strong>: was beim Waschen und Sortieren faul in den Palox geht. <strong>Zu klein / zu gross</strong>: was
+        die Sortiermaschine unter dem kleinsten und über dem obersten Band herausnimmt; das Zu-Grosse steht auf den Paletten „+2000 g" und geht in
+        einen anderen Kanal. <strong>Passt in keinen Artikel</strong>: die Maschine lässt es durch, aber es ist leichter oder schwerer als die
+        Gewichte der Artikel (Coop-Artikeldaten unter Stammdaten) — aus der Sortier-CSV, jeder Kürbis um die gemessene Verdunstung geschrumpft.
+        <strong> Überfüllung</strong>: was in den Kisten über dem Sollgewicht mitgeht und nicht bezahlt wird — aus den gewogenen fertigen
+        Paletten, auf dem Teil, der als Artikel geht. <strong>Verkaufsfähig</strong> ist, was danach bleibt: was wir als Artikel tatsächlich
+        verkaufen können. <strong>Unique</strong> (Hagelware) ist darin — nicht faul, sie wird als Knospe verkauft, wie ein eigener Artikel.
+        Ist die Überfüllung einer Charge nicht gewogen oder fehlt ihre Sortier-CSV, steht „höchstens" davor.</p>
       </Erklaerung>
     </Karte>
   )
@@ -191,22 +197,33 @@ function Kennzahlen({ daten, filter }: { daten: Auswertung; filter: Filter }) {
   // ohne Chargennummer einmal je Charge seiner Sorte (und die Datenbank jeden
   // einmal je Eingangstag: „4'836 Lieferungen" bei 1'133).
   const lieferungen = lieferungenVon(daten.lieferungGruppe, filter.gruppe, filter.schluessel)?.n_lieferungen ?? null
-  // 22. Oktober: Im Lager ist, was auf den Paletten liegt — ohne das
-  // Verdunstete und das Faule (src/auswertung/lager.ts). Bis hier war es die
-  // Eingangsmasse, die nicht ausgeliefert ist, und der Balken darunter zeigte
-  // Verdunstetes und „Palox" als Teil des Lagers.
+  // 23. Oktober: „Im Lager will ich, was wirklich steht — Paletten, bevor wir
+  // etwas in den Palox schmeissen, bevor es Arbeiten erlebt, und vor der
+  // Verdunstung … und verkaufsfähig das, was wir wirklich verkaufen können."
+  // Im Lager: die Eingangspaletten, die noch stehen, mit dem Gewicht beim
+  // Eingang. Verkaufsfähig: was davon als Artikel verkauft werden kann
+  // (v_lager_ausweis.verkaufbar_kg, 0123) — und der Anteil an genau diesem
+  // Lager. Bis hier teilte die Kachel das Verkaufsfähige der Sortiermaschine
+  // durch die gute Ware („96 %"), die Leiste darunter rechnete vom Eingang.
   const lager = imLagerBei(daten.prognose, filter.gruppe, filter.schluessel, 0)
   const restPaletten = palettenIm(chargen)
-  const anteil = p0 && p0.verkaufsfaehig_anteil !== null && lager.kg ? p0.verkaufsfaehig_kg / lager.kg : null
-  // Die Ware auf den Paletten, zerlegt: derselbe Balken, den die Kaskade rechnet.
+  const nrn = new Set(chargen.map(b => b.charge_nr))
+  const kette = summiere(daten.ausweis.filter(a => nrn.has(a.charge_nr)))
+  const lagerKg = kette.eingang > 0 ? kette.eingang : lager.kg
+  const bekannt = kette.eingang > 0 && kette.luecken < kette.n
+  // Offen (Überfüllung nicht gewogen, keine Sortier-CSV): höchstens so viel. Eine Charge ohne Rate fehlt
+  // in der Summe ganz — das sagt der Zeiger, nicht „höchstens".
+  const hoechstens = !bekannt || kette.offen.size > 0
+  const herkunftText = [kette.offen.size > 0 ? `Höchstens, weil noch offen: ${offenText(kette)}` : '',
+    kette.luecken > 0 ? `${kette.luecken} von ${kette.n} Chargen fehlen darin — eine Rate ist nicht gemessen` : ''].filter(Boolean).join('. ')
+  const anteil = bekannt && lagerKg ? kette.verkaufbar / lagerKg : null
+  // Ohne Ausweis (alte Datenbank): die Teile der Kaskade, wie bisher.
   const teile = p0 ? [
     { name: 'verkaufsfähig', kg: p0.verkaufsfaehig_kg, farbe: 'var(--strom-vf)' },
     { name: 'zu klein / zu gross', kg: p0.kanal_kg, farbe: 'var(--strom-ausschuss)' },
     { name: 'faul beim Abpacken', kg: p0.fax_kg, farbe: 'var(--strom-schimmel)' },
   ] : []
   const summe = teile.reduce((a, t) => a + t.kg, 0)
-  const nrn = new Set(chargen.map(b => b.charge_nr))
-  const kette = summiere(daten.ausweis.filter(a => nrn.has(a.charge_nr)))
 
   return (
     <div className="kennzahl-reihe">
@@ -225,15 +242,15 @@ function Kennzahlen({ daten, filter }: { daten: Auswertung; filter: Filter }) {
       {/* 0121: zuerst die Paletten — „so viele wirst du im Lager wohl antreffen" —, darunter die Kilo darauf. */}
       <Kennzahl titel="Im Lager" ton="kuerbis" id="kz-lager"
                 wert={restPaletten !== null && restPaletten > 0
-                  ? <>{palettenText(restPaletten)}<Herkunft art="gerechnet" text="die Eingangspaletten, die noch da sind: Eingangsmasse, die nicht ausgeliefert ist, durch die mittlere Eingangspalette" /></>
-                  : <>{lager.hoechstens && <span className="mini-wort">höchstens </span>}<Tonnen kg={lager.kg} /><Herkunft art="gerechnet" text={`Im Lager ist ${IM_LAGER_TEXT}`} /></>}
-                unter={<>{lager.hoechstens && 'höchstens '}{tonnen(lager.kg)} darauf · ohne Verdunstetes und Faules</>} />
+                  ? <>{palettenText(restPaletten)}<Herkunft art="gerechnet" text="die Eingangspaletten, die noch dastehen: Eingangsmasse, die nicht ausgeliefert ist, durch die mittlere Eingangspalette" /></>
+                  : <><Tonnen kg={lagerKg} /><Herkunft art="gerechnet" text={`Im Lager ist ${IM_LAGER_TEXT}`} /></>}
+                unter={<>{tonnen(lagerKg)} beim Eingang · vor Verdunstung, Palox und Arbeit</>} />
       <Kennzahl titel="Davon verkaufsfähig" ton="gruen" id="kz-verkaufsfaehig"
                 wert={<>
-                  {anteil === null && <span className="mini-wort">höchstens </span>}
-                  <Tonnen kg={p0?.verkaufsfaehig_kg} />
+                  {hoechstens && <span className="mini-wort">höchstens </span>}
+                  <Tonnen kg={bekannt ? kette.verkaufbar : p0?.verkaufsfaehig_kg} />
                   {anteil !== null && <span className="neben-zahl"> · {prozent(anteil, 0)}</span>}
-                  <Herkunft art="gerechnet" /></>}
+                  <Herkunft art="gerechnet" text={bekannt && herkunftText ? herkunftText : undefined} /></>}
                 unter={<>
                   {/* 0121: dieselbe Leiste wie überall — die Ware, wie sie einging, bis zum Verkaufsfähigen (Schritte darunter). */}
                   {kette.eingang > 0 ? <LagerLeiste s={kette} /> : (
@@ -245,7 +262,7 @@ function Kennzahlen({ daten, filter }: { daten: Auswertung; filter: Filter }) {
                   {anteil === null
                     // Runde AF: der Betrieb fragte „welche Rate?" — hier steht sie, mit dem Weg zum Reiter.
                     ? <>unbekannt, solange {fehlendeRaten(p0).join(', ') || 'eine Rate'} nicht gemessen ist — <Link to="/messungen/ausstehend">Messungen → Ausstehend</Link></>
-                    : <>von dem, was im Lager liegt</>}
+                    : <>als Artikel verkaufbar — von dem, was im Lager steht</>}
                 </>} />
     </div>
   )
@@ -266,8 +283,12 @@ function Verlauf({ daten, filter }: { daten: Auswertung; filter: Filter }) {
   // stand „heute" in der Mitte, und vor dem ersten Eingang lagen Monate leer
   // (beim Betrieb ab April, der erste Eingang war am 3. Juli).
   const xVon = xErste
-  const imLagerWoche = (w: typeof wochen[number]) => Math.max(Number(w.im_haus_kg) - Number(w.aussortiert_kg), 0)
+  // 23. Oktober: Im Lager sind die Paletten vom Eingang, die noch stehen, mit dem Gewicht beim Eingang (lager_kg).
+  const imLagerWoche = (w: typeof wochen[number]) => Math.max(Number(w.lager_kg), 0)
   const anteil = (w: typeof wochen[number]) => imLagerWoche(w) > 0 ? w.verkaufsfaehig_kg / imLagerWoche(w) : null
+  // Was als Artikel verkauft werden kann, gibt es nur für heute (v_lager_ausweis) — ein Punkt, dieselbe Zahl wie die Kachel.
+  const nrn = new Set(chargenIm(daten.bestand, filter).map(b => b.charge_nr))
+  const kette = summiere(daten.ausweis.filter(a => nrn.has(a.charge_nr)))
   // Runde AD: „Eingang kumuliert" ist weg — der Eingang steht als Zahl in der
   // Kennzahl oben; als Linie war er ausgeblendet und hat nur die Legende gefüllt.
   const reihen: Reihe[] = [
@@ -277,14 +298,19 @@ function Verlauf({ daten, filter }: { daten: Auswertung; filter: Filter }) {
     { name: 'Ausgang kumuliert', farbe: 'var(--text-leise)', linie: true, marker: false,
       punkte: bisHeute.map(w => ({ x: x(w.bis), y: w.ausgang_kum_kg })) },
     // Runde AO: „Im Lager" endet heute wie der Ausgang; vorhergesagt wird nur,
-    // was davon verkaufsfähig bleibt. 22. Oktober: Im Lager ist, was auf den
-    // Paletten liegt — im Haus ohne das schon Aussortierte (dieselbe Zahl wie
-    // die gute Ware der Prognose), nicht mehr die Eingangsmasse.
+    // was davon verkaufsfähig bleibt. 23. Oktober: Im Lager ist wieder die
+    // Eingangsmasse der Paletten, die noch stehen — der Betrieb will sehen,
+    // was dasteht, vor Verdunstung, Palox und Arbeit.
     { name: 'Im Lager', farbe: 'var(--kuerbis)', linie: true, marker: false, dick: true,
       punkte: bisHeute.map(w => ({ x: x(w.bis), y: imLagerWoche(w) })) },
-    { name: 'Davon verkaufsfähig', farbe: 'var(--blau)', linie: true, marker: false, dick: true, prognoseAb: heute,
+    // 0123: die Linie ist das, was die Sortiermaschine durchlässt — über die Wochen gerechnet. Was davon
+    // in die Artikelgewichte passt und ohne Überfüllung bleibt, steht heute als Punkt daneben.
+    { name: 'nach der Sortiermaschine verkaufsfähig', farbe: 'var(--blau)', linie: true, marker: false, dick: true, prognoseAb: heute,
       punkte: wochen.map(w => ({ x: x(w.bis), y: w.verkaufsfaehig_kg,
-        text: `${prozent(anteil(w), 0)} von dem, was im Lager liegt · zu klein/zu gross ${tonnen(w.kanal_kg)}${w.aussortiert_kg > 0 ? ` · dazu ${tonnen(w.aussortiert_kg)} schon aussortiert, in Paloxen im Haus` : ''}` })) },
+        text: `${prozent(anteil(w), 0)} von dem, was im Lager steht · zu klein/zu gross ${tonnen(w.kanal_kg)}${w.aussortiert_kg > 0 ? ` · dazu ${tonnen(w.aussortiert_kg)} schon aussortiert, in Paloxen im Haus` : ''}` })) },
+    ...(kette.eingang > 0 && kette.luecken < kette.n ? [{ name: 'verkaufsfähig als Artikel, heute', farbe: 'var(--strom-vf)', marker: true, form: 'raute' as const,
+      punkte: [{ x: heute, y: kette.verkaufbar,
+        text: `${kette.offen.size > 0 ? 'höchstens ' : ''}${tonnen(kette.verkaufbar)} — ohne, was in kein Artikelgewicht passt, und ohne Überfüllung (die Kachel oben)` }] }] : []),
   ]
   return (
     <Karte id="lager-verlauf" titel="Die Saison im Verlauf">
@@ -295,9 +321,11 @@ function Verlauf({ daten, filter }: { daten: Auswertung; filter: Filter }) {
               fuss={<span className="leise">verkaufsfähig ab heute gestrichelt: wenn die liegende Ware liegen bleibt</span>} />
       <Erklaerung>
         <p>Eingang und Ausgang sind <Herkunft art="gemessen" /> und enden heute.
-        <strong> Im Lager</strong> ist, was an diesem Stichtag auf den Paletten lag: die Eingangsware, die nicht ausgeliefert war,
-        ohne das, was bis dahin verdunstet oder faul geworden ist — sie fällt mit jeder Lieferung und mit dem Alter, und endet heute.
-        <strong> Davon verkaufsfähig</strong> ist <Herkunft art="gerechnet" /> und fällt auch dann weiter, wenn nichts geliefert wird: Die liegende Ware altert.</p>
+        <strong> Im Lager</strong> ist, was an diesem Stichtag an Paletten vom Eingang dastand, mit dem Gewicht beim Eingang — es fällt
+        mit jeder Lieferung und endet heute. <strong>Nach der Sortiermaschine verkaufsfähig</strong> ist <Herkunft art="gerechnet" />: ohne
+        Verdunstetes, Faules und zu klein / zu gross; es fällt auch dann weiter, wenn nichts geliefert wird — die liegende Ware altert.
+        Der Punkt heute ist, was davon als Artikel verkauft werden kann: ohne, was in kein Artikelgewicht passt, und ohne Überfüllung
+        (dieselbe Zahl wie die Kachel oben).</p>
       </Erklaerung>
     </Karte>
   )
@@ -310,7 +338,7 @@ const UNTER = -1, UEBER = -2
 
 interface Bandzeile {
   schluessel: string; name: string; unter: string; sorte: string
-  /** Im Lager am Stichtag: was auf den Paletten liegt (src/auswertung/lager.ts); null, wenn die Prognose fehlt. */
+  /** Im Lager am Stichtag: die Paletten vom Eingang, die noch stehen, mit dem Gewicht beim Eingang (src/auswertung/lager.ts); null, wenn die Prognose fehlt. */
   lager: number | null; paletten: number | null; verkaufsfaehig: number; anteil: number | null
   basis: string; nKuerbis: number | null
   /** Kilo je Kaliber-Index; UNTER und UEBER daneben — leer heisst nicht gemessen. */
@@ -405,9 +433,10 @@ function ImHaus({ daten, filter, wochen, setzeWochen }: {
                 <th rowSpan={2} className="zahl" title={`Im Lager ist ${IM_LAGER_TEXT}`}>im Lager<Herkunft art={herkunft} /></th>
                 {/* Runde AP, Wunsch des Betriebs: im Lager, die Kaliber, gesamt
                     verkaufsfähig — dann, was nicht ins Band passt: zu klein, zu gross.
-                    „gesamt" enthält beide nicht. */}
+                    „gesamt" enthält beide nicht. 0123: hier nach der Sortiermaschine —
+                    die Artikelgewichte und die Überfüllung zieht die Kachel oben ab. */}
                 <th colSpan={spalten.length + 1} className={`gruppe${spaeter ? ' spaeter' : ''}`}>
-                  verkaufsfähig {spaeter ? `in ${wochen} Wochen` : 'heute'}
+                  nach der Sortiermaschine verkaufsfähig {spaeter ? `in ${wochen} Wochen` : 'heute'}
                   {spaeter && stichtag ? <span className="leise"> · {datum(stichtag).slice(0, 6)}</span> : null}
                   <Herkunft art={herkunft} />
                 </th>
@@ -471,15 +500,16 @@ function ImHaus({ daten, filter, wochen, setzeWochen }: {
         </div>
       )}
       <p className="hilfe">
-        Im Lager = was auf den Paletten liegt: verkaufsfähig gesamt + zu klein + zu gross.
-        Was seit dem Eingang verdunstet oder faul geworden ist, liegt nicht mehr da. „gesamt" ist nur, was in ein Kaliber passt.
+        Im Lager = die Paletten vom Eingang, die noch stehen, mit dem Gewicht beim Eingang. Die Bänder sind die Kaliber der
+        Sortiermaschine; was davon als Artikel verkauft werden kann, steht oben in der Kachel und unter Artikel.
       </p>
       <Erklaerung>
-        <p><strong>Im Lager</strong> ist, was auf den Paletten liegt <Herkunft art="gerechnet" />: die Eingangsware, die nicht ausgeliefert ist,
-        ohne das, was bis zum Stichtag verdunstet oder faul geworden ist. Die Paletten darunter sind die Eingangspaletten, die noch da sind —
-        Verdunstung und Faules leeren keine Palette, und ohne Lieferung bleibt ihre Zahl auch in ein paar Wochen gleich.
-        <strong> Verkaufsfähig</strong> zieht davon ab, was zu klein oder zu gross ist —
-        dieselbe Zahl wie oben in der Kachel und in den Chargen.</p>
+        <p><strong>Im Lager</strong> ist, was an Paletten vom Eingang noch dasteht, mit dem Gewicht beim Eingang <Herkunft art="gerechnet" />:
+        die Eingangsware, die nicht ausgeliefert ist — vor Verdunstung, Palox und Arbeit. Die Paletten darunter sind die Eingangspaletten, die
+        noch da sind; ohne Lieferung bleibt ihre Zahl auch in ein paar Wochen gleich.
+        <strong> Verkaufsfähig</strong> heisst hier: nach der Sortiermaschine — ohne Verdunstetes, Faules und was zu klein oder zu gross ist,
+        verteilt auf die Bänder der Maschine. Was davon in kein Artikelgewicht passt und was als Überfüllung in den Kisten mitgeht, zieht erst
+        die Kachel oben ab („Vom Lager zum Verkaufsfähigen").</p>
         <p><strong>Zu klein</strong> (unter dem kleinsten Kaliber) und <strong>zu gross</strong> (über dem grössten) sind der gemessene Anteil der Sorte an der liegenden Ware:
         aus den Sortierläufen und den Handmessungen beim Waschen und Sortieren. Ist er für eine Sorte noch nicht gemessen, steht ein Strich — unbekannt, nicht null.</p>
         <p>Die Bänder sind keine zweite Rechnung: Jeder Kürbis der Sortier-CSV wird um die gemessene Verdunstung seiner Charge
