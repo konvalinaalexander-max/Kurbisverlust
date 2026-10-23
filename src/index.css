@@ -1201,11 +1201,27 @@ table.excel thead th { border-top: 0; } table.excel tbody tr:last-child td { bor
 .ungereimt-sache dd { margin: 0; }
 .ungereimt-aktion { display: flex; flex-wrap: wrap; gap: .5rem 1rem; align-items: center; margin-top: .45rem; font-size: var(--s-1); }
 .ungereimt-zeilen { margin: .4rem 0 0; padding-left: 1.1rem; font-size: var(--s-1); }
+/* 0122: der Weg der Ware je Charge unter einer Sache */
+.spur { margin-top: .55rem; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.spur-tabelle { border-collapse: collapse; font-size: var(--s-1); min-width: 36rem; width: 100%; }
+.spur-tabelle caption { text-align: left; color: var(--text-leise); font-size: var(--s-0); text-transform: uppercase; letter-spacing: .05em; padding-bottom: .25rem; }
+.spur-tabelle th, .spur-tabelle td { text-align: left; vertical-align: top; padding: .3rem .6rem .3rem 0; border-top: 1px solid var(--rand-leise); border-bottom: 0; }
+.spur-tabelle thead th { color: var(--text-2); font-weight: 600; font-size: var(--s-0); border-top: 0; }
+.spur-tabelle tbody th { font-weight: 600; white-space: nowrap; text-transform: none; letter-spacing: normal; font-size: var(--s-1); color: var(--text); }
+.spur-tabelle td.spur-leer > div > div:first-child { color: var(--rot); font-weight: 600; }
 .ungereimt-zeilen li { margin: .25rem 0; }
 button.link { background: none; border: 0; padding: 0; min-height: 0; color: var(--kuerbis); text-decoration: underline; cursor: pointer; font: inherit; text-align: left; }
 @media (max-width: 640px) {
   .ungereimt-sache dl { grid-template-columns: 1fr; }
   .ungereimt-sache dt { padding-top: .35rem; }
+  /* 0122: der Weg der Ware als Block je Charge — seitlich rollen zeigte nur die erste Spalte */
+  .spur-tabelle { min-width: 0; }
+  .spur-tabelle thead { display: none; }
+  .spur-tabelle tbody, .spur-tabelle tr, .spur-tabelle tbody th { display: block; }
+  .spur-tabelle tr { border-top: 1px solid var(--rand-leise); padding: .35rem 0; }
+  .spur-tabelle tbody th { border: 0; padding: 0 0 .15rem; }
+  .spur-tabelle td { display: grid; grid-template-columns: 6rem 1fr; gap: .5rem; border: 0; padding: .1rem 0; }
+  .spur-tabelle td::before { content: attr(data-titel); color: var(--text-leise); font-size: var(--s-0); padding-top: .1rem; }
 }
 /* Das Zeichen in der Zeile einer Charge, bei der Perigon und Lager nicht passen. */
 .ungereimt-mal { color: var(--rot); display: inline-flex; vertical-align: -2px; margin-left: .3rem; }

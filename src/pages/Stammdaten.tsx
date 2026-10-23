@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { imDemoModus, supabase } from '../lib/supabase'
 import { chargenAnlegen, einstellung, fehlerText, stammdaten } from '../lib/db'
-import { importErkennen, type ImportBericht } from '../lib/import'
+import { importErkennen, type ImportBericht, type SchlagAlias } from '../lib/import'
 import { STATION_NAME, datum, heute as heuteOrtszeit, kg, tonnen, zahl, zeitpunkt } from '../lib/format'
 import { Hinweis, Karte, Kennzahl, Lade, Marke } from '../components/Bausteine'
 import { useBetriebsmodus } from '../lib/betriebsmodus'
@@ -149,8 +149,8 @@ function PalettenImport() {
   async function pruefen(roh: string) {
     setFehler(null); setMeldung(null)
     try {
-      const { chargen } = await stammdaten()
-      const b = importErkennen(roh, chargen)
+      const { chargen, aliase } = await stammdaten()
+      const b = importErkennen(roh, chargen, aliase)
       setBericht(b)
       if (b.paletten.length === 0 && b.probleme.length === 0) {
         setFehler('Keine Datenzeilen erkannt. Ist der richtige Bereich kopiert?')
@@ -440,6 +440,8 @@ function Chargen() {
           <tbody>
             {chargen.map(c => {
               const p = perigon.get(c.nr)
+              // 0122: eine Perigon-Nummer gehört zu genau einer Charge (198976 stand bei 1649 und 1650)
+              const gleich = c.perigon_nr == null ? [] : chargen.filter(x => x.nr !== c.nr && x.perigon_nr === c.perigon_nr).map(x => x.nr)
               return (
                 <tr key={c.nr}>
                   <td>{c.nr}</td><td>{c.schlag}</td><td>{c.sorte}</td>
@@ -450,6 +452,7 @@ function Chargen() {
                            style={{ width: '6.5rem' }} aria-label={`Perigon-Nr. der Charge ${c.nr}`} className="perigon-nr"
                            onBlur={e => void perigonSetzen(c, e.target.value)}
                            onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }} />
+                    {gleich.length > 0 && <> <Marke art="warnung">auch bei {gleich.join(', ')}</Marke></>}
                   </td>
                   <td className="nowrap">
                     <select value={c.label ?? ''} aria-label={`Label der Charge ${c.nr}`}
@@ -470,7 +473,71 @@ function Chargen() {
         </table>
       </div>
     </Karte>
+    <WerWieHeisst schlaege={[...new Set(chargen.map(c => c.schlag))].sort((a, b) => a.localeCompare(b, 'de'))} />
     </>
+  )
+}
+
+/**
+ * 0122: Ein Schlag, zwei Namen. Der Betrieb, 23. Oktober: „Oettli heisst
+ * leider im Bio-Perigon Inauen … wir arbeiten mit Trüeb; es gibt nur einen:
+ * Trüb ist Trüeb." Der Abgleich mit dem Erntejournal und die Zuordnung über
+ * den Produzenten (Perigon Spalte X) lesen diese Liste (schlag_alias).
+ */
+function WerWieHeisst({ schlaege }: { schlaege: string[] }) {
+  const [liste, setListe] = useState<SchlagAlias[] | null>(null)
+  const [fehler, setFehler] = useState<string | null>(null)
+  const [alias, setAlias] = useState('')
+  const [schlag, setSchlag] = useState('')
+  const laden = useCallback(async () => {
+    const r = await supabase.from('schlag_alias').select('alias, schlag').order('schlag').order('alias')
+    if (r.error) { setFehler(fehlerText(r.error)); setListe([]); return }
+    setListe((r.data ?? []) as SchlagAlias[])
+  }, [])
+  useEffect(() => { void laden() }, [laden])
+  async function anlegen() {
+    setFehler(null)
+    const a = alias.trim()
+    if (!a || !schlag) { setFehler('Den anderen Namen und den Schlag angeben.'); return }
+    const { error } = await supabase.from('schlag_alias').insert({ alias: a, schlag })
+    if (error) { setFehler(fehlerText(error)); return }
+    setAlias(''); void stammdaten(true); void laden()
+  }
+  async function entfernen(a: SchlagAlias) {
+    setFehler(null)
+    const { error } = await supabase.from('schlag_alias').delete().eq('alias', a.alias)
+    if (error) { setFehler(fehlerText(error)); return }
+    void stammdaten(true); void laden()
+  }
+  return (
+    <Karte titel="Wer wie heisst">
+      <p className="leise">Steht im Erntejournal oder in Perigon (Spalte X, Produzent) ein anderer Name als hier, findet die App den Schlag über diese Liste.</p>
+      {liste === null ? <Lade /> : (
+        <div className="rollbar">
+          <table>
+            <thead><tr><th>Anderer Name</th><th>ist der Schlag</th><th /></tr></thead>
+            <tbody>
+              {liste.map(a => (
+                <tr key={a.alias}><td>{a.alias}</td><td>{a.schlag}</td>
+                  <td><button type="button" className="klein" onClick={() => void entfernen(a)}>entfernen</button></td></tr>
+              ))}
+              {liste.length === 0 && <tr><td colSpan={3} className="leise">keine</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <div className="reihe" style={{ display: 'flex', flexWrap: 'wrap', gap: '.5rem', alignItems: 'flex-end', marginTop: '.6rem' }}>
+        <label>Anderer Name<br /><input value={alias} onChange={e => setAlias(e.target.value)} placeholder="z. B. Inauen" /></label>
+        <label>ist der Schlag<br />
+          <select value={schlag} onChange={e => setSchlag(e.target.value)}>
+            <option value="">— wählen</option>
+            {schlaege.map(x => <option key={x} value={x}>{x}</option>)}
+          </select>
+        </label>
+        <button type="button" onClick={() => void anlegen()}>Hinzufügen</button>
+      </div>
+      {fehler && <Hinweis art="warnung">{fehler}</Hinweis>}
+    </Karte>
   )
 }
 

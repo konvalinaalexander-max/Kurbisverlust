@@ -1,5 +1,6 @@
 import { supabase } from './supabase'
 import type { Charge, Gebinde, SorteKaliber } from './typen'
+import type { SchlagAlias } from './import'
 
 /**
  * Stammdaten ändern sich selten — aber nicht nie. Am 22. Oktober kamen Oettli
@@ -10,16 +11,20 @@ import type { Charge, Gebinde, SorteKaliber } from './typen'
  * weiter, nur ohne die neueste Charge.
  */
 const STAMM_HOECHSTENS_MS = 5 * 60 * 1000
-let stammCache: { chargen: Charge[]; kaliber: SorteKaliber[]; gebinde: Gebinde[] } | null = null
+let stammCache: { chargen: Charge[]; kaliber: SorteKaliber[]; gebinde: Gebinde[]; aliase: SchlagAlias[] } | null = null
 let stammZeit = 0
 
 export async function stammdaten(neu = false) {
   if (stammCache && !neu && Date.now() - stammZeit < STAMM_HOECHSTENS_MS) return stammCache
   try {
-    const [c, k, g] = await Promise.all([
+    const [c, k, g, a] = await Promise.all([
       supabase.from('charge').select('*').order('nr'),
       supabase.from('sorte_kaliber').select('*').order('sorte'),
       supabase.from('gebinde').select('*').order('art'),
+      // 0122: wie ein Schlag anderswo heisst (Inauen = Oettli, Trüb = Trüeb).
+      // Fehlt die Tabelle (setup.sql noch nicht eingespielt), gilt keine — die
+      // Halle arbeitet trotzdem.
+      supabase.from('schlag_alias').select('alias, schlag'),
     ])
     if (c.error) throw c.error
     if (k.error) throw k.error
@@ -28,6 +33,7 @@ export async function stammdaten(neu = false) {
       chargen: (c.data ?? []) as Charge[],
       kaliber: (k.data ?? []) as SorteKaliber[],
       gebinde: (g.data ?? []) as Gebinde[],
+      aliase: a.error ? [] : (a.data ?? []) as SchlagAlias[],
     }
     stammZeit = Date.now()
     return stammCache

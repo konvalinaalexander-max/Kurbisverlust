@@ -86,12 +86,41 @@ const wahl = async (p, id) => {
  * Nummern sind erfunden, damit das Bild nicht vom Stand der Fixtures abhängt.
  */
 function ungereimtVormerken() {
+  // 0122: woher die Ware wohl kam (kandidaten), eine Zuordnung über den Produzenten
+  // und der Weg der Ware je Charge — herein, bearbeitet, hinaus.
+  const kandidat = { charge_nr: 99126, schlag: 'Prüfschlag', sorte: 'Fictor', rest_paletten: 6, eingang_kg: 2600, geliefert_kg: 0,
+    eingang_von: '2026-09-20', gleicher_schlag: true, gleiche_sorte: true }
   vormerken('v_ungereimtheit', [
-    { art: 'ohne_eingang', charge_nr: 99127, sorte: 'Fictor', schlag: 'Prüfschlag', kg: 1416, n: 3, von: '2026-09-23', bis: '2026-10-05', mehr: null },
+    { art: 'ohne_eingang', charge_nr: 99127, sorte: 'Fictor', schlag: 'Prüfschlag', kg: 1416, n: 3, von: '2026-09-23', bis: '2026-10-05', mehr: { kandidaten: [kandidat] } },
+    { art: 'nachgeordnet', charge_nr: 99129, sorte: 'Tiana', schlag: 'Prüfschlag', kg: 1650, n: 11, von: '2026-10-01', bis: '2026-10-14',
+      mehr: { nummern: ['991977'], produzent: 'Prüfhof', perigon_nr: 991976,
+        grund: 'Die Nummer 991977 steht an keiner Charge. Perigon nennt als Produzent Prüfhof — das ist Prüfschlag —, und Prüfschlag hat genau eine Charge mit Butternut: 99129.' } },
     { art: 'umgebucht', charge_nr: 99128, sorte: 'Fictor', schlag: 'Prüfschlag', kg: 2012, n: 6, von: '2026-09-23', bis: '2026-09-23',
       mehr: { von_charge_nr: 99126, auftrag_id: 1, grund: '5 von 5 Zetteln der Arbeit 1 (Charge 99128) ohne eigene Palette passen aufs Kilo zu Paletten von Charge 99126 (448 kg, 444 kg, 433 kg, 433 kg, 380 kg); Charge 99128 lieferte 1416 kg bei 0 kg Eingang', paletten: [1, 2, 3, 4, 5, 6], von_betriebsleiter: false } },
     { art: 'vorschlag', charge_nr: 99129, sorte: 'Tiana', schlag: 'Prüfschlag', kg: 2136, n: 6, von: '2026-08-28', bis: '2026-08-31',
       mehr: { von_charge_nr: 99125, auftrag_id: 2, grund: '6 von 8 Zetteln der Arbeit 2 (Charge 99129) ohne eigene Palette passen aufs Kilo zu Paletten von Charge 99125 (428 kg, 434 kg, 444 kg, 430 kg, 437 kg, 437 kg); Charge 99129 lieferte 7444 kg bei 4863 kg Eingang', paletten: [7, 8, 9, 10, 11, 12], von_betriebsleiter: false } },
+  ])
+  const spur = (charge_nr, sorte, x) => ({ charge_nr, schlag: 'Prüfschlag', sorte, artikelgruppe: sorte === 'Tiana' ? 'Butternut' : 'Knirps',
+    journal_paletten: 0, journal_kg: null, journal_von: null, journal_bis: null, paletten: 0, eingang_kg: null, weg: null, her: null,
+    arbeiten: 0, arbeit_von: null, arbeit_bis: null, arbeit_liste: null, lieferscheine: 0, geliefert_kg: null, lief_von: null, lief_bis: null,
+    nach_artikel: null, nachgeordnet: null, rest_paletten: 0, ...x })
+  vormerken('v_charge_spur', [
+    spur(99125, 'Tiana', { journal_paletten: 20, journal_kg: 8600, journal_von: '2026-08-26', journal_bis: '2026-08-27', paletten: 20, eingang_kg: 8600,
+      weg: [{ charge_nr: 99129, stand: 'vorschlag', paletten: 6, kg: 2136 }], arbeiten: 2, arbeit_von: '2026-09-01', arbeit_bis: '2026-09-15',
+      arbeit_liste: [{ id: 3, datum: '2026-09-01', station: 'waschen', zettel: 5 }, { id: 4, datum: '2026-09-15', station: 'sortieren', zettel: 4 }],
+      lieferscheine: 9, geliefert_kg: 3100, lief_von: '2026-09-02', lief_bis: '2026-10-10', nach_artikel: [{ gruppe: 'Butternut', kg: 3100 }], rest_paletten: 9 }),
+    spur(99126, 'Fictor', { journal_paletten: 12, journal_kg: 4612, journal_von: '2026-09-20', journal_bis: '2026-09-22', paletten: 6, eingang_kg: 2600,
+      weg: [{ charge_nr: 99128, stand: 'angewandt', paletten: 6, kg: 2012 }], rest_paletten: 6 }),
+    spur(99127, 'Fictor', { arbeiten: 1, arbeit_von: '2026-09-24', arbeit_bis: '2026-09-24', arbeit_liste: [{ id: 5, datum: '2026-09-24', station: 'waschen_sortieren', zettel: 5 }],
+      lieferscheine: 3, geliefert_kg: 1416, lief_von: '2026-09-23', lief_bis: '2026-10-05', nach_artikel: [{ gruppe: 'Knirps', kg: 1416 }], rest_paletten: null }),
+    spur(99128, 'Fictor', { paletten: 6, eingang_kg: 2012, her: [{ charge_nr: 99126, stand: 'angewandt', paletten: 6, kg: 2012 }],
+      arbeiten: 1, arbeit_von: '2026-09-23', arbeit_bis: '2026-09-23', arbeit_liste: [{ id: 1, datum: '2026-09-23', station: 'waschen_sortieren', zettel: 5 }],
+      lieferscheine: 3, geliefert_kg: 1416, lief_von: '2026-09-23', lief_bis: '2026-10-05', nach_artikel: [{ gruppe: 'Knirps', kg: 1416 }], rest_paletten: 1 }),
+    spur(99129, 'Tiana', { journal_paletten: 12, journal_kg: 4863, journal_von: '2026-08-28', journal_bis: '2026-08-31', paletten: 12, eingang_kg: 4863,
+      her: [{ charge_nr: 99125, stand: 'vorschlag', paletten: 6, kg: 2136 }], arbeiten: 3, arbeit_von: '2026-09-02', arbeit_bis: '2026-09-22',
+      arbeit_liste: [{ id: 2, datum: '2026-09-02', station: 'waschen', zettel: 8 }, { id: 6, datum: '2026-09-12', station: 'sortieren', zettel: 3 }, { id: 7, datum: '2026-09-22', station: 'waschen', zettel: 2 }],
+      lieferscheine: 21, geliefert_kg: 7444, lief_von: '2026-09-02', lief_bis: '2026-10-14', nach_artikel: [{ gruppe: 'Butternut', kg: 7300 }, { gruppe: 'Kabocha', kg: 144 }],
+      nachgeordnet: [{ weg: 'produzent', n: 11, kg: 1650 }], rest_paletten: 0 }),
   ])
 }
 
@@ -256,6 +285,29 @@ const BILDSCHIRME = [
       const n = await p.locator('#ungereimt .ungereimt-sache').count()
       if (n < 4) throw new Error(`nur ${n} Ungereimtheiten aufgeklappt`)
       if (!(await p.locator('#ungereimt .ungereimt-sache', { hasText: 'hat verkauft, aber nie etwas bekommen' }).count())) throw new Error('die Charge ohne Eingang fehlt')
+    } },
+  // 0122: „Was war jetzt von welcher Charge — Eingang, Arbeit, Warenausgang;
+  // was hast du schon umgebucht, was noch nicht, was würdest du wie umbuchen?"
+  // Unter der Sache der Weg der Ware je Charge, dazu Stand und Vorschlag; eine
+  // Perigon-Nummer an zwei Chargen (1649/1650 in der Demo wie im Betrieb).
+  { name: 'lager-ungereimt-spur', wer: 'admin', pfad: '/dashboard', vorher: ungereimtVormerken,
+    tun: async p => {
+      await p.locator('#ungereimt .ungereimt-kopf').click()
+      const sache = p.locator('#ungereimt .ungereimt-sache', { hasText: 'hat verkauft, aber nie etwas bekommen' })
+      await sache.locator('.spur-tabelle').waitFor()
+      const zeilen = await sache.locator('.spur-tabelle tbody tr').allInnerTexts()
+      if (zeilen.length !== 2 || !zeilen[0].startsWith('99127') || !zeilen[1].startsWith('99126'))
+        throw new Error(`Der Weg der Ware zeigt ${JSON.stringify(zeilen)} — erwartet 99127 und, woher es wohl kam, 99126`)
+      if (!zeilen[0].includes('keine Palette im Journal') || !zeilen[0].includes('3 Lieferscheine')) throw new Error(`99127: ${zeilen[0]}`)
+      if (!zeilen[1].includes('→ 6 Paletten zu 99128 umgebucht')) throw new Error(`99126: ${zeilen[1]}`)
+      await sache.locator('dd', { hasText: 'Am ehesten von 99126 (Prüfschlag · Fictor)' }).waitFor()
+      await sache.locator('dd', { hasText: 'Noch nicht umgebucht' }).waitFor()
+      const um = p.locator('#ungereimt .ungereimt-sache', { hasText: 'zählt die App bei Charge 99128' })
+      await um.locator('dd', { hasText: 'Schon umgebucht' }).waitFor()
+      const nach = p.locator('#ungereimt .ungereimt-sache', { hasText: 'mit der Nummer 991977' })
+      await nach.locator('button', { hasText: 'Bei 99129 Perigon-Nr. 991977 eintragen' }).waitFor()
+      if (!(await nach.locator('.spur-tabelle', { hasText: 'davon als Kabocha' }).count())) throw new Error('der fremde Artikel beim Ausgang fehlt')
+      await p.locator('#ungereimt .ungereimt-sache', { hasText: 'Perigon-Nr. 198976 steht an 2 Chargen: 1649 und 1650' }).waitFor()
     } },
   // 0121: vom Lager zum Verkaufsfähigen, Schritt für Schritt
   { name: 'lager-kette', wer: 'admin', pfad: '/dashboard',
@@ -679,6 +731,17 @@ const BILDSCHIRME = [
       await p.locator('#neu-schlag').fill('Neuer Schlag')
       await p.locator('#neu-sorte').fill('Kaori Kuri')
       if (!(await p.locator('#charge-anlegen-ok').isEnabled())) throw new Error(`Charge ${frei} mit Schlag und Sorte lässt sich nicht anlegen`)
+    } },
+  // 0122: „Oettli heisst im Bio-Perigon Inauen … Trüb ist Trüeb." Die zweiten
+  // Namen unter Stammdaten → Chargen; eine Perigon-Nummer an zwei Chargen ist markiert.
+  { name: 'betrieb-wer-wie-heisst', wer: 'admin', pfad: '/betrieb/stammdaten',
+    tun: async p => {
+      await p.locator('nav.navleiste:not([aria-label="Bereiche"])').getByRole('link', { name: 'Chargen' }).click()
+      const karte = p.locator('.karte', { hasText: 'Wer wie heisst' })
+      await karte.locator('td', { hasText: 'Inauen' }).first().waitFor()
+      if (!(await karte.locator('tr', { hasText: 'Trüb' }).count())) throw new Error('Trüb → Trüeb fehlt')
+      await p.locator('tr', { hasText: 'Rümlang Sauter' }).locator('.marke-klein', { hasText: 'auch bei 1650' }).waitFor()
+      await karte.scrollIntoViewIfNeeded()
     } },
   { name: 'betrieb-schemata', wer: 'admin', pfad: '/betrieb/stammdaten',
     tun: async p => { await p.getByRole('link', { name: 'Sortierschemata' }).click() } },

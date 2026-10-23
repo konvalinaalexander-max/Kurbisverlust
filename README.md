@@ -773,6 +773,14 @@ Chargenregister, geschrieben wie im Erntejournal; Journalzeilen, die keiner
 Charge zuzuordnen sind, meldet der Abgleich beim Öffnen (AB-165). **Der
 Betrieb spielt setup.sql einmal ein (Stand 120) und öffnet das Dashboard** —
 die Paletten kommen von selbst; danach „Neu rechnen".
+**0122:** Inauen ist Oettli, Trüb ist Trüeb — unter Stammdaten → Chargen
+„Wer wie heisst" (AB-170); die Perigon-Nummern der Liste vom 23. Oktober
+stehen im Register. Ein Lieferschein mit unbekannter Nummer bekommt seine
+Charge über den Produzenten, wenn es eindeutig ist (198977 → 1650), und eine
+Perigon-Nummer an zwei Chargen steht als Ungereimtheit da (AB-171). Jede
+Ungereimtheit sagt, ob schon umgebucht ist, was die App vorschlägt, und
+zeigt den Weg der Ware je Charge: herein, Halle, hinaus (AB-172). **Der
+Betrieb spielt setup.sql einmal ein (Stand 122) und drückt „Neu rechnen".**
 
 **Runde AT (0117)** — Kunden in der Reihenfolge des Betriebs. Unter
 **Lagermanagement nach Artikel** ordnen zwei Pfeile in der Gruppenzeile die

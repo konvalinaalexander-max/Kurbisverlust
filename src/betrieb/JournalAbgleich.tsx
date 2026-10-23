@@ -43,8 +43,8 @@ export function JournalAbgleich() {
         if (!antwort.ok) throw new Error(`Das Erntejournal antwortete mit ${antwort.status}.`)
         const csv = await antwort.text()
         if (/^\s*</.test(csv)) throw new Error('Die Journal-Adresse liefert eine Webseite statt CSV.')
-        const { chargen } = await stammdaten()
-        const b = importErkennen(csv, chargen)
+        const { chargen, aliase } = await stammdaten()
+        const b = importErkennen(csv, chargen, aliase)
         try { localStorage.setItem(MERKZETTEL, String(Date.now())) } catch { /* dann eben jedes Mal */ }
         if (!lebt) return
         // 22. Oktober: Stehen nur Zeilen ohne Charge da, sagt das die Meldung unten mit dem Grund.

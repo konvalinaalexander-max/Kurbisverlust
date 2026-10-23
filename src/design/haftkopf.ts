@@ -38,7 +38,8 @@ export function useHaftendeKoepfe(an: boolean) {
       for (const kopf of document.querySelectorAll<HTMLElement>('table > thead')) {
         const tabelle = kopf.parentElement as HTMLElement
         // Runde AT: eine Liste, die in sich selbst rollt (.innen-rollt), hält ihren Kopf mit CSS.
-        if (tabelle.closest('.dialog, .innen-rollt')) continue
+        // 0122: eine Tabelle mit zwei, drei Zeilen (table.ohne-haftkopf) braucht keinen klebenden Kopf.
+        if (tabelle.closest('.dialog, .innen-rollt') || tabelle.classList.contains('ohne-haftkopf')) continue
         let grenze = oben
         for (let e = tabelle.parentElement; e; e = e.parentElement) {
           const u = unterkante.get(e)

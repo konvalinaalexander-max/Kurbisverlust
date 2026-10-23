@@ -4171,6 +4171,69 @@ Daten, dann die Annahme — nach der Korrektur nachsehen.
 nicht alles: vier mal vier gleiche Paloxen und ein Tag mit 30 Paaren bei
 13 erwarteten sind Fragen wert.
 
+## Runde AX: wer im Perigon wie heisst, und der Weg der Ware (23. Oktober, 0122)
+
+Der Betrieb, mit der Liste der Perigon-Nummern: „Oettli heisst leider im
+Bio-Perigon Inauen, bitte verknüpfen … wir arbeiten mit Trüeb — es gibt nur
+einen, Trüb ist Trüeb." — „Aktuell ist noch nicht ganz klar, was jetzt von
+welcher Charge war — ob der Eingang bei welcher Charge war, dann die Arbeit im
+Lager bei welcher Charge und der Warenausgang bei welcher Charge; was hast du
+schon umgebucht, was noch nicht, was würdest du wie umbuchen." Und dazu:
+„Rümlang Sauter 198976 1649 Butterkin, Rümlang Sauter 198976 1650 Tiana — das
+sollte nicht sein; such auch nach solcher Art von Ungereimtheiten."
+
+**1. Die Liste.** Sie deckt sich mit 0051; neu sind 1719 = 199156 und 1763 =
+199158. Eingetragen wird nur, wo nichts steht — eine abweichende Nummer meldet
+setup.sql als Warnung, statt eine Berichtigung des Betriebsleiters zu
+überschreiben. Der Prüfblock zu 0051 zählt darum 44 statt 42 Nummern.
+
+**2. Ein Name, zwei Schreibweisen (`schlag_alias`).** Der Betrieb sagt, wie ein
+Schlag anderswo heisst; Journal-Abgleich (`importErkennen`) und Perigon lesen
+dieselbe Liste, verglichen wird in einer Form (NFC, klein, ohne Satzzeichen).
+Gepflegt unter Stammdaten → Chargen, „Wer wie heisst". Perigon schreibt
+übrigens nirgends „Trüb" — dort fehlt 199158 noch ganz.
+
+**3. Die Charge über den Produzenten.** Spalte X nennt den Produzenten der
+Perigon-Charge. Gelernt wird nur Eindeutiges: ein Name, der bei Zeilen mit
+bekannter Nummer nur bei *einem* Schlag vorkommt. In den Dateien steht bei
+198975 (= 1651, Rümlang Sauter) derselbe Produzent wie bei den elf Zeilen
+„Butternut lose" mit 198977 — einer Nummer, die an keiner Charge steht.
+Rümlang Sauter hat genau eine Butternut-Charge: 1650. Der Rechenlauf gibt die
+Lieferscheine darum 1650, schreibt den Grund dazu und zeigt es als Hinweis,
+bis der Betriebsleiter 198977 bei 1650 einträgt (ein Knopf an der Stelle).
+Zusammen mit 198976 an 1649 *und* 1650 heisst das wohl: 1650 ist 198977, 1649
+behält 198976 — das sagt die App als Vorschlag, entscheiden tut der Betrieb.
+
+**4. Was im Register nicht stimmt (`v_stammdaten_pruefung`).** Eine
+Perigon-Nummer an mehreren Chargen (mit den Nummern der Dateien, die daneben
+liegen oder vom selben Produzenten kommen), eine Charge der Saison mit Ware
+ohne Perigon-Nummer, ein Schlag unter zwei Namen. Auf den Daten vom 22.10.
+nur 198976.
+
+**5. Stand, Vorschlag, Weg der Ware.** Jede Ungereimtheit sagt jetzt, ob schon
+umgebucht ist (und von wem) oder nicht, und was die App täte. Bei Ware ohne
+Eingang nennt sie die Chargen, von denen sie wohl kam (`ungereimt_kandidaten`).
+Auf den Rohdaten: 1630 und 1614 → zuerst 1719 (60 Paletten, kaum verkauft),
+dann 1628 und 1598; 1626 → 1623 (derselbe Schlag, Rüegg); 1637 → 1607 (19
+Paletten Amoro, nichts verkauft). Darunter je beteiligter Charge eine Zeile:
+herein laut Erntejournal, bearbeitet in der Halle, hinaus laut Perigon, laut
+App noch da (`v_charge_spur`) — auf dem Handy als Block je Charge.
+
+**Geprüft.** Prüfblock 0122 (a–i) mit 23 Mutationen, alle schlagen an; ein
+Durchlauf auf den Rohdaten (die Prüfsicht von 540 auf 65 ms, nachdem die
+Zuordnung Produzent → Schlag einmal statt je Nummer gerechnet wird). Tests
+`test/import.test.ts`, `test/ungereimt.test.ts`; Bildschirme
+`lager-ungereimt-spur`, `betrieb-wer-wie-heisst`.
+
+**Was bewusst nicht gemacht wurde.**
+- 198976 wird nicht von der App umgeschrieben. Die Liste nennt sie zweimal;
+  welche Charge welche Nummer hat, weiss das Büro.
+- Die Kandidaten buchen nichts. Ohne Zettel ist „wohl von 1719" eine
+  Vermutung — der Satz sagt, was zu zählen ist.
+- Kein Abgleich, ob der Produzent zur Charge auf dem Lieferschein passt. Der
+  eigene Betrieb steht bei allen eigenen Feldern als Produzent; das gäbe mehr
+  Rauschen als Befund.
+
 ## Runde AW: Perigon und Lager — was nicht zusammenpasst, steht oben; die Palette geht mit ihrer Arbeit (22. Oktober, abends, 0121)
 
 Der Betrieb, an einem Abend: „aktuell zeigt's mir Rüegg Amoro immer noch

@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { abgleichMeldung, importErkennen, tabelleLesen, datumLesen, gebindeNormalisieren } from '../src/lib/import.ts'
+import { abgleichMeldung, importErkennen, tabelleLesen, datumLesen, gebindeNormalisieren, schlagNamen } from '../src/lib/import.ts'
 
 // Ausschnitt der echten Charge-Registry (§7)
 const CHARGEN = [
@@ -197,4 +197,44 @@ test('der Abgleich sagt, was neu ist, und nichts, wenn nichts ist', () => {
   assert.match(gut?.text ?? '', /^3 neue Paletten aus dem Erntejournal übernommen · eine neue Charge angelegt \(1719\)\./)
   const beides = abgleichMeldung(1, [], ['Zeile 7: keine Charge für „X · Y"'])
   assert.match(beides?.text ?? '', /^1 neue Palette .* · eine Zeile ohne Charge \(keine Charge für „X · Y"\)/)
+})
+
+// 23. Oktober: „Oettli heisst leider im Bio-Perigon Inauen … wir arbeiten mit
+// Trüeb — es gibt nur einen: Trüb ist Trüeb." Die zweiten Namen stehen in
+// schlag_alias (0122) und gelten im Journal wie im Register.
+const ALIASE = [{ alias: 'Inauen', schlag: 'Oettli' }, { alias: 'Oettli, Inauen', schlag: 'Oettli' }, { alias: 'Trüb', schlag: 'Trüeb' }]
+
+test('ein zweiter Name des Schlags findet dieselbe Charge', () => {
+  const zweit = NEUE_SCHLAEGE.replace(';Oettli;', ';Inauen;').replace(';Trüeb;', ';Trüb;')
+  const ohne = importErkennen(zweit, REGISTER_0120)
+  assert.equal(ohne.paletten.length, 1, 'ohne die Aliase findet nur Slowgrow Uster seine Charge')
+  const b = importErkennen(zweit, REGISTER_0120, ALIASE)
+  assert.deepEqual(b.probleme, [])
+  assert.deepEqual(b.paletten.map(p => p.charge_nr), [1613, 1719, 1763])
+  // „Oettli, Inauen" (wie in der Planungsliste) ist auch Oettli — Satzzeichen zählen nicht
+  const liste = importErkennen(NEUE_SCHLAEGE.replace(';Oettli;', ';"Oettli, Inauen";'), REGISTER_0120, ALIASE)
+  assert.equal(liste.paletten[1].charge_nr, 1719)
+})
+
+test('steht im Register der zweite Name, gilt er als der eine', () => {
+  const register = [...CHARGEN, { nr: 1763, schlag: 'Trüb', sorte: 'Amoro' }]
+  const b = importErkennen(NEUE_SCHLAEGE, register, ALIASE)
+  assert.equal(b.paletten.find(p => p.extern_id.includes('o-3'))?.charge_nr, 1763)
+})
+
+const MIT_NUMMER_NEU_TRUEB = [
+  'Charge;Datum;Schlag;Sorte;Gewicht brutto [kg];Anzahl Gebinde;Gebindeart (leer = G2);ID (App)',
+  '1764;24.10.2026;Trüb;Muscade;280;1;Plastik-Palox;t-1',
+].join('\n')
+
+test('eine neue Charge wird unter dem einen Namen angelegt, nicht unter dem zweiten', () => {
+  const b = importErkennen(MIT_NUMMER_NEU_TRUEB, CHARGEN, ALIASE)
+  assert.deepEqual(b.neueChargen.map(c => [c.nr, c.schlag]), [[1764, 'Trüeb']])
+})
+
+test('schlagNamen: unbekannte Namen bleiben, wie sie stehen', () => {
+  const n = schlagNamen(ALIASE)
+  assert.equal(n('  trüb '), 'Trüeb')
+  assert.equal(n('Trüb'), 'Trüeb', 'u + Trema ist dasselbe ü')
+  assert.equal(n('Slowgrow Uster'), 'Slowgrow Uster')
 })

@@ -15,6 +15,8 @@
  */
 
 export interface ChargeRef { nr: number; schlag: string; sorte: string }
+/** 0122: wie ein Schlag anderswo heisst (schlag_alias) — Inauen ist Oettli, Trüb ist Trüeb. */
+export interface SchlagAlias { alias: string; schlag: string }
 
 export interface RohPalette {
   charge_nr: number
@@ -145,7 +147,19 @@ export function gebindeNormalisieren(roh: string | null | undefined): string {
   return t
 }
 
-export function importErkennen(text: string, chargen: ChargeRef[]): ImportBericht {
+/**
+ * 0122: Der Betrieb, 23. Oktober: „Es gibt nur einen — Trüb ist Trüeb", und
+ * Oettli heisst im Bio-Perigon Inauen. Ein Name, den schlag_alias kennt, wird
+ * zum Namen des Schlags, auf beiden Seiten: im Journal und im Register. So
+ * findet „Trüb · Amoro" die Charge von Trüeb, und eine neue Charge wird unter
+ * dem einen Namen angelegt, nicht unter dem zweiten.
+ */
+export function schlagNamen(aliase: SchlagAlias[]): (name: string) => string {
+  const von = new Map(aliase.map(a => [norm(a.alias), a.schlag.trim()]))
+  return name => von.get(norm(name)) ?? name.trim()
+}
+
+export function importErkennen(text: string, chargen: ChargeRef[], aliase: SchlagAlias[] = []): ImportBericht {
   const zeilen = tabelleLesen(text)
   if (zeilen.length < 2) {
     return { paletten: [], probleme: ['Zu wenig Zeilen — Kopf und mindestens eine Datenzeile nötig.'],
@@ -166,9 +180,11 @@ export function importErkennen(text: string, chargen: ChargeRef[]): ImportBerich
     }
   }
 
-  // Charge-Nachschlag über Schlag+Sorte
+  // Charge-Nachschlag über Schlag+Sorte; ein zweiter Name des Schlags zählt als der eine (0122)
+  const schlagName = schlagNamen(aliase)
+  const schluessel = (schlag: string, sorte: string) => `${norm(schlagName(schlag))}|${norm(sorte)}`
   const chargeVon = new Map<string, number>()
-  for (const c of chargen) chargeVon.set(`${norm(c.schlag)}|${norm(c.sorte)}`, c.nr)
+  for (const c of chargen) chargeVon.set(schluessel(c.schlag, c.sorte), c.nr)
   const bekannteNr = new Set(chargen.map(c => c.nr))
 
   const paletten: RohPalette[] = []
@@ -196,8 +212,8 @@ export function importErkennen(text: string, chargen: ChargeRef[]): ImportBerich
       // es eher ein Tippfehler in der Nummer: dann wie bisher über Schlag und
       // Sorte zuordnen, nie eine zweite Charge daneben anlegen.
       else if (Number.isInteger(nr) && nr > 0 && nr < 100000
-               && !chargeVon.has(`${norm((idx.schlag !== -1 ? f[idx.schlag] : '') ?? '')}|${norm((idx.sorte !== -1 ? f[idx.sorte] : '') ?? '')}`)) {
-        const schlag = (idx.schlag !== -1 ? f[idx.schlag] ?? '' : '').trim()
+               && !chargeVon.has(schluessel((idx.schlag !== -1 ? f[idx.schlag] : '') ?? '', (idx.sorte !== -1 ? f[idx.sorte] : '') ?? ''))) {
+        const schlag = schlagName(idx.schlag !== -1 ? f[idx.schlag] ?? '' : '')
         const sorte = (idx.sorte !== -1 ? f[idx.sorte] ?? '' : '').trim()
         const datum = datumLesen(f[idx.eingangsdatum] ?? '')
         if (schlag && sorte && datum) {
@@ -211,7 +227,7 @@ export function importErkennen(text: string, chargen: ChargeRef[]): ImportBerich
     }
     if (chargeNr === null && perSchlagSorte) {
       const schlag = f[idx.schlag] ?? '', sorte = f[idx.sorte] ?? ''
-      chargeNr = chargeVon.get(`${norm(schlag)}|${norm(sorte)}`) ?? null
+      chargeNr = chargeVon.get(schluessel(schlag, sorte)) ?? null
       if (chargeNr === null && (schlag.trim() || sorte.trim())) {
         probleme.push(`Zeile ${zeileNr}: keine Charge für „${schlag.trim()} · ${sorte.trim()}" — unter Stammdaten → Chargen mit Nummer anlegen, Schlag und Sorte wie im Journal`)
         continue

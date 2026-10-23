@@ -507,6 +507,43 @@ Eingang der tragenden Charge lag und was auf keine fällt. Eine Nummer der Datei
 die die App inzwischen kennt (eigene Nummer, sonst eine Perigon-Nummer an genau
 einer Charge), bekommt der Lieferschein im nächsten Rechenlauf.
 
+## 12f. Wer im Perigon wie heisst — die Charge über den Produzenten (`schlag_alias`, `v_perigon_produzent`, 0122)
+
+**Braucht:** die zweiten Namen eines Schlags (`schlag_alias`: Inauen = Oettli,
+Trüb = Trüeb — vom Betrieb), Spalte X der Perigon-Zeilen (`ausgang_zeile.produzent`),
+die Chargen der Saison mit Sorte und Artikelgruppe (`sorte_kaliber`).
+**Rechnet:** Ein Name aus Spalte X gehört zu einem Schlag, wenn der Betrieb es
+gesagt hat, sonst wenn er nur bei Zeilen von Chargen *eines* Schlags vorkommt,
+deren Nummer die App kennt (gelernt); sonst, wenn ein Schlag genau so heisst.
+Ein Lieferschein, dessen Nummer an keiner Charge steht, bekommt im Rechenlauf
+(`lieferungen_nachordnen`, Stufe 2) die Charge, wenn dieser Schlag in der Saison
+genau eine Charge mit der Artikelgruppe des Artikels hat — mit dem Grund in
+`lieferung_nachordnung`. Verglichen wird in der Vergleichsform (`name_norm`: NFC,
+klein, ohne Satzzeichen), im Journal-Abgleich ebenso (`src/lib/import.ts`).
+**Fehlt eine Eingabe:** ohne Produzent, bei einem Namen an mehreren Schlägen
+(der eigene Betrieb), bei Mix oder unbekanntem Artikel, bei zwei passenden
+Chargen: keine Charge — der Lieferschein bleibt „ohne Charge" und wird verteilt
+wie in 12e. Ein Rest ohne Charge (Spalte S) bekommt nie eine.
+**Urteil:** ehrlich, weil eindeutig oder gar nicht; jede Zuordnung steht als
+Hinweis da, bis der Betriebsleiter die Nummer bei der Charge einträgt.
+
+## 12g. Der Weg der Ware und woher sie wohl kam (`v_charge_spur`, `ungereimt_kandidaten`, `v_stammdaten_pruefung`, 0122)
+
+**Rechnet:** je Charge herein (Paletten der Charge, die das Journal nennt, und die
+die App jetzt zählt — der Unterschied sind Umbuchungen), bearbeitet (Arbeiten,
+nicht abgebrochen), hinaus (Lieferscheine bis heute, nach Artikelgruppe, davon
+nachgeordnet), noch da (≈ Paletten aus der Kaskade). Bei Ware, die hinausging,
+ohne dass die Charge sie hatte, die Chargen, von denen sie wohl kam: derselbe
+Artikel, laut App noch ≥ 1 Palette, höchstens die Hälfte verkauft, eingegangen
+vor dem letzten Lieferschein; derselbe Schlag, dann dieselbe Sorte zuerst,
+höchstens vier. Das Chargenregister wird geprüft: eine Perigon-Nummer an mehreren
+Chargen (mit den Nummern der Dateien, die ±2 daneben liegen oder vom Produzenten
+dieser Chargen kommen), eine Charge der Saison mit Ware ohne Perigon-Nummer, ein
+Schlag unter zwei Namen.
+**Fehlt eine Eingabe:** ohne Rechenlauf ist „noch da" unbekannt, nie 0; ohne
+Kandidaten sagt der Vorschlag, dass keiner passt.
+**Urteil:** Auskunft, keine Buchung — die Kandidaten verschieben keine Zahl.
+
 ## 13. Was nirgends erraten wird
 
 - Eine Menge aus einer Zählung ohne Masse (AB-23).
@@ -522,3 +559,7 @@ einer Charge), bekommt der Lieferschein im nächsten Rechenlauf.
   (0116).
 - Ein Mittel ganzer Paletten für eine Palette, deren Kisten gezählt sind
   (0116).
+- Die Charge eines Lieferscheins aus einem Produzenten, der bei mehreren
+  Schlägen vorkommt, oder aus einem Schlag mit zwei passenden Chargen (0122).
+- Woher verkaufte Ware ohne Eingang kam — die App nennt Kandidaten, gebucht
+  wird nichts (0122).

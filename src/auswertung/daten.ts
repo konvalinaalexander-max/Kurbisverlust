@@ -303,13 +303,34 @@ export interface LagerAusweis {
   r_bekannt: boolean; f_bekannt: boolean; kanal_bekannt: boolean; fax_bekannt: boolean
 }
 
-/** Was zwischen Perigon, Erntejournal und Lager nicht zusammenpasst (v_ungereimtheit, 0121). */
+/** Was zwischen Perigon, Erntejournal und Lager nicht zusammenpasst (v_ungereimtheit, 0121; 0122: nachgeordnet, stammdaten). */
 export interface UngereimtZeile {
-  art: 'ohne_eingang' | 'vor_eingang' | 'ueberzaehlung' | 'ohne_charge' | 'umgebucht' | 'vorschlag'
+  art: 'ohne_eingang' | 'vor_eingang' | 'ueberzaehlung' | 'ohne_charge' | 'umgebucht' | 'vorschlag' | 'nachgeordnet' | 'stammdaten'
   charge_nr: number | null; sorte: string | null; schlag: string | null
   kg: number | null; n: number; von: string | null; bis: string | null
   mehr: Record<string, unknown> | null
 }
+
+/**
+ * Der Weg der Ware je Charge (v_charge_spur, 0122): herein laut Erntejournal
+ * (journal_*: die Charge, die das Journal nennt) und wie die App jetzt zählt
+ * (paletten, eingang_kg); was umgebucht oder vorgeschlagen ist (weg: von hier
+ * weg, her: hierher); bearbeitet in der Halle; hinaus laut Perigon; was laut
+ * App noch da ist.
+ */
+export interface ChargeSpur {
+  charge_nr: number; schlag: string; sorte: string; artikelgruppe: string | null
+  journal_paletten: number; journal_kg: number | null; journal_von: string | null; journal_bis: string | null
+  paletten: number; eingang_kg: number | null
+  weg: SpurZuordnung[] | null; her: SpurZuordnung[] | null
+  arbeiten: number; arbeit_von: string | null; arbeit_bis: string | null
+  arbeit_liste: { id: number; datum: string; station: string; zettel: number }[] | null
+  lieferscheine: number; geliefert_kg: number | null; lief_von: string | null; lief_bis: string | null
+  nach_artikel: { gruppe: string; kg: number }[] | null
+  nachgeordnet: { weg: 'nummer' | 'produzent'; n: number; kg: number }[] | null
+  rest_paletten: number | null
+}
+export interface SpurZuordnung { charge_nr: number; stand: 'angewandt' | 'vorschlag'; paletten: number; kg: number }
 
 /** Dieselben Kürbisse in 50-Gramm-Stufen (kaliber_glocke(h), 0079). */
 export interface KaliberGlocke {
@@ -519,6 +540,8 @@ export interface Auswertung {
   /** 0121: was zwischen Perigon und Lager nicht passt, und die Perigon-Zeilen dazu (zweite Welle). */
   ungereimt: UngereimtZeile[]
   perigon: PerigonPruefung[]
+  /** 0122: der Weg der Ware je Charge — herein, bearbeitet, hinaus (zweite Welle, mit ungereimt). */
+  spur: ChargeSpur[]
   gebinde: KoeffGebinde[]
   schemata: Schema[]
   kohorten: Kohorte[]
@@ -731,7 +754,7 @@ async function alles(erzwingen: boolean): Promise<Auswertung> {
     sorten: { verdunstung: [], ausschuss: [], nebenkanal: [] }, wiegungen: [], margeWiegung: [], margeCharge: [], kommentare: [],
     gewichte: [], verarbeitung: [], durchsatz: [], qualitaet: null, verlauf: vl, verlust: [],
     gebinde: [], schemata: [], kohorten: [], ausschuss: [], lieferungen: [], ausgang: [],
-    prognose: pg, wohin: wo, lieferungGruppe: lg, ausweis: aw, ungereimt: [], perigon: [], probleme,
+    prognose: pg, wohin: wo, lieferungGruppe: lg, ausweis: aw, ungereimt: [], perigon: [], spur: [], probleme,
   }
   if (!erzwingen) { stand = ersteWelle; hoerer.forEach(h => h()) }
 
@@ -755,7 +778,9 @@ async function alles(erzwingen: boolean): Promise<Auswertung> {
     q<PaloxStation>('v_palox_station'),
   ])
   // 0121: was zwischen Perigon und Lager nicht passt — für den Hinweis oben auf jeder Lagerseite.
-  const [ug, pp] = await Promise.all([q<UngereimtZeile>('v_ungereimtheit'), q<PerigonPruefung>('v_perigon_pruefung', ['datum', false])])
+  // 0122: dazu der Weg der Ware je Charge, damit jede Sache zeigt, wo die Ware herein, durch und hinaus ging.
+  const [ug, pp, sp] = await Promise.all([q<UngereimtZeile>('v_ungereimtheit'), q<PerigonPruefung>('v_perigon_pruefung', ['datum', false]),
+    q<ChargeSpur>('v_charge_spur', ['charge_nr', true])])
   // 0108: Eine noch ungefüllte Sicht der zweiten Welle steht in probleme
   // (ihre Zahl ist unbekannt, nie 0) — die Seiten zeichnen, was da ist,
   // statt im Ladekreis zu warten. Bis 0108: IM_BAU, und Chargen, Ursachen,
@@ -784,7 +809,7 @@ async function alles(erzwingen: boolean): Promise<Auswertung> {
     sorten: { verdunstung: kfv, ausschuss: kfa, nebenkanal: kfn }, wiegungen: wk, margeWiegung: mw, margeCharge: mc, kommentare: km,
     verarbeitung: va, durchsatz: ds, qualitaet: dq, verlust: ve,
     gebinde: kg, schemata: ss, kohorten: ko, ausschuss: ab, ausgang: ak,
-    ungereimt: ug, perigon: pp,
+    ungereimt: ug, perigon: pp, spur: sp,
   }
 }
 
