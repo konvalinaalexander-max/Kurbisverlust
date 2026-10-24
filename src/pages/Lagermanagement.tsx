@@ -9,7 +9,7 @@ import { Glocke, Linien, tonnenAchse, type Reihe } from '../components/Diagramm'
 import { kaliberGlockeBei, lagerKaliberBei, lieferungenVon, prognoseBei, useAuswertung, useStichtag, wohinVon,
          type Auswertung, type Bestand, type KaliberGlocke, type LagerKaliber, type Prognose, fehlendeRaten } from '../auswertung/daten'
 import { IM_LAGER_TEXT, imLagerBei, palettenIm, palettenText } from '../auswertung/lager'
-import { Ungereimtheiten } from '../auswertung/Ungereimtheiten'
+import { PerigonVerweis } from '../auswertung/Ungereimtheiten'
 import { offenText, summiere, type AusweisSumme } from '../auswertung/ausweis'
 import { LagerLeiste, LagerRechnung } from '../auswertung/LagerKette'
 import { Probleme, Rechnet, Reiterkopf } from '../auswertung/Karten'
@@ -101,7 +101,7 @@ export default function Lagermanagement() {
                   zeitplan={daten.zeitplan} veraltet={daten.veraltet} aktuell={daten.aktuell} />
       <JournalAbgleich />
       <Probleme liste={daten.probleme} />
-      <Ungereimtheiten daten={daten} />
+      <PerigonVerweis daten={daten} />
       {daten.befunde.length > 0 && (
         <div className="hinweis warnung" role="status">
           <span className="hinweis-zeichen"><ZWarnung size={18} /></span>

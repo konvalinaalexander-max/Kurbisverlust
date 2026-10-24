@@ -798,6 +798,14 @@ ohne Perigon-Zeile als eigener Teil); jede PL/pgSQL-Funktion hat einen
 festen Suchpfad; die Perigon-Liste läuft nur einmal (AB-174 bis AB-176). Dazu die
 Halle: Faules ohne Ablesung ist „unbekannt", Fehler werden gezeigt. **Setup.sql
 einmal einspielen (Stand 124), dann „Neu rechnen".**
+**Runde BC (0126)** — ein eigener Reiter **Perigon**: jede Auffälligkeit der
+Perigon-Dateien und jede Stelle, an der Perigon und Lager nicht zusammenpassen,
+nachvollziehbar (die Zahlen der Datei, die Rechnung, die Zeile wie im Excel, je
+Sorte der Weg der Ware aller Chargen) und mitverfolgt (offen, in Abklärung,
+erledigt, kein Fehler — mit Notiz; die App merkt sich nach jedem Rechnen, seit
+wann sie einen Fall sieht und seit wann nicht mehr). Oben auf den Lagerseiten
+nur noch eine Zeile mit dem Weg dorthin (AB-180, AB-181). **Setup.sql einmal
+einspielen (Stand 126), dann „Neu rechnen".**
 **Runde BB (0125)** — Lieferscheine ohne Charge, einzeln: unter Chargen eine
 eigene Zeile „ohne Charge", aufgeklappt jeder Lieferschein mit dem Grund
 (Nummer unbekannt, Spalte S = 0, keine Nummer, Rest, Nummer jetzt bekannt, von

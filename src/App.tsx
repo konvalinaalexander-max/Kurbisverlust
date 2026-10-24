@@ -1,6 +1,6 @@
 import { Suspense, lazy, type ReactNode } from 'react'
 import { NavLink, Navigate, Route, Routes, useParams } from 'react-router-dom'
-import { ZAbmelden, ZBalken, ZKiste, ZKuerbis, ZListe, ZLupe, ZRegler, ZSprache, ZUhr } from './components/Zeichen'
+import { ZAbmelden, ZBalken, ZKiste, ZKuerbis, ZListe, ZLupe, ZRegler, ZSprache, ZUhr, ZWarnung } from './components/Zeichen'
 import { useAuth } from './auth/AuthProvider'
 import { SprachAuswahl, useSprache } from './sprache/SprachProvider'
 import { imDemoModus, istKonfiguriert, konfigurationsProblem } from './lib/supabase'
@@ -22,6 +22,7 @@ const Chargen = lazy(() => import('./pages/Chargen'))
 const Messungen = lazy(() => import('./pages/Messungen'))
 const Betrieb = lazy(() => import('./pages/Betrieb'))
 const Artikel = lazy(() => import('./pages/Artikel'))
+const Perigon = lazy(() => import('./pages/Perigon'))
 
 /**
  * Der Rahmen. Zwei Oberflächen aus einem System:
@@ -132,10 +133,13 @@ export default function App() {
   // nach Charge, den unteren Lagermanagement nach Artikel". In der
   // Seitenleiste steht der Zusatz als zweite Zeile, in der schmalen
   // Kopfleiste kurz „Lager nach …" — sonst passen sechs Reiter nicht.
+  // 0126: der siebte, Perigon — der Betrieb: „mach einen neuen Reiter und
+  // behandle dort die Ungereimtheiten mit viel Detail".
   const reiter: [string, string, (p: { size?: number }) => ReactNode, string?][] = [
     ['/dashboard', 'Lagermanagement', ZBalken, 'nach Charge'],
     ['/artikel', 'Lagermanagement', ZKiste, 'nach Artikel'],
     ['/chargen', 'Chargen', ZListe],
+    ['/perigon', 'Perigon', ZWarnung],
     ['/ursachen', 'Ursachen', ZLupe],
     ['/messungen', 'Messungen', ZRegler],
     ['/betrieb', 'Betrieb', ZUhr],
@@ -208,6 +212,7 @@ export default function App() {
           <Route path="/chargen" element={istAdmin ? <Chargen /> : <NurAdmin />} />
           <Route path="/messungen/:teil?" element={istAdmin ? <Messungen /> : <NurAdmin />} />
           <Route path="/artikel" element={istAdmin ? <Artikel /> : <NurAdmin />} />
+          <Route path="/perigon/:teil?" element={istAdmin ? <Perigon /> : <NurAdmin />} />
           <Route path="/betrieb/:teil?" element={istAdmin ? <Betrieb /> : <NurAdmin />} />
           {/* Runde AO: „Messungen ausstehend" ist ein Reiter unter Messungen. */}
           <Route path="/ausstehend" element={<Navigate to="/messungen/ausstehend" replace />} />

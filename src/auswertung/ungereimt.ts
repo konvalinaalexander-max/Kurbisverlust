@@ -13,8 +13,15 @@
  * v_perigon_pruefung); hier werden sie nur zu Sätzen und nach Gewicht
  * geordnet. Ohne React, damit test/ungereimt.test.ts sie prüfen kann.
  */
-import type { ChargeSpur, LieferungOhneCharge, OhneChargeGrund, PerigonPruefung, UngereimtZeile } from './daten'
+import type { ChargeSpur, LieferungOhneCharge, OhneChargeGrund, PerigonBefund, UngereimtZeile } from './daten'
 import { STATION_NAME, datum, kg, tonnen } from '../lib/format.ts'
+import { PERIGON_ART } from './perigon.ts'
+
+/**
+ * Eine Perigon-Zeile, um die es bei einer Sache geht (0126: aus v_perigon_befund,
+ * vorher v_perigon_pruefung — die alten Namen der Arten gelten weiter).
+ */
+export type PerigonZeile = Pick<PerigonBefund, 'quelle' | 'pos_id' | 'datum' | 'kunde' | 'artikel' | 'charge_nr' | 'kg'> & { art: string; satz?: string; befund?: string }
 
 export type Schwere = 'rot' | 'gelb' | 'info'
 
@@ -32,7 +39,7 @@ export interface Ungereimtheit {
   charge_nr: number | null
   sorte: string | null
   /** Perigon-Zeilen, die dazugehören: ein Klick zeigt die Zeile der Datei mit den falschen Zellen. */
-  zeilen: PerigonPruefung[]
+  zeilen: PerigonZeile[]
   /** Für umgebucht/vorschlag: welche Paletten (der Betriebsleiter nimmt zurück oder bucht) und woher sie kommen. */
   paletten?: number[]
   von_charge_nr?: number | null
@@ -59,6 +66,8 @@ export interface Kandidat {
 
 /** Je Art der Name auf dem Chip und ein Satz, was sie heisst. */
 export const ART_NAME: Record<string, string> = {
+  // 0126: die Arten der Perigon-Fälle (v_perigon_befund); was gleich heisst wie eine Sache je Charge, nimmt deren Namen
+  ...Object.fromEntries(Object.entries(PERIGON_ART).map(([art, info]) => [art, info.name])),
   ohne_eingang: 'Verkauft, nie eingegangen',
   vor_eingang: 'Verkauft vor dem Eingang',
   ueberzaehlung: 'Mehr verkauft als möglich',
@@ -103,11 +112,11 @@ function woherVorschlag(nr: number | null, kgZ: number | null, ks: Kandidat[]): 
 }
 
 /** Eine Zeile aus v_ungereimtheit in Sätzen. */
-export function ausZeile(z: UngereimtZeile, perigon: PerigonPruefung[]): Ungereimtheit {
+export function ausZeile(z: UngereimtZeile, perigon: PerigonZeile[]): Ungereimtheit {
   const m = z.mehr ?? {}
   const kgZ = n(z.kg)
   const basis = { schluessel: `${z.art}:${z.charge_nr ?? z.sorte ?? ''}:${String(m.auftrag_id ?? m.pruefung ?? '')}`, art: z.art, kg: kgZ, charge_nr: z.charge_nr, sorte: z.sorte,
-    zeilen: [] as PerigonPruefung[], beteiligt: z.charge_nr != null ? [z.charge_nr] : [], stand: '', vorschlag: '' }
+    zeilen: [] as PerigonZeile[], beteiligt: z.charge_nr != null ? [z.charge_nr] : [], stand: '', vorschlag: '' }
   const ks = kandidatenListe(m)
   const mitKandidaten = { beteiligt: [...basis.beteiligt, ...ks.slice(0, 2).map(k => k.charge_nr)], vorschlag: woherVorschlag(z.charge_nr, kgZ, ks),
     stand: 'Noch nicht umgebucht. Die App zieht diese Ware von keinem Lager ab, solange niemand sagt, woher sie kam.' }
@@ -125,7 +134,7 @@ export function ausZeile(z: UngereimtZeile, perigon: PerigonPruefung[]): Ungerei
         was: `${kg(kgZ, 0)} in ${stueck(z.n, 'Lieferschein', 'Lieferscheinen')} gingen ${spanne(z.von, z.bis)} hinaus — die Charge kam laut Erntejournal erst am ${datum(erst)}.`,
         warum: 'Was vor dem Eingang hinausgeht, kann nicht von dieser Charge sein. Bei der Charge, von der es wirklich kam, steht es noch im Lager.',
         tun: 'Klären, welche Ware das war: Stimmt das Datum im Journal (vom Papier nachgetragen)? Oder gehört der Lieferschein zu einer Charge desselben Schlags, die schon da war?',
-        zeilen: perigon.filter(p => p.art === 'Lieferung vor dem Eingang' && p.charge_nr === z.charge_nr) }
+        zeilen: perigon.filter(p => (p.art === 'Lieferung vor dem Eingang' || p.art === 'vor_eingang') && p.charge_nr === z.charge_nr) }
     }
     case 'ueberzaehlung': {
       const gel = n(m.geliefert_kg), ein = n(m.eingang_kg), aus = n(m.ausgelagert_kg)
@@ -254,50 +263,64 @@ function ausStammdaten(z: UngereimtZeile, basis: Omit<Ungereimtheit, 'schwere' |
   }
 }
 
-/** Die Perigon-Zeilen einer Art als eine Sache (Lieferung vor dem Eingang gehört zur Charge, nicht hierher). */
-export function ausPerigon(art: string, zeilen: PerigonPruefung[]): Ungereimtheit {
-  const summe = zeilen.reduce((a, z) => a + Number(z.kg ?? 0), 0)
+/**
+ * Die Perigon-Zeilen einer Art als eine Sache (Lieferung vor dem Eingang gehört zur Charge, nicht hierher).
+ * 0126: die Arten heissen wie in v_perigon_befund; die alten Namen (v_perigon_pruefung) gelten weiter.
+ */
+export function ausPerigon(art: string, zeilen: PerigonZeile[]): Ungereimtheit {
+  const summe = zeilen.reduce((a, z) => a + Math.abs(Number(z.kg ?? 0)), 0)
   const k = zeilen.length
   const basis = { schluessel: `perigon:${art}`, art, kg: zeilen.some(z => z.kg != null) ? summe : null, charge_nr: null, sorte: null, zeilen,
     beteiligt: [] as number[], stand: '', vorschlag: '' }
   switch (art) {
+    case 'unbekannt':
+    case 'mehrdeutig':
     case 'Charge nicht zugeordnet':
       return { ...basis, schwere: 'rot',
         titel: `${stueck(k, 'Lieferschein nennt', 'Lieferscheine nennen')} eine Charge, die die App nicht kennt`,
         was: 'Auf dem Lieferschein steht eine Chargennummer, aber im Chargenregister der App gibt es sie nicht (oder nicht eindeutig).',
         warum: 'Die Ware zählt bei keiner Charge — wo sie herkam, steht sie noch im Lager.',
         tun: 'Unter Stammdaten → Chargen die Nummer anlegen oder bei der richtigen Charge als Perigon-Nr. eintragen. Beim nächsten Rechnen bekommen die Lieferscheine ihre Charge von selbst.' }
+    case 'rest':
     case 'Teil ohne Charge':
       return { ...basis, schwere: summe >= 500 ? 'rot' : 'gelb',
         titel: `${stueck(k, 'Position liefert', 'Positionen liefern')} mehr, als sie Chargen zuschreiben`,
         was: 'Die Position nennt eine Menge, schreibt aber nur einen Teil davon einer Charge zu (Spalte S „AufPosBatchQuantity Charge"). Der Rest hat keine Charge.',
         warum: 'Der Rest zählt im Warenausgang, aber bei keiner Charge — dort, wo er herkam, steht er noch im Lager.',
         tun: 'In Perigon die Chargenmengen dieser Positionen prüfen.' }
+    case 'artikel_sorte':
     case 'Artikel passt nicht zur Sorte':
       return { ...basis, schwere: 'gelb',
         titel: `${stueck(k, 'Lieferschein', 'Lieferscheine')}: Artikel und Charge passen nicht zusammen`,
         was: 'Verkauft wurde ein Artikel einer anderen Gruppe als die Sorte der Charge, die auf dem Lieferschein steht (etwa Mandarin aus einer Kaori-Kuri-Charge).',
         warum: 'Entweder stimmt die Charge nicht — dann fehlt die Ware bei der richtigen Charge — oder der Artikel; dann stimmt das Lager nach Artikel nicht.',
         tun: 'Den Lieferschein ansehen: Ist der Artikel falsch oder die Charge?' }
+    case 'demeter_knospe':
     case 'Als Demeter verkauft, als Knospe geliefert':
       return { ...basis, schwere: 'gelb',
         titel: `${stueck(k, 'Lieferschein', 'Lieferscheine')}: Demeter-Preis für Knospe-Ware`,
         was: 'Verkauft in der Preisgruppe Demeter, aber die Ware der Charge trägt das Lieferlabel Knospe.',
         warum: 'Dem Kunden wurde Demeter verrechnet, geliefert wurde Knospe — oder das Label in Perigon stimmt nicht.',
         tun: 'Label und Preisgruppe in Perigon prüfen.' }
-    default:
-      return { ...basis, schwere: 'gelb', titel: `${stueck(k, 'Perigon-Zeile', 'Perigon-Zeilen')}: ${art}`, was: zeilen[0]?.befund ?? '', warum: '', tun: '' }
+    default: {
+      // 0126: die übrigen Arten — Name, was es heisst und was zu tun ist, wie im Reiter Perigon
+      const info = (PERIGON_ART as Record<string, (typeof PERIGON_ART)[keyof typeof PERIGON_ART] | undefined>)[art]
+      const nurAuskunft = art === 'nachholen' || art === 'ruecknahme'
+      return { ...basis, schwere: nurAuskunft ? 'info' : summe >= 500 && art !== 'mix' && art !== 'label_name' ? 'rot' : 'gelb',
+        titel: `${stueck(k, 'Perigon-Zeile', 'Perigon-Zeilen')}: ${info?.name ?? art}`,
+        was: info?.heisst ?? zeilen[0]?.satz ?? zeilen[0]?.befund ?? '', warum: info?.app ?? '', tun: info?.tun ?? '' }
+    }
   }
 }
 
 const RANG: Record<Schwere, number> = { rot: 0, gelb: 1, info: 2 }
 
 /** Alles zusammen, das Schwerste und Grösste zuerst. */
-export function ungereimtheiten(zeilen: UngereimtZeile[], perigon: PerigonPruefung[]): Ungereimtheit[] {
+export function ungereimtheiten(zeilen: UngereimtZeile[], perigon: PerigonZeile[] = []): Ungereimtheit[] {
   const liste = zeilen.map(z => ausZeile(z, perigon))
-  const arten = new Map<string, PerigonPruefung[]>()
+  const arten = new Map<string, PerigonZeile[]>()
   for (const p of perigon) {
-    if (p.art === 'Lieferung vor dem Eingang') continue
+    if (p.art === 'Lieferung vor dem Eingang' || p.art === 'vor_eingang') continue
     arten.set(p.art, [...(arten.get(p.art) ?? []), p])
   }
   for (const [art, z] of arten) liste.push(ausPerigon(art, z))
@@ -364,6 +387,8 @@ export const FALSCHE_SPALTEN: Record<string, string[]> = {
   'Lieferung vor dem Eingang': ['AuftragsLieferDatum', 'AuftragsChargeManuell'],
   ohne_charge: ['AuftragsChargeManuell'],
   ohne_eingang: ['AuftragsChargeManuell'],
+  // 0126: die Arten der Perigon-Fälle (v_perigon_befund)
+  ...Object.fromEntries(Object.entries(PERIGON_ART).map(([art, info]) => [art, info.spalten])),
 }
 
 /**

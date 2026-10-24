@@ -615,6 +615,28 @@ Schlag unter zwei Namen.
 Kandidaten sagt der Vorschlag, dass keiner passt.
 **Urteil:** Auskunft, keine Buchung — die Kandidaten verschieben keine Zahl.
 
+## 12h. Jeder Fall einer Perigon-Position (`v_perigon_befund`, `perigon_faelle_merken`, 0126)
+
+**Rechnet:** je Position der laufenden Saison aus ihren Zeilen (`ausgang_zeile`):
+die Masse Q × AE (`kg_position`, 12b), was die Chargenzeilen mit Nummer und
+Menge zuteilen (Σ S × AE, `kg_zugeteilt`), was die Rechnung daraus an
+Lieferungen hat (`kg_rechnung`, ohne Rücknahmen), und davon ohne Charge. Die
+Arten und die Masse, um die es geht: S = 0 — die Position (leer, wenn auch Q = 0);
+zu viel — Σ S − Q (ab 0.5 kg); Rest — Q − Σ S (ab 0.5 kg); keine Nummer — Q;
+ohne Gewicht — leer; Rücknahme — −Q; Rechnung ≠ Datei — Rechnung − Q (ab
+0.05 kg, Vorzeichen bleibt); Artikelname gegen Preisgruppe — Q. Je Chargenzeile
+mit Lieferung: die Masse ihrer Lieferung (nachholen, mehrdeutig, unbekannt —
+nur ohne Charge; Artikel gegen Sorte, Demeter/Knospe, Mix, vor dem Eingang —
+mit Charge). Rot ab 500 kg bei Arten, die Ware auf die falsche oder keine Charge
+legen; Auskunft bei nachholen und Rücknahme.
+**Merken:** nach jedem fertigen Rechenlauf alle Fälle dieser Sicht und alle
+Sachen aus `v_ungereimtheit` (Schlüssel `ungereimt_schluessel`, wie in der App)
+in `perigon_fall_spur`: erst gesehen, zuletzt gesehen, weg seit.
+**Fehlt eine Eingabe:** ohne Gewicht je Artikel ist die Masse leer, nie 0; ohne
+Rechenlauf ist ein neuer Fall noch nicht gemerkt („beim nächsten Rechnen");
+ohne Vermerk ist ein Fall offen.
+**Urteil:** Auskunft, keine Buchung — ein Vermerk ändert keine Zahl.
+
 ## 13. Was nirgends erraten wird
 
 - Eine Menge aus einer Zählung ohne Masse (AB-23).

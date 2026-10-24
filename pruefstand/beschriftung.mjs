@@ -80,6 +80,12 @@ const SEITEN = [
       await zeile.waitFor({ state: 'visible', timeout: 60000 })
       await zeile.click(); await p.locator('.ohne-charge-tabelle tbody tr').first().waitFor()
     } },
+  // 0126: der Reiter Perigon — jeder Teil, die Zeilen aufgeklappt.
+  { name: 'perigon', pfad: '/perigon' },
+  { name: 'perigon-sorten', pfad: '/perigon/sorten' },
+  { name: 'perigon-zeilen', pfad: '/perigon/zeilen?stand=alle' },
+  { name: 'perigon-verlauf', pfad: '/perigon/verlauf' },
+  { name: 'perigon-pruefung', pfad: '/perigon/pruefung' },
   // Runde AO: Messungen hat Reiter; Arbeiten (vorher unter Betrieb) und
   // Ausstehend (vorher ein eigener Reiter) stehen darunter.
   { name: 'messungen', pfad: '/messungen/arbeiten' },

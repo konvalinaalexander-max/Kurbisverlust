@@ -238,9 +238,51 @@ export interface KundeTag {
 
 /** Runde AS (0116): die Gruppe eines Kunden, vom Betriebsleiter gesetzt (kunde_gruppe). */
 export interface KundeGruppe { kunde: string; gruppe: string }
-/** Was beim Durchsehen der Perigon-Zeilen auffällt (v_perigon_pruefung, 0116). */
+/** Was beim Durchsehen der Perigon-Zeilen auffällt (v_perigon_pruefung, 0116) — seit 0126 abgelöst durch PerigonBefund. */
 export interface PerigonPruefung {
   art: string; quelle: string; pos_id: number; datum: string; kunde: string | null; artikel: string; charge_nr: number | null; kg: number | null; befund: string
+}
+
+/** 0126: die Arten eines Perigon-Falls (v_perigon_befund) — je Position oder je Chargenzeile. */
+export type PerigonArt = 'menge_null' | 'zu_viel' | 'rest' | 'keine_nummer' | 'ohne_gewicht' | 'ruecknahme' | 'masse_abweichung' | 'label_name'
+  | 'nachholen' | 'mehrdeutig' | 'unbekannt' | 'artikel_sorte' | 'demeter_knospe' | 'mix' | 'vor_eingang'
+/** 0126: wo ein Fall behoben wird — in Perigon, im Chargenregister, durch neues Einlesen, bei der Firma, oder gar nicht. */
+export type PerigonWo = 'perigon' | 'stammdaten' | 'einlesen' | 'firma' | 'nichts'
+
+/**
+ * 0126: ein Fall einer Perigon-Position (v_perigon_befund). schluessel bleibt
+ * von Rechnen zu Rechnen gleich (art:quelle:pos_id[:nummer:lauf]) — an ihm
+ * hängen Vermerk und Spur. Die Zahlen der Datei: menge (Spalte Q), Gewicht je
+ * Artikel (AE), kg_position = Q × AE, kg_zugeteilt = Σ S × AE der
+ * Chargenzeilen; kg_rechnung: was die App daraus an Lieferungen hat. kg ist,
+ * worum es geht — leer heisst unbekannt, nie 0.
+ */
+export interface PerigonBefund {
+  schluessel: string; art: PerigonArt; schwere: 'rot' | 'gelb' | 'info'
+  quelle: string; pos_id: number; datum: string; kunde: string | null; artikel: string; einheit: string | null
+  menge: number | null; gewicht_je_artikel: number | null; preisgruppe: string | null; liefer_label: string | null
+  kg_position: number | null; kg_zugeteilt: number | null; kg_rechnung: number | null; kg_ohne_charge: number | null; kg: number | null
+  nummern: string | null; nummer: string | null; lauf_nr: number | null; charge_nr: number | null; sorte: string | null
+  n_zeilen: number; satz: string; tun: string; wo: PerigonWo; eingelesen: string | null
+}
+
+/** 0126: was je Firma eingelesen ist (v_perigon_stand). */
+export interface PerigonStand {
+  quelle: string; name: string; zeilen: number; positionen: number; von: string | null; bis: string | null
+  zuletzt_geladen: string | null; letzte_datei: string | null; letzte_bis: string | null; dateien: number
+  ohne_roh: number; kg: number | null; kg_ohne_charge: number | null; faelle: number
+}
+
+/** 0126: wie es um einen Fall steht — der Betriebsleiter vermerkt, die App merkt sich, seit wann sie ihn sieht. */
+export type VermerkStand = 'offen' | 'in_abklaerung' | 'erledigt' | 'kein_fehler'
+export interface PerigonVerlauf {
+  schluessel: string; ebene: 'zeile' | 'charge' | null; art: string | null
+  erst_gesehen: string | null; zuletzt_gesehen: string | null; weg_seit: string | null
+  schnappschuss: Record<string, unknown> | null
+  stand: VermerkStand; notiz: string | null; vermerk_ts: string | null; vermerk_von: string | null; n_vermerke: number
+}
+export interface PerigonVermerk {
+  id: number; schluessel: string; stand: VermerkStand; notiz: string | null; schnappschuss: Record<string, unknown> | null; wer: string | null; ts: string
 }
 
 /**
@@ -497,7 +539,10 @@ export interface Auswertung {
   ausweis: LagerAusweis[]
   /** 0121: was zwischen Perigon und Lager nicht passt, und die Perigon-Zeilen dazu (zweite Welle). */
   ungereimt: UngereimtZeile[]
-  perigon: PerigonPruefung[]
+  /** 0126: jeder Fall einer Perigon-Position (v_perigon_befund) — vorher v_perigon_pruefung. */
+  perigon: PerigonBefund[]
+  /** 0126: der Stand je Fall (v_perigon_verlauf) — was vermerkt ist, und seit wann die App ihn sieht. */
+  faelleStand: PerigonVerlauf[]
   /** 0122: der Weg der Ware je Charge — herein, bearbeitet, hinaus (zweite Welle, mit ungereimt). */
   spur: ChargeSpur[]
   gebinde: KoeffGebinde[]
@@ -711,7 +756,7 @@ async function alles(erzwingen: boolean): Promise<Auswertung> {
     sorten: { verdunstung: [], ausschuss: [], nebenkanal: [] }, wiegungen: [], margeWiegung: [], margeCharge: [], kommentare: [],
     verarbeitung: [], qualitaet: null, verlauf: vl,
     gebinde: [], schemata: [], kohorten: [], ausschuss: [], ausgang: [],
-    prognose: pg, wohin: wo, lieferungGruppe: lg, ausweis: aw, ungereimt: [], perigon: [], spur: [], probleme,
+    prognose: pg, wohin: wo, lieferungGruppe: lg, ausweis: aw, ungereimt: [], perigon: [], faelleStand: [], spur: [], probleme,
   }
   if (!erzwingen) { stand = ersteWelle; hoerer.forEach(h => h()) }
 
@@ -736,8 +781,9 @@ async function alles(erzwingen: boolean): Promise<Auswertung> {
   ])
   // 0121: was zwischen Perigon und Lager nicht passt — für den Hinweis oben auf jeder Lagerseite.
   // 0122: dazu der Weg der Ware je Charge, damit jede Sache zeigt, wo die Ware herein, durch und hinaus ging.
-  const [ug, pp, sp] = await Promise.all([q<UngereimtZeile>('v_ungereimtheit'), q<PerigonPruefung>('v_perigon_pruefung', ['datum', false]),
-    q<ChargeSpur>('v_charge_spur', ['charge_nr', true])])
+  // 0126: die Perigon-Fälle je Position (v_perigon_befund) statt v_perigon_pruefung, dazu ihr Stand.
+  const [ug, pp, sp, fs] = await Promise.all([q<UngereimtZeile>('v_ungereimtheit'), q<PerigonBefund>('v_perigon_befund', ['datum', false]),
+    q<ChargeSpur>('v_charge_spur', ['charge_nr', true]), q<PerigonVerlauf>('v_perigon_verlauf')])
   // 0108: Eine noch ungefüllte Sicht der zweiten Welle steht in probleme
   // (ihre Zahl ist unbekannt, nie 0) — die Seiten zeichnen, was da ist,
   // statt im Ladekreis zu warten. Bis 0108: IM_BAU, und Chargen, Ursachen,
@@ -766,7 +812,7 @@ async function alles(erzwingen: boolean): Promise<Auswertung> {
     sorten: { verdunstung: kfv, ausschuss: kfa, nebenkanal: kfn }, wiegungen: wk, margeWiegung: mw, margeCharge: mc, kommentare: km,
     verarbeitung: va, qualitaet: dq,
     gebinde: kg, schemata: ss, kohorten: ko, ausschuss: ab, ausgang: ak,
-    ungereimt: ug, perigon: pp, spur: sp,
+    ungereimt: ug, perigon: pp, faelleStand: fs, spur: sp,
   }
 }
 
@@ -885,21 +931,20 @@ export async function laufVergleich(): Promise<LaufVergleich[]> {
  * aller Saisons. Klein bis auf die Kundentage — die kommen seitenweise.
  */
 export async function artikelGrundlagen(): Promise<{ labels: ChargeLabel[]; gruppen: SorteGruppe[]; kaliber: ArtikelKaliber[]; kunden: KundeTag[]
-                                                    kundeGruppe: KundeGruppe[]; plaene: KundePlan[]; pruefung: PerigonPruefung[]
+                                                    kundeGruppe: KundeGruppe[]; plaene: KundePlan[]
                                                     gruppenRang: GruppeRang[]; gruppenPlaene: GruppePlan[] }> {
-  const [l, g, k, kg, kp, pp, gr, gp] = await Promise.all([
+  const [l, g, k, kg, kp, gr, gp] = await Promise.all([
     supabase.from('v_charge_label').select('charge_nr, label, quelle, gemischt, n_d, n_k, n_widerspruch'),
     supabase.from('v_sorte_artikelgruppe').select('*'),
     supabase.from('artikel_kaliber').select('gruppe, groesse, von_g, bis_g, stueck_je_kiste, bemerkung'),
-    // Runde AS (0116): Kundengruppen, Planmengen, die Prüfungen der Perigon-Zeilen
+    // Runde AS (0116): Kundengruppen und Planmengen. Die Prüfungen der Perigon-Zeilen stehen seit 0126 im Reiter Perigon.
     supabase.from('kunde_gruppe').select('kunde, gruppe'),
     supabase.from('kunde_plan').select('saison, kunde, artikelgruppe, groesse, label, kg'),
-    supabase.from('v_perigon_pruefung').select('art, quelle, pos_id, datum, kunde, artikel, charge_nr, kg, befund').order('datum', { ascending: false }),
     // Runde AT (0117): die Reihenfolge der Gruppen und der Plan einer ganzen Gruppe
     supabase.from('kunde_gruppe_rang').select('gruppe, rang'),
     supabase.from('gruppe_plan').select('saison, gruppe, artikelgruppe, groesse, label, kg'),
   ])
-  for (const r of [l, g, k, kg, kp, pp, gr, gp]) if (r.error) throw new Error(r.error.message)
+  for (const r of [l, g, k, kg, kp, gr, gp]) if (r.error) throw new Error(r.error.message)
   const kunden: KundeTag[] = []
   for (let von = 0; ; von += SEITE) {
     const r = await supabase.from('v_kunde_tag').select('*').order('datum').range(von, von + SEITE - 1)
@@ -909,7 +954,7 @@ export async function artikelGrundlagen(): Promise<{ labels: ChargeLabel[]; grup
     if (teil.length < SEITE) break
   }
   return { labels: (l.data ?? []) as ChargeLabel[], gruppen: (g.data ?? []) as SorteGruppe[], kaliber: (k.data ?? []) as ArtikelKaliber[], kunden,
-           kundeGruppe: (kg.data ?? []) as KundeGruppe[], plaene: (kp.data ?? []) as KundePlan[], pruefung: (pp.data ?? []) as PerigonPruefung[],
+           kundeGruppe: (kg.data ?? []) as KundeGruppe[], plaene: (kp.data ?? []) as KundePlan[],
            gruppenRang: (gr.data ?? []) as GruppeRang[], gruppenPlaene: (gp.data ?? []) as GruppePlan[] }
 }
 

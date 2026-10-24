@@ -7,9 +7,9 @@ import { useAuth } from '../auth/AuthProvider'
 import { Erklaerung, Herkunft, Hinweis, Karte, Kennzahl, Lade, Leer, Marke, Segmente } from '../components/Bausteine'
 import { Linien, tonnenAchse, type Reihe } from '../components/Diagramm'
 import { artikelGrundlagen, artikelLagerChargeBei, useAuswertung, useStichtag,
-         type ArtikelKaliber, type ArtikelLagerCharge, type Bestand, type ChargeLabel, type KundeGruppe, type KundeTag, type PerigonPruefung,
+         type ArtikelKaliber, type ArtikelLagerCharge, type Bestand, type ChargeLabel, type KundeGruppe, type KundeTag,
          type SorteGruppe, type Verlaufswoche } from '../auswertung/daten'
-import { Ungereimtheiten } from '../auswertung/Ungereimtheiten'
+import { PerigonVerweis } from '../auswertung/Ungereimtheiten'
 import { Probleme, Rechnet, Reiterkopf } from '../auswertung/Karten'
 import { IM_LAGER_TEXT, palettenText } from '../auswertung/lager'
 import { STROM_UEBERFUELLUNG } from '../auswertung/ausweis'
@@ -91,7 +91,7 @@ function wahlLesen(): Wahl {
 
 interface Grundlagen {
   labels: ChargeLabel[]; gruppen: SorteGruppe[]; kaliber: ArtikelKaliber[]; kunden: KundeTag[]
-  kundeGruppe: KundeGruppe[]; plaene: KundePlan[]; pruefung: PerigonPruefung[]
+  kundeGruppe: KundeGruppe[]; plaene: KundePlan[]
   gruppenRang: GruppeRang[]; gruppenPlaene: GruppePlan[]
 }
 
@@ -145,7 +145,7 @@ export default function Artikel() {
                   stand={daten.stand} heute={daten.heute} neuRechnen={() => void neuRechnen()} laeuft={laedt}
                   zeitplan={daten.zeitplan} veraltet={daten.veraltet} aktuell={daten.aktuell} />
       <Probleme liste={daten.probleme} />
-      <Ungereimtheiten daten={daten} />
+      <PerigonVerweis daten={daten} />
       {grundFehler && <Hinweis art="warnung">Die Zuordnung zu Artikeln liess sich nicht laden: {grundFehler}</Hinweis>}
       {grund && (
         <>
@@ -156,7 +156,6 @@ export default function Artikel() {
                                           laedt={lager.laedt} lagerFehler={lager.fehler} rest={rest} heute={daten.heute} />} />
           <Verlauf grund={grund} heute={daten.heute} wahl={wahl} lagerHeute={lagerHeute.zeilen} verlauf={daten.verlauf}
                    bestand={daten.bestand} istAdmin={istAdmin} neuLaden={() => setLadeNr(n => n + 1)} />
-          <PerigonPruefungen liste={grund.pruefung} />
         </>
       )}
       {!grund && !grundFehler && <Rechnet fortschritt={null} />}
@@ -1148,54 +1147,3 @@ function kurvenReihen(k: Kurve, saison: number): Reihe[] {
   return r
 }
 
-/* ---------- 3. Was in den Perigon-Dateien auffällt (Runde AS) ------------------ */
-
-/**
- * Der Betrieb: „solche Infos, dass du das Perigon durchscannst — hervorragend.
- * Das darfst du gerne erweitern." Je Art, wie oft, und aufgeklappt jede Zeile
- * mit dem Satz, was zu tun ist (v_perigon_pruefung, 0116); ein Klick zeigt
- * die ganze Zeile der Datei.
- */
-function PerigonPruefungen({ liste }: { liste: PerigonPruefung[] }) {
-  const [auf, setAuf] = useState<string | null>(null)
-  const [offen, setOffen] = useState<{ quelle: string; posId: number } | null>(null)
-  const arten = useMemo(() => {
-    const m = new Map<string, PerigonPruefung[]>()
-    for (const p of liste) m.set(p.art, [...(m.get(p.art) ?? []), p])
-    return [...m.entries()].sort((a, b) => b[1].length - a[1].length)
-  }, [liste])
-  if (liste.length === 0) return null
-  return (
-    <Karte id="perigon-pruefung" titel="Was in den Perigon-Dateien auffällt">
-      <div className="rollbar">
-        <table className="dicht perigon-pruefung">
-          <thead><tr><th>Art</th><th className="zahl">Zeilen</th><th className="zahl">Masse in der Datei</th></tr></thead>
-          <tbody>{arten.map(([art, zeilen]) => (
-            <Fragment key={art}>
-              <tr className={`klickbar${auf === art ? ' offen' : ''}`} aria-expanded={auf === art} onClick={() => setAuf(auf === art ? null : art)}>
-                <td><span className="chevron" aria-hidden="true"><ZChevron size={14} /></span><Marke art={art === 'Teil ohne Charge' ? 'neutral' : 'warnung'}>{art}</Marke></td>
-                <td className="zahl">{zahl(zeilen.length)}</td>
-                <td className="zahl">{masse(zeilen.reduce((a, z) => a + Number(z.kg ?? 0), 0))}</td>
-              </tr>
-              {auf === art && zeilen.map(z => (
-                <tr key={`${z.quelle}:${z.pos_id}:${z.charge_nr ?? ''}:${z.befund}`} className="klickbar unterzeile"
-                    onClick={() => setOffen({ quelle: z.quelle, posId: z.pos_id })} title="die ganze Zeile der Perigon-Datei zeigen">
-                  <td colSpan={3}>
-                    <span className="leise">{datum(z.datum)} · {z.kunde ?? 'ohne Kunde'} · {z.artikel}{z.kg != null ? ` · ${kg(z.kg, 0)}` : ''}</span>
-                    <br />{z.befund}
-                  </td>
-                </tr>
-              ))}
-            </Fragment>
-          ))}</tbody>
-        </table>
-      </div>
-      <Erklaerung>
-        <p>Jede Zeile der laufenden Saison wird beim Rechnen durchgesehen: eine Charge, die Perigon nennt, die Lieferung aber nicht trägt; ein
-        Artikel, dessen Gruppe nicht zur Sorte der gelieferten Charge passt; als Demeter verkauft, aber als Knospe geliefert; eine Lieferung vor
-        dem ersten Eingang ihrer Charge. Ein Klick auf die Art zeigt die Zeilen, ein Klick auf eine Zeile die ganze Zeile der Datei.</p>
-      </Erklaerung>
-      {offen && <LieferungFenster quelle={offen.quelle} posId={offen.posId} schliessen={() => setOffen(null)} />}
-    </Karte>
-  )
-}

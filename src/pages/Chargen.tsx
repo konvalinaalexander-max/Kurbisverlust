@@ -9,7 +9,7 @@ import { Erklaerung, Herkunft, Hinweis, Karte, Lade, Marke } from '../components
 import { lieferungenVon, useAuswertung, type Auswertung } from '../auswertung/daten'
 import { IM_LAGER_TEXT, imLagerCharge, palettenText } from '../auswertung/lager'
 import { Probleme, Rechnet, Reiterkopf } from '../auswertung/Karten'
-import { Ungereimtheiten } from '../auswertung/Ungereimtheiten'
+import { PerigonVerweis, Ungereimtheiten } from '../auswertung/Ungereimtheiten'
 import { OhneChargeListe } from '../auswertung/OhneCharge'
 import { ungereimtheiten, vonCharge, type Ungereimtheit } from '../auswertung/ungereimt'
 import { ausweisVon, summiere } from '../auswertung/ausweis'
@@ -133,7 +133,7 @@ export default function Chargen() {
                   stand={daten.stand} heute={daten.heute} neuRechnen={() => void neuRechnen()} laeuft={laedt}
                   zeitplan={daten.zeitplan} veraltet={daten.veraltet} aktuell={daten.aktuell} />
       <Probleme liste={daten.probleme} />
-      <Ungereimtheiten daten={daten} />
+      <PerigonVerweis daten={daten} />
       <Karte>
         <div className="filterleiste">
           <input type="search" value={finden} onChange={e => setFinden(e.target.value)} aria-label="Charge finden"

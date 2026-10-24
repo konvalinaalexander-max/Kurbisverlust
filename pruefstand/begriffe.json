@@ -327,6 +327,59 @@
       "art": "gerechnet",
       "bedeutet": "Unter Stammdaten → Sorten und Artikel: das Verkaufsfähige der Sorte im Lager heute, das in kein Artikelgewicht passt (darunter, darüber, dazwischen) — nach der Sortier-CSV, um die Verdunstung geschrumpft (Runde BA)",
       "quelle": "artikel_lager_charge(0) groesse in (darunter, darueber, dazwischen)"
+    },
+    {
+      "muster": [
+        "Herein · Erntejournal"
+      ],
+      "art": "gemessen",
+      "bedeutet": "0126: was laut Erntejournal hereinkam — Nettomasse der Paletten (Reiter Perigon, die Lage in Zahlen und der Weg der Ware je Charge)",
+      "quelle": "v_charge_spur.journal_kg"
+    },
+    {
+      "muster": [
+        "Hinaus · Perigon",
+        "Hinaus ohne Charge",
+        "ohne Charge"
+      ],
+      "art": "gemessen",
+      "bedeutet": "0126: was laut Perigon-Lieferschein hinausging — mit Charge (je Charge, über alle Chargen) oder ohne (auf die Chargen der Sorte verteilt, oder je Firma)",
+      "quelle": "v_charge_spur.geliefert_kg · v_ungereimtheit (ohne_charge).kg · v_perigon_stand.kg_ohne_charge"
+    },
+    {
+      "muster": [
+        "Offen",
+        "betrifft",
+        "Was nicht passt"
+      ],
+      "art": "gemessen|gerechnet",
+      "bedeutet": "0126: die Masse, um die es bei offenen Perigon-Fällen und Sachen je Charge geht — aus der Datei (S = 0, Rest, Mix …: gemessen) oder gerechnet (mehr verkauft als möglich). Im Reiter Perigon steht dazu je Fall, woher die Zahl kommt.",
+      "quelle": "v_perigon_befund.kg · v_ungereimtheit.kg"
+    },
+    {
+      "muster": [
+        "Warum es zählt",
+        "Vorschlag"
+      ],
+      "art": "gemessen|gerechnet",
+      "bedeutet": "0126: die Sätze einer Sache je Charge (v_ungereimtheit) — die Kilo der Lieferscheine und des Journals gemessen, was fehlt mit dem gerechneten Verlust; der Satz sagt es",
+      "quelle": "v_ungereimtheit.kg · .mehr (geliefert_kg, eingang_kg, ausgelagert_kg, kandidaten)"
+    },
+    {
+      "muster": [
+        "Was nicht stimmt"
+      ],
+      "art": "gemessen",
+      "bedeutet": "0126: der Satz eines Perigon-Falls — Kilo aus der Datei (Q × AE, S × AE) und den Lieferungen der Rechnung",
+      "quelle": "v_perigon_befund.satz"
+    },
+    {
+      "muster": [
+        "Mehr verkauft als möglich"
+      ],
+      "art": "gerechnet",
+      "bedeutet": "0126: die Prüfung je Charge — was hinausging, braucht mit dem gerechneten Verlust mehr Eingangsware, als hereinkam (ab 100 kg und 3 %)",
+      "quelle": "v_ungereimtheit (ueberzaehlung)"
     }
   ]
 }

@@ -4171,6 +4171,124 @@ Daten, dann die Annahme — nach der Korrektur nachsehen.
 nicht alles: vier mal vier gleiche Paloxen und ein Tag mit 30 Paaren bei
 13 erwarteten sind Fragen wert.
 
+## Runde BC: Ein Reiter für Perigon — jeder Fall nachvollziehbar und mitverfolgt (24. Oktober, 0126)
+
+Der Betrieb: „Perigon nennt die Charge, teilt ihr aber keine Menge zu
+(Spalte S = 0), oder Chargenzeilen, die zusammen mehr ergeben als die Position
+— oder weniger —, oder Positionen ganz ohne Charge … mach einen neuen Reiter,
+nicht oberhalb von Artikel, und behandle dort die Ungereimtheiten mit viel
+Detail, mit viel Rückverfolgbarkeit, so dass man es nachvollziehen kann — was
+sind die Fehler —, dass man sie anklicken und dann auch mitverfolgen kann. Das
+wird für uns als Betrieb immer wichtiger." Und gleich danach: „alles, was du im
+PDF hast, dort in den Reiter — das mit 1719 etc. — alles schön nachvollziehbar."
+
+Das PDF vom 23. Oktober (nicht im Repository, es nennt Kunden) hatte neun Arten
+in den Dateien und sechs Fälle je Sorte. Die App sah davon fünf, verstreut: eine
+Karte unter Artikel, die Leiste oben auf drei Reitern, das Fenster einer
+Lieferung. Was das PDF von Hand aus den Excel-Dateien holte — S = 0, dieselbe
+Zeile dreimal, Kleinposten ohne Nummer, „Butterkin Demeter" mit Preisgruppe K,
+35 Mix-Zeilen auf einer Charge —, prüfte sie nicht. Und keiner der Fälle liess
+sich festhalten: gemeldet, berichtigt, stimmt so.
+
+**1. Jeder Fall einer Perigon-Position (`v_perigon_befund`, 0126).** Fünfzehn
+Arten, je Position (S = 0, auch mit Q = 0; Chargenzeilen mehr als die Position,
+mit dem Hinweis, wenn dieselbe Zeile mehrfach dasteht; weniger; keine Nummer;
+Stück ohne Gewicht; Rücknahme; Lieferungen der Rechnung ≠ Masse der Datei;
+Artikelname gegen Preisgruppe) oder je Chargenzeile (Nummer inzwischen bekannt,
+mehrdeutig, unbekannt; Artikel gegen Sorte; Demeter-Preis für Knospe-Ware; Mix
+auf einer Charge; vor dem Eingang). Je Fall ein Schlüssel, der von Rechnen zu
+Rechnen gleich bleibt (Art, Firma, Position, bei Chargenzeilen Nummer und
+Lauf), die Zahlen der Datei (Q, AE, Q × AE, Σ S × AE, was die Rechnung daraus
+hat), die Masse, um die es geht (leer, wo unbekannt), der Satz, was zu tun ist,
+und wo (Perigon, Stammdaten, Einlesen, Firma, nichts). Auf den echten Dateien vom
+12./14. Oktober findet die Sicht genau, was das PDF in Abschnitt 3 nennt: 3
+Positionen mit 576 kg zu viel (darunter 1620 dreimal), 2 Reste (15 + 4 kg), 7
+Kleinposten ohne Nummer (50 kg), die beiden Positionen vom 9.10. mit S = 0 (1648
+und 1719, 1623), Mandarin aus 1619 und 1651, Demeter/Knospe bei 1651,
+„Butterkin Demeter" mit Preisgruppe K (1 450 kg), 35 Mix-Zeilen (2.4 t), 7.3 t
+vor dem Eingang — geprüft auf einer lokalen Kopie, die Dateien mit dem Weg der
+App eingelesen. `v_perigon_pruefung` bleibt stehen; die App liest sie nicht mehr.
+
+**2. Was von jeder Firma eingelesen ist (`v_perigon_stand`).** Zeilen,
+Positionen, von–bis, die zuletzt eingelesene Datei, wie viele Positionen ihre
+ganze Zeile noch nicht haben, die Masse ohne Charge, die offenen Fälle.
+
+**3. Mitverfolgen.** Zwei Spuren je Schlüssel. Was der Betriebsleiter festhält
+(`perigon_vermerk`: offen, in Abklärung, erledigt, kein Fehler, mit Notiz, wer,
+wann, und dem Fall, wie er war) — nur anhängen: niemand ändert oder löscht einen
+Vermerk, kein Vermerk im Namen eines anderen, die Halle liest nur. Und was die
+App von selbst weiss (`perigon_fall_spur`): nach jedem fertigen Rechenlauf
+(ausgelöst, wenn `auswertung_stand.berechnet_ts` neu ist) merkt sie sich jeden
+Fall der Positionen und jede Sache je Charge (`v_ungereimtheit`, mit demselben
+Schlüssel wie in der App) — seit wann sie ihn sieht, wann zuletzt, und seit wann
+nicht mehr. Ein Fall, der nach dem Berichtigen in Perigon und dem Neu-Einlesen
+verschwindet, steht danach unter „Nicht mehr in den Daten", mit dem, was er war.
+Was zu einer entfernten Firma oder Charge gehörte (die Demo), vergisst die Spur,
+ausser es hat einen Vermerk. Schlägt das Merken fehl, steht der Rechenlauf
+trotzdem.
+
+**4. Der Reiter Perigon** (`src/pages/Perigon.tsx`, `src/auswertung/perigon.ts`,
+`Verfolgen.tsx`), zwischen Chargen und Ursachen, fünf Teile wie das PDF: Übersicht
+(offen, in Abklärung, erledigt und noch in den Daten, nicht mehr in den Daten;
+was zu tun ist, nach dem Ort, an dem es behoben wird; die Lage in Zahlen; je Art;
+je Charge; die Dateien) — Je Sorte (Fall für Fall: alle Chargen einer Sorte mit
+dem Weg der Ware, das Bild über die Sorte — „3 Chargen verkaufen mehr, als sie
+hergeben; 2 haben Eingang, aber nie einen Lieferschein — von dort kam die Ware
+wohl" —, aufeinanderfolgende Perigon-Nummern, wo die Sorte nicht aufgeht, die
+Sachen mit Stand, Vorschlag und Mitverfolgen) — Perigon-Zeilen (je Art mit
+Erklärung: was das heisst, woran man es in der Datei sieht, was die App macht,
+was tun; Filter nach Stand, Art, Firma, Sorte, Suche; ein Klick öffnet das
+Fenster mit dem Fall oben — Satz, Rechnung aus Q, AE, S, was die App gerechnet
+hat, wo man die Zeile in der Datei findet —, der Zeile wie im Excel und dem
+Mitverfolgen unten) — Verlauf — So prüft die App (die Spalten mit ihren
+Buchstaben aus der Datei, jede Prüfung, was die App bewusst nicht tut).
+
+**5. Woanders.** Die grosse Leiste oben auf Lager nach Charge, nach Artikel und
+Chargen ist eine Zeile geworden, die zählt und in den Reiter führt; die Karte
+„Was in den Perigon-Dateien auffällt" unter Artikel ist weg. Die aufgeklappte
+Charge zeigt ihre Sachen weiter, mit ihren eigenen Perigon-Zeilen (bis hier:
+denen aller Chargen derselben Art) und dem Weg in den Reiter. Das Fenster einer
+Lieferung liest die neuen Fälle und sagt jeden mit Satz und Was tun.
+
+**Geprüft.** Prüfblock 0126: ein gebauter Fall je Art auf einer Prüf-Firma, eine
+richtige Position am Tag des ersten Eingangs, die nicht dasteht, jede Position
+mit genau ihren Arten, jeder Schlüssel einmal, keine 0 statt unbekannt; der
+Stand der Firma; die Rechte des Protokolls (anhängen ja, Halle nein, ändern und
+löschen nein, im Namen anderer nein); der Verlauf (der letzte Vermerk zählt);
+das Merken (neu, verschwunden, wieder da mit dem ersten Datum, die Sachen je
+Charge mit dem Schlüssel der App, Vergessen nach dem Entfernen der Firma); der
+Auslöser nach dem Rechenlauf und nicht bei anderem Nachführen; dass die Zeilenregel auch dann nichts ändern oder löschen lässt, wenn Supabase einer neuen Tabelle von sich aus die Rechte gibt. 36 Mutationen,
+alle erkannt. Tests `test/perigon.test.ts` (11), Bildschirme `perigon`,
+`perigon-sorten`, `perigon-zeilen`, `perigon-vermerken`, `perigon-verlauf`,
+`perigon-pruefung`. Zwei Szenen änderten sich mit der Regel: `lager-ungereimt`
+prüft die Zeile oben und dass sie in den Reiter führt; `lager-ungereimt-spur`
+heisst `perigon-sorten` und prüft dieselben Sätze und Knöpfe im Reiter.
+`artikel-perigon` prüft, dass die Karte weg ist und die Zeile dasteht.
+
+**Auf den echten Daten.** Die Kopie mit den echten Perigon-Dateien gibt dieselben
+Fälle wie das PDF (61 Zeilen-Fälle, dazu die Sachen je Charge). Zuerst dauerte
+die Sicht 3 Sekunden: Der Planer schätzt für `artikel_einordnen` 1000 Zeilen je
+Aufruf (eine Tabellenfunktion ohne Angabe), hielt die Sicht für 2 Mio. teuer und
+übersetzte sie mit JIT. Die Funktion gibt genau eine Zeile; die Sicht ruft sie
+jetzt mit `limit 1` und schätzt richtig — 50 ms, das Merken nach dem Rechenlauf
+100 ms, mit und ohne JIT, mit denselben 61 Fällen. `artikel_einordnen` selbst
+bleibt, wie sie ist: eine Änderung an ihr träfe die älteren Sichten mit, die sie ebenso rufen.
+
+**Was bewusst nicht gemacht wurde.**
+- Nichts wird umgebucht und nichts in Perigon geschrieben; ein Vermerk ändert
+  keine Zahl. „Erledigt" heisst: in Perigon berichtigt — bis zum Neu-Einlesen
+  steht der Fall noch in den Daten, und der Reiter sagt das.
+- Kein Hinweis auf Perigon-Nummern, die sich „in einer Stelle" unterscheiden:
+  die Nummern der Planungsliste sind fortlaufend, fast jedes Paar einer Sorte
+  wäre gemeldet worden (die Demo zeigte neun für Kaori Kuri). Gezeigt wird nur
+  ein aufeinanderfolgendes Paar, und nur in einer Sorte, die nicht aufgeht.
+- Die Demo bekommt keine eigenen Perigon-Fälle; was sie hat (Artikelname gegen
+  Preisgruppe, zwei Lieferungen ≠ Datei, ein Mandarin), zeigt der Reiter, die
+  übrigen Arten zeigen die Bildschirme mit vorgemerkten Fällen.
+- Der Verweis oben zählt aus dem Stand beim Laden der Seite; ein Vermerk im
+  Reiter ändert ihn erst beim nächsten Laden.
+- Der Betriebsabzug führt Vermerke und Spur noch nicht mit.
+
 ## Runde BB: Lieferscheine ohne Charge, einzeln und mit Grund (24. Oktober, 0125)
 
 Der Betrieb: „bitte weis mir in der App auch Lieferscheine ohne Charge aus —
