@@ -19,6 +19,7 @@ import { useAuth } from '../auth/AuthProvider'
 import { Segmente } from '../components/Bausteine'
 import type { PerigonVerlauf, VermerkStand } from './daten'
 import { STAND_FOLGE, STAND_NAME } from './perigon'
+import { fallFortschritt, fallStand } from './faelle'
 
 export interface VerlaufWissen {
   verlauf: Map<string, PerigonVerlauf>
@@ -49,23 +50,47 @@ export function StandMarke({ stand }: { stand: VermerkStand }) {
   return <span className={`stand-marke st-${stand}`}>{STAND_NAME[stand]}</span>
 }
 
-interface Eintrag { id: number; stand: VermerkStand; notiz: string | null; ts: string; wer: string | null; profil?: { name: string } | null }
+interface Eintrag { id: number; schluessel: string; stand: VermerkStand; notiz: string | null; ts: string; wer: string | null; profil?: { name: string } | null }
+
+/** Runde BF: was in einem Zug für mehrere Teile vermerkt wurde, steht einmal da — mit der Zahl der Teile. */
+function zusammen(eintraege: Eintrag[]): (Eintrag & { teile: number })[] {
+  const m = new Map<string, Eintrag & { teile: number }>()
+  for (const e of eintraege) {
+    const k = `${e.ts}|${e.stand}|${e.notiz ?? ''}|${e.wer ?? ''}`
+    const da = m.get(k)
+    if (da) da.teile += 1; else m.set(k, { ...e, teile: 1 })
+  }
+  return [...m.values()]
+}
 
 /**
  * Unter einem Fall: wie es steht, seit wann die App ihn sieht, alles, was
  * dazu vermerkt ist — und für den Betriebsleiter das Feld, etwas dazu
  * festzuhalten.
+ *
+ * Runde BF: ein Fall kann mehrere Teile haben (alles zu einer Charge, alle
+ * Positionen einer Art). Dann steht der Stand des Ganzen da (erledigt erst,
+ * wenn alle Teile es sind), und ein Vermerk gilt für jeden Teil — in einem
+ * Zug, mit derselben Notiz.
  */
-export function FallVerfolgen({ schluessel, schnappschuss, kompakt = false }: {
-  schluessel: string; schnappschuss: Record<string, unknown>
+export function FallVerfolgen({ schluessel, schnappschuss, kompakt = false, titel = 'Mitverfolgen' }: {
+  schluessel: string | string[]
+  schnappschuss: Record<string, unknown> | ((schluessel: string) => Record<string, unknown>)
   /** unter einer Sache in einer Liste: das Feld erst auf Knopfdruck */
   kompakt?: boolean
+  titel?: string
 }) {
   const { istAdmin } = useAuth()
   const wissen = useContext(VerlaufKontext)
-  const v = wissen?.verlauf.get(schluessel)
+  const teile = Array.isArray(schluessel) ? schluessel : [schluessel]
+  const kennung = teile.join('|')
+  const vs = teile.map(s => wissen?.verlauf.get(s)).filter((v): v is PerigonVerlauf => v != null)
+  const stand = fallStand({ teile }, wissen?.verlauf ?? new Map())
+  const fortschritt = fallFortschritt({ teile }, wissen?.verlauf ?? new Map())
+  const erst = vs.map(v => v.erst_gesehen).filter((x): x is string => !!x).sort()[0] ?? null
+  const weg = vs.length > 0 && vs.length === teile.length && vs.every(v => v.weg_seit) ? vs.map(v => v.weg_seit!).sort().reverse()[0] : null
   const [eintraege, setEintraege] = useState<Eintrag[] | null>(null)
-  const [wahl, setWahl] = useState<VermerkStand>(v?.stand === 'offen' || !v ? 'in_abklaerung' : v.stand)
+  const [wahl, setWahl] = useState<VermerkStand>(stand === 'offen' ? 'in_abklaerung' : stand)
   const [notiz, setNotiz] = useState('')
   const [laeuft, setLaeuft] = useState(false)
   const [meldung, setMeldung] = useState<string | null>(null)
@@ -74,45 +99,51 @@ export function FallVerfolgen({ schluessel, schnappschuss, kompakt = false }: {
 
   useEffect(() => {
     let lebt = true
+    setEintraege(null)
     void (async () => {
-      const r = await supabase.from('perigon_vermerk').select('id, stand, notiz, ts, wer, profil(name)')
-        .eq('schluessel', schluessel).order('ts', { ascending: false }).order('id', { ascending: false })
+      const r = await supabase.from('perigon_vermerk').select('id, schluessel, stand, notiz, ts, wer, profil(name)')
+        .in('schluessel', teile).order('ts', { ascending: false }).order('id', { ascending: false })
       if (!lebt) return
       setEintraege(r.error ? [] : ((r.data ?? []) as unknown as Eintrag[]))
     })()
     return () => { lebt = false }
-  }, [schluessel, nr])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [kennung, nr])
 
   const vermerken = async () => {
     setLaeuft(true); setMeldung(null)
-    const r = await supabase.from('perigon_vermerk').insert({ schluessel, stand: wahl, notiz: notiz.trim() || null, schnappschuss })
+    const zeilen = teile.map(s => ({ schluessel: s, stand: wahl, notiz: notiz.trim() || null,
+                                     schnappschuss: typeof schnappschuss === 'function' ? schnappschuss(s) : schnappschuss }))
+    const r = await supabase.from('perigon_vermerk').insert(zeilen.length === 1 ? zeilen[0] : zeilen)
     setLaeuft(false)
     if (r.error) { setMeldung(fehlerText(r.error)); return }
     setNotiz('')
-    setMeldung(`Vermerkt: ${STAND_NAME[wahl]}.`)
+    setMeldung(`Vermerkt: ${STAND_NAME[wahl]}${teile.length > 1 ? ` — für alle ${teile.length} Teile` : ''}.`)
     setNr(n => n + 1)
     await wissen?.neuLaden()
   }
 
-  const stand = v?.stand ?? 'offen'
+  const liste = eintraege === null ? null : teile.length > 1 ? zusammen(eintraege) : eintraege.map(e => ({ ...e, teile: 1 }))
   return (
-    <section className="verfolgen" id="fall-verfolgen" aria-label="Mitverfolgen">
-      <h3>Mitverfolgen</h3>
+    <section className="verfolgen" id="fall-verfolgen" aria-label={titel}>
+      <h3>{titel}</h3>
       <p className="verfolgen-stand">
         Stand: <StandMarke stand={stand} />
-        {v?.erst_gesehen && <span className="leise"> · die App sieht den Fall seit {datum(v.erst_gesehen)}</span>}
-        {v?.weg_seit && <span className="leise"> · nicht mehr in den Daten seit {zeitpunkt(v.weg_seit)}</span>}
-        {!v?.erst_gesehen && !v?.weg_seit && <span className="leise"> · gemerkt wird er beim nächsten Rechnen</span>}
+        {teile.length > 1 && fortschritt.fertig > 0 && fortschritt.fertig < fortschritt.von && <span className="leise"> · {fortschritt.fertig} von {fortschritt.von} Teilen erledigt</span>}
+        {erst && <span className="leise"> · die App sieht den Fall seit {datum(erst)}</span>}
+        {weg && <span className="leise"> · nicht mehr in den Daten seit {zeitpunkt(weg)}</span>}
+        {!erst && !weg && <span className="leise"> · gemerkt wird er beim nächsten Rechnen</span>}
       </p>
-      {eintraege === null ? null : eintraege.length === 0
+      {liste === null ? null : liste.length === 0
         ? <p className="leise verfolgen-leer">Noch nichts vermerkt.</p>
         : (
           <ol className="verfolgen-liste">
-            {eintraege.map(e => (
+            {liste.map(e => (
               <li key={e.id}>
                 <span className="nowrap leise">{zeitpunkt(e.ts)}</span>
                 {e.profil?.name && <span className="leise"> · {e.profil.name}</span>}
                 {' '}<StandMarke stand={e.stand} />
+                {teile.length > 1 && <span className="leise"> {e.teile === teile.length ? '(alle Teile)' : `(${e.teile} von ${teile.length} Teilen)`}</span>}
                 {e.notiz && <span className="verfolgen-notiz"> {e.notiz}</span>}
               </li>
             ))}
@@ -123,12 +154,13 @@ export function FallVerfolgen({ schluessel, schnappschuss, kompakt = false }: {
       )}
       {istAdmin ? formAuf && (
         <form className="verfolgen-form" onSubmit={e => { e.preventDefault(); void vermerken() }}>
-          <Segmente<VermerkStand> wahl={wahl} setzen={setWahl} id={`stand-${schluessel}`}
+          <Segmente<VermerkStand> wahl={wahl} setzen={setWahl} id={`stand-${teile[0]}`}
                                   teile={STAND_FOLGE.map(s => [s, STAND_NAME[s], `stand-${s}`] as const)} />
           <textarea value={notiz} onChange={e => setNotiz(e.target.value)} maxLength={2000} rows={2}
                     aria-label="Notiz zum Fall"
-                    placeholder="Was ist geklärt? Wer wurde gefragt, was hat Perigon geändert, wann neu eingelesen …" />
-          <button type="submit" className="knopf haupt klein" id="fall-vermerken" disabled={laeuft}>{laeuft ? 'Vermerkt …' : 'Vermerken'}</button>
+                    placeholder="Was ist besprochen, was entschieden? Wer wurde gefragt, was hat Perigon geändert …" />
+          <button type="submit" className="knopf haupt klein" id="fall-vermerken" disabled={laeuft}>
+            {laeuft ? 'Vermerkt …' : teile.length > 1 ? `Für alle ${teile.length} vermerken` : 'Vermerken'}</button>
           {meldung && <span className="hilfe">{meldung}</span>}
         </form>
       ) : <p className="leise">Vermerken kann der Betriebsleiter.</p>}

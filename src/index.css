@@ -1452,3 +1452,166 @@ dl.kette > dd.kette-davon.kette-wie { padding-left: 3rem; }
 table.excel td.falsch, table.excel th.falsch { outline: 2px solid #d12f2f; outline-offset: -2px; background: #fff1f1; }
 .lieferung-falsch { margin: 0 0 .6rem; padding: .55rem .8rem; border-left: 4px solid var(--rot); background: color-mix(in srgb, var(--rot) 7%, var(--flaeche)); border-radius: var(--radius-klein); }
 .lieferung-falsch ul { margin: .25rem 0 0; padding-left: 1.1rem; }
+
+/* ---------- Runde BF: Fall für Fall --------------------------------------
+   Der Betrieb: „Information Overload … damit ich Fall für Fall angenehm
+   abarbeiten kann." Links die Liste (je Fall zwei Zeilen), rechts der Fall;
+   auf dem Handy erst die Liste, dann der Fall. Im Fall: was passiert ist,
+   das Bild (Balken, Rechnung, Zeitachse), die Belege, Stand und Notiz. */
+.perigon-fortschritt { height: 6px; border-radius: 3px; background: var(--flaeche-3); overflow: hidden; margin: .7rem 0 0; max-width: 40rem; }
+.perigon-fortschritt > span { display: block; height: 100%; background: var(--gruen); border-radius: 3px; }
+.postfach { display: grid; grid-template-columns: minmax(18rem, 23rem) minmax(0, 1fr); gap: var(--a-4); align-items: start; }
+.postfach-liste { position: sticky; top: var(--a-3); max-height: calc(100vh - 2 * var(--a-3)); overflow-y: auto; overscroll-behavior: contain;
+  padding-right: .25rem; scrollbar-width: thin; }
+.postfach-fall { min-width: 0; }
+.postfach-leer { padding: var(--a-6) var(--a-4); text-align: center; border: 1px dashed var(--rand); border-radius: var(--radius); }
+.fall-gruppe { margin: 0 0 var(--a-3); }
+.fall-gruppe-titel { font-size: var(--s-0); text-transform: uppercase; letter-spacing: .06em; color: var(--text-leise); margin: 0 0 .3rem;
+  font-weight: var(--gewicht-mittel); display: flex; justify-content: space-between; gap: .5rem; padding: 0 .2rem; }
+.fall-liste { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .3rem; }
+.fall-zeile { display: grid; grid-template-columns: 2rem minmax(0, 1fr) auto; gap: .2rem .6rem; align-items: start; width: 100%; text-align: left;
+  padding: .55rem .7rem .55rem .55rem; border: 1px solid var(--rand); border-left: 4px solid var(--gelb); border-radius: var(--radius-klein);
+  background: var(--flaeche); color: var(--text); font: inherit; cursor: pointer; min-height: var(--ziel-min); }
+.fall-zeile.s-rot { border-left-color: var(--rot); }
+.fall-zeile.s-info { border-left-color: var(--blau); }
+.fall-zeile:hover { background: var(--flaeche-2); }
+.fall-zeile:focus-visible { outline: 2px solid var(--kuerbis); outline-offset: 1px; }
+.fall-zeile.aktiv { background: var(--kuerbis-flaeche); border-color: color-mix(in srgb, var(--kuerbis) 45%, var(--rand)); box-shadow: var(--tiefe-1); }
+.fall-zeile-nr { font-variant-numeric: tabular-nums; font-weight: var(--gewicht-stark); color: var(--text-2); font-size: var(--s-1);
+  text-align: center; background: var(--flaeche-2); border-radius: 6px; padding: .1rem 0; }
+.fall-zeile.aktiv .fall-zeile-nr { background: var(--kuerbis); color: #fff; }
+.fall-zeile-text { display: flex; flex-direction: column; gap: .1rem; min-width: 0; }
+.fall-zeile-text strong { font-weight: var(--gewicht-mittel); font-size: var(--s-1); }
+.fall-zeile-unter { color: var(--text-2); font-size: var(--s-0); line-height: 1.35; }
+.fall-zeile-rechts { display: flex; flex-direction: column; align-items: flex-end; gap: .2rem; font-size: var(--s-1); white-space: nowrap; }
+.fall-zeile-kg { font-variant-numeric: tabular-nums; color: var(--text-2); }
+/* der Fall */
+.fall-ansicht { background: var(--flaeche); border: 1px solid var(--rand); border-radius: var(--radius); box-shadow: var(--tiefe-1);
+  padding: var(--a-4) var(--a-5) var(--a-5); scroll-margin-top: var(--a-3); }
+.fall-nav { display: flex; align-items: center; gap: .5rem; margin: 0 0 .6rem; }
+.fall-nav-knoepfe { margin-left: auto; display: flex; gap: .35rem; }
+.fall-nav button { display: inline-flex; align-items: center; gap: .25rem; }
+.fall-stelle { font-size: var(--s-0); font-variant-numeric: tabular-nums; }
+.nur-handy { display: none; }
+.fall-titel { margin: 0 0 var(--a-4); padding-bottom: var(--a-3); border-bottom: 1px solid var(--rand-leise); }
+.fall-nummer { margin: 0 0 .1rem; font-size: var(--s-0); text-transform: uppercase; letter-spacing: .08em; color: var(--kuerbis); font-weight: var(--gewicht-stark); }
+.fall-titel h2 { margin: 0; font-size: var(--s-4); display: flex; align-items: center; flex-wrap: wrap; line-height: 1.2; }
+.fall-titel .punkt { width: .75rem; height: .75rem; }
+.fall-unter { margin: .35rem 0 0; color: var(--text-2); font-size: var(--s-1); }
+.fall-unter .stand-marke { margin-left: .3rem; }
+.fall-passiert { padding: var(--a-3) var(--a-4); border-radius: var(--radius-klein); background: var(--flaeche-2); }
+.fall-passiert > h3 { margin-bottom: .5rem; }
+.fall-passiert .fall-kopf { background: var(--flaeche); }
+.fall-wege { display: grid; grid-template-columns: 4.6rem minmax(0, 1fr); gap: .3rem .6rem; margin: 0 0 .6rem; }
+.fall-wege dt { font-size: var(--s-0); text-transform: uppercase; letter-spacing: .05em; color: var(--text-leise); padding-top: .2rem;
+  display: flex; align-items: center; gap: .35rem; }
+.fall-wege dt::before { content: ''; width: .55rem; height: .55rem; border-radius: 2px; flex: none; }
+.fall-wege dt.weg-herein::before { background: var(--strom-vf); }
+.fall-wege dt.weg-hinaus::before { background: var(--strom-verkauft); }
+.fall-wege dd { margin: 0; }
+.fall-punkte { list-style: none; margin: 0 0 .5rem; padding: 0; display: flex; flex-direction: column; gap: .4rem; }
+.fall-punkte li { position: relative; padding: .45rem .7rem .45rem 1.6rem; background: var(--flaeche); border-radius: var(--radius-klein); line-height: 1.5; }
+.fall-punkte li::before { content: ''; position: absolute; left: .65rem; top: .95rem; width: .5rem; height: .5rem; border-radius: 50%; background: var(--gelb); }
+.fall-punkte li.s-rot::before { background: var(--rot); }
+.fall-punkte li.s-info::before { background: var(--blau); }
+.fall-folge { margin: .4rem 0 0; font-size: var(--s-1); color: var(--text-2); max-width: 72ch; }
+.fall-folge strong { color: var(--text); font-weight: var(--gewicht-mittel); }
+.fall-ansicht .fall-block { margin: 0 0 var(--a-5); }
+/* das Bild: herein gegen gebraucht, auf derselben Skala */
+.st-herein { background: var(--strom-vf); }
+.st-verkauft { background: var(--strom-verkauft); }
+.st-ausschuss { background: var(--strom-ausschuss); }
+.st-nebenkanal { background: var(--strom-nebenkanal); }
+.st-schimmel { background: var(--strom-schimmel); }
+.st-verdunstung { background: var(--strom-verdunstung); }
+.st-fax { background: var(--strom-fax); }
+.st-verlust { background: repeating-linear-gradient(135deg, var(--strom-verkauft) 0 4px, var(--flaeche-3) 4px 8px); }
+.bilanz-bild { display: flex; flex-direction: column; gap: .55rem; }
+.bilanz-zeile { display: grid; grid-template-columns: 8.5rem minmax(0, 1fr) 4.5rem; gap: .7rem; align-items: center; }
+.bilanz-name { display: flex; flex-direction: column; font-size: var(--s-1); font-weight: var(--gewicht-mittel); line-height: 1.2; }
+.bilanz-name .leise { font-size: var(--s-0); font-weight: var(--gewicht-normal); }
+.bilanz-spur { position: relative; height: 30px; background: var(--flaeche-2); border-radius: 6px; }
+.bilanz-spur > .bilanz-teil, .bilanz-stapel { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 6px; }
+.bilanz-stapel { display: flex; overflow: hidden; }
+.bilanz-stapel > .bilanz-teil { height: 100%; flex: none; }
+.bilanz-stapel > .bilanz-teil + .bilanz-teil { box-shadow: inset 2px 0 0 var(--flaeche); }
+.bilanz-leer { position: absolute; left: .6rem; top: 50%; transform: translateY(-50%); font-size: var(--s-0); color: var(--rot); font-weight: var(--gewicht-mittel); }
+.bilanz-grenze { position: absolute; top: -5px; bottom: -5px; width: 0; border-left: 2px dashed var(--text); z-index: 2; }
+.bilanz-fehlt { position: absolute; top: 0; bottom: 0; z-index: 1; border-radius: 0 6px 6px 0;
+  background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--rot) 30%, transparent) 0 5px, transparent 5px 10px);
+  outline: 2px solid var(--rot); outline-offset: -2px; display: flex; align-items: center; justify-content: center; overflow: visible; }
+.bilanz-fehlt span { background: var(--rot); color: #fff; font-size: var(--s-0); font-weight: var(--gewicht-stark); padding: .05rem .4rem; border-radius: 99px; white-space: nowrap; }
+.bilanz-zahl { text-align: right; font-variant-numeric: tabular-nums; font-weight: var(--gewicht-mittel); }
+.bilanz-legende { list-style: none; display: flex; flex-wrap: wrap; gap: .3rem 1rem; margin: .6rem 0 0; padding: 0; font-size: var(--s-0); color: var(--text-2); }
+.bilanz-legende li { display: inline-flex; align-items: center; gap: .35rem; }
+.bilanz-farbe { display: inline-block; width: .7rem; height: .7rem; border-radius: 2px; flex: none; vertical-align: -1px; margin-right: .35rem; }
+/* die Rechnung rückwärts */
+.rueck-tabelle { width: 100%; font-size: var(--s-1); }
+.rueck-tabelle th { text-align: left; font-weight: var(--gewicht-normal); text-transform: none; letter-spacing: 0; color: var(--text); font-size: var(--s-1); white-space: nowrap; }
+.rueck-tabelle td { vertical-align: top; }
+.rueck-tabelle td.zahl { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.rueck-tabelle tr.rueck-start > * { font-weight: var(--gewicht-mittel); }
+.rueck-tabelle tr.rueck-summe > * { border-top: 2px solid var(--rand); }
+.rueck-tabelle tr.rueck-summe > * { font-weight: var(--gewicht-stark); }
+.rueck-tabelle tr.rueck-fehlt > * { font-weight: var(--gewicht-stark); color: var(--rot); font-size: var(--s-2, 1rem); }
+.rueck-fuss { font-size: var(--s-0); margin: .4rem 0 .5rem; max-width: 76ch; }
+.rueck-sicher { margin: 0; padding: .55rem .8rem; border-radius: var(--radius-klein); background: color-mix(in srgb, var(--blau) 8%, var(--flaeche));
+  border-left: 4px solid var(--blau); max-width: 80ch; }
+.rueck-sicher.sicher { background: color-mix(in srgb, var(--rot) 7%, var(--flaeche)); border-left-color: var(--rot); }
+/* die Zeitachse */
+.zeit-bild { padding: .2rem 0 0; }
+.zeit-flaeche { position: relative; height: 110px; border-bottom: 1px solid var(--text-leise); }
+.zeit-vorher { position: absolute; left: 0; top: 0; bottom: 0; background: repeating-linear-gradient(135deg, var(--flaeche-2) 0 6px, transparent 6px 12px);
+  border-right: 0; }
+.zeit-vorher span { position: absolute; left: .4rem; top: .3rem; font-size: var(--s-0); color: var(--text-leise); white-space: nowrap; }
+.zeit-eingang { position: absolute; top: -.2rem; bottom: 0; width: 0; border-left: 2px solid var(--strom-vf); z-index: 1; }
+.zeit-eingang span { position: absolute; left: .35rem; top: 0; font-size: var(--s-0); font-weight: var(--gewicht-stark); color: var(--strom-vf); white-space: nowrap;
+  background: var(--flaeche); padding: 0 .25rem; border-radius: 4px; }
+.zeit-strich { position: absolute; bottom: 0; width: 6px; margin-left: -3px; border-radius: 3px 3px 0 0; background: var(--strom-verkauft); }
+.zeit-strich.vor, .zeit-vor-farbe { background: var(--rot); }
+.zeit-achse { position: relative; height: 1.3rem; font-size: var(--s-0); color: var(--text-leise); }
+.zeit-achse span { position: absolute; top: .15rem; white-space: nowrap; }
+.zeit-achse .zeit-monat { transform: translateX(-50%); border-left: 1px solid var(--rand); padding-left: .25rem; }
+.zeit-achse .zeit-ende { left: auto; }
+/* was die App vermutet — zu, ganz unten */
+.fall-vermutung { margin-top: var(--a-4); border-top: 1px solid var(--rand-leise); padding-top: var(--a-3); }
+.fall-vermutung > summary { color: var(--text-2); }
+.fall-hinweise { margin: .4rem 0 .6rem; padding-left: 1.2rem; font-size: var(--s-1); max-width: 76ch; }
+.fall-hinweise li { margin: .2rem 0; }
+.belege-alle { margin-top: .4rem; }
+.knopf-meldung { flex-basis: 100%; }
+@media (max-width: 899px) {
+  .postfach { grid-template-columns: minmax(0, 1fr); }
+  .postfach-liste { position: static; max-height: none; overflow: visible; padding-right: 0; }
+  .postfach.mit-fall .postfach-liste { display: none; }
+  .postfach:not(.mit-fall) .postfach-fall { display: none; }
+  .nur-handy { display: inline-flex; }
+  .fall-ansicht { padding: var(--a-3) var(--a-3) var(--a-4); }
+  .fall-titel h2 { font-size: var(--s-3); }
+}
+@media (max-width: 640px) {
+  .fall-wege { grid-template-columns: minmax(0, 1fr); gap: 0 .6rem; }
+  .fall-wege dd { margin-bottom: .35rem; }
+  .bilanz-zeile { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: 'name zahl' 'spur spur'; gap: .2rem .5rem; }
+  .bilanz-name { grid-area: name; flex-direction: row; gap: .4rem; align-items: baseline; }
+  .bilanz-zahl { grid-area: zahl; }
+  .bilanz-spur { grid-area: spur; }
+  .rueck-tabelle, .rueck-tabelle tbody, .rueck-tabelle tfoot, .rueck-tabelle tr { display: block; width: 100%; }
+  .rueck-tabelle tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0 .5rem; padding: .35rem 0; border-top: 1px solid var(--rand-leise); }
+  .rueck-tabelle th, .rueck-tabelle td { border: 0; padding: 0; white-space: normal; }
+  .rueck-tabelle td:nth-child(3) { grid-column: 1 / -1; color: var(--text-2); font-size: var(--s-0); }
+  .rueck-tabelle td:nth-child(3):empty { display: none; }
+  .fall-nav .fall-stelle { display: none; }
+}
+@media print {
+  .postfach { display: block; }
+  .postfach-liste, .fall-nav, .fall-vermutung, .verfolgen-form { display: none !important; }
+  .fall-ansicht { box-shadow: none; border: 0; padding: 0; }
+}
+.vermutung-teil { margin: 0 0 .8rem; }
+.vermutung-teil h4 { margin: 0 0 .25rem; font-size: var(--s-1); font-weight: var(--gewicht-mittel); display: flex; align-items: center; flex-wrap: wrap; gap: .2rem; }
+.vermutung-teil ul { margin: 0; padding-left: 1.2rem; font-size: var(--s-1); max-width: 78ch; }
+.vermutung-teil li { margin: .15rem 0; }
+.vermutung-teil .spur-tabelle { min-width: 34rem; }
+.zeit-vorher-farbe { background: repeating-linear-gradient(135deg, var(--flaeche-3) 0 3px, transparent 3px 6px); box-shadow: inset 0 0 0 1px var(--rand); }
+.rueck-tabelle th { white-space: normal; min-width: 11rem; }

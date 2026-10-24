@@ -120,13 +120,21 @@ function ungereimtVormerken() {
     eingang_von: '2026-09-20', gleicher_schlag: true, gleiche_sorte: true }
   vormerken('v_ungereimtheit', [
     { art: 'ohne_eingang', charge_nr: 99127, sorte: 'Fictor', schlag: 'Prüfschlag', kg: 1416, n: 3, von: '2026-09-23', bis: '2026-10-05', mehr: { kandidaten: [kandidat] } },
-    { art: 'nachgeordnet', charge_nr: 99129, sorte: 'Tiana', schlag: 'Prüfschlag', kg: 1650, n: 11, von: '2026-10-01', bis: '2026-10-14',
+    // Runde BF: 99129 erzählt die Geschichte von 1626 (Tiana, 24. Oktober) — verkauft vor dem Eingang, mehr verkauft
+    // als möglich, Zettel passen zu Paletten einer anderen Charge. Die Zahlen gehen in sich auf: 8 Lieferscheine mit
+    // 7359 kg (darunter 1827 kg vom 20.8., vor der ersten Palette am 28.8.), 4863 kg herein, 8045 kg gebraucht.
+    { art: 'vor_eingang', charge_nr: 99129, sorte: 'Tiana', schlag: 'Prüfschlag', kg: 1827, n: 1, von: '2026-08-20', bis: '2026-08-20',
+      mehr: { erster_eingang: '2026-08-28', kandidaten: [] } },
+    { art: 'ueberzaehlung', charge_nr: 99129, sorte: 'Tiana', schlag: 'Prüfschlag', kg: 3182, n: 8, von: null, bis: null,
+      mehr: { geliefert_kg: 7359, eingang_kg: 4863, ausgelagert_kg: 8045, eingang_von: '2026-08-28', eingang_bis: '2026-08-31',
+        kandidaten: [{ charge_nr: 99125, schlag: 'Prüfschlag', sorte: 'Tiana', rest_paletten: 9, eingang_kg: 8600, geliefert_kg: 3100, eingang_von: '2026-08-26', gleicher_schlag: true, gleiche_sorte: true }] } },
+    { art: 'nachgeordnet', charge_nr: 99129, sorte: 'Tiana', schlag: 'Prüfschlag', kg: 288, n: 2, von: '2026-10-01', bis: '2026-10-08',
       mehr: { nummern: ['991977'], produzent: 'Prüfhof', perigon_nr: 991976,
-        grund: 'Die Nummer 991977 steht an keiner Charge. Perigon nennt als Produzent Prüfhof — das ist Prüfschlag —, und Prüfschlag hat genau eine Charge mit Butternut: 99129.' } },
+        grund: 'Die Nummer 991977 steht an keiner Charge. Perigon nennt als Produzent Prüfhof — das ist Prüfschlag —, und Prüfschlag hat genau eine Charge mit Butternut: 99129' } },
     { art: 'umgebucht', charge_nr: 99128, sorte: 'Fictor', schlag: 'Prüfschlag', kg: 2012, n: 6, von: '2026-09-23', bis: '2026-09-23',
       mehr: { von_charge_nr: 99126, auftrag_id: 1, grund: '5 von 5 Zetteln der Arbeit 1 (Charge 99128) ohne eigene Palette passen aufs Kilo zu Paletten von Charge 99126 (448 kg, 444 kg, 433 kg, 433 kg, 380 kg); Charge 99128 lieferte 1416 kg bei 0 kg Eingang', paletten: [1, 2, 3, 4, 5, 6], von_betriebsleiter: false } },
     { art: 'vorschlag', charge_nr: 99129, sorte: 'Tiana', schlag: 'Prüfschlag', kg: 2136, n: 6, von: '2026-08-28', bis: '2026-08-31',
-      mehr: { von_charge_nr: 99125, auftrag_id: 2, grund: '6 von 8 Zetteln der Arbeit 2 (Charge 99129) ohne eigene Palette passen aufs Kilo zu Paletten von Charge 99125 (428 kg, 434 kg, 444 kg, 430 kg, 437 kg, 437 kg); Charge 99129 lieferte 7444 kg bei 4863 kg Eingang', paletten: [7, 8, 9, 10, 11, 12], von_betriebsleiter: false } },
+      mehr: { von_charge_nr: 99125, auftrag_id: 2, grund: '6 von 8 Zetteln der Arbeit 2 (Charge 99129) ohne eigene Palette passen aufs Kilo zu Paletten von Charge 99125 (428 kg, 434 kg, 444 kg, 430 kg, 437 kg, 437 kg); Charge 99129 lieferte 7359 kg bei 4863 kg Eingang', paletten: [7, 8, 9, 10, 11, 12], von_betriebsleiter: false } },
     // Eine Perigon-Nummer an zwei Chargen — so stand 198976 bei 1649 und 1650,
     // bis der Betrieb die Liste berichtigte; seither nicht mehr in der Demo.
     // Runde BE: die Zeilenzahlen passen zu den Belegen weiter unten (zwei mit 991980, einer mit 991981),
@@ -155,8 +163,8 @@ function ungereimtVormerken() {
     spur(99129, 'Tiana', { journal_paletten: 12, journal_kg: 4863, journal_von: '2026-08-28', journal_bis: '2026-08-31', paletten: 12, eingang_kg: 4863,
       her: [{ charge_nr: 99125, stand: 'vorschlag', paletten: 6, kg: 2136 }], arbeiten: 3, arbeit_von: '2026-09-02', arbeit_bis: '2026-09-22',
       arbeit_liste: [{ id: 2, datum: '2026-09-02', station: 'waschen', zettel: 8 }, { id: 6, datum: '2026-09-12', station: 'sortieren', zettel: 3 }, { id: 7, datum: '2026-09-22', station: 'waschen', zettel: 2 }],
-      lieferscheine: 21, geliefert_kg: 7444, lief_von: '2026-09-02', lief_bis: '2026-10-14', nach_artikel: [{ gruppe: 'Butternut', kg: 7300 }, { gruppe: 'Kabocha', kg: 144 }],
-      nachgeordnet: [{ weg: 'produzent', n: 11, kg: 1650 }], rest_paletten: 0 }),
+      lieferscheine: 8, geliefert_kg: 7359, lief_von: '2026-08-20', lief_bis: '2026-10-14', nach_artikel: [{ gruppe: 'Butternut', kg: 7215 }, { gruppe: 'Kabocha', kg: 144 }],
+      nachgeordnet: [{ weg: 'produzent', n: 2, kg: 288 }], rest_paletten: 0 }),
   ])
 }
 
@@ -226,6 +234,25 @@ function perigonVormerken() {
     gewicht_je_artikel: 0, kg: 472, gebindeart: 'IFCO', gebinde_menge: 8, ts: `${tag}T08:00:00+00:00`,
     roh: [{ ...roh, AufPosId: pos, AuftragsArtikel: 'Bio Kürbis roter Knirps Knospe', AuftragsChargeManuell: '99127', AuftragsArtikelMenge: 472,
             'AufPosBatchQuantity Charge': 472, '#zeile': zeile, '#blatt': 'Tabelle S. 1', '#datei': 'Abgleich_Rueckverfolgbarkeit_Pruefirma.xlsx' }] })))
+  // Runde BF: die acht Lieferscheine von 99129 — einer vor der ersten Palette, zwei mit der Nummer 991977 (über den
+  // Produzenten zugeordnet) — und die Kaskade, aus der der Fall die Rechnung rückwärts zeigt (zwei Kohorten).
+  const l129 = [['2026-08-20', 990133, '99129', 1827, 1290], ['2026-09-02', 990161, '99129', 1200, 1402], ['2026-09-10', 990162, '99129', 1100, 1455],
+    ['2026-09-18', 990163, '99129', 1000, 1501], ['2026-09-30', 990164, '99129', 944, 1588], ['2026-10-01', 990165, '991977', 144, 1601],
+    ['2026-10-08', 990166, '991977', 144, 1640], ['2026-10-14', 990167, '99129', 1000, 1688]]
+  vormerken('lieferung', l129.map(([tag, pos, , menge]) => ({ id: pos, datum: tag, charge_nr: 99129, sorte: 'Tiana', kg: menge, kisten: null, gebindeart: null,
+    ziel: 'verkauf', kunde: 'Prüfkunde Ost', erfasser: null, ts: `${tag}T08:00:00+00:00`, bemerkung: null })))
+  vormerken('lieferung_import', l129.map(([tag, pos, nr]) => ({ lieferung_id: pos, quelle: 'DEMO', extern_id: `DEMO:${pos}:${nr}:1`, zeile_id: pos, ts: `${tag}T08:00:00+00:00` })))
+  vormerken('ausgang_position', l129.map(([tag, pos, nr, menge, zeile]) => ({ quelle: 'DEMO', pos_id: pos, datum: tag, saison: 2026, journal: 'Lieferschein',
+    kunde: 'Prüfkunde Ost', artikel_id: 'kürbbutt', artikel: 'Bio Kürbis Butternut Knospe', preisgruppe: 'K', einheit: 'kg', menge, gewicht_je_artikel: 0,
+    kg: menge, gebindeart: 'IFCO', gebinde_menge: 3, ts: `${tag}T08:00:00+00:00`,
+    roh: [{ ...roh, AufPosId: pos, AuftragsArtikel: 'Bio Kürbis Butternut Knospe', AuftragsChargeManuell: nr, AuftragsArtikelMenge: menge,
+            'AufPosBatchQuantity Charge': menge, AuftragsLieferDatum: tag.split('-').reverse().join('.'), '#zeile': zeile, '#blatt': 'Tabelle S. 1', '#datei': 'Abgleich_Rueckverfolgbarkeit_Pruefirma.xlsx' }] })))
+  const kaskade = { charge_nr: 99129, sorte: 'Tiana', schlag: 'Prüfschlag', portion: 'ausgelagert', r: 0.0026, f: 0.019, a_klein_n: 0.0095, a_gross_n: 0.02, a_fax: 0, hagel: 0,
+    fax_kg: 0, r_basis: 'Wiegungen dieser Sorte', f_quelle: 'Waschen: Arbeiten dieser Sorte; Weg nach eigenen Arbeiten', klein_basis: 'Sortierläufe dieser Sorte', gross_basis: 'Sortierläufe dieser Sorte' }
+  vormerken('mv_kaskade', [
+    { ...kaskade, kohorte: '2026-08-28', alter_tage: 9, m0: 5000, m1: 4884.21, m2: 4791.41, verdunstung_kg: 115.79, schimmel_kg: 92.8, klein_kg: 45.52, nebenkanal_kg: 95.83, geliefert_kg: 4650.06 },
+    { ...kaskade, kohorte: '2026-08-31', alter_tage: 26, m0: 3045, m1: 2845.71, m2: 2791.64, verdunstung_kg: 199.29, schimmel_kg: 54.07, klein_kg: 26.52, nebenkanal_kg: 55.83, geliefert_kg: 2709.29 },
+  ])
   // … und die Belege der Perigon-Nr. an zwei Chargen: zwei Lieferscheine mit 991980 (bei keiner Charge), einer mit 991981 (bei 99131)
   const mitNummer = [['2026-10-02', 990151, '991980', null, 1301], ['2026-10-07', 990152, '991980', null, 1322], ['2026-10-08', 990153, '991981', 99131, 1330]]
   vormerken('lieferung', mitNummer.map(([tag, pos, , charge]) => ({ id: pos, datum: tag, charge_nr: charge, sorte: 'Butternut', kg: 144, kisten: null,
@@ -413,105 +440,131 @@ const BILDSCHIRME = [
     tun: async p => {
       const leiste = p.locator('a#ungereimt.perigon-verweis')
       await leiste.waitFor()
-      if (!/an \d+ Stellen nicht zusammen/.test(await leiste.innerText())) throw new Error(`die Zeile oben zählt nicht: ${await leiste.innerText()}`)
+      // Runde BF: die Zeile zählt Fälle wie der Reiter („Perigon und Lager: 10 Fälle
+      // offen · 5 davon gross"), nicht mehr Stellen. Die Regel hat sich gedreht, der
+      // Test mit ihr — und strenger: dieselbe Zahl steht im Reiter unter „Offen".
+      const m = /Perigon und Lager: (\d+) (?:Fall|Fälle) offen/.exec(await leiste.innerText())
+      if (!m) throw new Error(`die Zeile oben zählt nicht: ${await leiste.innerText()}`)
       await leiste.click()
-      await p.locator('#perigon-antwort').waitFor()
+      await p.locator('#perigon-antwort .kennzahl', { hasText: 'Offen' }).filter({ hasText: `${m[1]} ${m[1] === '1' ? 'Fall' : 'Fälle'}` }).waitFor()
     } },
-  // 0122 → 0126 → Runde BD: Was war von welcher Charge — der Weg der Ware steht im
-  // Reiter Perigon je Sorte für alle ihre Chargen. Seit Runde BD („er überfordert
-  // gerade noch") ist jede Sorte eine Zeile, die aufklappt, und jede Sache öffnet
-  // ein Fenster. Die Szene prüft dieselben Sätze und Knöpfe wie bis 0126 — nur
-  // dort, wo sie jetzt stehen: die Tabelle in der aufgeklappten Sorte, die Sache
-  // im Fenster. Die Sachen, die keiner Sorte gehören, prüft perigon-sache.
+  // Runde BF — der Betrieb: „Information Overload … damit ich Fall für Fall angenehm
+  // abarbeiten kann. Den Fall verstehe, sehe, was passiert ist." Bis Runde BE prüften
+  // die Szenen je Art eine aufklappbare Zeile, „Wo zu tun" als Filter, „Je Sorte" als
+  // eigenen Reiter und je Fall ein Fenster. Die Regel hat sich gedreht, die Szenen
+  // gehen mit: links eine Liste von Fällen mit Nummer (ein Fall je Charge, je Art der
+  // Datei, je Sache im Register), rechts der Fall — was passiert ist, das Bild, die
+  // Belege, Stand und Notiz; was die App vermutet, steht zu. Dieselben Sätze, Knöpfe
+  // und Belege wie bis BE werden geprüft — dort, wo sie jetzt stehen.
+  { name: 'perigon', wer: 'admin', pfad: '/perigon', vorher: perigonVormerken,
+    tun: async p => {
+      const kz = await p.locator('#perigon-antwort .kennzahl').count()
+      if (kz !== 3) throw new Error(`oben ${kz} Kennzahlen statt drei`)
+      await p.locator('#perigon-antwort .kennzahl', { hasText: 'Fälle' }).first().waitFor()
+      if (await p.locator('#perigon-wo, #perigon-teil-sorten').count()) throw new Error('„Wo zu tun" oder „Je Sorte" stehen noch da')
+      for (const t of ['menge', 'datei', 'artikel', 'register']) await p.locator(`#thema-${t} .fall-zeile`).first().waitFor()
+      // jeder Fall trägt eine Nummer, und keine doppelt
+      const nr = await p.locator('#fall-liste .fall-zeile-nr').allInnerTexts()
+      if (nr.some(x => !/^\d+$/.test(x.trim())) || new Set(nr).size !== nr.length) throw new Error(`Nummern der Fälle: ${nr.join(', ')}`)
+      // alles zu 99129 ist ein Fall; die Zeile „vor dem Eingang" steht nicht noch einmal da
+      await p.locator('#fall-charge-99129', { hasText: 'vor dem Eingang verkauft' }).waitFor()
+      if (await p.locator('#fall-art-vor_eingang').count()) throw new Error('die Perigon-Zeile vor dem Eingang steht neben der Charge noch als eigener Fall')
+      const breit = (p.viewportSize()?.width ?? 0) >= 900
+      if (breit) {
+        // breit: der erste Fall steht schon rechts, gewählt in der Liste
+        await p.locator('#fall-ansicht #fall-passiert').waitFor()
+        if ((await p.locator('#fall-liste .fall-zeile.aktiv').count()) !== 1) throw new Error('kein Fall in der Liste gewählt')
+      } else if (await p.locator('#fall-ansicht').isVisible().catch(() => false)) throw new Error('auf dem Handy steht der Fall schon über der Liste')
+      await p.locator('.perigon-dateien-zeile', { hasText: 'Perigon-Lieferscheine bis' }).waitFor()
+    } },
+  // Ein Fall je Charge: 99129 wie 1626 — was passiert ist, herein gegen gebraucht, die
+  // Rechnung rückwärts mit „wie sicher", die Lieferscheine auf der Zeitachse und als Belege;
+  // die Vermutung (Paletten von 99125, umbuchen) steht zu, ganz unten.
+  { name: 'perigon-charge', wer: 'admin', pfad: '/perigon/faelle?charge=99129', vorher: perigonVormerken,
+    tun: async p => {
+      const f = p.locator('#fall-ansicht')
+      await f.locator('h2', { hasText: 'Charge 99129 · Tiana' }).waitFor()
+      const passiert = f.locator('#fall-passiert')
+      await passiert.locator('dd', { hasText: '12 Paletten mit 4.9 t laut Erntejournal (28.8.–31.8.)' }).waitFor()
+      await passiert.locator('dd', { hasText: '8 Lieferscheine mit 7.4 t unter der Nummer 99129' }).waitFor()
+      await passiert.locator('li', { hasText: 'älter als die erste Palette (28.08.2026)' }).waitFor()
+      await passiert.locator('li', { hasText: 'Für 7.4 t auf den Lieferscheinen braucht es 8 t Eingang' }).waitFor()
+      await passiert.locator('li', { hasText: 'passen aufs Kilo zu Paletten von Charge 99125' }).waitFor()
+      if (await passiert.getByText('Am ehesten', { exact: false }).count()) throw new Error('die Vermutung steht unter „Was ist passiert"')
+      await f.locator('#fall-bilanz .bilanz-fehlt', { hasText: 'fehlt 3.2 t' }).waitFor()
+      const r = f.locator('#fall-rechnung')
+      await r.locator('tr', { hasText: 'im Lager verdunstet' }).locator('td', { hasText: '0.26 % je Tag' }).waitFor()
+      await r.locator('tr', { hasText: 'Faules in den Palox' }).waitFor()
+      await r.locator('tr.rueck-summe', { hasText: '8’045 kg' }).waitFor()
+      await r.locator('tr.rueck-fehlt', { hasText: '3’182 kg' }).waitFor()
+      await f.locator('#fall-wie-sicher', { hasText: 'schon ohne jeden Verlust nicht auf' }).waitFor()
+      await f.locator('#fall-zeit .zeit-strich.vor').first().waitFor()
+      const belege = f.locator('#sache-belege tbody tr')
+      if ((await belege.count()) !== 8) throw new Error(`${await belege.count()} Lieferscheine statt acht`)
+      await f.locator('#sache-belege tbody tr.beleg-vor', { hasText: '990133' }).waitFor()
+      const v = f.locator('#fall-vermutung')
+      if (await v.evaluate(el => el.open)) throw new Error('„Was die App vermutet" steht schon offen')
+      await v.locator('summary').click()
+      await v.locator('li', { hasText: 'Am ehesten von 99125 (Prüfschlag · Tiana)' }).waitFor()
+      await v.locator('button', { hasText: 'Umbuchen' }).waitFor()
+      await f.locator('#fall-verfolgen', { hasText: 'Stand und Notiz' }).waitFor()
+    } },
+  // Weiter, zurück: die Knöpfe und die Pfeiltasten — die Adresse trägt die Nummer des Falls.
+  { name: 'perigon-weiter', wer: 'admin', pfad: '/perigon/faelle?fall=1', vorher: perigonVormerken,
+    tun: async p => {
+      const titel = () => p.locator('#fall-ansicht #fall-titel').innerText()
+      const erst = await titel()
+      await p.locator('#fall-nachher').click()
+      await p.waitForFunction(t => document.querySelector('#fall-titel')?.textContent !== t, erst)
+      if (!/[?&]fall=2\b/.test(p.url())) throw new Error(`nach „nächster" steht in der Adresse ${p.url()}`)
+      await p.keyboard.press('ArrowLeft')
+      await p.waitForFunction(t => document.querySelector('#fall-titel')?.textContent === t, erst)
+      await p.locator('#fall-vorher[disabled]').waitFor()
+    } },
+  // Bis Runde BE: „Je Sorte". Der alte Weg führt in die Fälle der Sorte.
   { name: 'perigon-sorten', wer: 'admin', pfad: '/perigon/sorten?sorte=Fictor', vorher: perigonVormerken,
     tun: async p => {
-      const fictor = p.locator('#sorte-fictor')
-      if ((await fictor.locator('.perigon-art-kopf').getAttribute('aria-expanded')) !== 'true') throw new Error('die Sorte aus der Adresse ist nicht aufgeklappt')
-      if (await p.locator('#sorte-tiana .sorte-tabelle').count()) throw new Error('eine andere Sorte steht schon offen — die Liste soll ruhig sein')
-      await fictor.locator('.sorte-tabelle tbody tr').first().waitFor()
-      const zeilen = await fictor.locator('.sorte-tabelle tbody tr').allInnerTexts()
-      for (const nr of ['99126', '99127', '99128'])
-        if (!zeilen.some(z => z.startsWith(nr))) throw new Error(`Fictor ohne Charge ${nr}: ${JSON.stringify(zeilen.map(z => z.slice(0, 40)))}`)
-      const z127 = zeilen.find(z => z.startsWith('99127'))
-      if (!z127.includes('keine Palette im Journal') || !z127.includes('3 Lieferscheine')) throw new Error(`99127: ${z127}`)
-      if (!zeilen.find(z => z.startsWith('99126')).includes('→ 6 Paletten zu 99128 umgebucht')) throw new Error('99126 ohne die Umbuchung')
-      await fictor.locator('.sorte-bild li', { hasText: 'ohne je eine Palette zu bekommen' }).waitFor()
-      await fictor.locator('.sach-tabelle tbody tr', { hasText: 'hat verkauft, aber nie etwas bekommen' }).click()
-      const f = p.locator('#sache-fenster')
-      await f.locator('dd', { hasText: 'Am ehesten von 99126 (Prüfschlag · Fictor)' }).waitFor()
-      await f.locator('dd', { hasText: 'Noch nicht umgebucht' }).waitFor()
+      await p.waitForURL(/\/perigon\/faelle\?sorte=Fictor/)
+      await p.locator('.filter-chip', { hasText: 'Sorte: Fictor' }).waitFor()
+      await p.locator('#fall-charge-99127', { hasText: 'verkauft, aber nie eingegangen' }).waitFor()
+      await p.locator('#fall-charge-99128', { hasText: 'Paletten von 99126 umgebucht' }).waitFor()
+      await p.locator('#fall-charge-99127').click()
+      const f = p.locator('#fall-ansicht')
+      await f.locator('#fall-passiert li', { hasText: 'Diese Ware kann nicht von 99127 sein' }).waitFor()
+      await f.locator('#fall-bilanz .bilanz-leer', { hasText: 'keine Palette' }).waitFor()
       // Runde BE: die Belege stehen sichtbar da — jeder Lieferschein mit Position (blau) und Excel-Zeile
       const belege = f.locator('#sache-belege tbody tr')
-      await belege.first().waitFor()
+      await belege.first().waitFor()   // die Belege laden nach dem Fall — erst zählen, wenn sie da sind
       if ((await belege.count()) !== 3) throw new Error(`99127: ${await belege.count()} Belege statt drei Lieferscheine`)
       await f.locator('#sache-belege tbody tr', { hasText: '990141' }).locator('td', { hasText: '1150' }).waitFor()
       await f.locator('#sache-belege', { hasText: 'Abgleich_Rueckverfolgbarkeit_Pruefirma.xlsx' }).waitFor()
-      await f.locator('#fall-verfolgen').waitFor()
-      await p.keyboard.press('Escape')
-      await f.waitFor({ state: 'detached' })
-      await fictor.locator('.sach-tabelle tbody tr', { hasText: 'zählt die App bei Charge 99128' }).click()
-      await f.locator('dd', { hasText: 'Schon umgebucht' }).waitFor()
-      await p.keyboard.press('Escape')
-      const tiana = p.locator('#sorte-tiana')
-      await tiana.locator('.perigon-art-kopf').click()
-      if (!(await tiana.locator('.sorte-tabelle', { hasText: 'davon als Kabocha' }).count())) throw new Error('der fremde Artikel beim Ausgang fehlt')
-      await tiana.locator('.sach-tabelle tbody tr', { hasText: 'mit der Nummer 991977' }).click()
-      await f.locator('button', { hasText: 'Bei 99129 Perigon-Nr. 991977 eintragen' }).waitFor()
+      await f.locator('#fall-vermutung summary').click()
+      await f.locator('#fall-vermutung li', { hasText: 'Am ehesten von 99126 (Prüfschlag · Fictor)' }).waitFor()
     } },
-  // Runde BD: eine Sache je Charge aus der Arbeitsliste — dieselben Prüfungen, die
-  // bis 0126 im langen Je Sorte standen (eine Perigon-Nr. an zwei Chargen).
+  // Eine Sache im Chargenregister — dieselben Prüfungen wie bis BE (eine Perigon-Nr. an zwei Chargen).
   { name: 'perigon-sache', wer: 'admin', pfad: '/perigon/faelle?art=stammdaten', vorher: perigonVormerken,
     tun: async p => {
-      const zeile = p.locator('#charge-art-stammdaten .sach-tabelle tbody tr', { hasText: 'Perigon-Nr. 991980 steht an 2 Chargen: 99130 und 99131' })
-      await zeile.click()
-      const f = p.locator('#sache-fenster')
-      await f.locator('dd', { hasText: 'Wohl hat 99131 die Nummer 991981' }).waitFor()
-      await f.locator('button', { hasText: 'Bei 99131 Perigon-Nr. 991981 eintragen' }).waitFor()
+      const f = p.locator('#fall-ansicht')
+      await f.locator('h2', { hasText: 'Perigon-Nr. 991980 steht an 2 Chargen: 99130 und 99131' }).waitFor()
+      await f.locator('#fall-passiert li', { hasText: 'Im Chargenregister tragen 99130' }).waitFor()
       // Runde BE: die Lieferscheine mit diesen Nummern als Belege — auch die, die bei keiner Charge zählen
       const belege = f.locator('#sache-belege tbody tr')
       await belege.first().waitFor()
       if ((await belege.count()) !== 3) throw new Error(`${await belege.count()} Belege statt drei`)
       await f.locator('#sache-belege tbody tr', { hasText: '990151' }).locator('td', { hasText: 'bei keiner Charge' }).waitFor()
       await f.locator('#sache-belege tbody tr', { hasText: '990153' }).locator('td', { hasText: 'die App zählt sie bei 99131' }).waitFor()
+      await f.locator('#fall-vermutung summary').click()
+      await f.locator('#fall-vermutung li', { hasText: 'Wohl hat 99131 die Nummer 991981' }).waitFor()
+      await f.locator('#fall-vermutung button', { hasText: 'Bei 99131 Perigon-Nr. 991981 eintragen' }).waitFor()
     } },
-  // 0126 → Runde BD: der Reiter Perigon — „er überfordert gerade noch". Oben drei
-  // Zahlen und wo zu tun ist (als Filter), darunter je Art eine Zeile, die
-  // aufklappt. Bis 0126 prüfte die Szene vier Karten (was zu tun ist, je Art, je
-  // Charge, die Dateien); dieselben Inhalte stehen jetzt: der Ort als Knopf, die
-  // Arten als Zeilen beider Abschnitte, die Dateien unter „So prüft die App"
-  // (perigon-pruefung) mit einer Zeile oben, die dorthin führt.
-  { name: 'perigon', wer: 'admin', pfad: '/perigon', vorher: perigonVormerken,
-    tun: async p => {
-      const kz = await p.locator('#perigon-antwort .kennzahl').count()
-      if (kz !== 3) throw new Error(`oben ${kz} Kennzahlen statt drei`)
-      for (const wo of ['perigon', 'halle', 'stammdaten']) await p.locator(`#perigon-wo #wo-${wo}`).waitFor()
-      for (const art of ['menge_null', 'zu_viel', 'unbekannt', 'mix', 'vor_eingang']) await p.locator(`#art-${art} > .perigon-art-kopf`).waitFor()
-      await p.locator('#art-menge_null .perigon-art-kopf', { hasText: 'Charge ohne Menge (Spalte S = 0)' }).waitFor()
-      await p.locator('#charge-art-ohne_eingang .perigon-art-kopf', { hasText: 'Verkauft, nie eingegangen' }).waitFor()
-      if (await p.locator('.fall-tabelle').count()) throw new Error('die Fälle stehen schon offen — erst die Arten, dann auf Klick die Fälle')
-      await p.locator('.perigon-dateien-zeile', { hasText: 'Perigon-Lieferscheine bis' }).waitFor()
-      // der Ort filtert: nur Stammdaten — dann steht „Mix" (Firma fragen) nicht mehr da
-      await p.locator('#wo-stammdaten').click()
-      await p.locator('#wo-stammdaten[aria-pressed="true"]').waitFor()
-      await p.locator('#art-mix').waitFor({ state: 'detached', timeout: 5000 }).catch(() => { throw new Error('der Ort filtert nicht') })
-      await p.locator('#art-unbekannt').waitFor()
-      await p.locator('#wo-stammdaten').click()
-      await p.locator('#art-mix').waitFor()
-      await p.locator('#art-zu_viel > .perigon-art-kopf').click()
-      await p.locator('#art-zu_viel .fall-tabelle tbody tr', { hasText: '768 kg statt 256 kg' }).waitFor()
-    } },
-  // Runde BD: „das versteh ich nicht — wie kommst du auf 768?" Das Fenster rechnet
-  // die Position Zeile für Zeile nach: dreimal Charge 1620 mit 256 kg, zusammen
-  // 768 kg, die Position 256 kg, 512 kg zu viel.
-  // Runde BE — die Regel hat sich gedreht: „jetzt ist die Excel-Zeile nur noch mit
-  // Dropdown verfügbar … das ist ja wichtig, ist Nachvollziehbarkeit." Bis BE prüfte
-  // die Szene, dass die Zeilen der Datei hinter einem Klick stehen; jetzt, dass sie
-  // gleich sichtbar sind — mit Datei, Excel-Zeilen, der Kennung zum Suchen (blau)
-  // und den roten Zellen im Blick.
+  // Runde BD: „das versteh ich nicht — wie kommst du auf 768?" Der Fall rechnet die
+  // Position Zeile für Zeile nach: dreimal Charge 1620 mit 256 kg, zusammen 768 kg,
+  // die Position 256 kg, 512 kg zu viel. Runde BE: die Zeilen der Datei sichtbar, mit
+  // Datei, Excel-Zeilen, der Kennung (blau) und den roten Zellen. Runde BF: ein Fall mit
+  // einer Position zeigt sie im Fall selbst, nicht in einem Fenster.
   { name: 'perigon-fall', wer: 'admin', pfad: '/perigon/faelle?art=zu_viel', vorher: perigonVormerken,
     tun: async p => {
-      await p.locator('#art-zu_viel .fall-tabelle tbody tr').first().click()
-      const f = p.locator('#lieferung-fenster')
+      const f = p.locator('#fall-ansicht')
       await f.locator('#fall-kopf', { hasText: 'Die Position steht 3-mal in der Datei, jedes Mal mit Charge 1620 und 256 kg — zusammen 768 kg' }).waitFor()
       const finden = f.locator('#zeile-finden')
       await finden.locator('strong', { hasText: 'Abgleich_Rueckverfolgbarkeit_Pruefirma.xlsx' }).waitFor()
@@ -535,23 +588,40 @@ const BILDSCHIRME = [
       await n.locator('tfoot tr', { hasText: '768 kg' }).waitFor()
       await n.locator('tfoot tr.fall-unterschied', { hasText: '512 kg' }).waitFor()
       await n.locator('p', { hasText: 'In der Rechnung der App: 256 kg auf Charge 1620' }).waitFor()
+      await f.locator('.fall-folge', { hasText: 'So rechnet die App damit' }).waitFor()
     } },
-  // Jede Position, die nicht stimmt, nach Art; ein Klick zeigt den Fall nachgerechnet,
-  // was zu tun ist und den Verlauf.
-  { name: 'perigon-zeilen', wer: 'admin', pfad: '/perigon/faelle?art=menge_null&stand=alle', vorher: perigonVormerken,
+  // Viele Positionen einer Art sind ein Fall: was passiert ist, die Positionen als Liste,
+  // ein Klick zeigt eine Position im Fenster (nachgerechnet, Stand je Position).
+  { name: 'perigon-zeilen', wer: 'admin', pfad: '/perigon/faelle?art=label_name', vorher: perigonVormerken,
     tun: async p => {
-      await p.locator('#art-menge_null .fall-tabelle tbody tr').first().click()
-      const f = p.locator('#lieferung-fenster')
+      const f = p.locator('#fall-ansicht')
+      await f.locator('#fall-passiert li', { hasText: /^\d+ Lieferscheine vom / }).waitFor()
+      const zeilen = f.locator('#fall-positionen tbody tr')
+      if ((await zeilen.count()) !== 12) throw new Error(`${await zeilen.count()} Positionen sichtbar statt der ersten zwölf`)
+      await f.locator('#fall-positionen button', { hasText: /^alle \d+ Positionen zeigen$/ }).click()
+      if ((await zeilen.count()) <= 12) throw new Error('„alle zeigen" zeigt nicht alle')
+      await zeilen.first().click()
+      const w = p.locator('#lieferung-fenster')
+      await w.locator('#fall-angaben').waitFor()
+      await w.locator('#fall-verfolgen').waitFor()
+      await w.locator('#fall-erklaert summary').click()
+      await w.locator('#fall-tun').waitFor()
+    } },
+  // Eine Position, deren Chargen keine Menge haben (S = 0) — mit dem Vermerk, der schon dasteht.
+  { name: 'perigon-menge', wer: 'admin', pfad: '/perigon/faelle?art=menge_null&stand=alle', vorher: perigonVormerken,
+    tun: async p => {
+      const f = p.locator('#fall-ansicht')
       await f.locator('#fall-nachgerechnet', { hasText: 'Spalte S' }).waitFor()
       await f.locator('#fall-kopf', { hasText: 'aber in Spalte S steht überall 0' }).waitFor()
-      await f.locator('#fall-tun', { hasText: 'In Perigon bei dieser Position' }).waitFor()
       await f.locator('#fall-verfolgen .verfolgen-liste li', { hasText: 'Büro fragt bei der Firma nach' }).waitFor()
+      await f.locator('#fall-unter .stand-marke, .fall-unter .stand-marke', { hasText: 'in Abklärung' }).first().waitFor()
+      await f.locator('#fall-vermutung summary').click()
+      await f.locator('#fall-vermutung', { hasText: 'In Perigon bei dieser Position' }).waitFor()
     } },
-  // Der Betriebsleiter hält fest, wie es steht — der Vermerk steht danach im Verlauf des Falls.
+  // Der Betriebsleiter hält fest, wie es steht — der Vermerk steht danach unter dem Fall.
   { name: 'perigon-vermerken', wer: 'admin', pfad: '/perigon/faelle?art=unbekannt', vorher: perigonVormerken,
     tun: async p => {
-      await p.locator('#art-unbekannt .fall-tabelle tbody tr').first().click()
-      const v = p.locator('#lieferung-fenster #fall-verfolgen')
+      const v = p.locator('#fall-ansicht #fall-verfolgen')
       await v.locator('#stand-erledigt').click()
       await v.locator('textarea').fill('991977 bei 99131 als Perigon-Nr. eingetragen')
       await v.locator('#fall-vermerken').click()
@@ -559,7 +629,7 @@ const BILDSCHIRME = [
     } },
   { name: 'perigon-verlauf', wer: 'admin', pfad: '/perigon/verlauf', vorher: perigonVormerken,
     tun: async p => {
-      await p.locator('#perigon-vermerke tbody tr', { hasText: 'Büro fragt bei der Firma nach' }).waitFor()
+      await p.locator('#perigon-vermerke tbody tr', { hasText: 'Büro fragt bei der Firma nach' }).locator('button', { hasText: /^Fall \d+ · Charge ohne Menge/ }).waitFor()
       await p.locator('#perigon-weg tbody tr', { hasText: 'oranger Knirps' }).waitFor()
     } },
   { name: 'perigon-pruefung', wer: 'admin', pfad: '/perigon/pruefung',

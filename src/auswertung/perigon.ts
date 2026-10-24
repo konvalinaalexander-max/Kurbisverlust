@@ -178,18 +178,6 @@ export const WO_NAME: Record<Wo, { kurz: string; lang: string }> = {
   journal: { kurz: 'Erntejournal', lang: 'Im Erntejournal nachsehen oder berichtigen' },
   nichts: { kurz: 'nichts', lang: 'Nichts — die App erledigt es beim nächsten Rechnen' },
 }
-export const WO_FOLGE: Wo[] = ['perigon', 'halle', 'journal', 'stammdaten', 'firma', 'einlesen', 'nichts']
-
-/** Wo eine Sache je Charge behoben wird (v_ungereimtheit). */
-export function sacheWo(u: Pick<Ungereimtheit, 'art'>): Wo {
-  switch (u.art) {
-    case 'ueberzaehlung': case 'vorschlag': return 'halle'
-    case 'ohne_eingang': case 'vor_eingang': case 'umgebucht': return 'journal'
-    case 'nachgeordnet': case 'stammdaten': return 'stammdaten'
-    case 'ohne_charge': return 'perigon'
-    default: return 'perigon'
-  }
-}
 
 export const STAND_NAME: Record<VermerkStand, string> = {
   offen: 'offen', in_abklaerung: 'in Abklärung', erledigt: 'erledigt', kein_fehler: 'kein Fehler',
@@ -215,51 +203,6 @@ const stueck = (k: number, ein: string, mehr: string) => `${k} ${k === 1 ? ein :
 export function spaltenZeichen(name: string): string | null {
   const i = PERIGON_ANSICHT.findIndex(s => s.name === name)
   return i < 0 ? null : spaltenBuchstabe(i)
-}
-
-/* ---------- Die Fälle je Art -------------------------------------------- */
-
-export interface ArtGruppe {
-  art: PerigonArt; info: PerigonArtInfo; faelle: PerigonBefund[]
-  offen: number; kg: number | null; schwere: Schwere
-}
-
-/** Die Fälle je Art, das Schwerste und Grösste zuerst; innerhalb einer Art die grössten zuerst. */
-export function nachArt(faelle: PerigonBefund[], verlauf: Map<string, PerigonVerlauf>): ArtGruppe[] {
-  const m = new Map<PerigonArt, PerigonBefund[]>()
-  for (const f of faelle) m.set(f.art, [...(m.get(f.art) ?? []), f])
-  return [...m.entries()].map(([art, liste]) => {
-    const schwere = liste.some(f => f.schwere === 'rot') ? 'rot' : liste.some(f => f.schwere === 'gelb') ? 'gelb' : 'info'
-    return {
-      art, info: PERIGON_ART[art], schwere: schwere as Schwere,
-      faelle: [...liste].sort((a, b) => (betroffen(b) ?? -1) - (betroffen(a) ?? -1) || b.datum.localeCompare(a.datum)),
-      offen: liste.filter(f => istOffen(f.schwere, standVon(verlauf, f.schluessel))).length,
-      kg: summe(liste.map(betroffen)),
-    }
-  }).sort((a, b) => RANG[a.schwere] - RANG[b.schwere] || (b.kg ?? 0) - (a.kg ?? 0) || ART_FOLGE.indexOf(a.art) - ART_FOLGE.indexOf(b.art))
-}
-
-export type StandFilter = 'offen' | 'abklaerung' | 'erledigt' | 'alle'
-/** Runde BD: wo — der Ort, an dem behoben wird (Perigon, Halle, Stammdaten …); leer heisst überall. */
-export interface Filter { art: string; quelle: string; stand: StandFilter; suche: string; sorte: string; charge: number | null; wo: string }
-export const FILTER_LEER: Filter = { art: '', quelle: '', stand: 'offen', suche: '', sorte: '', charge: null, wo: '' }
-
-/** Die Fälle, die zum Filter passen. Die Suche geht über Artikel, Kunde, Nummern, Charge, Position und Sorte. */
-export function filtern(faelle: PerigonBefund[], verlauf: Map<string, PerigonVerlauf>, f: Filter): PerigonBefund[] {
-  const s = f.suche.trim().toLowerCase()
-  return faelle.filter(x => {
-    if (f.art && x.art !== f.art) return false
-    if (f.quelle && x.quelle !== f.quelle) return false
-    if (f.wo && x.wo !== f.wo) return false
-    if (f.sorte && x.sorte !== f.sorte) return false
-    if (f.charge != null && x.charge_nr !== f.charge && !(x.nummern ?? '').split(', ').includes(String(f.charge))) return false
-    const st = standVon(verlauf, x.schluessel)
-    if (f.stand === 'offen' && !istOffen(x.schwere, st)) return false
-    if (f.stand === 'abklaerung' && st !== 'in_abklaerung') return false
-    if (f.stand === 'erledigt' && st !== 'erledigt' && st !== 'kein_fehler') return false
-    if (!s) return true
-    return [x.artikel, x.kunde, x.nummern, x.charge_nr, x.pos_id, x.sorte, x.quelle].some(v => v != null && String(v).toLowerCase().includes(s))
-  })
 }
 
 /* ---------- Fall für Fall, je Sorte ------------------------------------- */
@@ -341,61 +284,6 @@ export function jeSorte(spur: ChargeSpur[], sachen: Ungereimtheit[], faelle: Per
     out.push({ sorte, chargen: ch, sachen: su, zeilen: ze, schwere, kg: summe(ernst.map(betroffen)) ?? 0, bild, nieGeliefert: nie.map(s => s.charge_nr), aehnlich })
   }
   return out.sort((a, b) => RANG[a.schwere] - RANG[b.schwere] || b.kg - a.kg)
-}
-
-/* ---------- Was zu tun ist ---------------------------------------------- */
-
-export interface Eintrag {
-  schluessel: string; titel: string; kg: number | null; schwere: Schwere
-  /** ein Perigon-Fall (öffnet die Zeile der Datei) oder eine Sache je Charge (öffnet die Sorte) */
-  fall?: PerigonBefund; sache?: Ungereimtheit
-}
-export interface Aufgabe { wo: Wo; eintraege: Eintrag[]; kg: number | null }
-
-/** Ein Perigon-Fall als Zeile einer Liste: Datum, Artikel, Nummern, Art. */
-export function fallTitel(f: PerigonBefund): string {
-  return `${datum(f.datum)} · ${f.artikel}${f.nummern ? ` · ${f.nummern}` : ''} — ${PERIGON_ART[f.art].name}`
-}
-
-/** Alles Offene, nach dem Ort, an dem es behoben wird; je Ort das Grösste zuerst. */
-export function aufgaben(faelle: PerigonBefund[], sachen: Ungereimtheit[], verlauf: Map<string, PerigonVerlauf>): Aufgabe[] {
-  const m = new Map<Wo, Eintrag[]>()
-  const dazu = (wo: Wo, e: Eintrag) => m.set(wo, [...(m.get(wo) ?? []), e])
-  for (const f of faelle) {
-    if (!istOffen(f.schwere, standVon(verlauf, f.schluessel))) continue
-    dazu(f.wo, { schluessel: f.schluessel, titel: fallTitel(f), kg: betroffen(f), schwere: f.schwere, fall: f })
-  }
-  for (const u of sachen) {
-    if (!istOffen(u.schwere, standVon(verlauf, u.schluessel))) continue
-    dazu(sacheWo(u), { schluessel: u.schluessel, titel: u.titel, kg: u.kg, schwere: u.schwere, sache: u })
-  }
-  return WO_FOLGE.filter(w => m.has(w)).map(wo => {
-    const e = m.get(wo)!.sort((a, b) => RANG[a.schwere] - RANG[b.schwere] || (b.kg ?? -1) - (a.kg ?? -1))
-    return { wo, eintraege: e, kg: summe(e.map(x => x.kg)) }
-  })
-}
-
-/* ---------- Die Lage in Zahlen ------------------------------------------ */
-
-export interface Lage {
-  hereinKg: number | null; hereinPaletten: number; chargenMitEingang: number
-  hinausKg: number | null; lieferscheine: number; chargenMitLieferschein: number
-  ohneChargeKg: number | null; nochPaletten: number | null
-}
-
-/** Herein laut Erntejournal, hinaus laut Perigon, ohne Charge, laut App noch da — über alle Chargen. */
-export function lageInZahlen(spur: ChargeSpur[], sachen: Ungereimtheit[]): Lage {
-  const mitEingang = spur.filter(s => s.journal_paletten > 0)
-  const mitLief = spur.filter(s => s.lieferscheine > 0)
-  const rest = spur.map(s => (s.rest_paletten == null ? null : Math.max(0, Number(s.rest_paletten))))
-  return {
-    hereinKg: summe(mitEingang.map(s => (s.journal_kg == null ? null : Number(s.journal_kg)))),
-    hereinPaletten: mitEingang.reduce((a, s) => a + s.journal_paletten, 0), chargenMitEingang: mitEingang.length,
-    hinausKg: summe(mitLief.map(s => (s.geliefert_kg == null ? null : Number(s.geliefert_kg)))),
-    lieferscheine: mitLief.reduce((a, s) => a + s.lieferscheine, 0), chargenMitLieferschein: mitLief.length,
-    ohneChargeKg: summe(sachen.filter(u => u.art === 'ohne_charge').map(u => u.kg)),
-    nochPaletten: rest.some(r => r != null) ? Math.round(rest.reduce<number>((a, r) => a + (r ?? 0), 0)) : null,
-  }
 }
 
 /* ---------- Runde BD: ein Fall, ruhig erzählt ---------------------------- */
@@ -567,52 +455,6 @@ export function gegenueber(f: PerigonBefund): Angabe[] | null {
     case 'nachholen': return [nummer(charge ? `inzwischen bei ${charge}` : 'inzwischen bekannt')]
     default: return null
   }
-}
-
-/* ---------- Die Sachen je Charge, nach Art ------------------------------ */
-
-/** Je Art einer Sache je Charge, was sie heisst — in einem Satz, für die Liste der Fälle. */
-export const SACHE_HEISST: Record<string, string> = {
-  ueberzaehlung: 'Unter der Nummer ging mehr hinaus, als hereinkam — ein Teil muss von einer anderen Charge sein.',
-  ohne_eingang: 'Verkauft unter einer Nummer, die im Erntejournal keine einzige Palette hat.',
-  vor_eingang: 'Lieferscheine, die älter sind als die erste Palette der Charge.',
-  ohne_charge: 'Lieferscheine ohne Charge — die App verteilt sie auf alle Chargen der Sorte.',
-  vorschlag: 'Zettel einer Arbeit passen zu Paletten einer anderen Charge; der Beleg reicht nicht zum Umbuchen.',
-  umgebucht: 'Paletten, die die App mit Beleg der Charge ihrer Arbeit zugeordnet hat.',
-  nachgeordnet: 'Eine unbekannte Nummer, über den Produzenten einer Charge zugeordnet.',
-  stammdaten: 'Im Chargenregister stimmt etwas nicht — eine Nummer doppelt oder eine fehlt.',
-}
-
-export interface SachGruppe { art: string; faelle: Ungereimtheit[]; offen: number; kg: number | null; schwere: Schwere; wo: Wo }
-
-/** Die Sachen je Charge nach Art, das Schwerste und Grösste zuerst — wie nachArt für die Zeilen. */
-export function sachenNachArt(sachen: Ungereimtheit[], verlauf: Map<string, PerigonVerlauf>): SachGruppe[] {
-  const m = new Map<string, Ungereimtheit[]>()
-  for (const u of sachen) m.set(u.art, [...(m.get(u.art) ?? []), u])
-  return [...m.entries()].map(([art, liste]) => ({
-    art, wo: sacheWo(liste[0]),
-    schwere: (liste.some(u => u.schwere === 'rot') ? 'rot' : liste.some(u => u.schwere === 'gelb') ? 'gelb' : 'info') as Schwere,
-    faelle: [...liste].sort((a, b) => RANG[a.schwere] - RANG[b.schwere] || (betroffen(b) ?? -1) - (betroffen(a) ?? -1)),
-    offen: liste.filter(u => istOffen(u.schwere, standVon(verlauf, u.schluessel))).length,
-    kg: summe(liste.map(betroffen)),
-  })).sort((a, b) => RANG[a.schwere] - RANG[b.schwere] || (b.kg ?? 0) - (a.kg ?? 0))
-}
-
-/** Die Sachen, die zum Filter passen — Stand, Ort, Sorte, Charge (auch die beteiligten) und Suche. */
-export function sachenFiltern(sachen: Ungereimtheit[], verlauf: Map<string, PerigonVerlauf>, f: Filter): Ungereimtheit[] {
-  const s = f.suche.trim().toLowerCase()
-  return sachen.filter(u => {
-    if (f.art && u.art !== f.art) return false
-    if (f.wo && sacheWo(u) !== f.wo) return false
-    if (f.sorte && u.sorte !== f.sorte) return false
-    if (f.charge != null && u.charge_nr !== f.charge && u.von_charge_nr !== f.charge && !u.beteiligt.includes(f.charge)) return false
-    const st = standVon(verlauf, u.schluessel)
-    if (f.stand === 'offen' && !istOffen(u.schwere, st)) return false
-    if (f.stand === 'abklaerung' && st !== 'in_abklaerung') return false
-    if (f.stand === 'erledigt' && st !== 'erledigt' && st !== 'kein_fehler') return false
-    if (!s) return true
-    return [u.titel, u.charge_nr, u.von_charge_nr, u.sorte].some(v => v != null && String(v).toLowerCase().includes(s))
-  })
 }
 
 /** Der Fall in einem Satz für die Spur (schnappschuss) — was er war, falls er später verschwindet. */

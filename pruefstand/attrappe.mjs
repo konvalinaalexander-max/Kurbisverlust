@@ -46,8 +46,10 @@ export const fixture = name => {
 
 let geschrieben = {}
 let naechsteId = 90001
+/** 0127: die Nummern der Perigon-Fälle — vergeben in der Folge, in der die App sie nennt, wie die Datenbank. */
+let fallNr = new Map()
 /** Vor jedem Bildschirm: das Gedächtnis leeren, damit nur die Fixtures gelten. */
-export function vergessen() { geschrieben = {} }
+export function vergessen() { geschrieben = {}; fallNr = new Map() }
 /** Für einen Bildschirm Zeilen vormerken, als hätte die App sie geschrieben (22. Oktober: die Journal-Adresse). */
 export function vormerken(name, zeilen) { geschrieben[name] = [...(geschrieben[name] ?? []), ...zeilen] }
 
@@ -95,6 +97,12 @@ export async function restAntwort(route) {
       const f = fixture(`rpc_${fn}_${h}`)
       if (f === null) fehlendeFixtures.add(`rpc_${fn}_${h}`)
       return route.fulfill({ json: f ?? [] })
+    }
+    if (fn === 'perigon_fall_nummern') {
+      const body = JSON.parse(route.request().postData() ?? '{}')
+      const faelle = Array.isArray(body.p_faelle) ? body.p_faelle : []
+      for (const f of faelle) if (!fallNr.has(f)) fallNr.set(f, fallNr.size + 1)
+      return route.fulfill({ json: faelle.map(f => ({ fall: f, nr: fallNr.get(f) })).sort((a, b) => a.nr - b.nr) })
     }
     if (fn === 'demo_daten_laden') return route.fulfill({ json: 'Demo-Saison steht.' })
     if (fn === 'demo_daten_entfernen') return route.fulfill({ json: 'Demo-Daten entfernt.' })

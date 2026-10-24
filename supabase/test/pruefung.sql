@@ -11624,3 +11624,77 @@ begin
 end $$;
 
 select '——— 0126 Perigon-Reiter: jeder Fall nachvollziehbar und mitverfolgt ———' as ergebnis;
+
+-- =====================================================================
+-- 0127 — Jeder Perigon-Fall hat eine Nummer, die bleibt
+--
+-- (a) Neue Fälle bekommen Nummern in der Folge, in der die App sie nennt
+--     (das Wichtigste zuerst) — fortlaufend, nicht alphabetisch.
+-- (b) Wer wiederkommt, behält seine Nummer, auch in anderer Folge; ein
+--     neuer Fall bekommt die nächste; doppelt genannt heisst einmal.
+-- (c) Die Halle vergibt keine Nummern; sie liest nur die bekannten.
+-- (d) Nichts genannt: nichts zurück, kein Fehler.
+-- (e) Rechte: lesen ja, schreiben nur über die Funktion, ohne Anmeldung nichts.
+-- (f) Stand 127.
+-- =====================================================================
+do $$
+declare
+  v_u uuid := '00000000-0127-0000-0000-000000000001';
+  v_w uuid := '00000000-0127-0000-0000-000000000002';
+  v_r record; v_a int; v_b int; v_c int; v_d int; v_n int;
+begin
+  insert into auth.users (id, email, raw_user_meta_data) values (v_u, null, '{"name":"Prüf-0127"}');
+  update profil set rolle = 'admin' where id = v_u;
+  insert into auth.users (id, email, raw_user_meta_data) values (v_w, null, '{"name":"Prüf-0127 Halle"}');
+  update profil set rolle = 'arbeiter' where id = v_w;
+  perform set_config('request.jwt.claim.sub', v_u::text, true);
+
+  -- (a) in der Folge der Liste, nicht nach dem Alphabet
+  select count(*) into v_n from perigon_fall_nummern(array['pruef127:c', 'pruef127:a', 'pruef127:b']);
+  select nr into v_c from perigon_fall_nr where fall = 'pruef127:c';
+  select nr into v_a from perigon_fall_nr where fall = 'pruef127:a';
+  select nr into v_b from perigon_fall_nr where fall = 'pruef127:b';
+  assert v_n = 3 and v_a = v_c + 1 and v_b = v_c + 2,
+    format('0127 (a1): drei neue Fälle tragen %s, %s, %s (c, a, b; erwartet fortlaufend in dieser Folge), zurück kamen %s', v_c, v_a, v_b, v_n);
+
+  -- (b) bleibt; der Neue bekommt die nächste; doppelt genannt heisst einmal
+  select count(*) into v_n from perigon_fall_nummern(array['pruef127:b', 'pruef127:d', 'pruef127:a', 'pruef127:d']);
+  select nr into v_d from perigon_fall_nr where fall = 'pruef127:d';
+  assert v_n = 3 and (select nr from perigon_fall_nr where fall = 'pruef127:a') = v_a
+     and (select nr from perigon_fall_nr where fall = 'pruef127:b') = v_b and v_d > v_b
+     and (select count(*) from perigon_fall_nr where fall = 'pruef127:d') = 1,
+    format('0127 (b1): nach dem zweiten Aufruf a = %s (war %s), b = %s (war %s), d = %s, zurück %s',
+           (select nr from perigon_fall_nr where fall = 'pruef127:a'), v_a, (select nr from perigon_fall_nr where fall = 'pruef127:b'), v_b, v_d, v_n);
+  assert (select array_agg(f.fall order by f.nr) from perigon_fall_nummern(array['pruef127:d', 'pruef127:c']) f) = array['pruef127:c', 'pruef127:d'],
+    '0127 (b2): zurück kommen nur die genannten Fälle, nach Nummer';
+
+  -- (c) die Halle vergibt nichts, liest aber
+  perform set_config('request.jwt.claim.sub', v_w::text, true);
+  select count(*) into v_n from perigon_fall_nummern(array['pruef127:e', 'pruef127:a']);
+  assert v_n = 1 and not exists (select 1 from perigon_fall_nr where fall = 'pruef127:e'),
+    format('0127 (c1): die Halle hat eine Nummer vergeben oder liest die bekannte nicht (%s zurück)', v_n);
+  perform set_config('request.jwt.claim.sub', v_u::text, true);
+
+  -- (d) nichts genannt
+  assert (select count(*) from perigon_fall_nummern(array[]::text[])) = 0 and (select count(*) from perigon_fall_nummern(null)) = 0,
+    '0127 (d1): ohne Fälle kommt etwas zurück';
+
+  -- (e) Rechte
+  assert has_table_privilege('authenticated', 'perigon_fall_nr', 'select')
+     and not has_table_privilege('authenticated', 'perigon_fall_nr', 'insert')
+     and not has_table_privilege('authenticated', 'perigon_fall_nr', 'update')
+     and not has_table_privilege('authenticated', 'perigon_fall_nr', 'delete'),
+    '0127 (e1): Angemeldete schreiben Nummern an der Funktion vorbei oder lesen sie nicht';
+  assert not has_table_privilege('anon', 'perigon_fall_nr', 'select') and not has_function_privilege('anon', 'perigon_fall_nummern(text[])', 'execute'),
+    '0127 (e2): ohne Anmeldung sind die Nummern lesbar oder vergebbar';
+
+  -- aufräumen
+  delete from perigon_fall_nr where fall like 'pruef127:%';
+  delete from profil where id in (v_u, v_w); delete from auth.users where id in (v_u, v_w);
+
+  -- (f) Stand
+  assert schema_stand() >= 127, format('0127 (f1): schema_stand() = %s', schema_stand());
+  raise notice 'OK  0127 — jeder Perigon-Fall trägt eine Nummer, in der Folge der Liste vergeben und danach fest; nur der Betriebsleiter vergibt, alle lesen';
+end $$;
+
+select '——— 0127 Perigon-Fälle mit fester Nummer ———' as ergebnis;

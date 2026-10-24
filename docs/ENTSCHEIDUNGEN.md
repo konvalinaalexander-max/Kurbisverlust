@@ -4171,6 +4171,160 @@ Daten, dann die Annahme — nach der Korrektur nachsehen.
 nicht alles: vier mal vier gleiche Paloxen und ein Tag mit 30 Paaren bei
 13 erwarteten sind Fragen wert.
 
+## Runde BF: Fall für Fall — was passiert ist, statt was zu tun wäre (24. Oktober)
+
+Der Betrieb zum Reiter Perigon nach Runde BE: „Es ist irgendwie Information
+Overload. Mach es angenehmer, verständlicher, gutes UI, damit ich Fall für
+Fall angenehm abarbeiten kann. Den Fall verstehe, sehe, was passiert ist. Und
+du musst uns auch nicht 1000 Lösungsvorschläge vorschlagen … wichtiger ist,
+dass wir verstehen, was passiert ist. Dann kann ich das mit meinem Chef
+besprechen, und er schlägt vor, wie wir es machen." Und: „wenn du sagst, so
+viel ist Eingang, so viel ist Ausgang, das kann nicht sein … dann gib kurz an,
+warum — Verdunstung, Palox, aussortieren. Wenn die Dinge so 300 Kilo sind,
+haben wir vielleicht Zweifel, ob du überhaupt richtig rechnest."
+
+Auf den echten Daten (24. Oktober) standen 61 Perigon-Zeilen und 15 Sachen je
+Charge da — 76 „Fälle". Darunter dieselbe Sache doppelt (die acht Zeilen „vor
+dem Eingang" sind die Sachen „vor dem Eingang" von 1626 und 1637; die neun
+Lieferscheine ohne Charge je Sorte sind die sieben Zeilen „keine Nummer" und
+die zwei „Rest"), 35 Zeilen „Mix auf einer Charge", die eine einzige Frage sind,
+und zu 1626 drei Sachen in drei Gruppen, die eine Geschichte erzählen.
+
+**1. Ein Fall ist eine Frage an den Chef** (`src/auswertung/faelle.ts`):
+- je Charge, bei der herein und hinaus nicht aufgehen, alles zu ihr in einem
+  Fall — vor dem Eingang verkauft, mehr verkauft als möglich, nie
+  eingegangen, Paletten wohl von einer anderen Charge, umgebucht, über den
+  Produzenten zugeordnet; die Perigon-Zeilen „vor dem Eingang" derselben
+  Charge sind ihre Belege, kein eigener Fall;
+- je Art eines Fehlers in der Perigon-Datei alle Positionen dieser Art (die
+  Frage ist dieselbe), jede einzeln anzusehen; hat die Art nur eine Position,
+  steht sie im Fall selbst;
+- je Sache im Chargenregister ein Fall;
+- „Lieferscheine ohne Charge je Sorte", „nachholen" und „Rücknahme" sind
+  Auskunft — sie stehen unter „alle", zählen nie als offen.
+Auf den echten Daten werden aus 76 Zeilen 16 Fälle (8 Chargen, 4 Arten von
+Fehlern in der Datei, 4 zu Artikel, Label und Mix), dazu 4 zur Auskunft.
+
+**2. Jeder Fall hat eine Nummer, die bleibt** (0127, `perigon_fall_nr`). „Fall 4"
+lässt sich sagen, schreiben, in einer Sprachnachricht nennen. Vergeben wird
+sie, wenn die App den Fall zum ersten Mal zeigt, in der Folge der Liste — das
+Wichtigste bekommt die kleinste —, danach nie geändert, nie neu vergeben, nie
+gelöscht. Ein Fall, der verschwindet und wiederkommt, trägt dieselbe. Die
+Kennung des Falls (`charge:1626`, `art:mix`, Schlüssel der Sache) bestimmt die
+App; die Datenbank merkt sich nur die Nummer. Vergeben tut nur der
+Betriebsleiter (der Reiter ist seiner); fehlt die Funktion (Datenbank vor
+0127), stehen die Fälle ohne Nummer da, sonst ändert sich nichts.
+
+**3. Liste links, Fall rechts.** Die Liste: je Fall zwei Zeilen — Nummer, wer
+(„Charge 1626 · Tiana"), in wenigen Worten was nicht aufgeht, wie viel, der
+Stand, sobald er nicht mehr offen ist — unter vier Überschriften (Herein und
+hinaus gehen nicht auf · Fehler in der Perigon-Datei · Artikel, Label, Mix ·
+Chargenregister). Der Fall rechts; „voriger" und „nächster" oder die
+Pfeiltasten gehen weiter, die Adresse trägt die Nummer (`?fall=4`). Auf dem
+Handy erst die Liste, dann der Fall mit „Alle Fälle". Weg sind „Wo zu tun"
+(ein Filter für etwas, das der Chef entscheidet), die aufklappbaren Gruppen je
+Art mit ihrem Satz und „Je Sorte" als eigener Reiter (seine Hinweise stehen im
+Fall, unter „was die App vermutet"; der alte Weg führt in die Fälle der Sorte).
+Oben zählen die Kennzahlen Fälle, nicht Zeilen, mit einem Balken, wie viele
+erledigt sind; die Tonnen-Summe über alle Fälle ist weg — die Fälle
+überschneiden sich, die Summe sagte nichts.
+
+**4. Im Fall, für jeden gleich, in dieser Folge:**
+- *Was ist passiert* — herein und hinaus je ein Satz (Erntejournal, Perigon,
+  mit Tagen), dann was nicht aufgeht, je Sache ein Satz in der Folge der
+  Dinge (vor dem Eingang, ohne Eingang, zu viel, woher es kommen könnte), und
+  was das für die Zahlen der App heisst. Kein Vorschlag darin.
+- *Herein gegen hinaus* — zwei Balken auf derselben Skala: was hereinkam, und
+  was es für die Lieferscheine brauchte, aufgeteilt in Lieferscheine,
+  Aussortiertes, Faules und Verdunstetes (die Farben der Ströme wie unter
+  Ursachen); eine gestrichelte Linie, wo der Eingang endet; rechts davon rot
+  „fehlt …".
+- *Die Rechnung, rückwärts* — die Antwort auf „rechnest du überhaupt
+  richtig?": auf den Lieferscheinen + zu klein + zu gross + Faules + verdunstet
+  = so viel musste hereinkommen; hereingekommen; es fehlen. Je Schritt der
+  Anteil, wie er gerechnet ist (0.43 % je Tag, im Mittel 52 Tage gelagert) und
+  woher der Wert kommt (gemessen: Wägungen dieser Sorte; eigene Messung, 2
+  Arbeiten …). Darunter **„Wie sicher?"**: geht es schon ohne jeden Verlust
+  nicht auf (1626: 7.5 t hinaus, 4.9 t herein), liegt es nicht an der Rechnung;
+  sonst, wie viel die Charge höchstens verlieren dürfte, damit es aufgeht, wie
+  viel gerechnet ist und was am meisten ausmacht (1630: höchstens 18.5 %,
+  gerechnet 25.8 %, am meisten verdunstet). Gerechnet wird hier nichts neu —
+  die Zahlen sind die der Kaskade (`mv_kaskade`, ausgelagert), nur
+  zusammengezählt; die Summe der Schritte ist der Eingang, den die Datenbank
+  für die Überzählung nimmt.
+- *Wann die Lieferscheine hinausgingen* (bei „vor dem Eingang") — die
+  Lieferscheine als Striche auf der Zeitachse, so hoch wie die Kilo; der Tag
+  der ersten Palette als Linie, davor schraffiert; was davor liegt, rot.
+- *Die Belege* — die Lieferscheine der Charge (die ersten zehn, die übrigen
+  auf Knopfdruck), die Positionen einer Art, oder bei einer einzigen Position
+  ihre Zeilen wie im Excel (Runde BE) mit „Nachgerechnet".
+- *Stand und Notiz* — für den ganzen Fall: ein Vermerk gilt für jeden seiner
+  Teile, in einem Zug, mit derselben Notiz; erledigt ist der Fall erst, wenn
+  alle Teile es sind („12 von 35 Teilen erledigt").
+- *Zu, ganz unten: Was die App vermutet — und was man tun könnte.* Woher die
+  Ware wohl kam (einmal, nicht je Sache wiederholt), was die App schon
+  umgebucht hat, was in der Sorte auffällt (Chargen ohne Lieferschein,
+  aufeinanderfolgende Perigon-Nummern), der Weg der Ware, was man tun könnte,
+  und die Knöpfe (umbuchen, zurücknehmen, Perigon-Nr. eintragen). Der Betrieb:
+  „du musst uns nicht 1000 Lösungsvorschläge vorschlagen." Im Fenster einer
+  einzelnen Position steht „was man tun könnte" ebenso unter der Erklärung.
+
+**5. Oben auf den Lagerseiten** zählt die Zeile zum Reiter jetzt Fälle wie der
+Reiter („Perigon und Lager: 16 Fälle offen · 5 davon gross"), nicht Zeilen.
+
+**Geprüft.** `test/faelle.test.ts` (neu, mit den Zahlen von 1626 und 1630 vom
+24. Oktober): alles zu einer Charge ist ein Fall, die Zeilen „vor dem Eingang"
+sind seine Belege und kein eigener Fall, betrifft ist das Grösste (die Sachen
+überschneiden sich); Arten, Register, Auskunft; Stand des Ganzen aus den
+Teilen; Filter nach Stand, Art, Charge (auch die genannte Nummer), Sorte,
+Suche; die Geschichte in Sätzen ohne Vermutung; die Rückrechnung von 1630
+(die Schritte ergeben 21'215 kg, es fehlen 1'897 kg, Verdunstung 20.1 % bei
+0.43 % je Tag und 52 Tagen, Faules 6.2 % vom Rest, höchstens 18.5 % Verlust
+erlaubt) und mehrere Kohorten mit gewichteter Lagerdauer; ohne Kaskade keine
+Rückrechnung, ohne Eingang kein Unterschied; die Zeitachse; das Bild nimmt
+nur die Zahlen der Datenbank. `test/perigon.test.ts`: nachArt, filtern,
+aufgaben, lageInZahlen, sachenNachArt und sachenFiltern gibt es nicht mehr; was
+ihre Tests sicherten, prüft `faelle.test.ts` an den Fällen (im Test gesagt).
+`pruefung.sql` 0127 (a1–f1) mit fünf Mutationen (ohne die Folge, die Halle
+vergibt, alle zurück, Nummer neu vergeben, Stand). Bildschirme: `perigon`
+(drei Zahlen, vier Themen, jede Nummer einmal, 99129 ein Fall, breit der
+erste Fall rechts, auf dem Handy erst die Liste), `perigon-charge` (99129 wie
+1626: Sätze, Balken „fehlt 3.2 t", Rechnung mit 0.26 % je Tag, 8'045 kg und
+3'182 kg, „schon ohne jeden Verlust", Zeitachse, acht Belege, die Vermutung
+zu), `perigon-weiter` (Knopf und Pfeiltaste, Nummer in der Adresse),
+`perigon-sorten` (der alte Weg), `perigon-sache`, `perigon-fall` (768 = 3 × 256
+im Fall selbst), `perigon-zeilen` (viele Positionen, die ersten zwölf, eine im
+Fenster), `perigon-menge`, `perigon-vermerken`, `perigon-verlauf`;
+`lager-ungereimt` erwartete „an N Stellen" — die Zeile zählt jetzt Fälle, der
+Test mit ihr, und strenger: dieselbe Zahl muss im Reiter unter „Offen" stehen
+(gegengeprüft mit einer falschen Zahl, die Szene wird rot). Die
+Fixtures nehmen `mv_kaskade` mit; 99129 erzählt die Geschichte von 1626 mit
+Zahlen, die in sich aufgehen. Die Prüfregel „Überlauf" fand auf dem Handy die
+Tabelle „Weg der Ware" und die Liste „was man tun könnte" zu breit — beide
+rollen jetzt in sich. Der Begriffs-Prüfstand kennt die neuen Beschriftungen mit
+ihrer Herkunft (Herein, Hinaus, Auf den Lieferscheinen, musste hereinkommen,
+hereingekommen, es fehlen, Faules in den Palox, in kg (× AE)); er liest einen
+Block des Falls als Karte, und er zählt die Spalten einer Zeile über `colSpan`
+hinweg — die Summe unter „in kg" in der Fusszeile von „Nachgerechnet" stand für
+ihn bisher unter „Charge". Die Rechnung sagt im Satz darüber, was gemessen und
+was gerechnet ist; die Belege heissen „Masse der Lieferung" (gemessen), die Zahl
+„davon gross" trägt ihre Herkunft wie vorher.
+
+**Was bewusst nicht gemacht wurde.**
+- Keine neue Rechnung. Die Rückrechnung zeigt die Kaskade, wie sie ist; ob die
+  Verdunstung von 20 % bei 1630 stimmt, ist eine Frage an die Daten
+  (Saisonbegleitung), nicht an diesen Reiter. Der Reiter macht sie sichtbar.
+- Keine Sammelentscheide über mehrere Fälle (etwa „alle Mix: kein Fehler") —
+  ein Fall „Mix" umfasst ohnehin alle 35 Zeilen, und ein Vermerk gilt für alle.
+- Die Vorschläge sind nicht gestrichen, nur nach unten und zu: Wer sie
+  braucht, öffnet sie; gebucht wird weiter nur auf Knopfdruck.
+- Kein Druckbild für die Besprechung: die Seite druckt den Fall ohne Liste,
+  Navigation und Vermutung; ein eigenes Blatt für den Chef wartet, bis klar
+  ist, was er sehen will.
+- Die Nummer hängt am Fall, nicht an der Zeile. Wird eine Art später anders
+  zusammengefasst, bekommt der neue Fall eine neue Nummer — die alte bleibt
+  in der Tabelle stehen.
+
 ## Runde BE: Die Excel-Zeile ist der Beweis — sichtbar und wiederzufinden (24. Oktober)
 
 Der Betrieb zu Runde BD: „Jetzt ist plötzlich die Perigon-Excel-Zeile weiter

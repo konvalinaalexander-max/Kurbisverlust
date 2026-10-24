@@ -18,10 +18,13 @@
         "Masse aller Lieferungen",
         "Angabe auf dem Lieferschein",
         "Masse in der Datei",
-        "Masse des Artikels"
+        "Masse des Artikels",
+        "Auf den Lieferscheinen",
+        "in kg (×",
+        "Menge je Charge"
       ],
       "art": "gemessen",
-      "bedeutet": "Was den Betrieb verlassen hat, wie es auf dem Lieferschein oder in der Verkaufsdatei steht — verkaufsfertige Ware, nicht Eingangsware — im Lagermanagement heisst die Kennzahl „Ausgang\"",
+      "bedeutet": "Was den Betrieb verlassen hat, wie es auf dem Lieferschein oder in der Verkaufsdatei steht — verkaufsfertige Ware, nicht Eingangsware — im Lagermanagement heisst die Kennzahl „Ausgang\" — Runde BF: im Fall „Auf den Lieferscheinen\" (Anfang der Rückrechnung) und in „Nachgerechnet\" je Zeile der Position „Menge je Charge (Spalte S)\" und „in kg (× AE)\"",
       "quelle": "erg_bilanz.geliefert_kg · lieferung.kg · ausgang_zeile.kg"
     },
     {
@@ -80,7 +83,8 @@
       "muster": [
         "Faules bis heute",
         "Faules im Palox",
-        "Faules im Lager"
+        "Faules im Lager",
+        "Faules in den Palox"
       ],
       "art": "gerechnet",
       "bedeutet": "Was in den Palox geht, bis heute: je Station der Grundausschuss der Sorte plus der Anstieg je Woche Lagerdauer, beim Alter der Portion (seit 0111; bis 0105 eine Verderbkurve mit Sockel). Gemessene Chargen mit ihrer eigenen Messung",
@@ -330,20 +334,23 @@
     },
     {
       "muster": [
-        "Herein · Erntejournal"
+        "Herein · Erntejournal",
+        "Herein",
+        "hereingekommen"
       ],
       "art": "gemessen",
-      "bedeutet": "0126: was laut Erntejournal hereinkam — Nettomasse der Paletten (Reiter Perigon, die Lage in Zahlen und der Weg der Ware je Charge)",
+      "bedeutet": "0126: was laut Erntejournal hereinkam — Nettomasse der Paletten (Reiter Perigon, die Lage in Zahlen und der Weg der Ware je Charge) — Runde BF: im Fall „Herein\" (was ist passiert) und „hereingekommen laut Erntejournal\" (Rückrechnung)",
       "quelle": "v_charge_spur.journal_kg"
     },
     {
       "muster": [
         "Hinaus · Perigon",
         "Hinaus ohne Charge",
-        "ohne Charge"
+        "ohne Charge",
+        "Hinaus"
       ],
       "art": "gemessen",
-      "bedeutet": "0126: was laut Perigon-Lieferschein hinausging — mit Charge (je Charge, über alle Chargen) oder ohne (auf die Chargen der Sorte verteilt, oder je Firma)",
+      "bedeutet": "0126: was laut Perigon-Lieferschein hinausging — mit Charge (je Charge, über alle Chargen) oder ohne (auf die Chargen der Sorte verteilt, oder je Firma) — Runde BF: im Fall „Hinaus\" (was ist passiert)",
       "quelle": "v_charge_spur.geliefert_kg · v_ungereimtheit (ohne_charge).kg · v_perigon_stand.kg_ohne_charge"
     },
     {
@@ -375,11 +382,20 @@
     },
     {
       "muster": [
-        "Mehr verkauft als möglich"
+        "Mehr verkauft als möglich",
+        "es fehlen"
       ],
       "art": "gerechnet",
-      "bedeutet": "0126: die Prüfung je Charge — was hinausging, braucht mit dem gerechneten Verlust mehr Eingangsware, als hereinkam (ab 100 kg und 3 %)",
+      "bedeutet": "0126: die Prüfung je Charge — was hinausging, braucht mit dem gerechneten Verlust mehr Eingangsware, als hereinkam (ab 100 kg und 3 %) — Runde BF: im Fall „es fehlen\" = so viel musste hereinkommen − hereingekommen",
       "quelle": "v_ungereimtheit (ueberzaehlung)"
+    },
+    {
+      "muster": [
+        "musste hereinkommen"
+      ],
+      "art": "gerechnet",
+      "bedeutet": "Runde BF: die Rückrechnung im Fall — auf den Lieferscheinen plus der gerechnete Verlust der Kaskade (zu klein, zu gross, Faules, verdunstet) ergibt den Eingang, den es dafür brauchte; dieselbe Zahl, die die Datenbank für „mehr verkauft als möglich\" nimmt",
+      "quelle": "mv_kaskade (Portion ausgelagert, Σ m0) = erg_charge.ausgelagert_kg"
     }
   ]
 }

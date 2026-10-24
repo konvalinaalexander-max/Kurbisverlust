@@ -57,6 +57,8 @@ export interface Ungereimtheit {
   perigonSetzen?: { charge_nr: number; perigon_nr: number }
   /** Runde BE: die Nummern (Spalte W), unter denen die Belege in Perigon stehen — wo sie keiner Charge gehören */
   nummern?: string[]
+  /** Runde BF: die Zeile der Datenbank, aus der die Sätze stammen — der Fall erzählt mit ihren Zahlen */
+  roh?: UngereimtZeile
 }
 
 /** 0122: eine Charge, von der die Ware wohl kam (v_ungereimtheit.mehr.kandidaten). */
@@ -118,7 +120,7 @@ export function ausZeile(z: UngereimtZeile, perigon: PerigonZeile[]): Ungereimth
   const m = z.mehr ?? {}
   const kgZ = n(z.kg)
   const basis = { schluessel: `${z.art}:${z.charge_nr ?? z.sorte ?? ''}:${String(m.auftrag_id ?? m.pruefung ?? '')}`, art: z.art, kg: kgZ, charge_nr: z.charge_nr, sorte: z.sorte,
-    zeilen: [] as PerigonZeile[], beteiligt: z.charge_nr != null ? [z.charge_nr] : [], stand: '', vorschlag: '' }
+    zeilen: [] as PerigonZeile[], beteiligt: z.charge_nr != null ? [z.charge_nr] : [], stand: '', vorschlag: '', roh: z }
   const ks = kandidatenListe(m)
   const mitKandidaten = { beteiligt: [...basis.beteiligt, ...ks.slice(0, 2).map(k => k.charge_nr)], vorschlag: woherVorschlag(z.charge_nr, kgZ, ks),
     stand: 'Noch nicht umgebucht. Die App zieht diese Ware von keinem Lager ab, solange niemand sagt, woher sie kam.' }

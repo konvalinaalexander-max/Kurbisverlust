@@ -301,6 +301,18 @@ Schritt aus und das Dashboard sagt „nicht gemessen" — sie erfindet keinen.
 **Wenn die Rechnung nicht aufgeht:** Überzählung (die Lieferungen brauchen
 mehr Eingang, als erfasst ist) — seit 0090 mit den drei Möglichkeiten:
 Eingang fehlt, Lieferschein falsch gebucht, Charge besser als das Modell.
+Seit Runde BF zeigt der Fall im Reiter Perigon die Überzählung **rückwärts**:
+die Portionen „ausgelagert" der Charge aus `mv_kaskade` zusammengezählt —
+geliefert + zu klein + zu gross + Fax + Faules + verdunstet = Σ m0 =
+`erg_charge.ausgelagert_kg`, je Schritt der Anteil vom Rest davor (Verdunstung
+als Rate je Tag mit der nach Masse gewichteten Lagerdauer) und die Herkunft
+jedes Werts aus den Spalten der Kaskade (`r_basis`, `f_quelle`, `klein_basis`,
+`gross_basis`). Gerechnet wird dort nichts neu
+(`src/auswertung/faelle.ts`, `rueckrechnung`); fehlt die Kaskade, steht keine
+Rückrechnung da, fehlt der Eingang, kein Unterschied. „Wie sicher?" vergleicht
+den Verlust, den die Charge höchstens haben dürfte (1 − geliefert ÷ Eingang),
+mit dem gerechneten (1 − geliefert ÷ ausgelagert); liegt schon geliefert über
+dem Eingang, geht es auch ohne jeden Verlust nicht auf.
 **Urteil:** ehrlich; die Ausbeute ist die Stelle, an der ein zu hoher
 Koeffizient „Im Lager" zu klein rechnet (Charge 1625) — die Saisonbegleitung
 fragt danach.

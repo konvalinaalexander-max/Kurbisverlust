@@ -80,24 +80,38 @@ const SEITEN = [
       await zeile.waitFor({ state: 'visible', timeout: 60000 })
       await zeile.click(); await p.locator('.ohne-charge-tabelle tbody tr').first().waitFor()
     } },
-  // 0126: der Reiter Perigon — jeder Teil, die Zeilen aufgeklappt. Runde BD:
-  // Arten und Sorten stehen zu, bis man sie öffnet — der Prüfstand öffnet alle,
-  // und einmal das Fenster eines Falls (nachgerechnet, was tun).
+  // 0126: der Reiter Perigon. Runde BF: links die Fälle, rechts einer — der
+  // Prüfstand öffnet je Thema den ersten Fall (je Charge mit Rechnung und
+  // Zeitachse, die Datei, Artikel und Label, das Register), dazu die Position
+  // eines Falls mit vielen Positionen im Fenster und „was die App vermutet".
+  // Bis Runde BE klappte er Arten und Sorten auf; die gibt es so nicht mehr.
   { name: 'perigon', pfad: '/perigon' },
-  { name: 'perigon-sorten', pfad: '/perigon/sorten',
-    tun: async p => { await alleKoepfe(p) } },
-  { name: 'perigon-faelle', pfad: '/perigon/faelle?stand=alle',
-    tun: async p => { await alleKoepfe(p) } },
+  ...['menge', 'datei', 'artikel', 'register'].map(thema => ({ name: `perigon-${thema}`, pfad: '/perigon/faelle?stand=alle',
+    tun: async p => {
+      const zeile = p.locator(`#thema-${thema} .fall-zeile`).first()
+      if (!(await zeile.count().catch(() => 0))) return
+      await zeile.click()
+      await p.locator('#fall-ansicht #fall-passiert').waitFor({ timeout: 20000 })
+      const vermutung = p.locator('#fall-vermutung summary')
+      if (await vermutung.count()) await vermutung.click()
+      await p.waitForTimeout(800)
+    } })),
   { name: 'perigon-fall', pfad: '/perigon/faelle?stand=alle',
     tun: async p => {
-      const kopf = p.locator('.perigon-art-kopf').first()
-      if (!(await kopf.count())) return
-      await kopf.click()
-      const zeile = p.locator('.fall-tabelle tbody tr').first()
-      await zeile.waitFor({ state: 'visible', timeout: 20000 })
-      await zeile.click()
-      await p.locator('[role="dialog"]').first().waitFor({ timeout: 20000 })
-      await p.waitForTimeout(600)
+      // ein Fall mit vielen Positionen: eine davon im Fenster
+      const zeilen = p.locator('#fall-liste .fall-zeile')
+      const n = await zeilen.count()
+      for (let i = 0; i < n; i++) {
+        await zeilen.nth(i).click()
+        await p.waitForTimeout(300)
+        const pos = p.locator('#fall-positionen tbody tr').first()
+        if (await pos.count()) {
+          await pos.click()
+          await p.locator('[role="dialog"]').first().waitFor({ timeout: 20000 })
+          await p.waitForTimeout(600)
+          return
+        }
+      }
     } },
   { name: 'perigon-verlauf', pfad: '/perigon/verlauf' },
   { name: 'perigon-pruefung', pfad: '/perigon/pruefung' },
@@ -111,12 +125,6 @@ const SEITEN = [
   { name: 'artikel', pfad: '/artikel' },
   { name: 'betrieb-lieferungen', pfad: '/betrieb/lieferungen' },
 ]
-/** Runde BD: jede Art und jede Sorte im Reiter Perigon aufklappen. */
-const alleKoepfe = async p => {
-  const koepfe = p.locator('.perigon-art-kopf[aria-expanded="false"]')
-  await p.locator('.perigon-art-kopf').first().waitFor({ state: 'visible', timeout: 60000 }).catch(() => {})
-  for (let i = 0; i < 40 && await koepfe.count(); i++) { await koepfe.first().click(); await p.waitForTimeout(80) }
-}
 /** Die erste Sorte oder Charge im Filterfeld wählen. */
 const ersteWahl = async (p, feldId, art) => {
   const feld = p.locator(`#${feldId}`)
@@ -147,7 +155,9 @@ const ERNTEN = () => {
   const text = e => (e?.textContent ?? '').replace(/\s+/g, ' ').trim()
   // Eine Zahl mit Einheit: 12.3 t · 450 kg · 12 % · 6 Stück · 128 Tage
   const ZAHL = /(-?\d[\d'’.,  ]*)\s*(t\b|kg\b|%|Stück\b|Tage\b|Tagen\b)/
-  const karteVon = e => e.closest('.karte, .zahlenzeile, details') ?? document.body
+  // Runde BF: im Fall des Reiters Perigon ist jeder Block („Was ist passiert",
+  // „Die Rechnung, rückwärts", die Belege) das, was ein Mensch zusammen liest.
+  const karteVon = e => e.closest('.karte, .zahlenzeile, details, .fall-block') ?? document.body
   const titelVon = k => text(k.querySelector('.karte-kopf h2, summary, h2, h3')).slice(0, 120)
   // Was ein Mensch zu einer Zahl mitliest, ist die ganze Karte — auch wenn die
   // Zahl in einem aufgeklappten Block darin steht. Die Erklärung „Ausgelagert
@@ -214,7 +224,14 @@ const ERNTEN = () => {
       const zellen = [...zeile.children]
       const erste = text(zellen[0])
       const zeilenkopf = zellen.length > 1 && erste && !ZAHL.test(erste) && erste.length <= 60 ? erste : ''
-      zellen.forEach((z, i) => {
+      // Runde BF: eine Zelle steht in der Spalte, bis zu der ihre Vorgänger
+      // reichen — nicht an der Stelle unter den Geschwistern. Die Summe einer
+      // Fusszeile, deren Beschriftung drei Spalten breit ist, steht unter
+      // „in kg", nicht unter der zweiten Spalte („Charge").
+      let bis = 0
+      zellen.forEach(z => {
+        const i = bis
+        bis += z.colSpan || 1
         if (z.querySelector('table')) return
         const w = text(z)
         if (!ZAHL.test(w) || w.length > 160) return

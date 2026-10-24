@@ -1,8 +1,8 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  PERIGON_ART, ART_FOLGE, aehnlicheNummer, aufgaben, fallKurz, filtern, FILTER_LEER, gegenueber, istOffen, jeSorte, lageInZahlen, labelDerGruppe,
-  labelImNamen, MENGEN_ARTEN, nachArt, nachrechnen, sachenFiltern, sachenNachArt, schnappschussText, spaltenZeichen, standVon,
+  PERIGON_ART, ART_FOLGE, aehnlicheNummer, fallKurz, gegenueber, istOffen, jeSorte, labelDerGruppe,
+  labelImNamen, MENGEN_ARTEN, nachrechnen, schnappschussText, spaltenZeichen, standVon,
 } from '../src/auswertung/perigon.ts'
 import { ART_NAME, ausZeile, ungereimtheiten, vonCharge, FALSCHE_SPALTEN } from '../src/auswertung/ungereimt.ts'
 import type { ChargeSpur, PerigonBefund, PerigonVerlauf, UngereimtZeile } from '../src/auswertung/daten.ts'
@@ -63,40 +63,11 @@ test('Offen ist, was nicht nur Auskunft ist und weder erledigt noch „kein Fehl
   assert.equal(standVon(v, 'y'), 'offen', 'ohne Vermerk ist ein Fall offen')
 })
 
-test('Je Art: das Schwerste und Grösste zuerst, mit den offenen Fällen und der Masse (eine Abweichung nach unten zählt wie nach oben)', () => {
-  const faelle = [
-    fall('mix', { pos_id: 1, kg: 288 }), fall('mix', { pos_id: 2, kg: 300 }),
-    fall('menge_null', { pos_id: 3, schwere: 'rot', kg: 1722 }),
-    fall('masse_abweichung', { pos_id: 4, kg: -45 }),
-    fall('ohne_gewicht', { pos_id: 5, kg: null }),
-  ]
-  const v = new Map([['mix:A:2', vermerkt('mix:A:2', 'kein_fehler')]])
-  const g = nachArt(faelle, v)
-  assert.deepEqual(g.map(x => x.art), ['menge_null', 'mix', 'masse_abweichung', 'ohne_gewicht'])
-  const mix = g.find(x => x.art === 'mix')!
-  assert.equal(mix.offen, 1, 'der als „kein Fehler" vermerkte zählt nicht als offen')
-  assert.equal(mix.kg, 588)
-  assert.deepEqual(mix.faelle.map(f => f.pos_id), [2, 1], 'innerhalb der Art die grössten zuerst')
-  assert.equal(g.find(x => x.art === 'masse_abweichung')!.kg, 45)
-  assert.equal(g.find(x => x.art === 'ohne_gewicht')!.kg, null, 'ohne Masse bleibt sie unbekannt, nie 0')
-})
-
-test('Filtern nach Stand, Art, Sorte, Charge (auch die genannte Nummer) und Suche', () => {
-  const faelle = [
-    fall('menge_null', { pos_id: 134747, nummern: '1648, 1719', kunde: 'Nordmarkt' }),
-    fall('zu_viel', { pos_id: 134779, nummern: '1620', charge_nr: 1620, sorte: 'Orangita' }),
-    fall('nachholen', { pos_id: 9, schwere: 'info' }),
-  ]
-  const v = new Map([['zu_viel:A:134779', vermerkt('zu_viel:A:134779', 'erledigt')]])
-  assert.deepEqual(filtern(faelle, v, FILTER_LEER).map(f => f.pos_id), [134747], 'offen: weder erledigt noch Auskunft')
-  assert.deepEqual(filtern(faelle, v, { ...FILTER_LEER, stand: 'erledigt' }).map(f => f.pos_id), [134779])
-  assert.equal(filtern(faelle, v, { ...FILTER_LEER, stand: 'alle' }).length, 3)
-  assert.deepEqual(filtern(faelle, v, { ...FILTER_LEER, stand: 'alle', charge: 1719 }).map(f => f.pos_id), [134747], 'die genannte Nummer zählt wie die Charge')
-  assert.deepEqual(filtern(faelle, v, { ...FILTER_LEER, stand: 'alle', sorte: 'Orangita' }).map(f => f.pos_id), [134779])
-  assert.deepEqual(filtern(faelle, v, { ...FILTER_LEER, stand: 'alle', suche: 'nordm' }).map(f => f.pos_id), [134747])
-  assert.deepEqual(filtern(faelle, v, { ...FILTER_LEER, stand: 'alle', suche: '134779' }).map(f => f.pos_id), [134779], 'die Position aus der Datei findet ihren Fall')
-})
-
+// Runde BF: nachArt, filtern, aufgaben, lageInZahlen, sachenNachArt und sachenFiltern gibt es nicht mehr —
+// der Reiter ordnet Fälle (alles zu einer Charge, alle Zeilen einer Art), nicht Zeilen je Art, und „Wo zu
+// tun" ist kein Filter mehr. Was ihre Tests sicherten, prüft test/faelle.test.ts an den Fällen weiter:
+// Abweichung nach unten wie nach oben, unbekannt bleibt unbekannt, die grössten zuerst, Filter nach Stand,
+// Art, Charge (auch die genannte Nummer), Sorte und Suche, Auskunft ist keine Aufgabe.
 test('Je Sorte, wie im Bericht: zu viel unter der einen Nummer, nie ein Lieferschein unter der anderen — „von dort kam die Ware wohl"', () => {
   const sachen = ungereimtheiten([zeile('ueberzaehlung', { charge_nr: 1630, kg: 1897, mehr: { eingang_kg: 19318, geliefert_kg: 15735, ausgelagert_kg: 21215 } }),
     zeile('ohne_charge', { charge_nr: null, sorte: 'Kaori Kuri', kg: 4127, n: 6, mehr: { kg_vor_eingang: 0, kg_ohne_ziel: 0, verteilt_auf: [] } })])
@@ -131,34 +102,6 @@ test('Verwechselbar sind aufeinanderfolgende Perigon-Nummern — nicht jedes Paa
   assert.equal(aehnlicheNummer(198970, 198969), true)
   assert.equal(aehnlicheNummer(198945, 198965), false)
   assert.equal(aehnlicheNummer(198969, 198969), false)
-})
-
-test('Was zu tun ist: je Ort das Grösste zuerst; erledigt, „kein Fehler" und Auskunft stehen nicht da', () => {
-  const sachen = ungereimtheiten([zeile('ueberzaehlung', { charge_nr: 1630, kg: 1897 }), zeile('ohne_eingang', { charge_nr: 1627, kg: 1416 }),
-    zeile('umgebucht', { charge_nr: 1627, kg: 2012, mehr: { von_charge_nr: 1625, auftrag_id: 1602 } })])
-  const faelle = [fall('menge_null', { pos_id: 1, kg: 1722, schwere: 'rot' }), fall('rest', { pos_id: 2, kg: 15 }), fall('mix', { pos_id: 3, wo: 'firma', kg: 288 }),
-                  fall('unbekannt', { pos_id: 4, wo: 'stammdaten', kg: 110 }), fall('nachholen', { pos_id: 5, wo: 'nichts', schwere: 'info' })]
-  const v = new Map([['rest:A:2', vermerkt('rest:A:2', 'erledigt')]])
-  const a = aufgaben(faelle, sachen, v)
-  assert.deepEqual(a.map(x => x.wo), ['perigon', 'halle', 'journal', 'stammdaten', 'firma'])
-  assert.deepEqual(a[0].eintraege.map(e => e.schluessel), ['menge_null:A:1'], 'der erledigte Rest steht nicht mehr da')
-  assert.match(a[1].eintraege[0].titel, /1630 .* hat mehr verkauft/)
-  assert.equal(a[2].eintraege.length, 1, 'die Umbuchung ist Auskunft, nur die Charge ohne Eingang steht beim Journal')
-  assert.equal(a.find(x => x.wo === 'nichts'), undefined, 'was die App selbst nachholt, ist keine Aufgabe')
-})
-
-test('Die Lage in Zahlen: herein, hinaus, ohne Charge, noch da — leer bleibt leer', () => {
-  const l = lageInZahlen([spur(1630, { journal_paletten: 54, journal_kg: 19318, lieferscheine: 85, geliefert_kg: 15735, rest_paletten: -0.4 }),
-                          spur(1719, { journal_paletten: 62, journal_kg: 17381, rest_paletten: 60.2 }), spur(1627, { lieferscheine: 3, geliefert_kg: 1416 })],
-    ungereimtheiten([zeile('ohne_charge', { charge_nr: null, kg: 4127, mehr: {} })]))
-  assert.equal(l.hereinKg, 36699)
-  assert.equal(l.hereinPaletten, 116)
-  assert.equal(l.chargenMitEingang, 2)
-  assert.equal(l.hinausKg, 17151)
-  assert.equal(l.lieferscheine, 88)
-  assert.equal(l.ohneChargeKg, 4127)
-  assert.equal(l.nochPaletten, 60, 'eine Charge unter null zählt als leer, nicht als minus')
-  assert.equal(lageInZahlen([], []).hereinKg, null)
 })
 
 test('Ein verschwundener Fall erzählt aus dem Schnappschuss, was er war', () => {
@@ -255,21 +198,4 @@ test('Runde BD: die Liste sagt je Fall das Eine, das nicht passt', () => {
   assert.equal(fallKurz(fall('vor_eingang', { satz: 'Geliefert am 20.08.2026, aber die Charge 99129 kam laut Erntejournal erst am 28.08.2026 an (8 Tage später) — …' })), '8 Tage vor dem Eingang')
   assert.equal(fallKurz(fall('vor_eingang', { satz: '…' })), 'vor dem Eingang')
   for (const a of ART_FOLGE) assert.ok(fallKurz(fall(a)), a)
-})
-
-test('Runde BD: die Sachen je Charge nach Art und Filter — wie die Zeilen; der Ort filtert beide', () => {
-  const sachen = ungereimtheiten([zeile('ueberzaehlung', { charge_nr: 1605, kg: 739 }), zeile('ueberzaehlung', { charge_nr: 1614, kg: 393 }),
-    zeile('ohne_eingang', { charge_nr: 99127, kg: 1416, sorte: 'Fictor' })])
-  const g = sachenNachArt(sachen, new Map())
-  assert.deepEqual(g.map(x => [x.art, x.faelle.length]), [['ohne_eingang', 1], ['ueberzaehlung', 2]].sort((a, b) =>
-    g.findIndex(y => y.art === a[0]) - g.findIndex(y => y.art === b[0])))
-  const ue = g.find(x => x.art === 'ueberzaehlung')!
-  assert.deepEqual(ue.faelle.map(u => u.charge_nr), [1605, 1614], 'die grösste zuerst')
-  assert.equal(ue.wo, 'halle')
-  assert.equal(sachenFiltern(sachen, new Map(), { ...FILTER_LEER, charge: 1614 }).length, 1)
-  assert.equal(sachenFiltern(sachen, new Map(), { ...FILTER_LEER, wo: 'journal' }).map(u => u.charge_nr).join(), '99127')
-  const erledigt = new Map([[sachen[0].schluessel, vermerkt(sachen[0].schluessel, 'erledigt')]])
-  assert.equal(sachenFiltern(sachen, erledigt, FILTER_LEER).length, 2, 'erledigt ist nicht mehr offen')
-  assert.equal(sachenFiltern(sachen, erledigt, { ...FILTER_LEER, stand: 'erledigt' }).length, 1)
-  assert.equal(filtern([fall('mix', { wo: 'firma' }), fall('rest', { pos_id: 2 })], new Map(), { ...FILTER_LEER, wo: 'firma' }).length, 1)
 })

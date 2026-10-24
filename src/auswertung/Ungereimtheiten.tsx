@@ -8,18 +8,18 @@
  * Verweis (PerigonVerweis) — der Betrieb: „nicht oberhalb von Artikel etc.,
  * sondern mach einen neuen Reiter".
  */
-import { useEffect, useMemo, useState } from 'react'
-import { createPortal } from 'react-dom'
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { FallVerfolgen } from './Verfolgen'
-import { betroffen, istOffen, sacheSchnappschuss } from './perigon'
+import { sacheSchnappschuss } from './perigon'
+import { faelleBilden, fallOffen } from './faelle'
 import { supabase } from '../lib/supabase'
 import { fehlerText } from '../lib/db'
 import { datum, kg, tonnen } from '../lib/format'
 import { useAuth } from '../auth/AuthProvider'
-import { ZChevron, ZKreuz, ZWarnung } from '../components/Zeichen'
+import { ZChevron, ZWarnung } from '../components/Zeichen'
 import { LieferungFenster } from '../betrieb/LieferungFenster'
-import type { Auswertung, ChargeSpur, PerigonBefund } from './daten'
+import type { Auswertung, ChargeSpur, PerigonBefund, PerigonVerlauf } from './daten'
 import { ART_NAME, spurText, ungereimtheiten, vonCharge, type Ungereimtheit } from './ungereimt'
 import { OhneChargeListe } from './OhneCharge'
 import { PerigonBelege } from './Belege'
@@ -28,22 +28,22 @@ import { PerigonBelege } from './Belege'
  * 0126: Oben auf Lager nach Charge, nach Artikel und Chargen — eine Zeile:
  * wie viele Stellen offen sind und wie viel es betrifft, und der Weg in den
  * Reiter Perigon. Was der Betriebsleiter als erledigt oder „kein Fehler"
- * vermerkt hat, zählt nicht mehr.
+ * vermerkt hat, zählt nicht mehr. Runde BF: gezählt werden Fälle wie im
+ * Reiter (alles zu einer Charge ist einer), nicht Zeilen.
  */
 export function PerigonVerweis({ daten }: { daten: Auswertung }) {
-  const stand = useMemo(() => new Map(daten.faelleStand.map(v => [v.schluessel, v.stand])), [daten.faelleStand])
-  const sachen = useMemo(() => ungereimtheiten(daten.ungereimt), [daten.ungereimt])
-  const offenSachen = sachen.filter(u => istOffen(u.schwere, stand.get(u.schluessel) ?? 'offen'))
-  const offenZeilen = daten.perigon.filter(f => istOffen(f.schwere, stand.get(f.schluessel) ?? 'offen'))
-  const n = offenSachen.length + offenZeilen.length
+  const stand = useMemo(() => new Map(daten.faelleStand.map(v => [v.schluessel, { schluessel: v.schluessel, stand: v.stand } as PerigonVerlauf])), [daten.faelleStand])
+  const faelle = useMemo(() => faelleBilden(daten.perigon, ungereimtheiten(daten.ungereimt), daten.spur), [daten.perigon, daten.ungereimt, daten.spur])
+  const offen = faelle.filter(f => fallOffen(f, stand))
+  const n = offen.length
   if (n === 0) return null
-  const kgSumme = [...offenSachen.map(u => u.kg ?? 0), ...offenZeilen.map(f => betroffen(f) ?? 0)].reduce((a, x) => a + x, 0)
-  const rot = offenSachen.some(u => u.schwere === 'rot') || offenZeilen.some(f => f.schwere === 'rot')
+  const rot = offen.some(f => f.schwere === 'rot')
+  const gross = offen.filter(f => f.schwere === 'rot').length
   return (
     <Link to="/perigon" className={`perigon-verweis ${rot ? 'u-rot' : 'u-gelb'}`} id="ungereimt">
       <span className="ungereimt-zeichen" aria-hidden="true"><ZWarnung size={16} /></span>
-      <span><strong>Perigon und Lager passen an {n} {n === 1 ? 'Stelle' : 'Stellen'} nicht zusammen</strong>
-        {kgSumme > 0 && <span> · betrifft {tonnen(kgSumme)}</span>}</span>
+      <span><strong>Perigon und Lager: {n} {n === 1 ? 'Fall' : 'Fälle'} offen</strong>
+        {gross > 0 && <span> · {gross} davon gross</span>}</span>
       <span className="perigon-verweis-weg">im Reiter Perigon ansehen →</span>
     </Link>
   )
@@ -124,35 +124,6 @@ export function WegDerWare({ nrn, spur }: { nrn: number[]; spur: Map<number, Cha
   )
 }
 
-/**
- * Runde BD: eine Sache je Charge im eigenen Fenster — aus der Liste der Fälle
- * und aus Je Sorte, wie ein Perigon-Fall. Oben die Art und die Sache in einem
- * Satz, darunter was nicht passt, der Weg der Ware, was zu tun ist und das
- * Mitverfolgen; die Seite dahinter bleibt, wo sie war.
- */
-export function SacheFenster({ u, spur, schliessen }: { u: Ungereimtheit; spur: Map<number, ChargeSpur>; schliessen: () => void }) {
-  useEffect(() => {
-    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') schliessen() }
-    window.addEventListener('keydown', h)
-    return () => window.removeEventListener('keydown', h)
-  }, [schliessen])
-  return createPortal(
-    <div className="dialog-hinter" onClick={schliessen}>
-      <div className="dialog breit" role="dialog" aria-modal="true" aria-label={ART_NAME[u.art] ?? u.art} id="sache-fenster" onClick={e => e.stopPropagation()}>
-        <div className="fenster-kopf">
-          <div>
-            <h2><span className={`punkt s-${u.schwere}`} aria-hidden="true" />{ART_NAME[u.art] ?? u.art}</h2>
-            <p className="leise fall-wo">{u.titel}{u.kg != null && u.kg > 0 ? ` · betrifft ${kg(u.kg, 0)}` : ''}</p>
-          </div>
-          <button type="button" className="klein schliessen" onClick={schliessen} aria-label="schliessen"><ZKreuz size={16} /></button>
-        </div>
-        <Sache u={u} spur={spur} verfolgen imFenster />
-      </div>
-    </div>,
-    document.body,
-  )
-}
-
 /** Die Kennung einer Sache im Reiter Perigon (Sprungziel aus der Übersicht). */
 export const sacheAnker = (schluessel: string) => `sache-${schluessel.replace(/[^a-z0-9]+/gi, '-')}`
 
@@ -165,7 +136,6 @@ export function Sache({ u, inCharge, spur, verfolgen = false, ohneWeg = false, i
   /** Runde BD: im eigenen Fenster — der Titel steht schon im Kopf */
   imFenster?: boolean
 }) {
-  const { istAdmin } = useAuth()
   // Runde BE: im eigenen Fenster stehen die Belege gleich da — „das ist ja wichtig, ist Nachvollziehbarkeit"
   const [zeilenAuf, setZeilenAuf] = useState(imFenster)
   // Wo die Ware nach Perigon unter einer Nummer hinausging, sind deren Lieferscheine die Belege
@@ -173,27 +143,6 @@ export function Sache({ u, inCharge, spur, verfolgen = false, ohneWeg = false, i
   // … und wo sie keiner Charge gehören (eine Nummer an zwei Chargen, über den Produzenten zugeordnet): die mit der Nummer
   const belegeDerNummer = imFenster && !belegeDerCharge && (u.nummern?.length ?? 0) > 0
   const [fenster, setFenster] = useState<{ quelle?: string; posId?: number; lieferungId?: number; fall?: PerigonBefund } | null>(null)
-  const [meldung, setMeldung] = useState<string | null>(null)
-  const [laeuft, setLaeuft] = useState(false)
-  const setzen = async (stand: 'angewandt' | 'zurueckgenommen') => {
-    if (!u.paletten?.length) return
-    setLaeuft(true); setMeldung(null)
-    const r = await supabase.rpc('palette_zuordnung_setzen', { p_palette_ids: u.paletten, p_stand: stand })
-    setLaeuft(false)
-    setMeldung(r.error ? fehlerText(r.error) : stand === 'angewandt'
-      ? 'Umgebucht. Die Zahlen ändern sich mit dem nächsten Rechnen („Neu rechnen" oben).'
-      : 'Zurückgenommen. Die Zahlen ändern sich mit dem nächsten Rechnen („Neu rechnen" oben).')
-  }
-  // 0122: den Vorschlag fürs Chargenregister übernehmen — dasselbe wie unter Stammdaten → Chargen, nur ohne Suchen.
-  const nummerEintragen = async () => {
-    const p = u.perigonSetzen
-    if (!p) return
-    setLaeuft(true); setMeldung(null)
-    const r = await supabase.from('charge').update({ perigon_nr: p.perigon_nr }).eq('nr', p.charge_nr)
-    setLaeuft(false)
-    setMeldung(r.error ? fehlerText(r.error)
-      : `Bei ${p.charge_nr} steht jetzt die Perigon-Nr. ${p.perigon_nr}. Die Zahlen ändern sich mit dem nächsten Rechnen („Neu rechnen" oben); zurück geht es unter Stammdaten → Chargen.`)
-  }
   const anzahl = u.art === 'ohne_charge' ? null : u.zeilen.length
   return (
     <article className={`ungereimt-sache s-${u.schwere}`} id={verfolgen ? sacheAnker(u.schluessel) : undefined}>
@@ -215,12 +164,8 @@ export function Sache({ u, inCharge, spur, verfolgen = false, ohneWeg = false, i
         )}
         {u.art === 'ohne_charge' && !imFenster && <button type="button" className="klein" onClick={() => setZeilenAuf(a => !a)} aria-expanded={zeilenAuf}>
           {zeilenAuf ? 'Lieferscheine zu' : 'Lieferscheine zeigen'}</button>}
-        {istAdmin && u.art === 'umgebucht' && <button type="button" className="klein" disabled={laeuft} onClick={() => void setzen('zurueckgenommen')}>Umbuchung zurücknehmen</button>}
-        {istAdmin && u.art === 'vorschlag' && <button type="button" className="klein" disabled={laeuft} onClick={() => void setzen('angewandt')}>Umbuchen</button>}
-        {istAdmin && u.perigonSetzen && <button type="button" className="klein" disabled={laeuft} onClick={() => void nummerEintragen()}>
-          Bei {u.perigonSetzen.charge_nr} Perigon-Nr. {u.perigonSetzen.perigon_nr} eintragen</button>}
+        <SacheKnoepfe u={u} />
       </div>
-      {meldung && <p className="hilfe unten-0">{meldung}</p>}
       {belegeDerCharge && <PerigonBelege chargen={[u.charge_nr!]} vorEingang={u.art === 'vor_eingang' ? spur.get(u.charge_nr!)?.journal_von ?? null : null} />}
       {belegeDerNummer && <PerigonBelege nummern={u.nummern} />}
       {imFenster && zeilenAuf && u.zeilen.length > 0 && u.art !== 'ohne_charge' && <h3 className="belege-titel">Die Perigon-Zeilen dazu <span className="leise">— ein Klick zeigt die Zeile wie im Excel</span></h3>}
@@ -242,5 +187,46 @@ export function Sache({ u, inCharge, spur, verfolgen = false, ohneWeg = false, i
       {verfolgen && <FallVerfolgen schluessel={u.schluessel} schnappschuss={sacheSchnappschuss(u)} kompakt />}
       {fenster && <LieferungFenster {...fenster} schliessen={() => setFenster(null)} />}
     </article>
+  )
+}
+
+/**
+ * Was der Betriebsleiter an einer Sache mit einem Klick tun kann: eine
+ * Umbuchung zurücknehmen, einen Vorschlag umbuchen, eine Perigon-Nummer ins
+ * Register übernehmen. Runde BF: im Fall stehen die Knöpfe unter „Was die App
+ * vermutet" — nicht oben, denn entscheiden tut der Betrieb.
+ */
+export function SacheKnoepfe({ u }: { u: Ungereimtheit }) {
+  const { istAdmin } = useAuth()
+  const [meldung, setMeldung] = useState<string | null>(null)
+  const [laeuft, setLaeuft] = useState(false)
+  const setzen = async (stand: 'angewandt' | 'zurueckgenommen') => {
+    if (!u.paletten?.length) return
+    setLaeuft(true); setMeldung(null)
+    const r = await supabase.rpc('palette_zuordnung_setzen', { p_palette_ids: u.paletten, p_stand: stand })
+    setLaeuft(false)
+    setMeldung(r.error ? fehlerText(r.error) : stand === 'angewandt'
+      ? 'Umgebucht. Die Zahlen ändern sich mit dem nächsten Rechnen („Neu rechnen" oben).'
+      : 'Zurückgenommen. Die Zahlen ändern sich mit dem nächsten Rechnen („Neu rechnen" oben).')
+  }
+  // 0122: den Vorschlag fürs Chargenregister übernehmen — dasselbe wie unter Stammdaten → Chargen, nur ohne Suchen.
+  const nummerEintragen = async () => {
+    const p = u.perigonSetzen
+    if (!p) return
+    setLaeuft(true); setMeldung(null)
+    const r = await supabase.from('charge').update({ perigon_nr: p.perigon_nr }).eq('nr', p.charge_nr)
+    setLaeuft(false)
+    setMeldung(r.error ? fehlerText(r.error)
+      : `Bei ${p.charge_nr} steht jetzt die Perigon-Nr. ${p.perigon_nr}. Die Zahlen ändern sich mit dem nächsten Rechnen („Neu rechnen" oben); zurück geht es unter Stammdaten → Chargen.`)
+  }
+  if (!istAdmin || !(u.art === 'umgebucht' || u.art === 'vorschlag' || u.perigonSetzen)) return null
+  return (
+    <>
+      {u.art === 'umgebucht' && <button type="button" className="klein" disabled={laeuft} onClick={() => void setzen('zurueckgenommen')}>Umbuchung zurücknehmen</button>}
+      {u.art === 'vorschlag' && <button type="button" className="klein" disabled={laeuft} onClick={() => void setzen('angewandt')}>Umbuchen</button>}
+      {u.perigonSetzen && <button type="button" className="klein" disabled={laeuft} onClick={() => void nummerEintragen()}>
+        Bei {u.perigonSetzen.charge_nr} Perigon-Nr. {u.perigonSetzen.perigon_nr} eintragen</button>}
+      {meldung && <p className="hilfe unten-0 knopf-meldung">{meldung}</p>}
+    </>
   )
 }

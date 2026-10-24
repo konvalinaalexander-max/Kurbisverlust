@@ -48,33 +48,29 @@ function positionAus(externId: string | null | undefined): { quelle: string; pos
   return m ? { quelle: m[1], posId: Number(m[2]) } : null
 }
 
-/**
- * Eine Lieferung, nachvollziehbar (Runde AS). Der Betrieb: „dass ich jede
- * Lieferung anklicken kann, und dann kommt ein Pop-up, wo du mir die ganze
- * Perigon-Zeile zeigst — eine Replika der Excel-Zeile, alle Spalten — und
- * darunter eine kurze Interpretation, wie du daraus die Kilos berechnest."
- *
- * Zu öffnen mit der Lieferung (aus einer Charge) oder mit Firma und Position
- * (aus der Liste eines Kunden). Die ganze Zeile steht in ausgang_position.roh,
- * sobald die Datei nach 0116 einmal neu eingelesen ist; bis dahin sagt das
- * Fenster das, statt etwas zu zeigen, das nicht in der Datei stand.
- */
-export function LieferungFenster({ lieferungId, quelle, posId, fall, schliessen }: {
-  lieferungId?: number; quelle?: string; posId?: number
-  /** 0126: aus dem Reiter Perigon — der Fall, um den es geht: oben mit seiner Rechnung, unten zum Mitverfolgen */
-  fall?: PerigonBefund
-  schliessen: () => void
-}) {
+/** Was zu einer Position oder Lieferung geladen wird — im Fenster und, seit Runde BF, im Fall selbst. */
+interface PositionDaten {
+  lieferung: LieferungZeile | null; position: PositionZeile | null; zeilen: ZeileDerDatei[]; lieferungen: LieferungZeile[]
+  einordnung: Einordnung | null
+  /** 0121: was an dieser Zeile nicht stimmt — die Zellen dazu stehen rot umrandet. Seit 0126 aus v_perigon_befund. */
+  falsch: Pick<PerigonBefund, 'schluessel' | 'art' | 'schwere' | 'satz' | 'tun' | 'wo'>[]
+  /** 0125: warum ein Lieferschein keine Charge hat (v_lieferung_ohne_charge) — mit dem Satz, was zu tun ist. */
+  ohneGrund: LieferungOhneCharge[]
+  /** Runde BE: die Datei, aus der die Zeilen zuletzt kamen — fürs Wiederfinden im Excel */
+  datei: DateiKurz | null
+  ziel: { quelle: string; posId: number } | null
+  geladen: boolean; fehler: string | null
+}
+
+/** Die Position (Firma und Position) oder die Lieferung laden: die Zeilen der Datei, die Lieferungen, was nicht stimmt. */
+function usePosition(lieferungId: number | undefined, quelle: string | undefined, posId: number | undefined): PositionDaten {
   const [lieferung, setLieferung] = useState<LieferungZeile | null>(null)
   const [position, setPosition] = useState<PositionZeile | null>(null)
   const [zeilen, setZeilen] = useState<ZeileDerDatei[]>([])
   const [lieferungen, setLieferungen] = useState<LieferungZeile[]>([])
   const [einordnung, setEinordnung] = useState<Einordnung | null>(null)
-  // 0121: was an dieser Zeile nicht stimmt — die Zellen dazu stehen rot umrandet. Seit 0126 aus v_perigon_befund.
-  const [falsch, setFalsch] = useState<Pick<PerigonBefund, 'schluessel' | 'art' | 'schwere' | 'satz' | 'tun' | 'wo'>[]>([])
-  // 0125: warum ein Lieferschein keine Charge hat (v_lieferung_ohne_charge) — mit dem Satz, was zu tun ist.
+  const [falsch, setFalsch] = useState<PositionDaten['falsch']>([])
   const [ohneGrund, setOhneGrund] = useState<LieferungOhneCharge[]>([])
-  // Runde BE: die Datei, aus der die Zeilen zuletzt kamen — fürs Wiederfinden im Excel
   const [datei, setDatei] = useState<DateiKurz | null>(null)
   const [ziel, setZiel] = useState<{ quelle: string; posId: number } | null>(quelle && posId != null ? { quelle, posId } : null)
   const [geladen, setGeladen] = useState(false)
@@ -115,7 +111,7 @@ export function LieferungFenster({ lieferungId, quelle, posId, fall, schliessen 
           ])
           for (const x of [p, z, imp, e]) if (x.error) throw x.error
           const pr = await supabase.from('v_perigon_befund').select('schluessel, art, schwere, satz, tun, wo').eq('quelle', wo.quelle).eq('pos_id', wo.posId)
-          if (lebt && !pr.error) setFalsch((pr.data ?? []) as typeof falsch)
+          if (lebt && !pr.error) setFalsch((pr.data ?? []) as PositionDaten['falsch'])
           const ids = ((imp.data ?? []) as { lieferung_id: number }[]).map(x => x.lieferung_id)
           const li = ids.length > 0
             ? await supabase.from('lieferung').select('id, datum, charge_nr, sorte, kg, kunde, bemerkung').in('id', ids).order('charge_nr')
@@ -138,36 +134,63 @@ export function LieferungFenster({ lieferungId, quelle, posId, fall, schliessen 
     })()
     return () => { lebt = false }
   }, [lieferungId, quelle, posId])
+  return { lieferung, position, zeilen, lieferungen, einordnung, falsch, ohneGrund, datei, ziel, geladen, fehler }
+}
+
+/** Was aus den geladenen Zeilen folgt: die Zeile wie im Excel, was rot steht, was sonst nicht stimmt. */
+function auswerten(d: PositionDaten, fall?: PerigonBefund) {
+  // Die Angaben der Position: aus ausgang_position, sonst aus der ersten Zeile der laufenden Saison.
+  const z0 = d.zeilen[0]
+  const kopf = d.position ?? (z0 ? { datum: z0.datum, kunde: z0.kunde, artikel: z0.artikel, artikel_id: '', einheit: z0.einheit, menge: z0.menge,
+                                     gewicht_je_artikel: z0.gewicht_je_artikel, kg: z0.kg_position, preisgruppe: z0.preisgruppe, roh: null } : null)
+  const roh = d.position?.roh ?? null
+  // Die Datenbank (jsonb) merkt sich die Folge der Spalten nicht: excelAnsicht stellt sie in die Folge der
+  // Datei (A bis AF) und zeigt jeden Wert im Format seiner Spalte.
+  const ansicht = roh && roh.length > 0 ? excelAnsicht(roh) : null
+  // Eine Lieferung ohne Charge, deren Zeile auch keine nennt: die Chargenspalte ist leer.
+  const ohneCharge = d.lieferungen.some(l => l.charge_nr == null) && d.zeilen.length > 0 && d.zeilen.every(x => !x.charge_extern?.trim())
+  // 0126: Was an der Position nicht stimmt, sagt v_perigon_befund (S = 0, Rest, keine Nummer, unbekannte Nummer …);
+  // der Grund je Lieferschein (0125) nur noch dort, wo die Zeile selbst nichts sagt — die Zeile fehlt, oder von Hand.
+  const meldungen: { art: string; befund: string; schluessel?: string }[] = [
+    ...d.falsch.map(f => ({ art: f.art, befund: `${f.satz} ${f.tun}`, schluessel: f.schluessel })),
+    ...d.ohneGrund.filter(g => d.falsch.length === 0 || g.grund === 'ohne_zeile' || g.grund === 'von_hand')
+      .map(g => ({ art: `ohne_charge:${g.grund}`, befund: `${g.satz} ${g.tun}` })),
+    ...(ohneCharge && !d.falsch.length && !d.ohneGrund.length ? [{ art: 'ohne_charge', befund: 'Auf dem Lieferschein steht keine Chargennummer. Die App verteilt die Menge darum nach Eingang auf alle Chargen derselben Sorte — für die einzelne Charge stimmt das nicht.' }] : []),
+  ]
+  const roteSpalten = new Set([...meldungen.flatMap(m => FALSCHE_SPALTEN[m.art] ?? []), ...d.ohneGrund.flatMap(g => OHNE_CHARGE_SPALTEN[g.grund] ?? []),
+                                ...(fall ? FALSCHE_SPALTEN[fall.art] ?? [] : [])].map(schluessel))
+  // 0126: Der Fall, um den es geht, steht oben — in der Liste nur, was an der Zeile sonst noch nicht stimmt.
+  const zeigen = fall ? meldungen.filter(m => m.schluessel !== fall.schluessel) : meldungen
+  return { kopf, roh, ansicht, roteSpalten, zeigen }
+}
+
+/**
+ * Eine Lieferung, nachvollziehbar (Runde AS). Der Betrieb: „dass ich jede
+ * Lieferung anklicken kann, und dann kommt ein Pop-up, wo du mir die ganze
+ * Perigon-Zeile zeigst — eine Replika der Excel-Zeile, alle Spalten — und
+ * darunter eine kurze Interpretation, wie du daraus die Kilos berechnest."
+ *
+ * Zu öffnen mit der Lieferung (aus einer Charge) oder mit Firma und Position
+ * (aus der Liste eines Kunden). Die ganze Zeile steht in ausgang_position.roh,
+ * sobald die Datei nach 0116 einmal neu eingelesen ist; bis dahin sagt das
+ * Fenster das, statt etwas zu zeigen, das nicht in der Datei stand.
+ */
+export function LieferungFenster({ lieferungId, quelle, posId, fall, schliessen }: {
+  lieferungId?: number; quelle?: string; posId?: number
+  /** 0126: aus dem Reiter Perigon — der Fall, um den es geht: oben mit seiner Rechnung, unten zum Mitverfolgen */
+  fall?: PerigonBefund
+  schliessen: () => void
+}) {
+  const d = usePosition(lieferungId, quelle, posId)
+  const { lieferung, zeilen, lieferungen, einordnung, ohneGrund, datei, ziel, geladen, fehler } = d
+  const { kopf, roh, ansicht, roteSpalten, zeigen } = auswerten(d, fall)
+  const deutung = kopf ? lieferungDeutung(kopf, zeilen) : []
 
   useEffect(() => {
     const h = (e: KeyboardEvent) => { if (e.key === 'Escape') schliessen() }
     window.addEventListener('keydown', h)
     return () => window.removeEventListener('keydown', h)
   }, [schliessen])
-
-  // Die Angaben der Position: aus ausgang_position, sonst aus der ersten Zeile der laufenden Saison.
-  const z0 = zeilen[0]
-  const kopf = position ?? (z0 ? { datum: z0.datum, kunde: z0.kunde, artikel: z0.artikel, artikel_id: '', einheit: z0.einheit, menge: z0.menge,
-                                   gewicht_je_artikel: z0.gewicht_je_artikel, kg: z0.kg_position, preisgruppe: z0.preisgruppe, roh: null } : null)
-  const deutung = kopf ? lieferungDeutung(kopf, zeilen) : []
-  const roh = position?.roh ?? null
-  // Die Datenbank (jsonb) merkt sich die Folge der Spalten nicht: excelAnsicht stellt sie in die Folge der
-  // Datei (A bis AF) und zeigt jeden Wert im Format seiner Spalte.
-  const ansicht = roh && roh.length > 0 ? excelAnsicht(roh) : null
-  // Eine Lieferung ohne Charge, deren Zeile auch keine nennt: die Chargenspalte ist leer.
-  const ohneCharge = lieferungen.some(l => l.charge_nr == null) && zeilen.length > 0 && zeilen.every(x => !x.charge_extern?.trim())
-  // 0126: Was an der Position nicht stimmt, sagt v_perigon_befund (S = 0, Rest, keine Nummer, unbekannte Nummer …);
-  // der Grund je Lieferschein (0125) nur noch dort, wo die Zeile selbst nichts sagt — die Zeile fehlt, oder von Hand.
-  const meldungen: { art: string; befund: string; schluessel?: string }[] = [
-    ...falsch.map(f => ({ art: f.art, befund: `${f.satz} ${f.tun}`, schluessel: f.schluessel })),
-    ...ohneGrund.filter(g => falsch.length === 0 || g.grund === 'ohne_zeile' || g.grund === 'von_hand')
-      .map(g => ({ art: `ohne_charge:${g.grund}`, befund: `${g.satz} ${g.tun}` })),
-    ...(ohneCharge && !falsch.length && !ohneGrund.length ? [{ art: 'ohne_charge', befund: 'Auf dem Lieferschein steht keine Chargennummer. Die App verteilt die Menge darum nach Eingang auf alle Chargen derselben Sorte — für die einzelne Charge stimmt das nicht.' }] : []),
-  ]
-  const roteSpalten = new Set([...meldungen.flatMap(m => FALSCHE_SPALTEN[m.art] ?? []), ...ohneGrund.flatMap(g => OHNE_CHARGE_SPALTEN[g.grund] ?? []),
-                                ...(fall ? FALSCHE_SPALTEN[fall.art] ?? [] : [])].map(schluessel))
-  // 0126: Der Fall, um den es geht, steht oben — in der Liste nur, was an der Zeile sonst noch nicht stimmt.
-  const zeigen = fall ? meldungen.filter(m => m.schluessel !== fall.schluessel) : meldungen
 
   return createPortal(
     <div className="dialog-hinter" onClick={schliessen}>
@@ -227,7 +250,7 @@ export function LieferungFenster({ lieferungId, quelle, posId, fall, schliessen 
                 <div className="lieferung-falsch" id="lieferung-falsch">
                   <strong>Was an dieser Zeile nicht stimmt</strong>{ansicht && roteSpalten.size > 0 ? <span className="leise"> — die Zellen dazu sind rot umrandet</span> : null}
                   <ul>{zeigen.map((m, i) => <li key={i}>{m.befund}</li>)}</ul>
-                  {falsch.some(f => f.schwere !== 'info') && ziel && (
+                  {d.falsch.some(f => f.schwere !== 'info') && ziel && (
                     <p className="unten-0"><Link to={`/perigon/faelle?suche=${ziel.posId}&stand=alle`} onClick={schliessen}>Im Reiter Perigon ansehen und mitverfolgen →</Link></p>
                   )}
                 </div>
@@ -237,7 +260,7 @@ export function LieferungFenster({ lieferungId, quelle, posId, fall, schliessen 
             </section>
             <section id="lieferung-deutung" className="lieferung-deutung">
               <h3>So wird daraus die Masse</h3>
-              {deutung.length > 0 ? <ul>{deutung.map((d, i) => <li key={i}>{d}</li>)}</ul>
+              {deutung.length > 0 ? <ul>{deutung.map((x, i) => <li key={i}>{x}</li>)}</ul>
                 : <p className="leise">Die Position steht in keiner eingelesenen Datei mehr.</p>}
               {lieferungen.length > 0 && (
                 <p className="leise">In der Rechnung: {lieferungen.map(l => `${kg(l.kg, 1)}${l.charge_nr != null ? ` aus Charge ${l.charge_nr}` : ' ohne Charge'}`).join(' · ')}.</p>
@@ -248,6 +271,23 @@ export function LieferungFenster({ lieferungId, quelle, posId, fall, schliessen 
       </div>
     </div>,
     document.body,
+  )
+}
+
+/**
+ * Runde BF: eine Position im Fall selbst, ohne Fenster — wenn ein Fall genau
+ * eine Position hat. Was passiert ist (ein Satz, nachgerechnet), die Zeile wie
+ * im Excel, die Rechnung. Stand und Notiz stehen beim Fall, nicht hier.
+ */
+export function PositionImFall({ fall }: { fall: PerigonBefund }) {
+  const d = usePosition(undefined, fall.quelle, fall.pos_id)
+  const { roh, ansicht, roteSpalten, zeigen } = auswerten(d, fall)
+  if (d.fehler) return <Hinweis art="warnung">{d.fehler}</Hinweis>
+  if (!d.geladen) return <Lade />
+  return (
+    <FallInhalt fall={fall} zeilen={d.zeilen} lieferungen={d.lieferungen} sonst={zeigen.map(m => m.befund)} excelNr={excelNrJe(d.zeilen, roh)} imFall
+                beleg={<ZeileImExcel ansicht={ansicht} rot={roteSpalten} posId={fall.pos_id} quelle={fall.quelle} datei={d.datei}
+                                     gemeint={fall.nummer} anzahl={d.zeilen.length} schliessen={() => {}} />} />
   )
 }
 
@@ -388,12 +428,14 @@ const zahlText = (x: number | null) => (x == null ? '—' : Number(x).toLocaleSt
  * „das ist ja wichtig, ist Nachvollziehbarkeit"; nur die Erklärung der Art
  * bleibt hinter einem Klick.
  */
-function FallInhalt({ fall, zeilen, lieferungen, sonst, beleg, excelNr }: {
+function FallInhalt({ fall, zeilen, lieferungen, sonst, beleg, excelNr, imFall = false }: {
   fall: PerigonBefund; zeilen: ZeileDerDatei[]; lieferungen: LieferungZeile[]; sonst: string[]
   /** Runde BE: die Zeile(n) der Datei, sichtbar — gleich nach dem Satz */
   beleg: ReactNode
   /** Runde BE: die Excel-Zeile je Zeile der App, in derselben Folge wie zeilen */
   excelNr: (number | null)[]
+  /** Runde BF: im Fall selbst — Stand, Notiz und die Erklärung der Art stehen dort einmal für den ganzen Fall */
+  imFall?: boolean
 }) {
   const info = PERIGON_ART[fall.art]
   const r = nachrechnen(fall, zeilen)
@@ -416,23 +458,22 @@ function FallInhalt({ fall, zeilen, lieferungen, sonst, beleg, excelNr }: {
           </table>
         </section>
       )}
-      <section className="fall-block fall-tun" id="fall-tun">
-        <h3>Was tun <span className="wo-marke">{WO_NAME[fall.wo]?.kurz ?? fall.wo}</span></h3>
-        <p className="oben-0 unten-0">{fall.tun}</p>
-        {sonst.length > 0 && (
-          <div className="lieferung-falsch" id="lieferung-falsch">
-            <strong>An dieser Position stimmt noch etwas nicht</strong>
-            <ul>{sonst.map((m, i) => <li key={i}>{m}</li>)}</ul>
-          </div>
-        )}
-      </section>
-      <FallVerfolgen schluessel={fall.schluessel} schnappschuss={schnappschuss(fall)} />
-      {info && (
-        <Aufklapp id="fall-erklaert" titel="Was das heisst und was die App daraus macht">
+      {sonst.length > 0 && (
+        <div className="lieferung-falsch" id="lieferung-falsch">
+          <strong>An dieser Position stimmt noch etwas nicht</strong>
+          <ul>{sonst.map((m, i) => <li key={i}>{m}</li>)}</ul>
+        </div>
+      )}
+      {/* Runde BF: der Betrieb will verstehen, was passiert ist — „du musst uns nicht 1000 Lösungsvorschläge vorschlagen".
+          Was zu tun wäre, steht darum zu, unter der Erklärung; Stand und Notiz bleiben offen sichtbar. */}
+      {!imFall && <FallVerfolgen schluessel={fall.schluessel} schnappschuss={schnappschuss(fall)} />}
+      {!imFall && info && (
+        <Aufklapp id="fall-erklaert" titel="Wie die App damit rechnet — und was man tun könnte">
           <dl className="fall-dl">
             <dt>Was das heisst</dt><dd>{info.heisst}</dd>
             <dt>Woran man es sieht</dt><dd>{info.datei}</dd>
             <dt>Was die App daraus macht</dt><dd>{info.app}</dd>
+            <dt>Was man tun könnte</dt><dd id="fall-tun">{fall.tun} <span className="wo-marke">{WO_NAME[fall.wo]?.kurz ?? fall.wo}</span></dd>
           </dl>
         </Aufklapp>
       )}

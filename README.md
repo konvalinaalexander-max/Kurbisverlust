@@ -798,6 +798,17 @@ ohne Perigon-Zeile als eigener Teil); jede PL/pgSQL-Funktion hat einen
 festen Suchpfad; die Perigon-Liste läuft nur einmal (AB-174 bis AB-176). Dazu die
 Halle: Faules ohne Ablesung ist „unbekannt", Fehler werden gezeigt. **Setup.sql
 einmal einspielen (Stand 124), dann „Neu rechnen".**
+**Runde BF** — Fall für Fall: Der Reiter Perigon war „Information Overload".
+Jetzt ist ein Fall eine Frage an den Chef (je Charge alles zu ihr, je Art der
+Datei alle Positionen), mit einer **Nummer, die bleibt** („Fall 4" lässt sich in
+einer Sprachnachricht nennen). Links die Liste, rechts der Fall, „voriger" und
+„nächster" oder die Pfeiltasten. Im Fall zuerst **was passiert ist** in Sätzen,
+herein gegen hinaus als Balken, bei „mehr verkauft als möglich" **die Rechnung
+rückwärts** (Lieferscheine + zu klein + zu gross + Faules + verdunstet = so viel
+musste hereinkommen, je Schritt der Anteil und woher er kommt) und **„Wie
+sicher?"**; dann die Belege, Stand und Notiz für den ganzen Fall; was die App
+vermutet und was man tun könnte, zugeklappt ganz unten (AB-184). **Setup.sql
+einmal einspielen (Stand 127).**
 **Runde BE** — die Excel-Zeile ist der Beweis: im Fenster jedes Falls und jeder
 Lieferung gleich sichtbar, wie im Excel (Spaltenbuchstaben, Zeilennummern), die
 Kennung (AufPosId) blau, was nicht stimmt rot; darüber Datei, Blatt,
