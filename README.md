@@ -798,6 +798,15 @@ ohne Perigon-Zeile als eigener Teil); jede PL/pgSQL-Funktion hat einen
 festen Suchpfad; die Perigon-Liste läuft nur einmal (AB-174 bis AB-176). Dazu die
 Halle: Faules ohne Ablesung ist „unbekannt", Fehler werden gezeigt. **Setup.sql
 einmal einspielen (Stand 124), dann „Neu rechnen".**
+**Runde BD** — der Reiter Perigon ruhiger („er überfordert gerade noch"):
+vier Teile statt fünf. **Fälle** ist eine Arbeitsliste — je Art des Fehlers
+eine Zeile, die aufklappt, je Fall eine kurze Zeile; oben drei Zahlen und „wo zu
+tun" als Filter. Ein Klick öffnet den Fall: was nicht stimmt in einem Satz, die
+Zeilen der Position **nachgerechnet** (dreimal Charge 1620 à 256 kg = 768 kg
+gegen 256 kg der Position — 512 kg zu viel), was zu tun ist, das Mitverfolgen;
+die Zeilen wie im Excel und die Erklärung auf Klick. **Je Sorte** ist eine
+Liste, die aufklappt; jede Sache je Charge öffnet ein eigenes Fenster (AB-182).
+Keine Migration.
 **Runde BC (0126)** — ein eigener Reiter **Perigon**: jede Auffälligkeit der
 Perigon-Dateien und jede Stelle, an der Perigon und Lager nicht zusammenpassen,
 nachvollziehbar (die Zahlen der Datei, die Rechnung, die Zeile wie im Excel, je

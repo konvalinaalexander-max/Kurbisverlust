@@ -195,6 +195,22 @@ function perigonVormerken() {
       satz: 'Geliefert am 20.08.2026, aber die Charge 99129 kam laut Erntejournal erst am 28.08.2026 an (8 Tage später) — von ihr kann die Ware nicht sein.',
       tun: 'Entweder steht die falsche Charge auf dem Lieferschein (in Perigon Spalte W berichtigen) oder das Eingangsdatum im Erntejournal stimmt nicht.' }),
   ])
+  // Runde BD: „wie kommst du auf 768?" — dieselbe Zeile steht dreimal in der Datei, jede mit 256 kg.
+  // Die Position ganz (Zeilen, rohe Zeilen, Lieferung), damit das Fenster Zeile für Zeile nachrechnet.
+  const vorlage = (fixture('ausgang_zeile') ?? []).find(z => z.quelle === 'DEMO') ?? {}
+  const roh = { AufPosId: 990130, AuftragsArtId: 'kürborangl', AuftragsGebBez: 'IFCO', LiefPrsGrpName: 'K', AuftragsArtikel: 'Bio Kürbis Orangita lose',
+    AuftragsJournal: 'Lieferschein', AuftragsLieferant: 'Prüfkunde Ost', AuftragsPrsGrpBez: 'K', GewichtProArtikel: 0, AuftragsLieferDatum: '12.10.2026',
+    AuftragsArtikelMenge: 256, AuftragsGebindemenge: 4, AuftragsChargeManuell: '1620', AuftragsErloesTotExkl: 0, AuftragsArtikelEinheit: 'kg',
+    'AufPosBatchQuantity Charge': 256 }
+  vormerken('ausgang_position', [{ quelle: 'DEMO', pos_id: 990130, datum: '2026-10-12', saison: 2026, journal: 'Lieferschein', kunde: 'Prüfkunde Ost',
+    artikel_id: 'kürborangl', artikel: 'Bio Kürbis Orangita lose', preisgruppe: 'K', einheit: 'kg', menge: 256, gewicht_je_artikel: 0, kg: 256,
+    gebindeart: 'IFCO', gebinde_menge: 4, ts: '2026-10-12T08:00:00+00:00', roh: [roh, roh, roh] }])
+  vormerken('ausgang_zeile', [1, 2, 3].map(i => ({ ...vorlage, id: 990130 + i * 10, quelle: 'DEMO', pos_id: 990130, charge_extern: '1620', lauf_nr: i,
+    fingerabdruck: `bild-bd-${i}`, datum: '2026-10-12', kunde: 'Prüfkunde Ost', artikel: 'Bio Kürbis Orangita lose', einheit: 'kg', menge: 256,
+    gewicht_je_artikel: 0, batch_menge: 256, kg_position: 256, kg_charge: 256, preisgruppe: 'K', liefer_label: 'K' })))
+  vormerken('lieferung', [{ id: 990130, datum: '2026-10-12', charge_nr: 1620, sorte: 'Orangita', kg: 256, kisten: null, gebindeart: null,
+    ziel: 'verkauf', kunde: 'Prüfkunde Ost', erfasser: null, ts: '2026-10-12T08:00:00+00:00', bemerkung: null }])
+  vormerken('lieferung_import', [{ lieferung_id: 990130, quelle: 'DEMO', extern_id: 'DEMO:990130:1620:1', zeile_id: 990140, ts: '2026-10-12T08:00:00+00:00' }])
   const weg = { art: 'keine_nummer', quelle: 'DEMO', pos_id: 990120, datum: '2026-10-09', artikel: 'Bio Kürbis oranger Knirps', kg: 7,
     satz: 'In Perigon steht bei dieser Position keine Chargennummer (Spalte W „AuftragsChargeManuell" ist leer) — 7.0 kg ohne Charge.' }
   vormerken('v_perigon_verlauf', [
@@ -376,13 +392,17 @@ const BILDSCHIRME = [
       await leiste.click()
       await p.locator('#perigon-antwort').waitFor()
     } },
-  // 0122 → 0126: Was war von welcher Charge — der Weg der Ware steht im Reiter
-  // Perigon je Sorte für alle ihre Chargen, darunter jede Sache mit Stand,
-  // Vorschlag und dem Mitverfolgen. Was diese Szene bis 0125 oben auf dem Lager
-  // prüfte, prüft sie jetzt dort (dieselben Sätze, dieselben Knöpfe).
-  { name: 'perigon-sorten', wer: 'admin', pfad: '/perigon/sorten', vorher: perigonVormerken,
+  // 0122 → 0126 → Runde BD: Was war von welcher Charge — der Weg der Ware steht im
+  // Reiter Perigon je Sorte für alle ihre Chargen. Seit Runde BD („er überfordert
+  // gerade noch") ist jede Sorte eine Zeile, die aufklappt, und jede Sache öffnet
+  // ein Fenster. Die Szene prüft dieselben Sätze und Knöpfe wie bis 0126 — nur
+  // dort, wo sie jetzt stehen: die Tabelle in der aufgeklappten Sorte, die Sache
+  // im Fenster. Die Sachen, die keiner Sorte gehören, prüft perigon-sache.
+  { name: 'perigon-sorten', wer: 'admin', pfad: '/perigon/sorten?sorte=Fictor', vorher: perigonVormerken,
     tun: async p => {
       const fictor = p.locator('#sorte-fictor')
+      if ((await fictor.locator('.perigon-art-kopf').getAttribute('aria-expanded')) !== 'true') throw new Error('die Sorte aus der Adresse ist nicht aufgeklappt')
+      if (await p.locator('#sorte-tiana .sorte-tabelle').count()) throw new Error('eine andere Sorte steht schon offen — die Liste soll ruhig sein')
       await fictor.locator('.sorte-tabelle tbody tr').first().waitFor()
       const zeilen = await fictor.locator('.sorte-tabelle tbody tr').allInnerTexts()
       for (const nr of ['99126', '99127', '99128'])
@@ -391,44 +411,92 @@ const BILDSCHIRME = [
       if (!z127.includes('keine Palette im Journal') || !z127.includes('3 Lieferscheine')) throw new Error(`99127: ${z127}`)
       if (!zeilen.find(z => z.startsWith('99126')).includes('→ 6 Paletten zu 99128 umgebucht')) throw new Error('99126 ohne die Umbuchung')
       await fictor.locator('.sorte-bild li', { hasText: 'ohne je eine Palette zu bekommen' }).waitFor()
-      const sache = fictor.locator('.ungereimt-sache', { hasText: 'hat verkauft, aber nie etwas bekommen' })
-      await sache.locator('dd', { hasText: 'Am ehesten von 99126 (Prüfschlag · Fictor)' }).waitFor()
-      await sache.locator('dd', { hasText: 'Noch nicht umgebucht' }).waitFor()
-      await sache.locator('#fall-verfolgen').waitFor()
-      await fictor.locator('.ungereimt-sache', { hasText: 'zählt die App bei Charge 99128' }).locator('dd', { hasText: 'Schon umgebucht' }).waitFor()
+      await fictor.locator('.sach-tabelle tbody tr', { hasText: 'hat verkauft, aber nie etwas bekommen' }).click()
+      const f = p.locator('#sache-fenster')
+      await f.locator('dd', { hasText: 'Am ehesten von 99126 (Prüfschlag · Fictor)' }).waitFor()
+      await f.locator('dd', { hasText: 'Noch nicht umgebucht' }).waitFor()
+      await f.locator('#fall-verfolgen').waitFor()
+      await p.keyboard.press('Escape')
+      await f.waitFor({ state: 'detached' })
+      await fictor.locator('.sach-tabelle tbody tr', { hasText: 'zählt die App bei Charge 99128' }).click()
+      await f.locator('dd', { hasText: 'Schon umgebucht' }).waitFor()
+      await p.keyboard.press('Escape')
       const tiana = p.locator('#sorte-tiana')
-      await tiana.locator('.ungereimt-sache', { hasText: 'mit der Nummer 991977' }).locator('button', { hasText: 'Bei 99129 Perigon-Nr. 991977 eintragen' }).waitFor()
+      await tiana.locator('.perigon-art-kopf').click()
       if (!(await tiana.locator('.sorte-tabelle', { hasText: 'davon als Kabocha' }).count())) throw new Error('der fremde Artikel beim Ausgang fehlt')
-      const doppelt = p.locator('.ungereimt-sache', { hasText: 'Perigon-Nr. 991980 steht an 2 Chargen: 99130 und 99131' })
-      await doppelt.locator('dd', { hasText: 'Wohl hat 99131 die Nummer 991981' }).waitFor()
-      await doppelt.locator('button', { hasText: 'Bei 99131 Perigon-Nr. 991981 eintragen' }).waitFor()
+      await tiana.locator('.sach-tabelle tbody tr', { hasText: 'mit der Nummer 991977' }).click()
+      await f.locator('button', { hasText: 'Bei 99129 Perigon-Nr. 991977 eintragen' }).waitFor()
     } },
-  // 0126: der Reiter Perigon — „mach einen neuen Reiter und behandle dort die
-  // Ungereimtheiten mit viel Detail, mit viel Rückverfolgbarkeit". Oben die
-  // Antwort, dann was zu tun ist (nach dem Ort), die Lage, je Art, die Dateien.
+  // Runde BD: eine Sache je Charge aus der Arbeitsliste — dieselben Prüfungen, die
+  // bis 0126 im langen Je Sorte standen (eine Perigon-Nr. an zwei Chargen).
+  { name: 'perigon-sache', wer: 'admin', pfad: '/perigon/faelle?art=stammdaten', vorher: perigonVormerken,
+    tun: async p => {
+      const zeile = p.locator('#charge-art-stammdaten .sach-tabelle tbody tr', { hasText: 'Perigon-Nr. 991980 steht an 2 Chargen: 99130 und 99131' })
+      await zeile.click()
+      const f = p.locator('#sache-fenster')
+      await f.locator('dd', { hasText: 'Wohl hat 99131 die Nummer 991981' }).waitFor()
+      await f.locator('button', { hasText: 'Bei 99131 Perigon-Nr. 991981 eintragen' }).waitFor()
+    } },
+  // 0126 → Runde BD: der Reiter Perigon — „er überfordert gerade noch". Oben drei
+  // Zahlen und wo zu tun ist (als Filter), darunter je Art eine Zeile, die
+  // aufklappt. Bis 0126 prüfte die Szene vier Karten (was zu tun ist, je Art, je
+  // Charge, die Dateien); dieselben Inhalte stehen jetzt: der Ort als Knopf, die
+  // Arten als Zeilen beider Abschnitte, die Dateien unter „So prüft die App"
+  // (perigon-pruefung) mit einer Zeile oben, die dorthin führt.
   { name: 'perigon', wer: 'admin', pfad: '/perigon', vorher: perigonVormerken,
     tun: async p => {
-      await p.locator('#perigon-antwort .kennzahl').first().waitFor()
-      for (const wo of ['perigon', 'halle', 'stammdaten']) await p.locator(`#tun-${wo} li`).first().waitFor()
-      await p.locator('#perigon-arten tbody tr', { hasText: 'Charge ohne Menge (Spalte S = 0)' }).waitFor()
-      await p.locator('#perigon-je-charge tbody tr', { hasText: 'Verkauft, nie eingegangen' }).waitFor()
-      await p.locator('#perigon-dateien tbody tr').first().waitFor()
+      const kz = await p.locator('#perigon-antwort .kennzahl').count()
+      if (kz !== 3) throw new Error(`oben ${kz} Kennzahlen statt drei`)
+      for (const wo of ['perigon', 'halle', 'stammdaten']) await p.locator(`#perigon-wo #wo-${wo}`).waitFor()
+      for (const art of ['menge_null', 'zu_viel', 'unbekannt', 'mix', 'vor_eingang']) await p.locator(`#art-${art} > .perigon-art-kopf`).waitFor()
+      await p.locator('#art-menge_null .perigon-art-kopf', { hasText: 'Charge ohne Menge (Spalte S = 0)' }).waitFor()
+      await p.locator('#charge-art-ohne_eingang .perigon-art-kopf', { hasText: 'Verkauft, nie eingegangen' }).waitFor()
+      if (await p.locator('.fall-tabelle').count()) throw new Error('die Fälle stehen schon offen — erst die Arten, dann auf Klick die Fälle')
+      await p.locator('.perigon-dateien-zeile', { hasText: 'Perigon-Lieferscheine bis' }).waitFor()
+      // der Ort filtert: nur Stammdaten — dann steht „Mix" (Firma fragen) nicht mehr da
+      await p.locator('#wo-stammdaten').click()
+      await p.locator('#wo-stammdaten[aria-pressed="true"]').waitFor()
+      await p.locator('#art-mix').waitFor({ state: 'detached', timeout: 5000 }).catch(() => { throw new Error('der Ort filtert nicht') })
+      await p.locator('#art-unbekannt').waitFor()
+      await p.locator('#wo-stammdaten').click()
+      await p.locator('#art-mix').waitFor()
+      await p.locator('#art-zu_viel > .perigon-art-kopf').click()
+      await p.locator('#art-zu_viel .fall-tabelle tbody tr', { hasText: '768 kg statt 256 kg' }).waitFor()
     } },
-  // Jede Position, die nicht stimmt, nach Art; ein Klick zeigt die Zeile der
-  // Datei, darüber den Fall mit seiner Rechnung, darunter den Verlauf.
-  { name: 'perigon-zeilen', wer: 'admin', pfad: '/perigon/zeilen', vorher: perigonVormerken,
+  // Runde BD: „das versteh ich nicht — wie kommst du auf 768?" Das Fenster rechnet
+  // die Position Zeile für Zeile nach: dreimal Charge 1620 mit 256 kg, zusammen
+  // 768 kg, die Position 256 kg, 512 kg zu viel — und die drei Zeilen der Datei.
+  { name: 'perigon-fall', wer: 'admin', pfad: '/perigon/faelle?art=zu_viel', vorher: perigonVormerken,
     tun: async p => {
-      for (const art of ['menge_null', 'zu_viel', 'unbekannt', 'mix', 'vor_eingang']) await p.locator(`#art-${art} .perigon-zeilen-tabelle tbody tr`).first().waitFor()
-      await p.locator('#art-zu_viel .perigon-satz', { hasText: 'Charge 1620 dreimal' }).waitFor()
-      await p.locator('#art-menge_null tbody tr').first().click()
-      await p.locator('#lieferung-fenster #fall-kopf .fall-rechnung').waitFor()
-      await p.locator('#lieferung-fenster #fall-kopf', { hasText: 'Spalte S' }).waitFor()
-      await p.locator('#lieferung-fenster #fall-verfolgen .verfolgen-liste li', { hasText: 'Büro fragt bei der Firma nach' }).waitFor()
+      await p.locator('#art-zu_viel .fall-tabelle tbody tr').first().click()
+      const f = p.locator('#lieferung-fenster')
+      await f.locator('#fall-kopf', { hasText: 'Die Position steht 3-mal in der Datei, jedes Mal mit Charge 1620 und 256 kg — zusammen 768 kg' }).waitFor()
+      const n = f.locator('#fall-nachgerechnet')
+      if ((await n.locator('tbody tr').count()) !== 3) throw new Error('nicht drei Zeilen nachgerechnet')
+      if ((await n.locator('.fall-gleich').count()) !== 2) throw new Error('Zeile 2 und 3 sagen nicht, dass sie gleich wie Zeile 1 sind')
+      await n.locator('tfoot tr', { hasText: '768 kg' }).waitFor()
+      await n.locator('tfoot tr.fall-unterschied', { hasText: '512 kg' }).waitFor()
+      await n.locator('p', { hasText: 'In der Rechnung der App: 256 kg auf Charge 1620' }).waitFor()
+      if (await f.locator('#fall-excel table.excel').isVisible()) throw new Error('die Excel-Zeilen stehen offen — sie gehören hinter einen Klick')
+      await f.locator('#fall-excel summary', { hasText: 'Die 3 Zeilen der Perigon-Datei' }).click()
+      if ((await f.locator('#fall-excel table.excel tbody tr').count()) !== 3) throw new Error('die Datei zeigt nicht alle drei Zeilen')
+      await f.locator('#fall-excel td.falsch').first().waitFor()
+    } },
+  // Jede Position, die nicht stimmt, nach Art; ein Klick zeigt den Fall nachgerechnet,
+  // was zu tun ist und den Verlauf.
+  { name: 'perigon-zeilen', wer: 'admin', pfad: '/perigon/faelle?art=menge_null&stand=alle', vorher: perigonVormerken,
+    tun: async p => {
+      await p.locator('#art-menge_null .fall-tabelle tbody tr').first().click()
+      const f = p.locator('#lieferung-fenster')
+      await f.locator('#fall-nachgerechnet', { hasText: 'Spalte S' }).waitFor()
+      await f.locator('#fall-kopf', { hasText: 'aber in Spalte S steht überall 0' }).waitFor()
+      await f.locator('#fall-tun', { hasText: 'In Perigon bei dieser Position' }).waitFor()
+      await f.locator('#fall-verfolgen .verfolgen-liste li', { hasText: 'Büro fragt bei der Firma nach' }).waitFor()
     } },
   // Der Betriebsleiter hält fest, wie es steht — der Vermerk steht danach im Verlauf des Falls.
-  { name: 'perigon-vermerken', wer: 'admin', pfad: '/perigon/zeilen?art=unbekannt', vorher: perigonVormerken,
+  { name: 'perigon-vermerken', wer: 'admin', pfad: '/perigon/faelle?art=unbekannt', vorher: perigonVormerken,
     tun: async p => {
-      await p.locator('#art-unbekannt tbody tr').first().click()
+      await p.locator('#art-unbekannt .fall-tabelle tbody tr').first().click()
       const v = p.locator('#lieferung-fenster #fall-verfolgen')
       await v.locator('#stand-erledigt').click()
       await v.locator('textarea').fill('991977 bei 99131 als Perigon-Nr. eingetragen')
@@ -442,6 +510,8 @@ const BILDSCHIRME = [
     } },
   { name: 'perigon-pruefung', wer: 'admin', pfad: '/perigon/pruefung',
     tun: async p => {
+      // Runde BD: die Dateien stehen hier (bis 0126 auf der Übersicht).
+      await p.locator('#perigon-dateien tbody tr').first().waitFor()
       await p.locator('#perigon-spalten tbody tr', { hasText: 'AufPosBatchQuantity Charge' }).waitFor()
       await p.locator('#pruefung-menge_null').waitFor()
     } },

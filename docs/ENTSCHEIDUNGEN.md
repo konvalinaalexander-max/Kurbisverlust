@@ -4171,6 +4171,98 @@ Daten, dann die Annahme — nach der Korrektur nachsehen.
 nicht alles: vier mal vier gleiche Paloxen und ein Tag mit 30 Paaren bei
 13 erwarteten sind Fragen wert.
 
+## Runde BD: Der Reiter Perigon, ruhiger — Liste, dann Fall (24. Oktober)
+
+Der Betrieb zu einem Fall: „das versteh ich nicht — wie kommst du auf 768?"
+Und zum Reiter: „an sich in die richtige Richtung — aber er überfordert gerade
+noch. Nutze gutes UI für bessere Verständlichkeit."
+
+**Was überforderte.** Dieselben Fälle standen dreimal da — nach dem Ort (was zu
+tun ist), nach der Art und nach der Charge —, jede Zeile mit ihrem ganzen Satz,
+jede Art mit vier Zeilen Erklärung über der Tabelle; Je Sorte war bei 1440 px
+über 11'000 Punkte hoch. Und das Fenster des Falls 768 zeigte eine Zeile der
+Datei mit 256: 768 waren drei gleiche Zeilen à 256 kg, aber nirgends stand das,
+und „(Spalte S × AE)" bei einem kg-Artikel mit AE = 0 führte zusätzlich in die Irre.
+
+**Die Regeln (AT-05, UI-KONZEPT).** Ein Bildschirm, eine Frage; erst die Liste,
+dann der Fall (Master–Detail); Erklärungen dort, wo man sie sucht, nicht in
+jeder Zeile (progressive Offenlegung); was man anklicken kann, sieht so aus
+(Pfeil, Zeile hebt sich ab, Tastatur); Zahlen rechtsbündig mit Einheit.
+
+**1. Vier Teile statt fünf.** Übersicht und Perigon-Zeilen sind ein Teil
+**Fälle**; Verweise auf die alten Adressen (`/perigon/zeilen?…`,
+`/perigon/uebersicht`) führen dorthin. Oben drei Zahlen statt fünf (offen, in
+Abklärung, erledigt) und eine Zeile mit dem Stand der Dateien; die Dateien
+selbst stehen unter „So prüft die App", die Lage in Zahlen als ein Satz über Je Sorte.
+
+**2. Fälle: eine Arbeitsliste.** Zwei Abschnitte — „In einer Perigon-Zeile" (je
+Position) und „Zwischen Perigon und Lager" (je Charge). Je Art eine Zeile: Name,
+was sie heisst (ein Satz), wie viele Fälle, wie viel es betrifft, wo es behoben
+wird. Ein Klick klappt sie auf: einmal „Was tun" für alle Fälle der Art, dann je
+Fall eine Zeile — geliefert, Artikel (Kunde, Position darunter), Charge, was
+nicht passt in wenigen Worten (`fallKurz`: „768 kg statt 256 kg", „Name
+Demeter, Preisgruppe K", „8 Tage vor dem Eingang"), betrifft, Stand, Pfeil.
+„Wo zu tun" (Perigon, Halle zählen, Erntejournal, Stammdaten, Firma fragen,
+Einlesen) ist ein Filter mit der Zahl der offenen Fälle — die Liste „Was zu tun
+ist" der Übersicht in einer Zeile. Gesucht wird in einem Feld; Art, Sorte,
+Charge und Firma aus einem Verweis stehen als Chip mit ✕ da.
+
+**3. Der Fall im Fenster, in der Folge, in der man ihn versteht.** Titel: die
+Art; darunter wann, wer, welcher Artikel, welche Position. Dann ein Satz, was
+nicht stimmt — bei den Mengen aus den Zeilen gebildet („Die Position steht
+3-mal in der Datei, jedes Mal mit Charge 1620 und 256 kg — zusammen 768 kg.
+Geliefert wurden aber nur 256 kg."). **Nachgerechnet:** jede Zeile der Position
+mit Charge (W) und Menge (S), eine wiederholte Zeile rot mit „gleich wie Zeile
+1"; darunter zusammen (S), die Position (Q) und der Unterschied, fett; dann was
+die Rechnung der App daraus hat. Wo nichts zu rechnen ist (Name gegen
+Preisgruppe, Mix, vor dem Eingang, Nummer unbekannt …), stehen die Angaben der
+Datei mit ihrer Spalte gegeneinander. Dann **Was tun** mit dem Ort und wie man
+die Zeile findet, dann **Mitverfolgen**. Die Zeilen wie im Excel (alle, rot
+umrandet) und „Was das heisst und was die App daraus macht" stehen darunter,
+zu, bis man sie will.
+
+**4. Je Sorte: eine Liste, die aufklappt.** Je Sorte eine Zeile (wie viele
+Chargen, wie viele Fälle, wie viel es betrifft); die Sorte aus der Adresse ist
+offen, sonst keine. Offen: das Bild über die Sorte, der Weg der Ware je Charge
+(herein, hinaus, noch da, was nicht passt — die Spalte „In der Halle" steht im
+Fenster der Sache, nicht mehr in der breiten Tabelle), die Fälle der Sorte als
+kurze Zeilen.
+
+**5. Jede Sache je Charge öffnet ein Fenster** (`SacheFenster`) — was nicht
+passt, warum es zählt, Stand, Vorschlag, was tun, der Weg der Ware, die Knöpfe
+(umbuchen, Nummer eintragen) und das Mitverfolgen —, aus den Fällen, aus Je
+Sorte und aus dem Verlauf, wie ein Perigon-Fall.
+
+**Keine Migration.** Die Summen im Fenster kommen aus `v_perigon_befund`; die
+Zeilen aus `ausgang_zeile` zeigen, woraus sie bestehen (HERLEITUNG 12h). Der
+Satz der Datenbank bleibt für Verlauf und Schnappschuss; das Fenster bildet bei
+den Mengen seinen eigenen aus den Zeilen, damit dort kein „S × AE" bei einem
+kg-Artikel steht.
+
+**Geprüft.** `test/perigon.test.ts` +6: 768 = drei gleiche Zeilen à 256 kg
+(mit „gleich wie Zeile 1" und dem Satz, ohne „× AE"), Stück × Gewicht und
+Stück ohne Gewicht (unbekannt, nie 0), S = 0 mit und ohne Menge, die Angaben
+gegeneinander mit ihrer Spalte, die Kurzangabe je Art, die Sachen nach Art und
+Filter (auch der Ort). Bildschirme: `perigon` (drei Zahlen, die Arten zu, der
+Ort filtert, aufgeklappt „768 kg statt 256 kg"), neu `perigon-fall` (das Fenster
+rechnet 3 × 256 nach, die drei Zeilen der Datei erst auf Klick) und
+`perigon-sache`; `perigon-zeilen`, `perigon-vermerken`, `perigon-sorten` prüfen
+dieselben Sätze und Knöpfe wie bis 0126, dort, wo sie jetzt stehen (in den
+Szenen begründet). Der Begriffs-Prüfstand öffnet alle Arten und Sorten und ein
+Fenster; er fand Kilo unter der Spalte „Charge" — die Kurzangabe hat seither
+ihre eigene Spalte „Was nicht passt".
+
+**Was bewusst nicht gemacht wurde.**
+- Der Satz in `v_perigon_befund` („Spalte S × AE") ist nicht umgeschrieben —
+  das wäre eine Migration für einen Wortlaut; das Fenster sagt es richtig, und
+  in der Liste steht der Satz nicht mehr.
+- Keine Gruppierung nach dem Ort mehr als eigene Karte; der Ort ist Filter und
+  Marke an jeder Art.
+- Die Excel-Zeilen bleiben vollständig (alle Spalten), nur hinter einem Klick;
+  gekürzt wird an der Datei nichts.
+- Die Fenster nebeneinander (eine Sache, darin eine Perigon-Zeile) bleiben
+  zwei Fenster übereinander; Escape schliesst beide.
+
 ## Runde BC: Ein Reiter für Perigon — jeder Fall nachvollziehbar und mitverfolgt (24. Oktober, 0126)
 
 Der Betrieb: „Perigon nennt die Charge, teilt ihr aber keine Menge zu

@@ -8,7 +8,8 @@
  * Verweis (PerigonVerweis) — der Betrieb: „nicht oberhalb von Artikel etc.,
  * sondern mach einen neuen Reiter".
  */
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Link } from 'react-router-dom'
 import { FallVerfolgen } from './Verfolgen'
 import { betroffen, istOffen, sacheSchnappschuss } from './perigon'
@@ -16,7 +17,7 @@ import { supabase } from '../lib/supabase'
 import { fehlerText } from '../lib/db'
 import { datum, kg, tonnen } from '../lib/format'
 import { useAuth } from '../auth/AuthProvider'
-import { ZChevron, ZWarnung } from '../components/Zeichen'
+import { ZChevron, ZKreuz, ZWarnung } from '../components/Zeichen'
 import { LieferungFenster } from '../betrieb/LieferungFenster'
 import type { Auswertung, ChargeSpur, PerigonBefund } from './daten'
 import { ART_NAME, spurText, ungereimtheiten, vonCharge, type Ungereimtheit } from './ungereimt'
@@ -85,7 +86,7 @@ export function Ungereimtheiten({ daten, charge, startOffen = false }: { daten: 
             mit dieser Nummer hinausging. Wo Nummer oder Sorte nicht stimmen, steht Ware im Lager, die verkauft ist — oder es fehlt welche.
             Unter jeder Sache steht der Weg der Ware: herein, bearbeitet, hinaus. Das Schwerste zuerst.</p>}
           {liste.map(u => <Sache key={u.schluessel} u={u} inCharge={charge} spur={spur} />)}
-          {charge != null && <p className="unten-0"><Link to={`/perigon/zeilen?charge=${charge}&stand=alle`}>Alle Perigon-Fälle von Charge {charge} im Reiter Perigon →</Link></p>}
+          {charge != null && <p className="unten-0"><Link to={`/perigon/faelle?charge=${charge}&stand=alle`}>Alle Perigon-Fälle von Charge {charge} im Reiter Perigon →</Link></p>}
         </div>
       )}
     </section>
@@ -122,15 +123,46 @@ export function WegDerWare({ nrn, spur }: { nrn: number[]; spur: Map<number, Cha
   )
 }
 
+/**
+ * Runde BD: eine Sache je Charge im eigenen Fenster — aus der Liste der Fälle
+ * und aus Je Sorte, wie ein Perigon-Fall. Oben die Art und die Sache in einem
+ * Satz, darunter was nicht passt, der Weg der Ware, was zu tun ist und das
+ * Mitverfolgen; die Seite dahinter bleibt, wo sie war.
+ */
+export function SacheFenster({ u, spur, schliessen }: { u: Ungereimtheit; spur: Map<number, ChargeSpur>; schliessen: () => void }) {
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') schliessen() }
+    window.addEventListener('keydown', h)
+    return () => window.removeEventListener('keydown', h)
+  }, [schliessen])
+  return createPortal(
+    <div className="dialog-hinter" onClick={schliessen}>
+      <div className="dialog breit" role="dialog" aria-modal="true" aria-label={ART_NAME[u.art] ?? u.art} id="sache-fenster" onClick={e => e.stopPropagation()}>
+        <div className="fenster-kopf">
+          <div>
+            <h2><span className={`punkt s-${u.schwere}`} aria-hidden="true" />{ART_NAME[u.art] ?? u.art}</h2>
+            <p className="leise fall-wo">{u.titel}{u.kg != null && u.kg > 0 ? ` · betrifft ${kg(u.kg, 0)}` : ''}</p>
+          </div>
+          <button type="button" className="klein schliessen" onClick={schliessen} aria-label="schliessen"><ZKreuz size={16} /></button>
+        </div>
+        <Sache u={u} spur={spur} verfolgen imFenster />
+      </div>
+    </div>,
+    document.body,
+  )
+}
+
 /** Die Kennung einer Sache im Reiter Perigon (Sprungziel aus der Übersicht). */
 export const sacheAnker = (schluessel: string) => `sache-${schluessel.replace(/[^a-z0-9]+/gi, '-')}`
 
-export function Sache({ u, inCharge, spur, verfolgen = false, ohneWeg = false }: {
+export function Sache({ u, inCharge, spur, verfolgen = false, ohneWeg = false, imFenster = false }: {
   u: Ungereimtheit; inCharge?: number; spur: Map<number, ChargeSpur>
   /** 0126: im Reiter Perigon — Stand, Vermerke und das Feld zum Vermerken unter der Sache */
   verfolgen?: boolean
   /** 0126: der Weg der Ware steht schon darüber (je Sorte) */
   ohneWeg?: boolean
+  /** Runde BD: im eigenen Fenster — der Titel steht schon im Kopf */
+  imFenster?: boolean
 }) {
   const { istAdmin } = useAuth()
   const [zeilenAuf, setZeilenAuf] = useState(false)
@@ -159,7 +191,7 @@ export function Sache({ u, inCharge, spur, verfolgen = false, ohneWeg = false }:
   const anzahl = u.art === 'ohne_charge' ? null : u.zeilen.length
   return (
     <article className={`ungereimt-sache s-${u.schwere}`} id={verfolgen ? sacheAnker(u.schluessel) : undefined}>
-      <h4><span className={`punkt s-${u.schwere}`} aria-hidden="true" />{u.titel}{u.kg != null && u.kg > 0 && <span className="leise"> · {kg(u.kg, 0)}</span>}</h4>
+      {!imFenster && <h4><span className={`punkt s-${u.schwere}`} aria-hidden="true" />{u.titel}{u.kg != null && u.kg > 0 && <span className="leise"> · {kg(u.kg, 0)}</span>}</h4>}
       <dl>
         <dt>Was nicht passt</dt><dd>{u.was}</dd>
         {u.warum && <><dt>Warum es zählt</dt><dd>{u.warum}</dd></>}

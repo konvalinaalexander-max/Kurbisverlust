@@ -9,57 +9,63 @@
  * Perigon-Auffälligkeiten, die bisher bei Artikel oben waren." Und: „alles,
  * was du im PDF hast, dort in den Reiter — das mit 1719 etc."
  *
- * Fünf Teile, wie der Bericht vom 23. Oktober:
- *  Übersicht    — was offen ist, was zu tun ist (nach dem Ort, an dem es
- *                 behoben wird), die Lage in Zahlen, je Art, die Dateien;
- *  Je Sorte     — Fall für Fall: alle Chargen einer Sorte mit dem Weg der
- *                 Ware (herein, Halle, hinaus, noch da), was nicht passt, die
- *                 Sachen mit Stand, Vorschlag und Was tun;
- *  Perigon-Zeilen — jede Position, die nicht stimmt, nach Art, mit Filter;
- *                 ein Klick zeigt die Zeile der Datei, die Rechnung und den
- *                 Verlauf des Falls;
- *  Verlauf      — was vermerkt ist, was nicht mehr in den Daten steht;
- *  So prüft die App — die Spalten, jede Prüfung, was die App bewusst nicht tut.
+ * Runde BD, am selben Tag: „an sich in die richtige Richtung — aber er
+ * überfordert gerade noch; nutze gutes UI für bessere Verständlichkeit."
+ * Dieselben Fälle standen dreimal da (nach Ort, nach Art, nach Charge), jede
+ * Zeile mit ihrem ganzen Satz, Je Sorte war zehn Bildschirme lang. Jetzt:
+ *  Fälle         — eine Arbeitsliste: je Art des Fehlers eine Zeile, die
+ *                  aufklappt; je Fall eine kurze Zeile; ein Klick öffnet den
+ *                  Fall im Fenster (nachgerechnet, was tun, mitverfolgen).
+ *                  Oben: wo es behoben wird, als Filter.
+ *  Je Sorte      — die Sorten als Liste, eine aufgeklappt: das Bild über die
+ *                  Sorte, der Weg der Ware je Charge, die Fälle der Sorte.
+ *  Verlauf       — was vermerkt ist, was nicht mehr in den Daten steht.
+ *  So prüft die App — die Dateien, die Spalten, jede Prüfung, was die App
+ *                  bewusst nicht tut.
+ * Erklärungen stehen dort, wo man sie sucht (im Fenster, unter „So prüft die
+ * App"), nicht in jeder Zeile.
  */
 import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { datum, kg, tonnen, zahl, zeitpunkt } from '../lib/format'
-import { Erklaerung, Herkunft, Hinweis, Karte, Kennzahl, Segmente } from '../components/Bausteine'
+import { Herkunft, Hinweis, Karte, Kennzahl, Segmente } from '../components/Bausteine'
 import { ZChevron, ZWarnung } from '../components/Zeichen'
-import { useAuswertung, type Auswertung, type ChargeSpur, type PerigonBefund, type PerigonStand, type PerigonVerlauf, type VermerkStand } from '../auswertung/daten'
+import { useAuswertung, type Auswertung, type PerigonBefund, type PerigonStand, type PerigonVerlauf, type VermerkStand } from '../auswertung/daten'
 import { Probleme, Rechnet, Reiterkopf } from '../auswertung/Karten'
 import { ART_NAME, spurText, ungereimtheiten, type Schwere, type Ungereimtheit } from '../auswertung/ungereimt'
 import {
-  ART_FOLGE, FILTER_LEER, PERIGON_ART, STAND_NAME, WO_NAME, aufgaben, betroffen, fallTitel, filtern, istOffen, jeSorte,
-  lageInZahlen, nachArt, sacheWo, schnappschussText, spaltenZeichen, standVon, type Aufgabe, type Eintrag, type Filter, type SorteFall, type StandFilter,
+  ART_FOLGE, FILTER_LEER, PERIGON_ART, SACHE_HEISST, STAND_NAME, WO_FOLGE, WO_NAME, aufgaben, betroffen, fallKurz, fallTitel, filtern, istOffen, jeSorte,
+  lageInZahlen, nachArt, sachenFiltern, sachenNachArt, schnappschussText, spaltenZeichen, standVon, type Filter, type SorteFall, type StandFilter, type Wo,
 } from '../auswertung/perigon'
-import { Sache, sacheAnker } from '../auswertung/Ungereimtheiten'
+import { SacheFenster } from '../auswertung/Ungereimtheiten'
 import { OhneChargeListe } from '../auswertung/OhneCharge'
 import { StandMarke, VerlaufKontext, useVerlauf } from '../auswertung/Verfolgen'
 import { LieferungFenster } from '../betrieb/LieferungFenster'
 
-type Teil = 'uebersicht' | 'sorten' | 'zeilen' | 'verlauf' | 'pruefung'
+type Teil = 'faelle' | 'sorten' | 'verlauf' | 'pruefung'
 const TEILE: [Teil, string][] = [
-  ['uebersicht', 'Übersicht'],
+  ['faelle', 'Fälle'],
   ['sorten', 'Je Sorte'],
-  ['zeilen', 'Perigon-Zeilen'],
   ['verlauf', 'Verlauf'],
   ['pruefung', 'So prüft die App'],
 ]
+/** Bis Runde BD hiessen die Fälle „Übersicht" und „Perigon-Zeilen" — Verweise von dort führen in die Fälle. */
+const ALT: Record<string, Teil> = { uebersicht: 'faelle', zeilen: 'faelle' }
 
 interface ChargeKurz { nr: number; sorte: string; schlag: string; perigon_nr: number | null }
 
 export default function Perigon() {
   const { teil } = useParams()
   const navigate = useNavigate()
-  const aktiv = (TEILE.find(([t]) => t === teil)?.[0] ?? 'uebersicht') as Teil
+  const aktiv: Teil = TEILE.find(([t]) => t === teil)?.[0] ?? ALT[teil ?? ''] ?? 'faelle'
   const a = useAuswertung()
   const { daten, laedt, fehler, fortschritt } = a
   const wissen = useVerlauf()
   const [stand, setStand] = useState<PerigonStand[] | null>(null)
   const [chargen, setChargen] = useState<ChargeKurz[]>([])
   const [offen, setOffen] = useState<PerigonBefund | null>(null)
+  const [sache, setSache] = useState<Ungereimtheit | null>(null)
 
   useEffect(() => {
     let lebt = true
@@ -75,6 +81,7 @@ export default function Perigon() {
     return () => { lebt = false }
   }, [])
 
+  const spur = useMemo(() => new Map((daten?.spur ?? []).map(s => [s.charge_nr, s])), [daten?.spur])
   const kopf = daten
     ? <Reiterkopf titel="Perigon" stand={daten.stand} heute={daten.heute} neuRechnen={() => void a.neuRechnen()} laeuft={laedt}
                   zeitplan={daten.zeitplan} veraltet={daten.veraltet} aktuell={daten.aktuell} />
@@ -90,20 +97,22 @@ export default function Perigon() {
       <Probleme liste={daten.probleme} />
       {wissen.fehler && <Hinweis art="warnung">Der Stand der Fälle liess sich nicht laden: {wissen.fehler}</Hinweis>}
       <Inhalt daten={daten} stand={stand} chargen={chargen} aktiv={aktiv} verlauf={wissen.verlauf}
-              gehe={(t, q) => navigate(`/perigon/${t}${q ? `?${q}` : ''}`)} oeffnen={setOffen} />
+              gehe={(t, q) => navigate(`/perigon/${t}${q ? `?${q}` : ''}`)} oeffnen={setOffen} sacheOeffnen={setSache} />
       {offen && <LieferungFenster quelle={offen.quelle} posId={offen.pos_id} fall={offen} schliessen={() => setOffen(null)} />}
+      {sache && <SacheFenster u={sache} spur={spur} schliessen={() => setSache(null)} />}
     </VerlaufKontext.Provider>
   )
 }
 
-function Inhalt({ daten, stand, chargen, aktiv, verlauf, gehe, oeffnen }: {
+interface Oeffner { oeffnen: (f: PerigonBefund) => void; sacheOeffnen: (u: Ungereimtheit) => void }
+
+function Inhalt({ daten, stand, chargen, aktiv, verlauf, gehe, oeffnen, sacheOeffnen }: {
   daten: Auswertung; stand: PerigonStand[] | null; chargen: ChargeKurz[]; aktiv: Teil
-  verlauf: Map<string, PerigonVerlauf>; gehe: (t: Teil, q?: string) => void; oeffnen: (f: PerigonBefund) => void
-}) {
-  // Die Sachen je Charge (v_ungereimtheit) — ohne die Perigon-Zeilen: die stehen hier je Position.
+  verlauf: Map<string, PerigonVerlauf>; gehe: (t: Teil, q?: string) => void
+} & Oeffner) {
+  // Die Sachen je Charge (v_ungereimtheit) — ohne die Perigon-Zeilen: die stehen je Position.
   const sachen = useMemo(() => ungereimtheiten(daten.ungereimt), [daten.ungereimt])
   const faelle = daten.perigon
-  const spur = useMemo(() => new Map(daten.spur.map(s => [s.charge_nr, s])), [daten.spur])
   const sorten = useMemo(() => jeSorte(daten.spur, sachen, faelle, chargen), [daten.spur, sachen, faelle, chargen])
   const zahlen = useMemo(() => {
     const st = (s: string) => standVon(verlauf, s)
@@ -118,39 +127,44 @@ function Inhalt({ daten, stand, chargen, aktiv, verlauf, gehe, oeffnen }: {
     }
   }, [faelle, sachen, verlauf])
   const bis = stand?.reduce<string | null>((m, s) => (s.bis && (!m || s.bis > m) ? s.bis : m), null) ?? null
+  const offenFaelle = faelle.filter(f => istOffen(f.schwere, standVon(verlauf, f.schluessel))).length
+    + sachen.filter(u => istOffen(u.schwere, standVon(verlauf, u.schluessel))).length
 
   return (
     <>
-      {/* Runde BA: die Frage des Reiters, die Antwort zuoberst. */}
+      {/* Runde BA: die Frage des Reiters, die Antwort zuoberst — Runde BD: drei Zahlen, nicht fünf. */}
       <section className="antwort perigon-antwort" id="perigon-antwort">
-        <p className="perigon-frage">Wo sagt Perigon etwas anderes als Erntejournal und Halle — und was ist davon schon geklärt?</p>
+        <p className="perigon-frage">Was stimmt in Perigon nicht — und was ist davon schon geklärt?</p>
         <div className="spalten">
           <Kennzahl titel="Offen" wert={zahl(zahlen.offen)} ton={zahlen.rot > 0 ? 'rot' : undefined}
                     unter={zahlen.offen > 0
                       ? <>betrifft {tonnen(zahlen.offenKg)}<Herkunft art="gerechnet" text="aus Datei und Lieferscheinen gemessen, „mehr verkauft als möglich“ mit dem gerechneten Verlust" />{zahlen.rot > 0 ? ` · ${zahlen.rot} davon gross (ab 500 kg)` : ''}</>
                       : 'nichts offen'} />
           <Kennzahl titel="In Abklärung" wert={zahl(zahlen.abklaerung)} unter="gemeldet, Antwort ausstehend" />
-          <Kennzahl titel="Erledigt, noch in den Daten" wert={zahl(zahlen.wartet)} unter="verschwindet mit dem nächsten Einlesen" />
-          <Kennzahl titel="Nicht mehr in den Daten" wert={zahl(zahlen.behoben)} unter="seit dem ersten Merken behoben" />
-          <Kennzahl titel="Lieferscheine bis" wert={bis ? datum(bis) : '—'} unter={stand ? `${stand.length} ${stand.length === 1 ? 'Datei' : 'Dateien'} eingelesen` : ''} />
+          <Kennzahl titel="Erledigt" wert={zahl(zahlen.wartet + zahlen.behoben)}
+                    unter={`${zahl(zahlen.behoben)} nicht mehr in den Daten · ${zahl(zahlen.wartet)} ${zahlen.wartet === 1 ? 'wartet' : 'warten'} aufs Einlesen`} />
         </div>
+        <p className="leise perigon-dateien-zeile">
+          {stand === null ? '' : stand.length === 0 ? 'Noch keine Perigon-Datei eingelesen.'
+            : <>Perigon-Lieferscheine bis {bis ? datum(bis) : '—'} · {stand.length} {stand.length === 1 ? 'Datei' : 'Dateien'} eingelesen ·{' '}
+                <button type="button" className="link" onClick={() => gehe('pruefung')}>die Dateien</button></>}
+        </p>
       </section>
       <nav className="navleiste unter" aria-label="Perigon">
         {TEILE.map(([t, name]) => (
           <a key={t} href={`/perigon/${t}`} className={aktiv === t ? 'aktiv' : ''} id={`perigon-teil-${t}`}
              onClick={e => { e.preventDefault(); gehe(t) }}>
             {name}
+            {t === 'faelle' && offenFaelle > 0 && <span className="reiter-zahl">{offenFaelle}</span>}
             {t === 'sorten' && sorten.length > 0 && <span className="reiter-zahl">{sorten.length}</span>}
-            {t === 'zeilen' && <span className="reiter-zahl">{faelle.filter(f => istOffen(f.schwere, standVon(verlauf, f.schluessel))).length}</span>}
           </a>
         ))}
       </nav>
       <div className="wechsel" key={aktiv}>
-        {aktiv === 'uebersicht' && <Uebersicht daten={daten} faelle={faelle} sachen={sachen} stand={stand} verlauf={verlauf} gehe={gehe} oeffnen={oeffnen} />}
-        {aktiv === 'sorten' && <JeSorte sorten={sorten} spur={spur} verlauf={verlauf} gehe={gehe} oeffnen={oeffnen} />}
-        {aktiv === 'zeilen' && <Zeilen faelle={faelle} stand={stand} verlauf={verlauf} oeffnen={oeffnen} />}
-        {aktiv === 'verlauf' && <Verlauf faelle={faelle} sachen={sachen} verlauf={verlauf} gehe={gehe} oeffnen={oeffnen} />}
-        {aktiv === 'pruefung' && <SoPrueft />}
+        {aktiv === 'faelle' && <Faelle faelle={faelle} sachen={sachen} stand={stand} verlauf={verlauf} oeffnen={oeffnen} sacheOeffnen={sacheOeffnen} />}
+        {aktiv === 'sorten' && <JeSorte sorten={sorten} daten={daten} sachen={sachen} verlauf={verlauf} oeffnen={oeffnen} sacheOeffnen={sacheOeffnen} />}
+        {aktiv === 'verlauf' && <Verlauf faelle={faelle} sachen={sachen} verlauf={verlauf} oeffnen={oeffnen} sacheOeffnen={sacheOeffnen} />}
+        {aktiv === 'pruefung' && <SoPrueft stand={stand} />}
       </div>
     </>
   )
@@ -158,115 +172,305 @@ function Inhalt({ daten, stand, chargen, aktiv, verlauf, gehe, oeffnen }: {
 
 const RANG: Record<Schwere, number> = { rot: 0, gelb: 1, info: 2 }
 const Punkt = ({ s }: { s: Schwere }) => <span className={`punkt s-${s}`} aria-hidden="true" />
+const faelleWort = (n: number) => `${zahl(n)} ${n === 1 ? 'Fall' : 'Fälle'}`
 
-/* ---------- Übersicht ---------------------------------------------------- */
+/* ---------- Bausteine der Listen ---------------------------------------- */
 
-function Uebersicht({ daten, faelle, sachen, stand, verlauf, gehe, oeffnen }: {
-  daten: Auswertung; faelle: PerigonBefund[]; sachen: Ungereimtheit[]; stand: PerigonStand[] | null
-  verlauf: Map<string, PerigonVerlauf>; gehe: (t: Teil, q?: string) => void; oeffnen: (f: PerigonBefund) => void
+/**
+ * Eine Art von Fehler als Zeile, die aufklappt: der Name, was er heisst (ein
+ * Satz), wie viele Fälle, wie viel es betrifft, wo es behoben wird. Offen:
+ * was zu tun ist (einmal für alle Fälle der Art) und die Fälle.
+ */
+function Gruppe({ id, schwere, name, heisst, n, kgSumme, wo, auf, umschalten, children }: {
+  id: string; schwere: Schwere; name: string; heisst: string | null; n: number; kgSumme: number | null; wo: Wo
+  auf: boolean; umschalten: () => void; children: ReactNode
 }) {
-  const tun = useMemo(() => aufgaben(faelle, sachen, verlauf), [faelle, sachen, verlauf])
-  const lage = useMemo(() => lageInZahlen(daten.spur, sachen), [daten.spur, sachen])
-  const arten = useMemo(() => nachArt(faelle, verlauf), [faelle, verlauf])
-  const jeCharge = useMemo(() => {
-    const m = new Map<string, Ungereimtheit[]>()
-    for (const u of sachen) m.set(u.art, [...(m.get(u.art) ?? []), u])
-    return [...m.entries()].sort((a, b) => RANG[schwerste(a[1])] - RANG[schwerste(b[1])] || (summeKg(b[1]) - summeKg(a[1])))
-  }, [sachen])
-  const sorteVon = (u: Ungereimtheit) => u.sorte ?? daten.spur.find(s => s.charge_nr === u.charge_nr)?.sorte ?? ''
-  const eintragOeffnen = (e: Eintrag) => {
-    if (e.fall) oeffnen(e.fall)
-    else if (e.sache) gehe('sorten', `sorte=${encodeURIComponent(sorteVon(e.sache))}#${sacheAnker(e.sache.schluessel)}`)
+  return (
+    <section className={`perigon-art s-${schwere}${auf ? ' auf' : ''}`} id={id}>
+      <button type="button" className="perigon-art-kopf" aria-expanded={auf} onClick={umschalten}>
+        <span className="chevron" aria-hidden="true"><ZChevron size={16} /></span>
+        <span className="perigon-art-name">
+          <span><Punkt s={schwere} /><strong>{name}</strong></span>
+          {heisst && <span className="perigon-art-heisst">{heisst}</span>}
+        </span>
+        <span className="perigon-art-zahlen">
+          <span>{faelleWort(n)}</span>
+          {kgSumme != null && kgSumme > 0 && <span className="leise">betrifft {tonnen(kgSumme)}</span>}
+        </span>
+        <span className="wo-marke">{WO_NAME[wo].kurz}</span>
+      </button>
+      {auf && <div className="perigon-art-inhalt">{children}</div>}
+    </section>
+  )
+}
+
+/** Eine Zeile, die ein Fenster öffnet — mit der Maus, mit Enter oder der Leertaste. */
+const klick = (tun: () => void) => ({
+  className: 'klickbar', tabIndex: 0, onClick: tun,
+  onKeyDown: (e: React.KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); tun() } },
+})
+
+/** Die Fälle einer Art: je Fall eine Zeile — wann, was, welche Charge, das Eine, das nicht passt, wie viel, der Stand. */
+function FallTabelle({ faelle, verlauf, stand, oeffnen, mitArt = false }: {
+  faelle: PerigonBefund[]; verlauf: Map<string, PerigonVerlauf>; stand: PerigonStand[] | null; oeffnen: (f: PerigonBefund) => void
+  /** in Je Sorte: die Art steht nicht darüber, also in der Zeile */
+  mitArt?: boolean
+}) {
+  const quelleName = (q: string) => (stand && stand.length > 1 ? stand.find(s => s.quelle === q)?.name ?? q : null)
+  return (
+    <div className="rollbar">
+      <table className="dicht fall-tabelle ohne-haftkopf">
+        <thead><tr><th>Geliefert</th><th>Artikel</th><th>Charge</th><th>Was nicht passt</th><th className="zahl">betrifft</th><th>Stand</th><th aria-label="öffnen" /></tr></thead>
+        <tbody>{faelle.map(f => {
+          const v = verlauf.get(f.schluessel)
+          const q = quelleName(f.quelle)
+          return (
+            <tr key={f.schluessel} {...klick(() => oeffnen(f))} title="den Fall öffnen: nachgerechnet, was tun, mitverfolgen">
+              <td className="nowrap" data-titel="Geliefert">{datum(f.datum)}</td>
+              <td data-titel="Artikel">{mitArt ? <><strong>{PERIGON_ART[f.art].name}</strong><span className="zelle-unter">{f.artikel}</span></> : f.artikel}
+                <span className="zelle-unter leise">{f.kunde ?? 'Kunde unbekannt'} · Position {f.pos_id}{q ? ` · ${q}` : ''}</span></td>
+              <td data-titel="Charge">{f.nummer ?? f.nummern ?? <span className="leise">keine</span>}
+                {f.charge_nr != null && String(f.charge_nr) !== (f.nummer ?? f.nummern) && <span className="leise"> → {f.charge_nr}</span>}</td>
+              <td className="fall-kurz" data-titel="Was nicht passt">{fallKurz(f)}</td>
+              <td className="zahl" data-titel="betrifft">{f.kg == null ? 'unbekannt' : kg(betroffen(f), 0)}</td>
+              <td data-titel="Stand"><StandMarke stand={v?.stand ?? 'offen'} /></td>
+              <td className="zeile-pfeil" aria-hidden="true"><ZChevron size={14} /></td>
+            </tr>
+          )
+        })}</tbody>
+      </table>
+    </div>
+  )
+}
+
+/** Die Sachen je Charge: je Sache eine Zeile — was nicht passt, wie viel, der Stand. */
+function SachTabelle({ sachen, verlauf, sacheOeffnen, mitArt = false }: {
+  sachen: Ungereimtheit[]; verlauf: Map<string, PerigonVerlauf>; sacheOeffnen: (u: Ungereimtheit) => void; mitArt?: boolean
+}) {
+  return (
+    <div className="rollbar">
+      <table className="dicht fall-tabelle sach-tabelle ohne-haftkopf">
+        <thead><tr><th>Was nicht passt</th><th className="zahl">betrifft</th><th>Stand</th><th aria-label="öffnen" /></tr></thead>
+        <tbody>{sachen.map(u => {
+          const v = verlauf.get(u.schluessel)
+          return (
+            <tr key={u.schluessel} {...klick(() => sacheOeffnen(u))} title="öffnen: der Weg der Ware, was tun, mitverfolgen">
+              <td data-titel="Was nicht passt">{mitArt && <strong className="zelle-oben">{ART_NAME[u.art] ?? u.art}</strong>}{u.titel}</td>
+              <td className="zahl" data-titel="betrifft">{u.kg == null ? '—' : kg(u.kg, 0)}</td>
+              <td data-titel="Stand">{u.schwere === 'info' ? <span className="leise">Auskunft</span> : <StandMarke stand={v?.stand ?? 'offen'} />}</td>
+              <td className="zeile-pfeil" aria-hidden="true"><ZChevron size={14} /></td>
+            </tr>
+          )
+        })}</tbody>
+      </table>
+    </div>
+  )
+}
+
+/* ---------- Fälle: die Arbeitsliste -------------------------------------- */
+
+function Faelle({ faelle, sachen, stand, verlauf, oeffnen, sacheOeffnen }: {
+  faelle: PerigonBefund[]; sachen: Ungereimtheit[]; stand: PerigonStand[] | null; verlauf: Map<string, PerigonVerlauf>
+} & Oeffner) {
+  const [such, setSuch] = useSearchParams()
+  const filter: Filter = {
+    ...FILTER_LEER,
+    art: such.get('art') ?? '', quelle: such.get('quelle') ?? '', sorte: such.get('sorte') ?? '', suche: such.get('suche') ?? '', wo: such.get('wo') ?? '',
+    stand: (['offen', 'abklaerung', 'erledigt', 'alle'].includes(such.get('stand') ?? '') ? such.get('stand') : 'offen') as StandFilter,
+    charge: such.get('charge') ? Number(such.get('charge')) : null,
   }
+  const setze = (k: string, v: string) => {
+    const neu = new URLSearchParams(such)
+    if (v) neu.set(k, v); else neu.delete(k)
+    setSuch(neu, { replace: true })
+  }
+  const schluessel = [filter.art, filter.quelle, filter.sorte, filter.suche, filter.stand, filter.charge, filter.wo].join('|')
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const zeilen = useMemo(() => nachArt(filtern(faelle, verlauf, filter), verlauf), [faelle, verlauf, schluessel])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const proCharge = useMemo(() => sachenNachArt(sachenFiltern(sachen, verlauf, filter), verlauf), [sachen, verlauf, schluessel])
+  // Wo es behoben wird — über alles Offene, unabhängig vom Filter, damit die Zahlen stehen bleiben.
+  const tun = useMemo(() => aufgaben(faelle, sachen, verlauf), [faelle, sachen, verlauf])
+  const alleGruppen = zeilen.length + proCharge.length
+  const [auf, setAuf] = useState<Set<string>>(() => new Set(filter.art ? [`art-${filter.art}`, `charge-art-${filter.art}`] : []))
+  const offenGruppe = (id: string) => auf.has(id) || alleGruppen <= 2 || !!filter.suche || filter.charge != null
+  const umschalten = (id: string) => setAuf(a => { const n = new Set(a); if (n.has(id)) n.delete(id); else n.add(id); return n })
+  const chips: [string, string][] = [
+    ...(filter.art ? [['art', `Art: ${(PERIGON_ART as Record<string, { name: string } | undefined>)[filter.art]?.name ?? ART_NAME[filter.art] ?? filter.art}`] as [string, string]] : []),
+    ...(filter.sorte ? [['sorte', `Sorte: ${filter.sorte}`] as [string, string]] : []),
+    ...(filter.charge != null ? [['charge', `Charge ${filter.charge}`] as [string, string]] : []),
+    ...(filter.quelle ? [['quelle', `Firma: ${stand?.find(s => s.quelle === filter.quelle)?.name ?? filter.quelle}`] as [string, string]] : []),
+  ]
   return (
     <>
-      <Karte titel="Was zu tun ist — das Grösste zuerst" id="perigon-tun">
-        {tun.length === 0 ? <p className="leise">Nichts offen. Was vermerkt ist, steht unter Verlauf.</p> : (
-          <div className="perigon-tun">
-            {tun.map(t => <AufgabeBlock key={t.wo} a={t} oeffnen={eintragOeffnen} mehr={() => t.wo === 'halle' || t.wo === 'journal' ? gehe('sorten') : gehe('zeilen')} />)}
-          </div>
-        )}
-        <Erklaerung titel="Wie diese Liste entsteht">
-          <p>Jeder offene Fall steht einmal, beim Ort, an dem er behoben wird: in Perigon (dann die Datei neu einlesen), in der Halle
-          (nachzählen), im Erntejournal, im Chargenregister, bei der Firma — oder nirgends, weil die App es beim nächsten Rechnen selbst
-          nachholt. Offen ist ein Fall, solange niemand „erledigt" oder „kein Fehler" vermerkt hat; was nur Auskunft ist (die App hat
-          umgebucht, eine Nummer kommt von selbst), zählt nicht. Ein Klick auf einen Fall zeigt die Perigon-Zeile, eine Sache je Charge die Sorte.</p>
-        </Erklaerung>
-      </Karte>
-
-      <Karte titel="Die Lage in Zahlen" id="perigon-lage">
-        <div className="spalten">
-          <Kennzahl titel="Herein · Erntejournal" wert={tonnen(lage.hereinKg)} unter={`${zahl(lage.chargenMitEingang)} Chargen · ${zahl(lage.hereinPaletten)} Paletten und Paloxe`} />
-          <Kennzahl titel="Hinaus · Perigon" wert={tonnen(lage.hinausKg)} unter={`${zahl(lage.lieferscheine)} Lieferscheine auf ${zahl(lage.chargenMitLieferschein)} Chargen`} />
-          <Kennzahl titel="Hinaus ohne Charge" wert={tonnen(lage.ohneChargeKg ?? 0)} unter="auf die Chargen der Sorte verteilt" />
-          <Kennzahl titel="Laut App noch im Lager" wert={lage.nochPaletten == null ? '—' : `≈ ${zahl(lage.nochPaletten)} Paletten`} unter="gerechnet, nicht gezählt" />
+      <div className="perigon-filter" id="perigon-filter">
+        <Segmente<StandFilter> wahl={filter.stand} setzen={v => setze('stand', v === 'offen' ? '' : v)} id="perigon-stand"
+                               teile={[['offen', 'offen', 'filter-offen'], ['abklaerung', 'in Abklärung', 'filter-abklaerung'], ['erledigt', 'erledigt', 'filter-erledigt'], ['alle', 'alle', 'filter-alle']]} />
+        <input type="search" aria-label="Suchen" placeholder="Suchen: Charge, Kunde, Artikel, Position …" value={filter.suche} onChange={e => setze('suche', e.target.value)} />
+        {chips.map(([k, text]) => <button key={k} type="button" className="klein filter-chip" onClick={() => setze(k, '')} aria-label={`${text} — Filter weg`}>{text} ✕</button>)}
+      </div>
+      {tun.length > 0 && (
+        <div className="perigon-wo" role="group" aria-label="Wo es behoben wird" id="perigon-wo">
+          <span className="leise">Wo zu tun:</span>
+          {WO_FOLGE.filter(w => tun.some(t => t.wo === w)).map(w => {
+            const t = tun.find(x => x.wo === w)!
+            const an = filter.wo === w
+            return (
+              <button key={w} type="button" className={`wo-knopf${an ? ' an' : ''}`} aria-pressed={an} id={`wo-${w}`}
+                      onClick={() => setze('wo', an ? '' : w)} title={WO_NAME[w].lang}>
+                {WO_NAME[w].kurz} <span className="wo-zahl">{t.eintraege.length}</span>
+              </button>
+            )
+          })}
         </div>
-      </Karte>
-
-      <Karte titel="Was in Perigon selbst schiefläuft — je Art" id="perigon-arten">
-        {arten.length === 0 ? <p className="leise">In den eingelesenen Perigon-Zeilen fällt nichts auf.</p> : (
-          <div className="rollbar">
-            <table className="dicht perigon-arten-tabelle">
-              <thead><tr><th>Art</th><th className="zahl">offen</th><th className="zahl">Fälle</th><th className="zahl">Masse in der Datei</th><th>behebt</th></tr></thead>
-              <tbody>{arten.map(g => (
-                <tr key={g.art} className="klickbar" onClick={() => gehe('zeilen', `art=${g.art}&stand=alle`)} title="die Fälle dieser Art zeigen">
-                  <td><Punkt s={g.schwere} />{g.info.name}<span className="zelle-unter leise">{g.info.heisst}</span></td>
-                  <td className="zahl">{zahl(g.offen)}</td><td className="zahl">{zahl(g.faelle.length)}</td>
-                  <td className="zahl">{g.kg == null ? 'unbekannt' : kg(g.kg, 0)}</td>
-                  <td><span className="wo-marke">{WO_NAME[g.info.wo].kurz}</span></td>
-                </tr>
-              ))}</tbody>
-            </table>
-          </div>
-        )}
-      </Karte>
-
-      <Karte titel="Wo Perigon und Lager nicht zusammenpassen — je Charge" id="perigon-je-charge">
-        <p className="leise oben-0">Die Kilo der Lieferscheine und des Journals sind gemessen; was bei „mehr verkauft als möglich" fehlt, ist mit dem
-          gerechneten Verlust der Charge bestimmt.</p>
-        {jeCharge.length === 0 ? <p className="leise">Jede Charge geht auf: was hinausging, passt zu dem, was hereinkam.</p> : (
-          <div className="rollbar">
-            <table className="dicht">
-              <thead><tr><th>Art</th><th className="zahl">Stellen</th><th className="zahl">betrifft</th><th>Chargen</th><th>behebt</th></tr></thead>
-              <tbody>{jeCharge.map(([art, liste]) => (
-                <tr key={art} className="klickbar" onClick={() => gehe('sorten')} title="Fall für Fall je Sorte zeigen">
-                  <td><Punkt s={schwerste(liste)} />{ART_NAME[art] ?? art}</td>
-                  <td className="zahl">{zahl(liste.length)}</td>
-                  <td className="zahl">{liste.some(u => u.kg != null) ? kg(summeKg(liste), 0) : '—'}</td>
-                  <td>{[...new Set(liste.map(u => u.charge_nr ?? u.sorte).filter(Boolean))].slice(0, 8).join(', ')}</td>
-                  <td><span className="wo-marke">{WO_NAME[sacheWo(liste[0])].kurz}</span></td>
-                </tr>
-              ))}</tbody>
-            </table>
-          </div>
-        )}
-      </Karte>
-
-      <DateienKarte stand={stand} />
+      )}
+      {alleGruppen === 0 && (
+        <Karte><p className="leise">Keine Fälle{filter.stand === 'offen' ? ' offen' : ''} mit dieser Wahl.{filter.stand === 'offen' ? ' „alle" zeigt auch, was erledigt ist.' : ''}</p></Karte>
+      )}
+      {zeilen.length > 0 && (
+        <section className="perigon-abschnitt" id="perigon-zeilen">
+          <h2>In einer Perigon-Zeile <span className="leise">— je Lieferschein-Position</span></h2>
+          {zeilen.map(g => {
+            const id = `art-${g.art}`
+            return (
+              <Gruppe key={id} id={id} schwere={g.schwere} name={g.info.name} heisst={g.info.heisst} n={g.faelle.length} kgSumme={g.kg}
+                      wo={g.info.wo} auf={offenGruppe(id)} umschalten={() => umschalten(id)}>
+                <p className="perigon-art-tun"><strong>Was tun:</strong> {g.info.tun}</p>
+                <FallTabelle faelle={g.faelle} verlauf={verlauf} stand={stand} oeffnen={oeffnen} />
+              </Gruppe>
+            )
+          })}
+        </section>
+      )}
+      {proCharge.length > 0 && (
+        <section className="perigon-abschnitt" id="perigon-je-charge">
+          <h2>Zwischen Perigon und Lager <span className="leise">— je Charge</span></h2>
+          {proCharge.map(g => {
+            const id = `charge-art-${g.art}`
+            return (
+              <Gruppe key={id} id={id} schwere={g.schwere} name={ART_NAME[g.art] ?? g.art} heisst={SACHE_HEISST[g.art] ?? null} n={g.faelle.length}
+                      kgSumme={g.kg} wo={g.wo} auf={offenGruppe(id)} umschalten={() => umschalten(id)}>
+                <p className="perigon-art-tun"><strong>Was tun:</strong> {WO_NAME[g.wo].lang} — je Fall steht im Fenster, was genau.</p>
+                <SachTabelle sachen={g.faelle} verlauf={verlauf} sacheOeffnen={sacheOeffnen} />
+              </Gruppe>
+            )
+          })}
+        </section>
+      )}
     </>
   )
 }
 
-const schwerste = (l: { schwere: Schwere }[]): Schwere => (l.some(x => x.schwere === 'rot') ? 'rot' : l.some(x => x.schwere === 'gelb') ? 'gelb' : 'info')
-const summeKg = (l: { kg: number | null }[]) => l.reduce((a, x) => a + Math.abs(x.kg ?? 0), 0)
+/* ---------- Je Sorte: Fall für Fall ------------------------------------- */
 
-function AufgabeBlock({ a, oeffnen, mehr }: { a: Aufgabe; oeffnen: (e: Eintrag) => void; mehr: () => void }) {
-  const ZEIGEN = 6
+const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-')
+
+function JeSorte({ sorten, daten, sachen, verlauf, oeffnen, sacheOeffnen }: {
+  sorten: SorteFall[]; daten: Auswertung; sachen: Ungereimtheit[]; verlauf: Map<string, PerigonVerlauf>
+} & Oeffner) {
+  const [such] = useSearchParams()
+  const ziel = such.get('sorte')
+  const lage = useMemo(() => lageInZahlen(daten.spur, sachen), [daten.spur, sachen])
+  const [auf, setAuf] = useState<Set<string>>(() => new Set(ziel ? [ziel] : []))
+  useEffect(() => {
+    if (!ziel) return
+    const t = window.setTimeout(() => document.getElementById(`sorte-${slug(ziel)}`)?.scrollIntoView({ block: 'start', behavior: 'smooth' }), 80)
+    return () => window.clearTimeout(t)
+  }, [ziel])
+  if (sorten.length === 0) return <Karte><p className="leise">In keiner Sorte passt etwas nicht — Perigon und Lager gehen auf.</p></Karte>
   return (
-    <section className="perigon-aufgabe" id={`tun-${a.wo}`}>
-      <h3>{WO_NAME[a.wo].lang} <span className="leise">· {a.eintraege.length} {a.eintraege.length === 1 ? 'Fall' : 'Fälle'}{a.kg ? ` · ${tonnen(a.kg)}` : ''}</span></h3>
-      <ol>
-        {a.eintraege.slice(0, ZEIGEN).map(e => (
-          <li key={e.schluessel}>
-            <button type="button" className="link" onClick={() => oeffnen(e)}><Punkt s={e.schwere} />{e.titel}</button>
-            {e.kg != null && <span className="leise"> · {kg(e.kg, 0)}</span>}
-          </li>
-        ))}
-      </ol>
-      {a.eintraege.length > ZEIGEN && <button type="button" className="link" onClick={mehr}>… und {a.eintraege.length - ZEIGEN} weitere</button>}
+    <>
+      <p className="perigon-einleitung" id="perigon-lage">
+        Über alle Chargen: <strong>{tonnen(lage.hereinKg)}</strong> herein laut Erntejournal<Herkunft art="gemessen" />,{' '}
+        <strong>{tonnen(lage.hinausKg)}</strong> hinaus laut Perigon<Herkunft art="gemessen" />, davon {tonnen(lage.ohneChargeKg ?? 0)} ohne Charge;
+        laut App noch {lage.nochPaletten == null ? 'unbekannt' : `≈ ${zahl(lage.nochPaletten)} Paletten`}<Herkunft art="gerechnet" />.
+        <span className="leise"> Je Sorte, in der etwas nicht passt: erst das Bild über alle ihre Chargen, dann die Fälle.</span>
+      </p>
+      {sorten.map(s => (
+        <SorteZeile key={s.sorte} s={s} verlauf={verlauf} auf={auf.has(s.sorte)} oeffnen={oeffnen} sacheOeffnen={sacheOeffnen}
+                    umschalten={() => setAuf(a => { const n = new Set(a); if (n.has(s.sorte)) n.delete(s.sorte); else n.add(s.sorte); return n })} />
+      ))}
+    </>
+  )
+}
+
+function SorteZeile({ s, verlauf, auf, umschalten, oeffnen, sacheOeffnen }: {
+  s: SorteFall; verlauf: Map<string, PerigonVerlauf>; auf: boolean; umschalten: () => void
+} & Oeffner) {
+  const [ohneAuf, setOhneAuf] = useState(false)
+  const marken = (nr: number) => {
+    const m: { text: string; s: Schwere }[] = []
+    for (const u of s.sachen) {
+      if (u.charge_nr !== nr && u.von_charge_nr !== nr) continue
+      const name = u.art === 'ueberzaehlung' ? `${tonnen(u.kg)} zu viel` : u.art === 'vor_eingang' ? `vor dem Eingang ${tonnen(u.kg)}`
+        : u.art === 'umgebucht' ? (u.charge_nr === nr ? 'Paletten hierher umgebucht' : 'Paletten weg umgebucht')
+        : u.art === 'vorschlag' ? (u.charge_nr === nr ? 'Paletten wohl hierher' : 'Paletten wohl anderswo') : ART_NAME[u.art] ?? u.art
+      m.push({ text: name, s: u.schwere })
+    }
+    if (s.nieGeliefert.includes(nr)) m.push({ text: 'nie ein Lieferschein', s: 'gelb' })
+    const z = s.zeilen.filter(f => f.charge_nr === nr && f.schwere !== 'info')
+    if (z.length) m.push({ text: `${z.length} Perigon-${z.length === 1 ? 'Zeile' : 'Zeilen'}`, s: schwerste(z) })
+    return m
+  }
+  const ohne = s.sachen.find(u => u.art === 'ohne_charge')
+  const ernst = [...s.sachen, ...s.zeilen].filter(x => x.schwere !== 'info')
+  const offen = ernst.filter(x => istOffen(x.schwere, standVon(verlauf, x.schluessel))).length
+  const sachen = [...s.sachen].sort((a, b) => RANG[a.schwere] - RANG[b.schwere] || (b.kg ?? 0) - (a.kg ?? 0))
+  return (
+    <section id={`sorte-${slug(s.sorte)}`} className={`perigon-art sorte-fall s-${s.schwere}${auf ? ' auf' : ''}`}>
+      <button type="button" className="perigon-art-kopf" aria-expanded={auf} onClick={umschalten}>
+        <span className="chevron" aria-hidden="true"><ZChevron size={16} /></span>
+        <span className="perigon-art-name">
+          <span><Punkt s={s.schwere} /><strong>{s.sorte}</strong></span>
+          <span className="perigon-art-heisst immer">{s.chargen.length} {s.chargen.length === 1 ? 'Charge' : 'Chargen'} · {faelleWort(ernst.length)}{offen < ernst.length ? `, ${zahl(offen)} offen` : ''}</span>
+        </span>
+        <span className="perigon-art-zahlen">{s.kg > 0 && <span className="leise">betrifft {tonnen(s.kg)}</span>}</span>
+      </button>
+      {auf && (
+        <div className="perigon-art-inhalt">
+          {s.bild.length > 0 && <ul className="sorte-bild">{s.bild.map((b, i) => <li key={i}>{b}</li>)}</ul>}
+          {s.aehnlich.map((h, i) => <p key={i} className="hinweis-zeile"><ZWarnung size={14} /> {h}</p>)}
+          <div className="rollbar">
+            <table className="spur-tabelle sorte-tabelle ohne-haftkopf">
+              <caption>Der Weg der Ware, alle Chargen {s.sorte} — herein und hinaus gemessen, „noch da" gerechnet</caption>
+              <thead><tr><th scope="col">Charge</th><th scope="col">Herein · Erntejournal</th>
+                <th scope="col">Hinaus · Perigon</th><th scope="col">Laut App noch da</th><th scope="col">Was nicht passt</th></tr></thead>
+              <tbody>{s.chargen.map(c => {
+                const t = spurText(c)
+                const m = marken(c.charge_nr)
+                const zelle = (titel: string, x: string[], leer = false) => (
+                  <td className={leer ? 'spur-leer' : undefined} data-titel={titel}><div>{x.map((y, i) => <div key={i} className={i === 0 ? undefined : 'leise'}>{y}</div>)}</div></td>)
+                return (
+                  <tr key={c.charge_nr} className={m.length ? `mit-befund s-${schwerste(m.map(x => ({ schwere: x.s })))}` : undefined}>
+                    <th scope="row"><Link to={`/chargen?charge=${c.charge_nr}`} title="die Charge unter Chargen öffnen">{c.charge_nr}</Link>
+                      <span className="zelle-unter leise">{c.schlag}</span></th>
+                    {zelle('Herein', t.herein, t.ohneEingang)}{zelle('Hinaus', t.hinaus)}{zelle('Noch da', [t.noch])}
+                    <td data-titel="Was nicht passt">{m.length ? m.map((x, i) => <span key={i} className={`sorte-marke s-${x.s}`}>{x.text}</span>) : <span className="leise">—</span>}</td>
+                  </tr>
+                )
+              })}</tbody>
+            </table>
+          </div>
+          {(sachen.length > 0 || s.zeilen.length > 0) && <h3 className="sorte-faelle-titel">Die Fälle {s.sorte} <span className="leise">— ein Klick zeigt, was zu tun ist</span></h3>}
+          {sachen.length > 0 && <SachTabelle sachen={sachen} verlauf={verlauf} sacheOeffnen={sacheOeffnen} mitArt />}
+          {s.zeilen.length > 0 && <FallTabelle faelle={[...s.zeilen].sort((a, b) => RANG[a.schwere] - RANG[b.schwere] || (betroffen(b) ?? 0) - (betroffen(a) ?? 0))}
+                                               verlauf={verlauf} stand={null} oeffnen={oeffnen} mitArt />}
+          {ohne && (
+            <div className="ungereimt-aktion">
+              <button type="button" className="klein" aria-expanded={ohneAuf} onClick={() => setOhneAuf(x => !x)}>
+                {ohneAuf ? 'Lieferscheine ohne Charge zu' : `${ohne.zeilen.length || ''} Lieferscheine ohne Charge zeigen`.replace(/^ /, '')}</button>
+            </div>
+          )}
+          {ohneAuf && <OhneChargeListe sorte={s.sorte} />}
+        </div>
+      )}
     </section>
   )
 }
+
+const schwerste = (l: { schwere: Schwere }[]): Schwere => (l.some(x => x.schwere === 'rot') ? 'rot' : l.some(x => x.schwere === 'gelb') ? 'gelb' : 'info')
+
+/* ---------- Die Dateien -------------------------------------------------- */
 
 function DateienKarte({ stand }: { stand: PerigonStand[] | null }) {
   if (stand === null) return null
@@ -298,211 +502,13 @@ function DateienKarte({ stand }: { stand: PerigonStand[] | null }) {
   )
 }
 
-/* ---------- Je Sorte: Fall für Fall -------------------------------------- */
-
-function JeSorte({ sorten, spur, verlauf, gehe, oeffnen }: {
-  sorten: SorteFall[]; spur: Map<number, ChargeSpur>; verlauf: Map<string, PerigonVerlauf>
-  gehe: (t: Teil, q?: string) => void; oeffnen: (f: PerigonBefund) => void
-}) {
-  const [such] = useSearchParams()
-  const { hash } = useLocation()
-  const ziel = such.get('sorte')
-  // Aus der Übersicht oder dem Verlauf: zur Sorte, oder gleich zur Sache darin
-  useEffect(() => {
-    const anker = hash.slice(1) || (ziel ? `sorte-${slug(ziel)}` : '')
-    if (!anker) return
-    const t = window.setTimeout(() => document.getElementById(anker)?.scrollIntoView({ block: 'start', behavior: 'smooth' }), 80)
-    return () => window.clearTimeout(t)
-  }, [ziel, hash])
-  if (sorten.length === 0) return <Karte><p className="leise">In keiner Sorte passt etwas nicht — Perigon und Lager gehen auf.</p></Karte>
-  return (
-    <>
-      <p className="leise perigon-einleitung">Je Sorte, in der etwas nicht passt, alle ihre Chargen: was laut Erntejournal hereinkam, was in der Halle
-        geschah, was laut Perigon hinausging und was laut App noch da ist. Erst das Bild über die ganze Sorte zeigt, wo zu viel unter einer
-        Nummer hinausgeht und wo nie etwas hinausging. Darunter jede Sache mit Stand, Vorschlag und was zu tun ist. Das Schwerste zuerst.</p>
-      {sorten.map(s => <SorteKarte key={s.sorte} s={s} spur={spur} verlauf={verlauf} hervor={ziel === s.sorte} gehe={gehe} oeffnen={oeffnen} />)}
-    </>
-  )
-}
-
-const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-')
-
-function SorteKarte({ s, spur, verlauf, hervor, gehe, oeffnen }: {
-  s: SorteFall; spur: Map<number, ChargeSpur>; verlauf: Map<string, PerigonVerlauf>; hervor: boolean
-  gehe: (t: Teil, q?: string) => void; oeffnen: (f: PerigonBefund) => void
-}) {
-  const [ohneAuf, setOhneAuf] = useState(false)
-  const marken = (nr: number) => {
-    const m: { text: string; s: Schwere }[] = []
-    for (const u of s.sachen) {
-      if (u.charge_nr !== nr && u.von_charge_nr !== nr) continue
-      const name = u.art === 'ueberzaehlung' ? `${tonnen(u.kg)} zu viel` : u.art === 'vor_eingang' ? `vor dem Eingang ${tonnen(u.kg)}`
-        : u.art === 'umgebucht' ? (u.charge_nr === nr ? 'Paletten hierher umgebucht' : 'Paletten weg umgebucht')
-        : u.art === 'vorschlag' ? (u.charge_nr === nr ? 'Paletten wohl hierher' : 'Paletten wohl anderswo') : ART_NAME[u.art] ?? u.art
-      m.push({ text: name, s: u.schwere })
-    }
-    if (s.nieGeliefert.includes(nr)) m.push({ text: 'nie ein Lieferschein', s: 'gelb' })
-    const z = s.zeilen.filter(f => f.charge_nr === nr && f.schwere !== 'info')
-    if (z.length) m.push({ text: `${z.length} Perigon-${z.length === 1 ? 'Zeile' : 'Zeilen'}`, s: schwerste(z) })
-    return m
-  }
-  const ohne = s.sachen.find(u => u.art === 'ohne_charge')
-  const offenZeilen = s.zeilen.filter(f => istOffen(f.schwere, standVon(verlauf, f.schluessel)))
-  return (
-    <Karte id={`sorte-${slug(s.sorte)}`} className={`sorte-fall s-${s.schwere}${hervor ? ' hervor' : ''}`}
-           titel={<><Punkt s={s.schwere} />{s.sorte}{s.kg > 0 && <span className="leise"> · betrifft {tonnen(s.kg)}</span>}</>}>
-      <p className="leise oben-0 sorte-herkunft">Herein und hinaus sind gemessen (Erntejournal, Lieferscheine); „zu viel" und „noch da" sind gerechnet — mit dem Verlust, den die App für die Charge annimmt.</p>
-      {s.bild.length > 0 && <ul className="sorte-bild">{s.bild.map((b, i) => <li key={i}>{b}</li>)}</ul>}
-      {s.aehnlich.map((h, i) => <p key={i} className="hinweis-zeile"><ZWarnung size={14} /> {h}</p>)}
-      <div className="rollbar">
-        <table className="spur-tabelle sorte-tabelle ohne-haftkopf">
-          <caption>Der Weg der Ware, alle Chargen {s.sorte}</caption>
-          <thead><tr><th scope="col">Charge</th><th scope="col">Herein · Erntejournal</th><th scope="col">In der Halle</th>
-            <th scope="col">Hinaus · Perigon</th><th scope="col">Laut App noch da</th><th scope="col">Was nicht passt</th></tr></thead>
-          <tbody>{s.chargen.map(c => {
-            const t = spurText(c)
-            const m = marken(c.charge_nr)
-            const zelle = (titel: string, x: string[], leer = false) => (
-              <td className={leer ? 'spur-leer' : undefined} data-titel={titel}><div>{x.map((y, i) => <div key={i} className={i === 0 ? undefined : 'leise'}>{y}</div>)}</div></td>)
-            return (
-              <tr key={c.charge_nr} className={m.length ? `mit-befund s-${schwerste(m.map(x => ({ schwere: x.s })))}` : undefined}>
-                <th scope="row"><Link to={`/chargen?charge=${c.charge_nr}`} title="die Charge unter Chargen öffnen">{c.charge_nr}</Link>
-                  <span className="zelle-unter leise">{c.schlag}</span></th>
-                {zelle('Herein', t.herein, t.ohneEingang)}{zelle('In der Halle', t.bearbeitet)}{zelle('Hinaus', t.hinaus)}{zelle('Noch da', [t.noch])}
-                <td data-titel="Was nicht passt">{m.length ? m.map((x, i) => <span key={i} className={`sorte-marke s-${x.s}`}>{x.text}</span>) : <span className="leise">—</span>}</td>
-              </tr>
-            )
-          })}</tbody>
-        </table>
-      </div>
-      {s.sachen.length > 0 && (
-        <div className="sorte-sachen">
-          <h3>Was es heisst und was zu tun ist</h3>
-          {[...s.sachen].sort((a, b) => RANG[a.schwere] - RANG[b.schwere] || (b.kg ?? 0) - (a.kg ?? 0))
-            .map(u => <Sache key={u.schluessel} u={u} spur={spur} verfolgen ohneWeg />)}
-        </div>
-      )}
-      <div className="ungereimt-aktion">
-        {s.zeilen.length > 0 && <button type="button" className="klein" onClick={() => gehe('zeilen', `sorte=${encodeURIComponent(s.sorte)}&stand=alle`)}>
-          {s.zeilen.length} Perigon-{s.zeilen.length === 1 ? 'Zeile' : 'Zeilen'} {s.sorte} zeigen{offenZeilen.length ? ` (${offenZeilen.length} offen)` : ''}</button>}
-        {ohne && <button type="button" className="klein" aria-expanded={ohneAuf} onClick={() => setOhneAuf(x => !x)}>
-          {ohneAuf ? 'Lieferscheine ohne Charge zu' : `${ohne.zeilen.length || ''} Lieferscheine ohne Charge zeigen`.replace(/^ /, '')}</button>}
-        {s.zeilen.length === 0 && s.sachen.length === 0 && <span className="leise">—</span>}
-      </div>
-      {ohneAuf && <OhneChargeListe sorte={s.sorte} />}
-      {s.zeilen.filter(f => f.schwere === 'rot').slice(0, 3).map(f => (
-        <p key={f.schluessel} className="leise unten-0"><button type="button" className="link" onClick={() => oeffnen(f)}>{fallTitel(f)}</button></p>
-      ))}
-    </Karte>
-  )
-}
-
-/* ---------- Perigon-Zeilen ----------------------------------------------- */
-
-function Zeilen({ faelle, stand, verlauf, oeffnen }: {
-  faelle: PerigonBefund[]; stand: PerigonStand[] | null; verlauf: Map<string, PerigonVerlauf>; oeffnen: (f: PerigonBefund) => void
-}) {
-  const [such, setSuch] = useSearchParams()
-  const filter: Filter = {
-    ...FILTER_LEER,
-    art: such.get('art') ?? '', quelle: such.get('quelle') ?? '', sorte: such.get('sorte') ?? '', suche: such.get('suche') ?? '',
-    stand: (['offen', 'abklaerung', 'erledigt', 'alle'].includes(such.get('stand') ?? '') ? such.get('stand') : 'offen') as StandFilter,
-    charge: such.get('charge') ? Number(such.get('charge')) : null,
-  }
-  const setze = (k: string, v: string) => {
-    const neu = new URLSearchParams(such)
-    if (v) neu.set(k, v); else neu.delete(k)
-    setSuch(neu, { replace: true })
-  }
-  const liste = useMemo(() => filtern(faelle, verlauf, filter),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [faelle, verlauf, filter.art, filter.quelle, filter.sorte, filter.suche, filter.stand, filter.charge])
-  const gruppen = useMemo(() => nachArt(liste, verlauf), [liste, verlauf])
-  const [zu, setZu] = useState<Set<string>>(new Set())
-  const quellen = stand ?? []
-  const sortenListe = [...new Set(faelle.map(f => f.sorte).filter((x): x is string => !!x))].sort((a, b) => a.localeCompare(b, 'de'))
-  const zahlJeArt = (art: string) => faelle.filter(f => f.art === art).length
-  return (
-    <>
-      <div className="perigon-filter" id="perigon-filter">
-        <Segmente<StandFilter> wahl={filter.stand} setzen={v => setze('stand', v === 'offen' ? '' : v)} id="perigon-stand"
-                               teile={[['offen', 'offen', 'filter-offen'], ['abklaerung', 'in Abklärung', 'filter-abklaerung'], ['erledigt', 'erledigt', 'filter-erledigt'], ['alle', 'alle', 'filter-alle']]} />
-        <select aria-label="Art" value={filter.art} onChange={e => setze('art', e.target.value)}>
-          <option value="">alle Arten</option>
-          {ART_FOLGE.filter(a => zahlJeArt(a) > 0).map(a => <option key={a} value={a}>{PERIGON_ART[a].name} ({zahlJeArt(a)})</option>)}
-        </select>
-        {quellen.length > 1 && (
-          <select aria-label="Firma" value={filter.quelle} onChange={e => setze('quelle', e.target.value)}>
-            <option value="">alle Firmen</option>
-            {quellen.map(q => <option key={q.quelle} value={q.quelle}>{q.name}</option>)}
-          </select>
-        )}
-        <select aria-label="Sorte" value={filter.sorte} onChange={e => setze('sorte', e.target.value)}>
-          <option value="">alle Sorten</option>
-          {sortenListe.map(s => <option key={s} value={s}>{s}</option>)}
-        </select>
-        <input type="search" aria-label="Suchen" placeholder="Charge, Kunde, Artikel, Position …" value={filter.suche} onChange={e => setze('suche', e.target.value)} />
-        {filter.charge != null && <button type="button" className="klein" onClick={() => setze('charge', '')}>Charge {filter.charge} ✕</button>}
-      </div>
-      {gruppen.length === 0 && <Karte><p className="leise">Keine Fälle{filter.stand === 'offen' ? ' offen' : ''} mit dieser Wahl.{filter.stand === 'offen' ? ' „alle" zeigt auch, was erledigt ist.' : ''}</p></Karte>}
-      {gruppen.map(g => {
-        const auf = !zu.has(g.art)
-        return (
-          <section key={g.art} className={`perigon-art s-${g.schwere}`} id={`art-${g.art}`}>
-            <button type="button" className="perigon-art-kopf" aria-expanded={auf}
-                    onClick={() => setZu(z => { const n = new Set(z); if (n.has(g.art)) n.delete(g.art); else n.add(g.art); return n })}>
-              <span className="chevron" aria-hidden="true" style={{ transform: auf ? 'rotate(90deg)' : undefined }}><ZChevron size={16} /></span>
-              <Punkt s={g.schwere} />
-              <strong>{g.info.name}</strong>
-              <span className="leise"> · {g.faelle.length} {g.faelle.length === 1 ? 'Fall' : 'Fälle'}{g.kg != null ? ` · ${kg(g.kg, 0)}` : ''}</span>
-              <span className="wo-marke">{WO_NAME[g.info.wo].kurz}</span>
-            </button>
-            {auf && (
-              <div className="perigon-art-inhalt">
-                <dl className="perigon-art-erklaerung">
-                  <dt>Was das heisst</dt><dd>{g.info.heisst}</dd>
-                  <dt>In der Datei</dt><dd>{g.info.datei}</dd>
-                  <dt>Was die App daraus macht</dt><dd>{g.info.app}</dd>
-                  <dt>Was tun</dt><dd>{g.info.tun}</dd>
-                </dl>
-                <div className="rollbar">
-                  <table className="dicht umbruch perigon-zeilen-tabelle ohne-haftkopf">
-                    <thead><tr><th>Geliefert</th><th>Position</th><th>Kunde</th><th>Artikel</th><th>Charge</th><th className="zahl">Masse in der Datei</th><th>Was nicht stimmt</th><th>Stand</th></tr></thead>
-                    <tbody>{g.faelle.map(f => {
-                      const v = verlauf.get(f.schluessel)
-                      return (
-                        <tr key={f.schluessel} className="klickbar" tabIndex={0} onClick={() => oeffnen(f)}
-                            onKeyDown={e => { if (e.key === 'Enter') oeffnen(f) }} title="die Zeile der Perigon-Datei, die Rechnung und den Verlauf zeigen">
-                          <td className="nowrap" data-titel="Geliefert">{datum(f.datum)}</td>
-                          <td className="nowrap" data-titel="Position">{f.pos_id}<span className="zelle-unter leise">{quellen.find(q => q.quelle === f.quelle)?.name ?? f.quelle}</span></td>
-                          <td data-titel="Kunde">{f.kunde ?? <span className="leise">—</span>}</td>
-                          <td data-titel="Artikel">{f.artikel}{f.sorte && <span className="zelle-unter leise">{f.sorte}</span>}</td>
-                          <td data-titel="Charge">{f.nummer ?? f.nummern ?? <span className="leise">keine</span>}{f.charge_nr != null && String(f.charge_nr) !== (f.nummer ?? f.nummern) && <span className="zelle-unter leise">→ {f.charge_nr}</span>}</td>
-                          <td className="zahl" data-titel="Masse in der Datei">{f.kg == null ? 'unbekannt' : kg(betroffen(f), 0)}{f.kg_position != null && f.art !== 'menge_null' && f.art !== 'keine_nummer' && <span className="zelle-unter leise">von {kg(f.kg_position, 0)}</span>}</td>
-                          <td className="perigon-satz" data-titel="Was nicht stimmt">{f.satz}</td>
-                          <td data-titel="Stand"><StandMarke stand={v?.stand ?? 'offen'} />{v?.n_vermerke ? <span className="zelle-unter leise">{v.n_vermerke} {v.n_vermerke === 1 ? 'Vermerk' : 'Vermerke'}</span> : null}</td>
-                        </tr>
-                      )
-                    })}</tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-          </section>
-        )
-      })}
-    </>
-  )
-}
-
 /* ---------- Verlauf ------------------------------------------------------ */
 
 interface VermerkZeile { id: number; schluessel: string; stand: VermerkStand; notiz: string | null; ts: string; schnappschuss: Record<string, unknown> | null; profil?: { name: string } | null }
 
-function Verlauf({ faelle, sachen, verlauf, gehe, oeffnen }: {
+function Verlauf({ faelle, sachen, verlauf, oeffnen, sacheOeffnen }: {
   faelle: PerigonBefund[]; sachen: Ungereimtheit[]; verlauf: Map<string, PerigonVerlauf>
-  gehe: (t: Teil, q?: string) => void; oeffnen: (f: PerigonBefund) => void
-}) {
+} & Oeffner) {
   const [vermerke, setVermerke] = useState<VermerkZeile[] | null>(null)
   useEffect(() => {
     let lebt = true
@@ -519,7 +525,7 @@ function Verlauf({ faelle, sachen, verlauf, gehe, oeffnen }: {
     const f = fallVon.get(schluessel)
     if (f) return <button type="button" className="link" onClick={() => oeffnen(f)}>{fallTitel(f)}</button>
     const u = sacheVon.get(schluessel)
-    if (u) return <button type="button" className="link" onClick={() => gehe('sorten', `#${sacheAnker(u.schluessel)}`)}>{u.titel}</button>
+    if (u) return <button type="button" className="link" onClick={() => sacheOeffnen(u)}>{u.titel}</button>
     return <span>{schnappschussText(s ?? verlauf.get(schluessel)?.schnappschuss)} <span className="leise">(nicht mehr in den Daten)</span></span>
   }
   const weg = [...verlauf.values()].filter(v => v.weg_seit != null).sort((a, b) => (b.weg_seit ?? '').localeCompare(a.weg_seit ?? ''))
@@ -602,9 +608,10 @@ const SACHEN_ERKLAERT: [string, string][] = [
   ['stammdaten', 'Was im Chargenregister selbst nicht stimmt: eine Perigon-Nummer an zwei Chargen, eine Charge ohne Perigon-Nummer, ein Schlag unter zwei Namen.'],
 ]
 
-function SoPrueft() {
+function SoPrueft({ stand }: { stand: PerigonStand[] | null }) {
   return (
     <>
+      <DateienKarte stand={stand} />
       <Karte titel="Woher die Zahlen kommen" id="perigon-woher">
         <div className="weg-der-ware-schema">
           <div><strong>Herein · Erntejournal</strong><span>jede Palette mit Datum, Brutto, Kisten, Gebinde und Chargennummer</span></div>

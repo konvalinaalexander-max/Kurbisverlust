@@ -1,8 +1,8 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  PERIGON_ART, ART_FOLGE, aehnlicheNummer, aufgaben, filtern, FILTER_LEER, istOffen, jeSorte, lageInZahlen, nachArt,
-  schnappschussText, spaltenZeichen, standVon,
+  PERIGON_ART, ART_FOLGE, aehnlicheNummer, aufgaben, fallKurz, filtern, FILTER_LEER, gegenueber, istOffen, jeSorte, lageInZahlen, labelDerGruppe,
+  labelImNamen, MENGEN_ARTEN, nachArt, nachrechnen, sachenFiltern, sachenNachArt, schnappschussText, spaltenZeichen, standVon,
 } from '../src/auswertung/perigon.ts'
 import { ART_NAME, ausZeile, ungereimtheiten, vonCharge, FALSCHE_SPALTEN } from '../src/auswertung/ungereimt.ts'
 import type { ChargeSpur, PerigonBefund, PerigonVerlauf, UngereimtZeile } from '../src/auswertung/daten.ts'
@@ -183,4 +183,93 @@ test('0126: die Sachen je Charge kennen die neuen Arten — Rest wie „Teil ohn
   assert.equal(liste.find(u => u.art === 'nachholen')!.schwere, 'info')
   assert.deepEqual(vonCharge(liste, 1624).map(u => u.art), ['mix'])
   assert.equal(ausZeile(zeile('vor_eingang', { charge_nr: 1626, mehr: { erster_eingang: '2026-09-23' } }), [fall('vor_eingang', { charge_nr: 1626 })]).zeilen.length, 1)
+})
+
+// Runde BD — der Betrieb zum Reiter: „er überfordert gerade noch", und zu einem
+// Fall: „das versteh ich nicht — wie kommst du auf 768?" Die Liste sagt je Fall
+// nur noch das Eine, das nicht passt; das Fenster rechnet Zeile für Zeile nach.
+
+test('Runde BD: 768 kg sind drei gleiche Zeilen à 256 kg — das Fenster rechnet es Zeile für Zeile nach', () => {
+  const f = fall('zu_viel', { menge: 256, kg_position: 256, kg_zugeteilt: 768, kg_rechnung: 256, kg: 512, nummern: '1620', charge_nr: 1620, n_zeilen: 3 })
+  const z = { charge_extern: '1620', batch_menge: 256, kg_charge: 256 }
+  const r = nachrechnen(f, [z, z, z])!
+  assert.deepEqual(r.zeilen.map(x => [x.nr, x.charge, x.kg, x.gleichWie]), [[1, '1620', 256, null], [2, '1620', 256, 1], [3, '1620', 256, 1]])
+  assert.equal(r.zugeteiltKg, 768)
+  assert.equal(r.positionKg, 256)
+  assert.deepEqual(r.unterschied, { kg: 512, wort: 'zu viel' })
+  assert.match(r.satz, /3-mal in der Datei, jedes Mal mit Charge 1620 und 256 kg — zusammen 768 kg\. Geliefert wurden aber nur 256 kg/)
+  assert.doesNotMatch(r.satz, /× AE/, 'bei kg-Artikeln ist die Menge das Kilo — kein „S × AE"')
+  // zwei verschiedene Chargen: kein „gleich wie", der Satz zählt die Zeilen
+  const r2 = nachrechnen({ ...f, kg_zugeteilt: 400, kg: 144 }, [{ charge_extern: '1620', batch_menge: 200, kg_charge: 200 }, { charge_extern: '1621', batch_menge: 200, kg_charge: 200 }])!
+  assert.deepEqual(r2.zeilen.map(x => x.gleichWie), [null, null])
+  assert.match(r2.satz, /Die 2 Zeilen der Position teilen den Chargen zusammen 400 kg zu/)
+  // eine einzige Zeile mit S > Q (wie 134056: 965 gegen 918 kg) — kein „Die 1 Zeilen"
+  const r1 = nachrechnen({ ...f, kg_position: 918, kg_zugeteilt: 965, kg: 47, nummern: '1625', charge_nr: 1625, n_zeilen: 1 },
+    [{ charge_extern: '1625', batch_menge: 965, kg_charge: 965 }])!
+  assert.equal(r1.satz, 'Die Zeile teilt der Charge 1625 965 kg zu (Spalte S) — mehr als die Position: geliefert wurden nur 918 kg (Spalte Q).')
+  assert.deepEqual(r1.unterschied, { kg: 47, wort: 'zu viel' })
+})
+
+test('Runde BD: Stück × Gewicht je Artikel; ohne Gewicht bleibt die Masse unbekannt, nie 0', () => {
+  const f = fall('rest', { einheit: 'Stück', menge: 100, gewicht_je_artikel: 1.5, kg_position: 150, kg_zugeteilt: 90, kg: 60 })
+  const r = nachrechnen(f, [{ charge_extern: '1630', batch_menge: 60, kg_charge: null }])!
+  assert.equal(r.zeilen[0].kg, 90, '60 Stück × 1.5 kg')
+  assert.equal(r.satz, 'Die Zeile teilt der Charge 1630 90 kg zu (Spalte S). Geliefert wurden 150 kg (Spalte Q) — der Rest hat keine Charge.')
+  assert.deepEqual(r.unterschied, { kg: 60, wort: 'ohne Charge' })
+  const o = nachrechnen(fall('ohne_gewicht', { einheit: 'Stück', menge: 40, gewicht_je_artikel: null, kg_position: null, kg_zugeteilt: null, kg: null }),
+    [{ charge_extern: '1630', batch_menge: 40, kg_charge: null }])!
+  assert.equal(o.zeilen[0].kg, null, 'Stück ohne Gewicht: unbekannt')
+  assert.equal(o.zugeteiltKg, null)
+  assert.deepEqual(o.unterschied, { kg: null, wort: 'Masse unbekannt' })
+  assert.equal(fallKurz(fall('zu_viel', { kg_zugeteilt: null, kg_position: 256 })), 'unbekannt statt 256 kg', 'leer heisst unbekannt, nicht 0 kg')
+})
+
+test('Runde BD: S = 0 — die Chargen genannt, die Position ohne Charge; ohne Menge zählt sie nirgends', () => {
+  const r = nachrechnen(fall('menge_null', { nummern: '1630, 1635', kg_position: 1722 }),
+    [{ charge_extern: '1630', batch_menge: 0, kg_charge: 0 }, { charge_extern: '1635', batch_menge: 0, kg_charge: 0 }])!
+  assert.match(r.satz, /nennt die Chargen 1630, 1635, aber in Spalte S steht überall 0\. Die 1'722 kg der Position haben darum keine Charge/)
+  assert.deepEqual(r.unterschied, { kg: 1722, wort: 'ohne Charge' })
+  const leer = nachrechnen(fall('menge_null', { menge: 0, kg_position: 0 }), [{ charge_extern: '1630', batch_menge: 0, kg_charge: 0 }])!
+  assert.match(leer.satz, /hat auch keine Menge — sie zählt nirgends/)
+  assert.equal(nachrechnen(fall('mix'), []), null, 'wo nichts zu rechnen ist, kein Rechenblock')
+  assert.equal(nachrechnen(fall('zu_viel', { satz: 'aus der Datenbank' }), []).satz, 'aus der Datenbank', 'ohne Zeilen der Satz der Datenbank')
+  for (const a of MENGEN_ARTEN) assert.ok(nachrechnen(fall(a), [])?.satz, a)
+})
+
+test('Runde BD: wo nichts zu rechnen ist, stehen die Angaben gegeneinander — mit der Spalte der Datei', () => {
+  const l = gegenueber(fall('label_name', { artikel: 'Bio Kürbis Butterkin Dem', preisgruppe: 'K' }))!
+  assert.deepEqual(l.map(a => [a.was, a.spalte, a.wert, a.heisst]), [['Artikel', 'I', 'Bio Kürbis Butterkin Dem', 'im Namen Demeter'], ['Preisgruppe', 'K', 'K', 'Knospe']])
+  const d = gegenueber(fall('demeter_knospe', { preisgruppe: 'D', liefer_label: 'K' }))!
+  assert.deepEqual(d.map(a => a.heisst), ['verkauft als Demeter', 'geliefert als Knospe'])
+  assert.equal(gegenueber(fall('mix', { nummer: '99128', charge_nr: 99128, sorte: 'Fictor' }))![1].heisst, 'Charge 99128 · Fictor')
+  assert.equal(gegenueber(fall('unbekannt', { nummer: '991977' }))![0].wert, '991977')
+  assert.equal(gegenueber(fall('zu_viel')), null)
+  assert.equal(labelImNamen('Bio Kürbis Mix OS'), null)
+  assert.equal(labelDerGruppe('CH-K'), 'Knospe')
+  assert.equal(labelDerGruppe('SG'), null, 'eine andere Preisgruppe sagt nichts')
+})
+
+test('Runde BD: die Liste sagt je Fall das Eine, das nicht passt', () => {
+  assert.equal(fallKurz(fall('zu_viel', { kg_zugeteilt: 768, kg_position: 256 })), '768 kg statt 256 kg')
+  assert.equal(fallKurz(fall('label_name', { artikel: 'Bio Kürbis Kaori Kuri Dem', preisgruppe: 'K' })), 'Name Demeter, Preisgruppe K')
+  assert.equal(fallKurz(fall('vor_eingang', { satz: 'Geliefert am 20.08.2026, aber die Charge 99129 kam laut Erntejournal erst am 28.08.2026 an (8 Tage später) — …' })), '8 Tage vor dem Eingang')
+  assert.equal(fallKurz(fall('vor_eingang', { satz: '…' })), 'vor dem Eingang')
+  for (const a of ART_FOLGE) assert.ok(fallKurz(fall(a)), a)
+})
+
+test('Runde BD: die Sachen je Charge nach Art und Filter — wie die Zeilen; der Ort filtert beide', () => {
+  const sachen = ungereimtheiten([zeile('ueberzaehlung', { charge_nr: 1605, kg: 739 }), zeile('ueberzaehlung', { charge_nr: 1614, kg: 393 }),
+    zeile('ohne_eingang', { charge_nr: 99127, kg: 1416, sorte: 'Fictor' })])
+  const g = sachenNachArt(sachen, new Map())
+  assert.deepEqual(g.map(x => [x.art, x.faelle.length]), [['ohne_eingang', 1], ['ueberzaehlung', 2]].sort((a, b) =>
+    g.findIndex(y => y.art === a[0]) - g.findIndex(y => y.art === b[0])))
+  const ue = g.find(x => x.art === 'ueberzaehlung')!
+  assert.deepEqual(ue.faelle.map(u => u.charge_nr), [1605, 1614], 'die grösste zuerst')
+  assert.equal(ue.wo, 'halle')
+  assert.equal(sachenFiltern(sachen, new Map(), { ...FILTER_LEER, charge: 1614 }).length, 1)
+  assert.equal(sachenFiltern(sachen, new Map(), { ...FILTER_LEER, wo: 'journal' }).map(u => u.charge_nr).join(), '99127')
+  const erledigt = new Map([[sachen[0].schluessel, vermerkt(sachen[0].schluessel, 'erledigt')]])
+  assert.equal(sachenFiltern(sachen, erledigt, FILTER_LEER).length, 2, 'erledigt ist nicht mehr offen')
+  assert.equal(sachenFiltern(sachen, erledigt, { ...FILTER_LEER, stand: 'erledigt' }).length, 1)
+  assert.equal(filtern([fall('mix', { wo: 'firma' }), fall('rest', { pos_id: 2 })], new Map(), { ...FILTER_LEER, wo: 'firma' }).length, 1)
 })

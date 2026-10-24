@@ -1266,71 +1266,104 @@ tr.ohne-charge-zeile > td { background: color-mix(in srgb, var(--gelb) 7%, trans
 .stand-marke.st-kein_fehler { background: var(--flaeche-2); color: var(--text-2); }
 .wo-marke { display: inline-block; font-size: var(--s-0); padding: .05rem .5rem; border-radius: 99px; white-space: nowrap;
   border: 1px solid var(--rand); color: var(--text-2); margin-left: .35rem; }
-/* Übersicht: was zu tun ist */
-.perigon-tun { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr)); gap: .4rem 1.6rem; }
-.perigon-aufgabe h3 { font-size: var(--s-1); margin: .3rem 0 .25rem; }
-.perigon-aufgabe ol { margin: 0; padding-left: 1.2rem; font-size: var(--s-1); }
-.perigon-aufgabe li { margin: .18rem 0; }
-.perigon-arten-tabelle td { vertical-align: top; }
-.perigon-arten-tabelle .zelle-unter { white-space: normal; max-width: 34rem; }
+/* Runde BD: „er überfordert gerade noch" — je Art eine Zeile, die aufklappt;
+   je Fall eine kurze Zeile mit Pfeil; im Fenster nachgerechnet. */
+.perigon-dateien-zeile { margin: .5rem 0 0; font-size: var(--s-1); }
+.perigon-dateien-zeile button.link { display: inline; }
+.perigon-filter { display: flex; flex-wrap: wrap; gap: .5rem .75rem; align-items: center; margin: 0 0 .6rem; }
+.perigon-filter input[type="search"] { min-width: 14rem; flex: 1 1 14rem; max-width: 28rem; }
+.filter-chip { white-space: nowrap; }
+.perigon-wo { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem .45rem; margin: 0 0 var(--a-3); font-size: var(--s-1); }
+.wo-knopf { display: inline-flex; align-items: center; gap: .35rem; min-height: 34px; padding: .2rem .7rem; border-radius: 99px; cursor: pointer;
+  border: 1px solid var(--rand); background: var(--flaeche); color: var(--text); font: inherit; font-size: var(--s-1); }
+.wo-knopf:hover { background: var(--flaeche-2); }
+.wo-knopf.an { border-color: var(--kuerbis); background: color-mix(in srgb, var(--kuerbis) 12%, var(--flaeche)); }
+.wo-zahl { font-variant-numeric: tabular-nums; font-weight: var(--gewicht-stark); }
+.perigon-abschnitt { margin: 0 0 var(--a-4, 1.4rem); }
+.perigon-abschnitt > h2 { font-size: var(--s-2, 1rem); margin: 0 0 .5rem; }
+.perigon-art { border: 1px solid var(--rand); border-left: 5px solid var(--gelb); border-radius: var(--radius); background: var(--flaeche); margin: 0 0 .5rem; }
+.perigon-art.s-rot { border-left-color: var(--rot); }
+.perigon-art.s-info { border-left-color: var(--blau); }
+.perigon-art-kopf { display: grid; grid-template-columns: auto minmax(0, 1fr) 7.5rem 7.5rem; align-items: center; gap: .3rem .8rem; width: 100%;
+  text-align: left; background: none; border: 0; padding: .6rem .9rem; cursor: pointer; color: var(--text); font: inherit; min-height: var(--ziel-min); }
+.perigon-art-kopf:hover { background: var(--flaeche-2); }
+.perigon-art-kopf .chevron { color: var(--text-leise); transition: transform var(--d-mittel); display: inline-flex; }
+.perigon-art.auf > .perigon-art-kopf .chevron { transform: rotate(90deg); }
+.perigon-art-name { display: flex; flex-direction: column; gap: .1rem; min-width: 0; }
+.perigon-art-heisst { color: var(--text-2); font-size: var(--s-1); max-width: 62ch; }
+.perigon-art-zahlen { display: flex; flex-direction: column; align-items: flex-end; font-size: var(--s-1); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.perigon-art-kopf .wo-marke { margin-left: 0; justify-self: end; }
+.perigon-art-kopf .perigon-art-zahlen:empty + * { justify-self: end; }
+.perigon-art-inhalt { padding: 0 .9rem .8rem 2.6rem; }
+.perigon-art-tun { margin: 0 0 .5rem; font-size: var(--s-1); max-width: 70ch; color: var(--text-2); }
+.perigon-art-tun strong { color: var(--text); }
+/* je Fall eine Zeile: klickbar, mit Pfeil am Ende */
+.fall-tabelle { width: 100%; }
+.fall-tabelle td { vertical-align: top; }
+.fall-tabelle tbody tr.klickbar:hover > *, .fall-tabelle tbody tr.klickbar:focus-visible > * { background: var(--flaeche-2); }
+.fall-tabelle tbody tr.klickbar:focus-visible { outline: 2px solid var(--kuerbis); outline-offset: -2px; }
+.fall-tabelle .zeile-pfeil { width: 1.5rem; color: var(--text-leise); text-align: right; vertical-align: middle; }
+.fall-kurz { color: var(--text-2); font-size: var(--s-1); }
+.sach-tabelle .zelle-oben { display: block; }
 /* Je Sorte */
-.sorte-fall { border-left: 5px solid var(--gelb); }
-.sorte-fall.s-rot { border-left-color: var(--rot); }
-.sorte-fall.s-info { border-left-color: var(--blau); }
-.sorte-fall.hervor { box-shadow: 0 0 0 2px var(--kuerbis); }
-.sorte-bild { margin: 0 0 .6rem; padding-left: 1.1rem; }
+.sorte-bild { margin: .2rem 0 .6rem; padding-left: 1.1rem; max-width: 76ch; }
 .sorte-bild li { margin: .2rem 0; }
 .hinweis-zeile { display: flex; gap: .4rem; align-items: baseline; margin: .2rem 0 .5rem; color: var(--text-2); font-size: var(--s-1); }
-.sorte-tabelle { min-width: 44rem; }
+.sorte-tabelle { min-width: 38rem; }
+.sorte-tabelle caption { text-align: left; color: var(--text-leise); font-size: var(--s-0); padding-bottom: .25rem; }
 .sorte-tabelle tr.mit-befund > * { background: color-mix(in srgb, var(--gelb) 6%, transparent); }
 .sorte-tabelle tr.mit-befund.s-rot > * { background: color-mix(in srgb, var(--rot) 6%, transparent); }
 .sorte-marke { display: inline-block; font-size: var(--s-0); padding: .05rem .45rem; margin: 0 .25rem .2rem 0; border-radius: 99px; white-space: nowrap;
   background: color-mix(in srgb, var(--gelb) 22%, var(--flaeche)); }
 .sorte-marke.s-rot { background: color-mix(in srgb, var(--rot) 16%, var(--flaeche)); }
 .sorte-marke.s-info { background: color-mix(in srgb, var(--blau) 14%, var(--flaeche)); }
-.sorte-sachen { margin-top: .7rem; }
-.sorte-sachen h3 { font-size: var(--s-1); margin: 0 0 .2rem; color: var(--text-2); }
-/* Perigon-Zeilen */
-.perigon-filter { display: flex; flex-wrap: wrap; gap: .5rem .75rem; align-items: center; margin: 0 0 var(--a-3); }
-.perigon-filter select, .perigon-filter input[type="search"] { max-width: 100%; }
-.perigon-filter select { width: auto; flex: 0 1 auto; }
-.perigon-aufgabe button.link { display: inline; }
-.perigon-filter input[type="search"] { min-width: 14rem; flex: 1 1 14rem; }
-.perigon-art { border: 1px solid var(--rand); border-left: 5px solid var(--gelb); border-radius: var(--radius); background: var(--flaeche); margin: 0 0 var(--a-3); }
-.perigon-art.s-rot { border-left-color: var(--rot); }
-.perigon-art.s-info { border-left-color: var(--blau); }
-.perigon-art-kopf { display: flex; align-items: center; justify-content: flex-start; flex-wrap: wrap; gap: .3rem; width: 100%; text-align: left; background: none; border: 0;
-  padding: .65rem .9rem; cursor: pointer; color: var(--text); font: inherit; min-height: var(--ziel-min); }
-.perigon-art-kopf .chevron { color: var(--text-leise); transition: transform var(--d-mittel); margin-right: .2rem; }
-.perigon-art-kopf .wo-marke { margin-left: auto; }
-.perigon-art-inhalt { padding: 0 .9rem .8rem; }
+.sorte-faelle-titel { font-size: var(--s-1); margin: .8rem 0 .3rem; }
+/* So prüft die App */
 .perigon-art-erklaerung { display: grid; grid-template-columns: 11rem 1fr; gap: .2rem .8rem; margin: 0 0 .7rem; font-size: var(--s-1); max-width: 64rem; }
 .perigon-art-erklaerung dt { color: var(--text-leise); font-size: var(--s-0); text-transform: uppercase; letter-spacing: .05em; padding-top: .15rem; }
 .perigon-art-erklaerung dd { margin: 0; }
-.perigon-zeilen-tabelle td { vertical-align: top; }
-.perigon-zeilen-tabelle .perigon-satz { white-space: normal; min-width: 18rem; max-width: 34rem; }
 .perigon-pruefung-art { border-top: 1px solid var(--rand-leise); padding: .55rem 0 .2rem; }
 .perigon-pruefung-art:first-child { border-top: 0; padding-top: 0; }
 .perigon-pruefung-art h3 { font-size: var(--s-2, 1rem); margin: 0 0 .35rem; }
 .weg-der-ware-schema { display: flex; align-items: stretch; gap: .5rem; margin: 0 0 .8rem; flex-wrap: wrap; }
 .weg-der-ware-schema > div { flex: 1 1 12rem; padding: .55rem .75rem; border-radius: var(--radius-klein); background: var(--flaeche-2); display: flex; flex-direction: column; gap: .2rem; font-size: var(--s-1); }
 .weg-der-ware-schema > div[aria-hidden] { flex: 0 0 auto; background: none; align-self: center; color: var(--text-leise); padding: 0; }
-/* Im Fenster: der Fall oben, das Mitverfolgen unten */
-.fall-kopf { margin: 0 0 .8rem; padding: .6rem .85rem; border-left: 5px solid var(--gelb); border-radius: var(--radius-klein);
+/* Im Fenster: was nicht stimmt, nachgerechnet, was tun, mitverfolgen; das Übrige zu */
+.fenster-kopf h2 { display: flex; align-items: center; flex-wrap: wrap; }
+.fall-wo { margin: .25rem 0 0; font-size: var(--s-1); }
+.fall-kopf { margin: 0 0 .9rem; padding: .6rem .85rem; border-left: 5px solid var(--gelb); border-radius: var(--radius-klein);
   background: color-mix(in srgb, var(--gelb) 8%, var(--flaeche)); }
 .fall-kopf.s-rot { border-left-color: var(--rot); background: color-mix(in srgb, var(--rot) 6%, var(--flaeche)); }
 .fall-kopf.s-info { border-left-color: var(--blau); background: color-mix(in srgb, var(--blau) 6%, var(--flaeche)); }
-.fall-kopf h3 { display: flex; align-items: center; flex-wrap: wrap; gap: .2rem; }
-.fall-satz { margin: .3rem 0 .5rem; }
-.fall-rechnung { width: auto; font-size: var(--s-1); margin-bottom: .5rem; }
-.fall-rechnung th { font-weight: 400; color: var(--text-2); text-align: left; padding-right: 1.2rem; white-space: nowrap; }
+.fall-satz { margin: 0; font-size: var(--s-2, 1rem); line-height: 1.5; }
+.fall-block { margin: 0 0 .9rem; }
+.fall-block > h3, .verfolgen h3 { font-size: var(--s-1); margin: 0 0 .35rem; text-transform: uppercase; letter-spacing: .05em; color: var(--text-leise); }
+.fall-block > h3 .wo-marke { text-transform: none; letter-spacing: 0; }
+.fall-rechnung { width: 100%; font-size: var(--s-1); }
+.fall-rechnung tr.doppelt > td { background: color-mix(in srgb, var(--rot) 6%, transparent); }
+.fall-gleich { display: inline-block; margin-left: .45rem; font-size: var(--s-0); padding: 0 .45rem; border-radius: 99px;
+  background: color-mix(in srgb, var(--rot) 14%, var(--flaeche)); color: var(--text); white-space: nowrap; }
+.fall-rechnung th .leise, .fall-angaben th .leise, .fall-tabelle th .leise { font-size: inherit; }
+.fall-rechnung tfoot th { font-weight: 400; text-align: left; color: var(--text-2); text-transform: none; letter-spacing: 0; font-size: var(--s-1); white-space: normal; }
+.fall-rechnung tfoot th .leise { color: var(--text-leise); }
+.fall-rechnung tfoot tr:first-child > * { border-top: 2px solid var(--rand); }
+.fall-rechnung tfoot td { font-variant-numeric: tabular-nums; }
+.fall-rechnung tfoot tr.fall-unterschied > * { font-weight: var(--gewicht-stark); color: var(--text); font-size: var(--s-2, 1rem); }
+.fall-angaben { width: 100%; font-size: var(--s-1); }
+.fall-angaben tbody th { font-weight: 400; text-align: left; color: var(--text-2); text-transform: none; letter-spacing: 0; font-size: var(--s-1); }
+.fall-tun p { max-width: 70ch; }
 .fall-dl { display: grid; grid-template-columns: 11rem 1fr; gap: .2rem .8rem; margin: 0; font-size: var(--s-1); }
 .fall-dl dt { color: var(--text-leise); font-size: var(--s-0); text-transform: uppercase; letter-spacing: .05em; padding-top: .15rem; }
 .fall-dl dd { margin: 0; }
+details.fall-mehr { margin-top: .4rem; }
+details.fall-mehr[open] summary svg { transform: rotate(90deg); }
+.fall-mehr-inhalt { margin-top: .4rem; }
 .lieferung-falsch li.im-fokus { font-weight: var(--gewicht-stark); }
 .verfolgen { margin-top: .9rem; padding-top: .7rem; border-top: 1px solid var(--rand-leise); }
 .ungereimt-sache .verfolgen { margin-top: .5rem; padding-top: .45rem; }
-.verfolgen h3 { font-size: var(--s-1); margin: 0 0 .3rem; text-transform: uppercase; letter-spacing: .05em; color: var(--text-leise); }
+#sache-fenster .ungereimt-sache { border: 0; padding: 0; background: none; }
+#sache-fenster.dialog.breit { max-width: 880px; }
+#sache-fenster .spur { overflow-x: auto; }
 .verfolgen-stand { margin: 0 0 .35rem; font-size: var(--s-1); }
 .verfolgen-liste { margin: 0 0 .5rem; padding-left: 1.2rem; font-size: var(--s-1); }
 .verfolgen-liste li { margin: .2rem 0; }
@@ -1343,17 +1376,21 @@ tr.ohne-charge-zeile > td { background: color-mix(in srgb, var(--gelb) 7%, trans
   .perigon-art-erklaerung dt, .fall-dl dt { padding-top: .35rem; }
   .perigon-verweis-weg { margin-left: 0; }
   .sorte-tabelle { min-width: 0; }
-  .perigon-filter input[type="search"] { min-width: 0; }
-  .perigon-filter select { width: 100%; }
+  .perigon-filter input[type="search"] { min-width: 0; max-width: none; }
+  .perigon-art-kopf { grid-template-columns: auto minmax(0, 1fr) auto; padding: .55rem .7rem; }
+  .perigon-art-kopf .wo-marke { grid-column: 2; justify-self: start; }
+  .perigon-art-inhalt { padding: 0 .7rem .7rem; }
   /* je Fall ein Block, die Spalte davor — seitlich rollen zeigte nur Datum und Position */
-  .perigon-zeilen-tabelle thead { display: none; }
-  .perigon-zeilen-tabelle, .perigon-zeilen-tabelle tbody, .perigon-zeilen-tabelle tr { display: block; width: 100%; }
-  .perigon-zeilen-tabelle tr { border-top: 1px solid var(--rand-leise); padding: .4rem 0; }
-  .perigon-zeilen-tabelle td { display: block; position: relative; border: 0; padding: .1rem 0 .1rem 7rem; text-align: left; white-space: normal; min-height: 1.4em; }
-  .perigon-zeilen-tabelle td::before { content: attr(data-titel); position: absolute; left: 0; top: .2rem; width: 6.5rem; color: var(--text-leise); font-size: var(--s-0); }
-  .perigon-zeilen-tabelle .perigon-satz { min-width: 0; max-width: none; }
-  .fall-rechnung { width: 100%; }
-  .fall-rechnung th { white-space: normal; padding-right: .6rem; }
+  .fall-tabelle thead { display: none; }
+  .fall-tabelle, .fall-tabelle tbody, .fall-tabelle tr { display: block; width: 100%; }
+  .fall-tabelle tr { border-top: 1px solid var(--rand-leise); padding: .4rem 0; position: relative; }
+  table.fall-tabelle td { display: block; position: relative; border: 0; padding: .1rem 1.6rem .1rem 5.8rem; text-align: left; white-space: normal; min-height: 1.4em; }
+  table.fall-tabelle td::before { content: attr(data-titel); position: absolute; left: 0; top: .15rem; width: 5.4rem; color: var(--text-leise); font-size: var(--s-0); }
+  table.fall-tabelle td.zeile-pfeil { position: absolute; right: 0; top: 50%; transform: translateY(-50%); padding: 0; width: auto; min-height: 0; }
+  table.fall-tabelle td.zeile-pfeil::before { content: none; }
+  /* zugeklappt nur der Name — was die Art heisst, steht, sobald sie offen ist */
+  .perigon-art:not(.auf) .perigon-art-heisst:not(.immer) { display: none; }
+  .fall-rechnung th, .fall-rechnung td { white-space: normal; }
 }
 
 /* ---------- 0121: Lager-Ausweis — Leiste und Rechnung --------------------- */

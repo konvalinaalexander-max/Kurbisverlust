@@ -636,6 +636,13 @@ in `perigon_fall_spur`: erst gesehen, zuletzt gesehen, weg seit.
 Rechenlauf ist ein neuer Fall noch nicht gemerkt („beim nächsten Rechnen");
 ohne Vermerk ist ein Fall offen.
 **Urteil:** Auskunft, keine Buchung — ein Vermerk ändert keine Zahl.
+**Im Fenster nachgerechnet (Runde BD, `nachrechnen` in `src/auswertung/perigon.ts`):**
+je Zeile der Position aus `ausgang_zeile` die Charge (W), die Menge (S) und
+ihre Kilo (`kg_charge`, sonst S × AE; bei kg-Artikeln mit AE 0 ist S das Kilo;
+Stück ohne Gewicht: unbekannt, nie 0); eine Zeile mit derselben Charge und
+derselben Menge wie eine frühere sagt „gleich wie Zeile …". Die Summen
+(zugeteilt, Position, Rechnung) kommen aus dieser Sicht, nicht aus der
+Summe im Fenster — die Zeilen zeigen nur, woraus sie bestehen.
 
 ## 13. Was nirgends erraten wird
 

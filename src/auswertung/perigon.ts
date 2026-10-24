@@ -240,8 +240,9 @@ export function nachArt(faelle: PerigonBefund[], verlauf: Map<string, PerigonVer
 }
 
 export type StandFilter = 'offen' | 'abklaerung' | 'erledigt' | 'alle'
-export interface Filter { art: string; quelle: string; stand: StandFilter; suche: string; sorte: string; charge: number | null }
-export const FILTER_LEER: Filter = { art: '', quelle: '', stand: 'offen', suche: '', sorte: '', charge: null }
+/** Runde BD: wo — der Ort, an dem behoben wird (Perigon, Halle, Stammdaten …); leer heisst überall. */
+export interface Filter { art: string; quelle: string; stand: StandFilter; suche: string; sorte: string; charge: number | null; wo: string }
+export const FILTER_LEER: Filter = { art: '', quelle: '', stand: 'offen', suche: '', sorte: '', charge: null, wo: '' }
 
 /** Die Fälle, die zum Filter passen. Die Suche geht über Artikel, Kunde, Nummern, Charge, Position und Sorte. */
 export function filtern(faelle: PerigonBefund[], verlauf: Map<string, PerigonVerlauf>, f: Filter): PerigonBefund[] {
@@ -249,6 +250,7 @@ export function filtern(faelle: PerigonBefund[], verlauf: Map<string, PerigonVer
   return faelle.filter(x => {
     if (f.art && x.art !== f.art) return false
     if (f.quelle && x.quelle !== f.quelle) return false
+    if (f.wo && x.wo !== f.wo) return false
     if (f.sorte && x.sorte !== f.sorte) return false
     if (f.charge != null && x.charge_nr !== f.charge && !(x.nummern ?? '').split(', ').includes(String(f.charge))) return false
     const st = standVon(verlauf, x.schluessel)
@@ -394,6 +396,223 @@ export function lageInZahlen(spur: ChargeSpur[], sachen: Ungereimtheit[]): Lage 
     ohneChargeKg: summe(sachen.filter(u => u.art === 'ohne_charge').map(u => u.kg)),
     nochPaletten: rest.some(r => r != null) ? Math.round(rest.reduce<number>((a, r) => a + (r ?? 0), 0)) : null,
   }
+}
+
+/* ---------- Runde BD: ein Fall, ruhig erzählt ---------------------------- */
+// Der Betrieb, 24. Oktober, zum Reiter: „an sich in die richtige Richtung —
+// aber er überfordert gerade noch." Und zu einem Fall: „das versteh ich nicht —
+// wie kommst du auf 768?" Die Antwort stand nirgends: 768 sind drei gleiche
+// Zeilen à 256 kg. Hier steht, was die Liste in einer Zeile und das Fenster
+// Schritt für Schritt zeigt.
+
+const NAME_DEMETER = /(demeter|\bdem\b)/i
+const NAME_KNOSPE = /knospe/i
+/** Das Label, das der Artikelname nennt — oder keines. */
+export const labelImNamen = (artikel: string | null): string | null =>
+  !artikel ? null : NAME_DEMETER.test(artikel) ? 'Demeter' : NAME_KNOSPE.test(artikel) ? 'Knospe' : null
+/** Das Label einer Preisgruppe oder eines Lieferlabels: D… Demeter, K… und CH-K Knospe (wie 0113). */
+export const labelDerGruppe = (g: string | null): string | null =>
+  !g ? null : /^d/i.test(g.trim()) ? 'Demeter' : /^(k|ch-k)/i.test(g.trim()) ? 'Knospe' : null
+
+const kgOder = (x: number | null | undefined) => (x == null ? 'unbekannt' : kg(Number(x), 0))
+
+/**
+ * Was an einem Fall nicht passt, in wenigen Worten — die Liste zeigt es unter
+ * der Charge. Die Art steht schon über der Liste; hier nur die Zahl oder die
+ * Angabe, an der man den Fall wiedererkennt.
+ */
+export function fallKurz(f: PerigonBefund): string {
+  const e = (f.einheit ?? '').trim() || 'Stück'
+  switch (f.art) {
+    case 'menge_null': return 'Spalte S = 0'
+    case 'zu_viel': case 'rest': return `${kgOder(f.kg_zugeteilt)} statt ${kgOder(f.kg_position)}`
+    case 'keine_nummer': return 'Spalte W leer'
+    case 'ohne_gewicht': return `${f.menge == null ? '?' : Number(f.menge).toLocaleString('de-CH')} ${e}, kein Gewicht`
+    case 'ruecknahme': return `${f.menge == null ? '?' : Number(f.menge).toLocaleString('de-CH')} ${e}`
+    case 'masse_abweichung': return `App ${kgOder(f.kg_rechnung)}, Datei ${kgOder(f.kg_position)}`
+    case 'label_name': return `Name ${labelImNamen(f.artikel) ?? '?'}, Preisgruppe ${f.preisgruppe ?? '?'}`
+    case 'demeter_knospe': return `Preisgruppe ${f.preisgruppe ?? '?'}, Lieferlabel ${f.liefer_label ?? '?'}`
+    case 'nachholen': return f.charge_nr != null ? `jetzt bei ${f.charge_nr}` : 'jetzt bekannt'
+    case 'unbekannt': return 'an keiner Charge'
+    case 'mehrdeutig': return 'an mehreren Chargen'
+    case 'artikel_sorte': return f.sorte ? `die Charge ist ${f.sorte}` : 'andere Sorte'
+    case 'mix': return 'ganz auf eine Charge'
+    case 'vor_eingang': {
+      const t = /\((\d+) Tage? später\)/.exec(f.satz)
+      return t ? `${t[1]} ${t[1] === '1' ? 'Tag' : 'Tage'} vor dem Eingang` : 'vor dem Eingang'
+    }
+  }
+}
+
+/** Die Arten, bei denen sich eine Menge nachrechnen lässt — aus den Zeilen der Position. */
+export const MENGEN_ARTEN = new Set<PerigonArt>(['menge_null', 'zu_viel', 'rest', 'keine_nummer', 'ohne_gewicht', 'ruecknahme', 'masse_abweichung'])
+
+/** Eine Zeile der Datei, so weit das Nachrechnen sie braucht (ausgang_zeile). */
+export interface DateiZeile { charge_extern: string | null; batch_menge: number | null; kg_charge: number | null }
+export interface RechenZeile {
+  nr: number; charge: string | null
+  /** Spalte S, in der Einheit der Position */
+  s: number | null
+  /** Spalte S in kg — bei Stück mit dem Gewicht je Artikel; leer heisst unbekannt */
+  kg: number | null
+  /** dieselbe Charge mit derselben Menge stand schon in Zeile … */
+  gleichWie: number | null
+}
+export interface Nachrechnung {
+  einheit: string; istKg: boolean
+  zeilen: RechenZeile[]
+  /** Spalte S über alle Zeilen, in kg */
+  zugeteiltKg: number | null
+  /** die Position: Q (× AE) */
+  positionKg: number | null
+  /** was nicht aufgeht — mit dem Wort dazu („zu viel", „ohne Charge" …) */
+  unterschied: { kg: number | null; wort: string } | null
+  rechnungKg: number | null
+  satz: string
+}
+
+/**
+ * Die Zeilen einer Position nachgerechnet, wie man es mit der Datei in der
+ * Hand täte: jede Zeile mit ihrer Charge (Spalte W) und ihrer Menge (Spalte S),
+ * die Summe, die Position (Spalte Q), der Unterschied. Die Summen kommen aus
+ * der Datenbank (v_perigon_befund) — die Zeilen zeigen, woraus sie bestehen.
+ */
+export function nachrechnen(f: PerigonBefund, dateiZeilen: DateiZeile[]): Nachrechnung | null {
+  if (!MENGEN_ARTEN.has(f.art)) return null
+  const einheit = (f.einheit ?? '').trim() || 'Stück'
+  const istKg = /^kg/i.test(einheit)
+  const gja = f.gewicht_je_artikel == null ? null : Number(f.gewicht_je_artikel)
+  const zuKg = (m: number | null) => (m == null ? null : gja != null && gja > 0 ? Math.round(m * gja * 1000) / 1000 : istKg ? m : null)
+  const zeilen: RechenZeile[] = dateiZeilen.map((z, i) => {
+    const charge = z.charge_extern?.trim() || null
+    const s = z.batch_menge == null ? null : Number(z.batch_menge)
+    const vorher = dateiZeilen.findIndex((y, j) => j < i && (y.charge_extern?.trim() || null) === charge && Number(y.batch_menge) === s)
+    return { nr: i + 1, charge, s, kg: z.kg_charge != null ? Number(z.kg_charge) : zuKg(s), gleichWie: vorher < 0 ? null : vorher + 1 }
+  })
+  const zug = f.kg_zugeteilt != null ? Number(f.kg_zugeteilt)
+    : zeilen.length && zeilen.every(z => z.kg != null) ? zeilen.reduce((a, z) => a + (z.kg ?? 0), 0) : null
+  const pos = f.kg_position == null ? null : Number(f.kg_position)
+  const rech = f.kg_rechnung == null ? null : Number(f.kg_rechnung)
+  const diff = (a: number | null, b: number | null) => (a == null || b == null ? null : Math.round((a - b) * 1000) / 1000)
+  const chargen = [...new Set(zeilen.map(z => z.charge).filter((c): c is string => !!c))]
+  const n = zeilen.length
+  const alleGleich = n > 1 && zeilen.every(z => z.gleichWie === 1 || z.nr === 1)
+  let unterschied: Nachrechnung['unterschied'] = null
+  let satz = f.satz
+  switch (f.art) {
+    case 'zu_viel':
+      unterschied = { kg: diff(zug, pos), wort: 'zu viel' }
+      if (alleGleich) satz = `Die Position steht ${n}-mal in der Datei, jedes Mal mit Charge ${zeilen[0].charge ?? '—'} und ${kgOder(zeilen[0].kg)} — zusammen ${kgOder(zug)}. Geliefert wurden aber nur ${kgOder(pos)}.`
+      else if (n === 1) satz = `Die Zeile teilt der Charge ${zeilen[0].charge ?? '—'} ${kgOder(zug)} zu (Spalte S) — mehr als die Position: geliefert wurden nur ${kgOder(pos)} (Spalte Q).`
+      else if (n > 0) satz = `Die ${n} Zeilen der Position teilen den Chargen zusammen ${kgOder(zug)} zu. Geliefert wurden aber nur ${kgOder(pos)}.`
+      break
+    case 'rest':
+      unterschied = { kg: diff(pos, zug), wort: 'ohne Charge' }
+      if (n === 1) satz = `Die Zeile teilt der Charge ${zeilen[0].charge ?? '—'} ${kgOder(zug)} zu (Spalte S). Geliefert wurden ${kgOder(pos)} (Spalte Q) — der Rest hat keine Charge.`
+      else if (n > 0) satz = `Die ${n} Zeilen teilen den Chargen zusammen ${kgOder(zug)} zu. Geliefert wurden ${kgOder(pos)} — der Rest hat keine Charge.`
+      break
+    case 'menge_null':
+      unterschied = { kg: pos, wort: 'ohne Charge' }
+      if (n > 0) satz = `Die Datei nennt ${chargen.length ? `${chargen.length === 1 ? 'die Charge' : 'die Chargen'} ${chargen.join(', ')}` : 'Chargen'}, aber in Spalte S steht überall 0. ${pos != null && pos !== 0 ? `Die ${kgOder(pos)} der Position haben darum keine Charge.` : 'Die Position hat auch keine Menge — sie zählt nirgends.'}`
+      break
+    case 'keine_nummer':
+      unterschied = { kg: pos, wort: 'ohne Charge' }
+      satz = `In keiner Zeile steht eine Charge (Spalte W leer). Die ${kgOder(pos)} der Position haben darum keine Charge.`
+      break
+    case 'ohne_gewicht':
+      unterschied = { kg: null, wort: 'Masse unbekannt' }
+      satz = `${f.menge == null ? 'Eine Menge' : `${Number(f.menge).toLocaleString('de-CH')} ${einheit}`}, aber ohne Gewicht je ${einheit} (Spalte AE) — wie viel Kilo das sind, weiss niemand. Die App zählt die Position nicht, statt Kilo zu raten.`
+      break
+    case 'ruecknahme':
+      unterschied = { kg: pos, wort: 'zurück' }
+      satz = `Die Menge ist negativ: ${f.menge == null ? '?' : Number(f.menge).toLocaleString('de-CH')} ${einheit} — Ware kam zurück. Die App bucht sie als Rücknahme, nicht als Verkauf.`
+      break
+    case 'masse_abweichung': {
+      const d = diff(rech, pos)
+      unterschied = { kg: d == null ? null : Math.abs(d), wort: d != null && d > 0 ? 'in der App mehr' : 'in der App weniger' }
+      satz = `Die Datei ergibt für diese Position ${kgOder(pos)}, in der Rechnung der App stehen ${kgOder(rech)}. Neu einlesen gleicht es an.`
+      break
+    }
+  }
+  return { einheit, istKg, zeilen, zugeteiltKg: zug, positionKg: pos, unterschied, rechnungKg: rech, satz }
+}
+
+/** Eine Angabe der Datei — mit der Spalte, in der sie steht, und was sie heisst. */
+export interface Angabe { was: string; spalte: string | null; wert: string; heisst: string | null }
+
+/**
+ * Was die Datei sagt, wo nichts zu rechnen ist: zwei Angaben, die einander
+ * widersprechen — Artikel gegen Preisgruppe, Preisgruppe gegen Lieferlabel,
+ * Artikel gegen Charge, Lieferdatum gegen Charge, die Nummer gegen das
+ * Chargenregister.
+ */
+export function gegenueber(f: PerigonBefund): Angabe[] | null {
+  const sp = (name: string) => spaltenZeichen(name)
+  const artikel: Angabe = { was: 'Artikel', spalte: sp('AuftragsArtikel'), wert: f.artikel, heisst: null }
+  const nummer = (heisst: string | null): Angabe => ({ was: 'Charge', spalte: sp('AuftragsChargeManuell'), wert: f.nummer ?? f.nummern ?? 'leer', heisst })
+  const charge = f.charge_nr != null ? `Charge ${f.charge_nr}${f.sorte ? ` · ${f.sorte}` : ''}` : null
+  switch (f.art) {
+    case 'label_name': return [
+      { ...artikel, heisst: labelImNamen(f.artikel) ? `im Namen ${labelImNamen(f.artikel)}` : null },
+      { was: 'Preisgruppe', spalte: sp('AuftragsPrsGrpBez'), wert: f.preisgruppe ?? 'leer', heisst: labelDerGruppe(f.preisgruppe) },
+    ]
+    case 'demeter_knospe': return [
+      { was: 'Preisgruppe', spalte: sp('AuftragsPrsGrpBez'), wert: f.preisgruppe ?? 'leer', heisst: labelDerGruppe(f.preisgruppe) ? `verkauft als ${labelDerGruppe(f.preisgruppe)}` : null },
+      { was: 'Lieferlabel', spalte: sp('LiefPrsGrpName'), wert: f.liefer_label ?? 'leer', heisst: labelDerGruppe(f.liefer_label) ? `geliefert als ${labelDerGruppe(f.liefer_label)}` : null },
+    ]
+    case 'artikel_sorte': case 'mix': return [artikel, nummer(charge)]
+    case 'vor_eingang': return [{ was: 'Lieferdatum', spalte: sp('AuftragsLieferDatum'), wert: datum(f.datum), heisst: null }, nummer(charge)]
+    case 'unbekannt': return [nummer('steht an keiner Charge im Chargenregister')]
+    case 'mehrdeutig': return [nummer('steht an mehreren Chargen im Chargenregister')]
+    case 'nachholen': return [nummer(charge ? `inzwischen bei ${charge}` : 'inzwischen bekannt')]
+    default: return null
+  }
+}
+
+/* ---------- Die Sachen je Charge, nach Art ------------------------------ */
+
+/** Je Art einer Sache je Charge, was sie heisst — in einem Satz, für die Liste der Fälle. */
+export const SACHE_HEISST: Record<string, string> = {
+  ueberzaehlung: 'Unter der Nummer ging mehr hinaus, als hereinkam — ein Teil muss von einer anderen Charge sein.',
+  ohne_eingang: 'Verkauft unter einer Nummer, die im Erntejournal keine einzige Palette hat.',
+  vor_eingang: 'Lieferscheine, die älter sind als die erste Palette der Charge.',
+  ohne_charge: 'Lieferscheine ohne Charge — die App verteilt sie auf alle Chargen der Sorte.',
+  vorschlag: 'Zettel einer Arbeit passen zu Paletten einer anderen Charge; der Beleg reicht nicht zum Umbuchen.',
+  umgebucht: 'Paletten, die die App mit Beleg der Charge ihrer Arbeit zugeordnet hat.',
+  nachgeordnet: 'Eine unbekannte Nummer, über den Produzenten einer Charge zugeordnet.',
+  stammdaten: 'Im Chargenregister stimmt etwas nicht — eine Nummer doppelt oder eine fehlt.',
+}
+
+export interface SachGruppe { art: string; faelle: Ungereimtheit[]; offen: number; kg: number | null; schwere: Schwere; wo: Wo }
+
+/** Die Sachen je Charge nach Art, das Schwerste und Grösste zuerst — wie nachArt für die Zeilen. */
+export function sachenNachArt(sachen: Ungereimtheit[], verlauf: Map<string, PerigonVerlauf>): SachGruppe[] {
+  const m = new Map<string, Ungereimtheit[]>()
+  for (const u of sachen) m.set(u.art, [...(m.get(u.art) ?? []), u])
+  return [...m.entries()].map(([art, liste]) => ({
+    art, wo: sacheWo(liste[0]),
+    schwere: (liste.some(u => u.schwere === 'rot') ? 'rot' : liste.some(u => u.schwere === 'gelb') ? 'gelb' : 'info') as Schwere,
+    faelle: [...liste].sort((a, b) => RANG[a.schwere] - RANG[b.schwere] || (betroffen(b) ?? -1) - (betroffen(a) ?? -1)),
+    offen: liste.filter(u => istOffen(u.schwere, standVon(verlauf, u.schluessel))).length,
+    kg: summe(liste.map(betroffen)),
+  })).sort((a, b) => RANG[a.schwere] - RANG[b.schwere] || (b.kg ?? 0) - (a.kg ?? 0))
+}
+
+/** Die Sachen, die zum Filter passen — Stand, Ort, Sorte, Charge (auch die beteiligten) und Suche. */
+export function sachenFiltern(sachen: Ungereimtheit[], verlauf: Map<string, PerigonVerlauf>, f: Filter): Ungereimtheit[] {
+  const s = f.suche.trim().toLowerCase()
+  return sachen.filter(u => {
+    if (f.art && u.art !== f.art) return false
+    if (f.wo && sacheWo(u) !== f.wo) return false
+    if (f.sorte && u.sorte !== f.sorte) return false
+    if (f.charge != null && u.charge_nr !== f.charge && u.von_charge_nr !== f.charge && !u.beteiligt.includes(f.charge)) return false
+    const st = standVon(verlauf, u.schluessel)
+    if (f.stand === 'offen' && !istOffen(u.schwere, st)) return false
+    if (f.stand === 'abklaerung' && st !== 'in_abklaerung') return false
+    if (f.stand === 'erledigt' && st !== 'erledigt' && st !== 'kein_fehler') return false
+    if (!s) return true
+    return [u.titel, u.charge_nr, u.von_charge_nr, u.sorte].some(v => v != null && String(v).toLowerCase().includes(s))
+  })
 }
 
 /** Der Fall in einem Satz für die Spur (schnappschuss) — was er war, falls er später verschwindet. */

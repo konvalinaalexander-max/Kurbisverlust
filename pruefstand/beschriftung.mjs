@@ -80,10 +80,25 @@ const SEITEN = [
       await zeile.waitFor({ state: 'visible', timeout: 60000 })
       await zeile.click(); await p.locator('.ohne-charge-tabelle tbody tr').first().waitFor()
     } },
-  // 0126: der Reiter Perigon — jeder Teil, die Zeilen aufgeklappt.
+  // 0126: der Reiter Perigon — jeder Teil, die Zeilen aufgeklappt. Runde BD:
+  // Arten und Sorten stehen zu, bis man sie öffnet — der Prüfstand öffnet alle,
+  // und einmal das Fenster eines Falls (nachgerechnet, was tun).
   { name: 'perigon', pfad: '/perigon' },
-  { name: 'perigon-sorten', pfad: '/perigon/sorten' },
-  { name: 'perigon-zeilen', pfad: '/perigon/zeilen?stand=alle' },
+  { name: 'perigon-sorten', pfad: '/perigon/sorten',
+    tun: async p => { await alleKoepfe(p) } },
+  { name: 'perigon-faelle', pfad: '/perigon/faelle?stand=alle',
+    tun: async p => { await alleKoepfe(p) } },
+  { name: 'perigon-fall', pfad: '/perigon/faelle?stand=alle',
+    tun: async p => {
+      const kopf = p.locator('.perigon-art-kopf').first()
+      if (!(await kopf.count())) return
+      await kopf.click()
+      const zeile = p.locator('.fall-tabelle tbody tr').first()
+      await zeile.waitFor({ state: 'visible', timeout: 20000 })
+      await zeile.click()
+      await p.locator('[role="dialog"]').first().waitFor({ timeout: 20000 })
+      await p.waitForTimeout(600)
+    } },
   { name: 'perigon-verlauf', pfad: '/perigon/verlauf' },
   { name: 'perigon-pruefung', pfad: '/perigon/pruefung' },
   // Runde AO: Messungen hat Reiter; Arbeiten (vorher unter Betrieb) und
@@ -96,6 +111,12 @@ const SEITEN = [
   { name: 'artikel', pfad: '/artikel' },
   { name: 'betrieb-lieferungen', pfad: '/betrieb/lieferungen' },
 ]
+/** Runde BD: jede Art und jede Sorte im Reiter Perigon aufklappen. */
+const alleKoepfe = async p => {
+  const koepfe = p.locator('.perigon-art-kopf[aria-expanded="false"]')
+  await p.locator('.perigon-art-kopf').first().waitFor({ state: 'visible', timeout: 60000 }).catch(() => {})
+  for (let i = 0; i < 40 && await koepfe.count(); i++) { await koepfe.first().click(); await p.waitForTimeout(80) }
+}
 /** Die erste Sorte oder Charge im Filterfeld wählen. */
 const ersteWahl = async (p, feldId, art) => {
   const feld = p.locator(`#${feldId}`)
