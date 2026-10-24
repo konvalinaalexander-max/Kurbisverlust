@@ -5,7 +5,8 @@ import { supabase } from '../lib/supabase'
 import { fehlerText } from '../lib/db'
 import { datum, kg } from '../lib/format'
 import { excelAnsicht, lieferungDeutung, schluessel, type ChargenzeileKurz, type RohZeile } from '../lib/warenausgang'
-import { FALSCHE_SPALTEN } from '../auswertung/ungereimt'
+import { FALSCHE_SPALTEN, OHNE_CHARGE_GRUND, OHNE_CHARGE_SPALTEN } from '../auswertung/ungereimt'
+import type { LieferungOhneCharge } from '../auswertung/daten'
 import { Hinweis, Lade } from '../components/Bausteine'
 import { ZKreuz } from '../components/Zeichen'
 
@@ -53,12 +54,20 @@ export function LieferungFenster({ lieferungId, quelle, posId, schliessen }: {
   const [einordnung, setEinordnung] = useState<Einordnung | null>(null)
   // 0121: was an dieser Zeile nicht stimmt (v_perigon_pruefung) — die Zellen dazu stehen rot umrandet.
   const [falsch, setFalsch] = useState<{ art: string; befund: string }[]>([])
+  // 0125: warum ein Lieferschein keine Charge hat (v_lieferung_ohne_charge) — mit dem Satz, was zu tun ist.
+  const [ohneGrund, setOhneGrund] = useState<LieferungOhneCharge[]>([])
   const [ziel, setZiel] = useState<{ quelle: string; posId: number } | null>(quelle && posId != null ? { quelle, posId } : null)
   const [geladen, setGeladen] = useState(false)
   const [fehler, setFehler] = useState<string | null>(null)
 
   useEffect(() => {
     let lebt = true
+    // Vor Stand 125 gibt es die Sicht nicht — dann bleibt der allgemeine Satz (kein Fehler im Fenster).
+    const ohneGrundLaden = async (ids: number[]) => {
+      if (ids.length === 0) return
+      const r = await supabase.from('v_lieferung_ohne_charge').select('id, datum, sorte, kunde, kg, quelle, pos_id, artikel, nummer, grund, satz, tun').in('id', ids)
+      if (lebt && !r.error) setOhneGrund((r.data ?? []) as LieferungOhneCharge[])
+    }
     void (async () => {
       try {
         let wo = quelle && posId != null ? { quelle, posId } : null
@@ -69,8 +78,10 @@ export function LieferungFenster({ lieferungId, quelle, posId, schliessen }: {
           ])
           for (const x of [l, i]) if (x.error) throw x.error
           if (!lebt) return
-          setLieferung(((l.data ?? []) as LieferungZeile[])[0] ?? null)
+          const eine = ((l.data ?? []) as LieferungZeile[])[0] ?? null
+          setLieferung(eine)
           wo = positionAus(((i.data ?? []) as { extern_id: string }[])[0]?.extern_id)
+          if (!wo && eine?.charge_nr == null) await ohneGrundLaden([lieferungId])
         }
         setZiel(wo)
         if (wo) {
@@ -90,6 +101,7 @@ export function LieferungFenster({ lieferungId, quelle, posId, schliessen }: {
             ? await supabase.from('lieferung').select('id, datum, charge_nr, sorte, kg, kunde, bemerkung').in('id', ids).order('charge_nr')
             : { data: [], error: null }
           if (li.error) throw li.error
+          await ohneGrundLaden(((li.data ?? []) as LieferungZeile[]).filter(x => x.charge_nr == null).map(x => x.id))
           if (!lebt) return
           setPosition(((p.data ?? []) as PositionZeile[])[0] ?? null)
           setZeilen((z.data ?? []) as ZeileDerDatei[])
@@ -119,8 +131,12 @@ export function LieferungFenster({ lieferungId, quelle, posId, schliessen }: {
   const ansicht = roh && roh.length > 0 ? excelAnsicht(roh) : null
   // Eine Lieferung ohne Charge, deren Zeile auch keine nennt: die Chargenspalte ist leer.
   const ohneCharge = lieferungen.some(l => l.charge_nr == null) && zeilen.length > 0 && zeilen.every(x => !x.charge_extern?.trim())
-  const meldungen = [...falsch, ...(ohneCharge && !falsch.length ? [{ art: 'ohne_charge', befund: 'Auf dem Lieferschein steht keine Chargennummer. Die App verteilt die Menge darum nach Eingang auf alle Chargen derselben Sorte — für die einzelne Charge stimmt das nicht.' }] : [])]
-  const roteSpalten = new Set(meldungen.flatMap(m => FALSCHE_SPALTEN[m.art] ?? []).map(schluessel))
+  // 0125: Kennt die App den Grund, sagt sie ihn — und lässt die gleichbedeutenden Sätze der Zeilenprüfung weg.
+  const meldungen = ohneGrund.length > 0
+    ? [...ohneGrund.map(g => ({ art: `ohne_charge:${g.grund}`, befund: `${g.satz} ${g.tun}` })),
+       ...falsch.filter(f => f.art !== 'Charge nicht zugeordnet' && f.art !== 'Teil ohne Charge')]
+    : [...falsch, ...(ohneCharge && !falsch.length ? [{ art: 'ohne_charge', befund: 'Auf dem Lieferschein steht keine Chargennummer. Die App verteilt die Menge darum nach Eingang auf alle Chargen derselben Sorte — für die einzelne Charge stimmt das nicht.' }] : [])]
+  const roteSpalten = new Set([...meldungen.flatMap(m => FALSCHE_SPALTEN[m.art] ?? []), ...ohneGrund.flatMap(g => OHNE_CHARGE_SPALTEN[g.grund] ?? [])].map(schluessel))
 
   return createPortal(
     <div className="dialog-hinter" onClick={schliessen}>
@@ -144,6 +160,12 @@ export function LieferungFenster({ lieferungId, quelle, posId, schliessen }: {
             {lieferung.charge_nr != null ? ` aus Charge ${lieferung.charge_nr}` : ''}{lieferung.kunde ? ` an ${lieferung.kunde}` : ''}
             {lieferung.bemerkung ? ` (${lieferung.bemerkung})` : ''}.</p>
         )}
+        {geladen && !ziel && ohneGrund.map(g => (
+          <div key={g.id} className="lieferung-falsch" id="lieferung-falsch">
+            <strong>Warum ohne Charge: {OHNE_CHARGE_GRUND[g.grund] ?? g.grund}</strong>
+            <ul><li>{g.satz} {g.tun}</li></ul>
+          </div>
+        ))}
         {geladen && ziel && (
           <>
             {/* Runde AT: „wirklich gleich dargestellt wie in der Excel — erste Zeile die Spaltennamen, zweite einfach

@@ -15,6 +15,7 @@ import { ZChevron, ZWarnung } from '../components/Zeichen'
 import { LieferungFenster } from '../betrieb/LieferungFenster'
 import type { Auswertung, ChargeSpur } from './daten'
 import { ART_NAME, spurText, ungereimtheiten, vonCharge, type Ungereimtheit } from './ungereimt'
+import { OhneChargeListe } from './OhneCharge'
 
 export function Ungereimtheiten({ daten, charge, startOffen = false }: { daten: Auswertung; charge?: number; startOffen?: boolean }) {
   const alle = useMemo(() => ungereimtheiten(daten.ungereimt, daten.perigon), [daten.ungereimt, daten.perigon])
@@ -92,19 +93,8 @@ function Sache({ u, inCharge, spur }: { u: Ungereimtheit; inCharge?: number; spu
   const { istAdmin } = useAuth()
   const [zeilenAuf, setZeilenAuf] = useState(false)
   const [fenster, setFenster] = useState<{ quelle?: string; posId?: number; lieferungId?: number } | null>(null)
-  type L = { id: number; datum: string; kunde: string | null; masse_kg: number | null }
-  const [lieferungen, setLieferungen] = useState<L[] | null>(null)
   const [meldung, setMeldung] = useState<string | null>(null)
   const [laeuft, setLaeuft] = useState(false)
-
-  // Lieferscheine ohne Charge: die Liste kommt erst beim Aufklappen (erg_lieferung).
-  const ohneChargeLaden = async () => {
-    setZeilenAuf(a => !a)
-    if (lieferungen !== null || u.art !== 'ohne_charge') return
-    const r = await supabase.from('erg_lieferung').select('id, datum, kunde, masse_kg').is('charge_nr', null).eq('sorte', u.sorte ?? '').order('datum', { ascending: false })
-    setLieferungen(r.error ? [] : (r.data ?? []) as L[])
-    if (r.error) setMeldung(fehlerText(r.error))
-  }
   const setzen = async (stand: 'angewandt' | 'zurueckgenommen') => {
     if (!u.paletten?.length) return
     setLaeuft(true); setMeldung(null)
@@ -143,7 +133,7 @@ function Sache({ u, inCharge, spur }: { u: Ungereimtheit; inCharge?: number; spu
           <button type="button" className="klein" onClick={() => setZeilenAuf(a => !a)} aria-expanded={zeilenAuf}>
             {zeilenAuf ? 'Perigon-Zeilen zu' : `${anzahl} ${anzahl === 1 ? 'Perigon-Zeile' : 'Perigon-Zeilen'} zeigen`}</button>
         )}
-        {u.art === 'ohne_charge' && <button type="button" className="klein" onClick={() => void ohneChargeLaden()} aria-expanded={zeilenAuf}>
+        {u.art === 'ohne_charge' && <button type="button" className="klein" onClick={() => setZeilenAuf(a => !a)} aria-expanded={zeilenAuf}>
           {zeilenAuf ? 'Lieferscheine zu' : 'Lieferscheine zeigen'}</button>}
         {istAdmin && u.art === 'umgebucht' && <button type="button" className="klein" disabled={laeuft} onClick={() => void setzen('zurueckgenommen')}>Umbuchung zurücknehmen</button>}
         {istAdmin && u.art === 'vorschlag' && <button type="button" className="klein" disabled={laeuft} onClick={() => void setzen('angewandt')}>Umbuchen</button>}
@@ -162,16 +152,8 @@ function Sache({ u, inCharge, spur }: { u: Ungereimtheit; inCharge?: number; spu
           ))}
         </ul>
       )}
-      {zeilenAuf && u.art === 'ohne_charge' && (
-        lieferungen === null ? <p className="leise">lädt …</p> : (
-          <ul className="ungereimt-zeilen">
-            {lieferungen.map(l => (
-              <li key={l.id}><button type="button" className="link" onClick={() => setFenster({ lieferungId: l.id })} title="die Zeile der Perigon-Datei zeigen">
-                {datum(l.datum)} · {kg(l.masse_kg, 0)}{l.kunde ? ` · ${l.kunde}` : ''}</button></li>
-            ))}
-          </ul>
-        )
-      )}
+      {/* 0125: jeder Lieferschein mit dem Grund, warum er keine Charge hat; ein Klick zeigt die Perigon-Zeile. */}
+      {zeilenAuf && u.art === 'ohne_charge' && <OhneChargeListe sorte={u.sorte} />}
       {fenster && <LieferungFenster {...fenster} schliessen={() => setFenster(null)} />}
     </article>
   )

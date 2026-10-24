@@ -73,6 +73,13 @@ const SEITEN = [
       await zeile.waitFor({ state: 'visible', timeout: 60000 })
       await zeile.click(); await p.waitForTimeout(400)
     } },
+  // 0125: die Lieferscheine ohne Charge, aufgeklappt — je Grund und je Lieferschein.
+  { name: 'chargen-ohne-charge', pfad: '/chargen',
+    tun: async p => {
+      const zeile = p.locator('#chargen-ohne-charge')
+      await zeile.waitFor({ state: 'visible', timeout: 60000 })
+      await zeile.click(); await p.locator('.ohne-charge-tabelle tbody tr').first().waitFor()
+    } },
   // Runde AO: Messungen hat Reiter; Arbeiten (vorher unter Betrieb) und
   // Ausstehend (vorher ein eigener Reiter) stehen darunter.
   { name: 'messungen', pfad: '/messungen/arbeiten' },

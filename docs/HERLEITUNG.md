@@ -558,6 +558,24 @@ Eingang der tragenden Charge lag und was auf keine fällt. Eine Nummer der Datei
 die die App inzwischen kennt (eigene Nummer, sonst eine Perigon-Nummer an genau
 einer Charge), bekommt der Lieferschein im nächsten Rechenlauf.
 
+**Seit 0125 auch einzeln (`v_lieferung_ohne_charge`).** **Braucht:** dieselben
+Lieferscheine wie `v_ohne_charge` (verkauft, mit Masse, bis heute), ihre
+Verknüpfung zur Perigon-Zeile (`lieferung_import`, `ausgang_zeile`), die
+Bemerkung des Einlesens und das Chargenregister (Nummer, Perigon-Nr.).
+**Rechnet:** je Lieferschein den Grund, in dieser Folge: aus Perigon, aber
+ohne Zeile (Bemerkung „ohne Chargenbezug" / „Charge … (extern)" oder keine
+Zeile der Position mehr) → `ohne_zeile`; von Hand → `von_hand`; eine eigene
+Zeile mit Nummer: inzwischen an genau einer Charge → `nachholen`, an mehreren →
+`mehrdeutig`, an keiner → `unbekannt`; der Rest einer Position: keine Nummer in
+Spalte W → `keine_nummer`, Nummern genannt, aber Spalte S = 0 → `menge_null`,
+sonst → `rest` (S kleiner als die Position). Dazu Firma und Position (für das
+Fenster mit der Perigon-Zeile), Artikel, die Nummern aus W, ein Satz und was zu
+tun ist. **Fehlt eine Eingabe:** ohne Verknüpfung und ohne Bemerkung gilt
+„von Hand" — die Kopie aus dem Betriebsabzug führt beides nicht, dort steht
+darum jeder als „von Hand"; in der Datenbank des Betriebs nicht. **Urteil:**
+ehrlich — Anzahl und Summe je Sorte sind dieselben wie in `v_ohne_charge`
+(Prüfblock 0125 b2); nichts wird umgebucht.
+
 ## 12f. Wer im Perigon wie heisst — die Charge über den Produzenten (`schlag_alias`, `v_perigon_produzent`, 0122)
 
 **Braucht:** die zweiten Namen eines Schlags (`schlag_alias`: Inauen = Oettli,

@@ -10,6 +10,7 @@ import { lieferungenVon, useAuswertung, type Auswertung } from '../auswertung/da
 import { IM_LAGER_TEXT, imLagerCharge, palettenText } from '../auswertung/lager'
 import { Probleme, Rechnet, Reiterkopf } from '../auswertung/Karten'
 import { Ungereimtheiten } from '../auswertung/Ungereimtheiten'
+import { OhneChargeListe } from '../auswertung/OhneCharge'
 import { ungereimtheiten, vonCharge, type Ungereimtheit } from '../auswertung/ungereimt'
 import { ausweisVon, summiere } from '../auswertung/ausweis'
 import { LagerLeiste, LagerRechnung } from '../auswertung/LagerKette'
@@ -89,6 +90,14 @@ export default function Chargen() {
     .filter(u => u.art === 'ohne_eingang' && u.charge_nr != null && !daten?.bestand.some(b => b.charge_nr === u.charge_nr))
     .filter(u => (!sorte || u.sorte === sorte) && !nurBestand && passt({ charge_nr: u.charge_nr!, schlag: u.schlag, sorte: u.sorte ?? '' }, finden)),
   [daten, sorte, nurBestand, finden])
+  // 0125: Lieferscheine ohne Charge — eine eigene Zeile am Ende, je Sorte zusammengezählt; aufgeklappt jeder einzelne.
+  const ohneCharge = useMemo(() => {
+    const f = finden.trim().toLowerCase()
+    return (daten?.ungereimt ?? [])
+      .filter(u => u.art === 'ohne_charge' && (!sorte || u.sorte === sorte) && !nurBestand)
+      .filter(u => !f || 'ohne charge'.includes(f) || (u.sorte ?? '').toLowerCase().includes(f))
+  }, [daten, sorte, nurBestand, finden])
+  const [ohneChargeOffen, setOhneChargeOffen] = useState(false)
 
   if (laedt && !daten) return <Rechnet fortschritt={fortschritt} />
   // Runde AJ: die zweite Welle der Ergebnisse (dieser Reiter braucht sie) kommt nach dem Lagermanagement.
@@ -166,6 +175,7 @@ export default function Chargen() {
                 <OhneEingangZeile key={`ohne-${e.u!.charge_nr}`} u={e.u!} offen={offen === e.u!.charge_nr} daten={daten}
                                   oeffnen={() => setSuche(offen === e.u!.charge_nr ? {} : { charge: String(e.u!.charge_nr) })} />
               ))}
+              {ohneCharge.length > 0 && <OhneChargeZeile gruppen={ohneCharge} sorte={sorte || null} offen={ohneChargeOffen} oeffnen={() => setOhneChargeOffen(o => !o)} />}
             </tbody>
           </table>
         </div>
@@ -182,6 +192,9 @@ export default function Chargen() {
           die Überfüllung ist nicht gewogen oder die Sortier-CSV fehlt. Die Leiste darunter zeigt den Weg von der Ware, wie sie einging, zum
           Verkaufsfähigen. Aufgeklappt steht er Schritt für Schritt.
           Ein Klick auf einen Spaltenkopf sortiert danach — nach „davon verkaufsfähig" steht oben, was am wenigsten übersteht.</p>
+          <p><strong>Ohne Charge</strong> (letzte Zeile) sind Lieferscheine, auf denen keine Charge steht oder deren Nummer die App keiner Charge
+          zuordnen kann. Die App verteilt sie nach Menge auf die Chargen der Sorte — für die Summe ungefähr richtig, für die einzelne Charge nicht.
+          Aufgeklappt steht jeder einzelne mit dem Grund; ein Klick zeigt die Zeile aus Perigon.</p>
         </Erklaerung>
       </Karte>
     </>
@@ -277,6 +290,31 @@ function UngereimtMal({ liste }: { liste: Ungereimtheit[] }) {
                aria-label="Perigon und Lager passen nicht zusammen"><ZWarnung size={14} /></span>
 }
 
+/**
+ * 0125: Lieferscheine ohne Charge als eigene Zeile — der Betrieb: „weis mir auch
+ * Lieferscheine ohne Charge aus … ich kann draufklicken, und du zeigst mir die
+ * Zeile vom Perigon." Zu: wie viele, wie viel, welche Sorten; auf: jeder einzelne
+ * mit dem Grund, ein Klick öffnet die Perigon-Zeile.
+ */
+function OhneChargeZeile({ gruppen, sorte, offen, oeffnen }: { gruppen: Auswertung['ungereimt']; sorte: string | null; offen: boolean; oeffnen: () => void }) {
+  const n = gruppen.reduce((a, u) => a + u.n, 0)
+  const summe = gruppen.reduce((a, u) => a + Number(u.kg ?? 0), 0)
+  const sorten = gruppen.map(u => u.sorte ?? 'ohne Sorte')
+  return (
+    <>
+      <tr onClick={oeffnen} className={`klickbar ohne-charge-zeile${offen ? ' offen' : ''}`} aria-expanded={offen} id="chargen-ohne-charge">
+        <td><span className="chevron" style={{ display: 'inline-flex', color: 'var(--text-leise)', transform: offen ? 'rotate(90deg)' : undefined }}><ZChevron size={16} /></span></td>
+        <td><strong>ohne Charge</strong><span className="ungereimt-mal gelb" aria-label="Lieferscheine ohne Charge"><ZWarnung size={14} /></span></td>
+        <td>{sorten.length <= 2 ? sorten.join(', ') : `${sorten.length} Sorten`}</td>
+        <td className="zahl" colSpan={3}><Marke art="warnung">keine Charge auf dem Lieferschein</Marke></td>
+        <td className="zahl">{kg(summe, 0)}<span className="zelle-unter">{zahl(n)} {n === 1 ? 'Lieferschein' : 'Lieferscheine'}</span></td>
+        <td className="zahl" colSpan={4}><span className="leise">anteilig auf die Chargen der Sorte verteilt</span></td>
+      </tr>
+      {offen && <tr className="aufgeklappt"><td colSpan={11} className="detail"><OhneChargeListe sorte={sorte} /></td></tr>}
+    </>
+  )
+}
+
 /** Eine Charge, die verkauft hat, aber im Erntejournal nie eine Palette bekam (wie 1627 vor der Umbuchung). */
 function OhneEingangZeile({ u, offen, oeffnen, daten }: { u: Auswertung['ungereimt'][number]; offen: boolean; oeffnen: () => void; daten: Auswertung }) {
   return (
@@ -341,6 +379,8 @@ function ChargeDetail({ nr, z, daten }: { nr: number; z: Zeile; daten: Auswertun
   const [laedt, setLaedt] = useState(true)
   // Runde AS: die Lieferung als Fenster — die ganze Perigon-Zeile und die Rechnung der Masse
   const [lieferung, setLieferung] = useState<number | null>(null)
+  // 0125: die Lieferscheine ohne Charge der Sorte, die anteilig auch von dieser Charge nehmen
+  const [ohneZeigen, setOhneZeigen] = useState(false)
   useEffect(() => {
     let weg = false
     void (async () => {
@@ -428,8 +468,16 @@ function ChargeDetail({ nr, z, daten }: { nr: number; z: Zeile; daten: Auswertun
               ))}</tbody>
             </table></div>
           )}
+          {ohneNummer > 0 && (
+            <p className="leise unten-0">
+              <button type="button" className="link" onClick={() => setOhneZeigen(o => !o)} aria-expanded={ohneZeigen}>
+                {ohneZeigen ? 'Lieferscheine ohne Charge zu' : `${zahl(ohneNummer)} ${ohneNummer === 1 ? 'Lieferschein' : 'Lieferscheine'} ${b.sorte} ohne Charge zeigen`}</button>
+              {!ohneZeigen && ' — sie nehmen anteilig auch von dieser Charge'}
+            </p>
+          )}
         </div>
       </div>
+      {ohneZeigen && <OhneChargeListe sorte={b.sorte} />}
 
       <h3>3 · Arbeiten <span className="leise">· {arbeiten.length}</span></h3>
       {arbeiten.length === 0 ? <p className="leise">noch keine</p> : (

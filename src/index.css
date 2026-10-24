@@ -1217,6 +1217,13 @@ table.uebersicht-tabelle th, table.uebersicht-tabelle td { padding-left: .32rem;
 .spur-tabelle tbody th { font-weight: 600; white-space: nowrap; text-transform: none; letter-spacing: normal; font-size: var(--s-1); color: var(--text); }
 .spur-tabelle td.spur-leer > div > div:first-child { color: var(--rot); font-weight: 600; }
 .ungereimt-zeilen li { margin: .25rem 0; }
+/* 0125: Lieferscheine ohne Charge — je Grund was zu tun ist, darunter jeder einzelne; ein Klick zeigt die Perigon-Zeile. */
+.ohne-charge { margin-top: .45rem; }
+.ohne-charge-gruende { margin: .15rem 0 .6rem; padding-left: 1.1rem; font-size: var(--s-1); }
+.ohne-charge-gruende li { margin: .2rem 0; }
+.ohne-charge-tun { color: var(--text-2); }
+.ohne-charge-tabelle td { vertical-align: top; }
+.ohne-charge-tabelle .ohne-charge-satz { white-space: normal; max-width: 36rem; }
 button.link { background: none; border: 0; padding: 0; min-height: 0; color: var(--kuerbis); text-decoration: underline; cursor: pointer; font: inherit; text-align: left; }
 @media (max-width: 640px) {
   .ungereimt-sache dl { grid-template-columns: 1fr; }
@@ -1234,6 +1241,7 @@ button.link { background: none; border: 0; padding: 0; min-height: 0; color: var
 .ungereimt-mal { color: var(--rot); display: inline-flex; vertical-align: -2px; margin-left: .3rem; }
 .ungereimt-mal.gelb { color: var(--gelb); }
 tr.ohne-eingang > td { background: color-mix(in srgb, var(--rot) 6%, transparent); }
+tr.ohne-charge-zeile > td { background: color-mix(in srgb, var(--gelb) 7%, transparent); }
 
 /* ---------- 0121: Lager-Ausweis — Leiste und Rechnung --------------------- */
 .lager-leiste { display: flex; height: 6px; border-radius: 3px; overflow: hidden; background: var(--flaeche-3); margin-top: .3rem; min-width: 5rem; }

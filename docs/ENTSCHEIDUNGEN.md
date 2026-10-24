@@ -4171,6 +4171,72 @@ Daten, dann die Annahme — nach der Korrektur nachsehen.
 nicht alles: vier mal vier gleiche Paloxen und ein Tag mit 30 Paaren bei
 13 erwarteten sind Fragen wert.
 
+## Runde BB: Lieferscheine ohne Charge, einzeln und mit Grund (24. Oktober, 0125)
+
+Der Betrieb: „bitte weis mir in der App auch Lieferscheine ohne Charge aus —
+dass du mir das auch anzeigst, ich kann draufklicken, und du zeigst mir die
+Zeile vom Perigon."
+
+Bis hier standen sie nur als Summe je Sorte in der Leiste oben, aufgeklappt
+hinter einem Knopf als Datum und Kilo. Dass es dafür sehr verschiedene
+Ursachen gibt — und damit verschiedene Stellen, an denen man es richtet —,
+sagte die App nirgends. Auf den Perigon-Dateien vom 12./14. Oktober sind es
+vor allem drei: eine Nummer, die an keiner Charge stand (198977, Butternut
+lose, 2.5 t — inzwischen an 1650), Positionen, die zwei Chargen nennen, ihnen
+aber in Spalte S nichts zuteilen (Oettli 1719 ab 9. Oktober, 4.1 t), und
+Kleinposten ganz ohne Nummer.
+
+**1. Der Grund je Lieferschein (`v_lieferung_ohne_charge`, 0125).** Dieselben
+Lieferscheine wie `v_ohne_charge` (verkauft, mit Masse, bis heute), je mit
+Firma und Position, Artikel, den Nummern aus Spalte W und einem von acht
+Gründen: von Hand · Perigon-Zeile fehlt · Nummer jetzt bekannt (das nächste
+Rechnen ordnet zu) · Nummer an mehreren Chargen · Nummer an keiner Charge ·
+keine Chargennummer (W leer) · Charge ohne Menge (S = 0) · nur teilweise
+zugeteilt (S kleiner als die Position). Dazu ein Satz in Worten und was zu tun
+ist — in Perigon, in den Stammdaten oder nichts. Ein eingelesener Lieferschein,
+dem die Verknüpfung zur Zeile fehlt, verrät sich an der Bemerkung des
+Einlesens („ohne Chargenbezug", „Charge … (extern)") und heisst dann nie
+„von Hand".
+
+**2. Wo es steht.** Unter Chargen eine eigene Zeile „ohne Charge" am Ende der
+Tabelle (wie die Charge ohne Eingang aus 0121): wie viele, wie viel, welche
+Sorten; aufgeklappt je Grund was zu tun ist und darunter jeder Lieferschein.
+Dieselbe Liste in der Leiste oben (Lieferschein ohne Charge → „Lieferscheine
+zeigen") und in der aufgeklappten Charge, deren Ausgang anteilig solche
+Lieferscheine trägt („… ohne Charge zeigen"). Ein Klick öffnet das Fenster mit
+der Perigon-Zeile; es nennt jetzt den Grund statt des allgemeinen Satzes,
+rahmt die passenden Spalten rot (bei S = 0 Spalte S) und lässt die
+gleichbedeutenden Sätze der Zeilenprüfung weg (`src/auswertung/OhneCharge.tsx`,
+`ohneChargeUebersicht` in `ungereimt.ts`).
+
+**Geprüft.** Prüfblock 0125 baut je Grund einen Lieferschein (zwei für
+„Perigon-Zeile fehlt", zwei für „Nummer jetzt bekannt") und drei, die nicht
+dastehen dürfen (mit Charge, nach heute, Eigenbedarf); Anzahl und Summe je
+Sorte müssen `v_ohne_charge` gleichen. 13 Mutationen, alle erkannt: jeder
+Zweig des Grundes einzeln weg, beide Filter weg, die falsche Positionsmasse im
+Satz, nur die eigene Nummer beim Rest, Leserecht entzogen, für Unangemeldete
+offen, Stand nicht nachgezogen. Beim Bauen fand der Block selbst einen Fehler:
+Beim Rest einer Position nannte die Spalte „Nummer" nur die erste Charge.
+Die fehlende `grant`-Zeile allein ist kein Bruch — Angemeldete lesen jede
+Sicht seit 0008 über die Standardrechte; geprüft wird das Recht, nicht die
+Zeile. Tests (`test/ungereimt.test.ts`, 0125), Bildschirme
+`chargen-ohne-charge` und `lieferung-ohne-charge` (mit vorgemerkten
+Lieferscheinen: die Demo hat nur von Hand erfasste), Begriffe.
+
+**Was bewusst nicht gemacht wurde.**
+- Nichts wird umgebucht. Die Sicht sagt nur, warum; die Verteilung nach Menge
+  auf die Chargen der Sorte bleibt, wie sie war.
+- `v_perigon_pruefung` bleibt unverändert; ihre Sätze zu „Charge nicht
+  zugeordnet" und „Teil ohne Charge" stehen weiter unter Artikel. Nur das
+  Fenster einer Lieferung sagt sie nicht doppelt.
+- Der Betriebsabzug führt die Gründe nicht mit: Er würde sonst auf einer
+  Datenbank vor Stand 125 scheitern, und der Abzug kennt die Perigon-Zeilen
+  ohnehin nicht. Auf der Kopie aus dem Abzug steht darum jeder Lieferschein
+  ohne Charge als „von Hand" — in der Datenbank des Betriebs nicht.
+- Auf dem Handy liegt die Liste wie jede aufgeklappte Charge in der seitlich
+  rollbaren Tabelle; eine eigene Handy-Fassung der aufgeklappten Zeilen wäre
+  eine Runde für sich.
+
 ## Runde BA: wie der Betrieb denkt — Paletten zum Nachzählen, Sorten an einem Ort (23. Oktober)
 
 Der Betrieb, mitten in der Durchsicht: „Was ich vor allem will: dass du beim

@@ -7941,7 +7941,7 @@ alter function lesung_als_sammel(bigint, timestamptz, timestamptz) set search_pa
 alter function schimmel_netto_setzen() set search_path = public;
 
 create or replace function schema_stand() returns int
-language sql immutable set search_path = public as $$ select 124 $$;
+language sql immutable set search_path = public as $$ select 125 $$;
 comment on function schema_stand is
   'Nummer der jüngsten eingespielten Migration. Die App vergleicht sie mit '
   'SCHEMA_ERWARTET (src/lib/version.ts) und verlangt bei Abweichung, setup.sql '
@@ -7957,7 +7957,7 @@ comment on function schema_stand() is
 -- TEIL B — Das Rechenwerk: die Formeln, wie sie heute lauten
 -- =====================================================================
 -- Ab hier steht jede Ansicht und jede darauf rechnende Funktion genau
--- einmal — in 162 Schritten, in der Reihenfolge, in der eine auf der
+-- einmal — in 163 Schritten, in der Reihenfolge, in der eine auf der
 -- anderen steht. Die Reihenfolge ist ausgerechnet, nicht geraten:
 -- setup_bauen.sh sortiert topologisch und bricht ab, wenn sie nicht
 -- kreisfrei wäre.
@@ -7970,6 +7970,7 @@ comment on function schema_stand() is
 -- wird am Ende dieser Datei neu berechnet.
 -- =====================================================================
 
+drop view if exists v_lieferung_ohne_charge cascade;
 drop view if exists v_charge_spur cascade;
 drop view if exists v_lager_ausweis cascade;
 drop view if exists v_ungereimtheit cascade;
@@ -14194,6 +14195,78 @@ select c.nr as charge_nr, c.schlag, c.sorte, sk.artikelgruppe,
   left join erg_charge b on b.charge_nr = c.nr
  where j.n is not null or t.n is not null or a.n is not null or f.n is not null;
 
+-- aus 0125_lieferscheine_ohne_charge_mit_grund.sql
+
+create or replace view v_lieferung_ohne_charge with (security_invoker = true) as
+with l as (
+
+  select m.id, m.datum, m.sorte, m.kunde, m.masse_kg, m.bemerkung
+    from v_lieferung_masse m
+   where m.charge_nr is null and m.masse_kg > 0 and m.buch in ('verkauf', 'marge') and m.datum <= heute()
+), mit as (
+  select l.*, i.lieferung_id is not null as eingelesen, i.quelle, i.extern_id, coalesce(i.extern_id like '%:rest', false) as rest,
+         coalesce(z1.pos_id, case when split_part(i.extern_id, ':', 2) ~ '^\d+$' then split_part(i.extern_id, ':', 2)::bigint end) as pos_id,
+         z1.charge_extern, regexp_replace(coalesce(z1.charge_extern, ''), '\D', '', 'g') as ziffern
+    from l
+    left join lieferung_import i on i.lieferung_id = l.id
+    left join ausgang_zeile z1 on z1.id = i.zeile_id
+), pos as (
+  select m.*, p.n_zeilen, p.artikel, p.kg_position, p.nummern, p.kg_zugeteilt,
+         (select x.nr from charge x where m.ziffern <> '' and x.nr::text = m.ziffern) as eigene,
+         (select array_agg(x.nr order by x.nr) from charge x where m.ziffern <> '' and x.perigon_nr::text = m.ziffern) as an_perigon
+    from mit m
+    left join lateral (
+      select count(*)::int as n_zeilen, min(z.artikel) as artikel, max(z.kg_position) as kg_position,
+             string_agg(distinct nullif(btrim(z.charge_extern), ''), ', ' order by nullif(btrim(z.charge_extern), '')) as nummern,
+             coalesce(sum(z.kg_charge) filter (where btrim(z.charge_extern) <> '' and z.kg_charge > 0), 0) as kg_zugeteilt
+        from ausgang_zeile z
+       where z.quelle = m.quelle and z.pos_id = m.pos_id
+    ) p on m.eingelesen
+), grund as (
+  select p.*,
+
+         case when not p.eingelesen and (p.bemerkung = 'ohne Chargenbezug' or p.bemerkung like 'Charge % (extern)') then 'ohne_zeile'
+              when not p.eingelesen then 'von_hand'
+              when coalesce(p.n_zeilen, 0) = 0 then 'ohne_zeile'
+              when not p.rest and p.eigene is not null then 'nachholen'
+              when not p.rest and cardinality(p.an_perigon) = 1 then 'nachholen'
+              when not p.rest and cardinality(p.an_perigon) > 1 then 'mehrdeutig'
+              when not p.rest then 'unbekannt'
+              when p.nummern is null then 'keine_nummer'
+              when p.kg_zugeteilt <= 0 then 'menge_null'
+              else 'rest' end as grund,
+         coalesce(p.eigene, case when cardinality(p.an_perigon) = 1 then p.an_perigon[1] end) as bekannt,
+         case when p.nummern like '%,%' then 'die Chargen ' || p.nummern else 'die Charge ' || p.nummern end as chargen_text
+    from pos p
+)
+select g.id, g.datum, g.sorte, g.kunde,
+       zahl(g.masse_kg, 2, 1e12)::numeric(14,2) as kg,
+       g.quelle, g.pos_id, g.artikel,
+
+       case when g.rest then g.nummern else coalesce(nullif(btrim(g.charge_extern), ''), g.nummern) end as nummer,
+       g.grund,
+       case g.grund
+         when 'von_hand' then 'Von Hand in der App erfasst, ohne Charge — dazu gibt es keine Perigon-Zeile.'
+         when 'ohne_zeile' then 'Aus Perigon eingelesen, aber die Zeile der Datei ist nicht mehr in der App.'
+         when 'nachholen' then format('Perigon nennt %s; die Nummer steht inzwischen an Charge %s — beim Einlesen kannte die App sie noch nicht.', g.charge_extern, g.bekannt)
+         when 'mehrdeutig' then format('Perigon nennt %s; diese Perigon-Nummer steht an mehreren Chargen (%s), und der Artikel sagt nicht, an welcher.',
+                                       g.charge_extern, array_to_string(g.an_perigon, ', '))
+         when 'unbekannt' then format('Perigon nennt %s — diese Nummer steht an keiner Charge der App.', g.charge_extern)
+         when 'keine_nummer' then 'In Perigon steht bei dieser Position keine Chargennummer (Spalte W „AuftragsChargeManuell" ist leer).'
+         when 'menge_null' then format('Perigon nennt %s, teilt aber keine Menge zu (Spalte S „AufPosBatchQuantity Charge" ist 0) — die ganze Position bleibt ohne Charge.', g.chargen_text)
+         else format('Perigon teilt %s nur %s von %s kg zu (Spalte S); der Rest hat keine Charge.', g.chargen_text,
+                     to_char(round(g.kg_zugeteilt), 'FM999999990'), to_char(round(g.kg_position), 'FM999999990'))
+       end as satz,
+       case g.grund
+         when 'von_hand' then 'Die Charge an der Lieferung nachtragen — oder den Lieferschein in Perigon führen und die Datei neu einlesen.'
+         when 'ohne_zeile' then 'Die Datei unter Betrieb → Warenausgang neu einlesen.'
+         when 'nachholen' then 'Nichts — beim nächsten Rechnen („Neu rechnen" oben) bekommt der Lieferschein die Charge von selbst.'
+         when 'mehrdeutig' then 'Unter Betrieb → Stammdaten → Chargen die Nummer nur bei der richtigen Charge lassen; beim nächsten Rechnen bekommt der Lieferschein sie.'
+         when 'unbekannt' then 'Unter Betrieb → Stammdaten → Chargen bei der richtigen Charge als Perigon-Nr. eintragen; beim nächsten Rechnen bekommt der Lieferschein sie von selbst.'
+         else 'In Perigon die Charge und die Menge je Charge (Spalten W und S) eintragen, dann die Datei unter Betrieb → Warenausgang neu einlesen.'
+       end as tun
+  from grund g;
+
 -- ---------------------------------------------------------------------
 -- Beschreibungen, Leserechte und Indizes
 -- ---------------------------------------------------------------------
@@ -15063,6 +15136,9 @@ comment on view v_koeff_kaliber_geschaetzt_formel is
   'Zu klein (ausschuss), zu gross (nebenkanal) und Fax je Sorte: seit 0111 das massegewichtete Mittel der eigenen Messungen ab anteil_mindest_messungen() Messungen, sonst das Mittel aller Sorten (b = 0, geliehen); b = 1 heisst: die Sorte trägt sich selbst. Kein Zug zum Gesamtwert mehr; tau2 bleibt leer. — Die Formel (0109); gelesen wird sie über die gleichnamige Sicht ohne _formel.';
 comment on view v_koeff_kaliber_geschaetzt is
   'Zu klein (ausschuss), zu gross (nebenkanal) und Fax je Sorte: seit 0111 das massegewichtete Mittel der eigenen Messungen ab anteil_mindest_messungen() Messungen, sonst das Mittel aller Sorten (b = 0, geliehen); b = 1 heisst: die Sorte trägt sich selbst. Seit 0109 über die Planungsgrenze v_koeff_kaliber_geschaetzt_zaun(); die Formel steht in v_koeff_kaliber_geschaetzt_formel.';
+comment on view v_lieferung_ohne_charge is
+  'Jeder Lieferschein ohne Charge (0125) — dieselben wie v_ohne_charge: verkauft, mit Masse, bis heute — mit Firma und Position der Perigon-Zeile, Artikel, den Nummern aus Spalte W und dem Grund: von_hand (in der App erfasst), ohne_zeile (Zeile der Datei fehlt), nachholen (die Nummer steht inzwischen an einer Charge), mehrdeutig (Perigon-Nummer an mehreren Chargen), unbekannt (Nummer an keiner Charge), keine_nummer (Spalte W leer), menge_null (Chargen genannt, Spalte S = 0), rest (S kleiner als die Position). satz sagt es in Worten, tun was zu tun ist. Nichts wird umgebucht.';
+grant select on v_lieferung_ohne_charge to authenticated;
 
 
 -- =====================================================================

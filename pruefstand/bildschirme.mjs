@@ -85,6 +85,34 @@ const wahl = async (p, id) => {
  * mit Beleg umgebucht hat, und ein Vorschlag mit zu schwachem Beleg. Die
  * Nummern sind erfunden, damit das Bild nicht vom Stand der Fixtures abhängt.
  */
+/**
+ * 0125: Lieferscheine ohne Charge mit verschiedenen Gründen — die Demo hat nur
+ * von Hand erfasste. Einer davon ganz (Lieferung, Import, Zeilen der Datei),
+ * damit sein Fenster sagt, warum: Perigon nennt zwei Chargen, Spalte S ist 0.
+ */
+function ohneChargeVormerken() {
+  const vorlage = (fixture('ausgang_zeile') ?? []).find(z => z.quelle === 'DEMO') ?? {}
+  const tag = '2026-10-09'
+  vormerken('lieferung', [{ id: 990125, datum: tag, charge_nr: null, sorte: 'Kaori Kuri', kg: 1722, kisten: null, gebindeart: null,
+    ziel: 'verkauf', kunde: vorlage.kunde ?? null, erfasser: null, ts: `${tag}T08:00:00+00:00`, bemerkung: 'ohne Chargenbezug' }])
+  vormerken('lieferung_import', [{ lieferung_id: 990125, quelle: 'DEMO', extern_id: 'DEMO:990125:rest', zeile_id: 990125, ts: `${tag}T08:00:00+00:00` }])
+  vormerken('ausgang_zeile', ['1630', '1635'].map((nr, i) => ({ ...vorlage, id: 990125 + i, pos_id: 990125, charge_extern: nr, lauf_nr: 1,
+    fingerabdruck: `bild-0125-${i}`, datum: tag, artikel: 'Bio Kürbis roter Knirps Knospe', einheit: 'kg', menge: 1722, gewicht_je_artikel: 0,
+    batch_menge: 0, kg_position: 1722, kg_charge: 0, preisgruppe: 'K', liefer_label: 'K' })))
+  const z = (id, x) => ({ id, datum: tag, sorte: 'Kaori Kuri', kunde: vorlage.kunde ?? null, kg: 0, quelle: 'DEMO', pos_id: id, artikel: 'Bio Kürbis roter Knirps Knospe', ...x })
+  vormerken('v_lieferung_ohne_charge', [
+    z(990125, { kg: 1722, nummer: '1630, 1635', grund: 'menge_null',
+      satz: 'Perigon nennt die Chargen 1630, 1635, teilt aber keine Menge zu (Spalte S „AufPosBatchQuantity Charge" ist 0) — die ganze Position bleibt ohne Charge.',
+      tun: 'In Perigon die Charge und die Menge je Charge (Spalten W und S) eintragen, dann die Datei unter Betrieb → Warenausgang neu einlesen.' }),
+    z(990126, { datum: '2026-10-16', kg: 288, sorte: 'Tiana', artikel: 'Bio Kürbis Butternut lose', nummer: '991977', grund: 'unbekannt',
+      satz: 'Perigon nennt 991977 — diese Nummer steht an keiner Charge der App.',
+      tun: 'Unter Betrieb → Stammdaten → Chargen bei der richtigen Charge als Perigon-Nr. eintragen; beim nächsten Rechnen bekommt der Lieferschein sie von selbst.' }),
+    z(990127, { datum: '2026-10-18', kg: 272, nummer: '1651', grund: 'nachholen',
+      satz: 'Perigon nennt 1651; die Nummer steht inzwischen an Charge 1651 — beim Einlesen kannte die App sie noch nicht.',
+      tun: 'Nichts — beim nächsten Rechnen („Neu rechnen" oben) bekommt der Lieferschein die Charge von selbst.' }),
+  ])
+}
+
 function ungereimtVormerken() {
   // 0122: woher die Ware wohl kam (kandidaten), eine Zuordnung über den Produzenten
   // und der Weg der Ware je Charge — herein, bearbeitet, hinaus.
@@ -457,6 +485,21 @@ const BILDSCHIRME = [
     tun: async p => {
       await p.locator('.chargentabelle tbody tr', { has: p.locator('.ungereimt-mal') }).first().click()
       await p.locator('.chargentabelle .ungereimt-sache').first().waitFor()
+    } },
+  // 0125: Lieferscheine ohne Charge — eine eigene Zeile am Ende der Chargen, aufgeklappt jeder mit dem Grund;
+  // ein Klick öffnet das Fenster, und das sagt, warum.
+  { name: 'chargen-ohne-charge', wer: 'admin', pfad: '/chargen', vorher: ohneChargeVormerken,
+    tun: async p => {
+      await p.locator('#chargen-ohne-charge').click()
+      await p.locator('.ohne-charge-tabelle tbody tr').nth(2).waitFor()
+      for (const name of ['Charge ohne Menge (Spalte S = 0)', 'Nummer an keiner Charge', 'von Hand erfasst'])
+        await p.locator('.ohne-charge-gruende li', { hasText: name }).first().waitFor()
+    } },
+  { name: 'lieferung-ohne-charge', wer: 'admin', pfad: '/chargen', vorher: ohneChargeVormerken,
+    tun: async p => {
+      await p.locator('#chargen-ohne-charge').click()
+      await p.locator('.ohne-charge-tabelle tbody tr', { hasText: 'Charge ohne Menge' }).first().click()
+      await p.locator('#lieferung-fenster #lieferung-falsch', { hasText: 'Spalte S' }).waitFor()
     } },
   { name: 'chargen-ohne-eingang', wer: 'admin', pfad: '/chargen?charge=99127', vorher: ungereimtVormerken,
     tun: async p => {

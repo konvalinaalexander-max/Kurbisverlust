@@ -13,7 +13,7 @@
  * v_perigon_pruefung); hier werden sie nur zu Sätzen und nach Gewicht
  * geordnet. Ohne React, damit test/ungereimt.test.ts sie prüfen kann.
  */
-import type { ChargeSpur, PerigonPruefung, UngereimtZeile } from './daten'
+import type { ChargeSpur, LieferungOhneCharge, OhneChargeGrund, PerigonPruefung, UngereimtZeile } from './daten'
 import { STATION_NAME, datum, kg, tonnen } from '../lib/format.ts'
 
 export type Schwere = 'rot' | 'gelb' | 'info'
@@ -147,7 +147,8 @@ export function ausZeile(z: UngereimtZeile, perigon: PerigonPruefung[]): Ungerei
           + (vor > 0.5 ? ` ${kg(vor, 0)} davon fallen auf Chargen, die damals noch gar nicht da waren.` : '')
           + (ohneZiel > 0.5 && verteilt.length ? ` ${kg(ohneZiel, 0)} fallen auf gar keine Charge.` : ''),
         warum: 'Für die Menge der ganzen Sorte stimmt das ungefähr, für die einzelne Charge nicht: Wo die Ware wirklich herkam, steht zu viel im Lager, anderswo zu wenig.',
-        tun: 'In Perigon an diesen Lieferscheinen die Charge nachtragen und die Datei unter Betrieb → Warenausgang neu einlesen.' }
+        // 0125: warum jeder einzelne keine Charge hat, steht in der Liste darunter — die Wege sind verschieden.
+        tun: 'Die Lieferscheine zeigen: bei jedem steht, warum er keine Charge hat und wo das zu ändern ist (Perigon, Stammdaten oder nichts).' }
     }
     case 'umgebucht':
     case 'vorschlag': {
@@ -315,6 +316,46 @@ export function vonCharge(liste: Ungereimtheit[], nr: number): Ungereimtheit[] {
  * Welche Spalten der Perigon-Zeile zu einer Art gehören — sie werden im
  * Lieferungs-Fenster rot umrandet (Spaltennamen wie in der Datei).
  */
+/* ---------- 0125: Lieferscheine ohne Charge, je mit Grund -------------- */
+
+/** Der Grund in zwei, drei Worten — für die Übersicht und die Marke an der Zeile. */
+export const OHNE_CHARGE_GRUND: Record<OhneChargeGrund, string> = {
+  unbekannt: 'Nummer an keiner Charge',
+  mehrdeutig: 'Nummer an mehreren Chargen',
+  nachholen: 'Nummer jetzt bekannt',
+  menge_null: 'Charge ohne Menge (Spalte S = 0)',
+  rest: 'nur teilweise zugeteilt',
+  keine_nummer: 'keine Chargennummer',
+  ohne_zeile: 'Perigon-Zeile fehlt',
+  von_hand: 'von Hand erfasst',
+}
+/** Wer es richtigstellt: Perigon (Datei), die Stammdaten der App, oder es erledigt sich mit dem nächsten Rechnen. */
+export const OHNE_CHARGE_WO: Record<OhneChargeGrund, 'perigon' | 'stammdaten' | 'rechnen' | 'app'> = {
+  unbekannt: 'stammdaten', mehrdeutig: 'stammdaten', nachholen: 'rechnen',
+  menge_null: 'perigon', rest: 'perigon', keine_nummer: 'perigon', ohne_zeile: 'app', von_hand: 'app',
+}
+
+export interface OhneChargeGruppe { grund: OhneChargeGrund; name: string; n: number; kg: number; nummern: string[] }
+
+/** Die Lieferscheine ohne Charge nach Grund: wie viele, wie viel, welche Nummern — das Schwerste zuerst. */
+export function ohneChargeUebersicht(liste: LieferungOhneCharge[]): OhneChargeGruppe[] {
+  const je = new Map<OhneChargeGrund, OhneChargeGruppe>()
+  for (const l of liste) {
+    const g = je.get(l.grund) ?? { grund: l.grund, name: OHNE_CHARGE_GRUND[l.grund] ?? l.grund, n: 0, kg: 0, nummern: [] }
+    g.n += 1; g.kg += Number(l.kg) || 0
+    for (const nr of (l.nummer ?? '').split(',').map(x => x.trim()).filter(Boolean)) if (!g.nummern.includes(nr)) g.nummern.push(nr)
+    je.set(l.grund, g)
+  }
+  return [...je.values()].sort((a, b) => b.kg - a.kg || a.name.localeCompare(b.name))
+}
+
+/** Die Zellen der Perigon-Zeile, die beim jeweiligen Grund nicht stimmen (rot umrandet im Fenster). */
+export const OHNE_CHARGE_SPALTEN: Record<OhneChargeGrund, string[]> = {
+  unbekannt: ['AuftragsChargeManuell'], mehrdeutig: ['AuftragsChargeManuell'], nachholen: ['AuftragsChargeManuell'],
+  keine_nummer: ['AuftragsChargeManuell'], menge_null: ['AufPosBatchQuantity Charge', 'AuftragsChargeManuell'],
+  rest: ['AuftragsArtikelMenge', 'AufPosBatchQuantity Charge'], ohne_zeile: [], von_hand: [],
+}
+
 export const FALSCHE_SPALTEN: Record<string, string[]> = {
   'Charge nicht zugeordnet': ['AuftragsChargeManuell'],
   'Teil ohne Charge': ['AuftragsArtikelMenge', 'AufPosBatchQuantity Charge', 'AuftragsChargeManuell'],

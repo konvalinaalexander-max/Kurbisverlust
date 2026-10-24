@@ -195,3 +195,26 @@ test('Der Weg der Ware: umgebucht und vorgeschlagen beim Eingang, fremder Artike
   assert.equal(spanneKurz(null, null), '')
 })
 
+
+// 0125 — der Betrieb: „weis mir auch Lieferscheine ohne Charge aus … ich kann draufklicken,
+// und du zeigst mir die Zeile vom Perigon." Je Grund: wie viele, wie viel, welche Nummern.
+test('0125: Lieferscheine ohne Charge nach Grund — das Schwerste zuerst, die Nummern ohne Doppel', async () => {
+  const { ohneChargeUebersicht, OHNE_CHARGE_GRUND, OHNE_CHARGE_SPALTEN, OHNE_CHARGE_WO } = await import('../src/auswertung/ungereimt.ts')
+  const l = (id: number, grund: string, kg: number, nummer: string | null) =>
+    ({ id, datum: '2026-10-09', sorte: 'Kaori Kuri', kunde: null, kg, quelle: 'Q', pos_id: id, artikel: 'Knirps', nummer, grund, satz: 's', tun: 't' }) as never
+  const g = ohneChargeUebersicht([l(1, 'menge_null', 1722, '1648, 1719'), l(2, 'menge_null', 1697, '1648, 1719'), l(3, 'unbekannt', 264, '198977'),
+    l(4, 'unbekannt', 288, '198977'), l(5, 'von_hand', 50, null)])
+  assert.deepEqual(g.map(x => [x.grund, x.n, Math.round(x.kg)]), [['menge_null', 2, 3419], ['unbekannt', 2, 552], ['von_hand', 1, 50]])
+  assert.deepEqual(g[0].nummern, ['1648', '1719'], 'jede Nummer einmal')
+  assert.deepEqual(g[1].nummern, ['198977'])
+  assert.deepEqual(g[2].nummern, [], 'von Hand hat keine Nummer')
+  assert.equal(g[0].name, 'Charge ohne Menge (Spalte S = 0)')
+  // jeder Grund hat einen Namen, eine Stelle, wo er zu beheben ist, und seine Spalten (auch leer)
+  for (const k of ['von_hand', 'ohne_zeile', 'nachholen', 'mehrdeutig', 'unbekannt', 'keine_nummer', 'menge_null', 'rest']) {
+    assert.ok(OHNE_CHARGE_GRUND[k as keyof typeof OHNE_CHARGE_GRUND], `Name für ${k}`)
+    assert.ok(OHNE_CHARGE_WO[k as keyof typeof OHNE_CHARGE_WO], `Stelle für ${k}`)
+    assert.ok(Array.isArray(OHNE_CHARGE_SPALTEN[k as keyof typeof OHNE_CHARGE_SPALTEN]), `Spalten für ${k}`)
+  }
+  assert.ok(OHNE_CHARGE_SPALTEN.menge_null.includes('AufPosBatchQuantity Charge'), 'bei S = 0 ist Spalte S rot')
+  assert.deepEqual(ohneChargeUebersicht([]), [])
+})

@@ -270,6 +270,18 @@ export interface LagerAusweis {
   gruppe_offen_kg: number | null
 }
 
+/**
+ * 0125: ein Lieferschein ohne Charge, mit dem Grund (v_lieferung_ohne_charge) — dieselben
+ * wie in der Summe je Sorte (v_ohne_charge). quelle/pos_id öffnen die Perigon-Zeile;
+ * ohne quelle ist er von Hand erfasst.
+ */
+export interface LieferungOhneCharge {
+  id: number; datum: string; sorte: string | null; kunde: string | null; kg: number
+  quelle: string | null; pos_id: number | null; artikel: string | null; nummer: string | null
+  grund: OhneChargeGrund; satz: string; tun: string
+}
+export type OhneChargeGrund = 'von_hand' | 'ohne_zeile' | 'nachholen' | 'mehrdeutig' | 'unbekannt' | 'keine_nummer' | 'menge_null' | 'rest'
+
 /** Was zwischen Perigon, Erntejournal und Lager nicht zusammenpasst (v_ungereimtheit, 0121; 0122: nachgeordnet, stammdaten). */
 export interface UngereimtZeile {
   art: 'ohne_eingang' | 'vor_eingang' | 'ueberzaehlung' | 'ohne_charge' | 'umgebucht' | 'vorschlag' | 'nachgeordnet' | 'stammdaten'

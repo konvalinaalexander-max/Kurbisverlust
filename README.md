@@ -798,6 +798,12 @@ ohne Perigon-Zeile als eigener Teil); jede PL/pgSQL-Funktion hat einen
 festen Suchpfad; die Perigon-Liste läuft nur einmal (AB-174 bis AB-176). Dazu die
 Halle: Faules ohne Ablesung ist „unbekannt", Fehler werden gezeigt. **Setup.sql
 einmal einspielen (Stand 124), dann „Neu rechnen".**
+**Runde BB (0125)** — Lieferscheine ohne Charge, einzeln: unter Chargen eine
+eigene Zeile „ohne Charge", aufgeklappt jeder Lieferschein mit dem Grund
+(Nummer unbekannt, Spalte S = 0, keine Nummer, Rest, Nummer jetzt bekannt, von
+Hand …) und was zu tun ist; ein Klick zeigt die Perigon-Zeile (AB-179).
+**Setup.sql einmal einspielen (Stand 125).**
+
 **Runde BA** — wie der Betrieb denkt: „du hast von der Charge noch 7 Paletten
 — dann kann ich nachschauen gehen." Die ≈-Paletten sind diese Zahl: Paletten
 gesamt, sortiert oder nicht, zum Nachzählen beim Kontrollgang (AB-177; eine
