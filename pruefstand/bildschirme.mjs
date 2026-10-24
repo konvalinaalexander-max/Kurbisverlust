@@ -488,15 +488,16 @@ const BILDSCHIRME = [
       await passiert.locator('dd', { hasText: '12 Paletten mit 4.9 t laut Erntejournal (28.8.–31.8.)' }).waitFor()
       await passiert.locator('dd', { hasText: '8 Lieferscheine mit 7.4 t unter der Nummer 99129' }).waitFor()
       await passiert.locator('li', { hasText: 'älter als die erste Palette (28.08.2026)' }).waitFor()
-      await passiert.locator('li', { hasText: 'Für 7’359 kg auf den Lieferscheinen braucht es 8’045 kg Eingang' }).waitFor()
+      // das Tausenderzeichen ist je nach Browser ’ oder ' (der neuere schreibt ' wie Node) — beide gelten
+      await passiert.locator('li', { hasText: /Für 7['’]359 kg auf den Lieferscheinen braucht es 8['’]045 kg Eingang/ }).waitFor()
       await passiert.locator('li', { hasText: 'passen aufs Kilo zu Paletten von Charge 99125' }).waitFor()
       if (await passiert.getByText('Am ehesten', { exact: false }).count()) throw new Error('die Vermutung steht unter „Was ist passiert"')
-      await f.locator('#fall-bilanz .bilanz-fehlt', { hasText: 'fehlt 3’182 kg' }).waitFor()   // Kilo: 8’045 − 4’863, nachrechenbar
+      await f.locator('#fall-bilanz .bilanz-fehlt', { hasText: /fehlt 3['’]182 kg/ }).waitFor()   // Kilo: 8’045 − 4’863, nachrechenbar
       const r = f.locator('#fall-rechnung')
       await r.locator('tr', { hasText: 'im Lager verdunstet' }).locator('td', { hasText: '0.26 % je Tag' }).waitFor()
       await r.locator('tr', { hasText: 'Faules in den Palox' }).waitFor()
-      await r.locator('tr.rueck-summe', { hasText: '8’045 kg' }).waitFor()
-      await r.locator('tr.rueck-fehlt', { hasText: '3’182 kg' }).waitFor()
+      await r.locator('tr.rueck-summe', { hasText: /8['’]045 kg/ }).waitFor()
+      await r.locator('tr.rueck-fehlt', { hasText: /3['’]182 kg/ }).waitFor()
       await f.locator('#fall-wie-sicher', { hasText: 'schon ohne jeden Verlust nicht auf' }).waitFor()
       await f.locator('#fall-zeit .zeit-strich.vor').first().waitFor()
       const belege = f.locator('#sache-belege tbody tr')
