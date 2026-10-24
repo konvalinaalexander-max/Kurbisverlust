@@ -1527,7 +1527,7 @@ table.excel td.falsch, table.excel th.falsch { outline: 2px solid #d12f2f; outli
 .st-fax { background: var(--strom-fax); }
 .st-verlust { background: repeating-linear-gradient(135deg, var(--strom-verkauft) 0 4px, var(--flaeche-3) 4px 8px); }
 .bilanz-bild { display: flex; flex-direction: column; gap: .55rem; }
-.bilanz-zeile { display: grid; grid-template-columns: 8.5rem minmax(0, 1fr) 4.5rem; gap: .7rem; align-items: center; }
+.bilanz-zeile { display: grid; grid-template-columns: 8.5rem minmax(0, 1fr) 5.5rem; gap: .7rem; align-items: center; }
 .bilanz-name { display: flex; flex-direction: column; font-size: var(--s-1); font-weight: var(--gewicht-mittel); line-height: 1.2; }
 .bilanz-name .leise { font-size: var(--s-0); font-weight: var(--gewicht-normal); }
 .bilanz-spur { position: relative; height: 30px; background: var(--flaeche-2); border-radius: 6px; }
@@ -1548,7 +1548,7 @@ table.excel td.falsch, table.excel th.falsch { outline: 2px solid #d12f2f; outli
 /* die Rechnung rückwärts */
 .rueck-tabelle { width: 100%; font-size: var(--s-1); }
 .rueck-tabelle th { text-align: left; font-weight: var(--gewicht-normal); text-transform: none; letter-spacing: 0; color: var(--text); font-size: var(--s-1); white-space: nowrap; }
-.rueck-tabelle td { vertical-align: top; }
+.rueck-tabelle th, .rueck-tabelle td { vertical-align: top; }
 .rueck-tabelle td.zahl { white-space: nowrap; font-variant-numeric: tabular-nums; }
 .rueck-tabelle tr.rueck-start > * { font-weight: var(--gewicht-mittel); }
 .rueck-tabelle tr.rueck-summe > * { border-top: 2px solid var(--rand); }

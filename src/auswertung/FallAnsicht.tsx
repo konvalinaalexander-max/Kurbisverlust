@@ -181,7 +181,7 @@ function BilanzBild({ eingangKg, geliefertKg, gebrauchtKg, r }: {
     <section className="fall-block" id="fall-bilanz">
       <h3>Herein gegen hinaus</h3>
       <div className="bilanz-bild" role="img"
-           aria-label={`Herein ${tonnen(ein)}, ${titelUnten.toLowerCase()} ${tonnen(gebraucht)}${fehlt > 0 ? `, es fehlen ${tonnen(fehlt)}` : ''}`}>
+           aria-label={`Herein ${kg(ein, 0)}, ${titelUnten.toLowerCase()} ${kg(gebraucht, 0)}${fehlt > 0 ? `, es fehlen ${kg(fehlt, 0)}` : ''}`}>
         <div className="bilanz-zeile">
           <span className="bilanz-name">Herein<span className="leise">Erntejournal</span></span>
           <div className="bilanz-spur">
@@ -189,7 +189,7 @@ function BilanzBild({ eingangKg, geliefertKg, gebrauchtKg, r }: {
               : <span className="bilanz-leer">keine Palette</span>}
             {ein > 0 && fehlt > 0 && <div className="bilanz-grenze" style={{ left: pct(ein) }} aria-hidden="true" />}
           </div>
-          <span className="bilanz-zahl">{tonnen(ein)}</span>
+          <span className="bilanz-zahl">{kg(ein, 0)}</span>
         </div>
         <div className="bilanz-zeile">
           <span className="bilanz-name">{titelUnten}<span className="leise">{r || gebrauchtKg != null ? 'für die Lieferscheine' : 'Perigon'}</span></span>
@@ -201,15 +201,15 @@ function BilanzBild({ eingangKg, geliefertKg, gebrauchtKg, r }: {
               ))}
             </div>
             {ein > 0 && fehlt > 0 && <div className="bilanz-grenze" style={{ left: pct(ein) }} aria-hidden="true" />}
-            {fehlt > 0 && <div className="bilanz-fehlt" style={{ left: pct(ein), width: pct(fehlt) }}><span>fehlt {tonnen(fehlt)}</span></div>}
+            {fehlt > 0 && <div className="bilanz-fehlt" style={{ left: pct(ein), width: pct(fehlt) }}><span>fehlt {kg(fehlt, 0)}</span></div>}
           </div>
-          <span className="bilanz-zahl">{tonnen(gebraucht)}</span>
+          <span className="bilanz-zahl">{kg(gebraucht, 0)}</span>
         </div>
       </div>
       {teile.length > 1 && (
         <ul className="bilanz-legende">
           {teile.filter(t => t.kg > 0).map(t => (
-            <li key={t.strom}><span className={`bilanz-farbe st-${t.strom}`} aria-hidden="true" />{STROM_NAME[t.strom] ?? 'Verlust unterwegs'} <span className="leise">{tonnen(t.kg)}</span></li>
+            <li key={t.strom}><span className={`bilanz-farbe st-${t.strom}`} aria-hidden="true" />{STROM_NAME[t.strom] ?? 'Verlust unterwegs'} <span className="leise">{kg(t.kg, 0)}</span></li>
           ))}
         </ul>
       )}

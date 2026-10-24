@@ -4239,6 +4239,9 @@ erledigt sind; die Tonnen-Summe über alle Fälle ist weg — die Fälle
   Aussortiertes, Faules und Verdunstetes (die Farben der Ströme wie unter
   Ursachen); eine gestrichelte Linie, wo der Eingang endet; rechts davon rot
   „fehlt …".
+  Wo gerechnet wird (dieser Satz, die Balken), stehen Kilo, nicht Tonnen: in
+  Tonnen stand „braucht 8 t … 4.9 t — es fehlen 3.2 t", und wer nachrechnet,
+  kommt auf 3.1 t. 8’045 − 4’863 = 3’182 kg geht auf.
 - *Die Rechnung, rückwärts* — die Antwort auf „rechnest du überhaupt
   richtig?": auf den Lieferscheinen + zu klein + zu gross + Faules + verdunstet
   = so viel musste hereinkommen; hereingekommen; es fehlen. Je Schritt der
@@ -4289,7 +4292,7 @@ ihre Tests sicherten, prüft `faelle.test.ts` an den Fällen (im Test gesagt).
 vergibt, alle zurück, Nummer neu vergeben, Stand). Bildschirme: `perigon`
 (drei Zahlen, vier Themen, jede Nummer einmal, 99129 ein Fall, breit der
 erste Fall rechts, auf dem Handy erst die Liste), `perigon-charge` (99129 wie
-1626: Sätze, Balken „fehlt 3.2 t", Rechnung mit 0.26 % je Tag, 8'045 kg und
+1626: Sätze, Balken „fehlt 3’182 kg", Rechnung mit 0.26 % je Tag, 8'045 kg und
 3'182 kg, „schon ohne jeden Verlust", Zeitachse, acht Belege, die Vermutung
 zu), `perigon-weiter` (Knopf und Pfeiltaste, Nummer in der Adresse),
 `perigon-sorten` (der alte Weg), `perigon-sache`, `perigon-fall` (768 = 3 × 256

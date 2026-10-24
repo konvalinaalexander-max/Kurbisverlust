@@ -109,7 +109,13 @@ test('Was bei 1626 passiert ist, in Sätzen: herein, hinaus, was nicht aufgeht, 
   assert.match(g.herein!, /12 Paletten mit 4.9 t laut Erntejournal \(23\.9\.\)/)
   assert.match(g.hinaus!, /21 Lieferscheine mit 7.5 t unter der Nummer 1626 laut Perigon \(2\.9\.–14\.10\.\)/)
   assert.match(g.punkte[0].text, /7 Lieferscheine mit 7.2 t sind älter als die erste Palette \(23\.09\.2026\)/)
-  assert.match(g.punkte[1].text, /Für 7.5 t auf den Lieferscheinen braucht es 8 t Eingang.*Verdunstung, Faules, Aussortiertes.*Hereingekommen sind 4.9 t — es fehlen 3.2 t/)
+  // Runde BF, nach dem ersten Bild: in Tonnen stand „braucht 8 t … 4.9 t — es fehlen 3.2 t", und 8 − 4.9 ist 3.1.
+  // Wo gerechnet wird, stehen Kilo — und die Zahlen im Satz gehen auf.
+  const satz = g.punkte[1].text
+  // (das Tausenderzeichen ist im Browser ’, unter Node je nach ICU ')
+  assert.match(satz, /Für 7['’]491 kg auf den Lieferscheinen braucht es 8['’]045 kg Eingang.*Verdunstung, Faules, Aussortiertes.*Hereingekommen sind 4['’]863 kg — es fehlen 3['’]182 kg/)
+  const [, aus, ein, fehlt] = [...satz.matchAll(/([\d'’]+) kg/g)].map(x => Number(x[1].replace(/['’]/g, '')))
+  assert.equal(aus - ein, fehlt, 'wer nachrechnet, bekommt dieselbe Zahl')
   assert.match(g.punkte[2].text, /passen aufs Kilo zu Paletten von Charge 1623/)
   assert.deepEqual(g.punkte.map(p => p.schwere), ['rot', 'rot', 'gelb'], 'jeder Satz trägt die Schwere seiner Sache')
   assert.match(g.folge!, /von keinem Lager ab/)

@@ -265,8 +265,9 @@ function chargeGeschichte(f: Fall, s: ChargeSpur | undefined): Geschichte {
       }
       case 'ueberzaehlung': {
         const gel = n(m.geliefert_kg), ein = n(m.eingang_kg), aus = n(m.ausgelagert_kg)
-        p(`Für ${tonnen(gel)} auf den Lieferscheinen braucht es ${tonnen(aus)} Eingang, denn unterwegs geht Ware verloren (Verdunstung, Faules, Aussortiertes). Hereingekommen sind ${tonnen(ein)} — es fehlen ${tonnen(u.kg)}.`, u)
-        folge = `Die fehlenden ${tonnen(u.kg)} zieht die App von keinem Lager ab.`
+        // in Kilo, nicht in Tonnen: wer nachrechnet, soll dieselbe Zahl bekommen (8 t − 4.9 t sind nicht 3.2 t, 8’045 − 4’863 = 3’182 kg schon)
+        p(`Für ${kg(gel, 0)} auf den Lieferscheinen braucht es ${kg(aus, 0)} Eingang, denn unterwegs geht Ware verloren (Verdunstung, Faules, Aussortiertes). Hereingekommen sind ${kg(ein, 0)} — es fehlen ${kg(u.kg, 0)}.`, u)
+        folge = `Die fehlenden ${kg(u.kg, 0)} zieht die App von keinem Lager ab.`
         break
       }
       case 'ohne_eingang':
