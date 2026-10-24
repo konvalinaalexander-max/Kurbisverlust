@@ -129,10 +129,12 @@ function ungereimtVormerken() {
       mehr: { von_charge_nr: 99125, auftrag_id: 2, grund: '6 von 8 Zetteln der Arbeit 2 (Charge 99129) ohne eigene Palette passen aufs Kilo zu Paletten von Charge 99125 (428 kg, 434 kg, 444 kg, 430 kg, 437 kg, 437 kg); Charge 99129 lieferte 7444 kg bei 4863 kg Eingang', paletten: [7, 8, 9, 10, 11, 12], von_betriebsleiter: false } },
     // Eine Perigon-Nummer an zwei Chargen — so stand 198976 bei 1649 und 1650,
     // bis der Betrieb die Liste berichtigte; seither nicht mehr in der Demo.
+    // Runde BE: die Zeilenzahlen passen zu den Belegen weiter unten (zwei mit 991980, einer mit 991981),
+    // sonst sagt der Text „4 Zeilen" und die Liste zeigt zwei.
     { art: 'stammdaten', charge_nr: 99130, sorte: 'Butterkin', schlag: 'Prüfschlag', kg: null, n: 2, von: null, bis: null,
-      mehr: { pruefung: 'perigon_doppelt', chargen_nr: [99130, 99131], perigon_nr: 991980, zeilen_mit_nummer: 4,
+      mehr: { pruefung: 'perigon_doppelt', chargen_nr: [99130, 99131], perigon_nr: 991980, zeilen_mit_nummer: 2,
         chargen: [{ charge_nr: 99130, schlag: 'Prüfschlag', sorte: 'Butterkin' }, { charge_nr: 99131, schlag: 'Prüfschlag', sorte: 'Tiana' }],
-        verwandte: [{ nummer: '991981', n: 11, produzent: 'Prüfhof', gruppe: 'Butternut', charge_nr: 99131 }] } },
+        verwandte: [{ nummer: '991981', n: 1, produzent: 'Prüfhof', gruppe: 'Butternut', charge_nr: 99131 }] } },
   ])
   const spur = (charge_nr, sorte, x) => ({ charge_nr, schlag: 'Prüfschlag', sorte, artikelgruppe: sorte === 'Tiana' ? 'Butternut' : 'Knirps',
     journal_paletten: 0, journal_kg: null, journal_von: null, journal_bis: null, paletten: 0, eingang_kg: null, weg: null, her: null,

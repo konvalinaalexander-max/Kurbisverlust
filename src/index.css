@@ -1193,6 +1193,8 @@ table.excel td.kennung { font-weight: bold; }
 .beleg-vor-marke { color: var(--rot); font-size: var(--s-0); }
 .belege-titel { font-size: var(--s-1); margin: .8rem 0 .3rem; text-transform: uppercase; letter-spacing: .05em; color: var(--text-leise); }
 .belege > h3 .leise { text-transform: none; letter-spacing: 0; }
+/* unter den Knöpfen der Sache (Charge öffnen, Vorschlag eintragen) ein Atemzug, sonst klebt der Titel daran */
+.fall-block.belege { margin-top: 1.2rem; }
 .ungereimt-zeilen .kennung-wert { font-size: var(--s-0); }
 .perigon-pruefung tr.unterzeile td { padding-left: 2.1rem; font-size: var(--s-0); }
 .benutzen { margin-top: .7rem; padding: .5rem .75rem; border-radius: var(--radius-klein); background: var(--flaeche-2); }
