@@ -14,7 +14,12 @@
  */
 
 export type Zelle = string | number | Date | boolean | null
-export interface Blatt { name: string; zeilen: Zelle[][] }
+export interface Blatt {
+  name: string; zeilen: Zelle[][]
+  /** Runde BE: die Nummer jeder Zeile in Excel (<row r="…">) — damit man eine Zeile der App in der Datei wiederfindet,
+   *  auch wenn Excel leere Zeilen gar nicht erst schreibt. */
+  nr?: number[]
+}
 
 /* ---------- ZIP ---------------------------------------------------------- */
 
@@ -129,15 +134,18 @@ function spalte(bezug: string): number {
   return n - 1
 }
 
-function blattLesen(xml: string, texte: string[], datum: Set<number>): Zelle[][] {
+function blattLesen(xml: string, texte: string[], datum: Set<number>): { zeilen: Zelle[][]; nr: number[] } {
   const zeilen: Zelle[][] = []
+  const nr: number[] = []
   // Die Attribute werden faul gelesen: `<c r="D2" s="1"/>` hat einen Schrägstrich
   // vor dem `>`, und ein gieriges Muster verschluckte ihn samt der nächsten
   // Zelle — die leere Zelle D trug dann den Wert von E. Zwei Spalten
   // verschoben, keine Fehlermeldung. Gefunden im Vergleich mit einem zweiten
   // Leser; seither prüft das ein Test mit genau dieser Zellfolge.
-  for (const zm of xml.matchAll(/<row\b[^>]*?(?:\/>|>([\s\S]*?)<\/row>)/g)) {
-    const inhalt = zm[1] ?? ''
+  for (const zm of xml.matchAll(/<row\b([^>]*?)(?:\/>|>([\s\S]*?)<\/row>)/g)) {
+    const inhalt = zm[2] ?? ''
+    // Runde BE: die Zeilennummer, wie Excel sie links zeigt — fehlt sie, die nächste nach der vorigen.
+    nr.push(Number(/\br="(\d+)"/.exec(zm[1] ?? '')?.[1] ?? (nr.length ? nr[nr.length - 1] + 1 : 1)))
     const zeile: Zelle[] = []
     for (const cm of inhalt.matchAll(/<c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g)) {
       const attr = cm[1], koerper = cm[2] ?? ''
@@ -160,7 +168,7 @@ function blattLesen(xml: string, texte: string[], datum: Set<number>): Zelle[][]
     }
     zeilen.push(zeile)
   }
-  return zeilen
+  return { zeilen, nr }
 }
 
 /* ---------- Öffentlich ---------------------------------------------------- */
@@ -188,7 +196,7 @@ export async function xlsxLesen(daten: ArrayBuffer | Uint8Array): Promise<Blatt[
     const pfad = ziel.get(rid) ?? `worksheets/sheet${blaetter.length + 1}.xml`
     const xml = await lies(`xl/${pfad}`)
     if (!xml) continue
-    blaetter.push({ name, zeilen: blattLesen(xml, texte, datum) })
+    blaetter.push({ name, ...blattLesen(xml, texte, datum) })
   }
   if (blaetter.length === 0) throw new Error('Die Datei enthält kein lesbares Tabellenblatt.')
   return blaetter

@@ -65,7 +65,7 @@ export function OhneChargeListe({ sorte }: { sorte?: string | null }) {
       <div className="rollbar">
         <table className="dicht umbruch ohne-charge-tabelle">
           <thead>
-            <tr><th>Geliefert</th><th>Artikel</th><th>Kunde</th><th className="zahl">Masse</th><th>Warum ohne Charge</th></tr>
+            <tr><th>Geliefert</th><th>Artikel</th><th>Kunde</th><th className="zahl">Masse</th><th>Position</th><th>Warum ohne Charge</th></tr>
           </thead>
           <tbody>
             {liste.map(l => (
@@ -76,6 +76,8 @@ export function OhneChargeListe({ sorte }: { sorte?: string | null }) {
                     {(mehrereSorten || !l.artikel) && l.sorte && <span className="zelle-unter">{l.sorte}</span>}</td>
                   <td>{l.kunde ?? <span className="leise">—</span>}</td>
                   <td className="zahl">{kg(l.kg, 0)}</td>
+                  {/* Runde BE: woran man die Zeile im Excel findet — die Position (AufPosId), blau wie im Fenster */}
+                  <td>{l.pos_id != null ? <code className="kennung-wert">{l.pos_id}</code> : <span className="leise">von Hand</span>}</td>
                   <td><strong>{OHNE_CHARGE_GRUND[l.grund] ?? l.grund}</strong><span className="zelle-unter ohne-charge-satz">{l.satz}</span></td>
                 </tr>
             ))}

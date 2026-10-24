@@ -1163,6 +1163,37 @@ table.excel td { height: 26px; }
 table.excel td.rechts { text-align: right; }
 table.excel tr > :first-child { border-left: 0; }
 table.excel thead th { border-top: 0; } table.excel tbody tr:last-child td { border-bottom: 0; }
+/* Runde BE: wie im Excel — Spaltenbuchstaben oben, Zeilennummern links (bleiben beim seitlichen Rollen
+   stehen); die Kennung der Zeile (AufPosId) blau, die Zeile, um die es geht, an ihrer Nummer markiert. */
+table.excel tr.excel-buchstaben th { height: 20px; text-align: center; vertical-align: middle; background: #e6e6e6; color: #333; }
+table.excel .excel-nr { position: sticky; left: 0; z-index: 1; background: #e6e6e6; color: #333; text-align: center;
+  vertical-align: middle; font-variant-numeric: tabular-nums; border-right: 1px solid #9a9a9a; }
+table.excel thead .excel-nr { z-index: 2; }
+table.excel tbody th.excel-nr { height: 26px; font-size: 10pt; }
+table.excel tr.gemeint > .excel-nr { background: #1c5fbf; color: #fff; font-weight: bold; }
+table.excel td.kennung, table.excel th.kennung { outline: 2px solid #1c5fbf; outline-offset: -2px; background: #e8f0fd; }
+table.excel td.kennung { font-weight: bold; }
+.excel-legende { margin: .35rem 0 0; font-size: var(--s-0); }
+.legende-kennung, .legende-falsch { display: inline-block; width: .85em; height: .85em; vertical-align: -1px; border: 2px solid #1c5fbf; background: #e8f0fd; margin-right: .2rem; }
+.legende-falsch { border-color: #d12f2f; background: #fff1f1; }
+/* Wo die Zeile steht: Datei, Blatt, Excel-Zeile, die Kennung zum Suchen */
+.dialog.breit.sehr-breit { max-width: 1120px; }
+.finden { display: grid; gap: .4rem; padding: .65rem .85rem; margin: 0 0 .6rem; border-left: 4px solid #1c5fbf; border-radius: var(--radius-klein);
+  background: color-mix(in srgb, #1c5fbf 7%, var(--flaeche)); font-size: var(--s-1); }
+.finden-zeile { display: grid; grid-template-columns: 7.5rem minmax(0, 1fr); gap: .7rem; align-items: baseline; }
+.finden-was { color: var(--text-leise); font-size: var(--s-0); text-transform: uppercase; letter-spacing: .05em; }
+.kennung-wert { font: inherit; font-weight: bold; font-variant-numeric: tabular-nums; padding: .05rem .5rem; margin: 0 .4rem 0 .15rem;
+  border: 2px solid #1c5fbf; border-radius: 4px; background: #e8f0fd; color: #0b2e6b; }
+.finden-erklaert { display: block; color: var(--text-2); margin-top: .25rem; }
+.belege kbd, .finden kbd { font: inherit; font-size: .85em; padding: 0 .3rem; border: 1px solid var(--rand); border-bottom-width: 2px; border-radius: 4px; background: var(--flaeche); }
+@media (max-width: 640px) { .finden-zeile { grid-template-columns: 1fr; gap: .1rem; } }
+/* Runde BE: die Belege einer Sache je Charge — was vor dem Eingang geliefert wurde, rot markiert */
+.fall-tabelle .kennung-wert { margin: 0; font-size: var(--s-1); }
+.beleg-tabelle tr.beleg-vor > td { background: color-mix(in srgb, var(--rot) 7%, transparent); }
+.beleg-vor-marke { color: var(--rot); font-size: var(--s-0); }
+.belege-titel { font-size: var(--s-1); margin: .8rem 0 .3rem; text-transform: uppercase; letter-spacing: .05em; color: var(--text-leise); }
+.belege > h3 .leise { text-transform: none; letter-spacing: 0; }
+.ungereimt-zeilen .kennung-wert { font-size: var(--s-0); }
 .perigon-pruefung tr.unterzeile td { padding-left: 2.1rem; font-size: var(--s-0); }
 .benutzen { margin-top: .7rem; padding: .5rem .75rem; border-radius: var(--radius-klein); background: var(--flaeche-2); }
 .benutzen label { display: inline-flex; align-items: center; gap: .35rem; font-weight: var(--gewicht-stark); }

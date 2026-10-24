@@ -127,6 +127,9 @@ export interface AusgangZeile {
 
 /** Eine Zeile der Datei, wie sie dasteht: Spaltenname → Wert (Datum als JJJJ-MM-TT, leer als null). */
 export type RohZeile = Record<string, string | number | null>
+/** Runde BE: wo die Zeile in der Datei steht — keine Spalte der Datei (Perigon-Spalten beginnen nie mit #). */
+export const ROH_ZEILE = '#zeile', ROH_BLATT = '#blatt', ROH_DATEI = '#datei'
+const istMeta = (name: string) => name.startsWith('#')
 
 /** Runde AS: „eine Replika der Excel-Zeile, alle Spalten" — die Kopfzeile gibt die Namen. Doppelte Namen bekommen ihre Spaltennummer. */
 export function rohZeile(kopfzeile: Zelle[], r: Zelle[]): RohZeile {
@@ -223,6 +226,10 @@ export function excelWert(wert: string | number | null | undefined, format: Exce
 export interface ExcelAnsicht {
   spalten: { name: string; buchstabe: string | null; rechts: boolean; breite: number }[]
   zeilen: string[][]
+  /** Runde BE: die Excel-Zeile je Zeile — leer, solange die Datei seit Runde BE nicht neu eingelesen ist */
+  nr: (number | null)[]
+  /** Runde BE: aus welcher Datei und welchem Blatt die Zeilen kommen, wenn bekannt */
+  datei: string | null; blatt: string | null
 }
 
 /**
@@ -231,7 +238,7 @@ export interface ExcelAnsicht {
  * Auswertung heute nicht hat, kommen dahinter, in der Folge, in der sie gespeichert sind, als Text oder Zahl.
  */
 export function excelAnsicht(roh: RohZeile[]): ExcelAnsicht {
-  const namen = [...new Set(roh.flatMap(r => Object.keys(r)))]
+  const namen = [...new Set(roh.flatMap(r => Object.keys(r)))].filter(n => !istMeta(n))
   const bekannt = new Map(PERIGON_ANSICHT.map((s, i) => [schluessel(s.name), { ...s, i }]))
   const reihe = namen.map(n => ({ n, b: bekannt.get(schluessel(n)) }))
   const geordnet = [
@@ -246,7 +253,30 @@ export function excelAnsicht(roh: RohZeile[]): ExcelAnsicht {
       const w = r[n]
       return excelWert(w, b ? b.format : 'text')
     })),
+    nr: roh.map(r => (typeof r[ROH_ZEILE] === 'number' ? r[ROH_ZEILE] as number : null)),
+    datei: roh.map(r => r[ROH_DATEI]).find((d): d is string => typeof d === 'string') ?? null,
+    blatt: roh.map(r => r[ROH_BLATT]).find((d): d is string => typeof d === 'string') ?? null,
   }
+}
+
+/**
+ * Runde BE: die Excel-Zeile einer Chargenzeile. Die App zählt gleiche Chargen
+ * einer Position in der Folge der Datei durch (lauf_nr); die lauf-te Zeile mit
+ * dieser Charge in `roh` ist die gesuchte. Leer, wenn die Datei seit Runde BE
+ * nicht neu eingelesen ist (dann trägt `roh` keine Zeilennummer).
+ */
+export function excelZeileVon(roh: RohZeile[] | null | undefined, charge: string | null, lauf: number): number | null {
+  if (!roh?.length) return null
+  const ziel = (charge ?? '').trim()
+  let k = 0
+  for (const r of roh) {
+    const sp = Object.keys(r).find(x => schluessel(x) === schluessel('AuftragsChargeManuell'))
+    const c = sp == null || r[sp] == null ? '' : String(r[sp]).trim()
+    if (c !== ziel) continue
+    k++
+    if (k === lauf) return typeof r[ROH_ZEILE] === 'number' ? r[ROH_ZEILE] as number : null
+  }
+  return null
 }
 
 const runden = (n: number) => Math.round(n * 1000) / 1000
@@ -312,8 +342,13 @@ export function fingerabdruck(teile: (string | number | null)[]): string {
   return h1.toString(16).padStart(8, '0') + h2.toString(16).padStart(8, '0')
 }
 
-/** Liest ein Blatt in Zeilen um. Zeilen ohne Positions-Id oder Datum fallen weg. */
-export function zeilenLesen(blatt: Blatt, quelle: string): {
+/**
+ * Liest ein Blatt in Zeilen um. Zeilen ohne Positions-Id oder Datum fallen weg.
+ * Runde BE: jede Zeile trägt in `roh` auch, wo sie in der Datei steht — die
+ * Excel-Zeile (`#zeile`), das Blatt (`#blatt`) und, wenn bekannt, die Datei
+ * (`#datei`). Damit findet der Betrieb die Zeile wieder, die die App zeigt.
+ */
+export function zeilenLesen(blatt: Blatt, quelle: string, datei?: string): {
   zeilen: AusgangZeile[]; kopf: Kopf | null; uebersprungen: number
 } {
   const kopf = kopfLesen(blatt.zeilen)
@@ -361,8 +396,9 @@ export function zeilenLesen(blatt: Blatt, quelle: string): {
       erloes: zahl(w(r, 'erloes')),
       preisgruppe: wort(w(r, 'preisgruppe')) || null,
       liefer_label: wort(w(r, 'liefer_label')) || null,
-      zeile_nr: i + 1,
-      roh: rohZeile(blatt.zeilen[kopf.zeile], r),
+      zeile_nr: blatt.nr?.[i] ?? i + 1,
+      roh: { ...rohZeile(blatt.zeilen[kopf.zeile], r), [ROH_ZEILE]: blatt.nr?.[i] ?? i + 1, [ROH_BLATT]: blatt.name,
+             ...(datei ? { [ROH_DATEI]: datei } : {}) },
     }
     // Die zwei Felder aus 0112 (Preisgruppe, Label) gehören bewusst nicht in den
     // Fingerabdruck: sonst stünde nach dem Update jede bekannte Zeile als „geändert" da.

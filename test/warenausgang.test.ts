@@ -48,6 +48,35 @@ test('eine leere Zelle verschluckt den Wert der nächsten nicht', async () => {
   assert.ok(z[5] instanceof Date, 'AuftragsLieferDatum trägt das Datum')
 })
 
+test('Runde BE: jede Zeile weiss, wo sie in der Datei steht — Excel-Zeile, Blatt, Datei', async () => {
+  // Der Betrieb, 24. Oktober: „dass ich die Zeile im Excel wiederfinde und damit zu meinem Chef gehen kann".
+  const blatt = (await xlsxLesen(readFileSync(PROBE)))[0]
+  assert.equal(blatt.nr?.length, blatt.zeilen.length, 'je Zeile eine Nummer')
+  assert.deepEqual(blatt.nr?.slice(0, 2), [1, 2], 'der Kopf ist Zeile 1, die erste Position Zeile 2')
+  const { zeilen } = zeilenLesen(blatt, 'probe', 'probe.xlsx')
+  assert.equal(zeilen[0].zeile_nr, 2)
+  assert.equal(zeilen[0].roh?.['#zeile'], 2)
+  assert.equal(zeilen[0].roh?.['#blatt'], 'Tabelle S. 1')
+  assert.equal(zeilen[0].roh?.['#datei'], 'probe.xlsx')
+  // Excel schreibt leere Zeilen nicht: die Nummer kommt aus <row r="…">, nicht aus der Reihenfolge
+  const mitLuecke = zeilenLesen({ name: 'B', zeilen: blatt.zeilen.slice(0, 3), nr: [1, 5, 9] }, 'probe')
+  assert.deepEqual(mitLuecke.zeilen.map(z => z.zeile_nr), [5, 9])
+  assert.equal(mitLuecke.zeilen[0].roh?.['#datei'], undefined, 'ohne Dateiname keine erfundene Datei')
+  // Die Ansicht wie im Excel zeigt die Merkmale nicht als Spalten — sie stehen daneben
+  const a = excelAnsicht(zeilen.filter(z => z.pos_id === zeilen[0].pos_id).map(z => z.roh!))
+  assert.ok(a.spalten.every(sp => !sp.name.startsWith('#')), 'keine Spalte #zeile')
+  assert.deepEqual(a.nr.slice(0, 1), [2])
+  assert.equal(a.datei, 'probe.xlsx')
+  assert.equal(a.blatt, 'Tabelle S. 1')
+  assert.deepEqual(excelAnsicht([{ AufPosId: 1 }]).nr, [null], 'vor dem neuen Einlesen: Zeile unbekannt, nicht 0')
+  // die Excel-Zeile einer Chargenzeile: die lauf-te Zeile mit dieser Charge (dieselbe Zeile dreimal: 1203, 1204, 1205)
+  const drei = [1203, 1204, 1205].map(n => ({ AuftragsChargeManuell: '1620', '#zeile': n }))
+  assert.equal(excelZeileVon(drei, '1620', 2), 1204)
+  assert.equal(excelZeileVon([{ AuftragsChargeManuell: '1630', '#zeile': 7 }, { AuftragsChargeManuell: '1635', '#zeile': 8 }], '1635', 1), 8)
+  assert.equal(excelZeileVon(drei, '1621', 1), null, 'eine Charge, die nicht dasteht: keine Zeile')
+  assert.equal(excelZeileVon([{ AuftragsChargeManuell: '1620' }], '1620', 1), null, 'ohne Zeilennummer: unbekannt')
+})
+
 test('Excel-Tagesnummern werden zum richtigen Datum', () => {
   assert.equal(serieAlsDatum(46271).toISOString().slice(0, 10), '2026-09-06')
   assert.equal(serieAlsDatum(45658).toISOString().slice(0, 10), '2025-01-01')
@@ -417,7 +446,9 @@ test('Runde AS: jede Zeile trägt die ganze Zeile der Datei, jede Position alle 
   assert.equal(roh[SPALTEN.menge], 160)
   assert.equal(roh['Bemerkung intern'], 'dringend')
   assert.equal(zeilen[1].roh!['Bemerkung intern'], null, 'leer bleibt leer, nicht 0 und nicht ""')
-  assert.equal(Object.keys(roh).length, Object.keys(SPALTEN).length + 1, 'alle Spalten, auch die unbekannte')
+  // Runde BE: dazu kommt, wo die Zeile steht (#zeile, #blatt) — keine Spalte der Datei, darum hier nicht mitgezählt.
+  assert.equal(Object.keys(roh).filter(k => !k.startsWith('#')).length, Object.keys(SPALTEN).length + 1, 'alle Spalten, auch die unbekannte')
+  assert.deepEqual([roh['#zeile'], roh['#blatt']], [2, b.name], 'und wo sie in der Datei steht')
   // nicht im Fingerabdruck: dieselbe Zeile mit anderem Inhalt einer unbekannten Spalte ist nicht „geändert"
   const ohne = zeilenLesen(blatt([{ pos_id: 8001, lieferdatum: '14.10.2026', journal: 'A', kunde: 'Kunde A', artikel_id: 'kürbkn',
     artikel: 'Bio Kürbis Knirps Dem klein', einheit: 'Stk.', menge: 160, gewicht_je_artikel: 1.5, charge: '1630', batch_menge: 100, preisgruppe: 'D' }]), 'probe')
@@ -451,7 +482,7 @@ test('Runde AS: die Deutung einer Lieferung rechnet wie perigonKg und sagt, was 
 })
 
 /* ---------- Runde AT: die Zeile, wie Excel sie zeigt ------------------------ */
-import { excelAnsicht, excelWert, PERIGON_ANSICHT, spaltenBuchstabe } from '../src/lib/warenausgang.ts'
+import { excelAnsicht, excelWert, excelZeileVon, PERIGON_ANSICHT, spaltenBuchstabe } from '../src/lib/warenausgang.ts'
 
 test('Runde AT: die Spalten stehen in der Folge der Datei (A bis AF), auch wenn die Datenbank sie anders zurückgibt', () => {
   // So gibt jsonb die Schlüssel zurück: nach Länge, dann nach Zeichen — nicht in der Folge der Datei.

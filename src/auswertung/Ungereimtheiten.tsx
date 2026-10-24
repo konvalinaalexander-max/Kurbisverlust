@@ -22,6 +22,7 @@ import { LieferungFenster } from '../betrieb/LieferungFenster'
 import type { Auswertung, ChargeSpur, PerigonBefund } from './daten'
 import { ART_NAME, spurText, ungereimtheiten, vonCharge, type Ungereimtheit } from './ungereimt'
 import { OhneChargeListe } from './OhneCharge'
+import { PerigonBelege } from './Belege'
 
 /**
  * 0126: Oben auf Lager nach Charge, nach Artikel und Chargen — eine Zeile:
@@ -165,7 +166,12 @@ export function Sache({ u, inCharge, spur, verfolgen = false, ohneWeg = false, i
   imFenster?: boolean
 }) {
   const { istAdmin } = useAuth()
-  const [zeilenAuf, setZeilenAuf] = useState(false)
+  // Runde BE: im eigenen Fenster stehen die Belege gleich da — „das ist ja wichtig, ist Nachvollziehbarkeit"
+  const [zeilenAuf, setZeilenAuf] = useState(imFenster)
+  // Wo die Ware nach Perigon unter einer Nummer hinausging, sind deren Lieferscheine die Belege
+  const belegeDerCharge = imFenster && u.charge_nr != null && ['ueberzaehlung', 'ohne_eingang', 'vor_eingang'].includes(u.art)
+  // … und wo sie keiner Charge gehören (eine Nummer an zwei Chargen, über den Produzenten zugeordnet): die mit der Nummer
+  const belegeDerNummer = imFenster && !belegeDerCharge && (u.nummern?.length ?? 0) > 0
   const [fenster, setFenster] = useState<{ quelle?: string; posId?: number; lieferungId?: number; fall?: PerigonBefund } | null>(null)
   const [meldung, setMeldung] = useState<string | null>(null)
   const [laeuft, setLaeuft] = useState(false)
@@ -203,11 +209,11 @@ export function Sache({ u, inCharge, spur, verfolgen = false, ohneWeg = false, i
       <div className="ungereimt-aktion">
         {u.charge_nr != null && u.charge_nr !== inCharge && <Link to={`/chargen?charge=${u.charge_nr}`}>Charge {u.charge_nr} öffnen</Link>}
         {u.von_charge_nr != null && u.von_charge_nr !== inCharge && <Link to={`/chargen?charge=${u.von_charge_nr}`}>Charge {u.von_charge_nr} öffnen</Link>}
-        {anzahl !== null && anzahl > 0 && (
+        {anzahl !== null && anzahl > 0 && !imFenster && (
           <button type="button" className="klein" onClick={() => setZeilenAuf(a => !a)} aria-expanded={zeilenAuf}>
             {zeilenAuf ? 'Perigon-Zeilen zu' : `${anzahl} ${anzahl === 1 ? 'Perigon-Zeile' : 'Perigon-Zeilen'} zeigen`}</button>
         )}
-        {u.art === 'ohne_charge' && <button type="button" className="klein" onClick={() => setZeilenAuf(a => !a)} aria-expanded={zeilenAuf}>
+        {u.art === 'ohne_charge' && !imFenster && <button type="button" className="klein" onClick={() => setZeilenAuf(a => !a)} aria-expanded={zeilenAuf}>
           {zeilenAuf ? 'Lieferscheine zu' : 'Lieferscheine zeigen'}</button>}
         {istAdmin && u.art === 'umgebucht' && <button type="button" className="klein" disabled={laeuft} onClick={() => void setzen('zurueckgenommen')}>Umbuchung zurücknehmen</button>}
         {istAdmin && u.art === 'vorschlag' && <button type="button" className="klein" disabled={laeuft} onClick={() => void setzen('angewandt')}>Umbuchen</button>}
@@ -215,6 +221,9 @@ export function Sache({ u, inCharge, spur, verfolgen = false, ohneWeg = false, i
           Bei {u.perigonSetzen.charge_nr} Perigon-Nr. {u.perigonSetzen.perigon_nr} eintragen</button>}
       </div>
       {meldung && <p className="hilfe unten-0">{meldung}</p>}
+      {belegeDerCharge && <PerigonBelege chargen={[u.charge_nr!]} vorEingang={u.art === 'vor_eingang' ? spur.get(u.charge_nr!)?.journal_von ?? null : null} />}
+      {belegeDerNummer && <PerigonBelege nummern={u.nummern} />}
+      {imFenster && zeilenAuf && u.zeilen.length > 0 && u.art !== 'ohne_charge' && <h3 className="belege-titel">Die Perigon-Zeilen dazu <span className="leise">— ein Klick zeigt die Zeile wie im Excel</span></h3>}
       {zeilenAuf && u.art !== 'ohne_charge' && (
         <ul className="ungereimt-zeilen">
           {u.zeilen.map((z, i) => (
@@ -222,6 +231,7 @@ export function Sache({ u, inCharge, spur, verfolgen = false, ohneWeg = false, i
               <button type="button" className="link" title="die Zeile der Perigon-Datei zeigen — was nicht stimmt, ist rot umrandet"
                       onClick={() => setFenster({ quelle: z.quelle, posId: z.pos_id, fall: 'schluessel' in z ? (z as PerigonBefund) : undefined })}>
                 {datum(z.datum)} · {z.artikel}{z.kg != null ? ` · ${kg(z.kg, 0)}` : ''}{z.kunde ? ` · ${z.kunde}` : ''}</button>
+              {' '}<code className="kennung-wert" title="die Position (AufPosId, Spalte AD) — so findet man die Zeile im Excel">{z.pos_id}</code>
               <span className="leise"> — {z.satz ?? z.befund}</span>
             </li>
           ))}

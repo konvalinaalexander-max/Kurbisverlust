@@ -798,6 +798,13 @@ ohne Perigon-Zeile als eigener Teil); jede PL/pgSQL-Funktion hat einen
 festen Suchpfad; die Perigon-Liste läuft nur einmal (AB-174 bis AB-176). Dazu die
 Halle: Faules ohne Ablesung ist „unbekannt", Fehler werden gezeigt. **Setup.sql
 einmal einspielen (Stand 124), dann „Neu rechnen".**
+**Runde BE** — die Excel-Zeile ist der Beweis: im Fenster jedes Falls und jeder
+Lieferung gleich sichtbar, wie im Excel (Spaltenbuchstaben, Zeilennummern), die
+Kennung (AufPosId) blau, was nicht stimmt rot; darüber Datei, Blatt,
+Excel-Zeile und die Position zum Suchen und Kopieren. Die Fälle je Charge zeigen
+ihre Lieferscheine als Belege. **Die Perigon-Dateien einmal neu einlesen**
+(Betrieb → Warenausgang) — erst dann kennt die App die Excel-Zeilen (AB-183).
+Keine Migration.
 **Runde BD** — der Reiter Perigon ruhiger („er überfordert gerade noch"):
 vier Teile statt fünf. **Fälle** ist eine Arbeitsliste — je Art des Fehlers
 eine Zeile, die aufklappt, je Fall eine kurze Zeile; oben drei Zahlen und „wo zu

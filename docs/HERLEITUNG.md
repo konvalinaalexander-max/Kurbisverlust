@@ -636,6 +636,10 @@ in `perigon_fall_spur`: erst gesehen, zuletzt gesehen, weg seit.
 Rechenlauf ist ein neuer Fall noch nicht gemerkt („beim nächsten Rechnen");
 ohne Vermerk ist ein Fall offen.
 **Urteil:** Auskunft, keine Buchung — ein Vermerk ändert keine Zahl.
+**Wo die Zeile in der Datei steht (Runde BE):** die Excel-Zeile aus `<row r>` der
+.xlsx, beim Einlesen in `ausgang_position.roh` (`#zeile`, `#blatt`, `#datei`);
+die einer Chargenzeile ist die lauf-te Zeile mit dieser Charge (`excelZeileVon`).
+Ohne neues Einlesen ist sie leer — nie aus der Reihenfolge geraten.
 **Im Fenster nachgerechnet (Runde BD, `nachrechnen` in `src/auswertung/perigon.ts`):**
 je Zeile der Position aus `ausgang_zeile` die Charge (W), die Menge (S) und
 ihre Kilo (`kg_charge`, sonst S × AE; bei kg-Artikeln mit AE 0 ist S das Kilo;

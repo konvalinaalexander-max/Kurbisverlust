@@ -202,15 +202,38 @@ function perigonVormerken() {
     AuftragsJournal: 'Lieferschein', AuftragsLieferant: 'Prüfkunde Ost', AuftragsPrsGrpBez: 'K', GewichtProArtikel: 0, AuftragsLieferDatum: '12.10.2026',
     AuftragsArtikelMenge: 256, AuftragsGebindemenge: 4, AuftragsChargeManuell: '1620', AuftragsErloesTotExkl: 0, AuftragsArtikelEinheit: 'kg',
     'AufPosBatchQuantity Charge': 256 }
+  // Runde BE: wo die Zeilen in der Datei stehen — so liest die App sie seit dem neuen Einlesen
+  const wo = i => ({ '#zeile': 1202 + i, '#blatt': 'Tabelle S. 1', '#datei': 'Abgleich_Rueckverfolgbarkeit_Pruefirma.xlsx' })
   vormerken('ausgang_position', [{ quelle: 'DEMO', pos_id: 990130, datum: '2026-10-12', saison: 2026, journal: 'Lieferschein', kunde: 'Prüfkunde Ost',
     artikel_id: 'kürborangl', artikel: 'Bio Kürbis Orangita lose', preisgruppe: 'K', einheit: 'kg', menge: 256, gewicht_je_artikel: 0, kg: 256,
-    gebindeart: 'IFCO', gebinde_menge: 4, ts: '2026-10-12T08:00:00+00:00', roh: [roh, roh, roh] }])
+    gebindeart: 'IFCO', gebinde_menge: 4, ts: '2026-10-12T08:00:00+00:00', roh: [1, 2, 3].map(i => ({ ...roh, ...wo(i) })) }])
   vormerken('ausgang_zeile', [1, 2, 3].map(i => ({ ...vorlage, id: 990130 + i * 10, quelle: 'DEMO', pos_id: 990130, charge_extern: '1620', lauf_nr: i,
     fingerabdruck: `bild-bd-${i}`, datum: '2026-10-12', kunde: 'Prüfkunde Ost', artikel: 'Bio Kürbis Orangita lose', einheit: 'kg', menge: 256,
     gewicht_je_artikel: 0, batch_menge: 256, kg_position: 256, kg_charge: 256, preisgruppe: 'K', liefer_label: 'K' })))
   vormerken('lieferung', [{ id: 990130, datum: '2026-10-12', charge_nr: 1620, sorte: 'Orangita', kg: 256, kisten: null, gebindeart: null,
     ziel: 'verkauf', kunde: 'Prüfkunde Ost', erfasser: null, ts: '2026-10-12T08:00:00+00:00', bemerkung: null }])
   vormerken('lieferung_import', [{ lieferung_id: 990130, quelle: 'DEMO', extern_id: 'DEMO:990130:1620:1', zeile_id: 990140, ts: '2026-10-12T08:00:00+00:00' }])
+  // Runde BE: die Belege von 99127 („verkauft, nie eingegangen") — drei Lieferscheine in Perigon, je mit
+  // Position und Excel-Zeile, damit das Fenster der Sache zeigt, wo sie im Excel stehen.
+  const belege = [['2026-09-23', 990141, 1150], ['2026-09-30', 990142, 1171], ['2026-10-05', 990143, 1188]]
+  vormerken('lieferung', belege.map(([tag, pos]) => ({ id: pos, datum: tag, charge_nr: 99127, sorte: 'Fictor', kg: 472, kisten: null, gebindeart: null,
+    ziel: 'verkauf', kunde: 'Prüfkunde Ost', erfasser: null, ts: `${tag}T08:00:00+00:00`, bemerkung: null })))
+  vormerken('lieferung_import', belege.map(([tag, pos]) => ({ lieferung_id: pos, quelle: 'DEMO', extern_id: `DEMO:${pos}:99127:1`, zeile_id: pos, ts: `${tag}T08:00:00+00:00` })))
+  vormerken('ausgang_position', belege.map(([tag, pos, zeile]) => ({ quelle: 'DEMO', pos_id: pos, datum: tag, saison: 2026, journal: 'Lieferschein',
+    kunde: 'Prüfkunde Ost', artikel_id: 'kürbknirps', artikel: 'Bio Kürbis roter Knirps Knospe', preisgruppe: 'K', einheit: 'kg', menge: 472,
+    gewicht_je_artikel: 0, kg: 472, gebindeart: 'IFCO', gebinde_menge: 8, ts: `${tag}T08:00:00+00:00`,
+    roh: [{ ...roh, AufPosId: pos, AuftragsArtikel: 'Bio Kürbis roter Knirps Knospe', AuftragsChargeManuell: '99127', AuftragsArtikelMenge: 472,
+            'AufPosBatchQuantity Charge': 472, '#zeile': zeile, '#blatt': 'Tabelle S. 1', '#datei': 'Abgleich_Rueckverfolgbarkeit_Pruefirma.xlsx' }] })))
+  // … und die Belege der Perigon-Nr. an zwei Chargen: zwei Lieferscheine mit 991980 (bei keiner Charge), einer mit 991981 (bei 99131)
+  const mitNummer = [['2026-10-02', 990151, '991980', null, 1301], ['2026-10-07', 990152, '991980', null, 1322], ['2026-10-08', 990153, '991981', 99131, 1330]]
+  vormerken('lieferung', mitNummer.map(([tag, pos, , charge]) => ({ id: pos, datum: tag, charge_nr: charge, sorte: 'Butternut', kg: 144, kisten: null,
+    gebindeart: null, ziel: 'verkauf', kunde: 'Prüfkunde Ost', erfasser: null, ts: `${tag}T08:00:00+00:00`, bemerkung: null })))
+  vormerken('lieferung_import', mitNummer.map(([tag, pos, nr]) => ({ lieferung_id: pos, quelle: 'DEMO', extern_id: `DEMO:${pos}:${nr}:1`, zeile_id: pos, ts: `${tag}T08:00:00+00:00` })))
+  vormerken('ausgang_position', mitNummer.map(([tag, pos, nr, , zeile]) => ({ quelle: 'DEMO', pos_id: pos, datum: tag, saison: 2026, journal: 'Lieferschein',
+    kunde: 'Prüfkunde Ost', artikel_id: 'kürbbutt', artikel: 'Bio Kürbis Butternut lose', preisgruppe: 'K', einheit: 'kg', menge: 144, gewicht_je_artikel: 0,
+    kg: 144, gebindeart: 'IFCO', gebinde_menge: 3, ts: `${tag}T08:00:00+00:00`,
+    roh: [{ ...roh, AufPosId: pos, AuftragsArtikel: 'Bio Kürbis Butternut lose', AuftragsChargeManuell: nr, AuftragsArtikelMenge: 144,
+            'AufPosBatchQuantity Charge': 144, '#zeile': zeile, '#blatt': 'Tabelle S. 1', '#datei': 'Abgleich_Rueckverfolgbarkeit_Pruefirma.xlsx' }] })))
   const weg = { art: 'keine_nummer', quelle: 'DEMO', pos_id: 990120, datum: '2026-10-09', artikel: 'Bio Kürbis oranger Knirps', kg: 7,
     satz: 'In Perigon steht bei dieser Position keine Chargennummer (Spalte W „AuftragsChargeManuell" ist leer) — 7.0 kg ohne Charge.' }
   vormerken('v_perigon_verlauf', [
@@ -415,6 +438,12 @@ const BILDSCHIRME = [
       const f = p.locator('#sache-fenster')
       await f.locator('dd', { hasText: 'Am ehesten von 99126 (Prüfschlag · Fictor)' }).waitFor()
       await f.locator('dd', { hasText: 'Noch nicht umgebucht' }).waitFor()
+      // Runde BE: die Belege stehen sichtbar da — jeder Lieferschein mit Position (blau) und Excel-Zeile
+      const belege = f.locator('#sache-belege tbody tr')
+      await belege.first().waitFor()
+      if ((await belege.count()) !== 3) throw new Error(`99127: ${await belege.count()} Belege statt drei Lieferscheine`)
+      await f.locator('#sache-belege tbody tr', { hasText: '990141' }).locator('td', { hasText: '1150' }).waitFor()
+      await f.locator('#sache-belege', { hasText: 'Abgleich_Rueckverfolgbarkeit_Pruefirma.xlsx' }).waitFor()
       await f.locator('#fall-verfolgen').waitFor()
       await p.keyboard.press('Escape')
       await f.waitFor({ state: 'detached' })
@@ -436,6 +465,12 @@ const BILDSCHIRME = [
       const f = p.locator('#sache-fenster')
       await f.locator('dd', { hasText: 'Wohl hat 99131 die Nummer 991981' }).waitFor()
       await f.locator('button', { hasText: 'Bei 99131 Perigon-Nr. 991981 eintragen' }).waitFor()
+      // Runde BE: die Lieferscheine mit diesen Nummern als Belege — auch die, die bei keiner Charge zählen
+      const belege = f.locator('#sache-belege tbody tr')
+      await belege.first().waitFor()
+      if ((await belege.count()) !== 3) throw new Error(`${await belege.count()} Belege statt drei`)
+      await f.locator('#sache-belege tbody tr', { hasText: '990151' }).locator('td', { hasText: 'bei keiner Charge' }).waitFor()
+      await f.locator('#sache-belege tbody tr', { hasText: '990153' }).locator('td', { hasText: 'die App zählt sie bei 99131' }).waitFor()
     } },
   // 0126 → Runde BD: der Reiter Perigon — „er überfordert gerade noch". Oben drei
   // Zahlen und wo zu tun ist (als Filter), darunter je Art eine Zeile, die
@@ -465,22 +500,39 @@ const BILDSCHIRME = [
     } },
   // Runde BD: „das versteh ich nicht — wie kommst du auf 768?" Das Fenster rechnet
   // die Position Zeile für Zeile nach: dreimal Charge 1620 mit 256 kg, zusammen
-  // 768 kg, die Position 256 kg, 512 kg zu viel — und die drei Zeilen der Datei.
+  // 768 kg, die Position 256 kg, 512 kg zu viel.
+  // Runde BE — die Regel hat sich gedreht: „jetzt ist die Excel-Zeile nur noch mit
+  // Dropdown verfügbar … das ist ja wichtig, ist Nachvollziehbarkeit." Bis BE prüfte
+  // die Szene, dass die Zeilen der Datei hinter einem Klick stehen; jetzt, dass sie
+  // gleich sichtbar sind — mit Datei, Excel-Zeilen, der Kennung zum Suchen (blau)
+  // und den roten Zellen im Blick.
   { name: 'perigon-fall', wer: 'admin', pfad: '/perigon/faelle?art=zu_viel', vorher: perigonVormerken,
     tun: async p => {
       await p.locator('#art-zu_viel .fall-tabelle tbody tr').first().click()
       const f = p.locator('#lieferung-fenster')
       await f.locator('#fall-kopf', { hasText: 'Die Position steht 3-mal in der Datei, jedes Mal mit Charge 1620 und 256 kg — zusammen 768 kg' }).waitFor()
+      const finden = f.locator('#zeile-finden')
+      await finden.locator('strong', { hasText: 'Abgleich_Rueckverfolgbarkeit_Pruefirma.xlsx' }).waitFor()
+      await finden.locator('strong', { hasText: '1203, 1204, 1205' }).waitFor()
+      if ((await f.locator('#zeile-kennung').innerText()).trim() !== '990130') throw new Error('die Kennung zum Suchen ist nicht die Position')
+      await finden.getByText('Excel findet 3 Zeilen', { exact: false }).waitFor()
+      const excel = f.locator('#fall-beleg table.excel')
+      if (!(await excel.isVisible())) throw new Error('die Zeilen der Datei stehen nicht sichtbar da')
+      if ((await excel.locator('tbody tr').count()) !== 3) throw new Error('die Datei zeigt nicht alle drei Zeilen')
+      const nummern = await excel.locator('tbody th.excel-nr').allInnerTexts()
+      if (nummern.join() !== '1203,1204,1205') throw new Error(`Zeilennummern links: ${nummern.join()}`)
+      if ((await excel.locator('thead tr.excel-buchstaben th', { hasText: /^AD$/ }).count()) !== 1) throw new Error('kein Spaltenbuchstabe AD')
+      if ((await excel.locator('tbody td.kennung', { hasText: '990130' }).count()) !== 3) throw new Error('die Kennung ist nicht blau umrandet')
+      await excel.locator('tbody td.falsch').first().waitFor()
+      const gerollt = await f.locator('#fall-beleg .excel-rahmen').evaluate(el => el.scrollLeft)
+      if (gerollt < 500) throw new Error(`die Ansicht steht nicht bei den roten Zellen (scrollLeft ${gerollt})`)
       const n = f.locator('#fall-nachgerechnet')
       if ((await n.locator('tbody tr').count()) !== 3) throw new Error('nicht drei Zeilen nachgerechnet')
-      if ((await n.locator('.fall-gleich').count()) !== 2) throw new Error('Zeile 2 und 3 sagen nicht, dass sie gleich wie Zeile 1 sind')
+      await n.locator('thead th', { hasText: 'Excel-Zeile' }).waitFor()
+      if ((await n.locator('.fall-gleich', { hasText: 'gleich wie Zeile 1203' }).count()) !== 2) throw new Error('Zeile 1204 und 1205 sagen nicht, dass sie gleich wie 1203 sind')
       await n.locator('tfoot tr', { hasText: '768 kg' }).waitFor()
       await n.locator('tfoot tr.fall-unterschied', { hasText: '512 kg' }).waitFor()
       await n.locator('p', { hasText: 'In der Rechnung der App: 256 kg auf Charge 1620' }).waitFor()
-      if (await f.locator('#fall-excel table.excel').isVisible()) throw new Error('die Excel-Zeilen stehen offen — sie gehören hinter einen Klick')
-      await f.locator('#fall-excel summary', { hasText: 'Die 3 Zeilen der Perigon-Datei' }).click()
-      if ((await f.locator('#fall-excel table.excel tbody tr').count()) !== 3) throw new Error('die Datei zeigt nicht alle drei Zeilen')
-      await f.locator('#fall-excel td.falsch').first().waitFor()
     } },
   // Jede Position, die nicht stimmt, nach Art; ein Klick zeigt den Fall nachgerechnet,
   // was zu tun ist und den Verlauf.
@@ -814,16 +866,29 @@ const BILDSCHIRME = [
         const t = document.querySelector('#lieferung-fenster table.excel')
         const sections = [...document.querySelectorAll('#lieferung-fenster section')].map(x => x.id)
         // Runde AT, zweiter Teil: die Spalten in der Folge der Datei (A, B, … AF), der Kopf grau wie in Excel.
+        // Runde BE: über den Namen die Spaltenbuchstaben, links die Zeilennummer — der Rahmen des
+        // Excel-Fensters, damit man die Zeile in der Datei wiederfindet. Bis Runde BD war der Kopf eine
+        // Zeile und der erste Name stand ganz links; der Test geht mit der Regel mit: zwei Kopfzeilen,
+        // die erste Zelle jeder Zeile ist die Nummer, die Namen bleiben grau, die Buchstaben heller.
         const zahl = b => [...b].reduce((n, c) => n * 26 + c.charCodeAt(0) - 64, 0)
-        const folge = [...t.querySelectorAll('thead th[data-spalte]')].map(th => zahl(th.dataset.spalte))
-        return { kopf: t.querySelectorAll('thead tr').length, spalten: t.querySelectorAll('thead th').length,
+        const [buchstaben, namen] = t.querySelectorAll('thead tr')
+        const folge = [...namen.querySelectorAll('th[data-spalte]')].map(th => zahl(th.dataset.spalte))
+        const ersterName = namen.querySelector('th:not(.excel-nr)')
+        const nr = t.querySelector('tbody tr').firstElementChild
+        return { kopf: t.querySelectorAll('thead tr').length, spalten: namen.children.length,
                  zellen: t.querySelector('tbody tr').children.length, sections,
+                 buchstabenZeile: buchstaben.classList.contains('excel-buchstaben'),
+                 buchstabenGleich: [...buchstaben.querySelectorAll('th:not(.excel-nr)')].map(th => th.textContent).join()
+                   === [...namen.querySelectorAll('th:not(.excel-nr)')].map(th => th.dataset.spalte ?? '').join(),
                  inFolge: folge.length >= 5 && folge.every((x, i) => i === 0 || x > folge[i - 1]),
-                 erste: t.querySelector('thead th').textContent,
-                 kopfGrau: getComputedStyle(t.querySelector('thead th')).backgroundColor }
+                 nrZelle: nr.tagName === 'TH' && nr.classList.contains('excel-nr') && /^(\d+|·)$/.test(nr.textContent),
+                 erste: ersterName.textContent,
+                 kopfGrau: getComputedStyle(ersterName).backgroundColor,
+                 buchstabenGrau: getComputedStyle(buchstaben.querySelector('th:not(.excel-nr)')).backgroundColor }
       })
-      if (form.kopf !== 1 || form.spalten < 5 || form.zellen !== form.spalten || form.sections[0] !== 'lieferung-zeile'
-          || !form.inFolge || form.erste !== 'AuftragsJournal' || form.kopfGrau !== 'rgb(204, 204, 204)')
+      if (form.kopf !== 2 || !form.buchstabenZeile || !form.buchstabenGleich || form.spalten < 6 || form.zellen !== form.spalten
+          || form.sections[0] !== 'lieferung-zeile' || !form.inFolge || !form.nrZelle || form.erste !== 'AuftragsJournal'
+          || form.kopfGrau !== 'rgb(204, 204, 204)' || form.buchstabenGrau !== 'rgb(230, 230, 230)')
         throw new Error(`Perigon-Zeile nicht wie Excel: ${JSON.stringify(form)}`)
     } },
   // Runde AT: ein zweiter Klick auf den Kunden schliesst seine Lieferungen wieder.

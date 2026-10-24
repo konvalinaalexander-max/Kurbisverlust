@@ -65,7 +65,7 @@ interface Datei {
 const PAKET = 300
 async function historieUebernehmen(d: Datei, zeilen: AusgangZeile[], bestaetigt: Map<string, Bestaetigung>): Promise<NonNullable<Datei['historie']>> {
   const karte = new Map([...bestaetigt.entries()].map(([k, v]) => [k, v.ist_kuerbis]))
-  const alle = zeilenVon(d.blatt, d.quelle)
+  const alle = zeilenVon(d.blatt, d.quelle, d.name)
   const positionen = positionenAllerSaisons(alle, z => zaehltAlsKuerbis(istKuerbis(z, karte)))
   const lose = zeilen.map(z => ({ pos_id: z.pos_id, charge_extern: z.charge_extern, lauf_nr: z.lauf_nr,
                                   liefer_label: z.liefer_label, preisgruppe: z.preisgruppe }))
@@ -104,9 +104,9 @@ async function alleZeilen<T>(tabelle: string, spalten: string, filter?: [string,
 /** Die Zeilen einer Datei, gelesen mit dem bestätigten Quellen-Code — und
  *  solange die Firma offen ist, mit einem Platzhalter: der Befund (was in der
  *  Datei steht) braucht keine Firma, nur der Abgleich und die Übernahme. */
-function zeilenVon(blatt: Blatt | null, quelle: string): AusgangZeile[] {
+function zeilenVon(blatt: Blatt | null, quelle: string, datei?: string): AusgangZeile[] {
   if (!blatt) return []
-  return zeilenLesen(blatt, quelle || 'firma-offen').zeilen
+  return zeilenLesen(blatt, quelle || 'firma-offen', datei).zeilen
 }
 
 export default function AusgangImport({ nachUebernahme }: { nachUebernahme: () => void }) {
@@ -360,7 +360,7 @@ function DateiKarte({ d, quellen, bekannt, bekanntBis, bestaetigt, chargen, sort
   const bestaetigtKarte = useMemo(() => new Map([...bestaetigt.entries()].map(([k, v]) => [k, v.ist_kuerbis])), [bestaetigt])
 
   // Die Zeilen mit dem bestätigten Code lesen; dann die Regeln des Betriebs anwenden.
-  const alle = useMemo(() => zeilenVon(d.blatt, d.quelle), [d.blatt, d.quelle])
+  const alle = useMemo(() => zeilenVon(d.blatt, d.quelle, d.name), [d.blatt, d.quelle, d.name])
   const imZeitraum = useMemo(() => alle.filter(z => z.datum >= ZEITRAUM_AB), [alle])
   const relevant = useMemo(() => imZeitraum.filter(z => z.journal !== JOURNAL_INTERN), [imZeitraum])
   const intern = imZeitraum.length - relevant.length

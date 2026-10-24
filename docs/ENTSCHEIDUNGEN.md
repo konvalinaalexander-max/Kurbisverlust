@@ -4171,6 +4171,81 @@ Daten, dann die Annahme — nach der Korrektur nachsehen.
 nicht alles: vier mal vier gleiche Paloxen und ein Tag mit 30 Paaren bei
 13 erwarteten sind Fragen wert.
 
+## Runde BE: Die Excel-Zeile ist der Beweis — sichtbar und wiederzufinden (24. Oktober)
+
+Der Betrieb zu Runde BD: „Jetzt ist plötzlich die Perigon-Excel-Zeile weiter
+unten, nur noch mit Dropdown verfügbar. Aber warum? Das ist ja wichtig, ist
+Nachvollziehbarkeit … Am liebsten zeigst du mir genau, wie die Excel-Zeile
+aussieht und wie ich diese Excel-Zeile im Excel wiederfinde — was identifiziert
+diese Zeile spezifisch, das irgendwie blau umrandet, eine ID, mit der ich die
+Zeile im Excel finde und damit zu meinem Chef gehen kann. Und das musst du dir
+für all diese Fälle überlegen."
+
+Runde BD hatte die Zeile hinter einen Klick gelegt, um den Fall ruhiger zu
+machen. Das war falsch gewichtet: Die Zeile ist nicht Erklärung, sie ist der
+Beleg. Ruhig bleibt das Fenster trotzdem — die Erklärung der Art bleibt zu.
+
+**1. Wo die Zeile steht — gemerkt beim Einlesen.** Der Leser der .xlsx nimmt
+die Zeilennummer aus `<row r="…">` (Excel schreibt leere Zeilen gar nicht; die
+Reihenfolge allein hätte bei Lücken falsch gezählt). Jede Zeile trägt in
+`roh` drei Merkmale, die keine Spalte der Datei sind (`#zeile`, `#blatt`,
+`#datei`); die Ansicht wie im Excel zeigt sie nicht als Spalten. Keine
+Migration: `roh` ist jsonb und wird beim Einlesen ganz ersetzt. Für die Zeilen,
+die vor dieser Runde eingelesen sind, kennt die App die Datei (die letzte, aus
+der die Zeile kam, `ausgang_zeile.datei_id`), aber nicht die Excel-Zeile — das
+Fenster sagt es und sagt, wie sie dazu kommt (die Datei einmal neu einlesen).
+
+**2. Im Fenster eines Falls: der Beleg gleich nach dem Satz.** Zuerst ein Kasten
+„So findest du die Zeile": die Datei und das Blatt, die Excel-Zeile(n), und die
+Kennung zum Suchen — die Position (AufPosId, Spalte AD), mit Knopf zum
+Kopieren und dem Hinweis, wie viele Zeilen Excel damit findet (und welche
+gemeint ist, wenn es um eine Chargenzeile geht). Darunter die Zeilen wie im
+Excel, mit Spaltenbuchstaben oben und Zeilennummern links (sie bleiben beim
+seitlichen Rollen stehen); die Kennung blau umrandet, was nicht stimmt rot; die
+Ansicht steht beim Öffnen schon bei den roten Zellen — die Datei ist über 3'800
+Punkte breit, das Fenster jetzt bis 1'120. Die Zeile, um die es bei einer
+Chargenzeile geht, ist an ihrer Nummer markiert. Erst dann „Nachgerechnet" —
+mit denselben Excel-Zeilennummern („gleich wie Zeile 1203"), dann was tun und
+das Mitverfolgen. Dasselbe in jedem Fenster einer Lieferung (aus Chargen, aus
+den Lieferungen eines Kunden).
+
+**3. Für die Fälle je Charge: die Lieferscheine als Belege.** „Mehr verkauft als
+möglich", „verkauft, nie eingegangen", „vor dem Eingang": im Fenster die
+Lieferscheine, die Perigon unter dieser Nummer führt — Datum, Kunde, Artikel,
+Kilo, die Position (blau) und die Excel-Zeile; was vor dem ersten Eingang
+geliefert wurde, rot. „Perigon-Nr. an zwei Chargen" und „über den Produzenten
+zugeordnet": die Lieferscheine mit dieser Nummer in Spalte W, auch die, die bei
+keiner Charge zählen (die Kennung jeder Lieferung trägt die Nummer, wie Perigon
+sie schreibt). Ein Klick zeigt jede Zeile wie im Excel. Die Lieferscheine ohne
+Charge nennen ihre Position ebenso. Wo der Beleg nicht in Perigon liegt
+(umgebucht, Vorschlag — Zettel und Paletten), bleibt der Weg der Ware.
+
+**Geprüft.** `test/warenausgang.test.ts`: die Zeilennummer aus `<row r>`, auch
+mit Lücke; Blatt und Datei an jeder Zeile, ohne Dateiname keine erfundene;
+die Ansicht zeigt die Merkmale nicht als Spalten; die Excel-Zeile einer
+Chargenzeile (dreimal dieselbe Zeile: 1203, 1204, 1205). Der Test, der die
+Schlüssel einer ganzen Zeile zählt, zählt jetzt nur die Spalten der Datei —
+die Merkmale sind keine (im Test begründet). Bildschirme: `perigon-fall` prüft
+seit dieser Runde das Gegenteil von Runde BD — die Zeilen stehen sichtbar da,
+mit Datei, Zeilen 1203–1205, Kennung 990130 blau, AD als Spaltenbuchstabe, die
+Ansicht bei den roten Zellen, und „Nachgerechnet" mit denselben Nummern;
+`perigon-sorten` und `perigon-sache` prüfen die Belege (drei Lieferscheine von
+99127 mit Position und Excel-Zeile; die mit 991980 und 991981, „bei keiner
+Charge" und „bei 99131"). Die Fixtures nehmen `ausgang_datei` mit.
+
+**Was bewusst nicht gemacht wurde.**
+- Keine Spalte in der Datenbank für die Excel-Zeile — sie steht in `roh` bei der
+  ganzen Zeile, die ohnehin nur zum Zeigen da ist; gerechnet wird damit nichts.
+- Die Kennung wird nicht vor die anderen Spalten gezogen: die Zeile steht so da
+  wie im Excel; der Kasten darüber nennt sie, und die Ansicht rollt zu den
+  roten Zellen. Auf dem Handy liegt Spalte AD meist ausserhalb des Bildes — der
+  Kasten nennt sie trotzdem.
+- Die Excel-Zeile gilt für die Datei, aus der die Zeile zuletzt eingelesen
+  wurde. Eine spätere Datei derselben Firma kann die Zeile woanders haben — die
+  Position (AufPosId) bleibt in jeder Datei dieselbe; darum steht sie als
+  Suche zuerst.
+- Für Zeilen vor dieser Runde wird keine Excel-Zeile geraten.
+
 ## Runde BD: Der Reiter Perigon, ruhiger — Liste, dann Fall (24. Oktober)
 
 Der Betrieb zu einem Fall: „das versteh ich nicht — wie kommst du auf 768?"

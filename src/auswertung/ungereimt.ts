@@ -55,6 +55,8 @@ export interface Ungereimtheit {
   vorschlag: string
   /** 0122: Ein Vorschlag fürs Chargenregister, den der Betriebsleiter mit einem Klick übernimmt. */
   perigonSetzen?: { charge_nr: number; perigon_nr: number }
+  /** Runde BE: die Nummern (Spalte W), unter denen die Belege in Perigon stehen — wo sie keiner Charge gehören */
+  nummern?: string[]
 }
 
 /** 0122: eine Charge, von der die Ware wohl kam (v_ungereimtheit.mehr.kandidaten). */
@@ -188,7 +190,7 @@ export function ausZeile(z: UngereimtZeile, perigon: PerigonZeile[]): Ungereimth
       const pnr = n(m.perigon_nr)
       const nr1 = nummern.length === 1 ? Number(nummern[0]) : null
       const nummerText = nummern.length ? nummern.join(', ') : '–'
-      return { ...basis, schwere: 'info',
+      return { ...basis, schwere: 'info', nummern,
         titel: `${stueck(z.n, 'Lieferschein', 'Lieferscheine')} mit der Nummer ${nummerText} zählt die App bei Charge ${name(z)}`,
         was: grund,
         warum: `Die Nummer steht im Chargenregister an keiner Charge. Ohne diese Zuordnung zählten ${kg(kgZ, 0)} bei keiner Charge — und bei ${z.charge_nr} stünde Ware im Lager, die längst verkauft ist.`,
@@ -229,6 +231,7 @@ function ausStammdaten(z: UngereimtZeile, basis: Omit<Ungereimtheit, 'schwere' |
       const andere = treffer ? chargenNr.filter(c => c !== treffer.charge_nr) : []
       const vText = verwandte.map(v => `${v.nummer} (${stueck(v.n, 'Zeile', 'Zeilen')}${v.produzent ? `, Produzent ${v.produzent}` : ''}${v.gruppe ? `, ${v.gruppe}` : ''}${v.charge_nr != null ? ` — die App zählt sie bei ${v.charge_nr}` : ' — bei keiner Charge'})`)
       return { ...mit, schwere: zeilen > 0 ? 'rot' : 'gelb',
+        nummern: [...(nr != null ? [String(nr)] : []), ...verwandte.map(v => v.nummer)],
         titel: `Perigon-Nr. ${nr} steht an ${stueck(chargen.length, 'Charge', 'Chargen')}: ${und(chargen.map(c => String(c.charge_nr)))}`,
         was: `Im Chargenregister tragen ${und(chargen.map(c => `${c.charge_nr} (${c.schlag} · ${c.sorte})`))} dieselbe Perigon-Nummer ${nr}. Eine Perigon-Nummer gehört zu genau einer Charge. `
           + (zeilen > 0 ? `In den Perigon-Dateien steht ${nr} auf ${stueck(zeilen, 'Zeile', 'Zeilen')}.` : `In den Perigon-Dateien kommt ${nr} nicht vor.`)

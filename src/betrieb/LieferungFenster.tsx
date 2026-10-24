@@ -1,10 +1,10 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { fehlerText } from '../lib/db'
-import { datum, kg } from '../lib/format'
-import { excelAnsicht, lieferungDeutung, schluessel, type ChargenzeileKurz, type RohZeile } from '../lib/warenausgang'
+import { datum, kg, zeitpunkt } from '../lib/format'
+import { excelAnsicht, excelZeileVon, lieferungDeutung, schluessel, type ChargenzeileKurz, type ExcelAnsicht, type RohZeile } from '../lib/warenausgang'
 import { FALSCHE_SPALTEN, OHNE_CHARGE_GRUND, OHNE_CHARGE_SPALTEN } from '../auswertung/ungereimt'
 import type { LieferungOhneCharge, PerigonBefund } from '../auswertung/daten'
 import { PERIGON_ART, WO_NAME, gegenueber, nachrechnen, schnappschuss, spaltenZeichen, type Nachrechnung } from '../auswertung/perigon'
@@ -20,13 +20,26 @@ interface PositionZeile {
 interface ZeileDerDatei extends ChargenzeileKurz {
   datum: string; kunde: string; artikel: string; einheit: string; menge: number; gewicht_je_artikel: number; kg_position: number | null
   preisgruppe: string | null; lauf_nr: number
+  /** Runde BE: aus welcher Datei die Zeile zuletzt eingelesen wurde */
+  datei_id: number | null
 }
+interface DateiKurz { id: number; dateiname: string; ts: string }
 interface LieferungZeile { id: number; datum: string; charge_nr: number | null; sorte: string | null; kg: number; kunde: string | null; bemerkung: string | null }
 interface Einordnung { gruppe: string | null; groesse: string; label: string | null }
 
 /** Eine Spaltenbreite in Excel-Zeichen als Bildpunkte (Arial 10: 7 Punkte je Zeichen und 5 Rand, wie Excel). */
 function excelPx(zeichen: number): number {
   return Math.round(zeichen * 7 + 5)
+}
+
+/**
+ * Runde BE: die Excel-Zeile zu jeder Zeile der App. Die App zählt gleiche
+ * Chargen einer Position durch (lauf_nr, in der Folge der Datei); die k-te
+ * Zeile mit Charge C in der Datei ist die Zeile der App mit Charge C und
+ * lauf_nr k. Leer, wo die Datei seit Runde BE nicht neu eingelesen ist.
+ */
+function excelNrJe(zeilen: { charge_extern: string | null; lauf_nr: number }[], roh: RohZeile[] | null): (number | null)[] {
+  return zeilen.map(z => excelZeileVon(roh, z.charge_extern, z.lauf_nr))
 }
 
 /** Wo die Lieferung herkommt: Firma und Position aus der Kennung „Firma:Position:…". */
@@ -61,6 +74,8 @@ export function LieferungFenster({ lieferungId, quelle, posId, fall, schliessen 
   const [falsch, setFalsch] = useState<Pick<PerigonBefund, 'schluessel' | 'art' | 'schwere' | 'satz' | 'tun' | 'wo'>[]>([])
   // 0125: warum ein Lieferschein keine Charge hat (v_lieferung_ohne_charge) — mit dem Satz, was zu tun ist.
   const [ohneGrund, setOhneGrund] = useState<LieferungOhneCharge[]>([])
+  // Runde BE: die Datei, aus der die Zeilen zuletzt kamen — fürs Wiederfinden im Excel
+  const [datei, setDatei] = useState<DateiKurz | null>(null)
   const [ziel, setZiel] = useState<{ quelle: string; posId: number } | null>(quelle && posId != null ? { quelle, posId } : null)
   const [geladen, setGeladen] = useState(false)
   const [fehler, setFehler] = useState<string | null>(null)
@@ -93,7 +108,7 @@ export function LieferungFenster({ lieferungId, quelle, posId, fall, schliessen 
           const [p, z, imp, e] = await Promise.all([
             supabase.from('ausgang_position').select('quelle, pos_id, datum, kunde, artikel_id, artikel, preisgruppe, einheit, menge, gewicht_je_artikel, kg, roh')
               .eq('quelle', wo.quelle).eq('pos_id', wo.posId),
-            supabase.from('ausgang_zeile').select('datum, kunde, artikel, einheit, menge, gewicht_je_artikel, kg_position, charge_extern, batch_menge, kg_charge, liefer_label, preisgruppe, lauf_nr')
+            supabase.from('ausgang_zeile').select('datum, kunde, artikel, einheit, menge, gewicht_je_artikel, kg_position, charge_extern, batch_menge, kg_charge, liefer_label, preisgruppe, lauf_nr, datei_id')
               .eq('quelle', wo.quelle).eq('pos_id', wo.posId).order('charge_extern').order('lauf_nr'),
             supabase.from('lieferung_import').select('lieferung_id').eq('quelle', wo.quelle).like('extern_id', `${wo.quelle}:${wo.posId}:%`),
             supabase.from('v_kunde_position').select('gruppe, groesse, label').eq('quelle', wo.quelle).eq('pos_id', wo.posId),
@@ -107,6 +122,11 @@ export function LieferungFenster({ lieferungId, quelle, posId, fall, schliessen 
             : { data: [], error: null }
           if (li.error) throw li.error
           await ohneGrundLaden(((li.data ?? []) as LieferungZeile[]).filter(x => x.charge_nr == null).map(x => x.id))
+          const dateiIds = [...new Set(((z.data ?? []) as ZeileDerDatei[]).map(x => x.datei_id).filter((x): x is number => x != null))]
+          if (dateiIds.length > 0) {
+            const d = await supabase.from('ausgang_datei').select('id, dateiname, ts').in('id', dateiIds).order('ts', { ascending: false })
+            if (lebt && !d.error) setDatei(((d.data ?? []) as DateiKurz[])[0] ?? null)
+          }
           if (!lebt) return
           setPosition(((p.data ?? []) as PositionZeile[])[0] ?? null)
           setZeilen((z.data ?? []) as ZeileDerDatei[])
@@ -151,7 +171,7 @@ export function LieferungFenster({ lieferungId, quelle, posId, fall, schliessen 
 
   return createPortal(
     <div className="dialog-hinter" onClick={schliessen}>
-      <div className="dialog breit" role="dialog" aria-modal="true" aria-label="Lieferung" id="lieferung-fenster" onClick={e => e.stopPropagation()}>
+      <div className="dialog breit sehr-breit" role="dialog" aria-modal="true" aria-label="Lieferung" id="lieferung-fenster" onClick={e => e.stopPropagation()}>
         {fall ? (
           // Runde BD: im Fall zuerst, was nicht stimmt — die Lieferung ist nur, wo es steht.
           <div className="fenster-kopf">
@@ -192,8 +212,9 @@ export function LieferungFenster({ lieferungId, quelle, posId, fall, schliessen 
           </div>
         ))}
         {fall && (geladen || fehler) && (
-          <FallInhalt fall={fall} zeilen={zeilen} lieferungen={lieferungen} sonst={zeigen.map(m => m.befund)} schliessen={schliessen}
-                      excel={ansicht ? <ExcelZeilen ansicht={ansicht} rot={roteSpalten} /> : null} />
+          <FallInhalt fall={fall} zeilen={zeilen} lieferungen={lieferungen} sonst={zeigen.map(m => m.befund)} excelNr={excelNrJe(zeilen, roh)}
+                      beleg={<ZeileImExcel ansicht={ansicht} rot={roteSpalten} posId={fall.pos_id} quelle={fall.quelle} datei={datei}
+                                           gemeint={fall.nummer} anzahl={zeilen.length} schliessen={schliessen} />} />
         )}
         {fall && !(geladen || fehler) && <Lade />}
         {!fall && geladen && ziel && (
@@ -202,7 +223,6 @@ export function LieferungFenster({ lieferungId, quelle, posId, fall, schliessen 
                 die Einträge." Spalten in der Folge der Datei, Breiten, Formate und Ausrichtung aus der Datei, grauer
                 Kopf mit Umbruch; seitlich rollbar; je Charge der Position eine Zeile. */}
             <section id="lieferung-zeile">
-              <h3 className="oben-0">Die Zeile in der Perigon-Datei</h3>
               {zeigen.length > 0 && (
                 <div className="lieferung-falsch" id="lieferung-falsch">
                   <strong>Was an dieser Zeile nicht stimmt</strong>{ansicht && roteSpalten.size > 0 ? <span className="leise"> — die Zellen dazu sind rot umrandet</span> : null}
@@ -212,11 +232,8 @@ export function LieferungFenster({ lieferungId, quelle, posId, fall, schliessen 
                   )}
                 </div>
               )}
-              {ansicht ? <ExcelZeilen ansicht={ansicht} rot={roteSpalten} /> : (
-                <Hinweis art="info">Die ganze Zeile steht hier, sobald die Perigon-Datei einmal neu eingelesen ist
-                  (<Link to="/betrieb/lieferungen" onClick={schliessen}>Betrieb → Warenausgang</Link>) — bis Runde AS speicherte die App
-                  nur die Spalten, mit denen sie rechnet.</Hinweis>
-              )}
+              <ZeileImExcel ansicht={ansicht} rot={roteSpalten} posId={ziel.posId} quelle={ziel.quelle} datei={datei}
+                            gemeint={null} anzahl={zeilen.length} schliessen={schliessen} />
             </section>
             <section id="lieferung-deutung" className="lieferung-deutung">
               <h3>So wird daraus die Masse</h3>
@@ -234,18 +251,115 @@ export function LieferungFenster({ lieferungId, quelle, posId, fall, schliessen 
   )
 }
 
-/** Die Zeilen der Datei wie im Excel: Spalten in der Folge der Datei, Breiten, Formate; was nicht stimmt, rot umrandet. */
-function ExcelZeilen({ ansicht, rot }: { ansicht: NonNullable<ReturnType<typeof excelAnsicht>>; rot: Set<string> }) {
+/** Die Kennung einer Perigon-Zeile: die Position (AufPosId). Die Chargenspalte unterscheidet die Zeilen einer Position. */
+const KENNUNG = schluessel('AufPosId')
+const CHARGE = schluessel('AuftragsChargeManuell')
+
+/**
+ * Runde BE: die Zeile, wie sie in der Perigon-Datei steht — sichtbar, nicht
+ * hinter einem Klick, und so, dass man sie im Excel wiederfindet. Der Betrieb,
+ * 24. Oktober: „du zeigst mir genau an, wie die Excel-Zeile aussieht und wie
+ * ich sie im Excel wiederfinde … was identifiziert diese Zeile spezifisch,
+ * irgendwie blau umrandet … damit ich mit dieser Zeile zu meinem Chef gehen
+ * kann." Oben, wo sie steht (Datei, Blatt, Excel-Zeile, die Position zum
+ * Suchen und Kopieren); darunter die Zeilen wie im Excel — Spaltenbuchstaben
+ * oben, Zeilennummern links, die Kennung blau, was nicht stimmt rot.
+ */
+function ZeileImExcel({ ansicht, rot, posId, quelle, datei, gemeint, anzahl, schliessen }: {
+  ansicht: ExcelAnsicht | null; rot: Set<string>; posId: number; quelle: string; datei: DateiKurz | null
+  /** die Charge (Spalte W) der einen Zeile, um die es geht — sonst gelten alle Zeilen der Position */
+  gemeint: string | null
+  anzahl: number; schliessen: () => void
+}) {
+  const n = ansicht?.zeilen.length ?? anzahl
+  const nr = (ansicht?.nr ?? []).filter((x): x is number => x != null)
+  const dateiname = ansicht?.datei ?? datei?.dateiname ?? null
+  const [kopiert, setKopiert] = useState(false)
+  const kopieren = async () => {
+    try { await navigator.clipboard.writeText(String(posId)); setKopiert(true); window.setTimeout(() => setKopiert(false), 1800) } catch { /* ohne Zwischenablage: die Zahl steht da */ }
+  }
+  const sp = (name: string, ersatz: string) => spaltenZeichen(name) ?? ersatz
   return (
-    <div className="rollbar excel-rahmen">
-      <table className="excel lieferung-zeile" style={{ width: ansicht.spalten.reduce((a, sp) => a + excelPx(sp.breite), 0) }}>
-        <colgroup>{ansicht.spalten.map(sp => <col key={sp.name} style={{ width: excelPx(sp.breite) }} />)}</colgroup>
-        <thead><tr>{ansicht.spalten.map(sp => (
-          <th key={sp.name} data-spalte={sp.buchstabe ?? undefined} className={rot.has(schluessel(sp.name)) ? 'falsch' : undefined}
-              title={sp.buchstabe ? `Spalte ${sp.buchstabe} in der Datei` : undefined}>{sp.name}</th>
-        ))}</tr></thead>
+    <section className="fall-block beleg" id="fall-beleg">
+      <h3>{n > 1 ? `Die ${n} Zeilen` : 'Die Zeile'} in der Perigon-Datei</h3>
+      <div className="finden" id="zeile-finden">
+        <div className="finden-zeile">
+          <span className="finden-was">Datei</span>
+          <span>{dateiname ? <strong>{dateiname}</strong> : <span className="leise">die Perigon-Datei der Firma {quelle}</span>}
+            {ansicht?.blatt && <span className="leise"> · Blatt „{ansicht.blatt}"</span>}
+            {!ansicht?.datei && datei && <span className="leise"> · zuletzt eingelesen {zeitpunkt(datei.ts)}</span>}</span>
+        </div>
+        <div className="finden-zeile">
+          <span className="finden-was">Excel-Zeile</span>
+          <span>{nr.length > 0 ? <strong>{nr.join(', ')}</strong>
+            : <span className="leise">kennt die App, sobald die Datei einmal neu eingelesen ist (<Link to="/betrieb/lieferungen" onClick={schliessen}>Betrieb → Warenausgang</Link>)</span>}</span>
+        </div>
+        <div className="finden-zeile">
+          <span className="finden-was">Suchen</span>
+          <span><kbd>Ctrl</kbd>+<kbd>F</kbd> <span className="leise">(Mac: <kbd>⌘</kbd>+<kbd>F</kbd>)</span>, dann{' '}
+            <code className="kennung-wert" id="zeile-kennung">{posId}</code>
+            <button type="button" className="klein" onClick={() => void kopieren()} id="kennung-kopieren">{kopiert ? 'kopiert' : 'kopieren'}</button>
+            <span className="finden-erklaert">die Position (AufPosId, Spalte {sp('AufPosId', 'AD')}) — in jeder Perigon-Datei dieselbe; Excel findet {n === 1 ? 'eine Zeile' : `${n} Zeilen`}
+              {gemeint ? <>, gemeint ist die mit Charge <strong>{gemeint}</strong> in Spalte {sp('AuftragsChargeManuell', 'W')}</> : null}.</span></span>
+        </div>
+      </div>
+      {ansicht ? (
+        <>
+          <ExcelZeilen ansicht={ansicht} rot={rot} gemeint={gemeint} />
+          <p className="excel-legende leise">
+            <span className="legende-kennung" aria-hidden="true" /> woran man die Zeile findet ·{' '}
+            <span className="legende-falsch" aria-hidden="true" /> was nicht stimmt · links die Zeilennummer, oben die Spalte wie im Excel; seitlich rollen zeigt alle Spalten.
+          </p>
+        </>
+      ) : (
+        <Hinweis art="info">Die ganze Zeile steht hier, sobald die Perigon-Datei einmal neu eingelesen ist
+          (<Link to="/betrieb/lieferungen" onClick={schliessen}>Betrieb → Warenausgang</Link>) — bis Runde AS speicherte die App nur die Spalten, mit denen sie rechnet.</Hinweis>
+      )}
+    </section>
+  )
+}
+
+/**
+ * Die Zeilen der Datei wie im Excel: Spaltenbuchstaben oben, Zeilennummern
+ * links (bleiben beim Rollen stehen), Spalten in der Folge der Datei mit ihren
+ * Breiten und Formaten. Die Kennung (AufPosId) blau, was nicht stimmt rot; die
+ * Zeile, um die es geht, links markiert. Gerollt wird gleich zur ersten roten
+ * Zelle — die Datei ist über 3'800 Punkte breit.
+ */
+function ExcelZeilen({ ansicht, rot, gemeint }: { ansicht: ExcelAnsicht; rot: Set<string>; gemeint: string | null }) {
+  const rahmen = useRef<HTMLDivElement>(null)
+  const chargeSpalte = ansicht.spalten.findIndex(sp => schluessel(sp.name) === CHARGE)
+  const istGemeint = (z: string[]) => gemeint != null && chargeSpalte >= 0 && z[chargeSpalte]?.trim() === gemeint
+  const klasse = (name: string, rechts = false) => [rechts ? 'rechts' : '', rot.has(schluessel(name)) ? 'falsch' : '',
+                                                    schluessel(name) === KENNUNG ? 'kennung' : ''].filter(Boolean).join(' ') || undefined
+  useLayoutEffect(() => {
+    const r = rahmen.current
+    const ziel = r?.querySelector<HTMLElement>('tbody td.falsch') ?? r?.querySelector<HTMLElement>('tbody td.kennung')
+    const nrBreite = r?.querySelector<HTMLElement>('tbody th')?.offsetWidth ?? 0
+    if (r && ziel) r.scrollLeft = Math.max(0, ziel.offsetLeft - nrBreite - 24)
+  }, [ansicht])
+  return (
+    <div className="rollbar excel-rahmen" ref={rahmen}>
+      <table className="excel lieferung-zeile" style={{ width: ansicht.spalten.reduce((a, sp) => a + excelPx(sp.breite), 0) + 44 }}>
+        <colgroup><col style={{ width: 44 }} />{ansicht.spalten.map(sp => <col key={sp.name} style={{ width: excelPx(sp.breite) }} />)}</colgroup>
+        <thead>
+          <tr className="excel-buchstaben">
+            <th className="excel-nr" aria-label="Zeile" />
+            {ansicht.spalten.map(sp => <th key={sp.name} className={klasse(sp.name)}>{sp.buchstabe ?? ''}</th>)}
+          </tr>
+          <tr>
+            <th className="excel-nr" aria-label="Kopfzeile" />
+            {ansicht.spalten.map(sp => (
+              <th key={sp.name} data-spalte={sp.buchstabe ?? undefined} className={klasse(sp.name)}
+                  title={sp.buchstabe ? `Spalte ${sp.buchstabe} in der Datei` : undefined}>{sp.name}</th>
+            ))}
+          </tr>
+        </thead>
         <tbody>{ansicht.zeilen.map((z, i) => (
-          <tr key={i}>{z.map((w, j) => <td key={j} className={[ansicht.spalten[j].rechts ? 'rechts' : '', rot.has(schluessel(ansicht.spalten[j].name)) ? 'falsch' : ''].filter(Boolean).join(' ') || undefined}>{w}</td>)}</tr>
+          <tr key={i} className={istGemeint(z) ? 'gemeint' : undefined}>
+            <th scope="row" className="excel-nr">{ansicht.nr[i] ?? '·'}</th>
+            {z.map((w, j) => <td key={j} className={klasse(ansicht.spalten[j].name, ansicht.spalten[j].rechts)}>{w}</td>)}
+          </tr>
         ))}</tbody>
       </table>
     </div>
@@ -268,24 +382,29 @@ const zahlText = (x: number | null) => (x == null ? '—' : Number(x).toLocaleSt
  * Runde BD: der Fall im Fenster, in der Folge, in der man ihn versteht —
  * was nicht stimmt (ein Satz), nachgerechnet (die Zeilen der Datei, die
  * Summe, die Position, der Unterschied), was zu tun ist, das Mitverfolgen.
- * Die Zeilen wie im Excel und die Erklärung der Art stehen darunter, zu, bis
- * man sie will. Der Betrieb, 24. Oktober: „das versteh ich nicht — wie kommst
- * du auf 768?" — es waren drei gleiche Zeilen à 256 kg, und das Fenster
- * zeigte eine.
+ * Der Betrieb, 24. Oktober: „das versteh ich nicht — wie kommst du auf
+ * 768?" — es waren drei gleiche Zeilen à 256 kg, und das Fenster zeigte eine.
+ * Runde BE: die Zeilen der Datei stehen gleich nach dem Satz, sichtbar —
+ * „das ist ja wichtig, ist Nachvollziehbarkeit"; nur die Erklärung der Art
+ * bleibt hinter einem Klick.
  */
-function FallInhalt({ fall, zeilen, lieferungen, sonst, excel, schliessen }: {
-  fall: PerigonBefund; zeilen: ZeileDerDatei[]; lieferungen: LieferungZeile[]; sonst: string[]; excel: ReactNode; schliessen: () => void
+function FallInhalt({ fall, zeilen, lieferungen, sonst, beleg, excelNr }: {
+  fall: PerigonBefund; zeilen: ZeileDerDatei[]; lieferungen: LieferungZeile[]; sonst: string[]
+  /** Runde BE: die Zeile(n) der Datei, sichtbar — gleich nach dem Satz */
+  beleg: ReactNode
+  /** Runde BE: die Excel-Zeile je Zeile der App, in derselben Folge wie zeilen */
+  excelNr: (number | null)[]
 }) {
   const info = PERIGON_ART[fall.art]
   const r = nachrechnen(fall, zeilen)
   const angaben = r ? null : gegenueber(fall)
-  const n = zeilen.length
   return (
     <>
       <section className={`fall-kopf s-${fall.schwere}`} id="fall-kopf">
         <p className="fall-satz">{r?.satz ?? fall.satz}</p>
       </section>
-      {r && <Nachgerechnet r={r} lieferungen={lieferungen} />}
+      {beleg}
+      {r && <Nachgerechnet r={r} lieferungen={lieferungen} excelNr={excelNr} />}
       {angaben && (
         <section className="fall-block" id="fall-angaben">
           <h3>Was die Datei sagt</h3>
@@ -299,9 +418,7 @@ function FallInhalt({ fall, zeilen, lieferungen, sonst, excel, schliessen }: {
       )}
       <section className="fall-block fall-tun" id="fall-tun">
         <h3>Was tun <span className="wo-marke">{WO_NAME[fall.wo]?.kurz ?? fall.wo}</span></h3>
-        <p className="oben-0">{fall.tun}</p>
-        <p className="leise unten-0">Die Zeile finden: die Datei der Firma öffnen, Ctrl+F, <strong>{fall.pos_id}</strong> suchen
-          (Spalte {spaltenZeichen('AufPosId') ?? 'AD'}, die Position){fall.nummer ? <> — die Zeile mit Charge {fall.nummer}</> : null}.</p>
+        <p className="oben-0 unten-0">{fall.tun}</p>
         {sonst.length > 0 && (
           <div className="lieferung-falsch" id="lieferung-falsch">
             <strong>An dieser Position stimmt noch etwas nicht</strong>
@@ -310,11 +427,6 @@ function FallInhalt({ fall, zeilen, lieferungen, sonst, excel, schliessen }: {
         )}
       </section>
       <FallVerfolgen schluessel={fall.schluessel} schnappschuss={schnappschuss(fall)} />
-      <Aufklapp id="fall-excel" titel={n > 0 ? `${n === 1 ? 'Die Zeile' : `Die ${n} Zeilen`} der Perigon-Datei, wie im Excel` : 'Die Zeile der Perigon-Datei, wie im Excel'}>
-        {excel ? <>{excel}<p className="leise unten-0">Die Zellen, um die es geht, sind rot umrandet.</p></>
-          : <Hinweis art="info">Die ganze Zeile steht hier, sobald die Perigon-Datei einmal neu eingelesen ist
-              (<Link to="/betrieb/lieferungen" onClick={schliessen}>Betrieb → Warenausgang</Link>) — bis Runde AS speicherte die App nur die Spalten, mit denen sie rechnet.</Hinweis>}
-      </Aufklapp>
       {info && (
         <Aufklapp id="fall-erklaert" titel="Was das heisst und was die App daraus macht">
           <dl className="fall-dl">
@@ -333,7 +445,10 @@ function FallInhalt({ fall, zeilen, lieferungen, sonst, excel, schliessen }: {
  * ihrer Menge (Spalte S) — eine Zeile, die schon dastand, sagt es —, darunter
  * die Summe, die Position (Spalte Q) und was nicht aufgeht.
  */
-function Nachgerechnet({ r, lieferungen }: { r: Nachrechnung; lieferungen: LieferungZeile[] }) {
+function Nachgerechnet({ r, lieferungen, excelNr }: { r: Nachrechnung; lieferungen: LieferungZeile[]; excelNr: (number | null)[] }) {
+  // Runde BE: dieselbe Nummer wie im Excel und im Kasten darüber — sonst die wievielte Zeile der Position
+  const mitExcel = r.zeilen.length > 0 && r.zeilen.every((_, i) => excelNr[i] != null)
+  const nrVon = (i: number) => (mitExcel ? excelNr[i]! : i + 1)
   const W = spaltenZeichen('AuftragsChargeManuell') ?? 'W'
   const S = spaltenZeichen('AufPosBatchQuantity Charge') ?? 'S'
   const Q = spaltenZeichen('AuftragsArtikelMenge') ?? 'Q'
@@ -344,7 +459,7 @@ function Nachgerechnet({ r, lieferungen }: { r: Nachrechnung; lieferungen: Liefe
       <h3>Nachgerechnet</h3>
       <table className="dicht fall-rechnung ohne-haftkopf">
         <thead><tr>
-          <th>Zeile</th><th>Charge <span className="leise">(Spalte {W})</span></th>
+          <th>{mitExcel ? 'Excel-Zeile' : 'Zeile'}</th><th>Charge <span className="leise">(Spalte {W})</span></th>
           <th className="zahl">Menge je Charge <span className="leise">(Spalte {S})</span></th>
           {kgSpalte && <th className="zahl">in kg <span className="leise">(× {AE})</span></th>}
         </tr></thead>
@@ -352,10 +467,10 @@ function Nachgerechnet({ r, lieferungen }: { r: Nachrechnung; lieferungen: Liefe
           {r.zeilen.length === 0 && (
             <tr><td colSpan={kgSpalte ? 4 : 3} className="leise">Die Zeilen der Position stehen in keiner eingelesenen Datei mehr — die Summen unten sind die beim letzten Einlesen.</td></tr>
           )}
-          {r.zeilen.map(z => (
+          {r.zeilen.map((z, i) => (
             <tr key={z.nr} className={z.gleichWie ? 'doppelt' : undefined}>
-              <td>{z.nr}</td>
-              <td>{z.charge ?? <span className="leise">leer</span>}{z.gleichWie && <span className="fall-gleich"> gleich wie Zeile {z.gleichWie}</span>}</td>
+              <td>{nrVon(i)}</td>
+              <td>{z.charge ?? <span className="leise">leer</span>}{z.gleichWie && <span className="fall-gleich"> gleich wie Zeile {nrVon(z.gleichWie - 1)}</span>}</td>
               <td className="zahl">{z.s == null ? '—' : `${zahlText(z.s)} ${r.einheit}`}</td>
               {kgSpalte && <td className="zahl">{z.kg == null ? 'unbekannt' : kg(z.kg, 1)}</td>}
             </tr>
