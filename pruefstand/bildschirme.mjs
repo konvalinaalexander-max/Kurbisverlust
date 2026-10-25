@@ -562,11 +562,15 @@ const BILDSCHIRME = [
   // Position Zeile für Zeile nach: dreimal Charge 1620 mit 256 kg, zusammen 768 kg,
   // die Position 256 kg, 512 kg zu viel. Runde BE: die Zeilen der Datei sichtbar, mit
   // Datei, Excel-Zeilen, der Kennung (blau) und den roten Zellen. Runde BF: ein Fall mit
-  // einer Position zeigt sie im Fall selbst, nicht in einem Fenster.
+  // einer Position zeigt sie im Fall selbst, nicht in einem Fenster. Runde BG — „Chargenzeile mehr als
+  // die Position checke ich noch immer nicht … hier sprichst du gegen eine Wand": der Satz fängt beim
+  // Lieferschein an, und vor den Zeilen der Datei steht das Bild „Lieferschein und Chargen" — geliefert,
+  // darunter jede Chargenzeile als Balken, was darüber hinausgeht rot. Die Regel hat sich gedreht (Satz,
+  // Folge der Blöcke), der Test mit ihr; alles, was er vorher prüfte, prüft er weiter.
   { name: 'perigon-fall', wer: 'admin', pfad: '/perigon/faelle?art=zu_viel', vorher: perigonVormerken,
     tun: async p => {
       const f = p.locator('#fall-ansicht')
-      await f.locator('#fall-kopf', { hasText: 'Die Position steht 3-mal in der Datei, jedes Mal mit Charge 1620 und 256 kg — zusammen 768 kg' }).waitFor()
+      await f.locator('#fall-kopf', { hasText: 'Auf dem Lieferschein stehen 256 kg. Perigon schreibt dazu 3-mal dieselbe Charge 1620 mit 256 kg — zusammen 768 kg, 512 kg mehr als geliefert.' }).waitFor()
       const finden = f.locator('#zeile-finden')
       await finden.locator('strong', { hasText: 'Abgleich_Rueckverfolgbarkeit_Pruefirma.xlsx' }).waitFor()
       await finden.locator('strong', { hasText: '1203, 1204, 1205' }).waitFor()
@@ -583,12 +587,22 @@ const BILDSCHIRME = [
       const gerollt = await f.locator('#fall-beleg .excel-rahmen').evaluate(el => el.scrollLeft)
       if (gerollt < 500) throw new Error(`die Ansicht steht nicht bei den roten Zellen (scrollLeft ${gerollt})`)
       const n = f.locator('#fall-nachgerechnet')
-      if ((await n.locator('tbody tr').count()) !== 3) throw new Error('nicht drei Zeilen nachgerechnet')
+      await n.locator('h3', { hasText: 'Lieferschein und Chargen' }).waitFor()
+      await n.locator('.zt-begriff', { hasText: 'Eine Position ist eine Zeile auf dem Lieferschein' }).waitFor()
+      // das Bild steht vor den Zeilen der Datei — erst verstehen, dann der Beleg
+      const vorher = await n.evaluate(el => !!(el.compareDocumentPosition(document.querySelector('#fall-beleg')) & Node.DOCUMENT_POSITION_FOLLOWING))
+      if (!vorher) throw new Error('das Bild „Lieferschein und Chargen" steht nicht vor den Zeilen der Datei')
+      await n.locator('tbody.zt-lieferschein tr', { hasText: 'Geliefert laut Lieferschein' }).locator('td', { hasText: '256 kg' }).waitFor()
+      if ((await n.locator('tbody.zt-chargen tr').count()) !== 3) throw new Error('nicht drei Zeilen nachgerechnet')
+      // 1203 liegt ganz innerhalb der Lieferung, 1204 und 1205 ganz darüber
+      const balken = await n.locator('tbody.zt-chargen tr').evaluateAll(zs => zs.map(z => [!!z.querySelector('.zt-innen'), !!z.querySelector('.zt-drueber')]))
+      if (JSON.stringify(balken) !== JSON.stringify([[true, false], [false, true], [false, true]])) throw new Error(`Balken der Chargenzeilen: ${JSON.stringify(balken)}`)
+      await n.locator('.zt-woran', { hasText: 'Die 3 Zeilen sind gleich — dieselbe Charge, dieselbe Menge' }).waitFor()
       await n.locator('thead th', { hasText: 'Excel-Zeile' }).waitFor()
       if ((await n.locator('.fall-gleich', { hasText: 'gleich wie Zeile 1203' }).count()) !== 2) throw new Error('Zeile 1204 und 1205 sagen nicht, dass sie gleich wie 1203 sind')
       await n.locator('tfoot tr', { hasText: '768 kg' }).waitFor()
       await n.locator('tfoot tr.fall-unterschied', { hasText: '512 kg' }).waitFor()
-      await n.locator('p', { hasText: 'In der Rechnung der App: 256 kg auf Charge 1620' }).waitFor()
+      await n.locator('p', { hasText: 'In der Rechnung der App: 256 kg auf Charge 1620. So viel, wie geliefert wurde — eure Lagerzahlen stimmen' }).waitFor()
       await f.locator('.fall-folge', { hasText: 'So rechnet die App damit' }).waitFor()
     } },
   // Viele Positionen einer Art sind ein Fall: was passiert ist, die Positionen als Liste,

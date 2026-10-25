@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   PERIGON_ART, ART_FOLGE, aehnlicheNummer, fallKurz, gegenueber, istOffen, jeSorte, labelDerGruppe,
-  labelImNamen, MENGEN_ARTEN, nachrechnen, schnappschussText, spaltenZeichen, standVon,
+  labelImNamen, MENGEN_ARTEN, nachrechnen, schnappschussText, spaltenZeichen, standVon, zuteilung,
 } from '../src/auswertung/perigon.ts'
 import { ART_NAME, ausZeile, ungereimtheiten, vonCharge, FALSCHE_SPALTEN } from '../src/auswertung/ungereimt.ts'
 import type { ChargeSpur, PerigonBefund, PerigonVerlauf, UngereimtZeile } from '../src/auswertung/daten.ts'
@@ -140,16 +140,18 @@ test('Runde BD: 768 kg sind drei gleiche Zeilen à 256 kg — das Fenster rechne
   assert.equal(r.zugeteiltKg, 768)
   assert.equal(r.positionKg, 256)
   assert.deepEqual(r.unterschied, { kg: 512, wort: 'zu viel' })
-  assert.match(r.satz, /3-mal in der Datei, jedes Mal mit Charge 1620 und 256 kg — zusammen 768 kg\. Geliefert wurden aber nur 256 kg/)
+  // Runde BG: der Satz fängt beim Lieferschein an — „die Position steht 3-mal in der Datei" verstand der Betrieb nicht.
+  // Die Regel hat sich gedreht, der Test mit ihr; geprüft werden weiter Charge, Menge je Zeile, Summe und Unterschied.
+  assert.match(r.satz, /^Auf dem Lieferschein stehen 256 kg\. Perigon schreibt dazu 3-mal dieselbe Charge 1620 mit 256 kg — zusammen 768 kg, 512 kg mehr als geliefert\.$/)
   assert.doesNotMatch(r.satz, /× AE/, 'bei kg-Artikeln ist die Menge das Kilo — kein „S × AE"')
   // zwei verschiedene Chargen: kein „gleich wie", der Satz zählt die Zeilen
   const r2 = nachrechnen({ ...f, kg_zugeteilt: 400, kg: 144 }, [{ charge_extern: '1620', batch_menge: 200, kg_charge: 200 }, { charge_extern: '1621', batch_menge: 200, kg_charge: 200 }])!
   assert.deepEqual(r2.zeilen.map(x => x.gleichWie), [null, null])
-  assert.match(r2.satz, /Die 2 Zeilen der Position teilen den Chargen zusammen 400 kg zu/)
+  assert.match(r2.satz, /Perigon teilt den 2 Chargenzeilen zusammen 400 kg zu — 144 kg mehr als geliefert/)
   // eine einzige Zeile mit S > Q (wie 134056: 965 gegen 918 kg) — kein „Die 1 Zeilen"
   const r1 = nachrechnen({ ...f, kg_position: 918, kg_zugeteilt: 965, kg: 47, nummern: '1625', charge_nr: 1625, n_zeilen: 1 },
     [{ charge_extern: '1625', batch_menge: 965, kg_charge: 965 }])!
-  assert.equal(r1.satz, 'Die Zeile teilt der Charge 1625 965 kg zu (Spalte S) — mehr als die Position: geliefert wurden nur 918 kg (Spalte Q).')
+  assert.equal(r1.satz, 'Auf dem Lieferschein stehen 918 kg. Perigon teilt der Charge 1625 aber 965 kg zu — 47 kg mehr als geliefert.')
   assert.deepEqual(r1.unterschied, { kg: 47, wort: 'zu viel' })
 })
 
@@ -157,7 +159,8 @@ test('Runde BD: Stück × Gewicht je Artikel; ohne Gewicht bleibt die Masse unbe
   const f = fall('rest', { einheit: 'Stück', menge: 100, gewicht_je_artikel: 1.5, kg_position: 150, kg_zugeteilt: 90, kg: 60 })
   const r = nachrechnen(f, [{ charge_extern: '1630', batch_menge: 60, kg_charge: null }])!
   assert.equal(r.zeilen[0].kg, 90, '60 Stück × 1.5 kg')
-  assert.equal(r.satz, 'Die Zeile teilt der Charge 1630 90 kg zu (Spalte S). Geliefert wurden 150 kg (Spalte Q) — der Rest hat keine Charge.')
+  // Runde BG: auch hier zuerst der Lieferschein, dann die Zuteilung (Regel und Test gemeinsam geändert)
+  assert.equal(r.satz, 'Auf dem Lieferschein stehen 150 kg. Perigon teilt der Charge 1630 nur 90 kg zu — für 60 kg steht keine Charge.')
   assert.deepEqual(r.unterschied, { kg: 60, wort: 'ohne Charge' })
   const o = nachrechnen(fall('ohne_gewicht', { einheit: 'Stück', menge: 40, gewicht_je_artikel: null, kg_position: null, kg_zugeteilt: null, kg: null }),
     [{ charge_extern: '1630', batch_menge: 40, kg_charge: null }])!
@@ -198,4 +201,50 @@ test('Runde BD: die Liste sagt je Fall das Eine, das nicht passt', () => {
   assert.equal(fallKurz(fall('vor_eingang', { satz: 'Geliefert am 20.08.2026, aber die Charge 99129 kam laut Erntejournal erst am 28.08.2026 an (8 Tage später) — …' })), '8 Tage vor dem Eingang')
   assert.equal(fallKurz(fall('vor_eingang', { satz: '…' })), 'vor dem Eingang')
   for (const a of ART_FOLGE) assert.ok(fallKurz(fall(a)), a)
+})
+
+// Runde BG — der Betrieb: „Chargenzeile mehr als die Position checke ich noch immer nicht … Zeile 1, 2, 3 und
+// dann gleich wie Zeile 1, aber ich weiss nicht, was du meinst." Das Bild „Lieferschein und Chargen" stapelt die
+// Chargenzeilen gegen die gelieferte Menge; woran es wohl liegt, sagt die Datei selbst.
+
+test('Runde BG: drei gleiche Zeilen à 256 kg gegen 256 kg geliefert — gestapelt, zwei ganz darüber, „gleich"', () => {
+  const f = fall('zu_viel', { menge: 256, kg_position: 256, kg_zugeteilt: 768, kg_rechnung: 256, kg: 512, nummern: '1620', charge_nr: 1620, n_zeilen: 3 })
+  const z = { charge_extern: '1620', batch_menge: 256, kg_charge: 256 }
+  const b = zuteilung(nachrechnen(f, [z, z, z])!, 'zu_viel')
+  assert.deepEqual(b.zeilen.map(x => [x.ab, x.innen, x.drueber]), [[0, 256, 0], [256, 0, 256], [512, 0, 256]])
+  assert.equal(b.skala, 768)
+  assert.equal(b.muster, 'gleich')
+  assert.match(b.woran!, /^Die 3 Zeilen sind gleich — dieselbe Charge, dieselbe Menge\. Geliefert wurde einmal/)
+})
+
+test('Runde BG: eine einzige Zeile über der Position — mit gleichen Gebinden heisst das: nur das Gewicht wurde geändert', () => {
+  const f = fall('zu_viel', { kg_position: 918, kg_zugeteilt: 965, kg: 47, nummern: '1625', charge_nr: 1625, n_zeilen: 1 })
+  const r = nachrechnen(f, [{ charge_extern: '1625', batch_menge: 965, kg_charge: 965 }])!
+  const b = zuteilung(r, 'zu_viel', { position: 96, zeile: 96 })
+  assert.deepEqual(b.zeilen.map(x => [x.ab, x.innen, x.drueber]), [[0, 918, 47]])
+  assert.equal(b.muster, 'eine')
+  assert.match(b.woran!, /Gebinde stimmt überein \(96 auf dem Lieferschein und bei der Charge\) — wohl wurde nachträglich nur das Gewicht der Position geändert/)
+  assert.match(zuteilung(r, 'zu_viel', { position: 96, zeile: 90 }).woran!, /Auch die Gebinde weichen ab: 96 auf dem Lieferschein, 90 bei der Charge/)
+  assert.equal(zuteilung(r, 'zu_viel').woran, 'Es ist eine einzige Charge, ihr ist aber mehr zugeteilt, als geliefert wurde.', 'ohne Gebinde keine Vermutung dazu')
+})
+
+test('Runde BG: mehrere Chargen, teils wiederholt, der Rest ohne Charge, und unbekannte Kilo bleiben unbekannt', () => {
+  const f = fall('zu_viel', { kg_position: 256, kg_zugeteilt: 400, kg: 144 })
+  const m = zuteilung(nachrechnen(f, [{ charge_extern: '1620', batch_menge: 200, kg_charge: 200 }, { charge_extern: '1621', batch_menge: 200, kg_charge: 200 }])!, 'zu_viel')
+  assert.equal(m.muster, 'mehrere')
+  assert.deepEqual(m.zeilen.map(x => [x.ab, x.innen, x.drueber]), [[0, 200, 0], [200, 56, 144]], 'gefüllt in der Folge der Zeilen, bis die Lieferung voll ist')
+  const t = zuteilung(nachrechnen({ ...f, kg_zugeteilt: 400 }, [{ charge_extern: '1620', batch_menge: 100, kg_charge: 100 },
+    { charge_extern: '1620', batch_menge: 100, kg_charge: 100 }, { charge_extern: '1621', batch_menge: 200, kg_charge: 200 }])!, 'zu_viel')
+  assert.equal(t.muster, 'teils_gleich')
+  assert.match(t.woran!, /^Eine Zeile wiederholt eine Zeile davor/)
+  const rest = zuteilung(nachrechnen(fall('rest', { kg_position: 150, kg_zugeteilt: 90, kg: 60 }), [{ charge_extern: '1630', batch_menge: 90, kg_charge: 90 }])!, 'rest')
+  assert.equal(rest.muster, 'rest')
+  assert.equal(rest.skala, 150)
+  assert.deepEqual(rest.zeilen.map(x => [x.ab, x.innen, x.drueber]), [[0, 90, 0]])
+  const o = zuteilung(nachrechnen(fall('ohne_gewicht', { einheit: 'Stück', menge: 40, gewicht_je_artikel: null, kg_position: null, kg_zugeteilt: null, kg: null }),
+    [{ charge_extern: '1630', batch_menge: 40, kg_charge: null }])!, 'ohne_gewicht')
+  assert.equal(o.skala, null, 'ohne Kilo kein Massstab — nie 0')
+  assert.deepEqual(o.zeilen.map(x => [x.ab, x.innen, x.drueber]), [[null, null, null]])
+  assert.equal(o.muster, 'sonst')
+  assert.equal(o.woran, null)
 })

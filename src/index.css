@@ -1615,3 +1615,20 @@ table.excel td.falsch, table.excel th.falsch { outline: 2px solid #d12f2f; outli
 .vermutung-teil .spur-tabelle { min-width: 34rem; }
 .zeit-vorher-farbe { background: repeating-linear-gradient(135deg, var(--flaeche-3) 0 3px, transparent 3px 6px); box-shadow: inset 0 0 0 1px var(--rand); }
 .rueck-tabelle th { white-space: normal; min-width: 11rem; }
+
+/* ---------- Runde BG: Lieferschein und Chargen ---------------------------- */
+/* Oben, was geliefert wurde; darunter jede Chargenzeile als Balken, der dort anfängt, wo die Zeile davor
+   aufhört. Grau ist geliefertes Gut (wie „auf den Lieferscheinen" im Fall), rot schraffiert, was darüber hinausgeht. */
+.zt-begriff { max-width: 76ch; }
+.fall-rechnung.zuteilung { min-width: 32rem; }
+.fall-rechnung.zuteilung th.zt-bild, .fall-rechnung.zuteilung td.zt-bild { width: 38%; min-width: 9rem; vertical-align: middle; }
+.zt-spur { position: relative; height: 18px; background: var(--flaeche-2); border-radius: 4px; }
+.zt-teil { position: absolute; top: 0; bottom: 0; border-radius: 4px; }
+.zt-geliefert, .zt-innen { background: var(--strom-verkauft); }
+.zt-drueber { background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--rot) 35%, transparent) 0 5px, transparent 5px 10px);
+  outline: 2px solid var(--rot); outline-offset: -2px; }
+.zt-grenze { position: absolute; top: -5px; bottom: -5px; width: 0; border-left: 2px dashed var(--text); z-index: 2; }
+.zt-grenze-zeichen { display: inline-block; width: 0; height: .9rem; border-left: 2px dashed var(--text); margin-right: .45rem; vertical-align: -2px; }
+.zuteilung tbody.zt-lieferschein th { font-weight: var(--gewicht-mittel); text-align: left; text-transform: none; letter-spacing: 0; font-size: var(--s-1); color: var(--text); }
+.zuteilung tbody.zt-lieferschein > tr > * { border-bottom: 2px solid var(--rand); }
+.zt-woran { margin: .7rem 0 .4rem; max-width: 76ch; }

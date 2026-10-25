@@ -21,10 +21,11 @@
         "Masse des Artikels",
         "Auf den Lieferscheinen",
         "in kg (×",
-        "Menge je Charge"
+        "Menge je Charge",
+        "Menge in kg"
       ],
       "art": "gemessen",
-      "bedeutet": "Was den Betrieb verlassen hat, wie es auf dem Lieferschein oder in der Verkaufsdatei steht — verkaufsfertige Ware, nicht Eingangsware — im Lagermanagement heisst die Kennzahl „Ausgang\" — Runde BF: im Fall „Auf den Lieferscheinen\" (Anfang der Rückrechnung) und in „Nachgerechnet\" je Zeile der Position „Menge je Charge (Spalte S)\" und „in kg (× AE)\"",
+      "bedeutet": "Was den Betrieb verlassen hat, wie es auf dem Lieferschein oder in der Verkaufsdatei steht — verkaufsfertige Ware, nicht Eingangsware — im Lagermanagement heisst die Kennzahl „Ausgang\" — Runde BF: im Fall „Auf den Lieferscheinen\" (Anfang der Rückrechnung) und in „Nachgerechnet\" je Zeile der Position „Menge je Charge (Spalte S)\" und „in kg (× AE)\" — Runde BG: im Bild „Lieferschein und Chargen\" die Spalte „Menge in kg\" (geliefert laut Lieferschein, je Chargenzeile, zusammen, mehr als geliefert)",
       "quelle": "erg_bilanz.geliefert_kg · lieferung.kg · ausgang_zeile.kg"
     },
     {

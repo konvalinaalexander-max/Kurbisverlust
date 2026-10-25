@@ -7,7 +7,7 @@ import { datum, kg, zeitpunkt } from '../lib/format'
 import { excelAnsicht, excelZeileVon, lieferungDeutung, schluessel, type ChargenzeileKurz, type ExcelAnsicht, type RohZeile } from '../lib/warenausgang'
 import { FALSCHE_SPALTEN, OHNE_CHARGE_GRUND, OHNE_CHARGE_SPALTEN } from '../auswertung/ungereimt'
 import type { LieferungOhneCharge, PerigonBefund } from '../auswertung/daten'
-import { PERIGON_ART, WO_NAME, gegenueber, nachrechnen, schnappschuss, spaltenZeichen, type Nachrechnung } from '../auswertung/perigon'
+import { PERIGON_ART, WO_NAME, gegenueber, nachrechnen, schnappschuss, spaltenZeichen, zuteilung, type Nachrechnung } from '../auswertung/perigon'
 import { FallVerfolgen } from '../auswertung/Verfolgen'
 import { Hinweis, Lade } from '../components/Bausteine'
 import { ZChevron, ZKreuz } from '../components/Zeichen'
@@ -235,7 +235,7 @@ export function LieferungFenster({ lieferungId, quelle, posId, fall, schliessen 
           </div>
         ))}
         {fall && (geladen || fehler) && (
-          <FallInhalt fall={fall} zeilen={zeilen} lieferungen={lieferungen} sonst={zeigen.map(m => m.befund)} excelNr={excelNrJe(zeilen, roh)}
+          <FallInhalt fall={fall} zeilen={zeilen} lieferungen={lieferungen} sonst={zeigen.map(m => m.befund)} excelNr={excelNrJe(zeilen, roh)} roh={roh}
                       beleg={<ZeileImExcel ansicht={ansicht} rot={roteSpalten} posId={fall.pos_id} quelle={fall.quelle} datei={datei}
                                            gemeint={fall.nummer} anzahl={zeilen.length} schliessen={schliessen} />} />
         )}
@@ -285,7 +285,7 @@ export function PositionImFall({ fall }: { fall: PerigonBefund }) {
   if (d.fehler) return <Hinweis art="warnung">{d.fehler}</Hinweis>
   if (!d.geladen) return <Lade />
   return (
-    <FallInhalt fall={fall} zeilen={d.zeilen} lieferungen={d.lieferungen} sonst={zeigen.map(m => m.befund)} excelNr={excelNrJe(d.zeilen, roh)} imFall
+    <FallInhalt fall={fall} zeilen={d.zeilen} lieferungen={d.lieferungen} sonst={zeigen.map(m => m.befund)} excelNr={excelNrJe(d.zeilen, roh)} roh={roh} imFall
                 beleg={<ZeileImExcel ansicht={ansicht} rot={roteSpalten} posId={fall.pos_id} quelle={fall.quelle} datei={d.datei}
                                      gemeint={fall.nummer} anzahl={d.zeilen.length} schliessen={() => {}} />} />
   )
@@ -416,6 +416,22 @@ function Aufklapp({ titel, id, children }: { titel: ReactNode; id?: string; chil
   )
 }
 
+/**
+ * Runde BG: die Gebinde der Position und ihrer Chargenzeile — nur, wenn die
+ * Position genau eine Zeile hat. Gleich viele Gebinde bei mehr Kilo heisst:
+ * wohl wurde nur das Gewicht der Position geändert. Leer heisst unbekannt.
+ */
+function gebindeAus(roh: RohZeile[] | null): { position: number | null; zeile: number | null } | null {
+  if (!roh || roh.length !== 1) return null
+  const wert = (name: string) => {
+    const k = Object.keys(roh[0]).find(x => schluessel(x) === schluessel(name))
+    const v = k == null ? null : roh[0][k]
+    const n = v == null || v === '' ? null : Number(v)
+    return n != null && Number.isFinite(n) ? n : null
+  }
+  return { position: wert('AuftragsGebindemenge'), zeile: wert('AufPosBatchPackageQuantity Charge') }
+}
+
 const zahlText = (x: number | null) => (x == null ? '—' : Number(x).toLocaleString('de-CH', { maximumFractionDigits: 3 }))
 
 /**
@@ -428,8 +444,10 @@ const zahlText = (x: number | null) => (x == null ? '—' : Number(x).toLocaleSt
  * „das ist ja wichtig, ist Nachvollziehbarkeit"; nur die Erklärung der Art
  * bleibt hinter einem Klick.
  */
-function FallInhalt({ fall, zeilen, lieferungen, sonst, beleg, excelNr, imFall = false }: {
+function FallInhalt({ fall, zeilen, lieferungen, sonst, beleg, excelNr, roh, imFall = false }: {
   fall: PerigonBefund; zeilen: ZeileDerDatei[]; lieferungen: LieferungZeile[]; sonst: string[]
+  /** Runde BG: die Zeilen der Datei, wie eingelesen — für die Gebinde, wenn die Position nur eine Zeile hat */
+  roh: RohZeile[] | null
   /** Runde BE: die Zeile(n) der Datei, sichtbar — gleich nach dem Satz */
   beleg: ReactNode
   /** Runde BE: die Excel-Zeile je Zeile der App, in derselben Folge wie zeilen */
@@ -445,8 +463,10 @@ function FallInhalt({ fall, zeilen, lieferungen, sonst, beleg, excelNr, imFall =
       <section className={`fall-kopf s-${fall.schwere}`} id="fall-kopf">
         <p className="fall-satz">{r?.satz ?? fall.satz}</p>
       </section>
+      {/* Runde BG: erst das Bild (was geliefert wurde, was Perigon den Chargen zuteilt), dann die Zeilen der Datei als Beleg —
+          „hier sprichst du gegen eine Wand", solange man nicht weiss, was eine Chargenzeile ist */}
+      {r && <Nachgerechnet r={r} fall={fall} lieferungen={lieferungen} excelNr={excelNr} gebinde={gebindeAus(roh)} />}
       {beleg}
-      {r && <Nachgerechnet r={r} lieferungen={lieferungen} excelNr={excelNr} />}
       {angaben && (
         <section className="fall-block" id="fall-angaben">
           <h3>Was die Datei sagt</h3>
@@ -484,9 +504,21 @@ function FallInhalt({ fall, zeilen, lieferungen, sonst, beleg, excelNr, imFall =
 /**
  * Nachgerechnet: jede Zeile der Position mit ihrer Charge (Spalte W) und
  * ihrer Menge (Spalte S) — eine Zeile, die schon dastand, sagt es —, darunter
- * die Summe, die Position (Spalte Q) und was nicht aufgeht.
+ * die Summe und was nicht aufgeht.
+ *
+ * Runde BG — der Betrieb: „Chargenzeile mehr als die Position checke ich noch
+ * immer nicht … Zeile 1, 2, 3 und dann gleich wie Zeile 1, aber ich weiss
+ * nicht, was du meinst." Darum heisst der Block jetzt, was er zeigt:
+ * Lieferschein und Chargen. Zuerst in zwei Sätzen, was eine Position und was
+ * eine Chargenzeile ist; oben, was geliefert wurde, darunter jede Chargenzeile
+ * als Balken, der dort anfängt, wo die Zeile davor aufhört — rechts der
+ * gestrichelten Linie liegt, was mehr ist als geliefert. Dann, woran es wohl
+ * liegt, und was die App daraus macht.
  */
-function Nachgerechnet({ r, lieferungen, excelNr }: { r: Nachrechnung; lieferungen: LieferungZeile[]; excelNr: (number | null)[] }) {
+function Nachgerechnet({ r, fall, lieferungen, excelNr, gebinde }: {
+  r: Nachrechnung; fall: PerigonBefund; lieferungen: LieferungZeile[]; excelNr: (number | null)[]
+  gebinde: { position: number | null; zeile: number | null } | null
+}) {
   // Runde BE: dieselbe Nummer wie im Excel und im Kasten darüber — sonst die wievielte Zeile der Position
   const mitExcel = r.zeilen.length > 0 && r.zeilen.every((_, i) => excelNr[i] != null)
   const nrVon = (i: number) => (mitExcel ? excelNr[i]! : i + 1)
@@ -494,42 +526,75 @@ function Nachgerechnet({ r, lieferungen, excelNr }: { r: Nachrechnung; lieferung
   const S = spaltenZeichen('AufPosBatchQuantity Charge') ?? 'S'
   const Q = spaltenZeichen('AuftragsArtikelMenge') ?? 'Q'
   const AE = spaltenZeichen('GewichtProArtikel') ?? 'AE'
-  const kgSpalte = !r.istKg
+  const b = zuteilung(r, fall.art, gebinde)
+  const pos = r.positionKg
+  const pct = (x: number) => `${b.skala ? (100 * x) / b.skala : 0}%`
+  const grenze = pos != null && b.skala ? <div className="zt-grenze" style={{ left: pct(pos) }} aria-hidden="true" /> : null
+  const mehr = r.unterschied?.wort === 'zu viel' && (r.unterschied.kg ?? 0) > 0
+  const gebucht = lieferungen.map(l => `${kg(l.kg, 0)} ${l.charge_nr != null ? `auf Charge ${l.charge_nr}` : 'ohne Charge'}`).join(' · ')
   return (
     <section className="fall-block" id="fall-nachgerechnet">
-      <h3>Nachgerechnet</h3>
-      <table className="dicht fall-rechnung ohne-haftkopf">
-        <thead><tr>
-          <th>{mitExcel ? 'Excel-Zeile' : 'Zeile'}</th><th>Charge <span className="leise">(Spalte {W})</span></th>
-          <th className="zahl">Menge je Charge <span className="leise">(Spalte {S})</span></th>
-          {kgSpalte && <th className="zahl">in kg <span className="leise">(× {AE})</span></th>}
-        </tr></thead>
-        <tbody>
-          {r.zeilen.length === 0 && (
-            <tr><td colSpan={kgSpalte ? 4 : 3} className="leise">Die Zeilen der Position stehen in keiner eingelesenen Datei mehr — die Summen unten sind die beim letzten Einlesen.</td></tr>
-          )}
-          {r.zeilen.map((z, i) => (
-            <tr key={z.nr} className={z.gleichWie ? 'doppelt' : undefined}>
-              <td>{nrVon(i)}</td>
-              <td>{z.charge ?? <span className="leise">leer</span>}{z.gleichWie && <span className="fall-gleich"> gleich wie Zeile {nrVon(z.gleichWie - 1)}</span>}</td>
-              <td className="zahl">{z.s == null ? '—' : `${zahlText(z.s)} ${r.einheit}`}</td>
-              {kgSpalte && <td className="zahl">{z.kg == null ? 'unbekannt' : kg(z.kg, 1)}</td>}
+      <h3>Lieferschein und Chargen</h3>
+      <p className="leise oben-0 zt-begriff">
+        Eine Position ist eine Zeile auf dem Lieferschein: ein Artikel und wie viel davon geliefert wurde (Spalte {Q}).
+        Perigon schreibt dazu, aus welcher Charge die Ware kam — je Charge eine Zeile im Excel, mit der Nummer der Charge
+        (Spalte {W}) und der Menge aus dieser Charge (Spalte {S}). Zusammen sollten die Chargen genau so viel ergeben, wie geliefert wurde.
+      </p>
+      <div className="rollbar">
+        <table className="dicht fall-rechnung zuteilung ohne-haftkopf">
+          <thead><tr>
+            <th>{mitExcel ? 'Excel-Zeile' : 'Zeile'}</th><th>Charge <span className="leise">(Spalte {W})</span></th>
+            <th className="zt-bild" aria-hidden="true" />
+            <th className="zahl">Menge in kg{r.istKg ? '' : <span className="leise"> ({S} × {AE})</span>}</th>
+          </tr></thead>
+          <tbody className="zt-lieferschein">
+            <tr>
+              <th scope="row" colSpan={2}>Geliefert laut Lieferschein <span className="leise">(Spalte {Q})</span></th>
+              <td className="zt-bild"><div className="zt-spur">
+                {pos != null && b.skala ? <div className="zt-teil zt-geliefert" style={{ left: 0, width: pct(pos) }} /> : null}
+                {grenze}
+              </div></td>
+              <td className="zahl">{pos == null ? 'unbekannt' : kg(pos, 0)}</td>
             </tr>
-          ))}
-        </tbody>
-        <tfoot>
-          <tr><th scope="row" colSpan={kgSpalte ? 3 : 2}>den Chargen zugeteilt, zusammen <span className="leise">(Spalte {S})</span></th>
-            <td className="zahl">{r.zugeteiltKg == null ? 'unbekannt' : kg(r.zugeteiltKg, 0)}</td></tr>
-          <tr><th scope="row" colSpan={kgSpalte ? 3 : 2}>die Position <span className="leise">(Spalte {Q}{kgSpalte ? ` × ${AE}` : ''})</span></th>
-            <td className="zahl">{r.positionKg == null ? 'unbekannt' : kg(r.positionKg, 0)}</td></tr>
-          {r.unterschied && (
-            <tr className="fall-unterschied"><th scope="row" colSpan={kgSpalte ? 3 : 2}>{r.unterschied.wort}</th>
-              <td className="zahl">{r.unterschied.kg == null ? 'unbekannt' : kg(Math.abs(r.unterschied.kg), 0)}</td></tr>
-          )}
-        </tfoot>
-      </table>
+          </tbody>
+          <tbody className="zt-chargen">
+            {b.zeilen.length === 0 && (
+              <tr><td colSpan={4} className="leise">Die Zeilen der Position stehen in keiner eingelesenen Datei mehr — die Summen unten sind die beim letzten Einlesen.</td></tr>
+            )}
+            {b.zeilen.map((z, i) => (
+              <tr key={z.nr} className={z.gleichWie ? 'doppelt' : undefined}>
+                <td>{nrVon(i)}</td>
+                <td>{z.charge ?? <span className="leise">leer</span>}{z.gleichWie && <span className="fall-gleich"> gleich wie Zeile {nrVon(z.gleichWie - 1)}</span>}</td>
+                <td className="zt-bild"><div className="zt-spur">
+                  {z.ab != null && b.skala && (z.innen ?? 0) > 0 ? <div className="zt-teil zt-innen" style={{ left: pct(z.ab), width: pct(z.innen!) }} /> : null}
+                  {z.ab != null && b.skala && (z.drueber ?? 0) > 0 ? <div className="zt-teil zt-drueber" style={{ left: pct(z.ab + (z.innen ?? 0)), width: pct(z.drueber!) }} /> : null}
+                  {grenze}
+                </div></td>
+                <td className="zahl">{z.kg == null ? 'unbekannt' : kg(z.kg, 0)}
+                  {!r.istKg && z.s != null && <span className="zelle-unter">{zahlText(z.s)} {r.einheit}</span>}</td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr><th scope="row" colSpan={3}>den Chargen zugeteilt, zusammen <span className="leise">(Spalte {S})</span></th>
+              <td className="zahl">{r.zugeteiltKg == null ? 'unbekannt' : kg(r.zugeteiltKg, 0)}</td></tr>
+            {r.unterschied && (
+              <tr className="fall-unterschied"><th scope="row" colSpan={3}>{r.unterschied.wort === 'zu viel' ? 'mehr als geliefert' : r.unterschied.wort}</th>
+                <td className="zahl">{r.unterschied.kg == null ? 'unbekannt' : kg(Math.abs(r.unterschied.kg), 0)}</td></tr>
+            )}
+          </tfoot>
+        </table>
+      </div>
+      {b.skala != null && (
+        <ul className="bilanz-legende zt-legende">
+          <li><span className="bilanz-farbe zt-geliefert" aria-hidden="true" />geliefert — und von den Chargen, so viel wie geliefert</li>
+          {b.zeilen.some(z => (z.drueber ?? 0) > 0) && <li><span className="bilanz-farbe zt-drueber" aria-hidden="true" />mehr als geliefert</li>}
+          {pos != null && <li><span className="zt-grenze-zeichen" aria-hidden="true" />bis hier reicht die Lieferung</li>}
+        </ul>
+      )}
+      {b.woran && <p className="zt-woran"><strong>Woran es wohl liegt:</strong> {b.woran}</p>}
       {lieferungen.length > 0 && (
-        <p className="leise unten-0">In der Rechnung der App: {lieferungen.map(l => `${kg(l.kg, 0)} ${l.charge_nr != null ? `auf Charge ${l.charge_nr}` : 'ohne Charge'}`).join(' · ')}.</p>
+        <p className="leise unten-0">In der Rechnung der App: {gebucht}.{mehr ? ' So viel, wie geliefert wurde — eure Lagerzahlen stimmen; zu gross ist nur die Zuteilung in Perigon.' : ''}</p>
       )}
     </section>
   )

@@ -4171,6 +4171,51 @@ Daten, dann die Annahme — nach der Korrektur nachsehen.
 nicht alles: vier mal vier gleiche Paloxen und ein Tag mit 30 Paaren bei
 13 erwarteten sind Fragen wert.
 
+## Runde BG: Lieferschein und Chargen — und die Auffälligkeiten Fall für Fall (25. Oktober)
+
+Der Betrieb nach Runde BF: „Die Fehlermeldung Chargenzeile mehr als die
+Position checke ich noch immer nicht … jetzt hast du mir auch mehrere Zeilen
+angegeben, Zeile 1, 2, 3 und dann gleich wie Zeile 1, aber ich weiss nicht, was
+du meinst. Vielleicht muss ich alle Perigon-Zeilen sehen … hier sprichst du
+aktuell gegen eine Wand." Und zu den Auffälligkeiten unter Messungen (siehe
+unten, Teil 2).
+
+**1. Lieferschein und Chargen** (`zuteilung` in `src/auswertung/perigon.ts`,
+`Nachgerechnet` in `src/betrieb/LieferungFenster.tsx`). Was fehlte, war nicht
+eine Zahl, sondern der Begriff: was eine Position und was eine Chargenzeile in
+Perigon ist. Darum:
+- Der Satz fängt beim Lieferschein an: „Auf dem Lieferschein stehen 256 kg.
+  Perigon schreibt dazu 3-mal dieselbe Charge 1620 mit 256 kg — zusammen
+  768 kg, 512 kg mehr als geliefert." Vorher: „Die Position steht 3-mal in der
+  Datei" — das klang, als sei die Lieferung dreimal da.
+- Der Block heisst „Lieferschein und Chargen" und erklärt in zwei Sätzen, was
+  Spalte Q (geliefert), W (Charge) und S (Menge aus der Charge) sind und dass
+  die Chargen zusammen so viel ergeben sollten, wie geliefert wurde.
+- Oben ein Balken „Geliefert laut Lieferschein", darunter jede Chargenzeile als
+  Balken, der dort anfängt, wo die Zeile davor aufhört; eine gestrichelte Linie
+  zeigt, bis wohin die Lieferung reicht, was darüber hinausgeht, ist rot
+  schraffiert. Die Excel-Zeile steht vor jeder Zeile.
+- „Woran es wohl liegt", aus dem, was die Datei selbst zeigt: gleiche Zeilen
+  (dieselbe Zuteilung mehrfach geschrieben), eine einzige Zeile mit mehr Kilo —
+  stimmen die Gebinde überein (bei 1625: 96 und 96), wurde wohl nur das
+  Gewicht der Position nachträglich geändert —, mehrere Chargen, Rest ohne
+  Charge.
+- „In der Rechnung der App: 256 kg auf Charge 1620. So viel, wie geliefert
+  wurde — eure Lagerzahlen stimmen; zu gross ist nur die Zuteilung in Perigon."
+- Das Bild steht vor den Zeilen der Datei: erst verstehen, dann der Beleg
+  (AB-183 nachgezogen). Die drei echten Fälle sind zwei Muster: 1620 dreimal
+  dieselbe Zeile; 1625 (965 statt 918 kg) und 1635 (80 statt 62.7 kg) je eine
+  Zeile mit mehr Kilo bei gleich vielen Gebinden.
+
+Geprüft: `test/perigon.test.ts` (drei neue Tests: gestapelt und „gleich",
+eine Zeile mit gleichen und mit anderen Gebinden, mehrere Chargen, teils
+wiederholt, Rest, unbekannte Kilo bleiben unbekannt; die Sätze mit der Regel
+geändert, im Test gesagt); Bildschirm `perigon-fall` (der Satz, das Bild vor
+dem Beleg, „Geliefert laut Lieferschein 256 kg", 1203 innerhalb, 1204 und
+1205 darüber, „Die 3 Zeilen sind gleich", „eure Lagerzahlen stimmen" — alles,
+was die Szene vorher prüfte, prüft sie weiter); Begriffs-Prüfstand
+(„Menge in kg" im Lexikon).
+
 ## Runde BF: Fall für Fall — was passiert ist, statt was zu tun wäre (24. Oktober)
 
 Der Betrieb zum Reiter Perigon nach Runde BE: „Es ist irgendwie Information
