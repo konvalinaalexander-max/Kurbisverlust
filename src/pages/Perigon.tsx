@@ -33,6 +33,7 @@ import { ART_FOLGE, PERIGON_ART, STAND_NAME, WO_NAME, jeSorte, schnappschussText
 import { FALL_FILTER_LEER, THEMA_FOLGE, THEMA_NAME, faelleBilden, faelleFiltern, fallOffen, fallStand, type Fall, type FallFilter } from '../auswertung/faelle'
 import { FallAnsicht } from '../auswertung/FallAnsicht'
 import { StandMarke, VerlaufKontext, useVerlauf } from '../auswertung/Verfolgen'
+import { nachDemWechsel, vorDemWechsel } from '../design/bewegung'
 
 type Teil = 'faelle' | 'verlauf' | 'pruefung'
 const TEILE: [Teil, string][] = [
@@ -222,14 +223,15 @@ function Arbeitsliste({ faelle, nummern, verlauf, daten, sorten }: {
   const gewaehlt = (gefragt ? faelle.find(f => inAdresse(f, nummern) === gefragt || f.id === gefragt) : undefined)
     ?? (liste.length === 1 || (breit && liste.length > 0) ? liste[0] : undefined)
   const i = gewaehlt ? liste.findIndex(f => f.id === gewaehlt.id) : -1
+  // Runde BG: ohne Zittern — vor dem Wechsel sofort an den Anfang des Falls, danach nur, wenn er ausser Sicht steht (design/bewegung.ts)
+  const springen = useRef<string | null>(null)
   const waehlen = useCallback((f: Fall | undefined) => {
+    const ziel = f ? 'fall-ansicht' : 'fall-liste'
+    vorDemWechsel(ziel)
+    springen.current = ziel
     const neu = new URLSearchParams(such)
     if (f) neu.set('fall', inAdresse(f, nummern)); else neu.delete('fall')
     setSuch(neu, { replace: !!f && !!such.get('fall') })
-    window.requestAnimationFrame(() => {
-      const el = document.getElementById(f ? 'fall-ansicht' : 'fall-liste')
-      if (el && (el.getBoundingClientRect().top < 0 || el.getBoundingClientRect().top > window.innerHeight * 0.6)) el.scrollIntoView({ block: 'start', behavior: 'smooth' })
-    })
   }, [such, setSuch, nummern])
   const vorher = i > 0 ? () => waehlen(liste[i - 1]) : null
   const nachher = i >= 0 && i < liste.length - 1 ? () => waehlen(liste[i + 1]) : null
@@ -256,6 +258,10 @@ function Arbeitsliste({ faelle, nummern, verlauf, daten, sorten }: {
     ...(filter.charge != null ? [['charge', `Charge ${filter.charge}`] as [string, string]] : []),
   ]
   const zeigeFall = !!gewaehlt && (breit || !!gefragt || liste.length === 1)
+  const gezeigt = gewaehlt && zeigeFall ? gewaehlt.id : null
+  useLayoutEffect(() => {
+    if (springen.current) { nachDemWechsel(springen.current); springen.current = null }
+  }, [gezeigt])
   return (
     <>
       <div className="perigon-filter" id="perigon-filter">

@@ -4171,6 +4171,92 @@ Daten, dann die Annahme — nach der Korrektur nachsehen.
 nicht alles: vier mal vier gleiche Paloxen und ein Tag mit 30 Paaren bei
 13 erwarteten sind Fragen wert.
 
+## Runde BH: Das Excel zuerst — und kein Zittern beim Wechsel (25. Oktober)
+
+Der Betrieb nach Runde BG zum Reiter Perigon: „sorry aber ich check das noch
+immer nicht ‚Chargenzeilen mehr als die Position' — also sind 3 Zeilen ident?
+also hä? … zeig mir besser, klarer, verständlicher was Sache ist, arbeite mehr
+mit Excel, falls es mehrere Zeilen sind, zeig mir alle Zeilen, die es betrifft,
+übereinander." Und zu den Auffälligkeiten: „wenn man eine niedrigere antippt
+oder eine höhere, dann springt das, also die Webseite zittert kurz."
+
+**1. Das Excel zuerst** (`nachrechnen` und `zuteilung` in
+`src/auswertung/perigon.ts`, `ImExcel` in `src/betrieb/LieferungFenster.tsx`).
+Das Bild aus Runde BG erklärte Wörter der App, Position und Chargenzeile.
+Der Betrieb kennt aber das Excel. Darum zeigt der Fall jetzt das Excel:
+- Die Arten heissen „Der Charge mehr zugeteilt als geliefert" und „Der Charge
+  weniger zugeteilt als geliefert". Vorher hiessen sie „Chargenzeilen mehr
+  bzw. weniger als die Position".
+- Der Satz sagt, was man im Excel sieht: „Im Excel steht dieselbe Zeile
+  3-mal untereinander: Charge 1620, je 256 kg. Geliefert wurden die 256 kg
+  aber nur einmal (Spalte Q) — Perigon teilt der Charge 768 kg zu (Spalte S),
+  512 kg zu viel." Je ein eigener Satz gilt für eine Zeile, für mehrere Chargen
+  und für den Rest ohne Charge.
+- „So steht es im Excel — Zeilen 1203, 1204, 1205": alle Zeilen der Position
+  untereinander, mit ihrer Excel-Zeile und nur mit den Spalten Q, S, W und AD
+  (bei Stück auch AE). Darüber stehen der Buchstabe und der Spaltenname wie im
+  Excel, darunter in Worten, was die Spalte heisst. Wiederholte Zeilen sind
+  gelb. Die Zellen in S, die über die Lieferung hinausgehen, sind rot.
+- Daneben, abgesetzt und „nicht im Excel": Spalte S, bis hier
+  zusammengezählt (256, 512, 768 kg; rot, sobald die Summe über der Lieferung
+  liegt). Dazu „gleich wie Zeile 1203" und „ganz zu viel" bzw. „davon … zu
+  viel".
+- Darunter die Rechnung in drei Zeilen. „Geliefert — Spalte Q" steht auf
+  jeder Zeile gleich und zählt einmal. „Der Charge zugeteilt — Spalte S" zählt
+  alle Zeilen zusammen. Darauf folgt „Zu viel zugeteilt" bzw. „Ohne Charge".
+  Bei „Masse weicht ab" steht die Zahl der App dabei, gegen die verglichen
+  wird. Was zu einer Zahl zu wissen ist, steht rechts in einer eigenen Spalte,
+  nicht in ihrer Beschriftung.
+- „Woran es wohl liegt" beantwortet zuerst die Frage: „Die 3 Zeilen sind
+  genau gleich — dieselbe Position, dieselbe Charge, dieselbe Menge."
+- Die Balken aus Runde BG sind weg. `Zuteilung.skala` ist durch
+  `ZuteilungsZeile.bis` ersetzt, die Summe von S bis zu dieser Zeile. Die ganzen
+  Zeilen mit allen Spalten bleiben als Beleg darunter.
+- Die echten Fälle (Kopie vom 25. Oktober): Bei 1620 steht dieselbe Zeile
+  dreimal da, ja, sie sind gleich. Bei 1625 (918 gegen 965 kg) und 1635 (62.7
+  gegen 80 kg) ist es je eine einzige Zeile, in der S grösser ist als Q.
+
+**2. Kein Zittern beim Wechsel** (`vorDemWechsel`, `nachDemWechsel` in
+`src/design/bewegung.ts`; Auffälligkeiten und Perigon). Gemessen wurde ein
+Klick auf einen anderen Fall bei 900 px Bildlauf. Die Seite rollte
+900 → 882 → 503 → 484 → 503 → 467 (Auffälligkeiten) und
+900 → 898 → 519 → 509 → 525 → 825 → … (Perigon). Der Grund: Ein weiches
+`scrollIntoView` lief nach dem Zeichnen, während die neue Fall-Ansicht die
+Seite kürzer machte. Der Browser klemmte den Bildlauf an die neue Höhe, und
+die weiche Bewegung setzte neu an. Jetzt springt die Seite vor dem Wechsel
+sofort an den Kopf der Ansicht, wenn er über dem Bildrand liegt, nie weich.
+Nach dem Wechsel (`useLayoutEffect`, vor dem Malen) wird nur noch geprüft, ob
+der Kopf im Bild steht. Danach: 900 → 467 in einem Schritt, bei Perigon
+900 → 386.
+
+Geprüft:
+- `test/perigon.test.ts`: Die Sätze sind mit der Regel geändert, und der Test
+  sagt es. Die Tests auf `skala` sind durch Tests auf `bis` ersetzt, nicht
+  gestrichen. Dazu kommt der Satz für den Rest über mehrere Zeilen.
+- Bildschirm `perigon-fall`: 1203–1205 untereinander mit Q, S, W und AD.
+  S ist in 1204 und 1205 rot, beide Zeilen sind gelb. Daneben steht
+  256/512/768 kg, ab 512 rot, dazu zweimal „gleich wie Zeile 1203". Die
+  Rechnung zeigt 256/768/512 kg. Auf dem Desktop passt der Ausschnitt ohne
+  seitliches Rollen. Alles, was die Szene vorher prüfte, prüft sie weiter.
+- Bildschirm `perigon-menge`: S = 0 ist in beiden Zeilen rot.
+- Neue Bildschirme `auff-ruhig` und `perigon-ruhig`: Je Klick ändert sich der
+  Bildlauf höchstens zweimal, und der Kopf des Falls steht oben im Bild
+  (Desktop ≤ 60 px, Handy in den oberen 60 %). Mit dem alten Code sind beide
+  rot.
+- Begriffs-Prüfstand: Die neuen Beschriftungen stehen im Lexikon.
+
+**Was bewusst nicht gemacht wurde:**
+- Nichts anders gerechnet, keine Regel geändert, was ein Fall ist, und keine
+  Migration (Stand bleibt 129). Geändert sind nur die Darstellung und die Sätze.
+- Die Excel-Zeilennummern stehen nicht im Satz, sondern gleich darunter in der
+  Überschrift des Ausschnitts. Der Satz kommt aus `nachrechnen`, das die
+  Datei-Zeilen nicht kennt. Zeilen, die vor Runde BE eingelesen wurden, zeigen
+  „1.", „2." — eine Excel-Zeile wird nie geraten.
+- Der Satz der Datenbank (`v_perigon_befund.satz`, mit „Chargenzeilen")
+  bleibt. Er steht nur noch da, wo die Zeilen der Datei fehlen.
+- Auf dem Handy rollt der Ausschnitt seitlich wie das Excel. Die Spaltennamen
+  brechen nur an ihren Wortgrenzen.
+
 ## Runde BG: Lieferschein und Chargen — und die Auffälligkeiten Fall für Fall (25. Oktober)
 
 Der Betrieb nach Runde BF: „Die Fehlermeldung Chargenzeile mehr als die

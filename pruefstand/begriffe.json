@@ -22,10 +22,16 @@
         "Auf den Lieferscheinen",
         "in kg (×",
         "Menge je Charge",
-        "Menge in kg"
+        "Menge in kg",
+        "bis hier zusammen",
+        "In der Rechnung der App",
+        "Zurückgenommen",
+        "Geliefert — Spalte Q",
+        "Der Charge zugeteilt",
+        "Zu viel zugeteilt"
       ],
       "art": "gemessen",
-      "bedeutet": "Was den Betrieb verlassen hat, wie es auf dem Lieferschein oder in der Verkaufsdatei steht — verkaufsfertige Ware, nicht Eingangsware — im Lagermanagement heisst die Kennzahl „Ausgang\" — Runde BF: im Fall „Auf den Lieferscheinen\" (Anfang der Rückrechnung) und in „Nachgerechnet\" je Zeile der Position „Menge je Charge (Spalte S)\" und „in kg (× AE)\" — Runde BG: im Bild „Lieferschein und Chargen\" die Spalte „Menge in kg\" (geliefert laut Lieferschein, je Chargenzeile, zusammen, mehr als geliefert)",
+      "bedeutet": "Was den Betrieb verlassen hat, wie es auf dem Lieferschein oder in der Verkaufsdatei steht — verkaufsfertige Ware, nicht Eingangsware — im Lagermanagement heisst die Kennzahl „Ausgang\" — Runde BF: im Fall „Auf den Lieferscheinen\" (Anfang der Rückrechnung) und in „Nachgerechnet\" je Zeile der Position „Menge je Charge (Spalte S)\" und „in kg (× AE)\" — Runde BG: im Bild „Lieferschein und Chargen\" die Spalte „Menge in kg\" (geliefert laut Lieferschein, je Chargenzeile, zusammen, mehr als geliefert) — Runde BH: neben dem Ausschnitt aus dem Excel „Spalte S bis hier zusammen\" (die Zuteilung an die Chargen, Zeile für Zeile aufgezählt), darunter die Rechnung „Geliefert — Spalte Q\" gegen „Der Charge zugeteilt\" (Spalte S, alle Zeilen) mit „Zu viel zugeteilt\" oder „Ohne Charge\", „In der Rechnung der App\" (die Lieferung, wie die App sie gebucht hat) und bei negativer Menge „Zurückgenommen\"",
       "quelle": "erg_bilanz.geliefert_kg · lieferung.kg · ausgang_zeile.kg"
     },
     {

@@ -38,3 +38,33 @@ export function staffel(i: number): CSSProperties {
 function reduziert(): boolean {
   return typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
 }
+
+/*
+ * Von Fall zu Fall, ohne dass die Seite zittert (Runde BG). Der Betrieb: „wenn
+ * man eine niedrigere antippt oder eine höhere, dann springt das, die Webseite
+ * zittert kurz." Gemessen: Wer in einem langen Fall nach unten gerollt hatte und
+ * links einen anderen wählte, sah die Seite weich nach oben rollen, während der
+ * neue, kürzere Fall die Seite schrumpfen liess — der Browser kappte die
+ * Rollposition, die weiche Bewegung federte zurück (900 → 503 → 484 → 503 →
+ * 467 px). Jetzt: vor dem Wechsel sofort an den Anfang der Ansicht, nach dem
+ * Wechsel — vor dem Zeichnen — nur, wenn sie ausser Sicht steht (am Handy
+ * ersetzt sie die Liste). Nie weich.
+ */
+function obenHin(el: HTMLElement): void {
+  const rand = parseFloat(getComputedStyle(el).scrollMarginTop) || 0
+  window.scrollTo({ top: Math.max(0, window.scrollY + el.getBoundingClientRect().top - rand), behavior: 'instant' })
+}
+
+/** Vor einem Wechsel: steht der Kopf von #id über dem Bildrand, sofort an seinen Anfang. */
+export function vorDemWechsel(id: string): void {
+  const el = document.getElementById(id)
+  if (el && el.getBoundingClientRect().top < 0) obenHin(el)
+}
+
+/** Nach dem Wechsel, im useLayoutEffect (vor dem Zeichnen): steht #id ausser Sicht, an seinen Anfang. */
+export function nachDemWechsel(id: string): void {
+  const el = document.getElementById(id)
+  if (!el) return
+  const oben = el.getBoundingClientRect().top
+  if (oben < 0 || oben > window.innerHeight * 0.6) obenHin(el)
+}

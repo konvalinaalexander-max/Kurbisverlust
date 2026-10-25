@@ -1617,21 +1617,31 @@ table.excel td.falsch, table.excel th.falsch { outline: 2px solid #d12f2f; outli
 .rueck-tabelle th { white-space: normal; min-width: 11rem; }
 
 /* ---------- Runde BG: Lieferschein und Chargen ---------------------------- */
-/* Oben, was geliefert wurde; darunter jede Chargenzeile als Balken, der dort anfängt, wo die Zeile davor
-   aufhört. Grau ist geliefertes Gut (wie „auf den Lieferscheinen" im Fall), rot schraffiert, was darüber hinausgeht. */
+/* Runde BH: die Balken je Chargenzeile (Runde BG) sind dem Ausschnitt aus dem Excel gewichen (unten). */
 .zt-begriff { max-width: 76ch; }
-.fall-rechnung.zuteilung { min-width: 32rem; }
-.fall-rechnung.zuteilung th.zt-bild, .fall-rechnung.zuteilung td.zt-bild { width: 38%; min-width: 9rem; vertical-align: middle; }
-.zt-spur { position: relative; height: 18px; background: var(--flaeche-2); border-radius: 4px; }
-.zt-teil { position: absolute; top: 0; bottom: 0; border-radius: 4px; }
-.zt-geliefert, .zt-innen { background: var(--strom-verkauft); }
-.zt-drueber { background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--rot) 35%, transparent) 0 5px, transparent 5px 10px);
-  outline: 2px solid var(--rot); outline-offset: -2px; }
-.zt-grenze { position: absolute; top: -5px; bottom: -5px; width: 0; border-left: 2px dashed var(--text); z-index: 2; }
-.zt-grenze-zeichen { display: inline-block; width: 0; height: .9rem; border-left: 2px dashed var(--text); margin-right: .45rem; vertical-align: -2px; }
-.zuteilung tbody.zt-lieferschein th { font-weight: var(--gewicht-mittel); text-align: left; text-transform: none; letter-spacing: 0; font-size: var(--s-1); color: var(--text); }
-.zuteilung tbody.zt-lieferschein > tr > * { border-bottom: 2px solid var(--rand); }
 .zt-woran { margin: .7rem 0 .4rem; max-width: 76ch; }
+/* Runde BH: der Ausschnitt aus dem Excel — nur Q, S, W, AD (und AE bei Stück), alle Zeilen der Position
+   untereinander; rechts, abgesetzt, was nicht im Excel steht: Spalte S bis hier zusammen. */
+.excel-auszug-rahmen { margin: .2rem 0 .6rem; }
+table.excel.excel-auszug { table-layout: auto; width: auto; min-width: 100%; }
+table.excel.excel-auszug th, table.excel.excel-auszug td { padding: 3px 8px; white-space: nowrap; overflow-wrap: normal; }
+table.excel.excel-auszug td { height: 30px; vertical-align: middle; font-size: 11pt; }
+/* die Spaltennamen brechen an den Wortgrenzen im Namen (<wbr>), damit der Ausschnitt samt Nebenspalte ins Bild passt */
+table.excel.excel-auszug thead tr:not(.excel-buchstaben) th { vertical-align: bottom; white-space: normal; height: auto; min-width: 5.5rem; }
+.excel-heisst { display: block; font-family: var(--schrift); font-size: var(--s-0); color: #444; margin-top: 2px; }
+table.excel .excel-neben { background: var(--flaeche); color: var(--text); border: 0; border-left: 3px solid var(--rand); font-family: var(--schrift); }
+table.excel.excel-auszug td.excel-neben { white-space: normal; min-width: 9rem; font-size: var(--s-1); }
+table.excel thead .excel-neben { background: var(--flaeche-2); }
+table.excel tr.excel-gleich td:not(.excel-neben) { background: #fff7d6; }
+table.excel tr.excel-gleich td.falsch { background: #fff1f1; } table.excel tr.excel-gleich td.kennung { background: #e8f0fd; }
+.excel-bis { font-variant-numeric: tabular-nums; font-weight: var(--gewicht-mittel); }
+.excel-bis.drueber { color: var(--rot); }
+.excel-zuviel { color: var(--rot); }
+.excel-rechnung { width: auto; max-width: 100%; min-width: min(100%, 30rem); margin: .2rem 0 .4rem; }
+.excel-rechnung th, .excel-rechnung td.leise { white-space: normal; }
+.excel-rechnung td.leise { font-size: var(--s-0); }
+.excel-rechnung th { text-align: left; text-transform: none; letter-spacing: 0; font-size: var(--s-1); font-weight: var(--gewicht-mittel); color: var(--text); }
+.excel-rechnung tr.fall-unterschied > * { border-top: 2px solid var(--rand); font-weight: var(--gewicht-stark); }
 
 /* ---------- Runde BG: die Auffälligkeiten Fall für Fall ------------------- */
 .stand-marke.st-so_lassen { background: color-mix(in srgb, var(--gruen) 14%, var(--flaeche)); }

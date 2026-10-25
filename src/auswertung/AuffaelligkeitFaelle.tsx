@@ -23,6 +23,7 @@
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
+import { nachDemWechsel, vorDemWechsel } from '../design/bewegung'
 import { supabase } from '../lib/supabase'
 import { fehlerText } from '../lib/db'
 import { kg, lesbar, zeitpunkt } from '../lib/format'
@@ -177,14 +178,15 @@ export function AuffaelligkeitFaelle({ befunde, neuRechnen, wissen }: { befunde:
   const hier = gewaehlt ? ort.get(fallKennung(gewaehlt)) ?? -1 : -1
   const neuerer = gewaehlt ? [...liste].reverse().find(b => (ort.get(fallKennung(b)) ?? -1) < hier) : undefined
   const aelterer = gewaehlt ? liste.find(b => (ort.get(fallKennung(b)) ?? -1) > hier) : undefined
+  // Runde BG: ohne Zittern — vor dem Wechsel sofort an den Anfang des Falls, danach nur, wenn er ausser Sicht steht (design/bewegung.ts)
+  const springen = useRef<string | null>(null)
   const waehlen = useCallback((b: Befund | undefined) => {
+    const ziel = b ? 'auff-ansicht' : 'auff-liste'
+    vorDemWechsel(ziel)
+    springen.current = ziel
     const neu = new URLSearchParams(such)
     if (b) neu.set('fall', String(nummern.get(fallKennung(b)) ?? fallKennung(b))); else neu.delete('fall')
     setSuch(neu, { replace: !!b && !!such.get('fall') })
-    window.requestAnimationFrame(() => {
-      const el = document.getElementById(b ? 'auff-ansicht' : 'auff-liste')
-      if (el && (el.getBoundingClientRect().top < 0 || el.getBoundingClientRect().top > window.innerHeight * 0.6)) el.scrollIntoView({ block: 'start', behavior: 'smooth' })
-    })
   }, [such, setSuch, nummern])
   const vorher = neuerer ? () => waehlen(neuerer) : null
   const nachher = aelterer ? () => waehlen(aelterer) : null
@@ -205,6 +207,10 @@ export function AuffaelligkeitFaelle({ befunde, neuRechnen, wissen }: { befunde:
   }, [])
 
   const zeigeFall = !!gewaehlt && (breit || !!gefragt || liste.length === 1)
+  const gezeigt = gewaehlt && zeigeFall ? fallKennung(gewaehlt) : null
+  useLayoutEffect(() => {
+    if (springen.current) { nachDemWechsel(springen.current); springen.current = null }
+  }, [gezeigt])
   const alleZu = zahlen.offen + zahlen.abklaerung + zahlen.erledigt
   return (
     <>

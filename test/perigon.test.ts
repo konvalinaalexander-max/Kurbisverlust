@@ -141,17 +141,19 @@ test('Runde BD: 768 kg sind drei gleiche Zeilen à 256 kg — das Fenster rechne
   assert.equal(r.positionKg, 256)
   assert.deepEqual(r.unterschied, { kg: 512, wort: 'zu viel' })
   // Runde BG: der Satz fängt beim Lieferschein an — „die Position steht 3-mal in der Datei" verstand der Betrieb nicht.
-  // Die Regel hat sich gedreht, der Test mit ihr; geprüft werden weiter Charge, Menge je Zeile, Summe und Unterschied.
-  assert.match(r.satz, /^Auf dem Lieferschein stehen 256 kg\. Perigon schreibt dazu 3-mal dieselbe Charge 1620 mit 256 kg — zusammen 768 kg, 512 kg mehr als geliefert\.$/)
+  // Runde BH: auch das nicht („also sind 3 Zeilen ident? … arbeite mehr mit Excel"). Der Satz sagt jetzt, was man im
+  // Excel sieht, mit den Spalten Q und S. Regel und Test gemeinsam geändert; geprüft werden weiter Charge, Menge je
+  // Zeile, Summe und Unterschied.
+  assert.equal(r.satz, 'Im Excel steht dieselbe Zeile 3-mal untereinander: Charge 1620, je 256 kg. Geliefert wurden die 256 kg aber nur einmal (Spalte Q) — Perigon teilt der Charge 768 kg zu (Spalte S), 512 kg zu viel.')
   assert.doesNotMatch(r.satz, /× AE/, 'bei kg-Artikeln ist die Menge das Kilo — kein „S × AE"')
   // zwei verschiedene Chargen: kein „gleich wie", der Satz zählt die Zeilen
   const r2 = nachrechnen({ ...f, kg_zugeteilt: 400, kg: 144 }, [{ charge_extern: '1620', batch_menge: 200, kg_charge: 200 }, { charge_extern: '1621', batch_menge: 200, kg_charge: 200 }])!
   assert.deepEqual(r2.zeilen.map(x => x.gleichWie), [null, null])
-  assert.match(r2.satz, /Perigon teilt den 2 Chargenzeilen zusammen 400 kg zu — 144 kg mehr als geliefert/)
+  assert.equal(r2.satz, 'Im Excel stehen 2 Zeilen, eine je Charge: zusammen 400 kg den Chargen zugeteilt (Spalte S), geliefert 256 kg (Spalte Q) — 144 kg zu viel.')
   // eine einzige Zeile mit S > Q (wie 134056: 965 gegen 918 kg) — kein „Die 1 Zeilen"
   const r1 = nachrechnen({ ...f, kg_position: 918, kg_zugeteilt: 965, kg: 47, nummern: '1625', charge_nr: 1625, n_zeilen: 1 },
     [{ charge_extern: '1625', batch_menge: 965, kg_charge: 965 }])!
-  assert.equal(r1.satz, 'Auf dem Lieferschein stehen 918 kg. Perigon teilt der Charge 1625 aber 965 kg zu — 47 kg mehr als geliefert.')
+  assert.equal(r1.satz, 'Im Excel steht eine Zeile: geliefert 918 kg (Spalte Q), der Charge 1625 zugeteilt 965 kg (Spalte S) — 47 kg zu viel.')
   assert.deepEqual(r1.unterschied, { kg: 47, wort: 'zu viel' })
 })
 
@@ -159,8 +161,10 @@ test('Runde BD: Stück × Gewicht je Artikel; ohne Gewicht bleibt die Masse unbe
   const f = fall('rest', { einheit: 'Stück', menge: 100, gewicht_je_artikel: 1.5, kg_position: 150, kg_zugeteilt: 90, kg: 60 })
   const r = nachrechnen(f, [{ charge_extern: '1630', batch_menge: 60, kg_charge: null }])!
   assert.equal(r.zeilen[0].kg, 90, '60 Stück × 1.5 kg')
-  // Runde BG: auch hier zuerst der Lieferschein, dann die Zuteilung (Regel und Test gemeinsam geändert)
-  assert.equal(r.satz, 'Auf dem Lieferschein stehen 150 kg. Perigon teilt der Charge 1630 nur 90 kg zu — für 60 kg steht keine Charge.')
+  // Runde BG: auch hier zuerst der Lieferschein, dann die Zuteilung; Runde BH: so, wie es im Excel steht (Regel und Test gemeinsam geändert)
+  assert.equal(r.satz, 'Im Excel steht eine Zeile: geliefert 150 kg (Spalte Q), der Charge 1630 zugeteilt nur 90 kg (Spalte S) — für 60 kg steht keine Charge.')
+  const r2 = nachrechnen({ ...f, kg_zugeteilt: 120, kg: 30 }, [{ charge_extern: '1630', batch_menge: 40, kg_charge: null }, { charge_extern: '1631', batch_menge: 40, kg_charge: null }])!
+  assert.equal(r2.satz, 'Im Excel stehen 2 Zeilen, eine je Charge: zusammen nur 120 kg den Chargen zugeteilt (Spalte S), geliefert 150 kg (Spalte Q) — für 30 kg steht keine Charge.')
   assert.deepEqual(r.unterschied, { kg: 60, wort: 'ohne Charge' })
   const o = nachrechnen(fall('ohne_gewicht', { einheit: 'Stück', menge: 40, gewicht_je_artikel: null, kg_position: null, kg_zugeteilt: null, kg: null }),
     [{ charge_extern: '1630', batch_menge: 40, kg_charge: null }])!
@@ -206,15 +210,19 @@ test('Runde BD: die Liste sagt je Fall das Eine, das nicht passt', () => {
 // Runde BG — der Betrieb: „Chargenzeile mehr als die Position checke ich noch immer nicht … Zeile 1, 2, 3 und
 // dann gleich wie Zeile 1, aber ich weiss nicht, was du meinst." Das Bild „Lieferschein und Chargen" stapelt die
 // Chargenzeilen gegen die gelieferte Menge; woran es wohl liegt, sagt die Datei selbst.
+// Runde BH — „also sind 3 Zeilen ident? … arbeite mehr mit Excel". Die Balken sind weg, also auch ihr Massstab
+// (`skala`); an seiner Stelle steht je Zeile `bis`, Spalte S bis hier zusammen — die Zahl neben dem Excel-Ausschnitt.
+// Die Tests auf `skala` sind darum durch Tests auf `bis` ersetzt, nicht gestrichen.
 
 test('Runde BG: drei gleiche Zeilen à 256 kg gegen 256 kg geliefert — gestapelt, zwei ganz darüber, „gleich"', () => {
   const f = fall('zu_viel', { menge: 256, kg_position: 256, kg_zugeteilt: 768, kg_rechnung: 256, kg: 512, nummern: '1620', charge_nr: 1620, n_zeilen: 3 })
   const z = { charge_extern: '1620', batch_menge: 256, kg_charge: 256 }
   const b = zuteilung(nachrechnen(f, [z, z, z])!, 'zu_viel')
   assert.deepEqual(b.zeilen.map(x => [x.ab, x.innen, x.drueber]), [[0, 256, 0], [256, 0, 256], [512, 0, 256]])
-  assert.equal(b.skala, 768)
+  assert.deepEqual(b.zeilen.map(x => x.bis), [256, 512, 768], 'neben dem Excel: Spalte S bis hier zusammen')
   assert.equal(b.muster, 'gleich')
-  assert.match(b.woran!, /^Die 3 Zeilen sind gleich — dieselbe Charge, dieselbe Menge\. Geliefert wurde einmal/)
+  // Runde BH: „also sind 3 Zeilen ident?" — die Antwort zuerst („genau gleich"), dazu, dass auch die Position dieselbe ist
+  assert.match(b.woran!, /^Die 3 Zeilen sind genau gleich — dieselbe Position, dieselbe Charge, dieselbe Menge\. Geliefert wurde einmal/)
 })
 
 test('Runde BG: eine einzige Zeile über der Position — mit gleichen Gebinden heisst das: nur das Gewicht wurde geändert', () => {
@@ -222,6 +230,7 @@ test('Runde BG: eine einzige Zeile über der Position — mit gleichen Gebinden 
   const r = nachrechnen(f, [{ charge_extern: '1625', batch_menge: 965, kg_charge: 965 }])!
   const b = zuteilung(r, 'zu_viel', { position: 96, zeile: 96 })
   assert.deepEqual(b.zeilen.map(x => [x.ab, x.innen, x.drueber]), [[0, 918, 47]])
+  assert.deepEqual(b.zeilen.map(x => x.bis), [965])
   assert.equal(b.muster, 'eine')
   assert.match(b.woran!, /Gebinde stimmt überein \(96 auf dem Lieferschein und bei der Charge\) — wohl wurde nachträglich nur das Gewicht der Position geändert/)
   assert.match(zuteilung(r, 'zu_viel', { position: 96, zeile: 90 }).woran!, /Auch die Gebinde weichen ab: 96 auf dem Lieferschein, 90 bei der Charge/)
@@ -233,18 +242,17 @@ test('Runde BG: mehrere Chargen, teils wiederholt, der Rest ohne Charge, und unb
   const m = zuteilung(nachrechnen(f, [{ charge_extern: '1620', batch_menge: 200, kg_charge: 200 }, { charge_extern: '1621', batch_menge: 200, kg_charge: 200 }])!, 'zu_viel')
   assert.equal(m.muster, 'mehrere')
   assert.deepEqual(m.zeilen.map(x => [x.ab, x.innen, x.drueber]), [[0, 200, 0], [200, 56, 144]], 'gefüllt in der Folge der Zeilen, bis die Lieferung voll ist')
+  assert.deepEqual(m.zeilen.map(x => x.bis), [200, 400])
   const t = zuteilung(nachrechnen({ ...f, kg_zugeteilt: 400 }, [{ charge_extern: '1620', batch_menge: 100, kg_charge: 100 },
     { charge_extern: '1620', batch_menge: 100, kg_charge: 100 }, { charge_extern: '1621', batch_menge: 200, kg_charge: 200 }])!, 'zu_viel')
   assert.equal(t.muster, 'teils_gleich')
   assert.match(t.woran!, /^Eine Zeile wiederholt eine Zeile davor/)
   const rest = zuteilung(nachrechnen(fall('rest', { kg_position: 150, kg_zugeteilt: 90, kg: 60 }), [{ charge_extern: '1630', batch_menge: 90, kg_charge: 90 }])!, 'rest')
   assert.equal(rest.muster, 'rest')
-  assert.equal(rest.skala, 150)
-  assert.deepEqual(rest.zeilen.map(x => [x.ab, x.innen, x.drueber]), [[0, 90, 0]])
+  assert.deepEqual(rest.zeilen.map(x => [x.ab, x.bis, x.innen, x.drueber]), [[0, 90, 90, 0]], 'bis 90 kg zugeteilt, 150 kg geliefert')
   const o = zuteilung(nachrechnen(fall('ohne_gewicht', { einheit: 'Stück', menge: 40, gewicht_je_artikel: null, kg_position: null, kg_zugeteilt: null, kg: null }),
     [{ charge_extern: '1630', batch_menge: 40, kg_charge: null }])!, 'ohne_gewicht')
-  assert.equal(o.skala, null, 'ohne Kilo kein Massstab — nie 0')
-  assert.deepEqual(o.zeilen.map(x => [x.ab, x.innen, x.drueber]), [[null, null, null]])
+  assert.deepEqual(o.zeilen.map(x => [x.ab, x.bis, x.innen, x.drueber]), [[null, null, null, null]], 'ohne Kilo auch keine Summe bis hier — nie 0')
   assert.equal(o.muster, 'sonst')
   assert.equal(o.woran, null)
 })

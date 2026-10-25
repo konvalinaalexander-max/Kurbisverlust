@@ -51,18 +51,20 @@ export const PERIGON_ART: Record<PerigonArt, PerigonArtInfo> = {
     tun: 'In Perigon bei der Position die Menge je Charge (Spalte S) eintragen, dann die Datei unter Betrieb → Warenausgang neu einlesen.',
     spalten: ['AufPosBatchQuantity Charge', 'AuftragsChargeManuell', 'AuftragsArtikelMenge'],
   },
+  // Runde BH — der Betrieb: „‚Chargenzeilen mehr als die Position' — also sind 3 Zeilen ident? … ich schnalls
+  // wirklich nicht." Der Name sagt jetzt, was nicht stimmt, in den Worten des Lieferscheins.
   zu_viel: {
-    name: 'Chargenzeilen mehr als die Position', ebene: 'position', wo: 'perigon',
-    heisst: 'Eine Position steht je Charge einmal da. Zusammen ergeben die Mengen je Charge mehr, als die Position geliefert hat — oft, weil dieselbe Zeile zwei- oder dreimal dasteht.',
-    datei: 'Spalte Q: die Menge der Position (auf jeder Zeile gleich) · Spalte S je Zeile: zusammen mehr als Q.',
+    name: 'Der Charge mehr zugeteilt als geliefert', ebene: 'position', wo: 'perigon',
+    heisst: 'Im Excel steht zu jedem Artikel auf dem Lieferschein (einer Position), wie viel geliefert wurde (Spalte Q) und wie viel davon aus welcher Charge kam (Spalte S, die Charge in Spalte W). Hier ergibt Spalte S mehr als Spalte Q — oft, weil dieselbe Zeile zwei- oder dreimal dasteht.',
+    datei: 'Spalte Q steht auf jeder Zeile der Position gleich und zählt einmal · Spalte S zählt über alle Zeilen der Position zusammen — und ergibt mehr als Q.',
     app: 'Gezählt wird höchstens die Position: die Chargen bekommen ihre Menge in der Folge der Zeilen, bis die Position voll ist. Doppelt zählt nichts — bei mehreren Chargen sagt die Datei aber nicht sicher, welche wie viel bekam.',
     tun: 'In Perigon die Menge je Charge berichtigen und eine doppelte Zeile entfernen, dann neu einlesen.',
     spalten: ['AuftragsArtikelMenge', 'AufPosBatchQuantity Charge'],
   },
   rest: {
-    name: 'Chargenzeilen weniger als die Position', ebene: 'position', wo: 'perigon',
-    heisst: 'Die Mengen je Charge ergeben weniger, als die Position geliefert hat. Der Rest hat keine Charge.',
-    datei: 'Spalte Q grösser als die Summe von Spalte S über die Zeilen der Position.',
+    name: 'Der Charge weniger zugeteilt als geliefert', ebene: 'position', wo: 'perigon',
+    heisst: 'Spalte S (aus der Charge) ergibt über die Zeilen der Position weniger als Spalte Q (geliefert). Für den Rest steht keine Charge.',
+    datei: 'Spalte Q steht auf jeder Zeile der Position gleich und zählt einmal · Spalte S zählt zusammen — und ergibt weniger als Q.',
     app: 'Die Chargen bekommen, was in S steht; der Rest wird eine Lieferung ohne Charge, verteilt auf alle Chargen der Sorte.',
     tun: 'In Perigon die Menge je Charge (Spalte S) nachtragen, dann neu einlesen.',
     spalten: ['AuftragsArtikelMenge', 'AufPosBatchQuantity Charge'],
@@ -388,22 +390,22 @@ export function nachrechnen(f: PerigonBefund, dateiZeilen: DateiZeile[]): Nachre
   let unterschied: Nachrechnung['unterschied'] = null
   let satz = f.satz
   switch (f.art) {
-    // Runde BG — der Betrieb: „Chargenzeile mehr als die Position checke ich noch immer nicht … Zeile 1, 2, 3
-    // und dann gleich wie Zeile 1, aber ich weiss nicht, was du meinst." Der Satz fängt darum beim Lieferschein
-    // an (was geliefert wurde) und sagt dann, was Perigon den Chargen zuteilt — nicht „die Position steht 3-mal da".
+    // Runde BG fing der Satz beim Lieferschein an. Runde BH — der Betrieb: „also sind 3 Zeilen ident? … arbeite
+    // mehr mit Excel, falls es mehrere Zeilen sind, zeig mir alle Zeilen". Jetzt sagt der Satz, was im Excel
+    // steht — wie viele Zeilen, ob sie gleich sind, Spalte Q gegen Spalte S —, und kein „Chargenzeile" mehr.
     case 'zu_viel': {
       unterschied = { kg: diff(zug, pos), wort: 'zu viel' }
       const mehr = diff(zug, pos)
-      if (alleGleich) satz = `Auf dem Lieferschein stehen ${kgOder(pos)}. Perigon schreibt dazu ${n}-mal dieselbe Charge ${zeilen[0].charge ?? '—'} mit ${kgOder(zeilen[0].kg)} — zusammen ${kgOder(zug)}, ${kgOder(mehr)} mehr als geliefert.`
-      else if (n === 1) satz = `Auf dem Lieferschein stehen ${kgOder(pos)}. Perigon teilt der Charge ${zeilen[0].charge ?? '—'} aber ${kgOder(zug)} zu — ${kgOder(mehr)} mehr als geliefert.`
-      else if (n > 0) satz = `Auf dem Lieferschein stehen ${kgOder(pos)}. Perigon teilt den ${n} Chargenzeilen zusammen ${kgOder(zug)} zu — ${kgOder(mehr)} mehr als geliefert.`
+      if (alleGleich) satz = `Im Excel steht dieselbe Zeile ${n}-mal untereinander: Charge ${zeilen[0].charge ?? '—'}, je ${kgOder(zeilen[0].kg)}. Geliefert wurden die ${kgOder(pos)} aber nur einmal (Spalte Q) — Perigon teilt der Charge ${kgOder(zug)} zu (Spalte S), ${kgOder(mehr)} zu viel.`
+      else if (n === 1) satz = `Im Excel steht eine Zeile: geliefert ${kgOder(pos)} (Spalte Q), der Charge ${zeilen[0].charge ?? '—'} zugeteilt ${kgOder(zug)} (Spalte S) — ${kgOder(mehr)} zu viel.`
+      else if (n > 0) satz = `Im Excel stehen ${n} Zeilen, eine je Charge: zusammen ${kgOder(zug)} den Chargen zugeteilt (Spalte S), geliefert ${kgOder(pos)} (Spalte Q) — ${kgOder(mehr)} zu viel.`
       break
     }
     case 'rest': {
       unterschied = { kg: diff(pos, zug), wort: 'ohne Charge' }
       const fehlt = diff(pos, zug)
-      if (n === 1) satz = `Auf dem Lieferschein stehen ${kgOder(pos)}. Perigon teilt der Charge ${zeilen[0].charge ?? '—'} nur ${kgOder(zug)} zu — für ${kgOder(fehlt)} steht keine Charge.`
-      else if (n > 0) satz = `Auf dem Lieferschein stehen ${kgOder(pos)}. Perigon teilt den ${n} Chargenzeilen zusammen nur ${kgOder(zug)} zu — für ${kgOder(fehlt)} steht keine Charge.`
+      if (n === 1) satz = `Im Excel steht eine Zeile: geliefert ${kgOder(pos)} (Spalte Q), der Charge ${zeilen[0].charge ?? '—'} zugeteilt nur ${kgOder(zug)} (Spalte S) — für ${kgOder(fehlt)} steht keine Charge.`
+      else if (n > 0) satz = `Im Excel stehen ${n} Zeilen, eine je Charge: zusammen nur ${kgOder(zug)} den Chargen zugeteilt (Spalte S), geliefert ${kgOder(pos)} (Spalte Q) — für ${kgOder(fehlt)} steht keine Charge.`
       break
     }
     case 'menge_null':
@@ -432,10 +434,12 @@ export function nachrechnen(f: PerigonBefund, dateiZeilen: DateiZeile[]): Nachre
   return { einheit, istKg, zeilen, zugeteiltKg: zug, positionKg: pos, unterschied, rechnungKg: rech, satz }
 }
 
-/** Runde BG: eine Chargenzeile im Bild „Lieferschein und Chargen". */
+/** Runde BG: eine Zeile der Position, gegen die gelieferte Menge gelegt. Runde BH: ohne Balken — für den Ausschnitt aus dem Excel. */
 export interface ZuteilungsZeile extends RechenZeile {
-  /** wo der Balken der Zeile anfängt — die Zeilen davor zusammen, in kg (das Bild stapelt sie wie im Excel untereinander) */
+  /** Spalte S der Zeilen davor zusammen, in kg */
   ab: number | null
+  /** Spalte S bis und mit dieser Zeile zusammen, in kg — „zusammen bis hier" neben dem Excel */
+  bis: number | null
   /** was davon innerhalb der gelieferten Menge liegt */
   innen: number | null
   /** was darüber hinausgeht — mehr, als geliefert wurde */
@@ -444,36 +448,34 @@ export interface ZuteilungsZeile extends RechenZeile {
 export type ZuteilungsMuster = 'gleich' | 'teils_gleich' | 'eine' | 'mehrere' | 'rest' | 'ohne_menge' | 'ohne_nummer' | 'sonst'
 export interface Zuteilung {
   zeilen: ZuteilungsZeile[]
-  /** die gemeinsame Skala der Balken: das Grössere von geliefert und zugeteilt; leer, wo beides unbekannt ist */
-  skala: number | null
   muster: ZuteilungsMuster
   /** woran es wohl liegt — eine Vermutung in Worten; leer, wo die Datei nichts nahelegt */
   woran: string | null
 }
 
 /**
- * Runde BG — der Betrieb: „Chargenzeile mehr als die Position checke ich noch
- * immer nicht … hier sprichst du gegen eine Wand." Das Bild dazu: oben, was
- * auf dem Lieferschein steht (Spalte Q), darunter jede Chargenzeile als
- * Balken, der dort anfängt, wo die Zeile davor aufhört — so sieht man, wie
- * weit die Zeilen zusammen über die gelieferte Menge hinausgehen. Gerechnet
- * wird hier nichts Neues: die Zeilen und Summen sind die der Nachrechnung.
- * Dazu, woran es wohl liegt — aus dem, was die Datei selbst zeigt: gleiche
- * Zeilen, eine einzige Zeile mit gleichen Gebinden, mehrere Chargen.
+ * Runde BG: jede Zeile der Position gegen die gelieferte Menge gelegt — wie
+ * weit Spalte S, Zeile für Zeile zusammengezählt, über Spalte Q hinausgeht.
+ * Runde BH — der Betrieb: „arbeite mehr mit Excel … zeig mir alle Zeilen, die
+ * es betrifft, übereinander." Die Balken sind weg; dieselben Zahlen färben im
+ * Ausschnitt aus dem Excel die Zellen, und „zusammen bis hier" steht neben der
+ * Zeile. Gerechnet wird nichts Neues: die Zeilen und Summen sind die der
+ * Nachrechnung. Dazu, woran es wohl liegt — aus dem, was die Datei selbst
+ * zeigt: gleiche Zeilen, eine einzige Zeile mit gleichen Gebinden, mehrere
+ * Chargen.
  */
 export function zuteilung(r: Nachrechnung, art: PerigonArt, gebinde: { position: number | null; zeile: number | null } | null = null): Zuteilung {
   const pos = r.positionKg
   let bisher: number | null = 0
   const zeilen: ZuteilungsZeile[] = r.zeilen.map(z => {
     const ab = bisher
-    if (z.kg == null || ab == null) { bisher = null; return { ...z, ab: null, innen: null, drueber: null } }
-    bisher = ab + z.kg
-    if (pos == null) return { ...z, ab, innen: z.kg, drueber: 0 }
-    const innen = Math.max(0, Math.min(ab + z.kg, pos) - ab)
-    return { ...z, ab, innen, drueber: Math.round((z.kg - innen) * 1000) / 1000 }
+    if (z.kg == null || ab == null) { bisher = null; return { ...z, ab: null, bis: null, innen: null, drueber: null } }
+    const bis = Math.round((ab + z.kg) * 1000) / 1000
+    bisher = bis
+    if (pos == null) return { ...z, ab, bis, innen: z.kg, drueber: 0 }
+    const innen = Math.max(0, Math.min(bis, pos) - ab)
+    return { ...z, ab, bis, innen, drueber: Math.round((z.kg - innen) * 1000) / 1000 }
   })
-  const werte = [pos, r.zugeteiltKg].filter((x): x is number => x != null)
-  const skala = werte.length ? Math.max(...werte) : null
   const n = zeilen.length
   const wiederholt = zeilen.filter(z => z.gleichWie != null).length
   const muster: ZuteilungsMuster =
@@ -485,7 +487,7 @@ export function zuteilung(r: Nachrechnung, art: PerigonArt, gebinde: { position:
   let woran: string | null = null
   switch (muster) {
     case 'gleich':
-      woran = `Die ${n} Zeilen sind gleich — dieselbe Charge, dieselbe Menge. Geliefert wurde einmal: Perigon hat dieselbe Zuteilung ${n}-mal in die Datei geschrieben, oder sie wurde ${n}-mal erfasst.`
+      woran = `Die ${n} Zeilen sind genau gleich — dieselbe Position, dieselbe Charge, dieselbe Menge. Geliefert wurde einmal: Perigon hat dieselbe Zuteilung ${n}-mal in die Datei geschrieben, oder sie wurde ${n}-mal erfasst.`
       break
     case 'teils_gleich':
       woran = `${wiederholt === 1 ? 'Eine Zeile wiederholt' : `${wiederholt} Zeilen wiederholen`} eine Zeile davor — dieselbe Charge, dieselbe Menge. Das sieht nach einer doppelt geschriebenen Zuteilung aus.`
@@ -512,7 +514,7 @@ export function zuteilung(r: Nachrechnung, art: PerigonArt, gebinde: { position:
       woran = 'In keiner Zeile steht eine Charge (Spalte W leer).'
       break
   }
-  return { zeilen, skala, muster, woran }
+  return { zeilen, muster, woran }
 }
 
 /** Eine Angabe der Datei — mit der Spalte, in der sie steht, und was sie heisst. */

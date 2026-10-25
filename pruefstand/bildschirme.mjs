@@ -56,6 +56,44 @@ async function gebremst(p, tun) {
   try { await tun() } finally { await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 }); await cdp.detach() }
 }
 
+/**
+ * Runde BG: „wenn man eine niedrigere antippt oder eine höhere, dann springt
+ * das, die Webseite zittert kurz." Mitten in einem langen Fall (am Handy: weit
+ * unten in der Liste) einen anderen antippen und jedes Bild danach mitschreiben:
+ * die Seite rollt höchstens einmal und nie zurück, und der neue Fall steht oben.
+ * Getippt wird mit element.click() auf eine Zeile, die zu sehen ist — Playwright
+ * würde sonst selbst rollen. Gemessen vor der Korrektur: 900 → 882 → 503 → 484 →
+ * 503 → … → 467 px.
+ */
+async function ruhigWechseln(p, liste, ansicht) {
+  await p.evaluate(() => window.scrollTo(0, 900))
+  await p.waitForTimeout(250)
+  await p.evaluate(() => {
+    window.__rollen = []
+    const t0 = performance.now()
+    const bild = () => { window.__rollen.push(Math.round(window.scrollY)); if (performance.now() - t0 < 1200) requestAnimationFrame(bild) }
+    requestAnimationFrame(bild)
+  })
+  const getippt = await p.evaluate(sel => {
+    const z = [...document.querySelectorAll(sel)].find(e => {
+      const r = e.getBoundingClientRect()
+      return r.top > 0 && r.bottom < window.innerHeight && !e.classList.contains('aktiv')
+    })
+    z?.click()
+    return z?.textContent ?? null
+  }, liste)
+  if (!getippt) throw new Error('keine Zeile der Liste zu sehen, die man antippen könnte')
+  await p.waitForTimeout(1300)
+  const rollen = await p.evaluate(() => window.__rollen)
+  const wechsel = rollen.filter((y, i) => i === 0 || y !== rollen[i - 1])
+  if (wechsel.length > 2) throw new Error(`die Seite rollt mehrmals: ${wechsel.join(' → ')} px`)
+  // Am Desktop kam man aus dem Fall heraus: er steht ganz oben. Am Handy ersetzt er die Liste, die Seite wird
+  // kürzer und der Browser setzt die Position — dann genügt, was die App verlangt: der Kopf im oberen Teil des Bildes.
+  const oben = await p.locator(ansicht).evaluate(el => el.getBoundingClientRect().top)
+  const hoechstens = p.viewportSize().width >= 900 ? 60 : p.viewportSize().height * 0.6
+  if (oben < 0 || oben > hoechstens) throw new Error(`der neue Fall steht nicht oben im Bild (${Math.round(oben)} px)`)
+}
+
 /* ---------- Die Bildschirm-Liste ----------------------------------------- */
 // Jeder Eintrag: Name, wer angemeldet ist, Pfad, und was vor dem Screenshot
 // noch zu tun ist (Klicks, damit Reiter und Dialoge sichtbar werden).
@@ -540,6 +578,13 @@ const BILDSCHIRME = [
       })
       await p.locator('#fall-vorher[disabled]').waitFor()
     } },
+  // Runde BG: dasselbe im Reiter Perigon — Fall 1 (Charge 99129) ist lang.
+  { name: 'perigon-ruhig', wer: 'admin', pfad: '/perigon/faelle', vorher: perigonVormerken,
+    tun: async p => {
+      await p.locator('#fall-liste .fall-zeile').first().waitFor()
+      if (p.viewportSize().width >= 900) await p.locator('#fall-ansicht #fall-titel').waitFor()
+      await ruhigWechseln(p, '#fall-liste .fall-zeile', '#fall-ansicht')
+    } },
   // Bis Runde BE: „Je Sorte". Der alte Weg führt in die Fälle der Sorte.
   { name: 'perigon-sorten', wer: 'admin', pfad: '/perigon/sorten?sorte=Fictor', vorher: perigonVormerken,
     tun: async p => {
@@ -580,15 +625,17 @@ const BILDSCHIRME = [
   // Position Zeile für Zeile nach: dreimal Charge 1620 mit 256 kg, zusammen 768 kg,
   // die Position 256 kg, 512 kg zu viel. Runde BE: die Zeilen der Datei sichtbar, mit
   // Datei, Excel-Zeilen, der Kennung (blau) und den roten Zellen. Runde BF: ein Fall mit
-  // einer Position zeigt sie im Fall selbst, nicht in einem Fenster. Runde BG — „Chargenzeile mehr als
-  // die Position checke ich noch immer nicht … hier sprichst du gegen eine Wand": der Satz fängt beim
-  // Lieferschein an, und vor den Zeilen der Datei steht das Bild „Lieferschein und Chargen" — geliefert,
-  // darunter jede Chargenzeile als Balken, was darüber hinausgeht rot. Die Regel hat sich gedreht (Satz,
-  // Folge der Blöcke), der Test mit ihr; alles, was er vorher prüfte, prüft er weiter.
+  // einer Position zeigt sie im Fall selbst, nicht in einem Fenster. Runde BG: der Satz fing beim
+  // Lieferschein an, davor stand das Bild „Lieferschein und Chargen" mit Balken. Runde BH — „also sind
+  // 3 Zeilen ident? … arbeite mehr mit Excel, zeig mir alle Zeilen übereinander": die Balken sind weg,
+  // zuoberst steht der Ausschnitt aus dem Excel (alle Zeilen der Position, nur Q, S, W, AD), daneben
+  // Spalte S bis hier zusammen, darunter die Rechnung Q gegen S. Die Regel hat sich gedreht (Satz,
+  // Blöcke), der Test mit ihr; was er vorher prüfte — drei Zeilen, 1203 innerhalb und 1204/1205 darüber,
+  // „gleich wie Zeile 1203", 768 gegen 256 kg, 512 kg zu viel, die Rechnung der App —, prüft er weiter.
   { name: 'perigon-fall', wer: 'admin', pfad: '/perigon/faelle?art=zu_viel', vorher: perigonVormerken,
     tun: async p => {
       const f = p.locator('#fall-ansicht')
-      await f.locator('#fall-kopf', { hasText: 'Auf dem Lieferschein stehen 256 kg. Perigon schreibt dazu 3-mal dieselbe Charge 1620 mit 256 kg — zusammen 768 kg, 512 kg mehr als geliefert.' }).waitFor()
+      await f.locator('#fall-kopf', { hasText: 'Im Excel steht dieselbe Zeile 3-mal untereinander: Charge 1620, je 256 kg. Geliefert wurden die 256 kg aber nur einmal (Spalte Q) — Perigon teilt der Charge 768 kg zu (Spalte S), 512 kg zu viel.' }).waitFor()
       const finden = f.locator('#zeile-finden')
       await finden.locator('strong', { hasText: 'Abgleich_Rueckverfolgbarkeit_Pruefirma.xlsx' }).waitFor()
       await finden.locator('strong', { hasText: '1203, 1204, 1205' }).waitFor()
@@ -604,23 +651,42 @@ const BILDSCHIRME = [
       await excel.locator('tbody td.falsch').first().waitFor()
       const gerollt = await f.locator('#fall-beleg .excel-rahmen').evaluate(el => el.scrollLeft)
       if (gerollt < 500) throw new Error(`die Ansicht steht nicht bei den roten Zellen (scrollLeft ${gerollt})`)
-      const n = f.locator('#fall-nachgerechnet')
-      await n.locator('h3', { hasText: 'Lieferschein und Chargen' }).waitFor()
-      await n.locator('.zt-begriff', { hasText: 'Eine Position ist eine Zeile auf dem Lieferschein' }).waitFor()
-      // das Bild steht vor den Zeilen der Datei — erst verstehen, dann der Beleg
+      // der Ausschnitt aus dem Excel steht vor den ganzen Zeilen — erst sehen, worum es geht, dann der Beleg
+      const n = f.locator('#fall-excel')
+      await n.locator('h3', { hasText: 'So steht es im Excel' }).locator('.leise', { hasText: 'Zeilen 1203, 1204, 1205, nur die Spalten, um die es geht' }).waitFor()
       const vorher = await n.evaluate(el => !!(el.compareDocumentPosition(document.querySelector('#fall-beleg')) & Node.DOCUMENT_POSITION_FOLLOWING))
-      if (!vorher) throw new Error('das Bild „Lieferschein und Chargen" steht nicht vor den Zeilen der Datei')
-      await n.locator('tbody.zt-lieferschein tr', { hasText: 'Geliefert laut Lieferschein' }).locator('td', { hasText: '256 kg' }).waitFor()
-      if ((await n.locator('tbody.zt-chargen tr').count()) !== 3) throw new Error('nicht drei Zeilen nachgerechnet')
-      // 1203 liegt ganz innerhalb der Lieferung, 1204 und 1205 ganz darüber
-      const balken = await n.locator('tbody.zt-chargen tr').evaluateAll(zs => zs.map(z => [!!z.querySelector('.zt-innen'), !!z.querySelector('.zt-drueber')]))
-      if (JSON.stringify(balken) !== JSON.stringify([[true, false], [false, true], [false, true]])) throw new Error(`Balken der Chargenzeilen: ${JSON.stringify(balken)}`)
-      await n.locator('.zt-woran', { hasText: 'Die 3 Zeilen sind gleich — dieselbe Charge, dieselbe Menge' }).waitFor()
-      await n.locator('thead th', { hasText: 'Excel-Zeile' }).waitFor()
-      if ((await n.locator('.fall-gleich', { hasText: 'gleich wie Zeile 1203' }).count()) !== 2) throw new Error('Zeile 1204 und 1205 sagen nicht, dass sie gleich wie 1203 sind')
-      await n.locator('tfoot tr', { hasText: '768 kg' }).waitFor()
-      await n.locator('tfoot tr.fall-unterschied', { hasText: '512 kg' }).waitFor()
+      if (!vorher) throw new Error('der Ausschnitt aus dem Excel steht nicht vor den ganzen Zeilen')
+      const aus = n.locator('table.excel-auszug')
+      const buchstaben = (await aus.locator('thead tr.excel-buchstaben th').allInnerTexts()).map(t => t.trim()).filter(Boolean)
+      if (buchstaben.join() !== 'Q,S,W,AD') throw new Error(`Spalten im Ausschnitt: ${buchstaben.join()} statt Q,S,W,AD`)
+      for (const [spalte, heisst] of [['AuftragsArtikelMenge', 'geliefert, in kg'], ['AufPosBatchQuantity Charge', 'davon aus der Charge'], ['AuftragsChargeManuell', 'die Charge'], ['AufPosId', 'die Position']])
+        await aus.locator('thead th', { hasText: spalte }).locator('.excel-heisst', { hasText: heisst }).waitFor()
+      // übereinander, alle drei, mit ihrer Excel-Zeile; je Zeile dieselben Einträge
+      const zeilen = await aus.locator('tbody tr').evaluateAll(zs => zs.map(z => [...z.children].map(c => c.textContent.trim())))
+      const erwartet = [['1203', '256', '256', '1620', '990130'], ['1204', '256', '256', '1620', '990130'], ['1205', '256', '256', '1620', '990130']]
+      if (JSON.stringify(zeilen.map(z => z.slice(0, 5))) !== JSON.stringify(erwartet)) throw new Error(`Zeilen im Ausschnitt: ${JSON.stringify(zeilen)}`)
+      // rot ist S in den zwei Zeilen, die über die Lieferung hinausgehen — 1203 nicht
+      const rotS = await aus.locator('tbody tr').evaluateAll(zs => zs.map(z => z.children[2].classList.contains('falsch')))
+      if (JSON.stringify(rotS) !== '[false,true,true]') throw new Error(`rote S-Zellen: ${JSON.stringify(rotS)}`)
+      if ((await aus.locator('tbody tr.excel-gleich').count()) !== 2) throw new Error('die wiederholten Zeilen sind nicht als gleich markiert')
+      // daneben, nicht im Excel: Spalte S bis hier zusammen — 256, 512, 768 kg, ab der zweiten Zeile über den 256 kg
+      await aus.locator('thead th.excel-neben', { hasText: 'Spalte S bis hier zusammen' }).waitFor()
+      const bis = await aus.locator('tbody .excel-bis').evaluateAll(es => es.map(e => [e.textContent.trim(), e.classList.contains('drueber')]))
+      if (JSON.stringify(bis) !== JSON.stringify([['256 kg', false], ['512 kg', true], ['768 kg', true]])) throw new Error(`S bis hier: ${JSON.stringify(bis)}`)
+      if ((await aus.locator('.fall-gleich', { hasText: 'gleich wie Zeile 1203' }).count()) !== 2) throw new Error('Zeile 1204 und 1205 sagen nicht, dass sie gleich wie 1203 sind')
+      if ((await aus.locator('.excel-zuviel', { hasText: 'ganz zu viel' }).count()) !== 2) throw new Error('1204 und 1205 sagen nicht, dass sie ganz zu viel sind')
+      // die Rechnung darunter: Q zählt einmal, S alle Zeilen, der Unterschied
+      const r = n.locator('#fall-rechnung-excel')
+      await r.locator('tr', { hasText: 'Geliefert — Spalte Q' }).filter({ hasText: 'steht auf jeder Zeile gleich und zählt einmal' }).locator('td', { hasText: '256 kg' }).waitFor()
+      await r.locator('tr', { hasText: 'Der Charge zugeteilt — Spalte S' }).filter({ hasText: 'alle 3 Zeilen zusammen' }).locator('td', { hasText: '768 kg' }).waitFor()
+      await r.locator('tr.fall-unterschied', { hasText: 'Zu viel zugeteilt' }).locator('td', { hasText: '512 kg' }).waitFor()
+      await n.locator('.zt-woran', { hasText: 'Die 3 Zeilen sind genau gleich — dieselbe Position, dieselbe Charge, dieselbe Menge' }).waitFor()
       await n.locator('p', { hasText: 'In der Rechnung der App: 256 kg auf Charge 1620. So viel, wie geliefert wurde — eure Lagerzahlen stimmen' }).waitFor()
+      // auf dem breiten Bildschirm passt der Ausschnitt ganz ins Bild, ohne seitlich zu rollen
+      if (p.viewportSize().width >= 900) {
+        const passt = await n.locator('.excel-auszug-rahmen').evaluate(el => el.scrollWidth <= el.clientWidth + 1)
+        if (!passt) throw new Error('der Ausschnitt aus dem Excel muss seitlich gerollt werden')
+      }
       await f.locator('.fall-folge', { hasText: 'So rechnet die App damit' }).waitFor()
     } },
   // Viele Positionen einer Art sind ein Fall: was passiert ist, die Positionen als Liste,
@@ -644,7 +710,10 @@ const BILDSCHIRME = [
   { name: 'perigon-menge', wer: 'admin', pfad: '/perigon/faelle?art=menge_null&stand=alle', vorher: perigonVormerken,
     tun: async p => {
       const f = p.locator('#fall-ansicht')
-      await f.locator('#fall-nachgerechnet', { hasText: 'Spalte S' }).waitFor()
+      // Runde BH: der Ausschnitt aus dem Excel statt „Nachgerechnet" — S steht in beiden Zeilen auf 0, rot
+      await f.locator('#fall-excel', { hasText: 'Spalte S' }).waitFor()
+      const nullen = await f.locator('#fall-excel table.excel-auszug tbody tr').evaluateAll(zs => zs.map(z => [z.children[2].textContent.trim(), z.children[2].classList.contains('falsch')]))
+      if (!nullen.length || nullen.some(([t, rot]) => t !== '0' || !rot)) throw new Error(`Spalte S im Ausschnitt: ${JSON.stringify(nullen)}`)
       await f.locator('#fall-kopf', { hasText: 'aber in Spalte S steht überall 0' }).waitFor()
       await f.locator('#fall-verfolgen .verfolgen-liste li', { hasText: 'Büro fragt bei der Firma nach' }).waitFor()
       await f.locator('#fall-unter .stand-marke, .fall-unter .stand-marke', { hasText: 'in Abklärung' }).first().waitFor()
@@ -900,6 +969,16 @@ const BILDSCHIRME = [
         await p.locator('#auff-ansicht .fall-nummer', { hasText: new RegExp(`Auffälligkeit ${erst}(?!\\d)`) }).waitFor()
       })
       await p.locator('#auff-vorher[disabled]').waitFor()
+    } },
+  // Runde BG: ruhig von Fall zu Fall — am Desktop aus einem langen Zettel-Fall heraus, am Handy aus der Liste (ruhigWechseln).
+  { name: 'auff-ruhig', wer: 'admin', pfad: '/messungen/auffaelligkeiten', vorher: auffVormerken,
+    tun: async p => {
+      await p.locator('#auff-liste .fall-zeile').first().waitFor()
+      if (p.viewportSize().width >= 900) {
+        await p.locator('#auff-liste .fall-zeile', { hasText: /Zettelgewicht|Zetteldatum/ }).first().click()
+        await p.locator('#auff-daten table.auff-eingang').waitFor()   // der lange Fall, fertig geladen
+      }
+      await ruhigWechseln(p, '#auff-liste .fall-zeile', '#auff-ansicht')
     } },
   // Runde BG: ein Zettel-Fall — die Zettel gegen den Wareneingang, das Muster, der Vorschlag mit einem Klick, und was danach vermerkt ist.
   { name: 'auff-zettel', wer: 'admin', pfad: '/messungen/auffaelligkeiten?suche=990200', vorher: auffVormerken,

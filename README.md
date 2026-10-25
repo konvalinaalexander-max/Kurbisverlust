@@ -798,6 +798,14 @@ ohne Perigon-Zeile als eigener Teil); jede PL/pgSQL-Funktion hat einen
 festen Suchpfad; die Perigon-Liste läuft nur einmal (AB-174 bis AB-176). Dazu die
 Halle: Faules ohne Ablesung ist „unbekannt", Fehler werden gezeigt. **Setup.sql
 einmal einspielen (Stand 124), dann „Neu rechnen".**
+**Runde BH** — **Das Excel zuerst:** Ein Perigon-Fall „Der Charge mehr (weniger)
+zugeteilt als geliefert" zeigt alle Zeilen der Position untereinander, wie im
+Excel, mit Zeilennummer und nur den Spalten Q (geliefert), S (der Charge
+zugeteilt), W (Charge) und AD (Position). Daneben steht Spalte S bis hier
+zusammengezählt, darunter Q (zählt einmal) gegen S (alle Zeilen). Dreimal
+dieselbe Zeile ist so auf einen Blick dreimal dieselbe Zeile. **Kein Zittern
+mehr**, wenn man unter Auffälligkeiten oder im Reiter Perigon einen anderen
+Fall antippt: Die Seite rollt einmal und sofort. Keine Migration (Stand 129).
 **Runde BG (0128, 0129)** — „Chargenzeile mehr als die Position" ist jetzt ein
 Bild: oben, was laut Lieferschein geliefert wurde (Spalte Q), darunter jede
 Chargenzeile (Spalte W, Menge aus Spalte S) als Balken, der dort anfängt, wo

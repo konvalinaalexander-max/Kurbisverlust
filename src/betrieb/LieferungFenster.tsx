@@ -321,7 +321,7 @@ function ZeileImExcel({ ansicht, rot, posId, quelle, datei, gemeint, anzahl, sch
   const sp = (name: string, ersatz: string) => spaltenZeichen(name) ?? ersatz
   return (
     <section className="fall-block beleg" id="fall-beleg">
-      <h3>{n > 1 ? `Die ${n} Zeilen` : 'Die Zeile'} in der Perigon-Datei</h3>
+      <h3>{n > 1 ? `Die ${n} ganzen Zeilen` : 'Die ganze Zeile'} im Excel <span className="leise">— alle Spalten, und wie man sie findet</span></h3>
       <div className="finden" id="zeile-finden">
         <div className="finden-zeile">
           <span className="finden-was">Datei</span>
@@ -463,9 +463,9 @@ function FallInhalt({ fall, zeilen, lieferungen, sonst, beleg, excelNr, roh, imF
       <section className={`fall-kopf s-${fall.schwere}`} id="fall-kopf">
         <p className="fall-satz">{r?.satz ?? fall.satz}</p>
       </section>
-      {/* Runde BG: erst das Bild (was geliefert wurde, was Perigon den Chargen zuteilt), dann die Zeilen der Datei als Beleg —
-          „hier sprichst du gegen eine Wand", solange man nicht weiss, was eine Chargenzeile ist */}
-      {r && <Nachgerechnet r={r} fall={fall} lieferungen={lieferungen} excelNr={excelNr} gebinde={gebindeAus(roh)} />}
+      {/* Runde BH: erst der Ausschnitt aus dem Excel (alle Zeilen der Position, nur Q, S, W, AD) mit der Rechnung,
+          dann die ganzen Zeilen mit allen Spalten als Beleg — „arbeite mehr mit Excel" */}
+      {r && <ImExcel r={r} fall={fall} lieferungen={lieferungen} excelNr={excelNr} gebinde={gebindeAus(roh)} />}
       {beleg}
       {angaben && (
         <section className="fall-block" id="fall-angaben">
@@ -501,97 +501,115 @@ function FallInhalt({ fall, zeilen, lieferungen, sonst, beleg, excelNr, roh, imF
   )
 }
 
+/** Runde BH: wie die Zeile des Unterschieds unter dem Excel-Ausschnitt heisst — ein ganzer Begriff, nicht ein Wortstück */
+const UNTERSCHIED_NAME: Record<string, string> = {
+  'zu viel': 'Zu viel zugeteilt', 'ohne Charge': 'Ohne Charge', 'zurück': 'Zurückgenommen',
+  'in der App mehr': 'In der Rechnung der App mehr', 'in der App weniger': 'In der Rechnung der App weniger',
+}
+
 /**
- * Nachgerechnet: jede Zeile der Position mit ihrer Charge (Spalte W) und
- * ihrer Menge (Spalte S) — eine Zeile, die schon dastand, sagt es —, darunter
- * die Summe und was nicht aufgeht.
- *
- * Runde BG — der Betrieb: „Chargenzeile mehr als die Position checke ich noch
- * immer nicht … Zeile 1, 2, 3 und dann gleich wie Zeile 1, aber ich weiss
- * nicht, was du meinst." Darum heisst der Block jetzt, was er zeigt:
- * Lieferschein und Chargen. Zuerst in zwei Sätzen, was eine Position und was
- * eine Chargenzeile ist; oben, was geliefert wurde, darunter jede Chargenzeile
- * als Balken, der dort anfängt, wo die Zeile davor aufhört — rechts der
- * gestrichelten Linie liegt, was mehr ist als geliefert. Dann, woran es wohl
- * liegt, und was die App daraus macht.
+ * Runde BH — der Betrieb: „sorry aber ich check das noch immer nicht …
+ * also sind 3 Zeilen ident? … zeig mir besser, klarer, verständlicher was
+ * Sache ist, arbeite mehr mit Excel, falls es mehrere Zeilen sind, zeig mir
+ * alle Zeilen, die es betrifft, übereinander." Darum zuerst das Excel selbst:
+ * nur die Spalten, um die es geht (Q geliefert, S aus der Charge, W die
+ * Charge, AD die Position — AE, wo in Stück verkauft wird), alle Zeilen der
+ * Position untereinander mit ihrer Zeilennummer. Rechts daneben, ausserhalb
+ * des Excels: Spalte S bis hier zusammen, und ob die Zeile eine davor
+ * wiederholt. Darunter die Rechnung in drei Zeilen: Q einmal, S zusammen, der
+ * Unterschied. Die Balken und die Erklärung „was ist eine Chargenzeile"
+ * (Runde BG) sind weg — sie halfen nicht.
  */
-function Nachgerechnet({ r, fall, lieferungen, excelNr, gebinde }: {
+function ImExcel({ r, fall, lieferungen, excelNr, gebinde }: {
   r: Nachrechnung; fall: PerigonBefund; lieferungen: LieferungZeile[]; excelNr: (number | null)[]
   gebinde: { position: number | null; zeile: number | null } | null
 }) {
-  // Runde BE: dieselbe Nummer wie im Excel und im Kasten darüber — sonst die wievielte Zeile der Position
   const mitExcel = r.zeilen.length > 0 && r.zeilen.every((_, i) => excelNr[i] != null)
-  const nrVon = (i: number) => (mitExcel ? excelNr[i]! : i + 1)
-  const W = spaltenZeichen('AuftragsChargeManuell') ?? 'W'
-  const S = spaltenZeichen('AufPosBatchQuantity Charge') ?? 'S'
+  const nrVon = (i: number) => (mitExcel ? String(excelNr[i]) : `${i + 1}.`)
   const Q = spaltenZeichen('AuftragsArtikelMenge') ?? 'Q'
+  const S = spaltenZeichen('AufPosBatchQuantity Charge') ?? 'S'
+  const W = spaltenZeichen('AuftragsChargeManuell') ?? 'W'
+  const AD = spaltenZeichen('AufPosId') ?? 'AD'
   const AE = spaltenZeichen('GewichtProArtikel') ?? 'AE'
   const b = zuteilung(r, fall.art, gebinde)
   const pos = r.positionKg
-  const pct = (x: number) => `${b.skala ? (100 * x) / b.skala : 0}%`
-  const grenze = pos != null && b.skala ? <div className="zt-grenze" style={{ left: pct(pos) }} aria-hidden="true" /> : null
-  const mehr = r.unterschied?.wort === 'zu viel' && (r.unterschied.kg ?? 0) > 0
+  const q = fall.menge == null ? null : Number(fall.menge)
+  const ae = fall.gewicht_je_artikel == null ? null : Number(fall.gewicht_je_artikel)
+  const mitAE = !r.istKg
+  // Was in der Zeile nicht stimmt, je Art — rot wie im ganzen Excel darunter
+  const falschS = (z: (typeof b.zeilen)[number]) => (fall.art === 'zu_viel' && (z.drueber ?? 0) > 0) || (fall.art === 'menge_null' && z.s === 0)
+  const falschW = (z: (typeof b.zeilen)[number]) => fall.art === 'keine_nummer' && !z.charge
+  const falschQ = fall.art === 'ruecknahme'
+  const falschAE = fall.art === 'ohne_gewicht'
   const gebucht = lieferungen.map(l => `${kg(l.kg, 0)} ${l.charge_nr != null ? `auf Charge ${l.charge_nr}` : 'ohne Charge'}`).join(' · ')
+  const mehr = r.unterschied?.wort === 'zu viel' && (r.unterschied.kg ?? 0) > 0
+  const nummern = b.zeilen.map((_, i) => nrVon(i))
+  const einheitQ = r.istKg ? 'kg' : r.einheit
   return (
-    <section className="fall-block" id="fall-nachgerechnet">
-      <h3>Lieferschein und Chargen</h3>
-      <p className="leise oben-0 zt-begriff">
-        Eine Position ist eine Zeile auf dem Lieferschein: ein Artikel und wie viel davon geliefert wurde (Spalte {Q}).
-        Perigon schreibt dazu, aus welcher Charge die Ware kam — je Charge eine Zeile im Excel, mit der Nummer der Charge
-        (Spalte {W}) und der Menge aus dieser Charge (Spalte {S}). Zusammen sollten die Chargen genau so viel ergeben, wie geliefert wurde.
-      </p>
-      <div className="rollbar">
-        <table className="dicht fall-rechnung zuteilung ohne-haftkopf">
-          <thead><tr>
-            <th>{mitExcel ? 'Excel-Zeile' : 'Zeile'}</th><th>Charge <span className="leise">(Spalte {W})</span></th>
-            <th className="zt-bild" aria-hidden="true" />
-            <th className="zahl">Menge in kg{r.istKg ? '' : <span className="leise"> ({S} × {AE})</span>}</th>
-          </tr></thead>
-          <tbody className="zt-lieferschein">
-            <tr>
-              <th scope="row" colSpan={2}>Geliefert laut Lieferschein <span className="leise">(Spalte {Q})</span></th>
-              <td className="zt-bild"><div className="zt-spur">
-                {pos != null && b.skala ? <div className="zt-teil zt-geliefert" style={{ left: 0, width: pct(pos) }} /> : null}
-                {grenze}
-              </div></td>
-              <td className="zahl">{pos == null ? 'unbekannt' : kg(pos, 0)}</td>
-            </tr>
-          </tbody>
-          <tbody className="zt-chargen">
-            {b.zeilen.length === 0 && (
-              <tr><td colSpan={4} className="leise">Die Zeilen der Position stehen in keiner eingelesenen Datei mehr — die Summen unten sind die beim letzten Einlesen.</td></tr>
-            )}
-            {b.zeilen.map((z, i) => (
-              <tr key={z.nr} className={z.gleichWie ? 'doppelt' : undefined}>
-                <td>{nrVon(i)}</td>
-                <td>{z.charge ?? <span className="leise">leer</span>}{z.gleichWie && <span className="fall-gleich"> gleich wie Zeile {nrVon(z.gleichWie - 1)}</span>}</td>
-                <td className="zt-bild"><div className="zt-spur">
-                  {z.ab != null && b.skala && (z.innen ?? 0) > 0 ? <div className="zt-teil zt-innen" style={{ left: pct(z.ab), width: pct(z.innen!) }} /> : null}
-                  {z.ab != null && b.skala && (z.drueber ?? 0) > 0 ? <div className="zt-teil zt-drueber" style={{ left: pct(z.ab + (z.innen ?? 0)), width: pct(z.drueber!) }} /> : null}
-                  {grenze}
-                </div></td>
-                <td className="zahl">{z.kg == null ? 'unbekannt' : kg(z.kg, 0)}
-                  {!r.istKg && z.s != null && <span className="zelle-unter">{zahlText(z.s)} {r.einheit}</span>}</td>
+    <section className="fall-block" id="fall-excel">
+      <h3>So steht es im Excel
+        <span className="leise"> — {mitExcel ? (nummern.length === 1 ? `Zeile ${nummern[0]}` : `Zeilen ${nummern.join(', ')}`) : `${b.zeilen.length} ${b.zeilen.length === 1 ? 'Zeile' : 'Zeilen'}`}, nur die Spalten, um die es geht</span></h3>
+      {b.zeilen.length === 0 ? (
+        <p className="leise">Die Zeilen der Position stehen in keiner eingelesenen Datei mehr — die Summen unten sind die beim letzten Einlesen.</p>
+      ) : (
+        <div className="rollbar excel-rahmen excel-auszug-rahmen">
+          <table className="excel excel-auszug">
+            <thead>
+              <tr className="excel-buchstaben">
+                <th className="excel-nr" aria-label="Zeile" />
+                <th>{Q}</th><th>{S}</th><th>{W}</th><th>{AD}</th>{mitAE && <th>{AE}</th>}
+                <th className="excel-neben" aria-label="nicht im Excel" />
               </tr>
-            ))}
-          </tbody>
-          <tfoot>
-            <tr><th scope="row" colSpan={3}>den Chargen zugeteilt, zusammen <span className="leise">(Spalte {S})</span></th>
-              <td className="zahl">{r.zugeteiltKg == null ? 'unbekannt' : kg(r.zugeteiltKg, 0)}</td></tr>
-            {r.unterschied && (
-              <tr className="fall-unterschied"><th scope="row" colSpan={3}>{r.unterschied.wort === 'zu viel' ? 'mehr als geliefert' : r.unterschied.wort}</th>
-                <td className="zahl">{r.unterschied.kg == null ? 'unbekannt' : kg(Math.abs(r.unterschied.kg), 0)}</td></tr>
-            )}
-          </tfoot>
-        </table>
-      </div>
-      {b.skala != null && (
-        <ul className="bilanz-legende zt-legende">
-          <li><span className="bilanz-farbe zt-geliefert" aria-hidden="true" />geliefert — und von den Chargen, so viel wie geliefert</li>
-          {b.zeilen.some(z => (z.drueber ?? 0) > 0) && <li><span className="bilanz-farbe zt-drueber" aria-hidden="true" />mehr als geliefert</li>}
-          {pos != null && <li><span className="zt-grenze-zeichen" aria-hidden="true" />bis hier reicht die Lieferung</li>}
-        </ul>
+              <tr>
+                <th className="excel-nr" aria-label="Kopfzeile" />
+                <th>Auftrags<wbr />Artikel<wbr />Menge<span className="excel-heisst">geliefert, in {einheitQ}</span></th>
+                <th>AufPos<wbr />Batch<wbr />Quantity Charge<span className="excel-heisst">davon aus der Charge, in {einheitQ}</span></th>
+                <th>Auftrags<wbr />Charge<wbr />Manuell<span className="excel-heisst">die Charge</span></th>
+                <th className="kennung">AufPosId<span className="excel-heisst">die Position</span></th>
+                {mitAE && <th>Gewicht<wbr />Pro<wbr />Artikel<span className="excel-heisst">kg je {r.einheit}</span></th>}
+                <th className="excel-neben">nicht im Excel<span className="excel-heisst">Spalte {S}{mitAE ? ` × ${AE}` : ''} bis hier zusammen</span></th>
+              </tr>
+            </thead>
+            <tbody>{b.zeilen.map((z, i) => (
+              <tr key={z.nr} className={z.gleichWie ? 'excel-gleich' : undefined}>
+                <th scope="row" className="excel-nr">{nummern[i]}</th>
+                <td className={`rechts${falschQ ? ' falsch' : ''}`}>{zahlText(q)}</td>
+                <td className={`rechts${falschS(z) ? ' falsch' : ''}`}>{zahlText(z.s)}</td>
+                <td className={falschW(z) ? 'falsch' : undefined}>{z.charge ?? ''}</td>
+                <td className="rechts kennung">{fall.pos_id}</td>
+                {mitAE && <td className={`rechts${falschAE ? ' falsch' : ''}`}>{zahlText(ae)}</td>}
+                <td className="excel-neben">
+                  <span className={`excel-bis${pos != null && z.bis != null && z.bis > pos + 0.0005 ? ' drueber' : ''}`}>{z.bis == null ? 'unbekannt' : kg(z.bis, 0)}</span>
+                  {z.gleichWie != null && <span className="fall-gleich"> gleich wie Zeile {nummern[z.gleichWie - 1]}</span>}
+                  {fall.art === 'zu_viel' && (z.drueber ?? 0) > 0 && (
+                    <span className="excel-zuviel"> · {(z.innen ?? 0) > 0 ? `davon ${kg(z.drueber, 0)} zu viel` : 'ganz zu viel'}</span>
+                  )}
+                </td>
+              </tr>
+            ))}</tbody>
+          </table>
+        </div>
       )}
+      {/* die Rechnung Q gegen S; was zu einer Zahl zu wissen ist, steht rechts in einer eigenen Spalte, nicht in der Beschriftung */}
+      <table className="dicht excel-rechnung ohne-haftkopf" id="fall-rechnung-excel">
+        <tbody>
+          <tr><th scope="row">Geliefert — Spalte {Q}{mitAE ? ` × ${AE}` : ''}</th>
+            <td className="zahl">{pos == null ? 'unbekannt' : kg(pos, 0)}</td>
+            <td className="leise">{b.zeilen.length > 1 ? 'steht auf jeder Zeile gleich und zählt einmal' : 'was auf dem Lieferschein steht'}</td></tr>
+          <tr><th scope="row">Der Charge zugeteilt — Spalte {S}{mitAE ? ` × ${AE}` : ''}</th>
+            <td className="zahl">{r.zugeteiltKg == null ? 'unbekannt' : kg(r.zugeteiltKg, 0)}</td>
+            <td className="leise">{b.zeilen.length > 1 ? `alle ${b.zeilen.length} Zeilen zusammen` : b.zeilen.length === 1 ? `Charge ${b.zeilen[0].charge ?? '— Spalte ' + W + ' leer'}` : 'laut Datei'}</td></tr>
+          {fall.art === 'masse_abweichung' && (
+            <tr><th scope="row">In der Rechnung der App</th>
+              <td className="zahl">{r.rechnungKg == null ? 'unbekannt' : kg(r.rechnungKg, 0)}</td>
+              <td className="leise">beim letzten Einlesen</td></tr>
+          )}
+          {r.unterschied && (
+            <tr className="fall-unterschied"><th scope="row">{UNTERSCHIED_NAME[r.unterschied.wort] ?? r.unterschied.wort}</th>
+              <td className="zahl">{r.unterschied.kg == null ? 'unbekannt' : kg(Math.abs(r.unterschied.kg), 0)}</td><td /></tr>
+          )}
+        </tbody>
+      </table>
       {b.woran && <p className="zt-woran"><strong>Woran es wohl liegt:</strong> {b.woran}</p>}
       {lieferungen.length > 0 && (
         <p className="leise unten-0">In der Rechnung der App: {gebucht}.{mehr ? ' So viel, wie geliefert wurde — eure Lagerzahlen stimmen; zu gross ist nur die Zuteilung in Perigon.' : ''}</p>
