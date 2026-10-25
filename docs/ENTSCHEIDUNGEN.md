@@ -4216,6 +4216,141 @@ dem Beleg, „Geliefert laut Lieferschein 256 kg", 1203 innerhalb, 1204 und
 was die Szene vorher prüfte, prüft sie weiter); Begriffs-Prüfstand
 („Menge in kg" im Lexikon).
 
+**2. Die Auffälligkeiten Fall für Fall** (0128; `src/auswertung/auffaellig.ts`,
+`src/auswertung/AuffaelligkeitFaelle.tsx`). Der Betrieb: „bei den Messungen
+Auffälligkeiten bitte ordne die chronologisch. Also die obersten sollen die
+neuesten sein … wenn ich dann eine Auffälligkeit öffne … damit ich besser
+nachvollziehen kann, was eigentlich genau Sache ist. Also das Problem und dann
+mir Lösungsvorschläge anbieten, die ich dann auch akzeptieren kann oder nicht …
+spezifische Fallnummer, damit ich dir auch im Chat sagen kann, wie ich mit
+diesen Fallnummern umgehen möchte … Aktuell habe ich inzwischen 90
+Auffälligkeiten und die reihen sich einfach an, unchronologisch und
+unangenehm … wie kam es überhaupt zu diesen Auffälligkeiten."
+
+Auf der Kopie der echten Daten (25. Oktober) stehen 131 Auffälligkeiten: 50
+Zettelgewicht, 28 Kistengewicht, 24 ohne Nenner, je 7 Überzählung, Wägung und
+Zetteldatum, 6 Verdunstung, je eine Palette fraglich und Palox geleert. Sie
+kamen ohne Ordnung aus der Datenbank, jede als Karte mit Befund und Rat.
+
+- **Jede Auffälligkeit ist ein Fall mit Kennung** (0128). Die Prüfung sagt
+  jetzt selbst, woran sie hängt (`bezug`): an einem Zettel (Arbeit, Gewicht,
+  bei „anderer Tag" auch das Datum), an einem Zetteldatum, an einer Wägung,
+  einer Ablesung, einem Gebinde, einer Charge. Art und Bezug sind eindeutig
+  (Prüfblock a1) und überleben das Neurechnen — ein Fingerabdruck aus dem
+  Satz täte das nicht, die Sätze enthalten gerechnete Werte. `erg_plausibilitaet`
+  hat den Bezug im Schlüssel; der Ausschuss von Hand trägt den Beginn seiner
+  Arbeit als Tag, damit alles einen Tag hat, was zu einer Arbeit gehört.
+- **Eine Nummer, die bleibt** (`auffaelligkeit_nr`, wie 0127 für Perigon):
+  vergeben in der Folge alt → neu, damit eine höhere Nummer eine jüngere
+  Auffälligkeit ist und eine neue die nächste bekommt. Vergeben vom
+  Betriebsleiter beim Öffnen und vom Betriebsabzug, nie von der Halle, nie
+  geändert. „Auffälligkeit 12" steht in der App und in
+  `docs/betrieb/AUFFAELLIGKEITEN.md` (mit Stand und Bezug) — so findet die
+  nächste Runde, was im Chat gemeint ist.
+- **Die Liste wie im Reiter Perigon:** nach dem Tag der Arbeit gruppiert, mit
+  Wochentag, die neuesten zuoberst; Filter nach Stand (offen, in Abklärung,
+  erledigt, alle), Art und Suche (Nummer, Charge, Arbeit, Sorte). Die Zahl am
+  Reiter zählt nur noch, was offen ist.
+- **Der Fall, für jede Art gleich:** was passiert ist (der Befund); bei Zetteln
+  die Daten — die Zettel der Arbeit an den Tagen, um die es geht, darunter der
+  Wareneingang der Charge an diesen Tagen und am vorgeschlagenen, gleich
+  schwere Paletten hervorgehoben, und wer welche Palette schon gezählt hat;
+  **wie es dazu kommt** (je Art, wo im Ablauf es entsteht, das Muster, das die
+  App in den Daten sieht, und was es für die Zahlen heisst); der Vorschlag;
+  Stand und Notiz; die anderen Auffälligkeiten derselben Arbeit; die Wege zur
+  Arbeit, zur Korrektur, zur Charge. „Für den Chat kopieren" gibt die Zeile
+  „Auffälligkeit 12 — Zetteldatum, Charge 1627, Arbeit 1602 (01.10.2026)".
+- **Vorschläge nur, wo die Daten einen Wert nennen.** Kam am Tag eines Zettels
+  keine Palette der Charge, geht es um den Tag und um alle Zettel dieses
+  Tages: stehen alle an genau einem anderen Tag so im Wareneingang (nicht nach
+  der Arbeit, nicht schon von einem anderen Zettel belegt), ist der Vorschlag
+  dieser Tag — „eindeutig" bei mehreren Zetteln ohne Gegenbeleg; stehen sie am
+  getippten Tag bei einer anderen Charge, heisst es „Gehören die Zettel zu
+  Charge …?". Stimmt der Tag (andere Zettel dieses Tages passen genau), geht
+  es ums Gewicht: genau eine freie Palette ein, zwei Kilo daneben oder mit
+  vertauschten Ziffern, gleiche Kisten — Vorschlag diese, „wahrscheinlich";
+  mehrere — die App rät nicht. Ein Palox steht im Wareneingang mit einem
+  geschätzten Gewicht, eine Teilpalette (weniger Kisten als voll) wurde von
+  Hand gewogen: beides „so lassen", gerechnet wird mit dem Zettel. „Palette
+  fraglich": „mit Palette" abwählen. Die übrigen Arten: „so lassen", wo es
+  stimmt oder von selbst heilt (Kistengewicht, Wägung, Verdunstung, Palox
+  geleert, vordatierter Lieferschein), sonst der Weg dorthin, wo es zu ändern
+  ist. Auf den echten Daten: von 57 Zettel-Fällen 13 mit einem Klick (5
+  eindeutig — die fünf Zettel von Arbeit 1602, einen Tag zu früh datiert), 14
+  „so lassen" (9 Teilpaletten, 5 Palox), 18 „wohl eine andere Charge" (allen
+  voran Arbeit 1619: acht Zettel vom 31.08., die Gewichte stehen an dem Tag bei
+  1623), 3 mit mehreren Möglichkeiten, 9 ohne Kandidat.
+- **Übernehmen ist ein Klick mit Rückfrage** (`auffaelligkeit_korrigieren`):
+  nur der Betriebsleiter; nur Zetteldatum, Zettelgewicht und „mit Palette";
+  nur an den genannten Zeilen und nur, wo noch steht, was die App sah — sonst
+  ein Fehler statt still Überschreiben. Der Vermerk „korrigiert" hält vorher
+  und nachher fest, danach rechnet die App neu. „So lassen" und „in
+  Abklärung" sind Vermerke (nur anhängen, wie `perigon_vermerk`); was
+  korrigiert ist und nicht mehr auffällt, steht unter „erledigt" weiter da.
+- Nebenbei: „benutzen" an/ab (`messung_ausschluss`, Runde AS) machte die
+  Auswertung nicht veraltet — „ab heute Nacht" stimmte nur, wenn sonst etwas
+  geändert wurde. Jetzt hängt der Trigger dort wie an den anderen
+  Messtabellen.
+
+**3. Ein Punkt im Lager trägt seine Wägung** (0129). Am 25. Oktober fiel der
+Prüfblock 0095 (b2) durch, auch auf dem Stand davor: Die Demo-Saison rechnet
+vom heutigen Tag aus und wog an diesem Tag zwei Kontrollpaletten derselben
+Charge, gleich lange gelagert — zwei Faul-Punkte mit demselben Schlüssel, weil
+ein Punkt aus dem Lager keine Arbeit hat, die ihn unterscheidet. Im Betrieb
+ist das die Regel (eine Lagerkontrolle wiegt mehrere Paletten einer Charge);
+dann bekam `erg_punkte` keinen eindeutigen Index und wurde nachts nicht
+nebenläufig erneuert. `v_schimmel_punkte` trägt jetzt hinten `messung_id` (die
+Wägung, dieselbe Kennung wie „benutzen" an/ab), der Schlüssel nimmt sie dazu.
+Gerechnet wird nichts anders.
+
+Geprüft: `test/auffaellig.test.ts` (19 Tests: Folge, Nummern, Tage in Zürich,
+Stand, Kennung, jedes Muster der echten Daten mit erfundenen Nummern, und wo
+die App nicht vorschlagen darf); Prüfblock 0128 (Bezug eindeutig, die drei
+Zettel-Bezüge genau, Nummern alt → neu, fest, nicht von der Halle, Vermerk nur
+vom Betriebsleiter, „korrigiert" nur über die Funktion, kein Ändern und
+Löschen, Korrigieren mit falschem „vorher", von der Halle und an einem fremden
+Feld abgelehnt, ein Zetteldatum korrigiert und beide Auffälligkeiten dazu weg,
+„benutzen" macht veraltet — 10 Mutationen, jede schlägt an); Prüfblock 0129
+(zwei Punkte, zwei Schlüssel, der Index geht; 3 Mutationen); Bildschirme
+`messungen-auffaelligkeiten` (Tage neu → alt, jede Nummer einmal, oben die
+höchste, die Reiterzahl ist die der offenen), `auff-zettel` (die Zettel gegen
+den Wareneingang, „Datum vertippt", „eindeutig", Übernehmen schickt genau die
+drei Zettel mit vorher und nachher, der Vermerk steht da), `auff-so-lassen`,
+`messungen-arbeit` und `messungen-charge` (aus dem Fall heraus; die Regel hat
+sich geändert, der Knopf steht nicht mehr in der Liste — die Szenen sagen es);
+Begriffs-Prüfstand (neue Seite mit dem Zettel-Fall; „Brutto laut Zettel",
+„Brutto im Wareneingang" im Lexikon; eine falsch beschriftete Spalte schlägt
+an); der Betriebsabzug gegen eine nachgebildete Schnittstelle.
+
+**4. Zwei Zeitbomben im Prüfstand.** Am 25. Oktober wurde CI auf Teil 1 rot,
+ohne dass Teil 1 die Stellen berührte. Die Demo rechnet vom heutigen Tag
+aus. Die erste Zeile unter Chargen (1598) war seit diesem Tag ausverkauft
+und zeigt zu Recht keine Lagerrechnung. Der Mandarin auf fremder Charge
+wanderte von 1630 auf 1628, und mit ihm fiel die zweite Sache an derselben
+Position weg, die die Demo bis dahin zufällig hatte. Seither nehmen
+`chargen-offen` (Bildschirme und Beschriftung) und `lieferung-falsch` die
+Charge aus den Fixtures (`pruefstand/beispiele.mjs`): die erste mit Ware im
+Lager, die mit dem Mandarin. Die zweite Sache (die Rechnung nennt 50 kg mehr
+als die Datei) ist jetzt fest vorgemerkt. Geprüft wird dasselbe wie vorher.
+
+**Was bewusst nicht gemacht wurde:**
+- Kein Klick für „die Zettel gehören zu einer anderen Charge": es hiesse, die
+  ganze Arbeit wechselt die Charge (Sortierläufe, Kaskade, Lager). Das
+  entscheidet der Betriebsleiter in der Korrektur der Arbeit.
+- Kein Klick für „nach dem Leeren" an einer Palox-Ablesung: was vor dem
+  Leeren dazukam, bliebe unbekannt, und aus einem unbekannten Faulen würde ein
+  bekanntes, zu kleines.
+- Keine Regel geändert, was als Auffälligkeit zählt. Teilpaletten und Palox mit
+  geschätztem Gewicht melden weiter; ob sie das sollen, sagt der Betrieb (die
+  Nummern machen es im Gespräch einfach).
+- Kein Vorschlag, wo mehrere Tage oder mehrere Paletten passen — die App rät
+  nicht; und keiner aus dem Satz der Prüfung, nur aus den Zeilen dahinter.
+- Die Liste fasst gleiche Fälle nicht zusammen (28 Mal Kistengewicht bleiben
+  28 Fälle) — eine Bündelung je Sorte und Kaliber wäre der nächste Schritt,
+  wenn der Betrieb sie will.
+- Die Maske der Halle (`src/arbeit/zettel.ts`) ist unverändert; sie prüft
+  schon beim Tippen dieselben Regeln.
+
 ## Runde BF: Fall für Fall — was passiert ist, statt was zu tun wäre (24. Oktober)
 
 Der Betrieb zum Reiter Perigon nach Runde BE: „Es ist irgendwie Information

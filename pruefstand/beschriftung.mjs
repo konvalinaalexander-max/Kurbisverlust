@@ -48,6 +48,7 @@ import { readFileSync, writeFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { CHROMIUM, authAntwort, fixture, restAntwort, vergessen } from './attrappe.mjs'
+import { auffVormerken, chargeMitLager, chargenZeile } from './beispiele.mjs'
 
 const HIER = dirname(fileURLToPath(import.meta.url))
 const NUR = process.argv[2] ?? ''
@@ -69,7 +70,8 @@ const SEITEN = [
   { name: 'chargen', pfad: '/chargen' },
   { name: 'chargen-offen', pfad: '/chargen',
     tun: async p => {
-      const zeile = p.locator('tbody tr').first()
+      // Runde BG: eine Charge mit Ware im Lager — sonst fehlt die Lagerrechnung, und ihre Zahlen blieben ungeprüft
+      const zeile = chargenZeile(p, chargeMitLager())
       await zeile.waitFor({ state: 'visible', timeout: 60000 })
       await zeile.click(); await p.waitForTimeout(400)
     } },
@@ -119,6 +121,15 @@ const SEITEN = [
   // Ausstehend (vorher ein eigener Reiter) stehen darunter.
   { name: 'messungen', pfad: '/messungen/arbeiten' },
   { name: 'messungen-auffaelligkeiten', pfad: '/messungen/auffaelligkeiten', tun: async p => { await aufklappen(p) } },
+  // Runde BG: ein Zettel-Fall offen — die Zettel gegen den Wareneingang, das Muster, der Vorschlag.
+  { name: 'messungen-auff-zettel', pfad: '/messungen/auffaelligkeiten?art=Zetteldatum&stand=alle&suche=990200', vorher: auffVormerken,
+    tun: async p => {
+      const zeile = p.locator('#auff-liste .fall-zeile').first()
+      await zeile.waitFor({ state: 'visible', timeout: 60000 })
+      await zeile.click()
+      await p.locator('#auff-ansicht #auff-daten table.auff-eingang').waitFor({ timeout: 20000 })
+      await p.waitForTimeout(800)
+    } },
   { name: 'messungen-messwerte', pfad: '/messungen/messwerte', tun: async p => { await aufklappen(p) } },
   { name: 'messungen-ausstehend', pfad: '/messungen/ausstehend' },
   // Runde AO (0112): das Lager nach Artikel.
@@ -419,6 +430,7 @@ for (const seite of SEITEN) {
   const kontext = await browser.newContext({ viewport: { width: 1440, height: 1000 }, locale: 'de-CH' })
   const blatt = await kontext.newPage()
   vergessen()
+  seite.vorher?.()
   const konsole = []
   blatt.on('console', m => { if (m.type() === 'error') konsole.push(m.text()) })
   blatt.on('pageerror', f => konsole.push(String(f)))

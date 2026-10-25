@@ -5,7 +5,8 @@ import { Aufklapp, Erklaerung, Herkunft, Hinweis, Karte, Marke } from '../compon
 import { Linien } from '../components/Diagramm'
 import { achsenBereich } from '../lib/achse'
 import { hochrechnungLaden, useAuswertung, type Auswertung, type Datenqualitaet } from '../auswertung/daten'
-import { Auffaelligkeiten, Bilanz, Kurvenherkunft, Probleme, Rechnet, Reiterkopf } from '../auswertung/Karten'
+import { Bilanz, Kurvenherkunft, Probleme, Rechnet, Reiterkopf } from '../auswertung/Karten'
+import { AuffaelligkeitFaelle, offeneZahl, useVermerke } from '../auswertung/AuffaelligkeitFaelle'
 import { Kontrollkorrektur } from '../arbeit/Korrektur'
 import { STATION_NAME } from '../lib/format'
 import { ZHerunterladen, ZWarnung } from '../components/Zeichen'
@@ -36,6 +37,9 @@ export default function Messungen() {
   const aktiv = (TEILE.find(([t]) => t === teil)?.[0] ?? 'arbeiten') as Teil
   const a = useAuswertung()
   const { daten } = a
+  // Runde BG: die Zahl am Reiter sind die offenen Auffälligkeiten — was „so lassen" oder korrigiert ist, zählt nicht mehr.
+  const auff = useVermerke()
+  const offen = daten?.vollstaendig ? offeneZahl(daten.befunde, auff.vermerke) : 0
   return (
     <>
       {daten
@@ -46,13 +50,13 @@ export default function Messungen() {
         {TEILE.map(([t, name]) => (
           <a key={t} href={`/messungen/${t}`} className={aktiv === t ? 'aktiv' : ''}
              onClick={e => { e.preventDefault(); navigate(`/messungen/${t}`) }}>
-            {name}{t === 'auffaelligkeiten' && daten?.vollstaendig && daten.befunde.length > 0 && <span className="reiter-zahl">{daten.befunde.length}</span>}
+            {name}{t === 'auffaelligkeiten' && offen > 0 && <span className="reiter-zahl">{offen}</span>}
           </a>
         ))}
       </nav>
       <div className="wechsel" key={aktiv}>
         {aktiv === 'arbeiten' && <Arbeiten />}
-        {aktiv === 'auffaelligkeiten' && <MitAuswertung a={a}>{d => <Auffaelligkeiten befunde={d.befunde} />}</MitAuswertung>}
+        {aktiv === 'auffaelligkeiten' && <MitAuswertung a={a}>{d => <AuffaelligkeitFaelle befunde={d.befunde} neuRechnen={() => void a.neuRechnen()} wissen={auff} />}</MitAuswertung>}
         {aktiv === 'messwerte' && <MitAuswertung a={a}>{d => <Messwerte daten={d} />}</MitAuswertung>}
         {aktiv === 'ausstehend' && <MitAuswertung a={a}>{d => <AusstehendInhalt daten={d} />}</MitAuswertung>}
       </div>

@@ -798,6 +798,19 @@ ohne Perigon-Zeile als eigener Teil); jede PL/pgSQL-Funktion hat einen
 festen Suchpfad; die Perigon-Liste läuft nur einmal (AB-174 bis AB-176). Dazu die
 Halle: Faules ohne Ablesung ist „unbekannt", Fehler werden gezeigt. **Setup.sql
 einmal einspielen (Stand 124), dann „Neu rechnen".**
+**Runde BG (0128, 0129)** — „Chargenzeile mehr als die Position" ist jetzt ein
+Bild: oben, was laut Lieferschein geliefert wurde (Spalte Q), darunter jede
+Chargenzeile (Spalte W, Menge aus Spalte S) als Balken, der dort anfängt, wo
+die vorige aufhört; was über die Lieferung hinausgeht, ist rot, und darunter
+steht, woran es wohl liegt. **Die Auffälligkeiten unter Messungen sind Fall für
+Fall:** nach Tag geordnet, die neuesten zuoberst, jede mit einer **Nummer, die
+bleibt** („Auffälligkeit 12" — im Chat zu nennen; die Nummern stehen auch in
+`docs/betrieb/AUFFAELLIGKEITEN.md`). Im Fall: was passiert ist, bei Zetteln die
+Zettel gegen den Wareneingang, **wie es dazu kommt**, und ein **Vorschlag** —
+übernehmen (ein Klick, dann rechnet die App neu), so lassen oder in Abklärung
+(AB-185, AB-186). Dazu ein Schlüssel für die Palox-Punkte im Lager, wenn zwei
+Kontrollpaletten derselben Charge am selben Tag gewogen werden (0129).
+**Setup.sql einmal einspielen (Stand 129), dann „Neu rechnen".**
 **Runde BF** — Fall für Fall: Der Reiter Perigon war „Information Overload".
 Jetzt ist ein Fall eine Frage an den Chef (je Charge alles zu ihr, je Art der
 Datei alle Positionen), mit einer **Nummer, die bleibt** („Fall 4" lässt sich in
@@ -1241,7 +1254,7 @@ einspielen wie in Schritt 3. Dieselben Funktionen, dieselbe Saison.
 | **Lagermanagement nach Artikel** | Dasselbe Verkaufsfähige nach Artikel: Artikelgruppe × Demeter/Knospe × gross/klein, mit Stück und Kisten; Eingang, ausgeliefert und Lager je Artikel; je Kunde die Saison gegen die Vorjahre (Runde AO). |
 | **Chargen** | Wo welche Charge steht: eine Tabelle mit Eingang (kg, Paletten, Tag), ausgeliefert, im Lager, davon verkaufsfähig und Verlust bis heute; eine Zeile klappt auf zu Eingangstagen, Lieferungen und Arbeiten der Charge (seit Runde AO ohne „in vier Wochen“ und „zwei Wochen länger“ — die Zukunft steht im Lagermanagement). |
 | **Ursachen** | Wohin der Kürbis **bis heute** ging. Der ganze Eingang als ein Balken in sechs Teilen (verkaufsfähig liegend, verkauft, verdunstet, Faules, zu klein, zu gross), darunter je Sorte oder Charge nach Verlustanteil. Dann Faules im Lager und Verdunstung als Messpunkte — wahlweise nach **Kalender** („ab wann ging es los") oder nach **Lagerdauer** („nach wie vielen Wochen"). Zuletzt die verschenkte Marge, gegliedert wie der Filter oben (alle Chargen → je Sorte mit den Chargen aufklappbar; eine Sorte → ihre Chargen; eine Charge → ihre Wägungen): was die Kiste über dem Soll hat, und wie schwer der einzelne Kürbis gegen die Mitte seines Kalibers ist — das Kaliber mit seinem Band in Gramm. Und, sobald eine Charge zweimal sortiert ist, die Läufe derselben Charge nebeneinander — Median je Lauf und Abstand in % je Tag, als Gegenprobe der Verdunstung (AB-113). Keine Prognose. |
-| **Messungen** | Vier Reiter: die Arbeiten, die Auffälligkeiten (was nicht zusammenpasst, mit dem Sprung zur Korrektur), die Messwerte, und welche Messung je Sorte noch aussteht. |
+| **Messungen** | Vier Reiter: die Arbeiten, die Auffälligkeiten (Fall für Fall, die neuesten zuoberst, jede mit Nummer, Erklärung und Vorschlag), die Messwerte, und welche Messung je Sorte noch aussteht. |
 | **Betrieb** | Stammdaten, Warenausgang einlesen, Sortierdateien, Zugang für die Arbeiter. |
 
 Der Anteil bezieht sich immer auf **die liegende Eingangsware** — heute und

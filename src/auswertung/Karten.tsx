@@ -1,17 +1,11 @@
-import { useEffect, useState, type ReactNode } from 'react'
-import { Link } from 'react-router-dom'
+import { type ReactNode } from 'react'
 import { datum, lesbar, tonnen, vorZeit, zeitpunkt } from '../lib/format'
-import { Erklaerung, Hinweis, Karte, Marke } from '../components/Bausteine'
+import { Erklaerung, Hinweis, Karte } from '../components/Bausteine'
 import { ZAktualisieren, ZHaken } from '../components/Zeichen'
 import { Bilanzzeile } from '../components/Kaskadenbild'
-import { SCHRITTE, type Befund, type Fortschritt, type Problem, type Saisonbilanz, type Schimmelpunkt, type Zeitplan } from './daten'
+import { SCHRITTE, type Fortschritt, type Problem, type Saisonbilanz, type Schimmelpunkt, type Zeitplan } from './daten'
 import { summeBekannt } from '../lib/masse'
 import { anforderungOffen, rechnetGerade } from '../lib/zeitplan'
-import { supabase } from '../lib/supabase'
-import { taetigkeitVon } from '../lib/taetigkeit'
-import { WOERTERBUCH } from '../lib/i18n'
-import { ArbeitFenster } from '../betrieb/ArbeitFenster'
-import { ChargeFenster } from '../betrieb/ChargeFenster'
 
 /**
  * Kopfzeile eines Reiters: Name, der eine Satz, wozu er da ist; rechts der
@@ -192,98 +186,7 @@ export function Bilanz({ bilanz }: { bilanz: Saisonbilanz }) {
   )
 }
 
-/** Die Farbkante einer Auffälligkeit: rot (Messfehler), gelb (Datum), blau (nur ein Hinweis). */
-function befundTon(art: string): '' | 'gelb' | 'blau' {
-  const a = art.toLowerCase()
-  if (a.includes('datum') || a.includes('zukunft')) return 'gelb'
-  if (a.includes('hinweis') || a.includes('fehlt')) return 'blau'
-  return ''
-}
-
-/**
- * Auffälligkeiten — Messungen, die nicht richtig aussehen, mit Rat und dem
- * Weg zur Korrektur: Jede zeigt auf ihre Arbeit, wo der Betriebsleiter den
- * Wert ändern kann. Sie stehen nur hier, nicht bei den Chargen.
+/*
+ * Die Auffälligkeiten stehen seit Runde BG Fall für Fall in
+ * AuffaelligkeitFaelle.tsx — mit Nummer, Daten, Erklärung, Vorschlag und Stand.
  */
-/** Was eine Auffälligkeit über ihre Arbeit sagen kann, ohne dass man sie öffnet. */
-interface ArbeitKurz { id: number; weg: string; station: string; ist_fax: boolean; start_ts: string; ende_ts: string | null; status: string; abgebrochen_ts: string | null }
-
-export function Auffaelligkeiten({ befunde, kurz = false }: { befunde: Befund[]; kurz?: boolean }) {
-  // Runde X: Der Betrieb: „schau, dass ein bisschen klarer ersichtlich ist,
-  // bei welcher Arbeit das entstanden ist, damit ich die Arbeit nachlesen
-  // kann." Also zu jeder Auffälligkeit die Tätigkeit, der Tag, der Stand —
-  // und ein Fenster, das die Arbeit zeigt, ohne die Seite zu verlassen.
-  const [arbeiten, setArbeiten] = useState<Map<number, ArbeitKurz>>(new Map())
-  const [kommentare, setKommentare] = useState<Map<number, string>>(new Map())
-  const [fenster, setFenster] = useState<number | null>(null)
-  /** Runde Z: die Charge hinter der Auffälligkeit, als Fenster. */
-  const [chargeFenster, setChargeFenster] = useState<number | null>(null)
-  /** Runde AQ: nach Art filtern — 45 „Zettelgewicht" untereinander verdeckten die übrigen. */
-  const [art, setArt] = useState('')
-  const ids = [...new Set(befunde.map(b => b.auftrag_id).filter((x): x is number => x !== null))]
-  const schluessel = ids.join(',')
-  useEffect(() => {
-    if (!schluessel) { setArbeiten(new Map()); return }
-    let lebt = true
-    const ids = schluessel.split(',').map(Number)
-    void supabase.from('auftrag').select('id, weg, station, ist_fax, start_ts, ende_ts, status, abgebrochen_ts').in('id', ids)
-      .then(({ data }) => { if (lebt) setArbeiten(new Map(((data ?? []) as ArbeitKurz[]).map(a => [a.id, a]))) })
-    // 0091: Was die Person an der Arbeit zur Ware gesagt hat — „Hagelschaden"
-    // erklärt manche Auffälligkeit, bevor jemand sie korrigieren will.
-    // 0094: nur die Kurzfassung, und nur, wenn jemand sie gelesen hat.
-    void supabase.from('v_arbeit_kommentar').select('auftrag_id, text').in('auftrag_id', ids)
-      .then(({ data }) => { if (lebt) setKommentare(new Map(((data ?? []) as { auftrag_id: number; text: string }[]).map(k => [k.auftrag_id, k.text]))) })
-    return () => { lebt = false }
-  }, [schluessel])
-  const t = (id: keyof typeof WOERTERBUCH.de) => WOERTERBUCH.de[id]
-  const arbeitText = (id: number) => {
-    const a = arbeiten.get(id); if (!a) return `Arbeit ${id}`
-    const ta = taetigkeitVon(a.weg as never, a.station as never, a.ist_fax)
-    const stand = a.abgebrochen_ts ? 'abgebrochen' : a.status === 'offen' ? 'läuft' : 'fertig'
-    return `${ta ? t(ta.text) : 'Arbeit'} · ${zeitpunkt(a.start_ts)} · ${stand} · Arbeit ${a.id}`
-  }
-
-  if (befunde.length === 0) return kurz ? null : (
-    <Karte titel="Auffälligkeiten" unter="Messungen, die nicht zu ihrem Nenner passen.">
-      <div className="hinweis gut" style={{ margin: 0 }}><span className="hinweis-zeichen"><ZHaken size={18} /></span><div className="hinweis-text">Keine — jede Messung passt zu ihrem Nenner.</div></div>
-    </Karte>
-  )
-  const arten = [...befunde.reduce((m, b) => m.set(b.art, (m.get(b.art) ?? 0) + 1), new Map<string, number>()).entries()]
-    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'de'))
-  const gefiltert = art && arten.some(([a]) => a === art) ? befunde.filter(b => b.art === art) : befunde
-  const liste = kurz ? befunde.slice(0, 3) : gefiltert
-  return (
-    <Karte titel={`Auffälligkeiten (${befunde.length})`}
-           aktion={kurz && befunde.length > 3 ? <Link to="/messungen/auffaelligkeiten" className="knopf klein">alle {befunde.length} ansehen</Link> : undefined}>
-      {!kurz && arten.length > 1 && (
-        <div className="befund-arten" role="group" aria-label="nach Art zeigen">
-          <button type="button" className={`befund-art${art === '' ? ' an' : ''}`} aria-pressed={art === ''} onClick={() => setArt('')}>alle <span className="leise">{befunde.length}</span></button>
-          {arten.map(([a, n]) => (
-            <button key={a} type="button" className={`befund-art${art === a ? ' an' : ''}`} aria-pressed={art === a} onClick={() => setArt(art === a ? '' : a)}>
-              {a} <span className="leise">{n}</span>
-            </button>
-          ))}
-        </div>
-      )}
-      <div className="befunde">
-        {liste.map((b, i) => (
-          <div key={i} className={`befund ${befundTon(b.art)}`}>
-            <div className="befund-kopf"><Marke art="warnung" punkt={false}>{b.art}</Marke> <button type="button" className="werkzeug-knopf charge-knopf" onClick={() => setChargeFenster(b.charge_nr)} title="Charge ansehen">Charge {b.charge_nr} · {b.sorte}</button></div>
-            {b.auftrag_id && <div className="befund-arbeit">{arbeitText(b.auftrag_id)}</div>}
-            {b.auftrag_id && kommentare.has(b.auftrag_id) && <div className="befund-arbeit"><strong>Kommentar zur Ware:</strong> {kommentare.get(b.auftrag_id)}</div>}
-            <div className="befund-text">{lesbar(b.befund)}</div>
-            <div className="befund-rat">{lesbar(b.rat)}</div>
-            {b.auftrag_id && (
-              <div className="befund-aktion knopf-reihe" style={{ display: 'flex' }}>
-                <button type="button" className="knopf klein" onClick={() => setFenster(b.auftrag_id)}>Arbeit ansehen</button>
-                <Link className="knopf klein" to={`/arbeit/${b.auftrag_id}?korrigieren=1`}>korrigieren</Link>
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
-      {fenster !== null && <ArbeitFenster auftragId={fenster} schliessen={() => setFenster(null)} />}
-      {chargeFenster !== null && <ChargeFenster chargeNr={chargeFenster} schliessen={() => setChargeFenster(null)} />}
-    </Karte>
-  )
-}

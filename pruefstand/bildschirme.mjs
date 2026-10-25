@@ -19,7 +19,8 @@ import { createServer } from 'vite'
 import { mkdirSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { ADMIN, CHROMIUM, authAntwort, fehlendeFixtures, fixture, restAntwort, vergessen, vormerken } from './attrappe.mjs'
+import { ADMIN, CHROMIUM, authAntwort, fehlendeFixtures, fixture, korrekturen, restAntwort, vergessen, vormerken } from './attrappe.mjs'
+import { auffVormerken, chargeMitFremdemArtikel, chargeMitLager, chargenZeile, fremderArtikelVormerken } from './beispiele.mjs'
 
 const HIER = dirname(fileURLToPath(import.meta.url))
 const BILDER = join(HIER, 'bilder')
@@ -766,7 +767,8 @@ const BILDSCHIRME = [
   { name: 'chargen', wer: 'admin', pfad: '/chargen' },
   { name: 'chargen-offen', wer: 'admin', pfad: '/chargen',
     tun: async p => {
-      await p.locator('tbody tr').first().click()
+      // Runde BG: nicht mehr die erste Zeile — die kann ausverkauft sein, und dann steht zu Recht keine Lagerrechnung da
+      await chargenZeile(p, chargeMitLager()).click()
       // 0121: aufgeklappt steht der Weg vom Lager zum Verkaufsfähigen, Schritt für Schritt
       await p.locator('.chargentabelle .detail-kette dl.kette dt.kette-ergebnis').first().waitFor()
     } },
@@ -842,15 +844,76 @@ const BILDSCHIRME = [
   // Runde AO: Messungen mit vier Reitern — Arbeiten (vorher unter Betrieb),
   // Auffälligkeiten, Messwerte, Ausstehend (vorher ein eigener Reiter).
   { name: 'messungen', wer: 'admin', pfad: '/messungen' },
-  { name: 'messungen-auffaelligkeiten', wer: 'admin', pfad: '/messungen/auffaelligkeiten' },
+  // Runde BG: „bitte ordne die chronologisch … die obersten sollen die neuesten sein" — nach Tag gruppiert,
+  // der neueste zuoberst, jeder Fall mit seiner Nummer (vergeben alt → neu: oben die höchste).
+  { name: 'messungen-auffaelligkeiten', wer: 'admin', pfad: '/messungen/auffaelligkeiten',
+    tun: async p => {
+      await p.locator('#auff-liste .fall-zeile').first().waitFor()
+      const tage = await p.locator('#auff-liste .fall-gruppe').evaluateAll(gs => gs.map(g => g.getAttribute('aria-label')))
+      const iso = tage.filter(t => /\d\d\.\d\d\.\d{4}/.test(t)).map(t => t.replace(/^.*?(\d\d)\.(\d\d)\.(\d{4}).*$/, '$3-$2-$1'))
+      if (iso.length < 3) throw new Error(`zu wenige Tage in der Liste: ${tage.join(' | ')}`)
+      if (iso.join() !== [...iso].sort().reverse().join()) throw new Error(`die Tage stehen nicht neu → alt: ${iso.join(', ')}`)
+      const nr = (await p.locator('#auff-liste .fall-zeile-nr').allInnerTexts()).map(Number)
+      if (nr.some(x => !Number.isInteger(x) || x < 1)) throw new Error(`ein Fall ohne Nummer: ${nr.join(',')}`)
+      if (new Set(nr).size !== nr.length) throw new Error('zwei Fälle mit derselben Nummer')
+      if (nr[0] !== Math.max(...nr)) throw new Error(`zuoberst steht nicht der jüngste (höchste Nummer): ${nr.slice(0, 5).join(',')} …`)
+      if ((await p.locator('.navleiste a', { hasText: 'Auffälligkeiten' }).locator('.reiter-zahl').innerText()).trim() !== String(nr.length))
+        throw new Error('die Zahl am Reiter ist nicht die Zahl der offenen Fälle')
+      if (p.viewportSize().width >= 900) await p.locator('#auff-ansicht .fall-nummer', { hasText: `Auffälligkeit ${nr[0]}` }).waitFor()
+    } },
+  // Runde BG: ein Zettel-Fall — die Zettel gegen den Wareneingang, das Muster, der Vorschlag mit einem Klick, und was danach vermerkt ist.
+  { name: 'auff-zettel', wer: 'admin', pfad: '/messungen/auffaelligkeiten?suche=990200', vorher: auffVormerken,
+    tun: async p => {
+      await p.locator('#auff-liste .fall-zeile', { hasText: 'Zetteldatum ohne Palette an dem Tag' }).click()
+      const f = p.locator('#auff-ansicht')
+      await f.locator('#auff-titel', { hasText: 'Zetteldatum ohne Palette an dem Tag' }).waitFor()
+      await f.locator('#auff-passiert', { hasText: '3 Paletten mit Zetteldatum 07.10.2026 gezählt' }).waitFor()
+      const d = f.locator('#auff-daten')
+      await d.locator('table.auff-zettel caption', { hasText: 'Zettel der Arbeit 990200' }).waitFor()
+      if ((await d.locator('table.auff-zettel tr.auff-betroffen').count()) !== 3) throw new Error('nicht alle drei Zettel des Falls hervorgehoben')
+      if ((await d.locator('table.auff-eingang tr.auff-treffer').count()) !== 3) throw new Error('nicht drei gleich schwere Paletten im Wareneingang hervorgehoben')
+      await d.locator('tbody.auff-tag-vorschlag .auff-tag-kopf', { hasText: '08.10.2026 — der vorgeschlagene Tag' }).waitFor()
+      await d.locator('tbody.auff-tag-zettel .auff-tag-kopf', { hasText: 'keine Palette dieser Charge' }).waitFor()
+      await f.locator('#auff-wie .muster-marke', { hasText: 'Datum vertippt' }).waitFor()
+      await f.locator('#auff-wie', { hasText: 'Beim Sortieren oder Waschen tippt die Halle' }).count()
+      const v = f.locator('#auff-vorschlag')
+      await v.locator('.auff-vorschlag-titel', { hasText: 'Zetteldatum 07.10.2026 → 08.10.2026 an allen 3 Zetteln vom 07.10.2026' }).waitFor()
+      if ((await v.locator('.sicher-marke').innerText()).trim() !== 'eindeutig') throw new Error('der Vorschlag sagt nicht „eindeutig"')
+      await v.locator('li', { hasText: 'Alle 3 Gewichte stehen bei Charge 99130 am 08.10.2026 genau so im Wareneingang' }).waitFor()
+      await f.locator('#auff-verwandte', { hasText: 'Zettelgewicht ohne passende Palette' }).waitFor()
+      await v.locator('#auff-uebernehmen').click()
+      await v.locator('#auff-ja').click()
+      await v.locator('.hinweis', { hasText: 'Übernommen. Die App rechnet neu' }).waitFor()
+      const k = korrekturen.at(-1)
+      if (!k || k.p_fall !== 'Zetteldatum|zetteldatum:990200:2026-10-07' || k.p_was !== 'zetteldatum' || k.p_vorher !== '2026-10-07' || k.p_nachher !== '2026-10-08'
+          || [...k.p_ids].sort().join() !== '990201,990202,990203') throw new Error(`an die Datenbank ging: ${JSON.stringify(k)}`)
+      await f.locator('#auff-verfolgen li', { hasText: 'Zetteldatum 07.10.2026 → 08.10.2026' }).locator('.stand-marke', { hasText: 'korrigiert' }).waitFor()
+    } },
+  // Runde BG: „so lassen" — ein Klick, vermerkt, und der Fall bleibt stehen, bis man weitergeht.
+  { name: 'auff-so-lassen', wer: 'admin', pfad: '/messungen/auffaelligkeiten?art=Kistengewicht',
+    tun: async p => {
+      const n = await p.locator('#auff-liste .fall-zeile').count()
+      await p.locator('#auff-liste .fall-zeile').first().click()
+      const f = p.locator('#auff-ansicht')
+      await f.locator('#auff-vorschlag .auff-vorschlag-titel', { hasText: 'So lassen — heilt von selbst' }).waitFor()
+      await f.locator('#auff-so-lassen').click()
+      await f.locator('.fall-unter .stand-marke', { hasText: 'so lassen' }).waitFor()
+      await f.locator('.fall-stelle', { hasText: 'nicht mehr in dieser Liste' }).waitFor({ state: 'attached' })   // auf dem Handy ausgeblendet
+      if (n > 1 && (await p.locator('#auff-liste .fall-zeile').count()) !== n - 1) throw new Error('der Fall steht noch unter „offen"')
+    } },
   { name: 'messungen-messwerte', wer: 'admin', pfad: '/messungen/messwerte' },
   // Runde X: jede Auffälligkeit nennt ihre Arbeit und öffnet sie als Fenster.
   // Runde AS: das Fenster geht im sichtbaren Bildschirm auf, auch bei der
   // letzten Auffälligkeit unten in der langen Liste — vorher hing es an der
   // Karte (Einblend-Animation) und stand mitten in der Liste.
+  // Runde BG: der Knopf steht im Fall, nicht mehr in der Liste — geprüft am
+  // ältesten Fall mit einer Arbeit (unten in der Liste).
   { name: 'messungen-arbeit', wer: 'admin', pfad: '/messungen/auffaelligkeiten',
     tun: async p => {
-      const knopf = p.getByRole('button', { name: 'Arbeit ansehen' }).last()
+      const zeilen = p.locator('#auff-liste .fall-zeile', { hasText: /Arbeit \d+|Sortieren|Waschen/ })
+      await zeilen.last().scrollIntoViewIfNeeded()
+      await zeilen.last().click()
+      const knopf = p.locator('#auff-ansicht #auff-arbeit')
       await knopf.scrollIntoViewIfNeeded()
       await knopf.click()
       await p.locator('#arbeit-fenster h2').waitFor()
@@ -858,9 +921,13 @@ const BILDSCHIRME = [
       const hoehe = p.viewportSize().height
       if (!box || box.y < -1 || box.y > hoehe - 40) throw new Error(`Arbeitsfenster nicht im Bildschirm: y=${box?.y}, Bildschirm ${hoehe}px hoch`)
     } },
-  // Runde Z: von der Auffälligkeit zur Charge.
+  // Runde Z: von der Auffälligkeit zur Charge. Runde BG: aus dem Fall heraus.
   { name: 'messungen-charge', wer: 'admin', pfad: '/messungen/auffaelligkeiten',
-    tun: async p => { await p.locator('.befund-kopf .charge-knopf').first().click(); await p.locator('#charge-fenster h2').waitFor() } },
+    tun: async p => {
+      await p.locator('#auff-liste .fall-zeile').first().click()
+      await p.locator('#auff-ansicht .auff-wege button', { hasText: /^Charge \d+$/ }).click()
+      await p.locator('#charge-fenster h2').waitFor()
+    } },
   { name: 'messungen-arbeiten', wer: 'admin', pfad: '/messungen/arbeiten' },
   // Runde AF: je Sorte, welche Messung fehlt — seit Runde AO der vierte Reiter unter Messungen.
   { name: 'ausstehend', wer: 'admin', pfad: '/messungen/ausstehend' },
@@ -869,11 +936,13 @@ const BILDSCHIRME = [
   // Balken, und die Tabelle hat dieselben Zeilen.
   // 0121: eine Perigon-Zeile, die nicht stimmt — im Fenster rot umrandet, darüber in Worten.
   // 0126: Die Leiste oben auf dem Lager, über die diese Szene ging, ist eine Zeile geworden; der Weg
-  // geht jetzt über die aufgeklappte Charge (1630 hat in der Demo einen Mandarin), im Reiter Perigon
-  // prüft ihn perigon-zeilen.
-  { name: 'lieferung-falsch', wer: 'admin', pfad: '/chargen?charge=1630',
+  // geht jetzt über die aufgeklappte Charge mit dem Mandarin, im Reiter Perigon prüft ihn
+  // perigon-zeilen. Runde BG: welche Charge das ist, wandert mit dem Datum der Demo (1630, dann 1628).
+  { name: 'lieferung-falsch', wer: 'admin', pfad: '/chargen', vorher: fremderArtikelVormerken,
     tun: async p => {
-      const knopf = p.locator('.chargentabelle .ungereimt-sache button', { hasText: 'Perigon-Zeile' }).first()
+      await chargenZeile(p, chargeMitFremdemArtikel()).click()
+      const knopf = p.locator('.chargentabelle .ungereimt-sache', { hasText: 'Artikel und Charge passen nicht zusammen' })
+        .locator('button', { hasText: 'Perigon-Zeile' }).first()
       await knopf.click()
       await p.locator('.chargentabelle .ungereimt-zeilen button.link').first().click()
       // 0126: der angeklickte Fall steht oben in Worten, mit seiner Rechnung; darunter, was an der Zeile sonst nicht stimmt

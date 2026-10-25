@@ -31,6 +31,7 @@ import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { eintraegePruefen, patchFuer } from './kurzfassung.mjs'
 import { ROHTABELLEN, durchgang, alsMarkdown } from './durchgang_pruefungen.mjs'
+import { fallKennung, nummernFolge, AUFF_STAND_NAME } from '../src/auswertung/auffaellig.ts'
 
 const HIER = dirname(fileURLToPath(import.meta.url))
 const ZIEL = join(HIER, '..', 'docs', 'betrieb')
@@ -56,9 +57,9 @@ async function restAlle(pfad) {
     if (teil.length < 1000) return alle
   }
 }
-async function rpc(name) {
+async function rpc(name, koerper = {}) {
   const r = await fetch(`${url}/rest/v1/rpc/${name}`, {
-    method: 'POST', body: '{}',
+    method: 'POST', body: JSON.stringify(koerper),
     headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
   })
   if (!r.ok) throw new Error(`rpc ${name}: ${r.status} ${await r.text()}`)
@@ -155,9 +156,32 @@ const jeArt = new Map()
 for (const x of befunde) jeArt.set(x.art, (jeArt.get(x.art) ?? 0) + 1)
 b += `## Nach Art (${befunde.length})\n\n| Art | Anzahl |\n|---|---|\n`
 for (const [art, n] of [...jeArt.entries()].sort((p, q) => q[1] - p[1])) b += `| ${md(art)} | ${n} |\n`
+// Runde BG (0128): je Auffälligkeit die Nummer, die bleibt, und wie es steht —
+// damit „Auffälligkeit 12" aus einem Gespräch mit dem Betrieb hier zu finden
+// ist. Vergeben wird in derselben Folge wie in der App (die älteste zuerst);
+// wer schon eine Nummer hat, behält sie.
+const nummern = new Map(), staende = new Map()
+try {
+  for (const x of await rpc('auffaelligkeit_nummern', { p_faelle: nummernFolge(befunde) })) nummern.set(x.fall, x.nr)
+  for (const x of await restAlle('auffaelligkeit_nr?select=fall,nr')) if (!nummern.has(x.fall)) nummern.set(x.fall, x.nr)
+  for (const v of await restAlle('auffaelligkeit_vermerk?select=fall,stand,notiz,ts,schnappschuss&order=ts.desc,id.desc')) if (!staende.has(v.fall)) staende.set(v.fall, v)
+} catch (f) { console.log(`Nummern und Stand der Auffälligkeiten nicht gelesen (Datenbank vor 0128?): ${f.message}`) }
+const standVon = fall => staende.get(fall)?.stand ?? 'offen'
+const nOffen = befunde.filter(x => standVon(fallKennung(x)) === 'offen').length
+b += `\n**Offen: ${nOffen}** von ${befunde.length}. Neueste zuerst; „Nr." ist die Nummer der App (Messungen → Auffälligkeiten), unter der der Betrieb den Fall nennt.\n`
 b += '\n## Einzeln\n\n'
 for (const x of [...befunde].sort((p, q) => String(q.start_ts ?? '').localeCompare(String(p.start_ts ?? '')))) {
-  b += `- **${md(x.art)}** · Charge ${chargeText(x.charge_nr)}${x.auftrag_id ? ` · ${arbeitText(x.auftrag_id)}` : ''}\n  - ${md(x.befund)}\n  - _${md(x.rat)}_\n`
+  const fall = fallKennung(x), v = staende.get(fall)
+  b += `- **${nummern.has(fall) ? `Nr. ${nummern.get(fall)} · ` : ''}${md(x.art)}** · ${AUFF_STAND_NAME[standVon(fall)] ?? standVon(fall)} · Charge ${chargeText(x.charge_nr)}${x.auftrag_id ? ` · ${arbeitText(x.auftrag_id)}` : ''} · \`${md(x.bezug ?? '')}\`\n  - ${md(x.befund)}\n  - _${md(x.rat)}_\n`
+  if (v?.notiz) b += `  - Vermerk ${tag(v.ts)}: „${md(v.notiz)}"\n`
+}
+const weg = [...staende.entries()].filter(([fall]) => !befunde.some(x => fallKennung(x) === fall))
+if (weg.length) {
+  b += `\n## Nicht mehr in den Daten (${weg.length})\n\nKorrigiert oder so gelassen — und seither nicht mehr auffällig.\n\n`
+  for (const [fall, v] of weg) {
+    const sn = v.schnappschuss ?? {}
+    b += `- **${nummern.has(fall) ? `Nr. ${nummern.get(fall)} · ` : ''}${md(fall.split('|')[0])}** · ${AUFF_STAND_NAME[v.stand] ?? v.stand} ${tag(v.ts)}${sn.was ? ` · ${md(sn.was)} ${md(sn.vorher)} → ${md(sn.nachher)}` : ''}${v.notiz ? ` · „${md(v.notiz)}"` : ''} · \`${md(fall.split('|').slice(1).join('|'))}\`\n`
+  }
 }
 
 // ---- 3. Modellstand ----------------------------------------------------------

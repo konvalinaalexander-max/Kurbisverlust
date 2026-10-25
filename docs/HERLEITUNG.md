@@ -82,6 +82,14 @@ steht als `masse_quelle` an jeder Arbeit (Chargen-Seite, Korrektur).
 wenn jemand eine Palette ohne Zettel gezählt hat, und das sagt die
 Auffälligkeit „Zettelgewicht" seit 0090 ausdrücklich.
 
+**Korrigiert mit einem Klick** (0128): Übernimmt der Betriebsleiter unter
+Messungen → Auffälligkeiten einen Vorschlag, ändert sich genau das Zetteldatum
+oder Zettelgewicht der genannten Zettel (oder „mit Palette" einer
+Ausschuss-Wägung) — nur, wo noch steht, was die App sah; vorher und nachher
+stehen im Vermerk (`auffaelligkeit_vermerk`). Beim nächsten Rechnen findet
+`zettel` die Palette, statt mit `zettel-kisten` zu rechnen, und die Lagertage
+beginnen am richtigen Tag.
+
 ## 3. Lagertage einer Arbeit
 
 **Gemessen** aus den Eingangsdaten der gezählten Paletten. **Beim Waschen aus

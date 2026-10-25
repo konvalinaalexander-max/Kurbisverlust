@@ -397,6 +397,16 @@
       "art": "gerechnet",
       "bedeutet": "Runde BF: die Rückrechnung im Fall — auf den Lieferscheinen plus der gerechnete Verlust der Kaskade (zu klein, zu gross, Faules, verdunstet) ergibt den Eingang, den es dafür brauchte; dieselbe Zahl, die die Datenbank für „mehr verkauft als möglich\" nimmt",
       "quelle": "mv_kaskade (Portion ausgelagert, Σ m0) = erg_charge.ausgelagert_kg"
+    },
+    {
+      "muster": [
+        "Brutto laut Zettel",
+        "Brutto im Wareneingang",
+        "im Wareneingang"
+      ],
+      "art": "gemessen",
+      "bedeutet": "Bruttogewicht einer Palette mit Kisten und Palette: vom Palettenzettel abgetippt oder im Wareneingang (Erntejournal) — Runde BG, im Fall einer Zettel-Auffälligkeit",
+      "quelle": "auftrag_palette.brutto_zettel_kg · palette.brutto_kg"
     }
   ]
 }

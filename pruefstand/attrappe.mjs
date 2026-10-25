@@ -48,8 +48,12 @@ let geschrieben = {}
 let naechsteId = 90001
 /** 0127: die Nummern der Perigon-Fälle — vergeben in der Folge, in der die App sie nennt, wie die Datenbank. */
 let fallNr = new Map()
+/** 0128: die Nummern der Auffälligkeiten — ebenso, eigene Folge. */
+let auffNr = new Map()
+/** 0128: was „Übernehmen" an die Datenbank geschickt hat — damit eine Szene es nachprüft. */
+export const korrekturen = []
 /** Vor jedem Bildschirm: das Gedächtnis leeren, damit nur die Fixtures gelten. */
-export function vergessen() { geschrieben = {}; fallNr = new Map() }
+export function vergessen() { geschrieben = {}; fallNr = new Map(); auffNr = new Map(); korrekturen.length = 0 }
 /** Für einen Bildschirm Zeilen vormerken, als hätte die App sie geschrieben (22. Oktober: die Journal-Adresse). */
 export function vormerken(name, zeilen) { geschrieben[name] = [...(geschrieben[name] ?? []), ...zeilen] }
 
@@ -103,6 +107,22 @@ export async function restAntwort(route) {
       const faelle = Array.isArray(body.p_faelle) ? body.p_faelle : []
       for (const f of faelle) if (!fallNr.has(f)) fallNr.set(f, fallNr.size + 1)
       return route.fulfill({ json: faelle.map(f => ({ fall: f, nr: fallNr.get(f) })).sort((a, b) => a.nr - b.nr) })
+    }
+    if (fn === 'auffaelligkeit_nummern') {
+      const body = JSON.parse(route.request().postData() ?? '{}')
+      const faelle = Array.isArray(body.p_faelle) ? body.p_faelle : []
+      for (const f of faelle) if (!auffNr.has(f)) auffNr.set(f, auffNr.size + 1)
+      return route.fulfill({ json: faelle.map(f => ({ fall: f, nr: auffNr.get(f) })).sort((a, b) => a.nr - b.nr) })
+    }
+    // 0128: ein Vorschlag mit einem Klick — wie die Datenbank: ein Vermerk „korrigiert" mit vorher und nachher.
+    if (fn === 'auffaelligkeit_korrigieren') {
+      const body = JSON.parse(route.request().postData() ?? '{}')
+      korrekturen.push(body)
+      const id = naechsteId++
+      geschrieben.auffaelligkeit_vermerk = [...(geschrieben.auffaelligkeit_vermerk ?? []), {
+        id, fall: body.p_fall, stand: 'korrigiert', notiz: body.p_notiz ?? null, wer: ADMIN, ts: new Date().toISOString(), profil: { name: 'Betriebsleitung' },
+        schnappschuss: { ...(body.p_schnappschuss ?? {}), was: body.p_was, ids: body.p_ids, vorher: body.p_vorher, nachher: body.p_nachher } }]
+      return route.fulfill({ json: id })
     }
     if (fn === 'demo_daten_laden') return route.fulfill({ json: 'Demo-Saison steht.' })
     if (fn === 'demo_daten_entfernen') return route.fulfill({ json: 'Demo-Daten entfernt.' })
