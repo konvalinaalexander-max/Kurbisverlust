@@ -4333,6 +4333,18 @@ Charge aus den Fixtures (`pruefstand/beispiele.mjs`): die erste mit Ware im
 Lager, die mit dem Mandarin. Die zweite Sache (die Rechnung nennt 50 kg mehr
 als die Datei) ist jetzt fest vorgemerkt. Geprüft wird dasselbe wie vorher.
 
+**5. Die Pfeiltaste kennt den neuen Fall.** Auf diesem Stand hing in CI
+`perigon-weiter`, lokal nicht. Der Grund lag in der App: Der Wechsel von Fall
+zu Fall ist eine Transition (React Router), der Tastenhörer hing an
+`[vorher, nachher]` und kam erst nach dem Zeichnen. Ein ← gleich nach →
+erreichte den alten Hörer, für den es beim ersten Fall kein „voriger" gibt,
+und ging ins Leere. Mit zwanzigfach gebremster CPU geschah das jedes Mal.
+Jetzt liest der Hörer die Knöpfe aus einem Ref, das vor dem Zeichnen
+nachgeführt wird (Perigon und Auffälligkeiten). Die Auffälligkeiten blättern
+dabei mit ← und → statt ↑ und ↓: wie im Reiter Perigon, und ↑ und ↓ rollen
+wieder die Seite. `perigon-weiter` und das neue `auff-weiter` laufen gebremst;
+mit dem alten Hörer sind beide in allen vier Varianten rot.
+
 **Was bewusst nicht gemacht wurde:**
 - Kein Klick für „die Zettel gehören zu einer anderen Charge": es hiesse, die
   ganze Arbeit wechselt die Charge (Sortierläufe, Kaskade, Lager). Das

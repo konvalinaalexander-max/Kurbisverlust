@@ -21,7 +21,7 @@
  *     nicht — beides wird vermerkt.
  *  4. Stand und Notiz — was entschieden ist, wer, wann.
  */
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { fehlerText } from '../lib/db'
@@ -188,16 +188,21 @@ export function AuffaelligkeitFaelle({ befunde, neuRechnen, wissen }: { befunde:
   }, [such, setSuch, nummern])
   const vorher = neuerer ? () => waehlen(neuerer) : null
   const nachher = aelterer ? () => waehlen(aelterer) : null
+  // Von Fall zu Fall mit ← und → wie im Reiter Perigon (← der Fall darüber, der neuere) — ↑ und ↓ bleiben
+  // dem Rollen. Die Knöpfe stehen im Ref, damit die Taste gleich nach einem Wechsel den neuen Fall kennt.
+  const blaettern = useRef({ vorher, nachher })
+  useLayoutEffect(() => { blaettern.current = { vorher, nachher } })
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
       const z = e.target as HTMLElement | null
       if (z && (z.closest('input, textarea, select, [contenteditable="true"]') || z.closest('[role="dialog"]'))) return
-      if (e.key === 'ArrowDown' && nachher) { e.preventDefault(); nachher() }
-      if (e.key === 'ArrowUp' && vorher) { e.preventDefault(); vorher() }
+      const { vorher, nachher } = blaettern.current
+      if (e.key === 'ArrowRight' && nachher) { e.preventDefault(); nachher() }
+      if (e.key === 'ArrowLeft' && vorher) { e.preventDefault(); vorher() }
     }
     window.addEventListener('keydown', h)
     return () => window.removeEventListener('keydown', h)
-  }, [vorher, nachher])
+  }, [])
 
   const zeigeFall = !!gewaehlt && (breit || !!gefragt || liste.length === 1)
   const alleZu = zahlen.offen + zahlen.abklaerung + zahlen.erledigt
@@ -339,9 +344,9 @@ function AuffAnsicht({ b, nr, stelle, vorher, nachher, zurListe, festhalten, arb
         <button type="button" className="klein nur-handy" onClick={zurListe} id="auff-zur-liste"><ZZurueck size={14} /> Alle Fälle</button>
         <span className="fall-stelle leise">{stelle.i >= 0 ? `${stelle.i + 1} von ${stelle.n}` : 'nicht mehr in dieser Liste'}</span>
         <span className="fall-nav-knoepfe">
-          <button type="button" className="klein" onClick={() => vorher?.()} disabled={!vorher} id="auff-vorher" title="neuerer Fall (Taste ↑)">
+          <button type="button" className="klein" onClick={() => vorher?.()} disabled={!vorher} id="auff-vorher" title="neuerer Fall (Taste ←)">
             <ZZurueck size={14} /> neuerer</button>
-          <button type="button" className="klein" onClick={() => nachher?.()} disabled={!nachher} id="auff-nachher" title="älterer Fall (Taste ↓)">
+          <button type="button" className="klein" onClick={() => nachher?.()} disabled={!nachher} id="auff-nachher" title="älterer Fall (Taste →)">
             älterer <ZChevron size={14} /></button>
         </span>
       </nav>

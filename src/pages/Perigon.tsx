@@ -21,7 +21,7 @@
  *  Verlauf — was vermerkt ist, was nicht mehr in den Daten steht.
  *  So prüft die App — die Dateien, die Spalten, jede Prüfung.
  */
-import { Fragment, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { datum, tonnen, zahl, zeitpunkt } from '../lib/format'
@@ -233,17 +233,22 @@ function Arbeitsliste({ faelle, nummern, verlauf, daten, sorten }: {
   }, [such, setSuch, nummern])
   const vorher = i > 0 ? () => waehlen(liste[i - 1]) : null
   const nachher = i >= 0 && i < liste.length - 1 ? () => waehlen(liste[i + 1]) : null
-  // Von Fall zu Fall mit den Pfeiltasten — nicht, während man schreibt
+  // Von Fall zu Fall mit den Pfeiltasten — nicht, während man schreibt. Runde BG: Der Hörer liest die
+  // Knöpfe aus dem Ref, das vor dem Zeichnen nachgeführt wird. Hing er an [vorher, nachher], kam der neue
+  // Hörer erst nach dem Zeichnen (der Wechsel ist eine Transition): ← gleich nach → ging ins Leere.
+  const blaettern = useRef({ vorher, nachher })
+  useLayoutEffect(() => { blaettern.current = { vorher, nachher } })
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null
       if (t && (t.closest('input, textarea, select, [contenteditable="true"]') || t.closest('[role="dialog"]'))) return
+      const { vorher, nachher } = blaettern.current
       if (e.key === 'ArrowRight' && nachher) { e.preventDefault(); nachher() }
       if (e.key === 'ArrowLeft' && vorher) { e.preventDefault(); vorher() }
     }
     window.addEventListener('keydown', h)
     return () => window.removeEventListener('keydown', h)
-  }, [vorher, nachher])
+  }, [])
 
   const chips: [string, string][] = [
     ...(filter.art ? [['art', `Art: ${ART_NAME[filter.art] ?? filter.art}`] as [string, string]] : []),

@@ -42,6 +42,20 @@ const SPRACHE = process.env.SPRACHE ?? 'de'
 // über den Vite-Server, sobald er steht (unten).
 let T = id => id
 
+/**
+ * Runde BG: blättern auf einem langsamen Rechner. Am 25. Oktober hing
+ * perigon-weiter in CI, lokal nie: Der Wechsel ist eine Transition, der
+ * Tastenhörer hing an [vorher, nachher] und kam erst nach dem Zeichnen — ←
+ * gleich nach → ging ins Leere. Mit zwanzigfach gebremster CPU geschah das
+ * jedes Mal; so prüfen die Szenen es jetzt, statt auf einen langsamen Tag zu
+ * warten.
+ */
+async function gebremst(p, tun) {
+  const cdp = await p.context().newCDPSession(p)
+  await cdp.send('Emulation.setCPUThrottlingRate', { rate: 20 })
+  try { await tun() } finally { await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 }); await cdp.detach() }
+}
+
 /* ---------- Die Bildschirm-Liste ----------------------------------------- */
 // Jeder Eintrag: Name, wer angemeldet ist, Pfad, und was vor dem Screenshot
 // noch zu tun ist (Klicks, damit Reiter und Dialoge sichtbar werden).
@@ -516,11 +530,14 @@ const BILDSCHIRME = [
     tun: async p => {
       const titel = () => p.locator('#fall-ansicht #fall-titel').innerText()
       const erst = await titel()
-      await p.locator('#fall-nachher').click()
-      await p.waitForFunction(t => document.querySelector('#fall-titel')?.textContent !== t, erst)
-      if (!/[?&]fall=2\b/.test(p.url())) throw new Error(`nach „nächster" steht in der Adresse ${p.url()}`)
-      await p.keyboard.press('ArrowLeft')
-      await p.waitForFunction(t => document.querySelector('#fall-titel')?.textContent === t, erst)
+      // Runde BG: gebremst — ← gleich nach dem Wechsel muss den neuen Fall kennen (siehe gebremst)
+      await gebremst(p, async () => {
+        await p.locator('#fall-nachher').click()
+        await p.waitForFunction(t => document.querySelector('#fall-titel')?.textContent !== t, erst)
+        if (!/[?&]fall=2\b/.test(p.url())) throw new Error(`nach „nächster" steht in der Adresse ${p.url()}`)
+        await p.keyboard.press('ArrowLeft')
+        await p.waitForFunction(t => document.querySelector('#fall-titel')?.textContent === t, erst)
+      })
       await p.locator('#fall-vorher[disabled]').waitFor()
     } },
   // Bis Runde BE: „Je Sorte". Der alte Weg führt in die Fälle der Sorte.
@@ -860,6 +877,29 @@ const BILDSCHIRME = [
       if ((await p.locator('.navleiste a', { hasText: 'Auffälligkeiten' }).locator('.reiter-zahl').innerText()).trim() !== String(nr.length))
         throw new Error('die Zahl am Reiter ist nicht die Zahl der offenen Fälle')
       if (p.viewportSize().width >= 900) await p.locator('#auff-ansicht .fall-nummer', { hasText: `Auffälligkeit ${nr[0]}` }).waitFor()
+    } },
+  // Runde BG: von Fall zu Fall mit → und ← wie im Reiter Perigon (↑ und ↓ bleiben dem Rollen) — gebremst,
+  // damit die Taste gleich nach einem Wechsel geprüft ist.
+  { name: 'auff-weiter', wer: 'admin', pfad: '/messungen/auffaelligkeiten',
+    tun: async p => {
+      await p.locator('#auff-liste .fall-zeile').first().click()
+      // textContent, nicht innerText: die Nummer steht per CSS in Grossbuchstaben
+      const nummer = async () => Number((await p.locator('#auff-ansicht .fall-nummer').textContent())?.match(/Auffälligkeit (\d+)/)?.[1])
+      await p.locator('#auff-ansicht .fall-nummer', { hasText: /Auffälligkeit \d+/ }).waitFor()
+      const erst = await nummer()
+      await gebremst(p, async () => {
+        await p.keyboard.press('ArrowRight')
+        // ← gleich nach dem Wechsel, erst danach die Nummer lesen — sonst hätte ein alter Hörer Zeit, nachzuziehen
+        const neu = await p.waitForFunction(n => {
+          const m = /Auffälligkeit (\d+)/.exec(document.querySelector('#auff-ansicht .fall-nummer')?.textContent ?? '')
+          return m && Number(m[1]) !== n ? Number(m[1]) : false
+        }, erst)
+        await p.keyboard.press('ArrowLeft')
+        const zweit = await neu.jsonValue()
+        if (!(zweit < erst)) throw new Error(`→ führt nicht zum älteren Fall: ${erst} → ${zweit}`)
+        await p.locator('#auff-ansicht .fall-nummer', { hasText: new RegExp(`Auffälligkeit ${erst}(?!\\d)`) }).waitFor()
+      })
+      await p.locator('#auff-vorher[disabled]').waitFor()
     } },
   // Runde BG: ein Zettel-Fall — die Zettel gegen den Wareneingang, das Muster, der Vorschlag mit einem Klick, und was danach vermerkt ist.
   { name: 'auff-zettel', wer: 'admin', pfad: '/messungen/auffaelligkeiten?suche=990200', vorher: auffVormerken,
