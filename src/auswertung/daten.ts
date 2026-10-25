@@ -136,7 +136,11 @@ export interface Saisonbilanz {
 /** 0091: der Kommentar zur Ware einer Arbeit — geschrieben oder mitgeschrieben. */
 /** 0094: `text` ist die Kurzfassung (nur gelesene Kommentare kommen hier an), `roh` das Gesagte. */
 export interface Kommentar { auftrag_id: number; charge_nr: number; text: string; mit_aufnahme: boolean; ts: string; roh: string | null; n: number }
-export interface Befund { art: string; auftrag_id: number | null; charge_nr: number; sorte: string; start_ts: string | null; befund: string; rat: string }
+export interface Befund {
+  art: string; auftrag_id: number | null; charge_nr: number; sorte: string; start_ts: string | null; befund: string; rat: string
+  /** 0128: woran die Auffälligkeit hängt (Zettel, Wägung, Ablesung, Charge …) — mit der Art die Kennung des Falls */
+  bezug: string
+}
 export interface Wiegung {
   id: number; auftrag_id: number | null; charge_nr: number; sorte: string; lagertage: number; wiege_ts: string
   netto_damals_kg: number | null; netto_jetzt_kg: number | null; kg_pro_kiste: number | null

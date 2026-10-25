@@ -11698,3 +11698,227 @@ begin
 end $$;
 
 select '——— 0127 Perigon-Fälle mit fester Nummer ———' as ergebnis;
+
+-- =====================================================================
+-- 0128 — Jede Auffälligkeit ist ein Fall: Bezug, Nummer, Vermerk, ein Vorschlag mit einem Klick
+--
+-- (a) Jede Auffälligkeit trägt einen Bezug; Art und Bezug zusammen sind
+--     eindeutig; jede Auffälligkeit einer Arbeit hat einen Tag.
+-- (b) Der Bezug sagt, woran sie hängt: ein Zettelgewicht ohne Palette dieses
+--     Gewichts „zettel:<Arbeit>:<kg>", eines mit Palette an anderem Tag
+--     „zettel:<Arbeit>:<kg>:<Datum>", ein Zetteldatum ohne Palette an dem Tag
+--     „zetteldatum:<Arbeit>:<Datum>".
+-- (c) Nummern wie 0127: in der Folge, in der die App nennt; bleiben; die
+--     Halle vergibt keine.
+-- (d) Vermerk: der Betriebsleiter hängt an; die Halle nicht; „korrigiert"
+--     geht nur über die Funktion; Ändern und Löschen gibt es nicht.
+-- (e) Korrigieren: das Zetteldatum 22.9. → 23.9. an zwei Zetteln — die
+--     Zetteldatum- und die Zettelgewicht-Auffälligkeit dazu verschwinden, der
+--     Vermerk hält vorher und nachher; steht nicht mehr da, was die App sah,
+--     ändert sich nichts; die Halle darf nicht; ein Feld ausserhalb der Liste
+--     auch nicht.
+-- (f) „benutzen" an/ab (messung_ausschluss) macht die Auswertung veraltet.
+-- (g) Stand 128.
+-- =====================================================================
+do $$
+declare
+  v_u uuid := '00000000-0128-0000-0000-000000000001';
+  v_w uuid := '00000000-0128-0000-0000-000000000002';
+  v_sorte text; v_c int := 99128; v_a bigint; v_z1 bigint; v_z2 bigint; v_z3 bigint;
+  v_n int; v_x int; v_y int; v_v bigint; v_fehler text; v_ts timestamptz;
+begin
+  insert into auth.users (id, email, raw_user_meta_data) values (v_u, null, '{"name":"Prüf-0128"}');
+  update profil set rolle = 'admin' where id = v_u;
+  insert into auth.users (id, email, raw_user_meta_data) values (v_w, null, '{"name":"Prüf-0128 Halle"}');
+  update profil set rolle = 'arbeiter' where id = v_w;
+  perform set_config('request.jwt.claim.sub', v_u::text, true);
+  select sorte into v_sorte from sorte_kaliber order by sorte limit 1;
+  insert into charge (nr, schlag, sorte, saison) values (v_c, 'Prüf-0128', v_sorte, 2026);
+  insert into palette (charge_nr, eingangsdatum, brutto_kg, kisten, gebindeart, extern_id, quelle) values
+    (v_c, date '2026-09-23', 448, 32, 'G2', 'pruef-0128-1', 'journal-import'),
+    (v_c, date '2026-09-23', 433, 32, 'G2', 'pruef-0128-2', 'journal-import');
+  insert into auftrag (weg, station, charge_nr, start_ts, status) values ('hand', 'waschen_sortieren', v_c, timestamptz '2026-10-01 13:00+02', 'abgeschlossen') returning id into v_a;
+  -- zwei Zettel einen Tag zu früh datiert (das Gewicht gibt es, aber am 23.9.), einer mit einem Gewicht, das es nicht gibt
+  insert into auftrag_palette (auftrag_id, eingangsdatum, brutto_zettel_kg, kisten, gebindeart) values (v_a, date '2026-09-22', 448, 32, 'G2') returning id into v_z1;
+  insert into auftrag_palette (auftrag_id, eingangsdatum, brutto_zettel_kg, kisten, gebindeart) values (v_a, date '2026-09-22', 433, 32, 'G2') returning id into v_z2;
+  insert into auftrag_palette (auftrag_id, eingangsdatum, brutto_zettel_kg, kisten, gebindeart) values (v_a, date '2026-09-23', 999, 32, 'G2') returning id into v_z3;
+
+  -- (a) überall ein Bezug, eindeutig mit der Art, und einen Tag
+  select count(*), count(distinct art || '|' || bezug) into v_n, v_x from v_plausibilitaet;
+  assert not exists (select 1 from v_plausibilitaet where bezug is null) and v_n = v_x,
+    format('0128 (a1): %s Auffälligkeiten, %s verschiedene Kennungen (Art|Bezug), ohne Bezug: %s', v_n, v_x, (select count(*) from v_plausibilitaet where bezug is null));
+  assert not exists (select 1 from v_plausibilitaet where auftrag_id is not null and start_ts is null),
+    format('0128 (a2): Auffälligkeiten einer Arbeit ohne Tag: %s', (select string_agg(distinct art, ', ') from v_plausibilitaet where auftrag_id is not null and start_ts is null));
+
+  -- (b) woran sie hängt
+  assert exists (select 1 from v_plausibilitaet where art = 'Zettelgewicht' and bezug = format('zettel:%s:999.00', v_a)),
+    format('0128 (b1): das Zettelgewicht 999 kg trägt nicht „zettel:%s:999.00" (%s)', v_a, (select string_agg(bezug, ' · ') from v_plausibilitaet where auftrag_id = v_a));
+  assert exists (select 1 from v_plausibilitaet where art = 'Zettelgewicht' and bezug = format('zettel:%s:448.00:2026-09-22', v_a))
+     and exists (select 1 from v_plausibilitaet where art = 'Zettelgewicht' and bezug = format('zettel:%s:433.00:2026-09-22', v_a)),
+    format('0128 (b2): die Zettel vom 22.9. tragen nicht ihr Gewicht und Datum (%s)', (select string_agg(bezug, ' · ') from v_plausibilitaet where auftrag_id = v_a));
+  assert exists (select 1 from v_plausibilitaet where art = 'Zetteldatum' and bezug = format('zetteldatum:%s:2026-09-22', v_a)),
+    format('0128 (b3): das Zetteldatum 22.9. trägt nicht „zetteldatum:%s:2026-09-22"', v_a);
+
+  -- (c) Nummern
+  select count(*) into v_n from auffaelligkeit_nummern(array['pruef128:c', 'pruef128:a', 'pruef128:b']);
+  select nr into v_x from auffaelligkeit_nr where fall = 'pruef128:c';
+  select nr into v_y from auffaelligkeit_nr where fall = 'pruef128:b';
+  assert v_n = 3 and (select nr from auffaelligkeit_nr where fall = 'pruef128:a') = v_x + 1 and v_y = v_x + 2,
+    '0128 (c1): die Nummern folgen nicht der genannten Folge (c, a, b)';
+  perform auffaelligkeit_nummern(array['pruef128:b', 'pruef128:d', 'pruef128:a']);
+  assert (select nr from auffaelligkeit_nr where fall = 'pruef128:b') = v_y and (select nr from auffaelligkeit_nr where fall = 'pruef128:d') > v_y,
+    '0128 (c2): eine Nummer hat sich geändert, oder der Neue bekam nicht die nächste';
+  perform set_config('request.jwt.claim.sub', v_w::text, true);
+  select count(*) into v_n from auffaelligkeit_nummern(array['pruef128:e', 'pruef128:a']);
+  assert v_n = 1 and not exists (select 1 from auffaelligkeit_nr where fall = 'pruef128:e'),
+    '0128 (c3): die Halle hat eine Nummer vergeben oder liest die bekannte nicht';
+
+  -- (d) Vermerk: die Halle nicht, der Betriebsleiter ja, „korrigiert" nur über die Funktion; kein Ändern, kein Löschen
+  begin
+    set local role authenticated;
+    insert into auffaelligkeit_vermerk (fall, stand, notiz) values ('pruef128:a', 'so_lassen', 'Halle');
+    v_fehler := 'durchgelassen';
+  exception when insufficient_privilege or check_violation then v_fehler := null;
+  end;
+  reset role;
+  assert v_fehler is null, '0128 (d1): die Halle hat einen Vermerk geschrieben';
+  perform set_config('request.jwt.claim.sub', v_u::text, true);
+  set local role authenticated;
+  insert into auffaelligkeit_vermerk (fall, stand, notiz) values ('pruef128:a', 'so_lassen', 'Teilpalette — so lassen, Regel folgt');
+  begin
+    insert into auffaelligkeit_vermerk (fall, stand) values ('pruef128:a', 'korrigiert');
+    v_fehler := 'durchgelassen';
+  exception when insufficient_privilege or check_violation then v_fehler := null;
+  end;
+  reset role;
+  assert v_fehler is null, '0128 (d2): „korrigiert" liess sich an der Funktion vorbei schreiben';
+  assert (select count(*) from auffaelligkeit_vermerk where fall = 'pruef128:a') = 1
+     and (select wer from auffaelligkeit_vermerk where fall = 'pruef128:a') = v_u,
+    '0128 (d3): der Vermerk des Betriebsleiters fehlt oder trägt nicht ihn';
+  assert not has_table_privilege('authenticated', 'auffaelligkeit_vermerk', 'update')
+     and not has_table_privilege('authenticated', 'auffaelligkeit_vermerk', 'delete')
+     and not has_table_privilege('anon', 'auffaelligkeit_vermerk', 'select'),
+    '0128 (d4): Vermerke lassen sich ändern oder löschen, oder ohne Anmeldung lesen';
+
+  -- (e) korrigieren
+  begin
+    perform auffaelligkeit_korrigieren('Zetteldatum|pruef', 'zetteldatum', array[v_z1, v_z2], '2026-09-21', '2026-09-23');
+    v_fehler := 'durchgelassen';
+  exception when serialization_failure then v_fehler := null;
+  end;
+  assert v_fehler is null and (select eingangsdatum from auftrag_palette where id = v_z1) = date '2026-09-22',
+    '0128 (e1): mit einem anderen „vorher" als dem, was dasteht, wurde trotzdem geändert';
+  perform set_config('request.jwt.claim.sub', v_w::text, true);
+  begin
+    perform auffaelligkeit_korrigieren('Zetteldatum|pruef', 'zetteldatum', array[v_z1, v_z2], '2026-09-22', '2026-09-23');
+    v_fehler := 'durchgelassen';
+  exception when insufficient_privilege then v_fehler := null;
+  end;
+  assert v_fehler is null and (select eingangsdatum from auftrag_palette where id = v_z1) = date '2026-09-22',
+    '0128 (e2): die Halle hat einen Vorschlag übernommen';
+  perform set_config('request.jwt.claim.sub', v_u::text, true);
+  begin
+    perform auffaelligkeit_korrigieren('Zetteldatum|pruef', 'kisten', array[v_z1], '32', '36');
+    v_fehler := 'durchgelassen';
+  exception when raise_exception then v_fehler := null;
+  end;
+  assert v_fehler is null and (select kisten from auftrag_palette where id = v_z1) = 32,
+    '0128 (e3): ein Feld ausserhalb der Liste liess sich mit einem Klick ändern';
+  v_v := auffaelligkeit_korrigieren(format('Zetteldatum|zetteldatum:%s:2026-09-22', v_a), 'zetteldatum', array[v_z1, v_z2], '2026-09-22', '2026-09-23',
+                                    'Zettel einen Tag zu früh datiert', '{"art":"Zetteldatum"}'::jsonb);
+  assert (select count(*) from auftrag_palette where id in (v_z1, v_z2) and eingangsdatum = date '2026-09-23') = 2
+     and (select eingangsdatum from auftrag_palette where id = v_z3) = date '2026-09-23',
+    '0128 (e4): das Zetteldatum steht nicht an beiden Zetteln auf dem 23.9. (oder ein dritter wurde mitgeändert)';
+  assert not exists (select 1 from v_plausibilitaet where auftrag_id = v_a and art = 'Zetteldatum')
+     and not exists (select 1 from v_plausibilitaet where auftrag_id = v_a and bezug like '%:2026-09-22')
+     and exists (select 1 from v_plausibilitaet where bezug = format('zettel:%s:999.00', v_a)),
+    format('0128 (e5): nach dem Korrigieren stehen noch: %s', (select string_agg(art || ' ' || bezug, ' · ') from v_plausibilitaet where auftrag_id = v_a));
+  assert (select stand from auffaelligkeit_vermerk where id = v_v) = 'korrigiert'
+     and (select schnappschuss ->> 'vorher' from auffaelligkeit_vermerk where id = v_v) = '2026-09-22'
+     and (select schnappschuss ->> 'nachher' from auffaelligkeit_vermerk where id = v_v) = '2026-09-23'
+     and (select schnappschuss ->> 'art' from auffaelligkeit_vermerk where id = v_v) = 'Zetteldatum'
+     and (select wer from auffaelligkeit_vermerk where id = v_v) = v_u,
+    '0128 (e6): der Vermerk hält nicht vorher, nachher, den Fall und wer';
+
+  -- (f) „benutzen" an/ab macht die Auswertung veraltet
+  update auswertung_stand set geaendert_ts = timestamptz '2000-01-01' where id = 1;
+  insert into messung_ausschluss (art, bezug_id, grund) values ('palox', v_a, 'Prüf-0128');
+  select geaendert_ts into v_ts from auswertung_stand where id = 1;
+  assert v_ts > timestamptz '2000-01-01', '0128 (f1): ein Ausschluss („benutzen" ab) hat die Auswertung nicht veraltet gemacht';
+
+  -- aufräumen
+  delete from messung_ausschluss where art = 'palox' and bezug_id = v_a;
+  delete from auffaelligkeit_vermerk where fall like 'pruef128:%' or fall like 'Zetteldatum|%' and wer = v_u;
+  delete from auffaelligkeit_nr where fall like 'pruef128:%';
+  delete from auftrag_palette where auftrag_id = v_a; delete from auftrag where id = v_a;
+  delete from palette where charge_nr = v_c; delete from charge where nr = v_c;
+  delete from profil where id in (v_u, v_w); delete from auth.users where id in (v_u, v_w);
+
+  -- (g) Stand
+  assert schema_stand() >= 128, format('0128 (g1): schema_stand() = %s', schema_stand());
+  raise notice 'OK  0128 — jede Auffälligkeit trägt ihren Bezug und eine feste Nummer; der Stand ist ein Vermerk; ein Vorschlag ändert genau, was er sagt, nur wo noch steht, was die App sah, und hält vorher und nachher fest; „benutzen" macht die Auswertung veraltet';
+end $$;
+
+select '——— 0128 Auffälligkeiten Fall für Fall ———' as ergebnis;
+
+-- =====================================================================
+-- 0129 — Ein Punkt im Lager trägt seine Wägung
+--
+-- (a) Zwei Kontrollpaletten derselben Charge, am selben Tag gewogen, gleich
+--     lange gelagert, beide mit Faulem: zwei Punkte aus dem Lager, jeder mit
+--     seiner Wägung (messung_id = verdunstung_wiegung.id), zwei Schlüssel.
+-- (b) Der Schlüssel von erg_punkte ist über alle Punkte eindeutig — so, wie
+--     der Zeitplan ihn als Index anlegt (nulls not distinct).
+-- (c) Punkte aus Arbeiten tragen keine Wägung — die Arbeit unterscheidet sie.
+-- (d) Stand 129.
+-- =====================================================================
+do $$
+declare
+  v_u uuid := '00000000-0129-0000-0000-000000000001';
+  v_c int := 99129; v_sorte text; v_n int; v_k int; v_w1 bigint; v_w2 bigint; v_schl text; v_fehler text;
+begin
+  insert into auth.users (id, email, raw_user_meta_data) values (v_u, null, '{"name":"Prüf-0129"}');
+  update profil set rolle = 'admin' where id = v_u;
+  perform set_config('request.jwt.claim.sub', v_u::text, true);
+  select sorte into v_sorte from sorte_kaliber order by sorte limit 1;
+  insert into charge (nr, schlag, sorte, saison) values (v_c, 'Prüf-0129', v_sorte, extract(year from heute())::int);
+  insert into palette (charge_nr, eingangsdatum, brutto_kg, kisten, gebindeart, extern_id, quelle) values
+    (v_c, heute() - 30, 480, 36, 'G2', 'pruef-0129-1', 'journal-import'),
+    (v_c, heute() - 30, 482, 36, 'G2', 'pruef-0129-2', 'journal-import');
+  insert into verdunstung_wiegung (charge_nr, eingangsdatum, brutto_damals_kg, brutto_jetzt_kg, kisten, gebindeart, gemessen, wiege_ts, faul_kg, bemerkung)
+  values (v_c, heute() - 30, 480, 470, 36, 'G2', true, heute()::timestamp + interval '9 hours', 6.5, 'PRUEF0129') returning id into v_w1;
+  insert into verdunstung_wiegung (charge_nr, eingangsdatum, brutto_damals_kg, brutto_jetzt_kg, kisten, gebindeart, gemessen, wiege_ts, faul_kg, bemerkung)
+  values (v_c, heute() - 30, 482, 471, 36, 'G2', true, heute()::timestamp + interval '10 hours', 7.0, 'PRUEF0129') returning id into v_w2;
+
+  -- (a)
+  select count(*), count(distinct (charge_nr, auftrag_id, quelle, messtag, lagertage, messung_id)) into v_n, v_k
+    from v_schimmel_punkte where charge_nr = v_c and quelle = 'lager';
+  assert v_n = 2 and v_k = 2, format('0129 (a1): %s Punkte aus dem Lager, %s verschiedene Schlüssel — erwartet 2 und 2', v_n, v_k);
+  assert (select array_agg(messung_id order by messung_id) from v_schimmel_punkte where charge_nr = v_c and quelle = 'lager') = array[v_w1, v_w2],
+    '0129 (a2): die Punkte aus dem Lager tragen nicht ihre Wägung';
+
+  -- (b) der Schlüssel, wie der Zeitplan ihn anlegt
+  select ausdruck into v_schl from auswertung_schluessel() where sicht = 'erg_punkte';
+  create temp table pruef_0129 on commit drop as select * from v_schimmel_punkte;
+  begin
+    execute format('create unique index on pruef_0129 (%s) nulls not distinct', v_schl);
+    v_fehler := null;
+  exception when unique_violation then v_fehler := sqlerrm;
+  end;
+  assert v_fehler is null, format('0129 (b1): der Schlüssel von erg_punkte (%s) ist nicht eindeutig: %s', v_schl, v_fehler);
+  drop table pruef_0129;
+
+  -- (c)
+  assert not exists (select 1 from v_schimmel_punkte where quelle <> 'lager' and messung_id is not null),
+    '0129 (c1): ein Punkt aus einer Arbeit trägt eine Wägung';
+
+  delete from verdunstung_wiegung where id in (v_w1, v_w2);
+  delete from palette where charge_nr = v_c; delete from charge where nr = v_c;
+  delete from profil where id = v_u; delete from auth.users where id = v_u;
+
+  -- (d)
+  assert schema_stand() >= 129, format('0129 (d1): schema_stand() = %s', schema_stand());
+  raise notice 'OK  0129 — zwei Kontrollpaletten derselben Charge am selben Tag sind zwei Punkte mit zwei Schlüsseln; erg_punkte bekommt ihren eindeutigen Index';
+end $$;
+
+select '——— 0129 Ein Punkt im Lager trägt seine Wägung ———' as ergebnis;
