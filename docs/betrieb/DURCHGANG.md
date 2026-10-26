@@ -1,6 +1,6 @@
 # Plausibilitätsdurchgang
 
-_Stand 2026-10-25 · Quelle docs/betrieb/rohdaten (Betriebsabzug) · von `pruefstand/durchgang.mjs` geschrieben; nicht von Hand ändern._
+_Stand 2026-10-26 · Quelle docs/betrieb/rohdaten (Betriebsabzug) · von `pruefstand/durchgang.mjs` geschrieben; nicht von Hand ändern._
 
 Jede Zeile ist ein **Kandidat**, kein Urteil: eine Zahl, die so nicht sein kann oder nicht sein sollte, mit dem Grund. Die Runde am Programm liest sie, prüft die Rohzeilen und schreibt die Zweitmeinung; der Betrieb entscheidet.
 
@@ -392,29 +392,29 @@ _310 Paletten sind Vervielfachungen einer Journalzeile („n Paletten gleich", e
 ## Schwere niedrig (15)
 
 - **Arbeit offen** · Arbeit 1578 (waschen_sortieren, Charge 1638, 2026-09-23)
+  - Seit 33 Tagen offen — vergessen abzuschliessen (dann fehlt die Arbeit in der Rechnung) oder aus Versehen begonnen (dann abbrechen).
+  - _tage_offen = 33_
+- **Arbeit offen** · Arbeit 1583 (waschen, Charge 1630, 2026-09-24)
   - Seit 32 Tagen offen — vergessen abzuschliessen (dann fehlt die Arbeit in der Rechnung) oder aus Versehen begonnen (dann abbrechen).
   - _tage_offen = 32_
-- **Arbeit offen** · Arbeit 1583 (waschen, Charge 1630, 2026-09-24)
-  - Seit 31 Tagen offen — vergessen abzuschliessen (dann fehlt die Arbeit in der Rechnung) oder aus Versehen begonnen (dann abbrechen).
-  - _tage_offen = 31_
 - **Arbeit offen** · Arbeit 1590 (waschen, Charge 1612, 2026-09-26)
-  - Seit 29 Tagen offen — vergessen abzuschliessen (dann fehlt die Arbeit in der Rechnung) oder aus Versehen begonnen (dann abbrechen).
-  - _tage_offen = 29_
+  - Seit 30 Tagen offen — vergessen abzuschliessen (dann fehlt die Arbeit in der Rechnung) oder aus Versehen begonnen (dann abbrechen).
+  - _tage_offen = 30_
 - **Arbeit offen** · Arbeit 1591 (waschen, Charge 1612, 2026-09-28)
-  - Seit 27 Tagen offen — vergessen abzuschliessen (dann fehlt die Arbeit in der Rechnung) oder aus Versehen begonnen (dann abbrechen).
-  - _tage_offen = 27_
+  - Seit 28 Tagen offen — vergessen abzuschliessen (dann fehlt die Arbeit in der Rechnung) oder aus Versehen begonnen (dann abbrechen).
+  - _tage_offen = 28_
 - **Arbeit offen** · Arbeit 1593 (waschen_sortieren, Charge 1650, 2026-09-28)
+  - Seit 28 Tagen offen — vergessen abzuschliessen (dann fehlt die Arbeit in der Rechnung) oder aus Versehen begonnen (dann abbrechen).
+  - _tage_offen = 28_
+- **Arbeit offen** · Arbeit 1595 (waschen_sortieren, Charge 1617, 2026-09-29)
   - Seit 27 Tagen offen — vergessen abzuschliessen (dann fehlt die Arbeit in der Rechnung) oder aus Versehen begonnen (dann abbrechen).
   - _tage_offen = 27_
-- **Arbeit offen** · Arbeit 1595 (waschen_sortieren, Charge 1617, 2026-09-29)
+- **Arbeit offen** · Arbeit 1596 (sortieren, Charge 1611, 2026-09-30)
   - Seit 26 Tagen offen — vergessen abzuschliessen (dann fehlt die Arbeit in der Rechnung) oder aus Versehen begonnen (dann abbrechen).
   - _tage_offen = 26_
-- **Arbeit offen** · Arbeit 1596 (sortieren, Charge 1611, 2026-09-30)
-  - Seit 25 Tagen offen — vergessen abzuschliessen (dann fehlt die Arbeit in der Rechnung) oder aus Versehen begonnen (dann abbrechen).
-  - _tage_offen = 25_
 - **Arbeit offen** · Arbeit 1611 (waschen_sortieren, Charge 1611, 2026-10-06)
-  - Seit 19 Tagen offen — vergessen abzuschliessen (dann fehlt die Arbeit in der Rechnung) oder aus Versehen begonnen (dann abbrechen).
-  - _tage_offen = 19_
+  - Seit 20 Tagen offen — vergessen abzuschliessen (dann fehlt die Arbeit in der Rechnung) oder aus Versehen begonnen (dann abbrechen).
+  - _tage_offen = 20_
 - **Arbeitsdauer** · Arbeit 1580 (waschen_sortieren, Charge 1617, 2026-09-23)
   - 20.3 Stunden — wohl über Nacht offen geblieben und erst am nächsten Tag abgeschlossen; der Durchsatz je Stunde stimmt dann nicht.
   - _stunden = 20.3_

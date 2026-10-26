@@ -1,6 +1,6 @@
 # Auffälligkeiten der Messungen
 
-_Abzug vom 2026-10-25. Von `pruefstand/betrieb_abzug.mjs` geschrieben; nicht von Hand ändern._
+_Abzug vom 2026-10-26. Von `pruefstand/betrieb_abzug.mjs` geschrieben; nicht von Hand ändern._
 
 Was die Auswertung nicht in die Rechnung nimmt, weil es nicht zu seinem Nenner passt. Für die nächste Runde: Wo entsteht das im Ablauf oder in der Maske? Was ist ein Datenfehler, der dem Betrieb gehört? Was könnte die App besser abfangen?
 
@@ -16,266 +16,268 @@ Was die Auswertung nicht in die Rechnung nimmt, weil es nicht zu seinem Nenner p
 | Palox geleert | 1 |
 | Palette fraglich | 1 |
 
+**Offen: 87** von 87. Neueste zuerst; „Nr." ist die Nummer der App (Messungen → Auffälligkeiten), unter der der Betrieb den Fall nennt.
+
 ## Einzeln
 
-- **Zettelgewicht** · Charge 1598 — Illnau Bruno · Kaori Kuri · Waschen + Sortieren · 24.10.2026, 12:00 · fertig · Charge 1598 — Illnau Bruno · Kaori Kuri · Arbeit 1671
+- **Nr. 87 · Zettelgewicht** · offen · Charge 1598 — Illnau Bruno · Kaori Kuri · Waschen + Sortieren · 24.10.2026, 12:00 · fertig · Charge 1598 — Illnau Bruno · Kaori Kuri · Arbeit 1671 · `zettel:1671:459.00`
   - 1 Palette(n) mit 459.00 kg vom Zettel gezählt, aber im Wareneingang hat keine Palette dieser Charge dieses Gewicht — gerechnet wird mit der Wägung der Palette
   - _Gewicht an der Zählung prüfen (Zahlendreher?) — oder die Palette fehlt im Wareneingang (Erntejournal)._
-- **Wägung** · Charge 1719 — Oettli · Kaori Kuri · Waschen + Sortieren · 24.10.2026, 11:49 · fertig · Charge 1719 — Oettli · Kaori Kuri · Arbeit 1669
+- **Nr. 86 · Wägung** · offen · Charge 1719 — Oettli · Kaori Kuri · Waschen + Sortieren · 24.10.2026, 11:49 · fertig · Charge 1719 — Oettli · Kaori Kuri · Arbeit 1669 · `verdunstung_wiegung:399`
   - Palette gewogen, aber sie hat kein Gramm verloren — sehr wahrscheinlich wurde das Eingangsgewicht kopiert (etwa bei einer sortierten Palette, deren Zettelgewicht es nicht gibt) — sie zählt nicht in die Verdunstungsrate
   - _Eingangsdatum und Gewichte der Wägung prüfen._
-- **Zettelgewicht** · Charge 1719 — Oettli · Kaori Kuri · Waschen + Sortieren · 24.10.2026, 11:49 · fertig · Charge 1719 — Oettli · Kaori Kuri · Arbeit 1669
-  - 1 Palette(n) mit 299.00 kg vom Zettel und Eingangsdatum 21.10.2026 gezählt. Eine Palette dieses Gewichts gibt es in der Charge, aber an einem anderen Tag — gerechnet wird mit der Wägung der Palette, nicht mit der Palette selbst.
-  - _Eingangsdatum an der Zählung prüfen — oder das Datum der Palette im Wareneingang._
-- **Zettelgewicht** · Charge 1719 — Oettli · Kaori Kuri · Waschen + Sortieren · 24.10.2026, 11:49 · fertig · Charge 1719 — Oettli · Kaori Kuri · Arbeit 1669
-  - 1 Palette(n) mit 304.00 kg vom Zettel und Eingangsdatum 21.10.2026 gezählt. Eine Palette dieses Gewichts gibt es in der Charge, aber an einem anderen Tag — gerechnet wird mit der Wägung der Palette, nicht mit der Palette selbst.
-  - _Eingangsdatum an der Zählung prüfen — oder das Datum der Palette im Wareneingang._
-- **Zettelgewicht** · Charge 1719 — Oettli · Kaori Kuri · Waschen + Sortieren · 24.10.2026, 11:49 · fertig · Charge 1719 — Oettli · Kaori Kuri · Arbeit 1669
+- **Nr. 83 · Zettelgewicht** · offen · Charge 1719 — Oettli · Kaori Kuri · Waschen + Sortieren · 24.10.2026, 11:49 · fertig · Charge 1719 — Oettli · Kaori Kuri · Arbeit 1669 · `zettel:1669:255.00`
   - 1 Palette(n) mit 255.00 kg vom Zettel gezählt, aber im Wareneingang hat keine Palette dieser Charge dieses Gewicht — gerechnet wird mit der Wägung der Palette
   - _Gewicht an der Zählung prüfen (Zahlendreher?) — oder die Palette fehlt im Wareneingang (Erntejournal)._
-- **Verdunstung** · Charge 1617 — Slowgrow Uster · Orangita · Waschen + Sortieren · 24.10.2026, 11:46 · fertig · Charge 1617 — Slowgrow Uster · Orangita · Arbeit 1668
+- **Nr. 84 · Zettelgewicht** · offen · Charge 1719 — Oettli · Kaori Kuri · Waschen + Sortieren · 24.10.2026, 11:49 · fertig · Charge 1719 — Oettli · Kaori Kuri · Arbeit 1669 · `zettel:1669:299.00:2026-10-21`
+  - 1 Palette(n) mit 299.00 kg vom Zettel und Eingangsdatum 21.10.2026 gezählt. Eine Palette dieses Gewichts gibt es in der Charge, aber an einem anderen Tag — gerechnet wird mit der Wägung der Palette, nicht mit der Palette selbst.
+  - _Eingangsdatum an der Zählung prüfen — oder das Datum der Palette im Wareneingang._
+- **Nr. 85 · Zettelgewicht** · offen · Charge 1719 — Oettli · Kaori Kuri · Waschen + Sortieren · 24.10.2026, 11:49 · fertig · Charge 1719 — Oettli · Kaori Kuri · Arbeit 1669 · `zettel:1669:304.00:2026-10-21`
+  - 1 Palette(n) mit 304.00 kg vom Zettel und Eingangsdatum 21.10.2026 gezählt. Eine Palette dieses Gewichts gibt es in der Charge, aber an einem anderen Tag — gerechnet wird mit der Wägung der Palette, nicht mit der Palette selbst.
+  - _Eingangsdatum an der Zählung prüfen — oder das Datum der Palette im Wareneingang._
+- **Nr. 82 · Verdunstung** · offen · Charge 1617 — Slowgrow Uster · Orangita · Waschen + Sortieren · 24.10.2026, 11:46 · fertig · Charge 1617 — Slowgrow Uster · Orangita · Arbeit 1668 · `verdunstung_wiegung:398`
   - 1.56 % je Tag: 520 kg → 203 kg in 60 Tagen — so schnell verdunstet kein Kürbis (Grenze 1.00 % je Tag)
   - _Zettelgewicht, Kisten und Gebinde dieser Wägung prüfen — oder es ist eine andere Palette. Bis zur Korrektur zählt sie nicht in die Rate._
-- **Zettelgewicht** · Charge 1631 — Rümlang Keller · Mieluna · Waschen + Sortieren · 24.10.2026, 11:35 · fertig · Charge 1631 — Rümlang Keller · Mieluna · Arbeit 1665
+- **Nr. 81 · Zettelgewicht** · offen · Charge 1631 — Rümlang Keller · Mieluna · Waschen + Sortieren · 24.10.2026, 11:35 · fertig · Charge 1631 — Rümlang Keller · Mieluna · Arbeit 1665 · `zettel:1665:448.00`
   - 1 Palette(n) mit 448.00 kg vom Zettel gezählt, aber im Wareneingang hat keine Palette dieser Charge dieses Gewicht — gerechnet wird mit der Wägung der Palette
   - _Gewicht an der Zählung prüfen (Zahlendreher?) — oder die Palette fehlt im Wareneingang (Erntejournal)._
-- **Zettelgewicht** · Charge 1635 — Daniel Böhler · Kaori Kuri · Waschen + Sortieren · 24.10.2026, 11:32 · fertig · Charge 1635 — Daniel Böhler · Kaori Kuri · Arbeit 1664
+- **Nr. 80 · Zettelgewicht** · offen · Charge 1635 — Daniel Böhler · Kaori Kuri · Waschen + Sortieren · 24.10.2026, 11:32 · fertig · Charge 1635 — Daniel Böhler · Kaori Kuri · Arbeit 1664 · `zettel:1664:428.00:2026-09-28`
   - 1 Palette(n) mit 428.00 kg vom Zettel und Eingangsdatum 28.09.2026 gezählt. Eine Palette dieses Gewichts gibt es in der Charge, aber an einem anderen Tag — gerechnet wird mit der Wägung der Palette, nicht mit der Palette selbst.
   - _Eingangsdatum an der Zählung prüfen — oder das Datum der Palette im Wareneingang._
-- **Zettelgewicht** · Charge 1635 — Daniel Böhler · Kaori Kuri · Waschen + Sortieren · 22.10.2026, 11:38 · fertig · Charge 1635 — Daniel Böhler · Kaori Kuri · Arbeit 1658
+- **Nr. 79 · Zettelgewicht** · offen · Charge 1635 — Daniel Böhler · Kaori Kuri · Waschen + Sortieren · 22.10.2026, 11:38 · fertig · Charge 1635 — Daniel Böhler · Kaori Kuri · Arbeit 1658 · `zettel:1658:304.00`
   - 1 Palette(n) mit 304.00 kg vom Zettel gezählt, aber im Wareneingang hat keine Palette dieser Charge dieses Gewicht — gerechnet wird mit den gezählten Kisten und ihrer Tara (Zettel − Kisten × Kiste − Palette)
   - _Gewicht an der Zählung prüfen (Zahlendreher?) — oder die Palette fehlt im Wareneingang (Erntejournal)._
-- **Verdunstung** · Charge 1648 — Russikon BundB · Orange Summer · Waschen + Sortieren · 21.10.2026, 18:04 · fertig · Charge 1648 — Russikon BundB · Orange Summer · Arbeit 1655
+- **Nr. 78 · Verdunstung** · offen · Charge 1648 — Russikon BundB · Orange Summer · Waschen + Sortieren · 21.10.2026, 18:04 · fertig · Charge 1648 — Russikon BundB · Orange Summer · Arbeit 1655 · `verdunstung_wiegung:382`
   - 1.60 % je Tag: 354 kg → 126 kg in 64 Tagen — so schnell verdunstet kein Kürbis (Grenze 1.00 % je Tag)
   - _Zettelgewicht, Kisten und Gebinde dieser Wägung prüfen — oder es ist eine andere Palette. Bis zur Korrektur zählt sie nicht in die Rate._
-- **Wägung** · Charge 1611 — Negi Thalheim · Tiana · Waschen + Sortieren · 21.10.2026, 15:15 · fertig · Charge 1611 — Negi Thalheim · Tiana · Arbeit 1652
+- **Nr. 77 · Wägung** · offen · Charge 1611 — Negi Thalheim · Tiana · Waschen + Sortieren · 21.10.2026, 15:15 · fertig · Charge 1611 — Negi Thalheim · Tiana · Arbeit 1652 · `verdunstung_wiegung:369`
   - Palette gewogen, aber sie hat kein Gramm verloren — sehr wahrscheinlich wurde das Eingangsgewicht kopiert (etwa bei einer sortierten Palette, deren Zettelgewicht es nicht gibt) — sie zählt nicht in die Verdunstungsrate
   - _Eingangsdatum und Gewichte der Wägung prüfen._
-- **Zettelgewicht** · Charge 1646 — Gossau Eberhard · Butterkin · Sortieren · 17.10.2026, 10:41 · fertig · Charge 1646 — Gossau Eberhard · Butterkin · Arbeit 1640
+- **Nr. 74 · Zettelgewicht** · offen · Charge 1646 — Gossau Eberhard · Butterkin · Sortieren · 17.10.2026, 10:41 · fertig · Charge 1646 — Gossau Eberhard · Butterkin · Arbeit 1640 · `zettel:1640:380.00:2026-08-27`
   - 1 Palette(n) mit 380.00 kg vom Zettel und Eingangsdatum 27.08.2026 gezählt. Eine Palette dieses Gewichts gibt es in der Charge, aber an einem anderen Tag — gerechnet wird mit den gezählten Kisten und ihrer Tara (Zettel − Kisten × Kiste − Palette), nicht mit der Palette selbst.
   - _Eingangsdatum an der Zählung prüfen — oder das Datum der Palette im Wareneingang._
-- **Zettelgewicht** · Charge 1646 — Gossau Eberhard · Butterkin · Sortieren · 17.10.2026, 10:41 · fertig · Charge 1646 — Gossau Eberhard · Butterkin · Arbeit 1640
+- **Nr. 75 · Zettelgewicht** · offen · Charge 1646 — Gossau Eberhard · Butterkin · Sortieren · 17.10.2026, 10:41 · fertig · Charge 1646 — Gossau Eberhard · Butterkin · Arbeit 1640 · `zettel:1640:440.00:2026-09-03`
   - 1 Palette(n) mit 440.00 kg vom Zettel und Eingangsdatum 03.09.2026 gezählt. Eine Palette dieses Gewichts gibt es in der Charge, aber an einem anderen Tag — gerechnet wird mit den gezählten Kisten und ihrer Tara (Zettel − Kisten × Kiste − Palette), nicht mit der Palette selbst.
   - _Eingangsdatum an der Zählung prüfen — oder das Datum der Palette im Wareneingang._
-- **Zettelgewicht** · Charge 1646 — Gossau Eberhard · Butterkin · Sortieren · 17.10.2026, 10:41 · fertig · Charge 1646 — Gossau Eberhard · Butterkin · Arbeit 1640
+- **Nr. 76 · Zettelgewicht** · offen · Charge 1646 — Gossau Eberhard · Butterkin · Sortieren · 17.10.2026, 10:41 · fertig · Charge 1646 — Gossau Eberhard · Butterkin · Arbeit 1640 · `zettel:1640:477.00:2026-09-03`
   - 1 Palette(n) mit 477.00 kg vom Zettel und Eingangsdatum 03.09.2026 gezählt. Eine Palette dieses Gewichts gibt es in der Charge, aber an einem anderen Tag — gerechnet wird mit den gezählten Kisten und ihrer Tara (Zettel − Kisten × Kiste − Palette), nicht mit der Palette selbst.
   - _Eingangsdatum an der Zählung prüfen — oder das Datum der Palette im Wareneingang._
-- **Verdunstung** · Charge 1635 — Daniel Böhler · Kaori Kuri · Waschen + Sortieren · 16.10.2026, 14:13 · fertig · Charge 1635 — Daniel Böhler · Kaori Kuri · Arbeit 1637
+- **Nr. 73 · Verdunstung** · offen · Charge 1635 — Daniel Böhler · Kaori Kuri · Waschen + Sortieren · 16.10.2026, 14:13 · fertig · Charge 1635 — Daniel Böhler · Kaori Kuri · Arbeit 1637 · `verdunstung_wiegung:351`
   - 1.56 % je Tag: 454 kg → 246 kg in 39 Tagen — so schnell verdunstet kein Kürbis (Grenze 1.00 % je Tag)
   - _Zettelgewicht, Kisten und Gebinde dieser Wägung prüfen — oder es ist eine andere Palette. Bis zur Korrektur zählt sie nicht in die Rate._
-- **Zettelgewicht** · Charge 1635 — Daniel Böhler · Kaori Kuri · Waschen + Sortieren · 16.10.2026, 14:13 · fertig · Charge 1635 — Daniel Böhler · Kaori Kuri · Arbeit 1637
+- **Nr. 72 · Zettelgewicht** · offen · Charge 1635 — Daniel Böhler · Kaori Kuri · Waschen + Sortieren · 16.10.2026, 14:13 · fertig · Charge 1635 — Daniel Böhler · Kaori Kuri · Arbeit 1637 · `zettel:1637:519.00:2026-09-07`
   - 1 Palette(n) mit 519.00 kg vom Zettel und Eingangsdatum 07.09.2026 gezählt. Eine Palette dieses Gewichts gibt es in der Charge, aber an einem anderen Tag — gerechnet wird mit der Wägung der Palette, nicht mit der Palette selbst.
   - _Eingangsdatum an der Zählung prüfen — oder das Datum der Palette im Wareneingang._
-- **Zettelgewicht** · Charge 1631 — Rümlang Keller · Mieluna · Waschen + Sortieren · 15.10.2026, 15:30 · fertig · Charge 1631 — Rümlang Keller · Mieluna · Arbeit 1635
+- **Nr. 71 · Zettelgewicht** · offen · Charge 1631 — Rümlang Keller · Mieluna · Waschen + Sortieren · 15.10.2026, 15:30 · fertig · Charge 1631 — Rümlang Keller · Mieluna · Arbeit 1635 · `zettel:1635:425.00:2026-09-22`
   - 2 Palette(n) mit 425.00 kg vom Zettel und Eingangsdatum 22.09.2026 gezählt. Eine Palette dieses Gewichts gibt es in der Charge, aber an einem anderen Tag — gerechnet wird mit der Wägung der Palette, nicht mit der Palette selbst.
   - _Eingangsdatum an der Zählung prüfen — oder das Datum der Palette im Wareneingang._
-- **Wägung** · Charge 1623 — Agasul Rüegg · Mieluna · Waschen + Sortieren · 13.10.2026, 08:22 · fertig · Charge 1623 — Agasul Rüegg · Mieluna · Arbeit 1631
+- **Nr. 70 · Wägung** · offen · Charge 1623 — Agasul Rüegg · Mieluna · Waschen + Sortieren · 13.10.2026, 08:22 · fertig · Charge 1623 — Agasul Rüegg · Mieluna · Arbeit 1631 · `verdunstung_wiegung:335`
   - Palette gewogen, aber sie wiegt jetzt 20 kg mehr als beim Eingang, und im Lager wird keine Palette schwerer — sie zählt nicht in die Verdunstungsrate
   - _Gebindeart, Kistenzahl und beide Gewichte prüfen — meist stimmt die Tara nicht oder eine Zahl ist verdreht._
-- **Zettelgewicht** · Charge 1623 — Agasul Rüegg · Mieluna · Waschen + Sortieren · 13.10.2026, 08:22 · fertig · Charge 1623 — Agasul Rüegg · Mieluna · Arbeit 1631
+- **Nr. 69 · Zettelgewicht** · offen · Charge 1623 — Agasul Rüegg · Mieluna · Waschen + Sortieren · 13.10.2026, 08:22 · fertig · Charge 1623 — Agasul Rüegg · Mieluna · Arbeit 1631 · `zettel:1631:447.00:2026-08-13`
   - 1 Palette(n) mit 447.00 kg vom Zettel und Eingangsdatum 13.08.2026 gezählt. Eine Palette dieses Gewichts gibt es in der Charge, aber an einem anderen Tag — gerechnet wird mit der Wägung der Palette, nicht mit der Palette selbst.
   - _Eingangsdatum an der Zählung prüfen — oder das Datum der Palette im Wareneingang._
-- **Verdunstung** · Charge 1635 — Daniel Böhler · Kaori Kuri · Waschen + Sortieren · 12.10.2026, 13:08 · fertig · Charge 1635 — Daniel Böhler · Kaori Kuri · Arbeit 1626
+- **Nr. 68 · Verdunstung** · offen · Charge 1635 — Daniel Böhler · Kaori Kuri · Waschen + Sortieren · 12.10.2026, 13:08 · fertig · Charge 1635 — Daniel Böhler · Kaori Kuri · Arbeit 1626 · `verdunstung_wiegung:330`
   - 1.11 % je Tag: 448 kg → 268 kg in 46 Tagen — so schnell verdunstet kein Kürbis (Grenze 1.00 % je Tag)
   - _Zettelgewicht, Kisten und Gebinde dieser Wägung prüfen — oder es ist eine andere Palette. Bis zur Korrektur zählt sie nicht in die Rate._
-- **Zettelgewicht** · Charge 1616 — Slowgrow Uster · Lekor · Sortieren · 10.10.2026, 11:56 · fertig · Charge 1616 — Slowgrow Uster · Lekor · Arbeit 1623
+- **Nr. 67 · Zettelgewicht** · offen · Charge 1616 — Slowgrow Uster · Lekor · Sortieren · 10.10.2026, 11:56 · fertig · Charge 1616 — Slowgrow Uster · Lekor · Arbeit 1623 · `zettel:1623:398.00:2026-07-30`
   - 1 Palette(n) mit 398.00 kg vom Zettel und Eingangsdatum 30.07.2026 gezählt. Eine Palette dieses Gewichts gibt es in der Charge, aber an einem anderen Tag — gerechnet wird mit den gezählten Kisten und ihrer Tara (Zettel − Kisten × Kiste − Palette), nicht mit der Palette selbst.
   - _Eingangsdatum an der Zählung prüfen — oder das Datum der Palette im Wareneingang._
-- **Zettelgewicht** · Charge 1620 — Gossau Eberhard · Orangita · Waschen + Sortieren · 10.10.2026, 08:51 · fertig · Charge 1620 — Gossau Eberhard · Orangita · Arbeit 1622
+- **Nr. 66 · Zettelgewicht** · offen · Charge 1620 — Gossau Eberhard · Orangita · Waschen + Sortieren · 10.10.2026, 08:51 · fertig · Charge 1620 — Gossau Eberhard · Orangita · Arbeit 1622 · `zettel:1622:534.00`
   - 1 Palette(n) mit 534.00 kg vom Zettel gezählt, aber im Wareneingang hat keine Palette dieser Charge dieses Gewicht — gerechnet wird mit der Wägung der Palette
   - _Gewicht an der Zählung prüfen (Zahlendreher?) — oder die Palette fehlt im Wareneingang (Erntejournal)._
-- **Zettelgewicht** · Charge 1626 — Agasul Rüegg · Tiana · Waschen + Sortieren · 08.10.2026, 17:35 · fertig · Charge 1626 — Agasul Rüegg · Tiana · Arbeit 1619
+- **Nr. 59 · Zettelgewicht** · offen · Charge 1626 — Agasul Rüegg · Tiana · Waschen + Sortieren · 08.10.2026, 17:35 · fertig · Charge 1626 — Agasul Rüegg · Tiana · Arbeit 1619 · `zettel:1619:427.00`
   - 1 Palette(n) mit 427.00 kg vom Zettel gezählt, aber im Wareneingang hat keine Palette dieser Charge dieses Gewicht — gerechnet wird mit der Wägung der Palette
   - _Gewicht an der Zählung prüfen (Zahlendreher?) — oder die Palette fehlt im Wareneingang (Erntejournal)._
-- **Zettelgewicht** · Charge 1626 — Agasul Rüegg · Tiana · Waschen + Sortieren · 08.10.2026, 17:35 · fertig · Charge 1626 — Agasul Rüegg · Tiana · Arbeit 1619
+- **Nr. 60 · Zettelgewicht** · offen · Charge 1626 — Agasul Rüegg · Tiana · Waschen + Sortieren · 08.10.2026, 17:35 · fertig · Charge 1626 — Agasul Rüegg · Tiana · Arbeit 1619 · `zettel:1619:428.00`
   - 1 Palette(n) mit 428.00 kg vom Zettel gezählt, aber im Wareneingang hat keine Palette dieser Charge dieses Gewicht — gerechnet wird mit der Wägung der Palette
   - _Gewicht an der Zählung prüfen (Zahlendreher?) — oder die Palette fehlt im Wareneingang (Erntejournal)._
-- **Zettelgewicht** · Charge 1626 — Agasul Rüegg · Tiana · Waschen + Sortieren · 08.10.2026, 17:35 · fertig · Charge 1626 — Agasul Rüegg · Tiana · Arbeit 1619
+- **Nr. 61 · Zettelgewicht** · offen · Charge 1626 — Agasul Rüegg · Tiana · Waschen + Sortieren · 08.10.2026, 17:35 · fertig · Charge 1626 — Agasul Rüegg · Tiana · Arbeit 1619 · `zettel:1619:430.00`
   - 1 Palette(n) mit 430.00 kg vom Zettel gezählt, aber im Wareneingang hat keine Palette dieser Charge dieses Gewicht — gerechnet wird mit der Wägung der Palette
   - _Gewicht an der Zählung prüfen (Zahlendreher?) — oder die Palette fehlt im Wareneingang (Erntejournal)._
-- **Zettelgewicht** · Charge 1626 — Agasul Rüegg · Tiana · Waschen + Sortieren · 08.10.2026, 17:35 · fertig · Charge 1626 — Agasul Rüegg · Tiana · Arbeit 1619
+- **Nr. 62 · Zettelgewicht** · offen · Charge 1626 — Agasul Rüegg · Tiana · Waschen + Sortieren · 08.10.2026, 17:35 · fertig · Charge 1626 — Agasul Rüegg · Tiana · Arbeit 1619 · `zettel:1619:432.00`
   - 1 Palette(n) mit 432.00 kg vom Zettel gezählt, aber im Wareneingang hat keine Palette dieser Charge dieses Gewicht — gerechnet wird mit der Wägung der Palette
   - _Gewicht an der Zählung prüfen (Zahlendreher?) — oder die Palette fehlt im Wareneingang (Erntejournal)._
-- **Zettelgewicht** · Charge 1626 — Agasul Rüegg · Tiana · Waschen + Sortieren · 08.10.2026, 17:35 · fertig · Charge 1626 — Agasul Rüegg · Tiana · Arbeit 1619
+- **Nr. 63 · Zettelgewicht** · offen · Charge 1626 — Agasul Rüegg · Tiana · Waschen + Sortieren · 08.10.2026, 17:35 · fertig · Charge 1626 — Agasul Rüegg · Tiana · Arbeit 1619 · `zettel:1619:434.00`
   - 1 Palette(n) mit 434.00 kg vom Zettel gezählt, aber im Wareneingang hat keine Palette dieser Charge dieses Gewicht — gerechnet wird mit der Wägung der Palette
   - _Gewicht an der Zählung prüfen (Zahlendreher?) — oder die Palette fehlt im Wareneingang (Erntejournal)._
-- **Zettelgewicht** · Charge 1626 — Agasul Rüegg · Tiana · Waschen + Sortieren · 08.10.2026, 17:35 · fertig · Charge 1626 — Agasul Rüegg · Tiana · Arbeit 1619
+- **Nr. 64 · Zettelgewicht** · offen · Charge 1626 — Agasul Rüegg · Tiana · Waschen + Sortieren · 08.10.2026, 17:35 · fertig · Charge 1626 — Agasul Rüegg · Tiana · Arbeit 1619 · `zettel:1619:437.00`
   - 2 Palette(n) mit 437.00 kg vom Zettel gezählt, aber im Wareneingang hat keine Palette dieser Charge dieses Gewicht — gerechnet wird mit der Wägung der Palette
   - _Gewicht an der Zählung prüfen (Zahlendreher?) — oder die Palette fehlt im Wareneingang (Erntejournal)._
-- **Zettelgewicht** · Charge 1626 — Agasul Rüegg · Tiana · Waschen + Sortieren · 08.10.2026, 17:35 · fertig · Charge 1626 — Agasul Rüegg · Tiana · Arbeit 1619
+- **Nr. 65 · Zettelgewicht** · offen · Charge 1626 — Agasul Rüegg · Tiana · Waschen + Sortieren · 08.10.2026, 17:35 · fertig · Charge 1626 — Agasul Rüegg · Tiana · Arbeit 1619 · `zettel:1619:444.00`
   - 1 Palette(n) mit 444.00 kg vom Zettel gezählt, aber im Wareneingang hat keine Palette dieser Charge dieses Gewicht — gerechnet wird mit der Wägung der Palette
   - _Gewicht an der Zählung prüfen (Zahlendreher?) — oder die Palette fehlt im Wareneingang (Erntejournal)._
-- **Zettelgewicht** · Charge 1632 — Andi Ball · Tiana · Sortieren · 08.10.2026, 09:56 · fertig · Charge 1632 — Andi Ball · Tiana · Arbeit 1617
+- **Nr. 57 · Zettelgewicht** · offen · Charge 1632 — Andi Ball · Tiana · Sortieren · 08.10.2026, 09:56 · fertig · Charge 1632 — Andi Ball · Tiana · Arbeit 1617 · `zettel:1617:466.00:2026-09-11`
   - 1 Palette(n) mit 466.00 kg vom Zettel und Eingangsdatum 11.09.2026 gezählt. Eine Palette dieses Gewichts gibt es in der Charge, aber an einem anderen Tag — gerechnet wird mit den gezählten Kisten und ihrer Tara (Zettel − Kisten × Kiste − Palette), nicht mit der Palette selbst.
   - _Eingangsdatum an der Zählung prüfen — oder das Datum der Palette im Wareneingang._
-- **Zettelgewicht** · Charge 1632 — Andi Ball · Tiana · Sortieren · 08.10.2026, 09:56 · fertig · Charge 1632 — Andi Ball · Tiana · Arbeit 1617
+- **Nr. 58 · Zettelgewicht** · offen · Charge 1632 — Andi Ball · Tiana · Sortieren · 08.10.2026, 09:56 · fertig · Charge 1632 — Andi Ball · Tiana · Arbeit 1617 · `zettel:1617:483.00:2026-09-14`
   - 1 Palette(n) mit 483.00 kg vom Zettel und Eingangsdatum 14.09.2026 gezählt. Eine Palette dieses Gewichts gibt es in der Charge, aber an einem anderen Tag — gerechnet wird mit den gezählten Kisten und ihrer Tara (Zettel − Kisten × Kiste − Palette), nicht mit der Palette selbst.
   - _Eingangsdatum an der Zählung prüfen — oder das Datum der Palette im Wareneingang._
-- **Wägung** · Charge 1635 — Daniel Böhler · Kaori Kuri · Waschen + Sortieren · 08.10.2026, 09:40 · fertig · Charge 1635 — Daniel Böhler · Kaori Kuri · Arbeit 1616
+- **Nr. 56 · Wägung** · offen · Charge 1635 — Daniel Böhler · Kaori Kuri · Waschen + Sortieren · 08.10.2026, 09:40 · fertig · Charge 1635 — Daniel Böhler · Kaori Kuri · Arbeit 1616 · `verdunstung_wiegung:302`
   - Palette gewogen, aber sie wiegt jetzt 5 kg mehr als beim Eingang, und im Lager wird keine Palette schwerer — sie zählt nicht in die Verdunstungsrate
   - _Gebindeart, Kistenzahl und beide Gewichte prüfen — meist stimmt die Tara nicht oder eine Zahl ist verdreht._
-- **Zettelgewicht** · Charge 1635 — Daniel Böhler · Kaori Kuri · Waschen + Sortieren · 08.10.2026, 09:40 · fertig · Charge 1635 — Daniel Böhler · Kaori Kuri · Arbeit 1616
+- **Nr. 54 · Zettelgewicht** · offen · Charge 1635 — Daniel Böhler · Kaori Kuri · Waschen + Sortieren · 08.10.2026, 09:40 · fertig · Charge 1635 — Daniel Böhler · Kaori Kuri · Arbeit 1616 · `zettel:1616:200.00`
   - 1 Palette(n) mit 200.00 kg vom Zettel gezählt, aber im Wareneingang hat keine Palette dieser Charge dieses Gewicht — gerechnet wird mit der Wägung der Palette
   - _Gewicht an der Zählung prüfen (Zahlendreher?) — oder die Palette fehlt im Wareneingang (Erntejournal)._
-- **Zettelgewicht** · Charge 1635 — Daniel Böhler · Kaori Kuri · Waschen + Sortieren · 08.10.2026, 09:40 · fertig · Charge 1635 — Daniel Böhler · Kaori Kuri · Arbeit 1616
+- **Nr. 55 · Zettelgewicht** · offen · Charge 1635 — Daniel Böhler · Kaori Kuri · Waschen + Sortieren · 08.10.2026, 09:40 · fertig · Charge 1635 — Daniel Böhler · Kaori Kuri · Arbeit 1616 · `zettel:1616:342.00`
   - 1 Palette(n) mit 342.00 kg vom Zettel gezählt, aber im Wareneingang hat keine Palette dieser Charge dieses Gewicht — gerechnet wird mit den gezählten Kisten und ihrer Tara (Zettel − Kisten × Kiste − Palette)
   - _Gewicht an der Zählung prüfen (Zahlendreher?) — oder die Palette fehlt im Wareneingang (Erntejournal)._
-- **Zettelgewicht** · Charge 1638 — Klaus Böhler · Kaori Kuri · Waschen + Sortieren · 07.10.2026, 08:30 · fertig · Charge 1638 — Klaus Böhler · Kaori Kuri · Arbeit 1613
+- **Nr. 49 · Zettelgewicht** · offen · Charge 1638 — Klaus Böhler · Kaori Kuri · Waschen + Sortieren · 07.10.2026, 08:30 · fertig · Charge 1638 — Klaus Böhler · Kaori Kuri · Arbeit 1613 · `zettel:1613:160.00`
   - 1 Palette(n) mit 160.00 kg vom Zettel gezählt, aber im Wareneingang hat keine Palette dieser Charge dieses Gewicht — gerechnet wird mit den gezählten Kisten und ihrer Tara (Zettel − Kisten × Kiste − Palette)
   - _Gewicht an der Zählung prüfen (Zahlendreher?) — oder die Palette fehlt im Wareneingang (Erntejournal)._
-- **Zettelgewicht** · Charge 1638 — Klaus Böhler · Kaori Kuri · Waschen + Sortieren · 07.10.2026, 08:30 · fertig · Charge 1638 — Klaus Böhler · Kaori Kuri · Arbeit 1613
+- **Nr. 50 · Zettelgewicht** · offen · Charge 1638 — Klaus Böhler · Kaori Kuri · Waschen + Sortieren · 07.10.2026, 08:30 · fertig · Charge 1638 — Klaus Böhler · Kaori Kuri · Arbeit 1613 · `zettel:1613:298.00`
   - 1 Palette(n) mit 298.00 kg vom Zettel gezählt, aber im Wareneingang hat keine Palette dieser Charge dieses Gewicht — gerechnet wird mit den gezählten Kisten und ihrer Tara (Zettel − Kisten × Kiste − Palette)
   - _Gewicht an der Zählung prüfen (Zahlendreher?) — oder die Palette fehlt im Wareneingang (Erntejournal)._
-- **Zettelgewicht** · Charge 1638 — Klaus Böhler · Kaori Kuri · Waschen + Sortieren · 07.10.2026, 08:30 · fertig · Charge 1638 — Klaus Böhler · Kaori Kuri · Arbeit 1613
+- **Nr. 51 · Zettelgewicht** · offen · Charge 1638 — Klaus Böhler · Kaori Kuri · Waschen + Sortieren · 07.10.2026, 08:30 · fertig · Charge 1638 — Klaus Böhler · Kaori Kuri · Arbeit 1613 · `zettel:1613:304.00`
   - 1 Palette(n) mit 304.00 kg vom Zettel gezählt, aber im Wareneingang hat keine Palette dieser Charge dieses Gewicht — gerechnet wird mit den gezählten Kisten und ihrer Tara (Zettel − Kisten × Kiste − Palette)
   - _Gewicht an der Zählung prüfen (Zahlendreher?) — oder die Palette fehlt im Wareneingang (Erntejournal)._
-- **Zettelgewicht** · Charge 1638 — Klaus Böhler · Kaori Kuri · Waschen + Sortieren · 07.10.2026, 08:30 · fertig · Charge 1638 — Klaus Böhler · Kaori Kuri · Arbeit 1613
+- **Nr. 52 · Zettelgewicht** · offen · Charge 1638 — Klaus Böhler · Kaori Kuri · Waschen + Sortieren · 07.10.2026, 08:30 · fertig · Charge 1638 — Klaus Böhler · Kaori Kuri · Arbeit 1613 · `zettel:1613:306.00`
   - 1 Palette(n) mit 306.00 kg vom Zettel gezählt, aber im Wareneingang hat keine Palette dieser Charge dieses Gewicht — gerechnet wird mit den gezählten Kisten und ihrer Tara (Zettel − Kisten × Kiste − Palette)
   - _Gewicht an der Zählung prüfen (Zahlendreher?) — oder die Palette fehlt im Wareneingang (Erntejournal)._
-- **Zettelgewicht** · Charge 1638 — Klaus Böhler · Kaori Kuri · Waschen + Sortieren · 07.10.2026, 08:30 · fertig · Charge 1638 — Klaus Böhler · Kaori Kuri · Arbeit 1613
+- **Nr. 53 · Zettelgewicht** · offen · Charge 1638 — Klaus Böhler · Kaori Kuri · Waschen + Sortieren · 07.10.2026, 08:30 · fertig · Charge 1638 — Klaus Böhler · Kaori Kuri · Arbeit 1613 · `zettel:1613:316.00`
   - 1 Palette(n) mit 316.00 kg vom Zettel gezählt, aber im Wareneingang hat keine Palette dieser Charge dieses Gewicht — gerechnet wird mit den gezählten Kisten und ihrer Tara (Zettel − Kisten × Kiste − Palette)
   - _Gewicht an der Zählung prüfen (Zahlendreher?) — oder die Palette fehlt im Wareneingang (Erntejournal)._
-- **Wägung** · Charge 1611 — Negi Thalheim · Tiana · Waschen + Sortieren · 06.10.2026, 17:31 · läuft · Charge 1611 — Negi Thalheim · Tiana · Arbeit 1611
+- **Nr. 48 · Wägung** · offen · Charge 1611 — Negi Thalheim · Tiana · Waschen + Sortieren · 06.10.2026, 17:31 · läuft · Charge 1611 — Negi Thalheim · Tiana · Arbeit 1611 · `verdunstung_wiegung:291`
   - Palette gewogen, aber sie wiegt jetzt 32 kg mehr als beim Eingang, und im Lager wird keine Palette schwerer — sie zählt nicht in die Verdunstungsrate
   - _Gebindeart, Kistenzahl und beide Gewichte prüfen — meist stimmt die Tara nicht oder eine Zahl ist verdreht._
-- **Zettelgewicht** · Charge 1611 — Negi Thalheim · Tiana · Waschen + Sortieren · 06.10.2026, 17:31 · läuft · Charge 1611 — Negi Thalheim · Tiana · Arbeit 1611
+- **Nr. 47 · Zettelgewicht** · offen · Charge 1611 — Negi Thalheim · Tiana · Waschen + Sortieren · 06.10.2026, 17:31 · läuft · Charge 1611 — Negi Thalheim · Tiana · Arbeit 1611 · `zettel:1611:442.00`
   - 1 Palette(n) mit 442.00 kg vom Zettel gezählt, aber im Wareneingang hat keine Palette dieser Charge dieses Gewicht — gerechnet wird mit der Wägung der Palette
   - _Gewicht an der Zählung prüfen (Zahlendreher?) — oder die Palette fehlt im Wareneingang (Erntejournal)._
-- **Zetteldatum** · Charge 1638 — Klaus Böhler · Kaori Kuri · Waschen + Sortieren · 06.10.2026, 08:54 · fertig · Charge 1638 — Klaus Böhler · Kaori Kuri · Arbeit 1609
+- **Nr. 42 · Zetteldatum** · offen · Charge 1638 — Klaus Böhler · Kaori Kuri · Waschen + Sortieren · 06.10.2026, 08:54 · fertig · Charge 1638 — Klaus Böhler · Kaori Kuri · Arbeit 1609 · `zetteldatum:1609:2026-09-15`
   - 4 Palette(n) mit Zetteldatum 15.09.2026 gezählt, aber an dem Tag kam keine Palette dieser Charge
   - _Datum an der Zählung prüfen (Zahlendreher?) — oder die Palette fehlt im Wareneingang._
-- **Zettelgewicht** · Charge 1638 — Klaus Böhler · Kaori Kuri · Waschen + Sortieren · 06.10.2026, 08:54 · fertig · Charge 1638 — Klaus Böhler · Kaori Kuri · Arbeit 1609
+- **Nr. 43 · Zettelgewicht** · offen · Charge 1638 — Klaus Böhler · Kaori Kuri · Waschen + Sortieren · 06.10.2026, 08:54 · fertig · Charge 1638 — Klaus Böhler · Kaori Kuri · Arbeit 1609 · `zettel:1609:298.00`
   - 1 Palette(n) mit 298.00 kg vom Zettel gezählt, aber im Wareneingang hat keine Palette dieser Charge dieses Gewicht — gerechnet wird mit den gezählten Kisten und ihrer Tara (Zettel − Kisten × Kiste − Palette)
   - _Gewicht an der Zählung prüfen (Zahlendreher?) — oder die Palette fehlt im Wareneingang (Erntejournal)._
-- **Zettelgewicht** · Charge 1638 — Klaus Böhler · Kaori Kuri · Waschen + Sortieren · 06.10.2026, 08:54 · fertig · Charge 1638 — Klaus Böhler · Kaori Kuri · Arbeit 1609
+- **Nr. 45 · Zettelgewicht** · offen · Charge 1638 — Klaus Böhler · Kaori Kuri · Waschen + Sortieren · 06.10.2026, 08:54 · fertig · Charge 1638 — Klaus Böhler · Kaori Kuri · Arbeit 1609 · `zettel:1609:312.00`
   - 1 Palette(n) mit 312.00 kg vom Zettel gezählt, aber im Wareneingang hat keine Palette dieser Charge dieses Gewicht — gerechnet wird mit den gezählten Kisten und ihrer Tara (Zettel − Kisten × Kiste − Palette)
   - _Gewicht an der Zählung prüfen (Zahlendreher?) — oder die Palette fehlt im Wareneingang (Erntejournal)._
-- **Zettelgewicht** · Charge 1638 — Klaus Böhler · Kaori Kuri · Waschen + Sortieren · 06.10.2026, 08:54 · fertig · Charge 1638 — Klaus Böhler · Kaori Kuri · Arbeit 1609
+- **Nr. 44 · Zettelgewicht** · offen · Charge 1638 — Klaus Böhler · Kaori Kuri · Waschen + Sortieren · 06.10.2026, 08:54 · fertig · Charge 1638 — Klaus Böhler · Kaori Kuri · Arbeit 1609 · `zettel:1609:300.00:2026-09-15`
   - 1 Palette(n) mit 300.00 kg vom Zettel und Eingangsdatum 15.09.2026 gezählt. Eine Palette dieses Gewichts gibt es in der Charge, aber an einem anderen Tag — gerechnet wird mit den gezählten Kisten und ihrer Tara (Zettel − Kisten × Kiste − Palette), nicht mit der Palette selbst.
   - _Eingangsdatum an der Zählung prüfen — oder das Datum der Palette im Wareneingang._
-- **Zettelgewicht** · Charge 1638 — Klaus Böhler · Kaori Kuri · Waschen + Sortieren · 06.10.2026, 08:54 · fertig · Charge 1638 — Klaus Böhler · Kaori Kuri · Arbeit 1609
+- **Nr. 46 · Zettelgewicht** · offen · Charge 1638 — Klaus Böhler · Kaori Kuri · Waschen + Sortieren · 06.10.2026, 08:54 · fertig · Charge 1638 — Klaus Böhler · Kaori Kuri · Arbeit 1609 · `zettel:1609:313.00:2026-09-15`
   - 1 Palette(n) mit 313.00 kg vom Zettel und Eingangsdatum 15.09.2026 gezählt. Eine Palette dieses Gewichts gibt es in der Charge, aber an einem anderen Tag — gerechnet wird mit den gezählten Kisten und ihrer Tara (Zettel − Kisten × Kiste − Palette), nicht mit der Palette selbst.
   - _Eingangsdatum an der Zählung prüfen — oder das Datum der Palette im Wareneingang._
-- **Zettelgewicht** · Charge 1631 — Rümlang Keller · Mieluna · Waschen + Sortieren · 05.10.2026, 17:41 · fertig · Charge 1631 — Rümlang Keller · Mieluna · Arbeit 1608
+- **Nr. 41 · Zettelgewicht** · offen · Charge 1631 — Rümlang Keller · Mieluna · Waschen + Sortieren · 05.10.2026, 17:41 · fertig · Charge 1631 — Rümlang Keller · Mieluna · Arbeit 1608 · `zettel:1608:140.00`
   - 1 Palette(n) mit 140.00 kg vom Zettel gezählt, aber im Wareneingang hat keine Palette dieser Charge dieses Gewicht — gerechnet wird mit der Wägung der Palette
   - _Gewicht an der Zählung prüfen (Zahlendreher?) — oder die Palette fehlt im Wareneingang (Erntejournal)._
-- **Wägung** · Charge 1648 — Russikon BundB · Orange Summer · Waschen + Sortieren · 05.10.2026, 11:51 · fertig · Charge 1648 — Russikon BundB · Orange Summer · Arbeit 1605
+- **Nr. 40 · Wägung** · offen · Charge 1648 — Russikon BundB · Orange Summer · Waschen + Sortieren · 05.10.2026, 11:51 · fertig · Charge 1648 — Russikon BundB · Orange Summer · Arbeit 1605 · `verdunstung_wiegung:270`
   - Palette gewogen, aber sie wiegt jetzt 58 kg mehr als beim Eingang, und im Lager wird keine Palette schwerer — sie zählt nicht in die Verdunstungsrate
   - _Gebindeart, Kistenzahl und beide Gewichte prüfen — meist stimmt die Tara nicht oder eine Zahl ist verdreht._
-- **Wägung** · Charge 1648 — Russikon BundB · Orange Summer · Waschen + Sortieren · 05.10.2026, 11:51 · fertig · Charge 1648 — Russikon BundB · Orange Summer · Arbeit 1605
+- **Nr. 39 · Wägung** · offen · Charge 1648 — Russikon BundB · Orange Summer · Waschen + Sortieren · 05.10.2026, 11:51 · fertig · Charge 1648 — Russikon BundB · Orange Summer · Arbeit 1605 · `verdunstung_wiegung:269`
   - Palette gewogen, aber sie wiegt jetzt 59 kg mehr als beim Eingang, und im Lager wird keine Palette schwerer — sie zählt nicht in die Verdunstungsrate
   - _Gebindeart, Kistenzahl und beide Gewichte prüfen — meist stimmt die Tara nicht oder eine Zahl ist verdreht._
-- **Wägung** · Charge 1648 — Russikon BundB · Orange Summer · Waschen + Sortieren · 05.10.2026, 11:51 · fertig · Charge 1648 — Russikon BundB · Orange Summer · Arbeit 1605
+- **Nr. 38 · Wägung** · offen · Charge 1648 — Russikon BundB · Orange Summer · Waschen + Sortieren · 05.10.2026, 11:51 · fertig · Charge 1648 — Russikon BundB · Orange Summer · Arbeit 1605 · `verdunstung_wiegung:268`
   - Palette gewogen, aber sie wiegt jetzt 65 kg mehr als beim Eingang, und im Lager wird keine Palette schwerer — sie zählt nicht in die Verdunstungsrate
   - _Gebindeart, Kistenzahl und beide Gewichte prüfen — meist stimmt die Tara nicht oder eine Zahl ist verdreht._
-- **Verdunstung** · Charge 1623 — Agasul Rüegg · Mieluna · Waschen + Sortieren · 01.10.2026, 17:19 · fertig · Charge 1623 — Agasul Rüegg · Mieluna · Arbeit 1603
+- **Nr. 37 · Verdunstung** · offen · Charge 1623 — Agasul Rüegg · Mieluna · Waschen + Sortieren · 01.10.2026, 17:19 · fertig · Charge 1623 — Agasul Rüegg · Mieluna · Arbeit 1603 · `verdunstung_wiegung:265`
   - 1.24 % je Tag: 58 kg → 38 kg in 34 Tagen — so schnell verdunstet kein Kürbis (Grenze 1.00 % je Tag)
   - _Zettelgewicht, Kisten und Gebinde dieser Wägung prüfen — oder es ist eine andere Palette. Bis zur Korrektur zählt sie nicht in die Rate._
-- **Zettelgewicht** · Charge 1623 — Agasul Rüegg · Mieluna · Waschen + Sortieren · 01.10.2026, 17:19 · fertig · Charge 1623 — Agasul Rüegg · Mieluna · Arbeit 1603
+- **Nr. 36 · Zettelgewicht** · offen · Charge 1623 — Agasul Rüegg · Mieluna · Waschen + Sortieren · 01.10.2026, 17:19 · fertig · Charge 1623 — Agasul Rüegg · Mieluna · Arbeit 1603 · `zettel:1603:89.00`
   - 1 Palette(n) mit 89.00 kg vom Zettel gezählt, aber im Wareneingang hat keine Palette dieser Charge dieses Gewicht — gerechnet wird mit der Wägung der Palette
   - _Gewicht an der Zählung prüfen (Zahlendreher?) — oder die Palette fehlt im Wareneingang (Erntejournal)._
-- **Zettelgewicht** · Charge 1627 — Agasul Rüegg · Fictor · Waschen + Sortieren · 01.10.2026, 15:21 · fertig · Charge 1627 — Agasul Rüegg · Fictor · Arbeit 1602
+- **Nr. 32 · Zettelgewicht** · offen · Charge 1627 — Agasul Rüegg · Fictor · Waschen + Sortieren · 01.10.2026, 15:21 · fertig · Charge 1627 — Agasul Rüegg · Fictor · Arbeit 1602 · `zettel:1602:380.00:2026-09-22`
   - 1 Palette(n) mit 380.00 kg vom Zettel und Eingangsdatum 22.09.2026 gezählt. Eine Palette dieses Gewichts gibt es in der Charge, aber an einem anderen Tag — gerechnet wird mit der Wägung der Palette, nicht mit der Palette selbst.
   - _Eingangsdatum an der Zählung prüfen — oder das Datum der Palette im Wareneingang._
-- **Zettelgewicht** · Charge 1627 — Agasul Rüegg · Fictor · Waschen + Sortieren · 01.10.2026, 15:21 · fertig · Charge 1627 — Agasul Rüegg · Fictor · Arbeit 1602
+- **Nr. 33 · Zettelgewicht** · offen · Charge 1627 — Agasul Rüegg · Fictor · Waschen + Sortieren · 01.10.2026, 15:21 · fertig · Charge 1627 — Agasul Rüegg · Fictor · Arbeit 1602 · `zettel:1602:433.00:2026-09-22`
   - 2 Palette(n) mit 433.00 kg vom Zettel und Eingangsdatum 22.09.2026 gezählt. Eine Palette dieses Gewichts gibt es in der Charge, aber an einem anderen Tag — gerechnet wird mit der Wägung der Palette, nicht mit der Palette selbst.
   - _Eingangsdatum an der Zählung prüfen — oder das Datum der Palette im Wareneingang._
-- **Zettelgewicht** · Charge 1627 — Agasul Rüegg · Fictor · Waschen + Sortieren · 01.10.2026, 15:21 · fertig · Charge 1627 — Agasul Rüegg · Fictor · Arbeit 1602
+- **Nr. 34 · Zettelgewicht** · offen · Charge 1627 — Agasul Rüegg · Fictor · Waschen + Sortieren · 01.10.2026, 15:21 · fertig · Charge 1627 — Agasul Rüegg · Fictor · Arbeit 1602 · `zettel:1602:444.00:2026-09-22`
   - 1 Palette(n) mit 444.00 kg vom Zettel und Eingangsdatum 22.09.2026 gezählt. Eine Palette dieses Gewichts gibt es in der Charge, aber an einem anderen Tag — gerechnet wird mit der Wägung der Palette, nicht mit der Palette selbst.
   - _Eingangsdatum an der Zählung prüfen — oder das Datum der Palette im Wareneingang._
-- **Zettelgewicht** · Charge 1627 — Agasul Rüegg · Fictor · Waschen + Sortieren · 01.10.2026, 15:21 · fertig · Charge 1627 — Agasul Rüegg · Fictor · Arbeit 1602
+- **Nr. 35 · Zettelgewicht** · offen · Charge 1627 — Agasul Rüegg · Fictor · Waschen + Sortieren · 01.10.2026, 15:21 · fertig · Charge 1627 — Agasul Rüegg · Fictor · Arbeit 1602 · `zettel:1602:448.00:2026-09-22`
   - 1 Palette(n) mit 448.00 kg vom Zettel und Eingangsdatum 22.09.2026 gezählt. Eine Palette dieses Gewichts gibt es in der Charge, aber an einem anderen Tag — gerechnet wird mit der Wägung der Palette, nicht mit der Palette selbst.
   - _Eingangsdatum an der Zählung prüfen — oder das Datum der Palette im Wareneingang._
-- **Wägung** · Charge 1632 — Andi Ball · Tiana · Waschen + Sortieren · 01.10.2026, 08:51 · fertig · Charge 1632 — Andi Ball · Tiana · Arbeit 1600
+- **Nr. 31 · Wägung** · offen · Charge 1632 — Andi Ball · Tiana · Waschen + Sortieren · 01.10.2026, 08:51 · fertig · Charge 1632 — Andi Ball · Tiana · Arbeit 1600 · `verdunstung_wiegung:252`
   - Palette gewogen, aber sie ist nicht verwertbar — sie zählt nicht in die Verdunstungsrate
   - _Eingangsdatum und Gewichte der Wägung prüfen._
-- **Zetteldatum** · Charge 1611 — Negi Thalheim · Tiana · Sortieren · 30.09.2026, 07:27 · fertig · Charge 1611 — Negi Thalheim · Tiana · Arbeit 1597
+- **Nr. 28 · Zetteldatum** · offen · Charge 1611 — Negi Thalheim · Tiana · Sortieren · 30.09.2026, 07:27 · fertig · Charge 1611 — Negi Thalheim · Tiana · Arbeit 1597 · `zetteldatum:1597:2026-09-08`
   - 2 Palette(n) mit Zetteldatum 08.09.2026 gezählt, aber an dem Tag kam keine Palette dieser Charge
   - _Datum an der Zählung prüfen (Zahlendreher?) — oder die Palette fehlt im Wareneingang._
-- **Zettelgewicht** · Charge 1611 — Negi Thalheim · Tiana · Sortieren · 30.09.2026, 07:27 · fertig · Charge 1611 — Negi Thalheim · Tiana · Arbeit 1597
+- **Nr. 29 · Zettelgewicht** · offen · Charge 1611 — Negi Thalheim · Tiana · Sortieren · 30.09.2026, 07:27 · fertig · Charge 1611 — Negi Thalheim · Tiana · Arbeit 1597 · `zettel:1597:490.00:2026-09-08`
   - 1 Palette(n) mit 490.00 kg vom Zettel und Eingangsdatum 08.09.2026 gezählt. Eine Palette dieses Gewichts gibt es in der Charge, aber an einem anderen Tag — gerechnet wird mit den gezählten Kisten und ihrer Tara (Zettel − Kisten × Kiste − Palette), nicht mit der Palette selbst.
   - _Eingangsdatum an der Zählung prüfen — oder das Datum der Palette im Wareneingang._
-- **Zettelgewicht** · Charge 1611 — Negi Thalheim · Tiana · Sortieren · 30.09.2026, 07:27 · fertig · Charge 1611 — Negi Thalheim · Tiana · Arbeit 1597
+- **Nr. 30 · Zettelgewicht** · offen · Charge 1611 — Negi Thalheim · Tiana · Sortieren · 30.09.2026, 07:27 · fertig · Charge 1611 — Negi Thalheim · Tiana · Arbeit 1597 · `zettel:1597:502.00:2026-09-08`
   - 1 Palette(n) mit 502.00 kg vom Zettel und Eingangsdatum 08.09.2026 gezählt. Eine Palette dieses Gewichts gibt es in der Charge, aber an einem anderen Tag — gerechnet wird mit den gezählten Kisten und ihrer Tara (Zettel − Kisten × Kiste − Palette), nicht mit der Palette selbst.
   - _Eingangsdatum an der Zählung prüfen — oder das Datum der Palette im Wareneingang._
-- **Zetteldatum** · Charge 1611 — Negi Thalheim · Tiana · Sortieren · 30.09.2026, 07:24 · läuft · Charge 1611 — Negi Thalheim · Tiana · Arbeit 1596
+- **Nr. 26 · Zetteldatum** · offen · Charge 1611 — Negi Thalheim · Tiana · Sortieren · 30.09.2026, 07:24 · läuft · Charge 1611 — Negi Thalheim · Tiana · Arbeit 1596 · `zetteldatum:1596:2026-09-14`
   - 1 Palette(n) mit Zetteldatum 14.09.2026 gezählt, aber an dem Tag kam keine Palette dieser Charge
   - _Datum an der Zählung prüfen (Zahlendreher?) — oder die Palette fehlt im Wareneingang._
-- **Zettelgewicht** · Charge 1611 — Negi Thalheim · Tiana · Sortieren · 30.09.2026, 07:24 · läuft · Charge 1611 — Negi Thalheim · Tiana · Arbeit 1596
+- **Nr. 27 · Zettelgewicht** · offen · Charge 1611 — Negi Thalheim · Tiana · Sortieren · 30.09.2026, 07:24 · läuft · Charge 1611 — Negi Thalheim · Tiana · Arbeit 1596 · `zettel:1596:471.00:2026-09-14`
   - 1 Palette(n) mit 471.00 kg vom Zettel und Eingangsdatum 14.09.2026 gezählt. Eine Palette dieses Gewichts gibt es in der Charge, aber an einem anderen Tag — gerechnet wird mit den gezählten Kisten und ihrer Tara (Zettel − Kisten × Kiste − Palette), nicht mit der Palette selbst.
   - _Eingangsdatum an der Zählung prüfen — oder das Datum der Palette im Wareneingang._
-- **Zetteldatum** · Charge 1613 — Slowgrow Uster · Tiana · Waschen + Sortieren · 26.09.2026, 08:06 · fertig · Charge 1613 — Slowgrow Uster · Tiana · Arbeit 1589
+- **Nr. 22 · Zetteldatum** · offen · Charge 1613 — Slowgrow Uster · Tiana · Waschen + Sortieren · 26.09.2026, 08:06 · fertig · Charge 1613 — Slowgrow Uster · Tiana · Arbeit 1589 · `zetteldatum:1589:2026-09-15`
   - 2 Palette(n) mit Zetteldatum 15.09.2026 gezählt, aber an dem Tag kam keine Palette dieser Charge
   - _Datum an der Zählung prüfen (Zahlendreher?) — oder die Palette fehlt im Wareneingang._
-- **Zettelgewicht** · Charge 1613 — Slowgrow Uster · Tiana · Waschen + Sortieren · 26.09.2026, 08:06 · fertig · Charge 1613 — Slowgrow Uster · Tiana · Arbeit 1589
+- **Nr. 23 · Zettelgewicht** · offen · Charge 1613 — Slowgrow Uster · Tiana · Waschen + Sortieren · 26.09.2026, 08:06 · fertig · Charge 1613 — Slowgrow Uster · Tiana · Arbeit 1589 · `zettel:1589:175.00`
   - 1 Palette(n) mit 175.00 kg vom Zettel gezählt, aber im Wareneingang hat keine Palette dieser Charge dieses Gewicht — gerechnet wird mit den gezählten Kisten und ihrer Tara (Zettel − Kisten × Kiste − Palette)
   - _Gewicht an der Zählung prüfen (Zahlendreher?) — oder die Palette fehlt im Wareneingang (Erntejournal)._
-- **Zettelgewicht** · Charge 1613 — Slowgrow Uster · Tiana · Waschen + Sortieren · 26.09.2026, 08:06 · fertig · Charge 1613 — Slowgrow Uster · Tiana · Arbeit 1589
+- **Nr. 24 · Zettelgewicht** · offen · Charge 1613 — Slowgrow Uster · Tiana · Waschen + Sortieren · 26.09.2026, 08:06 · fertig · Charge 1613 — Slowgrow Uster · Tiana · Arbeit 1589 · `zettel:1589:468.00:2026-09-15`
   - 1 Palette(n) mit 468.00 kg vom Zettel und Eingangsdatum 15.09.2026 gezählt. Eine Palette dieses Gewichts gibt es in der Charge, aber an einem anderen Tag — gerechnet wird mit der Wägung der Palette, nicht mit der Palette selbst.
   - _Eingangsdatum an der Zählung prüfen — oder das Datum der Palette im Wareneingang._
-- **Zettelgewicht** · Charge 1613 — Slowgrow Uster · Tiana · Waschen + Sortieren · 26.09.2026, 08:06 · fertig · Charge 1613 — Slowgrow Uster · Tiana · Arbeit 1589
+- **Nr. 25 · Zettelgewicht** · offen · Charge 1613 — Slowgrow Uster · Tiana · Waschen + Sortieren · 26.09.2026, 08:06 · fertig · Charge 1613 — Slowgrow Uster · Tiana · Arbeit 1589 · `zettel:1589:505.00:2026-09-15`
   - 1 Palette(n) mit 505.00 kg vom Zettel und Eingangsdatum 15.09.2026 gezählt. Eine Palette dieses Gewichts gibt es in der Charge, aber an einem anderen Tag — gerechnet wird mit den gezählten Kisten und ihrer Tara (Zettel − Kisten × Kiste − Palette), nicht mit der Palette selbst.
   - _Eingangsdatum an der Zählung prüfen — oder das Datum der Palette im Wareneingang._
-- **Zettelgewicht** · Charge 1650 — Rümlang Sauter · Tiana · Waschen + Sortieren · 24.09.2026, 15:25 · fertig · Charge 1650 — Rümlang Sauter · Tiana · Arbeit 1585
+- **Nr. 19 · Zettelgewicht** · offen · Charge 1650 — Rümlang Sauter · Tiana · Waschen + Sortieren · 24.09.2026, 15:25 · fertig · Charge 1650 — Rümlang Sauter · Tiana · Arbeit 1585 · `zettel:1585:221.00`
   - 1 Palette(n) mit 221.00 kg vom Zettel gezählt, aber im Wareneingang hat keine Palette dieser Charge dieses Gewicht — gerechnet wird mit den gezählten Kisten und ihrer Tara (Zettel − Kisten × Kiste − Palette)
   - _Gewicht an der Zählung prüfen (Zahlendreher?) — oder die Palette fehlt im Wareneingang (Erntejournal)._
-- **Zettelgewicht** · Charge 1650 — Rümlang Sauter · Tiana · Waschen + Sortieren · 24.09.2026, 15:25 · fertig · Charge 1650 — Rümlang Sauter · Tiana · Arbeit 1585
+- **Nr. 20 · Zettelgewicht** · offen · Charge 1650 — Rümlang Sauter · Tiana · Waschen + Sortieren · 24.09.2026, 15:25 · fertig · Charge 1650 — Rümlang Sauter · Tiana · Arbeit 1585 · `zettel:1585:232.00`
   - 1 Palette(n) mit 232.00 kg vom Zettel gezählt, aber im Wareneingang hat keine Palette dieser Charge dieses Gewicht — gerechnet wird mit den gezählten Kisten und ihrer Tara (Zettel − Kisten × Kiste − Palette)
   - _Gewicht an der Zählung prüfen (Zahlendreher?) — oder die Palette fehlt im Wareneingang (Erntejournal)._
-- **Zettelgewicht** · Charge 1650 — Rümlang Sauter · Tiana · Waschen + Sortieren · 24.09.2026, 15:25 · fertig · Charge 1650 — Rümlang Sauter · Tiana · Arbeit 1585
+- **Nr. 21 · Zettelgewicht** · offen · Charge 1650 — Rümlang Sauter · Tiana · Waschen + Sortieren · 24.09.2026, 15:25 · fertig · Charge 1650 — Rümlang Sauter · Tiana · Arbeit 1585 · `zettel:1585:456.00:2026-09-08`
   - 1 Palette(n) mit 456.00 kg vom Zettel und Eingangsdatum 08.09.2026 gezählt. Eine Palette dieses Gewichts gibt es in der Charge, aber an einem anderen Tag — gerechnet wird mit den gezählten Kisten und ihrer Tara (Zettel − Kisten × Kiste − Palette), nicht mit der Palette selbst.
   - _Eingangsdatum an der Zählung prüfen — oder das Datum der Palette im Wareneingang._
-- **Wägung** · Charge 1651 — Rümlang Sauter · Kaori Kuri · Waschen + Sortieren · 24.09.2026, 13:36 · fertig · Charge 1651 — Rümlang Sauter · Kaori Kuri · Arbeit 1584
+- **Nr. 18 · Wägung** · offen · Charge 1651 — Rümlang Sauter · Kaori Kuri · Waschen + Sortieren · 24.09.2026, 13:36 · fertig · Charge 1651 — Rümlang Sauter · Kaori Kuri · Arbeit 1584 · `verdunstung_wiegung:244`
   - Palette gewogen, aber sie ist nicht verwertbar — sie zählt nicht in die Verdunstungsrate
   - _Eingangsdatum und Gewichte der Wägung prüfen._
-- **Zettelgewicht** · Charge 1651 — Rümlang Sauter · Kaori Kuri · Waschen + Sortieren · 24.09.2026, 13:36 · fertig · Charge 1651 — Rümlang Sauter · Kaori Kuri · Arbeit 1584
+- **Nr. 17 · Zettelgewicht** · offen · Charge 1651 — Rümlang Sauter · Kaori Kuri · Waschen + Sortieren · 24.09.2026, 13:36 · fertig · Charge 1651 — Rümlang Sauter · Kaori Kuri · Arbeit 1584 · `zettel:1584:498.00`
   - 1 Palette(n) mit 498.00 kg vom Zettel gezählt, aber im Wareneingang hat keine Palette dieser Charge dieses Gewicht — gerechnet wird mit der Wägung der Palette
   - _Gewicht an der Zählung prüfen (Zahlendreher?) — oder die Palette fehlt im Wareneingang (Erntejournal)._
-- **Palette fraglich** · Charge 1651 — Rümlang Sauter · Kaori Kuri · Waschen + Sortieren · 24.09.2026, 13:36 · fertig · Charge 1651 — Rümlang Sauter · Kaori Kuri · Arbeit 1584
+- **Nr. 16 · Palette fraglich** · offen · Charge 1651 — Rümlang Sauter · Kaori Kuri · Waschen + Sortieren · 24.09.2026, 13:36 · fertig · Charge 1651 — Rümlang Sauter · Kaori Kuri · Arbeit 1584 · `ausschuss_messung:222`
   - Zu gross: 44.00 kg brutto in 2 Kiste(n) G2, mit Palette gewogen — davon bleiben 16 kg netto. Eine leere Palette wiegt allein 25.000 kg.
   - _Standen die Kisten direkt auf der Waage? Dann in der Korrektur „mit Palette" abwählen — das Netto rechnet sich von selbst neu._
-- **Zettelgewicht** · Charge 1632 — Andi Ball · Tiana · Waschen + Sortieren · 23.09.2026, 16:15 · fertig · Charge 1632 — Andi Ball · Tiana · Arbeit 1579
+- **Nr. 15 · Zettelgewicht** · offen · Charge 1632 — Andi Ball · Tiana · Waschen + Sortieren · 23.09.2026, 16:15 · fertig · Charge 1632 — Andi Ball · Tiana · Arbeit 1579 · `zettel:1579:258.00`
   - 1 Palette(n) mit 258.00 kg vom Zettel gezählt, aber im Wareneingang hat keine Palette dieser Charge dieses Gewicht — gerechnet wird mit der Wägung der Palette
   - _Gewicht an der Zählung prüfen (Zahlendreher?) — oder die Palette fehlt im Wareneingang (Erntejournal)._
-- **Zettelgewicht** · Charge 1630 — Rümlang Keller · Kaori Kuri · Sortieren · 23.09.2026, 13:32 · fertig · Charge 1630 — Rümlang Keller · Kaori Kuri · Arbeit 1577
+- **Nr. 14 · Zettelgewicht** · offen · Charge 1630 — Rümlang Keller · Kaori Kuri · Sortieren · 23.09.2026, 13:32 · fertig · Charge 1630 — Rümlang Keller · Kaori Kuri · Arbeit 1577 · `zettel:1577:429.00`
   - 1 Palette(n) mit 429.00 kg vom Zettel gezählt, aber im Wareneingang hat keine Palette dieser Charge dieses Gewicht — gerechnet wird mit den gezählten Kisten und ihrer Tara (Zettel − Kisten × Kiste − Palette)
   - _Gewicht an der Zählung prüfen (Zahlendreher?) — oder die Palette fehlt im Wareneingang (Erntejournal)._
-- **Überzählung** · Charge 1626 — Agasul Rüegg · Tiana
-  - Die Lieferungen dieser Charge (7444 kg) brauchen nach der gerechneten Ausbeute (93 % verkaufsfähig) 7994 kg Eingang — erfasst sind 4863 kg, also 3131 kg zu wenig. Geliefert wurde nicht mehr als eingelagert; es wurde mehr geliefert, als die Rechnung aus diesem Eingang erwartet.
+- **Nr. 12 · Überzählung** · offen · Charge 1626 — Agasul Rüegg · Tiana · `charge:1626`
+  - Die Lieferungen dieser Charge (7444 kg) brauchen nach der gerechneten Ausbeute (94 % verkaufsfähig) 7924 kg Eingang — erfasst sind 4863 kg, also 3061 kg zu wenig. Geliefert wurde nicht mehr als eingelagert; es wurde mehr geliefert, als die Rechnung aus diesem Eingang erwartet.
   - _Drei Möglichkeiten: Im Erntejournal fehlt eine Palette dieser Charge; ein Lieferschein ist auf die falsche Chargennummer gebucht; oder diese Charge hat weniger Verlust als das Modell annimmt — dann ist „Im Lager" für sie zu klein gerechnet. Die ersten zwei lassen sich nachtragen._
-- **Überzählung** · Charge 1627 — Agasul Rüegg · Fictor
+- **Nr. 13 · Überzählung** · offen · Charge 1627 — Agasul Rüegg · Fictor · `charge:1627`
   - Die Lieferungen dieser Charge (1416 kg) brauchen nach der gerechneten Ausbeute (57 % verkaufsfähig) 2502 kg Eingang — erfasst sind 2012 kg, also 489 kg zu wenig. Geliefert wurde nicht mehr als eingelagert; es wurde mehr geliefert, als die Rechnung aus diesem Eingang erwartet.
   - _Drei Möglichkeiten: Im Erntejournal fehlt eine Palette dieser Charge; ein Lieferschein ist auf die falsche Chargennummer gebucht; oder diese Charge hat weniger Verlust als das Modell annimmt — dann ist „Im Lager" für sie zu klein gerechnet. Die ersten zwei lassen sich nachtragen._
-- **Zettelgewicht** · Charge 1651 — Rümlang Sauter · Kaori Kuri · Waschen + Sortieren · 22.09.2026, 07:36 · fertig · Charge 1651 — Rümlang Sauter · Kaori Kuri · Arbeit 1573
+- **Nr. 10 · Zettelgewicht** · offen · Charge 1651 — Rümlang Sauter · Kaori Kuri · Waschen + Sortieren · 22.09.2026, 07:36 · fertig · Charge 1651 — Rümlang Sauter · Kaori Kuri · Arbeit 1573 · `zettel:1573:237.00`
   - 1 Palette(n) mit 237.00 kg vom Zettel gezählt, aber im Wareneingang hat keine Palette dieser Charge dieses Gewicht — gerechnet wird mit den gezählten Kisten und ihrer Tara (Zettel − Kisten × Kiste − Palette)
   - _Gewicht an der Zählung prüfen (Zahlendreher?) — oder die Palette fehlt im Wareneingang (Erntejournal)._
-- **Zettelgewicht** · Charge 1651 — Rümlang Sauter · Kaori Kuri · Waschen + Sortieren · 22.09.2026, 07:36 · fertig · Charge 1651 — Rümlang Sauter · Kaori Kuri · Arbeit 1573
+- **Nr. 11 · Zettelgewicht** · offen · Charge 1651 — Rümlang Sauter · Kaori Kuri · Waschen + Sortieren · 22.09.2026, 07:36 · fertig · Charge 1651 — Rümlang Sauter · Kaori Kuri · Arbeit 1573 · `zettel:1573:288.00`
   - 1 Palette(n) mit 288.00 kg vom Zettel gezählt, aber im Wareneingang hat keine Palette dieser Charge dieses Gewicht — gerechnet wird mit den gezählten Kisten und ihrer Tara (Zettel − Kisten × Kiste − Palette)
   - _Gewicht an der Zählung prüfen (Zahlendreher?) — oder die Palette fehlt im Wareneingang (Erntejournal)._
-- **Palox geleert** · Charge 1650 — Rümlang Sauter · Tiana · Waschen + Sortieren · 21.09.2026, 14:05 · fertig · Charge 1650 — Rümlang Sauter · Tiana · Arbeit 1569
+- **Nr. 9 · Palox geleert** · offen · Charge 1650 — Rümlang Sauter · Tiana · Waschen + Sortieren · 21.09.2026, 14:05 · fertig · Charge 1650 — Rümlang Sauter · Tiana · Arbeit 1569 · `schimmel_messung:2894`
   - Der Waagenstand fiel von 229.00 auf 55.00 kg — der Palox wurde zwischendurch geleert. Wie viel davor noch dazukam, weiss niemand; das Faule dieser Arbeit ist unbekannt.
   - _Nichts zu korrigieren. Beim nächsten Mal in der Checkliste „Palox leeren" drücken: vor dem Leeren ablesen, danach die leere Box — dann bleibt die Menge bekannt._
-- **Zettelgewicht** · Charge 1650 — Rümlang Sauter · Tiana · Waschen + Sortieren · 21.09.2026, 14:05 · fertig · Charge 1650 — Rümlang Sauter · Tiana · Arbeit 1569
+- **Nr. 8 · Zettelgewicht** · offen · Charge 1650 — Rümlang Sauter · Tiana · Waschen + Sortieren · 21.09.2026, 14:05 · fertig · Charge 1650 — Rümlang Sauter · Tiana · Arbeit 1569 · `zettel:1569:235.00`
   - 1 Palette(n) mit 235.00 kg vom Zettel gezählt, aber im Wareneingang hat keine Palette dieser Charge dieses Gewicht — gerechnet wird mit den gezählten Kisten und ihrer Tara (Zettel − Kisten × Kiste − Palette)
   - _Gewicht an der Zählung prüfen (Zahlendreher?) — oder die Palette fehlt im Wareneingang (Erntejournal)._
-- **Überzählung** · Charge 1650 — Rümlang Sauter · Tiana
-  - Die Lieferungen dieser Charge (8421 kg) brauchen nach der gerechneten Ausbeute (88 % verkaufsfähig) 9531 kg Eingang — erfasst sind 9048 kg, also 483 kg zu wenig. Geliefert wurde nicht mehr als eingelagert; es wurde mehr geliefert, als die Rechnung aus diesem Eingang erwartet.
+- **Nr. 7 · Überzählung** · offen · Charge 1650 — Rümlang Sauter · Tiana · `charge:1650`
+  - Die Lieferungen dieser Charge (8421 kg) brauchen nach der gerechneten Ausbeute (89 % verkaufsfähig) 9465 kg Eingang — erfasst sind 9048 kg, also 417 kg zu wenig. Geliefert wurde nicht mehr als eingelagert; es wurde mehr geliefert, als die Rechnung aus diesem Eingang erwartet.
   - _Drei Möglichkeiten: Im Erntejournal fehlt eine Palette dieser Charge; ein Lieferschein ist auf die falsche Chargennummer gebucht; oder diese Charge hat weniger Verlust als das Modell annimmt — dann ist „Im Lager" für sie zu klein gerechnet. Die ersten zwei lassen sich nachtragen._
-- **Überzählung** · Charge 1624 — Agasul Rüegg · Butterkin
+- **Nr. 6 · Überzählung** · offen · Charge 1624 — Agasul Rüegg · Butterkin · `charge:1624`
   - Die Lieferungen dieser Charge (16818 kg) brauchen nach der gerechneten Ausbeute (71 % verkaufsfähig) 23838 kg Eingang — erfasst sind 16788 kg, also 7050 kg zu wenig. Geliefert wurde nicht mehr als eingelagert; es wurde mehr geliefert, als die Rechnung aus diesem Eingang erwartet.
   - _Drei Möglichkeiten: Im Erntejournal fehlt eine Palette dieser Charge; ein Lieferschein ist auf die falsche Chargennummer gebucht; oder diese Charge hat weniger Verlust als das Modell annimmt — dann ist „Im Lager" für sie zu klein gerechnet. Die ersten zwei lassen sich nachtragen._
-- **Überzählung** · Charge 1620 — Gossau Eberhard · Orangita
+- **Nr. 5 · Überzählung** · offen · Charge 1620 — Gossau Eberhard · Orangita · `charge:1620`
   - Die Lieferungen dieser Charge (6542 kg) brauchen nach der gerechneten Ausbeute (70 % verkaufsfähig) 9288 kg Eingang — erfasst sind 8827 kg, also 461 kg zu wenig. Geliefert wurde nicht mehr als eingelagert; es wurde mehr geliefert, als die Rechnung aus diesem Eingang erwartet.
   - _Drei Möglichkeiten: Im Erntejournal fehlt eine Palette dieser Charge; ein Lieferschein ist auf die falsche Chargennummer gebucht; oder diese Charge hat weniger Verlust als das Modell annimmt — dann ist „Im Lager" für sie zu klein gerechnet. Die ersten zwei lassen sich nachtragen._
-- **Überzählung** · Charge 1630 — Rümlang Keller · Kaori Kuri
-  - Die Lieferungen dieser Charge (15055 kg) brauchen nach der gerechneten Ausbeute (69 % verkaufsfähig) 21714 kg Eingang — erfasst sind 19318 kg, also 2396 kg zu wenig. Geliefert wurde nicht mehr als eingelagert; es wurde mehr geliefert, als die Rechnung aus diesem Eingang erwartet.
+- **Nr. 4 · Überzählung** · offen · Charge 1630 — Rümlang Keller · Kaori Kuri · `charge:1630`
+  - Die Lieferungen dieser Charge (15055 kg) brauchen nach der gerechneten Ausbeute (69 % verkaufsfähig) 21719 kg Eingang — erfasst sind 19318 kg, also 2401 kg zu wenig. Geliefert wurde nicht mehr als eingelagert; es wurde mehr geliefert, als die Rechnung aus diesem Eingang erwartet.
   - _Drei Möglichkeiten: Im Erntejournal fehlt eine Palette dieser Charge; ein Lieferschein ist auf die falsche Chargennummer gebucht; oder diese Charge hat weniger Verlust als das Modell annimmt — dann ist „Im Lager" für sie zu klein gerechnet. Die ersten zwei lassen sich nachtragen._
-- **Überzählung** · Charge 1619 — Gossau Eberhard · Kaori Kuri
-  - Die Lieferungen dieser Charge (3672 kg) brauchen nach der gerechneten Ausbeute (82 % verkaufsfähig) 4473 kg Eingang — erfasst sind 4281 kg, also 192 kg zu wenig. Geliefert wurde nicht mehr als eingelagert; es wurde mehr geliefert, als die Rechnung aus diesem Eingang erwartet.
+- **Nr. 3 · Überzählung** · offen · Charge 1619 — Gossau Eberhard · Kaori Kuri · `charge:1619`
+  - Die Lieferungen dieser Charge (3672 kg) brauchen nach der gerechneten Ausbeute (82 % verkaufsfähig) 4468 kg Eingang — erfasst sind 4281 kg, also 187 kg zu wenig. Geliefert wurde nicht mehr als eingelagert; es wurde mehr geliefert, als die Rechnung aus diesem Eingang erwartet.
   - _Drei Möglichkeiten: Im Erntejournal fehlt eine Palette dieser Charge; ein Lieferschein ist auf die falsche Chargennummer gebucht; oder diese Charge hat weniger Verlust als das Modell annimmt — dann ist „Im Lager" für sie zu klein gerechnet. Die ersten zwei lassen sich nachtragen._
-- **Überzählung** · Charge 1614 — Slowgrow Uster · Kaori Kuri
-  - Die Lieferungen dieser Charge (9109 kg) brauchen nach der gerechneten Ausbeute (78 % verkaufsfähig) 11642 kg Eingang — erfasst sind 10559 kg, also 1083 kg zu wenig. Geliefert wurde nicht mehr als eingelagert; es wurde mehr geliefert, als die Rechnung aus diesem Eingang erwartet.
+- **Nr. 2 · Überzählung** · offen · Charge 1614 — Slowgrow Uster · Kaori Kuri · `charge:1614`
+  - Die Lieferungen dieser Charge (9109 kg) brauchen nach der gerechneten Ausbeute (78 % verkaufsfähig) 11634 kg Eingang — erfasst sind 10559 kg, also 1076 kg zu wenig. Geliefert wurde nicht mehr als eingelagert; es wurde mehr geliefert, als die Rechnung aus diesem Eingang erwartet.
   - _Drei Möglichkeiten: Im Erntejournal fehlt eine Palette dieser Charge; ein Lieferschein ist auf die falsche Chargennummer gebucht; oder diese Charge hat weniger Verlust als das Modell annimmt — dann ist „Im Lager" für sie zu klein gerechnet. Die ersten zwei lassen sich nachtragen._
-- **Überzählung** · Charge 1625 — Agasul Rüegg · Amoro
+- **Nr. 1 · Überzählung** · offen · Charge 1625 — Agasul Rüegg · Amoro · `charge:1625`
   - Die Lieferungen dieser Charge (7411 kg) brauchen nach der gerechneten Ausbeute (74 % verkaufsfähig) 10047 kg Eingang — erfasst sind 9549 kg, also 498 kg zu wenig. Geliefert wurde nicht mehr als eingelagert; es wurde mehr geliefert, als die Rechnung aus diesem Eingang erwartet.
   - _Drei Möglichkeiten: Im Erntejournal fehlt eine Palette dieser Charge; ein Lieferschein ist auf die falsche Chargennummer gebucht; oder diese Charge hat weniger Verlust als das Modell annimmt — dann ist „Im Lager" für sie zu klein gerechnet. Die ersten zwei lassen sich nachtragen._

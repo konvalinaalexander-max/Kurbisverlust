@@ -1,10 +1,10 @@
 # Stand der Modelle
 
-_Abzug vom 2026-10-25. Von `pruefstand/betrieb_abzug.mjs` geschrieben; nicht von Hand ändern._
+_Abzug vom 2026-10-26. Von `pruefstand/betrieb_abzug.mjs` geschrieben; nicht von Hand ändern._
 
-Gerechnet: 25.10.2026, 02:00 (17 s) · Einstellungen: saison_aktuell = 2026 · betriebsmodus = "echt" · erfassung_scharf = false · verdunstung_rate_max_pro_tag = 0.01
+Gerechnet: 26.10.2026, 08:35 (16 s) · Einstellungen: saison_aktuell = 2026 · betriebsmodus = "echt" · erfassung_scharf = false · verdunstung_rate_max_pro_tag = 0.01
 
-**Zeitplan läuft** (*/1 * * * *) · letzter Lauf 25.10.2026, 10:11 · succeeded · 0 s · 1 row
+**Zeitplan läuft** (*/1 * * * *) · letzter Lauf 26.10.2026, 11:11 · succeeded · 0 s · 1 row
 
 Für die nächste Runde: Passen die Zahlen zu dem, was die Saison zeigen sollte (docs/SAISONBEGLEITUNG.md)? Wo steht ein Koeffizient auf „Wiegungen aller Sorten", weil die eigenen fehlen? Wo ist ein Band leer, wo ist die Basis dünn?
 
@@ -13,14 +13,14 @@ Für die nächste Runde: Passen die Zahlen zu dem, was die Saison zeigen sollte 
 | sorte | mittel | unten | oben | n | basis |
 |---|---|---|---|---|---|
 | Orangita | 0.0025 | 0.0018 | 0.0033 | 9 | Wiegungen dieser Sorte |
-| Butterkin | 0.0038 | 0.0035 | 0.0042 | 6 | Wiegungen dieser Sorte |
-| Orange Summer | 0.0024 | 0.0022 | 0.0027 | 17 | Wiegungen dieser Sorte |
-| Fictor | 0.005 | 0.0023 | 0.0078 | 5 | Wiegungen dieser Sorte |
 | Kaori Kuri | 0.0035 | 0.0026 | 0.0044 | 27 | Wiegungen dieser Sorte |
-| Amoro | 0.0026 | 0.0024 | 0.0029 | 0 | Wiegungen aller Sorten (eigene: 0, gilt ab 3) |
-| Bolp 5110 | 0.0026 | 0.0024 | 0.0029 | 0 | Wiegungen aller Sorten (eigene: 0, gilt ab 3) |
 | Mieluna | 0.002 | 0.0015 | 0.0024 | 46 | Wiegungen dieser Sorte |
+| Amoro | 0.0026 | 0.0024 | 0.0029 | 0 | Wiegungen aller Sorten (eigene: 0, gilt ab 3) |
+| Butterkin | 0.0038 | 0.0035 | 0.0042 | 6 | Wiegungen dieser Sorte |
+| Bolp 5110 | 0.0026 | 0.0024 | 0.0029 | 0 | Wiegungen aller Sorten (eigene: 0, gilt ab 3) |
+| Orange Summer | 0.0024 | 0.0022 | 0.0027 | 17 | Wiegungen dieser Sorte |
 | Lekor | 0.0026 | 0.0024 | 0.0029 | 0 | Wiegungen aller Sorten (eigene: 0, gilt ab 3) |
+| Fictor | 0.005 | 0.0023 | 0.0078 | 5 | Wiegungen dieser Sorte |
 | Tiana | 0.0025 | 0.0022 | 0.0029 | 46 | Wiegungen dieser Sorte |
 | Ker Madec | 0.0026 | 0.0024 | 0.0029 | 0 | Wiegungen aller Sorten (eigene: 0, gilt ab 3) |
 
@@ -28,32 +28,32 @@ Für die nächste Runde: Passen die Zahlen zu dem, was die Saison zeigen sollte 
 
 | sorte | mittel | unten | oben | n | basis |
 |---|---|---|---|---|---|
-| Butterkin | 0.0029 | 0 | 0.0069 | 3 | Sortierläufe/Handmessungen dieser Sorte |
-| Orange Summer | 0.0466 | 0 | 0.1203 | 3 | Sortierläufe/Handmessungen dieser Sorte |
-| Fictor | 0.0128 | 0.0072 | 0.0184 | 1 | alle Sorten (eigene: 1, gilt ab 3) |
-| Lekor | 0.0128 | 0.0072 | 0.0184 | 1 | alle Sorten (eigene: 1, gilt ab 3) |
-| Bolp 5110 | 0.0128 | 0.0072 | 0.0184 | 0 | alle Sorten (eigene: 0, gilt ab 3) |
-| Amoro | 0.0128 | 0.0072 | 0.0184 | 1 | alle Sorten (eigene: 1, gilt ab 3) |
-| Mieluna | 0.0026 | 0 | 0.0185 | 3 | Sortierläufe/Handmessungen dieser Sorte |
-| Kaori Kuri | 0.0247 | 0.0156 | 0.0339 | 18 | Sortierläufe/Handmessungen dieser Sorte |
-| Tiana | 0.0034 | 0.0009 | 0.0058 | 7 | Sortierläufe/Handmessungen dieser Sorte |
 | Orangita | 0 | 0 | 0 | 6 | Sortierläufe/Handmessungen dieser Sorte |
+| Kaori Kuri | 0.0247 | 0.0156 | 0.0339 | 18 | Sortierläufe/Handmessungen dieser Sorte |
+| Mieluna | 0.0026 | 0 | 0.0185 | 3 | Sortierläufe/Handmessungen dieser Sorte |
+| Amoro | 0.0128 | 0.0072 | 0.0184 | 1 | alle Sorten (eigene: 1, gilt ab 3) |
+| Butterkin | 0.0029 | 0 | 0.0069 | 3 | Sortierläufe/Handmessungen dieser Sorte |
+| Bolp 5110 | 0.0128 | 0.0072 | 0.0184 | 0 | alle Sorten (eigene: 0, gilt ab 3) |
+| Orange Summer | 0.0466 | 0 | 0.1203 | 3 | Sortierläufe/Handmessungen dieser Sorte |
+| Lekor | 0.0128 | 0.0072 | 0.0184 | 1 | alle Sorten (eigene: 1, gilt ab 3) |
+| Fictor | 0.0128 | 0.0072 | 0.0184 | 1 | alle Sorten (eigene: 1, gilt ab 3) |
+| Tiana | 0.0034 | 0.0009 | 0.0058 | 7 | Sortierläufe/Handmessungen dieser Sorte |
 | Ker Madec | 0.0128 | 0.0072 | 0.0184 | 1 | alle Sorten (eigene: 1, gilt ab 3) |
 
 ## Anderer Kanal je Sorte (erg_koeff_nebenkanal)
 
 | sorte | mittel | unten | oben | n | basis |
 |---|---|---|---|---|---|
-| Butterkin | 0.1468 | 0.074 | 0.2197 | 4 | Sortierläufe/Handmessungen dieser Sorte |
-| Orange Summer | 0.0316 | 0 | 0.0919 | 6 | Sortierläufe/Handmessungen dieser Sorte |
-| Fictor | 0.0719 | 0.0554 | 0.0884 | 0 | alle Sorten (eigene: 0, gilt ab 3) |
-| Lekor | 0.0719 | 0.0554 | 0.0884 | 1 | alle Sorten (eigene: 1, gilt ab 3) |
-| Bolp 5110 | 0.0719 | 0.0554 | 0.0884 | 0 | alle Sorten (eigene: 0, gilt ab 3) |
-| Amoro | 0.0719 | 0.0554 | 0.0884 | 0 | alle Sorten (eigene: 0, gilt ab 3) |
-| Mieluna | 0.0337 | 0.0007 | 0.0667 | 10 | Sortierläufe/Handmessungen dieser Sorte |
-| Kaori Kuri | 0.0102 | 0.0031 | 0.0173 | 15 | Sortierläufe/Handmessungen dieser Sorte |
-| Tiana | 0.0365 | 0.0211 | 0.052 | 19 | Sortierläufe/Handmessungen dieser Sorte |
 | Orangita | 0.0011 | 0 | 0.0043 | 7 | Sortierläufe/Handmessungen dieser Sorte |
+| Kaori Kuri | 0.0102 | 0.0031 | 0.0173 | 15 | Sortierläufe/Handmessungen dieser Sorte |
+| Mieluna | 0.0337 | 0.0007 | 0.0667 | 10 | Sortierläufe/Handmessungen dieser Sorte |
+| Amoro | 0.0719 | 0.0554 | 0.0884 | 0 | alle Sorten (eigene: 0, gilt ab 3) |
+| Butterkin | 0.1468 | 0.074 | 0.2197 | 4 | Sortierläufe/Handmessungen dieser Sorte |
+| Bolp 5110 | 0.0719 | 0.0554 | 0.0884 | 0 | alle Sorten (eigene: 0, gilt ab 3) |
+| Orange Summer | 0.0316 | 0 | 0.0919 | 6 | Sortierläufe/Handmessungen dieser Sorte |
+| Lekor | 0.0719 | 0.0554 | 0.0884 | 1 | alle Sorten (eigene: 1, gilt ab 3) |
+| Fictor | 0.0719 | 0.0554 | 0.0884 | 0 | alle Sorten (eigene: 0, gilt ab 3) |
+| Tiana | 0.0365 | 0.0211 | 0.052 | 19 | Sortierläufe/Handmessungen dieser Sorte |
 | Ker Madec | 0.0719 | 0.0554 | 0.0884 | 1 | alle Sorten (eigene: 1, gilt ab 3) |
 
 ## Palox-Anteil je Sorte und Station (erg_palox_erwartung, 0107)
@@ -95,11 +95,11 @@ Für die nächste Runde: Passen die Zahlen zu dem, was die Saison zeigen sollte 
 
 | paletten_gezaehlt | paletten_mit_datum | arbeiten_fertig | arbeiten_mit_ablesung | arbeiten_mit_zwei_ablesungen | arbeiten_mit_antwort | ausschuss_messungen | ausschuss_gewogen | lagerkontrollen | sortierlaeufe | sortierlaeufe_zugeordnet | sortier_arbeiten | sortier_arbeiten_mit_kisten | wasch_arbeiten | wasch_arbeiten_mit_kisten | fax_arbeiten | fax_arbeiten_mit_kisten | fax_arbeiten_mit_faulem | ws_paletten_gezaehlt | ws_paletten_mit_zettelgewicht | arbeiten_nach_waschen | arbeiten_mit_kistensystem | wasch_kisten_gezaehlt | wasch_kisten_mit_sortierdatum | arbeiten_mit_palox_unbekannt | eingangspaletten | eingangspaletten_mit_kisten | arbeiten_alter_gemessen | sammel_lesungen | lesungen_mit_sortiertag | lesungen_sortiertag_bezeugt |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| 504 | 404 | 91 | 86 | 86 | 91 | 74 | 40 | 0 | 19 | 5 | 9 | 0 | 32 | 31 | 0 | 0 | 0 | 197 | 197 | 82 | 82 | 3438 | 1354 | 1 | 404 | 404 | 59 | 2 | 19 | 5 |
+| 504 | 404 | 91 | 86 | 86 | 91 | 74 | 40 | 0 | 19 | 5 | 9 | 0 | 32 | 31 | 0 | 0 | 0 | 197 | 197 | 82 | 82 | 3438 | 1354 | 1 | 404 | 404 | 59 | 12 | 19 | 5 |
 
 ## Bilanz (erg_bilanz)
 
 | heute | eingang_kg | n_chargen | ausgang_kg | verkauf_kg | marge_kg | entsorgt_kg | ausgang_fehler_kg | n_lieferungen | letzte_lieferung | vorlauf_kg | geliefert_kg | ausgelagert_kg | verlust_heute_kg | verlust_unten_kg | verlust_oben_kg | verdunstung_heute_kg | schimmel_heute_kg | fax_heute_kg | fax_erwartet_kg | kanal_ausgelagert_kg | kanal_unten_kg | kanal_oben_kg | im_haus_heute_kg | verkaufsfaehig_heute_kg | kanal_im_haus_kg | lager_kg | gegenprobe_wartet_kg | ueberzaehlung_kg | fax_durchsatz_kg | n_fax_arbeiten | verlust_bekannt | bilanz_rest_kg | bilanz_rest_anteil | ausgang_deckung | befund |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| 2026-10-25 | 696473.3 | 36 | 243205.6 | 243205.6 | 0 | 0 | 0 | 1317 | 2026-10-21 | 0 | 243205.53 | 311640.97 | 164133.96 | 67194.26 | 261073.72 | 69466.12 | 94667.84 | 0 | 0 | 15631.92 | 0 | 75589.65 | 304917.38 | 277999.9 | 11285.51 | 400614.73 | 53296.1 | 15782.66 | 0 | 0 | true | -0.91 | 0 | 0.3492 | Bis heute (25.10.2026): 696.5 t Eingang = 243.2 t ausgeliefert + 164.1 t Verlust (Verdunstung 69.5 t, Faules 94.7 t, Fax 0.0 t) + 304.9 t noch im Haus (davon 278.0 t verkaufsfähig, 26.9 t zu klein oder zu gross — aussortiert oder im Liegenden erwartet). Die Prognose bis zum Saisonende steht in der Grafik, nicht in diesen Zahlen. 15783 kg Überzählung. |
+| 2026-10-26 | 696473.3 | 36 | 243205.6 | 243205.6 | 0 | 0 | 0 | 1317 | 2026-10-21 | 0 | 243205.53 | 311100.62 | 164944.05 | 67679.84 | 262208.18 | 70483.5 | 94460.5 | 0 | 0 | 15140.3 | 0 | 75080.24 | 303964.03 | 277487.62 | 11336.09 | 401011.8 | 53296.1 | 15639.4 | 0 | 0 | true | -0.91 | 0 | 0.3492 | Bis heute (26.10.2026): 696.5 t Eingang = 243.2 t ausgeliefert + 164.9 t Verlust (Verdunstung 70.5 t, Faules 94.5 t, Fax 0.0 t) + 304.0 t noch im Haus (davon 277.5 t verkaufsfähig, 26.5 t zu klein oder zu gross — aussortiert oder im Liegenden erwartet). Die Prognose bis zum Saisonende steht in der Grafik, nicht in diesen Zahlen. 15639 kg Überzählung. |
 
