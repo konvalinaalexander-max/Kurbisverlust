@@ -1,12 +1,12 @@
 # Rückmeldungen aus der Halle
 
-_Abzug vom 2026-10-29. Von `pruefstand/betrieb_abzug.mjs` geschrieben; nicht von Hand ändern._
+_Abzug vom 2026-10-30. Von `pruefstand/betrieb_abzug.mjs` geschrieben; nicht von Hand ändern._
 
 Was die Person am Ende einer Arbeit gesagt hat — geschrieben, oder mitgeschrieben vom Handy (Transkript, ungeprüft = so wie die Spracherkennung es verstand). Die Aufnahmen liegen im Bucket `rueckmeldungen` des Projekts; hier steht, was sich lesen lässt.
 
 **Zur Ware gilt seit 0094:** Ein Kommentar steht erst im Dashboard, wenn jemand ihn gelesen, verstanden und gekürzt hat („Hagelschaden"). Kürzen heisst: ein Eintrag je Nr. in `docs/betrieb/kurzfassungen.json` (der Abzug spielt ihn ein — täglich, und sofort beim Push der Datei), oder der Betriebsleiter tut es unter Messungen → Arbeiten. Was der Betriebsleiter gekürzt hat, bleibt. Nur Aufnahme, kein Transkript: das kann hier niemand hören — anhören und kürzen kann nur der Betriebsleiter.
 
-**Noch zu kürzen: 5** — Nr. 21, 20, 19, 18, 17.
+**Noch zu kürzen: 8** — Nr. 24, 23, 22, 21, 20, 19, 18, 17.
 
 ## Zur App — für die nächste Runde (2)
 
@@ -15,8 +15,17 @@ Was die Person am Ende einer Arbeit gesagt hat — geschrieben, oder mitgeschrie
 - **Nr. 3** · 01.10.2026 · Waschen + Sortieren · 01.10.2026, 15:21 · fertig · Charge 1627 — Agasul Rüegg · Fictor · Arbeit 1602 · Seraina
   - „Keine fertige paletten auf schreiben?"
 
-## Zur Ware — für den Betriebsleiter (18)
+## Zur Ware — für den Betriebsleiter (21)
 
+- **Nr. 24** · 30.10.2026 · Waschen + Sortieren · 30.10.2026, 08:19 · fertig · Charge 1606 — Illnau Gross · Lekor · Arbeit 1687 · Seraina
+  - **noch nicht gekürzt** — steht noch nicht im Dashboard
+  - „Hagelschaden"
+- **Nr. 23** · 30.10.2026 · Waschen · 30.10.2026, 08:13 · fertig · Charge 1719 — Oettli · Kaori Kuri · Arbeit 1684 · Seraina
+  - **noch nicht gekürzt** — steht noch nicht im Dashboard
+  - „Viel mit abgebrochenem stiel, auf die seite gelegt für ünique"
+- **Nr. 22** · 29.10.2026 · Waschen + Sortieren · 29.10.2026, 16:45 · fertig · Charge 1628 — Agasul Baumann · Kaori Kuri · Arbeit 1683 · Seraina
+  - **noch nicht gekürzt** — steht noch nicht im Dashboard
+  - „Hagelschaden für ünique gewaschen"
 - **Nr. 21** · 29.10.2026 · Waschen + Sortieren · 29.10.2026, 07:50 · fertig · Charge 1628 — Agasul Baumann · Kaori Kuri · Arbeit 1681 · Seraina
   - **noch nicht gekürzt** — steht noch nicht im Dashboard
   - „Hagelschaden"
