@@ -1,10 +1,10 @@
 # Stand der Modelle
 
-_Abzug vom 2026-11-01. Von `pruefstand/betrieb_abzug.mjs` geschrieben; nicht von Hand ändern._
+_Abzug vom 2026-11-02. Von `pruefstand/betrieb_abzug.mjs` geschrieben; nicht von Hand ändern._
 
-Gerechnet: 01.11.2026, 02:00 (17 s) · Einstellungen: saison_aktuell = 2026 · betriebsmodus = "echt" · erfassung_scharf = false · verdunstung_rate_max_pro_tag = 0.01
+Gerechnet: 02.11.2026, 09:00 (15 s) · Einstellungen: saison_aktuell = 2026 · betriebsmodus = "echt" · erfassung_scharf = false · verdunstung_rate_max_pro_tag = 0.01
 
-**Zeitplan läuft** (*/1 * * * *) · letzter Lauf 01.11.2026, 12:18 · succeeded · 0 s · 1 row
+**Zeitplan läuft** (*/1 * * * *) · letzter Lauf 02.11.2026, 13:30 · succeeded · 0 s · 1 row
 
 Für die nächste Runde: Passen die Zahlen zu dem, was die Saison zeigen sollte (docs/SAISONBEGLEITUNG.md)? Wo steht ein Koeffizient auf „Wiegungen aller Sorten", weil die eigenen fehlen? Wo ist ein Band leer, wo ist die Basis dünn?
 
@@ -101,5 +101,5 @@ Für die nächste Runde: Passen die Zahlen zu dem, was die Saison zeigen sollte 
 
 | heute | eingang_kg | n_chargen | ausgang_kg | verkauf_kg | marge_kg | entsorgt_kg | ausgang_fehler_kg | n_lieferungen | letzte_lieferung | vorlauf_kg | geliefert_kg | ausgelagert_kg | verlust_heute_kg | verlust_unten_kg | verlust_oben_kg | verdunstung_heute_kg | schimmel_heute_kg | fax_heute_kg | fax_erwartet_kg | kanal_ausgelagert_kg | kanal_unten_kg | kanal_oben_kg | im_haus_heute_kg | verkaufsfaehig_heute_kg | kanal_im_haus_kg | lager_kg | gegenprobe_wartet_kg | ueberzaehlung_kg | fax_durchsatz_kg | n_fax_arbeiten | verlust_bekannt | bilanz_rest_kg | bilanz_rest_anteil | ausgang_deckung | befund |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| 2026-11-01 | 696473.3 | 36 | 331639.4 | 331639.4 | 0 | 0 | 0 | 1502 | 2026-10-28 | 0 | 331639.32 | 419287.5 | 151543.03 | 66705.61 | 236380.43 | 68597.41 | 82945.62 | 0 | 0 | 18274.88 | 0 | 78027.58 | 259553.85 | 231371.23 | 9907.75 | 323256.57 | 46546.36 | 46071.05 | 0 | 0 | true | -191.85 | -0.0003 | 0.4762 | Hinter den Lieferungen steckt mehr Ware, als je eingelagert wurde — bei einigen Chargen rund 46071 kg zu viel. Fast immer fehlt der Wareneingang dieser Chargen (Erntejournal unvollständig) oder eine Lieferung ist der falschen Charge zugeordnet. |
+| 2026-11-02 | 724380.14 | 36 | 340715.4 | 340715.4 | 0 | 0 | 0 | 1516 | 2026-10-31 | 0 | 340715.37 | 430753.74 | 162284.46 | 76388.58 | 248180.22 | 69455.02 | 92829.42 | 0 | 0 | 18544.25 | 0 | 79851.76 | 267849.11 | 238741.53 | 10563.31 | 339901.58 | 46546.36 | 46275.42 | 0 | 0 | true | -193.38 | -0.0003 | 0.4704 | Hinter den Lieferungen steckt mehr Ware, als je eingelagert wurde — bei einigen Chargen rund 46275 kg zu viel. Fast immer fehlt der Wareneingang dieser Chargen (Erntejournal unvollständig) oder eine Lieferung ist der falschen Charge zugeordnet. |
 
