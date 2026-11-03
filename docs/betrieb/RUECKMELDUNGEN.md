@@ -1,12 +1,12 @@
 # Rückmeldungen aus der Halle
 
-_Abzug vom 2026-11-02. Von `pruefstand/betrieb_abzug.mjs` geschrieben; nicht von Hand ändern._
+_Abzug vom 2026-11-03. Von `pruefstand/betrieb_abzug.mjs` geschrieben; nicht von Hand ändern._
 
 Was die Person am Ende einer Arbeit gesagt hat — geschrieben, oder mitgeschrieben vom Handy (Transkript, ungeprüft = so wie die Spracherkennung es verstand). Die Aufnahmen liegen im Bucket `rueckmeldungen` des Projekts; hier steht, was sich lesen lässt.
 
 **Zur Ware gilt seit 0094:** Ein Kommentar steht erst im Dashboard, wenn jemand ihn gelesen, verstanden und gekürzt hat („Hagelschaden"). Kürzen heisst: ein Eintrag je Nr. in `docs/betrieb/kurzfassungen.json` (der Abzug spielt ihn ein — täglich, und sofort beim Push der Datei), oder der Betriebsleiter tut es unter Messungen → Arbeiten. Was der Betriebsleiter gekürzt hat, bleibt. Nur Aufnahme, kein Transkript: das kann hier niemand hören — anhören und kürzen kann nur der Betriebsleiter.
 
-**Noch zu kürzen: 12** — Nr. 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17.
+**Noch zu kürzen: 13** — Nr. 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17.
 
 ## Zur App — für die nächste Runde (2)
 
@@ -15,8 +15,11 @@ Was die Person am Ende einer Arbeit gesagt hat — geschrieben, oder mitgeschrie
 - **Nr. 3** · 01.10.2026 · Waschen + Sortieren · 01.10.2026, 15:21 · fertig · Charge 1627 — Agasul Rüegg · Fictor · Arbeit 1602 · Seraina
   - „Keine fertige paletten auf schreiben?"
 
-## Zur Ware — für den Betriebsleiter (25)
+## Zur Ware — für den Betriebsleiter (26)
 
+- **Nr. 29** · 03.11.2026 · Waschen · 03.11.2026, 11:26 · fertig · Charge 1632 — Andi Ball · Tiana · Arbeit 1700 · Seraina
+  - **noch nicht gekürzt** — steht noch nicht im Dashboard
+  - „Viel kaputte stellen von dem stiel aber schon trocken(ev. beim ernten)"
 - **Nr. 28** · 02.11.2026 · Waschen + Sortieren · 02.11.2026, 10:29 · fertig · Charge 1628 — Agasul Baumann · Kaori Kuri · Arbeit 1696 · Seraina
   - **noch nicht gekürzt** — steht noch nicht im Dashboard
   - „Hagelschaden"
