@@ -11922,3 +11922,183 @@ begin
 end $$;
 
 select '——— 0129 Ein Punkt im Lager trägt seine Wägung ———' as ergebnis;
+
+-- =====================================================================
+-- 0130 — Was die Datei nicht mehr sagt, liegt beiseite
+--
+-- Der Betrieb am 4. November: „ich hab jetzt die PosId im Perigon gesucht —
+-- und finde die Zeile nur einmal." Die Datei vom 12. Oktober hatte die
+-- Position dreimal, die späteren einmal; die App liess die zwei alten Zeilen
+-- stehen, und die Perigon-Prüfung meldete „dreimal dieselbe Zeile".
+--
+-- Geprüft an gebauten Fällen (Prüffirma PRUEF130) und auf den Daten:
+-- (a) Eine Datei mit Position 601 dreimal (gleich), 602 ohne Charge, 603;
+--     die nächste Datei mit 601 einmal, 602 mit Charge, ohne 603: 601 und 602
+--     haben nur noch ihre Zeile aus der Datei, die zwei bzw. eine alte liegt
+--     in ausgang_zeile_frueher (mit der Datei, in der sie zuletzt stand, und
+--     der, die sie nicht mehr hatte); 603 bleibt, wo es war; die Prüfung
+--     meldet für 601 und 602 nichts mehr; die Lieferungen wie seit 0115;
+--     dieselbe Datei noch einmal legt nichts mehr beiseite; die alte Datei
+--     noch einmal bringt die alten Zeilen zurück und legt die neuen beiseite —
+--     es gilt, was die zuletzt eingelesene Datei sagt, und nichts geht verloren;
+-- (b) die Ablage hat die Spalten von ausgang_zeile in derselben Folge; lesen
+--     darf die Halle, schreiben nicht; Nichtangemeldete gar nichts;
+-- (c) Erfassung leeren leert sie, ihr Umfang zählt sie;
+-- (d) auf den Daten: keine Zeile, die die neuste Datei ihrer Firma für ihre
+--     Position nicht mehr hat;
+-- (e) Stand 130.
+-- =====================================================================
+do $$
+declare v_modus jsonb; v_lad text; v_geladen boolean := false; v_n int; v_j jsonb; v_fehler text;
+  v_u uuid := '00000000-0130-0000-0000-000000000001';
+  v_w uuid := '00000000-0130-0000-0000-000000000002';
+  v_charge int; v_sorte text; v_d1 bigint; v_d2 bigint; v_k text;
+  v_601 jsonb; v_602_ohne jsonb; v_602_mit jsonb; v_603 jsonb;
+  v_datei1_zeilen jsonb; v_datei1_lief jsonb; v_datei2_zeilen jsonb; v_datei2_lief jsonb;
+begin
+  select wert into v_modus from einstellung where schluessel = 'betriebsmodus';
+  update einstellung set wert = '"beispiel"'::jsonb where schluessel = 'betriebsmodus';
+  insert into auth.users (id, email, raw_user_meta_data) values (v_u, null, '{"name":"Prüf-0130"}');
+  update profil set rolle = 'admin' where id = v_u;
+  insert into auth.users (id, email, raw_user_meta_data) values (v_w, null, '{"name":"Prüf-0130 Halle"}');
+  update profil set rolle = 'arbeiter' where id = v_w;
+  perform set_config('request.jwt.claim.sub', v_u::text, true);
+  if not exists (select 1 from auftrag where station = 'waschen_sortieren' and bemerkung = 'DEMO') then
+    select demo_daten_laden() into v_lad; v_geladen := true;
+  end if;
+  select c.nr, c.sorte into v_charge, v_sorte
+    from charge c join sorte_kaliber s on s.sorte = c.sorte order by c.nr limit 1;
+  assert v_charge is not null, '0130 (a0): keine Charge mit bestätigter Sorte — (a) wäre blind';
+
+  -- (a) Die Datei vom 12. Oktober, dann die vom 19.
+  v_601 := jsonb_build_object('pos_id', 601, 'charge_extern', v_charge::text, 'fingerabdruck', 'p130-601',
+    'datum', '2026-10-12', 'journal', 'A', 'kunde', 'Prüfkunde 130', 'artikel_id', 'kürbp130', 'artikel', format('Bio-Kürbis %s Prüf', v_sorte),
+    'einheit', 'kg', 'menge', 256, 'gewicht_je_artikel', 0, 'batch_menge', 256, 'kg_position', 256, 'kg_charge', 256);
+  v_602_ohne := jsonb_build_object('pos_id', 602, 'charge_extern', '', 'lauf_nr', 1, 'fingerabdruck', 'p130-602-a',
+    'datum', '2026-10-12', 'journal', 'A', 'kunde', 'Prüfkunde 130', 'artikel_id', 'kürbp130', 'artikel', format('Bio-Kürbis %s Prüf', v_sorte),
+    'einheit', 'kg', 'menge', 80, 'gewicht_je_artikel', 0, 'batch_menge', 0, 'kg_position', 80, 'kg_charge', 0);
+  v_602_mit := v_602_ohne || jsonb_build_object('charge_extern', v_charge::text, 'fingerabdruck', 'p130-602-b', 'batch_menge', 80, 'kg_charge', 80);
+  v_603 := jsonb_build_object('pos_id', 603, 'charge_extern', v_charge::text, 'lauf_nr', 1, 'fingerabdruck', 'p130-603',
+    'datum', '2026-10-12', 'journal', 'A', 'kunde', 'Prüfkunde 130', 'artikel_id', 'kürbp130', 'artikel', format('Bio-Kürbis %s Prüf', v_sorte),
+    'einheit', 'kg', 'menge', 50, 'gewicht_je_artikel', 0, 'batch_menge', 50, 'kg_position', 50, 'kg_charge', 50);
+  v_datei1_zeilen := jsonb_build_array(v_601 || '{"lauf_nr": 1}', v_601 || '{"lauf_nr": 2}', v_601 || '{"lauf_nr": 3}', v_602_ohne, v_603);
+  v_datei1_lief := jsonb_build_array(
+    jsonb_build_object('extern_id', format('PRUEF130:601:%s:1', v_charge), 'datum', '2026-10-12', 'charge_nr', v_charge, 'sorte', v_sorte, 'kg', 256, 'kunde', 'Prüfkunde 130'),
+    jsonb_build_object('extern_id', 'PRUEF130:602:rest', 'datum', '2026-10-12', 'charge_nr', null, 'sorte', v_sorte, 'kg', 80, 'kunde', 'Prüfkunde 130'),
+    jsonb_build_object('extern_id', format('PRUEF130:603:%s:1', v_charge), 'datum', '2026-10-12', 'charge_nr', v_charge, 'sorte', v_sorte, 'kg', 50, 'kunde', 'Prüfkunde 130'));
+  v_datei2_zeilen := jsonb_build_array(v_601 || '{"lauf_nr": 1}', v_602_mit);
+  v_datei2_lief := jsonb_build_array(
+    jsonb_build_object('extern_id', format('PRUEF130:601:%s:1', v_charge), 'datum', '2026-10-12', 'charge_nr', v_charge, 'sorte', v_sorte, 'kg', 256, 'kunde', 'Prüfkunde 130'),
+    jsonb_build_object('extern_id', format('PRUEF130:602:%s:1', v_charge), 'datum', '2026-10-12', 'charge_nr', v_charge, 'sorte', v_sorte, 'kg', 80, 'kunde', 'Prüfkunde 130'));
+
+  v_j := ausgang_uebernehmen('PRUEF130', 'Prüffirma 0130', '{"dateiname": "p130-12.xlsx", "pruefsumme": "p130-12"}'::jsonb,
+    v_datei1_zeilen, v_datei1_lief);
+  v_d1 := (v_j ->> 'datei_id')::bigint;
+  assert (v_j ->> 'zeilen_beiseite')::int = 0 and (select count(*) from ausgang_zeile where quelle = 'PRUEF130') = 5,
+    format('0130 (a1): die erste Datei soll fünf Zeilen schreiben und nichts beiseitelegen: %s', v_j);
+  assert exists (select 1 from v_perigon_befund where quelle = 'PRUEF130' and pos_id = 601 and art = 'zu_viel' and kg_zugeteilt = 768),
+    '0130 (a2): solange die Datei die Zeile dreimal hat, soll die Prüfung „mehr zugeteilt als geliefert" melden (768 gegen 256 kg)';
+
+  v_j := ausgang_uebernehmen('PRUEF130', 'Prüffirma 0130', '{"dateiname": "p130-19.xlsx", "pruefsumme": "p130-19"}'::jsonb,
+    v_datei2_zeilen, v_datei2_lief);
+  v_d2 := (v_j ->> 'datei_id')::bigint;
+  assert (v_j ->> 'zeilen_beiseite')::int = 3,
+    format('0130 (a3): die zweite Datei soll drei Zeilen beiseitelegen (601 Lauf 2 und 3, 602 ohne Charge): %s', v_j);
+  select string_agg(format('%s/%s/%s', pos_id, nullif(charge_extern, ''), lauf_nr), ', ' order by pos_id, charge_extern, lauf_nr)
+    into v_k from ausgang_zeile where quelle = 'PRUEF130';
+  assert v_k = format('601/%1$s/1, 602/%1$s/1, 603/%1$s/1', v_charge),
+    format('0130 (a4): in ausgang_zeile stehen %s — erwartet je Position die Zeile der neusten Datei, 603 (nicht in ihr) wie zuvor', v_k);
+  select string_agg(format('%s/%s/%s', pos_id, coalesce(nullif(charge_extern, ''), 'ohne'), lauf_nr), ', ' order by pos_id, charge_extern, lauf_nr)
+    into v_k from ausgang_zeile_frueher
+   where quelle = 'PRUEF130' and datei_id = v_d1 and nicht_mehr_datei_id = v_d2 and nicht_mehr_ts is not null;
+  assert v_k = format('601/%1$s/2, 601/%1$s/3, 602/ohne/1', v_charge),
+    format('0130 (a5): beiseite liegen %s — erwartet 601 Lauf 2 und 3 und 602 ohne Charge, jede mit der Datei vom 12. (wo sie stand) und der vom 19. (die sie nicht mehr hatte)', coalesce(v_k, 'keine'));
+  -- die Fälle, die aus den Zeilen einer Position gerechnet werden (Q gegen S, S = 0, ohne Nummer)
+  assert not exists (select 1 from v_perigon_befund where quelle = 'PRUEF130' and pos_id in (601, 602)
+                       and art in ('zu_viel', 'rest', 'menge_null', 'keine_nummer')),
+    format('0130 (a6): die Prüfung meldet noch, was keine Datei mehr hat: %s',
+           (select string_agg(art || ' ' || pos_id, ', ') from v_perigon_befund where quelle = 'PRUEF130'));
+  assert (select string_agg(format('%s:%s', split_part(i.extern_id, ':', 2), round(l.kg)::int), ', ' order by i.extern_id)
+            from lieferung l join lieferung_import i on i.lieferung_id = l.id where i.quelle = 'PRUEF130')
+         = '601:256, 602:80, 603:50',
+    format('0130 (a7): die Lieferungen stimmen nicht mehr (0115): %s',
+           (select string_agg(format('%s %s kg', i.extern_id, l.kg), ', ') from lieferung l join lieferung_import i on i.lieferung_id = l.id where i.quelle = 'PRUEF130'));
+  v_j := ausgang_uebernehmen('PRUEF130', 'Prüffirma 0130', '{"dateiname": "p130-19.xlsx", "pruefsumme": "p130-19"}'::jsonb,
+    v_datei2_zeilen, v_datei2_lief);
+  assert (v_j ->> 'zeilen_beiseite')::int = 0 and (select count(*) from ausgang_zeile_frueher where quelle = 'PRUEF130') = 3,
+    format('0130 (a8): dieselbe Datei ein zweites Mal soll nichts mehr beiseitelegen: %s', v_j);
+  -- Die alte Datei noch einmal: es gilt, was die zuletzt eingelesene sagt — und nichts geht verloren.
+  v_j := ausgang_uebernehmen('PRUEF130', 'Prüffirma 0130', '{"dateiname": "p130-12.xlsx", "pruefsumme": "p130-12"}'::jsonb,
+    v_datei1_zeilen, v_datei1_lief);
+  assert (v_j ->> 'zeilen_beiseite')::int = 1
+     and (select count(*) from ausgang_zeile where quelle = 'PRUEF130' and pos_id = 601) = 3
+     and exists (select 1 from ausgang_zeile_frueher where quelle = 'PRUEF130' and pos_id = 602 and charge_extern = v_charge::text and nicht_mehr_datei_id = v_d1),
+    format('0130 (a9): die alte Datei noch einmal soll ihre drei Zeilen zurückbringen und 602 mit Charge beiseitelegen: %s', v_j);
+  v_j := ausgang_uebernehmen('PRUEF130', 'Prüffirma 0130', '{"dateiname": "p130-19.xlsx", "pruefsumme": "p130-19"}'::jsonb,
+    v_datei2_zeilen, v_datei2_lief);
+  assert (select count(*) from ausgang_zeile where quelle = 'PRUEF130') = 3
+     and (select count(*) from ausgang_zeile_frueher where quelle = 'PRUEF130') = 7,
+    format('0130 (a10): nach der neuen Datei stehen %s Zeilen da (erwartet 3) und %s beiseite (erwartet 7 — nichts geht verloren)',
+           (select count(*) from ausgang_zeile where quelle = 'PRUEF130'), (select count(*) from ausgang_zeile_frueher where quelle = 'PRUEF130'));
+
+  -- (b) Die Ablage: dieselben Spalten, in derselben Folge; die Halle liest, schreibt nicht
+  select string_agg(format('%s %s', a.attname, format_type(a.atttypid, a.atttypmod)), ', ' order by a.attnum) into v_k
+    from pg_attribute a where a.attrelid = 'ausgang_zeile'::regclass and a.attnum > 0 and not a.attisdropped;
+  assert (select string_agg(format('%s %s', a.attname, format_type(a.atttypid, a.atttypmod)), ', ' order by a.attnum)
+            from (select * from pg_attribute where attrelid = 'ausgang_zeile_frueher'::regclass and attnum > 0 and not attisdropped
+                   order by attnum limit (select count(*) from pg_attribute where attrelid = 'ausgang_zeile'::regclass and attnum > 0 and not attisdropped)) a)
+         = v_k,
+    '0130 (b1): ausgang_zeile_frueher hat nicht die Spalten von ausgang_zeile in derselben Folge — das Beiseitelegen (select w.*) schriebe in die falsche Spalte';
+  perform set_config('request.jwt.claim.sub', v_w::text, true);
+  set local role authenticated;
+  select count(*) into v_n from ausgang_zeile_frueher where quelle = 'PRUEF130';
+  begin
+    -- eine vollständige Zeile (aus ausgang_zeile, die die Halle lesen darf) — scheitern darf es nur an der Regel
+    insert into ausgang_zeile_frueher
+    select (jsonb_populate_record(null::ausgang_zeile_frueher, to_jsonb(z) || jsonb_build_object('id', -130, 'nicht_mehr_ts', now()))).*
+      from ausgang_zeile z where z.quelle = 'PRUEF130' limit 1;
+    v_fehler := 'durchgelassen';
+  exception when insufficient_privilege or check_violation then v_fehler := null;
+  end;
+  reset role;
+  assert v_n = 7, format('0130 (b2): die Halle liest %s frühere Zeilen statt 7', v_n);
+  assert v_fehler is null, '0130 (b3): die Halle hat in ausgang_zeile_frueher geschrieben';
+  perform set_config('request.jwt.claim.sub', v_u::text, true);
+  assert not has_table_privilege('anon', 'ausgang_zeile_frueher', 'select')
+     and not has_function_privilege('anon', 'ausgang_zeilen_beiseite(text, bigint, jsonb)', 'execute'),
+    '0130 (b4): Nichtangemeldete dürfen die Ablage lesen oder das Beiseitelegen aufrufen';
+
+  -- (c) Erfassung leeren kennt die Ablage
+  assert exists (select 1 from erfassung_umfang() where tabelle = 'ausgang_zeile_frueher'
+                   and zeilen = (select count(*) from ausgang_zeile_frueher)),
+    '0130 (c1): erfassung_umfang() zählt die früheren Zeilen nicht';
+  assert pg_get_functiondef('erfassung_leeren(text)'::regprocedure) ~ 'delete from ausgang_zeile_frueher where true',
+    '0130 (c2): erfassung_leeren() lässt die früheren Zeilen stehen';
+
+  -- (d) Auf den Daten: nichts, was die neuste Datei seiner Firma für seine Position nicht mehr hat
+  with neuste as (
+    select distinct on (d.quelle) d.quelle, d.id from ausgang_datei d order by d.quelle, d.ts desc, d.id desc
+  )
+  select count(*) into v_n
+    from ausgang_zeile z join neuste n on n.quelle = z.quelle
+   where z.datei_id is distinct from n.id
+     and exists (select 1 from ausgang_zeile y where y.quelle = z.quelle and y.pos_id = z.pos_id and y.datei_id = n.id);
+  assert v_n = 0, format('0130 (d1): %s Zeilen stehen da, die die neuste Datei ihrer Firma für ihre Position nicht mehr hat', v_n);
+
+  -- (e) Stand
+  assert schema_stand() >= 130, format('0130 (e1): schema_stand() = %s', schema_stand());
+
+  -- aufräumen (die Ablage geht mit der Firma)
+  delete from lieferung where id in (select lieferung_id from lieferung_import where quelle = 'PRUEF130');
+  delete from ausgang_zeile where quelle = 'PRUEF130';
+  delete from ausgang_datei where quelle = 'PRUEF130';
+  delete from ausgang_quelle where code = 'PRUEF130';
+  assert not exists (select 1 from ausgang_zeile_frueher where quelle = 'PRUEF130'),
+    '0130 (e2): mit der Firma ging ihre Ablage nicht mit';
+  if v_geladen then perform demo_daten_entfernen(); end if;
+  delete from profil where id in (v_u, v_w); delete from auth.users where id in (v_u, v_w);
+  update einstellung set wert = v_modus where schluessel = 'betriebsmodus';
+  raise notice 'OK  0130 — hat eine neue Datei eine Position anders, liegen die alten Zeilen beiseite (nicht weg); die Prüfung meldet nur, was die Datei sagt, und eine ältere Datei bringt sie zurück';
+end $$;
+
+select '——— 0130 Was die Datei nicht mehr sagt, liegt beiseite ———' as ergebnis;

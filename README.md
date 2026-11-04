@@ -798,6 +798,15 @@ ohne Perigon-Zeile als eigener Teil); jede PL/pgSQL-Funktion hat einen
 festen Suchpfad; die Perigon-Liste läuft nur einmal (AB-174 bis AB-176). Dazu die
 Halle: Faules ohne Ablesung ist „unbekannt", Fehler werden gezeigt. **Setup.sql
 einmal einspielen (Stand 124), dann „Neu rechnen".**
+**Runde BI (0130)** — **Es gilt, was die Datei heute sagt.** Hat eine neue
+Perigon-Datei eine Position anders als eine frühere (Charge nachgetragen
+oder geändert, eine doppelte Zeile entfernt), legt das Einlesen die alten
+Zeilen beiseite, statt sie weiter mitzuzählen. Bei Position 134779 standen
+am 12. Oktober drei gleiche Zeilen in der Datei, seit dem 19. nur noch eine.
+Die App hatte die zwei alten behalten, und die Perigon-Prüfung meldete sie
+(AB-187). Nichts wird gelöscht; das Fenster der Lieferung sagt in einem Satz,
+was früher dastand. **Setup.sql einmal einspielen (Stand 130), dann „Neu
+rechnen".**
 **Runde BH** — **Das Excel zuerst:** Ein Perigon-Fall „Der Charge mehr (weniger)
 zugeteilt als geliefert" zeigt alle Zeilen der Position untereinander, wie im
 Excel, mit Zeilennummer und nur den Spalten Q (geliefert), S (der Charge

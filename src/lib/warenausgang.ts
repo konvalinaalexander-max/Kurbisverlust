@@ -1,5 +1,5 @@
 import type { Blatt, Zelle } from './xlsx'
-import { zahl as alsZahlText } from './format.ts'
+import { datum, kg, zahl as alsZahlText } from './format.ts'
 
 /**
  * Der Warenausgang aus dem Warenwirtschaftssystem (Perigon), Auswertung
@@ -486,6 +486,9 @@ export interface Abgleich {
   geaendert: AusgangZeile[]
   unveraendert: number
   verschwunden: string[]     // war in der Datenbank, steht nicht mehr in der Datei
+  /** 0130: davon die Zeilen einer Position, die in der Datei steht — die Datei hat sie jetzt anders; beim Übernehmen
+   *  legt die Datenbank sie beiseite (ausgang_zeile_frueher). Die übrigen gehören zu Positionen ausserhalb der Datei und bleiben. */
+  beiseite: string[]
 }
 
 /**
@@ -527,9 +530,11 @@ export function abgleichen(zeilen: AusgangZeile[], bekannt: Bekannt[]): Abgleich
     else if (alt !== z.fingerabdruck) geaendert.push(z)
     else unveraendert++
   }
+  const positionen = new Set(zeilen.map(z => `${z.quelle}|${z.pos_id}`))
+  const verschwunden = bekannt.filter(b => !gesehen.has(b.schluessel)).map(b => b.schluessel)
   return {
-    neu, geaendert, unveraendert,
-    verschwunden: bekannt.filter(b => !gesehen.has(b.schluessel)).map(b => b.schluessel),
+    neu, geaendert, unveraendert, verschwunden,
+    beiseite: verschwunden.filter(s => positionen.has(s.split('|').slice(0, 2).join('|'))),
   }
 }
 
@@ -855,3 +860,46 @@ export function lieferungDeutung(p: PositionKurz, zeilen: ChargenzeileKurz[]): s
   if (verkauft) s.push(`Verkauft als ${verkauft} (Preisgruppe ${p.preisgruppe})${geliefert.length > 0 && !geliefert.includes(verkauft) ? ` — geliefert als ${geliefert.join(' und ')}` : ''}.`)
   return s
 }
+
+/* ---------- Was früher in der Datei stand (0130) -------------------------- */
+
+/** Eine Zeile, die eine spätere Datei für ihre Position nicht mehr hat (ausgang_zeile_frueher). */
+export interface FruehereZeile {
+  charge_extern: string; lauf_nr: number; kg_charge: number | null
+  /** die Datei, in der sie zuletzt stand */
+  datei_id: number | null
+  /** die Datei, die die Position anders hatte — leer, wo das nicht mehr bekannt ist */
+  nicht_mehr_datei_id: number | null
+}
+
+/**
+ * Runde BI — der Betrieb zu Fall 134779: „ich hab jetzt die PosId im Perigon
+ * gesucht — und finde die Zeile nur einmal." Die App zeigt nur, was die
+ * neuste Datei sagt; was früher dastand, sagt dieser Satz — damit niemand
+ * eine Zeile sucht, die es nicht mehr gibt, und niemand meint, die App habe
+ * sie erfunden. Leer, wo nichts beiseiteliegt.
+ */
+export function fruehereZeilenSatz(zeilen: FruehereZeile[], dateien: Map<number, { dateiname: string; ts: string }>): string | null {
+  if (zeilen.length === 0) return null
+  const gruppen = new Map<string, { charge: string; kg: number | null; n: number }>()
+  for (const z of zeilen) {
+    const k = `${z.charge_extern.trim()}|${z.kg_charge ?? ''}`
+    const g = gruppen.get(k) ?? { charge: z.charge_extern.trim(), kg: z.kg_charge == null ? null : Number(z.kg_charge), n: 0 }
+    g.n++
+    gruppen.set(k, g)
+  }
+  const teile = [...gruppen.values()].map(g =>
+    `${g.charge ? `Charge ${g.charge}` : 'ohne Charge'}${g.kg == null ? '' : `, ${g.n > 1 ? 'je ' : ''}${kg(g.kg, g.kg % 1 === 0 ? 0 : 1)}`}`)
+  const n = zeilen.length
+  const datei = (ids: (number | null)[], spaet: boolean) => ids
+    .map(id => (id == null ? null : dateien.get(id) ?? null))
+    .filter((d): d is { dateiname: string; ts: string } => d != null)
+    .sort((a, b) => (spaet ? b.ts.localeCompare(a.ts) : a.ts.localeCompare(b.ts)))[0] ?? null
+  const zuletzt = datei(zeilen.map(z => z.datei_id), true)
+  const nichtMehr = datei(zeilen.map(z => z.nicht_mehr_datei_id), false)
+  return `Früher ${n === 1 ? 'stand' : 'standen'} für diese Position noch ${n === 1 ? 'eine Zeile' : `${n} Zeilen`} in der Datei (${teile.join('; ')})`
+    + `${zuletzt ? `, zuletzt in „${zuletzt.dateiname}" vom ${datum(zuletzt.ts)}` : ''}. `
+    + `${nichtMehr ? `Die Datei vom ${datum(nichtMehr.ts)} hat sie nicht mehr` : 'Die neueren Dateien haben sie nicht mehr'}`
+    + ' — die App zählt sie nicht mehr.'
+}
+

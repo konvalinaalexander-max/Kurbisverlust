@@ -1620,6 +1620,8 @@ table.excel td.falsch, table.excel th.falsch { outline: 2px solid #d12f2f; outli
 /* Runde BH: die Balken je Chargenzeile (Runde BG) sind dem Ausschnitt aus dem Excel gewichen (unten). */
 .zt-begriff { max-width: 76ch; }
 .zt-woran { margin: .7rem 0 .4rem; max-width: 76ch; }
+/* 0130: was früher für die Position in der Datei stand — ein Hinweis, kein Fehler */
+.zeile-frueher { margin: .2rem 0 .6rem; max-width: 76ch; font-size: var(--s-1); color: var(--text-2); border-left: 3px solid var(--rand); padding-left: .6rem; }
 /* Runde BH: der Ausschnitt aus dem Excel — nur Q, S, W, AD (und AE bei Stück), alle Zeilen der Position
    untereinander; rechts, abgesetzt, was nicht im Excel steht: Spalte S bis hier zusammen. */
 .excel-auszug-rahmen { margin: .2rem 0 .6rem; }

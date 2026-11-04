@@ -6,7 +6,7 @@ import { dirname, join } from 'node:path'
 import { xlsxLesen, serieAlsDatum } from '../src/lib/xlsx.ts'
 import {
   kopfLesen, zeilenLesen, zeilenSchluessel, fingerabdruck, istKuerbis,
-  befund, abgleichen, lieferungenBauen, quelleVorschlag, schluessel, chargeAufloeser,
+  befund, abgleichen, lieferungenBauen, quelleVorschlag, schluessel, chargeAufloeser, fruehereZeilenSatz,
 } from '../src/lib/warenausgang.ts'
 
 const HIER = dirname(fileURLToPath(import.meta.url))
@@ -224,6 +224,23 @@ test('was in der Datei fehlt, wird gemeldet statt vergessen', async () => {
   bekannt.push({ schluessel: 'probe|9999||1', fingerabdruck: 'x' })
   const a = abgleichen(zeilen, bekannt)
   assert.deepEqual(a.verschwunden, ['probe|9999||1'])
+  assert.deepEqual(a.beiseite, [], 'eine Position, die gar nicht in der Datei steht, bleibt (die Datei kann nur ein Teil sein)')
+})
+
+// 0130 — der Betrieb zu Position 134779: „finde die Zeile nur einmal". Die Datei vom 12. Oktober hatte sie dreimal,
+// die späteren einmal; die zwei alten Zeilen blieben stehen. Was die Datei für eine ihrer Positionen nicht mehr hat,
+// legt das Übernehmen beiseite — die Maske sagt es vorher.
+test('0130: hat die Datei eine Position anders, gehen ihre alten Zeilen beiseite — Positionen ausserhalb bleiben', async () => {
+  const { zeilen } = await probe()
+  const z0 = zeilen[0]
+  const bekannt = zeilen.map(z => ({ schluessel: zeilenSchluessel(z), fingerabdruck: z.fingerabdruck }))
+  const alt2 = zeilenSchluessel({ ...z0, lauf_nr: 2 }), alt3 = zeilenSchluessel({ ...z0, lauf_nr: 3 })
+  const ohne = zeilenSchluessel({ ...z0, charge_extern: '', lauf_nr: 1 })
+  bekannt.push({ schluessel: alt2, fingerabdruck: 'x' }, { schluessel: alt3, fingerabdruck: 'x' },
+               { schluessel: ohne, fingerabdruck: 'x' }, { schluessel: 'probe|9999||1', fingerabdruck: 'x' })
+  const a = abgleichen(zeilen, bekannt)
+  assert.deepEqual(a.verschwunden, [alt2, alt3, ohne, 'probe|9999||1'])
+  assert.deepEqual(a.beiseite, [alt2, alt3, ohne], 'Lauf 2 und 3 und die Zeile ohne Charge derselben Position gehen beiseite, 9999 nicht')
 })
 
 test('der Fingerabdruck ändert sich mit jedem Feld', () => {
@@ -527,3 +544,18 @@ test('Runde AT: jeder Wert im Format seiner Spalte, wie Excel ihn zeigt', () => 
   assert.equal(rechts('TotalGewicht'), false)
   assert.equal(rechts('AuftragsArtikelEinheit'), false)
 })
+
+test('0130: was früher in der Datei stand, sagt ein Satz — mit der Datei, in der es zuletzt stand', () => {
+  const dateien = new Map([[5, { dateiname: 'Gemüse-2.xlsx', ts: '2026-10-12T14:59:31Z' }], [10, { dateiname: 'Gemüse-3.xlsx', ts: '2026-10-19T11:28:58Z' }]])
+  const zwei = [2, 3].map(lauf => ({ charge_extern: '1620', lauf_nr: lauf, kg_charge: 256, datei_id: 5, nicht_mehr_datei_id: null }))
+  assert.equal(fruehereZeilenSatz(zwei, dateien),
+    'Früher standen für diese Position noch 2 Zeilen in der Datei (Charge 1620, je 256 kg), zuletzt in „Gemüse-2.xlsx" vom 12.10.2026. '
+    + 'Die neueren Dateien haben sie nicht mehr — die App zählt sie nicht mehr.')
+  assert.equal(fruehereZeilenSatz([{ charge_extern: '', lauf_nr: 1, kg_charge: 0, datei_id: 5, nicht_mehr_datei_id: 10 }], dateien),
+    'Früher stand für diese Position noch eine Zeile in der Datei (ohne Charge, 0 kg), zuletzt in „Gemüse-2.xlsx" vom 12.10.2026. '
+    + 'Die Datei vom 19.10.2026 hat sie nicht mehr — die App zählt sie nicht mehr.')
+  assert.equal(fruehereZeilenSatz([], dateien), null, 'nichts beiseite — kein Satz')
+  assert.match(fruehereZeilenSatz([{ charge_extern: '1620', lauf_nr: 2, kg_charge: null, datei_id: null, nicht_mehr_datei_id: null }], new Map())!,
+    /^Früher stand für diese Position noch eine Zeile in der Datei \(Charge 1620\)\. Die neueren/, 'ohne Kilo und ohne Datei: nichts erfunden, nie 0 kg')
+})
+

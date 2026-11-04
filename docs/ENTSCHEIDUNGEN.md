@@ -4171,6 +4171,79 @@ Daten, dann die Annahme — nach der Korrektur nachsehen.
 nicht alles: vier mal vier gleiche Paloxen und ein Tag mit 30 Paaren bei
 13 erwarteten sind Fragen wert.
 
+## Runde BI: Es gilt, was die Datei heute sagt (4. November, 0130)
+
+Der Betrieb zu Fall 134779 („Im Excel steht dieselbe Zeile 3-mal
+untereinander"): „ich check einfach nicht … ich hab jetzt die PosId im
+Perigon gesucht — und finde die Zeile nur einmal." Er hat recht.
+
+**Was passiert war.** In der Datei vom 12. Oktober („…Gemüse-2.xlsx") stand
+die Position dreimal da, so las die App sie damals ein (Lauf 1, 2, 3). Seit
+der Datei vom 19. Oktober steht sie einmal da, heute in Excel-Zeile 295.
+Beim Einlesen schrieb die App die eine Zeile jedes Mal neu. Die zwei anderen
+liess sie stehen: Seit 0055 gilt beim Einlesen „Löscht nichts". Die
+Lieferungen dazu hatte 0115 schon entfernt, die Lagerzahlen stimmten. Die
+Zeilen lasen aber 14 Sichten weiter, auch die Perigon-Prüfung. Das Fenster
+zeigte sie als „So steht es im Excel". Der Satz aus Runde BH („Bei 1620 steht
+dieselbe Zeile dreimal da") stimmte nur für die Datei vom 12. Oktober.
+
+Auf den Daten des Betriebs (4. November) sind es 23 Zeilen in 22
+Positionen, alle derselben Art: Perigon hat die Position später anders
+geschrieben. Meist wurde die Charge nachgetragen (die alte Zeile ohne
+Charge blieb stehen). Dreimal wurde die Charge geändert (zum Beispiel
+198944 → 198947, 198876 → 198970), einmal entfiel eine doppelte Zeile
+(134779). Drei davon erzeugten einen Perigon-Fall „mehr zugeteilt als
+geliefert", den keine Datei mehr hat: 134779 und zweimal die alte und die
+neue Charge zusammen (11.6 + 11.6 kg gegen 11.6 kg; 12'000 + 12'000 kg gegen
+12'000 kg). Zwei Mix-Fälle zählten eine alte Zeile mit, bleiben aber, weil
+sie an der heutigen Charge hängen.
+
+**Was jetzt gilt** (0130, AB-187):
+- Was die Datei für eine ihrer Positionen nicht mehr hat, legt das Einlesen
+  beiseite. Es kommt nach `ausgang_zeile_frueher`, mit derselben Regel wie
+  0115 für die Lieferungen, und wird nicht gelöscht. Positionen, die nicht in
+  der Datei stehen, bleiben. Eine ältere Datei, noch einmal eingelesen,
+  bringt ihre Zeilen zurück.
+- Einmal jetzt: Was die neuste Datei jeder Firma anders hat, geht beiseite.
+  Das sind beim Betrieb die 23 Zeilen. Die drei Fälle stehen nach dem
+  nächsten Rechnen unter „nicht mehr in den Daten".
+- Das Fenster einer Lieferung und der Fall zeigen im Excel nur die Zeilen der
+  Datei. Beim Beleg steht ein Satz: „Früher standen für diese Position noch 2
+  Zeilen in der Datei (Charge 1620, je 256 kg), zuletzt in „…" vom
+  12.10.2026. Die neueren Dateien haben sie nicht mehr — die App zählt sie
+  nicht mehr."
+- Die Einlese-Maske sagt vorher, wie viele Zeilen beiseitegehen und wie
+  viele zu Positionen ausserhalb der Datei gehören. Nach dem Übernehmen sagt
+  sie, wie viele beiseitegelegt wurden.
+
+**Warum eine Ablage statt einer Sicht.** Die Zeilen lesen 14 Sichten
+(Perigon-Prüfung, Labels je Charge, Spur der Nummern, Lieferscheine ohne
+Charge und weitere). Jede auf „nur die neuste Datei" umzuschreiben, hiesse
+14 Stellen, an denen es wieder jemand vergessen kann. Die Ablage macht alle
+14 auf einmal richtig. Nichts geht verloren: die Spalten sind dieselben (der
+Prüfblock hält es), dazu wann und mit welcher Datei.
+
+Geprüft:
+- Prüfblock 0130 an gebauten Dateien vom 12. und 19. mit dreimal derselben
+  Zeile, einer Charge, die nachgetragen wird, und einer Position, die fehlt.
+  Dazu kommen die Rechte, die Folge der Spalten, das Leeren und eine
+  Invariante auf den Daten. Acht Mutationen, jede schlägt an.
+- `test/warenausgang.test.ts`: `beiseite` im Abgleich und der Satz.
+- Bildschirm `perigon-fall`: der Satz beim Beleg; ohne ihn ist die Szene rot.
+- Gegen die Daten des Betriebs (nur gelesen): Dieselbe Regel findet genau
+  die 23 Zeilen, und an keiner hängt eine Lieferung.
+
+**Was bewusst nicht gemacht wurde:**
+- Keine Sicht umgeschrieben, keine Rechnung geändert. Die Lieferungen waren
+  schon richtig (0115). Die Zahlen im Lager ändern sich nicht.
+- Eine Position, die in der neusten Datei ganz fehlt, bleibt. Eine Datei
+  kann auch nur einen Teil enthalten, und „gelöscht in Perigon" lässt sich
+  davon nicht unterscheiden.
+- Der Fall mit dreimal derselben Zeile bleibt in den Prüfbildschirmen. Am
+  12. Oktober war er echt, und so sieht er aus, solange eine Datei es so hat.
+- Der Satz der Datenbank zu einem Fall nennt keine Excel-Zeile. Die steht
+  gleich darunter, aus der zuletzt eingelesenen Datei.
+
 ## Runde BH: Das Excel zuerst — und kein Zittern beim Wechsel (25. Oktober)
 
 Der Betrieb nach Runde BG zum Reiter Perigon: „sorry aber ich check das noch

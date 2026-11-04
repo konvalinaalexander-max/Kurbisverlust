@@ -54,7 +54,7 @@ interface Datei {
   erkennung?: QuelleErkennung
   status: 'bereit' | 'laeuft' | 'fertig' | 'fehler'
   meldung?: string
-  ergebnis?: { zeilen_neu: number; zeilen_geaendert: number; lieferungen_neu: number; lieferungen_aktualisiert: number; lieferungen_ersetzt?: number; uebergangen: { extern_id: string; kg?: number; datum?: string; kunde?: string; grund: string }[] }
+  ergebnis?: { zeilen_neu: number; zeilen_geaendert: number; lieferungen_neu: number; lieferungen_aktualisiert: number; lieferungen_ersetzt?: number; zeilen_beiseite?: number; uebergangen: { extern_id: string; kg?: number; datum?: string; kunde?: string; grund: string }[] }
   pruef?: Pruefzeile[]
   /** 0112: was für den Vergleich mit den Vorjahren mitging — oder warum nicht. */
   historie?: { positionen: number; je_saison: Record<string, number>; labels_gesetzt: number } | { fehler: string }
@@ -486,7 +486,8 @@ function DateiKarte({ d, quellen, bekannt, bekanntBis, bestaetigt, chargen, sort
               {(zuwachs.davor.length > 0 || ab.verschwunden.length > 0) && (
                 <p className="leise" style={{ margin: '.4rem 0 0' }}>
                   {zuwachs.davor.length > 0 && <>{zahl(zuwachs.davor.length)} neue Zeilen liegen <strong>vor</strong> dem bekannten Datum — im Perigon nachgetragene Positionen; sie kommen mit. </>}
-                  {ab.verschwunden.length > 0 && <>{zahl(ab.verschwunden.length)} Zeilen stehen in der Datenbank, aber nicht mehr in der Datei — sie bleiben stehen.</>}
+                  {ab.beiseite.length > 0 && <>{zahl(ab.beiseite.length)} Zeilen hat die Datei für ihre Positionen nicht mehr (Charge nachgetragen oder geändert, eine doppelte Zeile entfernt) — die App legt sie beiseite, sie zählen nicht mehr. </>}
+                  {ab.verschwunden.length > ab.beiseite.length && <>{zahl(ab.verschwunden.length - ab.beiseite.length)} Zeilen gehören zu Positionen, die nicht in dieser Datei stehen — sie bleiben stehen.</>}
                 </p>
               )}
             </>
@@ -558,7 +559,8 @@ function DateiKarte({ d, quellen, bekannt, bekanntBis, bestaetigt, chargen, sort
               <Hinweis art="gut">
                 Übernommen: {d.ergebnis.zeilen_neu} Zeilen neu, {d.ergebnis.zeilen_geaendert} schon bekannt (davon Korrekturen übernommen) ·{' '}
                 {d.ergebnis.lieferungen_neu} Lieferungen neu, {d.ergebnis.lieferungen_aktualisiert} aktualisiert
-                {(d.ergebnis.lieferungen_ersetzt ?? 0) > 0 && <>, {d.ergebnis.lieferungen_ersetzt} ersetzt (die Datei teilt diese Positionen heute anders auf Chargen auf)</>}.
+                {(d.ergebnis.lieferungen_ersetzt ?? 0) > 0 && <>, {d.ergebnis.lieferungen_ersetzt} ersetzt (die Datei teilt diese Positionen heute anders auf Chargen auf)</>}
+                {(d.ergebnis.zeilen_beiseite ?? 0) > 0 && <> · {d.ergebnis.zeilen_beiseite} frühere Zeilen beiseitegelegt (die Datei hat diese Positionen jetzt anders)</>}.
                 {d.ergebnis.uebergangen.length > 0 && <> {d.ergebnis.uebergangen.length} nicht übernommen (unten).</>}
               </Hinweis>
               {d.pruef && d.pruef.length === 0 && <Hinweis art="gut">Probe bestanden: jedes Kilo dieser Firma steht genau einmal als Lieferung.</Hinweis>}
@@ -588,8 +590,9 @@ function DateiKarte({ d, quellen, bekannt, bekanntBis, bestaetigt, chargen, sort
       )}
       {ab !== null && ab.verschwunden.length > 0 && status === 'bereit' && (
         <p className="leise" style={{ margin: '.5rem 0 0', fontSize: '.8rem' }}>
-          Verschwunden (in der Datenbank, nicht mehr in der Datei): {ab.verschwunden.slice(0, 5).map(s => s.split('|').slice(1, 3).join(' / ')).join(', ')}
-          {ab.verschwunden.length > 5 && ' …'}. Gelöscht wird nichts — wer eine Lieferung streichen will, tut es unten von Hand.
+          Nicht mehr in der Datei (Position / Charge): {ab.verschwunden.slice(0, 5).map(s => s.split('|').slice(1, 3).map(t => t || 'ohne').join(' / ')).join(', ')}
+          {ab.verschwunden.length > 5 && ' …'}. Gelöscht wird nichts: was die Datei für ihre Positionen anders hat, liegt danach unter „frühere Zeilen" und
+          steht im Fenster der Lieferung als Satz; wer eine Lieferung von Hand streichen will, tut es unten.
         </p>
       )}
     </Karte>

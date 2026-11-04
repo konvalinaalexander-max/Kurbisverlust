@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { fehlerText } from '../lib/db'
 import { datum, kg, zeitpunkt } from '../lib/format'
-import { excelAnsicht, excelZeileVon, lieferungDeutung, schluessel, type ChargenzeileKurz, type ExcelAnsicht, type RohZeile } from '../lib/warenausgang'
+import { excelAnsicht, excelZeileVon, fruehereZeilenSatz, lieferungDeutung, schluessel, type ChargenzeileKurz, type ExcelAnsicht, type FruehereZeile, type RohZeile } from '../lib/warenausgang'
 import { FALSCHE_SPALTEN, OHNE_CHARGE_GRUND, OHNE_CHARGE_SPALTEN } from '../auswertung/ungereimt'
 import type { LieferungOhneCharge, PerigonBefund } from '../auswertung/daten'
 import { PERIGON_ART, WO_NAME, gegenueber, nachrechnen, schnappschuss, spaltenZeichen, zuteilung, type Nachrechnung } from '../auswertung/perigon'
@@ -58,6 +58,8 @@ interface PositionDaten {
   ohneGrund: LieferungOhneCharge[]
   /** Runde BE: die Datei, aus der die Zeilen zuletzt kamen — fürs Wiederfinden im Excel */
   datei: DateiKurz | null
+  /** 0130: was früher für diese Position in der Datei stand und die neuste Datei nicht mehr hat — ein Satz, leer wenn nichts */
+  frueher: string | null
   ziel: { quelle: string; posId: number } | null
   geladen: boolean; fehler: string | null
 }
@@ -72,6 +74,7 @@ function usePosition(lieferungId: number | undefined, quelle: string | undefined
   const [falsch, setFalsch] = useState<PositionDaten['falsch']>([])
   const [ohneGrund, setOhneGrund] = useState<LieferungOhneCharge[]>([])
   const [datei, setDatei] = useState<DateiKurz | null>(null)
+  const [frueher, setFrueher] = useState<string | null>(null)
   const [ziel, setZiel] = useState<{ quelle: string; posId: number } | null>(quelle && posId != null ? { quelle, posId } : null)
   const [geladen, setGeladen] = useState(false)
   const [fehler, setFehler] = useState<string | null>(null)
@@ -118,11 +121,22 @@ function usePosition(lieferungId: number | undefined, quelle: string | undefined
             : { data: [], error: null }
           if (li.error) throw li.error
           await ohneGrundLaden(((li.data ?? []) as LieferungZeile[]).filter(x => x.charge_nr == null).map(x => x.id))
-          const dateiIds = [...new Set(((z.data ?? []) as ZeileDerDatei[]).map(x => x.datei_id).filter((x): x is number => x != null))]
+          // 0130: was die neuste Datei für diese Position nicht mehr hat, liegt beiseite — gezeigt wird es nur als Satz.
+          // Ohne die Tabelle (ältere Datenbank) fehlt nur der Satz.
+          const fr = await supabase.from('ausgang_zeile_frueher').select('charge_extern, lauf_nr, kg_charge, datei_id, nicht_mehr_datei_id')
+            .eq('quelle', wo.quelle).eq('pos_id', wo.posId).order('charge_extern').order('lauf_nr')
+          const frueherZeilen = fr.error ? [] : (fr.data ?? []) as FruehereZeile[]
+          const jetzt = new Set(((z.data ?? []) as ZeileDerDatei[]).map(x => x.datei_id).filter((x): x is number => x != null))
+          const dateiIds = [...new Set([...jetzt, ...frueherZeilen.flatMap(x => [x.datei_id, x.nicht_mehr_datei_id])
+            .filter((x): x is number => x != null)])]
           if (dateiIds.length > 0) {
             const d = await supabase.from('ausgang_datei').select('id, dateiname, ts').in('id', dateiIds).order('ts', { ascending: false })
-            if (lebt && !d.error) setDatei(((d.data ?? []) as DateiKurz[])[0] ?? null)
-          }
+            if (lebt && !d.error) {
+              const alle = (d.data ?? []) as DateiKurz[]
+              setDatei(alle.find(x => jetzt.has(x.id)) ?? null)
+              setFrueher(fruehereZeilenSatz(frueherZeilen, new Map(alle.map(x => [x.id, x]))))
+            }
+          } else if (lebt) setFrueher(fruehereZeilenSatz(frueherZeilen, new Map()))
           if (!lebt) return
           setPosition(((p.data ?? []) as PositionZeile[])[0] ?? null)
           setZeilen((z.data ?? []) as ZeileDerDatei[])
@@ -134,7 +148,7 @@ function usePosition(lieferungId: number | undefined, quelle: string | undefined
     })()
     return () => { lebt = false }
   }, [lieferungId, quelle, posId])
-  return { lieferung, position, zeilen, lieferungen, einordnung, falsch, ohneGrund, datei, ziel, geladen, fehler }
+  return { lieferung, position, zeilen, lieferungen, einordnung, falsch, ohneGrund, datei, frueher, ziel, geladen, fehler }
 }
 
 /** Was aus den geladenen Zeilen folgt: die Zeile wie im Excel, was rot steht, was sonst nicht stimmt. */
@@ -182,7 +196,7 @@ export function LieferungFenster({ lieferungId, quelle, posId, fall, schliessen 
   schliessen: () => void
 }) {
   const d = usePosition(lieferungId, quelle, posId)
-  const { lieferung, zeilen, lieferungen, einordnung, ohneGrund, datei, ziel, geladen, fehler } = d
+  const { lieferung, zeilen, lieferungen, einordnung, ohneGrund, datei, frueher, ziel, geladen, fehler } = d
   const { kopf, roh, ansicht, roteSpalten, zeigen } = auswerten(d, fall)
   const deutung = kopf ? lieferungDeutung(kopf, zeilen) : []
 
@@ -236,7 +250,7 @@ export function LieferungFenster({ lieferungId, quelle, posId, fall, schliessen 
         ))}
         {fall && (geladen || fehler) && (
           <FallInhalt fall={fall} zeilen={zeilen} lieferungen={lieferungen} sonst={zeigen.map(m => m.befund)} excelNr={excelNrJe(zeilen, roh)} roh={roh}
-                      beleg={<ZeileImExcel ansicht={ansicht} rot={roteSpalten} posId={fall.pos_id} quelle={fall.quelle} datei={datei}
+                      beleg={<ZeileImExcel ansicht={ansicht} rot={roteSpalten} posId={fall.pos_id} quelle={fall.quelle} datei={datei} frueher={frueher}
                                            gemeint={fall.nummer} anzahl={zeilen.length} schliessen={schliessen} />} />
         )}
         {fall && !(geladen || fehler) && <Lade />}
@@ -255,7 +269,7 @@ export function LieferungFenster({ lieferungId, quelle, posId, fall, schliessen 
                   )}
                 </div>
               )}
-              <ZeileImExcel ansicht={ansicht} rot={roteSpalten} posId={ziel.posId} quelle={ziel.quelle} datei={datei}
+              <ZeileImExcel ansicht={ansicht} rot={roteSpalten} posId={ziel.posId} quelle={ziel.quelle} datei={datei} frueher={frueher}
                             gemeint={null} anzahl={zeilen.length} schliessen={schliessen} />
             </section>
             <section id="lieferung-deutung" className="lieferung-deutung">
@@ -286,7 +300,7 @@ export function PositionImFall({ fall }: { fall: PerigonBefund }) {
   if (!d.geladen) return <Lade />
   return (
     <FallInhalt fall={fall} zeilen={d.zeilen} lieferungen={d.lieferungen} sonst={zeigen.map(m => m.befund)} excelNr={excelNrJe(d.zeilen, roh)} roh={roh} imFall
-                beleg={<ZeileImExcel ansicht={ansicht} rot={roteSpalten} posId={fall.pos_id} quelle={fall.quelle} datei={d.datei}
+                beleg={<ZeileImExcel ansicht={ansicht} rot={roteSpalten} posId={fall.pos_id} quelle={fall.quelle} datei={d.datei} frueher={d.frueher}
                                      gemeint={fall.nummer} anzahl={d.zeilen.length} schliessen={() => {}} />} />
   )
 }
@@ -305,8 +319,10 @@ const CHARGE = schluessel('AuftragsChargeManuell')
  * Suchen und Kopieren); darunter die Zeilen wie im Excel — Spaltenbuchstaben
  * oben, Zeilennummern links, die Kennung blau, was nicht stimmt rot.
  */
-function ZeileImExcel({ ansicht, rot, posId, quelle, datei, gemeint, anzahl, schliessen }: {
+function ZeileImExcel({ ansicht, rot, posId, quelle, datei, frueher, gemeint, anzahl, schliessen }: {
   ansicht: ExcelAnsicht | null; rot: Set<string>; posId: number; quelle: string; datei: DateiKurz | null
+  /** 0130: was früher für die Position in der Datei stand und die neuste nicht mehr hat */
+  frueher?: string | null
   /** die Charge (Spalte W) der einen Zeile, um die es geht — sonst gelten alle Zeilen der Position */
   gemeint: string | null
   anzahl: number; schliessen: () => void
@@ -322,6 +338,7 @@ function ZeileImExcel({ ansicht, rot, posId, quelle, datei, gemeint, anzahl, sch
   return (
     <section className="fall-block beleg" id="fall-beleg">
       <h3>{n > 1 ? `Die ${n} ganzen Zeilen` : 'Die ganze Zeile'} im Excel <span className="leise">— alle Spalten, und wie man sie findet</span></h3>
+      {frueher && <p className="zeile-frueher" id="zeile-frueher">{frueher}</p>}
       <div className="finden" id="zeile-finden">
         <div className="finden-zeile">
           <span className="finden-was">Datei</span>

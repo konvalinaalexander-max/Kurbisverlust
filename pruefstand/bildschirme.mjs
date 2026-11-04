@@ -276,6 +276,14 @@ function perigonVormerken() {
   vormerken('lieferung', [{ id: 990130, datum: '2026-10-12', charge_nr: 1620, sorte: 'Orangita', kg: 256, kisten: null, gebindeart: null,
     ziel: 'verkauf', kunde: 'Prüfkunde Ost', erfasser: null, ts: '2026-10-12T08:00:00+00:00', bemerkung: null }])
   vormerken('lieferung_import', [{ lieferung_id: 990130, quelle: 'DEMO', extern_id: 'DEMO:990130:1620:1', zeile_id: 990140, ts: '2026-10-12T08:00:00+00:00' }])
+  // 0130: eine frühere Fassung derselben Position — eine Zeile ohne Charge, die eine spätere Datei nicht mehr hat. Sie liegt
+  // beiseite (ausgang_zeile_frueher); das Fenster nennt sie in einem Satz und zeigt sie nicht im Excel.
+  const dateien = (fixture('ausgang_datei') ?? []).filter(d => d.quelle === 'DEMO').sort((a, b) => a.ts.localeCompare(b.ts))
+  const frueher = dateien.find(d => d.id !== vorlage.datei_id) ?? null
+  vormerken('ausgang_zeile_frueher', [{ ...vorlage, id: 990190, quelle: 'DEMO', pos_id: 990130, charge_extern: '', lauf_nr: 1, fingerabdruck: 'bild-bi-1',
+    datum: '2026-10-12', kunde: 'Prüfkunde Ost', artikel: 'Bio Kürbis Orangita lose', einheit: 'kg', menge: 256, gewicht_je_artikel: 0,
+    batch_menge: 0, kg_position: 256, kg_charge: 0, datei_id: frueher?.id ?? null, nicht_mehr_datei_id: vorlage.datei_id ?? null,
+    nicht_mehr_ts: '2026-10-19T11:28:58+00:00' }])
   // Runde BE: die Belege von 99127 („verkauft, nie eingegangen") — drei Lieferscheine in Perigon, je mit
   // Position und Excel-Zeile, damit das Fenster der Sache zeigt, wo sie im Excel stehen.
   const belege = [['2026-09-23', 990141, 1150], ['2026-09-30', 990142, 1171], ['2026-10-05', 990143, 1188]]
@@ -682,6 +690,9 @@ const BILDSCHIRME = [
       await r.locator('tr.fall-unterschied', { hasText: 'Zu viel zugeteilt' }).locator('td', { hasText: '512 kg' }).waitFor()
       await n.locator('.zt-woran', { hasText: 'Die 3 Zeilen sind genau gleich — dieselbe Position, dieselbe Charge, dieselbe Menge' }).waitFor()
       await n.locator('p', { hasText: 'In der Rechnung der App: 256 kg auf Charge 1620. So viel, wie geliefert wurde — eure Lagerzahlen stimmen' }).waitFor()
+      // 0130 — „finde die Zeile nur einmal": was eine spätere Datei nicht mehr hat, steht nicht im Excel-Ausschnitt (oben drei
+      // Zeilen, nicht vier), sondern als Satz beim Beleg, mit der Datei, in der es zuletzt stand, und der, die es nicht mehr hat.
+      await f.locator('#fall-beleg #zeile-frueher').filter({ hasText: /^Früher stand für diese Position noch eine Zeile in der Datei \(ohne Charge, 0 kg\), zuletzt in „.+" vom \d\d\.\d\d\.\d{4}\. Die Datei vom \d\d\.\d\d\.\d{4} hat sie nicht mehr — die App zählt sie nicht mehr\.$/ }).waitFor()
       // auf dem breiten Bildschirm passt der Ausschnitt ganz ins Bild, ohne seitlich zu rollen
       if (p.viewportSize().width >= 900) {
         const passt = await n.locator('.excel-auszug-rahmen').evaluate(el => el.scrollWidth <= el.clientWidth + 1)

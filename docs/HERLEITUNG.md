@@ -478,7 +478,13 @@ ohne Charge als `…:rest`. Seit 0115 entfernt das Einlesen für jede Position
 der Datei die Lieferungen, die die Datei nicht mehr ergibt (Charge
 nachgetragen, anders aufgeteilt, keine Masse mehr) — Positionen ausserhalb
 der Datei, andere Firmen und Lieferungen von Hand bleiben; das Journal
-behält jede entfernte.
+behält jede entfernte. Seit 0130 gilt dasselbe für die Zeilen: Was die
+Datei für eine ihrer Positionen nicht mehr hat (Charge nachgetragen oder
+geändert, eine doppelte Zeile entfernt), legt das Einlesen nach
+`ausgang_zeile_frueher` — mit der Datei, in der es zuletzt stand, und der,
+die es nicht mehr hatte. Keine Sicht liest es dort; jede Rechnung und jede
+Perigon-Prüfung sieht nur, was die zuletzt eingelesene Datei sagt. Das
+Fenster einer Lieferung nennt es in einem Satz.
 **Fehlt eine Eingabe:** ohne Stückgewicht keine Lieferung und keine Masse —
 die Position steht beim Einlesen unter „ohne Gewicht" und im Vergleich je
 Kunde als Stück. `v_ausgang_pruef` zeigt jede Position, deren Lieferungen
