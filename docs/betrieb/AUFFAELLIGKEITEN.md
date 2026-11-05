@@ -1,25 +1,28 @@
 # Auffälligkeiten der Messungen
 
-_Abzug vom 2026-11-04. Von `pruefstand/betrieb_abzug.mjs` geschrieben; nicht von Hand ändern._
+_Abzug vom 2026-11-05. Von `pruefstand/betrieb_abzug.mjs` geschrieben; nicht von Hand ändern._
 
 Was die Auswertung nicht in die Rechnung nimmt, weil es nicht zu seinem Nenner passt. Für die nächste Runde: Wo entsteht das im Ablauf oder in der Maske? Was ist ein Datenfehler, der dem Betrieb gehört? Was könnte die App besser abfangen?
 
-## Nach Art (112)
+## Nach Art (111)
 
 | Art | Anzahl |
 |---|---|
-| Zettelgewicht | 70 |
-| Überzählung | 14 |
+| Zettelgewicht | 71 |
+| Überzählung | 12 |
 | Wägung | 11 |
 | Verdunstung | 10 |
 | Zetteldatum | 5 |
 | Palox geleert | 1 |
 | Palette fraglich | 1 |
 
-**Offen: 112** von 112. Neueste zuerst; „Nr." ist die Nummer der App (Messungen → Auffälligkeiten), unter der der Betrieb den Fall nennt.
+**Offen: 111** von 111. Neueste zuerst; „Nr." ist die Nummer der App (Messungen → Auffälligkeiten), unter der der Betrieb den Fall nennt.
 
 ## Einzeln
 
+- **Nr. 115 · Zettelgewicht** · offen · Charge 1611 — Negi Thalheim · Tiana · Waschen + Sortieren · 04.11.2026, 13:26 · fertig · Charge 1611 — Negi Thalheim · Tiana · Arbeit 1701 · `zettel:1701:277.00`
+  - 1 Palette(n) mit 277.00 kg vom Zettel gezählt, aber im Wareneingang hat keine Palette dieser Charge dieses Gewicht — gerechnet wird mit den gezählten Kisten und ihrer Tara (Zettel − Kisten × Kiste − Palette)
+  - _Gewicht an der Zählung prüfen (Zahlendreher?) — oder die Palette fehlt im Wareneingang (Erntejournal)._
 - **Nr. 113 · Verdunstung** · offen · Charge 1631 — Rümlang Keller · Mieluna · Waschen + Sortieren · 02.11.2026, 15:13 · fertig · Charge 1631 — Rümlang Keller · Mieluna · Arbeit 1699 · `verdunstung_wiegung:493`
   - 1.98 % je Tag: 434 kg → 180 kg in 44 Tagen — so schnell verdunstet kein Kürbis (Grenze 1.00 % je Tag)
   - _Zettelgewicht, Kisten und Gebinde dieser Wägung prüfen — oder es ist eine andere Palette. Bis zur Korrektur zählt sie nicht in die Rate._
@@ -218,9 +221,6 @@ Was die Auswertung nicht in die Rechnung nimmt, weil es nicht zu seinem Nenner p
 - **Nr. 46 · Zettelgewicht** · offen · Charge 1638 — Klaus Böhler · Kaori Kuri · Waschen + Sortieren · 06.10.2026, 08:54 · fertig · Charge 1638 — Klaus Böhler · Kaori Kuri · Arbeit 1609 · `zettel:1609:313.00:2026-09-15`
   - 1 Palette(n) mit 313.00 kg vom Zettel und Eingangsdatum 15.09.2026 gezählt. Eine Palette dieses Gewichts gibt es in der Charge, aber an einem anderen Tag — gerechnet wird mit den gezählten Kisten und ihrer Tara (Zettel − Kisten × Kiste − Palette), nicht mit der Palette selbst.
   - _Eingangsdatum an der Zählung prüfen — oder das Datum der Palette im Wareneingang._
-- **Nr. 93 · Überzählung** · offen · Charge 1719 — Oettli · Kaori Kuri · `charge:1719`
-  - Die Lieferungen dieser Charge (14607 kg) brauchen nach der gerechneten Ausbeute (73 % verkaufsfähig) 19986 kg Eingang — erfasst sind 17381 kg, also 2605 kg zu wenig. Geliefert wurde nicht mehr als eingelagert; es wurde mehr geliefert, als die Rechnung aus diesem Eingang erwartet.
-  - _Drei Möglichkeiten: Im Erntejournal fehlt eine Palette dieser Charge; ein Lieferschein ist auf die falsche Chargennummer gebucht; oder diese Charge hat weniger Verlust als das Modell annimmt — dann ist „Im Lager" für sie zu klein gerechnet. Die ersten zwei lassen sich nachtragen._
 - **Nr. 41 · Zettelgewicht** · offen · Charge 1631 — Rümlang Keller · Mieluna · Waschen + Sortieren · 05.10.2026, 17:41 · fertig · Charge 1631 — Rümlang Keller · Mieluna · Arbeit 1608 · `zettel:1608:140.00`
   - 1 Palette(n) mit 140.00 kg vom Zettel gezählt, aber im Wareneingang hat keine Palette dieser Charge dieses Gewicht — gerechnet wird mit der Wägung der Palette
   - _Gewicht an der Zählung prüfen (Zahlendreher?) — oder die Palette fehlt im Wareneingang (Erntejournal)._
@@ -306,10 +306,10 @@ Was die Auswertung nicht in die Rechnung nimmt, weil es nicht zu seinem Nenner p
   - 1 Palette(n) mit 429.00 kg vom Zettel gezählt, aber im Wareneingang hat keine Palette dieser Charge dieses Gewicht — gerechnet wird mit den gezählten Kisten und ihrer Tara (Zettel − Kisten × Kiste − Palette)
   - _Gewicht an der Zählung prüfen (Zahlendreher?) — oder die Palette fehlt im Wareneingang (Erntejournal)._
 - **Nr. 12 · Überzählung** · offen · Charge 1626 — Agasul Rüegg · Tiana · `charge:1626`
-  - Die Lieferungen dieser Charge (7445 kg) brauchen nach der gerechneten Ausbeute (94 % verkaufsfähig) 7925 kg Eingang — erfasst sind 4863 kg, also 3063 kg zu wenig. Geliefert wurde nicht mehr als eingelagert; es wurde mehr geliefert, als die Rechnung aus diesem Eingang erwartet.
+  - Die Lieferungen dieser Charge (7445 kg) brauchen nach der gerechneten Ausbeute (94 % verkaufsfähig) 7925 kg Eingang — erfasst sind 4863 kg, also 3062 kg zu wenig. Geliefert wurde nicht mehr als eingelagert; es wurde mehr geliefert, als die Rechnung aus diesem Eingang erwartet.
   - _Drei Möglichkeiten: Im Erntejournal fehlt eine Palette dieser Charge; ein Lieferschein ist auf die falsche Chargennummer gebucht; oder diese Charge hat weniger Verlust als das Modell annimmt — dann ist „Im Lager" für sie zu klein gerechnet. Die ersten zwei lassen sich nachtragen._
 - **Nr. 13 · Überzählung** · offen · Charge 1627 — Agasul Rüegg · Fictor · `charge:1627`
-  - Die Lieferungen dieser Charge (1416 kg) brauchen nach der gerechneten Ausbeute (57 % verkaufsfähig) 2481 kg Eingang — erfasst sind 2012 kg, also 468 kg zu wenig. Geliefert wurde nicht mehr als eingelagert; es wurde mehr geliefert, als die Rechnung aus diesem Eingang erwartet.
+  - Die Lieferungen dieser Charge (1416 kg) brauchen nach der gerechneten Ausbeute (57 % verkaufsfähig) 2481 kg Eingang — erfasst sind 2012 kg, also 469 kg zu wenig. Geliefert wurde nicht mehr als eingelagert; es wurde mehr geliefert, als die Rechnung aus diesem Eingang erwartet.
   - _Drei Möglichkeiten: Im Erntejournal fehlt eine Palette dieser Charge; ein Lieferschein ist auf die falsche Chargennummer gebucht; oder diese Charge hat weniger Verlust als das Modell annimmt — dann ist „Im Lager" für sie zu klein gerechnet. Die ersten zwei lassen sich nachtragen._
 - **Nr. 10 · Zettelgewicht** · offen · Charge 1651 — Rümlang Sauter · Kaori Kuri · Waschen + Sortieren · 22.09.2026, 07:36 · fertig · Charge 1651 — Rümlang Sauter · Kaori Kuri · Arbeit 1573 · `zettel:1573:237.00`
   - 1 Palette(n) mit 237.00 kg vom Zettel gezählt, aber im Wareneingang hat keine Palette dieser Charge dieses Gewicht — gerechnet wird mit den gezählten Kisten und ihrer Tara (Zettel − Kisten × Kiste − Palette)
@@ -324,35 +324,32 @@ Was die Auswertung nicht in die Rechnung nimmt, weil es nicht zu seinem Nenner p
   - 1 Palette(n) mit 235.00 kg vom Zettel gezählt, aber im Wareneingang hat keine Palette dieser Charge dieses Gewicht — gerechnet wird mit den gezählten Kisten und ihrer Tara (Zettel − Kisten × Kiste − Palette)
   - _Gewicht an der Zählung prüfen (Zahlendreher?) — oder die Palette fehlt im Wareneingang (Erntejournal)._
 - **Nr. 7 · Überzählung** · offen · Charge 1650 — Rümlang Sauter · Tiana · `charge:1650`
-  - Die Lieferungen dieser Charge (8424 kg) brauchen nach der gerechneten Ausbeute (89 % verkaufsfähig) 9466 kg Eingang — erfasst sind 9048 kg, also 418 kg zu wenig. Geliefert wurde nicht mehr als eingelagert; es wurde mehr geliefert, als die Rechnung aus diesem Eingang erwartet.
+  - Die Lieferungen dieser Charge (8424 kg) brauchen nach der gerechneten Ausbeute (89 % verkaufsfähig) 9457 kg Eingang — erfasst sind 9048 kg, also 409 kg zu wenig. Geliefert wurde nicht mehr als eingelagert; es wurde mehr geliefert, als die Rechnung aus diesem Eingang erwartet.
   - _Drei Möglichkeiten: Im Erntejournal fehlt eine Palette dieser Charge; ein Lieferschein ist auf die falsche Chargennummer gebucht; oder diese Charge hat weniger Verlust als das Modell annimmt — dann ist „Im Lager" für sie zu klein gerechnet. Die ersten zwei lassen sich nachtragen._
-- **Nr. 92 · Überzählung** · offen · Charge 1635 — Daniel Böhler · Kaori Kuri · `charge:1635`
-  - Die Lieferungen dieser Charge (16260 kg) brauchen nach der gerechneten Ausbeute (85 % verkaufsfähig) 19216 kg Eingang — erfasst sind 14684 kg, also 4532 kg zu wenig. Geliefert wurde nicht mehr als eingelagert; es wurde mehr geliefert, als die Rechnung aus diesem Eingang erwartet.
-  - _Drei Möglichkeiten: Im Erntejournal fehlt eine Palette dieser Charge; ein Lieferschein ist auf die falsche Chargennummer gebucht; oder diese Charge hat weniger Verlust als das Modell annimmt — dann ist „Im Lager" für sie zu klein gerechnet. Die ersten zwei lassen sich nachtragen._
-- **Nr. 90 · Überzählung** · offen · Charge 1651 — Rümlang Sauter · Kaori Kuri · `charge:1651`
-  - Die Lieferungen dieser Charge (8139 kg) brauchen nach der gerechneten Ausbeute (82 % verkaufsfähig) 9941 kg Eingang — erfasst sind 8514 kg, also 1427 kg zu wenig. Geliefert wurde nicht mehr als eingelagert; es wurde mehr geliefert, als die Rechnung aus diesem Eingang erwartet.
+- **Nr. 91 · Überzählung** · offen · Charge 1628 — Agasul Baumann · Kaori Kuri · `charge:1628`
+  - Die Lieferungen dieser Charge (66542 kg) brauchen nach der gerechneten Ausbeute (82 % verkaufsfähig) 81301 kg Eingang — erfasst sind 18565 kg, also 62737 kg zu wenig. Geliefert wurde nicht mehr als eingelagert; es wurde mehr geliefert, als die Rechnung aus diesem Eingang erwartet.
   - _Drei Möglichkeiten: Im Erntejournal fehlt eine Palette dieser Charge; ein Lieferschein ist auf die falsche Chargennummer gebucht; oder diese Charge hat weniger Verlust als das Modell annimmt — dann ist „Im Lager" für sie zu klein gerechnet. Die ersten zwei lassen sich nachtragen._
 - **Nr. 89 · Überzählung** · offen · Charge 1598 — Illnau Bruno · Kaori Kuri · `charge:1598`
-  - Die Lieferungen dieser Charge (16535 kg) brauchen nach der gerechneten Ausbeute (84 % verkaufsfähig) 19749 kg Eingang — erfasst sind 13406 kg, also 6343 kg zu wenig. Geliefert wurde nicht mehr als eingelagert; es wurde mehr geliefert, als die Rechnung aus diesem Eingang erwartet.
-  - _Drei Möglichkeiten: Im Erntejournal fehlt eine Palette dieser Charge; ein Lieferschein ist auf die falsche Chargennummer gebucht; oder diese Charge hat weniger Verlust als das Modell annimmt — dann ist „Im Lager" für sie zu klein gerechnet. Die ersten zwei lassen sich nachtragen._
-- **Nr. 88 · Überzählung** · offen · Charge 1638 — Klaus Böhler · Kaori Kuri · `charge:1638`
-  - Die Lieferungen dieser Charge (9861 kg) brauchen nach der gerechneten Ausbeute (81 % verkaufsfähig) 12239 kg Eingang — erfasst sind 10584 kg, also 1655 kg zu wenig. Geliefert wurde nicht mehr als eingelagert; es wurde mehr geliefert, als die Rechnung aus diesem Eingang erwartet.
+  - Die Lieferungen dieser Charge (45514 kg) brauchen nach der gerechneten Ausbeute (84 % verkaufsfähig) 54361 kg Eingang — erfasst sind 13406 kg, also 40955 kg zu wenig. Geliefert wurde nicht mehr als eingelagert; es wurde mehr geliefert, als die Rechnung aus diesem Eingang erwartet.
   - _Drei Möglichkeiten: Im Erntejournal fehlt eine Palette dieser Charge; ein Lieferschein ist auf die falsche Chargennummer gebucht; oder diese Charge hat weniger Verlust als das Modell annimmt — dann ist „Im Lager" für sie zu klein gerechnet. Die ersten zwei lassen sich nachtragen._
 - **Nr. 6 · Überzählung** · offen · Charge 1624 — Agasul Rüegg · Butterkin · `charge:1624`
-  - Die Lieferungen dieser Charge (16818 kg) brauchen nach der gerechneten Ausbeute (73 % verkaufsfähig) 23095 kg Eingang — erfasst sind 16788 kg, also 6306 kg zu wenig. Geliefert wurde nicht mehr als eingelagert; es wurde mehr geliefert, als die Rechnung aus diesem Eingang erwartet.
+  - Die Lieferungen dieser Charge (16818 kg) brauchen nach der gerechneten Ausbeute (73 % verkaufsfähig) 23094 kg Eingang — erfasst sind 16788 kg, also 6306 kg zu wenig. Geliefert wurde nicht mehr als eingelagert; es wurde mehr geliefert, als die Rechnung aus diesem Eingang erwartet.
   - _Drei Möglichkeiten: Im Erntejournal fehlt eine Palette dieser Charge; ein Lieferschein ist auf die falsche Chargennummer gebucht; oder diese Charge hat weniger Verlust als das Modell annimmt — dann ist „Im Lager" für sie zu klein gerechnet. Die ersten zwei lassen sich nachtragen._
 - **Nr. 5 · Überzählung** · offen · Charge 1620 — Gossau Eberhard · Orangita · `charge:1620`
   - Die Lieferungen dieser Charge (6730 kg) brauchen nach der gerechneten Ausbeute (70 % verkaufsfähig) 9635 kg Eingang — erfasst sind 8827 kg, also 808 kg zu wenig. Geliefert wurde nicht mehr als eingelagert; es wurde mehr geliefert, als die Rechnung aus diesem Eingang erwartet.
   - _Drei Möglichkeiten: Im Erntejournal fehlt eine Palette dieser Charge; ein Lieferschein ist auf die falsche Chargennummer gebucht; oder diese Charge hat weniger Verlust als das Modell annimmt — dann ist „Im Lager" für sie zu klein gerechnet. Die ersten zwei lassen sich nachtragen._
 - **Nr. 4 · Überzählung** · offen · Charge 1630 — Rümlang Keller · Kaori Kuri · `charge:1630`
-  - Die Lieferungen dieser Charge (22015 kg) brauchen nach der gerechneten Ausbeute (73 % verkaufsfähig) 30343 kg Eingang — erfasst sind 19318 kg, also 11025 kg zu wenig. Geliefert wurde nicht mehr als eingelagert; es wurde mehr geliefert, als die Rechnung aus diesem Eingang erwartet.
+  - Die Lieferungen dieser Charge (15789 kg) brauchen nach der gerechneten Ausbeute (74 % verkaufsfähig) 21413 kg Eingang — erfasst sind 19318 kg, also 2095 kg zu wenig. Geliefert wurde nicht mehr als eingelagert; es wurde mehr geliefert, als die Rechnung aus diesem Eingang erwartet.
   - _Drei Möglichkeiten: Im Erntejournal fehlt eine Palette dieser Charge; ein Lieferschein ist auf die falsche Chargennummer gebucht; oder diese Charge hat weniger Verlust als das Modell annimmt — dann ist „Im Lager" für sie zu klein gerechnet. Die ersten zwei lassen sich nachtragen._
 - **Nr. 3 · Überzählung** · offen · Charge 1619 — Gossau Eberhard · Kaori Kuri · `charge:1619`
-  - Die Lieferungen dieser Charge (5061 kg) brauchen nach der gerechneten Ausbeute (82 % verkaufsfähig) 6176 kg Eingang — erfasst sind 4281 kg, also 1895 kg zu wenig. Geliefert wurde nicht mehr als eingelagert; es wurde mehr geliefert, als die Rechnung aus diesem Eingang erwartet.
+  - Die Lieferungen dieser Charge (3681 kg) brauchen nach der gerechneten Ausbeute (85 % verkaufsfähig) 4315 kg Eingang — erfasst sind 4281 kg, also 34 kg zu wenig. Geliefert wurde nicht mehr als eingelagert; es wurde mehr geliefert, als die Rechnung aus diesem Eingang erwartet.
   - _Drei Möglichkeiten: Im Erntejournal fehlt eine Palette dieser Charge; ein Lieferschein ist auf die falsche Chargennummer gebucht; oder diese Charge hat weniger Verlust als das Modell annimmt — dann ist „Im Lager" für sie zu klein gerechnet. Die ersten zwei lassen sich nachtragen._
 - **Nr. 2 · Überzählung** · offen · Charge 1614 — Slowgrow Uster · Kaori Kuri · `charge:1614`
-  - Die Lieferungen dieser Charge (12535 kg) brauchen nach der gerechneten Ausbeute (80 % verkaufsfähig) 15667 kg Eingang — erfasst sind 10559 kg, also 5108 kg zu wenig. Geliefert wurde nicht mehr als eingelagert; es wurde mehr geliefert, als die Rechnung aus diesem Eingang erwartet.
+  - Die Lieferungen dieser Charge (9132 kg) brauchen nach der gerechneten Ausbeute (83 % verkaufsfähig) 11057 kg Eingang — erfasst sind 10559 kg, also 499 kg zu wenig. Geliefert wurde nicht mehr als eingelagert; es wurde mehr geliefert, als die Rechnung aus diesem Eingang erwartet.
   - _Drei Möglichkeiten: Im Erntejournal fehlt eine Palette dieser Charge; ein Lieferschein ist auf die falsche Chargennummer gebucht; oder diese Charge hat weniger Verlust als das Modell annimmt — dann ist „Im Lager" für sie zu klein gerechnet. Die ersten zwei lassen sich nachtragen._
 - **Nr. 1 · Überzählung** · offen · Charge 1625 — Agasul Rüegg · Amoro · `charge:1625`
-  - Die Lieferungen dieser Charge (7411 kg) brauchen nach der gerechneten Ausbeute (75 % verkaufsfähig) 9816 kg Eingang — erfasst sind 9549 kg, also 267 kg zu wenig. Geliefert wurde nicht mehr als eingelagert; es wurde mehr geliefert, als die Rechnung aus diesem Eingang erwartet.
+  - Die Lieferungen dieser Charge (7411 kg) brauchen nach der gerechneten Ausbeute (72 % verkaufsfähig) 10270 kg Eingang — erfasst sind 9549 kg, also 721 kg zu wenig. Geliefert wurde nicht mehr als eingelagert; es wurde mehr geliefert, als die Rechnung aus diesem Eingang erwartet.
+  - _Drei Möglichkeiten: Im Erntejournal fehlt eine Palette dieser Charge; ein Lieferschein ist auf die falsche Chargennummer gebucht; oder diese Charge hat weniger Verlust als das Modell annimmt — dann ist „Im Lager" für sie zu klein gerechnet. Die ersten zwei lassen sich nachtragen._
+- **Nr. 114 · Überzählung** · offen · Charge 1607 — Illnau Gross · Amoro · `charge:1607`
+  - Die Lieferungen dieser Charge (10600 kg) brauchen nach der gerechneten Ausbeute (25 % verkaufsfähig) 42400 kg Eingang — erfasst sind 5596 kg, also 36804 kg zu wenig. Geliefert wurde nicht mehr als eingelagert; es wurde mehr geliefert, als die Rechnung aus diesem Eingang erwartet.
   - _Drei Möglichkeiten: Im Erntejournal fehlt eine Palette dieser Charge; ein Lieferschein ist auf die falsche Chargennummer gebucht; oder diese Charge hat weniger Verlust als das Modell annimmt — dann ist „Im Lager" für sie zu klein gerechnet. Die ersten zwei lassen sich nachtragen._
