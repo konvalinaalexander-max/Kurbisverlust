@@ -278,11 +278,11 @@ function perigonVormerken() {
   vormerken('lieferung_import', [{ lieferung_id: 990130, quelle: 'DEMO', extern_id: 'DEMO:990130:1620:1', zeile_id: 990140, ts: '2026-10-12T08:00:00+00:00' }])
   // 0130: eine frühere Fassung derselben Position — eine Zeile ohne Charge, die eine spätere Datei nicht mehr hat. Sie liegt
   // beiseite (ausgang_zeile_frueher); das Fenster nennt sie in einem Satz und zeigt sie nicht im Excel.
-  const dateien = (fixture('ausgang_datei') ?? []).filter(d => d.quelle === 'DEMO').sort((a, b) => a.ts.localeCompare(b.ts))
-  const frueher = dateien.find(d => d.id !== vorlage.datei_id) ?? null
+  // zuletzt in der ältesten Datei der Demo, nicht mehr in der nächsten — in dieser Folge, wie beim Einlesen
+  const [frueher, spaeter] = (fixture('ausgang_datei') ?? []).filter(d => d.quelle === 'DEMO').sort((a, b) => a.ts.localeCompare(b.ts))
   vormerken('ausgang_zeile_frueher', [{ ...vorlage, id: 990190, quelle: 'DEMO', pos_id: 990130, charge_extern: '', lauf_nr: 1, fingerabdruck: 'bild-bi-1',
     datum: '2026-10-12', kunde: 'Prüfkunde Ost', artikel: 'Bio Kürbis Orangita lose', einheit: 'kg', menge: 256, gewicht_je_artikel: 0,
-    batch_menge: 0, kg_position: 256, kg_charge: 0, datei_id: frueher?.id ?? null, nicht_mehr_datei_id: vorlage.datei_id ?? null,
+    batch_menge: 0, kg_position: 256, kg_charge: 0, datei_id: frueher?.id ?? null, nicht_mehr_datei_id: spaeter?.id ?? null,
     nicht_mehr_ts: '2026-10-19T11:28:58+00:00' }])
   // Runde BE: die Belege von 99127 („verkauft, nie eingegangen") — drei Lieferscheine in Perigon, je mit
   // Position und Excel-Zeile, damit das Fenster der Sache zeigt, wo sie im Excel stehen.
