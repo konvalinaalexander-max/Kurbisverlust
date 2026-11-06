@@ -1,6 +1,6 @@
 # Rohdaten der Saison
 
-_Abzug vom 2026-11-05. Von `pruefstand/betrieb_abzug.mjs` geschrieben; nicht von Hand ändern._
+_Abzug vom 2026-11-06. Von `pruefstand/betrieb_abzug.mjs` geschrieben; nicht von Hand ändern._
 
 Je Tabelle die Zeilen mit den Spalten aus `ROHTABELLEN` (`pruefstand/durchgang_pruefungen.mjs`) — ohne Kundennamen, Preise, freie Texte und Personen. Für den Plausibilitätsdurchgang (`DURCHGANG.md`) und für jede Runde, die eine Zahl nachrechnen will.
 
@@ -17,7 +17,7 @@ Je Tabelle die Zeilen mit den Spalten aus `ROHTABELLEN` (`pruefstand/durchgang_p
 | ausgang_wiegung | 121 | id, auftrag_id, charge_nr, brutto_kg, kisten, gebindeart, kuerbisse_pro_kiste, kaliber_idx, voll, gemessen, ts |
 | kontrollpalette | 0 | id, charge_nr, palette_id, kennzeichen, angelegt_ts, beendet_ts, beendet_grund, eingangsdatum, brutto_eingang_kg |
 | kontrollpalette_wiegung | 0 | id, kontrollpalette_id, brutto_kg, kisten, gebindeart, sichtbar_schimmel, wiege_ts |
-| lieferung | 1589 | id, datum, charge_nr, sorte, kg, kisten, gebindeart, ziel, ts |
+| lieferung | 1593 | id, datum, charge_nr, sorte, kg, kisten, gebindeart, ziel, ts |
 | sortier_lauf | 19 | id, charge_nr, auftrag_id, datei_zeit, n_roh, n_overflow, n_klein, n_dubletten, n_gueltig, art, sortiertag, sortiertag_quelle |
 | gebinde | 8 | art, tara_kg_pro_kiste, tara_kg_palette |
 | auswertung_stand | 1 | id, geaendert_ts, berechnet_ts, dauer_ms |
