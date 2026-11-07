@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { chargenAnlegen, einstellung, fehlerText, stammdaten } from '../lib/db'
-import { abgleichMeldung, importErkennen } from '../lib/import'
+import { abgleichMeldung, importErkennen, journalAbgleichen, verdachtSatz, type BekanntePalette } from '../lib/import'
 import { Hinweis } from '../components/Bausteine'
 
 /** Nicht öfter als alle zehn Minuten je Gerät — das Sheet ist geduldig, aber nicht unendlich. */
@@ -15,10 +15,11 @@ const MERKZETTEL = 'journal_abgleich_zuletzt'
  * Der Betrieb: „Wird das jedes Mal neu runtergezogen? … Wenn möglich, schau,
  * dass es automatisiert ist, dass da immer die neuesten Daten drin sind."
  * Also: Steht die veröffentlichte CSV-Adresse in den Einstellungen, holt das
- * Dashboard beim Öffnen die Datei und übernimmt, was neu ist. NUR was neu ist:
- * Eine Palette, die schon da ist (gleiche extern_id), wird nicht angefasst —
- * was der Betriebsleiter berichtigt hat, bleibt berichtigt. Der volle Abgleich
- * mit Vorschau bleibt unter Betrieb → Stammdaten.
+ * Dashboard beim Öffnen die Datei und übernimmt, was neu ist. Runde BJ: dazu,
+ * was eine Journalzeile mit ID an einer bekannten Palette berichtigt hat
+ * (Charge, Tag, Gewicht, Kisten, Gebinde — journalAbgleichen). Eine Zeile ohne
+ * ID, die wohl eine berichtigte ist, legt keine zweite Palette an; die Meldung
+ * sagt es. Der volle Abgleich mit Vorschau bleibt unter Betrieb → Stammdaten.
  *
  * Scheitert der Abruf, sagt die Karte es leise und die Seite läuft weiter.
  *
@@ -54,16 +55,29 @@ export function JournalAbgleich() {
         // Runde AD: nicht mehr 500 Kennungen in einer Adresszeile (17 KB, am
         // 28. September „Bad Request"), sondern alle Kennungen des Journals
         // aus der Datenbank geblättert — 1000 je Anfrage, kurze Adresse.
-        const bekannt = new Set<string>()
+        const bekannt: BekanntePalette[] = []
         for (let von = 0; ; von += 1000) {
-          const { data, error } = await supabase.from('palette').select('extern_id').eq('quelle', 'journal-import').range(von, von + 999)
+          const { data, error } = await supabase.from('palette')
+            .select('id, extern_id, charge_nr, charge_nr_journal, eingangsdatum, brutto_kg, kisten, gebindeart')
+            .eq('quelle', 'journal-import').order('id').range(von, von + 999)
           if (error) throw error
-          for (const z of (data ?? []) as { extern_id: string | null }[]) if (z.extern_id) bekannt.add(z.extern_id)
+          bekannt.push(...((data ?? []) as BekanntePalette[]).map(p => ({ ...p, brutto_kg: p.brutto_kg === null ? null : Number(p.brutto_kg) })))
           if ((data ?? []).length < 1000) break
         }
-        const neue = b.paletten.filter(z => !bekannt.has(z.extern_id))
+        const { neu: neue, korrekturen, verdacht } = journalAbgleichen(b.paletten, bekannt)
+        // Runde BJ: Berichtigungen an bekannten Paletten (Zeilen mit ID) übernehmen — Feld für Feld, was anders ist.
+        for (const k of korrekturen) {
+          const { error } = await supabase.from('palette').update(k.felder).eq('id', k.id)
+          if (error) throw error
+        }
+        const dazu = [korrekturen.length ? `${korrekturen.length === 1 ? 'Eine Berichtigung' : `${korrekturen.length} Berichtigungen`} aus dem Journal übernommen (${korrekturen[0].was}${korrekturen.length > 1 ? ' …' : ''}).` : null,
+                      verdachtSatz(verdacht)].filter(Boolean).join(' ')
         // 22. Oktober: nichts Neues heisst nicht nichts zu sagen — Zeilen ohne Charge kommen sonst nie an.
-        if (neue.length === 0) { if (lebt) setMeldung(abgleichMeldung(0, [], b.probleme)); return }
+        if (neue.length === 0) {
+          const m = abgleichMeldung(0, [], b.probleme)
+          if (lebt) setMeldung(dazu ? { art: verdacht.length ? 'warnung' : 'gut', text: `${m ? `${m.text} ` : ''}${dazu}` } : m)
+          return
+        }
         // Runde AS: eine Charge, die das Journal neu nennt, zuerst anlegen.
         const nrNeu = new Set(neue.map(z => z.charge_nr))
         const angelegt = await chargenAnlegen(b.neueChargen.filter(c => nrNeu.has(c.nr)))
@@ -79,7 +93,8 @@ export function JournalAbgleich() {
         }
         void stammdaten(true)
         if (!lebt) return
-        setMeldung(abgleichMeldung(neue.length, angelegt ? b.neueChargen.filter(c => nrNeu.has(c.nr)).map(c => c.nr) : [], b.probleme))
+        const m = abgleichMeldung(neue.length, angelegt ? b.neueChargen.filter(c => nrNeu.has(c.nr)).map(c => c.nr) : [], b.probleme)
+        setMeldung(dazu && m ? { art: verdacht.length ? 'warnung' : m.art, text: `${m.text} ${dazu}` } : m)
       } catch (f) {
         // Was genau scheiterte, steht dabei — „Bad Request" allein half niemandem.
         const e = f as { status?: number; code?: string; details?: string } | null

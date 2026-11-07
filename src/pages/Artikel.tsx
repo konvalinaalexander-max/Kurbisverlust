@@ -15,8 +15,8 @@ import { IM_LAGER_TEXT, palettenText } from '../auswertung/lager'
 import { STROM_UEBERFUELLUNG } from '../auswertung/ausweis'
 import { WochenFeld } from '../components/WochenFeld'
 import { ZChevron, ZHoch, ZRunter, ZStift } from '../components/Zeichen'
-import { ARTIKEL_KLASSEN, KLASSEN, OFFEN, alsArtikel, gruppenFolge, klasseVon, kundenGruppe, nochZuLiefern, passtGruppe, passtKlasse, passtLabel, passtVerkauf, planSchluessel, rang,
-         uebersichtszeilen, type GruppePlan, type GruppeRang, type Klasse, type KundePlan, type RestTeile, type Uebersichtszeile,
+import { ARTIKEL_KLASSEN, KLASSEN, OFFEN, alsArtikel, gruppenFolge, klasseVon, kundenGruppe, nochZuLiefern, passtGruppe, passtKlasse, passtLabel, passtVerkauf, planSchluessel, rang, teileSumme,
+         uebersichtszeilen, type GruppePlan, type GruppeRang, type Klasse, type KundePlan, type PlanTeile, type RestTeile, type Uebersichtszeile,
          type Wahl } from '../auswertung/artikel'
 import { LieferungFenster } from '../betrieb/LieferungFenster'
 
@@ -781,10 +781,10 @@ function Verlauf({ grund, heute, wahl, lagerHeute, verlauf, bestand, istAdmin, n
     const r = art === 'kunde'
       ? (kgWert === null
           ? await supabase.from('kunde_plan').delete().match({ saison, kunde: name, ...s })
-          : await supabase.from('kunde_plan').upsert({ saison, kunde: name, ...s, kg: kgWert }, { onConflict: 'saison,kunde,artikelgruppe,groesse,label' }))
+          : await supabase.from('kunde_plan').upsert({ saison, kunde: name, ...s, kg: kgWert, ts: new Date().toISOString() }, { onConflict: 'saison,kunde,artikelgruppe,groesse,label' }))
       : (kgWert === null
           ? await supabase.from('gruppe_plan').delete().match({ saison, gruppe: name, ...s })
-          : await supabase.from('gruppe_plan').upsert({ saison, gruppe: name, ...s, kg: kgWert }, { onConflict: 'saison,gruppe,artikelgruppe,groesse,label' }))
+          : await supabase.from('gruppe_plan').upsert({ saison, gruppe: name, ...s, kg: kgWert, ts: new Date().toISOString() }, { onConflict: 'saison,gruppe,artikelgruppe,groesse,label' }))
     if (r.error) setFehler(fehlerText(r.error)); else { setPlanOffen(null); neuLaden() }
   }
   async function gruppeSetzen(kunde: string, gruppe: string | null) {
@@ -826,21 +826,23 @@ function Verlauf({ grund, heute, wahl, lagerHeute, verlauf, bestand, istAdmin, n
       <td className="zahl">{z.offen > 0 ? <strong>{masse(z.offen)}</strong> : <span className="leise">0</span>}</td>
     </>
   )
-  const planZelle = (art: 'kunde' | 'gruppe', name: string, z: ReturnType<typeof zahlen>, unter: string | null, ungezaehlt = false) => (
-    <td className={`zahl plan${z.eigen === false || ungezaehlt ? ' plan-vorjahr' : ''}`}>
+  const planZelle = (art: 'kunde' | 'gruppe', name: string, z: ReturnType<typeof zahlen>, unter: string | null, ungezaehlt = false) => {
+    const h = planHerkunft(art === 'gruppe' ? ziel.teile.gruppe.get(name) : ziel.teile.kunde.get(name), z.planKg)
+    return (
+    <td className={`zahl plan${ungezaehlt ? ' plan-vorjahr' : h.klasse}`}>
       {planOffen === `${art}:${name}`
-        ? <PlanFeld kg={z.planKg} eigen={z.eigen !== false} setzen={kgWert => void planSetzen(art, name, kgWert)} abbrechen={() => setPlanOffen(null)} />
+        ? <PlanFeld kg={z.planKg} eigen={z.eigen} setzen={kgWert => void planSetzen(art, name, kgWert)} abbrechen={() => setPlanOffen(null)} />
         : <><span className="plan-wert">{z.planKg > 0 ? masse(z.planKg) : '—'}
             {istAdmin && (
               <button type="button" className="werkzeug-knopf stift" aria-label={`Plan für ${art === 'gruppe' ? 'die Gruppe ' : ''}${name} setzen`}
                       title={art === 'gruppe' ? 'Planmenge für die ganze Gruppe eintragen' : 'Planmenge eintragen'}
                       onClick={e => { e.stopPropagation(); setPlanOffen(`${art}:${name}`) }}><ZStift size={14} /></button>
             )}</span>
+            {h.text && !ungezaehlt && <span className="zelle-unter plan-herkunft">{h.text}</span>}
             {unter && <span className="zelle-unter">{unter}</span>}</>}
     </td>
-  )
-  const planUnter = (eigen: boolean | 'teils', planKg: number) =>
-    planKg <= 0 ? null : eigen === false ? 'Vorjahr' : eigen === 'teils' ? 'teils Plan' : null
+    )
+  }
 
   const gruppenZeile = (g: (typeof gruppen)[number], i: number) => {
     const offenG = ziel.jeGruppe.get(g.name)
@@ -869,7 +871,7 @@ function Verlauf({ grund, heute, wahl, lagerHeute, verlauf, bestand, istAdmin, n
             )}
           </span>
         </td>
-        {zellen(z, planZelle('gruppe', g.name, z, offenG?.gruppenplan ? 'Plan der Gruppe' : z.planKg > 0 ? (z.eigen === false ? 'Vorjahr' : 'Summe der Kunden') : null))}
+        {zellen(z, planZelle('gruppe', g.name, z, offenG?.gruppenplan ? 'Plan der Gruppe' : z.planKg > 0 && z.eigen !== false ? 'Summe der Kunden' : null))}
       </tr>
     )
   }
@@ -897,7 +899,7 @@ function Verlauf({ grund, heute, wahl, lagerHeute, verlauf, bestand, istAdmin, n
             )}
           </td>
           {zellen(z,
-                  planZelle('kunde', k.kunde, z, gruppenplan && z.planKg > 0 ? 'Gruppenplan gilt' : planUnter(z.eigen, z.planKg), gruppenplan))}
+                  planZelle('kunde', k.kunde, z, gruppenplan && z.planKg > 0 ? 'Gruppenplan gilt' : null, gruppenplan))}
         </tr>
         {offen && (
           <tr className="lieferungen-zeile">
@@ -913,6 +915,7 @@ function Verlauf({ grund, heute, wahl, lagerHeute, verlauf, bestand, istAdmin, n
                                         : [...ziel.jeGruppe.values()].some(g => g.eigen !== false) ? 'teils' : false,
                                       offen: summeOffen })
 
+  const summenHerkunft = planHerkunft(teileSumme([...ziel.teile.gruppe.values()]), summenZahlen.planKg)
   const reicht = vfHeute >= summeOffen
   return (
     <Karte id="artikel-verlauf" titel={<>Wie ist es gegangen? {wahlName(wahl)}</>}
@@ -940,6 +943,11 @@ function Verlauf({ grund, heute, wahl, lagerHeute, verlauf, bestand, istAdmin, n
                         {lagerLinie && lagerReihe ? '; orange das Verkaufsfähige dieses Artikels im Lager (nach heute die Prognose)' : ''}.</span>} />
             : <Leer titel={`${titel}: keine Lieferung`}>{titel} hat {wahlName(wahl)} in den letzten drei Saisons nicht bekommen.</Leer>}
           <OhneGewicht passend={passend} auswahl={auswahl} gruppeVon={gruppeVon} />
+          {/* Runde BJ: woher die Planzahl kommt, einmal erklärt */}
+          <p className="plan-legende leise" id="plan-legende">
+            Plan: <span className="plan-selbst"><ZStift size={11} /> selbst eingetragen</span> ·{' '}
+            <span className="plan-vorjahr">aus Verkauf Vorjahr</span> · beides: die Teile stehen darunter
+          </p>
           <div className="rollbar">
             <table className="dicht kundentabelle">
               <thead><tr>
@@ -960,9 +968,9 @@ function Verlauf({ grund, heute, wahl, lagerHeute, verlauf, bestand, istAdmin, n
               <tfoot>
                 <tr className="summe">
                   <td><strong>alle Kunden</strong></td>
-                  {zellen(summenZahlen, <td className={`zahl plan${summenZahlen.eigen === false ? ' plan-vorjahr' : ''}`}>
+                  {zellen(summenZahlen, <td className={`zahl plan${summenHerkunft.klasse}`}>
                     {summenZahlen.planKg > 0 ? masse(summenZahlen.planKg) : '—'}
-                    {planUnter(summenZahlen.eigen, summenZahlen.planKg) && <span className="zelle-unter">{planUnter(summenZahlen.eigen, summenZahlen.planKg)}</span>}
+                    {summenHerkunft.text && <span className="zelle-unter plan-herkunft">{summenHerkunft.text}</span>}
                   </td>)}
                 </tr>
               </tfoot>
@@ -1012,19 +1020,39 @@ function OhneGewicht({ passend, auswahl, gruppeVon }: { passend: KundeTag[]; aus
   )
 }
 
-/** Die Planmenge eintragen — leer heisst: wieder das Vorjahr. */
-function PlanFeld({ kg, eigen, setzen, abbrechen }: { kg: number; eigen: boolean; setzen: (kg: number | null) => void; abbrechen: () => void }) {
-  const [wert, setWert] = useState(eigen ? String(Math.round(kg)) : '')
+/**
+ * Die Planmenge eintragen — leer heisst: wieder das Vorjahr.
+ *
+ * Runde BJ (7. November): Der Betriebsleiter klickte den Stift „nur zum Schauen" an, und die 42 t der
+ * Gruppe standen danach als fester Plan da — das Feld zeigte die gerechnete Summe, „speichern" schrieb
+ * sie fest. Jetzt steht im Feld nur ein selbst eingetragener Plan; eine gerechnete Zahl steht als
+ * Vorschlag im Platzhalter. Unverändert schliessen speichert nichts, und „Abbrechen" schliesst immer.
+ */
+function PlanFeld({ kg, eigen, setzen, abbrechen }: { kg: number; eigen: boolean | 'teils'; setzen: (kg: number | null) => void; abbrechen: () => void }) {
+  const anfang = eigen === true ? String(Math.round(kg)) : ''
+  const [wert, setWert] = useState(anfang)
   const zahlWert = wert.trim() === '' ? null : Number(wert.replace(/'/g, '').replace(',', '.'))
   const gueltig = zahlWert === null || (Number.isFinite(zahlWert) && zahlWert >= 0)
+  const unveraendert = wert.trim() === anfang
   return (
-    <form className="plan-feld" onClick={e => e.stopPropagation()} onSubmit={e => { e.preventDefault(); if (gueltig) setzen(zahlWert) }}>
-      <input type="text" inputMode="decimal" autoFocus aria-label="Planmenge in kg" placeholder={`Vorjahr ${Math.round(kg)}`} value={wert}
+    <form className="plan-feld" onClick={e => e.stopPropagation()}
+          onSubmit={e => { e.preventDefault(); if (unveraendert) abbrechen(); else if (gueltig) setzen(zahlWert) }}>
+      <input type="text" inputMode="decimal" autoFocus aria-label="Planmenge in kg"
+             placeholder={eigen === true ? 'leer: wieder Vorjahr' : `Vorschlag ${Math.round(kg)}`} value={wert}
              onChange={e => setWert(e.target.value)} onKeyDown={e => { if (e.key === 'Escape') { e.stopPropagation(); abbrechen() } }} />
       <span className="leise">kg</span>
-      <button type="submit" className="werkzeug-knopf" disabled={!gueltig}>{zahlWert === null ? 'Vorjahr' : 'speichern'}</button>
+      <button type="submit" className="werkzeug-knopf" disabled={!gueltig}>{unveraendert ? 'schliessen' : zahlWert === null ? 'Vorjahr' : 'speichern'}</button>
+      <button type="button" className="werkzeug-knopf" onClick={abbrechen}>Abbrechen</button>
     </form>
   )
+}
+
+/** Runde BJ: woher eine Planzahl kommt — selbst eingetragen (farbig, Stift, Tag), aus dem Vorjahr (grau), oder beides mit den Teilen. */
+function planHerkunft(t: PlanTeile | undefined, planKg: number): { klasse: string; text: ReactNode } {
+  if (!t || !(planKg > 0)) return { klasse: '', text: null }
+  if (t.selbst > 0 && t.vorjahr < 0.5) return { klasse: ' plan-selbst', text: <><ZStift size={11} /> selbst eingetragen{t.ts ? ` ${datum(t.ts).slice(0, 6)}` : ''}</> }
+  if (!(t.selbst > 0)) return { klasse: ' plan-vorjahr', text: 'aus Verkauf Vorjahr' }
+  return { klasse: ' plan-teils', text: `${masse(t.vorjahr)} Vorjahr + ${masse(t.selbst)} selbst` }
 }
 
 /** Die Gruppe eines Kunden setzen — oder zurück zur Regel nach dem Namen. */

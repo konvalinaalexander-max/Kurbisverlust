@@ -264,3 +264,41 @@ test('Runde BA: grammOhneArtikel — die Lücken zwischen dem, was die Maschine 
     'ohne Grenzen gilt das Fenster der Bänder')
   assert.equal(grammOhneArtikel({ verlust_unter: null, kanal_ab: null, kaliber_baender: null }, knirps), null, 'Kisten-Fassung ohne Bänder: kein Fenster')
 })
+
+/* ---------- Runde BJ: woher die Planzahl kommt ---------- */
+import { planTeile, teileSumme } from '../src/auswertung/artikel.ts'
+
+// Der Betrieb, 7. November: „einen Weg finden, damit man schnell erkennt, woher die Zahl kommt — ob selbst
+// eingetragen oder Planmenge vom Verkauf vom Vorjahr". selbst + vorjahr ist immer der Plan.
+test('Runde BJ: die Teile einer Planzahl — selbst eingetragen (mit Tag), aus dem Vorjahr, oder beides', () => {
+  const vorjahr = (l: 'beide' | 'D' | 'K') => ({ beide: 1000, D: 600, K: 300 })[l]
+  const p = (kunde: string, label: string, kg: number, ts: string | null): KundePlan => ({ ...plan(kunde, label, kg), ts })
+  const am = '2026-10-22T08:00:00Z'
+  assert.deepEqual(planTeile('A', 2026, w('Knirps', 'beide', 'D'), [p('A', 'D', 800, am)], vorjahr), { selbst: 800, vorjahr: 0, ts: am })
+  assert.deepEqual(planTeile('A', 2026, w('Knirps', 'beide', 'K'), [p('A', 'D', 800, am)], vorjahr), { selbst: 0, vorjahr: 300, ts: null })
+  assert.deepEqual(planTeile('A', 2026, w('Knirps', 'beide', 'beide'), [p('A', 'D', 800, am)], vorjahr), { selbst: 800, vorjahr: 300 + 100, ts: am })
+  const faelle: [ReturnType<typeof w>, KundePlan[]][] = [
+    [w('Knirps', 'beide', 'beide'), [p('A', 'D', 800, null)]], [w('Knirps', 'beide', 'beide'), [p('A', 'D', 800, null), p('A', 'K', 200, am)]],
+    [w('Knirps', 'beide', 'D'), []], [w('Knirps', 'klein', 'D'), [p('A', 'D', 800, null)]]]
+  for (const [wahl, pl] of faelle) {
+    const t = planTeile('A', 2026, wahl, pl, vorjahr), f = planFuer('A', 2026, wahl, pl, vorjahr)
+    assert.equal(t.selbst + t.vorjahr, f.kg, 'die Teile ergeben den Plan')
+    assert.equal(t.selbst > 0, f.eigen !== false, 'selbst eingetragen heisst eigen')
+  }
+  assert.deepEqual(teileSumme([{ selbst: 5000, vorjahr: 0, ts: '2026-10-22T08:00:00Z' }, { selbst: 0, vorjahr: 37200, ts: null },
+                               { selbst: 0, vorjahr: 1000, ts: '2026-09-01T08:00:00Z' }]),
+                   { selbst: 5000, vorjahr: 38200, ts: '2026-10-22T08:00:00Z' }, 'der jüngste Tag eines Eintrags')
+})
+
+test('Runde BJ: noch zu liefern trägt die Teile je Kunde und je Gruppe — ein Gruppenplan ist ganz selbst eingetragen', () => {
+  const tag = (kunde: string, saison: number, kg: number) => ({ kunde, saison, gruppe: 'Knirps', groesse: 'klein', label: 'D', kg })
+  const kunden = [tag('A', 2025, 1000), tag('A', 2026, 400), tag('B', 2025, 500), tag('B', 2026, 100)]
+  const von = () => 'Gruppe'
+  const ohne = nochZuLiefern(kunden, [plan('A', 'D', 700)], 2026, w('Knirps', 'beide', 'D'), undefined, { von, plaene: [] })
+  assert.deepEqual(ohne.teile.kunde.get('A'), { selbst: 700, vorjahr: 0, ts: null })
+  assert.deepEqual(ohne.teile.kunde.get('B'), { selbst: 0, vorjahr: 500, ts: null })
+  assert.deepEqual(ohne.teile.gruppe.get('Gruppe'), { selbst: 700, vorjahr: 500, ts: null }, 'ohne Gruppenplan: die Teile der Kunden zusammen')
+  const gp: GruppePlan = { saison: 2026, gruppe: 'Gruppe', artikelgruppe: 'Knirps', groesse: '', label: 'D', kg: 5000, ts: '2026-10-22T08:00:00Z' }
+  const mit = nochZuLiefern(kunden, [], 2026, w('Knirps', 'beide', 'D'), undefined, { von, plaene: [gp] })
+  assert.deepEqual(mit.teile.gruppe.get('Gruppe'), { selbst: 5000, vorjahr: 0, ts: '2026-10-22T08:00:00Z' })
+})

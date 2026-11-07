@@ -1118,11 +1118,16 @@ tr.marge-dahinter table { margin: 0; }
 .kundentabelle .kunde-name .werkzeug-knopf { min-height: 22px; padding: 0 .4rem; font-size: var(--s-00, .75rem); }
 .kundentabelle td.plan { white-space: nowrap; }
 .kundentabelle td.plan-vorjahr { color: var(--text-leise); }
+/* Runde BJ: selbst eingetragen farbig, aus dem Vorjahr grau, beides mit den Teilen darunter */
+.kundentabelle td.plan-selbst .plan-wert, .plan-legende .plan-selbst { color: var(--kuerbis-dunkel); }
+.kundentabelle td.plan-selbst .plan-herkunft, .kundentabelle td.plan-teils .plan-herkunft { color: var(--kuerbis-dunkel); }
+.plan-legende .plan-vorjahr { color: var(--text-leise); }
+.plan-legende { margin: .25rem 0 .5rem; font-size: .85em; }
 .kundentabelle td.plan .plan-wert { display: inline-flex; align-items: center; gap: .15rem; }
 .kundentabelle td.plan .stift { min-height: 22px; padding: 0 .25rem; }
 .kundentabelle td.plan .zelle-unter { display: block; font-size: var(--s-00, .75rem); }
 .plan-feld { display: inline-flex; align-items: center; gap: .3rem; }
-.plan-feld input { width: 6.5rem; min-height: 30px; padding: .1rem .4rem; text-align: right; }
+.plan-feld input { width: 9.5rem; min-height: 30px; padding: .1rem .4rem; text-align: right; } /* Runde BJ: Platz für „Vorschlag 52900" */
 .gruppe-wahl { display: flex; flex-wrap: wrap; gap: .25rem; align-items: center; margin-top: .35rem; }
 .gruppe-wahl input { width: 9rem; min-height: 28px; padding: .1rem .4rem; }
 .kundentabelle tfoot td { border-top: 1.5px solid var(--rand); }

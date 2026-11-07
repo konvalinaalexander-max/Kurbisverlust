@@ -238,3 +238,33 @@ test('schlagNamen: unbekannte Namen bleiben, wie sie stehen', () => {
   assert.equal(n('Trüb'), 'Trüeb', 'u + Trema ist dasselbe ü')
   assert.equal(n('Slowgrow Uster'), 'Slowgrow Uster')
 })
+
+/* ---------- Runde BJ: Berichtigungen im Journal ---------- */
+import { journalAbgleichen, verdachtSatz, type BekanntePalette, type RohPalette } from '../src/lib/import.ts'
+
+// Der Betrieb, 7. November: „teilweise wurden rückblickend einzelne Zeilen angepasst von Mitarbeitern, die
+// die Fehler selbst gefunden haben". Eine Zeile mit ID berichtigt ihre Palette; eine Zeile ohne ID, deren
+// alte Fassung fehlt, legt keine zweite Palette an.
+test('Runde BJ: Berichtigungen an Zeilen mit ID werden übernommen; eine berichtigte Zeile ohne ID legt keine zweite Palette an', () => {
+  const roh = (extern_id: string, charge_nr: number, eingangsdatum: string, brutto_kg: number, kisten: number | null = 36, gebindeart: string | null = 'G2'): RohPalette =>
+    ({ extern_id, charge_nr, eingangsdatum, brutto_kg, kisten, gebindeart })
+  const bek = (id: number, extern_id: string, charge_nr: number, eingangsdatum: string, brutto_kg: number, charge_nr_journal: number | null = null): BekanntePalette =>
+    ({ id, extern_id, charge_nr, charge_nr_journal, eingangsdatum, brutto_kg, kisten: 36, gebindeart: 'G2' })
+  const bekannt = [bek(1, 'journal:A1', 1626, '2026-08-31', 480), bek(2, 'journal:A2', 1626, '2026-08-31', 470, 1623),
+                   bek(3, '1630|2026-09-02|455#1', 1630, '2026-09-02', 455), bek(4, '1630|2026-09-03|460#1', 1630, '2026-09-03', 460)]
+  const datei = [roh('journal:A1', 1626, '2026-09-01', 484),                 // Tag und Gewicht berichtigt
+                 roh('journal:A2', 1623, '2026-08-31', 470),                 // gleich: die App buchte 1623 → 1626 um, das Journal sagt weiter 1623
+                 roh('1630|2026-09-02|445#1', 1630, '2026-09-02', 445),      // ohne ID berichtigt: 455 → 445
+                 roh('1630|2026-09-03|460#1', 1630, '2026-09-03', 460),      // unverändert
+                 roh('1630|2026-09-04|470#1', 1630, '2026-09-04', 470),      // wirklich neu
+                 roh('journal:A9', 1631, '2026-09-05', 490)]                 // neu mit ID
+  const r = journalAbgleichen(datei, bekannt)
+  assert.deepEqual(r.korrekturen.map(k => [k.id, k.felder]), [[1, { eingangsdatum: '2026-09-01', brutto_kg: 484 }]], 'die Umbuchung der App ist keine Berichtigung')
+  assert.match(r.korrekturen[0].was, /^Tag 2026-08-31 → 2026-09-01, 480 → 484 kg$/)
+  assert.deepEqual(r.verdacht.map(v => [v.extern_id, v.statt]), [['1630|2026-09-02|445#1', [455]]])
+  assert.deepEqual(r.neu.map(z => z.extern_id), ['1630|2026-09-04|470#1', 'journal:A9'])
+  assert.match(verdachtSatz(r.verdacht)!, /^Eine Zeile ohne ID nicht übernommen — wohl berichtigt: Charge 1630 am 02\.09\.2026 hat jetzt 445 kg, die Palette mit 455 kg steht nicht mehr im Journal\./)
+  assert.equal(verdachtSatz([]), null)
+  assert.deepEqual(journalAbgleichen([roh('journal:A1', 1626, '2026-08-31', 480, null, null)], bekannt).korrekturen, [], 'leere Kisten oder Gebinde überschreiben nichts')
+  assert.deepEqual(journalAbgleichen([roh('journal:A2', 1631, '2026-08-31', 470)], bekannt).korrekturen.map(k => k.felder), [{ charge_nr: 1631 }], 'eine neue Charge im Journal ist eine Berichtigung')
+})

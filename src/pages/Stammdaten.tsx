@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { imDemoModus, supabase } from '../lib/supabase'
 import { chargenAnlegen, einstellung, fehlerText, stammdaten } from '../lib/db'
-import { importErkennen, type ImportBericht, type SchlagAlias } from '../lib/import'
+import { importErkennen, journalAbgleichen, verdachtSatz, type BekanntePalette, type ImportBericht, type SchlagAlias } from '../lib/import'
 import { STATION_NAME, datum, heute as heuteOrtszeit, kg, tonnen, zahl, zeitpunkt } from '../lib/format'
 import { Hinweis, Karte, Kennzahl, Lade, Marke } from '../components/Bausteine'
 import { useBetriebsmodus } from '../lib/betriebsmodus'
@@ -275,12 +275,25 @@ function PalettenImport() {
           .upsert(arten.map(art => ({ art })), { onConflict: 'art', ignoreDuplicates: true })
         if (error) throw error
       }
+      // Runde BJ: eine Zeile ohne ID, die wohl eine berichtigte ist (die alte Palette desselben Tages fehlt
+      // in der Datei), legt keine zweite Palette an — sie bleibt draussen, die Meldung sagt es.
+      const bekannt: BekanntePalette[] = []
+      for (let von = 0; ; von += 1000) {
+        const { data, error } = await supabase.from('palette')
+          .select('id, extern_id, charge_nr, charge_nr_journal, eingangsdatum, brutto_kg, kisten, gebindeart')
+          .eq('quelle', 'journal-import').order('id').range(von, von + 999)
+        if (error) throw error
+        bekannt.push(...((data ?? []) as BekanntePalette[]).map(p => ({ ...p, brutto_kg: p.brutto_kg === null ? null : Number(p.brutto_kg) })))
+        if ((data ?? []).length < 1000) break
+      }
+      const { verdacht } = journalAbgleichen(bericht.paletten, bekannt)
+      const draussen = new Set(verdacht.map(v => v.extern_id))
       // Ein Upsert schreibt beim Konflikt ALLE Felder der Nutzlast. Eine
       // Quelle ohne Kistenspalte schickt `kisten: null` — und hätte damit
       // bestehende, gemessene Kistenzahlen auf NULL zurückgesetzt. Was
       // nicht in der Datei steht, darf nichts überschreiben: die leeren
       // Felder gehen gar nicht erst mit.
-      const ohneLeere = bericht.paletten.map(z => {
+      const ohneLeere = bericht.paletten.filter(z => !draussen.has(z.extern_id)).map(z => {
         const rein: Record<string, unknown> = {}
         for (const [k, v] of Object.entries(z)) if (v !== null) rein[k] = v
         return rein
@@ -290,7 +303,8 @@ function PalettenImport() {
           .upsert(ohneLeere.slice(i, i + 500), { onConflict: 'extern_id' })
         if (error) throw error
       }
-      setMeldung(`${bericht.paletten.length} Paletten übernommen${angelegt ? `, ${angelegt === 1 ? 'eine Charge' : `${angelegt} Chargen`} neu angelegt (${bericht.neueChargen.map(c => c.nr).join(', ')})` : ''}.`)
+      setMeldung(`${ohneLeere.length} Paletten übernommen${angelegt ? `, ${angelegt === 1 ? 'eine Charge' : `${angelegt} Chargen`} neu angelegt (${bericht.neueChargen.map(c => c.nr).join(', ')})` : ''}.`
+        + (verdacht.length ? ` ${verdachtSatz(verdacht)}` : ''))
       setBericht(null); setText('')
       void stammdaten(true)
     } catch (f) { setFehler(fehlerText(f)) } finally { setLaeuft(false) }

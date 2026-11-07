@@ -994,10 +994,10 @@ export async function artikelGrundlagen(): Promise<{ labels: ChargeLabel[]; grup
     supabase.from('artikel_kaliber').select('gruppe, groesse, von_g, bis_g, stueck_je_kiste, bemerkung'),
     // Runde AS (0116): Kundengruppen und Planmengen. Die Prüfungen der Perigon-Zeilen stehen seit 0126 im Reiter Perigon.
     supabase.from('kunde_gruppe').select('kunde, gruppe'),
-    supabase.from('kunde_plan').select('saison, kunde, artikelgruppe, groesse, label, kg'),
+    supabase.from('kunde_plan').select('saison, kunde, artikelgruppe, groesse, label, kg, ts'),
     // Runde AT (0117): die Reihenfolge der Gruppen und der Plan einer ganzen Gruppe
     supabase.from('kunde_gruppe_rang').select('gruppe, rang'),
-    supabase.from('gruppe_plan').select('saison, gruppe, artikelgruppe, groesse, label, kg'),
+    supabase.from('gruppe_plan').select('saison, gruppe, artikelgruppe, groesse, label, kg, ts'),
   ])
   for (const r of [l, g, k, kg, kp, gr, gp]) if (r.error) throw new Error(r.error.message)
   const kunden: KundeTag[] = []

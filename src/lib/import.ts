@@ -278,6 +278,69 @@ export function importErkennen(text: string, chargen: ChargeRef[], aliase: Schla
            quelle: perCharge ? 'chargennummer' : 'schlag-sorte' }
 }
 
+/** Eine Palette, wie sie in der Datenbank steht — für den Abgleich mit dem Journal (Runde BJ). */
+export interface BekanntePalette {
+  id: number; extern_id: string | null; charge_nr: number; charge_nr_journal: number | null
+  eingangsdatum: string; brutto_kg: number | null; kisten: number | null; gebindeart: string | null
+}
+export interface JournalKorrektur { id: number; extern_id: string; felder: Partial<Pick<RohPalette, 'charge_nr' | 'eingangsdatum' | 'brutto_kg' | 'kisten' | 'gebindeart'>>; was: string }
+export interface JournalVerdacht { extern_id: string; charge_nr: number; eingangsdatum: string; brutto_kg: number; statt: number[] }
+
+/**
+ * Runde BJ (7. November) — der Betrieb: „teilweise wurden rückblickend einzelne Zeilen angepasst von
+ * Mitarbeitern, die die Fehler selbst gefunden haben". Was eine Journalzeile mit ID (Spalte K) über eine
+ * bekannte Palette anders sagt — Charge, Tag, Gewicht, Kisten, Gebinde —, ist eine Korrektur: die App
+ * übernimmt sie (die Charge über `charge_nr`; eine Umbuchung der App hält der Auslöser
+ * palette_charge_halten fest). Eine Zeile ohne ID hat eine Kennung aus Charge, Tag und Gewicht; ändert
+ * sich ihr Gewicht, wäre sie eine neue Palette — und die alte stünde weiter da. Darum: fehlt in der Datei
+ * eine bekannte Palette ohne ID derselben Charge und desselben Tages, legt die App die neue Zeile nicht an
+ * und sagt es (`verdacht`), statt eine zweite Palette anzulegen. Was die Datei nicht nennt, bleibt.
+ */
+export function journalAbgleichen(datei: RohPalette[], bekannt: BekanntePalette[]):
+    { neu: RohPalette[]; korrekturen: JournalKorrektur[]; verdacht: JournalVerdacht[] } {
+  const nachKennung = new Map(bekannt.filter(p => p.extern_id).map(p => [p.extern_id as string, p]))
+  const inDatei = new Set(datei.map(z => z.extern_id))
+  const neu: RohPalette[] = [], korrekturen: JournalKorrektur[] = [], verdacht: JournalVerdacht[] = []
+  const gleich = (a: number | null, b: number | null) => a === b || (a !== null && b !== null && Math.abs(a - b) < 0.005)
+  for (const z of datei) {
+    const p = nachKennung.get(z.extern_id)
+    if (p) {
+      if (!z.extern_id.startsWith('journal:')) continue
+      const felder: JournalKorrektur['felder'] = {}
+      const teile: string[] = []
+      const charge = p.charge_nr_journal ?? p.charge_nr
+      if (z.charge_nr !== charge) { felder.charge_nr = z.charge_nr; teile.push(`Charge ${charge} → ${z.charge_nr}`) }
+      if (z.eingangsdatum !== p.eingangsdatum) { felder.eingangsdatum = z.eingangsdatum; teile.push(`Tag ${p.eingangsdatum} → ${z.eingangsdatum}`) }
+      if (!gleich(z.brutto_kg, p.brutto_kg)) { felder.brutto_kg = z.brutto_kg; teile.push(`${p.brutto_kg ?? '—'} → ${z.brutto_kg} kg`) }
+      if (z.kisten !== null && !gleich(z.kisten, p.kisten)) { felder.kisten = z.kisten; teile.push(`Kisten ${p.kisten ?? '—'} → ${z.kisten}`) }
+      if (z.gebindeart !== null && z.gebindeart !== p.gebindeart) { felder.gebindeart = z.gebindeart; teile.push(`Gebinde ${p.gebindeart ?? '—'} → ${z.gebindeart}`) }
+      if (teile.length) korrekturen.push({ id: p.id, extern_id: z.extern_id, felder, was: teile.join(', ') })
+      continue
+    }
+    if (!z.extern_id.startsWith('journal:')) {
+      const weg = bekannt.filter(b => b.extern_id && !b.extern_id.startsWith('journal:') && !inDatei.has(b.extern_id)
+        && (b.charge_nr_journal ?? b.charge_nr) === z.charge_nr && b.eingangsdatum === z.eingangsdatum)
+      if (weg.length > 0) {
+        verdacht.push({ extern_id: z.extern_id, charge_nr: z.charge_nr, eingangsdatum: z.eingangsdatum, brutto_kg: z.brutto_kg,
+                        statt: weg.map(b => Number(b.brutto_kg ?? 0)) })
+        continue
+      }
+    }
+    neu.push(z)
+  }
+  return { neu, korrekturen, verdacht }
+}
+
+/** Runde BJ: der Satz zu den Zeilen ohne ID, die die App nicht anlegt. */
+export function verdachtSatz(v: JournalVerdacht[]): string | null {
+  if (v.length === 0) return null
+  const b = v[0]
+  const tag = b.eingangsdatum.split('-').reverse().join('.')
+  return `${v.length === 1 ? 'Eine Zeile' : `${v.length} Zeilen`} ohne ID nicht übernommen — wohl berichtigt: `
+    + `Charge ${b.charge_nr} am ${tag} hat jetzt ${b.brutto_kg} kg, die Palette mit ${b.statt.join(' / ')} kg steht nicht mehr im Journal. `
+    + 'Eine zweite Palette legt die App nicht an. Im Journal die ID (Spalte K) eintragen, dann übernimmt sie die Berichtigung.'
+}
+
 function zahl(roh: string | undefined): number | null {
   if (roh === undefined) return null
   const t = roh.trim().replace(/['\s]/g, '').replace(',', '.')

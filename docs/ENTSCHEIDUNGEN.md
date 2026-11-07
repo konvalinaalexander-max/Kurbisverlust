@@ -4290,6 +4290,60 @@ Geprüft:
 - Eine Sorte dazu oder weg im Rezept geht noch nicht in der Maske (nur Stück,
   kg je Stück und Herkunft); das Rezept des Betriebs hat drei Sorten.
 
+## Runde BJ, Schritt 6: Woher die Planzahl kommt, was das Journal berichtigt (7. November)
+
+Der Betrieb zur Planmenge: „einen Weg finden, damit man schnell erkennt,
+woher die Zahl kommt — ob selbst eingetragen oder Planmenge vom Verkauf vom
+Vorjahr". Am Gruppenplan Knirps (42 t) zeigte sich, wie das Stiftfeld eine
+Zahl festschrieb: Es öffnete mit der gerechneten Summe, und „speichern"
+machte sie zum Plan, auch wenn man nur schauen wollte. Zum Erntejournal:
+„teilweise wurden rückblickend einzelne Zeilen angepasst von Mitarbeitern,
+die die Fehler selbst gefunden haben" — und der Abgleich beim Öffnen fasste
+bekannte Paletten nie wieder an.
+
+- **Stiftfeld (AB-209):** Das Feld öffnet leer, wenn die Zahl nicht selbst
+  eingetragen ist; die gerechnete Zahl steht als „Vorschlag …" im
+  Platzhalter. Ohne Änderung heisst der Knopf „schliessen" und speichert
+  nichts. Daneben steht „Abbrechen". Ein selbst eingetragener Plan steht im
+  Feld; leeren und „Vorjahr" gibt die Zahl der App zurück.
+- **Herkunft auf einen Blick (AB-210):** Unter jeder Planzahl steht, woher sie
+  kommt:
+  - selbst eingetragen: farbig, mit Stift und Tag („selbst eingetragen
+    22.10.");
+  - aus dem Vorjahr: grau, „aus Verkauf Vorjahr";
+  - beides: die Teile („37.2 t Vorjahr + 5.0 t selbst").
+  Ein Gruppenplan ist ganz selbst eingetragen. Oben erklärt eine Zeile die
+  Farben. Gespeichert wird der Tag mit (`ts` in `kunde_plan` und
+  `gruppe_plan`, beim Ändern neu).
+- **Journal-Berichtigungen (AB-211):** Der Abgleich beim Öffnen übernimmt,
+  was eine Zeile mit ID (Spalte K) an ihrer Palette anders sagt: Charge, Tag,
+  Gewicht, Kisten, Gebinde. Eine Umbuchung der App (`palette_zuordnung`)
+  bleibt, solange das Journal die alte Charge nennt (Auslöser
+  `palette_charge_halten`, seit 0121). Leere Kisten oder Gebinde im Journal
+  überschreiben nichts. Eine Zeile ohne ID hat ihre Kennung aus Charge, Tag
+  und Gewicht; ändert sich das Gewicht, wäre sie eine neue Palette. Fehlt
+  darum in der Datei eine bekannte Palette ohne ID derselben Charge und
+  desselben Tages, legt die App die neue Zeile nicht an und sagt es — beim
+  Öffnen und unter Stammdaten.
+
+Geprüft:
+- `artikel.test.ts`: die Teile einer Planzahl, selbst + Vorjahr = Plan, der
+  jüngste Tag, die Teile je Kunde und je Gruppe.
+- `import.test.ts`: Berichtigung mit ID, die Umbuchung der App ist keine
+  Berichtigung, eine Zeile ohne ID wird zum Verdacht, neue Zeilen bleiben
+  neu.
+- Bildschirme: `artikel-plan-abbrechen` (leer mit Vorschlag, „schliessen"
+  und „Abbrechen" senden nichts, Legende), `artikel-plan` (danach „selbst"),
+  `lager-journal-berichtigt` (480 → 484 kg übernommen, die Zeile ohne ID
+  gemeldet).
+
+**Was bewusst nicht gemacht wurde:**
+- Keine Migration: `ts` gab es in beiden Plantabellen schon (0116, 0117).
+- Eine Zeile ohne ID wird nicht geraten: Welche alte Palette sie berichtigt,
+  sagt nur die ID. Die Meldung bittet, sie im Journal einzutragen.
+- Eine Palette, die aus dem Journal verschwindet, bleibt in der App. Löschen
+  entscheidet der Betrieb.
+
 ## Runde BJ, Schritt 5: Was der Zettel sagt (7. November, 0135)
 
 Der Betrieb zu den 111 Auffälligkeiten der Messungen (71 „Zettelgewicht"):

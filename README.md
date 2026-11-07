@@ -798,6 +798,13 @@ ohne Perigon-Zeile als eigener Teil); jede PL/pgSQL-Funktion hat einen
 festen Suchpfad; die Perigon-Liste läuft nur einmal (AB-174 bis AB-176). Dazu die
 Halle: Faules ohne Ablesung ist „unbekannt", Fehler werden gezeigt. **Setup.sql
 einmal einspielen (Stand 124), dann „Neu rechnen".**
+**Runde BJ, Schritt 6** — **Woher die Planzahl kommt.** Unter jeder Planzahl
+steht, ob sie selbst eingetragen ist (farbig, mit Tag), aus dem Verkauf des
+Vorjahrs (grau) oder beides mit den Teilen; eine Legende erklärt es (AB-210).
+Das Stiftfeld öffnet leer mit dem Vorschlag im Platzhalter, „schliessen" ohne
+Änderung und „Abbrechen" speichern nichts (AB-209). Berichtigungen an Zeilen
+mit ID im Erntejournal übernimmt der Abgleich; eine berichtigte Zeile ohne ID
+legt keine zweite Palette an, die App sagt es (AB-211). Keine Migration.
 **Runde BJ, Schritt 5 (0135)** — **Was der Zettel sagt.** Alle 111
 Auffälligkeiten durchgegangen (`docs/betrieb/ZWEITMEINUNG.md`). Eine
 Teilpalette, gewogen mit dem Zettel der ganzen Palette, rechnet anteilig und

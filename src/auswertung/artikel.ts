@@ -210,7 +210,7 @@ export function kundenGruppe(kunde: string, gesetzt: Map<string, string>): strin
 }
 
 /** Eine Planmenge (kunde_plan, 0116): je Saison und Kunde, für eine Wahl — '' heisst alle. */
-export interface KundePlan { saison: number; kunde: string; artikelgruppe: string; groesse: string; label: string; kg: number }
+export interface KundePlan { saison: number; kunde: string; artikelgruppe: string; groesse: string; label: string; kg: number; ts?: string | null }
 
 /** Unter welchem Schlüssel ein Plan für diese Wahl steht. */
 export const planSchluessel = (w: Wahl) =>
@@ -242,7 +242,38 @@ export function planFuer(kunde: string, saison: number, w: Wahl, plaene: KundePl
 }
 
 /** Die Planmenge einer ganzen Kundengruppe (gruppe_plan, 0117) — gleiche Schlüssel wie KundePlan. */
-export interface GruppePlan { saison: number; gruppe: string; artikelgruppe: string; groesse: string; label: string; kg: number }
+export interface GruppePlan { saison: number; gruppe: string; artikelgruppe: string; groesse: string; label: string; kg: number; ts?: string | null }
+
+/**
+ * Runde BJ: woraus eine Planzahl besteht — selbst eingetragen (`selbst`, mit dem Tag des jüngsten
+ * Eintrags) und aus dem Verkauf des Vorjahrs gerechnet (`vorjahr`). Der Betrieb, 7. November: „einen
+ * Weg finden, damit man schnell erkennt, woher die Zahl kommt — ob selbst eingetragen oder Planmenge vom
+ * Verkauf vom Vorjahr". Dieselben Fälle wie planFuer; selbst + vorjahr = kg.
+ */
+export interface PlanTeile { selbst: number; vorjahr: number; ts: string | null }
+export function planTeile(kunde: string, saison: number, w: Wahl, plaene: KundePlan[],
+                          vorjahr: (label: LabelWahl) => number): PlanTeile {
+  const s = planSchluessel(w)
+  const finde = (label: string) => plaene.find(p => p.saison === saison && p.kunde === kunde && p.artikelgruppe === s.artikelgruppe
+                                                   && p.groesse === s.groesse && p.label === label)
+  const genau = finde(s.label)
+  if (genau) return { selbst: Number(genau.kg), vorjahr: 0, ts: genau.ts ?? null }
+  if (w.label === 'beide') {
+    const d = finde('D'), k = finde('K')
+    if (d || k) {
+      const ohneLabel = Math.max(vorjahr('beide') - vorjahr('D') - vorjahr('K'), 0)
+      const ts = [d?.ts, k?.ts].filter((x): x is string => !!x).sort().pop() ?? null
+      return { selbst: (d ? Number(d.kg) : 0) + (k ? Number(k.kg) : 0), vorjahr: (d ? 0 : vorjahr('D')) + (k ? 0 : vorjahr('K')) + ohneLabel, ts }
+    }
+  }
+  return { selbst: 0, vorjahr: vorjahr(w.label), ts: null }
+}
+
+/** Runde BJ: die Teile mehrerer Pläne zusammen — der jüngste Tag eines Eintrags. */
+export function teileSumme(ts: PlanTeile[]): PlanTeile {
+  return { selbst: ts.reduce((a, t) => a + t.selbst, 0), vorjahr: ts.reduce((a, t) => a + t.vorjahr, 0),
+           ts: ts.map(t => t.ts).filter((x): x is string => !!x).sort().pop() ?? null }
+}
 
 /** Wo eine Gruppe steht (kunde_gruppe_rang, 0117): kleiner Rang zuerst. */
 export interface GruppeRang { gruppe: string; rang: number }
@@ -276,13 +307,15 @@ export interface Offen { plan: number; eigen: boolean | 'teils'; geliefert: numb
 export function nochZuLiefern(kunden: { kunde: string; saison: number; gruppe: string | null; groesse: string; label: string | null; kg: number | null }[],
                               plaene: KundePlan[], saison: number, w: Wahl, nurKunden?: Set<string>,
                               gruppen?: { von: (kunde: string) => string; plaene: GruppePlan[] }):
-    { kg: number; jeKunde: Map<string, Offen>; jeGruppe: Map<string, Offen & { gruppenplan: boolean }> } {
+    { kg: number; jeKunde: Map<string, Offen>; jeGruppe: Map<string, Offen & { gruppenplan: boolean }>;
+      teile: { kunde: Map<string, PlanTeile>; gruppe: Map<string, PlanTeile> } } {
   const passt = (k: typeof kunden[number], l: LabelWahl) => passtGruppe(w, k.gruppe) && passtVerkauf(w, k.groesse) && passtLabel({ ...w, label: l }, k.label)
   const namen = new Set<string>()
   for (const k of kunden) if ((k.saison === saison || k.saison === saison - 1) && passt(k, w.label)) namen.add(k.kunde)
   const s = planSchluessel(w)
   for (const p of plaene) if (p.saison === saison && p.artikelgruppe === s.artikelgruppe && p.groesse === s.groesse) namen.add(p.kunde)
   const jeKunde = new Map<string, Offen>()
+  const teile = { kunde: new Map<string, PlanTeile>(), gruppe: new Map<string, PlanTeile>() }
   const summeVon = (n: string, sai: number, l: LabelWahl) =>
     kunden.filter(k => k.kunde === n && k.saison === sai && passt(k, l)).reduce((a, k) => a + Number(k.kg ?? 0), 0)
   const planVon = (n: string, l: LabelWahl) => planFuer(n, saison, { ...w, label: l }, plaene, l2 => summeVon(n, saison - 1, l2))
@@ -293,10 +326,11 @@ export function nochZuLiefern(kunden: { kunde: string; saison: number; gruppe: s
     const geliefert = summeVon(n, saison, w.label)
     const offen = Math.max(plan.kg - geliefert, 0)
     jeKunde.set(n, { plan: plan.kg, eigen: plan.eigen, geliefert, offen })
+    teile.kunde.set(n, planTeile(n, saison, w, plaene, l2 => summeVon(n, saison - 1, l2)))
     summe += offen
   }
   const jeGruppe = new Map<string, Offen & { gruppenplan: boolean }>()
-  if (!gruppen) return { kg: summe, jeKunde, jeGruppe }
+  if (!gruppen) return { kg: summe, jeKunde, jeGruppe, teile }
 
   // Je Gruppe: ihr eigener Plan, sonst die Summe ihrer Kunden.
   const mitglieder = new Map<string, string[]>()
@@ -313,9 +347,12 @@ export function nochZuLiefern(kunden: { kunde: string; saison: number; gruppe: s
       : eigenKunden.length > 0 && eigenKunden.every(e => e === true) ? true : eigenKunden.some(e => e !== false) ? 'teils' : false
     const offen = gp.eigen !== false ? Math.max(gp.kg - geliefert, 0) : ns.reduce((a, n) => a + (jeKunde.get(n)?.offen ?? 0), 0)
     jeGruppe.set(g, { plan: gp.kg, eigen, geliefert, offen, gruppenplan: gp.eigen !== false })
+    teile.gruppe.set(g, gp.eigen !== false
+      ? planTeile(g, saison, w, gruppen.plaene.map(p => ({ ...p, kunde: p.gruppe })), ohneGruppenplan)
+      : teileSumme(ns.map(n => teile.kunde.get(n) ?? { selbst: 0, vorjahr: 0, ts: null })))
     summe += offen
   }
-  return { kg: summe, jeKunde, jeGruppe }
+  return { kg: summe, jeKunde, jeGruppe, teile }
 }
 
 /* ---------- Runde BA: je Sorte — Maschine, Artikel, und was dazwischen fällt ---------- */

@@ -195,6 +195,16 @@ function schonErfasst() {
   return null
 }
 
+/** Runde BJ: Charge 99136 mit zwei Paletten aus dem Journal — eine mit ID (480 kg), eine ohne (455 kg). */
+function journalBerichtigtVormerken() {
+  const charge = (fixture('charge') ?? [])[0], palette = (fixture('palette') ?? [])[0]
+  if (!charge || !palette) throw new Error('charge.json oder palette.json ist leer')
+  vormerken('charge', [{ ...charge, nr: 99136, schlag: 'Prüfschlag BJ', sorte: 'Mieluna', saison: 2026 }])
+  const p = (id, eingangsdatum, brutto_kg, extern_id) => ({ ...palette, id, charge_nr: 99136, charge_nr_journal: 99136, eingangsdatum, brutto_kg,
+    kisten: 36, gebindeart: 'G2', extern_id, quelle: 'journal-import' })
+  vormerken('palette', [p(991361, '2026-10-20', 480, 'journal:pruef-bj-1'), p(991362, '2026-10-21', 455, '99136|2026-10-21|455#1')])
+}
+
 /** 0134: eine leer bestätigte Charge 99134 — Zeile, Bedarf und Urteil „mehr weg", ein Lieferschein nach dem Leer-Tag. */
 function leerVormerken() {
   const vorlage = (fixture('erg_charge') ?? []).find(x => Number(x.lager_kg) > 0)
@@ -848,6 +858,21 @@ const BILDSCHIRME = [
       const t = await h.innerText()
       if (!t.includes('Neuer Schlag · Kaori Kuri') || /Zeile \d+:/.test(t)) throw new Error(`Journal-Hinweis: „${t}"`)
     } },
+  // Runde BJ: Berichtigungen im Journal. Eine Zeile mit ID (Spalte K) sagt für ihre Palette 484 statt 480 kg —
+  // die App übernimmt es; eine Zeile ohne ID hat jetzt 445 kg, die alte mit 455 kg fehlt — die App legt keine
+  // zweite Palette an und sagt es. (Eine erfundene Charge 99136, damit das Bild nicht von der Demo abhängt.)
+  { name: 'lager-journal-berichtigt', wer: 'admin', pfad: '/dashboard', vorher: journalBerichtigtVormerken,
+    journal: ['Datum;Person;Schlag;Sorte;Gewicht brutto [kg];Anzahl Gebinde;Gebindeart (leer = G2);ID (App)',
+              '20.10.2026;Hans;Prüfschlag BJ;Mieluna;484;36;;pruef-bj-1',
+              '21.10.2026;Hans;Prüfschlag BJ;Mieluna;445;36;;'].join('\n'),
+    tun: async p => {
+      const h = p.locator('.hinweis', { hasText: 'aus dem Journal übernommen' })
+      await h.waitFor({ timeout: 15000 })
+      const t = await h.innerText()
+      if (!t.includes('Eine Berichtigung aus dem Journal übernommen (480 → 484 kg)')) throw new Error(`Journal-Hinweis ohne die Berichtigung: „${t}"`)
+      if (!t.includes('Eine Zeile ohne ID nicht übernommen — wohl berichtigt: Charge 99136 am 21.10.2026 hat jetzt 445 kg, die Palette mit 455 kg steht nicht mehr im Journal'))
+        throw new Error(`Journal-Hinweis ohne die Zeile ohne ID: „${t}"`)
+    } },
   { name: 'lager-sorte', wer: 'admin', pfad: '/dashboard',
     tun: async p => { await waehleGruppe(p, 'sorte', 'lager-filter') } },
   { name: 'lager-charge', wer: 'admin', pfad: '/dashboard',
@@ -1316,6 +1341,30 @@ const BILDSCHIRME = [
       await p.locator('.kundentabelle tr.kundengruppe td.plan', { hasText: '99 t' }).first().waitFor()
       await p.locator('.kundentabelle tr.kundengruppe td.plan .zelle-unter', { hasText: 'Plan der Gruppe' }).first().waitFor()
     } },
+  // Runde BJ: der Stift „nur zum Schauen" schreibt nichts fest. Das Feld öffnet leer, die gerechnete Zahl
+  // steht als Vorschlag im Platzhalter; „schliessen" ohne Änderung und „Abbrechen" senden nichts. Oben die Legende.
+  { name: 'artikel-plan-abbrechen', wer: 'admin', pfad: '/artikel',
+    tun: async p => {
+      await p.locator('#plan-legende', { hasText: 'selbst eingetragen' }).waitFor()
+      const geschrieben = []
+      p.on('request', r => { if (r.method() !== 'GET' && /kunde_plan|gruppe_plan/.test(r.url())) geschrieben.push(`${r.method()} ${r.url()}`) })
+      await p.locator('.kundentabelle tbody tr.kundengruppe').first().click()
+      const stift = p.locator('.kundentabelle tr.kunde-in-gruppe:has(td.plan-vorjahr) .stift').first()
+      await stift.click()
+      const feld = p.locator('.plan-feld input')
+      if (await feld.inputValue() !== '') throw new Error(`das Feld öffnet mit „${await feld.inputValue()}" statt leer`)
+      if (!(await feld.getAttribute('placeholder') ?? '').startsWith('Vorschlag ')) throw new Error('kein Vorschlag im Platzhalter')
+      await p.locator('.plan-feld button[type="submit"]', { hasText: 'schliessen' }).click()
+      await p.locator('.plan-feld').waitFor({ state: 'detached' })
+      await stift.click()
+      await feld.fill('7000')
+      await p.locator('.plan-feld button', { hasText: 'Abbrechen' }).click()
+      await p.locator('.plan-feld').waitFor({ state: 'detached' })
+      if (geschrieben.length) throw new Error(`geschrieben, obwohl nichts gespeichert wurde: ${geschrieben.join(', ')}`)
+      await p.locator('.kundentabelle tr.kunde-in-gruppe td.plan-vorjahr .plan-herkunft', { hasText: 'aus Verkauf Vorjahr' }).first().waitFor()
+      // offen lassen fürs Bild: das leere Feld mit dem Vorschlag
+      await stift.click()
+    } },
   // Runde AT: die Reihenfolge der Gruppen — die erste eine Stelle nach unten.
   { name: 'artikel-reihenfolge', wer: 'admin', pfad: '/artikel',
     tun: async p => {
@@ -1333,6 +1382,8 @@ const BILDSCHIRME = [
       await p.locator('.plan-feld input').fill('12500')
       await p.locator('.plan-feld button[type="submit"]').click()
       await p.locator('.kundentabelle tr.kunde-in-gruppe td.plan:not(.plan-vorjahr)', { hasText: '12.5 t' }).first().waitFor()
+      // Runde BJ: und sagt, woher sie kommt — selbst eingetragen (mit Tag), oder die Teile
+      await p.locator('.kundentabelle tr.kunde-in-gruppe td.plan .plan-herkunft', { hasText: 'selbst' }).first().waitFor()
       await p.locator('#artikel-reicht').waitFor()
     } },
   // Runde AS: was in den Perigon-Dateien auffällt — seit 0126 nicht mehr unter
