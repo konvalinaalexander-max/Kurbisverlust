@@ -798,6 +798,16 @@ ohne Perigon-Zeile als eigener Teil); jede PL/pgSQL-Funktion hat einen
 festen Suchpfad; die Perigon-Liste läuft nur einmal (AB-174 bis AB-176). Dazu die
 Halle: Faules ohne Ablesung ist „unbekannt", Fehler werden gezeigt. **Setup.sql
 einmal einspielen (Stand 124), dann „Neu rechnen".**
+**Runde BJ, Schritt 1 (0131)** — **Was Perigon wiegt, woraus der Mix ist.**
+Bei kg-Artikeln zählt die Menge, nicht Menge × Gewicht je Artikel: Ünique
+zählte das Zehnfache (184 t statt 18.4 t), die gespeicherten Lieferungen sind
+nachgerechnet (AB-188). Ein Kürbis Mix wird nach dem Rezept des Betriebs auf
+Butterkin, Orangita und Lekor verteilt; das Rezept steht unter Stammdaten →
+Sorten und Artikel (AB-189). In Perigon gelöschte Positionen gehen beiseite
+(AB-190), Demeter und Knospe in einer Position stehen mit Auftrag und Chargen
+im Reiter Perigon (AB-191), und ein grüner Knopf oben übernimmt beide Dateien
+auf einmal (AB-192). **Setup.sql einmal einspielen (Stand 131), dann beide
+Perigon-Dateien neu einlesen und „Neu rechnen".**
 **Runde BI (0130)** — **Es gilt, was die Datei heute sagt.** Hat eine neue
 Perigon-Datei eine Position anders als eine frühere (Charge nachgetragen
 oder geändert, eine doppelte Zeile entfernt), legt das Einlesen die alten

@@ -261,6 +261,12 @@ button:focus-visible, .knopf:focus-visible, a:focus-visible { outline: none; box
 button:disabled { opacity: .45; cursor: not-allowed; }
 button.haupt, .knopf.haupt { background: var(--kuerbis); color: #fff; border-color: var(--kuerbis); box-shadow: 0 1px 2px rgb(200 80 10 / 25%); }
 button.haupt:hover:not(:disabled), .knopf.haupt:hover { background: var(--kuerbis-dunkel); border-color: var(--kuerbis-dunkel); }
+/* Runde BJ: der Knopf oben im Einlesen — grau, solange gelesen und verglichen wird; grün, sobald alles bereit ist. */
+button.uebernehmen-oben { display: block; width: 100%; margin: .75rem 0 0; min-height: 3rem; font-weight: var(--gewicht-stark);
+  background: var(--flaeche-2); color: var(--text-2); border-color: var(--rand, var(--flaeche-2)); }
+button.uebernehmen-oben:disabled { opacity: 1; }
+button.uebernehmen-oben.startklar { background: var(--gruen); color: #fff; border-color: var(--gruen); box-shadow: 0 1px 2px rgb(30 90 50 / 25%); }
+button.uebernehmen-oben.startklar:hover:not(:disabled) { background: var(--gruen); filter: brightness(.92); }
 button.gefahr { color: var(--rot); border-color: color-mix(in srgb, var(--rot) 35%, var(--rand)); }
 button.gefahr:hover:not(:disabled) { background: var(--rot-flaeche); }
 button.gross { min-height: var(--ziel-halle); font-size: 1.1rem; border-radius: 14px; }

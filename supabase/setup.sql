@@ -2261,9 +2261,6 @@ returns int language sql volatile set search_path = public as $$
   )
   select (select count(*) from charge_zeilen) + (select count(*) from rest_zeilen)
 $$;
-comment on function lieferung_import_zeilen_verbinden(text) is
-  'Trägt lieferung_import.zeile_id aus der Kennung nach (Chargenzeile oder erste '
-  'Zeile der Position). Läuft nach jeder Übernahme; einmal für alles Bestehende (0061).';
 revoke all on function lieferung_import_zeilen_verbinden(text) from public;
 grant execute on function lieferung_import_zeilen_verbinden(text) to authenticated;
 do $$ begin perform lieferung_import_zeilen_verbinden(null); end $$;
@@ -5352,8 +5349,6 @@ language sql immutable set search_path = public as $$
            when lower(btrim(coalesce(p_einheit, ''))) like 'kg%' then round(p_menge, 3)
          end
 $$;
-comment on function perigon_kg(numeric, numeric, text) is
-  'Die Masse einer Perigon-Menge in kg (0115): Gewicht je Artikel > 0 → Menge × Gewicht; sonst bei Einheit kg die Menge selbst (der Artikelstamm führt dort oft 0 statt 1); sonst — Stück ohne Stückgewicht — unbekannt (null), nie 0. Dieselbe Regel wie perigonKg() in src/lib/warenausgang.ts.';
 revoke all on function perigon_kg(numeric, numeric, text) from public;
 grant execute on function perigon_kg(numeric, numeric, text) to authenticated;
 
@@ -8029,6 +8024,349 @@ comment on function ausgang_zeilen_beiseite(text, bigint, jsonb) is
 revoke all on function ausgang_zeilen_beiseite(text, bigint, jsonb) from public;
 grant execute on function ausgang_zeilen_beiseite(text, bigint, jsonb) to authenticated;
 
+with neuste as (
+  select distinct on (d.quelle) d.quelle, d.id
+    from ausgang_datei d
+   order by d.quelle, d.ts desc, d.id desc
+), weg as (
+  delete from ausgang_zeile z
+   using neuste n
+   where z.quelle = n.quelle
+     and z.datei_id is distinct from n.id
+     and exists (select 1 from ausgang_zeile y where y.quelle = z.quelle and y.pos_id = z.pos_id and y.datei_id = n.id)
+  returning z.*
+)
+insert into ausgang_zeile_frueher
+select w.*, now(), null::bigint from weg w;
+
+create or replace function erfassung_umfang()
+returns table (tabelle text, was text, zeilen bigint)
+language sql stable security definer set search_path = public as $$
+  select * from (values
+    ('auftrag',                 'Arbeiten (auch laufende)',          (select count(*) from auftrag)),
+    ('auftrag_palette',         'gezählte Paletten je Arbeit',       (select count(*) from auftrag_palette)),
+    ('auftrag_gebinde',         'gezählte Gebinde je Arbeit',        (select count(*) from auftrag_gebinde)),
+    ('auftrag_angabe',          'Antworten aus dem Abschluss',       (select count(*) from auftrag_angabe)),
+    ('auftrag_teilnehmer',      'Teilnehmer an Arbeiten',            (select count(*) from auftrag_teilnehmer)),
+    ('palette',                 'Eingangspaletten',                  (select count(*) from palette)),
+    ('lieferung',               'Lieferungen',                       (select count(*) from lieferung)),
+    ('lieferung_import',        'Zuordnungen Lieferung ↔ Importzeile', (select count(*) from lieferung_import)),
+    ('sortier_lauf',            'Sortierläufe',                      (select count(*) from sortier_lauf)),
+    ('sortier_gewicht',         'gemessene Gewichtsstufen',          (select count(*) from sortier_gewicht)),
+    ('schimmel_messung',        'Messungen von Faulem',              (select count(*) from schimmel_messung)),
+    ('ausschuss_messung',       'Ausschuss-Wägungen',                (select count(*) from ausschuss_messung)),
+    ('ausgang_wiegung',         'Wägungen fertiger Paletten',        (select count(*) from ausgang_wiegung)),
+    ('verdunstung_wiegung',     'Lagerkontroll-Wägungen',            (select count(*) from verdunstung_wiegung)),
+    ('kontrollpalette',         'Kontrollpaletten',                  (select count(*) from kontrollpalette)),
+    ('kontrollpalette_wiegung', 'Wägungen der Kontrollpaletten',     (select count(*) from kontrollpalette_wiegung)),
+    ('ausgang_datei',           'hochgeladene Warenausgangsdateien', (select count(*) from ausgang_datei)),
+    ('ausgang_zeile',           'Zeilen aus Warenausgangsdateien',   (select count(*) from ausgang_zeile)),
+    ('ausgang_zeile_frueher',   'frühere Zeilen aus Warenausgangsdateien', (select count(*) from ausgang_zeile_frueher)),
+    ('charge_vorlauf',          'Angaben zum Erfassungsbeginn',      (select count(*) from charge_vorlauf))
+  ) as t(tabelle, was, zeilen)
+  where zeilen > 0
+  order by zeilen desc;
+$$;
+
+comment on function erfassung_umfang() is
+  'Was der Löschknopf treffen würde, Tabelle für Tabelle, ohne etwas zu ändern. '
+  'Nur Zeilen mit Inhalt. Dieselben 20 Tabellen (seit 0130 mit ausgang_zeile_frueher), die erfassung_leeren() leert — '
+  'die Liste hier und die Liste dort müssen deckungsgleich bleiben, sonst nennt '
+  'die Oberfläche eine kleinere Zahl, als sie dann löscht (0080).';
+
+revoke all on function erfassung_umfang() from public;
+grant execute on function erfassung_umfang() to authenticated;
+
+create or replace function erfassung_leeren(p_bestaetigung text)
+returns text language plpgsql security definer set search_path = public as $fn$
+declare
+  v_vorher  bigint;
+  v_journal bigint;
+  v_zeile   record;
+  v_bericht text := '';
+begin
+  -- Dieselbe Regel wie bei demo_daten_entfernen(): Wer über die App kommt,
+  -- muss Betriebsleiter sein. Im SQL-Editor gibt es keine Anmeldung
+  -- (auth.uid() ist null) — dort darf es weiterhin gehen, sonst wäre der
+  -- Weg zu, wenn die App gerade nicht läuft.
+  if auth.uid() is not null and not ist_admin() then
+    raise exception 'Die Erfassung leeren darf nur der Betriebsleiter.';
+  end if;
+
+  if p_bestaetigung is distinct from 'ALLES LOESCHEN' then
+    raise exception E'Zum Leeren fehlt das Bestätigungswort.\nEs lautet: ALLES LOESCHEN';
+  end if;
+
+  select count(*) into v_journal from erfassung_journal;
+
+  -- Der Umfang, bevor er verschwindet — für den Rückgabetext.
+  for v_zeile in select was, zeilen from erfassung_umfang() loop
+    v_bericht := v_bericht || format('%s %s, ', v_zeile.zeilen, v_zeile.was);
+  end loop;
+
+  select count(*) into v_vorher from palette;
+
+  -- Von den Blättern zur Wurzel. Jede dieser Zeilen geht durch den
+  -- Journal-Auslöser, sofern die Tabelle ihn trägt (16 von 20 tun es).
+  --
+  -- `where true` ist kein Zierrat und keine Umgehung, sondern Pflicht:
+  -- Supabase lässt die API-Verbindung mit der Sicherung „safeupdate"
+  -- laufen, und die weist ein DELETE ohne WHERE ab — auch im Rumpf einer
+  -- Funktion. Ohne diese drei Wörter liefe der Knopf auf dem Prüfstand
+  -- durch und auf der echten Seite in einen Fehler. `pruefung.sql` hat
+  -- dafür eine eigene Wache; sie hat genau das hier gefunden.
+  -- Gelesen heisst es: alle Zeilen, mit Absicht.
+  delete from sortier_gewicht where true;
+  delete from sortier_lauf where true;
+  delete from auftrag_palette where true;
+  delete from auftrag_angabe where true;
+  delete from auftrag_gebinde where true;
+  delete from auftrag_teilnehmer where true;
+  delete from schimmel_messung where true;
+  delete from ausschuss_messung where true;
+  delete from ausgang_wiegung where true;
+  delete from verdunstung_wiegung where true;
+  delete from auftrag where true;
+  delete from kontrollpalette_wiegung where true;
+  delete from kontrollpalette where true;
+  delete from lieferung_import where true;
+  delete from lieferung where true;
+  delete from ausgang_zeile where true;
+  delete from ausgang_zeile_frueher where true;
+  delete from ausgang_datei where true;
+  delete from charge_vorlauf where true;
+  delete from palette where true;
+
+  -- Die Auswertung gilt ab jetzt als veraltet; gerechnet wird getrennt.
+  update auswertung_stand set geaendert_ts = now() where id = 1;
+
+  select count(*) - v_journal into v_journal from erfassung_journal;
+
+  v_bericht := rtrim(v_bericht, ', ');
+
+  if v_bericht = '' then
+    return 'Es war schon leer — nichts zu löschen.';
+  end if;
+
+  return format('Erfassung geleert: %s. Davon stehen %s Zeilen mit ihrem alten Inhalt '
+                'im Journal und bleiben nachlesbar. Chargen, Sorten, Gebinde, Käufer, '
+                'Sortierschemata, Konten und Einstellungen sind unberührt.',
+                v_bericht, v_journal);
+end $fn$;
+
+revoke all on function erfassung_leeren(text) from public;
+grant execute on function erfassung_leeren(text) to authenticated;
+
+comment on function erfassung_leeren(text) is
+  'Leert alle Erfassungsdaten (Arbeiten, Paletten, Wägungen, Lieferungen, '
+  'Lagerkontrollen, eingelesene Warenausgangsdateien) und lässt die Stammdaten '
+  'stehen. Verlangt das Bestätigungswort „ALLES LOESCHEN" und den Betriebsleiter. '
+  'Jede gelöschte Zeile einer Erfassungstabelle steht mit ihrem alten Inhalt im '
+  'erfassung_journal; ausgang_datei, ausgang_zeile, ausgang_zeile_frueher (0130) und lieferung_import tragen den '
+  'Auslöser nicht und sind nur über die hochgeladene Datei wiederherstellbar. Rechnet die '
+  'Auswertung nicht neu — eigener Aufruf, wie bei demo_daten_laden() (0080).';
+
+revoke all on function erfassung_leeren(text) from public;
+grant execute on function erfassung_leeren(text) to authenticated;
+
+-- aus 0131_was_perigon_wiegt_und_woraus_der_mix_ist.sql
+
+create or replace function perigon_kg(p_menge numeric, p_gewicht numeric, p_einheit text) returns numeric
+language sql immutable set search_path = public as $$
+  select case
+           when p_menge is null then null
+           when lower(btrim(coalesce(p_einheit, ''))) like 'kg%' then round(p_menge, 3)
+           when coalesce(p_gewicht, 0) > 0 then round(p_menge * p_gewicht, 3)
+         end
+$$;
+comment on function perigon_kg(numeric, numeric, text) is
+  'Die Masse einer Perigon-Menge in kg (0115, 0131): bei Einheit kg die Menge selbst — das Gewicht je Artikel zählt '
+  'dort nicht (Ünique: 10, sonst 1 oder 0); bei Stück Menge × Gewicht je Artikel; Stück ohne Stückgewicht unbekannt '
+  '(null), nie 0. Dieselbe Regel wie perigonKg() in src/lib/warenausgang.ts.';
+revoke all on function perigon_kg(numeric, numeric, text) from public;
+grant execute on function perigon_kg(numeric, numeric, text) to authenticated;
+
+create or replace function ausgang_kg_gewicht_nachrechnen() returns jsonb
+language plpgsql security invoker set search_path = public as $fn$
+declare v_l int; v_z int; v_p int;
+begin
+  -- zuerst die Lieferungen (die Zeile sagt, ob und womit), dann die Zeilen
+  with falsch as (
+    select l.id, l.kg, z.gewicht_je_artikel as g, perigon_kg(z.menge, z.gewicht_je_artikel, z.einheit) as pos_neu
+      from lieferung l
+      join lieferung_import i on i.lieferung_id = l.id
+      join ausgang_zeile z on z.id = i.zeile_id
+     where lower(btrim(coalesce(z.einheit, ''))) like 'kg%'
+       and z.gewicht_je_artikel is not null and z.gewicht_je_artikel not in (0, 1)
+  ), neu as (
+    -- nur, solange die Lieferung grösser ist als die ganze Position nach der neuen Regel: ein zweiter Lauf ändert nichts
+    update lieferung l set kg = round(f.kg / f.g, 2)
+      from falsch f
+     where l.id = f.id and f.kg > coalesce(f.pos_neu, 0) + 0.01
+    returning 1
+  )
+  select count(*)::int into v_l from neu;
+
+  update ausgang_zeile z
+     set kg_position = perigon_kg(z.menge, z.gewicht_je_artikel, z.einheit),
+         kg_charge   = perigon_kg(z.batch_menge, z.gewicht_je_artikel, z.einheit)
+   where lower(btrim(coalesce(z.einheit, ''))) like 'kg%'
+     and z.gewicht_je_artikel is not null and z.gewicht_je_artikel not in (0, 1)
+     and (z.kg_position is distinct from perigon_kg(z.menge, z.gewicht_je_artikel, z.einheit)
+          or z.kg_charge is distinct from perigon_kg(z.batch_menge, z.gewicht_je_artikel, z.einheit));
+  get diagnostics v_z = row_count;
+
+  update ausgang_position p
+     set kg = perigon_kg(coalesce(p.menge, 0), p.gewicht_je_artikel, p.einheit)
+   where lower(btrim(coalesce(p.einheit, ''))) like 'kg%'
+     and p.gewicht_je_artikel is not null and p.gewicht_je_artikel not in (0, 1)
+     and p.kg is distinct from perigon_kg(coalesce(p.menge, 0), p.gewicht_je_artikel, p.einheit);
+  get diagnostics v_p = row_count;
+  return jsonb_build_object('lieferungen', v_l, 'zeilen', v_z, 'positionen', v_p);
+end $fn$;
+comment on function ausgang_kg_gewicht_nachrechnen() is
+  'Rechnet Lieferungen, Zeilen und Positionen von kg-Artikeln mit Gewicht je Artikel ≠ 0/1 nach der Regel von 0131 '
+  '(die Menge ist das Gewicht): die Lieferung durch das Gewicht je Artikel, solange sie grösser ist als die ganze '
+  'Position — ein zweiter Lauf ändert nichts. Einmal in 0131; schreiben darf nur der Betriebsleiter.';
+revoke all on function ausgang_kg_gewicht_nachrechnen() from public;
+grant execute on function ausgang_kg_gewicht_nachrechnen() to authenticated;
+
+do $$
+begin
+  raise notice '0131: kg-Artikel mit Gewicht je Artikel ≠ 1 nachgerechnet — %', ausgang_kg_gewicht_nachrechnen();
+end $$;
+
+create table if not exists mix_rezept (
+  id            bigint generated by default as identity primary key,
+  artikelgruppe text    not null default 'Mix' check (btrim(artikelgruppe) <> ''),
+  sorte         text    not null references sorte_kaliber(sorte) on update cascade,
+  stueck        numeric(6,2)  check (stueck > 0),
+  kg_je_stueck  numeric(8,3)  check (kg_je_stueck > 0),
+  auffueller    boolean not null default false,
+  quelle        text    not null check (btrim(quelle) <> ''),
+  erfasser      uuid    references profil(id) on delete set null default auth.uid(),
+  ts            timestamptz not null default now(),
+  unique (artikelgruppe, sorte),
+  check ((auffueller and stueck is null and kg_je_stueck is null)
+      or (not auffueller and stueck is not null and kg_je_stueck is not null))
+);
+create unique index if not exists mix_rezept_ein_auffueller on mix_rezept (artikelgruppe) where auffueller;
+comment on table mix_rezept is
+  'Woraus eine Mix-Kiste ist (0131): je Sorte Stück und kg je Stück, und genau eine Sorte, die die Kiste bis zu ihrem '
+  'Inhalt (Spalte „AuftragsGebindeinhalt" der Perigon-Datei) auffüllt. Das Einlesen verteilt danach jede Mix-Zeile auf '
+  'die Sorten; ohne Kisteninhalt verteilt es nicht. quelle: woher Stückzahl und Gewicht kommen.';
+comment on column mix_rezept.auffueller is
+  'Die Sorte, die den Rest der Kiste füllt (Butterkin: 2 grosse oder 4–6 kleine) — ohne eigene Stückzahl.';
+
+alter table mix_rezept enable row level security;
+drop policy if exists mix_rezept_lesen on mix_rezept;
+create policy mix_rezept_lesen on mix_rezept for select to authenticated using (true);
+drop policy if exists mix_rezept_admin on mix_rezept;
+create policy mix_rezept_admin on mix_rezept for all to authenticated
+  using (ist_admin()) with check (ist_admin());
+grant select, insert, update, delete on mix_rezept to authenticated;
+
+insert into mix_rezept (artikelgruppe, sorte, stueck, kg_je_stueck, auffueller, quelle, erfasser)
+select 'Mix', s.sorte, s.stueck, s.kg, s.auff, s.quelle, null
+  from (values
+    ('Orangita',  3::numeric, 0.55::numeric, false,
+     'Betrieb, 7. November 2026: 3 Mandarin je Kiste (Mandarin = Orangita); 0.55 kg je Stück aus dem Perigon-Artikel „Bio Kürbis Mandarin Dem"'),
+    ('Lekor',     3, 0.95, false,
+     'Betrieb, 7. November 2026: 3 Kabocha je Kiste, „in den meisten Fällen kleine" (Kabocha = Lekor); 0.95 kg je Stück aus dem Perigon-Artikel „Bio Kürbis Kabocha klein"'),
+    ('Butterkin', null, null, true,
+     'Betrieb, 7. November 2026: Butterkin füllt die Kiste auf — 2 grosse oder 4–6 kleine')
+  ) as s(sorte, stueck, kg, auff, quelle)
+ where exists (select 1 from sorte_kaliber k where k.sorte = s.sorte)
+on conflict (artikelgruppe, sorte) do nothing;
+
+create or replace function lieferung_import_zeilen_verbinden(p_quelle text default null)
+returns int language sql volatile set search_path = public as $$
+  with charge_zeilen as (
+    update lieferung_import i
+       set zeile_id = z.id
+      from ausgang_zeile z
+     where i.zeile_id is null
+       and (p_quelle is null or i.quelle = p_quelle)
+       and z.quelle = i.quelle
+       and (i.extern_id = z.quelle || ':' || z.pos_id || ':' || z.charge_extern || ':' || z.lauf_nr
+            or i.extern_id like z.quelle || ':' || z.pos_id || ':' || z.charge_extern || ':' || z.lauf_nr || ':mix:%')
+     returning 1
+  ), rest_zeilen as (
+    update lieferung_import i
+       set zeile_id = z.id
+      from (select distinct on (quelle, pos_id) id, quelle, pos_id
+              from ausgang_zeile order by quelle, pos_id, lauf_nr, id) z
+     where i.zeile_id is null
+       and (p_quelle is null or i.quelle = p_quelle)
+       and z.quelle = i.quelle
+       and (i.extern_id = z.quelle || ':' || z.pos_id || ':rest'
+            or i.extern_id like z.quelle || ':' || z.pos_id || ':rest:mix:%')
+     returning 1
+  )
+  select (select count(*) from charge_zeilen) + (select count(*) from rest_zeilen)
+$$;
+comment on function lieferung_import_zeilen_verbinden(text) is
+  'Trägt lieferung_import.zeile_id aus der Kennung nach (Chargenzeile oder erste '
+  'Zeile der Position; seit 0131 auch die Anteile eines Mix, „…:mix:Sorte"). Läuft nach jeder Übernahme; einmal für alles Bestehende (0061).';
+revoke all on function lieferung_import_zeilen_verbinden(text) from public;
+grant execute on function lieferung_import_zeilen_verbinden(text) to authenticated;
+
+create or replace function ausgang_positionen_geloescht(p_quelle text, p_datei_id bigint, p_datei jsonb)
+returns jsonb language plpgsql security invoker set search_path = public as $fn$
+declare
+  v_von date := nullif(p_datei ->> 'von_datum', '')::date;
+  v_bis date := nullif(p_datei ->> 'bis_datum', '')::date;
+  v_datei bigint[]; v_weg bigint[]; v_im_zeitraum int; v_fehlen int; v_l int := 0; v_z int := 0;
+begin
+  if p_datei -> 'alle_pos' is null or jsonb_typeof(p_datei -> 'alle_pos') <> 'array'
+     or v_von is null or v_bis is null then
+    return jsonb_build_object('positionen', 0, 'zeilen', 0, 'lieferungen', 0, 'grund', 'ohne Liste der Positionen');
+  end if;
+  v_datei := array(select distinct x::bigint from jsonb_array_elements_text(p_datei -> 'alle_pos') as x where x ~ '^[0-9]+$');
+  select count(distinct z.pos_id)::int into v_im_zeitraum
+    from ausgang_zeile z where z.quelle = p_quelle and z.datum between v_von and v_bis;
+  v_weg := array(select distinct z.pos_id from ausgang_zeile z
+                  where z.quelle = p_quelle and z.datum between v_von and v_bis
+                    and not (z.pos_id = any(v_datei))
+                  order by 1);
+  v_fehlen := coalesce(cardinality(v_weg), 0);
+  if v_fehlen = 0 then
+    return jsonb_build_object('positionen', 0, 'zeilen', 0, 'lieferungen', 0);
+  end if;
+  if v_fehlen > greatest(5, v_im_zeitraum / 10) then
+    return jsonb_build_object('positionen', 0, 'zeilen', 0, 'lieferungen', 0, 'fehlen', v_fehlen,
+      'grund', format('%s von %s Positionen im Zeitraum fehlen in der Datei (z. B. %s) — so viele löscht niemand; die Datei ist wohl gefiltert. Nichts beiseitegelegt.',
+                      v_fehlen, v_im_zeitraum, array_to_string(v_weg[1:10], ', ')));
+  end if;
+
+  -- zuerst die Lieferungen (sie zeigen auf die Zeilen), dann die Zeilen beiseite
+  with weg as (
+    delete from lieferung weg_l
+     using lieferung_import i
+     where i.lieferung_id = weg_l.id and i.quelle = p_quelle
+       and split_part(i.extern_id, ':', 2) ~ '^[0-9]+$'
+       and split_part(i.extern_id, ':', 2)::bigint = any(v_weg)
+    returning 1
+  ) select count(*)::int into v_l from weg;
+  with weg as (
+    delete from ausgang_zeile z
+     where z.quelle = p_quelle and z.pos_id = any(v_weg)
+    returning z.*
+  ), abgelegt as (
+    insert into ausgang_zeile_frueher select w.*, now(), p_datei_id from weg w returning 1
+  ) select count(*)::int into v_z from abgelegt;
+  return jsonb_build_object('positionen', v_fehlen, 'zeilen', v_z, 'lieferungen', v_l,
+                            'liste', array_to_string(v_weg, ', '));
+end $fn$;
+comment on function ausgang_positionen_geloescht(text, bigint, jsonb) is
+  'Positionen einer Firma im Zeitraum der Datei (p_datei.von_datum–bis_datum), die die Datei gar nicht mehr hat '
+  '(p_datei.alle_pos: alle Positionsnummern der Datei, jeder Artikel): in Perigon gelöscht — ihre Lieferungen gehen weg, '
+  'ihre Zeilen nach ausgang_zeile_frueher (0131). Fehlt mehr als jede zehnte Position (mindestens 5), nichts — die Datei '
+  'ist wohl gefiltert; ohne alle_pos ebenso nichts. Gibt zurück, wie viele Positionen, Zeilen, Lieferungen. '
+  'Aufgerufen von ausgang_uebernehmen; schreiben darf nur der Betriebsleiter (Regeln der Tabellen).';
+revoke all on function ausgang_positionen_geloescht(text, bigint, jsonb) from public;
+grant execute on function ausgang_positionen_geloescht(text, bigint, jsonb) to authenticated;
+
 create or replace function ausgang_uebernehmen(
   p_quelle       text,
   p_quelle_name  text,
@@ -8053,6 +8391,7 @@ declare
   v_fremd_n      int;
   v_ersetzt      int := 0;
   v_beiseite     int := 0;
+  v_geloescht    jsonb;
 begin
   if not ist_admin() then
     raise exception 'Den Warenausgang übernimmt nur der Betriebsleiter.';
@@ -8215,6 +8554,10 @@ begin
   -- Datei stehen, bleiben, wie sie sind.
   v_beiseite := ausgang_zeilen_beiseite(p_quelle, v_datei_id, p_zeilen);
 
+  -- 0131: Positionen, die im Zeitraum der Datei gar nicht mehr stehen, sind in
+  -- Perigon gelöscht: ihre Zeilen gehen ebenso beiseite, ihre Lieferungen weg.
+  v_geloescht := ausgang_positionen_geloescht(p_quelle, v_datei_id, p_datei);
+
   -- 0061: jede Lieferung dieser Quelle kennt ihre Zeile
   perform lieferung_import_zeilen_verbinden(p_quelle);
 
@@ -8224,9 +8567,12 @@ begin
     'lieferungen_neu', v_lief_neu, 'lieferungen_aktualisiert', v_lief_alt,
     'lieferungen_ersetzt', v_ersetzt,
     'zeilen_beiseite', v_beiseite,
+    'positionen_geloescht', v_geloescht,
     'uebergangen', v_uebergangen);
 end $fn$;
 
+revoke all on function ausgang_uebernehmen(text, text, jsonb, jsonb, jsonb) from public;
+grant execute on function ausgang_uebernehmen(text, text, jsonb, jsonb, jsonb) to authenticated;
 revoke all on function ausgang_uebernehmen(text, text, jsonb, jsonb, jsonb) from public;
 grant execute on function ausgang_uebernehmen(text, text, jsonb, jsonb, jsonb) to authenticated;
 revoke all on function ausgang_uebernehmen(text, text, jsonb, jsonb, jsonb) from public;
@@ -8244,159 +8590,15 @@ comment on function ausgang_uebernehmen is
   'einer anderen Firma schon bekannt sind (sonst doppelte Bilanz). Seit 0115 entfernt sie für '
   'jede Position der Datei die Lieferungen, die die Datei nicht mehr ergibt (Charge nachgetragen, '
   'anders aufgeteilt) — sonst zählte die Masse doppelt; seit 0130 legt sie ebenso die Zeilen beiseite, '
-  'die die Datei für ihre Positionen nicht mehr hat (nach ausgang_zeile_frueher). Positionen ausserhalb '
-  'der Datei bleiben. Gibt zurück, was neu, was aktualisiert, was ersetzt, was beiseitegelegt und was '
+  'die die Datei für ihre Positionen nicht mehr hat (nach ausgang_zeile_frueher); seit 0131 auch die Zeilen '
+  'und Lieferungen von Positionen, die im Zeitraum der Datei gar nicht mehr stehen (in Perigon gelöscht). Positionen ausserhalb '
+  'des Zeitraums bleiben. Gibt zurück, was neu, was aktualisiert, was ersetzt, was beiseitegelegt und was '
   'nicht übernommen wurde (mit Grund).';
 revoke all on function ausgang_uebernehmen(text, text, jsonb, jsonb, jsonb) from public;
 grant execute on function ausgang_uebernehmen(text, text, jsonb, jsonb, jsonb) to authenticated;
 
-with neuste as (
-  select distinct on (d.quelle) d.quelle, d.id
-    from ausgang_datei d
-   order by d.quelle, d.ts desc, d.id desc
-), weg as (
-  delete from ausgang_zeile z
-   using neuste n
-   where z.quelle = n.quelle
-     and z.datei_id is distinct from n.id
-     and exists (select 1 from ausgang_zeile y where y.quelle = z.quelle and y.pos_id = z.pos_id and y.datei_id = n.id)
-  returning z.*
-)
-insert into ausgang_zeile_frueher
-select w.*, now(), null::bigint from weg w;
-
-create or replace function erfassung_umfang()
-returns table (tabelle text, was text, zeilen bigint)
-language sql stable security definer set search_path = public as $$
-  select * from (values
-    ('auftrag',                 'Arbeiten (auch laufende)',          (select count(*) from auftrag)),
-    ('auftrag_palette',         'gezählte Paletten je Arbeit',       (select count(*) from auftrag_palette)),
-    ('auftrag_gebinde',         'gezählte Gebinde je Arbeit',        (select count(*) from auftrag_gebinde)),
-    ('auftrag_angabe',          'Antworten aus dem Abschluss',       (select count(*) from auftrag_angabe)),
-    ('auftrag_teilnehmer',      'Teilnehmer an Arbeiten',            (select count(*) from auftrag_teilnehmer)),
-    ('palette',                 'Eingangspaletten',                  (select count(*) from palette)),
-    ('lieferung',               'Lieferungen',                       (select count(*) from lieferung)),
-    ('lieferung_import',        'Zuordnungen Lieferung ↔ Importzeile', (select count(*) from lieferung_import)),
-    ('sortier_lauf',            'Sortierläufe',                      (select count(*) from sortier_lauf)),
-    ('sortier_gewicht',         'gemessene Gewichtsstufen',          (select count(*) from sortier_gewicht)),
-    ('schimmel_messung',        'Messungen von Faulem',              (select count(*) from schimmel_messung)),
-    ('ausschuss_messung',       'Ausschuss-Wägungen',                (select count(*) from ausschuss_messung)),
-    ('ausgang_wiegung',         'Wägungen fertiger Paletten',        (select count(*) from ausgang_wiegung)),
-    ('verdunstung_wiegung',     'Lagerkontroll-Wägungen',            (select count(*) from verdunstung_wiegung)),
-    ('kontrollpalette',         'Kontrollpaletten',                  (select count(*) from kontrollpalette)),
-    ('kontrollpalette_wiegung', 'Wägungen der Kontrollpaletten',     (select count(*) from kontrollpalette_wiegung)),
-    ('ausgang_datei',           'hochgeladene Warenausgangsdateien', (select count(*) from ausgang_datei)),
-    ('ausgang_zeile',           'Zeilen aus Warenausgangsdateien',   (select count(*) from ausgang_zeile)),
-    ('ausgang_zeile_frueher',   'frühere Zeilen aus Warenausgangsdateien', (select count(*) from ausgang_zeile_frueher)),
-    ('charge_vorlauf',          'Angaben zum Erfassungsbeginn',      (select count(*) from charge_vorlauf))
-  ) as t(tabelle, was, zeilen)
-  where zeilen > 0
-  order by zeilen desc;
-$$;
-
-comment on function erfassung_umfang() is
-  'Was der Löschknopf treffen würde, Tabelle für Tabelle, ohne etwas zu ändern. '
-  'Nur Zeilen mit Inhalt. Dieselben 20 Tabellen (seit 0130 mit ausgang_zeile_frueher), die erfassung_leeren() leert — '
-  'die Liste hier und die Liste dort müssen deckungsgleich bleiben, sonst nennt '
-  'die Oberfläche eine kleinere Zahl, als sie dann löscht (0080).';
-
-revoke all on function erfassung_umfang() from public;
-grant execute on function erfassung_umfang() to authenticated;
-
-create or replace function erfassung_leeren(p_bestaetigung text)
-returns text language plpgsql security definer set search_path = public as $fn$
-declare
-  v_vorher  bigint;
-  v_journal bigint;
-  v_zeile   record;
-  v_bericht text := '';
-begin
-  -- Dieselbe Regel wie bei demo_daten_entfernen(): Wer über die App kommt,
-  -- muss Betriebsleiter sein. Im SQL-Editor gibt es keine Anmeldung
-  -- (auth.uid() ist null) — dort darf es weiterhin gehen, sonst wäre der
-  -- Weg zu, wenn die App gerade nicht läuft.
-  if auth.uid() is not null and not ist_admin() then
-    raise exception 'Die Erfassung leeren darf nur der Betriebsleiter.';
-  end if;
-
-  if p_bestaetigung is distinct from 'ALLES LOESCHEN' then
-    raise exception E'Zum Leeren fehlt das Bestätigungswort.\nEs lautet: ALLES LOESCHEN';
-  end if;
-
-  select count(*) into v_journal from erfassung_journal;
-
-  -- Der Umfang, bevor er verschwindet — für den Rückgabetext.
-  for v_zeile in select was, zeilen from erfassung_umfang() loop
-    v_bericht := v_bericht || format('%s %s, ', v_zeile.zeilen, v_zeile.was);
-  end loop;
-
-  select count(*) into v_vorher from palette;
-
-  -- Von den Blättern zur Wurzel. Jede dieser Zeilen geht durch den
-  -- Journal-Auslöser, sofern die Tabelle ihn trägt (16 von 20 tun es).
-  --
-  -- `where true` ist kein Zierrat und keine Umgehung, sondern Pflicht:
-  -- Supabase lässt die API-Verbindung mit der Sicherung „safeupdate"
-  -- laufen, und die weist ein DELETE ohne WHERE ab — auch im Rumpf einer
-  -- Funktion. Ohne diese drei Wörter liefe der Knopf auf dem Prüfstand
-  -- durch und auf der echten Seite in einen Fehler. `pruefung.sql` hat
-  -- dafür eine eigene Wache; sie hat genau das hier gefunden.
-  -- Gelesen heisst es: alle Zeilen, mit Absicht.
-  delete from sortier_gewicht where true;
-  delete from sortier_lauf where true;
-  delete from auftrag_palette where true;
-  delete from auftrag_angabe where true;
-  delete from auftrag_gebinde where true;
-  delete from auftrag_teilnehmer where true;
-  delete from schimmel_messung where true;
-  delete from ausschuss_messung where true;
-  delete from ausgang_wiegung where true;
-  delete from verdunstung_wiegung where true;
-  delete from auftrag where true;
-  delete from kontrollpalette_wiegung where true;
-  delete from kontrollpalette where true;
-  delete from lieferung_import where true;
-  delete from lieferung where true;
-  delete from ausgang_zeile where true;
-  delete from ausgang_zeile_frueher where true;
-  delete from ausgang_datei where true;
-  delete from charge_vorlauf where true;
-  delete from palette where true;
-
-  -- Die Auswertung gilt ab jetzt als veraltet; gerechnet wird getrennt.
-  update auswertung_stand set geaendert_ts = now() where id = 1;
-
-  select count(*) - v_journal into v_journal from erfassung_journal;
-
-  v_bericht := rtrim(v_bericht, ', ');
-
-  if v_bericht = '' then
-    return 'Es war schon leer — nichts zu löschen.';
-  end if;
-
-  return format('Erfassung geleert: %s. Davon stehen %s Zeilen mit ihrem alten Inhalt '
-                'im Journal und bleiben nachlesbar. Chargen, Sorten, Gebinde, Käufer, '
-                'Sortierschemata, Konten und Einstellungen sind unberührt.',
-                v_bericht, v_journal);
-end $fn$;
-
-revoke all on function erfassung_leeren(text) from public;
-grant execute on function erfassung_leeren(text) to authenticated;
-
-comment on function erfassung_leeren(text) is
-  'Leert alle Erfassungsdaten (Arbeiten, Paletten, Wägungen, Lieferungen, '
-  'Lagerkontrollen, eingelesene Warenausgangsdateien) und lässt die Stammdaten '
-  'stehen. Verlangt das Bestätigungswort „ALLES LOESCHEN" und den Betriebsleiter. '
-  'Jede gelöschte Zeile einer Erfassungstabelle steht mit ihrem alten Inhalt im '
-  'erfassung_journal; ausgang_datei, ausgang_zeile, ausgang_zeile_frueher (0130) und lieferung_import tragen den '
-  'Auslöser nicht und sind nur über die hochgeladene Datei wiederherstellbar. Rechnet die '
-  'Auswertung nicht neu — eigener Aufruf, wie bei demo_daten_laden() (0080).';
-
-revoke all on function erfassung_leeren(text) from public;
-grant execute on function erfassung_leeren(text) to authenticated;
-
 create or replace function schema_stand() returns int
-language sql immutable set search_path = public as $$ select 130 $$;
+language sql immutable set search_path = public as $$ select 131 $$;
 comment on function schema_stand is
   'Nummer der jüngsten eingespielten Migration. Die App vergleicht sie mit '
   'SCHEMA_ERWARTET (src/lib/version.ts) und verlangt bei Abweichung, setup.sql '
@@ -8425,6 +8627,8 @@ comment on function schema_stand() is
 -- wird am Ende dieser Datei neu berechnet.
 -- =====================================================================
 
+drop view if exists v_perigon_stand cascade;
+drop view if exists v_perigon_befund cascade;
 drop materialized view if exists erg_kaliber cascade;
 drop view if exists v_plausibilitaet cascade;
 drop view if exists v_plausibilitaet_0054_zusatz cascade;
@@ -8458,8 +8662,6 @@ drop view if exists v_charge_palox cascade;
 drop view if exists v_schimmel_punkte cascade;
 drop view if exists v_schimmel_punkte_formel cascade;
 drop view if exists v_perigon_verlauf cascade;
-drop view if exists v_perigon_stand cascade;
-drop view if exists v_perigon_befund cascade;
 drop view if exists v_lieferung_ohne_charge cascade;
 drop view if exists v_stammdaten_pruefung cascade;
 drop view if exists v_perigon_produzent cascade;
@@ -10987,222 +11189,6 @@ select g.id, g.datum, g.sorte, g.kunde,
          else 'In Perigon die Charge und die Menge je Charge (Spalten W und S) eintragen, dann die Datei unter Betrieb → Warenausgang neu einlesen.'
        end as tun
   from grund g;
-
-create or replace view v_perigon_befund with (security_invoker = true) as
-with zeile as (
-  select z.id, z.quelle, z.pos_id, z.lauf_nr, z.datum, z.kunde, z.artikel_id, z.artikel, z.einheit, z.menge,
-         z.gewicht_je_artikel, z.batch_menge, z.kg_position, z.kg_charge, z.preisgruppe, z.liefer_label, z.produzent, z.ts,
-         nullif(btrim(z.charge_extern), '') as nummer,
-         regexp_replace(coalesce(z.charge_extern, ''), '\D', '', 'g') as ziffern
-    from ausgang_zeile z
-), lief as (
-
-  select i.quelle, split_part(i.extern_id, ':', 2)::bigint as pos_id,
-         sum(l.kg) as kg, sum(l.kg) filter (where l.charge_nr is null) as kg_ohne,
-         count(distinct l.charge_nr)::int as n_chargen, min(l.charge_nr) as charge_nr, min(l.sorte) as sorte
-    from lieferung_import i
-    join lieferung l on l.id = i.lieferung_id
-   where split_part(i.extern_id, ':', 2) ~ '^\d+$' and i.extern_id not like '%:rueckgabe'
-   group by 1, 2
-), doppelt as (
-
-  select d.quelle, d.pos_id,
-         string_agg(format('Charge %s %s', d.nummer, case d.n when 2 then 'zweimal' when 3 then 'dreimal' else d.n || '-mal' end), ', ' order by d.nummer) as text
-    from (select quelle, pos_id, nummer, count(*)::int as n from zeile
-           where nummer is not null group by 1, 2, 3 having count(*) > 1 and count(distinct batch_menge) = 1) d
-   group by 1, 2
-), pos as (
-  select z.quelle, z.pos_id, min(z.datum) as datum, min(z.kunde) as kunde, min(z.artikel_id) as artikel_id, min(z.artikel) as artikel,
-         min(z.einheit) as einheit, max(z.menge) as menge, max(z.gewicht_je_artikel) as gewicht_je_artikel,
-         max(z.kg_position) as kg_position, min(z.preisgruppe) as preisgruppe, min(z.liefer_label) as liefer_label,
-         min(z.ts) as eingelesen,
-         count(*)::int as n_zeilen,
-         count(z.nummer)::int as n_nummer,
-         count(*) filter (where z.nummer is not null and z.kg_charge > 0)::int as n_menge,
-         coalesce(sum(z.kg_charge) filter (where z.nummer is not null and z.kg_charge > 0), 0) as kg_zugeteilt,
-         string_agg(distinct z.nummer, ', ' order by z.nummer) as nummern,
-         string_agg(distinct z.nummer, ', ' order by z.nummer) filter (where coalesce(z.kg_charge, 0) <= 0) as nummern_ohne_menge
-    from zeile z
-   group by z.quelle, z.pos_id
-), p as (
-  select pos.*, f.kg as kg_rechnung, f.kg_ohne,
-         case when f.n_chargen = 1 then f.charge_nr end as charge_nr,
-         coalesce(f.sorte, aa.sorte) as sorte, d.text as doppelt,
-         case when pos.nummern like '%,%' then 'die Chargen ' || pos.nummern else 'die Charge ' || pos.nummern end as chargen_text,
-         case when lower(pos.artikel) ~ '(demeter|\mdem\M)' then 'D' when lower(pos.artikel) ~ 'knospe' then 'K' end as label_name,
-         case when upper(coalesce(pos.preisgruppe, '')) like 'D%' then 'D'
-              when upper(coalesce(pos.preisgruppe, '')) ~ '^(K|CH-K)' then 'K' end as label_preis
-    from pos
-    left join lief f on f.quelle = pos.quelle and f.pos_id = pos.pos_id
-    left join ausgang_artikel aa on aa.artikel_id = pos.artikel_id and aa.artikel = pos.artikel
-    left join doppelt d on d.quelle = pos.quelle and d.pos_id = pos.pos_id
-), r as (
-
-  select z.*, l.id as lieferung_id, l.charge_nr, l.kg as kg_lieferung, c.sorte, sk.artikelgruppe as gruppe_charge,
-         e.gruppe as gruppe_artikel, e.label as label_verkauft,
-         case when upper(coalesce(z.liefer_label, '')) like 'D%' then 'D'
-              when upper(coalesce(z.liefer_label, '')) ~ '^(K|CH-K)' then 'K' end as label_geliefert,
-         (select x.nr from charge x where z.ziffern <> '' and x.nr::text = z.ziffern) as eigene,
-         (select array_agg(x.nr order by x.nr) from charge x where z.ziffern <> '' and x.perigon_nr::text = z.ziffern) as an_perigon,
-         (select min(pl.eingangsdatum) from palette pl where pl.charge_nr = l.charge_nr) as erster_eingang
-    from zeile z
-    join lieferung_import i on i.zeile_id = z.id and i.extern_id not like '%:rest' and i.extern_id not like '%:rueckgabe'
-    join lieferung l on l.id = i.lieferung_id
-    left join charge c on c.nr = l.charge_nr
-    left join sorte_kaliber sk on sk.sorte = c.sorte
-
-   cross join lateral (select * from artikel_einordnen(z.artikel, z.preisgruppe) limit 1) e
-   where z.nummer is not null and coalesce(z.kg_charge, 0) > 0
-), fall as (
-
-  select 'menge_null'::text as art, p.quelle, p.pos_id, null::text as nummer, null::int as lauf_nr, p.charge_nr, p.sorte,
-         case when p.kg_position > 0 then p.kg_position end as kg,
-         case when p.kg_position > 0
-              then format('Perigon nennt %s, teilt aber keine Menge zu: Spalte S („AufPosBatchQuantity Charge") ist 0. Die Position hat %s kg (Spalte Q × AE) — sie bleibt ganz ohne Charge.',
-                          p.chargen_text, kg_wort(p.kg_position))
-              else format('Perigon nennt %s, aber die Position hat keine Menge — Spalte Q und Spalte S sind 0. Sie zählt nirgends; ging Ware hinaus, fehlt sie im Warenausgang.',
-                          p.chargen_text) end as satz,
-         'In Perigon bei dieser Position die Menge (Spalte Q) und die Menge je Charge (Spalte S) eintragen, dann die Datei unter Betrieb → Warenausgang neu einlesen.' as tun,
-         'perigon' as wo
-    from p where p.n_nummer > 0 and p.n_menge = 0
-     and (p.kg_position > 0 or (coalesce(p.kg_position, 0) = 0 and coalesce(p.menge, 0) = 0))
-  union all
-  select 'zu_viel', p.quelle, p.pos_id, null, null, p.charge_nr, p.sorte, p.kg_zugeteilt - p.kg_position,
-         format('Die Chargenzeilen geben zusammen %s kg (Spalte S × AE), die Position nur %s kg (Spalte Q × AE) — %s kg zu viel.%s Die App zählt höchstens die Position: %s.',
-                kg_wort(p.kg_zugeteilt), kg_wort(p.kg_position), kg_wort(p.kg_zugeteilt - p.kg_position),
-                case when p.doppelt is not null then format(' Dieselbe Zeile steht mehrfach da (%s).', p.doppelt) else '' end,
-                case when p.nummern like '%,%' then 'die Chargen bekommen ihre Menge in der Folge der Zeilen, bis die Position voll ist — wie viel welche bekam, sagt die Datei nicht sicher'
-                     else format('%s bekommt die %s kg der Position', p.chargen_text, kg_wort(p.kg_position)) end),
-         'In Perigon die Menge je Charge (Spalte S) berichtigen — zusammen so viel wie die Position —, eine doppelte Zeile entfernen, dann neu einlesen.',
-         'perigon'
-    from p where p.kg_position > 0 and p.kg_zugeteilt > p.kg_position + 0.5
-  union all
-  select 'rest', p.quelle, p.pos_id, null, null, p.charge_nr, p.sorte, p.kg_position - p.kg_zugeteilt,
-         format('Perigon teilt %s nur %s von %s kg zu (Spalte S); %s kg bleiben ohne Charge.%s', p.chargen_text,
-                kg_wort(p.kg_zugeteilt), kg_wort(p.kg_position), kg_wort(p.kg_position - p.kg_zugeteilt),
-                case when p.nummern_ohne_menge is not null then format(' Ohne Menge genannt: %s.', p.nummern_ohne_menge) else '' end),
-         'In Perigon die Menge je Charge (Spalte S) nachtragen, dann neu einlesen. Bis dahin verteilt die App den Rest auf alle Chargen der Sorte.',
-         'perigon'
-    from p where p.n_menge > 0 and p.kg_position - p.kg_zugeteilt > 0.5
-  union all
-  select 'keine_nummer', p.quelle, p.pos_id, null, null, null::int, p.sorte, p.kg_position,
-         format('In Perigon steht bei dieser Position keine Chargennummer (Spalte W „AuftragsChargeManuell" ist leer) — %s kg ohne Charge.', kg_wort(p.kg_position)),
-         'In Perigon die Charge (Spalte W) und die Menge je Charge (Spalte S) eintragen, dann neu einlesen. Bis dahin verteilt die App die Menge auf alle Chargen der Sorte.',
-         'perigon'
-    from p where p.n_nummer = 0 and p.kg_position > 0
-  union all
-  select 'ohne_gewicht', p.quelle, p.pos_id, null, null, p.charge_nr, p.sorte, null::numeric,
-         format('%s %s ohne Gewicht je Artikel (Spalte AE ist leer oder 0) — die Masse ist unbekannt; die App zählt die Position nicht, statt 0 kg zu raten.',
-                trim(to_char(p.menge, 'FM999999990.###')), coalesce(p.einheit, 'Stück')),
-         'In Perigon das Gewicht je Artikel (Spalte AE) eintragen, dann neu einlesen.',
-         'perigon'
-    from p where p.kg_position is null and coalesce(p.menge, 0) <> 0
-  union all
-  select 'ruecknahme', p.quelle, p.pos_id, null, null, p.charge_nr, p.sorte, -p.kg_position,
-         format('Negative Menge (%s kg): eine Rücknahme. Die App bucht sie als Rücknahme, nicht als Verkauf.', kg_wort(p.kg_position)),
-         'Nichts in der App. Prüfen, ob die Ware wirklich zurückkam.',
-         'nichts'
-    from p where p.kg_position < 0
-  union all
-  select 'masse_abweichung', p.quelle, p.pos_id, null, null, p.charge_nr, p.sorte, coalesce(p.kg_rechnung, 0) - p.kg_position,
-         case when p.kg_rechnung is null
-              then format('Die Position steht in der Datei (%s kg), aber in der Rechnung gibt es keine Lieferung dazu.', kg_wort(p.kg_position))
-              else format('In der Rechnung stehen für diese Position %s kg, die Datei ergibt %s kg — %s kg %s.', kg_wort(p.kg_rechnung), kg_wort(p.kg_position),
-                          kg_wort(abs(p.kg_rechnung - p.kg_position)), case when p.kg_rechnung > p.kg_position then 'zu viel' else 'zu wenig' end) end,
-         'Die Datei unter Betrieb → Warenausgang neu einlesen: die App legt an, was fehlt, und entfernt, was die Datei nicht mehr ergibt. Eine von Hand geänderte Lieferung bekommt dabei wieder die Masse der Datei.',
-         'einlesen'
-    from p where p.kg_position > 0 and abs(coalesce(p.kg_rechnung, 0) - p.kg_position) > 0.05
-  union all
-  select 'label_name', p.quelle, p.pos_id, null, null, p.charge_nr, p.sorte, p.kg_position,
-         format('Der Artikel heisst „%s" (%s), verkauft wurde er in der Preisgruppe %s (%s). Die App nimmt die Preisgruppe.', p.artikel,
-                case p.label_name when 'D' then 'Demeter' else 'Knospe' end, p.preisgruppe, case p.label_preis when 'D' then 'Demeter' else 'Knospe' end),
-         'In Perigon Artikel oder Preisgruppe angleichen — was stimmt, weiss, wer den Auftrag erfasst hat.',
-         'perigon'
-    from p where p.label_name is not null and p.label_preis is not null and p.label_name <> p.label_preis
-
-  union all
-  select case when r.eigene is not null or cardinality(r.an_perigon) = 1 then 'nachholen'
-              when cardinality(r.an_perigon) > 1 then 'mehrdeutig' else 'unbekannt' end,
-         r.quelle, r.pos_id, r.nummer, r.lauf_nr, null::int, null::text, r.kg_lieferung,
-         case when r.eigene is not null or cardinality(r.an_perigon) = 1
-              then format('Perigon nennt %s; die Nummer steht inzwischen an Charge %s — beim Einlesen kannte die App sie noch nicht.', r.nummer, coalesce(r.eigene, r.an_perigon[1]))
-              when cardinality(r.an_perigon) > 1
-              then format('Perigon nennt %s; diese Perigon-Nummer steht an mehreren Chargen (%s), und der Artikel sagt nicht, an welcher.', r.nummer, array_to_string(r.an_perigon, ', '))
-              else format('Perigon nennt %s — diese Nummer steht an keiner Charge der App.', r.nummer) end,
-         case when r.eigene is not null or cardinality(r.an_perigon) = 1
-              then 'Nichts — beim nächsten Rechnen („Neu rechnen" oben) bekommt der Lieferschein die Charge von selbst.'
-              when cardinality(r.an_perigon) > 1
-              then 'Unter Betrieb → Stammdaten → Chargen die Nummer nur bei der richtigen Charge lassen; beim nächsten Rechnen bekommt der Lieferschein sie.'
-              else 'Unter Betrieb → Stammdaten → Chargen bei der richtigen Charge als Perigon-Nr. eintragen; beim nächsten Rechnen bekommt der Lieferschein sie von selbst. Ist die Nummer ein Tippfehler, in Perigon berichtigen.' end,
-         case when r.eigene is not null or cardinality(r.an_perigon) = 1 then 'nichts' else 'stammdaten' end
-    from r where r.charge_nr is null
-  union all
-  select 'artikel_sorte', r.quelle, r.pos_id, r.nummer, r.lauf_nr, r.charge_nr, r.sorte, r.kg_lieferung,
-         format('Verkauft als %s („%s"), aber die Charge %s ist %s — und %s geht als %s. Entweder steht der falsche Artikel oder die falsche Charge auf dem Lieferschein.',
-                r.gruppe_artikel, r.artikel, r.charge_nr, r.sorte, r.sorte, r.gruppe_charge),
-         'Den Lieferschein ansehen: ist der Artikel falsch, in Perigon den Artikel berichtigen; ist die Charge falsch, die Charge (Spalte W) — dann neu einlesen.',
-         'perigon'
-    from r where r.charge_nr is not null and r.gruppe_artikel is not null and r.gruppe_charge is not null
-     and r.gruppe_artikel not in ('Mix', 'andere') and r.gruppe_artikel <> r.gruppe_charge
-  union all
-  select 'demeter_knospe', r.quelle, r.pos_id, r.nummer, r.lauf_nr, r.charge_nr, r.sorte, r.kg_lieferung,
-         format('Verkauft zum Demeter-Preis (Preisgruppe %s), aber die Ware der Charge %s trägt das Lieferlabel %s — das ist Knospe.', r.preisgruppe, r.charge_nr, r.liefer_label),
-         'In Perigon Preisgruppe (Spalte K) und Lieferlabel (Spalte Z) prüfen: wurde Knospe als Demeter verrechnet, oder stimmt das Label nicht?',
-         'perigon'
-    from r where r.charge_nr is not null and r.label_verkauft = 'D' and r.label_geliefert = 'K'
-  union all
-  select 'mix', r.quelle, r.pos_id, r.nummer, r.lauf_nr, r.charge_nr, r.sorte, r.kg_lieferung,
-         format('Verkauft als „%s" auf Charge %s (%s). Ein Mix ist meist aus mehreren Sorten; die App zieht die ganzen %s kg von %s ab.',
-                r.artikel, r.charge_nr, r.sorte, kg_wort(r.kg_lieferung), r.charge_nr),
-         'Bei der Firma fragen, woraus der Mix ist. Gehört er zu einer anderen Charge, in Perigon die Charge (Spalte W) berichtigen und neu einlesen; stimmt es, hier „kein Fehler" vermerken.',
-         'firma'
-    from r where r.charge_nr is not null and r.gruppe_artikel = 'Mix'
-  union all
-  select 'vor_eingang', r.quelle, r.pos_id, r.nummer, r.lauf_nr, r.charge_nr, r.sorte, r.kg_lieferung,
-         format('Geliefert am %s, aber die Charge %s kam laut Erntejournal erst am %s an (%s Tage später) — von ihr kann die Ware nicht sein.',
-                to_char(r.datum, 'DD.MM.YYYY'), r.charge_nr, to_char(r.erster_eingang, 'DD.MM.YYYY'), r.erster_eingang - r.datum),
-         'Entweder steht die falsche Charge auf dem Lieferschein (in Perigon Spalte W berichtigen) oder das Eingangsdatum im Erntejournal stimmt nicht.',
-         'perigon'
-    from r where r.charge_nr is not null and r.erster_eingang is not null and r.datum < r.erster_eingang
-)
-select f.art || ':' || f.quelle || ':' || f.pos_id || coalesce(':' || f.nummer || ':' || f.lauf_nr, '') as schluessel,
-       f.art,
-       case when f.art in ('nachholen', 'ruecknahme') then 'info'
-            when f.art in ('menge_null', 'keine_nummer', 'rest', 'unbekannt', 'mehrdeutig', 'vor_eingang', 'artikel_sorte', 'masse_abweichung')
-                 and abs(coalesce(f.kg, 0)) >= 500 then 'rot'
-            else 'gelb' end as schwere,
-       f.quelle, f.pos_id, p.datum, p.kunde, p.artikel, p.einheit,
-       zahl(p.menge, 3, 1e12)::numeric(14,3) as menge,
-       zahl(p.gewicht_je_artikel, 4, 1e8)::numeric(12,4) as gewicht_je_artikel,
-       p.preisgruppe, p.liefer_label,
-       zahl(p.kg_position, 2, 1e12)::numeric(14,2) as kg_position,
-       zahl(p.kg_zugeteilt, 2, 1e12)::numeric(14,2) as kg_zugeteilt,
-       zahl(p.kg_rechnung, 2, 1e12)::numeric(14,2) as kg_rechnung,
-       zahl(p.kg_ohne, 2, 1e12)::numeric(14,2) as kg_ohne_charge,
-       zahl(f.kg, 2, 1e12)::numeric(14,2) as kg,
-       p.nummern, f.nummer, f.lauf_nr, coalesce(f.charge_nr, p.charge_nr) as charge_nr, coalesce(f.sorte, p.sorte) as sorte,
-       p.n_zeilen, f.satz, f.tun, f.wo, p.eingelesen
-  from fall f
-  join p on p.quelle = f.quelle and p.pos_id = f.pos_id;
-
-create or replace view v_perigon_stand with (security_invoker = true) as
-select q.code as quelle, q.name,
-       (select count(*) from ausgang_zeile z where z.quelle = q.code)::int as zeilen,
-       (select count(distinct z.pos_id) from ausgang_zeile z where z.quelle = q.code)::int as positionen,
-       (select min(z.datum) from ausgang_zeile z where z.quelle = q.code) as von,
-       (select max(z.datum) from ausgang_zeile z where z.quelle = q.code) as bis,
-       d.ts as zuletzt_geladen, d.dateiname as letzte_datei, d.bis_datum as letzte_bis,
-       (select count(*) from ausgang_datei x where x.quelle = q.code)::int as dateien,
-
-       (select count(*) from (select distinct z.pos_id from ausgang_zeile z where z.quelle = q.code) z
-         where not exists (select 1 from ausgang_position ap where ap.quelle = q.code and ap.pos_id = z.pos_id and ap.roh is not null))::int as ohne_roh,
-       zahl((select sum(l.kg) from lieferung_import i join lieferung l on l.id = i.lieferung_id
-              where i.quelle = q.code and i.extern_id not like '%:rueckgabe'), 1, 1e13)::numeric(14,1) as kg,
-       zahl((select sum(l.kg) from lieferung_import i join lieferung l on l.id = i.lieferung_id
-              where i.quelle = q.code and l.charge_nr is null and i.extern_id not like '%:rueckgabe'), 1, 1e13)::numeric(14,1) as kg_ohne_charge,
-       (select count(*) from v_perigon_befund b where b.quelle = q.code and b.schwere <> 'info')::int as faelle
-  from ausgang_quelle q
-  left join lateral (select x.ts, x.dateiname, x.bis_datum from ausgang_datei x where x.quelle = q.code order by x.ts desc, x.id desc limit 1) d on true;
 
 create or replace view v_perigon_verlauf with (security_invoker = true) as
 with letzter as (
@@ -15009,6 +14995,271 @@ begin
   execute 'grant select on erg_punkte to authenticated';
 end $$;
 
+create or replace view v_perigon_befund with (security_invoker = true) as
+with zeile as (
+  select z.id, z.quelle, z.pos_id, z.lauf_nr, z.datum, z.kunde, z.artikel_id, z.artikel, z.einheit, z.menge,
+         z.gewicht_je_artikel, z.batch_menge, z.kg_position, z.kg_charge, z.preisgruppe, z.liefer_label, z.produzent, z.ts,
+         z.auftragsnr,
+         case when upper(coalesce(z.liefer_label, '')) like 'D%' then 'D'
+              when upper(coalesce(z.liefer_label, '')) ~ '^(K|CH-K)' then 'K' end as label_z,
+         nullif(btrim(z.charge_extern), '') as nummer,
+         regexp_replace(coalesce(z.charge_extern, ''), '\D', '', 'g') as ziffern
+    from ausgang_zeile z
+), lief as (
+
+  select i.quelle, split_part(i.extern_id, ':', 2)::bigint as pos_id,
+         sum(l.kg) as kg, sum(l.kg) filter (where l.charge_nr is null) as kg_ohne,
+         count(distinct l.charge_nr)::int as n_chargen, min(l.charge_nr) as charge_nr, min(l.sorte) as sorte
+    from lieferung_import i
+    join lieferung l on l.id = i.lieferung_id
+   where split_part(i.extern_id, ':', 2) ~ '^\d+$' and i.extern_id not like '%:rueckgabe'
+   group by 1, 2
+), mixteil as (
+
+  select i.quelle, split_part(i.extern_id, ':', 2)::bigint as pos_id,
+         substring(i.extern_id from '^[^:]*:[0-9]+:(.*):mix:[^:]*$') as basis,
+         string_agg(format('%s kg %s%s', kg_wort(l.kg), coalesce(l.sorte, 'ohne Sorte'),
+                           case when l.charge_nr is null then ' (ohne Charge)' else ' auf Charge ' || l.charge_nr end),
+                    ', ' order by l.sorte) as text,
+         sum(l.kg) as kg
+    from lieferung_import i
+    join lieferung l on l.id = i.lieferung_id
+   where i.extern_id like '%:mix:%' and split_part(i.extern_id, ':', 2) ~ '^\d+$'
+   group by 1, 2, 3
+), doppelt as (
+
+  select d.quelle, d.pos_id,
+         string_agg(format('Charge %s %s', d.nummer, case d.n when 2 then 'zweimal' when 3 then 'dreimal' else d.n || '-mal' end), ', ' order by d.nummer) as text
+    from (select quelle, pos_id, nummer, count(*)::int as n from zeile
+           where nummer is not null group by 1, 2, 3 having count(*) > 1 and count(distinct batch_menge) = 1) d
+   group by 1, 2
+), pos as (
+  select z.quelle, z.pos_id, min(z.datum) as datum, min(z.kunde) as kunde, min(z.artikel_id) as artikel_id, min(z.artikel) as artikel,
+         min(z.einheit) as einheit, max(z.menge) as menge, max(z.gewicht_je_artikel) as gewicht_je_artikel,
+         max(z.kg_position) as kg_position, min(z.preisgruppe) as preisgruppe, min(z.liefer_label) as liefer_label,
+         min(z.ts) as eingelesen, min(z.auftragsnr) as auftragsnr,
+         count(distinct z.label_z) filter (where z.nummer is not null and z.kg_charge > 0)::int as n_labels,
+         string_agg(format('%s kg aus %s (%s)', kg_wort(z.kg_charge), z.nummer,
+                           case z.label_z when 'D' then 'Demeter' when 'K' then 'Knospe' else coalesce(z.liefer_label, 'ohne Label') end),
+                    ', ' order by z.kg_charge desc, z.nummer) filter (where z.nummer is not null and z.kg_charge > 0) as labels_text,
+         count(*)::int as n_zeilen,
+         count(z.nummer)::int as n_nummer,
+         count(*) filter (where z.nummer is not null and z.kg_charge > 0)::int as n_menge,
+         coalesce(sum(z.kg_charge) filter (where z.nummer is not null and z.kg_charge > 0), 0) as kg_zugeteilt,
+         string_agg(distinct z.nummer, ', ' order by z.nummer) as nummern,
+         string_agg(distinct z.nummer, ', ' order by z.nummer) filter (where coalesce(z.kg_charge, 0) <= 0) as nummern_ohne_menge
+    from zeile z
+   group by z.quelle, z.pos_id
+), p as (
+  select pos.*, f.kg as kg_rechnung, f.kg_ohne,
+         case when f.n_chargen = 1 then f.charge_nr end as charge_nr,
+         coalesce(f.sorte, aa.sorte) as sorte, d.text as doppelt,
+         case when pos.nummern like '%,%' then 'die Chargen ' || pos.nummern else 'die Charge ' || pos.nummern end as chargen_text,
+         case when lower(pos.artikel) ~ '(demeter|\mdem\M)' then 'D' when lower(pos.artikel) ~ 'knospe' then 'K' end as label_name,
+         case when upper(coalesce(pos.preisgruppe, '')) like 'D%' then 'D'
+              when upper(coalesce(pos.preisgruppe, '')) ~ '^(K|CH-K)' then 'K' end as label_preis
+    from pos
+    left join lief f on f.quelle = pos.quelle and f.pos_id = pos.pos_id
+    left join ausgang_artikel aa on aa.artikel_id = pos.artikel_id and aa.artikel = pos.artikel
+    left join doppelt d on d.quelle = pos.quelle and d.pos_id = pos.pos_id
+), r as (
+
+  select z.*, l.id as lieferung_id, l.charge_nr, l.kg as kg_lieferung, c.sorte, sk.artikelgruppe as gruppe_charge,
+         e.gruppe as gruppe_artikel, e.label as label_verkauft,
+         case when upper(coalesce(z.liefer_label, '')) like 'D%' then 'D'
+              when upper(coalesce(z.liefer_label, '')) ~ '^(K|CH-K)' then 'K' end as label_geliefert,
+         (select x.nr from charge x where z.ziffern <> '' and x.nr::text = z.ziffern) as eigene,
+         (select array_agg(x.nr order by x.nr) from charge x where z.ziffern <> '' and x.perigon_nr::text = z.ziffern) as an_perigon,
+         (select min(pl.eingangsdatum) from palette pl where pl.charge_nr = l.charge_nr) as erster_eingang
+    from zeile z
+    join lieferung_import i on i.zeile_id = z.id and i.extern_id not like '%:rest' and i.extern_id not like '%:rueckgabe'
+                           and i.extern_id not like '%:mix:%'
+    join lieferung l on l.id = i.lieferung_id
+    left join charge c on c.nr = l.charge_nr
+    left join sorte_kaliber sk on sk.sorte = c.sorte
+
+   cross join lateral (select * from artikel_einordnen(z.artikel, z.preisgruppe) limit 1) e
+   where z.nummer is not null and coalesce(z.kg_charge, 0) > 0
+), fall as (
+
+  select 'menge_null'::text as art, p.quelle, p.pos_id, null::text as nummer, null::int as lauf_nr, p.charge_nr, p.sorte,
+         case when p.kg_position > 0 then p.kg_position end as kg,
+         case when p.kg_position > 0
+              then format('Perigon nennt %s, teilt aber keine Menge zu: Spalte S („AufPosBatchQuantity Charge") ist 0. Die Position hat %s kg (Spalte Q × AE) — sie bleibt ganz ohne Charge.',
+                          p.chargen_text, kg_wort(p.kg_position))
+              else format('Perigon nennt %s, aber die Position hat keine Menge — Spalte Q und Spalte S sind 0. Sie zählt nirgends; ging Ware hinaus, fehlt sie im Warenausgang.',
+                          p.chargen_text) end as satz,
+         'In Perigon bei dieser Position die Menge (Spalte Q) und die Menge je Charge (Spalte S) eintragen, dann die Datei unter Betrieb → Warenausgang neu einlesen.' as tun,
+         'perigon' as wo
+    from p where p.n_nummer > 0 and p.n_menge = 0
+     and (p.kg_position > 0 or (coalesce(p.kg_position, 0) = 0 and coalesce(p.menge, 0) = 0))
+  union all
+  select 'zu_viel', p.quelle, p.pos_id, null, null, p.charge_nr, p.sorte, p.kg_zugeteilt - p.kg_position,
+         format('Die Chargenzeilen geben zusammen %s kg (Spalte S × AE), die Position nur %s kg (Spalte Q × AE) — %s kg zu viel.%s Die App zählt höchstens die Position: %s.',
+                kg_wort(p.kg_zugeteilt), kg_wort(p.kg_position), kg_wort(p.kg_zugeteilt - p.kg_position),
+                case when p.doppelt is not null then format(' Dieselbe Zeile steht mehrfach da (%s).', p.doppelt) else '' end,
+                case when p.nummern like '%,%' then 'die Chargen bekommen ihre Menge in der Folge der Zeilen, bis die Position voll ist — wie viel welche bekam, sagt die Datei nicht sicher'
+                     else format('%s bekommt die %s kg der Position', p.chargen_text, kg_wort(p.kg_position)) end),
+         'In Perigon die Menge je Charge (Spalte S) berichtigen — zusammen so viel wie die Position —, eine doppelte Zeile entfernen, dann neu einlesen.',
+         'perigon'
+    from p where p.kg_position > 0 and p.kg_zugeteilt > p.kg_position + 0.5
+  union all
+  select 'rest', p.quelle, p.pos_id, null, null, p.charge_nr, p.sorte, p.kg_position - p.kg_zugeteilt,
+         format('Perigon teilt %s nur %s von %s kg zu (Spalte S); %s kg bleiben ohne Charge.%s', p.chargen_text,
+                kg_wort(p.kg_zugeteilt), kg_wort(p.kg_position), kg_wort(p.kg_position - p.kg_zugeteilt),
+                case when p.nummern_ohne_menge is not null then format(' Ohne Menge genannt: %s.', p.nummern_ohne_menge) else '' end),
+         'In Perigon die Menge je Charge (Spalte S) nachtragen, dann neu einlesen. Bis dahin verteilt die App den Rest auf alle Chargen der Sorte.',
+         'perigon'
+    from p where p.n_menge > 0 and p.kg_position - p.kg_zugeteilt > 0.5
+  union all
+  select 'keine_nummer', p.quelle, p.pos_id, null, null, null::int, p.sorte, p.kg_position,
+         format('In Perigon steht bei dieser Position keine Chargennummer (Spalte W „AuftragsChargeManuell" ist leer) — %s kg ohne Charge.', kg_wort(p.kg_position)),
+         'In Perigon die Charge (Spalte W) und die Menge je Charge (Spalte S) eintragen, dann neu einlesen. Bis dahin verteilt die App die Menge auf alle Chargen der Sorte.',
+         'perigon'
+    from p where p.n_nummer = 0 and p.kg_position > 0
+  union all
+  select 'ohne_gewicht', p.quelle, p.pos_id, null, null, p.charge_nr, p.sorte, null::numeric,
+         format('%s %s ohne Gewicht je Artikel (Spalte AE ist leer oder 0) — die Masse ist unbekannt; die App zählt die Position nicht, statt 0 kg zu raten.',
+                trim(to_char(p.menge, 'FM999999990.###')), coalesce(p.einheit, 'Stück')),
+         'In Perigon das Gewicht je Artikel (Spalte AE) eintragen, dann neu einlesen.',
+         'perigon'
+    from p where p.kg_position is null and coalesce(p.menge, 0) <> 0
+  union all
+  select 'ruecknahme', p.quelle, p.pos_id, null, null, p.charge_nr, p.sorte, -p.kg_position,
+         format('Negative Menge (%s kg): eine Rücknahme. Die App bucht sie als Rücknahme, nicht als Verkauf.', kg_wort(p.kg_position)),
+         'Nichts in der App. Prüfen, ob die Ware wirklich zurückkam.',
+         'nichts'
+    from p where p.kg_position < 0
+  union all
+  select 'masse_abweichung', p.quelle, p.pos_id, null, null, p.charge_nr, p.sorte, coalesce(p.kg_rechnung, 0) - p.kg_position,
+         case when p.kg_rechnung is null
+              then format('Die Position steht in der Datei (%s kg), aber in der Rechnung gibt es keine Lieferung dazu.', kg_wort(p.kg_position))
+              else format('In der Rechnung stehen für diese Position %s kg, die Datei ergibt %s kg — %s kg %s.', kg_wort(p.kg_rechnung), kg_wort(p.kg_position),
+                          kg_wort(abs(p.kg_rechnung - p.kg_position)), case when p.kg_rechnung > p.kg_position then 'zu viel' else 'zu wenig' end) end,
+         'Die Datei unter Betrieb → Warenausgang neu einlesen: die App legt an, was fehlt, und entfernt, was die Datei nicht mehr ergibt. Eine von Hand geänderte Lieferung bekommt dabei wieder die Masse der Datei.',
+         'einlesen'
+    from p where p.kg_position > 0 and abs(coalesce(p.kg_rechnung, 0) - p.kg_position) > 0.05
+  union all
+  select 'label_name', p.quelle, p.pos_id, null, null, p.charge_nr, p.sorte, p.kg_position,
+         format('Der Artikel heisst „%s" (%s), verkauft wurde er in der Preisgruppe %s (%s). Die App nimmt die Preisgruppe.', p.artikel,
+                case p.label_name when 'D' then 'Demeter' else 'Knospe' end, p.preisgruppe, case p.label_preis when 'D' then 'Demeter' else 'Knospe' end),
+         'In Perigon Artikel oder Preisgruppe angleichen — was stimmt, weiss, wer den Auftrag erfasst hat.',
+         'perigon'
+    from p where p.label_name is not null and p.label_preis is not null and p.label_name <> p.label_preis
+     and coalesce(p.n_labels, 0) <= 1
+  union all
+
+  select 'label_gemischt', p.quelle, p.pos_id, null, null, p.charge_nr, p.sorte, p.kg_position,
+         format('Auftrag %s vom %s: unter dem Artikel „%s" (Preisgruppe %s) gingen Chargen mit verschiedenen Lieferlabels hinaus — %s. Knospe-Ware unter einem Demeter-Namen, oder umgekehrt?',
+                coalesce(nullif(p.auftragsnr, ''), '?'), to_char(p.datum, 'DD.MM.YYYY'), p.artikel, coalesce(p.preisgruppe, '—'), p.labels_text),
+         'Mit der Person klären, die den Auftrag in Perigon erfasst hat: stimmt der Artikel für alle Chargen? Sonst in Perigon den Artikel aufteilen oder die Charge (Spalte W) berichtigen, dann neu einlesen.',
+         'perigon'
+    from p where p.n_labels > 1
+  union all
+
+  select 'kg_gewicht', p.quelle, p.pos_id, null, null, p.charge_nr, p.sorte, p.kg_position,
+         format('Perigon führt „%s" in kg, aber mit Gewicht je Artikel %s (Spalte AE). Die Menge (Spalte Q, %s kg) ist schon das Gewicht; Perigon rechnet das Totalgewicht trotzdem × %s (%s kg). Die App nimmt die Menge.',
+                p.artikel, trim(to_char(p.gewicht_je_artikel, 'FM999990.###')), kg_wort(p.menge),
+                trim(to_char(p.gewicht_je_artikel, 'FM999990.###')), kg_wort(p.menge * p.gewicht_je_artikel)),
+         'Im Perigon-Artikelstamm beim Artikel das Gewicht je Artikel (Spalte AE) auf 1 setzen. In der App ist nichts zu tun — sie zählt schon die Menge.',
+         'perigon'
+    from p where lower(btrim(coalesce(p.einheit, ''))) like 'kg%' and p.gewicht_je_artikel is not null
+     and p.gewicht_je_artikel not in (0, 1)
+
+  union all
+  select case when r.eigene is not null or cardinality(r.an_perigon) = 1 then 'nachholen'
+              when cardinality(r.an_perigon) > 1 then 'mehrdeutig' else 'unbekannt' end,
+         r.quelle, r.pos_id, r.nummer, r.lauf_nr, null::int, null::text, r.kg_lieferung,
+         case when r.eigene is not null or cardinality(r.an_perigon) = 1
+              then format('Perigon nennt %s; die Nummer steht inzwischen an Charge %s — beim Einlesen kannte die App sie noch nicht.', r.nummer, coalesce(r.eigene, r.an_perigon[1]))
+              when cardinality(r.an_perigon) > 1
+              then format('Perigon nennt %s; diese Perigon-Nummer steht an mehreren Chargen (%s), und der Artikel sagt nicht, an welcher.', r.nummer, array_to_string(r.an_perigon, ', '))
+              else format('Perigon nennt %s — diese Nummer steht an keiner Charge der App.', r.nummer) end,
+         case when r.eigene is not null or cardinality(r.an_perigon) = 1
+              then 'Nichts — beim nächsten Rechnen („Neu rechnen" oben) bekommt der Lieferschein die Charge von selbst.'
+              when cardinality(r.an_perigon) > 1
+              then 'Unter Betrieb → Stammdaten → Chargen die Nummer nur bei der richtigen Charge lassen; beim nächsten Rechnen bekommt der Lieferschein sie.'
+              else 'Unter Betrieb → Stammdaten → Chargen bei der richtigen Charge als Perigon-Nr. eintragen; beim nächsten Rechnen bekommt der Lieferschein sie von selbst. Ist die Nummer ein Tippfehler, in Perigon berichtigen.' end,
+         case when r.eigene is not null or cardinality(r.an_perigon) = 1 then 'nichts' else 'stammdaten' end
+    from r where r.charge_nr is null
+  union all
+  select 'artikel_sorte', r.quelle, r.pos_id, r.nummer, r.lauf_nr, r.charge_nr, r.sorte, r.kg_lieferung,
+         format('Verkauft als %s („%s"), aber die Charge %s ist %s — und %s geht als %s. Entweder steht der falsche Artikel oder die falsche Charge auf dem Lieferschein.',
+                r.gruppe_artikel, r.artikel, r.charge_nr, r.sorte, r.sorte, r.gruppe_charge),
+         'Den Lieferschein ansehen: ist der Artikel falsch, in Perigon den Artikel berichtigen; ist die Charge falsch, die Charge (Spalte W) — dann neu einlesen.',
+         'perigon'
+    from r where r.charge_nr is not null and r.gruppe_artikel is not null and r.gruppe_charge is not null
+     and r.gruppe_artikel not in ('Mix', 'andere') and r.gruppe_artikel <> r.gruppe_charge
+  union all
+  select 'demeter_knospe', r.quelle, r.pos_id, r.nummer, r.lauf_nr, r.charge_nr, r.sorte, r.kg_lieferung,
+         format('Verkauft zum Demeter-Preis (Preisgruppe %s), aber die Ware der Charge %s trägt das Lieferlabel %s — das ist Knospe.', r.preisgruppe, r.charge_nr, r.liefer_label),
+         'In Perigon Preisgruppe (Spalte K) und Lieferlabel (Spalte Z) prüfen: wurde Knospe als Demeter verrechnet, oder stimmt das Label nicht?',
+         'perigon'
+    from r where r.charge_nr is not null and r.label_verkauft = 'D' and r.label_geliefert = 'K'
+  union all
+  select 'mix', r.quelle, r.pos_id, r.nummer, r.lauf_nr, r.charge_nr, r.sorte, r.kg_lieferung,
+         format('Verkauft als „%s" auf Charge %s (%s). Die App hat den Mix nicht nach dem Rezept verteilt (in der Datei fehlt der Kisteninhalt, Spalte „AuftragsGebindeinhalt", oder es gibt kein Rezept) — sie zieht die ganzen %s kg von %s ab.',
+                r.artikel, r.charge_nr, r.sorte, kg_wort(r.kg_lieferung), r.charge_nr),
+         'Fehlt der Kisteninhalt, in Perigon nachtragen und neu einlesen; fehlt das Rezept, unter Betrieb → Stammdaten → Sorten und Artikel (Kürbis Mix) eintragen. Gehört der Mix zu einer anderen Charge, in Perigon die Charge (Spalte W) berichtigen.',
+         'firma'
+    from r where r.charge_nr is not null and r.gruppe_artikel = 'Mix'
+     and not exists (select 1 from mixteil m where m.quelle = r.quelle and m.pos_id = r.pos_id and m.basis = r.nummer || ':' || r.lauf_nr)
+  union all
+
+  select 'mix_verteilt', r.quelle, r.pos_id, r.nummer, r.lauf_nr, r.charge_nr, r.sorte, r.kg_lieferung + m.kg,
+         format('„%s" (%s kg) nach dem Mix-Rezept verteilt: %s kg auf Charge %s (%s), dazu %s.',
+                r.artikel, kg_wort(r.kg_lieferung + m.kg), kg_wort(r.kg_lieferung), r.charge_nr, r.sorte, m.text),
+         'Nichts. Das Rezept steht unter Betrieb → Stammdaten → Sorten und Artikel (Kürbis Mix); stimmt es nicht mehr, dort berichtigen und neu einlesen.',
+         'nichts'
+    from r join mixteil m on m.quelle = r.quelle and m.pos_id = r.pos_id and m.basis = r.nummer || ':' || r.lauf_nr
+   where r.gruppe_artikel = 'Mix'
+  union all
+  select 'vor_eingang', r.quelle, r.pos_id, r.nummer, r.lauf_nr, r.charge_nr, r.sorte, r.kg_lieferung,
+         format('Geliefert am %s, aber die Charge %s kam laut Erntejournal erst am %s an (%s Tage später) — von ihr kann die Ware nicht sein.',
+                to_char(r.datum, 'DD.MM.YYYY'), r.charge_nr, to_char(r.erster_eingang, 'DD.MM.YYYY'), r.erster_eingang - r.datum),
+         'Entweder steht die falsche Charge auf dem Lieferschein (in Perigon Spalte W berichtigen) oder das Eingangsdatum im Erntejournal stimmt nicht.',
+         'perigon'
+    from r where r.charge_nr is not null and r.erster_eingang is not null and r.datum < r.erster_eingang
+)
+select f.art || ':' || f.quelle || ':' || f.pos_id || coalesce(':' || f.nummer || ':' || f.lauf_nr, '') as schluessel,
+       f.art,
+       case when f.art in ('nachholen', 'ruecknahme', 'mix_verteilt') then 'info'
+            when f.art in ('menge_null', 'keine_nummer', 'rest', 'unbekannt', 'mehrdeutig', 'vor_eingang', 'artikel_sorte', 'masse_abweichung')
+                 and abs(coalesce(f.kg, 0)) >= 500 then 'rot'
+            else 'gelb' end as schwere,
+       f.quelle, f.pos_id, p.datum, p.kunde, p.artikel, p.einheit,
+       zahl(p.menge, 3, 1e12)::numeric(14,3) as menge,
+       zahl(p.gewicht_je_artikel, 4, 1e8)::numeric(12,4) as gewicht_je_artikel,
+       p.preisgruppe, p.liefer_label,
+       zahl(p.kg_position, 2, 1e12)::numeric(14,2) as kg_position,
+       zahl(p.kg_zugeteilt, 2, 1e12)::numeric(14,2) as kg_zugeteilt,
+       zahl(p.kg_rechnung, 2, 1e12)::numeric(14,2) as kg_rechnung,
+       zahl(p.kg_ohne, 2, 1e12)::numeric(14,2) as kg_ohne_charge,
+       zahl(f.kg, 2, 1e12)::numeric(14,2) as kg,
+       p.nummern, f.nummer, f.lauf_nr, coalesce(f.charge_nr, p.charge_nr) as charge_nr, coalesce(f.sorte, p.sorte) as sorte,
+       p.n_zeilen, f.satz, f.tun, f.wo, p.eingelesen
+  from fall f
+  join p on p.quelle = f.quelle and p.pos_id = f.pos_id;
+
+create or replace view v_perigon_stand with (security_invoker = true) as
+select q.code as quelle, q.name,
+       (select count(*) from ausgang_zeile z where z.quelle = q.code)::int as zeilen,
+       (select count(distinct z.pos_id) from ausgang_zeile z where z.quelle = q.code)::int as positionen,
+       (select min(z.datum) from ausgang_zeile z where z.quelle = q.code) as von,
+       (select max(z.datum) from ausgang_zeile z where z.quelle = q.code) as bis,
+       d.ts as zuletzt_geladen, d.dateiname as letzte_datei, d.bis_datum as letzte_bis,
+       (select count(*) from ausgang_datei x where x.quelle = q.code)::int as dateien,
+
+       (select count(*) from (select distinct z.pos_id from ausgang_zeile z where z.quelle = q.code) z
+         where not exists (select 1 from ausgang_position ap where ap.quelle = q.code and ap.pos_id = z.pos_id and ap.roh is not null))::int as ohne_roh,
+       zahl((select sum(l.kg) from lieferung_import i join lieferung l on l.id = i.lieferung_id
+              where i.quelle = q.code and i.extern_id not like '%:rueckgabe'), 1, 1e13)::numeric(14,1) as kg,
+       zahl((select sum(l.kg) from lieferung_import i join lieferung l on l.id = i.lieferung_id
+              where i.quelle = q.code and l.charge_nr is null and i.extern_id not like '%:rueckgabe'), 1, 1e13)::numeric(14,1) as kg_ohne_charge,
+       (select count(*) from v_perigon_befund b where b.quelle = q.code and b.schwere <> 'info')::int as faelle
+  from ausgang_quelle q
+  left join lateral (select x.ts, x.dateiname, x.bis_datum from ausgang_datei x where x.quelle = q.code order by x.ts desc, x.id desc limit 1) d on true;
+
 -- ---------------------------------------------------------------------
 -- Beschreibungen, Leserechte und Indizes
 -- ---------------------------------------------------------------------
@@ -15867,8 +16118,6 @@ comment on view v_koeff_kaliber_geschaetzt is
 comment on view v_lieferung_ohne_charge is
   'Jeder Lieferschein ohne Charge (0125) — dieselben wie v_ohne_charge: verkauft, mit Masse, bis heute — mit Firma und Position der Perigon-Zeile, Artikel, den Nummern aus Spalte W und dem Grund: von_hand (in der App erfasst), ohne_zeile (Zeile der Datei fehlt), nachholen (die Nummer steht inzwischen an einer Charge), mehrdeutig (Perigon-Nummer an mehreren Chargen), unbekannt (Nummer an keiner Charge), keine_nummer (Spalte W leer), menge_null (Chargen genannt, Spalte S = 0), rest (S kleiner als die Position). satz sagt es in Worten, tun was zu tun ist. Nichts wird umgebucht.';
 grant select on v_lieferung_ohne_charge to authenticated;
-comment on view v_perigon_befund is
-  'Jeder Fall einer Perigon-Position (0126), je mit einem Schlüssel, der von Rechnen zu Rechnen gleich bleibt (art:quelle:pos_id[:nummer:lauf]). Position: menge_null (Chargen genannt, Spalte S = 0 — auch Q = 0), zu_viel (Chargenzeilen > Position, z.B. dieselbe Zeile mehrfach), rest (Chargenzeilen < Position), keine_nummer (Spalte W leer), ohne_gewicht (Stück ohne Gewicht je Artikel, Masse unbekannt), ruecknahme (negative Menge), masse_abweichung (Lieferungen der Rechnung ≠ Masse der Datei), label_name (Artikelname gegen Preisgruppe). Chargenzeile: nachholen (Nummer inzwischen bekannt), mehrdeutig, unbekannt, artikel_sorte, demeter_knospe, mix (Kürbis Mix auf einer Charge), vor_eingang. kg: die Masse, um die es geht (nie 0 statt unbekannt); satz, tun und wo (perigon, stammdaten, einlesen, firma, nichts). Löst v_perigon_pruefung ab, die stehen bleibt.';
 grant select on v_perigon_befund to authenticated;
 comment on view v_perigon_stand is
   'Je Firma (0126): Zeilen und Positionen der laufenden Saison, von–bis, die zuletzt eingelesene Datei (wann, welche, bis wann), wie viele Dateien, wie viele Positionen ihre ganze Zeile noch nicht haben (ohne_roh — dann die Datei neu einlesen), die Masse der Lieferungen, davon ohne Charge, und die offenen Fälle aus v_perigon_befund.';
@@ -15895,6 +16144,9 @@ grant select on v_schimmel_punkte to authenticated;
 
 comment on materialized view erg_punkte is
   'v_schimmel_punkte mit dem Messtag (0079) und seit 0105 mit Station und eigenem Anteil, gespeichert für die App. Erneuert mit auswertung_schritt(). 0129: mit messung_id (die Wägung eines Punkts aus dem Lager).';
+comment on view v_perigon_befund is
+  'Jeder Fall einer Perigon-Position (0126), je mit einem Schlüssel, der von Rechnen zu Rechnen gleich bleibt (art:quelle:pos_id[:nummer:lauf]). Position: menge_null (Chargen genannt, Spalte S = 0 — auch Q = 0), zu_viel (Chargenzeilen > Position, z.B. dieselbe Zeile mehrfach), rest (Chargenzeilen < Position), keine_nummer (Spalte W leer), ohne_gewicht (Stück ohne Gewicht je Artikel, Masse unbekannt), ruecknahme (negative Menge), masse_abweichung (Lieferungen der Rechnung ≠ Masse der Datei), label_name (Artikelname gegen Preisgruppe), label_gemischt (Chargen mit verschiedenen Lieferlabels, 0131), kg_gewicht (kg-Artikel mit Gewicht je Artikel ≠ 1, 0131). Chargenzeile: nachholen (Nummer inzwischen bekannt), mehrdeutig, unbekannt, artikel_sorte, demeter_knospe, mix (Kürbis Mix auf einer Charge, nicht verteilt), mix_verteilt (nach Rezept verteilt, info, 0131), vor_eingang. kg: die Masse, um die es geht (nie 0 statt unbekannt); satz, tun und wo (perigon, stammdaten, einlesen, firma, nichts). Löst v_perigon_pruefung ab, die stehen bleibt.';
+grant select on v_perigon_befund to authenticated;
 
 
 -- =====================================================================

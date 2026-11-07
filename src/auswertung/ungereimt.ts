@@ -310,8 +310,10 @@ export function ausPerigon(art: string, zeilen: PerigonZeile[]): Ungereimtheit {
     default: {
       // 0126: die übrigen Arten — Name, was es heisst und was zu tun ist, wie im Reiter Perigon
       const info = (PERIGON_ART as Record<string, (typeof PERIGON_ART)[keyof typeof PERIGON_ART] | undefined>)[art]
-      const nurAuskunft = art === 'nachholen' || art === 'ruecknahme'
-      return { ...basis, schwere: nurAuskunft ? 'info' : summe >= 500 && art !== 'mix' && art !== 'label_name' ? 'rot' : 'gelb',
+      // Runde BJ (0131): der verteilte Mix ist Auskunft; kg-Gewicht und gemischte Labels ändern das Lager nicht (nie rot).
+      const nurAuskunft = art === 'nachholen' || art === 'ruecknahme' || art === 'mix_verteilt'
+      const nieRot = ['mix', 'label_name', 'label_gemischt', 'kg_gewicht'].includes(art)
+      return { ...basis, schwere: nurAuskunft ? 'info' : summe >= 500 && !nieRot ? 'rot' : 'gelb',
         titel: `${stueck(k, 'Perigon-Zeile', 'Perigon-Zeilen')}: ${info?.name ?? art}`,
         was: info?.heisst ?? zeilen[0]?.satz ?? zeilen[0]?.befund ?? '', warum: info?.app ?? '', tun: info?.tun ?? '' }
     }

@@ -250,6 +250,8 @@ export interface PerigonPruefung {
 /** 0126: die Arten eines Perigon-Falls (v_perigon_befund) — je Position oder je Chargenzeile. */
 export type PerigonArt = 'menge_null' | 'zu_viel' | 'rest' | 'keine_nummer' | 'ohne_gewicht' | 'ruecknahme' | 'masse_abweichung' | 'label_name'
   | 'nachholen' | 'mehrdeutig' | 'unbekannt' | 'artikel_sorte' | 'demeter_knospe' | 'mix' | 'vor_eingang'
+  /** 0131 */
+  | 'label_gemischt' | 'kg_gewicht' | 'mix_verteilt'
 /** 0126: wo ein Fall behoben wird — in Perigon, im Chargenregister, durch neues Einlesen, bei der Firma, oder gar nicht. */
 export type PerigonWo = 'perigon' | 'stammdaten' | 'einlesen' | 'firma' | 'nichts'
 

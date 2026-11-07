@@ -9373,8 +9373,10 @@ begin
   perform demo_vorjahre_laden();
 
   -- (a) Die Regel
+  -- Runde BJ (0131): bis hier hiess es hier auch perigon_kg(3, 10, 'kg') = 30 — „Gewicht je Artikel gilt auch bei kg".
+  -- Ünique steht so im Perigon-Stamm, die Menge ist schon kg; die Regel heisst seit 0131: bei kg die Menge (Prüfblock 0131 a1).
   assert perigon_kg(160, 1.5, 'Stk.') = 240 and perigon_kg(5, 1, 'kg') = 5
-     and perigon_kg(3, 10, 'kg') = 30 and perigon_kg(-344, 1, 'kg') = -344,
+     and perigon_kg(3, 10, 'kg') = 3 and perigon_kg(-344, 1, 'kg') = -344,
     '0115 (a1): Menge × Gewicht je Artikel stimmt nicht mehr';
   assert perigon_kg(256, 0, 'kg') = 256 and perigon_kg(256, null, ' KG ') = 256
      and perigon_kg(-12, 0, 'kg') = -12,
@@ -12102,3 +12104,220 @@ begin
 end $$;
 
 select '——— 0130 Was die Datei nicht mehr sagt, liegt beiseite ———' as ergebnis;
+
+-- =====================================================================
+-- 0131 — Was Perigon wiegt, woraus der Mix ist, was Perigon gelöscht hat
+--
+-- Der Betrieb am 7. November: Ünique „im Faktor 10"; „Mix ist Mandarin 3
+-- Stück, Kabocha 3 Stück und Butterkin"; Position 134343 „klar im
+-- Perigon-Reiter ausweisen"; „das gesamte Perigon-Auszug anschauen".
+--
+-- Geprüft an gebauten Fällen (Prüffirma PRUEF131):
+-- (a) perigon_kg: bei kg die Menge (auch mit Gewicht je Artikel 10 und 0),
+--     bei Stück Menge × Gewicht, Stück ohne Gewicht unbekannt;
+-- (b) eine Ünique-Position, eingelesen nach der alten Regel (× 10): das
+--     Nachrechnen teilt Lieferung und Zeile durch 10, ein zweiter Lauf ändert
+--     nichts; die Prüfung meldet „kg_gewicht" mit dem Faktor;
+-- (c) ein verteilter Mix: die Anteile ohne Charge kennen ihre Zeile, die
+--     Prüfung meldet „mix_verteilt" (info) mit den Anteilen und weder „mix"
+--     noch eine unbekannte Charge; ein Mix ohne Verteilung bleibt „mix";
+-- (d) Chargen mit Lieferlabel D und K in einer Position: „label_gemischt"
+--     nennt Auftrag, Datum, beide Chargen und ihre Labels — „label_name"
+--     nicht zusätzlich;
+-- (e) eine Position fehlt im Zeitraum der neuen Datei: ihre Zeilen liegen
+--     beiseite, ihre Lieferung ist weg, Positionen vor dem Zeitraum bleiben;
+--     ohne Liste der Positionen nichts; fehlt zu viel, nichts — mit Grund;
+-- (f) mix_rezept: höchstens ein Auffüller, Auffüller ohne Stück, feste Teile
+--     mit Stück; die Halle liest und schreibt nicht, Nichtangemeldete nichts;
+--     das Rezept des Betriebs steht da;
+-- (g) Stand 131.
+-- =====================================================================
+do $$
+declare v_modus jsonb; v_lad text; v_geladen boolean := false; v_n int; v_j jsonb; v_fehler text; v_k text;
+  v_u uuid := '00000000-0131-0000-0000-000000000001';
+  v_w uuid := '00000000-0131-0000-0000-000000000002';
+  v_c1 int; v_c2 int; v_s1 text; v_s2 text; v_kg numeric;
+  v_z jsonb; v_zeilen jsonb; v_lief jsonb;
+begin
+  select wert into v_modus from einstellung where schluessel = 'betriebsmodus';
+  update einstellung set wert = '"beispiel"'::jsonb where schluessel = 'betriebsmodus';
+  insert into auth.users (id, email, raw_user_meta_data) values (v_u, null, '{"name":"Prüf-0131"}');
+  update profil set rolle = 'admin' where id = v_u;
+  insert into auth.users (id, email, raw_user_meta_data) values (v_w, null, '{"name":"Prüf-0131 Halle"}');
+  update profil set rolle = 'arbeiter' where id = v_w;
+  perform set_config('request.jwt.claim.sub', v_u::text, true);
+  if not exists (select 1 from auftrag where station = 'waschen_sortieren' and bemerkung = 'DEMO') then
+    select demo_daten_laden() into v_lad; v_geladen := true;
+  end if;
+  select c.nr, c.sorte into v_c1, v_s1 from charge c join sorte_kaliber s on s.sorte = c.sorte order by c.nr limit 1;
+  select c.nr, c.sorte into v_c2, v_s2 from charge c join sorte_kaliber s on s.sorte = c.sorte where c.nr <> v_c1 order by c.nr limit 1;
+  assert v_c1 is not null and v_c2 is not null, '0131 (a0): keine zwei Chargen mit bestätigter Sorte — (b)–(e) wären blind';
+
+  -- (a) die Regel
+  assert perigon_kg(2160, 10, 'kg') = 2160 and perigon_kg(256, 0, 'kg') = 256 and perigon_kg(5, 1, ' KG ') = 5
+     and perigon_kg(160, 1.5, 'Stk.') = 240 and perigon_kg(7, 0, 'Stk.') is null and perigon_kg(-344, 1, 'kg') = -344,
+    format('0131 (a1): perigon_kg rechnet nicht nach der Regel: Ünique %s, 0 → %s, Stück %s, Stück ohne Gewicht %s',
+           perigon_kg(2160, 10, 'kg'), perigon_kg(256, 0, 'kg'), perigon_kg(160, 1.5, 'Stk.'), perigon_kg(7, 0, 'Stk.'));
+
+  -- (b) Ünique nach der alten Regel eingelesen (Menge × 10), dann nachgerechnet
+  v_z := jsonb_build_object('pos_id', 3101, 'charge_extern', v_c1::text, 'lauf_nr', 1, 'fingerabdruck', 'p131-3101',
+    'datum', '2026-10-28', 'journal', 'A', 'kunde', 'Prüfkunde 131', 'artikel_id', 'kürbuni', 'artikel', 'Bio Kürbis Ünique',
+    'einheit', 'kg', 'menge', 2160, 'gewicht_je_artikel', 10, 'batch_menge', 2160, 'kg_position', 21600, 'kg_charge', 21600);
+  v_j := ausgang_uebernehmen('PRUEF131', 'Prüffirma 0131', '{"dateiname": "p131-a.xlsx", "pruefsumme": "p131-a"}'::jsonb,
+    jsonb_build_array(v_z), jsonb_build_array(jsonb_build_object('extern_id', format('PRUEF131:3101:%s:1', v_c1),
+      'datum', '2026-10-28', 'charge_nr', v_c1, 'sorte', v_s1, 'kg', 21600, 'kunde', 'Prüfkunde 131')));
+  v_j := ausgang_kg_gewicht_nachrechnen();
+  select l.kg into v_kg from lieferung l join lieferung_import i on i.lieferung_id = l.id where i.extern_id = format('PRUEF131:3101:%s:1', v_c1);
+  assert v_kg = 2160 and (v_j ->> 'lieferungen')::int >= 1
+     and (select kg_position = 2160 and kg_charge = 2160 from ausgang_zeile where quelle = 'PRUEF131' and pos_id = 3101),
+    format('0131 (b1): nach dem Nachrechnen hat die Ünique-Lieferung %s kg (erwartet 2160, nicht 21 600): %s', v_kg, v_j);
+  v_j := ausgang_kg_gewicht_nachrechnen();
+  select l.kg into v_kg from lieferung l join lieferung_import i on i.lieferung_id = l.id where i.extern_id = format('PRUEF131:3101:%s:1', v_c1);
+  assert v_kg = 2160 and (v_j ->> 'lieferungen')::int = 0 and (v_j ->> 'zeilen')::int = 0,
+    format('0131 (b2): ein zweiter Lauf hat noch einmal geteilt: %s kg, %s', v_kg, v_j);
+  assert exists (select 1 from v_perigon_befund where quelle = 'PRUEF131' and pos_id = 3101 and art = 'kg_gewicht' and wo = 'perigon'
+                   and satz ~ 'Gewicht je Artikel 10' and satz ~ '21.?600' and kg = 2160),
+    format('0131 (b3): die Prüfung meldet den kg-Artikel mit Gewicht 10 nicht verständlich: %s',
+           (select string_agg(art || ': ' || satz, ' | ') from v_perigon_befund where quelle = 'PRUEF131' and pos_id = 3101));
+
+  -- (c) ein Mix, verteilt wie das Einlesen es tut: 40 kg in 8-kg-Kisten, die Sorte der Charge bleibt auf ihr
+  v_z := jsonb_build_object('pos_id', 3102, 'charge_extern', v_c1::text, 'lauf_nr', 1, 'fingerabdruck', 'p131-3102',
+    'datum', '2026-11-06', 'journal', 'A', 'kunde', 'Prüfkunde 131', 'artikel_id', 'kürbmixos', 'artikel', 'Bio Kürbis Mix OS',
+    'einheit', 'kg', 'menge', 40, 'gewicht_je_artikel', 1, 'batch_menge', 40, 'kg_position', 40, 'kg_charge', 40,
+    'gebindeart', 'U-Gebinde', 'gebinde_menge', 5, 'gebinde_inhalt', 8);
+  v_zeilen := jsonb_build_array(v_z,
+    v_z || jsonb_build_object('pos_id', 3103, 'fingerabdruck', 'p131-3103', 'gebinde_inhalt', null));
+  v_lief := jsonb_build_array(
+    jsonb_build_object('extern_id', format('PRUEF131:3102:%s:1', v_c1), 'datum', '2026-11-06', 'charge_nr', v_c1, 'sorte', v_s1, 'kg', 17.5, 'kunde', 'Prüfkunde 131'),
+    jsonb_build_object('extern_id', format('PRUEF131:3102:%s:1:mix:%s', v_c1, v_s2), 'datum', '2026-11-06', 'charge_nr', null, 'sorte', v_s2, 'kg', 22.5, 'kunde', 'Prüfkunde 131'),
+    jsonb_build_object('extern_id', format('PRUEF131:3103:%s:1', v_c1), 'datum', '2026-11-06', 'charge_nr', v_c1, 'sorte', v_s1, 'kg', 40, 'kunde', 'Prüfkunde 131'));
+  v_j := ausgang_uebernehmen('PRUEF131', 'Prüffirma 0131', '{"dateiname": "p131-b.xlsx", "pruefsumme": "p131-b"}'::jsonb, v_zeilen, v_lief);
+  assert (select i.zeile_id = z.id from lieferung_import i join ausgang_zeile z on z.quelle = 'PRUEF131' and z.pos_id = 3102
+           where i.extern_id = format('PRUEF131:3102:%s:1:mix:%s', v_c1, v_s2)),
+    '0131 (c1): der Mix-Anteil ohne Charge kennt seine Zeile nicht (lieferung_import_zeilen_verbinden)';
+  assert exists (select 1 from v_perigon_befund where quelle = 'PRUEF131' and pos_id = 3102 and art = 'mix_verteilt' and schwere = 'info'
+                   and satz ~ format('17[.,]5 kg auf Charge %s', v_c1) and satz ~ format('22[.,]5 kg %s \(ohne Charge\)', v_s2) and kg = 40),
+    format('0131 (c2): der verteilte Mix steht nicht als Auskunft mit seinen Anteilen da: %s',
+           (select string_agg(art || '/' || schwere || ': ' || satz, ' | ') from v_perigon_befund where quelle = 'PRUEF131' and pos_id = 3102));
+  assert not exists (select 1 from v_perigon_befund where quelle = 'PRUEF131' and pos_id = 3102
+                       and art in ('mix', 'unbekannt', 'nachholen', 'mehrdeutig', 'masse_abweichung', 'rest')),
+    format('0131 (c3): zum verteilten Mix meldet die Prüfung noch: %s',
+           (select string_agg(art, ', ') from v_perigon_befund where quelle = 'PRUEF131' and pos_id = 3102 and schwere <> 'info'));
+  assert exists (select 1 from v_perigon_befund where quelle = 'PRUEF131' and pos_id = 3103 and art = 'mix' and schwere = 'gelb'
+                   and satz ~ 'nicht nach dem Rezept verteilt'),
+    '0131 (c4): ein Mix ohne Kisteninhalt (nicht verteilt) soll „mix" bleiben und sagen, warum';
+
+  -- (d) Demeter und Knospe in einer Position (wie 134343)
+  v_z := jsonb_build_object('pos_id', 3104, 'charge_extern', v_c1::text, 'lauf_nr', 1, 'fingerabdruck', 'p131-3104-a',
+    'datum', '2026-09-18', 'journal', 'A', 'auftragsnr', '20815', 'kunde', 'Prüfkunde 131', 'artikel_id', 'kürbmubud', 'artikel', 'Bio-Kürbis Butterkin Demeter',
+    'einheit', 'kg', 'menge', 1450, 'gewicht_je_artikel', 1, 'batch_menge', 1138, 'kg_position', 1450, 'kg_charge', 1138);
+  v_j := ausgang_uebernehmen('PRUEF131', 'Prüffirma 0131', '{"dateiname": "p131-c.xlsx", "pruefsumme": "p131-c"}'::jsonb,
+    jsonb_build_array(v_z, v_z || jsonb_build_object('charge_extern', v_c2::text, 'fingerabdruck', 'p131-3104-b', 'batch_menge', 312, 'kg_charge', 312)),
+    jsonb_build_array(
+      jsonb_build_object('extern_id', format('PRUEF131:3104:%s:1', v_c1), 'datum', '2026-09-18', 'charge_nr', v_c1, 'sorte', v_s1, 'kg', 1138, 'kunde', 'Prüfkunde 131'),
+      jsonb_build_object('extern_id', format('PRUEF131:3104:%s:1', v_c2), 'datum', '2026-09-18', 'charge_nr', v_c2, 'sorte', v_s2, 'kg', 312, 'kunde', 'Prüfkunde 131')));
+  update ausgang_zeile set preisgruppe = 'K', liefer_label = case charge_extern when v_c1::text then 'K' else 'D' end
+   where quelle = 'PRUEF131' and pos_id = 3104;
+  select satz into v_k from v_perigon_befund where quelle = 'PRUEF131' and pos_id = 3104 and art = 'label_gemischt';
+  assert v_k ~ 'Auftrag 20815 vom 18\.09\.2026' and v_k ~ format('1.?138 kg aus %s \(Knospe\)', v_c1)
+     and v_k ~ format('312 kg aus %s \(Demeter\)', v_c2) and v_k ~ 'Butterkin Demeter',
+    format('0131 (d1): der Fall nennt nicht Auftrag, Datum, Chargen und Labels: %s', coalesce(v_k, 'kein Fall label_gemischt'));
+  assert not exists (select 1 from v_perigon_befund where quelle = 'PRUEF131' and pos_id = 3104 and art = 'label_name'),
+    '0131 (d2): zur gemischten Position steht zusätzlich „Artikelname gegen Preisgruppe" — zweimal derselbe Fall';
+
+  -- (e) In Perigon gelöscht: 3106 fehlt in der neuen Datei, 3105 (vor dem Zeitraum) bleibt
+  v_z := jsonb_build_object('pos_id', 3105, 'charge_extern', v_c1::text, 'lauf_nr', 1, 'fingerabdruck', 'p131-3105',
+    'datum', '2026-08-01', 'journal', 'A', 'kunde', 'Prüfkunde 131', 'artikel_id', 'kürbp131', 'artikel', format('Bio-Kürbis %s Prüf', v_s1),
+    'einheit', 'kg', 'menge', 50, 'gewicht_je_artikel', 1, 'batch_menge', 50, 'kg_position', 50, 'kg_charge', 50);
+  v_zeilen := jsonb_build_array(v_z, v_z || jsonb_build_object('pos_id', 3106, 'fingerabdruck', 'p131-3106', 'datum', '2026-10-15'));
+  v_lief := jsonb_build_array(
+    jsonb_build_object('extern_id', format('PRUEF131:3105:%s:1', v_c1), 'datum', '2026-08-01', 'charge_nr', v_c1, 'sorte', v_s1, 'kg', 50, 'kunde', 'Prüfkunde 131'),
+    jsonb_build_object('extern_id', format('PRUEF131:3106:%s:1', v_c1), 'datum', '2026-10-15', 'charge_nr', v_c1, 'sorte', v_s1, 'kg', 50, 'kunde', 'Prüfkunde 131'));
+  v_j := ausgang_uebernehmen('PRUEF131', 'Prüffirma 0131', '{"dateiname": "p131-d.xlsx", "pruefsumme": "p131-d"}'::jsonb, v_zeilen, v_lief);
+  -- dieselbe Datei ohne Liste der Positionen (ältere App): nichts geht beiseite
+  v_j := ausgang_uebernehmen('PRUEF131', 'Prüffirma 0131', '{"dateiname": "p131-e.xlsx", "pruefsumme": "p131-e", "von_datum": "2026-09-01", "bis_datum": "2026-11-30"}'::jsonb,
+    '[]'::jsonb, '[]'::jsonb);
+  assert (v_j -> 'positionen_geloescht' ->> 'positionen')::int = 0 and exists (select 1 from ausgang_zeile where quelle = 'PRUEF131' and pos_id = 3106),
+    format('0131 (e1): ohne Liste der Positionen ging etwas beiseite: %s', v_j);
+  -- die neue Datei: alle anderen Positionen von September bis November, nur 3106 nicht
+  v_j := ausgang_uebernehmen('PRUEF131', 'Prüffirma 0131',
+    jsonb_build_object('dateiname', 'p131-f.xlsx', 'pruefsumme', 'p131-f', 'von_datum', '2026-09-01', 'bis_datum', '2026-11-30',
+                       'alle_pos', jsonb_build_array(3101, 3102, 3103, 3104, 9999)), '[]'::jsonb, '[]'::jsonb);
+  assert (v_j -> 'positionen_geloescht' ->> 'positionen')::int = 1 and (v_j -> 'positionen_geloescht' ->> 'lieferungen')::int = 1
+     and not exists (select 1 from ausgang_zeile where quelle = 'PRUEF131' and pos_id = 3106)
+     and exists (select 1 from ausgang_zeile_frueher where quelle = 'PRUEF131' and pos_id = 3106 and nicht_mehr_datei_id = (v_j ->> 'datei_id')::bigint)
+     and not exists (select 1 from lieferung_import where extern_id = format('PRUEF131:3106:%s:1', v_c1)),
+    format('0131 (e2): die in Perigon gelöschte Position 3106 ging nicht beiseite (Zeile in die Ablage, Lieferung weg): %s', v_j);
+  assert exists (select 1 from ausgang_zeile where quelle = 'PRUEF131' and pos_id = 3105)
+     and exists (select 1 from lieferung_import where extern_id = format('PRUEF131:3105:%s:1', v_c1)),
+    '0131 (e3): eine Position vor dem Zeitraum der Datei (3105, 1. August) ging mit — sie steht nur nicht in dieser Datei';
+  -- mehr als fünf fehlen: nichts, mit Grund
+  insert into ausgang_zeile (quelle, pos_id, charge_extern, lauf_nr, fingerabdruck, datum, journal, kunde, artikel_id, artikel, einheit,
+                             menge, gewicht_je_artikel, batch_menge, kg_position, kg_charge)
+  select 'PRUEF131', 3200 + g, v_c1::text, 1, 'p131-f' || g, date '2026-10-01' + g, 'A', 'Prüfkunde 131', 'kürbp131', format('Bio-Kürbis %s Prüf', v_s1),
+         'kg', 10, 1, 10, 10, 10 from generate_series(1, 8) g;
+  select count(distinct pos_id) into v_n from ausgang_zeile where quelle = 'PRUEF131' and datum between '2026-01-01' and '2026-12-31';
+  v_j := ausgang_uebernehmen('PRUEF131', 'Prüffirma 0131',
+    jsonb_build_object('dateiname', 'p131-h.xlsx', 'pruefsumme', 'p131-h', 'von_datum', '2026-01-01', 'bis_datum', '2026-12-31',
+                       'alle_pos', jsonb_build_array(9998)), '[]'::jsonb, '[]'::jsonb);
+  assert (v_j -> 'positionen_geloescht' ->> 'positionen')::int = 0 and (v_j -> 'positionen_geloescht' ->> 'fehlen')::int = v_n
+     and (v_j -> 'positionen_geloescht' ->> 'grund') ~ 'wohl gefiltert'
+     and (select count(distinct pos_id) from ausgang_zeile where quelle = 'PRUEF131') = v_n,
+    format('0131 (e4): eine gefilterte Datei (alle %s Positionen fehlen) soll nichts beiseitelegen und es sagen: %s', v_n, v_j);
+
+  -- (f) Das Rezept
+  assert (select count(*) from mix_rezept where artikelgruppe = 'Mix' and auffueller and sorte = 'Butterkin') = 1
+          or not exists (select 1 from sorte_kaliber where sorte = 'Butterkin'),
+    '0131 (f1): das Rezept des Betriebs (Butterkin füllt auf) fehlt';
+  begin
+    insert into mix_rezept (artikelgruppe, sorte, auffueller, quelle) values ('PrüfMix', v_s1, true, 'Prüfung');
+    insert into mix_rezept (artikelgruppe, sorte, auffueller, quelle) values ('PrüfMix', v_s2, true, 'Prüfung');
+    v_fehler := 'durchgelassen';
+  exception when unique_violation then v_fehler := null;
+  end;
+  assert v_fehler is null, '0131 (f2): zwei Sorten füllen dieselbe Mix-Kiste auf — wer bekommt den Rest?';
+  begin
+    insert into mix_rezept (artikelgruppe, sorte, stueck, kg_je_stueck, auffueller, quelle) values ('PrüfMix2', v_s1, 3, 0.5, true, 'Prüfung');
+    v_fehler := 'durchgelassen';
+  exception when check_violation then v_fehler := null;
+  end;
+  assert v_fehler is null, '0131 (f3): ein Auffüller mit eigener Stückzahl wurde angenommen';
+  begin
+    insert into mix_rezept (artikelgruppe, sorte, stueck, auffueller, quelle) values ('PrüfMix3', v_s1, 3, false, 'Prüfung');
+    v_fehler := 'durchgelassen';
+  exception when check_violation then v_fehler := null;
+  end;
+  assert v_fehler is null, '0131 (f4): ein fester Teil ohne Gewicht je Stück wurde angenommen — leer ist nicht null';
+  perform set_config('request.jwt.claim.sub', v_w::text, true);
+  set local role authenticated;
+  select count(*) into v_n from mix_rezept;
+  begin
+    insert into mix_rezept (artikelgruppe, sorte, stueck, kg_je_stueck, quelle) values ('HalleMix', v_s1, 1, 1, 'Halle');
+    v_fehler := 'durchgelassen';
+  exception when insufficient_privilege or check_violation then v_fehler := null;
+  end;
+  reset role;
+  perform set_config('request.jwt.claim.sub', v_u::text, true);
+  assert v_n = (select count(*) from mix_rezept where artikelgruppe <> 'HalleMix'), format('0131 (f5): die Halle liest %s Zeilen des Rezepts statt aller', v_n);
+  assert v_fehler is null, '0131 (f6): die Halle hat ins Rezept geschrieben';
+  assert not has_table_privilege('anon', 'mix_rezept', 'select')
+     and not has_function_privilege('anon', 'ausgang_positionen_geloescht(text, bigint, jsonb)', 'execute')
+     and not has_function_privilege('anon', 'ausgang_kg_gewicht_nachrechnen()', 'execute'),
+    '0131 (f7): Nichtangemeldete dürfen das Rezept lesen oder die neuen Funktionen aufrufen';
+
+  -- (g) Stand
+  assert schema_stand() >= 131, format('0131 (g1): schema_stand() = %s', schema_stand());
+
+  -- aufräumen
+  delete from mix_rezept where artikelgruppe like 'PrüfMix%' or artikelgruppe = 'HalleMix';
+  delete from lieferung where id in (select lieferung_id from lieferung_import where quelle = 'PRUEF131');
+  delete from ausgang_zeile where quelle = 'PRUEF131';
+  delete from ausgang_datei where quelle = 'PRUEF131';
+  delete from ausgang_quelle where code = 'PRUEF131';
+  if v_geladen then perform demo_daten_entfernen(); end if;
+  delete from profil where id in (v_u, v_w); delete from auth.users where id in (v_u, v_w);
+  update einstellung set wert = v_modus where schluessel = 'betriebsmodus';
+  raise notice 'OK  0131 — kg-Artikel zählen ihre Menge (Ünique nicht × 10), der Mix wird nach Rezept verteilt und gemeldet, gemischte Labels stehen mit Auftrag und Chargen da, in Perigon gelöschte Positionen gehen beiseite';
+end $$;
+
+select '——— 0131 Was Perigon wiegt, woraus der Mix ist, was Perigon gelöscht hat ———' as ergebnis;

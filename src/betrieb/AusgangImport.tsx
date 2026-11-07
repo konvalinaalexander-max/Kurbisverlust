@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { supabase } from '../lib/supabase'
 import { fehlerText } from '../lib/db'
@@ -7,7 +7,8 @@ import { xlsxLesen, type Blatt } from '../lib/xlsx'
 import {
   abgleichen, artikelSchluessel, befund, chargeAufloeser, istKuerbis, kopfLesen,
   lieferungenBauen, neuAbwann, positionenAllerSaisons, quelleErkennen, quelleVorschlag, zaehltAlsKuerbis, zeilenLesen,
-  type Abgleich, type ArtikelBefund, type AusgangZeile, type Befund, type Bekannt, type ChargeKurz, type Lieferung, type QuelleErkennung,
+  type Abgleich, type ArtikelBefund, type AusgangZeile, type Befund, type Bekannt, type ChargeKurz, type Lieferung, type MixRegel,
+  type MixTeil, type QuelleErkennung,
 } from '../lib/warenausgang'
 import { datum, kg, tonnen, zahl, zeitpunkt } from '../lib/format'
 import { Erklaerung, Hinweis, Karte, Kennzahl, Marke } from '../components/Bausteine'
@@ -54,7 +55,10 @@ interface Datei {
   erkennung?: QuelleErkennung
   status: 'bereit' | 'laeuft' | 'fertig' | 'fehler'
   meldung?: string
-  ergebnis?: { zeilen_neu: number; zeilen_geaendert: number; lieferungen_neu: number; lieferungen_aktualisiert: number; lieferungen_ersetzt?: number; zeilen_beiseite?: number; uebergangen: { extern_id: string; kg?: number; datum?: string; kunde?: string; grund: string }[] }
+  ergebnis?: { zeilen_neu: number; zeilen_geaendert: number; lieferungen_neu: number; lieferungen_aktualisiert: number; lieferungen_ersetzt?: number; zeilen_beiseite?: number
+                /** 0131: Positionen, die im Zeitraum der Datei gar nicht mehr stehen (in Perigon gelöscht) */
+                positionen_geloescht?: { positionen: number; zeilen: number; lieferungen: number; fehlen?: number; grund?: string; liste?: string }
+                uebergangen: { extern_id: string; kg?: number; datum?: string; kunde?: string; grund: string }[] }
   pruef?: Pruefzeile[]
   /** 0112: was für den Vergleich mit den Vorjahren mitging — oder warum nicht. */
   historie?: { positionen: number; je_saison: Record<string, number>; labels_gesetzt: number } | { fehler: string }
@@ -125,6 +129,11 @@ export default function AusgangImport({ nachUebernahme }: { nachUebernahme: () =
   const [entfernung, setEntfernung] = useState<string | null>(null)
   /** Runde AR: Positionen, deren Lieferungen nicht die Masse der Datei ergeben (v_ausgang_pruef). */
   const [abweichung, setAbweichung] = useState<Pruefzeile[]>([])
+  /** Runde BJ (0131): woraus der Mix ist (mix_rezept) — leer, wenn es (noch) keines gibt: dann wird nichts verteilt. */
+  const [mixTeile, setMixTeile] = useState<MixTeil[]>([])
+  /** Runde BJ: je Datei, ob sie übernommen werden kann (dann `los`) oder warum nicht — für den Knopf oben. */
+  const [bereit, setBereit] = useState<Record<string, Bereit>>({})
+  const [alleLaufen, setAlleLaufen] = useState(false)
 
   const laden = useCallback(async () => {
     try {
@@ -145,7 +154,16 @@ export default function AusgangImport({ nachUebernahme }: { nachUebernahme: () =
       setBestaetigt(new Map(a.map(x => [artikelSchluessel(x), { ist_kuerbis: x.ist_kuerbis, sorte: x.sorte }])))
       setChargen((c.data ?? []) as ChargeKurz[])
       setSorten(((s.data ?? []) as { sorte: string }[]).map(x => x.sorte))
+      // Das Rezept ist nicht nötig, um einzulesen: ohne es bleibt der Mix, wie Perigon ihn bucht.
+      const m = await supabase.from('mix_rezept').select('sorte, stueck, kg_je_stueck, auffueller, quelle').eq('artikelgruppe', 'Mix')
+      setMixTeile(m.error ? [] : ((m.data ?? []) as MixTeil[]).map(x => ({ ...x, stueck: x.stueck === null ? null : Number(x.stueck), kg_je_stueck: x.kg_je_stueck === null ? null : Number(x.kg_je_stueck) })))
     } catch (f) { setFehler(fehlerText(f)) }
+  }, [])
+  const melden = useCallback((schluessel: string, b: Bereit | null) => {
+    setBereit(alt => {
+      if (b === null) { const { [schluessel]: _weg, ...rest } = alt; void _weg; return rest }
+      return { ...alt, [schluessel]: b }
+    })
   }, [])
   useEffect(() => { void laden() }, [laden])
 
@@ -304,17 +322,27 @@ export default function AusgangImport({ nachUebernahme }: { nachUebernahme: () =
           <input type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" multiple hidden
                  disabled={liest} onChange={e => { void dateienWaehlen(e.target.files); e.target.value = '' }} />
         </label>
+        <AllesUebernehmen dateien={dateien} bereit={bereit} liest={liest} laeuft={alleLaufen}
+                          los={async eintraege => {
+                            setAlleLaufen(true)
+                            try { for (const b of eintraege) await b.los!() } finally { setAlleLaufen(false) }
+                          }} />
         {fehler && <Hinweis art="warnung">{fehler}</Hinweis>}
         <Erklaerung titel="Wie das Einlesen rechnet">
           <p>Die App erkennt selbst, was sie schon hat, was neu ist und was im Perigon nachträglich korrigiert wurde, und schreibt
           daraus Lieferungen. Gezählt wird ab dem {datum(ZEITRAUM_AB)} (Saison 2026); Journal {JOURNAL_INTERN} (interne Umbuchung)
           bleibt draussen. Gerechnet wird im Browser, geschrieben erst auf Knopfdruck. Beide Dateien auf einmal geht, eine allein auch —
-          jede wird einzeln geprüft und einzeln übernommen.</p>
+          jede wird einzeln geprüft; der grüne Knopf oben übernimmt alle, die bereit sind, nacheinander.</p>
+          <p>Ein Kürbis Mix wird nach dem Rezept (Betrieb → Stammdaten → Sorten und Artikel) auf die Sorten verteilt: der Anteil der Sorte der genannten
+          Charge bleibt auf ihr, die anderen werden Lieferungen ohne Charge mit ihrer Sorte. Den Kisteninhalt nimmt die App aus der
+          Datei; fehlt er, bleibt der Mix, wie Perigon ihn bucht. Steht eine Position im Zeitraum der Datei gar nicht mehr darin,
+          wurde sie in Perigon gelöscht: ihre Zeilen gehen beiseite, ihre Lieferungen weg.</p>
         </Erklaerung>
       </Karte>
 
       {dateien.map((d, i) => (
-        <DateiKarte key={`${d.summe}-${i}`} d={d} quellen={quellen} bekannt={d.quelle ? (bekannt.get(d.quelle) ?? []) : null}
+        <DateiKarte key={`${d.summe}-${i}`} schluessel={`${d.summe}-${i}`} melden={melden} mixTeile={mixTeile}
+                    d={d} quellen={quellen} bekannt={d.quelle ? (bekannt.get(d.quelle) ?? []) : null}
                     bekanntBis={lage.find(l => l.quelle === d.quelle)?.bis ?? null}
                     bestaetigt={bestaetigt} chargen={chargen} sorten={sorten}
                     quelleSetzen={(code, name) => aendern(i, { quelle: code, quelleName: name })}
@@ -326,7 +354,9 @@ export default function AusgangImport({ nachUebernahme }: { nachUebernahme: () =
                           p_quelle: d.quelle, p_quelle_name: d.quelleName,
                           p_datei: { dateiname: d.name, pruefsumme: d.summe, n_zeilen: bf.zeilen, n_kuerbis: bf.kuerbiszeilen,
                                      n_neu: ab.neu.length, n_geaendert: ab.geaendert.length, n_unveraendert: ab.unveraendert,
-                                     von_datum: bf.von || null, bis_datum: bf.bis || null },
+                                     von_datum: bf.von || null, bis_datum: bf.bis || null,
+                                     // 0131: jede Position der Datei (jeder Artikel) — was im Zeitraum fehlt, ist in Perigon gelöscht
+                                     alle_pos: [...new Set(zeilenVon(d.blatt, d.quelle, d.name).filter(z => z.datum >= ZEITRAUM_AB).map(z => z.pos_id))] },
                           // die ganze Zeile (roh) geht nur mit den Positionen, nicht mit den Zeilen der Bilanz
                           p_zeilen: zeilen.map(z => ({ ...z, quelle: undefined, zeile_nr: undefined, roh: undefined })),
                           p_lieferungen: lieferungen,
@@ -349,7 +379,46 @@ export default function AusgangImport({ nachUebernahme }: { nachUebernahme: () =
   )
 }
 
-function DateiKarte({ d, quellen, bekannt, bekanntBis, bestaetigt, chargen, sorten, quelleSetzen, artikelSetzen, uebernehmen }: {
+/** Runde BJ: ob eine Datei übernommen werden kann — und was der Knopf oben dafür sagt. */
+interface Bereit { los?: () => Promise<void>; grund?: string; lieferungen: number; kg: number }
+
+/**
+ * Runde BJ — der Betrieb, 7. November: „beim Hochladen muss man runterscrollen,
+ * um erst das eine und dann das andere zu bestätigen — das nervt. Mach einen
+ * Knopf gleich ganz oben, wo man hochlädt, so dass man gleich beides bestätigen
+ * kann; erst grau, solange es noch lädt, sobald geladen grün und aktiv."
+ * Grau sagt, worauf er wartet; grün übernimmt alle bereiten Dateien nacheinander.
+ */
+function AllesUebernehmen({ dateien, bereit, liest, laeuft, los }: {
+  dateien: Datei[]; bereit: Record<string, Bereit>; liest: boolean; laeuft: boolean
+  los: (eintraege: Bereit[]) => Promise<void>
+}) {
+  if (dateien.length === 0 && !liest) return null
+  const offen = dateien.map((d, i) => ({ d, b: bereit[`${d.summe}-${i}`] })).filter(e => e.d.status === 'bereit' && e.d.blatt)
+  const fertig = dateien.filter(d => d.status === 'fertig').length
+  const wartet = offen.filter(e => !e.b)
+  const gesperrt = offen.filter(e => e.b && !e.b.los)
+  const startklar = !liest && !laeuft && !dateien.some(d => d.status === 'laeuft') && offen.length > 0 && wartet.length === 0 && gesperrt.length === 0
+  const lieferungen = offen.reduce((s, e) => s + (e.b?.lieferungen ?? 0), 0)
+  const masse = offen.reduce((s, e) => s + (e.b?.kg ?? 0), 0)
+  const wie = offen.length === 1 ? 'Übernehmen' : offen.length === 2 ? 'Beide übernehmen' : `Alle ${offen.length} übernehmen`
+  const text = liest ? 'Liest die Dateien …'
+    : laeuft || dateien.some(d => d.status === 'laeuft') ? 'Übernimmt …'
+    : offen.length === 0 ? (fertig > 0 ? `Übernommen (${fertig === 1 ? 'eine Datei' : `${fertig} Dateien`}) — Ergebnis unten` : 'Nichts zu übernehmen')
+    : wartet.length > 0 ? 'Vergleicht mit dem, was schon da ist …'
+    : gesperrt.length > 0 ? `Noch nicht: ${gesperrt.map(e => `${e.d.name} — ${e.b!.grund}`).join(' · ')}`
+    : `${wie}: ${zahl(lieferungen)} Lieferungen (${tonnen(masse)})`
+  return (
+    <button type="button" id="ausgang-alle-uebernehmen" className={`uebernehmen-oben${startklar ? ' startklar' : ''}`}
+            disabled={!startklar} aria-busy={liest || laeuft || wartet.length > 0}
+            onClick={() => void los(offen.map(e => e.b!))}>
+      {text}
+    </button>
+  )
+}
+
+function DateiKarte({ schluessel, melden, mixTeile, d, quellen, bekannt, bekanntBis, bestaetigt, chargen, sorten, quelleSetzen, artikelSetzen, uebernehmen }: {
+  schluessel: string; melden: (schluessel: string, b: Bereit | null) => void; mixTeile: MixTeil[]
   d: Datei; quellen: Quelle[]; bekannt: Bekannt[] | null; bekanntBis: string | null
   bestaetigt: Map<string, Bestaetigung>; chargen: ChargeKurz[]; sorten: string[]
   quelleSetzen: (code: string, name: string) => void
@@ -388,9 +457,14 @@ function DateiKarte({ d, quellen, bekannt, bekanntBis, bestaetigt, chargen, sort
   }, [kuerbis, chargen])
   const sorteVon = (z: { artikel_id: string; artikel: string }) =>
     bestaetigt.get(artikelSchluessel(z))?.sorte ?? vorschlagSorte.get(artikelSchluessel(z))?.sorte ?? null
-  const gebaut = useMemo(() => lieferungenBauen(kuerbis, chargeAufloeser(chargen, sorteVon), sorteVon),
+  // Runde BJ (0131): der Mix nach dem Rezept — der Anteil der Sorte der genannten Charge bleibt auf ihr.
+  const mixRegel = useMemo<MixRegel>(() => {
+    const sorteVonCharge = new Map(chargen.map(c => [c.nr, c.sorte]))
+    return { teile: mixTeile, sorteDerCharge: nr => sorteVonCharge.get(nr) ?? null }
+  }, [chargen, mixTeile])
+  const gebaut = useMemo(() => lieferungenBauen(kuerbis, chargeAufloeser(chargen, sorteVon), sorteVon, mixRegel),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [kuerbis, chargen, bestaetigt, vorschlagSorte])
+    [kuerbis, chargen, bestaetigt, vorschlagSorte, mixRegel])
   const ohneZuordnung = gebaut.lieferungen.filter(l => l.charge_nr === null && l.sorte === null)
 
   const offen = bf.artikel.filter(a => a.urteil.startsWith('vorschlag') && a.kg > 0)
@@ -404,6 +478,24 @@ function DateiKarte({ d, quellen, bekannt, bekanntBis, bestaetigt, chargen, sort
   const nameVon = (code: string | null) => quellen.find(q => q.code === code)?.name ?? code ?? ''
   const zuwachs = useMemo(() => (ab ? neuAbwann(ab, bekanntBis) : null), [ab, bekanntBis])
   const uebernehmenMoeglich = ab !== null && d.quelle !== '' && !widerspruch && !mehrdeutig
+
+  // Runde BJ: dem Knopf oben sagen, ob diese Datei bereit ist. Die Übernahme selbst ruft immer die neuste Fassung.
+  const uebernehmenAktuell = useRef(uebernehmen)
+  uebernehmenAktuell.current = uebernehmen
+  const zuUebernehmen = gebaut.lieferungen.filter(l => !(l.charge_nr === null && l.sorte === null))
+  const grund = d.quelle === '' ? 'erst die Firma wählen' : mehrdeutig ? 'Positionen zweier Firmen'
+    : widerspruch ? `gehört zu ${nameVon(inhaltFirma)}` : null
+  useEffect(() => {
+    if (status !== 'bereit' || !d.blatt) { melden(schluessel, null); return }
+    if (grund !== null) { melden(schluessel, { grund, lieferungen: 0, kg: 0 }); return }
+    if (ab === null) { melden(schluessel, null); return }
+    melden(schluessel, {
+      los: () => uebernehmenAktuell.current(zeilenZumSpeichern, gebaut.lieferungen, bf, ab),
+      lieferungen: zuUebernehmen.length, kg: zuUebernehmen.reduce((s, l) => s + l.kg, 0),
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [schluessel, status, grund, ab, gebaut, zeilenZumSpeichern, bf, d.blatt, melden])
+  useEffect(() => () => melden(schluessel, null), [schluessel, melden])
 
   return (
     <Karte titel={d.name}
@@ -464,6 +556,19 @@ function DateiKarte({ d, quellen, bekannt, bekanntBis, bestaetigt, chargen, sort
             <Kennzahl titel="Masse in der Datei" wert={tonnen(bf.kg_position)}
                       unter={`${tonnen(gebaut.lieferungen.filter(l => l.charge_nr !== null).reduce((s, l) => s + l.kg, 0))} einer Charge zugeordnet · ${tonnen(gebaut.lieferungen.filter(l => l.charge_nr === null).reduce((s, l) => s + l.kg, 0))} ohne Chargenbezug${bf.ohne_gewicht.positionen > 0 ? ` · ${zahl(bf.ohne_gewicht.positionen)} Positionen ohne Gewicht` : ''}`} />
           </div>
+          {(gebaut.mixVerteilt.length > 0 || gebaut.mixNicht.length > 0) && (
+            <p className="leise" style={{ margin: '.5rem 0 0' }} id={`mix-${d.summe.slice(0, 8)}`}>
+              <strong>Kürbis Mix:</strong>{' '}
+              {gebaut.mixVerteilt.length > 0 && (() => {
+                const je = new Map<string, number>()
+                for (const v of gebaut.mixVerteilt) for (const t of v.teile) je.set(t.sorte, (je.get(t.sorte) ?? 0) + t.kg)
+                return <>{zahl(gebaut.mixVerteilt.length)} Lieferungen ({kg(gebaut.mixVerteilt.reduce((s, v) => s + v.kg, 0), 0)}) nach dem Rezept
+                  verteilt — {[...je.entries()].sort((a, b) => b[1] - a[1]).map(([s, x]) => `${s} ${kg(x, 0)}`).join(', ')}.{' '}</>
+              })()}
+              {gebaut.mixNicht.length > 0 && <>{zahl(gebaut.mixNicht.length)} nicht verteilt ({[...new Set(gebaut.mixNicht.map(m => m.grund))].join('; ')}) —
+                sie bleiben auf der Charge, die Perigon nennt.</>}
+            </p>
+          )}
           {bf.chargen.length > 0 && (
             <p className="leise" style={{ margin: '.5rem 0 0' }}>
               {bf.chargen.length} Chargen genannt, die grössten: {bf.chargen.slice(0, 6).map(c => `${c.charge_extern} (${kg(c.kg, 0)})`).join(', ')}
@@ -487,7 +592,7 @@ function DateiKarte({ d, quellen, bekannt, bekanntBis, bestaetigt, chargen, sort
                 <p className="leise" style={{ margin: '.4rem 0 0' }}>
                   {zuwachs.davor.length > 0 && <>{zahl(zuwachs.davor.length)} neue Zeilen liegen <strong>vor</strong> dem bekannten Datum — im Perigon nachgetragene Positionen; sie kommen mit. </>}
                   {ab.beiseite.length > 0 && <>{zahl(ab.beiseite.length)} Zeilen hat die Datei für ihre Positionen nicht mehr (Charge nachgetragen oder geändert, eine doppelte Zeile entfernt) — die App legt sie beiseite, sie zählen nicht mehr. </>}
-                  {ab.verschwunden.length > ab.beiseite.length && <>{zahl(ab.verschwunden.length - ab.beiseite.length)} Zeilen gehören zu Positionen, die nicht in dieser Datei stehen — sie bleiben stehen.</>}
+                  {ab.verschwunden.length > ab.beiseite.length && <>{zahl(ab.verschwunden.length - ab.beiseite.length)} Zeilen gehören zu Positionen, die nicht in dieser Datei stehen — liegen sie im Zeitraum der Datei, wurden sie in Perigon gelöscht und gehen beiseite; ältere bleiben stehen.</>}
                 </p>
               )}
             </>
@@ -560,9 +665,14 @@ function DateiKarte({ d, quellen, bekannt, bekanntBis, bestaetigt, chargen, sort
                 Übernommen: {d.ergebnis.zeilen_neu} Zeilen neu, {d.ergebnis.zeilen_geaendert} schon bekannt (davon Korrekturen übernommen) ·{' '}
                 {d.ergebnis.lieferungen_neu} Lieferungen neu, {d.ergebnis.lieferungen_aktualisiert} aktualisiert
                 {(d.ergebnis.lieferungen_ersetzt ?? 0) > 0 && <>, {d.ergebnis.lieferungen_ersetzt} ersetzt (die Datei teilt diese Positionen heute anders auf Chargen auf)</>}
-                {(d.ergebnis.zeilen_beiseite ?? 0) > 0 && <> · {d.ergebnis.zeilen_beiseite} frühere Zeilen beiseitegelegt (die Datei hat diese Positionen jetzt anders)</>}.
+                {(d.ergebnis.zeilen_beiseite ?? 0) > 0 && <> · {d.ergebnis.zeilen_beiseite} frühere Zeilen beiseitegelegt (die Datei hat diese Positionen jetzt anders)</>}
+                {(d.ergebnis.positionen_geloescht?.positionen ?? 0) > 0 && <> · {d.ergebnis.positionen_geloescht!.positionen} {d.ergebnis.positionen_geloescht!.positionen === 1 ? 'Position' : 'Positionen'} in
+                  Perigon gelöscht ({d.ergebnis.positionen_geloescht!.liste}): {d.ergebnis.positionen_geloescht!.zeilen} Zeilen beiseite, {d.ergebnis.positionen_geloescht!.lieferungen} Lieferungen entfernt</>}.
                 {d.ergebnis.uebergangen.length > 0 && <> {d.ergebnis.uebergangen.length} nicht übernommen (unten).</>}
               </Hinweis>
+              {(d.ergebnis.positionen_geloescht?.fehlen ?? 0) > 0 && d.ergebnis.positionen_geloescht?.grund && (
+                <Hinweis art="warnung">{d.ergebnis.positionen_geloescht.grund}</Hinweis>
+              )}
               {d.pruef && d.pruef.length === 0 && <Hinweis art="gut">Probe bestanden: jedes Kilo dieser Firma steht genau einmal als Lieferung.</Hinweis>}
               {/* Runde AO (0112): was für „Lagermanagement nach Artikel" mitging. */}
               {d.historie && ('fehler' in d.historie
@@ -591,8 +701,8 @@ function DateiKarte({ d, quellen, bekannt, bekanntBis, bestaetigt, chargen, sort
       {ab !== null && ab.verschwunden.length > 0 && status === 'bereit' && (
         <p className="leise" style={{ margin: '.5rem 0 0', fontSize: '.8rem' }}>
           Nicht mehr in der Datei (Position / Charge): {ab.verschwunden.slice(0, 5).map(s => s.split('|').slice(1, 3).map(t => t || 'ohne').join(' / ')).join(', ')}
-          {ab.verschwunden.length > 5 && ' …'}. Gelöscht wird nichts: was die Datei für ihre Positionen anders hat, liegt danach unter „frühere Zeilen" und
-          steht im Fenster der Lieferung als Satz; wer eine Lieferung von Hand streichen will, tut es unten.
+          {ab.verschwunden.length > 5 && ' …'}. Gelöscht wird nichts: was die Datei anders hat — oder eine Position, die im Zeitraum der Datei gar
+          nicht mehr steht (in Perigon gelöscht) —, liegt danach unter „frühere Zeilen" und steht im Fenster der Lieferung als Satz.
         </p>
       )}
     </Karte>

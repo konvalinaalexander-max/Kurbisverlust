@@ -461,14 +461,16 @@ Warenausgang, bei keiner Charge) und steht seit 0118 als „Teil ohne
 Charge", nicht als unbekannte Charge.
 **Urteil:** ehrlich; dieselbe Zahl wie überall, nur anders geteilt.
 
-## 12b. Die Masse einer Perigon-Position (`perigon_kg`, `perigonKg`, 0115)
+## 12b. Die Masse einer Perigon-Position (`perigon_kg`, `perigonKg`, 0115, 0131)
 
 **Braucht:** aus der Perigon-Datei je Zeile die Menge (`AuftragsArtikelMenge`,
 je Charge `AufPosBatchQuantity Charge`), das Gewicht je Artikel
 (`GewichtProArtikel`) und die Einheit.
-**Rechnet:** Gewicht je Artikel > 0 → Menge × Gewicht. Sonst bei Einheit kg
-→ die Menge selbst (der Perigon-Artikelstamm führt bei kg-Artikeln oft 0
-statt 1). Sonst — Stück ohne Stückgewicht — **unbekannt (leer), nie 0**.
+**Rechnet:** bei Einheit kg → die Menge selbst; das Gewicht je Artikel zählt
+dort nicht (der Perigon-Artikelstamm führt bei kg-Artikeln oft 0 statt 1, bei
+Ünique 10 — bis 0131 zählte die App dort das Zehnfache). Sonst Gewicht je
+Artikel > 0 → Menge × Gewicht (Stück × kg je Stück). Sonst — Stück ohne
+Stückgewicht — **unbekannt (leer), nie 0**.
 Dieselbe Regel in der App (`src/lib/warenausgang.ts`, beim Einlesen: Masse
 je Zeile und je Charge, daraus die Lieferungen) und in der Datenbank
 (`perigon_kg()`, für die Positionen aller Saisons); `test/warenausgang.test.ts`
@@ -484,13 +486,28 @@ geändert, eine doppelte Zeile entfernt), legt das Einlesen nach
 `ausgang_zeile_frueher` — mit der Datei, in der es zuletzt stand, und der,
 die es nicht mehr hatte. Keine Sicht liest es dort; jede Rechnung und jede
 Perigon-Prüfung sieht nur, was die zuletzt eingelesene Datei sagt. Das
-Fenster einer Lieferung nennt es in einem Satz.
-**Fehlt eine Eingabe:** ohne Stückgewicht keine Lieferung und keine Masse —
+Fenster einer Lieferung nennt es in einem Satz. Seit 0131 gehen auch
+Positionen beiseite, die im Zeitraum der Datei gar nicht mehr stehen (in
+Perigon gelöscht) — ausser es fehlt mehr als jede zehnte (mindestens 5):
+dann ist die Datei wohl gefiltert, und nichts geht.
+**Der Mix (0131):** eine Mix-Zeile wird nach `mix_rezept` verteilt. Mit dem
+Kisteninhalt der Datei *I* und den festen Teilen (Stück × kg je Stück) ist der
+Anteil einer festen Sorte Stück × kg je Stück / *I*, der Auffüller bekommt
+(*I* − Σ feste) / *I*. Die Lieferung der Chargenzeile (oder der Rest ohne
+Charge) wird danach geteilt, gerundet auf das Gramm, der letzte Teil nimmt den
+Rest — die Summe bleibt die Masse der Zeile. Der Teil der Sorte der genannten
+Charge bleibt auf ihr; die anderen sind Lieferungen ohne Charge mit Sorte.
+Rezept des Betriebs: Orangita 3 × 0.55, Lekor 3 × 0.95, Butterkin füllt auf
+(8-kg-Kiste: 1.65 + 2.85 + 3.5 kg).
+**Fehlt eine Eingabe:** ohne Kisteninhalt oder ohne Rezept wird ein Mix nicht
+verteilt (er bleibt auf der Charge, der Fall „Kürbis Mix nicht verteilt" sagt
+es) — nie ein angenommener Inhalt. Ohne Stückgewicht keine Lieferung und keine Masse —
 die Position steht beim Einlesen unter „ohne Gewicht" und im Vergleich je
 Kunde als Stück. `v_ausgang_pruef` zeigt jede Position, deren Lieferungen
 nicht die Masse der Datei ergeben; der Warenausgang warnt oben.
 **Urteil:** ehrlich. Bis 0115 zählten kg-Artikel mit Gewicht 0 als 0 kg
-(BioProdukte 2024/25: 81.6 t statt 168.3 t).
+(BioProdukte 2024/25: 81.6 t statt 168.3 t); bis 0131 Ünique das Zehnfache
+(Datei vom 6. November: 184 t statt 18.4 t).
 
 ## 12c. Was im Lager liegt, Schritt für Schritt (`v_lager_ausweis`, 0121)
 
@@ -650,10 +667,14 @@ Lieferungen hat (`kg_rechnung`, ohne Rücknahmen), und davon ohne Charge. Die
 Arten und die Masse, um die es geht: S = 0 — die Position (leer, wenn auch Q = 0);
 zu viel — Σ S − Q (ab 0.5 kg); Rest — Q − Σ S (ab 0.5 kg); keine Nummer — Q;
 ohne Gewicht — leer; Rücknahme — −Q; Rechnung ≠ Datei — Rechnung − Q (ab
-0.05 kg, Vorzeichen bleibt); Artikelname gegen Preisgruppe — Q. Je Chargenzeile
+0.05 kg, Vorzeichen bleibt); Artikelname gegen Preisgruppe — Q; seit 0131
+kg-Artikel mit Gewicht je Artikel ≠ 1 — Q (die Menge) und Chargen mit
+verschiedenen Lieferlabels — Q (mit Auftrag und je Charge Kilo und Label).
+Je Chargenzeile
 mit Lieferung: die Masse ihrer Lieferung (nachholen, mehrdeutig, unbekannt —
-nur ohne Charge; Artikel gegen Sorte, Demeter/Knospe, Mix, vor dem Eingang —
-mit Charge). Rot ab 500 kg bei Arten, die Ware auf die falsche oder keine Charge
+nur ohne Charge; Artikel gegen Sorte, Demeter/Knospe, Mix nicht verteilt, vor
+dem Eingang — mit Charge; seit 0131 der verteilte Mix als Auskunft mit
+seinen Anteilen; die Anteile ohne Charge sind keine eigenen Chargenzeilen). Rot ab 500 kg bei Arten, die Ware auf die falsche oder keine Charge
 legen; Auskunft bei nachholen und Rücknahme.
 **Merken:** nach jedem fertigen Rechenlauf alle Fälle dieser Sicht und alle
 Sachen aus `v_ungereimtheit` (Schlüssel `ungereimt_schluessel`, wie in der App)
@@ -690,6 +711,8 @@ Summe im Fenster — die Zeilen zeigen nur, woraus sie bestehen.
 - Ein Faul-Gewicht in der Halle ohne Ablesung des Palox — „unbekannt", nicht
   0 kg (`faulesKg`, Runde AZ).
 - Ein Stückgewicht, das der Perigon-Artikelstamm nicht kennt (0115).
+- Ein Kisteninhalt für einen Mix, den die Datei nicht nennt, und eine Charge
+  für die Anteile anderer Sorten (0131).
 - Ein Hagelschaden, den niemand eingetragen hat — ohne Eintrag kein Hagel
   (0116).
 - Ein Mittel ganzer Paletten für eine Palette, deren Kisten gezählt sind

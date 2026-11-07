@@ -4171,6 +4171,125 @@ Daten, dann die Annahme — nach der Korrektur nachsehen.
 nicht alles: vier mal vier gleiche Paloxen und ein Tag mit 30 Paaren bei
 13 erwarteten sind Fragen wert.
 
+## Runde BJ, Schritt 1: Was Perigon wiegt, woraus der Mix ist (7. November, 0131)
+
+Die Runde BJ setzt um, was der Betrieb am 7. November Punkt für Punkt
+besprochen hat, in sechs Schritten (Perigon einlesen, Raten, Ünique-Topf,
+Überzählung, Zettel, Bedienung). Schritt 1 ist das Einlesen, weil alles
+Weitere auf richtigen Lieferungen steht.
+
+**Ünique zählte das Zehnfache.** Der Betrieb: „ich glaube, bei den ersten
+Einträgen hatte es einen Formatierfehler, so dass im Faktor 10 angezeigt
+wird." Der Perigon-Artikelstamm führt „Bio Kürbis Ünique" in kg, aber mit
+Gewicht je Artikel 10; alle anderen kg-Artikel haben 1 oder 0. Die Menge ist
+schon kg: Gebinde × Inhalt ergibt die Menge, und der Erlös je kg passt nur
+so. Perigon rechnet sein Totalgewicht × 10, und die App tat dasselbe
+(`perigon_kg`, 0115: Gewicht > 0 → Menge × Gewicht). In der Datei vom
+6. November sind es 36 Zeilen mit 18.4 t, in der App 184 t. Von den 155 t
+„Überzählung" der Saison waren 141 t dieser Faktor.
+- Neu (0131, AB-188): Bei Einheit kg ist die Menge das Gewicht; das Gewicht
+  je Artikel zählt nur bei Stück. Dieselbe Regel in der App (`perigonKg`).
+- Einmal jetzt rechnet `ausgang_kg_gewicht_nachrechnen()` gespeicherte
+  Zeilen, Positionen und Lieferungen nach. Die Lieferung wird nur geteilt,
+  solange sie grösser ist als die ganze Position nach der neuen Regel; ein
+  zweiter Lauf ändert nichts.
+- Ein neuer Perigon-Fall „kg-Artikel mit Gewicht je Artikel ≠ 1" sagt, was im
+  Artikelstamm zu berichtigen ist. Bis hier war der Fehler kein Perigon-Fall.
+
+**Der Mix ist aus drei Sorten.** Der Betrieb: „Mix ist Mandarin 3 Stück,
+Kabocha 3 Stück und Butterkin — bei grossen 2 Stück, bei kleinen 4–6", „in
+den meisten Fällen kleine Kabocha". Perigon bucht jeden Mix auf eine einzige
+Butterkin-Charge: bis 12. Oktober 1624, ab dem 13. 1649, genau als 1624 leer
+war. Die Charge ist also der Platzhalter der Butterkin, nicht die Herkunft der
+Mandarin und Kabocha. Jede Mix-Zeile nennt ihr Gebinde (U-Gebinde, 8 kg; in
+der Datei vom 6. November 57 von 57).
+- Neu (0131, AB-189): `mix_rezept` hält je Sorte Stück und kg je Stück und die
+  eine Sorte, die die Kiste auffüllt, mit Herkunft. Das Rezept des Betriebs:
+  3 Orangita (Mandarin) zu 0.55 kg, 3 Lekor (Kabocha klein) zu 0.95 kg, aus
+  den Stückgewichten der Perigon-Artikel; Butterkin füllt bis zum
+  Kisteninhalt auf. In einer 8-kg-Kiste sind das 1.65, 2.85 und 3.5 kg.
+  3.5 kg passen zu „2 grosse (3.0) oder 4 kleine (3.6)".
+- Das Einlesen verteilt jede Mix-Zeile danach. Der Anteil der Sorte der
+  genannten Charge bleibt auf ihr, mit derselben Kennung. Die anderen werden
+  Lieferungen ohne Charge mit ihrer Sorte (Kennung „…:mix:Sorte"). Welche
+  Orangita- oder Lekor-Charge es war, sagt der Lieferschein nicht; die App
+  erfindet keine.
+- Den Kisteninhalt nimmt die App aus der Datei. Fehlt er, bleibt der Mix, wie
+  Perigon ihn bucht, und der Fall „Kürbis Mix nicht verteilt" sagt warum.
+  Verteilte Mixe stehen als Auskunft „nach Rezept verteilt" im Reiter.
+- Das Rezept steht unter Betrieb → Stammdaten → Sorten und Artikel (Karte
+  „Kürbis Mix"), mit dem Anteil in einer 8-kg-Kiste. Stück, kg je Stück und
+  Herkunft lassen sich dort ändern; danach die Dateien neu einlesen.
+- Auf den Daten des Betriebs heisst das: von 3.7 t Mix gehen ~2.1 t nicht
+  mehr von Butterkin ab, sondern ~0.8 t von Orangita und ~1.3 t von Lekor.
+
+**Demeter und Knospe in einer Position.** Zu Position 134343 (18. September,
+„Bio-Kürbis Butterkin Demeter", 1138 kg aus 1624 mit Lieferlabel K, 312 kg
+aus 1612 mit D): „weiterhin klar im Perigon-Reiter ausweisen — so kann ich auf
+die Person zugehen, die fürs Perigon verantwortlich ist." Neu (0131, AB-191):
+der Fall „Demeter und Knospe in einer Position". Er nennt Auftrag, Datum,
+Artikel und je Charge Kilo und Label. Der alte Fall „Artikelname gegen
+Preisgruppe" steht dann nicht zusätzlich da.
+
+**Immer der ganze Auszug.** „Schau, dass das gesamte Perigon-Auszug
+angeschaut wird — teilweise wurden rückblickend einzelne Zeilen angepasst."
+Das tat das Einlesen schon. In den Dateien vom 6./7. November sind 64 Zeilen
+rückblickend geändert (zum Beispiel eine Menge von 20 auf 10 Stück), und die
+App übernimmt sie. Nur eine in Perigon ganz gelöschte Position blieb stehen.
+- Neu (0131, AB-190): Positionen einer Firma im Zeitraum der Datei, die die
+  Datei gar nicht mehr hat, gehen beiseite. Ihre Zeilen kommen nach
+  `ausgang_zeile_frueher`, ihre Lieferungen gehen weg. Fehlt mehr als jede
+  zehnte Position (mindestens 5), tut die App nichts und sagt, die Datei sei
+  wohl gefiltert. Ohne die Liste der Positionen (ältere App) tut sie auch
+  nichts.
+
+**Ein Knopf oben.** „Beim Hochladen muss man runterscrollen, um erst das eine
+und dann das andere zu bestätigen — das nervt. Mach einen Knopf gleich ganz
+oben … erst grau, solange es noch lädt, sobald geladen grün und aktiv." Neu
+(AB-192): unter „Excel-Dateien wählen" steht der Knopf. Grau sagt er, worauf
+er wartet: „Liest …", „Vergleicht …", „Noch nicht: Datei — erst die Firma
+wählen". Grün sagt er, was er übernimmt: „Beide übernehmen: N Lieferungen
+(… t)". Er übernimmt alle bereiten Dateien nacheinander; die Knöpfe je Datei
+bleiben.
+
+**Daten des Betriebs, auf seinen Entscheid** (kein Programm):
+- Die Fuhre vom 31. August (34 Paletten) ist von 1623 auf 1626 umgebucht, mit
+  ausgeschriebenem Grund und so, dass sie sich zurücknehmen lässt
+  (`palette_zuordnung`, `palette_zuordnung_setzen`). Die Halle verarbeitete
+  sie als 1626 (Arbeit 1619). Perigon verkaufte 1626 vom 2. September an, vor
+  dem Eingang von 1626 am 23. September. Danach sind die 7 Fälle „vor dem
+  Eingang" bei 1626 und die Überzählung von 1626 weg; 1623 trägt jetzt die
+  Überzählung, weil Perigon nach dem 23. September Ware von 1626 auf 1623
+  buchte.
+- Der versehentlich gespeicherte Gruppenplan (Knirps, alle Labels, 42 t) ist
+  gelöscht. Die Zahl rechnet die App wieder selbst (Vorjahr und
+  Demeter-Plan). Die Bedienung des Stiftfelds folgt in Schritt 6.
+
+Geprüft:
+- Prüfblock 0131 (a1–g1) an gebauten Fällen. 17 Mutationen, jede schlägt an:
+  alte kg-Regel, Nachrechnen ohne Schutz, kein Fall kg-Gewicht, Mix-Anteil
+  ohne Zeile, Mix-Anteile als Chargenzeilen, kein „verteilt", Mix trotz
+  Verteilung, Label-Fall ohne Auftrag, Label-Fall doppelt, gelöscht ohne
+  Zeitraum, ohne Schwelle, ohne Liste, Lieferung bleibt, zwei Auffüller,
+  Auffüller mit Stück, die Halle schreibt, Nichtangemeldete lesen.
+- `test/warenausgang.test.ts`: Ünique 2160 statt 21 600 kg; Anteile der Kiste;
+  Verteilung mit und ohne Kisteninhalt, ohne Charge, auf fremder Sorte.
+  `perigonKg(3, 10, 'kg')` heisst jetzt 3. Der Test sagte bis hier 30, im
+  Kommentar steht warum.
+- Bildschirme `betrieb-import` (grau, dann grün nach der Firmenwahl) und
+  `perigon-label-gemischt`.
+
+**Was bewusst nicht gemacht wurde:**
+- Kein angenommener Kisteninhalt: ohne ihn wird nicht verteilt.
+- Keine Charge für die Mandarin- und Kabocha-Anteile. Sie zählen bei ihrer
+  Sorte (Lieferung ohne Charge), wie Lieferungen ohne Charge heute.
+- `ausgang_zeile_frueher` wird nicht nachgerechnet: dort steht, was die App
+  damals hatte.
+- `ausgang_position` (Vergleich mit den Vorjahren) behält gelöschte
+  Positionen; sie gehen nur aus der Bilanz dieser Saison.
+- Eine Sorte dazu oder weg im Rezept geht noch nicht in der Maske (nur Stück,
+  kg je Stück und Herkunft); das Rezept des Betriebs hat drei Sorten.
+
 ## Runde BI: Es gilt, was die Datei heute sagt (4. November, 0130)
 
 Der Betrieb zu Fall 134779 („Im Excel steht dieselbe Zeile 3-mal

@@ -11,6 +11,7 @@ import ErfassungLeeren from '../components/ErfassungLeeren'
 import type { Charge, Gebinde, Kaeufer, Profil, Sortierschema } from '../lib/typen'
 import { grammOhneArtikel, grammText } from '../auswertung/artikel'
 import type { ArtikelLagerCharge } from '../auswertung/daten'
+import { mixAnteile, type MixTeil } from '../lib/warenausgang'
 
 export default function Stammdaten() {
   const modus = useBetriebsmodus()
@@ -44,7 +45,7 @@ export default function Stammdaten() {
       {teil === 'paletten' && <PalettenImport />}
       {teil === 'chargen' && <Chargen />}
       {teil === 'kaliber' && <Kaliber />}
-      {teil === 'artikel' && <SortenArtikel zuSchemata={() => setTeil('kaliber')} />}
+      {teil === 'artikel' && <><SortenArtikel zuSchemata={() => setTeil('kaliber')} /><MixRezept /></>}
       {teil === 'abgebrochen' && <Abgebrochene />}
       {teil === 'benutzer' && <Benutzer />}
       {teil === 'einstellungen' && <Einstellungen />}
@@ -128,6 +129,78 @@ function GebindeTara() {
           <button onClick={() => speichern(g)}>Speichern</button>
         </div>
       ))}
+    </Karte>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/**
+ * Runde BJ (0131) — woraus eine Mix-Kiste ist. Der Betrieb, 7. November: „Mix
+ * ist Mandarin 3 Stück, Kabocha 3 Stück und Butterkin — bei grossen 2 Stück,
+ * bei kleinen 4–6." Das Einlesen verteilt jeden Mix danach; den Kisteninhalt
+ * nimmt es aus der Datei. Hier lassen sich Stück, kg je Stück und Herkunft
+ * ändern; danach die Dateien neu einlesen.
+ */
+type MixZeile = MixTeil & { id: number; quelle: string }
+function MixRezept() {
+  const [zeilen, setZeilen] = useState<MixZeile[]>([])
+  const [laedt, setLaedt] = useState(true)
+  const [fehler, setFehler] = useState<string | null>(null)
+  const [gespeichert, setGespeichert] = useState<number | null>(null)
+  const laden = useCallback(async () => {
+    const { data, error } = await supabase.from('mix_rezept').select('id, sorte, stueck, kg_je_stueck, auffueller, quelle')
+      .eq('artikelgruppe', 'Mix').order('auffueller').order('sorte')
+    if (error) setFehler(fehlerText(error))
+    else setZeilen(((data ?? []) as MixZeile[]).map(z => ({ ...z, stueck: z.stueck === null ? null : Number(z.stueck), kg_je_stueck: z.kg_je_stueck === null ? null : Number(z.kg_je_stueck) })))
+    setLaedt(false)
+  }, [])
+  useEffect(() => { void laden() }, [laden])
+  async function speichern(z: MixZeile) {
+    const { error } = await supabase.from('mix_rezept')
+      .update({ stueck: z.stueck, kg_je_stueck: z.kg_je_stueck, quelle: z.quelle }).eq('id', z.id)
+    if (error) setFehler(fehlerText(error))
+    else { setGespeichert(z.id); setTimeout(() => setGespeichert(null), 2000) }
+  }
+  if (laedt) return <Lade />
+  const kiste = mixAnteile(8, zeilen)
+  const aendern = (i: number, teil: Partial<MixZeile>) => setZeilen(zs => zs.map((x, j) => (j === i ? { ...x, ...teil } : x)))
+  return (
+    <Karte titel="Kürbis Mix — woraus eine Kiste ist">
+      <p className="leise" style={{ marginTop: 0 }}>
+        Perigon bucht einen Mix auf eine einzige Charge. Beim Einlesen verteilt die App ihn nach diesem Rezept: der Anteil der Sorte
+        der genannten Charge bleibt auf ihr, die anderen zählen bei ihrer Sorte (ohne Charge). Den Kisteninhalt nimmt sie aus der
+        Datei; fehlt er, bleibt der Mix, wie Perigon ihn bucht. Nach einer Änderung die Dateien neu einlesen.
+      </p>
+      {fehler && <Hinweis art="warnung">{fehler}</Hinweis>}
+      {zeilen.length === 0 ? <Hinweis>Kein Rezept — ein Mix bleibt auf der Charge, die Perigon nennt.</Hinweis> : (
+        <div className="rollbar" id="mix-rezept"><table>
+          <thead><tr><th>Sorte</th><th className="zahl">Stück je Kiste</th><th className="zahl">kg je Stück</th>
+            <th className="zahl" title="in einer Kiste mit 8 kg Inhalt, wie bei den Mix-Zeilen der Perigon-Datei">in einer 8-kg-Kiste</th><th>Herkunft</th><th></th></tr></thead>
+          <tbody>{zeilen.map((z, i) => {
+            const k = kiste?.find(a => a.sorte === z.sorte)
+            return (
+              <tr key={z.id}>
+                <td><strong>{z.sorte}</strong></td>
+                {z.auffueller ? <td colSpan={2} className="leise">füllt die Kiste auf</td> : (<>
+                  <td className="zahl"><input type="number" step="1" min={1} style={{ width: '5rem' }} aria-label={`Stück ${z.sorte}`}
+                    value={z.stueck ?? ''} onChange={e => aendern(i, { stueck: e.target.value === '' ? null : Number(e.target.value) })} /></td>
+                  <td className="zahl"><input type="number" step="0.01" min={0.01} style={{ width: '6rem' }} aria-label={`kg je Stück ${z.sorte}`}
+                    value={z.kg_je_stueck ?? ''} onChange={e => aendern(i, { kg_je_stueck: e.target.value === '' ? null : Number(e.target.value) })} /></td>
+                </>)}
+                <td className="zahl">{k ? kg(k.kgJeKiste, 2) : '—'}</td>
+                <td><input style={{ width: '100%', minWidth: '14rem' }} aria-label={`Herkunft ${z.sorte}`} value={z.quelle}
+                           onChange={e => aendern(i, { quelle: e.target.value })} /></td>
+                <td>{gespeichert === z.id ? <Marke art="fertig">gespeichert</Marke>
+                  : <button className="klein" onClick={() => void speichern(z)}
+                            disabled={!z.auffueller && (!(z.stueck! > 0) || !(z.kg_je_stueck! > 0))}>Speichern</button>}</td>
+              </tr>
+            )
+          })}</tbody>
+        </table></div>
+      )}
+      {zeilen.length > 0 && kiste === null && (
+        <Hinweis art="warnung">So geht es nicht auf: die festen Teile füllen eine 8-kg-Kiste schon, oder keine Sorte füllt auf — dann verteilt die App nichts.</Hinweis>
+      )}
     </Karte>
   )
 }

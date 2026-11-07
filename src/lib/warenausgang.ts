@@ -283,21 +283,62 @@ const runden = (n: number) => Math.round(n * 1000) / 1000
 
 /**
  * Die Masse einer Perigon-Menge, in kg — dieselbe Regel wie `perigon_kg()` in
- * der Datenbank (0115):
- *   - Gewicht je Artikel > 0: Menge × Gewicht je Artikel (Stück × kg je Stück,
- *     bei kg-Artikeln × 1);
- *   - sonst, bei Einheit kg: die Menge selbst — sie ist schon das Gewicht;
+ * der Datenbank (0115, 0131):
+ *   - bei Einheit kg: die Menge selbst — sie ist schon das Gewicht; das
+ *     Gewicht je Artikel zählt dort nicht;
+ *   - sonst Gewicht je Artikel > 0: Menge × Gewicht je Artikel (Stück × kg je Stück);
  *   - sonst (Stück ohne Stückgewicht): unbekannt, null — nicht 0.
+ * Runde BJ (0131): Der Perigon-Artikelstamm führt „Bio Kürbis Ünique" in kg,
+ * aber mit Gewicht je Artikel 10. Bis hier galt dort Menge × 10 — in der Datei
+ * vom 6. November 184 t statt 18.4 t. Der Betrieb: „im Faktor 10".
  * Runde AR: Bis hier galt Menge × Gewicht je Artikel ohne Ausnahme. Im
  * Perigon-Artikelstamm stand bei vielen kg-Artikeln 0 statt 1 — bei Imhof
  * BioProdukte 2024/25 86.7 t, die im Vergleich mit den Vorjahren als 0 kg
  * zählten, und diese Saison 340 kg, die nie eine Lieferung wurden.
  */
 export function perigonKg(menge: number, gewichtJeArtikel: number | null, einheit: string): number | null {
-  if (gewichtJeArtikel !== null && gewichtJeArtikel > 0) return runden(menge * gewichtJeArtikel)
   if (/^kg/i.test(einheit.trim())) return runden(menge)
+  if (gewichtJeArtikel !== null && gewichtJeArtikel > 0) return runden(menge * gewichtJeArtikel)
   return null
 }
+
+/* ---------- Woraus der Mix ist (0131) ------------------------------------ */
+
+/** Ein Teil des Mix-Rezepts (Tabelle mix_rezept): Stück und kg je Stück, oder die Sorte, die die Kiste auffüllt. */
+export interface MixTeil { sorte: string; stueck: number | null; kg_je_stueck: number | null; auffueller: boolean; quelle?: string }
+
+/** Ein Mix-Artikel — dieselbe Regel wie artikel_einordnen() in der Datenbank (\mmix\M). */
+export const istMixArtikel = (artikel: string): boolean => /(^|[^a-zäöüß])mix([^a-zäöüß]|$)/i.test(artikel)
+
+/**
+ * Welcher Anteil einer Mix-Kiste von welcher Sorte ist. Der Betrieb, 7. November:
+ * „Mix ist Mandarin 3 Stück, Kabocha 3 Stück und Butterkin — bei grossen 2
+ * Stück, bei kleinen 4–6." Die festen Teile wiegen Stück × kg je Stück; die
+ * Sorte, die auffüllt, bekommt den Rest bis zum Kisteninhalt der Datei.
+ * Ohne Kisteninhalt, ohne auffüllende Sorte, oder wenn die festen Teile die
+ * Kiste schon füllen: null — die App rät keinen Inhalt.
+ */
+export function mixAnteile(inhaltKg: number | null, teile: MixTeil[]): { sorte: string; anteil: number; kgJeKiste: number; teil: MixTeil }[] | null {
+  if (inhaltKg === null || !(inhaltKg > 0)) return null
+  const fest = teile.filter(t => !t.auffueller && t.stueck !== null && t.kg_je_stueck !== null)
+  const auf = teile.filter(t => t.auffueller)
+  if (auf.length !== 1 || fest.length === 0) return null
+  const festKg = fest.reduce((s, t) => s + t.stueck! * t.kg_je_stueck!, 0)
+  if (festKg >= inhaltKg) return null
+  return [
+    ...fest.map(t => ({ sorte: t.sorte, kgJeKiste: t.stueck! * t.kg_je_stueck!, anteil: t.stueck! * t.kg_je_stueck! / inhaltKg, teil: t })),
+    { sorte: auf[0].sorte, kgJeKiste: inhaltKg - festKg, anteil: (inhaltKg - festKg) / inhaltKg, teil: auf[0] },
+  ]
+}
+
+/** Was das Einlesen für den Mix wissen muss. */
+export interface MixRegel {
+  teile: MixTeil[]
+  /** die Sorte einer Charge der App — der Anteil dieser Sorte bleibt auf der genannten Charge */
+  sorteDerCharge: (nr: number) => string | null
+}
+
+const kgText = (n: number) => `${n.toLocaleString('de-CH', { maximumFractionDigits: 2 })} kg`
 
 function zahl(z: Zelle): number | null {
   if (typeof z === 'number') return Number.isFinite(z) ? z : null
@@ -652,7 +693,40 @@ export function lieferungenBauen(
   zeilen: AusgangZeile[],
   chargeVon: (extern: string, zeile: AusgangZeile) => number | null,
   sorteVon: (z: AusgangZeile) => string | null,
-): { lieferungen: Lieferung[]; ruecknahmen: Lieferung[]; ohneGewicht: OhneGewicht[] } {
+  mix?: MixRegel,
+): { lieferungen: Lieferung[]; ruecknahmen: Lieferung[]; ohneGewicht: OhneGewicht[]; mixVerteilt: MixVerteilt[]; mixNicht: MixNicht[] } {
+  const mixVerteilt: MixVerteilt[] = []
+  const mixNicht: MixNicht[] = []
+  /** 0131: eine Mix-Lieferung nach dem Rezept auf die Sorten legen — oder, wenn das nicht geht, so lassen und sagen warum. */
+  const mixen = (l: Lieferung, z: AusgangZeile): Lieferung[] => {
+    if (!mix || !istMixArtikel(z.artikel)) return [l]
+    const anteile = mixAnteile(z.gebinde_inhalt, mix.teile)
+    if (anteile === null) {
+      mixNicht.push({ extern_id: l.extern_id, datum: l.datum, kg: l.kg, artikel: z.artikel,
+        grund: mix.teile.length === 0 ? 'kein Mix-Rezept' : z.gebinde_inhalt === null || !(z.gebinde_inhalt > 0)
+          ? 'die Datei nennt keinen Kisteninhalt' : 'das Rezept passt nicht in die Kiste' })
+      return [l]
+    }
+    const sorteCharge = l.charge_nr === null ? null : mix.sorteDerCharge(l.charge_nr)
+    const out: Lieferung[] = []
+    let verteilt = 0
+    anteile.forEach((a, i) => {
+      const kg = i === anteile.length - 1 ? runden(l.kg - verteilt) : runden(l.kg * a.anteil)
+      verteilt = runden(verteilt + kg)
+      if (kg <= 0) return
+      const wie = a.teil.auffueller
+        ? `füllt die ${kgText(z.gebinde_inhalt!)}-Kiste auf (${kgText(a.kgJeKiste)})`
+        : `${a.teil.stueck} × ${kgText(a.teil.kg_je_stueck!)} je ${kgText(z.gebinde_inhalt!)}-Kiste`
+      if (sorteCharge !== null && a.sorte === sorteCharge) {
+        out.push({ ...l, kg, sorte: a.sorte, bemerkung: [l.bemerkung, `Mix-Anteil ${a.sorte}: ${wie}`].filter(Boolean).join(' · ') })
+      } else {
+        out.push({ ...l, extern_id: `${l.extern_id}:mix:${a.sorte}`, charge_nr: null, sorte: a.sorte, kg,
+                   bemerkung: `Mix-Anteil ${a.sorte} nach Rezept: ${wie}${l.charge_nr !== null ? ` — Perigon nennt Charge ${l.charge_nr}` : ''}` })
+      }
+    })
+    mixVerteilt.push({ extern_id: l.extern_id, datum: l.datum, kg: l.kg, artikel: z.artikel, teile: out.map(o => ({ sorte: o.sorte!, kg: o.kg, charge_nr: o.charge_nr })) })
+    return out
+  }
   const proPos = new Map<string, AusgangZeile[]>()
   for (const z of zeilen) {
     const s = `${z.quelle}|${z.pos_id}`
@@ -690,25 +764,30 @@ export function lieferungenBauen(
       zugeordnet = runden(zugeordnet + kg)
       // Die Zeile geht mit: bei einer doppelten Perigon-Nummer entscheidet ihr Artikel.
       const nr = chargeVon(z.charge_extern, z)
-      out.push({
+      out.push(...mixen({
         extern_id: `${z.quelle}:${z.pos_id}:${z.charge_extern}:${z.lauf_nr}`,
         datum: z.datum, charge_nr: nr, sorte: sorteVon(z), kg,
         gebindeart: z.gebindeart, kunde: z.kunde,
         bemerkung: nr === null ? `Charge ${z.charge_extern} (extern)` : '',
-      })
+      }, z))
     }
     const rest = runden(gesamt - zugeordnet)
     if (rest > 0) {
-      out.push({
+      out.push(...mixen({
         extern_id: `${erste.quelle}:${erste.pos_id}:rest`,
         datum: erste.datum, charge_nr: null, sorte: sorteVon(erste), kg: rest,
         gebindeart: erste.gebindeart, kunde: erste.kunde,
         bemerkung: 'ohne Chargenbezug',
-      })
+      }, erste))
     }
   }
-  return { lieferungen: out, ruecknahmen: zurueck, ohneGewicht }
+  return { lieferungen: out, ruecknahmen: zurueck, ohneGewicht, mixVerteilt, mixNicht }
 }
+
+/** 0131: eine Mix-Lieferung, die nach dem Rezept auf die Sorten verteilt wurde. */
+export interface MixVerteilt { extern_id: string; datum: string; kg: number; artikel: string; teile: { sorte: string; kg: number; charge_nr: number | null }[] }
+/** 0131: eine Mix-Lieferung, die so blieb, wie Perigon sie bucht — und warum. */
+export interface MixNicht { extern_id: string; datum: string; kg: number; artikel: string; grund: string }
 
 /* ---------- Welche Firma ist das? --------------------------------------- */
 
@@ -843,8 +922,10 @@ export function lieferungDeutung(p: PositionKurz, zeilen: ChargenzeileKurz[]): s
   const s: string[] = []
   const menge = p.menge ?? 0, e = (p.einheit ?? '').trim(), gja = p.gewicht_je_artikel
   const istKg = /^kg/i.test(e)
-  if (gja !== null && gja > 0 && istKg && gja === 1) s.push(`Menge ${zahlText(menge)} kg — die Menge ist schon das Gewicht.`)
-  else if (gja !== null && gja > 0) s.push(`${zahlText(menge)} ${e || 'Stück'} × ${zahlText(gja)} kg je ${istKg ? 'kg' : (e || 'Stück')} = ${zahlText(perigonKg(menge, gja, e) ?? 0)} kg.`)
+  if (istKg && gja === 1) s.push(`Menge ${zahlText(menge)} kg — die Menge ist schon das Gewicht.`)
+  // Runde BJ (0131): ein kg-Artikel mit Gewicht je Artikel ≠ 1 (Ünique: 10) — die Menge ist das Gewicht, nicht das Zehnfache.
+  else if (istKg && gja !== null && gja > 0) s.push(`Menge ${zahlText(menge)} kg; das Gewicht je Artikel steht in Perigon auf ${zahlText(gja)} — bei einem kg-Artikel ist die Menge das Gewicht: ${zahlText(menge)} kg. Perigon rechnet das Totalgewicht × ${zahlText(gja)} (${zahlText(Math.round(menge * gja * 1000) / 1000)} kg); im Artikelstamm gehört dort 1 hin.`)
+  else if (gja !== null && gja > 0) s.push(`${zahlText(menge)} ${e || 'Stück'} × ${zahlText(gja)} kg je ${e || 'Stück'} = ${zahlText(perigonKg(menge, gja, e) ?? 0)} kg.`)
   else if (istKg) s.push(`Menge ${zahlText(menge)} kg; das Gewicht je Artikel steht in Perigon auf ${gja ?? 'leer'} — bei einem kg-Artikel ist die Menge das Gewicht: ${zahlText(menge)} kg.`)
   else s.push(`${zahlText(menge)} ${e || 'Stück'}, aber Perigon kennt kein Stückgewicht — die Masse ist unbekannt, nicht 0. Steht es im Perigon-Artikelstamm, die Datei neu einlesen.`)
   const mitCharge = zeilen.filter(z => z.charge_extern !== '')

@@ -702,6 +702,30 @@ const BILDSCHIRME = [
     } },
   // Viele Positionen einer Art sind ein Fall: was passiert ist, die Positionen als Liste,
   // ein Klick zeigt eine Position im Fenster (nachgerechnet, Stand je Position).
+  // Runde BJ (0131) — der Betrieb zu Position 134343: „weiterhin klar im Perigon-Reiter ausweisen — so kann ich
+  // auf die Person zugehen, die fürs Perigon verantwortlich ist." Der Fall nennt Auftrag, Datum, Chargen und Labels.
+  { name: 'perigon-label-gemischt', wer: 'admin', pfad: '/perigon/faelle?art=label_gemischt',
+    vorher: () => {
+      perigonVormerken()
+      const basis = (fixture('v_perigon_befund') ?? []).find(b => b.pos_id === 990125)
+      vormerken('v_perigon_befund', [
+        { ...basis, schluessel: 'label_gemischt:DEMO:990134', art: 'label_gemischt', schwere: 'gelb', pos_id: 990134, datum: '2026-09-18',
+          artikel: 'Bio-Kürbis Butterkin Demeter', sorte: 'Butterkin', menge: 1450, kg_position: 1450, kg_zugeteilt: 1450, kg_rechnung: 1450,
+          kg_ohne_charge: 0, kg: 1450, nummern: '1612, 1624', n_zeilen: 2, preisgruppe: 'K', wo: 'perigon',
+          satz: 'Auftrag 20815 vom 18.09.2026: unter dem Artikel „Bio-Kürbis Butterkin Demeter" (Preisgruppe K) gingen Chargen mit verschiedenen Lieferlabels hinaus — 1138 kg aus 1624 (Knospe), 312 kg aus 1612 (Demeter). Knospe-Ware unter einem Demeter-Namen, oder umgekehrt?',
+          tun: 'Mit der Person klären, die den Auftrag in Perigon erfasst hat: stimmt der Artikel für alle Chargen? Sonst in Perigon den Artikel aufteilen oder die Charge (Spalte W) berichtigen, dann neu einlesen.' },
+        { ...basis, schluessel: 'kg_gewicht:DEMO:990135', art: 'kg_gewicht', schwere: 'gelb', pos_id: 990135, datum: '2026-10-28',
+          artikel: 'Bio Kürbis Ünique', sorte: 'Kaori Kuri', menge: 2160, gewicht_je_artikel: 10, kg_position: 2160, kg_zugeteilt: 2160,
+          kg_rechnung: 2160, kg_ohne_charge: 0, kg: 2160, nummern: '198889', n_zeilen: 1, wo: 'perigon',
+          satz: 'Perigon führt „Bio Kürbis Ünique" in kg, aber mit Gewicht je Artikel 10 (Spalte AE). Die Menge (Spalte Q, 2160 kg) ist schon das Gewicht; Perigon rechnet das Totalgewicht trotzdem × 10 (21600 kg). Die App nimmt die Menge.',
+          tun: 'Im Perigon-Artikelstamm beim Artikel das Gewicht je Artikel (Spalte AE) auf 1 setzen. In der App ist nichts zu tun — sie zählt schon die Menge.' },
+      ])
+    },
+    tun: async p => {
+      await p.getByText(/Auftrag 20815 vom 18\.09\.2026/).first().waitFor()
+      await p.getByText(/1138 kg aus 1624 \(Knospe\), 312 kg aus 1612 \(Demeter\)/).first().waitFor()
+      await p.getByText('Demeter und Knospe in einer Position').first().waitFor()
+    } },
   { name: 'perigon-zeilen', wer: 'admin', pfad: '/perigon/faelle?art=label_name', vorher: perigonVormerken,
     tun: async p => {
       const f = p.locator('#fall-ansicht')
@@ -1273,8 +1297,26 @@ const BILDSCHIRME = [
       if (n < 1) throw new Error('v_ausgang_pruef.json ist leer — daten_dumpen.sh nach 0115 neu laufen lassen')
       const warnung = await p.locator('#ausgang-abweichung').innerText()
       if (!warnung.includes(`${n} Positionen stimmen nicht`)) throw new Error(`Abweichung: „${warnung}" — erwartet ${n} Positionen`)
+      // Runde BJ: der Knopf oben steht erst da, wenn eine Datei gewählt ist — grau, solange sie gelesen
+      // und verglichen wird, grün, sobald alles bereit ist; grau sagt, worauf er wartet.
+      if (await p.locator('#ausgang-alle-uebernehmen').count()) throw new Error('Der Knopf oben steht schon da, bevor eine Datei gewählt ist')
       await p.locator('#ausgang-dateien input[type=file]').setInputFiles('test/daten/warenausgang-probe.xlsx')
       await p.getByText('Bis wo hat es die Daten schon?').waitFor()
+      const oben = p.locator('#ausgang-alle-uebernehmen')
+      await oben.waitFor()
+      await p.waitForFunction(() => !/Liest|Vergleicht/.test(document.querySelector('#ausgang-alle-uebernehmen')?.textContent ?? 'Liest'))
+      const text = (await oben.textContent()) ?? '', gruen = (await oben.getAttribute('class'))?.includes('startklar')
+      if (gruen !== (await oben.isEnabled())) throw new Error(`Der Knopf oben ist ${gruen ? 'grün, aber gesperrt' : 'grau, aber aktiv'}: „${text}"`)
+      if (gruen ? !/^Übernehmen: \d+ Lieferungen \(/.test(text) : !/^Noch nicht: .+ — /.test(text))
+        throw new Error(`Der Knopf oben sagt „${text}" — erwartet „Übernehmen: … Lieferungen (…)" oder „Noch nicht: Datei — Grund"`)
+      // Die Probedatei kennt die Demo nicht am Inhalt: Firma wählen — dann wird der Knopf grün und sagt, was er übernimmt.
+      if (!gruen) {
+        const wahl = p.locator('.karte select').filter({ has: p.locator('option', { hasText: 'Demo-Warenwirtschaft' }) }).first()
+        await wahl.selectOption({ label: 'Demo-Warenwirtschaft' })
+        await p.waitForFunction(() => document.querySelector('#ausgang-alle-uebernehmen')?.classList.contains('startklar'))
+        const jetzt = (await oben.textContent()) ?? ''
+        if (!/^Übernehmen: \d+ Lieferungen \(/.test(jetzt) || !(await oben.isEnabled())) throw new Error(`Nach der Firmenwahl sagt der Knopf oben „${jetzt}"`)
+      }
     } },
   { name: 'betrieb-csv', wer: 'admin', pfad: '/betrieb/csv' },
   { name: 'betrieb-warteschlange', wer: 'admin', pfad: '/betrieb/warteschlange' },
@@ -1337,8 +1379,16 @@ const BILDSCHIRME = [
   { name: 'betrieb-schemata', wer: 'admin', pfad: '/betrieb/stammdaten',
     tun: async p => { await p.getByRole('link', { name: 'Sortierschemata' }).click() } },
   // Runde AO (0112): welche Sorte als welcher Artikel geht, und was gross und klein heisst.
+  // Runde BJ (0131): darunter das Mix-Rezept — drei Sorten, Butterkin füllt die 8-kg-Kiste mit 3.5 kg auf.
   { name: 'betrieb-artikel', wer: 'admin', pfad: '/betrieb/stammdaten',
-    tun: async p => { await p.getByRole('link', { name: 'Sorten und Artikel' }).click() } },
+    tun: async p => {
+      await p.getByRole('link', { name: 'Sorten und Artikel' }).click()
+      const r = p.locator('#mix-rezept')
+      await r.waitFor()
+      const n = (fixture('mix_rezept') ?? []).length
+      if (n !== 3) throw new Error(`mix_rezept.json hat ${n} Zeilen — daten_dumpen.sh nach 0131 laufen lassen`)
+      await r.locator('tr', { hasText: 'Butterkin' }).locator('td', { hasText: /^3[.,]5/ }).waitFor()
+    } },
   { name: 'betrieb-zugang', wer: 'admin', pfad: '/betrieb/zugang' },
 ]
 

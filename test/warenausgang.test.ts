@@ -402,12 +402,15 @@ test('bis wo bekannt, ab wo neu: der Zuwachs steht getrennt vom Nachgetragenen',
 
 import { lieferungDeutung, perigonKg, positionenAllerSaisons, rohZeile, SPALTEN } from '../src/lib/warenausgang.ts'
 
-test('perigonKg: Menge × Gewicht; bei kg ohne Gewicht die Menge; Stück ohne Gewicht unbekannt', () => {
+test('perigonKg: Stück × Gewicht; bei kg die Menge; Stück ohne Gewicht unbekannt', () => {
   assert.equal(perigonKg(160, 1.5, 'Stk.'), 240, 'Stück × kg je Stück')
   assert.equal(perigonKg(5, 1, 'kg'), 5, 'kg × 1')
   assert.equal(perigonKg(256, 0, 'kg'), 256, 'Perigon führt 0 statt 1 — die Menge ist das Gewicht')
   assert.equal(perigonKg(256, null, ' KG '), 256, 'Einheit in anderer Schreibweise')
-  assert.equal(perigonKg(3, 10, 'kg'), 30, 'ein Gewicht je Artikel > 0 gilt, auch bei kg')
+  // Runde BJ (0131): bis hier galt „ein Gewicht je Artikel > 0 gilt, auch bei kg" (3 × 10 = 30). Ünique steht im
+  // Perigon-Stamm in kg mit Gewicht 10 — die Menge ist schon kg; die App zählte 184 t statt 18.4 t. Jetzt: die Menge.
+  assert.equal(perigonKg(3, 10, 'kg'), 3, 'bei kg ist die Menge das Gewicht — das Gewicht je Artikel zählt nicht')
+  assert.equal(perigonKg(2160, 10, 'kg'), 2160, 'Ünique, Position 3878880: 2160 kg, nicht 21 600 kg')
   assert.equal(perigonKg(-344, 1, 'kg'), -344, 'eine Rücknahme bleibt negativ')
   assert.equal(perigonKg(7, 0, 'Stk.'), null, 'Stück ohne Stückgewicht: unbekannt, nicht 0')
   assert.equal(perigonKg(12, 0, ''), null, 'ohne Einheit und ohne Gewicht: unbekannt')
@@ -559,3 +562,109 @@ test('0130: was früher in der Datei stand, sagt ein Satz — mit der Datei, in 
     /^Früher stand für diese Position noch eine Zeile in der Datei \(Charge 1620\)\. Die neueren/, 'ohne Kilo und ohne Datei: nichts erfunden, nie 0 kg')
 })
 
+
+/* ---------- Runde BJ (0131): Ünique in kg, Mix nach Rezept ------------------ */
+
+import { istMixArtikel, mixAnteile, type MixRegel, type MixTeil } from '../src/lib/warenausgang.ts'
+
+/** Das Rezept des Betriebs (7. November): 3 Mandarin à 0.55, 3 kleine Kabocha à 0.95, Butterkin füllt auf. */
+const REZEPT: MixTeil[] = [
+  { sorte: 'Orangita', stueck: 3, kg_je_stueck: 0.55, auffueller: false },
+  { sorte: 'Lekor', stueck: 3, kg_je_stueck: 0.95, auffueller: false },
+  { sorte: 'Butterkin', stueck: null, kg_je_stueck: null, auffueller: true },
+]
+const SORTE_DER_CHARGE: Record<number, string> = { 1624: 'Butterkin', 1649: 'Butterkin', 1611: 'Tiana' }
+const MIX: MixRegel = { teile: REZEPT, sorteDerCharge: nr => SORTE_DER_CHARGE[nr] ?? null }
+const chargeDirekt = (extern: string) => (/^\d+$/.test(extern) ? Number(extern) : null)
+
+test('Runde BJ: Ünique in kg mit Gewicht je Artikel 10 zählt die Menge, nicht das Zehnfache', () => {
+  const { zeilen } = zeilenLesen(blatt([
+    { pos_id: 3878880, lieferdatum: '28.10.2026', journal: 'A', kunde: 'Kunde C', artikel_id: 'kürbuni', artikel: 'Bio Kürbis Ünique',
+      einheit: 'kg', menge: 2160, gewicht_je_artikel: 10, charge: '1628', batch_menge: 2160 },
+  ]), 'probe')
+  assert.equal(zeilen[0].kg_position, 2160, 'bis Runde BJ: 21 600 kg')
+  assert.equal(zeilen[0].kg_charge, 2160)
+  const { lieferungen } = lieferungenBauen(zeilen, chargeDirekt, () => null)
+  assert.equal(lieferungen.reduce((s, l) => s + l.kg, 0), 2160)
+})
+
+test('Runde BJ: ein Mix-Artikel ist, was „Mix" als Wort trägt — wie artikel_einordnen() (\\mmix\\M)', () => {
+  assert.equal(istMixArtikel('Bio Kürbis Mix OS'), true)
+  assert.equal(istMixArtikel('MIX Kürbis'), true)
+  assert.equal(istMixArtikel('Kürbismix'), false, 'kein eigenes Wort')
+  assert.equal(istMixArtikel('Bio Kürbis Mixed'), false)
+})
+
+test('Runde BJ: die Anteile einer Mix-Kiste — feste Teile nach Stück × Gewicht, der Auffüller bekommt den Rest', () => {
+  const a = mixAnteile(8, REZEPT)!
+  assert.deepEqual(a.map(x => x.sorte), ['Orangita', 'Lekor', 'Butterkin'])
+  assert.ok(Math.abs(a[0].kgJeKiste - 1.65) < 1e-9, '3 × 0.55 kg')
+  assert.ok(Math.abs(a[1].kgJeKiste - 2.85) < 1e-9, '3 × 0.95 kg')
+  assert.ok(Math.abs(a[2].kgJeKiste - 3.5) < 1e-9, 'Butterkin füllt die 8-kg-Kiste: 3.5 kg — 2 grosse à 1.5 oder 4 kleine à 0.9')
+  assert.ok(Math.abs(a.reduce((s, x) => s + x.anteil, 0) - 1) < 1e-9, 'die Anteile ergeben die ganze Kiste')
+  assert.equal(mixAnteile(null, REZEPT), null, 'ohne Kisteninhalt: kein Rezept — nie 8 kg angenommen')
+  assert.equal(mixAnteile(0, REZEPT), null)
+  assert.equal(mixAnteile(4, REZEPT), null, 'die festen Teile (4.5 kg) füllen die 4-kg-Kiste schon: nichts erfunden')
+  assert.equal(mixAnteile(8, REZEPT.filter(t => !t.auffueller)), null, 'ohne auffüllende Sorte: kein Rest, den jemand bekäme')
+  assert.equal(mixAnteile(8, []), null, 'ohne Rezept: nichts')
+})
+
+test('Runde BJ: eine Mix-Lieferung wird verteilt — Butterkin bleibt auf der Charge, Mandarin und Kabocha ohne Charge mit Sorte', () => {
+  const { zeilen } = zeilenLesen(blatt([
+    { pos_id: 9001, lieferdatum: '06.11.2026', journal: 'A', kunde: 'Kunde D', artikel_id: 'kürbmixos', artikel: 'Bio Kürbis Mix OS',
+      einheit: 'kg', menge: 40, gewicht_je_artikel: 1, charge: '1649', batch_menge: 40, gebinde_menge: 5, gebinde_inhalt: 8 },
+  ]), 'probe')
+  const { lieferungen, mixVerteilt, mixNicht } = lieferungenBauen(zeilen, chargeDirekt, () => null, MIX)
+  assert.equal(lieferungen.length, 3)
+  const butterkin = lieferungen.find(l => l.sorte === 'Butterkin')!
+  assert.equal(butterkin.extern_id, 'probe:9001:1649:1', 'die Kennung der Chargenzeile bleibt — die Lieferung wird angepasst, nicht ersetzt')
+  assert.equal(butterkin.charge_nr, 1649)
+  assert.equal(butterkin.kg, 17.5, '5 Kisten × 3.5 kg')
+  const orangita = lieferungen.find(l => l.sorte === 'Orangita')!
+  assert.equal(orangita.extern_id, 'probe:9001:1649:1:mix:Orangita')
+  assert.equal(orangita.charge_nr, null, 'keine Charge erfunden: welche Orangita-Charge, sagt der Lieferschein nicht')
+  assert.equal(orangita.kg, 8.25)
+  assert.match(orangita.bemerkung, /3 × 0\.55 kg je 8 kg-Kiste — Perigon nennt Charge 1649/)
+  assert.equal(lieferungen.find(l => l.sorte === 'Lekor')!.kg, 14.25)
+  assert.equal(lieferungen.reduce((s, l) => s + l.kg, 0), 40, 'kein Kilo erfunden, keines verloren')
+  assert.equal(mixVerteilt.length, 1)
+  assert.equal(mixNicht.length, 0)
+})
+
+test('Runde BJ: ohne Kisteninhalt bleibt der Mix auf der Charge — und die App sagt warum', () => {
+  const { zeilen } = zeilenLesen(blatt([
+    { pos_id: 9002, lieferdatum: '06.11.2026', journal: 'A', kunde: 'Kunde D', artikel_id: 'kürbmixos', artikel: 'Bio Kürbis Mix OS',
+      einheit: 'kg', menge: 40, gewicht_je_artikel: 1, charge: '1624', batch_menge: 40 },
+  ]), 'probe')
+  const { lieferungen, mixNicht } = lieferungenBauen(zeilen, chargeDirekt, () => null, MIX)
+  assert.equal(lieferungen.length, 1)
+  assert.equal(lieferungen[0].charge_nr, 1624)
+  assert.equal(lieferungen[0].kg, 40)
+  assert.deepEqual(mixNicht.map(m => m.grund), ['die Datei nennt keinen Kisteninhalt'])
+  const ohneRezept = lieferungenBauen(zeilen, chargeDirekt, () => null, { ...MIX, teile: [] })
+  assert.deepEqual(ohneRezept.mixNicht.map(m => m.grund), ['kein Mix-Rezept'])
+  assert.equal(lieferungenBauen(zeilen, chargeDirekt, () => null).mixNicht.length, 0, 'ohne Regel: wie vor Runde BJ')
+})
+
+test('Runde BJ: ein Mix ohne Charge und ein Mix auf einer fremden Sorte werden ganz nach Sorten verteilt', () => {
+  const { zeilen } = zeilenLesen(blatt([
+    { pos_id: 9003, lieferdatum: '06.11.2026', journal: 'A', kunde: 'Kunde D', artikel_id: 'kürbmixos', artikel: 'Bio Kürbis Mix OS',
+      einheit: 'kg', menge: 16, gewicht_je_artikel: 1, charge: '', batch_menge: null, gebinde_menge: 2, gebinde_inhalt: 8 },
+    { pos_id: 9004, lieferdatum: '06.11.2026', journal: 'A', kunde: 'Kunde D', artikel_id: 'kürbmixos', artikel: 'Bio Kürbis Mix OS',
+      einheit: 'kg', menge: 8, gewicht_je_artikel: 1, charge: '1611', batch_menge: 8, gebinde_menge: 1, gebinde_inhalt: 8 },
+  ]), 'probe')
+  const { lieferungen } = lieferungenBauen(zeilen, chargeDirekt, () => null, MIX)
+  const ohne = lieferungen.filter(l => l.extern_id.startsWith('probe:9003:'))
+  assert.deepEqual(ohne.map(l => l.extern_id).sort(), ['probe:9003:rest:mix:Butterkin', 'probe:9003:rest:mix:Lekor', 'probe:9003:rest:mix:Orangita'])
+  assert.ok(ohne.every(l => l.charge_nr === null && l.sorte !== null), 'früher „weder Charge noch Sorte" — jetzt je mit Sorte')
+  const fremd = lieferungen.filter(l => l.extern_id.startsWith('probe:9004:'))
+  assert.ok(fremd.every(l => l.charge_nr === null && l.extern_id.includes(':mix:')), 'Tiana ist keine Sorte des Mix: keine Ware bleibt auf 1611')
+  assert.equal(fremd.reduce((s, l) => s + l.kg, 0), 8)
+})
+
+test('Runde BJ: die Deutung einer Ünique-Position sagt die Menge — und dass Perigon × 10 rechnet', () => {
+  const s = lieferungDeutung({ menge: 2160, einheit: 'kg', gewicht_je_artikel: 10, kg: 2160, preisgruppe: null },
+    [{ charge_extern: '198970', batch_menge: 2160, kg_charge: 2160, liefer_label: null }])
+  assert.match(s[0], /^Menge 2.?160 kg; das Gewicht je Artikel steht in Perigon auf 10 — bei einem kg-Artikel ist die Menge das Gewicht: 2.?160 kg\. Perigon rechnet das Totalgewicht × 10 \(21.?600 kg\)/)
+  assert.match(s[1], /Charge 198970: 2.?160 kg → 2.?160 kg/)
+})

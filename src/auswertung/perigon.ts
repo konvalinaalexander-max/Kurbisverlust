@@ -109,6 +109,33 @@ export const PERIGON_ART: Record<PerigonArt, PerigonArtInfo> = {
     tun: 'In Perigon Artikel oder Preisgruppe angleichen.',
     spalten: ['AuftragsArtikel', 'AuftragsPrsGrpBez'],
   },
+  // Runde BJ (0131) — der Betrieb zu Position 134343: „weiterhin klar im Perigon-Reiter ausweisen — so kann
+  // ich auf die Person zugehen, die fürs Perigon verantwortlich ist."
+  label_gemischt: {
+    name: 'Demeter und Knospe in einer Position', ebene: 'position', wo: 'perigon',
+    heisst: 'Unter einem Artikel gingen Chargen mit verschiedenen Lieferlabels hinaus — etwa Knospe-Ware unter einem Demeter-Namen.',
+    datei: 'Spalte Z (Lieferlabel) ist je Chargenzeile verschieden; Spalte I (Artikel) und K (Preisgruppe) sind für die Position gleich.',
+    app: 'Gezeigt, nicht verrechnet: am Lager ändert es nichts, an der Rückverfolgbarkeit und an der Zertifizierung schon. Der Satz nennt Auftrag, Datum, Chargen und ihre Labels.',
+    tun: 'Mit der Person klären, die den Auftrag in Perigon erfasst hat — stimmt der Artikel für alle Chargen? Sonst Artikel aufteilen oder die Charge berichtigen.',
+    spalten: ['AuftragsArtikel', 'AuftragsPrsGrpBez', 'LiefPrsGrpName', 'AuftragsChargeManuell'],
+  },
+  // Runde BJ (0131) — Ünique: „im Faktor 10".
+  kg_gewicht: {
+    name: 'kg-Artikel mit Gewicht je Artikel ≠ 1', ebene: 'position', wo: 'perigon',
+    heisst: 'Der Artikel wird in kg verkauft, im Perigon-Artikelstamm steht aber ein Gewicht je Artikel wie 10. Perigon rechnet das Totalgewicht dann × 10 — die Menge ist aber schon kg.',
+    datei: 'Spalte Q (Menge) in kg, Spalte AE (Gewicht je Artikel) nicht 1.',
+    app: 'Die App nimmt die Menge als Gewicht und wendet das Gewicht je Artikel bei kg-Artikeln nicht an. Bis Runde BJ zählte sie das Zehnfache.',
+    tun: 'Im Perigon-Artikelstamm beim Artikel das Gewicht je Artikel auf 1 setzen. In der App ist nichts zu tun.',
+    spalten: ['AuftragsArtikelMenge', 'GewichtProArtikel', 'AuftragsArtikelEinheit'],
+  },
+  mix_verteilt: {
+    name: 'Kürbis Mix nach Rezept verteilt', ebene: 'chargenzeile', wo: 'nichts',
+    heisst: 'Ein Mix ist aus mehreren Sorten (Mandarin, Kabocha, Butterkin). Perigon bucht ihn auf eine Charge; die App verteilt ihn nach dem Rezept.',
+    datei: 'Spalte I: Mix · Spalte W: eine Nummer · der Kisteninhalt („AuftragsGebindeinhalt").',
+    app: 'Der Anteil der Sorte der genannten Charge bleibt auf ihr; die anderen werden Lieferungen ohne Charge mit ihrer Sorte. Kein Fehler — steht hier, damit es nachvollziehbar ist.',
+    tun: 'Nichts. Stimmt das Rezept nicht mehr, unter Betrieb → Stammdaten → Sorten und Artikel (Kürbis Mix) berichtigen und neu einlesen.',
+    spalten: ['AuftragsArtikel', 'AuftragsChargeManuell', 'AuftragsGebindeinhalt'],
+  },
   nachholen: {
     name: 'Nummer inzwischen bekannt', ebene: 'chargenzeile', wo: 'nichts',
     heisst: 'Die Nummer kannte die App beim Einlesen noch nicht; inzwischen steht sie an einer Charge.',
@@ -150,11 +177,11 @@ export const PERIGON_ART: Record<PerigonArt, PerigonArtInfo> = {
     spalten: ['AuftragsPrsGrpBez', 'LiefPrsGrpName'],
   },
   mix: {
-    name: 'Kürbis Mix auf einer Charge', ebene: 'chargenzeile', wo: 'firma',
-    heisst: 'Ein „Mix" ist meist aus mehreren Sorten, Perigon bucht ihn aber auf eine einzige Charge.',
-    datei: 'Spalte I: Mix · Spalte W: eine Nummer.',
-    app: 'Die ganze Menge wird von dieser einen Charge abgezogen. Ist der Mix aus anderen Chargen, steht die genannte zu leer und die anderen zu voll.',
-    tun: 'Bei der Firma fragen, woraus der Mix ist. Stimmt es so, hier „kein Fehler" vermerken.',
+    name: 'Kürbis Mix nicht verteilt', ebene: 'chargenzeile', wo: 'firma',
+    heisst: 'Ein „Mix" ist aus mehreren Sorten, Perigon bucht ihn aber auf eine einzige Charge — und die App konnte ihn nicht nach dem Rezept verteilen.',
+    datei: 'Spalte I: Mix · Spalte W: eine Nummer · kein Kisteninhalt („AuftragsGebindeinhalt"), oder kein Rezept.',
+    app: 'Die ganze Menge wird von dieser einen Charge abgezogen. Seit Runde BJ verteilt die App jeden Mix mit Kisteninhalt nach dem Rezept (Fall „nach Rezept verteilt").',
+    tun: 'Fehlt der Kisteninhalt, in Perigon nachtragen und neu einlesen; fehlt das Rezept, unter Betrieb → Stammdaten → Sorten und Artikel (Kürbis Mix) eintragen.',
     spalten: ['AuftragsArtikel', 'AuftragsChargeManuell'],
   },
   vor_eingang: {
@@ -169,7 +196,8 @@ export const PERIGON_ART: Record<PerigonArt, PerigonArtInfo> = {
 
 /** Die Folge der Arten, wie sie im Reiter stehen: was Ware ohne Charge lässt, dann Mengen, Nummern, Artikel. */
 export const ART_FOLGE: PerigonArt[] = ['menge_null', 'keine_nummer', 'rest', 'zu_viel', 'unbekannt', 'mehrdeutig', 'nachholen',
-  'vor_eingang', 'mix', 'artikel_sorte', 'label_name', 'demeter_knospe', 'ohne_gewicht', 'masse_abweichung', 'ruecknahme']
+  'vor_eingang', 'kg_gewicht', 'label_gemischt', 'mix', 'artikel_sorte', 'label_name', 'demeter_knospe', 'ohne_gewicht', 'masse_abweichung',
+  'ruecknahme', 'mix_verteilt']
 
 export const WO_NAME: Record<Wo, { kurz: string; lang: string }> = {
   perigon: { kurz: 'Perigon', lang: 'In Perigon berichtigen, dann die Datei neu einlesen' },
@@ -327,6 +355,9 @@ export function fallKurz(f: PerigonBefund): string {
     case 'mehrdeutig': return 'an mehreren Chargen'
     case 'artikel_sorte': return f.sorte ? `die Charge ist ${f.sorte}` : 'andere Sorte'
     case 'mix': return 'ganz auf eine Charge'
+    case 'mix_verteilt': return 'nach Rezept verteilt'
+    case 'label_gemischt': return 'Chargen mit verschiedenen Labels'
+    case 'kg_gewicht': return `Gewicht je Artikel ${f.gewicht_je_artikel == null ? '?' : Number(f.gewicht_je_artikel).toLocaleString('de-CH')}`
     case 'vor_eingang': {
       const t = /\((\d+) Tage? später\)/.exec(f.satz)
       return t ? `${t[1]} ${t[1] === '1' ? 'Tag' : 'Tage'} vor dem Eingang` : 'vor dem Eingang'
@@ -372,7 +403,8 @@ export function nachrechnen(f: PerigonBefund, dateiZeilen: DateiZeile[]): Nachre
   const einheit = (f.einheit ?? '').trim() || 'Stück'
   const istKg = /^kg/i.test(einheit)
   const gja = f.gewicht_je_artikel == null ? null : Number(f.gewicht_je_artikel)
-  const zuKg = (m: number | null) => (m == null ? null : gja != null && gja > 0 ? Math.round(m * gja * 1000) / 1000 : istKg ? m : null)
+  // Runde BJ (0131): bei kg ist die Menge das Gewicht — das Gewicht je Artikel zählt nur bei Stück (wie perigonKg).
+  const zuKg = (m: number | null) => (m == null ? null : istKg ? m : gja != null && gja > 0 ? Math.round(m * gja * 1000) / 1000 : null)
   const zeilen: RechenZeile[] = dateiZeilen.map((z, i) => {
     const charge = z.charge_extern?.trim() || null
     const s = z.batch_menge == null ? null : Number(z.batch_menge)

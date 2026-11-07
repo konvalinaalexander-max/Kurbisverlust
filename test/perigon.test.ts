@@ -121,7 +121,8 @@ test('0126: die Sachen je Charge kennen die neuen Arten — Rest wie „Teil ohn
   assert.equal(liste.find(u => u.art === 'vor_eingang')!.zeilen.length, 1)
   assert.equal(liste.find(u => u.art === 'rest')!.schwere, 'rot', 'ab 500 kg rot, wie „Teil ohne Charge"')
   const mix = liste.find(u => u.art === 'mix')!
-  assert.match(mix.titel, /1 Perigon-Zeile: Kürbis Mix auf einer Charge/)
+  // Runde BJ (0131): „mix" heisst jetzt nur noch der Mix, den die App nicht nach dem Rezept verteilen konnte.
+  assert.match(mix.titel, /1 Perigon-Zeile: Kürbis Mix nicht verteilt/)
   assert.equal(mix.was, PERIGON_ART.mix.heisst)
   assert.equal(liste.find(u => u.art === 'nachholen')!.schwere, 'info')
   assert.deepEqual(vonCharge(liste, 1624).map(u => u.art), ['mix'])
