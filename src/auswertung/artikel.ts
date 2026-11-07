@@ -140,12 +140,14 @@ export function uebersichtszeilen(bestand: Bestand[], labelVon: Map<number, Char
       z.imLager += Number(b.lager_kg)
       if (r && b.verkaufsfaehig_lager_kg !== null) {
         z.rest.kanal += r.kanal; z.rest.faul += r.faul; z.rest.verdunstet += r.verdunstet; z.rest.fax += r.fax
-        z.rest.offen += Math.max(Number(b.lager_kg) - Number(b.verkaufsfaehig_lager_kg) - r.kanal - r.faul - r.verdunstet - r.fax - (r.unique ?? 0), 0)
+        // 0133: Ünique ist das Verkaufsfähige einer Hagel-Charge — darin, nicht daneben; bis 0132 stand es ausserhalb
+        z.rest.offen += Math.max(Number(b.lager_kg) - Number(b.verkaufsfaehig_lager_kg) - r.kanal - r.faul - r.verdunstet - r.fax, 0)
       } else z.rest.offen += Math.max(Number(b.lager_kg) - Number(b.verkaufsfaehig_lager_kg ?? 0), 0)
     }
     zuZeile.set(b.charge_nr, z)
   }
   // 0121: Unique (Hagel) geht als Knospe — in die Knospe-Zeile der Artikelgruppe, auch wenn die Charge Demeter ist.
+  // 0133: es ist das ganze Verkaufsfähige einer Hagel-Charge (Ünique-Topf); die Grössenartikel nehmen sie nicht mehr.
   for (const b of bestand) {
     const u = weiter.rest?.get(b.charge_nr)?.unique ?? 0
     if (!(u > 0) || !(b.lager_kg > 0)) continue

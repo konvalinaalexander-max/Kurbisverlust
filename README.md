@@ -798,6 +798,14 @@ ohne Perigon-Zeile als eigener Teil); jede PL/pgSQL-Funktion hat einen
 festen Suchpfad; die Perigon-Liste läuft nur einmal (AB-174 bis AB-176). Dazu die
 Halle: Faules ohne Ablesung ist „unbekannt", Fehler werden gezeigt. **Setup.sql
 einmal einspielen (Stand 124), dann „Neu rechnen".**
+**Runde BJ, Schritt 3 (0133)** — **Der Ünique-Topf.** Jede Charge mit Hagel
+gehört ganz in einen Topf für alle Sorten; was als Ünique (oder unter einer
+Hagel-Charge) hinausgeht, kommt aus dem Topf, nicht von der Charge in der
+Perigon-Zeile (AB-196). Hagel ist kein Faules mehr, und Hagelware wird nicht
+nach Grösse sortiert (AB-197); ihr Palox kommt aus anderen Hagel-Chargen der
+Sorte (AB-198). Der Chargen-Reiter sagt bei Hagel-Chargen „nicht
+vorherzusagen — Verkauf über den Ünique-Topf" und zeigt den Topf als Zeile
+(AB-199). **Setup.sql einmal einspielen (Stand 133), dann „Neu rechnen".**
 **Runde BJ, Schritt 2 (0132)** — **Wenig gemessen, wenig Gewicht.**
 Eine Rate aus wenigen Messungen zieht nicht mehr allein: die eigenen
 Messungen zählen n ÷ (n + 3), der Rest kommt von der Ebene darüber — Charge →

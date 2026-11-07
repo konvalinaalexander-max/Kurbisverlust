@@ -6,7 +6,7 @@ import { taetigkeitVon } from '../lib/taetigkeit'
 import { WOERTERBUCH } from '../lib/i18n'
 import { datum, kg, prozent, tonnen, zahl, zeitpunkt } from '../lib/format'
 import { Erklaerung, Herkunft, Hinweis, Karte, Lade, Marke } from '../components/Bausteine'
-import { lieferungenVon, useAuswertung, type Auswertung } from '../auswertung/daten'
+import { lieferungenVon, useAuswertung, type Auswertung, type UniqueTopf } from '../auswertung/daten'
 import { IM_LAGER_TEXT, imLagerCharge, palettenText } from '../auswertung/lager'
 import { Probleme, Rechnet, Reiterkopf } from '../auswertung/Karten'
 import { PerigonVerweis, Ungereimtheiten } from '../auswertung/Ungereimtheiten'
@@ -162,12 +162,12 @@ export default function Chargen() {
                 {/* Runde BA — der Betrieb: „verkaufsfähig ist dann halt: so viele kann ich noch verkaufen, so viel kann ich wirklich auf den Lieferschein schreiben". */}
                 <Kopf id="verkaufsfaehig" title="so viel lässt sich von der Charge heute auf Lieferscheine schreiben — als Artikel, nach allen Abzügen">Davon verkaufsfähig</Kopf>
                 <th className="zahl">Verlust bis heute</th>
-                <th className="zahl" title="Hagelschaden der Charge in Prozent des Eingangs — kommt beim Waschen und Sortieren in den Palox">Hagel</th>
+                <th className="zahl" title="Hagel eingetragen: die Charge gehört ganz in den Ünique-Topf. Die Prozentzahl ist der Eindruck — sie rechnet nicht.">Hagel</th>
               </tr>
             </thead>
             <tbody>
               {mischen(zeilen, ohneEingang, nach === 'nr').map(e => e.z ? (
-                <ChargenZeile key={e.z.b.charge_nr} z={e.z} offen={offen === e.z.b.charge_nr} daten={daten}
+                <ChargenZeile key={e.z.b.charge_nr} z={e.z} offen={offen === e.z.b.charge_nr} daten={daten} imTopf={hagel.has(e.z.b.charge_nr)}
                               ungereimt={vonCharge(ungereimt, e.z.b.charge_nr)}
                               oeffnen={() => setSuche(offen === e.z!.b.charge_nr ? {} : { charge: String(e.z!.b.charge_nr) })}
                               hagel={<HagelZelle nr={e.z.b.charge_nr} anteil={hagel.get(e.z.b.charge_nr) ?? null} darf={istAdmin} neu={hagelLaden} />} />
@@ -175,6 +175,7 @@ export default function Chargen() {
                 <OhneEingangZeile key={`ohne-${e.u!.charge_nr}`} u={e.u!} offen={offen === e.u!.charge_nr} daten={daten}
                                   oeffnen={() => setSuche(offen === e.u!.charge_nr ? {} : { charge: String(e.u!.charge_nr) })} />
               ))}
+              {daten.uniqueTopf && (!sorte || (daten.uniqueTopf.sorten ?? '').split(', ').includes(sorte)) && <UniqueTopfZeile topf={daten.uniqueTopf} />}
               {ohneCharge.length > 0 && <OhneChargeZeile gruppen={ohneCharge} sorte={sorte || null} offen={ohneChargeOffen} oeffnen={() => setOhneChargeOffen(o => !o)} />}
             </tbody>
           </table>
@@ -188,10 +189,14 @@ export default function Chargen() {
           über sie läuft.
           <strong> Davon verkaufsfähig</strong> ist, was davon als Artikel verkauft werden kann — so viel lässt sich heute auf Lieferscheine
           schreiben: ohne Verdunstetes, Faules, zu klein und zu gross,
-          ohne was in kein Artikelgewicht passt und ohne Überfüllung in den Kisten; Unique (Hagel, als Knospe verkauft) zählt mit. „höchstens":
+          ohne was in kein Artikelgewicht passt und ohne Überfüllung in den Kisten. „höchstens":
           die Überfüllung ist nicht gewogen oder die Sortier-CSV fehlt. Die Leiste darunter zeigt den Weg von der Ware, wie sie einging, zum
           Verkaufsfähigen. Aufgeklappt steht er Schritt für Schritt.
           Ein Klick auf einen Spaltenkopf sortiert danach — nach „davon verkaufsfähig" steht oben, was am wenigsten übersteht.</p>
+          <p><strong>Ünique-Topf</strong>: Jede Charge mit Hagel gehört ganz hinein, gleich welche Prozentzahl eingetragen ist und welche
+          Sorte — die Ware geht miteinander als Ünique hinaus. Was aus dem Topf verkauft wird, zieht die App vom Topf ab, nicht von der
+          Charge in der Perigon-Zeile; darum ist bei einer Hagel-Charge nicht vorherzusagen, was sie selbst noch hat. Hagelware wird nicht
+          nach Grösse sortiert; ihr Verlust ist Verdunstung, Palox und Überfüllung.</p>
           <p><strong>Ohne Charge</strong> (letzte Zeile) sind Lieferscheine, auf denen keine Charge steht oder deren Nummer die App keiner Charge
           zuordnen kann. Die App verteilt sie nach Menge auf die Chargen der Sorte — für die Summe ungefähr richtig, für die einzelne Charge nicht.
           Aufgeklappt steht jeder einzelne mit dem Grund; ein Klick zeigt die Zeile aus Perigon.</p>
@@ -203,11 +208,10 @@ export default function Chargen() {
 
 /**
  * Hagelschaden je Charge (Runde AS, 0116). Der Betrieb: „ein Kästchen, und
- * wenn ich das Kreuz mache, ein Feld, wo ich die Prozent eingebe … wenn 20 %
- * Hagelschaden, dann ist 20 % vom Wareneingang nicht mehr verfügbar." Der
- * Hagel kommt beim Waschen und Sortieren in den Palox; die Rechnung zählt ihn
- * dort, wo noch keine Messung der Charge ihn schon enthält — ab der nächsten
- * Rechnung.
+ * wenn ich das Kreuz mache, ein Feld, wo ich die Prozent eingebe". Seit Runde
+ * BJ (0133): „sobald ein Wert eingetragen ist, soll's in den Topf zählen" —
+ * die Charge gehört ganz in den Ünique-Topf; die Prozentzahl ist der Eindruck
+ * und rechnet nicht. Ab der nächsten Rechnung.
  */
 function HagelZelle({ nr, anteil, darf, neu }: { nr: number; anteil: number | null; darf: boolean; neu: () => void }) {
   const [offen, setOffen] = useState(false)
@@ -315,6 +319,31 @@ function OhneChargeZeile({ gruppen, sorte, offen, oeffnen }: { gruppen: Auswertu
   )
 }
 
+/**
+ * Der Ünique-Topf als eine Zeile (Runde BJ, 0133). Der Betrieb: „alle, die
+ * einen Hagelschaden eingetragen haben, zusammenziehen als Unique — die werden
+ * dann miteinander verkauft". Was die einzelne Hagel-Charge noch hat, sagt die
+ * App nicht voraus; was der Topf hat, schon.
+ */
+function UniqueTopfZeile({ topf }: { topf: UniqueTopf }) {
+  return (
+    <>
+      <tr className="unique-topf-zeile" id="chargen-unique-topf">
+        <td />
+        <td><strong>Ünique-Topf</strong> <span className="leise nowrap">{topf.n_chargen} {topf.n_chargen === 1 ? 'Charge' : 'Chargen'} mit Hagel</span></td>
+        <td>{topf.sorten ?? '—'}</td>
+        <td className="zahl">{kg(topf.eingang_kg, 0)}</td>
+        <td className="zahl" colSpan={2}><span className="leise">{topf.chargen.join(', ')}</span></td>
+        <td className="zahl">{kg(topf.geliefert_kg, 0)}{topf.davon_unique_kg > 0.5 && <span className="zelle-unter">davon Ünique {kg(topf.davon_unique_kg, 0)}</span>}</td>
+        <td className="zahl"><strong>{kg(topf.im_lager_kg, 0)}</strong></td>
+        <td className="zahl" title="was im Topf liegt, nach Verdunstung, Palox und Überfüllung — so viel lässt sich noch als Ünique verkaufen">{topf.n_unbekannt > 0 && <span className="mini-wort zelle-oben">mindestens</span>}{kg(topf.verrechenbar_kg, 0)}</td>
+        <td className="zahl" colSpan={2}><span className="leise">verdunstet {kg(topf.verdunstet_kg, 0)}, Palox {kg(topf.faul_kg, 0)}</span></td>
+      </tr>
+      {topf.hinweis && <tr className="unique-topf-zeile"><td /><td colSpan={10}><Marke art="warnung">Ünique-Topf</Marke> {topf.hinweis}</td></tr>}
+    </>
+  )
+}
+
 /** Eine Charge, die verkauft hat, aber im Erntejournal nie eine Palette bekam (wie 1627 vor der Umbuchung). */
 function OhneEingangZeile({ u, offen, oeffnen, daten }: { u: Auswertung['ungereimt'][number]; offen: boolean; oeffnen: () => void; daten: Auswertung }) {
   return (
@@ -332,7 +361,7 @@ function OhneEingangZeile({ u, offen, oeffnen, daten }: { u: Auswertung['ungerei
   )
 }
 
-function ChargenZeile({ z, offen, oeffnen, daten, hagel, ungereimt }: { z: Zeile; offen: boolean; oeffnen: () => void; daten: Auswertung; hagel: ReactNode; ungereimt: Ungereimtheit[] }) {
+function ChargenZeile({ z, offen, oeffnen, daten, hagel, ungereimt, imTopf }: { z: Zeile; offen: boolean; oeffnen: () => void; daten: Auswertung; hagel: ReactNode; ungereimt: Ungereimtheit[]; imTopf: boolean }) {
   const { b } = z
   const liegt = b.lager_kg > 0
   const ausweis = ausweisVon(daten.ausweis, b.charge_nr)
@@ -349,7 +378,9 @@ function ChargenZeile({ z, offen, oeffnen, daten, hagel, ungereimt }: { z: Zeile
         <td className="zahl">{b.n_lieferungen > 0
           ? <>{kg(b.geliefert_kg, 0)}{b.ausgelagert_kg > 0 && <span className="zelle-unter" title="So viel Eingangsware ging für diese Lieferungen aus dem Lager — mehr als geliefert, weil unterwegs verdunstet, im Palox gelandet oder aussortiert">aus {kg(b.ausgelagert_kg, 0)} Eingang</span>}</>
           : <span className="leise">—</span>}</td>
-        {/* 0121: zuerst die Paletten — „so viele wirst du im Lager wohl antreffen" —, darunter die Kilo darauf. */}
+        {/* 0121: zuerst die Paletten — „so viele wirst du im Lager wohl antreffen" —, darunter die Kilo darauf.
+            0133: bei einer Hagel-Charge sagt das nur der Ünique-Topf (Zeile am Ende). */}
+        {imTopf ? <td className="zahl" colSpan={2}><span className="leise unique-topf-wort" title="Die Charge gehört in den Ünique-Topf: was aus dem Topf verkauft wird, kann von jeder Hagel-Charge sein — was diese Charge selbst noch hat, sagt die App darum nicht voraus. Der Topf steht in der Zeile am Ende.">nicht vorherzusagen — Verkauf über den Ünique-Topf</span></td> : <>
         <td className="zahl">{liegt
           ? <>{b.n_rest_paletten != null
                 ? <strong title="die Eingangspaletten, die noch da sind: Eingangsmasse, die nicht ausgeliefert ist, durch die mittlere Eingangspalette der Charge">{palettenText(b.n_rest_paletten)}</strong>
@@ -359,7 +390,7 @@ function ChargenZeile({ z, offen, oeffnen, daten, hagel, ungereimt }: { z: Zeile
         <td className="zahl">{liegt && z.vf !== null
           ? <>{z.offen && <span className="mini-wort zelle-oben" title={`noch offen: ${z.offen}`}>höchstens</span>}{kg(z.vf, 0)}{z.heute !== null && <span className="leise"> · {prozent(z.heute, 0)}</span>}
               {kette && <span className="zelle-leiste"><LagerLeiste s={kette} /></span>}</>
-          : <span className="leise">—</span>}</td>
+          : <span className="leise">—</span>}</td></>}
         <td className="zahl" title={verlustTitel(b)}>{kg(b.verlust_heute_kg, 0)}</td>
         {hagel}
       </tr>
@@ -410,7 +441,6 @@ function ChargeDetail({ nr, z, daten }: { nr: number; z: Zeile; daten: Auswertun
   const mz = (n: number, ein: string, mehr: string) => `${zahl(n)} ${n === 1 ? ein : mehr}`
   // 0121: der Weg von der Ware, wie sie einging, zum Verkaufsfähigen — Schritt für Schritt.
   const aw = ausweisVon(daten.ausweis, nr)
-  const hagelBisHeute = aw?.hagel_bis_heute_kg != null ? Number(aw.hagel_bis_heute_kg) : 0
   return (
     <div className="wechsel">
       {aw && Number(aw.eingang_kg) > 0 && (
@@ -433,8 +463,7 @@ function ChargeDetail({ nr, z, daten }: { nr: number; z: Zeile; daten: Auswertun
         {b.ueberzaehlung_kg > 0 && <li><Marke art="warnung">{kg(b.ueberzaehlung_kg, 0)} mehr geliefert als gekommen</Marke> — ein Zettel oder eine Zuordnung stimmt nicht.</li>}
         <li><strong>Verlust bis heute {kg(b.verlust_heute_kg, 0)}</strong>
           {b.verlust_heute_kg !== null
-            ? <> = Verdunstung {kg(b.verdunstung_heute_kg, 0)} + Faules im Palox <span title={b.faul_anteil != null ? `rechnet mit ${prozent(b.faul_anteil)} im Palox — ${b.faul_quelle ?? 'Quelle unbekannt'}` : undefined}>{kg(b.schimmel_heute_kg, 0)}</span> + Faules beim Abpacken {kg(b.fax_heute_kg, 0)}
-                {hagelBisHeute > 0.5 && <span className="leise"> · im Palox stecken {kg(hagelBisHeute, 0)} Hagel — Unique, wird als Knospe verkauft, kein Verlust</span>}</>
+            ? <> = Verdunstung {kg(b.verdunstung_heute_kg, 0)} + Faules im Palox <span title={b.faul_anteil != null ? `rechnet mit ${prozent(b.faul_anteil)} im Palox — ${b.faul_quelle ?? 'Quelle unbekannt'}` : undefined}>{kg(b.schimmel_heute_kg, 0)}</span> + Faules beim Abpacken {kg(b.fax_heute_kg, 0)}</>
             : <> — {verlustTitel(b)}</>}</li>
         {z.l && <li className="leise">Gemessen: {mz(z.l.n_wiegungen, 'Palettenwägung', 'Palettenwägungen')} · {mz(z.l.n_schimmel, 'Palox-Ablesung', 'Palox-Ablesungen')} · {mz(z.l.n_sortierlaeufe, 'Sortierlauf', 'Sortierläufe')}</li>}
       </ul>

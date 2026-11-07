@@ -320,7 +320,10 @@ test('Kaliber: Fassung, Alter je Lauf, Verteilung beim Eingang und zu klein / zu
     .map(k => [k.sorte, klemm(Number(k.mittel ?? 0), 0, 1)]))
   const klein = sorte('v_koeff_ausschuss'), gross = sorte('v_koeff_nebenkanal')
   const zeilen = frage<Record<string, unknown>>('select charge_nr, sorte, portion, kohorte, alter_tage, r, a_klein_n, a_gross_n from mv_kaskade')
+  // 0133: Hagelware wird nicht nach Grösse sortiert — zu klein und zu gross sind 0, die Sortierdatei gilt für sie nicht
+  const hagelChargen = new Set(frage<{ nr: string }>('select nr from charge where hagel_anteil > 0').map(c => Number(c.nr)))
   const orakelK = zeilen.map(z => {
+    if (hagelChargen.has(Number(z.charge_nr))) return { schluessel: `${z.charge_nr}|${z.portion}|${z.kohorte}`, klein: 0, gross: 0 }
     const q = quelle.get(Number(z.charge_nr))
     const a = q && z.alter_tage != null ? anteilBeimAlter(q.v, q.lo, q.hi, Math.pow(1 - Number(z.r), Number(z.alter_tage))) : null
     const k = klein.get(String(z.sorte)) ?? 0, g = gross.get(String(z.sorte)) ?? 0, f = Math.max(k + g, 1)
@@ -330,13 +333,14 @@ test('Kaliber: Fassung, Alter je Lauf, Verteilung beim Eingang und zu klein / zu
     [{ db: 'a_klein_n', orakel: 'klein', abs: 1e-9 }, { db: 'a_gross_n', orakel: 'gross', abs: 1e-9 }])
   assert.equal(abK.length, 0, bericht('mv_kaskade (zu klein / zu gross)', abK, zeilen.length))
 
-  // Der Hagel trifft, was liegt, und Ausgelagertes ohne eigene Messung der Charge — nie Entsorgtes.
+  // Bis 0132: der Hagel trifft, was liegt, und Ausgelagertes ohne eigene Messung der Charge — nie Entsorgtes.
+  // Seit 0133 ist hagel ein Merkmal, kein Aufschlag: jede Portion ausser dem Entsorgten trägt die eingetragene Zahl.
   const hagel = new Map(frage<{ nr: string; h: string }>('select nr, hagel_anteil as h from charge where hagel_anteil > 0').map(c => [Number(c.nr), Number(c.h)]))
   const eigen = new Set(frage<{ charge_nr: string }>('select distinct charge_nr from v_charge_palox where anteil is not null').map(c => Number(c.charge_nr)))
   const schiefH = frage<Record<string, unknown>>('select charge_nr, portion, kohorte, hagel, f_eigen from mv_kaskade').filter(z => {
     const h = hagel.get(Number(z.charge_nr)) ?? 0
     const gemessen = z.portion === 'ausgelagert' && eigen.has(Number(z.charge_nr))
-    const soll = z.portion === 'entsorgt' ? 0 : z.portion === 'lager' ? h : (gemessen ? 0 : h)
+    const soll = z.portion === 'entsorgt' ? 0 : h
     return !nahe(Number(z.hagel ?? 0), soll, 0, 1e-12) || Boolean(z.f_eigen) !== gemessen
   })
   assert.deepEqual(schiefH.map(z => `${z.charge_nr}/${z.portion}/${z.kohorte}: ${z.hagel}`), [], 'mv_kaskade: der Hagel trifft die falsche Portion')
@@ -388,6 +392,7 @@ test('K8 — v_prognose: dieselbe Kaskade, ein paar Wochen später', { skip }, (
   // wo es eine Sortierdatei gibt (dann ohne eigenes Band).
   const raender = raenderJeSorte()
   const { quelle: kaliber } = kaliberAusRohdaten()
+  const hagelK8 = new Set(frage<{ nr: string }>('select nr from charge where hagel_anteil > 0').map(c => Number(c.nr)))
 
   // Je Portion und Horizont ein Teil; dann über die vier Gruppenebenen rollen.
   const teileJeZeile = new Map<string, Teil[]>()
@@ -399,7 +404,7 @@ test('K8 — v_prognose: dieselbe Kaskade, ein paar Wochen später', { skip }, (
       aKleinN: Number(z.a_klein_n), aGrossN: Number(z.a_gross_n), aFax: Number(z.a_fax) }
     const g0 = raender.get(String(z.sorte))!
     const fHeute = Number(z.f), zb = Boolean(z.zuwachs_bekannt)
-    const kq = kaliber.get(p.chargeNr)
+    const kq = hagelK8.has(p.chargeNr) ? undefined : kaliber.get(p.chargeNr)   // 0133: Hagelware nicht nach Grösse
     for (const h of horizonte) {
       const t = Math.trunc(p.alterTage + h)
       const fDann = zb ? (hagelF(paloxFNach(n(z.p_hand), n(z.p_wasch), n(z.f_ws), n(z.f_s), n(z.g_w), n(z.b_ws), n(z.b_s), n(z.b_w), h), n(z.hagel)) ?? fHeute) : fHeute
@@ -557,6 +562,7 @@ test('K10 — erg_verlauf: die Saison Woche für Woche, unabhängig nachgerechne
     : Number(p.f)
   // 0116: was noch liegt, hat zu klein und zu gross beim Alter am Wochenende (Sortierdatei)
   const { quelle: kaliber } = kaliberAusRohdaten()
+  const hagelK10 = new Set(frage<{ nr: string }>('select nr from charge where hagel_anteil > 0').map(c => Number(c.nr)))
 
   // Der Eingang kommt aus den Kohorten des Orakels, nicht aus v_palette:
   // Paletten ohne Nettogewicht werden dort mit dem Mittel der übrigen
@@ -619,7 +625,7 @@ test('K10 — erg_verlauf: die Saison Woche für Woche, unabhängig nachgerechne
       const tU = lief == null || p.alter_tage == null ? Math.max(bis - koh, 0)
         : Math.min(Math.max(bis - koh, 0), Number(p.alter_tage))
       const nU = m0 * Math.pow(1 - r, tU)
-      const kq = kaliber.get(Number(p.charge_nr))
+      const kq = hagelK10.has(Number(p.charge_nr)) ? undefined : kaliber.get(Number(p.charge_nr))   // 0133: Hagelware nicht nach Grösse
       const aU = kq ? anteilBeimAlter(kq.v, kq.lo, kq.hi, Math.pow(1 - r, tU)) : null
       const knU = aU && aU.klein != null && aU.gross != null ? aU.klein + aU.gross : kn
       const fU = fBei(p, Math.min(bis, lief ?? bis) - (lief ?? tag(heuteStr)))

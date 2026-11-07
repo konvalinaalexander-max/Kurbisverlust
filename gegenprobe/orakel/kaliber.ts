@@ -27,14 +27,14 @@
  * Gegenstücke: `v_kaliber_fassung`, `v_kaliber_lauf`, `mv_kaliber_eingang`,
  * `mv_kaliber_quelle`, `kaliber_anteil()`, `hagel_f()`.
  */
-import { klemm } from './zahlen.ts'
 
-/** Gegenstück zu `hagel_f`. */
-export function hagelF(f: number | null, hagel: number | null): number | null {
-  if (hagel == null || hagel <= 0) return f
-  if (hagel >= 1) return 1
-  if (f == null) return null
-  return 1 - (1 - klemm(f, 0, 1)) * (1 - hagel)
+/**
+ * Gegenstück zu `hagel_f`. Bis 0132 ein Aufschlag, 1 − (1 − f) · (1 − Hagel);
+ * seit 0133 (Ünique-Topf) keiner mehr — Hagelware geht als Ünique hinaus,
+ * die eingetragene Zahl rechnet nicht.
+ */
+export function hagelF(f: number | null, _hagel: number | null): number | null {
+  return f
 }
 
 export interface Lauf { laufId: number; chargeNr: number; sorte: string; alterTage: number; r: number }

@@ -50,7 +50,8 @@ test('schritte: Unique nur, wo Hagel ist; die Reihenfolge wie im Lager', () => {
   const ohne = schritte(summiere([a(1)]))
   assert.deepEqual(ohne.map(x => x.name), ['im Lager, wie eingegangen', 'verdunstet', 'Faules im Palox', 'zu klein', 'zu gross', 'Überfüllung', 'verkaufsfähig'])
   const mit = schritte(summiere([a(1, { unique_kg: 300, verkaufsfaehig_kg: 1350, ueberfuellung_kg: 64.29, verkaufbar_kg: 1585.71 })]))
-  assert.ok(mit.some(x => x.name === 'davon Unique (Hagel)' && x.kg === 300 && x.art === 'davon'))
+  // 0133: der Name sagt, woher (Hagel-Charge im Ünique-Topf); bis 0132 „davon Unique (Hagel)" — geprüft wird dasselbe
+  assert.ok(mit.some(x => x.name === 'davon Ünique (Hagel-Charge)' && x.kg === 300 && x.art === 'davon'))
   assert.match(mit.find(x => x.name === 'verdunstet')!.wie!, /50 Tage gelagert, rund 0\.1 % je Tag/)
 })
 

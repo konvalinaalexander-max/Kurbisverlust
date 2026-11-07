@@ -65,7 +65,7 @@
         "davon verkaufsfähig"
       ],
       "art": "gerechnet",
-      "bedeutet": "Was als Artikel tatsächlich verkauft werden kann: die Ware im Lager, wie sie einging, ohne Verdunstetes, Faules, zu klein, zu gross, Faules beim Abpacken, was in kein Artikelgewicht passt und die Überfüllung in den Kisten; Unique zählt mit (0123). „höchstens“, wo die Überfüllung nicht gewogen oder die Sortier-CSV offen ist. Bis zum 23. Oktober: nur ohne zu klein und zu gross",
+      "bedeutet": "Was als Artikel tatsächlich verkauft werden kann: die Ware im Lager, wie sie einging, ohne Verdunstetes, Faules, zu klein, zu gross, Faules beim Abpacken, was in kein Artikelgewicht passt und die Überfüllung in den Kisten; Ünique ist darin (seit 0133 das Verkaufsfähige der Hagel-Chargen; 0123: zählte mit). „höchstens“, wo die Überfüllung nicht gewogen oder die Sortier-CSV offen ist. Bis zum 23. Oktober: nur ohne zu klein und zu gross",
       "quelle": "v_lager_ausweis.verkaufbar_kg · erg_bilanz.verkaufsfaehig_heute_kg · erg_charge.verkaufsfaehig_lager_kg"
     },
     {
@@ -269,11 +269,12 @@
     },
     {
       "muster": [
-        "Unique"
+        "Unique",
+        "Ünique"
       ],
       "art": "gerechnet",
-      "bedeutet": "Ware mit Hagelschaden: nicht faul, wird als eigener Artikel (nur Knospe) verkauft — gute Ware × Hagelanteil, wo die Kaskade Hagel angewandt hat (0121)",
-      "quelle": "v_lager_ausweis.unique_kg · mv_kaskade.hagel"
+      "bedeutet": "Die Ware der Chargen mit Hagel: nicht faul, nicht nach Grösse sortiert, als eigener Artikel (nur Knospe) verkauft. Seit 0133 das ganze Verkaufsfähige jeder Hagel-Charge, alle zusammen im Ünique-Topf; bis 0132 gute Ware × Hagelanteil (0121)",
+      "quelle": "v_lager_ausweis.unique_kg · v_unique_topf · mv_kaskade.hagel"
     },
     {
       "muster": [

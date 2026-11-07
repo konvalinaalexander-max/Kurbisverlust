@@ -901,6 +901,16 @@ const BILDSCHIRME = [
       await p.locator('.hagel-zelle input[type="checkbox"]:not(:checked)').first().check()
       await p.locator('.hagel-feld input').waitFor()
     } },
+  // Runde BJ (0133): der Ünique-Topf — die Hagel-Charge der Demo sagt „nicht vorherzusagen", am Ende steht der Topf als Zeile.
+  { name: 'chargen-unique-topf', wer: 'admin', pfad: '/chargen',
+    tun: async p => {
+      const topf = p.locator('#chargen-unique-topf')
+      await topf.waitFor()
+      const text = await topf.innerText()
+      if (!/Ünique-Topf/.test(text) || !/1 Charge mit Hagel/.test(text) || !/\d/.test(text)) throw new Error(`die Topf-Zeile sagt nicht, was im Topf ist: ${text}`)
+      await p.locator('.unique-topf-wort', { hasText: 'nicht vorherzusagen — Verkauf über den Ünique-Topf' }).first().waitFor()
+      await topf.scrollIntoViewIfNeeded()
+    } },
   // Runde AS: eine Lieferung der geöffneten Charge als Fenster.
   { name: 'chargen-lieferung', wer: 'admin', pfad: '/chargen',
     tun: async p => {

@@ -292,6 +292,25 @@ geteilten Anteile der Sorte und der Station (`v_palox_erwartung`,
 `palox_station_kennzahl`) — sonst trüge jede andere Charge ihren Hagel mit.
 Entsorgtes bleibt, wie es gewogen wurde. `mv_kaskade.hagel` sagt, welcher
 Hagel angewandt wurde.
+**Seit 0133 — der Ünique-Topf (`v_topf_lieferung`, `v_hagel_erwartung`,
+`v_unique_topf`):** Hagel ist kein Aufschlag mehr; `hagel_f(f, h)` gibt f
+zurück. Jede Charge mit Hagel gehört ganz in einen Topf, gleich welche
+Prozentzahl eingetragen ist und welche Sorte („das ist nur ein visueller
+Eindruck"). Was aus dem Topf geht — jede Lieferung (Verkauf, Marge) einer
+Hagel-Charge und jede Ünique-Lieferung (`ist_unique_artikel`), gleich welche
+Charge Perigon nennt —, verteilt `v_lieferung_charge` nach dem Eingang auf die
+Hagel-Chargen, die bis zum Liefertag da waren (sonst auf alle). Die Kaskade
+rechnet je Hagel-Charge weiter, aber ohne zu klein, zu gross und Fax (0,
+bekannt, Satz „Hagel-Charge (Ünique-Topf): nicht nach Grösse sortiert"; die
+Sortierdatei gilt für sie nicht, auch nicht in Verlauf und Prognose). Ihr
+Palox: eigene Messung, gewichtet n ÷ (n + 3) mit der **Hagel-Erwartung** — den
+Arbeiten der anderen Hagel-Chargen derselben Sorte, gewichtet n ÷ (n + 3) mit
+der Sorte ohne Hagel; ohne solche die Sorte ohne Hagel. Liegende Hagel-Ware
+nimmt die Hagel-Erwartung + Anstieg × Alter. Hagelware zählt weiter nie für
+die Sorte ohne Hagel. `mv_kaskade.hagel` ist die eingetragene Zahl an jeder
+Portion ausser dem Entsorgten — ein Merkmal, kein Aufschlag. Ohne eine
+einzige Hagel-Charge gibt es keinen Topf; Ünique bleibt dann bei der
+genannten Charge.
 **Fehlt eine Eingabe:** eine Arbeit ohne Nenner liefert keinen Punkt
 (Auffälligkeit „Ohne Nenner"); ein Leeren ohne Ablesung macht die Menge
 unbekannt (Auffälligkeit „Palox geleert"); hat eine Station auf dem Weg
@@ -544,11 +563,14 @@ nicht die Masse der Datei ergeben; der Warenausgang warnt oben.
 **Braucht:** je Charge die Prognose von heute (`erg_prognose`, h = 0: liegende
 Eingangsmasse, verdunstet, faul, gute Ware, zu klein, zu gross, Faules beim
 Abpacken, verkaufsfähig), die Restpaletten (`erg_charge.n_rest_paletten`), den
-angewandten Hagel der Kaskade (`mv_kaskade.hagel`) und die Überfüllung
+Hagel der Kaskade (`mv_kaskade.hagel`) und die Überfüllung
 (`erg_marge_charge`: zu viel je Kiste und Soll).
-**Rechnet:** eingang_kg − verdunstet − faul − Unique − zu klein − zu gross −
-Faules beim Abpacken = verkaufsfähig. Unique = gute Ware · h/(1 − h), wo die
-Kaskade den Hagel h angewandt hat; faul = Faules der Kaskade − Unique. Marge =
+**Rechnet:** eingang_kg − verdunstet − faul − zu klein − zu gross − Faules beim
+Abpacken = verkaufsfähig. Seit 0133 ist Ünique bei einer Hagel-Charge ihr
+ganzes Verkaufsfähiges (`unique_kg`, darin, nicht dazu), faul ist nur der
+Palox, `hagel_bis_heute_kg` 0, `verkaufbar_offen` „Hagel-Charge: Verkauf über
+den Ünique-Topf". Bis 0132: Unique = gute Ware · h/(1 − h), aus dem Faulen der
+Kaskade herausgerechnet. Marge =
 verkaufsfähig · a/(1 + a), a = Σ zu viel ÷ Σ Soll der gewogenen Kisten der Charge,
 sonst der Sorte; Stück-Kisten haben kein Soll: a = 0. Verrechenbar = verkaufsfähig
 − Marge. Die App zählt über die Chargen der Auswahl zusammen
@@ -569,7 +591,9 @@ gemessene Verdunstung geschrumpft) und die Überfüllung a wie oben.
 **Rechnet:** passt in keinen Artikel = Σ der Teile darunter, darüber, dazwischen
 und der Sorten ohne Artikel; Grösse offen = Σ ohne Verteilung; als Artikel =
 verkaufsfähig − passt in keinen Artikel; Überfüllung = als Artikel · a/(1 + a);
-verkaufbar = als Artikel − Überfüllung + Unique. Die Kette geht auf:
+verkaufbar = als Artikel − Überfüllung (bis 0132 + Unique; seit 0133 ist Ünique
+darin, und `artikel_lager_teile` nimmt Hagel-Chargen nicht in die
+Grössenartikel — ihre Ware geht ganz als Ünique). Die Kette geht auf:
 eingang − verdunstet − faul − zu klein − zu gross − Faules beim Abpacken −
 passt in keinen Artikel − Überfüllung = verkaufbar. Der Anteil in der Kachel
 ist verkaufbar ÷ im Lager.
@@ -591,8 +615,8 @@ Verkaufbare ist dann eine obere Schranke. Eine Artikelgruppe ohne Gewichte
 (`artikel_kaliber` leer) ist ein Artikel ohne Grösse (lose) und zählt als
 verkaufbar. Ohne Sortier-CSV ist `keinen_artikel_kg` leer, nicht 0; ohne
 Verkaufsfähiges sind auch `groesse_offen_kg` und `gruppe_offen_kg` leer. Hagel
-100 %: `faul_kg`, `unique_kg`, `hagel_bis_heute_kg` und `verkaufbar_kg` leer
-(die Kaskade kann Unique und Faules nicht trennen), Grund „Hagel 100 %".
+100 % war bis 0132 „nicht trennbar" (alles leer); seit 0133 rechnet die
+Prozentzahl nicht, und die Charge geht ganz als Ünique.
 Gewogene Paletten, deren Arbeit kein Kistensystem oder kein Sollgewicht hat
 (`v_ausgang_kennzahl`): `marge_quelle` nennt die Zahl und die Stelle zum
 Nachtragen, `verkaufbar_offen` „Überfüllung offen …" statt „nicht gewogen".
@@ -704,7 +728,7 @@ Je Chargenzeile
 mit Lieferung: die Masse ihrer Lieferung (nachholen, mehrdeutig, unbekannt —
 nur ohne Charge; Artikel gegen Sorte, Demeter/Knospe, Mix nicht verteilt, vor
 dem Eingang — mit Charge; seit 0131 der verteilte Mix als Auskunft mit
-seinen Anteilen; die Anteile ohne Charge sind keine eigenen Chargenzeilen). Rot ab 500 kg bei Arten, die Ware auf die falsche oder keine Charge
+seinen Anteilen; die Anteile ohne Charge sind keine eigenen Chargenzeilen; seit 0133 Ünique unter einer Charge ohne Hagel — die Masse geht aus dem Ünique-Topf, gelb). Rot ab 500 kg bei Arten, die Ware auf die falsche oder keine Charge
 legen; Auskunft bei nachholen und Rücknahme.
 **Merken:** nach jedem fertigen Rechenlauf alle Fälle dieser Sicht und alle
 Sachen aus `v_ungereimtheit` (Schlüssel `ungereimt_schluessel`, wie in der App)

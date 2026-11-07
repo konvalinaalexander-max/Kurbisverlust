@@ -1281,6 +1281,9 @@ button.link { background: none; border: 0; padding: 0; min-height: 0; color: var
 .ungereimt-mal.gelb { color: var(--gelb); }
 tr.ohne-eingang > td { background: color-mix(in srgb, var(--rot) 6%, transparent); }
 tr.ohne-charge-zeile > td { background: color-mix(in srgb, var(--gelb) 7%, transparent); }
+/* 0133: der Ünique-Topf — eine Zeile für alle Hagel-Chargen */
+tr.unique-topf-zeile > td { background: color-mix(in srgb, var(--strom-unique) 9%, transparent); white-space: normal; }
+.unique-topf-wort { white-space: normal; }
 
 /* ---------- 0126: der Reiter Perigon ------------------------------------- */
 /* Oben auf den Lagerseiten statt der grossen Leiste eine Zeile mit dem Weg in den Reiter. */

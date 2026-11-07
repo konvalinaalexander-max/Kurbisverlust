@@ -525,13 +525,15 @@ test('Prognose: die Hülle schliesst den Mittelwert ein', () => {
 
 /* ===================== Runde AS (0116): Kaliber aus der Sortierdatei, Hagel ============ */
 
-test('Hagel: 1 − (1 − f) · (1 − Hagel); ohne Hagel f, 100 % Hagel 1, sonst bleibt unbekannt unbekannt', () => {
+// Bis 0132 hiess dieser Test „1 − (1 − f) · (1 − Hagel); 100 % Hagel 1". Seit 0133 (Ünique-Topf) ist Hagel kein
+// Aufschlag auf das Faule: die Hagelware geht als Ünique hinaus, die Prozentzahl ist der Eindruck.
+test('Hagel (seit 0133): kein Aufschlag — f bleibt f, bei jedem Hagel; unbekannt bleibt unbekannt', () => {
   assert.equal(hagelF(0.1, null), 0.1)
   assert.equal(hagelF(0.1, 0), 0.1)
-  assert.ok(nahe(hagelF(0.1, 0.2)!, 0.28, 1e-12))
-  assert.equal(hagelF(null, 1), 1)
+  assert.equal(hagelF(0.1, 0.2), 0.1)
+  assert.equal(hagelF(0.3, 1), 0.3)
+  assert.equal(hagelF(null, 1), null)
   assert.equal(hagelF(null, 0.5), null)
-  assert.equal(hagelF(1.5, 0.2), 1)
 })
 
 test('Kaliber: beim Alter des Laufs ist der Anteil wieder der der Datei, später rutscht mehr unter die Grenze', () => {

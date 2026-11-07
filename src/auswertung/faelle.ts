@@ -391,7 +391,8 @@ export function rueckrechnung(zeilen: KaskadeZeile[], eingangKg: number | null):
     wie: 'beim Sortieren über dem grössten Artikel — bleibt im Haus, ist nicht verkauft', woher: z0.gross_basis })
   if (fax > 0.5) schritte.push({ strom: 'fax', was: 'faul beim Abpacken', kg: fax, anteil: null, wie: 'beim Etikettieren aussortiert', woher: null })
   if (faul > 0.5) schritte.push({ strom: 'schimmel', was: 'Faules in den Palox', kg: faul, anteil: m1 > 0 ? faul / m1 : null,
-    wie: `beim Waschen und Sortieren aussortiert${hagel > 0 ? `, darin Hagel ${prozent(hagel)}` : ''}`, woher: z0.f_quelle })
+    // 0133: Hagel ist kein Faules mehr — die Hagel-Charge geht als Ünique aus dem Topf; ihr Palox ist ihr Palox
+    wie: `beim Waschen und Sortieren aussortiert${hagel > 0 ? ' — Hagel-Charge (Ünique-Topf), der Hagel selbst ist kein Faules' : ''}`, woher: z0.f_quelle })
   if (verd > 0.5) schritte.push({ strom: 'verdunstung', was: 'im Lager verdunstet', kg: verd, anteil: verd / m0,
     wie: r != null ? `${prozent(Number(r), 2)} je Tag, im Mittel ${zahl(Math.round(tage))} Tage gelagert` : `im Mittel ${zahl(Math.round(tage))} Tage gelagert`,
     woher: z0.r_basis })

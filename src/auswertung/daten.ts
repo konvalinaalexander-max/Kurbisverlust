@@ -255,6 +255,8 @@ export type PerigonArt = 'menge_null' | 'zu_viel' | 'rest' | 'keine_nummer' | 'o
   | 'nachholen' | 'mehrdeutig' | 'unbekannt' | 'artikel_sorte' | 'demeter_knospe' | 'mix' | 'vor_eingang'
   /** 0131 */
   | 'label_gemischt' | 'kg_gewicht' | 'mix_verteilt'
+  /** 0133: Ünique unter einer Charge ohne Hagel */
+  | 'unique_ohne_hagel'
 /** 0126: wo ein Fall behoben wird — in Perigon, im Chargenregister, durch neues Einlesen, bei der Firma, oder gar nicht. */
 export type PerigonWo = 'perigon' | 'stammdaten' | 'einlesen' | 'firma' | 'nichts'
 
@@ -297,15 +299,31 @@ export interface PerigonVermerk {
 /**
  * Was im Lager liegt, Schritt für Schritt, je Charge heute (v_lager_ausweis,
  * 0121): eingang_kg (auf den Paletten, die noch liegen, wie eingegangen) −
- * verdunstet − faul (Palox, ohne Hagel) − unique (Hagel, als Knospe verkauft)
- * − zu klein − zu gross (Sortiermaschine) − Faules beim Abpacken =
- * verkaufsfaehig_kg; davon marge_kg Überfüllung, verrechenbar_kg der Rest.
+ * verdunstet − faul (Palox) − zu klein − zu gross (Sortiermaschine) − Faules
+ * beim Abpacken = verkaufsfaehig_kg; davon marge_kg Überfüllung, verrechenbar_kg
+ * der Rest. Seit 0133 ist unique_kg bei einer Hagel-Charge ihr Verkaufsfähiges
+ * (darin, nicht dazu — sie geht aus dem Ünique-Topf als Ünique hinaus), sonst 0;
+ * hagel_bis_heute_kg ist 0 (Hagel ist kein Faules mehr).
  * 0123: verkaufbar_kg ist, was wir als Artikel tatsächlich verkaufen können —
  * verkaufsfaehig_kg ohne, was in kein Artikelgewicht passt, und ohne die
  * Überfüllung darauf, mit Unique; verkaufbar_offen sagt, was dafür fehlt (dann
  * ist es eine obere Schranke). Leer heisst unbekannt (eine Rate nicht
  * gemessen), nie 0.
  */
+/**
+ * Der Ünique-Topf (v_unique_topf, 0133): alle Chargen mit Hagel zusammen,
+ * über alle Sorten — sie gehen miteinander als Ünique hinaus. Ohne Hagel-Charge
+ * gibt es keinen Topf (null). Leer heisst unbekannt, nie 0.
+ */
+export interface UniqueTopf {
+  n_chargen: number; chargen: number[]; sorten: string | null
+  eingang_kg: number | null; geliefert_kg: number; davon_unique_kg: number
+  unique_unter_fremder_charge_kg: number; n_unique_unter_fremder_charge: number; fremde_chargen: string | null
+  im_lager_kg: number | null; verdunstet_kg: number | null; faul_kg: number | null
+  verkaufsfaehig_kg: number | null; marge_kg: number | null; verrechenbar_kg: number | null
+  n_unbekannt: number; ueberzaehlung_kg: number; hinweis: string | null
+}
+
 export interface LagerAusweis {
   charge_nr: number; sorte: string; schlag: string; paletten: number | null
   eingang_kg: number | null; alter_tage: number | null
@@ -546,6 +564,8 @@ export interface Auswertung {
   lieferungGruppe: LieferungGruppe[]
   /** 0121: was im Lager liegt, Schritt für Schritt, je Charge (erste Welle). */
   ausweis: LagerAusweis[]
+  /** 0133: der Ünique-Topf (zweite Welle); null ohne Hagel-Charge. */
+  uniqueTopf: UniqueTopf | null
   /** 0121: was zwischen Perigon und Lager nicht passt, und die Perigon-Zeilen dazu (zweite Welle). */
   ungereimt: UngereimtZeile[]
   /** 0126: jeder Fall einer Perigon-Position (v_perigon_befund) — vorher v_perigon_pruefung. */
@@ -765,7 +785,7 @@ async function alles(erzwingen: boolean): Promise<Auswertung> {
     sorten: { verdunstung: [], ausschuss: [], nebenkanal: [] }, wiegungen: [], margeWiegung: [], margeCharge: [], kommentare: [],
     verarbeitung: [], qualitaet: null, verlauf: vl,
     gebinde: [], schemata: [], kohorten: [], ausschuss: [], ausgang: [],
-    prognose: pg, wohin: wo, lieferungGruppe: lg, ausweis: aw, ungereimt: [], perigon: [], faelleStand: [], spur: [], probleme,
+    prognose: pg, wohin: wo, lieferungGruppe: lg, ausweis: aw, uniqueTopf: null, ungereimt: [], perigon: [], faelleStand: [], spur: [], probleme,
   }
   if (!erzwingen) { stand = ersteWelle; hoerer.forEach(h => h()) }
 
@@ -791,8 +811,8 @@ async function alles(erzwingen: boolean): Promise<Auswertung> {
   // 0121: was zwischen Perigon und Lager nicht passt — für den Hinweis oben auf jeder Lagerseite.
   // 0122: dazu der Weg der Ware je Charge, damit jede Sache zeigt, wo die Ware herein, durch und hinaus ging.
   // 0126: die Perigon-Fälle je Position (v_perigon_befund) statt v_perigon_pruefung, dazu ihr Stand.
-  const [ug, pp, sp, fs] = await Promise.all([q<UngereimtZeile>('v_ungereimtheit'), q<PerigonBefund>('v_perigon_befund', ['datum', false]),
-    q<ChargeSpur>('v_charge_spur', ['charge_nr', true]), q<PerigonVerlauf>('v_perigon_verlauf')])
+  const [ug, pp, sp, fs, ut] = await Promise.all([q<UngereimtZeile>('v_ungereimtheit'), q<PerigonBefund>('v_perigon_befund', ['datum', false]),
+    q<ChargeSpur>('v_charge_spur', ['charge_nr', true]), q<PerigonVerlauf>('v_perigon_verlauf'), q<UniqueTopf>('v_unique_topf')])
   // 0108: Eine noch ungefüllte Sicht der zweiten Welle steht in probleme
   // (ihre Zahl ist unbekannt, nie 0) — die Seiten zeichnen, was da ist,
   // statt im Ladekreis zu warten. Bis 0108: IM_BAU, und Chargen, Ursachen,
@@ -821,7 +841,7 @@ async function alles(erzwingen: boolean): Promise<Auswertung> {
     sorten: { verdunstung: kfv, ausschuss: kfa, nebenkanal: kfn }, wiegungen: wk, margeWiegung: mw, margeCharge: mc, kommentare: km,
     verarbeitung: va, qualitaet: dq,
     gebinde: kg, schemata: ss, kohorten: ko, ausschuss: ab, ausgang: ak,
-    ungereimt: ug, perigon: pp, faelleStand: fs, spur: sp,
+    ungereimt: ug, perigon: pp, faelleStand: fs, spur: sp, uniqueTopf: ut[0] ?? null,
   }
 }
 

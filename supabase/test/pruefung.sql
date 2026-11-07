@@ -8878,11 +8878,13 @@ begin
   -- (d) artikel_lager
   select count(*) into v_n from artikel_lager(0);
   assert v_n > 0, '0112 (d0): artikel_lager(0) ist leer — die Demo trägt die Prüfung nicht';
-  -- dieselbe Masse wie das Verkaufsfähige der Prognose, heute und in vier Wochen
+  -- dieselbe Masse wie das Verkaufsfähige der Prognose, heute und in vier Wochen — seit 0133 ohne die Hagel-Chargen:
+  -- ihre Ware geht als Ünique (v_lager_ausweis.unique_kg), nicht nach Grösse in die Artikel
   select count(*) filter (where abs(coalesce(a.kg, 0) - p.kg) > 0.05) into v_ab
     from (values (0), (28)) hh(h)
     cross join lateral (select coalesce(sum(verkaufsfaehig_kg), 0) as kg from erg_prognose
-                         where gruppe = 'charge' and h = hh.h and verkaufsfaehig_kg > 0) p
+                         where gruppe = 'charge' and h = hh.h and verkaufsfaehig_kg > 0
+                           and not exists (select 1 from charge hc where hc.nr = schluessel::int and hc.hagel_anteil > 0)) p
     cross join lateral (select sum(kg) as kg from artikel_lager(hh.h)) a;
   assert v_ab = 0, '0112 (d1): artikel_lager summiert nicht auf das Verkaufsfähige — zweite Rechnung';
   -- je Charge nachgerechnet: der Anteil klein = Kürbismasse der Verteilung in [von, bis) / ganze Masse
@@ -8898,7 +8900,9 @@ begin
         join charge c on c.nr = p.schluessel::int
         join v_sorte_artikelgruppe g on g.sorte = c.sorte and g.artikelgruppe = k.gruppe
         join lager_schluessel() q on q.charge_nr = c.nr and q.basis <> 'keine'
-       where p.gruppe = 'charge' and p.h = 0 and p.verkaufsfaehig_kg > 0) x on true
+       where p.gruppe = 'charge' and p.h = 0 and p.verkaufsfaehig_kg > 0
+         and coalesce(c.hagel_anteil, 0) = 0   -- seit 0133 gehen Hagel-Chargen als Ünique, nicht nach Grösse
+      ) x on true
     join lateral (select coalesce(sum(a.kg), 0) as kg from artikel_lager(0) a
                    where a.artikelgruppe = k.gruppe and a.groesse = 'klein') a on true
    where x.kg > 0;
@@ -8919,7 +8923,8 @@ begin
     from erg_prognose p
     join charge c on c.nr = p.schluessel::int
     join lager_schluessel() q on q.charge_nr = c.nr and q.basis = 'keine'
-   where p.gruppe = 'charge' and p.h = 0 and p.verkaufsfaehig_kg > 0;
+   where p.gruppe = 'charge' and p.h = 0 and p.verkaufsfaehig_kg > 0
+     and coalesce(c.hagel_anteil, 0) = 0;   -- seit 0133 geht eine Hagel-Charge als Ünique, in keinen Artikel
   assert v_n > 0, '0112 (d4): die Demo hat keine Charge ohne Sortier-CSV mehr — die Prüfung wäre blind';
   assert v_ab = 0, format('0112 (d4b): %s von %s Chargen ohne Sortier-CSV stehen nicht ganz unter „ohne Verteilung"', v_ab, v_n);
   -- ohne Artikelgruppe geht nichts verloren (Kaori Kuri wird verkauft — also
@@ -8931,7 +8936,9 @@ begin
   assert exists (select 1 from artikel_lager(0) where artikelgruppe is null and kg > 0),
     '0112 (d5): eine Sorte ohne Artikelgruppe fällt aus artikel_lager heraus';
   select count(*) filter (where abs(coalesce(a.kg, 0) - p.kg) > 0.05) into v_ab
-    from (select coalesce(sum(verkaufsfaehig_kg), 0) as kg from erg_prognose where gruppe = 'charge' and h = 0 and verkaufsfaehig_kg > 0) p
+    from (select coalesce(sum(verkaufsfaehig_kg), 0) as kg from erg_prognose where gruppe = 'charge' and h = 0 and verkaufsfaehig_kg > 0
+            -- seit 0133 ohne die Hagel-Chargen (Ünique, in keinem Grössenartikel)
+            and not exists (select 1 from charge hc where hc.nr = schluessel::int and hc.hagel_anteil > 0)) p
     cross join (select sum(kg) as kg from artikel_lager(0)) a;
   assert v_ab = 0, '0112 (d5b): ohne Artikelgruppe stimmt die Summe nicht mehr';
   update ausgang_zeile z set artikel = t.artikel from t112_namen t where z.id = t.id;
@@ -9103,12 +9110,14 @@ begin
                    where c.artikelgruppe is not distinct from a.artikelgruppe
                      and c.label is not distinct from a.label and c.groesse = a.groesse) x on true;
   assert v_n > 0 and v_ab = 0, format('0113 (c1): bei %s von %s Artikeln weicht die Summe der Chargen ab', v_ab, v_n);
-  -- je Charge das ganze Verkaufsfähige: kein Kilo zweimal, keins verloren
+  -- je Charge das ganze Verkaufsfähige: kein Kilo zweimal, keins verloren — seit 0133 je Charge ohne Hagel (die Hagel-Charge
+  -- geht ganz als Ünique; dass sie in keinem Artikel steht, prüft 0133 (f3))
   select count(*), count(*) filter (where abs(coalesce(x.kg, 0) - p.verkaufsfaehig_kg) > 0.05)
     into v_n, v_ab
     from erg_prognose p
     left join lateral (select sum(c.kg) as kg from artikel_lager_charge(0) c where c.charge_nr = p.schluessel::int) x on true
-   where p.gruppe = 'charge' and p.h = 0 and p.verkaufsfaehig_kg > 0;
+   where p.gruppe = 'charge' and p.h = 0 and p.verkaufsfaehig_kg > 0
+     and not exists (select 1 from charge hc where hc.nr = p.schluessel::int and hc.hagel_anteil > 0);
   assert v_n > 0 and v_ab = 0, format('0113 (c2): bei %s von %s Chargen ergeben die Artikel nicht das Verkaufsfähige', v_ab, v_n);
   -- das Label im Lager ist das der Charge
   assert not exists (select 1 from artikel_lager_charge(0) c join v_charge_label v on v.charge_nr = c.charge_nr
@@ -9750,6 +9759,8 @@ begin
     select k.charge_nr, k.a_klein_n, k.a_gross_n, q.lo, q.hi, power(1 - k.r, k.alter_tage) as q
       from mv_kaskade k join mv_kaliber_quelle q on q.charge_nr = k.charge_nr
      where q.ebene = 'charge' and k.alter_tage is not null
+       -- seit 0133 gilt die Sortierdatei nicht für Hagelware: sie wird nicht nach Grösse sortiert (0133 (e1))
+       and not exists (select 1 from charge hc where hc.nr = k.charge_nr and hc.hagel_anteil > 0)
   )
   select count(*), count(*) filter (where abs(z.a_klein_n - n.klein) > 1e-9 or abs(z.a_gross_n - n.gross) > 1e-9)
     into v_n, v_ab
@@ -9807,11 +9818,14 @@ begin
     left join v_koeff_ausschuss ka on ka.sorte = k.sorte
     left join v_koeff_nebenkanal kn on kn.sorte = k.sorte
    cross join lateral (select greatest(least(greatest(coalesce(ka.mittel, 0), 0), 1) + least(greatest(coalesce(kn.mittel, 0), 0), 1), 1) as f) n
-   where not exists (select 1 from mv_kaliber_quelle q where q.charge_nr = k.charge_nr);
+   where not exists (select 1 from mv_kaliber_quelle q where q.charge_nr = k.charge_nr)
+     and not exists (select 1 from charge hc where hc.nr = k.charge_nr and hc.hagel_anteil > 0);   -- seit 0133: Hagel 0, nicht die Sorte
   assert v_n > 0 and v_ab = 0,
     format('0116 (c9): %s von %s Kaskadenzeilen ohne Sortierdatei tragen nicht den gemessenen Anteil der Sorte', v_ab, v_n);
   assert not exists (select 1 from mv_kaskade k join mv_kaliber_quelle q on q.charge_nr = k.charge_nr
-                      where k.klein_basis not like 'Sortierdatei%' or k.klein_n <> q.n_laeufe),
+                      where (k.klein_basis not like 'Sortierdatei%' or k.klein_n <> q.n_laeufe)
+                        -- seit 0133 sagt eine Hagel-Charge „nicht nach Grösse sortiert" — die Sortierdatei gilt für sie nicht
+                        and not exists (select 1 from charge hc where hc.nr = k.charge_nr and hc.hagel_anteil > 0)),
     '0116 (c10): eine Zeile aus der Sortierdatei sagt nicht, dass sie von dort kommt';
   -- (c11) Die Prognose: zu klein und zu gross ändern sich mit dem Alter. Was
   --       beim Eintrocknen über die Grenze geht, zählt zum Wasser — Wasser +
@@ -9827,17 +9841,18 @@ begin
   assert v_n > 0 and v_ab = 0,
     format('0116 (c11): bei %s von %s Horizonten ergeben Wasser und Fäulnis nicht den Verlust an verkaufsfähiger Ware', v_ab, v_n);
 
-  -- (d) Der Hagel
-  assert hagel_f(0.1, null) = 0.1 and hagel_f(0.1, 0) = 0.1 and abs(hagel_f(0.1, 0.2) - 0.28) < 1e-12
-     and hagel_f(null, 1) = 1 and hagel_f(null, 0.5) is null and hagel_f(1.5, 0.2) = 1 and hagel_f(0.3, 1) = 1,
-    '0116 (d1): hagel_f rechnet nicht 1 − (1 − f) · (1 − Hagel)';
+  -- (d) Der Hagel. Bis 0132 ein Aufschlag auf das Faule, 1 − (1 − f) · (1 − Hagel); seit 0133 (Ünique-Topf)
+  --     keiner mehr — Hagelware geht als Ünique hinaus, hagel_f gibt f zurück. Die Prüfung folgt der Regel.
+  assert hagel_f(0.1, null) = 0.1 and hagel_f(0.1, 0) = 0.1 and hagel_f(0.1, 0.2) = 0.1
+     and hagel_f(null, 1) is null and hagel_f(null, 0.5) is null and hagel_f(0.3, 1) = 0.3,
+    '0116 (d1): hagel_f rechnet noch einen Hagel-Aufschlag (seit 0133 keinen)';
   select c.nr, c.hagel_anteil into v_c, v_hagel from charge c where c.hagel_anteil > 0 order by c.nr limit 1;
   assert v_c is not null, '0116 (d2): die Demo hat keine Charge mit Hagel';
   assert not exists (select 1 from mv_kaskade k join charge c on c.nr = k.charge_nr
+                      -- seit 0133 trägt jede Portion ausser dem Entsorgten die eingetragene Zahl: ein Merkmal, kein Aufschlag
                       where coalesce(k.hagel, 0) <> case when c.hagel_anteil is null or k.portion = 'entsorgt' then 0
-                                                         when k.portion = 'lager' then c.hagel_anteil
-                                                         when k.f_eigen then 0 else c.hagel_anteil end),
-    '0116 (d3): der Hagel trifft eine Portion, die er nicht treffen darf (Gemessenes doppelt), oder fehlt, wo er hingehört';
+                                                         else c.hagel_anteil end),
+    '0116 (d3): eine Portion trägt den Hagel ihrer Charge nicht, oder das Entsorgte trägt ihn';
   assert exists (select 1 from mv_kaskade where charge_nr = v_c and portion = 'lager' and hagel = v_hagel),
     '0116 (d4): die liegende Ware der Hagel-Charge trägt keinen Hagel';
   -- (d5) Die geteilten Anteile ohne Hagel-Chargen: so viele Arbeiten, wie
@@ -9853,12 +9868,18 @@ begin
   assert v_n > 0 and v_ab = 0, format('0116 (d5): %s von %s geteilten Palox-Anteilen zählen Arbeiten von Hagel-Chargen mit', v_ab, v_n);
   assert exists (select 1 from v_schimmel_punkte p where p.charge_nr = v_c and p.plausibel_station and p.quelle like 'verarbeitung%'),
     '0116 (d6): die Hagel-Charge der Demo hat keine gemessene Arbeit — (d5) wäre blind';
-  -- (d7) 100 % Hagel: nichts von der liegenden Ware ist verkaufsfähig
+  -- (d7) Bis 0132: 100 % Hagel hiess, nichts von der liegenden Ware ist verkaufsfähig. Seit 0133 (der Betrieb:
+  --      „das ist nur ein visueller Eindruck") rechnet die Prozentzahl nicht: mit 100 % ist die liegende Ware
+  --      so verkaufsfähig wie mit der eingetragenen Zahl — sie geht als Ünique.
+  create temp table hagel_vorher on commit drop as
+    select kohorte, f, verkaufsfaehig_kg from mv_kaskade where charge_nr = v_c and portion = 'lager';
   update charge set hagel_anteil = 1 where nr = v_c;
   perform auswertung_aktualisieren();
-  select count(*), count(*) filter (where f <> 1 or verkaufsfaehig_kg > 1e-9) into v_n, v_ab
-    from mv_kaskade where charge_nr = v_c and portion = 'lager';
-  assert v_n > 0 and v_ab = 0, format('0116 (d7): mit 100 %% Hagel sind %s von %s liegenden Portionen noch verkaufsfähig', v_ab, v_n);
+  select count(*), count(*) filter (where k.f is distinct from v.f or abs(k.verkaufsfaehig_kg - v.verkaufsfaehig_kg) > 1e-6
+                                       or not (k.verkaufsfaehig_kg > 0)) into v_n, v_ab
+    from mv_kaskade k join hagel_vorher v on not v.kohorte is distinct from k.kohorte
+   where k.charge_nr = v_c and k.portion = 'lager';
+  assert v_n > 0 and v_ab = 0, format('0116 (d7): mit 100 %% Hagel sind %s von %s liegenden Portionen anders verkaufsfähig als mit %s %% (die Zahl rechnet seit 0133 nicht)', v_ab, v_n, round(100 * v_hagel));
   update charge set hagel_anteil = v_hagel where nr = v_c;
   perform auswertung_aktualisieren();
 
@@ -10519,8 +10540,9 @@ begin
   -- (g) der Lager-Ausweis geht auf — und mit Hagel
   update auswertung_stand set rechnet_seit = null where id = 1;
   for v_s in 1..5 loop perform auswertung_schritt_intern(v_s, false); end loop;
+  -- seit 0133 ist Ünique das Verkaufsfähige einer Hagel-Charge (darin, nicht daneben) — die Kette geht ohne es auf
   for v_x in select * from v_lager_ausweis where eingang_kg > 0 and verkaufsfaehig_kg is not null and faul_kg is not null loop
-    assert abs(v_x.eingang_kg - (v_x.verdunstet_kg + v_x.faul_kg + coalesce(v_x.unique_kg, 0) + v_x.zu_klein_kg + v_x.zu_gross_kg
+    assert abs(v_x.eingang_kg - (v_x.verdunstet_kg + v_x.faul_kg + v_x.zu_klein_kg + v_x.zu_gross_kg
                                   + coalesce(v_x.fax_kg, 0) + v_x.verkaufsfaehig_kg)) < 0.1,
       format('0121 (g1): bei Charge %s geht die Kette nicht auf: %s', v_x.charge_nr, row_to_json(v_x));
   end loop;
@@ -10533,13 +10555,15 @@ begin
   update charge set hagel_anteil = 0.25 where nr = v_hc;
   update auswertung_stand set rechnet_seit = null where id = 1;
   for v_s in 1..5 loop perform auswertung_schritt_intern(v_s, false); end loop;
-  select a.unique_kg, a.faul_kg, p.gute_ware_kg, p.faul_kg as faul_kaskade into v_x
+  -- Bis 0132: Unique = gute Ware · h/(1−h), aus dem Faulen herausgerechnet. Seit 0133 (Ünique-Topf): Ünique ist das
+  -- ganze Verkaufsfähige der Hagel-Charge, und das Faule ist nur der Palox — die Prüfung folgt der Regel.
+  select a.unique_kg, a.faul_kg, a.verkaufsfaehig_kg, p.gute_ware_kg, p.faul_kg as faul_kaskade into v_x
     from v_lager_ausweis a join erg_prognose p on p.gruppe = 'charge' and p.schluessel = a.charge_nr::text and p.h = 0
    where a.charge_nr = v_hc;
-  assert abs(v_x.unique_kg - v_x.gute_ware_kg * 0.25 / 0.75) < 0.05 and v_x.unique_kg > 0,
-    format('0121 (g2): Unique ist nicht gute Ware · h/(1−h): %s', row_to_json(v_x));
-  assert abs(v_x.faul_kg + v_x.unique_kg - v_x.faul_kaskade) < 0.05,
-    format('0121 (g3): Faules + Unique ist nicht das Faule der Kaskade: %s', row_to_json(v_x));
+  assert v_x.unique_kg = v_x.verkaufsfaehig_kg and v_x.unique_kg > 0,
+    format('0121 (g2): Ünique ist nicht das Verkaufsfähige der Hagel-Charge: %s', row_to_json(v_x));
+  assert abs(v_x.faul_kg - v_x.faul_kaskade) < 0.05,
+    format('0121 (g3): das Faule ist nicht das Faule der Kaskade: %s', row_to_json(v_x));
   update charge set hagel_anteil = v_h_alt where nr = v_hc;
 
   -- (h) Ware ohne Charge
@@ -10923,9 +10947,10 @@ begin
   -- (b) die Rechnung
   select count(*) into v_n from v_lager_ausweis a
    where a.verkaufsfaehig_kg is not null
-     -- 0124: keinen_artikel_kg ist ohne Sortier-CSV leer (kein Abzug); Hagel 100 % lässt verkaufbar leer
-     and abs(a.verkaufbar_kg - (a.verkaufsfaehig_kg - coalesce(a.keinen_artikel_kg, 0) - coalesce(a.ueberfuellung_kg, 0) + coalesce(a.unique_kg, 0))) > 0.05;
-  assert v_n = 0, format('0123 (b1): bei %s Chargen ist verkaufbar nicht verkaufsfähig − passt in keinen Artikel − Überfüllung + Unique', v_n);
+     -- 0124: keinen_artikel_kg ist ohne Sortier-CSV leer (kein Abzug). Bis 0132 kam Unique dazu (es stand ausserhalb
+     -- des Verkaufsfähigen); seit 0133 ist es das Verkaufsfähige der Hagel-Charge, darin — es kommt nicht mehr dazu.
+     and abs(a.verkaufbar_kg - (a.verkaufsfaehig_kg - coalesce(a.keinen_artikel_kg, 0) - coalesce(a.ueberfuellung_kg, 0))) > 0.05;
+  assert v_n = 0, format('0123 (b1): bei %s Chargen ist verkaufbar nicht verkaufsfähig − passt in keinen Artikel − Überfüllung', v_n);
   select count(*) into v_n from v_lager_ausweis a
    where a.marge_anteil is not null and a.verkaufsfaehig_kg is not null
      -- marge_anteil steht auf 5 Stellen gerundet da: bis 0.00001 · verkaufsfähig Spiel
@@ -10983,14 +11008,17 @@ begin
   select count(*) into v_n from v_lager_ausweis a
    where a.verkaufbar_offen is not null and a.marge_anteil is not null and coalesce(a.groesse_offen_kg, 0) = 0
      -- 0124: zwei weitere Gründe, die nichts mit dem Messen zu tun haben
-     and coalesce(a.gruppe_offen_kg, 0) = 0 and coalesce(a.hagel_anteil, 0) < 1;
+     -- seit 0133 sagt jede Hagel-Charge „Verkauf über den Ünique-Topf" (bis 0132 nur bei 100 %)
+     and coalesce(a.gruppe_offen_kg, 0) = 0 and coalesce(a.hagel_anteil, 0) = 0;
   assert v_n = 0, format('0123 (c4): %s Chargen nennen etwas offen, obwohl alles gemessen ist', v_n);
 
   select * into v_x from v_lager_ausweis where charge_nr = 1609;
   assert v_x.unique_kg > 0, format('0123 (d1): 20 %% Hagel auf 1609 ergibt Unique %s', v_x.unique_kg);
-  assert abs(v_x.verkaufbar_kg - (v_x.verkaufsfaehig_kg - v_x.keinen_artikel_kg - coalesce(v_x.ueberfuellung_kg, 0) + v_x.unique_kg)) <= 0.05
-     and v_x.verkaufbar_kg > v_x.verkaufsfaehig_kg - v_x.keinen_artikel_kg - coalesce(v_x.ueberfuellung_kg, 0) + 0.5,
-    format('0123 (d2): Unique %s zählt nicht im Verkaufbaren %s', v_x.unique_kg, v_x.verkaufbar_kg);
+  -- Bis 0132 kam Unique zum Verkaufbaren dazu. Seit 0133 ist das ganze Verkaufsfähige der Hagel-Charge Ünique: nichts
+  -- „passt in keinen Artikel" (sie geht nicht nach Grösse), verkaufbar ist es ohne die Überfüllung.
+  assert v_x.unique_kg = v_x.verkaufsfaehig_kg and coalesce(v_x.keinen_artikel_kg, 0) = 0
+     and abs(v_x.verkaufbar_kg - (v_x.verkaufsfaehig_kg - coalesce(v_x.ueberfuellung_kg, 0))) <= 0.05,
+    format('0123 (d2): Ünique %s ist nicht das Verkaufsfähige %s, oder verkaufbar %s ist es nicht ohne Überfüllung', v_x.unique_kg, v_x.verkaufsfaehig_kg, v_x.verkaufbar_kg);
 
   -- aufräumen
   delete from sortier_lauf where id = 912301;
@@ -11007,7 +11035,8 @@ begin
   assert v_n = 0, format('0123 (e1): bei %s Chargen haben sich marge_kg oder verrechenbar_kg von 0121 verändert', v_n);
   select count(*) into v_n from v_lager_ausweis a
    where a.verkaufsfaehig_kg is not null
-     and abs(a.eingang_kg - a.verdunstet_kg - a.faul_kg - coalesce(a.unique_kg, 0) - a.zu_klein_kg - a.zu_gross_kg - a.fax_kg - a.verkaufsfaehig_kg) > 0.05;
+     -- seit 0133 ohne Unique: es ist das Verkaufsfähige der Hagel-Charge, darin
+     and abs(a.eingang_kg - a.verdunstet_kg - a.faul_kg - a.zu_klein_kg - a.zu_gross_kg - a.fax_kg - a.verkaufsfaehig_kg) > 0.05;
   assert v_n = 0, format('0123 (e2): bei %s Chargen geht die Kette von 0121 nicht mehr auf', v_n);
 
   update auswertung_stand set rechnet_seit = null where id = 1;
@@ -11099,7 +11128,8 @@ begin
   assert v_n = 0, format('0124 (b1): bei %s Chargen passen keinen_artikel_kg oder gruppe_offen_kg nicht zu artikel_lager_teile(0)', v_n);
   select count(*) into v_n from v_lager_ausweis a
    where a.gruppe_offen_kg > 0.5
-     and abs(a.verkaufbar_kg - (a.verkaufsfaehig_kg - a.keinen_artikel_kg - coalesce(a.ueberfuellung_kg, 0) + coalesce(a.unique_kg, 0))) > 0.05;
+     -- seit 0133 kommt Unique nicht mehr dazu (es ist darin)
+     and abs(a.verkaufbar_kg - (a.verkaufsfaehig_kg - a.keinen_artikel_kg - coalesce(a.ueberfuellung_kg, 0))) > 0.05;
   assert v_n = 0, format('0124 (b1): bei %s Chargen wird die offene Artikelgruppe vom Verkaufbaren abgezogen', v_n);
 
   -- (b2) eine Artikelgruppe ohne Gewichte ist ein Artikel ohne Grösse
@@ -11113,20 +11143,22 @@ begin
    where g.artikelgruppe = 'Kabocha' and a.verkaufsfaehig_kg > 0
      and not (a.keinen_artikel_kg = 0 and a.gruppe_offen_kg = 0
               and coalesce(a.verkaufbar_offen, '') not like '%Artikelgruppe%'
-              and abs(a.verkaufbar_kg - (a.verkaufsfaehig_kg - coalesce(a.ueberfuellung_kg, 0) + coalesce(a.unique_kg, 0))) <= 0.05);
+              and abs(a.verkaufbar_kg - (a.verkaufsfaehig_kg - coalesce(a.ueberfuellung_kg, 0))) <= 0.05);   -- seit 0133 ohne + Unique
   assert v_n = 0, format('0124 (b2): %s Kabocha-Chargen ohne Gewichte der Gruppe zählen nicht als Artikel', v_n);
   insert into artikel_kaliber select * from pruef_0124_kaliber;
 
-  -- (b3) Hagel 100 %: nicht trennbar — leer, mit Grund
+  -- (b3) Hagel 100 %. Bis 0132: „Unique und Faules nicht trennbar" — leer, mit Grund. Seit 0133 (Ünique-Topf) rechnet
+  --      die Prozentzahl nicht: die Charge geht ganz als Ünique, ihr Faules ist der Palox, alles ist bekannt; der Grund
+  --      sagt „Verkauf über den Ünique-Topf".
   update charge set hagel_anteil = 1 where nr = 1609;
   update auswertung_stand set rechnet_seit = null where id = 1;
   for v_s in 1..5 loop perform auswertung_schritt_intern(v_s, false); end loop;
   select * into v_x from v_lager_ausweis where charge_nr = 1609;
   assert v_x.eingang_kg > 0, '0124 (b3): 1609 hat keine Ware — der Fall ist nicht gebaut';
-  assert v_x.faul_kg is null and v_x.unique_kg is null and v_x.verkaufbar_kg is null and v_x.hagel_bis_heute_kg is null,
-    format('0124 (b3): bei Hagel 100 %% steht faul %s, unique %s, verkaufbar %s, Hagel bis heute %s statt leer',
-           v_x.faul_kg, v_x.unique_kg, v_x.verkaufbar_kg, v_x.hagel_bis_heute_kg);
-  assert position('Hagel 100 %' in coalesce(v_x.verkaufbar_offen, '')) > 0,
+  assert v_x.faul_kg is not null and v_x.unique_kg = v_x.verkaufsfaehig_kg and v_x.verkaufbar_kg is not null and v_x.hagel_bis_heute_kg = 0,
+    format('0124 (b3): bei Hagel 100 %% steht faul %s, unique %s (verkaufsfähig %s), verkaufbar %s, Hagel bis heute %s',
+           v_x.faul_kg, v_x.unique_kg, v_x.verkaufsfaehig_kg, v_x.verkaufbar_kg, v_x.hagel_bis_heute_kg);
+  assert position('Ünique-Topf' in coalesce(v_x.verkaufbar_offen, '')) > 0,
     format('0124 (b3): der Grund fehlt: %s', v_x.verkaufbar_offen);
   update charge set hagel_anteil = null where nr = 1609;
   update auswertung_stand set rechnet_seit = null where id = 1;
@@ -11137,7 +11169,7 @@ begin
   select count(*) into v_n from v_lager_ausweis a
    where a.groesse_offen_kg > 0
      and (a.keinen_artikel_kg is not null or a.verkaufbar_kg is null
-          or abs(a.verkaufbar_kg - (a.verkaufsfaehig_kg - coalesce(a.ueberfuellung_kg, 0) + coalesce(a.unique_kg, 0))) > 0.05);
+          or abs(a.verkaufbar_kg - (a.verkaufsfaehig_kg - coalesce(a.ueberfuellung_kg, 0))) > 0.05);   -- seit 0133 ohne + Unique
   assert v_n = 0, format('0124 (b4): bei %s Chargen ohne Sortier-CSV ist keinen_artikel_kg nicht leer oder verkaufbar falsch', v_n);
 
   -- (b5) ohne Verkaufsfähiges: die drei Teile leer, nicht 0
@@ -12591,7 +12623,9 @@ begin
        where p.charge_nr = cp.charge_nr and p.station = cp.station
          and p.plausibel_station and p.anteil_station is not null and p.basis_jetzt_kg > 0
          and p.quelle in ('verarbeitung', 'verarbeitung_gemischt')) x
-   where cp.n_mindest = 0;
+   where cp.n_mindest = 0
+     -- seit 0133 nimmt eine Hagel-Charge statt der Sorte die Hagel-Erwartung — geprüft in 0133 (d5)
+     and coalesce(c.hagel_anteil, 0) = 0;
   assert v_n >= 10 and v_ab = 0, format('0132 (d1): %s von %s Chargen-Werten sind nicht n ÷ (n + 3) mit der Sorte beim eigenen Alter gewichtet, oder der Satz stimmt nicht', v_ab, v_n);
   select count(*), count(*) filter (where not (cp.unten < cp.oben and cp.unten <= cp.anteil and cp.anteil <= cp.oben))
     into v_n, v_ab from v_charge_palox cp;
@@ -12709,3 +12743,298 @@ begin
 end $$;
 
 select '——— 0132 Wenig gemessen, wenig Gewicht ———' as ergebnis;
+
+-- =====================================================================
+-- 0133 — Der Ünique-Topf
+--
+-- Der Betrieb am 7. November: „alle, die einen Hagelschaden eingetragen
+-- haben, zusammenziehen als Unique — die werden dann miteinander verkauft";
+-- „sobald ein Wert eingetragen ist, soll's in den Topf zählen"; „der einzige
+-- Verlust ist Palox, verschenkte Marge und Verdunstung"; Messungen von
+-- Hagelware sollen die Sorte ohne Hagel nicht beeinflussen; Spalte W nur
+-- zur Information.
+--
+-- Geprüft auf der Demo, mit gebauten Fällen (Prüffirma PRUEF133): zwei
+-- Hagel-Chargen derselben Sorte, eine dritte einer anderen Sorte, eine
+-- Ünique-Lieferung unter einer Charge ohne Hagel:
+-- (a) ist_unique_artikel erkennt Ünique, mit und ohne Umlaut, nur als Wort;
+-- (b) hagel_f gibt f zurück, bei jedem Hagel;
+-- (c) was aus dem Topf geht: jede Lieferung einer Hagel-Charge und jede
+--     Ünique-Lieferung; v_lieferung_charge verteilt sie nach dem Eingang auf
+--     die Hagel-Chargen, die bis zum Liefertag da waren — die genannte Charge
+--     ohne Hagel behält nichts davon, andere Lieferungen bleiben, wie sie
+--     waren; ohne eine Hagel-Charge gibt es keinen Topf;
+-- (d) die Hagel-Erwartung: andere Hagel-Chargen der Sorte n ÷ (n + 3) mit der
+--     Sorte ohne Hagel, nachgerechnet; ohne sie die Sorte; die eigene Messung
+--     einer Hagel-Charge zieht zur Hagel-Erwartung; Hagelware zählt nicht
+--     für die Sorte;
+-- (e) die Kaskade: eine Hagel-Charge hat zu klein, zu gross und Fax 0
+--     (bekannt, mit Satz), f ist die Zusammensetzung ihrer Stationswerte ohne
+--     Aufschlag, der Satz nennt den Topf; die Prognose sortiert sie nicht;
+-- (f) der Lagerausweis: Ünique ist ihr Verkaufsfähiges, kein Hagel im Faulen,
+--     „Verkauf über den Ünique-Topf"; die Artikel nehmen sie nicht;
+-- (g) der Topf als Zeile: Eingang, hinaus, Ünique unter fremder Charge, was
+--     liegt — nachgerechnet; mehr hinaus als drin: Überzählung und Hinweis;
+-- (h) Perigon: „unique_ohne_hagel" nennt Charge und Topf;
+-- (i) Rechte; (j) Stand 133.
+-- =====================================================================
+do $$
+declare v_modus jsonb; v_lad text; v_geladen boolean := false; v_n int; v_ab int; v_x numeric; v_y numeric; v_txt text; v_j jsonb;
+  rec record; v_h1 int; v_h2 int; v_h3 int; v_x_nr int; v_s1 text; v_s3 text; v_sx text; v_alt jsonb; v_lid bigint; v_tag date;
+  v_u uuid := '00000000-0133-0000-0000-000000000001';
+  v_w uuid := '00000000-0133-0000-0000-000000000002';
+begin
+  select wert into v_modus from einstellung where schluessel = 'betriebsmodus';
+  update einstellung set wert = '"beispiel"'::jsonb where schluessel = 'betriebsmodus';
+  insert into auth.users (id, email, raw_user_meta_data) values (v_u, null, '{"name":"Prüf-0133"}');
+  update profil set rolle = 'admin' where id = v_u;
+  insert into auth.users (id, email, raw_user_meta_data) values (v_w, null, '{"name":"Prüf-0133 Halle"}');
+  update profil set rolle = 'arbeiter' where id = v_w;
+  perform set_config('request.jwt.claim.sub', v_u::text, true);
+  if not exists (select 1 from auftrag where station = 'waschen_sortieren' and bemerkung = 'DEMO') then
+    select demo_daten_laden() into v_lad; v_geladen := true;
+  end if;
+  perform auswertung_aktualisieren();
+  select coalesce(jsonb_object_agg(nr, hagel_anteil), '{}'::jsonb) into v_alt from charge where hagel_anteil is not null;
+
+  -- (a) Ünique
+  assert ist_unique_artikel('Bio Kürbis Ünique') and ist_unique_artikel('Bio Kürbis Unique 10 kg') and ist_unique_artikel('ÜNIQUE')
+     and not ist_unique_artikel('Uniquement') and not ist_unique_artikel('Bio Kürbis Butterkin') and not ist_unique_artikel(null),
+    '0133 (a1): ist_unique_artikel erkennt Ünique nicht als Wort';
+
+  -- (b) kein Aufschlag
+  assert hagel_f(0.05, 0.2) = 0.05 and hagel_f(0.05, 1) = 0.05 and hagel_f(0.05, null) = 0.05 and hagel_f(null, 0.5) is null,
+    '0133 (b1): hagel_f rechnet noch einen Hagel-Aufschlag';
+
+  -- die Fälle: H1 und H3 dieselbe Sorte mit Palox-Arbeiten, H2 eine andere Sorte; X ohne Hagel mit Eingang
+  select p.charge_nr, p.sorte into v_h1, v_s1
+    from v_schimmel_punkte p join v_charge_rueckgrat r on r.charge_nr = p.charge_nr
+   where p.plausibel_station and p.anteil_station is not null and p.basis_jetzt_kg > 0 and p.lagertage is not null
+     and p.station in ('sortieren', 'waschen', 'waschen_sortieren') and p.quelle in ('verarbeitung', 'verarbeitung_gemischt')
+     and exists (select 1 from v_schimmel_punkte q where q.sorte = p.sorte and q.charge_nr <> p.charge_nr and q.plausibel_station
+                   and q.anteil_station is not null and q.station = p.station and q.quelle in ('verarbeitung', 'verarbeitung_gemischt'))
+   group by p.charge_nr, p.sorte order by count(*) desc, p.charge_nr limit 1;
+  select p.charge_nr into v_h3
+    from v_schimmel_punkte p
+   where p.sorte = v_s1 and p.charge_nr <> v_h1 and p.plausibel_station and p.anteil_station is not null and p.basis_jetzt_kg > 0
+     and p.lagertage is not null and p.station in ('sortieren', 'waschen', 'waschen_sortieren') and p.quelle in ('verarbeitung', 'verarbeitung_gemischt')
+   group by p.charge_nr order by count(*) desc, p.charge_nr limit 1;
+  -- H2 kam nach H1 oder H3 (die Ünique-Lieferung unten liegt am Tag vor ihrem Eingang: sie darf nicht auf H2 fallen)
+  select r.charge_nr, r.sorte into v_h2 from v_charge_rueckgrat r
+   where r.sorte <> v_s1 and r.eingang_netto_kg > 0
+     and r.erster_eingang > (select min(r1.erster_eingang) from v_charge_rueckgrat r1 where r1.charge_nr in (v_h1, v_h3))
+   order by r.erster_eingang desc, r.charge_nr limit 1;
+  select r.charge_nr, r.sorte into v_x_nr, v_sx from v_charge_rueckgrat r
+   where r.sorte not in (v_s1, (select sorte from charge where nr = v_h2)) and r.eingang_netto_kg > 0 order by r.charge_nr limit 1;
+  assert v_h1 is not null and v_h3 is not null and v_h2 is not null and v_x_nr is not null,
+    format('0133 (c0): die Demo hat nicht die nötigen Chargen (H1 %s, H3 %s, H2 %s, X %s) — (c)–(h) wären blind', v_h1, v_h3, v_h2, v_x_nr);
+  update charge set hagel_anteil = null where hagel_anteil is not null and nr not in (v_h1, v_h2, v_h3);
+  update charge set hagel_anteil = 0.95 where nr = v_h1;
+  update charge set hagel_anteil = 0.20 where nr = v_h3;
+  update charge set hagel_anteil = 1.00 where nr = v_h2;
+  -- eine Ünique-Lieferung unter X (ohne Hagel), am Tag bevor H2 einging
+  select r.erster_eingang - 1 into v_tag from v_charge_rueckgrat r where r.charge_nr = v_h2;
+  v_j := ausgang_uebernehmen('PRUEF133', 'Prüffirma 0133', '{"dateiname": "p133-a.xlsx", "pruefsumme": "p133-a"}'::jsonb,
+    jsonb_build_array(jsonb_build_object('pos_id', 3301, 'charge_extern', v_x_nr::text, 'lauf_nr', 1, 'fingerabdruck', 'p133-3301',
+      'datum', v_tag, 'journal', 'A', 'kunde', 'Prüfkunde 133', 'artikel_id', 'kürbuni', 'artikel', 'Bio Kürbis Ünique',
+      'einheit', 'kg', 'menge', 400, 'gewicht_je_artikel', 1, 'batch_menge', 400, 'kg_position', 400, 'kg_charge', 400)),
+    jsonb_build_array(jsonb_build_object('extern_id', format('PRUEF133:3301:%s:1', v_x_nr),
+      'datum', v_tag, 'charge_nr', v_x_nr, 'sorte', v_sx, 'kg', 400, 'kunde', 'Prüfkunde 133')));
+  select i.lieferung_id into v_lid from lieferung_import i where i.extern_id = format('PRUEF133:3301:%s:1', v_x_nr);
+  assert v_lid is not null, format('0133 (c0b): die Ünique-Lieferung ist nicht angelegt: %s', v_j);
+
+  -- (c) was aus dem Topf geht, und wohin
+  assert exists (select 1 from v_topf_lieferung t where t.id = v_lid and t.unique_artikel and not t.hagel_charge),
+    '0133 (c1): die Ünique-Lieferung unter einer Charge ohne Hagel geht nicht aus dem Topf';
+  assert not exists (select 1 from v_topf_lieferung t join charge c on c.nr = t.charge_nr
+                      where coalesce(c.hagel_anteil, 0) = 0 and not t.unique_artikel),
+    '0133 (c2): eine Lieferung ohne Hagel und ohne Ünique geht aus dem Topf';
+  assert (select count(*) from v_lieferung_masse l join charge c on c.nr = l.charge_nr
+           where c.hagel_anteil > 0 and l.buch in ('verkauf', 'marge') and l.masse_kg > 0)
+         = (select count(*) from v_topf_lieferung where hagel_charge),
+    '0133 (c3): nicht jede Lieferung einer Hagel-Charge geht aus dem Topf';
+  select count(*), count(*) filter (where abs(x.summe - 1) > 1e-9 or x.fremd > 0 or x.falsch > 0)
+    into v_n, v_ab
+    from (select lc.id, sum(lc.anteil) as summe,
+                 count(*) filter (where coalesce(c.hagel_anteil, 0) = 0) as fremd,
+                 count(*) filter (where abs(lc.anteil - r.eingang_netto_kg
+                                    / (select sum(r2.eingang_netto_kg) from v_charge_rueckgrat r2 join charge c2 on c2.nr = r2.charge_nr
+                                        where c2.hagel_anteil > 0 and r2.eingang_netto_kg > 0
+                                          and (r2.erster_eingang <= lc.datum
+                                               or not exists (select 1 from v_charge_rueckgrat r3 join charge c3 on c3.nr = r3.charge_nr
+                                                               where c3.hagel_anteil > 0 and r3.erster_eingang <= lc.datum)))) > 1e-9) as falsch
+            from v_lieferung_charge lc
+            join v_topf_lieferung t on t.id = lc.id
+            join charge c on c.nr = lc.charge_nr
+            join v_charge_rueckgrat r on r.charge_nr = lc.charge_nr
+           group by lc.id) x;
+  assert v_n > 0 and v_ab = 0,
+    format('0133 (c4): %s von %s Topf-Lieferungen gehen nicht ganz und nach dem Eingang auf die Hagel-Chargen', v_ab, v_n);
+  assert exists (select 1 from v_lieferung_charge lc join v_topf_lieferung t on t.id = lc.id
+                  join v_charge_rueckgrat r on r.charge_nr = v_h2 where r.erster_eingang > lc.datum),
+    '0133 (c4a): keine Topf-Lieferung vor dem Eingang von H2 — (c4b) wäre blind';
+  assert not exists (select 1 from v_lieferung_charge lc join v_topf_lieferung t on t.id = lc.id
+                      join v_charge_rueckgrat r on r.charge_nr = lc.charge_nr
+                     where r.erster_eingang > lc.datum
+                       and exists (select 1 from v_charge_rueckgrat r2 join charge c2 on c2.nr = r2.charge_nr
+                                    where c2.hagel_anteil > 0 and r2.erster_eingang <= lc.datum)),
+    '0133 (c4b): eine Topf-Lieferung fällt auf eine Hagel-Charge, die am Liefertag noch nicht da war';
+  assert not exists (select 1 from v_lieferung_charge where id = v_lid and charge_nr = v_x_nr),
+    format('0133 (c5): Charge %s (ohne Hagel) behält etwas von der Ünique-Lieferung', v_x_nr);
+  assert not exists (select 1 from v_lieferung_charge lc join v_lieferung_masse l on l.id = lc.id
+                      where not exists (select 1 from v_topf_lieferung t where t.id = l.id)
+                        and l.charge_nr is not null and (lc.charge_nr <> l.charge_nr or lc.anteil <> 1)),
+    '0133 (c6): eine Lieferung, die nicht aus dem Topf geht, liegt nicht mehr ganz auf ihrer Charge';
+  -- ohne eine Hagel-Charge: kein Topf, die Ünique-Lieferung bleibt bei X (danach zurück)
+  begin
+    update charge set hagel_anteil = null where hagel_anteil is not null;
+    select count(*) into v_n from v_topf_lieferung;
+    select coalesce(sum(anteil), 0) into v_x from v_lieferung_charge where id = v_lid and charge_nr = v_x_nr;
+    raise exception using errcode = 'P0133';
+  exception when sqlstate 'P0133' then null;
+  end;
+  assert v_n = 0 and v_x = 1, format('0133 (c7): ohne Hagel-Charge gibt es einen Topf (%s Lieferungen) oder X trägt die Ünique-Lieferung nicht (%s)', v_n, v_x);
+
+  -- (d) die Hagel-Erwartung, nachgerechnet: H1 nimmt die Arbeiten von H3 (dieselbe Sorte) mit der Sorte ohne Hagel
+  select count(*), count(*) filter (where abs(he.anteil - x.soll) > 1e-4 or he.n_hagel <> x.n or he.quelle !~ '^Hagel: ')
+    into v_n, v_ab
+    from v_hagel_erwartung he
+    join v_palox_erwartung er on er.sorte = he.sorte and er.station = he.station
+    cross join lateral (
+      select count(*)::int as n,
+             case when count(*) > 0
+                  then (count(*) * greatest(sum(p.basis_jetzt_kg * p.anteil_station) / sum(p.basis_jetzt_kg)
+                                            - coalesce(er.anstieg_je_woche, 0) * sum(p.basis_jetzt_kg * p.lagertage) / sum(p.basis_jetzt_kg) / 7.0, 0)
+                        + 3 * er.anteil) / (count(*) + 3)
+                  else er.anteil end as soll
+        from v_schimmel_punkte p join charge c on c.nr = p.charge_nr
+       where c.hagel_anteil > 0 and p.charge_nr <> he.charge_nr and p.sorte = he.sorte and p.station = he.station
+         and p.plausibel_station and p.anteil_station is not null and p.basis_jetzt_kg > 0 and p.lagertage is not null
+         and p.quelle in ('verarbeitung', 'verarbeitung_gemischt')) x;
+  assert v_n > 0 and v_ab = 0, format('0133 (d1): %s von %s Hagel-Erwartungen sind nicht die anderen Hagel-Chargen der Sorte, gewichtet mit der Sorte', v_ab, v_n);
+  assert exists (select 1 from v_hagel_erwartung where charge_nr = v_h1 and n_hagel > 0 and quelle like 'Hagel: % anderer Hagel-Chargen der Sorte%'),
+    format('0133 (d2): H1 (%s) nimmt die Arbeiten von H3 (%s) nicht', v_h1, v_h3);
+  assert not exists (select 1 from v_hagel_erwartung he join v_palox_erwartung er on er.sorte = he.sorte and er.station = he.station
+                      where he.charge_nr = v_h2 and he.n_hagel = 0 and he.anteil is distinct from er.anteil),
+    '0133 (d3): eine Hagel-Charge ohne andere Hagel-Charge ihrer Sorte nimmt nicht die Sorte ohne Hagel';
+  assert not exists (select 1 from v_palox_erwartung e
+                      where e.n_arbeiten > (select count(*) from v_schimmel_punkte p join charge c on c.nr = p.charge_nr
+                                             where coalesce(c.hagel_anteil, 0) = 0 and p.station = e.station
+                                               and (e.ebene = 'alle' or p.sorte = e.sorte) and p.plausibel_station
+                                               and p.anteil_station is not null and p.basis_jetzt_kg > 0 and p.lagertage is not null
+                                               and p.quelle in ('verarbeitung', 'verarbeitung_gemischt'))),
+    '0133 (d4): Hagelware zählt für die Sorte ohne Hagel';
+  select count(*), count(*) filter (where cp.quelle !~ 'die Hagel-Erwartung'
+                                       or abs(cp.anteil_sorte - greatest(he.grund_roh + coalesce(er.anstieg_je_woche, 0) * coalesce(x.lager, 0) / 7.0, 0)) > 1e-4)
+    into v_n, v_ab
+    from v_charge_palox cp
+    join v_hagel_erwartung he on he.charge_nr = cp.charge_nr and he.station = cp.station
+    join v_palox_erwartung er on er.sorte = he.sorte and er.station = he.station
+    cross join lateral (select sum(p.basis_jetzt_kg * p.lagertage) filter (where p.lagertage is not null)
+                               / sum(p.basis_jetzt_kg) filter (where p.lagertage is not null) as lager
+                          from v_schimmel_punkte p
+                         where p.charge_nr = cp.charge_nr and p.station = cp.station and p.plausibel_station
+                           and p.anteil_station is not null and p.basis_jetzt_kg > 0
+                           and p.quelle in ('verarbeitung', 'verarbeitung_gemischt')) x
+   where cp.n_mindest = 0;
+  assert v_n > 0 and v_ab = 0, format('0133 (d5): %s von %s eigenen Messungen von Hagel-Chargen ziehen nicht zur Hagel-Erwartung', v_ab, v_n);
+
+  perform auswertung_aktualisieren();
+
+  -- (e) die Kaskade
+  select count(*), count(*) filter (where k.a_klein_n <> 0 or k.a_gross_n <> 0 or k.a_fax <> 0
+                                       or not (k.a_klein_bekannt and k.a_gross_bekannt and k.a_fax_bekannt)
+                                       or k.klein_basis !~ 'Ünique-Topf' or k.f_quelle !~ 'Ünique-Topf'
+                                       or (k.portion <> 'entsorgt' and k.hagel is distinct from c.hagel_anteil)
+                                       or abs(k.f - palox_f(k.p_hand, k.p_wasch, k.f_ws, k.f_s, k.g_w)) > 1e-9)
+    into v_n, v_ab
+    from mv_kaskade k join charge c on c.nr = k.charge_nr
+   where c.hagel_anteil > 0 and k.f_bekannt and k.portion <> 'entsorgt';
+  assert v_n > 0 and v_ab = 0, format('0133 (e1): %s von %s Portionen von Hagel-Chargen sortieren nach Grösse, rechnen einen Hagel-Aufschlag oder sagen den Topf nicht', v_ab, v_n);
+  assert exists (select 1 from mv_kaskade k join charge c on c.nr = k.charge_nr where coalesce(c.hagel_anteil, 0) = 0 and (k.a_klein_n > 0 or k.a_gross_n > 0)),
+    '0133 (e2): auch Chargen ohne Hagel sortieren nicht mehr nach Grösse — die Prüfung (e1) sagte nichts';
+  -- (e4) liegende Hagel-Ware: jeder Stationswert ist die Hagel-Erwartung + Anstieg × Alter
+  select count(*), count(*) filter (where abs(x.ist - least(greatest(he.anteil + coalesce(z.zuwachs_je_woche, 0) * k.alter_tage / 7.0, 0), 1)) > 1e-9)
+    into v_n, v_ab
+    from mv_kaskade k
+    cross join lateral (values ('waschen_sortieren', k.f_ws), ('sortieren', k.f_s), ('waschen', k.g_w)) x(station, ist)
+    join v_hagel_erwartung he on he.charge_nr = k.charge_nr and he.station = x.station
+    join v_palox_station z on z.station = x.station
+   where k.portion = 'lager' and x.ist is not null;
+  assert v_n > 0 and v_ab = 0, format('0133 (e4): bei %s von %s Stationswerten liegender Hagel-Ware gilt nicht die Hagel-Erwartung', v_ab, v_n);
+  assert not exists (select 1 from erg_prognose p join charge c on c.nr = p.schluessel::int
+                      where p.gruppe = 'charge' and c.hagel_anteil > 0 and (coalesce(p.klein_kg, 0) <> 0 or coalesce(p.gross_kg, 0) <> 0 or coalesce(p.fax_kg, 0) <> 0)),
+    '0133 (e3): die Prognose sortiert Hagelware nach Grösse oder rechnet Fax';
+
+  -- (f) der Lagerausweis und die Artikel
+  select count(*), count(*) filter (where a.unique_kg is distinct from a.verkaufsfaehig_kg or a.zu_klein_kg <> 0 or a.zu_gross_kg <> 0
+                                       or a.fax_kg <> 0 or a.hagel_bis_heute_kg <> 0 or coalesce(a.verkaufbar_offen, '') !~ 'Ünique-Topf'
+                                       or a.faul_kg is distinct from (select zahl(p.faul_kg, 2, 1e12) from erg_prognose p
+                                                                     where p.gruppe = 'charge' and p.schluessel = a.charge_nr::text and p.h = 0))
+    into v_n, v_ab
+    from v_lager_ausweis a join charge c on c.nr = a.charge_nr
+   where c.hagel_anteil > 0 and a.eingang_kg > 0;
+  assert v_n > 0 and v_ab = 0, format('0133 (f1): bei %s von %s Hagel-Chargen ist Ünique nicht ihr Verkaufsfähiges, oder Hagel steckt noch im Faulen', v_ab, v_n);
+  assert not exists (select 1 from v_lager_ausweis a join charge c on c.nr = a.charge_nr where coalesce(c.hagel_anteil, 0) = 0 and a.unique_kg <> 0),
+    '0133 (f2): eine Charge ohne Hagel hat Ünique';
+  assert not exists (select 1 from artikel_lager_teile(0) t join charge c on c.nr = t.charge_nr where c.hagel_anteil > 0),
+    '0133 (f3): Hagelware geht nach Grösse in die Artikel';
+
+  -- (g) der Topf als Zeile
+  select * into rec from v_unique_topf;
+  assert rec.n_chargen = 3 and rec.chargen = (select array_agg(nr order by nr) from charge where hagel_anteil > 0)
+     and abs(rec.eingang_kg - (select sum(b.eingang_kg) from v_kaskade_basis b join charge c on c.nr = b.charge_nr where c.hagel_anteil > 0)) < 0.01
+     and abs(rec.geliefert_kg - (select sum(masse_kg) from v_topf_lieferung where datum <= heute())) < 0.01
+     and abs(rec.unique_unter_fremder_charge_kg - 400) < 0.01 and rec.n_unique_unter_fremder_charge = 1 and rec.fremde_chargen = v_x_nr::text
+     and abs(rec.verkaufsfaehig_kg - (select sum(a.verkaufsfaehig_kg) from v_lager_ausweis a join charge c on c.nr = a.charge_nr where c.hagel_anteil > 0)) < 0.05
+     and rec.hinweis ~ 'Ünique-Lieferung unter Charge',
+    format('0133 (g1): die Topf-Zeile stimmt nicht: %s', to_jsonb(rec));
+  -- mehr hinaus, als drin sein kann: 1000 t Ünique
+  v_j := ausgang_uebernehmen('PRUEF133', 'Prüffirma 0133', '{"dateiname": "p133-b.xlsx", "pruefsumme": "p133-b"}'::jsonb,
+    jsonb_build_array(jsonb_build_object('pos_id', 3302, 'charge_extern', v_h1::text, 'lauf_nr', 1, 'fingerabdruck', 'p133-3302',
+      'datum', v_tag, 'journal', 'A', 'kunde', 'Prüfkunde 133', 'artikel_id', 'kürbuni', 'artikel', 'Bio Kürbis Ünique',
+      'einheit', 'kg', 'menge', 1000000, 'gewicht_je_artikel', 1, 'batch_menge', 1000000, 'kg_position', 1000000, 'kg_charge', 1000000)),
+    jsonb_build_array(jsonb_build_object('extern_id', format('PRUEF133:3302:%s:1', v_h1),
+      'datum', v_tag, 'charge_nr', v_h1, 'sorte', v_s1, 'kg', 1000000, 'kunde', 'Prüfkunde 133')));
+  perform auswertung_aktualisieren();
+  select * into rec from v_unique_topf;
+  assert rec.ueberzaehlung_kg > 900000 and rec.hinweis ~ 'mehr hinaus',
+    format('0133 (g2): 1000 t aus dem Topf, und der Topf sagt nichts: %s', to_jsonb(rec));
+
+  -- (h) Perigon
+  assert exists (select 1 from v_perigon_befund where quelle = 'PRUEF133' and pos_id = 3301 and art = 'unique_ohne_hagel' and schwere = 'gelb'
+                   and satz ~ format('Charge %s', v_x_nr) and satz ~ 'Ünique-Topf' and wo = 'perigon' and kg = 400),
+    format('0133 (h1): Ünique unter Charge %s ohne Hagel steht nicht im Perigon-Reiter: %s', v_x_nr,
+           (select string_agg(art || ': ' || satz, ' | ') from v_perigon_befund where quelle = 'PRUEF133' and pos_id = 3301));
+  assert not exists (select 1 from v_perigon_befund where quelle = 'PRUEF133' and pos_id = 3302 and art = 'unique_ohne_hagel'),
+    '0133 (h2): Ünique unter einer Hagel-Charge wird als „ohne Hagel" gemeldet';
+
+  -- (i) Rechte
+  perform set_config('request.jwt.claim.sub', v_w::text, true);
+  set local role authenticated;
+  select count(*) into v_n from v_unique_topf;
+  reset role;
+  perform set_config('request.jwt.claim.sub', v_u::text, true);
+  assert v_n = 1, format('0133 (i1): die Halle sieht den Topf nicht (%s Zeilen)', v_n);
+  assert not has_table_privilege('anon', 'v_unique_topf', 'select') and not has_table_privilege('anon', 'v_topf_lieferung', 'select')
+     and not has_table_privilege('anon', 'v_hagel_erwartung', 'select') and not has_function_privilege('anon', 'ist_unique_artikel(text)', 'execute'),
+    '0133 (i2): Nichtangemeldete lesen den Topf';
+
+  -- (j) Stand
+  assert schema_stand() >= 133, format('0133 (j1): schema_stand() = %s', schema_stand());
+
+  -- aufräumen
+  delete from lieferung where id in (select lieferung_id from lieferung_import where quelle = 'PRUEF133');
+  delete from ausgang_zeile where quelle = 'PRUEF133';
+  delete from ausgang_datei where quelle = 'PRUEF133';
+  delete from ausgang_quelle where code = 'PRUEF133';
+  update charge set hagel_anteil = null where hagel_anteil is not null;
+  update charge c set hagel_anteil = (v_alt ->> c.nr::text)::numeric where v_alt ? c.nr::text;
+  if v_geladen then perform demo_daten_entfernen(); end if;
+  perform auswertung_aktualisieren();
+  delete from profil where id in (v_u, v_w); delete from auth.users where id in (v_u, v_w);
+  update einstellung set wert = v_modus where schluessel = 'betriebsmodus';
+  raise notice 'OK  0133 — jede Charge mit Hagel ganz im Ünique-Topf: Verkauf aus dem Topf (nach Eingang verteilt), nicht nach Grösse sortiert, kein Hagel-Aufschlag, Palox aus anderen Hagel-Chargen der Sorte; Topf-Zeile und Perigon-Hinweis';
+end $$;
+
+select '——— 0133 Der Ünique-Topf ———' as ergebnis;

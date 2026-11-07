@@ -8,6 +8,9 @@
  * Palox, minus zu klein, zu gross … und vielleicht minus verschenkte Marge."
  * Und: „was mit Hagelschaden ist, wird nicht fortgeschmissen und ist auch
  * nicht faul — das ist Unique, wie ein eigener Artikel, nur Knospe."
+ * Seit Runde BJ (0133) gehört jede Charge mit Hagel ganz in den Ünique-Topf:
+ * ihr Verkaufsfähiges ist Ünique (unique_kg, darin, nicht dazu), sie wird
+ * nicht nach Grösse sortiert, und Hagel ist kein Faules mehr.
  *
  * Gerechnet ist alles in der Datenbank; hier wird nur zusammengezählt (je
  * Sorte, je Auswahl) und in Schritte gefasst. Leer bleibt leer: Fehlt einer
@@ -133,7 +136,8 @@ export function schritte(s: AusweisSumme): Schritt[] {
            wie: 'geht in den Kisten über dem Sollgewicht mit — verschenkt, nicht bezahlt' })
   r.push({ art: 'ergebnis', name: 'verkaufsfähig', kg: s.verkaufbar, farbe: 'var(--strom-vf)',
            wie: 'als Artikel — in den Gewichten der Artikel, ohne Überfüllung' })
-  if (s.unique > 0.5) r.push({ art: 'davon', name: 'davon Unique (Hagel)', kg: s.unique, farbe: 'var(--strom-unique)', wie: 'nicht faul — wird als Knospe verkauft' })
+  if (s.unique > 0.5) r.push({ art: 'davon', name: 'davon Ünique (Hagel-Charge)', kg: s.unique, farbe: 'var(--strom-unique)',
+           wie: 'geht mit allen Hagel-Chargen aus dem Ünique-Topf hinaus — nicht nach Grösse sortiert' })
   if (s.groesseOffen > 0.5) r.push({ art: 'davon', name: 'davon Grösse offen', kg: s.groesseOffen, farbe: 'var(--strom-vf)',
            wie: 'keine Sortier-CSV — ob es in die Gewichte der Artikel passt, ist offen' })
   if (s.gruppeOffen > 0.5) r.push({ art: 'davon', name: 'davon Artikelgruppe offen', kg: s.gruppeOffen, farbe: 'var(--strom-vf)',

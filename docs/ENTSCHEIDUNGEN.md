@@ -4290,6 +4290,92 @@ Geprüft:
 - Eine Sorte dazu oder weg im Rezept geht noch nicht in der Maske (nur Stück,
   kg je Stück und Herkunft); das Rezept des Betriebs hat drei Sorten.
 
+## Runde BJ, Schritt 3: Der Ünique-Topf (7. November, 0133)
+
+Der Betrieb: „wenn ich bei Chargen Hagelschaden eintrage, heisst das nicht
+Totalschaden — dann hätten wir gar nicht geerntet —, stattdessen haben sie
+einfach starke ästhetische Mängel … Das sind die Kürbisse, die dann als
+Ünique rausgehen. Also eigentlich kann man alle, die einen Hagelschaden
+eingetragen haben, zusammenziehen als Ünique — die werden dann miteinander
+verkauft." Dazu: „sobald ein Wert eingetragen ist, soll's in den Topf
+zählen"; „es wird auch nicht nach Grösse aussortiert — der einzige Verlust
+ist Palox, verschenkte Marge und Verdunstung"; „Messungen von Hagelware
+sollen nicht die restlichen der gleichen Sorte ohne Hagelschaden
+beeinflussen"; Spalte W „nur zur Information"; ein Topf für „alle zusammen".
+
+Bis hier war Hagel ein Aufschlag auf das Faule, f = 1 − (1 − f) · (1 − h).
+Bei 100 % war die Charge ganz faul, bei 95 % fast ganz. Und was als Ünique
+hinausging, zog die App der Charge ab, die Perigon nennt — 1598, 1607 und
+1628 sahen deshalb leer aus.
+
+- **Ein Topf (AB-196):** Jede Charge mit Hagel gehört ganz hinein, gleich
+  welche Zahl und welche Sorte. Aus dem Topf geht jede Lieferung einer
+  Hagel-Charge und jede Ünique-Lieferung, gleich welche Charge sie nennt
+  (`v_topf_lieferung`). Die App verteilt sie nach dem Eingang auf die
+  Hagel-Chargen, die am Liefertag schon da waren (`v_lieferung_charge`). So
+  überzieht keine einzelne Charge, und die Kaskade rechnet je Charge weiter
+  (Verdunstung und Palox beim richtigen Alter).
+- **Kein Aufschlag, keine Grösse (AB-197):** `hagel_f` gibt f zurück. Eine
+  Hagel-Charge hat zu klein, zu gross und Fax 0 (bekannt, mit Satz). Die
+  Sortierdatei gilt für sie nicht, auch nicht in Verlauf und Prognose.
+  Im Lagerausweis ist Ünique ihr ganzes Verkaufsfähiges (darin, nicht dazu);
+  die Grössenartikel nehmen sie nicht.
+- **Palox der Hagel-Charge (AB-198):** die eigene Messung, gewichtet
+  n ÷ (n + 3) mit der Hagel-Erwartung. Die Hagel-Erwartung sind die anderen
+  Hagel-Chargen derselben Sorte, gewichtet mit der Sorte ohne Hagel; ohne
+  solche gilt die Sorte ohne Hagel. Liegende Hagel-Ware nimmt die
+  Hagel-Erwartung beim Alter. Umgekehrt zählt Hagelware nie für die Sorte
+  (wie seit 0116).
+- **Was die Charge noch hat, sagt der Topf (AB-199):** Im Chargen-Reiter steht
+  bei einer Hagel-Charge „nicht vorherzusagen — Verkauf über den
+  Ünique-Topf". Am Ende steht eine Zeile „Ünique-Topf" (`v_unique_topf`):
+  Eingang, ausgeliefert, im Lager, verkaufsfähig, Verdunstung, Palox. Geht
+  mehr hinaus, als drin sein kann, sagt sie es („Hagel bei einer Charge
+  vergessen?"). Eine Ünique-Zeile unter einer Charge ohne Hagel steht im
+  Perigon-Reiter („unique_ohne_hagel") und im Hinweis des Topfs.
+
+Auf den Daten des Betriebs (7. November, vor dem Einspielen): sechs Chargen
+mit Hagel — 1598 und 1628 Kaori Kuri, 1605 Orange Summer, 1606 Lekor,
+1607 Amoro, 1647 Tiana — mit zusammen 60.8 t Eingang. Hinaus gingen unter
+ihren Nummern 122.9 t. Das ist der Faktor 10 bei Ünique, den Schritt 1
+nachrechnet: danach sind es 12.6 t. Was der Topf nach Verdunstung und Palox
+noch hat, zeigt die Zeile nach „Neu rechnen".
+
+Geprüft:
+- Prüfblock 0133 (a1–j1). Gebaut: drei Hagel-Chargen (zwei derselben Sorte,
+  eine kam später) und eine Ünique-Lieferung unter einer Charge ohne Hagel,
+  am Tag bevor die späte Hagel-Charge einging. Dazu 1000 t Ünique, um den
+  Topf zu überziehen.
+- Nachgerechnet werden die Verteilung nach Eingang und Liefertag, die
+  Hagel-Erwartung und die Stationswerte der liegenden Hagel-Ware. Ebenso
+  der Lagerausweis, die Topf-Zeile und der Perigon-Fall.
+- Ohne Hagel-Charge gibt es keinen Topf: der Fall wird gebaut und wieder
+  zurückgenommen.
+- Die Chargen ohne Hagel bleiben gleich: Prüfsumme über Kaskade und Prognose
+  der Demo vor und nach 0133.
+- 21 Mutationen, jede schlägt an. Sie betreffen die Erkennung von Ünique,
+  den Hagel-Aufschlag und den Topf (ohne Ünique, ohne Liefertag, genannte
+  Charge behält). Dann die Hagel-Erwartung (mit sich selbst, ohne Sorte)
+  und die eigene Messung ohne Hagel-Erwartung. In der Kaskade: nach Grösse
+  sortiert, Sortierdatei, Stationswert, alte Hagel-Regel. Dazu die
+  Prognose, die alte Ünique-Formel, der Grund, die Artikel, der Eingang und
+  der Hinweis des Topfs, der Perigon-Fall, die Rechte und der Stand.
+- Alte Blöcke, die die alte Regel festhielten, folgen der neuen, und ihr
+  Kommentar sagt es: 0116 (c5, d1, d3, d7), 0121 (g1–g3), 0123 (b1, c4,
+  d2, e2), 0124 (b1–b4), 0112 (d1), 0113 (c2), 0132 (d1). Die Gegenprobe
+  rechnet Hagel ohne Aufschlag.
+
+**Was bewusst nicht gemacht wurde:**
+- Die eingetragene Prozentzahl rechnet nicht mehr; sie bleibt stehen und
+  steht im Satz.
+- Was eine einzelne Hagel-Charge noch hat, sagt die App nicht voraus. Die
+  Verteilung nach Eingang ist eine Rechengrösse für den Topf, keine Aussage
+  über die Charge.
+- Entsorgtes einer Hagel-Charge und der Ausgang vor der App bleiben bei ihr.
+- Ohne eine Hagel-Charge gibt es keinen Topf: Ünique bleibt dann bei der
+  genannten Charge, und der Perigon-Fall sagt es.
+- Die Ware ist weiter „Knospe" im Artikel-Reiter, wie seit 0121.
+
 ## Runde BJ, Schritt 2: Wenig gemessen, wenig Gewicht (7. November, 0132)
 
 Der Betrieb: „falls du zu wenig Stichproben bei einer Charge hast, kann man

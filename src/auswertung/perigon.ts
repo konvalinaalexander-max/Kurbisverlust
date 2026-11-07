@@ -119,6 +119,15 @@ export const PERIGON_ART: Record<PerigonArt, PerigonArtInfo> = {
     tun: 'Mit der Person klären, die den Auftrag in Perigon erfasst hat — stimmt der Artikel für alle Chargen? Sonst Artikel aufteilen oder die Charge berichtigen.',
     spalten: ['AuftragsArtikel', 'AuftragsPrsGrpBez', 'LiefPrsGrpName', 'AuftragsChargeManuell'],
   },
+  // Runde BJ (0133) — „Spalte W nur zur Information": Ünique kommt aus dem Topf aller Hagel-Chargen.
+  unique_ohne_hagel: {
+    name: 'Ünique unter einer Charge ohne Hagel', ebene: 'chargenzeile', wo: 'perigon',
+    heisst: 'Eine Ünique-Zeile nennt eine Charge, bei der kein Hagel eingetragen ist. Ünique ist die Ware der Hagel-Chargen, die miteinander verkauft wird.',
+    datei: 'Spalte I (Artikel) ist Ünique, Spalte W nennt eine Charge ohne Hagel.',
+    app: 'Die App zieht die Menge vom Ünique-Topf ab, nicht von der genannten Charge (ohne eine einzige Hagel-Charge gibt es keinen Topf, dann von der Charge).',
+    tun: 'Steht in Spalte W die falsche Charge, in Perigon berichtigen; fehlt bei der Charge der Hagel, ihn unter Chargen eintragen.',
+    spalten: ['AuftragsArtikel', 'AuftragsChargeManuell'],
+  },
   // Runde BJ (0131) — Ünique: „im Faktor 10".
   kg_gewicht: {
     name: 'kg-Artikel mit Gewicht je Artikel ≠ 1', ebene: 'position', wo: 'perigon',
@@ -196,7 +205,7 @@ export const PERIGON_ART: Record<PerigonArt, PerigonArtInfo> = {
 
 /** Die Folge der Arten, wie sie im Reiter stehen: was Ware ohne Charge lässt, dann Mengen, Nummern, Artikel. */
 export const ART_FOLGE: PerigonArt[] = ['menge_null', 'keine_nummer', 'rest', 'zu_viel', 'unbekannt', 'mehrdeutig', 'nachholen',
-  'vor_eingang', 'kg_gewicht', 'label_gemischt', 'mix', 'artikel_sorte', 'label_name', 'demeter_knospe', 'ohne_gewicht', 'masse_abweichung',
+  'vor_eingang', 'kg_gewicht', 'label_gemischt', 'unique_ohne_hagel', 'mix', 'artikel_sorte', 'label_name', 'demeter_knospe', 'ohne_gewicht', 'masse_abweichung',
   'ruecknahme', 'mix_verteilt']
 
 export const WO_NAME: Record<Wo, { kurz: string; lang: string }> = {
@@ -357,6 +366,7 @@ export function fallKurz(f: PerigonBefund): string {
     case 'mix': return 'ganz auf eine Charge'
     case 'mix_verteilt': return 'nach Rezept verteilt'
     case 'label_gemischt': return 'Chargen mit verschiedenen Labels'
+    case 'unique_ohne_hagel': return f.charge_nr != null ? `Charge ${f.charge_nr} ohne Hagel` : 'Charge ohne Hagel'
     case 'kg_gewicht': return `Gewicht je Artikel ${f.gewicht_je_artikel == null ? '?' : Number(f.gewicht_je_artikel).toLocaleString('de-CH')}`
     case 'vor_eingang': {
       const t = /\((\d+) Tage? später\)/.exec(f.satz)

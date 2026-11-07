@@ -175,7 +175,7 @@ function VomLagerZumVerkauf({ kette: s }: { kette: AusweisSumme }) {
         Gewichte der Artikel (Coop-Artikeldaten unter Stammdaten) — aus der Sortier-CSV, jeder Kürbis um die gemessene Verdunstung geschrumpft.
         <strong> Überfüllung</strong>: was in den Kisten über dem Sollgewicht mitgeht und nicht bezahlt wird — aus den gewogenen fertigen
         Paletten, auf dem Teil, der als Artikel geht. <strong>Verkaufsfähig</strong> ist, was danach bleibt: was wir als Artikel tatsächlich
-        verkaufen können. <strong>Unique</strong> (Hagelware) ist darin — nicht faul, sie wird als Knospe verkauft, wie ein eigener Artikel.
+        verkaufen können. <strong>Ünique</strong> ist darin: die Ware aller Chargen mit Hagel, ein Topf für alle Sorten — nicht faul, nicht nach Grösse sortiert, sie geht als eigener Artikel hinaus.
         Ist die Überfüllung einer Charge nicht gewogen oder fehlt ihre Sortier-CSV, steht „höchstens" davor.</p>
       </Erklaerung>
     </Karte>
