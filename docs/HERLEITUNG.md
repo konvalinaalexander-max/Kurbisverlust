@@ -413,6 +413,19 @@ Der **echte Verlust** ist Eingang − geliefert. Er steht gegen den gerechneten,
 Lieferscheine dieser Nummer nach dem Leer-Tag zählt `n_nach_leer`. Der Verlauf
 rechnet die Charge auch rückwirkend ohne den Rest: wann er wegging, weiss
 niemand.
+**Seit 0135 — das Netto einer Wägung (`v_wiegung_netto`):** damals und jetzt
+Brutto minus Kisten × Kistengewicht minus Palette. Eine Teilpalette, gewogen
+mit dem Zettel der ganzen Palette, rechnet damals anteilig. Teilpalette
+heisst:
+- weniger Kisten als die volle Palette der Charge (`v_charge_palettenbild`,
+  häufigste Kistenzahl ohne Palox), mehr als zwei weniger;
+- das Zettelgewicht liegt näher bei Kisten_voll × (Kiste + Netto je Kiste) +
+  Palette als bei Kisten × (Kiste + Netto je Kiste) + Palette.
+
+Netto damals ist dann (Zettel − Kisten_voll × Kiste − Palette) × Kisten ÷
+Kisten_voll. Fehlt die Tara oder das Netto je Kiste, rechnet sie wie bisher.
+Eine doppelt gespeicherte Wägung (`v_zettel_doppelt`) ist nicht verwendbar
+(„doppelt gespeichert").
 **Je Eingangstag, was liegt (`v_am_lager`, 0134):** `liegt_kg` ist das m0 der
 Lagerzeile. Die Paletten sind die Paletten des Tages mal liegt ÷ Eingang des
 Tages, auf eine Stelle. Das ist eine gerechnete Zahl zum Vergleichen beim

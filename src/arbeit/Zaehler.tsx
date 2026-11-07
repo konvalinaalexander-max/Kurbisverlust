@@ -296,7 +296,8 @@ export function Zaehler({ d, gesperrt, neuLaden, melden, zumWiegen }: {
           )}
           <ZettelPruefung chargeNr={d.auftrag.charge_nr} datum={zettel}
                           brutto={p.zettelGewichtPflicht && Number(brutto) > 0 ? Number(brutto) : null}
-                          kisten={kistenOk ? kistenZahl : null} kistenSetzen={n => kistenPaletteSetzen(String(n))} />
+                          kisten={kistenOk ? kistenZahl : null} kistenSetzen={n => kistenPaletteSetzen(String(n))}
+                          auftragId={d.auftrag.id} gezaehlt={d.paletten.length} />
           {/* Kisten je Eingangspalette (Runde Q): vorbelegt mit 36, immer
               änderbar — der Betrieb sagt „teilweise sinds 32 und teilweise
               36". Zusammen mit dem Zettelgewicht ergibt das die Masse, die

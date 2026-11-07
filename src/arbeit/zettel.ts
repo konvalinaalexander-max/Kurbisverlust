@@ -39,6 +39,12 @@ export type ZettelBefund =
   | { art: 'kein_tag' }
   /** Der Tag stimmt, aber keine Palette dieser Charge wog so viel. */
   | { art: 'kein_gewicht' }
+  /** Runde BJ (0135): Diese Palette (Tag und Gewicht) ist schon erfasst — so oft, wie das Journal sie hat.
+   *  `arbeit` null: in dieser Arbeit. Nur ein Hinweis: zwei gleiche Paletten gibt es. */
+  | { art: 'schon_erfasst'; arbeit: number | null }
+
+/** Ein schon gespeicherter Zettel derselben Charge (diese oder eine andere Arbeit). */
+export interface ErfassterZettel { auftrag_id: number; eingangsdatum: string | null; brutto_zettel_kg: number | null }
 
 /** Gleich wie in der Datenbank (`p.brutto_kg = ap.brutto_zettel_kg`) —
  *  bis auf das, was die Fliesskommazahl im Browser verschmiert. */
@@ -53,12 +59,22 @@ const gleich = (a: number | null, b: number) => a !== null && Math.abs(a - b) < 
  * 32 oder 34 Kisten); das Netto rechnete dann mit der falschen Tara, und der
  * Durchgang meldete eine „Teilpalette mit vollem Zettel".
  */
-export function zettelBefund(eigen: EingangPalette[], fremd: FremdePalette[], datum: string, brutto: number | null, kisten: number | null = null): ZettelBefund | null {
+export function zettelBefund(eigen: EingangPalette[], fremd: FremdePalette[], datum: string, brutto: number | null, kisten: number | null = null,
+                             erfasst: ErfassterZettel[] = [], auftragId: number | null = null): ZettelBefund | null {
   if (datum === '') return null
   if (eigen.length === 0) return { art: 'ohne_eingang' }
   const amTag = eigen.filter(p => p.eingangsdatum === datum)
   if (brutto === null || !(brutto > 0)) return amTag.length === 0 ? { art: 'kein_tag' } : null
   const treffer = amTag.filter(p => gleich(p.brutto_kg, brutto))
+  // Runde BJ (0135): schon so oft erfasst, wie das Journal diese Palette hat? Dann ist es wohl dieselbe
+  // (Arbeit 1681: 444 kg zweimal innert 2 Sekunden). Ein Hinweis, kein Tor.
+  if (treffer.length > 0) {
+    const schon = erfasst.filter(z => z.eingangsdatum === datum && gleich(z.brutto_zettel_kg, brutto))
+    if (schon.length >= treffer.length) {
+      const hier = schon.find(z => z.auftrag_id === auftragId)
+      return { art: 'schon_erfasst', arbeit: hier ? null : schon[0].auftrag_id }
+    }
+  }
   if (treffer.length > 0) {
     // Die Kistenzahl der Palette(n) im Wareneingang — die häufigste, wenn
     // mehrere gleich schwere am selben Tag kamen. Passt eine, ist alles gut.
@@ -69,9 +85,13 @@ export function zettelBefund(eigen: EingangPalette[], fremd: FremdePalette[], da
     }
     return { art: 'passt' }
   }
+  // Runde BJ (0135): zuerst die eigene Charge an einem Nachbartag (±3 Tage) — „444 kg gibt es am 03.09.
+  // nicht, aber am 04.09." —, eine fremde Charge nur, wenn die eigene die Palette so nicht hat.
+  const tage = [...new Set(eigen.filter(p => gleich(p.brutto_kg, brutto)).map(p => p.eingangsdatum))].sort()
+  const nah = tage.filter(d => Math.abs(tageZwischen(datum, d)) <= 3)
+  if (nah.length > 0) return { art: 'anderer_tag', tage: nah }
   const fremde = fremd.find(p => gleich(p.brutto_kg, brutto))
   if (fremde) return { art: 'fremde_charge', charge_nr: fremde.charge_nr }
-  const tage = [...new Set(eigen.filter(p => gleich(p.brutto_kg, brutto)).map(p => p.eingangsdatum))].sort()
   if (tage.length > 0) return { art: 'anderer_tag', tage }
   return amTag.length === 0 ? { art: 'kein_tag' } : { art: 'kein_gewicht' }
 }

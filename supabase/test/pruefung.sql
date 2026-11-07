@@ -5054,9 +5054,14 @@ begin
     -- der Betrieb die Liste berichtigt hat (1650 = 198977). Sie darf hier leer
     -- sein; was sie meldet, prüft 0122 (i) mit gebauten Fällen. Jede andere
     -- Sicht muss die Demo weiter füllen.
+    -- 7. November (0135, Runde BJ), dieselbe Regel für eine zweite solche Sicht:
+    -- v_zettel_doppelt meldet nur Zettel, die innert Sekunden zweimal mit
+    -- derselben Wägung gespeichert wurden — ein Fehler, den die Demo nicht macht.
+    -- Was sie meldet, prüft 0135 (c1–c5) mit gebauten Fällen. Ihre Formel hinter der
+    -- Planungsgrenze (v_zettel_doppelt_formel, 0135 k) ist dieselbe Sicht.
     for rv in select cl.relname as s from pg_class cl join pg_namespace ns on ns.oid = cl.relnamespace
                where ns.nspname = 'public' and cl.relkind in ('v','m')
-                 and cl.relname not in ('v_stammdaten_pruefung') order by 1
+                 and cl.relname not in ('v_stammdaten_pruefung', 'v_zettel_doppelt', 'v_zettel_doppelt_formel') order by 1
     loop
       execute format('select count(*) from %I', rv.s) into v_n;
       if v_n = 0 then v_leer := v_leer || rv.s || ' '; end if;
@@ -13346,3 +13351,249 @@ begin
 end $$;
 
 select '——— 0134 Was am Lager liegt ———' as ergebnis;
+-- =====================================================================
+-- 0135 — Was der Zettel sagt
+--
+-- Der Betrieb am 7. November: die Daten, die verwendbar sind, trotzdem
+-- nehmen, die nicht verwendbaren ignorieren — „aber nicht den ganzen
+-- Arbeitsschritt vernachlässigen"; das Datum soll streng bleiben; alte
+-- offene Arbeiten soll die App melden.
+--
+-- Geprüft mit einer gebauten Charge Q (zehn volle Paletten zu 36 Kisten, eine
+-- mit 30, zwei Palox am selben Tag, je eine Palette und ein Palox am Vortag)
+-- und ihren Arbeiten:
+-- (a) das Palettenbild: volle Palette 36 Kisten, Netto je Kiste der Median;
+-- (b) eine Teilpalette (12 Kisten), gewogen mit dem Zettel der ganzen Palette,
+--     rechnet damals anteilig und zählt in die Verdunstung; die echte Palette
+--     mit 30 Kisten nicht; die Masse der Arbeit nimmt das anteilige Netto;
+-- (c) derselbe Zettel mit derselben Wägung innert Sekunden zählt einmal (Masse,
+--     Verdunstung), steht als „Doppelt gespeichert" da und nicht als Wägung;
+--     eine andere Wägung oder 20 Sekunden später ist kein Doppel;
+-- (d) ein Rest einer Palette (Netto je Kiste wie die Charge) ist kein
+--     „Zettelgewicht"; ein Rest mit falschem Netto je Kiste oder mit einer
+--     Palette dieser Kistenzahl im Journal schon;
+-- (e) Palox nach der Anzahl: zwei Palox-Zettel bei zwei Palox im Journal sind
+--     keine Auffälligkeit — ein dritter macht alle drei zu einer;
+-- (f) das Datum bleibt streng, der Satz nennt Zettel und Journal;
+-- (g) eine Arbeit seit mehr als drei Tagen offen steht da, eine jüngere nicht;
+-- (h) der Satz der Zuordnung sagt, was „ohne eigene Palette" heisst;
+-- (i) Rechte; (j) Stand 135;
+-- (k) die drei Zettel-Sichten stehen hinter einer Planungsgrenze wie die vier
+--     von 0109: ihr Plan ist ein Function Scan auf <sicht>_zaun, die Grenze
+--     ist PL/pgSQL ohne JIT, mit festem Suchpfad, nur für Angemeldete; Sicht
+--     und Formel lesen mit den Rechten des Lesers und liefern dieselben Zeilen.
+-- =====================================================================
+do $$
+declare v_modus jsonb; v_lad text; v_geladen boolean := false; v_n int; v_x numeric; v_txt text; v_s text; v_v text; v_plan jsonb; v_p pg_proc;
+  v_q int := 99351; v_d0 date := heute() - 40; v_a1 bigint; v_a2 bigint; v_a3 bigint; v_a4 bigint;
+  v_w1 bigint; v_w2 bigint; v_w3 bigint; v_w4 bigint; v_w5 bigint; v_w6 bigint;
+  v_z2 bigint; v_z3 bigint; v_z4 bigint; v_z5 bigint; v_z8 bigint; v_z9 bigint; v_z10 bigint; v_z11 bigint; v_z12 bigint; v_z13 bigint;
+  -- Der Prüfstand rechnet am Saisonende (heute_test, 31.03.2027): jede Zeit hängt an heute(), nie an now() —
+  -- sonst wöge W1 vor ihrem Eingang, und A1 stünde als seit Monaten offen da
+  v_t timestamptz := ((heute() - 1)::timestamp + interval '14 hours') at time zone 'Europe/Zurich';
+  v_u uuid := '00000000-0135-0000-0000-000000000001';
+  v_w uuid := '00000000-0135-0000-0000-000000000002';
+begin
+  select wert into v_modus from einstellung where schluessel = 'betriebsmodus';
+  update einstellung set wert = '"beispiel"'::jsonb where schluessel = 'betriebsmodus';
+  insert into auth.users (id, email, raw_user_meta_data) values (v_u, null, '{"name":"Prüf-0135"}');
+  update profil set rolle = 'admin' where id = v_u;
+  insert into auth.users (id, email, raw_user_meta_data) values (v_w, null, '{"name":"Prüf-0135 Halle"}');
+  update profil set rolle = 'arbeiter' where id = v_w;
+  perform set_config('request.jwt.claim.sub', v_u::text, true);
+  if not exists (select 1 from auftrag where station = 'waschen_sortieren' and bemerkung = 'DEMO') then
+    select demo_daten_laden() into v_lad; v_geladen := true;
+  end if;
+  select sorte into v_s from charge order by nr limit 1;
+  insert into charge (nr, schlag, sorte, saison) values (v_q, 'Prüf-0135', v_s, extract(year from heute())::int);
+  -- G2: Kiste 1.5 kg, Palette 25 kg → eine volle Palette 480 kg brutto hat 480 − 54 − 25 = 401 kg netto (11.139 je Kiste)
+  insert into palette (charge_nr, eingangsdatum, brutto_kg, kisten, gebindeart, extern_id, quelle)
+  select v_q, v_d0, 480, 36, 'G2', format('pruef-0135-%s', i), 'journal-import' from generate_series(1, 10) i;
+  insert into palette (charge_nr, eingangsdatum, brutto_kg, kisten, gebindeart, extern_id, quelle) values
+    (v_q, v_d0, 420, 30, 'G2', 'pruef-0135-30', 'journal-import'),
+    (v_q, v_d0, 350, 1, 'Holz Palox', 'pruef-0135-px1', 'journal-import'),
+    (v_q, v_d0, 350, 1, 'Holz Palox', 'pruef-0135-px2', 'journal-import'),
+    (v_q, v_d0 - 1, 470, 36, 'G2', 'pruef-0135-vortag', 'journal-import'),
+    (v_q, v_d0 - 1, 345, 1, 'Holz Palox', 'pruef-0135-px-vortag', 'journal-import');
+  assert exists (select 1 from gebinde where art = 'G2' and tara_kg_pro_kiste = 1.5 and tara_kg_palette = 25)
+     and exists (select 1 from gebinde where art = 'Holz Palox'),
+    '0135 (a0): die Gebinde G2 (1.5 / 25 kg) oder Holz Palox fehlen — die Rechnungen unten wären falsch';
+
+  -- (a) das Palettenbild
+  assert (select kisten_voll = 36 and netto_je_kiste = round(401.0 / 36, 3) and n_paletten = 12 from v_charge_palettenbild where charge_nr = v_q),
+    format('0135 (a1): das Palettenbild von Q ist nicht 36 Kisten, %s kg je Kiste (Median), 12 Paletten ohne Palox: %s', round(401.0 / 36, 3),
+      (select row(kisten_voll, netto_je_kiste, n_paletten)::text from v_charge_palettenbild where charge_nr = v_q));
+
+  -- die Arbeiten: A1 und A2 gestern (A2 ein dritter Palox), A3 vor fünf Tagen offen, A4 vor zwei Tagen offen
+  insert into auftrag (weg, station, charge_nr, start_ts, eroeffnet_von) values ('hand', 'waschen_sortieren', v_q, v_t - interval '3 hours', v_u) returning id into v_a1;
+  insert into auftrag (weg, station, charge_nr, start_ts, eroeffnet_von) values ('hand', 'waschen_sortieren', v_q, v_t - interval '2 hours', v_u) returning id into v_a2;
+  insert into auftrag (weg, station, charge_nr, start_ts, eroeffnet_von) values ('hand', 'waschen_sortieren', v_q, (heute() - 5)::timestamp + interval '9 hours', v_u) returning id into v_a3;
+  insert into auftrag (weg, station, charge_nr, start_ts, eroeffnet_von) values ('hand', 'waschen_sortieren', v_q, (heute() - 2)::timestamp + interval '9 hours', v_u) returning id into v_a4;
+
+  -- Wägungen: W1 Teilpalette 12 Kisten mit dem Zettel der ganzen Palette (480); W2 die echte 30er (420);
+  -- W3/W4 dieselbe Wägung zweimal; W5 eine andere; W6 dieselbe wie W3, aber 20 s später
+  insert into verdunstung_wiegung (charge_nr, auftrag_id, eingangsdatum, brutto_damals_kg, brutto_jetzt_kg, kisten, gebindeart, gemessen, wiege_ts, bemerkung)
+  values (v_q, v_a1, v_d0, 480, round(12 * 1.5 + 25 + 401.0 * 12 / 36 * 0.99, 2), 12, 'G2', true, v_t, 'PRUEF0135') returning id into v_w1;
+  insert into verdunstung_wiegung (charge_nr, auftrag_id, eingangsdatum, brutto_damals_kg, brutto_jetzt_kg, kisten, gebindeart, gemessen, wiege_ts, bemerkung)
+  values (v_q, v_a1, v_d0, 420, 416, 30, 'G2', true, v_t, 'PRUEF0135') returning id into v_w2;
+  insert into verdunstung_wiegung (charge_nr, auftrag_id, eingangsdatum, brutto_damals_kg, brutto_jetzt_kg, kisten, gebindeart, gemessen, wiege_ts, bemerkung)
+  values (v_q, v_a1, v_d0, 480, 470, 36, 'G2', true, v_t, 'PRUEF0135') returning id into v_w3;
+  insert into verdunstung_wiegung (charge_nr, auftrag_id, eingangsdatum, brutto_damals_kg, brutto_jetzt_kg, kisten, gebindeart, gemessen, wiege_ts, bemerkung)
+  values (v_q, v_a1, v_d0, 480, 470, 36, 'G2', true, v_t + interval '2 seconds', 'PRUEF0135') returning id into v_w4;
+  insert into verdunstung_wiegung (charge_nr, auftrag_id, eingangsdatum, brutto_damals_kg, brutto_jetzt_kg, kisten, gebindeart, gemessen, wiege_ts, bemerkung)
+  values (v_q, v_a1, v_d0, 480, 468, 36, 'G2', true, v_t + interval '3 seconds', 'PRUEF0135') returning id into v_w5;
+  insert into verdunstung_wiegung (charge_nr, auftrag_id, eingangsdatum, brutto_damals_kg, brutto_jetzt_kg, kisten, gebindeart, gemessen, wiege_ts, bemerkung)
+  values (v_q, v_a1, v_d0, 480, 470, 36, 'G2', true, v_t + interval '20 seconds', 'PRUEF0135') returning id into v_w6;
+
+  -- Zettel der Arbeit A1
+  insert into auftrag_palette (auftrag_id, eingangsdatum, brutto_zettel_kg, kisten, gebindeart, ts) values
+    (v_a1, v_d0, 480, 36, 'G2', v_t - interval '5 minutes');
+  insert into auftrag_palette (auftrag_id, eingangsdatum, brutto_zettel_kg, kisten, gebindeart, ts)
+    values (v_a1, v_d0, round(12 * 1.5 + 25 + 401.0 / 36 * 12), 12, 'G2', v_t - interval '4 minutes') returning id into v_z2;   -- Rest: 177 kg
+  insert into auftrag_palette (auftrag_id, eingangsdatum, brutto_zettel_kg, kisten, gebindeart, ts)
+    values (v_a1, v_d0, 300, 12, 'G2', v_t - interval '3 minutes') returning id into v_z3;    -- 21 kg je Kiste: kein Rest
+  insert into auftrag_palette (auftrag_id, eingangsdatum, brutto_zettel_kg, kisten, gebindeart, ts)
+    values (v_a1, v_d0, 400, 30, 'G2', v_t - interval '2 minutes') returning id into v_z4;    -- 30 Kisten: im Journal gibt es eine 30er
+  insert into auftrag_palette (auftrag_id, eingangsdatum, brutto_zettel_kg, kisten, gebindeart, ts)
+    values (v_a1, v_d0, 345, 1, 'Holz Palox', v_t - interval '90 seconds') returning id into v_z5; -- 345 kg gibt es am Vortag
+  insert into auftrag_palette (auftrag_id, eingangsdatum, brutto_zettel_kg, kisten, gebindeart, ts)
+    values (v_a1, v_d0, 352, 1, 'Holz Palox', v_t - interval '80 seconds');
+  insert into auftrag_palette (auftrag_id, eingangsdatum, brutto_zettel_kg, kisten, gebindeart, ts, wiegung_id)
+    values (v_a1, v_d0, 480, 36, 'G2', v_t, v_w3) returning id into v_z8;
+  insert into auftrag_palette (auftrag_id, eingangsdatum, brutto_zettel_kg, kisten, gebindeart, ts, wiegung_id)
+    values (v_a1, v_d0, 480, 36, 'G2', v_t + interval '2 seconds', v_w4) returning id into v_z9;
+  insert into auftrag_palette (auftrag_id, eingangsdatum, brutto_zettel_kg, kisten, gebindeart, ts, wiegung_id)
+    values (v_a1, v_d0, 480, 36, 'G2', v_t + interval '3 seconds', v_w5) returning id into v_z10;
+  insert into auftrag_palette (auftrag_id, eingangsdatum, brutto_zettel_kg, kisten, gebindeart, ts, wiegung_id)
+    values (v_a1, v_d0, 480, 36, 'G2', v_t + interval '20 seconds', v_w6) returning id into v_z11;
+  insert into auftrag_palette (auftrag_id, eingangsdatum, brutto_zettel_kg, kisten, gebindeart, ts)
+    values (v_a1, v_d0 - 1, 480, 36, 'G2', v_t + interval '30 seconds') returning id into v_z12;   -- 480 kg kam am Tag danach
+  insert into auftrag_palette (auftrag_id, eingangsdatum, brutto_zettel_kg, kisten, gebindeart, ts, wiegung_id)
+    values (v_a1, v_d0, 480, 12, 'G2', v_t + interval '40 seconds', v_w1) returning id into v_z13;  -- die Teilpalette
+
+  -- (b) die Teilpalette
+  assert (select anteilig and kisten_voll = 36 and abs(netto_damals_kg - 401.0 * 12 / 36) < 0.01 from v_wiegung_netto where id = v_w1),
+    format('0135 (b1): W1 (12 von 36 Kisten, Zettel 480 kg) rechnet nicht anteilig 401 × 12 ÷ 36: %s', (select row(anteilig, kisten_voll, netto_damals_kg)::text from v_wiegung_netto where id = v_w1));
+  assert (select not anteilig and kisten_voll is null and netto_damals_kg = 420 - 30 * 1.5 - 25 from v_wiegung_netto where id = v_w2),
+    '0135 (b2): die echte Palette mit 30 Kisten (420 kg) rechnet anteilig';
+  assert (select verwendbar and anteilig and abs(netto_damals_kg - 401.0 * 12 / 36) < 0.01 and rate_pro_tag between 0 and 0.01 from v_verdunstung_messung where id = v_w1),
+    format('0135 (b3): W1 zählt nicht mit ihrem anteiligen Netto in die Verdunstung: %s', (select row(verwendbar, netto_damals_kg, rate_pro_tag, grund)::text from v_verdunstung_messung where id = v_w1));
+  assert (select masse_quelle = 'gewogen' and abs(netto_kg - 401.0 * 12 / 36) < 0.01 from v_auftrag_palette_masse where id = v_z13),
+    '0135 (b4): die Masse der Arbeit nimmt für die Teilpalette nicht das anteilige Netto';
+
+  -- (c) doppelt gespeichert
+  assert (select array_agg(id order by id) from v_zettel_doppelt where auftrag_id = v_a1) = array[v_z9]
+     and (select erstes_id = v_z8 and gewogen_kg = 470 and sekunden = 2 from v_zettel_doppelt where id = v_z9),
+    format('0135 (c1): doppelt ist nicht genau Z9 (nach Z8, 2 s, 470 kg): %s', (select array_agg(row(id, erstes_id, sekunden)::text) from v_zettel_doppelt where auftrag_id = v_a1));
+  assert not exists (select 1 from v_auftrag_palette_masse where id = v_z9)
+     and exists (select 1 from v_auftrag_palette_masse where id = v_z8) and exists (select 1 from v_auftrag_palette_masse where id = v_z10)
+     and exists (select 1 from v_auftrag_palette_masse where id = v_z11),
+    '0135 (c2): der doppelte Zettel zählt in die Masse, oder ein anderer fehlt';
+  assert (select not verwendbar and grund like 'doppelt gespeichert%' from v_verdunstung_messung where id = v_w4)
+     and (select verwendbar from v_verdunstung_messung where id = v_w3) and (select verwendbar from v_verdunstung_messung where id = v_w6),
+    '0135 (c3): die doppelte Wägung zählt in die Verdunstung, oder W3 / W6 nicht';
+  assert exists (select 1 from v_plausibilitaet where art = 'Doppelt gespeichert' and bezug = 'zettel_doppelt:' || v_z9 and befund like '%zweimal gespeichert, 2 s auseinander%')
+     and (select count(*) from v_plausibilitaet where art = 'Doppelt gespeichert' and auftrag_id = v_a1) = 1,
+    '0135 (c4): „Doppelt gespeichert" steht nicht genau einmal da';
+  assert not exists (select 1 from v_plausibilitaet where art = 'Wägung' and bezug = 'verdunstung_wiegung:' || v_w4),
+    '0135 (c5): die doppelte Wägung steht noch einmal als „Wägung" da';
+
+  -- (d) Rest einer Palette
+  assert (select rest from v_zettel_lage where id = v_z2) and not (select rest from v_zettel_lage where id = v_z3)
+     and not (select rest from v_zettel_lage where id = v_z4),
+    '0135 (d1): Rest ist nicht genau Z2 (177 kg, 12 Kisten, Netto je Kiste wie die Charge)';
+  assert not exists (select 1 from v_plausibilitaet where art = 'Zettelgewicht' and auftrag_id = v_a1 and bezug = format('zettel:%s:%s', v_a1, (select brutto_zettel_kg from auftrag_palette where id = v_z2)))
+     and exists (select 1 from v_plausibilitaet where art = 'Zettelgewicht' and bezug = format('zettel:%s:300.00', v_a1))
+     and exists (select 1 from v_plausibilitaet where art = 'Zettelgewicht' and bezug = format('zettel:%s:400.00', v_a1)),
+    format('0135 (d2): „Zettelgewicht" steht beim Rest, oder fehlt bei 300 kg / 400 kg: %s',
+      (select array_agg(bezug) from v_plausibilitaet where art = 'Zettelgewicht' and auftrag_id = v_a1));
+
+  -- (e) Palox nach der Anzahl
+  assert (select bool_and(palox and palox_passt) from v_zettel_lage where auftrag_id = v_a1 and palox) and (select count(*) from v_zettel_lage where auftrag_id = v_a1 and palox) = 2,
+    '0135 (e1): zwei Palox-Zettel bei zwei Palox im Journal gehen nicht auf';
+  assert not exists (select 1 from v_plausibilitaet where art = 'Zettelgewicht' and auftrag_id = v_a1 and (bezug like '%:345.00%' or bezug like '%:352.00%')),
+    '0135 (e2): ein Palox, der nach der Anzahl aufgeht, steht als „Zettelgewicht" da (352 kg gibt es nirgends, 345 kg am Vortag)';
+  insert into auftrag_palette (auftrag_id, eingangsdatum, brutto_zettel_kg, kisten, gebindeart, ts) values (v_a2, v_d0, 348, 1, 'Holz Palox', v_t + interval '1 hour');
+  assert not exists (select 1 from v_zettel_lage where charge_nr = v_q and palox and palox_passt),
+    '0135 (e3): drei Palox-Zettel bei zwei Palox im Journal gehen noch auf';
+  assert (select count(*) from v_plausibilitaet where art = 'Zettelgewicht' and charge_nr = v_q
+           and (bezug like '%:345.00%' or bezug like '%:352.00%' or bezug like '%:348.00%')) = 3,
+    format('0135 (e4): beim dritten Palox stehen nicht alle drei da: %s',
+      (select array_agg(bezug) from v_plausibilitaet where art = 'Zettelgewicht' and charge_nr = v_q));
+  delete from auftrag_palette where auftrag_id = v_a2;
+
+  -- (f) das Datum: streng, mit beiden Daten
+  select befund into v_txt from v_plausibilitaet where art = 'Zettelgewicht' and bezug = format('zettel:%s:480.00:%s', v_a1, v_d0 - 1);
+  assert v_txt like format('Zettel vom %s mit 480.00 kg (1 gezählt): eine Palette mit genau diesem Gewicht und gleichen Kisten steht im Wareneingang am %s, nicht am %s.%%',
+                           to_char(v_d0 - 1, 'DD.MM.YYYY'), to_char(v_d0, 'DD.MM.YYYY'), to_char(v_d0 - 1, 'DD.MM.YYYY')),
+    format('0135 (f1): der Satz zum Datum nennt nicht Zettel und Journal: %s', v_txt);
+  assert (select rat like 'Datum auf dem Zettel und im Journal vergleichen%' from v_plausibilitaet where art = 'Zettelgewicht' and bezug = format('zettel:%s:480.00:%s', v_a1, v_d0 - 1)),
+    '0135 (f2): der Rat zum Datum sagt nicht, was zu vergleichen ist';
+
+  -- (g) Arbeit offen
+  assert exists (select 1 from v_plausibilitaet where art = 'Arbeit offen' and auftrag_id = v_a3 and bezug = 'auftrag:' || v_a3
+                   and befund like format('Arbeit seit %s offen (5 Tage)%%', to_char(heute() - 5, 'DD.MM.YYYY')))
+     and not exists (select 1 from v_plausibilitaet where art = 'Arbeit offen' and auftrag_id in (v_a1, v_a2, v_a4)),
+    '0135 (g1): „Arbeit offen" steht nicht genau bei der Arbeit, die seit fünf Tagen offen ist';
+  update auftrag set ende_ts = v_t + interval '2 hours', status = 'abgeschlossen' where id = v_a3;
+  assert not exists (select 1 from v_plausibilitaet where art = 'Arbeit offen' and auftrag_id = v_a3),
+    '0135 (g2): eine abgeschlossene Arbeit steht als offen da';
+
+  -- (h) der Satz der Zuordnung
+  select prosrc into v_txt from pg_proc where proname = 'paletten_zuordnen';
+  assert v_txt like '%finden bei Charge %s keine Palette mit ihrem Gewicht (Eingang ±3 Tage)%' and v_txt not like '%ohne eigene Palette passen%',
+    '0135 (h1): der Satz der Zuordnung sagt noch „ohne eigene Palette"';
+
+  -- (i) Rechte
+  perform set_config('request.jwt.claim.sub', v_w::text, true);
+  set local role authenticated;
+  select count(*) into v_n from v_zettel_lage where charge_nr = v_q;
+  select v_n + count(*) into v_n from v_zettel_doppelt where auftrag_id = v_a1;
+  select v_n + count(*) into v_n from v_charge_palettenbild where charge_nr = v_q;
+  select v_n + count(*) into v_n from v_wiegung_netto where id = v_w1;
+  reset role;
+  perform set_config('request.jwt.claim.sub', v_u::text, true);
+  assert v_n = 12 + 1 + 1 + 1, format('0135 (i1): die Halle sieht die Zettel-Sichten nicht (%s Zeilen)', v_n);
+  assert not has_table_privilege('anon', 'v_zettel_lage', 'select') and not has_table_privilege('anon', 'v_zettel_doppelt', 'select')
+     and not has_table_privilege('anon', 'v_wiegung_netto', 'select') and not has_table_privilege('anon', 'v_charge_palettenbild', 'select'),
+    '0135 (i2): Nichtangemeldete lesen die Zettel-Sichten';
+
+  -- (k) Planungsgrenzen (wie 0109 a–c)
+  foreach v_v in array array['v_wiegung_netto', 'v_zettel_doppelt', 'v_zettel_lage'] loop
+    execute format('explain (format json) select * from %I', v_v) into v_plan;
+    assert v_plan -> 0 -> 'Plan' ->> 'Node Type' = 'Function Scan' and v_plan -> 0 -> 'Plan' ->> 'Function Name' = v_v || '_zaun',
+      format('0135 (k1): %s liest nicht über %s_zaun() — der Planer setzt die Formel ein', v_v, v_v);
+    select * into v_p from pg_proc where proname = v_v || '_zaun' and pronargs = 0;
+    assert v_p.oid is not null and (select lanname from pg_language where oid = v_p.prolang) = 'plpgsql',
+      format('0135 (k2): %s_zaun() fehlt oder ist nicht PL/pgSQL — der Planer setzte sie ein', v_v);
+    assert 'jit=off' = any(v_p.proconfig) and 'search_path=public' = any(v_p.proconfig) and not v_p.prosecdef,
+      format('0135 (k3): %s_zaun() läuft mit JIT, ohne festen Suchpfad oder mit den Rechten des Besitzers', v_v);
+    assert not has_function_privilege('anon', v_p.oid, 'execute') and has_function_privilege('authenticated', v_p.oid, 'execute')
+       and not exists (select 1 from aclexplode(coalesce(v_p.proacl, acldefault('f', v_p.proowner))) a where a.grantee = 0 and a.privilege_type = 'EXECUTE'),
+      format('0135 (k4): die Rechte an %s_zaun() stimmen nicht (jeder oder anon darf, oder Angemeldete nicht)', v_v);
+    assert (select coalesce('security_invoker=true' = any(reloptions), false) from pg_class where oid = v_v::regclass)
+       and (select coalesce('security_invoker=true' = any(reloptions), false) from pg_class where oid = (v_v || '_formel')::regclass),
+      format('0135 (k5): %s oder %s_formel liest nicht mit den Rechten des Lesers', v_v, v_v);
+    execute format('select count(*) from ((select * from %I except all select * from %I) union all (select * from %I except all select * from %I)) d',
+                   v_v, v_v || '_formel', v_v || '_formel', v_v) into v_n;
+    assert v_n = 0, format('0135 (k6): %s und %s_formel liefern nicht dieselben Zeilen (%s verschieden)', v_v, v_v, v_n);
+  end loop;
+  assert (select doppelt from v_zettel_lage where id = v_z9) and not (select doppelt from v_zettel_lage where id = v_z8),
+    '0135 (k7): v_zettel_lage kennt den doppelten Zettel nicht mehr (die doppelten einmal je Abfrage gelesen)';
+
+  -- (j) Stand
+  assert schema_stand() >= 135, format('0135 (j1): schema_stand() = %s', schema_stand());
+
+  -- aufräumen
+  delete from auftrag_palette where auftrag_id in (v_a1, v_a2, v_a3, v_a4);
+  delete from verdunstung_wiegung where bemerkung = 'PRUEF0135';
+  delete from auftrag where id in (v_a1, v_a2, v_a3, v_a4);
+  delete from palette where charge_nr = v_q;
+  delete from charge where nr = v_q;
+  if v_geladen then perform demo_daten_entfernen(); end if;
+  delete from profil where id in (v_u, v_w); delete from auth.users where id in (v_u, v_w);
+  update einstellung set wert = v_modus where schluessel = 'betriebsmodus';
+  raise notice 'OK  0135 — Teilpalette anteilig, doppelt gespeichert zählt einmal, Rest und Palox nach der Anzahl ohne Auffälligkeit, das Datum mit beiden Daten, alte offene Arbeiten gemeldet';
+end $$;
+
+select '——— 0135 Was der Zettel sagt ———' as ergebnis;

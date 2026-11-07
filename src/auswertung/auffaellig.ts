@@ -196,6 +196,16 @@ export const ART_INFO: Record<string, ArtInfo> = {
     wie: 'Die Lieferscheine dieser Charge brauchen mehr Eingang, als im Wareneingang steht. Meist fehlt eine Palette im Erntejournal, oder ein Lieferschein ist auf die falsche Charge gebucht — das klärt der Reiter Perigon.',
     folge: 'Die Charge kann nicht unter null fallen; das Zuviel steht als Überzählung da, nicht als Verlust.',
   },
+  'Doppelt gespeichert': {
+    titel: 'Derselbe Zettel zweimal gespeichert',
+    wie: 'Ein Zettel wurde innert Sekunden zweimal gespeichert, mit derselben Wägung aufs Gramm — meist ein doppelter Druck auf „Speichern". In so kurzer Zeit wiegt niemand eine zweite Palette.',
+    folge: 'Die App zählt ihn einmal: in der Menge der Arbeit und in der Verdunstung (0135).',
+  },
+  'Arbeit offen': {
+    titel: 'Arbeit seit Tagen offen',
+    wie: 'Die Arbeit wurde gestartet, aber nie abgeschlossen oder abgebrochen — meist vergessen, oder sie lief gar nicht.',
+    folge: 'Was erfasst ist, bleibt; es fehlt das Ende der Arbeit. In der Halle abschliessen oder abbrechen.',
+  },
   'Lieferung ohne Eingang': {
     titel: 'Lieferung ohne Wareneingang',
     wie: 'Auf einen Lieferschein ist eine Charge gebucht, von der im Wareneingang nichts steht.',
@@ -243,9 +253,11 @@ export interface ZettelLage {
   arbeitTag: string | null
 }
 
-export type Muster = 'datum' | 'tippfehler' | 'zahlendreher' | 'fremde_charge' | 'doppelt' | 'teilpalette' | 'palox' | 'mehrdeutig' | 'ohne_kandidat'
+export type Muster = 'datum' | 'umgestellt' | 'ziffer' | 'tippfehler' | 'zahlendreher' | 'fremde_charge' | 'doppelt' | 'teilpalette' | 'palox' | 'mehrdeutig' | 'ohne_kandidat'
 export const MUSTER_NAME: Record<Muster, string> = {
   datum: 'Datum vertippt',
+  umgestellt: 'Datum zu spät umgestellt',
+  ziffer: 'Eine Ziffer im Datum',
   tippfehler: 'Gewicht vertippt',
   zahlendreher: 'Zahlendreher',
   fremde_charge: 'Zettel einer anderen Charge',
@@ -320,6 +332,17 @@ export function eineZifferAnders(a: string, b: string): boolean {
   let n = 0
   for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) n++
   return n === 1
+}
+
+/** Ganze Tage von a bis b (JJJJ-MM-TT). */
+export function tageAbstand(a: string, b: string): number {
+  const x = Date.parse(a + 'T00:00:00Z'), y = Date.parse(b + 'T00:00:00Z')
+  return Number.isFinite(x) && Number.isFinite(y) ? Math.round((y - x) / 86_400_000) : Number.NaN
+}
+
+/** Ein Ziffernfehler im Datum: eine Ziffer anders, und kein Nachbartag (mehr als drei Tage auseinander). */
+export function zifferFehler(von: string, auf: string): boolean {
+  return eineZifferAnders(von, auf) && Math.abs(tageAbstand(von, auf)) > 3
 }
 
 /** Die häufigste Kistenzahl der Paletten der Charge — „voll" für diese Charge. */
@@ -438,6 +461,11 @@ export function zettelDeutung(b: Befund, lage: ZettelLage): Deutung {
   }
   let hinweis: string | null = null
   if (t.tag !== null) {
+    // Runde BJ (0135): Hat die eigene Charge die Palette innert ±3 Tagen, geht es um das Datum — nie um
+    // eine fremde Charge, auch wenn andere Zettel dieses Tages genau passen (1628, Arbeit 1681).
+    const nah = [...new Set(betroffen.flatMap(z => treffer.get(z.id)?.tage ?? []))]
+      .filter(d => Math.abs(tageAbstand(von, d)) <= 3).sort((x, y) => Math.abs(tageAbstand(von, x)) - Math.abs(tageAbstand(von, y)) || x.localeCompare(y))
+    if (nah.length > 0) return { ...nahesDatum(b, lage, betroffen, von, nah), betroffen, treffer }
     const geschwister = lage.zettel.filter(z => !betroffen.some(y => y.id === z.id) && z.eingangsdatum === von && treffer.get(z.id)?.genau)
     if (geschwister.length === 0) {
       const d = tagDeutung(b, lage, betroffen, von, true)
@@ -451,6 +479,47 @@ export function zettelDeutung(b: Befund, lage: ZettelLage): Deutung {
   return { ...gewichtDeutung(b, lage, betroffen, hinweis), treffer }
 }
 
+/**
+ * Runde BJ (0135): Die Palette steht bei der eigenen Charge an einem Nachbartag (±3 Tage). Steht
+ * dieser Tag an Zetteln derselben Arbeit, die gleich danach (oder davor) eingegeben wurden, blieb das
+ * Datum vom vorigen Zettel stehen: „Datum zu spät umgestellt" — eindeutig. Sonst tragen Zettel und
+ * Journal verschiedene Daten: wahrscheinlich, welches stimmt, sagt der Zettel.
+ */
+function nahesDatum(b: Befund, lage: ZettelLage, betroffen: Zettel[], von: string, nah: string[]): Omit<Deutung, 'betroffen' | 'treffer'> {
+  const ids = betroffen.map(z => z.id)
+  const erster = Math.min(...ids), letzter = Math.max(...ids)
+  const danach = lage.zettel.filter(z => z.id > letzter && z.eingangsdatum !== null && nah.includes(z.eingangsdatum)).sort((x, y) => x.id - y.id)
+  const davor = lage.zettel.filter(z => z.id < erster && z.eingangsdatum !== null && nah.includes(z.eingangsdatum)).sort((x, y) => y.id - x.id)
+  const zuSpaet = danach.length > 0
+  const auf = (danach[0] ?? davor[0])?.eingangsdatum ?? (nah.length === 1 ? nah[0] : null)
+  const kg = betroffen.length === 1 ? `Eine Palette mit ${kgText(betroffen[0].brutto_zettel_kg)}` : `Paletten mit diesen ${betroffen.length} Gewichten`
+  if (!auf) {
+    return {
+      muster: 'mehrdeutig',
+      vorschlag: { art: 'von_hand', wo: 'arbeit', titel: 'Welcher Tag? Die Daten sagen es nicht eindeutig.',
+        warum: [`${kg} gibt es bei Charge ${b.charge_nr} an ${nah.map(tagText).join(', ')}, nicht am ${tagText(von)}.`,
+                'Die App schlägt nichts vor, wo sie raten müsste — der Zettel selbst sagt es.'] },
+    }
+  }
+  const umgestellt = danach.length > 0 || davor.length > 0
+  return {
+    muster: umgestellt ? 'umgestellt' : 'datum',
+    vorschlag: {
+      art: 'korrigieren', was: 'zetteldatum', ids, vorher: von, nachher: auf, sicher: umgestellt ? 'eindeutig' : 'wahrscheinlich',
+      titel: umgestellt ? `Datum zu ${zuSpaet ? 'spät' : 'früh'} umgestellt: ${tagText(von)} → ${tagText(auf)}` : `Zetteldatum ${tagText(von)} → ${tagText(auf)}`,
+      warum: [
+        `${kg} gibt es bei Charge ${b.charge_nr} am ${tagText(auf)}, nicht am ${tagText(von)}.`,
+        umgestellt
+          ? (zuSpaet ? `Die Zettel, die in dieser Arbeit gleich danach eingegeben wurden, tragen schon den ${tagText(auf)} — das Datum blieb vom vorigen Zettel stehen und wurde zu spät umgestellt.`
+                     : `Die Zettel davor tragen den ${tagText(auf)} — das Datum wurde zu früh umgestellt.`)
+          : `Zettel und Journal liegen ${Math.abs(tageAbstand(von, auf))} ${Math.abs(tageAbstand(von, auf)) === 1 ? 'Tag' : 'Tage'} auseinander — welches Datum stimmt, sagt der Zettel.`,
+        'Eine andere Charge kommt nicht in Frage: die eigene hat die Palette.',
+      ],
+      danach: `Danach rechnet die App neu. Die Lagerdauer dieser ${betroffen.length === 1 ? 'Palette' : 'Paletten'} beginnt am ${tagText(auf)}; passt der Zettel dann zu seiner Palette, verschwindet die Auffälligkeit.`,
+    },
+  }
+}
+
 /** Der Tag einer Gruppe von Zetteln — siehe zettelDeutung. `einzeln`: ein Zettelgewicht mit Tag, ohne Geschwister. */
 function tagDeutung(b: Befund, lage: ZettelLage, gruppe: Zettel[], von: string, einzeln: boolean): Omit<Deutung, 'betroffen' | 'treffer'> {
   const ids = gruppe.map(z => z.id)
@@ -462,10 +531,12 @@ function tagDeutung(b: Befund, lage: ZettelLage, gruppe: Zettel[], von: string, 
   const eingangstage = [...new Set(lage.eigen.filter(p => !lage.arbeitTag || p.eingangsdatum <= lage.arbeitTag).map(p => p.eingangsdatum))].sort()
 
   const datum = (auf: string, sicher: 'eindeutig' | 'wahrscheinlich', grund: string[]): Omit<Deutung, 'betroffen' | 'treffer'> => ({
-    muster: 'datum',
+    // Runde BJ (0135): unterscheiden sich die Daten in einer Ziffer und liegen sie mehr als drei Tage
+    // auseinander (08.09. ↔ 18.09.), heisst der Vorschlag so; 22.09. → 23.09. ist ein Nachbartag, kein Ziffernfehler
+    muster: zifferFehler(von, auf) ? 'ziffer' : 'datum',
     vorschlag: {
       art: 'korrigieren', was: 'zetteldatum', ids, vorher: von, nachher: auf, sicher,
-      titel: `Zetteldatum ${tagText(von)} → ${tagText(auf)}${n > 1 ? ` an allen ${n} Zetteln vom ${tagText(von)}` : ''}`,
+      titel: `${zifferFehler(von, auf) ? 'Eine Ziffer im Datum: ' : 'Zetteldatum '}${tagText(von)} → ${tagText(auf)}${n > 1 ? ` an allen ${n} Zetteln vom ${tagText(von)}` : ''}`,
       warum: [
         ...grund,
         ...(eineZifferAnders(von, auf) ? ['Die beiden Daten unterscheiden sich in einer Ziffer — ein Tippfehler liegt nahe.'] : []),
@@ -494,7 +565,9 @@ function tagDeutung(b: Befund, lage: ZettelLage, gruppe: Zettel[], von: string, 
   })
 
   if (tag && tag.n === n) return datum(tag.tag, !f && n > 1 && !einzeln ? 'eindeutig' : 'wahrscheinlich', [passtSatz(tag.tag, n)])
-  if (f && f.n >= Math.ceil(n / 2) && f.n > (tag?.n ?? 0)) return fremd(f)
+  // Runde BJ (0135): eine fremde Charge nur, wenn die eigene die Paletten nicht innert ±3 Tagen hat
+  const eigenNah = tag !== null && Math.abs(tageAbstand(von, tag.tag)) <= 3
+  if (f && !eigenNah && f.n >= Math.ceil(n / 2) && f.n > (tag?.n ?? 0)) return fremd(f)
   if (tag && tag.n >= Math.ceil(n / 2)) return datum(tag.tag, 'wahrscheinlich', [passtSatz(tag.tag, tag.n)])
   // Stehen die Gewichte im Wareneingang, aber hat diese Paletten schon eine andere Arbeit gezählt?
   const schon = gruppe.map(z => lage.andere.filter(y => gleich(y.brutto_zettel_kg, z.brutto_zettel_kg)
@@ -520,7 +593,7 @@ function tagDeutung(b: Befund, lage: ZettelLage, gruppe: Zettel[], von: string, 
     return datum(eingangstage[0], 'wahrscheinlich',
       [`Charge ${b.charge_nr} kam nur an einem Tag, am ${tagText(eingangstage[0])}${ohneGewicht ? ' — die Zettel haben kein Gewicht, an dem es sich bestätigen liesse.' : ' — die Gewichte der Zettel stehen dort aber nicht genau so.'}`])
   }
-  if (f) return fremd(f)
+  if (f && !eigenNah) return fremd(f)
   const tage = [...new Set(tr.flatMap(x => x.tage))].sort()
   if (tage.length > 1) {
     return {
@@ -555,7 +628,8 @@ function gewichtDeutung(b: Befund, lage: ZettelLage, betroffen: Zettel[], hinwei
       vorschlag: {
         art: 'so_lassen', titel: 'So lassen — ein Palox, gerechnet mit dem Zettel',
         warum: [...vorne,
-          'Der Zettel gehört zu einem Palox (eine Kiste). Im Wareneingang stehen Palox oft mit einem geschätzten Gewicht (rund 300 kg) — genau gleich kann der Zettel dann nicht sein.',
+          'Der Zettel gehört zu einem Palox (eine Kiste). Im Journal stehen Palox oft paarweise oder zu viert mit demselben Gewicht (gemeinsam gewogen oder abgeschrieben) — genau gleich kann der Zettel dann nicht sein.',
+          'Seit Runde BJ (0135) ordnet die App Palox über die Anzahl zu: diese Auffälligkeit steht nur, wenn an dem Tag mehr Palox-Zettel der Charge gezählt sind, als das Journal Palox hat.',
           'Gerechnet wird mit dem Zettelgewicht minus Tara — das ist das gewogene.'],
       },
     }
@@ -588,7 +662,7 @@ function gewichtDeutung(b: Befund, lage: ZettelLage, betroffen: Zettel[], hinwei
       },
     }
   }
-  if (tr0.fremd.length > 0) {
+  if (tr0.fremd.length > 0 && !tr0.tage.some(d => z0.eingangsdatum !== null && Math.abs(tageAbstand(z0.eingangsdatum, d)) <= 3)) {
     return {
       muster: 'fremde_charge', betroffen,
       vorschlag: {
@@ -652,6 +726,10 @@ export function artVorschlag(b: Befund): Vorschlag | null {
     case 'Ohne Nenner':
     case 'Kaliber fehlt':
       return b.auftrag_id ? { art: 'von_hand', wo: 'arbeit', titel: 'An der Arbeit nachtragen', warum: ['Was fehlt, weiss nur die Halle — in der Korrektur der Arbeit eintragen.'] } : null
+    case 'Doppelt gespeichert':
+      return { art: 'so_lassen', titel: 'So lassen — die App zählt ihn einmal', warum: ['Derselbe Zettel mit derselben Wägung innert Sekunden ist eine Palette, nicht zwei. Die App zählt ihn einmal, in der Menge und in der Verdunstung.'] }
+    case 'Arbeit offen':
+      return { art: 'von_hand', wo: 'arbeit', titel: 'In der Halle abschliessen oder abbrechen', warum: ['Was in der Arbeit erfasst ist, bleibt. Lief sie gar nicht, abbrechen; sonst abschliessen.'] }
     case 'Lieferung in der Zukunft':
       return { art: 'so_lassen', titel: 'So lassen, wenn er vordatiert ist', warum: ['Ein vordatierter Lieferschein ist in Ordnung: er zählt ab seinem Tag, und die Auffälligkeit verschwindet dann von selbst.', 'Ist das Datum vertippt, gehört es in Perigon berichtigt (dann die Datei neu einlesen) — oder unter Betrieb → Warenausgang, wenn er von Hand erfasst ist.'] }
     case 'Überzählung':

@@ -106,3 +106,29 @@ test('jeder Text der Prüfung steht in allen sechs Sprachen, mit seinen Platzhal
     }
   }
 })
+
+/* ---------- Runde BJ (0135): Infos, die nie sperren ---------- */
+import { type ErfassterZettel } from '../src/arbeit/zettel.ts'
+
+// Der Betrieb, 7. November: „vlt als info aber sie sollen doch weiterhin die möglichkeit haben es
+// einzutragen". Die Maske sagt es, gespeichert wird trotzdem.
+test('Runde BJ: schon erfasst — so oft gezählt, wie das Journal die Palette hat (Arbeit 1681: 444 kg zweimal)', () => {
+  const eigen: EingangPalette[] = [{ eingangsdatum: '2026-09-03', brutto_kg: 444 }, { eingangsdatum: '2026-09-03', brutto_kg: 451 },
+                                   { eingangsdatum: '2026-09-03', brutto_kg: 451 }]
+  const z = (auftrag_id: number, kg: number, eingangsdatum = '2026-09-03'): ErfassterZettel => ({ auftrag_id, eingangsdatum, brutto_zettel_kg: kg })
+  assert.deepEqual(zettelBefund(eigen, [], '2026-09-03', 444, null, [z(1681, 444)], 1681), { art: 'schon_erfasst', arbeit: null })
+  assert.deepEqual(zettelBefund(eigen, [], '2026-09-03', 444, null, [z(1675, 444)], 1681), { art: 'schon_erfasst', arbeit: 1675 })
+  assert.deepEqual(zettelBefund(eigen, [], '2026-09-03', 451, null, [z(1681, 451)], 1681), { art: 'passt' }, 'zwei Paletten mit 451 kg: eine ist noch frei')
+  assert.deepEqual(zettelBefund(eigen, [], '2026-09-03', 451, null, [z(1681, 451), z(1675, 451)], 1681), { art: 'schon_erfasst', arbeit: null })
+  assert.deepEqual(zettelBefund(eigen, [], '2026-09-03', 444, null, [z(1681, 444, '2026-09-04')], 1681), { art: 'passt' }, 'anderer Tag, andere Palette')
+  assert.deepEqual(zettelBefund(eigen, [], '2026-09-03', 444), { art: 'passt' }, 'ohne Zettel wie bisher')
+})
+
+test('Runde BJ: die eigene Charge an einem Nachbartag vor der fremden — „444 kg gibt es am 04.09."', () => {
+  const eigen: EingangPalette[] = [{ eingangsdatum: '2026-09-03', brutto_kg: 451 }, { eingangsdatum: '2026-09-04', brutto_kg: 444 },
+                                   { eingangsdatum: '2026-09-20', brutto_kg: 460 }]
+  const fremd = [{ charge_nr: 1623, brutto_kg: 444 }, { charge_nr: 1623, brutto_kg: 460 }]
+  assert.deepEqual(zettelBefund(eigen, fremd, '2026-09-03', 444), { art: 'anderer_tag', tage: ['2026-09-04'] })
+  assert.deepEqual(zettelBefund(eigen, fremd, '2026-09-03', 460), { art: 'fremde_charge', charge_nr: 1623 }, 'der 20.09. ist kein Nachbartag')
+  assert.deepEqual(zettelBefund(eigen, [], '2026-09-03', 460), { art: 'anderer_tag', tage: ['2026-09-20'] })
+})

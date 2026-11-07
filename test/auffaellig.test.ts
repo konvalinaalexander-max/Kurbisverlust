@@ -140,7 +140,9 @@ test('eine Ziffer im Datum: 08.09 statt 18.09 — wahrscheinlich, mit dem Hinwei
   const zs = [zettel(1, '2026-09-08', 490), zettel(2, '2026-09-08', 502)]
   const d = zettelDeutung(befund({ art: 'Zetteldatum', bezug: 'zetteldatum:900:2026-09-08' }),
     lage({ zettel: zs, eigen: [palette('2026-09-18', 490), palette('2026-09-19', 490), palette('2026-09-18', 502)], fremd: [palette('2026-09-08', 502, 36, 5002)] }))
-  assert.equal(d.muster, 'datum')
+  // Seit Runde BJ (0135) ein eigenes Muster: eine Ziffer anders und mehr als drei Tage auseinander
+  assert.equal(d.muster, 'ziffer')
+  assert.match(d.vorschlag!.titel, /^Eine Ziffer im Datum: 08\.09\.2026 → 18\.09\.2026/)
   assert.equal(d.vorschlag?.nachher, '2026-09-18')
   assert.equal(d.vorschlag?.sicher, 'wahrscheinlich', 'eine andere Charge hat eines der Gewichte am getippten Tag')
   assert.match(d.vorschlag!.warum.join(' '), /in einer Ziffer/)
@@ -233,4 +235,78 @@ test('ein Zettel ohne Gewicht: die App sagt, an welchen Tagen die Charge kam, un
     lage({ zettel: [z], eigen: [palette('2026-04-14', 470)], arbeitTag: '2026-05-25' }))
   assert.deepEqual([e.muster, e.vorschlag?.nachher, e.vorschlag?.sicher], ['datum', '2026-04-14', 'wahrscheinlich'])
   assert.match(e.vorschlag!.warum[0], /kein Gewicht, an dem es sich bestätigen liesse/)
+})
+
+/* ---------- Runde BJ (0135): die Reihenfolge der Eingaben, die eigene Charge zuerst ---------- */
+import { tageAbstand, zifferFehler } from '../src/auswertung/auffaellig.ts'
+
+test('Runde BJ: Tage zwischen zwei Daten, und wann ein Datum einen Ziffernfehler hat', () => {
+  assert.equal(tageAbstand('2026-09-10', '2026-09-11'), 1)
+  assert.equal(tageAbstand('2026-09-11', '2026-09-08'), -3)
+  assert.ok(Number.isNaN(tageAbstand('', '2026-09-08')))
+  assert.equal(zifferFehler('2026-09-08', '2026-09-18'), true, '10 Tage, eine Ziffer')
+  assert.equal(zifferFehler('2026-09-22', '2026-09-23'), false, 'ein Nachbartag ist kein Ziffernfehler')
+  assert.equal(zifferFehler('2026-09-11', '2026-09-14'), false, 'drei Tage: noch Nachbarschaft')
+  assert.equal(zifferFehler('2026-09-08', '2026-09-19'), false, 'zwei Ziffern anders')
+})
+
+// Der Betrieb, 7. November: Die Zettel einer Arbeit werden der Reihe nach eingegeben. Trägt ein Zettel
+// noch das Datum des vorigen, die nächsten aber schon das neue — und steht sein Gewicht bei der eigenen
+// Charge am neuen Tag —, blieb das Datum stehen. Eine fremde Charge mit demselben Gewicht am alten Tag
+// ist dann Zufall (1628, Arbeit 1681).
+test('Runde BJ: Datum zu spät umgestellt — eindeutig aus der Reihenfolge, nie eine fremde Charge', () => {
+  const zs = [zettel(1, '2026-09-10', 448), zettel(2, '2026-09-10', 433), zettel(3, '2026-09-10', 455), zettel(4, '2026-09-11', 470), zettel(5, '2026-09-11', 466)]
+  const eigen = [palette('2026-09-10', 448), palette('2026-09-10', 433), palette('2026-09-11', 455), palette('2026-09-11', 470), palette('2026-09-11', 466)]
+  const l = lage({ zettel: zs, eigen, fremd: [palette('2026-09-10', 455, 36, 5000)], arbeitTag: '2026-10-01' })
+  const d = zettelDeutung(befund({ art: 'Zettelgewicht', bezug: 'zettel:900:455.00:2026-09-10' }), l)
+  assert.equal(d.muster, 'umgestellt')
+  assert.deepEqual([d.vorschlag?.art, d.vorschlag?.sicher, d.vorschlag?.ids, d.vorschlag?.vorher, d.vorschlag?.nachher],
+                   ['korrigieren', 'eindeutig', [3], '2026-09-10', '2026-09-11'])
+  assert.match(d.vorschlag!.titel, /^Datum zu spät umgestellt: 10\.09\.2026 → 11\.09\.2026$/)
+  assert.match(d.vorschlag!.warum.join(' '), /gleich danach eingegeben wurden, tragen schon den 11\.09\.2026/)
+  assert.match(d.vorschlag!.warum.join(' '), /Eine andere Charge kommt nicht in Frage/)
+  // zu früh umgestellt: der Zettel trägt schon den neuen Tag, die davor den alten — und dort steht sein Gewicht
+  const zs2 = [zettel(1, '2026-09-10', 448), zettel(2, '2026-09-10', 433), zettel(3, '2026-09-11', 455), zettel(4, '2026-09-11', 470)]
+  const eigen2 = [palette('2026-09-10', 448), palette('2026-09-10', 433), palette('2026-09-10', 455), palette('2026-09-11', 470)]
+  const e = zettelDeutung(befund({ art: 'Zettelgewicht', bezug: 'zettel:900:455.00:2026-09-11' }), lage({ zettel: zs2, eigen: eigen2, arbeitTag: '2026-10-01' }))
+  assert.deepEqual([e.muster, e.vorschlag?.nachher, e.vorschlag?.sicher], ['umgestellt', '2026-09-10', 'eindeutig'])
+  assert.match(e.vorschlag!.titel, /^Datum zu früh umgestellt/)
+})
+
+test('Runde BJ: die eigene Charge hat die Palette an einem Nachbartag, ohne Spur in der Reihenfolge — wahrscheinlich, keine fremde Charge', () => {
+  const zs = [zettel(1, '2026-09-10', 448), zettel(2, '2026-09-10', 433), zettel(3, '2026-09-10', 455)]
+  const eigen = [palette('2026-09-10', 448), palette('2026-09-10', 433), palette('2026-09-12', 455)]
+  const d = zettelDeutung(befund({ art: 'Zettelgewicht', bezug: 'zettel:900:455.00:2026-09-10' }),
+    lage({ zettel: zs, eigen, fremd: [palette('2026-09-10', 455, 36, 5000)], arbeitTag: '2026-10-01' }))
+  assert.deepEqual([d.muster, d.vorschlag?.art, d.vorschlag?.sicher, d.vorschlag?.nachher], ['datum', 'korrigieren', 'wahrscheinlich', '2026-09-12'])
+  assert.match(d.vorschlag!.warum.join(' '), /2 Tage auseinander/)
+  // zwei Nachbartage gleich nah: die App rät nicht
+  const m = zettelDeutung(befund({ art: 'Zettelgewicht', bezug: 'zettel:900:455.00:2026-09-10' }),
+    lage({ zettel: zs, eigen: [...eigen.slice(0, 2), palette('2026-09-09', 455), palette('2026-09-11', 455)], arbeitTag: '2026-10-01' }))
+  assert.equal(m.muster, 'mehrdeutig')
+  // erst ausserhalb von ±3 Tagen darf die fremde Charge vorgeschlagen werden
+  const f = zettelDeutung(befund({ art: 'Zettelgewicht', bezug: 'zettel:900:455.00:2026-09-10' }),
+    lage({ zettel: zs, eigen: [...eigen.slice(0, 2), palette('2026-09-20', 455)], fremd: [palette('2026-09-10', 455, 36, 5000)], arbeitTag: '2026-10-01' }))
+  assert.equal(f.muster, 'fremde_charge')
+})
+
+test('Runde BJ: ein ganzer Zetteltag — die fremde Charge nur, wenn die eigene die Paletten nicht innert ±3 Tagen hat', () => {
+  // vier Zettel vom 31.8.; alle vier Gewichte stehen am 31.8. bei Charge 5000, drei bei der eigenen am 1.9.
+  // Bis Runde BJ schlug die App Charge 5000 vor (4 Treffer gegen 3); jetzt gewinnt die eigene Charge am Nachbartag.
+  const zs = [zettel(1, '2026-08-31', 437), zettel(2, '2026-08-31', 434), zettel(3, '2026-08-31', 428), zettel(4, '2026-08-31', 432)]
+  const eigen = [palette('2026-09-01', 437), palette('2026-09-01', 434), palette('2026-09-01', 428), palette('2026-09-02', 432)]
+  const fremd = [palette('2026-08-31', 437, 36, 5000), palette('2026-08-31', 434, 36, 5000), palette('2026-08-31', 428, 36, 5000), palette('2026-08-31', 432, 36, 5000)]
+  const d = zettelDeutung(befund({ art: 'Zetteldatum', bezug: 'zetteldatum:900:2026-08-31' }), lage({ zettel: zs, eigen, fremd }))
+  assert.notEqual(d.muster, 'fremde_charge', 'drei der vier Paletten hat die eigene Charge am Tag danach')
+  assert.deepEqual([d.muster, d.vorschlag?.nachher, d.vorschlag?.sicher], ['datum', '2026-09-01', 'wahrscheinlich'])
+  assert.match(d.vorschlag!.warum.join(' '), /Charge 5000 4 Paletten mit diesen Gewichten — ganz sicher ist es nicht/)
+  // liegt die eigene Charge weiter weg (10 Tage), bleibt es die fremde
+  const weit = [palette('2026-09-10', 437), palette('2026-09-10', 434), palette('2026-09-10', 428), palette('2026-09-11', 432)]
+  assert.equal(zettelDeutung(befund({ art: 'Zetteldatum', bezug: 'zetteldatum:900:2026-08-31' }), lage({ zettel: zs, eigen: weit, fremd })).muster, 'fremde_charge')
+})
+
+test('Runde BJ: die neuen Arten haben ihren Vorschlag — doppelt gespeichert so lassen, offene Arbeit in der Halle', () => {
+  assert.equal(artVorschlag(befund({ art: 'Doppelt gespeichert', bezug: 'zettel_doppelt:77' }))?.art, 'so_lassen')
+  const o = artVorschlag(befund({ art: 'Arbeit offen', bezug: 'auftrag:1690' }))
+  assert.deepEqual([o?.art, o?.wo], ['von_hand', 'arbeit'])
 })

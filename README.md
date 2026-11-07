@@ -798,6 +798,18 @@ ohne Perigon-Zeile als eigener Teil); jede PL/pgSQL-Funktion hat einen
 festen Suchpfad; die Perigon-Liste läuft nur einmal (AB-174 bis AB-176). Dazu die
 Halle: Faules ohne Ablesung ist „unbekannt", Fehler werden gezeigt. **Setup.sql
 einmal einspielen (Stand 124), dann „Neu rechnen".**
+**Runde BJ, Schritt 5 (0135)** — **Was der Zettel sagt.** Alle 111
+Auffälligkeiten durchgegangen (`docs/betrieb/ZWEITMEINUNG.md`). Eine
+Teilpalette, gewogen mit dem Zettel der ganzen Palette, rechnet anteilig und
+zählt in die Verdunstung (AB-203). Ein doppelt gespeicherter Zettel zählt
+einmal (AB-204). Ein Rest einer Palette und Palox, die nach der Anzahl
+aufgehen, sind keine Auffälligkeit (AB-205). Das Datum bleibt streng, mit
+beiden Daten im Satz; die Erklärung erkennt „Datum zu spät umgestellt" und
+„Eine Ziffer im Datum" (AB-206). Die Zählmaske sagt „schon erfasst" und den
+Nachbartag vor der fremden Charge, sperrt aber nie (AB-207). Alte offene
+Arbeiten stehen als Auffälligkeit da. Die drei neuen Zettel-Sichten stehen
+hinter einer Planungsgrenze wie seit 0109 die Knoten-Sichten (AB-208).
+**Setup.sql einmal einspielen (Stand 135), dann „Neu rechnen".**
 **Runde BJ, Schritt 4 (0134)** — **Was am Lager liegt.** Die Überzählung
 sagt, welche sie ist: mehr geliefert als hereinkam ist „sicher ein
 Datenfehler"; braucht es auch mit den günstigsten Raten mehr Eingang, „passt

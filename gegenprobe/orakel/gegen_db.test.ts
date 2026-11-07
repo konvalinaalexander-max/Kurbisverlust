@@ -13,7 +13,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { DB_URL, bericht, dbErreichbar, frage, vergleiche } from './vergleich.ts'
 import { kohorten, rueckgrat, type Palette, type Tara } from './masse.ts'
-import { messung, rohwerte, type Waegung } from './verdunstung.ts'
+import { messung, palettenBild, rohwerte, type Waegung } from './verdunstung.ts'
 import { schaetzung } from './varianz.ts'
 import { stroeme, summeStimmt, verkaufsfaehigAnteil, m0Zurueck, type Portion } from './kaskade.ts'
 import { anstieg, erwartung, paloxF, paloxFNach, weg, type Punkt, type Station } from './schimmel.ts'
@@ -60,11 +60,24 @@ test('Verdunstung: Netto, Lagertage, Rate und verwendbar je Wägung', { skip }, 
   // Die Grenze „zu schnell" (0089) aus der Einstellung — gelesen, nicht gerechnet.
   const rateMax = Number(frage<{ w: string | null }>("select wert #>> '{}' as w from einstellung where schluessel = 'verdunstung_rate_max_pro_tag'")[0]?.w ?? 0.01)
   const ausgeschlossen = new Set(frage<{ id: string }>("select bezug_id as id from messung_ausschluss where art = 'verdunstung'").map(x => Number(x.id)))
+  // 0135: das Bild der Paletten je Charge (Teilpalette anteilig) und die doppelt gespeicherten Wägungen —
+  // aus den Rohzeilen, nicht aus den Sichten
+  const bild = palettenBild(frage<Record<string, unknown>>('select charge_nr, kisten, netto_kg, gebindeart from v_palette')
+    .map(p => ({ chargeNr: Number(p.charge_nr), kisten: n(p.kisten), nettoKg: n(p.netto_kg), gebindeart: p.gebindeart == null ? null : String(p.gebindeart) })))
+  const zettel = frage<Record<string, unknown>>(`
+    select ap.id, ap.auftrag_id, ap.eingangsdatum, ap.brutto_zettel_kg, ap.kisten, ap.wiegung_id, extract(epoch from ap.ts) as ts,
+           coalesce(w.brutto_jetzt_kg, ap.brutto_gewogen_kg) as gewogen
+      from auftrag_palette ap left join verdunstung_wiegung w on w.id = ap.wiegung_id`)
+  const doppelt = new Set(zettel.filter(z => z.gewogen != null && zettel.some(e => Number(e.auftrag_id) === Number(z.auftrag_id) && Number(e.id) < Number(z.id)
+      && e.eingangsdatum === z.eingangsdatum && n(e.brutto_zettel_kg) === n(z.brutto_zettel_kg) && n(e.kisten) === n(z.kisten)
+      && e.gewogen != null && n(e.gewogen) === n(z.gewogen) && Math.abs(Number(z.ts) - Number(e.ts)) <= 10))
+    .filter(z => z.wiegung_id != null).map(z => Number(z.wiegung_id)))
   const orakel = roh.map<Waegung>(w => ({ id: Number(w.id), chargeNr: Number(w.charge_nr), sorte: String(w.sorte),
     eingangsdatum: String(w.eingangsdatum), wiegeTag: String(w.wiege_tag), bruttoDamalsKg: n(w.brutto_damals_kg),
     bruttoJetztKg: n(w.brutto_jetzt_kg), kisten: n(w.kisten), gebindeart: w.gebindeart == null ? null : String(w.gebindeart),
-    sichtbarSchimmel: Boolean(w.sichtbar_schimmel), gemessen: Boolean(w.gemessen), abgebrochen: Boolean(w.abgebrochen) }))
-    .map(w => messung(w, g, rateMax))
+    sichtbarSchimmel: Boolean(w.sichtbar_schimmel), gemessen: Boolean(w.gemessen), abgebrochen: Boolean(w.abgebrochen),
+    doppelt: doppelt.has(Number(w.id)) }))
+    .map(w => messung(w, g, rateMax, bild))
     // 0116: eine Wägung, die der Betriebsleiter von Hand ausschliesst, zählt nicht — was sie sonst wäre, gleichgültig.
     .map(m => ({ ...m, verwendbar: m.verwendbar && !ausgeschlossen.has(m.id) ? 1 : 0 }))
   const db = frage('select id, netto_damals_kg, netto_jetzt_kg, lagertage, rate_pro_tag, verwendbar::int as verwendbar from v_verdunstung_messung')

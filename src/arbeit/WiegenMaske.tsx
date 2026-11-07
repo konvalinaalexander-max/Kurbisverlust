@@ -118,7 +118,8 @@ export function WiegenMaske({ d, zettelDatum, zettelBrutto = '', kistenVorbelegt
                onChange={e => setDamals(e.target.value)} style={{ fontSize: '1.2rem' }} />
       </div>
       <ZettelPruefung chargeNr={d.auftrag.charge_nr} datum={datum} brutto={Number(damals) > 0 ? Number(damals) : null}
-                      kisten={Number(kisten) > 0 ? Number(kisten) : null} kistenSetzen={n => setKisten(String(n))} />
+                      kisten={Number(kisten) > 0 ? Number(kisten) : null} kistenSetzen={n => setKisten(String(n))}
+                      auftragId={d.auftrag.id} gezaehlt={d.paletten.length} />
       <div className="feld">
         <label htmlFor="w-jetzt">{t('gewichtJetzt')}</label>
         <input id="w-jetzt" type="number" inputMode="decimal" step="0.1" min={0} value={jetzt}

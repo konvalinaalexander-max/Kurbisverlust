@@ -175,6 +175,26 @@ function liegendeCharge() {
   return Number(b.charge_nr)
 }
 
+/**
+ * 0135: ein Zettel der offenen Arbeit, dessen Palette schon so oft gezählt ist, wie das Journal sie hat
+ * (alle nicht abgebrochenen Arbeiten der Charge) — noch einmal getippt, sagt die Maske „schon erfasst".
+ */
+function schonErfasst() {
+  const auftraege = fixture('auftrag') ?? []
+  const offen = auftraege.find(a => Number(a.id) === OFFEN_ID)
+  if (!offen) return null
+  const ids = new Set(auftraege.filter(a => Number(a.charge_nr) === Number(offen.charge_nr) && !a.abgebrochen_ts).map(a => Number(a.id)))
+  const zettel = (fixture('auftrag_palette') ?? []).filter(z => ids.has(Number(z.auftrag_id)) && z.eingangsdatum && Number(z.brutto_zettel_kg) > 0)
+  const paletten = (fixture('palette') ?? []).filter(p => Number(p.charge_nr) === Number(offen.charge_nr))
+  const gleich = (a, b) => Math.abs(Number(a) - Number(b)) < 0.005
+  for (const z of zettel.filter(z => Number(z.auftrag_id) === OFFEN_ID)) {
+    const da = paletten.filter(p => p.eingangsdatum === z.eingangsdatum && gleich(p.brutto_kg, z.brutto_zettel_kg)).length
+    const schon = zettel.filter(y => y.eingangsdatum === z.eingangsdatum && gleich(y.brutto_zettel_kg, z.brutto_zettel_kg)).length
+    if (da > 0 && schon >= da) return { eingangsdatum: z.eingangsdatum, kg: Number(z.brutto_zettel_kg) }
+  }
+  return null
+}
+
 /** 0134: eine leer bestätigte Charge 99134 — Zeile, Bedarf und Urteil „mehr weg", ein Lieferschein nach dem Leer-Tag. */
 function leerVormerken() {
   const vorlage = (fixture('erg_charge') ?? []).find(x => Number(x.lager_kg) > 0)
@@ -435,6 +455,16 @@ const BILDSCHIRME = [
   { name: 'arbeit-zaehler', wer: 'arbeiter', pfad: '/arbeit/OFFEN' },
   { name: 'arbeit-wiegen', wer: 'arbeiter', pfad: '/arbeit/OFFEN',
     tun: async p => { await p.locator('#zettel').fill('2026-09-01'); await p.locator('#zettel-brutto').fill('950'); await p.locator('#zum-wiegen').click() } },
+  // Runde BJ (0135): die Maske sagt „schon erfasst", sperrt aber nicht — ein Zettel der offenen Arbeit,
+  // dessen Palette (Tag und Gewicht) das Journal so oft hat, wie sie gezählt ist, noch einmal getippt.
+  { name: 'arbeit-zettel-schon-erfasst', wer: 'arbeiter', pfad: '/arbeit/OFFEN',
+    tun: async p => {
+      const z = schonErfasst()
+      if (!z) throw new Error('kein Zettel der offenen Arbeit, dessen Palette schon ganz gezählt ist')
+      await p.locator('#zettel').fill(z.eingangsdatum); await p.locator('#zettel-brutto').fill(String(z.kg))
+      await p.locator('#zettel-pruefung', { hasText: T('zettelSchonHier').split(':')[0] }).waitFor()
+      if (await p.locator('#zaehlen-plus').isDisabled()) throw new Error('„schon erfasst" darf das Zählen nicht sperren')
+    } },
   { name: 'arbeit-kisten', wer: 'arbeiter', pfad: '/arbeit/OFFENKISTEN' },
   // Waschen (0061): Paletten aus dem Zwischenlager — Sortierdatum und Kisten je Palette
   { name: 'arbeit-wasch-paletten', wer: 'arbeiter', pfad: '/arbeit/OFFENWASCHEN' },

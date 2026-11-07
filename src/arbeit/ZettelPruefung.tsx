@@ -5,7 +5,7 @@ import { chargeText, stammdaten } from '../lib/db'
 import { Hinweis } from '../components/Bausteine'
 import { ZHaken } from '../components/Zeichen'
 import type { Charge } from '../lib/typen'
-import { zettelBefund, type EingangPalette, type FremdePalette } from './zettel'
+import { zettelBefund, type EingangPalette, type ErfassterZettel, type FremdePalette } from './zettel'
 
 const zahlOderNull = (v: unknown) => (v === null || v === undefined || v === '' ? null : Number(v))
 
@@ -43,6 +43,30 @@ function useWareneingang(chargeNr: number | null, datum: string) {
   return { eigen, fremd: fremd && fremd.datum === datum ? fremd.zeilen : [] }
 }
 
+/**
+ * Runde BJ (0135): die Zettel, die für diese Charge schon gespeichert sind — in dieser und in den
+ * anderen Arbeiten (nicht abgebrochen). Neu geholt, wenn sich die Zahl der Zettel dieser Arbeit ändert.
+ */
+function useErfasst(chargeNr: number | null, neu: number) {
+  const [erfasst, setErfasst] = useState<ErfassterZettel[]>([])
+  useEffect(() => {
+    if (chargeNr === null) return
+    let weg = false
+    void (async () => {
+      const a = await supabase.from('auftrag').select('id').eq('charge_nr', chargeNr).is('abgebrochen_ts', null)
+      if (weg || a.error) return
+      const ids = ((a.data ?? []) as { id: number }[]).map(x => x.id)
+      if (ids.length === 0) { setErfasst([]); return }
+      const z = await supabase.from('auftrag_palette').select('auftrag_id, eingangsdatum, brutto_zettel_kg').in('auftrag_id', ids)
+      if (weg || z.error) return
+      setErfasst(((z.data ?? []) as { auftrag_id: number; eingangsdatum: string | null; brutto_zettel_kg: unknown }[])
+        .map(x => ({ auftrag_id: x.auftrag_id, eingangsdatum: x.eingangsdatum, brutto_zettel_kg: zahlOderNull(x.brutto_zettel_kg) })))
+    })()
+    return () => { weg = true }
+  }, [chargeNr, neu])
+  return erfasst
+}
+
 /** Der Wert erst, wenn er eine Weile still steht — sonst meldet die Prüfung
  *  bei „43" schon „gibt es nicht", während „432" noch getippt wird. */
 function useStill<T>(wert: T, ms: number): T | undefined {
@@ -59,13 +83,16 @@ function useStill<T>(wert: T, ms: number): T | undefined {
  * Steht direkt unter dem Gewicht: grün, wenn die Palette so eingegangen
  * ist; gelb mit dem einen Satz, was zu prüfen ist, wenn nicht.
  */
-export function ZettelPruefung({ chargeNr, datum, brutto, kisten = null, kistenSetzen }: {
+export function ZettelPruefung({ chargeNr, datum, brutto, kisten = null, kistenSetzen, auftragId = null, gezaehlt = 0 }: {
   chargeNr: number | null; datum: string; brutto: number | null
+  /** Runde BJ (0135): die Arbeit und wie viele Zettel sie schon hat — für „schon erfasst". */
+  auftragId?: number | null; gezaehlt?: number
   /** Was auf der Maske als Kisten steht — und wie man es ersetzt („übernehmen"). */
   kisten?: number | null; kistenSetzen?: (n: number) => void
 }) {
   const { t, gebietsschema } = useSprache()
   const { eigen, fremd } = useWareneingang(chargeNr, datum)
+  const erfasst = useErfasst(chargeNr, gezaehlt)
   // Geprüft wird das Gewicht, das seit 600 ms so dasteht; solange getippt
   // wird, nur der Tag.
   const still = useStill(brutto, 600)
@@ -73,7 +100,7 @@ export function ZettelPruefung({ chargeNr, datum, brutto, kisten = null, kistenS
   const [chargen, setChargen] = useState<Charge[]>([])
   useEffect(() => { stammdaten().then(s => setChargen(s.chargen)).catch(() => { /* ohne Namen geht es auch */ }) }, [])
   if (eigen === null) return null
-  const b = zettelBefund(eigen, fremd, datum, gewicht, kisten)
+  const b = zettelBefund(eigen, fremd, datum, gewicht, kisten, erfasst, auftragId)
   if (b === null) return null
   const tag = (iso: string) => new Date(iso + 'T00:00:00').toLocaleDateString(gebietsschema, { day: '2-digit', month: '2-digit' })
   const kg = gewicht === null ? '' : gewicht.toLocaleString(gebietsschema)
@@ -96,6 +123,11 @@ export function ZettelPruefung({ chargeNr, datum, brutto, kisten = null, kistenS
         </Hinweis>
       </div>
     )
+  }
+  if (b.art === 'schon_erfasst') {
+    const text = (b.arbeit === null ? t('zettelSchonHier') : t('zettelSchonArbeit').replace('{arbeit}', String(b.arbeit)))
+      .replace('{kg}', kg).replace('{datum}', tag(datum))
+    return <div id="zettel-pruefung" className="zettel-pruefung"><Hinweis art="info">{text}</Hinweis></div>
   }
   const fremde = b.art === 'fremde_charge' ? chargen.find(c => c.nr === b.charge_nr) : undefined
   const text = b.art === 'fremde_charge'

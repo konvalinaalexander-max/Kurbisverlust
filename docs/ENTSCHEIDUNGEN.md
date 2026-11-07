@@ -4290,6 +4290,114 @@ Geprüft:
 - Eine Sorte dazu oder weg im Rezept geht noch nicht in der Maske (nur Stück,
   kg je Stück und Herkunft); das Rezept des Betriebs hat drei Sorten.
 
+## Runde BJ, Schritt 5: Was der Zettel sagt (7. November, 0135)
+
+Der Betrieb zu den 111 Auffälligkeiten der Messungen (71 „Zettelgewicht"):
+„das wichtige ist eigentlich nicht, den ganz genauen Grund zu finden — aber
+dass das Programm trotzdem Infos daraus beziehen kann: die Daten, die
+verwendbar sind, trotzdem nimmt, und die, die nicht verwendbar sind,
+ignoriert — aber nicht den ganzen Arbeitsschritt vernachlässigt". Zum Datum:
+„das sollte genau funktionieren … da wäre ich strikter". Zu 1628, Arbeit
+1681: „vlt weil andere Paletten zuerst gewaschen wurden vom 3.9. und dann
+wurde nicht korrekt 4.9. eingetragen". Die Hinweise in der Zählmaske: „nur
+als Info — sie sollen doch weiterhin die Möglichkeit haben, es einzutragen".
+
+Durchgegangen sind alle 111 Fälle (`docs/betrieb/ZWEITMEINUNG.md`). Vier
+Muster tauchten auf, die die App nicht verstand: die Teilpalette, gewogen mit
+dem Zettel der ganzen Palette; der Rest einer Palette, neu angeschrieben; Palox,
+die im Journal paarweise mit demselben Gewicht stehen; ein Zettel, der
+innert Sekunden zweimal gespeichert wurde. Und die Erklärung im Fall-Fenster
+las die Zettel einzeln statt in der Folge, in der sie eingegeben wurden.
+
+- **Teilpalette anteilig (AB-203):** Liegt das Zettelgewicht einer Wägung
+  näher bei einer vollen Palette der Charge als bei den gewogenen Kisten
+  (`v_charge_palettenbild`: häufigste Kistenzahl, Median Netto je Kiste),
+  gilt der Zettel für die ganze Palette. Dann rechnet `v_wiegung_netto` das
+  Netto damals anteilig: Netto der vollen Palette × Kisten ÷ volle Kisten.
+  Es zählt in die Verdunstung und ist die Masse der Arbeit. Auf den Daten des
+  Betriebs sind es 17 Wägungen, darunter die 10 aus den Auffälligkeiten.
+  Die eine, die auch anteilig zu schnell schwindet (1.1 % je Tag), bleibt
+  draussen.
+- **Doppelt gespeichert (AB-204):** Derselbe Zettel mit derselben Wägung aufs
+  Gramm innert 10 Sekunden ist eine Palette (`v_zettel_doppelt`). Der zweite
+  zählt weder in die Masse noch in die Verdunstung. Er steht als „Doppelt
+  gespeichert" da, nicht als Wägung. Ohne Wägung bleibt er: zwei gleich
+  schwere Paletten sind möglich.
+- **Rest und Palox (AB-205):** `v_zettel_lage` sagt je Zettel, was die App
+  über ihn weiss.
+  - Ein Rest einer Palette — weniger Kisten als die volle Palette, Netto je
+    Kiste wie die Charge (±25 %), keine Palette mit diesen Kisten im Journal
+    (±3 Tage) — ist kein „Zettelgewicht": die Menge aus Zettel minus Tara
+    stimmt.
+  - Palox ordnet die App über die Anzahl zu: sind an dem Tag nicht mehr
+    Palox-Zettel der Charge gezählt, als das Journal Palox hat, ist das
+    Gewicht keine Auffälligkeit.
+- **Das Datum bleibt streng (AB-206):** Die Auffälligkeit bleibt, ihr Satz
+  nennt beide Daten: „Zettel vom 22.09. mit 448 kg: eine Palette mit genau
+  diesem Gewicht und gleichen Kisten steht im Wareneingang am 23.09., nicht am
+  22.09. Zettel und Journal tragen verschiedene Daten — eines ist falsch". Die
+  Erklärung im Fall-Fenster liest die Reihenfolge der Eingaben. Steht der Tag
+  der Palette an Zetteln derselben Arbeit gleich danach, heisst es „Datum zu
+  spät umgestellt" (eindeutig). Eine Ziffer Unterschied bei mehr als drei
+  Tagen Abstand heisst „Eine Ziffer im Datum" (08.09. → 18.09.); 22.09. →
+  23.09. ist ein Nachbartag und bleibt „Datum vertippt". Eine fremde Charge
+  schlägt sie nur vor, wenn die eigene die Palette nicht innert ±3 Tagen hat
+  — auch wenn die fremde mehr Gewichte trifft.
+- **Zählmaske, nur Hinweise (AB-207):**
+  - „Eine Palette mit 444 kg kam am 04.09." kommt jetzt vor der fremden
+    Charge, solange die eigene Charge sie innert ±3 Tagen hat.
+  - Neu ist „Schon erfasst: … steht schon in dieser Arbeit / in Arbeit …":
+    so oft gezählt, wie das Journal die Palette hat.
+  - „Gewogen = Zettel" sagt die Wiegemaske seit Runde AO. Nichts davon
+    sperrt.
+- **Offene Arbeiten:** Eine Arbeit, die länger als drei Tage offen ist, steht
+  als „Arbeit offen" da. Drei Tage, weil keine Arbeit des Betriebs länger als
+  einen Tag lief; fünf sind seit September offen.
+- **„ohne eigene Palette":** Der Satz der Zuordnung sagt jetzt, was gemeint
+  ist: „6 Zettel der Arbeit 1619 finden bei Charge 1626 keine Palette mit
+  ihrem Gewicht (Eingang ±3 Tage); 6 davon passen aufs Kilo zu Paletten von
+  Charge 1623".
+- **Planungsgrenzen (AB-208):** `v_wiegung_netto`, `v_zettel_doppelt` und
+  `v_zettel_lage` stecken in der Verdunstung, der Masse der Arbeit und den
+  Auffälligkeiten. Eingesetzt plante `erg_plausibilitaet` auf der Demo mit
+  1035 Knoten; 0109 (d) erlaubt 1000. Sie stehen darum wie die vier
+  Knoten-Sichten von 0109 hinter einer Grenze (`<sicht>_formel`,
+  `<sicht>_zaun()`): 781 Knoten, gleich schnell (v_zettel_lage 30 ms auf der
+  Demo). `v_zettel_lage` liest die doppelten einmal je Abfrage, nicht je
+  Zettel.
+
+Geprüft:
+- Prüfblock 0135 (a1–k7) mit einer gebauten Charge: zehn volle Paletten, eine
+  mit 30 Kisten, zwei Palox, je eine Palette und ein Palox am Vortag.
+- Ihre Zettel und Wägungen zeigen jeden Fall einmal: Teilpalette, echte
+  30er, doppelt, eine andere Wägung, 20 Sekunden später, Rest, kein Rest,
+  Kistenzahl im Journal, zwei und drei Palox, das Datum, offen seit fünf und
+  seit zwei Tagen.
+- 29 Mutationen, jede schlägt an — sechs davon an den Grenzen (ohne Grenze,
+  SQL statt PL/pgSQL, mit JIT, für jeden ausführbar, Formel ohne
+  Leserrechte, „doppelt" verloren).
+- Der Block rechnet, wie der ganze Prüfstand, am Saisonende (`heute_test`):
+  alle Zeiten hängen an `heute()`, keine an `now()`.
+- Tests: `auffaellig.test.ts` (umgestellt, Ziffer, keine fremde Charge innert
+  ±3 Tagen), `zettel.test.ts` (schon erfasst, eigene Charge vor der fremden).
+  Ein alter Test folgt der Regel: 08.09. → 18.09. erwartete „datum", jetzt
+  „ziffer" (Kommentar im Test).
+- Gegenprobe: die Verdunstung rechnet Teilpaletten anteilig und lässt die
+  doppelte Wägung aus.
+
+**Was bewusst nicht gemacht wurde:**
+- Die Lagerdauer einer Palette, deren Zettel und Journal verschiedene Daten
+  tragen, rechnet weiter ab dem Zetteldatum. Welches stimmt, entscheidet der
+  Betrieb (Vorschlag mit einem Klick).
+- Ein doppelter Zettel ohne Wägung bleibt: aus Gewicht und Tag allein ist er
+  nicht von einer zweiten gleichen Palette zu unterscheiden.
+- Die Demo speichert keinen Zettel doppelt. `v_zettel_doppelt` (und ihre
+  Formel hinter der Grenze) darf darum in 0081 (b) leer sein, wie seit 0122 `v_stammdaten_pruefung`: beide melden
+  nur Fehler. Was sie meldet, prüft 0135 (c1–c5) mit gebauten Fällen; der
+  Kommentar in 0081 (b) sagt es.
+- Die Arbeit 1589 (Zettel von 1632, gebucht auf 1613) wird nicht umgehängt;
+  das entscheidet der Betrieb.
+
 ## Runde BJ, Schritt 4: Was am Lager liegt (7. November, 0134)
 
 Der Betrieb zum Plan: die Überzählung getrennt — „sicher ein Datenfehler",
