@@ -458,7 +458,7 @@ const SPALTEN_ERKLAERT: [string, string][] = [
 
 const SACHEN_ERKLAERT: [string, string][] = [
   ['ohne_eingang', 'Eine Charge hat Lieferscheine, aber im Erntejournal keine einzige Palette. Die App nennt die Chargen, von denen die Ware wohl kam (derselbe Artikel, noch Paletten da, höchstens die Hälfte verkauft).'],
-  ['ueberzaehlung', 'Was unter einer Nummer hinausging, braucht mit dem gerechneten Verlust mehr Eingangsware, als hereinkam (ab 100 kg und 3 %). Auch hier: die Chargen, von denen es wohl kam, und was zu zählen ist.'],
+  ['ueberzaehlung', 'Unter einer Nummer ging mehr hinaus, als hereinkam — sicher ein Datenfehler; oder es braucht auch mit den günstigsten Raten gerechnet mehr Eingangsware, als hereinkam — die Raten passen nicht zur Charge (beides ab 100 kg und 3 %). Was nur in der Spanne der Raten zu viel ist, steht nicht hier. Auch hier: die Chargen, von denen es wohl kam, und was zu zählen ist.'],
   ['vor_eingang', 'Lieferscheine einer Charge, die älter sind als ihre erste Palette im Journal.'],
   ['ohne_charge', 'Lieferscheine ohne Charge, je Sorte: wie viel, und auf welche Chargen die App sie nach Menge verteilt.'],
   ['vorschlag', 'Die Zettel einer Arbeit passen aufs Kilo zu Paletten einer anderen Charge, aber der Beleg reicht nicht (weniger als 2 Zettel, unter 80 %, oder es geht um die Sorte): ein Vorschlag, nichts gebucht.'],

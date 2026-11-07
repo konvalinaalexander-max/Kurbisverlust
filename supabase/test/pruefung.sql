@@ -6119,10 +6119,14 @@ begin
 
   -- (c) Die „Überzählung" sagt, was sie meint — im Text der Sicht, denn ihr
   --     Fall braucht die ganze Kaskade: „brauchen nach der gerechneten Ausbeute".
+  --     Seit 0134 (Runde BJ) sagt sie zudem, welche sie ist: sicher ein Datenfehler,
+  --     oder die Lieferungen „brauchen mit den gerechneten Raten" mehr, als hereinkam —
+  --     der Satz der Rate trägt die Worte jetzt so; geprüft wird er im Block 0134 (d4).
   select pg_get_viewdef('v_plausibilitaet_0064_zusatz'::regclass) into v_txt;
-  assert v_txt like '%brauchen nach der gerechneten Ausbeute%', '0090 (c1): der Überzählungs-Satz ist nicht der neue';
+  assert v_txt like '%brauchen mit den gerechneten Raten%' and v_txt like '%sicher ein Datenfehler%', '0090 (c1): der Überzählungs-Satz ist nicht der neue';
   assert v_txt not like '%mehr ausgeliefert, als für diese Charge je als Eingang erfasst%', '0090 (c2): der alte, falsche Satz steht noch da';
-  assert v_txt like '%weniger Verlust als das Modell annimmt%', '0090 (c3): der Rat nennt die dritte Möglichkeit nicht';
+  -- Seit 0134 heisst die dritte Möglichkeit bei der Rate, die nicht passt: „die Charge verliert weniger als ihre Sorte".
+  assert v_txt like '%verliert weniger als ihre Sorte%', '0090 (c3): der Rat nennt die dritte Möglichkeit nicht';
 
   assert schema_stand() >= 90, format('0090 (d1): schema_stand() = %s, mindestens 90 erwartet', schema_stand());
 
@@ -13038,3 +13042,307 @@ begin
 end $$;
 
 select '——— 0133 Der Ünique-Topf ———' as ergebnis;
+
+-- =====================================================================
+-- 0134 — Was am Lager liegt
+--
+-- Der Betrieb am 7. November: die Überzählung getrennt — „sicher ein
+-- Datenfehler", wenn mehr geliefert als hereingekommen ist; „die Rate passt
+-- nicht zur Charge", und das nur, wenn die Lieferungen ausserhalb der Spanne
+-- liegen; je Charge „liegt noch: etwa N Paletten"; ein Knopf „Charge ist
+-- leer (am Lager bestätigt)": dann ist Eingang minus geliefert der echte
+-- Verlust, und daran prüft die App ihre Raten.
+--
+-- Geprüft auf der Demo, mit gebauten Chargen derselben Sorte, gleichem
+-- Eingang und gleichem Liefertag (P1–P6, P9), einer mit zwei Eingangstagen
+-- (P7) und einer Hagel-Charge (P8). Ein erster Lauf misst, wie viel Eingang ein
+-- Kilo Lieferung braucht (mit den Raten, günstig, ungünstig); danach sind
+-- die Lieferungen so gross, dass jede Charge ihren Fall zeigt:
+-- (a) die Spalten charge.leer_am und leer_ts;
+-- (b) der Bedarf: Σ m0 der Kaskade, unten mit Verdunstung und Palox unten,
+--     oben mit beiden oben — nachgerechnet; unten ≤ Bedarf ≤ oben;
+-- (c) die Art: datenfehler (mehr geliefert als hereinkam), rate (auch günstig
+--     zu viel), spanne (nur mit den Raten zu viel), sonst keine; Hagel ohne
+--     Art; die Kilo je Art; gemeldet ab 100 kg und 3 % des Eingangs — die
+--     Spanne nie, auch über der Grenze nicht (X: eine Demo-Charge mit breiter
+--     Spanne aus eigenen Arbeiten, so beliefert, dass sie darin bleibt);
+-- (d) v_ungereimtheit und die Auffälligkeiten melden datenfehler und rate,
+--     mit der Art und dem Satz — die Spanne nicht;
+-- (e) v_am_lager: je Eingangstag das Liegende in Kilo und Paletten;
+-- (f) leer bestätigt: die Kaskade hat für die Charge nichts im Lager (die
+--     Zeile bleibt), erg_charge 0 kg und 0 Paletten, auch ohne Lieferung;
+--     ein Leer-Tag in der Zukunft gilt nicht; die anderen Chargen bleiben;
+-- (g) der echte Verlust gegen den gerechneten: Eingang − geliefert, 1 −
+--     geliefert ÷ Bedarf mit Spanne, das Urteil je Fall, was weg ist, die
+--     Lieferscheine nach dem Leer-Tag;
+-- (h) Rechte: die Halle liest, setzt aber nicht; (i) Stand 134.
+-- =====================================================================
+do $$
+declare v_modus jsonb; v_lad text; v_geladen boolean := false; v_n int; v_ab int; v_x numeric; v_y numeric; v_txt text;
+  v_s text; v_tag0 date; v_tag date; v_e numeric; v_rho numeric; v_rho_u numeric; v_rho_o numeric; v_e1 numeric;
+  v_x_nr int; v_xs text; v_xe numeric; v_xb0 numeric; v_xbu0 numeric; v_xd numeric; v_xthr numeric;
+  v_alt jsonb; v_geladen_7 boolean; v_vor text; v_nach text; v_lager4 numeric; v_lager5 numeric; v_lager7 numeric; rec record;
+  v_p int[] := array[99341, 99342, 99343, 99344, 99345, 99346, 99347, 99348, 99349];
+  v_u uuid := '00000000-0134-0000-0000-000000000001';
+  v_w uuid := '00000000-0134-0000-0000-000000000002';
+begin
+  select wert into v_modus from einstellung where schluessel = 'betriebsmodus';
+  update einstellung set wert = '"beispiel"'::jsonb where schluessel = 'betriebsmodus';
+  insert into auth.users (id, email, raw_user_meta_data) values (v_u, null, '{"name":"Prüf-0134"}');
+  update profil set rolle = 'admin' where id = v_u;
+  insert into auth.users (id, email, raw_user_meta_data) values (v_w, null, '{"name":"Prüf-0134 Halle"}');
+  update profil set rolle = 'arbeiter' where id = v_w;
+  perform set_config('request.jwt.claim.sub', v_u::text, true);
+  if not exists (select 1 from auftrag where station = 'waschen_sortieren' and bemerkung = 'DEMO') then
+    select demo_daten_laden() into v_lad; v_geladen := true;
+  end if;
+  perform auswertung_aktualisieren();
+  select coalesce(jsonb_object_agg(nr, leer_am), '{}'::jsonb) into v_alt from charge where leer_am is not null;
+  update charge set leer_am = null where leer_am is not null;
+
+  -- (a) die Spalten
+  assert (select format_type(atttypid, atttypmod) from pg_attribute where attrelid = 'charge'::regclass and attname = 'leer_am') = 'date'
+     and (select format_type(atttypid, atttypmod) from pg_attribute where attrelid = 'charge'::regclass and attname = 'leer_ts') = 'timestamp with time zone',
+    '0134 (a1): charge.leer_am (date) oder charge.leer_ts (timestamptz) fehlt';
+
+  -- die Sorte: Verdunstung und Palox mit echter Spanne, und keine Lieferscheine ohne Charge — die nähmen anteilig
+  -- auch von den gebauten Chargen, und ein Kilo Lieferung bräuchte nicht mehr überall gleich viel Eingang
+  select k.sorte into v_s from mv_kaskade k join v_koeff_verdunstung kv on kv.sorte = k.sorte
+   where k.portion = 'ausgelagert' and k.f_unten < k.f_oben and kv.unten < kv.oben and coalesce(k.hagel, 0) = 0
+     and not exists (select 1 from v_ohne_charge o where o.sorte = k.sorte)
+     and not exists (select 1 from v_lieferung_masse l where l.sorte = k.sorte and l.charge_nr is null)
+   group by k.sorte order by avg(k.f - k.f_unten) desc, k.sorte limit 1;
+  assert v_s is not null, '0134 (b0): keine Sorte mit Spanne in Verdunstung und Palox — (b)–(g) wären blind';
+  v_tag0 := heute() - 60; v_tag := heute() - 5;
+  insert into charge (nr, schlag, sorte, saison) select p, 'Prüf-0134 ' || p, v_s, extract(year from heute())::int from unnest(v_p) p;
+  -- P1–P6 und P8: je 20 Paletten am selben Tag; P7: 8 Paletten vor 60 Tagen, 8 vor 20 Tagen
+  insert into palette (charge_nr, eingangsdatum, brutto_kg, kisten, gebindeart, extern_id, quelle)
+  select p, v_tag0, 480, 36, 'G2', format('pruef-0134-%s-%s', p, i), 'journal-import'
+    from unnest(array[99341, 99342, 99343, 99344, 99345, 99346, 99348, 99349]) p, generate_series(1, 20) i;
+  insert into palette (charge_nr, eingangsdatum, brutto_kg, kisten, gebindeart, extern_id, quelle)
+  select 99347, case when i <= 8 then v_tag0 else heute() - 20 end, 480, 36, 'G2', format('pruef-0134-99347-%s', i), 'journal-import'
+    from generate_series(1, 16) i;
+  -- X: eine Demo-Charge ohne Hagel mit Lager und breiter Spanne, in die eine Lieferung passt, die sie über die Meldegrenze
+  -- bringt und doch in der Spanne lässt (geschätzt mit ihren bisherigen Lieferungen, nachgemessen im ersten Lauf)
+  select b.charge_nr, b.sorte, b.eingang_kg, b.bedarf_kg, b.bedarf_min_kg into v_x_nr, v_xs, v_xe, v_xb0, v_xbu0
+    from v_charge_bedarf b join erg_charge e on e.charge_nr = b.charge_nr
+   where not b.hagel and b.art is null and b.geliefert_kg > 0 and e.lager_kg > 0 and b.bedarf_min_kg < b.bedarf_kg
+   order by (b.eingang_kg - b.bedarf_min_kg) / (b.bedarf_min_kg / b.geliefert_kg)
+            - (b.eingang_kg + greatest(100, 0.03 * b.eingang_kg) - b.bedarf_kg) / (b.bedarf_kg / b.geliefert_kg) desc, b.charge_nr
+   limit 1;
+  assert v_x_nr is not null, '0134 (b0d): keine Demo-Charge mit Lager und Spanne — (c8) wäre blind';
+  v_xthr := greatest(100, 0.03 * v_xe);
+  -- erster Lauf: 1000 kg auf P1, P7 und X, um zu messen, wie viel Eingang ein Kilo braucht
+  insert into lieferung (datum, charge_nr, sorte, kg, ziel, kunde, bemerkung) values
+    (v_tag, 99341, v_s, 1000, 'verkauf', 'Prüfkunde 134', 'PRUEF0134'), (v_tag, 99347, v_s, 1000, 'verkauf', 'Prüfkunde 134', 'PRUEF0134'),
+    (v_tag, v_x_nr, v_xs, 1000, 'verkauf', 'Prüfkunde 134', 'PRUEF0134');
+  perform auswertung_aktualisieren();
+  select b.eingang_kg, b.bedarf_kg / b.geliefert_kg, b.bedarf_min_kg / b.geliefert_kg, b.bedarf_max_kg / b.geliefert_kg
+    into v_e, v_rho, v_rho_u, v_rho_o from v_charge_bedarf b where b.charge_nr = 99341;
+  assert v_e > 5000 and v_rho_u > 1 and v_rho_u < v_rho and v_rho * 1.01 < v_rho_o,
+    format('0134 (b0b): P1 misst keine Spanne (Eingang %s, je kg %s / %s / %s) — die Fälle wären blind', v_e, v_rho_u, v_rho, v_rho_o);
+  -- P7: verkaufsfähig je Kilo Eingang am älteren und am jüngeren Eingangstag; geliefert wird so viel, dass der ältere überzogen ist, der jüngere nicht
+  select sum(k.geliefert_kg / k.m0 / 2) filter (where k.kohorte = v_tag0) + sum(k.geliefert_kg / k.m0 / 2) filter (where k.kohorte > v_tag0),
+         sum(k.geliefert_kg / k.m0) filter (where k.kohorte = v_tag0) < sum(k.geliefert_kg / k.m0) filter (where k.kohorte > v_tag0)
+    into v_e1, v_geladen_7
+    from mv_kaskade k where k.charge_nr = 99347 and k.portion = 'ausgelagert';
+  assert v_geladen_7, '0134 (b0c): bei P7 braucht der ältere Eingangstag nicht mehr Eingang je Kilo als der jüngere — (g4) wäre blind';
+  -- X: so viel, dass der Bedarf über Eingang + Meldegrenze kommt, der günstige Bedarf aber unter dem Eingang bleibt
+  select ((v_xe + v_xthr - v_xb0) / ((b.bedarf_kg - v_xb0) / 1000) + (v_xe - v_xbu0) / ((b.bedarf_min_kg - v_xbu0) / 1000)) / 2,
+         (v_xe - v_xbu0) / ((b.bedarf_min_kg - v_xbu0) / 1000) - (v_xe + v_xthr - v_xb0) / ((b.bedarf_kg - v_xb0) / 1000)
+    into v_xd, v_x from v_charge_bedarf b where b.charge_nr = v_x_nr;
+  assert v_x > 50, format('0134 (b0e): in Charge %s passt keine Lieferung, die über der Meldegrenze in der Spanne bleibt (Fenster %s kg) — (c8) wäre blind', v_x_nr, round(v_x));
+
+  -- (b) der Bedarf, nachgerechnet
+  select count(*), count(*) filter (where abs(b.bedarf_kg - x.m0) > 0.01) into v_n, v_ab
+    from v_charge_bedarf b
+    join (select charge_nr, sum(m0) as m0 from mv_kaskade where portion in ('ausgelagert', 'entsorgt') and geliefert_kg > 0 group by charge_nr) x
+      on x.charge_nr = b.charge_nr;
+  assert v_n > 5 and v_ab = 0, format('0134 (b1): bei %s von %s Chargen ist der Bedarf nicht Σ m0 der Kaskade', v_ab, v_n);
+  select count(*), count(*) filter (where abs(b.bedarf_min_kg - x.u) > 0.01 or abs(b.bedarf_max_kg - x.o) > 0.01) into v_n, v_ab
+    from v_charge_bedarf b
+    join (select k.charge_nr,
+                 sum(k.geliefert_kg / case when k.portion = 'entsorgt' then greatest(power(1 - least(greatest(coalesce(kv.unten, kv.mittel, 0), 0), 0.05), k.alter_tage), 0.25)
+                       else greatest(power(1 - least(greatest(coalesce(kv.unten, kv.mittel, 0), 0), 0.05), k.alter_tage) * (1 - k.f_unten) * (1 - k.a_klein_n - k.a_gross_n) * (1 - k.a_fax), 0.25) end) as u,
+                 sum(k.geliefert_kg / case when k.portion = 'entsorgt' then greatest(power(1 - least(greatest(coalesce(kv.oben, kv.mittel, 0), 0), 0.05), k.alter_tage), 0.25)
+                       else greatest(power(1 - least(greatest(coalesce(kv.oben, kv.mittel, 0), 0), 0.05), k.alter_tage) * (1 - k.f_oben) * (1 - k.a_klein_n - k.a_gross_n) * (1 - k.a_fax), 0.25) end) as o
+            from mv_kaskade k left join v_koeff_verdunstung kv on kv.sorte = k.sorte
+           where k.portion in ('ausgelagert', 'entsorgt') and k.geliefert_kg > 0
+           group by k.charge_nr) x on x.charge_nr = b.charge_nr;
+  assert v_n > 5 and v_ab = 0, format('0134 (b2): bei %s von %s Chargen sind die Grenzen des Bedarfs nicht Verdunstung und Palox unten / oben', v_ab, v_n);
+  assert not exists (select 1 from v_charge_bedarf where bedarf_min_kg > bedarf_kg + 0.01 or bedarf_kg > bedarf_max_kg + 0.01),
+    '0134 (b3): der Bedarf liegt nicht zwischen seinen Grenzen';
+
+  -- die Fälle: P1 rate, P2 spanne, P3 datenfehler, P4 genau aufgebraucht, P5 wenig geliefert (zwei Lieferscheine),
+  -- P6 nichts geliefert, P7 zwei Eingangstage, der erste überzogen, P8 Hagel mit sehr viel hinaus
+  delete from lieferung where bemerkung = 'PRUEF0134';
+  insert into lieferung (datum, charge_nr, sorte, kg, ziel, kunde, bemerkung) values
+    (v_tag, 99341, v_s, round(v_e * (1 + 1 / v_rho_u) / 2), 'verkauf', 'Prüfkunde 134', 'PRUEF0134'),
+    (v_tag, 99342, v_s, round(v_e * (1 / v_rho + 1 / v_rho_u) / 2), 'verkauf', 'Prüfkunde 134', 'PRUEF0134'),
+    (v_tag, 99343, v_s, round(v_e * 1.2), 'verkauf', 'Prüfkunde 134', 'PRUEF0134'),
+    (v_tag, 99344, v_s, round(0.995 * v_e / v_rho), 'verkauf', 'Prüfkunde 134', 'PRUEF0134'),
+    (heute() - 15, 99345, v_s, round(v_e * 0.25), 'verkauf', 'Prüfkunde 134', 'PRUEF0134'),
+    (v_tag, 99345, v_s, round(v_e * 0.25), 'verkauf', 'Prüfkunde 134', 'PRUEF0134'),
+    (v_tag, 99347, v_s, round(0.8 * v_e * v_e1), 'verkauf', 'Prüfkunde 134', 'PRUEF0134'),
+    (v_tag, 99348, v_s, 1000000, 'verkauf', 'Prüfkunde 134', 'PRUEF0134'),
+    (v_tag, 99349, v_s, round(v_e * 0.5), 'verkauf', 'Prüfkunde 134', 'PRUEF0134'),
+    (v_tag, v_x_nr, v_xs, round(v_xd), 'verkauf', 'Prüfkunde 134', 'PRUEF0134');
+  update charge set hagel_anteil = 0.5, hagel_ts = now() where nr = 99348;
+  perform auswertung_aktualisieren();
+
+  -- (c) die Art
+  select count(*), count(*) filter (where b.art is distinct from
+           case when b.hagel then null when b.geliefert_kg > b.eingang_kg then 'datenfehler' when b.bedarf_min_kg > b.eingang_kg then 'rate'
+                when b.ueberzaehlung_kg > 0 or b.bedarf_kg > b.eingang_kg then 'spanne' end) into v_n, v_ab
+    from v_charge_bedarf b;
+  assert v_n > 10 and v_ab = 0, format('0134 (c1): bei %s von %s Chargen ist die Art nicht nach der Regel', v_ab, v_n);
+  -- P7 nach der Regel (c1): ob zwei Eingangstage zusammen gerade über oder unter dem Eingang liegen, ist eine Frage von Kilo
+  assert (select array_agg(coalesce(art, '–') order by charge_nr) from v_charge_bedarf where charge_nr = any (v_p) and charge_nr <> 99347)
+         = array['rate', 'spanne', 'datenfehler', '–', '–', '–', '–', '–'],
+    format('0134 (c2): die Fälle haben nicht ihre Art: %s', (select array_agg(charge_nr || ':' || coalesce(art, '–') order by charge_nr) from v_charge_bedarf where charge_nr = any (v_p)));
+  assert (select hagel and geliefert_kg > eingang_kg from v_charge_bedarf where charge_nr = 99348),
+    '0134 (c3): P8 ist keine überzogene Hagel-Charge — (c2) wäre für Hagel blind';
+  select count(*), count(*) filter (where abs(b.ueber_kg - case b.art when 'datenfehler' then b.geliefert_kg - b.eingang_kg
+                                                                   when 'rate' then b.bedarf_kg - b.eingang_kg
+                                                                   else greatest(b.bedarf_kg - b.eingang_kg, b.ueberzaehlung_kg, 0) end) > 0.01) into v_n, v_ab
+    from v_charge_bedarf b where b.art is not null;
+  assert v_n >= 3 and v_ab = 0, format('0134 (c4): bei %s von %s Chargen mit Art stimmen die Kilo der Überzählung nicht', v_ab, v_n);
+  assert not exists (select 1 from v_charge_bedarf where art is null and ueber_kg is not null),
+    '0134 (c5): eine Charge ohne Art hat Kilo der Überzählung';
+  select count(*) filter (where b.melden is distinct from coalesce(b.art in ('datenfehler', 'rate') and b.ueber_kg > greatest(100, 0.03 * b.eingang_kg), false)) into v_ab
+    from v_charge_bedarf b;
+  assert v_ab = 0, format('0134 (c6): bei %s Chargen ist „melden" nicht datenfehler oder rate ab 100 kg und 3 %%', v_ab);
+  assert (select array_agg(melden order by charge_nr) from v_charge_bedarf where charge_nr in (99341, 99342, 99343)) = array[true, false, true],
+    '0134 (c7): P1 (rate) und P3 (datenfehler) werden nicht gemeldet, oder P2 (Spanne) schon';
+
+  assert (select art = 'spanne' and ueber_kg > v_xthr and not melden from v_charge_bedarf where charge_nr = v_x_nr),
+    format('0134 (c8): X (Charge %s) ist nicht über der Meldegrenze in der Spanne, oder sie wird gemeldet: %s', v_x_nr,
+      (select format('Art %s, %s kg, melden %s', art, round(ueber_kg), melden) from v_charge_bedarf where charge_nr = v_x_nr));
+  assert not exists (select 1 from v_ungereimtheit where art = 'ueberzaehlung' and charge_nr = v_x_nr)
+     and not exists (select 1 from v_plausibilitaet where art = 'Überzählung' and charge_nr = v_x_nr),
+    format('0134 (c9): die Überzählung von X (Charge %s) in der Spanne wird gemeldet', v_x_nr);
+
+  -- (d) was gemeldet wird
+  assert (select array_agg(u.charge_nr || ':' || (u.mehr ->> 'art') order by u.charge_nr) from v_ungereimtheit u
+           where u.art = 'ueberzaehlung' and u.charge_nr = any (v_p)) = array['99341:rate', '99343:datenfehler'],
+    format('0134 (d1): v_ungereimtheit meldet nicht genau P1 (rate) und P3 (datenfehler): %s',
+      (select array_agg(u.charge_nr || ':' || coalesce(u.mehr ->> 'art', '?')) from v_ungereimtheit u where u.art = 'ueberzaehlung' and u.charge_nr = any (v_p)));
+  select count(*), count(*) filter (where abs(u.kg - b.ueber_kg) > 0.01 or (u.mehr ->> 'bedarf_min_kg')::numeric <> round(b.bedarf_min_kg)
+                                       or (u.mehr ->> 'geliefert_kg')::numeric <> round(b.geliefert_kg))
+    into v_n, v_ab
+    from v_ungereimtheit u join v_charge_bedarf b on b.charge_nr = u.charge_nr where u.art = 'ueberzaehlung';
+  assert v_n >= 2 and v_ab = 0, format('0134 (d2): bei %s von %s gemeldeten Überzählungen stimmen Kilo oder Bedarf nicht', v_ab, v_n);
+  assert not exists (select 1 from v_ungereimtheit u join v_charge_bedarf b on b.charge_nr = u.charge_nr where u.art = 'ueberzaehlung' and not b.melden),
+    '0134 (d3): v_ungereimtheit meldet eine Überzählung, die nicht zu melden ist';
+  select count(*) filter (where charge_nr = 99341 and befund like '%die Raten passen nicht zur Charge%' and rat like '%Charge ist leer%'),
+         count(*) filter (where charge_nr = 99343 and befund like '%sicher ein Datenfehler%' and rat like '%falsche Chargennummer%'),
+         count(*) filter (where charge_nr in (99342, 99347, 99348))
+    into v_n, v_ab, v_x
+    from v_plausibilitaet where art = 'Überzählung' and charge_nr = any (v_p);
+  assert v_n = 1 and v_ab = 1 and v_x = 0,
+    format('0134 (d4): die Auffälligkeit Überzählung: rate %s, datenfehler %s, in der Spanne oder Hagel %s (erwartet 1, 1, 0)', v_n, v_ab, v_x);
+
+  -- (e) was je Eingangstag liegt
+  select count(*), count(*) filter (where abs(a.liegt_paletten - round(a.n_paletten * a.liegt_kg / a.eingang_kg, 1)) > 0.051) into v_n, v_ab
+    from v_am_lager a;
+  assert v_n > 0 and v_ab = 0, format('0134 (e1): bei %s von %s Eingangstagen sind die Paletten nicht der liegende Anteil der Paletten', v_ab, v_n);
+  select count(*) filter (where abs(coalesce(a.kg, 0) - e.lager_kg) > 0.05) into v_ab
+    from erg_charge e left join (select charge_nr, sum(liegt_kg) as kg from v_am_lager group by charge_nr) a on a.charge_nr = e.charge_nr
+   where e.charge_nr in (select charge_nr from mv_kaskade);
+  assert v_ab = 0, format('0134 (e2): bei %s Chargen ist Σ v_am_lager nicht das Lager der Charge', v_ab);
+  assert (select count(*) from v_am_lager where charge_nr = 99347) = 1 and (select ueberzaehlung_kg > 0 and lager_kg > 0 from erg_charge where charge_nr = 99347),
+    '0134 (e3): P7 hat nicht einen überzogenen und einen liegenden Eingangstag — (g4) wäre blind';
+
+  -- (f) leer bestätigt
+  select lager_kg into v_lager4 from erg_charge where charge_nr = 99344;
+  select lager_kg into v_lager5 from erg_charge where charge_nr = 99345;
+  select lager_kg into v_lager7 from erg_charge where charge_nr = 99347;
+  assert v_lager4 > 0 and v_lager5 > 1000 and v_lager7 > 10 and (select lager_kg from erg_charge where charge_nr = 99346) > 1000
+     and (select lager_kg from erg_charge where charge_nr = 99349) > 1000,
+    format('0134 (f0): P4 %s, P5 %s, P6, P7 %s oder P9 haben vor dem Leer-Tag nichts im Lager — (f) wäre blind', v_lager4, v_lager5, v_lager7);
+  select md5(string_agg(x::text, '|' order by x::text)) into v_vor from mv_kaskade x where x.charge_nr <> all (v_p);
+  update charge set leer_am = heute() - 1, leer_ts = now() where nr in (99341, 99343, 99344, 99346, 99347, 99348);
+  update charge set leer_am = heute() - 10, leer_ts = now() where nr = 99345;
+  update charge set leer_am = heute() + 5, leer_ts = now() where nr = 99349;
+  perform auswertung_aktualisieren();
+  select md5(string_agg(x::text, '|' order by x::text)) into v_nach from mv_kaskade x where x.charge_nr <> all (v_p);
+  assert v_vor = v_nach, '0134 (f1): eine leere Charge ändert die Kaskade einer anderen Charge';
+  select count(*), count(*) filter (where k.m0 <> 0 or k.verkaufsfaehig_kg <> 0) into v_n, v_ab
+    from mv_kaskade k where k.portion = 'lager' and k.charge_nr in (99341, 99343, 99344, 99345, 99346, 99347, 99348);
+  assert v_n >= 8 and v_ab = 0, format('0134 (f2): %s von %s Lagerzeilen leerer Chargen haben noch Ware (oder die Zeilen fehlen)', v_ab, v_n);
+  select count(*) filter (where e.lager_kg <> 0 or e.n_rest_paletten <> 0 or coalesce(e.verkaufsfaehig_lager_kg, 0) <> 0) into v_ab
+    from erg_charge e where e.charge_nr in (99341, 99343, 99344, 99345, 99346, 99347, 99348);
+  assert v_ab = 0, format('0134 (f3): %s leere Chargen haben in erg_charge noch Lager oder Paletten', v_ab);
+  assert (select lager_kg = 0 and n_rest_paletten = 0 from erg_charge where charge_nr = 99346),
+    '0134 (f4): die leere Charge ohne Lieferung (P6) liegt mit dem ganzen Eingang im Lager';
+  assert (select abs(lager_kg - (eingang_kg - (select bedarf_kg from v_charge_bedarf where charge_nr = 99349))) < 0.05 from erg_charge where charge_nr = 99349)
+     and (select not leer from v_charge_bedarf where charge_nr = 99349),
+    '0134 (f5): ein Leer-Tag in der Zukunft (P9) leert die Charge schon heute';
+  assert not exists (select 1 from v_am_lager where charge_nr in (99341, 99343, 99344, 99345, 99346, 99347, 99348)),
+    '0134 (f6): v_am_lager zeigt Ware einer leeren Charge';
+
+  -- (g) der echte Verlust gegen den gerechneten
+  select count(*), count(*) filter (where abs(b.echt_verlust_kg - (b.eingang_kg - b.geliefert_kg)) > 0.01
+                                       or abs(b.echt_anteil - (1 - b.geliefert_kg / b.eingang_kg)) > 0.0001
+                                       or abs(b.gerechnet_anteil - (1 - b.geliefert_kg / b.bedarf_kg)) > 0.0001
+                                       or abs(b.gerechnet_unten - (1 - b.geliefert_kg / b.bedarf_min_kg)) > 0.0001
+                                       or abs(b.gerechnet_oben - (1 - b.geliefert_kg / b.bedarf_max_kg)) > 0.0001)
+    into v_n, v_ab
+    from v_charge_bedarf b where b.charge_nr in (99341, 99343, 99344, 99345, 99347);
+  assert v_n = 5 and v_ab = 0, format('0134 (g1): bei %s von %s leeren Chargen stimmen echter oder gerechneter Verlust nicht', v_ab, v_n);
+  -- P7 nach der Regel (zwei Eingangstage, jüngere Lieferung: wie viel weg ist, hängt an seiner eigenen Spanne)
+  assert (select array_agg(coalesce(urteil, '–') order by charge_nr) from v_charge_bedarf where charge_nr = any (v_p) and charge_nr <> 99347)
+         = array['weniger_weg', '–', 'datenfehler', 'passt', 'mehr_weg', 'ohne_lieferung', 'hagel', '–'],
+    format('0134 (g2): die leeren Chargen haben nicht ihr Urteil: %s', (select array_agg(charge_nr || ':' || coalesce(urteil, '–') order by charge_nr) from v_charge_bedarf where charge_nr = any (v_p)));
+  select count(*), count(*) filter (where b.urteil is distinct from
+           case when b.hagel then 'hagel' when coalesce(b.geliefert_kg, 0) <= 0 or b.bedarf_kg is null then 'ohne_lieferung'
+                when b.geliefert_kg > b.eingang_kg then 'datenfehler' when b.eingang_kg > b.bedarf_max_kg then 'mehr_weg'
+                when b.eingang_kg < b.bedarf_min_kg then 'weniger_weg' else 'passt' end) into v_n, v_ab
+    from v_charge_bedarf b where b.leer;
+  assert v_n = 7 and v_ab = 0, format('0134 (g2b): bei %s von %s leeren Chargen ist das Urteil nicht nach der Regel', v_ab, v_n);
+  assert (select echt_verlust_kg = eingang_kg and gerechnet_anteil is null from v_charge_bedarf where charge_nr = 99346),
+    '0134 (g3): ohne Lieferung ist der echte Verlust nicht der ganze Eingang';
+  assert (select abs(weg_kg - v_lager4) < 0.05 from v_charge_bedarf where charge_nr = 99344)
+     and (select abs(weg_kg - v_lager5) < 0.05 from v_charge_bedarf where charge_nr = 99345)
+     and (select abs(weg_kg - v_lager7) < 0.05 from v_charge_bedarf where charge_nr = 99347),
+    format('0134 (g4): „weg" ist nicht, was vorher im Lager lag (P4 %s/%s, P5 %s/%s, P7 %s/%s)',
+      (select weg_kg from v_charge_bedarf where charge_nr = 99344), v_lager4, (select weg_kg from v_charge_bedarf where charge_nr = 99345), v_lager5,
+      (select weg_kg from v_charge_bedarf where charge_nr = 99347), v_lager7);
+  assert (select n_nach_leer = 1 and abs(kg_nach_leer - round(v_e * 0.25)) < 0.01 and erste_nach_leer = v_tag from v_charge_bedarf where charge_nr = 99345)
+     and (select n_nach_leer = 0 and kg_nach_leer is null from v_charge_bedarf where charge_nr = 99344),
+    '0134 (g5): die Lieferscheine nach dem Leer-Tag stimmen nicht (P5: einer, P4: keiner)';
+  assert not exists (select 1 from v_charge_bedarf where not leer and (echt_verlust_kg is not null or urteil is not null or weg_kg is not null)),
+    '0134 (g6): eine Charge, die nicht leer ist, hat einen echten Verlust oder ein Urteil';
+
+  -- (h) Rechte
+  perform set_config('request.jwt.claim.sub', v_w::text, true);
+  set local role authenticated;
+  select count(*) into v_n from v_charge_bedarf where charge_nr = any (v_p);
+  select count(*) into v_ab from v_am_lager where charge_nr = 99349;
+  begin
+    update charge set leer_am = heute() where nr = 99349;
+  exception when insufficient_privilege then null;
+  end;
+  reset role;
+  perform set_config('request.jwt.claim.sub', v_u::text, true);
+  assert v_n = 9 and v_ab = 1, format('0134 (h1): die Halle sieht den Bedarf (%s) oder das Liegende (%s) nicht', v_n, v_ab);
+  assert (select leer_am = heute() + 5 from charge where nr = 99349), '0134 (h2): die Halle kann eine Charge leer setzen';
+  assert not has_table_privilege('anon', 'v_charge_bedarf', 'select') and not has_table_privilege('anon', 'v_am_lager', 'select'),
+    '0134 (h3): Nichtangemeldete lesen Bedarf oder Lager';
+
+  -- (i) Stand
+  assert schema_stand() >= 134, format('0134 (i1): schema_stand() = %s', schema_stand());
+
+  -- aufräumen
+  delete from lieferung where bemerkung = 'PRUEF0134';
+  delete from palette where charge_nr = any (v_p);
+  delete from charge where nr = any (v_p);
+  update charge c set leer_am = (v_alt ->> c.nr::text)::date where v_alt ? c.nr::text;
+  if v_geladen then perform demo_daten_entfernen(); end if;
+  perform auswertung_aktualisieren();
+  delete from profil where id in (v_u, v_w); delete from auth.users where id in (v_u, v_w);
+  update einstellung set wert = v_modus where schluessel = 'betriebsmodus';
+  raise notice 'OK  0134 — Überzählung als Datenfehler oder als Rate, die nicht passt (ausserhalb der Spanne); je Eingangstag, was liegt; eine leer bestätigte Charge hat kein Lager, ihr echter Verlust prüft die Raten';
+end $$;
+
+select '——— 0134 Was am Lager liegt ———' as ergebnis;

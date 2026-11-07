@@ -324,6 +324,28 @@ export interface UniqueTopf {
   n_unbekannt: number; ueberzaehlung_kg: number; hinweis: string | null
 }
 
+/**
+ * 0134: je Charge, wie viel Eingang ihre Lieferungen brauchen (v_charge_bedarf) — mit den Raten,
+ * mit den günstigsten der Spanne (unten) und den ungünstigsten (oben). Die Art der Überzählung:
+ * datenfehler (mehr geliefert als hereinkam), rate (auch günstig zu viel — die Raten passen nicht
+ * zur Charge), spanne (nur mit den Raten zu viel; wird nicht gemeldet). Am Lager leer bestätigt
+ * (leer): Eingang − geliefert ist der echte Verlust, gegen den gerechneten mit seiner Spanne.
+ */
+export interface ChargeBedarf {
+  charge_nr: number; sorte: string; schlag: string | null
+  eingang_kg: number; geliefert_kg: number; n_lieferungen: number
+  bedarf_kg: number | null; bedarf_min_kg: number | null; bedarf_max_kg: number | null
+  ueberzaehlung_kg: number; hagel: boolean
+  r: number | null; r_unten: number | null; r_oben: number | null; r_basis: string | null
+  f: number | null; f_unten: number | null; f_oben: number | null
+  art: 'datenfehler' | 'rate' | 'spanne' | null; ueber_kg: number | null; melden: boolean
+  leer_am: string | null; leer: boolean
+  echt_verlust_kg: number | null; echt_anteil: number | null
+  gerechnet_anteil: number | null; gerechnet_unten: number | null; gerechnet_oben: number | null
+  urteil: 'passt' | 'mehr_weg' | 'weniger_weg' | 'datenfehler' | 'ohne_lieferung' | 'hagel' | null
+  weg_kg: number | null; n_nach_leer: number; kg_nach_leer: number | null; erste_nach_leer: string | null
+}
+
 export interface LagerAusweis {
   charge_nr: number; sorte: string; schlag: string; paletten: number | null
   eingang_kg: number | null; alter_tage: number | null
@@ -566,6 +588,8 @@ export interface Auswertung {
   ausweis: LagerAusweis[]
   /** 0133: der Ünique-Topf (zweite Welle); null ohne Hagel-Charge. */
   uniqueTopf: UniqueTopf | null
+  /** 0134: je Charge der Bedarf an Eingang, die Art der Überzählung und, wenn am Lager leer, der echte Verlust (zweite Welle). */
+  bedarf: ChargeBedarf[]
   /** 0121: was zwischen Perigon und Lager nicht passt, und die Perigon-Zeilen dazu (zweite Welle). */
   ungereimt: UngereimtZeile[]
   /** 0126: jeder Fall einer Perigon-Position (v_perigon_befund) — vorher v_perigon_pruefung. */
@@ -785,7 +809,7 @@ async function alles(erzwingen: boolean): Promise<Auswertung> {
     sorten: { verdunstung: [], ausschuss: [], nebenkanal: [] }, wiegungen: [], margeWiegung: [], margeCharge: [], kommentare: [],
     verarbeitung: [], qualitaet: null, verlauf: vl,
     gebinde: [], schemata: [], kohorten: [], ausschuss: [], ausgang: [],
-    prognose: pg, wohin: wo, lieferungGruppe: lg, ausweis: aw, uniqueTopf: null, ungereimt: [], perigon: [], faelleStand: [], spur: [], probleme,
+    prognose: pg, wohin: wo, lieferungGruppe: lg, ausweis: aw, uniqueTopf: null, bedarf: [], ungereimt: [], perigon: [], faelleStand: [], spur: [], probleme,
   }
   if (!erzwingen) { stand = ersteWelle; hoerer.forEach(h => h()) }
 
@@ -811,8 +835,10 @@ async function alles(erzwingen: boolean): Promise<Auswertung> {
   // 0121: was zwischen Perigon und Lager nicht passt — für den Hinweis oben auf jeder Lagerseite.
   // 0122: dazu der Weg der Ware je Charge, damit jede Sache zeigt, wo die Ware herein, durch und hinaus ging.
   // 0126: die Perigon-Fälle je Position (v_perigon_befund) statt v_perigon_pruefung, dazu ihr Stand.
-  const [ug, pp, sp, fs, ut] = await Promise.all([q<UngereimtZeile>('v_ungereimtheit'), q<PerigonBefund>('v_perigon_befund', ['datum', false]),
-    q<ChargeSpur>('v_charge_spur', ['charge_nr', true]), q<PerigonVerlauf>('v_perigon_verlauf'), q<UniqueTopf>('v_unique_topf')])
+  // 0134: dazu je Charge der Bedarf an Eingang — die Art der Überzählung und die leer bestätigten Chargen.
+  const [ug, pp, sp, fs, ut, cb] = await Promise.all([q<UngereimtZeile>('v_ungereimtheit'), q<PerigonBefund>('v_perigon_befund', ['datum', false]),
+    q<ChargeSpur>('v_charge_spur', ['charge_nr', true]), q<PerigonVerlauf>('v_perigon_verlauf'), q<UniqueTopf>('v_unique_topf'),
+    q<ChargeBedarf>('v_charge_bedarf', ['charge_nr', true])])
   // 0108: Eine noch ungefüllte Sicht der zweiten Welle steht in probleme
   // (ihre Zahl ist unbekannt, nie 0) — die Seiten zeichnen, was da ist,
   // statt im Ladekreis zu warten. Bis 0108: IM_BAU, und Chargen, Ursachen,
@@ -841,7 +867,7 @@ async function alles(erzwingen: boolean): Promise<Auswertung> {
     sorten: { verdunstung: kfv, ausschuss: kfa, nebenkanal: kfn }, wiegungen: wk, margeWiegung: mw, margeCharge: mc, kommentare: km,
     verarbeitung: va, qualitaet: dq,
     gebinde: kg, schemata: ss, kohorten: ko, ausschuss: ab, ausgang: ak,
-    ungereimt: ug, perigon: pp, faelleStand: fs, spur: sp, uniqueTopf: ut[0] ?? null,
+    ungereimt: ug, perigon: pp, faelleStand: fs, spur: sp, uniqueTopf: ut[0] ?? null, bedarf: cb,
   }
 }
 

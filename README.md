@@ -798,6 +798,15 @@ ohne Perigon-Zeile als eigener Teil); jede PL/pgSQL-Funktion hat einen
 festen Suchpfad; die Perigon-Liste läuft nur einmal (AB-174 bis AB-176). Dazu die
 Halle: Faules ohne Ablesung ist „unbekannt", Fehler werden gezeigt. **Setup.sql
 einmal einspielen (Stand 124), dann „Neu rechnen".**
+**Runde BJ, Schritt 4 (0134)** — **Was am Lager liegt.** Die Überzählung
+sagt, welche sie ist: mehr geliefert als hereinkam ist „sicher ein
+Datenfehler"; braucht es auch mit den günstigsten Raten mehr Eingang, „passt
+die Rate nicht zur Charge"; was nur in der Spanne der Raten zu viel ist, meldet
+die App nicht (AB-200). Aufgeklappt sagt jede Charge „liegt noch etwa N
+Paletten", je Eingangstag (AB-202). Ein Knopf „Charge ist leer (am Lager
+bestätigt)": dann hat sie kein Lager mehr, Eingang − geliefert ist ihr echter
+Verlust, und der steht gegen die Raten — im Chargen-Reiter und unter Messungen
+(AB-201). **Setup.sql einmal einspielen (Stand 134), dann „Neu rechnen".**
 **Runde BJ, Schritt 3 (0133)** — **Der Ünique-Topf.** Jede Charge mit Hagel
 gehört ganz in einen Topf für alle Sorten; was als Ünique (oder unter einer
 Hagel-Charge) hinausgeht, kommt aus dem Topf, nicht von der Charge in der

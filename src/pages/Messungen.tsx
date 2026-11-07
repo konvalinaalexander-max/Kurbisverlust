@@ -206,6 +206,7 @@ function Messwerte({ daten }: { daten: Auswertung }) {
           Der Anstieg und seine Messung stehen unter <Link to="/ursachen">Ursachen</Link>.</p>
         </Erklaerung>
       </Karte>
+      <LeerGegenRaten daten={daten} />
       <Kurvenherkunft punkte={daten.punkte} />
 
       <Karte titel="Massenbilanz je Charge"
@@ -254,6 +255,46 @@ function Messwerte({ daten }: { daten: Auswertung }) {
 }
 
 /** Wie vollständig wird erfasst? Ein Balken je Absprache. */
+/**
+ * 0134: Chargen, die am Lager leer bestätigt sind, messen ihren Verlust selbst —
+ * Eingang − geliefert. Daneben, was die Raten für dieselben Lieferungen rechnen,
+ * mit ihrer Spanne. So prüft die App ihre Raten an der Ware.
+ */
+function LeerGegenRaten({ daten }: { daten: Auswertung }) {
+  const leer = daten.bedarf.filter(b => b.leer)
+  const URTEIL: Record<string, [string, 'fertig' | 'warnung' | 'offen']> = {
+    passt: ['passt', 'fertig'], mehr_weg: ['mehr weg', 'warnung'], weniger_weg: ['weniger weg', 'warnung'],
+    datenfehler: ['Datenfehler', 'warnung'], ohne_lieferung: ['ohne Lieferung', 'warnung'], hagel: ['Ünique-Topf', 'offen'],
+  }
+  return (
+    <Karte titel="Leere Chargen gegen die Raten" unter={leer.length ? `${leer.length} ${leer.length === 1 ? 'Charge' : 'Chargen'} am Lager leer bestätigt` : undefined}>
+      {leer.length === 0
+        ? <p className="leise">Noch keine Charge am Lager leer bestätigt. Im Reiter <Link to="/chargen">Chargen</Link>, aufgeklappt unter „Am Lager": „Charge ist leer".</p>
+        : <div className="rollbar"><table className="dicht">
+            <thead><tr><th>Charge</th><th>leer am</th><th className="zahl">Eingang</th><th className="zahl">geliefert</th>
+              <th className="zahl" title="Eingang − geliefert">echter Verlust</th><th className="zahl" title="1 − geliefert ÷ Bedarf, mit den Raten; dahinter die Spanne">die Raten rechnen</th><th>Urteil</th></tr></thead>
+            <tbody>{leer.map(b => {
+              const [wort, art] = URTEIL[b.urteil ?? ''] ?? ['—', 'offen']
+              return (
+                <tr key={b.charge_nr}><td><Link to={`/chargen?charge=${b.charge_nr}`}>{b.charge_nr}</Link> · {b.sorte}</td><td>{datum(b.leer_am)}</td>
+                  <td className="zahl">{kg(Number(b.eingang_kg), 0)}</td><td className="zahl">{kg(Number(b.geliefert_kg), 0)}</td>
+                  <td className="zahl"><strong>{prozent(b.echt_anteil == null ? null : Number(b.echt_anteil))}</strong> <span className="leise">{kg(b.echt_verlust_kg == null ? null : Number(b.echt_verlust_kg), 0)}</span></td>
+                  <td className="zahl">{b.gerechnet_anteil == null ? <span className="leise">—</span>
+                    : <>{prozent(Number(b.gerechnet_anteil))} <span className="leise">({prozent(Number(b.gerechnet_unten))}–{prozent(Number(b.gerechnet_oben))})</span></>}</td>
+                  <td><Marke art={art}>{wort}</Marke>{b.n_nach_leer > 0 && <> <Marke art="warnung">Lieferschein danach</Marke></>}</td></tr>
+              )
+            })}</tbody>
+          </table></div>}
+      <Erklaerung>
+        <p>Ist eine Charge am Lager leer, ist <strong>Eingang − geliefert</strong> ihr echter Verlust <Herkunft art="gemessen" />. Die Raten rechnen für
+        dieselben Lieferungen 1 − geliefert ÷ Bedarf <Herkunft art="gerechnet" />, mit der Spanne aus Verdunstung und Palox unten und oben.
+        „Passt": der echte Verlust liegt in der Spanne. „Mehr weg": mehr verloren, als die Raten sagen — oder Ware ging ohne Lieferschein.
+        „Weniger weg": die Charge verlor weniger als ihre Sorte — oder im Journal fehlt eine Palette.</p>
+      </Erklaerung>
+    </Karte>
+  )
+}
+
 function Qualitaet({ q }: { q: Datenqualitaet }) {
   const zeilen: { name: string; ab: string; ist: number; von: number; hinweis: string }[] = [
     // Runde AO: Nenner sind die Eingangspaletten (Sortieren, Waschen +

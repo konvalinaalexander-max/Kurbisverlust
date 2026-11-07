@@ -370,6 +370,53 @@ Rückrechnung da, fehlt der Eingang, kein Unterschied. „Wie sicher?" vergleich
 den Verlust, den die Charge höchstens haben dürfte (1 − geliefert ÷ Eingang),
 mit dem gerechneten (1 − geliefert ÷ ausgelagert); liegt schon geliefert über
 dem Eingang, geht es auch ohne jeden Verlust nicht auf.
+**Seit 0134 sagt die Überzählung, welche sie ist (`v_charge_bedarf`).** Der
+Bedarf ist Σ m0 der Lieferungen der Charge (ausgelagert und entsorgt), wie ihn
+die Kaskade rechnet. Unten heisst: dieselben Lieferungen mit Verdunstung unten
+(`v_koeff_verdunstung.unten`) und Palox unten (`f_unten` der Kaskadenzeile),
+oben mit beiden oben. Zu klein, zu gross und Fax gehen mit ihrem Wert ein —
+für sie kennt die App keine Spanne. Die Untergrenze von 25 % verkaufsfähig
+gilt wie in der Kaskade. Die Art:
+- **datenfehler** — geliefert > Eingang: das erklärt keine Rate;
+- **rate** — sonst, wenn auch der Bedarf unten über dem Eingang liegt: die
+  Raten passen nicht zur Charge;
+- **spanne** — sonst, wenn nur der Bedarf mit den Raten (oder ein
+  Eingangstag) über dem Eingang liegt: innerhalb der Spanne, nicht gemeldet;
+- keine, wenn es aufgeht. Hagel-Chargen haben keine Art: ihr Verkauf kommt aus
+  dem Ünique-Topf, der seine Überzählung selbst sagt (`v_unique_topf`).
+
+Gemeldet werden datenfehler und rate: in den Auffälligkeiten jede, im Reiter
+Perigon (`v_ungereimtheit`) ab 100 kg und 3 % des Eingangs, wie bisher. Die
+Kilo sind dort der Überschuss (datenfehler: geliefert − Eingang) oder
+Bedarf − Eingang (rate). Fehlt eine Rate, rechnet die Kaskade ohne sie, und der
+Satz sagt „ohne gemessene Verdunstung" oder „ohne Palox-Rate" — keine 0.
+**Am Lager leer bestätigt (`charge.leer_am`, 0134).** Ab dem Leer-Tag (bis
+heute) ist die Lagerzeile der Charge in `mv_kaskade` 0; die Zeile bleibt stehen,
+sonst nähme `erg_charge` bei einer Charge ohne Lieferung wieder den ganzen
+Eingang als Lager. Damit sind Lager, Paletten und verkaufsfähig 0 in jeder
+Sicht, die das Lager liest (Lagerausweis, Prognose, Verlauf, Artikel). Was die
+Raten dort noch erwarteten, ist weg (`weg_kg` = Eingang − Bedarf +
+Überzählung, je Eingangstag Eingang − Bedarf, wo positiv). Darum lautet die
+Bilanz für eine leere Charge Eingang + Überzählung = ausgeliefert + Verlust +
+im Haus + weg. In der Saisonbilanz steht das Weg im Rest (`bilanz_rest_kg`).
+Der **echte Verlust** ist Eingang − geliefert. Er steht gegen den gerechneten,
+1 − geliefert ÷ Bedarf, mit der Spanne 1 − geliefert ÷ Bedarf unten bis
+1 − geliefert ÷ Bedarf oben. Das Urteil:
+- **passt** — der Eingang liegt zwischen Bedarf unten und oben;
+- **mehr_weg** — mehr verloren, als die Raten sagen, oder Ware ging ohne
+  Lieferschein;
+- **weniger_weg**;
+- **datenfehler**;
+- **ohne_lieferung** — leer, aber nichts unter dieser Nummer geliefert;
+- **hagel** — der Topf prüft.
+
+Lieferscheine dieser Nummer nach dem Leer-Tag zählt `n_nach_leer`. Der Verlauf
+rechnet die Charge auch rückwirkend ohne den Rest: wann er wegging, weiss
+niemand.
+**Je Eingangstag, was liegt (`v_am_lager`, 0134):** `liegt_kg` ist das m0 der
+Lagerzeile. Die Paletten sind die Paletten des Tages mal liegt ÷ Eingang des
+Tages, auf eine Stelle. Das ist eine gerechnete Zahl zum Vergleichen beim
+Zählen.
 **Urteil:** ehrlich; die Ausbeute ist die Stelle, an der ein zu hoher
 Koeffizient „Im Lager" zu klein rechnet (Charge 1625) — die Saisonbegleitung
 fragt danach.

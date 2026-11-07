@@ -16,13 +16,20 @@ export interface Verstoss { regel: string; wo: string; ist: string; soll: string
 type Zeile = Record<string, unknown>
 const z = (r: Zeile, k: string): number | null => r[k] == null ? null : Number(r[k])
 
-/** K1 — Je (Charge, Kohorte): Σ m0 über die Portionen = Eingang der Kohorte + Überzählung. */
-export function kohorteGeschlossen(kaskade: Zeile[], kohorten: Zeile[]): Verstoss[] {
+/**
+ * K1 — Je (Charge, Kohorte): Σ m0 über die Portionen = Eingang der Kohorte + Überzählung.
+ * Seit 0134: eine am Lager leer bestätigte Charge (leer) hat keine Lagerware — ihre Lagerzeile
+ * trägt m0 = 0, und was die Raten dort erwarteten, ist weg. Für sie gilt: die Lagerzeile ist 0,
+ * und Σ m0 − Überzählung bleibt höchstens beim Eingang.
+ */
+export function kohorteGeschlossen(kaskade: Zeile[], kohorten: Zeile[], leer: Set<number> = new Set()): Verstoss[] {
   const v: Verstoss[] = []
   const eingang = new Map<string, number>()
   for (const k of kohorten) eingang.set(`${k.charge_nr}|${k.eingangsdatum}`, z(k, 'eingang_kg') ?? 0)
   const summe = new Map<string, { m0: number; ueber: number }>()
   for (const r of kaskade) {
+    if (leer.has(Number(r.charge_nr)) && r.portion === 'lager' && (z(r, 'm0') ?? 0) !== 0)
+      v.push({ regel: 'K1', wo: `${r.charge_nr}|${r.kohorte}`, ist: `Lager m0 ${z(r, 'm0')}`, soll: '0 — die Charge ist am Lager leer bestätigt' })
     const s = summe.get(`${r.charge_nr}|${r.kohorte}`) ?? { m0: 0, ueber: 0 }
     s.m0 += z(r, 'm0') ?? 0; s.ueber = Math.max(s.ueber, z(r, 'ueberzaehlung_kg') ?? 0)
     summe.set(`${r.charge_nr}|${r.kohorte}`, s)
@@ -30,7 +37,9 @@ export function kohorteGeschlossen(kaskade: Zeile[], kohorten: Zeile[]): Verstos
   for (const [key, s] of summe) {
     const e = eingang.get(key)
     if (e == null) { v.push({ regel: 'K1', wo: key, ist: `m0 ${s.m0.toFixed(2)}`, soll: 'eine Kohorte mit Eingang' }); continue }
-    if (!nahe(s.m0 - s.ueber, e, 1e-6, 0.02)) v.push({ regel: 'K1', wo: key, ist: `Σ m0 − Überzählung = ${(s.m0 - s.ueber).toFixed(2)}`, soll: `Eingang ${e.toFixed(2)}` })
+    const istLeer = leer.has(Number(key.split('|')[0]))
+    if (istLeer ? s.m0 - s.ueber > e + 0.02 : !nahe(s.m0 - s.ueber, e, 1e-6, 0.02))
+      v.push({ regel: 'K1', wo: key, ist: `Σ m0 − Überzählung = ${(s.m0 - s.ueber).toFixed(2)}`, soll: `${istLeer ? 'höchstens ' : ''}Eingang ${e.toFixed(2)}` })
   }
   return v
 }

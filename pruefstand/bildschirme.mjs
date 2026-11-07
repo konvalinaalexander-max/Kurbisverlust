@@ -166,6 +166,29 @@ function ohneChargeVormerken() {
   ])
 }
 
+/** 0134: eine Charge der Demo, die laut App noch liegt (ohne Hagel) — für „Am Lager". */
+function liegendeCharge() {
+  const hagel = new Set((fixture('charge') ?? []).filter(c => Number(c.hagel_anteil ?? 0) > 0).map(c => Number(c.nr)))
+  const b = (fixture('erg_charge') ?? []).filter(x => Number(x.lager_kg) > 0 && !hagel.has(Number(x.charge_nr)))
+    .sort((x, y) => Number(y.lager_kg) - Number(x.lager_kg))[0]
+  if (!b) throw new Error('erg_charge.json kennt keine liegende Charge ohne Hagel')
+  return Number(b.charge_nr)
+}
+
+/** 0134: eine leer bestätigte Charge 99134 — Zeile, Bedarf und Urteil „mehr weg", ein Lieferschein nach dem Leer-Tag. */
+function leerVormerken() {
+  const vorlage = (fixture('erg_charge') ?? []).find(x => Number(x.lager_kg) > 0)
+  if (!vorlage) throw new Error('erg_charge.json kennt keine liegende Charge')
+  vormerken('erg_charge', [{ ...vorlage, charge_nr: 99134, schlag: 'Prüfschlag', sorte: 'Amoro', eingang_kg: 9880, geliefert_kg: 8340, n_lieferungen: 14,
+    lager_kg: 0, n_rest_paletten: 0, verkaufsfaehig_lager_kg: 0, ueberzaehlung_kg: 0 }])
+  vormerken('v_charge_bedarf', [{ charge_nr: 99134, sorte: 'Amoro', schlag: 'Prüfschlag', eingang_kg: 9880, geliefert_kg: 8340, n_lieferungen: 14,
+    bedarf_kg: 9310, bedarf_min_kg: 9020, bedarf_max_kg: 9640, ueberzaehlung_kg: 0, hagel: false,
+    r: 0.000498, r_unten: 0.000473, r_oben: 0.000523, r_basis: 'Wiegungen aller Sorten', f: 0.0802, f_unten: 0.0512, f_oben: 0.1094,
+    art: null, ueber_kg: null, melden: false, leer_am: '2026-11-05', leer: true,
+    echt_verlust_kg: 1540, echt_anteil: 0.1559, gerechnet_anteil: 0.1042, gerechnet_unten: 0.0754, gerechnet_oben: 0.1349,
+    urteil: 'mehr_weg', weg_kg: 570, n_nach_leer: 1, kg_nach_leer: 312, erste_nach_leer: '2026-11-06' }])
+}
+
 function ungereimtVormerken() {
   // 0122: woher die Ware wohl kam (kandidaten), eine Zuordnung über den Produzenten
   // und der Weg der Ware je Charge — herein, bearbeitet, hinaus.
@@ -911,6 +934,39 @@ const BILDSCHIRME = [
       await p.locator('.unique-topf-wort', { hasText: 'nicht vorherzusagen — Verkauf über den Ünique-Topf' }).first().waitFor()
       await topf.scrollIntoViewIfNeeded()
     } },
+  // Runde BJ (0134): am Lager zählen — „liegt noch etwa N Paletten", je Eingangstag, und der Knopf „Charge ist leer".
+  { name: 'chargen-am-lager', wer: 'admin', pfad: () => `/chargen?charge=${liegendeCharge()}`,
+    tun: async p => {
+      const nr = liegendeCharge()
+      const teil = p.locator(`#am-lager-${nr}`)
+      await teil.waitFor()
+      const text = await teil.innerText()
+      if (!/Liegt noch etwa/.test(text)) throw new Error(`„Am Lager" sagt nicht, was noch liegt: ${text}`)
+      await teil.locator('button', { hasText: 'Charge ist leer (am Lager bestätigt)' }).waitFor()
+      await p.locator('th', { hasText: 'liegt noch etwa' }).first().waitFor()
+      await teil.scrollIntoViewIfNeeded()
+    } },
+  // Runde BJ (0134): eine am Lager leer bestätigte Charge — kein Lager, der echte Verlust gegen die Raten, ein Lieferschein danach.
+  { name: 'chargen-leer', wer: 'admin', pfad: '/chargen?charge=99134', vorher: leerVormerken,
+    tun: async p => {
+      const teil = p.locator('#am-lager-99134')
+      await teil.waitFor()
+      const text = await teil.innerText()
+      for (const soll of [/leer am Lager bestätigt am 05\.11\.2026/, /mehr weg, als die Raten sagen/, /Echter Verlust 1.540 kg = Eingang 9.880 kg − geliefert 8.340 kg/,
+                          /nach dem Leer-Tag/, /zurücknehmen/])
+        if (!soll.test(text)) throw new Error(`„Am Lager" der leeren Charge sagt nicht ${soll}: ${text}`)
+      const zeile = await p.locator('.chargentabelle tbody tr', { hasText: '99134' }).first().innerText()
+      if (!/leer/.test(zeile) || !/bestätigt 05\.11\.2026/.test(zeile) || !/echt/.test(zeile)) throw new Error(`die Zeile der leeren Charge sagt nicht „leer" und „echt": ${zeile}`)
+      await teil.scrollIntoViewIfNeeded()
+    } },
+  { name: 'messungen-leer', wer: 'admin', pfad: '/messungen/messwerte', vorher: leerVormerken,
+    tun: async p => {
+      const karte = p.locator('section, .karte', { hasText: 'Leere Chargen gegen die Raten' }).last()
+      await karte.waitFor()
+      const text = await karte.innerText()
+      if (!/99134/.test(text) || !/mehr weg/.test(text) || !/Lieferschein danach/.test(text)) throw new Error(`die Karte der leeren Chargen sagt nicht, was sie sollte: ${text}`)
+      await karte.scrollIntoViewIfNeeded()
+    } },
   // Runde AS: eine Lieferung der geöffneten Charge als Fenster.
   { name: 'chargen-lieferung', wer: 'admin', pfad: '/chargen',
     tun: async p => {
@@ -1492,7 +1548,7 @@ for (const geraet of GERAETE) {
         if (wer) localStorage.setItem('pruefstand_wer', wer)
       }, { wer: schirm.wer, frisch: schirm.frisch ?? false, sprache: SPRACHE })
 
-      const pfad = schirm.pfad.replace('OFFENKISTEN', String(OFFEN_KISTEN_ID))
+      const pfad = (typeof schirm.pfad === 'function' ? schirm.pfad() : schirm.pfad).replace('OFFENKISTEN', String(OFFEN_KISTEN_ID))
                               .replace('OFFENWASCHEN', String(OFFEN_WASCHEN_ID))
                               .replace('OFFENFAX', String(OFFEN_FAX_ID))
                               .replace('FERTIG', String(FERTIG_ID))

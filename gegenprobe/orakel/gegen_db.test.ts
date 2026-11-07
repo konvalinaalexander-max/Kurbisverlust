@@ -209,8 +209,10 @@ test('Kaskade: Verkaufsanteil, m0 und alle Ströme je Zeile — und die Invarian
 
   // Wer die Ströme summiert, muss auf m0 kommen; wer die Kohorte summiert, auf ihren Eingang.
   const kohortenDb = frage('select k.charge_nr, k.eingangsdatum, b.eingang_kg * k.anteil as eingang_kg from v_kohorte_anteil k join v_kaskade_basis b using (charge_nr)')
+  // 0134: am Lager leer bestätigt (ab dem Leer-Tag) — die Lagerzeile ist 0, der Rest ist weg
+  const leerBestaetigt = new Set(frage<{ nr: string }>('select nr from charge where leer_am is not null and leer_am <= heute()').map(c => Number(c.nr)))
   const verstoesse = [
-    ...stroemeSummieren(zeilen), ...kohorteGeschlossen(zeilen, kohortenDb), ...geliefertNichtMehrAlsEingang(zeilen),
+    ...stroemeSummieren(zeilen), ...kohorteGeschlossen(zeilen, kohortenDb, leerBestaetigt), ...geliefertNichtMehrAlsEingang(zeilen),
     ...nichtsUnmoeglich(zeilen, ['m0', 'm1', 'm2', 'verdunstung_kg', 'schimmel_kg', 'verkaufsfaehig_kg', 'geliefert_kg', 'ueberzaehlung_kg'],
                         ['r', 'f', 'a_klein_n', 'a_gross_n', 'a_fax', 'verkaufsfaehig_anteil'], r => `${r.charge_nr}/${r.portion}/${r.kohorte}`),
   ]

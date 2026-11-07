@@ -90,7 +90,8 @@ export const spanne = (von: string | null | undefined, bis: string | null | unde
 function sacheKurz(u: Ungereimtheit): string {
   const m = u.roh?.mehr ?? {}
   switch (u.art) {
-    case 'ueberzaehlung': return `${tonnen(u.kg)} mehr verkauft, als möglich`
+    case 'ueberzaehlung': return m.art === 'datenfehler' ? `${tonnen(u.kg)} mehr geliefert als hereinkam`
+      : m.art === 'rate' ? `Raten passen nicht (${tonnen(u.kg)} zu viel)` : `${tonnen(u.kg)} mehr verkauft, als möglich`
     case 'ohne_eingang': return 'verkauft, aber nie eingegangen'
     case 'vor_eingang': return `${tonnen(u.kg)} vor dem Eingang verkauft`
     case 'vorschlag': return `Paletten wohl von ${n(m.von_charge_nr) ?? '?'}`
@@ -266,7 +267,10 @@ function chargeGeschichte(f: Fall, s: ChargeSpur | undefined): Geschichte {
       case 'ueberzaehlung': {
         const gel = n(m.geliefert_kg), ein = n(m.eingang_kg), aus = n(m.ausgelagert_kg)
         // in Kilo, nicht in Tonnen: wer nachrechnet, soll dieselbe Zahl bekommen (8 t − 4.9 t sind nicht 3.2 t, 8’045 − 4’863 = 3’182 kg schon)
-        p(`Für ${kg(gel, 0)} auf den Lieferscheinen braucht es ${kg(aus, 0)} Eingang, denn unterwegs geht Ware verloren (Verdunstung, Faules, Aussortiertes). Hereingekommen sind ${kg(ein, 0)} — es fehlen ${kg(u.kg, 0)}.`, u)
+        // 0134: sicher ein Datenfehler, oder die Raten passen nicht zur Charge
+        if (m.art === 'datenfehler') p(`Unter ${nr} gingen ${kg(gel, 0)} hinaus, hereingekommen sind ${kg(ein, 0)} — ${kg(u.kg, 0)} mehr, als je da war. Das erklärt keine Rate.`, u)
+        else if (m.art === 'rate') p(`Für ${kg(gel, 0)} auf den Lieferscheinen braucht es mit den Raten ${kg(n(m.bedarf_kg) ?? aus, 0)} Eingang, auch günstig gerechnet ${kg(n(m.bedarf_min_kg), 0)}. Hereingekommen sind ${kg(ein, 0)} — es fehlen ${kg(u.kg, 0)}: die Raten passen nicht zur Charge.`, u)
+        else p(`Für ${kg(gel, 0)} auf den Lieferscheinen braucht es ${kg(aus, 0)} Eingang, denn unterwegs geht Ware verloren (Verdunstung, Faules, Aussortiertes). Hereingekommen sind ${kg(ein, 0)} — es fehlen ${kg(u.kg, 0)}.`, u)
         folge = `Die fehlenden ${kg(u.kg, 0)} zieht die App von keinem Lager ab.`
         break
       }

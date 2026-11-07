@@ -142,7 +142,22 @@ export function ausZeile(z: UngereimtZeile, perigon: PerigonZeile[]): Ungereimth
     }
     case 'ueberzaehlung': {
       const gel = n(m.geliefert_kg), ein = n(m.eingang_kg), aus = n(m.ausgelagert_kg)
-      return { ...basis, ...mitKandidaten, schwere: (kgZ ?? 0) >= 1000 || (ein && (kgZ ?? 0) >= 0.1 * ein) ? 'rot' : 'gelb',
+      const gross = (kgZ ?? 0) >= 1000 || (ein && (kgZ ?? 0) >= 0.1 * ein) ? 'rot' : 'gelb'
+      // 0134: die Überzählung sagt, welche sie ist (v_charge_bedarf.art)
+      if (m.art === 'datenfehler') return { ...basis, ...mitKandidaten, schwere: gross,
+        titel: `Charge ${name(z)} hat mehr geliefert, als hereinkam`,
+        was: `Geliefert sind ${kg(gel, 0)}, hereingekommen ${kg(ein, 0)} — ${kg(kgZ, 0)} mehr, als je da war.`,
+        warum: `Das erklärt keine Rate: sicher ein Datenfehler. Im Journal fehlt eine Palette, oder ein Lieferschein trägt die falsche Charge. Diese ${kg(kgZ, 0)} zieht die App von keinem Lager ab.`,
+        tun: 'Zuerst die Paletten im Journal mit dem Lager vergleichen; dann die Lieferscheine dieser Charge ansehen — passt einer eher zu einer Charge desselben Schlags?' }
+      if (m.art === 'rate') {
+        const bed = n(m.bedarf_kg) ?? aus, bu = n(m.bedarf_min_kg)
+        return { ...basis, ...mitKandidaten, schwere: 'gelb',
+          titel: `Charge ${name(z)}: die Raten passen nicht zur Charge`,
+          was: `Verkauft sind ${kg(gel, 0)}. Mit den Raten braucht das ${kg(bed, 0)} Eingang, auch günstig gerechnet noch ${kg(bu, 0)} — eingegangen sind ${kg(ein, 0)}. Es fehlen ${kg(kgZ, 0)}.`,
+          warum: 'Geliefert wurde nicht mehr als eingelagert, aber mehr, als die Raten aus diesem Eingang erlauben: Die Charge verliert wohl weniger als ihre Sorte — oder es fehlt eine Palette im Journal, oder ein Lieferschein gehört einer anderen Charge.',
+          tun: 'Am Lager zählen: liegt noch etwas von dieser Charge? Ist sie leer, im Reiter Chargen „Charge ist leer" drücken — dann misst die App ihren echten Verlust gegen die Raten. Sonst die Paletten im Journal mit dem Lager vergleichen.' }
+      }
+      return { ...basis, ...mitKandidaten, schwere: gross,
         titel: `Charge ${name(z)} hat mehr verkauft, als sie hergeben kann`,
         was: `Verkauft sind ${kg(gel, 0)}. Mit dem gerechneten Verlust brauchte das ${kg(aus, 0)} Eingangsware — eingegangen sind ${kg(ein, 0)}. Es fehlen ${kg(kgZ, 0)}.`,
         warum: `Diese ${kg(kgZ, 0)} zieht die App von keinem Lager ab: Entweder fehlt im Journal eine Palette, ein Lieferschein trägt die falsche Charge — oder die Charge verliert weniger, als gerechnet.`,

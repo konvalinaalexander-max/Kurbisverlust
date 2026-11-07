@@ -252,7 +252,7 @@ function Wohin({ daten, filter, setzen, chargeAnsehen }: {
         </>
       )}
       {(w?.ueberzaehlung_kg ?? 0) > 0 && (
-        <p className="fussnote">{tonnen(w?.ueberzaehlung_kg)} mehr geliefert als eingelagert — ein Zählfehler beim Eingang, nicht Ware.</p>
+        <p className="fussnote">{tonnen(w?.ueberzaehlung_kg)} mehr geliefert, als die Raten aus dem Eingang erlauben — ein Zählfehler, eine falsche Charge oder eine Rate, die nicht passt; je Charge im Reiter Chargen.</p>
       )}
       <Erklaerung>
         <p>Jeder Balken ist der ganze Eingang der Zeile (100 %) <Herkunft art="gemessen" />, von links nach rechts in die sechs Teile der Legende

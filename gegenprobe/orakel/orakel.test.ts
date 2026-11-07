@@ -11,7 +11,7 @@ import { messung, rohwerte, type Waegung } from './verdunstung.ts'
 import { schaetzung } from './varianz.ts'
 import { gedeckelt, m0Zurueck, normieren, stroeme, summeStimmt, verkaufsfaehigAnteil } from './kaskade.ts'
 import { anstieg, erwartung, paloxAnstieg, paloxAnstiegSicher, paloxF, paloxFNach, stationswert, weg, type Punkt } from './schimmel.ts'
-import { bandGeordnet, stroemeSummieren, zeitLaeuftVorwaerts } from './bilanz.ts'
+import { bandGeordnet, kohorteGeschlossen, stroemeSummieren, zeitLaeuftVorwaerts } from './bilanz.ts'
 import { vergleiche } from './vergleich.ts'
 import { band, deckt, deltaVarianz } from './band.ts'
 import { huelle, standBei, standNachTagen, summeStimmtPrognose, summieren, verlustAb,
@@ -576,4 +576,18 @@ test('Prognose: rutschen Kürbisse beim Eintrocknen unter die Grenze, zählt das
   const ohne = verlustAb(amHorizont, 28, 0.10, 0.13)
   assert.ok(v.wasserKg > ohne.wasserKg)
   assert.equal(v.faeulnisKg, ohne.faeulnisKg)
+})
+
+test('K1 — eine am Lager leer bestätigte Charge hat kein Lager mehr; was die Raten dort erwarteten, ist weg (0134)', () => {
+  const kohorte = [{ charge_nr: 7, eingangsdatum: '2026-09-01', eingang_kg: 1000 }]
+  const zeilen = (lagerM0: number) => [
+    { charge_nr: 7, portion: 'ausgelagert', kohorte: '2026-09-01', m0: 900, ueberzaehlung_kg: 0 },
+    { charge_nr: 7, portion: 'lager', kohorte: '2026-09-01', m0: lagerM0, ueberzaehlung_kg: 0 },
+  ]
+  assert.deepEqual(kohorteGeschlossen(zeilen(100), kohorte), [], 'nicht leer: Σ m0 = Eingang')
+  assert.equal(kohorteGeschlossen(zeilen(0), kohorte).length, 1, 'nicht leer und 100 kg fehlen: ein Verstoss')
+  assert.deepEqual(kohorteGeschlossen(zeilen(0), kohorte, new Set([7])), [], 'leer: das Lager ist 0, die 100 kg sind weg')
+  assert.equal(kohorteGeschlossen(zeilen(100), kohorte, new Set([7])).length, 1, 'leer, aber noch Lager: ein Verstoss')
+  assert.equal(kohorteGeschlossen([{ ...zeilen(0)[0], m0: 1100 }, zeilen(0)[1]], kohorte, new Set([7])).length, 1,
+    'leer schützt nicht vor mehr m0 als Eingang ohne Überzählung')
 })

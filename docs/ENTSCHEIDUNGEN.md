@@ -4290,6 +4290,85 @@ Geprüft:
 - Eine Sorte dazu oder weg im Rezept geht noch nicht in der Maske (nur Stück,
   kg je Stück und Herkunft); das Rezept des Betriebs hat drei Sorten.
 
+## Runde BJ, Schritt 4: Was am Lager liegt (7. November, 0134)
+
+Der Betrieb zum Plan: die Überzählung getrennt — „sicher ein Datenfehler",
+wenn mehr geliefert als hereingekommen ist; „die Rate passt nicht zur
+Charge", und das nur, wenn die Lieferungen ausserhalb der Spanne liegen. „Pro
+Charge: liegt noch etwa N Paletten", damit er beim Zählen am Lager vergleichen
+kann. Und ein Knopf „Charge ist leer (am Lager bestätigt)": „Dann gilt
+Eingang minus geliefert als echter Verlust, und damit prüft die App ihre
+Raten."
+
+Bis hier hiess jede Überzählung „mehr geliefert als gekommen — ein Zettel
+oder eine Zuordnung stimmt nicht". Das stand auch dort, wo weniger hinausging,
+als hereinkam, und nur die gerechneten Raten mehr Eingang verlangten. So war
+es am Morgen bei 1630, 1620, 1625, 1614, 1627 und 1650; hart war es bei 1626,
+1624 und den Ünique-Chargen, die seit Schritt 3 im Topf sind. Eine Charge, die
+am Lager leer war, lag in der App weiter mit dem Rest, den die Raten erwarten.
+
+- **Welche Überzählung (AB-200):** `v_charge_bedarf` rechnet je Charge, wie
+  viel Eingang die Lieferungen brauchen: mit den Raten (Σ m0 der Kaskade), mit
+  den günstigsten der Spanne (Verdunstung unten, Palox unten) und mit den
+  ungünstigsten. Daraus die Art:
+  - datenfehler, wenn mehr geliefert als hereinkam;
+  - rate, wenn es auch günstig nicht reicht;
+  - spanne, wenn es nur mit den Raten selbst nicht reicht.
+
+  Gemeldet werden die ersten zwei, in den Auffälligkeiten und im Reiter
+  Perigon, mit Bedarf, Grenze und Raten im Satz. Die Spanne meldet die App
+  nicht, auch nicht über der Grenze von 100 kg und 3 %. Im Chargen-Reiter
+  steht sie leise.
+- **Leer am Lager (AB-201):** `charge.leer_am`, gesetzt vom Betriebsleiter im
+  Chargen-Reiter unter „Am Lager". Ab dem Tag ist die Lagerzeile der Charge in
+  der Kaskade 0, und zwar an der Wurzel. Darum zeigen Lagerausweis, Prognose,
+  Verlauf, Artikel und Paletten 0, ohne dass eine dieser Sichten davon wissen
+  muss. Die Zeile bleibt mit 0 stehen; sonst nähme `erg_charge` bei einer
+  Charge ohne Lieferung den ganzen Eingang als Lager. Der echte Verlust ist
+  Eingang − geliefert. Er steht gegen 1 − geliefert ÷ Bedarf mit der Spanne
+  aus unten und oben: passt, mehr weg, weniger weg, Datenfehler, ohne
+  Lieferung. Zu sehen ist das im Chargen-Reiter und unter Messungen →
+  Messwerte („Leere Chargen gegen die Raten"). Ein Lieferschein nach dem
+  Leer-Tag wird genannt; Zurücknehmen geht.
+- **Je Eingangstag (AB-202):** `v_am_lager` — was laut App noch liegt, in Kilo
+  beim Eingang und in Paletten dieses Tages. Im Chargen-Reiter steht es
+  aufgeklappt neben „Liegt noch etwa N Paletten" und in der Tabelle der
+  Eingangstage („liegt noch etwa").
+
+Die Grenze der Meldung (100 kg und 3 % des Eingangs) bleibt die von 0121. Sie
+gilt jetzt für den Überschuss (datenfehler) oder für Bedarf − Eingang (rate),
+nicht mehr für die Überzählung je Eingangstag.
+
+Geprüft:
+- Prüfblock 0134 (a1–i1) mit gebauten Chargen derselben Sorte, gleichem
+  Eingang und gleichem Liefertag. Ein erster Lauf misst, wie viel Eingang ein
+  Kilo Lieferung braucht; dann sind die Lieferungen so gross, dass jede Charge
+  ihren Fall zeigt: rate, spanne, datenfehler, genau aufgebraucht, wenig
+  geliefert, nichts geliefert.
+- Dazu eine Charge mit zwei Eingangstagen (der ältere überzogen, der jüngere
+  liegt) und eine Hagel-Charge. Ebenso eine Demo-Charge mit breiter Spanne,
+  so beliefert, dass sie über der Meldegrenze in der Spanne bleibt.
+- Nachgerechnet werden Bedarf und Grenzen, Art, Kilo und Meldung. Ebenso die
+  Paletten je Tag, das Lager nach dem Leer-Tag, der echte gegen den
+  gerechneten Verlust, das Urteil, was weg ist, die Lieferscheine danach und
+  die Rechte. Die anderen Chargen bleiben gleich (Prüfsumme der Kaskade).
+- 25 Mutationen, jede schlägt an — vier davon an einer Nachbarprüfung, die
+  zuerst fällt.
+- Block 0090 (c1, c3) folgt dem neuen Satz und sagt es im Kommentar. Die
+  Gegenprobe kennt die leere Charge (K1: Lager 0, höchstens der Eingang).
+
+**Was bewusst nicht gemacht wurde:**
+- Keine eigene Portion „weg" in der Kaskade. Das Lager ist 0, und was fehlt,
+  steht in `v_charge_bedarf.weg_kg` und im Rest der Saisonbilanz. Eine neue
+  Portion hätte jede der rund zwanzig Stellen berührt, die nach Portionen
+  filtern.
+- Der Verlauf rechnet eine leere Charge auch rückwirkend ohne den Rest: wann
+  er wegging, weiss niemand.
+- Für zu klein, zu gross und Fax kennt die App keine Spanne; sie gehen mit
+  ihrem Wert in die Grenzen ein.
+- Die Raten selbst ändert eine leere Charge nicht. Sie zeigt, ob sie passen;
+  ändern ist eine Frage der Saisonbegleitung, mit den Daten zuerst.
+
 ## Runde BJ, Schritt 3: Der Ünique-Topf (7. November, 0133)
 
 Der Betrieb: „wenn ich bei Chargen Hagelschaden eintrage, heisst das nicht
