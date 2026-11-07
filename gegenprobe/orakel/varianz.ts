@@ -14,6 +14,13 @@
  *   df        = n der geltenden Ebene − 1, mindestens 1
  *   Band      = mittel ± t95(df)·√varianz
  *
+ * Seit 0132 bei der Verdunstung gewichtet (vorwissen = 3, vorwissen_messungen):
+ *
+ *   b         = n ÷ (n + 3) je Sorte (0 ohne Messung), 1 für alle
+ *   mittel    = b · (mittel_s, ohne: mittel_gesamt) + (1 − b) · mittel_gesamt
+ *   varianz   = b² · (var_s, ohne: var_gesamt) + (1 − b)² · var_gesamt
+ *   df        = n + 3 − 1 bei eigener Messung, sonst wie oben
+ *
  * tau² gibt es nicht mehr (leer). Gegenstücke: `v_koeff_kaliber_geschaetzt`
  * (ausschuss, nebenkanal, fax) und `v_koeff_verdunstung_geschaetzt` —
  * beide wortgleich bis auf die Quelle.
@@ -64,17 +71,19 @@ function ebene(sorte: string | null, beob: Beobachtung[]): Ebene {
  * Alle Sorten aus `sorten` (das Gitter — auch die ohne Beobachtung) plus die
  * Gesamtebene (sorte = null). Ohne eine einzige Beobachtung gibt es nichts.
  */
-export function schaetzung(beob: Beobachtung[], sorten: string[], mindest = MINDEST_MESSUNGEN): Schaetzung[] {
+export function schaetzung(beob: Beobachtung[], sorten: string[], mindest = MINDEST_MESSUNGEN, vorwissen: number | null = null): Schaetzung[] {
   const gueltig = beob.filter(b => Number.isFinite(b.anteil) && b.gewicht > 0)
   if (gueltig.length === 0) return []
   const gesamt = ebene(null, gueltig)
   const zeile = (sorte: string | null): Schaetzung => {
     const eigene = sorte == null ? gueltig : gueltig.filter(b => b.sorte === sorte)
     const v = eigene.length > 0 ? ebene(sorte, eigene) : null
-    const b = sorte == null || (v != null && v.n >= mindest) ? 1 : 0
-    const mittel = b === 1 ? (v?.mittel ?? gesamt.mittel) : gesamt.mittel
-    const varianz = b === 1 ? (v?.varianz ?? 0) : (gesamt.varianz ?? 0)
-    const df = Math.max((b === 1 ? (v?.n ?? 0) : gesamt.n) - 1, 1)
+    const n = v?.n ?? 0
+    const gewichtet = vorwissen != null && sorte != null
+    const b = sorte == null ? 1 : gewichtet ? n / (n + vorwissen) : (v != null && v.n >= mindest) ? 1 : 0
+    const mittel = gesamt.mittel == null ? null : b * (v?.mittel ?? gesamt.mittel) + (1 - b) * gesamt.mittel
+    const varianz = b ** 2 * (v?.varianz ?? gesamt.varianz ?? 0) + (1 - b) ** 2 * (gesamt.varianz ?? 0)
+    const df = Math.max((gewichtet && n > 0 ? n + vorwissen : b === 1 ? n : gesamt.n) - 1, 1)
     const t = tQuantil95(df)
     const band = mittel == null ? [null, null] : varianz === 0 ? [mittel, mittel]
                : [mittel - t * Math.sqrt(varianz), mittel + t * Math.sqrt(varianz)]

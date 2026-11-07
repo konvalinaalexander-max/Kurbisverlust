@@ -164,6 +164,20 @@ test('Schätzer: zwei Messungen reichen nicht, drei schon — die Schwelle', () 
   assert.ok(nahe(drei.find(z => z.sorte === 'A')!.mittel, 0.2))
 })
 
+test('Schätzer der Verdunstung (seit 0132): die Sorte zählt n ÷ (n + 3), dazu alle — schon ab einer Wägung', () => {
+  // A: eine Wägung 0.004 (1 kg) → b = ¼; B: drei Wägungen 0.002 (je 1 kg) → b = ½; gesamt: 0.010 / 4 = 0.0025
+  const beob = [{ sorte: 'A', chargeNr: 1, anteil: 0.004, gewicht: 1 },
+                ...[2, 3, 4].map(c => ({ sorte: 'B', chargeNr: c, anteil: 0.002, gewicht: 1 }))]
+  const s = schaetzung(beob, ['A', 'B', 'C'], undefined, 3)
+  const a = s.find(z => z.sorte === 'A')!, b = s.find(z => z.sorte === 'B')!, c = s.find(z => z.sorte === 'C')!, g = s.find(z => z.sorte === null)!
+  assert.ok(nahe(a.b, 0.25)); assert.ok(nahe(a.mittel, 0.25 * 0.004 + 0.75 * 0.0025, 1e-15)); assert.equal(a.df, 3)
+  assert.ok(nahe(a.varianz, (0.25 ** 2 + 0.75 ** 2) * g.varianz, 1e-18))   // eine Wägung: ihre Unsicherheit ist die aller
+  assert.ok(nahe(b.b, 0.5)); assert.ok(nahe(b.mittel, 0.5 * 0.002 + 0.5 * 0.0025, 1e-15)); assert.equal(b.df, 5)
+  assert.ok(nahe(b.varianz, 0.25 * g.varianz, 1e-18))                     // B streut nicht: nur der Teil aller zählt
+  assert.equal(c.b, 0); assert.ok(nahe(c.mittel, 0.0025, 1e-15))           // ohne Wägung: alle
+  assert.equal(g.b, 1)
+})
+
 /* ---------- kaskade --------------------------------------------------------- */
 
 const K = { r: 0.001, f: 0.05, aKlein: 0.03, aGross: 0.01, aFax: 0.02 }
@@ -279,20 +293,34 @@ test('Anstieg seit 0113: er gilt erst, wenn er sicher ist — sonst 0, und der G
   assert.equal(s.gilt, 0)
   const y = erwartung(streut, ['Y'], '2026-10-12').find(z => z.sorte === 'Y')!
   assert.equal(y.anstiegJeWoche, 0)
-  assert.ok(nahe(y.anteil, y.mittel, 1e-12))                     // Grundausschuss = gemessenes Mittel
+  // Ohne Anstieg ist der Grundausschuss das gemessene Mittel — je Ebene. Seit 0132 zählen die drei
+  // Arbeiten von Y die Hälfte (3 ÷ (3 + 3)), die andere Hälfte ist das Mittel aller Sorten.
+  const alle = streut.reduce((s, q) => s + q.y, 0) / streut.length
+  assert.ok(nahe(y.anteil, (3 * y.mittel! + 3 * alle) / 6, 1e-12))
 })
 
-test('Grundausschuss, von Hand: das Mittel um den Anstieg auf null Tage zurückgelegt — eigen ab drei, sonst alle', () => {
+// Bis 0131 hiess dieser Test „eigen ab drei, sonst alle": X mit zwei Arbeiten nahm ganz den Wert aller
+// Sorten, Y mit drei ganz den eigenen. Seit 0132 zählt jede Sorte n ÷ (n + 3), der Rest ist der Wert aller.
+test('Grundausschuss, von Hand: das Mittel um den Anstieg auf null Tage zurückgelegt — die Sorte n ÷ (n + 3), dazu alle', () => {
   const b = runden(0.515 / 420.5 * 7, 5)                          // 0.00857
   const e = erwartung(STATION, ['X', 'Y', 'Z', 'Leer'], '2026-10-12')
+  const gAlle = 1.96 / 6 - b * (181 / 6) / 7                      // alle sechs Arbeiten
   const y = e.find(x => x.sorte === 'Y')!
   assert.equal(y.ebene, 'sorte'); assert.equal(y.geliehen, false); assert.equal(y.nArbeiten, 3)
   assert.ok(nahe(y.mittel, 0.31, 1e-12)); assert.ok(nahe(y.lagerMittel, 30, 1e-12))
-  assert.ok(nahe(y.anteil, 0.31 - b * 30 / 7, 1e-12))            // 31 % − 0.857 Punkte × 30/7 Wochen
-  const x = e.find(z => z.sorte === 'X')!                         // zwei Arbeiten: aller Sorten
-  assert.equal(x.ebene, 'alle'); assert.equal(x.geliehen, true); assert.equal(x.nArbeiten, 6)
-  assert.ok(nahe(x.anteil, 1.96 / 6 - b * (181 / 6) / 7, 1e-12))
-  assert.ok(nahe(e.find(z => z.sorte === 'Leer')!.anteil, x.anteil, 1e-12))   // ohne eigene Arbeit: dasselbe
+  assert.ok(nahe(y.anteil, (3 * (0.31 - b * 30 / 7) + 3 * gAlle) / 6, 1e-12))   // drei Arbeiten zählen ½
+  const x = e.find(z => z.sorte === 'X')!                         // zwei Arbeiten zählen 2 ÷ 5
+  assert.equal(x.ebene, 'sorte'); assert.equal(x.geliehen, false); assert.equal(x.nArbeiten, 2)
+  assert.ok(nahe(x.anteil, (2 * (0.065 - b * 20.5 / 7) + 3 * gAlle) / 5, 1e-12))
+  const z = e.find(q => q.sorte === 'Z')!                         // eine Arbeit, 90 %: zählt ¼
+  assert.ok(nahe(z.anteil, (1 * (0.90 - b * 50 / 7) + 3 * gAlle) / 4, 1e-12))
+  const leer = e.find(q => q.sorte === 'Leer')!                   // ohne eigene Arbeit: alle, geliehen
+  assert.equal(leer.ebene, 'alle'); assert.equal(leer.geliehen, true); assert.equal(leer.nArbeiten, 6)
+  assert.ok(nahe(leer.anteil, gAlle, 1e-12))
+  // Das Band: Streuung einer Arbeit über alle Sorten der Station, über √(n + 3)
+  const ys = STATION.map(q => q.y), m = ys.reduce((s, v) => s + v, 0) / 6
+  const sd = Math.sqrt(ys.reduce((s, v) => s + (v - m) ** 2, 0) / 5)
+  assert.ok(nahe(y.oben! - y.anteil!, tQuantil95(5) * sd / Math.sqrt(6), 1e-12) || y.oben === 1)
   // Ohne bekannten Anstieg ist der Grundausschuss das Mittel selbst
   const ohne = erwartung(STATION.slice(2, 5), ['Y'], '2026-10-12').find(z => z.sorte === 'Y')!
   assert.ok(nahe(ohne.anteil, 0.31, 1e-12)); assert.equal(ohne.anstiegJeWoche, null)

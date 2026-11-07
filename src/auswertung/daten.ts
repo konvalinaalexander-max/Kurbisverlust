@@ -28,14 +28,17 @@ import { anforderungOffen, bauZustand, istAktuell, rechnetGerade, zeitplanZustan
  * Anstieg der Station auf null Lagertage zurückgelegt; `lager_mittel` die
  * mittlere Lagerdauer dahinter, `anstieg_je_woche` der Anstieg, mit dem
  * zurückgelegt wurde (leer: noch keiner messbar; 0: keiner sicher, seit 0113 —
- * dann ist `anteil` das Mittel). Ebene 'sorte' ab drei eigenen Arbeiten,
- * sonst 'alle' (geliehen).
+ * dann ist `anteil` das Mittel). Seit 0132 Ebene 'sorte' ab einer eigenen
+ * Arbeit, gewichtet n ÷ (n + 3) mit allen Sorten (`anteil_sorte`, `anteil_alle`,
+ * `vorwissen` = 3); ohne eigene 'alle' (geliehen). `grund_roh`: derselbe
+ * Grundausschuss ungekappt — für die Sorte beim Alter einer Charge.
  */
 export interface PaloxErwartung {
   sorte: string; station: string; ebene: string; quelle: string
   anteil: number; unten: number; oben: number; n_arbeiten: number; n_chargen: number
   seit: string; bis: string; geliehen: boolean
   mittel: number | null; lager_mittel: number | null; anstieg_je_woche: number | null
+  vorwissen?: number; anteil_sorte?: number | null; anteil_alle?: number | null; sd_arbeit?: number | null; grund_roh?: number | null
 }
 export interface Schimmelpunkt {
   auftrag_id: number | null; charge_nr: number; sorte: string; lagertage: number

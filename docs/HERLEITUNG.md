@@ -133,12 +133,19 @@ nicht von Hand ausgeschlossen (`messung_ausschluss`, Kästchen „Diese
 Messung benutzen" im Fenster der Messung, nur der Betriebsleiter). Jede
 Wägung, die nicht zählt, sagt warum (`grund`); eine ausgeschlossene bleibt
 im Bild.
-**Zusammenfassen (seit 0111):** je Sorte das nach Masse gewichtete Mittel
-ihrer eigenen verwendbaren Wägungen, ab drei (`anteil_mindest_messungen()`);
-darunter das Mittel aller Sorten. Kein Zug zum Gesamtwert mehr (bis 0110:
-empirisches Bayes — niemand konnte es nachrechnen). Die `basis` sagt es:
-„Wiegungen dieser Sorte" · „Wiegungen aller Sorten (eigene: n, gilt ab 3)" ·
-„keine Wiegung vorhanden".
+**Zusammenfassen (seit 0132):** je Sorte das nach Masse gewichtete Mittel
+ihrer eigenen verwendbaren Wägungen, gewichtet n ÷ (n + 3) mit dem Mittel
+aller Sorten (`vorwissen_messungen()` = 3): eine Wägung zählt ¼, drei ½,
+neun ¾ — `mittel = b · Sorte + (1 − b) · alle`. Die Unsicherheit ist
+b² · Unsicherheit der Sorte + (1 − b)² · Unsicherheit aller, die Spanne
+(`unten`, `oben`) das 95-%-Quantil mit n + 2 Freiheitsgraden. Ohne Wägung
+der Sorte das Mittel aller. Die Zahl 3 ist fest, nicht geschätzt: 0111 hatte
+den geschätzten Zug zum Gesamtwert (empirisches Bayes) abgeschafft, weil
+niemand ihn nachrechnen konnte; n ÷ (n + 3) rechnet jeder nach. Die `basis`
+sagt es: „4 Wiegungen dieser Sorte (zählen 57 %), dazu alle Sorten wie 3
+Wiegungen" · „Wiegungen aller Sorten (diese Sorte hat keine)" · „keine
+Wiegung vorhanden". (0111–0131: ab drei eigenen ganz die Sorte, darunter
+ganz alle — sechs Wägungen trugen eine Sorte allein.)
 **Gegenprobe, nicht Teil der Rate:** zwei Sortierläufe derselben Charge
 (`v_lauf_vergleich`, AB-113) — Median und Abstand je Tag; es sind andere
 Kürbisse, darum zählen sie nicht in die Rate.
@@ -222,9 +229,16 @@ sagt, warum. Der **Grundausschuss** ist das Mittel der Sorte, um den
 geltenden Anstieg auf null Tage zurückgelegt: Mittel − Anstieg × mittlere
 Lagerdauer / 7 (nie unter 0); gilt keiner, ist er das Mittel selbst — für
 frische wie für lange gelagerte Ware („selbst wenn du heute erntest und
-morgen sortierst, wirst du einen Ausschuss haben") — eigen ab drei Arbeiten (`palox_mindest_arbeiten()`), sonst
-der aller Sorten (`ebene`, `quelle`, `geliehen` sagen es;
-`erg_palox_erwartung.anstieg_je_woche`, `lager_mittel`). Bis 0110 war es ein
+morgen sortierst, wirst du einen Ausschuss haben"). Seit 0132 ist der Wert
+der Sorte ihr Grundausschuss, gewichtet n ÷ (n + 3) mit dem aller Sorten
+(`anteil_sorte`, `anteil_alle`, `vorwissen` = 3): eine Arbeit zählt ¼, drei ½;
+ohne eigene Arbeit der aller Sorten (`ebene`, `quelle`, `geliehen` sagen es;
+`erg_palox_erwartung.anstieg_je_woche`, `lager_mittel`). Die Spanne
+(`unten`, `oben`) ist Wert ± t₉₅ · Streuung einer Arbeit (`sd_arbeit`, alle
+Sorten der Station) ÷ √(n + 3). `grund_roh` ist derselbe Grundausschuss ohne
+die Grenze bei 0 — für den Wert der Sorte bei einem bestimmten Alter (unten).
+Bis 0131: eigen ab drei Arbeiten (`palox_mindest_arbeiten()`), darunter ganz
+der aller Sorten. Bis 0110 war es ein
 Anteil je Sorte und Station (Mittel der letzten vier Wochen), gleich für
 frische und alte Ware; bis 0105 ein Modell F(t) = 1 − exp(−λ·t^k) mit
 Sockel. Was eine
@@ -237,6 +251,22 @@ Ware gilt die eigene Messung der Charge je Station vor der Erwartung
 (`v_charge_palox`, ohne Anstieg), sonst die Gerade **beim Alter am
 Liefertag**; für **liegende** die Gerade beim heutigen Alter. `f_quelle`
 an jeder Kaskadenzeile sagt, welche Werte es waren.
+**Die eigene Messung einer Charge (seit 0132, `v_charge_palox`):** das
+massegewichtete Mittel ihrer Arbeiten an der Station (`anteil_eigen`),
+gewichtet n ÷ (n + 3) mit der Sorte beim Alter dieser Arbeiten
+(`anteil_sorte` = grund_roh + Anstieg × mittlere Lagerdauer der Arbeiten ÷ 7,
+nie unter 0): `anteil = (n · eigen + 3 · Sorte) ÷ (n + 3)`. Eine Arbeit
+mit 35 % zieht die Charge nicht mehr ganz auf 35 %. Die Spanne ist
+Wert ± t₉₅ · Streuung einer Arbeit ÷ √(n + 3) — nicht mehr null; die Kaskade
+nimmt sie (`f_unten`, `f_oben`) und den Satz („Sortieren: eigene Messung
+(2 Arbeiten, 24.9 %) zählt 40 %, die Sorte (8.6 %) wie 3 Arbeiten").
+**Palox zwischendurch geleert (`auftrag.palox_unbekannt`, seit 0132):** Was
+bis zum Leeren sicher hineinfiel (die positiven Differenzen der Ablesungen)
+geteilt durch die Masse der Arbeit ist ein „mindestens". Es zählt wie eine
+Arbeit, wenn es über der Schätzung ohne es liegt — dann sagt es, dass die
+Charge mehr hat; liegt es darunter, sagt es nichts und zählt nicht. Der Satz
+nennt es („Palox zwischendurch geleert: mindestens 6.4 %"). Ohne eigene
+Arbeit gilt das Alter der geleerten Arbeit.
 **Fortschreiben:** Prognose und Verlauf schreiben jede Station mit ihrem
 Anstieg fort (`palox_f_nach`) und setzen neu zusammen. Ohne Anstieg (zu
 wenige Arbeiten, zu kurze Spanne, gemessen ≤ 0) steht der Anteil still, und

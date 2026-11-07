@@ -74,14 +74,17 @@ test('Verdunstung: Netto, Lagertage, Rate und verwendbar je Wägung', { skip }, 
   assert.equal(ab.length, 0, bericht('v_verdunstung_messung', ab, db.length))
 })
 
-// Seit 0111 schlicht: das Mittel der Sorte ab drei Messungen, sonst aller Sorten (bis 0110: empirischer Bayes).
+// Seit 0111 schlicht: das Mittel der Sorte ab drei Messungen, sonst aller Sorten (bis 0110: empirischer Bayes);
+// seit 0132 bei der Verdunstung die Sorte n ÷ (n + 3), dazu alle.
 test('Schätzer: Ausschuss, Nebenkanal, Fax und Verdunstung je Sorte', { skip }, () => {
   const sorten = frage<{ sorte: string }>('select sorte from sorte_kaliber').map(s => s.sorte)
   for (const [rohSicht, geschaetzt] of [['v_koeff_roh_kaliber', 'v_koeff_kaliber_geschaetzt'], ['v_koeff_roh_verdunstung', 'v_koeff_verdunstung_geschaetzt']]) {
     const roh = frage<{ art: string; sorte: string; charge_nr: string; anteil: string; gewicht: string }>(`select art, sorte, charge_nr, anteil, gewicht from ${rohSicht} where anteil is not null and gewicht > 0`)
     const db = frage(`select art, sorte, n, c_chargen, mittel_roh, varianz_roh, mittel_gesamt, tau2, b, mittel, varianz, df from ${geschaetzt}`)
     for (const art of new Set(roh.map(r => r.art))) {
-      const orakel = schaetzung(roh.filter(r => r.art === art).map(r => ({ sorte: r.sorte, chargeNr: Number(r.charge_nr), anteil: Number(r.anteil), gewicht: Number(r.gewicht) })), sorten)
+      // seit 0132: die Verdunstung gewichtet n ÷ (n + 3), die übrigen Arten wie 0111
+      const orakel = schaetzung(roh.filter(r => r.art === art).map(r => ({ sorte: r.sorte, chargeNr: Number(r.charge_nr), anteil: Number(r.anteil), gewicht: Number(r.gewicht) })), sorten,
+                                undefined, art === 'verdunstung' ? 3 : null)
         .map(s => ({ ...s, art }))
       const ab = vergleiche(db.filter(d => d.art === art), orakel,
         { db: a => `${a.art}|${a.sorte ?? '∅'}`, orakel: b => `${b.art}|${b.sorte ?? '∅'}` },
@@ -121,7 +124,7 @@ test('Stationswerte: Anstieg je Station, Grundausschuss je Sorte, Weg je Charge 
 
   const orakel = erwartung(punkte, sorten, heute).map(o => ({ ...o, schluessel: `${o.sorte}|${o.station}`, geliehen: o.geliehen ? 1 : 0 }))
   const db = frage<Record<string, unknown>>(
-    'select sorte, station, ebene, anteil, unten, oben, n_arbeiten, n_chargen, geliehen::int as geliehen, mittel, lager_mittel, anstieg_je_woche from v_palox_erwartung')
+    'select sorte, station, ebene, anteil, unten, oben, n_arbeiten, n_chargen, geliehen::int as geliehen, mittel, lager_mittel, anstieg_je_woche, grund_roh from v_palox_erwartung')
     .map(z => ({ ...z, schluessel: `${z.sorte}|${z.station}` }))
   assert.ok(db.length > 0, 'v_palox_erwartung ist leer')
   // anteil = Mittel − Anstieg × Lagerwochen; der Anstieg kommt auf fünf Stellen
@@ -131,7 +134,7 @@ test('Stationswerte: Anstieg je Station, Grundausschuss je Sorte, Weg je Charge 
     [{ db: 'anteil', orakel: 'anteil', abs: 1e-5 }, { db: 'unten', orakel: 'unten', abs: 1e-5 }, { db: 'oben', orakel: 'oben', abs: 1e-5 },
      { db: 'n_arbeiten', orakel: 'nArbeiten' }, { db: 'n_chargen', orakel: 'nChargen' }, { db: 'geliehen', orakel: 'geliehen' },
      { db: 'mittel', orakel: 'mittel', abs: 1e-5 }, { db: 'lager_mittel', orakel: 'lagerMittel', abs: 0.05 },
-     { db: 'anstieg_je_woche', orakel: 'anstiegJeWoche', abs: 1e-9 }])
+     { db: 'anstieg_je_woche', orakel: 'anstiegJeWoche', abs: 1e-9 }, { db: 'grund_roh', orakel: 'grundRoh', abs: 1e-5 }])
   assert.equal(ab.length, 0, bericht('v_palox_erwartung', ab, db.length))
   // Die Ebene ist ein Wort — der Vergleich oben kennt nur Zahlen.
   const ebenen = new Map(orakel.map(o => [o.schluessel, o.ebene]))
@@ -500,9 +503,26 @@ test('K9 — v_wohin: der Eingang, vollständig aufgeteilt', { skip }, () => {
       - z(r, 'lager_fax_kg') - z(r, 'lager_faul_kg') - z(r, 'lager_verdunstet_kg')
     if (Math.abs(lagerRest - z(r, 'lager_rest_kg')) > 0.02)
       schief.push(`${wo}: Lagerrest ${z(r, 'lager_rest_kg')} statt ${lagerRest.toFixed(2)}`)
-    if (Math.abs(lagerRest) > 0.1) schief.push(`${wo}: die zweite Identität lässt ${lagerRest.toFixed(2)} kg offen`)
+    // Jeder Strom steht auf zwei Stellen gerundet; je Charge bleibt darum höchstens ein paar Hundertstel
+    // offen. Eine Gruppe ist die Summe ihrer Chargen und erbt deren Rundung: Bis 0131 hielt hier auch
+    // die Gruppe 0.1 kg, mit den Raten von 0132 sind es auf der Demo −0.11 kg aus 16 Chargen mit je
+    // ±0.01 bis 0.02 kg. Darum gilt 0.1 kg je Charge, und eine Gruppe muss genau so viel offen lassen
+    // wie ihre Chargen zusammen (± 0.03 kg) — fehlt in einer Gruppe etwas, fällt es so weiter auf.
+    if (r.gruppe === 'charge' && Math.abs(lagerRest) > 0.1) schief.push(`${wo}: die zweite Identität lässt ${lagerRest.toFixed(2)} kg offen`)
     if (z(r, 'lager_kanal_kg') > 0 && Math.abs(z(r, 'lager_kanal_kg') - z(r, 'lager_klein_kg') - z(r, 'lager_gross_kg')) > 0.1)
       schief.push(`${wo}: zu klein und zu gross ergeben nicht den Kanal im Lager`)
+  }
+  const lagerRestVon = (r: Record<string, unknown>) => z(r, 'lager_kg') - z(r, 'lager_verkaufsfaehig_kg') - z(r, 'lager_kanal_kg')
+    - z(r, 'lager_fax_kg') - z(r, 'lager_faul_kg') - z(r, 'lager_verdunstet_kg')
+  const chargen = new Map(frage<{ nr: string; sorte: string; schlag: string }>('select nr, sorte, schlag from charge').map(c => [String(c.nr), c]))
+  const jeCharge = db.filter(r => r.gruppe === 'charge')
+  for (const r of db.filter(x => x.gruppe !== 'charge')) {
+    const drin = jeCharge.filter(c => r.gruppe === 'gesamt'
+      || (r.gruppe === 'sorte' && chargen.get(String(c.schluessel))?.sorte === r.schluessel)
+      || (r.gruppe === 'schlag' && chargen.get(String(c.schluessel))?.schlag === r.schluessel))
+    const soll = drin.reduce((a, c) => a + lagerRestVon(c), 0)
+    if (Math.abs(lagerRestVon(r) - soll) > 0.03)
+      schief.push(`${r.gruppe}/${r.schluessel}: die zweite Identität lässt ${lagerRestVon(r).toFixed(2)} kg offen, die Chargen zusammen ${soll.toFixed(2)}`)
   }
   assert.deepEqual(schief.slice(0, 12), [], `v_wohin (${db.length} Zeilen): ${schief.length} Verstoss/Verstösse`)
 

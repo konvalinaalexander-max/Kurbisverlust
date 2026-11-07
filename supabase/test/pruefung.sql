@@ -220,9 +220,11 @@ begin
   assert abs(v - v_erwartet) < 1e-6, format('Verdunstungsrate %s, erwartet %s', v, v_erwartet);
   assert (select verwendbar from v_verdunstung_messung), 'Wägung muss verwendbar sein';
 
+  -- Bis 0131 fiel eine Sorte mit einer Wägung ganz auf alle Sorten zurück; seit 0132 zählt die eine
+  -- Wägung ¼ (n ÷ (n + 3)), alle Sorten wie drei.
   select basis into v_txt from v_koeff_verdunstung where sorte = 'Tiana';
-  assert v_txt like '%aller Sorten%',
-    format('Bei einer einzigen Wägung muss auf den Gesamtwert zurückgefallen werden, basis=%s', v_txt);
+  assert v_txt like '1 Wiegung dieser Sorte (zählt 25 %), dazu alle Sorten wie 3 Wiegungen',
+    format('Eine einzige Wägung zählt ¼, alle Sorten wie drei — basis=%s', v_txt);
 
   -- ---- Lagerdauer des Auftrags: 15.11. minus gestaffelte Eingänge ----
   select lagertage into v from v_auftrag_masse where auftrag_id = 900;
@@ -240,11 +242,18 @@ begin
   -- Bis 0105 stand hier die Schimmelkurve (monoton, wächst mit dem Alter);
   -- das Modell ist gestrichen. Was bleibt: Der eigene Palox-Anteil der
   -- Charge am Band ist genau der beobachtete Anteil der einen Arbeit.
-  assert abs((select anteil from v_charge_palox where charge_nr = 1613 and station = 'sortieren')
+  -- Seit 0132 zählt diese eine Arbeit ¼, die Sorte beim selben Alter ¾
+  -- (vorwissen_messungen) — die Beobachtung steht in anteil_eigen.
+  assert abs((select anteil_eigen from v_charge_palox where charge_nr = 1613 and station = 'sortieren')
              - (select anteil from v_schimmel_beobachtung where auftrag_id = 900)) < 1e-4,
     'Der eigene Stationswert der Charge muss die Beobachtung der Arbeit sein';
-  assert (select ebene from v_palox_erwartung where sorte = 'Tiana' and station = 'sortieren') like 'alle%',
-    'Eine Arbeit ist kein Wert der Sorte — die Erwartung muss geliehen sein';
+  assert (select abs(anteil - (anteil_eigen + vorwissen_messungen() * anteil_sorte) / (1 + vorwissen_messungen())) < 1e-4
+            from v_charge_palox where charge_nr = 1613 and station = 'sortieren'),
+    'Eine Arbeit zählt ¼, die Sorte ¾';
+  -- Bis 0131 war eine Arbeit kein Wert der Sorte (geliehen); seit 0132 ist sie es mit ¼.
+  assert (select ebene = 'sorte' and not geliehen and quelle like '1 Arbeit dieser Sorte (zählt 25 %)%'
+            from v_palox_erwartung where sorte = 'Tiana' and station = 'sortieren'),
+    'Eine Arbeit zählt für die Sorte ¼ — die Erwartung ist nicht mehr ganz geliehen';
 
   raise notice 'OK  Verdunstung, Schimmel, Stationswert';
 end $$;
@@ -737,6 +746,12 @@ select auswertung_aktualisieren();
 -- Lagerdauer auf null Tage zurückgelegt, nie unter 0; die Vier-Wochen-
 -- Fenster sind weg (die Lagerdauer sagt das Alter, nicht der Kalender).
 -- Die Nachrechnung folgt der Regel.
+--
+-- Seit 0132 ist der Wert der Sorte nicht mehr „ab drei Arbeiten ganz die
+-- Sorte, darunter alle", sondern der Grundausschuss der Sorte, gewichtet
+-- n ÷ (n + 3) mit dem aller Sorten (vorwissen_messungen) — schon ab einer
+-- Arbeit, nie ganz. Die Nachrechnung rechnet beide Ebenen selbst und
+-- gewichtet sie; „geliehen" heisst: keine Arbeit der Sorte.
 -- =========================================================================
 
 do $$
@@ -744,16 +759,25 @@ declare r record; v_n int := 0;
 begin
   -- Die Fixtur 2001–2015 (drei Chargen, fünfmal Sortieren) gibt Bolp 5110,
   -- Orangita und Lekor je einen eigenen Wert am Band.
-  for r in select e.*,
-                  (select greatest(sum(p.basis_jetzt_kg * p.anteil_station) / nullif(sum(p.basis_jetzt_kg), 0)
-                                   - coalesce((select k.zuwachs_je_woche from v_palox_station k where k.station = e.station), 0)
-                                     * sum(p.basis_jetzt_kg * p.lagertage) / nullif(sum(p.basis_jetzt_kg), 0) / 7.0, 0)
-                     from v_schimmel_punkte p
-                    where p.plausibel_station and p.anteil_station is not null and p.basis_jetzt_kg > 0
-                      and p.lagertage is not null
-                      and p.station = e.station and p.quelle in ('verarbeitung', 'verarbeitung_gemischt')
-                      and (e.ebene like 'alle%' or p.sorte = e.sorte)) as nachgerechnet
+  for r in select e.*, x.n_s,
+                  case when x.n_s > 0 then (x.n_s * x.g_s + vorwissen_messungen() * x.g_a) / (x.n_s + vorwissen_messungen())
+                       else x.g_a end as nachgerechnet
              from v_palox_erwartung e
+            cross join lateral (
+              select count(*) filter (where p.sorte = e.sorte) as n_s,
+                     greatest(sum(p.basis_jetzt_kg * p.anteil_station) filter (where p.sorte = e.sorte)
+                                / nullif(sum(p.basis_jetzt_kg) filter (where p.sorte = e.sorte), 0)
+                              - coalesce((select k.zuwachs_je_woche from v_palox_station k where k.station = e.station), 0)
+                                * sum(p.basis_jetzt_kg * p.lagertage) filter (where p.sorte = e.sorte)
+                                / nullif(sum(p.basis_jetzt_kg) filter (where p.sorte = e.sorte), 0) / 7.0, 0) as g_s,
+                     greatest(sum(p.basis_jetzt_kg * p.anteil_station) / nullif(sum(p.basis_jetzt_kg), 0)
+                              - coalesce((select k.zuwachs_je_woche from v_palox_station k where k.station = e.station), 0)
+                                * sum(p.basis_jetzt_kg * p.lagertage) / nullif(sum(p.basis_jetzt_kg), 0) / 7.0, 0) as g_a
+                from v_schimmel_punkte p
+               where p.plausibel_station and p.anteil_station is not null and p.basis_jetzt_kg > 0
+                 and p.lagertage is not null
+                 and p.station = e.station and p.quelle in ('verarbeitung', 'verarbeitung_gemischt')
+                 and not exists (select 1 from charge hc where hc.nr = p.charge_nr and hc.hagel_anteil > 0)) x
   loop
     v_n := v_n + 1;
     assert abs(r.anteil - r.nachgerechnet) < 1e-4,
@@ -762,11 +786,17 @@ begin
       format('Das Band von %s/%s liegt nicht um den Wert (%s ≤ %s ≤ %s)', r.sorte, r.station, r.unten, r.anteil, r.oben);
     assert r.n_chargen <= r.n_arbeiten, format('%s/%s: mehr Chargen als Arbeiten', r.sorte, r.station);
     assert (r.ebene like 'alle%') = r.geliehen, format('%s/%s: geliehen passt nicht zur Ebene %s', r.sorte, r.station, r.ebene);
-    assert r.ebene not like 'sorte%' or r.n_arbeiten >= 3,
-      format('%s/%s: ein Wert der Sorte aus nur %s Arbeiten', r.sorte, r.station, r.n_arbeiten);
+    -- (bis 0131: „ein Wert der Sorte erst ab drei Arbeiten"; seit 0132 zählt jede Arbeit mit n ÷ (n + 3))
+    assert (r.ebene = 'sorte') = (r.n_s > 0),
+      format('%s/%s: Ebene %s, aber %s Arbeiten der Sorte', r.sorte, r.station, r.ebene, r.n_s);
+    assert r.ebene <> 'sorte' or r.quelle like format('%s %s dieser Sorte (%s %s %%)%%', r.n_s,
+                                                    case when r.n_s = 1 then 'Arbeit' else 'Arbeiten' end,
+                                                    case when r.n_s = 1 then 'zählt' else 'zählen' end,
+                                                    round(100.0 * r.n_s / (r.n_s + vorwissen_messungen()))),
+      format('%s/%s: der Satz sagt nicht, wie viel die Sorte zählt: %s', r.sorte, r.station, r.quelle);
   end loop;
   assert v_n > 0, 'v_palox_erwartung ist leer — die Prüfung sagt dann nichts';
-  assert palox_mindest_arbeiten() = 3, 'Ein Wert der Sorte gilt ab drei Arbeiten';
+  assert vorwissen_messungen() = 3, 'Alle Sorten zählen wie drei Arbeiten (0132)';
   assert (select ebene from v_palox_erwartung where sorte = 'Lekor' and station = 'sortieren') like 'sorte%'
      and (select n_arbeiten from v_palox_erwartung where sorte = 'Lekor' and station = 'sortieren') >= 5,
     'Lekor hat fünf Sortier-Arbeiten — der Wert muss ihr eigener sein';
@@ -812,16 +842,22 @@ begin
     assert abs((r.nachher - r.vorher) - 0.02) < 0.0006,
       format('Charge %s: 2 %% mehr im Palox, der eigene Wert stieg um %s', r.charge_nr, r.nachher - r.vorher);
   end loop;
-  select anteil, mittel, mittel - coalesce(anstieg_je_woche, 0) * lager_mittel / 7.0 as roh
+  select anteil, mittel, mittel - coalesce(anstieg_je_woche, 0) * lager_mittel / 7.0 as roh, anteil_sorte, anteil_alle, n_arbeiten
     into v_nachher from v_palox_erwartung where sorte = 'Lekor' and station = 'sortieren';
   assert abs((v_nachher.mittel - v_vorher.mittel) - 0.02) < 0.0006,
     format('Das Mittel der Sorte muss um zwei Punkte steigen: %s → %s', v_vorher.mittel, v_nachher.mittel);
   select zuwachs_je_woche into v_b_nachher from v_palox_station where station = 'sortieren';
   assert v_b_vorher is not null and abs(v_b_nachher - v_b_vorher) < 0.0005,
     format('Ein fester Aufschlag ist kein Anstieg: der Anstieg am Band ging von %s auf %s', v_b_vorher, v_b_nachher);
+  -- Seit 0132 ist der Wert der Sorte ihr Grundausschuss, gewichtet n ÷ (n + 3) mit dem aller Sorten
+  -- (vorwissen_messungen) — nicht mehr der eigene allein, sobald es drei Arbeiten sind. Geprüft wird
+  -- darum der Grundausschuss der Sorte (anteil_sorte) gegen das Nachgerechnete und der Wert gegen die
+  -- Gewichtung; die zwei Punkte trägt der Grundausschuss wie bisher.
   assert abs((v_nachher.roh - v_vorher.roh) - 0.02) < 0.0006
-     and abs(v_nachher.anteil - greatest(v_nachher.roh, 0)) < 0.0001,   -- die Spalten sind gerundet (lager_mittel auf 0,1 Tage)
-    format('Der Grundausschuss muss die zwei Punkte tragen: %s → %s (gehalten %s → %s)', v_vorher.roh, v_nachher.roh, v_vorher.anteil, v_nachher.anteil);
+     and abs(v_nachher.anteil_sorte - greatest(v_nachher.roh, 0)) < 0.0001   -- die Spalten sind gerundet (lager_mittel auf 0,1 Tage)
+     and abs(v_nachher.anteil - (v_nachher.n_arbeiten * v_nachher.anteil_sorte + vorwissen_messungen() * v_nachher.anteil_alle)
+                                / (v_nachher.n_arbeiten + vorwissen_messungen())) < 0.0001,
+    format('Der Grundausschuss muss die zwei Punkte tragen: %s → %s (Sorte %s, gewichtet %s → %s)', v_vorher.roh, v_nachher.roh, v_nachher.anteil_sorte, v_vorher.anteil, v_nachher.anteil);
   select avg(f_s) into v_kg_nachher from mv_kaskade where charge_nr in (1603, 1604, 1606) and portion = 'lager';
   assert v_nachher.anteil > v_vorher.anteil
      and abs((v_kg_nachher - v_kg_vorher) - (v_nachher.anteil - v_vorher.anteil)) < 0.0006,
@@ -6706,8 +6742,13 @@ begin
   perform auswertung_aktualisieren();
   assert (select verdunstung_heute_kg is not null from erg_bilanz), '0097 (c0b): die Verdunstung ist nach der Probe unbekannt — die Probe hat zu viel gelöscht';
   -- (seit 0111 heisst die Ebene aller Sorten „alle" — ohne Vier-Wochen-Fenster gibt es nur noch die Saison)
-  assert (select count(*) from v_palox_erwartung where ebene <> 'alle' or n_arbeiten <> 1 or not geliehen) = 0,
-    '0097 (c1a): mit einer Arbeit je Station ist jeder Stationswert der geliehene Wert der ganzen Saison aus einer Arbeit';
+  -- Seit 0132 zählt die eine Arbeit für ihre eigene Sorte ¼ (die Ebene ist „sorte", nicht geliehen), alle
+  -- übrigen Sorten leihen sie; der Wert ist je Station überall derselbe — der der einen Arbeit.
+  assert (select count(*) from v_palox_erwartung where n_arbeiten <> 1) = 0
+     and (select count(*) from v_palox_erwartung where not geliehen) = (select count(distinct station) from v_palox_erwartung)
+     and (select count(*) from v_palox_erwartung where (ebene = 'sorte') = geliehen) = 0
+     and (select max(d) from (select max(anteil) - min(anteil) as d from v_palox_erwartung group by station) x) < 1e-4,
+    '0097 (c1a): mit einer Arbeit je Station ist jeder Stationswert der Wert der einen Arbeit — für ihre Sorte eigen, für die übrigen geliehen';
   assert (select count(distinct station) from v_palox_erwartung) = 3,
     '0097 (c1b): eine gemessene Arbeit je Station muss jeder Station ihren Wert geben';
   select verlust_bekannt, schimmel_heute_kg into v_bekannt, v_kg from erg_bilanz;
@@ -7627,20 +7668,36 @@ begin
    where w.weg_quelle = 'Arbeiten der Sorte';
   assert v_n > 0 and v_ab = 0, format('0106 (b10): bei %s von %s Chargen ist der geerbte Weg nicht der Weg der Sorte', v_ab, v_n);
 
-  -- (b6) die Erwartung ist das massegewichtete Mittel — unabhängig nachgerechnet
-  select count(*), count(*) filter (where abs(anteil - nachgerechnet) > 1e-4)
+  -- (b6) die Erwartung ist das massegewichtete Mittel — unabhängig nachgerechnet.
+  -- Seit 0111 der Grundausschuss (Mittel − Anstieg × Lagerdauer, nie unter 0), seit 0132 der der Sorte
+  -- gewichtet n ÷ (n + 3) mit dem aller Sorten. Bis 0131 stand hier noch das Vier-Wochen-Fenster von 0106:
+  -- seit 0111 gab es keine Ebene „…saison" mehr, das Nachgerechnete war leer und die Prüfung zählte leere
+  -- Vergleiche nicht als Abweichung — sie war blind. Jetzt zählt ein leeres Nachgerechnetes als Abweichung.
+  select count(*), count(*) filter (where nachgerechnet is null or abs(anteil - nachgerechnet) > 1e-4)
     into v_n, v_ab
     from (select e.anteil,
-                 (select sum(p.basis_jetzt_kg * p.anteil_station) / nullif(sum(p.basis_jetzt_kg), 0)
-                    from v_schimmel_punkte p
-                   where p.plausibel_station and p.anteil_station is not null and p.basis_jetzt_kg > 0
-                     and p.station = e.station and p.quelle in ('verarbeitung', 'verarbeitung_gemischt')
-                     and (e.ebene like 'alle%' or p.sorte = e.sorte)
-                     and (e.ebene like '%saison' or p.messtag > heute() - 28)) as nachgerechnet
-            from v_palox_erwartung e) x;
-  assert v_n > 0 and v_ab = 0, format('0106 (b6): %s von %s Erwartungen sind nicht das massegewichtete Mittel ihrer Ebene', v_ab, v_n);
-  assert palox_mindest_arbeiten() = 3, '0106 (b7): ein Wert der Sorte gilt ab drei Arbeiten';
-  assert not exists (select 1 from v_palox_erwartung where ebene like 'sorte%' and n_arbeiten < 3), '0106 (b8): ein Wert der Sorte aus weniger als drei Arbeiten';
+                 case when x.n_s > 0 then (x.n_s * x.g_s + vorwissen_messungen() * x.g_a) / (x.n_s + vorwissen_messungen())
+                      else x.g_a end as nachgerechnet
+            from v_palox_erwartung e
+           cross join lateral (
+             select count(*) filter (where p.sorte = e.sorte) as n_s,
+                    greatest(sum(p.basis_jetzt_kg * p.anteil_station) filter (where p.sorte = e.sorte)
+                               / nullif(sum(p.basis_jetzt_kg) filter (where p.sorte = e.sorte), 0)
+                             - coalesce((select k.zuwachs_je_woche from v_palox_station k where k.station = e.station), 0)
+                               * sum(p.basis_jetzt_kg * p.lagertage) filter (where p.sorte = e.sorte)
+                               / nullif(sum(p.basis_jetzt_kg) filter (where p.sorte = e.sorte), 0) / 7.0, 0) as g_s,
+                    greatest(sum(p.basis_jetzt_kg * p.anteil_station) / nullif(sum(p.basis_jetzt_kg), 0)
+                             - coalesce((select k.zuwachs_je_woche from v_palox_station k where k.station = e.station), 0)
+                               * sum(p.basis_jetzt_kg * p.lagertage) / nullif(sum(p.basis_jetzt_kg), 0) / 7.0, 0) as g_a
+               from v_schimmel_punkte p
+              where p.plausibel_station and p.anteil_station is not null and p.basis_jetzt_kg > 0
+                and p.lagertage is not null
+                and p.station = e.station and p.quelle in ('verarbeitung', 'verarbeitung_gemischt')
+                and not exists (select 1 from charge hc where hc.nr = p.charge_nr and hc.hagel_anteil > 0)) x) y;
+  assert v_n > 0 and v_ab = 0, format('0106 (b6): %s von %s Erwartungen sind nicht der gewichtete Grundausschuss ihrer Ebenen', v_ab, v_n);
+  -- (b7, b8) bis 0131: „ein Wert der Sorte gilt ab drei Arbeiten"; seit 0132 zählt jede Arbeit der Sorte mit n ÷ (n + 3)
+  assert vorwissen_messungen() = 3, '0106 (b7): alle Sorten zählen wie drei Arbeiten (0132)';
+  assert not exists (select 1 from v_palox_erwartung where ebene = 'sorte' and n_arbeiten < 1), '0106 (b8): ein Wert der Sorte ohne eine Arbeit der Sorte';
   assert not exists (select 1 from v_palox_erwartung where (ebene like 'alle%') <> geliehen), '0106 (b9): geliehen passt nicht zur Ebene';
 
   -- (c) die Kaskade ist die Zusammensetzung — seit 0111 jeder Stationswert
@@ -8295,8 +8352,11 @@ begin
 
   -- (a) Der Schätzer je Sorte: ab drei eigenen Messungen das eigene Mittel
   assert anteil_mindest_messungen() = 3, '0111 (a1): die Schwelle ist nicht mehr drei Messungen';
-  -- (a2) b ist 1 genau ab drei eigenen Messungen, sonst 0 — für alle vier Anteile
-  select count(*), count(*) filter (where g.b <> case when g.sorte is null or g.n >= 3 then 1 else 0 end)
+  -- (a2) b ist 1 genau ab drei eigenen Messungen, sonst 0 — für alle vier Anteile.
+  -- Seit 0132 nicht mehr bei der Verdunstung: dort zählt die Sorte n ÷ (n + 3) (vorwissen_messungen).
+  select count(*), count(*) filter (where g.b <> case when g.sorte is null then 1
+                                                      when g.art = 'verdunstung' then g.n::numeric / (g.n + vorwissen_messungen())
+                                                      when g.n >= 3 then 1 else 0 end)
     into v_n, v_ab
     from (select art, sorte, n, b from v_koeff_verdunstung_geschaetzt
           union all select art, sorte, n, b from v_koeff_kaliber_geschaetzt) g;
@@ -8304,17 +8364,20 @@ begin
   assert exists (select 1 from v_koeff_kaliber_geschaetzt where n = 2 and b = 0)
      and exists (select 1 from v_koeff_kaliber_geschaetzt where n = 3 and b = 1),
     '0111 (a3): die Demo prüft die Schwelle nicht mehr (zwei Messungen geliehen, drei eigen)';
-  -- (a4) das Mittel, nachgerechnet aus den Rohwerten: eigen → Mittel der Sorte, sonst aller Sorten
+  -- (a4) das Mittel, nachgerechnet aus den Rohwerten: b × Mittel der Sorte + (1 − b) × Mittel aller Sorten
+  -- (bis 0131 war b nur 0 oder 1; seit 0132 bei der Verdunstung n ÷ (n + 3) — die Nachrechnung gewichtet)
   select count(*), count(*) filter (where abs(g.mittel - x.soll) > 1e-12)
     into v_n, v_ab
     from (select art, sorte, b, mittel from v_koeff_verdunstung_geschaetzt
           union all select art, sorte, b, mittel from v_koeff_kaliber_geschaetzt) g
     join lateral (
-      select sum(r.anteil * r.gewicht) / sum(r.gewicht) as soll
+      select g.b * coalesce(sum(r.anteil * r.gewicht) filter (where g.sorte is null or r.sorte = g.sorte)
+                            / sum(r.gewicht) filter (where g.sorte is null or r.sorte = g.sorte),
+                            sum(r.anteil * r.gewicht) / sum(r.gewicht))
+             + (1 - g.b) * sum(r.anteil * r.gewicht) / sum(r.gewicht) as soll
         from (select art, sorte, anteil, gewicht from v_koeff_roh_verdunstung
               union all select art, sorte, anteil, gewicht from v_koeff_roh_kaliber) r
-       where r.art = g.art and r.anteil is not null and r.gewicht > 0
-         and (g.b = 0 or g.sorte is null or r.sorte = g.sorte)) x on true
+       where r.art = g.art and r.anteil is not null and r.gewicht > 0) x on true
    where x.soll is not null;
   assert v_n > 0 and v_ab = 0, format('0111 (a4): %s von %s Mitteln weichen vom nachgerechneten ab', v_ab, v_n);
   -- (a5) die Unsicherheit des eigenen Mittels: Σ w (a − m)² / Σ w / (n − 1)
@@ -8330,8 +8393,11 @@ begin
   assert not exists (select 1 from v_koeff_verdunstung_geschaetzt where tau2 is not null)
      and not exists (select 1 from v_koeff_kaliber_geschaetzt where tau2 is not null),
     '0111 (a6): es wird wieder zum Gesamtwert gezogen (tau2)';
-  -- (a7) die Basis sagt die Ebene — und der Bildschirm erkennt „geliehen" an „alle(r) Sorten"
-  select count(*), count(*) filter (where (k.basis ~ 'dieser Sorte') <> (g.b = 1) or (g.b = 0 and k.basis !~ 'alle(r)? Sorten'))
+  -- (a7) die Basis sagt die Ebene — und der Bildschirm erkennt „eigen" an „dieser Sorte" (seit 0132;
+  -- vorher „geliehen" an „alle(r) Sorten" — der gewichtete Satz nennt beide). Bei der Verdunstung ist
+  -- die Sorte seit 0132 schon ab einer Wägung dabei (b > 0), und der Satz sagt, wie viel sie zählt.
+  select count(*), count(*) filter (where (k.basis ~ 'dieser Sorte') <> (g.b > 0) or (g.b = 0 and k.basis !~ 'alle(r)? Sorten')
+                                       or (g.b > 0 and k.basis !~ format('\(zählt?e?n? %s %%\)', round(100 * g.b))))
     into v_n, v_ab
     from v_koeff_verdunstung k
     join v_koeff_verdunstung_geschaetzt g on g.art = 'verdunstung' and g.sorte = k.sorte;
@@ -8462,22 +8528,33 @@ begin
                      and not exists (select 1 from charge hc where hc.nr = p.charge_nr and hc.hagel_anteil > 0)) x on true;
   assert v_n = 3 and v_ab = 0, format('0111 (c6): bei %s von %s Stationen ist der Grundausschuss nicht Mittel − Anstieg × Lagerwochen', v_ab, v_n);
 
-  -- (d) Der Grundausschuss je Sorte und Station (seit 0116 ohne Hagel-Chargen, wie (c))
-  select count(*), count(*) filter (where abs(e.anteil - round(greatest(x.mittel - coalesce(k.zuwachs_je_woche, 0) * x.t / 7.0, 0), 5)) > 1e-5
-                                       or abs(e.mittel - round(x.mittel, 5)) > 1e-5)
+  -- (d) Der Grundausschuss je Sorte und Station (seit 0116 ohne Hagel-Chargen, wie (c)).
+  -- Seit 0132 ist der Wert der Grundausschuss der Sorte, gewichtet n ÷ (n + 3) mit dem aller Sorten
+  -- (je Ebene nie unter 0); bis 0131 ab drei Arbeiten der der Sorte allein. mittel ist das Mittel der
+  -- Ebene, die den Satz trägt (die Sorte, ohne eigene Arbeit alle) — wie bisher.
+  select count(*), count(*) filter (where abs(e.anteil - round(case when x.n_s > 0
+                                                                     then (x.n_s * greatest(x.m_s - coalesce(k.zuwachs_je_woche, 0) * x.t_s / 7.0, 0)
+                                                                           + vorwissen_messungen() * greatest(x.m_a - coalesce(k.zuwachs_je_woche, 0) * x.t_a / 7.0, 0))
+                                                                          / (x.n_s + vorwissen_messungen())
+                                                                     else greatest(x.m_a - coalesce(k.zuwachs_je_woche, 0) * x.t_a / 7.0, 0) end, 5)) > 1e-5
+                                       or abs(e.mittel - round(case when x.n_s > 0 then x.m_s else x.m_a end, 5)) > 1e-5)
     into v_n, v_ab
     from erg_palox_erwartung e
     join v_palox_station k on k.station = e.station
     join lateral (
-      select sum(p.basis_jetzt_kg * p.anteil_station) / sum(p.basis_jetzt_kg) as mittel,
-             sum(p.basis_jetzt_kg * p.lagertage) / sum(p.basis_jetzt_kg) as t
+      select count(*) filter (where p.sorte = e.sorte) as n_s,
+             sum(p.basis_jetzt_kg * p.anteil_station) filter (where p.sorte = e.sorte) / sum(p.basis_jetzt_kg) filter (where p.sorte = e.sorte) as m_s,
+             sum(p.basis_jetzt_kg * p.lagertage) filter (where p.sorte = e.sorte) / sum(p.basis_jetzt_kg) filter (where p.sorte = e.sorte) as t_s,
+             sum(p.basis_jetzt_kg * p.anteil_station) / sum(p.basis_jetzt_kg) as m_a,
+             sum(p.basis_jetzt_kg * p.lagertage) / sum(p.basis_jetzt_kg) as t_a
         from v_schimmel_punkte p
-       where p.station = e.station and (e.geliehen or p.sorte = e.sorte)
+       where p.station = e.station
          and p.plausibel_station and p.anteil_station is not null and p.basis_jetzt_kg > 0
          and p.lagertage is not null and p.quelle in ('verarbeitung', 'verarbeitung_gemischt')
          and not exists (select 1 from charge hc where hc.nr = p.charge_nr and hc.hagel_anteil > 0)) x on true;
-  assert v_n > 0 and v_ab = 0, format('0111 (d1): %s von %s Grundausschüssen sind nicht Mittel − Anstieg × Lagerwochen', v_ab, v_n);
-  select count(*), count(*) filter (where e.geliehen <> (x.n < 3))
+  assert v_n > 0 and v_ab = 0, format('0111 (d1): %s von %s Grundausschüssen sind nicht Mittel − Anstieg × Lagerwochen, gewichtet mit allen Sorten', v_ab, v_n);
+  -- (d2) bis 0131: geliehen unter drei eigenen Arbeiten; seit 0132 nur ohne eine eigene
+  select count(*), count(*) filter (where e.geliehen <> (x.n = 0))
     into v_n, v_ab
     from erg_palox_erwartung e
     join lateral (select count(*) as n from v_schimmel_punkte p
@@ -8485,7 +8562,7 @@ begin
                      and p.anteil_station is not null and p.basis_jetzt_kg > 0 and p.lagertage is not null
                      and p.quelle in ('verarbeitung', 'verarbeitung_gemischt')
                      and not exists (select 1 from charge hc where hc.nr = p.charge_nr and hc.hagel_anteil > 0)) x on true;
-  assert v_n > 0 and v_ab = 0, format('0111 (d2): %s von %s Erwartungen leihen falsch (unter drei eigenen Arbeiten: alle Sorten)', v_ab, v_n);
+  assert v_n > 0 and v_ab = 0, format('0111 (d2): %s von %s Erwartungen leihen falsch (ohne eigene Arbeit: alle Sorten)', v_ab, v_n);
   assert exists (select 1 from erg_palox_erwartung where anstieg_je_woche > 0 and anteil < mittel),
     '0111 (d3): kein Grundausschuss liegt unter dem Mittel, obwohl die Station ansteigt';
 
@@ -12321,3 +12398,314 @@ begin
 end $$;
 
 select '——— 0131 Was Perigon wiegt, woraus der Mix ist, was Perigon gelöscht hat ———' as ergebnis;
+
+-- =====================================================================
+-- 0132 — Wenig gemessen, wenig Gewicht
+--
+-- Der Betrieb am 7. November: „falls du zu wenig Stichproben bei einer
+-- Charge hast, kann man sich ja mehr von der gleichen Sorte beeinflussen
+-- lassen, und wenn wenig der gleichen Sorte, dann mehr von Kürbissen
+-- allgemein — und je mehr Stichproben, desto mehr vertraut man denen."
+--
+-- Geprüft auf der Demo, jede Zahl ein zweites Mal anders gerechnet:
+-- (a) die übergeordnete Ebene zählt fest wie drei Messungen;
+-- (b) Verdunstung je Sorte: b = n ÷ (n + 3), das Mittel b × Sorte +
+--     (1 − b) × alle, die Unsicherheit b² × Sorte + (1 − b)² × alle, die
+--     Spanne darum; der Satz sagt, wie viel die Sorte zählt;
+-- (c) Palox je Sorte und Station: der Grundausschuss der Sorte gewichtet
+--     mit dem aller Sorten, auch ungekappt (grund_roh); die Spanne mit der
+--     Streuung einer Arbeit über √(n + 3); Hagel-Chargen zählen nicht;
+--     die gespeicherte Fassung ist dieselbe;
+-- (d) Palox je Charge: die eigenen Arbeiten gewichtet mit der Sorte beim
+--     Alter der eigenen Messungen; die Spanne ist nicht mehr null; der Satz
+--     sagt, wie viel die eigene Messung zählt;
+-- (e) Palox zwischendurch geleert: was sicher hineinfiel, zählt als
+--     „mindestens", wenn es über der Schätzung ohne es liegt — allein und
+--     neben eigenen Arbeiten; darunter sagt es nichts;
+-- (f) die Kaskade nimmt Spanne und Satz der eigenen Messung; was an ihr
+--     hängt, steht und ist gerechnet;
+-- (g) Stand 132.
+-- =====================================================================
+do $$
+declare v_modus jsonb; v_lad text; v_geladen boolean := false; v_n int; v_ab int; v_x numeric; v_y numeric; v_txt text;
+  r record; v_a bigint; v_c int; v_st text; v_eingang numeric; v_vorher record; v_h numeric; v_kg numeric; v_s0 numeric; v_ts timestamptz; v_stand numeric;
+  v_u uuid := '00000000-0132-0000-0000-000000000001';
+begin
+  select wert into v_modus from einstellung where schluessel = 'betriebsmodus';
+  update einstellung set wert = '"beispiel"'::jsonb where schluessel = 'betriebsmodus';
+  insert into auth.users (id, email, raw_user_meta_data) values (v_u, null, '{"name":"Prüf-0132"}');
+  update profil set rolle = 'admin' where id = v_u;
+  perform set_config('request.jwt.claim.sub', v_u::text, true);
+  if not exists (select 1 from auftrag where station = 'waschen_sortieren' and bemerkung = 'DEMO') then
+    select demo_daten_laden() into v_lad; v_geladen := true;
+  end if;
+  perform auswertung_aktualisieren();
+
+  -- (a) fest, nicht geschätzt
+  assert vorwissen_messungen() = 3, format('0132 (a1): vorwissen_messungen() = %s statt 3', vorwissen_messungen());
+  assert (select provolatile = 'i' from pg_proc where oid = 'vorwissen_messungen()'::regprocedure),
+    '0132 (a2): vorwissen_messungen() ist nicht unveränderlich — dann wäre es keine feste Zahl';
+
+  -- (b) Verdunstung je Sorte, nachgerechnet aus den Wägungen
+  select count(*),
+         count(*) filter (where abs(g.b - x.n::numeric / (x.n + 3)) > 1e-12
+                             or abs(g.mittel - ((x.n::numeric / (x.n + 3)) * x.m_s + (3.0 / (x.n + 3)) * x.m_a)) > 1e-12
+                             or abs(g.varianz - (power(x.n::numeric / (x.n + 3), 2) * coalesce(x.v_s, x.v_a, 0)
+                                                 + power(3.0 / (x.n + 3), 2) * coalesce(x.v_a, 0))) > 1e-15
+                             or g.df <> greatest(x.n + 3 - 1, 1))
+    into v_n, v_ab
+    from v_koeff_verdunstung_geschaetzt g
+    cross join lateral (
+      select count(*) filter (where w.sorte = g.sorte) as n,
+             sum(w.anteil * w.gewicht) filter (where w.sorte = g.sorte) / sum(w.gewicht) filter (where w.sorte = g.sorte) as m_s,
+             sum(w.anteil * w.gewicht) / sum(w.gewicht) as m_a,
+             null::numeric as v_s, null::numeric as v_a
+        from v_koeff_roh_verdunstung w
+       where w.art = 'verdunstung' and w.anteil is not null and w.gewicht > 0) x0
+    cross join lateral (
+      select x0.n, x0.m_s, x0.m_a,
+             case when x0.n > 1 then (select sum(w.gewicht * power(w.anteil - x0.m_s, 2)) / sum(w.gewicht) / (x0.n - 1)
+                                        from v_koeff_roh_verdunstung w
+                                       where w.art = 'verdunstung' and w.sorte = g.sorte and w.anteil is not null and w.gewicht > 0) end as v_s,
+             (select sum(w.gewicht * power(w.anteil - x0.m_a, 2)) / sum(w.gewicht) / (count(*) - 1)
+                from v_koeff_roh_verdunstung w
+               where w.art = 'verdunstung' and w.anteil is not null and w.gewicht > 0) as v_a) x
+   where g.art = 'verdunstung' and g.sorte is not null and x.n > 0;
+  assert v_n >= 3 and v_ab = 0, format('0132 (b1): %s von %s Sorten mit Wägungen sind nicht n ÷ (n + 3) gewichtet (Mittel, Unsicherheit, Freiheitsgrade)', v_ab, v_n);
+  assert not exists (select 1 from v_koeff_verdunstung_geschaetzt g
+                      where g.art = 'verdunstung' and g.sorte is not null and g.n = 0
+                        and (g.b <> 0 or g.mittel is distinct from g.mittel_gesamt)),
+    '0132 (b2): eine Sorte ohne Wägung nimmt nicht das Mittel aller Sorten';
+  -- (b3) der Satz sagt, wie viel die Sorte zählt — und eine einzige Wägung zählt ¼: gebaut, indem bei der Sorte mit
+  --      den meisten Wägungen alle bis auf eine von Hand ausgeschlossen werden (danach zurück, wie es war)
+  select count(*), count(*) filter (where k.basis is distinct from format('%s Wiegungen dieser Sorte (zählen %s %%), dazu alle Sorten wie 3 Wiegungen', g.n, round(100 * g.b)))
+    into v_n, v_ab
+    from v_koeff_verdunstung k join v_koeff_verdunstung_geschaetzt g on g.art = 'verdunstung' and g.sorte = k.sorte
+   where g.n > 1;
+  assert v_n > 0 and v_ab = 0, format('0132 (b3): %s von %s Sätzen sagen nicht, wie viel die Sorte zählt', v_ab, v_n);
+  select sorte into v_txt from v_koeff_verdunstung_geschaetzt where art = 'verdunstung' and sorte is not null order by n desc, sorte limit 1;
+  begin
+    insert into messung_ausschluss (art, bezug_id, grund, erfasser, ts)
+    select 'verdunstung', m.id, 'Prüfung 0132', v_u, now()
+      from v_verdunstung_messung m
+     where m.sorte = v_txt and m.verwendbar and m.netto_jetzt_kg > 0
+       and m.id <> (select min(x.id) from v_verdunstung_messung x where x.sorte = v_txt and x.verwendbar and x.netto_jetzt_kg > 0);
+    select g.n, g.b, k.basis into v_n, v_x, v_lad
+      from v_koeff_verdunstung k join v_koeff_verdunstung_geschaetzt g on g.art = 'verdunstung' and g.sorte = k.sorte where k.sorte = v_txt;
+    raise exception using errcode = 'P0132';
+  exception when sqlstate 'P0132' then null;
+  end;
+  assert v_n = 1 and v_x = 0.25 and v_lad = '1 Wiegung dieser Sorte (zählt 25 %), dazu alle Sorten wie 3 Wiegungen',
+    format('0132 (b3b): eine einzige Wägung (%s) zählt nicht ¼, oder der Satz sagt es nicht: n = %s, b = %s, „%s"', v_txt, v_n, v_x, v_lad);
+  assert not exists (select 1 from messung_ausschluss where grund = 'Prüfung 0132'), '0132 (b3c): der Ausschluss blieb stehen';
+  select count(*), count(*) filter (where not (k.unten < k.mittel and k.mittel < k.oben))
+    into v_n, v_ab
+    from v_koeff_verdunstung k join v_koeff_verdunstung_geschaetzt g on g.art = 'verdunstung' and g.sorte = k.sorte
+   where g.n > 0 and g.varianz > 0 and k.mittel > 0;
+  assert v_n > 0 and v_ab = 0, format('0132 (b4): %s von %s Verdunstungsraten liegen nicht in ihrer Spanne', v_ab, v_n);
+
+  -- (c) Palox je Sorte und Station: Grundausschuss gewichtet, Spanne aus der Streuung einer Arbeit
+  select count(*),
+         count(*) filter (where e.grund_roh is null or abs(e.grund_roh - x.gr) > 1e-4 or abs(e.anteil - x.f) > 1e-4
+                             or abs(e.unten - case when x.n_eff >= 2 and x.sd is not null
+                                                   then greatest(e.anteil - t_quantil_95((x.n_eff - 1)::int) * x.sd / sqrt(x.n_eff), 0) else e.anteil end) > 1e-4
+                             or abs(e.oben - case when x.n_eff >= 2 and x.sd is not null
+                                                  then least(e.anteil + t_quantil_95((x.n_eff - 1)::int) * x.sd / sqrt(x.n_eff), 1) else e.anteil end) > 1e-4
+                             or abs(e.sd_arbeit - x.sd) > 1e-4 or e.vorwissen <> 3)
+    into v_n, v_ab
+    from v_palox_erwartung e
+    cross join lateral (
+      select case when count(*) filter (where p.sorte = e.sorte) > 0 then count(*) filter (where p.sorte = e.sorte) + 3 else count(*) end as n_eff,
+             stddev_samp(p.anteil_station) as sd,
+             case when count(*) filter (where p.sorte = e.sorte) > 0
+                  then (count(*) filter (where p.sorte = e.sorte)
+                          * (sum(p.basis_jetzt_kg * p.anteil_station) filter (where p.sorte = e.sorte) / sum(p.basis_jetzt_kg) filter (where p.sorte = e.sorte)
+                             - coalesce(b.b, 0) * sum(p.basis_jetzt_kg * p.lagertage) filter (where p.sorte = e.sorte) / sum(p.basis_jetzt_kg) filter (where p.sorte = e.sorte) / 7.0)
+                        + 3 * (sum(p.basis_jetzt_kg * p.anteil_station) / sum(p.basis_jetzt_kg) - coalesce(b.b, 0) * sum(p.basis_jetzt_kg * p.lagertage) / sum(p.basis_jetzt_kg) / 7.0))
+                       / (count(*) filter (where p.sorte = e.sorte) + 3)
+                  else sum(p.basis_jetzt_kg * p.anteil_station) / sum(p.basis_jetzt_kg) - coalesce(b.b, 0) * sum(p.basis_jetzt_kg * p.lagertage) / sum(p.basis_jetzt_kg) / 7.0 end as gr,
+             -- der Wert: je Ebene der Grundausschuss nie unter 0, dann gewichtet
+             case when count(*) filter (where p.sorte = e.sorte) > 0
+                  then (count(*) filter (where p.sorte = e.sorte)
+                          * greatest(sum(p.basis_jetzt_kg * p.anteil_station) filter (where p.sorte = e.sorte) / sum(p.basis_jetzt_kg) filter (where p.sorte = e.sorte)
+                             - coalesce(b.b, 0) * sum(p.basis_jetzt_kg * p.lagertage) filter (where p.sorte = e.sorte) / sum(p.basis_jetzt_kg) filter (where p.sorte = e.sorte) / 7.0, 0)
+                        + 3 * greatest(sum(p.basis_jetzt_kg * p.anteil_station) / sum(p.basis_jetzt_kg) - coalesce(b.b, 0) * sum(p.basis_jetzt_kg * p.lagertage) / sum(p.basis_jetzt_kg) / 7.0, 0))
+                       / (count(*) filter (where p.sorte = e.sorte) + 3)
+                  else greatest(sum(p.basis_jetzt_kg * p.anteil_station) / sum(p.basis_jetzt_kg) - coalesce(b.b, 0) * sum(p.basis_jetzt_kg * p.lagertage) / sum(p.basis_jetzt_kg) / 7.0, 0) end as f
+        from v_schimmel_punkte p
+        left join (select station, zuwachs_je_woche as b from v_palox_station) b on b.station = e.station
+       where p.plausibel_station and p.anteil_station is not null and p.basis_jetzt_kg > 0 and p.lagertage is not null
+         and p.station = e.station and p.quelle in ('verarbeitung', 'verarbeitung_gemischt')
+         and not exists (select 1 from charge hc where hc.nr = p.charge_nr and hc.hagel_anteil > 0)
+       group by b.b) x;
+  assert v_n > 0 and v_ab = 0, format('0132 (c1): %s von %s Sorten-Werten: Wert, Grundausschuss ungekappt, Streuung oder Spanne weichen vom Nachgerechneten ab', v_ab, v_n);
+  assert exists (select 1 from v_palox_erwartung where ebene = 'sorte' and n_arbeiten = 1 and quelle like '1 Arbeit dieser Sorte (zählt 25 %)%'),
+    '0132 (c2): keine Sorte mit einer einzigen Arbeit, oder sie zählt nicht ¼ — die Demo prüft die Gewichtung nicht';
+  assert exists (select 1 from v_palox_erwartung where n_arbeiten >= 2 and oben > unten),
+    '0132 (c3): keine Sorte hat eine Spanne';
+  assert (select array_agg(attname::text order by attnum) from pg_attribute where attrelid = 'erg_palox_erwartung'::regclass and attnum > 0 and not attisdropped)
+         = (select array_agg(attname::text order by attnum) from pg_attribute where attrelid = 'v_palox_erwartung'::regclass and attnum > 0 and not attisdropped),
+    '0132 (c4): die gespeicherte Fassung hat nicht die Spalten von v_palox_erwartung';
+  assert not exists (select * from erg_palox_erwartung except select * from v_palox_erwartung)
+     and not exists (select * from v_palox_erwartung except select * from erg_palox_erwartung)
+     and exists (select 1 from pg_attribute where attrelid = 'erg_palox_erwartung'::regclass and attname = 'grund_roh' and not attisdropped),
+    '0132 (c4): die gespeicherte Fassung ist nicht v_palox_erwartung (Spalten oder Zeilen)';
+  -- (c5) Hagel: Eine Charge mit Hagel zählt für die Sorte nicht — gesetzt, weniger Arbeiten; zurück, wie vorher
+  select p.charge_nr, p.station into v_c, v_st
+    from v_schimmel_punkte p join charge c on c.nr = p.charge_nr
+   where p.plausibel_station and p.anteil_station is not null and p.basis_jetzt_kg > 0 and p.lagertage is not null
+     and p.station in ('sortieren', 'waschen', 'waschen_sortieren') and p.quelle in ('verarbeitung', 'verarbeitung_gemischt')
+     and coalesce(c.hagel_anteil, 0) = 0
+   order by p.charge_nr, p.station limit 1;
+  select e.n_arbeiten, e.sorte into v_vorher from v_palox_erwartung e join charge c on c.sorte = e.sorte where c.nr = v_c and e.station = v_st;
+  select count(*) into v_n from v_schimmel_punkte p
+   where p.charge_nr = v_c and p.station = v_st and p.plausibel_station and p.anteil_station is not null and p.basis_jetzt_kg > 0
+     and p.lagertage is not null and p.quelle in ('verarbeitung', 'verarbeitung_gemischt');
+  select hagel_anteil into v_h from charge where nr = v_c;
+  update charge set hagel_anteil = 0.2 where nr = v_c;
+  assert (select n_arbeiten from v_palox_erwartung where sorte = v_vorher.sorte and station = v_st)
+         = case when v_vorher.n_arbeiten - v_n > 0 then v_vorher.n_arbeiten - v_n
+                else (select n_arbeiten from v_palox_erwartung where sorte = v_vorher.sorte and station = v_st) end
+     and (v_vorher.n_arbeiten - v_n > 0 or (select geliehen from v_palox_erwartung where sorte = v_vorher.sorte and station = v_st)),
+    format('0132 (c5): die Hagel-Charge %s zählt noch für ihre Sorte (%s Arbeiten %s)', v_c, v_vorher.sorte, v_st);
+  update charge set hagel_anteil = v_h where nr = v_c;
+
+  -- (d) Palox je Charge: eigene Arbeiten gewichtet mit der Sorte beim Alter der eigenen Messungen
+  select count(*),
+         count(*) filter (where abs(cp.anteil_eigen - x.eigen) > 1e-4
+                             or abs(cp.anteil_sorte - greatest(er.grund_roh + coalesce(er.anstieg_je_woche, 0) * coalesce(x.lager, 0) / 7.0, 0)) > 1e-4
+                             or abs(cp.anteil - (x.n * x.eigen + 3 * cp.anteil_sorte) / (x.n + 3)) > 1e-4
+                             or cp.n_arbeiten <> x.n
+                             or cp.quelle <> format('eigene Messung (%s %s, %s %%) zählt %s %%, die Sorte (%s %%) wie 3 Arbeiten',
+                                                     x.n, case when x.n = 1 then 'Arbeit' else 'Arbeiten' end, to_char(100 * x.eigen, 'FM990.0'),
+                                                     round(100.0 * x.n / (x.n + 3)), to_char(100 * cp.anteil_sorte, 'FM990.0')))
+    into v_n, v_ab
+    from v_charge_palox cp
+    join charge c on c.nr = cp.charge_nr
+    join v_palox_erwartung er on er.sorte = c.sorte and er.station = cp.station
+    cross join lateral (
+      select count(*) as n, sum(p.basis_jetzt_kg * p.anteil_station) / sum(p.basis_jetzt_kg) as eigen,
+             sum(p.basis_jetzt_kg * p.lagertage) filter (where p.lagertage is not null)
+               / sum(p.basis_jetzt_kg) filter (where p.lagertage is not null) as lager
+        from v_schimmel_punkte p
+       where p.charge_nr = cp.charge_nr and p.station = cp.station
+         and p.plausibel_station and p.anteil_station is not null and p.basis_jetzt_kg > 0
+         and p.quelle in ('verarbeitung', 'verarbeitung_gemischt')) x
+   where cp.n_mindest = 0;
+  assert v_n >= 10 and v_ab = 0, format('0132 (d1): %s von %s Chargen-Werten sind nicht n ÷ (n + 3) mit der Sorte beim eigenen Alter gewichtet, oder der Satz stimmt nicht', v_ab, v_n);
+  select count(*), count(*) filter (where not (cp.unten < cp.oben and cp.unten <= cp.anteil and cp.anteil <= cp.oben))
+    into v_n, v_ab from v_charge_palox cp;
+  assert v_n > 0 and v_ab = 0, format('0132 (d2): %s von %s eigenen Werten haben keine Spanne oder liegen nicht in ihr', v_ab, v_n);
+  assert exists (select 1 from v_charge_palox where n_arbeiten = 1 and abs(anteil - anteil_eigen) > 1e-3),
+    '0132 (d3): eine einzige Arbeit entscheidet wieder allein über die Charge';
+
+  -- (e) Palox zwischendurch geleert. Gebaut an einer Arbeit mit „geleert", deren Charge an ihrer Station sonst nichts
+  --     zählt: nach dem letzten Stand 300 kg sicher hinein — über der Schätzung, zählt; die Hälfte der Schätzung —
+  --     darunter, sagt nichts. (Was die Arbeit vorher schon sicher hatte, v_s0, zählt mit.) Gewählt eine Arbeit, bei
+  --     der die Sorte in ihrem Alter etwas erwartet (sonst wäre jedes Kilo „darüber").
+  select a.id, a.charge_nr, a.station::text, m.eingang_netto_kg into v_a, v_c, v_st, v_eingang
+    from auftrag a join v_auftrag_masse m on m.auftrag_id = a.id
+    join charge c on c.nr = a.charge_nr
+    join v_palox_erwartung er on er.sorte = c.sorte and er.station = a.station::text
+   where a.palox_unbekannt and a.abgebrochen_ts is null and m.eingang_netto_kg > 2000
+     and a.station::text in ('sortieren', 'waschen', 'waschen_sortieren')
+     and not exists (select 1 from v_charge_palox cp where cp.charge_nr = a.charge_nr and cp.station = a.station::text)
+     and greatest(er.grund_roh + coalesce(er.anstieg_je_woche, 0) * coalesce(m.lagertage, 0) / 7.0, 0) * m.eingang_netto_kg >= 10
+     and greatest(er.grund_roh + coalesce(er.anstieg_je_woche, 0) * coalesce(m.lagertage, 0) / 7.0, 0) * m.eingang_netto_kg < 300
+   order by a.id limit 1;
+  assert v_a is not null, '0132 (e0): keine geleerte Arbeit an einer Station, an der ihre Charge nichts zählt — (e1)–(e2) wären blind';
+  select coalesce(sum(differenz) filter (where differenz > 0), 0) into v_s0 from v_palox_stand where auftrag_id = v_a;
+  select coalesce(max(ts), (select coalesce(start_ts, now()) from auftrag where id = v_a)),
+         coalesce((select palox_stand_kg from v_palox_stand where auftrag_id = v_a order by ts desc, id desc limit 1), 0)
+    into v_ts, v_stand from v_palox_stand where auftrag_id = v_a;
+  insert into schimmel_messung (auftrag_id, kg, gemessen, ts, palox_stand_kg, palox_geleert, erfasser) values
+    (v_a, 0, true, v_ts + interval '1 minute', v_stand, false, v_u),
+    (v_a, 300, true, v_ts + interval '2 minutes', v_stand + 300, false, v_u);
+  select * into r from v_charge_palox where charge_nr = v_c and station = v_st;
+  assert r.charge_nr is not null and r.n_mindest = 1 and r.n_arbeiten = 1 and abs(r.anteil_eigen - (v_s0 + 300) / v_eingang) < 1e-4
+     and abs(r.anteil - (r.anteil_eigen + 3 * r.anteil_sorte) / 4) < 1e-4
+     and r.quelle = format('Palox zwischendurch geleert (mindestens %s %%) zählt 25 %%, die Sorte (%s %%) wie 3 Arbeiten',
+                           to_char(100 * (v_s0 + 300) / v_eingang, 'FM990.0'), to_char(100 * r.anteil_sorte, 'FM990.0')),
+    format('0132 (e1): 300 kg sicher im geleerten Palox (Charge %s, %s) zählen nicht als „mindestens": %s', v_c, v_st, to_jsonb(r));
+  assert r.anteil_eigen > r.anteil_sorte, '0132 (e1b): das Gebaute liegt nicht über der Sorte — (e1) prüfte nichts';
+  v_y := r.anteil_sorte;   -- die Sorte beim Alter dieser Arbeit: die Schätzung ohne sie
+  v_kg := floor(v_y * v_eingang / 2) - v_s0;
+  update schimmel_messung set palox_stand_kg = v_stand + v_kg where auftrag_id = v_a and erfasser = v_u and kg = 300;
+  assert v_kg >= 1 and not exists (select 1 from v_charge_palox where charge_nr = v_c and station = v_st),
+    format('0132 (e2): %s kg sicher im geleerten Palox zählen, obwohl sie unter der Schätzung liegen (Charge %s, %s)', v_kg, v_c, v_st);
+  delete from schimmel_messung where auftrag_id = v_a and erfasser = v_u;
+  -- (e3) neben eigenen Arbeiten: eine geleerte Arbeit, deren Charge an derselben Station gemessen ist;
+  --      erst die Hälfte des Geschätzten sicher hinein — darunter, sagt nichts; dann das Dreifache — zählt mit
+  select a.id, a.charge_nr, a.station::text, m.eingang_netto_kg into v_a, v_c, v_st, v_eingang
+    from auftrag a join v_auftrag_masse m on m.auftrag_id = a.id
+   where a.palox_unbekannt and a.abgebrochen_ts is null
+     and a.station::text in ('sortieren', 'waschen', 'waschen_sortieren')
+     and exists (select 1 from v_charge_palox cp where cp.charge_nr = a.charge_nr and cp.station = a.station::text and cp.n_mindest = 0
+                    and m.eingang_netto_kg * cp.anteil >= 2
+                    and m.eingang_netto_kg * cp.anteil / 2 > (select coalesce(sum(differenz) filter (where differenz > 0), 0) + 1
+                                                                from v_palox_stand where auftrag_id = a.id))
+   order by a.id limit 1;
+  assert v_a is not null, '0132 (e3a): keine geleerte Arbeit neben eigenen Messungen — (e3)–(e5) wären blind';
+  select * into v_vorher from v_charge_palox where charge_nr = v_c and station = v_st;
+  select coalesce(sum(differenz) filter (where differenz > 0), 0) into v_s0 from v_palox_stand where auftrag_id = v_a;
+  select coalesce(max(ts), (select coalesce(start_ts, now()) from auftrag where id = v_a)),
+         coalesce((select palox_stand_kg from v_palox_stand where auftrag_id = v_a order by ts desc, id desc limit 1), 0)
+    into v_ts, v_stand from v_palox_stand where auftrag_id = v_a;
+  v_kg := floor(v_eingang * v_vorher.anteil / 2) - v_s0;
+  insert into schimmel_messung (auftrag_id, kg, gemessen, ts, palox_stand_kg, palox_geleert, erfasser) values
+    (v_a, 0, true, v_ts + interval '1 minute', v_stand, false, v_u),
+    (v_a, 1, true, v_ts + interval '2 minutes', v_stand + v_kg, false, v_u);
+  select * into r from v_charge_palox where charge_nr = v_c and station = v_st;
+  assert v_kg >= 1 and r.n_mindest = 0 and r.n_arbeiten = v_vorher.n_arbeiten and r.anteil = v_vorher.anteil,
+    format('0132 (e3): %s kg sicher im geleerten Palox, unter dem Geschätzten, ändern den Wert der Charge %s (%s): %s → %s', v_kg, v_c, v_st, v_vorher.anteil, r.anteil);
+  v_kg := round(v_eingang * v_vorher.anteil * 3) - v_s0;
+  v_x := (v_s0 + v_kg) / v_eingang;
+  update schimmel_messung set palox_stand_kg = v_stand + v_kg where auftrag_id = v_a and kg = 1 and erfasser = v_u;
+  select * into r from v_charge_palox where charge_nr = v_c and station = v_st;
+  assert r.n_mindest = 1 and r.n_arbeiten = v_vorher.n_arbeiten + 1 and r.anteil > v_vorher.anteil
+     and r.quelle like format('eigene Messung (%s Arbeiten, %%; Palox zwischendurch geleert: mindestens %s %%) zählt %%', v_vorher.n_arbeiten + 1, to_char(100 * v_x, 'FM990.0')),
+    format('0132 (e4): das Dreifache des Geschätzten sicher im geleerten Palox zählt nicht mit (Charge %s, %s): %s', v_c, v_st, to_jsonb(r));
+  delete from schimmel_messung where auftrag_id = v_a and erfasser = v_u;
+  assert (select anteil from v_charge_palox where charge_nr = v_c and station = v_st) = v_vorher.anteil,
+    '0132 (e5): nach dem Aufräumen ist der Wert nicht wie vorher';
+
+  -- (f) die Kaskade: Spanne und Satz der eigenen Messung, und was an ihr hängt
+  select count(*), count(*) filter (where not (k.f_unten < k.f_oben) or k.f_quelle not like '%eigene Messung (%zählt%')
+    into v_n, v_ab
+    from mv_kaskade k
+   where k.portion = 'ausgelagert' and k.f_eigen and k.f_bekannt;
+  assert v_n > 0 and v_ab = 0, format('0132 (f1): %s von %s ausgelagerten Portionen mit eigener Messung haben keine Spanne oder keinen Satz', v_ab, v_n);
+  -- (f1b) ganz von Hand (nur Waschen + Sortieren), eigene Messung, ohne Hagel: Wert und Spanne der Kaskade sind die der Charge
+  select count(*), count(*) filter (where abs(k.f - ws.anteil) > 1e-4 or abs(k.f_unten - ws.unten) > 1e-4 or abs(k.f_oben - ws.oben) > 1e-4)
+    into v_n, v_ab
+    from mv_kaskade k
+    join v_charge_palox ws on ws.charge_nr = k.charge_nr and ws.station = 'waschen_sortieren'
+    join charge c on c.nr = k.charge_nr
+   where k.portion = 'ausgelagert' and k.f_bekannt and k.p_hand = 1 and coalesce(c.hagel_anteil, 0) = 0;
+  assert v_n > 0 and v_ab = 0, format('0132 (f1b): bei %s von %s Portionen ganz von Hand sind Wert oder Spanne der Kaskade nicht die der eigenen Messung', v_ab, v_n);
+  select count(*) into v_n
+    from unnest(array['mv_kaskade', 'erg_verlauf', 'v_hochrechnung_basis', 'v_kaskade', 'v_prognose', 'erg_charge', 'erg_prognose',
+                      'mv_hochrechnung', 'v_plausibilitaet_0064_zusatz', 'v_charge_spur', 'v_hochrechnung', 'v_kontrolle_vorschlag',
+                      'v_lager_ausweis', 'v_massenbilanz', 'v_naechste_charge', 'v_plausibilitaet_0054_zusatz', 'v_ungereimtheit',
+                      'v_verlust_je_gruppe', 'erg_massenbilanz', 'erg_naechste_charge', 'erg_verlust', 'v_plausibilitaet',
+                      'erg_plausibilitaet', 'v_marge_buch', 'v_saisonbilanz', 'v_wohin', 'erg_bilanz', 'erg_marge', 'erg_wohin',
+                      'erg_palox_erwartung']) n
+   where to_regclass('public.' || n) is not null;
+  assert v_n = 30, format('0132 (f2): von der Kaskade und dem, was an ihr hängt, stehen %s von 30', v_n);
+  assert not exists (select 1 from pg_class where relkind = 'm' and relnamespace = 'public'::regnamespace and not relispopulated),
+    format('0132 (f3): nach dem Rechnen sind gespeicherte Auswertungen leer: %s',
+           (select string_agg(relname, ', ') from pg_class where relkind = 'm' and relnamespace = 'public'::regnamespace and not relispopulated));
+  assert has_table_privilege('authenticated', 'mv_kaskade', 'select') and has_table_privilege('authenticated', 'erg_palox_erwartung', 'select')
+     and has_table_privilege('authenticated', 'erg_charge', 'select') and not has_table_privilege('anon', 'erg_palox_erwartung', 'select'),
+    '0132 (f4): die neu gedruckten Auswertungen haben ihre Rechte verloren';
+
+  -- (g) Stand
+  assert schema_stand() >= 132, format('0132 (g1): schema_stand() = %s', schema_stand());
+
+  if v_geladen then perform demo_daten_entfernen(); end if;
+  delete from profil where id = v_u; delete from auth.users where id = v_u;
+  update einstellung set wert = v_modus where schluessel = 'betriebsmodus';
+  raise notice 'OK  0132 — wenige Messungen ziehen eine Rate nicht mehr allein: Charge, Sorte und alle Kürbisse je n ÷ (n + 3), mit ehrlicher Spanne; ein geleerter Palox zählt als „mindestens"';
+end $$;
+
+select '——— 0132 Wenig gemessen, wenig Gewicht ———' as ergebnis;

@@ -798,6 +798,15 @@ ohne Perigon-Zeile als eigener Teil); jede PL/pgSQL-Funktion hat einen
 festen Suchpfad; die Perigon-Liste läuft nur einmal (AB-174 bis AB-176). Dazu die
 Halle: Faules ohne Ablesung ist „unbekannt", Fehler werden gezeigt. **Setup.sql
 einmal einspielen (Stand 124), dann „Neu rechnen".**
+**Runde BJ, Schritt 2 (0132)** — **Wenig gemessen, wenig Gewicht.**
+Eine Rate aus wenigen Messungen zieht nicht mehr allein: die eigenen
+Messungen zählen n ÷ (n + 3), der Rest kommt von der Ebene darüber — Charge →
+Sorte → alle Kürbisse (eine Arbeit ¼, drei ½, neun ¾; AB-193, AB-194). Fictor
+1627 hat am Palox nicht mehr 35.6 % aus einer Arbeit, sondern 19.9 % mit
+Spanne 9.7–30.1 %; die Spanne einer eigenen Messung ist nie mehr null. Ein
+zwischendurch geleerter Palox zählt mit dem, was sicher hineinfiel, als
+„mindestens" (AB-195). **Setup.sql einmal einspielen (Stand 132), dann „Neu
+rechnen".**
 **Runde BJ, Schritt 1 (0131)** — **Was Perigon wiegt, woraus der Mix ist.**
 Bei kg-Artikeln zählt die Menge, nicht Menge × Gewicht je Artikel: Ünique
 zählte das Zehnfache (184 t statt 18.4 t), die gespeicherten Lieferungen sind

@@ -60,7 +60,9 @@ export function AusstehendInhalt({ daten }: { daten: Auswertung }) {
 }
 
 type Stand = { art: 'fehlt' | 'geliehen' | 'eigen'; text: string }
-const geliehen = (k: SortenK) => /alle(r)? Sorten/i.test(k.basis)
+// Seit 0132 nennt der Satz einer gewichteten Rate beide Ebenen („3 Wiegungen dieser Sorte (zählen 50 %), dazu alle
+// Sorten wie 3 Wiegungen") — eigen ist, was „dieser Sorte" sagt; geliehen alles andere.
+const geliehen = (k: SortenK) => !/dieser Sorte/i.test(k.basis)
 
 function standVon(bekannt: boolean, k: SortenK | undefined, was: string): Stand {
   if (!bekannt) return { art: 'fehlt', text: `fehlt — ${was}` }

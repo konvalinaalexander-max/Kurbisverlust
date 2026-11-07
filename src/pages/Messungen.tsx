@@ -182,7 +182,7 @@ function Messwerte({ daten }: { daten: Auswertung }) {
               <tbody>{daten.erwartung.map(e => (
                 <tr key={`${e.sorte}|${e.station}`}><td>{e.sorte}</td><td>{STATION_NAME[e.station] ?? e.station}</td>
                   <td className="zahl"><strong>{prozent(e.anteil)}</strong></td>
-                  <td className="zahl">{e.n_arbeiten >= 2 ? `${prozent(e.unten)}–${prozent(e.oben)}` : '—'}</td>
+                  <td className="zahl">{e.oben > e.unten ? `${prozent(e.unten)}–${prozent(e.oben)}` : '—'}</td>
                   <td className="zahl">{prozent(e.mittel)}</td>
                   <td className="zahl">{e.lager_mittel != null ? `${Math.round(e.lager_mittel)} d` : '—'}</td>
                   <td className="zahl">{e.anstieg_je_woche != null && e.anstieg_je_woche > 0
@@ -197,8 +197,11 @@ function Messwerte({ daten }: { daten: Auswertung }) {
           die Ware vom Feld mitbringt. Dazu kommt mit der Lagerdauer das Faule: der <strong>Anstieg</strong> je Woche, gemessen je Station über alle Sorten
           (innerhalb jeder Sorte: die länger gelagerten Arbeiten gegen die kürzer gelagerten). Er gilt erst, wenn er sicher ist — der Bereich,
           in dem er mit 95 % Sicherheit liegt, ganz über null; sonst „keiner sicher", und es wird ohne Anstieg gerechnet.</p>
-          <p>Grundausschuss = das nach Masse gewichtete Mittel der Ablesungen der Sorte (ab drei Arbeiten, sonst aller Sorten — „geliehen"), um einen
-          sicheren Anstieg auf null Lagertage zurückgelegt <Herkunft art="gerechnet" />; ohne sicheren Anstieg ist er das Mittel selbst. Für Ware mit t Lagertagen rechnet die Kaskade
+          <p>Grundausschuss = das nach Masse gewichtete Mittel der Ablesungen, um einen sicheren Anstieg auf null Lagertage
+          zurückgelegt <Herkunft art="gerechnet" />; ohne sicheren Anstieg ist er das Mittel selbst. Die Sorte zählt nach der Zahl ihrer
+          Arbeiten, der Rest ist der Wert aller Sorten: eine Arbeit zählt ¼, drei ½, neun ¾ (alle Sorten wie drei Arbeiten) — so zieht
+          eine einzelne Ablesung die Sorte nicht allein. Ohne eigene Arbeit gilt der Wert aller Sorten („geliehen"). Der Bereich ist die
+          95-%-Spanne aus der Streuung einer Arbeit. Für Ware mit t Lagertagen rechnet die Kaskade
           Grundausschuss + Anstieg × t / 7; was eine Charge auf ihrem Weg verliert, ist die Zusammensetzung der Stationen, durch die sie geht.
           Der Anstieg und seine Messung stehen unter <Link to="/ursachen">Ursachen</Link>.</p>
         </Erklaerung>

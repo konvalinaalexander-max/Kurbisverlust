@@ -4290,6 +4290,108 @@ Geprüft:
 - Eine Sorte dazu oder weg im Rezept geht noch nicht in der Maske (nur Stück,
   kg je Stück und Herkunft); das Rezept des Betriebs hat drei Sorten.
 
+## Runde BJ, Schritt 2: Wenig gemessen, wenig Gewicht (7. November, 0132)
+
+Der Betrieb: „falls du zu wenig Stichproben bei einer Charge hast, kann man
+sich ja mehr von der gleichen Sorte beeinflussen lassen, und wenn wenig der
+gleichen Sorte, dann mehr von Kürbissen allgemein — und je mehr Stichproben,
+desto mehr vertraut man denen." Und: „vielleicht war einfach eine Palette
+sehr hoher Verlust, und die ganze Charge wird dann so bewertet."
+
+So war es. Eine eigene Palox-Messung galt für die Charge ganz, auch aus
+einer einzigen Arbeit (Fictor 1627: 35.6 %), und ohne Spanne (unten = oben).
+Eine Sorte galt ab drei Arbeiten oder Wägungen ganz, darunter gar nicht
+(Amoro: Verdunstung 0.37 % je Tag aus sechs Wägungen). Eine Arbeit, deren
+Palox zwischendurch geleert wurde, fiel ganz aus der Rechnung.
+
+**Eine feste Zahl, kein geschätzter Zug.** Die übergeordnete Ebene zählt
+wie drei Messungen (`vorwissen_messungen()` = 3): die eigenen Messungen
+zählen n ÷ (n + 3), also eine ¼, drei ½, neun ¾. Charge → Sorte → alle
+Kürbisse, je Ebene gleich. 0111 hatte den geschätzten Zug zum Gesamtwert
+(empirisches Bayes) abgeschafft, „weil ihn niemand nachrechnen konnte". Eine
+feste Zahl rechnet jeder nach, und der Satz zur Zahl sagt sie.
+Warum drei: Auf den Daten der Saison (ohne Hagel) streut beim Waschen eine
+Arbeit innerhalb einer Charge mehr als die Chargen untereinander
+(geschätzt hiesse das „Sorte wie 7 Arbeiten"). Bei Waschen + Sortieren ist
+es umgekehrt („wie 0.2", getrieben vom einen Fictor-Wert). Drei liegt
+dazwischen; ändern lässt es sich an einer Stelle, wenn die Saison es zeigt.
+
+- **Verdunstung je Sorte (AB-193):** b = n ÷ (n + 3); das Mittel ist
+  b × Sorte + (1 − b) × alle, die Unsicherheit b² × Sorte + (1 − b)² × alle.
+  Der Satz: „6 Wiegungen dieser Sorte (zählen 67 %), dazu alle Sorten wie 3
+  Wiegungen". Zu klein, zu gross, Fax und Nebenkanal bleiben wie 0111.
+- **Palox je Sorte und Station (AB-193):** der Grundausschuss der Sorte,
+  gewichtet mit dem aller Sorten, schon ab einer Arbeit. Die Spanne ist Wert
+  ± t₉₅ × Streuung einer Arbeit ÷ √(n + 3).
+- **Palox je Charge (AB-194):** die eigenen Arbeiten, gewichtet mit der Sorte
+  beim Alter der eigenen Messungen. Die Spanne ist nicht mehr null; die
+  Kaskade nimmt sie und den Satz: „Waschen + Sortieren: eigene Messung
+  (1 Arbeit, 35.6 %) zählt 25 %, die Sorte (14.7 %) wie 3 Arbeiten".
+- **Die Sorte beim Alter, ungekappt:** Der Grundausschuss ist nie unter 0.
+  Zur Sorte beim Alter einer Charge gehört aber der ungekappte (`grund_roh`)
+  plus Anstieg × Alter. Sonst läge die Sorte beim Alter ihrer eigenen
+  Arbeiten über ihrem eigenen Mittel; im Prüfbeispiel 3.4 % statt 2.5 %.
+  Gefunden hat das der alte Block „zwei Prozent mehr im Palox“ (0037).
+- **Palox zwischendurch geleert (AB-195):** Was bis zum Leeren sicher
+  hineinfiel, ist ein „mindestens". Liegt es über der Schätzung ohne es,
+  zählt es wie eine Arbeit: es sagt, die Charge hat mehr. Liegt es darunter,
+  sagt es nichts und zählt nicht. Der Satz nennt es.
+- **Bildschirm:** „Ausstehend" erkennt eine eigene Rate an „dieser Sorte"
+  (bisher „geliehen" an „aller Sorten" — der gewichtete Satz nennt beide).
+  In den Messungen steht die Spanne auch bei einer Arbeit.
+
+Auf den Daten des Betriebs (7. November; Raten je Charge, ohne die kleine
+Änderung der Bezugsmasse durch die neue Verdunstung):
+
+| Charge | Station | eigen | Sorte beim Alter | vorher | nachher | Spanne |
+|---|---|---|---|---|---|---|
+| 1627 Fictor | Waschen + Sortieren | 1 Arbeit, 35.6 % | 14.7 % | 35.6 % | 19.9 % | 9.7–30.1 % |
+| 1620 Orangita | Waschen + Sortieren | 2 Arbeiten, 26.1 % | 11.1 % | 26.1 % | 17.1 % | 9.2–25.1 % |
+| 1719 Kaori Kuri | Waschen + Sortieren | 1 Arbeit, 22.1 % | 7.3 % | 22.1 % | 11.0 % | 0.8–21.2 % |
+| 1626 Tiana | Waschen + Sortieren | 1 Arbeit, 1.9 % | 6.5 % | 1.9 % | 5.3 % | 0.0–15.5 % |
+| 1650 Tiana | Waschen + Sortieren | 1 Arbeit + mindestens 9.7 % | 6.5 % | 4.8 % | 6.9 % | 0.0–14.8 % |
+| 1611 Tiana | Waschen + Sortieren | 9 Arbeiten, 6.6 % | 6.5 % | 6.6 % | 6.5 % | 2.5–10.6 % |
+
+Verdunstung: Fictor 0.50 → 0.40 % je Tag (5 Wägungen), Amoro 0.37 → 0.33
+(6), Butterkin 0.27 → 0.27 (15). Sorten mit vielen Wägungen bleiben fast
+gleich (Kaori Kuri 71, Mieluna 56, Tiana 52).
+
+Geprüft:
+- Prüfblock 0132 (a1–g1), jede Zahl ein zweites Mal anders gerechnet:
+  Verdunstung (Mittel, Unsicherheit, Freiheitsgrade), Palox je Sorte (Wert,
+  ungekappter Grundausschuss, Streuung, Spanne), Palox je Charge (Gewichtung,
+  Sorte beim Alter, Satz, Spanne). Eine einzige Wägung ist gebaut (alle
+  anderen der Sorte von Hand ausgeschlossen, danach zurück). Geleerte Paloxe
+  sind gebaut: allein und neben eigenen Arbeiten, über und unter der
+  Schätzung. Kaskade: bei Ware ganz von Hand sind Wert und Spanne die der
+  Charge.
+- 21 Mutationen, jede schlägt an: Vorwissen 4, Vorwissen veränderlich,
+  Verdunstung mit alter Schwelle, ohne Unsicherheit aller, mit n − 1
+  Freiheitsgraden, Satz in der Mehrzahl, Sorte ganz, Spanne über √n,
+  grund_roh gekappt, Hagel zählt, gespeicherte Fassung alt, eigene Messung
+  ganz, Sorte beim Alter gekappt, Spanne null, Satz ohne Gewicht, mindestens
+  immer, mindestens nie, mindestens ohne Masse, Kaskade mit alter Spanne,
+  Kaskade mit altem Satz, Stand 131. Eine weitere Mutation (Recht auf
+  `erg_palox_erwartung` vergessen) ändert nichts: die Standardrechte geben es
+  ohnehin. Sie ist darum nicht in der Liste.
+- Alte Blöcke, die die alte Regel festhielten, folgen der neuen, und ihr
+  Kommentar sagt es: Verdunstung bei einer Wägung, Stationswert der einen
+  Arbeit (1613), Stationswerte nachgerechnet, zwei Prozent mehr im Palox,
+  0097 (c1a), 0106 (b6–b8), 0111 (a2, a4, a7). 0106 (b6) war seit 0111
+  blind: Das Nachgerechnete war leer, und leere Vergleiche zählten nicht als
+  Abweichung. Jetzt zählen sie.
+
+**Was bewusst nicht gemacht wurde:**
+- Keine geschätzte Stärke des Vorwissens — eine feste Zahl.
+- Zu klein, zu gross, Fax und Nebenkanal bleiben wie 0111: Der Betrieb sprach
+  von Verdunstung und Palox.
+- Liegende Ware rechnet weiter mit dem gekappten Grundausschuss + Anstieg
+  (0111); nur für die eigene Messung zählt die Sorte beim Alter ungekappt.
+- Hagel-Chargen: wie bisher zählen sie nicht für die Sorte, und ihre eigene
+  Rate zieht zur Sorte ohne Hagel. Der Ünique-Topf ist Schritt 3.
+- Die Teilpalette in der Verdunstung (der Zettel der ganzen Palette auf die
+  gewogenen Kisten) gehört zu den Zetteln, Schritt 5.
+
 ## Runde BI: Es gilt, was die Datei heute sagt (4. November, 0130)
 
 Der Betrieb zu Fall 134779 („Im Excel steht dieselbe Zeile 3-mal

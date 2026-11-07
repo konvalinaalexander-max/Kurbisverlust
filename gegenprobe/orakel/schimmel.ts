@@ -18,9 +18,11 @@
  * negativ. Seit 0113 gilt er erst, wenn er sicher ist — die untere Grenze
  * seines 95-%-Bereichs (Standardfehler der gemeinsamen Steigung, je Sorte
  * eine eigene Höhe) liegt über 0 —, sonst gilt 0.
- * Der Grundausschuss ist das massegewichtete Mittel der Sorte (ab drei
- * Arbeiten, sonst aller Sorten), um den Anstieg, der gilt, auf null Tage
- * zurückgelegt — gilt keiner, ist er das Mittel selbst.
+ * Der Grundausschuss ist das massegewichtete Mittel, um den Anstieg, der
+ * gilt, auf null Tage zurückgelegt — gilt keiner, ist er das Mittel selbst.
+ * Seit 0132 der der Sorte, gewichtet n ÷ (n + 3) mit dem aller Sorten (je
+ * Ebene nie unter 0); ohne Arbeit der Sorte der aller (geliehen). Das Band ist
+ * ± t · sd / √(n + 3) mit der Streuung einer Arbeit über alle Sorten der Station.
  * Der Weg kommt aus den eigenen Arbeiten der Charge, sonst denen der Sorte,
  * sonst allen.
  *
@@ -68,8 +70,10 @@ export function stationswert(punkte: Punkt[]): Stationswert {
            nArbeiten: n, nChargen: new Set(punkte.map(p => p.chargeNr)).size }
 }
 
-/** Ab so vielen Arbeiten gilt der Wert der Sorte (palox_mindest_arbeiten). */
+/** Bis 0131: ab so vielen Arbeiten galt der Wert der Sorte ganz (palox_mindest_arbeiten). Seit 0132 nicht mehr gebraucht. */
 export const PALOX_MINDEST_ARBEITEN = 3
+/** Seit 0132: alle Sorten zählen wie so viele Arbeiten (vorwissen_messungen) — die Sorte zählt n ÷ (n + 3). */
+export const VORWISSEN_MESSUNGEN = 3
 /** So weit müssen die Lagerdauern innerhalb einer Sorte auseinanderliegen (palox_anstieg_mindest_tage). */
 export const ANSTIEG_MINDEST_TAGE = 21
 
@@ -144,39 +148,48 @@ export interface Erwartung extends Stationswert {
   lagerMittel: number | null
   /** Der Anstieg der Station, mit dem zurückgelegt wurde. */
   anstiegJeWoche: number | null
+  /** Seit 0132: derselbe Grundausschuss ungekappt (darf unter 0 liegen). */
+  grundRoh: number | null
 }
 
 /**
- * Je Sorte und Station der Grundausschuss — aus den Punkten der Sorte (ab
- * mindest Arbeiten), sonst aus allen Punkten der Station (ab einer, geliehen):
- * das Mittel um den Anstieg der Station auf null Tage zurückgelegt, nie unter
- * 0; das Band ± t·sd/√n um diesen Wert. `bisHeute` begrenzt die Punkte des
- * Anstiegs wie palox_station_kennzahl(heute()).
+ * Je Sorte und Station der Grundausschuss (seit 0132): je Ebene — die Punkte
+ * der Sorte, alle Punkte der Station — das Mittel um den Anstieg der Station
+ * auf null Tage zurückgelegt, nie unter 0; hat die Sorte Arbeiten, zählen sie
+ * n ÷ (n + k), der Rest ist der Wert aller (k = VORWISSEN_MESSUNGEN); sonst
+ * gilt der Wert aller (geliehen). Das Band ± t·sd/√(n + k) (ohne Arbeit der
+ * Sorte √n aller) mit der Streuung einer Arbeit über alle Sorten der Station.
+ * `bisHeute` begrenzt die Punkte des Anstiegs wie palox_station_kennzahl(heute()).
  */
-export function erwartung(punkte: Punkt[], sorten: string[], bisHeute: string, mindest = PALOX_MINDEST_ARBEITEN): Erwartung[] {
+export function erwartung(punkte: Punkt[], sorten: string[], bisHeute: string, k = VORWISSEN_MESSUNGEN): Erwartung[] {
   const alleSorten = [...new Set([...sorten, ...punkte.map(p => p.sorte)])]
   const aus: Erwartung[] = []
   for (const station of STATIONEN) {
     const st = punkte.filter(p => p.station === station)
+    if (st.length === 0) continue
     const b = anstieg(st.filter(p => p.messtag <= bisHeute)).gilt
+    const ebene = (drin: Punkt[]) => {
+      const sw = drin.reduce((s, p) => s + p.w, 0)
+      const mittel = drin.reduce((s, p) => s + p.w * p.y, 0) / sw
+      const lagerMittel = drin.reduce((s, p) => s + p.w * p.t, 0) / sw
+      const roh = mittel - (b ?? 0) * lagerMittel / 7
+      return { mittel, lagerMittel, roh, grund: Math.max(roh, 0), n: drin.length, nChargen: new Set(drin.map(p => p.chargeNr)).size }
+    }
+    const a = ebene(st)
+    const yA = st.reduce((s, p) => s + p.y, 0) / st.length
+    const sd = st.length >= 2 ? Math.sqrt(st.reduce((s, p) => s + (p.y - yA) ** 2, 0) / (st.length - 1)) : null
     for (const sorte of alleSorten) {
-      const ebenen: [Ebene, Punkt[], number][] = [['sorte', st.filter(p => p.sorte === sorte), mindest], ['alle', st, 1]]
-      for (const [ebene, drin, min] of ebenen) {
-        if (drin.length < min) continue
-        const sw = drin.reduce((s, p) => s + p.w, 0)
-        const mittel = drin.reduce((s, p) => s + p.w * p.y, 0) / sw
-        const lagerMittel = drin.reduce((s, p) => s + p.w * p.t, 0) / sw
-        const grund = Math.max(mittel - (b ?? 0) * lagerMittel / 7, 0)
-        const n = drin.length
-        const y = drin.reduce((s, p) => s + p.y, 0) / n
-        const sd = n >= 2 ? Math.sqrt(drin.reduce((s, p) => s + (p.y - y) ** 2, 0) / (n - 1)) : null
-        const halb = sd == null ? 0 : tQuantil95(n - 1) * sd / Math.sqrt(n)
-        aus.push({ sorte, station, ebene, geliehen: ebene === 'alle', anteil: grund,
-                   unten: klemm(grund - halb, 0, 1), oben: klemm(grund + halb, 0, 1),
-                   nArbeiten: n, nChargen: new Set(drin.map(p => p.chargeNr)).size,
-                   mittel, lagerMittel, anstiegJeWoche: b })
-        break
-      }
+      const drin = st.filter(p => p.sorte === sorte)
+      const s = drin.length > 0 ? ebene(drin) : null
+      const anteil = s ? (s.n * s.grund + k * a.grund) / (s.n + k) : a.grund
+      const grundRoh = s ? (s.n * s.roh + k * a.roh) / (s.n + k) : a.roh
+      const nEff = s ? s.n + k : a.n
+      const halb = sd == null || nEff < 2 ? 0 : tQuantil95(nEff - 1) * sd / Math.sqrt(nEff)
+      const e = s ?? a
+      aus.push({ sorte, station, ebene: s ? 'sorte' : 'alle', geliehen: !s, anteil,
+                 unten: klemm(anteil - halb, 0, 1), oben: klemm(anteil + halb, 0, 1),
+                 nArbeiten: e.n, nChargen: e.nChargen,
+                 mittel: e.mittel, lagerMittel: e.lagerMittel, anstiegJeWoche: b, grundRoh })
     }
   }
   return aus
