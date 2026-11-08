@@ -45,3 +45,4 @@ Eine Zeile je Abzug — damit man sieht, ob die Auffälligkeiten weniger werden 
 | 2026-11-05 | 2 | 26 (13 zu kürzen) | 111 | Zettelgewicht (71) |
 | 2026-11-06 | 2 | 26 (13 zu kürzen) | 111 | Zettelgewicht (71) |
 | 2026-11-07 | 2 | 26 (13 zu kürzen) | 107 | Zettelgewicht (67) |
+| 2026-11-08 | 2 | 26 (13 zu kürzen) | 107 | Zettelgewicht (67) |
