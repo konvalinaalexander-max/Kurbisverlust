@@ -373,11 +373,14 @@ export const OHNE_CHARGE_GRUND: Record<OhneChargeGrund, string> = {
   keine_nummer: 'keine Chargennummer',
   ohne_zeile: 'Perigon-Zeile fehlt',
   von_hand: 'von Hand erfasst',
+  mix: 'Mix-Anteil nach Rezept',
 }
 /** Wer es richtigstellt: Perigon (Datei), die Stammdaten der App, oder es erledigt sich mit dem nächsten Rechnen. */
 export const OHNE_CHARGE_WO: Record<OhneChargeGrund, 'perigon' | 'stammdaten' | 'rechnen' | 'app'> = {
   unbekannt: 'stammdaten', mehrdeutig: 'stammdaten', nachholen: 'rechnen',
   menge_null: 'perigon', rest: 'perigon', keine_nummer: 'perigon', ohne_zeile: 'app', von_hand: 'app',
+  // 0141: nichts zu tun; stimmt das Rezept nicht, steht es unter Stammdaten
+  mix: 'stammdaten',
 }
 
 export interface OhneChargeGruppe { grund: OhneChargeGrund; name: string; n: number; kg: number; nummern: string[] }
@@ -399,6 +402,7 @@ export const OHNE_CHARGE_SPALTEN: Record<OhneChargeGrund, string[]> = {
   unbekannt: ['AuftragsChargeManuell'], mehrdeutig: ['AuftragsChargeManuell'], nachholen: ['AuftragsChargeManuell'],
   keine_nummer: ['AuftragsChargeManuell'], menge_null: ['AufPosBatchQuantity Charge', 'AuftragsChargeManuell'],
   rest: ['AuftragsArtikelMenge', 'AufPosBatchQuantity Charge'], ohne_zeile: [], von_hand: [],
+  mix: [],   // 0141: kein Fehler in der Zeile — der Mix ist nach Rezept verteilt
 }
 
 export const FALSCHE_SPALTEN: Record<string, string[]> = {

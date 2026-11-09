@@ -642,7 +642,10 @@ Charge) wird danach geteilt, gerundet auf das Gramm, der letzte Teil nimmt den
 Rest — die Summe bleibt die Masse der Zeile. Der Teil der Sorte der genannten
 Charge bleibt auf ihr; die anderen sind Lieferungen ohne Charge mit Sorte.
 Rezept des Betriebs: Orangita 3 × 0.55, Lekor 3 × 0.95, Butterkin füllt auf
-(8-kg-Kiste: 1.65 + 2.85 + 3.5 kg).
+(8-kg-Kiste: 1.65 + 2.85 + 3.5 kg). Seit 0141 bleibt das auch beim Rechnen so:
+`lieferungen_nachordnen` gibt einem Mix-Anteil die genannte Charge nur, wenn
+sie seine Sorte ist, und holt zurück, was es vorher anders gesetzt hatte (im
+Betrieb 2.3 t Lekor und Orangita, die als Butterkin auf 1624 und 1649 standen).
 **Fehlt eine Eingabe:** ohne Kisteninhalt oder ohne Rezept wird ein Mix nicht
 verteilt (er bleibt auf der Charge, der Fall „Kürbis Mix nicht verteilt" sagt
 es) — nie ein angenommener Inhalt. Ohne Stückgewicht keine Lieferung und keine Masse —
@@ -748,7 +751,10 @@ ohne Beleg bleibt die Charge des Journals.
 sie verteilt (0114: nach Eingang auf die Chargen der Sorte); was davon vor dem
 Eingang der tragenden Charge lag und was auf keine fällt. Eine Nummer der Datei,
 die die App inzwischen kennt (eigene Nummer, sonst eine Perigon-Nummer an genau
-einer Charge), bekommt der Lieferschein im nächsten Rechenlauf.
+einer Charge), bekommt der Lieferschein im nächsten Rechenlauf. Ein Mix-Anteil
+(`…:mix:<Sorte>`) bekommt sie nur, wenn sie seine Sorte ist; der Rest einer
+Position (auch eines Mix) nie (0141). In der Liste heisst ein Mix-Anteil
+anderer Sorte „Mix-Anteil nach Rezept" (Grund `mix`): so verteilt, nichts zu tun.
 
 **Seit 0125 auch einzeln (`v_lieferung_ohne_charge`).** **Braucht:** dieselben
 Lieferscheine wie `v_ohne_charge` (verkauft, mit Masse, bis heute), ihre
@@ -784,7 +790,8 @@ klein, ohne Satzzeichen), im Journal-Abgleich ebenso (`src/lib/import.ts`).
 **Fehlt eine Eingabe:** ohne Produzent, bei einem Namen an mehreren Schlägen
 (der eigene Betrieb), bei Mix oder unbekanntem Artikel, bei zwei passenden
 Chargen: keine Charge — der Lieferschein bleibt „ohne Charge" und wird verteilt
-wie in 12e. Ein Rest ohne Charge (Spalte S) bekommt nie eine.
+wie in 12e. Ein Rest ohne Charge (Spalte S) bekommt nie eine, der Rest
+eines Mix auch nicht (0141).
 **Urteil:** ehrlich, weil eindeutig oder gar nicht; jede Zuordnung steht als
 Hinweis da, bis der Betriebsleiter die Nummer bei der Charge einträgt.
 

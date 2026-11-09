@@ -14363,3 +14363,128 @@ begin
 end $$;
 
 select '——— 0140 Demeter darf als Knospe verkauft werden ———' as ergebnis;
+
+-- =====================================================================
+-- 0141 — Der Mix bleibt nach Rezept verteilt
+--
+-- Der Betrieb am 9. November: „Kann es sein, dass die, die nicht aufgehen,
+-- Teil von Kürbis-Mixen sind?" Im Betrieb standen 2.3 t Lekor und Orangita
+-- aus dem Mix als Butterkin auf 1624/1649: lieferungen_nachordnen() gab den
+-- Mix-Anteilen ohne Charge die Charge, die Perigon für den Mix nennt.
+-- Geprüft an gebauten Mix-Positionen (wie das Einlesen sie verteilt):
+-- (a) ein Anteil einer anderen Sorte bleibt beim Nachordnen ohne Charge, bei
+--     seiner Sorte; der Rest einer Mix-Position bekommt keine;
+-- (b) ein Anteil der Sorte der genannten Charge bekommt sie, wenn die Nummer
+--     erst später bekannt ist;
+-- (c) was früher auf eine Charge einer anderen Sorte ging, geht beim
+--     Neurechnen zurück (ohne Charge, an seine Sorte), sein Eintrag in
+--     lieferung_nachordnung mit; ein zweites Nachordnen findet nichts mehr,
+--     der Anteil der eigenen Sorte bleibt auf seiner Charge;
+-- (e) die Liste der Lieferscheine ohne Charge nennt den Anteil „Mix-Anteil
+--     nach Rezept" (nicht „Nummer jetzt bekannt"), den Rest einen Rest;
+-- (d) Stand 141.
+-- =====================================================================
+do $$
+declare v_modus jsonb; v_lad text; v_geladen boolean := false; v_j jsonb; v_r record;
+  v_u uuid := '00000000-0141-0000-0000-000000000001';
+  v_c1 int; v_c2 int; v_s1 text; v_s2 text; v_z jsonb; v_id bigint;
+begin
+  select wert into v_modus from einstellung where schluessel = 'betriebsmodus';
+  update einstellung set wert = '"beispiel"'::jsonb where schluessel = 'betriebsmodus';
+  insert into auth.users (id, email, raw_user_meta_data) values (v_u, null, '{"name":"Prüf-0141"}');
+  update profil set rolle = 'admin' where id = v_u;
+  perform set_config('request.jwt.claim.sub', v_u::text, true);
+  if not exists (select 1 from auftrag where station = 'waschen_sortieren' and bemerkung = 'DEMO') then
+    select demo_daten_laden() into v_lad; v_geladen := true;
+  end if;
+  select c.nr, c.sorte into v_c1, v_s1 from charge c join sorte_kaliber s on s.sorte = c.sorte
+   where coalesce(c.hagel_anteil, 0) = 0 order by c.nr limit 1;
+  select c.nr, c.sorte into v_c2, v_s2 from charge c join sorte_kaliber s on s.sorte = c.sorte
+   where c.sorte <> v_s1 and coalesce(c.hagel_anteil, 0) = 0 order by c.nr limit 1;
+  assert v_c1 is not null and v_c2 is not null, '0141 (a0): keine zwei Chargen verschiedener Sorten — (a)–(c) wären blind';
+
+  -- 4101: Perigon nennt c1, das Einlesen kannte sie: der Anteil von s1 auf c1, der von s2 ohne Charge.
+  -- 4102: Perigon nennt c1, das Einlesen kannte sie noch nicht: beide Anteile ohne Charge.
+  v_z := jsonb_build_object('pos_id', 4101, 'charge_extern', v_c1::text, 'lauf_nr', 1, 'fingerabdruck', 'p141-4101',
+    'datum', '2026-10-06', 'journal', 'A', 'kunde', 'Prüfkunde 141', 'artikel_id', 'p141mix', 'artikel', 'Bio Kürbis Mix OS',
+    'einheit', 'kg', 'menge', 40, 'gewicht_je_artikel', 1, 'batch_menge', 40, 'kg_position', 40, 'kg_charge', 40,
+    'gebindeart', 'U-Gebinde', 'gebinde_menge', 5, 'gebinde_inhalt', 8);
+  v_j := ausgang_uebernehmen('PRUEF141', 'Prüffirma 0141', '{"dateiname": "p141.xlsx", "pruefsumme": "p141"}'::jsonb,
+    jsonb_build_array(v_z, v_z || jsonb_build_object('pos_id', 4102, 'fingerabdruck', 'p141-4102')),
+    jsonb_build_array(
+      jsonb_build_object('extern_id', format('PRUEF141:4101:%s:1', v_c1), 'datum', '2026-10-06', 'charge_nr', v_c1, 'sorte', v_s1, 'kg', 17.5, 'kunde', 'Prüfkunde 141'),
+      jsonb_build_object('extern_id', format('PRUEF141:4101:%s:1:mix:%s', v_c1, v_s2), 'datum', '2026-10-06', 'charge_nr', null, 'sorte', v_s2, 'kg', 22.5, 'kunde', 'Prüfkunde 141'),
+      jsonb_build_object('extern_id', format('PRUEF141:4102:%s:1:mix:%s', v_c1, v_s1), 'datum', '2026-10-06', 'charge_nr', null, 'sorte', v_s1, 'kg', 17.5, 'kunde', 'Prüfkunde 141'),
+      jsonb_build_object('extern_id', format('PRUEF141:4102:%s:1:mix:%s', v_c1, v_s2), 'datum', '2026-10-06', 'charge_nr', null, 'sorte', v_s2, 'kg', 22.5, 'kunde', 'Prüfkunde 141'),
+      -- der Rest einer Mix-Position (Perigon nennt c1 für die Zeile, der Rest hat keinen Chargenbezug)
+      jsonb_build_object('extern_id', format('PRUEF141:4101:rest:mix:%s', v_s1), 'datum', '2026-10-06', 'charge_nr', null, 'sorte', v_s1, 'kg', 3.5, 'kunde', 'Prüfkunde 141')));
+  perform lieferungen_nachordnen();
+
+  -- (a1) der Anteil einer anderen Sorte bleibt ohne Charge bei seiner Sorte
+  for v_r in select i.extern_id, l.charge_nr, l.sorte from lieferung l join lieferung_import i on i.lieferung_id = l.id
+              where i.quelle = 'PRUEF141' and i.extern_id like format('%%:mix:%s', v_s2) loop
+    assert v_r.charge_nr is null and v_r.sorte = v_s2,
+      format('0141 (a1): der Mix-Anteil %s steht nach dem Nachordnen auf Charge %s (%s) statt ohne Charge bei %s',
+             v_r.extern_id, v_r.charge_nr, v_r.sorte, v_s2);
+  end loop;
+  assert (select count(*) from lieferung_import where quelle = 'PRUEF141' and extern_id like format('%%:mix:%s', v_s2)) = 2,
+    '0141 (a0): die zwei Anteile der anderen Sorte fehlen — (a1) prüfte nichts';
+  -- (a2) der Rest einer Mix-Position bleibt ohne Charge, auch in der Sorte der genannten Charge
+  assert (select l.charge_nr is null and l.sorte = v_s1 from lieferung l join lieferung_import i on i.lieferung_id = l.id
+           where i.extern_id = format('PRUEF141:4101:rest:mix:%s', v_s1)),
+    format('0141 (a2): der Rest einer Mix-Position bekam eine Charge: %s',
+           (select row(l.charge_nr, l.sorte)::text from lieferung l join lieferung_import i on i.lieferung_id = l.id
+             where i.extern_id = format('PRUEF141:4101:rest:mix:%s', v_s1)));
+  -- (b1) der Anteil der Sorte der genannten Charge bekommt sie, sobald die Nummer bekannt ist
+  assert (select l.charge_nr = v_c1 and l.sorte = v_s1 from lieferung l join lieferung_import i on i.lieferung_id = l.id
+           where i.extern_id = format('PRUEF141:4102:%s:1:mix:%s', v_c1, v_s1)),
+    format('0141 (b1): der Mix-Anteil %s bekommt die genannte Charge %s seiner Sorte nicht', v_s1, v_c1);
+
+  -- (c) so, wie es bis 0141 nachgeordnet wurde: der Anteil von s2 auf c1 (Sorte s1), mit Eintrag
+  select l.id into v_id from lieferung l join lieferung_import i on i.lieferung_id = l.id
+   where i.extern_id = format('PRUEF141:4101:%s:1:mix:%s', v_c1, v_s2);
+  update lieferung set charge_nr = v_c1, sorte = v_s1 where id = v_id;
+  insert into lieferung_nachordnung (lieferung_id, charge_nr, weg, nummer, grund)
+  values (v_id, v_c1, 'nummer', v_c1::text, format('Die Nummer %s steht inzwischen an Charge %s.', v_c1, v_c1))
+  on conflict (lieferung_id) do update set charge_nr = excluded.charge_nr;
+  perform auswertung_aktualisieren();
+  assert (select charge_nr is null and sorte = v_s2 from lieferung where id = v_id),
+    format('0141 (c1): nach dem Neurechnen steht der Mix-Anteil %s weiter auf %s', v_s2,
+           (select row(charge_nr, sorte)::text from lieferung where id = v_id));
+  assert not exists (select 1 from lieferung_nachordnung where lieferung_id = v_id),
+    '0141 (c2): der Eintrag in lieferung_nachordnung bleibt, obwohl der Anteil zurückging';
+  -- (c3) ein zweites Nachordnen findet nichts mehr: Stufe 0 und 1 arbeiten nicht gegeneinander,
+  --      der Anteil der eigenen Sorte bleibt auf seiner Charge
+  assert lieferungen_nachordnen() = 0,
+    '0141 (c3): ein zweites Nachordnen ändert wieder etwas — Stufe 0 nimmt zurück, was Stufe 1 setzt';
+  assert (select l.charge_nr = v_c1 and l.sorte = v_s1 from lieferung l join lieferung_import i on i.lieferung_id = l.id
+           where i.extern_id = format('PRUEF141:4102:%s:1:mix:%s', v_c1, v_s1)),
+    '0141 (c3): der Mix-Anteil der eigenen Sorte ist nach dem Neurechnen nicht mehr auf seiner Charge';
+
+  -- (e) die Liste der Lieferscheine ohne Charge: der Anteil anderer Sorte ist „Mix-Anteil nach Rezept",
+  --     nicht „Nummer jetzt bekannt"; der Rest der Mix-Position ist ein Rest
+  assert (select grund = 'mix' and satz ~ format('Mix-Anteil %s nach Rezept', v_s2) and satz ~ format('Charge %s \(%s\)', v_c1, v_s1)
+            from v_lieferung_ohne_charge where id = v_id),
+    format('0141 (e1): der Mix-Anteil steht in der Liste ohne Charge nicht als Mix-Anteil: %s',
+           (select row(grund, satz)::text from v_lieferung_ohne_charge where id = v_id));
+  assert (select grund = 'rest' from v_lieferung_ohne_charge o join lieferung_import i on i.lieferung_id = o.id
+           where i.extern_id = format('PRUEF141:4101:rest:mix:%s', v_s1)),
+    format('0141 (e2): der Rest der Mix-Position steht nicht als Rest da: %s',
+           (select row(o.grund, o.satz)::text from v_lieferung_ohne_charge o join lieferung_import i on i.lieferung_id = o.id
+             where i.extern_id = format('PRUEF141:4101:rest:mix:%s', v_s1)));
+
+  -- (d) Stand
+  assert schema_stand() >= 141, format('0141 (d1): schema_stand() = %s', schema_stand());
+
+  -- aufräumen
+  delete from lieferung where id in (select lieferung_id from lieferung_import where quelle = 'PRUEF141');
+  delete from ausgang_zeile where quelle = 'PRUEF141';
+  delete from ausgang_datei where quelle = 'PRUEF141';
+  delete from ausgang_quelle where code = 'PRUEF141';
+  if v_geladen then perform demo_daten_entfernen(); else perform auswertung_aktualisieren(); end if;
+  delete from profil where id = v_u; delete from auth.users where id = v_u;
+  update einstellung set wert = v_modus where schluessel = 'betriebsmodus';
+  raise notice 'OK  0141 — der Mix bleibt nach Rezept verteilt: ein Anteil anderer Sorte bleibt ohne Charge, der eigenen Sorte bekommt sie, falsch Nachgeordnetes geht beim Neurechnen zurück';
+end $$;
+
+select '——— 0141 Der Mix bleibt nach Rezept verteilt ———' as ergebnis;

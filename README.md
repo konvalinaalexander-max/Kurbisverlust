@@ -798,6 +798,12 @@ ohne Perigon-Zeile als eigener Teil); jede PL/pgSQL-Funktion hat einen
 festen Suchpfad; die Perigon-Liste läuft nur einmal (AB-174 bis AB-176). Dazu die
 Halle: Faules ohne Ablesung ist „unbekannt", Fehler werden gezeigt. **Setup.sql
 einmal einspielen (Stand 124), dann „Neu rechnen".**
+**Runde BK, Schritt 6 (0141)** — **Der Mix bleibt nach Rezept verteilt.** Beim
+Rechnen bekamen die Lekor- und Orangita-Anteile des Kürbis Mix die Charge, die
+Perigon für den Mix nennt, und damit die Sorte Butterkin (im Betrieb 2.3 t auf
+1624 und 1649). Jetzt bleibt ein Anteil anderer Sorte ohne Charge bei seiner
+Sorte, und was falsch stand, geht beim nächsten „Neu rechnen" von selbst zurück
+(AB-220). **Setup.sql einmal einspielen (Stand 141), dann „Neu rechnen".**
 **Runde BK, Schritt 5 (0140)** — **Demeter darf als Knospe.** Im Perigon-Reiter
 steht eine Position mit Demeter- und Knospe-Ware nur noch, wenn Knospe-Ware
 unter Demeter hinausging (Name oder Preisgruppe); Demeter-Ware unter einem

@@ -4290,6 +4290,66 @@ Geprüft:
 - Eine Sorte dazu oder weg im Rezept geht noch nicht in der Maske (nur Stück,
   kg je Stück und Herkunft); das Rezept des Betriebs hat drei Sorten.
 
+## Runde BK, Schritt 6: Der Mix bleibt nach Rezept verteilt (9. November, 0141)
+
+Der Betrieb zu den Chargen, die in der Halle nicht aufgehen: „Kann es sein,
+dass die Teil von Kürbis-Mixen sind? … du schaust nach, was in dem Mix drin
+ist, und ziehst von allen Chargen ab. Aber es kann ja sein, dass eine Charge
+bevorzugt worden ist." Dann: „Fix the things you're sure about … so that when
+I reload, I have certain things fixed."
+
+Nachgesehen. Das Einlesen verteilt jeden Mix nach dem Rezept (0131): Butterkin
+füllt die Kiste, dazu 3 Orangita (Mandarin) und 3 Lekor (Kabocha). Der Anteil
+der Sorte der genannten Charge bleibt auf ihr, die anderen gehen ohne Charge an
+ihre Sorte (extern_id `…:mix:<Sorte>`). Beim Rechnen gab
+`lieferungen_nachordnen()` aber jedem Lieferschein ohne Charge die Charge, die
+Perigon nennt — auch diesen Anteilen, und mit der Charge deren Sorte. Im
+Betrieb standen so 112 Zeilen als Butterkin auf 1624 und 1649: 1'457 kg Lekor
+und 843 kg Orangita. Lekor und Orangita waren um 2.3 t zu wenig abgezogen,
+Butterkin um ebenso viel zu viel. Die Perigon-Prüfung (`v_perigon_befund`)
+liess die Mix-Anteile schon aus; nur das Nachordnen kannte sie nicht. Das ist
+sicher ein Fehler der App.
+
+Neu (AB-220):
+- Stufe 1 gibt einem Mix-Anteil die genannte Charge nur, wenn sie seine Sorte
+  ist. Der Rest einer Mix-Position bekommt keine, wie jeder Rest.
+- Stufe 0 holt zurück, was früher anders gesetzt wurde: ohne Charge, an die
+  Sorte aus der extern_id; der Eintrag in `lieferung_nachordnung` geht mit. Sie
+  läuft zu Beginn jedes Rechenlaufs. Nach `setup.sql` und „Neu rechnen" stehen
+  die 112 Zeilen wieder bei Lekor und Orangita, ohne dass jemand die Daten von
+  Hand ändert.
+- Die Liste der Lieferscheine ohne Charge (`v_lieferung_ohne_charge`) hätte
+  diese Anteile danach „Nummer jetzt bekannt — bekommt die Charge von selbst"
+  genannt, was nie geschieht. Sie heissen jetzt „Mix-Anteil nach Rezept"
+  (Grund `mix`), mit dem Satz, warum, und „Nichts" zu tun; der Rest einer
+  Mix-Position heisst „nur teilweise zugeteilt", wie jeder Rest.
+
+Was es an der Zählung erklärt (ungefähr, in Eingangspaletten): Lekor 1616 etwa
+5 der 21 Paletten, die dort fehlen; Orangita 1617 etwa ihre 2. Bei Butterkin
+gehen 2.3 t weniger von 1624 und 1649 ab — 1624 ist weniger überzogen, 1649 hat
+etwa 2 Paletten mehr in der App.
+
+Geprüft:
+- Prüfblock 0141 an gebauten Mix-Positionen: Anteil anderer Sorte bleibt ohne
+  Charge (a1), der Rest des Mix auch (a2); der Anteil der eigenen Sorte bekommt
+  die Charge, sobald die Nummer bekannt ist (b1); was so gesetzt war wie bis
+  0141, geht beim Neurechnen zurück, mit seinem Eintrag (c1, c2); ein zweites
+  Nachordnen findet nichts mehr (c3); die Liste nennt Mix-Anteil und Rest
+  richtig (e1, e2). 9 Mutationen, jede schlägt an. Auf Stand 140 schlägt (a1)
+  an: der Fehler war da.
+- Die Blöcke 0121, 0122, 0125 und 0131 bleiben grün.
+
+**Was bewusst nicht gemacht wurde:**
+- Ein Mix-Anteil ohne Charge geht weiter nach dem Eingang auf die Chargen seiner
+  Sorte (0114). Ob eine Charge bevorzugt war, weiss die App nicht. Das
+  verschiebt nur innerhalb einer Sorte und wird erst gerechnet, wenn der Betrieb
+  es sagt.
+- Tiana, Amoro und Ker Madec sind nicht im Rezept, und der Mix ist in dieser
+  Saison 4.2 t (58 Positionen „Bio Kürbis Mix OS"). Ihre Lücken erklärt der Mix
+  nicht.
+- Die Daten werden nicht in der Migration geändert, sondern im Rechenlauf, mit
+  derselben Regel, die künftig gilt.
+
 ## Runde BK, Schritt 5: Demeter darf als Knospe verkauft werden (9. November, 0140)
 
 Der Betrieb zum Fall „Demeter und Knospe in einer Position": „Demeter darf als

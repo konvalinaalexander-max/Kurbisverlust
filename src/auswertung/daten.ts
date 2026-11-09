@@ -382,6 +382,7 @@ export interface LieferungOhneCharge {
   grund: OhneChargeGrund; satz: string; tun: string
 }
 export type OhneChargeGrund = 'von_hand' | 'ohne_zeile' | 'nachholen' | 'mehrdeutig' | 'unbekannt' | 'keine_nummer' | 'menge_null' | 'rest'
+  | 'mix'   // 0141: Anteil einer anderen Sorte aus einem Mix, nach Rezept ohne Charge — so verteilt
 
 /** Was zwischen Perigon, Erntejournal und Lager nicht zusammenpasst (v_ungereimtheit, 0121; 0122: nachgeordnet, stammdaten). */
 export interface UngereimtZeile {
