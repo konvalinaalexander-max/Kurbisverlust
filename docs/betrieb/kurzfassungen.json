@@ -78,12 +78,12 @@
     },
     {
       "id": 19,
-      "kurz": "Hagelschaden, für Ünique gewaschen; Kiste: 1 Kabocha, 1 Butternuss, Rest Knirps bis 10 kg",
-      "warum": "Runde BK, 9.11.: Waschen + Sortieren, Charge 1598 Kaori Kuri (Hagel eingetragen), Arbeit 1671 — passt. Der Satz nennt, woraus eine Ünique-Kiste besteht: das ist auch ein Befund für die Rechnung des Ünique-Topfs (Butternuss und Kabocha gehen mit hinaus)."
+      "kurz": "Hagelschaden, für Ünique gewaschen",
+      "warum": "Runde BK, 9.11.: Waschen + Sortieren, Charge 1598 Kaori Kuri (Hagel eingetragen), Arbeit 1671 — passt. Die Halle nennt dazu, was in die Kiste kam (1 Kabocha, 1 Butternuss, Rest Knirps bis 10 kg): alles Ware des Ünique-Topfs, an der Rechnung ändert es nichts."
     },
     {
       "id": 20,
-      "kurz": "Hagelschaden; Ünique-Kiste: 1 Butternuss, 1 Kabocha, Rest Knirps bis 10 kg",
+      "kurz": "Hagelschaden, für Ünique",
       "warum": "Runde BK, 9.11.: Waschen + Sortieren, Charge 1598 Kaori Kuri (Hagel eingetragen), Arbeit 1680 — wie Nr. 19."
     },
     {
@@ -99,7 +99,7 @@
     {
       "id": 23,
       "kurz": "Viele mit abgebrochenem Stiel, für Ünique beiseitegelegt",
-      "warum": "Runde BK, 9.11.: Waschen, Charge 1719 Kaori Kuri (ohne Hagel), Arbeit 1684 — Charge und Arbeit passen. Ware einer Charge ohne Hagel geht hier zum Ünique: sie steht dann nicht mehr bei 1719, die App zieht sie aber vom Topf der Hagel-Chargen ab."
+      "warum": "Runde BK, 9.11.: Waschen, Charge 1719 Kaori Kuri (ohne Hagel), Arbeit 1684 — Charge und Arbeit passen; so hat es die Halle gesagt."
     },
     {
       "id": 24,
