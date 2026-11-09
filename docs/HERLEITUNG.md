@@ -354,9 +354,20 @@ verschenkt) ÷ verkaufsfähiger Anteil.
 **In der Halle (0136):** `halle_kg` = liegend + aussortiert; aussortiert =
 Σ (zu klein + zu gross) der Lieferzeilen × m0 ÷ m1 (auf den Eingang
 zurückgerechnet, leer ohne gemessenes zu klein / zu gross, 0 bei leer
-bestätigter Charge); Paletten = kg ÷ mittlere Eingangspalette der Charge
-(`n_halle_paletten`, `n_aussortiert_paletten`; je Eingangstag
-`v_am_lager.halle_paletten`).
+bestätigter Charge) — **seit 0138 weniger die Überzählung, nie unter 0**: ist
+die Charge überzogen, kam ein Teil der Lieferungen von anderswo, und deren
+Aussortiertes steht nicht hier; je Eingangstag im Verhältnis (zurückgerechnet
+− Überzählung) ÷ zurückgerechnet der Charge. Paletten = kg ÷ mittlere
+Eingangspalette der Charge (`n_halle_paletten`, `n_aussortiert_paletten`; je
+Eingangstag `v_am_lager.halle_paletten`).
+**Am Lager leer bestätigt (0138):** `leer_weg_kg` = Eingang + Überzählung −
+geliefert − verschenkt − Verlust bis heute − im Haus, bei einer leer
+bestätigten Charge (sonst 0; leer, wenn ein Verlust nicht gemessen ist) — was
+mehr weg ist, als die Raten erklären. Ein eigener Posten in Wohin und in der
+Saisonbilanz, deren Rest damit null bleibt.
+**Lieferscheine ohne Charge (seit 0138):** nach dem Eingang auf die Chargen
+ihrer Sorte, aber nicht auf eine Hagel-Charge, solange die Sorte eine ohne
+Hagel hat (`v_lieferung_charge`).
 **Rechnung:** ausgelagert = (geliefert + verschenkt) ÷ verkaufsfähiger Anteil; liegend
 (`lager_kg`) = Eingang − ausgelagert; auf beide dieselbe Kaskade Verdunstung → Faules
 (Stationswerte, Abschnitt 7) → zu klein/zu gross → Fax — seit 0106 ohne

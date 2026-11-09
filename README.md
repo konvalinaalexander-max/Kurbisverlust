@@ -798,6 +798,15 @@ ohne Perigon-Zeile als eigener Teil); jede PL/pgSQL-Funktion hat einen
 festen Suchpfad; die Perigon-Liste läuft nur einmal (AB-174 bis AB-176). Dazu die
 Halle: Faules ohne Ablesung ist „unbekannt", Fehler werden gezeigt. **Setup.sql
 einmal einspielen (Stand 124), dann „Neu rechnen".**
+**Runde BK, Schritt 3 (0138)** — **Was hereinkam, ist weg oder steht da.**
+Eine überzogene Charge (mehr geliefert, als hereinkam) zeigt in der Halle kein
+Aussortiertes mehr, das nicht von ihr sein kann (AB-215); der Reiter sagt
+„bräuchte … kg". Lieferscheine ohne Charge gehen nicht mehr auf
+Hagel-Chargen — der Ünique-Topf und seine Chargen sagen dasselbe (AB-216).
+Eine am Lager leer bestätigte Charge lässt in Wohin und der Saisonbilanz
+keinen Rest: was mehr weg ist, als die Raten erklären, ist ein eigener Posten
+(AB-217); die Karte „Geht die Rechnung auf?" zeigt dazu das Verschenkte.
+**Setup.sql einmal einspielen (Stand 138), dann „Neu rechnen".**
 **Runde BK, Schritt 2 (0137)** — **Ünique ist ein eigener Artikel.** Unter
 Lagermanagement nach Artikel ist Ünique eine eigene Zeile und ein eigener
 Balken: alle Chargen mit Hagel zusammen, mit Eingang, ausgeliefert, Lager und

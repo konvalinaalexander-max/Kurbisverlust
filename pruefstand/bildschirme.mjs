@@ -1025,6 +1025,20 @@ const BILDSCHIRME = [
       await p.locator('.erklaer-liste li', { hasText: 'verschenkt' }).first().waitFor()
       await teil.scrollIntoViewIfNeeded()
     } },
+  // Runde BK (0138): „Warum zeigt es dann an, dass noch was da ist?" — eine überzogene Charge (mehr geliefert, als die
+  // Raten hergeben) hat nichts mehr in der Halle, und unter dem Ausgelieferten steht „bräuchte … kg", nicht „aus … Eingang".
+  { name: 'chargen-ueberzogen', wer: 'admin', pfad: '/chargen',
+    tun: async p => {
+      const hagel = new Set((fixture('v_unique_topf')?.[0]?.chargen ?? []).map(Number))
+      const c = (fixture('erg_charge') ?? []).find(x => Number(x.ueberzaehlung_kg) > 0.5 && Number(x.n_lieferungen) > 0 && !hagel.has(Number(x.charge_nr)))
+      if (!c) throw new Error('erg_charge.json kennt keine überzogene Charge ohne Hagel — daten_dumpen.sh nach 0138 laufen lassen')
+      if (Number(c.halle_kg) !== 0 || Number(c.aussortiert_kg) !== 0) throw new Error(`Charge ${c.charge_nr} ist überzogen und hat noch ${c.halle_kg} kg in der Halle`)
+      const zelle = p.locator(`#ueberzogen-${c.charge_nr}`)
+      await zelle.waitFor()
+      const text = await zelle.innerText()
+      if (!/^bräuchte \S+ kg$/.test(text.trim())) throw new Error(`Charge ${c.charge_nr} sagt nicht „bräuchte … kg": ${text}`)
+      await zelle.scrollIntoViewIfNeeded()
+    } },
   // Runde BJ (0134): eine am Lager leer bestätigte Charge — kein Lager, der echte Verlust gegen die Raten, ein Lieferschein danach.
   { name: 'chargen-leer', wer: 'admin', pfad: '/chargen?charge=99134', vorher: leerVormerken,
     tun: async p => {

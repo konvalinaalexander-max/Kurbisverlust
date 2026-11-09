@@ -9246,7 +9246,11 @@ begin
     union all
     select t.id, r.charge_nr, true from t114_lief t
       join v_charge_rueckgrat r on r.sorte = t.sorte and r.eingang_netto_kg > 0
-     where t.charge_nr is null;
+     where t.charge_nr is null
+       -- 9. November (0138): nicht auf eine Hagel-Charge, solange die Sorte eine Charge ohne Hagel hat
+       and (coalesce((select c0.hagel_anteil from charge c0 where c0.nr = r.charge_nr), 0) = 0
+            or not exists (select 1 from v_charge_rueckgrat r2 join charge c2 on c2.nr = r2.charge_nr
+                            where r2.sorte = t.sorte and r2.eingang_netto_kg > 0 and coalesce(c2.hagel_anteil, 0) = 0));
 
   -- (a) Die Regel aus 0071, ausgeschrieben, gegen die neue Sicht
   select count(*) into v_ab from (
@@ -9260,7 +9264,12 @@ begin
                 union all
                 select r.charge_nr, r.eingang_netto_kg / sum(r.eingang_netto_kg) over ()
                   from v_charge_rueckgrat r
-                 where l.charge_nr is null and r.sorte = l.sorte and r.eingang_netto_kg > 0) c
+                 where l.charge_nr is null and r.sorte = l.sorte and r.eingang_netto_kg > 0
+                   -- 9. November (0138): die Regel hat sich geändert, die Prüfung mit ihr — nicht auf eine Hagel-Charge,
+                   -- solange die Sorte eine Charge ohne Hagel hat (Hagelware geht nur über den Ünique-Topf)
+                   and (coalesce((select c0.hagel_anteil from charge c0 where c0.nr = r.charge_nr), 0) = 0
+                        or not exists (select 1 from v_charge_rueckgrat r2 join charge c2 on c2.nr = r2.charge_nr
+                                        where r2.sorte = l.sorte and r2.eingang_netto_kg > 0 and coalesce(c2.hagel_anteil, 0) = 0))) c
               where l.masse_kg is not null and l.masse_kg > 0
                 and l.buch in ('verkauf', 'marge', 'verlust') and l.datum <= heute()
              union all
@@ -9279,7 +9288,12 @@ begin
                 union all
                 select r.charge_nr, r.eingang_netto_kg / sum(r.eingang_netto_kg) over ()
                   from v_charge_rueckgrat r
-                 where l.charge_nr is null and r.sorte = l.sorte and r.eingang_netto_kg > 0) c
+                 where l.charge_nr is null and r.sorte = l.sorte and r.eingang_netto_kg > 0
+                   -- 9. November (0138): die Regel hat sich geändert, die Prüfung mit ihr — nicht auf eine Hagel-Charge,
+                   -- solange die Sorte eine Charge ohne Hagel hat (Hagelware geht nur über den Ünique-Topf)
+                   and (coalesce((select c0.hagel_anteil from charge c0 where c0.nr = r.charge_nr), 0) = 0
+                        or not exists (select 1 from v_charge_rueckgrat r2 join charge c2 on c2.nr = r2.charge_nr
+                                        where r2.sorte = l.sorte and r2.eingang_netto_kg > 0 and coalesce(c2.hagel_anteil, 0) = 0))) c
               where l.masse_kg is not null and l.masse_kg > 0
                 and l.buch in ('verkauf', 'marge', 'verlust') and l.datum <= heute()
              union all
@@ -13672,7 +13686,7 @@ select '——— 0135 Was der Zettel sagt ———' as ergebnis;
 -- =====================================================================
 do $$
 declare v_modus jsonb; v_lad text; v_geladen boolean := false; v_n int; v_x numeric; v_y numeric; v_txt text;
-  v_q int := 99361; v_q2 int := 99362; v_c int; v_s text; v_s2 text; v_zc numeric; v_zs numeric; v_vorher numeric;
+  v_q int := 99361; v_q2 int := 99362; v_q3 int := 99363; v_c int; v_s text; v_s2 text; v_zc numeric; v_zs numeric; v_vorher numeric;
   v_d0 date := heute() - 30; v_l bigint; v_z bigint; v_l_c bigint; v_pal numeric;
   v_u uuid := '00000000-0136-0000-0000-000000000001';
 begin
@@ -13702,11 +13716,12 @@ begin
 
   -- Q: Eingang 3 Paletten (36 Kisten G2), drei Lieferungen über Perigon: 10 Kisten ab 8 kg, eine Stück-Kiste, eine ohne Kistensystem
   insert into charge (nr, schlag, sorte, saison) values (v_q, 'Prüf-0136', v_s, extract(year from heute())::int),
-                                                       (v_q2, 'Prüf-0136 Ü', v_s, extract(year from heute())::int);
+                                                       (v_q2, 'Prüf-0136 Ü', v_s, extract(year from heute())::int),
+                                                       (v_q3, 'Prüf-0136 leer', v_s, extract(year from heute())::int);
   insert into palette (charge_nr, eingangsdatum, brutto_kg, kisten, gebindeart, extern_id, quelle)
   select v_q, v_d0, 480, 36, 'G2', format('pruef-0136-%s', i), 'journal-import' from generate_series(1, 3) i;
   insert into palette (charge_nr, eingangsdatum, brutto_kg, kisten, gebindeart, extern_id, quelle)
-  values (v_q2, v_d0, 480, 36, 'G2', 'pruef-0136-ue', 'journal-import');
+  values (v_q2, v_d0, 480, 36, 'G2', 'pruef-0136-ue', 'journal-import'), (v_q3, v_d0, 480, 36, 'G2', 'pruef-0136-leer', 'journal-import');
   insert into ausgang_quelle (code, name, dateiname_muster) values ('PRUEF136', 'Prüf-0136', 'PRUEF136');
   -- (1) Kisten ab 8 kg
   insert into ausgang_zeile (quelle, pos_id, charge_extern, lauf_nr, fingerabdruck, datum, journal, kunde, artikel_id, artikel, einheit,
@@ -13736,8 +13751,10 @@ begin
           80, 1, 80, 80, 80, 10, 8, 10) returning id into v_z;
   insert into lieferung (datum, charge_nr, sorte, kg, ziel, bemerkung) values (heute() - 5, v_c, v_s, 80, 'verkauf', 'PRUEF0136') returning id into v_l_c;
   insert into lieferung_import (lieferung_id, quelle, extern_id, zeile_id) values (v_l_c, 'PRUEF136', 'PRUEF136:13604:1', v_z);
-  -- Q2: mehr geliefert, als hereinkam (von Hand, ohne Perigon) — es liegt nichts mehr, aber Aussortiertes steht
+  -- Q2: mehr geliefert, als hereinkam (von Hand, ohne Perigon) — seit 0138 steht dann auch nichts Aussortiertes mehr
   insert into lieferung (datum, charge_nr, kg, ziel, bemerkung) values (heute() - 5, v_q2, 600, 'verkauf', 'PRUEF0136');
+  -- Q3 (seit 0138): liegt noch und hat Aussortiertes — für „leer bestätigt" (d3, d4), was bis dahin Q2 war
+  insert into lieferung (datum, charge_nr, kg, ziel, bemerkung) values (heute() - 5, v_q3, 100, 'verkauf', 'PRUEF0136');
 
   refresh materialized view erg_ueberfuellung;
 
@@ -13806,17 +13823,26 @@ begin
              and abs(a.aussortiert_kg - v_x) < 0.01 and a.liegt_kg > 0
             from v_am_lager a where a.charge_nr = v_q),
     format('0136 (d1): Q je Eingangstag: %s', (select row(a.*)::text from v_am_lager a where a.charge_nr = v_q));
-  assert (select a.liegt_kg = 0 and a.liegt_paletten = 0 and a.aussortiert_kg > 0 and a.halle_paletten > 0
-            from v_am_lager a where a.charge_nr = v_q2),
-    format('0136 (d2): Q2 (mehr geliefert als gekommen) liegt nicht mehr, aber das Aussortierte steht noch in der Halle: %s',
+  -- 9. November (0138): Bis hier verlangte (d2), dass Q2 — mehr geliefert, als hereinkam — nichts mehr liegen hat, aber
+  -- noch Aussortiertes in der Halle. Das war falsch (der Betrieb zu 1623: „Warum zeigt es dann an, dass noch was da
+  -- ist?"): ein Teil ihrer Lieferungen kam von anderswo, und deren Aussortiertes steht nicht hier. Seit 0138 zieht die
+  -- Halle die Überzählung vom Aussortierten ab; Q2 ist weit überzogen und hat nichts mehr in der Halle. Die Regel hat
+  -- sich geändert, die Prüfung mit ihr. Den Tag ohne Liegendes, aber mit Aussortiertem, prüft 0138 (a3).
+  assert not exists (select 1 from v_am_lager a where a.charge_nr = v_q2)
+     and (select sum((k.klein_kg + k.nebenkanal_kg) * k.m0 / nullif(k.m1, 0)) from mv_kaskade k where k.charge_nr = v_q2 and k.portion = 'ausgelagert') > 0,
+    format('0136 (d2): Q2 (mehr geliefert als gekommen) steht noch in der Halle, oder hatte nichts Aussortiertes: %s',
            coalesce((select row(a.*)::text from v_am_lager a where a.charge_nr = v_q2), 'keine Zeile'));
-  update charge set leer_am = heute() where nr = v_q2;
-  assert not exists (select 1 from v_am_lager a where a.charge_nr = v_q2),
-    '0136 (d3): eine leer bestätigte Charge hat noch etwas in der Halle (je Eingangstag)';
+  -- (d3, d4) seit 0138 an Q3, die liegt und Aussortiertes hat — Q2 hätte ohnehin nichts mehr in der Halle
+  assert exists (select 1 from v_am_lager a where a.charge_nr = v_q3 and a.liegt_kg > 0 and a.aussortiert_kg > 0),
+    '0136 (d3): Q3 liegt nicht oder hat nichts Aussortiertes — (d3) prüfte nichts';
+  -- Q3 liegt noch: erst die Rechnung setzt ihr Liegendes auf 0 (Q2 lag schon nicht mehr)
+  update charge set leer_am = heute() where nr = v_q3;
   perform auswertung_aktualisieren();
-  assert (select c.aussortiert_kg = 0 and c.halle_kg = 0 and c.n_halle_paletten = 0 from erg_charge c where c.charge_nr = v_q2),
+  assert not exists (select 1 from v_am_lager a where a.charge_nr = v_q3),
+    '0136 (d3): eine leer bestätigte Charge hat noch etwas in der Halle (je Eingangstag)';
+  assert (select c.aussortiert_kg = 0 and c.halle_kg = 0 and c.n_halle_paletten = 0 from erg_charge c where c.charge_nr = v_q3),
     format('0136 (d4): eine leer bestätigte Charge hat noch etwas in der Halle: %s',
-           (select row(c.lager_kg, c.aussortiert_kg, c.halle_kg, c.n_halle_paletten)::text from erg_charge c where c.charge_nr = v_q2));
+           (select row(c.lager_kg, c.aussortiert_kg, c.halle_kg, c.n_halle_paletten)::text from erg_charge c where c.charge_nr = v_q3));
 
   -- (e) der Bedarf mit der Spanne zählt das Verschenkte
   select sum((k.geliefert_kg + k.verschenkt_kg)::double precision / greatest(power(1::double precision - least(greatest(coalesce(kv.unten, kv.mittel::double precision, 0), 0), 0.05), k.alter_tage::double precision)
@@ -13855,8 +13881,8 @@ begin
   delete from lieferung where bemerkung = 'PRUEF0136';
   delete from ausgang_zeile where quelle = 'PRUEF136';
   delete from ausgang_quelle where code = 'PRUEF136';
-  delete from palette where charge_nr in (v_q, v_q2);
-  delete from charge where nr in (v_q, v_q2);
+  delete from palette where charge_nr in (v_q, v_q2, v_q3);
+  delete from charge where nr in (v_q, v_q2, v_q3);
   refresh materialized view erg_ueberfuellung;
   if v_geladen then perform demo_daten_entfernen(); else perform auswertung_aktualisieren(); end if;
   delete from profil where id = v_u; delete from auth.users where id = v_u;
@@ -13975,3 +14001,200 @@ begin
 end $$;
 
 select '——— 0137 Ünique ist ein eigener Artikel ———' as ergebnis;
+-- =====================================================================
+-- 0138 — Was hereinkam, ist weg oder steht da
+--
+-- Der Betrieb am 9. November, zu 1623 (mehr geliefert, als hereinkam, und
+-- doch „≈ 1 Palette"): „Warum zeigt es dann an, dass noch was da ist?" —
+-- „Überleg dir generell, wo überall wohl Ungereimtheiten sind."
+-- Geprüft auf der Demo und an gebauten Chargen:
+-- (a) in der Halle: aussortiert = zurückgerechnet − Überzählung, nie unter 0,
+--     bei jeder Charge nachgerechnet; eine weit überzogene Charge hat nichts
+--     mehr in der Halle (auch je Eingangstag nicht), eine knapp überzogene
+--     den Rest; je Eingangstag zusammen dasselbe wie die Charge;
+-- (b) ein Lieferschein ohne Charge geht nicht auf eine Hagel-Charge, solange
+--     die Sorte eine Charge ohne Hagel hat — sonst doch (er geht nie
+--     verloren); die Anteile ergeben 1;
+-- (c) der Ünique-Topf hat geliefert, was seine Chargen zusammen geliefert
+--     haben; Ünique ohne Charge ist kein „unter Charge ohne Hagel", Ünique
+--     unter einer Charge ohne Hagel schon;
+-- (e) eine am Lager leer bestätigte Charge: was mehr weg ist, als die Raten
+--     erklären, ist ein eigener Posten (leer_weg_kg) — Wohin und die
+--     Saisonbilanz lassen keinen Rest, der Befund nennt ihn; andere Chargen 0;
+-- (d) Stand 138.
+-- =====================================================================
+do $$
+declare v_modus jsonb; v_lad text; v_geladen boolean := false; v_n int; v_x numeric; v_s text;
+  v_r1 int := 99381; v_r2 int := 99382; v_r3 int := 99383; v_d0 date := heute() - 30;
+  v_m0 numeric; v_a numeric; v_e numeric; v_ut numeric; v_d1 numeric; v_k record;
+  v_hs text; v_os text; v_oc int; v_l bigint; v_z bigint; v_vorher int;
+  v_u uuid := '00000000-0138-0000-0000-000000000001';
+begin
+  select wert into v_modus from einstellung where schluessel = 'betriebsmodus';
+  update einstellung set wert = '"beispiel"'::jsonb where schluessel = 'betriebsmodus';
+  insert into auth.users (id, email, raw_user_meta_data) values (v_u, null, '{"name":"Prüf-0138"}');
+  update profil set rolle = 'admin' where id = v_u;
+  perform set_config('request.jwt.claim.sub', v_u::text, true);
+  if not exists (select 1 from auftrag where station = 'waschen_sortieren' and bemerkung = 'DEMO') then
+    select demo_daten_laden() into v_lad; v_geladen := true;
+  end if;
+  perform auswertung_aktualisieren();
+
+  -- (c1) der Topf und seine Chargen — auf der Demo, deren Lieferscheine ohne Charge auch eine Sorte mit Hagel treffen
+  assert exists (select 1 from lieferung l where l.charge_nr is null and l.datum <= heute()
+                   and l.sorte in (select c.sorte from charge c where c.hagel_anteil > 0)
+                   and l.sorte in (select c.sorte from charge c where coalesce(c.hagel_anteil, 0) = 0)),
+    '0138 (c0): kein Lieferschein ohne Charge in einer Sorte mit Hagel — (c1) prüfte nichts';
+  assert (select abs(t.geliefert_kg - (select sum(c.geliefert_kg) from erg_charge c
+                                        where c.charge_nr in (select nr from charge where hagel_anteil > 0))) < 0.05
+            from v_unique_topf t),
+    format('0138 (c1): der Ünique-Topf hat %s kg geliefert, seine Chargen zusammen %s kg — ein Lieferschein ohne Charge ging auf eine Hagel-Charge',
+           (select geliefert_kg from v_unique_topf),
+           (select sum(c.geliefert_kg) from erg_charge c where c.charge_nr in (select nr from charge where hagel_anteil > 0)));
+
+  -- Zwei gebaute Chargen einer Sorte mit gemessenem zu klein / zu gross: R1 weit überzogen, R2 knapp
+  select k.sorte into v_s
+    from mv_kaskade k join charge c on c.nr = k.charge_nr
+   where coalesce(c.hagel_anteil, 0) = 0 and k.a_klein_bekannt and k.a_gross_bekannt
+   group by k.sorte having sum(k.klein_kg + k.nebenkanal_kg) > 0
+   order by sum(k.klein_kg + k.nebenkanal_kg) desc, k.sorte limit 1;
+  assert v_s is not null, '0138 (a0): keine Sorte mit gemessenem zu klein oder zu gross — (a) prüfte nichts';
+  insert into charge (nr, schlag, sorte, saison) values (v_r1, 'Prüf-0138 weit', v_s, extract(year from heute())::int),
+                                                       (v_r2, 'Prüf-0138 knapp', v_s, extract(year from heute())::int),
+                                                       (v_r3, 'Prüf-0138 leer', v_s, extract(year from heute())::int);
+  insert into palette (charge_nr, eingangsdatum, brutto_kg, kisten, gebindeart, extern_id, quelle)
+  values (v_r1, v_d0, 480, 36, 'G2', 'pruef-0138-1', 'journal-import'), (v_r2, v_d0, 480, 36, 'G2', 'pruef-0138-2', 'journal-import'),
+         (v_r3, v_d0, 480, 36, 'G2', 'pruef-0138-3', 'journal-import');
+  insert into lieferung (datum, charge_nr, sorte, kg, ziel, bemerkung)
+  values (heute() - 5, v_r1, v_s, 900, 'verkauf', 'PRUEF0138'), (heute() - 5, v_r2, v_s, 150, 'verkauf', 'PRUEF0138'),
+         (heute() - 5, v_r3, v_s, 100, 'verkauf', 'PRUEF0138');
+  perform auswertung_aktualisieren();
+  -- R3 ist am Lager leer bestätigt: geliefert sind 100 kg aus einer Palette, der Rest ist weg
+  update charge set leer_am = heute() where nr = v_r3;
+  -- R2 so nachliefern, dass sie knapp überzogen ist: Überzählung etwa halb so gross wie das Aussortierte
+  select sum(k.m0), sum((k.klein_kg + k.nebenkanal_kg) * k.m0 / nullif(k.m1, 0)) into v_m0, v_a
+    from mv_kaskade k where k.charge_nr = v_r2 and k.portion = 'ausgelagert';
+  select eingang_kg into v_e from erg_charge where charge_nr = v_r2;
+  v_ut := 0.5 * (v_a / v_m0) * v_e;
+  v_d1 := (v_e + v_ut) / (v_m0 / 150) - 150;
+  insert into lieferung (datum, charge_nr, sorte, kg, ziel, bemerkung) values (heute() - 5, v_r2, v_s, round(v_d1, 2), 'verkauf', 'PRUEF0138');
+  perform auswertung_aktualisieren();
+
+  -- (a1) bei jeder Charge: aussortiert = zurückgerechnet − Überzählung, nie unter 0; in der Halle = liegend + aussortiert
+  select count(*) filter (where abs(c.aussortiert_kg - greatest(k.a - k.u, 0)) > 0.02
+                             or abs(c.halle_kg - c.lager_kg - c.aussortiert_kg) > 0.02),
+         count(*) filter (where k.u > 0 and k.a > 0)
+    into v_n, v_x
+    from erg_charge c
+    join (select charge_nr,
+                 coalesce(sum((klein_kg + nebenkanal_kg) * m0 / nullif(m1, 0)) filter (where portion = 'ausgelagert'), 0) as a,
+                 coalesce(sum(ueberzaehlung_kg), 0) as u
+            from mv_kaskade group by charge_nr having bool_and(a_klein_bekannt and a_gross_bekannt)) k using (charge_nr)
+   where c.charge_nr not in (select nr from charge where leer_am is not null and leer_am <= heute());
+  assert v_x >= 2, format('0138 (a1): nur %s überzogene Chargen mit Aussortiertem — die Prüfung wäre blind', v_x);
+  assert v_n = 0, format('0138 (a1): bei %s Chargen ist das Aussortierte in der Halle nicht zurückgerechnet − Überzählung', v_n);
+  -- (a2) R1, weit überzogen: nichts in der Halle, auch je Eingangstag nicht
+  select c.lager_kg, c.aussortiert_kg, c.halle_kg, c.n_halle_paletten, c.ueberzaehlung_kg,
+         (select sum((klein_kg + nebenkanal_kg) * m0 / nullif(m1, 0)) from mv_kaskade where charge_nr = v_r1 and portion = 'ausgelagert') as a
+    into v_k from erg_charge c where c.charge_nr = v_r1;
+  assert v_k.a > 0 and v_k.ueberzaehlung_kg > v_k.a,
+    format('0138 (a0): R1 ist nicht weit überzogen: %s', v_k);
+  assert v_k.lager_kg = 0 and v_k.aussortiert_kg = 0 and v_k.halle_kg = 0 and v_k.n_halle_paletten = 0,
+    format('0138 (a2): R1 (900 kg geliefert aus einer Palette) hat noch etwas in der Halle: %s', v_k);
+  assert not exists (select 1 from v_am_lager where charge_nr = v_r1),
+    format('0138 (a2): R1 steht je Eingangstag noch in der Halle: %s', (select row(a.*)::text from v_am_lager a where a.charge_nr = v_r1));
+  -- (a3) R2, knapp überzogen: der Rest des Aussortierten, je Charge und je Eingangstag
+  select c.lager_kg, c.aussortiert_kg, c.halle_kg, c.n_halle_paletten, c.ueberzaehlung_kg, c.eingang_kg / c.n_paletten as pal,
+         (select sum((klein_kg + nebenkanal_kg) * m0 / nullif(m1, 0)) from mv_kaskade where charge_nr = v_r2 and portion = 'ausgelagert') as a
+    into v_k from erg_charge c where c.charge_nr = v_r2;
+  assert v_k.ueberzaehlung_kg > 0 and v_k.ueberzaehlung_kg < v_k.a,
+    format('0138 (a0): R2 ist nicht knapp überzogen (Überzählung zwischen 0 und dem Aussortierten): %s', v_k);
+  assert v_k.lager_kg = 0 and abs(v_k.aussortiert_kg - (v_k.a - v_k.ueberzaehlung_kg)) < 0.02 and abs(v_k.halle_kg - v_k.aussortiert_kg) < 0.02
+     and v_k.n_halle_paletten = round(v_k.halle_kg / v_k.pal),
+    format('0138 (a3): R2 hat in der Halle nicht den Rest des Aussortierten: %s', v_k);
+  assert (select abs(a.aussortiert_kg - (v_k.a - v_k.ueberzaehlung_kg)) < 0.02 and a.liegt_kg = 0
+            from v_am_lager a where a.charge_nr = v_r2),
+    format('0138 (a3): R2 je Eingangstag: %s', coalesce((select row(a.*)::text from v_am_lager a where a.charge_nr = v_r2), 'keine Zeile'));
+  -- (a4) je Eingangstag zusammen dasselbe wie die Charge
+  select count(*) into v_n
+    from erg_charge c left join (select charge_nr, sum(halle_kg) as h, sum(aussortiert_kg) as a from v_am_lager group by charge_nr) t using (charge_nr)
+   where c.charge_nr not in (select nr from charge where leer_am is not null and leer_am <= heute())
+     and (abs(coalesce(t.h, 0) - c.halle_kg) > 0.05 or abs(coalesce(t.a, 0) - coalesce(c.aussortiert_kg, 0)) > 0.05)
+     and c.aussortiert_kg is not null;
+  assert v_n = 0, format('0138 (a4): bei %s Chargen ergeben die Eingangstage nicht, was die Charge in der Halle hat', v_n);
+
+  -- (e1) leer bestätigt: ein eigener Posten, nachgerechnet; bei jeder anderen Charge 0
+  select c.leer_weg_kg, c.eingang_kg + c.ueberzaehlung_kg - c.geliefert_kg - c.verschenkt_kg - c.verlust_heute_kg - c.im_haus_heute_kg as soll
+    into v_k from erg_charge c where c.charge_nr = v_r3;
+  assert v_k.soll > 100 and abs(v_k.leer_weg_kg - v_k.soll) < 0.02,
+    format('0138 (e1): R3 (leer bestätigt) trägt nicht, was mehr weg ist, als die Raten erklären: %s', v_k);
+  assert not exists (select 1 from erg_charge c where c.leer_weg_kg <> 0
+                       and c.charge_nr not in (select nr from charge where leer_am is not null and leer_am <= heute())),
+    '0138 (e1): eine Charge, die nicht leer bestätigt ist, hat einen Posten „leer"';
+  -- (e2) Wohin lässt keinen Rest, auch nicht bei R3 und nicht im Ganzen
+  assert (select abs(w.rest_kg) < 0.05 and abs(w.leer_weg_kg - v_k.leer_weg_kg) < 0.02 from erg_wohin w where w.gruppe = 'charge' and w.schluessel = v_r3::text)
+     and (select max(abs(w.rest_kg)) < 0.1 from erg_wohin w),
+    format('0138 (e2): Wohin lässt bei der leeren Charge einen Rest: %s',
+           (select row(w.rest_kg, w.leer_weg_kg)::text from erg_wohin w where w.gruppe = 'charge' and w.schluessel = v_r3::text));
+  -- (e3) die Saisonbilanz geht auf und nennt den Posten
+  assert (select abs(b.bilanz_rest_kg) < 0.1 and b.leer_weg_kg >= v_k.leer_weg_kg - 0.02 and b.befund like '%leer bestätigt%mehr weg%' from v_saisonbilanz b),
+    format('0138 (e3): die Saisonbilanz geht mit der leeren Charge nicht auf oder sagt es nicht: %s',
+           (select row(b.bilanz_rest_kg, b.leer_weg_kg, right(b.befund, 300))::text from v_saisonbilanz b));
+
+  -- (b1) ein Lieferschein ohne Charge in einer Sorte mit Hagel: nur auf die Chargen ohne Hagel
+  select c.sorte into v_hs from charge c where c.hagel_anteil > 0
+     and exists (select 1 from v_charge_rueckgrat r join charge c2 on c2.nr = r.charge_nr
+                  where r.sorte = c.sorte and r.eingang_netto_kg > 0 and coalesce(c2.hagel_anteil, 0) = 0)
+   order by c.nr limit 1;
+  assert v_hs is not null, '0138 (b0): keine Sorte mit Hagel- und anderen Chargen — (b1) prüfte nichts';
+  insert into lieferung (datum, charge_nr, sorte, kg, ziel, bemerkung) values (heute() - 3, null, v_hs, 500, 'verkauf', 'PRUEF0138') returning id into v_l;
+  assert (select count(*) > 0 and abs(sum(anteil) - 1) < 1e-9
+                 and not bool_or(charge_nr in (select nr from charge where hagel_anteil > 0))
+            from v_lieferung_charge where id = v_l),
+    format('0138 (b1): ein Lieferschein ohne Charge (%s) ging auf eine Hagel-Charge, oder die Anteile ergeben nicht 1: %s', v_hs,
+           (select string_agg(charge_nr || ':' || round(anteil, 4), ', ') from v_lieferung_charge where id = v_l));
+  -- (b2) eine Sorte nur mit Hagel: dann doch auf die Hagel-Charge — der Lieferschein geht nicht verloren
+  select r.sorte, min(r.charge_nr) into v_os, v_oc from v_charge_rueckgrat r
+   where r.eingang_netto_kg > 0 group by r.sorte having count(*) = 1 order by r.sorte limit 1;
+  assert v_os is not null, '0138 (b0): keine Sorte mit nur einer Charge — (b2) prüfte nichts';
+  update charge set hagel_anteil = 0.5 where nr = v_oc and hagel_anteil is null;
+  insert into lieferung (datum, charge_nr, sorte, kg, ziel, bemerkung) values (heute() - 3, null, v_os, 200, 'verkauf', 'PRUEF0138') returning id into v_l;
+  assert (select count(*) = 1 and bool_and(charge_nr = v_oc and anteil = 1) from v_lieferung_charge where id = v_l),
+    format('0138 (b2): ein Lieferschein ohne Charge einer Sorte nur mit Hagel (%s) geht verloren oder nicht ganz auf die Charge: %s', v_os,
+           coalesce((select string_agg(charge_nr || ':' || anteil, ', ') from v_lieferung_charge where id = v_l), 'keine Zeile'));
+  update charge set hagel_anteil = null where nr = v_oc and hagel_anteil = 0.5;
+
+  -- (c2) Ünique ohne Charge ist kein „unter Charge ohne Hagel"; (c3) Ünique unter R1 (ohne Hagel) schon
+  select n_unique_unter_fremder_charge into v_vorher from v_unique_topf;
+  insert into ausgang_quelle (code, name, dateiname_muster) values ('PRUEF138', 'Prüf-0138', 'PRUEF138');
+  insert into ausgang_zeile (quelle, pos_id, charge_extern, lauf_nr, fingerabdruck, datum, journal, kunde, artikel_id, artikel, einheit,
+                             menge, gewicht_je_artikel, batch_menge, kg_position, kg_charge)
+  values ('PRUEF138', 13801, '', 1, 'p138-1', heute() - 2, 'A', 'Prüfkunde 138', 'kürbuni', 'Bio Kürbis Ünique', 'kg', 50, 1, 50, 50, 50)
+  returning id into v_z;
+  insert into lieferung (datum, charge_nr, sorte, kg, ziel, bemerkung) values (heute() - 2, null, v_hs, 50, 'verkauf', 'PRUEF0138') returning id into v_l;
+  insert into lieferung_import (lieferung_id, quelle, extern_id, zeile_id) values (v_l, 'PRUEF138', 'PRUEF138:13801:1', v_z);
+  assert exists (select 1 from v_topf_lieferung where id = v_l and unique_artikel),
+    '0138 (c0): die gebaute Ünique-Lieferung geht nicht in den Topf — (c2) prüfte nichts';
+  assert (select n_unique_unter_fremder_charge = v_vorher and coalesce(hinweis, '') not like '%(, %' from v_unique_topf),
+    format('0138 (c2): Ünique ohne Charge zählt als „unter Charge ohne Hagel": %s', (select row(n_unique_unter_fremder_charge, fremde_chargen, hinweis)::text from v_unique_topf));
+  update lieferung set charge_nr = v_r1 where id = v_l;
+  assert (select n_unique_unter_fremder_charge = v_vorher + 1 and position(v_r1::text in coalesce(fremde_chargen, '')) > 0 from v_unique_topf),
+    format('0138 (c3): Ünique unter einer Charge ohne Hagel zählt nicht mehr: %s', (select row(n_unique_unter_fremder_charge, fremde_chargen, hinweis)::text from v_unique_topf));
+
+  -- (d) Stand
+  assert schema_stand() >= 138, format('0138 (d1): schema_stand() = %s', schema_stand());
+
+  -- aufräumen
+  delete from lieferung_import where quelle = 'PRUEF138';
+  delete from lieferung where bemerkung = 'PRUEF0138';
+  delete from ausgang_zeile where quelle = 'PRUEF138';
+  delete from ausgang_quelle where code = 'PRUEF138';
+  delete from palette where charge_nr in (v_r1, v_r2, v_r3);
+  delete from charge where nr in (v_r1, v_r2, v_r3);
+  if v_geladen then perform demo_daten_entfernen(); else perform auswertung_aktualisieren(); end if;
+  delete from profil where id = v_u; delete from auth.users where id = v_u;
+  update einstellung set wert = v_modus where schluessel = 'betriebsmodus';
+  raise notice 'OK  0138 — was hereinkam, ist weg oder steht da: kein Aussortiertes einer überzogenen Charge, kein Lieferschein ohne Charge auf Hagelware, der Topf wie seine Chargen, die leere Charge als eigener Posten';
+end $$;
+
+select '——— 0138 Was hereinkam, ist weg oder steht da ———' as ergebnis;

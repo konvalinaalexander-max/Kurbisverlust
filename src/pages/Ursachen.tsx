@@ -173,13 +173,17 @@ const WOHIN_TEILE: { name: string; farbe: string; hinweis?: string; felder: (key
     hinweis: 'entwichenes Wasser, draussen wie drinnen', felder: ['verdunstet_ausgelagert_kg', 'lager_verdunstet_kg'] },
   { name: 'Palox und Faules bis heute', farbe: 'var(--strom-schimmel)',
     hinweis: 'im Palox aussortiert (Mängel und Faules) und beim Abpacken faul', felder: ['faul_ausgelagert_kg', 'lager_faul_kg', 'fax_kg', 'lager_fax_kg'] },
+  // 0138: eine am Lager leer bestätigte Charge — was mehr weg ist, als die Raten erklären, ein eigener Teil, kein Rest
+  { name: 'am Lager leer: mehr weg als gerechnet', farbe: 'color-mix(in srgb, var(--strom-schimmel) 45%, var(--flaeche))',
+    hinweis: 'bei Chargen, die am Lager leer bestätigt sind: weg, ohne Lieferschein und ohne dass die Raten es erklären', felder: ['leer_weg_kg'] },
 ]
-const VERLUST = new Set(['verdunstet bis heute', 'Palox und Faules bis heute'])
+const VERLUST = new Set(['verdunstet bis heute', 'Palox und Faules bis heute', 'am Lager leer: mehr weg als gerechnet'])
 
 function wohinZeile(w: Wohin | null, name: string, untertitel: string, ziel?: string): Anteilszeile & { verlust: number } {
   const teile = WOHIN_TEILE.map(t => ({
     name: t.name, farbe: t.farbe, hinweis: t.hinweis,
-    kg: t.felder.reduce((a, f) => a + ((w?.[f] as number | null) ?? 0), 0),
+    // 0138: weniger weg als gerechnet (negativ) hat im Balken keinen Platz — es steht im Befund der Bilanz
+    kg: Math.max(t.felder.reduce((a, f) => a + Number((w?.[f] as number | null) ?? 0), 0), 0),
   }))
   const rest = ((w?.rest_kg ?? 0) + (w?.lager_rest_kg ?? 0))
   if (Math.abs(rest) > 0.5) teile.push({ name: 'Rest der Zählung', farbe: 'var(--text-ganz-leise)', kg: Math.max(rest, 0), hinweis: 'was die Zerlegung nicht zuordnen konnte' })

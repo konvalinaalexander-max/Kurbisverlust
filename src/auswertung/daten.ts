@@ -103,6 +103,8 @@ export interface Bestand {
    *  zurückgerechnet; null, wenn nicht gemessen); verschenkt_kg: in den Kisten über dem Sollgewicht mitgegeben, hinausgegangen.
    *  Fehlen sie (alte Datenbank), bleibt die Zeile bei lager_kg und n_rest_paletten. */
   verschenkt_kg?: number | null; aussortiert_kg?: number | null; halle_kg?: number | null
+  /** 0138: am Lager leer bestätigt — was mehr weg ist, als die Raten erklären (sonst 0). */
+  leer_weg_kg?: number | null
   n_halle_paletten?: number | null; n_aussortiert_paletten?: number | null
   verlust_bekannt: boolean; verdunstung_bekannt: boolean; schimmel_bekannt: boolean
   fax_bekannt: boolean; kanal_bekannt: boolean
@@ -141,6 +143,8 @@ export interface Saisonbilanz {
   verlust_bekannt: boolean; verdunstung_bekannt: boolean; schimmel_bekannt: boolean
   fax_bekannt: boolean; kanal_bekannt: boolean
   bilanz_rest_kg: number | null; bilanz_rest_anteil: number | null; ausgang_deckung: number | null; befund: string
+  /** 0136: in den Kisten verschenkt; 0138: bei am Lager leer bestätigten Chargen mehr weg, als die Raten erklären. */
+  verschenkt_kg?: number | null; leer_weg_kg?: number | null
 }
 /** 0091: der Kommentar zur Ware einer Arbeit — geschrieben oder mitgeschrieben. */
 /** 0094: `text` ist die Kurzfassung (nur gelesene Kommentare kommen hier an), `roh` das Gesagte. */
@@ -509,6 +513,8 @@ export interface Wohin {
   rest_kg: number | null; lager_rest_kg: number | null; vollstaendig: boolean
   /** 0136: in den Kisten über dem Sollgewicht mitgegeben — hinausgegangen; rest_kg zählt es nicht mehr. */
   verschenkt_kg?: number | null
+  /** 0138: bei am Lager leer bestätigten Chargen, was mehr weg ist, als die Raten erklären (negativ: weniger). */
+  leer_weg_kg?: number | null
 }
 
 /**

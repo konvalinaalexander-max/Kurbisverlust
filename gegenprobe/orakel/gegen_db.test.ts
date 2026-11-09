@@ -526,9 +526,10 @@ test('K9 — v_wohin: der Eingang, vollständig aufgeteilt', { skip }, () => {
     const wo = `${r.gruppe}/${r.schluessel}`
     // Erste Identität: alles, was hereinkam, ist entweder draussen oder liegt.
     // 0136: das Verschenkte ist hinausgegangen — ein eigener Posten
+    // 0138: was bei einer am Lager leer bestätigten Charge mehr weg ist, als die Raten erklären — ein eigener Posten
     const rest = z(r, 'eingang_kg') + z(r, 'ueberzaehlung_kg') - z(r, 'geliefert_kg') - z(r, 'verschenkt_kg')
       - z(r, 'kanal_ausgelagert_kg') - z(r, 'verdunstet_ausgelagert_kg') - z(r, 'faul_ausgelagert_kg')
-      - z(r, 'fax_kg') - z(r, 'lager_kg')
+      - z(r, 'fax_kg') - z(r, 'lager_kg') - z(r, 'leer_weg_kg')
     if (Math.abs(rest - z(r, 'rest_kg')) > 0.02) schief.push(`${wo}: Rest ${z(r, 'rest_kg')} statt ${rest.toFixed(2)}`)
     // Die Kohorten-Anteile stehen auf sechs Stellen (v_kohorte_anteil): Über n Kohorten
     // kann ihre Summe um n · 5e-7 neben 1 liegen — bei 82.6 t in sechs Kohorten (Charge 1632,

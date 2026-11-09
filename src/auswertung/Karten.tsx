@@ -6,6 +6,7 @@ import { Bilanzzeile } from '../components/Kaskadenbild'
 import { SCHRITTE, type Fortschritt, type Problem, type Saisonbilanz, type Schimmelpunkt, type Zeitplan } from './daten'
 import { summeBekannt } from '../lib/masse'
 import { anforderungOffen, rechnetGerade } from '../lib/zeitplan'
+import { STROM_UEBERFUELLUNG } from './ausweis'
 
 /**
  * Kopfzeile eines Reiters: Name, der eine Satz, wozu er da ist; rechts der
@@ -162,6 +163,11 @@ export function Bilanz({ bilanz }: { bilanz: Saisonbilanz }) {
       <Bilanzzeile titel="Wareneingang" herkunft="gemessen" kg={bilanz.eingang_kg} eingang={bilanz.eingang_kg} farbe="var(--strom-nebenkanal)" erklaerung="Netto ab Zettel, Tara abgezogen" />
       <Bilanzzeile titel="Ausgeliefert" herkunft="gemessen" kg={bilanz.geliefert_kg} eingang={bilanz.eingang_kg} farbe="var(--strom-verkauft)"
                    erklaerung={bilanz.n_lieferungen === 0 ? 'noch keine Lieferung erfasst' : `${bilanz.n_lieferungen} Lieferungen ab Lieferschein${bilanz.marge_kg > 0 ? `, davon ${tonnen(bilanz.marge_kg)} an die Tiere oder in den Nebenkanal` : ''}${bilanz.vorlauf_kg > 0 ? `, dazu ${tonnen(bilanz.vorlauf_kg)} vor dem Erfassungsbeginn` : ''}`} />
+      {/* 0136 (nachgetragen mit 0138): das Verschenkte ist hinausgegangen — ohne die Zeile ginge die Karte nicht auf */}
+      {Number(bilanz.verschenkt_kg ?? 0) > 0.5 && (
+        <Bilanzzeile titel="In den Kisten verschenkt" herkunft="gerechnet" kg={Number(bilanz.verschenkt_kg)} eingang={bilanz.eingang_kg} farbe={STROM_UEBERFUELLUNG}
+                     erklaerung="über dem Sollgewicht mitgegeben (gewogen) — hinausgegangen, aber nicht verrechnet" />
+      )}
       {/* 0106: Die Datenbank summiert nur die Chargen mit Wert; ist eine ohne
           (eine Station ohne Stationswert, ein Koeffizient ohne Messung), sagt
           verlust_bekannt es — und die Karte zeigt keine Teilsumme als Ganzes. */}
@@ -171,12 +177,17 @@ export function Bilanz({ bilanz }: { bilanz: Saisonbilanz }) {
                      : `nicht für jede Charge bekannt — ein Koeffizient ohne Messung (welche Charge: Reiter Chargen; was zu messen ist: Messungen ausstehend). Nur die Chargen mit Wert: Verdunstung ${tonnen(bilanz.verdunstung_heute_kg)} · Palox ${tonnen(bilanz.schimmel_heute_kg)} · Faules beim Abpacken ${tonnen(bilanz.fax_heute_kg)}`} />
       <Bilanzzeile titel="Noch im Haus" herkunft="gerechnet" kg={bilanz.im_haus_heute_kg} eingang={bilanz.eingang_kg} farbe="var(--strom-verdunstung)"
                    erklaerung={`davon verkaufsfähig ${tonnen(bilanz.verkaufsfaehig_heute_kg)} · zu klein oder zu gross ${tonnen(kanalImHaus)}${kanalImHaus !== null ? ` (${tonnen(bilanz.kanal_ausgelagert_kg)} beim Sortieren hinter den Lieferungen aussortiert, ${tonnen(bilanz.kanal_im_haus_kg)} im Liegenden erwartet) — steht im Haus, bis ein Lieferschein es holt` : ''}`} />
+      {/* 0138: am Lager leer bestätigt — was mehr weg ist, als die Raten erklären, ein eigener Posten */}
+      {Number(bilanz.leer_weg_kg ?? 0) > 0.5 && (
+        <Bilanzzeile titel="Am Lager leer: mehr weg als gerechnet" herkunft="gerechnet" kg={Number(bilanz.leer_weg_kg)} eingang={bilanz.eingang_kg} farbe="var(--strom-schimmel)"
+                     erklaerung="Chargen, die am Lager leer bestätigt sind: weg, ohne Lieferschein und ohne dass Verdunstung und Palox es erklären" />
+      )}
       {bilanz.ueberzaehlung_kg > 0 && (
         <Bilanzzeile titel="Überzählung" herkunft="gemessen" kg={bilanz.ueberzaehlung_kg} eingang={bilanz.eingang_kg} farbe="var(--rot)" erklaerung="hinter den Lieferungen steckt mehr Ware, als je eingelagert wurde — meist fehlt Wareneingang" />
       )}
       <Hinweis art={bilanz.n_lieferungen === 0 ? 'warnung' : bilanz.ueberzaehlung_kg > 0.05 * bilanz.eingang_kg ? 'warnung' : 'gut'}>{lesbar(bilanz.befund)}</Hinweis>
       <Erklaerung titel="Warum die Rechnung von selbst aufgeht">
-        Eingang + Überzählung = ausgeliefert + Verlust bis heute + noch im Haus, bis {datum(bilanz.heute)}. Ausgeliefert ist nur, was auf einem Lieferschein
+        Eingang + Überzählung = ausgeliefert + verschenkt + Verlust bis heute + noch im Haus (+ was bei leer bestätigten Chargen mehr weg ist), bis {datum(bilanz.heute)}. Ausgeliefert ist nur, was auf einem Lieferschein
         steht. Sie geht von selbst auf, weil das Ausgelagerte aus den Lieferscheinen zurückgerechnet ist — bis auf Rundung, und genau darum taugt sie als Probe:
         Solange in der Kaskade ein Kilo doppelt oder zu früh zählte, blieb ein Rest stehen. Zu klein und zu gross, das beim Sortieren herausfällt, ist kein
         Ausgang: es steht im Haus, nicht verkaufsfähig, bis ein Lieferschein es holt. Geprüft wird an den Rändern: mehr geliefert als hereingekommen

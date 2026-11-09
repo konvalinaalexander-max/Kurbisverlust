@@ -384,7 +384,11 @@ function ChargenZeile({ z, offen, oeffnen, daten, hagel, ungereimt, imTopf, darf
         <td className="zahl">{zahl(b.n_paletten)}</td>
         <td className="nowrap">{eingangSpanne(b)}</td>
         <td className="zahl">{b.n_lieferungen > 0
-          ? <>{kg(b.geliefert_kg, 0)}{b.ausgelagert_kg > 0 && <span className="zelle-unter" title="So viel Eingangsware ging für diese Lieferungen aus dem Lager — mehr als geliefert, weil unterwegs verdunstet, im Palox gelandet oder aussortiert">aus {kg(b.ausgelagert_kg, 0)} Eingang</span>}</>
+          ? <>{kg(b.geliefert_kg, 0)}{b.ausgelagert_kg > 0 && (Number(b.ueberzaehlung_kg) > 0.5
+              // 0138: überzogen — die Lieferungen brauchen mehr Eingang, als hereinkam; „aus" hiesse, so viel sei da gewesen.
+              // Ohne „Eingang" dahinter: so ist die Zelle nicht breiter als „aus … Eingang" (die Tabelle passt sonst nicht mehr)
+              ? <span className="zelle-unter" id={`ueberzogen-${b.charge_nr}`} title={`Für diese Lieferungen bräuchte es ${kg(b.ausgelagert_kg, 0)} Eingangsware, hereingekommen sind ${kg(b.eingang_kg, 0)} — ein Teil kam von anderswo, oder die Raten passen nicht. Dann steht hier auch nichts Aussortiertes mehr.`}>bräuchte {kg(b.ausgelagert_kg, 0)}</span>
+              : <span className="zelle-unter" title="So viel Eingangsware ging für diese Lieferungen aus dem Lager — mehr als geliefert, weil unterwegs verdunstet, im Palox gelandet oder aussortiert">aus {kg(b.ausgelagert_kg, 0)} Eingang</span>)}</>
           : <span className="leise">—</span>}</td>
         {/* 0121: zuerst die Paletten — „so viele wirst du im Lager wohl antreffen" —, darunter die Kilo darauf.
             0133: bei einer Hagel-Charge sagt das nur der Ünique-Topf (Zeile am Ende). */}
@@ -552,7 +556,9 @@ function ChargeDetail({ nr, z, daten, bd, darf, neuRechnen }: { nr: number; z: Z
           <li><strong>Ausgeliefert {kg(b.geliefert_kg, 0)}</strong> in {mz(b.n_lieferungen, 'Lieferung', 'Lieferungen')}
             {ohneNummer > 0 && <span className="leise" title="Lieferscheine ohne Chargennummer nehmen anteilig von jeder Charge ihrer Sorte, die schon da war. Sie zählen hier mit, stehen aber nicht in der Liste unten. Unter Betrieb → Warenausgang lässt sich die Charge nachtragen."> (davon {zahl(ohneNummer)} ohne Chargennummer, anteilig)</span>}
             {Number(b.verschenkt_kg ?? 0) > 0.5 && <span title="In den Kisten über dem Sollgewicht mitgegeben (gewogen): hinausgegangen, aber nicht verrechnet"> · dazu {kg(Number(b.verschenkt_kg), 0)} verschenkt</span>}
-            {' '}· <span title="So viel Eingangsware ging dafür aus dem Lager — mehr als geliefert, weil unterwegs verdunstet, im Palox gelandet, als zu klein / zu gross aussortiert oder in den Kisten über dem Sollgewicht mitgegeben">aus {kg(b.ausgelagert_kg, 0)} Eingangsware</span> <Herkunft art="gerechnet" /></li>
+            {' '}· {Number(b.ueberzaehlung_kg) > 0.5
+              ? <span title={`Mehr, als hereinkam (${kg(b.eingang_kg, 0)}) — ein Teil der Lieferungen kam von anderswo, oder die Raten passen nicht`}>bräuchte {kg(b.ausgelagert_kg, 0)} Eingangsware</span>
+              : <span title="So viel Eingangsware ging dafür aus dem Lager — mehr als geliefert, weil unterwegs verdunstet, im Palox gelandet, als zu klein / zu gross aussortiert oder in den Kisten über dem Sollgewicht mitgegeben">aus {kg(b.ausgelagert_kg, 0)} Eingangsware</span>} <Herkunft art="gerechnet" /></li>
         )}
         {/* 0134: die Überzählung sagt, welche sie ist — sicher ein Datenfehler, oder die Rate passt nicht; in der Spanne nur leise */}
         {(() => { const u = ueberzaehlungSatz(bd); return u && (u.ton === 'warnung'

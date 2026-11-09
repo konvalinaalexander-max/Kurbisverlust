@@ -4290,6 +4290,81 @@ Geprüft:
 - Eine Sorte dazu oder weg im Rezept geht noch nicht in der Maske (nur Stück,
   kg je Stück und Herkunft); das Rezept des Betriebs hat drei Sorten.
 
+## Runde BK, Schritt 3: Was hereinkam, ist weg oder steht da (9. November, 0138)
+
+Der Betrieb zur Charge 1623 im Reiter Chargen — mehr geliefert, als
+hereinkam, und doch „≈ 1 Palette, 444 kg" in der Halle: „Warum zeigt es dann
+an, dass noch was da ist?" Und: „Erst korrigierst du diesen Fehler. Überleg
+dir generell, wo überall wohl Ungereimtheiten sind."
+
+Die Regel, die überall gelten muss: was hereinkam, ist hinausgegangen
+(geliefert, verschenkt, verdunstet, im Palox) oder steht in der Halle. Dagegen
+geprüft — je Charge, je Eingangstag, in Wohin, in der Saisonbilanz und im
+Ünique-Topf, auf den Daten des Betriebs und der Demo —, fanden sich sechs
+Stellen:
+
+1. **In der Halle bei Überzählung (AB-215).** Schritt 1 rechnete das
+   Aussortierte aus allen Lieferungen einer Charge zurück, auch aus denen, die
+   es bei ihr nicht geben konnte. Ist eine Charge überzogen, kam ein Teil der
+   Ware von anderswo, und deren Aussortiertes steht nicht hier. Jetzt:
+   aussortiert in der Halle = zurückgerechnet − Überzählung, nie unter 0; je
+   Eingangstag im selben Verhältnis. Im Betrieb 8 Chargen, rund 5 t, die nicht
+   da waren (1624: 8 Paletten, 1623: 444 kg). Prüfung 0136 (d2) hatte die
+   falsche Regel festgeschrieben; sie folgt jetzt der richtigen (Kommentar sagt
+   warum), „leer bestätigt" prüft eine eigene gebaute Charge.
+2. **Lieferscheine ohne Charge auf Hagel-Chargen (AB-216).** Seit 0114 werden
+   sie nach dem Eingang auf die Chargen ihrer Sorte verteilt — auch auf die mit
+   Hagel. Hagelware geht aber nur über den Ünique-Topf (0133). Der Topf zeigte
+   darum 20'188 kg geliefert, seine Chargen zusammen 20'464 kg (und die
+   Ünique-Zeile unter Artikel diese, der Topf unter Chargen jene). Jetzt nicht
+   mehr auf eine Hagel-Charge, solange die Sorte eine Charge ohne Hagel hat —
+   sonst doch, damit nichts verloren geht.
+3. **Der Hinweis des Topfs** zählte Ünique ohne Charge als „unter Charge ohne
+   Hagel" („(, 180 kg)"). Der Perigon-Reiter nennt nur die mit Charge; jetzt
+   der Hinweis auch.
+4. **Am Lager leer bestätigt (AB-217).** Wohin und die Saisonbilanz liessen bei
+   einer leer bestätigten Charge (0134) einen Rest stehen: was mehr weg ist,
+   als die Raten erklären, gehörte zu keinem Posten. Jetzt ein eigener Posten
+   `leer_weg_kg` („am Lager leer: mehr weg als gerechnet"); der Rest bleibt
+   null, der Befund der Bilanz nennt ihn. Im Betrieb ist noch keine Charge leer
+   bestätigt — es wäre beim ersten Mal aufgefallen.
+5. **„aus 13'143 kg Eingang"** unter einer Charge, in die 8'299 kg kamen: bei
+   Überzählung heisst es jetzt „bräuchte".
+6. **Die Karte „Geht die Rechnung auf?"** zeigte das Verschenkte (Schritt 1)
+   nicht als Zeile — ihre Zeilen gingen nicht auf den Eingang auf. Jetzt mit
+   der Zeile, und mit dem Posten „leer", wenn es ihn gibt.
+
+Geprüft, ohne Befund: je Eingangstag zusammen = je Charge; Paletten in der Halle
+nie mehr als Eingangspaletten; Wohin und Saisonbilanz bis auf Rundung null; der
+Topf hat soviel Eingang und Lager wie seine Chargen; kein „Datenfehler" ohne
+das Verschenkte.
+
+In der Reihenfolge von CLAUDE.md: Die Daten stimmten; die Annahme „das
+Aussortierte der Lieferungen steht in der Halle" galt nur, wo die Lieferungen
+von der Charge sein konnten. Die Mathematik folgt der Massenbilanz.
+
+Geprüft:
+- Prüfblock 0138 (a–e) auf der Demo mit drei gebauten Chargen: weit überzogen
+  (nichts in der Halle), knapp überzogen (der Rest des Aussortierten, auch je
+  Eingangstag), leer bestätigt (eigener Posten, Wohin und Bilanz ohne Rest);
+  Lieferscheine ohne Charge in einer Sorte mit und nur mit Hagel; Ünique ohne
+  und mit fremder Charge; der Topf gegen seine Chargen. 13 Mutationen, jede
+  schlägt an.
+- Block 0136 (d2–d4) folgt der Regel, mit einer dritten gebauten Charge;
+  Block 0114 (a1, b1) rechnet die Verteilung ohne Charge nach — jetzt mit der
+  Regel ohne Hagel-Chargen (Kommentar sagt warum).
+- Gegenprobe (Wohin mit dem neuen Posten), alle Bildschirme, auf der Demo:
+  die fünf überzogenen Chargen mit 0 in der Halle, die Chargen von Kaori Kuri
+  ohne die 84 kg, die vorher auf der Hagel-Charge lagen.
+
+**Was bewusst nicht gemacht wurde:**
+- Das Aussortierte einer leer bestätigten Charge zählt in Bilanz und Wohin
+  weiter als „zu klein / zu gross" — in der Halle ist es 0 (seit 0136). Ob es
+  mit der Charge weg ist oder in Paloxen noch steht, entscheidet der Betrieb.
+- Das Liegende einer Charge, deren einer Eingangstag überzogen ist, während
+  ein anderer noch liegt, bleibt, wie die Kaskade es je Eingangstag teilt.
+- Bilanz und Wohin führen die Überzählung weiter auf der Seite des Eingangs.
+
 ## Runde BK, Schritt 2: Ünique ist ein eigener Artikel (9. November, 0137)
 
 Der Betrieb: „Warum ist bei Management nach Artikel nicht ein neuer Artikel
