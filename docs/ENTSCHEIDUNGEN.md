@@ -4290,6 +4290,50 @@ Geprüft:
 - Eine Sorte dazu oder weg im Rezept geht noch nicht in der Maske (nur Stück,
   kg je Stück und Herkunft); das Rezept des Betriebs hat drei Sorten.
 
+## Runde BK, Schritt 4: Jeder Faktor wird je Zeile einmal gerechnet (9. November, 0139)
+
+Die Prüfung auf GitHub war nach den Schritten 2 und 3 rot: im Lasttest
+(dreifache Saison) brauchte Schritt 4 der Auswertung 6.3 s, die Grenze ist
+6 s (Supabase bricht eine Abfrage nach 8 s ab).
+
+Zuerst die Ursache. Auf derselben Maschine frisch gebaut, braucht Schritt 4
+auf Stand 135 4.5 s und auf Stand 138 4.55 s: 0136 bis 0138 haben ihn nicht
+langsamer gemacht. Der Prüfrechner war am 9. November rund doppelt so langsam
+wie am 7., auch bei Prüfblöcken, deren Code sich nicht geändert hat (von 0080
+bis 0100: 112 s gegen 244 s). Die Grenze bleibt; der Schritt wird kürzer.
+
+Zwei Sichten tragen den Schritt: `erg_verlauf` (2.0 s) und `erg_prognose`
+(1.6 s). In beiden faltet Postgres kleine Teilabfragen (`CROSS JOIN LATERAL
+(SELECT …)`) in die Summen hinein und rechnet dann dieselbe Potenz (`power`)
+und denselben Palox-Anteil (`palox_f_nach`) in jeder Spalte neu, die sie
+braucht, bei 44'000 bis 58'000 Zeilen. Jetzt je Zeile einmal:
+- `erg_verlauf`: die Teilabfragen n (Masse nach der Verdunstung) und f
+  (Palox-Anteil) stehen hinter `OFFSET 0`, so faltet Postgres sie nicht.
+- `v_prognose`: `je_portion`, wo f_h steht, ist `MATERIALIZED`.
+
+Die Zahlen bleiben dieselben, Zeile für Zeile gegen die Fassung 0138
+verglichen (`except all`): auf dem Lasttest (2'304 und 1'584 Zeilen) und auf
+der Demo. Lasttest lokal: `erg_verlauf` 2.0 → 1.0 s, `erg_prognose`
+1.6 → 1.1 s, Schritt 4 4.5 → 3.0 s.
+
+Geprüft:
+- Prüfblock 0139: der Zaun steht (a); er ändert nichts, `erg_verlauf` und
+  `v_prognose` gegen ihre eigene Abfrage ohne Zaun, auf der Demo (b).
+  6 Mutationen, jede schlägt an: ohne Zaun vor n, ohne Zaun vor f,
+  `je_portion` nicht gespeichert, ein Zaun, der Zeilen wegnimmt, etwas
+  Flüchtiges im gespeicherten Teil, Stand.
+- `run.sh` ganz, mit dem Lasttest.
+
+**Was bewusst nicht gemacht wurde:**
+- Die Grenze von 6 s nicht erhöht und keine Sicht auf Schritt 5 verschoben.
+  Verschoben wäre Schritt 4 nicht schneller, nur anders verteilt, und die
+  Summe (der Regressionsmelder bei 12 s, auf dem langsamen Rechner 12.8 s)
+  bliebe rot.
+- Nicht gerundet. Die Zwischenwerte tragen bis 142 Nachkommastellen, weil
+  `numeric` genau multipliziert. Auf 12 Stellen gerundet wäre es noch
+  schneller, aber die Zahlen wären nicht mehr dieselben.
+- Die Prüfung nicht neu gestartet, um auf einen schnelleren Rechner zu hoffen.
+
 ## Runde BK, Schritt 3: Was hereinkam, ist weg oder steht da (9. November, 0138)
 
 Der Betrieb zur Charge 1623 im Reiter Chargen — mehr geliefert, als

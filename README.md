@@ -798,6 +798,11 @@ ohne Perigon-Zeile als eigener Teil); jede PL/pgSQL-Funktion hat einen
 festen Suchpfad; die Perigon-Liste läuft nur einmal (AB-174 bis AB-176). Dazu die
 Halle: Faules ohne Ablesung ist „unbekannt", Fehler werden gezeigt. **Setup.sql
 einmal einspielen (Stand 124), dann „Neu rechnen".**
+**Runde BK, Schritt 4 (0139)** — **Jeder Faktor einmal.** Der Verlauf und die
+Prognose rechnen die Verdunstung und den Palox-Anteil je Zeile einmal statt in
+jeder Spalte: Schritt 4 der Auswertung ist im Lasttest ein Drittel schneller,
+die Zahlen sind dieselben (AB-218). **Setup.sql einmal einspielen (Stand 139),
+dann „Neu rechnen".**
 **Runde BK, Schritt 3 (0138)** — **Was hereinkam, ist weg oder steht da.**
 Eine überzogene Charge (mehr geliefert, als hereinkam) zeigt in der Halle kein
 Aussortiertes mehr, das nicht von ihr sein kann (AB-215); der Reiter sagt

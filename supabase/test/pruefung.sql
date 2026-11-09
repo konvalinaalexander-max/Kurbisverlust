@@ -14198,3 +14198,72 @@ begin
 end $$;
 
 select '——— 0138 Was hereinkam, ist weg oder steht da ———' as ergebnis;
+
+-- =====================================================================
+-- 0139 — Jeder Faktor wird je Zeile einmal gerechnet
+--
+-- Die Prüfung auf GitHub war am 9. November zweimal rot: im Lasttest brauchte
+-- Schritt 4 der Auswertung 6.3 s (Grenze 6 s). erg_verlauf und v_prognose
+-- rechneten dieselbe Potenz und denselben Palox-Anteil je Zeile mehrmals,
+-- weil Postgres kleine Teilabfragen in die Summen faltete. Geprüft:
+-- (a) der Zaun steht: in erg_verlauf vor den Teilabfragen n und f je ein
+--     OFFSET, in v_prognose je_portion AS MATERIALIZED;
+-- (b) er ändert nichts: erg_verlauf und v_prognose ergeben auf der Demo Zeile
+--     für Zeile dasselbe wie ihre eigene Abfrage ohne Zaun (gebaut aus der
+--     gespeicherten Definition) — ein Zaun, der Zeilen wegnimmt oder etwas
+--     Flüchtiges einschliesst, fällt hier auf;
+-- (c) Stand 139.
+-- Wie schnell es ist, misst run.sh im Lasttest (Stufe 6); die Demo ist dafür
+-- zu klein.
+-- =====================================================================
+do $$
+declare v_modus jsonb; v_lad text; v_geladen boolean := false; v_n int; v_m int; v_def text; v_ref text;
+  v_u uuid := '00000000-0139-0000-0000-000000000001';
+begin
+  select wert into v_modus from einstellung where schluessel = 'betriebsmodus';
+  update einstellung set wert = '"beispiel"'::jsonb where schluessel = 'betriebsmodus';
+  insert into auth.users (id, email, raw_user_meta_data) values (v_u, null, '{"name":"Prüf-0139"}');
+  update profil set rolle = 'admin' where id = v_u;
+  perform set_config('request.jwt.claim.sub', v_u::text, true);
+  if not exists (select 1 from auftrag where station = 'waschen_sortieren' and bemerkung = 'DEMO') then
+    select demo_daten_laden() into v_lad; v_geladen := true;
+  end if;
+  perform auswertung_aktualisieren();
+
+  -- (a1) erg_verlauf: die Teilabfragen n (Masse nach Verdunstung) und f (Palox-Anteil) hinter einem OFFSET
+  v_def := pg_get_viewdef('erg_verlauf'::regclass);
+  assert v_def ~ 'OFFSET\s+\d+\s*\)\s*n\)' and v_def ~ 'OFFSET\s+\d+\s*\)\s*f\)',
+    '0139 (a1): in erg_verlauf fehlt der Zaun vor n oder f — Postgres faltet power() und palox_f_nach() wieder in jede Summe';
+  -- (a2) v_prognose: je_portion (mit f_h) wird einmal gerechnet
+  assert pg_get_viewdef('v_prognose'::regclass) ~ 'je_portion AS MATERIALIZED',
+    '0139 (a2): in v_prognose ist je_portion nicht MATERIALIZED — f_h wird in jeder Spalte neu gerechnet';
+
+  -- (b1) erg_verlauf gegen dieselbe Abfrage ohne Zaun
+  v_ref := regexp_replace(rtrim(v_def, E'; \n'), '\s+OFFSET\s+\d+\s*\)', ')', 'g');
+  execute 'create temp view t139_verlauf_ohne as ' || v_ref;
+  select count(*) into v_m from erg_verlauf;
+  assert v_m > 0, '0139 (b0): erg_verlauf ist auf der Demo leer — (b1) prüfte nichts';
+  select count(*) into v_n from (select * from erg_verlauf except all select * from t139_verlauf_ohne) x;
+  select v_n + count(*) into v_n from (select * from t139_verlauf_ohne except all select * from erg_verlauf) x;
+  assert v_n = 0, format('0139 (b1): erg_verlauf mit Zaun weicht in %s von %s Zeilen von der Abfrage ohne Zaun ab', v_n, v_m);
+  -- (b2) v_prognose gegen dieselbe Abfrage ohne MATERIALIZED
+  v_ref := replace(rtrim(pg_get_viewdef('v_prognose'::regclass), E'; \n'), 'je_portion AS MATERIALIZED', 'je_portion AS');
+  execute 'create temp view t139_prognose_ohne as ' || v_ref;
+  select count(*) into v_m from v_prognose;
+  assert v_m > 0, '0139 (b0): v_prognose ist auf der Demo leer — (b2) prüfte nichts';
+  select count(*) into v_n from (select * from v_prognose except all select * from t139_prognose_ohne) x;
+  select v_n + count(*) into v_n from (select * from t139_prognose_ohne except all select * from v_prognose) x;
+  assert v_n = 0, format('0139 (b2): v_prognose mit MATERIALIZED weicht in %s von %s Zeilen von der Abfrage ohne ab', v_n, v_m);
+  drop view t139_verlauf_ohne; drop view t139_prognose_ohne;
+
+  -- (c) Stand
+  assert schema_stand() >= 139, format('0139 (c1): schema_stand() = %s', schema_stand());
+
+  -- aufräumen
+  if v_geladen then perform demo_daten_entfernen(); else perform auswertung_aktualisieren(); end if;
+  delete from profil where id = v_u; delete from auth.users where id = v_u;
+  update einstellung set wert = v_modus where schluessel = 'betriebsmodus';
+  raise notice 'OK  0139 — jeder Faktor je Zeile einmal: erg_verlauf und v_prognose mit Zaun, Zeile für Zeile wie ohne';
+end $$;
+
+select '——— 0139 Jeder Faktor wird je Zeile einmal gerechnet ———' as ergebnis;
