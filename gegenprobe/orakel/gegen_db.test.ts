@@ -16,6 +16,7 @@ import { kohorten, rueckgrat, type Palette, type Tara } from './masse.ts'
 import { messung, palettenBild, rohwerte, type Waegung } from './verdunstung.ts'
 import { schaetzung } from './varianz.ts'
 import { stroeme, summeStimmt, verkaufsfaehigAnteil, m0Zurueck, type Portion } from './kaskade.ts'
+import { verschenktAufZeile, verschenktJeCharge } from './marge.ts'
 import { anstieg, erwartung, paloxF, paloxFNach, weg, type Punkt, type Station } from './schimmel.ts'
 import { geliefertNichtMehrAlsEingang, kohorteGeschlossen, nichtsUnmoeglich, stroemeSummieren, zeitLaeuftVorwaerts } from './bilanz.ts'
 import { huelle, standNachTagen, summeStimmtPrognose, summieren, verlustAb, zerlegungStimmt,
@@ -174,16 +175,29 @@ test('Kaskade: Verkaufsanteil, m0 und alle Ströme je Zeile — und die Invarian
   const zeilen = frage<Record<string, unknown>>(`
     select charge_nr, portion, kohorte, alter_tage, m0, m1, m2, r, f, f_ws, f_s, g_w, p_hand, p_wasch, f_bekannt::int as f_bekannt,
            hagel, a_klein_n, a_gross_n, a_fax, verkaufsfaehig_anteil,
-           verdunstung_kg, schimmel_kg, klein_kg, nebenkanal_kg, fax_kg, verkaufsfaehig_kg, geliefert_kg, ueberzaehlung_kg
+           verdunstung_kg, schimmel_kg, klein_kg, nebenkanal_kg, fax_kg, verkaufsfaehig_kg, geliefert_kg, verschenkt_kg, ueberzaehlung_kg
       from mv_kaskade`)
   assert.ok(zeilen.length > 0, 'mv_kaskade ist leer')
+  // 0136: hinausgegangen ist geliefert + verschenkt (in den Kisten über dem Sollgewicht) — das Verschenkte je Charge
+  // aus den gespeicherten Verkäufen und Wägungen (erg_ueberfuellung) nachgerechnet, nach kg auf die Lieferzeilen verteilt
+  const verschenkt = verschenktJeCharge(frage<Record<string, unknown>>(
+    'select gruppe, charge_nr, sorte, kistensystem, soll_kg_pro_kiste, kg_verkauft, kisten_verkauft, zuviel_je_kiste from erg_ueberfuellung')
+    .map(u => ({ gruppe: String(u.gruppe), chargeNr: n(u.charge_nr), sorte: u.sorte == null ? null : String(u.sorte),
+                 kistensystem: u.kistensystem == null ? null : String(u.kistensystem), sollKg: n(u.soll_kg_pro_kiste),
+                 kgVerkauft: n(u.kg_verkauft), kistenVerkauft: n(u.kisten_verkauft), zuviel: n(u.zuviel_je_kiste) })),
+    new Map(frage<Record<string, unknown>>('select nr, sorte from charge').map(c => [Number(c.nr), String(c.sorte)] as [number, string])))
+  const summeGeliefert = new Map<number, number>()
+  for (const z of zeilen) if (z.portion === 'ausgelagert') summeGeliefert.set(Number(z.charge_nr), (summeGeliefert.get(Number(z.charge_nr)) ?? 0) + Number(z.geliefert_kg))
   const orakel = zeilen.map(z => {
     const k = { r: Number(z.r), f: Number(z.f), aKlein: Number(z.a_klein_n), aGross: Number(z.a_gross_n), aFax: Number(z.a_fax) }
     const t = Number(z.alter_tage), portion = String(z.portion) as Portion
-    const m0 = portion === 'lager' ? Number(z.m0) : m0Zurueck(Number(z.geliefert_kg), portion, k, t)
+    const v = portion === 'ausgelagert'
+      ? verschenktAufZeile(Number(z.geliefert_kg), summeGeliefert.get(Number(z.charge_nr)) ?? 0, verschenkt.get(Number(z.charge_nr)) ?? 0) : 0
+    const m0 = portion === 'lager' ? Number(z.m0) : m0Zurueck(Number(z.geliefert_kg) + v, portion, k, t)
     const s = stroeme(m0, portion, k, t)
-    return { schluessel: `${z.charge_nr}|${portion}|${z.kohorte}`, anteil: verkaufsfaehigAnteil(k, t), ...s, summeStimmt: summeStimmt(s) ? 1 : 0 }
+    return { schluessel: `${z.charge_nr}|${portion}|${z.kohorte}`, anteil: verkaufsfaehigAnteil(k, t), ...s, verschenktKg: v, summeStimmt: summeStimmt(s) ? 1 : 0 }
   })
+  assert.ok(verschenkt.size > 0, 'erg_ueberfuellung: keine Charge mit verschenkter Marge — der Teil prüfte nichts')
   assert.equal(orakel.filter(o => !o.summeStimmt).length, 0, 'Orakel: Ströme summieren nicht')
   const ab = vergleiche(zeilen.map(z => ({ ...z, schluessel: `${z.charge_nr}|${z.portion}|${z.kohorte}` })), orakel,
     { db: a => String(a.schluessel), orakel: b => b.schluessel },
@@ -191,7 +205,8 @@ test('Kaskade: Verkaufsanteil, m0 und alle Ströme je Zeile — und die Invarian
      { db: 'm2', orakel: 'm2', rel: 1e-9 }, { db: 'verdunstung_kg', orakel: 'verdunstungKg', rel: 1e-9, abs: 1e-9 },
      { db: 'schimmel_kg', orakel: 'schimmelKg', rel: 1e-9, abs: 1e-9 },
      { db: 'klein_kg', orakel: 'kleinKg', rel: 1e-9, abs: 1e-9 }, { db: 'nebenkanal_kg', orakel: 'nebenkanalKg', rel: 1e-9, abs: 1e-9 },
-     { db: 'fax_kg', orakel: 'faxKg', rel: 1e-9, abs: 1e-9 }, { db: 'verkaufsfaehig_kg', orakel: 'verkaufsfaehigKg', rel: 1e-9, abs: 1e-9 }])
+     { db: 'fax_kg', orakel: 'faxKg', rel: 1e-9, abs: 1e-9 }, { db: 'verkaufsfaehig_kg', orakel: 'verkaufsfaehigKg', rel: 1e-9, abs: 1e-9 },
+     { db: 'verschenkt_kg', orakel: 'verschenktKg', rel: 1e-9, abs: 1e-9 }])
   assert.equal(ab.length, 0, bericht('mv_kaskade', ab, zeilen.length))
   // 0106: f jeder Zeile ist die Zusammensetzung ihrer eigenen Stationswerte über ihren Weg —
   // und f_bekannt sagt genau dann ja, wenn die Zusammensetzung einen Wert hat. Seit 0116
@@ -510,7 +525,8 @@ test('K9 — v_wohin: der Eingang, vollständig aufgeteilt', { skip }, () => {
   for (const r of db) {
     const wo = `${r.gruppe}/${r.schluessel}`
     // Erste Identität: alles, was hereinkam, ist entweder draussen oder liegt.
-    const rest = z(r, 'eingang_kg') + z(r, 'ueberzaehlung_kg') - z(r, 'geliefert_kg')
+    // 0136: das Verschenkte ist hinausgegangen — ein eigener Posten
+    const rest = z(r, 'eingang_kg') + z(r, 'ueberzaehlung_kg') - z(r, 'geliefert_kg') - z(r, 'verschenkt_kg')
       - z(r, 'kanal_ausgelagert_kg') - z(r, 'verdunstet_ausgelagert_kg') - z(r, 'faul_ausgelagert_kg')
       - z(r, 'fax_kg') - z(r, 'lager_kg')
     if (Math.abs(rest - z(r, 'rest_kg')) > 0.02) schief.push(`${wo}: Rest ${z(r, 'rest_kg')} statt ${rest.toFixed(2)}`)

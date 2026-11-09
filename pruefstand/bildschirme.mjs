@@ -166,6 +166,15 @@ function ohneChargeVormerken() {
   ])
 }
 
+/** 0136: eine Charge der Demo mit Aussortiertem und verschenkter Marge, die noch liegt — für „in der Halle". */
+function hallenCharge() {
+  const vs = new Map((fixture('v_verschenkt_charge') ?? []).map(v => [Number(v.charge_nr), Number(v.verschenkt_kg)]))
+  const b = (fixture('erg_charge') ?? []).filter(x => Number(x.lager_kg) > 0 && Number(x.n_aussortiert_paletten) > 0 && (vs.get(Number(x.charge_nr)) ?? 0) > 0.5)
+    .sort((x, y) => Number(y.lager_kg) - Number(x.lager_kg))[0]
+  if (!b) throw new Error('erg_charge.json kennt keine liegende Charge mit Aussortiertem und Verschenktem')
+  return Number(b.charge_nr)
+}
+
 /** 0134: eine Charge der Demo, die laut App noch liegt (ohne Hagel) — für „Am Lager". */
 function liegendeCharge() {
   const hagel = new Set((fixture('charge') ?? []).filter(c => Number(c.hagel_anteil ?? 0) > 0).map(c => Number(c.nr)))
@@ -996,9 +1005,24 @@ const BILDSCHIRME = [
       const teil = p.locator(`#am-lager-${nr}`)
       await teil.waitFor()
       const text = await teil.innerText()
-      if (!/Liegt noch etwa/.test(text)) throw new Error(`„Am Lager" sagt nicht, was noch liegt: ${text}`)
+      // seit 0136 „in der Halle etwa": was liegt und was aussortiert ist (vorher „liegt noch etwa")
+      if (!/In der Halle etwa/.test(text)) throw new Error(`„Am Lager" sagt nicht, was in der Halle steht: ${text}`)
       await teil.locator('button', { hasText: 'Charge ist leer (am Lager bestätigt)' }).waitFor()
-      await p.locator('th', { hasText: 'liegt noch etwa' }).first().waitFor()
+      await p.locator('th', { hasText: 'in der Halle etwa' }).first().waitFor()
+      await teil.scrollIntoViewIfNeeded()
+    } },
+  // Runde BK (0136): „in der Halle kontrollieren — unsortierte, sortierte, aussortierte. Und diese Zahl will ich."
+  // Eine Charge der Demo mit Aussortiertem und verschenkter Marge: die Paletten in der Halle, aufgeteilt, und was verschenkt ist.
+  { name: 'chargen-halle', wer: 'admin', pfad: () => `/chargen?charge=${hallenCharge()}`,
+    tun: async p => {
+      const nr = hallenCharge()
+      const teil = p.locator(`#am-lager-${nr}`)
+      await teil.waitFor()
+      const text = await teil.innerText()
+      for (const soll of [/In der Halle etwa \d+ Paletten/, /liegend, unsortiert oder sortiert, etwa \d+ Paletten; aussortiert \(zu klein, zu gross\)/,
+                          /verschenkt: in den Kisten über dem Sollgewicht mitgegeben/])
+        if (!soll.test(text)) throw new Error(`„Am Lager" sagt nicht ${soll}: ${text}`)
+      await p.locator('.erklaer-liste li', { hasText: 'verschenkt' }).first().waitFor()
       await teil.scrollIntoViewIfNeeded()
     } },
   // Runde BJ (0134): eine am Lager leer bestätigte Charge — kein Lager, der echte Verlust gegen die Raten, ein Lieferschein danach.

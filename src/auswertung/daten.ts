@@ -98,6 +98,12 @@ export interface Bestand {
   fax_heute_kg: number | null; fax_erwartet_kg: number | null
   verlust_heute_kg: number | null; kanal_ausgelagert_kg: number | null
   im_haus_heute_kg: number; kanal_im_haus_kg: number | null; heute: string
+  /** 0136: was in der Halle steht — der Betrieb: „unsortierte, sortierte, aussortierte (zu klein, zu gross). Und diese Zahl will ich."
+   *  halle_kg = lager_kg (unsortiert und sortiert) + aussortiert_kg (zu klein und zu gross der verarbeiteten Ware, auf den Eingang
+   *  zurückgerechnet; null, wenn nicht gemessen); verschenkt_kg: in den Kisten über dem Sollgewicht mitgegeben, hinausgegangen.
+   *  Fehlen sie (alte Datenbank), bleibt die Zeile bei lager_kg und n_rest_paletten. */
+  verschenkt_kg?: number | null; aussortiert_kg?: number | null; halle_kg?: number | null
+  n_halle_paletten?: number | null; n_aussortiert_paletten?: number | null
   verlust_bekannt: boolean; verdunstung_bekannt: boolean; schimmel_bekannt: boolean
   fax_bekannt: boolean; kanal_bekannt: boolean
   /** 0106: der Palox-Anteil, mit dem das Liegende rechnet, und woher er kommt. */
@@ -501,6 +507,8 @@ export interface Wohin {
   lager_fax_kg: number | null; lager_faul_kg: number | null
   lager_verdunstet_kg: number | null
   rest_kg: number | null; lager_rest_kg: number | null; vollstaendig: boolean
+  /** 0136: in den Kisten über dem Sollgewicht mitgegeben — hinausgegangen; rest_kg zählt es nicht mehr. */
+  verschenkt_kg?: number | null
 }
 
 /**

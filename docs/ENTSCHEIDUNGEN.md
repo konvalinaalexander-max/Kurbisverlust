@@ -4290,6 +4290,96 @@ Geprüft:
 - Eine Sorte dazu oder weg im Rezept geht noch nicht in der Maske (nur Stück,
   kg je Stück und Herkunft); das Rezept des Betriebs hat drei Sorten.
 
+## Runde BK, Schritt 1: Was in der Halle steht (9. November, 0136)
+
+Der Betrieb: „Wenn ich beim Reiter Chargen bin und die Anzahl Paletten sehen
+will, geht es darum, dass ich in der Halle kontrollieren kann — und dort
+steht unsortierte, sortierte, aussortierte (zu klein, zu gross). Und diese
+Zahl will ich. Zum Hochrechnen ist ja eigentlich nur Verkauf + Verdunstung +
+Palox + verschenkte Marge." Und auf die Antwort, dass die App das anders
+rechnet: „Das musst du unbedingt korrigieren."
+
+Zwei Dinge rechnete die App anders:
+- **Das Aussortierte fehlte in den Paletten.** Die App zog von der
+  Eingangsmasse ab, was die Lieferungen gebraucht haben, mit zu klein und zu
+  gross. Diese Kürbisse stehen aber in Paloxen in der Halle, bis ein
+  Lieferschein sie holt; seit 0101 zählen sie „im Haus", in den Paletten
+  fehlten sie (1616 im Betrieb: 1'111 kg, etwa 3 Paletten).
+- **Die verschenkte Marge zog sie nicht ab.** Was in den Kisten über dem
+  Sollgewicht mitging, ist hinausgegangen, ohne in Perigon zu stehen. Gewogen
+  ist das seit 0061 (`erg_ueberfuellung`); die Saisonbilanz führte es als
+  eigenes Buch, die Hochrechnung des Lagers nicht. Im Betrieb waren es bis
+  hier 4.4 t, am meisten bei 1631 (983 kg) und 1623 (852 kg). Bei 1631 lief
+  die Wägung bisher an der Rechnung vorbei: Perigon führt die Lieferungen als
+  Tiana, gewogen ist die Charge als Mieluna.
+
+In der Reihenfolge von CLAUDE.md: Die Daten waren da (Wägungen, Verkäufe je
+Kistensystem). Geändert hat sich die Annahme — „hinaus ging, was auf dem
+Lieferschein steht" wird „hinaus ging, was auf dem Lieferschein steht, und
+was in den Kisten zu viel war". Erst daraus folgt die Mathematik.
+
+- **Die verschenkte Marge je Charge (AB-212):** `v_verschenkt_charge` =
+  verkaufte Kisten „ab x kg" × zu viel je Kiste, gewogen bei der Charge (über
+  alle ihre Zeilen, gleich unter welcher Sorte), sonst bei ihrer Sorte.
+  Stück-Kisten haben kein Sollgewicht (0). Kisten ohne Wägung und
+  Lieferungen mit unbekanntem Kistensystem werden nicht gerechnet, aber
+  genannt (`ohne_wiegung_kg`, `system_offen_kg`) — im Betrieb 97 t mit
+  unbekanntem Kistensystem.
+- **Die Kaskade:** Das Verschenkte der Charge wird auf ihre Lieferzeilen
+  nach kg verteilt (Σ = das der Charge); m0 = (geliefert + verschenkt) ÷
+  verkaufsfähiger Anteil. `geliefert_kg` bleibt, was Perigon sagt;
+  `verschenkt_kg` steht daneben. Das Lager wird um das kleiner, was das
+  Verschenkte an Eingang brauchte. Bedarf und Überzählung, Wohin und die
+  Saisonbilanz zählen es als hinausgegangen, als eigenen Posten; unter
+  Ursachen steht es in „Wohin ging der Kürbis?" als eigener Teil des Balkens
+  („in den Kisten verschenkt"), nicht im Rest.
+- **In der Halle (AB-213):** `halle_kg` = was liegt (unsortiert und sortiert)
+  + was aussortiert ist (zu klein, zu gross der verarbeiteten Ware, auf den
+  Eingang zurückgerechnet). Die Paletten mit der mittleren Eingangspalette
+  der Charge, je Charge und je Eingangstag. Eine leer bestätigte Charge hat
+  auch nichts Aussortiertes mehr. Der Chargen-Reiter zeigt die Paletten in
+  der Halle; aufgeklappt „In der Halle etwa N Paletten: liegend etwa …;
+  aussortiert … kg, etwa …" und, was verschenkt ist.
+- **Rückrechnung im Perigon-Fall:** das Verschenkte als eigener Schritt
+  gleich nach den Lieferscheinen.
+
+Geprüft:
+- Prüfblock 0136 (a1–j1) auf der Demo mit zwei gebauten Chargen: Kisten ab
+  8 kg, Stück, ohne Kistensystem; eine Lieferung einer Demo-Charge unter
+  fremder Sorte (wie 1631); eine Charge mit mehr geliefert als gekommen;
+  „leer" leert auch die Halle. 19 Mutationen, jede schlägt an.
+- Zwei alte Blöcke folgen der Regel (Kommentar sagt warum): 0101 (b1) zählt
+  das Verschenkte zum Ausgelieferten, 0134 (b2) rechnet die Grenzen des
+  Bedarfs mit ihm.
+- Gegenprobe: die verschenkte Marge unabhängig nachgerechnet
+  (`gegenprobe/orakel/marge.ts`), m0 jeder Lieferzeile damit, Wohin mit dem
+  neuen Posten.
+- Drei alte Blöcke schlugen am 9. November auch auf Stand 135 an, ohne
+  diese Runde: Die Demo rechnet ab dem heutigen Tag, und seit heute fehlte
+  ihnen ihr Fall. 0112 (d5): die Demo verkauft die jüngste Kaori-Kuri-Zeile
+  absichtlich als Mandarin — diese eine Zeile gab der Sorte ihre Gruppe
+  zurück. 0124 (b0): Bolp 5110, die Sorte ohne Artikelgruppe, ist
+  ausverkauft. 0132 (b1): nur noch zwei Sorten mit Wägungen statt drei. Die
+  Prüfungen sind dieselben; die Blöcke bauen ihren Fall jetzt selbst, wenn
+  die Demo ihn nicht hat (der Kommentar sagt warum). Ohne das wäre auch die
+  CI ab heute rot gewesen.
+- Tests (`faelle.test.ts`: der Schritt in der Rückrechnung), Bildschirme
+  `chargen-halle` und `chargen-am-lager`.
+- Auf der Demo: alle Ergebnisse ohne verschenkte Chargen gleich; liegend
+  514 Paletten, in der Halle 533.
+
+**Was bewusst nicht gemacht wurde:**
+- Sortiert und unsortiert trennt die App nicht: Sie kennt, was geliefert
+  ist, nicht, was sortiert auf Lieferung wartet. Beides steht als
+  „liegend".
+- Aussortiertes und Sortiertes stehen in anderen Gebinden als die
+  Eingangspaletten; gezählt wird in Eingangspaletten. Die Kilo sind darum
+  genauer als die Palettenzahl.
+- Die Kopfzahl „Im Lager ≈ N Paletten" unter Lagermanagement nach Charge
+  bleibt das Liegende — die Halle steht im Chargen-Reiter.
+- Lieferungen mit unbekanntem Kistensystem bekommen keine geschätzte
+  Überfüllung; dort liegt höchstens so viel wie gezeigt, und die App sagt es.
+
 ## Runde BJ, Schritt 6: Woher die Planzahl kommt, was das Journal berichtigt (7. November)
 
 Der Betrieb zur Planmenge: „einen Weg finden, damit man schnell erkennt,

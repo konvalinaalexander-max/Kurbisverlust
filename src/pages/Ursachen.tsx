@@ -9,6 +9,7 @@ import { lagerstaende, laufVergleich, prognoseBei, useAuswertung, wohinVon, type
          type Auswertung, type AusgangKennzahl, type Bestand, type Lagerstand, type MargeWiegung, type Schema, type Schimmelpunkt, type SortenK, type Wohin } from '../auswertung/daten'
 import { Probleme, Rechnet, Reiterkopf } from '../auswertung/Karten'
 import { ZChevron } from '../components/Zeichen'
+import { STROM_UEBERFUELLUNG } from '../auswertung/ausweis'
 import { ArbeitFenster, type Messung } from '../betrieb/ArbeitFenster'
 import { ChargeFenster } from '../betrieb/ChargeFenster'
 import { MessungFenster, type PunktInfo } from '../betrieb/MessungFenster'
@@ -151,7 +152,7 @@ const tagText = (x: number) => datum(new Date(x * TAG)).slice(0, 6)
 
 /* ---------- U1: Wohin ging der Kürbis? -------------------------------------- */
 
-/** Die sechs Teile, in die der Eingang bis heute zerfällt (DESIGN_RUNDE_R § 3). */
+/** Die Teile, in die der Eingang bis heute zerfällt (DESIGN_RUNDE_R § 3; seit 0136 mit dem Verschenkten). */
 const WOHIN_TEILE: { name: string; farbe: string; hinweis?: string; felder: (keyof Wohin)[] }[] = [
   // Runde AT: dieselben Farben wie im Lagermanagement — verkauft grau, verkaufsfähig das mittlere Grün;
   // was im Haus bleibt (zu klein, zu gross) vor dem Verlust, der Verlust zuletzt, neben seiner Prozentzahl.
@@ -161,6 +162,9 @@ const WOHIN_TEILE: { name: string; farbe: string; hinweis?: string; felder: (key
     hinweis: 'was die Kaliberbänder der Sorte durchlassen — ob es in die Gewichte der Artikel passt, sagt das Lagermanagement', felder: ['lager_verkaufsfaehig_kg'] },
   { name: 'verkauft', farbe: 'var(--strom-verkauft)',
     felder: ['geliefert_kg'] },
+  // 0136: was in den Kisten über dem Sollgewicht mitging, ist hinausgegangen — ein eigener Teil, nicht mehr im Rest.
+  { name: 'in den Kisten verschenkt', farbe: STROM_UEBERFUELLUNG,
+    hinweis: 'über dem Sollgewicht mitgegeben (gewogen) — hinausgegangen, nicht verrechnet', felder: ['verschenkt_kg'] },
   { name: 'zu klein', farbe: 'var(--strom-ausschuss)',
     hinweis: 'beim Sortieren aussortiert — steht im Haus, bis ein Lieferschein es holt; kein Verlust', felder: ['klein_ausgelagert_kg', 'lager_klein_kg'] },
   { name: 'zu gross', farbe: 'var(--strom-nebenkanal)',

@@ -798,6 +798,13 @@ ohne Perigon-Zeile als eigener Teil); jede PL/pgSQL-Funktion hat einen
 festen Suchpfad; die Perigon-Liste läuft nur einmal (AB-174 bis AB-176). Dazu die
 Halle: Faules ohne Ablesung ist „unbekannt", Fehler werden gezeigt. **Setup.sql
 einmal einspielen (Stand 124), dann „Neu rechnen".**
+**Runde BK, Schritt 1 (0136)** — **Was in der Halle steht.** Der Chargen-Reiter
+zählt die Paletten, die in der Halle stehen: was liegt (unsortiert, sortiert)
+und was aussortiert ist (zu klein, zu gross) — je Charge und je Eingangstag
+(AB-213). Was in den Kisten über dem Sollgewicht mitging, ist hinausgegangen:
+die verschenkte Marge zählt mit den Lieferungen, in der Hochrechnung, im
+Bedarf, in Wohin und der Saisonbilanz (AB-212). **Setup.sql einmal einspielen
+(Stand 136), dann „Neu rechnen".**
 **Runde BJ, Schritt 6** — **Woher die Planzahl kommt.** Unter jeder Planzahl
 steht, ob sie selbst eingetragen ist (farbig, mit Tag), aus dem Verkauf des
 Vorjahrs (grau) oder beides mit den Teilen; eine Legende erklärt es (AB-210).

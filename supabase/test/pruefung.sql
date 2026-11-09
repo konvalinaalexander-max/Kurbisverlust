@@ -7077,7 +7077,10 @@ begin
     '0101 (e2): keine Charge, bei der das Aussortierte „im Haus" vergrössert';
 
   -- (b) Die Bilanz schliesst: Eingang + Überzählung = ausgeliefert + Verlust + im Haus — ohne „anderen Kanal"
-  select verlust_bekannt, eingang_kg + ueberzaehlung_kg - geliefert_kg - verlust_heute_kg - im_haus_heute_kg, bilanz_rest_kg
+  -- 9. November (0136, Runde BK), die Regel hat sich geändert und der Test mit ihr: was in den Kisten über
+  -- dem Sollgewicht mitging (verschenkt_kg), ist hinausgegangen — es zählt zum Ausgelieferten. Der Betrieb:
+  -- „Zum Hochrechnen ist ja eigentlich nur Verkauf + Verdunstung + Palox + verschenkte Marge."
+  select verlust_bekannt, eingang_kg + ueberzaehlung_kg - geliefert_kg - coalesce(verschenkt_kg, 0) - verlust_heute_kg - im_haus_heute_kg, bilanz_rest_kg
     into v_bekannt, v, v2 from erg_bilanz;
   assert v_bekannt, '0101 (b0): die Demo kennt jeden Strom — sonst prüft (b) nichts';
   assert abs(v) < 1, format('0101 (b1): Eingang + Überzählung − ausgeliefert − Verlust − im Haus = %s kg, nicht 0', v);
@@ -8938,9 +8941,16 @@ begin
   assert v_ab = 0, format('0112 (d4b): %s von %s Chargen ohne Sortier-CSV stehen nicht ganz unter „ohne Verteilung"', v_ab, v_n);
   -- ohne Artikelgruppe geht nichts verloren (Kaori Kuri wird verkauft — also
   -- auch die verkaufte Gruppe abschalten, über den Namen der Verkaufszeilen)
+  -- 9. November: und über jede Verkaufszeile, die Kaori Kuri liefert. Die Demo (0116) verkauft die jüngste
+  -- Kaori-Kuri-Zeile absichtlich als Mandarin; seit sie an einer Lieferung hängt (die Demo rechnet ab dem
+  -- heutigen Tag), gab diese eine Zeile der Sorte die Gruppe Mandarin zurück, und der Fall war nicht gebaut.
   update sorte_kaliber set artikelgruppe = null where sorte = 'Kaori Kuri';
   create temp table t112_namen on commit drop as
-    select id, artikel from ausgang_zeile where artikel ilike '%kaori%' and quelle = 'DEMO';
+    select z.id, z.artikel from ausgang_zeile z
+     where z.quelle = 'DEMO'
+       and (z.artikel ilike '%kaori%'
+            or exists (select 1 from lieferung_import li join lieferung l on l.id = li.lieferung_id
+                        where li.zeile_id = z.id and l.sorte = 'Kaori Kuri'));
   update ausgang_zeile set artikel = 'Bio Kürbis Prüfware' where id in (select id from t112_namen);
   assert exists (select 1 from artikel_lager(0) where artikelgruppe is null and kg > 0),
     '0112 (d5): eine Sorte ohne Artikelgruppe fällt aus artikel_lager heraus';
@@ -11085,7 +11095,7 @@ select '——— 0123 Verkaufsfähig ist, was als Artikel geht ———' as er
 -- =====================================================================
 do $$
 declare v_modus jsonb; v_lad text; v_geladen boolean := false;
-  v_s int; v_n int; v_x record; v_vorher numeric;
+  v_s int; v_n int; v_x record; v_vorher numeric; v_sorte_offen text; v_gruppe_alt text;
 begin
   -- (a) Suchpfad: PL/pgSQL mit festem Suchpfad; SQL ohne SET (einsetzbar, 0110)
   select count(*) into v_n
@@ -11117,6 +11127,19 @@ begin
   end if;
 
   -- (b1) Sorte ohne Artikelgruppe: offen, nicht „passt in keinen Artikel"
+  -- 9. November: Bis hier verliess sich (b0) darauf, dass die Demo eine solche Sorte mit Ware hat (Bolp 5110). Die
+  -- Demo rechnet ab dem heutigen Tag, seit dem 9. November ist Bolp 5110 ausverkauft — (b1) wäre blind. Darum wird
+  -- der Fall jetzt gebaut, wenn die Demo ihn nicht hat: die kleinste Sorte mit Ware, deren Gruppe nur aus den
+  -- Stammdaten kommt, verliert sie vorübergehend. Die Prüfungen (b1) sind dieselben.
+  if not exists (select 1 from v_lager_ausweis a join v_sorte_artikelgruppe g on g.sorte = a.sorte
+                  where a.verkaufsfaehig_kg > 0 and g.artikelgruppe is null) then
+    select g.sorte into v_sorte_offen
+      from v_sorte_artikelgruppe g join v_lager_ausweis a on a.sorte = g.sorte
+     where g.quelle = 'Stammdaten' and g.gruppe_verkauft is null and a.verkaufsfaehig_kg > 0
+     group by g.sorte order by sum(a.verkaufsfaehig_kg), g.sorte limit 1;
+    select artikelgruppe into v_gruppe_alt from sorte_kaliber where sorte = v_sorte_offen;
+    update sorte_kaliber set artikelgruppe = null where sorte = v_sorte_offen;
+  end if;
   assert exists (select 1 from v_lager_ausweis a join v_sorte_artikelgruppe g on g.sorte = a.sorte
                   where a.verkaufsfaehig_kg > 0 and g.artikelgruppe is null),
     '0124 (b0): keine Sorte ohne Artikelgruppe mit Ware in der Demo — (b1) prüft nichts';
@@ -11140,6 +11163,7 @@ begin
      -- seit 0133 kommt Unique nicht mehr dazu (es ist darin)
      and abs(a.verkaufbar_kg - (a.verkaufsfaehig_kg - a.keinen_artikel_kg - coalesce(a.ueberfuellung_kg, 0))) > 0.05;
   assert v_n = 0, format('0124 (b1): bei %s Chargen wird die offene Artikelgruppe vom Verkaufbaren abgezogen', v_n);
+  if v_sorte_offen is not null then update sorte_kaliber set artikelgruppe = v_gruppe_alt where sorte = v_sorte_offen; end if;
 
   -- (b2) eine Artikelgruppe ohne Gewichte ist ein Artikel ohne Grösse
   assert exists (select 1 from v_lager_ausweis a join v_sorte_artikelgruppe g on g.sorte = a.sorte
@@ -12470,7 +12494,7 @@ select '——— 0131 Was Perigon wiegt, woraus der Mix ist, was Perigon gelös
 do $$
 declare v_modus jsonb; v_lad text; v_geladen boolean := false; v_n int; v_ab int; v_x numeric; v_y numeric; v_txt text;
   r record; v_a bigint; v_c int; v_st text; v_eingang numeric; v_vorher record; v_h numeric; v_kg numeric; v_s0 numeric; v_ts timestamptz; v_stand numeric;
-  v_u uuid := '00000000-0132-0000-0000-000000000001';
+  v_u uuid := '00000000-0132-0000-0000-000000000001'; v_kontrolle bigint;
 begin
   select wert into v_modus from einstellung where schluessel = 'betriebsmodus';
   update einstellung set wert = '"beispiel"'::jsonb where schluessel = 'betriebsmodus';
@@ -12488,6 +12512,23 @@ begin
     '0132 (a2): vorwissen_messungen() ist nicht unveränderlich — dann wäre es keine feste Zahl';
 
   -- (b) Verdunstung je Sorte, nachgerechnet aus den Wägungen
+  -- 9. November: Die Demo rechnet ab dem heutigen Tag; seit dem 9. November haben nur noch zwei Sorten Wägungen,
+  -- und (b1) verlangt drei, um nicht blind zu sein. Fehlt die dritte, bekommt die grösste Sorte ohne Wägung eine
+  -- einzige Lagerkontrolle (n = 1, zählt ¼ — der Fall, um den es 0132 geht); gleich nach (b1) ist sie wieder weg,
+  -- damit die gespeicherte Fassung (c) dieselbe bleibt. Die Prüfung ist dieselbe.
+  if (select count(distinct w.sorte) from v_koeff_roh_verdunstung w where w.art = 'verdunstung' and w.anteil is not null and w.gewicht > 0) < 3 then
+    insert into verdunstung_wiegung (charge_nr, palette_id, eingangsdatum, brutto_damals_kg, brutto_jetzt_kg, kisten, gebindeart,
+                                     auswahl, erfasser, wiege_ts, ts, bemerkung)
+    select p.charge_nr, p.id, p.eingangsdatum, p.brutto_kg, p.brutto_kg - 10, p.kisten, coalesce(p.gebindeart, 'G2'), 'erreichbar_zufaellig', v_u,
+           (p.eingangsdatum + 30)::timestamptz + interval '10 hours', (p.eingangsdatum + 30)::timestamptz + interval '10 hours', 'PRUEF0132'
+      from palette p join charge c on c.nr = p.charge_nr
+     where c.sorte not in (select w.sorte from v_koeff_roh_verdunstung w where w.art = 'verdunstung' and w.sorte is not null)
+       and coalesce(c.hagel_anteil, 0) = 0 and p.eingangsdatum + 30 <= heute()
+     order by (select sum(p2.brutto_kg) from palette p2 join charge c2 on c2.nr = p2.charge_nr where c2.sorte = c.sorte) desc nulls last, p.id
+     limit 1
+    returning id into v_kontrolle;
+    assert v_kontrolle is not null, '0132 (b0): keine Sorte ohne Wägung, an der eine Lagerkontrolle gebaut werden kann';
+  end if;
   select count(*),
          count(*) filter (where abs(g.b - x.n::numeric / (x.n + 3)) > 1e-12
                              or abs(g.mittel - ((x.n::numeric / (x.n + 3)) * x.m_s + (3.0 / (x.n + 3)) * x.m_a)) > 1e-12
@@ -12513,6 +12554,7 @@ begin
                where w.art = 'verdunstung' and w.anteil is not null and w.gewicht > 0) as v_a) x
    where g.art = 'verdunstung' and g.sorte is not null and x.n > 0;
   assert v_n >= 3 and v_ab = 0, format('0132 (b1): %s von %s Sorten mit Wägungen sind nicht n ÷ (n + 3) gewichtet (Mittel, Unsicherheit, Freiheitsgrade)', v_ab, v_n);
+  if v_kontrolle is not null then delete from verdunstung_wiegung where id = v_kontrolle; end if;
   assert not exists (select 1 from v_koeff_verdunstung_geschaetzt g
                       where g.art = 'verdunstung' and g.sorte is not null and g.n = 0
                         and (g.b <> 0 or g.mittel is distinct from g.mittel_gesamt)),
@@ -13166,10 +13208,11 @@ begin
   assert v_n > 5 and v_ab = 0, format('0134 (b1): bei %s von %s Chargen ist der Bedarf nicht Σ m0 der Kaskade', v_ab, v_n);
   select count(*), count(*) filter (where abs(b.bedarf_min_kg - x.u) > 0.01 or abs(b.bedarf_max_kg - x.o) > 0.01) into v_n, v_ab
     from v_charge_bedarf b
+    -- 9. November (0136): mit dem Verschenkten — was in den Kisten über dem Sollgewicht mitging, braucht auch Eingang
     join (select k.charge_nr,
-                 sum(k.geliefert_kg / case when k.portion = 'entsorgt' then greatest(power(1 - least(greatest(coalesce(kv.unten, kv.mittel, 0), 0), 0.05), k.alter_tage), 0.25)
+                 sum((k.geliefert_kg + k.verschenkt_kg) / case when k.portion = 'entsorgt' then greatest(power(1 - least(greatest(coalesce(kv.unten, kv.mittel, 0), 0), 0.05), k.alter_tage), 0.25)
                        else greatest(power(1 - least(greatest(coalesce(kv.unten, kv.mittel, 0), 0), 0.05), k.alter_tage) * (1 - k.f_unten) * (1 - k.a_klein_n - k.a_gross_n) * (1 - k.a_fax), 0.25) end) as u,
-                 sum(k.geliefert_kg / case when k.portion = 'entsorgt' then greatest(power(1 - least(greatest(coalesce(kv.oben, kv.mittel, 0), 0), 0.05), k.alter_tage), 0.25)
+                 sum((k.geliefert_kg + k.verschenkt_kg) / case when k.portion = 'entsorgt' then greatest(power(1 - least(greatest(coalesce(kv.oben, kv.mittel, 0), 0), 0.05), k.alter_tage), 0.25)
                        else greatest(power(1 - least(greatest(coalesce(kv.oben, kv.mittel, 0), 0), 0.05), k.alter_tage) * (1 - k.f_oben) * (1 - k.a_klein_n - k.a_gross_n) * (1 - k.a_fax), 0.25) end) as o
             from mv_kaskade k left join v_koeff_verdunstung kv on kv.sorte = k.sorte
            where k.portion in ('ausgelagert', 'entsorgt') and k.geliefert_kg > 0
@@ -13255,7 +13298,9 @@ begin
     from erg_charge e left join (select charge_nr, sum(liegt_kg) as kg from v_am_lager group by charge_nr) a on a.charge_nr = e.charge_nr
    where e.charge_nr in (select charge_nr from mv_kaskade);
   assert v_ab = 0, format('0134 (e2): bei %s Chargen ist Σ v_am_lager nicht das Lager der Charge', v_ab);
-  assert (select count(*) from v_am_lager where charge_nr = 99347) = 1 and (select ueberzaehlung_kg > 0 and lager_kg > 0 from erg_charge where charge_nr = 99347),
+  -- 9. November (0136): v_am_lager nennt auch einen Tag, an dem nichts mehr liegt, aber Aussortiertes in der Halle steht —
+  -- der überzogene Tag von P7 steht darum mit liegt_kg 0 da; gezählt wird der Tag, an dem noch etwas liegt
+  assert (select count(*) from v_am_lager where charge_nr = 99347 and liegt_kg > 0) = 1 and (select ueberzaehlung_kg > 0 and lager_kg > 0 from erg_charge where charge_nr = 99347),
     '0134 (e3): P7 hat nicht einen überzogenen und einen liegenden Eingangstag — (g4) wäre blind';
 
   -- (f) leer bestätigt
@@ -13597,3 +13642,226 @@ begin
 end $$;
 
 select '——— 0135 Was der Zettel sagt ———' as ergebnis;
+-- =====================================================================
+-- 0136 — Was in der Halle steht
+--
+-- Der Betrieb am 9. November: „Wenn ich beim Reiter Chargen bin und die
+-- Anzahl Paletten sehen will, geht es darum, dass ich in der Halle
+-- kontrollieren kann — unsortierte, sortierte, aussortierte (zu klein, zu
+-- gross). Zum Hochrechnen ist ja eigentlich nur Verkauf + Verdunstung +
+-- Palox + verschenkte Marge."
+--
+-- Geprüft auf der Demo (die Überfüllung je Charge und Sorte ist dort
+-- gewogen) mit gebauten Chargen:
+-- (a) die verschenkte Marge je Charge: Kisten „ab 8 kg" × zu viel je Kiste,
+--     gewogen bei der Charge — auch wenn die Lieferung unter einer anderen
+--     Sorte steht (wie 1631) —, sonst bei der Sorte; Stück-Kisten nichts;
+--     unbekanntes Kistensystem nicht gerechnet, aber gesagt;
+-- (b) die Kaskade: was hinausging, ist geliefert + verschenkt, verteilt auf
+--     die Lieferungen nach kg; m0 jeder Lieferzeile danach; das Lager ohne
+--     das Verschenkte;
+-- (c) in der Halle: was liegt + was beim Verarbeiten aussortiert wurde (auf
+--     den Eingang zurückgerechnet), in Eingangspaletten;
+-- (d) je Eingangstag: auch ein Tag, an dem nichts mehr liegt, aber
+--     Aussortiertes steht; eine leer bestätigte Charge hat nichts mehr in der
+--     Halle;
+-- (e) der Bedarf mit der Spanne zählt das Verschenkte;
+-- (f) Wohin und (g) die Saisonbilanz gehen weiter auf, das Verschenkte ist ein
+--     eigener Posten;
+-- (h) Rechte; (j) Stand 136.
+-- =====================================================================
+do $$
+declare v_modus jsonb; v_lad text; v_geladen boolean := false; v_n int; v_x numeric; v_y numeric; v_txt text;
+  v_q int := 99361; v_q2 int := 99362; v_c int; v_s text; v_s2 text; v_zc numeric; v_zs numeric; v_vorher numeric;
+  v_d0 date := heute() - 30; v_l bigint; v_z bigint; v_l_c bigint; v_pal numeric;
+  v_u uuid := '00000000-0136-0000-0000-000000000001';
+begin
+  select wert into v_modus from einstellung where schluessel = 'betriebsmodus';
+  update einstellung set wert = '"beispiel"'::jsonb where schluessel = 'betriebsmodus';
+  insert into auth.users (id, email, raw_user_meta_data) values (v_u, null, '{"name":"Prüf-0136"}');
+  update profil set rolle = 'admin' where id = v_u;
+  perform set_config('request.jwt.claim.sub', v_u::text, true);
+  if not exists (select 1 from auftrag where station = 'waschen_sortieren' and bemerkung = 'DEMO') then
+    select demo_daten_laden() into v_lad; v_geladen := true;
+  end if;
+  refresh materialized view erg_ueberfuellung;
+
+  -- Eine Demo-Charge mit eigener Wägung (Kisten ab 8 kg), und die Sorte der gebauten Charge mit Wägung der Sorte
+  select u.charge_nr, c.sorte, u.zuviel_je_kiste into v_c, v_s2, v_zc
+    from erg_ueberfuellung u join charge c on c.nr = u.charge_nr
+   where u.gruppe = 'charge' and u.kistensystem = 'kiste_ab' and u.soll_kg_pro_kiste = 8 and u.zuviel_je_kiste is not null
+   order by u.charge_nr limit 1;
+  select u.sorte, u.zuviel_je_kiste into v_s, v_zs
+    from erg_ueberfuellung u
+   where u.gruppe = 'sorte' and u.kistensystem = 'kiste_ab' and u.soll_kg_pro_kiste = 8 and u.zuviel_je_kiste is not null
+     and u.sorte is distinct from v_s2
+   order by u.sorte limit 1;
+  assert v_c is not null and v_s is not null,
+    '0136 (a0): die Demo hat keine Charge mit eigener Wägung der Kisten ab 8 kg, oder keine zweite Sorte mit Wägung — der Block prüfte nichts';
+  select verschenkt_kg into v_vorher from v_verschenkt_charge where charge_nr = v_c;
+
+  -- Q: Eingang 3 Paletten (36 Kisten G2), drei Lieferungen über Perigon: 10 Kisten ab 8 kg, eine Stück-Kiste, eine ohne Kistensystem
+  insert into charge (nr, schlag, sorte, saison) values (v_q, 'Prüf-0136', v_s, extract(year from heute())::int),
+                                                       (v_q2, 'Prüf-0136 Ü', v_s, extract(year from heute())::int);
+  insert into palette (charge_nr, eingangsdatum, brutto_kg, kisten, gebindeart, extern_id, quelle)
+  select v_q, v_d0, 480, 36, 'G2', format('pruef-0136-%s', i), 'journal-import' from generate_series(1, 3) i;
+  insert into palette (charge_nr, eingangsdatum, brutto_kg, kisten, gebindeart, extern_id, quelle)
+  values (v_q2, v_d0, 480, 36, 'G2', 'pruef-0136-ue', 'journal-import');
+  insert into ausgang_quelle (code, name, dateiname_muster) values ('PRUEF136', 'Prüf-0136', 'PRUEF136');
+  -- (1) Kisten ab 8 kg
+  insert into ausgang_zeile (quelle, pos_id, charge_extern, lauf_nr, fingerabdruck, datum, journal, kunde, artikel_id, artikel, einheit,
+                             menge, gewicht_je_artikel, batch_menge, kg_position, kg_charge, gebinde_menge, gebinde_inhalt, batch_gebinde)
+  values ('PRUEF136', 13601, v_q::text, 1, 'p136-1', heute() - 5, 'A', 'Prüfkunde 136', 'kürbp136a', format('Bio-Kürbis %s Prüf', v_s), 'kg',
+          80, 1, 80, 80, 80, 10, 8, 10) returning id into v_z;
+  insert into lieferung (datum, charge_nr, kg, ziel, bemerkung) values (heute() - 5, v_q, 80, 'verkauf', 'PRUEF0136') returning id into v_l;
+  insert into lieferung_import (lieferung_id, quelle, extern_id, zeile_id) values (v_l, 'PRUEF136', 'PRUEF136:13601:1', v_z);
+  -- (2) eine Stück-Kiste (9 Stück à 1.2 kg): kein Sollgewicht, nichts verschenkt
+  insert into ausgang_zeile (quelle, pos_id, charge_extern, lauf_nr, fingerabdruck, datum, journal, kunde, artikel_id, artikel, einheit,
+                             menge, gewicht_je_artikel, batch_menge, kg_position, kg_charge, gebinde_menge, gebinde_inhalt, batch_gebinde)
+  values ('PRUEF136', 13602, v_q::text, 1, 'p136-2', heute() - 5, 'A', 'Prüfkunde 136', 'kürbp136b', format('Bio-Kürbis %s Stück Prüf', v_s), 'Stk',
+          9, 1.2, 9, 10.8, 10.8, 1, 9, 1) returning id into v_z;
+  insert into lieferung (datum, charge_nr, kg, ziel, bemerkung) values (heute() - 5, v_q, 10.8, 'verkauf', 'PRUEF0136') returning id into v_l;
+  insert into lieferung_import (lieferung_id, quelle, extern_id, zeile_id) values (v_l, 'PRUEF136', 'PRUEF136:13602:1', v_z);
+  -- (3) ohne Kistensystem (kein Kisteninhalt in der Datei)
+  insert into ausgang_zeile (quelle, pos_id, charge_extern, lauf_nr, fingerabdruck, datum, journal, kunde, artikel_id, artikel, einheit,
+                             menge, gewicht_je_artikel, batch_menge, kg_position, kg_charge)
+  values ('PRUEF136', 13603, v_q::text, 1, 'p136-3', heute() - 5, 'A', 'Prüfkunde 136', 'kürbp136c', format('Bio-Kürbis %s lose Prüf', v_s), 'kg',
+          50, 1, 50, 50, 50) returning id into v_z;
+  insert into lieferung (datum, charge_nr, kg, ziel, bemerkung) values (heute() - 5, v_q, 50, 'verkauf', 'PRUEF0136') returning id into v_l;
+  insert into lieferung_import (lieferung_id, quelle, extern_id, zeile_id) values (v_l, 'PRUEF136', 'PRUEF136:13603:1', v_z);
+  -- (4) die Demo-Charge C: 10 Kisten ab 8 kg, in der Lieferung unter einer anderen Sorte (wie 1631: geliefert als Tiana, gewogen als Mieluna)
+  insert into ausgang_zeile (quelle, pos_id, charge_extern, lauf_nr, fingerabdruck, datum, journal, kunde, artikel_id, artikel, einheit,
+                             menge, gewicht_je_artikel, batch_menge, kg_position, kg_charge, gebinde_menge, gebinde_inhalt, batch_gebinde)
+  values ('PRUEF136', 13604, v_c::text, 1, 'p136-4', heute() - 5, 'A', 'Prüfkunde 136', 'kürbp136d', format('Bio-Kürbis %s Prüf', v_s), 'kg',
+          80, 1, 80, 80, 80, 10, 8, 10) returning id into v_z;
+  insert into lieferung (datum, charge_nr, sorte, kg, ziel, bemerkung) values (heute() - 5, v_c, v_s, 80, 'verkauf', 'PRUEF0136') returning id into v_l_c;
+  insert into lieferung_import (lieferung_id, quelle, extern_id, zeile_id) values (v_l_c, 'PRUEF136', 'PRUEF136:13604:1', v_z);
+  -- Q2: mehr geliefert, als hereinkam (von Hand, ohne Perigon) — es liegt nichts mehr, aber Aussortiertes steht
+  insert into lieferung (datum, charge_nr, kg, ziel, bemerkung) values (heute() - 5, v_q2, 600, 'verkauf', 'PRUEF0136');
+
+  refresh materialized view erg_ueberfuellung;
+
+  -- (a) die verschenkte Marge je Charge
+  select count(*) into v_n from v_verschenkt_charge
+   where charge_nr = v_q and verkauft_kg = 140.80 and kiste_ab_kg = 80 and system_offen_kg = 50 and ohne_wiegung_kg = 0
+     and abs(verschenkt_kg - 10 * v_zs) < 0.01 and quelle = 'sorte' and abs(anteil - round(10 * v_zs, 2) / 140.8) < 1e-6;
+  assert v_n = 1, format('0136 (a1): Q (Sorte %s, zu viel %s je Kiste bei der Sorte) soll 10 Kisten × %s verschenkt haben, aus 140.8 kg (80 Kisten ab 8 kg, 10.8 Stück, 50 ohne Kistensystem): %s',
+    v_s, v_zs, v_zs, (select row(v.*)::text from v_verschenkt_charge v where v.charge_nr = v_q));
+  select verschenkt_kg into v_x from v_verschenkt_charge where charge_nr = v_c;
+  assert abs(v_x - coalesce(v_vorher, 0) - 10 * v_zc) < 0.02,
+    format('0136 (a2): C %s (gewogen %s je Kiste) — 10 Kisten unter der Sorte %s geliefert sollen mit der Wägung der Charge zählen: %s statt %s + %s',
+           v_c, v_zc, v_s, v_x, v_vorher, round(10 * v_zc, 2));
+  -- alle Chargen: dieselbe Regel, anders aufgeschrieben (je Zeile von erg_ueberfuellung, mit Unterabfragen statt Verbindungen)
+  select count(*) into v_n from (
+    select u.charge_nr, sum(u.kisten_verkauft * coalesce(
+             (select avg(g.zuviel_je_kiste) from erg_ueberfuellung g where g.gruppe = 'charge' and g.charge_nr = u.charge_nr
+                 and g.kistensystem = 'kiste_ab' and g.soll_kg_pro_kiste is not distinct from u.soll_kg_pro_kiste and g.zuviel_je_kiste is not null),
+             (select avg(g.zuviel_je_kiste) from erg_ueberfuellung g where g.gruppe = 'sorte' and g.sorte = (select c.sorte from charge c where c.nr = u.charge_nr)
+                 and g.kistensystem = 'kiste_ab' and g.soll_kg_pro_kiste is not distinct from u.soll_kg_pro_kiste and g.zuviel_je_kiste is not null), 0))
+             filter (where u.kistensystem = 'kiste_ab') as soll
+      from erg_ueberfuellung u
+     where u.gruppe = 'charge' and u.kg_verkauft > 0 and exists (select 1 from charge c where c.nr = u.charge_nr)
+     group by u.charge_nr) e
+    full join v_verschenkt_charge v on v.charge_nr = e.charge_nr
+   where abs(coalesce(e.soll, 0) - coalesce(v.verschenkt_kg, 0)) > 0.02 or (e.charge_nr is null) <> (v.charge_nr is null);
+  assert v_n = 0, format('0136 (a3): %s Chargen haben eine andere verschenkte Marge als Kisten × zu viel je Kiste (Charge, sonst Sorte)', v_n);
+  assert (select count(*) from v_verschenkt_charge where verschenkt_kg > 0) >= 3,
+    '0136 (a4): auf der Demo hat kaum eine Charge eine verschenkte Marge — (a3) prüfte nichts';
+
+  perform auswertung_aktualisieren();
+
+  -- (b) die Kaskade: geliefert + verschenkt hinaus, nach kg verteilt
+  select sum(verschenkt_kg) into v_x from mv_kaskade where charge_nr = v_q and portion = 'ausgelagert';
+  assert abs(v_x - (select verschenkt_kg from v_verschenkt_charge where charge_nr = v_q)) < 0.005,
+    format('0136 (b1): die Lieferzeilen von Q tragen %s kg verschenkt statt %s', v_x, (select verschenkt_kg from v_verschenkt_charge where charge_nr = v_q));
+  select count(*) into v_n from mv_kaskade k
+   where k.portion = 'ausgelagert' and k.charge_nr in (v_q, v_c)
+     and abs(k.m0 - (k.geliefert_kg + k.verschenkt_kg) / k.verkaufsfaehig_anteil) > 1e-6 * k.m0;
+  assert v_n = 0, format('0136 (b2): %s Lieferzeilen von Q oder C rechnen m0 nicht aus geliefert + verschenkt', v_n);
+  select count(*) into v_n from (
+    select k.charge_nr from mv_kaskade k where k.portion = 'ausgelagert'
+     group by k.charge_nr
+    having abs(sum(k.verschenkt_kg) - coalesce((select v.verschenkt_kg from v_verschenkt_charge v where v.charge_nr = k.charge_nr), 0)) > 0.01) x;
+  assert v_n = 0, format('0136 (b3): bei %s Chargen ist das Verschenkte der Lieferzeilen nicht das der Charge', v_n);
+  assert (select abs(c.lager_kg - (c.eingang_kg - c.ausgelagert_kg)) < 0.02 and abs(c.verschenkt_kg - v_x) < 0.01 and c.verschenkt_kg > 0
+            from erg_charge c where c.charge_nr = v_q),
+    format('0136 (b4): Q liegt nicht mit Eingang − (geliefert + verschenkt + Verluste): %s',
+           (select row(c.eingang_kg, c.ausgelagert_kg, c.lager_kg, c.verschenkt_kg)::text from erg_charge c where c.charge_nr = v_q));
+
+  -- (c) in der Halle: was liegt + was aussortiert ist (zurückgerechnet), in Eingangspaletten
+  select sum((k.klein_kg + k.nebenkanal_kg) * k.m0 / k.m1) into v_x from mv_kaskade k where k.charge_nr = v_q and k.portion = 'ausgelagert';
+  select c.eingang_kg / c.n_paletten into v_pal from erg_charge c where c.charge_nr = v_q;
+  assert v_x > 0, '0136 (c0): die Sorte der gebauten Charge hat kein zu klein und kein zu gross — (c) prüfte nichts';
+  assert (select abs(c.aussortiert_kg - v_x) < 0.01 and abs(c.halle_kg - (c.lager_kg + c.aussortiert_kg)) < 0.02
+             and c.n_halle_paletten = round((c.lager_kg + v_x) / v_pal) and c.n_aussortiert_paletten = round(v_x / v_pal)
+            from erg_charge c where c.charge_nr = v_q),
+    format('0136 (c1): Q in der Halle ist nicht Liegendes + Aussortiertes (%s kg): %s', round(v_x, 2),
+           (select row(c.lager_kg, c.aussortiert_kg, c.halle_kg, c.n_rest_paletten, c.n_aussortiert_paletten, c.n_halle_paletten)::text from erg_charge c where c.charge_nr = v_q));
+  select count(*) into v_n from erg_charge c
+   where c.lager_kg > 0 and c.kanal_bekannt and abs(c.halle_kg - c.lager_kg - coalesce(c.aussortiert_kg, 0)) > 0.02;
+  assert v_n = 0, format('0136 (c2): %s Chargen haben in der Halle nicht Liegendes + Aussortiertes', v_n);
+
+  -- (d) je Eingangstag
+  assert (select abs(a.halle_paletten - round(a.n_paletten * (a.liegt_kg + a.aussortiert_kg) / a.eingang_kg, 1)) < 0.06
+             and abs(a.aussortiert_kg - v_x) < 0.01 and a.liegt_kg > 0
+            from v_am_lager a where a.charge_nr = v_q),
+    format('0136 (d1): Q je Eingangstag: %s', (select row(a.*)::text from v_am_lager a where a.charge_nr = v_q));
+  assert (select a.liegt_kg = 0 and a.liegt_paletten = 0 and a.aussortiert_kg > 0 and a.halle_paletten > 0
+            from v_am_lager a where a.charge_nr = v_q2),
+    format('0136 (d2): Q2 (mehr geliefert als gekommen) liegt nicht mehr, aber das Aussortierte steht noch in der Halle: %s',
+           coalesce((select row(a.*)::text from v_am_lager a where a.charge_nr = v_q2), 'keine Zeile'));
+  update charge set leer_am = heute() where nr = v_q2;
+  assert not exists (select 1 from v_am_lager a where a.charge_nr = v_q2),
+    '0136 (d3): eine leer bestätigte Charge hat noch etwas in der Halle (je Eingangstag)';
+  perform auswertung_aktualisieren();
+  assert (select c.aussortiert_kg = 0 and c.halle_kg = 0 and c.n_halle_paletten = 0 from erg_charge c where c.charge_nr = v_q2),
+    format('0136 (d4): eine leer bestätigte Charge hat noch etwas in der Halle: %s',
+           (select row(c.lager_kg, c.aussortiert_kg, c.halle_kg, c.n_halle_paletten)::text from erg_charge c where c.charge_nr = v_q2));
+
+  -- (e) der Bedarf mit der Spanne zählt das Verschenkte
+  select sum((k.geliefert_kg + k.verschenkt_kg)::double precision / greatest(power(1::double precision - least(greatest(coalesce(kv.unten, kv.mittel::double precision, 0), 0), 0.05), k.alter_tage::double precision)
+             * (1 - k.f_unten)::double precision * (1 - k.a_klein_n - k.a_gross_n)::double precision * (1 - k.a_fax)::double precision, 0.25))
+    into v_y
+    from mv_kaskade k left join v_koeff_verdunstung kv on kv.sorte = k.sorte
+   where k.charge_nr = v_q and k.portion = 'ausgelagert' and k.geliefert_kg > 0;
+  assert (select abs(b.bedarf_min_kg - v_y) < 0.01   -- auf zwei Stellen gerundet and abs(b.bedarf_kg - c.ausgelagert_kg) < 0.02
+            from v_charge_bedarf b join erg_charge c using (charge_nr) where b.charge_nr = v_q),
+    format('0136 (e1): der Bedarf von Q (günstigste Raten) zählt das Verschenkte nicht: %s statt %s',
+           (select b.bedarf_min_kg from v_charge_bedarf b where b.charge_nr = v_q), v_y);
+
+  -- (f) Wohin: das Verschenkte ist ein eigener Posten, die erste Identität bleibt null
+  select max(abs(w.rest_kg)) into v_x from erg_wohin w where w.gruppe = 'charge';
+  assert v_x < 0.1, format('0136 (f1): eine Charge lässt in Wohin %s kg offen', v_x);
+  assert (select abs(w.verschenkt_kg - (select sum(c.verschenkt_kg) from erg_charge c)) < 0.05 and abs(w.rest_kg) < 1 and w.verschenkt_kg > 0
+            from erg_wohin w where w.gruppe = 'gesamt'),
+    format('0136 (f2): Wohin gesamt: %s', (select row(w.verschenkt_kg, w.rest_kg)::text from erg_wohin w where w.gruppe = 'gesamt'));
+
+  -- (g) die Saisonbilanz: Eingang + Überzählung = ausgeliefert + verschenkt + Verlust + im Haus
+  assert (select abs(b.bilanz_rest_kg) < 1 and abs(b.verschenkt_kg - (select sum(c.verschenkt_kg) from erg_charge c)) < 0.05
+             and (b.befund like '%kg verschenkt: in den Kisten über dem Sollgewicht mitgegeben%' or not b.verlust_bekannt)
+            from v_saisonbilanz b),
+    format('0136 (g1): die Saisonbilanz geht mit dem Verschenkten nicht auf oder sagt es nicht: %s',
+           (select row(b.bilanz_rest_kg, b.verschenkt_kg, left(b.befund, 200))::text from v_saisonbilanz b));
+
+  -- (h) Rechte
+  assert has_table_privilege('authenticated', 'v_verschenkt_charge', 'select') and not has_table_privilege('anon', 'v_verschenkt_charge', 'select'),
+    '0136 (h1): die verschenkte Marge je Charge lesen Nichtangemeldete, oder Angemeldete nicht';
+
+  -- (j) Stand
+  assert schema_stand() >= 136, format('0136 (j1): schema_stand() = %s', schema_stand());
+
+  -- aufräumen
+  delete from lieferung_import where quelle = 'PRUEF136';
+  delete from lieferung where bemerkung = 'PRUEF0136';
+  delete from ausgang_zeile where quelle = 'PRUEF136';
+  delete from ausgang_quelle where code = 'PRUEF136';
+  delete from palette where charge_nr in (v_q, v_q2);
+  delete from charge where nr in (v_q, v_q2);
+  refresh materialized view erg_ueberfuellung;
+  if v_geladen then perform demo_daten_entfernen(); else perform auswertung_aktualisieren(); end if;
+  delete from profil where id = v_u; delete from auth.users where id = v_u;
+  update einstellung set wert = v_modus where schluessel = 'betriebsmodus';
+  raise notice 'OK  0136 — in der Halle steht, was liegt, und was aussortiert ist; die verschenkte Marge ist hinausgegangen';
+end $$;
+
+select '——— 0136 Was in der Halle steht ———' as ergebnis;

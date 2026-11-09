@@ -591,3 +591,29 @@ test('K1 — eine am Lager leer bestätigte Charge hat kein Lager mehr; was die 
   assert.equal(kohorteGeschlossen([{ ...zeilen(0)[0], m0: 1100 }, zeilen(0)[1]], kohorte, new Set([7])).length, 1,
     'leer schützt nicht vor mehr m0 als Eingang ohne Überzählung')
 })
+
+/* ---------- 0136: die verschenkte Marge ---------- */
+import { verschenktAufZeile, verschenktJeCharge, type UeberfuellungZeile } from './marge.ts'
+
+test('0136: die verschenkte Marge — gewogen bei der Charge (auch unter fremder Sorte), sonst bei der Sorte; Stück und unbekannt nichts', () => {
+  const z = (x: Partial<UeberfuellungZeile>): UeberfuellungZeile => ({ gruppe: 'charge', chargeNr: null, sorte: null, kistensystem: 'kiste_ab', sollKg: 8,
+    kgVerkauft: null, kistenVerkauft: null, zuviel: null, ...x })
+  const zeilen = [
+    z({ chargeNr: 1631, sorte: 'Tiana', kgVerkauft: 6264, kistenVerkauft: 783 }),            // geliefert unter Tiana …
+    z({ chargeNr: 1631, sorte: 'Mieluna', zuviel: 1.256 }),                                 // … gewogen unter Mieluna (Betrieb, 9. November)
+    z({ chargeNr: 1631, sorte: 'Tiana', kistensystem: 'unbekannt', sollKg: null, kgVerkauft: 14996, kistenVerkauft: 1443 }),
+    z({ chargeNr: 1640, sorte: 'Tiana', kgVerkauft: 800, kistenVerkauft: 100 }),              // nur die Sorte gewogen
+    z({ gruppe: 'sorte', sorte: 'Tiana', zuviel: 0.362 }),
+    z({ chargeNr: 1641, sorte: 'Tiana', kistensystem: 'stueck', sollKg: null, kgVerkauft: 900, kistenVerkauft: 90, zuviel: 0.5 }),
+    z({ chargeNr: 1642, sorte: 'Lekor', kgVerkauft: 80, kistenVerkauft: 10 }),                // weder Charge noch Sorte gewogen
+    z({ chargeNr: 1643, sorte: 'Tiana', kgVerkauft: 80, kistenVerkauft: null }),              // Kisten unbekannt
+  ]
+  const sorte = new Map([[1631, 'Mieluna'], [1640, 'Tiana'], [1641, 'Tiana'], [1642, 'Lekor'], [1643, 'Tiana']])
+  const v = verschenktJeCharge(zeilen, sorte)
+  assert.equal(v.get(1631), 983.45, '783 Kisten × 1.256 kg, die Wägung der Charge')
+  assert.equal(v.get(1640), 36.2, '100 Kisten × 0.362 kg, die Wägung der Sorte')
+  assert.deepEqual([v.has(1641), v.has(1642), v.has(1643)], [false, false, false], 'Stück-Kisten, ungewogen, Kisten unbekannt: nichts')
+  assert.equal(verschenktJeCharge(zeilen, new Map([[1640, 'Tiana']])).has(1631), false, 'eine Charge, die es nicht gibt, zählt nicht')
+  assert.equal(verschenktAufZeile(500, 2000, 100), 25)
+  assert.equal(verschenktAufZeile(500, 0, 100), 0)
+})

@@ -207,3 +207,19 @@ test('Je Art: eine Abweichung nach unten zählt wie nach oben, ohne Masse bleibt
   assert.deepEqual(faelleFiltern(faelleBilden([befund('menge_null', 134747, { kunde: 'Nordmarkt', nummern: '1648, 1719' })], []), new Map(),
     { ...FALL_FILTER_LEER, suche: 'nordm' }).map(y => y.id), ['art:menge_null'], 'der Kunde einer Position findet den Fall')
 })
+
+// Runde BK (0136): was in den Kisten über dem Sollgewicht mitging, ist hinausgegangen. Der Betrieb, 9. November:
+// „Zum Hochrechnen ist ja eigentlich nur Verkauf + Verdunstung + Palox + verschenkte Marge."
+test('0136: das Verschenkte steht in der Rückrechnung gleich nach den Lieferscheinen — und die Schritte ergeben weiter den Eingang', () => {
+  // wie 1630, mit 300 kg verschenkt: die Kaskade braucht dafür (geliefert + 300) ÷ verkaufsfähiger Anteil
+  const s = (15734.78 + 300) / 15734.78
+  const z: KaskadeZeile = { ...k1630, m0: k1630.m0! * s, m1: k1630.m1! * s, m2: k1630.m2! * s, verdunstung_kg: k1630.verdunstung_kg! * s,
+    schimmel_kg: k1630.schimmel_kg! * s, klein_kg: k1630.klein_kg! * s, nebenkanal_kg: k1630.nebenkanal_kg! * s, verschenkt_kg: 300 }
+  const r = rueckrechnung([z], 19318)!
+  assert.deepEqual(r.schritte.map(x => x.strom), ['verschenkt', 'ausschuss', 'nebenkanal', 'schimmel', 'verdunstung'])
+  const summe = r.geliefertKg + r.schritte.reduce((a, x) => a + x.kg, 0)
+  assert.ok(Math.abs(summe - r.gebrauchtKg) < 0.1, `die Schritte ergeben ${summe}, gebraucht ${r.gebrauchtKg}`)
+  assert.ok(Math.abs(r.schritte[0].anteil! - 300 / 15734.78) < 1e-9, 'der Anteil vom Gelieferten')
+  assert.match(r.schritte[0].wie, /über dem Sollgewicht mitgegeben/)
+  assert.equal(rueckrechnung([k1630], 19318)!.schritte.some(x => x.strom === 'verschenkt'), false, 'ohne Verschenktes (oder aus einer alten Datenbank) kein Schritt')
+})

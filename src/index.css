@@ -1534,6 +1534,8 @@ table.excel td.falsch, table.excel th.falsch { outline: 2px solid #d12f2f; outli
 /* das Bild: herein gegen gebraucht, auf derselben Skala */
 .st-herein { background: var(--strom-vf); }
 .st-verkauft { background: var(--strom-verkauft); }
+/* 0136: verschenkt — hinausgegangen wie das Verkaufte, aber nicht verrechnet: dieselbe Farbe, gestreift */
+.st-verschenkt { background: repeating-linear-gradient(45deg, var(--strom-verkauft) 0 3px, color-mix(in srgb, var(--strom-verkauft) 45%, var(--flaeche)) 3px 6px); }
 .st-ausschuss { background: var(--strom-ausschuss); }
 .st-nebenkanal { background: var(--strom-nebenkanal); }
 .st-schimmel { background: var(--strom-schimmel); }

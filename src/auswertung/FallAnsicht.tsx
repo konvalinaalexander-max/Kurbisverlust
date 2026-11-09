@@ -145,7 +145,7 @@ function useKaskade(nr: number | null): { zeilen: KaskadeZeile[] | null } {
     setZeilen(null)
     void (async () => {
       const r = await supabase.from('mv_kaskade')
-        .select('m0, m1, m2, alter_tage, r, f, a_klein_n, a_gross_n, a_fax, hagel, verdunstung_kg, schimmel_kg, klein_kg, nebenkanal_kg, fax_kg, geliefert_kg, r_basis, f_quelle, klein_basis, gross_basis')
+        .select('m0, m1, m2, alter_tage, r, f, a_klein_n, a_gross_n, a_fax, hagel, verdunstung_kg, schimmel_kg, klein_kg, nebenkanal_kg, fax_kg, geliefert_kg, verschenkt_kg, r_basis, f_quelle, klein_basis, gross_basis')
         .eq('charge_nr', nr).eq('portion', 'ausgelagert')
       if (lebt) setZeilen(r.error ? [] : ((r.data ?? []) as KaskadeZeile[]))
     })()
@@ -155,7 +155,7 @@ function useKaskade(nr: number | null): { zeilen: KaskadeZeile[] | null } {
 }
 
 const STROM_NAME: Record<string, string> = {
-  verkauft: 'auf den Lieferscheinen', ausschuss: 'zu klein', nebenkanal: 'zu gross', fax: 'faul beim Abpacken', schimmel: 'Faules (Palox)', verdunstung: 'verdunstet',
+  verkauft: 'auf den Lieferscheinen', verschenkt: 'in den Kisten verschenkt', ausschuss: 'zu klein', nebenkanal: 'zu gross', fax: 'faul beim Abpacken', schimmel: 'Faules (Palox)', verdunstung: 'verdunstet',
 }
 
 /**

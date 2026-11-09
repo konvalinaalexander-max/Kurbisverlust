@@ -344,7 +344,20 @@ die Verdunstung nicht mit der Lesung (AB-73).
 
 **Braucht:** je Charge den Eingang (Abschnitt 1) und die Lieferungen; die
 Koeffizienten 5–9 beim Alter am Liefertag.
-**Rechnung:** ausgelagert = geliefert ÷ verkaufsfähiger Anteil; liegend
+**Seit 0136 die verschenkte Marge:** hinausgegangen ist geliefert und, was
+in den Kisten über dem Sollgewicht mitging (`v_verschenkt_charge`: verkaufte
+Kisten „ab x kg" × zu viel je Kiste, gewogen bei der Charge über alle ihre
+Zeilen, sonst bei ihrer Sorte; Stück-Kisten 0; ohne Wägung oder bei
+unbekanntem Kistensystem nicht gerechnet und genannt). Je Lieferzeile
+`verschenkt_kg` = das der Charge nach kg verteilt; m0 = (geliefert +
+verschenkt) ÷ verkaufsfähiger Anteil.
+**In der Halle (0136):** `halle_kg` = liegend + aussortiert; aussortiert =
+Σ (zu klein + zu gross) der Lieferzeilen × m0 ÷ m1 (auf den Eingang
+zurückgerechnet, leer ohne gemessenes zu klein / zu gross, 0 bei leer
+bestätigter Charge); Paletten = kg ÷ mittlere Eingangspalette der Charge
+(`n_halle_paletten`, `n_aussortiert_paletten`; je Eingangstag
+`v_am_lager.halle_paletten`).
+**Rechnung:** ausgelagert = (geliefert + verschenkt) ÷ verkaufsfähiger Anteil; liegend
 (`lager_kg`) = Eingang − ausgelagert; auf beide dieselbe Kaskade Verdunstung → Faules
 (Stationswerte, Abschnitt 7) → zu klein/zu gross → Fax — seit 0106 ohne
 Sockel. **Ausgang ist nur der Lieferschein**

@@ -336,10 +336,12 @@ export interface KaskadeZeile {
   f: number | null; a_klein_n: number | null; a_gross_n: number | null; a_fax: number | null; hagel: number | null
   verdunstung_kg: number | null; schimmel_kg: number | null; klein_kg: number | null; nebenkanal_kg: number | null
   fax_kg: number | null; geliefert_kg: number | null
+  /** 0136: in den Kisten über dem Sollgewicht mitgegeben — hinausgegangen, nicht auf dem Lieferschein (fehlt in einer alten Datenbank) */
+  verschenkt_kg?: number | null
   r_basis: string | null; f_quelle: string | null; klein_basis: string | null; gross_basis: string | null
 }
 
-export type Strom = 'verkauft' | 'ausschuss' | 'nebenkanal' | 'schimmel' | 'verdunstung' | 'fax'
+export type Strom = 'verkauft' | 'verschenkt' | 'ausschuss' | 'nebenkanal' | 'schimmel' | 'verdunstung' | 'fax'
 export interface Schritt {
   strom: Strom
   was: string
@@ -389,6 +391,10 @@ export function rueckrechnung(zeilen: KaskadeZeile[], eingangKg: number | null):
   const z0 = zeilen[0]
   const hagel = Math.max(...zeilen.map(z => Number(z.hagel) || 0))
   const schritte: Schritt[] = []
+  // 0136: was in den Kisten über dem Sollgewicht mitging, ist hinausgegangen — zuerst, gleich nach den Lieferscheinen
+  const verschenkt = summe(zeilen, 'verschenkt_kg')
+  if (verschenkt > 0.5) schritte.push({ strom: 'verschenkt', was: 'in den Kisten verschenkt', kg: verschenkt, anteil: geliefert > 0 ? verschenkt / geliefert : null,
+    wie: 'über dem Sollgewicht mitgegeben, gewogen — hinausgegangen, nicht verrechnet', woher: null })
   if (klein > 0.5) schritte.push({ strom: 'ausschuss', was: 'zu klein aussortiert', kg: klein, anteil: m2 > 0 ? klein / m2 : null,
     wie: 'beim Sortieren unter dem kleinsten Artikel — geht an die Tiere', woher: z0.klein_basis })
   if (gross > 0.5) schritte.push({ strom: 'nebenkanal', was: 'zu gross aussortiert', kg: gross, anteil: m2 > 0 ? gross / m2 : null,

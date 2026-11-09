@@ -365,7 +365,10 @@ function OhneEingangZeile({ u, offen, oeffnen, daten }: { u: Auswertung['ungerei
 
 function ChargenZeile({ z, offen, oeffnen, daten, hagel, ungereimt, imTopf, darf, neuRechnen }: { z: Zeile; offen: boolean; oeffnen: () => void; daten: Auswertung; hagel: ReactNode; ungereimt: Ungereimtheit[]; imTopf: boolean; darf: boolean; neuRechnen: () => void }) {
   const { b } = z
-  const liegt = b.lager_kg > 0
+  // 0136: was in der Halle steht — was liegt (unsortiert, sortiert) und was aussortiert ist (zu klein, zu gross)
+  const halleKg = b.halle_kg != null ? Number(b.halle_kg) : Number(b.lager_kg)
+  const hallePaletten = b.n_halle_paletten ?? b.n_rest_paletten
+  const liegt = halleKg > 0
   // 0134: am Lager leer bestätigt — dann liegt nichts mehr, und der Verlust ist Eingang − geliefert
   const bd = daten.bedarf.find(x => x.charge_nr === b.charge_nr)
   const leer = !!bd?.leer
@@ -391,10 +394,10 @@ function ChargenZeile({ z, offen, oeffnen, daten, hagel, ungereimt, imTopf, darf
           <td className="zahl"><span className="leise">—</span></td></>
         : imTopf ? <td className="zahl" colSpan={2}><span className="leise unique-topf-wort" title="Die Charge gehört in den Ünique-Topf: was aus dem Topf verkauft wird, kann von jeder Hagel-Charge sein — was diese Charge selbst noch hat, sagt die App darum nicht voraus. Der Topf steht in der Zeile am Ende.">nicht vorherzusagen — Verkauf über den Ünique-Topf</span></td> : <>
         <td className="zahl">{liegt
-          ? <>{b.n_rest_paletten != null
-                ? <strong title="die Eingangspaletten, die noch da sind: Eingangsmasse, die nicht ausgeliefert ist, durch die mittlere Eingangspalette der Charge">{palettenText(b.n_rest_paletten)}</strong>
-                : <strong>{kg(z.lager, 0)}</strong>}
-              {b.n_rest_paletten != null && <span className="zelle-unter" title={`Im Lager ist ${IM_LAGER_TEXT}`}>{kg(z.lager, 0)}</span>}</>
+          ? <>{hallePaletten != null
+                ? <strong title={hallenText(b)}>{palettenText(hallePaletten)}</strong>
+                : <strong>{kg(halleKg, 0)}</strong>}
+              {hallePaletten != null && <span className="zelle-unter" title={`In der Halle: ${IM_LAGER_TEXT}, dazu was aussortiert ist (zu klein, zu gross)`}>{kg(halleKg, 0)}</span>}</>
           : <span className="leise">—</span>}</td>
         <td className="zahl">{liegt && z.vf !== null
           ? <>{z.offen && <span className="mini-wort zelle-oben" title={`noch offen: ${z.offen}`}>höchstens</span>}{kg(z.vf, 0)}{z.heute !== null && <span className="leise"> · {prozent(z.heute, 0)}</span>}
@@ -420,7 +423,24 @@ function ChargenZeile({ z, offen, oeffnen, daten, hagel, ungereimt, imTopf, darf
  * Charge leer, setzt der Betriebsleiter es hier — dann hat sie kein Lager mehr,
  * Eingang − geliefert ist ihr echter Verlust, und der steht gegen die Raten.
  */
-function AmLager({ nr, b, bd, darf, neuRechnen }: { nr: number; b: Zeile['b']; bd: ChargeBedarf | undefined; darf: boolean; neuRechnen: () => void }) {
+/** 0136: „12 Paletten", „1 Palette", „weniger als eine Palette". */
+function palettenSatz(n: number | null | undefined): string {
+  return n == null ? '—' : n > 0 ? `${n} ${n === 1 ? 'Palette' : 'Paletten'}` : 'weniger als eine Palette'
+}
+
+/** 0136: was in der Halle steht, als Satz für den Hinweis unter der Maus. */
+function hallenText(b: Zeile['b']): string {
+  const aus = b.n_aussortiert_paletten ?? null
+  return 'In der Halle, in Eingangspaletten der Charge: was liegt (unsortiert und sortiert)'
+    + (b.aussortiert_kg == null ? ' — ob etwas aussortiert steht, ist nicht gemessen'
+       : ` und was aussortiert ist (zu klein, zu gross: ${kg(Number(b.aussortiert_kg), 0)}${aus ? `, etwa ${palettenText(aus)}` : ''})`)
+    + '. Weg ist, was verkauft, verdunstet, im Palox und in den Kisten über dem Sollgewicht mitgegeben ist.'
+}
+
+/** 0136: die verschenkte Marge einer Charge (v_verschenkt_charge). */
+interface Verschenkt { verschenkt_kg: number; ohne_wiegung_kg: number; system_offen_kg: number; quelle: string | null }
+
+function AmLager({ nr, b, bd, darf, neuRechnen, verschenkt }: { nr: number; b: Zeile['b']; bd: ChargeBedarf | undefined; darf: boolean; neuRechnen: () => void; verschenkt: Verschenkt | null }) {
   const [fehler, setFehler] = useState<string | null>(null)
   const [laeuft, setLaeuft] = useState(false)
   async function setzen(leer: boolean) {
@@ -442,10 +462,25 @@ function AmLager({ nr, b, bd, darf, neuRechnen }: { nr: number; b: Zeile['b']; b
           {ls.nachher && <p><Marke art="warnung">nach dem Leer-Tag</Marke> {ls.nachher}</p>}
         </>
       ) : (
-        <p>{b.lager_kg > 0
-              ? <>Liegt noch etwa <strong>{b.n_rest_paletten != null && b.n_rest_paletten > 0 ? `${b.n_rest_paletten} ${b.n_rest_paletten === 1 ? 'Palette' : 'Paletten'}` : 'weniger als eine Palette'}</strong> ({kg(b.lager_kg, 0)} beim Eingang) — je Eingangstag in der Tabelle unten.</>
-              : <span className="leise">Laut App ist nichts mehr da.</span>}
-          {darf && <> <button type="button" className="knopf" disabled={laeuft} onClick={() => void setzen(true)}>Charge ist leer (am Lager bestätigt)</button></>}</p>
+        <>
+          <p>{(b.halle_kg ?? b.lager_kg) > 0
+                ? <>In der Halle etwa <strong>{palettenSatz(b.n_halle_paletten ?? b.n_rest_paletten)}</strong> ({kg(Number(b.halle_kg ?? b.lager_kg), 0)} beim Eingang)
+                    {b.aussortiert_kg == null
+                      ? <> — liegend, unsortiert oder sortiert; ob etwas aussortiert steht, ist nicht gemessen</>
+                      : Number(b.aussortiert_kg) > 0.5
+                        ? <>: liegend, unsortiert oder sortiert, etwa {palettenSatz(b.n_rest_paletten)}; aussortiert (zu klein, zu gross) {kg(Number(b.aussortiert_kg), 0)}{(b.n_aussortiert_paletten ?? 0) > 0 ? `, etwa ${palettenSatz(b.n_aussortiert_paletten)}` : ''}</>
+                        : <> — liegend, unsortiert oder sortiert</>}. Je Eingangstag in der Tabelle unten.</>
+                : <span className="leise">Laut App ist nichts mehr da.</span>}
+            {darf && <> <button type="button" className="knopf" disabled={laeuft} onClick={() => void setzen(true)}>Charge ist leer (am Lager bestätigt)</button></>}</p>
+          {verschenkt && verschenkt.verschenkt_kg > 0.5 && (
+            <p className="leise">Weg sind dazu {kg(verschenkt.verschenkt_kg, 0)} verschenkt: in den Kisten über dem Sollgewicht mitgegeben
+              ({verschenkt.quelle === 'charge' ? 'gewogen bei dieser Charge' : verschenkt.quelle === 'sorte' ? 'gewogen bei der Sorte' : 'gewogen bei Charge und Sorte'}).</p>
+          )}
+          {verschenkt && verschenkt.system_offen_kg + verschenkt.ohne_wiegung_kg > 0.5 && (
+            <p className="leise">Bei {kg(verschenkt.system_offen_kg + verschenkt.ohne_wiegung_kg, 0)} Lieferungen ist nicht bekannt, ob mehr in den Kisten war
+              ({[verschenkt.system_offen_kg > 0.5 ? 'Kistensystem unbekannt' : null, verschenkt.ohne_wiegung_kg > 0.5 ? 'keine Wägung bei Charge oder Sorte' : null].filter(Boolean).join(', ')}) — dort liegt höchstens so viel wie gezeigt.</p>
+          )}
+        </>
       )}
       {fehler && <p className="fehler-text">{fehler}</p>}
     </section>
@@ -462,21 +497,27 @@ function ChargeDetail({ nr, z, daten, bd, darf, neuRechnen }: { nr: number; z: Z
   const [ohneZeigen, setOhneZeigen] = useState(false)
   // 0134: was je Eingangstag noch liegt — zum Vergleichen beim Zählen am Lager
   const [amLager, setAmLager] = useState<Map<string, number>>(new Map())
+  const [verschenkt, setVerschenkt] = useState<Verschenkt | null>(null)
   useEffect(() => {
     let weg = false
     void (async () => {
-      const [a, m, li, al] = await Promise.all([
+      const [a, m, li, al, vs] = await Promise.all([
         supabase.from('auftrag').select('*').eq('charge_nr', nr).order('start_ts', { ascending: false }),
         supabase.from('v_auftrag_masse').select('auftrag_id, eingang_netto_kg, masse_quelle').eq('charge_nr', nr),
         supabase.from('erg_lieferung').select('id, datum, ziel_name, kunde, masse_kg, masse_quelle').eq('charge_nr', nr).order('datum', { ascending: false }),
-        supabase.from('v_am_lager').select('eingangsdatum, liegt_paletten').eq('charge_nr', nr),
+        supabase.from('v_am_lager').select('eingangsdatum, liegt_paletten, halle_paletten').eq('charge_nr', nr),
+        supabase.from('v_verschenkt_charge').select('verschenkt_kg, ohne_wiegung_kg, system_offen_kg, quelle').eq('charge_nr', nr).maybeSingle(),
       ])
       if (weg) return
       type M = { auftrag_id: number; eingang_netto_kg: number | null; masse_quelle: string | null }
       const massen = new Map(((m.data ?? []) as M[]).map(x => [x.auftrag_id, x]))
       setArbeiten(((a.data ?? []) as Auftrag[]).map(x => ({ ...x, masse_kg: massen.get(x.id)?.eingang_netto_kg ?? null, masse_quelle: massen.get(x.id)?.masse_quelle ?? null })))
       setLieferungen((li.data ?? []) as typeof lieferungen)
-      setAmLager(new Map(((al.data ?? []) as { eingangsdatum: string; liegt_paletten: number }[]).map(x => [x.eingangsdatum, Number(x.liegt_paletten)])))
+      // 0136: in der Halle je Eingangstag (mit dem Aussortierten); eine alte Datenbank kennt nur liegt_paletten
+      setAmLager(new Map(((al.data ?? []) as { eingangsdatum: string; liegt_paletten: number; halle_paletten?: number | null }[])
+        .map(x => [x.eingangsdatum, Number(x.halle_paletten ?? x.liegt_paletten)])))
+      const v = vs.data as { verschenkt_kg: unknown; ohne_wiegung_kg: unknown; system_offen_kg: unknown; quelle: string | null } | null
+      setVerschenkt(v ? { verschenkt_kg: Number(v.verschenkt_kg ?? 0), ohne_wiegung_kg: Number(v.ohne_wiegung_kg ?? 0), system_offen_kg: Number(v.system_offen_kg ?? 0), quelle: v.quelle } : null)
       setLaedt(false)
     })()
     return () => { weg = true }
@@ -510,7 +551,8 @@ function ChargeDetail({ nr, z, daten, bd, darf, neuRechnen }: { nr: number; z: Z
         {b.n_lieferungen > 0 && (
           <li><strong>Ausgeliefert {kg(b.geliefert_kg, 0)}</strong> in {mz(b.n_lieferungen, 'Lieferung', 'Lieferungen')}
             {ohneNummer > 0 && <span className="leise" title="Lieferscheine ohne Chargennummer nehmen anteilig von jeder Charge ihrer Sorte, die schon da war. Sie zählen hier mit, stehen aber nicht in der Liste unten. Unter Betrieb → Warenausgang lässt sich die Charge nachtragen."> (davon {zahl(ohneNummer)} ohne Chargennummer, anteilig)</span>}
-            {' '}· <span title="So viel Eingangsware ging dafür aus dem Lager — mehr als geliefert, weil unterwegs verdunstet, im Palox gelandet oder als zu klein / zu gross aussortiert">aus {kg(b.ausgelagert_kg, 0)} Eingangsware</span> <Herkunft art="gerechnet" /></li>
+            {Number(b.verschenkt_kg ?? 0) > 0.5 && <span title="In den Kisten über dem Sollgewicht mitgegeben (gewogen): hinausgegangen, aber nicht verrechnet"> · dazu {kg(Number(b.verschenkt_kg), 0)} verschenkt</span>}
+            {' '}· <span title="So viel Eingangsware ging dafür aus dem Lager — mehr als geliefert, weil unterwegs verdunstet, im Palox gelandet, als zu klein / zu gross aussortiert oder in den Kisten über dem Sollgewicht mitgegeben">aus {kg(b.ausgelagert_kg, 0)} Eingangsware</span> <Herkunft art="gerechnet" /></li>
         )}
         {/* 0134: die Überzählung sagt, welche sie ist — sicher ein Datenfehler, oder die Rate passt nicht; in der Spanne nur leise */}
         {(() => { const u = ueberzaehlungSatz(bd); return u && (u.ton === 'warnung'
@@ -523,7 +565,7 @@ function ChargeDetail({ nr, z, daten, bd, darf, neuRechnen }: { nr: number; z: Z
         {z.l && <li className="leise">Gemessen: {mz(z.l.n_wiegungen, 'Palettenwägung', 'Palettenwägungen')} · {mz(z.l.n_schimmel, 'Palox-Ablesung', 'Palox-Ablesungen')} · {mz(z.l.n_sortierlaeufe, 'Sortierlauf', 'Sortierläufe')}</li>}
       </ul>
 
-      <AmLager nr={nr} b={b} bd={bd} darf={darf} neuRechnen={neuRechnen} />
+      <AmLager nr={nr} b={b} bd={bd} darf={darf} neuRechnen={neuRechnen} verschenkt={verschenkt} />
 
       <div className="gitter">
         <div>
@@ -531,7 +573,7 @@ function ChargeDetail({ nr, z, daten, bd, darf, neuRechnen }: { nr: number; z: Z
           {kohorten.length === 0 ? <p className="leise">keine Eingangstage bekannt</p> : (
             <div className="rollbar"><table className="dicht">
               <thead><tr><th>Eingangstag</th><th className="zahl">Alter heute</th><th className="zahl">Paletten</th><th className="zahl">Eingang</th><th className="zahl">in der App gezählt</th>
-                <th className="zahl" title="So viele Paletten dieses Tages liegen laut App noch — gerechnet aus dem, was nicht ausgeliefert ist">liegt noch etwa</th></tr></thead>
+                <th className="zahl" title="So viele Paletten dieses Tages stehen laut App noch in der Halle — was liegt (unsortiert, sortiert) und was aussortiert ist (zu klein, zu gross)">in der Halle etwa</th></tr></thead>
               <tbody>{kohorten.map(k => (
                 <tr key={k.eingangsdatum}>
                   <td>{datum(k.eingangsdatum)}</td><td className="zahl">{k.alter_heute} d</td>
