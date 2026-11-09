@@ -179,7 +179,7 @@ export function Bilanz({ bilanz }: { bilanz: Saisonbilanz }) {
                    erklaerung={`davon verkaufsfähig ${tonnen(bilanz.verkaufsfaehig_heute_kg)} · zu klein oder zu gross ${tonnen(kanalImHaus)}${kanalImHaus !== null ? ` (${tonnen(bilanz.kanal_ausgelagert_kg)} beim Sortieren hinter den Lieferungen aussortiert, ${tonnen(bilanz.kanal_im_haus_kg)} im Liegenden erwartet) — steht im Haus, bis ein Lieferschein es holt` : ''}`} />
       {/* 0138: am Lager leer bestätigt — was mehr weg ist, als die Raten erklären, ein eigener Posten */}
       {Number(bilanz.leer_weg_kg ?? 0) > 0.5 && (
-        <Bilanzzeile titel="Am Lager leer: mehr weg als gerechnet" herkunft="gerechnet" kg={Number(bilanz.leer_weg_kg)} eingang={bilanz.eingang_kg} farbe="var(--strom-schimmel)"
+        <Bilanzzeile titel="Am Lager leer: mehr weg als gerechnet" herkunft="gerechnet" kg={Number(bilanz.leer_weg_kg)} eingang={bilanz.eingang_kg} farbe="var(--strom-leer-weg)"
                      erklaerung="Chargen, die am Lager leer bestätigt sind: weg, ohne Lieferschein und ohne dass Verdunstung und Palox es erklären" />
       )}
       {bilanz.ueberzaehlung_kg > 0 && (

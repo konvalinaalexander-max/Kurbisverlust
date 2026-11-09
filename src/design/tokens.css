@@ -65,6 +65,8 @@
      Ware hinausgeht (Grau mit einem Hauch Grün). Aus den geprüften Farben gemischt. */
   --strom-keinen-artikel: color-mix(in srgb, var(--strom-vf) 40%, var(--flaeche));
   --strom-ueberfuellung:  color-mix(in srgb, var(--strom-verkauft) 65%, var(--strom-vf));
+  /* 0138: am Lager leer bestätigt, mehr weg als gerechnet — ein heller Ton des Faulen, kein eigener Strom. */
+  --strom-leer-weg:       color-mix(in srgb, var(--strom-schimmel) 45%, var(--flaeche));
   /* Die alten Namen zeigen auf die neuen — wer sie noch braucht, bleibt im System. */
   --strom-rest:        var(--strom-vf);
   --strom-rest-hell:   var(--strom-vf-klein);

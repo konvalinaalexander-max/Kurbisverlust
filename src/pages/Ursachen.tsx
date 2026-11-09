@@ -174,7 +174,7 @@ const WOHIN_TEILE: { name: string; farbe: string; hinweis?: string; felder: (key
   { name: 'Palox und Faules bis heute', farbe: 'var(--strom-schimmel)',
     hinweis: 'im Palox aussortiert (Mängel und Faules) und beim Abpacken faul', felder: ['faul_ausgelagert_kg', 'lager_faul_kg', 'fax_kg', 'lager_fax_kg'] },
   // 0138: eine am Lager leer bestätigte Charge — was mehr weg ist, als die Raten erklären, ein eigener Teil, kein Rest
-  { name: 'am Lager leer: mehr weg als gerechnet', farbe: 'color-mix(in srgb, var(--strom-schimmel) 45%, var(--flaeche))',
+  { name: 'am Lager leer: mehr weg als gerechnet', farbe: 'var(--strom-leer-weg)',
     hinweis: 'bei Chargen, die am Lager leer bestätigt sind: weg, ohne Lieferschein und ohne dass die Raten es erklären', felder: ['leer_weg_kg'] },
 ]
 const VERLUST = new Set(['verdunstet bis heute', 'Palox und Faules bis heute', 'am Lager leer: mehr weg als gerechnet'])
