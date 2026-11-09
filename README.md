@@ -798,6 +798,11 @@ ohne Perigon-Zeile als eigener Teil); jede PL/pgSQL-Funktion hat einen
 festen Suchpfad; die Perigon-Liste läuft nur einmal (AB-174 bis AB-176). Dazu die
 Halle: Faules ohne Ablesung ist „unbekannt", Fehler werden gezeigt. **Setup.sql
 einmal einspielen (Stand 124), dann „Neu rechnen".**
+**Runde BK, Schritt 5 (0140)** — **Demeter darf als Knospe.** Im Perigon-Reiter
+steht eine Position mit Demeter- und Knospe-Ware nur noch, wenn Knospe-Ware
+unter Demeter hinausging (Name oder Preisgruppe); Demeter-Ware unter einem
+Knospe-Artikel ist kein Fall (AB-219). Im Betrieb bleibt von 25 Fällen einer.
+**Setup.sql einmal einspielen (Stand 140), dann „Neu rechnen".**
 **Runde BK, Schritt 4 (0139)** — **Jeder Faktor einmal.** Der Verlauf und die
 Prognose rechnen die Verdunstung und den Palox-Anteil je Zeile einmal statt in
 jeder Spalte: Schritt 4 der Auswertung ist im Lasttest ein Drittel schneller,

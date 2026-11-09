@@ -14267,3 +14267,99 @@ begin
 end $$;
 
 select '——— 0139 Jeder Faktor wird je Zeile einmal gerechnet ———' as ergebnis;
+
+-- =====================================================================
+-- 0140 — Demeter darf als Knospe verkauft werden
+--
+-- Der Betrieb am 9. November, zum Fall „Demeter und Knospe in einer
+-- Position": „Demeter darf als Knospe verkauft werden — das sollte kein
+-- Problem sein." Geprüft an gebauten Positionen mit Demeter- und Knospe-Ware:
+-- (a) kein Fall, wenn die Position Knospe ist (Name und Preisgruppe, auch
+--     CH-K ohne Label im Namen); ein Fall, wenn Demeter im Namen steht (wie
+--     134343) oder in der Preisgruppe — der Satz sagt wo, nennt die
+--     Knospe-Charge und die Regel; eine Demeter-Position nur mit Demeter-Ware
+--     ist kein Fall;
+-- (b) Stand 140.
+-- =====================================================================
+do $$
+declare v_modus jsonb; v_lad text; v_geladen boolean := false; v_j jsonb; v_k text;
+  v_u uuid := '00000000-0140-0000-0000-000000000001';
+  v_c1 int; v_c2 int; v_s1 text; v_s2 text; v_z jsonb; v_zeilen jsonb := '[]'::jsonb; v_lief jsonb := '[]'::jsonb; v_p record;
+begin
+  select wert into v_modus from einstellung where schluessel = 'betriebsmodus';
+  update einstellung set wert = '"beispiel"'::jsonb where schluessel = 'betriebsmodus';
+  insert into auth.users (id, email, raw_user_meta_data) values (v_u, null, '{"name":"Prüf-0140"}');
+  update profil set rolle = 'admin' where id = v_u;
+  perform set_config('request.jwt.claim.sub', v_u::text, true);
+  if not exists (select 1 from auftrag where station = 'waschen_sortieren' and bemerkung = 'DEMO') then
+    select demo_daten_laden() into v_lad; v_geladen := true;
+  end if;
+  select c.nr, c.sorte into v_c1, v_s1 from charge c join sorte_kaliber s on s.sorte = c.sorte order by c.nr limit 1;
+  select c.nr, c.sorte into v_c2, v_s2 from charge c join sorte_kaliber s on s.sorte = c.sorte where c.nr <> v_c1 order by c.nr limit 1;
+  assert v_c1 is not null and v_c2 is not null, '0140 (a0): keine zwei Chargen mit bestätigter Sorte — (a) wäre blind';
+
+  -- Fünf Positionen zu je zwei Chargenzeilen: 600 kg aus c1, 400 kg aus c2
+  for v_p in select * from (values
+      (4001, 'Bio-Kürbis Butterkin Knospe',  'K',    'K', 'D'),   -- Knospe-Artikel mit Demeter-Ware: erlaubt
+      (4002, 'Bio-Kürbis Butterkin Demeter', 'K',    'K', 'D'),   -- Demeter im Namen, Knospe-Ware darin (134343)
+      (4003, 'Bio-Kürbis Butterkin Knospe',  'D',    'K', 'D'),   -- Demeter in der Preisgruppe, Knospe-Ware darin
+      (4004, 'Bio-Kürbis Butterkin Demeter', 'D',    'D', 'D'),   -- Demeter, nur Demeter-Ware
+      (4005, 'Bio-Kürbis Butterkin Demeter', 'D',    'K', 'D'),   -- Demeter im Namen und in der Preisgruppe, Knospe darin
+      (4006, 'Bio Kürbis Knirps Klein',      'CH-K', 'K', 'D')    -- CH-K ohne Label im Namen, Demeter-Ware darin: erlaubt
+    ) x(pos, artikel, preis, l1, l2) loop
+    v_z := jsonb_build_object('pos_id', v_p.pos, 'charge_extern', v_c1::text, 'lauf_nr', 1, 'fingerabdruck', format('p140-%s-a', v_p.pos),
+      'datum', '2026-09-18', 'journal', 'A', 'auftragsnr', (30000 + v_p.pos)::text, 'kunde', 'Prüfkunde 140', 'artikel_id', 'p140-' || v_p.pos,
+      'artikel', v_p.artikel, 'einheit', 'kg', 'menge', 1000, 'gewicht_je_artikel', 1, 'batch_menge', 600, 'kg_position', 1000, 'kg_charge', 600);
+    v_zeilen := v_zeilen || jsonb_build_array(v_z, v_z || jsonb_build_object('charge_extern', v_c2::text, 'fingerabdruck', format('p140-%s-b', v_p.pos),
+                                                                         'batch_menge', 400, 'kg_charge', 400));
+    v_lief := v_lief || jsonb_build_array(
+      jsonb_build_object('extern_id', format('PRUEF140:%s:%s:1', v_p.pos, v_c1), 'datum', '2026-09-18', 'charge_nr', v_c1, 'sorte', v_s1, 'kg', 600, 'kunde', 'Prüfkunde 140'),
+      jsonb_build_object('extern_id', format('PRUEF140:%s:%s:1', v_p.pos, v_c2), 'datum', '2026-09-18', 'charge_nr', v_c2, 'sorte', v_s2, 'kg', 400, 'kunde', 'Prüfkunde 140'));
+  end loop;
+  v_j := ausgang_uebernehmen('PRUEF140', 'Prüffirma 0140', '{"dateiname": "p140.xlsx", "pruefsumme": "p140"}'::jsonb, v_zeilen, v_lief);
+  for v_p in select * from (values (4001, 'K', 'K', 'D'), (4002, 'K', 'K', 'D'), (4003, 'D', 'K', 'D'), (4004, 'D', 'D', 'D'),
+                                   (4005, 'D', 'K', 'D'), (4006, 'CH-K', 'CH-K', 'D')) x(pos, preis, l1, l2) loop
+    update ausgang_zeile set preisgruppe = v_p.preis, liefer_label = case charge_extern when v_c1::text then v_p.l1 else v_p.l2 end
+     where quelle = 'PRUEF140' and pos_id = v_p.pos;
+  end loop;
+
+  -- (a1) Demeter-Ware unter Knospe ist kein Fall
+  assert not exists (select 1 from v_perigon_befund where quelle = 'PRUEF140' and pos_id in (4001, 4006)
+                       and art in ('label_gemischt', 'label_name', 'demeter_knospe')),
+    format('0140 (a1): Demeter-Ware unter einem Knospe-Artikel ist ein Fall: %s',
+           (select string_agg(pos_id || '/' || art, ', ') from v_perigon_befund where quelle = 'PRUEF140' and pos_id in (4001, 4006)
+              and art in ('label_gemischt', 'label_name', 'demeter_knospe')));
+  -- (a2) Demeter im Namen, Knospe-Ware darin (wie 134343): ein Fall, der sagt wo, die Knospe-Charge nennt und die Regel
+  select satz into v_k from v_perigon_befund where quelle = 'PRUEF140' and pos_id = 4002 and art = 'label_gemischt';
+  assert v_k ~ 'Auftrag 34002 vom 18\.09\.2026' and v_k ~ '— Demeter im Namen —' and v_k ~ format('600 kg aus %s \(Knospe\)', v_c1)
+     and v_k ~ 'Demeter darf als Knospe verkauft werden, Knospe nicht als Demeter',
+    format('0140 (a2): Knospe-Ware unter einem Demeter-Namen steht nicht so da: %s', coalesce(v_k, 'kein Fall label_gemischt'));
+  assert not exists (select 1 from v_perigon_befund where quelle = 'PRUEF140' and pos_id = 4002 and art = 'label_name'),
+    '0140 (a2): zur gemischten Demeter-Position steht zusätzlich „Artikelname gegen Preisgruppe" — zweimal derselbe Fall';
+  -- (a3) Demeter in der Preisgruppe, Knospe-Ware darin
+  select satz into v_k from v_perigon_befund where quelle = 'PRUEF140' and pos_id = 4003 and art = 'label_gemischt';
+  assert v_k ~ '— Demeter in der Preisgruppe —',
+    format('0140 (a3): Knospe-Ware in einer Demeter-Preisgruppe steht nicht da: %s', coalesce(v_k, 'kein Fall label_gemischt'));
+  -- (a4) eine Demeter-Position nur mit Demeter-Ware ist kein Fall
+  assert not exists (select 1 from v_perigon_befund where quelle = 'PRUEF140' and pos_id = 4004 and art = 'label_gemischt'),
+    '0140 (a4): eine Demeter-Position nur mit Demeter-Ware steht als gemischt da';
+  -- (a5) Demeter im Namen und in der Preisgruppe
+  select satz into v_k from v_perigon_befund where quelle = 'PRUEF140' and pos_id = 4005 and art = 'label_gemischt';
+  assert v_k ~ '— Demeter im Namen und in der Preisgruppe —',
+    format('0140 (a5): der Satz sagt nicht, dass Demeter im Namen und in der Preisgruppe steht: %s', coalesce(v_k, 'kein Fall label_gemischt'));
+
+  -- (b) Stand
+  assert schema_stand() >= 140, format('0140 (b1): schema_stand() = %s', schema_stand());
+
+  -- aufräumen
+  delete from lieferung where id in (select lieferung_id from lieferung_import where quelle = 'PRUEF140');
+  delete from ausgang_zeile where quelle = 'PRUEF140';
+  delete from ausgang_datei where quelle = 'PRUEF140';
+  delete from ausgang_quelle where code = 'PRUEF140';
+  if v_geladen then perform demo_daten_entfernen(); end if;
+  delete from profil where id = v_u; delete from auth.users where id = v_u;
+  update einstellung set wert = v_modus where schluessel = 'betriebsmodus';
+  raise notice 'OK  0140 — Demeter darf als Knospe: kein Fall bei Knospe-Artikeln mit Demeter-Ware, ein Fall bei Knospe-Ware unter Demeter (Name oder Preisgruppe), mit der Regel im Satz';
+end $$;
+
+select '——— 0140 Demeter darf als Knospe verkauft werden ———' as ergebnis;

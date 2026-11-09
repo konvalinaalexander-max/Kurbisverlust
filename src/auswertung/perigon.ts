@@ -111,12 +111,14 @@ export const PERIGON_ART: Record<PerigonArt, PerigonArtInfo> = {
   },
   // Runde BJ (0131) — der Betrieb zu Position 134343: „weiterhin klar im Perigon-Reiter ausweisen — so kann
   // ich auf die Person zugehen, die fürs Perigon verantwortlich ist."
+  // Runde BK (0140) — „Demeter darf als Knospe verkauft werden — das sollte kein Problem sein": nur noch die
+  // andere Richtung ist ein Fall, Knospe-Ware unter einem Artikel, der als Demeter benannt oder verrechnet ist.
   label_gemischt: {
-    name: 'Demeter und Knospe in einer Position', ebene: 'position', wo: 'perigon',
-    heisst: 'Unter einem Artikel gingen Chargen mit verschiedenen Lieferlabels hinaus — etwa Knospe-Ware unter einem Demeter-Namen.',
-    datei: 'Spalte Z (Lieferlabel) ist je Chargenzeile verschieden; Spalte I (Artikel) und K (Preisgruppe) sind für die Position gleich.',
-    app: 'Gezeigt, nicht verrechnet: am Lager ändert es nichts, an der Rückverfolgbarkeit und an der Zertifizierung schon. Der Satz nennt Auftrag, Datum, Chargen und ihre Labels.',
-    tun: 'Mit der Person klären, die den Auftrag in Perigon erfasst hat — stimmt der Artikel für alle Chargen? Sonst Artikel aufteilen oder die Charge berichtigen.',
+    name: 'Knospe-Ware unter Demeter in einer Position', ebene: 'position', wo: 'perigon',
+    heisst: 'Unter einem Artikel, der Demeter heisst oder als Demeter verrechnet ist, ging auch Knospe-Ware hinaus. Demeter-Ware unter einem Knospe-Artikel ist kein Fall: Demeter darf als Knospe verkauft werden.',
+    datei: 'Spalte Z (Lieferlabel) ist je Chargenzeile verschieden; Spalte I (Artikel) oder K (Preisgruppe) sagt Demeter.',
+    app: 'Gezeigt, nicht verrechnet: am Lager ändert es nichts, an der Rückverfolgbarkeit und an der Zertifizierung schon. Der Satz nennt Auftrag, Datum, wo Demeter steht, die Chargen und ihre Labels.',
+    tun: 'Mit der Person klären, die den Auftrag in Perigon erfasst hat — ging Knospe-Ware als Demeter hinaus? Dann den Artikel aufteilen (den Knospe-Teil als Knospe) oder die Charge berichtigen.',
     spalten: ['AuftragsArtikel', 'AuftragsPrsGrpBez', 'LiefPrsGrpName', 'AuftragsChargeManuell'],
   },
   // Runde BJ (0133) — „Spalte W nur zur Information": Ünique kommt aus dem Topf aller Hagel-Chargen.
@@ -365,7 +367,7 @@ export function fallKurz(f: PerigonBefund): string {
     case 'artikel_sorte': return f.sorte ? `die Charge ist ${f.sorte}` : 'andere Sorte'
     case 'mix': return 'ganz auf eine Charge'
     case 'mix_verteilt': return 'nach Rezept verteilt'
-    case 'label_gemischt': return 'Chargen mit verschiedenen Labels'
+    case 'label_gemischt': return 'Knospe unter Demeter'
     case 'unique_ohne_hagel': return f.charge_nr != null ? `Charge ${f.charge_nr} ohne Hagel` : 'Charge ohne Hagel'
     case 'kg_gewicht': return `Gewicht je Artikel ${f.gewicht_je_artikel == null ? '?' : Number(f.gewicht_je_artikel).toLocaleString('de-CH')}`
     case 'vor_eingang': {

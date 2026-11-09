@@ -776,6 +776,7 @@ const BILDSCHIRME = [
   // ein Klick zeigt eine Position im Fenster (nachgerechnet, Stand je Position).
   // Runde BJ (0131) — der Betrieb zu Position 134343: „weiterhin klar im Perigon-Reiter ausweisen — so kann ich
   // auf die Person zugehen, die fürs Perigon verantwortlich ist." Der Fall nennt Auftrag, Datum, Chargen und Labels.
+  // Runde BK (0140): „Demeter darf als Knospe verkauft werden" — der Fall nur noch bei Knospe-Ware unter Demeter.
   { name: 'perigon-label-gemischt', wer: 'admin', pfad: '/perigon/faelle?art=label_gemischt',
     vorher: () => {
       perigonVormerken()
@@ -784,8 +785,8 @@ const BILDSCHIRME = [
         { ...basis, schluessel: 'label_gemischt:DEMO:990134', art: 'label_gemischt', schwere: 'gelb', pos_id: 990134, datum: '2026-09-18',
           artikel: 'Bio-Kürbis Butterkin Demeter', sorte: 'Butterkin', menge: 1450, kg_position: 1450, kg_zugeteilt: 1450, kg_rechnung: 1450,
           kg_ohne_charge: 0, kg: 1450, nummern: '1612, 1624', n_zeilen: 2, preisgruppe: 'K', wo: 'perigon',
-          satz: 'Auftrag 20815 vom 18.09.2026: unter dem Artikel „Bio-Kürbis Butterkin Demeter" (Preisgruppe K) gingen Chargen mit verschiedenen Lieferlabels hinaus — 1138 kg aus 1624 (Knospe), 312 kg aus 1612 (Demeter). Knospe-Ware unter einem Demeter-Namen, oder umgekehrt?',
-          tun: 'Mit der Person klären, die den Auftrag in Perigon erfasst hat: stimmt der Artikel für alle Chargen? Sonst in Perigon den Artikel aufteilen oder die Charge (Spalte W) berichtigen, dann neu einlesen.' },
+          satz: 'Auftrag 20815 vom 18.09.2026: unter dem Artikel „Bio-Kürbis Butterkin Demeter" (Preisgruppe K) — Demeter im Namen — ging auch Knospe-Ware hinaus: 1138 kg aus 1624 (Knospe), 312 kg aus 1612 (Demeter). Demeter darf als Knospe verkauft werden, Knospe nicht als Demeter.',
+          tun: 'Mit der Person klären, die den Auftrag in Perigon erfasst hat: ging Knospe-Ware als Demeter hinaus? Dann in Perigon den Artikel aufteilen (den Knospe-Teil als Knospe) oder die Charge (Spalte W) berichtigen, dann neu einlesen.' },
         { ...basis, schluessel: 'kg_gewicht:DEMO:990135', art: 'kg_gewicht', schwere: 'gelb', pos_id: 990135, datum: '2026-10-28',
           artikel: 'Bio Kürbis Ünique', sorte: 'Kaori Kuri', menge: 2160, gewicht_je_artikel: 10, kg_position: 2160, kg_zugeteilt: 2160,
           kg_rechnung: 2160, kg_ohne_charge: 0, kg: 2160, nummern: '198889', n_zeilen: 1, wo: 'perigon',
@@ -796,7 +797,8 @@ const BILDSCHIRME = [
     tun: async p => {
       await p.getByText(/Auftrag 20815 vom 18\.09\.2026/).first().waitFor()
       await p.getByText(/1138 kg aus 1624 \(Knospe\), 312 kg aus 1612 \(Demeter\)/).first().waitFor()
-      await p.getByText('Demeter und Knospe in einer Position').first().waitFor()
+      await p.getByText('Knospe-Ware unter Demeter in einer Position').first().waitFor()
+      await p.getByText(/Demeter darf als Knospe verkauft werden/).first().waitFor()
     } },
   { name: 'perigon-zeilen', wer: 'admin', pfad: '/perigon/faelle?art=label_name', vorher: perigonVormerken,
     tun: async p => {

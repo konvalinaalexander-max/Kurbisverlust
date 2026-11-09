@@ -4290,6 +4290,43 @@ Geprüft:
 - Eine Sorte dazu oder weg im Rezept geht noch nicht in der Maske (nur Stück,
   kg je Stück und Herkunft); das Rezept des Betriebs hat drei Sorten.
 
+## Runde BK, Schritt 5: Demeter darf als Knospe verkauft werden (9. November, 0140)
+
+Der Betrieb zum Fall „Demeter und Knospe in einer Position": „Demeter darf als
+Knospe verkauft werden — das sollte kein Problem sein."
+
+Seit 0131 meldete der Perigon-Reiter jede Position, deren Chargen verschiedene
+Lieferlabels tragen, gleich in welche Richtung. Im Betrieb waren das 25
+Positionen. 24 davon sind Knospe-Artikel (Preisgruppe K oder CH-K) mit etwas
+Demeter-Ware darin, und das ist erlaubt. Ein Problem ist nur die andere
+Richtung: Knospe-Ware unter einem Artikel, der als Demeter benannt oder
+verrechnet ist. Das ist Position 134343 („Bio-Kürbis Butterkin Demeter",
+1'138 kg aus 1624 mit Lieferlabel Knospe), derentwegen der Fall entstand.
+
+Neu (AB-219): `label_gemischt` nur, wenn die Position Demeter- und Knospe-Ware
+hat und Demeter im Artikelnamen oder in der Preisgruppe steht. Der Fall heisst
+jetzt „Knospe-Ware unter Demeter in einer Position". Der Satz sagt, wo Demeter
+steht („Demeter im Namen", „in der Preisgruppe" oder beides), nennt die
+Chargen mit ihrem Label und schliesst: „Demeter darf als Knospe verkauft
+werden, Knospe nicht als Demeter." Im Betrieb bleibt 134343.
+
+Geprüft:
+- Prüfblock 0140 an sechs gebauten Positionen: Knospe mit Demeter-Ware (auch
+  CH-K ohne Label im Namen) kein Fall; Demeter im Namen, in der Preisgruppe
+  oder in beiden mit Knospe-Ware ein Fall mit dem richtigen Satz; Demeter nur
+  mit Demeter-Ware kein Fall. 7 Mutationen, jede schlägt an.
+- Prüfblock 0131 (d) unverändert grün: sein Fall ist 134343 nachgebaut.
+- Bildschirm `perigon-label-gemischt` mit dem neuen Satz.
+
+**Was bewusst nicht gemacht wurde:**
+- `demeter_knospe` (eine Chargenzeile zum Demeter-Preis mit Lieferlabel
+  Knospe) bleibt. Er sagt dasselbe je Zeile und gilt auch, wenn die Position
+  nur Knospe-Ware hat.
+- „Artikelname gegen Preisgruppe" (`label_name`) bleibt, wie er ist.
+- Am Lager nach Artikel deckt Demeter-Ware weiter keinen Knospe-Bedarf: Wer
+  „Knospe" wählt, sieht nur Chargen mit Label Knospe. Ob Demeter-Ware dort
+  mitzählen soll, entscheidet der Betrieb.
+
 ## Runde BK, Schritt 4: Jeder Faktor wird je Zeile einmal gerechnet (9. November, 0139)
 
 Die Prüfung auf GitHub war nach den Schritten 2 und 3 rot: im Lasttest
