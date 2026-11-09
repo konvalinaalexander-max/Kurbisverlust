@@ -60,8 +60,8 @@ const TABELLEN: Tabelle[] = [
       { name: 'kuerbisse_pro_kiste', label: 'Stück je Kiste', typ: 'ganz' },
       { name: 'gemessen', label: 'gemessen', typ: 'ja_nein' },
     ] },
-  { tabelle: 'ausschuss_messung', titel: 'Zu klein / zu gross',
-    erklaerung: 'Gewogen am Ende (Waschen + Sortieren). Das Netto rechnet die Datenbank aus Brutto und Tara — die Palettentara nur mit dem Haken „mit Palette“.',
+  { tabelle: 'ausschuss_messung', titel: 'Zu klein / zu gross · für Ünique',
+    erklaerung: 'Gewogen am Ende (Waschen + Sortieren); seit 0142 auch, was für Ünique beiseitegelegt ist (Art fuer_unique). Das Netto rechnet die Datenbank aus Brutto und Tara — die Palettentara nur mit dem Haken „mit Palette“.',
     felder: [
       { name: 'art', label: 'Art', typ: 'text', nurLesen: true },
       { name: 'brutto_kg', label: 'Brutto (kg)', typ: 'zahl' },

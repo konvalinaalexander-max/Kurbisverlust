@@ -163,7 +163,13 @@ begin
     'Die Bezugsmasse der drei Paletten stimmt nicht (3 × 865: Zettel 950 − 40·1.5 − 25)';
 
   -- Zu klein / zu gross am Ende (0061, 0088): Kiste für Kiste, eine Zeile je Art
-  assert (select count(*) from ausschuss_messung where auftrag_id = a) = 2, 'Zwei Ausschuss-Zeilen (eine je Art)';
+  -- Runde BK (0142), die Regel hat sich geändert und der Test mit ihr: in derselben Tabelle steht jetzt auch, was für
+  -- Ünique beiseitegelegt ist — zwei Zeilen Ausschuss (eine je Art) und eine für Ünique.
+  assert (select count(*) from ausschuss_messung where auftrag_id = a and art::text in ('zu_klein', 'zu_gross')) = 2, 'Zwei Ausschuss-Zeilen (eine je Art)';
+  assert (select kg from ausschuss_messung where auftrag_id = a and art::text = 'fuer_unique' and gemessen and brutto_kg = 15.5 and kisten = 1 and not mit_palette) = 14,
+    'Eine Kiste 15.5 kg für Ünique muss 14 kg ergeben';
+  assert (select u.kg from v_unique_abgabe u join auftrag x on x.charge_nr = u.charge_nr where x.id = a) = 14,
+    'Was die Halle für Ünique beiseitelegt, kommt in v_unique_abgabe nicht an';
   -- 0088: Kiste für Kiste — eine Zeile je Art, Summe der Bruttos, einmal gerundet, nie auf einer Palette
   assert (select kg from ausschuss_messung where auftrag_id = a and art = 'zu_klein' and gemessen and brutto_kg = 36.5 and kisten = 3 and not mit_palette) = 32,
     'Drei Kisten 12 · 13.5 · 11 kg müssen 32 kg zu klein ergeben (36.5 − 4.5, einmal gerundet)';

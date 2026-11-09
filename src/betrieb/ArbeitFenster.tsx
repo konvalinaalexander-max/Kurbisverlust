@@ -213,6 +213,25 @@ export function ArbeitFenster({ auftragId, schliessen, messung }: { auftragId: n
               </section>
             )}
 
+            {d.fuerUnique.length > 0 && (
+              <section className="fenster-abschnitt" id="fenster-fuer-unique">
+                <h3>Für Ünique beiseitegelegt</h3>
+                <table className="dicht">
+                  <thead><tr><th>Zeit</th><th className="zahl">Netto (kg)</th><th className="zahl">Brutto (kg)</th><th className="zahl">Kisten</th><th></th></tr></thead>
+                  <tbody>{d.fuerUnique.map(z => (
+                    <tr key={z.id}>
+                      <td>{uhrzeit(z.ts, gebietsschema)}</td>
+                      <td className="zahl">{z.kg}</td>
+                      <td className="zahl">{z.brutto_kg ?? '—'}</td>
+                      <td className="zahl">{z.kisten ?? '—'}{z.gebindeart ? ` ${z.gebindeart}` : ''}</td>
+                      <td className="leise">{z.bemerkung ?? ''}</td>
+                    </tr>
+                  ))}</tbody>
+                </table>
+                <p className="leise-satz">Gewogen in der Halle. Die Ware steht beim Ünique, nicht mehr bei dieser Charge; in der Rechnung zählt sie noch bei der Charge.</p>
+              </section>
+            )}
+
             {d.ausschuss.length > 0 && (
               <section className="fenster-abschnitt">
                 <h3>Zu klein / zu gross</h3>

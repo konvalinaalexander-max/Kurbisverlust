@@ -798,6 +798,16 @@ ohne Perigon-Zeile als eigener Teil); jede PL/pgSQL-Funktion hat einen
 festen Suchpfad; die Perigon-Liste läuft nur einmal (AB-174 bis AB-176). Dazu die
 Halle: Faules ohne Ablesung ist „unbekannt", Fehler werden gezeigt. **Setup.sql
 einmal einspielen (Stand 124), dann „Neu rechnen".**
+**Runde BK, Schritt 8 (0143)** — **Was die Durchsicht fand.** Eine Chargennummer
+„mix" in Perigon konnte jede Neuberechnung abbrechen; ein Lieferschein ohne
+Charge ging auch auf eine schon leer bestätigte Charge; der Satz „reicht / es
+fehlen" rechnete anders als Kennzahl und Tabelle; im Reiter Chargen zeigte die
+Zelle die Halle, die Summe das Lager (AB-222 bis AB-224). **Setup.sql einmal
+einspielen (Stand 143), dann „Neu rechnen".**
+**Runde BK, Schritt 7 (0142)** — **Für Ünique beiseitegelegt.** Die Halle kann
+nach einer Arbeit wiegen, was sie für Ünique auf die Seite legt (Kiste für
+Kiste, freiwillig). Die Zahl steht im Reiter Chargen an der Charge und am
+Ünique-Topf; an der Rechnung ändert sie noch nichts (AB-221).
 **Runde BK, Schritt 6 (0141)** — **Der Mix bleibt nach Rezept verteilt.** Beim
 Rechnen bekamen die Lekor- und Orangita-Anteile des Kürbis Mix die Charge, die
 Perigon für den Mix nennt, und damit die Sorte Butterkin (im Betrieb 2.3 t auf

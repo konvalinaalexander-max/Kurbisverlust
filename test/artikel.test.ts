@@ -11,7 +11,7 @@
  */
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { ARTIKEL_KLASSEN, OFFEN, UNIQUE, alsArtikel, alsUnique, klasseVon, uebersichtszeilen, wahlGeordnet, zeigtUnique, type Wahl } from '../src/auswertung/artikel.ts'
+import { ARTIKEL_KLASSEN, OFFEN, UNIQUE, alsArtikel, alsUnique, klasseVon, uebersichtszeilen, verkaufsfaehigHeute, wahlGeordnet, zeigtUnique, type Wahl } from '../src/auswertung/artikel.ts'
 import type { ArtikelLagerCharge, Bestand, ChargeLabel, SorteGruppe } from '../src/auswertung/daten.ts'
 
 const charge = (nr: number, sorte: string, eingang: number, ausgelagert: number, geliefert: number, vf: number | null) =>
@@ -279,6 +279,40 @@ test('0137: 50 t Knirps geplant, 20 t geliefert, 10 t Knirps und 20 t Hagelware 
   assert.equal(nochZuLiefern(kunden, [{ saison: 2026, kunde: 'Kunde K', artikelgruppe: UNIQUE, groesse: '', label: '', kg: 12000 }], 2026, uw).kg, 7000)
   const u = uebersichtszeilen(b, lv, gruppeVon, tl, uw, { rest, hagel: new Set([11]) })
   assert.deepEqual(u.map(x => [x.gruppe, x.klassen.get('unique')]), [[UNIQUE, 20000]])
+})
+
+// Durchsicht BK: Der Test oben setzte „noch − verkaufsfähig" selbst zusammen und gab der Rechnung die Hagelware gar
+// nicht erst mit — er blieb grün, wenn eine Hagel-Charge wieder bei ihrer Sorte zählte. Hier dasselbe Beispiel gegen
+// die Rechnung, die der Satz „reicht / es fehlen", die Kennzahl und die Tabelle der Seite teilen — mit den Teilen der
+// Hagel-Charge in der Eingabe.
+test('Durchsicht BK: das Beispiel des Betriebs gegen die Rechnung der Seite — die 20 t Hagelware decken keinen Knirps', () => {
+  const b = [charge(10, 'Amoro', 30000, 20000, 20000, 10000), charge(11, 'Kaori Kuri', 25000, 0, 0, 20000)]
+  const hagel = new Set([11])
+  const tl = [{ charge_nr: 10, groesse: 'klein', kg: 10000, artikelgruppe: 'Knirps', label: 'D' } as ArtikelLagerCharge,
+              // liefert die Datenbank eine Hagel-Charge doch noch als Knirps (vor dem Neurechnen), zählt sie trotzdem nicht
+              { charge_nr: 11, groesse: 'klein', kg: 20000, artikelgruppe: 'Knirps', label: 'D' } as ArtikelLagerCharge]
+  const rest = new Map([[10, { kanal: 0, faul: 0, verdunstet: 0, fax: 0, marge: 0 }], [11, { kanal: 0, faul: 3000, verdunstet: 2000, fax: 0, unique: 20000, marge: 0 }]])
+  const knirps: Wahl = { gruppe: 'Knirps', groesse: 'beide', label: 'beide' }
+  const vf = verkaufsfaehigHeute(tl, b, hagel, rest, knirps)
+  assert.deepEqual([vf.kg, vf.uniqueKg, vf.hoechstens, vf.ohneZahl], [10000, 0, false, 0])
+  const plaene = [{ saison: 2026, kunde: 'Kunde K', artikelgruppe: 'Knirps', groesse: '', label: '', kg: 50000 }]
+  const noch = nochZuLiefern([{ kunde: 'Kunde K', saison: 2026, gruppe: 'Knirps', groesse: 'lose', label: 'D', kg: 20000 }], plaene, 2026, knirps).kg
+  assert.equal(noch - vf.kg, 20000, 'es fehlen 20 t — nicht „reicht"')
+  // „alle Artikel" und Ünique: die Hagelware zählt als Ünique, einmal
+  assert.equal(verkaufsfaehigHeute(tl, b, hagel, rest, OFFEN).kg, 30000)
+  assert.deepEqual([verkaufsfaehigHeute(tl, b, hagel, rest, { gruppe: UNIQUE, groesse: 'beide', label: 'beide' }).kg], [20000])
+  // ohne Überfüllung, wie die Kennzahl: 5 % zu viel in den Kisten sind nicht verkaufsfähig; nicht gewogen ist „höchstens"
+  const rm = new Map([[10, { kanal: 0, faul: 0, verdunstet: 0, fax: 0, marge: 0.05 }]])
+  assert.ok(Math.abs(verkaufsfaehigHeute(tl, b, hagel, rm, knirps).kg - 10000 / 1.05) < 1e-6)
+  assert.equal(verkaufsfaehigHeute(tl, b, hagel, new Map([[10, { kanal: 0, faul: 0, verdunstet: 0, fax: 0, marge: null }]]), knirps).hoechstens, true)
+  // was in keinen Artikel passt, ist nicht verkaufsfähig
+  const aus = [{ charge_nr: 10, groesse: 'ausserhalb', kg: 700, artikelgruppe: 'Knirps', label: 'D' } as ArtikelLagerCharge]
+  assert.equal(verkaufsfaehigHeute(aus, b, hagel, rest, knirps).kg, 0)
+  // eine Hagel-Charge mit Ware, deren Verkaufsfähiges unbekannt ist: nicht mitgezählt und gesagt — nie als 0 verschwiegen
+  const unbekannt = [charge(12, 'Kaori Kuri', 5000, 0, 0, 5000)]
+  unbekannt[0].verkaufsfaehig_lager_kg = null
+  const u = verkaufsfaehigHeute([], unbekannt, new Set([12]), new Map(), OFFEN)
+  assert.deepEqual([u.kg, u.ohneZahl], [0, 1])
 })
 
 // 0137: was eine Hagel-Charge als Ünique hergibt — ohne die Überfüllung wie jeder Artikel; nicht gewogen ist höchstens.

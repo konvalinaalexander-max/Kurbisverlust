@@ -105,6 +105,41 @@ export const passtKlasse = (w: Wahl, k: Klasse) => w.groesse === 'beide' || k ==
  * Eingangsmasse = verkaufsfähig + diese vier (+ Unique). Eine Charge ohne
  * gemessene Rate hat keinen Eintrag — ihre Ware steht dann als „offen" da.
  */
+/**
+ * Runde BK (Durchsicht): Was von einer Wahl heute verkaufsfähig ist — EINE Rechnung für die Kennzahl oben, die
+ * Tabelle und den Satz „reicht / es fehlen". Bis hier rechnete der Satz mit dem rohen Lager (mit „passt in keinen
+ * Artikel" und mit der Überfüllung), die Kennzahl netto: auf der Demo 148.0 t gegen 140.3 t, und bei „Butterkin"
+ * fehlten je nach Stelle 9.6 t oder 10.8 t.
+ *
+ * Netto wie `alsArtikel` (nur Klassen, die als Artikel gehen, ohne Überfüllung); Ünique dazu bei „alle Artikel" und
+ * bei Ünique, nie bei der Artikelgruppe einer Hagel-Charge — und ein Teil einer Hagel-Charge zählt hier nicht, auch
+ * wenn die Datenbank ihn noch liefert. `hoechstens`: ein Teil ist nicht gewogen oder seine Grösse offen. `ohneZahl`:
+ * Hagel-Chargen mit Lager, deren Verkaufsfähiges unbekannt ist — nicht mitgezählt und nie als 0 verschwiegen.
+ */
+export function verkaufsfaehigHeute(teile: ArtikelLagerCharge[], bestand: Bestand[], hagel: Set<number>,
+                                    rest: Map<number, RestTeile> | undefined, wahl: Wahl):
+  { kg: number; artikelKg: number; uniqueKg: number; hoechstens: boolean; ohneZahl: number } {
+  let artikelKg = 0, uniqueKg = 0, hoechstens = false, ohneZahl = 0
+  for (const t of teile) {
+    const klasse = klasseVon(t.groesse, t.artikelgruppe)
+    if (hagel.has(t.charge_nr) || !(Number(t.kg) > 0) || !ARTIKEL_KLASSEN.includes(klasse)) continue
+    if (!passtGruppe(wahl, t.artikelgruppe) || !passtLabel(wahl, t.label) || !passtKlasse(wahl, klasse)) continue
+    const a = alsArtikel(t, rest)
+    artikelKg += a.kg
+    if (a.offen) hoechstens = true
+  }
+  if (zeigtUnique(wahl)) {
+    for (const b of bestand) {
+      if (!hagel.has(b.charge_nr) || !(Number(b.lager_kg) > 0)) continue
+      const u = alsUnique(b, rest)
+      if (u === null) { ohneZahl += 1; continue }
+      uniqueKg += u.kg
+      if (u.offen) hoechstens = true
+    }
+  }
+  return { kg: artikelKg + uniqueKg, artikelKg, uniqueKg, hoechstens, ohneZahl }
+}
+
 export interface RestTeile { kanal: number; faul: number; verdunstet: number; fax: number
   /** 0121: Hagelware (Unique) — nicht faul; wird als Knospe verkauft. faul ist dann das Faule ohne Hagel. */
   unique?: number

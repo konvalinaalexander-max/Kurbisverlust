@@ -15,6 +15,8 @@ export interface Charge {
   perigon_nr: number | null
   /** 0112: Demeter (D) oder Knospe (K) — leer, solange es niemand sagt (dann gilt das Label aus Perigon). */
   label?: 'D' | 'K' | null
+  /** 0133: ein Eintrag > 0 heisst Hagel — die Charge gehört ganz in den Ünique-Topf. */
+  hagel_anteil?: number | null
 }
 export interface SorteKaliber {
   sorte: string; verlust_unter: number; kaliber_baender: [number, number][]; kanal_ab: number

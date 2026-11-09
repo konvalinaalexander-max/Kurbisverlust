@@ -71,6 +71,11 @@ FREIGEGEBEN=(
   # Notizzettel, derselbe Anfang, dasselbe Ende.
   "0116_die_groesse_kommt_aus_der_sortierdatei.sql:4070"
   "0116_die_groesse_kommt_aus_der_sortierdatei.sql:5070"
+  # 0142 dasselbe noch einmal (die Demo-Halle legt bei einer Arbeit zwei Kisten
+  # für Ünique beiseite) — dieselben drei Notizzettel (temporäre Tabellen der
+  # Ladefunktion), derselbe Anfang, dasselbe Ende.
+  "0142_fuer_uenique_beiseitegelegt.sql:445"
+  "0142_fuer_uenique_beiseitegelegt.sql:1455"
 )
 
 # ---------------------------------------------------------------------

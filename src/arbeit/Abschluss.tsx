@@ -499,6 +499,8 @@ export function Abschluss({ d, neuLaden, zurueck, fertig }: {
           {/* Leer ist nicht null: ein Startstand allein ist keine Menge, ein geleerter Palox ohne Ablesung auch nicht (Runde AZ). */}
           <dt>{t('faule')}</dt><dd>{faulesKg(d) === null ? t('faulesUnbekannt') : `${faulesKg(d)} kg`} · {d.ablesungen.length} {p.istFax ? t('kisten') : t('ablesungen')}{geleertGemessen && <span className="leise"> · {d.ablesungen.filter(x => x.palox_nach_leeren).length}× {t('geleertWort')}</span>}</dd>
           {p.hatAusschuss && <><dt>{t('ausschussWiegenSchritt')}</dt><dd>{d.ausschuss.length > 0 ? `${t('zuKlein')} ${ausschussSumme('zu_klein')} kg · ${t('zuGross')} ${ausschussSumme('zu_gross')} kg` : '—'}</dd></>}
+          {/* 0142: nur, wenn etwas für Ünique beiseitegelegt und gewogen ist — sonst keine Zeile, es ist freiwillig. */}
+          {d.fuerUnique.length > 0 && <><dt>{t('fuerUnique')}</dt><dd>{d.fuerUnique.reduce((s, z) => s + z.kg, 0)} kg · {d.fuerUnique.reduce((n, z) => n + (z.kisten ?? 0), 0)} {t('kisten')}</dd></>}
           {p.hatAusgang && <><dt>{t('fertigePalette')}</dt><dd>{d.nAusgang > 0 ? d.nAusgang : t('keineGewogen')}</dd></>}
           <dt>{t('eineChargeFrage')}</dt>
           <dd>{eineCharge === null ? '—' : eineCharge ? t('ja') : `${t('nein')}${gleicheSorte === null ? '' : gleicheSorte ? ` · ${t('gleicheSorteJa')}` : ` · ${t('gleicheSorteNein')}`}`}</dd>

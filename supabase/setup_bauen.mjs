@@ -42,7 +42,8 @@ const v = verdichten(anweisungen(quelle))
  * steht, gehört zu ihrem Quelltext, und der Fingerabdruck (run.sh, Stufe 2)
  * vergleicht ihn Zeichen für Zeichen mit den Migrationen. Stehen bleibt je
  * Migration die Zeile „-- aus <datei>", damit man in setup.sql sieht, woher
- * eine Anweisung stammt.
+ * eine Anweisung stammt. Seit Runde BK fällt an denselben Stellen auch der
+ * Einzug am Zeilenanfang weg (siehe unten).
  */
 function ohneKommentare(sql) {
   let aus = '', i = 0, dollar = null
@@ -68,6 +69,15 @@ function ohneKommentare(sql) {
       const kommentar = sql.slice(i, e < 0 ? n : e)
       if (/^-- aus \S+\.sql$/.test(kommentar)) aus += kommentar
       i = e < 0 ? n : e; continue
+    }
+    // Runde BK (9. November): auch der Einzug fällt weg. Mit 0142/0143 war setup.sql wieder 1 002 415 Bytes gross,
+    // und gut 100 KB davon waren führende Leerzeichen — die Sichten stehen so, wie pg_get_viewdef sie druckt, bis
+    // zu 40 Zeichen tief. Nur hier, ausserhalb von Zeichenketten und Rümpfen ($$ … $$): dort bleibt jedes Zeichen
+    // (der Fingerabdruck vergleicht den Quelltext der Funktionen, die Sichten liest er über pg_get_viewdef).
+    if (c === '\n') {
+      aus += c; i++
+      while (i < n && (sql[i] === ' ' || sql[i] === '\t')) i++
+      continue
     }
     aus += c; i++
   }

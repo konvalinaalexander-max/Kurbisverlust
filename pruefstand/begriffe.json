@@ -234,6 +234,14 @@
     },
     {
       "muster": [
+        "In der Halle"
+      ],
+      "art": "gerechnet",
+      "bedeutet": "Was laut App von einer Charge noch dasteht, zum Nachzählen: die Eingangspaletten, die noch liegen, und was von der verarbeiteten Ware aussortiert ist (zu klein, zu gross), auf das Gewicht beim Eingang zurückgerechnet — weniger die Überzählung, nie unter 0; bei einer am Lager leer bestätigten Charge 0 (seit 0136, Spalte im Reiter Chargen seit Runde BK)",
+      "quelle": "erg_charge.halle_kg · erg_charge.n_halle_paletten · erg_charge.lager_kg · erg_charge.aussortiert_kg · v_am_lager.halle_paletten"
+    },
+    {
+      "muster": [
         "Liegend"
       ],
       "art": "gerechnet",

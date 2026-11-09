@@ -332,6 +332,8 @@ export interface UniqueTopf {
   im_lager_kg: number | null; verdunstet_kg: number | null; faul_kg: number | null
   verkaufsfaehig_kg: number | null; marge_kg: number | null; verrechenbar_kg: number | null
   n_unbekannt: number; ueberzaehlung_kg: number; hinweis: string | null
+  /** 0142: aus Chargen ohne Hagel für Ünique beiseitegelegt und gewogen — genannt, nicht eingerechnet. */
+  beiseite_kg?: number; beiseite_chargen?: string | null
 }
 
 /**

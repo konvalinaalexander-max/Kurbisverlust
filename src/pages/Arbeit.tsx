@@ -9,7 +9,7 @@ import { taetigkeitVon } from '../lib/taetigkeit'
 import { fuehrungSetzen, istVorarbeiter } from '../lib/rolle'
 import { Hinweis, Lade, Marke } from '../components/Bausteine'
 import { Bestaetigt } from '../components/Schritte'
-import { arbeitLaden, faulesKg, fertigeVerlangt, stationsProfil, uhrzeit, type ArbeitDaten } from '../arbeit/daten'
+import { arbeitLaden, faulesKg, fertigeVerlangt, fuerUniqueMoeglich, stationsProfil, uhrzeit, type ArbeitDaten } from '../arbeit/daten'
 import { Zaehler } from '../arbeit/Zaehler'
 import { PaloxMaske } from '../arbeit/PaloxMaske'
 import { FauleMaske } from '../arbeit/FauleMaske'
@@ -22,7 +22,7 @@ import { Korrektur } from '../arbeit/Korrektur'
 import { PaloxErinnerung, SortierdatumErinnerung, ZetteldatumErinnerung } from '../arbeit/PaloxErinnerung'
 import { sortierdatumHinweisBei, zetteldatumHinweisBei } from '../arbeit/erinnerung'
 
-type Ansicht = 'liste' | 'zaehler' | 'palox' | 'palox_leeren' | 'faule' | 'wiegen' | 'ausschuss' | 'ausgang' | 'abschluss' | 'korrektur'
+type Ansicht = 'liste' | 'zaehler' | 'palox' | 'palox_leeren' | 'faule' | 'wiegen' | 'ausschuss' | 'unique' | 'ausgang' | 'abschluss' | 'korrektur'
 
 /**
  * Eine Arbeit, aus zwei Blickwinkeln:
@@ -299,6 +299,9 @@ export default function Arbeit() {
   if (ansicht === 'ausschuss') {
     return <>{maske(t('ausschussWiegenSchritt'), <AusschussMaske d={d} gesperrt={false} melden={melden} neuLaden={laden} />)}<Bestaetigt text={meldung} /></>
   }
+  if (ansicht === 'unique') {
+    return <>{maske(t('fuerUniqueSchritt'), <AusschussMaske d={d} gesperrt={false} melden={melden} neuLaden={laden} nur="fuer_unique" />)}<Bestaetigt text={meldung} /></>
+  }
   if (ansicht === 'ausgang') {
     return <>{maske(t('fertigePalette'), <FertigePaletteMaske d={d} gesperrt={false} melden={melden} neuLaden={laden} />)}<Bestaetigt text={meldung} /></>
   }
@@ -434,6 +437,18 @@ export default function Arbeit() {
             <span className="text">
               <span className="name">{t('ausschussWiegenSchritt')}</span>
               <span className="unter">{d.ausschuss.length > 0 ? `${ausschussSumme} kg · ${d.ausschuss.reduce((n, z) => n + (z.brutto_kg !== null ? (z.kisten ?? 1) : 0), 0)} ${t('kisten')}` : t('ausschussAmEnde')}</span>
+            </span>
+            <span className="pfeil"><ZChevron size={20} /></span>
+          </button>
+        )}
+
+        {/* 0142: freiwillig — „auf die Seite gelegt für Ünique" bekommt eine Zahl statt eines Kommentars. */}
+        {fuerUniqueMoeglich(d) && (
+          <button type="button" id="check-unique" onClick={() => setAnsicht('unique')}>
+            <Zustand art={d.fuerUnique.length > 0 ? 'getan' : 'frei'} />
+            <span className="text">
+              <span className="name">{t('fuerUniqueSchritt')}</span>
+              <span className="unter">{d.fuerUnique.length > 0 ? `${d.fuerUnique.reduce((s, z) => s + z.kg, 0)} kg · ${d.fuerUnique.reduce((n, z) => n + (z.kisten ?? 0), 0)} ${t('kisten')}` : t('fuerUniqueNurWenn')}</span>
             </span>
             <span className="pfeil"><ZChevron size={20} /></span>
           </button>

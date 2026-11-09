@@ -8,7 +8,8 @@ import { Wahl } from '../components/Schritte'
 import { uhrzeit, type ArbeitDaten } from './daten'
 import type { Gebinde } from '../lib/typen'
 
-type Art = 'zu_klein' | 'zu_gross'
+/** 0142: 'fuer_unique' ist kein Ausschuss — Ware, die die Halle für Ünique beiseitelegt, gewogen wie zu klein und zu gross. */
+type Art = 'zu_klein' | 'zu_gross' | 'fuer_unique'
 
 /** Die Kistenart, in der der Ausschuss im Betrieb steht — vorbelegt, änderbar. */
 const KISTE_VORGABE = 'G2'
@@ -19,7 +20,7 @@ const KEINE_EINZELNE_KISTE_AB_KG = 60
 
 /** Die noch nicht eingetragenen Kisten überleben ein zugeklapptes Handy. */
 const merkzettel = (auftragId: number) => `ausschuss_kisten_${auftragId}`
-const LEER = (): Record<Art, number[]> => ({ zu_klein: [], zu_gross: [] })
+const LEER = (): Record<Art, number[]> => ({ zu_klein: [], zu_gross: [], fuer_unique: [] })
 
 /**
  * Runde AZ: Der Merkzettel trägt die Kistenart mit. Bis hier standen nur die
@@ -35,7 +36,7 @@ function merkLesen(auftragId: number): { gart: string; kisten: Record<Art, numbe
     const o = roh as Record<string, unknown>
     const k = (o.kisten && typeof o.kisten === 'object' ? o.kisten : o) as Record<string, unknown>
     const zahlen = (x: unknown) => (Array.isArray(x) ? x.filter((n): n is number => typeof n === 'number' && Number.isFinite(n) && n > 0) : [])
-    return { gart: typeof o.gart === 'string' ? o.gart : '', kisten: { zu_klein: zahlen(k.zu_klein), zu_gross: zahlen(k.zu_gross) } }
+    return { gart: typeof o.gart === 'string' ? o.gart : '', kisten: { zu_klein: zahlen(k.zu_klein), zu_gross: zahlen(k.zu_gross), fuer_unique: zahlen(k.fuer_unique) } }
   } catch { return null }
 }
 
@@ -57,13 +58,19 @@ function merkLesen(auftragId: number): { gart: string; kisten: Record<Art, numbe
  * Eine Palette gibt es hier nicht mehr — die Frage aus 0083 ist mit dem
  * Betrieb beantwortet. Was zu schwer für eine Kiste ist, wird gesagt: ab
  * 30 kg als Rückfrage, ab 60 kg als Sperre.
+ *
+ * Runde BK (0142): Mit `nur="fuer_unique"` wiegt dieselbe Maske, was die Halle
+ * für Ünique beiseitelegt — die Rückmeldung Nr. 23: „Viel mit abgebrochenem
+ * Stiel, auf die Seite gelegt für Ünique". Dann gibt es keine Wahl der Art
+ * und kein „Nichts": es ist freiwillig, und nichts beiseitegelegt ist keine
+ * Zeile.
  */
-export function AusschussMaske({ d, gesperrt, melden, neuLaden }: {
-  d: ArbeitDaten; gesperrt: boolean; melden: (text: string) => void; neuLaden: () => Promise<void>
+export function AusschussMaske({ d, gesperrt, melden, neuLaden, nur }: {
+  d: ArbeitDaten; gesperrt: boolean; melden: (text: string) => void; neuLaden: () => Promise<void>; nur?: 'fuer_unique'
 }) {
   const { t, gebietsschema } = useSprache()
   const [gebinde, setGebinde] = useState<Gebinde[]>([])
-  const [art, setArt] = useState<Art>('zu_klein')
+  const [art, setArt] = useState<Art>(nur ?? 'zu_klein')
   const [gemerkt] = useState(() => merkLesen(d.auftrag.id))
   const [gart, setGart] = useState(gemerkt?.gart ?? '')
   const [brutto, setBrutto] = useState('')
@@ -95,7 +102,9 @@ export function AusschussMaske({ d, gesperrt, melden, neuLaden }: {
   const b = brutto === '' ? null : Number(brutto)
   const ersetzen = (text: string, werte: Record<string, number | string>) =>
     Object.entries(werte).reduce((s, [k, v]) => s.replace(`{${k}}`, String(v)), text)
-  const artText = (a: Art) => (a === 'zu_klein' ? t('zuKlein') : t('zuGross'))
+  const artText = (a: Art) => (a === 'zu_klein' ? t('zuKlein') : a === 'zu_gross' ? t('zuGross') : t('fuerUnique'))
+  /** Die eingetragenen Zeilen dieser Maske: zu klein und zu gross — oder nur, was für Ünique beiseitegelegt ist. */
+  const zeilen = nur ? d.fuerUnique : d.ausschuss
 
   // Die eine Kiste auf der Waage: was an ihr nicht stimmen kann, steht am Knopf.
   const grund = b === null || taraKiste === null ? null
@@ -146,15 +155,17 @@ export function AusschussMaske({ d, gesperrt, melden, neuLaden }: {
     melden(t('gespeichert')); await neuLaden()
   }
 
-  const summe = (a: Art) => d.ausschuss.filter(z => z.art === a).reduce((s, z) => s + z.kg, 0)
-  const andere: Art = art === 'zu_klein' ? 'zu_gross' : 'zu_klein'
+  const summe = (a: Art) => zeilen.filter(z => z.art === a).reduce((s, z) => s + z.kg, 0)
+  const andere: Art | null = nur ? null : art === 'zu_klein' ? 'zu_gross' : 'zu_klein'
 
   return (
     <div className="karte">
-      <div className="wahl" style={{ marginBottom: '.75rem' }}>
-        <Wahl id="aus-zu_klein" name={t('zuKlein')} gewaehlt={art === 'zu_klein'} onClick={() => setArt('zu_klein')} />
-        <Wahl id="aus-zu_gross" name={t('zuGross')} gewaehlt={art === 'zu_gross'} onClick={() => setArt('zu_gross')} />
-      </div>
+      {nur ? <p className="hilfe" id="aus-fuer-unique">{t('fuerUniqueErkl')}</p> : (
+        <div className="wahl" style={{ marginBottom: '.75rem' }}>
+          <Wahl id="aus-zu_klein" name={t('zuKlein')} gewaehlt={art === 'zu_klein'} onClick={() => setArt('zu_klein')} />
+          <Wahl id="aus-zu_gross" name={t('zuGross')} gewaehlt={art === 'zu_gross'} onClick={() => setArt('zu_gross')} />
+        </div>
+      )}
 
       {/* Die Regel, gross und vor dem Feld: eine Kiste, keine Palette. */}
       <p className="einzelkiste" id="aus-einzelkiste">
@@ -214,10 +225,10 @@ export function AusschussMaske({ d, gesperrt, melden, neuLaden }: {
           </button>
         </>
       )}
-      {kisten[andere].length > 0 && (
+      {andere && kisten[andere].length > 0 && (
         <p className="hilfe">{ersetzen(t('kistenNochOffen'), { n: kisten[andere].length, art: artText(andere) })}</p>
       )}
-      {d.ausschuss.length === 0 && liste.length === 0 && (
+      {!nur && d.ausschuss.length === 0 && liste.length === 0 && (
         <button type="button" id="aus-nichts" className="voll" style={{ marginTop: '.6rem', minHeight: 48 }}
                 onClick={() => void nichts()} disabled={gesperrt || laeuft}>
           {t('ausschussNichts')}
@@ -225,13 +236,13 @@ export function AusschussMaske({ d, gesperrt, melden, neuLaden }: {
       )}
       {fehler && <Hinweis art="warnung">{fehler}</Hinweis>}
 
-      {d.ausschuss.length > 0 && (
+      {zeilen.length > 0 && (
         <>
           <p className="abstand-oben">
-            <strong>{t('bisher')}: {t('zuKlein')} {summe('zu_klein')} kg · {t('zuGross')} {summe('zu_gross')} kg</strong>
+            <strong>{t('bisher')}: {nur ? `${t('fuerUnique')} ${summe('fuer_unique')} kg` : `${t('zuKlein')} ${summe('zu_klein')} kg · ${t('zuGross')} ${summe('zu_gross')} kg`}</strong>
           </p>
           <table className="dicht"><tbody>
-            {d.ausschuss.map(z => (
+            {zeilen.map(z => (
               <tr key={z.id}>
                 <td>{uhrzeit(z.ts, gebietsschema)}</td>
                 <td>{artText(z.art)}</td>

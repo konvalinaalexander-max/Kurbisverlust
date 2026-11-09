@@ -8,7 +8,7 @@
  * Bei jeder neuen Migration nachziehen; run.sh (Stufe 1) und npm test
  * schlagen an, wenn Migration, Datenbank und App auseinanderliegen.
  */
-export const SCHEMA_ERWARTET = 141
+export const SCHEMA_ERWARTET = 143
 
 export function datenbankVeraltet(stand: number | null): string {
   const wo = stand === null

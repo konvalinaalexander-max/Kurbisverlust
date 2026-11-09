@@ -16,7 +16,7 @@ import { STROM_UEBERFUELLUNG } from '../auswertung/ausweis'
 import { WochenFeld } from '../components/WochenFeld'
 import { ZChevron, ZHoch, ZRunter, ZStift } from '../components/Zeichen'
 import { ARTIKEL_KLASSEN, KLASSEN, OFFEN, UNIQUE, alsArtikel, alsUnique, gruppenFolge, istUnique, klasseVon, kundenGruppe, nochZuLiefern, passtGruppe, passtKlasse, passtLabel, passtVerkauf, planSchluessel, rang, teileSumme,
-         uebersichtszeilen, wahlGeordnet, zeigtUnique, type GruppePlan, type GruppeRang, type Klasse, type KundePlan, type PlanTeile, type RestTeile, type Uebersichtszeile,
+         uebersichtszeilen, wahlGeordnet, verkaufsfaehigHeute, zeigtUnique, type GruppePlan, type GruppeRang, type Klasse, type KundePlan, type PlanTeile, type RestTeile, type Uebersichtszeile,
          type Wahl } from '../auswertung/artikel'
 import { LieferungFenster } from '../betrieb/LieferungFenster'
 
@@ -124,7 +124,7 @@ export default function Artikel() {
   const rest = useMemo(() => new Map<number, RestTeile>((daten?.ausweis ?? [])
     .filter(a => a.verdunstet_kg != null && a.faul_kg != null)
     .map(a => [a.charge_nr, { kanal: Number(a.zu_klein_kg ?? 0) + Number(a.zu_gross_kg ?? 0), faul: Number(a.faul_kg), verdunstet: Number(a.verdunstet_kg),
-                              fax: Number(a.fax_kg ?? 0), unique: Number(a.unique_kg ?? 0),
+                              fax: Number(a.fax_kg ?? 0), unique: a.unique_kg == null ? undefined : Number(a.unique_kg),
                               marge: a.marge_anteil == null ? null : Number(a.marge_anteil) }])),
   [daten?.ausweis])
 
@@ -281,9 +281,12 @@ function NochDa({ bestand, grund, teile, rest, hagel, wochen, wahl, heute, ueber
   // Ünique — nie bei der Artikelgruppe seiner Hagel-Chargen („unique zählt nicht als Unterkategorie").
   const alsArtikelKg = (liste: Artikelzeile[]) => liste.filter(z => ARTIKEL_KLASSEN.includes(z.klasse))
     .reduce((a, z) => a + z.teile.reduce((b, t) => b + alsArtikel(t, rest).kg, 0), 0)
-  const offen = zeilen.some(z => ARTIKEL_KLASSEN.includes(z.klasse) && z.teile.some(t => alsArtikel(t, rest).offen)) || ausUnique.offen
-  const unique = ausUnique.teile.reduce((a, c) => a + c.kg, 0)
-  const gesamt = alsArtikelKg(zeilen) + unique
+  // Durchsicht BK: dieselbe Rechnung wie der Satz „reicht / es fehlen" unten (verkaufsfaehigHeute). Eine Hagel-Charge
+  // ohne Zahl zählt nicht mit — dann ist es „mindestens", nicht „höchstens" (Leer ist nicht null).
+  const vf = verkaufsfaehigHeute(teile, bestand, hagel, rest, wahl)
+  const offen = vf.hoechstens
+  const unique = vf.uniqueKg
+  const gesamt = vf.kg
   const jeLabel = (l: 'D' | 'K') => alsArtikelKg(zeilen.filter(z => z.label === l)) + (l === 'K' ? unique : 0)
 
   // Die Chargen dahinter, über alle Grössen: Eingang, ausgeliefert, im Lager.
@@ -297,7 +300,10 @@ function NochDa({ bestand, grund, teile, rest, hagel, wochen, wahl, heute, ueber
       <div className="kennzahl-reihe">
         <Kennzahl ton="gruen" id="kz-artikel-gesamt"
                   titel={<>{wahlName(wahl)}: verkaufsfähig {spaeter ? `in ${wochen} Wochen` : 'heute'} <Herkunft art={herkunft} /></>}
-                  wert={<>{offen && <span className="mini-wort">höchstens </span>}{tonnen(gesamt)}</>}
+                  wert={<>{vf.ohneZahl > 0 ? (!offen && <span className="mini-wort">mindestens </span>) : offen && <span className="mini-wort">höchstens </span>}{tonnen(gesamt)}
+                         {vf.ohneZahl > 0 && <span className="mini-wort" id="kz-artikel-ohne-zahl"> · {vf.ohneZahl} Hagel-{vf.ohneZahl === 1 ? 'Charge' : 'Chargen'} ohne Zahl</span>}
+                         {/* Durchsicht BK: die Wochen verschieben das Ünique nicht (0137) — dann steht es auch da */}
+                         {spaeter && vf.uniqueKg > 0 && <span className="mini-wort"> · Ünique: Stand heute</span>}</>}
                   unter={<>
                     noch da
                     {spaeter && stichtag ? <> · am {datum(stichtag).slice(0, 6)}</> : null}
@@ -806,10 +812,10 @@ function Verlauf({ grund, heute, wahl, lagerHeute, verlauf, bestand, rest, hagel
 
   // Das Verkaufsfähige des Artikels heute, und über die Saison (orange Linie). 0137: Ünique nur bei „alle Artikel"
   // und bei Ünique — die Hagelware deckt keine Knirps-Lieferung („du sagst mir jetzt, ich hab genug — aber nein!").
-  const vfHeute = useMemo(() => lagerHeute.filter(t => passtGruppe(wahl, t.artikelgruppe) && passtLabel(wahl, t.label) && passtKlasse(wahl, klasseVon(t.groesse)))
-    .reduce((a, t) => a + Number(t.kg), 0)
-    + (zeigtUnique(wahl) ? bestand.filter(b => hagel.has(b.charge_nr)).reduce((a, b) => a + (alsUnique(b, rest)?.kg ?? 0), 0) : 0),
-    [lagerHeute, wahl, bestand, hagel, rest])
+  // Durchsicht BK: netto wie die Kennzahl und die Tabelle (verkaufsfaehigHeute) — bis hier das rohe Lager, mit „passt in
+  // keinen Artikel" und der Überfüllung; der Satz sagte so „reicht", wo die Zeile „fehlen" sagte.
+  const vf = useMemo(() => verkaufsfaehigHeute(lagerHeute, bestand, hagel, rest, wahl), [lagerHeute, wahl, bestand, hagel, rest])
+  const vfHeute = vf.kg
   const lagerReihe = useMemo(() => lagerUeberSaison(verlauf, lagerHeute, bestand, grund, wahl, saison, tagHeute, hagel),
                              [verlauf, lagerHeute, bestand, grund, wahl, saison, tagHeute, hagel])
   const summeOffen = ziel.kg
@@ -1021,10 +1027,11 @@ function Verlauf({ grund, heute, wahl, lagerHeute, verlauf, bestand, rest, hagel
           {/* Ein Satz, keine Zelle: unter der Spalte „Kunde" hätte er geheissen, was er nicht ist. */}
           <p className={`reicht-zeile${reicht ? '' : ' fehlt'}`} id="artikel-reicht">
             {reicht
-              ? <>Verkaufsfähig im Lager heute <strong>{masse(vfHeute)}</strong> <Herkunft art="gerechnet" /> — reicht für die{' '}
+              ? <>Verkaufsfähig im Lager heute {vf.hoechstens && vf.ohneZahl === 0 ? 'höchstens ' : ''}<strong>{masse(vfHeute)}</strong> <Herkunft art="gerechnet" /> — reicht für die{' '}
                   {masse(summeOffen)}, die nach Plan noch zu liefern sind.</>
               : <><span className="ausruf" aria-label="reicht nicht">!</span> Noch zu liefern <strong>{masse(summeOffen)}</strong>, verkaufsfähig im
                   Lager heute nur {masse(vfHeute)} <Herkunft art="gerechnet" /> — es fehlen <strong>{masse(summeOffen - vfHeute)}</strong>.</>}
+            {vf.ohneZahl > 0 && <span id="artikel-reicht-ohne-zahl"> Nicht mitgezählt: {vf.ohneZahl} Hagel-{vf.ohneZahl === 1 ? 'Charge' : 'Chargen'} mit Ware, deren Verkaufsfähiges unbekannt ist.</span>}
           </p>
         </>
       )}

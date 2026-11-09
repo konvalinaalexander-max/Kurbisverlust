@@ -1032,9 +1032,12 @@ const BILDSCHIRME = [
   { name: 'chargen-ueberzogen', wer: 'admin', pfad: '/chargen',
     tun: async p => {
       const hagel = new Set((fixture('v_unique_topf')?.[0]?.chargen ?? []).map(Number))
-      const c = (fixture('erg_charge') ?? []).find(x => Number(x.ueberzaehlung_kg) > 0.5 && Number(x.n_lieferungen) > 0 && !hagel.has(Number(x.charge_nr)))
-      if (!c) throw new Error('erg_charge.json kennt keine überzogene Charge ohne Hagel — daten_dumpen.sh nach 0138 laufen lassen')
-      if (Number(c.halle_kg) !== 0 || Number(c.aussortiert_kg) !== 0) throw new Error(`Charge ${c.charge_nr} ist überzogen und hat noch ${c.halle_kg} kg in der Halle`)
+      // Durchsicht BK: eine knapp überzogene Charge darf den Rest ihres Aussortierten zeigen (AB-215) — gesucht ist
+      // darum eine weit überzogene (Überzählung über dem, was je aussortiert sein kann), und die hat nichts in der Halle.
+      const ueberzogen = (fixture('erg_charge') ?? []).filter(x => Number(x.ueberzaehlung_kg) > 0.5 && Number(x.n_lieferungen) > 0 && !hagel.has(Number(x.charge_nr)))
+      if (!ueberzogen.length) throw new Error('erg_charge.json kennt keine überzogene Charge ohne Hagel — daten_dumpen.sh nach 0138 laufen lassen')
+      const c = ueberzogen.find(x => Number(x.halle_kg) === 0)
+      if (!c) throw new Error('keine überzogene Charge mit leerer Halle in der Demo')
       const zelle = p.locator(`#ueberzogen-${c.charge_nr}`)
       await zelle.waitFor()
       const text = await zelle.innerText()

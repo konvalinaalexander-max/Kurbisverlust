@@ -41,7 +41,10 @@ export function verschenktJeCharge(zeilen: UeberfuellungZeile[], sorteVon: Map<n
     if (zuviel == null) continue
     roh.set(v.charge, (roh.get(v.charge) ?? 0) + v.kisten * zuviel)
   }
-  return new Map([...roh].map(([c, x]) => [c, Math.round(x * 100) / 100] as [number, number]).filter(([, x]) => x > 0))
+  // Durchsicht BK: wie numeric runden — kaufmännisch und ohne die Gleitkomma-Hälfte (1 × 0.145 ist in float 0.14499…,
+  // in Postgres 0.15). Das Zuviel hat drei Stellen: erst auf ganze Gramm, dann die Hundertstel.
+  const aufZwei = (x: number) => { const g = Math.round(x * 1000); return (g >= 0 ? Math.floor((g + 5) / 10) : -Math.floor((-g + 5) / 10)) / 100 }
+  return new Map([...roh].map(([c, x]) => [c, aufZwei(x)] as [number, number]).filter(([, x]) => x > 0))
 }
 
 /** Das Verschenkte einer Charge auf eine ihrer Lieferzeilen, nach kg verteilt (Σ über die Zeilen = das der Charge). */

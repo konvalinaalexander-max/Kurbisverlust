@@ -14488,3 +14488,270 @@ begin
 end $$;
 
 select '——— 0141 Der Mix bleibt nach Rezept verteilt ———' as ergebnis;
+
+-- =====================================================================
+-- 0142 — Für Ünique beiseitegelegt
+--
+-- Der Betrieb am 9. November: „Du darfst dir gerne alle Rückmeldungen
+-- durchlesen und daraus deine Schlüsse ziehen — und umsetzen!" Nr. 23
+-- (Charge 1719, ohne Hagel): „Viel mit abgebrochenem Stiel, auf die Seite
+-- gelegt für Ünique." Die Halle wiegt es jetzt (ausschuss_messung, Art
+-- fuer_unique). Geprüft an gebauten Arbeiten:
+-- (a) v_unique_abgabe: je Charge ohne Hagel die Summe des Gewogenen (Netto
+--     aus Brutto und Tara); eine Hagel-Charge hat keine Zeile, eine
+--     geschätzte Zeile (ohne Brutto) zählt nicht;
+-- (b) es ist kein Ausschuss: v_ausschuss_beobachtung kennt eine Arbeit, die
+--     nur für Ünique wog, nicht, und zählt bei einer Arbeit mit beidem nur zu
+--     klein; die Zähler der Datenqualität ändern sich nicht;
+-- (c) der Topf nennt es (beiseite_kg, beiseite_chargen, Hinweis) und rechnet
+--     es nicht ein (Eingang, im Lager wie vorher);
+-- (d) die Demo legt etwas beiseite; (e) Rechte; (f) Stand 142.
+-- =====================================================================
+do $$
+declare v_modus jsonb; v_lad text; v_geladen boolean := false; v_n int; v_x numeric;
+  v_u uuid := '00000000-0142-0000-0000-000000000001';
+  v_c int; v_h int; v_a1 bigint; v_a2 bigint; v_a3 bigint; v_a4 bigint; v_dq record; v_t record; v_vorher numeric; v_hinweis text;
+begin
+  select wert into v_modus from einstellung where schluessel = 'betriebsmodus';
+  update einstellung set wert = '"beispiel"'::jsonb where schluessel = 'betriebsmodus';
+  insert into auth.users (id, email, raw_user_meta_data) values (v_u, null, '{"name":"Prüf-0142"}');
+  update profil set rolle = 'admin' where id = v_u;
+  perform set_config('request.jwt.claim.sub', v_u::text, true);
+  if not exists (select 1 from auftrag where station = 'waschen_sortieren' and bemerkung = 'DEMO') then
+    select demo_daten_laden() into v_lad; v_geladen := true;
+  end if;
+  -- gerechnet: (b1) braucht die Masse der Arbeiten (mv_auftrag_masse), und die steht erst nach dem Rechnen
+  perform auswertung_aktualisieren();
+
+  -- (d1) die Demo: genau eine Charge ohne Hagel mit zwei gewogenen Kisten (27.5 kg brutto − 2 × 1.5 kg)
+  if v_geladen then
+    assert (select count(*) = 1 and min(kg) between 24 and 25 and min(n_kisten) = 2 from v_unique_abgabe),
+      format('0142 (d1): die Demo legt nichts oder etwas anderes für Ünique beiseite: %s', (select string_agg(a::text, ' | ') from v_unique_abgabe a));
+  end if;
+
+  select c.nr into v_c from charge c where coalesce(c.hagel_anteil, 0) = 0
+     and c.nr not in (select charge_nr from v_unique_abgabe) order by c.nr limit 1;
+  select c.nr into v_h from charge c where c.hagel_anteil > 0 order by c.nr limit 1;
+  assert v_c is not null and v_h is not null, '0142 (a0): keine Charge ohne und keine mit Hagel — (a) wäre blind';
+  select ausschuss_messungen, ausschuss_gewogen into v_dq from v_datenqualitaet;
+  select coalesce(sum(kg), 0) into v_vorher from v_unique_abgabe;
+  select eingang_kg, im_lager_kg, geliefert_kg into v_t from v_unique_topf;
+
+  insert into auftrag (weg, station, charge_nr, start_ts, eroeffnet_von) values ('hand', 'waschen_sortieren', v_c, now() - interval '3 hours', v_u) returning id into v_a1;
+  insert into auftrag (weg, station, charge_nr, start_ts, eroeffnet_von) values ('maschine', 'waschen', v_c, now() - interval '2 hours', v_u) returning id into v_a2;
+  insert into auftrag (weg, station, charge_nr, start_ts, eroeffnet_von) values ('hand', 'waschen_sortieren', v_h, now() - interval '1 hours', v_u) returning id into v_a3;
+  -- a1: zu klein UND für Ünique; a2: nur für Ünique (zwei Zeilen, eine davon nur geschätzt); a3: an einer Hagel-Charge
+  insert into ausschuss_messung (auftrag_id, art, brutto_kg, kisten, gebindeart, mit_palette) values
+    (v_a1, 'zu_klein', 21.5, 1, 'G2', false),
+    (v_a1, 'fuer_unique', 33, 2, 'G2', false),      -- 30 kg netto
+    (v_a2, 'fuer_unique', 13.5, 1, 'G2', false),    -- 12 kg netto
+    (v_a3, 'fuer_unique', 23, 2, 'G2', false);      -- Hagel-Charge: zählt nicht
+  insert into ausschuss_messung (auftrag_id, art, kg) values (v_a2, 'fuer_unique', 50);  -- geschätzt: zählt nicht
+
+  -- (a1) die Summe des Gewogenen an der Charge
+  assert (select kg = 42 and n_kisten = 3 and n_arbeiten = 2 from v_unique_abgabe where charge_nr = v_c),
+    format('0142 (a1): für Ünique beiseitegelegt an Charge %s: %s — erwartet 42 kg in 3 Kisten aus 2 Arbeiten', v_c,
+           (select a::text from v_unique_abgabe a where charge_nr = v_c));
+  -- (a2) eine Hagel-Charge hat keine Zeile
+  assert not exists (select 1 from v_unique_abgabe where charge_nr = v_h),
+    format('0142 (a2): die Hagel-Charge %s steht in v_unique_abgabe — sie ist ganz im Topf', v_h);
+
+  -- (b1) kein Ausschuss: eine Arbeit, die nur für Ünique wog, ist keine Beobachtung zu klein / zu gross.
+  --      An einer Arbeit der Demo, die eine Beobachtung hat: ihre Zeilen zu klein und zu gross weg, für
+  --      Ünique dazu — und der Versuch wird zurückgenommen (die Demo bleibt, wie sie war).
+  select b.auftrag_id into v_a4 from v_ausschuss_beobachtung b where b.weg = 'hand' order by b.auftrag_id limit 1;
+  assert v_a4 is not null, '0142 (b0): keine Arbeit von Hand mit einer Beobachtung — (b1) prüfte nichts';
+  begin
+    delete from ausschuss_messung where auftrag_id = v_a4 and art::text in ('zu_klein', 'zu_gross');
+    insert into ausschuss_messung (auftrag_id, art, brutto_kg, kisten, gebindeart, mit_palette) values (v_a4, 'fuer_unique', 13.5, 1, 'G2', false);
+    assert not exists (select 1 from v_ausschuss_beobachtung where auftrag_id = v_a4),
+      format('0142 (b1): eine Arbeit, die nur für Ünique wog, steht als Beobachtung zu klein / zu gross da: %s',
+             (select row(klein_kg, gross_kg)::text from v_ausschuss_beobachtung where auftrag_id = v_a4));
+    raise exception using errcode = 'PR142', message = 'zurück';
+  exception when sqlstate 'PR142' then null;
+  end;
+  assert (select coalesce(sum(m.kg) filter (where m.art::text = 'zu_klein'), 0) = 20 from ausschuss_messung m where m.auftrag_id = v_a1),
+    '0142 (b0): die gebaute Zeile zu klein wiegt nicht 20 kg — (b2) prüfte nichts';
+  assert not exists (select 1 from v_ausschuss_beobachtung where auftrag_id = v_a1 and (klein_kg is distinct from 20 or gross_kg is not null)),
+    format('0142 (b2): die Beobachtung der Arbeit mit beidem zählt das Ünique mit: %s',
+           (select row(klein_kg, gross_kg)::text from v_ausschuss_beobachtung where auftrag_id = v_a1));
+  -- (b3) die Zähler der Datenqualität: nur die eine Zeile zu klein kam dazu
+  assert (select ausschuss_messungen = v_dq.ausschuss_messungen + 1 and ausschuss_gewogen = v_dq.ausschuss_gewogen + 1 from v_datenqualitaet),
+    format('0142 (b3): die Datenqualität zählt für Ünique Gewogenes als zu klein / zu gross: %s statt %s + 1',
+           (select row(ausschuss_messungen, ausschuss_gewogen)::text from v_datenqualitaet), row(v_dq.ausschuss_messungen, v_dq.ausschuss_gewogen)::text);
+
+  -- (c1) der Topf nennt es …
+  select beiseite_kg, hinweis into v_x, v_hinweis from v_unique_topf;
+  assert v_x = v_vorher + 42 and (select position(v_c::text in beiseite_chargen) > 0 from v_unique_topf),
+    format('0142 (c1): der Topf nennt %s kg beiseitegelegt (%s), erwartet %s', v_x, (select beiseite_chargen from v_unique_topf), v_vorher + 42);
+  assert v_hinweis ~ 'für Ünique beiseitegelegt und gewogen' and v_hinweis ~ 'nicht eingerechnet',
+    format('0142 (c2): der Hinweis des Topfs sagt es nicht: %s', coalesce(v_hinweis, 'kein Hinweis'));
+  -- (c3) … und rechnet es nicht ein
+  assert (select eingang_kg = v_t.eingang_kg and im_lager_kg is not distinct from v_t.im_lager_kg and geliefert_kg = v_t.geliefert_kg from v_unique_topf),
+    '0142 (c3): Eingang, Lager oder Geliefertes des Topfs ändern sich mit dem Beiseitegelegten — es soll daneben stehen';
+
+  -- (e) Rechte
+  assert has_table_privilege('authenticated', 'v_unique_abgabe', 'select') and not has_table_privilege('anon', 'v_unique_abgabe', 'select'),
+    '0142 (e1): v_unique_abgabe ist für Angemeldete nicht lesbar oder für Nichtangemeldete lesbar';
+  -- (f) Stand
+  assert schema_stand() >= 142, format('0142 (f1): schema_stand() = %s', schema_stand());
+
+  -- aufräumen
+  delete from ausschuss_messung where auftrag_id in (v_a1, v_a2, v_a3);
+  delete from auftrag where id in (v_a1, v_a2, v_a3);
+  if v_geladen then perform demo_daten_entfernen(); end if;
+  delete from profil where id = v_u; delete from auth.users where id = v_u;
+  update einstellung set wert = v_modus where schluessel = 'betriebsmodus';
+  raise notice 'OK  0142 — für Ünique beiseitegelegt: gewogen je Charge ohne Hagel, kein Ausschuss, der Topf nennt es und rechnet es nicht ein, die Demo zeigt es';
+end $$;
+
+select '——— 0142 Für Ünique beiseitegelegt ———' as ergebnis;
+
+-- =====================================================================
+-- 0143 — Was die Durchsicht fand
+--
+-- Der Betrieb am 9. November: die letzten Änderungen noch einmal ansehen,
+-- Fehler finden, beheben. Vier Fehler der Runde, je an einem gebauten Fall:
+-- (a) lieferungen_nachordnen(): eine Chargennummer „mix" in Spalte W
+--     (Kennung …:mix:1) und ein Mix-Anteil mit einer Sorte, die es nicht
+--     gibt, brechen den Lauf nicht ab und ändern nichts; Stufe 2 (Produzent)
+--     gibt einem Mix-Anteil keine Charge — einem gewöhnlichen Lieferschein
+--     mit derselben Zeile schon; ein zweiter Lauf findet nichts mehr;
+-- (b) ein Lieferschein ohne Charge geht nicht auf eine Charge, die vor dem
+--     Liefertag leer bestätigt wurde — vor dem Leer-Tag schon, und wenn alle
+--     Chargen der Sorte leer sind, auch (er geht nie verloren);
+-- (c) v_verschenkt_charge ist nie unter 0, auch wenn die Kisten einer Charge
+--     unter dem Sollgewicht gewogen sind — wie erg_charge;
+-- (d) Stand 143.
+-- =====================================================================
+do $$
+declare v_modus jsonb; v_lad text; v_geladen boolean := false; v_n int; v_x numeric; v_j jsonb;
+  v_u uuid := '00000000-0143-0000-0000-000000000001';
+  v_c1 int; v_s1 text; v_s2 text; v_p int; v_ps text; v_pg text; v_schlag text; v_art text; v_preis text; v_z jsonb;
+  v_ls text; v_lc int; v_l1 bigint; v_l2 bigint; v_vc int;
+begin
+  select wert into v_modus from einstellung where schluessel = 'betriebsmodus';
+  update einstellung set wert = '"beispiel"'::jsonb where schluessel = 'betriebsmodus';
+  insert into auth.users (id, email, raw_user_meta_data) values (v_u, null, '{"name":"Prüf-0143"}');
+  update profil set rolle = 'admin' where id = v_u;
+  perform set_config('request.jwt.claim.sub', v_u::text, true);
+  if not exists (select 1 from auftrag where station = 'waschen_sortieren' and bemerkung = 'DEMO') then
+    select demo_daten_laden() into v_lad; v_geladen := true;
+  end if;
+  perform auswertung_aktualisieren();
+
+  -- (a1) die Kennung, verankert
+  assert mix_sorte('q:201:mix:1') is null and mix_sorte('q:201:1624:1') is null and mix_sorte(null) is null
+     and mix_sorte('q:201:1624:1:mix:Lekor') = 'Lekor' and mix_sorte('q:201:rest:mix:Orange Summer') = 'Orange Summer'
+     and mix_sorte('q:201:mix:1:mix:Lekor') = 'Lekor',
+    format('0143 (a1): mix_sorte liest die Kennung falsch: %s', row(mix_sorte('q:201:mix:1'), mix_sorte('q:201:1624:1:mix:Lekor'), mix_sorte('q:201:rest:mix:Orange Summer'))::text);
+
+  select c.nr, c.sorte into v_c1, v_s1 from charge c join sorte_kaliber s on s.sorte = c.sorte where coalesce(c.hagel_anteil, 0) = 0 order by c.nr limit 1;
+  select s.sorte into v_s2 from sorte_kaliber s where s.sorte <> v_s1 and exists (select 1 from charge c where c.sorte = s.sorte) order by s.sorte limit 1;
+  -- für Stufe 2: eine Charge, die in ihrer Saison als einzige ihres Schlags ihre Artikelgruppe hat, und ein Artikel dieser Gruppe
+  select c.nr, c.sorte, sk.artikelgruppe, c.schlag into v_p, v_ps, v_pg, v_schlag
+    from charge c join sorte_kaliber sk on sk.sorte = c.sorte
+   where sk.artikelgruppe not in ('Mix', 'andere') and c.saison = saison_von(date '2026-10-06')
+     and (select count(*) from charge c2 join sorte_kaliber k2 on k2.sorte = c2.sorte
+           where name_norm(c2.schlag) = name_norm(c.schlag) and k2.artikelgruppe = sk.artikelgruppe and c2.saison = c.saison) = 1
+     and coalesce((select pp.schlag from v_perigon_produzent pp where pp.produzent = name_norm(c.schlag)), c.schlag) = c.schlag
+   order by c.nr limit 1;
+  select z.artikel, z.preisgruppe into v_art, v_preis from ausgang_zeile z
+   cross join lateral artikel_einordnen(z.artikel, z.preisgruppe) e
+   where e.gruppe = v_pg order by z.id limit 1;
+  assert v_c1 is not null and v_s2 is not null and v_p is not null and v_art is not null,
+    format('0143 (a0): die Demo hat keinen Fall für (a): %s', row(v_c1, v_s2, v_p, v_art)::text);
+
+  v_z := jsonb_build_object('lauf_nr', 1, 'datum', '2026-10-06', 'journal', 'A', 'kunde', 'Prüfkunde 143', 'artikel_id', 'p143mix', 'artikel', 'Bio Kürbis Mix OS',
+    'einheit', 'kg', 'menge', 40, 'gewicht_je_artikel', 1, 'batch_menge', 40, 'kg_position', 40, 'kg_charge', 40);
+  v_j := ausgang_uebernehmen('PRUEF143', 'Prüffirma 0143', '{"dateiname": "p143.xlsx", "pruefsumme": "p143"}'::jsonb,
+    jsonb_build_array(
+      v_z || jsonb_build_object('pos_id', 4301, 'charge_extern', 'mix', 'fingerabdruck', 'p143-4301'),
+      v_z || jsonb_build_object('pos_id', 4302, 'charge_extern', v_c1::text, 'fingerabdruck', 'p143-4302'),
+      v_z || jsonb_build_object('pos_id', 4303, 'charge_extern', '99999', 'fingerabdruck', 'p143-4303', 'produzent', v_schlag, 'artikel_id', 'p143a', 'artikel', v_art, 'preisgruppe', v_preis),
+      v_z || jsonb_build_object('pos_id', 4304, 'charge_extern', '99998', 'fingerabdruck', 'p143-4304', 'produzent', v_schlag, 'artikel_id', 'p143a', 'artikel', v_art, 'preisgruppe', v_preis)),
+    jsonb_build_array(
+      -- Spalte W sagt „mix": die Kennung endet auf :mix:1 und ist kein Mix-Anteil
+      jsonb_build_object('extern_id', 'PRUEF143:4301:mix:1', 'datum', '2026-10-06', 'charge_nr', null, 'sorte', v_s1, 'kg', 40, 'kunde', 'Prüfkunde 143'),
+      -- ein Mix-Anteil, dessen Sorte es nicht gibt, auf einer Charge
+      jsonb_build_object('extern_id', format('PRUEF143:4302:%s:1:mix:Gibtsnicht', v_c1), 'datum', '2026-10-06', 'charge_nr', v_c1, 'sorte', v_s1, 'kg', 40, 'kunde', 'Prüfkunde 143'),
+      -- ein Mix-Anteil einer anderen Sorte mit unbekannter Nummer; Produzent und Artikel zeigen auf genau eine Charge
+      jsonb_build_object('extern_id', format('PRUEF143:4303:99999:1:mix:%s', (select s.sorte from sorte_kaliber s where s.sorte <> v_ps and exists (select 1 from charge c where c.sorte = s.sorte) order by s.sorte limit 1)),
+                         'datum', '2026-10-06', 'charge_nr', null,
+                         'sorte', (select s.sorte from sorte_kaliber s where s.sorte <> v_ps and exists (select 1 from charge c where c.sorte = s.sorte) order by s.sorte limit 1), 'kg', 40, 'kunde', 'Prüfkunde 143'),
+      -- dieselbe Zeile als gewöhnlicher Lieferschein: Stufe 2 findet die Charge (sonst prüfte (a4) nichts)
+      jsonb_build_object('extern_id', 'PRUEF143:4304:99998:1', 'datum', '2026-10-06', 'charge_nr', null, 'sorte', v_ps, 'kg', 40, 'kunde', 'Prüfkunde 143')));
+  update ausgang_zeile set produzent = v_schlag where quelle = 'PRUEF143' and pos_id in (4303, 4304) and produzent is distinct from v_schlag;
+
+  -- (a2) der Lauf bricht nicht ab …
+  begin
+    perform lieferungen_nachordnen();
+  exception when foreign_key_violation then
+    raise exception '0143 (a2): lieferungen_nachordnen() bricht am Fremdschlüssel ab — jeder Rechenlauf scheitert: %', sqlerrm;
+  end;
+  -- … und ändert an den zwei Zeilen nichts
+  assert (select l.charge_nr is null and l.sorte = v_s1 from lieferung l join lieferung_import i on i.lieferung_id = l.id where i.extern_id = 'PRUEF143:4301:mix:1'),
+    '0143 (a2): die Zeile mit „mix" in Spalte W ist kein Mix-Anteil und wurde doch geändert';
+  assert (select l.charge_nr = v_c1 and l.sorte = v_s1 from lieferung l join lieferung_import i on i.lieferung_id = l.id where i.extern_id like 'PRUEF143:4302:%'),
+    '0143 (a3): ein Mix-Anteil mit einer Sorte, die es nicht gibt, wurde umgeschrieben';
+  -- (a4) Stufe 2: der Mix-Anteil bleibt ohne Charge, der gewöhnliche Lieferschein bekommt sie
+  assert (select l.charge_nr = v_p from lieferung l join lieferung_import i on i.lieferung_id = l.id where i.extern_id = 'PRUEF143:4304:99998:1'),
+    format('0143 (a0): Stufe 2 findet die Charge %s für den gewöhnlichen Lieferschein nicht — (a4) prüfte nichts', v_p);
+  assert (select l.charge_nr is null from lieferung l join lieferung_import i on i.lieferung_id = l.id where i.extern_id like 'PRUEF143:4303:%'),
+    format('0143 (a4): Stufe 2 gibt dem Mix-Anteil über den Produzenten die Charge %s',
+           (select l.charge_nr from lieferung l join lieferung_import i on i.lieferung_id = l.id where i.extern_id like 'PRUEF143:4303:%'));
+  assert lieferungen_nachordnen() = 0, '0143 (a5): ein zweiter Lauf ändert wieder etwas — die Stufen arbeiten gegeneinander';
+
+  -- (b) ohne Charge und leer bestätigt: eine Sorte mit zwei Chargen ohne Hagel
+  select r.sorte, min(r.charge_nr) into v_ls, v_lc from v_charge_rueckgrat r join charge c on c.nr = r.charge_nr
+   where r.eingang_netto_kg > 0 and coalesce(c.hagel_anteil, 0) = 0 and c.leer_am is null
+     and not exists (select 1 from charge h where h.sorte = r.sorte and h.hagel_anteil > 0)
+   group by r.sorte having count(*) >= 2 order by r.sorte limit 1;
+  assert v_ls is not null, '0143 (b0): keine Sorte mit zwei Chargen ohne Hagel — (b) wäre blind';
+  update charge set leer_am = heute() - 5 where nr = v_lc;
+  insert into lieferung (datum, charge_nr, sorte, kg, ziel, bemerkung) values (heute() - 1, null, v_ls, 500, 'verkauf', 'PRUEF0143') returning id into v_l1;
+  insert into lieferung (datum, charge_nr, sorte, kg, ziel, bemerkung) values (heute() - 10, null, v_ls, 500, 'verkauf', 'PRUEF0143') returning id into v_l2;
+  assert not exists (select 1 from v_lieferung_charge where id = v_l1 and charge_nr = v_lc),
+    format('0143 (b1): ein Lieferschein ohne Charge nach dem Leer-Tag geht auf die leere Charge %s (Anteil %s)', v_lc,
+           (select anteil from v_lieferung_charge where id = v_l1 and charge_nr = v_lc));
+  assert (select abs(sum(anteil) - 1) < 1e-9 from v_lieferung_charge where id = v_l1), '0143 (b2): die Anteile des Lieferscheins ergeben nicht 1';
+  assert exists (select 1 from v_lieferung_charge where id = v_l2 and charge_nr = v_lc),
+    '0143 (b3): ein Lieferschein vor dem Leer-Tag geht nicht mehr auf die Charge — sie hatte da noch Ware';
+  -- alle Chargen der Sorte leer: der Lieferschein geht trotzdem auf sie, er geht nie verloren
+  update charge set leer_am = heute() - 5 where sorte = v_ls and leer_am is null;
+  assert (select abs(sum(anteil) - 1) < 1e-9 and count(*) >= 2 from v_lieferung_charge where id = v_l1),
+    '0143 (b4): sind alle Chargen der Sorte leer, geht der Lieferschein verloren';
+  update charge set leer_am = null where sorte = v_ls;
+  delete from lieferung where bemerkung = 'PRUEF0143';
+
+  -- (c) verschenkt nie unter 0: die fertigen Paletten einer Charge 60 kg leichter wiegen, rechnen, und zurück
+  select v.charge_nr into v_vc from v_verschenkt_charge v where v.quelle = 'charge' and v.verschenkt_kg > 0 order by v.charge_nr limit 1;
+  assert v_vc is not null, '0143 (c0): keine Charge mit gewogenem Verschenkten — (c) wäre blind';
+  begin
+    update ausgang_wiegung set brutto_kg = brutto_kg - 60 where charge_nr = v_vc;
+    perform auswertung_aktualisieren();
+    assert (select coalesce(avg(u.zuviel_je_kiste), 0) < 0 from erg_ueberfuellung u where u.gruppe = 'charge' and u.charge_nr = v_vc and u.kistensystem = 'kiste_ab'),
+      '0143 (c0): die leichteren Wägungen ergeben kein Minus je Kiste — (c1) prüfte nichts';
+    assert (select verschenkt_kg = 0 and anteil = 0 from v_verschenkt_charge where charge_nr = v_vc),
+      format('0143 (c1): die verschenkte Marge der Charge %s ist %s', v_vc, (select row(verschenkt_kg, anteil)::text from v_verschenkt_charge where charge_nr = v_vc));
+    assert (select coalesce(verschenkt_kg, 0) = 0 from erg_charge where charge_nr = v_vc), '0143 (c2): erg_charge sagt etwas anderes als die Sicht';
+    raise exception using errcode = 'PR143', message = 'zurück';
+  exception when sqlstate 'PR143' then null;
+  end;
+  assert not exists (select 1 from v_verschenkt_charge where verschenkt_kg < 0 or anteil < 0), '0143 (c3): eine Charge mit negativem Verschenkten';
+
+  -- (d) Stand
+  assert schema_stand() >= 143, format('0143 (d1): schema_stand() = %s', schema_stand());
+
+  -- aufräumen
+  delete from lieferung where id in (select lieferung_id from lieferung_import where quelle = 'PRUEF143');
+  delete from ausgang_zeile where quelle = 'PRUEF143';
+  delete from ausgang_datei where quelle = 'PRUEF143';
+  delete from ausgang_quelle where code = 'PRUEF143';
+  if v_geladen then perform demo_daten_entfernen(); else perform auswertung_aktualisieren(); end if;
+  delete from profil where id = v_u; delete from auth.users where id = v_u;
+  update einstellung set wert = v_modus where schluessel = 'betriebsmodus';
+  raise notice 'OK  0143 — die Durchsicht: der Rechenlauf bricht an „mix" in Spalte W nicht ab, Stufe 2 lässt Mix-Anteile, ohne Charge nicht auf eine leere Charge, verschenkt nie unter 0';
+end $$;
+
+select '——— 0143 Was die Durchsicht fand ———' as ergebnis;

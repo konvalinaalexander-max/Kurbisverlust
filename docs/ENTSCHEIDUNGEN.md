@@ -4290,6 +4290,132 @@ Geprüft:
 - Eine Sorte dazu oder weg im Rezept geht noch nicht in der Maske (nur Stück,
   kg je Stück und Herkunft); das Rezept des Betriebs hat drei Sorten.
 
+## Runde BK, Schritt 8: Was die Durchsicht fand (9. November, 0143)
+
+Der Betrieb: die letzten Änderungen noch einmal ansehen — Fehler, Dinge, die
+nicht aufgehen, Denkfehler, unnötig Kompliziertes — und beheben. Zwei
+unabhängige Leser haben 0136 bis 0141 gegen den Stand 135 geprüft (die
+Datenbank Sicht für Sicht, die App Zeile für Zeile), die Runde hat die
+Betriebsdaten gegengerechnet (nur gelesen: Bilanz je Charge, Halle, Wohin,
+Saisonbilanz, Topf gehen auf, Rest 0.2 kg auf 728 t) und jeden Fund
+nachgerechnet.
+
+**Behoben, Datenbank (0143):**
+- `lieferungen_nachordnen()` (0141) las die Sorte eines Mix-Anteils mit
+  `:mix:(.+)$`. Steht in Spalte W selbst „mix", ist die Kennung `…:mix:1`, die
+  Laufnummer galt als Sorte, und der Fremdschlüssel brach **jeden Rechenlauf**
+  ab. Jetzt verankert (`mix_sorte`), und zurückgeholt wird nur auf eine Sorte,
+  die es gibt.
+- Stufe 2 (Produzent und Artikel) kannte die Mix-Regel nicht und setzte, was
+  Stufe 0 zurückholte, bei jedem Lauf wieder. Sie lässt Mix-Anteile jetzt aus.
+- Ein Lieferschein ohne Charge ging auch auf eine Charge, die vor dem Liefertag
+  am Lager leer bestätigt war. Jetzt nicht, solange die Sorte eine andere hat
+  (Rang: Hagel 2, leer vor dem Liefertag 1; der kleinste Rang bekommt ihn — er
+  geht nie verloren). Das wird wichtig, sobald der Betrieb die ersten Chargen
+  leer bestätigt.
+- `v_verschenkt_charge` zeigte ein Minus bei gewogener Unterfüllung, die
+  Kaskade rechnete 0. Die Sicht sagt jetzt dasselbe.
+
+**Behoben, App:**
+- Der Satz „reicht / es fehlen" unter „Wie ist es gegangen?" rechnete mit dem
+  rohen Lager, Kennzahl und Tabelle netto (Demo: 148.0 t gegen 140.3 t; bei
+  einer Gruppe fehlten je nach Stelle 9.6 t oder 10.8 t). Jetzt eine Rechnung
+  für alle drei (`verkaufsfaehigHeute`), mit dem Beispiel des Betriebs als
+  Test — der alte Test blieb grün, wenn eine Hagel-Charge wieder bei ihrer
+  Sorte zählte.
+- Eine Hagel-Charge mit Ware, deren Verkaufsfähiges unbekannt ist, hiess in
+  der Kennzahl „höchstens" und zählte im Satz still als 0. Jetzt „mindestens"
+  und „N Hagel-Chargen ohne Zahl".
+- Reiter Chargen: die Zelle zeigt seit 0136 die Halle, Kopfzeile, Sortierung,
+  „nur mit Bestand" und der Anteil rechneten mit dem Liegenden (198.0 t oben,
+  204.0 t in den Zellen). Die Spalte heisst jetzt „In der Halle", alles rechnet
+  mit ihr. „liegend etwa … Paletten" steht nur, wenn etwas liegt; die Paletten
+  des Aussortierten sind Halle − liegend (vorher „57 = 54 + 2").
+- Gegenprobe: das Orakel rundete das Verschenkte in Gleitkomma, Postgres
+  kaufmännisch (1 × 0.145 → 0.14 gegen 0.15) — bei 1 % der Fälle wäre die volle
+  Stufe ohne Fehler rot geworden.
+- Erklärtext unter „Wohin ging der Kürbis?" (sechs Teile, es sind acht), der
+  Tooltip der überzogenen Charge, „Ünique: Stand heute" unter dem
+  Wochenregler, die Szene `chargen-ueberzogen` (verlangte von der ersten
+  überzogenen Charge eine leere Halle; knapp überzogen darf sie einen Rest
+  zeigen).
+
+**Geprüft und nicht geändert — mit dem Grund:**
+- Das Verschenkte läuft über die Charge, die Perigon nennt, die Masse über
+  `v_lieferung_charge` (Topf, ohne Charge, bis heute). Folgen, nachgerechnet:
+  Kisten ohne Charge sind weder gerechnet noch genannt (Demo: 63 kg von
+  2'034 kg), ein Liefertag in der Zukunft zählt mit, eine Hagel-Charge trägt
+  das Verschenkte der Charge, die Perigon nennt. Richtig wäre: je Lieferung
+  rechnen und durch `v_lieferung_charge` führen. Das fasst die Kaskade an und
+  ist eine eigene Runde.
+- Ein Tierfutter-Lieferschein (Buch `marge`) zieht vom Liegenden ab, nicht
+  vom Aussortierten: „aussortiert in der Halle" sinkt nicht, wenn er es holt.
+  Im Betrieb gibt es keinen solchen Lieferschein (marge 0 kg). Wie das
+  Aussortierte die Halle verlässt, ist die offene Frage an den Betrieb.
+- `erg_verlauf` führt das Verschenkte nicht als Linie: Eingang − Ausgang −
+  Verlust − Lager lässt genau das Verschenkte offen (Demo 2.0 t von 320 t).
+  Das Bild stimmt, die Kette geht in Wohin und Saisonbilanz auf.
+- Hat eine Sorte nur Hagel-Chargen, gehen Lieferscheine ohne Charge auf sie
+  und nicht über den Topf (der Rückfall von 0138). Im Betrieb hat jede Sorte
+  mit Hagel auch eine Charge ohne.
+- „Echter Verlust" einer leeren Charge bleibt Eingang − geliefert: auch das
+  Verschenkte ist nicht bezahlt worden.
+- Überzählung und Liegendes an derselben Charge (im Betrieb 1635: 153 kg und
+  170 kg): die Kaskade rechnet je Eingangstag; die Halle (lager + aussortiert
+  − Überzählung) ist dieselbe Zahl wie netto gerechnet, nur die Aufteilung
+  nicht.
+- `leer_weg_kg` negativ: nur erreichbar, wenn die Untergrenze 0.25 des
+  verkaufsfähigen Anteils greift; nirgends der Fall.
+
+Geprüft: Prüfblock 0143 (a–c) mit 8 Mutationen, jede schlägt an; `npm test`
+(352, darunter der neue Test zum Beispiel des Betriebs); volle Stufe.
+
+## Runde BK, Schritt 7: Für Ünique beiseitegelegt (9. November, 0142)
+
+Der Betrieb zu den Rückmeldungen aus der Halle: „Nr. 23 find ich gut. Du darfst
+dir gerne alle Rückmeldungen durchlesen und daraus deine Schlüsse ziehen — und
+umsetzen!" (Und davor, zu einer Folgerung der Runde über die Ünique-Kiste:
+„Verwechsel Kürbis Mix nicht mit Ünique! Ünique ist Topf, basta." — die
+Rechnung des Topfs bleibt, wie sie ist.)
+
+Alle 29 gelesen. Was sie über die Ware sagen, steht gekürzt im Dashboard (Nr.
+17 bis 29 in dieser Runde). Was sie über die App sagen:
+- **Nr. 23** (Waschen, Charge 1719, ohne Hagel): „Viel mit abgebrochenem
+  Stiel, auf die Seite gelegt für Ünique." **Nr. 5** (Charge 1638):
+  „Hagelschaden bei einer Palox." Ware einer Charge ohne Hagel geht zum Ünique.
+  Die App kannte nur „die ganze Charge ist Hagel" (0133) oder nichts, und keine
+  Zahl — die Halle schrieb es in den Kommentar.
+- Nr. 17, 1, 8, 10 nennen Kisten zu gross und zu klein an Arbeiten der
+  Maschine; dort kommt es aus der Sortierdatei, eine zweite Zahl daneben würde
+  doppelt zählen. Nichts geändert.
+- Nr. 9 und Nr. 3 (zur App) sind seit 0112 und der Runde AD erledigt.
+
+Neu (AB-221):
+- Die Halle wiegt, was sie für Ünique beiseitelegt, Kiste für Kiste — dieselbe
+  Maske wie zu klein und zu gross, als eigener, freiwilliger Punkt „Für Ünique
+  beiseitegelegt wiegen" nach der Arbeit (Waschen und Waschen + Sortieren,
+  nicht an einer Hagel-Charge), in allen sechs Sprachen. Gespeichert in
+  `ausschuss_messung` mit der Art `fuer_unique`: Tara, Netto, Journal und
+  Korrektur kommen von der Tabelle.
+- Es ist kein Ausschuss: `v_ausschuss_beobachtung` und die Zähler der
+  Datenqualität lesen nur zu klein und zu gross.
+- `v_unique_abgabe` je Charge ohne Hagel; im Reiter Chargen steht es an der
+  Charge („Davon hat die Halle … für Ünique beiseitegelegt und gewogen — das
+  steht beim Ünique, nicht mehr bei dieser Charge") und am Ünique-Topf
+  (`beiseite_kg`, Hinweis).
+
+**Was bewusst nicht gemacht wurde:**
+- Die Rechnung bleibt: Ünique-Lieferungen gehen von den Hagel-Chargen ab, die
+  beiseitegelegte Ware zählt in Kaskade und Bilanz weiter bei ihrer Charge. Die
+  Zahl steht daneben und sagt, dass sie nicht eingerechnet ist. Erst die Daten,
+  dann die Annahme (CLAUDE.md): umgerechnet wird, wenn Zahlen da sind.
+- Für Nr. 23 und Nr. 5 gibt es keine Zahl; nichts wird geschätzt. Der
+  Betriebsleiter kann sie an der Arbeit nachtragen.
+- Kein Pflichtschritt im Abschluss: die meisten Arbeiten legen nichts beiseite.
+
+Geprüft: Prüfblock 0142 (a–f) mit 11 Mutationen; die Demo legt bei einer
+Arbeit zwei Kisten beiseite; Bildschirme der Arbeit und der Chargen.
+
 ## Runde BK, Schritt 6: Der Mix bleibt nach Rezept verteilt (9. November, 0141)
 
 Der Betrieb zu den Chargen, die in der Halle nicht aufgehen: „Kann es sein,

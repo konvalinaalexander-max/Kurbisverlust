@@ -12,7 +12,7 @@ export interface Ablesung {
 }
 /** Zu klein / zu gross, je Palette gewogen (Waschen + Sortieren, am Ende). */
 export interface AusschussZeile {
-  id: number; art: 'zu_klein' | 'zu_gross'; kg: number; ts: string
+  id: number; art: 'zu_klein' | 'zu_gross' | 'fuer_unique'; kg: number; ts: string
   gemessen: boolean; brutto_kg: number | null; kisten: number | null; gebindeart: string | null; bemerkung: string | null
   /** 0083: Stand die Ware auf einer Palette? Nur dann ist die Palettentara abgezogen. */
   mit_palette: boolean
@@ -41,6 +41,8 @@ export interface ArbeitDaten {
   gebinde: AuftragGebinde[]
   ablesungen: Ablesung[]
   ausschuss: AusschussZeile[]
+  /** 0142: was die Halle für Ünique beiseitegelegt und gewogen hat — dieselbe Tabelle, eigene Art, kein Ausschuss. */
+  fuerUnique: AusschussZeile[]
   nAusgang: number
   angaben: Record<string, string>
   baender: [number, number][]
@@ -138,7 +140,8 @@ export async function arbeitLaden(auftragId: number): Promise<ArbeitDaten | null
     paletten: (pa.data ?? []) as Palette[],
     gebinde: (ge.data ?? []) as AuftragGebinde[],
     ablesungen: (sm.data ?? []) as Ablesung[],
-    ausschuss: (au.data ?? []) as AusschussZeile[],
+    ausschuss: ((au.data ?? []) as AusschussZeile[]).filter(z => z.art !== 'fuer_unique'),
+    fuerUnique: ((au.data ?? []) as AusschussZeile[]).filter(z => z.art === 'fuer_unique'),
     nAusgang: ((ag.data ?? []) as unknown[]).length,
     angaben: Object.fromEntries(av.map(x => [x.schluessel, x.wert])),
     baender,
@@ -227,6 +230,10 @@ export const WIEGEN_SOLL = 3
  * Zu klein / zu gross am Band kommt aus der Sortier-CSV; von Hand (Waschen +
  * Sortieren) wird es am Ende Kiste für Kiste gewogen — dort gibt es keine CSV.
  */
+/** 0142: Für Ünique beiseitelegen kann man nur an einer Charge ohne Hagel — eine Hagel-Charge ist ganz im Ünique-Topf. */
+export const fuerUniqueMoeglich = (d: Pick<ArbeitDaten, 'auftrag' | 'charge'>) =>
+  stationsProfil(d.auftrag).hatFuerUnique && !(Number(d.charge?.hagel_anteil ?? 0) > 0)
+
 export function stationsProfil(a: Auftrag) {
   const fax = a.ist_fax
   const rechenbar = a.kistensystem === 'kiste_ab' || a.kistensystem === 'stueck'
@@ -261,6 +268,8 @@ export function stationsProfil(a: Auftrag) {
     wiegenSoll: a.station === 'waschen_sortieren' ? WIEGEN_SOLL : 0,
     /** Zu klein / zu gross am Ende je Palette wiegen: nur von Hand (Waschen + Sortieren). */
     hatAusschuss: a.station === 'waschen_sortieren',
+    /** 0142: Für Ünique beiseitegelegt wiegen — freiwillig, wo gewaschen wird (ob die Charge Hagel hat, sagt `fuerUniqueMoeglich`). */
+    hatFuerUnique: !fax && (a.station === 'waschen' || a.station === 'waschen_sortieren'),
     /** Fertige Palette wiegen — nur, wenn das Kistensystem rechenbar ist. */
     hatAusgang: !fax && a.station !== 'sortieren' && rechenbar,
     /** Beim Waschen sind die fertigen Paletten die eine Messung am Ende.

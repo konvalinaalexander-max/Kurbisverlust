@@ -302,6 +302,21 @@ await schritt('Nach dem Start steht der Palox als erstes — und ohne Ablesung g
   await warteAuf('schimmel_messung')
   await seite.locator('#check-abschluss').waitFor()
   await seite.locator('#check-ausschuss').waitFor()      // zu klein / zu gross am Ende, je Palette (0061)
+  // Runde BK (0142): die Rückmeldung Nr. 23 — „auf die Seite gelegt für Ünique" — bekommt eine Zahl. Freiwillig, in der
+  // Checkliste: eine Kiste 15.5 kg (G2, 1.5 kg) → 14 kg. Die Maske kennt dann weder „Nichts" noch zu klein / zu gross.
+  await seite.locator('#check-unique').click()
+  await seite.locator('#aus-fuer-unique').waitFor()
+  if (await seite.locator('#aus-nichts').count() > 0 || await seite.locator('#aus-zu_klein').count() > 0)
+    throw new Error('Die Maske „für Ünique" darf weder „Nichts" noch die Wahl zu klein / zu gross zeigen')
+  await seite.locator('#aus-kiste').fill('15.5')
+  await seite.locator('#aus-kiste-dazu').click()
+  await seite.locator('#aus-eintragen').click()
+  await warteAuf('ausschuss_messung')
+  const mu = protokoll.filter(x => x.tabelle === 'ausschuss_messung').map(x => x.zeilen[0])[0]
+  if (mu.art !== 'fuer_unique' || Number(mu.brutto_kg) !== 15.5 || mu.kisten !== 1 || mu.mit_palette !== false || mu.kg !== 14)
+    throw new Error(`Die Kiste für Ünique kommt nicht richtig mit: ${JSON.stringify(mu)}`)
+  await seite.locator('button.zurueck').click()
+  await seite.locator('#check-ausschuss').waitFor()
   // Runde AO: „dass jede Person … noch dreimal die Infos kriegt" — der gelbe
   // Kasten steht, sobald der Palox abgelesen ist, und zählt mit.
   await seite.locator('#palox-erinnerung', { hasText: '1/3' }).waitFor()
@@ -460,7 +475,7 @@ await schritt('Geführter Abschluss: Palox am Ende 285 (→ 120 kg ab dem neuen 
   let vorschau = await seite.locator('text=/^\\d+ kg netto/').last().textContent()
   if (!/\b32 kg/.test(vorschau ?? '')) throw new Error(`Ausschuss-Vorschau zeigt „${vorschau}" statt 32 kg`)
   await seite.locator('#aus-eintragen').click()
-  await warteAuf('ausschuss_messung')
+  await warteAuf('ausschuss_messung', 'POST', 2)        // die erste Zeile ist die Kiste für Ünique (0142)
   // Und eine Kiste zu gross: 20.4 → 18.9 → 19.
   await seite.locator('#aus-zu_gross').click()
   await seite.locator('#aus-kiste').fill('20.4')
@@ -468,9 +483,9 @@ await schritt('Geführter Abschluss: Palox am Ende 285 (→ 120 kg ab dem neuen 
   vorschau = await seite.locator('text=/^\\d+ kg netto/').last().textContent()
   if (!/\b19 kg/.test(vorschau ?? '')) throw new Error(`Ausschuss-Vorschau zeigt „${vorschau}" statt 19 kg`)
   await seite.locator('#aus-eintragen').click()
-  await warteAuf('ausschuss_messung', 'POST', 2)
+  await warteAuf('ausschuss_messung', 'POST', 3)
   const ms = protokoll.filter(x => x.tabelle === 'ausschuss_messung').map(x => x.zeilen[0])
-  const [m1, m2] = ms
+  const [, m1, m2] = ms
   if (m1.art !== 'zu_klein' || Number(m1.brutto_kg) !== 36.5 || m1.kisten !== 3 || m1.mit_palette !== false || m1.kg !== 32
       || !/12 · 13\.5 · 11 kg/.test(m1.bemerkung ?? ''))
     throw new Error(`Die drei Kisten kommen nicht richtig mit: ${JSON.stringify(m1)}`)

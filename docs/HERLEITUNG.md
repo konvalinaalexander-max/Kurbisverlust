@@ -748,7 +748,9 @@ ohne Beleg bleibt die Charge des Journals.
 ## 12e. Lieferscheine ohne Charge (`v_ohne_charge`, `lieferungen_nachordnen`, 0121)
 
 **Rechnet:** je Sorte die Lieferscheine ohne Chargennummer und wie die Rechnung
-sie verteilt (0114: nach Eingang auf die Chargen der Sorte); was davon vor dem
+sie verteilt (0114: nach Eingang auf die Chargen der Sorte — seit 0138 nicht
+auf eine Hagel-Charge, seit 0143 nicht auf eine vor dem Liefertag leer
+bestätigte, solange die Sorte eine andere hat); was davon vor dem
 Eingang der tragenden Charge lag und was auf keine fällt. Eine Nummer der Datei,
 die die App inzwischen kennt (eigene Nummer, sonst eine Perigon-Nummer an genau
 einer Charge), bekommt der Lieferschein im nächsten Rechenlauf. Ein Mix-Anteil
@@ -773,6 +775,18 @@ tun ist. **Fehlt eine Eingabe:** ohne Verknüpfung und ohne Bemerkung gilt
 darum jeder als „von Hand"; in der Datenbank des Betriebs nicht. **Urteil:**
 ehrlich — Anzahl und Summe je Sorte sind dieselben wie in `v_ohne_charge`
 (Prüfblock 0125 b2); nichts wird umgebucht.
+
+## 12e-2. Für Ünique beiseitegelegt (`v_unique_abgabe`, 0142)
+
+**Braucht:** die Wägungen der Halle mit der Art `fuer_unique` (`ausschuss_messung`:
+Brutto, Kisten, Kistenart; Netto = Brutto − Kisten × Tara), die Arbeit und ihre
+Charge, den Hagel-Eintrag der Charge. **Rechnet:** je Charge ohne Hagel die
+Summe des Nettos, die Kisten, die Arbeiten, von–bis. `v_unique_topf.beiseite_kg`
+ist die Summe über alle Chargen. **Fehlt eine Eingabe:** ohne Brutto (eine
+geschätzte Zeile) zählt sie nicht; eine Hagel-Charge hat keine Zeile; ohne
+Wägung gibt es keine Zahl — nie eine aus dem Kommentar. **Urteil:** gemessen.
+In Kaskade, Bilanz und Topf ist es nicht eingerechnet: die Ware zählt weiter
+bei ihrer Charge, die Zahl steht daneben.
 
 ## 12f. Wer im Perigon wie heisst — die Charge über den Produzenten (`schlag_alias`, `v_perigon_produzent`, 0122)
 

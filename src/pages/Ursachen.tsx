@@ -263,9 +263,10 @@ function Wohin({ daten, filter, setzen, chargeAnsehen }: {
         <p className="fussnote">{tonnen(w?.ueberzaehlung_kg)} mehr geliefert, als die Raten aus dem Eingang erlauben — ein Zählfehler, eine falsche Charge oder eine Rate, die nicht passt; je Charge im Reiter Chargen.</p>
       )}
       <Erklaerung>
-        <p>Jeder Balken ist der ganze Eingang der Zeile (100 %) <Herkunft art="gemessen" />, von links nach rechts in die sechs Teile der Legende
-        zerlegt: was noch liegt und durch die Sortiermaschine geht, was verkauft ist, was verdunstet und was verfault ist, was zu klein und was zu gross war. Rechts steht
-        der Anteil <strong>echter Verlust</strong> — verdunstetes Wasser und Faules, in Prozent des Eingangs; danach sind die Zeilen sortiert.</p>
+        <p>Jeder Balken ist der ganze Eingang der Zeile (100 %) <Herkunft art="gemessen" />, von links nach rechts in die Teile der Legende
+        zerlegt: was noch liegt und durch die Sortiermaschine geht, was verkauft ist, was in den Kisten über dem Sollgewicht verschenkt ging, was verdunstet und was
+        verfault ist, was zu klein und was zu gross war — und bei Chargen, die am Lager leer bestätigt sind, was mehr weg ist, als die Raten erklären. Rechts steht
+        der Anteil <strong>echter Verlust</strong> — verdunstetes Wasser, Faules und dieser letzte Posten, in Prozent des Eingangs; danach sind die Zeilen sortiert.</p>
         <p><strong>Zu klein und zu gross sind kein Verlust.</strong> Die Ware ist nicht weg, nur nicht in der richtigen Grösse: Sie steht
         aussortiert im Haus, bis ein Lieferschein sie holt — und sie war es vom Feld an.</p>
       </Erklaerung>
