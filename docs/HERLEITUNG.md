@@ -551,6 +551,17 @@ zu klein / zu gross, beim Abpacken faul, Teilung unbekannt) und, blass
 dahinter, seit dem Eingang verdunstet oder faul. Eine Charge ohne Teilung
 zählt ganz ins Lager, und die Zeile sagt „höchstens". Ein unbekanntes Verkaufsfähiges zählt als Lücke,
 nicht als 0. Eingang und ausgeliefert gibt es nur je Gruppe, nicht je Grösse.
+**Seit 0137 — Ünique als eigene Zeile:** Die Chargen mit Hagel
+(`v_unique_topf.chargen`) zählen nicht mehr in der Zeile ihrer Artikelgruppe,
+sondern zusammen in der Zeile Ünique: Eingang, ausgelagert, geliefert, im
+Lager und Paletten aus `erg_charge`; verkaufsfähig je Charge `unique_kg` des
+Lager-Ausweises ÷ (1 + a) — die Überfüllung wie bei jedem Artikel (a nicht
+gewogen: „höchstens"; Verkaufsfähiges unbekannt: Lücke, nie 0). Ünique hat
+keine Grösse; die Zeile steht bei „alle Artikel" und bei Ünique, nicht bei
+Demeter allein oder einer Grösse. Die Verkäufe sind die Artikelgruppe Ünique
+(`artikel_einordnen`, vor jedem anderen Wort im Namen), Plan und „noch zu
+liefern" wie bei jedem Artikel. Das Verkaufsfähige der Lagerlinie und „reicht"
+nehmen Ünique nur, wo die Zeile steht.
 **Kundengruppen und Pläne (Runde AS, `kunde_gruppe`, `kunde_plan`):** Ein
 Kunde gehört zur Gruppe, die der Betriebsleiter gesetzt hat; ohne Eintrag
 ordnet die App nach dem Namen (Migros, Coop samt RVZ/RZV, sonst

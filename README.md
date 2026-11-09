@@ -798,6 +798,15 @@ ohne Perigon-Zeile als eigener Teil); jede PL/pgSQL-Funktion hat einen
 festen Suchpfad; die Perigon-Liste läuft nur einmal (AB-174 bis AB-176). Dazu die
 Halle: Faules ohne Ablesung ist „unbekannt", Fehler werden gezeigt. **Setup.sql
 einmal einspielen (Stand 124), dann „Neu rechnen".**
+**Runde BK, Schritt 2 (0137)** — **Ünique ist ein eigener Artikel.** Unter
+Lagermanagement nach Artikel ist Ünique eine eigene Zeile und ein eigener
+Balken: alle Chargen mit Hagel zusammen, mit Eingang, ausgeliefert, Lager und
+was als Ünique noch verkauft werden kann. Eine Hagel-Charge zählt nicht mehr
+bei Knirps oder Butternut — auch nicht als Spalte, auch nicht in „reicht"
+(AB-214). Im Dropdown ist Ünique wählbar, Grösse und Label fallen dann weg;
+die Verkäufe „Bio Kürbis Ünique" stehen je Kunde unter Ünique und lassen
+sich mit dem Stift planen. **Setup.sql einmal einspielen (Stand 137), dann
+„Neu rechnen".**
 **Runde BK, Schritt 1 (0136)** — **Was in der Halle steht.** Der Chargen-Reiter
 zählt die Paletten, die in der Halle stehen: was liegt (unsortiert, sortiert)
 und was aussortiert ist (zu klein, zu gross) — je Charge und je Eingangstag

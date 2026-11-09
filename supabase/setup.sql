@@ -5323,8 +5323,6 @@ language sql immutable set search_path = public as $$
          end
     from (select lower(coalesce(p_artikel, '')) as a) t
 $$;
-comment on function artikel_einordnen(text, text) is
-  'Ein Verkaufsartikel aus Perigon eingeordnet: Artikelgruppe, Grösse (gross, klein, lose) und Label (D/K, aus der Preisgruppe — D…: Demeter; K…, CH-K: Knospe —, sonst aus dem Namen) — 0112, Preisgruppen seit 0113.';
 revoke all on function artikel_einordnen(text, text) from public;
 grant execute on function artikel_einordnen(text, text) to authenticated;
 
@@ -8782,8 +8780,42 @@ begin
   return v_n;
 end $function$;
 
+-- aus 0137_uenique_ist_ein_eigener_artikel.sql
+
+create or replace function artikel_einordnen(p_artikel text, p_preisgruppe text default null)
+returns table (gruppe text, groesse text, label text)
+language sql immutable set search_path = public as $$
+  select case when ist_unique_artikel(p_artikel) then 'Ünique'   -- 0137: vor jedem anderen Wort im Namen
+              when a ~ '(knirps|potimarron|hokkaido|kuri)' then 'Knirps'
+              when a ~ 'butternu' then 'Butternut'
+              when a ~ '(butterkin|muskat|muscat)' then 'Butterkin/Muskat'
+              when a ~ '(kobocha|kabocha)' then 'Kabocha'
+              when a ~ 'mandarin' then 'Mandarin'
+              when a ~ '\mmix\M' then 'Mix'
+              when a ~ 'k(ü|u|ue)rb' then 'andere'
+         end,
+         case when a ~ '(gross|\mgros\M|\mgr\.)' then 'gross'
+              when a ~ '(klein|\mkl\.)' then 'klein'
+              else 'lose' end,
+         -- Die Preisgruppe des Auftrags zuerst: D, DU (Demeter); K, KZ, CH-K,
+         -- KAdR (Knospe). Andere (SG …) sagen nichts — dann der Name.
+         case when upper(coalesce(p_preisgruppe, '')) like 'D%' then 'D'
+              when upper(coalesce(p_preisgruppe, '')) ~ '^(K|CH-K)' then 'K'
+              when a ~ '(demeter|\mdem\M)' then 'D'
+              when a ~ 'knospe' then 'K'
+         end
+    from (select lower(coalesce(p_artikel, '')) as a) t
+$$;
+comment on function artikel_einordnen(text, text) is
+  'Ein Verkaufsartikel aus Perigon eingeordnet: Artikelgruppe, Grösse (gross, klein, lose) und Label (D/K, aus der '
+  'Preisgruppe — D…: Demeter; K…, CH-K: Knospe —, sonst aus dem Namen) — 0112, Preisgruppen seit 0113. Seit 0137 ist '
+  'ein Ünique-Artikel (ist_unique_artikel) die Artikelgruppe „Ünique" — die Hagelware des Ünique-Topfs, ein eigener '
+  'Artikel, keine Grösse eines anderen.';
+revoke all on function artikel_einordnen(text, text) from public;
+grant execute on function artikel_einordnen(text, text) to authenticated;
+
 create or replace function schema_stand() returns int
-language sql immutable set search_path = public as $$ select 136 $$;
+language sql immutable set search_path = public as $$ select 137 $$;
 comment on function schema_stand is
   'Nummer der jüngsten eingespielten Migration. Die App vergleicht sie mit '
   'SCHEMA_ERWARTET (src/lib/version.ts) und verlangt bei Abweichung, setup.sql '
@@ -8812,6 +8844,12 @@ comment on function schema_stand() is
 -- wird am Ende dieser Datei neu berechnet.
 -- =====================================================================
 
+drop view if exists v_perigon_stand cascade;
+drop view if exists v_perigon_befund cascade;
+drop view if exists v_perigon_pruefung cascade;
+drop view if exists v_unique_topf cascade;
+drop view if exists v_lager_ausweis cascade;
+drop view if exists v_sorte_artikelgruppe cascade;
 drop materialized view if exists erg_kaliber cascade;
 drop view if exists v_plausibilitaet cascade;
 drop materialized view if exists erg_wohin cascade;
@@ -8819,7 +8857,6 @@ drop view if exists v_wohin cascade;
 drop view if exists v_saisonbilanz cascade;
 drop view if exists v_plausibilitaet_0054_zusatz cascade;
 drop view if exists v_marge_buch cascade;
-drop view if exists v_unique_topf cascade;
 drop view if exists v_ungereimtheit cascade;
 drop view if exists v_plausibilitaet_0064_zusatz cascade;
 drop view if exists v_verlust_ranking cascade;
@@ -8827,7 +8864,6 @@ drop materialized view if exists erg_verlust cascade;
 drop view if exists v_verlust_je_gruppe cascade;
 drop view if exists v_naechste_charge cascade;
 drop view if exists v_massenbilanz cascade;
-drop view if exists v_lager_ausweis cascade;
 drop view if exists v_kontrolle_vorschlag cascade;
 drop view if exists v_hochrechnung cascade;
 drop view if exists v_charge_spur cascade;
@@ -8889,8 +8925,6 @@ drop view if exists v_zettel_doppelt_formel cascade;
 drop view if exists v_wiegung_netto cascade;
 drop view if exists v_wiegung_netto_formel cascade;
 drop view if exists v_charge_palettenbild cascade;
-drop view if exists v_perigon_stand cascade;
-drop view if exists v_perigon_befund cascade;
 drop view if exists v_ohne_charge cascade;
 drop view if exists v_lieferung_kohorte cascade;
 drop view if exists v_lieferung_charge_tag cascade;
@@ -8900,7 +8934,6 @@ drop view if exists v_perigon_verlauf cascade;
 drop view if exists v_lieferung_ohne_charge cascade;
 drop view if exists v_stammdaten_pruefung cascade;
 drop view if exists v_perigon_produzent cascade;
-drop view if exists v_perigon_pruefung cascade;
 drop view if exists v_kaliber_verteilung cascade;
 drop materialized view if exists mv_kaliber_verteilung cascade;
 drop view if exists v_kunde_position cascade;
@@ -8908,7 +8941,6 @@ drop view if exists v_kaliber_fassung cascade;
 drop view if exists v_kunde_tag cascade;
 drop view if exists v_verkauf_position cascade;
 drop view if exists v_charge_label cascade;
-drop view if exists v_sorte_artikelgruppe cascade;
 drop view if exists v_palox_station cascade;
 drop view if exists v_auftrag_wasch_paletten cascade;
 drop view if exists v_auftrag_gebinde_masse cascade;
@@ -10006,26 +10038,6 @@ WITH band AS (
 create view v_palox_station with (security_invoker = true) as
 select * from palox_station_kennzahl(heute());
 
-create or replace view v_sorte_artikelgruppe with (security_invoker = true) as
-with verkauft as (
-  select l.sorte, e.gruppe, sum(l.kg) as kg
-    from lieferung l
-    join lieferung_import li on li.lieferung_id = l.id
-    join ausgang_zeile z on z.id = li.zeile_id
-   cross join lateral artikel_einordnen(z.artikel, z.preisgruppe) e
-   where l.sorte is not null and e.gruppe is not null and e.gruppe not in ('andere', 'Mix')
-   group by l.sorte, e.gruppe
-), haupt as (
-  select distinct on (sorte) sorte, gruppe, kg from verkauft order by sorte, kg desc, gruppe
-)
-select s.sorte,
-       coalesce(s.artikelgruppe, h.gruppe) as artikelgruppe,
-       case when s.artikelgruppe is not null then 'Stammdaten'
-            when h.gruppe is not null then 'verkauft als' end as quelle,
-       h.gruppe as gruppe_verkauft
-  from sorte_kaliber s
-  left join haupt h on h.sorte = s.sorte;
-
 create or replace view v_charge_label with (security_invoker = true) as
 with zeile as (
 
@@ -10127,63 +10139,6 @@ select l.charge_nr, c.sorte, g.klasse, g.kaliber_idx,
 
 create or replace view v_kaliber_verteilung with (security_invoker = true) as
 select * from mv_kaliber_verteilung;
-
-create or replace view v_perigon_pruefung with (security_invoker = true) as
-with zeile as (
-  select z.id, z.quelle, z.pos_id, z.datum, z.kunde, z.artikel, z.charge_extern, z.kg_charge, z.liefer_label,
-         l.id as lieferung_id, l.charge_nr, l.kg as kg_lieferung, c.sorte, sk.artikelgruppe as gruppe_charge,
-         e.gruppe as gruppe_artikel, e.label as label_verkauft,
-         case when upper(coalesce(z.liefer_label, '')) like 'D%' then 'D'
-              when upper(coalesce(z.liefer_label, '')) ~ '^(K|CH-K)' then 'K' end as label_geliefert,
-         li.extern_id like '%:rest' as rest,
-         regexp_replace(z.charge_extern, '\D', '', 'g') as ziffern,
-         coalesce((select x.nr from charge x where x.nr::text = regexp_replace(z.charge_extern, '\D', '', 'g')),
-                  (select min(x.nr) from charge x where x.perigon_nr::text = regexp_replace(z.charge_extern, '\D', '', 'g')
-                   having count(*) = 1)) as bekannt
-    from ausgang_zeile z
-    join lieferung_import li on li.zeile_id = z.id
-    join lieferung l on l.id = li.lieferung_id
-    left join charge c on c.nr = l.charge_nr
-    left join sorte_kaliber sk on sk.sorte = c.sorte
-   cross join lateral artikel_einordnen(z.artikel, z.preisgruppe) e
-)
-select 'Charge nicht zugeordnet'::text as art, z.quelle, z.pos_id, z.datum, z.kunde, z.artikel, z.charge_nr, z.kg_charge as kg,
-
-       case when z.bekannt is not null
-            then format('Auf dem Lieferschein steht %s; die Nummer steht an Charge %s; beim Einlesen kannte die App sie noch nicht. '
-                        || 'Beim nächsten Rechnen bekommt der Lieferschein seine Charge von selbst.', z.charge_extern, z.bekannt)
-            when (select count(*) from charge x where x.perigon_nr::text = z.ziffern) > 1
-            then format('Auf dem Lieferschein steht die Perigon-Nummer %s; sie steht an mehreren Chargen, und der Artikel sagt nicht, '
-                        || 'welche Sorte es ist. Die Datei unter Betrieb → Warenausgang neu einlesen, dort entscheidet der Artikel.', z.charge_extern)
-            else format('Auf dem Lieferschein steht die Charge %s; diese Nummer steht an keiner Charge der App. Die Nummer unter Stammdaten → '
-                        || 'Chargen anlegen oder bei der richtigen Charge als Perigon-Nr. eintragen; beim nächsten Rechnen bekommt der '
-                        || 'Lieferschein sie von selbst.', z.charge_extern) end as befund
-  from zeile z
- where z.charge_extern <> '' and z.charge_nr is null and not z.rest
-union all
-select 'Teil ohne Charge', z.quelle, z.pos_id, z.datum, z.kunde, z.artikel, null::int, zahl(z.kg_lieferung, 3, 1e11)::numeric(14,3),
-       format('%s kg der Position haben keine Charge: Spalte S („AufPosBatchQuantity Charge") schreibt der Charge %s weniger zu, als die Position geliefert hat. Diese Kilo zählen im Warenausgang, aber bei keiner Charge — dort bleibt die Ware im Lager stehen. In Perigon die Menge je Charge nachtragen.',
-              trim(to_char(z.kg_lieferung, 'FM999999990.0')), z.charge_extern)
-  from zeile z
- where z.rest and z.charge_extern <> ''
-union all
-select 'Artikel passt nicht zur Sorte', z.quelle, z.pos_id, z.datum, z.kunde, z.artikel, z.charge_nr, z.kg_charge,
-       format('Verkauft als %s, aber die Charge %s ist %s — und %s geht als %s. Entweder steht der falsche Artikel oder die falsche Charge auf dem Lieferschein.', z.gruppe_artikel, z.charge_nr, z.sorte, z.sorte, z.gruppe_charge)
-  from zeile z
- where z.gruppe_artikel is not null and z.gruppe_charge is not null
-   and z.gruppe_artikel not in ('Mix', 'andere') and z.gruppe_artikel <> z.gruppe_charge
-union all
-select 'Als Demeter verkauft, als Knospe geliefert', z.quelle, z.pos_id, z.datum, z.kunde, z.artikel, z.charge_nr, z.kg_charge,
-       format('Verkauft zum Demeter-Preis (Preisgruppe), aber die Ware der Charge %s trägt das Lieferlabel %s — das ist Knospe.', z.charge_nr, z.liefer_label)
-  from zeile z
- where z.label_verkauft = 'D' and z.label_geliefert = 'K' and not z.rest
-union all
-select 'Lieferung vor dem Eingang', z.quelle, z.pos_id, z.datum, z.kunde, z.artikel, z.charge_nr, z.kg_charge,
-       format('Geliefert am %s, aber die Charge %s kam laut Erntejournal erst am %s an — von ihr kann die Ware nicht sein.', to_char(z.datum, 'DD.MM.YYYY'), z.charge_nr,
-              to_char(e.erst, 'DD.MM.YYYY'))
-  from zeile z
-  join (select charge_nr, min(eingangsdatum) as erst from palette group by charge_nr) e on e.charge_nr = z.charge_nr
- where z.datum < e.erst;
 
 create or replace view v_perigon_produzent with (security_invoker = true) as
 with gelesen as (
@@ -10453,284 +10408,6 @@ select l.sorte,
           from je_charge j where j.sorte is not distinct from l.sorte) as verteilt_auf
   from l
  group by l.sorte;
-
-create or replace view v_perigon_befund with (security_invoker = true) as
-with zeile as (
-  select z.id, z.quelle, z.pos_id, z.lauf_nr, z.datum, z.kunde, z.artikel_id, z.artikel, z.einheit, z.menge,
-         z.gewicht_je_artikel, z.batch_menge, z.kg_position, z.kg_charge, z.preisgruppe, z.liefer_label, z.produzent, z.ts,
-         z.auftragsnr,
-         case when upper(coalesce(z.liefer_label, '')) like 'D%' then 'D'
-              when upper(coalesce(z.liefer_label, '')) ~ '^(K|CH-K)' then 'K' end as label_z,
-         nullif(btrim(z.charge_extern), '') as nummer,
-         regexp_replace(coalesce(z.charge_extern, ''), '\D', '', 'g') as ziffern
-    from ausgang_zeile z
-), lief as (
-
-  select i.quelle, split_part(i.extern_id, ':', 2)::bigint as pos_id,
-         sum(l.kg) as kg, sum(l.kg) filter (where l.charge_nr is null) as kg_ohne,
-         count(distinct l.charge_nr)::int as n_chargen, min(l.charge_nr) as charge_nr, min(l.sorte) as sorte
-    from lieferung_import i
-    join lieferung l on l.id = i.lieferung_id
-   where split_part(i.extern_id, ':', 2) ~ '^\d+$' and i.extern_id not like '%:rueckgabe'
-   group by 1, 2
-), mixteil as (
-
-  select i.quelle, split_part(i.extern_id, ':', 2)::bigint as pos_id,
-         substring(i.extern_id from '^[^:]*:[0-9]+:(.*):mix:[^:]*$') as basis,
-         string_agg(format('%s kg %s%s', kg_wort(l.kg), coalesce(l.sorte, 'ohne Sorte'),
-                           case when l.charge_nr is null then ' (ohne Charge)' else ' auf Charge ' || l.charge_nr end),
-                    ', ' order by l.sorte) as text,
-         sum(l.kg) as kg
-    from lieferung_import i
-    join lieferung l on l.id = i.lieferung_id
-   where i.extern_id like '%:mix:%' and split_part(i.extern_id, ':', 2) ~ '^\d+$'
-   group by 1, 2, 3
-), doppelt as (
-
-  select d.quelle, d.pos_id,
-         string_agg(format('Charge %s %s', d.nummer, case d.n when 2 then 'zweimal' when 3 then 'dreimal' else d.n || '-mal' end), ', ' order by d.nummer) as text
-    from (select quelle, pos_id, nummer, count(*)::int as n from zeile
-           where nummer is not null group by 1, 2, 3 having count(*) > 1 and count(distinct batch_menge) = 1) d
-   group by 1, 2
-), pos as (
-  select z.quelle, z.pos_id, min(z.datum) as datum, min(z.kunde) as kunde, min(z.artikel_id) as artikel_id, min(z.artikel) as artikel,
-         min(z.einheit) as einheit, max(z.menge) as menge, max(z.gewicht_je_artikel) as gewicht_je_artikel,
-         max(z.kg_position) as kg_position, min(z.preisgruppe) as preisgruppe, min(z.liefer_label) as liefer_label,
-         min(z.ts) as eingelesen, min(z.auftragsnr) as auftragsnr,
-         count(distinct z.label_z) filter (where z.nummer is not null and z.kg_charge > 0)::int as n_labels,
-         string_agg(format('%s kg aus %s (%s)', kg_wort(z.kg_charge), z.nummer,
-                           case z.label_z when 'D' then 'Demeter' when 'K' then 'Knospe' else coalesce(z.liefer_label, 'ohne Label') end),
-                    ', ' order by z.kg_charge desc, z.nummer) filter (where z.nummer is not null and z.kg_charge > 0) as labels_text,
-         count(*)::int as n_zeilen,
-         count(z.nummer)::int as n_nummer,
-         count(*) filter (where z.nummer is not null and z.kg_charge > 0)::int as n_menge,
-         coalesce(sum(z.kg_charge) filter (where z.nummer is not null and z.kg_charge > 0), 0) as kg_zugeteilt,
-         string_agg(distinct z.nummer, ', ' order by z.nummer) as nummern,
-         string_agg(distinct z.nummer, ', ' order by z.nummer) filter (where coalesce(z.kg_charge, 0) <= 0) as nummern_ohne_menge
-    from zeile z
-   group by z.quelle, z.pos_id
-), p as (
-  select pos.*, f.kg as kg_rechnung, f.kg_ohne,
-         case when f.n_chargen = 1 then f.charge_nr end as charge_nr,
-         coalesce(f.sorte, aa.sorte) as sorte, d.text as doppelt,
-         case when pos.nummern like '%,%' then 'die Chargen ' || pos.nummern else 'die Charge ' || pos.nummern end as chargen_text,
-         case when lower(pos.artikel) ~ '(demeter|\mdem\M)' then 'D' when lower(pos.artikel) ~ 'knospe' then 'K' end as label_name,
-         case when upper(coalesce(pos.preisgruppe, '')) like 'D%' then 'D'
-              when upper(coalesce(pos.preisgruppe, '')) ~ '^(K|CH-K)' then 'K' end as label_preis
-    from pos
-    left join lief f on f.quelle = pos.quelle and f.pos_id = pos.pos_id
-    left join ausgang_artikel aa on aa.artikel_id = pos.artikel_id and aa.artikel = pos.artikel
-    left join doppelt d on d.quelle = pos.quelle and d.pos_id = pos.pos_id
-), r as (
-
-  select z.*, l.id as lieferung_id, l.charge_nr, l.kg as kg_lieferung, c.sorte, sk.artikelgruppe as gruppe_charge,
-         e.gruppe as gruppe_artikel, e.label as label_verkauft,
-         case when upper(coalesce(z.liefer_label, '')) like 'D%' then 'D'
-              when upper(coalesce(z.liefer_label, '')) ~ '^(K|CH-K)' then 'K' end as label_geliefert,
-         (select x.nr from charge x where z.ziffern <> '' and x.nr::text = z.ziffern) as eigene,
-         (select array_agg(x.nr order by x.nr) from charge x where z.ziffern <> '' and x.perigon_nr::text = z.ziffern) as an_perigon,
-         (select min(pl.eingangsdatum) from palette pl where pl.charge_nr = l.charge_nr) as erster_eingang
-    from zeile z
-    join lieferung_import i on i.zeile_id = z.id and i.extern_id not like '%:rest' and i.extern_id not like '%:rueckgabe'
-                           and i.extern_id not like '%:mix:%'
-    join lieferung l on l.id = i.lieferung_id
-    left join charge c on c.nr = l.charge_nr
-    left join sorte_kaliber sk on sk.sorte = c.sorte
-
-   cross join lateral (select * from artikel_einordnen(z.artikel, z.preisgruppe) limit 1) e
-   where z.nummer is not null and coalesce(z.kg_charge, 0) > 0
-), fall as (
-
-  select 'menge_null'::text as art, p.quelle, p.pos_id, null::text as nummer, null::int as lauf_nr, p.charge_nr, p.sorte,
-         case when p.kg_position > 0 then p.kg_position end as kg,
-         case when p.kg_position > 0
-              then format('Perigon nennt %s, teilt aber keine Menge zu: Spalte S („AufPosBatchQuantity Charge") ist 0. Die Position hat %s kg (Spalte Q × AE) — sie bleibt ganz ohne Charge.',
-                          p.chargen_text, kg_wort(p.kg_position))
-              else format('Perigon nennt %s, aber die Position hat keine Menge — Spalte Q und Spalte S sind 0. Sie zählt nirgends; ging Ware hinaus, fehlt sie im Warenausgang.',
-                          p.chargen_text) end as satz,
-         'In Perigon bei dieser Position die Menge (Spalte Q) und die Menge je Charge (Spalte S) eintragen, dann die Datei unter Betrieb → Warenausgang neu einlesen.' as tun,
-         'perigon' as wo
-    from p where p.n_nummer > 0 and p.n_menge = 0
-     and (p.kg_position > 0 or (coalesce(p.kg_position, 0) = 0 and coalesce(p.menge, 0) = 0))
-  union all
-  select 'zu_viel', p.quelle, p.pos_id, null, null, p.charge_nr, p.sorte, p.kg_zugeteilt - p.kg_position,
-         format('Die Chargenzeilen geben zusammen %s kg (Spalte S × AE), die Position nur %s kg (Spalte Q × AE) — %s kg zu viel.%s Die App zählt höchstens die Position: %s.',
-                kg_wort(p.kg_zugeteilt), kg_wort(p.kg_position), kg_wort(p.kg_zugeteilt - p.kg_position),
-                case when p.doppelt is not null then format(' Dieselbe Zeile steht mehrfach da (%s).', p.doppelt) else '' end,
-                case when p.nummern like '%,%' then 'die Chargen bekommen ihre Menge in der Folge der Zeilen, bis die Position voll ist — wie viel welche bekam, sagt die Datei nicht sicher'
-                     else format('%s bekommt die %s kg der Position', p.chargen_text, kg_wort(p.kg_position)) end),
-         'In Perigon die Menge je Charge (Spalte S) berichtigen — zusammen so viel wie die Position —, eine doppelte Zeile entfernen, dann neu einlesen.',
-         'perigon'
-    from p where p.kg_position > 0 and p.kg_zugeteilt > p.kg_position + 0.5
-  union all
-  select 'rest', p.quelle, p.pos_id, null, null, p.charge_nr, p.sorte, p.kg_position - p.kg_zugeteilt,
-         format('Perigon teilt %s nur %s von %s kg zu (Spalte S); %s kg bleiben ohne Charge.%s', p.chargen_text,
-                kg_wort(p.kg_zugeteilt), kg_wort(p.kg_position), kg_wort(p.kg_position - p.kg_zugeteilt),
-                case when p.nummern_ohne_menge is not null then format(' Ohne Menge genannt: %s.', p.nummern_ohne_menge) else '' end),
-         'In Perigon die Menge je Charge (Spalte S) nachtragen, dann neu einlesen. Bis dahin verteilt die App den Rest auf alle Chargen der Sorte.',
-         'perigon'
-    from p where p.n_menge > 0 and p.kg_position - p.kg_zugeteilt > 0.5
-  union all
-  select 'keine_nummer', p.quelle, p.pos_id, null, null, null::int, p.sorte, p.kg_position,
-         format('In Perigon steht bei dieser Position keine Chargennummer (Spalte W „AuftragsChargeManuell" ist leer) — %s kg ohne Charge.', kg_wort(p.kg_position)),
-         'In Perigon die Charge (Spalte W) und die Menge je Charge (Spalte S) eintragen, dann neu einlesen. Bis dahin verteilt die App die Menge auf alle Chargen der Sorte.',
-         'perigon'
-    from p where p.n_nummer = 0 and p.kg_position > 0
-  union all
-  select 'ohne_gewicht', p.quelle, p.pos_id, null, null, p.charge_nr, p.sorte, null::numeric,
-         format('%s %s ohne Gewicht je Artikel (Spalte AE ist leer oder 0) — die Masse ist unbekannt; die App zählt die Position nicht, statt 0 kg zu raten.',
-                trim(to_char(p.menge, 'FM999999990.###')), coalesce(p.einheit, 'Stück')),
-         'In Perigon das Gewicht je Artikel (Spalte AE) eintragen, dann neu einlesen.',
-         'perigon'
-    from p where p.kg_position is null and coalesce(p.menge, 0) <> 0
-  union all
-  select 'ruecknahme', p.quelle, p.pos_id, null, null, p.charge_nr, p.sorte, -p.kg_position,
-         format('Negative Menge (%s kg): eine Rücknahme. Die App bucht sie als Rücknahme, nicht als Verkauf.', kg_wort(p.kg_position)),
-         'Nichts in der App. Prüfen, ob die Ware wirklich zurückkam.',
-         'nichts'
-    from p where p.kg_position < 0
-  union all
-  select 'masse_abweichung', p.quelle, p.pos_id, null, null, p.charge_nr, p.sorte, coalesce(p.kg_rechnung, 0) - p.kg_position,
-         case when p.kg_rechnung is null
-              then format('Die Position steht in der Datei (%s kg), aber in der Rechnung gibt es keine Lieferung dazu.', kg_wort(p.kg_position))
-              else format('In der Rechnung stehen für diese Position %s kg, die Datei ergibt %s kg — %s kg %s.', kg_wort(p.kg_rechnung), kg_wort(p.kg_position),
-                          kg_wort(abs(p.kg_rechnung - p.kg_position)), case when p.kg_rechnung > p.kg_position then 'zu viel' else 'zu wenig' end) end,
-         'Die Datei unter Betrieb → Warenausgang neu einlesen: die App legt an, was fehlt, und entfernt, was die Datei nicht mehr ergibt. Eine von Hand geänderte Lieferung bekommt dabei wieder die Masse der Datei.',
-         'einlesen'
-    from p where p.kg_position > 0 and abs(coalesce(p.kg_rechnung, 0) - p.kg_position) > 0.05
-  union all
-  select 'label_name', p.quelle, p.pos_id, null, null, p.charge_nr, p.sorte, p.kg_position,
-         format('Der Artikel heisst „%s" (%s), verkauft wurde er in der Preisgruppe %s (%s). Die App nimmt die Preisgruppe.', p.artikel,
-                case p.label_name when 'D' then 'Demeter' else 'Knospe' end, p.preisgruppe, case p.label_preis when 'D' then 'Demeter' else 'Knospe' end),
-         'In Perigon Artikel oder Preisgruppe angleichen — was stimmt, weiss, wer den Auftrag erfasst hat.',
-         'perigon'
-    from p where p.label_name is not null and p.label_preis is not null and p.label_name <> p.label_preis
-     and coalesce(p.n_labels, 0) <= 1
-  union all
-
-  select 'label_gemischt', p.quelle, p.pos_id, null, null, p.charge_nr, p.sorte, p.kg_position,
-         format('Auftrag %s vom %s: unter dem Artikel „%s" (Preisgruppe %s) gingen Chargen mit verschiedenen Lieferlabels hinaus — %s. Knospe-Ware unter einem Demeter-Namen, oder umgekehrt?',
-                coalesce(nullif(p.auftragsnr, ''), '?'), to_char(p.datum, 'DD.MM.YYYY'), p.artikel, coalesce(p.preisgruppe, '—'), p.labels_text),
-         'Mit der Person klären, die den Auftrag in Perigon erfasst hat: stimmt der Artikel für alle Chargen? Sonst in Perigon den Artikel aufteilen oder die Charge (Spalte W) berichtigen, dann neu einlesen.',
-         'perigon'
-    from p where p.n_labels > 1
-  union all
-
-  select 'kg_gewicht', p.quelle, p.pos_id, null, null, p.charge_nr, p.sorte, p.kg_position,
-         format('Perigon führt „%s" in kg, aber mit Gewicht je Artikel %s (Spalte AE). Die Menge (Spalte Q, %s kg) ist schon das Gewicht; Perigon rechnet das Totalgewicht trotzdem × %s (%s kg). Die App nimmt die Menge.',
-                p.artikel, trim(to_char(p.gewicht_je_artikel, 'FM999990.###')), kg_wort(p.menge),
-                trim(to_char(p.gewicht_je_artikel, 'FM999990.###')), kg_wort(p.menge * p.gewicht_je_artikel)),
-         'Im Perigon-Artikelstamm beim Artikel das Gewicht je Artikel (Spalte AE) auf 1 setzen. In der App ist nichts zu tun — sie zählt schon die Menge.',
-         'perigon'
-    from p where lower(btrim(coalesce(p.einheit, ''))) like 'kg%' and p.gewicht_je_artikel is not null
-     and p.gewicht_je_artikel not in (0, 1)
-
-  union all
-
-  select 'unique_ohne_hagel', r.quelle, r.pos_id, r.nummer, r.lauf_nr, r.charge_nr, r.sorte, r.kg_lieferung,
-         case when exists (select 1 from charge h where h.hagel_anteil > 0)
-              then format('Ünique unter Charge %s (%s), bei der kein Hagel eingetragen ist. Ünique kommt aus dem Ünique-Topf: die App zieht die %s kg vom Topf ab, nicht von Charge %s.',
-                          r.charge_nr, coalesce(r.sorte, 'Sorte unbekannt'), kg_wort(r.kg_lieferung), r.charge_nr)
-              else format('Ünique unter Charge %s (%s), aber bei keiner Charge ist Hagel eingetragen — ohne Hagel-Charge gibt es keinen Ünique-Topf, und die App zieht die %s kg von Charge %s ab.',
-                          r.charge_nr, coalesce(r.sorte, 'Sorte unbekannt'), kg_wort(r.kg_lieferung), r.charge_nr) end,
-         'Steht in Perigon (Spalte W) die falsche Charge, dort berichtigen; fehlt bei der Charge der Hagel, ihn unter Chargen eintragen.',
-         'perigon'
-    from r
-   where ist_unique_artikel(r.artikel) and r.charge_nr is not null
-     and not exists (select 1 from charge h where h.nr = r.charge_nr and h.hagel_anteil > 0)
-  union all
-  select case when r.eigene is not null or cardinality(r.an_perigon) = 1 then 'nachholen'
-              when cardinality(r.an_perigon) > 1 then 'mehrdeutig' else 'unbekannt' end,
-         r.quelle, r.pos_id, r.nummer, r.lauf_nr, null::int, null::text, r.kg_lieferung,
-         case when r.eigene is not null or cardinality(r.an_perigon) = 1
-              then format('Perigon nennt %s; die Nummer steht inzwischen an Charge %s — beim Einlesen kannte die App sie noch nicht.', r.nummer, coalesce(r.eigene, r.an_perigon[1]))
-              when cardinality(r.an_perigon) > 1
-              then format('Perigon nennt %s; diese Perigon-Nummer steht an mehreren Chargen (%s), und der Artikel sagt nicht, an welcher.', r.nummer, array_to_string(r.an_perigon, ', '))
-              else format('Perigon nennt %s — diese Nummer steht an keiner Charge der App.', r.nummer) end,
-         case when r.eigene is not null or cardinality(r.an_perigon) = 1
-              then 'Nichts — beim nächsten Rechnen („Neu rechnen" oben) bekommt der Lieferschein die Charge von selbst.'
-              when cardinality(r.an_perigon) > 1
-              then 'Unter Betrieb → Stammdaten → Chargen die Nummer nur bei der richtigen Charge lassen; beim nächsten Rechnen bekommt der Lieferschein sie.'
-              else 'Unter Betrieb → Stammdaten → Chargen bei der richtigen Charge als Perigon-Nr. eintragen; beim nächsten Rechnen bekommt der Lieferschein sie von selbst. Ist die Nummer ein Tippfehler, in Perigon berichtigen.' end,
-         case when r.eigene is not null or cardinality(r.an_perigon) = 1 then 'nichts' else 'stammdaten' end
-    from r where r.charge_nr is null
-  union all
-  select 'artikel_sorte', r.quelle, r.pos_id, r.nummer, r.lauf_nr, r.charge_nr, r.sorte, r.kg_lieferung,
-         format('Verkauft als %s („%s"), aber die Charge %s ist %s — und %s geht als %s. Entweder steht der falsche Artikel oder die falsche Charge auf dem Lieferschein.',
-                r.gruppe_artikel, r.artikel, r.charge_nr, r.sorte, r.sorte, r.gruppe_charge),
-         'Den Lieferschein ansehen: ist der Artikel falsch, in Perigon den Artikel berichtigen; ist die Charge falsch, die Charge (Spalte W) — dann neu einlesen.',
-         'perigon'
-    from r where r.charge_nr is not null and r.gruppe_artikel is not null and r.gruppe_charge is not null
-     and r.gruppe_artikel not in ('Mix', 'andere') and r.gruppe_artikel <> r.gruppe_charge
-  union all
-  select 'demeter_knospe', r.quelle, r.pos_id, r.nummer, r.lauf_nr, r.charge_nr, r.sorte, r.kg_lieferung,
-         format('Verkauft zum Demeter-Preis (Preisgruppe %s), aber die Ware der Charge %s trägt das Lieferlabel %s — das ist Knospe.', r.preisgruppe, r.charge_nr, r.liefer_label),
-         'In Perigon Preisgruppe (Spalte K) und Lieferlabel (Spalte Z) prüfen: wurde Knospe als Demeter verrechnet, oder stimmt das Label nicht?',
-         'perigon'
-    from r where r.charge_nr is not null and r.label_verkauft = 'D' and r.label_geliefert = 'K'
-  union all
-  select 'mix', r.quelle, r.pos_id, r.nummer, r.lauf_nr, r.charge_nr, r.sorte, r.kg_lieferung,
-         format('Verkauft als „%s" auf Charge %s (%s). Die App hat den Mix nicht nach dem Rezept verteilt (in der Datei fehlt der Kisteninhalt, Spalte „AuftragsGebindeinhalt", oder es gibt kein Rezept) — sie zieht die ganzen %s kg von %s ab.',
-                r.artikel, r.charge_nr, r.sorte, kg_wort(r.kg_lieferung), r.charge_nr),
-         'Fehlt der Kisteninhalt, in Perigon nachtragen und neu einlesen; fehlt das Rezept, unter Betrieb → Stammdaten → Sorten und Artikel (Kürbis Mix) eintragen. Gehört der Mix zu einer anderen Charge, in Perigon die Charge (Spalte W) berichtigen.',
-         'firma'
-    from r where r.charge_nr is not null and r.gruppe_artikel = 'Mix'
-     and not exists (select 1 from mixteil m where m.quelle = r.quelle and m.pos_id = r.pos_id and m.basis = r.nummer || ':' || r.lauf_nr)
-  union all
-
-  select 'mix_verteilt', r.quelle, r.pos_id, r.nummer, r.lauf_nr, r.charge_nr, r.sorte, r.kg_lieferung + m.kg,
-         format('„%s" (%s kg) nach dem Mix-Rezept verteilt: %s kg auf Charge %s (%s), dazu %s.',
-                r.artikel, kg_wort(r.kg_lieferung + m.kg), kg_wort(r.kg_lieferung), r.charge_nr, r.sorte, m.text),
-         'Nichts. Das Rezept steht unter Betrieb → Stammdaten → Sorten und Artikel (Kürbis Mix); stimmt es nicht mehr, dort berichtigen und neu einlesen.',
-         'nichts'
-    from r join mixteil m on m.quelle = r.quelle and m.pos_id = r.pos_id and m.basis = r.nummer || ':' || r.lauf_nr
-   where r.gruppe_artikel = 'Mix'
-  union all
-  select 'vor_eingang', r.quelle, r.pos_id, r.nummer, r.lauf_nr, r.charge_nr, r.sorte, r.kg_lieferung,
-         format('Geliefert am %s, aber die Charge %s kam laut Erntejournal erst am %s an (%s Tage später) — von ihr kann die Ware nicht sein.',
-                to_char(r.datum, 'DD.MM.YYYY'), r.charge_nr, to_char(r.erster_eingang, 'DD.MM.YYYY'), r.erster_eingang - r.datum),
-         'Entweder steht die falsche Charge auf dem Lieferschein (in Perigon Spalte W berichtigen) oder das Eingangsdatum im Erntejournal stimmt nicht.',
-         'perigon'
-    from r where r.charge_nr is not null and r.erster_eingang is not null and r.datum < r.erster_eingang
-)
-select f.art || ':' || f.quelle || ':' || f.pos_id || coalesce(':' || f.nummer || ':' || f.lauf_nr, '') as schluessel,
-       f.art,
-       case when f.art in ('nachholen', 'ruecknahme', 'mix_verteilt') then 'info'
-            when f.art in ('menge_null', 'keine_nummer', 'rest', 'unbekannt', 'mehrdeutig', 'vor_eingang', 'artikel_sorte', 'masse_abweichung')
-                 and abs(coalesce(f.kg, 0)) >= 500 then 'rot'
-            else 'gelb' end as schwere,
-       f.quelle, f.pos_id, p.datum, p.kunde, p.artikel, p.einheit,
-       zahl(p.menge, 3, 1e12)::numeric(14,3) as menge,
-       zahl(p.gewicht_je_artikel, 4, 1e8)::numeric(12,4) as gewicht_je_artikel,
-       p.preisgruppe, p.liefer_label,
-       zahl(p.kg_position, 2, 1e12)::numeric(14,2) as kg_position,
-       zahl(p.kg_zugeteilt, 2, 1e12)::numeric(14,2) as kg_zugeteilt,
-       zahl(p.kg_rechnung, 2, 1e12)::numeric(14,2) as kg_rechnung,
-       zahl(p.kg_ohne, 2, 1e12)::numeric(14,2) as kg_ohne_charge,
-       zahl(f.kg, 2, 1e12)::numeric(14,2) as kg,
-       p.nummern, f.nummer, f.lauf_nr, coalesce(f.charge_nr, p.charge_nr) as charge_nr, coalesce(f.sorte, p.sorte) as sorte,
-       p.n_zeilen, f.satz, f.tun, f.wo, p.eingelesen
-  from fall f
-  join p on p.quelle = f.quelle and p.pos_id = f.pos_id;
-
-create or replace view v_perigon_stand with (security_invoker = true) as
-select q.code as quelle, q.name,
-       (select count(*) from ausgang_zeile z where z.quelle = q.code)::int as zeilen,
-       (select count(distinct z.pos_id) from ausgang_zeile z where z.quelle = q.code)::int as positionen,
-       (select min(z.datum) from ausgang_zeile z where z.quelle = q.code) as von,
-       (select max(z.datum) from ausgang_zeile z where z.quelle = q.code) as bis,
-       d.ts as zuletzt_geladen, d.dateiname as letzte_datei, d.bis_datum as letzte_bis,
-       (select count(*) from ausgang_datei x where x.quelle = q.code)::int as dateien,
-
-       (select count(*) from (select distinct z.pos_id from ausgang_zeile z where z.quelle = q.code) z
-         where not exists (select 1 from ausgang_position ap where ap.quelle = q.code and ap.pos_id = z.pos_id and ap.roh is not null))::int as ohne_roh,
-       zahl((select sum(l.kg) from lieferung_import i join lieferung l on l.id = i.lieferung_id
-              where i.quelle = q.code and i.extern_id not like '%:rueckgabe'), 1, 1e13)::numeric(14,1) as kg,
-       zahl((select sum(l.kg) from lieferung_import i join lieferung l on l.id = i.lieferung_id
-              where i.quelle = q.code and l.charge_nr is null and i.extern_id not like '%:rueckgabe'), 1, 1e13)::numeric(14,1) as kg_ohne_charge,
-       (select count(*) from v_perigon_befund b where b.quelle = q.code and b.schwere <> 'info')::int as faelle
-  from ausgang_quelle q
-  left join lateral (select x.ts, x.dateiname, x.bis_datum from ausgang_datei x where x.quelle = q.code order by x.ts desc, x.id desc limit 1) d on true;
 
 -- aus 0135_was_der_zettel_sagt.sql
 
@@ -14366,88 +14043,6 @@ $$;
 create view v_lager_kaliber with (security_invoker = true) as
 select * from lager_kaliber(0);
 
-create or replace function artikel_lager_teile(p_h integer)
- RETURNS TABLE(charge_nr integer, sorte text, artikelgruppe text, label text, groesse text, kg numeric, g_mittel numeric, h integer, datum date)
- LANGUAGE sql
- STABLE SECURITY DEFINER
- SET search_path TO 'public'
-AS $function$
-with prognose as (
-  select p.schluessel::int as charge_nr, c.sorte, p.h, p.datum, p.verkaufsfaehig_kg,
-         q.basis, q.schluessel as q_schluessel
-    from erg_prognose p
-    join charge c on c.nr = p.schluessel::int
-    left join lager_schluessel() q on q.charge_nr = c.nr
-   where p.gruppe = 'charge' and p.h = p_h and p.verkaufsfaehig_kg > 0
-     and coalesce(c.hagel_anteil, 0) = 0   -- 0133: Hagelware geht als Ünique, nicht nach Grösse in die Artikel
-), zuordnung as (
-  select p.*, g.artikelgruppe, l.label
-    from prognose p
-    left join v_sorte_artikelgruppe g on g.sorte = p.sorte
-    left join v_charge_label l on l.charge_nr = p.charge_nr
-), verteilung as (
-  select w.basis, w.schluessel, w.sorte, w.anzahl, w.g::numeric as g
-    from kuerbis_stichtag(p_h) w
-   where exists (select 1 from zuordnung z where z.basis = w.basis and z.q_schluessel = w.schluessel)
-), mit_klasse as (
-  select v.basis, v.schluessel,
-         coalesce(k.groesse, case when ak.n = 0 then 'lose'
-                                  when v.g < ak.min_von then 'darunter'
-                                  when v.g >= ak.max_bis then 'darueber'
-                                  else 'dazwischen' end) as groesse,
-         v.anzahl, v.g
-    from verteilung v
-    left join v_sorte_artikelgruppe sg on sg.sorte = v.sorte
-    left join lateral (select count(*) as n, min(a.von_g) as min_von, max(a.bis_g) as max_bis
-                         from artikel_kaliber a where a.gruppe = sg.artikelgruppe) ak on true
-    left join artikel_kaliber k on k.gruppe = sg.artikelgruppe and v.g >= k.von_g and v.g < k.bis_g
-), anteile as (
-  select m.basis, m.schluessel, m.groesse,
-         sum(m.anzahl * m.g) / nullif(sum(sum(m.anzahl * m.g)) over (partition by m.basis, m.schluessel), 0) as anteil,
-         sum(m.anzahl * m.g) / nullif(sum(m.anzahl), 0) as g_mittel
-    from mit_klasse m
-   group by m.basis, m.schluessel, m.groesse
-)
-select z.charge_nr, z.sorte, z.artikelgruppe, z.label,
-       coalesce(a.groesse, 'ohne Verteilung') as groesse,
-       case when a.anteil is null then z.verkaufsfaehig_kg else z.verkaufsfaehig_kg * a.anteil end as kg,
-       a.g_mittel, z.h, z.datum
-  from zuordnung z
-  left join anteile a on a.basis = z.basis and a.schluessel = z.q_schluessel
-$function$;
-
-create or replace function artikel_lager_charge(p_h integer)
-returns table (charge_nr int, sorte text, artikelgruppe text, label text, groesse text,
-               von_g int, bis_g int, stueck_je_kiste int,
-               kg numeric, stueck numeric, kisten numeric, g_mittel numeric, h int, datum date)
-language sql stable security definer set search_path = public as $$
-  select t.charge_nr, t.sorte, t.artikelgruppe, t.label, t.groesse, k.von_g, k.bis_g, k.stueck_je_kiste,
-         zahl(t.kg, 2, 1e12)::numeric(14,2),
-         zahl(t.kg * 1000 / nullif(t.g_mittel, 0), 0, 1e12)::numeric(14,0),
-         zahl(t.kg * 1000 / nullif(t.g_mittel, 0) / nullif(k.stueck_je_kiste, 0), 0, 1e12)::numeric(14,0),
-         zahl(t.g_mittel, 0, 1e6)::numeric(10,0),
-         t.h, t.datum
-    from artikel_lager_teile(p_h) t
-    left join artikel_kaliber k on k.gruppe = t.artikelgruppe and k.groesse = t.groesse
-$$;
-
-create or replace function artikel_lager(p_h integer)
-returns table (artikelgruppe text, label text, groesse text, von_g int, bis_g int, stueck_je_kiste int,
-               kg numeric, stueck numeric, kisten numeric, g_mittel numeric,
-               n_chargen int, chargen int[], h int, datum date)
-language sql stable security definer set search_path = public as $$
-select j.artikelgruppe, j.label, j.groesse, k.von_g, k.bis_g, k.stueck_je_kiste,
-       zahl(sum(j.kg), 2, 1e12)::numeric(14,2),
-       zahl(sum(j.kg * 1000 / nullif(j.g_mittel, 0)), 0, 1e12)::numeric(14,0),
-       zahl(sum(j.kg * 1000 / nullif(j.g_mittel, 0)) / nullif(max(k.stueck_je_kiste), 0), 0, 1e12)::numeric(14,0),
-       zahl(sum(j.kg) * 1000 / nullif(sum(j.kg * 1000 / nullif(j.g_mittel, 0)), 0), 0, 1e6)::numeric(10,0),
-       count(distinct j.charge_nr)::int, array_agg(distinct j.charge_nr order by j.charge_nr),
-       max(j.h)::int, max(j.datum)
-  from artikel_lager_teile(p_h) j
-  left join artikel_kaliber k on k.gruppe = j.artikelgruppe and k.groesse = j.groesse
- group by j.artikelgruppe, j.label, j.groesse, k.von_g, k.bis_g, k.stueck_je_kiste
-$$;
-
 create materialized view mv_hochrechnung as
  SELECT k.charge_nr,
     k.sorte,
@@ -14842,264 +14437,6 @@ create or replace view v_kontrolle_vorschlag with (security_invoker=true) as
   WHERE b.im_haus_heute_kg > 0::numeric
   ORDER BY (zahl(b.im_haus_heute_kg * GREATEST(heute() - COALESCE(k.zuletzt, b.eingang_von), 1)::numeric, 0, '10000000000000'::numeric)::numeric(14,0)) DESC NULLS LAST, b.im_haus_heute_kg DESC
  LIMIT 3;
-
-create or replace view v_lager_ausweis with (security_invoker=true) as
- WITH hagel_lager AS (
-         SELECT k.charge_nr,
-            max(k.hagel) FILTER (WHERE k.portion = 'lager'::text AND k.m0 > 0::numeric) AS h,
-            sum(
-                CASE
-                    WHEN k.portion <> 'lager'::text AND k.hagel > 0::numeric AND k.hagel < 1::numeric THEN 0::numeric
-                    ELSE 0::numeric
-                END) AS hagel_ausgelagert
-           FROM mv_kaskade k
-          GROUP BY k.charge_nr
-        ), marge_charge AS (
-         SELECT m_1.charge_nr,
-            sum(m_1.zuviel_je_kiste * m_1.kisten::numeric) FILTER (WHERE m_1.soll_kg_pro_kiste > 0::numeric AND m_1.zuviel_je_kiste IS NOT NULL) / NULLIF(sum(m_1.soll_kg_pro_kiste * m_1.kisten::numeric) FILTER (WHERE m_1.soll_kg_pro_kiste > 0::numeric AND m_1.zuviel_je_kiste IS NOT NULL), 0::numeric) AS a,
-            sum(m_1.n_wiegungen) FILTER (WHERE m_1.soll_kg_pro_kiste > 0::numeric AND m_1.zuviel_je_kiste IS NOT NULL)::integer AS n_kg,
-            bool_or(m_1.kistensystem = 'stueck'::text) AS stueck
-           FROM erg_marge_charge m_1
-          GROUP BY m_1.charge_nr
-        ), marge_sorte AS (
-         SELECT m_1.sorte,
-            sum(m_1.zuviel_je_kiste * m_1.kisten::numeric) FILTER (WHERE m_1.soll_kg_pro_kiste > 0::numeric AND m_1.zuviel_je_kiste IS NOT NULL) / NULLIF(sum(m_1.soll_kg_pro_kiste * m_1.kisten::numeric) FILTER (WHERE m_1.soll_kg_pro_kiste > 0::numeric AND m_1.zuviel_je_kiste IS NOT NULL), 0::numeric) AS a,
-            sum(m_1.n_wiegungen) FILTER (WHERE m_1.soll_kg_pro_kiste > 0::numeric AND m_1.zuviel_je_kiste IS NOT NULL)::integer AS n_kg,
-            bool_or(m_1.kistensystem = 'stueck'::text) AS stueck
-           FROM erg_marge_charge m_1
-          GROUP BY m_1.sorte
-        ), ohne_system AS (
-         SELECT k.charge_nr,
-            count(*)::integer AS n
-           FROM v_ausgang_kennzahl k
-          WHERE k.kistensystem IS NULL OR k.kistensystem = 'kiste_ab'::text AND COALESCE(k.soll_kg_pro_kiste, 0::numeric) <= 0::numeric
-          GROUP BY k.charge_nr
-        ), basis AS (
-         SELECT c.charge_nr,
-            c.sorte,
-            c.schlag,
-            c.n_rest_paletten AS paletten,
-            c.lager_kg AS liegend_kg,
-            p.lager_kg,
-            p.alter_tage,
-            p.verdunstet_kg,
-            p.verdunstet_je_tag_kg,
-            p.faul_kg AS faul_mit_hagel_kg,
-            p.gute_ware_kg,
-            p.klein_kg,
-            p.gross_kg,
-            p.fax_kg,
-            p.verkaufsfaehig_kg,
-            p.r_bekannt,
-            p.f_bekannt,
-            p.kanal_bekannt,
-            p.fax_bekannt,
-            COALESCE(hl.h, 0::numeric) AS h,
-            COALESCE(hl.hagel_ausgelagert, 0::numeric) AS hagel_ausgelagert,
-            c.verlust_heute_kg,
-                CASE
-                    WHEN mc.a IS NOT NULL THEN mc.a
-                    WHEN mc.stueck THEN 0::numeric
-                    WHEN ms.a IS NOT NULL THEN ms.a
-                    WHEN ms.stueck THEN 0::numeric
-                    ELSE NULL::numeric
-                END AS marge_anteil,
-                CASE
-                    WHEN mc.a IS NOT NULL THEN format('gewogen: %s %s dieser Charge'::text, mc.n_kg,
-                    CASE
-                        WHEN mc.n_kg = 1 THEN 'Palette'::text
-                        ELSE 'Paletten'::text
-                    END)
-                    WHEN mc.stueck THEN 'Stück-Kisten: ohne Sollgewicht keine Überfüllung'::text
-                    WHEN ms.a IS NOT NULL THEN format('Sorte %s: %s gewogene %s'::text, c.sorte, ms.n_kg,
-                    CASE
-                        WHEN ms.n_kg = 1 THEN 'Palette'::text
-                        ELSE 'Paletten'::text
-                    END)
-                    WHEN ms.stueck THEN 'Stück-Kisten: ohne Sollgewicht keine Überfüllung'::text
-                    WHEN os.n > 0 THEN format('%s gewogene %s, aber die Arbeit hat kein Kistensystem oder kein Sollgewicht — keine Überfüllung zu rechnen (Messungen → Arbeiten → korrigieren)'::text, os.n,
-                    CASE
-                        WHEN os.n = 1 THEN 'Palette'::text
-                        ELSE 'Paletten'::text
-                    END)
-                    ELSE 'nicht gewogen'::text
-                END AS marge_quelle,
-            COALESCE(os.n, 0) AS n_ohne_system
-           FROM erg_charge c
-             LEFT JOIN erg_prognose p ON p.gruppe = 'charge'::text AND p.schluessel = c.charge_nr::text AND p.h = 0
-             LEFT JOIN hagel_lager hl ON hl.charge_nr = c.charge_nr
-             LEFT JOIN marge_charge mc ON mc.charge_nr = c.charge_nr
-             LEFT JOIN marge_sorte ms ON ms.sorte = c.sorte
-             LEFT JOIN ohne_system os ON os.charge_nr = c.charge_nr
-        ), mit_hagel AS (
-         SELECT b.charge_nr,
-            b.sorte,
-            b.schlag,
-            b.paletten,
-            b.liegend_kg,
-            b.lager_kg,
-            b.alter_tage,
-            b.verdunstet_kg,
-            b.verdunstet_je_tag_kg,
-            b.faul_mit_hagel_kg,
-            b.gute_ware_kg,
-            b.klein_kg,
-            b.gross_kg,
-            b.fax_kg,
-            b.verkaufsfaehig_kg,
-            b.r_bekannt,
-            b.f_bekannt,
-            b.kanal_bekannt,
-            b.fax_bekannt,
-            b.h,
-            b.hagel_ausgelagert,
-            b.verlust_heute_kg,
-            b.marge_anteil,
-            b.marge_quelle,
-            b.n_ohne_system,
-                CASE
-                    WHEN b.gute_ware_kg IS NULL THEN NULL::numeric
-                    WHEN b.h <= 0::numeric THEN 0::numeric
-                    ELSE b.verkaufsfaehig_kg
-                END AS unique_kg
-           FROM basis b
-        ), artikel AS (
-         SELECT t.charge_nr,
-            sum(t.kg) FILTER (WHERE t.groesse = ANY (ARRAY['darunter'::text, 'darueber'::text, 'dazwischen'::text])) AS keinen_artikel_kg,
-            sum(t.kg) FILTER (WHERE t.groesse = 'lose'::text AND t.artikelgruppe IS NULL) AS gruppe_offen_kg,
-            sum(t.kg) FILTER (WHERE t.groesse = 'ohne Verteilung'::text) AS groesse_offen_kg
-           FROM artikel_lager_teile(0) t(charge_nr, sorte, artikelgruppe, label, groesse, kg, g_mittel, h, datum)
-          GROUP BY t.charge_nr
-        ), verkaufbar AS (
-         SELECT m_1.charge_nr,
-            m_1.sorte,
-            m_1.schlag,
-            m_1.paletten,
-            m_1.liegend_kg,
-            m_1.lager_kg,
-            m_1.alter_tage,
-            m_1.verdunstet_kg,
-            m_1.verdunstet_je_tag_kg,
-            m_1.faul_mit_hagel_kg,
-            m_1.gute_ware_kg,
-            m_1.klein_kg,
-            m_1.gross_kg,
-            m_1.fax_kg,
-            m_1.verkaufsfaehig_kg,
-            m_1.r_bekannt,
-            m_1.f_bekannt,
-            m_1.kanal_bekannt,
-            m_1.fax_bekannt,
-            m_1.h,
-            m_1.hagel_ausgelagert,
-            m_1.verlust_heute_kg,
-            m_1.marge_anteil,
-            m_1.marge_quelle,
-            m_1.n_ohne_system,
-            m_1.unique_kg,
-                CASE
-                    WHEN m_1.verkaufsfaehig_kg IS NULL THEN NULL::numeric
-                    WHEN m_1.verkaufsfaehig_kg <= 0::numeric THEN 0::numeric
-                    WHEN COALESCE(a.groesse_offen_kg, 0::numeric) > 0::numeric THEN NULL::numeric
-                    ELSE COALESCE(a.keinen_artikel_kg, 0::numeric)
-                END AS keinen_artikel_kg,
-                CASE
-                    WHEN m_1.verkaufsfaehig_kg IS NULL THEN NULL::numeric
-                    WHEN m_1.verkaufsfaehig_kg > 0::numeric THEN COALESCE(a.groesse_offen_kg, 0::numeric)
-                    ELSE 0::numeric
-                END AS groesse_offen_kg,
-                CASE
-                    WHEN m_1.verkaufsfaehig_kg IS NULL THEN NULL::numeric
-                    WHEN m_1.verkaufsfaehig_kg > 0::numeric THEN COALESCE(a.gruppe_offen_kg, 0::numeric)
-                    ELSE 0::numeric
-                END AS gruppe_offen_kg
-           FROM mit_hagel m_1
-             LEFT JOIN artikel a ON a.charge_nr = m_1.charge_nr
-        ), netto AS (
-         SELECT v.charge_nr,
-            v.sorte,
-            v.schlag,
-            v.paletten,
-            v.liegend_kg,
-            v.lager_kg,
-            v.alter_tage,
-            v.verdunstet_kg,
-            v.verdunstet_je_tag_kg,
-            v.faul_mit_hagel_kg,
-            v.gute_ware_kg,
-            v.klein_kg,
-            v.gross_kg,
-            v.fax_kg,
-            v.verkaufsfaehig_kg,
-            v.r_bekannt,
-            v.f_bekannt,
-            v.kanal_bekannt,
-            v.fax_bekannt,
-            v.h,
-            v.hagel_ausgelagert,
-            v.verlust_heute_kg,
-            v.marge_anteil,
-            v.marge_quelle,
-            v.n_ohne_system,
-            v.unique_kg,
-            v.keinen_artikel_kg,
-            v.groesse_offen_kg,
-            v.gruppe_offen_kg,
-            v.verkaufsfaehig_kg - COALESCE(v.keinen_artikel_kg, 0::numeric) AS als_artikel_kg,
-            (v.verkaufsfaehig_kg - COALESCE(v.keinen_artikel_kg, 0::numeric)) * v.marge_anteil / (1::numeric + v.marge_anteil) AS ueberfuellung_kg
-           FROM verkaufbar v
-        )
- SELECT charge_nr,
-    sorte,
-    schlag,
-    paletten,
-    zahl(COALESCE(lager_kg, liegend_kg), 2, '1000000000000'::numeric)::numeric(14,2) AS eingang_kg,
-    alter_tage,
-    zahl(verdunstet_kg, 2, '1000000000000'::numeric)::numeric(14,2) AS verdunstet_kg,
-    zahl(verdunstet_je_tag_kg, 2, '1000000000000'::numeric)::numeric(14,2) AS verdunstet_je_tag_kg,
-    zahl(faul_mit_hagel_kg, 2, '1000000000000'::numeric)::numeric(14,2) AS faul_kg,
-    zahl(unique_kg, 2, '1000000000000'::numeric)::numeric(14,2) AS unique_kg,
-    zahl(NULLIF(h, 0::numeric), 4, '10'::numeric)::numeric(5,4) AS hagel_anteil,
-    zahl(klein_kg, 2, '1000000000000'::numeric)::numeric(14,2) AS zu_klein_kg,
-    zahl(gross_kg, 2, '1000000000000'::numeric)::numeric(14,2) AS zu_gross_kg,
-    zahl(fax_kg, 2, '1000000000000'::numeric)::numeric(14,2) AS fax_kg,
-    zahl(verkaufsfaehig_kg, 2, '1000000000000'::numeric)::numeric(14,2) AS verkaufsfaehig_kg,
-    zahl(marge_anteil, 5, '1000'::numeric)::numeric(8,5) AS marge_anteil,
-    marge_quelle,
-    zahl(verkaufsfaehig_kg * marge_anteil / (1::numeric + marge_anteil), 2, '1000000000000'::numeric)::numeric(14,2) AS marge_kg,
-    zahl(verkaufsfaehig_kg / (1::numeric + marge_anteil), 2, '1000000000000'::numeric)::numeric(14,2) AS verrechenbar_kg,
-    zahl(hagel_ausgelagert, 2, '1000000000000'::numeric)::numeric(14,2) AS hagel_bis_heute_kg,
-    COALESCE(r_bekannt, false) AS r_bekannt,
-    COALESCE(f_bekannt, false) AS f_bekannt,
-    COALESCE(kanal_bekannt, false) AS kanal_bekannt,
-    COALESCE(fax_bekannt, false) AS fax_bekannt,
-    zahl(keinen_artikel_kg, 2, '1000000000000'::numeric)::numeric(14,2) AS keinen_artikel_kg,
-    zahl(groesse_offen_kg, 2, '1000000000000'::numeric)::numeric(14,2) AS groesse_offen_kg,
-    zahl(ueberfuellung_kg, 2, '1000000000000'::numeric)::numeric(14,2) AS ueberfuellung_kg,
-    zahl(als_artikel_kg - COALESCE(ueberfuellung_kg, 0::numeric), 2, '1000000000000'::numeric)::numeric(14,2) AS verkaufbar_kg,
-    NULLIF(concat_ws(', '::text,
-        CASE
-            WHEN h > 0::numeric THEN 'Hagel-Charge: Verkauf über den Ünique-Topf'::text
-            ELSE NULL::text
-        END,
-        CASE
-            WHEN verkaufsfaehig_kg > 0::numeric AND marge_anteil IS NULL THEN
-            CASE
-                WHEN n_ohne_system > 0 THEN 'Überfüllung offen: Paletten gewogen, aber die Arbeit hat kein Kistensystem oder kein Sollgewicht'::text
-                ELSE 'Überfüllung nicht gewogen'::text
-            END
-            ELSE NULL::text
-        END,
-        CASE
-            WHEN groesse_offen_kg > 0::numeric THEN 'Grösse offen (keine Sortier-CSV)'::text
-            ELSE NULL::text
-        END,
-        CASE
-            WHEN gruppe_offen_kg > 0::numeric THEN 'Artikelgruppe fehlt (Stammdaten → Sorten)'::text
-            ELSE NULL::text
-        END), ''::text) AS verkaufbar_offen,
-    zahl(gruppe_offen_kg, 2, '1000000000000'::numeric)::numeric(14,2) AS gruppe_offen_kg
-   FROM netto m;
 
 create or replace view v_massenbilanz with (security_invoker=true) as
  WITH csv_anteil AS MATERIALIZED (
@@ -15660,86 +14997,6 @@ UNION ALL
     s.mehr || jsonb_build_object('pruefung', s.pruefung, 'chargen_nr', to_jsonb(s.chargen)) AS mehr
    FROM v_stammdaten_pruefung s
      JOIN charge c ON c.nr = s.chargen[1];
-
-create or replace view v_unique_topf with (security_invoker=true) as
- WITH hagel AS MATERIALIZED (
-         SELECT c.nr AS charge_nr,
-            c.sorte,
-            c.hagel_anteil
-           FROM charge c
-          WHERE c.hagel_anteil > 0::numeric
-        ), eingang AS (
-         SELECT sum(b.eingang_kg) AS eingang_kg
-           FROM v_kaskade_basis b
-             JOIN hagel h ON h.charge_nr = b.charge_nr
-        ), raus AS (
-         SELECT sum(t.masse_kg) AS geliefert_kg,
-            sum(t.masse_kg) FILTER (WHERE t.unique_artikel) AS unique_kg,
-            sum(t.masse_kg) FILTER (WHERE t.unique_artikel AND NOT t.hagel_charge) AS unique_fremd_kg,
-            count(*) FILTER (WHERE t.unique_artikel AND NOT t.hagel_charge)::integer AS n_unique_fremd,
-            string_agg(DISTINCT t.charge_nr::text, ', '::text) FILTER (WHERE t.unique_artikel AND NOT t.hagel_charge) AS fremde_chargen
-           FROM v_topf_lieferung t
-          WHERE t.datum <= heute()
-        ), lager AS (
-         SELECT sum(a.eingang_kg) AS im_lager_kg,
-            sum(a.verdunstet_kg) AS verdunstet_kg,
-            sum(a.faul_kg) AS faul_kg,
-            sum(a.verkaufsfaehig_kg) AS verkaufsfaehig_kg,
-            sum(a.marge_kg) AS marge_kg,
-            sum(a.verrechenbar_kg) AS verrechenbar_kg,
-            bool_and(a.r_bekannt) AS r_bekannt,
-            bool_and(a.f_bekannt) AS f_bekannt,
-            count(*) FILTER (WHERE a.verkaufsfaehig_kg IS NULL AND a.eingang_kg > 0::numeric)::integer AS n_unbekannt
-           FROM v_lager_ausweis a
-             JOIN hagel h ON h.charge_nr = a.charge_nr
-        ), ueber AS (
-         SELECT sum(k.ueberzaehlung_kg) AS ueberzaehlung_kg
-           FROM mv_kaskade k
-             JOIN hagel h ON h.charge_nr = k.charge_nr
-        )
- SELECT (( SELECT count(*) AS count
-           FROM hagel))::integer AS n_chargen,
-    ( SELECT array_agg(h.charge_nr ORDER BY h.charge_nr) AS array_agg
-           FROM hagel h) AS chargen,
-    ( SELECT string_agg(DISTINCT h.sorte, ', '::text ORDER BY h.sorte) AS string_agg
-           FROM hagel h) AS sorten,
-    zahl(e.eingang_kg, 2, '1000000000000'::numeric)::numeric(14,2) AS eingang_kg,
-    zahl(COALESCE(r.geliefert_kg, 0::numeric), 2, '1000000000000'::numeric)::numeric(14,2) AS geliefert_kg,
-    zahl(COALESCE(r.unique_kg, 0::numeric), 2, '1000000000000'::numeric)::numeric(14,2) AS davon_unique_kg,
-    zahl(COALESCE(r.unique_fremd_kg, 0::numeric), 2, '1000000000000'::numeric)::numeric(14,2) AS unique_unter_fremder_charge_kg,
-    COALESCE(r.n_unique_fremd, 0) AS n_unique_unter_fremder_charge,
-    r.fremde_chargen,
-    zahl(l.im_lager_kg, 2, '1000000000000'::numeric)::numeric(14,2) AS im_lager_kg,
-    zahl(l.verdunstet_kg, 2, '1000000000000'::numeric)::numeric(14,2) AS verdunstet_kg,
-    zahl(l.faul_kg, 2, '1000000000000'::numeric)::numeric(14,2) AS faul_kg,
-    zahl(l.verkaufsfaehig_kg, 2, '1000000000000'::numeric)::numeric(14,2) AS verkaufsfaehig_kg,
-    zahl(l.marge_kg, 2, '1000000000000'::numeric)::numeric(14,2) AS marge_kg,
-    zahl(l.verrechenbar_kg, 2, '1000000000000'::numeric)::numeric(14,2) AS verrechenbar_kg,
-    COALESCE(l.n_unbekannt, 0) AS n_unbekannt,
-    zahl(COALESCE(u.ueberzaehlung_kg, 0::numeric), 2, '1000000000000'::numeric)::numeric(14,2) AS ueberzaehlung_kg,
-    NULLIF(concat_ws(' '::text,
-        CASE
-            WHEN COALESCE(u.ueberzaehlung_kg, 0::numeric) > 0::numeric THEN format('Aus dem Ünique-Topf ging %s mehr hinaus, als die Hagel-Chargen nach Verdunstung und Palox hergeben. Hagel bei einer Charge vergessen, oder unter einer Hagel-Charge Ware gebucht, die nicht von ihr war?'::text, kg_wort(u.ueberzaehlung_kg) || ' kg'::text)
-            ELSE NULL::text
-        END,
-        CASE
-            WHEN COALESCE(r.n_unique_fremd, 0) > 0 THEN format('%s Ünique-%s unter %s ohne Hagel (%s, %s kg) — der Perigon-Reiter nennt sie.'::text, r.n_unique_fremd,
-            CASE
-                WHEN r.n_unique_fremd = 1 THEN 'Lieferung'::text
-                ELSE 'Lieferungen'::text
-            END,
-            CASE
-                WHEN r.fremde_chargen ~~ '%,%'::text THEN 'Chargen'::text
-                ELSE 'Charge'::text
-            END, r.fremde_chargen, kg_wort(r.unique_fremd_kg))
-            ELSE NULL::text
-        END), ''::text) AS hinweis
-   FROM eingang e
-     CROSS JOIN raus r
-     CROSS JOIN lager l
-     CROSS JOIN ueber u
-  WHERE (EXISTS ( SELECT 1
-           FROM hagel));
 
 create or replace view v_marge_buch with (security_invoker=true) as
  WITH verkauf AS (
@@ -16492,6 +15749,1121 @@ begin
                    format('%s, gespeichert für die App Erneuert mit auswertung_schritt().', paar[2]));
   end loop;
 end $$;
+
+create or replace view v_sorte_artikelgruppe with (security_invoker = true) as
+ WITH verkauft AS (
+         SELECT l.sorte,
+            e.gruppe,
+            sum(l.kg) AS kg
+           FROM lieferung l
+             JOIN lieferung_import li ON li.lieferung_id = l.id
+             JOIN ausgang_zeile z ON z.id = li.zeile_id
+             CROSS JOIN LATERAL artikel_einordnen(z.artikel, z.preisgruppe) e(gruppe, groesse, label)
+          WHERE l.sorte IS NOT NULL AND e.gruppe IS NOT NULL AND (e.gruppe <> ALL (ARRAY['andere'::text, 'Mix'::text, 'Ünique'::text]))
+          GROUP BY l.sorte, e.gruppe
+        ), haupt AS (
+         SELECT DISTINCT ON (verkauft.sorte) verkauft.sorte,
+            verkauft.gruppe,
+            verkauft.kg
+           FROM verkauft
+          ORDER BY verkauft.sorte, verkauft.kg DESC, verkauft.gruppe
+        )
+ SELECT s.sorte,
+    COALESCE(s.artikelgruppe, h.gruppe) AS artikelgruppe,
+        CASE
+            WHEN s.artikelgruppe IS NOT NULL THEN 'Stammdaten'::text
+            WHEN h.gruppe IS NOT NULL THEN 'verkauft als'::text
+            ELSE NULL::text
+        END AS quelle,
+    h.gruppe AS gruppe_verkauft
+   FROM sorte_kaliber s
+     LEFT JOIN haupt h ON h.sorte = s.sorte;
+
+create or replace function artikel_lager_teile(p_h integer)
+ RETURNS TABLE(charge_nr integer, sorte text, artikelgruppe text, label text, groesse text, kg numeric, g_mittel numeric, h integer, datum date)
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+with prognose as (
+  select p.schluessel::int as charge_nr, c.sorte, p.h, p.datum, p.verkaufsfaehig_kg,
+         q.basis, q.schluessel as q_schluessel
+    from erg_prognose p
+    join charge c on c.nr = p.schluessel::int
+    left join lager_schluessel() q on q.charge_nr = c.nr
+   where p.gruppe = 'charge' and p.h = p_h and p.verkaufsfaehig_kg > 0
+     and coalesce(c.hagel_anteil, 0) = 0   -- 0133: Hagelware geht als Ünique, nicht nach Grösse in die Artikel
+), zuordnung as (
+  select p.*, g.artikelgruppe, l.label
+    from prognose p
+    left join v_sorte_artikelgruppe g on g.sorte = p.sorte
+    left join v_charge_label l on l.charge_nr = p.charge_nr
+), verteilung as (
+  select w.basis, w.schluessel, w.sorte, w.anzahl, w.g::numeric as g
+    from kuerbis_stichtag(p_h) w
+   where exists (select 1 from zuordnung z where z.basis = w.basis and z.q_schluessel = w.schluessel)
+), mit_klasse as (
+  select v.basis, v.schluessel,
+         coalesce(k.groesse, case when ak.n = 0 then 'lose'
+                                  when v.g < ak.min_von then 'darunter'
+                                  when v.g >= ak.max_bis then 'darueber'
+                                  else 'dazwischen' end) as groesse,
+         v.anzahl, v.g
+    from verteilung v
+    left join v_sorte_artikelgruppe sg on sg.sorte = v.sorte
+    left join lateral (select count(*) as n, min(a.von_g) as min_von, max(a.bis_g) as max_bis
+                         from artikel_kaliber a where a.gruppe = sg.artikelgruppe) ak on true
+    left join artikel_kaliber k on k.gruppe = sg.artikelgruppe and v.g >= k.von_g and v.g < k.bis_g
+), anteile as (
+  select m.basis, m.schluessel, m.groesse,
+         sum(m.anzahl * m.g) / nullif(sum(sum(m.anzahl * m.g)) over (partition by m.basis, m.schluessel), 0) as anteil,
+         sum(m.anzahl * m.g) / nullif(sum(m.anzahl), 0) as g_mittel
+    from mit_klasse m
+   group by m.basis, m.schluessel, m.groesse
+)
+select z.charge_nr, z.sorte, z.artikelgruppe, z.label,
+       coalesce(a.groesse, 'ohne Verteilung') as groesse,
+       case when a.anteil is null then z.verkaufsfaehig_kg else z.verkaufsfaehig_kg * a.anteil end as kg,
+       a.g_mittel, z.h, z.datum
+  from zuordnung z
+  left join anteile a on a.basis = z.basis and a.schluessel = z.q_schluessel
+$function$;
+
+create or replace function artikel_lager_charge(p_h integer)
+returns table (charge_nr int, sorte text, artikelgruppe text, label text, groesse text,
+               von_g int, bis_g int, stueck_je_kiste int,
+               kg numeric, stueck numeric, kisten numeric, g_mittel numeric, h int, datum date)
+language sql stable security definer set search_path = public as $$
+  select t.charge_nr, t.sorte, t.artikelgruppe, t.label, t.groesse, k.von_g, k.bis_g, k.stueck_je_kiste,
+         zahl(t.kg, 2, 1e12)::numeric(14,2),
+         zahl(t.kg * 1000 / nullif(t.g_mittel, 0), 0, 1e12)::numeric(14,0),
+         zahl(t.kg * 1000 / nullif(t.g_mittel, 0) / nullif(k.stueck_je_kiste, 0), 0, 1e12)::numeric(14,0),
+         zahl(t.g_mittel, 0, 1e6)::numeric(10,0),
+         t.h, t.datum
+    from artikel_lager_teile(p_h) t
+    left join artikel_kaliber k on k.gruppe = t.artikelgruppe and k.groesse = t.groesse
+$$;
+
+create or replace function artikel_lager(p_h integer)
+returns table (artikelgruppe text, label text, groesse text, von_g int, bis_g int, stueck_je_kiste int,
+               kg numeric, stueck numeric, kisten numeric, g_mittel numeric,
+               n_chargen int, chargen int[], h int, datum date)
+language sql stable security definer set search_path = public as $$
+select j.artikelgruppe, j.label, j.groesse, k.von_g, k.bis_g, k.stueck_je_kiste,
+       zahl(sum(j.kg), 2, 1e12)::numeric(14,2),
+       zahl(sum(j.kg * 1000 / nullif(j.g_mittel, 0)), 0, 1e12)::numeric(14,0),
+       zahl(sum(j.kg * 1000 / nullif(j.g_mittel, 0)) / nullif(max(k.stueck_je_kiste), 0), 0, 1e12)::numeric(14,0),
+       zahl(sum(j.kg) * 1000 / nullif(sum(j.kg * 1000 / nullif(j.g_mittel, 0)), 0), 0, 1e6)::numeric(10,0),
+       count(distinct j.charge_nr)::int, array_agg(distinct j.charge_nr order by j.charge_nr),
+       max(j.h)::int, max(j.datum)
+  from artikel_lager_teile(p_h) j
+  left join artikel_kaliber k on k.gruppe = j.artikelgruppe and k.groesse = j.groesse
+ group by j.artikelgruppe, j.label, j.groesse, k.von_g, k.bis_g, k.stueck_je_kiste
+$$;
+
+create or replace view v_lager_ausweis with (security_invoker=true) as
+ WITH hagel_lager AS (
+         SELECT k.charge_nr,
+            max(k.hagel) FILTER (WHERE k.portion = 'lager'::text AND k.m0 > 0::numeric) AS h,
+            sum(
+                CASE
+                    WHEN k.portion <> 'lager'::text AND k.hagel > 0::numeric AND k.hagel < 1::numeric THEN 0::numeric
+                    ELSE 0::numeric
+                END) AS hagel_ausgelagert
+           FROM mv_kaskade k
+          GROUP BY k.charge_nr
+        ), marge_charge AS (
+         SELECT m_1.charge_nr,
+            sum(m_1.zuviel_je_kiste * m_1.kisten::numeric) FILTER (WHERE m_1.soll_kg_pro_kiste > 0::numeric AND m_1.zuviel_je_kiste IS NOT NULL) / NULLIF(sum(m_1.soll_kg_pro_kiste * m_1.kisten::numeric) FILTER (WHERE m_1.soll_kg_pro_kiste > 0::numeric AND m_1.zuviel_je_kiste IS NOT NULL), 0::numeric) AS a,
+            sum(m_1.n_wiegungen) FILTER (WHERE m_1.soll_kg_pro_kiste > 0::numeric AND m_1.zuviel_je_kiste IS NOT NULL)::integer AS n_kg,
+            bool_or(m_1.kistensystem = 'stueck'::text) AS stueck
+           FROM erg_marge_charge m_1
+          GROUP BY m_1.charge_nr
+        ), marge_sorte AS (
+         SELECT m_1.sorte,
+            sum(m_1.zuviel_je_kiste * m_1.kisten::numeric) FILTER (WHERE m_1.soll_kg_pro_kiste > 0::numeric AND m_1.zuviel_je_kiste IS NOT NULL) / NULLIF(sum(m_1.soll_kg_pro_kiste * m_1.kisten::numeric) FILTER (WHERE m_1.soll_kg_pro_kiste > 0::numeric AND m_1.zuviel_je_kiste IS NOT NULL), 0::numeric) AS a,
+            sum(m_1.n_wiegungen) FILTER (WHERE m_1.soll_kg_pro_kiste > 0::numeric AND m_1.zuviel_je_kiste IS NOT NULL)::integer AS n_kg,
+            bool_or(m_1.kistensystem = 'stueck'::text) AS stueck
+           FROM erg_marge_charge m_1
+          GROUP BY m_1.sorte
+        ), ohne_system AS (
+         SELECT k.charge_nr,
+            count(*)::integer AS n
+           FROM v_ausgang_kennzahl k
+          WHERE k.kistensystem IS NULL OR k.kistensystem = 'kiste_ab'::text AND COALESCE(k.soll_kg_pro_kiste, 0::numeric) <= 0::numeric
+          GROUP BY k.charge_nr
+        ), basis AS (
+         SELECT c.charge_nr,
+            c.sorte,
+            c.schlag,
+            c.n_rest_paletten AS paletten,
+            c.lager_kg AS liegend_kg,
+            p.lager_kg,
+            p.alter_tage,
+            p.verdunstet_kg,
+            p.verdunstet_je_tag_kg,
+            p.faul_kg AS faul_mit_hagel_kg,
+            p.gute_ware_kg,
+            p.klein_kg,
+            p.gross_kg,
+            p.fax_kg,
+            p.verkaufsfaehig_kg,
+            p.r_bekannt,
+            p.f_bekannt,
+            p.kanal_bekannt,
+            p.fax_bekannt,
+            COALESCE(hl.h, 0::numeric) AS h,
+            COALESCE(hl.hagel_ausgelagert, 0::numeric) AS hagel_ausgelagert,
+            c.verlust_heute_kg,
+                CASE
+                    WHEN mc.a IS NOT NULL THEN mc.a
+                    WHEN mc.stueck THEN 0::numeric
+                    WHEN ms.a IS NOT NULL THEN ms.a
+                    WHEN ms.stueck THEN 0::numeric
+                    ELSE NULL::numeric
+                END AS marge_anteil,
+                CASE
+                    WHEN mc.a IS NOT NULL THEN format('gewogen: %s %s dieser Charge'::text, mc.n_kg,
+                    CASE
+                        WHEN mc.n_kg = 1 THEN 'Palette'::text
+                        ELSE 'Paletten'::text
+                    END)
+                    WHEN mc.stueck THEN 'Stück-Kisten: ohne Sollgewicht keine Überfüllung'::text
+                    WHEN ms.a IS NOT NULL THEN format('Sorte %s: %s gewogene %s'::text, c.sorte, ms.n_kg,
+                    CASE
+                        WHEN ms.n_kg = 1 THEN 'Palette'::text
+                        ELSE 'Paletten'::text
+                    END)
+                    WHEN ms.stueck THEN 'Stück-Kisten: ohne Sollgewicht keine Überfüllung'::text
+                    WHEN os.n > 0 THEN format('%s gewogene %s, aber die Arbeit hat kein Kistensystem oder kein Sollgewicht — keine Überfüllung zu rechnen (Messungen → Arbeiten → korrigieren)'::text, os.n,
+                    CASE
+                        WHEN os.n = 1 THEN 'Palette'::text
+                        ELSE 'Paletten'::text
+                    END)
+                    ELSE 'nicht gewogen'::text
+                END AS marge_quelle,
+            COALESCE(os.n, 0) AS n_ohne_system
+           FROM erg_charge c
+             LEFT JOIN erg_prognose p ON p.gruppe = 'charge'::text AND p.schluessel = c.charge_nr::text AND p.h = 0
+             LEFT JOIN hagel_lager hl ON hl.charge_nr = c.charge_nr
+             LEFT JOIN marge_charge mc ON mc.charge_nr = c.charge_nr
+             LEFT JOIN marge_sorte ms ON ms.sorte = c.sorte
+             LEFT JOIN ohne_system os ON os.charge_nr = c.charge_nr
+        ), mit_hagel AS (
+         SELECT b.charge_nr,
+            b.sorte,
+            b.schlag,
+            b.paletten,
+            b.liegend_kg,
+            b.lager_kg,
+            b.alter_tage,
+            b.verdunstet_kg,
+            b.verdunstet_je_tag_kg,
+            b.faul_mit_hagel_kg,
+            b.gute_ware_kg,
+            b.klein_kg,
+            b.gross_kg,
+            b.fax_kg,
+            b.verkaufsfaehig_kg,
+            b.r_bekannt,
+            b.f_bekannt,
+            b.kanal_bekannt,
+            b.fax_bekannt,
+            b.h,
+            b.hagel_ausgelagert,
+            b.verlust_heute_kg,
+            b.marge_anteil,
+            b.marge_quelle,
+            b.n_ohne_system,
+                CASE
+                    WHEN b.gute_ware_kg IS NULL THEN NULL::numeric
+                    WHEN b.h <= 0::numeric THEN 0::numeric
+                    ELSE b.verkaufsfaehig_kg
+                END AS unique_kg
+           FROM basis b
+        ), artikel AS (
+         SELECT t.charge_nr,
+            sum(t.kg) FILTER (WHERE t.groesse = ANY (ARRAY['darunter'::text, 'darueber'::text, 'dazwischen'::text])) AS keinen_artikel_kg,
+            sum(t.kg) FILTER (WHERE t.groesse = 'lose'::text AND t.artikelgruppe IS NULL) AS gruppe_offen_kg,
+            sum(t.kg) FILTER (WHERE t.groesse = 'ohne Verteilung'::text) AS groesse_offen_kg
+           FROM artikel_lager_teile(0) t(charge_nr, sorte, artikelgruppe, label, groesse, kg, g_mittel, h, datum)
+          GROUP BY t.charge_nr
+        ), verkaufbar AS (
+         SELECT m_1.charge_nr,
+            m_1.sorte,
+            m_1.schlag,
+            m_1.paletten,
+            m_1.liegend_kg,
+            m_1.lager_kg,
+            m_1.alter_tage,
+            m_1.verdunstet_kg,
+            m_1.verdunstet_je_tag_kg,
+            m_1.faul_mit_hagel_kg,
+            m_1.gute_ware_kg,
+            m_1.klein_kg,
+            m_1.gross_kg,
+            m_1.fax_kg,
+            m_1.verkaufsfaehig_kg,
+            m_1.r_bekannt,
+            m_1.f_bekannt,
+            m_1.kanal_bekannt,
+            m_1.fax_bekannt,
+            m_1.h,
+            m_1.hagel_ausgelagert,
+            m_1.verlust_heute_kg,
+            m_1.marge_anteil,
+            m_1.marge_quelle,
+            m_1.n_ohne_system,
+            m_1.unique_kg,
+                CASE
+                    WHEN m_1.verkaufsfaehig_kg IS NULL THEN NULL::numeric
+                    WHEN m_1.verkaufsfaehig_kg <= 0::numeric THEN 0::numeric
+                    WHEN COALESCE(a.groesse_offen_kg, 0::numeric) > 0::numeric THEN NULL::numeric
+                    ELSE COALESCE(a.keinen_artikel_kg, 0::numeric)
+                END AS keinen_artikel_kg,
+                CASE
+                    WHEN m_1.verkaufsfaehig_kg IS NULL THEN NULL::numeric
+                    WHEN m_1.verkaufsfaehig_kg > 0::numeric THEN COALESCE(a.groesse_offen_kg, 0::numeric)
+                    ELSE 0::numeric
+                END AS groesse_offen_kg,
+                CASE
+                    WHEN m_1.verkaufsfaehig_kg IS NULL THEN NULL::numeric
+                    WHEN m_1.verkaufsfaehig_kg > 0::numeric THEN COALESCE(a.gruppe_offen_kg, 0::numeric)
+                    ELSE 0::numeric
+                END AS gruppe_offen_kg
+           FROM mit_hagel m_1
+             LEFT JOIN artikel a ON a.charge_nr = m_1.charge_nr
+        ), netto AS (
+         SELECT v.charge_nr,
+            v.sorte,
+            v.schlag,
+            v.paletten,
+            v.liegend_kg,
+            v.lager_kg,
+            v.alter_tage,
+            v.verdunstet_kg,
+            v.verdunstet_je_tag_kg,
+            v.faul_mit_hagel_kg,
+            v.gute_ware_kg,
+            v.klein_kg,
+            v.gross_kg,
+            v.fax_kg,
+            v.verkaufsfaehig_kg,
+            v.r_bekannt,
+            v.f_bekannt,
+            v.kanal_bekannt,
+            v.fax_bekannt,
+            v.h,
+            v.hagel_ausgelagert,
+            v.verlust_heute_kg,
+            v.marge_anteil,
+            v.marge_quelle,
+            v.n_ohne_system,
+            v.unique_kg,
+            v.keinen_artikel_kg,
+            v.groesse_offen_kg,
+            v.gruppe_offen_kg,
+            v.verkaufsfaehig_kg - COALESCE(v.keinen_artikel_kg, 0::numeric) AS als_artikel_kg,
+            (v.verkaufsfaehig_kg - COALESCE(v.keinen_artikel_kg, 0::numeric)) * v.marge_anteil / (1::numeric + v.marge_anteil) AS ueberfuellung_kg
+           FROM verkaufbar v
+        )
+ SELECT charge_nr,
+    sorte,
+    schlag,
+    paletten,
+    zahl(COALESCE(lager_kg, liegend_kg), 2, '1000000000000'::numeric)::numeric(14,2) AS eingang_kg,
+    alter_tage,
+    zahl(verdunstet_kg, 2, '1000000000000'::numeric)::numeric(14,2) AS verdunstet_kg,
+    zahl(verdunstet_je_tag_kg, 2, '1000000000000'::numeric)::numeric(14,2) AS verdunstet_je_tag_kg,
+    zahl(faul_mit_hagel_kg, 2, '1000000000000'::numeric)::numeric(14,2) AS faul_kg,
+    zahl(unique_kg, 2, '1000000000000'::numeric)::numeric(14,2) AS unique_kg,
+    zahl(NULLIF(h, 0::numeric), 4, '10'::numeric)::numeric(5,4) AS hagel_anteil,
+    zahl(klein_kg, 2, '1000000000000'::numeric)::numeric(14,2) AS zu_klein_kg,
+    zahl(gross_kg, 2, '1000000000000'::numeric)::numeric(14,2) AS zu_gross_kg,
+    zahl(fax_kg, 2, '1000000000000'::numeric)::numeric(14,2) AS fax_kg,
+    zahl(verkaufsfaehig_kg, 2, '1000000000000'::numeric)::numeric(14,2) AS verkaufsfaehig_kg,
+    zahl(marge_anteil, 5, '1000'::numeric)::numeric(8,5) AS marge_anteil,
+    marge_quelle,
+    zahl(verkaufsfaehig_kg * marge_anteil / (1::numeric + marge_anteil), 2, '1000000000000'::numeric)::numeric(14,2) AS marge_kg,
+    zahl(verkaufsfaehig_kg / (1::numeric + marge_anteil), 2, '1000000000000'::numeric)::numeric(14,2) AS verrechenbar_kg,
+    zahl(hagel_ausgelagert, 2, '1000000000000'::numeric)::numeric(14,2) AS hagel_bis_heute_kg,
+    COALESCE(r_bekannt, false) AS r_bekannt,
+    COALESCE(f_bekannt, false) AS f_bekannt,
+    COALESCE(kanal_bekannt, false) AS kanal_bekannt,
+    COALESCE(fax_bekannt, false) AS fax_bekannt,
+    zahl(keinen_artikel_kg, 2, '1000000000000'::numeric)::numeric(14,2) AS keinen_artikel_kg,
+    zahl(groesse_offen_kg, 2, '1000000000000'::numeric)::numeric(14,2) AS groesse_offen_kg,
+    zahl(ueberfuellung_kg, 2, '1000000000000'::numeric)::numeric(14,2) AS ueberfuellung_kg,
+    zahl(als_artikel_kg - COALESCE(ueberfuellung_kg, 0::numeric), 2, '1000000000000'::numeric)::numeric(14,2) AS verkaufbar_kg,
+    NULLIF(concat_ws(', '::text,
+        CASE
+            WHEN h > 0::numeric THEN 'Hagel-Charge: Verkauf über den Ünique-Topf'::text
+            ELSE NULL::text
+        END,
+        CASE
+            WHEN verkaufsfaehig_kg > 0::numeric AND marge_anteil IS NULL THEN
+            CASE
+                WHEN n_ohne_system > 0 THEN 'Überfüllung offen: Paletten gewogen, aber die Arbeit hat kein Kistensystem oder kein Sollgewicht'::text
+                ELSE 'Überfüllung nicht gewogen'::text
+            END
+            ELSE NULL::text
+        END,
+        CASE
+            WHEN groesse_offen_kg > 0::numeric THEN 'Grösse offen (keine Sortier-CSV)'::text
+            ELSE NULL::text
+        END,
+        CASE
+            WHEN gruppe_offen_kg > 0::numeric THEN 'Artikelgruppe fehlt (Stammdaten → Sorten)'::text
+            ELSE NULL::text
+        END), ''::text) AS verkaufbar_offen,
+    zahl(gruppe_offen_kg, 2, '1000000000000'::numeric)::numeric(14,2) AS gruppe_offen_kg
+   FROM netto m;
+
+create or replace view v_unique_topf with (security_invoker=true) as
+ WITH hagel AS MATERIALIZED (
+         SELECT c.nr AS charge_nr,
+            c.sorte,
+            c.hagel_anteil
+           FROM charge c
+          WHERE c.hagel_anteil > 0::numeric
+        ), eingang AS (
+         SELECT sum(b.eingang_kg) AS eingang_kg
+           FROM v_kaskade_basis b
+             JOIN hagel h ON h.charge_nr = b.charge_nr
+        ), raus AS (
+         SELECT sum(t.masse_kg) AS geliefert_kg,
+            sum(t.masse_kg) FILTER (WHERE t.unique_artikel) AS unique_kg,
+            sum(t.masse_kg) FILTER (WHERE t.unique_artikel AND NOT t.hagel_charge) AS unique_fremd_kg,
+            count(*) FILTER (WHERE t.unique_artikel AND NOT t.hagel_charge)::integer AS n_unique_fremd,
+            string_agg(DISTINCT t.charge_nr::text, ', '::text) FILTER (WHERE t.unique_artikel AND NOT t.hagel_charge) AS fremde_chargen
+           FROM v_topf_lieferung t
+          WHERE t.datum <= heute()
+        ), lager AS (
+         SELECT sum(a.eingang_kg) AS im_lager_kg,
+            sum(a.verdunstet_kg) AS verdunstet_kg,
+            sum(a.faul_kg) AS faul_kg,
+            sum(a.verkaufsfaehig_kg) AS verkaufsfaehig_kg,
+            sum(a.marge_kg) AS marge_kg,
+            sum(a.verrechenbar_kg) AS verrechenbar_kg,
+            bool_and(a.r_bekannt) AS r_bekannt,
+            bool_and(a.f_bekannt) AS f_bekannt,
+            count(*) FILTER (WHERE a.verkaufsfaehig_kg IS NULL AND a.eingang_kg > 0::numeric)::integer AS n_unbekannt
+           FROM v_lager_ausweis a
+             JOIN hagel h ON h.charge_nr = a.charge_nr
+        ), ueber AS (
+         SELECT sum(k.ueberzaehlung_kg) AS ueberzaehlung_kg
+           FROM mv_kaskade k
+             JOIN hagel h ON h.charge_nr = k.charge_nr
+        )
+ SELECT (( SELECT count(*) AS count
+           FROM hagel))::integer AS n_chargen,
+    ( SELECT array_agg(h.charge_nr ORDER BY h.charge_nr) AS array_agg
+           FROM hagel h) AS chargen,
+    ( SELECT string_agg(DISTINCT h.sorte, ', '::text ORDER BY h.sorte) AS string_agg
+           FROM hagel h) AS sorten,
+    zahl(e.eingang_kg, 2, '1000000000000'::numeric)::numeric(14,2) AS eingang_kg,
+    zahl(COALESCE(r.geliefert_kg, 0::numeric), 2, '1000000000000'::numeric)::numeric(14,2) AS geliefert_kg,
+    zahl(COALESCE(r.unique_kg, 0::numeric), 2, '1000000000000'::numeric)::numeric(14,2) AS davon_unique_kg,
+    zahl(COALESCE(r.unique_fremd_kg, 0::numeric), 2, '1000000000000'::numeric)::numeric(14,2) AS unique_unter_fremder_charge_kg,
+    COALESCE(r.n_unique_fremd, 0) AS n_unique_unter_fremder_charge,
+    r.fremde_chargen,
+    zahl(l.im_lager_kg, 2, '1000000000000'::numeric)::numeric(14,2) AS im_lager_kg,
+    zahl(l.verdunstet_kg, 2, '1000000000000'::numeric)::numeric(14,2) AS verdunstet_kg,
+    zahl(l.faul_kg, 2, '1000000000000'::numeric)::numeric(14,2) AS faul_kg,
+    zahl(l.verkaufsfaehig_kg, 2, '1000000000000'::numeric)::numeric(14,2) AS verkaufsfaehig_kg,
+    zahl(l.marge_kg, 2, '1000000000000'::numeric)::numeric(14,2) AS marge_kg,
+    zahl(l.verrechenbar_kg, 2, '1000000000000'::numeric)::numeric(14,2) AS verrechenbar_kg,
+    COALESCE(l.n_unbekannt, 0) AS n_unbekannt,
+    zahl(COALESCE(u.ueberzaehlung_kg, 0::numeric), 2, '1000000000000'::numeric)::numeric(14,2) AS ueberzaehlung_kg,
+    NULLIF(concat_ws(' '::text,
+        CASE
+            WHEN COALESCE(u.ueberzaehlung_kg, 0::numeric) > 0::numeric THEN format('Aus dem Ünique-Topf ging %s mehr hinaus, als die Hagel-Chargen nach Verdunstung und Palox hergeben. Hagel bei einer Charge vergessen, oder unter einer Hagel-Charge Ware gebucht, die nicht von ihr war?'::text, kg_wort(u.ueberzaehlung_kg) || ' kg'::text)
+            ELSE NULL::text
+        END,
+        CASE
+            WHEN COALESCE(r.n_unique_fremd, 0) > 0 THEN format('%s Ünique-%s unter %s ohne Hagel (%s, %s kg) — der Perigon-Reiter nennt sie.'::text, r.n_unique_fremd,
+            CASE
+                WHEN r.n_unique_fremd = 1 THEN 'Lieferung'::text
+                ELSE 'Lieferungen'::text
+            END,
+            CASE
+                WHEN r.fremde_chargen ~~ '%,%'::text THEN 'Chargen'::text
+                ELSE 'Charge'::text
+            END, r.fremde_chargen, kg_wort(r.unique_fremd_kg))
+            ELSE NULL::text
+        END), ''::text) AS hinweis
+   FROM eingang e
+     CROSS JOIN raus r
+     CROSS JOIN lager l
+     CROSS JOIN ueber u
+  WHERE (EXISTS ( SELECT 1
+           FROM hagel));
+
+create or replace view v_perigon_pruefung with (security_invoker = true) as
+ WITH zeile AS (
+         SELECT z.id,
+            z.quelle,
+            z.pos_id,
+            z.datum,
+            z.kunde,
+            z.artikel,
+            z.charge_extern,
+            z.kg_charge,
+            z.liefer_label,
+            l.id AS lieferung_id,
+            l.charge_nr,
+            l.kg AS kg_lieferung,
+            c.sorte,
+            sk.artikelgruppe AS gruppe_charge,
+            e.gruppe AS gruppe_artikel,
+            e.label AS label_verkauft,
+                CASE
+                    WHEN upper(COALESCE(z.liefer_label, ''::text)) ~~ 'D%'::text THEN 'D'::text
+                    WHEN upper(COALESCE(z.liefer_label, ''::text)) ~ '^(K|CH-K)'::text THEN 'K'::text
+                    ELSE NULL::text
+                END AS label_geliefert,
+            li.extern_id ~~ '%:rest'::text AS rest,
+            regexp_replace(z.charge_extern, '\D'::text, ''::text, 'g'::text) AS ziffern,
+            COALESCE(( SELECT x.nr
+                   FROM charge x
+                  WHERE x.nr::text = regexp_replace(z.charge_extern, '\D'::text, ''::text, 'g'::text)), ( SELECT min(x.nr) AS min
+                   FROM charge x
+                  WHERE x.perigon_nr::text = regexp_replace(z.charge_extern, '\D'::text, ''::text, 'g'::text)
+                 HAVING count(*) = 1)) AS bekannt
+           FROM ausgang_zeile z
+             JOIN lieferung_import li ON li.zeile_id = z.id
+             JOIN lieferung l ON l.id = li.lieferung_id
+             LEFT JOIN charge c ON c.nr = l.charge_nr
+             LEFT JOIN sorte_kaliber sk ON sk.sorte = c.sorte
+             CROSS JOIN LATERAL artikel_einordnen(z.artikel, z.preisgruppe) e(gruppe, groesse, label)
+        )
+ SELECT 'Charge nicht zugeordnet'::text AS art,
+    z.quelle,
+    z.pos_id,
+    z.datum,
+    z.kunde,
+    z.artikel,
+    z.charge_nr,
+    z.kg_charge AS kg,
+        CASE
+            WHEN z.bekannt IS NOT NULL THEN format('Auf dem Lieferschein steht %s; die Nummer steht an Charge %s; beim Einlesen kannte die App sie noch nicht. '::text || 'Beim nächsten Rechnen bekommt der Lieferschein seine Charge von selbst.'::text, z.charge_extern, z.bekannt)
+            WHEN (( SELECT count(*) AS count
+               FROM charge x
+              WHERE x.perigon_nr::text = z.ziffern)) > 1 THEN format('Auf dem Lieferschein steht die Perigon-Nummer %s; sie steht an mehreren Chargen, und der Artikel sagt nicht, '::text || 'welche Sorte es ist. Die Datei unter Betrieb → Warenausgang neu einlesen, dort entscheidet der Artikel.'::text, z.charge_extern)
+            ELSE format(('Auf dem Lieferschein steht die Charge %s; diese Nummer steht an keiner Charge der App. Die Nummer unter Stammdaten → '::text || 'Chargen anlegen oder bei der richtigen Charge als Perigon-Nr. eintragen; beim nächsten Rechnen bekommt der '::text) || 'Lieferschein sie von selbst.'::text, z.charge_extern)
+        END AS befund
+   FROM zeile z
+  WHERE z.charge_extern <> ''::text AND z.charge_nr IS NULL AND NOT z.rest
+UNION ALL
+ SELECT 'Teil ohne Charge'::text AS art,
+    z.quelle,
+    z.pos_id,
+    z.datum,
+    z.kunde,
+    z.artikel,
+    NULL::integer AS charge_nr,
+    zahl(z.kg_lieferung, 3, '100000000000'::numeric)::numeric(14,3) AS kg,
+    format('%s kg der Position haben keine Charge: Spalte S („AufPosBatchQuantity Charge") schreibt der Charge %s weniger zu, als die Position geliefert hat. Diese Kilo zählen im Warenausgang, aber bei keiner Charge — dort bleibt die Ware im Lager stehen. In Perigon die Menge je Charge nachtragen.'::text, TRIM(BOTH FROM to_char(z.kg_lieferung, 'FM999999990.0'::text)), z.charge_extern) AS befund
+   FROM zeile z
+  WHERE z.rest AND z.charge_extern <> ''::text
+UNION ALL
+ SELECT 'Artikel passt nicht zur Sorte'::text AS art,
+    z.quelle,
+    z.pos_id,
+    z.datum,
+    z.kunde,
+    z.artikel,
+    z.charge_nr,
+    z.kg_charge AS kg,
+    format('Verkauft als %s, aber die Charge %s ist %s — und %s geht als %s. Entweder steht der falsche Artikel oder die falsche Charge auf dem Lieferschein.'::text, z.gruppe_artikel, z.charge_nr, z.sorte, z.sorte, z.gruppe_charge) AS befund
+   FROM zeile z
+  WHERE z.gruppe_artikel IS NOT NULL AND z.gruppe_charge IS NOT NULL AND (z.gruppe_artikel <> ALL (ARRAY['Mix'::text, 'andere'::text, 'Ünique'::text])) AND z.gruppe_artikel <> z.gruppe_charge
+UNION ALL
+ SELECT 'Als Demeter verkauft, als Knospe geliefert'::text AS art,
+    z.quelle,
+    z.pos_id,
+    z.datum,
+    z.kunde,
+    z.artikel,
+    z.charge_nr,
+    z.kg_charge AS kg,
+    format('Verkauft zum Demeter-Preis (Preisgruppe), aber die Ware der Charge %s trägt das Lieferlabel %s — das ist Knospe.'::text, z.charge_nr, z.liefer_label) AS befund
+   FROM zeile z
+  WHERE z.label_verkauft = 'D'::text AND z.label_geliefert = 'K'::text AND NOT z.rest
+UNION ALL
+ SELECT 'Lieferung vor dem Eingang'::text AS art,
+    z.quelle,
+    z.pos_id,
+    z.datum,
+    z.kunde,
+    z.artikel,
+    z.charge_nr,
+    z.kg_charge AS kg,
+    format('Geliefert am %s, aber die Charge %s kam laut Erntejournal erst am %s an — von ihr kann die Ware nicht sein.'::text, to_char(z.datum::timestamp with time zone, 'DD.MM.YYYY'::text), z.charge_nr, to_char(e.erst::timestamp with time zone, 'DD.MM.YYYY'::text)) AS befund
+   FROM zeile z
+     JOIN ( SELECT palette.charge_nr,
+            min(palette.eingangsdatum) AS erst
+           FROM palette
+          GROUP BY palette.charge_nr) e ON e.charge_nr = z.charge_nr
+  WHERE z.datum < e.erst;
+create or replace view v_perigon_befund with (security_invoker = true) as
+ WITH zeile AS (
+         SELECT z.id,
+            z.quelle,
+            z.pos_id,
+            z.lauf_nr,
+            z.datum,
+            z.kunde,
+            z.artikel_id,
+            z.artikel,
+            z.einheit,
+            z.menge,
+            z.gewicht_je_artikel,
+            z.batch_menge,
+            z.kg_position,
+            z.kg_charge,
+            z.preisgruppe,
+            z.liefer_label,
+            z.produzent,
+            z.ts,
+            z.auftragsnr,
+                CASE
+                    WHEN upper(COALESCE(z.liefer_label, ''::text)) ~~ 'D%'::text THEN 'D'::text
+                    WHEN upper(COALESCE(z.liefer_label, ''::text)) ~ '^(K|CH-K)'::text THEN 'K'::text
+                    ELSE NULL::text
+                END AS label_z,
+            NULLIF(btrim(z.charge_extern), ''::text) AS nummer,
+            regexp_replace(COALESCE(z.charge_extern, ''::text), '\D'::text, ''::text, 'g'::text) AS ziffern
+           FROM ausgang_zeile z
+        ), lief AS (
+         SELECT i.quelle,
+            split_part(i.extern_id, ':'::text, 2)::bigint AS pos_id,
+            sum(l.kg) AS kg,
+            sum(l.kg) FILTER (WHERE l.charge_nr IS NULL) AS kg_ohne,
+            count(DISTINCT l.charge_nr)::integer AS n_chargen,
+            min(l.charge_nr) AS charge_nr,
+            min(l.sorte) AS sorte
+           FROM lieferung_import i
+             JOIN lieferung l ON l.id = i.lieferung_id
+          WHERE split_part(i.extern_id, ':'::text, 2) ~ '^\d+$'::text AND i.extern_id !~~ '%:rueckgabe'::text
+          GROUP BY i.quelle, (split_part(i.extern_id, ':'::text, 2)::bigint)
+        ), mixteil AS (
+         SELECT i.quelle,
+            split_part(i.extern_id, ':'::text, 2)::bigint AS pos_id,
+            "substring"(i.extern_id, '^[^:]*:[0-9]+:(.*):mix:[^:]*$'::text) AS basis,
+            string_agg(format('%s kg %s%s'::text, kg_wort(l.kg), COALESCE(l.sorte, 'ohne Sorte'::text),
+                CASE
+                    WHEN l.charge_nr IS NULL THEN ' (ohne Charge)'::text
+                    ELSE ' auf Charge '::text || l.charge_nr
+                END), ', '::text ORDER BY l.sorte) AS text,
+            sum(l.kg) AS kg
+           FROM lieferung_import i
+             JOIN lieferung l ON l.id = i.lieferung_id
+          WHERE i.extern_id ~~ '%:mix:%'::text AND split_part(i.extern_id, ':'::text, 2) ~ '^\d+$'::text
+          GROUP BY i.quelle, (split_part(i.extern_id, ':'::text, 2)::bigint), ("substring"(i.extern_id, '^[^:]*:[0-9]+:(.*):mix:[^:]*$'::text))
+        ), doppelt AS (
+         SELECT d.quelle,
+            d.pos_id,
+            string_agg(format('Charge %s %s'::text, d.nummer,
+                CASE d.n
+                    WHEN 2 THEN 'zweimal'::text
+                    WHEN 3 THEN 'dreimal'::text
+                    ELSE d.n || '-mal'::text
+                END), ', '::text ORDER BY d.nummer) AS text
+           FROM ( SELECT zeile.quelle,
+                    zeile.pos_id,
+                    zeile.nummer,
+                    count(*)::integer AS n
+                   FROM zeile
+                  WHERE zeile.nummer IS NOT NULL
+                  GROUP BY zeile.quelle, zeile.pos_id, zeile.nummer
+                 HAVING count(*) > 1 AND count(DISTINCT zeile.batch_menge) = 1) d
+          GROUP BY d.quelle, d.pos_id
+        ), pos AS (
+         SELECT z.quelle,
+            z.pos_id,
+            min(z.datum) AS datum,
+            min(z.kunde) AS kunde,
+            min(z.artikel_id) AS artikel_id,
+            min(z.artikel) AS artikel,
+            min(z.einheit) AS einheit,
+            max(z.menge) AS menge,
+            max(z.gewicht_je_artikel) AS gewicht_je_artikel,
+            max(z.kg_position) AS kg_position,
+            min(z.preisgruppe) AS preisgruppe,
+            min(z.liefer_label) AS liefer_label,
+            min(z.ts) AS eingelesen,
+            min(z.auftragsnr) AS auftragsnr,
+            count(DISTINCT z.label_z) FILTER (WHERE z.nummer IS NOT NULL AND z.kg_charge > 0::numeric)::integer AS n_labels,
+            string_agg(format('%s kg aus %s (%s)'::text, kg_wort(z.kg_charge), z.nummer,
+                CASE z.label_z
+                    WHEN 'D'::text THEN 'Demeter'::text
+                    WHEN 'K'::text THEN 'Knospe'::text
+                    ELSE COALESCE(z.liefer_label, 'ohne Label'::text)
+                END), ', '::text ORDER BY z.kg_charge DESC, z.nummer) FILTER (WHERE z.nummer IS NOT NULL AND z.kg_charge > 0::numeric) AS labels_text,
+            count(*)::integer AS n_zeilen,
+            count(z.nummer)::integer AS n_nummer,
+            count(*) FILTER (WHERE z.nummer IS NOT NULL AND z.kg_charge > 0::numeric)::integer AS n_menge,
+            COALESCE(sum(z.kg_charge) FILTER (WHERE z.nummer IS NOT NULL AND z.kg_charge > 0::numeric), 0::numeric) AS kg_zugeteilt,
+            string_agg(DISTINCT z.nummer, ', '::text ORDER BY z.nummer) AS nummern,
+            string_agg(DISTINCT z.nummer, ', '::text ORDER BY z.nummer) FILTER (WHERE COALESCE(z.kg_charge, 0::numeric) <= 0::numeric) AS nummern_ohne_menge
+           FROM zeile z
+          GROUP BY z.quelle, z.pos_id
+        ), p AS (
+         SELECT pos.quelle,
+            pos.pos_id,
+            pos.datum,
+            pos.kunde,
+            pos.artikel_id,
+            pos.artikel,
+            pos.einheit,
+            pos.menge,
+            pos.gewicht_je_artikel,
+            pos.kg_position,
+            pos.preisgruppe,
+            pos.liefer_label,
+            pos.eingelesen,
+            pos.auftragsnr,
+            pos.n_labels,
+            pos.labels_text,
+            pos.n_zeilen,
+            pos.n_nummer,
+            pos.n_menge,
+            pos.kg_zugeteilt,
+            pos.nummern,
+            pos.nummern_ohne_menge,
+            f_1.kg AS kg_rechnung,
+            f_1.kg_ohne,
+                CASE
+                    WHEN f_1.n_chargen = 1 THEN f_1.charge_nr
+                    ELSE NULL::integer
+                END AS charge_nr,
+            COALESCE(f_1.sorte, aa.sorte) AS sorte,
+            d.text AS doppelt,
+                CASE
+                    WHEN pos.nummern ~~ '%,%'::text THEN 'die Chargen '::text || pos.nummern
+                    ELSE 'die Charge '::text || pos.nummern
+                END AS chargen_text,
+                CASE
+                    WHEN lower(pos.artikel) ~ '(demeter|\mdem\M)'::text THEN 'D'::text
+                    WHEN lower(pos.artikel) ~ 'knospe'::text THEN 'K'::text
+                    ELSE NULL::text
+                END AS label_name,
+                CASE
+                    WHEN upper(COALESCE(pos.preisgruppe, ''::text)) ~~ 'D%'::text THEN 'D'::text
+                    WHEN upper(COALESCE(pos.preisgruppe, ''::text)) ~ '^(K|CH-K)'::text THEN 'K'::text
+                    ELSE NULL::text
+                END AS label_preis
+           FROM pos
+             LEFT JOIN lief f_1 ON f_1.quelle = pos.quelle AND f_1.pos_id = pos.pos_id
+             LEFT JOIN ausgang_artikel aa ON aa.artikel_id = pos.artikel_id AND aa.artikel = pos.artikel
+             LEFT JOIN doppelt d ON d.quelle = pos.quelle AND d.pos_id = pos.pos_id
+        ), r AS (
+         SELECT z.id,
+            z.quelle,
+            z.pos_id,
+            z.lauf_nr,
+            z.datum,
+            z.kunde,
+            z.artikel_id,
+            z.artikel,
+            z.einheit,
+            z.menge,
+            z.gewicht_je_artikel,
+            z.batch_menge,
+            z.kg_position,
+            z.kg_charge,
+            z.preisgruppe,
+            z.liefer_label,
+            z.produzent,
+            z.ts,
+            z.auftragsnr,
+            z.label_z,
+            z.nummer,
+            z.ziffern,
+            l.id AS lieferung_id,
+            l.charge_nr,
+            l.kg AS kg_lieferung,
+            c.sorte,
+            sk.artikelgruppe AS gruppe_charge,
+            e.gruppe AS gruppe_artikel,
+            e.label AS label_verkauft,
+                CASE
+                    WHEN upper(COALESCE(z.liefer_label, ''::text)) ~~ 'D%'::text THEN 'D'::text
+                    WHEN upper(COALESCE(z.liefer_label, ''::text)) ~ '^(K|CH-K)'::text THEN 'K'::text
+                    ELSE NULL::text
+                END AS label_geliefert,
+            ( SELECT x.nr
+                   FROM charge x
+                  WHERE z.ziffern <> ''::text AND x.nr::text = z.ziffern) AS eigene,
+            ( SELECT array_agg(x.nr ORDER BY x.nr) AS array_agg
+                   FROM charge x
+                  WHERE z.ziffern <> ''::text AND x.perigon_nr::text = z.ziffern) AS an_perigon,
+            ( SELECT min(pl.eingangsdatum) AS min
+                   FROM palette pl
+                  WHERE pl.charge_nr = l.charge_nr) AS erster_eingang
+           FROM zeile z
+             JOIN lieferung_import i ON i.zeile_id = z.id AND i.extern_id !~~ '%:rest'::text AND i.extern_id !~~ '%:rueckgabe'::text AND i.extern_id !~~ '%:mix:%'::text
+             JOIN lieferung l ON l.id = i.lieferung_id
+             LEFT JOIN charge c ON c.nr = l.charge_nr
+             LEFT JOIN sorte_kaliber sk ON sk.sorte = c.sorte
+             CROSS JOIN LATERAL ( SELECT artikel_einordnen.gruppe,
+                    artikel_einordnen.groesse,
+                    artikel_einordnen.label
+                   FROM artikel_einordnen(z.artikel, z.preisgruppe) artikel_einordnen(gruppe, groesse, label)
+                 LIMIT 1) e
+          WHERE z.nummer IS NOT NULL AND COALESCE(z.kg_charge, 0::numeric) > 0::numeric
+        ), fall AS (
+         SELECT 'menge_null'::text AS art,
+            p_1.quelle,
+            p_1.pos_id,
+            NULL::text AS nummer,
+            NULL::integer AS lauf_nr,
+            p_1.charge_nr,
+            p_1.sorte,
+                CASE
+                    WHEN p_1.kg_position > 0::numeric THEN p_1.kg_position
+                    ELSE NULL::numeric
+                END AS kg,
+                CASE
+                    WHEN p_1.kg_position > 0::numeric THEN format('Perigon nennt %s, teilt aber keine Menge zu: Spalte S („AufPosBatchQuantity Charge") ist 0. Die Position hat %s kg (Spalte Q × AE) — sie bleibt ganz ohne Charge.'::text, p_1.chargen_text, kg_wort(p_1.kg_position))
+                    ELSE format('Perigon nennt %s, aber die Position hat keine Menge — Spalte Q und Spalte S sind 0. Sie zählt nirgends; ging Ware hinaus, fehlt sie im Warenausgang.'::text, p_1.chargen_text)
+                END AS satz,
+            'In Perigon bei dieser Position die Menge (Spalte Q) und die Menge je Charge (Spalte S) eintragen, dann die Datei unter Betrieb → Warenausgang neu einlesen.'::text AS tun,
+            'perigon'::text AS wo
+           FROM p p_1
+          WHERE p_1.n_nummer > 0 AND p_1.n_menge = 0 AND (p_1.kg_position > 0::numeric OR COALESCE(p_1.kg_position, 0::numeric) = 0::numeric AND COALESCE(p_1.menge, 0::numeric) = 0::numeric)
+        UNION ALL
+         SELECT 'zu_viel'::text,
+            p_1.quelle,
+            p_1.pos_id,
+            NULL::text,
+            NULL::integer,
+            p_1.charge_nr,
+            p_1.sorte,
+            p_1.kg_zugeteilt - p_1.kg_position,
+            format('Die Chargenzeilen geben zusammen %s kg (Spalte S × AE), die Position nur %s kg (Spalte Q × AE) — %s kg zu viel.%s Die App zählt höchstens die Position: %s.'::text, kg_wort(p_1.kg_zugeteilt), kg_wort(p_1.kg_position), kg_wort(p_1.kg_zugeteilt - p_1.kg_position),
+                CASE
+                    WHEN p_1.doppelt IS NOT NULL THEN format(' Dieselbe Zeile steht mehrfach da (%s).'::text, p_1.doppelt)
+                    ELSE ''::text
+                END,
+                CASE
+                    WHEN p_1.nummern ~~ '%,%'::text THEN 'die Chargen bekommen ihre Menge in der Folge der Zeilen, bis die Position voll ist — wie viel welche bekam, sagt die Datei nicht sicher'::text
+                    ELSE format('%s bekommt die %s kg der Position'::text, p_1.chargen_text, kg_wort(p_1.kg_position))
+                END) AS format,
+            'In Perigon die Menge je Charge (Spalte S) berichtigen — zusammen so viel wie die Position —, eine doppelte Zeile entfernen, dann neu einlesen.'::text,
+            'perigon'::text
+           FROM p p_1
+          WHERE p_1.kg_position > 0::numeric AND p_1.kg_zugeteilt > (p_1.kg_position + 0.5)
+        UNION ALL
+         SELECT 'rest'::text,
+            p_1.quelle,
+            p_1.pos_id,
+            NULL::text,
+            NULL::integer,
+            p_1.charge_nr,
+            p_1.sorte,
+            p_1.kg_position - p_1.kg_zugeteilt,
+            format('Perigon teilt %s nur %s von %s kg zu (Spalte S); %s kg bleiben ohne Charge.%s'::text, p_1.chargen_text, kg_wort(p_1.kg_zugeteilt), kg_wort(p_1.kg_position), kg_wort(p_1.kg_position - p_1.kg_zugeteilt),
+                CASE
+                    WHEN p_1.nummern_ohne_menge IS NOT NULL THEN format(' Ohne Menge genannt: %s.'::text, p_1.nummern_ohne_menge)
+                    ELSE ''::text
+                END) AS format,
+            'In Perigon die Menge je Charge (Spalte S) nachtragen, dann neu einlesen. Bis dahin verteilt die App den Rest auf alle Chargen der Sorte.'::text,
+            'perigon'::text
+           FROM p p_1
+          WHERE p_1.n_menge > 0 AND (p_1.kg_position - p_1.kg_zugeteilt) > 0.5
+        UNION ALL
+         SELECT 'keine_nummer'::text,
+            p_1.quelle,
+            p_1.pos_id,
+            NULL::text,
+            NULL::integer,
+            NULL::integer AS int4,
+            p_1.sorte,
+            p_1.kg_position,
+            format('In Perigon steht bei dieser Position keine Chargennummer (Spalte W „AuftragsChargeManuell" ist leer) — %s kg ohne Charge.'::text, kg_wort(p_1.kg_position)) AS format,
+            'In Perigon die Charge (Spalte W) und die Menge je Charge (Spalte S) eintragen, dann neu einlesen. Bis dahin verteilt die App die Menge auf alle Chargen der Sorte.'::text,
+            'perigon'::text
+           FROM p p_1
+          WHERE p_1.n_nummer = 0 AND p_1.kg_position > 0::numeric
+        UNION ALL
+         SELECT 'ohne_gewicht'::text,
+            p_1.quelle,
+            p_1.pos_id,
+            NULL::text,
+            NULL::integer,
+            p_1.charge_nr,
+            p_1.sorte,
+            NULL::numeric AS "numeric",
+            format('%s %s ohne Gewicht je Artikel (Spalte AE ist leer oder 0) — die Masse ist unbekannt; die App zählt die Position nicht, statt 0 kg zu raten.'::text, TRIM(BOTH FROM to_char(p_1.menge, 'FM999999990.###'::text)), COALESCE(p_1.einheit, 'Stück'::text)) AS format,
+            'In Perigon das Gewicht je Artikel (Spalte AE) eintragen, dann neu einlesen.'::text,
+            'perigon'::text
+           FROM p p_1
+          WHERE p_1.kg_position IS NULL AND COALESCE(p_1.menge, 0::numeric) <> 0::numeric
+        UNION ALL
+         SELECT 'ruecknahme'::text,
+            p_1.quelle,
+            p_1.pos_id,
+            NULL::text,
+            NULL::integer,
+            p_1.charge_nr,
+            p_1.sorte,
+            - p_1.kg_position,
+            format('Negative Menge (%s kg): eine Rücknahme. Die App bucht sie als Rücknahme, nicht als Verkauf.'::text, kg_wort(p_1.kg_position)) AS format,
+            'Nichts in der App. Prüfen, ob die Ware wirklich zurückkam.'::text,
+            'nichts'::text
+           FROM p p_1
+          WHERE p_1.kg_position < 0::numeric
+        UNION ALL
+         SELECT 'masse_abweichung'::text,
+            p_1.quelle,
+            p_1.pos_id,
+            NULL::text,
+            NULL::integer,
+            p_1.charge_nr,
+            p_1.sorte,
+            COALESCE(p_1.kg_rechnung, 0::numeric) - p_1.kg_position,
+                CASE
+                    WHEN p_1.kg_rechnung IS NULL THEN format('Die Position steht in der Datei (%s kg), aber in der Rechnung gibt es keine Lieferung dazu.'::text, kg_wort(p_1.kg_position))
+                    ELSE format('In der Rechnung stehen für diese Position %s kg, die Datei ergibt %s kg — %s kg %s.'::text, kg_wort(p_1.kg_rechnung), kg_wort(p_1.kg_position), kg_wort(abs(p_1.kg_rechnung - p_1.kg_position)),
+                    CASE
+                        WHEN p_1.kg_rechnung > p_1.kg_position THEN 'zu viel'::text
+                        ELSE 'zu wenig'::text
+                    END)
+                END AS format,
+            'Die Datei unter Betrieb → Warenausgang neu einlesen: die App legt an, was fehlt, und entfernt, was die Datei nicht mehr ergibt. Eine von Hand geänderte Lieferung bekommt dabei wieder die Masse der Datei.'::text,
+            'einlesen'::text
+           FROM p p_1
+          WHERE p_1.kg_position > 0::numeric AND abs(COALESCE(p_1.kg_rechnung, 0::numeric) - p_1.kg_position) > 0.05
+        UNION ALL
+         SELECT 'label_name'::text,
+            p_1.quelle,
+            p_1.pos_id,
+            NULL::text,
+            NULL::integer,
+            p_1.charge_nr,
+            p_1.sorte,
+            p_1.kg_position,
+            format('Der Artikel heisst „%s" (%s), verkauft wurde er in der Preisgruppe %s (%s). Die App nimmt die Preisgruppe.'::text, p_1.artikel,
+                CASE p_1.label_name
+                    WHEN 'D'::text THEN 'Demeter'::text
+                    ELSE 'Knospe'::text
+                END, p_1.preisgruppe,
+                CASE p_1.label_preis
+                    WHEN 'D'::text THEN 'Demeter'::text
+                    ELSE 'Knospe'::text
+                END) AS format,
+            'In Perigon Artikel oder Preisgruppe angleichen — was stimmt, weiss, wer den Auftrag erfasst hat.'::text,
+            'perigon'::text
+           FROM p p_1
+          WHERE p_1.label_name IS NOT NULL AND p_1.label_preis IS NOT NULL AND p_1.label_name <> p_1.label_preis AND COALESCE(p_1.n_labels, 0) <= 1
+        UNION ALL
+         SELECT 'label_gemischt'::text,
+            p_1.quelle,
+            p_1.pos_id,
+            NULL::text,
+            NULL::integer,
+            p_1.charge_nr,
+            p_1.sorte,
+            p_1.kg_position,
+            format('Auftrag %s vom %s: unter dem Artikel „%s" (Preisgruppe %s) gingen Chargen mit verschiedenen Lieferlabels hinaus — %s. Knospe-Ware unter einem Demeter-Namen, oder umgekehrt?'::text, COALESCE(NULLIF(p_1.auftragsnr, ''::text), '?'::text), to_char(p_1.datum::timestamp with time zone, 'DD.MM.YYYY'::text), p_1.artikel, COALESCE(p_1.preisgruppe, '—'::text), p_1.labels_text) AS format,
+            'Mit der Person klären, die den Auftrag in Perigon erfasst hat: stimmt der Artikel für alle Chargen? Sonst in Perigon den Artikel aufteilen oder die Charge (Spalte W) berichtigen, dann neu einlesen.'::text,
+            'perigon'::text
+           FROM p p_1
+          WHERE p_1.n_labels > 1
+        UNION ALL
+         SELECT 'kg_gewicht'::text,
+            p_1.quelle,
+            p_1.pos_id,
+            NULL::text,
+            NULL::integer,
+            p_1.charge_nr,
+            p_1.sorte,
+            p_1.kg_position,
+            format('Perigon führt „%s" in kg, aber mit Gewicht je Artikel %s (Spalte AE). Die Menge (Spalte Q, %s kg) ist schon das Gewicht; Perigon rechnet das Totalgewicht trotzdem × %s (%s kg). Die App nimmt die Menge.'::text, p_1.artikel, TRIM(BOTH FROM to_char(p_1.gewicht_je_artikel, 'FM999990.###'::text)), kg_wort(p_1.menge), TRIM(BOTH FROM to_char(p_1.gewicht_je_artikel, 'FM999990.###'::text)), kg_wort(p_1.menge * p_1.gewicht_je_artikel)) AS format,
+            'Im Perigon-Artikelstamm beim Artikel das Gewicht je Artikel (Spalte AE) auf 1 setzen. In der App ist nichts zu tun — sie zählt schon die Menge.'::text,
+            'perigon'::text
+           FROM p p_1
+          WHERE lower(btrim(COALESCE(p_1.einheit, ''::text))) ~~ 'kg%'::text AND p_1.gewicht_je_artikel IS NOT NULL AND (p_1.gewicht_je_artikel <> ALL (ARRAY[0::numeric, 1::numeric]))
+        UNION ALL
+         SELECT 'unique_ohne_hagel'::text,
+            r.quelle,
+            r.pos_id,
+            r.nummer,
+            r.lauf_nr,
+            r.charge_nr,
+            r.sorte,
+            r.kg_lieferung,
+                CASE
+                    WHEN (EXISTS ( SELECT 1
+                       FROM charge h
+                      WHERE h.hagel_anteil > 0::numeric)) THEN format('Ünique unter Charge %s (%s), bei der kein Hagel eingetragen ist. Ünique kommt aus dem Ünique-Topf: die App zieht die %s kg vom Topf ab, nicht von Charge %s.'::text, r.charge_nr, COALESCE(r.sorte, 'Sorte unbekannt'::text), kg_wort(r.kg_lieferung), r.charge_nr)
+                    ELSE format('Ünique unter Charge %s (%s), aber bei keiner Charge ist Hagel eingetragen — ohne Hagel-Charge gibt es keinen Ünique-Topf, und die App zieht die %s kg von Charge %s ab.'::text, r.charge_nr, COALESCE(r.sorte, 'Sorte unbekannt'::text), kg_wort(r.kg_lieferung), r.charge_nr)
+                END AS format,
+            'Steht in Perigon (Spalte W) die falsche Charge, dort berichtigen; fehlt bei der Charge der Hagel, ihn unter Chargen eintragen.'::text,
+            'perigon'::text
+           FROM r
+          WHERE ist_unique_artikel(r.artikel) AND r.charge_nr IS NOT NULL AND NOT (EXISTS ( SELECT 1
+                   FROM charge h
+                  WHERE h.nr = r.charge_nr AND h.hagel_anteil > 0::numeric))
+        UNION ALL
+         SELECT
+                CASE
+                    WHEN r.eigene IS NOT NULL OR cardinality(r.an_perigon) = 1 THEN 'nachholen'::text
+                    WHEN cardinality(r.an_perigon) > 1 THEN 'mehrdeutig'::text
+                    ELSE 'unbekannt'::text
+                END AS "case",
+            r.quelle,
+            r.pos_id,
+            r.nummer,
+            r.lauf_nr,
+            NULL::integer AS int4,
+            NULL::text AS text,
+            r.kg_lieferung,
+                CASE
+                    WHEN r.eigene IS NOT NULL OR cardinality(r.an_perigon) = 1 THEN format('Perigon nennt %s; die Nummer steht inzwischen an Charge %s — beim Einlesen kannte die App sie noch nicht.'::text, r.nummer, COALESCE(r.eigene, r.an_perigon[1]))
+                    WHEN cardinality(r.an_perigon) > 1 THEN format('Perigon nennt %s; diese Perigon-Nummer steht an mehreren Chargen (%s), und der Artikel sagt nicht, an welcher.'::text, r.nummer, array_to_string(r.an_perigon, ', '::text))
+                    ELSE format('Perigon nennt %s — diese Nummer steht an keiner Charge der App.'::text, r.nummer)
+                END AS format,
+                CASE
+                    WHEN r.eigene IS NOT NULL OR cardinality(r.an_perigon) = 1 THEN 'Nichts — beim nächsten Rechnen („Neu rechnen" oben) bekommt der Lieferschein die Charge von selbst.'::text
+                    WHEN cardinality(r.an_perigon) > 1 THEN 'Unter Betrieb → Stammdaten → Chargen die Nummer nur bei der richtigen Charge lassen; beim nächsten Rechnen bekommt der Lieferschein sie.'::text
+                    ELSE 'Unter Betrieb → Stammdaten → Chargen bei der richtigen Charge als Perigon-Nr. eintragen; beim nächsten Rechnen bekommt der Lieferschein sie von selbst. Ist die Nummer ein Tippfehler, in Perigon berichtigen.'::text
+                END AS "case",
+                CASE
+                    WHEN r.eigene IS NOT NULL OR cardinality(r.an_perigon) = 1 THEN 'nichts'::text
+                    ELSE 'stammdaten'::text
+                END AS "case"
+           FROM r
+          WHERE r.charge_nr IS NULL
+        UNION ALL
+         SELECT 'artikel_sorte'::text,
+            r.quelle,
+            r.pos_id,
+            r.nummer,
+            r.lauf_nr,
+            r.charge_nr,
+            r.sorte,
+            r.kg_lieferung,
+            format('Verkauft als %s („%s"), aber die Charge %s ist %s — und %s geht als %s. Entweder steht der falsche Artikel oder die falsche Charge auf dem Lieferschein.'::text, r.gruppe_artikel, r.artikel, r.charge_nr, r.sorte, r.sorte, r.gruppe_charge) AS format,
+            'Den Lieferschein ansehen: ist der Artikel falsch, in Perigon den Artikel berichtigen; ist die Charge falsch, die Charge (Spalte W) — dann neu einlesen.'::text,
+            'perigon'::text
+           FROM r
+          WHERE r.charge_nr IS NOT NULL AND r.gruppe_artikel IS NOT NULL AND r.gruppe_charge IS NOT NULL AND (r.gruppe_artikel <> ALL (ARRAY['Mix'::text, 'andere'::text, 'Ünique'::text])) AND r.gruppe_artikel <> r.gruppe_charge
+        UNION ALL
+         SELECT 'demeter_knospe'::text,
+            r.quelle,
+            r.pos_id,
+            r.nummer,
+            r.lauf_nr,
+            r.charge_nr,
+            r.sorte,
+            r.kg_lieferung,
+            format('Verkauft zum Demeter-Preis (Preisgruppe %s), aber die Ware der Charge %s trägt das Lieferlabel %s — das ist Knospe.'::text, r.preisgruppe, r.charge_nr, r.liefer_label) AS format,
+            'In Perigon Preisgruppe (Spalte K) und Lieferlabel (Spalte Z) prüfen: wurde Knospe als Demeter verrechnet, oder stimmt das Label nicht?'::text,
+            'perigon'::text
+           FROM r
+          WHERE r.charge_nr IS NOT NULL AND r.label_verkauft = 'D'::text AND r.label_geliefert = 'K'::text
+        UNION ALL
+         SELECT 'mix'::text,
+            r.quelle,
+            r.pos_id,
+            r.nummer,
+            r.lauf_nr,
+            r.charge_nr,
+            r.sorte,
+            r.kg_lieferung,
+            format('Verkauft als „%s" auf Charge %s (%s). Die App hat den Mix nicht nach dem Rezept verteilt (in der Datei fehlt der Kisteninhalt, Spalte „AuftragsGebindeinhalt", oder es gibt kein Rezept) — sie zieht die ganzen %s kg von %s ab.'::text, r.artikel, r.charge_nr, r.sorte, kg_wort(r.kg_lieferung), r.charge_nr) AS format,
+            'Fehlt der Kisteninhalt, in Perigon nachtragen und neu einlesen; fehlt das Rezept, unter Betrieb → Stammdaten → Sorten und Artikel (Kürbis Mix) eintragen. Gehört der Mix zu einer anderen Charge, in Perigon die Charge (Spalte W) berichtigen.'::text,
+            'firma'::text
+           FROM r
+          WHERE r.charge_nr IS NOT NULL AND r.gruppe_artikel = 'Mix'::text AND NOT (EXISTS ( SELECT 1
+                   FROM mixteil m
+                  WHERE m.quelle = r.quelle AND m.pos_id = r.pos_id AND m.basis = ((r.nummer || ':'::text) || r.lauf_nr)))
+        UNION ALL
+         SELECT 'mix_verteilt'::text,
+            r.quelle,
+            r.pos_id,
+            r.nummer,
+            r.lauf_nr,
+            r.charge_nr,
+            r.sorte,
+            r.kg_lieferung + m.kg,
+            format('„%s" (%s kg) nach dem Mix-Rezept verteilt: %s kg auf Charge %s (%s), dazu %s.'::text, r.artikel, kg_wort(r.kg_lieferung + m.kg), kg_wort(r.kg_lieferung), r.charge_nr, r.sorte, m.text) AS format,
+            'Nichts. Das Rezept steht unter Betrieb → Stammdaten → Sorten und Artikel (Kürbis Mix); stimmt es nicht mehr, dort berichtigen und neu einlesen.'::text,
+            'nichts'::text
+           FROM r
+             JOIN mixteil m ON m.quelle = r.quelle AND m.pos_id = r.pos_id AND m.basis = ((r.nummer || ':'::text) || r.lauf_nr)
+          WHERE r.gruppe_artikel = 'Mix'::text
+        UNION ALL
+         SELECT 'vor_eingang'::text,
+            r.quelle,
+            r.pos_id,
+            r.nummer,
+            r.lauf_nr,
+            r.charge_nr,
+            r.sorte,
+            r.kg_lieferung,
+            format('Geliefert am %s, aber die Charge %s kam laut Erntejournal erst am %s an (%s Tage später) — von ihr kann die Ware nicht sein.'::text, to_char(r.datum::timestamp with time zone, 'DD.MM.YYYY'::text), r.charge_nr, to_char(r.erster_eingang::timestamp with time zone, 'DD.MM.YYYY'::text), r.erster_eingang - r.datum) AS format,
+            'Entweder steht die falsche Charge auf dem Lieferschein (in Perigon Spalte W berichtigen) oder das Eingangsdatum im Erntejournal stimmt nicht.'::text,
+            'perigon'::text
+           FROM r
+          WHERE r.charge_nr IS NOT NULL AND r.erster_eingang IS NOT NULL AND r.datum < r.erster_eingang
+        )
+ SELECT ((((f.art || ':'::text) || f.quelle) || ':'::text) || f.pos_id) || COALESCE(((':'::text || f.nummer) || ':'::text) || f.lauf_nr, ''::text) AS schluessel,
+    f.art,
+        CASE
+            WHEN f.art = ANY (ARRAY['nachholen'::text, 'ruecknahme'::text, 'mix_verteilt'::text]) THEN 'info'::text
+            WHEN (f.art = ANY (ARRAY['menge_null'::text, 'keine_nummer'::text, 'rest'::text, 'unbekannt'::text, 'mehrdeutig'::text, 'vor_eingang'::text, 'artikel_sorte'::text, 'masse_abweichung'::text])) AND abs(COALESCE(f.kg, 0::numeric)) >= 500::numeric THEN 'rot'::text
+            ELSE 'gelb'::text
+        END AS schwere,
+    f.quelle,
+    f.pos_id,
+    p.datum,
+    p.kunde,
+    p.artikel,
+    p.einheit,
+    zahl(p.menge, 3, '1000000000000'::numeric)::numeric(14,3) AS menge,
+    zahl(p.gewicht_je_artikel, 4, '100000000'::numeric)::numeric(12,4) AS gewicht_je_artikel,
+    p.preisgruppe,
+    p.liefer_label,
+    zahl(p.kg_position, 2, '1000000000000'::numeric)::numeric(14,2) AS kg_position,
+    zahl(p.kg_zugeteilt, 2, '1000000000000'::numeric)::numeric(14,2) AS kg_zugeteilt,
+    zahl(p.kg_rechnung, 2, '1000000000000'::numeric)::numeric(14,2) AS kg_rechnung,
+    zahl(p.kg_ohne, 2, '1000000000000'::numeric)::numeric(14,2) AS kg_ohne_charge,
+    zahl(f.kg, 2, '1000000000000'::numeric)::numeric(14,2) AS kg,
+    p.nummern,
+    f.nummer,
+    f.lauf_nr,
+    COALESCE(f.charge_nr, p.charge_nr) AS charge_nr,
+    COALESCE(f.sorte, p.sorte) AS sorte,
+    p.n_zeilen,
+    f.satz,
+    f.tun,
+    f.wo,
+    p.eingelesen
+   FROM fall f
+     JOIN p ON p.quelle = f.quelle AND p.pos_id = f.pos_id;
+
+create or replace view v_perigon_stand with (security_invoker = true) as
+select q.code as quelle, q.name,
+       (select count(*) from ausgang_zeile z where z.quelle = q.code)::int as zeilen,
+       (select count(distinct z.pos_id) from ausgang_zeile z where z.quelle = q.code)::int as positionen,
+       (select min(z.datum) from ausgang_zeile z where z.quelle = q.code) as von,
+       (select max(z.datum) from ausgang_zeile z where z.quelle = q.code) as bis,
+       d.ts as zuletzt_geladen, d.dateiname as letzte_datei, d.bis_datum as letzte_bis,
+       (select count(*) from ausgang_datei x where x.quelle = q.code)::int as dateien,
+
+       (select count(*) from (select distinct z.pos_id from ausgang_zeile z where z.quelle = q.code) z
+         where not exists (select 1 from ausgang_position ap where ap.quelle = q.code and ap.pos_id = z.pos_id and ap.roh is not null))::int as ohne_roh,
+       zahl((select sum(l.kg) from lieferung_import i join lieferung l on l.id = i.lieferung_id
+              where i.quelle = q.code and i.extern_id not like '%:rueckgabe'), 1, 1e13)::numeric(14,1) as kg,
+       zahl((select sum(l.kg) from lieferung_import i join lieferung l on l.id = i.lieferung_id
+              where i.quelle = q.code and l.charge_nr is null and i.extern_id not like '%:rueckgabe'), 1, 1e13)::numeric(14,1) as kg_ohne_charge,
+       (select count(*) from v_perigon_befund b where b.quelle = q.code and b.schwere <> 'info')::int as faelle
+  from ausgang_quelle q
+  left join lateral (select x.ts, x.dateiname, x.bis_datum from ausgang_datei x where x.quelle = q.code order by x.ts desc, x.id desc limit 1) d on true;
 
 -- ---------------------------------------------------------------------
 -- Beschreibungen, Leserechte und Indizes

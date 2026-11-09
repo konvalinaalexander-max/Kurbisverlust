@@ -1210,10 +1210,15 @@ const BILDSCHIRME = [
   { name: 'messungen-arbeit', wer: 'admin', pfad: '/messungen/auffaelligkeiten',
     tun: async p => {
       const zeilen = p.locator('#auff-liste .fall-zeile', { hasText: /Arbeit \d+|Sortieren|Waschen/ })
-      await zeilen.last().scrollIntoViewIfNeeded()
+      // 9. November: die Liste rendert nach dem Laden noch einmal neu — die gegriffene Zeile hing dann nicht
+      // mehr im DOM („not attached"). Erst warten, bis nichts mehr lädt; click() greift die Zeile neu und scrollt selbst.
+      await zeilen.last().waitFor()
+      await p.waitForLoadState('networkidle')
       await zeilen.last().click()
       const knopf = p.locator('#auff-ansicht #auff-arbeit')
-      await knopf.scrollIntoViewIfNeeded()
+      // die Ansicht des gewählten Falls rendert nach dem Wechsel neu — click() greift den Knopf neu und scrollt selbst
+      await knopf.waitFor()
+      await p.waitForLoadState('networkidle')
       await knopf.click()
       await p.locator('#arbeit-fenster h2').waitFor()
       const box = await p.locator('#arbeit-fenster').boundingBox()
@@ -1297,6 +1302,35 @@ const BILDSCHIRME = [
       if (balken !== 1) throw new Error(`Übersicht bei Knirps · Demeter: ${balken} Balken statt einem`)
       // Runde AR: die Stück ohne Gewicht sind Muscade, nicht Knirps — der Hinweis folgt der Wahl.
       if (await p.locator('#artikel-ohne-gewicht').count()) throw new Error('Bei Knirps steht der Hinweis auf Muscade-Stück ohne Gewicht')
+    } },
+  // 0137: „Ünique soll eine Zeile sein und keine Spalte" — bei allen Artikeln eine eigene Zeile, keine Spalte bei
+  // Knirps; gewählt, fallen Grösse und Label weg; bei Knirps steht es nicht.
+  { name: 'artikel-unique', wer: 'admin', pfad: '/artikel',
+    tun: async p => {
+      const topf = fixture('v_unique_topf')?.[0]
+      if (!topf?.chargen?.length) throw new Error('v_unique_topf.json kennt keine Hagel-Charge — daten_dumpen.sh nach 0133 neu laufen lassen')
+      await p.locator('#artikel-unique-zeile').waitFor()
+      const zeile = await p.locator('#artikel-unique-zeile').innerText()
+      if (!/Ünique/.test(zeile) || !/Hagelware/.test(zeile)) throw new Error(`Die Ünique-Zeile sagt nicht, was sie ist: ${zeile}`)
+      const kopf = await p.locator('#artikel-uebersicht-tabelle thead').innerText()
+      if (/Ünique|Unique/i.test(kopf)) throw new Error(`Ünique steht noch als Spalte: ${kopf}`)
+      const balkenName = await p.locator('#artikel-uebersicht .uebersicht-name', { hasText: 'Ünique' }).innerText()
+      if (!/geht als Knospe/.test(balkenName) || !/mit Hagel/.test(balkenName)) throw new Error(`Der Ünique-Balken sagt nicht, was er ist: ${balkenName}`)
+      await p.locator('#artikel-gruppe').selectOption('Ünique')
+      await p.locator('#artikel-unique-wahl').waitFor()
+      if (await p.locator('#artikel-groesse').count() || await p.locator('#artikel-label').count()) throw new Error('Bei Ünique stehen Grösse und Label noch da')
+      const balken = await p.locator('#artikel-uebersicht .uebersicht-zeile').count()
+      if (balken !== 1) throw new Error(`Übersicht bei Ünique: ${balken} Balken statt einem`)
+      if (await p.locator('#kz-artikel-d').count()) throw new Error('Bei Ünique steht „davon Demeter"')
+      const kz = await p.locator('#kz-artikel-gesamt').innerText()
+      // der Titel der Kennzahl steht in Grossbuchstaben (CSS) — innerText gibt sie so zurück
+      if (!/Ünique: verkaufsfähig/i.test(kz)) throw new Error(`Die Kennzahl nennt Ünique nicht: ${kz}`)
+      await p.locator('#artikel-gruppe').selectOption('Knirps')
+      await p.locator('#artikel-groesse').waitFor()
+      if (await p.locator('#artikel-unique-zeile').count()) throw new Error('Bei Knirps steht die Ünique-Zeile')
+      // zurück zu allen Artikeln (die Wahl bleibt im Browser gespeichert)
+      await p.locator('#artikel-wahl button', { hasText: 'alle zeigen' }).click()
+      await p.locator('#artikel-unique-zeile').waitFor()
     } },
   // … und ein Kunde allein im grossen Diagramm, per Klick in der Tabelle.
   { name: 'artikel-kunde', wer: 'admin', pfad: '/artikel',

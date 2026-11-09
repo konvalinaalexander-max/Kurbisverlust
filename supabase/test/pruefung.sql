@@ -13865,3 +13865,113 @@ begin
 end $$;
 
 select '——— 0136 Was in der Halle steht ———' as ergebnis;
+
+-- =====================================================================
+-- 0137 — Ünique ist ein eigener Artikel
+--
+-- Der Betrieb am 9. November: „Ünique zählt nicht als Unterkategorie der
+-- anderen Artikel … Ünique soll eine Zeile sein und keine Spalte."
+-- Geprüft an gebauten Fällen und auf der Demo (mit ihrer Hagel-Charge):
+-- (a) artikel_einordnen(): ein Ünique-Artikel ist die Gruppe „Ünique", vor
+--     jedem anderen Wort im Namen, auch ohne Umlaut; Grösse lose; das Label
+--     aus der Preisgruppe; die anderen Artikel wie bisher;
+-- (b) v_kunde_tag und v_kunde_position: eine Ünique-Position steht unter
+--     „Ünique", nicht unter „andere" — so kann die Seite sie wählen und planen;
+-- (c) v_perigon_befund und v_perigon_pruefung: Ünique unter einer
+--     Knirps-Charge ist kein „Verkauft als …, aber die Charge ist …" — der
+--     eigene Befund (unique_ohne_hagel) sagt es weiter; ein anderer fremder
+--     Artikel (der Mandarin der Demo) wird weiter gemeldet;
+-- (d) v_sorte_artikelgruppe: eine Sorte, die nur noch als Ünique verkauft
+--     wird, wird nie „verkauft als Ünique";
+-- (e) Stand 137.
+-- =====================================================================
+do $$
+declare v_modus jsonb; v_lad text; v_geladen boolean := false; v_x record; v_z record; v_alt text;
+  v_u uuid := '00000000-0137-0000-0000-000000000001';
+begin
+  -- (a) einordnen
+  select * into v_x from artikel_einordnen('Bio Kürbis Ünique', 'CH-K');
+  assert v_x.gruppe = 'Ünique' and v_x.groesse = 'lose' and v_x.label = 'K',
+    format('0137 (a1): „Bio Kürbis Ünique" (Preisgruppe CH-K) ist %s — erwartet Ünique, lose, Knospe', v_x);
+  select * into v_x from artikel_einordnen('Bio Kürbis Unique Kuri gross', 'D');
+  assert v_x.gruppe = 'Ünique' and v_x.label = 'D',
+    format('0137 (a2): Ünique geht vor jedem anderen Wort im Namen (Kuri), auch ohne Umlaut; das Label aus der Preisgruppe: %s', v_x);
+  assert (select gruppe from artikel_einordnen('Bio-Kürbis roter Knirps', 'D')) = 'Knirps'
+     and (select gruppe from artikel_einordnen('Bio Kürbis Mandarin Dem', null)) = 'Mandarin'
+     and (select gruppe from artikel_einordnen('Kürbisverrechnung', null)) = 'andere'
+     and (select gruppe from artikel_einordnen('Kürbis uniquement', null)) = 'andere',
+    '0137 (a3): die anderen Artikel sind nicht mehr, was sie waren (oder ein Wort, das mit unique beginnt, ist Ünique)';
+
+  select wert into v_modus from einstellung where schluessel = 'betriebsmodus';
+  update einstellung set wert = '"beispiel"'::jsonb where schluessel = 'betriebsmodus';
+  insert into auth.users (id, email, raw_user_meta_data) values (v_u, null, '{"name":"Prüf-0137"}');
+  update profil set rolle = 'admin' where id = v_u;
+  perform set_config('request.jwt.claim.sub', v_u::text, true);
+
+  -- (b) je Kunde: eine Ünique-Position und eine Knirps-Position
+  insert into ausgang_quelle (code, name, dateiname_muster) values ('PRUEF137', 'Prüffirma 0137', 'PRUEF137')
+  on conflict (code) do nothing;
+  perform ausgang_historie_uebernehmen('PRUEF137',
+    '[{"pos_id": 1, "datum": "2026-10-20", "journal": "A", "kunde": "Prüfkunde 137", "artikel_id": "kürbuni", "artikel": "Bio Kürbis Ünique", "preisgruppe": "CH-K", "einheit": "kg", "menge": 2160, "gewicht_je_artikel": 1},
+      {"pos_id": 2, "datum": "2026-10-20", "journal": "A", "kunde": "Prüfkunde 137", "artikel_id": "kni", "artikel": "Bio-Kürbis roter Knirps", "preisgruppe": "K", "einheit": "kg", "menge": 100, "gewicht_je_artikel": 1}]'::jsonb);
+  assert (select sum(kg) from v_kunde_tag where kunde = 'Prüfkunde 137' and gruppe = 'Ünique') = 2160
+     and (select sum(kg) from v_kunde_tag where kunde = 'Prüfkunde 137' and gruppe = 'Knirps') = 100
+     and not exists (select 1 from v_kunde_tag where kunde = 'Prüfkunde 137' and gruppe = 'andere'),
+    format('0137 (b1): je Kunde steht Ünique nicht als eigener Artikel: %s',
+           (select string_agg(coalesce(gruppe, '—') || ' ' || kg, ', ') from v_kunde_tag where kunde = 'Prüfkunde 137'));
+  assert (select gruppe || '|' || groesse || '|' || label from v_kunde_position where quelle = 'PRUEF137' and pos_id = 1) = 'Ünique|lose|K',
+    format('0137 (b2): die Ünique-Position in der Liste je Kunde ist %s',
+           (select gruppe || '|' || groesse || '|' || coalesce(label, '—') from v_kunde_position where quelle = 'PRUEF137' and pos_id = 1));
+  delete from ausgang_position where quelle = 'PRUEF137';
+  delete from ausgang_zeile where quelle = 'PRUEF137';
+  delete from ausgang_quelle where code = 'PRUEF137';
+
+  -- (c) und (d) auf der Demo: ihre Hagel-Charge macht den Topf, ihr Mandarin unter Kaori Kuri ist ein echter Befund
+  if not exists (select 1 from auftrag where station = 'waschen_sortieren' and bemerkung = 'DEMO') then
+    select demo_daten_laden() into v_lad; v_geladen := true;
+  end if;
+  assert exists (select 1 from charge where hagel_anteil > 0), '0137 (c0): die Demo hat keine Hagel-Charge — unique_ohne_hagel prüfte nichts';
+  select z.id, z.quelle, z.pos_id, z.artikel into v_z
+    from ausgang_zeile z
+    join lieferung_import li on li.zeile_id = z.id join lieferung l on l.id = li.lieferung_id join charge c on c.nr = l.charge_nr
+   where z.quelle = 'DEMO' and c.sorte = 'Kaori Kuri' and coalesce(c.hagel_anteil, 0) = 0 and z.artikel ilike '%kaori%'
+   order by z.datum, z.pos_id limit 1;
+  assert v_z.id is not null, '0137 (c0): keine Kaori-Kuri-Zeile ohne Hagel in der Demo — der Fall ist nicht gebaut';
+  update ausgang_zeile set artikel = 'Bio Kürbis Ünique' where id = v_z.id;
+  assert not exists (select 1 from v_perigon_befund where art = 'artikel_sorte' and quelle = v_z.quelle and pos_id = v_z.pos_id),
+    '0137 (c1): Ünique unter einer Knirps-Charge heisst „Verkauft als Ünique, aber die Charge ist Kaori Kuri"';
+  assert exists (select 1 from v_perigon_befund where art = 'unique_ohne_hagel' and quelle = v_z.quelle and pos_id = v_z.pos_id),
+    '0137 (c2): Ünique unter einer Charge ohne Hagel sagt der eigene Befund nicht mehr';
+  assert exists (select 1 from v_perigon_befund where art = 'artikel_sorte' and artikel ilike '%mandarin%'),
+    '0137 (c3): der Mandarin der Demo unter Kaori Kuri wird nicht mehr gemeldet — (c1) wäre blind';
+  assert not exists (select 1 from v_perigon_pruefung where art = 'Artikel passt nicht zur Sorte' and quelle = v_z.quelle and pos_id = v_z.pos_id)
+     and exists (select 1 from v_perigon_pruefung where art = 'Artikel passt nicht zur Sorte' and artikel ilike '%mandarin%'),
+    '0137 (c4): v_perigon_pruefung nennt Ünique als fremden Artikel, oder den Mandarin nicht mehr';
+  update ausgang_zeile set artikel = v_z.artikel where id = v_z.id;
+
+  -- (d) eine Sorte, die nur noch als Ünique verkauft wird: ohne Stammdaten ohne Gruppe, nicht „verkauft als Ünique"
+  select artikelgruppe into v_alt from sorte_kaliber where sorte = 'Kaori Kuri';
+  update sorte_kaliber set artikelgruppe = null where sorte = 'Kaori Kuri';
+  create temp table t137_namen on commit drop as
+    select z.id, z.artikel from ausgang_zeile z
+     where exists (select 1 from lieferung_import li join lieferung l on l.id = li.lieferung_id
+                    where li.zeile_id = z.id and l.sorte = 'Kaori Kuri');
+  assert (select count(*) from t137_namen) > 0, '0137 (d0): Kaori Kuri wird in der Demo nicht verkauft — der Fall ist nicht gebaut';
+  update ausgang_zeile set artikel = 'Bio Kürbis Ünique' where id in (select id from t137_namen);
+  assert (select artikelgruppe is null and gruppe_verkauft is null from v_sorte_artikelgruppe where sorte = 'Kaori Kuri'),
+    format('0137 (d1): eine Sorte, die nur als Ünique verkauft wird, hat die Gruppe %s',
+           (select coalesce(artikelgruppe, '—') || ' (' || coalesce(quelle, '—') || ', verkauft ' || coalesce(gruppe_verkauft, '—') || ')'
+              from v_sorte_artikelgruppe where sorte = 'Kaori Kuri'));
+  update ausgang_zeile z set artikel = t.artikel from t137_namen t where z.id = t.id;
+  update sorte_kaliber set artikelgruppe = v_alt where sorte = 'Kaori Kuri';
+
+  if v_geladen then perform demo_daten_entfernen(); end if;
+  update einstellung set wert = v_modus where schluessel = 'betriebsmodus';
+  delete from auth.users where id = v_u;
+
+  -- (e) Stand
+  assert schema_stand() >= 137, format('0137 (e1): schema_stand() = %s', schema_stand());
+  raise notice 'OK  0137 — Ünique ist ein eigener Artikel: eingeordnet vor jedem anderen Wort, je Kunde unter „Ünique", kein fremder Artikel unter einer Knirps-Charge, nie die Gruppe einer Sorte';
+end $$;
+
+select '——— 0137 Ünique ist ein eigener Artikel ———' as ergebnis;

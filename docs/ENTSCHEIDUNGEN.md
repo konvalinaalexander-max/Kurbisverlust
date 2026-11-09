@@ -4290,6 +4290,89 @@ Geprüft:
 - Eine Sorte dazu oder weg im Rezept geht noch nicht in der Maske (nur Stück,
   kg je Stück und Herkunft); das Rezept des Betriebs hat drei Sorten.
 
+## Runde BK, Schritt 2: Ünique ist ein eigener Artikel (9. November, 0137)
+
+Der Betrieb: „Warum ist bei Management nach Artikel nicht ein neuer Artikel
+da, der Ünique heisst? Ich will ja wissen, wie viele Ünique ich noch
+verkaufen kann." — „Was beim Chargenreiter als Hagelschaden markiert wird,
+geht zu Ünique … wenn man im Dropdown Ünique auswählt, sollen die anderen
+beiden Felder mit gross, klein, Knospe, Demeter verschwinden; aber wenn man
+alle Artikel anzeigt, soll er schon auch in der Tabelle kommen." Und: „Ünique
+zählt nicht als Unterkategorie der anderen Artikel, z. B. Knirps: Wir wollen
+50 Tonnen Knirps liefern, haben schon 20 t geliefert, also sind 30 t noch
+offen; im Lager habe ich 10 t normale Knirpse und 20 t Hagelware. Du sagst
+mir jetzt, ich habe genug — aber nein! Ünique soll eine Zeile sein und keine
+Spalte."
+
+Bis hier stand der Ünique-Topf (0133) als Spalte „Unique, nur Knospe" in der
+Knospe-Zeile der Artikelgruppe seiner Hagel-Chargen und zählte im Gesamt
+dieser Zeile mit — und damit in „noch zu liefern … fehlen", in der Kennzahl
+oben und im Satz „reicht" unter der Kundentabelle. Die Hagel-Charge selbst
+zählte mit Eingang und Lager weiter bei ihrer Sorte. Die Verkäufe „Bio
+Kürbis Ünique" ordnete artikel_einordnen() als „andere" ein (das Wort
+Kürbis): Ünique liess sich nicht wählen und nicht planen.
+
+In der Reihenfolge von CLAUDE.md: Die Daten waren da — der Topf rechnet seit
+0133, Perigon führt Ünique als eigenen Artikel (40 Zeilen, 18.8 t, IFCO 10
+kg, Preisgruppe CH-K: Knospe). Falsch war die Annahme, Hagelware sei eine
+Grösse der Artikelgruppe ihrer Sorte. Mathematik ändert sich keine.
+
+- **Einordnen (0137):** Ein Ünique-Artikel (`ist_unique_artikel`, 0133) ist
+  die Artikelgruppe „Ünique", vor jedem anderen Wort im Namen; Grösse lose,
+  das Label aus der Preisgruppe. Je Kunde (`v_kunde_tag`,
+  `v_kunde_position`) stehen die Ünique-Verkäufe damit unter „Ünique". Eine
+  Sorte wird nie „verkauft als Ünique" (`v_sorte_artikelgruppe`), und Ünique
+  unter einer Knirps-Charge ist kein „Verkauft als …, aber die Charge ist …"
+  (`v_perigon_befund`, `v_perigon_pruefung`) — dass Ünique unter einer
+  Charge ohne Hagel steht, sagt seit 0133 der eigene Befund.
+- **Eine Zeile, keine Spalte (AB-214):** Auf der Seite Artikel ist Ünique
+  eine eigene Zeile und ein eigener Balken: alle Chargen mit Hagel zusammen —
+  Eingang, ausgeliefert (was aus dem Topf ging), im Lager mit Paletten, und
+  verkaufsfähig, was sie als Ünique noch hergeben (ohne Verdunstung, Palox
+  und Überfüllung, wie jeder Artikel). Eine Hagel-Charge zählt nicht mehr
+  beim Artikel ihrer Sorte, auch nicht als Spalte; die Spalte „Unique" gibt
+  es nicht mehr. Das Verkaufsfähige der Lagerlinie im Kundendiagramm und der
+  Satz „reicht / es fehlen" nehmen Ünique nur bei „alle Artikel" und bei
+  Ünique.
+- **Ünique wählen:** im Dropdown „Artikel" (sobald es eine Hagel-Charge gibt
+  oder Ünique verkauft ist); Grösse und Label fallen weg, an ihrer Stelle
+  steht „Hagelware aller Chargen mit Hagel · ohne Grösse · geht als Knospe".
+  Bei „alle Artikel" steht die Ünique-Zeile mit in der Tabelle; bei Demeter
+  allein oder einer Grösse nicht.
+- **Plan je Kunde:** mit dem Stift wie bei jedem Artikel (kunde_plan mit
+  Artikelgruppe Ünique); „noch zu liefern" der Ünique-Zeile ist der Plan
+  weniger das als Ünique Gelieferte.
+
+Geprüft:
+- Prüfblock 0137 (a1–e1): einordnen (auch ohne Umlaut, vor „Kuri", Label
+  aus der Preisgruppe, die anderen Artikel wie bisher); eine gebaute Ünique-
+  und eine Knirps-Position je Kunde; auf der Demo eine Kaori-Kuri-Zeile als
+  Ünique (kein fremder Artikel, unique_ohne_hagel sagt es; der Mandarin der
+  Demo wird weiter gemeldet); Kaori Kuri nur noch als Ünique verkauft — ohne
+  Gruppe, nicht „verkauft als Ünique". 6 Mutationen, jede schlägt an.
+- Tests (`artikel.test.ts`): die Hagel-Charge nicht mehr bei Knirps, die
+  Ünique-Zeile mit ihren Zahlen, zu welcher Wahl sie gehört, und das
+  Beispiel des Betriebs — 50 t geplant, 20 t geliefert, 10 t Knirps und 20 t
+  Hagelware im Lager: es fehlen 20 t. Der alte Test „Unique geht in die
+  Knospe-Zeile" folgt der Regel (Kommentar sagt warum).
+- Bildschirm `artikel-unique`: eine Zeile, keine Spalte; gewählt ohne Grösse
+  und Label; bei Knirps nicht da. Die Tabelle trägt in der ersten Spalte nur
+  „Hagelware" — der lange Untertitel machte sie am Desktop breiter als den
+  Bildschirm.
+- Die Szene `messungen-arbeit` griff die letzte Zeile und den Knopf „Arbeit
+  ansehen", bevor die Liste fertig neu gerendert war („not attached"); mit
+  der Demo von heute geschah das jedes Mal. Sie wartet jetzt, bis nichts mehr
+  lädt, und klickt, statt erst zu scrollen — geprüft wird dasselbe.
+
+**Was bewusst nicht gemacht wurde:**
+- Was der Topf in einigen Wochen noch hat, sagt die App nicht voraus (0133):
+  der Wochenregler verschiebt die Ünique-Zeile nicht.
+- Die Demo verkauft kein Ünique; die Kundentabelle bei Ünique ist dort leer,
+  bis ein Plan steht.
+- lieferungen_nachordnen() bleibt: keine Sorte hat die Gruppe Ünique, ein
+  Ünique-Lieferschein findet über die Gruppe keine Charge — wie vorher als
+  „andere".
+
 ## Runde BK, Schritt 1: Was in der Halle steht (9. November, 0136)
 
 Der Betrieb: „Wenn ich beim Reiter Chargen bin und die Anzahl Paletten sehen

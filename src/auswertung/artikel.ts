@@ -12,8 +12,14 @@
  */
 import type { ArtikelLagerCharge, Bestand, ChargeLabel, SorteGruppe } from './daten'
 
-export const GRUPPEN_FOLGE = ['Knirps', 'Butternut', 'Butterkin/Muskat', 'Kabocha', 'Mandarin', 'Mix', 'andere']
-/** Die Reihenfolge der Artikelgruppen, wie der Verkauf sie nennt; Unbekanntes zuletzt. */
+/**
+ * 0137: Ünique ist ein eigener Artikel — die Hagelware aller Chargen mit Hagel zusammen (Ünique-Topf, 0133).
+ * Der Betrieb, 9. November: „Ünique zählt nicht als Unterkategorie der anderen Artikel … Ünique soll eine
+ * Zeile sein und keine Spalte." Perigon führt ihn als „Bio Kürbis Ünique" (artikel_einordnen: Gruppe Ünique).
+ */
+export const UNIQUE = 'Ünique'
+export const GRUPPEN_FOLGE = ['Knirps', 'Butternut', 'Butterkin/Muskat', 'Kabocha', 'Mandarin', 'Mix', 'andere', UNIQUE]
+/** Die Reihenfolge der Artikelgruppen, wie der Verkauf sie nennt; Ünique als eigene Zeile am Ende, Unbekanntes zuletzt. */
 export const rang = (g: string | null) => { const i = g === null ? -1 : GRUPPEN_FOLGE.indexOf(g); return i < 0 ? 99 : i }
 
 export type GroesseWahl = 'beide' | 'klein' | 'gross'
@@ -68,6 +74,27 @@ export function alsArtikel(t: ArtikelLagerCharge, rest?: Map<number, RestTeile>)
 }
 
 export const passtGruppe = (w: Wahl, g: string | null) => w.gruppe === '' || g === w.gruppe
+/** 0137: Ünique gewählt — dann gibt es keine Grösse und kein Label zu wählen (es geht als Knospe). */
+export const istUnique = (w: Wahl) => w.gruppe === UNIQUE
+/** 0137: ob der Ünique-Artikel zur Wahl gehört — alle Artikel oder Ünique, beide Grössen, nicht Demeter allein. */
+export const zeigtUnique = (w: Wahl) => (w.gruppe === '' || w.gruppe === UNIQUE) && w.groesse === 'beide' && w.label !== 'D'
+/** Ünique gewählt: Grösse und Label fallen weg (beide). */
+export const wahlGeordnet = (w: Wahl): Wahl => istUnique(w) ? { gruppe: UNIQUE, groesse: 'beide', label: 'beide' } : w
+
+/**
+ * 0137: Was eine Hagel-Charge als Ünique noch hergibt — ihr Verkaufsfähiges (Lager-Ausweis: unique_kg), ohne die
+ * Überfüllung in den Kisten wie jeder Artikel (zu viel ÷ Soll der Charge, sonst ihrer Sorte). `offen`: nicht
+ * gewogen — höchstens so viel (wie alsArtikel); null: das Verkaufsfähige der Charge ist unbekannt (nie 0).
+ */
+export function alsUnique(b: Bestand, rest?: Map<number, RestTeile>): { kg: number; ueberfuellung: number; offen: boolean } | null {
+  if (!(Number(b.lager_kg) > 0)) return { kg: 0, ueberfuellung: 0, offen: false }
+  const r = rest?.get(b.charge_nr)
+  const u = r?.unique ?? (b.verkaufsfaehig_lager_kg === null ? null : Number(b.verkaufsfaehig_lager_kg))
+  if (u === null) return null
+  const a = r?.marge
+  const netto = a != null ? u / (1 + a) : u
+  return { kg: netto, ueberfuellung: u - netto, offen: a === null }
+}
 export const passtLabel = (w: Wahl, l: string | null) => w.label === 'beide' || l === w.label
 export const passtKlasse = (w: Wahl, k: Klasse) => w.groesse === 'beide' || k === w.groesse
 
@@ -109,10 +136,13 @@ export interface Uebersichtszeile {
 
 export function uebersichtszeilen(bestand: Bestand[], labelVon: Map<number, ChargeLabel>, gruppeVon: Map<string, SorteGruppe>,
                            teile: ArtikelLagerCharge[], wahl: Wahl,
-                           weiter: { spaeter?: ArtikelLagerCharge[]; rest?: Map<number, RestTeile> } = {}): Uebersichtszeile[] {
+                           weiter: { spaeter?: ArtikelLagerCharge[]; rest?: Map<number, RestTeile>; hagel?: Set<number> } = {}): Uebersichtszeile[] {
   const m = new Map<string, Uebersichtszeile>()
   const zuZeile = new Map<number, Uebersichtszeile>()
+  const hagel = weiter.hagel ?? new Set<number>()
   for (const b of bestand) {
+    // 0137: eine Hagel-Charge zählt nur im Ünique-Artikel — nicht im Artikel ihrer Sorte (Eingang, Lager, verkaufsfähig)
+    if (hagel.has(b.charge_nr)) continue
     const gruppe = gruppeVon.get(b.sorte)?.artikelgruppe ?? null
     const label = labelVon.get(b.charge_nr)?.label ?? null
     if (!passtGruppe(wahl, gruppe) || !passtLabel(wahl, label)) continue
@@ -146,27 +176,38 @@ export function uebersichtszeilen(bestand: Bestand[], labelVon: Map<number, Char
     }
     zuZeile.set(b.charge_nr, z)
   }
-  // 0121: Unique (Hagel) geht als Knospe — in die Knospe-Zeile der Artikelgruppe, auch wenn die Charge Demeter ist.
-  // 0133: es ist das ganze Verkaufsfähige einer Hagel-Charge (Ünique-Topf); die Grössenartikel nehmen sie nicht mehr.
-  for (const b of bestand) {
-    const u = weiter.rest?.get(b.charge_nr)?.unique ?? 0
-    if (!(u > 0) || !(b.lager_kg > 0)) continue
-    const gruppe = gruppeVon.get(b.sorte)?.artikelgruppe ?? null
-    if (!passtGruppe(wahl, gruppe) || !passtLabel(wahl, 'K')) continue
-    const k = `${gruppe ?? ''}|K`
-    let z = m.get(k)
-    if (!z) {
-      z = { schluessel: k, gruppe, label: 'K', n: 0, eingang: 0, ausgelagert: 0, geliefert: 0, lager: 0, imLager: 0,
-            vfHoechstens: false, paletten: null, vf: 0, luecke: 0,
-            klassen: new Map(), klassenSpaeter: new Map(), rest: { kanal: 0, faul: 0, verdunstet: 0, fax: 0, offen: 0, ueberfuellung: 0 }, chargen: [] }
-      m.set(k, z)
+  // 0121 bis 0136 stand Unique als Spalte in der Knospe-Zeile der Artikelgruppe seiner Hagel-Chargen — „du sagst mir
+  // jetzt, ich hab genug; aber nein!" Seit 0137 ist Ünique eine eigene Zeile: alle Hagel-Chargen zusammen (der Topf),
+  // mit Eingang, ausgeliefert und Lager wie jeder Artikel; verkaufsfähig ist, was sie als Ünique noch hergeben.
+  const hb = zeigtUnique(wahl) ? bestand.filter(b => hagel.has(b.charge_nr)) : []
+  if (hb.length > 0) {
+    const z: Uebersichtszeile = { schluessel: `${UNIQUE}|`, gruppe: UNIQUE, label: null, n: 0, eingang: 0, ausgelagert: 0, geliefert: 0, lager: 0, imLager: 0,
+      vfHoechstens: false, paletten: null, vf: 0, luecke: 0,
+      klassen: new Map(), klassenSpaeter: new Map(), rest: { kanal: 0, faul: 0, verdunstet: 0, fax: 0, offen: 0, ueberfuellung: 0 }, chargen: [] }
+    for (const b of hb) {
+      z.n += 1
+      z.chargen.push(b.charge_nr)
+      z.eingang += Number(b.eingang_kg); z.ausgelagert += Number(b.ausgelagert_kg)
+      z.geliefert += Number(b.geliefert_kg); z.lager += Number(b.lager_kg)
+      if (!(b.lager_kg > 0)) continue
+      z.imLager += Number(b.lager_kg)
+      if (b.n_rest_paletten != null) z.paletten = (z.paletten ?? 0) + Number(b.n_rest_paletten)
+      const r = weiter.rest?.get(b.charge_nr)
+      const u = alsUnique(b, weiter.rest)
+      if (u === null) { z.luecke += 1; z.rest.offen += Number(b.lager_kg); continue }
+      z.vf += u.kg + u.ueberfuellung
+      if (u.offen) z.vfHoechstens = true
+      z.klassen.set('unique', (z.klassen.get('unique') ?? 0) + u.kg)
+      z.klassenSpaeter.set('unique', (z.klassenSpaeter.get('unique') ?? 0) + u.kg)
+      z.rest.ueberfuellung += u.ueberfuellung
+      // offen: was im Lager steht und nicht geteilt ist — ein Rundungsrest unter einem halben Kilo ist keiner
+      const offen = (x: number) => x > 0.5 ? x : 0
+      if (r && b.verkaufsfaehig_lager_kg !== null) {
+        z.rest.kanal += r.kanal; z.rest.faul += r.faul; z.rest.verdunstet += r.verdunstet; z.rest.fax += r.fax
+        z.rest.offen += offen(Number(b.lager_kg) - u.kg - u.ueberfuellung - r.kanal - r.faul - r.verdunstet - r.fax)
+      } else z.rest.offen += offen(Number(b.lager_kg) - u.kg - u.ueberfuellung)
     }
-    const eigen = zuZeile.get(b.charge_nr)
-    if (eigen && eigen !== z) eigen.imLager = Math.max(eigen.imLager - u, 0)
-    if (eigen !== z) z.imLager += u
-    z.klassen.set('unique', (z.klassen.get('unique') ?? 0) + u)
-    z.klassenSpaeter.set('unique', (z.klassenSpaeter.get('unique') ?? 0) + u)
-    if (!z.chargen.includes(b.charge_nr)) z.chargen.push(b.charge_nr)
+    m.set(z.schluessel, z)
   }
   // Das Verkaufsfähige nach Grösse: heute für den Balken, am Stichtag für die Tabelle.
   // 0123: ohne die Überfüllung — was als Artikel geht, in Kisten über dem Soll, ist zu
@@ -185,7 +226,7 @@ export function uebersichtszeilen(bestand: Bestand[], labelVon: Map<number, Char
   }
   zuteilen(teile, 'klassen')
   zuteilen(weiter.spaeter ?? teile, 'klassenSpaeter')
-  return [...m.values()].filter(z => z.eingang > 0 || (z.klassen.get('unique') ?? 0) > 0)
+  return [...m.values()].filter(z => z.eingang > 0)
     .sort((a, b) => rang(a.gruppe) - rang(b.gruppe) || (a.gruppe ?? '').localeCompare(b.gruppe ?? '')
                     || (a.label ?? 'Z').localeCompare(b.label ?? 'Z'))
 }

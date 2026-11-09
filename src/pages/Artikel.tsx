@@ -15,8 +15,8 @@ import { IM_LAGER_TEXT, palettenText } from '../auswertung/lager'
 import { STROM_UEBERFUELLUNG } from '../auswertung/ausweis'
 import { WochenFeld } from '../components/WochenFeld'
 import { ZChevron, ZHoch, ZRunter, ZStift } from '../components/Zeichen'
-import { ARTIKEL_KLASSEN, KLASSEN, OFFEN, alsArtikel, gruppenFolge, klasseVon, kundenGruppe, nochZuLiefern, passtGruppe, passtKlasse, passtLabel, passtVerkauf, planSchluessel, rang, teileSumme,
-         uebersichtszeilen, type GruppePlan, type GruppeRang, type Klasse, type KundePlan, type PlanTeile, type RestTeile, type Uebersichtszeile,
+import { ARTIKEL_KLASSEN, KLASSEN, OFFEN, UNIQUE, alsArtikel, alsUnique, gruppenFolge, istUnique, klasseVon, kundenGruppe, nochZuLiefern, passtGruppe, passtKlasse, passtLabel, passtVerkauf, planSchluessel, rang, teileSumme,
+         uebersichtszeilen, wahlGeordnet, zeigtUnique, type GruppePlan, type GruppeRang, type Klasse, type KundePlan, type PlanTeile, type RestTeile, type Uebersichtszeile,
          type Wahl } from '../auswertung/artikel'
 import { LieferungFenster } from '../betrieb/LieferungFenster'
 
@@ -64,12 +64,13 @@ const labelName = (l: string | null) => l === 'D' ? 'Demeter' : l === 'K' ? 'Kno
 // 0121: „lose" heisst jetzt, was es ist — „passt in keinen Artikel"; Unique ist die Hagelware (nur Knospe).
 const klasseName = (k: Klasse) =>
   k === 'stueck' ? 'je Stück' : k === 'lose' ? 'lose (ohne Grösse)' : k === 'ausserhalb' ? 'passt in keinen Artikel'
-  : k === 'ohne' ? 'Grösse offen' : k === 'gruppe' ? 'Artikelgruppe offen' : k === 'unique' ? 'Unique' : k
+  : k === 'ohne' ? 'Grösse offen' : k === 'gruppe' ? 'Artikelgruppe offen' : k === 'unique' ? 'Ünique' : k
 /** 0124: Klassen, die nicht „verkaufsfähig …" heissen — sie sind kein Artikel oder noch keiner. */
 const OHNE_VF_WORT: Klasse[] = ['ausserhalb', 'unique', 'gruppe']
 const GRUPPE_TEXT = 'die Sorte hat keine Artikelgruppe in den Stammdaten (Stammdaten → Sorten) — als was sie verkauft wird, ist offen; zählt als obere Schranke'
 const LOSE_KLASSE_TEXT = 'ein Artikel, dessen Gruppe keine Gewichte hat — verkaufsfähig, ohne Teilung in klein und gross'
-const UNIQUE_TEXT = 'Hagelware — nicht faul, nicht klein oder gross: ein eigener Artikel, wird als Knospe verkauft'
+// 0137: Ünique ist eine eigene Zeile, keine Spalte der Artikel seiner Hagel-Chargen
+const UNIQUE_TEXT = 'Hagelware aller Chargen mit Hagel zusammen (Ünique-Topf) — ein eigener Artikel, keine Grösse eines anderen; geht als Knospe'
 const OHNE_TEXT = 'keine Sortier-CSV der Charge oder Sorte — ob die Ware in die Gewichte der Artikel passt, ist offen; zählt als obere Schranke'
 /** Runde BA: die zwei Klassen, bei denen die App nicht sagen kann, als was die Ware geht — in der Tabelle eine Spalte. */
 const OFFEN_KLASSEN: Klasse[] = ['ohne', 'gruppe']
@@ -84,7 +85,7 @@ function wahlLesen(): Wahl {
   try {
     const w = JSON.parse(localStorage.getItem(WAHL_SCHLUESSEL) ?? 'null') as Partial<Wahl> | null
     if (w && typeof w.gruppe === 'string' && ['beide', 'klein', 'gross'].includes(String(w.groesse))
-        && ['beide', 'D', 'K'].includes(String(w.label))) return w as Wahl
+        && ['beide', 'D', 'K'].includes(String(w.label))) return wahlGeordnet(w as Wahl)
   } catch { /* privates Fenster */ }
   return OFFEN
 }
@@ -127,13 +128,17 @@ export default function Artikel() {
                               marge: a.marge_anteil == null ? null : Number(a.marge_anteil) }])),
   [daten?.ausweis])
 
+  // 0137: die Chargen mit Hagel — sie zählen nur im Ünique-Artikel (der Topf, 0133), nicht im Artikel ihrer Sorte
+  const hagel = useMemo(() => new Set<number>(daten?.uniqueTopf?.chargen ?? []), [daten?.uniqueTopf])
+
   const gruppen = useMemo(() => {
     const s = new Set<string>()
     for (const g of grund?.gruppen ?? []) if (g.artikelgruppe) s.add(g.artikelgruppe)
     for (const k of grund?.kunden ?? []) if (k.gruppe) s.add(k.gruppe)
     for (const t of lager.zeilen) if (t.artikelgruppe) s.add(t.artikelgruppe)
+    if (hagel.size > 0) s.add(UNIQUE)
     return [...s].sort((a, b) => rang(a) - rang(b) || a.localeCompare(b, 'de'))
-  }, [grund, lager.zeilen])
+  }, [grund, lager.zeilen, hagel])
 
   if (laedt && !daten) return <Rechnet fortschritt={fortschritt} />
   if (fehler) return <Hinweis art="warnung">{fehler}</Hinweis>
@@ -150,12 +155,12 @@ export default function Artikel() {
       {grund && (
         <>
           <Wahlleiste wahl={wahl} setzen={setWahl} gruppen={gruppen} />
-          <NochDa bestand={daten.bestand} grund={grund} teile={lager.zeilen} rest={rest} wochen={wochen} wahl={wahl} heute={daten.heute}
+          <NochDa bestand={daten.bestand} grund={grund} teile={lager.zeilen} rest={rest} hagel={hagel} wochen={wochen} wahl={wahl} heute={daten.heute}
                   uebersicht={<Uebersicht bestand={daten.bestand} grund={grund} teileHeute={lagerHeute.zeilen} teile={lager.zeilen} wahl={wahl}
                                           wochen={wochen} setzeWochen={setWochen} stichtag={lager.zeilen[0]?.datum ?? null}
-                                          laedt={lager.laedt} lagerFehler={lager.fehler} rest={rest} heute={daten.heute} />} />
+                                          laedt={lager.laedt} lagerFehler={lager.fehler} rest={rest} hagel={hagel} heute={daten.heute} />} />
           <Verlauf grund={grund} heute={daten.heute} wahl={wahl} lagerHeute={lagerHeute.zeilen} verlauf={daten.verlauf}
-                   bestand={daten.bestand} istAdmin={istAdmin} neuLaden={() => setLadeNr(n => n + 1)} />
+                   bestand={daten.bestand} rest={rest} hagel={hagel} istAdmin={istAdmin} neuLaden={() => setLadeNr(n => n + 1)} />
         </>
       )}
       {!grund && !grundFehler && <Rechnet fortschritt={null} />}
@@ -170,10 +175,12 @@ function Wahlleiste({ wahl, setzen, gruppen }: { wahl: Wahl; setzen: (w: Wahl) =
   return (
     <div className="filterleiste haftend artikel-wahl" id="artikel-wahl">
       <label htmlFor="artikel-gruppe">Artikel</label>
-      <select id="artikel-gruppe" value={wahl.gruppe} onChange={e => setzen({ ...wahl, gruppe: e.target.value })}>
+      <select id="artikel-gruppe" value={wahl.gruppe} onChange={e => setzen(wahlGeordnet({ ...wahl, gruppe: e.target.value }))}>
         <option value="">alle Artikel</option>
         {gruppen.map(g => <option key={g} value={g}>{gruppeName(g)}</option>)}
       </select>
+      {/* 0137: Ünique hat keine Grösse und geht als Knospe — die zwei Felder fallen weg */}
+      {istUnique(wahl) ? <span className="leise wahl-teil" id="artikel-unique-wahl">Hagelware aller Chargen mit Hagel · ohne Grösse · geht als Knospe</span> : <>
       <span className="wahl-teil">
         <span>Grösse</span>
         <Segmente id="artikel-groesse" wahl={wahl.groesse} setzen={g => setzen({ ...wahl, groesse: g })}
@@ -184,6 +191,7 @@ function Wahlleiste({ wahl, setzen, gruppen }: { wahl: Wahl; setzen: (w: Wahl) =
         <Segmente id="artikel-label" wahl={wahl.label} setzen={l => setzen({ ...wahl, label: l })}
                   teile={[['beide', 'beide', 'artikel-label-beide'], ['D', 'Demeter', 'artikel-label-d'], ['K', 'Knospe', 'artikel-label-k']]} />
       </span>
+      </>}
       {eingeschraenkt && <button type="button" className="werkzeug-knopf" onClick={() => setzen(OFFEN)}>alle zeigen</button>}
     </div>
   )
@@ -237,8 +245,24 @@ function jeCharge(teile: ArtikelLagerCharge[]): Chargenteil[] {
   return [...m.values()].sort((a, b) => b.kg - a.kg)
 }
 
-function NochDa({ bestand, grund, teile, rest, wochen, wahl, heute, uebersicht }: {
-  bestand: Bestand[]; grund: Grundlagen; teile: ArtikelLagerCharge[]; rest: Map<number, RestTeile>
+/** 0137: die Hagel-Chargen als Teile des Ünique-Artikels — was sie als Ünique noch hergeben; offen: eine ist nicht gewogen oder unbekannt. */
+function uniqueChargen(bestand: Bestand[], hagel: Set<number>, rest: Map<number, RestTeile>, wahl: Wahl,
+                       labelVon: Map<number, ChargeLabel>): { teile: Chargenteil[]; offen: boolean } {
+  if (!zeigtUnique(wahl)) return { teile: [], offen: false }
+  let offen = false
+  const teile: Chargenteil[] = []
+  for (const b of bestand) {
+    if (!hagel.has(b.charge_nr) || !(Number(b.lager_kg) > 0)) continue
+    const u = alsUnique(b, rest)
+    if (u === null || u.offen) offen = true
+    if (u && u.kg > 0) teile.push({ charge_nr: b.charge_nr, sorte: b.sorte, label: labelVon.get(b.charge_nr)?.label ?? null, kg: u.kg, stueck: null,
+                                    klassen: new Set<Klasse>(['unique']) })
+  }
+  return { teile: teile.sort((a, b) => b.kg - a.kg), offen }
+}
+
+function NochDa({ bestand, grund, teile, rest, hagel, wochen, wahl, heute, uebersicht }: {
+  bestand: Bestand[]; grund: Grundlagen; teile: ArtikelLagerCharge[]; rest: Map<number, RestTeile>; hagel: Set<number>
   wochen: number; wahl: Wahl; heute: string; uebersicht: ReactNode
 }) {
   const [zeigeChargen, setZeigeChargen] = useState(false)
@@ -247,18 +271,18 @@ function NochDa({ bestand, grund, teile, rest, wochen, wahl, heute, uebersicht }
   const chargeVon = useMemo(() => new Map(bestand.map(b => [b.charge_nr, b])), [bestand])
   const zeilen = useMemo(() => artikelzeilen(teile, wahl), [teile, wahl])
   const ausgewaehlt = useMemo(() => zeilen.flatMap(z => z.teile), [zeilen])
-  const chargen = useMemo(() => jeCharge(ausgewaehlt), [ausgewaehlt])
+  const ausUnique = useMemo(() => uniqueChargen(bestand, hagel, rest, wahl, labelVon), [bestand, hagel, rest, wahl, labelVon])
+  const chargen = useMemo(() => [...jeCharge(ausgewaehlt), ...ausUnique.teile], [ausgewaehlt, ausUnique])
   const stichtag = teile[0]?.datum ?? null
   const spaeter = wochen > 0
   const herkunft = spaeter ? 'prognose' : 'gerechnet'
   // 0123: verkaufsfähig ist, was als Artikel geht — ohne „passt in keinen Artikel" und ohne die Überfüllung in
-  // den Kisten; Unique (Hagel) geht als Knospe und zählt mit. Dieselbe Zahl wie „gesamt" in der Tabelle darunter.
+  // den Kisten. Dieselbe Zahl wie „gesamt" in der Tabelle darunter. 0137: Ünique zählt bei „alle Artikel" und bei
+  // Ünique — nie bei der Artikelgruppe seiner Hagel-Chargen („unique zählt nicht als Unterkategorie").
   const alsArtikelKg = (liste: Artikelzeile[]) => liste.filter(z => ARTIKEL_KLASSEN.includes(z.klasse))
     .reduce((a, z) => a + z.teile.reduce((b, t) => b + alsArtikel(t, rest).kg, 0), 0)
-  const offen = zeilen.some(z => ARTIKEL_KLASSEN.includes(z.klasse) && z.teile.some(t => alsArtikel(t, rest).offen))
-  const unique = wahl.groesse !== 'beide' || !passtLabel(wahl, 'K') ? 0
-    : bestand.filter(b => b.lager_kg > 0 && passtGruppe(wahl, gruppeVon.get(b.sorte)?.artikelgruppe ?? null))
-        .reduce((a, b) => a + (rest.get(b.charge_nr)?.unique ?? 0), 0)
+  const offen = zeilen.some(z => ARTIKEL_KLASSEN.includes(z.klasse) && z.teile.some(t => alsArtikel(t, rest).offen)) || ausUnique.offen
+  const unique = ausUnique.teile.reduce((a, c) => a + c.kg, 0)
   const gesamt = alsArtikelKg(zeilen) + unique
   const jeLabel = (l: 'D' | 'K') => alsArtikelKg(zeilen.filter(z => z.label === l)) + (l === 'K' ? unique : 0)
 
@@ -284,7 +308,7 @@ function NochDa({ bestand, grund, teile, rest, wochen, wahl, heute, uebersicht }
                       </button>
                     )}
                   </>} />
-        {wahl.label === 'beide' && <>
+        {wahl.label === 'beide' && !istUnique(wahl) && <>
           <Kennzahl titel={<>davon Demeter <Herkunft art={herkunft} /></>} id="kz-artikel-d" wert={tonnen(jeLabel('D'))}
                     unter={<>{gesamt > 0 ? prozent(jeLabel('D') / gesamt, 0) : '—'} des Verkaufsfähigen</>} />
           <Kennzahl titel={<>davon Knospe <Herkunft art={herkunft} /></>} id="kz-artikel-k" wert={tonnen(jeLabel('K'))}
@@ -352,17 +376,18 @@ const IM_LAGER: { feld: 'kanal' | 'fax' | 'ueberfuellung' | 'faul' | 'verdunstet
 /** Was „lose" heisst, in einem Satz — der Betrieb fragte genau das. */
 const LOSE_TEXT = 'verkaufsfähig nach der Sortiermaschine, aber leichter oder schwerer als die Kaliber der Artikel klein und gross — wird nicht weggeworfen, geht lose; zählt nicht im Gesamt der Artikel'
 
-function Uebersicht({ bestand, grund, teileHeute, teile, wahl, wochen, setzeWochen, stichtag, laedt, lagerFehler, rest, heute }: {
+function Uebersicht({ bestand, grund, teileHeute, teile, wahl, wochen, setzeWochen, stichtag, laedt, lagerFehler, rest, hagel, heute }: {
   bestand: Bestand[]; grund: Grundlagen; teileHeute: ArtikelLagerCharge[]; teile: ArtikelLagerCharge[]; wahl: Wahl
   wochen: number; setzeWochen: (n: number) => void; stichtag: string | null; laedt: boolean; lagerFehler: string | null
-  rest: Map<number, RestTeile>; heute: string
+  rest: Map<number, RestTeile>; hagel: Set<number>; heute: string
 }) {
   const [auf, setAuf] = useState<Set<string>>(new Set())
   const labelVon = useMemo(() => new Map(grund.labels.map(l => [l.charge_nr, l])), [grund.labels])
   const gruppeVon = useMemo(() => new Map(grund.gruppen.map(g => [g.sorte, g])), [grund.gruppen])
   const chargeVon = useMemo(() => new Map(bestand.map(b => [b.charge_nr, b])), [bestand])
-  const zeilen = useMemo(() => uebersichtszeilen(bestand, labelVon, gruppeVon, teileHeute, wahl, { spaeter: teile, rest }),
-                         [bestand, labelVon, gruppeVon, teileHeute, teile, wahl, rest])
+  const zeilen = useMemo(() => uebersichtszeilen(bestand, labelVon, gruppeVon, teileHeute, wahl, { spaeter: teile, rest, hagel }),
+                         [bestand, labelVon, gruppeVon, teileHeute, teile, wahl, rest, hagel])
+  const ausUnique = useMemo(() => uniqueChargen(bestand, hagel, rest, wahl, labelVon), [bestand, hagel, rest, wahl, labelVon])
   if (zeilen.length === 0) return lagerFehler ? <Hinweis art="warnung">Das Lager je Artikel liess sich nicht laden: {lagerFehler}</Hinweis> : null
   const spaeter = wochen > 0
   const herkunft = spaeter ? 'prognose' : 'gerechnet'
@@ -370,7 +395,9 @@ function Uebersicht({ bestand, grund, teileHeute, teile, wahl, wochen, setzeWoch
   const gewaehlt = (kl: Klasse) => passtKlasse(wahl, kl)
   const summe = (f: (z: Uebersichtszeile) => number) => zeilen.reduce((a, z) => a + f(z), 0)
   // Die Grössenspalten der Tabelle: nur, was die Wahl zeigt und was es am Stichtag gibt.
-  const spalten = KLASSEN.filter(kl => gewaehlt(kl) && zeilen.some(z => (z.klassenSpaeter.get(kl) ?? 0) > 0))
+  // 0137: Ünique ist keine Spalte — „Ünique soll eine Zeile sein und keine Spalte"; sein Verkaufsfähiges steht im Gesamt seiner Zeile.
+  const vfKlassen = KLASSEN.filter(kl => gewaehlt(kl) && zeilen.some(z => (z.klassenSpaeter.get(kl) ?? 0) > 0))
+  const spalten = vfKlassen.filter(kl => kl !== 'unique')
   // Runde BA: „Grösse offen" und „Artikelgruppe offen" teilen sich eine Spalte — beides heisst, die App kann die
   // Ware keinem Artikel zuordnen; gibt es nur eine der beiden, heisst die Spalte so, sonst „offen" mit dem Grund
   // in der Zelle. Zwölf Zahlenspalten passten nicht mehr neben „noch zu liefern".
@@ -383,11 +410,12 @@ function Uebersicht({ bestand, grund, teileHeute, teile, wahl, wochen, setzeWoch
     ? offenKl.filter(kl => (z.klassenSpaeter.get(kl) ?? 0) > 0).map(kl => kl === 'ohne' ? 'Grösse' : 'Artikelgruppe').join(' · ') : ''
   const spalteKlasse = (kl: Spalte) => `zahl${spaeter ? ' spaeter' : ''}${kl === 'ausserhalb' ? ' neben-kaliber erste' : ''}`
   // 0121: das Gesamt der Artikel ohne „passt in keinen Artikel" — das steht rechts davon, durch eine Linie getrennt.
-  const vfSpaeter = (z: Uebersichtszeile) => spalten.filter(kl => ARTIKEL_KLASSEN.includes(kl)).reduce((a, kl) => a + (z.klassenSpaeter.get(kl) ?? 0), 0)
+  const vfSpaeter = (z: Uebersichtszeile) => vfKlassen.filter(kl => ARTIKEL_KLASSEN.includes(kl)).reduce((a, kl) => a + (z.klassenSpaeter.get(kl) ?? 0), 0)
   const klassenBalken = KLASSEN.filter(kl => zeilen.some(z => (z.klassen.get(kl) ?? 0) > 0))
   const imLagerDa = IM_LAGER.filter(r => zeilen.some(z => z.rest[r.feld] > 0))
   const offenDa = zeilen.some(z => z.rest.offen > 0)
-  const name = (z: Uebersichtszeile) => `${z.gruppe === 'Knirps' ? 'Knirps' : gruppeName(z.gruppe)} · ${labelName(z.label)}`
+  const unter = (z: Uebersichtszeile) => z.gruppe === UNIQUE ? 'Hagelware, geht als Knospe' : labelName(z.label)
+  const name = (z: Uebersichtszeile) => `${z.gruppe === 'Knirps' ? 'Knirps' : gruppeName(z.gruppe)} · ${unter(z)}`
   // Runde AS: „Reicht, was da ist?" — je Artikel, was die Kunden nach Plan (ohne Plan: das Vorjahr) noch bekommen
   const saison = saisonVon(heute)
   const gesetztGruppe = new Map(grund.kundeGruppe.map(g => [g.kunde, g.gruppe]))
@@ -416,7 +444,7 @@ function Uebersicht({ bestand, grund, teileHeute, teile, wahl, wochen, setzeWoch
             <div key={z.schluessel} className="uebersicht-zeile" role="listitem">
               <div className="uebersicht-name">
                 <strong>{name(z)}</strong>
-                <span className="leise">{z.n} {z.n === 1 ? 'Charge' : 'Chargen'} · Eingang {masse(z.eingang)}</span>
+                <span className="leise">{z.n} {z.n === 1 ? 'Charge' : 'Chargen'}{z.gruppe === UNIQUE ? ' mit Hagel' : ''} · Eingang {masse(z.eingang)}</span>
               </div>
               <div className="uebersicht-bahn">
                 <div className="uebersicht-spur" style={{ width: anteil(ganz, max) }}
@@ -491,21 +519,24 @@ function Uebersicht({ bestand, grund, teileHeute, teile, wahl, wochen, setzeWoch
               {spaltenTab.map(kl => kl === 'offen'
                 ? <th key={kl} className={spalteKlasse(kl)} title={offenTitel}>{offenName}{offenKl.length > 1 && <span className="kopf-unter">Grösse oder Gruppe</span>}</th>
                 : <th key={kl} className={spalteKlasse(kl)}
-                      title={kl === 'ausserhalb' ? LOSE_TEXT : kl === 'unique' ? UNIQUE_TEXT : kl === 'lose' ? LOSE_KLASSE_TEXT : undefined}>{klasseName(kl)}{kl === 'unique' && <span className="kopf-unter">nur Knospe</span>}</th>
+                      title={kl === 'ausserhalb' ? LOSE_TEXT : kl === 'lose' ? LOSE_KLASSE_TEXT : undefined}>{klasseName(kl)}</th>
               )}
             </tr>
           </thead>
           <tbody>
             {zeilen.map(z => {
               const offen = auf.has(z.schluessel)
-              const zc = jeCharge(teile.filter(t => z.chargen.includes(t.charge_nr) && passtKlasse(wahl, klasseVon(t.groesse)) && Number(t.kg) > 0))
+              const zc = z.gruppe === UNIQUE ? ausUnique.teile
+                : jeCharge(teile.filter(t => z.chargen.includes(t.charge_nr) && passtKlasse(wahl, klasseVon(t.groesse)) && Number(t.kg) > 0))
               return (
                 <Fragment key={z.schluessel}>
-                  <tr className={`klickbar${offen ? ' offen' : ''}`} onClick={() => umschalten(z.schluessel)} aria-expanded={offen}>
+                  <tr className={`klickbar${offen ? ' offen' : ''}${z.gruppe === UNIQUE ? ' unique-zeile' : ''}`} onClick={() => umschalten(z.schluessel)} aria-expanded={offen}
+                      id={z.gruppe === UNIQUE ? 'artikel-unique-zeile' : undefined}>
                     <th scope="row" className="haftend">
                       <span className="chevron" aria-hidden="true"><ZChevron size={14} /></span>
                       <span className="zeilenname">{z.gruppe === 'Knirps' ? 'Knirps' : gruppeName(z.gruppe)}</span>
-                      <span className={`zeilenunter label-${z.label ?? 'x'}`}>{labelName(z.label)}<span className="leise"> · {z.n} {z.n === 1 ? 'Charge' : 'Chargen'}</span></span>
+                      {/* 0137: in der Tabelle kurz — der lange Untertitel machte die erste Spalte breiter als den Bildschirm */}
+                      <span className={`zeilenunter label-${z.label ?? 'x'}`}>{z.gruppe === UNIQUE ? 'Hagelware' : labelName(z.label)}<span className="leise"> · {z.n} {z.n === 1 ? 'Charge' : 'Chargen'}</span></span>
                     </th>
                     <td className="zahl">{masse(z.eingang)}</td>
                     <td className="zahl">{z.geliefert > 0 ? masse(z.geliefert) : <span className="leise">—</span>}</td>
@@ -513,8 +544,10 @@ function Uebersicht({ bestand, grund, teileHeute, teile, wahl, wochen, setzeWoch
                     <td className="zahl">{z.lager > 0
                       ? <>{z.paletten !== null && <strong>{palettenText(z.paletten)}</strong>}
                           <span className={z.paletten !== null ? 'zelle-unter' : undefined}>{masse(z.imLager)}</span></>
-                      : (z.klassen.get('unique') ?? 0) > 0 ? <span className="leise" title={UNIQUE_TEXT}>Unique</span> : <span className="leise">—</span>}</td>
-                    <td className={`zahl summe${spaeter ? ' spaeter' : ''}`}><strong>{z.lager > 0 ? masse(vfSpaeter(z)) : '—'}</strong>
+                      : <span className="leise">—</span>}</td>
+                    <td className={`zahl summe${spaeter ? ' spaeter' : ''}`} title={z.gruppe === UNIQUE ? UNIQUE_TEXT : undefined}>
+                      <strong>{z.lager > 0 ? <>{z.vfHoechstens && z.gruppe === UNIQUE && <span className="mini-wort">höchstens </span>}{masse(vfSpaeter(z))}</> : '—'}</strong>
+                      {z.gruppe === UNIQUE && z.lager > 0 && <span className="zelle-unter">Ünique</span>}
                       {z.luecke > 0 && <span className="zelle-unter">{z.luecke} {z.luecke === 1 ? 'Charge' : 'Chargen'} ohne Zahl</span>}</td>
                     {spaltenTab.map(kl => {
                       if (kl === 'offen') {
@@ -572,8 +605,12 @@ function Uebersicht({ bestand, grund, teileHeute, teile, wahl, wochen, setzeWoch
         vom Lieferschein <Herkunft art="gemessen" />, <strong>im Lager</strong> sind die Paletten vom Eingang, die noch dastehen, mit dem
         Gewicht beim Eingang, und <strong> verkaufsfähig</strong> ist, was davon als Artikel verkauft werden kann <Herkunft art="gerechnet" />:
         ohne Verdunstung, Palox und zu klein/zu gross, ohne was in kein Artikelgewicht passt, und ohne die Überfüllung in den Kisten (was über dem
-        Sollgewicht mitgeht, aus den gewogenen fertigen Paletten); Unique zählt mit. Ist die Überfüllung nicht gewogen oder fehlt die Sortier-CSV,
+        Sollgewicht mitgeht, aus den gewogenen fertigen Paletten). Ist die Überfüllung nicht gewogen oder fehlt die Sortier-CSV,
         steht „höchstens" davor. Dieselben Zahlen und Farben wie im Lagermanagement nach Charge.</p>
+        <p><strong>Ünique</strong> ist ein eigener Artikel, eine eigene Zeile: alle Chargen mit Hagel zusammen (der Ünique-Topf unter Chargen) — ihr
+        Eingang, was aus dem Topf ausgeliefert ist, was noch steht und was davon als Ünique verkauft werden kann (ohne Verdunstung, Palox und
+        Überfüllung; Hagelware wird nicht nach Grösse sortiert). Eine Charge mit Hagel zählt nicht mehr beim Artikel ihrer Sorte: Hagelware
+        ist kein Knirps und kein Butternut, sie deckt deren Lieferungen nicht.</p>
         <p>Das Verkaufsfähige ist nach der Sortier-CSV der Charge (oder ihrer Sorte) auf die Kaliber der Artikel geteilt, jeder Kürbis um die
         gemessene Verdunstung bis zum Stichtag geschrumpft: Wiegt er so viel wie ein kleiner Artikel, zählt er klein, wie ein grosser, gross.
         <strong> Lose</strong> heisst {LOSE_TEXT} — es gehört weder zu „zu klein / zu gross" (das fällt beim Sortieren heraus) noch zu den
@@ -725,9 +762,9 @@ interface KundePosition {
  * Saison. Unter einem gewählten Kunden stehen seine Lieferungen; ein Klick
  * zeigt die ganze Perigon-Zeile.
  */
-function Verlauf({ grund, heute, wahl, lagerHeute, verlauf, bestand, istAdmin, neuLaden }: {
+function Verlauf({ grund, heute, wahl, lagerHeute, verlauf, bestand, rest, hagel, istAdmin, neuLaden }: {
   grund: Grundlagen; heute: string; wahl: Wahl; lagerHeute: ArtikelLagerCharge[]; verlauf: Verlaufswoche[]; bestand: Bestand[]
-  istAdmin: boolean; neuLaden: () => void
+  rest: Map<number, RestTeile>; hagel: Set<number>; istAdmin: boolean; neuLaden: () => void
 }) {
   const kunden = grund.kunden
   const [auswahl, setAuswahl] = useState('')          // '' alle · 'g:Gruppe' · 'k:Kunde'
@@ -767,11 +804,14 @@ function Verlauf({ grund, heute, wahl, lagerHeute, verlauf, bestand, istAdmin, n
   const titel = auswahl ? auswahl.slice(2) : 'alle Kunden'
   const leer = jeKunde.length === 0 && offenJe.size === 0 && ziel.jeGruppe.size === 0
 
-  // Das Verkaufsfähige des Artikels heute, und über die Saison (orange Linie)
+  // Das Verkaufsfähige des Artikels heute, und über die Saison (orange Linie). 0137: Ünique nur bei „alle Artikel"
+  // und bei Ünique — die Hagelware deckt keine Knirps-Lieferung („du sagst mir jetzt, ich hab genug — aber nein!").
   const vfHeute = useMemo(() => lagerHeute.filter(t => passtGruppe(wahl, t.artikelgruppe) && passtLabel(wahl, t.label) && passtKlasse(wahl, klasseVon(t.groesse)))
-    .reduce((a, t) => a + Number(t.kg), 0), [lagerHeute, wahl])
-  const lagerReihe = useMemo(() => lagerUeberSaison(verlauf, lagerHeute, bestand, grund, wahl, saison, tagHeute),
-                             [verlauf, lagerHeute, bestand, grund, wahl, saison, tagHeute])
+    .reduce((a, t) => a + Number(t.kg), 0)
+    + (zeigtUnique(wahl) ? bestand.filter(b => hagel.has(b.charge_nr)).reduce((a, b) => a + (alsUnique(b, rest)?.kg ?? 0), 0) : 0),
+    [lagerHeute, wahl, bestand, hagel, rest])
+  const lagerReihe = useMemo(() => lagerUeberSaison(verlauf, lagerHeute, bestand, grund, wahl, saison, tagHeute, hagel),
+                             [verlauf, lagerHeute, bestand, grund, wahl, saison, tagHeute, hagel])
   const summeOffen = ziel.kg
 
   /** Den Plan eines Kunden oder einer ganzen Gruppe setzen — leer heisst: wieder ohne. */
@@ -925,7 +965,9 @@ function Verlauf({ grund, heute, wahl, lagerHeute, verlauf, bestand, istAdmin, n
       {fehler && <Hinweis art="warnung">{fehler}</Hinweis>}
       {leer
         ? <Leer titel={kunden.length === 0 ? 'Noch kein Warenausgang' : `Keine Lieferung: ${wahlName(wahl)}`}>
-            {kunden.length === 0 ? 'Sobald die Perigon-Dateien eingelesen sind, steht hier je Kunde die Saison.' : 'Oben einen anderen Artikel, eine andere Grösse oder ein anderes Label wählen.'}
+            {kunden.length === 0 ? 'Sobald die Perigon-Dateien eingelesen sind, steht hier je Kunde die Saison.'
+              : istUnique(wahl) ? 'Noch nichts als „Bio Kürbis Ünique" verkauft — sobald Perigon es führt, steht hier je Kunde die Saison, mit Plan.'
+              : 'Oben einen anderen Artikel, eine andere Grösse oder ein anderes Label wählen.'}
           </Leer>
         : (
         <>
@@ -1122,7 +1164,7 @@ function Lieferungen({ kunde, saison, wahl }: { kunde: string; saison: number; w
  * Artikelgruppe. Bei „beide Grössen" zählt alles.
  */
 function lagerUeberSaison(verlauf: Verlaufswoche[], lagerHeute: ArtikelLagerCharge[], bestand: Bestand[], grund: Grundlagen,
-                          wahl: Wahl, saison: number, tagHeute: number): Reihe | null {
+                          wahl: Wahl, saison: number, tagHeute: number, hagel: Set<number>): Reihe | null {
   const gruppeVon = new Map(grund.gruppen.map(g => [g.sorte, g.artikelgruppe]))
   const labelVon = new Map(grund.labels.map(l => [l.charge_nr, l.label]))
   const sorteVon = new Map(bestand.map(b => [b.charge_nr, b.sorte]))
@@ -1149,7 +1191,8 @@ function lagerUeberSaison(verlauf: Verlaufswoche[], lagerHeute: ArtikelLagerChar
     const nr = Number(v.schluessel)
     const sorte = sorteVon.get(nr) ?? null
     const gruppe = sorte ? gruppeVon.get(sorte) ?? null : null
-    if (!passtGruppe(wahl, gruppe) || !passtLabel(wahl, labelVon.get(nr) ?? null)) continue
+    // 0137: eine Hagel-Charge gehört zum Ünique-Artikel, nicht zur Gruppe ihrer Sorte
+    if (hagel.has(nr) ? !zeigtUnique(wahl) : istUnique(wahl) || !passtGruppe(wahl, gruppe) || !passtLabel(wahl, labelVon.get(nr) ?? null)) continue
     const a = anteil(nr, gruppe)
     if (a === null) continue
     const t = saisonTag(v.bis, saison)
