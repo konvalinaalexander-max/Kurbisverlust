@@ -825,7 +825,9 @@ zu viel — Σ S − Q (ab 0.5 kg); Rest — Q − Σ S (ab 0.5 kg); keine Numme
 ohne Gewicht — leer; Rücknahme — −Q; Rechnung ≠ Datei — Rechnung − Q (ab
 0.05 kg, Vorzeichen bleibt); Artikelname gegen Preisgruppe — Q; seit 0131
 kg-Artikel mit Gewicht je Artikel ≠ 1 — Q (die Menge) und Chargen mit
-verschiedenen Lieferlabels — Q (mit Auftrag und je Charge Kilo und Label).
+verschiedenen Lieferlabels — Q (mit Auftrag und je Charge Kilo und Label);
+seit 0140 nur, wenn Demeter im Artikelnamen oder in der Preisgruppe steht
+(Knospe-Ware unter Demeter): Demeter darf als Knospe verkauft werden.
 Je Chargenzeile
 mit Lieferung: die Masse ihrer Lieferung (nachholen, mehrdeutig, unbekannt —
 nur ohne Charge; Artikel gegen Sorte, Demeter/Knospe, Mix nicht verteilt, vor

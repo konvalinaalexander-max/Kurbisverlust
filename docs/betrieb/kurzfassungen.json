@@ -65,6 +65,71 @@
       "id": 16,
       "kurz": "Viele alte, abgebrochene Stiele; grüne (Virus); eher klein",
       "warum": "Runde AX, 23.10.: Waschen, Charge 1719 Oettli Kaori Kuri, Arbeit 1662 — die erste Arbeit auf Oettli; Charge und Arbeit passen."
+    },
+    {
+      "id": 17,
+      "kurz": "Viele zu grosse und zu kleine: etwa 10 Kisten grosse, 3 Kisten kleine",
+      "warum": "Runde BK, 9.11.: Waschen, Charge 1632 Tiana, Arbeit 1667 — Charge und Arbeit passen; nach dem Sortieren gezählt."
+    },
+    {
+      "id": 18,
+      "kurz": "Viele abgebrochene Stiele, schon eingetrocknet",
+      "warum": "Runde BK, 9.11.: Waschen + Sortieren, Charge 1719 Kaori Kuri, Arbeit 1669 — wie Nr. 16 an derselben Charge."
+    },
+    {
+      "id": 19,
+      "kurz": "Hagelschaden, für Ünique gewaschen; Kiste: 1 Kabocha, 1 Butternuss, Rest Knirps bis 10 kg",
+      "warum": "Runde BK, 9.11.: Waschen + Sortieren, Charge 1598 Kaori Kuri (Hagel eingetragen), Arbeit 1671 — passt. Der Satz nennt, woraus eine Ünique-Kiste besteht: das ist auch ein Befund für die Rechnung des Ünique-Topfs (Butternuss und Kabocha gehen mit hinaus)."
+    },
+    {
+      "id": 20,
+      "kurz": "Hagelschaden; Ünique-Kiste: 1 Butternuss, 1 Kabocha, Rest Knirps bis 10 kg",
+      "warum": "Runde BK, 9.11.: Waschen + Sortieren, Charge 1598 Kaori Kuri (Hagel eingetragen), Arbeit 1680 — wie Nr. 19."
+    },
+    {
+      "id": 21,
+      "kurz": "Hagelschaden",
+      "warum": "Runde BK, 9.11.: Waschen + Sortieren, Charge 1628 Kaori Kuri (Hagel eingetragen), Arbeit 1681 — passt."
+    },
+    {
+      "id": 22,
+      "kurz": "Hagelschaden, für Ünique gewaschen",
+      "warum": "Runde BK, 9.11.: Waschen + Sortieren, Charge 1628 Kaori Kuri (Hagel eingetragen), Arbeit 1683 — passt."
+    },
+    {
+      "id": 23,
+      "kurz": "Viele mit abgebrochenem Stiel, für Ünique beiseitegelegt",
+      "warum": "Runde BK, 9.11.: Waschen, Charge 1719 Kaori Kuri (ohne Hagel), Arbeit 1684 — Charge und Arbeit passen. Ware einer Charge ohne Hagel geht hier zum Ünique: sie steht dann nicht mehr bei 1719, die App zieht sie aber vom Topf der Hagel-Chargen ab."
+    },
+    {
+      "id": 24,
+      "kurz": "Hagelschaden",
+      "warum": "Runde BK, 9.11.: Waschen + Sortieren, Charge 1606 Lekor (Hagel eingetragen), Arbeit 1687 — passt."
+    },
+    {
+      "id": 25,
+      "kurz": "Hagelschaden",
+      "warum": "Runde BK, 9.11.: Waschen + Sortieren, Charge 1606 Lekor (Hagel eingetragen), Arbeit 1691 — passt."
+    },
+    {
+      "id": 26,
+      "kurz": "Hagelschaden",
+      "warum": "Runde BK, 9.11.: Waschen + Sortieren, Charge 1628 Kaori Kuri (Hagel eingetragen), Arbeit 1693 — passt."
+    },
+    {
+      "id": 27,
+      "kurz": "Hagelschaden",
+      "warum": "Runde BK, 9.11.: Waschen + Sortieren, Charge 1606 Lekor (Hagel eingetragen), Arbeit 1694 — passt."
+    },
+    {
+      "id": 28,
+      "kurz": "Hagelschaden",
+      "warum": "Runde BK, 9.11.: Waschen + Sortieren, Charge 1628 Kaori Kuri (Hagel eingetragen), Arbeit 1696 — passt."
+    },
+    {
+      "id": 29,
+      "kurz": "Viele kaputte Stellen am Stiel, schon trocken (evtl. von der Ernte)",
+      "warum": "Runde BK, 9.11.: Waschen, Charge 1632 Tiana, Arbeit 1700 — Charge und Arbeit passen."
     }
   ]
 }
