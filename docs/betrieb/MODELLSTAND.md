@@ -1,10 +1,10 @@
 # Stand der Modelle
 
-_Abzug vom 2026-11-09. Von `pruefstand/betrieb_abzug.mjs` geschrieben; nicht von Hand ändern._
+_Abzug vom 2026-11-10. Von `pruefstand/betrieb_abzug.mjs` geschrieben; nicht von Hand ändern._
 
-Gerechnet: 09.11.2026, 12:10 (23 s) · Einstellungen: saison_aktuell = 2026 · betriebsmodus = "echt" · erfassung_scharf = false · verdunstung_rate_max_pro_tag = 0.01
+Gerechnet: 09.11.2026, 17:46 (23 s) · Einstellungen: saison_aktuell = 2026 · betriebsmodus = "echt" · erfassung_scharf = false · verdunstung_rate_max_pro_tag = 0.01
 
-**Zeitplan läuft** (*/1 * * * *) · letzter Lauf 09.11.2026, 13:56 · succeeded · 0 s · 1 row
+**Zeitplan läuft** (*/1 * * * *) · letzter Lauf 10.11.2026, 13:42 · succeeded · 0 s · 1 row
 
 Für die nächste Runde: Passen die Zahlen zu dem, was die Saison zeigen sollte (docs/SAISONBEGLEITUNG.md)? Wo steht ein Koeffizient auf „Wiegungen aller Sorten", weil die eigenen fehlen? Wo ist ein Band leer, wo ist die Basis dünn?
 
@@ -99,7 +99,7 @@ Für die nächste Runde: Passen die Zahlen zu dem, was die Saison zeigen sollte 
 
 ## Bilanz (erg_bilanz)
 
-| heute | eingang_kg | n_chargen | ausgang_kg | verkauf_kg | marge_kg | entsorgt_kg | ausgang_fehler_kg | n_lieferungen | letzte_lieferung | vorlauf_kg | geliefert_kg | ausgelagert_kg | verlust_heute_kg | verlust_unten_kg | verlust_oben_kg | verdunstung_heute_kg | schimmel_heute_kg | fax_heute_kg | fax_erwartet_kg | kanal_ausgelagert_kg | kanal_unten_kg | kanal_oben_kg | im_haus_heute_kg | verkaufsfaehig_heute_kg | kanal_im_haus_kg | lager_kg | gegenprobe_wartet_kg | ueberzaehlung_kg | fax_durchsatz_kg | n_fax_arbeiten | verlust_bekannt | bilanz_rest_kg | bilanz_rest_anteil | ausgang_deckung | befund |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| 2026-11-09 | 728344.14 | 36 | 345661.4 | 345661.4 | 0 | 0 | 0 | 1942 | 2026-11-08 | 0 | 345661.31 | 432584.8 | 127480.91 | 34662.93 | 234687.56 | 68398.65 | 59082.28 | 0 | 0 | 18413.31 | 0 | 77923.24 | 269219.55 | 241834.35 | 8971.87 | 309776.96 | 62499.36 | 14017.87 | 0 | 0 | true | 0.24 | 0 | 0.4746 | Bis heute (09.11.2026): 728.3 t Eingang = 345.7 t ausgeliefert + 127.5 t Verlust (Verdunstung 68.4 t, Faules 59.1 t, Fax 0.0 t) + 269.2 t noch im Haus (davon 241.8 t verkaufsfähig, 27.4 t zu klein oder zu gross — aussortiert oder im Liegenden erwartet). Die Prognose bis zum Saisonende steht in der Grafik, nicht in diesen Zahlen. 14018 kg Überzählung. |
+| heute | eingang_kg | n_chargen | ausgang_kg | verkauf_kg | marge_kg | entsorgt_kg | ausgang_fehler_kg | n_lieferungen | letzte_lieferung | vorlauf_kg | geliefert_kg | ausgelagert_kg | verlust_heute_kg | verlust_unten_kg | verlust_oben_kg | verdunstung_heute_kg | schimmel_heute_kg | fax_heute_kg | fax_erwartet_kg | kanal_ausgelagert_kg | kanal_unten_kg | kanal_oben_kg | im_haus_heute_kg | verkaufsfaehig_heute_kg | kanal_im_haus_kg | lager_kg | gegenprobe_wartet_kg | ueberzaehlung_kg | fax_durchsatz_kg | n_fax_arbeiten | verlust_bekannt | bilanz_rest_kg | verschenkt_kg | leer_weg_kg | bilanz_rest_anteil | ausgang_deckung | befund |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 2026-11-09 | 728344.14 | 36 | 345661.4 | 345661.4 | 0 | 0 | 0 | 1942 | 2026-11-08 | 0 | 345661.35 | 437829.51 | 127530.33 | 34612.82 | 234672.47 | 68331.23 | 59199.08 | 0 | 0 | 18558.23 | 0 | 78037.21 | 266437.98 | 239003.22 | 8876.52 | 306201.51 | 62499.36 | 15687.11 | 0 | 0 | true | 0.23 | 4401.36 | 0 | 0 | 0.4746 | Bis heute (09.11.2026): 728.3 t Eingang = 350.1 t ausgeliefert + 127.5 t Verlust (Verdunstung 68.3 t, Faules 59.2 t, Fax 0.0 t) + 266.4 t noch im Haus (davon 239.0 t verkaufsfähig, 27.4 t zu klein oder zu gross — aussortiert oder im Liegenden erwartet). Die Prognose bis zum Saisonende steht in der Grafik, nicht in diesen Zahlen. Im Ausgeliefert sind 4401 kg verschenkt: in den Kisten über dem Sollgewicht mitgegeben (gewogen), nicht verrechnet. 15687 kg Überzählung. |
 

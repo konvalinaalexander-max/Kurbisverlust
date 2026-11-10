@@ -1,10 +1,10 @@
 # Auffälligkeiten der Messungen
 
-_Abzug vom 2026-11-09. Von `pruefstand/betrieb_abzug.mjs` geschrieben; nicht von Hand ändern._
+_Abzug vom 2026-11-10. Von `pruefstand/betrieb_abzug.mjs` geschrieben; nicht von Hand ändern._
 
 Was die Auswertung nicht in die Rechnung nimmt, weil es nicht zu seinem Nenner passt. Für die nächste Runde: Wo entsteht das im Ablauf oder in der Maske? Was ist ein Datenfehler, der dem Betrieb gehört? Was könnte die App besser abfangen?
 
-## Nach Art (86)
+## Nach Art (88)
 
 | Art | Anzahl |
 |---|---|
@@ -12,13 +12,13 @@ Was die Auswertung nicht in die Rechnung nimmt, weil es nicht zu seinem Nenner p
 | Wägung | 11 |
 | Arbeit offen | 8 |
 | Zetteldatum | 5 |
+| Überzählung | 4 |
 | Verdunstung | 3 |
 | Doppelt gespeichert | 2 |
-| Überzählung | 2 |
 | Palox geleert | 1 |
 | Palette fraglich | 1 |
 
-**Offen: 86** von 86. Neueste zuerst; „Nr." ist die Nummer der App (Messungen → Auffälligkeiten), unter der der Betrieb den Fall nennt.
+**Offen: 88** von 88. Neueste zuerst; „Nr." ist die Nummer der App (Messungen → Auffälligkeiten), unter der der Betrieb den Fall nennt.
 
 ## Einzeln
 
@@ -274,9 +274,15 @@ Was die Auswertung nicht in die Rechnung nimmt, weil es nicht zu seinem Nenner p
 - **Nr. 9 · Palox geleert** · offen · Charge 1650 — Rümlang Sauter · Tiana · Waschen + Sortieren · 21.09.2026, 14:05 · fertig · Charge 1650 — Rümlang Sauter · Tiana · Arbeit 1569 · `schimmel_messung:2894`
   - Der Waagenstand fiel von 229.00 auf 55.00 kg — der Palox wurde zwischendurch geleert. Wie viel davor noch dazukam, weiss niemand; das Faule dieser Arbeit ist unbekannt.
   - _Nichts zu korrigieren. Beim nächsten Mal in der Checkliste „Palox leeren" drücken: vor dem Leeren ablesen, danach die leere Box — dann bleibt die Menge bekannt._
+- **Nr. 7 · Überzählung** · offen · Charge 1650 — Rümlang Sauter · Tiana · `charge:1650`
+  - Die Lieferungen dieser Charge (8459 kg) brauchen mit den gerechneten Raten 9843 kg Eingang, auch mit den günstigsten der Spanne noch 9121 kg — hereingekommen sind 9048 kg. Geliefert wurde nicht mehr als eingelagert, aber mehr, als die Raten aus diesem Eingang erlauben: die Raten passen nicht zur Charge.
+  - _Drei Möglichkeiten: Die Charge verliert weniger als ihre Sorte (gerechnet Verdunstung 0.23 % je Tag, Palox 7 %); im Erntejournal fehlt eine Palette; oder ein Lieferschein gehört einer anderen Charge. Ist die Charge am Lager leer, im Reiter Chargen „Charge ist leer" drücken — dann misst die App ihren echten Verlust._
 - **Nr. 116 · Überzählung** · offen · Charge 1623 — Agasul Rüegg · Mieluna · `charge:1623`
   - Unter dieser Charge gingen 10566 kg hinaus, hereingekommen sind 8299 kg — 2267 kg mehr, als je da war. Das erklärt keine Rate: sicher ein Datenfehler.
   - _Zwei Möglichkeiten: Im Erntejournal fehlt eine Palette dieser Charge, oder ein Lieferschein ist auf die falsche Chargennummer gebucht. Beides lässt sich nachtragen._
 - **Nr. 6 · Überzählung** · offen · Charge 1624 — Agasul Rüegg · Butterkin · `charge:1624`
   - Unter dieser Charge gingen 16853 kg hinaus, hereingekommen sind 16788 kg — 64 kg mehr, als je da war. Das erklärt keine Rate: sicher ein Datenfehler.
   - _Zwei Möglichkeiten: Im Erntejournal fehlt eine Palette dieser Charge, oder ein Lieferschein ist auf die falsche Chargennummer gebucht. Beides lässt sich nachtragen._
+- **Nr. 2 · Überzählung** · offen · Charge 1614 — Slowgrow Uster · Kaori Kuri · `charge:1614`
+  - Die Lieferungen dieser Charge (9196 kg) brauchen mit den gerechneten Raten 11225 kg Eingang, auch mit den günstigsten der Spanne noch 10585 kg — hereingekommen sind 10559 kg. Geliefert wurde nicht mehr als eingelagert, aber mehr, als die Raten aus diesem Eingang erlauben: die Raten passen nicht zur Charge.
+  - _Drei Möglichkeiten: Die Charge verliert weniger als ihre Sorte (gerechnet Verdunstung 0.23 % je Tag, Palox 9 %); im Erntejournal fehlt eine Palette; oder ein Lieferschein gehört einer anderen Charge. Ist die Charge am Lager leer, im Reiter Chargen „Charge ist leer" drücken — dann misst die App ihren echten Verlust._

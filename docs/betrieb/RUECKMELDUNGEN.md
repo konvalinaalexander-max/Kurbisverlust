@@ -1,12 +1,10 @@
 # Rückmeldungen aus der Halle
 
-_Abzug vom 2026-11-09. Von `pruefstand/betrieb_abzug.mjs` geschrieben; nicht von Hand ändern._
+_Abzug vom 2026-11-10. Von `pruefstand/betrieb_abzug.mjs` geschrieben; nicht von Hand ändern._
 
 Was die Person am Ende einer Arbeit gesagt hat — geschrieben, oder mitgeschrieben vom Handy (Transkript, ungeprüft = so wie die Spracherkennung es verstand). Die Aufnahmen liegen im Bucket `rueckmeldungen` des Projekts; hier steht, was sich lesen lässt.
 
 **Zur Ware gilt seit 0094:** Ein Kommentar steht erst im Dashboard, wenn jemand ihn gelesen, verstanden und gekürzt hat („Hagelschaden"). Kürzen heisst: ein Eintrag je Nr. in `docs/betrieb/kurzfassungen.json` (der Abzug spielt ihn ein — täglich, und sofort beim Push der Datei), oder der Betriebsleiter tut es unter Messungen → Arbeiten. Was der Betriebsleiter gekürzt hat, bleibt. Nur Aufnahme, kein Transkript: das kann hier niemand hören — anhören und kürzen kann nur der Betriebsleiter.
-
-**Noch zu kürzen: 13** — Nr. 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17.
 
 ## Zur App — für die nächste Runde (2)
 
@@ -18,43 +16,43 @@ Was die Person am Ende einer Arbeit gesagt hat — geschrieben, oder mitgeschrie
 ## Zur Ware — für den Betriebsleiter (26)
 
 - **Nr. 29** · 03.11.2026 · Waschen · 03.11.2026, 11:26 · fertig · Charge 1632 — Andi Ball · Tiana · Arbeit 1700 · Seraina
-  - **noch nicht gekürzt** — steht noch nicht im Dashboard
+  - **gekürzt** (Runde, 09.11.2026): „Viele kaputte Stellen am Stiel, schon trocken (evtl. von der Ernte)"
   - „Viel kaputte stellen von dem stiel aber schon trocken(ev. beim ernten)"
 - **Nr. 28** · 02.11.2026 · Waschen + Sortieren · 02.11.2026, 10:29 · fertig · Charge 1628 — Agasul Baumann · Kaori Kuri · Arbeit 1696 · Seraina
-  - **noch nicht gekürzt** — steht noch nicht im Dashboard
+  - **gekürzt** (Runde, 09.11.2026): „Hagelschaden"
   - „Hagelschaden"
 - **Nr. 27** · 31.10.2026 · Waschen + Sortieren · 31.10.2026, 11:01 · fertig · Charge 1606 — Illnau Gross · Lekor · Arbeit 1694 · Seraina
-  - **noch nicht gekürzt** — steht noch nicht im Dashboard
+  - **gekürzt** (Runde, 09.11.2026): „Hagelschaden"
   - „Hagelschaden"
 - **Nr. 26** · 31.10.2026 · Waschen + Sortieren · 31.10.2026, 10:59 · fertig · Charge 1628 — Agasul Baumann · Kaori Kuri · Arbeit 1693 · Seraina
-  - **noch nicht gekürzt** — steht noch nicht im Dashboard
+  - **gekürzt** (Runde, 09.11.2026): „Hagelschaden"
   - „Hagelschaden"
 - **Nr. 25** · 30.10.2026 · Waschen + Sortieren · 30.10.2026, 17:53 · fertig · Charge 1606 — Illnau Gross · Lekor · Arbeit 1691 · Seraina
-  - **noch nicht gekürzt** — steht noch nicht im Dashboard
+  - **gekürzt** (Runde, 09.11.2026): „Hagelschaden"
   - „Hagelschaden"
 - **Nr. 24** · 30.10.2026 · Waschen + Sortieren · 30.10.2026, 08:19 · fertig · Charge 1606 — Illnau Gross · Lekor · Arbeit 1687 · Seraina
-  - **noch nicht gekürzt** — steht noch nicht im Dashboard
+  - **gekürzt** (Runde, 09.11.2026): „Hagelschaden"
   - „Hagelschaden"
 - **Nr. 23** · 30.10.2026 · Waschen · 30.10.2026, 08:13 · fertig · Charge 1719 — Oettli · Kaori Kuri · Arbeit 1684 · Seraina
-  - **noch nicht gekürzt** — steht noch nicht im Dashboard
+  - **gekürzt** (Runde, 09.11.2026): „Viele mit abgebrochenem Stiel, für Ünique beiseitegelegt"
   - „Viel mit abgebrochenem stiel, auf die seite gelegt für ünique"
 - **Nr. 22** · 29.10.2026 · Waschen + Sortieren · 29.10.2026, 16:45 · fertig · Charge 1628 — Agasul Baumann · Kaori Kuri · Arbeit 1683 · Seraina
-  - **noch nicht gekürzt** — steht noch nicht im Dashboard
+  - **gekürzt** (Runde, 09.11.2026): „Hagelschaden, für Ünique gewaschen"
   - „Hagelschaden für ünique gewaschen"
 - **Nr. 21** · 29.10.2026 · Waschen + Sortieren · 29.10.2026, 07:50 · fertig · Charge 1628 — Agasul Baumann · Kaori Kuri · Arbeit 1681 · Seraina
-  - **noch nicht gekürzt** — steht noch nicht im Dashboard
+  - **gekürzt** (Runde, 09.11.2026): „Hagelschaden"
   - „Hagelschaden"
 - **Nr. 20** · 28.10.2026 · Waschen + Sortieren · 28.10.2026, 06:43 · fertig · Charge 1598 — Illnau Bruno · Kaori Kuri · Arbeit 1680 · Seraina
-  - **noch nicht gekürzt** — steht noch nicht im Dashboard
+  - **gekürzt** (Runde, 09.11.2026): „Hagelschaden, für Ünique"
   - „Hagelschaden Für Ünique 1 butternuss und 1 kabocha rest bis 10kg knirps"
 - **Nr. 19** · 24.10.2026 · Waschen + Sortieren · 24.10.2026, 12:00 · fertig · Charge 1598 — Illnau Bruno · Kaori Kuri · Arbeit 1671 · Seraina
-  - **noch nicht gekürzt** — steht noch nicht im Dashboard
+  - **gekürzt** (Runde, 09.11.2026): „Hagelschaden, für Ünique gewaschen"
   - „Hagelschaden für ünique gewaschen, 1kabocha und 1 butternuss in kiste rest bis 10kg knirps"
 - **Nr. 18** · 24.10.2026 · Waschen + Sortieren · 24.10.2026, 11:49 · fertig · Charge 1719 — Oettli · Kaori Kuri · Arbeit 1669 · Seraina
-  - **noch nicht gekürzt** — steht noch nicht im Dashboard
+  - **gekürzt** (Runde, 09.11.2026): „Viele abgebrochene Stiele, schon eingetrocknet"
   - „Vile abgebrochene stiele(schon eingetrocknet)"
 - **Nr. 17** · 24.10.2026 · Waschen · 24.10.2026, 11:41 · fertig · Charge 1632 — Andi Ball · Tiana · Arbeit 1667 · Seraina
-  - **noch nicht gekürzt** — steht noch nicht im Dashboard
+  - **gekürzt** (Runde, 09.11.2026): „Viele zu grosse und zu kleine: etwa 10 Kisten grosse, 3 Kisten kleine"
   - „Viel zu grosse und zu kleine (nach sortieren) Ca 10 kisten grosse und 3 kisten kleine"
 - **Nr. 16** · 22.10.2026 · Waschen · 22.10.2026, 17:57 · fertig · Charge 1719 — Oettli · Kaori Kuri · Arbeit 1662 · Seraina
   - **gekürzt** (Runde, 23.10.2026): „Viele alte, abgebrochene Stiele; grüne (Virus); eher klein"
