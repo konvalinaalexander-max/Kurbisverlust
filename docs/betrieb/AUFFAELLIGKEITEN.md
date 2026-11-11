@@ -1,6 +1,6 @@
 # Auffälligkeiten der Messungen
 
-_Abzug vom 2026-11-10. Von `pruefstand/betrieb_abzug.mjs` geschrieben; nicht von Hand ändern._
+_Abzug vom 2026-11-11. Von `pruefstand/betrieb_abzug.mjs` geschrieben; nicht von Hand ändern._
 
 Was die Auswertung nicht in die Rechnung nimmt, weil es nicht zu seinem Nenner passt. Für die nächste Runde: Wo entsteht das im Ablauf oder in der Maske? Was ist ein Datenfehler, der dem Betrieb gehört? Was könnte die App besser abfangen?
 
@@ -164,7 +164,7 @@ Was die Auswertung nicht in die Rechnung nimmt, weil es nicht zu seinem Nenner p
   - 1 Palette(n) mit 442.00 kg vom Zettel gezählt, aber im Wareneingang hat keine Palette dieser Charge dieses Gewicht — gerechnet wird mit der Wägung der Palette
   - _Gewicht an der Zählung prüfen (Zahlendreher?) — oder die Palette fehlt im Wareneingang (Erntejournal)._
 - **Nr. 124 · Arbeit offen** · offen · Charge 1611 — Negi Thalheim · Tiana · Waschen + Sortieren · 06.10.2026, 17:31 · läuft · Charge 1611 — Negi Thalheim · Tiana · Arbeit 1611 · `auftrag:1611`
-  - Arbeit seit 06.10.2026 offen (34 Tage) — 5 Zettel und 1 Palox-Ablesungen erfasst, aber kein Ende
+  - Arbeit seit 06.10.2026 offen (36 Tage) — 5 Zettel und 1 Palox-Ablesungen erfasst, aber kein Ende
   - _In der Halle abschliessen — oder abbrechen, wenn die Arbeit nie lief._
 - **Nr. 42 · Zetteldatum** · offen · Charge 1638 — Klaus Böhler · Kaori Kuri · Waschen + Sortieren · 06.10.2026, 08:54 · fertig · Charge 1638 — Klaus Böhler · Kaori Kuri · Arbeit 1609 · `zetteldatum:1609:2026-09-15`
   - 4 Palette(n) mit Zetteldatum 15.09.2026 gezählt, aber an dem Tag kam keine Palette dieser Charge
@@ -227,19 +227,19 @@ Was die Auswertung nicht in die Rechnung nimmt, weil es nicht zu seinem Nenner p
   - Zettel vom 14.09.2026 mit 471.00 kg (1 gezählt): eine Palette mit genau diesem Gewicht und gleichen Kisten steht im Wareneingang am 18.09.2026, 20.10.2026, 22.09.2026, nicht am 14.09.2026. Zettel und Journal tragen verschiedene Daten — eines ist falsch; gerechnet wird mit den gezählten Kisten und ihrer Tara (Zettel − Kisten × Kiste − Palette), nicht mit der Palette selbst.
   - _Datum auf dem Zettel und im Journal vergleichen — stimmt der Zettel, im Journal berichtigen; stimmt das Journal, in der Korrektur der Arbeit das Zetteldatum._
 - **Nr. 123 · Arbeit offen** · offen · Charge 1611 — Negi Thalheim · Tiana · Sortieren · 30.09.2026, 07:24 · läuft · Charge 1611 — Negi Thalheim · Tiana · Arbeit 1596 · `auftrag:1596`
-  - Arbeit seit 30.09.2026 offen (40 Tage) — 1 Zettel und 1 Palox-Ablesungen erfasst, aber kein Ende
+  - Arbeit seit 30.09.2026 offen (42 Tage) — 1 Zettel und 1 Palox-Ablesungen erfasst, aber kein Ende
   - _In der Halle abschliessen — oder abbrechen, wenn die Arbeit nie lief._
 - **Nr. 122 · Arbeit offen** · offen · Charge 1617 — Slowgrow Uster · Orangita · Waschen + Sortieren · 29.09.2026, 07:20 · läuft · Charge 1617 — Slowgrow Uster · Orangita · Arbeit 1595 · `auftrag:1595`
-  - Arbeit seit 29.09.2026 offen (41 Tage) — 3 Zettel und 2 Palox-Ablesungen erfasst, aber kein Ende
+  - Arbeit seit 29.09.2026 offen (43 Tage) — 3 Zettel und 2 Palox-Ablesungen erfasst, aber kein Ende
   - _In der Halle abschliessen — oder abbrechen, wenn die Arbeit nie lief._
 - **Nr. 121 · Arbeit offen** · offen · Charge 1650 — Rümlang Sauter · Tiana · Waschen + Sortieren · 28.09.2026, 09:39 · läuft · Charge 1650 — Rümlang Sauter · Tiana · Arbeit 1593 · `auftrag:1593`
-  - Arbeit seit 28.09.2026 offen (42 Tage) — 0 Zettel und 1 Palox-Ablesungen erfasst, aber kein Ende
+  - Arbeit seit 28.09.2026 offen (44 Tage) — 0 Zettel und 1 Palox-Ablesungen erfasst, aber kein Ende
   - _In der Halle abschliessen — oder abbrechen, wenn die Arbeit nie lief._
 - **Nr. 120 · Arbeit offen** · offen · Charge 1612 — Slowgrow Uster · Butterkin · Waschen · 28.09.2026, 07:33 · läuft · Charge 1612 — Slowgrow Uster · Butterkin · Arbeit 1591 · `auftrag:1591`
-  - Arbeit seit 28.09.2026 offen (42 Tage) — 3 Zettel und 3 Palox-Ablesungen erfasst, aber kein Ende
+  - Arbeit seit 28.09.2026 offen (44 Tage) — 3 Zettel und 3 Palox-Ablesungen erfasst, aber kein Ende
   - _In der Halle abschliessen — oder abbrechen, wenn die Arbeit nie lief._
 - **Nr. 119 · Arbeit offen** · offen · Charge 1612 — Slowgrow Uster · Butterkin · Waschen · 26.09.2026, 09:23 · läuft · Charge 1612 — Slowgrow Uster · Butterkin · Arbeit 1590 · `auftrag:1590`
-  - Arbeit seit 26.09.2026 offen (44 Tage) — 2 Zettel und 2 Palox-Ablesungen erfasst, aber kein Ende
+  - Arbeit seit 26.09.2026 offen (46 Tage) — 2 Zettel und 2 Palox-Ablesungen erfasst, aber kein Ende
   - _In der Halle abschliessen — oder abbrechen, wenn die Arbeit nie lief._
 - **Nr. 22 · Zetteldatum** · offen · Charge 1613 — Slowgrow Uster · Tiana · Waschen + Sortieren · 26.09.2026, 08:06 · fertig · Charge 1613 — Slowgrow Uster · Tiana · Arbeit 1589 · `zetteldatum:1589:2026-09-15`
   - 2 Palette(n) mit Zetteldatum 15.09.2026 gezählt, aber an dem Tag kam keine Palette dieser Charge
@@ -263,10 +263,10 @@ Was die Auswertung nicht in die Rechnung nimmt, weil es nicht zu seinem Nenner p
   - Zu gross: 44.00 kg brutto in 2 Kiste(n) G2, mit Palette gewogen — davon bleiben 16 kg netto. Eine leere Palette wiegt allein 25.000 kg.
   - _Standen die Kisten direkt auf der Waage? Dann in der Korrektur „mit Palette" abwählen — das Netto rechnet sich von selbst neu._
 - **Nr. 118 · Arbeit offen** · offen · Charge 1630 — Rümlang Keller · Kaori Kuri · Waschen · 24.09.2026, 08:55 · läuft · Charge 1630 — Rümlang Keller · Kaori Kuri · Arbeit 1583 · `auftrag:1583`
-  - Arbeit seit 24.09.2026 offen (46 Tage) — 3 Zettel und 1 Palox-Ablesungen erfasst, aber kein Ende
+  - Arbeit seit 24.09.2026 offen (48 Tage) — 3 Zettel und 1 Palox-Ablesungen erfasst, aber kein Ende
   - _In der Halle abschliessen — oder abbrechen, wenn die Arbeit nie lief._
 - **Nr. 117 · Arbeit offen** · offen · Charge 1638 — Klaus Böhler · Kaori Kuri · Waschen + Sortieren · 23.09.2026, 16:14 · läuft · Charge 1638 — Klaus Böhler · Kaori Kuri · Arbeit 1578 · `auftrag:1578`
-  - Arbeit seit 23.09.2026 offen (47 Tage) — 0 Zettel und 1 Palox-Ablesungen erfasst, aber kein Ende
+  - Arbeit seit 23.09.2026 offen (49 Tage) — 0 Zettel und 1 Palox-Ablesungen erfasst, aber kein Ende
   - _In der Halle abschliessen — oder abbrechen, wenn die Arbeit nie lief._
 - **Nr. 14 · Zettelgewicht** · offen · Charge 1630 — Rümlang Keller · Kaori Kuri · Sortieren · 23.09.2026, 13:32 · fertig · Charge 1630 — Rümlang Keller · Kaori Kuri · Arbeit 1577 · `zettel:1577:429.00`
   - 1 Palette(n) mit 429.00 kg vom Zettel gezählt, aber im Wareneingang hat keine Palette dieser Charge dieses Gewicht — gerechnet wird mit den gezählten Kisten und ihrer Tara (Zettel − Kisten × Kiste − Palette)
@@ -281,8 +281,8 @@ Was die Auswertung nicht in die Rechnung nimmt, weil es nicht zu seinem Nenner p
   - Unter dieser Charge gingen 10566 kg hinaus, hereingekommen sind 8299 kg — 2267 kg mehr, als je da war. Das erklärt keine Rate: sicher ein Datenfehler.
   - _Zwei Möglichkeiten: Im Erntejournal fehlt eine Palette dieser Charge, oder ein Lieferschein ist auf die falsche Chargennummer gebucht. Beides lässt sich nachtragen._
 - **Nr. 6 · Überzählung** · offen · Charge 1624 — Agasul Rüegg · Butterkin · `charge:1624`
-  - Unter dieser Charge gingen 16853 kg hinaus, hereingekommen sind 16788 kg — 64 kg mehr, als je da war. Das erklärt keine Rate: sicher ein Datenfehler.
-  - _Zwei Möglichkeiten: Im Erntejournal fehlt eine Palette dieser Charge, oder ein Lieferschein ist auf die falsche Chargennummer gebucht. Beides lässt sich nachtragen._
+  - Die Lieferungen dieser Charge (15489 kg) brauchen mit den gerechneten Raten 21255 kg Eingang, auch mit den günstigsten der Spanne noch 19778 kg — hereingekommen sind 16788 kg. Geliefert wurde nicht mehr als eingelagert, aber mehr, als die Raten aus diesem Eingang erlauben: die Raten passen nicht zur Charge.
+  - _Drei Möglichkeiten: Die Charge verliert weniger als ihre Sorte (gerechnet Verdunstung 0.28 % je Tag, Palox 12 %); im Erntejournal fehlt eine Palette; oder ein Lieferschein gehört einer anderen Charge. Ist die Charge am Lager leer, im Reiter Chargen „Charge ist leer" drücken — dann misst die App ihren echten Verlust._
 - **Nr. 2 · Überzählung** · offen · Charge 1614 — Slowgrow Uster · Kaori Kuri · `charge:1614`
   - Die Lieferungen dieser Charge (9196 kg) brauchen mit den gerechneten Raten 11225 kg Eingang, auch mit den günstigsten der Spanne noch 10585 kg — hereingekommen sind 10559 kg. Geliefert wurde nicht mehr als eingelagert, aber mehr, als die Raten aus diesem Eingang erlauben: die Raten passen nicht zur Charge.
   - _Drei Möglichkeiten: Die Charge verliert weniger als ihre Sorte (gerechnet Verdunstung 0.23 % je Tag, Palox 9 %); im Erntejournal fehlt eine Palette; oder ein Lieferschein gehört einer anderen Charge. Ist die Charge am Lager leer, im Reiter Chargen „Charge ist leer" drücken — dann misst die App ihren echten Verlust._
