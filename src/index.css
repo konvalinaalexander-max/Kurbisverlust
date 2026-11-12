@@ -1706,3 +1706,60 @@ table.excel tr.excel-gleich td.falsch { background: #fff1f1; } table.excel tr.ex
 .auff-behoben-zeile { display: grid; grid-template-columns: 2rem minmax(0, 1fr); gap: .2rem .6rem; padding: .45rem .55rem; border: 1px dashed var(--rand);
   border-radius: var(--radius-klein); font-size: var(--s-1); }
 .auff-behoben-zeile .fall-zeile-unter { display: block; }
+
+/* ---------- Runde BL: Mehrwahl (ein Feld, in dem man mehreres anklickt) und KW-Planung ---------- */
+.mehrwahl { position: relative; display: inline-block; }
+.mehrwahl-knopf { display: inline-flex; align-items: center; gap: .45rem; min-height: 36px; max-width: min(22rem, 78vw); padding: .25rem .6rem .25rem .8rem;
+  font-size: var(--s-1); font-weight: var(--gewicht-mittel); color: var(--text); background: var(--flaeche); border: 1px solid var(--rand); border-radius: 999px; }
+.mehrwahl-knopf:hover { border-color: var(--text-ganz-leise); }
+.mehrwahl-knopf:focus-visible, .mehrwahl.offen .mehrwahl-knopf { outline: none; border-color: var(--kuerbis); box-shadow: 0 0 0 3px var(--kuerbis-ring); }
+.mehrwahl-knopf .mehrwahl-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mehrwahl-knopf svg { flex: none; width: 15px; height: 15px; color: var(--text-leise); transform: rotate(90deg); transition: transform .15s ease; }
+.mehrwahl.offen .mehrwahl-knopf svg { transform: rotate(-90deg); }
+.mehrwahl-feld { position: absolute; z-index: 20; top: calc(100% + 6px); left: 0; width: max-content; min-width: 16rem; max-width: min(26rem, 88vw);
+  background: var(--flaeche); border-radius: var(--radius); box-shadow: var(--kontur), var(--tiefe-2); padding: .45rem; color: var(--text); }
+.mehrwahl-kurz { display: flex; flex-wrap: wrap; gap: .35rem; padding: .15rem .2rem .5rem; border-bottom: 1px solid var(--rand-leise); margin-bottom: .3rem; }
+.mehrwahl-liste { max-height: min(24rem, 55vh); overflow-y: auto; overscroll-behavior: contain; }
+.mehrwahl-gruppe + .mehrwahl-gruppe { margin-top: .3rem; padding-top: .3rem; border-top: 1px solid var(--rand-leise); }
+.mehrwahl-zeile { display: flex; align-items: baseline; gap: .55rem; margin: 0; padding: .38rem .5rem; border-radius: var(--radius-klein);
+  font-size: var(--s-1); font-weight: var(--gewicht-normal); color: var(--text); cursor: pointer; }
+/* in einer Filterleiste sind Beschriftungen leise — die Einträge der Liste nicht */
+.filterleiste .mehrwahl-zeile { color: var(--text); }
+.filterleiste .mehrwahl-kopf { font-weight: var(--gewicht-stark); }
+.mehrwahl-zeile:hover { background: var(--flaeche-2); }
+.mehrwahl-zeile.eingerueckt { padding-left: 1.5rem; }
+.mehrwahl-zeile input[type="checkbox"] { flex: none; width: 1rem; height: 1rem; min-height: 0; padding: 0; margin: 0; align-self: center; accent-color: var(--kuerbis); }
+.mehrwahl-zeile .mehrwahl-name { flex: 1 1 auto; min-width: 0; }
+.mehrwahl-zeile .mehrwahl-unter { flex: none; color: var(--text-leise); font-size: var(--s-0); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.mehrwahl-kopf .mehrwahl-name, .mehrwahl-titel { font-weight: var(--gewicht-stark); }
+.mehrwahl-titel { margin: 0; padding: .38rem .5rem; font-size: var(--s-1); }
+
+.kw-wahl { margin-bottom: var(--a-3); }
+.kw-wahl .wahl-teil { display: inline-flex; align-items: center; gap: .45rem; }
+.kw-block { margin-top: var(--a-5); padding-top: var(--a-4); border-top: 1px solid var(--rand-leise); }
+.kw-wahl + .kw-block { border-top: none; padding-top: 0; margin-top: var(--a-2); }
+.kw-kopf { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: .25rem 1.5rem; margin-bottom: .5rem; }
+.kw-kopf h3 { margin: 0; font-size: var(--s-3); letter-spacing: var(--spationierung-eng); }
+.kw-kopf .kw-gruppe-zusatz { font-size: var(--s-1); font-weight: var(--gewicht-normal); color: var(--text-leise); letter-spacing: 0; }
+.kw-gesamt { margin: 0; font-size: var(--s-1); color: var(--text-2); }
+.kw-gesamt strong { font-size: var(--s-3); color: var(--text); font-variant-numeric: tabular-nums; margin-left: .25rem; }
+.kw-tabelle td.zahl, .kw-tabelle th.zahl { font-variant-numeric: tabular-nums; min-width: 4.6rem; }
+.kw-tabelle .kw-artikel { font-weight: var(--gewicht-mittel); color: var(--text); }
+.kw-tabelle .kw-label, .kw-tabelle .kw-nichts { color: var(--text-leise); }
+/* Bei vielen Wochen rollt die Tabelle zur Seite — der Artikel links und die Summe rechts bleiben stehen. */
+.kw-tabelle .kw-erste { position: sticky; left: 0; z-index: 1; background: var(--flaeche); white-space: nowrap; }
+.kw-tabelle td.summe, .kw-tabelle th.summe { position: sticky; right: 0; z-index: 1; background: var(--flaeche);
+  border-left: 1px solid var(--rand-leise); font-weight: var(--gewicht-stark); }
+.kw-tabelle th.kw-gruppe { text-align: left; padding-bottom: 0; border-bottom: none; }
+.kw-tabelle tbody tr:hover td.kw-erste, .kw-tabelle tbody tr:hover td.summe { background: color-mix(in srgb, var(--flaeche-2) 60%, var(--flaeche)); }
+.kw-tabelle tfoot td { border-top: 1.5px solid var(--rand); border-bottom: none; font-weight: var(--gewicht-stark); }
+.kw-tabelle tbody tr:hover td { background: color-mix(in srgb, var(--flaeche-2) 60%, transparent); }
+.kw-block .rollbar { margin: 0; padding: 0; }   /* sonst schaut rechts neben der stehenden Summe eine Zahl hervor */
+.kw-fuss { margin: .45rem 0 0; font-size: var(--s-0); }
+.kw-leer { margin: .25rem 0 0; }
+@media (max-width: 640px) {
+  .mehrwahl-feld { position: fixed; left: var(--a-3); right: var(--a-3); top: auto; bottom: var(--a-3); width: auto; max-width: none; box-shadow: var(--kontur), var(--tiefe-3); }
+  .mehrwahl-liste { max-height: 50vh; }
+}
+
+.datei-gelesen { margin: 0 0 var(--a-3); font-size: var(--s-1); }

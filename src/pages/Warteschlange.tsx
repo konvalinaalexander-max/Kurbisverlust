@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { chargeText, fehlerText, stammdaten } from '../lib/db'
+import { chargeText, fehlerText, stammdaten, alleLesen } from '../lib/db'
 import { STATION_NAME, WEG_NAME, sortiertagText, tagAnfang, tagEnde, zahl,
          zeitpunkt } from '../lib/format'
 import { Aufklapp, Hinweis, Karte, Lade, Marke } from '../components/Bausteine'
@@ -49,13 +49,13 @@ export default function Warteschlange() {
         supabase.from('sortier_lauf').select('*')
           .in('zuordnung', ['offen', 'mehrdeutig']).eq('art', 'lauf')
           .order('datei_zeit', { ascending: false }),
-        supabase.from('auftrag').select('*')
-          .eq('weg', 'maschine').order('start_ts', { ascending: false }).limit(200),
+        // Runde BL: jede Maschinen-Arbeit — vorher die letzten 200, ohne es zu sagen
+        alleLesen<Auftrag>('auftrag', { ordnung: [['start_ts', false]], filter: q => q.eq('weg', 'maschine') }),
       ])
       if (l.error) throw l.error
       setChargen(s.chargen)
       setLaeufe((l.data ?? []) as SortierLauf[])
-      setAuftraege((a.data ?? []) as Auftrag[])
+      setAuftraege(a)
       setFehler(null)
     } catch (f) {
       setFehler(fehlerText(f))

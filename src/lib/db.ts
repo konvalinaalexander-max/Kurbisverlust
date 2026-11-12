@@ -1,6 +1,44 @@
 import { supabase } from './supabase'
 import type { Charge, Gebinde, SorteKaliber } from './typen'
 import type { SchlagAlias } from './import'
+import { alleSeiten, type Ordnung } from './seiten'
+
+/** Eine Abfrage, auf die noch Filter kommen dürfen (`.eq`, `.gte`, …). */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type Abfrage = any
+
+/**
+ * Alle Zeilen einer Tabelle oder Sicht (Runde BL) — nie nur die ersten
+ * tausend, die die Schnittstelle je Anfrage gibt, und nie eine stille
+ * Obergrenze. Die Regel steht in ./seiten.ts; hier nur der Anschluss an die
+ * Datenbank. Wirft den Fehler der Datenbank, wie er ist.
+ */
+export function alleLesen<T extends object>(tabelle: string, opt: {
+  spalten?: string; ordnung?: Ordnung[]; filter?: (q: Abfrage) => Abfrage
+} = {}): Promise<T[]> {
+  return alleSeiten<T>((von, bis, ordnung, zaehlen) => {
+    let q: Abfrage = supabase.from(tabelle).select(opt.spalten ?? '*', zaehlen ? { count: 'exact' } : undefined)
+    if (opt.filter) q = opt.filter(q)
+    for (const [spalte, auf] of ordnung) q = q.order(spalte, { ascending: auf })
+    return q.range(von, bis)
+  }, opt.ordnung)
+}
+
+/** alleLesen in der Form einer einzelnen Anfrage ({ data, error }) — für Stellen, die mehrere Anfragen nebeneinander stellen. */
+export function alsAntwort<T>(p: Promise<T[]>): Promise<{ data: T[] | null; error: { message: string; code?: string } | null }> {
+  return p.then(data => ({ data, error: null }), (error: { message: string; code?: string }) => ({ data: null, error }))
+}
+
+/**
+ * Eine lange Liste von Schlüsseln in Teilen abfragen (Runde BL): Die Liste
+ * steht in der Adresse der Anfrage, und die hat eine Länge — bei einigen
+ * hundert Nummern bricht sie. Jeder Teil wird ganz geholt (alleLesen).
+ */
+export async function inTeilen<S, T>(schluessel: S[], holen: (teil: S[]) => Promise<T[]>, jeTeil = 200): Promise<T[]> {
+  const alle: T[] = []
+  for (let i = 0; i < schluessel.length; i += jeTeil) alle.push(...await holen(schluessel.slice(i, i + jeTeil)))
+  return alle
+}
 
 /**
  * Stammdaten ändern sich selten — aber nicht nie. Am 22. Oktober kamen Oettli

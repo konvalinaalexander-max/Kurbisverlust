@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { GruppePlan, GruppeRang, KundePlan } from './artikel'
 import { supabase } from '../lib/supabase'
-import { fehlerText } from '../lib/db'
+import { alleLesen, fehlerText } from '../lib/db'
 import { SCHEMA_ERWARTET, datenbankVeraltet } from '../lib/version'
 import type { Datenlage, Hochrechnung, Massenbilanz } from '../lib/typen'
 import { heute as heuteOrtszeit, zeitpunkt } from '../lib/format'
@@ -775,17 +775,12 @@ async function alles(erzwingen: boolean): Promise<Auswertung> {
     if (nichtGebaut(fehler)) imBau = true
     probleme.push({ sicht: name, meldung: fehler?.message ?? 'unbekannter Fehler' })
   }
-  const q = async <T,>(name: string, order?: [string, boolean]): Promise<T[]> => {
-    const alle: T[] = []
-    for (let von = 0; ; von += SEITE) {
-      let s = supabase.from(name).select('*').range(von, von + SEITE - 1)
-      if (order) s = s.order(order[0], { ascending: order[1] })
-      const r = await s
-      if (r.error) { merken(name, r.error); return alle }
-      const teil = (r.data ?? []) as T[]
-      alle.push(...teil)
-      if (teil.length < SEITE) return alle
-    }
+  // Runde BL: jede Sicht ganz — seitenweise mit fester Reihenfolge und gezählt (lib/seiten.ts).
+  // Vorher: Seiten nur nach der einen Spalte geordnet (oder gar nicht); an der Seitengrenze
+  // konnte eine Zeile doppelt kommen und eine andere fehlen (erg_verlauf hat 2583 Zeilen).
+  const q = async <T extends object,>(name: string, order?: [string, boolean]): Promise<T[]> => {
+    try { return await alleLesen<T>(name, { ordnung: order ? [order] : [] }) }
+    catch (f) { merken(name, f as { code?: string; message?: string }); return [] }
   }
   const eins = async <T,>(name: string): Promise<T | null> => {
     const r = await supabase.from(name).select('*').maybeSingle()
@@ -920,8 +915,8 @@ export function auswertungLaden(erzwingen = false): Promise<Auswertung> {
 
 /** Der Datenstand für einen Reiter — geladen, gehalten, auf Wunsch neu gerechnet. */
 // Supabase liefert höchstens 1000 Zeilen je Anfrage — die Kaskade je
-// Eingangstag und die Gewichtsverteilung haben mehr. Deshalb seitenweise.
-const SEITE = 1000
+// Eingangstag und die Gewichtsverteilung haben mehr. Deshalb seitenweise:
+// alleLesen (lib/db.ts, Regel in lib/seiten.ts) — fest geordnet und gezählt.
 
 /**
  * Die volle Hochrechnung — jede Charge mal jeder Strom, mit Formel und
@@ -932,14 +927,8 @@ const SEITE = 1000
  * auf „CSV exportieren" drückt.
  */
 export async function hochrechnungLaden(): Promise<Hochrechnung[]> {
-  const alle: Hochrechnung[] = []
-  for (let von = 0; ; von += SEITE) {
-    const r = await supabase.from('v_hochrechnung').select('*').range(von, von + SEITE - 1)
-    if (r.error) throw new Error(r.error.message)
-    const teil = (r.data ?? []) as Hochrechnung[]
-    alle.push(...teil)
-    if (teil.length < SEITE) return alle
-  }
+  try { return await alleLesen<Hochrechnung>('v_hochrechnung') }
+  catch (f) { throw new Error((f as { message?: string }).message ?? String(f)) }
 }
 
 /* ---------- Das Lager nach Kaliber: je Stichtag ein Aufruf ----------------- */
@@ -1017,14 +1006,11 @@ export async function artikelGrundlagen(): Promise<{ labels: ChargeLabel[]; grup
     supabase.from('gruppe_plan').select('saison, gruppe, artikelgruppe, groesse, label, kg, ts'),
   ])
   for (const r of [l, g, k, kg, kp, gr, gp]) if (r.error) throw new Error(r.error.message)
-  const kunden: KundeTag[] = []
-  for (let von = 0; ; von += SEITE) {
-    const r = await supabase.from('v_kunde_tag').select('*').order('datum').range(von, von + SEITE - 1)
-    if (r.error) throw new Error(r.error.message)
-    const teil = (r.data ?? []) as KundeTag[]
-    kunden.push(...teil)
-    if (teil.length < SEITE) break
-  }
+  // Runde BL: alle Zeilen, in fester Reihenfolge und gezählt. Vorher nur nach dem Datum geordnet —
+  // am 12. November kamen im Betrieb von 7790 Zeilen 8 doppelt und 8 fehlten (lib/seiten.ts).
+  let kunden: KundeTag[]
+  try { kunden = await alleLesen<KundeTag>('v_kunde_tag', { ordnung: ['datum', 'kunde'] }) }
+  catch (f) { throw new Error((f as { message?: string }).message ?? String(f)) }
   return { labels: (l.data ?? []) as ChargeLabel[], gruppen: (g.data ?? []) as SorteGruppe[], kaliber: (k.data ?? []) as ArtikelKaliber[], kunden,
            kundeGruppe: (kg.data ?? []) as KundeGruppe[], plaene: (kp.data ?? []) as KundePlan[],
            gruppenRang: (gr.data ?? []) as GruppeRang[], gruppenPlaene: (gp.data ?? []) as GruppePlan[] }

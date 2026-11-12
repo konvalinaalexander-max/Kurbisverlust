@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { datum, kg, prozent, tonnen, zahl } from '../lib/format'
-import { fehlerText } from '../lib/db'
+import { alleLesen, fehlerText } from '../lib/db'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../auth/AuthProvider'
 import { Erklaerung, Herkunft, Hinweis, Karte, Kennzahl, Lade, Leer, Marke, Segmente } from '../components/Bausteine'
@@ -19,6 +19,7 @@ import { ARTIKEL_KLASSEN, KLASSEN, OFFEN, UNIQUE, alsArtikel, alsUnique, gruppen
          uebersichtszeilen, wahlGeordnet, verkaufsfaehigHeute, zeigtUnique, type GruppePlan, type GruppeRang, type Klasse, type KundePlan, type PlanTeile, type RestTeile, type Uebersichtszeile,
          type Wahl } from '../auswertung/artikel'
 import { LieferungFenster } from '../betrieb/LieferungFenster'
+import { KwPlanung } from '../auswertung/KwPlanung'
 
 const TAG = 86400000
 
@@ -48,6 +49,9 @@ const TAG = 86400000
  *      dahinter (artikel_lager_charge, 0113).
  *   3. Wie es gegangen ist: EIN grosses Diagramm, kumuliert über die Saison,
  *      diese gegen die Vorjahre — alle Kunden zusammen oder einer (v_kunde_tag).
+ *   4. KW-Planung (Runde BL): was in welcher Kalenderwoche an welchen Kunden
+ *      ging — je Kunde oder Gruppe eine Tabelle Artikel × Woche, unabhängig
+ *      von der Wahl oben (auswertung/KwPlanung.tsx).
  *
  * Nichts davon ist eine zweite Rechnung: das Verkaufsfähige ist das der
  * Chargen, nach den Kalibern des Artikels geteilt; die Lieferungen sind die
@@ -161,6 +165,8 @@ export default function Artikel() {
                                           laedt={lager.laedt} lagerFehler={lager.fehler} rest={rest} hagel={hagel} heute={daten.heute} />} />
           <Verlauf grund={grund} heute={daten.heute} wahl={wahl} lagerHeute={lagerHeute.zeilen} verlauf={daten.verlauf}
                    bestand={daten.bestand} rest={rest} hagel={hagel} istAdmin={istAdmin} neuLaden={() => setLadeNr(n => n + 1)} />
+          {/* Runde BL: ganz unten, unabhängig von der Wahl oben — Kunde und Kalenderwoche */}
+          <KwPlanung kunden={grund.kunden} kundeGruppe={grund.kundeGruppe} gruppenRang={grund.gruppenRang} heute={daten.heute} />
         </>
       )}
       {!grund && !grundFehler && <Rechnet fortschritt={null} />}
@@ -1129,9 +1135,12 @@ function Lieferungen({ kunde, saison, wahl }: { kunde: string; saison: number; w
   useEffect(() => {
     let gilt = true
     setZeilen(null)
-    void supabase.from('v_kunde_position').select('quelle, pos_id, datum, saison, gruppe, groesse, label, artikel, menge, einheit, kg')
-      .eq('kunde', kunde).gte('saison', saison - 1).order('datum', { ascending: false }).limit(500)
-      .then(r => { if (!gilt) return; if (r.error) setFehler(fehlerText(r.error)); else setZeilen((r.data ?? []) as KundePosition[]) })
+    // Runde BL: jede Position des Kunden — vorher höchstens 500, ohne es zu sagen; vier Kunden
+    // haben in zwei Saisons mehr (bis 858), ihre ältesten Lieferungen fehlten in der Liste.
+    alleLesen<KundePosition>('v_kunde_position', {
+      spalten: 'quelle, pos_id, datum, saison, gruppe, groesse, label, artikel, menge, einheit, kg',
+      ordnung: [['datum', false], ['pos_id', false]], filter: q => q.eq('kunde', kunde).gte('saison', saison - 1),
+    }).then(z => { if (gilt) setZeilen(z) }, (f: unknown) => { if (gilt) setFehler(fehlerText(f)) })
     return () => { gilt = false }
   }, [kunde, saison])
   const passend = (zeilen ?? []).filter(z => passtGruppe(wahl, z.gruppe) && passtLabel(wahl, z.label) && passtVerkauf(wahl, z.groesse))

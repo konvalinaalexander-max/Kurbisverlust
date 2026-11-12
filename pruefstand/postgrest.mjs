@@ -1,6 +1,6 @@
 /**
  * Der Filter des Mini-PostgREST — von bildschirme.mjs und kette.mjs geteilt.
- * Versteht eq/in/is/not.is/like/gte/lte, order, limit. Mehr braucht die App nicht.
+ * Versteht eq/in/is/not.is/like/gte/lte, order (mehrere Spalten), limit, offset. Mehr braucht die App nicht.
  */
 /* ---------- Mini-PostgREST: eq/in/is/like/not-Filter, order, limit ------- */
 export function filtern(zeilen, params) {
@@ -30,16 +30,20 @@ export function filtern(zeilen, params) {
       }
     }
   }
+  // Runde BL: mehrere Spalten (order=datum.desc,pos_id.desc) — alleLesen ordnet nach allen
+  // Spalten, damit die Seiten bei jeder Anfrage gleich geschnitten sind (src/lib/seiten.ts).
   const order = params.get('order')
   if (order) {
-    const [spalte, ...rest] = order.split('.')
-    const absteigend = rest.includes('desc')
+    const spalten = order.split(',').map(teil => { const [spalte, ...rest] = teil.split('.'); return [spalte, rest.includes('desc')] })
     erg.sort((a, b) => {
-      const x = a[spalte], y = b[spalte]
-      if (x === y) return 0
-      if (x === null) return 1
-      if (y === null) return -1
-      return (x < y ? -1 : 1) * (absteigend ? -1 : 1)
+      for (const [spalte, absteigend] of spalten) {
+        const x = a[spalte], y = b[spalte]
+        if (x === y || (x == null && y == null)) continue
+        if (x == null) return 1
+        if (y == null) return -1
+        return (x < y ? -1 : 1) * (absteigend ? -1 : 1)
+      }
+      return 0
     })
   }
   // .range(von, bis) von supabase-js wird zu offset + limit — beides ehren,

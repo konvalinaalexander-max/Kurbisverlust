@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { ZKreuz } from '../components/Zeichen'
 import { supabase } from '../lib/supabase'
-import { fehlerText } from '../lib/db'
+import { fehlerText, alleLesen } from '../lib/db'
 import { datum as datumText, heute as heuteOrtszeit, kg as kgText, tonnen, zahl } from '../lib/format'
 import { Hinweis, Karte, Kennzahl, Lade } from '../components/Bausteine'
 import AusgangImport from '../betrieb/AusgangImport'
@@ -27,7 +27,6 @@ const heute = heuteOrtszeit
 
 /** So viele Lieferungen stehen zuerst in der Liste; die Zahlen darüber zählen alle. */
 const ZUERST = 200
-const SEITE = 1000
 
 export default function Lieferungen() {
   const [alle, setAlle] = useState<Zeile[]>([])
@@ -49,17 +48,10 @@ export default function Lieferungen() {
   const laden = useCallback(async () => {
     // Runde AQ: alle Lieferungen, seitenweise — bis hier nur die neuesten 200,
     // und „Masse aller Lieferungen" zählte nur diese (27.7 t statt 209.7 t).
-    const holeAlle = async () => {
-      const da: Zeile[] = []
-      for (let von = 0; ; von += SEITE) {
-        const r = await supabase.from('v_lieferung_masse').select('*')
-          .order('datum', { ascending: false }).order('id', { ascending: false }).range(von, von + SEITE - 1)
-        if (r.error) { setFehler(fehlerText(r.error)); return da }
-        const teil = (r.data ?? []) as Zeile[]
-        da.push(...teil)
-        if (teil.length < SEITE) return da
-      }
-    }
+    // Runde BL: über alleLesen — dazu gezählt, damit eine Lücke ein Fehler ist und keine kleinere Summe.
+    const holeAlle = (): Promise<Zeile[]> =>
+      alleLesen<Zeile>('v_lieferung_masse', { ordnung: [['datum', false], ['id', false]] })
+        .catch((f: unknown) => { setFehler(fehlerText(f)); return [] as Zeile[] })
     const [l, z, s, c] = await Promise.all([
       holeAlle(),
       supabase.from('ausgang_ziel').select('*').order('reihenfolge'),

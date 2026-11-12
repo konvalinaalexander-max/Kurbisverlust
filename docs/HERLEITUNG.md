@@ -867,6 +867,26 @@ derselben Menge wie eine frühere sagt „gleich wie Zeile …". Die Summen
 (zugeteilt, Position, Rechnung) kommen aus dieser Sicht, nicht aus der
 Summe im Fenster — die Zeilen zeigen nur, woraus sie bestehen.
 
+## 12i. KW-Planung — was in welcher Woche an wen ging (`v_kunde_tag`, `kwTabelle`, Runde BL)
+
+**Braucht:** jede Kürbis-Position der Perigon-Dateien (`ausgang_position`: Kunde,
+Lieferdatum, Artikel, Menge, Gewicht je Artikel), eingeordnet nach Artikelgruppe,
+Grösse und Label (`artikel_einordnen`), ohne interne Umbuchung (Journal L) —
+das ist `v_kunde_tag`, je Kunde, Tag und Artikel. Dazu die Gruppe des Kunden
+(`kunde_gruppe`, sonst nach dem Namen) und heute. **Rechnet:** die Kalenderwoche
+des Lieferdatums nach ISO 8601 (Montag bis Sonntag); je gewähltem Kunden oder
+gewählter Gruppe und je Artikel die Summe der Kilos je gewählter Woche, die
+Summe über die Wochen, das Gesamt je Woche. Die Wochen zur Wahl: von der Woche
+der ersten Lieferung der Saison (1. Juli bis 30. Juni) bis zur laufenden.
+**Fehlt eine Eingabe:** eine Position ohne Stückgewicht hat keine Kilos — sie
+zählt als Stück darunter, nie als 0 kg; eine Woche ohne Lieferung ist leer; ein
+Artikel ohne Lieferung in den gewählten Wochen hat keine Zeile. **Urteil:**
+gemessen (die Perigon-Dateien). Geht in keine Bilanz ein.
+
+Alle Zeilen: `v_kunde_tag` hat mehr als tausend — geholt wird über `alleLesen`
+(gezählt, nach allen Spalten geordnet, die Zahl muss am Ende stimmen;
+`src/lib/seiten.ts`). Dasselbe gilt für jede andere Tabelle über tausend Zeilen.
+
 ## 13. Was nirgends erraten wird
 
 - Eine Menge aus einer Zählung ohne Masse (AB-23).

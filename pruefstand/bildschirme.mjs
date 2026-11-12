@@ -1322,6 +1322,68 @@ const BILDSCHIRME = [
       // Runde AR: die Stück ohne Gewicht sind Muscade, nicht Knirps — der Hinweis folgt der Wahl.
       if (await p.locator('#artikel-ohne-gewicht').count()) throw new Error('Bei Knirps steht der Hinweis auf Muscade-Stück ohne Gewicht')
     } },
+  // Runde BL: KW-Planung, ganz unten — Kunde und Kalenderwoche, je Auswahl eine Tabelle Artikel × Woche + Summe.
+  // Geprüft gegen die Rohzeilen (v_kunde_tag.json): die Summe der Tabelle ist die Summe aller Positionen der
+  // Gruppe in der Saison — nichts abgeschnitten, nichts doppelt.
+  { name: 'artikel-kw', wer: 'admin', pfad: '/artikel',
+    tun: async p => {
+      await p.locator('#kw-planung').scrollIntoViewIfNeeded()
+      await p.locator('#kw-kunden').click()
+      await p.locator('#kw-kunden-gruppen').click()                                  // jede Gruppe als Ganzes
+      const einzel = p.locator('#kw-kunden-liste .mehrwahl-zeile.eingerueckt').first()
+      const kunde = (await einzel.locator('.mehrwahl-name').innerText()).trim()
+      await einzel.click()                                                           // dazu ein einzelner Kunde
+      await p.keyboard.press('Escape')
+      await p.locator('#kw-wochen').click()
+      await p.locator('#kw-wochen-alle').click()
+      await p.keyboard.press('Escape')
+      const zeilen = (fixture('v_kunde_tag') ?? [])
+      const saison = Math.max(...zeilen.map(z => Number(z.saison)))
+      const gesetzt = new Map((fixture('kunde_gruppe') ?? []).map(g => [g.kunde, g.gruppe]))
+      const gruppen = new Set(zeilen.filter(z => Number(z.saison) === saison).map(z => gesetzt.get(z.kunde) ?? 'Kleinkunden'))
+      const bloecke = await p.locator('.kw-block').count()
+      if (bloecke !== gruppen.size + 1) throw new Error(`KW-Planung: ${bloecke} Tabellen, erwartet ${gruppen.size} Gruppen + 1 Kunde`)
+      const zahlVon = s => Number(s.replace(/[^0-9.,-]/g, '').replace(/[’',]/g, ''))
+      // der einzelne Kunde: Gesamt unten rechts = Summe seiner Zeilen der Saison
+      const soll = zeilen.filter(z => Number(z.saison) === saison && z.kunde === kunde).reduce((s, z) => s + Number(z.kg ?? 0), 0)
+      const block = p.locator('.kw-block', { has: p.locator('h3', { hasText: kunde }) }).last()
+      const ist = zahlVon(await block.locator('tfoot td.summe').innerText())
+      if (Math.abs(ist - soll) > 1) throw new Error(`KW-Planung ${kunde}: Tabelle ${ist} kg, Rohzeilen ${soll.toFixed(1)} kg`)
+      // alle Gruppen zusammen = alles, was in der Saison ging
+      let summe = 0
+      for (let i = 0; i < bloecke; i++) {
+        const b = p.locator(`#kw-tabelle-${i}`)
+        if (/zusammen/.test(await b.locator('h3').innerText())) summe += zahlVon(await b.locator('tfoot td.summe').innerText())
+      }
+      const alles = zeilen.filter(z => Number(z.saison) === saison).reduce((s, z) => s + Number(z.kg ?? 0), 0)
+      if (Math.abs(summe - alles) > gruppen.size) throw new Error(`KW-Planung: alle Gruppen ${summe} kg, Rohzeilen der Saison ${alles.toFixed(1)} kg`)
+      const koepfe = await block.locator('thead th').count()
+      const wochen = await p.locator('#kw-wochen').innerText()
+      if (koepfe < 4) throw new Error(`KW-Planung: nur ${koepfe} Spalten bei „${wochen}"`)
+    } },
+  // Runde BL: die Kundenwahl offen — jede Gruppe als Überschrift mit eigenem Häkchen, darunter ihre Kunden;
+  // alle Kunden der Saison stehen da (keiner abgeschnitten), und die Wochenliste reicht bis zur laufenden Woche.
+  { name: 'artikel-kw-wahl', wer: 'admin', pfad: '/artikel',
+    tun: async p => {
+      await p.locator('#kw-planung').scrollIntoViewIfNeeded()
+      await p.locator('#kw-wochen').click()
+      const zeilen = (fixture('v_kunde_tag') ?? [])
+      const saison = Math.max(...zeilen.map(z => Number(z.saison)))
+      const wochen = await p.locator('#kw-wochen-liste .mehrwahl-zeile').count()
+      const tage = zeilen.filter(z => Number(z.saison) === saison).map(z => z.datum).sort()
+      const mindestens = Math.floor((Date.parse(tage[tage.length - 1]) - Date.parse(tage[0])) / (7 * 86400000))
+      if (wochen < mindestens) throw new Error(`KW-Planung: ${wochen} Wochen zur Wahl, die Lieferungen der Saison reichen über ${mindestens}`)
+      if (!/diese Woche/.test(await p.locator('#kw-wochen-liste .mehrwahl-zeile').first().innerText())) throw new Error('Die laufende Woche steht nicht zuoberst')
+      await p.keyboard.press('Escape')
+      await p.locator('#kw-kunden').click()
+      const kunden = new Set(zeilen.filter(z => Number(z.saison) === saison).map(z => z.kunde))
+      const da = await p.locator('#kw-kunden-liste .mehrwahl-zeile.eingerueckt').count()
+      if (da !== kunden.size) throw new Error(`KW-Planung: ${da} Kunden zur Wahl, die Saison hat ${kunden.size}`)
+      if (await p.locator('#kw-kunden-liste .mehrwahl-kopf input').count() < 1) throw new Error('Keine Gruppe ist als Ganzes wählbar')
+      await p.locator('#kw-kunden-liste .mehrwahl-kopf').first().click()
+      await p.locator('#kw-kunden-liste .mehrwahl-zeile.eingerueckt').nth(1).click()
+      await p.locator('.kw-block').nth(1).waitFor()
+    } },
   // 0137: „Ünique soll eine Zeile sein und keine Spalte" — bei allen Artikeln eine eigene Zeile, keine Spalte bei
   // Knirps; gewählt, fallen Grösse und Label weg; bei Knirps steht es nicht.
   { name: 'artikel-unique', wer: 'admin', pfad: '/artikel',

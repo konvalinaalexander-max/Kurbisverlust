@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { supabase } from '../lib/supabase'
-import { fehlerText } from '../lib/db'
+import { alleLesen, fehlerText } from '../lib/db'
 import { pruefsumme } from '../lib/csv'
 import { xlsxLesen, type Blatt } from '../lib/xlsx'
 import {
@@ -55,6 +55,8 @@ interface Datei {
   erkennung?: QuelleErkennung
   status: 'bereit' | 'laeuft' | 'fertig' | 'fehler'
   meldung?: string
+  /** Runde BL: was die App von der Datei nicht gelesen hat — gesagt, nicht still übergangen. */
+  gelesen?: { blatt: string; zeilen: number; uebersprungen: number; weitereBlaetter: string[] }
   ergebnis?: { zeilen_neu: number; zeilen_geaendert: number; lieferungen_neu: number; lieferungen_aktualisiert: number; lieferungen_ersetzt?: number; zeilen_beiseite?: number
                 /** 0131: Positionen, die im Zeitraum der Datei gar nicht mehr stehen (in Perigon gelöscht) */
                 positionen_geloescht?: { positionen: number; zeilen: number; lieferungen: number; fehlen?: number; grund?: string; liste?: string }
@@ -90,19 +92,11 @@ async function historieUebernehmen(d: Datei, zeilen: AusgangZeile[], bestaetigt:
   }
 }
 
-/** Alle Zeilen einer Tabelle, seitenweise — PostgREST gibt sonst höchstens tausend. */
-async function alleZeilen<T>(tabelle: string, spalten: string, filter?: [string, string]): Promise<T[]> {
-  const seite = 1000
-  const alle: T[] = []
-  for (let von = 0; ; von += seite) {
-    let q = supabase.from(tabelle).select(spalten).range(von, von + seite - 1)
-    if (filter) q = q.eq(filter[0], filter[1])
-    const { data, error } = await q
-    if (error) throw error
-    const rows = (data ?? []) as T[]
-    alle.push(...rows)
-    if (rows.length < seite) return alle
-  }
+/** Alle Zeilen einer Tabelle — seitenweise, in fester Reihenfolge und gezählt (Runde BL, lib/seiten.ts).
+ *  Vorher ohne Reihenfolge: an der Seitengrenze konnte eine bekannte Zeile fehlen, und der Abgleich
+ *  hätte sie als „neu" gemeldet. */
+function alleZeilen<T extends object>(tabelle: string, spalten: string, filter?: [string, string]): Promise<T[]> {
+  return alleLesen<T>(tabelle, { spalten, filter: filter ? q => q.eq(filter[0], filter[1]) : undefined })
 }
 
 /** Die Zeilen einer Datei, gelesen mit dem bestätigten Quellen-Code — und
@@ -205,13 +199,18 @@ export default function AusgangImport({ nachUebernahme }: { nachUebernahme: () =
         const blatt = blaetter.find(b => kopfLesen(b.zeilen) !== null) ?? null
         // Runde AE: erst der Inhalt, dann der Name, sonst fragen. Die Zeilen
         // werden dafür ohne Firma gelesen — der Positionsschlüssel kennt keine.
-        const zeilen = blatt ? zeilenLesen(blatt, 'x').zeilen.filter(z => z.datum >= ZEITRAUM_AB) : []
+        const lesung = blatt ? zeilenLesen(blatt, 'x') : null
+        const zeilen = lesung ? lesung.zeilen.filter(z => z.datum >= ZEITRAUM_AB) : []
+        // Runde BL: weitere Blätter mit denselben Spalten und Zeilen ohne Positions-Nr. oder Datum
+        // las die App nicht — bisher, ohne es zu sagen.
+        const weitere = blaetter.filter(b => b !== blatt && kopfLesen(b.zeilen) !== null).map(b => b.name)
         const erkennung = quelleErkennen(datei.name, zeilen, quellen, schluesselJeFirma)
         const erkannt = erkennung.code === null ? undefined : quellen.find(q => q.code === erkennung.code)
         const vorschlag = quelleVorschlag(datei.name)
         const d: Datei = {
           name: datei.name, summe: await pruefsumme(puffer), blatt,
           quelle: erkannt?.code ?? '', quelleName: erkannt?.name ?? vorschlag, erkennung,
+          gelesen: blatt && lesung ? { blatt: blatt.name, zeilen: lesung.zeilen.length, uebersprungen: lesung.uebersprungen, weitereBlaetter: weitere } : undefined,
           status: blatt ? 'bereit' : 'fehler',
           meldung: blatt ? undefined : 'Kein Blatt mit den erwarteten Spalten (Lieferdatum, Artikel, Menge, Charge, AufPosId …). Ist das die Auswertung „Abgleich Rückverfolgbarkeit"?',
         }
@@ -503,6 +502,19 @@ function DateiKarte({ schluessel, melden, mixTeile, d, quellen, bekannt, bekannt
              {{ bereit: 'geprüft, noch nicht übernommen', laeuft: 'übernimmt …', fertig: 'übernommen', fehler: 'Fehler' }[status]}
            </Marke>}>
       {d.meldung && status === 'fehler' && <Hinweis art="warnung">{d.meldung}</Hinweis>}
+      {d.gelesen && d.gelesen.weitereBlaetter.length > 0 && (
+        <Hinweis art="warnung">
+          Gelesen ist nur das Blatt „{d.gelesen.blatt}". Die Datei hat {d.gelesen.weitereBlaetter.length === 1 ? 'ein weiteres Blatt' : `${d.gelesen.weitereBlaetter.length} weitere Blätter`} mit
+          denselben Spalten ({d.gelesen.weitereBlaetter.join(', ')}) — {d.gelesen.weitereBlaetter.length === 1 ? 'es ist' : 'sie sind'} nicht gelesen. Alles in ein Blatt legen und neu hochladen.
+        </Hinweis>
+      )}
+      {d.gelesen && (
+        <p className="leise datei-gelesen" id={`gelesen-${d.summe.slice(0, 8)}`}>
+          Aus dem Blatt „{d.gelesen.blatt}" gelesen: {zahl(d.gelesen.zeilen)} Zeilen — alle mit Positions-Nr. und Datum.
+          {d.gelesen.uebersprungen > 0 && <> {zahl(d.gelesen.uebersprungen)} {d.gelesen.uebersprungen === 1 ? 'Zeile hat' : 'Zeilen haben'} keines von beidem
+            (Zwischensummen, Bemerkungen) und {d.gelesen.uebersprungen === 1 ? 'ist' : 'sind'} nicht gelesen.</>}
+        </p>
+      )}
       {d.blatt && (
         <>
           {/* 1. Herkunft */}
@@ -690,7 +702,8 @@ function DateiKarte({ schluessel, melden, mixTeile, d, quellen, bekannt, bekannt
               )}
               {d.ergebnis.uebergangen.length > 0 && (
                 <p className="leise" style={{ margin: '.4rem 0 0' }}>
-                  Nicht übernommen: {d.ergebnis.uebergangen.slice(0, 8).map(u => `${u.datum ? datum(u.datum) + ' ' : ''}${u.kunde ?? ''} ${u.kg != null ? kg(u.kg, 0) : ''} — ${u.grund}`).join('; ')}
+                  Nicht übernommen ({zahl(d.ergebnis.uebergangen.length)}): {d.ergebnis.uebergangen.slice(0, 8).map(u => `${u.datum ? datum(u.datum) + ' ' : ''}${u.kunde ?? ''} ${u.kg != null ? kg(u.kg, 0) : ''} — ${u.grund}`).join('; ')}
+                  {d.ergebnis.uebergangen.length > 8 && ` … und ${zahl(d.ergebnis.uebergangen.length - 8)} weitere`}
                   {d.ergebnis.uebergangen.length > 8 && ' …'}
                 </p>
               )}
@@ -700,7 +713,7 @@ function DateiKarte({ schluessel, melden, mixTeile, d, quellen, bekannt, bekannt
       )}
       {ab !== null && ab.verschwunden.length > 0 && status === 'bereit' && (
         <p className="leise" style={{ margin: '.5rem 0 0', fontSize: '.8rem' }}>
-          Nicht mehr in der Datei (Position / Charge): {ab.verschwunden.slice(0, 5).map(s => s.split('|').slice(1, 3).map(t => t || 'ohne').join(' / ')).join(', ')}
+          Nicht mehr in der Datei ({zahl(ab.verschwunden.length)}; Position / Charge): {ab.verschwunden.slice(0, 5).map(s => s.split('|').slice(1, 3).map(t => t || 'ohne').join(' / ')).join(', ')}
           {ab.verschwunden.length > 5 && ' …'}. Gelöscht wird nichts: was die Datei anders hat — oder eine Position, die im Zeitraum der Datei gar
           nicht mehr steht (in Perigon gelöscht) —, liegt danach unter „frühere Zeilen" und steht im Fenster der Lieferung als Satz.
         </p>

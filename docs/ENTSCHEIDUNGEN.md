@@ -4290,6 +4290,129 @@ Geprüft:
 - Eine Sorte dazu oder weg im Rezept geht noch nicht in der Maske (nur Stück,
   kg je Stück und Herkunft); das Rezept des Betriebs hat drei Sorten.
 
+## Runde BL: Die ganze Datei, die KW-Planung — und zurück, was nur plausibel war (12. November)
+
+Der Betrieb, in einer Nachricht drei Dinge:
+
+- „Ich habe dir mehrmals gesagt, du sollst die Sachen, die du plausibel klären
+  kannst, klären. Ich glaube, ich bereue das, weil jetzt kann ich ja gar nicht
+  auf Spurensuche gehen. Bereinige ausschliesslich die Punkte, bei denen du
+  wirklich überzeugt bist — sagen wir 90 % sicher —, alle anderen mach wieder
+  rückwärts."
+- „Stelle sicher, dass das Programm wirklich die ganze Perigon-Datei voll parat
+  hat. Nicht, dass das Programm faul ist und nur die ersten 100 anzeigt. Schau
+  das grundlegend im Programmcode an."
+- „KW-Planung: wie viel lief in den letzten KWs nach Kunde und Produkt. Erste
+  Spalte Produkt, dann die KWs, die ausgesucht sind, rechts Summe. Mehrere
+  Kunden: zwei Tabellen untereinander. Ganze Kategorien anklickbar oder
+  einzelne Kunden."
+
+Keine Migration: Stand bleibt 143, `setup.sql` muss nicht neu eingespielt werden.
+
+### 1. Was zwischen Chargen verschoben war — und was davon bleibt
+
+Bestandsaufnahme im Betrieb (gelesen: `palette_zuordnung`,
+`lieferung_nachordnung`, alle Schreibzugriffe der Runden auf den Betrieb):
+
+| Was | Beleg | Urteil |
+|---|---|---|
+| 30 Paletten vom 31.8., von 1623 (Mieluna) zu 1626 (Tiana) — die ganze Fuhre, am 7.11. von der Runde vorgeschlagen und umgebucht | „kam am selben Tag im selben Gebinde wie vier Paletten, die ein Zettel belegt". Die Zählung vom 9.11. spricht dagegen, dass *alle* Tiana waren: 1626 hatte damit zwölf Paletten mehr als gezählt, 1623 fehlten 4.8 t | **zurückgenommen** |
+| 4 Paletten vom 31.8., 1623 → 1626 | acht Zettel der Arbeit 1619 (Tiana 1626) tragen das Datum 31.8.; an diesem Tag hat das Journal von diesem Produzenten nur diese Fuhre; vier Zettel treffen eine ihrer Paletten aufs Kilo | bleibt |
+| 6 Paletten vom 23.9., 1625 → 1627 (die Regel, 0121) | alle fünf Zettel der Arbeit 1602 treffen die fünf verschiedenen Gewichte dieser kleinen Fuhre (380 bis 448 kg); 1627 hat sonst keinen Eingang und 1.4 t geliefert | bleibt |
+| 4 Lieferscheine → 1719, 11 → 1650 | die Perigon-Nummer der Zeile *ist* die der Charge (199156, 198977) | bleibt |
+| 112 Mix-Anteile zurück an ihre Sorte (0141) | das Rezept des Betriebs | bleibt |
+
+Zurückgenommen über `palette_zuordnung_setzen(…, 'zurueckgenommen')` — der Weg
+des Betriebsleiters; die Regel legt sie nicht wieder an, der Grund steht an der
+Zeile. Damit ist sichtbar, was offen ist: 1626 hat 1.2 t mehr geliefert, als
+hereinkam, und 1623 steht mit 17 Paletten da, die niemand gezählt hat. Wie viele
+der 30 Tiana waren, sagt der Betrieb.
+
+Ein Befund dazu, nicht geändert: Ein Zettel, der „aufs Kilo" zu einer Palette
+passt, ist für sich schwach — die Paletten dieses Produzenten wiegen fast alle
+420 bis 445 kg brutto, von den acht Zetteln der Arbeit 1619 treffen vier eine
+Palette vom 31.8. und zwei eine vom 28.8., die sicher Mieluna ist. Die Regel
+(0121) bucht darum erst ab 80 % Treffern von selbst um; das bleibt.
+
+### 2. Die ganze Datei
+
+**Gespeichert ist alles.** Die Datenbank hält jede Kürbis-Position der
+Perigon-Dateien, alle Saisons, mit der ganzen Excel-Zeile (`ausgang_position.roh`):
+aus der einen Datei die Zeilen 2 bis 7080 lückenlos, aus der anderen (alles
+Gemüse) die 1024 Kürbis-Zeilen. Diese Saison je Kalenderwoche nachgerechnet:
+was gespeichert ist und was die Sicht der App liefert, ist auf das Kilo
+dasselbe (1795 Positionen, 351.5 t). Die Spalte „TotalGewicht" der Datei weicht
+bei drei Artikeln ab — das ist bekannt und gewollt (0115, 0131: das Kilo kommt
+aus der Menge; Ünique steht in Perigon mit dem Zehnfachen).
+
+**Geladen wurde nicht immer alles.** Die Schnittstelle gibt je Anfrage tausend
+Zeilen. Gefunden:
+
+- „Geliefert je Kunde und Tag" (`v_kunde_tag`, 7790 Zeilen) wurde in acht
+  Seiten geholt, geordnet nur nach dem Datum. Innerhalb eines Tages ist die
+  Reihenfolge bei jeder Anfrage eine andere — an der Seitengrenze kam eine
+  Zeile doppelt, eine andere fehlte. Im Betrieb gemessen: **8 doppelt, 8
+  fehlen, 974 kg daneben**. Betroffen: „ausgeliefert" und die Kundenzahlen im
+  Lagermanagement nach Artikel.
+- Dasselbe Muster, bisher ohne Schaden: `erg_verlauf` (2583 Zeilen, geordnet
+  nach der Woche), `erg_prognose`, `v_hochrechnung` und der Abgleich beim
+  Einlesen (ohne jede Ordnung).
+- Die Lieferungen eines Kunden: höchstens 500, ohne es zu sagen — vier Kunden
+  haben in zwei Saisons mehr (bis 858).
+- Arbeiten: die letzten 400; Rückmeldungen: die letzten 1000; Maschinen-Arbeiten
+  in der Warteschlange: die letzten 200; Vermerke: „2000", in Wahrheit 1000.
+  Heute alle darunter, aber nirgends gesagt.
+- Das Belege-Fenster fragte Lieferungen mehrerer Chargen in einer Anfrage ab
+  (über tausend möglich) und schrieb hunderte Nummern in eine Adresse.
+
+**Behoben, an einer Stelle** (`src/lib/seiten.ts`, `alleLesen` in
+`src/lib/db.ts`): Passt alles in eine Anfrage, bleibt es eine. Braucht es mehr
+als eine Seite, wird gezählt und nach allen Spalten geordnet (die gewünschten
+zuerst), die Seiten werden gleichzeitig geholt, und am Ende muss die Zahl
+stimmen — sonst einmal von vorn, dann ein Fehler, den die Seite zeigt. Alle oben genannten Stellen
+holen so. Gegen die echte Schnittstelle geprüft: zwölf Tabellen, jede ganz,
+keine Zeile doppelt. Ein Test hält fest, dass keine Seite mehr selbst blättert
+oder eine Obergrenze setzt, ausser wo die Karte „die neusten" heisst.
+
+Dazu: beim Einlesen sagen „Nicht übernommen" und „Nicht mehr in der Datei"
+jetzt, wie viele es sind, wenn die Liste gekürzt ist.
+
+### 3. KW-Planung
+
+Unten im Lagermanagement nach Artikel (dort ist die haftende Wahl Artikel /
+Grösse / Label, von der der Betrieb sprach), unabhängig von dieser Wahl. Zwei
+Felder, in denen man mehreres anklickt (`components/Mehrwahl.tsx`): Kunden —
+nach Gruppe, jede Gruppe als Ganzes wählbar und jeder Kunde einzeln, beides
+nebeneinander — und Kalenderwochen, von der Woche der ersten Lieferung der
+Saison bis zur laufenden (nächste Woche eine mehr), ohne Wahl die letzten vier.
+Je Auswahl eine Tabelle: Artikel (Gruppe × Grösse × Label, nur was geliefert
+wurde) × Woche, rechts die Summe, unten das Gesamt; darüber „Gesamtverkauf KW
+…". Eine Woche ohne Lieferung ist leer, nicht 0 kg; Stück ohne Stückgewicht
+stehen als Stück darunter. Die Regel ist rein und geprüft (`auswertung/kw.ts`);
+im Prüfstand ist die Summe der Tabellen die Summe der Rohzeilen.
+
+### 4. Charge 1836
+
+Im Betrieb angelegt (Kaori Kuri, Perigon 199163, Saison 2026). Das Erntejournal
+findet sie über Schlag und Sorte oder über die Nummer, Perigon über 199163. Das
+Gebinde steht an der Palette, nicht an der Charge.
+
+### Was bewusst nicht gemacht wurde
+
+- **Keine Regel geändert.** Die Umbuch-Regel (0121) und das Nachordnen bleiben;
+  zurückgenommen ist eine Datenkorrektur der Runde, nicht ein Verhalten des
+  Programms.
+- **Keine Zählung eingetragen.** Der Betrieb zählt erst nach; eine Eingabe
+  „gezählt am …" wird gebaut, wenn er sie will.
+- **Die Artikelnamen der Tabelle sind die Artikel des Reiters** (Gruppe ×
+  Grösse × Label), nicht die Schreibweisen der Perigon-Datei — „Knirps könnte
+  viermal dort sein: klein, gross, Demeter, Knospe".
+- **Kleine, gefilterte Abfragen bleiben einzelne Anfragen** (Paletten einer
+  Charge, Zettel einer Arbeit): weit unter tausend, und der Test verbietet nur
+  das Blättern und die Obergrenze.
+- **Die Grenze von 27 kg und 73 kg bei 1614 und 1650** („Raten passen nicht")
+  und der Satz im Umbuch-Vorschlag: gesehen, dem Betrieb gesagt, nicht geändert.
+
 ## Runde BK, Schritt 8: Was die Durchsicht fand (9. November, 0143)
 
 Der Betrieb: die letzten Änderungen noch einmal ansehen — Fehler, Dinge, die

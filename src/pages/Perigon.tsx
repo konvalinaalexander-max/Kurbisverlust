@@ -24,6 +24,7 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { alleLesen } from '../lib/db'
 import { datum, tonnen, zahl, zeitpunkt } from '../lib/format'
 import { Herkunft, Hinweis, Karte, Kennzahl, Segmente } from '../components/Bausteine'
 import { useAuswertung, type Auswertung, type PerigonStand, type PerigonVerlauf, type VermerkStand } from '../auswertung/daten'
@@ -361,9 +362,11 @@ function Verlauf({ faelle, nummern, verlauf }: { faelle: Fall[]; nummern: Map<st
   useEffect(() => {
     let lebt = true
     void (async () => {
-      const r = await supabase.from('perigon_vermerk').select('id, schluessel, stand, notiz, ts, schnappschuss, profil(name)')
-        .order('ts', { ascending: false }).order('id', { ascending: false }).limit(2000)
-      if (lebt) setRoh(r.error ? [] : ((r.data ?? []) as unknown as VermerkZeile[]))
+      // Runde BL: jeder Vermerk — „limit(2000)" gab in Wahrheit höchstens tausend (lib/seiten.ts)
+      const z = await alleLesen<VermerkZeile>('perigon_vermerk', {
+        spalten: 'id, schluessel, stand, notiz, ts, schnappschuss, profil(name)', ordnung: [['ts', false], ['id', false]],
+      }).catch(() => [] as VermerkZeile[])
+      if (lebt) setRoh(z)
     })()
     return () => { lebt = false }
   }, [verlauf])

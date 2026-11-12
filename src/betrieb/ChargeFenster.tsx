@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { fehlerText } from '../lib/db'
+import { fehlerText, alleLesen, alsAntwort } from '../lib/db'
 import { taetigkeitVon } from '../lib/taetigkeit'
 import { WOERTERBUCH } from '../lib/i18n'
 import { datum, kg, prozent, zahl, zeitpunkt } from '../lib/format'
@@ -63,7 +63,8 @@ export function ChargeFenster({ chargeNr, schliessen }: { chargeNr: number; schl
           supabase.from('erg_charge').select('*').eq('charge_nr', chargeNr),
           supabase.from('erg_wohin').select('*').eq('gruppe', 'charge').eq('schluessel', String(chargeNr)),
           supabase.from('auftrag').select('id, weg, station, ist_fax, start_ts, ende_ts, status, abgebrochen_ts').eq('charge_nr', chargeNr).order('start_ts', { ascending: false }),
-          supabase.from('erg_lieferung').select('id, datum, masse_kg, ziel_name, buch').eq('charge_nr', chargeNr).order('datum', { ascending: false }),
+          // Runde BL: jede Lieferung der Charge, nicht höchstens tausend
+          alsAntwort(alleLesen<object>('erg_lieferung', { spalten: 'id, datum, masse_kg, ziel_name, buch', ordnung: [['datum', false], ['id', false]], filter: q => q.eq('charge_nr', chargeNr) })),
           supabase.from('erg_plausibilitaet').select('art, befund, auftrag_id').eq('charge_nr', chargeNr),
           supabase.from('v_arbeit_kommentar').select('auftrag_id, text, roh, ts').eq('charge_nr', chargeNr).order('ts', { ascending: false }),
           // 0123: was als Artikel verkauft werden kann — dieselbe Zahl wie in den Chargen und im Lagermanagement.

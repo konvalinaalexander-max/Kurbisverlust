@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { chargenAnlegen, einstellung, fehlerText, stammdaten } from '../lib/db'
+import { chargenAnlegen, einstellung, fehlerText, stammdaten, alleLesen } from '../lib/db'
 import { abgleichMeldung, importErkennen, journalAbgleichen, verdachtSatz, type BekanntePalette } from '../lib/import'
 import { Hinweis } from '../components/Bausteine'
 
@@ -55,15 +55,11 @@ export function JournalAbgleich() {
         // Runde AD: nicht mehr 500 Kennungen in einer Adresszeile (17 KB, am
         // 28. September „Bad Request"), sondern alle Kennungen des Journals
         // aus der Datenbank geblättert — 1000 je Anfrage, kurze Adresse.
-        const bekannt: BekanntePalette[] = []
-        for (let von = 0; ; von += 1000) {
-          const { data, error } = await supabase.from('palette')
-            .select('id, extern_id, charge_nr, charge_nr_journal, eingangsdatum, brutto_kg, kisten, gebindeart')
-            .eq('quelle', 'journal-import').order('id').range(von, von + 999)
-          if (error) throw error
-          bekannt.push(...((data ?? []) as BekanntePalette[]).map(p => ({ ...p, brutto_kg: p.brutto_kg === null ? null : Number(p.brutto_kg) })))
-          if ((data ?? []).length < 1000) break
-        }
+        // Runde BL: alleLesen — fest geordnet und gezählt (lib/seiten.ts)
+        const bekannt: BekanntePalette[] = (await alleLesen<BekanntePalette>('palette', {
+          spalten: 'id, extern_id, charge_nr, charge_nr_journal, eingangsdatum, brutto_kg, kisten, gebindeart',
+          ordnung: ['id'], filter: q => q.eq('quelle', 'journal-import'),
+        })).map(p => ({ ...p, brutto_kg: p.brutto_kg === null ? null : Number(p.brutto_kg) }))
         const { neu: neue, korrekturen, verdacht } = journalAbgleichen(b.paletten, bekannt)
         // Runde BJ: Berichtigungen an bekannten Paletten (Zeilen mit ID) übernehmen — Feld für Feld, was anders ist.
         for (const k of korrekturen) {

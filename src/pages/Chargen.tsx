@@ -20,7 +20,7 @@ import type { Auftrag } from '../lib/typen'
 import { herkunftText, summeBekannt } from '../lib/masse'
 import { LieferungFenster } from '../betrieb/LieferungFenster'
 import { useAuth } from '../auth/AuthProvider'
-import { fehlerText } from '../lib/db'
+import { fehlerText, alleLesen, alsAntwort } from '../lib/db'
 
 /** Wonach die Tabelle sortiert ist — der Betriebsleiter wählt es mit einem Klick auf den Kopf. */
 type Sortierung = 'nr' | 'lager' | 'verkaufsfaehig' | 'eingang'
@@ -528,7 +528,8 @@ function ChargeDetail({ nr, z, daten, bd, darf, neuRechnen }: { nr: number; z: Z
       const [a, m, li, al, vs, bs] = await Promise.all([
         supabase.from('auftrag').select('*').eq('charge_nr', nr).order('start_ts', { ascending: false }),
         supabase.from('v_auftrag_masse').select('auftrag_id, eingang_netto_kg, masse_quelle').eq('charge_nr', nr),
-        supabase.from('erg_lieferung').select('id, datum, ziel_name, kunde, masse_kg, masse_quelle').eq('charge_nr', nr).order('datum', { ascending: false }),
+        // Runde BL: jede Lieferung der Charge, nicht höchstens tausend
+        alsAntwort(alleLesen<object>('erg_lieferung', { spalten: 'id, datum, ziel_name, kunde, masse_kg, masse_quelle', ordnung: [['datum', false], ['id', false]], filter: q => q.eq('charge_nr', nr) })),
         supabase.from('v_am_lager').select('eingangsdatum, liegt_paletten, halle_paletten').eq('charge_nr', nr),
         supabase.from('v_verschenkt_charge').select('verschenkt_kg, ohne_wiegung_kg, system_offen_kg, quelle').eq('charge_nr', nr).maybeSingle(),
         supabase.from('v_unique_abgabe').select('kg, n_kisten, n_arbeiten, von, bis').eq('charge_nr', nr).maybeSingle(),

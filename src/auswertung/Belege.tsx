@@ -15,8 +15,7 @@
  * zuerst die ersten zehn.
  */
 import { useEffect, useState } from 'react'
-import { supabase } from '../lib/supabase'
-import { fehlerText } from '../lib/db'
+import { fehlerText, alleLesen, inTeilen } from '../lib/db'
 import { datum, kg } from '../lib/format'
 import { excelZeileVon, type RohZeile } from '../lib/warenausgang'
 import { Hinweis, Lade } from '../components/Bausteine'
@@ -54,29 +53,25 @@ export function useBelege(chargen: number[] = [], nummern: string[] = []): { bel
         let importe: I[]
         if (nachNummer) {
           // die Kennung einer Lieferung trägt die Nummer, wie Perigon sie schreibt: Firma:Position:Nummer:Lauf
-          const je = await Promise.all(nummern.map(nr => supabase.from('lieferung_import').select('lieferung_id, extern_id').like('extern_id', `%:${nr}:%`)))
-          for (const x of je) if (x.error) throw x.error
-          importe = je.flatMap(x => (x.data ?? []) as I[]).filter(x => nummern.includes(kennungAus(x.extern_id)?.charge ?? ''))
+          // Runde BL: jede Anfrage ganz (alleLesen) — mehrere Chargen zusammen haben mehr als tausend Lieferungen
+          const je = await Promise.all(nummern.map(nr => alleLesen<I>('lieferung_import', {
+            spalten: 'lieferung_id, extern_id', ordnung: ['lieferung_id'], filter: q => q.like('extern_id', `%:${nr}:%`) })))
+          importe = je.flat().filter(x => nummern.includes(kennungAus(x.extern_id)?.charge ?? ''))
           const ids = [...new Set(importe.map(x => x.lieferung_id))]
-          const l = ids.length ? await supabase.from('lieferung').select('id, datum, charge_nr, kg, kunde').in('id', ids).order('datum') : { data: [], error: null }
-          if (l.error) throw l.error
-          liste = (l.data ?? []) as L[]
+          liste = (await inTeilen(ids, teil => alleLesen<L>('lieferung', {
+            spalten: 'id, datum, charge_nr, kg, kunde', ordnung: ['datum', 'id'], filter: q => q.in('id', teil) })))
+            .sort((a, b) => a.datum.localeCompare(b.datum) || a.id - b.id)
         } else {
-          const l = chargen.length ? await supabase.from('lieferung').select('id, datum, charge_nr, kg, kunde').in('charge_nr', chargen).order('datum') : { data: [], error: null }
-          if (l.error) throw l.error
-          liste = (l.data ?? []) as L[]
-          const ids = liste.map(x => x.id)
-          const imp = ids.length ? await supabase.from('lieferung_import').select('lieferung_id, extern_id').in('lieferung_id', ids) : { data: [], error: null }
-          if (imp.error) throw imp.error
-          importe = (imp.data ?? []) as I[]
+          liste = chargen.length ? await alleLesen<L>('lieferung', {
+            spalten: 'id, datum, charge_nr, kg, kunde', ordnung: ['datum', 'id'], filter: q => q.in('charge_nr', chargen) }) : []
+          importe = await inTeilen(liste.map(x => x.id), teil => alleLesen<I>('lieferung_import', {
+            spalten: 'lieferung_id, extern_id', ordnung: ['lieferung_id'], filter: q => q.in('lieferung_id', teil) }))
         }
         const kennung = new Map(importe.map(x => [x.lieferung_id, kennungAus(x.extern_id)]))
         const posIds = [...new Set([...kennung.values()].map(k => k?.posId).filter((x): x is number => x != null))]
-        const pos = posIds.length
-          ? await supabase.from('ausgang_position').select('quelle, pos_id, artikel, roh').in('pos_id', posIds)
-          : { data: [], error: null }
-        if (pos.error) throw pos.error
-        const posVon = new Map(((pos.data ?? []) as { quelle: string; pos_id: number; artikel: string; roh: RohZeile[] | null }[])
+        const pos = await inTeilen(posIds, teil => alleLesen<{ quelle: string; pos_id: number; artikel: string; roh: RohZeile[] | null }>('ausgang_position', {
+          spalten: 'quelle, pos_id, artikel, roh', ordnung: ['quelle', 'pos_id'], filter: q => q.in('pos_id', teil) }))
+        const posVon = new Map(pos
           .map(p => [`${p.quelle}:${p.pos_id}`, p]))
         if (!lebt) return
         setBelege(liste.map(x => {

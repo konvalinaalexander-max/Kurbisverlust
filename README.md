@@ -798,6 +798,14 @@ ohne Perigon-Zeile als eigener Teil); jede PL/pgSQL-Funktion hat einen
 festen Suchpfad; die Perigon-Liste läuft nur einmal (AB-174 bis AB-176). Dazu die
 Halle: Faules ohne Ablesung ist „unbekannt", Fehler werden gezeigt. **Setup.sql
 einmal einspielen (Stand 124), dann „Neu rechnen".**
+**Runde BL (12. November, ohne Migration)** — **Die ganze Datei, die KW-Planung.**
+Beim Laden grosser Tabellen gingen Zeilen verloren (im Betrieb: 8 von 7790
+„geliefert je Kunde und Tag" fehlten, 8 kamen doppelt), und eine Liste schnitt
+nach 500 Zeilen ab — jetzt holt eine Stelle alles, gezählt und fest geordnet
+(AB-225). Neu unten im Lagermanagement nach Artikel: die KW-Planung — Kunden
+(einzeln oder als ganze Gruppe) und Kalenderwochen wählen, je Auswahl eine
+Tabelle Artikel × Woche mit Summe (AB-226). Stand bleibt 143, nichts
+einzuspielen.
 **Runde BK, Schritt 8 (0143)** — **Was die Durchsicht fand.** Eine Chargennummer
 „mix" in Perigon konnte jede Neuberechnung abbrechen; ein Lieferschein ohne
 Charge ging auch auf eine schon leer bestätigte Charge; der Satz „reicht / es

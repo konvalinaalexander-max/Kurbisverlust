@@ -4,7 +4,7 @@ import Sicherung from '../components/Sicherung'
 import { TaetZeichen, ZAuswahl, ZHaken, ZKreuz, ZMikrofon, ZNeu, ZPapierkorb, ZSprechblase } from '../components/Zeichen'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { chargeText, fehlerText, stammdaten } from '../lib/db'
+import { alleLesen, chargeText, fehlerText, stammdaten } from '../lib/db'
 import { taetigkeitVon } from '../lib/taetigkeit'
 import type { Durchsatz } from '../auswertung/daten'
 import { WOERTERBUCH } from '../lib/i18n'
@@ -62,18 +62,20 @@ export default function Arbeiten() {
   const laden = useCallback(async () => {
     void (async () => {
       try {
+        // Runde BL: alle Arbeiten, alle Rückmeldungen, jeder Durchsatz — vorher die letzten 400 und
+        // die letzten 1000, ohne dass die Seite es sagte (lib/seiten.ts).
         const [{ chargen }, a, d, r, pr] = await Promise.all([
           stammdaten(),
-          supabase.from('auftrag').select('*').order('start_ts', { ascending: false }).limit(400),
-          supabase.from('erg_durchsatz').select('*'),
-          supabase.from('auftrag_rueckmeldung').select('*').order('ts', { ascending: false }).limit(1000),
+          alleLesen<Auftrag>('auftrag', { ordnung: [['start_ts', false]] }),
+          alleLesen<Durchsatz>('erg_durchsatz'),
+          alleLesen<Rueckmeldung>('auftrag_rueckmeldung', { ordnung: [['ts', false]] }),
           supabase.from('profil').select('id, name'),
         ])
-        for (const x of [a, d, r, pr]) if (x.error) throw x.error
-        setChargen(chargen); setAuftraege((a.data ?? []) as Auftrag[])
-        setDurchsatz(new Map(((d.data ?? []) as Durchsatz[]).map(x => [x.auftrag_id, x])))
+        if (pr.error) throw pr.error
+        setChargen(chargen); setAuftraege(a)
+        setDurchsatz(new Map(d.map(x => [x.auftrag_id, x])))
         const m = new Map<number, Rueckmeldung[]>()
-        for (const x of (r.data ?? []) as Rueckmeldung[]) m.set(x.auftrag_id, [...(m.get(x.auftrag_id) ?? []), x])
+        for (const x of r) m.set(x.auftrag_id, [...(m.get(x.auftrag_id) ?? []), x])
         setRueckmeldungen(m)
         setNamen(new Map(((pr.data ?? []) as { id: string; name: string | null }[]).map(x => [x.id, x.name ?? ''])))
       } catch (f) { setFehler(fehlerText(f)) } finally { setLaedt(false) }

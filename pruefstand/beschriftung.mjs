@@ -134,6 +134,12 @@ const SEITEN = [
   { name: 'messungen-ausstehend', pfad: '/messungen/ausstehend' },
   // Runde AO (0112): das Lager nach Artikel.
   { name: 'artikel', pfad: '/artikel' },
+  // Runde BL: KW-Planung — jede Gruppe gewählt, alle Wochen: die Tabellen Artikel × Kalenderwoche.
+  { name: 'artikel-kw', pfad: '/artikel', tun: async p => {
+    await p.locator('#kw-kunden').click(); await p.locator('#kw-kunden-gruppen').click(); await p.keyboard.press('Escape')
+    await p.locator('#kw-wochen').click(); await p.locator('#kw-wochen-alle').click(); await p.keyboard.press('Escape')
+    await p.locator('.kw-block table').first().waitFor()
+  } },
   { name: 'betrieb-lieferungen', pfad: '/betrieb/lieferungen' },
 ]
 /** Die erste Sorte oder Charge im Filterfeld wählen. */
