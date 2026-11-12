@@ -1,10 +1,10 @@
 # Stand der Modelle
 
-_Abzug vom 2026-11-11. Von `pruefstand/betrieb_abzug.mjs` geschrieben; nicht von Hand ändern._
+_Abzug vom 2026-11-12. Von `pruefstand/betrieb_abzug.mjs` geschrieben; nicht von Hand ändern._
 
-Gerechnet: 11.11.2026, 09:17 (29 s) · Einstellungen: saison_aktuell = 2026 · betriebsmodus = "echt" · erfassung_scharf = false · verdunstung_rate_max_pro_tag = 0.01
+Gerechnet: 11.11.2026, 13:19 (26 s) · Einstellungen: saison_aktuell = 2026 · betriebsmodus = "echt" · erfassung_scharf = false · verdunstung_rate_max_pro_tag = 0.01
 
-**Zeitplan läuft** (*/1 * * * *) · letzter Lauf 11.11.2026, 12:55 · succeeded · 0 s · 1 row
+**Zeitplan läuft** (*/1 * * * *) · letzter Lauf 12.11.2026, 13:48 · succeeded · 0 s · 1 row
 
 Für die nächste Runde: Passen die Zahlen zu dem, was die Saison zeigen sollte (docs/SAISONBEGLEITUNG.md)? Wo steht ein Koeffizient auf „Wiegungen aller Sorten", weil die eigenen fehlen? Wo ist ein Band leer, wo ist die Basis dünn?
 
@@ -101,5 +101,5 @@ Für die nächste Runde: Passen die Zahlen zu dem, was die Saison zeigen sollte 
 
 | heute | eingang_kg | n_chargen | ausgang_kg | verkauf_kg | marge_kg | entsorgt_kg | ausgang_fehler_kg | n_lieferungen | letzte_lieferung | vorlauf_kg | geliefert_kg | ausgelagert_kg | verlust_heute_kg | verlust_unten_kg | verlust_oben_kg | verdunstung_heute_kg | schimmel_heute_kg | fax_heute_kg | fax_erwartet_kg | kanal_ausgelagert_kg | kanal_unten_kg | kanal_oben_kg | im_haus_heute_kg | verkaufsfaehig_heute_kg | kanal_im_haus_kg | lager_kg | gegenprobe_wartet_kg | ueberzaehlung_kg | fax_durchsatz_kg | n_fax_arbeiten | verlust_bekannt | bilanz_rest_kg | verschenkt_kg | leer_weg_kg | bilanz_rest_anteil | ausgang_deckung | befund |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| 2026-11-11 | 728344.14 | 36 | 345661.4 | 345661.4 | 0 | 0 | 0 | 1942 | 2026-11-08 | 0 | 345661.34 | 438020.51 | 128369.26 | 35058.06 | 235940.22 | 69385.48 | 58983.8 | 0 | 0 | 18512.59 | 0 | 77302.86 | 264105.61 | 237033.31 | 8559.73 | 304517.07 | 62499.36 | 14193.68 | 0 | 0 | true | 0.25 | 4401.36 | 0 | 0 | 0.4746 | Bis heute (11.11.2026): 728.3 t Eingang = 350.1 t ausgeliefert + 128.4 t Verlust (Verdunstung 69.4 t, Faules 59.0 t, Fax 0.0 t) + 264.1 t noch im Haus (davon 237.0 t verkaufsfähig, 27.1 t zu klein oder zu gross — aussortiert oder im Liegenden erwartet). Die Prognose bis zum Saisonende steht in der Grafik, nicht in diesen Zahlen. Im Ausgeliefert sind 4401 kg verschenkt: in den Kisten über dem Sollgewicht mitgegeben (gewogen), nicht verrechnet. 14194 kg Überzählung. |
+| 2026-11-11 | 728344.14 | 36 | 351537.3 | 351537.3 | 0 | 0 | 0 | 2001 | 2026-11-11 | 0 | 351537.23 | 445834.18 | 128430.98 | 35052.54 | 235764.27 | 69387.4 | 59043.6 | 0 | 0 | 18709.05 | 0 | 77324.03 | 258363.97 | 231306.19 | 8348.75 | 297003.64 | 62499.36 | 14493.95 | 0 | 0 | true | 0.24 | 4505.67 | 0 | 0 | 0.4827 | Bis heute (11.11.2026): 728.3 t Eingang = 356.0 t ausgeliefert + 128.4 t Verlust (Verdunstung 69.4 t, Faules 59.0 t, Fax 0.0 t) + 258.4 t noch im Haus (davon 231.3 t verkaufsfähig, 27.1 t zu klein oder zu gross — aussortiert oder im Liegenden erwartet). Die Prognose bis zum Saisonende steht in der Grafik, nicht in diesen Zahlen. Im Ausgeliefert sind 4506 kg verschenkt: in den Kisten über dem Sollgewicht mitgegeben (gewogen), nicht verrechnet. 14494 kg Überzählung. |
 

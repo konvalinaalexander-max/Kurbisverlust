@@ -1,6 +1,6 @@
 # Auffälligkeiten der Messungen
 
-_Abzug vom 2026-11-11. Von `pruefstand/betrieb_abzug.mjs` geschrieben; nicht von Hand ändern._
+_Abzug vom 2026-11-12. Von `pruefstand/betrieb_abzug.mjs` geschrieben; nicht von Hand ändern._
 
 Was die Auswertung nicht in die Rechnung nimmt, weil es nicht zu seinem Nenner passt. Für die nächste Runde: Wo entsteht das im Ablauf oder in der Maske? Was ist ein Datenfehler, der dem Betrieb gehört? Was könnte die App besser abfangen?
 
@@ -281,7 +281,7 @@ Was die Auswertung nicht in die Rechnung nimmt, weil es nicht zu seinem Nenner p
   - Unter dieser Charge gingen 10566 kg hinaus, hereingekommen sind 8299 kg — 2267 kg mehr, als je da war. Das erklärt keine Rate: sicher ein Datenfehler.
   - _Zwei Möglichkeiten: Im Erntejournal fehlt eine Palette dieser Charge, oder ein Lieferschein ist auf die falsche Chargennummer gebucht. Beides lässt sich nachtragen._
 - **Nr. 6 · Überzählung** · offen · Charge 1624 — Agasul Rüegg · Butterkin · `charge:1624`
-  - Die Lieferungen dieser Charge (15489 kg) brauchen mit den gerechneten Raten 21255 kg Eingang, auch mit den günstigsten der Spanne noch 19778 kg — hereingekommen sind 16788 kg. Geliefert wurde nicht mehr als eingelagert, aber mehr, als die Raten aus diesem Eingang erlauben: die Raten passen nicht zur Charge.
+  - Die Lieferungen dieser Charge (15494 kg) brauchen mit den gerechneten Raten 21261 kg Eingang, auch mit den günstigsten der Spanne noch 19785 kg — hereingekommen sind 16788 kg. Geliefert wurde nicht mehr als eingelagert, aber mehr, als die Raten aus diesem Eingang erlauben: die Raten passen nicht zur Charge.
   - _Drei Möglichkeiten: Die Charge verliert weniger als ihre Sorte (gerechnet Verdunstung 0.28 % je Tag, Palox 12 %); im Erntejournal fehlt eine Palette; oder ein Lieferschein gehört einer anderen Charge. Ist die Charge am Lager leer, im Reiter Chargen „Charge ist leer" drücken — dann misst die App ihren echten Verlust._
 - **Nr. 2 · Überzählung** · offen · Charge 1614 — Slowgrow Uster · Kaori Kuri · `charge:1614`
   - Die Lieferungen dieser Charge (9196 kg) brauchen mit den gerechneten Raten 11225 kg Eingang, auch mit den günstigsten der Spanne noch 10585 kg — hereingekommen sind 10559 kg. Geliefert wurde nicht mehr als eingelagert, aber mehr, als die Raten aus diesem Eingang erlauben: die Raten passen nicht zur Charge.
